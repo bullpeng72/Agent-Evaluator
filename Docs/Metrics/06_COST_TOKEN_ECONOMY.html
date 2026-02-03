@@ -1,0 +1,2029 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cost/Token Economy - Agent Evaluator v0.5.0</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            line-height: 1.8;
+            color: #1a202c;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 40px 20px;
+        }
+
+        .container {
+    max-width: 1400px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 60px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 3.5em;
+            margin-bottom: 20px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.2);
+        }
+
+        .header .subtitle {
+            font-size: 1.4em;
+            opacity: 0.95;
+            font-weight: 300;
+        }
+
+        .version-badge {
+            display: inline-block;
+            background: rgba(255,255,255,0.2);
+            padding: 12px 30px;
+            border-radius: 30px;
+            backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    margin-top: 15px;
+            font-size: 1em;
+        }
+
+        .content {    padding: 60px;
+        }
+
+        .section {
+            margin-bottom: 50px;
+        }
+
+        .section h2 {
+            color: #667eea;
+            font-size: 2.2em;
+            margin-bottom: 25px;
+            padding-bottom: 15px;
+            border-bottom: 3px solid #667eea;
+        }
+
+        .section h3 {
+            color: #764ba2;
+            font-size: 1.6em;
+            margin: 30px 0 20px 0;
+        }
+
+        .section h4 {
+            color: #553c9a;
+            font-size: 1.3em;
+            margin: 25px 0 15px 0;
+        }
+
+        .intro-box {
+            background: linear-gradient(135deg, #f6f8fb 0%, #e9ecf5 100%);
+            padding: 30px;
+            border-radius: 8px;
+            border-left: 5px solid #667eea;
+            margin: 25px 0;
+            font-size: 1.1em;
+            line-height: 1.8;
+        }
+
+        .importance-box {
+            background: linear-gradient(135deg, #fff5f5 0%, #fed7d7 100%);
+            padding: 30px;
+            border-radius: 15px;
+            border-left: 6px solid #f56565;
+            margin: 25px 0;
+        }
+
+        .importance-box h3 {
+            color: #c53030;
+            margin-top: 0;
+        }
+
+        .code-block {
+            background: #2d3748;
+            color: #e2e8f0;
+            padding: 25px;
+            border-radius: 8px;
+            overflow-x: auto;
+            margin: 20px 0;
+            border-left: 4px solid #667eea;
+            font-family: 'Courier New', monospace;
+            font-size: 0.95em;
+            line-height: 1.6;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+
+        .keyword { color: #c678dd; font-weight: bold; }
+        .function { color: #61afef; }
+        .string { color: #98c379; }
+        .comment { color: #5c6370; font-style: italic; }
+        .number { color: #d19a66; }
+        .operator { color: #56b6c2; }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 25px;
+            margin: 30px 0;
+        }
+
+        .stat-card {
+            background: linear-gradient(135deg, #f6f8fb 0%, #e9ecf5 100%);
+            padding: 25px;
+            border-radius: 12px;
+            border-left: 5px solid #667eea;
+        }
+
+        .stat-card h4 {
+            color: #667eea;
+            margin: 0 0 12px 0;
+            font-size: 1.1em;
+        }
+
+        .stat-card p {
+            color: #4a5568;
+            margin: 8px 0;
+            line-height: 1.6;
+        }
+
+        .formula-box {
+            background: #f7fafc;
+            border: 2px solid #667eea;
+            border-radius: 10px;
+            padding: 25px;
+            margin: 25px 0;
+            text-align: center;
+        }
+
+        .formula {
+            font-size: 1.3em;
+            font-weight: bold;
+            color: #2d3748;
+            font-family: 'Courier New', monospace;
+            margin: 15px 0;
+        }
+
+        .warning-box {
+            background: linear-gradient(135deg, #fffaf0 0%, #feebc8 100%);
+            padding: 25px;
+            border-radius: 12px;
+            border-left: 6px solid #dd6b20;
+            margin: 25px 0;
+        }
+
+        .warning-box h4 {
+            color: #c05621;
+            margin-top: 0;
+        }
+
+        ul, ol {
+            margin: 20px 0;
+            padding-left: 30px;
+        }
+
+        li {
+            margin: 12px 0;
+            line-height: 1.7;
+        }
+
+        .highlight {
+            background: linear-gradient(120deg, #fef5e7 0%, #fdebd0 100%);
+            padding: 3px 8px;
+            border-radius: 4px;
+            font-weight: 600;
+            color: #744210;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 25px 0;
+            background: white;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            border-radius: 8px;
+            overflow: hidden;
+        }
+
+        th {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 15px;
+            text-align: left;
+            font-weight: 600;
+        }
+
+        td {
+            padding: 15px;
+            border-bottom: 1px solid #e2e8f0;
+        }
+
+        tr:last-child td {
+            border-bottom: none;
+        }
+
+        tr:hover {
+            background: #f7fafc;
+        }
+
+        .best-practice {
+            background: linear-gradient(135deg, #f0fff4 0%, #c6f6d5 100%);
+            padding: 20px;
+            border-radius: 10px;
+            border-left: 5px solid #38a169;
+            margin: 15px 0;
+        }
+
+        .best-practice strong {
+            color: #22543d;
+        }
+
+        .metric-value {
+            font-size: 2em;
+            font-weight: bold;
+            color: #667eea;
+            margin: 10px 0;
+        }
+
+        .implementation-note {
+            background: #edf2f7;
+            padding: 20px;
+            border-radius: 8px;
+            margin: 20px 0;
+            border-left: 4px solid #4299e1;
+        }
+
+        .implementation-note strong {
+            color: #2c5282;
+        }
+
+        .pricing-table {
+            background: #f7fafc;
+            padding: 20px;
+            border-radius: 10px;
+            margin: 20px 0;
+        }
+
+        /* Mermaid Diagrams */
+        .mermaid {
+            margin: 40px 0;
+            text-align: center;
+            background: linear-gradient(135deg, #f6f8fb 0%, #e9ecf5 100%);
+            padding: 30px;
+            border-radius: 15px;
+            border: 1px solid #e2e8f0;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            transition: all 0.3s ease;
+        }
+
+        .mermaid:hover {
+            box-shadow: 0 8px 20px rgba(0,0,0,0.15);
+            transform: translateY(-2px);
+        }
+
+        /* Mermaid Diagram Zoom Modal Styles */
+.mermaid-modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 10000;
+    opacity: 0;
+    transition: opacity 0.2s ease;
+}
+
+.mermaid-modal.active {
+    opacity: 1;
+}
+
+.mermaid-modal.closing {
+    opacity: 0;
+}
+
+/* Modal backdrop */
+.mermaid-modal-backdrop {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.85);
+    backdrop-filter: blur(4px);
+}
+
+/* Modal content container */
+.mermaid-modal-content {
+    position: relative;
+    width: 90vw;
+    height: 90vh;
+    max-width: 1400px;
+    max-height: 900px;
+    margin: 5vh auto;
+    background: var(--bg-white);
+    border-radius: var(--radius-xl);
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;  /* Keep border-radius working */
+}
+
+/* Modal header */
+.mermaid-modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: var(--space-md) var(--space-lg);
+    background: linear-gradient(135deg, var(--primary-color) 0%, var(--primary-dark) 100%);
+    color: white;
+    border-bottom: 1px solid var(--bg-border);
+}
+
+.mermaid-modal-title {
+    font-size: 1.1rem;
+    font-weight: 600;
+}
+
+.mermaid-modal-controls {
+    display: flex;
+    gap: var(--space-sm);
+}
+
+.mermaid-btn {
+    background: rgba(255, 255, 255, 0.2);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    color: white;
+    padding: var(--space-sm);
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    transition: all var(--transition-fast);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+}
+
+.mermaid-btn:hover {
+    background: rgba(255, 255, 255, 0.3);
+    border-color: rgba(255, 255, 255, 0.5);
+    transform: scale(1.05);
+}
+
+.mermaid-btn:active {
+    transform: scale(0.95);
+}
+
+.mermaid-btn svg {
+    width: 20px;
+    height: 20px;
+}
+
+/* Modal body */
+.mermaid-modal-body {
+    flex: 1;
+    overflow: visible;  /* Don't clip transformed content */
+    position: relative;
+    background: #ffffff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* Diagram container */
+.mermaid-diagram-container {
+    transform-origin: center center;
+    /* No transition during drag - will be added dynamically only for zoom */
+    transition: none;
+    /* Remove max-width/height constraints to allow diagrams to display at original size */
+    /* The modal-body will handle overflow with scrolling */
+    display: inline-block;
+    position: relative;
+    /* Ensure content is visible even when transformed */
+    pointer-events: auto;
+    z-index: 1;
+    /* Prevent disappearing due to overflow clipping */
+    will-change: transform;
+}
+
+/* Add transition class for zoom (not drag) */
+.mermaid-diagram-container.zoom-transition {
+    transition: transform 0.2s ease;
+}
+
+.mermaid-diagram-container svg {
+    max-width: none !important;
+    max-height: none !important;
+    display: block;
+    cursor: grab;
+}
+
+.mermaid-diagram-container svg:active {
+    cursor: grabbing;
+}
+
+/* Responsive modal */
+@media (max-width: 768px) {
+    .mermaid-modal-content {
+        width: 95vw;
+        height: 85vh;
+        margin: 7.5vh auto;
+    }
+
+    .mermaid-modal-header {
+        padding: var(--space-sm) var(--space-md);
+    }
+
+    .mermaid-modal-title {
+        font-size: 1rem;
+    }
+
+    .mermaid-btn {
+        width: 32px;
+        height: 32px;
+    }
+
+    .mermaid-btn svg {
+        width: 18px;
+        height: 18px;
+    }
+}
+
+/* Dark mode support for modal */
+@media (prefers-color-scheme: dark) {
+    .mermaid-modal-content {
+        background: var(--bg-white);
+        border: 1px solid var(--bg-border);
+    }
+
+    .mermaid-modal-body {
+        background: #ffffff;
+    }
+}
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>💰 Cost/Token Economy</h1>
+            <div class="subtitle">Token Usage and Cost Tracking for AI Agents</div>
+            <div class="version-badge">Agent Evaluator v0.5.0 - Layer 1 Foundation Metric</div>
+        </div>
+
+        <div class="content">
+            <!-- Introduction -->
+            <div class="section">
+                <h2>📊 개요</h2>
+                <div class="intro-box">
+                    <strong>Cost/Token Economy</strong>는 AI 에이전트의 <span class="highlight">토큰 사용량과 비용</span>을 추적하고 분석하는 Layer 1 기본 메트릭입니다.
+                    <br><br>
+                    LLM API 사용 비용은 프로덕션 AI 시스템 운영의 주요 비용 항목입니다. 이 메트릭은 입력/출력 토큰을 별도 추적하고,
+                    작업 유형별/모델별 비용을 분석하여 <span class="highlight">비용 최적화</span>와 <span class="highlight">예산 관리</span>를 지원합니다.
+                </div>
+
+                <div class="importance-box">
+                    <h3>⚠️ 중요성</h3>
+                    <ul>
+                        <li><strong>비용 투명성</strong>: 실시간으로 API 사용 비용을 정확히 파악</li>
+                        <li><strong>예산 관리</strong>: 월간 예상 비용을 산출하여 예산 초과 방지</li>
+                        <li><strong>최적화 기회 식별</strong>: 비효율적인 토큰 사용 패턴 발견</li>
+                        <li><strong>모델 선택</strong>: 비용 대비 성능을 고려한 모델 선택 지원</li>
+                        <li><strong>ROI 계산</strong>: AI 에이전트의 비용 대비 효과 측정</li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- Implementation Location -->
+            <div class="section">
+                <h2>📍 구현 위치</h2>
+                <div class="implementation-note">
+                    <strong>파일:</strong> <code>agent_evaluator/core/agent_evaluator.py</code><br>
+                    <strong>클래스:</strong> <code>TokenEconomyTracker</code><br>
+                    <strong>라인:</strong> 1065-1188 (총 124줄)
+                </div>
+
+                <h3>핵심 메서드</h3>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>메서드</th>
+                            <th>라인</th>
+                            <th>기능</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><code>__init__(pricing)</code></td>
+                            <td>1068-1074</td>
+                            <td>모델의 입력/출력 토큰 가격 설정</td>
+                        </tr>
+                        <tr>
+                            <td><code>track_usage()</code></td>
+                            <td>1076-1091</td>
+                            <td>각 작업의 토큰 사용량과 비용 기록</td>
+                        </tr>
+                        <tr>
+                            <td><code>_calculate_cost()</code></td>
+                            <td>1093-1097</td>
+                            <td>입력/출력 토큰 기반 비용 계산</td>
+                        </tr>
+                        <tr>
+                            <td><code>get_usage_stats()</code></td>
+                            <td>1099-1128</td>
+                            <td>전체 토큰 사용량 및 비용 통계</td>
+                        </tr>
+                        <tr>
+                            <td><code>get_usage_by_type()</code></td>
+                            <td>1130-1141</td>
+                            <td>작업 유형별 사용량 및 비용 분석</td>
+                        </tr>
+                        <tr>
+                            <td><code>get_cost_breakdown_by_model()</code></td>
+                            <td>1143-1188</td>
+                            <td>모델별 상세 비용 분석</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="section">
+                <h2>📊 동작 흐름 다이어그램</h2>
+
+                <h4>Token Economy 비용 계산 흐름</h4>
+                <div class="mermaid">
+graph TD
+    A[input_tokens, output_tokens] --> B[_calculate_cost]
+    B --> C[input_cost = <br/>input_tokens/1000 × price]
+    B --> D[output_cost = <br/>output_tokens/1000 × price]
+    C --> E[total_cost 반환]
+    D --> E
+
+    F[usage_log List] --> G{get_usage_stats}
+    G --> H[DataFrame 변환]
+    H --> I1[total_tokens 합산]
+    H --> I2[total_cost 합산]
+    H --> I3[avg/task 계산]
+    H --> I4[token_distribution<br/>입출력 비율]
+    H --> I5[cost_percentiles<br/>P50/P90/P95]
+
+    I1 --> J[통계 dict 반환]
+    I2 --> J
+    I3 --> J
+    I4 --> J
+    I5 --> J
+
+    style A fill:#667eea,color:#fff
+    style B fill:#48bb78,color:#fff
+    style E fill:#38a169,color:#fff
+    style F fill:#667eea,color:#fff
+    style G fill:#48bb78,color:#fff
+    style J fill:#3182ce,color:#fff
+                </div>
+            </div>
+
+            <!-- Cost Calculation -->
+            <div class="section">
+                <h2>💵 비용 계산</h2>
+
+                <div class="intro-box">
+                    LLM API는 일반적으로 입력 토큰(Input)과 출력 토큰(Output)에 대해 <strong>서로 다른 가격</strong>을 책정합니다.
+                    출력 토큰이 입력 토큰보다 2-3배 비싼 경우가 많습니다.
+                </div>
+
+                <h3>비용 계산 공식</h3>
+                <div class="formula-box">
+                    <div>총 비용 = 입력 비용 + 출력 비용</div>
+                    <div class="formula">
+                        Cost = (Input Tokens / 1000) × Input Price + (Output Tokens / 1000) × Output Price
+                    </div>
+                </div>
+
+                <div class="code-block">
+<span class="keyword">def</span> <span class="function">_calculate_cost</span>(self, input_tokens: int, output_tokens: int) -> float:
+    <span class="string">"""Calculate cost based on token usage"""</span>
+    <span class="comment"># 입력 토큰 비용 (1000개당 가격)</span>
+    input_cost = (input_tokens / <span class="number">1000</span>) * self.pricing[<span class="string">"input"</span>]
+
+    <span class="comment"># 출력 토큰 비용 (1000개당 가격)</span>
+    output_cost = (output_tokens / <span class="number">1000</span>) * self.pricing[<span class="string">"output"</span>]
+
+    <span class="keyword">return</span> input_cost + output_cost
+                </div>
+
+                <h3>주요 LLM 모델 가격 (2024년 기준)</h3>
+                <div class="pricing-table">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>모델</th>
+                                <th>입력 (per 1M tokens)</th>
+                                <th>출력 (per 1M tokens)</th>
+                                <th>출력/입력 비율</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><strong>GPT-4 Turbo</strong></td>
+                                <td>$10.00</td>
+                                <td>$30.00</td>
+                                <td>3.0x</td>
+                            </tr>
+                            <tr>
+                                <td><strong>GPT-3.5 Turbo</strong></td>
+                                <td>$0.50</td>
+                                <td>$1.50</td>
+                                <td>3.0x</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Claude 3 Opus</strong></td>
+                                <td>$15.00</td>
+                                <td>$75.00</td>
+                                <td>5.0x</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Claude 3 Sonnet</strong></td>
+                                <td>$3.00</td>
+                                <td>$15.00</td>
+                                <td>5.0x</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Claude 3.5 Sonnet</strong></td>
+                                <td>$3.00</td>
+                                <td>$15.00</td>
+                                <td>5.0x</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Claude 3 Haiku</strong></td>
+                                <td>$0.25</td>
+                                <td>$1.25</td>
+                                <td>5.0x</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Gemini 1.5 Pro</strong></td>
+                                <td>$3.50</td>
+                                <td>$10.50</td>
+                                <td>3.0x</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Llama 3 70B (Groq)</strong></td>
+                                <td>$0.59</td>
+                                <td>$0.79</td>
+                                <td>1.3x</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="warning-box">
+                    <h4>⚠️ 가격 변동 주의</h4>
+                    LLM 모델 가격은 자주 변경됩니다. 최신 가격은 각 제공사의 공식 문서를 확인하세요:
+                    <ul style="margin-top: 10px;">
+                        <li>OpenAI: https://openai.com/pricing</li>
+                        <li>Anthropic: https://www.anthropic.com/pricing</li>
+                        <li>Google: https://cloud.google.com/vertex-ai/pricing</li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- Usage Tracking -->
+            <div class="section">
+                <h2>📈 사용량 추적</h2>
+
+                <h3>토큰 사용량 기록</h3>
+                <div class="code-block">
+<span class="keyword">def</span> <span class="function">track_usage</span>(self, task_id: str, input_tokens: int,
+               output_tokens: int, task_type: str, model: str = <span class="string">"default"</span>):
+    <span class="string">"""Track token usage for a task"""</span>
+    total_tokens = input_tokens + output_tokens
+    cost = self.<span class="function">_calculate_cost</span>(input_tokens, output_tokens)
+
+    self.usage_log.append({
+        <span class="string">"task_id"</span>: task_id,
+        <span class="string">"task_type"</span>: task_type,
+        <span class="string">"model"</span>: model,
+        <span class="string">"input_tokens"</span>: input_tokens,
+        <span class="string">"output_tokens"</span>: output_tokens,
+        <span class="string">"total_tokens"</span>: total_tokens,
+        <span class="string">"cost"</span>: cost,
+        <span class="string">"timestamp"</span>: datetime.now()
+    })
+                </div>
+
+                <h3>전체 사용량 통계</h3>
+                <div class="code-block">
+<span class="keyword">def</span> <span class="function">get_usage_stats</span>(self) -> Dict[str, Any]:
+    <span class="string">"""Get token usage statistics"""</span>
+    <span class="keyword">if not</span> self.usage_log:
+        <span class="keyword">return</span> {}
+
+    df = pd.DataFrame(self.usage_log)
+
+    total_input = <span class="function">int</span>(df[<span class="string">"input_tokens"</span>].sum())
+    total_output = <span class="function">int</span>(df[<span class="string">"output_tokens"</span>].sum())
+    total_tokens = <span class="function">int</span>(df[<span class="string">"total_tokens"</span>].sum())
+
+    <span class="keyword">return</span> {
+        <span class="string">"total_tasks"</span>: <span class="function">len</span>(df),
+        <span class="string">"total_tokens"</span>: total_tokens,
+        <span class="string">"total_input_tokens"</span>: total_input,
+        <span class="string">"total_output_tokens"</span>: total_output,
+        <span class="string">"total_cost"</span>: <span class="function">round</span>(df[<span class="string">"cost"</span>].sum(), <span class="number">4</span>),
+        <span class="string">"avg_tokens_per_task"</span>: <span class="function">round</span>(df[<span class="string">"total_tokens"</span>].mean(), <span class="number">2</span>),
+        <span class="string">"avg_cost_per_task"</span>: <span class="function">round</span>(df[<span class="string">"cost"</span>].mean(), <span class="number">4</span>),
+        <span class="string">"estimated_monthly_cost"</span>: <span class="function">round</span>(df[<span class="string">"cost"</span>].sum() * <span class="number">30</span>, <span class="number">2</span>),
+        <span class="string">"token_distribution"</span>: {
+            <span class="string">"input_ratio"</span>: <span class="function">round</span>(total_input / total_tokens, <span class="number">3</span>) <span class="keyword">if</span> total_tokens > <span class="number">0</span> <span class="keyword">else</span> <span class="number">0</span>,
+            <span class="string">"output_ratio"</span>: <span class="function">round</span>(total_output / total_tokens, <span class="number">3</span>) <span class="keyword">if</span> total_tokens > <span class="number">0</span> <span class="keyword">else</span> <span class="number">0</span>
+        },
+        <span class="string">"cost_percentiles"</span>: {
+            <span class="string">"p50"</span>: <span class="function">round</span>(df[<span class="string">"cost"</span>].quantile(<span class="number">0.5</span>), <span class="number">4</span>),
+            <span class="string">"p90"</span>: <span class="function">round</span>(df[<span class="string">"cost"</span>].quantile(<span class="number">0.9</span>), <span class="number">4</span>),
+            <span class="string">"p95"</span>: <span class="function">round</span>(df[<span class="string">"cost"</span>].quantile(<span class="number">0.95</span>), <span class="number">4</span>)
+        }
+    }
+                </div>
+
+                <h3>주요 통계 지표</h3>
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <h4>Total Tokens</h4>
+                        <p>전체 사용된 토큰 수 (입력 + 출력)</p>
+                        <p><strong>용도:</strong> 전체 사용량 파악</p>
+                    </div>
+
+                    <div class="stat-card">
+                        <h4>Total Cost</h4>
+                        <p>누적 총 비용 (달러)</p>
+                        <p><strong>용도:</strong> 실제 지출 금액 추적</p>
+                    </div>
+
+                    <div class="stat-card">
+                        <h4>Avg Tokens per Task</h4>
+                        <p>작업당 평균 토큰 사용량</p>
+                        <p><strong>용도:</strong> 효율성 벤치마크</p>
+                    </div>
+
+                    <div class="stat-card">
+                        <h4>Avg Cost per Task</h4>
+                        <p>작업당 평균 비용</p>
+                        <p><strong>용도:</strong> 단위 비용 모니터링</p>
+                    </div>
+
+                    <div class="stat-card">
+                        <h4>Estimated Monthly Cost</h4>
+                        <p>현재 사용량 기반 월간 예상 비용</p>
+                        <p><strong>용도:</strong> 예산 계획</p>
+                    </div>
+
+                    <div class="stat-card">
+                        <h4>Token Distribution</h4>
+                        <p>입력/출력 토큰 비율</p>
+                        <p><strong>용도:</strong> 사용 패턴 분석</p>
+                    </div>
+
+                    <div class="stat-card">
+                        <h4>Cost Percentiles</h4>
+                        <p>비용 분포 (P50, P90, P95)</p>
+                        <p><strong>용도:</strong> 비용 변동성 파악</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Task Type Analysis -->
+            <div class="section">
+                <h2>📊 작업 유형별 분석</h2>
+
+                <div class="intro-box">
+                    작업 유형(QA, Code Generation, Summarization 등)에 따라 토큰 사용량과 비용이 크게 다릅니다.
+                    <code>get_usage_by_type()</code>는 각 작업 유형별 통계를 제공합니다.
+                </div>
+
+                <div class="code-block">
+<span class="keyword">def</span> <span class="function">get_usage_by_type</span>(self) -> Dict[str, Dict[str, float]]:
+    <span class="string">"""Get usage breakdown by task type"""</span>
+    <span class="keyword">if not</span> self.usage_log:
+        <span class="keyword">return</span> {}
+
+    df = pd.DataFrame(self.usage_log)
+
+    <span class="comment"># Group by task type and aggregate</span>
+    grouped = df.groupby(<span class="string">"task_type"</span>).agg({
+        <span class="string">"total_tokens"</span>: [<span class="string">"sum"</span>, <span class="string">"mean"</span>],
+        <span class="string">"cost"</span>: [<span class="string">"sum"</span>, <span class="string">"mean"</span>]
+    }).<span class="function">round</span>(<span class="number">2</span>)
+
+    <span class="keyword">return</span> grouped.to_dict()
+                </div>
+
+                <h3>사용 예시</h3>
+                <div class="code-block">
+<span class="comment"># 작업 유형별 비용 분석</span>
+usage_by_type = tracker.get_usage_by_type()
+
+<span class="keyword">for</span> task_type, stats <span class="keyword">in</span> usage_by_type.items():
+    <span class="function">print</span>(<span class="string">f"<span class="operator">\n</span>Task Type: {task_type}"</span>)
+    <span class="function">print</span>(<span class="string">f"  Total Tokens: {stats[('total_tokens', 'sum')]}"</span>)
+    <span class="function">print</span>(<span class="string">f"  Avg Tokens: {stats[('total_tokens', 'mean')]}"</span>)
+    <span class="function">print</span>(<span class="string">f"  Total Cost: ${stats[('cost', 'sum')]:.4f}"</span>)
+    <span class="function">print</span>(<span class="string">f"  Avg Cost: ${stats[('cost', 'mean')]:.4f}"</span>)
+
+<span class="comment"># 출력 예시:
+# Task Type: qa
+#   Total Tokens: 125000
+#   Avg Tokens: 833.33
+#   Total Cost: $0.1875
+#   Avg Cost: $0.0013
+#
+# Task Type: code_generation
+#   Total Tokens: 450000
+#   Avg Tokens: 6000.00
+#   Total Cost: $1.3500
+#   Avg Cost: $0.0180</span>
+                </div>
+
+                <h3>작업 유형별 비용 특성</h3>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>작업 유형</th>
+                            <th>일반적인 토큰 사용</th>
+                            <th>비용 특성</th>
+                            <th>최적화 방법</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><strong>QA</strong></td>
+                            <td>낮음 (500-2000)</td>
+                            <td>입력 비중 높음</td>
+                            <td>컨텍스트 최소화, 캐싱</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Code Generation</strong></td>
+                            <td>높음 (3000-8000)</td>
+                            <td>출력 비중 높음</td>
+                            <td>Few-shot 예시 최적화</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Summarization</strong></td>
+                            <td>중간 (2000-5000)</td>
+                            <td>입력 매우 높음</td>
+                            <td>청크 크기 조정, 스트리밍</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Reasoning</strong></td>
+                            <td>높음 (4000-10000)</td>
+                            <td>출력 비중 높음</td>
+                            <td>Chain-of-thought 길이 제한</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Classification</strong></td>
+                            <td>낮음 (200-800)</td>
+                            <td>출력 매우 낮음</td>
+                            <td>배치 처리, 간단한 모델</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Model Breakdown -->
+            <div class="section">
+                <h2>🤖 모델별 비용 분석</h2>
+
+                <div class="intro-box">
+                    여러 LLM 모델을 함께 사용하는 경우, 각 모델의 비용 기여도를 파악하는 것이 중요합니다.
+                    <code>get_cost_breakdown_by_model()</code>는 모델별 상세 통계를 제공합니다.
+                </div>
+
+                <div class="code-block">
+<span class="keyword">def</span> <span class="function">get_cost_breakdown_by_model</span>(self) -> Dict[str, Dict[str, Any]]:
+    <span class="string">"""Get detailed cost breakdown by model"""</span>
+    <span class="keyword">if not</span> self.usage_log:
+        <span class="keyword">return</span> {}
+
+    <span class="comment"># Group by model</span>
+    model_data = defaultdict(<span class="keyword">lambda</span>: {
+        <span class="string">"input_tokens"</span>: [],
+        <span class="string">"output_tokens"</span>: [],
+        <span class="string">"total_tokens"</span>: [],
+        <span class="string">"costs"</span>: [],
+        <span class="string">"task_count"</span>: <span class="number">0</span>
+    })
+
+    <span class="keyword">for</span> entry <span class="keyword">in</span> self.usage_log:
+        model = entry.get(<span class="string">"model"</span>, <span class="string">"default"</span>)
+        model_data[model][<span class="string">"input_tokens"</span>].append(entry[<span class="string">"input_tokens"</span>])
+        model_data[model][<span class="string">"output_tokens"</span>].append(entry[<span class="string">"output_tokens"</span>])
+        model_data[model][<span class="string">"total_tokens"</span>].append(entry[<span class="string">"total_tokens"</span>])
+        model_data[model][<span class="string">"costs"</span>].append(entry[<span class="string">"cost"</span>])
+        model_data[model][<span class="string">"task_count"</span>] += <span class="number">1</span>
+
+    <span class="comment"># Calculate statistics for each model</span>
+    breakdown = {}
+    <span class="keyword">for</span> model, data <span class="keyword">in</span> model_data.items():
+        costs = data[<span class="string">"costs"</span>]
+        total_tokens = data[<span class="string">"total_tokens"</span>]
+        input_tokens = data[<span class="string">"input_tokens"</span>]
+        output_tokens = data[<span class="string">"output_tokens"</span>]
+
+        breakdown[model] = {
+            <span class="string">"total_cost"</span>: <span class="function">round</span>(<span class="function">sum</span>(costs), <span class="number">4</span>),
+            <span class="string">"avg_cost_per_task"</span>: <span class="function">round</span>(statistics.<span class="function">mean</span>(costs), <span class="number">4</span>),
+            <span class="string">"median_cost"</span>: <span class="function">round</span>(statistics.<span class="function">median</span>(costs), <span class="number">4</span>),
+            <span class="string">"min_cost"</span>: <span class="function">round</span>(<span class="function">min</span>(costs), <span class="number">4</span>),
+            <span class="string">"max_cost"</span>: <span class="function">round</span>(<span class="function">max</span>(costs), <span class="number">4</span>),
+            <span class="string">"std_cost"</span>: <span class="function">round</span>(statistics.<span class="function">stdev</span>(costs), <span class="number">4</span>) <span class="keyword">if</span> <span class="function">len</span>(costs) > <span class="number">1</span> <span class="keyword">else</span> <span class="number">0.0</span>,
+            <span class="string">"total_tasks"</span>: data[<span class="string">"task_count"</span>],
+            <span class="string">"total_tokens"</span>: <span class="function">sum</span>(total_tokens),
+            <span class="string">"total_input_tokens"</span>: <span class="function">sum</span>(input_tokens),
+            <span class="string">"total_output_tokens"</span>: <span class="function">sum</span>(output_tokens),
+            <span class="string">"avg_tokens_per_task"</span>: <span class="function">round</span>(statistics.<span class="function">mean</span>(total_tokens), <span class="number">2</span>),
+            <span class="string">"cost_per_1k_tokens"</span>: <span class="function">round</span>((<span class="function">sum</span>(costs) / <span class="function">sum</span>(total_tokens) * <span class="number">1000</span>), <span class="number">4</span>) <span class="keyword">if</span> <span class="function">sum</span>(total_tokens) > <span class="number">0</span> <span class="keyword">else</span> <span class="number">0.0</span>
+        }
+
+    <span class="keyword">return</span> breakdown
+                </div>
+
+                <h3>사용 예시</h3>
+                <div class="code-block">
+<span class="comment"># 모델별 비용 분석</span>
+model_breakdown = tracker.get_cost_breakdown_by_model()
+
+<span class="keyword">for</span> model, stats <span class="keyword">in</span> model_breakdown.items():
+    <span class="function">print</span>(<span class="string">f"<span class="operator">\n</span>=== Model: {model} ==="</span>)
+    <span class="function">print</span>(<span class="string">f"Total Tasks: {stats['total_tasks']}"</span>)
+    <span class="function">print</span>(<span class="string">f"Total Cost: ${stats['total_cost']:.4f}"</span>)
+    <span class="function">print</span>(<span class="string">f"Avg Cost/Task: ${stats['avg_cost_per_task']:.4f}"</span>)
+    <span class="function">print</span>(<span class="string">f"Total Tokens: {stats['total_tokens']:,}"</span>)
+    <span class="function">print</span>(<span class="string">f"Cost per 1K tokens: ${stats['cost_per_1k_tokens']:.4f}"</span>)
+    <span class="function">print</span>(<span class="string">f"Input/Output: {stats['total_input_tokens']:,} / {stats['total_output_tokens']:,}"</span>)
+                </div>
+            </div>
+
+            <!-- Usage Examples -->
+            <div class="section">
+                <h2>💻 사용 예시</h2>
+
+                <h3>기본 사용법</h3>
+                <div class="code-block">
+<span class="keyword">from</span> agent_evaluator <span class="keyword">import</span> AgentEvaluator
+
+<span class="comment"># GPT-4 Turbo 가격 설정 (per 1M tokens)</span>
+pricing = {
+    <span class="string">"input"</span>: <span class="number">10.00</span> / <span class="number">1000</span>,   <span class="comment"># $10 per 1M = $0.01 per 1K</span>
+    <span class="string">"output"</span>: <span class="number">30.00</span> / <span class="number">1000</span>   <span class="comment"># $30 per 1M = $0.03 per 1K</span>
+}
+
+<span class="comment"># Evaluator 초기화</span>
+evaluator = AgentEvaluator(pricing=pricing)
+
+<span class="comment"># LLM 호출 후 토큰 사용량 기록</span>
+response = llm.generate(prompt)
+
+evaluator.track_usage(
+    task_id=<span class="string">"task_001"</span>,
+    input_tokens=response.usage.prompt_tokens,
+    output_tokens=response.usage.completion_tokens,
+    task_type=<span class="string">"qa"</span>,
+    model=<span class="string">"gpt-4-turbo"</span>
+)
+
+<span class="comment"># 통계 조회</span>
+stats = evaluator.get_usage_stats()
+<span class="function">print</span>(<span class="string">f"Total Cost: ${stats['total_cost']:.4f}"</span>)
+<span class="function">print</span>(<span class="string">f"Estimated Monthly: ${stats['estimated_monthly_cost']:.2f}"</span>)
+                </div>
+
+                <h3>다중 모델 추적</h3>
+                <div class="code-block">
+<span class="comment"># 서로 다른 모델 가격 설정</span>
+gpt4_pricing = {<span class="string">"input"</span>: <span class="number">0.01</span>, <span class="string">"output"</span>: <span class="number">0.03</span>}  <span class="comment"># per 1K tokens</span>
+gpt35_pricing = {<span class="string">"input"</span>: <span class="number">0.0005</span>, <span class="string">"output"</span>: <span class="number">0.0015</span>}
+
+<span class="comment"># 작업에 따라 다른 모델 사용</span>
+<span class="keyword">if</span> task_complexity == <span class="string">"high"</span>:
+    response = gpt4.generate(prompt)
+    tracker = AgentEvaluator(pricing=gpt4_pricing)
+    model_name = <span class="string">"gpt-4-turbo"</span>
+<span class="keyword">else</span>:
+    response = gpt35.generate(prompt)
+    tracker = AgentEvaluator(pricing=gpt35_pricing)
+    model_name = <span class="string">"gpt-3.5-turbo"</span>
+
+tracker.track_usage(
+    task_id=task_id,
+    input_tokens=response.usage.prompt_tokens,
+    output_tokens=response.usage.completion_tokens,
+    task_type=task_type,
+    model=model_name
+)
+
+<span class="comment"># 모델별 비용 비교</span>
+breakdown = tracker.get_cost_breakdown_by_model()
+<span class="keyword">for</span> model, stats <span class="keyword">in</span> breakdown.items():
+    <span class="function">print</span>(<span class="string">f"{model}: ${stats['total_cost']:.4f} ({stats['total_tasks']} tasks)"</span>)
+                </div>
+
+                <h3>월간 비용 예측 및 알림</h3>
+                <div class="code-block">
+<span class="keyword">def</span> <span class="function">check_budget_alert</span>(evaluator: AgentEvaluator, monthly_budget: float):
+    <span class="string">"""Check if estimated monthly cost exceeds budget"""</span>
+    stats = evaluator.get_usage_stats()
+    estimated_monthly = stats.get(<span class="string">"estimated_monthly_cost"</span>, <span class="number">0</span>)
+
+    <span class="keyword">if</span> estimated_monthly > monthly_budget:
+        <span class="function">print</span>(<span class="string">f"⚠️ WARNING: Estimated monthly cost ${estimated_monthly:.2f} exceeds budget ${monthly_budget:.2f}"</span>)
+        <span class="function">print</span>(<span class="string">f"   Current usage: ${stats['total_cost']:.4f}"</span>)
+        <span class="function">print</span>(<span class="string">f"   Avg cost per task: ${stats['avg_cost_per_task']:.4f}"</span>)
+
+        <span class="comment"># Send alert (email, Slack, etc.)</span>
+        send_alert(<span class="string">f"Budget Alert: ${estimated_monthly:.2f} / ${monthly_budget:.2f}"</span>)
+        <span class="keyword">return</span> <span class="keyword">True</span>
+
+    <span class="keyword">return</span> <span class="keyword">False</span>
+
+<span class="comment"># 사용</span>
+check_budget_alert(evaluator, monthly_budget=<span class="number">500.0</span>)
+                </div>
+            </div>
+
+            <!-- 평가 데이터 자동 처리 방안 -->
+            <div class="section">
+                <h2>🤖 평가 데이터 자동 처리 방안</h2>
+
+                <div class="intro-box">
+                    <strong>실전 적용 시 핵심 과제:</strong><br>
+                    Cost/Token Economy 평가는 <strong>Token 사용량과 비용 데이터 수집</strong>이 필수입니다.
+                    실제 프로젝트에서는 여러 모델, 여러 작업 유형, 다양한 API 호출을 자동으로 추적하고 집계해야 합니다.
+                    <br><br>
+                    이 섹션에서는 <strong>Token 사용량 자동 수집, 비용 자동 계산, 실시간 모니터링</strong>을 위한 5단계 자동화 전략을 제공합니다.
+                </div>
+
+                <h3>📊 자동화 전략 개요</h3>
+
+                <table style="width: 100%; border-collapse: collapse; margin: 25px 0;">
+                    <thead>
+                        <tr style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white;">
+                            <th style="padding: 15px; text-align: left; border: 1px solid #ddd;">Level</th>
+                            <th style="padding: 15px; text-align: left; border: 1px solid #ddd;">방법</th>
+                            <th style="padding: 15px; text-align: left; border: 1px solid #ddd;">자동화 범위</th>
+                            <th style="padding: 15px; text-align: left; border: 1px solid #ddd;">성능</th>
+                            <th style="padding: 15px; text-align: left; border: 1px solid #ddd;">난이도</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr style="background: #f8f9fa;">
+                            <td style="padding: 12px; border: 1px solid #ddd;"><strong>1</strong></td>
+                            <td style="padding: 12px; border: 1px solid #ddd;">API 응답 자동 파싱</td>
+                            <td style="padding: 12px; border: 1px solid #ddd;">Token 사용량 자동 추출</td>
+                            <td style="padding: 12px; border: 1px solid #ddd;">⚡⚡⚡⚡⚡</td>
+                            <td style="padding: 12px; border: 1px solid #ddd;">⭐</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 12px; border: 1px solid #ddd;"><strong>2</strong></td>
+                            <td style="padding: 12px; border: 1px solid #ddd;">Decorator 기반 자동 추적</td>
+                            <td style="padding: 12px; border: 1px solid #ddd;">함수 레벨 비용 추적</td>
+                            <td style="padding: 12px; border: 1px solid #ddd;">⚡⚡⚡⚡</td>
+                            <td style="padding: 12px; border: 1px solid #ddd;">⭐⭐</td>
+                        </tr>
+                        <tr style="background: #f8f9fa;">
+                            <td style="padding: 12px; border: 1px solid #ddd;"><strong>3</strong></td>
+                            <td style="padding: 12px; border: 1px solid #ddd;">Context Manager 기반</td>
+                            <td style="padding: 12px; border: 1px solid #ddd;">작업 단위 비용 추적</td>
+                            <td style="padding: 12px; border: 1px solid #ddd;">⚡⚡⚡⚡</td>
+                            <td style="padding: 12px; border: 1px solid #ddd;">⭐⭐</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 12px; border: 1px solid #ddd;"><strong>4</strong></td>
+                            <td style="padding: 12px; border: 1px solid #ddd;">실시간 대시보드</td>
+                            <td style="padding: 12px; border: 1px solid #ddd;">실시간 모니터링 + 알림</td>
+                            <td style="padding: 12px; border: 1px solid #ddd;">⚡⚡⚡</td>
+                            <td style="padding: 12px; border: 1px solid #ddd;">⭐⭐⭐</td>
+                        </tr>
+                        <tr style="background: #f8f9fa;">
+                            <td style="padding: 12px; border: 1px solid #ddd;"><strong>5</strong></td>
+                            <td style="padding: 12px; border: 1px solid #ddd;">통합 자동화 시스템</td>
+                            <td style="padding: 12px; border: 1px solid #ddd;">전체 파이프라인 자동화</td>
+                            <td style="padding: 12px; border: 1px solid #ddd;">⚡⚡⚡⚡⚡</td>
+                            <td style="padding: 12px; border: 1px solid #ddd;">⭐⭐⭐⭐</td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                <h3>Level 1: API 응답 자동 파싱</h3>
+
+                <p>가장 기본적인 방법으로, LLM API 응답에서 Token 사용량을 자동으로 추출합니다.</p>
+
+                <div class="code-block">
+<span class="keyword">from</span> agent_evaluator <span class="keyword">import</span> PerformanceMonitor
+<span class="keyword">import</span> openai
+
+<span class="keyword">class</span> <span class="function">AutoTokenTracker</span>:
+    <span class="string">"""API 응답에서 Token 사용량 자동 추출"""</span>
+
+    <span class="keyword">def</span> <span class="function">__init__</span>(self, monitor: PerformanceMonitor):
+        self.monitor = monitor
+        self.task_counter = <span class="number">0</span>
+
+    <span class="keyword">def</span> <span class="function">call_llm_and_track</span>(self, prompt: str, model: str = <span class="string">"gpt-4"</span>):
+        <span class="string">"""LLM 호출 + 자동 Token 추적"""</span>
+        self.task_counter += <span class="number">1</span>
+        task_id = <span class="string">f"task_<span class="template">{self.task_counter}</span>"</span>
+
+        <span class="comment"># LLM 호출</span>
+        response = openai.ChatCompletion.create(
+            model=model,
+            messages=[{<span class="string">"role"</span>: <span class="string">"user"</span>, <span class="string">"content"</span>: prompt}]
+        )
+
+        <span class="comment"># ✅ Token 사용량 자동 추출</span>
+        usage = response[<span class="string">"usage"</span>]
+        input_tokens = usage[<span class="string">"prompt_tokens"</span>]
+        output_tokens = usage[<span class="string">"completion_tokens"</span>]
+
+        <span class="comment"># ✅ 자동 기록</span>
+        self.monitor.record_task(
+            task_id=task_id,
+            model_name=model,
+            input_tokens=input_tokens,
+            output_tokens=output_tokens,
+            success=<span class="keyword">True</span>
+        )
+
+        <span class="keyword">return</span> response[<span class="string">"choices"</span>][<span class="number">0</span>][<span class="string">"message"</span>][<span class="string">"content"</span>]
+
+
+<span class="comment"># 사용 예시</span>
+monitor = PerformanceMonitor()
+tracker = AutoTokenTracker(monitor)
+
+<span class="comment"># 자동으로 Token 추적됨</span>
+answer1 = tracker.call_llm_and_track(<span class="string">"대한민국의 수도는?"</span>, model=<span class="string">"gpt-4"</span>)
+answer2 = tracker.call_llm_and_track(<span class="string">"프랑스의 수도는?"</span>, model=<span class="string">"gpt-3.5-turbo"</span>)
+answer3 = tracker.call_llm_and_track(<span class="string">"일본의 수도는?"</span>, model=<span class="string">"gpt-4"</span>)
+
+<span class="comment"># 📊 비용 통계 자동 집계</span>
+cost_stats = monitor.cost_evaluator.get_cost_stats()
+<span class="keyword">print</span>(<span class="string">f"총 비용: $<span class="template">{cost_stats['total_cost']:.4f}</span>"</span>)
+<span class="keyword">print</span>(<span class="string">f"평균 작업당 비용: $<span class="template">{cost_stats['average_cost_per_task']:.4f}</span>"</span>)
+                </div>
+
+                <div class="warning-box">
+                    <strong>⚡ 장점:</strong>
+                    <ul>
+                        <li>구현 간단, 즉시 적용 가능</li>
+                        <li>모든 API 호출에서 Token 자동 추출</li>
+                        <li>실시간 비용 계산</li>
+                    </ul>
+                    <strong>⚠️ 한계:</strong>
+                    <ul>
+                        <li>각 LLM 호출마다 명시적으로 메서드 호출 필요</li>
+                        <li>기존 코드 수정 필요</li>
+                    </ul>
+                </div>
+
+                <h3>Level 2: Decorator 기반 자동 추적</h3>
+
+                <p>Decorator를 사용하여 기존 함수에 자동 Token 추적 기능을 주입합니다.</p>
+
+                <div class="code-block">
+<span class="keyword">from</span> functools <span class="keyword">import</span> wraps
+<span class="keyword">import</span> time
+
+<span class="keyword">def</span> <span class="function">track_cost</span>(monitor: PerformanceMonitor, task_type: str = <span class="string">"default"</span>):
+    <span class="string">"""비용 추적 Decorator"""</span>
+    <span class="keyword">def</span> <span class="function">decorator</span>(func):
+        @wraps(func)
+        <span class="keyword">def</span> <span class="function">wrapper</span>(*args, **kwargs):
+            task_id = <span class="string">f"<span class="template">{task_type}</span>_<span class="template">{int(time.time() * 1000)}</span>"</span>
+
+            <span class="comment"># 원본 함수 실행</span>
+            result = func(*args, **kwargs)
+
+            <span class="comment"># ✅ 결과에서 Token 정보 자동 추출</span>
+            <span class="keyword">if</span> <span class="function">isinstance</span>(result, <span class="function">dict</span>) <span class="keyword">and</span> <span class="string">"usage"</span> <span class="keyword">in</span> result:
+                usage = result[<span class="string">"usage"</span>]
+                monitor.record_task(
+                    task_id=task_id,
+                    input_tokens=usage.get(<span class="string">"prompt_tokens"</span>, <span class="number">0</span>),
+                    output_tokens=usage.get(<span class="string">"completion_tokens"</span>, <span class="number">0</span>),
+                    model_name=kwargs.get(<span class="string">"model"</span>, <span class="string">"gpt-4"</span>),
+                    task_type=task_type,
+                    success=<span class="keyword">True</span>
+                )
+
+            <span class="keyword">return</span> result
+
+        <span class="keyword">return</span> wrapper
+    <span class="keyword">return</span> decorator
+
+
+<span class="comment"># 사용 예시</span>
+monitor = PerformanceMonitor()
+
+<span class="comment"># ✅ Decorator로 자동 추적</span>
+@track_cost(monitor, task_type=<span class="string">"qa"</span>)
+<span class="keyword">def</span> <span class="function">ask_question</span>(question: str, model: str = <span class="string">"gpt-4"</span>):
+    response = openai.ChatCompletion.create(
+        model=model,
+        messages=[{<span class="string">"role"</span>: <span class="string">"user"</span>, <span class="string">"content"</span>: question}]
+    )
+    <span class="keyword">return</span> response  <span class="comment"># usage 정보 포함된 전체 응답 반환</span>
+
+@track_cost(monitor, task_type=<span class="string">"summarization"</span>)
+<span class="keyword">def</span> <span class="function">summarize_text</span>(text: str, model: str = <span class="string">"gpt-3.5-turbo"</span>):
+    response = openai.ChatCompletion.create(
+        model=model,
+        messages=[{<span class="string">"role"</span>: <span class="string">"user"</span>, <span class="string">"content"</span>: <span class="string">f"요약: <span class="template">{text}</span>"</span>}]
+    )
+    <span class="keyword">return</span> response
+
+<span class="comment"># 자동 추적됨 (코드 수정 없이)</span>
+ask_question(<span class="string">"서울의 인구는?"</span>, model=<span class="string">"gpt-4"</span>)
+ask_question(<span class="string">"도쿄의 인구는?"</span>, model=<span class="string">"gpt-4"</span>)
+summarize_text(<span class="string">"긴 텍스트..."</span>, model=<span class="string">"gpt-3.5-turbo"</span>)
+
+<span class="comment"># 📊 작업 유형별 비용 분석</span>
+cost_by_type = monitor.cost_evaluator.get_cost_by_task_type()
+<span class="keyword">for</span> task_type, cost <span class="keyword">in</span> cost_by_type.<span class="function">items</span>():
+    <span class="keyword">print</span>(<span class="string">f"<span class="template">{task_type}</span>: $<span class="template">{cost:.4f}</span>"</span>)
+                </div>
+
+                <div class="tip-box" style="background: linear-gradient(135deg, #e6f7ff 0%, #bae7ff 100%); padding: 25px; border-radius: 12px; border-left: 5px solid #1890ff; margin: 20px 0;">
+                    <strong>💡 Pro Tip:</strong> Decorator 패턴은 기존 코드를 최소한으로 수정하면서 자동 추적을 적용할 수 있는 가장 우아한 방법입니다.
+                </div>
+
+                <h3>Level 3: Context Manager 기반 자동 추적</h3>
+
+                <p>Context Manager를 사용하여 작업 단위로 비용을 추적합니다.</p>
+
+                <div class="code-block">
+<span class="keyword">class</span> <span class="function">CostTrackingContext</span>:
+    <span class="string">"""작업 단위 비용 추적 Context Manager"""</span>
+
+    <span class="keyword">def</span> <span class="function">__init__</span>(self, monitor: PerformanceMonitor, task_id: str, task_type: str = <span class="string">"default"</span>):
+        self.monitor = monitor
+        self.task_id = task_id
+        self.task_type = task_type
+        self.total_input_tokens = <span class="number">0</span>
+        self.total_output_tokens = <span class="number">0</span>
+        self.model_name = <span class="keyword">None</span>
+
+    <span class="keyword">def</span> <span class="function">__enter__</span>(self):
+        <span class="keyword">print</span>(<span class="string">f"🟢 비용 추적 시작: <span class="template">{self.task_id}</span>"</span>)
+        <span class="keyword">return</span> self
+
+    <span class="keyword">def</span> <span class="function">__exit__</span>(self, exc_type, exc_val, exc_tb):
+        <span class="comment"># ✅ Context 종료 시 자동 기록</span>
+        <span class="keyword">if</span> self.total_input_tokens > <span class="number">0</span> <span class="keyword">or</span> self.total_output_tokens > <span class="number">0</span>:
+            self.monitor.record_task(
+                task_id=self.task_id,
+                input_tokens=self.total_input_tokens,
+                output_tokens=self.total_output_tokens,
+                model_name=self.model_name <span class="keyword">or</span> <span class="string">"gpt-4"</span>,
+                task_type=self.task_type,
+                success=exc_type <span class="keyword">is</span> <span class="keyword">None</span>
+            )
+            <span class="keyword">print</span>(<span class="string">f"🔴 비용 추적 완료: <span class="template">{self.task_id}</span> (Input: <span class="template">{self.total_input_tokens}</span>, Output: <span class="template">{self.total_output_tokens}</span>)"</span>)
+        <span class="keyword">return</span> <span class="keyword">False</span>
+
+    <span class="keyword">def</span> <span class="function">add_usage</span>(self, response, model: str = <span class="string">"gpt-4"</span>):
+        <span class="string">"""API 응답에서 Token 사용량 누적"""</span>
+        <span class="keyword">if</span> <span class="string">"usage"</span> <span class="keyword">in</span> response:
+            usage = response[<span class="string">"usage"</span>]
+            self.total_input_tokens += usage.get(<span class="string">"prompt_tokens"</span>, <span class="number">0</span>)
+            self.total_output_tokens += usage.get(<span class="string">"completion_tokens"</span>, <span class="number">0</span>)
+            self.model_name = model
+
+
+<span class="comment"># 사용 예시: 복잡한 Multi-step 작업</span>
+monitor = PerformanceMonitor()
+
+<span class="keyword">with</span> CostTrackingContext(monitor, <span class="string">"multi_step_task_001"</span>, task_type=<span class="string">"research"</span>) <span class="keyword">as</span> ctx:
+    <span class="comment"># Step 1: 검색 쿼리 생성</span>
+    response1 = openai.ChatCompletion.create(
+        model=<span class="string">"gpt-4"</span>,
+        messages=[{<span class="string">"role"</span>: <span class="string">"user"</span>, <span class="string">"content"</span>: <span class="string">"검색 쿼리 생성"</span>}]
+    )
+    ctx.add_usage(response1, model=<span class="string">"gpt-4"</span>)
+
+    <span class="comment"># Step 2: 정보 수집</span>
+    response2 = openai.ChatCompletion.create(
+        model=<span class="string">"gpt-4"</span>,
+        messages=[{<span class="string">"role"</span>: <span class="string">"user"</span>, <span class="string">"content"</span>: <span class="string">"정보 수집"</span>}]
+    )
+    ctx.add_usage(response2, model=<span class="string">"gpt-4"</span>)
+
+    <span class="comment"># Step 3: 요약 생성</span>
+    response3 = openai.ChatCompletion.create(
+        model=<span class="string">"gpt-3.5-turbo"</span>,
+        messages=[{<span class="string">"role"</span>: <span class="string">"user"</span>, <span class="string">"content"</span>: <span class="string">"요약 생성"</span>}]
+    )
+    ctx.add_usage(response3, model=<span class="string">"gpt-3.5-turbo"</span>)
+
+<span class="comment"># ✅ Context 종료 시 전체 작업의 Token 사용량 자동 기록됨</span>
+
+<span class="comment"># 📊 통계 확인</span>
+cost_stats = monitor.cost_evaluator.get_cost_stats()
+<span class="keyword">print</span>(<span class="string">f"총 비용: $<span class="template">{cost_stats['total_cost']:.4f}</span>"</span>)
+                </div>
+
+                <div class="warning-box">
+                    <strong>✅ 장점:</strong>
+                    <ul>
+                        <li>Multi-step 작업의 전체 비용 추적 용이</li>
+                        <li>자동 집계 (여러 API 호출 통합)</li>
+                        <li>예외 발생 시에도 안전하게 기록</li>
+                    </ul>
+                </div>
+
+                <h3>Level 4: 실시간 대시보드 + 예산 알림</h3>
+
+                <p>실시간으로 비용을 모니터링하고, 예산 초과 시 자동 알림을 발송합니다.</p>
+
+                <div class="code-block">
+<span class="keyword">import</span> threading
+<span class="keyword">import</span> time
+<span class="keyword">from</span> datetime <span class="keyword">import</span> datetime
+
+<span class="keyword">class</span> <span class="function">RealTimeCostMonitor</span>:
+    <span class="string">"""실시간 비용 모니터링 + 예산 알림"""</span>
+
+    <span class="keyword">def</span> <span class="function">__init__</span>(self, monitor: PerformanceMonitor,
+                 daily_budget: <span class="function">float</span> = <span class="number">50.0</span>,
+                 monthly_budget: <span class="function">float</span> = <span class="number">1000.0</span>):
+        self.monitor = monitor
+        self.daily_budget = daily_budget
+        self.monthly_budget = monthly_budget
+        self.daily_cost = <span class="number">0.0</span>
+        self.monthly_cost = <span class="number">0.0</span>
+        self.alert_sent = <span class="keyword">False</span>
+        self.monitoring = <span class="keyword">False</span>
+        self.monitor_thread = <span class="keyword">None</span>
+
+    <span class="keyword">def</span> <span class="function">start_monitoring</span>(self, interval: <span class="function">int</span> = <span class="number">60</span>):
+        <span class="string">"""실시간 모니터링 시작 (interval: 초)"""</span>
+        self.monitoring = <span class="keyword">True</span>
+        self.monitor_thread = threading.Thread(
+            target=self._monitor_loop,
+            args=(interval,),
+            daemon=<span class="keyword">True</span>
+        )
+        self.monitor_thread.start()
+        <span class="keyword">print</span>(<span class="string">f"🟢 실시간 비용 모니터링 시작 (예산: Daily $<span class="template">{self.daily_budget}</span>, Monthly $<span class="template">{self.monthly_budget}</span>)"</span>)
+
+    <span class="keyword">def</span> <span class="function">stop_monitoring</span>(self):
+        <span class="string">"""모니터링 중지"""</span>
+        self.monitoring = <span class="keyword">False</span>
+        <span class="keyword">if</span> self.monitor_thread:
+            self.monitor_thread.join(timeout=<span class="number">5</span>)
+        <span class="keyword">print</span>(<span class="string">"🔴 실시간 비용 모니터링 중지"</span>)
+
+    <span class="keyword">def</span> <span class="function">_monitor_loop</span>(self, interval: <span class="function">int</span>):
+        <span class="string">"""모니터링 루프"""</span>
+        <span class="keyword">while</span> self.monitoring:
+            self._check_budget()
+            time.sleep(interval)
+
+    <span class="keyword">def</span> <span class="function">_check_budget</span>(self):
+        <span class="string">"""예산 확인 및 알림"""</span>
+        cost_stats = self.monitor.cost_evaluator.get_cost_stats()
+        current_total = cost_stats.get(<span class="string">"total_cost"</span>, <span class="number">0.0</span>)
+
+        <span class="comment"># 예산 초과 체크</span>
+        <span class="keyword">if</span> current_total >= self.daily_budget <span class="keyword">and</span> <span class="keyword">not</span> self.alert_sent:
+            self._send_alert(<span class="string">"DAILY"</span>, current_total, self.daily_budget)
+            self.alert_sent = <span class="keyword">True</span>
+
+        <span class="keyword">if</span> current_total >= self.monthly_budget:
+            self._send_alert(<span class="string">"MONTHLY"</span>, current_total, self.monthly_budget)
+            self.monitoring = <span class="keyword">False</span>  <span class="comment"># 월 예산 초과 시 중지</span>
+
+        <span class="comment"># 실시간 로그</span>
+        <span class="keyword">print</span>(<span class="string">f"[<span class="template">{datetime.now().strftime('%H:%M:%S')}</span>] 💰 현재 비용: $<span class="template">{current_total:.4f}</span> / $<span class="template">{self.daily_budget:.2f}</span> (일일)"</span>)
+
+    <span class="keyword">def</span> <span class="function">_send_alert</span>(self, alert_type: str, current: <span class="function">float</span>, budget: <span class="function">float</span>):
+        <span class="string">"""알림 발송"""</span>
+        <span class="keyword">print</span>(<span class="string">f"🚨 <span class="template">{alert_type}</span> 예산 초과 알림!"</span>)
+        <span class="keyword">print</span>(<span class="string">f"   현재 비용: $<span class="template">{current:.4f}</span>"</span>)
+        <span class="keyword">print</span>(<span class="string">f"   예산: $<span class="template">{budget:.4f}</span>"</span>)
+        <span class="keyword">print</span>(<span class="string">f"   초과액: $<span class="template">{(current - budget):.4f}</span>"</span>)
+
+        <span class="comment"># 실제로는 이메일, Slack, SMS 등으로 알림 발송</span>
+        <span class="comment"># send_email(...)</span>
+        <span class="comment"># send_slack_message(...)</span>
+
+    <span class="keyword">def</span> <span class="function">get_dashboard_data</span>(self):
+        <span class="string">"""대시보드 데이터 반환"""</span>
+        cost_stats = self.monitor.cost_evaluator.get_cost_stats()
+        cost_by_model = self.monitor.cost_evaluator.get_cost_by_model()
+        cost_by_type = self.monitor.cost_evaluator.get_cost_by_task_type()
+
+        <span class="keyword">return</span> {
+            <span class="string">"summary"</span>: cost_stats,
+            <span class="string">"by_model"</span>: cost_by_model,
+            <span class="string">"by_type"</span>: cost_by_type,
+            <span class="string">"budget_status"</span>: {
+                <span class="string">"daily_budget"</span>: self.daily_budget,
+                <span class="string">"monthly_budget"</span>: self.monthly_budget,
+                <span class="string">"current_cost"</span>: cost_stats.get(<span class="string">"total_cost"</span>, <span class="number">0.0</span>),
+                <span class="string">"daily_remaining"</span>: <span class="function">max</span>(<span class="number">0</span>, self.daily_budget - cost_stats.get(<span class="string">"total_cost"</span>, <span class="number">0.0</span>)),
+                <span class="string">"monthly_remaining"</span>: <span class="function">max</span>(<span class="number">0</span>, self.monthly_budget - cost_stats.get(<span class="string">"total_cost"</span>, <span class="number">0.0</span>))
+            }
+        }
+
+
+<span class="comment"># 사용 예시</span>
+monitor = PerformanceMonitor()
+real_time_monitor = RealTimeCostMonitor(
+    monitor,
+    daily_budget=<span class="number">10.0</span>,
+    monthly_budget=<span class="number">200.0</span>
+)
+
+<span class="comment"># 🟢 실시간 모니터링 시작 (60초마다 체크)</span>
+real_time_monitor.start_monitoring(interval=<span class="number">60</span>)
+
+<span class="comment"># 작업 실행 (자동으로 모니터링됨)</span>
+tracker = AutoTokenTracker(monitor)
+<span class="keyword">for</span> i <span class="keyword">in</span> <span class="function">range</span>(<span class="number">100</span>):
+    tracker.call_llm_and_track(<span class="string">f"질문 <span class="template">{i+1}</span>"</span>, model=<span class="string">"gpt-4"</span>)
+    time.sleep(<span class="number">5</span>)  <span class="comment"># 예시를 위한 대기</span>
+
+<span class="comment"># 📊 대시보드 데이터 가져오기</span>
+dashboard_data = real_time_monitor.get_dashboard_data()
+<span class="keyword">print</span>(<span class="string">"📊 실시간 대시보드:"</span>)
+<span class="keyword">print</span>(<span class="string">f"  총 비용: $<span class="template">{dashboard_data['summary']['total_cost']:.4f}</span>"</span>)
+<span class="keyword">print</span>(<span class="string">f"  일일 잔여 예산: $<span class="template">{dashboard_data['budget_status']['daily_remaining']:.4f}</span>"</span>)
+
+<span class="comment"># 🔴 모니터링 중지</span>
+real_time_monitor.stop_monitoring()
+                </div>
+
+                <div class="tip-box" style="background: linear-gradient(135deg, #fff7e6 0%, #ffe7ba 100%); padding: 25px; border-radius: 12px; border-left: 5px solid #fa8c16; margin: 20px 0;">
+                    <strong>💡 Production Tip:</strong> 실제 프로덕션 환경에서는 Prometheus, Grafana, Datadog 등의 모니터링 도구와 연동하여 더 강력한 대시보드를 구축하세요.
+                </div>
+
+                <h3>Level 5: 통합 자동화 시스템 (Production-Ready)</h3>
+
+                <p>모든 레벨을 통합한 완전 자동화 시스템입니다.</p>
+
+                <div class="code-block">
+<span class="keyword">class</span> <span class="function">CostAutomationSystem</span>:
+    <span class="string">"""통합 비용 자동화 시스템"""</span>
+
+    <span class="keyword">def</span> <span class="function">__init__</span>(self,
+                 daily_budget: <span class="function">float</span> = <span class="number">50.0</span>,
+                 monthly_budget: <span class="function">float</span> = <span class="number">1000.0</span>,
+                 alert_email: str = <span class="keyword">None</span>,
+                 enable_realtime: <span class="function">bool</span> = <span class="keyword">True</span>):
+
+        self.monitor = PerformanceMonitor()
+        self.tracker = AutoTokenTracker(self.monitor)
+        self.real_time_monitor = RealTimeCostMonitor(
+            self.monitor,
+            daily_budget=daily_budget,
+            monthly_budget=monthly_budget
+        )
+        self.alert_email = alert_email
+        self.enable_realtime = enable_realtime
+
+        <span class="keyword">if</span> self.enable_realtime:
+            self.real_time_monitor.start_monitoring(interval=<span class="number">60</span>)
+
+    <span class="keyword">def</span> <span class="function">track_llm_call</span>(self, prompt: str, model: str = <span class="string">"gpt-4"</span>, task_type: str = <span class="string">"default"</span>):
+        <span class="string">"""LLM 호출 + 자동 추적 + 실시간 모니터링"""</span>
+        <span class="keyword">return</span> self.tracker.call_llm_and_track(prompt, model)
+
+    <span class="keyword">def</span> <span class="function">track_context</span>(self, task_id: str, task_type: str = <span class="string">"default"</span>):
+        <span class="string">"""Context Manager 반환"""</span>
+        <span class="keyword">return</span> CostTrackingContext(self.monitor, task_id, task_type)
+
+    <span class="keyword">def</span> <span class="function">get_cost_report</span>(self):
+        <span class="string">"""비용 보고서 생성"""</span>
+        cost_stats = self.monitor.cost_evaluator.get_cost_stats()
+        cost_by_model = self.monitor.cost_evaluator.get_cost_by_model()
+        cost_by_type = self.monitor.cost_evaluator.get_cost_by_task_type()
+
+        report = {
+            <span class="string">"summary"</span>: {
+                <span class="string">"total_cost"</span>: cost_stats.get(<span class="string">"total_cost"</span>, <span class="number">0.0</span>),
+                <span class="string">"total_tasks"</span>: cost_stats.get(<span class="string">"total_tasks"</span>, <span class="number">0</span>),
+                <span class="string">"average_cost_per_task"</span>: cost_stats.get(<span class="string">"average_cost_per_task"</span>, <span class="number">0.0</span>),
+                <span class="string">"total_input_tokens"</span>: cost_stats.get(<span class="string">"total_input_tokens"</span>, <span class="number">0</span>),
+                <span class="string">"total_output_tokens"</span>: cost_stats.get(<span class="string">"total_output_tokens"</span>, <span class="number">0</span>)
+            },
+            <span class="string">"by_model"</span>: cost_by_model,
+            <span class="string">"by_type"</span>: cost_by_type,
+            <span class="string">"budget_status"</span>: self.real_time_monitor.get_dashboard_data()[<span class="string">"budget_status"</span>]
+        }
+
+        <span class="keyword">return</span> report
+
+    <span class="keyword">def</span> <span class="function">export_to_dashboard</span>(self, output_path: str = <span class="string">"cost_report.json"</span>):
+        <span class="string">"""대시보드용 JSON 파일 생성"""</span>
+        <span class="keyword">import</span> json
+
+        report = self.get_cost_report()
+
+        <span class="keyword">with</span> <span class="function">open</span>(output_path, <span class="string">"w"</span>, encoding=<span class="string">"utf-8"</span>) <span class="keyword">as</span> f:
+            json.dump(report, f, indent=<span class="number">2</span>, ensure_ascii=<span class="keyword">False</span>)
+
+        <span class="keyword">print</span>(<span class="string">f"📊 비용 보고서 저장: <span class="template">{output_path}</span>"</span>)
+
+    <span class="keyword">def</span> <span class="function">shutdown</span>(self):
+        <span class="string">"""시스템 종료"""</span>
+        <span class="keyword">if</span> self.enable_realtime:
+            self.real_time_monitor.stop_monitoring()
+        <span class="keyword">print</span>(<span class="string">"🔴 비용 자동화 시스템 종료"</span>)
+
+
+<span class="comment"># ============================================</span>
+<span class="comment"># 완전 자동화 실사용 예시</span>
+<span class="comment"># ============================================</span>
+
+<span class="keyword">from</span> agent_evaluator <span class="keyword">import</span> PerformanceMonitor
+
+<span class="comment"># 🟢 시스템 초기화</span>
+cost_system = CostAutomationSystem(
+    daily_budget=<span class="number">20.0</span>,
+    monthly_budget=<span class="number">500.0</span>,
+    alert_email=<span class="string">"admin@example.com"</span>,
+    enable_realtime=<span class="keyword">True</span>
+)
+
+<span class="keyword">try</span>:
+    <span class="comment"># ✅ 간단한 LLM 호출 (자동 추적)</span>
+    answer1 = cost_system.track_llm_call(<span class="string">"파이썬이란?"</span>, model=<span class="string">"gpt-4"</span>)
+    answer2 = cost_system.track_llm_call(<span class="string">"자바란?"</span>, model=<span class="string">"gpt-3.5-turbo"</span>)
+
+    <span class="comment"># ✅ 복잡한 Multi-step 작업 (Context Manager)</span>
+    <span class="keyword">with</span> cost_system.track_context(<span class="string">"research_task_001"</span>, task_type=<span class="string">"research"</span>) <span class="keyword">as</span> ctx:
+        <span class="comment"># 여러 API 호출</span>
+        response1 = openai.ChatCompletion.create(
+            model=<span class="string">"gpt-4"</span>,
+            messages=[{<span class="string">"role"</span>: <span class="string">"user"</span>, <span class="string">"content"</span>: <span class="string">"1단계"</span>}]
+        )
+        ctx.add_usage(response1, model=<span class="string">"gpt-4"</span>)
+
+        response2 = openai.ChatCompletion.create(
+            model=<span class="string">"gpt-4"</span>,
+            messages=[{<span class="string">"role"</span>: <span class="string">"user"</span>, <span class="string">"content"</span>: <span class="string">"2단계"</span>}]
+        )
+        ctx.add_usage(response2, model=<span class="string">"gpt-4"</span>)
+
+    <span class="comment"># 작업 실행 중 실시간 모니터링 자동 진행...</span>
+    time.sleep(<span class="number">120</span>)  <span class="comment"># 2분 대기 (모니터링 간격)</span>
+
+    <span class="comment"># 📊 최종 보고서 생성</span>
+    final_report = cost_system.get_cost_report()
+    <span class="keyword">print</span>(<span class="string">"\n📊 최종 비용 보고서:"</span>)
+    <span class="keyword">print</span>(<span class="string">f"  총 비용: $<span class="template">{final_report['summary']['total_cost']:.4f}</span>"</span>)
+    <span class="keyword">print</span>(<span class="string">f"  총 작업 수: <span class="template">{final_report['summary']['total_tasks']}</span>"</span>)
+    <span class="keyword">print</span>(<span class="string">f"  평균 작업당 비용: $<span class="template">{final_report['summary']['average_cost_per_task']:.4f}</span>"</span>)
+    <span class="keyword">print</span>(<span class="string">f"  일일 잔여 예산: $<span class="template">{final_report['budget_status']['daily_remaining']:.4f}</span>"</span>)
+
+    <span class="keyword">print</span>(<span class="string">"\n📊 모델별 비용:"</span>)
+    <span class="keyword">for</span> model, cost <span class="keyword">in</span> final_report[<span class="string">"by_model"</span>].<span class="function">items</span>():
+        <span class="keyword">print</span>(<span class="string">f"  {model}: ${cost:.4f}"</span>)
+
+    <span class="keyword">print</span>(<span class="string">"\n📊 작업 유형별 비용:"</span>)
+    <span class="keyword">for</span> task_type, cost <span class="keyword">in</span> final_report[<span class="string">"by_type"</span>].<span class="function">items</span>():
+        <span class="keyword">print</span>(<span class="string">f"  {task_type}: ${cost:.4f}"</span>)
+
+    <span class="comment"># 📁 대시보드 JSON 생성</span>
+    cost_system.export_to_dashboard(<span class="string">"cost_dashboard.json"</span>)
+
+<span class="keyword">finally</span>:
+    <span class="comment"># 🔴 시스템 종료</span>
+    cost_system.shutdown()
+                </div>
+
+                <div class="success-box" style="background: linear-gradient(135deg, #f6ffed 0%, #d9f7be 100%); padding: 25px; border-radius: 12px; border-left: 5px solid #52c41a; margin: 20px 0;">
+                    <strong>🎯 완전 자동화 달성!</strong><br>
+                    Level 5 시스템을 사용하면:
+                    <ul>
+                        <li>✅ 모든 LLM 호출의 Token 사용량 자동 추적</li>
+                        <li>✅ 실시간 비용 모니터링 및 예산 초과 알림</li>
+                        <li>✅ 작업 유형별, 모델별 비용 분석</li>
+                        <li>✅ 대시보드용 JSON 자동 생성</li>
+                        <li>✅ Zero Configuration (단 3줄로 시작)</li>
+                    </ul>
+                </div>
+
+                <h3>🎯 자동화 전략 선택 가이드</h3>
+
+                <table style="width: 100%; border-collapse: collapse; margin: 25px 0;">
+                    <thead>
+                        <tr style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white;">
+                            <th style="padding: 15px; text-align: left; border: 1px solid #ddd;">사용 사례</th>
+                            <th style="padding: 15px; text-align: left; border: 1px solid #ddd;">추천 Level</th>
+                            <th style="padding: 15px; text-align: left; border: 1px solid #ddd;">이유</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr style="background: #f8f9fa;">
+                            <td style="padding: 12px; border: 1px solid #ddd;">프로토타입 개발</td>
+                            <td style="padding: 12px; border: 1px solid #ddd;"><strong>Level 1</strong></td>
+                            <td style="padding: 12px; border: 1px solid #ddd;">빠른 구현, 최소 코드 변경</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 12px; border: 1px solid #ddd;">기존 코드에 추가</td>
+                            <td style="padding: 12px; border: 1px solid #ddd;"><strong>Level 2</strong></td>
+                            <td style="padding: 12px; border: 1px solid #ddd;">Decorator로 기존 함수에 비침투적 적용</td>
+                        </tr>
+                        <tr style="background: #f8f9fa;">
+                            <td style="padding: 12px; border: 1px solid #ddd;">복잡한 Multi-step 작업</td>
+                            <td style="padding: 12px; border: 1px solid #ddd;"><strong>Level 3</strong></td>
+                            <td style="padding: 12px; border: 1px solid #ddd;">여러 API 호출 통합 추적</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 12px; border: 1px solid #ddd;">운영 환경 모니터링</td>
+                            <td style="padding: 12px; border: 1px solid #ddd;"><strong>Level 4</strong></td>
+                            <td style="padding: 12px; border: 1px solid #ddd;">실시간 예산 관리 필요</td>
+                        </tr>
+                        <tr style="background: #f8f9fa;">
+                            <td style="padding: 12px; border: 1px solid #ddd;">Production 환경</td>
+                            <td style="padding: 12px; border: 1px solid #ddd;"><strong>Level 5</strong></td>
+                            <td style="padding: 12px; border: 1px solid #ddd;">완전 자동화 + 대시보드 통합</td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                <h3>⚠️ 자동화 시 주의사항</h3>
+
+                <div class="warning-box">
+                    <ol>
+                        <li><strong>API 응답 형식 변경</strong>: OpenAI API 응답 구조가 변경될 수 있으므로, 에러 핸들링 필수</li>
+                        <li><strong>Thread Safety</strong>: 멀티스레드 환경에서는 Lock 사용 고려</li>
+                        <li><strong>메모리 관리</strong>: 장기 실행 시 메모리 누수 방지 (주기적 로그 파일 저장)</li>
+                        <li><strong>예산 초과 방지</strong>: Hard Limit 설정 및 자동 중단 메커니즘 구현</li>
+                        <li><strong>로깅</strong>: 모든 비용 추적 이벤트를 로그에 기록 (감사 추적)</li>
+                    </ol>
+                </div>
+
+                <h3>🔗 관련 도구 통합</h3>
+
+                <div class="tip-box" style="background: linear-gradient(135deg, #f0f5ff 0%, #d6e4ff 100%); padding: 25px; border-radius: 12px; border-left: 5px solid #597ef7; margin: 20px 0;">
+                    <strong>💡 추가 통합 옵션:</strong>
+                    <ul>
+                        <li><strong>LangSmith</strong>: LangChain 작업의 비용 추적</li>
+                        <li><strong>Weights & Biases</strong>: ML 실험과 비용 연계</li>
+                        <li><strong>Prometheus + Grafana</strong>: 시계열 비용 데이터 시각화</li>
+                        <li><strong>Datadog</strong>: 통합 모니터링 플랫폼</li>
+                        <li><strong>PagerDuty</strong>: 예산 초과 시 On-call 알림</li>
+                    </ul>
+                </div>
+
+            </div>
+
+            <!-- Framework Integration -->
+            <div class="section">
+                <h2>🔧 프레임워크 통합</h2>
+
+                <h3>LangChain 통합</h3>
+                <div class="code-block">
+<span class="keyword">from</span> langchain.callbacks <span class="keyword">import</span> BaseCallbackHandler
+<span class="keyword">from</span> agent_evaluator <span class="keyword">import</span> AgentEvaluator
+
+<span class="keyword">class</span> <span class="function">TokenEconomyCallbackHandler</span>(BaseCallbackHandler):
+    <span class="keyword">def</span> <span class="function">__init__</span>(self, evaluator: AgentEvaluator):
+        self.evaluator = evaluator
+        self.task_counter = <span class="number">0</span>
+
+    <span class="keyword">def</span> <span class="function">on_llm_end</span>(self, response, **kwargs):
+        self.task_counter += <span class="number">1</span>
+
+        <span class="comment"># Extract token usage from response</span>
+        token_usage = response.llm_output.get(<span class="string">"token_usage"</span>, {})
+        input_tokens = token_usage.get(<span class="string">"prompt_tokens"</span>, <span class="number">0</span>)
+        output_tokens = token_usage.get(<span class="string">"completion_tokens"</span>, <span class="number">0</span>)
+
+        <span class="comment"># Track usage</span>
+        self.evaluator.track_usage(
+            task_id=<span class="string">f"langchain_{self.task_counter}"</span>,
+            input_tokens=input_tokens,
+            output_tokens=output_tokens,
+            task_type=<span class="string">"langchain"</span>,
+            model=response.llm_output.get(<span class="string">"model_name"</span>, <span class="string">"default"</span>)
+        )
+
+<span class="comment"># 사용</span>
+pricing = {<span class="string">"input"</span>: <span class="number">0.01</span>, <span class="string">"output"</span>: <span class="number">0.03</span>}
+evaluator = AgentEvaluator(pricing=pricing)
+callback = TokenEconomyCallbackHandler(evaluator)
+
+chain.run(input_text, callbacks=[callback])
+
+<span class="comment"># 비용 확인</span>
+stats = evaluator.get_usage_stats()
+<span class="function">print</span>(<span class="string">f"Total Cost: ${stats['total_cost']:.4f}"</span>)
+                </div>
+
+                <h3>OpenAI API 직접 통합</h3>
+                <div class="code-block">
+<span class="keyword">from</span> openai <span class="keyword">import</span> OpenAI
+<span class="keyword">from</span> agent_evaluator <span class="keyword">import</span> AgentEvaluator
+
+client = OpenAI()
+
+<span class="comment"># GPT-4 Turbo 가격</span>
+pricing = {<span class="string">"input"</span>: <span class="number">0.01</span>, <span class="string">"output"</span>: <span class="number">0.03</span>}
+evaluator = AgentEvaluator(pricing=pricing)
+
+<span class="comment"># API 호출</span>
+response = client.chat.completions.create(
+    model=<span class="string">"gpt-4-turbo"</span>,
+    messages=[{<span class="string">"role"</span>: <span class="string">"user"</span>, <span class="string">"content"</span>: prompt}]
+)
+
+<span class="comment"># 토큰 사용량 추적</span>
+evaluator.track_usage(
+    task_id=<span class="string">"openai_001"</span>,
+    input_tokens=response.usage.prompt_tokens,
+    output_tokens=response.usage.completion_tokens,
+    task_type=<span class="string">"qa"</span>,
+    model=<span class="string">"gpt-4-turbo"</span>
+)
+
+<span class="function">print</span>(<span class="string">f"Cost: ${evaluator.get_usage_stats()['total_cost']:.4f}"</span>)
+                </div>
+
+                <h3>Anthropic Claude 통합</h3>
+                <div class="code-block">
+<span class="keyword">from</span> anthropic <span class="keyword">import</span> Anthropic
+<span class="keyword">from</span> agent_evaluator <span class="keyword">import</span> AgentEvaluator
+
+client = Anthropic()
+
+<span class="comment"># Claude 3.5 Sonnet 가격</span>
+pricing = {<span class="string">"input"</span>: <span class="number">0.003</span>, <span class="string">"output"</span>: <span class="number">0.015</span>}  <span class="comment"># per 1K tokens</span>
+evaluator = AgentEvaluator(pricing=pricing)
+
+<span class="comment"># API 호출</span>
+response = client.messages.create(
+    model=<span class="string">"claude-3-5-sonnet-20241022"</span>,
+    max_tokens=<span class="number">1024</span>,
+    messages=[{<span class="string">"role"</span>: <span class="string">"user"</span>, <span class="string">"content"</span>: prompt}]
+)
+
+<span class="comment"># 토큰 사용량 추적</span>
+evaluator.track_usage(
+    task_id=<span class="string">"claude_001"</span>,
+    input_tokens=response.usage.input_tokens,
+    output_tokens=response.usage.output_tokens,
+    task_type=<span class="string">"reasoning"</span>,
+    model=<span class="string">"claude-3-5-sonnet"</span>
+)
+
+<span class="function">print</span>(<span class="string">f"Cost: ${evaluator.get_usage_stats()['total_cost']:.4f}"</span>)
+                </div>
+            </div>
+
+            <!-- Cost Optimization -->
+            <div class="section">
+                <h2>💡 비용 최적화 전략</h2>
+
+                <h3>1. 모델 선택 최적화</h3>
+                <ul>
+                    <li><strong>작업 난이도 매칭</strong>: 간단한 작업은 저렴한 모델 (GPT-3.5, Claude Haiku) 사용</li>
+                    <li><strong>Cascade Pattern</strong>: 저렴한 모델로 시도 후 실패시 고급 모델 사용</li>
+                    <li><strong>라우팅</strong>: 작업 유형별로 최적 모델 자동 선택</li>
+                    <li><strong>로컬 모델 혼용</strong>: 민감하지 않은 작업은 Llama 등 로컬 모델 활용</li>
+                </ul>
+
+                <h3>2. 프롬프트 최적화</h3>
+                <ul>
+                    <li><strong>토큰 절약</strong>: 불필요한 단어, 반복, 공백 제거</li>
+                    <li><strong>Few-shot 예시 최소화</strong>: 꼭 필요한 예시만 포함</li>
+                    <li><strong>컨텍스트 압축</strong>: 긴 문서는 요약 후 전달</li>
+                    <li><strong>시스템 프롬프트 최적화</strong>: 간결하면서도 명확하게 작성</li>
+                </ul>
+
+                <h3>3. 캐싱 전략</h3>
+                <ul>
+                    <li><strong>응답 캐싱</strong>: 동일한 입력에 대한 응답 재사용</li>
+                    <li><strong>Embedding 캐싱</strong>: 벡터 임베딩 결과 저장</li>
+                    <li><strong>Partial Caching</strong>: 시스템 프롬프트 등 공통 부분 캐싱 (Anthropic Prompt Caching)</li>
+                    <li><strong>TTL 설정</strong>: 시간 경과 후 자동 무효화</li>
+                </ul>
+
+                <h3>4. 출력 길이 제어</h3>
+                <ul>
+                    <li><strong>max_tokens 설정</strong>: 불필요하게 긴 응답 방지</li>
+                    <li><strong>Stop Sequences</strong>: 특정 패턴에서 생성 중단</li>
+                    <li><strong>Temperature 조정</strong>: 낮은 temperature로 간결한 응답 유도</li>
+                    <li><strong>출력 형식 지정</strong>: JSON, YAML 등 구조화된 형식으로 토큰 절약</li>
+                </ul>
+
+                <h3>5. 배치 처리</h3>
+                <ul>
+                    <li><strong>요청 묶기</strong>: 여러 독립 요청을 하나로 결합</li>
+                    <li><strong>Batch API</strong>: OpenAI Batch API 등 활용 (50% 할인)</li>
+                    <li><strong>비동기 처리</strong>: 실시간 응답 불필요시 배치로 처리</li>
+                </ul>
+
+                <h3>6. 스트리밍 활용</h3>
+                <ul>
+                    <li><strong>조기 종료</strong>: 충분한 정보 획득 시 스트림 중단</li>
+                    <li><strong>점진적 처리</strong>: 전체 응답 대기 없이 부분 처리</li>
+                    <li><strong>사용자 경험 개선</strong>: 빠른 첫 토큰으로 체감 속도 향상</li>
+                </ul>
+
+                <h3>비용 최적화 결정 트리</h3>
+                <div class="code-block">
+<span class="keyword">def</span> <span class="function">select_optimal_model</span>(task_complexity: str, budget_constraint: str):
+    <span class="string">"""Select the most cost-effective model"""</span>
+
+    <span class="keyword">if</span> budget_constraint == <span class="string">"strict"</span>:
+        <span class="keyword">if</span> task_complexity == <span class="string">"low"</span>:
+            <span class="keyword">return</span> <span class="string">"gpt-3.5-turbo"</span>, {<span class="string">"input"</span>: <span class="number">0.0005</span>, <span class="string">"output"</span>: <span class="number">0.0015</span>}
+        <span class="keyword">elif</span> task_complexity == <span class="string">"medium"</span>:
+            <span class="keyword">return</span> <span class="string">"claude-3-haiku"</span>, {<span class="string">"input"</span>: <span class="number">0.00025</span>, <span class="string">"output"</span>: <span class="number">0.00125</span>}
+        <span class="keyword">else</span>:
+            <span class="keyword">return</span> <span class="string">"claude-3-sonnet"</span>, {<span class="string">"input"</span>: <span class="number">0.003</span>, <span class="string">"output"</span>: <span class="number">0.015</span>}
+
+    <span class="keyword">elif</span> budget_constraint == <span class="string">"moderate"</span>:
+        <span class="keyword">if</span> task_complexity == <span class="string">"high"</span>:
+            <span class="keyword">return</span> <span class="string">"gpt-4-turbo"</span>, {<span class="string">"input"</span>: <span class="number">0.01</span>, <span class="string">"output"</span>: <span class="number">0.03</span>}
+        <span class="keyword">else</span>:
+            <span class="keyword">return</span> <span class="string">"claude-3-5-sonnet"</span>, {<span class="string">"input"</span>: <span class="number">0.003</span>, <span class="string">"output"</span>: <span class="number">0.015</span>}
+
+    <span class="keyword">else</span>:  <span class="comment"># flexible budget</span>
+        <span class="keyword">if</span> task_complexity == <span class="string">"critical"</span>:
+            <span class="keyword">return</span> <span class="string">"claude-3-opus"</span>, {<span class="string">"input"</span>: <span class="number">0.015</span>, <span class="string">"output"</span>: <span class="number">0.075</span>}
+        <span class="keyword">else</span>:
+            <span class="keyword">return</span> <span class="string">"gpt-4-turbo"</span>, {<span class="string">"input"</span>: <span class="number">0.01</span>, <span class="string">"output"</span>: <span class="number">0.03</span>}
+                </div>
+            </div>
+
+            <!-- Best Practices -->
+            <div class="section">
+                <h2>✨ Best Practices</h2>
+
+                <div class="best-practice">
+                    <strong>1. 항상 토큰 사용량 추적</strong><br>
+                    모든 LLM API 호출에 대해 토큰 사용량을 기록하여 정확한 비용 파악이 가능하도록 하세요.
+                </div>
+
+                <div class="best-practice">
+                    <strong>2. 월간 예산 설정 및 모니터링</strong><br>
+                    예상 월간 비용을 정기적으로 확인하고, 예산 초과 위험시 알림을 받도록 설정하세요.
+                </div>
+
+                <div class="best-practice">
+                    <strong>3. 작업 유형별 벤치마크</strong><br>
+                    각 작업 유형의 평균 토큰 사용량과 비용을 벤치마크로 설정하고 지속적으로 모니터링하세요.
+                </div>
+
+                <div class="best-practice">
+                    <strong>4. 입력/출력 비율 분석</strong><br>
+                    출력 토큰이 입력 토큰보다 비싸므로, 불필요하게 긴 응답을 생성하지 않도록 주의하세요.
+                </div>
+
+                <div class="best-practice">
+                    <strong>5. 모델별 비용 효율성 평가</strong><br>
+                    정기적으로 <code>get_cost_breakdown_by_model()</code>로 각 모델의 비용 기여도를 분석하세요.
+                </div>
+
+                <div class="best-practice">
+                    <strong>6. 비용 Percentile 모니터링</strong><br>
+                    P95 비용을 확인하여 비용 급증 사례를 조기에 발견하세요.
+                </div>
+
+                <div class="best-practice">
+                    <strong>7. 캐싱으로 중복 비용 제거</strong><br>
+                    동일한 입력에 대해 반복적으로 API를 호출하지 않도록 캐싱을 적극 활용하세요.
+                </div>
+
+                <div class="best-practice">
+                    <strong>8. 정기적인 가격 업데이트</strong><br>
+                    LLM 모델 가격은 자주 변경되므로, pricing 설정을 주기적으로 업데이트하세요.
+                </div>
+            </div>
+
+            <!-- Warnings -->
+            <div class="section">
+                <h2>⚠️ 주의사항</h2>
+
+                <div class="warning-box">
+                    <h4>1. 가격 불일치 위험</h4>
+                    <code>pricing</code> 설정이 실제 모델 가격과 다르면 비용 추정이 부정확해집니다.
+                    정기적으로 공식 가격 페이지를 확인하고 업데이트하세요.
+                </div>
+
+                <div class="warning-box">
+                    <h4>2. 메모리 사용량</h4>
+                    모든 사용 기록을 메모리에 유지하면 메모리 부족이 발생할 수 있습니다.
+                    주기적으로 오래된 데이터를 파일이나 데이터베이스에 저장하고 메모리에서 제거하세요.
+                </div>
+
+                <div class="warning-box">
+                    <h4>3. 실시간 vs 배치 가격 차이</h4>
+                    일부 제공사(OpenAI)는 Batch API에 대해 할인된 가격을 제공합니다.
+                    실시간/배치 API를 구분하여 추적하세요.
+                </div>
+
+                <div class="warning-box">
+                    <h4>4. 숨겨진 비용</h4>
+                    Fine-tuning, Embedding, Image generation 등 다른 API 사용 비용도 고려해야 합니다.
+                    LLM 텍스트 생성만이 유일한 비용이 아닙니다.
+                </div>
+
+                <div class="warning-box">
+                    <h4>5. 월간 예상 비용의 한계</h4>
+                    <code>estimated_monthly_cost</code>는 현재 사용 패턴을 30배한 값으로, 트래픽 변동을 반영하지 못합니다.
+                    참고용으로만 사용하고, 실제 예산 계획은 더 정교하게 수립하세요.
+                </div>
+            </div>
+
+            <!-- Related Metrics -->
+            <div class="section">
+                <h2>🔗 관련 메트릭</h2>
+
+                <table>
+                    <thead>
+                        <tr>
+                            <th>메트릭</th>
+                            <th>관계</th>
+                            <th>설명</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><strong>Latency Metrics</strong></td>
+                            <td>상충 관계</td>
+                            <td>빠른 모델은 비싸고, 저렴한 모델은 느린 경향</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Quality Score</strong></td>
+                            <td>균형 필요</td>
+                            <td>고급 모델은 품질이 높지만 비용도 높음</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Retry Count</strong></td>
+                            <td>직접 영향</td>
+                            <td>재시도가 많으면 토큰 사용량과 비용 증가</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Task Completion Rate</strong></td>
+                            <td>효율성 지표</td>
+                            <td>실패한 작업도 비용이 발생하므로 완료율 중요</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Tool Usage (Layer 2)</strong></td>
+                            <td>간접 영향</td>
+                            <td>도구 사용이 많으면 컨텍스트 토큰 증가</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Conclusion -->
+            <div class="section">
+                <h2>📋 요약</h2>
+
+                <div class="intro-box">
+                    <strong>Cost/Token Economy</strong>는 AI 에이전트의 재정적 지속가능성을 보장하는 핵심 메트릭입니다.
+
+                    <ul style="margin-top: 15px;">
+                        <li><strong>정확한 비용 추적</strong>: 입력/출력 토큰 별도 계산으로 정밀한 비용 산출</li>
+                        <li><strong>월간 예산 관리</strong>: 현재 사용 패턴 기반 월간 비용 예측</li>
+                        <li><strong>작업 유형별 분석</strong>: 어떤 작업이 비용을 많이 소모하는지 파악</li>
+                        <li><strong>모델별 비교</strong>: 여러 모델 사용시 각 모델의 비용 기여도 분석</li>
+                        <li><strong>최적화 기회 식별</strong>: 비효율적인 토큰 사용 패턴 발견 및 개선</li>
+                    </ul>
+
+                    <br>
+                    Layer 1 네이티브 메트릭으로 <span class="highlight">외부 의존성 없이</span> 실시간 비용 추적이 가능하며,
+                    프로덕션 AI 시스템의 <span class="highlight">비용 효율성과 ROI 최적화</span>에 필수적입니다.
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Mermaid.js for diagrams -->
+    <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+    <script>
+        mermaid.initialize({
+            startOnLoad: true,
+            theme: 'default',
+            flowchart: {
+                useMaxWidth: true,
+                htmlLabels: true,
+                curve: 'basis'
+            }
+        });
+    </script>
+    <script src="../scripts/mermaid-zoom.js"></script>
+</body>
+</html>

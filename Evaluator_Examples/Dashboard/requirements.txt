@@ -1,0 +1,177 @@
+# Agent Evaluator Dashboard - Requirements
+# =========================================
+# Python 3.11+ compatible
+# Updated: 2025-12-12
+
+# ============================================================================
+# Core Dependencies (Required)
+# ============================================================================
+
+# Dashboard Framework
+streamlit>=1.28.0,<2.0.0
+plotly>=5.17.0,<6.0.0
+
+# Data Processing
+numpy>=1.24.0,<2.0.0
+pandas>=2.0.0,<3.0.0
+
+# Utilities
+python-dotenv>=1.0.0
+
+# ============================================================================
+# Agent Evaluator Package (Required)
+# ============================================================================
+# The dashboard depends on the agent_evaluator package.
+# Install it using one of these methods:
+
+# Option 1: From local source (recommended for development)
+#   cd /path/to/your/Examples
+#   pip install -e .
+#   (This assumes agent_evaluator package is in parent directory)
+
+# Option 2: From PyPI (if published)
+#   pip install agent-evaluator>=0.5.0
+
+# Note: You MUST install agent_evaluator before running the dashboard
+# The dashboard imports:
+#   - agent_evaluator.PerformanceMonitor
+#   - agent_evaluator.HybridPerformanceMonitor
+#   - agent_evaluator.TaskType
+#   - agent_evaluator.reporting.comprehensive_report
+#   - agent_evaluator.utils.path_helpers
+#   - agent_evaluator.utils.test_transparency_manager
+
+# ============================================================================
+# Optional Dependencies (Framework Integrations)
+# ============================================================================
+# Install these if you're using framework-specific features or Layer 3 metrics
+
+# AutoGen Integration (Multi-agent conversations)
+# Note: Using v0.2.x for compatibility with existing code
+# v0.3+ has breaking changes in module structure
+# pyautogen>=0.2.0,<0.3.0
+
+# LangChain Integration (LCEL chains, callbacks)
+# langchain>=0.1.0
+# langchain-core>=0.1.0
+# langchain-community>=0.0.20
+
+# LangGraph Integration (State graphs, workflows)
+# langgraph>=0.0.20
+
+# CrewAI Integration (Multi-agent crews)
+# crewai>=0.11.0
+
+# DeepEval Metrics (G-Eval, Hallucination, Bias, Toxicity)
+# deepeval>=0.21.0
+
+# Ragas Metrics (RAG-specific metrics)
+# ragas>=0.1.0
+
+# ============================================================================
+# Development Dependencies (Optional)
+# ============================================================================
+# Uncomment for development
+
+# Testing
+# pytest>=7.0.0
+# pytest-cov>=3.0.0
+# pytest-asyncio>=0.21.0
+
+# Code Quality
+# black>=22.0.0
+# flake8>=4.0.0
+# mypy>=1.0.0
+
+# ============================================================================
+# Installation Instructions
+# ============================================================================
+#
+# 1. Install agent_evaluator package first:
+#    cd /path/to/your/Examples
+#    pip install -e .
+#
+# 2. Install dashboard dependencies:
+#    cd Dashboard
+#    pip install -r requirements.txt
+#
+# 3. Run the dashboard:
+#    streamlit run app.py
+#    # or
+#    streamlit run streamlit_dashboard.py
+#
+# 4. Optional: Install framework integrations
+#    pip install pyautogen langchain langchain-core langgraph crewai
+#
+# 5. Optional: Install advanced metrics
+#    pip install deepeval ragas
+#
+# ============================================================================
+# Dashboard Features
+# ============================================================================
+#
+# Main Dashboard (streamlit_dashboard.py):
+#   - 9 tabs: Overview, Core Metrics, Performance, Agentic AI, Advanced,
+#             Insights, Test 투명성, 지표 설명, Export
+#   - Supports Layer 1 (native), Layer 2 (agentic), Layer 3 (advanced) metrics
+#   - Interactive visualizations with Plotly
+#   - Export to HTML, CSV, JSON
+#
+# Data Editor (dashboard_data_editor.py):
+#   - Interactive data table editing
+#   - Test transparency visualization
+#   - Annotation UI
+#   - Audit log viewer
+#
+# Entry Point (app.py):
+#   - Zero-configuration setup
+#   - Automatic path resolution
+#   - Import validation
+#
+# ============================================================================
+# File Structure
+# ============================================================================
+#
+# Dashboard/
+# ├── app.py                      # Entry point
+# ├── streamlit_dashboard.py      # Main dashboard
+# ├── dashboard_data_editor.py    # Data editor UI
+# ├── data_editor_manager.py      # Data editor logic
+# ├── requirements.txt            # This file
+# ├── data/                       # Evaluation results (JSON)
+# ├── pages/
+# │   └── 데이터편집.py           # Additional page
+# └── utils/
+#     ├── enhanced_recommendations.py  # Advanced recommendations
+#     └── merge_evaluation_results.py  # Result merging
+#
+# ============================================================================
+# Troubleshooting
+# ============================================================================
+#
+# Issue: ModuleNotFoundError: No module named 'agent_evaluator'
+# Solution: Install agent_evaluator package first
+#   cd /path/to/your/Examples
+#   pip install -e .
+#
+# Issue: Dashboard shows "No data files found"
+# Solution: Run examples first to generate evaluation results
+#   cd level_1_foundation
+#   python 01_quickstart.py
+#   # Results will be saved to Dashboard/data/
+#
+# Issue: ImportError with framework integrations
+# Solution: Install optional dependencies as needed
+#   pip install pyautogen langchain langgraph crewai
+#
+# ============================================================================
+# Notes
+# ============================================================================
+# - Dashboard requires agent_evaluator package to be installed
+# - All framework integrations (AutoGen, LangChain, etc.) are optional
+# - Dashboard works with evaluation results from Level 1, 2, and 3 examples
+# - Python 3.11+ is recommended for best compatibility
+# - Streamlit version pinned to <2.0.0 for stability
+# - Plotly used for all visualizations
+# - pandas/numpy for data processing
+# - python-dotenv for environment variable management

@@ -1,0 +1,18 @@
+# ============================================================
+# Dashboard 특화 패턴
+# (Python 공통 패턴은 상위 .gitignore에서 상속됨)
+# ============================================================
+
+# Streamlit 설정
+.streamlit/
+
+# Dashboard 데이터 (구조는 유지, 결과만 무시)
+data/evaluation_results/*.json
+!data/evaluation_results/sample_result.json
+
+# Logs
+*.log
+
+# Temporary files
+*.tmp
+*.bak

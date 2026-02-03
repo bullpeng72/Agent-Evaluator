@@ -1,0 +1,2653 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>프레임워크 통합 가이드 - Agent Evaluator</title>
+
+    <!-- Common Styles -->
+    <link rel="stylesheet" href="styles/common.css">
+
+    <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+    <script>
+        mermaid.initialize({
+            startOnLoad: true,
+            theme: 'default',
+            flowchart: {
+                useMaxWidth: true,
+                htmlLabels: true,
+                curve: 'basis'
+            },
+            themeVariables: {
+                fontSize: '14px'
+            }
+        });
+    </script>
+    
+</head>
+<body>
+    <div class="content-wrapper">
+        <div class="doc-header">
+            <h1>🔌 프레임워크 통합 가이드</h1>
+            <p style="color: #4a5568; margin-top: 10px;">LangChain, LlamaIndex, CrewAI 통합 방법</p>
+        </div>
+        <div class="doc-content">
+<h1 id="프레임워크-통합-가이드">프레임워크 통합 가이드</h1>
+<blockquote>
+<p>🔌 LangChain, LangGraph, CrewAI, AutoGen과 Agent Evaluator 통합 완벽
+가이드</p>
+</blockquote>
+
+<h2 id="버전-정보">버전 정보</h2>
+<p><strong>현재 버전:</strong> v0.5.0</p>
+<p><strong>최종 업데이트:</strong> 2025-12-14</p>
+
+<p>이 문서는 주요 AI Agent 프레임워크에 Agent Evaluator를 통합하는
+방법을 상세히 설명합니다.</p>
+
+<p><strong>주요 기능:</strong></p>
+<ul>
+<li>🎯 <strong>Layer 1 메트릭</strong>: TCR, Accuracy, Cost 자동 추적</li>
+<li>🚀 <strong>Layer 2 메트릭</strong>: Tool Selection, Agent Coordination, Workflow Execution 자동 평가</li>
+<li>🔧 <strong>프레임워크별 최적화</strong>: 최적화된 콜백/래퍼 클래스</li>
+<li>📊 <strong>실시간 모니터링</strong>: 리포트 생성</li>
+</ul>
+<h2 id="호환성-및-요구사항">호환성 및 요구사항</h2>
+<h3 id="테스트된-버전">필수 및 권장 버전</h3>
+<p><strong>Agent Evaluator v0.5.0</strong> 호환성 정보:</p>
+<table>
+<thead>
+<tr class="doc-header">
+<th>구분</th>
+<th>패키지</th>
+<th>버전 요구사항</th>
+<th>설치 명령</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><strong>필수</strong></td>
+<td>Python</td>
+<td>3.8+</td>
+<td>-</td>
+</tr>
+<tr class="even">
+<td><strong>필수</strong></td>
+<td>Agent Evaluator</td>
+<td>0.5.0</td>
+<td><code>pip install agent-evaluator</code></td>
+</tr>
+<tr class="odd">
+<td><strong>선택 (프레임워크)</strong></td>
+<td>CrewAI</td>
+<td>최신 버전</td>
+<td><code>pip install crewai</code></td>
+</tr>
+<tr class="even">
+<td><strong>선택 (프레임워크)</strong></td>
+<td>LangChain</td>
+<td>0.1.0+</td>
+<td><code>pip install langchain</code></td>
+</tr>
+<tr class="odd">
+<td><strong>선택 (프레임워크)</strong></td>
+<td>LangGraph</td>
+<td>최신 버전</td>
+<td><code>pip install langgraph</code></td>
+</tr>
+<tr class="even">
+<td><strong>선택 (프레임워크)</strong></td>
+<td>AutoGen</td>
+<td>0.2.0+</td>
+<td><code>pip install pyautogen</code></td>
+</tr>
+<tr class="odd">
+<td><strong>선택 (고급 메트릭)</strong></td>
+<td>DeepEval</td>
+<td>0.20.0+</td>
+<td><code>pip install deepeval</code></td>
+</tr>
+<tr class="even">
+<td><strong>선택 (RAG 평가)</strong></td>
+<td>Ragas</td>
+<td>0.1.0+</td>
+<td><code>pip install ragas</code></td>
+</tr>
+</tbody>
+</table>
+<h3 id="설치-방법">설치 방법</h3>
+
+<p><strong>기본 설치</strong> (Layer 1 메트릭)</p>
+<div class="sourceCode" id="cb1"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="ex">pip</span> install agent-evaluator</span></code></pre></div>
+
+<p><strong>고급 메트릭 포함</strong> (Layer 3)</p>
+<div class="sourceCode" id="cb2"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="ex">pip</span> install agent-evaluator deepeval ragas</span></code></pre></div>
+
+<p><strong>프레임워크별 설치</strong></p>
+<div class="sourceCode" id="cb3"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="co"># CrewAI + Agent Evaluator</span></span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a><span class="ex">pip</span> install crewai agent-evaluator</span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a><span class="co"># LangChain + Agent Evaluator</span></span>
+<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a><span class="ex">pip</span> install langchain langchain-openai agent-evaluator</span>
+<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-7"><a href="#cb3-7" aria-hidden="true" tabindex="-1"></a><span class="co"># AutoGen + Agent Evaluator</span></span>
+<span id="cb3-8"><a href="#cb3-8" aria-hidden="true" tabindex="-1"></a><span class="ex">pip</span> install pyautogen agent-evaluator</span></code></pre></div>
+<h3 id="호환성-참고사항">호환성 참고사항</h3>
+<ul>
+<li><strong>Python 3.8+</strong> 필수 (3.12까지 테스트 완료)</li>
+<li><strong>프레임워크</strong>: CrewAI, LangChain, LangGraph, AutoGen 모두 지원</li>
+<li><strong>고급 메트릭</strong>: DeepEval (0.20.0+), Ragas (0.1.0+) 선택 설치</li>
+<li><strong>의존성</strong>: numpy (1.20.0+), pandas (1.3.0+) 자동 설치</li>
+</ul>
+<hr />
+<h2 id="목차">목차</h2>
+<ul>
+<li><a href="#langchain-통합">1. LangChain 통합</a></li>
+<li><a href="#langgraph-통합">2. LangGraph 통합</a></li>
+<li><a href="#crewai-통합">3. CrewAI 통합</a></li>
+<li><a href="#autogen-통합">4. AutoGen 통합</a></li>
+<li><a href="#프레임워크-비교">5. 프레임워크 비교</a></li>
+<li><a href="#layer-2-메트릭-자동-추적">6. Layer 2 메트릭 자동
+추적</a></li>
+<li><a href="#모범-사례">7. 모범 사례</a></li>
+<li><a href="#dev-guide">💻 개발자 가이드 (Developer Guide)</a>
+<ul>
+<li><a href="#dev-implementation">8.1 실전 구현 가이드</a></li>
+<li><a href="#dev-performance">8.2 성능 최적화</a></li>
+<li><a href="#dev-debugging">8.3 디버깅 및 문제 해결</a></li>
+<li><a href="#dev-production">8.4 프로덕션 배포</a></li>
+<li><a href="#dev-advanced">8.5 고급 활용</a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+<hr />
+<h2 id="langchain-통합">1. LangChain 통합</h2>
+
+<div style="background-color: #e8f5e9; border-left: 4px solid #4caf50; padding: 12px; margin: 15px 0;">
+<p><strong>✨ LangChainEvaluator</strong> - LangChain 전용 평가 클래스</p>
+<p>Layer 1/2/3 완전 지원, 동적 계산, 자동 Tool Selection 및 Workflow 추적</p>
+<pre><code>from agent_evaluator.integrations import LangChainEvaluator
+evaluator = LangChainEvaluator(agent, enable_layer2=True)</code></pre>
+<p>자세한 내용은 <a href="API_REFERENCE.html#langchain-evaluator">API Reference</a>를 참고하세요.</p>
+</div>
+
+<h3 id="langchain-소개">1.1 LangChain 소개</h3>
+<p><strong>LangChain</strong>은 LLM 기반 애플리케이션 개발을 위한
+프레임워크입니다.</p>
+
+<p><strong>주요 특징</strong></p>
+<ul>
+<li>⛓️ <strong>체인</strong>: 여러 단계를 연결</li>
+<li>🧠 <strong>메모리</strong>: 대화 기록 유지</li>
+<li>🔧 <strong>도구</strong>: 다양한 도구 통합</li>
+<li>🤖 <strong>에이전트</strong>: 자율적 의사결정</li>
+</ul>
+<h3 id="설치">1.2 설치</h3>
+<div class="sourceCode" id="cb5"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="ex">pip</span> install langchain langchain-openai agent-evaluator</span></code></pre></div>
+<h3 id="콜백-기반-통합">1.3 콜백 기반 통합</h3>
+<p>Agent Evaluator는 <code>LangChainEvaluator</code> 클래스를
+제공하여 LangChain의 실행을 자동으로 추적합니다.</p>
+<h4 id="주요-콜백-메서드">주요 콜백 메서드</h4>
+<div class="sourceCode" id="cb6"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> LangChainEvaluator:</span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a>    <span class="co">&quot;&quot;&quot;LangChain용 평가 콜백 핸들러&quot;&quot;&quot;</span></span>
+<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> on_chain_start(<span class="va">self</span>, serialized, inputs, <span class="op">**</span>kwargs):</span>
+<span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a>        <span class="co">&quot;&quot;&quot;체인 시작 - 타이머 및 메트릭 초기화&quot;&quot;&quot;</span></span>
+<span id="cb6-6"><a href="#cb6-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-7"><a href="#cb6-7" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> on_llm_start(<span class="va">self</span>, serialized, prompts, <span class="op">**</span>kwargs):</span>
+<span id="cb6-8"><a href="#cb6-8" aria-hidden="true" tabindex="-1"></a>        <span class="co">&quot;&quot;&quot;LLM 호출 시작 - 입력 토큰 추정&quot;&quot;&quot;</span></span>
+<span id="cb6-9"><a href="#cb6-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-10"><a href="#cb6-10" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> on_llm_end(<span class="va">self</span>, response: LLMResult, <span class="op">**</span>kwargs):</span>
+<span id="cb6-11"><a href="#cb6-11" aria-hidden="true" tabindex="-1"></a>        <span class="co">&quot;&quot;&quot;LLM 호출 완료 - 토큰 사용량 기록&quot;&quot;&quot;</span></span>
+<span id="cb6-12"><a href="#cb6-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-13"><a href="#cb6-13" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> on_agent_action(<span class="va">self</span>, action: AgentAction, <span class="op">**</span>kwargs):</span>
+<span id="cb6-14"><a href="#cb6-14" aria-hidden="true" tabindex="-1"></a>        <span class="co">&quot;&quot;&quot;도구 호출 - Tool Selection 추적&quot;&quot;&quot;</span></span>
+<span id="cb6-15"><a href="#cb6-15" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-16"><a href="#cb6-16" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> on_tool_end(<span class="va">self</span>, output: <span class="bu">str</span>, <span class="op">**</span>kwargs):</span>
+<span id="cb6-17"><a href="#cb6-17" aria-hidden="true" tabindex="-1"></a>        <span class="co">&quot;&quot;&quot;도구 호출 완료&quot;&quot;&quot;</span></span>
+<span id="cb6-18"><a href="#cb6-18" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-19"><a href="#cb6-19" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> on_chain_error(<span class="va">self</span>, error: <span class="pp">Exception</span>, <span class="op">**</span>kwargs):</span>
+<span id="cb6-20"><a href="#cb6-20" aria-hidden="true" tabindex="-1"></a>        <span class="co">&quot;&quot;&quot;에러 발생 - 에러 기록&quot;&quot;&quot;</span></span>
+<span id="cb6-21"><a href="#cb6-21" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-22"><a href="#cb6-22" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> on_chain_end(<span class="va">self</span>, outputs, <span class="op">**</span>kwargs):</span>
+<span id="cb6-23"><a href="#cb6-23" aria-hidden="true" tabindex="-1"></a>        <span class="co">&quot;&quot;&quot;체인 완료 - TaskResult 생성 및 기록&quot;&quot;&quot;</span></span></code></pre></div>
+<h3 id="기본-사용법">1.4 기본 사용법</h3>
+<div class="sourceCode" id="cb7"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> langchain.agents <span class="im">import</span> AgentExecutor, create_openai_functions_agent</span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> langchain_openai <span class="im">import</span> ChatOpenAI</span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> langchain.tools <span class="im">import</span> Tool</span>
+<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> agent_evaluator.integrations <span class="im">import</span> LangChainEvaluator, AdvancedLangChainCallback</span>
+<span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> agent_evaluator <span class="im">import</span> PerformanceMonitor, TaskType</span>
+<span id="cb7-6"><a href="#cb7-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-7"><a href="#cb7-7" aria-hidden="true" tabindex="-1"></a><span class="co"># 1. Monitor 생성</span></span>
+<span id="cb7-8"><a href="#cb7-8" aria-hidden="true" tabindex="-1"></a>monitor <span class="op">=</span> PerformanceMonitor(</span>
+<span id="cb7-9"><a href="#cb7-9" aria-hidden="true" tabindex="-1"></a>    pricing<span class="op">=</span>{<span class="st">&quot;input&quot;</span>: <span class="fl">0.003</span>, <span class="st">&quot;output&quot;</span>: <span class="fl">0.015</span>}</span>
+<span id="cb7-10"><a href="#cb7-10" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb7-11"><a href="#cb7-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-12"><a href="#cb7-12" aria-hidden="true" tabindex="-1"></a><span class="co"># 2. Callback 생성</span></span>
+<span id="cb7-13"><a href="#cb7-13" aria-hidden="true" tabindex="-1"></a>evaluator <span class="op">=</span> LangChainEvaluator(agent,</span>
+<span id="cb7-14"><a href="#cb7-14" aria-hidden="true" tabindex="-1"></a>    monitor,</span>
+<span id="cb7-15"><a href="#cb7-15" aria-hidden="true" tabindex="-1"></a>    task_type<span class="op">=</span>TaskType.QA.value</span>
+<span id="cb7-16"><a href="#cb7-16" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb7-17"><a href="#cb7-17" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-18"><a href="#cb7-18" aria-hidden="true" tabindex="-1"></a><span class="co"># 3. LLM 및 도구 설정</span></span>
+<span id="cb7-19"><a href="#cb7-19" aria-hidden="true" tabindex="-1"></a>llm <span class="op">=</span> ChatOpenAI(model<span class="op">=</span><span class="st">&quot;gpt-4o-mini&quot;</span>, temperature<span class="op">=</span><span class="fl">0.7</span>)</span>
+<span id="cb7-20"><a href="#cb7-20" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-21"><a href="#cb7-21" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> search(query: <span class="bu">str</span>) <span class="op">-&gt;</span> <span class="bu">str</span>:</span>
+<span id="cb7-22"><a href="#cb7-22" aria-hidden="true" tabindex="-1"></a>    <span class="co">&quot;&quot;&quot;검색 도구&quot;&quot;&quot;</span></span>
+<span id="cb7-23"><a href="#cb7-23" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> <span class="ss">f&quot;Search results for: </span><span class="sc">{</span>query<span class="sc">}</span><span class="ss">&quot;</span></span>
+<span id="cb7-24"><a href="#cb7-24" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-25"><a href="#cb7-25" aria-hidden="true" tabindex="-1"></a>tools <span class="op">=</span> [</span>
+<span id="cb7-26"><a href="#cb7-26" aria-hidden="true" tabindex="-1"></a>    Tool(name<span class="op">=</span><span class="st">&quot;Search&quot;</span>, func<span class="op">=</span>search, description<span class="op">=</span><span class="st">&quot;Search for information&quot;</span>)</span>
+<span id="cb7-27"><a href="#cb7-27" aria-hidden="true" tabindex="-1"></a>]</span>
+<span id="cb7-28"><a href="#cb7-28" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-29"><a href="#cb7-29" aria-hidden="true" tabindex="-1"></a><span class="co"># 4. Agent 생성 및 실행</span></span>
+<span id="cb7-30"><a href="#cb7-30" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> langchain <span class="im">import</span> hub</span>
+<span id="cb7-31"><a href="#cb7-31" aria-hidden="true" tabindex="-1"></a>prompt <span class="op">=</span> hub.pull(<span class="st">&quot;hwchase17/openai-functions-agent&quot;</span>)</span>
+<span id="cb7-32"><a href="#cb7-32" aria-hidden="true" tabindex="-1"></a>agent <span class="op">=</span> create_openai_functions_agent(llm, tools, prompt)</span>
+<span id="cb7-33"><a href="#cb7-33" aria-hidden="true" tabindex="-1"></a>agent_executor <span class="op">=</span> AgentExecutor(agent<span class="op">=</span>agent, tools<span class="op">=</span>tools, verbose<span class="op">=</span><span class="va">True</span>)</span>
+<span id="cb7-34"><a href="#cb7-34" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-35"><a href="#cb7-35" aria-hidden="true" tabindex="-1"></a><span class="co"># 5. 콜백과 함께 실행</span></span>
+<span id="cb7-36"><a href="#cb7-36" aria-hidden="true" tabindex="-1"></a>result <span class="op">=</span> agent_executor.invoke(</span>
+<span id="cb7-37"><a href="#cb7-37" aria-hidden="true" tabindex="-1"></a>    {<span class="st">&quot;input&quot;</span>: <span class="st">&quot;What is the capital of France?&quot;</span>},</span>
+<span id="cb7-38"><a href="#cb7-38" aria-hidden="true" tabindex="-1"></a>    config<span class="op">=</span>{<span class="st">&quot;callbacks&quot;</span>: [callback]}</span>
+<span id="cb7-39"><a href="#cb7-39" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb7-40"><a href="#cb7-40" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-41"><a href="#cb7-41" aria-hidden="true" tabindex="-1"></a><span class="co"># 6. 리포트 확인</span></span>
+<span id="cb7-42"><a href="#cb7-42" aria-hidden="true" tabindex="-1"></a>monitor.print_summary()</span></code></pre></div>
+<h3 id="layer-2-tool-selection-자동-평가">1.5 Layer 2: Tool Selection
+자동 평가</h3>
+<p>LangChain 콜백은 <strong>Tool Selection</strong> 메트릭을 자동으로
+평가할 수 있습니다.</p>
+<div class="sourceCode" id="cb8"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Golden Dataset에서 expected_tools 로드</span></span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a>expected_tools <span class="op">=</span> [<span class="st">&quot;search&quot;</span>, <span class="st">&quot;calculator&quot;</span>, <span class="st">&quot;python_repl&quot;</span>]</span>
+<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a><span class="co"># Layer 2 자동 평가 활성화</span></span>
+<span id="cb8-5"><a href="#cb8-5" aria-hidden="true" tabindex="-1"></a>evaluator <span class="op">=</span> LangChainEvaluator(agent,</span>
+<span id="cb8-6"><a href="#cb8-6" aria-hidden="true" tabindex="-1"></a>    monitor,</span>
+<span id="cb8-7"><a href="#cb8-7" aria-hidden="true" tabindex="-1"></a>    task_type<span class="op">=</span>TaskType.TOOL_USE.value,</span>
+<span id="cb8-8"><a href="#cb8-8" aria-hidden="true" tabindex="-1"></a>    expected_tools<span class="op">=</span>expected_tools  <span class="co"># 🆕 Tool Selection 자동 평가</span></span>
+<span id="cb8-9"><a href="#cb8-9" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb8-10"><a href="#cb8-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-11"><a href="#cb8-11" aria-hidden="true" tabindex="-1"></a><span class="co"># Agent 실행</span></span>
+<span id="cb8-12"><a href="#cb8-12" aria-hidden="true" tabindex="-1"></a>result <span class="op">=</span> agent_executor.invoke(</span>
+<span id="cb8-13"><a href="#cb8-13" aria-hidden="true" tabindex="-1"></a>    {<span class="st">&quot;input&quot;</span>: <span class="st">&quot;What is 25 * 4?&quot;</span>},</span>
+<span id="cb8-14"><a href="#cb8-14" aria-hidden="true" tabindex="-1"></a>    config<span class="op">=</span>{<span class="st">&quot;callbacks&quot;</span>: [callback]}</span>
+<span id="cb8-15"><a href="#cb8-15" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb8-16"><a href="#cb8-16" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-17"><a href="#cb8-17" aria-hidden="true" tabindex="-1"></a><span class="co"># Tool Selection 통계 확인</span></span>
+<span id="cb8-18"><a href="#cb8-18" aria-hidden="true" tabindex="-1"></a>stats <span class="op">=</span> monitor.tool_selection_tracker.get_accuracy_stats()</span>
+<span id="cb8-19"><a href="#cb8-19" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f&quot;Tool Selection Accuracy: </span><span class="sc">{</span>stats[<span class="st">&#39;avg_accuracy&#39;</span>]<span class="sc">:.1f}</span><span class="ss">%&quot;</span>)</span>
+<span id="cb8-20"><a href="#cb8-20" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f&quot;Precision: </span><span class="sc">{</span>stats[<span class="st">&#39;avg_precision&#39;</span>]<span class="sc">:.1f}</span><span class="ss">%&quot;</span>)</span>
+<span id="cb8-21"><a href="#cb8-21" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f&quot;Recall: </span><span class="sc">{</span>stats[<span class="st">&#39;avg_recall&#39;</span>]<span class="sc">:.1f}</span><span class="ss">%&quot;</span>)</span>
+<span id="cb8-22"><a href="#cb8-22" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f&quot;F1 Score: </span><span class="sc">{</span>stats[<span class="st">&#39;avg_f1_score&#39;</span>]<span class="sc">:.1f}</span><span class="ss">%&quot;</span>)</span></code></pre></div>
+<p><strong>자동 추적 메커니즘:</strong></p>
+<ol>
+<li><code>on_agent_action()</code>: 에이전트가 도구를 선택할 때마다 호출</li>
+<li>선택된 도구 이름을 <code>self.tool_calls</code> 리스트에 저장</li>
+<li><code>on_chain_end()</code>: 체인 완료 시 <code>expected_tools</code>와 비교하여 자동 평가</li>
+<li><code>monitor.tool_selection_tracker.evaluate_selection()</code> 호출</li>
+</ol>
+<h3 id="헬퍼-클래스-langchainevaluator">1.6 헬퍼 클래스:
+LangChainEvaluator</h3>
+<p>간편한 사용을 위한 래퍼 클래스:</p>
+<div class="sourceCode" id="cb9"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> agent_evaluator.integrations <span class="im">import</span> LangChainEvaluator</span>
+<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a><span class="co"># Evaluator 생성</span></span>
+<span id="cb9-4"><a href="#cb9-4" aria-hidden="true" tabindex="-1"></a>evaluator <span class="op">=</span> LangChainEvaluator(monitor)</span>
+<span id="cb9-5"><a href="#cb9-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-6"><a href="#cb9-6" aria-hidden="true" tabindex="-1"></a><span class="co"># Agent 실행 (콜백 자동 추가)</span></span>
+<span id="cb9-7"><a href="#cb9-7" aria-hidden="true" tabindex="-1"></a>result <span class="op">=</span> evaluator.run(agent_executor, <span class="st">&quot;What is AI?&quot;</span>)</span>
+<span id="cb9-8"><a href="#cb9-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-9"><a href="#cb9-9" aria-hidden="true" tabindex="-1"></a><span class="co"># 리포트 생성</span></span>
+<span id="cb9-10"><a href="#cb9-10" aria-hidden="true" tabindex="-1"></a>report <span class="op">=</span> evaluator.get_report()</span></code></pre></div>
+<h3 id="실전-예제-rag-시스템-평가">1.7 실전 예제: RAG 시스템 평가</h3>
+<div class="sourceCode" id="cb10"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> langchain_openai <span class="im">import</span> OpenAIEmbeddings</span>
+<span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> langchain.vectorstores <span class="im">import</span> Chroma</span>
+<span id="cb10-3"><a href="#cb10-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> langchain.chains <span class="im">import</span> RetrievalQA</span>
+<span id="cb10-4"><a href="#cb10-4" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> langchain.text_splitter <span class="im">import</span> RecursiveCharacterTextSplitter</span>
+<span id="cb10-5"><a href="#cb10-5" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> agent_evaluator.integrations <span class="im">import</span> LangChainEvaluator, AdvancedLangChainCallback</span>
+<span id="cb10-6"><a href="#cb10-6" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> hybrid_monitor <span class="im">import</span> create_monitor</span>
+<span id="cb10-7"><a href="#cb10-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-8"><a href="#cb10-8" aria-hidden="true" tabindex="-1"></a><span class="co"># 1. RAG 프로파일 Monitor 생성 (RAGAS 메트릭 포함)</span></span>
+<span id="cb10-9"><a href="#cb10-9" aria-hidden="true" tabindex="-1"></a>monitor <span class="op">=</span> create_monitor(profile<span class="op">=</span><span class="st">&quot;rag&quot;</span>)</span>
+<span id="cb10-10"><a href="#cb10-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-11"><a href="#cb10-11" aria-hidden="true" tabindex="-1"></a><span class="co"># 2. 문서 로드 및 벡터 스토어 생성</span></span>
+<span id="cb10-12"><a href="#cb10-12" aria-hidden="true" tabindex="-1"></a>documents <span class="op">=</span> [</span>
+<span id="cb10-13"><a href="#cb10-13" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;Paris is the capital of France.&quot;</span>,</span>
+<span id="cb10-14"><a href="#cb10-14" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;France is located in Western Europe.&quot;</span>,</span>
+<span id="cb10-15"><a href="#cb10-15" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;The Eiffel Tower is in Paris.&quot;</span></span>
+<span id="cb10-16"><a href="#cb10-16" aria-hidden="true" tabindex="-1"></a>]</span>
+<span id="cb10-17"><a href="#cb10-17" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-18"><a href="#cb10-18" aria-hidden="true" tabindex="-1"></a>text_splitter <span class="op">=</span> RecursiveCharacterTextSplitter(chunk_size<span class="op">=</span><span class="dv">100</span>, chunk_overlap<span class="op">=</span><span class="dv">20</span>)</span>
+<span id="cb10-19"><a href="#cb10-19" aria-hidden="true" tabindex="-1"></a>splits <span class="op">=</span> text_splitter.create_documents(documents)</span>
+<span id="cb10-20"><a href="#cb10-20" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-21"><a href="#cb10-21" aria-hidden="true" tabindex="-1"></a>embeddings <span class="op">=</span> OpenAIEmbeddings()</span>
+<span id="cb10-22"><a href="#cb10-22" aria-hidden="true" tabindex="-1"></a>vectorstore <span class="op">=</span> Chroma.from_documents(splits, embeddings)</span>
+<span id="cb10-23"><a href="#cb10-23" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-24"><a href="#cb10-24" aria-hidden="true" tabindex="-1"></a><span class="co"># 3. RAG 체인 생성</span></span>
+<span id="cb10-25"><a href="#cb10-25" aria-hidden="true" tabindex="-1"></a>llm <span class="op">=</span> ChatOpenAI(model<span class="op">=</span><span class="st">&quot;gpt-4o-mini&quot;</span>)</span>
+<span id="cb10-26"><a href="#cb10-26" aria-hidden="true" tabindex="-1"></a>qa_chain <span class="op">=</span> RetrievalQA.from_chain_type(</span>
+<span id="cb10-27"><a href="#cb10-27" aria-hidden="true" tabindex="-1"></a>    llm<span class="op">=</span>llm,</span>
+<span id="cb10-28"><a href="#cb10-28" aria-hidden="true" tabindex="-1"></a>    chain_type<span class="op">=</span><span class="st">&quot;stuff&quot;</span>,</span>
+<span id="cb10-29"><a href="#cb10-29" aria-hidden="true" tabindex="-1"></a>    retriever<span class="op">=</span>vectorstore.as_retriever(search_kwargs<span class="op">=</span>{<span class="st">&quot;k&quot;</span>: <span class="dv">3</span>})</span>
+<span id="cb10-30"><a href="#cb10-30" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb10-31"><a href="#cb10-31" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-32"><a href="#cb10-32" aria-hidden="true" tabindex="-1"></a><span class="co"># 4. Callback 생성</span></span>
+<span id="cb10-33"><a href="#cb10-33" aria-hidden="true" tabindex="-1"></a>evaluator <span class="op">=</span> LangChainEvaluator(agent,</span>
+<span id="cb10-34"><a href="#cb10-34" aria-hidden="true" tabindex="-1"></a>    monitor,</span>
+<span id="cb10-35"><a href="#cb10-35" aria-hidden="true" tabindex="-1"></a>    task_type<span class="op">=</span>TaskType.INFORMATION_RETRIEVAL.value</span>
+<span id="cb10-36"><a href="#cb10-36" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb10-37"><a href="#cb10-37" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-38"><a href="#cb10-38" aria-hidden="true" tabindex="-1"></a><span class="co"># 5. 실행</span></span>
+<span id="cb10-39"><a href="#cb10-39" aria-hidden="true" tabindex="-1"></a>result <span class="op">=</span> qa_chain.invoke(</span>
+<span id="cb10-40"><a href="#cb10-40" aria-hidden="true" tabindex="-1"></a>    {<span class="st">&quot;query&quot;</span>: <span class="st">&quot;What is the capital of France?&quot;</span>},</span>
+<span id="cb10-41"><a href="#cb10-41" aria-hidden="true" tabindex="-1"></a>    config<span class="op">=</span>{<span class="st">&quot;callbacks&quot;</span>: [callback]}</span>
+<span id="cb10-42"><a href="#cb10-42" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb10-43"><a href="#cb10-43" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-44"><a href="#cb10-44" aria-hidden="true" tabindex="-1"></a><span class="co"># 6. RAGAS 메트릭 포함 고급 평가</span></span>
+<span id="cb10-45"><a href="#cb10-45" aria-hidden="true" tabindex="-1"></a><span class="co"># (HybridPerformanceMonitor가 자동으로 RAGAS 계산)</span></span>
+<span id="cb10-46"><a href="#cb10-46" aria-hidden="true" tabindex="-1"></a>hybrid_report <span class="op">=</span> monitor.generate_hybrid_report()</span>
+<span id="cb10-47"><a href="#cb10-47" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f&quot;Faithfulness: </span><span class="sc">{</span>hybrid_report<span class="sc">.</span>advanced_metrics_summary<span class="sc">.</span>get(<span class="st">&#39;ragas_faithfulness&#39;</span>, {})<span class="sc">.</span>get(<span class="st">&#39;mean&#39;</span>, <span class="dv">0</span>)<span class="sc">:.3f}</span><span class="ss">&quot;</span>)</span>
+<span id="cb10-48"><a href="#cb10-48" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f&quot;Context Precision: </span><span class="sc">{</span>hybrid_report<span class="sc">.</span>advanced_metrics_summary<span class="sc">.</span>get(<span class="st">&#39;ragas_context_precision&#39;</span>, {})<span class="sc">.</span>get(<span class="st">&#39;mean&#39;</span>, <span class="dv">0</span>)<span class="sc">:.3f}</span><span class="ss">&quot;</span>)</span></code></pre></div>
+<hr />
+<h2 id="langgraph-통합">2. LangGraph 통합</h2>
+
+<div style="background-color: #e8f5e9; border-left: 4px solid #4caf50; padding: 12px; margin: 15px 0;">
+<p><strong>✨ LangGraphEvaluator</strong> - LangGraph 전용 평가 클래스</p>
+<p>노드별 자동 추적, Workflow Execution 메트릭, Layer 1/2/3 완전 지원</p>
+<pre><code>from agent_evaluator.integrations import LangGraphEvaluator
+evaluator = LangGraphEvaluator(enable_layer2=True)
+evaluator.add_node("step1", your_function)</code></pre>
+<p>자세한 내용은 <a href="API_REFERENCE.html#langgraph-evaluator">API Reference</a>를 참고하세요.</p>
+</div>
+
+<h3 id="langgraph-소개">2.1 LangGraph 소개</h3>
+<p><strong>LangGraph</strong>는 LangChain의 고급 워크플로우
+프레임워크로, 상태 기반 그래프를 사용합니다.</p>
+
+<p><strong>주요 특징</strong></p>
+<ul>
+<li>📊 <strong>StateGraph</strong>: 상태 기반 그래프 실행</li>
+<li>🔄 <strong>순환 그래프</strong>: 복잡한 워크플로우 지원</li>
+<li>🎯 <strong>조건부 분기</strong>: 동적 경로 선택</li>
+<li>🧩 <strong>노드/엣지</strong>: 명시적 워크플로우 정의</li>
+</ul>
+<h3 id="설치-1">2.2 설치</h3>
+<div class="sourceCode" id="cb11"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="ex">pip</span> install langgraph</span>
+<span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a><span class="ex">pip</span> install agent-evaluator</span></code></pre></div>
+<h3 id="래퍼-기반-통합">2.3 래퍼 기반 통합</h3>
+<p>Agent Evaluator는 <code>LangGraphEvaluator</code> 클래스를
+제공하여 LangGraph 워크플로우를 래핑합니다.</p>
+<h4 id="주요-메서드">주요 메서드</h4>
+<div class="sourceCode" id="cb12"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> LangGraphEvaluator:</span>
+<span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a>    <span class="co">&quot;&quot;&quot;LangGraph 워크플로우에 평가 기능 통합&quot;&quot;&quot;</span></span>
+<span id="cb12-3"><a href="#cb12-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-4"><a href="#cb12-4" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> _start_node(<span class="va">self</span>, state: AgentState):</span>
+<span id="cb12-5"><a href="#cb12-5" aria-hidden="true" tabindex="-1"></a>        <span class="co">&quot;&quot;&quot;시작 노드 - 평가 데이터 초기화&quot;&quot;&quot;</span></span>
+<span id="cb12-6"><a href="#cb12-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-7"><a href="#cb12-7" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> add_node(<span class="va">self</span>, name: <span class="bu">str</span>, func):</span>
+<span id="cb12-8"><a href="#cb12-8" aria-hidden="true" tabindex="-1"></a>        <span class="co">&quot;&quot;&quot;커스텀 노드 추가 (자동 래핑)&quot;&quot;&quot;</span></span>
+<span id="cb12-9"><a href="#cb12-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-10"><a href="#cb12-10" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> _wrap_node_for_tracking(<span class="va">self</span>, node_name: <span class="bu">str</span>, func):</span>
+<span id="cb12-11"><a href="#cb12-11" aria-hidden="true" tabindex="-1"></a>        <span class="co">&quot;&quot;&quot;노드를 래핑하여 Workflow Execution 추적&quot;&quot;&quot;</span></span>
+<span id="cb12-12"><a href="#cb12-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-13"><a href="#cb12-13" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> add_edge(<span class="va">self</span>, from_node: <span class="bu">str</span>, to_node: <span class="bu">str</span>):</span>
+<span id="cb12-14"><a href="#cb12-14" aria-hidden="true" tabindex="-1"></a>        <span class="co">&quot;&quot;&quot;엣지 추가&quot;&quot;&quot;</span></span>
+<span id="cb12-15"><a href="#cb12-15" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-16"><a href="#cb12-16" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> _end_node(<span class="va">self</span>, state: AgentState):</span>
+<span id="cb12-17"><a href="#cb12-17" aria-hidden="true" tabindex="-1"></a>        <span class="co">&quot;&quot;&quot;종료 노드 - TaskResult 생성 및 기록&quot;&quot;&quot;</span></span>
+<span id="cb12-18"><a href="#cb12-18" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-19"><a href="#cb12-19" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> compile_and_run(<span class="va">self</span>, initial_state: <span class="bu">dict</span>):</span>
+<span id="cb12-20"><a href="#cb12-20" aria-hidden="true" tabindex="-1"></a>        <span class="co">&quot;&quot;&quot;워크플로우 컴파일 및 실행&quot;&quot;&quot;</span></span></code></pre></div>
+<h3 id="기본-사용법-1">2.4 기본 사용법</h3>
+<div class="sourceCode" id="cb13"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> agent_evaluator.integrations <span class="im">import</span> LangGraphEvaluator</span>
+<span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> agent_evaluator <span class="im">import</span> PerformanceMonitor, TaskType</span>
+<span id="cb13-3"><a href="#cb13-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-4"><a href="#cb13-4" aria-hidden="true" tabindex="-1"></a><span class="co"># 1. Monitor 생성</span></span>
+<span id="cb13-5"><a href="#cb13-5" aria-hidden="true" tabindex="-1"></a>monitor <span class="op">=</span> PerformanceMonitor()</span>
+<span id="cb13-6"><a href="#cb13-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-7"><a href="#cb13-7" aria-hidden="true" tabindex="-1"></a><span class="co"># 2. Workflow 생성</span></span>
+<span id="cb13-8"><a href="#cb13-8" aria-hidden="true" tabindex="-1"></a>evaluator <span class="op">=</span> LangGraphEvaluator(</span>
+<span id="cb13-9"><a href="#cb13-9" aria-hidden="true" tabindex="-1"></a>    monitor,</span>
+<span id="cb13-10"><a href="#cb13-10" aria-hidden="true" tabindex="-1"></a>    task_type<span class="op">=</span>TaskType.QA.value</span>
+<span id="cb13-11"><a href="#cb13-11" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb13-12"><a href="#cb13-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-13"><a href="#cb13-13" aria-hidden="true" tabindex="-1"></a><span class="co"># 3. 커스텀 노드 정의</span></span>
+<span id="cb13-14"><a href="#cb13-14" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> retrieval_node(state):</span>
+<span id="cb13-15"><a href="#cb13-15" aria-hidden="true" tabindex="-1"></a>    <span class="co">&quot;&quot;&quot;검색 노드&quot;&quot;&quot;</span></span>
+<span id="cb13-16"><a href="#cb13-16" aria-hidden="true" tabindex="-1"></a>    messages <span class="op">=</span> state[<span class="st">&quot;messages&quot;</span>]</span>
+<span id="cb13-17"><a href="#cb13-17" aria-hidden="true" tabindex="-1"></a>    <span class="co"># 검색 로직</span></span>
+<span id="cb13-18"><a href="#cb13-18" aria-hidden="true" tabindex="-1"></a>    state[<span class="st">&quot;messages&quot;</span>].append(<span class="ss">f&quot;Retrieved context for: </span><span class="sc">{</span>messages[<span class="dv">0</span>]<span class="sc">}</span><span class="ss">&quot;</span>)</span>
+<span id="cb13-19"><a href="#cb13-19" aria-hidden="true" tabindex="-1"></a>    state[<span class="st">&quot;next_step&quot;</span>] <span class="op">=</span> <span class="st">&quot;generation&quot;</span></span>
+<span id="cb13-20"><a href="#cb13-20" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> state</span>
+<span id="cb13-21"><a href="#cb13-21" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-22"><a href="#cb13-22" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> generation_node(state):</span>
+<span id="cb13-23"><a href="#cb13-23" aria-hidden="true" tabindex="-1"></a>    <span class="co">&quot;&quot;&quot;생성 노드&quot;&quot;&quot;</span></span>
+<span id="cb13-24"><a href="#cb13-24" aria-hidden="true" tabindex="-1"></a>    messages <span class="op">=</span> state[<span class="st">&quot;messages&quot;</span>]</span>
+<span id="cb13-25"><a href="#cb13-25" aria-hidden="true" tabindex="-1"></a>    <span class="co"># 생성 로직</span></span>
+<span id="cb13-26"><a href="#cb13-26" aria-hidden="true" tabindex="-1"></a>    state[<span class="st">&quot;messages&quot;</span>].append(<span class="st">&quot;Generated response&quot;</span>)</span>
+<span id="cb13-27"><a href="#cb13-27" aria-hidden="true" tabindex="-1"></a>    state[<span class="st">&quot;next_step&quot;</span>] <span class="op">=</span> <span class="st">&quot;end&quot;</span></span>
+<span id="cb13-28"><a href="#cb13-28" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> state</span>
+<span id="cb13-29"><a href="#cb13-29" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-30"><a href="#cb13-30" aria-hidden="true" tabindex="-1"></a><span class="co"># 4. 노드 및 엣지 추가</span></span>
+<span id="cb13-31"><a href="#cb13-31" aria-hidden="true" tabindex="-1"></a>workflow.add_node(<span class="st">&quot;retrieval&quot;</span>, retrieval_node)</span>
+<span id="cb13-32"><a href="#cb13-32" aria-hidden="true" tabindex="-1"></a>workflow.add_node(<span class="st">&quot;generation&quot;</span>, generation_node)</span>
+<span id="cb13-33"><a href="#cb13-33" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-34"><a href="#cb13-34" aria-hidden="true" tabindex="-1"></a>workflow.add_edge(<span class="st">&quot;start&quot;</span>, <span class="st">&quot;retrieval&quot;</span>)</span>
+<span id="cb13-35"><a href="#cb13-35" aria-hidden="true" tabindex="-1"></a>workflow.add_edge(<span class="st">&quot;retrieval&quot;</span>, <span class="st">&quot;generation&quot;</span>)</span>
+<span id="cb13-36"><a href="#cb13-36" aria-hidden="true" tabindex="-1"></a>workflow.add_edge(<span class="st">&quot;generation&quot;</span>, <span class="st">&quot;end&quot;</span>)</span>
+<span id="cb13-37"><a href="#cb13-37" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-38"><a href="#cb13-38" aria-hidden="true" tabindex="-1"></a><span class="co"># 5. 실행</span></span>
+<span id="cb13-39"><a href="#cb13-39" aria-hidden="true" tabindex="-1"></a>result <span class="op">=</span> workflow.compile_and_run({</span>
+<span id="cb13-40"><a href="#cb13-40" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;messages&quot;</span>: [<span class="st">&quot;What is AI?&quot;</span>],</span>
+<span id="cb13-41"><a href="#cb13-41" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;next_step&quot;</span>: <span class="st">&quot;start&quot;</span></span>
+<span id="cb13-42"><a href="#cb13-42" aria-hidden="true" tabindex="-1"></a>})</span>
+<span id="cb13-43"><a href="#cb13-43" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-44"><a href="#cb13-44" aria-hidden="true" tabindex="-1"></a><span class="co"># 6. 리포트 확인</span></span>
+<span id="cb13-45"><a href="#cb13-45" aria-hidden="true" tabindex="-1"></a>monitor.print_summary()</span></code></pre></div>
+<h3 id="layer-2-workflow-execution-자동-추적">2.5 Layer 2: Workflow
+Execution 자동 추적</h3>
+<p>LangGraph는 <strong>Workflow Execution</strong> 메트릭을 자동으로
+추적합니다.</p>
+<div class="sourceCode" id="cb14"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Layer 2 자동 추적 활성화</span></span>
+<span id="cb14-2"><a href="#cb14-2" aria-hidden="true" tabindex="-1"></a>evaluator <span class="op">=</span> LangGraphEvaluator(</span>
+<span id="cb14-3"><a href="#cb14-3" aria-hidden="true" tabindex="-1"></a>    monitor,</span>
+<span id="cb14-4"><a href="#cb14-4" aria-hidden="true" tabindex="-1"></a>    task_type<span class="op">=</span>TaskType.QA.value,</span>
+<span id="cb14-5"><a href="#cb14-5" aria-hidden="true" tabindex="-1"></a>    enable_workflow_tracking<span class="op">=</span><span class="va">True</span>,  <span class="co"># 🆕 Workflow Execution 자동 추적</span></span>
+<span id="cb14-6"><a href="#cb14-6" aria-hidden="true" tabindex="-1"></a>    expected_workflow_steps<span class="op">=</span>[<span class="st">&quot;retrieval&quot;</span>, <span class="st">&quot;generation&quot;</span>, <span class="st">&quot;validation&quot;</span>]</span>
+<span id="cb14-7"><a href="#cb14-7" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb14-8"><a href="#cb14-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-9"><a href="#cb14-9" aria-hidden="true" tabindex="-1"></a><span class="co"># 노드 추가 (자동으로 래핑됨)</span></span>
+<span id="cb14-10"><a href="#cb14-10" aria-hidden="true" tabindex="-1"></a>workflow.add_node(<span class="st">&quot;retrieval&quot;</span>, retrieval_node)</span>
+<span id="cb14-11"><a href="#cb14-11" aria-hidden="true" tabindex="-1"></a>workflow.add_node(<span class="st">&quot;generation&quot;</span>, generation_node)</span>
+<span id="cb14-12"><a href="#cb14-12" aria-hidden="true" tabindex="-1"></a>workflow.add_node(<span class="st">&quot;validation&quot;</span>, validation_node)</span>
+<span id="cb14-13"><a href="#cb14-13" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-14"><a href="#cb14-14" aria-hidden="true" tabindex="-1"></a><span class="co"># 워크플로우 실행</span></span>
+<span id="cb14-15"><a href="#cb14-15" aria-hidden="true" tabindex="-1"></a>result <span class="op">=</span> workflow.compile_and_run({<span class="st">&quot;messages&quot;</span>: [<span class="st">&quot;input&quot;</span>]})</span>
+<span id="cb14-16"><a href="#cb14-16" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-17"><a href="#cb14-17" aria-hidden="true" tabindex="-1"></a><span class="co"># Workflow Execution 통계 확인</span></span>
+<span id="cb14-18"><a href="#cb14-18" aria-hidden="true" tabindex="-1"></a>stats <span class="op">=</span> monitor.workflow_tracker.calculate_execution_success_rate(framework<span class="op">=</span><span class="st">&quot;langgraph&quot;</span>)</span>
+<span id="cb14-19"><a href="#cb14-19" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f&quot;Step Success Rate: </span><span class="sc">{</span>stats[<span class="st">&#39;step_success_rate&#39;</span>]<span class="sc">:.1f}</span><span class="ss">%&quot;</span>)</span>
+<span id="cb14-20"><a href="#cb14-20" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f&quot;Task Success Rate: </span><span class="sc">{</span>stats[<span class="st">&#39;task_success_rate&#39;</span>]<span class="sc">:.1f}</span><span class="ss">%&quot;</span>)</span>
+<span id="cb14-21"><a href="#cb14-21" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f&quot;Total Steps: </span><span class="sc">{</span>stats[<span class="st">&#39;total_steps&#39;</span>]<span class="sc">}</span><span class="ss">&quot;</span>)</span>
+<span id="cb14-22"><a href="#cb14-22" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f&quot;Successful Steps: </span><span class="sc">{</span>stats[<span class="st">&#39;successful_steps&#39;</span>]<span class="sc">}</span><span class="ss">&quot;</span>)</span>
+<span id="cb14-23"><a href="#cb14-23" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-24"><a href="#cb14-24" aria-hidden="true" tabindex="-1"></a><span class="co"># 그래프 순회 효율성 (LangGraph 전용)</span></span>
+<span id="cb14-25"><a href="#cb14-25" aria-hidden="true" tabindex="-1"></a>efficiency <span class="op">=</span> monitor.workflow_tracker.get_graph_traversal_efficiency(task_id)</span>
+<span id="cb14-26"><a href="#cb14-26" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f&quot;Graph Traversal Efficiency: </span><span class="sc">{</span>efficiency[<span class="st">&#39;efficiency&#39;</span>]<span class="sc">:.1f}</span><span class="ss">%&quot;</span>)</span>
+<span id="cb14-27"><a href="#cb14-27" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f&quot;Nodes Executed: </span><span class="sc">{</span>efficiency[<span class="st">&#39;nodes_executed&#39;</span>]<span class="sc">}</span><span class="ss">&quot;</span>)</span>
+<span id="cb14-28"><a href="#cb14-28" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f&quot;Avg Node Time: </span><span class="sc">{</span>efficiency[<span class="st">&#39;avg_node_time&#39;</span>]<span class="sc">:.3f}</span><span class="ss">s&quot;</span>)</span></code></pre></div>
+<p><strong>자동 추적 메커니즘:</strong></p>
+<ol>
+<li><code>add_node()</code>: 노드 추가 시 <code>_wrap_node_for_tracking()</code>으로 자동 래핑</li>
+<li>래핑된 노드는 실행 전후에 시간 측정</li>
+<li><code>monitor.workflow_tracker.track_step()</code> 자동 호출</li>
+<li>각 단계의 성공/실패, 실행 시간 기록</li>
+<li><code>state["evaluation_data"]["workflow_steps"]</code>에도 기록</li>
+</ol>
+<h3 id="실전-예제-rag-워크플로우">2.6 실전 예제: RAG 워크플로우</h3>
+<div class="sourceCode" id="cb15"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> langgraph.graph <span class="im">import</span> StateGraph, END</span>
+<span id="cb15-2"><a href="#cb15-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> typing <span class="im">import</span> TypedDict</span>
+<span id="cb15-3"><a href="#cb15-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-4"><a href="#cb15-4" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> RAGState(TypedDict):</span>
+<span id="cb15-5"><a href="#cb15-5" aria-hidden="true" tabindex="-1"></a>    query: <span class="bu">str</span></span>
+<span id="cb15-6"><a href="#cb15-6" aria-hidden="true" tabindex="-1"></a>    context: <span class="bu">list</span></span>
+<span id="cb15-7"><a href="#cb15-7" aria-hidden="true" tabindex="-1"></a>    answer: <span class="bu">str</span></span>
+<span id="cb15-8"><a href="#cb15-8" aria-hidden="true" tabindex="-1"></a>    evaluation_data: <span class="bu">dict</span></span>
+<span id="cb15-9"><a href="#cb15-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-10"><a href="#cb15-10" aria-hidden="true" tabindex="-1"></a><span class="co"># 워크플로우 생성</span></span>
+<span id="cb15-11"><a href="#cb15-11" aria-hidden="true" tabindex="-1"></a>evaluator <span class="op">=</span> LangGraphEvaluator(</span>
+<span id="cb15-12"><a href="#cb15-12" aria-hidden="true" tabindex="-1"></a>    monitor,</span>
+<span id="cb15-13"><a href="#cb15-13" aria-hidden="true" tabindex="-1"></a>    enable_workflow_tracking<span class="op">=</span><span class="va">True</span></span>
+<span id="cb15-14"><a href="#cb15-14" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb15-15"><a href="#cb15-15" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-16"><a href="#cb15-16" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> retrieval(state):</span>
+<span id="cb15-17"><a href="#cb15-17" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Vector DB에서 검색</span></span>
+<span id="cb15-18"><a href="#cb15-18" aria-hidden="true" tabindex="-1"></a>    state[<span class="st">&quot;context&quot;</span>] <span class="op">=</span> [<span class="st">&quot;context1&quot;</span>, <span class="st">&quot;context2&quot;</span>]</span>
+<span id="cb15-19"><a href="#cb15-19" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> state</span>
+<span id="cb15-20"><a href="#cb15-20" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-21"><a href="#cb15-21" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> rerank(state):</span>
+<span id="cb15-22"><a href="#cb15-22" aria-hidden="true" tabindex="-1"></a>    <span class="co"># 컨텍스트 재정렬</span></span>
+<span id="cb15-23"><a href="#cb15-23" aria-hidden="true" tabindex="-1"></a>    state[<span class="st">&quot;context&quot;</span>] <span class="op">=</span> <span class="bu">sorted</span>(state[<span class="st">&quot;context&quot;</span>])</span>
+<span id="cb15-24"><a href="#cb15-24" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> state</span>
+<span id="cb15-25"><a href="#cb15-25" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-26"><a href="#cb15-26" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> generation(state):</span>
+<span id="cb15-27"><a href="#cb15-27" aria-hidden="true" tabindex="-1"></a>    <span class="co"># 답변 생성</span></span>
+<span id="cb15-28"><a href="#cb15-28" aria-hidden="true" tabindex="-1"></a>    state[<span class="st">&quot;answer&quot;</span>] <span class="op">=</span> <span class="ss">f&quot;Answer based on </span><span class="sc">{</span><span class="bu">len</span>(state[<span class="st">&#39;context&#39;</span>])<span class="sc">}</span><span class="ss"> contexts&quot;</span></span>
+<span id="cb15-29"><a href="#cb15-29" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> state</span>
+<span id="cb15-30"><a href="#cb15-30" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-31"><a href="#cb15-31" aria-hidden="true" tabindex="-1"></a><span class="co"># 노드 추가</span></span>
+<span id="cb15-32"><a href="#cb15-32" aria-hidden="true" tabindex="-1"></a>workflow.add_node(<span class="st">&quot;retrieval&quot;</span>, retrieval)</span>
+<span id="cb15-33"><a href="#cb15-33" aria-hidden="true" tabindex="-1"></a>workflow.add_node(<span class="st">&quot;rerank&quot;</span>, rerank)</span>
+<span id="cb15-34"><a href="#cb15-34" aria-hidden="true" tabindex="-1"></a>workflow.add_node(<span class="st">&quot;generation&quot;</span>, generation)</span>
+<span id="cb15-35"><a href="#cb15-35" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-36"><a href="#cb15-36" aria-hidden="true" tabindex="-1"></a><span class="co"># 엣지 추가</span></span>
+<span id="cb15-37"><a href="#cb15-37" aria-hidden="true" tabindex="-1"></a>workflow.add_edge(<span class="st">&quot;start&quot;</span>, <span class="st">&quot;retrieval&quot;</span>)</span>
+<span id="cb15-38"><a href="#cb15-38" aria-hidden="true" tabindex="-1"></a>workflow.add_edge(<span class="st">&quot;retrieval&quot;</span>, <span class="st">&quot;rerank&quot;</span>)</span>
+<span id="cb15-39"><a href="#cb15-39" aria-hidden="true" tabindex="-1"></a>workflow.add_edge(<span class="st">&quot;rerank&quot;</span>, <span class="st">&quot;generation&quot;</span>)</span>
+<span id="cb15-40"><a href="#cb15-40" aria-hidden="true" tabindex="-1"></a>workflow.add_edge(<span class="st">&quot;generation&quot;</span>, <span class="st">&quot;end&quot;</span>)</span>
+<span id="cb15-41"><a href="#cb15-41" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-42"><a href="#cb15-42" aria-hidden="true" tabindex="-1"></a><span class="co"># 실행</span></span>
+<span id="cb15-43"><a href="#cb15-43" aria-hidden="true" tabindex="-1"></a>result <span class="op">=</span> workflow.compile_and_run({<span class="st">&quot;query&quot;</span>: <span class="st">&quot;What is AI?&quot;</span>})</span></code></pre></div>
+<hr />
+<h2 id="crewai-통합">3. CrewAI 통합</h2>
+
+<div style="background-color: #e8f5e9; border-left: 4px solid #4caf50; padding: 12px; margin: 15px 0;">
+<p><strong>✨ CrewAIEvaluator</strong> - CrewAI 전용 평가 클래스</p>
+<p>Layer 1/2/3 완전 지원, Agent Coordination 자동 추적, Golden Dataset 지원, Manual Tracking APIs</p>
+<pre><code>from agent_evaluator.integrations import CrewAIEvaluator
+evaluator = CrewAIEvaluator(crew, enable_layer2=True)
+result = evaluator.kickoff()</code></pre>
+<p>자세한 내용은 <a href="API_REFERENCE.html#crewai-evaluator">API Reference</a>를 참고하세요.</p>
+</div>
+
+<h3 id="crewai-소개">3.1 CrewAI 소개</h3>
+<p><strong>CrewAI</strong>는 멀티 에이전트 협업을 위한
+프레임워크입니다.</p>
+
+<p><strong>주요 특징</strong></p>
+<ul>
+<li>🤝 <strong>멀티 에이전트</strong>: 역할 기반 에이전트 협업</li>
+<li>🎯 <strong>작업 분배</strong>: 자동 작업 할당</li>
+<li>🔄 <strong>순차/병렬 실행</strong>: 유연한 실행 전략</li>
+<li>🧰 <strong>도구 통합</strong>: 다양한 도구 사용</li>
+</ul>
+<h3 id="설치-2">3.2 설치</h3>
+<div class="sourceCode" id="cb16"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a><span class="ex">pip</span> install crewai crewai-tools agent-evaluator</span></code></pre></div>
+<h3 id="래퍼-기반-통합-1">3.3 래퍼 기반 통합</h3>
+<p>Agent Evaluator는 <code>CrewAIEvaluator</code> 클래스를 제공하여 CrewAI
+Crew를 래핑합니다.</p>
+<h4 id="주요-메서드-1">주요 메서드</h4>
+<div class="sourceCode" id="cb17"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb17-1"><a href="#cb17-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> CrewAIEvaluator:</span>
+<span id="cb17-2"><a href="#cb17-2" aria-hidden="true" tabindex="-1"></a>    <span class="co">&quot;&quot;&quot;CrewAI에 평가 기능 통합&quot;&quot;&quot;</span></span>
+<span id="cb17-3"><a href="#cb17-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb17-4"><a href="#cb17-4" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> kickoff(<span class="va">self</span>, inputs: <span class="bu">dict</span> <span class="op">=</span> <span class="va">None</span>):</span>
+<span id="cb17-5"><a href="#cb17-5" aria-hidden="true" tabindex="-1"></a>        <span class="co">&quot;&quot;&quot;Crew 실행 및 평가</span></span>
+<span id="cb17-6"><a href="#cb17-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb17-7"><a href="#cb17-7" aria-hidden="true" tabindex="-1"></a><span class="co">        - 실행 시간 자동 측정</span></span>
+<span id="cb17-8"><a href="#cb17-8" aria-hidden="true" tabindex="-1"></a><span class="co">        - 토큰 사용량 추정</span></span>
+<span id="cb17-9"><a href="#cb17-9" aria-hidden="true" tabindex="-1"></a><span class="co">        - 도구 호출 추출</span></span>
+<span id="cb17-10"><a href="#cb17-10" aria-hidden="true" tabindex="-1"></a><span class="co">        - TaskResult 자동 생성</span></span>
+<span id="cb17-11"><a href="#cb17-11" aria-hidden="true" tabindex="-1"></a><span class="co">        &quot;&quot;&quot;</span></span>
+<span id="cb17-12"><a href="#cb17-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb17-13"><a href="#cb17-13" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> _estimate_tokens(<span class="va">self</span>, result):</span>
+<span id="cb17-14"><a href="#cb17-14" aria-hidden="true" tabindex="-1"></a>        <span class="co">&quot;&quot;&quot;토큰 사용량 추정&quot;&quot;&quot;</span></span>
+<span id="cb17-15"><a href="#cb17-15" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb17-16"><a href="#cb17-16" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> _extract_tool_calls(<span class="va">self</span>):</span>
+<span id="cb17-17"><a href="#cb17-17" aria-hidden="true" tabindex="-1"></a>        <span class="co">&quot;&quot;&quot;도구 호출 정보 추출&quot;&quot;&quot;</span></span>
+<span id="cb17-18"><a href="#cb17-18" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb17-19"><a href="#cb17-19" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> _track_agent_interactions_start(<span class="va">self</span>, task_id: <span class="bu">str</span>):</span>
+<span id="cb17-20"><a href="#cb17-20" aria-hidden="true" tabindex="-1"></a>        <span class="co">&quot;&quot;&quot;Agent Coordination 추적 시작&quot;&quot;&quot;</span></span>
+<span id="cb17-21"><a href="#cb17-21" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb17-22"><a href="#cb17-22" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> _track_agent_interactions_end(<span class="va">self</span>, task_id: <span class="bu">str</span>):</span>
+<span id="cb17-23"><a href="#cb17-23" aria-hidden="true" tabindex="-1"></a>        <span class="co">&quot;&quot;&quot;Agent Coordination 추적 완료&quot;&quot;&quot;</span></span></code></pre></div>
+<h3 id="기본-사용법-2">3.4 기본 사용법</h3>
+<div class="sourceCode" id="cb18"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb18-1"><a href="#cb18-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> crewai <span class="im">import</span> Agent, Task, Crew, Process</span>
+<span id="cb18-2"><a href="#cb18-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> agent_evaluator.integrations <span class="im">import</span> CrewAIEvaluator</span>
+<span id="cb18-3"><a href="#cb18-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> agent_evaluator <span class="im">import</span> PerformanceMonitor, TaskType</span>
+<span id="cb18-4"><a href="#cb18-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb18-5"><a href="#cb18-5" aria-hidden="true" tabindex="-1"></a><span class="co"># 1. Monitor 생성</span></span>
+<span id="cb18-6"><a href="#cb18-6" aria-hidden="true" tabindex="-1"></a>monitor <span class="op">=</span> PerformanceMonitor(</span>
+<span id="cb18-7"><a href="#cb18-7" aria-hidden="true" tabindex="-1"></a>    pricing<span class="op">=</span>{<span class="st">&quot;input&quot;</span>: <span class="fl">0.003</span>, <span class="st">&quot;output&quot;</span>: <span class="fl">0.015</span>}</span>
+<span id="cb18-8"><a href="#cb18-8" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb18-9"><a href="#cb18-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb18-10"><a href="#cb18-10" aria-hidden="true" tabindex="-1"></a><span class="co"># 2. Agent 정의</span></span>
+<span id="cb18-11"><a href="#cb18-11" aria-hidden="true" tabindex="-1"></a>researcher <span class="op">=</span> Agent(</span>
+<span id="cb18-12"><a href="#cb18-12" aria-hidden="true" tabindex="-1"></a>    role<span class="op">=</span><span class="st">&#39;Researcher&#39;</span>,</span>
+<span id="cb18-13"><a href="#cb18-13" aria-hidden="true" tabindex="-1"></a>    goal<span class="op">=</span><span class="st">&#39;Research and gather information&#39;</span>,</span>
+<span id="cb18-14"><a href="#cb18-14" aria-hidden="true" tabindex="-1"></a>    backstory<span class="op">=</span><span class="st">&#39;Expert researcher with attention to detail&#39;</span>,</span>
+<span id="cb18-15"><a href="#cb18-15" aria-hidden="true" tabindex="-1"></a>    verbose<span class="op">=</span><span class="va">True</span></span>
+<span id="cb18-16"><a href="#cb18-16" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb18-17"><a href="#cb18-17" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb18-18"><a href="#cb18-18" aria-hidden="true" tabindex="-1"></a>writer <span class="op">=</span> Agent(</span>
+<span id="cb18-19"><a href="#cb18-19" aria-hidden="true" tabindex="-1"></a>    role<span class="op">=</span><span class="st">&#39;Writer&#39;</span>,</span>
+<span id="cb18-20"><a href="#cb18-20" aria-hidden="true" tabindex="-1"></a>    goal<span class="op">=</span><span class="st">&#39;Write engaging content&#39;</span>,</span>
+<span id="cb18-21"><a href="#cb18-21" aria-hidden="true" tabindex="-1"></a>    backstory<span class="op">=</span><span class="st">&#39;Creative writer with storytelling skills&#39;</span>,</span>
+<span id="cb18-22"><a href="#cb18-22" aria-hidden="true" tabindex="-1"></a>    verbose<span class="op">=</span><span class="va">True</span></span>
+<span id="cb18-23"><a href="#cb18-23" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb18-24"><a href="#cb18-24" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb18-25"><a href="#cb18-25" aria-hidden="true" tabindex="-1"></a><span class="co"># 3. Task 정의</span></span>
+<span id="cb18-26"><a href="#cb18-26" aria-hidden="true" tabindex="-1"></a>research_task <span class="op">=</span> Task(</span>
+<span id="cb18-27"><a href="#cb18-27" aria-hidden="true" tabindex="-1"></a>    description<span class="op">=</span><span class="st">&#39;Research about AI trends in 2024&#39;</span>,</span>
+<span id="cb18-28"><a href="#cb18-28" aria-hidden="true" tabindex="-1"></a>    agent<span class="op">=</span>researcher,</span>
+<span id="cb18-29"><a href="#cb18-29" aria-hidden="true" tabindex="-1"></a>    expected_output<span class="op">=</span><span class="st">&#39;Detailed research report&#39;</span></span>
+<span id="cb18-30"><a href="#cb18-30" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb18-31"><a href="#cb18-31" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb18-32"><a href="#cb18-32" aria-hidden="true" tabindex="-1"></a>writing_task <span class="op">=</span> Task(</span>
+<span id="cb18-33"><a href="#cb18-33" aria-hidden="true" tabindex="-1"></a>    description<span class="op">=</span><span class="st">&#39;Write a blog post based on research&#39;</span>,</span>
+<span id="cb18-34"><a href="#cb18-34" aria-hidden="true" tabindex="-1"></a>    agent<span class="op">=</span>writer,</span>
+<span id="cb18-35"><a href="#cb18-35" aria-hidden="true" tabindex="-1"></a>    expected_output<span class="op">=</span><span class="st">&#39;Engaging blog post&#39;</span>,</span>
+<span id="cb18-36"><a href="#cb18-36" aria-hidden="true" tabindex="-1"></a>    context<span class="op">=</span>[research_task]</span>
+<span id="cb18-37"><a href="#cb18-37" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb18-38"><a href="#cb18-38" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb18-39"><a href="#cb18-39" aria-hidden="true" tabindex="-1"></a><span class="co"># 4. Crew 생성</span></span>
+<span id="cb18-40"><a href="#cb18-40" aria-hidden="true" tabindex="-1"></a>crew <span class="op">=</span> Crew(</span>
+<span id="cb18-41"><a href="#cb18-41" aria-hidden="true" tabindex="-1"></a>    agents<span class="op">=</span>[researcher, writer],</span>
+<span id="cb18-42"><a href="#cb18-42" aria-hidden="true" tabindex="-1"></a>    tasks<span class="op">=</span>[research_task, writing_task],</span>
+<span id="cb18-43"><a href="#cb18-43" aria-hidden="true" tabindex="-1"></a>    process<span class="op">=</span>Process.sequential,</span>
+<span id="cb18-44"><a href="#cb18-44" aria-hidden="true" tabindex="-1"></a>    verbose<span class="op">=</span><span class="va">True</span></span>
+<span id="cb18-45"><a href="#cb18-45" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb18-46"><a href="#cb18-46" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb18-47"><a href="#cb18-47" aria-hidden="true" tabindex="-1"></a><span class="co"># 5. CrewAIEvaluator로 래핑</span></span>
+<span id="cb18-48"><a href="#cb18-48" aria-hidden="true" tabindex="-1"></a>evaluator <span class="op">=</span> CrewAIEvaluator(</span>
+<span id="cb18-49"><a href="#cb18-49" aria-hidden="true" tabindex="-1"></a>    crew,</span>
+<span id="cb18-50"><a href="#cb18-50" aria-hidden="true" tabindex="-1"></a>    monitor,</span>
+<span id="cb18-51"><a href="#cb18-51" aria-hidden="true" tabindex="-1"></a>    task_type<span class="op">=</span>TaskType.DOCUMENT_CREATION.value</span>
+<span id="cb18-52"><a href="#cb18-52" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb18-53"><a href="#cb18-53" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb18-54"><a href="#cb18-54" aria-hidden="true" tabindex="-1"></a><span class="co"># 6. 실행 (자동 평가)</span></span>
+<span id="cb18-55"><a href="#cb18-55" aria-hidden="true" tabindex="-1"></a>result <span class="op">=</span> evaluated_crew.kickoff()</span>
+<span id="cb18-56"><a href="#cb18-56" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb18-57"><a href="#cb18-57" aria-hidden="true" tabindex="-1"></a><span class="co"># 7. 리포트 확인</span></span>
+<span id="cb18-58"><a href="#cb18-58" aria-hidden="true" tabindex="-1"></a>monitor.print_summary()</span>
+<span id="cb18-59"><a href="#cb18-59" aria-hidden="true" tabindex="-1"></a>monitor.save_to_file(<span class="st">&quot;crew_evaluation.json&quot;</span>)</span></code></pre></div>
+<h3 id="layer-2-agent-coordination-자동-추적">3.5 Layer 2: Agent
+Coordination 자동 추적</h3>
+<p>CrewAI는 <strong>Agent Coordination</strong> 메트릭을 자동으로 추적할
+수 있습니다.</p>
+<div class="sourceCode" id="cb19"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb19-1"><a href="#cb19-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Golden Dataset에서 expected_agents 로드</span></span>
+<span id="cb19-2"><a href="#cb19-2" aria-hidden="true" tabindex="-1"></a>expected_agents <span class="op">=</span> [<span class="st">&quot;researcher&quot;</span>, <span class="st">&quot;writer&quot;</span>, <span class="st">&quot;reviewer&quot;</span>]</span>
+<span id="cb19-3"><a href="#cb19-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb19-4"><a href="#cb19-4" aria-hidden="true" tabindex="-1"></a><span class="co"># Layer 2 자동 추적 활성화</span></span>
+<span id="cb19-5"><a href="#cb19-5" aria-hidden="true" tabindex="-1"></a>evaluator <span class="op">=</span> CrewAIEvaluator(</span>
+<span id="cb19-6"><a href="#cb19-6" aria-hidden="true" tabindex="-1"></a>    crew,</span>
+<span id="cb19-7"><a href="#cb19-7" aria-hidden="true" tabindex="-1"></a>    monitor,</span>
+<span id="cb19-8"><a href="#cb19-8" aria-hidden="true" tabindex="-1"></a>    task_type<span class="op">=</span>TaskType.DOCUMENT_CREATION.value,</span>
+<span id="cb19-9"><a href="#cb19-9" aria-hidden="true" tabindex="-1"></a>    enable_coordination_tracking<span class="op">=</span><span class="va">True</span>,  <span class="co"># 🆕 Agent Coordination 자동 추적</span></span>
+<span id="cb19-10"><a href="#cb19-10" aria-hidden="true" tabindex="-1"></a>    expected_agents<span class="op">=</span>expected_agents</span>
+<span id="cb19-11"><a href="#cb19-11" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb19-12"><a href="#cb19-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb19-13"><a href="#cb19-13" aria-hidden="true" tabindex="-1"></a><span class="co"># Crew 실행</span></span>
+<span id="cb19-14"><a href="#cb19-14" aria-hidden="true" tabindex="-1"></a>result <span class="op">=</span> evaluated_crew.kickoff()</span>
+<span id="cb19-15"><a href="#cb19-15" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb19-16"><a href="#cb19-16" aria-hidden="true" tabindex="-1"></a><span class="co"># Agent Coordination 통계 확인</span></span>
+<span id="cb19-17"><a href="#cb19-17" aria-hidden="true" tabindex="-1"></a>score_data <span class="op">=</span> monitor.agent_coordination_tracker.calculate_coordination_score()</span>
+<span id="cb19-18"><a href="#cb19-18" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f&quot;Coordination Score: </span><span class="sc">{</span>score_data[<span class="st">&#39;score&#39;</span>]<span class="sc">:.1f}</span><span class="ss">/10&quot;</span>)</span>
+<span id="cb19-19"><a href="#cb19-19" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f&quot;Success Rate: </span><span class="sc">{</span>score_data[<span class="st">&#39;success_rate&#39;</span>]<span class="sc">:.1f}</span><span class="ss">%&quot;</span>)</span>
+<span id="cb19-20"><a href="#cb19-20" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f&quot;Total Interactions: </span><span class="sc">{</span>score_data[<span class="st">&#39;total_interactions&#39;</span>]<span class="sc">}</span><span class="ss">&quot;</span>)</span>
+<span id="cb19-21"><a href="#cb19-21" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f&quot;Unique Agents: </span><span class="sc">{</span>score_data[<span class="st">&#39;unique_agents&#39;</span>]<span class="sc">}</span><span class="ss">&quot;</span>)</span>
+<span id="cb19-22"><a href="#cb19-22" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb19-23"><a href="#cb19-23" aria-hidden="true" tabindex="-1"></a><span class="co"># Delegation 성공률</span></span>
+<span id="cb19-24"><a href="#cb19-24" aria-hidden="true" tabindex="-1"></a>delegation_rate <span class="op">=</span> monitor.agent_coordination_tracker.get_delegation_success_rate()</span>
+<span id="cb19-25"><a href="#cb19-25" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f&quot;Delegation Success Rate: </span><span class="sc">{</span>delegation_rate<span class="sc">:.1f}</span><span class="ss">%&quot;</span>)</span></code></pre></div>
+<p><strong>자동 추적 메커니즘:</strong></p>
+<ol>
+<li><code>_track_agent_interactions_start()</code>: Crew 실행 시작 시 호출</li>
+<li>Crew의 agents 리스트에서 에이전트 이름 추출</li>
+<li>순차적 에이전트 간 상호작용 시뮬레이션 (delegation, collaboration)</li>
+<li><code>monitor.agent_coordination_tracker.track_interaction()</code> 호출</li>
+<li><code>_track_agent_interactions_end()</code>: Crew 실행 완료 시 모든 상호작용 기록</li>
+</ol>
+<h3 id="헬퍼-클래스-crewaievaluator">3.6 헬퍼 클래스:
+CrewAIEvaluator</h3>
+<div class="sourceCode" id="cb20"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb20-1"><a href="#cb20-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> agent_evaluator.integrations <span class="im">import</span> CrewAIEvaluator</span>
+<span id="cb20-2"><a href="#cb20-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb20-3"><a href="#cb20-3" aria-hidden="true" tabindex="-1"></a><span class="co"># Evaluator 생성</span></span>
+<span id="cb20-4"><a href="#cb20-4" aria-hidden="true" tabindex="-1"></a>evaluator <span class="op">=</span> CrewAIEvaluator(monitor)</span>
+<span id="cb20-5"><a href="#cb20-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb20-6"><a href="#cb20-6" aria-hidden="true" tabindex="-1"></a><span class="co"># 평가 기능이 통합된 Crew 생성</span></span>
+<span id="cb20-7"><a href="#cb20-7" aria-hidden="true" tabindex="-1"></a>evaluated_crew <span class="op">=</span> evaluator.create_evaluated_crew(</span>
+<span id="cb20-8"><a href="#cb20-8" aria-hidden="true" tabindex="-1"></a>    agents<span class="op">=</span>[researcher, writer],</span>
+<span id="cb20-9"><a href="#cb20-9" aria-hidden="true" tabindex="-1"></a>    tasks<span class="op">=</span>[research_task, writing_task],</span>
+<span id="cb20-10"><a href="#cb20-10" aria-hidden="true" tabindex="-1"></a>    process<span class="op">=</span>Process.sequential</span>
+<span id="cb20-11"><a href="#cb20-11" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb20-12"><a href="#cb20-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb20-13"><a href="#cb20-13" aria-hidden="true" tabindex="-1"></a><span class="co"># 실행</span></span>
+<span id="cb20-14"><a href="#cb20-14" aria-hidden="true" tabindex="-1"></a>result <span class="op">=</span> evaluated_crew.kickoff()</span></code></pre></div>
+<h3 id="실전-예제-멀티-에이전트-뉴스레터-생성">3.7 실전 예제: 멀티
+에이전트 뉴스레터 생성</h3>
+<div class="sourceCode" id="cb21"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb21-1"><a href="#cb21-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> crewai <span class="im">import</span> Agent, Task, Crew, Process</span>
+<span id="cb21-2"><a href="#cb21-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> crewai.tools <span class="im">import</span> SerperDevTool, ScrapeWebsiteTool</span>
+<span id="cb21-3"><a href="#cb21-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> agent_evaluator.integrations <span class="im">import</span> CrewAIEvaluator</span>
+<span id="cb21-4"><a href="#cb21-4" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> hybrid_monitor <span class="im">import</span> create_monitor</span>
+<span id="cb21-5"><a href="#cb21-5" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> agent_evaluator <span class="im">import</span> TaskType</span>
+<span id="cb21-6"><a href="#cb21-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb21-7"><a href="#cb21-7" aria-hidden="true" tabindex="-1"></a><span class="co"># 1. Balanced 프로파일 Monitor 생성</span></span>
+<span id="cb21-8"><a href="#cb21-8" aria-hidden="true" tabindex="-1"></a>monitor <span class="op">=</span> create_monitor(profile<span class="op">=</span><span class="st">&quot;balanced&quot;</span>)</span>
+<span id="cb21-9"><a href="#cb21-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb21-10"><a href="#cb21-10" aria-hidden="true" tabindex="-1"></a><span class="co"># 2. 도구 설정</span></span>
+<span id="cb21-11"><a href="#cb21-11" aria-hidden="true" tabindex="-1"></a>search_tool <span class="op">=</span> SerperDevTool()</span>
+<span id="cb21-12"><a href="#cb21-12" aria-hidden="true" tabindex="-1"></a>scrape_tool <span class="op">=</span> ScrapeWebsiteTool()</span>
+<span id="cb21-13"><a href="#cb21-13" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb21-14"><a href="#cb21-14" aria-hidden="true" tabindex="-1"></a><span class="co"># 3. 에이전트 정의</span></span>
+<span id="cb21-15"><a href="#cb21-15" aria-hidden="true" tabindex="-1"></a>researcher <span class="op">=</span> Agent(</span>
+<span id="cb21-16"><a href="#cb21-16" aria-hidden="true" tabindex="-1"></a>    role<span class="op">=</span><span class="st">&#39;Tech Researcher&#39;</span>,</span>
+<span id="cb21-17"><a href="#cb21-17" aria-hidden="true" tabindex="-1"></a>    goal<span class="op">=</span><span class="st">&#39;Find and analyze latest AI news&#39;</span>,</span>
+<span id="cb21-18"><a href="#cb21-18" aria-hidden="true" tabindex="-1"></a>    backstory<span class="op">=</span><span class="st">&#39;Expert in AI trends&#39;</span>,</span>
+<span id="cb21-19"><a href="#cb21-19" aria-hidden="true" tabindex="-1"></a>    tools<span class="op">=</span>[search_tool, scrape_tool],</span>
+<span id="cb21-20"><a href="#cb21-20" aria-hidden="true" tabindex="-1"></a>    verbose<span class="op">=</span><span class="va">True</span></span>
+<span id="cb21-21"><a href="#cb21-21" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb21-22"><a href="#cb21-22" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb21-23"><a href="#cb21-23" aria-hidden="true" tabindex="-1"></a>analyst <span class="op">=</span> Agent(</span>
+<span id="cb21-24"><a href="#cb21-24" aria-hidden="true" tabindex="-1"></a>    role<span class="op">=</span><span class="st">&#39;Content Analyst&#39;</span>,</span>
+<span id="cb21-25"><a href="#cb21-25" aria-hidden="true" tabindex="-1"></a>    goal<span class="op">=</span><span class="st">&#39;Analyze and summarize information&#39;</span>,</span>
+<span id="cb21-26"><a href="#cb21-26" aria-hidden="true" tabindex="-1"></a>    backstory<span class="op">=</span><span class="st">&#39;Skilled at extracting key insights&#39;</span>,</span>
+<span id="cb21-27"><a href="#cb21-27" aria-hidden="true" tabindex="-1"></a>    verbose<span class="op">=</span><span class="va">True</span></span>
+<span id="cb21-28"><a href="#cb21-28" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb21-29"><a href="#cb21-29" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb21-30"><a href="#cb21-30" aria-hidden="true" tabindex="-1"></a>writer <span class="op">=</span> Agent(</span>
+<span id="cb21-31"><a href="#cb21-31" aria-hidden="true" tabindex="-1"></a>    role<span class="op">=</span><span class="st">&#39;Newsletter Writer&#39;</span>,</span>
+<span id="cb21-32"><a href="#cb21-32" aria-hidden="true" tabindex="-1"></a>    goal<span class="op">=</span><span class="st">&#39;Write engaging newsletter&#39;</span>,</span>
+<span id="cb21-33"><a href="#cb21-33" aria-hidden="true" tabindex="-1"></a>    backstory<span class="op">=</span><span class="st">&#39;Creative technical writer&#39;</span>,</span>
+<span id="cb21-34"><a href="#cb21-34" aria-hidden="true" tabindex="-1"></a>    verbose<span class="op">=</span><span class="va">True</span></span>
+<span id="cb21-35"><a href="#cb21-35" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb21-36"><a href="#cb21-36" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb21-37"><a href="#cb21-37" aria-hidden="true" tabindex="-1"></a><span class="co"># 4. 작업 정의</span></span>
+<span id="cb21-38"><a href="#cb21-38" aria-hidden="true" tabindex="-1"></a>research <span class="op">=</span> Task(</span>
+<span id="cb21-39"><a href="#cb21-39" aria-hidden="true" tabindex="-1"></a>    description<span class="op">=</span><span class="st">&#39;Research AI news from this week&#39;</span>,</span>
+<span id="cb21-40"><a href="#cb21-40" aria-hidden="true" tabindex="-1"></a>    agent<span class="op">=</span>researcher,</span>
+<span id="cb21-41"><a href="#cb21-41" aria-hidden="true" tabindex="-1"></a>    expected_output<span class="op">=</span><span class="st">&#39;List of 5 important AI news items&#39;</span></span>
+<span id="cb21-42"><a href="#cb21-42" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb21-43"><a href="#cb21-43" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb21-44"><a href="#cb21-44" aria-hidden="true" tabindex="-1"></a>analysis <span class="op">=</span> Task(</span>
+<span id="cb21-45"><a href="#cb21-45" aria-hidden="true" tabindex="-1"></a>    description<span class="op">=</span><span class="st">&#39;Analyze the news and identify key themes&#39;</span>,</span>
+<span id="cb21-46"><a href="#cb21-46" aria-hidden="true" tabindex="-1"></a>    agent<span class="op">=</span>analyst,</span>
+<span id="cb21-47"><a href="#cb21-47" aria-hidden="true" tabindex="-1"></a>    expected_output<span class="op">=</span><span class="st">&#39;Summary of key themes and trends&#39;</span>,</span>
+<span id="cb21-48"><a href="#cb21-48" aria-hidden="true" tabindex="-1"></a>    context<span class="op">=</span>[research]</span>
+<span id="cb21-49"><a href="#cb21-49" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb21-50"><a href="#cb21-50" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb21-51"><a href="#cb21-51" aria-hidden="true" tabindex="-1"></a>writing <span class="op">=</span> Task(</span>
+<span id="cb21-52"><a href="#cb21-52" aria-hidden="true" tabindex="-1"></a>    description<span class="op">=</span><span class="st">&#39;Write a newsletter based on the analysis&#39;</span>,</span>
+<span id="cb21-53"><a href="#cb21-53" aria-hidden="true" tabindex="-1"></a>    agent<span class="op">=</span>writer,</span>
+<span id="cb21-54"><a href="#cb21-54" aria-hidden="true" tabindex="-1"></a>    expected_output<span class="op">=</span><span class="st">&#39;Engaging newsletter (500 words)&#39;</span>,</span>
+<span id="cb21-55"><a href="#cb21-55" aria-hidden="true" tabindex="-1"></a>    context<span class="op">=</span>[analysis]</span>
+<span id="cb21-56"><a href="#cb21-56" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb21-57"><a href="#cb21-57" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb21-58"><a href="#cb21-58" aria-hidden="true" tabindex="-1"></a><span class="co"># 5. Crew 생성 및 평가 통합</span></span>
+<span id="cb21-59"><a href="#cb21-59" aria-hidden="true" tabindex="-1"></a>crew <span class="op">=</span> Crew(</span>
+<span id="cb21-60"><a href="#cb21-60" aria-hidden="true" tabindex="-1"></a>    agents<span class="op">=</span>[researcher, analyst, writer],</span>
+<span id="cb21-61"><a href="#cb21-61" aria-hidden="true" tabindex="-1"></a>    tasks<span class="op">=</span>[research, analysis, writing],</span>
+<span id="cb21-62"><a href="#cb21-62" aria-hidden="true" tabindex="-1"></a>    process<span class="op">=</span>Process.sequential,</span>
+<span id="cb21-63"><a href="#cb21-63" aria-hidden="true" tabindex="-1"></a>    verbose<span class="op">=</span><span class="va">True</span></span>
+<span id="cb21-64"><a href="#cb21-64" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb21-65"><a href="#cb21-65" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb21-66"><a href="#cb21-66" aria-hidden="true" tabindex="-1"></a>evaluator <span class="op">=</span> CrewAIEvaluator(</span>
+<span id="cb21-67"><a href="#cb21-67" aria-hidden="true" tabindex="-1"></a>    crew,</span>
+<span id="cb21-68"><a href="#cb21-68" aria-hidden="true" tabindex="-1"></a>    monitor,</span>
+<span id="cb21-69"><a href="#cb21-69" aria-hidden="true" tabindex="-1"></a>    task_type<span class="op">=</span>TaskType.DOCUMENT_CREATION.value,</span>
+<span id="cb21-70"><a href="#cb21-70" aria-hidden="true" tabindex="-1"></a>    enable_coordination_tracking<span class="op">=</span><span class="va">True</span></span>
+<span id="cb21-71"><a href="#cb21-71" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb21-72"><a href="#cb21-72" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb21-73"><a href="#cb21-73" aria-hidden="true" tabindex="-1"></a><span class="co"># 6. 실행</span></span>
+<span id="cb21-74"><a href="#cb21-74" aria-hidden="true" tabindex="-1"></a>result <span class="op">=</span> evaluated_crew.kickoff()</span>
+<span id="cb21-75"><a href="#cb21-75" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb21-76"><a href="#cb21-76" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f&quot;</span><span class="ch">\n</span><span class="ss">✅ Newsletter created successfully!&quot;</span>)</span>
+<span id="cb21-77"><a href="#cb21-77" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f&quot;</span><span class="ch">\n</span><span class="ss">📰 Newsletter:</span><span class="ch">\n</span><span class="sc">{</span>result<span class="sc">}</span><span class="ch">\n</span><span class="ss">&quot;</span>)</span>
+<span id="cb21-78"><a href="#cb21-78" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb21-79"><a href="#cb21-79" aria-hidden="true" tabindex="-1"></a><span class="co"># 7. 하이브리드 리포트 생성</span></span>
+<span id="cb21-80"><a href="#cb21-80" aria-hidden="true" tabindex="-1"></a>hybrid_report <span class="op">=</span> monitor.generate_hybrid_report()</span>
+<span id="cb21-81"><a href="#cb21-81" aria-hidden="true" tabindex="-1"></a>monitor.print_summary()</span></code></pre></div>
+<hr />
+<h2 id="autogen-통합">4. AutoGen 통합</h2>
+
+<div style="background-color: #e8f5e9; border-left: 4px solid #4caf50; padding: 12px; margin: 15px 0;">
+<p><strong>✨ AutoGenEvaluator</strong> - AutoGen 전용 평가 클래스</p>
+<p>메서드 래핑, Agent Coordination 자동 추적, Layer 1/2/3 완전 지원</p>
+<pre><code>from agent_evaluator.integrations import AutoGenEvaluator
+evaluator = AutoGenEvaluator(assistant, enable_layer2=True)
+user_proxy.initiate_chat(evaluator.agent, message="Hello")</code></pre>
+<p>자세한 내용은 <a href="API_REFERENCE.html#autogen-evaluator">API Reference</a>를 참고하세요.</p>
+</div>
+
+<h3 id="autogen-소개">4.1 AutoGen 소개</h3>
+<p><strong>AutoGen</strong>은 Microsoft에서 개발한 대화형 에이전트
+프레임워크입니다.</p>
+
+<p><strong>주요 특징</strong></p>
+<ul>
+<li>💬 <strong>대화형</strong>: 자연스러운 대화 흐름</li>
+<li>🤖 <strong>다중 에이전트</strong>: 에이전트 간 협업</li>
+<li>🔧 <strong>도구 실행</strong>: 코드 실행 및 도구 사용</li>
+<li>🎭 <strong>역할 기반</strong>: 사용자/어시스턴트 역할</li>
+</ul>
+<h3 id="설치-3">4.2 설치</h3>
+<div class="sourceCode" id="cb22"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb22-1"><a href="#cb22-1" aria-hidden="true" tabindex="-1"></a><span class="ex">pip</span> install pyautogen  <span class="co"># 0.2.0 이상 권장</span></span>
+<span id="cb22-2"><a href="#cb22-2" aria-hidden="true" tabindex="-1"></a><span class="ex">pip</span> install agent-evaluator</span></code></pre></div>
+<h3 id="래퍼-기반-통합-2">4.3 래퍼 기반 통합</h3>
+<p>Agent Evaluator는 <code>AutoGenEvaluator</code> 클래스를
+제공하여 AutoGen Agent를 래핑합니다.</p>
+<h4 id="주요-메서드-2">주요 메서드</h4>
+<div class="sourceCode" id="cb23"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb23-1"><a href="#cb23-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> AutoGenEvaluator:</span>
+<span id="cb23-2"><a href="#cb23-2" aria-hidden="true" tabindex="-1"></a>    <span class="co">&quot;&quot;&quot;AutoGen Agent에 평가 기능 통합&quot;&quot;&quot;</span></span>
+<span id="cb23-3"><a href="#cb23-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb23-4"><a href="#cb23-4" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> _evaluated_generate_reply(<span class="va">self</span>, messages, sender, <span class="op">**</span>kwargs):</span>
+<span id="cb23-5"><a href="#cb23-5" aria-hidden="true" tabindex="-1"></a>        <span class="co">&quot;&quot;&quot;평가가 통합된 응답 생성</span></span>
+<span id="cb23-6"><a href="#cb23-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb23-7"><a href="#cb23-7" aria-hidden="true" tabindex="-1"></a><span class="co">        - 원본 generate_reply() 메서드 래핑</span></span>
+<span id="cb23-8"><a href="#cb23-8" aria-hidden="true" tabindex="-1"></a><span class="co">        - 실행 시간 자동 측정</span></span>
+<span id="cb23-9"><a href="#cb23-9" aria-hidden="true" tabindex="-1"></a><span class="co">        - 토큰 사용량 추정</span></span>
+<span id="cb23-10"><a href="#cb23-10" aria-hidden="true" tabindex="-1"></a><span class="co">        - TaskResult 자동 생성</span></span>
+<span id="cb23-11"><a href="#cb23-11" aria-hidden="true" tabindex="-1"></a><span class="co">        &quot;&quot;&quot;</span></span>
+<span id="cb23-12"><a href="#cb23-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb23-13"><a href="#cb23-13" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> _estimate_tokens(<span class="va">self</span>, messages, reply):</span>
+<span id="cb23-14"><a href="#cb23-14" aria-hidden="true" tabindex="-1"></a>        <span class="co">&quot;&quot;&quot;토큰 사용량 추정&quot;&quot;&quot;</span></span></code></pre></div>
+<h3 id="기본-사용법-3">4.4 기본 사용법</h3>
+<div class="sourceCode" id="cb24"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb24-1"><a href="#cb24-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> autogen</span>
+<span id="cb24-2"><a href="#cb24-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> agent_evaluator.integrations <span class="im">import</span> AutoGenEvaluator</span>
+<span id="cb24-3"><a href="#cb24-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> agent_evaluator <span class="im">import</span> PerformanceMonitor, TaskType</span>
+<span id="cb24-4"><a href="#cb24-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb24-5"><a href="#cb24-5" aria-hidden="true" tabindex="-1"></a><span class="co"># 1. Monitor 생성</span></span>
+<span id="cb24-6"><a href="#cb24-6" aria-hidden="true" tabindex="-1"></a>monitor <span class="op">=</span> PerformanceMonitor(</span>
+<span id="cb24-7"><a href="#cb24-7" aria-hidden="true" tabindex="-1"></a>    pricing<span class="op">=</span>{<span class="st">&quot;input&quot;</span>: <span class="fl">0.003</span>, <span class="st">&quot;output&quot;</span>: <span class="fl">0.015</span>}</span>
+<span id="cb24-8"><a href="#cb24-8" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb24-9"><a href="#cb24-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb24-10"><a href="#cb24-10" aria-hidden="true" tabindex="-1"></a><span class="co"># 2. LLM 설정</span></span>
+<span id="cb24-11"><a href="#cb24-11" aria-hidden="true" tabindex="-1"></a>config_list <span class="op">=</span> [{</span>
+<span id="cb24-12"><a href="#cb24-12" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;model&quot;</span>: <span class="st">&quot;gpt-4o-mini&quot;</span>,</span>
+<span id="cb24-13"><a href="#cb24-13" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;api_key&quot;</span>: <span class="st">&quot;your-api-key&quot;</span></span>
+<span id="cb24-14"><a href="#cb24-14" aria-hidden="true" tabindex="-1"></a>}]</span>
+<span id="cb24-15"><a href="#cb24-15" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb24-16"><a href="#cb24-16" aria-hidden="true" tabindex="-1"></a>llm_config <span class="op">=</span> {</span>
+<span id="cb24-17"><a href="#cb24-17" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;config_list&quot;</span>: config_list,</span>
+<span id="cb24-18"><a href="#cb24-18" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;temperature&quot;</span>: <span class="fl">0.7</span>,</span>
+<span id="cb24-19"><a href="#cb24-19" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb24-20"><a href="#cb24-20" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb24-21"><a href="#cb24-21" aria-hidden="true" tabindex="-1"></a><span class="co"># 3. Agent 생성</span></span>
+<span id="cb24-22"><a href="#cb24-22" aria-hidden="true" tabindex="-1"></a>assistant <span class="op">=</span> autogen.AssistantAgent(</span>
+<span id="cb24-23"><a href="#cb24-23" aria-hidden="true" tabindex="-1"></a>    name<span class="op">=</span><span class="st">&quot;assistant&quot;</span>,</span>
+<span id="cb24-24"><a href="#cb24-24" aria-hidden="true" tabindex="-1"></a>    llm_config<span class="op">=</span>llm_config,</span>
+<span id="cb24-25"><a href="#cb24-25" aria-hidden="true" tabindex="-1"></a>    system_message<span class="op">=</span><span class="st">&quot;You are a helpful AI assistant.&quot;</span></span>
+<span id="cb24-26"><a href="#cb24-26" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb24-27"><a href="#cb24-27" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb24-28"><a href="#cb24-28" aria-hidden="true" tabindex="-1"></a>user_proxy <span class="op">=</span> autogen.UserProxyAgent(</span>
+<span id="cb24-29"><a href="#cb24-29" aria-hidden="true" tabindex="-1"></a>    name<span class="op">=</span><span class="st">&quot;user_proxy&quot;</span>,</span>
+<span id="cb24-30"><a href="#cb24-30" aria-hidden="true" tabindex="-1"></a>    human_input_mode<span class="op">=</span><span class="st">&quot;NEVER&quot;</span>,</span>
+<span id="cb24-31"><a href="#cb24-31" aria-hidden="true" tabindex="-1"></a>    max_consecutive_auto_reply<span class="op">=</span><span class="dv">10</span>,</span>
+<span id="cb24-32"><a href="#cb24-32" aria-hidden="true" tabindex="-1"></a>    code_execution_config<span class="op">=</span>{<span class="st">&quot;use_docker&quot;</span>: <span class="va">False</span>}</span>
+<span id="cb24-33"><a href="#cb24-33" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb24-34"><a href="#cb24-34" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb24-35"><a href="#cb24-35" aria-hidden="true" tabindex="-1"></a><span class="co"># 4. AutoGenEvaluator로 래핑</span></span>
+<span id="cb24-36"><a href="#cb24-36" aria-hidden="true" tabindex="-1"></a>evaluator <span class="op">=</span> AutoGenEvaluator(</span>
+<span id="cb24-37"><a href="#cb24-37" aria-hidden="true" tabindex="-1"></a>    assistant,</span>
+<span id="cb24-38"><a href="#cb24-38" aria-hidden="true" tabindex="-1"></a>    monitor,</span>
+<span id="cb24-39"><a href="#cb24-39" aria-hidden="true" tabindex="-1"></a>    task_type<span class="op">=</span>TaskType.QA.value</span>
+<span id="cb24-40"><a href="#cb24-40" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb24-41"><a href="#cb24-41" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb24-42"><a href="#cb24-42" aria-hidden="true" tabindex="-1"></a><span class="co"># 5. 대화 실행</span></span>
+<span id="cb24-43"><a href="#cb24-43" aria-hidden="true" tabindex="-1"></a>chat_result <span class="op">=</span> user_proxy.initiate_chat(</span>
+<span id="cb24-44"><a href="#cb24-44" aria-hidden="true" tabindex="-1"></a>    evaluated_assistant.agent,</span>
+<span id="cb24-45"><a href="#cb24-45" aria-hidden="true" tabindex="-1"></a>    message<span class="op">=</span><span class="st">&quot;What are the latest trends in AI?&quot;</span></span>
+<span id="cb24-46"><a href="#cb24-46" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb24-47"><a href="#cb24-47" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb24-48"><a href="#cb24-48" aria-hidden="true" tabindex="-1"></a><span class="co"># 6. 리포트 확인</span></span>
+<span id="cb24-49"><a href="#cb24-49" aria-hidden="true" tabindex="-1"></a>monitor.print_summary()</span></code></pre></div>
+<h3 id="헬퍼-클래스-autogenevaluator">4.5 헬퍼 클래스:
+AutoGenEvaluator</h3>
+<div class="sourceCode" id="cb25"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb25-1"><a href="#cb25-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> agent_evaluator.integrations <span class="im">import</span> AutoGenEvaluator</span>
+<span id="cb25-2"><a href="#cb25-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb25-3"><a href="#cb25-3" aria-hidden="true" tabindex="-1"></a><span class="co"># Evaluator 생성</span></span>
+<span id="cb25-4"><a href="#cb25-4" aria-hidden="true" tabindex="-1"></a>evaluator <span class="op">=</span> AutoGenEvaluator(monitor)</span>
+<span id="cb25-5"><a href="#cb25-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb25-6"><a href="#cb25-6" aria-hidden="true" tabindex="-1"></a><span class="co"># 평가 기능이 통합된 Agent 생성</span></span>
+<span id="cb25-7"><a href="#cb25-7" aria-hidden="true" tabindex="-1"></a>evaluated_assistant <span class="op">=</span> evaluator.create_evaluated_agent(</span>
+<span id="cb25-8"><a href="#cb25-8" aria-hidden="true" tabindex="-1"></a>    assistant,</span>
+<span id="cb25-9"><a href="#cb25-9" aria-hidden="true" tabindex="-1"></a>    task_type<span class="op">=</span>TaskType.QA.value</span>
+<span id="cb25-10"><a href="#cb25-10" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb25-11"><a href="#cb25-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb25-12"><a href="#cb25-12" aria-hidden="true" tabindex="-1"></a><span class="co"># 사용</span></span>
+<span id="cb25-13"><a href="#cb25-13" aria-hidden="true" tabindex="-1"></a>chat_result <span class="op">=</span> user_proxy.initiate_chat(</span>
+<span id="cb25-14"><a href="#cb25-14" aria-hidden="true" tabindex="-1"></a>    evaluated_assistant.agent,</span>
+<span id="cb25-15"><a href="#cb25-15" aria-hidden="true" tabindex="-1"></a>    message<span class="op">=</span><span class="st">&quot;What is AI?&quot;</span></span>
+<span id="cb25-16"><a href="#cb25-16" aria-hidden="true" tabindex="-1"></a>)</span></code></pre></div>
+<h3 id="실전-예제-코드-생성-평가">4.6 실전 예제: 코드 생성 평가</h3>
+<div class="sourceCode" id="cb26"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb26-1"><a href="#cb26-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> autogen</span>
+<span id="cb26-2"><a href="#cb26-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> agent_evaluator.integrations <span class="im">import</span> AutoGenEvaluator</span>
+<span id="cb26-3"><a href="#cb26-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> agent_evaluator <span class="im">import</span> PerformanceMonitor, TaskType</span>
+<span id="cb26-4"><a href="#cb26-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb26-5"><a href="#cb26-5" aria-hidden="true" tabindex="-1"></a><span class="co"># Monitor 생성</span></span>
+<span id="cb26-6"><a href="#cb26-6" aria-hidden="true" tabindex="-1"></a>monitor <span class="op">=</span> PerformanceMonitor()</span>
+<span id="cb26-7"><a href="#cb26-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb26-8"><a href="#cb26-8" aria-hidden="true" tabindex="-1"></a><span class="co"># 코드 실행 에이전트</span></span>
+<span id="cb26-9"><a href="#cb26-9" aria-hidden="true" tabindex="-1"></a>code_executor <span class="op">=</span> autogen.UserProxyAgent(</span>
+<span id="cb26-10"><a href="#cb26-10" aria-hidden="true" tabindex="-1"></a>    name<span class="op">=</span><span class="st">&quot;code_executor&quot;</span>,</span>
+<span id="cb26-11"><a href="#cb26-11" aria-hidden="true" tabindex="-1"></a>    human_input_mode<span class="op">=</span><span class="st">&quot;NEVER&quot;</span>,</span>
+<span id="cb26-12"><a href="#cb26-12" aria-hidden="true" tabindex="-1"></a>    code_execution_config<span class="op">=</span>{</span>
+<span id="cb26-13"><a href="#cb26-13" aria-hidden="true" tabindex="-1"></a>        <span class="st">&quot;work_dir&quot;</span>: <span class="st">&quot;coding&quot;</span>,</span>
+<span id="cb26-14"><a href="#cb26-14" aria-hidden="true" tabindex="-1"></a>        <span class="st">&quot;use_docker&quot;</span>: <span class="va">False</span></span>
+<span id="cb26-15"><a href="#cb26-15" aria-hidden="true" tabindex="-1"></a>    }</span>
+<span id="cb26-16"><a href="#cb26-16" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb26-17"><a href="#cb26-17" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb26-18"><a href="#cb26-18" aria-hidden="true" tabindex="-1"></a><span class="co"># 코더 에이전트</span></span>
+<span id="cb26-19"><a href="#cb26-19" aria-hidden="true" tabindex="-1"></a>coder <span class="op">=</span> autogen.AssistantAgent(</span>
+<span id="cb26-20"><a href="#cb26-20" aria-hidden="true" tabindex="-1"></a>    name<span class="op">=</span><span class="st">&quot;coder&quot;</span>,</span>
+<span id="cb26-21"><a href="#cb26-21" aria-hidden="true" tabindex="-1"></a>    llm_config<span class="op">=</span>llm_config,</span>
+<span id="cb26-22"><a href="#cb26-22" aria-hidden="true" tabindex="-1"></a>    system_message<span class="op">=</span><span class="st">&quot;You are an expert Python programmer.&quot;</span></span>
+<span id="cb26-23"><a href="#cb26-23" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb26-24"><a href="#cb26-24" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb26-25"><a href="#cb26-25" aria-hidden="true" tabindex="-1"></a><span class="co"># 평가 통합</span></span>
+<span id="cb26-26"><a href="#cb26-26" aria-hidden="true" tabindex="-1"></a>evaluator <span class="op">=</span> AutoGenEvaluator(</span>
+<span id="cb26-27"><a href="#cb26-27" aria-hidden="true" tabindex="-1"></a>    coder,</span>
+<span id="cb26-28"><a href="#cb26-28" aria-hidden="true" tabindex="-1"></a>    monitor,</span>
+<span id="cb26-29"><a href="#cb26-29" aria-hidden="true" tabindex="-1"></a>    task_type<span class="op">=</span>TaskType.CODE_GENERATION.value</span>
+<span id="cb26-30"><a href="#cb26-30" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb26-31"><a href="#cb26-31" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb26-32"><a href="#cb26-32" aria-hidden="true" tabindex="-1"></a><span class="co"># 코드 생성 작업 실행</span></span>
+<span id="cb26-33"><a href="#cb26-33" aria-hidden="true" tabindex="-1"></a>chat_result <span class="op">=</span> code_executor.initiate_chat(</span>
+<span id="cb26-34"><a href="#cb26-34" aria-hidden="true" tabindex="-1"></a>    evaluated_coder.agent,</span>
+<span id="cb26-35"><a href="#cb26-35" aria-hidden="true" tabindex="-1"></a>    message<span class="op">=</span><span class="st">&quot;Write a function to calculate fibonacci numbers&quot;</span></span>
+<span id="cb26-36"><a href="#cb26-36" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb26-37"><a href="#cb26-37" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb26-38"><a href="#cb26-38" aria-hidden="true" tabindex="-1"></a><span class="co"># 리포트 확인</span></span>
+<span id="cb26-39"><a href="#cb26-39" aria-hidden="true" tabindex="-1"></a>monitor.print_summary()</span></code></pre></div>
+<hr />
+<h2 id="프레임워크-비교">5. 프레임워크 비교</h2>
+<h3 id="통합-방식-비교">5.1 통합 방식 비교</h3>
+<table>
+<colgroup>
+<col style="width: 23%" />
+<col style="width: 21%" />
+<col style="width: 23%" />
+<col style="width: 30%" />
+</colgroup>
+<thead>
+<tr class="doc-header">
+<th>프레임워크</th>
+<th>통합 방식</th>
+<th>주요 클래스</th>
+<th>Layer 2 메트릭</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><strong>LangChain</strong></td>
+<td>콜백 기반</td>
+<td><code>LangChainEvaluator</code></td>
+<td>Tool Selection</td>
+</tr>
+<tr class="even">
+<td><strong>LangGraph</strong></td>
+<td>래퍼 기반</td>
+<td><code>LangGraphEvaluator</code></td>
+<td>Workflow Execution</td>
+</tr>
+<tr class="odd">
+<td><strong>CrewAI</strong></td>
+<td>래퍼 기반</td>
+<td><code>CrewAIEvaluator</code></td>
+<td>Agent Coordination</td>
+</tr>
+<tr class="even">
+<td><strong>AutoGen</strong></td>
+<td>래퍼 기반</td>
+<td><code>AutoGenEvaluator</code></td>
+<td>-</td>
+</tr>
+</tbody>
+</table>
+<h3 id="자동-추적-기능">5.2 자동 추적 기능</h3>
+<table>
+<colgroup>
+<col style="width: 23%" />
+<col style="width: 38%" />
+<col style="width: 38%" />
+</colgroup>
+<thead>
+<tr class="doc-header">
+<th>프레임워크</th>
+<th>Layer 1 자동 추적</th>
+<th>Layer 2 자동 추적</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><strong>LangChain</strong></td>
+<td>✅ TCR, Cost, Latency, Tokens</td>
+<td>✅ Tool Selection (콜백)</td>
+</tr>
+<tr class="even">
+<td><strong>LangGraph</strong></td>
+<td>✅ TCR, Cost, Latency, Tokens</td>
+<td>✅ Workflow Execution (래핑)</td>
+</tr>
+<tr class="odd">
+<td><strong>CrewAI</strong></td>
+<td>✅ TCR, Cost, Latency, Tokens</td>
+<td>✅ Agent Coordination (래핑)</td>
+</tr>
+<tr class="even">
+<td><strong>AutoGen</strong></td>
+<td>✅ TCR, Cost, Latency, Tokens</td>
+<td>⚠️ 수동 추적 필요</td>
+</tr>
+</tbody>
+</table>
+<h3 id="기능-비교">5.3 기능 비교</h3>
+<table>
+<thead>
+<tr class="doc-header">
+<th>기능</th>
+<th>LangChain</th>
+<th>LangGraph</th>
+<th>CrewAI</th>
+<th>AutoGen</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><strong>멀티 에이전트</strong></td>
+<td>⭐⭐⭐</td>
+<td>⭐⭐⭐</td>
+<td>⭐⭐⭐⭐⭐</td>
+<td>⭐⭐⭐⭐</td>
+</tr>
+<tr class="even">
+<td><strong>대화형</strong></td>
+<td>⭐⭐⭐</td>
+<td>⭐⭐</td>
+<td>⭐⭐⭐</td>
+<td>⭐⭐⭐⭐⭐</td>
+</tr>
+<tr class="odd">
+<td><strong>RAG</strong></td>
+<td>⭐⭐⭐⭐⭐</td>
+<td>⭐⭐⭐⭐</td>
+<td>⭐⭐</td>
+<td>⭐⭐</td>
+</tr>
+<tr class="even">
+<td><strong>도구 통합</strong></td>
+<td>⭐⭐⭐⭐⭐</td>
+<td>⭐⭐⭐⭐</td>
+<td>⭐⭐⭐⭐</td>
+<td>⭐⭐⭐⭐⭐</td>
+</tr>
+<tr class="odd">
+<td><strong>워크플로우</strong></td>
+<td>⭐⭐⭐</td>
+<td>⭐⭐⭐⭐⭐</td>
+<td>⭐⭐⭐</td>
+<td>⭐⭐</td>
+</tr>
+<tr class="even">
+<td><strong>코드 실행</strong></td>
+<td>⭐⭐⭐</td>
+<td>⭐⭐⭐</td>
+<td>⭐⭐</td>
+<td>⭐⭐⭐⭐⭐</td>
+</tr>
+</tbody>
+</table>
+<h3 id="평가-메트릭-권장-사항">5.4 평가 메트릭 권장 사항</h3>
+<h4 id="langchain">LangChain</h4>
+<ul>
+<li>✅ <strong>Layer 1</strong>: TCR, Accuracy, Cost, Latency</li>
+<li>🎯 <strong>Layer 2</strong>: Tool Selection (콜백 자동 추적)</li>
+<li>📊 <strong>고급</strong>: RAGAS (RAG 시스템)</li>
+<li>🏆 <strong>추천 프로파일</strong>: <code>rag</code>,
+<code>balanced</code></li>
+</ul>
+<h4 id="langgraph">LangGraph</h4>
+<ul>
+<li>✅ <strong>Layer 1</strong>: TCR, Accuracy, Cost, Latency</li>
+<li>🎯 <strong>Layer 2</strong>: Workflow Execution (노드 래핑 자동
+추적)</li>
+<li>📊 <strong>고급</strong>: 그래프 순회 효율성</li>
+<li>🏆 <strong>추천 프로파일</strong>: <code>balanced</code>,
+<code>comprehensive</code></li>
+</ul>
+<h4 id="crewai">CrewAI</h4>
+<ul>
+<li>✅ <strong>Layer 1</strong>: TCR, Accuracy, Cost, Latency</li>
+<li>🎯 <strong>Layer 2</strong>: Agent Coordination (상호작용 자동
+추적)</li>
+<li>📊 <strong>고급</strong>: G-Eval, Toxicity (멀티 에이전트 출력)</li>
+<li>🏆 <strong>추천 프로파일</strong>: <code>balanced</code>,
+<code>comprehensive</code></li>
+</ul>
+<h4 id="autogen">AutoGen</h4>
+<ul>
+<li>✅ <strong>Layer 1</strong>: TCR, Accuracy, Cost, Latency</li>
+<li>🎯 <strong>Layer 2</strong>: 수동 추적 권장</li>
+<li>📊 <strong>고급</strong>: Answer Relevancy, Coherence</li>
+<li>🏆 <strong>추천 프로파일</strong>: <code>balanced</code>,
+<code>lightweight</code></li>
+</ul>
+<hr />
+<h2 id="layer-2-메트릭-자동-추적">6. Layer 2 메트릭 자동 추적</h2>
+<h3 id="개요">6.1 개요</h3>
+<p>Agent Evaluator는 프레임워크별로 <strong>Layer 2 메트릭</strong>을
+자동으로 추적합니다:</p>
+<table>
+<colgroup>
+<col style="width: 21%" />
+<col style="width: 18%" />
+<col style="width: 31%" />
+<col style="width: 28%" />
+</colgroup>
+<thead>
+<tr class="doc-header">
+<th>메트릭</th>
+<th>설명</th>
+<th>프레임워크</th>
+<th>추적 방식</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><strong>Tool Selection</strong></td>
+<td>도구 선택 정확도 (Precision, Recall, F1)</td>
+<td>LangChain</td>
+<td>콜백 (<code>on_agent_action</code>)</td>
+</tr>
+<tr class="even">
+<td><strong>Agent Coordination</strong></td>
+<td>에이전트 간 협업 품질 (0-10 점수)</td>
+<td>CrewAI</td>
+<td>래퍼 (<code>_track_agent_interactions</code>)</td>
+</tr>
+<tr class="odd">
+<td><strong>Workflow Execution</strong></td>
+<td>워크플로우 실행 성공률 (%)</td>
+<td>LangGraph</td>
+<td>래퍼 (<code>_wrap_node_for_tracking</code>)</td>
+</tr>
+</tbody>
+</table>
+<h3 id="tool-selection-langchain">6.2 Tool Selection (LangChain)</h3>
+<p><strong>자동 추적 메커니즘:</strong></p>
+<div class="sourceCode" id="cb27"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb27-1"><a href="#cb27-1" aria-hidden="true" tabindex="-1"></a><span class="co"># agent_evaluator/integrations/__init__.py</span></span>
+<span id="cb27-2"><a href="#cb27-2" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> LangChainEvaluator:</span>
+<span id="cb27-3"><a href="#cb27-3" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> <span class="fu">__init__</span>(<span class="va">self</span>, monitor, expected_tools<span class="op">=</span><span class="va">None</span>):</span>
+<span id="cb27-4"><a href="#cb27-4" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>.expected_tools <span class="op">=</span> expected_tools</span>
+<span id="cb27-5"><a href="#cb27-5" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>.tool_calls <span class="op">=</span> []</span>
+<span id="cb27-6"><a href="#cb27-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb27-7"><a href="#cb27-7" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> on_agent_action(<span class="va">self</span>, action: AgentAction, <span class="op">**</span>kwargs):</span>
+<span id="cb27-8"><a href="#cb27-8" aria-hidden="true" tabindex="-1"></a>        <span class="co">&quot;&quot;&quot;도구 호출 시 자동 기록&quot;&quot;&quot;</span></span>
+<span id="cb27-9"><a href="#cb27-9" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>.tool_calls.append({</span>
+<span id="cb27-10"><a href="#cb27-10" aria-hidden="true" tabindex="-1"></a>            <span class="st">&quot;tool_name&quot;</span>: action.tool,</span>
+<span id="cb27-11"><a href="#cb27-11" aria-hidden="true" tabindex="-1"></a>            <span class="st">&quot;parameters&quot;</span>: {<span class="st">&quot;input&quot;</span>: <span class="bu">str</span>(action.tool_input)},</span>
+<span id="cb27-12"><a href="#cb27-12" aria-hidden="true" tabindex="-1"></a>            <span class="st">&quot;success&quot;</span>: <span class="va">True</span>,</span>
+<span id="cb27-13"><a href="#cb27-13" aria-hidden="true" tabindex="-1"></a>            <span class="st">&quot;duration&quot;</span>: <span class="fl">0.01</span></span>
+<span id="cb27-14"><a href="#cb27-14" aria-hidden="true" tabindex="-1"></a>        })</span>
+<span id="cb27-15"><a href="#cb27-15" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb27-16"><a href="#cb27-16" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> on_chain_end(<span class="va">self</span>, outputs, <span class="op">**</span>kwargs):</span>
+<span id="cb27-17"><a href="#cb27-17" aria-hidden="true" tabindex="-1"></a>        <span class="co">&quot;&quot;&quot;체인 완료 시 자동 평가&quot;&quot;&quot;</span></span>
+<span id="cb27-18"><a href="#cb27-18" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> <span class="va">self</span>.expected_tools:</span>
+<span id="cb27-19"><a href="#cb27-19" aria-hidden="true" tabindex="-1"></a>            actual_tools <span class="op">=</span> [tool[<span class="st">&quot;tool_name&quot;</span>] <span class="cf">for</span> tool <span class="kw">in</span> <span class="va">self</span>.tool_calls]</span>
+<span id="cb27-20"><a href="#cb27-20" aria-hidden="true" tabindex="-1"></a>            <span class="va">self</span>.monitor.tool_selection_tracker.evaluate_selection(</span>
+<span id="cb27-21"><a href="#cb27-21" aria-hidden="true" tabindex="-1"></a>                task_id<span class="op">=</span><span class="va">self</span>.current_task_id,</span>
+<span id="cb27-22"><a href="#cb27-22" aria-hidden="true" tabindex="-1"></a>                expected_tools<span class="op">=</span><span class="va">self</span>.expected_tools,</span>
+<span id="cb27-23"><a href="#cb27-23" aria-hidden="true" tabindex="-1"></a>                actual_tools<span class="op">=</span>actual_tools</span>
+<span id="cb27-24"><a href="#cb27-24" aria-hidden="true" tabindex="-1"></a>            )</span></code></pre></div>
+<p><strong>사용 예제:</strong></p>
+<div class="sourceCode" id="cb28"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb28-1"><a href="#cb28-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Golden Dataset에서 expected_tools 로드</span></span>
+<span id="cb28-2"><a href="#cb28-2" aria-hidden="true" tabindex="-1"></a>golden_dataset <span class="op">=</span> {</span>
+<span id="cb28-3"><a href="#cb28-3" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;task_1&quot;</span>: {<span class="st">&quot;expected_tools&quot;</span>: [<span class="st">&quot;search&quot;</span>, <span class="st">&quot;calculator&quot;</span>]},</span>
+<span id="cb28-4"><a href="#cb28-4" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;task_2&quot;</span>: {<span class="st">&quot;expected_tools&quot;</span>: [<span class="st">&quot;python_repl&quot;</span>, <span class="st">&quot;file_read&quot;</span>]}</span>
+<span id="cb28-5"><a href="#cb28-5" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb28-6"><a href="#cb28-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb28-7"><a href="#cb28-7" aria-hidden="true" tabindex="-1"></a><span class="co"># 각 task마다 expected_tools 전달</span></span>
+<span id="cb28-8"><a href="#cb28-8" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> task_id, data <span class="kw">in</span> golden_dataset.items():</span>
+<span id="cb28-9"><a href="#cb28-9" aria-hidden="true" tabindex="-1"></a>    evaluator <span class="op">=</span> LangChainEvaluator(agent,</span>
+<span id="cb28-10"><a href="#cb28-10" aria-hidden="true" tabindex="-1"></a>        monitor,</span>
+<span id="cb28-11"><a href="#cb28-11" aria-hidden="true" tabindex="-1"></a>        expected_tools<span class="op">=</span>data[<span class="st">&quot;expected_tools&quot;</span>]</span>
+<span id="cb28-12"><a href="#cb28-12" aria-hidden="true" tabindex="-1"></a>    )</span>
+<span id="cb28-13"><a href="#cb28-13" aria-hidden="true" tabindex="-1"></a>    result <span class="op">=</span> agent_executor.invoke(</span>
+<span id="cb28-14"><a href="#cb28-14" aria-hidden="true" tabindex="-1"></a>        {<span class="st">&quot;input&quot;</span>: data[<span class="st">&quot;query&quot;</span>]},</span>
+<span id="cb28-15"><a href="#cb28-15" aria-hidden="true" tabindex="-1"></a>        config<span class="op">=</span>{<span class="st">&quot;callbacks&quot;</span>: [callback]}</span>
+<span id="cb28-16"><a href="#cb28-16" aria-hidden="true" tabindex="-1"></a>    )</span>
+<span id="cb28-17"><a href="#cb28-17" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb28-18"><a href="#cb28-18" aria-hidden="true" tabindex="-1"></a><span class="co"># 전체 통계 확인</span></span>
+<span id="cb28-19"><a href="#cb28-19" aria-hidden="true" tabindex="-1"></a>stats <span class="op">=</span> monitor.tool_selection_tracker.get_accuracy_stats()</span>
+<span id="cb28-20"><a href="#cb28-20" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f&quot;Overall Tool Selection Accuracy: </span><span class="sc">{</span>stats[<span class="st">&#39;avg_accuracy&#39;</span>]<span class="sc">:.1f}</span><span class="ss">%&quot;</span>)</span>
+<span id="cb28-21"><a href="#cb28-21" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f&quot;Precision: </span><span class="sc">{</span>stats[<span class="st">&#39;avg_precision&#39;</span>]<span class="sc">:.1f}</span><span class="ss">%&quot;</span>)</span>
+<span id="cb28-22"><a href="#cb28-22" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f&quot;Recall: </span><span class="sc">{</span>stats[<span class="st">&#39;avg_recall&#39;</span>]<span class="sc">:.1f}</span><span class="ss">%&quot;</span>)</span>
+<span id="cb28-23"><a href="#cb28-23" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f&quot;F1 Score: </span><span class="sc">{</span>stats[<span class="st">&#39;avg_f1_score&#39;</span>]<span class="sc">:.1f}</span><span class="ss">%&quot;</span>)</span></code></pre></div>
+<h3 id="agent-coordination-crewai">6.3 Agent Coordination (CrewAI)</h3>
+<p><strong>자동 추적 메커니즘:</strong></p>
+<div class="sourceCode" id="cb29"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb29-1"><a href="#cb29-1" aria-hidden="true" tabindex="-1"></a><span class="co"># agent_evaluator/integrations/__init__.py</span></span>
+<span id="cb29-2"><a href="#cb29-2" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> CrewAIEvaluator:</span>
+<span id="cb29-3"><a href="#cb29-3" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> kickoff(<span class="va">self</span>, inputs<span class="op">=</span><span class="va">None</span>):</span>
+<span id="cb29-4"><a href="#cb29-4" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> <span class="va">self</span>.enable_coordination_tracking:</span>
+<span id="cb29-5"><a href="#cb29-5" aria-hidden="true" tabindex="-1"></a>            <span class="va">self</span>._track_agent_interactions_start(task_id)</span>
+<span id="cb29-6"><a href="#cb29-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb29-7"><a href="#cb29-7" aria-hidden="true" tabindex="-1"></a>        result <span class="op">=</span> <span class="va">self</span>.crew.kickoff(inputs<span class="op">=</span>inputs)</span>
+<span id="cb29-8"><a href="#cb29-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb29-9"><a href="#cb29-9" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> <span class="va">self</span>.enable_coordination_tracking:</span>
+<span id="cb29-10"><a href="#cb29-10" aria-hidden="true" tabindex="-1"></a>            <span class="va">self</span>._track_agent_interactions_end(task_id)</span>
+<span id="cb29-11"><a href="#cb29-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb29-12"><a href="#cb29-12" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> _track_agent_interactions_start(<span class="va">self</span>, task_id: <span class="bu">str</span>):</span>
+<span id="cb29-13"><a href="#cb29-13" aria-hidden="true" tabindex="-1"></a>        <span class="co">&quot;&quot;&quot;Crew의 agents 리스트에서 상호작용 추출&quot;&quot;&quot;</span></span>
+<span id="cb29-14"><a href="#cb29-14" aria-hidden="true" tabindex="-1"></a>        agent_names <span class="op">=</span> [agent.role <span class="cf">for</span> agent <span class="kw">in</span> <span class="va">self</span>.crew.agents]</span>
+<span id="cb29-15"><a href="#cb29-15" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb29-16"><a href="#cb29-16" aria-hidden="true" tabindex="-1"></a>        <span class="co"># 순차적 상호작용 시뮬레이션</span></span>
+<span id="cb29-17"><a href="#cb29-17" aria-hidden="true" tabindex="-1"></a>        <span class="cf">for</span> i <span class="kw">in</span> <span class="bu">range</span>(<span class="bu">len</span>(agent_names) <span class="op">-</span> <span class="dv">1</span>):</span>
+<span id="cb29-18"><a href="#cb29-18" aria-hidden="true" tabindex="-1"></a>            from_agent <span class="op">=</span> agent_names[i]</span>
+<span id="cb29-19"><a href="#cb29-19" aria-hidden="true" tabindex="-1"></a>            to_agent <span class="op">=</span> agent_names[i <span class="op">+</span> <span class="dv">1</span>]</span>
+<span id="cb29-20"><a href="#cb29-20" aria-hidden="true" tabindex="-1"></a>            interaction_type <span class="op">=</span> <span class="st">&quot;delegation&quot;</span> <span class="cf">if</span> i <span class="op">==</span> <span class="dv">0</span> <span class="cf">else</span> <span class="st">&quot;collaboration&quot;</span></span>
+<span id="cb29-21"><a href="#cb29-21" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb29-22"><a href="#cb29-22" aria-hidden="true" tabindex="-1"></a>            <span class="va">self</span>.agent_interactions.append({</span>
+<span id="cb29-23"><a href="#cb29-23" aria-hidden="true" tabindex="-1"></a>                <span class="st">&quot;from_agent&quot;</span>: from_agent,</span>
+<span id="cb29-24"><a href="#cb29-24" aria-hidden="true" tabindex="-1"></a>                <span class="st">&quot;to_agent&quot;</span>: to_agent,</span>
+<span id="cb29-25"><a href="#cb29-25" aria-hidden="true" tabindex="-1"></a>                <span class="st">&quot;interaction_type&quot;</span>: interaction_type,</span>
+<span id="cb29-26"><a href="#cb29-26" aria-hidden="true" tabindex="-1"></a>                <span class="st">&quot;success&quot;</span>: <span class="va">True</span></span>
+<span id="cb29-27"><a href="#cb29-27" aria-hidden="true" tabindex="-1"></a>            })</span>
+<span id="cb29-28"><a href="#cb29-28" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb29-29"><a href="#cb29-29" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> _track_agent_interactions_end(<span class="va">self</span>, task_id: <span class="bu">str</span>):</span>
+<span id="cb29-30"><a href="#cb29-30" aria-hidden="true" tabindex="-1"></a>        <span class="co">&quot;&quot;&quot;Monitor의 AgentCoordinationTracker에 기록&quot;&quot;&quot;</span></span>
+<span id="cb29-31"><a href="#cb29-31" aria-hidden="true" tabindex="-1"></a>        <span class="cf">for</span> interaction <span class="kw">in</span> <span class="va">self</span>.agent_interactions:</span>
+<span id="cb29-32"><a href="#cb29-32" aria-hidden="true" tabindex="-1"></a>            <span class="va">self</span>.monitor.agent_coordination_tracker.track_interaction(</span>
+<span id="cb29-33"><a href="#cb29-33" aria-hidden="true" tabindex="-1"></a>                task_id<span class="op">=</span>task_id,</span>
+<span id="cb29-34"><a href="#cb29-34" aria-hidden="true" tabindex="-1"></a>                from_agent<span class="op">=</span>interaction[<span class="st">&quot;from_agent&quot;</span>],</span>
+<span id="cb29-35"><a href="#cb29-35" aria-hidden="true" tabindex="-1"></a>                to_agent<span class="op">=</span>interaction[<span class="st">&quot;to_agent&quot;</span>],</span>
+<span id="cb29-36"><a href="#cb29-36" aria-hidden="true" tabindex="-1"></a>                interaction_type<span class="op">=</span>interaction[<span class="st">&quot;interaction_type&quot;</span>],</span>
+<span id="cb29-37"><a href="#cb29-37" aria-hidden="true" tabindex="-1"></a>                success<span class="op">=</span>interaction[<span class="st">&quot;success&quot;</span>],</span>
+<span id="cb29-38"><a href="#cb29-38" aria-hidden="true" tabindex="-1"></a>                context<span class="op">=</span>{<span class="st">&quot;framework&quot;</span>: <span class="st">&quot;crewai&quot;</span>}</span>
+<span id="cb29-39"><a href="#cb29-39" aria-hidden="true" tabindex="-1"></a>            )</span></code></pre></div>
+<p><strong>사용 예제:</strong></p>
+<div class="sourceCode" id="cb30"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb30-1"><a href="#cb30-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 에이전트 간 상호작용 자동 추적</span></span>
+<span id="cb30-2"><a href="#cb30-2" aria-hidden="true" tabindex="-1"></a>evaluator <span class="op">=</span> CrewAIEvaluator(</span>
+<span id="cb30-3"><a href="#cb30-3" aria-hidden="true" tabindex="-1"></a>    crew,</span>
+<span id="cb30-4"><a href="#cb30-4" aria-hidden="true" tabindex="-1"></a>    monitor,</span>
+<span id="cb30-5"><a href="#cb30-5" aria-hidden="true" tabindex="-1"></a>    enable_coordination_tracking<span class="op">=</span><span class="va">True</span>,</span>
+<span id="cb30-6"><a href="#cb30-6" aria-hidden="true" tabindex="-1"></a>    expected_agents<span class="op">=</span>[<span class="st">&quot;researcher&quot;</span>, <span class="st">&quot;writer&quot;</span>, <span class="st">&quot;reviewer&quot;</span>]</span>
+<span id="cb30-7"><a href="#cb30-7" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb30-8"><a href="#cb30-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb30-9"><a href="#cb30-9" aria-hidden="true" tabindex="-1"></a>result <span class="op">=</span> evaluated_crew.kickoff()</span>
+<span id="cb30-10"><a href="#cb30-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb30-11"><a href="#cb30-11" aria-hidden="true" tabindex="-1"></a><span class="co"># Coordination 점수 확인</span></span>
+<span id="cb30-12"><a href="#cb30-12" aria-hidden="true" tabindex="-1"></a>score_data <span class="op">=</span> monitor.agent_coordination_tracker.calculate_coordination_score()</span>
+<span id="cb30-13"><a href="#cb30-13" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f&quot;Coordination Score: </span><span class="sc">{</span>score_data[<span class="st">&#39;score&#39;</span>]<span class="sc">:.1f}</span><span class="ss">/10&quot;</span>)</span>
+<span id="cb30-14"><a href="#cb30-14" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f&quot;Success Rate: </span><span class="sc">{</span>score_data[<span class="st">&#39;success_rate&#39;</span>]<span class="sc">:.1f}</span><span class="ss">%&quot;</span>)</span>
+<span id="cb30-15"><a href="#cb30-15" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f&quot;Total Interactions: </span><span class="sc">{</span>score_data[<span class="st">&#39;total_interactions&#39;</span>]<span class="sc">}</span><span class="ss">&quot;</span>)</span>
+<span id="cb30-16"><a href="#cb30-16" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb30-17"><a href="#cb30-17" aria-hidden="true" tabindex="-1"></a><span class="co"># Delegation 성공률</span></span>
+<span id="cb30-18"><a href="#cb30-18" aria-hidden="true" tabindex="-1"></a>delegation_rate <span class="op">=</span> monitor.agent_coordination_tracker.get_delegation_success_rate()</span>
+<span id="cb30-19"><a href="#cb30-19" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f&quot;Delegation Success Rate: </span><span class="sc">{</span>delegation_rate<span class="sc">:.1f}</span><span class="ss">%&quot;</span>)</span></code></pre></div>
+<h3 id="workflow-execution-langgraph">6.4 Workflow Execution
+(LangGraph)</h3>
+<p><strong>자동 추적 메커니즘:</strong></p>
+<div class="sourceCode" id="cb31"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb31-1"><a href="#cb31-1" aria-hidden="true" tabindex="-1"></a><span class="co"># agent_evaluator/integrations/__init__.py</span></span>
+<span id="cb31-2"><a href="#cb31-2" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> LangGraphEvaluator:</span>
+<span id="cb31-3"><a href="#cb31-3" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> add_node(<span class="va">self</span>, name: <span class="bu">str</span>, func):</span>
+<span id="cb31-4"><a href="#cb31-4" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> <span class="va">self</span>.enable_workflow_tracking:</span>
+<span id="cb31-5"><a href="#cb31-5" aria-hidden="true" tabindex="-1"></a>            wrapped_func <span class="op">=</span> <span class="va">self</span>._wrap_node_for_tracking(name, func)</span>
+<span id="cb31-6"><a href="#cb31-6" aria-hidden="true" tabindex="-1"></a>            <span class="va">self</span>.workflow.add_node(name, wrapped_func)</span>
+<span id="cb31-7"><a href="#cb31-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb31-8"><a href="#cb31-8" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> _wrap_node_for_tracking(<span class="va">self</span>, node_name: <span class="bu">str</span>, func):</span>
+<span id="cb31-9"><a href="#cb31-9" aria-hidden="true" tabindex="-1"></a>        <span class="co">&quot;&quot;&quot;노드를 래핑하여 실행 시간 및 성공/실패 추적&quot;&quot;&quot;</span></span>
+<span id="cb31-10"><a href="#cb31-10" aria-hidden="true" tabindex="-1"></a>        <span class="kw">def</span> wrapped(state: AgentState):</span>
+<span id="cb31-11"><a href="#cb31-11" aria-hidden="true" tabindex="-1"></a>            start_time <span class="op">=</span> time.time()</span>
+<span id="cb31-12"><a href="#cb31-12" aria-hidden="true" tabindex="-1"></a>            success <span class="op">=</span> <span class="va">True</span></span>
+<span id="cb31-13"><a href="#cb31-13" aria-hidden="true" tabindex="-1"></a>            error <span class="op">=</span> <span class="va">None</span></span>
+<span id="cb31-14"><a href="#cb31-14" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb31-15"><a href="#cb31-15" aria-hidden="true" tabindex="-1"></a>            <span class="cf">try</span>:</span>
+<span id="cb31-16"><a href="#cb31-16" aria-hidden="true" tabindex="-1"></a>                result <span class="op">=</span> func(state)</span>
+<span id="cb31-17"><a href="#cb31-17" aria-hidden="true" tabindex="-1"></a>            <span class="cf">except</span> <span class="pp">Exception</span> <span class="im">as</span> e:</span>
+<span id="cb31-18"><a href="#cb31-18" aria-hidden="true" tabindex="-1"></a>                success <span class="op">=</span> <span class="va">False</span></span>
+<span id="cb31-19"><a href="#cb31-19" aria-hidden="true" tabindex="-1"></a>                error <span class="op">=</span> <span class="bu">str</span>(e)</span>
+<span id="cb31-20"><a href="#cb31-20" aria-hidden="true" tabindex="-1"></a>                result <span class="op">=</span> state</span>
+<span id="cb31-21"><a href="#cb31-21" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb31-22"><a href="#cb31-22" aria-hidden="true" tabindex="-1"></a>            execution_time <span class="op">=</span> time.time() <span class="op">-</span> start_time</span>
+<span id="cb31-23"><a href="#cb31-23" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb31-24"><a href="#cb31-24" aria-hidden="true" tabindex="-1"></a>            <span class="co"># WorkflowExecutionTracker에 기록</span></span>
+<span id="cb31-25"><a href="#cb31-25" aria-hidden="true" tabindex="-1"></a>            <span class="va">self</span>.monitor.workflow_tracker.track_step(</span>
+<span id="cb31-26"><a href="#cb31-26" aria-hidden="true" tabindex="-1"></a>                task_id<span class="op">=</span><span class="va">self</span>.current_task_id,</span>
+<span id="cb31-27"><a href="#cb31-27" aria-hidden="true" tabindex="-1"></a>                step_name<span class="op">=</span>node_name,</span>
+<span id="cb31-28"><a href="#cb31-28" aria-hidden="true" tabindex="-1"></a>                step_type<span class="op">=</span><span class="st">&quot;node&quot;</span>,</span>
+<span id="cb31-29"><a href="#cb31-29" aria-hidden="true" tabindex="-1"></a>                success<span class="op">=</span>success,</span>
+<span id="cb31-30"><a href="#cb31-30" aria-hidden="true" tabindex="-1"></a>                execution_time<span class="op">=</span>execution_time,</span>
+<span id="cb31-31"><a href="#cb31-31" aria-hidden="true" tabindex="-1"></a>                framework<span class="op">=</span><span class="st">&quot;langgraph&quot;</span>,</span>
+<span id="cb31-32"><a href="#cb31-32" aria-hidden="true" tabindex="-1"></a>                metadata<span class="op">=</span>{<span class="st">&quot;error&quot;</span>: error} <span class="cf">if</span> error <span class="cf">else</span> {}</span>
+<span id="cb31-33"><a href="#cb31-33" aria-hidden="true" tabindex="-1"></a>            )</span>
+<span id="cb31-34"><a href="#cb31-34" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb31-35"><a href="#cb31-35" aria-hidden="true" tabindex="-1"></a>            <span class="co"># state에도 기록</span></span>
+<span id="cb31-36"><a href="#cb31-36" aria-hidden="true" tabindex="-1"></a>            <span class="cf">if</span> <span class="st">&quot;evaluation_data&quot;</span> <span class="kw">in</span> result:</span>
+<span id="cb31-37"><a href="#cb31-37" aria-hidden="true" tabindex="-1"></a>                result[<span class="st">&quot;evaluation_data&quot;</span>][<span class="st">&quot;workflow_steps&quot;</span>].append({</span>
+<span id="cb31-38"><a href="#cb31-38" aria-hidden="true" tabindex="-1"></a>                    <span class="st">&quot;step_name&quot;</span>: node_name,</span>
+<span id="cb31-39"><a href="#cb31-39" aria-hidden="true" tabindex="-1"></a>                    <span class="st">&quot;success&quot;</span>: success,</span>
+<span id="cb31-40"><a href="#cb31-40" aria-hidden="true" tabindex="-1"></a>                    <span class="st">&quot;execution_time&quot;</span>: execution_time</span>
+<span id="cb31-41"><a href="#cb31-41" aria-hidden="true" tabindex="-1"></a>                })</span>
+<span id="cb31-42"><a href="#cb31-42" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb31-43"><a href="#cb31-43" aria-hidden="true" tabindex="-1"></a>            <span class="cf">return</span> result</span>
+<span id="cb31-44"><a href="#cb31-44" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb31-45"><a href="#cb31-45" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> wrapped</span></code></pre></div>
+<p><strong>사용 예제:</strong></p>
+<div class="sourceCode" id="cb32"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb32-1"><a href="#cb32-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 워크플로우 단계 자동 추적</span></span>
+<span id="cb32-2"><a href="#cb32-2" aria-hidden="true" tabindex="-1"></a>evaluator <span class="op">=</span> LangGraphEvaluator(</span>
+<span id="cb32-3"><a href="#cb32-3" aria-hidden="true" tabindex="-1"></a>    monitor,</span>
+<span id="cb32-4"><a href="#cb32-4" aria-hidden="true" tabindex="-1"></a>    enable_workflow_tracking<span class="op">=</span><span class="va">True</span>,</span>
+<span id="cb32-5"><a href="#cb32-5" aria-hidden="true" tabindex="-1"></a>    expected_workflow_steps<span class="op">=</span>[<span class="st">&quot;retrieval&quot;</span>, <span class="st">&quot;generation&quot;</span>, <span class="st">&quot;validation&quot;</span>]</span>
+<span id="cb32-6"><a href="#cb32-6" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb32-7"><a href="#cb32-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb32-8"><a href="#cb32-8" aria-hidden="true" tabindex="-1"></a><span class="co"># 노드 추가 (자동으로 래핑됨)</span></span>
+<span id="cb32-9"><a href="#cb32-9" aria-hidden="true" tabindex="-1"></a>workflow.add_node(<span class="st">&quot;retrieval&quot;</span>, retrieval_func)</span>
+<span id="cb32-10"><a href="#cb32-10" aria-hidden="true" tabindex="-1"></a>workflow.add_node(<span class="st">&quot;generation&quot;</span>, generation_func)</span>
+<span id="cb32-11"><a href="#cb32-11" aria-hidden="true" tabindex="-1"></a>workflow.add_node(<span class="st">&quot;validation&quot;</span>, validation_func)</span>
+<span id="cb32-12"><a href="#cb32-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb32-13"><a href="#cb32-13" aria-hidden="true" tabindex="-1"></a><span class="co"># 실행</span></span>
+<span id="cb32-14"><a href="#cb32-14" aria-hidden="true" tabindex="-1"></a>result <span class="op">=</span> workflow.compile_and_run({<span class="st">&quot;messages&quot;</span>: [<span class="st">&quot;input&quot;</span>]})</span>
+<span id="cb32-15"><a href="#cb32-15" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb32-16"><a href="#cb32-16" aria-hidden="true" tabindex="-1"></a><span class="co"># Workflow 통계 확인</span></span>
+<span id="cb32-17"><a href="#cb32-17" aria-hidden="true" tabindex="-1"></a>stats <span class="op">=</span> monitor.workflow_tracker.calculate_execution_success_rate(framework<span class="op">=</span><span class="st">&quot;langgraph&quot;</span>)</span>
+<span id="cb32-18"><a href="#cb32-18" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f&quot;Step Success Rate: </span><span class="sc">{</span>stats[<span class="st">&#39;step_success_rate&#39;</span>]<span class="sc">:.1f}</span><span class="ss">%&quot;</span>)</span>
+<span id="cb32-19"><a href="#cb32-19" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f&quot;Task Success Rate: </span><span class="sc">{</span>stats[<span class="st">&#39;task_success_rate&#39;</span>]<span class="sc">:.1f}</span><span class="ss">%&quot;</span>)</span>
+<span id="cb32-20"><a href="#cb32-20" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f&quot;Total Steps: </span><span class="sc">{</span>stats[<span class="st">&#39;total_steps&#39;</span>]<span class="sc">}</span><span class="ss">&quot;</span>)</span>
+<span id="cb32-21"><a href="#cb32-21" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb32-22"><a href="#cb32-22" aria-hidden="true" tabindex="-1"></a><span class="co"># 그래프 순회 효율성</span></span>
+<span id="cb32-23"><a href="#cb32-23" aria-hidden="true" tabindex="-1"></a>efficiency <span class="op">=</span> monitor.workflow_tracker.get_graph_traversal_efficiency(task_id)</span>
+<span id="cb32-24"><a href="#cb32-24" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f&quot;Graph Traversal Efficiency: </span><span class="sc">{</span>efficiency[<span class="st">&#39;efficiency&#39;</span>]<span class="sc">:.1f}</span><span class="ss">%&quot;</span>)</span>
+<span id="cb32-25"><a href="#cb32-25" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f&quot;Nodes Executed: </span><span class="sc">{</span>efficiency[<span class="st">&#39;nodes_executed&#39;</span>]<span class="sc">}</span><span class="ss">&quot;</span>)</span></code></pre></div>
+<h3 id="layer-2-메트릭-임계값-설정">6.5 Layer 2 메트릭 임계값 설정</h3>
+<div class="sourceCode" id="cb33"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb33-1"><a href="#cb33-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 임계값 설정</span></span>
+<span id="cb33-2"><a href="#cb33-2" aria-hidden="true" tabindex="-1"></a>monitor.thresholds <span class="op">=</span> {</span>
+<span id="cb33-3"><a href="#cb33-3" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Layer 1</span></span>
+<span id="cb33-4"><a href="#cb33-4" aria-hidden="true" tabindex="-1"></a>    <span class="st">&#39;tcr&#39;</span>: <span class="fl">90.0</span>,</span>
+<span id="cb33-5"><a href="#cb33-5" aria-hidden="true" tabindex="-1"></a>    <span class="st">&#39;accuracy&#39;</span>: <span class="fl">85.0</span>,</span>
+<span id="cb33-6"><a href="#cb33-6" aria-hidden="true" tabindex="-1"></a>    <span class="st">&#39;cost&#39;</span>: <span class="fl">0.10</span>,</span>
+<span id="cb33-7"><a href="#cb33-7" aria-hidden="true" tabindex="-1"></a>    <span class="st">&#39;latency&#39;</span>: <span class="fl">3.0</span>,</span>
+<span id="cb33-8"><a href="#cb33-8" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Layer 2</span></span>
+<span id="cb33-9"><a href="#cb33-9" aria-hidden="true" tabindex="-1"></a>    <span class="st">&#39;tool_selection_accuracy&#39;</span>: <span class="fl">80.0</span>,  <span class="co"># 🆕</span></span>
+<span id="cb33-10"><a href="#cb33-10" aria-hidden="true" tabindex="-1"></a>    <span class="st">&#39;agent_coordination&#39;</span>: <span class="fl">7.0</span>,  <span class="co"># 🆕 0-10 척도</span></span>
+<span id="cb33-11"><a href="#cb33-11" aria-hidden="true" tabindex="-1"></a>    <span class="st">&#39;workflow_execution&#39;</span>: <span class="fl">90.0</span>  <span class="co"># 🆕</span></span>
+<span id="cb33-12"><a href="#cb33-12" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb33-13"><a href="#cb33-13" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb33-14"><a href="#cb33-14" aria-hidden="true" tabindex="-1"></a><span class="co"># 임계값 비교</span></span>
+<span id="cb33-15"><a href="#cb33-15" aria-hidden="true" tabindex="-1"></a>comparison <span class="op">=</span> monitor.compare_with_thresholds()</span>
+<span id="cb33-16"><a href="#cb33-16" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb33-17"><a href="#cb33-17" aria-hidden="true" tabindex="-1"></a><span class="co"># Layer 2 메트릭만 필터링</span></span>
+<span id="cb33-18"><a href="#cb33-18" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> metric, data <span class="kw">in</span> comparison.items():</span>
+<span id="cb33-19"><a href="#cb33-19" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> data.get(<span class="st">&#39;layer&#39;</span>) <span class="op">==</span> <span class="st">&#39;Layer 2&#39;</span>:</span>
+<span id="cb33-20"><a href="#cb33-20" aria-hidden="true" tabindex="-1"></a>        status_icon <span class="op">=</span> <span class="st">&quot;✅&quot;</span> <span class="cf">if</span> data[<span class="st">&#39;status&#39;</span>] <span class="op">==</span> <span class="st">&#39;pass&#39;</span> <span class="cf">else</span> <span class="st">&quot;❌&quot;</span></span>
+<span id="cb33-21"><a href="#cb33-21" aria-hidden="true" tabindex="-1"></a>        <span class="bu">print</span>(<span class="ss">f&quot;</span><span class="sc">{</span>status_icon<span class="sc">}</span><span class="ss"> </span><span class="sc">{</span>data[<span class="st">&#39;name&#39;</span>]<span class="sc">}</span><span class="ss">: </span><span class="sc">{</span>data[<span class="st">&#39;value&#39;</span>]<span class="sc">:.1f}{</span>data[<span class="st">&#39;unit&#39;</span>]<span class="sc">}</span><span class="ss"> (threshold: </span><span class="sc">{</span>data[<span class="st">&#39;threshold&#39;</span>]<span class="sc">}{</span>data[<span class="st">&#39;unit&#39;</span>]<span class="sc">}</span><span class="ss">)&quot;</span>)</span></code></pre></div>
+<hr />
+<h2 id="모범-사례">7. 모범 사례</h2>
+<h3 id="통합-체크리스트">7.1 통합 체크리스트</h3>
+<ul class="task-list">
+<li><label><input type="checkbox" />Monitor 초기화 (적절한 pricing
+설정)</label></li>
+<li><label><input type="checkbox" />프레임워크별 래퍼/콜백 클래스
+선택</label></li>
+<li><label><input type="checkbox" />Layer 2 자동 추적 활성화
+(expected_tools, expected_agents 등)</label></li>
+<li><label><input type="checkbox" />Golden Dataset 준비 (expected
+values)</label></li>
+<li><label><input type="checkbox" />에러 핸들링 구현</label></li>
+<li><label><input type="checkbox" />주기적인 리포트 생성</label></li>
+<li><label><input type="checkbox" />임계값 설정 및 비교</label></li>
+</ul>
+<h3 id="성능-최적화-팁">7.2 성능 최적화 팁</h3>
+<ol type="1">
+<li><p><strong>콜백 vs 래퍼</strong>:</p>
+<ul>
+<li>LangChain: 콜백 기반 (낮은 오버헤드)</li>
+<li>CrewAI/AutoGen: 래퍼 기반 (투명한 통합)</li>
+</ul></li>
+<li><p><strong>Layer 2 샘플링</strong>:</p>
+<div class="sourceCode" id="cb34"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb34-1"><a href="#cb34-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> random</span>
+<span id="cb34-2"><a href="#cb34-2" aria-hidden="true" tabindex="-1"></a>enable_layer2 <span class="op">=</span> (random.random() <span class="op">&lt;</span> <span class="fl">0.1</span>)  <span class="co"># 10%만 Layer 2 평가</span></span>
+<span id="cb34-3"><a href="#cb34-3" aria-hidden="true" tabindex="-1"></a>evaluator <span class="op">=</span> LangChainEvaluator(agent,</span>
+<span id="cb34-4"><a href="#cb34-4" aria-hidden="true" tabindex="-1"></a>    monitor,</span>
+<span id="cb34-5"><a href="#cb34-5" aria-hidden="true" tabindex="-1"></a>    expected_tools<span class="op">=</span>expected_tools <span class="cf">if</span> enable_layer2 <span class="cf">else</span> <span class="va">None</span></span>
+<span id="cb34-6"><a href="#cb34-6" aria-hidden="true" tabindex="-1"></a>)</span></code></pre></div></li>
+<li><p><strong>비동기 처리</strong>:</p>
+<ul>
+<li>Layer 1 메트릭은 동기적으로 추적</li>
+<li>고급 메트릭(DeepEval, RAGAS)은 비동기로 평가</li>
+</ul></li>
+</ol>
+<h3 id="문제-해결">7.3 문제 해결</h3>
+<p><strong>문제: 토큰 수가 정확하지 않음</strong> -
+<strong>해결</strong>: LLM 응답에서 <code>usage</code> 정보 추출</p>
+<div class="sourceCode" id="cb35"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb35-1"><a href="#cb35-1" aria-hidden="true" tabindex="-1"></a><span class="co"># LangChain 콜백에서</span></span>
+<span id="cb35-2"><a href="#cb35-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> on_llm_end(<span class="va">self</span>, response: LLMResult, <span class="op">**</span>kwargs):</span>
+<span id="cb35-3"><a href="#cb35-3" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> response.llm_output:</span>
+<span id="cb35-4"><a href="#cb35-4" aria-hidden="true" tabindex="-1"></a>        token_usage <span class="op">=</span> response.llm_output.get(<span class="st">&quot;token_usage&quot;</span>, {})</span>
+<span id="cb35-5"><a href="#cb35-5" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>.tokens_used[<span class="st">&quot;input&quot;</span>] <span class="op">=</span> token_usage.get(<span class="st">&quot;prompt_tokens&quot;</span>, <span class="dv">0</span>)</span>
+<span id="cb35-6"><a href="#cb35-6" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>.tokens_used[<span class="st">&quot;output&quot;</span>] <span class="op">=</span> token_usage.get(<span class="st">&quot;completion_tokens&quot;</span>, <span class="dv">0</span>)</span></code></pre></div>
+<p><strong>문제: CrewAI에서 에이전트 상호작용을 정확히 추적할 수
+없음</strong> - <strong>해결</strong>: CrewAI는 내부 로그를 제공하지
+않으므로 순차적 상호작용 시뮬레이션 사용 - 더 정확한 추적을 위해서는
+CrewAI의 커스텀 콜백 구현 필요</p>
+<p><strong>문제: Layer 2 메트릭이 너무 느림</strong> -
+<strong>해결</strong>: 샘플링 사용 또는 배치 평가</p>
+<div class="sourceCode" id="cb36"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb36-1"><a href="#cb36-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 10개마다 한 번만 Layer 2 평가</span></span>
+<span id="cb36-2"><a href="#cb36-2" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> task_count <span class="op">%</span> <span class="dv">10</span> <span class="op">==</span> <span class="dv">0</span>:</span>
+<span id="cb36-3"><a href="#cb36-3" aria-hidden="true" tabindex="-1"></a>    evaluator <span class="op">=</span> CrewAIEvaluator(</span>
+<span id="cb36-4"><a href="#cb36-4" aria-hidden="true" tabindex="-1"></a>        crew,</span>
+<span id="cb36-5"><a href="#cb36-5" aria-hidden="true" tabindex="-1"></a>        monitor,</span>
+<span id="cb36-6"><a href="#cb36-6" aria-hidden="true" tabindex="-1"></a>        enable_coordination_tracking<span class="op">=</span><span class="va">True</span></span>
+<span id="cb36-7"><a href="#cb36-7" aria-hidden="true" tabindex="-1"></a>    )</span></code></pre></div>
+<hr />
+
+<hr />
+<h2 id="dev-guide">💻 개발자 가이드 (Developer Guide)</h2>
+
+<div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 25px; border-radius: 12px; color: white; margin: 30px 0;">
+<h3 style="color: white; margin-top: 0;">🎯 가이드 개요</h3>
+<p style="color: white; margin: 15px 0;">
+이 가이드는 <strong>개발자(Developer)</strong>가 Agent Evaluator를 <strong>프레임워크와 통합하여 실전에서 활용</strong>하는 방법을 제공합니다.
+</p>
+<p style="color: white; margin: 15px 0;"><strong>학습 목표:</strong></p>
+<ul style="color: white;">
+<li>✅ 프레임워크별 실전 통합 구현</li>
+<li>✅ 성능 최적화 및 오버헤드 최소화</li>
+<li>✅ 효과적인 디버깅 및 문제 해결</li>
+<li>✅ 프로덕션 환경 배포 전략</li>
+<li>✅ 고급 기능 활용 (커스텀 메트릭, 분산 추적)</li>
+</ul>
+</div>
+
+<h3 id="dev-implementation">8.1 실전 구현 가이드</h3>
+
+<h4>8.1.1 프레임워크별 통합 체크리스트</h4>
+
+<p><strong>🔗 LangChain 통합 체크리스트</strong></p>
+
+<table>
+<thead>
+<tr>
+<th>단계</th>
+<th>작업</th>
+<th>코드 예시</th>
+<th>확인 사항</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1. 설치</td>
+<td>필수 패키지 설치</td>
+<td><code>pip install langchain agent-evaluator</code></td>
+<td>버전 호환성</td>
+</tr>
+<tr>
+<td>2. Monitor 생성</td>
+<td>Monitor 인스턴스 초기화</td>
+<td><code>monitor = Monitor()</code></td>
+<td>-</td>
+</tr>
+<tr>
+<td>3. Callback 생성</td>
+<td>AdvancedLangChainCallback 생성</td>
+<td><code>callback = AdvancedLangChainCallback(monitor)</code></td>
+<td>Monitor 전달 확인</td>
+</tr>
+<tr>
+<td>4. 통합</td>
+<td>Agent/Chain에 Callback 추가</td>
+<td><code>agent.invoke(input, callbacks=[callback])</code></td>
+<td>모든 호출에 적용</td>
+</tr>
+<tr>
+<td>5. 검증</td>
+<td>메트릭 수집 확인</td>
+<td><code>metrics = monitor.calculate_metrics()</code></td>
+<td>모든 메트릭 값 존재</td>
+</tr>
+</tbody>
+</table>
+
+<p><strong>🕸️ LangGraph 통합 체크리스트</strong></p>
+
+<table>
+<thead>
+<tr>
+<th>단계</th>
+<th>작업</th>
+<th>코드 예시</th>
+<th>확인 사항</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1. 설치</td>
+<td>LangGraph 설치</td>
+<td><code>pip install langgraph</code></td>
+<td>-</td>
+</tr>
+<tr>
+<td>2. 그래프 정의</td>
+<td>StateGraph 생성</td>
+<td><code>graph = StateGraph(AgentState)</code></td>
+<td>State 타입 정의</td>
+</tr>
+<tr>
+<td>3. Callback 통합</td>
+<td>컴파일 시 Callback 설정</td>
+<td><code>app = graph.compile()</code></td>
+<td>-</td>
+</tr>
+<tr>
+<td>4. 실행</td>
+<td>invoke 시 Callback 전달</td>
+<td><code>app.invoke(input, {"callbacks": [callback]})</code></td>
+<td>-</td>
+</tr>
+<tr>
+<td>5. 검증</td>
+<td>워크플로우 메트릭 확인</td>
+<td><code>monitor.calculate_metrics()["layer2_metrics"]</code></td>
+<td>workflow_efficiency</td>
+</tr>
+</tbody>
+</table>
+
+<p><strong>🚢 CrewAI 통합 체크리스트</strong></p>
+
+<table>
+<thead>
+<tr>
+<th>단계</th>
+<th>작업</th>
+<th>코드 예시</th>
+<th>확인 사항</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1. 설치</td>
+<td>CrewAI 설치</td>
+<td><code>pip install crewai</code></td>
+<td>-</td>
+</tr>
+<tr>
+<td>2. Agent 정의</td>
+<td>Agent 생성 (role, goal, backstory)</td>
+<td><code>Agent(role="...", goal="...")</code></td>
+<td>명확한 역할 정의</td>
+</tr>
+<tr>
+<td>3. Task 정의</td>
+<td>Task 생성 (description, agent)</td>
+<td><code>Task(description="...", agent=agent)</code></td>
+<td>Agent 할당</td>
+</tr>
+<tr>
+<td>4. Crew 생성</td>
+<td>Crew 구성 및 Monitor 설정</td>
+<td><code>Crew(agents=[...], tasks=[...], monitor=monitor)</code></td>
+<td>Monitor 전달</td>
+</tr>
+<tr>
+<td>5. 검증</td>
+<td>Coordination 메트릭 확인</td>
+<td><code>monitor.calculate_metrics()["layer2_metrics"]["agent_coordination_score"]</code></td>
+<td>&gt; 3.0</td>
+</tr>
+</tbody>
+</table>
+
+<p><strong>🤖 AutoGen 통합 체크리스트</strong></p>
+
+<table>
+<thead>
+<tr>
+<th>단계</th>
+<th>작업</th>
+<th>코드 예시</th>
+<th>확인 사항</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1. 설치</td>
+<td>AutoGen 설치</td>
+<td><code>pip install pyautogen</code></td>
+<td>-</td>
+</tr>
+<tr>
+<td>2. Agent 정의</td>
+<td>AssistantAgent, UserProxyAgent 생성</td>
+<td><code>AssistantAgent(name="...")</code></td>
+<td>llm_config 설정</td>
+</tr>
+<tr>
+<td>3. Monitor 통합</td>
+<td>register_reply 오버라이드</td>
+<td><code>agent.register_reply(...)</code></td>
+<td>모든 메시지 추적</td>
+</tr>
+<tr>
+<td>4. 실행</td>
+<td>initiate_chat 실행</td>
+<td><code>user_proxy.initiate_chat(assistant, message="...")</code></td>
+<td>-</td>
+</tr>
+<tr>
+<td>5. 검증</td>
+<td>Communication Overhead 확인</td>
+<td><code>monitor.calculate_metrics()["layer2_metrics"]["communication_overhead"]</code></td>
+<td>&lt; 20%</td>
+</tr>
+</tbody>
+</table>
+
+<h4>8.1.2 공통 구현 패턴</h4>
+
+<p><strong>패턴 1: Monitor 싱글톤 패턴</strong></p>
+
+<pre><code class="language-python"># 싱글톤으로 Monitor 관리 (전역 상태 공유)
+class MonitorManager:
+    _instance = None
+    _monitor = None
+
+    @classmethod
+    def get_monitor(cls):
+        """싱글톤 Monitor 인스턴스 반환"""
+        if cls._instance is None:
+            cls._instance = cls()
+            cls._monitor = Monitor()
+        return cls._monitor
+
+    @classmethod
+    def reset(cls):
+        """테스트 후 초기화"""
+        cls._instance = None
+        cls._monitor = None
+
+# 사용 예시
+monitor = MonitorManager.get_monitor()
+callback = AdvancedLangChainCallback(monitor)
+
+# 테스트 후 초기화
+MonitorManager.reset()</code></pre>
+
+<p><strong>패턴 2: Context Manager 패턴</strong></p>
+
+<pre><code class="language-python"># 자동 시작/종료 관리
+from contextlib import contextmanager
+from datetime import datetime
+
+@contextmanager
+def track_agent_task(monitor, task_id: str, task_type: str):
+    """Agent 작업 자동 추적"""
+    task_data = {
+        "task_id": task_id,
+        "task_type": task_type,
+        "start_time": datetime.now()
+    }
+
+    monitor.start_task(task_data)
+
+    try:
+        yield monitor
+    except Exception as e:
+        # 실패 기록
+        monitor.end_task(
+            task_id=task_id,
+            success=False,
+            error=str(e)
+        )
+        raise
+    else:
+        # 성공 기록
+        monitor.end_task(
+            task_id=task_id,
+            success=True
+        )
+
+# 사용 예시
+with track_agent_task(monitor, "task_001", "code_generation") as mon:
+    result = agent.invoke({"input": "Generate Python code..."})
+    # 자동으로 성공/실패 기록됨</code></pre>
+
+<p><strong>패턴 3: Decorator 패턴</strong></p>
+
+<pre><code class="language-python"># 함수 데코레이터로 자동 추적
+from functools import wraps
+
+def track_agent_function(monitor, task_type: str):
+    """함수 실행 자동 추적 데코레이터"""
+    def decorator(func):
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            task_id = f"{func.__name__}_{datetime.now().timestamp()}"
+
+            with track_agent_task(monitor, task_id, task_type):
+                return func(*args, **kwargs)
+
+        return wrapper
+    return decorator
+
+# 사용 예시
+@track_agent_function(monitor, "data_analysis")
+def analyze_data(data):
+    """데이터 분석 함수"""
+    return agent.invoke({"input": f"Analyze: {data}"})
+
+# 호출 시 자동으로 추적됨
+result = analyze_data("sales_data.csv")</code></pre>
+
+<h4>8.1.3 에러 처리 전략</h4>
+
+<p><strong>전략 1: Graceful Degradation (점진적 저하)</strong></p>
+
+<pre><code class="language-python"># Monitor 실패 시에도 Agent는 정상 작동
+def safe_monitor_operation(func):
+    """Monitor 작업을 안전하게 실행"""
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        try:
+            return func(*args, **kwargs)
+        except Exception as e:
+            # Monitor 오류는 로깅만 하고 계속 진행
+            logger.warning(f"Monitor operation failed: {e}")
+            return None
+    return wrapper
+
+class SafeMonitor:
+    def __init__(self, monitor):
+        self.monitor = monitor
+
+    @safe_monitor_operation
+    def start_task(self, *args, **kwargs):
+        return self.monitor.start_task(*args, **kwargs)
+
+    @safe_monitor_operation
+    def end_task(self, *args, **kwargs):
+        return self.monitor.end_task(*args, **kwargs)
+
+# 사용 예시
+safe_monitor = SafeMonitor(monitor)
+safe_monitor.start_task({"task_id": "task_001"})  # 실패해도 예외 없음</code></pre>
+
+<p><strong>전략 2: Retry 메커니즘</strong></p>
+
+<pre><code class="language-python"># Monitor 작업 재시도
+from tenacity import retry, stop_after_attempt, wait_exponential
+
+class ResilientMonitor:
+    def __init__(self, monitor):
+        self.monitor = monitor
+
+    @retry(
+        stop=stop_after_attempt(3),
+        wait=wait_exponential(multiplier=1, min=1, max=10)
+    )
+    def save_to_file(self, filename: str):
+        """파일 저장 재시도 (최대 3회)"""
+        return self.monitor.save_to_file(filename)
+
+# 사용 예시
+resilient_monitor = ResilientMonitor(monitor)
+resilient_monitor.save_to_file("results.json")  # 실패 시 자동 재시도</code></pre>
+
+<p><strong>전략 3: Fallback 메커니즘</strong></p>
+
+<pre><code class="language-python"># 기본값 제공
+def get_metrics_safe(monitor, default=None):
+    """메트릭 안전하게 가져오기"""
+    try:
+        return monitor.calculate_metrics()
+    except Exception as e:
+        logger.error(f"Failed to calculate metrics: {e}")
+        # 기본값 반환
+        return default or {
+            "layer1_metrics": {},
+            "layer2_metrics": {},
+            "error": str(e)
+        }
+
+# 사용 예시
+metrics = get_metrics_safe(monitor, default={"layer1_metrics": {"tcr": 0.0}})</code></pre>
+
+<h3 id="dev-performance">8.2 성능 최적화</h3>
+
+<h4>8.2.1 메트릭 수집 오버헤드 최소화</h4>
+
+<p><strong>오버헤드 측정</strong></p>
+
+<table>
+<thead>
+<tr>
+<th>시나리오</th>
+<th>Monitor 없음</th>
+<th>Monitor 있음</th>
+<th>오버헤드</th>
+<th>허용 범위</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>단순 Chain (3 steps)</td>
+<td>1.2초</td>
+<td>1.25초</td>
+<td>+4%</td>
+<td>✅ &lt; 5%</td>
+</tr>
+<tr>
+<td>복잡한 Agent (10 tools)</td>
+<td>5.8초</td>
+<td>6.1초</td>
+<td>+5%</td>
+<td>✅ &lt; 10%</td>
+</tr>
+<tr>
+<td>멀티 Agent (5 agents)</td>
+<td>12.3초</td>
+<td>13.2초</td>
+<td>+7%</td>
+<td>✅ &lt; 10%</td>
+</tr>
+<tr>
+<td>대량 배치 (100 tasks)</td>
+<td>120초</td>
+<td>135초</td>
+<td>+12%</td>
+<td>⚠️ &gt; 10%</td>
+</tr>
+</tbody>
+</table>
+
+<p><strong>최적화 기법 1: 샘플링</strong></p>
+
+<pre><code class="language-python"># 모든 요청을 추적하지 않고 일부만 샘플링
+import random
+
+class SamplingMonitor:
+    def __init__(self, monitor, sample_rate=0.1):
+        """
+        sample_rate: 0.0 ~ 1.0 (0.1 = 10% 샘플링)
+        """
+        self.monitor = monitor
+        self.sample_rate = sample_rate
+
+    def should_track(self):
+        """확률적으로 추적 여부 결정"""
+        return random.random() < self.sample_rate
+
+    def start_task(self, *args, **kwargs):
+        if self.should_track():
+            return self.monitor.start_task(*args, **kwargs)
+
+    def end_task(self, *args, **kwargs):
+        if self.should_track():
+            return self.monitor.end_task(*args, **kwargs)
+
+# 사용 예시
+sampling_monitor = SamplingMonitor(monitor, sample_rate=0.1)  # 10%만 추적
+# → 오버헤드 12% → 1.2%로 감소</code></pre>
+
+<p><strong>최적화 기법 2: 비동기 수집</strong></p>
+
+<pre><code class="language-python"># 메트릭 수집을 백그라운드 스레드에서 처리
+import threading
+import queue
+
+class AsyncMonitor:
+    def __init__(self, monitor):
+        self.monitor = monitor
+        self.task_queue = queue.Queue()
+        self.worker_thread = threading.Thread(target=self._worker, daemon=True)
+        self.worker_thread.start()
+
+    def _worker(self):
+        """백그라운드 작업 처리"""
+        while True:
+            try:
+                task = self.task_queue.get(timeout=1)
+                if task is None:
+                    break
+
+                # 실제 Monitor 작업 수행
+                method, args, kwargs = task
+                method(*args, **kwargs)
+
+                self.task_queue.task_done()
+            except queue.Empty:
+                continue
+
+    def start_task(self, *args, **kwargs):
+        """비동기로 task 시작 (즉시 반환)"""
+        self.task_queue.put((self.monitor.start_task, args, kwargs))
+
+    def end_task(self, *args, **kwargs):
+        """비동기로 task 종료 (즉시 반환)"""
+        self.task_queue.put((self.monitor.end_task, args, kwargs))
+
+    def shutdown(self):
+        """종료 대기"""
+        self.task_queue.join()  # 모든 작업 완료 대기
+        self.task_queue.put(None)  # 종료 신호
+        self.worker_thread.join()
+
+# 사용 예시
+async_monitor = AsyncMonitor(monitor)
+async_monitor.start_task({"task_id": "task_001"})  # 즉시 반환
+# ... Agent 실행 ...
+async_monitor.end_task(task_id="task_001")  # 즉시 반환
+async_monitor.shutdown()  # 프로그램 종료 시</code></pre>
+
+<p><strong>최적화 기법 3: 배치 처리</strong></p>
+
+<pre><code class="language-python"># 메트릭을 모아서 한 번에 저장
+class BatchMonitor:
+    def __init__(self, monitor, batch_size=10):
+        self.monitor = monitor
+        self.batch_size = batch_size
+        self.task_buffer = []
+
+    def add_task(self, task_data):
+        """Task를 버퍼에 추가"""
+        self.task_buffer.append(task_data)
+
+        # 버퍼가 가득 차면 저장
+        if len(self.task_buffer) >= self.batch_size:
+            self.flush()
+
+    def flush(self):
+        """버퍼의 모든 task를 한 번에 저장"""
+        if not self.task_buffer:
+            return
+
+        for task in self.task_buffer:
+            self.monitor.add_task(task)
+
+        self.task_buffer.clear()
+
+    def __del__(self):
+        """객체 소멸 시 남은 task 저장"""
+        self.flush()
+
+# 사용 예시
+batch_monitor = BatchMonitor(monitor, batch_size=10)
+for i in range(100):
+    batch_monitor.add_task({"task_id": f"task_{i}"})
+    # 10개마다 자동으로 저장됨
+batch_monitor.flush()  # 남은 것 저장</code></pre>
+
+<h4>8.2.2 메모리 최적화</h4>
+
+<p><strong>문제: 대량 작업 시 메모리 증가</strong></p>
+
+<table>
+<thead>
+<tr>
+<th>작업 수</th>
+<th>메모리 사용량</th>
+<th>문제점</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>100</td>
+<td>50 MB</td>
+<td>-</td>
+</tr>
+<tr>
+<td>1,000</td>
+<td>500 MB</td>
+<td>-</td>
+</tr>
+<tr>
+<td>10,000</td>
+<td>5 GB</td>
+<td>⚠️ 메모리 부족</td>
+</tr>
+<tr>
+<td>100,000</td>
+<td>50 GB</td>
+<td>❌ OOM (Out of Memory)</td>
+</tr>
+</tbody>
+</table>
+
+<p><strong>해결책: 주기적 파일 저장 및 메모리 클리어</strong></p>
+
+<pre><code class="language-python"># 일정 주기마다 파일에 저장하고 메모리 정리
+class StreamingMonitor:
+    def __init__(self, monitor, output_dir="./evaluation_results", flush_interval=100):
+        self.monitor = monitor
+        self.output_dir = output_dir
+        self.flush_interval = flush_interval
+        self.task_count = 0
+        self.file_count = 0
+
+    def add_task(self, task_data):
+        """Task 추가"""
+        self.monitor.add_task(task_data)
+        self.task_count += 1
+
+        # flush_interval마다 저장 및 클리어
+        if self.task_count >= self.flush_interval:
+            self.flush()
+
+    def flush(self):
+        """현재 데이터를 파일에 저장하고 메모리 클리어"""
+        filename = f"{self.output_dir}/batch_{self.file_count:04d}.json"
+        self.monitor.save_to_file(filename)
+
+        # Monitor 초기화 (메모리 클리어)
+        self.monitor = Monitor()
+
+        self.file_count += 1
+        self.task_count = 0
+
+        print(f"✓ Saved {filename}, memory cleared")
+
+# 사용 예시
+streaming_monitor = StreamingMonitor(monitor, flush_interval=1000)
+for i in range(10000):
+    streaming_monitor.add_task({"task_id": f"task_{i}"})
+    # 1000개마다 자동 저장 및 메모리 클리어
+streaming_monitor.flush()  # 마지막 남은 것 저장
+# → 메모리 사용량: 50 GB → 500 MB (1/100)</code></pre>
+
+<h4>8.2.3 성능 프로파일링</h4>
+
+<pre><code class="language-python"># Monitor 성능 측정
+import time
+from contextlib import contextmanager
+
+class ProfiledMonitor:
+    def __init__(self, monitor):
+        self.monitor = monitor
+        self.timings = {}
+
+    @contextmanager
+    def profile(self, operation):
+        """작업 시간 측정"""
+        start = time.time()
+        try:
+            yield
+        finally:
+            elapsed = time.time() - start
+            if operation not in self.timings:
+                self.timings[operation] = []
+            self.timings[operation].append(elapsed)
+
+    def start_task(self, *args, **kwargs):
+        with self.profile("start_task"):
+            return self.monitor.start_task(*args, **kwargs)
+
+    def end_task(self, *args, **kwargs):
+        with self.profile("end_task"):
+            return self.monitor.end_task(*args, **kwargs)
+
+    def calculate_metrics(self, *args, **kwargs):
+        with self.profile("calculate_metrics"):
+            return self.monitor.calculate_metrics(*args, **kwargs)
+
+    def print_stats(self):
+        """성능 통계 출력"""
+        print("=== Monitor Performance Stats ===")
+        for operation, times in self.timings.items():
+            avg = sum(times) / len(times)
+            total = sum(times)
+            count = len(times)
+            print(f"{operation}:")
+            print(f"  Count: {count}")
+            print(f"  Total: {total:.3f}s")
+            print(f"  Average: {avg:.3f}s")
+            print(f"  Min: {min(times):.3f}s")
+            print(f"  Max: {max(times):.3f}s")
+
+# 사용 예시
+profiled_monitor = ProfiledMonitor(monitor)
+# ... 평가 실행 ...
+profiled_monitor.print_stats()
+# === Monitor Performance Stats ===
+# start_task:
+#   Count: 100
+#   Total: 0.523s
+#   Average: 0.005s
+# calculate_metrics:
+#   Count: 1
+#   Total: 0.234s
+#   Average: 0.234s</code></pre>
+
+<h3 id="dev-debugging">8.3 디버깅 및 문제 해결</h3>
+
+<h4>8.3.1 디버깅 모드 활성화</h4>
+
+<pre><code class="language-python"># 상세 로깅 설정
+import logging
+
+# 1. Monitor 디버깅 로그 활성화
+logging.basicConfig(
+    level=logging.DEBUG,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+
+# Agent Evaluator 로거
+logger = logging.getLogger("agent_evaluator")
+logger.setLevel(logging.DEBUG)
+
+# 2. 프레임워크별 디버깅
+# LangChain
+from langchain.globals import set_debug
+set_debug(True)  # 모든 Chain 실행 로깅
+
+# LangGraph
+# (내부적으로 LangChain 사용, 동일하게 적용됨)
+
+# CrewAI
+crew = Crew(
+    agents=[...],
+    tasks=[...],
+    verbose=True  # 상세 로그 출력
+)
+
+# AutoGen
+assistant = AssistantAgent(
+    name="assistant",
+    llm_config=llm_config,
+    verbose=True  # 대화 내용 출력
+)</code></pre>
+
+<h4>8.3.2 일반적인 문제 및 해결책</h4>
+
+<table>
+<thead>
+<tr>
+<th>문제</th>
+<th>증상</th>
+<th>원인</th>
+<th>해결책</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>🔴 메트릭이 0</td>
+<td><code>tcr: 0.0, accuracy: 0.0</code></td>
+<td>Callback이 호출되지 않음</td>
+<td><code>callbacks=[callback]</code> 확인</td>
+</tr>
+<tr>
+<td>🟠 Task가 기록 안 됨</td>
+<td><code>monitor.tasks == []</code></td>
+<td><code>start_task()</code> 누락</td>
+<td>시작/종료 쌍 확인</td>
+</tr>
+<tr>
+<td>🟡 토큰 수가 0</td>
+<td><code>input_tokens: 0</code></td>
+<td>LLM Callback 미연결</td>
+<td><code>on_llm_start()</code> 호출 확인</td>
+</tr>
+<tr>
+<td>🟢 Layer 2 메트릭 없음</td>
+<td><code>layer2_metrics: {}</code></td>
+<td>도구/에이전트 정보 누락</td>
+<td><code>on_tool_start()</code> 확인</td>
+</tr>
+<tr>
+<td>🔵 메모리 누수</td>
+<td>메모리 계속 증가</td>
+<td>Monitor 초기화 안 함</td>
+<td>주기적으로 <code>save_to_file()</code> + 새 Monitor</td>
+</tr>
+<tr>
+<td>⚫ 느린 성능</td>
+<td>실행 시간 2배 증가</td>
+<td>동기 I/O 병목</td>
+<td>AsyncMonitor 사용</td>
+</tr>
+</tbody>
+</table>
+
+<h4>8.3.3 문제 해결 체크리스트</h4>
+
+<p><strong>Step 1: 기본 설정 확인</strong></p>
+
+<pre><code class="language-python"># 디버깅 체크리스트
+def debug_monitor_setup(monitor, callback):
+    """Monitor 설정 검증"""
+    print("=== Monitor Setup Debug ===")
+
+    # 1. Monitor 인스턴스 확인
+    print(f"✓ Monitor instance: {monitor}")
+    print(f"  Tasks: {len(monitor.tasks)}")
+
+    # 2. Callback 연결 확인
+    print(f"✓ Callback instance: {callback}")
+    print(f"  Monitor: {callback.monitor}")
+
+    # 3. 테스트 작업 추가
+    test_task = {"task_id": "test", "task_type": "test"}
+    monitor.start_task(test_task)
+    monitor.end_task(task_id="test", success=True)
+
+    # 4. 메트릭 계산 가능 확인
+    try:
+        metrics = monitor.calculate_metrics()
+        print(f"✓ Metrics calculated: {list(metrics.keys())}")
+    except Exception as e:
+        print(f"❌ Metrics calculation failed: {e}")
+
+    print("=== Debug Complete ===")
+
+# 사용 예시
+debug_monitor_setup(monitor, callback)</code></pre>
+
+<p><strong>Step 2: 프레임워크별 확인</strong></p>
+
+<pre><code class="language-python"># LangChain 디버깅
+def debug_langchain_integration(agent, callback):
+    """LangChain 통합 검증"""
+    print("=== LangChain Integration Debug ===")
+
+    # 1. Callback 등록 확인
+    test_input = {"input": "Hello"}
+    result = agent.invoke(test_input, callbacks=[callback])
+
+    # 2. Callback 호출 횟수 확인
+    print(f"  on_llm_start called: {callback.on_llm_start_count}")
+    print(f"  on_tool_start called: {callback.on_tool_start_count}")
+
+    # 3. Monitor에 데이터 기록 확인
+    print(f"  Tasks recorded: {len(callback.monitor.tasks)}")
+
+    return result
+
+# 사용 예시
+debug_langchain_integration(agent, callback)</code></pre>
+
+<h4>8.3.4 로깅 전략</h4>
+
+<pre><code class="language-python"># 구조화된 로깅
+import json
+import logging
+
+class StructuredLogger:
+    def __init__(self, name="agent_evaluator"):
+        self.logger = logging.getLogger(name)
+
+    def log_task(self, level, task_id, event, **kwargs):
+        """작업 이벤트 로깅"""
+        log_data = {
+            "task_id": task_id,
+            "event": event,
+            **kwargs
+        }
+        self.logger.log(level, json.dumps(log_data))
+
+    def log_metric(self, metric_name, value, **kwargs):
+        """메트릭 로깅"""
+        log_data = {
+            "type": "metric",
+            "name": metric_name,
+            "value": value,
+            **kwargs
+        }
+        self.logger.info(json.dumps(log_data))
+
+# 사용 예시
+logger = StructuredLogger()
+logger.log_task(logging.INFO, "task_001", "start", task_type="code_generation")
+logger.log_metric("tcr", 0.85, stage="production")
+
+# 로그 출력:
+# {"task_id": "task_001", "event": "start", "task_type": "code_generation"}
+# {"type": "metric", "name": "tcr", "value": 0.85, "stage": "production"}</code></pre>
+
+<h3 id="dev-production">8.4 프로덕션 배포</h3>
+
+<h4>8.4.1 배포 전 체크리스트</h4>
+
+<table>
+<thead>
+<tr>
+<th>카테고리</th>
+<th>체크 항목</th>
+<th>확인 방법</th>
+<th>상태</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>🔧 설정</td>
+<td>환경 변수 설정</td>
+<td><code>OPENAI_API_KEY</code> 등 확인</td>
+<td>[ ]</td>
+</tr>
+<tr>
+<td>🔧 설정</td>
+<td>Monitor 샘플링 설정</td>
+<td><code>sample_rate=0.1</code> 적용</td>
+<td>[ ]</td>
+</tr>
+<tr>
+<td>📊 메트릭</td>
+<td>임계값 설정</td>
+<td><code>thresholds.json</code> 준비</td>
+<td>[ ]</td>
+</tr>
+<tr>
+<td>📊 메트릭</td>
+<td>Golden Dataset</td>
+<td>최소 30개 샘플 준비</td>
+<td>[ ]</td>
+</tr>
+<tr>
+<td>🚀 성능</td>
+<td>오버헤드 측정</td>
+<td>&lt; 10% 확인</td>
+<td>[ ]</td>
+</tr>
+<tr>
+<td>🚀 성능</td>
+<td>메모리 사용량</td>
+<td>&lt; 1GB 확인</td>
+<td>[ ]</td>
+</tr>
+<tr>
+<td>🔍 모니터링</td>
+<td>로깅 설정</td>
+<td>INFO 레벨 설정</td>
+<td>[ ]</td>
+</tr>
+<tr>
+<td>🔍 모니터링</td>
+<td>알림 설정</td>
+<td>Slack/Email 통합</td>
+<td>[ ]</td>
+</tr>
+<tr>
+<td>🛡️ 에러 처리</td>
+<td>Graceful Degradation</td>
+<td>Monitor 실패 시 계속 작동</td>
+<td>[ ]</td>
+</tr>
+<tr>
+<td>🛡️ 에러 처리</td>
+<td>Retry 메커니즘</td>
+<td>파일 저장 재시도</td>
+<td>[ ]</td>
+</tr>
+</tbody>
+</table>
+
+<h4>8.4.2 프로덕션 설정 예시</h4>
+
+<pre><code class="language-python"># 프로덕션 환경 설정
+import os
+from pathlib import Path
+
+class ProductionConfig:
+    """프로덕션 환경 설정"""
+
+    # 환경 변수
+    ENV = os.getenv("ENV", "production")
+
+    # Monitor 설정
+    SAMPLE_RATE = float(os.getenv("MONITOR_SAMPLE_RATE", "0.1"))  # 10% 샘플링
+    BATCH_SIZE = int(os.getenv("MONITOR_BATCH_SIZE", "100"))
+
+    # 파일 저장
+    OUTPUT_DIR = Path(os.getenv("MONITOR_OUTPUT_DIR", "./evaluation_results"))
+    OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+
+    # 임계값
+    THRESHOLDS_FILE = os.getenv("THRESHOLDS_FILE", "thresholds/production/layer1_thresholds.json")
+
+    # 로깅
+    LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
+
+    # 알림
+    SLACK_WEBHOOK = os.getenv("SLACK_WEBHOOK_URL")
+
+    @classmethod
+    def create_monitor(cls):
+        """프로덕션용 Monitor 생성"""
+        monitor = Monitor()
+
+        # 샘플링 적용
+        monitor = SamplingMonitor(monitor, sample_rate=cls.SAMPLE_RATE)
+
+        # 비동기 처리
+        monitor = AsyncMonitor(monitor)
+
+        # 배치 처리
+        monitor = BatchMonitor(monitor, batch_size=cls.BATCH_SIZE)
+
+        # 에러 처리
+        monitor = SafeMonitor(monitor)
+
+        return monitor
+
+# 사용 예시
+config = ProductionConfig()
+monitor = config.create_monitor()</code></pre>
+
+<h4>8.4.3 모니터링 및 알림</h4>
+
+<pre><code class="language-python"># 메트릭 임계값 위반 시 알림
+import requests
+
+class MetricAlerter:
+    def __init__(self, slack_webhook_url):
+        self.slack_webhook = slack_webhook_url
+
+    def check_and_alert(self, metrics, thresholds):
+        """임계값 확인 및 알림"""
+        violations = []
+
+        # Layer 1 메트릭 확인
+        layer1 = metrics.get("layer1_metrics", {})
+
+        if layer1.get("task_completion_rate", 0) < thresholds.get("tcr", 85):
+            violations.append({
+                "metric": "TCR",
+                "value": layer1["task_completion_rate"],
+                "threshold": thresholds["tcr"],
+                "severity": "critical"
+            })
+
+        # 위반 발생 시 알림 전송
+        if violations:
+            self.send_slack_alert(violations)
+
+    def send_slack_alert(self, violations):
+        """Slack 알림 전송"""
+        message = "🚨 *Metric Threshold Violated*
+
+"
+
+        for v in violations:
+            message += f"• *{v['metric']}*: {v['value']:.1f}% < {v['threshold']}% (Severity: {v['severity']})
+"
+
+        requests.post(
+            self.slack_webhook,
+            json={"text": message}
+        )
+
+# 사용 예시
+alerter = MetricAlerter(slack_webhook_url=config.SLACK_WEBHOOK)
+metrics = monitor.calculate_metrics()
+thresholds = {"tcr": 85, "accuracy": 80}
+alerter.check_and_alert(metrics, thresholds)</code></pre>
+
+<h3 id="dev-advanced">8.5 고급 활용</h3>
+
+<h4>8.5.1 커스텀 메트릭 추가</h4>
+
+<pre><code class="language-python"># 비즈니스 메트릭 추가
+class CustomMetricsMonitor(Monitor):
+    def __init__(self):
+        super().__init__()
+        self.business_metrics = {}
+
+    def track_business_metric(self, name, value):
+        """비즈니스 메트릭 추적"""
+        if name not in self.business_metrics:
+            self.business_metrics[name] = []
+        self.business_metrics[name].append(value)
+
+    def calculate_metrics(self):
+        """기본 메트릭 + 커스텀 메트릭"""
+        metrics = super().calculate_metrics()
+
+        # 커스텀 메트릭 추가
+        metrics["business_metrics"] = {}
+        for name, values in self.business_metrics.items():
+            metrics["business_metrics"][name] = {
+                "mean": sum(values) / len(values) if values else 0,
+                "min": min(values) if values else 0,
+                "max": max(values) if values else 0
+            }
+
+        return metrics
+
+# 사용 예시
+custom_monitor = CustomMetricsMonitor()
+custom_monitor.track_business_metric("revenue_generated", 125.50)
+custom_monitor.track_business_metric("user_satisfaction", 4.5)
+metrics = custom_monitor.calculate_metrics()
+print(metrics["business_metrics"])
+# {
+#   "revenue_generated": {"mean": 125.5, "min": 125.5, "max": 125.5},
+#   "user_satisfaction": {"mean": 4.5, "min": 4.5, "max": 4.5}
+# }</code></pre>
+
+<h4>8.5.2 분산 추적 (Distributed Tracing)</h4>
+
+<pre><code class="language-python"># OpenTelemetry 통합
+from opentelemetry import trace
+from opentelemetry.sdk.trace import TracerProvider
+from opentelemetry.sdk.trace.export import BatchSpanProcessor, ConsoleSpanExporter
+
+# OpenTelemetry 설정
+trace.set_tracer_provider(TracerProvider())
+tracer = trace.get_tracer(__name__)
+
+# Span Exporter 추가 (예: Jaeger, Zipkin)
+span_processor = BatchSpanProcessor(ConsoleSpanExporter())
+trace.get_tracer_provider().add_span_processor(span_processor)
+
+class TracedMonitor(Monitor):
+    def __init__(self):
+        super().__init__()
+        self.tracer = tracer
+
+    def start_task(self, task_data):
+        """Task 시작 시 Span 생성"""
+        with self.tracer.start_as_current_span("agent_task") as span:
+            span.set_attribute("task.id", task_data.get("task_id"))
+            span.set_attribute("task.type", task_data.get("task_type"))
+
+            result = super().start_task(task_data)
+
+            return result
+
+    def end_task(self, task_id, success=True, **kwargs):
+        """Task 종료 시 Span 종료"""
+        with self.tracer.start_as_current_span("agent_task_end") as span:
+            span.set_attribute("task.id", task_id)
+            span.set_attribute("task.success", success)
+
+            result = super().end_task(task_id, success, **kwargs)
+
+            return result
+
+# 사용 예시
+traced_monitor = TracedMonitor()
+# → Jaeger/Zipkin에서 분산 추적 가능</code></pre>
+
+<h4>8.5.3 멀티 프레임워크 통합</h4>
+
+<pre><code class="language-python"># 여러 프레임워크를 동시에 사용하는 경우
+class MultiFrameworkMonitor:
+    def __init__(self):
+        self.monitor = Monitor()
+
+        # 각 프레임워크별 Callback
+        self.langchain_callback = AdvancedLangChainCallback(self.monitor)
+        self.crewai_config = {"monitor": self.monitor}
+
+    def use_langchain(self, agent, input_data):
+        """LangChain Agent 사용"""
+        return agent.invoke(input_data, callbacks=[self.langchain_callback])
+
+    def use_crewai(self, crew, task_input):
+        """CrewAI 사용"""
+        return crew.kickoff(inputs=task_input)
+
+    def get_metrics(self):
+        """전체 메트릭 (LangChain + CrewAI 통합)"""
+        return self.monitor.calculate_metrics()
+
+# 사용 예시
+multi_monitor = MultiFrameworkMonitor()
+
+# LangChain 작업
+langchain_result = multi_monitor.use_langchain(langchain_agent, {"input": "..."})
+
+# CrewAI 작업
+crewai_result = multi_monitor.use_crewai(crew, {"task": "..."})
+
+# 통합 메트릭
+metrics = multi_monitor.get_metrics()
+# → LangChain + CrewAI 작업이 모두 포함된 메트릭</code></pre>
+
+<div style="background: #d4edda; border-left: 4px solid #28a745; padding: 15px; margin: 20px 0;">
+<p style="margin: 0;"><strong>✅ 개발자 핵심 원칙</strong></p>
+<ol style="margin: 10px 0 0 0;">
+<li><strong>점진적 통합</strong>: 작은 부분부터 시작 → 전체 확대</li>
+<li><strong>오버헤드 최소화</strong>: 샘플링/비동기/배치 처리 활용</li>
+<li><strong>Graceful Degradation</strong>: Monitor 실패 시에도 Agent는 정상 작동</li>
+<li><strong>철저한 로깅</strong>: 디버깅 정보 충분히 남기기</li>
+<li><strong>프로덕션 준비</strong>: 배포 전 체크리스트 완료</li>
+<li><strong>지속적 모니터링</strong>: 메트릭 추세 관찰 및 알림 설정</li>
+<li><strong>문서화</strong>: 설정/트러블슈팅 문서 작성</li>
+</ol>
+</div>
+
+<div style="background: #fff3cd; border-left: 4px solid #ffc107; padding: 15px; margin: 20px 0;">
+<p style="margin: 0;"><strong>⚠️ 주의사항</strong></p>
+<ul style="margin: 10px 0 0 0;">
+<li>❌ <strong>프로덕션에서 DEBUG 로깅 금지</strong>: 성능 저하 및 로그 폭증</li>
+<li>❌ <strong>동기 I/O 남발 금지</strong>: 파일 저장은 비동기/배치로 처리</li>
+<li>❌ <strong>메모리 누수 주의</strong>: 대량 작업 시 주기적으로 파일 저장 + 클리어</li>
+<li>❌ <strong>에러 무시 금지</strong>: try-except로 감싸되 반드시 로깅</li>
+</ul>
+</div>
+
+<hr />
+<h2 id="참고-자료">참고 자료</h2>
+<ul>
+<li><a href="https://python.langchain.com/">LangChain 문서</a></li>
+<li><a href="https://langchain-ai.github.io/langgraph/">LangGraph
+문서</a></li>
+<li><a href="https://docs.crewai.com/">CrewAI 문서</a></li>
+<li><a href="https://microsoft.github.io/autogen/">AutoGen 문서</a></li>
+<li><a href="05_METRICS_GUIDE.md">메트릭 가이드</a></li>
+<li><a href="04_GOLDEN_DATASET.md">Golden Dataset 가이드</a></li>
+</ul>
+
+        </div>
+    </div>
+
+    <!-- Mermaid Zoom Modal -->
+    
+    <script src="scripts/mermaid-zoom.js"></script>
+</body>
+</html>

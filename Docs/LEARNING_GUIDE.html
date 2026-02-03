@@ -1,0 +1,3319 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Agent Evaluator 종합 학습서 - 개발자 & 품질관리자용</title>
+
+    <!-- Common Styles -->
+    <link rel="stylesheet" href="styles/common.css">
+
+    <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+    <script>
+        mermaid.initialize({
+            startOnLoad: true,
+            theme: 'base',
+            themeVariables: {
+                primaryColor: '#dbeafe',
+                primaryTextColor: '#1e293b',
+                primaryBorderColor: '#2563eb',
+                lineColor: '#64748b',
+                secondaryColor: '#f1f5f9',
+                tertiaryColor: '#fef3c7',
+                fontSize: '14px',
+                fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
+            }
+        });
+    </script>
+
+</head>
+<body>
+    <header>
+        <div class="header-content">
+            <h1>📖 종합 학습 가이드</h1>
+            <p>개발자 & 품질관리자를 위한 완벽 학습서</p>
+            <p style="font-size: 1rem; margin-top: 1rem;">
+                <span class="badge success">v0.5.0</span>
+                <span class="badge info">Layer 1/2 Security</span>
+                <span class="badge warning">4개 프레임워크</span>
+            </p>
+        </div>
+    </header>
+
+    <nav>
+        <div class="nav-content">
+            <a href="#overview">📊 개요</a>
+            <a href="#architecture">🏗️ 아키텍처</a>
+            <a href="#metrics">📈 메트릭 체계</a>
+            <a href="#quickstart">🚀 빠른 시작</a>
+            <a href="#taskresult-guide">📝 TaskResult 준비</a>
+            <a href="#golden-dataset">📚 Golden Dataset</a>
+            <a href="#threshold">🎯 Threshold 설정</a>
+            <a href="#framework">🔌 프레임워크 통합</a>
+            <a href="#dashboard">🖥️ Dashboard</a>
+            <a href="#workflow">⚙️ 워크플로우</a>
+            <a href="#advanced">🔬 고급 기능</a>
+            <a href="#troubleshooting">🆘 문제 해결</a>
+        </div>
+    </nav>
+
+    <div class="content-wrapper">
+        <!-- 1. 개요 -->
+        <section id="overview">
+            <h2>📊 1. Agent Evaluator 개요</h2>
+
+            <div class="feature-box">
+                <h3>What is Agent Evaluator?</h3>
+                <p>Agent Evaluator는 AI Agent의 성능을 다각도로 평가하고 모니터링하는 <strong>종합 평가 프레임워크</strong>입니다. 기본 메트릭부터 Agentic AI 전문 메트릭, 그리고 고급 평가 지표까지 AI Agent의 품질을 정확하게 측정하고 개선점을 찾아낼 수 있습니다.</p>
+            </div>
+
+            <h3>1.1 주요 특징</h3>
+            <div class="grid">
+                <div class="card">
+                    <h4>🆓 Layer 1: Basic + Security Metrics</h4>
+                    <p><strong>완전 무료, API 키 불필요 (v0.5.0)</strong></p>
+                    <ul class="feature-list">
+                        <li><strong>Basic (7개):</strong> TCR, Accuracy, Hallucination, Quality, Latency, Cost, Retry Success Rate</li>
+                        <li><strong>Security (3개):</strong> Input Sanitization, Output Leakage, Authorization</li>
+                    </ul>
+                </div>
+
+                <div class="card success">
+                    <h4>🤖 Layer 2: Agentic + Security Metrics</h4>
+                    <p><strong>Multi-Agent & 보안 통합 평가 (v0.5.0)</strong></p>
+                    <ul class="feature-list">
+                        <li><strong>Agentic (4개):</strong> Tool Selection Accuracy, Tool Efficiency, Agent Coordination, Workflow Execution</li>
+                        <li><strong>Security (2개):</strong> Privilege Escalation, Attack Detection</li>
+                    </ul>
+                </div>
+
+                <div class="card warning">
+                    <h4>🔬 Layer 3: Advanced Metrics</h4>
+                    <p><strong>LLM 기반 고급 평가 (OpenAI API 필요)</strong></p>
+                    <ul class="feature-list">
+                        <li>DeepEval (G-Eval, Toxicity, Bias)</li>
+                        <li>Ragas (RAG 전용 평가)</li>
+                    </ul>
+                </div>
+            </div>
+
+            <h3>1.2 프로젝트 통계</h3>
+            <table>
+                <thead>
+                    <tr>
+                        <th>항목</th>
+                        <th>수량</th>
+                        <th>세부사항</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><strong>코드베이스</strong></td>
+                        <td>11개 파일</td>
+                        <td>783KB, 23개 클래스, 99개 메서드</td>
+                    </tr>
+                    <tr>
+                        <td><strong>문서</strong></td>
+                        <td>18개 파일</td>
+                        <td>~2MB (10개 docs/ 가이드 + 6개 루트 HTML + 2개 Evaluator_Examples/ 리포트)</td>
+                    </tr>
+                    <tr>
+                        <td><strong>예제</strong></td>
+                        <td>21개 파일</td>
+                        <td>Evaluator_Examples/ 디렉토리 (11개 기본 + 10개 CrewAI)</td>
+                    </tr>
+                    <tr>
+                        <td><strong>메트릭</strong></td>
+                        <td>25개</td>
+                        <td>Layer 1 (10개: 7 Basic + 3 Security) + Layer 2 (6개: 4 Agentic + 2 Security) + Layer 3 (9개)</td>
+                    </tr>
+                    <tr>
+                        <td><strong>프레임워크 지원</strong></td>
+                        <td>4개</td>
+                        <td>LangChain, CrewAI, LangGraph, AutoGen</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <h3>1.3 사용 대상</h3>
+            <div class="grid">
+                <div class="card">
+                    <h4>👨‍💻 개발자</h4>
+                    <ul>
+                        <li>AI Agent 성능 디버깅</li>
+                        <li>프레임워크 통합 및 자동 추적</li>
+                        <li>비용 최적화 (토큰 사용량 분석)</li>
+                        <li>CI/CD 품질 게이트 구축</li>
+                    </ul>
+                </div>
+
+                <div class="card">
+                    <h4>🔍 품질관리자 (QA)</h4>
+                    <ul>
+                        <li>Golden Dataset 기반 자동 평가</li>
+                        <li>Threshold 설정 및 검증</li>
+                        <li>회귀 테스트 (Regression Testing)</li>
+                        <li>성능 추세 분석</li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="alert info">
+                <strong>💡 핵심 가치 제안:</strong> Agent Evaluator는 개발 단계에서는 <strong>무료 Layer 1+2 메트릭 (보안 포함)</strong>으로 빠른 반복 개발을 지원하고, 프로덕션 배포 전에는 <strong>Golden Dataset + Threshold 검증</strong>으로 품질 게이트를 제공합니다.
+            </div>
+        </section>
+
+        <!-- 2. 아키텍처 -->
+        <section id="architecture">
+            <h2>🏗️ 2. 시스템 아키텍처</h2>
+
+            <h3>2.1 전체 구조</h3>
+            <div class="diagram">
+                <div class="mermaid">
+graph TB
+    subgraph UI["사용자 인터페이스 레이어"]
+        Dashboard["🖥️ Streamlit Dashboard<br/>- Main (9개 탭, Port 8501)<br/>  Overview, Core, Performance,<br/>  Agentic, Advanced, Insights,<br/>  Test 투명성, 지표 설명, Export<br/>- Data Editor (Port 8503)<br/>  데이터 편집 (4개 서브탭)"]
+        PythonAPI["🐍 Python API<br/>- PerformanceMonitor<br/>- Framework Integration<br/>- Golden Dataset 평가"]
+    end
+
+    subgraph Core["핵심 평가 엔진 (Core Evaluation Engine)"]
+        AgentEval["📊 agent_evaluator.py<br/>221KB, 20 classes, 112 methods<br/>━━━━━━━━━━━━━━━━━━━━<br/>▸ PerformanceMonitor<br/>▸ Layer 1 Trackers (10개)<br/>  • Basic: TCR, Accuracy, Quality<br/>    Hallucination, Latency, Cost, Retry<br/>  • Security: Input Sanitization,<br/>    Output Leakage, Authorization<br/>▸ Layer 2 Trackers (6개)<br/>  • Agentic: Tool Selection, Tool Efficiency<br/>    Agent Coordination, Workflow Execution<br/>  • Security: Privilege Escalation,<br/>    Attack Detection"]
+
+        HybridMon["🔬 hybrid_monitor.py<br/>45KB<br/>━━━━━━━━━━━━━━━━━━━━<br/>▸ Layer 3 통합<br/>  • DeepEval<br/>  • Ragas<br/>▸ Profile 관리<br/>  • minimal, balanced<br/>  • rag, full"]
+
+        Framework["🔌 framework_integrations.py<br/>26KB, 8 classes<br/>━━━━━━━━━━━━━━━━━━━━<br/>▸ LangChain Callback<br/>▸ LangGraph Workflow<br/>▸ CrewAI Integration<br/>▸ AutoGen Agent"]
+    end
+
+    subgraph DataMgmt["데이터 관리 레이어 (Data Management)"]
+        DataEditor["📝 data_editor_manager<br/>36KB, 59 methods<br/>━━━━━━━━━━━━━━━━━━━━<br/>▸ Golden Dataset 관리<br/>▸ Threshold 관리<br/>▸ Test Config 관리"]
+
+        Transparency["🔍 test_transparency_manager<br/>56KB, 30 methods<br/>━━━━━━━━━━━━━━━━━━━━<br/>▸ 메트릭 이상치 탐지<br/>▸ 성능 병목 식별<br/>▸ Audit Log 추적"]
+    end
+
+    subgraph Storage["저장소 레이어 (Storage)"]
+        GoldenDS["📚 golden_datasets/<br/>• QA Pairs (JSON)<br/>• Layer 2 fields<br/>• expected_tools<br/>• expected_agents<br/>• expected_workflow_steps"]
+
+        EvalResults["💾 evaluation_results/<br/>• performance_data.json<br/>• versions/ (백업)<br/>• traces/ (메트릭 추적)<br/>• annotations/ (주석)<br/>• audit_logs/ (감사 로그)<br/>• test_configs/ (설정)"]
+    end
+
+    Dashboard --> AgentEval
+    PythonAPI --> AgentEval
+
+    AgentEval --> HybridMon
+    AgentEval --> Framework
+
+    HybridMon --> DataEditor
+    Framework --> DataEditor
+    AgentEval --> DataEditor
+
+    DataEditor --> Transparency
+
+    DataEditor --> GoldenDS
+    DataEditor --> EvalResults
+    Transparency --> EvalResults
+    AgentEval --> EvalResults
+
+    style UI fill:#e0e7ff,stroke:#4f46e5,stroke-width:3px
+    style Core fill:#dbeafe,stroke:#2563eb,stroke-width:3px
+    style DataMgmt fill:#d1fae5,stroke:#10b981,stroke-width:3px
+    style Storage fill:#fef3c7,stroke:#f59e0b,stroke-width:3px
+
+    style Dashboard fill:#c7d2fe,stroke:#4f46e5,stroke-width:2px
+    style PythonAPI fill:#c7d2fe,stroke:#4f46e5,stroke-width:2px
+    style AgentEval fill:#93c5fd,stroke:#2563eb,stroke-width:2px
+    style HybridMon fill:#93c5fd,stroke:#2563eb,stroke-width:2px
+    style Framework fill:#93c5fd,stroke:#2563eb,stroke-width:2px
+    style DataEditor fill:#a7f3d0,stroke:#10b981,stroke-width:2px
+    style Transparency fill:#a7f3d0,stroke:#10b981,stroke-width:2px
+    style GoldenDS fill:#fde68a,stroke:#f59e0b,stroke-width:2px
+    style EvalResults fill:#fde68a,stroke:#f59e0b,stroke-width:2px
+                </div>
+                
+            </div>
+
+            <h3>2.2 데이터 흐름</h3>
+            <div class="diagram">
+                <div class="mermaid">
+graph LR
+    subgraph Phase1["Phase 1: 데이터 준비"]
+        A1["📝 Golden Dataset<br/>작성"]
+        A2["🎯 Threshold<br/>설정"]
+    end
+
+    subgraph Phase2["Phase 2: 구성 생성"]
+        B["⚙️ Test Configuration<br/>생성 및 저장<br/>━━━━━━━━━━<br/>▸ 환경 설정<br/>▸ Dataset 연결<br/>▸ Threshold 포함"]
+    end
+
+    subgraph Phase3["Phase 3: 평가 실행"]
+        C1["🤖 Agent 실행"]
+        C2["📊 TaskResult<br/>생성"]
+        C3["📈 Layer 1/2<br/>메트릭 기록"]
+    end
+
+    subgraph Phase4["Phase 4: 검증"]
+        D["✅ Threshold 검증<br/>━━━━━━━━━━<br/>compare_with_thresholds()<br/>→ Pass/Fail 판정"]
+    end
+
+    subgraph Phase5["Phase 5: 분석"]
+        E1["📊 Dashboard<br/>시각화"]
+        E2["📝 리포트<br/>생성"]
+        E3["💡 개선점<br/>도출"]
+    end
+
+    A1 --> B
+    A2 --> B
+    B --> C1
+    C1 --> C2
+    C2 --> C3
+    C3 --> D
+    D --> E1
+    D --> E2
+    D --> E3
+
+    style Phase1 fill:#e0e7ff,stroke:#4f46e5,stroke-width:2px
+    style Phase2 fill:#dbeafe,stroke:#2563eb,stroke-width:2px
+    style Phase3 fill:#d1fae5,stroke:#10b981,stroke-width:2px
+    style Phase4 fill:#fef3c7,stroke:#f59e0b,stroke-width:2px
+    style Phase5 fill:#fee2e2,stroke:#ef4444,stroke-width:2px
+
+    style A1 fill:#c7d2fe,stroke:#4f46e5
+    style A2 fill:#c7d2fe,stroke:#4f46e5
+    style B fill:#93c5fd,stroke:#2563eb
+    style C1 fill:#a7f3d0,stroke:#10b981
+    style C2 fill:#a7f3d0,stroke:#10b981
+    style C3 fill:#a7f3d0,stroke:#10b981
+    style D fill:#fde68a,stroke:#f59e0b
+    style E1 fill:#fecaca,stroke:#ef4444
+    style E2 fill:#fecaca,stroke:#ef4444
+    style E3 fill:#fecaca,stroke:#ef4444
+                </div>
+            </div>
+
+            <div class="alert info">
+                <strong>💡 워크플로우 설명:</strong>
+                <ol style="margin-top: 0.5rem;">
+                    <li><strong>Phase 1:</strong> Dashboard 또는 Python API로 Golden Dataset과 Threshold 준비</li>
+                    <li><strong>Phase 2:</strong> 환경별(dev/staging/production) Test Configuration 생성</li>
+                    <li><strong>Phase 3:</strong> Agent 실행 → TaskResult 생성 → 메트릭 자동 기록</li>
+                    <li><strong>Phase 4:</strong> 임계값 대비 자동 Pass/Fail 판정</li>
+                    <li><strong>Phase 5:</strong> Dashboard 시각화 및 개선점 도출</li>
+                </ol>
+            </div>
+
+            <h3>2.3 핵심 컴포넌트</h3>
+            <table>
+                <thead>
+                    <tr>
+                        <th>컴포넌트</th>
+                        <th>역할</th>
+                        <th>파일 크기</th>
+                        <th>주요 기능</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><strong>agent_evaluator.py</strong></td>
+                        <td>메인 평가 엔진</td>
+                        <td>221KB</td>
+                        <td>Layer 1+2 메트릭 추적, TaskResult 기록, 20개 클래스, 112개 메서드</td>
+                    </tr>
+                    <tr>
+                        <td><strong>hybrid_monitor.py</strong></td>
+                        <td>Layer 3 통합</td>
+                        <td>45KB</td>
+                        <td>DeepEval, Ragas 통합</td>
+                    </tr>
+                    <tr>
+                        <td><strong>framework_integrations.py</strong></td>
+                        <td>프레임워크 통합</td>
+                        <td>26KB</td>
+                        <td>LangChain, CrewAI, LangGraph 자동 추적</td>
+                    </tr>
+                    <tr>
+                        <td><strong>data_editor_manager.py</strong></td>
+                        <td>데이터 관리</td>
+                        <td>37KB</td>
+                        <td>Golden Dataset, Threshold, Test Config 관리</td>
+                    </tr>
+                    <tr>
+                        <td><strong>streamlit_dashboard.py</strong></td>
+                        <td>메인 Dashboard</td>
+                        <td>216KB</td>
+                        <td>9개 탭, 실시간 시각화, 리포트 생성</td>
+                    </tr>
+                    <tr>
+                        <td><strong>dashboard_data_editor.py</strong></td>
+                        <td>데이터 편집 Dashboard</td>
+                        <td>132KB</td>
+                        <td>Golden Dataset, Threshold 관리, Test 투명성</td>
+                    </tr>
+                    <tr>
+                        <td><strong>test_transparency_manager.py</strong></td>
+                        <td>Test 투명성 관리</td>
+                        <td>56KB</td>
+                        <td>5개 고급 분석, Traces, Annotations, Audit Log</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <h3>2.4 파일 시스템 구조</h3>
+            <div class="card">
+                <h4>evaluation_results/ 디렉토리 구조 (실행 시 자동 생성됨)</h4>
+                <pre><code>evaluation_results/
+├── performance_data.json          # 메인 평가 결과 데이터
+├── thresholds.json                # Threshold 설정
+├── versions/                      # 버전 백업 디렉토리
+│   ├── version_YYYYMMDD_HHMMSS_thresholds.json
+│   ├── version_YYYYMMDD_HHMMSS_golden_dataset.json
+│   └── version_YYYYMMDD_HHMMSS_test_config.json
+├── traces/                        # 메트릭 계산 추적
+│   ├── trace_YYYYMMDD_HHMMSS_tcr.json
+│   ├── trace_YYYYMMDD_HHMMSS_accuracy.json
+│   └── ...
+├── annotations/                   # 주석 및 코멘트
+│   ├── annotation_001.json
+│   ├── annotation_002.json
+│   └── ...
+├── audit_logs/                    # 감사 로그
+│   ├── audit_YYYYMMDD.json
+│   └── ...
+└── test_configs/                  # Test Configuration 파일
+    ├── test_config_YYYYMMDD_HHMMSS.json
+    └── ...
+
+golden_datasets/
+├── dataset_001.json               # Golden Dataset 파일
+├── dataset_002.json
+└── ...
+</code></pre>
+            </div>
+
+            <div class="card">
+                <h4>주요 파일 형식</h4>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>파일</th>
+                            <th>용도</th>
+                            <th>관리 방법</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><strong>performance_data.json</strong></td>
+                            <td>평가 결과, TaskResult, 메트릭 데이터</td>
+                            <td>monitor.save_to_file()로 저장</td>
+                        </tr>
+                        <tr>
+                            <td><strong>thresholds.json</strong></td>
+                            <td>20개 메트릭 임계값 설정</td>
+                            <td>Dashboard 또는 DataEditorManager</td>
+                        </tr>
+                        <tr>
+                            <td><strong>versions/</strong></td>
+                            <td>자동 버전 백업 (변경 이력 추적)</td>
+                            <td>자동 생성, 복원 가능</td>
+                        </tr>
+                        <tr>
+                            <td><strong>traces/</strong></td>
+                            <td>메트릭 계산 과정 단계별 추적</td>
+                            <td>TestTransparencyManager</td>
+                        </tr>
+                        <tr>
+                            <td><strong>annotations/</strong></td>
+                            <td>메트릭, Task, Dataset에 대한 주석</td>
+                            <td>TestTransparencyManager</td>
+                        </tr>
+                        <tr>
+                            <td><strong>audit_logs/</strong></td>
+                            <td>모든 시스템 이벤트 로그</td>
+                            <td>자동 생성 (읽기 전용)</td>
+                        </tr>
+                        <tr>
+                            <td><strong>test_configs/</strong></td>
+                            <td>환경별 Test Configuration</td>
+                            <td>Dashboard Test 준비 탭</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="alert info">
+                <strong>💡 파일 관리 Best Practice:</strong>
+                <ul style="margin-top: 0.5rem;">
+                    <li><strong>evaluation_results/</strong> 디렉토리는 첫 평가 실행 시 자동으로 생성됩니다</li>
+                    <li><strong>versions/</strong> 디렉토리는 자동 백업되므로 수동 관리 불필요</li>
+                    <li><strong>audit_logs/</strong>는 규정 준수를 위해 정기적으로 아카이빙 권장</li>
+                    <li><strong>test_configs/</strong>는 환경별로 관리하여 Dev/Staging/Prod 분리</li>
+                    <li>대용량 데이터는 주기적으로 압축 및 클라우드 백업 고려</li>
+                </ul>
+            </div>
+        </section>
+
+        <!-- 3. 메트릭 체계 -->
+        <section id="metrics">
+            <h2>📈 3. 3-Layer 메트릭 체계</h2>
+
+            <h3>3.1 Layer 1: Basic + Security Metrics - 무료</h3>
+            <div class="card">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>메트릭</th>
+                            <th>설명</th>
+                            <th>계산 방법</th>
+                            <th>목표값</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><strong>TCR</strong></td>
+                            <td>Task Completion Rate</td>
+                            <td>(성공 작업 수 / 전체 작업 수) × 100</td>
+                            <td>≥ 95%</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Accuracy</strong></td>
+                            <td>정확도 (의미론적 유사도)</td>
+                            <td>평균 accuracy_score</td>
+                            <td>≥ 90%</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Quality</strong></td>
+                            <td>응답 품질 점수</td>
+                            <td>평균 quality_score</td>
+                            <td>≥ 8.5/10</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Hallucination</strong></td>
+                            <td>환각 발생률</td>
+                            <td>(환각 발생 작업 수 / 전체) × 100</td>
+                            <td>&lt; 1%</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Latency</strong></td>
+                            <td>응답 시간 (P95)</td>
+                            <td>95 percentile execution_time</td>
+                            <td>&lt; 3s</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Cost</strong></td>
+                            <td>평균 토큰 비용</td>
+                            <td>평균 (input_tokens × price + output × price)</td>
+                            <td>최소화</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Retry Success</strong></td>
+                            <td>재시도 성공률</td>
+                            <td>(재시도 성공 / 전체 재시도) × 100</td>
+                            <td>≥ 80%</td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                <h4>🔒 Security Metrics (3개)</h4>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>메트릭</th>
+                            <th>설명</th>
+                            <th>계산 방법</th>
+                            <th>목표값</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><strong>Input Sanitization</strong></td>
+                            <td>입력 보안 위협 검증</td>
+                            <td>SQL Injection, Command Injection, Path Traversal 탐지</td>
+                            <td>≥ 99%</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Output Leakage</strong></td>
+                            <td>출력 민감정보 유출 검사</td>
+                            <td>API 키, 비밀번호, 토큰, 개인정보 탐지</td>
+                            <td>0 leaks</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Authorization</strong></td>
+                            <td>도구 호출 권한 검증</td>
+                            <td>허가된 Tool만 사용했는지 검증</td>
+                            <td>100%</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="alert success">
+                <strong>✅ Layer 1의 장점:</strong> 완전 무료, API 키 불필요, 빠른 실행, 기본 성능 평가 + 보안 검증
+            </div>
+
+            <h3>3.2 Layer 2: Agentic + Security Metrics - 무료</h3>
+
+            <h4>📊 Agentic Metrics (4개)</h4>
+            <div class="card success">
+                <h4>🎯 Tool Selection Accuracy</h4>
+                <p><strong>설명:</strong> Agent가 적절한 도구를 선택했는지 평가 (Golden Dataset 기반)</p>
+                <p><strong>계산 방법:</strong></p>
+                <ul>
+                    <li><strong>Precision:</strong> 올바르게 선택한 도구 / 전체 선택한 도구</li>
+                    <li><strong>Recall:</strong> 올바르게 선택한 도구 / 기대되는 도구</li>
+                    <li><strong>F1 Score:</strong> 2 × (Precision × Recall) / (Precision + Recall)</li>
+                </ul>
+                <p><strong>목표값:</strong> ≥ 85% (F1 Score)</p>
+                <p><strong>사용 시나리오:</strong></p>
+                <ul>
+                    <li>LangChain Agent의 도구 선택 정확도 평가</li>
+                    <li>Golden Dataset에 expected_tools 정의 필요</li>
+                </ul>
+            </div>
+
+            <div class="card success">
+                <h4>🔧 Tool Efficiency</h4>
+                <p><strong>설명:</strong> Agent가 도구를 얼마나 효율적으로 사용하는지 측정 (성공률 및 유용성)</p>
+                <p><strong>계산 방법:</strong></p>
+                <ul>
+                    <li><strong>Success Rate:</strong> (성공한 도구 호출 / 전체 도구 호출) × 100</li>
+                    <li><strong>Usefulness Score:</strong> 도구 호출이 최종 결과에 기여한 정도</li>
+                    <li><strong>Overall Efficiency:</strong> (Success Rate × 0.7 + Usefulness × 0.3)</li>
+                </ul>
+                <p><strong>목표값:</strong> ≥ 90%</p>
+                <p><strong>사용 시나리오:</strong></p>
+                <ul>
+                    <li>Agent의 도구 사용 효율성 평가</li>
+                    <li>불필요한 도구 호출 감지</li>
+                    <li>도구 실행 실패 패턴 분석</li>
+                </ul>
+            </div>
+
+            <div class="card success">
+                <h4>🤝 Agent Coordination</h4>
+                <p><strong>설명:</strong> Multi-Agent 시스템에서 에이전트 간 협업 품질 측정</p>
+                <p><strong>계산 방법:</strong></p>
+                <ul>
+                    <li><strong>Success Rate (50%):</strong> 성공적인 상호작용 비율</li>
+                    <li><strong>Agent Diversity (30%):</strong> 다양한 에이전트 활용도</li>
+                    <li><strong>Interaction Balance (20%):</strong> 균형잡힌 에이전트 사용</li>
+                </ul>
+                <p><strong>점수 범위:</strong> 0-10 척도</p>
+                <p><strong>목표값:</strong> ≥ 8.0</p>
+                <p><strong>사용 시나리오:</strong></p>
+                <ul>
+                    <li>CrewAI의 Agent 간 협업 평가</li>
+                    <li>AutoGen의 대화 흐름 분석</li>
+                </ul>
+            </div>
+
+            <div class="card success">
+                <h4>⚙️ Workflow Execution</h4>
+                <p><strong>설명:</strong> 워크플로우의 각 단계 실행 성공률 측정</p>
+                <p><strong>계산 방법:</strong></p>
+                <ul>
+                    <li><strong>Step Success Rate:</strong> (성공 단계 / 전체 단계) × 100</li>
+                    <li><strong>Task Success Rate:</strong> 전체 Task 성공 여부</li>
+                </ul>
+                <p><strong>목표값:</strong> ≥ 95%</p>
+                <p><strong>사용 시나리오:</strong></p>
+                <ul>
+                    <li>LangChain Chain의 각 단계 성공률</li>
+                    <li>LangGraph의 노드별 실행 추적</li>
+                </ul>
+            </div>
+
+            <h4>🔒 Security Metrics (2개)</h4>
+            <div class="card warning">
+                <h4>⚠️ Privilege Escalation Detection</h4>
+                <p><strong>설명:</strong> Agent의 권한 상승 시도 탐지</p>
+                <p><strong>계산 방법:</strong></p>
+                <ul>
+                    <li><strong>Detection Rate:</strong> 탐지된 권한 상승 시도 수</li>
+                    <li><strong>Prevention Rate:</strong> 차단된 권한 상승 시도 비율</li>
+                </ul>
+                <p><strong>목표값:</strong> 0 escalation attempts</p>
+                <p><strong>사용 시나리오:</strong></p>
+                <ul>
+                    <li>Multi-Agent 시스템의 권한 관리</li>
+                    <li>Tool 호출 권한 검증</li>
+                </ul>
+            </div>
+
+            <div class="card warning">
+                <h4>🛡️ Attack Detection</h4>
+                <p><strong>설명:</strong> 악의적인 프롬프트 및 공격 패턴 탐지</p>
+                <p><strong>계산 방법:</strong></p>
+                <ul>
+                    <li><strong>Injection Detection:</strong> 프롬프트 인젝션 시도 탐지</li>
+                    <li><strong>Jailbreak Detection:</strong> 제약 우회 시도 탐지</li>
+                    <li><strong>Overall Security Score:</strong> 종합 보안 점수</li>
+                </ul>
+                <p><strong>목표값:</strong> ≥ 98% detection rate</p>
+                <p><strong>사용 시나리오:</strong></p>
+                <ul>
+                    <li>Agent 입력 검증</li>
+                    <li>악의적인 사용자 패턴 분석</li>
+                </ul>
+            </div>
+
+            <div class="alert info">
+                <strong>💡 Layer 2의 가치:</strong> Multi-Agent 시스템과 복잡한 워크플로우의 품질을 정량적으로 측정하고, 보안 위협을 실시간으로 탐지합니다. Golden Dataset 기반 자동 평가 지원.
+            </div>
+
+            <h3>3.3 Layer 3: Advanced Metrics - 유료 (OpenAI API)</h3>
+            <div class="grid">
+                <div class="card warning">
+                    <h4>DeepEval (5개 메트릭)</h4>
+                    <ul>
+                        <li><strong>G-Eval:</strong> LLM 기반 품질 평가 (0-1)</li>
+                        <li><strong>Hallucination:</strong> AI 기반 환각 탐지</li>
+                        <li><strong>Toxicity:</strong> 유해성 점수 (0-1)</li>
+                        <li><strong>Bias:</strong> 편향 점수 (0-1)</li>
+                        <li><strong>Answer Relevancy:</strong> 답변 관련성</li>
+                    </ul>
+                    <p><strong>비용:</strong> ~$0.01-0.03/task</p>
+                </div>
+
+                <div class="card warning">
+                    <h4>Ragas - RAG 전용 (4개 메트릭)</h4>
+                    <ul>
+                        <li><strong>Faithfulness:</strong> 컨텍스트 충실도</li>
+                        <li><strong>Context Precision:</strong> 검색 정밀도</li>
+                        <li><strong>Context Recall:</strong> 검색 재현율</li>
+                        <li><strong>Answer Similarity:</strong> 답변 유사도</li>
+                    </ul>
+                    <p><strong>비용:</strong> ~$0.02-0.05/task</p>
+                </div>
+            </div>
+
+            <h3>3.4 메트릭 선택 전략</h3>
+            <table>
+                <thead>
+                    <tr>
+                        <th>단계</th>
+                        <th>권장 메트릭</th>
+                        <th>비용</th>
+                        <th>목적</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><strong>개발 단계</strong></td>
+                        <td>Layer 1 + 2</td>
+                        <td>무료</td>
+                        <td>빠른 반복, 기본 성능 확인</td>
+                    </tr>
+                    <tr>
+                        <td><strong>테스트 단계</strong></td>
+                        <td>Layer 1 + 2 + Layer 3 샘플링 (10%)</td>
+                        <td>저비용</td>
+                        <td>품질 검증, 회귀 테스트</td>
+                    </tr>
+                    <tr>
+                        <td><strong>프로덕션</strong></td>
+                        <td>Layer 1 + 2 상시 + Layer 3 크리티컬만</td>
+                        <td>중비용</td>
+                        <td>실시간 모니터링, 이상 탐지</td>
+                    </tr>
+                </tbody>
+            </table>
+        </section>
+
+        <!-- 4. 빠른 시작 -->
+        <section id="quickstart">
+            <h2>🚀 4. 빠른 시작 (Quick Start)</h2>
+
+            <h3>4.1 설치</h3>
+            <div class="card">
+                <h4>기본 설치 (Layer 1 + 2)</h4>
+                <pre><code># Conda 환경 생성 (권장)
+conda create -n agent_evaluator python=3.11
+conda activate agent_evaluator
+
+# 기본 의존성 설치
+pip install numpy pandas streamlit plotly python-dotenv</code></pre>
+            </div>
+
+            <div class="card">
+                <h4>전체 설치 (Layer 1 + 2 + 3)</h4>
+                <pre><code># 기본 패키지 설치
+pip install agent-evaluator
+
+# 추가 프레임워크 설치 (필요 시)
+pip install crewai>=0.11.0 langgraph>=0.0.20
+pip install deepeval>=0.21.0 ragas>=0.1.0
+
+# .env 파일 생성 (Layer 3 사용 시)
+echo "OPENAI_API_KEY='your-api-key-here'" > .env</code></pre>
+            </div>
+
+            <h3>4.2 첫 번째 평가 (5분 완성) - 복사 붙여넣기 즉시 실행!</h3>
+
+            <div class="example-box">
+                <h4>완전한 실행 가능 예제</h4>
+                <p>아래 코드를 <code>first_evaluation.py</code>로 저장하고 <code>python first_evaluation.py</code>로 실행하세요!</p>
+
+                <div class="code-executable">
+                    <div class="code-header">
+                        <span class="badge-success">실행 가능</span>
+                        <span class="copy-btn">복사</span>
+                    </div>
+                    <pre><code>#!/usr/bin/env python3
+"""
+첫 번째 Agent 평가 - 완전 실행 가능 예제
+실행: python first_evaluation.py
+"""
+
+from agent_evaluator import PerformanceMonitor, TaskResult, TaskType
+from datetime import datetime
+import time
+
+# 1. PerformanceMonitor 생성
+print("🚀 Agent Evaluator 시작...")
+monitor = PerformanceMonitor()
+
+# 2. 간단한 Agent 시뮬레이션 (실제로는 LLM 호출)
+def simple_agent(question: str) -> str:
+    """시뮬레이션: 실제로는 LLM API 호출"""
+    time.sleep(0.5)  # 실행 시간 시뮬레이션
+    if "수도" in question:
+        return "서울입니다"
+    return "답변을 생성했습니다"
+
+# 3. Agent 실행 및 TaskResult 기록
+questions = [
+    ("한국의 수도는 어디인가요?", "서울입니다"),
+    ("프랑스의 수도는?", "파리입니다"),
+    ("일본의 수도는?", "도쿄입니다")
+]
+
+for i, (question, expected) in enumerate(questions, 1):
+    print(f"\n📝 Task {i}: {question}")
+
+    # Agent 실행
+    start = time.time()
+    response = simple_agent(question)
+    exec_time = time.time() - start
+
+    # TaskResult 생성 (간단한 방식)
+    # 참고: 실제 프로덕션에서는 taskresult_helpers.py의
+    # create_taskresult_from_execution() 함수를 사용하는 것이 권장됩니다!
+    accuracy = 1.0 if expected.replace(" ", "").lower() in response.replace(" ", "").lower() else 0.5
+
+    task = TaskResult(
+        task_id=f"task_{i:03d}",           # 고유 ID
+        task_type=TaskType.QA.value,       # 작업 유형: qa
+        success=True,                       # 성공 여부
+        completion_score=1.0 if len(response) > 5 else 0.5,  # ✅ 동적 계산
+        accuracy_score=accuracy,            # ✅ 동적 계산 (간단한 비교)
+        execution_time=exec_time,           # 실행 시간 (초)
+        tokens_used={                       # 토큰 사용량 (추정)
+            "input": len(question) * 2,
+            "output": len(response) * 2
+        },
+        tool_calls=[],                      # 사용한 도구 (없음)
+        attempts=1,                         # 재시도 횟수
+        errors=[],                          # 에러 목록 (없음)
+        timestamp=datetime.now()            # 기록 시간
+    )
+
+    # 기록
+    monitor.record_task(task)
+    print(f"   ✅ 기록 완료 (실행시간: {exec_time:.3f}초, 정확도: {accuracy:.1f})")
+
+# 4. 레포트 생성 및 출력
+print("\n" + "="*60)
+print("📊 평가 결과 리포트")
+print("="*60)
+
+report = monitor.generate_report()
+
+print(f"\n✅ Task Completion Rate (TCR): {report['accuracy_metrics']['tcr']:.1f}%")
+print(f"✅ Overall Accuracy: {report['accuracy_metrics']['accuracy']:.1f}%")
+print(f"✅ Average Latency: {report['efficiency_metrics']['latency']['average']:.3f}초")
+print(f"✅ Total Tasks: {report['total_tasks']}개")
+
+print(f"\n💾 레포트 저장...")
+monitor.save_to_file("first_evaluation_report.json")
+print("✅ 저장 완료: first_evaluation_report.json")
+
+print("\n🎉 첫 번째 평가 완료!")
+</code></pre>
+                </div>
+
+                <div class="output-box">
+                    <h4>예상 출력:</h4>
+                    <pre>🚀 Agent Evaluator 시작...
+
+📝 Task 1: 한국의 수도는 어디인가요?
+   ✅ 기록 완료 (실행시간: 0.502초)
+
+📝 Task 2: 프랑스의 수도는?
+   ✅ 기록 완료 (실행시간: 0.501초)
+
+📝 Task 3: 일본의 수도는?
+   ✅ 기록 완료 (실행시간: 0.500초)
+
+============================================================
+📊 평가 결과 리포트
+============================================================
+
+✅ Task Completion Rate (TCR): 100.0%
+✅ Overall Accuracy: 90.0%
+✅ Average Latency: 0.501초
+✅ Total Tasks: 3개
+
+💾 레포트 저장...
+✅ 저장 완료: first_evaluation_report.json
+
+🎉 첫 번째 평가 완료!</pre>
+                </div>
+            </div>
+
+            <div class="checklist-box">
+                <h4>실습 체크리스트</h4>
+                <ul>
+                    <li>□ PerformanceMonitor 생성 완료</li>
+                    <li>□ TaskResult 생성 완료 (11개 필수 필드 확인)</li>
+                    <li>□ record_task() 호출 완료</li>
+                    <li>□ 레포트 생성 및 확인 완료</li>
+                    <li>□ JSON 파일 저장 확인</li>
+                </ul>
+            </div>
+
+            <div class="troubleshooting-box">
+                <h4>흔한 문제와 해결</h4>
+                <details>
+                    <summary>ImportError: No module named 'agent_evaluator'</summary>
+                    <p><strong>원인:</strong> agent_evaluator가 제대로 설치되지 않음</p>
+                    <p><strong>해결:</strong> pip로 agent-evaluator를 설치하세요</p>
+                    <pre><code># agent-evaluator 설치 확인
+pip show agent-evaluator
+
+# 설치되지 않았다면
+pip install agent-evaluator
+
+# 최신 버전으로 업그레이드
+pip install --upgrade agent-evaluator</code></pre>
+                    <p><strong>⚠️ 참고:</strong> v0.5.0부터는 PYTHONPATH 설정이 필요 없습니다. pip install로 패키지를 설치하면 어디서든 import 가능합니다.</p>
+                </details>
+                <details>
+                    <summary>TypeError: TaskResult() missing required argument</summary>
+                    <p><strong>원인:</strong> 필수 필드 누락</p>
+                    <p><strong>해결:</strong> 11개 필수 필드를 모두 제공해야 함</p>
+                    <p>task_id, task_type, success, completion_score, accuracy_score, execution_time, tokens_used, tool_calls, attempts, errors, timestamp</p>
+                </details>
+                <details>
+                    <summary>KeyError when accessing report['accuracy_metrics']</summary>
+                    <p><strong>원인:</strong> generate_report() 반환 형식이 다름</p>
+                    <p><strong>해결:</strong> report가 딕셔너리인지 확인하고 올바른 키 사용</p>
+                    <pre><code># 방법 1: 딕셔너리로 접근
+print(report['accuracy_metrics']['tcr'])
+
+# 방법 2: 속성으로 접근 (ReportResult 객체인 경우)
+print(report.accuracy_metrics.tcr)</code></pre>
+                </details>
+            </div>
+
+            <h3>4.3 프로그래밍 방식으로 평가 결과 확인</h3>
+            <div class="card">
+                <pre><code># 평가 리포트 생성 및 확인
+report = monitor.generate_report()
+
+# 메트릭 확인
+print(f"TCR: {report.accuracy_metrics.tcr}")
+print(f"평균 지연시간: {report.latency_metrics.mean}초")
+print(f"총 비용: ${report.cost_metrics.total_cost}")
+
+# JSON으로 저장
+import json
+with open('evaluation_results.json', 'w') as f:
+    json.dump(report.to_dict(), f, indent=2)</code></pre>
+
+                <p><strong>사용 가능한 주요 메트릭:</strong></p>
+                <ul>
+                    <li>📊 <strong>정확도 메트릭:</strong> TCR (Task Completion Rate), Accuracy</li>
+                    <li>🎯 <strong>품질 메트릭:</strong> Quality Score, Hallucination Rate</li>
+                    <li>⚡ <strong>성능 메트릭:</strong> Latency (평균, 최소, 최대, 백분위)</li>
+                    <li>💰 <strong>비용 메트릭:</strong> Token 사용량, 총 비용</li>
+                    <li>🤖 <strong>Agentic AI 메트릭:</strong> Tool Selection, Agent Coordination, Workflow Execution (Layer 2)</li>
+                    <li>🔬 <strong>고급 메트릭:</strong> DeepEval, Ragas 평가 (Layer 3, 별도 설치 필요)</li>
+                </ul>
+
+                <p><strong>데이터 편집 Dashboard (Port 8503):</strong></p>
+                <ul>
+                    <li>📝 <strong>데이터 편집:</strong> 4개 서브탭 - 임계값 설정, Golden Dataset, Test 준비, 이력 관리</li>
+                </ul>
+            </div>
+
+            <div class="alert success">
+                <strong>✅ 5분 만에 완료!</strong> 이제 Agent의 성능을 실시간으로 모니터링하고, Dashboard에서 시각화할 수 있습니다.
+            </div>
+        </section>
+
+        <!-- 5. TaskResult 데이터 준비 실전 가이드 -->
+        <section id="taskresult-guide">
+            <h2>📝 5. TaskResult 데이터 준비 실전 가이드</h2>
+
+            <div class="alert info">
+                <strong>💡 이 섹션의 목적:</strong> Agent Evaluator를 사용하려면 TaskResult 객체를 올바르게 생성해야 합니다. 이 가이드는 다양한 시나리오별로 TaskResult를 준비하는 완전한 실전 예제를 제공합니다.
+            </div>
+
+            <h3>5.1 TaskResult 클래스 구조</h3>
+            <div class="card">
+                <h4>필수 필드 11개 (Layer 1)</h4>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>필드명</th>
+                            <th>타입</th>
+                            <th>설명</th>
+                            <th>예시</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><code>task_id</code></td>
+                            <td>str</td>
+                            <td>작업 고유 ID</td>
+                            <td>"task_001"</td>
+                        </tr>
+                        <tr>
+                            <td><code>task_type</code></td>
+                            <td>str</td>
+                            <td>작업 유형 (qa, code_generation, summarization 등)</td>
+                            <td>TaskType.QA.value</td>
+                        </tr>
+                        <tr>
+                            <td><code>success</code></td>
+                            <td>bool</td>
+                            <td>작업 성공 여부</td>
+                            <td>True</td>
+                        </tr>
+                        <tr>
+                            <td><code>completion_score</code></td>
+                            <td>float</td>
+                            <td>작업 완료도 (0.0~1.0)</td>
+                            <td>1.0</td>
+                        </tr>
+                        <tr>
+                            <td><code>accuracy_score</code></td>
+                            <td>float</td>
+                            <td>응답 정확도 (0.0~1.0)</td>
+                            <td>0.85</td>
+                        </tr>
+                        <tr>
+                            <td><code>execution_time</code></td>
+                            <td>float</td>
+                            <td>실행 시간 (초)</td>
+                            <td>1.234</td>
+                        </tr>
+                        <tr>
+                            <td><code>tokens_used</code></td>
+                            <td>Dict</td>
+                            <td>토큰 사용량 (input, output, total)</td>
+                            <td>{"input": 100, "output": 50}</td>
+                        </tr>
+                        <tr>
+                            <td><code>tool_calls</code></td>
+                            <td>List[Dict]</td>
+                            <td>사용한 도구 목록</td>
+                            <td>[{"name": "search"}]</td>
+                        </tr>
+                        <tr>
+                            <td><code>attempts</code></td>
+                            <td>int</td>
+                            <td>재시도 횟수 (1부터 시작)</td>
+                            <td>1</td>
+                        </tr>
+                        <tr>
+                            <td><code>errors</code></td>
+                            <td>List[str]</td>
+                            <td>발생한 에러 목록</td>
+                            <td>[]</td>
+                        </tr>
+                        <tr>
+                            <td><code>timestamp</code></td>
+                            <td>datetime</td>
+                            <td>기록 시간</td>
+                            <td>datetime.now()</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="card success">
+                <h4>선택적 필드 (Layer 2 - Agentic AI)</h4>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>필드명</th>
+                            <th>타입</th>
+                            <th>설명</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><code>agents_involved</code></td>
+                            <td>List[str]</td>
+                            <td>참여한 Agent 목록 (Multi-Agent 시스템)</td>
+                        </tr>
+                        <tr>
+                            <td><code>workflow_steps</code></td>
+                            <td>List[str]</td>
+                            <td>실행된 워크플로우 단계</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <h3>5.2 실제 값 계산 헬퍼 함수</h3>
+            <div class="tip-box">
+                <h4>💡 평가 시스템의 핵심: 동적 값 계산</h4>
+                <p>TaskResult의 필드들은 하드코딩이 아닌 <strong>실제 계산 함수</strong>를 통해 동적으로 생성되어야 합니다. 아래 헬퍼 함수들을 프로젝트에 추가하여 사용하세요.</p>
+            </div>
+
+            <div class="example-box">
+                <h4>완전한 헬퍼 함수 모음 (taskresult_helpers.py)</h4>
+
+                <div class="code-executable">
+                    <div class="code-header">
+                        <span class="badge-success">✅ 실행 가능</span>
+                        <span class="copy-btn">📋 복사</span>
+                    </div>
+                    <pre><code>#!/usr/bin/env python3
+"""
+TaskResult 필드 동적 계산 헬퍼 함수 모음
+파일명: taskresult_helpers.py
+"""
+
+import re
+from difflib import SequenceMatcher
+from typing import Any, Dict, List, Tuple
+
+
+# ============================================================================
+# 1. completion_score 계산 (작업 완료도)
+# ============================================================================
+
+def calculate_completion_score(
+    response: str,
+    expected_min_length: int = 10,
+    has_error: bool = False,
+    ground_truth: str = None
+) -> float:
+    """
+    작업 완료도 점수 계산 (0.0 ~ 1.0)
+
+    Args:
+        response: Agent의 응답 텍스트
+        expected_min_length: 최소 기대 길이
+        has_error: 에러 발생 여부
+        ground_truth: 기대 답변 (선택적)
+
+    Returns:
+        float: 0.0 (실패) ~ 1.0 (완전 완료)
+
+    Examples:
+        >>> calculate_completion_score("서울입니다", expected_min_length=5)
+        1.0
+        >>> calculate_completion_score("서울", expected_min_length=10)
+        0.5
+        >>> calculate_completion_score("", has_error=True)
+        0.0
+    """
+    # 1. 에러 발생 시 무조건 0.0
+    if has_error:
+        return 0.0
+
+    # 2. 응답 없음
+    if not response or not response.strip():
+        return 0.0
+
+    # 3. 길이 기반 평가
+    response_length = len(response.strip())
+
+    if response_length < expected_min_length:
+        # 부분 완료: 길이 비율에 따라 0.3 ~ 0.7
+        return max(0.3, min(0.7, response_length / expected_min_length))
+
+    # 4. Ground truth와 비교 (있는 경우)
+    if ground_truth:
+        similarity = calculate_text_similarity(response, ground_truth)
+        if similarity >= 0.8:
+            return 1.0
+        elif similarity >= 0.5:
+            return 0.7
+        else:
+            return 0.5
+
+    # 5. 기본: 최소 길이 이상이면 완료로 판정
+    return 1.0
+
+
+# ============================================================================
+# 2. accuracy_score 계산 (정확도)
+# ============================================================================
+
+def calculate_accuracy_score(
+    response: str,
+    ground_truth: str,
+    method: str = "combined"
+) -> float:
+    """
+    정확도 점수 계산 - Agent Evaluator 방식
+
+    4가지 유사도 메트릭 조합:
+    - Token Overlap Ratio (40%)
+    - Jaccard Similarity (30%)
+    - Longest Common Subsequence (20%)
+    - Character-level Similarity (10%)
+
+    Args:
+        response: Agent의 실제 응답
+        ground_truth: 기대 답변
+        method: "combined" (기본) | "simple" | "token_only"
+
+    Returns:
+        float: 0.0 (완전히 틀림) ~ 1.0 (완벽히 일치)
+
+    Examples:
+        >>> calculate_accuracy_score("서울입니다", "서울")
+        0.85
+        >>> calculate_accuracy_score("파리", "서울")
+        0.0
+    """
+    if not response or not ground_truth:
+        return 0.0
+
+    # 정규화
+    resp_norm = normalize_text(response)
+    truth_norm = normalize_text(ground_truth)
+
+    if method == "simple":
+        # 간단한 포함 여부 체크
+        if truth_norm in resp_norm:
+            return 1.0
+        elif any(word in resp_norm for word in truth_norm.split()[:3]):
+            return 0.5
+        else:
+            return 0.0
+
+    elif method == "token_only":
+        # Token Overlap만 사용
+        return _token_overlap_ratio(resp_norm, truth_norm)
+
+    else:  # method == "combined" 
+        # 1. Token Overlap Ratio (40%)
+        token_score = _token_overlap_ratio(resp_norm, truth_norm)
+
+        # 2. Jaccard Similarity (30%)
+        jaccard_score = _jaccard_similarity(resp_norm, truth_norm)
+
+        # 3. Longest Common Subsequence (20%)
+        lcs_score = _lcs_similarity(resp_norm, truth_norm)
+
+        # 4. Character-level Similarity (10%)
+        char_score = _char_similarity(resp_norm, truth_norm)
+
+        # 가중 평균
+        combined_score = (
+            token_score * 0.4 +
+            jaccard_score * 0.3 +
+            lcs_score * 0.2 +
+            char_score * 0.1
+        )
+
+        return round(combined_score, 3)
+
+
+# ============================================================================
+# 3. tokens_used 추출 (LLM API 응답에서)
+# ============================================================================
+
+def extract_tokens_from_openai(openai_response) -> Dict[str, int]:
+    """
+    OpenAI API 응답에서 토큰 사용량 추출
+
+    Args:
+        openai_response: openai.ChatCompletion 객체
+
+    Returns:
+        dict: {"input": int, "output": int, "total": int}
+
+    Example:
+        >>> response = openai.chat.completions.create(...)
+        >>> tokens = extract_tokens_from_openai(response)
+        >>> print(tokens)
+        {"input": 150, "output": 85, "total": 235}
+    """
+    try:
+        return {
+            "input": openai_response.usage.prompt_tokens,
+            "output": openai_response.usage.completion_tokens,
+            "total": openai_response.usage.total_tokens
+        }
+    except AttributeError:
+        # usage 필드가 없는 경우
+        return {"input": 0, "output": 0, "total": 0}
+
+
+def extract_tokens_from_langchain(llm_result) -> Dict[str, int]:
+    """
+    LangChain LLMResult에서 토큰 사용량 추출
+
+    Args:
+        llm_result: LangChain LLMResult 객체
+
+    Returns:
+        dict: {"input": int, "output": int, "total": int}
+    """
+    try:
+        token_usage = llm_result.llm_output.get("token_usage", {})
+        return {
+            "input": token_usage.get("prompt_tokens", 0),
+            "output": token_usage.get("completion_tokens", 0),
+            "total": token_usage.get("total_tokens", 0)
+        }
+    except (AttributeError, KeyError):
+        return {"input": 0, "output": 0, "total": 0}
+
+
+def estimate_tokens(text: str) -> int:
+    """
+    텍스트 길이로부터 토큰 수 추정 (API 호출 없이)
+
+    대략적인 추정: 영어 4자 = 1토큰, 한글 2자 = 1토큰
+
+    Args:
+        text: 입력 텍스트
+
+    Returns:
+        int: 추정 토큰 수
+    """
+    # 한글과 영어 분리
+    korean_chars = len(re.findall(r'[가-힣]', text))
+    other_chars = len(text) - korean_chars
+
+    # 추정: 한글 2자/토큰, 영어 4자/토큰
+    estimated = (korean_chars // 2) + (other_chars // 4)
+
+    return max(1, estimated)
+
+
+# ============================================================================
+# 4. tool_calls 추출 (Agent 실행에서)
+# ============================================================================
+
+def extract_tool_calls_from_langchain(agent_result) -> List[Dict[str, Any]]:
+    """
+    LangChain Agent 결과에서 tool_calls 추출
+
+    Args:
+        agent_result: AgentExecutor 실행 결과
+
+    Returns:
+        list: [{"name": str, "input": str, "output": str, "success": bool}]
+    """
+    tool_calls = []
+
+    # intermediate_steps에서 tool 사용 정보 추출
+    if hasattr(agent_result, 'intermediate_steps'):
+        for action, observation in agent_result.intermediate_steps:
+            tool_calls.append({
+                "name": action.tool,
+                "input": str(action.tool_input),
+                "output": str(observation),
+                "success": observation is not None
+            })
+
+    return tool_calls
+
+
+def extract_tool_calls_from_openai_functions(openai_response) -> List[Dict[str, Any]]:
+    """
+    OpenAI Function Calling에서 tool_calls 추출
+
+    Args:
+        openai_response: openai.ChatCompletion 객체
+
+    Returns:
+        list: [{"name": str, "input": str}]
+    """
+    tool_calls = []
+
+    try:
+        message = openai_response.choices[0].message
+        if hasattr(message, 'tool_calls') and message.tool_calls:
+            for tc in message.tool_calls:
+                tool_calls.append({
+                    "name": tc.function.name,
+                    "input": tc.function.arguments
+                })
+    except (AttributeError, IndexError):
+        pass
+
+    return tool_calls
+
+
+# ============================================================================
+# 보조 함수들 (내부 사용)
+# ============================================================================
+
+def normalize_text(text: str) -> str:
+    """텍스트 정규화: 소문자, 공백 제거, 특수문자 제거"""
+    text = text.lower()
+    text = re.sub(r'\s+', ' ', text).strip()
+    text = re.sub(r'[^\w\s]', '', text)
+    return text
+
+
+def calculate_text_similarity(text1: str, text2: str) -> float:
+    """SequenceMatcher를 사용한 기본 유사도"""
+    return SequenceMatcher(None,
+                          normalize_text(text1),
+                          normalize_text(text2)).ratio()
+
+
+def _token_overlap_ratio(text1: str, text2: str) -> float:
+    """Token Overlap Ratio 계산"""
+    tokens1 = set(text1.split())
+    tokens2 = set(text2.split())
+
+    if not tokens1 or not tokens2:
+        return 0.0
+
+    intersection = tokens1 & tokens2
+    return len(intersection) / len(tokens2)
+
+
+def _jaccard_similarity(text1: str, text2: str) -> float:
+    """Jaccard Similarity 계산"""
+    tokens1 = set(text1.split())
+    tokens2 = set(text2.split())
+
+    if not tokens1 and not tokens2:
+        return 1.0
+    if not tokens1 or not tokens2:
+        return 0.0
+
+    intersection = tokens1 & tokens2
+    union = tokens1 | tokens2
+
+    return len(intersection) / len(union)
+
+
+def _lcs_similarity(text1: str, text2: str) -> float:
+    """Longest Common Subsequence Similarity"""
+    def lcs_length(s1, s2):
+        m, n = len(s1), len(s2)
+        dp = [[0] * (n + 1) for _ in range(m + 1)]
+
+        for i in range(1, m + 1):
+            for j in range(1, n + 1):
+                if s1[i-1] == s2[j-1]:
+                    dp[i][j] = dp[i-1][j-1] + 1
+                else:
+                    dp[i][j] = max(dp[i-1][j], dp[i][j-1])
+
+        return dp[m][n]
+
+    if not text1 or not text2:
+        return 0.0
+
+    lcs_len = lcs_length(text1, text2)
+    return lcs_len / max(len(text1), len(text2))
+
+
+def _char_similarity(text1: str, text2: str) -> float:
+    """Character-level Similarity"""
+    return SequenceMatcher(None, text1, text2).ratio()
+
+
+# ============================================================================
+# 통합 TaskResult 생성 함수
+# ============================================================================
+
+def create_taskresult_from_execution(
+    task_id: str,
+    question: str,
+    response: str,
+    ground_truth: str,
+    execution_time: float,
+    openai_response = None,
+    langchain_result = None,
+    has_error: bool = False,
+    error_message: str = None
+):
+    """
+    Agent 실행 결과로부터 TaskResult 생성 (모든 필드 동적 계산)
+
+    사용 예:
+        task = create_taskresult_from_execution(
+            task_id="task_001",
+            question="한국의 수도는?",
+            response="서울입니다",
+            ground_truth="서울",
+            execution_time=1.23,
+            openai_response=openai_response
+        )
+    """
+    from agent_evaluator import TaskResult, TaskType
+    from datetime import datetime
+
+    # 1. completion_score 동적 계산
+    completion = calculate_completion_score(
+        response=response,
+        expected_min_length=10,
+        has_error=has_error,
+        ground_truth=ground_truth
+    )
+
+    # 2. accuracy_score 동적 계산 
+    accuracy = calculate_accuracy_score(
+        response=response,
+        ground_truth=ground_truth,
+        method="combined"
+    )
+
+    # 3. tokens_used 동적 추출
+    if openai_response:
+        tokens = extract_tokens_from_openai(openai_response)
+    elif langchain_result:
+        tokens = extract_tokens_from_langchain(langchain_result)
+    else:
+        # API 응답이 없으면 추정
+        tokens = {
+            "input": estimate_tokens(question),
+            "output": estimate_tokens(response),
+            "total": estimate_tokens(question) + estimate_tokens(response)
+        }
+
+    # 4. tool_calls 동적 추출
+    tool_calls = []
+    if openai_response:
+        tool_calls = extract_tool_calls_from_openai_functions(openai_response)
+    elif langchain_result:
+        tool_calls = extract_tool_calls_from_langchain(langchain_result)
+
+    # 5. TaskResult 생성
+    return TaskResult(
+        task_id=task_id,
+        task_type=TaskType.QA.value,
+        success=not has_error,
+        completion_score=completion,      # ✅ 동적 계산
+        accuracy_score=accuracy,          # ✅ 동적 계산
+        execution_time=execution_time,    # ✅ 실제 측정
+        tokens_used=tokens,               # ✅ 동적 추출
+        tool_calls=tool_calls,            # ✅ 동적 추출
+        attempts=1,
+        errors=[error_message] if error_message else [],
+        timestamp=datetime.now()
+    )</code></pre>
+                </div>
+            </div>
+
+            <h3>5.3 Scenario 1: 기본 수동 평가 (헬퍼 함수 사용)</h3>
+            <div class="example-box">
+                <h4>✅ 동적 값 계산 예제</h4>
+                <p>헬퍼 함수를 사용하여 모든 필드를 동적으로 계산합니다. <strong>하드코딩된 값이 없습니다!</strong></p>
+
+                <div class="code-executable">
+                    <div class="code-header">
+                        <span class="badge-success">✅ 실행 가능</span>
+                        <span class="copy-btn">📋 복사</span>
+                    </div>
+                    <pre><code>from agent_evaluator import PerformanceMonitor, TaskType
+from taskresult_helpers import create_taskresult_from_execution
+import time
+
+monitor = PerformanceMonitor()
+
+# 1. Agent 실행
+question = "한국의 수도는 어디인가요?"
+ground_truth = "서울"
+
+start_time = time.time()
+response = "서울입니다"  # your_agent.run(question)
+execution_time = time.time() - start_time
+
+# 2. TaskResult 생성 (모든 필드 동적 계산!)
+task = create_taskresult_from_execution(
+    task_id="task_001",
+    question=question,
+    response=response,
+    ground_truth=ground_truth,
+    execution_time=execution_time
+)
+
+# 3. 자동 계산된 값 확인
+print(f"✅ Completion Score: {task.completion_score:.2f}")  # 0.0~1.0 동적 계산
+print(f"✅ Accuracy Score: {task.accuracy_score:.2f}")      # 4가지 메트릭 조합
+print(f"✅ Tokens Used: {task.tokens_used}")                # 길이로부터 추정
+
+# 4. 기록
+monitor.record_task(task)
+
+# 5. 결과 확인
+report = monitor.generate_report()
+print(f"\nTCR: {report['accuracy_metrics']['tcr']:.1f}%")
+print(f"Accuracy: {report['accuracy_metrics']['accuracy']:.1f}%")</code></pre>
+                </div>
+            </div>
+
+            <h3>5.4 Scenario 2: OpenAI API 실전 예제</h3>
+            <div class="example-box">
+                <h4>✅ OpenAI API 응답으로부터 TaskResult 자동 생성</h4>
+                <p>OpenAI API 응답에서 토큰 사용량을 자동으로 추출하고, 헬퍼 함수로 모든 메트릭을 동적 계산합니다.</p>
+
+                <div class="code-executable">
+                    <div class="code-header">
+                        <span class="badge-success">✅ 실행 가능</span>
+                        <span class="copy-btn">📋 복사</span>
+                    </div>
+                    <pre><code>from agent_evaluator import PerformanceMonitor
+from taskresult_helpers import create_taskresult_from_execution
+from openai import OpenAI
+import time
+
+monitor = PerformanceMonitor()
+client = OpenAI()
+
+# 1. 평가할 질문과 정답
+question = "한국의 수도는 어디인가요?"
+ground_truth = "서울"
+
+# 2. OpenAI API 호출
+start = time.time()
+openai_response = client.chat.completions.create(
+    model="gpt-4",
+    messages=[{"role": "user", "content": question}]
+)
+exec_time = time.time() - start
+
+# 3. 응답 추출
+response = openai_response.choices[0].message.content
+
+# 4. TaskResult 자동 생성 (모든 필드 동적!)
+task = create_taskresult_from_execution(
+    task_id="task_openai_001",
+    question=question,
+    response=response,
+    ground_truth=ground_truth,
+    execution_time=exec_time,
+    openai_response=openai_response  # ← 토큰 자동 추출
+)
+
+# 5. 자동 계산 결과 확인
+print(f"✅ Completion Score: {task.completion_score:.2f}")  # 응답 길이/완성도 기반
+print(f"✅ Accuracy Score: {task.accuracy_score:.2f}")      # Ground truth 비교 
+print(f"✅ Tokens: {task.tokens_used}")                     # OpenAI usage에서 추출
+print(f"✅ Tool Calls: {len(task.tool_calls)}")            # Function calling 사용 시 추출
+
+monitor.record_task(task)
+
+# 6. 여러 질문 배치 평가 예제
+golden_dataset = [
+    {"qa_id": "qa_001", "question": "Agent Evaluator의 주요 기능은?",
+     "answer": "3-Layer 메트릭 시스템을 제공합니다"},
+    {"qa_id": "qa_002", "question": "TCR은 무엇인가요?",
+     "answer": "Task Completion Rate로 작업 완료율을 의미합니다"}
+]
+
+for qa in golden_dataset:
+    start = time.time()
+    openai_response = client.chat.completions.create(
+        model="gpt-4",
+        messages=[{"role": "user", "content": qa['question']}]
+    )
+    exec_time = time.time() - start
+
+    response = openai_response.choices[0].message.content
+
+    # 헬퍼 함수로 TaskResult 생성 - 모든 필드 동적 계산!
+    task = create_taskresult_from_execution(
+        task_id=qa['qa_id'],
+        question=qa['question'],
+        response=response,
+        ground_truth=qa['answer'],
+        execution_time=exec_time,
+        openai_response=openai_response
+    )
+
+    monitor.record_task(task)
+    print(f"✅ {qa['qa_id']}: Accuracy={task.accuracy_score:.2f}, Tokens={task.tokens_used['total']}")
+
+# 전체 평가 결과
+report = monitor.generate_report()
+print(f"\n📊 전체 TCR: {report['accuracy_metrics']['tcr']:.1f}%")
+print(f"📊 전체 Accuracy: {report['accuracy_metrics']['accuracy']:.1f}%")</code></pre>
+                </div>
+            </div>
+
+            <h3>5.5 Scenario 3: LangChain Agent 실전 예제</h3>
+            <div class="example-box">
+                <h4>✅ LangChain Agent 결과로부터 TaskResult 자동 생성</h4>
+                <p>LangChain Agent 실행 결과에서 tool_calls를 자동으로 추출하고, Layer 2 메트릭을 평가합니다.</p>
+
+                <div class="code-executable">
+                    <div class="code-header">
+                        <span class="badge-success">✅ 실행 가능</span>
+                        <span class="copy-btn">📋 복사</span>
+                    </div>
+                    <pre><code>from agent_evaluator import PerformanceMonitor
+from taskresult_helpers import (
+    create_taskresult_from_execution,
+    extract_tool_calls_from_langchain,
+    extract_tokens_from_langchain
+)
+from langchain.agents import AgentExecutor
+import time
+
+monitor = PerformanceMonitor()
+
+# Golden Dataset with expected tools (Layer 2 평가용)
+qa_with_tools = {
+    "qa_id": "qa_003",
+    "question": "2024년 AI 트렌드를 조사하고 요약해주세요",
+    "answer": "2024년 주요 AI 트렌드는 생성형 AI, 멀티모달 모델, 에이전트 시스템입니다",
+    "expected_tools": ["web_search", "summarizer"]  # Layer 2
+}
+
+# 1. LangChain Agent 실행
+start = time.time()
+agent_result = your_langchain_agent.invoke(qa_with_tools['question'])
+exec_time = time.time() - start
+
+# 2. 응답 추출
+response = agent_result.get("output", "")
+
+# 3. TaskResult 자동 생성 (헬퍼 함수 사용)
+task = create_taskresult_from_execution(
+    task_id=qa_with_tools['qa_id'],
+    question=qa_with_tools['question'],
+    response=response,
+    ground_truth=qa_with_tools['answer'],
+    execution_time=exec_time,
+    langchain_result=agent_result  # ← tool_calls, tokens 자동 추출
+)
+
+# 4. Layer 2 필드 수동 추가 (Multi-Agent 시스템용)
+task.agents_involved = ["researcher", "writer"]
+task.workflow_steps = ["research", "summarize", "write"]
+
+monitor.record_task(task)
+
+# 5. 자동 계산 결과 확인
+print(f"✅ Completion Score: {task.completion_score:.2f}")
+print(f"✅ Accuracy Score: {task.accuracy_score:.2f}")
+print(f"✅ Tool Calls: {[t['name'] for t in task.tool_calls]}")  # LangChain에서 추출
+print(f"✅ Tokens: {task.tokens_used}")
+
+# 6. Layer 2 평가 수행 (Tool Selection)
+monitor.tool_selection_tracker.evaluate_selection(
+    task_id=task.task_id,
+    expected_tools=qa_with_tools['expected_tools'],
+    actual_tools=[t['name'] for t in task.tool_calls]
+)
+
+# 7. Layer 2 메트릭 확인
+tool_metrics = monitor.tool_selection_tracker.calculate_metrics()
+print(f"\n📊 Tool Selection F1 Score: {tool_metrics['f1_score']:.2f}")
+print(f"📊 Tool Selection Accuracy: {tool_metrics['accuracy']:.2f}")</code></pre>
+                </div>
+            </div>
+
+            <div class="tip-box">
+                <h4>💡 LangChain 사용 시 팁</h4>
+                <p><strong>tool_calls 자동 추출:</strong> <code>extract_tool_calls_from_langchain()</code>은 <code>intermediate_steps</code>에서 도구 사용 정보를 자동으로 추출합니다.</p>
+                <pre><code># 수동 추출 방법 (헬퍼 함수 미사용 시)
+tool_calls = []
+if hasattr(agent_result, 'intermediate_steps'):
+    for action, observation in agent_result.intermediate_steps:
+        tool_calls.append({
+            "name": action.tool,
+            "input": str(action.tool_input),
+            "output": str(observation),
+            "success": observation is not None
+        })</code></pre>
+            </div>
+
+            <h3>5.6 데이터 준비 체크리스트</h3>
+            <div class="checklist-box">
+                <h4>TaskResult 생성 전 필수 체크</h4>
+                <ul>
+                    <li>□ <strong>task_id:</strong> 고유한 ID 생성 (중복 방지)</li>
+                    <li>□ <strong>task_type:</strong> TaskType enum 사용 (QA, CODE_GENERATION 등)</li>
+                    <li>□ <strong>success:</strong> 실제 성공 여부 판단 (에러 발생 시 False)</li>
+                    <li>□ <strong>completion_score:</strong> 0.0~1.0 범위, 작업 완료 정도</li>
+                    <li>□ <strong>accuracy_score:</strong> 0.0~1.0 범위, 정확도 (Golden Dataset 기반)</li>
+                    <li>□ <strong>execution_time:</strong> 실제 측정한 시간 (초 단위)</li>
+                    <li>□ <strong>tokens_used:</strong> Dict 형식, input/output/total 포함</li>
+                    <li>□ <strong>tool_calls:</strong> List[Dict], 각 Dict는 name, input 포함</li>
+                    <li>□ <strong>attempts:</strong> 1부터 시작 (재시도 시 증가)</li>
+                    <li>□ <strong>errors:</strong> 빈 리스트 [] 또는 에러 메시지 리스트</li>
+                    <li>□ <strong>timestamp:</strong> datetime.now() 사용</li>
+                </ul>
+            </div>
+
+            <h3>5.7 실전 팁</h3>
+            <div class="tip-box">
+                <h4>Tip 1: completion_score vs accuracy_score</h4>
+                <p><strong>completion_score:</strong> 작업을 얼마나 완료했는가? (형식적 완성도)</p>
+                <ul>
+                    <li>1.0: 완전한 답변 생성, 에러 없음</li>
+                    <li>0.5: 부분 답변, 일부 누락</li>
+                    <li>0.0: 답변 생성 실패</li>
+                </ul>
+                <p><strong>accuracy_score:</strong> 답변이 얼마나 정확한가? (내용적 정확성)</p>
+                <ul>
+                    <li>1.0: 기대 답변과 완전히 일치</li>
+                    <li>0.8: 주요 내용 포함, 일부 차이</li>
+                    <li>0.5: 부분적으로 정확</li>
+                    <li>0.0: 완전히 틀림</li>
+                </ul>
+            </div>
+
+            <div class="tip-box">
+                <h4>Tip 2: accuracy_score 자동 계산  ✅</h4>
+                <p><strong>헬퍼 함수를 사용하면 모든 메트릭이 자동으로 계산됩니다!</strong></p>
+                <div class="code-executable">
+                    <div class="code-header">
+                        <span class="badge-success">✅ 실행 가능</span>
+                        <span class="copy-btn">📋 복사</span>
+                    </div>
+                    <pre><code># 방법 1: 헬퍼 함수 사용 (가장 권장) ⭐
+from taskresult_helpers import (
+    calculate_accuracy_score,
+    calculate_completion_score
+)
+
+response = "한국의 수도는 서울입니다"
+ground_truth = "서울"
+
+#  4가지 메트릭 조합 (Token Overlap, Jaccard, LCS, Character)
+accuracy = calculate_accuracy_score(response, ground_truth, method="combined")
+print(f"Accuracy: {accuracy:.3f}")  # 0.850
+
+# 완료도 계산
+completion = calculate_completion_score(response, ground_truth=ground_truth)
+print(f"Completion: {completion:.2f}")  # 1.0
+
+# 방법 2: evaluate_with_golden_dataset() 사용
+from agent_evaluator import PerformanceMonitor
+
+monitor = PerformanceMonitor()
+monitor.load_golden_dataset("data/golden_dataset.json")
+
+# 자동으로 accuracy_score 계산됨
+results = monitor.evaluate_with_golden_dataset(
+    agent_function=your_agent.run,
+    calculate_accuracy=True
+)
+
+# 방법 3: 간단한 유사도 계산 (헬퍼 함수의 "simple" 모드)
+accuracy_simple = calculate_accuracy_score(response, ground_truth, method="simple")
+print(f"Accuracy (simple): {accuracy_simple:.2f}")  # 1.0 (포함됨)</code></pre>
+                </div>
+            </div>
+
+            <div class="tip-box">
+                <h4>Tip 3: tool_calls 올바른 형식</h4>
+                <p>tool_calls는 반드시 List[Dict] 형식이어야 하며, 각 Dict는 최소한 'name' 키를 포함해야 합니다:</p>
+                <pre><code># ✅ 올바른 형식
+tool_calls = [
+    {"name": "web_search", "input": "AI trends"},
+    {"name": "calculator", "input": "2+2"}
+]
+
+# ❌ 잘못된 형식
+tool_calls = ["web_search", "calculator"]  # Dict가 아닌 문자열 리스트
+
+# ✅ 도구를 사용하지 않았다면
+tool_calls = []  # 빈 리스트</code></pre>
+            </div>
+
+            <div class="troubleshooting-box">
+                <h4>흔한 문제와 해결</h4>
+                <details>
+                    <summary>ValueError: completion_score must be between 0.0 and 1.0</summary>
+                    <p><strong>원인:</strong> completion_score가 0.0~1.0 범위를 벗어남</p>
+                    <p><strong>해결:</strong> 값을 0.0~1.0으로 정규화</p>
+                    <pre><code>completion_score = max(0.0, min(1.0, raw_score))</code></pre>
+                </details>
+                <details>
+                    <summary>TypeError: tokens_used must be a dictionary</summary>
+                    <p><strong>원인:</strong> tokens_used가 Dict가 아님</p>
+                    <p><strong>해결:</strong> 최소한 input, output 키 포함</p>
+                    <pre><code>tokens_used = {"input": 100, "output": 50}
+# 또는
+tokens_used = {"input": 100, "output": 50, "total": 150}</code></pre>
+                </details>
+                <details>
+                    <summary>AssertionError: tool_calls must be a list of dicts</summary>
+                    <p><strong>원인:</strong> tool_calls가 올바른 형식이 아님</p>
+                    <p><strong>해결:</strong> List[Dict] 형식으로 변환, 각 Dict는 'name' 키 필수</p>
+                    <pre><code># 문자열 리스트를 Dict 리스트로 변환
+tool_names = ["search", "calculator"]
+tool_calls = [{"name": name} for name in tool_names]</code></pre>
+                </details>
+            </div>
+        </section>
+
+        <!-- 6. Golden Dataset (이전 섹션 5) -->
+        <section id="golden-dataset">
+            <h2>📚 6. Golden Dataset 가이드</h2>
+
+            <h3>6.1 Golden Dataset이란?</h3>
+            <div class="card">
+                <p><strong>Golden Dataset</strong>은 Agent 평가를 위한 <strong>Ground Truth 데이터셋</strong>입니다. 질문(Question), 기대 답변(Answer), 컨텍스트(Context) 등을 포함하며, 자동 평가의 기준이 됩니다.</p>
+            </div>
+
+            <h3>6.2 QAPair 구조</h3>
+            <div class="card">
+                <pre><code>{
+  "qa_id": "qa_001",
+  "question": "Agent Evaluator의 주요 기능은?",
+  "answer": "3-Layer 메트릭 시스템을 제공하며...",
+  "context": "Agent Evaluator는 AI Agent 평가 프레임워크...",
+  "ground_truth": "정확한 기대 답변",
+
+  // Layer 2 Agentic AI 필드
+  "expected_tools": ["search", "calculator"],
+  "expected_agents": ["manager", "researcher", "writer"],
+  "expected_workflow_steps": ["retrieval", "generation", "validation"],
+
+  // 메타데이터
+  "metadata": {
+    "chunk_id": "chunk_1",
+    "page_number": 1,
+    "difficulty": "medium"
+  }
+}</code></pre>
+            </div>
+
+            <h3>6.3 Golden Dataset 생성 방법</h3>
+            <div class="grid">
+                <div class="card">
+                    <h4>방법 1: Dashboard에서 수동 작성</h4>
+                    <ol>
+                        <li>Dashboard → "데이터 편집" 탭 이동</li>
+                        <li>"Golden Dataset" 섹션 선택</li>
+                        <li>행 추가 버튼으로 QA Pair 입력</li>
+                        <li>저장 버튼 클릭</li>
+                    </ol>
+                </div>
+
+                <div class="card">
+                    <h4>방법 2: PDF에서 자동 생성</h4>
+                    <pre><code>from agent_evaluator.datasets.korean_rag_dataset_generator import KoreanRAGDatasetGenerator
+
+generator = KoreanRAGDatasetGenerator()
+
+# PDF에서 자동 생성
+dataset = generator.generate_dataset_from_pdf(
+    pdf_path="document.pdf",
+    output_path="golden_datasets/my_dataset.json",
+    chunk_size=500,
+    num_qa_pairs_per_chunk=2
+)</code></pre>
+                </div>
+
+                <div class="card">
+                    <h4>방법 3: Python 코드로 작성</h4>
+                    <pre><code>from agent_evaluator.datasets.korean_rag_dataset_generator import GoldenDataset, QAPair
+
+qa_pairs = [
+    QAPair(
+        qa_id="qa_001",
+        question="질문",
+        answer="답변",
+        context="컨텍스트",
+        ground_truth="정답",
+        expected_tools=["search"],
+        metadata={}
+    )
+]
+
+dataset = GoldenDataset(
+    dataset_id="my_dataset",
+    qa_pairs=qa_pairs,
+    source_document="document.pdf"
+)
+
+dataset.save("golden_datasets/my_dataset.json")</code></pre>
+                </div>
+            </div>
+
+            <h3>6.4 Golden Dataset 기반 자동 평가</h3>
+            <div class="card">
+                <h4>수동 평가 (현재 지원)</h4>
+                <pre><code>monitor = PerformanceMonitor.from_test_config("test_config_...")
+
+# Golden Dataset 로드
+monitor.load_golden_dataset()
+
+# 각 QA에 대해 평가
+for qa in monitor.golden_datasets:
+    # Agent 실행
+    response = agent.run(qa['question'])
+
+    # TaskResult 생성
+    task = TaskResult(
+        task_id=qa['qa_id'],
+        expected_output=qa['answer'],
+        actual_output=response,
+        # ... 기타 필드
+    )
+
+    monitor.record_task(task)
+
+    # Layer 2 메트릭 평가 (선택적)
+    if 'expected_tools' in qa and qa['expected_tools']:
+        monitor.tool_selection_tracker.evaluate_selection(
+            task.task_id,
+            qa['expected_tools'],
+            task.tool_calls
+        )</code></pre>
+            </div>
+
+            <div class="alert info">
+                <strong>💡 Best Practice:</strong> Golden Dataset은 도메인별로 최소 20-50개의 QA Pair를 포함하는 것을 권장합니다. 다양한 난이도와 시나리오를 포함하여 포괄적인 평가가 가능합니다.
+            </div>
+        </section>
+
+        <!-- 6. Threshold 설정 -->
+        <section id="threshold">
+            <h2>🎯 7. Threshold 설정 가이드</h2>
+
+            <h3>7.1 Threshold란?</h3>
+            <div class="card">
+                <p><strong>Threshold (임계값)</strong>은 각 메트릭의 <strong>허용 기준</strong>입니다. 평가 결과가 이 기준을 충족하면 <strong>Pass</strong>, 미달하면 <strong>Fail</strong>로 판정됩니다. CI/CD 품질 게이트의 핵심 요소입니다.</p>
+            </div>
+
+            <h3>7.2 환경별 권장 Threshold</h3>
+            <table>
+                <thead>
+                    <tr>
+                        <th>메트릭</th>
+                        <th>Development</th>
+                        <th>Staging</th>
+                        <th>Production</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><strong>TCR</strong></td>
+                        <td>≥ 70%</td>
+                        <td>≥ 85%</td>
+                        <td>≥ 95%</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Accuracy</strong></td>
+                        <td>≥ 65%</td>
+                        <td>≥ 80%</td>
+                        <td>≥ 90%</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Quality</strong></td>
+                        <td>≥ 6.0</td>
+                        <td>≥ 7.5</td>
+                        <td>≥ 8.5</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Hallucination</strong></td>
+                        <td>≤ 10%</td>
+                        <td>≤ 5%</td>
+                        <td>≤ 1%</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Latency (P95)</strong></td>
+                        <td>≤ 5s</td>
+                        <td>≤ 4s</td>
+                        <td>≤ 3s</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Tool Selection</strong></td>
+                        <td>≥ 60%</td>
+                        <td>≥ 75%</td>
+                        <td>≥ 85%</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Agent Coordination</strong></td>
+                        <td>≥ 6.0</td>
+                        <td>≥ 7.0</td>
+                        <td>≥ 8.5</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Workflow Execution</strong></td>
+                        <td>≥ 70%</td>
+                        <td>≥ 85%</td>
+                        <td>≥ 95%</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <h3>7.3 Threshold 설정 방법</h3>
+            <div class="grid">
+                <div class="card">
+                    <h4>방법 1: Dashboard에서 설정</h4>
+                    <ol>
+                        <li>Dashboard → "데이터 편집" 탭</li>
+                        <li>"Threshold Settings" 섹션</li>
+                        <li>각 메트릭 슬라이더 조정</li>
+                        <li>저장 버튼 클릭</li>
+                    </ol>
+                </div>
+
+                <div class="card">
+                    <h4>방법 2: Python 코드로 설정</h4>
+                    <pre><code>monitor = PerformanceMonitor()
+
+# 환경별 Threshold
+if environment == "production":
+    monitor.thresholds = {
+        'tcr': 95.0,
+        'accuracy': 90.0,
+        'hallucination': 1.0,
+        'latency': 3.0,
+        'tool_selection_accuracy': 85.0,
+        'agent_coordination': 8.5,
+        'workflow_execution': 95.0
+    }
+elif environment == "staging":
+    monitor.thresholds = {
+        'tcr': 85.0,
+        'accuracy': 80.0,
+        # ...
+    }
+</code></pre>
+                </div>
+            </div>
+
+            <h3>7.4 Threshold 검증</h3>
+            <div class="card">
+                <pre><code># 평가 수행
+for task in tasks:
+    monitor.record_task(task)
+
+# Threshold 비교
+comparison = monitor.compare_with_thresholds()
+
+# Pass/Fail 판정
+all_passed = all(
+    result['status'] == 'pass'
+    for result in comparison.values()
+)
+
+if all_passed:
+    print("✅ 모든 메트릭 통과!")
+    sys.exit(0)  # CI/CD 성공
+else:
+    print("❌ 일부 메트릭 실패:")
+    for metric, result in comparison.items():
+        if result['status'] == 'fail':
+            print(f"  - {metric}: {result['message']}")
+    sys.exit(1)  # CI/CD 실패</code></pre>
+            </div>
+
+            <h3>7.5 도메인별 Threshold 튜닝</h3>
+            <table>
+                <thead>
+                    <tr>
+                        <th>도메인</th>
+                        <th>중점 메트릭</th>
+                        <th>권장 조정</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><strong>고객 서비스 챗봇</strong></td>
+                        <td>Hallucination, Quality</td>
+                        <td>Hallucination ≤ 0.5%, Quality ≥ 9.0</td>
+                    </tr>
+                    <tr>
+                        <td><strong>의료 상담 AI</strong></td>
+                        <td>Accuracy, Hallucination</td>
+                        <td>Accuracy ≥ 95%, Hallucination ≤ 0.1%</td>
+                    </tr>
+                    <tr>
+                        <td><strong>법률 자문 AI</strong></td>
+                        <td>Accuracy, Quality</td>
+                        <td>Accuracy ≥ 98%, Quality ≥ 9.5</td>
+                    </tr>
+                    <tr>
+                        <td><strong>실시간 추천 시스템</strong></td>
+                        <td>Latency, Tool Efficiency</td>
+                        <td>Latency ≤ 1s, Tool Efficiency ≥ 95%</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Multi-Agent 협업</strong></td>
+                        <td>Agent Coordination, Workflow</td>
+                        <td>Coordination ≥ 9.0, Workflow ≥ 98%</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <div class="alert warning">
+                <strong>⚠️ 주의사항:</strong> Threshold를 너무 엄격하게 설정하면 개발 속도가 저하될 수 있습니다. 환경별로 점진적으로 강화하는 전략을 권장합니다.
+            </div>
+        </section>
+
+        <!-- 7. 프레임워크 통합 -->
+        <section id="framework">
+            <h2>🔌 8. 프레임워크 통합</h2>
+
+            <div style="background-color: #e6f7ff; border: 2px solid #1890ff; border-radius: 8px; padding: 20px; margin: 20px 0;">
+                <h3 style="margin-top: 0; color: #1890ff;">🎉 고급 통합 클래스 + 보안 메트릭</h3>
+                <p><strong>통합 클래스가 Layer 1/2/3 메트릭 + 보안 메트릭을 자동으로 추적합니다:</strong></p>
+                <div class="grid">
+                    <div style="background: #e2e8f0; padding: 15px; border-radius: 6px;">
+                        <h4>✨ CrewAIEvaluator</h4>
+                        <code>from agent_evaluator.integrations import CrewAIEvaluator</code>
+                        <p style="margin-top: 8px; font-size: 0.9em;">Agent Coordination, Workflow + Security 자동 추적</p>
+                    </div>
+                    <div style="background: #e2e8f0; padding: 15px; border-radius: 6px;">
+                        <h4>✨ LangChainEvaluator</h4>
+                        <code>from agent_evaluator.integrations import LangChainEvaluator</code>
+                        <p style="margin-top: 8px; font-size: 0.9em;">Tool Selection, Workflow + Security 자동 추적</p>
+                    </div>
+                    <div style="background: #e2e8f0; padding: 15px; border-radius: 6px;">
+                        <h4>✨ LangGraphEvaluator</h4>
+                        <code>from agent_evaluator.integrations import LangGraphEvaluator</code>
+                        <p style="margin-top: 8px; font-size: 0.9em;">노드별 Workflow Execution + Security 추적</p>
+                    </div>
+                    <div style="background: #e2e8f0; padding: 15px; border-radius: 6px;">
+                        <h4>✨ AutoGenEvaluator</h4>
+                        <code>from agent_evaluator.integrations import AutoGenEvaluator</code>
+                        <p style="margin-top: 8px; font-size: 0.9em;">Agent 상호작용 + Security 자동 추적</p>
+                    </div>
+                </div>
+                <p style="margin-top: 15px;"><strong>⚠️ 참고:</strong> 기존 클래스 (<code>EvaluatedCrew</code>, <code>LangChainEvaluationCallback</code> 등)는 v4.0에서 제거 예정입니다. 새로운 클래스로 마이그레이션하세요.</p>
+                <p>자세한 내용: <a href="API_REFERENCE.html#프레임워크-통합" style="color: #1890ff; font-weight: bold;">API Reference</a> | <a href="FRAMEWORK_INTEGRATION.html" style="color: #1890ff; font-weight: bold;">프레임워크 통합 가이드</a></p>
+            </div>
+
+            <h3>8.1 지원 프레임워크</h3>
+            <div class="grid">
+                <div class="card">
+                    <h4>🦜 LangChain</h4>
+                    <p><strong>지원 기능:</strong></p>
+                    <ul>
+                        <li>Chain 실행 추적</li>
+                        <li>Tool Selection 자동 평가</li>
+                        <li>Workflow Step 추적</li>
+                    </ul>
+                </div>
+
+                <div class="card">
+                    <h4>🚢 CrewAI</h4>
+                    <p><strong>지원 기능:</strong></p>
+                    <ul>
+                        <li>Agent Coordination 자동 추적</li>
+                        <li>Task 실행 평가</li>
+                        <li>Multi-Agent 협업 분석</li>
+                    </ul>
+                </div>
+
+                <div class="card">
+                    <h4>🕸️ LangGraph</h4>
+                    <p><strong>지원 기능:</strong></p>
+                    <ul>
+                        <li>노드별 실행 추적</li>
+                        <li>Workflow Execution 자동 평가</li>
+                        <li>그래프 탐색 효율성 측정</li>
+                    </ul>
+                </div>
+
+                <div class="card">
+                    <h4>🤖 AutoGen</h4>
+                    <p><strong>지원 기능:</strong></p>
+                    <ul>
+                        <li>Agent 대화 추적</li>
+                        <li>그룹 채팅 분석</li>
+                        <li>자율 협업 평가</li>
+                    </ul>
+                </div>
+            </div>
+
+            <h3>8.2 LangChain 통합 예제</h3>
+
+            <div style="background-color: #fff7e6; border-left: 4px solid #fa8c16; padding: 12px; margin: 15px 0;">
+                <p><strong>권장:</strong> <code>LangChainEvaluator</code> 클래스 사용 (보안 메트릭 자동 추적)</p>
+            </div>
+
+            <div class="card">
+                <h4>✨ LangChainEvaluator 사용</h4>
+                <pre><code>from agent_evaluator.integrations import LangChainEvaluator
+from langchain.agents import initialize_agent
+
+# LangChain 에이전트 생성
+agent = initialize_agent(tools, llm)
+
+# 평가 래퍼 생성 (Layer 1/2 자동 추적)
+evaluator = LangChainEvaluator(
+    agent,
+    enable_layer2=True,
+    verbose=True
+)
+
+# 실행 및 자동 평가
+result = evaluator.run(
+    "What is 25 * 4?",
+    ground_truth="100",
+    expected_tools=["calculator"]
+)
+
+# 보고서 생성
+report = evaluator.generate_report()
+# ✅ Layer 1: TCR, Accuracy, Latency + Security (Input Sanitization, Output Leakage, Authorization)
+# ✅ Layer 2: Tool Selection, Workflow + Security (Privilege Escalation, Attack Detection)</code></pre>
+            </div>
+
+            <div class="card" style="opacity: 0.7;">
+                <h4>⚠️ 기존 방식 (v4.0에서 제거 예정)</h4>
+                <pre><code>from framework_integrations import LangChainEvaluationCallback
+from agent_evaluator import PerformanceMonitor
+
+# 기존 콜백 방식 (deprecated)
+callback = LangChainEvaluationCallback(monitor, ...)
+result = agent_executor.run("query", callbacks=[callback])</code></pre>
+            </div>
+
+            <h3>8.3 CrewAI 통합 예제</h3>
+
+            <div style="background-color: #fff7e6; border-left: 4px solid #fa8c16; padding: 12px; margin: 15px 0;">
+                <p><strong>권장:</strong> <code>CrewAIEvaluator</code> 클래스 사용 (보안 메트릭 자동 추적)</p>
+            </div>
+
+            <div class="card">
+                <h4>✨ CrewAIEvaluator 사용</h4>
+                <pre><code>from agent_evaluator.integrations import CrewAIEvaluator
+from crewai import Crew, Agent, Task
+
+# Crew 정의
+researcher = Agent(role="Researcher", ...)
+writer = Agent(role="Writer", ...)
+task1 = Task(description="Research topic", agent=researcher)
+task2 = Task(description="Write article", agent=writer)
+crew = Crew(agents=[researcher, writer], tasks=[task1, task2])
+
+# 평가 래퍼 생성 (Layer 1/2 자동 추적)
+evaluator = CrewAIEvaluator(
+    crew,
+    enable_layer2=True,  # Agent Coordination 자동 추적
+    verbose=True
+)
+
+# 실행 및 자동 평가
+result = evaluator.kickoff(
+    inputs={"topic": "AI Agents"},
+    ground_truth="Expected output...",
+    expected_workflow_steps=["research", "write"]
+)
+
+# 보고서 생성
+report = evaluator.generate_report()
+# ✅ Layer 1: TCR, Accuracy, Latency + Security (Input Sanitization, Output Leakage, Authorization)
+# ✅ Layer 2: Agent Coordination, Workflow + Security (Privilege Escalation, Attack Detection)</code></pre>
+            </div>
+
+            <div class="card" style="opacity: 0.7;">
+                <h4>⚠️ 기존 방식 (v4.0에서 제거 예정)</h4>
+                <pre><code>from framework_integrations import EvaluatedCrew
+
+# 기존 방식 (deprecated)
+evaluated_crew = EvaluatedCrew(crew, monitor, ...)
+result = evaluated_crew.kickoff(...)</code></pre>
+            </div>
+
+            <h3>8.4 LangGraph 통합 예제</h3>
+
+            <div style="background-color: #fff7e6; border-left: 4px solid #fa8c16; padding: 12px; margin: 15px 0;">
+                <p><strong>권장:</strong> <code>LangGraphEvaluator</code> 클래스 사용 (보안 메트릭 자동 추적)</p>
+            </div>
+
+            <div class="card">
+                <h4>✨ LangGraphEvaluator 사용</h4>
+                <pre><code>from agent_evaluator.integrations import LangGraphEvaluator
+
+# 평가 래퍼 생성
+evaluator = LangGraphEvaluator(enable_layer2=True)
+
+# 노드 추가 (자동으로 평가가 래핑됨)
+evaluator.add_node("retrieval", retrieval_function)
+evaluator.add_node("generation", generation_function)
+evaluator.add_node("validation", validation_function)
+
+# Edge 연결
+evaluator.add_edge("start", "retrieval")
+evaluator.add_edge("retrieval", "generation")
+evaluator.add_edge("generation", "validation")
+evaluator.add_edge("validation", "end")
+
+# 실행 및 자동 평가
+result = evaluator.run(
+    initial_state={"messages": []},
+    ground_truth="Expected...",
+    expected_workflow_steps=["retrieval", "generation", "validation"]
+)
+
+# 보고서 생성
+report = evaluator.generate_report()
+# ✅ 각 노드의 실행 시간, 성공률 자동 추적
+# ✅ Workflow Execution Score + Security Metrics 자동 계산</code></pre>
+            </div>
+
+            <div class="card" style="opacity: 0.7;">
+                <h4>⚠️ 기존 방식 (v4.0에서 제거 예정)</h4>
+                <pre><code>from framework_integrations import LangGraphEvaluatedWorkflow
+
+# 기존 방식 (deprecated)
+workflow = LangGraphEvaluatedWorkflow(monitor, ...)
+result = workflow.compile_and_run(...)</code></pre>
+            </div>
+
+            <h3>8.5 AutoGen 통합 예제</h3>
+            <div class="card">
+                <h4>✨ 새로운 AutoGenEvaluator (보안 메트릭 자동 추적)</h4>
+                <pre><code>from agent_evaluator.integrations import AutoGenEvaluator
+from autogen import AssistantAgent, UserProxyAgent
+
+# AutoGen 에이전트 생성
+assistant = AssistantAgent(name="assistant", llm_config={...})
+
+# 평가 래퍼 생성
+evaluator = AutoGenEvaluator(
+    assistant,
+    enable_layer2=True  # Agent 상호작용 자동 추적
+)
+
+# evaluator.agent를 일반 에이전트처럼 사용
+user_proxy = UserProxyAgent(...)
+user_proxy.initiate_chat(evaluator.agent, message="Hello")
+
+# 보고서 생성
+report = evaluator.generate_report()
+# ✅ Agent Coordination + Security Metrics 자동 추적
+# ✅ 메시지 교환 분석 + 보안 위협 탐지</code></pre>
+            </div>
+
+            <div class="alert success" style="margin-top: 20px;">
+                <strong>✅ v0.5.0 통합의 장점:</strong>
+                <ul style="margin-top: 10px;">
+                    <li><strong>완전 자동화:</strong> Layer 1/2/3 메트릭 자동 추적</li>
+                    <li><strong>동적 계산:</strong> TCR, Accuracy 등 실시간 계산</li>
+                    <li><strong>통합 보고서:</strong> generate_report() 한 번으로 모든 메트릭 출력</li>
+                    <li><strong>Zero Configuration:</strong> 최소한의 설정으로 즉시 사용 가능</li>
+                </ul>
+                <p style="margin-top: 10px;"><strong>마이그레이션 가이드:</strong> <a href="API_REFERENCE.html#legacy-integrations" style="color: #1890ff; font-weight: bold;">API Reference - Legacy Integrations</a></p>
+            </div>
+        </section>
+
+        <!-- 8. Dashboard -->
+        <section id="dashboard">
+            <h2>🖥️ 9. Dashboard 사용법</h2>
+
+            <div class="alert info">
+                <strong>💡 Dual Dashboard 시스템:</strong> Agent Evaluator는 2개의 독립적인 Dashboard를 제공합니다.<br/>
+                - <strong>메인 Dashboard (Port 8501):</strong> 분석, 시각화, Test 투명성, 리포트 생성<br/>
+                - <strong>데이터 편집 Dashboard (Port 8503):</strong> Golden Dataset, Threshold 관리
+            </div>
+
+            <h3>9.1 메인 Dashboard - 9개 탭 (Port 8501)</h3>
+            <div class="grid">
+                <div class="card">
+                    <h4>📊 개요 (Overview)</h4>
+                    <p>전체 메트릭 요약, KPI 대시보드, 메트릭 비교</p>
+                </div>
+                <div class="card">
+                    <h4>🎯 핵심 메트릭 (Core Metrics)</h4>
+                    <p><strong>4개 서브탭:</strong> Task Completion (TCR + Retry), Accuracy, Quality, Hallucination</p>
+                </div>
+                <div class="card">
+                    <h4>⚡ 성능 지표 (Performance)</h4>
+                    <p><strong>2개 서브탭:</strong> Latency, Cost & Tokens</p>
+                </div>
+                <div class="card">
+                    <h4>🤖 Agentic AI 메트릭</h4>
+                    <p><strong>3개 서브탭:</strong> Tool Selection Accuracy, Agent Coordination, Workflow Execution</p>
+                </div>
+                <div class="card">
+                    <h4>🔬 고급 평가 (Advanced)</h4>
+                    <p><strong>2개 서브탭:</strong> DeepEval 메트릭, Ragas RAG 평가 (Layer 3)</p>
+                </div>
+                <div class="card">
+                    <h4>💡 인사이트 (Insights)</h4>
+                    <p><strong>3개 서브탭:</strong> Alerts (임계값 기반 경고), Recommendations (개선 제안), Task Explorer (개별 Task 분석)</p>
+                </div>
+                <div class="card">
+                    <h4>🔍 Test 투명성</h4>
+                    <p><strong>4개 서브탭:</strong> 메트릭 계산 과정 (Traces), 주석 관리 (Annotations), Audit Log, 상세 리포트</p>
+                    <p><em>참고: Python API의 5개 고급 분석 기능(이상치 탐지, 상관관계 등)은 10. 고급 기능 섹션 참고</em></p>
+                </div>
+                <div class="card">
+                    <h4>📚 지표 설명 (Metrics Guide)</h4>
+                    <p>모든 25개 메트릭(Layer 1: 10개, Layer 2: 6개, Layer 3: 9개)의 용도, 산출식, 기준값을 펼침목록 형태로 제공</p>
+                    <p>각 메트릭별 상세 설명, 계산 방법, 권장 임계값, 해석 가이드 포함</p>
+                </div>
+                <div class="card">
+                    <h4>📦 내보내기 & 평가 정보 (Export)</h4>
+                    <p><strong>2개 서브탭:</strong> Reports (HTML 리포트), 평가 환경 & 설정 (시스템 정보, 임계값, 요금제)</p>
+                </div>
+            </div>
+
+            <h3>9.2 데이터 편집 Dashboard (Port 8503)</h3>
+            <div class="card">
+                <h4>📝 데이터 편집</h4>
+                <p><strong>4개 서브탭 (순서대로):</strong></p>
+                <ol>
+                    <li>⚙️ <strong>임계값 설정:</strong> 20개 메트릭 Threshold 편집, 환경별 프리셋</li>
+                    <li>📄 <strong>Golden Dataset:</strong> QA Pair 추가/수정/삭제, Layer 2 필드 편집</li>
+                    <li>📋 <strong>Test 준비:</strong> Test Configuration 생성, 환경 설정</li>
+                    <li>📊 <strong>이력 관리:</strong> 버전 백업, 복원, 변경 이력 추적</li>
+                </ol>
+            </div>
+
+            <h3>9.3 실시간 모니터링</h3>
+            <div class="card">
+                <p>메인 Dashboard는 <code>evaluation_results/performance_data.json</code> 파일을 로드하여 실시간으로 메트릭을 시각화합니다.</p>
+                <ol>
+                    <li>Python 코드에서 평가 수행 및 저장</li>
+                    <li>Dashboard 새로고침 (F5)</li>
+                    <li>최신 평가 결과 즉시 반영</li>
+                </ol>
+            </div>
+
+            <h3>9.4 주요 기능 상세</h3>
+            <div class="card">
+                <h4>Golden Dataset 편집 (데이터 편집 Dashboard)</h4>
+                <ul>
+                    <li>기존 Dataset 로드 및 수정</li>
+                    <li>새로운 QA Pair 추가</li>
+                    <li>Layer 2 필드 (expected_tools, expected_agents, expected_workflow_steps) 편집</li>
+                    <li>버전 백업 자동 생성 (evaluation_results/versions/)</li>
+                    <li>JSON 형식으로 저장</li>
+                </ul>
+            </div>
+
+            <div class="card">
+                <h4>Threshold 설정 (데이터 편집 Dashboard)</h4>
+                <ul>
+                    <li>20개 메트릭 임계값 슬라이더 조정</li>
+                    <li>환경별 프리셋 (Development, Staging, Production)</li>
+                    <li>변경 이력 자동 추적 (Audit Log)</li>
+                    <li>JSON 파일로 저장 (thresholds.json)</li>
+                    <li>Test Configuration에 자동 포함</li>
+                </ul>
+            </div>
+
+            <div class="card">
+                <h4>Test Configuration 생성 (데이터 편집 Dashboard)</h4>
+                <ol>
+                    <li>"데이터 편집" 탭 → "📋 Test 준비" 서브탭</li>
+                    <li>Test 이름, 환경(Dev/Staging/Prod), Golden Dataset 선택</li>
+                    <li>Framework, Model Config 설정</li>
+                    <li>생성 버튼 클릭</li>
+                </ol>
+                <p>생성된 Config는 <code>evaluation_results/test_configs/test_config_YYYYMMDD_HHMMSS.json</code>에 저장되며, Golden Dataset 경로와 Threshold가 자동으로 포함됩니다.</p>
+            </div>
+
+            <div class="alert info">
+                <strong>💡 Tip:</strong> Dashboard는 Chrome, Edge, Firefox에서 최적화되어 있습니다. 대용량 데이터 시각화를 위해 최소 8GB RAM 권장.
+            </div>
+        </section>
+
+        <!-- 9. 워크플로우 -->
+        <section id="workflow">
+            <h2>⚙️ 10. 완전한 평가 워크플로우</h2>
+
+            <h3>10.1 Phase 1: 데이터 준비</h3>
+            <div class="step-flow">
+                <div class="step">
+                    <div class="step-number">1</div>
+                    <div class="step-content">
+                        <strong>Agent 함수 정의</strong>
+                        <p>평가할 Agent 함수를 명확하게 정의합니다. 입력과 출력이 일관되어야 합니다.</p>
+                    </div>
+                </div>
+                <div class="step">
+                    <div class="step-number">2</div>
+                    <div class="step-content">
+                        <strong>실행 시간 측정 로직 구현</strong>
+                        <p>time.time()을 사용하여 Agent 실행 전후의 시간을 측정합니다.</p>
+                    </div>
+                </div>
+                <div class="step">
+                    <div class="step-number">3</div>
+                    <div class="step-content">
+                        <strong>토큰 사용량 추적 설정</strong>
+                        <p>LLM API 응답에서 tokens_used 정보를 추출하는 로직을 구현합니다.</p>
+                    </div>
+                </div>
+                <div class="step">
+                    <div class="step-number">4</div>
+                    <div class="step-content">
+                        <strong>TaskResult 생성 템플릿 작성</strong>
+                        <p>11개 필수 필드를 모두 포함하는 TaskResult 생성 코드를 작성합니다 (섹션 5 참고).</p>
+                    </div>
+                </div>
+                <div class="step">
+                    <div class="step-number">5</div>
+                    <div class="step-content">
+                        <strong>Golden Dataset 작성</strong>
+                        <p>Dashboard 또는 Python 코드로 Golden Dataset 생성. 도메인별 20-50개 QA Pair 권장.</p>
+                    </div>
+                </div>
+                <div class="step">
+                    <div class="step-number">6</div>
+                    <div class="step-content">
+                        <strong>Threshold 설정</strong>
+                        <p>환경(Dev/Staging/Prod)에 맞는 임계값 설정. 도메인 특성 고려.</p>
+                    </div>
+                </div>
+                <div class="step">
+                    <div class="step-number">7</div>
+                    <div class="step-content">
+                        <strong>Test Configuration 생성</strong>
+                        <p>Golden Dataset + Threshold를 포함하는 Test Config 생성 및 저장.</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="example-box">
+                <h4>TaskResult 준비 단계별 완전 예제</h4>
+                <div class="code-executable">
+                    <div class="code-header">
+                        <span class="badge-success">실행 가능</span>
+                        <span class="copy-btn">복사</span>
+                    </div>
+                    <pre><code>from agent_evaluator import PerformanceMonitor, TaskResult, TaskType
+from datetime import datetime
+import time
+
+# Step 1: Agent 함수 정의
+def my_agent(question: str) -> dict:
+    """
+    Agent 함수: 질문을 받아 답변과 메타데이터를 반환
+    반환값: {"answer": str, "tokens": dict, "tools_used": list}
+    """
+    # 실제 LLM 호출 로직
+    response = "서울입니다"
+    tokens = {"input": 100, "output": 50}
+    tools = []
+    return {"answer": response, "tokens": tokens, "tools_used": tools}
+
+# Step 2: 실행 시간 측정 래퍼
+def run_agent_with_timing(agent_func, question: str) -> tuple:
+    """Agent를 실행하고 시간을 측정"""
+    start_time = time.time()
+    result = agent_func(question)
+    execution_time = time.time() - start_time
+    return result, execution_time
+
+# Step 3: TaskResult 생성 헬퍼 함수
+def create_task_result(
+    task_id: str,
+    question: str,
+    agent_result: dict,
+    execution_time: float,
+    expected_answer: str = None
+) -> TaskResult:
+    """Agent 결과를 TaskResult로 변환"""
+
+    # 정확도 계산 (선택적)
+    accuracy = 1.0
+    if expected_answer:
+        accuracy = 1.0 if expected_answer in agent_result['answer'] else 0.5
+
+    # 완료도 판단
+    completion = 1.0 if len(agent_result['answer']) > 10 else 0.5
+
+    # tool_calls 형식 변환
+    tool_calls = [{"name": tool} for tool in agent_result.get('tools_used', [])]
+
+    return TaskResult(
+        task_id=task_id,
+        task_type=TaskType.QA.value,
+        success=True,
+        completion_score=completion,
+        accuracy_score=accuracy,
+        execution_time=execution_time,
+        tokens_used=agent_result['tokens'],
+        tool_calls=tool_calls,
+        attempts=1,
+        errors=[],
+        timestamp=datetime.now()
+    )
+
+# Step 4: 완전한 평가 워크플로우
+monitor = PerformanceMonitor()
+
+# Golden Dataset (단순 예시)
+questions = [
+    {"qa_id": "qa_001", "question": "한국의 수도는?", "answer": "서울"},
+    {"qa_id": "qa_002", "question": "프랑스의 수도는?", "answer": "파리"}
+]
+
+# 평가 실행
+for qa in questions:
+    # Agent 실행 및 시간 측정
+    result, exec_time = run_agent_with_timing(my_agent, qa['question'])
+
+    # TaskResult 생성
+    task = create_task_result(
+        task_id=qa['qa_id'],
+        question=qa['question'],
+        agent_result=result,
+        execution_time=exec_time,
+        expected_answer=qa['answer']
+    )
+
+    # 기록
+    monitor.record_task(task)
+    print(f"✅ {qa['qa_id']}: 완료")
+
+# Step 5: 결과 확인
+report = monitor.generate_report()
+print(f"\n📊 TCR: {report['accuracy_metrics']['tcr']:.1f}%")
+print(f"📊 Accuracy: {report['accuracy_metrics']['accuracy']:.1f}%")</code></pre>
+                </div>
+            </div>
+
+            <div class="checklist-box">
+                <h4>Phase 1 체크리스트</h4>
+                <ul>
+                    <li>□ Agent 함수 정의 및 테스트 완료</li>
+                    <li>□ 시간 측정 로직 구현 완료</li>
+                    <li>□ 토큰 추적 설정 완료</li>
+                    <li>□ TaskResult 생성 헬퍼 함수 작성 완료</li>
+                    <li>□ Golden Dataset 작성 완료 (20개 이상 권장)</li>
+                    <li>□ Threshold 설정 완료</li>
+                    <li>□ Test Configuration 생성 완료</li>
+                </ul>
+            </div>
+
+            <h3>10.2 Phase 2: 평가 실행</h3>
+            <div class="card">
+                <pre><code># Test Configuration에서 Monitor 생성
+from agent_evaluator import PerformanceMonitor
+
+monitor = PerformanceMonitor.from_test_config(
+    "test_config_20251130_120000"
+)
+
+# ✅ 자동 설정됨:
+# - monitor.thresholds = {...}
+# - monitor.golden_dataset_path = "..."
+
+# Golden Dataset 로드
+monitor.load_golden_dataset()
+
+# 평가 수행
+for qa in monitor.golden_datasets:
+    # Agent 실행
+    start = time.time()
+    response = agent.run(qa['question'])
+    execution_time = time.time() - start
+
+    # TaskResult 생성 및 기록 (헬퍼 함수 사용 권장)
+    # from taskresult_helpers import create_taskresult_from_execution
+    #
+    # task = create_taskresult_from_execution(
+    #     task_id=qa['qa_id'],
+    #     question=qa['question'],
+    #     response=response,
+    #     ground_truth=qa['answer'],
+    #     execution_time=execution_time
+    # )
+
+    # 또는 수동으로 생성:
+    from taskresult_helpers import (
+        calculate_completion_score,
+        calculate_accuracy_score,
+        estimate_tokens
+    )
+
+    task = TaskResult(
+        task_id=qa['qa_id'],
+        task_type=TaskType.QA.value,
+        success=True,
+        completion_score=calculate_completion_score(response, ground_truth=qa['answer']),  # ✅ 동적
+        accuracy_score=calculate_accuracy_score(response, qa['answer']),  # ✅ 동적
+        execution_time=execution_time,
+        tokens_used={"input": estimate_tokens(qa['question']),  # ✅ 동적
+                     "output": estimate_tokens(response)},
+        tool_calls=[],  # extract_tools(response) 사용 가능
+        attempts=1,
+        errors=[],
+        timestamp=datetime.now()
+    )
+
+    monitor.record_task(task)
+
+    # Layer 2 평가 (선택적)
+    if 'expected_tools' in qa and qa['expected_tools']:
+        monitor.tool_selection_tracker.evaluate_selection(
+            task.task_id,
+            qa['expected_tools'],
+            task.tool_calls
+        )
+
+# 결과 저장
+monitor.save_to_file("evaluation_results/test_results.json")</code></pre>
+            </div>
+
+            <h3>10.3 Phase 3: Threshold 검증</h3>
+            <div class="card">
+                <pre><code># Threshold 비교
+comparison = monitor.compare_with_thresholds()
+
+# Pass/Fail 판정
+failed_metrics = []
+for metric, result in comparison.items():
+    if result['status'] == 'fail':
+        failed_metrics.append(metric)
+        print(f"❌ {metric}: {result['message']}")
+    else:
+        print(f"✅ {metric}: {result['message']}")
+
+# 전체 상태
+if not failed_metrics:
+    print("\n✅ 모든 메트릭 통과! 배포 가능")
+    sys.exit(0)
+else:
+    print(f"\n❌ {len(failed_metrics)}개 메트릭 실패. 개선 필요:")
+    for m in failed_metrics:
+        print(f"  - {m}")
+    sys.exit(1)</code></pre>
+            </div>
+
+            <h3>10.4 Phase 4: 결과 분석</h3>
+            <div class="step-flow">
+                <div class="step">
+                    <div class="step-number">1</div>
+                    <div class="step-content">
+                        <strong>Dashboard 확인</strong>
+                        <p>Streamlit Dashboard로 결과 시각화 및 상세 분석</p>
+                    </div>
+                </div>
+                <div class="step">
+                    <div class="step-number">2</div>
+                    <div class="step-content">
+                        <strong>이상치 분석</strong>
+                        <p>Test Transparency Manager로 이상 징후, 병목 구간 식별</p>
+                    </div>
+                </div>
+                <div class="step">
+                    <div class="step-number">3</div>
+                    <div class="step-content">
+                        <strong>개선 방안 도출</strong>
+                        <p>Actionable Insights 기능으로 구체적인 개선점 제시</p>
+                    </div>
+                </div>
+                <div class="step">
+                    <div class="step-number">4</div>
+                    <div class="step-content">
+                        <strong>리포트 생성</strong>
+                        <p>Dashboard에서 PDF/HTML 리포트 다운로드 및 공유</p>
+                    </div>
+                </div>
+            </div>
+
+            <h3>10.5 CI/CD 통합</h3>
+            <div class="card">
+                <h4>품질 게이트 스크립트 예제</h4>
+                <pre><code># scripts/quality_gate.py
+from agent_evaluator import PerformanceMonitor
+import sys
+import os
+
+# 환경 설정
+environment = os.getenv('ENV', 'development')
+
+# Test Configuration에서 Monitor 로드
+monitor = PerformanceMonitor.from_test_config(
+    f"test_config_{environment}"
+)
+
+# Golden Dataset 기반 평가 수행
+monitor.load_golden_dataset()
+for qa in monitor.golden_datasets:
+    # Agent 실행 및 평가
+    # ... (실행 코드)
+    pass
+
+# Threshold 검증
+comparison = monitor.compare_with_thresholds()
+
+# Pass/Fail 판정
+failed_metrics = [m for m, r in comparison.items() if r['status'] == 'fail']
+
+if not failed_metrics:
+    print("✅ 모든 메트릭 통과! 배포 가능")
+    sys.exit(0)
+else:
+    print(f"❌ {len(failed_metrics)}개 메트릭 실패. 개선 필요")
+    for m in failed_metrics:
+        print(f"  - {m}: {comparison[m]['message']}")
+    sys.exit(1)</code></pre>
+            </div>
+
+            <div class="alert success">
+                <strong>✅ 완전한 자동화:</strong> 이 워크플로우를 사용하면 Golden Dataset 작성 → 평가 실행 → Threshold 검증 → CI/CD 통합까지 완전 자동화할 수 있습니다.
+            </div>
+        </section>
+
+        <!-- 10. 고급 기능 -->
+        <section id="advanced">
+            <h2>🔬 11. 고급 기능</h2>
+
+            <h3>11.1 Test Transparency Manager - 5개 고급 분석 기능 (Python API)</h3>
+            <div class="alert info">
+                <strong>💡 Test Transparency Manager란?</strong> 메트릭 계산 과정을 완전히 추적하고, 이상 징후를 자동으로 탐지하며, AI 기반 개선 방안을 제시하는 고급 분석 도구입니다.
+                <br/><br/>
+                <strong>사용 방법:</strong>
+                <ul style="margin-top: 0.5rem;">
+                    <li><strong>Python API:</strong> 5개 고급 분석 기능 (이상치 탐지, 상관관계 분석, 성능 병목, 데이터 품질, 개선 방안) - 아래 섹션 참고</li>
+                    <li><strong>메인 Dashboard (Port 8501):</strong> "🔍 Test 투명성" 탭 - 메타 투명성 기능 (Traces, Annotations, Audit Log, 상세 리포트)</li>
+                </ul>
+                <strong>참고:</strong> 메인 Dashboard의 "💡 Insights" 탭은 임계값 기반 Alerts 및 Recommendations를 제공합니다. Test Transparency Manager는 더 심층적인 통계 분석 및 AI 기반 인사이트를 제공합니다.
+            </div>
+
+            <h4>기능 1: 메트릭 이상치 탐지 (Anomaly Detection)</h4>
+            <div class="card">
+                <p><strong>설명:</strong> Z-Score 기반 통계 분석으로 비정상적인 메트릭 값을 자동 탐지합니다.</p>
+                <pre><code>from test_transparency_manager import TestTransparencyManager
+
+transparency = TestTransparencyManager(output_dir="evaluation_results")
+
+# 메트릭 이상치 탐지
+anomalies = transparency.analyze_metric_anomalies(
+    monitor,
+    zscore_threshold=2.5  # 표준편차 2.5배 초과 시 이상치로 판정
+)
+
+print(f"발견된 이상치: {len(anomalies)}개")
+for anomaly in anomalies:
+    print(f"  - {anomaly['metric']}: {anomaly['value']} (Z-Score: {anomaly['zscore']:.2f})")
+    print(f"    평균: {anomaly['mean']:.2f}, 표준편차: {anomaly['std']:.2f}")</code></pre>
+                <p><strong>활용:</strong> 갑작스런 성능 저하, 비용 급증, 품질 하락을 조기에 발견하여 신속한 대응 가능</p>
+            </div>
+
+            <h4>기능 2: 메트릭 상관관계 분석 (Correlation Analysis)</h4>
+            <div class="card">
+                <p><strong>설명:</strong> 메트릭 간 상호 영향을 분석하여 숨겨진 패턴을 발견합니다.</p>
+                <pre><code># 메트릭 상관관계 분석
+correlations = transparency.analyze_metric_correlations(monitor)
+
+print("강한 양의 상관관계 (함께 증가):")
+for corr in correlations['strong_positive']:
+    print(f"  {corr['metric1']} ↔ {corr['metric2']}: {corr['correlation']:.2f}")
+    print(f"    해석: {corr['interpretation']}")
+
+print("\n강한 음의 상관관계 (반비례):")
+for corr in correlations['strong_negative']:
+    print(f"  {corr['metric1']} ↔ {corr['metric2']}: {corr['correlation']:.2f}")
+    print(f"    해석: {corr['interpretation']}")</code></pre>
+                <p><strong>활용:</strong> 예) "Latency가 증가하면 Quality가 감소" → 응답 시간 최적화가 품질 개선에 직접 영향</p>
+            </div>
+
+            <h4>기능 3: 성능 병목 식별 (Performance Bottleneck Identification)</h4>
+            <div class="card">
+                <p><strong>설명:</strong> Critical Path 분석으로 성능 저하의 주요 원인을 식별합니다.</p>
+                <pre><code># 성능 병목 식별
+bottlenecks = transparency.identify_performance_bottlenecks(monitor)
+
+print("Critical 병목 (즉시 해결 필요):")
+for b in bottlenecks['critical_bottlenecks']:
+    print(f"  - {b['metric']}: {b['description']}")
+    print(f"    심각도: {b['severity']}, 영향: {b['impact']}")
+    print(f"    권장 조치: {b['recommendation']}")
+
+print("\nWarning 병목 (모니터링 필요):")
+for b in bottlenecks['warning_bottlenecks']:
+    print(f"  - {b['metric']}: {b['description']}")</code></pre>
+                <p><strong>활용:</strong> 성능 최적화의 우선순위를 정하고, 가장 효과적인 개선 영역을 파악</p>
+            </div>
+
+            <h4>기능 4: 데이터 품질 검증 (Data Quality Validation)</h4>
+            <div class="card">
+                <p><strong>설명:</strong> 평가 데이터의 무결성, 완전성, 일관성을 자동으로 검증합니다.</p>
+                <pre><code># 데이터 품질 검증
+quality_report = transparency.generate_data_quality_report(monitor)
+
+print(f"전체 데이터 품질 점수: {quality_report['overall_score']:.1f}/10")
+print(f"  - 완전성 (Completeness): {quality_report['completeness_score']:.1f}/10")
+print(f"  - 일관성 (Consistency): {quality_report['consistency_score']:.1f}/10")
+print(f"  - 정확성 (Accuracy): {quality_report['accuracy_score']:.1f}/10")
+
+if quality_report['issues']:
+    print("\n발견된 문제:")
+    for issue in quality_report['issues']:
+        print(f"  - [{issue['severity']}] {issue['type']}: {issue['description']}")
+        print(f"    해결 방법: {issue['solution']}")</code></pre>
+                <p><strong>활용:</strong> 평가 결과의 신뢰성을 보장하고, 데이터 입력 오류를 조기에 발견</p>
+            </div>
+
+            <h4>기능 5: 실행 가능한 개선 방안 (Actionable Insights)</h4>
+            <div class="card">
+                <p><strong>설명:</strong> AI 기반 분석으로 구체적이고 실행 가능한 개선 방안을 우선순위와 함께 제시합니다.</p>
+                <pre><code># 실행 가능한 개선 방안
+insights = transparency.generate_actionable_insights(monitor)
+
+print("High Priority 개선 방안 (즉시 실행):")
+for insight in insights['high_priority']:
+    print(f"  - {insight['title']}")
+    print(f"    현재 상태: {insight['current_state']}")
+    print(f"    권장 조치: {insight['recommendation']}")
+    print(f"    예상 효과: {insight['expected_impact']}")
+    print(f"    구현 난이도: {insight['difficulty']}")
+
+print("\nMedium Priority 개선 방안 (계획적 실행):")
+for insight in insights['medium_priority']:
+    print(f"  - {insight['title']}: {insight['recommendation']}")
+
+print("\nLow Priority 개선 방안 (선택적 실행):")
+for insight in insights['low_priority']:
+    print(f"  - {insight['title']}")</code></pre>
+                <p><strong>활용:</strong> 개발 로드맵 수립, 성능 개선 작업의 우선순위 결정, ROI 높은 최적화 식별</p>
+            </div>
+
+            <div class="alert success">
+                <strong>✅ 5개 기능의 시너지:</strong> 이 기능들을 함께 사용하면 "이상치 탐지 → 상관관계 분석 → 병목 식별 → 데이터 검증 → 개선 방안 도출"의 완전한 분석 워크플로우를 구축할 수 있습니다.
+            </div>
+
+            <h3>11.2 메타 투명성 기능 (Traces, Annotations, Audit Log)</h3>
+            <div class="alert info">
+                <strong>💡 메타 투명성이란?</strong> 메트릭 계산 과정을 단계별로 추적하고, 팀 간 커뮤니케이션을 위한 주석을 추가하며, 모든 시스템 이벤트를 감사 로그로 기록하는 기능입니다.
+                <br/><br/>
+                <strong>사용 위치:</strong>
+                <ul style="margin-top: 0.5rem;">
+                    <li><strong>메인 Dashboard (Port 8501):</strong> "🔍 Test 투명성" 탭 - GUI로 Traces, Annotations, Audit Log 조회</li>
+                    <li><strong>Python API:</strong> TestTransparencyManager - 프로그래밍 방식으로 메타 데이터 관리</li>
+                </ul>
+            </div>
+
+            <h4>기능 1: 메트릭 추적 (Traces)</h4>
+            <div class="card">
+                <p><strong>설명:</strong> 각 메트릭의 계산 과정을 단계별로 추적하여 투명성을 제공합니다.</p>
+                <pre><code># 메트릭 계산 시작
+trace_id = transparency.start_metric_calculation(
+    metric_name="tcr",
+    metric_type="basic",
+    task_id="task_001"
+)
+
+# 단계별 추적
+transparency.log_calculation_step(
+    trace_id,
+    step_name="Load TaskResults",
+    description="데이터베이스에서 TaskResult 로드",
+    input_data={"task_count": 100},
+    output_data={"loaded": 100},
+    status="completed"
+)
+
+# 최종 결과
+transparency.end_metric_calculation(
+    trace_id,
+    final_result={"value": 95.5, "unit": "%"},
+    explanation="95.5%의 작업이 성공적으로 완료됨"
+)
+
+# 추적 기록 조회
+traces = transparency.get_metric_traces(metric_name="tcr")
+for trace in traces:
+    print(f"Trace {trace['trace_id']}: {trace['final_result']}")</code></pre>
+                <p><strong>활용:</strong> 메트릭 계산의 정확성 검증, 디버깅, 계산 로직 이해</p>
+            </div>
+
+            <h4>기능 2: 주석 및 코멘트 (Annotations)</h4>
+            <div class="card">
+                <p><strong>설명:</strong> 메트릭, Task, Dataset에 주석을 추가하여 팀 간 커뮤니케이션을 개선합니다.</p>
+                <pre><code># 주석 추가
+annotation_id = transparency.add_annotation(
+    target_type="metric",
+    target_id="metric_tcr",
+    annotation_type="issue",
+    priority="high",
+    title="TCR 급락 현상",
+    content="금일 오전 10시 이후 TCR이 80%로 급락. 원인 조사 필요.",
+    author="qa_manager"
+)
+
+# 답글 추가
+transparency.add_annotation_reply(
+    annotation_id,
+    author="developer",
+    content="확인 결과 API 타임아웃 증가가 원인. 수정 중."
+)
+
+# 주석 조회
+annotations = transparency.get_annotations(
+    target_type="metric",
+    target_id="metric_tcr",
+    status="open"
+)
+
+# 주석 상태 변경
+transparency.update_annotation_status(annotation_id, "resolved")</code></pre>
+                <p><strong>활용:</strong> 이슈 추적, 팀 협업, 문제 해결 과정 기록, 품질 관리</p>
+            </div>
+
+            <h4>기능 3: Audit Log (감사 로그)</h4>
+            <div class="card">
+                <p><strong>설명:</strong> 모든 시스템 이벤트를 자동으로 기록하여 보안 감사 및 변경 추적이 가능합니다.</p>
+                <pre><code># Audit Log는 자동 생성됨
+# 예: Threshold 변경 시 자동 로그
+
+# Audit Log 조회
+logs = transparency.get_audit_logs(
+    event_type="data_edit",
+    user="admin",
+    start_date="2025-11-30",
+    end_date="2025-11-30"
+)
+
+for log in logs:
+    print(f"{log['timestamp']}: {log['user']} - {log['action']}")
+    print(f"  Target: {log['target_type']}/{log['target_id']}")
+    print(f"  Details: {log['details']}")</code></pre>
+                <p><strong>활용:</strong> 규정 준수, 보안 감사, 변경 이력 추적, 문제 원인 분석</p>
+            </div>
+
+            <div class="alert warning">
+                <strong>⚠️ 메타 투명성 vs 고급 분석 기능 차이:</strong>
+                <ul style="margin-top: 0.5rem;">
+                    <li><strong>메타 투명성 (Traces, Annotations, Audit Log):</strong> "어떻게 계산되었는가?" - 계산 과정 추적 및 기록</li>
+                    <li><strong>고급 분석 기능 (10.1의 5개 기능):</strong> "결과가 의미하는 바는?" - 통계 분석 및 AI 기반 인사이트</li>
+                </ul>
+            </div>
+
+            <h3>11.3 버전 관리 (Versioning)</h3>
+            <div class="card">
+                <p>Golden Dataset과 Threshold의 모든 변경을 자동으로 백업하고, 필요시 복원할 수 있습니다.</p>
+                <pre><code>from data_editor_manager import DataEditorManager
+
+manager = DataEditorManager()
+
+# 버전 백업은 자동 생성됨 (save_golden_dataset, save_thresholds 호출 시)
+
+# 버전 목록 조회
+versions = manager.list_versions(file_type="thresholds")
+for v in versions:
+    print(f"{v['version_id']}: {v['timestamp']} - {v['reason']}")
+
+# 버전 복원
+manager.restore_from_version(
+    version_id="version_20251130_120000_thresholds",
+    target_file="thresholds.json"
+)
+
+print("✅ 이전 버전으로 복원 완료")</code></pre>
+            </div>
+
+            <div class="alert info">
+                <strong>💡 고급 기능 종합 활용:</strong>
+                <ul style="margin-top: 0.5rem;">
+                    <li><strong>개발 단계:</strong> 5개 고급 분석 기능으로 성능 문제 조기 발견 및 개선</li>
+                    <li><strong>테스트 단계:</strong> 메타 투명성으로 계산 과정 검증 및 팀 협업</li>
+                    <li><strong>프로덕션:</strong> Audit Log 및 버전 관리로 규정 준수 및 이력 추적</li>
+                </ul>
+                대규모 팀이나 엔터프라이즈 환경에서 특히 유용하며, 품질 관리 프로세스를 체계화하고 규정 준수를 지원합니다.
+            </div>
+        </section>
+
+        <!-- 11. 문제 해결 -->
+        <section id="troubleshooting">
+            <h2>🆘 12. 문제 해결 (Troubleshooting)</h2>
+
+            <h3>12.1 일반적인 문제</h3>
+            <div class="card">
+                <h4>Q1: TCR이 예상보다 낮게 나옵니다</h4>
+                <p><strong>원인:</strong></p>
+                <ul>
+                    <li>TaskResult의 <code>success</code> 필드가 False로 설정됨</li>
+                    <li>completion_score가 1.0 미만</li>
+                </ul>
+                <p><strong>해결:</strong></p>
+                <pre><code># TCR 계산 로직 확인
+tcr_data = monitor.tcr_tracker.calculate_tcr()
+print(f"Total: {tcr_data['total_tasks']}")
+print(f"Completed: {tcr_data['completed_tasks']}")
+print(f"Success: {tcr_data['successful_tasks']}")
+
+# 실패 작업 조회
+failed_tasks = [t for t in monitor.tasks if not t.success]
+for task in failed_tasks:
+    print(f"Task {task.task_id}: {task.errors}")</code></pre>
+            </div>
+
+            <div class="card">
+                <h4>Q2: Tool Selection Accuracy가 계산되지 않습니다</h4>
+                <p><strong>원인:</strong></p>
+                <ul>
+                    <li>Golden Dataset에 expected_tools가 없음</li>
+                    <li>evaluate_selection() 메서드를 호출하지 않음</li>
+                </ul>
+                <p><strong>해결:</strong></p>
+                <pre><code># Golden Dataset 확인
+for qa in monitor.golden_datasets:
+    if 'expected_tools' not in qa or not qa['expected_tools']:
+        print(f"Warning: {qa['qa_id']} has no expected_tools")
+
+# 수동 평가 호출
+if 'expected_tools' in qa and qa['expected_tools']:
+    monitor.tool_selection_tracker.evaluate_selection(
+        task.task_id,
+        qa['expected_tools'],
+        task.tool_calls
+    )</code></pre>
+            </div>
+
+            <div class="card">
+                <h4>Q3: Dashboard가 로드되지 않습니다</h4>
+                <p><strong>원인:</strong></p>
+                <ul>
+                    <li>performance_data.json 파일이 없음</li>
+                    <li>파일 형식이 잘못됨</li>
+                </ul>
+                <p><strong>해결:</strong></p>
+                <pre><code># 데이터 파일 확인
+import os
+if not os.path.exists("evaluation_results/performance_data.json"):
+    print("❌ performance_data.json이 없습니다.")
+    print("   평가를 먼저 수행하고 save_to_file()을 호출하세요.")
+
+# 파일 형식 검증
+import json
+with open("evaluation_results/performance_data.json") as f:
+    data = json.load(f)
+    print(f"✅ 유효한 JSON. Tasks: {len(data.get('tasks', []))}")</code></pre>
+            </div>
+
+            <h3>12.2 성능 문제</h3>
+            <table>
+                <thead>
+                    <tr>
+                        <th>증상</th>
+                        <th>원인</th>
+                        <th>해결 방법</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>Dashboard 로딩 느림</td>
+                        <td>대용량 데이터 (1000+ tasks)</td>
+                        <td>샘플링 사용 또는 기간별 필터링</td>
+                    </tr>
+                    <tr>
+                        <td>메트릭 계산 느림</td>
+                        <td>Layer 3 고급 메트릭 사용</td>
+                        <td>Profile "minimal" 사용 또는 샘플링</td>
+                    </tr>
+                    <tr>
+                        <td>메모리 부족</td>
+                        <td>너무 많은 TaskResult 메모리 보관</td>
+                        <td>주기적으로 save_to_file() 및 메모리 정리</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <h3>12.3 디버깅 팁</h3>
+            <div class="card">
+                <pre><code># 디버그 모드로 리포트 생성
+report = monitor.generate_report(debug=True)
+
+# Layer 2 메트릭 상세 확인
+print("Tool Selection:")
+stats = monitor.tool_selection_tracker.get_accuracy_stats()
+for key, value in stats.items():
+    print(f"  {key}: {value}")
+
+print("Agent Coordination:")
+score = monitor.agent_coordination_tracker.calculate_coordination_score()
+for key, value in score.items():
+    print(f"  {key}: {value}")
+
+print("Workflow Execution:")
+workflow_stats = monitor.workflow_tracker.calculate_execution_success_rate()
+for key, value in workflow_stats.items():
+    print(f"  {key}: {value}")
+
+# Transparency 분석
+from test_transparency_manager import TestTransparencyManager
+transparency = TestTransparencyManager()
+
+# 데이터 품질 검증
+quality = transparency.generate_data_quality_report(monitor)
+print(f"Overall Quality Score: {quality['overall_score']:.1f}/10")
+print("Issues:")
+for issue in quality['issues']:
+    print(f"  - {issue['type']}: {issue['description']}")</code></pre>
+            </div>
+
+            <h3>12.4 지원 및 문서</h3>
+            <div class="grid">
+                <div class="card">
+                    <h4>📚 상세 문서</h4>
+                    <ul>
+                        <li><code>docs/01_API.md</code> - API 레퍼런스</li>
+                        <li><code>docs/03_AGENTIC_AI_METRICS_GUIDE.md</code> - Layer 2 가이드</li>
+                        <li><code>docs/04_GOLDEN_DATASET_GUIDE.md</code> - Dataset 가이드</li>
+                        <li><code>docs/05_THRESHOLD_CONFIGURATION_GUIDE.md</code> - Threshold 가이드</li>
+                    </ul>
+                </div>
+
+                <div class="card">
+                    <h4>💡 예제 코드</h4>
+                    <ul>
+                        <li><code>Evaluator_Examples/framework_with_layer2_example.py</code></li>
+                        <li><code>Evaluator_Examples/threshold_validation_example.py</code></li>
+                        <li><code>Evaluator_Examples/golden_dataset_evaluation_example.py</code></li>
+                    </ul>
+                </div>
+            </div>
+
+        </section>
+
+    </div>
+
+    <footer>
+        <div class="content-wrapper">
+            <p>&copy; 2025 Agent Evaluator. All rights reserved.</p>
+            <p><strong>최종 업데이트</strong>: 2025-12-16 | <strong>버전</strong>: Agent Evaluator v0.5.0 | <strong>문서</strong>: 종합 학습 가이드</p>
+        </div>
+    </footer>
+
+    <script>
+        // Smooth scrolling for navigation links
+        document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+            anchor.addEventListener('click', function (e) {
+                e.preventDefault();
+                const target = document.querySelector(this.getAttribute('href'));
+                if (target) {
+                    target.scrollIntoView({
+                        behavior: 'smooth',
+                        block: 'start'
+                    });
+                }
+            });
+        });
+
+        // Print button
+        function printPage() {
+            window.print();
+        }
+
+        // Add print button to header
+        window.addEventListener('DOMContentLoaded', () => {
+            const headerContent = document.querySelector('.header-content');
+            const printBtn = document.createElement('button');
+            printBtn.innerHTML = '🖨️ PDF 출력';
+            printBtn.style.cssText = 'position: absolute; top: 2rem; right: 2rem; padding: 0.5rem 1rem; background: #e2e8f0; color: #2563eb; border: none; border-radius: 0.5rem; cursor: pointer; font-weight: 600;';
+            printBtn.onclick = printPage;
+            headerContent.style.position = 'relative';
+            headerContent.appendChild(printBtn);
+        });
+    </script>
+    <script src="scripts/mermaid-zoom.js"></script>
+</body>
+</html>

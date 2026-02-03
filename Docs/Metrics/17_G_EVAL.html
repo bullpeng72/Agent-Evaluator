@@ -1,0 +1,1342 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>G-Eval Quality Assessment - Agent Evaluator v0.5.0</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            line-height: 1.8;
+            color: #1a202c;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 40px 20px;
+        }
+
+        .container {
+    max-width: 1400px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 60px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 3.5em;
+            margin-bottom: 20px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.2);
+        }
+
+        .header .subtitle {
+            font-size: 1.4em;
+            opacity: 0.95;
+            font-weight: 300;
+        }
+
+        .version-badge {
+            display: inline-block;
+            background: rgba(255,255,255,0.2);
+            padding: 12px 30px;
+            border-radius: 30px;
+            backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    margin-top: 15px;
+            font-size: 1em;
+        }
+
+        .content {    padding: 60px;
+        }
+
+        .section {
+            margin-bottom: 50px;
+        }
+        .section h2 {
+            color: #667eea;
+            font-size: 2.2em;
+            margin-bottom: 25px;
+            padding-bottom: 15px;
+            border-bottom: 3px solid #667eea;
+        }
+
+        .section h3 {
+            color: #764ba2;
+            font-size: 1.6em;
+            margin: 30px 0 20px 0;
+        }
+
+        .section h4 {
+            color: #553c9a;
+            font-size: 1.3em;
+            margin: 25px 0 15px 0;
+        }
+
+        .intro-box {
+            background: linear-gradient(135deg, #f6f8fb 0%, #e9ecf5 100%);
+            padding: 30px;
+            border-radius: 8px;
+            border-left: 5px solid #667eea;
+            margin: 25px 0;
+            font-size: 1.1em;
+            line-height: 1.8;
+        }
+
+        .importance-box {
+            background: linear-gradient(135deg, #fff5f5 0%, #fed7d7 100%);
+            padding: 30px;
+            border-radius: 15px;
+            border-left: 6px solid #f56565;
+            margin: 25px 0;
+        }
+
+        .importance-box h3 {
+            color: #c53030;
+            margin-top: 0;
+        }
+        .code-block {
+            background: #2d3748;
+            color: #e2e8f0;
+            padding: 25px;
+            border-radius: 8px;
+            overflow-x: auto;
+            margin: 20px 0;
+            border-left: 4px solid #667eea;
+            font-family: 'Courier New', monospace;
+            font-size: 0.95em;
+            line-height: 1.6;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+        .code-block .comment {
+            color: #a0aec0;
+        }
+        .code-block .keyword {
+            color: #f687b3;
+        }
+        .code-block .string {
+            color: #68d391;
+        }
+        .code-block .function {
+            color: #61afef;
+        }
+        .code-block .number {
+            color: #d19a66;
+        }
+        .code-block .operator {
+            color: #56b6c2;
+        }
+
+        .info-box {
+            background: linear-gradient(135deg, #f6f8fb 0%, #e9ecf5 100%);
+            padding: 30px;
+            border-radius: 15px;
+            border-left: 6px solid #667eea;
+            margin: 25px 0;
+        }
+
+        .info-box h4 {
+            color: #667eea;
+            margin-top: 0;
+        }
+
+        .warning-box {
+            background: linear-gradient(135deg, #fffaf0 0%, #feebc8 100%);
+            padding: 25px;
+            border-radius: 12px;
+            border-left: 6px solid #dd6b20;
+            margin: 25px 0;
+        }
+
+        .warning-box h4 {
+            color: #c05621;
+            margin-top: 0;
+        }
+
+        .success-box {
+            background: linear-gradient(135deg, #f0fff4 0%, #c6f6d5 100%);
+            padding: 20px;
+            border-radius: 10px;
+            border-left: 5px solid #38a169;
+            margin: 15px 0;
+        }
+
+        .success-box strong {
+            color: #22543d;
+        }
+
+        .best-practice {
+            background: linear-gradient(135deg, #f0fff4 0%, #c6f6d5 100%);
+            padding: 20px;
+            border-radius: 10px;
+            border-left: 5px solid #38a169;
+            margin: 15px 0;
+        }
+
+        .best-practice strong {
+            color: #22543d;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 25px 0;
+            background: white;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            border-radius: 8px;
+            overflow: hidden;
+        }
+        th {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 15px;
+            text-align: left;
+            font-weight: 600;
+        }
+
+        td {
+            padding: 15px;
+            border-bottom: 1px solid #e2e8f0;
+        }
+
+        tr:last-child td {
+            border-bottom: none;
+        }
+
+        tr:hover {
+            background: #f7fafc;
+        }
+
+        .highlight {
+            background: linear-gradient(120deg, #fef5e7 0%, #fdebd0 100%);
+            padding: 3px 8px;
+            border-radius: 4px;
+            font-weight: 600;
+            color: #744210;
+        }
+
+        .implementation-note {
+            background: #edf2f7;
+            padding: 20px;
+            border-radius: 8px;
+            margin: 20px 0;
+            border-left: 4px solid #4299e1;
+        }
+
+        .implementation-note strong {
+            color: #2c5282;
+        }
+        ul, ol {
+            margin: 20px 0;
+            padding-left: 30px;
+        }
+
+        li {
+            margin: 12px 0;
+            line-height: 1.7;
+        }
+    
+
+                /* Mermaid Diagrams */
+        .mermaid {
+            margin: 40px 0;
+            text-align: center;
+            background: linear-gradient(135deg, #f6f8fb 0%, #e9ecf5 100%);
+            padding: 30px;
+            border-radius: 15px;
+            border: 1px solid #e2e8f0;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            transition: all 0.3s ease;
+        }
+
+        .mermaid:hover {
+            box-shadow: 0 8px 20px rgba(0,0,0,0.15);
+            transform: translateY(-2px);
+        }
+
+
+    
+
+        /* Mermaid Zoom Modal Styles */
+        .mermaid-modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 10000;
+    opacity: 0;
+    transition: opacity 0.2s ease;
+}
+
+.mermaid-modal.active {
+    opacity: 1;
+}
+
+.mermaid-modal.closing {
+    opacity: 0;
+}
+
+/* Modal backdrop */
+.mermaid-modal-backdrop {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.85);
+    backdrop-filter: blur(4px);
+}
+
+/* Modal content container */
+.mermaid-modal-content {
+    position: relative;
+    width: 90vw;
+    height: 90vh;
+    max-width: 1400px;
+    max-height: 900px;
+    margin: 5vh auto;
+    background: var(--bg-white);
+    border-radius: var(--radius-xl);
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;  /* Keep border-radius working */
+}
+
+/* Modal header */
+.mermaid-modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: var(--space-md) var(--space-lg);
+    background: linear-gradient(135deg, var(--primary-color) 0%, var(--primary-dark) 100%);
+    color: white;
+    border-bottom: 1px solid var(--bg-border);
+}
+
+.mermaid-modal-title {
+    font-size: 1.1rem;
+    font-weight: 600;
+}
+
+.mermaid-modal-controls {
+    display: flex;
+    gap: var(--space-sm);
+}
+
+.mermaid-btn {
+    background: rgba(255, 255, 255, 0.2);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    color: white;
+    padding: var(--space-sm);
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    transition: all var(--transition-fast);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+}
+
+.mermaid-btn:hover {
+    background: rgba(255, 255, 255, 0.3);
+    border-color: rgba(255, 255, 255, 0.5);
+    transform: scale(1.05);
+}
+
+.mermaid-btn:active {
+    transform: scale(0.95);
+}
+
+.mermaid-btn svg {
+    width: 20px;
+    height: 20px;
+}
+
+/* Modal body */
+.mermaid-modal-body {
+    flex: 1;
+    overflow: visible;  /* Don't clip transformed content */
+    position: relative;
+    background: #ffffff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* Diagram container */
+.mermaid-diagram-container {
+    transform-origin: center center;
+    /* No transition during drag - will be added dynamically only for zoom */
+    transition: none;
+    /* Remove max-width/height constraints to allow diagrams to display at original size */
+    /* The modal-body will handle overflow with scrolling */
+    display: inline-block;
+    position: relative;
+    /* Ensure content is visible even when transformed */
+    pointer-events: auto;
+    z-index: 1;
+    /* Prevent disappearing due to overflow clipping */
+    will-change: transform;
+}
+
+/* Add transition class for zoom (not drag) */
+.mermaid-diagram-container.zoom-transition {
+    transition: transform 0.2s ease;
+}
+
+.mermaid-diagram-container svg {
+    max-width: none !important;
+    max-height: none !important;
+    display: block;
+    cursor: grab;
+}
+
+.mermaid-diagram-container svg:active {
+    cursor: grabbing;
+}
+
+/* Responsive modal */
+@media (max-width: 768px) {
+    .mermaid-modal-content {
+        width: 95vw;
+        height: 85vh;
+        margin: 7.5vh auto;
+    }
+
+    .mermaid-modal-header {
+        padding: var(--space-sm) var(--space-md);
+    }
+
+    .mermaid-modal-title {
+        font-size: 1rem;
+    }
+
+    .mermaid-btn {
+        width: 32px;
+        height: 32px;
+    }
+
+    .mermaid-btn svg {
+        width: 18px;
+        height: 18px;
+    }
+}
+
+/* Dark mode support for modal */
+@media (prefers-color-scheme: dark) {
+    .mermaid-modal-content {
+        background: var(--bg-white);
+        border: 1px solid var(--bg-border);
+    }
+
+    .mermaid-modal-body {
+        background: #ffffff;
+    }
+}
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🎯 G-Eval Quality Assessment</h1>
+            <div class="subtitle">LLM-based Custom Quality Evaluation with DeepEval</div>
+            <div class="version-badge">Agent Evaluator v0.5.0 - Layer 3 DeepEval Metric</div>
+        </div>
+
+        <div class="content">
+            <div class="section">
+                <h2>🎯 개요</h2>
+                <div class="intro-box">
+                    <strong>G-Eval</strong>은 <span class="highlight">사용자 정의 품질 기준(Custom Criteria)</span>을 기반으로 LLM의 출력 품질을 평가하는 DeepEval의 고급 메트릭입니다.
+                    <br><br>
+                    평가 프레임워크로 GPT-4나 다른 LLM을 사용하여 <span class="highlight">복잡한 품질 차원을 유연하게 평가</span>할 수 있으며, 단순한 정확도를 넘어 응답의 완전성(Completeness), 관련성(Relevance), 일관성(Coherence) 등을 종합적으로 평가합니다.
+                </div>
+
+                <div class="importance-box">
+                    <h3>⚠️ 중요성</h3>
+                    <ul>
+                        <li><strong>유연한 평가 기준</strong>: 비즈니스 요구사항에 맞춘 맞춤형 평가 가능</li>
+                        <li><strong>복합적 품질 측정</strong>: 단일 메트릭으로 다차원 품질 평가</li>
+                        <li><strong>인간 평가 근사</strong>: LLM을 평가자로 활용하여 인간 판단 모방</li>
+                        <li><strong>비용 효율적</strong>: 인간 평가 대비 빠르고 저렴한 평가</li>
+                        <li><strong>일관성 보장</strong>: 평가자의 주관성을 줄이고 일관된 평가 제공</li>
+                    </ul>
+                </div>
+            </div>
+
+<div class="section">
+    <h2>📊 다이어그램 시각화</h2>
+
+    <h3>1️⃣ 핵심 개념 및 평가 흐름 (LLM-as-Judge)</h3>
+    <pre class="mermaid">
+graph TD
+    A[Input + Actual Output + Expected Output + Context] --> B[DeepEval G-Eval Metric]
+    B --> C[Custom Evaluation Criteria<br/>사용자 정의 평가 기준]
+
+    C --> D[LLM Judge<br/>gpt-4o-mini default]
+    D --> E[Criteria-Based Assessment]
+
+    E --> F[평가 파라미터]
+    F --> G[INPUT: 입력 쿼리]
+    F --> H[ACTUAL_OUTPUT: 실제 응답]
+    F --> I[EXPECTED_OUTPUT: 기대값 optional]
+    F --> J[CONTEXT: 검색 문맥 optional]
+
+    G --> K[Chain-of-Thought Reasoning]
+    H --> K
+    I --> K
+    J --> K
+
+    K --> L[G-Eval Score 0-1<br/>1 = Perfect Quality]
+
+    L --> M{Quality Level}
+    M -->|≥ 0.9| N[Excellent: 기준 충족]
+    M -->|0.7-0.89| O[Good: 양호]
+    M -->|0.5-0.69| P[Moderate: 개선 필요]
+    M -->|< 0.5| Q[Poor: 기준 미달]
+
+    style A fill:#e1f5ff
+    style L fill:#fff3cd
+    style N fill:#d4edda
+    style Q fill:#f8d7da
+    </pre>
+
+    <h3>2️⃣ G-Eval 평가 파이프라인 (DeepEval Integration)</h3>
+    <pre class="mermaid">
+sequenceDiagram
+    participant Agent as AI Agent
+    participant Adapter as DeepEvalAdapter
+    participant GEval as G-Eval Metric
+    participant LLM as OpenAI API<br/>gpt-4o-mini
+
+    Agent->>Adapter: evaluate(context)
+    Adapter->>Adapter: Create LLMTestCase<br/>input, actual, expected, context
+
+    Adapter->>GEval: GEval(criteria, evaluation_params, model)
+    Note over GEval: criteria: 커스텀 평가 기준<br/>evaluation_params: [INPUT, ACTUAL_OUTPUT, ...]
+
+    GEval->>LLM: Generate evaluation prompt
+    LLM->>LLM: Chain-of-Thought reasoning<br/>기준에 따라 평가
+
+    LLM-->>GEval: Score (0-1) + Reason
+    GEval-->>Adapter: g_eval_score, g_eval_reason
+
+    Adapter-->>Agent: {'g_eval_score': 0.85, 'g_eval_reason': '...'}
+    </pre>
+
+    <h3>3️⃣ 비용 및 성능 고려사항</h3>
+    <pre class="mermaid">
+graph TD
+    A[G-Eval Configuration] --> B[Model Selection]
+    B --> C[gpt-4o-mini<br/>Default, Cost-Effective]
+    B --> D[gpt-4o<br/>High Quality, Expensive]
+
+    C --> E[Cost: ~$0.01-0.03 per eval<br/>Speed: ~2-5 sec<br/>Quality: Good 85%+]
+    D --> F[Cost: ~$0.10-0.30 per eval<br/>Speed: ~3-7 sec<br/>Quality: Excellent 95%+]
+
+    E --> G{Use Case}
+    F --> G
+
+    G -->|Development/Testing| H[권장: gpt-4o-mini<br/>빠른 반복, 낮은 비용]
+    G -->|Production/Critical| I[권장: gpt-4o<br/>높은 정확도, 신뢰성]
+
+    H --> J[Budget Planning]
+    I --> J
+
+    J --> K[1000 evals/day:<br/>mini: $10-30/day<br/>4o: $100-300/day]
+
+    style A fill:#e1f5ff
+    style J fill:#fff3cd
+    style K fill:#ffc107
+    </pre>
+
+    <h3>4️⃣ 임계값 및 품질 관리</h3>
+    <pre class="mermaid">
+graph TD
+    A[G-Eval Score] --> B{임계값 비교}
+    B -->|≥ 0.90| C[🌟 Excellent<br/>Criteria Met]
+    B -->|0.70-0.89| D[✅ Good<br/>Acceptable Quality]
+    B -->|0.50-0.69| E[⚠️ Moderate<br/>Needs Improvement]
+    B -->|< 0.50| F[❌ Poor<br/>Criteria Failed]
+
+    C --> G[권장: 현재 품질 유지<br/>벤치마크 활용]
+    D --> H[권장: 0.90 목표<br/>프롬프트 최적화]
+    E --> I[권장: 기준 재검토<br/>응답 개선 필요]
+    F --> J[권장: 즉시 개선<br/>모델/프롬프트 재설계]
+
+    style C fill:#d4edda
+    style D fill:#cfe2ff
+    style E fill:#fff3cd
+    style F fill:#f8d7da
+    </pre>
+</div>
+
+
+
+            <div class="section">
+                <h2>📍 구현 위치</h2>
+                <div class="implementation-note">
+                    <strong>파일:</strong> <code>agent_evaluator/integrations/metric_adapters.py</code><br>
+                    <strong>클래스:</strong> <code>DeepEvalAdapter</code><br>
+                    <strong>메서드:</strong> <code>_evaluate_geval()</code><br>
+                    <strong>라인:</strong> 200-247
+                </div>
+
+                <h3>핵심 메서드</h3>
+        <table>
+            <thead>
+                <tr>
+                    <th>메서드</th>
+                    <th>라인</th>
+                    <th>설명</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><code>__init__()</code></td>
+                    <td>87-128</td>
+                    <td>DeepEval 어댑터 초기화 (모델, 임계값 설정)</td>
+                </tr>
+                <tr>
+                    <td><code>evaluate()</code></td>
+                    <td>133-198</td>
+                    <td>모든 DeepEval 메트릭 평가 (G-Eval 포함)</td>
+                </tr>
+                <tr>
+                    <td><code>_evaluate_geval()</code></td>
+                    <td>200-247</td>
+                    <td>G-Eval 메트릭 실행 및 결과 반환</td>
+                </tr>
+            </tbody>
+        </table>
+            </div>
+
+            <div class="section">
+                <h2>📋 G-Eval 평가 원리</h2>
+                <div class="intro-box">
+                    <strong>G-Eval</strong>은 다음 단계로 작동합니다:
+                    <br><br>
+                    <ol>
+                        <li><strong>평가 기준 정의</strong>: 사용자가 평가하고자 하는 품질 차원 정의 (예: "답변이 사용자 질문에 완전하고 정확하게 응답했는가?")</li>
+                        <li><strong>평가 파라미터 선택</strong>: INPUT, ACTUAL_OUTPUT, EXPECTED_OUTPUT, CONTEXT 중 평가에 사용할 요소 선택</li>
+                        <li><strong>LLM 평가</strong>: 평가용 LLM (예: gpt-4o-mini)이 정의된 기준에 따라 출력 평가</li>
+                        <li><strong>스코어 산출</strong>: 0.0 ~ 1.0 범위의 점수 반환 (높을수록 품질 우수)</li>
+                    </ol>
+                </div>
+
+                <h3>평가 파라미터 (LLMTestCaseParams)</h3>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>파라미터</th>
+                            <th>설명</th>
+                            <th>사용 시점</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><code>INPUT</code></td>
+                            <td>사용자 입력 (질문, 프롬프트)</td>
+                            <td>항상 사용</td>
+                        </tr>
+                        <tr>
+                            <td><code>ACTUAL_OUTPUT</code></td>
+                            <td>AI 에이전트의 실제 출력</td>
+                            <td>항상 사용</td>
+                        </tr>
+                        <tr>
+                            <td><code>EXPECTED_OUTPUT</code></td>
+                            <td>기대되는 정답 (Ground Truth)</td>
+                            <td>Ground Truth가 있을 때만</td>
+                        </tr>
+                        <tr>
+                            <td><code>CONTEXT</code></td>
+                            <td>검색된 컨텍스트 (RAG용)</td>
+                            <td>RAG 시스템에서만</td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                <h3>스코어 해석</h3>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>G-Eval Score</th>
+                            <th>등급</th>
+                            <th>설명</th>
+                            <th>권장 조치</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>0.8 ~ 1.0</td>
+                            <td><strong style="color: #38a169;">Excellent</strong></td>
+                            <td>매우 우수한 품질</td>
+                            <td>현재 수준 유지</td>
+                        </tr>
+                        <tr>
+                            <td>0.6 ~ 0.79</td>
+                            <td><strong style="color: #3182ce;">Good</strong></td>
+                            <td>우수한 품질</td>
+                            <td>미세 조정 고려</td>
+                        </tr>
+                        <tr>
+                            <td>0.4 ~ 0.59</td>
+                            <td><strong style="color: #ed8936;">Acceptable</strong></td>
+                            <td>허용 가능</td>
+                            <td>프롬프트 개선 필요</td>
+                        </tr>
+                        <tr>
+                            <td>0.0 ~ 0.39</td>
+                            <td><strong style="color: #e53e3e;">Poor</strong></td>
+                            <td>품질 미달</td>
+                            <td>즉각적인 개선 필요</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="section">
+                <h2>⚙️ 핵심 메서드 상세 설명</h2>
+
+                <h3>_evaluate_geval() - G-Eval 평가 실행</h3>
+        <p><strong>목적</strong>: 사용자 정의 평가 기준에 따라 G-Eval 수행</p>
+        <p><strong>위치</strong>: Lines 200-247</p>
+
+        <div class="code-block">
+<span class="keyword">def</span> <span class="function">_evaluate_geval</span>(self, test_case, criteria: <span class="keyword">str</span>) -> Dict[<span class="keyword">str</span>, Any]:
+    <span class="string">"""
+    Evaluate using G-Eval with custom criteria
+
+    G-Eval evaluates based on the test case parameters you specify.
+    Uses INPUT, ACTUAL_OUTPUT, and EXPECTED_OUTPUT by default.
+    """</span>
+    <span class="keyword">try</span>:
+        <span class="comment"># 1. 평가 파라미터 정의 (어떤 요소를 평가에 사용할지)</span>
+        eval_params = [
+            self.LLMTestCaseParams.INPUT,
+            self.LLMTestCaseParams.ACTUAL_OUTPUT
+        ]
+
+        <span class="comment"># 2. Expected Output이 있으면 추가</span>
+        <span class="keyword">if</span> test_case.expected_output:
+            eval_params.append(self.LLMTestCaseParams.EXPECTED_OUTPUT)
+
+        <span class="comment"># 3. Context가 있으면 추가 (RAG 시스템)</span>
+        <span class="keyword">if</span> test_case.context <span class="keyword">and</span> <span class="function">len</span>(test_case.context) > 0:
+            eval_params.append(self.LLMTestCaseParams.CONTEXT)
+
+        <span class="comment"># 4. G-Eval 메트릭 생성</span>
+        metric = self.GEval(
+            name=<span class="string">"quality_assessment"</span>,
+            criteria=criteria,                <span class="comment"># 사용자 정의 평가 기준</span>
+            evaluation_params=eval_params,    <span class="comment"># 평가에 사용할 요소</span>
+            model=self.model,                 <span class="comment"># 평가용 LLM (예: gpt-4o-mini)</span>
+            threshold=self.threshold,         <span class="comment"># Pass/Fail 기준 (기본: 0.5)</span>
+            async_mode=<span class="keyword">False</span>                <span class="comment"># 동기 실행</span>
+        )
+
+        <span class="comment"># 5. 평가 수행</span>
+        metric.measure(test_case)
+
+        <span class="comment"># 6. 결과 반환</span>
+        <span class="keyword">return</span> {
+            <span class="string">'g_eval_score'</span>: metric.score,              <span class="comment"># 0.0 ~ 1.0</span>
+            <span class="string">'g_eval_reason'</span>: metric.reason <span class="keyword">if</span> <span class="function">hasattr</span>(metric, <span class="string">'reason'</span>) <span class="keyword">else None</span>,
+            <span class="string">'g_eval_passed'</span>: metric.score >= self.threshold
+        }
+    <span class="keyword">except</span> Exception <span class="keyword">as</span> e:
+        <span class="function">print</span>(<span class="string">f"⚠️  G-Eval error: </span>{e}<span class="string">"</span>)
+        <span class="keyword">return</span> {<span class="string">'g_eval_error'</span>: <span class="function">str</span>(e)}
+</div>
+
+        <div class="success-box">
+            <h4>✅ 평가 로직 핵심 포인트</h4>
+            <ol>
+                <li><strong>동적 파라미터 선택</strong>: 사용 가능한 데이터(expected_output, context)에 따라 자동으로 평가 파라미터 구성</li>
+                <li><strong>유연한 기준</strong>: 사용자가 자연어로 평가 기준을 정의하면 LLM이 이해하고 평가</li>
+                <li><strong>Pass/Fail 판정</strong>: 임계값(threshold) 기반 이진 판정 제공</li>
+                <li><strong>설명 제공</strong>: 점수와 함께 평가 이유(reason) 반환 가능</li>
+            </ol>
+        </div>
+
+                <h3>HybridPerformanceMonitor 통합</h3>
+        <p><strong>목적</strong>: G-Eval을 HybridPerformanceMonitor에서 자동 실행</p>
+        <p><strong>위치</strong>: <code>agent_evaluator/core/hybrid_monitor.py</code> Lines 200-217</p>
+
+        <div class="code-block">
+<span class="comment"># HybridPerformanceMonitor.record_task() 내부</span>
+
+<span class="comment"># DeepEval metrics 실행</span>
+<span class="keyword">if</span> MetricProvider.DEEPEVAL <span class="keyword">in</span> self.metric_adapters:
+    <span class="keyword">try</span>:
+        deepeval_metrics = self.metric_adapters[MetricProvider.DEEPEVAL].evaluate(context)
+        advanced_metrics.update(deepeval_metrics)
+        providers_used.append(<span class="string">"deepeval"</span>)
+    <span class="keyword">except</span> Exception <span class="keyword">as</span> e:
+        <span class="function">print</span>(<span class="string">f"⚠️  DeepEval evaluation error: </span>{e}<span class="string">"</span>)
+
+<span class="comment"># G-Eval 결과가 있으면 QualityEvaluator에도 자동 반영</span>
+<span class="keyword">if</span> <span class="string">'g_eval_score'</span> <span class="keyword">in</span> advanced_metrics:
+    <span class="comment"># G-Eval score를 5점 척도로 변환</span>
+    g_eval_score_5pt = advanced_metrics[<span class="string">'g_eval_score'</span>] * 5
+
+    <span class="comment"># Quality Evaluator에 자동 추가</span>
+    quality_evaluation = {
+        <span class="string">"task_id"</span>: task.task_id,
+        <span class="string">"dimension_scores"</span>: {
+            <span class="string">"completeness"</span>: g_eval_score_5pt,
+            <span class="string">"relevance"</span>: g_eval_score_5pt,
+            <span class="string">"clarity"</span>: g_eval_score_5pt,
+            <span class="string">"accuracy"</span>: g_eval_score_5pt,
+            <span class="string">"usefulness"</span>: g_eval_score_5pt
+        },
+        <span class="string">"total_score"</span>: g_eval_score_5pt
+    }
+    self.quality_evaluator.evaluations.append(quality_evaluation)
+</div>
+            </div>
+
+            <div class="section">
+                <h2>🔍 데이터 수집 방법 (실전 가이드)</h2>
+                <p>G-Eval 메트릭을 현장에서 측정하기 위한 4가지 실전 방법을 소개합니다.</p>
+
+                <h3>방법 1: HybridPerformanceMonitor 직접 사용 (권장)</h3>
+                <div class="info-box">
+                    <h4>📌 사용 시기</h4>
+                    <p>품질 기준이 명확하고, 평가용 데이터(input, output, expected_output)가 준비된 경우</p>
+                </div>
+
+        <div class="code-block">
+<span class="keyword">from</span> agent_evaluator <span class="keyword">import</span> HybridPerformanceMonitor, create_taskresult
+
+<span class="comment"># 1. HybridPerformanceMonitor 초기화 (DeepEval 활성화)</span>
+monitor = HybridPerformanceMonitor(
+    use_deepeval=<span class="keyword">True</span>,
+    deepeval_model=<span class="string">"gpt-4o-mini"</span>,  <span class="comment"># 비용 효율적</span>
+    use_ragas=<span class="keyword">False</span>,
+    use_langsmith=<span class="keyword">False</span>
+)
+
+<span class="comment"># 2. 사용자 정의 평가 기준 정의</span>
+quality_criteria = <span class="string">"""
+답변이 다음 기준을 충족하는지 평가하세요:
+1. 질문에 완전하고 정확하게 응답했는가?
+2. 제공된 정보가 관련성 있고 유용한가?
+3. 답변이 명확하고 이해하기 쉬운가?
+4. 사실적 오류나 모순이 없는가?
+5. 전문적이고 적절한 어조를 유지하는가?
+"""</span>
+
+<span class="comment"># 3. 에이전트 실행 및 데이터 수집</span>
+task = create_taskresult(
+    task_id=<span class="string">"task_001"</span>,
+    task_type=<span class="string">"QA"</span>,
+    success=<span class="keyword">True</span>,
+    completion_score=1.0,
+    accuracy_score=0.95
+)
+
+<span class="comment"># 4. G-Eval 평가 수행</span>
+monitor.record_task(
+    task=task,
+    enable_advanced_metrics=<span class="keyword">True</span>,        <span class="comment"># DeepEval 활성화</span>
+    input_text=<span class="string">"파이썬으로 피보나치 수열을 구현하는 방법을 설명해주세요."</span>,
+    output_text=<span class="string">"파이썬에서 피보나치 수열은 재귀 또는 반복문으로 구현할 수 있습니다..."</span>,
+    expected_output=<span class="string">"재귀와 반복문 방식의 차이를 설명하고, 각각의 시간 복잡도를 비교해야 함"</span>,
+    quality_criteria=quality_criteria    <span class="comment"># G-Eval 트리거</span>
+)
+
+<span class="comment"># 5. 결과 확인</span>
+monitor.print_summary()
+<span class="comment"># 출력 예시:
+# 🔬 ADVANCED METRICS
+#    G-Eval Quality Score: 0.850/1.0 (n=1)
+#       Pass Rate: 1/1 (100.0%)</span>
+</div>
+
+        <div class="best-practice">
+            <strong>✅ Best Practice:</strong>
+            <ul>
+                <li><strong>명확한 기준</strong>: 평가 기준은 구체적이고 측정 가능하게 작성 (예: "완전성", "정확성"보다 "질문의 모든 부분에 답했는가?", "사실적 오류가 없는가?" 등)</li>
+                <li><strong>적절한 모델 선택</strong>: 일반적인 경우 <code>gpt-4o-mini</code>로 충분, 고도로 정교한 평가가 필요하면 <code>gpt-4o</code> 사용</li>
+                <li><strong>Expected Output 활용</strong>: Ground Truth가 있으면 반드시 제공하여 평가 정확도 향상</li>
+                <li><strong>배치 평가</strong>: 비용 절감을 위해 중요한 작업만 샘플링하여 G-Eval 수행 (예: 10% 샘플링)</li>
+            </ul>
+        </div>
+
+                <h3>방법 2: DeepEvalAdapter 직접 사용 (고급)</h3>
+                <div class="info-box">
+                    <h4>📌 사용 시기</h4>
+                    <p>HybridPerformanceMonitor 없이 G-Eval만 독립적으로 사용하고 싶은 경우</p>
+                </div>
+
+        <div class="code-block">
+<span class="keyword">from</span> agent_evaluator.integrations.metric_adapters <span class="keyword">import</span> (
+    DeepEvalAdapter,
+    EvaluationContext
+)
+
+<span class="comment"># 1. DeepEvalAdapter 초기화</span>
+adapter = DeepEvalAdapter(
+    model=<span class="string">"gpt-4o-mini"</span>,
+    threshold=0.7,           <span class="comment"># Pass/Fail 기준</span>
+    timeout=60
+)
+
+<span class="keyword">if not</span> adapter.is_available():
+    <span class="function">print</span>(<span class="string">"⚠️  DeepEval not installed. Install with: pip install deepeval"</span>)
+    <span class="keyword">exit</span>(1)
+
+<span class="comment"># 2. 평가 컨텍스트 생성</span>
+context = EvaluationContext(
+    input_text=<span class="string">"머신러닝에서 Overfitting이란 무엇인가요?"</span>,
+    output_text=<span class="string">"Overfitting은 모델이 훈련 데이터에 지나치게 적합되어 새로운 데이터에 대한 일반화 성능이 떨어지는 현상입니다."</span>,
+    expected_output=<span class="string">"Overfitting 정의, 발생 원인, 해결 방법을 포함해야 함"</span>,
+    quality_criteria=<span class="string">"""
+    답변이 다음을 충족하는지 평가:
+    1. Overfitting의 정확한 정의
+    2. 발생 원인 설명
+    3. 해결 방법 제시
+    4. 실무적 예시 포함
+    """</span>
+)
+
+<span class="comment"># 3. G-Eval 평가 수행</span>
+results = adapter.evaluate(context)
+
+<span class="comment"># 4. 결과 확인</span>
+<span class="keyword">if</span> <span class="string">'g_eval_score'</span> <span class="keyword">in</span> results:
+    <span class="function">print</span>(<span class="string">f"G-Eval Score: </span>{results[<span class="string">'g_eval_score'</span>]:.3f}<span class="string">"</span>)
+    <span class="function">print</span>(<span class="string">f"Passed: </span>{results[<span class="string">'g_eval_passed'</span>]}<span class="string">"</span>)
+    <span class="keyword">if</span> results.get(<span class="string">'g_eval_reason'</span>):
+        <span class="function">print</span>(<span class="string">f"Reason: </span>{results[<span class="string">'g_eval_reason'</span>]}<span class="string">"</span>)
+<span class="keyword">else</span>:
+    <span class="function">print</span>(<span class="string">f"Error: </span>{results.get(<span class="string">'g_eval_error'</span>, <span class="string">'Unknown error'</span>)}<span class="string">"</span>)
+</div>
+
+                <h3>방법 3: 프로덕션 모니터링 (샘플링 기반)</h3>
+                <div class="info-box">
+                    <h4>📌 사용 시기</h4>
+                    <p>대규모 프로덕션 환경에서 비용을 절감하면서 품질 모니터링이 필요한 경우</p>
+                </div>
+
+        <div class="code-block">
+<span class="keyword">import</span> random
+<span class="keyword">from</span> agent_evaluator <span class="keyword">import</span> HybridPerformanceMonitor, create_taskresult
+
+<span class="keyword">class</span> <span class="function">ProductionQualityMonitor</span>:
+    <span class="string">"""프로덕션 환경에서 샘플링 기반 G-Eval 모니터링"""</span>
+
+    <span class="keyword">def</span> <span class="function">__init__</span>(self, sample_rate: <span class="keyword">float</span> = 0.1, quality_criteria: <span class="keyword">str</span> = <span class="keyword">None</span>):
+        <span class="string">"""
+        Args:
+            sample_rate: G-Eval 실행 비율 (0.1 = 10%, 비용 절감)
+            quality_criteria: 평가 기준 (프로젝트별 정의)
+        """</span>
+        self.monitor = HybridPerformanceMonitor(
+            use_deepeval=<span class="keyword">True</span>,
+            deepeval_model=<span class="string">"gpt-4o-mini"</span>
+        )
+        self.sample_rate = sample_rate
+        self.quality_criteria = quality_criteria <span class="keyword">or</span> <span class="string">"""
+        답변 품질 평가 기준:
+        1. 질문에 완전하게 답했는가?
+        2. 정확하고 사실에 기반한가?
+        3. 명확하고 이해하기 쉬운가?
+        """</span>
+
+        self.evaluated_count = 0
+        self.total_count = 0
+        self.low_quality_alerts = []
+
+    <span class="keyword">def</span> <span class="function">track_interaction</span>(
+        self,
+        task_id: <span class="keyword">str</span>,
+        input_text: <span class="keyword">str</span>,
+        output_text: <span class="keyword">str</span>,
+        expected_output: <span class="keyword">str</span> = <span class="keyword">None</span>,
+        task_type: <span class="keyword">str</span> = <span class="string">"QA"</span>
+    ):
+        <span class="string">"""사용자 상호작용 추적 및 샘플링 평가"""</span>
+        self.total_count += 1
+
+        <span class="comment"># 샘플링: 일부만 G-Eval 실행 (비용 절감)</span>
+        should_evaluate = random.random() < self.sample_rate
+
+        <span class="keyword">if</span> should_evaluate:
+            self.evaluated_count += 1
+
+            <span class="comment"># TaskResult 생성</span>
+            task = create_taskresult(
+                task_id=task_id,
+                task_type=task_type,
+                success=<span class="keyword">True</span>,
+                completion_score=1.0
+            )
+
+            <span class="comment"># G-Eval 수행</span>
+            self.monitor.record_task(
+                task=task,
+                enable_advanced_metrics=<span class="keyword">True</span>,
+                input_text=input_text,
+                output_text=output_text,
+                expected_output=expected_output,
+                quality_criteria=self.quality_criteria
+            )
+
+            <span class="comment"># 저품질 경고 확인</span>
+            <span class="keyword">if</span> <span class="function">hasattr</span>(self.monitor, <span class="string">'extended_tasks'</span>) <span class="keyword">and</span> self.monitor.extended_tasks:
+                latest_task = self.monitor.extended_tasks[-1]
+                g_eval_score = latest_task.advanced_metrics.get(<span class="string">'g_eval_score'</span>, 1.0)
+
+                <span class="keyword">if</span> g_eval_score < 0.5:  <span class="comment"># 저품질 임계값</span>
+                    self.low_quality_alerts.append({
+                        <span class="string">'task_id'</span>: task_id,
+                        <span class="string">'score'</span>: g_eval_score,
+                        <span class="string">'input'</span>: input_text[:100],
+                        <span class="string">'output'</span>: output_text[:100]
+                    })
+                    <span class="function">print</span>(<span class="string">f"⚠️  Low quality detected: </span>{task_id}<span class="string"> (Score: </span>{g_eval_score:.3f}<span class="string">)"</span>)
+
+    <span class="keyword">def</span> <span class="function">get_summary</span>(self):
+        <span class="string">"""모니터링 요약 리포트"""</span>
+        <span class="function">print</span>(<span class="string">f"\n📊 Quality Monitoring Summary"</span>)
+        <span class="function">print</span>(<span class="string">f"   Total Interactions: </span>{self.total_count}<span class="string">"</span>)
+        <span class="function">print</span>(<span class="string">f"   Evaluated (G-Eval): </span>{self.evaluated_count}<span class="string"> (</span>{self.sample_rate*100:.1f}<span class="string">%)"</span>)
+        <span class="function">print</span>(<span class="string">f"   Low Quality Alerts: </span>{<span class="function">len</span>(self.low_quality_alerts)}<span class="string">"</span>)
+
+        self.monitor.print_summary()
+
+
+<span class="comment"># 사용 예시</span>
+monitor = ProductionQualityMonitor(
+    sample_rate=0.1,  <span class="comment"># 10%만 평가 (비용 90% 절감)</span>
+    quality_criteria=<span class="string">"""
+    고객 지원 챗봇 품질 평가:
+    1. 고객 문의를 정확히 이해했는가?
+    2. 해결책이 명확하고 실행 가능한가?
+    3. 친절하고 전문적인 어조인가?
+    """</span>
+)
+
+<span class="comment"># 프로덕션 트래픽 처리</span>
+<span class="keyword">for</span> i <span class="keyword">in</span> <span class="function">range</span>(100):
+    monitor.track_interaction(
+        task_id=<span class="string">f"chat_</span>{i}<span class="string">"</span>,
+        input_text=<span class="string">f"고객 질문 </span>{i}<span class="string">"</span>,
+        output_text=<span class="string">f"챗봇 답변 </span>{i}<span class="string">"</span>
+    )
+
+<span class="comment"># 결과 확인</span>
+monitor.get_summary()
+</div>
+
+        <div class="warning-box">
+            <h4>⚠️ 프로덕션 모니터링 주의사항</h4>
+            <ul>
+                <li><strong>샘플링 비율 조정</strong>: 초기에는 20-30%로 시작하여 데이터 확보 후 10%로 감소</li>
+                <li><strong>비용 모니터링</strong>: DeepEval은 OpenAI API를 호출하므로 월 비용 예산 설정 필요</li>
+                <li><strong>타임아웃 설정</strong>: 프로덕션 환경에서는 평가 타임아웃을 30-60초로 제한</li>
+                <li><strong>비동기 처리</strong>: 실시간 응답이 필요한 경우 G-Eval을 백그라운드 작업으로 실행</li>
+            </ul>
+        </div>
+
+                <h3>방법 4: 맞춤형 평가 기준 라이브러리 구축</h3>
+                <div class="info-box">
+                    <h4>📌 사용 시기</h4>
+                    <p>여러 유형의 작업(QA, 코드 생성, 요약 등)에 대해 표준화된 평가 기준을 적용하고 싶은 경우</p>
+                </div>
+
+        <div class="code-block">
+<span class="keyword">from</span> agent_evaluator <span class="keyword">import</span> HybridPerformanceMonitor, create_taskresult
+
+<span class="keyword">class</span> <span class="function">QualityCriteriaLibrary</span>:
+    <span class="string">"""작업 유형별 표준 평가 기준 라이브러리"""</span>
+
+    <span class="comment"># 작업 유형별 평가 기준 정의</span>
+    CRITERIA = {
+        <span class="string">"QA"</span>: <span class="string">"""
+        질의응답 품질 평가:
+        1. 질문을 정확히 이해하고 모든 부분에 답했는가?
+        2. 답변이 사실적으로 정확한가?
+        3. 설명이 명확하고 이해하기 쉬운가?
+        4. 불필요한 정보 없이 간결한가?
+        5. 출처나 근거를 제시했는가?
+        """</span>,
+
+        <span class="string">"CODE_GENERATION"</span>: <span class="string">"""
+        코드 생성 품질 평가:
+        1. 요구사항을 완전히 구현했는가?
+        2. 코드가 문법적으로 올바르고 실행 가능한가?
+        3. 가독성과 유지보수성이 좋은가?
+        4. 에러 처리와 엣지 케이스를 고려했는가?
+        5. 주석과 문서화가 적절한가?
+        """</span>,
+
+        <span class="string">"SUMMARIZATION"</span>: <span class="string">"""
+        요약 품질 평가:
+        1. 원문의 핵심 내용을 모두 포함했는가?
+        2. 중요도에 따라 적절히 선별했는가?
+        3. 간결하면서도 이해하기 쉬운가?
+        4. 원문의 의미를 왜곡하지 않았는가?
+        5. 논리적 흐름이 자연스러운가?
+        """</span>,
+
+        <span class="string">"TRANSLATION"</span>: <span class="string">"""
+        번역 품질 평가:
+        1. 원문의 의미를 정확히 전달했는가?
+        2. 대상 언어로 자연스러운가?
+        3. 문화적 맥락을 고려했는가?
+        4. 전문 용어를 적절히 번역했는가?
+        5. 원문의 어조와 뉘앙스를 유지했는가?
+        """</span>,
+
+        <span class="string">"CUSTOMER_SUPPORT"</span>: <span class="string">"""
+        고객 지원 품질 평가:
+        1. 고객 문의를 정확히 이해했는가?
+        2. 해결책이 명확하고 실행 가능한가?
+        3. 친절하고 공감적인 어조를 유지했는가?
+        4. 적절한 수준의 기술적 세부사항을 제공했는가?
+        5. 추가 도움이나 후속 조치를 제안했는가?
+        """</span>
+    }
+
+    @classmethod
+    <span class="keyword">def</span> <span class="function">get_criteria</span>(cls, task_type: <span class="keyword">str</span>) -> <span class="keyword">str</span>:
+        <span class="string">"""작업 유형에 맞는 평가 기준 반환"""</span>
+        <span class="keyword">return</span> cls.CRITERIA.get(task_type, cls.CRITERIA[<span class="string">"QA"</span>])
+
+    @classmethod
+    <span class="keyword">def</span> <span class="function">evaluate_with_criteria</span>(
+        cls,
+        monitor: HybridPerformanceMonitor,
+        task_id: <span class="keyword">str</span>,
+        task_type: <span class="keyword">str</span>,
+        input_text: <span class="keyword">str</span>,
+        output_text: <span class="keyword">str</span>,
+        expected_output: <span class="keyword">str</span> = <span class="keyword">None</span>
+    ):
+        <span class="string">"""표준 기준으로 G-Eval 평가"""</span>
+        criteria = cls.get_criteria(task_type)
+
+        task = create_taskresult(
+            task_id=task_id,
+            task_type=task_type,
+            success=<span class="keyword">True</span>,
+            completion_score=1.0
+        )
+
+        monitor.record_task(
+            task=task,
+            enable_advanced_metrics=<span class="keyword">True</span>,
+            input_text=input_text,
+            output_text=output_text,
+            expected_output=expected_output,
+            quality_criteria=criteria
+        )
+
+
+<span class="comment"># 사용 예시</span>
+monitor = HybridPerformanceMonitor(use_deepeval=<span class="keyword">True</span>)
+
+<span class="comment"># QA 작업 평가</span>
+QualityCriteriaLibrary.evaluate_with_criteria(
+    monitor=monitor,
+    task_id=<span class="string">"qa_001"</span>,
+    task_type=<span class="string">"QA"</span>,
+    input_text=<span class="string">"머신러닝에서 Regularization이란?"</span>,
+    output_text=<span class="string">"Regularization은 과적합을 방지하기 위한 기법입니다..."</span>
+)
+
+<span class="comment"># 코드 생성 평가</span>
+QualityCriteriaLibrary.evaluate_with_criteria(
+    monitor=monitor,
+    task_id=<span class="string">"code_001"</span>,
+    task_type=<span class="string">"CODE_GENERATION"</span>,
+    input_text=<span class="string">"이진 탐색 알고리즘을 구현해주세요"</span>,
+    output_text=<span class="string">"def binary_search(arr, target): ..."</span>
+)
+
+monitor.print_summary()
+</div>
+
+        <div class="success-box">
+            <h4>✅ 평가 기준 라이브러리의 장점</h4>
+            <ul>
+                <li><strong>일관성</strong>: 모든 작업에 표준화된 기준 적용</li>
+                <li><strong>확장성</strong>: 새로운 작업 유형 쉽게 추가</li>
+                <li><strong>유지보수</strong>: 평가 기준을 중앙에서 관리</li>
+                <li><strong>비교 가능성</strong>: 동일 기준으로 시간에 따른 품질 변화 추적</li>
+            </ul>
+        </div>
+            </div>
+
+            <div class="section">
+                <h2>💡 Best Practices</h2>
+
+                <div class="best-practice">
+                    <h4>1. 평가 기준 작성 가이드라인</h4>
+                    <ul>
+                        <li><strong>구체적으로</strong>: "좋은 답변"보다 "질문의 모든 부분에 답했는가?" 사용</li>
+                        <li><strong>측정 가능하게</strong>: 주관적 표현 대신 명확한 체크리스트 제공</li>
+                        <li><strong>3-7개 항목</strong>: 너무 많으면 LLM이 혼란스러워함</li>
+                        <li><strong>예시 제공</strong>: 가능하면 Good/Bad 예시를 기준에 포함</li>
+                    </ul>
+                </div>
+
+                <div class="best-practice">
+                    <h4>2. 비용 최적화 전략</h4>
+                    <ul>
+                        <li><strong>gpt-4o-mini 사용</strong>: 일반 평가는 mini로 충분 (비용 1/10)</li>
+                        <li><strong>샘플링 적용</strong>: 프로덕션에서는 10-20%만 평가</li>
+                        <li><strong>캐싱 활용</strong>: 동일 input-output 쌍은 결과 재사용</li>
+                        <li><strong>배치 처리</strong>: 실시간이 아닌 경우 배치로 모아서 평가</li>
+                    </ul>
+                </div>
+
+                <div class="best-practice">
+                    <h4>3. 정확도 향상 방법</h4>
+                    <ul>
+                        <li><strong>Expected Output 제공</strong>: Ground Truth가 있으면 반드시 포함</li>
+                        <li><strong>Context 활용</strong>: RAG 시스템은 retrieved_context도 전달</li>
+                        <li><strong>다중 평가</strong>: 중요한 작업은 2-3회 평가하여 평균 사용</li>
+                        <li><strong>임계값 조정</strong>: 프로젝트 특성에 맞게 threshold 튜닝</li>
+                    </ul>
+                </div>
+
+                <div class="warning-box">
+                    <h4>⚠️ 주의사항</h4>
+                    <ul>
+                        <li><strong>LLM 편향</strong>: G-Eval은 평가용 LLM의 편향을 상속할 수 있음</li>
+                        <li><strong>일관성 변동</strong>: 동일 입력도 평가 시점에 따라 점수 변동 가능</li>
+                        <li><strong>비용 누적</strong>: 대규모 평가 시 API 비용 급증 주의</li>
+                        <li><strong>타임아웃</strong>: 네트워크 지연이나 API 장애 대비 타임아웃 설정</li>
+                        <li><strong>Rate Limiting</strong>: OpenAI API Rate Limit 고려하여 속도 조절</li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="section">
+                <h2>📈 활용 예시</h2>
+
+                <h3>예시 1: 챗봇 품질 모니터링</h3>
+        <div class="code-block">
+<span class="comment"># 고객 지원 챗봇의 답변 품질을 G-Eval로 모니터링</span>
+
+monitor = HybridPerformanceMonitor(use_deepeval=<span class="keyword">True</span>)
+
+chatbot_criteria = <span class="string">"""
+고객 지원 챗봇 답변 품질:
+1. 고객 문의의 핵심 문제를 파악했는가?
+2. 구체적이고 실행 가능한 해결책을 제시했는가?
+3. 친절하고 공감적인 어조를 유지했는가?
+4. 필요한 경우 추가 지원을 안내했는가?
+"""</span>
+
+<span class="keyword">for</span> interaction <span class="keyword">in</span> customer_interactions:
+    task = create_taskresult(
+        task_id=interaction[<span class="string">'id'</span>],
+        task_type=<span class="string">"CUSTOMER_SUPPORT"</span>,
+        success=<span class="keyword">True</span>,
+        completion_score=1.0
+    )
+
+    monitor.record_task(
+        task=task,
+        enable_advanced_metrics=<span class="keyword">True</span>,
+        input_text=interaction[<span class="string">'customer_message'</span>],
+        output_text=interaction[<span class="string">'chatbot_response'</span>],
+        quality_criteria=chatbot_criteria
+    )
+
+<span class="comment"># 월간 품질 리포트 생성</span>
+report = monitor.generate_hybrid_report()
+<span class="function">print</span>(<span class="string">f"G-Eval 평균 점수: </span>{report.advanced_metrics_summary[<span class="string">'g_eval_score'</span>][<span class="string">'mean'</span>]:.3f}<span class="string">"</span>)
+</div>
+
+                <h3>예시 2: A/B 테스트 - 프롬프트 비교</h3>
+        <div class="code-block">
+<span class="comment"># 두 가지 프롬프트 버전의 품질을 G-Eval로 비교</span>
+
+monitor_a = HybridPerformanceMonitor(use_deepeval=<span class="keyword">True</span>)
+monitor_b = HybridPerformanceMonitor(use_deepeval=<span class="keyword">True</span>)
+
+criteria = <span class="string">"""코드 생성 품질 평가: 정확성, 가독성, 효율성"""</span>
+
+<span class="comment"># Version A: 간단한 프롬프트</span>
+<span class="keyword">for</span> task <span class="keyword">in</span> test_tasks:
+    result_a = agent_a.generate_code(task)
+    monitor_a.record_task(
+        create_taskresult(<span class="string">"A"</span>, <span class="string">"CODE_GENERATION"</span>, <span class="keyword">True</span>, 1.0),
+        enable_advanced_metrics=<span class="keyword">True</span>,
+        input_text=task[<span class="string">'prompt'</span>],
+        output_text=result_a,
+        quality_criteria=criteria
+    )
+
+<span class="comment"># Version B: 상세한 프롬프트</span>
+<span class="keyword">for</span> task <span class="keyword">in</span> test_tasks:
+    result_b = agent_b.generate_code(task)
+    monitor_b.record_task(
+        create_taskresult(<span class="string">"B"</span>, <span class="string">"CODE_GENERATION"</span>, <span class="keyword">True</span>, 1.0),
+        enable_advanced_metrics=<span class="keyword">True</span>,
+        input_text=task[<span class="string">'prompt'</span>],
+        output_text=result_b,
+        quality_criteria=criteria
+    )
+
+<span class="comment"># 결과 비교</span>
+report_a = monitor_a.generate_hybrid_report()
+report_b = monitor_b.generate_hybrid_report()
+
+score_a = report_a.advanced_metrics_summary[<span class="string">'g_eval_score'</span>][<span class="string">'mean'</span>]
+score_b = report_b.advanced_metrics_summary[<span class="string">'g_eval_score'</span>][<span class="string">'mean'</span>]
+
+<span class="function">print</span>(<span class="string">f"Version A G-Eval: </span>{score_a:.3f}<span class="string">"</span>)
+<span class="function">print</span>(<span class="string">f"Version B G-Eval: </span>{score_b:.3f}<span class="string">"</span>)
+<span class="function">print</span>(<span class="string">f"Winner: </span>{<span class="string">'B'</span> <span class="keyword">if</span> score_b > score_a <span class="keyword">else</span> <span class="string">'A'</span>}<span class="string">"</span>)
+</div>
+            </div>
+
+            <div class="section">
+                <h2>🔗 관련 메트릭</h2>
+                <ul>
+                    <li><strong>Quality Score (Layer 1)</strong>: Native 품질 평가 (더 빠르지만 덜 유연)</li>
+                    <li><strong>Hallucination Metric (Layer 3)</strong>: 환각 탐지 (컨텍스트 일치도)</li>
+                    <li><strong>Answer Relevancy (Layer 3)</strong>: 답변 관련성 평가</li>
+                    <li><strong>Ragas Metrics (Layer 3)</strong>: RAG 시스템 전용 품질 평가</li>
+                </ul>
+            </div>
+
+            <div class="section">
+                <h2>📚 참고 자료</h2>
+                <ul>
+                    <li><strong>DeepEval Documentation</strong>: <a href="https://docs.confident-ai.com/" target="_blank">https://docs.confident-ai.com/</a></li>
+                    <li><strong>G-Eval Paper</strong>: "G-Eval: NLG Evaluation using GPT-4 with Better Human Alignment"</li>
+                    <li><strong>Agent Evaluator GitHub</strong>: <a href="https://github.com/your-repo/agent-evaluator" target="_blank">GitHub Repository</a></li>
+                </ul>
+            </div>
+        </div>
+    </div>
+    <script src="../scripts/mermaid-zoom.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+    <script>
+        mermaid.initialize({ startOnLoad: true, theme: 'default' });
+    </script>
+</body>
+</html>

@@ -1,0 +1,2105 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Quality Score - Agent Evaluator v0.5.0</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            line-height: 1.8;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: #333;
+        }
+
+        .container {
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            overflow: hidden;
+            max-width: 1400px;
+            margin: 40px auto;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 60px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 3.5em;
+            margin-bottom: 20px;
+            font-weight: 700;
+        }
+
+        .subtitle {
+            font-size: 1.4em;
+            margin-bottom: 25px;
+            opacity: 0.95;
+            font-weight: 300;
+        }
+
+        .version-badge {
+            display: inline-block;
+            background: rgba(255, 255, 255, 0.2);
+            padding: 12px 30px;
+            border-radius: 30px;
+            font-size: 1em;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+        }
+
+        .content {            margin: 0 auto;
+            background: white;
+            padding: 60px;
+            
+        }
+
+        .section {
+            margin-bottom: 50px;
+        }
+
+        .section h2 {
+            color: #667eea;
+            font-size: 2.2em;
+            margin-bottom: 25px;
+            padding-bottom: 15px;
+            border-bottom: 3px solid #667eea;
+        }
+
+        .section h3 {
+            color: #764ba2;
+            font-size: 1.6em;
+            margin-top: 30px;
+            margin-bottom: 20px;
+        }
+
+        .section h4 {
+            color: #5a67d8;
+            font-size: 1.3em;
+            margin-top: 25px;
+            margin-bottom: 15px;
+        }
+
+        .intro-box {
+            background: linear-gradient(135deg, #f0f4ff 0%, #e8edff 100%);
+            border-left: 5px solid #667eea;
+            padding: 30px;
+            margin: 25px 0;
+            border-radius: 8px;
+            font-size: 1.05em;
+        }
+
+        .importance-box {
+            background: linear-gradient(135deg, #fff5f7 0%, #ffe8ed 100%);
+            border-left: 5px solid #e53e3e;
+            padding: 30px;
+            margin: 25px 0;
+            border-radius: 8px;
+        }
+
+        .implementation-note {
+            background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%);
+            border-left: 5px solid #10b981;
+            padding: 30px;
+            margin: 25px 0;
+            border-radius: 8px;
+        }
+
+        .best-practice {
+            background: linear-gradient(135deg, #fefce8 0%, #fef3c7 100%);
+            border-left: 5px solid #f59e0b;
+            padding: 30px;
+            margin: 25px 0;
+            border-radius: 8px;
+        }
+
+        .highlight {
+            color: #667eea;
+            font-weight: 600;
+        }
+        .info-box {
+            background: #ebf8ff;
+            border-left: 5px solid #3182ce;
+            padding: 20px;
+            margin: 25px 0;
+            border-radius: 6px;
+        }
+
+        .warning-box {
+            background: #fffaf0;
+            border-left: 5px solid #ed8936;
+            padding: 20px;
+            margin: 25px 0;
+            border-radius: 6px;
+        }
+
+        .code-block {
+            background: #2d3748;
+            color: #e2e8f0;
+            padding: 25px;
+            border-radius: 8px;
+            overflow-x: auto;
+            margin: 20px 0;
+            border-left: 4px solid #667eea;
+            font-family: 'Courier New', monospace;
+            font-size: 0.95em;
+            line-height: 1.6;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+        .code-block .comment {
+            color: #a0aec0;
+        }
+        .code-block .keyword {
+            color: #f687b3;
+        }
+        .code-block .string {
+            color: #68d391;
+        }
+        .code-block .function {
+            color: #63b3ed;
+        }
+        .code-block .number {
+            color: #fbd38d;
+        }
+        .info-box {
+            background: #ebf8ff;
+            border-left: 5px solid #3182ce;
+            padding: 20px;
+            margin: 25px 0;
+            border-radius: 6px;
+        }
+        .warning-box {
+            background: #fffaf0;
+            border-left: 5px solid #ed8936;
+            padding: 20px;
+            margin: 25px 0;
+            border-radius: 6px;
+        }
+        .success-box {
+            background: #f0fff4;
+            border-left: 5px solid #38a169;
+            padding: 20px;
+            margin: 25px 0;
+            border-radius: 6px;
+        }
+        .formula-box {
+            background: #faf5ff;
+            border: 2px solid #9f7aea;
+            padding: 20px;
+            margin: 25px 0;
+            border-radius: 8px;
+            text-align: center;
+            font-size: 1.1em;
+        }
+        .dimension-card {
+            background: linear-gradient(135deg, #f7fafc 0%, #edf2f7 100%);
+            border-left: 4px solid #4299e1;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 8px;
+        }
+        .grade-a { background: linear-gradient(135deg, #d4edda 0%, #c3e6cb 100%); border-color: #28a745; }
+        .grade-b { background: linear-gradient(135deg, #d1ecf1 0%, #bee5eb 100%); border-color: #17a2b8; }
+        .grade-c { background: linear-gradient(135deg, #fff3cd 0%, #ffeeba 100%); border-color: #ffc107; }
+        .grade-d { background: linear-gradient(135deg, #f8d7da 0%, #f5c6cb 100%); border-color: #dc3545; }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 25px 0;
+            background: white;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            border-radius: 8px;
+            overflow: hidden;
+        }
+        th {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 15px;
+            text-align: left;
+            font-weight: 600;
+        }
+        td {
+            padding: 15px;
+            border-bottom: 1px solid #e2e8f0;
+        }
+        tr:hover {
+            background: #f7fafc;
+        }
+        .badge {
+            display: inline-block;
+            padding: 5px 12px;
+            border-radius: 20px;
+            font-size: 0.85em;
+            font-weight: 600;
+            margin-right: 8px;
+        }
+        .badge-layer1 { background: #c3dafe; color: #2c5282; }
+        .badge-foundation { background: #feebc8; color: #7c2d12; }
+        .badge-quality { background: #e9d8fd; color: #553c9a; }
+        .badge-multidim { background: #fce7f3; color: #9f1239; }
+        ul, ol {
+            padding-left: 30px;
+            margin: 20px 0;
+        }
+        li {
+            margin: 12px 0;
+        }
+        .footer {
+            margin-top: 60px;
+            padding-top: 30px;
+            border-top: 2px solid #e2e8f0;
+            text-align: center;
+            color: #718096;
+            font-size: 0.95em;
+        }
+
+        /* Mermaid Diagrams */
+        .mermaid {
+            margin: 40px 0;
+            text-align: center;
+            background: linear-gradient(135deg, #f6f8fb 0%, #e9ecf5 100%);
+            padding: 30px;
+            border-radius: 15px;
+            border: 1px solid #e2e8f0;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            transition: all 0.3s ease;
+        }
+
+        .mermaid:hover {
+            box-shadow: 0 8px 20px rgba(0,0,0,0.15);
+            transform: translateY(-2px);
+        }
+
+        /* Mermaid Diagram Zoom Modal Styles */
+.mermaid-modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 10000;
+    opacity: 0;
+    transition: opacity 0.2s ease;
+}
+
+.mermaid-modal.active {
+    opacity: 1;
+}
+
+.mermaid-modal.closing {
+    opacity: 0;
+}
+
+/* Modal backdrop */
+.mermaid-modal-backdrop {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.85);
+    backdrop-filter: blur(4px);
+}
+
+/* Modal content container */
+.mermaid-modal-content {
+    position: relative;
+    width: 90vw;
+    height: 90vh;
+    max-width: 1400px;
+    max-height: 900px;
+    margin: 5vh auto;
+    background: var(--bg-white);
+    border-radius: var(--radius-xl);
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;  /* Keep border-radius working */
+}
+
+/* Modal header */
+.mermaid-modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: var(--space-md) var(--space-lg);
+    background: linear-gradient(135deg, var(--primary-color) 0%, var(--primary-dark) 100%);
+    color: white;
+    border-bottom: 1px solid var(--bg-border);
+}
+
+.mermaid-modal-title {
+    font-size: 1.1rem;
+    font-weight: 600;
+}
+
+.mermaid-modal-controls {
+    display: flex;
+    gap: var(--space-sm);
+}
+
+.mermaid-btn {
+    background: rgba(255, 255, 255, 0.2);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    color: white;
+    padding: var(--space-sm);
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    transition: all var(--transition-fast);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+}
+
+.mermaid-btn:hover {
+    background: rgba(255, 255, 255, 0.3);
+    border-color: rgba(255, 255, 255, 0.5);
+    transform: scale(1.05);
+}
+
+.mermaid-btn:active {
+    transform: scale(0.95);
+}
+
+.mermaid-btn svg {
+    width: 20px;
+    height: 20px;
+}
+
+/* Modal body */
+.mermaid-modal-body {
+    flex: 1;
+    overflow: visible;  /* Don't clip transformed content */
+    position: relative;
+    background: #ffffff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* Diagram container */
+.mermaid-diagram-container {
+    transform-origin: center center;
+    /* No transition during drag - will be added dynamically only for zoom */
+    transition: none;
+    /* Remove max-width/height constraints to allow diagrams to display at original size */
+    /* The modal-body will handle overflow with scrolling */
+    display: inline-block;
+    position: relative;
+    /* Ensure content is visible even when transformed */
+    pointer-events: auto;
+    z-index: 1;
+    /* Prevent disappearing due to overflow clipping */
+    will-change: transform;
+}
+
+/* Add transition class for zoom (not drag) */
+.mermaid-diagram-container.zoom-transition {
+    transition: transform 0.2s ease;
+}
+
+.mermaid-diagram-container svg {
+    max-width: none !important;
+    max-height: none !important;
+    display: block;
+    cursor: grab;
+}
+
+.mermaid-diagram-container svg:active {
+    cursor: grabbing;
+}
+
+/* Responsive modal */
+@media (max-width: 768px) {
+    .mermaid-modal-content {
+        width: 95vw;
+        height: 85vh;
+        margin: 7.5vh auto;
+    }
+
+    .mermaid-modal-header {
+        padding: var(--space-sm) var(--space-md);
+    }
+
+    .mermaid-modal-title {
+        font-size: 1rem;
+    }
+
+    .mermaid-btn {
+        width: 32px;
+        height: 32px;
+    }
+
+    .mermaid-btn svg {
+        width: 18px;
+        height: 18px;
+    }
+}
+
+/* Dark mode support for modal */
+@media (prefers-color-scheme: dark) {
+    .mermaid-modal-content {
+        background: var(--bg-white);
+        border: 1px solid var(--bg-border);
+    }
+
+    .mermaid-modal-body {
+        background: #ffffff;
+    }
+}
+    </style>
+</head>
+<body>
+    <div class="container">
+    <div class="header">
+        <h1>⭐ Quality Score</h1>
+        <div class="subtitle">Multi-Dimensional AI Response Quality Evaluation</div>
+        <div class="version-badge">Agent Evaluator v0.5.0 - Layer 1 Foundation Metric</div>
+    </div>
+
+    <div class="content">
+        <div class="section">
+            <h2>🎯 개요</h2>
+
+            <div class="intro-box">
+                <strong>Quality Score (품질 점수)</strong>는 AI Agent 응답의 <span class="highlight">종합적인 품질을 다차원으로 평가</span>하는 Layer 1 Foundation Metric입니다.
+
+                <ul style="margin-top: 15px;">
+                    <li><strong>측정 대상</strong>: AI Agent 응답의 종합 품질 (5개 차원)</li>
+                    <li><strong>평가 차원</strong>: Relevance (25%), Completeness (25%), Accuracy (20%), Clarity (15%), Usefulness (15%)</li>
+                    <li><strong>점수 범위</strong>: 0-5점 (등급: A, B, C, D, F)</li>
+                    <li><strong>구현 위치</strong>: <code>agent_evaluator/core/agent_evaluator.py</code> (Lines 628-921)</li>
+                </ul>
+            </div>
+
+            <div class="importance-box">
+                <h4>⚠️ 품질 평가의 중요성</h4>
+                <ul>
+                    <li><strong>다차원 평가</strong>: 단순 정확도를 넘어 종합적 품질 측정</li>
+                    <li><strong>조기 품질 문제 발견</strong>: 배포 전 낮은 품질 응답 탐지</li>
+                    <li><strong>개선 방향 제시</strong>: 어떤 차원이 약한지 파악하여 개선</li>
+                    <li><strong>사용자 만족도</strong>: 높은 품질이 사용자 경험 향상</li>
+                </ul>
+            </div>
+
+            <div class="implementation-note">
+                <h4>🏗️ 구현 특징</h4>
+                <ul>
+                    <li><strong>클래스</strong>: <code>ResponseQualityEvaluator</code> (agent_evaluator.py:628-921)</li>
+                    <li><strong>평가 방식</strong>: 5가지 차원 × 가중치 합산</li>
+                    <li><strong>외부 의존성</strong>: 없음 (Layer 1 Native Metric)</li>
+                    <li><strong>커스터마이징</strong>: 도메인별 가중치 조정 가능</li>
+                    <li><strong>등급 시스템</strong>: A (4.5-5.0) ~ F (0-2.9) 5단계</li>
+                </ul>
+            </div>
+
+            <div class="formula-box">
+                <strong>Quality Score 공식 (0-5점 척도)</strong><br><br>
+                Quality = 0.25 × Relevance + 0.25 × Completeness + 0.20 × Accuracy<br>
+                + 0.15 × Clarity + 0.15 × Usefulness
+            </div>
+        </div>
+
+        <div class="section">
+            <h2>📊 5가지 품질 차원</h2>
+
+        <div class="dimension-card">
+            <h4>📌 1. Relevance (관련성) - 가중치 25%</h4>
+            <p><strong>측정 내용</strong>: 응답이 사용자 질문과 얼마나 관련 있는가?</p>
+            <p><strong>계산 방식</strong>: 질문 키워드와 응답 키워드의 겹침 비율</p>
+            <div class="code-block">
+<span class="comment"># 예시</span>
+질문: <span class="string">"파이썬에서 리스트 정렬 방법은?"</span>
+응답: <span class="string">"파이썬 리스트는 sort() 메서드로 정렬할 수 있습니다"</span>
+
+<span class="comment"># 키워드 겹침: {파이썬, 리스트, 정렬} → 3/3 = 100%</span>
+<span class="comment"># Relevance Score: 5.0 / 5.0</span>
+</div>
+        </div>
+
+        <div class="dimension-card">
+            <h4>📋 2. Completeness (완전성) - 가중치 25%</h4>
+            <p><strong>측정 내용</strong>: 기대하는 요소들이 모두 포함되었는가?</p>
+            <p><strong>계산 방식</strong>: 기대 요소 중 실제로 응답에 포함된 비율</p>
+            <div class="code-block">
+<span class="comment"># 예시</span>
+기대 요소: [<span class="string">"정의"</span>, <span class="string">"예시"</span>, <span class="string">"사용법"</span>]
+응답에 포함: [<span class="string">"정의"</span>, <span class="string">"사용법"</span>]  <span class="comment"># 예시 누락</span>
+
+<span class="comment"># Completeness: 2/3 = 0.67</span>
+<span class="comment"># Score: 0.67 × 5 = 3.35 / 5.0</span>
+</div>
+        </div>
+
+        <div class="dimension-card">
+            <h4>🎯 3. Accuracy (정확성) - 가중치 20%</h4>
+            <p><strong>측정 내용</strong>: Ground Truth와 얼마나 일치하는가?</p>
+            <p><strong>계산 방식</strong>: Ground Truth가 있으면 유사도 계산, 없으면 완전성 기반 추정</p>
+            <div class="code-block">
+<span class="comment"># Ground Truth가 있는 경우</span>
+ground_truth = <span class="string">"서울의 인구는 약 970만명"</span>
+response = <span class="string">"서울 인구는 대략 1000만명"</span>
+
+<span class="comment"># Token Similarity: ~0.8</span>
+<span class="comment"># Accuracy Score: 0.8 × 5 = 4.0 / 5.0</span>
+
+<span class="comment"># Ground Truth가 없는 경우</span>
+<span class="comment"># Completeness 기반 휴리스틱 사용</span>
+<span class="comment"># Score: completeness × 4.5</span>
+</div>
+        </div>
+
+        <div class="dimension-card">
+            <h4>💬 4. Clarity (명확성) - 가중치 15%</h4>
+            <p><strong>측정 내용</strong>: 응답이 이해하기 쉽고 잘 구조화되었는가?</p>
+            <p><strong>계산 방식</strong>: 응답 길이 + 구조화 여부 (줄바꿈, 문장 부호)</p>
+            <div class="code-block">
+<span class="comment"># 계산 로직</span>
+word_count = <span class="function">len</span>(response.<span class="function">split</span>())
+has_structure = <span class="string">'\n'</span> <span class="keyword">in</span> response <span class="keyword">or</span> <span class="string">'.'</span> <span class="keyword">in</span> response
+
+clarity = <span class="function">min</span>(word_count / 100, 1.0) × (1.2 <span class="keyword">if</span> has_structure <span class="keyword">else</span> 1.0)
+score = <span class="function">min</span>(clarity × 5, 5.0)
+
+<span class="comment"># 예시:</span>
+<span class="comment"># 50단어 + 구조화 → (0.5 × 1.2) × 5 = 3.0</span>
+<span class="comment"># 150단어 + 구조화 → (1.0 × 1.2) × 5 = 5.0 (최대)</span>
+</div>
+        </div>
+
+        <div class="dimension-card">
+            <h4>💡 5. Usefulness (유용성) - 가중치 15%</h4>
+            <p><strong>측정 내용</strong>: 실제로 도움이 되는 응답인가?</p>
+            <p><strong>계산 방식</strong>: 길이 + 구조 + 예시 + 구체적 데이터</p>
+            <div class="code-block">
+<span class="comment"># 4가지 요소 체크</span>
+has_examples = <span class="keyword">any</span>(word <span class="keyword">in</span> response <span class="keyword">for</span> word <span class="keyword">in</span>
+               [<span class="string">'예를 들어'</span>, <span class="string">'example'</span>, <span class="string">':'</span>, <span class="string">'•'</span>])
+has_numbers = <span class="keyword">any</span>(char.<span class="function">isdigit</span>() <span class="keyword">for</span> char <span class="keyword">in</span> response)
+has_structure = <span class="string">'\n'</span> <span class="keyword">in</span> response <span class="keyword">or</span> <span class="string">'.'</span> <span class="keyword">in</span> response
+
+usefulness = (
+    0.4 × <span class="function">min</span>(word_count / 150, 1.0) +  <span class="comment"># 적절한 길이</span>
+    0.3 × (1.0 <span class="keyword">if</span> has_structure <span class="keyword">else</span> 0.5) +  <span class="comment"># 구조화</span>
+    0.2 × (1.0 <span class="keyword">if</span> has_examples <span class="keyword">else</span> 0.5) +  <span class="comment"># 예시</span>
+    0.1 × (1.0 <span class="keyword">if</span> has_numbers <span class="keyword">else</span> 0.5)     <span class="comment"># 구체적 데이터</span>
+)
+score = usefulness × 5
+</div>
+        </div>
+
+        <h3>Grade 시스템</h3>
+        <table>
+            <thead>
+                <tr>
+                    <th>점수 범위</th>
+                    <th>등급</th>
+                    <th>설명</th>
+                    <th>권장 조치</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr class="grade-a">
+                    <td>4.5 ~ 5.0</td>
+                    <td><strong>A</strong></td>
+                    <td>탁월한 품질</td>
+                    <td>현재 수준 유지</td>
+                </tr>
+                <tr class="grade-b">
+                    <td>4.0 ~ 4.4</td>
+                    <td><strong>B</strong></td>
+                    <td>우수한 품질</td>
+                    <td>세부 개선 기회 탐색</td>
+                </tr>
+                <tr class="grade-c">
+                    <td>3.5 ~ 3.9</td>
+                    <td><strong>C</strong></td>
+                    <td>보통 품질</td>
+                    <td>주요 차원 개선 필요</td>
+                </tr>
+                <tr>
+                    <td>3.0 ~ 3.4</td>
+                    <td><strong>D</strong></td>
+                    <td>미흡한 품질</td>
+                    <td>즉각적인 개선 필요</td>
+                </tr>
+                <tr class="grade-d">
+                    <td>0.0 ~ 2.9</td>
+                    <td><strong>F</strong></td>
+                    <td>불합격</td>
+                    <td>재설계 고려</td>
+                </tr>
+            </tbody>
+        </table>
+
+        </div>
+
+        <div class="section">
+            <h2>🏗️ 구현 위치 및 클래스 구조</h2>
+
+        <h3>파일 위치</h3>
+        <div class="code-block">
+<span class="comment"># 구현 파일</span>
+agent_evaluator/core/agent_evaluator.py
+
+<span class="comment"># 클래스 정의</span>
+<span class="keyword">class</span> <span class="function">ResponseQualityEvaluator</span>:  <span class="comment"># Lines 628-921</span>
+    <span class="string">"""Evaluate response quality across multiple dimensions"""</span>
+</div>
+
+        <h3>클래스 구조</h3>
+        <table>
+            <thead>
+                <tr>
+                    <th>메서드</th>
+                    <th>라인</th>
+                    <th>설명</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><code>__init__()</code></td>
+                    <td>631-639</td>
+                    <td>평가자 초기화, 가중치 설정</td>
+                </tr>
+                <tr>
+                    <td><code>evaluate_response()</code></td>
+                    <td>641-727</td>
+                    <td><strong>5차원 품질 평가</strong></td>
+                </tr>
+                <tr>
+                    <td><code>_assign_grade()</code></td>
+                    <td>729-740</td>
+                    <td>점수 → 등급 변환 (A-F)</td>
+                </tr>
+                <tr>
+                    <td><code>_calculate_similarity()</code></td>
+                    <td>742-782</td>
+                    <td>Ground Truth 유사도</td>
+                </tr>
+                <tr>
+                    <td><code>get_quality_metrics()</code></td>
+                    <td>784-837</td>
+                    <td>통계 집계</td>
+                </tr>
+                <tr>
+                    <td><code>get_quality_by_dimension()</code></td>
+                    <td>839-897</td>
+                    <td>차원별 상세 분석</td>
+                </tr>
+                <tr>
+                    <td><code>_get_score_distribution()</code></td>
+                    <td>899-921</td>
+                    <td>점수 분포 계산</td>
+                </tr>
+            </tbody>
+        </table>
+
+        </div>
+
+        <div class="section">
+            <h2>⚙️ 핵심 평가 알고리즘</h2>
+
+            <p><strong>이 섹션에서는</strong> <code>ResponseQualityEvaluator</code> 클래스의 핵심 메서드들이 <strong>어떻게 동작하는지</strong> 상세히 설명합니다.</p>
+
+            <h3>1️⃣ evaluate_response() - 5차원 품질 평가 메서드</h3>
+            <p><strong>목적</strong>: AI Agent 응답을 5가지 차원에서 평가하고 가중 평균 점수 계산</p>
+            <p><strong>위치</strong>: Lines 641-727</p>
+
+            <div class="code-block">
+<span class="keyword">def</span> <span class="function">evaluate_response</span>(self, task_id: <span class="keyword">str</span>, response: <span class="keyword">str</span>,
+                     request: <span class="keyword">str</span>, expected_elements: List[<span class="keyword">str</span>],
+                     ground_truth: Optional[<span class="keyword">str</span>] = <span class="keyword">None</span>) -> Dict[<span class="keyword">str</span>, Any]:
+    <span class="string">"""5차원 품질 평가 수행"""</span>
+    scores = {}
+
+    <span class="comment"># === 1. Relevance (관련성) 평가 === (Lines 659-668)</span>
+    request_words = <span class="function">set</span>(request.lower().split())
+    response_words = <span class="function">set</span>(response.lower().split())
+
+    <span class="keyword">if not</span> request_words:
+        relevance = 0.0
+    <span class="keyword">else</span>:
+        <span class="comment"># 키워드 겹침 비율 계산</span>
+        relevance = <span class="function">len</span>(request_words & response_words) / <span class="function">len</span>(request_words)
+    scores[<span class="string">"relevance"</span>] = <span class="function">min</span>(relevance * 5, 5.0)
+
+    <span class="comment"># === 2. Completeness (완전성) 평가 === (Lines 670-679)</span>
+    found_elements = <span class="function">sum</span>(1 <span class="keyword">for</span> elem <span class="keyword">in</span> expected_elements <span class="keyword">if</span> elem.lower() <span class="keyword">in</span> response.lower())
+
+    <span class="keyword">if</span> expected_elements <span class="keyword">and</span> <span class="function">len</span>(expected_elements) > 0:
+        completeness = found_elements / <span class="function">len</span>(expected_elements)
+    <span class="keyword">else</span>:
+        completeness = 1.0  <span class="comment"># 요구사항 없으면 100% 완료</span>
+    scores[<span class="string">"completeness"</span>] = completeness * 5
+
+    <span class="comment"># === 3. Clarity (명확성) 평가 === (Lines 681-685)</span>
+    word_count = <span class="function">len</span>(response.split())
+    has_structure = <span class="string">'\n'</span> <span class="keyword">in</span> response <span class="keyword">or</span> <span class="string">'.'</span> <span class="keyword">in</span> response
+    clarity = <span class="function">min</span>(word_count / 100, 1.0) * (1.2 <span class="keyword">if</span> has_structure <span class="keyword">else</span> 1.0)
+    scores[<span class="string">"clarity"</span>] = <span class="function">min</span>(clarity * 5, 5.0)
+
+    <span class="comment"># === 4. Accuracy (정확성) 평가 === (Lines 687-694)</span>
+    <span class="keyword">if</span> ground_truth:
+        similarity = self._calculate_similarity(response, ground_truth)
+        scores[<span class="string">"accuracy"</span>] = similarity * 5
+    <span class="keyword">else</span>:
+        <span class="comment"># Heuristic: 완전성 기반 추정</span>
+        scores[<span class="string">"accuracy"</span>] = <span class="function">min</span>(completeness * 4.5, 5.0)
+
+    <span class="comment"># === 5. Usefulness (유용성) 평가 === (Lines 696-708)</span>
+    has_examples = <span class="function">any</span>(word <span class="keyword">in</span> response.lower() <span class="keyword">for</span> word <span class="keyword">in</span>
+                       [<span class="string">'예를 들어'</span>, <span class="string">'example'</span>, <span class="string">':'</span>, <span class="string">'•'</span>, <span class="string">'-'</span>])
+    has_numbers = <span class="function">any</span>(char.isdigit() <span class="keyword">for</span> char <span class="keyword">in</span> response)
+
+    usefulness = (
+        0.4 * <span class="function">min</span>(word_count / 150, 1.0) +      <span class="comment"># 적절한 길이</span>
+        0.3 * (1.0 <span class="keyword">if</span> has_structure <span class="keyword">else</span> 0.5) +  <span class="comment"># 잘 구조화됨</span>
+        0.2 * (1.0 <span class="keyword">if</span> has_examples <span class="keyword">else</span> 0.5) +  <span class="comment"># 예시 포함</span>
+        0.1 * (1.0 <span class="keyword">if</span> has_numbers <span class="keyword">else</span> 0.5)    <span class="comment"># 구체적 데이터</span>
+    )
+    scores[<span class="string">"usefulness"</span>] = usefulness * 5
+
+    <span class="comment"># === 6. 가중 평균 계산 === (Lines 710-714)</span>
+    total_score = <span class="function">sum</span>(
+        scores[dim] * weight
+        <span class="keyword">for</span> dim, weight <span class="keyword">in</span> self.dimensions.items()
+    )
+
+    <span class="comment"># === 7. 등급 부여 === (Line 716)</span>
+    grade = self._assign_grade(total_score)
+
+    <span class="keyword">return</span> {
+        <span class="string">"task_id"</span>: task_id,
+        <span class="string">"dimension_scores"</span>: scores,
+        <span class="string">"total_score"</span>: <span class="function">round</span>(total_score, 2),
+        <span class="string">"grade"</span>: grade,
+        <span class="string">"timestamp"</span>: datetime.now()
+    }
+</div>
+
+            <div class="info-box">
+                <h4>🔍 5가지 평가 차원 상세 알고리즘</h4>
+
+                <h4 style="color: #667eea; margin-top: 20px;">📌 1. Relevance (관련성) - 키워드 겹침 비율</h4>
+                <p><strong>계산식</strong>: <code>len(request_words ∩ response_words) / len(request_words)</code></p>
+                <ul>
+                    <li>질문 키워드와 응답 키워드의 교집합 비율</li>
+                    <li>점수 스케일링: <code>min(relevance × 5, 5.0)</code></li>
+                    <li>빈 질문 처리: request_words가 비어있으면 0.0 반환</li>
+                </ul>
+
+                <h4 style="color: #667eea; margin-top: 20px;">📋 2. Completeness (완전성) - 기대 요소 포함 비율</h4>
+                <p><strong>계산식</strong>: <code>found_elements / len(expected_elements)</code></p>
+                <ul>
+                    <li>expected_elements 리스트의 각 요소가 응답에 포함되는지 체크</li>
+                    <li>대소문자 무시: <code>elem.lower() in response.lower()</code></li>
+                    <li>요구사항 없는 경우: 100% 완료로 간주 (completeness = 1.0)</li>
+                </ul>
+
+                <h4 style="color: #667eea; margin-top: 20px;">💬 3. Clarity (명확성) - 길이 + 구조화</h4>
+                <p><strong>계산식</strong>: <code>min(word_count/100, 1.0) × (1.2 if has_structure else 1.0)</code></p>
+                <ul>
+                    <li>100단어 기준으로 정규화 (100단어 이상 = 1.0)</li>
+                    <li>구조화 보너스: 줄바꿈 또는 마침표 포함 시 1.2배</li>
+                    <li>최대 5.0 제한: <code>min(clarity × 5, 5.0)</code></li>
+                </ul>
+
+                <h4 style="color: #667eea; margin-top: 20px;">🎯 4. Accuracy (정확성) - Ground Truth 유사도 또는 휴리스틱</h4>
+                <p><strong>Ground Truth 제공 시</strong>: Jaccard Similarity 기반 유사도 계산</p>
+                <p><strong>Ground Truth 없는 경우</strong>: <code>min(completeness × 4.5, 5.0)</code></p>
+                <ul>
+                    <li>완전성이 높으면 정확도도 높다고 가정</li>
+                    <li>최대 4.5점까지만 부여 (불확실성 고려)</li>
+                </ul>
+
+                <h4 style="color: #667eea; margin-top: 20px;">🔧 5. Usefulness (유용성) - 4가지 지표 가중 합산</h4>
+                <p><strong>계산식</strong>:</p>
+                <div class="code-block" style="font-size: 0.9em;">
+usefulness = 0.4 × min(word_count/150, 1.0)  +    <span class="comment"># 40%: 적절한 길이 (150단어 기준)</span>
+             0.3 × (1.0 if has_structure else 0.5) +  <span class="comment"># 30%: 구조화</span>
+             0.2 × (1.0 if has_examples else 0.5) +   <span class="comment"># 20%: 예시 포함</span>
+             0.1 × (1.0 if has_numbers else 0.5)      <span class="comment"># 10%: 구체적 숫자</span>
+</div>
+                <ul>
+                    <li><strong>예시 탐지 키워드</strong>: '예를 들어', 'example', ':', '•', '-'</li>
+                    <li><strong>숫자 탐지</strong>: <code>any(char.isdigit() for char in response)</code></li>
+                </ul>
+            </div>
+
+            <h3>2️⃣ _calculate_similarity() - Ground Truth 유사도 계산</h3>
+            <p><strong>목적</strong>: 응답과 Ground Truth 간의 Jaccard Similarity 계산</p>
+            <p><strong>위치</strong>: Lines 742-782</p>
+
+            <div class="code-block">
+<span class="keyword">def</span> <span class="function">_calculate_similarity</span>(self, response: <span class="keyword">str</span>, ground_truth: <span class="keyword">str</span>) -> <span class="keyword">float</span>:
+    <span class="string">"""Jaccard Similarity + Coverage 가중 조합"""</span>
+    <span class="keyword">import</span> re
+
+    <span class="comment"># === 1. 텍스트 정규화 === (Lines 751-755)</span>
+    <span class="keyword">def</span> <span class="function">normalize</span>(text):
+        text = text.lower()
+        text = re.sub(<span class="string">r'\s+'</span>, <span class="string">' '</span>, text).strip()    <span class="comment"># 공백 정규화</span>
+        text = re.sub(<span class="string">r'[^\w\s]'</span>, <span class="string">''</span>, text)        <span class="comment"># 특수문자 제거</span>
+        <span class="keyword">return</span> text
+
+    response_norm = normalize(response)
+    gt_norm = normalize(ground_truth)
+
+    <span class="keyword">if not</span> gt_norm:
+        <span class="keyword">return</span> 0.0
+
+    <span class="comment"># === 2. 토큰 분리 === (Lines 763-765)</span>
+    response_tokens = <span class="function">set</span>(response_norm.split())
+    gt_tokens = <span class="function">set</span>(gt_norm.split())
+
+    <span class="keyword">if not</span> gt_tokens:
+        <span class="keyword">return</span> 0.0
+
+    intersection = <span class="function">len</span>(response_tokens & gt_tokens)
+    union = <span class="function">len</span>(response_tokens | gt_tokens)
+
+    <span class="comment"># === 3. Jaccard Similarity === (Line 774)</span>
+    jaccard = intersection / union <span class="keyword">if</span> union > 0 <span class="keyword">else</span> 0.0
+
+    <span class="comment"># === 4. Coverage (Ground Truth 커버리지) === (Line 777)</span>
+    coverage = intersection / <span class="function">len</span>(gt_tokens)
+
+    <span class="comment"># === 5. 가중 조합 (Coverage 우선) === (Line 780)</span>
+    similarity = 0.6 * coverage + 0.4 * jaccard
+
+    <span class="keyword">return</span> <span class="function">min</span>(similarity, 1.0)
+</div>
+
+            <div class="success-box">
+                <h4>✅ 유사도 계산 핵심 포인트</h4>
+                <ol>
+                    <li><strong>2가지 유사도 지표 사용</strong>:
+                        <ul>
+                            <li><strong>Jaccard Similarity</strong>: <code>|A ∩ B| / |A ∪ B|</code> (대칭적)</li>
+                            <li><strong>Coverage</strong>: <code>|A ∩ B| / |B|</code> (Ground Truth 기준)</li>
+                        </ul>
+                    </li>
+                    <li><strong>Coverage 우선 (60:40 비율)</strong>: Ground Truth의 핵심 내용을 얼마나 포함했는지 중요</li>
+                    <li><strong>텍스트 정규화</strong>: 소문자 변환, 공백/특수문자 제거로 순수 의미 비교</li>
+                    <li><strong>Zero Division 방지</strong>: gt_tokens가 비어있으면 0.0 반환</li>
+                </ol>
+            </div>
+
+            <h3>3️⃣ _assign_grade() - 점수 → 등급 변환</h3>
+            <p><strong>목적</strong>: 0-5점 범위의 total_score를 A-F 등급으로 변환</p>
+            <p><strong>위치</strong>: Lines 729-740</p>
+
+            <div class="code-block">
+<span class="keyword">def</span> <span class="function">_assign_grade</span>(self, score: <span class="keyword">float</span>) -> <span class="keyword">str</span>:
+    <span class="string">"""5단계 등급 체계"""</span>
+    <span class="keyword">if</span> score >= 4.5:      <span class="comment"># 90% 이상</span>
+        <span class="keyword">return</span> <span class="string">"A"</span>
+    <span class="keyword">elif</span> score >= 4.0:   <span class="comment"># 80-89%</span>
+        <span class="keyword">return</span> <span class="string">"B"</span>
+    <span class="keyword">elif</span> score >= 3.5:   <span class="comment"># 70-79%</span>
+        <span class="keyword">return</span> <span class="string">"C"</span>
+    <span class="keyword">elif</span> score >= 3.0:   <span class="comment"># 60-69%</span>
+        <span class="keyword">return</span> <span class="string">"D"</span>
+    <span class="keyword">else</span>:               <span class="comment"># 60% 미만</span>
+        <span class="keyword">return</span> <span class="string">"F"</span>
+</div>
+
+            <table style="margin-top: 20px;">
+                <thead>
+                    <tr>
+                        <th>등급</th>
+                        <th>점수 범위</th>
+                        <th>백분율</th>
+                        <th>의미</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr style="background: #c6f6d5;">
+                        <td><strong>A</strong></td>
+                        <td>4.5 - 5.0</td>
+                        <td>90-100%</td>
+                        <td>탁월한 품질</td>
+                    </tr>
+                    <tr style="background: #d6f5d6;">
+                        <td><strong>B</strong></td>
+                        <td>4.0 - 4.49</td>
+                        <td>80-89%</td>
+                        <td>우수한 품질</td>
+                    </tr>
+                    <tr style="background: #fff9c4;">
+                        <td><strong>C</strong></td>
+                        <td>3.5 - 3.99</td>
+                        <td>70-79%</td>
+                        <td>양호한 품질</td>
+                    </tr>
+                    <tr style="background: #ffecb3;">
+                        <td><strong>D</strong></td>
+                        <td>3.0 - 3.49</td>
+                        <td>60-69%</td>
+                        <td>개선 필요</td>
+                    </tr>
+                    <tr style="background: #ffccbc;">
+                        <td><strong>F</strong></td>
+                        <td>0 - 2.99</td>
+                        <td>0-59%</td>
+                        <td>품질 불량</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <h3>4️⃣ get_quality_metrics() - 통계 집계</h3>
+            <p><strong>목적</strong>: 모든 평가 결과를 집계하여 통계 생성</p>
+            <p><strong>위치</strong>: Lines 784-837</p>
+
+            <div class="code-block">
+<span class="keyword">def</span> <span class="function">get_quality_metrics</span>(self) -> Dict[<span class="keyword">str</span>, Any]:
+    <span class="string">"""전체 품질 통계 계산"""</span>
+    <span class="keyword">if not</span> self.evaluations:
+        <span class="keyword">return</span> {}
+
+    <span class="comment"># === 1. DataFrame 변환 === (Line 789)</span>
+    df = pd.DataFrame(self.evaluations)
+
+    <span class="comment"># === 2. 등급 분포 === (Line 791)</span>
+    grade_dist = df[<span class="string">"grade"</span>].value_counts().to_dict()
+
+    <span class="comment"># === 3. 표준편차 계산 (NaN 처리) === (Line 794)</span>
+    std_val = df[<span class="string">"total_score"</span>].std()
+
+    <span class="comment"># === 4. High Quality 카운트 (A or B) === (Line 797)</span>
+    high_quality_count = <span class="function">len</span>(df[df[<span class="string">"grade"</span>].isin([<span class="string">"A"</span>, <span class="string">"B"</span>])])
+
+    <span class="comment"># === 5. 차원별 평균 점수 === (Lines 800-806)</span>
+    dimension_averages = {
+        dim: <span class="function">round</span>(
+            df[<span class="string">"dimension_scores"</span>].apply(<span class="keyword">lambda</span> x: x[dim]).mean(),
+            2
+        )
+        <span class="keyword">for</span> dim <span class="keyword">in</span> self.dimensions.keys()
+    }
+
+    <span class="keyword">return</span> {
+        <span class="string">"average_score"</span>: <span class="function">round</span>(df[<span class="string">"total_score"</span>].mean(), 2),
+        <span class="string">"std_dev"</span>: <span class="function">round</span>(std_val, 2) <span class="keyword">if</span> pd.notna(std_val) <span class="keyword">else</span> 0.0,
+        <span class="string">"grade_distribution"</span>: grade_dist,
+        <span class="string">"high_quality_percentage"</span>: <span class="function">round</span>(
+            (high_quality_count / <span class="function">len</span>(df)) * 100, 2
+        ),
+        <span class="string">"dimension_averages"</span>: dimension_averages,
+        <span class="string">"total_evaluations"</span>: <span class="function">len</span>(df)
+    }
+</div>
+
+            <div class="info-box">
+                <h4>📊 반환되는 통계 지표</h4>
+                <ul>
+                    <li><strong>average_score</strong>: 전체 평가의 평균 품질 점수 (0-5)</li>
+                    <li><strong>std_dev</strong>: 점수의 표준편차 (일관성 측정, NaN 처리 포함)</li>
+                    <li><strong>grade_distribution</strong>: 등급별 개수 딕셔너리 <code>{'A': 15, 'B': 20, ...}</code></li>
+                    <li><strong>high_quality_percentage</strong>: A 또는 B 등급 비율</li>
+                    <li><strong>dimension_averages</strong>: 5가지 차원별 평균 점수</li>
+                    <li><strong>total_evaluations</strong>: 총 평가 건수</li>
+                </ul>
+            </div>
+
+            <div class="warning-box">
+                <h4>⚠️ 구현 한계 및 개선 방안</h4>
+                <ul>
+                    <li><strong>휴리스틱 기반 평가</strong>:
+                        <ul>
+                            <li>현재는 규칙 기반(단어 수, 키워드 매칭)으로 평가</li>
+                            <li><strong>개선</strong>: LLM-as-a-Judge 또는 임베딩 기반 의미 유사도 도입</li>
+                        </ul>
+                    </li>
+                    <li><strong>도메인 특화 부족</strong>:
+                        <ul>
+                            <li>모든 작업 유형에 동일한 평가 기준 적용</li>
+                            <li><strong>개선</strong>: 작업 유형별 가중치 조정 (코드 생성 vs QA)</li>
+                        </ul>
+                    </li>
+                    <li><strong>Ground Truth 의존성</strong>:
+                        <ul>
+                            <li>Accuracy 평가는 Ground Truth가 있어야 정확</li>
+                            <li>없으면 Completeness 기반 추정 (불완전)</li>
+                            <li><strong>개선</strong>: Reference-free 평가 메트릭 (BERTScore, BLEURT) 통합</li>
+                        </ul>
+                    </li>
+                    <li><strong>주관적 차원 평가</strong>:
+                        <ul>
+                            <li>Clarity, Usefulness는 주관적 요소가 많음</li>
+                            <li><strong>개선</strong>: 사용자 피드백 학습 또는 Readability 지표 도입</li>
+                        </ul>
+                    </li>
+                </ul>
+            
+        <h4>📊 Response Quality 5차원 평가 흐름</h4>
+        <div class="mermaid">
+graph TD
+    A[response, request, expected_elements] --> B[1. Relevance 계산<br/>키워드 겹침 비율]
+    A --> C[2. Completeness 계산<br/>기대 요소 포함 여부]
+    A --> D[3. Clarity 계산<br/>길이 + 구조화]
+    A --> E[4. Accuracy 계산<br/>Ground Truth 유사도]
+    A --> F[5. Usefulness 계산<br/>예시/숫자/구조 포함]
+
+    B --> G[가중 평균<br/>25% + 25% + 15% + 20% + 15%]
+    C --> G
+    D --> G
+    E --> G
+    F --> G
+
+    G --> H[total_score 0-5점]
+    H --> I{점수 등급 판정}
+    I -->|≥4.5| J1[Grade: A]
+    I -->|≥4.0| J2[Grade: B]
+    I -->|≥3.5| J3[Grade: C]
+    I -->|≥3.0| J4[Grade: D]
+    I -->|<3.0| J5[Grade: F]
+
+    style A fill:#667eea,color:#fff
+    style B fill:#ed8936,color:#fff
+    style C fill:#ed8936,color:#fff
+    style D fill:#ed8936,color:#fff
+    style E fill:#ed8936,color:#fff
+    style F fill:#ed8936,color:#fff
+    style G fill:#3182ce,color:#fff
+    style H fill:#48bb78,color:#fff
+    style I fill:#667eea,color:#fff
+        </div>
+</div>
+        </div>
+
+        <div class="section">
+            <h2>💻 사용 예제</h2>
+
+        <h3>기본 사용 예제</h3>
+        <div class="code-block">
+<span class="keyword">from</span> agent_evaluator <span class="keyword">import</span> PerformanceMonitor
+
+<span class="comment"># 모니터 초기화</span>
+monitor = <span class="function">PerformanceMonitor</span>()
+
+<span class="comment"># AI Agent 작업</span>
+request = <span class="string">"파이썬에서 리스트를 정렬하는 방법을 알려주세요"</span>
+
+response = <span class="string">"""
+파이썬 리스트를 정렬하는 방법은 두 가지가 있습니다.
+
+1. sort() 메서드: 원본 리스트를 직접 정렬합니다.
+   예: numbers = [3, 1, 2]; numbers.sort()
+
+2. sorted() 함수: 새로운 정렬된 리스트를 반환합니다.
+   예: sorted_list = sorted([3, 1, 2])
+"""</span>
+
+expected_elements = [<span class="string">"sort"</span>, <span class="string">"sorted"</span>, <span class="string">"예시"</span>]
+ground_truth = <span class="string">"sort() 메서드와 sorted() 함수를 사용"</span>
+
+<span class="comment"># 작업 기록 (품질 자동 평가)</span>
+monitor.<span class="function">record_task</span>(
+    task_id=<span class="string">"qa_001"</span>,
+    task_type=<span class="string">"QA"</span>,
+    success=<span class="keyword">True</span>,
+    latency=1.5,
+    completion_score=1.0,
+    expected_output=expected_elements,
+    actual_output=response,
+    ground_truth=ground_truth,
+    request=request
+)
+
+<span class="comment"># 품질 메트릭 확인</span>
+quality_metrics = monitor.quality_evaluator.<span class="function">get_quality_metrics</span>()
+
+<span class="function">print</span>(<span class="string">f"Average Quality Score: {quality_metrics['avg_total_score']}"</span>)
+<span class="function">print</span>(<span class="string">f"Grade Distribution: {quality_metrics['grade_distribution']}"</span>)
+<span class="function">print</span>(<span class="string">f"High Quality Count (A/B): {quality_metrics['high_quality_count']}"</span>)
+
+<span class="comment"># 차원별 점수</span>
+dimensions = quality_metrics[<span class="string">'dimension_averages'</span>]
+<span class="function">print</span>(<span class="string">f"\n=== Dimension Scores ==="</span>)
+<span class="function">print</span>(<span class="string">f"Relevance: {dimensions['relevance']}"</span>)
+<span class="function">print</span>(<span class="string">f"Completeness: {dimensions['completeness']}"</span>)
+<span class="function">print</span>(<span class="string">f"Accuracy: {dimensions['accuracy']}"</span>)
+<span class="function">print</span>(<span class="string">f"Clarity: {dimensions['clarity']}"</span>)
+<span class="function">print</span>(<span class="string">f"Usefulness: {dimensions['usefulness']}"</span>)
+</div>
+
+        <h3>다중 응답 품질 비교</h3>
+        <div class="code-block">
+<span class="keyword">from</span> agent_evaluator <span class="keyword">import</span> PerformanceMonitor
+
+monitor = <span class="function">PerformanceMonitor</span>()
+
+<span class="comment"># 3가지 응답 비교</span>
+responses = [
+    {
+        <span class="string">"id"</span>: <span class="string">"response_a"</span>,
+        <span class="string">"text"</span>: <span class="string">"리스트를 정렬하려면 sort()를 쓰세요."</span>,
+        <span class="comment"># 짧고 불완전</span>
+    },
+    {
+        <span class="string">"id"</span>: <span class="string">"response_b"</span>,
+        <span class="string">"text"</span>: <span class="string">"파이썬에서는 sort() 메서드와 sorted() 함수 두 가지 방법으로 리스트를 정렬할 수 있습니다. sort()는 원본을 변경하고, sorted()는 새 리스트를 반환합니다."</span>,
+        <span class="comment"># 명확하고 완전</span>
+    },
+    {
+        <span class="string">"id"</span>: <span class="string">"response_c"</span>,
+        <span class="string">"text"</span>: <span class="string">"정렬하려면 sort()를 사용하세요. 예: [3,1,2].sort() 결과는 [1,2,3]입니다. sorted()도 있습니다."</span>,
+        <span class="comment"># 예시 포함</span>
+    }
+]
+
+request = <span class="string">"파이썬 리스트 정렬 방법"</span>
+expected_elements = [<span class="string">"sort"</span>, <span class="string">"sorted"</span>, <span class="string">"차이점"</span>]
+
+<span class="keyword">for</span> resp <span class="keyword">in</span> responses:
+    monitor.<span class="function">record_task</span>(
+        task_id=resp[<span class="string">"id"</span>],
+        task_type=<span class="string">"QA"</span>,
+        success=<span class="keyword">True</span>,
+        latency=1.0,
+        completion_score=1.0,
+        expected_output=expected_elements,
+        actual_output=resp[<span class="string">"text"</span>],
+        request=request
+    )
+
+<span class="comment"># 각 응답의 품질 분석</span>
+<span class="keyword">for</span> eval_data <span class="keyword">in</span> monitor.quality_evaluator.evaluations:
+    <span class="function">print</span>(<span class="string">f"\n{eval_data['task_id']}:"</span>)
+    <span class="function">print</span>(<span class="string">f"  Total Score: {eval_data['total_score']} ({eval_data['grade']})"</span>)
+    <span class="function">print</span>(<span class="string">f"  Dimensions: {eval_data['dimension_scores']}"</span>)
+
+<span class="comment"># 예상 결과:</span>
+<span class="comment"># response_a: ~3.0 (D) - 짧고 불완전</span>
+<span class="comment"># response_b: ~4.5 (A) - 명확하고 완전</span>
+<span class="comment"># response_c: ~4.0 (B) - 예시 포함으로 유용성 높음</span>
+</div>
+
+        <h3>차원별 상세 분석</h3>
+        <div class="code-block">
+<span class="keyword">from</span> agent_evaluator <span class="keyword">import</span> PerformanceMonitor
+
+monitor = <span class="function">PerformanceMonitor</span>()
+
+<span class="comment"># 여러 작업 수행 (생략)</span>
+<span class="comment"># ...</span>
+
+<span class="comment"># 차원별 상세 통계</span>
+by_dimension = monitor.quality_evaluator.<span class="function">get_quality_by_dimension</span>()
+
+<span class="function">print</span>(<span class="string">"=== Quality by Dimension ==="</span>)
+<span class="keyword">for</span> dim, stats <span class="keyword">in</span> by_dimension[<span class="string">'by_dimension_detailed'</span>].<span class="function">items</span>():
+    <span class="function">print</span>(<span class="string">f"\n{dim.upper()}:"</span>)
+    <span class="function">print</span>(<span class="string">f"  Average: {stats['average']}"</span>)
+    <span class="function">print</span>(<span class="string">f"  Median: {stats['median']}"</span>)
+    <span class="function">print</span>(<span class="string">f"  Range: {stats['min']} ~ {stats['max']}"</span>)
+    <span class="function">print</span>(<span class="string">f"  Std Dev: {stats['std']}"</span>)
+    <span class="function">print</span>(<span class="string">f"  Distribution: {stats['distribution']}"</span>)
+
+<span class="comment"># 출력 예시:</span>
+<span class="comment"># RELEVANCE:</span>
+<span class="comment">#   Average: 4.2</span>
+<span class="comment">#   Median: 4.5</span>
+<span class="comment">#   Range: 3.0 ~ 5.0</span>
+<span class="comment">#   Std Dev: 0.8</span>
+<span class="comment">#   Distribution: {'0-1': 0, '1-2': 0, '2-3': 1, '3-4': 2, '4-5': 7}</span>
+</div>
+
+        </div>
+
+        <div class="section">
+            <h2>🤖 평가 데이터 자동 처리 방안</h2>
+
+            <div class="intro-box">
+                <strong>실제 프로젝트에서는 수백~수천 개의 응답 품질을 평가해야 합니다.</strong><br>
+                Quality Score는 <span class="highlight">5가지 차원 (Relevance, Completeness, Accuracy, Clarity, Usefulness)</span>을 측정하므로, Expected Elements와 Ground Truth 자동 생성이 핵심입니다.
+            </div>
+
+            <h3>자동화 수준별 전략</h3>
+
+            <table>
+                <thead>
+                    <tr>
+                        <th>레벨</th>
+                        <th>자동화 범위</th>
+                        <th>데이터 수집 방법</th>
+                        <th>적용 시나리오</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><strong>Level 1</strong></td>
+                        <td>기본 품질 평가</td>
+                        <td>Request만으로 자동 평가</td>
+                        <td>빠른 프로토타입</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Level 2</strong></td>
+                        <td>Golden Dataset 기반</td>
+                        <td>사전 준비된 Expected Elements</td>
+                        <td>벤치마크, 반복 평가</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Level 3</strong></td>
+                        <td>LLM 기반 자동 생성</td>
+                        <td>Expected Elements 자동 추출</td>
+                        <td>Expected 없는 경우</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Level 4</strong></td>
+                        <td>템플릿 기반</td>
+                        <td>작업 유형별 템플릿</td>
+                        <td>정형화된 작업</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Level 5</strong></td>
+                        <td>하이브리드</td>
+                        <td>복합 전략</td>
+                        <td>프로덕션 환경</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <h3>Level 1: 기본 자동 평가 (Expected Elements 없이)</h3>
+
+            <div class="info-box">
+                <h4>💡 핵심 아이디어</h4>
+                <p>Request만 제공하면 자동으로 품질 평가 (Expected Elements, Ground Truth 없음)</p>
+                <p><strong>장점</strong>: 가장 빠르고 간단, 별도 준비 불필요</p>
+                <p><strong>단점</strong>: Completeness, Accuracy 차원은 제한적 평가</p>
+            </div>
+
+            <div class="code-block">
+<span class="keyword">from</span> agent_evaluator <span class="keyword">import</span> PerformanceMonitor, TaskType
+<span class="keyword">from</span> concurrent.futures <span class="keyword">import</span> ThreadPoolExecutor
+
+<span class="keyword">class</span> <span class="function">BasicQualityEvaluator</span>:
+    <span class="string">"""Expected Elements 없이 기본 품질 평가"""</span>
+
+    <span class="keyword">def</span> <span class="function">__init__</span>(self, monitor: PerformanceMonitor):
+        self.monitor = monitor
+
+    <span class="keyword">def</span> <span class="function">evaluate_response</span>(self, task_id: <span class="keyword">str</span>, request: <span class="keyword">str</span>, response: <span class="keyword">str</span>):
+        <span class="string">"""기본 품질 평가 (Expected 없음)"""</span>
+
+        <span class="comment"># Request만으로 평가</span>
+        <span class="comment"># - Relevance: Request 키워드 겹침으로 측정</span>
+        <span class="comment"># - Completeness: 0.7 (기본값)</span>
+        <span class="comment"># - Accuracy: Completeness 기반 휴리스틱</span>
+        <span class="comment"># - Clarity: 응답 길이 + 구조로 측정</span>
+        <span class="comment"># - Usefulness: 예시, 숫자, 구조로 측정</span>
+
+        self.monitor.<span class="function">record_task</span>(
+            task_id=task_id,
+            task_type=TaskType.QA,
+            success=<span class="keyword">True</span>,
+            latency=1.0,
+            completion_score=1.0,
+            request=request,           <span class="comment">← Relevance 평가에 사용</span>
+            actual_output=response
+            <span class="comment"># expected_output 없음 → Completeness 0.7 기본값</span>
+            <span class="comment"># ground_truth 없음 → Accuracy는 휴리스틱</span>
+        )
+
+    <span class="keyword">def</span> <span class="function">batch_evaluate</span>(self, qa_pairs: <span class="keyword">list</span>[<span class="keyword">dict</span>], parallel: <span class="keyword">bool</span> = <span class="keyword">True</span>):
+        <span class="string">"""배치 평가"""</span>
+        <span class="function">print</span>(<span class="string">f"🚀 {len(qa_pairs)}개 응답 품질 평가 시작...\n"</span>)
+
+        <span class="keyword">if</span> parallel:
+            <span class="keyword">with</span> <span class="function">ThreadPoolExecutor</span>(max_workers=10) <span class="keyword">as</span> executor:
+                futures = [
+                    executor.<span class="function">submit</span>(
+                        self.evaluate_response,
+                        qa[<span class="string">"qa_id"</span>],
+                        qa[<span class="string">"question"</span>],
+                        qa[<span class="string">"response"</span>]
+                    )
+                    <span class="keyword">for</span> qa <span class="keyword">in</span> qa_pairs
+                ]
+                <span class="keyword">for</span> future <span class="keyword">in</span> futures:
+                    future.<span class="function">result</span>()
+        <span class="keyword">else</span>:
+            <span class="keyword">for</span> qa <span class="keyword">in</span> qa_pairs:
+                self.<span class="function">evaluate_response</span>(
+                    qa[<span class="string">"qa_id"</span>],
+                    qa[<span class="string">"question"</span>],
+                    qa[<span class="string">"response"</span>]
+                )
+
+        <span class="comment"># 결과 통계</span>
+        quality_stats = self.monitor.quality_evaluator.<span class="function">get_quality_metrics</span>()
+        <span class="function">print</span>(<span class="string">f"\n✅ 평가 완료!"</span>)
+        <span class="function">print</span>(<span class="string">f"Average Quality Score: {quality_stats['avg_total_score']:.2f}"</span>)
+        <span class="function">print</span>(<span class="string">f"Grade Distribution: {quality_stats['grade_distribution']}"</span>)
+
+<span class="comment"># ============================================================</span>
+<span class="comment"># 사용 예시</span>
+<span class="comment"># ============================================================</span>
+
+monitor = <span class="function">PerformanceMonitor</span>()
+evaluator = <span class="function">BasicQualityEvaluator</span>(monitor)
+
+<span class="comment"># Agent 응답 수집 (실제 환경)</span>
+qa_pairs = [
+    {
+        <span class="string">"qa_id"</span>: <span class="string">"qa_001"</span>,
+        <span class="string">"question"</span>: <span class="string">"파이썬 리스트 정렬 방법은?"</span>,
+        <span class="string">"response"</span>: your_agent.<span class="function">run</span>(<span class="string">"파이썬 리스트 정렬 방법은?"</span>)
+    },
+    <span class="comment"># ... 수백 개</span>
+]
+
+<span class="comment"># 배치 평가 (병렬)</span>
+evaluator.<span class="function">batch_evaluate</span>(qa_pairs, parallel=<span class="keyword">True</span>)
+
+<span class="comment"># Dashboard 저장</span>
+<span class="keyword">from</span> agent_evaluator.utils.dashboard_integration <span class="keyword">import</span> save_to_dashboard
+<span class="function">save_to_dashboard</span>(monitor, filename=<span class="string">"quality_basic_eval.json"</span>)
+</div>
+
+            <h3>Level 2: Golden Dataset 기반 완전 평가</h3>
+
+            <div class="info-box">
+                <h4>💡 핵심 아이디어</h4>
+                <p>Expected Elements와 Ground Truth가 포함된 Golden Dataset으로 정확한 품질 평가</p>
+                <p><strong>장점</strong>: 5가지 차원 모두 정확 평가</p>
+                <p><strong>단점</strong>: Golden Dataset 작성 필요</p>
+            </div>
+
+            <div class="code-block">
+<span class="keyword">import</span> json
+<span class="keyword">from</span> pathlib <span class="keyword">import</span> Path
+<span class="keyword">from</span> agent_evaluator <span class="keyword">import</span> PerformanceMonitor, TaskType
+
+<span class="comment"># ============================================================</span>
+<span class="comment"># Golden Dataset 구조 (Quality 평가용)</span>
+<span class="comment"># ============================================================</span>
+
+golden_dataset_structure = {
+    <span class="string">"dataset_id"</span>: <span class="string">"quality_eval_v1"</span>,
+    <span class="string">"metadata"</span>: {
+        <span class="string">"dataset_name"</span>: <span class="string">"Quality Score Golden Dataset"</span>,
+        <span class="string">"version"</span>: <span class="string">"0.5.0"</span>
+    },
+    <span class="string">"qa_pairs"</span>: [
+        {
+            <span class="string">"qa_id"</span>: <span class="string">"qa_001"</span>,
+            <span class="string">"question"</span>: <span class="string">"파이썬 리스트 정렬 방법은?"</span>,
+            <span class="string">"expected_elements"</span>: [
+                <span class="string">"sort"</span>,        <span class="comment"># Completeness 평가용</span>
+                <span class="string">"sorted"</span>,
+                <span class="string">"차이점"</span>,
+                <span class="string">"예시"</span>
+            ],
+            <span class="string">"ground_truth"</span>: <span class="string">"sort() 메서드와 sorted() 함수를 사용. sort()는 원본 변경, sorted()는 새 리스트 반환"</span>,  <span class="comment"># Accuracy 평가용</span>
+            <span class="string">"task_type"</span>: <span class="string">"qa"</span>
+        }
+    ]
+}
+
+<span class="comment"># ============================================================</span>
+<span class="comment"># Golden Dataset 로드 및 평가</span>
+<span class="comment"># ============================================================</span>
+
+dataset_path = Path(<span class="string">"Evaluator_Examples/Dashboard/data/golden_datasets/quality_eval_dataset.json"</span>)
+
+<span class="keyword">with</span> <span class="function">open</span>(dataset_path, <span class="string">'r'</span>, encoding=<span class="string">'utf-8'</span>) <span class="keyword">as</span> f:
+    golden_data = json.<span class="function">load</span>(f)
+
+monitor = <span class="function">PerformanceMonitor</span>()
+
+<span class="function">print</span>(<span class="string">f"📦 Golden Dataset: {golden_data['metadata']['dataset_name']}"</span>)
+<span class="function">print</span>(<span class="string">f"   총 {len(golden_data['qa_pairs'])}개 테스트 케이스\n"</span>)
+
+<span class="keyword">for</span> qa_pair <span class="keyword">in</span> golden_data[<span class="string">"qa_pairs"</span>]:
+    <span class="function">print</span>(<span class="string">f"평가: {qa_pair['qa_id']}"</span>)
+
+    <span class="comment"># Agent 실행</span>
+    agent_response = your_agent.<span class="function">run</span>(qa_pair[<span class="string">"question"</span>])
+
+    <span class="comment"># 품질 평가 (5차원 모두 정확)</span>
+    monitor.<span class="function">record_task</span>(
+        task_id=qa_pair[<span class="string">"qa_id"</span>],
+        task_type=<span class="function">getattr</span>(TaskType, qa_pair[<span class="string">"task_type"</span>].<span class="function">upper</span>(), TaskType.QA),
+        success=<span class="keyword">True</span>,
+        latency=1.0,
+        completion_score=1.0,
+        request=qa_pair[<span class="string">"question"</span>],                  <span class="comment">← Relevance</span>
+        expected_output=qa_pair[<span class="string">"expected_elements"</span>],  <span class="comment">← Completeness</span>
+        ground_truth=qa_pair[<span class="string">"ground_truth"</span>],          <span class="comment">← Accuracy</span>
+        actual_output=agent_response                  <span class="comment">← Clarity, Usefulness</span>
+    )
+
+<span class="comment"># 결과 확인</span>
+quality_stats = monitor.quality_evaluator.<span class="function">get_quality_metrics</span>()
+<span class="function">print</span>(<span class="string">f"\n✅ Average Quality: {quality_stats['avg_total_score']:.2f}"</span>)
+<span class="function">print</span>(<span class="string">f"Grade Distribution: {quality_stats['grade_distribution']}"</span>)
+
+<span class="comment"># 차원별 점수</span>
+dimensions = quality_stats[<span class="string">'dimension_averages'</span>]
+<span class="function">print</span>(<span class="string">f"\n=== Dimension Scores ==="</span>)
+<span class="function">print</span>(<span class="string">f"Relevance: {dimensions['relevance']:.2f}"</span>)
+<span class="function">print</span>(<span class="string">f"Completeness: {dimensions['completeness']:.2f}"</span>)
+<span class="function">print</span>(<span class="string">f"Accuracy: {dimensions['accuracy']:.2f}"</span>)
+<span class="function">print</span>(<span class="string">f"Clarity: {dimensions['clarity']:.2f}"</span>)
+<span class="function">print</span>(<span class="string">f"Usefulness: {dimensions['usefulness']:.2f}"</span>)
+</div>
+
+            <h3>Level 3: LLM 기반 Expected Elements 자동 생성</h3>
+
+            <div class="info-box">
+                <h4>💡 핵심 아이디어</h4>
+                <p>질문에 대해 LLM이 Expected Elements를 자동 생성</p>
+                <p><strong>장점</strong>: Golden Dataset 없이도 Completeness 정확 평가</p>
+                <p><strong>단점</strong>: LLM 비용, 품질 의존</p>
+            </div>
+
+            <div class="code-block">
+<span class="keyword">from</span> agent_evaluator <span class="keyword">import</span> PerformanceMonitor, TaskType
+<span class="keyword">from</span> openai <span class="keyword">import</span> OpenAI
+
+<span class="keyword">class</span> <span class="function">LLMExpectedElementsGenerator</span>:
+    <span class="string">"""LLM을 사용한 Expected Elements 자동 생성"""</span>
+
+    <span class="keyword">def</span> <span class="function">__init__</span>(self, api_key: <span class="keyword">str</span>, monitor: PerformanceMonitor):
+        self.client = <span class="function">OpenAI</span>(api_key=api_key)
+        self.monitor = monitor
+
+    <span class="keyword">def</span> <span class="function">generate_expected_elements</span>(self, question: <span class="keyword">str</span>) -> <span class="keyword">list</span>[<span class="keyword">str</span>]:
+        <span class="string">"""질문에 대한 Expected Elements 생성"""</span>
+
+        prompt = <span class="string">f"""
+다음 질문에 대한 좋은 답변에 반드시 포함되어야 할 핵심 요소들을 나열하세요.
+각 요소는 간단한 키워드나 짧은 구문으로 표현하세요.
+
+질문: {question}
+
+예시:
+질문: "파이썬 리스트 정렬 방법은?"
+필수 요소:
+1. sort() 메서드
+2. sorted() 함수
+3. 두 방법의 차이점
+4. 사용 예시
+
+질문: {question}
+필수 요소:"""</span>
+
+        completion = self.client.chat.completions.<span class="function">create</span>(
+            model=<span class="string">"gpt-4o-mini"</span>,
+            messages=[
+                {<span class="string">"role"</span>: <span class="string">"system"</span>, <span class="string">"content"</span>: <span class="string">"당신은 교육 전문가입니다."</span>},
+                {<span class="string">"role"</span>: <span class="string">"user"</span>, <span class="string">"content"</span>: prompt}
+            ],
+            temperature=0.0
+        )
+
+        <span class="comment"># 응답 파싱 (1. ... 2. ... 형식)</span>
+        response_text = completion.choices[0].message.content.<span class="function">strip</span>()
+        elements = []
+        <span class="keyword">for</span> line <span class="keyword">in</span> response_text.<span class="function">split</span>(<span class="string">'\n'</span>):
+            <span class="keyword">if</span> line.<span class="function">strip</span>() <span class="keyword">and</span> (<span class="string">'.'</span> <span class="keyword">in</span> line <span class="keyword">or</span> <span class="string">'-'</span> <span class="keyword">in</span> line):
+                <span class="comment"># "1. sort() 메서드" → "sort"</span>
+                element = line.<span class="function">split</span>(<span class="string">'.'</span>, 1)[-1].<span class="function">strip</span>() \
+                              .<span class="function">split</span>(<span class="string">'-'</span>, 1)[-1].<span class="function">strip</span>()
+                elements.<span class="function">append</span>(element)
+
+        <span class="keyword">return</span> elements[:5]  <span class="comment"># 최대 5개</span>
+
+    <span class="keyword">def</span> <span class="function">evaluate_with_generated_elements</span>(
+        self,
+        qa_pairs: <span class="keyword">list</span>[<span class="keyword">dict</span>]
+    ):
+        <span class="string">"""Expected Elements 자동 생성 + 품질 평가"""</span>
+
+        <span class="keyword">for</span> i, qa <span class="keyword">in</span> <span class="function">enumerate</span>(qa_pairs):
+            <span class="function">print</span>(<span class="string">f"\n[{i+1}/{len(qa_pairs)}] {qa['question']}"</span>)
+
+            <span class="comment"># 1. Expected Elements 자동 생성</span>
+            <span class="function">print</span>(<span class="string">"  🔍 Expected Elements 생성 중..."</span>)
+            expected_elements = self.<span class="function">generate_expected_elements</span>(qa[<span class="string">"question"</span>])
+            <span class="function">print</span>(<span class="string">f"  ✅ Generated: {expected_elements}"</span>)
+
+            <span class="comment"># 2. Agent 실행</span>
+            agent_response = your_agent.<span class="function">run</span>(qa[<span class="string">"question"</span>])
+
+            <span class="comment"># 3. 품질 평가</span>
+            self.monitor.<span class="function">record_task</span>(
+                task_id=qa[<span class="string">"qa_id"</span>],
+                task_type=TaskType.QA,
+                success=<span class="keyword">True</span>,
+                latency=1.0,
+                completion_score=1.0,
+                request=qa[<span class="string">"question"</span>],
+                expected_output=expected_elements,  <span class="comment">← LLM 생성</span>
+                actual_output=agent_response,
+                ground_truth=qa.<span class="function">get</span>(<span class="string">"ground_truth"</span>)  <span class="comment">← 선택</span>
+            )
+
+        <span class="comment"># 결과 통계</span>
+        quality_stats = self.monitor.quality_evaluator.<span class="function">get_quality_metrics</span>()
+        <span class="function">print</span>(<span class="string">f"\n📊 Average Quality: {quality_stats['avg_total_score']:.2f}"</span>)
+
+<span class="comment"># ============================================================</span>
+<span class="comment"># 사용 예시</span>
+<span class="comment"># ============================================================</span>
+
+monitor = <span class="function">PerformanceMonitor</span>()
+generator = <span class="function">LLMExpectedElementsGenerator</span>(
+    api_key=<span class="string">"your-api-key"</span>,
+    monitor=monitor
+)
+
+qa_pairs = [
+    {
+        <span class="string">"qa_id"</span>: <span class="string">"qa_001"</span>,
+        <span class="string">"question"</span>: <span class="string">"파이썬 리스트 정렬 방법은?"</span>
+    },
+    {
+        <span class="string">"qa_id"</span>: <span class="string">"qa_002"</span>,
+        <span class="string">"question"</span>: <span class="string">"머신러닝이란 무엇인가요?"</span>
+    },
+    <span class="comment"># ... 수백 개</span>
+]
+
+<span class="comment"># Expected Elements 자동 생성 + 평가</span>
+generator.<span class="function">evaluate_with_generated_elements</span>(qa_pairs)
+</div>
+
+            <h3>Level 4: 템플릿 기반 자동 평가</h3>
+
+            <div class="info-box">
+                <h4>💡 핵심 아이디어</h4>
+                <p>작업 유형별로 사전 정의된 템플릿으로 Expected Elements 자동 생성</p>
+                <p><strong>장점</strong>: 빠르고 일관성 있음</p>
+                <p><strong>단점</strong>: 정형화된 작업에만 적용</p>
+            </div>
+
+            <div class="code-block">
+<span class="keyword">from</span> agent_evaluator <span class="keyword">import</span> PerformanceMonitor, TaskType
+
+<span class="keyword">class</span> <span class="function">TemplateBasedQualityEvaluator</span>:
+    <span class="string">"""작업 유형별 템플릿 기반 품질 평가"""</span>
+
+    <span class="keyword">def</span> <span class="function">__init__</span>(self, monitor: PerformanceMonitor):
+        self.monitor = monitor
+        self.templates = self.<span class="function">_init_templates</span>()
+
+    <span class="keyword">def</span> <span class="function">_init_templates</span>(self) -> <span class="keyword">dict</span>:
+        <span class="string">"""작업 유형별 Expected Elements 템플릿"""</span>
+        <span class="keyword">return</span> {
+            <span class="string">"how_to"</span>: [
+                <span class="string">"정의"</span>,
+                <span class="string">"방법"</span>,
+                <span class="string">"단계"</span>,
+                <span class="string">"예시"</span>,
+                <span class="string">"주의사항"</span>
+            ],
+            <span class="string">"what_is"</span>: [
+                <span class="string">"정의"</span>,
+                <span class="string">"특징"</span>,
+                <span class="string">"용도"</span>,
+                <span class="string">"예시"</span>
+            ],
+            <span class="string">"comparison"</span>: [
+                <span class="string">"A 설명"</span>,
+                <span class="string">"B 설명"</span>,
+                <span class="string">"차이점"</span>,
+                <span class="string">"유사점"</span>,
+                <span class="string">"사용 상황"</span>
+            ],
+            <span class="string">"troubleshooting"</span>: [
+                <span class="string">"문제 진단"</span>,
+                <span class="string">"원인 분석"</span>,
+                <span class="string">"해결 방법"</span>,
+                <span class="string">"예방책"</span>
+            ],
+            <span class="string">"code_explanation"</span>: [
+                <span class="string">"코드 구조"</span>,
+                <span class="string">"주요 함수"</span>,
+                <span class="string">"동작 원리"</span>,
+                <span class="string">"예시"</span>
+            ]
+        }
+
+    <span class="keyword">def</span> <span class="function">classify_question_type</span>(self, question: <span class="keyword">str</span>) -> <span class="keyword">str</span>:
+        <span class="string">"""질문 유형 자동 분류"""</span>
+        question_lower = question.<span class="function">lower</span>()
+
+        <span class="keyword">if</span> <span class="function">any</span>(kw <span class="keyword">in</span> question_lower <span class="keyword">for</span> kw <span class="keyword">in</span> [<span class="string">"어떻게"</span>, <span class="string">"방법"</span>, <span class="string">"how to"</span>]):
+            <span class="keyword">return</span> <span class="string">"how_to"</span>
+        <span class="keyword">elif</span> <span class="function">any</span>(kw <span class="keyword">in</span> question_lower <span class="keyword">for</span> kw <span class="keyword">in</span> [<span class="string">"무엇"</span>, <span class="string">"뭐"</span>, <span class="string">"what is"</span>]):
+            <span class="keyword">return</span> <span class="string">"what_is"</span>
+        <span class="keyword">elif</span> <span class="function">any</span>(kw <span class="keyword">in</span> question_lower <span class="keyword">for</span> kw <span class="keyword">in</span> [<span class="string">"차이"</span>, <span class="string">"vs"</span>, <span class="string">"비교"</span>, <span class="string">"difference"</span>]):
+            <span class="keyword">return</span> <span class="string">"comparison"</span>
+        <span class="keyword">elif</span> <span class="function">any</span>(kw <span class="keyword">in</span> question_lower <span class="keyword">for</span> kw <span class="keyword">in</span> [<span class="string">"오류"</span>, <span class="string">"에러"</span>, <span class="string">"해결"</span>, <span class="string">"error"</span>]):
+            <span class="keyword">return</span> <span class="string">"troubleshooting"</span>
+        <span class="keyword">elif</span> <span class="function">any</span>(kw <span class="keyword">in</span> question_lower <span class="keyword">for</span> kw <span class="keyword">in</span> [<span class="string">"코드"</span>, <span class="string">"함수"</span>, <span class="string">"code"</span>]):
+            <span class="keyword">return</span> <span class="string">"code_explanation"</span>
+        <span class="keyword">else</span>:
+            <span class="keyword">return</span> <span class="string">"what_is"</span>  <span class="comment"># 기본값</span>
+
+    <span class="keyword">def</span> <span class="function">evaluate_with_template</span>(
+        self,
+        task_id: <span class="keyword">str</span>,
+        question: <span class="keyword">str</span>,
+        response: <span class="keyword">str</span>
+    ):
+        <span class="string">"""템플릿 기반 자동 평가"""</span>
+
+        <span class="comment"># 1. 질문 유형 자동 분류</span>
+        question_type = self.<span class="function">classify_question_type</span>(question)
+        <span class="function">print</span>(<span class="string">f"  📋 Question Type: {question_type}"</span>)
+
+        <span class="comment"># 2. 템플릿에서 Expected Elements 가져오기</span>
+        expected_elements = self.templates[question_type]
+        <span class="function">print</span>(<span class="string">f"  ✅ Expected: {expected_elements}"</span>)
+
+        <span class="comment"># 3. 품질 평가</span>
+        self.monitor.<span class="function">record_task</span>(
+            task_id=task_id,
+            task_type=TaskType.QA,
+            success=<span class="keyword">True</span>,
+            latency=1.0,
+            completion_score=1.0,
+            request=question,
+            expected_output=expected_elements,  <span class="comment">← 템플릿에서</span>
+            actual_output=response
+        )
+
+    <span class="keyword">def</span> <span class="function">batch_evaluate</span>(self, qa_pairs: <span class="keyword">list</span>[<span class="keyword">dict</span>]):
+        <span class="string">"""배치 평가"""</span>
+        <span class="function">print</span>(<span class="string">f"🚀 {len(qa_pairs)}개 응답 템플릿 기반 평가\n"</span>)
+
+        <span class="keyword">for</span> i, qa <span class="keyword">in</span> <span class="function">enumerate</span>(qa_pairs):
+            <span class="function">print</span>(<span class="string">f"\n[{i+1}/{len(qa_pairs)}] {qa['question']}"</span>)
+            self.<span class="function">evaluate_with_template</span>(
+                qa[<span class="string">"qa_id"</span>],
+                qa[<span class="string">"question"</span>],
+                qa[<span class="string">"response"</span>]
+            )
+
+        quality_stats = self.monitor.quality_evaluator.<span class="function">get_quality_metrics</span>()
+        <span class="function">print</span>(<span class="string">f"\n📊 Average Quality: {quality_stats['avg_total_score']:.2f}"</span>)
+
+<span class="comment"># ============================================================</span>
+<span class="comment"># 사용 예시</span>
+<span class="comment"># ============================================================</span>
+
+monitor = <span class="function">PerformanceMonitor</span>()
+evaluator = <span class="function">TemplateBasedQualityEvaluator</span>(monitor)
+
+qa_pairs = [
+    {
+        <span class="string">"qa_id"</span>: <span class="string">"qa_001"</span>,
+        <span class="string">"question"</span>: <span class="string">"파이썬 리스트를 정렬하는 방법은?"</span>,  <span class="comment"># → how_to</span>
+        <span class="string">"response"</span>: your_agent.<span class="function">run</span>(<span class="string">"..."</span>)
+    },
+    {
+        <span class="string">"qa_id"</span>: <span class="string">"qa_002"</span>,
+        <span class="string">"question"</span>: <span class="string">"머신러닝이란 무엇인가요?"</span>,         <span class="comment"># → what_is</span>
+        <span class="string">"response"</span>: your_agent.<span class="function">run</span>(<span class="string">"..."</span>)
+    },
+    {
+        <span class="string">"qa_id"</span>: <span class="string">"qa_003"</span>,
+        <span class="string">"question"</span>: <span class="string">"sort()와 sorted()의 차이는?"</span>,     <span class="comment"># → comparison</span>
+        <span class="string">"response"</span>: your_agent.<span class="function">run</span>(<span class="string">"..."</span>)
+    }
+]
+
+evaluator.<span class="function">batch_evaluate</span>(qa_pairs)
+</div>
+
+            <h3>Level 5: 하이브리드 품질 평가 전략</h3>
+
+            <div class="info-box">
+                <h4>💡 핵심 아이디어</h4>
+                <p>Golden Dataset, 템플릿, LLM 생성을 상황에 따라 조합</p>
+            </div>
+
+            <div class="code-block">
+<span class="keyword">from</span> agent_evaluator <span class="keyword">import</span> PerformanceMonitor, TaskType
+
+<span class="keyword">class</span> <span class="function">HybridQualityEvaluator</span>:
+    <span class="string">"""하이브리드 품질 평가 전략"""</span>
+
+    <span class="keyword">def</span> <span class="function">__init__</span>(
+        self,
+        monitor: PerformanceMonitor,
+        golden_dataset: <span class="keyword">dict</span> = <span class="keyword">None</span>,
+        template_evaluator: TemplateBasedQualityEvaluator = <span class="keyword">None</span>,
+        llm_generator: LLMExpectedElementsGenerator = <span class="keyword">None</span>
+    ):
+        self.monitor = monitor
+        self.golden_dataset = golden_dataset
+        self.template_evaluator = template_evaluator
+        self.llm_generator = llm_generator
+
+        <span class="comment"># Golden Dataset을 딕셔너리로 변환 (빠른 조회)</span>
+        self.golden_lookup = {}
+        <span class="keyword">if</span> golden_dataset:
+            <span class="keyword">for</span> qa <span class="keyword">in</span> golden_dataset.<span class="function">get</span>(<span class="string">"qa_pairs"</span>, []):
+                self.golden_lookup[qa[<span class="string">"qa_id"</span>]] = qa
+
+    <span class="keyword">def</span> <span class="function">evaluate</span>(self, task_id: <span class="keyword">str</span>, question: <span class="keyword">str</span>, response: <span class="keyword">str</span>):
+        <span class="string">"""최적 전략 선택하여 평가"""</span>
+
+        <span class="comment"># 전략 1: Golden Dataset에 있으면 우선 사용</span>
+        <span class="keyword">if</span> task_id <span class="keyword">in</span> self.golden_lookup:
+            golden_qa = self.golden_lookup[task_id]
+            <span class="function">print</span>(<span class="string">f"  📦 Using Golden Dataset"</span>)
+
+            self.monitor.<span class="function">record_task</span>(
+                task_id=task_id,
+                task_type=TaskType.QA,
+                success=<span class="keyword">True</span>,
+                latency=1.0,
+                completion_score=1.0,
+                request=question,
+                expected_output=golden_qa[<span class="string">"expected_elements"</span>],
+                ground_truth=golden_qa.<span class="function">get</span>(<span class="string">"ground_truth"</span>),
+                actual_output=response
+            )
+            <span class="keyword">return</span> <span class="string">"golden"</span>
+
+        <span class="comment"># 전략 2: 템플릿 적용 가능하면 사용</span>
+        <span class="keyword">if</span> self.template_evaluator:
+            question_type = self.template_evaluator.<span class="function">classify_question_type</span>(question)
+            <span class="keyword">if</span> question_type <span class="keyword">in</span> self.template_evaluator.templates:
+                <span class="function">print</span>(<span class="string">f"  📋 Using Template ({question_type})"</span>)
+                self.template_evaluator.<span class="function">evaluate_with_template</span>(
+                    task_id, question, response
+                )
+                <span class="keyword">return</span> <span class="string">"template"</span>
+
+        <span class="comment"># 전략 3: LLM으로 Expected Elements 생성</span>
+        <span class="keyword">if</span> self.llm_generator:
+            <span class="function">print</span>(<span class="string">f"  🤖 Using LLM Generation"</span>)
+            expected_elements = self.llm_generator.<span class="function">generate_expected_elements</span>(question)
+            self.monitor.<span class="function">record_task</span>(
+                task_id=task_id,
+                task_type=TaskType.QA,
+                success=<span class="keyword">True</span>,
+                latency=1.0,
+                completion_score=1.0,
+                request=question,
+                expected_output=expected_elements,
+                actual_output=response
+            )
+            <span class="keyword">return</span> <span class="string">"llm"</span>
+
+        <span class="comment"># 전략 4: 기본 평가 (Request만)</span>
+        <span class="function">print</span>(<span class="string">f"  ⚡ Using Basic Evaluation"</span>)
+        self.monitor.<span class="function">record_task</span>(
+            task_id=task_id,
+            task_type=TaskType.QA,
+            success=<span class="keyword">True</span>,
+            latency=1.0,
+            completion_score=1.0,
+            request=question,
+            actual_output=response
+        )
+        <span class="keyword">return</span> <span class="string">"basic"</span>
+
+    <span class="keyword">def</span> <span class="function">batch_evaluate</span>(self, qa_pairs: <span class="keyword">list</span>[<span class="keyword">dict</span>]):
+        <span class="string">"""배치 평가 (자동 전략 선택)"""</span>
+        <span class="function">print</span>(<span class="string">f"🚀 {len(qa_pairs)}개 하이브리드 평가\n"</span>)
+
+        strategy_counts = {<span class="string">"golden"</span>: 0, <span class="string">"template"</span>: 0, <span class="string">"llm"</span>: 0, <span class="string">"basic"</span>: 0}
+
+        <span class="keyword">for</span> i, qa <span class="keyword">in</span> <span class="function">enumerate</span>(qa_pairs):
+            <span class="function">print</span>(<span class="string">f"\n[{i+1}/{len(qa_pairs)}] {qa['question'][:50]}..."</span>)
+            strategy = self.<span class="function">evaluate</span>(
+                qa[<span class="string">"qa_id"</span>],
+                qa[<span class="string">"question"</span>],
+                qa[<span class="string">"response"</span>]
+            )
+            strategy_counts[strategy] += 1
+
+        <span class="comment"># 전략 사용 통계</span>
+        <span class="function">print</span>(<span class="string">f"\n=== Strategy Usage ==="</span>)
+        <span class="keyword">for</span> strategy, count <span class="keyword">in</span> strategy_counts.<span class="function">items</span>():
+            <span class="function">print</span>(<span class="string">f"{strategy}: {count}"</span>)
+
+        <span class="comment"># 품질 통계</span>
+        quality_stats = self.monitor.quality_evaluator.<span class="function">get_quality_metrics</span>()
+        <span class="function">print</span>(<span class="string">f"\n📊 Average Quality: {quality_stats['avg_total_score']:.2f}"</span>)
+
+<span class="comment"># ============================================================</span>
+<span class="comment"># 사용 예시</span>
+<span class="comment"># ============================================================</span>
+
+monitor = <span class="function">PerformanceMonitor</span>()
+
+<span class="comment"># Golden Dataset 로드 (선택)</span>
+<span class="keyword">with</span> <span class="function">open</span>(<span class="string">"golden_dataset.json"</span>) <span class="keyword">as</span> f:
+    golden_data = json.<span class="function">load</span>(f)
+
+<span class="comment"># 하이브리드 평가기 초기화</span>
+hybrid = <span class="function">HybridQualityEvaluator</span>(
+    monitor=monitor,
+    golden_dataset=golden_data,                              <span class="comment"># 전략 1</span>
+    template_evaluator=<span class="function">TemplateBasedQualityEvaluator</span>(monitor),  <span class="comment"># 전략 2</span>
+    llm_generator=<span class="function">LLMExpectedElementsGenerator</span>(<span class="string">"api-key"</span>, monitor)  <span class="comment"># 전략 3</span>
+)
+
+qa_pairs = [
+    {<span class="string">"qa_id"</span>: <span class="string">"qa_001"</span>, <span class="string">"question"</span>: <span class="string">"..."</span>, <span class="string">"response"</span>: <span class="string">"..."</span>},  <span class="comment"># → Golden</span>
+    {<span class="string">"qa_id"</span>: <span class="string">"qa_999"</span>, <span class="string">"question"</span>: <span class="string">"어떻게 ..."</span>, <span class="string">"response"</span>: <span class="string">"..."</span>},  <span class="comment"># → Template</span>
+    {<span class="string">"qa_id"</span>: <span class="string">"qa_1000"</span>, <span class="string">"question"</span>: <span class="string">"..."</span>, <span class="string">"response"</span>: <span class="string">"..."</span>},  <span class="comment"># → LLM</span>
+]
+
+hybrid.<span class="function">batch_evaluate</span>(qa_pairs)
+</div>
+
+            <h3>성능 최적화 팁</h3>
+
+            <div class="best-practice">
+                <strong>⚡ 대량 품질 평가 최적화</strong>
+
+                <h4>1. Expected Elements 캐싱</h4>
+                <ul>
+                    <li><strong>템플릿 재사용</strong>: 동일 질문 유형은 템플릿 캐싱</li>
+                    <li><strong>LLM 생성 캐싱</strong>: 유사 질문은 캐시에서 재사용</li>
+                    <li><strong>Golden Dataset 인덱싱</strong>: 딕셔너리 변환으로 빠른 조회</li>
+                </ul>
+
+                <h4>2. 병렬 처리</h4>
+                <ul>
+                    <li><strong>Agent 실행 병렬화</strong>: ThreadPoolExecutor 사용</li>
+                    <li><strong>LLM 호출 배치</strong>: 10-20개씩 동시 처리</li>
+                    <li><strong>평가 병렬화</strong>: 독립적인 평가는 병렬 실행</li>
+                </ul>
+
+                <h4>3. 선택적 평가</h4>
+                <ul>
+                    <li><strong>샘플링</strong>: 전체 데이터의 10-20% 샘플로 평가</li>
+                    <li><strong>차등 평가</strong>: 중요 응답은 정밀 평가, 나머지는 기본 평가</li>
+                    <li><strong>임계값 기반</strong>: 낮은 품질만 상세 분석</li>
+                </ul>
+            </div>
+
+            <div class="warning-box">
+                <h4>⚠️ 자동화 주의사항</h4>
+                <ul>
+                    <li><strong>Expected Elements 품질</strong>: LLM 생성 시 샘플링 검증 필수</li>
+                    <li><strong>템플릿 적합성</strong>: 도메인 특성에 맞게 템플릿 커스터마이징</li>
+                    <li><strong>비용 관리</strong>: LLM 호출 비용 모니터링 (GPT-4o-mini 권장)</li>
+                    <li><strong>차원별 검증</strong>: 자동 평가 결과를 차원별로 검증</li>
+                    <li><strong>Grade 분포 확인</strong>: A/B 등급이 너무 많으면 기준 재조정</li>
+                </ul>
+            </div>
+
+        </div>
+
+        <div class="section">
+            <h2>🔌 Framework Integration</h2>
+
+        <h3>LangChain 통합</h3>
+        <div class="code-block">
+<span class="keyword">from</span> langchain.chains <span class="keyword">import</span> LLMChain
+<span class="keyword">from</span> agent_evaluator.integrations <span class="keyword">import</span> LangChainEvaluator
+
+evaluator = <span class="function">LangChainEvaluator</span>()
+
+result = evaluator.<span class="function">run_and_evaluate</span>(
+    agent=chain,
+    task_input=<span class="string">"Explain machine learning"</span>,
+    task_id=<span class="string">"qa_001"</span>,
+    task_type=<span class="string">"QA"</span>,
+    expected_output=[<span class="string">"definition"</span>, <span class="string">"examples"</span>, <span class="string">"use cases"</span>],
+    ground_truth=<span class="string">"Machine learning is..."</span>
+)
+
+<span class="comment"># 품질 점수 자동 계산</span>
+quality = evaluator.monitor.quality_evaluator.<span class="function">get_quality_metrics</span>()
+<span class="function">print</span>(<span class="string">f"Quality Score: {quality['avg_total_score']}"</span>)
+</div>
+
+        </div>
+
+        <div class="section">
+            <h2>✨ Best Practices</h2>
+
+        <div class="success-box">
+            <h4>✅ Quality Score 측정 Best Practices</h4>
+            <ol>
+                <li><strong>Expected Elements 정의</strong>
+                    <ul>
+                        <li>명확한 기대 요소 목록 작성</li>
+                        <li>작업 유형별 템플릿 활용</li>
+                    </ul>
+                </li>
+                <li><strong>가중치 조정</strong>
+                    <ul>
+                        <li>도메인 특성에 맞게 차원 가중치 조정</li>
+                        <li>예: 기술 문서 → Accuracy 40%, Clarity 30%</li>
+                    </ul>
+                </li>
+                <li><strong>Ground Truth 제공</strong>
+                    <ul>
+                        <li>가능하면 항상 Ground Truth 제공</li>
+                        <li>Accuracy 차원의 정확도 향상</li>
+                    </ul>
+                </li>
+                <li><strong>Grade 기준 활용</strong>
+                    <ul>
+                        <li>A/B 등급: 프로덕션 배포 가능</li>
+                        <li>C 등급: 개선 후 재평가</li>
+                        <li>D/F 등급: 즉시 수정 필요</li>
+                    </ul>
+                </li>
+                <li><strong>차원별 분석</strong>
+                    <ul>
+                        <li>전체 점수가 낮을 때 어느 차원이 문제인지 파악</li>
+                        <li>약한 차원 집중 개선</li>
+                    </ul>
+                </li>
+            </ol>
+        </div>
+
+        <div class="warning-box">
+            <h4>⚠️ 주의사항</h4>
+            <ul>
+                <li><strong>주관성</strong>: Quality는 일부 주관적 요소 포함 (Usefulness)</li>
+                <li><strong>도메인 의존성</strong>: 시/소설 등 창의적 작업에는 부적합</li>
+                <li><strong>길이 편향</strong>: 너무 긴 응답이 높은 점수를 받을 수 있음</li>
+                <li><strong>가중치 재조정</strong>: 프로젝트 특성에 맞게 가중치 변경 필요</li>
+            </ul>
+        </div>
+
+        </div>
+
+        <div class="section">
+            <h2>🎨 가중치 커스터마이징</h2>
+
+        <div class="code-block">
+<span class="keyword">from</span> agent_evaluator <span class="keyword">import</span> ResponseQualityEvaluator
+
+<span class="comment"># 기본 가중치</span>
+evaluator = <span class="function">ResponseQualityEvaluator</span>()
+<span class="function">print</span>(evaluator.dimensions)
+<span class="comment"># {'relevance': 0.25, 'completeness': 0.25, 'accuracy': 0.20,</span>
+<span class="comment">#  'clarity': 0.15, 'usefulness': 0.15}</span>
+
+<span class="comment"># 커스텀 가중치 (예: 기술 문서)</span>
+evaluator.dimensions = {
+    <span class="string">"relevance"</span>: 0.15,      <span class="comment"># 관련성 덜 중요</span>
+    <span class="string">"completeness"</span>: 0.20,  <span class="comment"># 완전성 중요</span>
+    <span class="string">"accuracy"</span>: 0.40,      <span class="comment"># 정확성 매우 중요</span>
+    <span class="string">"clarity"</span>: 0.20,       <span class="comment"># 명확성 중요</span>
+    <span class="string">"usefulness"</span>: 0.05     <span class="comment"># 유용성 덜 중요</span>
+}
+
+<span class="comment"># 커스텀 가중치 (예: 마케팅 콘텐츠)</span>
+evaluator.dimensions = {
+    <span class="string">"relevance"</span>: 0.30,      <span class="comment"># 타겟 키워드 중요</span>
+    <span class="string">"completeness"</span>: 0.15,
+    <span class="string">"accuracy"</span>: 0.10,      <span class="comment"># 정확성 덜 중요</span>
+    <span class="string">"clarity"</span>: 0.20,
+    <span class="string">"usefulness"</span>: 0.25     <span class="comment"># 유용성 매우 중요</span>
+}
+</div>
+
+        </div>
+
+        <div class="section">
+            <h2>🔗 관련 지표</h2>
+
+        <table>
+            <thead>
+                <tr>
+                    <th>관련 지표</th>
+                    <th>관계</th>
+                    <th>문서 링크</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><strong>Accuracy</strong></td>
+                    <td>Quality의 한 차원</td>
+                    <td><a href="02_ACCURACY.html">Accuracy 가이드</a></td>
+                </tr>
+                <tr>
+                    <td><strong>Hallucination</strong></td>
+                    <td>낮은 Quality의 원인</td>
+                    <td><a href="03_HALLUCINATION_DETECTION.html">Hallucination 가이드</a></td>
+                </tr>
+                <tr>
+                    <td><strong>TCR</strong></td>
+                    <td>완료율 + 품질 = 전체 성능</td>
+                    <td><a href="01_TASK_COMPLETION_RATE.html">TCR 가이드</a></td>
+                </tr>
+            </tbody>
+        </table>
+
+        </div>
+
+        <div class="section">
+            <h2>📋 요약</h2>
+
+            <div class="intro-box">
+                <strong>Quality Score (품질 점수)</strong>는 AI Agent 응답의 종합 품질을 다차원으로 평가하는 핵심 메트릭입니다.
+
+                <ul style="margin-top: 15px;">
+                    <li><strong>5가지 차원</strong>: Relevance (25%), Completeness (25%), Accuracy (20%), Clarity (15%), Usefulness (15%)</li>
+                    <li><strong>0-5점 척도</strong>: 가중 평균으로 종합 품질 점수 계산</li>
+                    <li><strong>등급 시스템</strong>: A (4.5-5.0) ~ F (0-2.9) 5단계 분류</li>
+                    <li><strong>가중치 조정</strong>: 도메인 특성에 맞게 차원별 가중치 커스터마이징 가능</li>
+                    <li><strong>차원별 분석</strong>: 약한 차원 파악으로 개선 방향 제시</li>
+                </ul>
+
+                <br>
+                Layer 1 네이티브 메트릭으로 <span class="highlight">외부 의존성 없이</span> 다차원 품질 평가가 가능하며,
+                프로덕션 AI 시스템의 <span class="highlight">품질 보증과 사용자 만족도 향상</span>에 필수적입니다.
+            </div>
+        </div>
+
+        <div class="section">
+            \1
+        <ul>
+            <li><a href="../README.html">Agent Evaluator 메인 문서</a></li>
+            <li><a href="../LEARNING_GUIDE.html">종합 학습 가이드</a></li>
+            <li><a href="ALL_METRICS_INDEX.html">전체 지표 인덱스</a></li>
+        </ul>
+        </div>
+    </div>
+
+    <div class="footer">
+            <p><strong>최종 업데이트</strong>: 2025-12-16 | <strong>버전</strong>: Agent Evaluator v0.5.0</p>
+            <p><strong>문서</strong>: Quality Score 상세 가이드</p>
+            <p>© 2025 Agent Evaluator. All rights reserved.</p>
+        </div>
+    </div>
+    </div>
+
+    <!-- Mermaid.js for diagrams -->
+    <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+    <script>
+        mermaid.initialize({
+            startOnLoad: true,
+            theme: 'default',
+            flowchart: {
+                useMaxWidth: true,
+                htmlLabels: true,
+                curve: 'basis'
+            }
+        });
+    </script>
+    <script src="../scripts/mermaid-zoom.js"></script>
+</body>
+</html>

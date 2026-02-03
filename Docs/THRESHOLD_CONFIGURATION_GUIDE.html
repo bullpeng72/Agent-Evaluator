@@ -1,0 +1,2939 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Threshold Configuration 가이드 - Agent Evaluator</title>
+
+    <!-- Common Styles -->
+    <link rel="stylesheet" href="styles/common.css">
+
+    <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+    <script>
+        mermaid.initialize({
+            startOnLoad: true,
+            theme: 'default',
+            flowchart: {
+                useMaxWidth: true,
+                htmlLabels: true,
+                curve: 'basis'
+            },
+            themeVariables: {
+                fontSize: '14px'
+            }
+        });
+    </script>
+    
+</head>
+<body>
+    <div class="content-wrapper">
+        <div class="doc-header">
+            <h1>🎯 품질 기준 설정 가이드</h1>
+            <p style="color: #4a5568; margin-top: 10px;">임계값 설정 및 품질 게이트 구성</p>
+        </div>
+        <div class="doc-content">
+
+<h1 id="threshold-configuration-가이드">Threshold Configuration
+가이드</h1>
+<h2 id="개요">개요</h2>
+<p>이 가이드는 Agent Evaluator의 <strong>임계값(Threshold) 설정 및
+검증</strong> 방법을 설명합니다. 실제
+구현(<code>agent_evaluator/core/agent_evaluator.py</code>, <code>agent_evaluator/core/hybrid_monitor.py</code>)을 기반으로 작성되었으며, 모든
+예제는 검증되었습니다.</p>
+<h3 id="주요-검증-사항">주요 검증 사항</h3>
+<p>다음 항목들이 실제 구현과 일치함을 확인했습니다:</p>
+<ol type="1">
+<li><strong>Threshold 딕셔너리 구조</strong>:
+<code>monitor.thresholds = {metric_name: value}</code></li>
+<li><strong>지원되는 메트릭</strong>:
+<ul>
+<li>Layer 1 (Basic): <code>tcr</code>, <code>accuracy</code>,
+<code>hallucination</code>, <code>quality</code>, <code>latency</code>,
+<code>cost_per_task</code></li>
+<li>Layer 1 (RAG): <code>faithfulness</code>,
+<code>answer_relevancy</code>, <code>context_recall</code>,
+<code>context_precision</code></li>
+<li>Layer 1 (Security): <code>input_sanitization</code>, <code>output_leakage</code>, <code>authorization</code></li>
+<li>Layer 2 (Agentic): <code>tool_selection_accuracy</code>,
+<code>agent_coordination</code>, <code>workflow_execution</code></li>
+<li>Layer 2 (Security): <code>privilege_escalation</code>, <code>attack_detection</code></li>
+</ul></li>
+<li><strong>compare_with_thresholds() 반환값</strong>:
+<code>{metric: {name, value, threshold, status, direction, unit, layer?, details?}}</code></li>
+<li><strong>load_thresholds_from_config()</strong>: DataEditorManager를
+통한 자동 로드 지원</li>
+<li><strong>Latency 계산</strong>: P95 (95 백분위수) 사용, 평균이
+아님</li>
+<li><strong>Quality 변환</strong>: 5점 척도 → 10점 척도 (×2 변환)</li>
+</ol>
+<h2 id="목차">목차</h2>
+<ol type="1">
+<li><a href="#threshold란">Threshold란?</a></li>
+<li><a href="#layer-1-thresholds-native-metrics">Layer 1 Thresholds
+(Basic Metrics + Security)</a></li>
+<li><a href="#layer-2-thresholds-agentic-ai-metrics">Layer 2 Thresholds
+(Agentic Metrics + Security)</a></li>
+<li><a href="#threshold-설정-전략">Threshold 설정 전략</a></li>
+<li><a href="#환경별-threshold-설정">환경별 Threshold 설정</a></li>
+<li><a href="#threshold-비교-및-검증">Threshold 비교 및 검증</a></li>
+<li><a href="#cicd-통합">CI/CD 통합</a></li>
+<li><a href="#best-practices">Best Practices</a></li>
+<li><a href="#시나리오별-예제">시나리오별 예제</a></li>
+<li><a href="#faq-troubleshooting">FAQ &amp; Troubleshooting</a></li>
+<li><a href="#qa-guide">📊 품질 관리자 가이드 (QA Manager)</a>
+<ul>
+<li><a href="#qa-strategy">11.1 임계값 관리 전략</a></li>
+<li><a href="#qa-lifecycle">11.2 임계값 생명주기 관리</a></li>
+<li><a href="#qa-change">11.3 임계값 변경 관리</a></li>
+<li><a href="#qa-violation">11.4 임계값 위반 대응</a></li>
+<li><a href="#qa-review">11.5 정기 임계값 리뷰</a></li>
+</ul>
+</li>
+</ol>
+<hr />
+<h2 id="threshold란">Threshold란?</h2>
+<h3 id="정의">정의</h3>
+<p><strong>Threshold</strong>(임계값)는 AI 에이전트의 <strong>허용
+가능한 성능 기준</strong>입니다. 각 메트릭에 대해 최소/최대 값을
+설정하여, 에이전트가 이 기준을 충족하는지 자동으로 검증할 수
+있습니다.</p>
+<h3 id="왜-필요한가">왜 필요한가?</h3>
+<h4 id="품질-게이트-quality-gate">1. 품질 게이트 (Quality Gate)</h4>
+<ul>
+<li>프로덕션 배포 전 <strong>자동 품질 검증</strong></li>
+<li>기준 미달 시 배포 차단</li>
+<li>CI/CD 파이프라인과 통합</li>
+</ul>
+<h4 id="회귀-방지-regression-prevention">2. 회귀 방지 (Regression
+Prevention)</h4>
+<ul>
+<li>에이전트 업데이트 시 <strong>성능 저하 감지</strong></li>
+<li>이전 버전과 비교하여 품질 유지 보장</li>
+</ul>
+<h4 id="객관적-평가">3. 객관적 평가</h4>
+<ul>
+<li>주관적 판단 대신 <strong>정량적 기준</strong></li>
+<li>팀 간 일관된 품질 표준</li>
+</ul>
+<h4 id="프로덕션-준비-검증">4. 프로덕션 준비 검증</h4>
+<ul>
+<li>“이 에이전트를 배포해도 될까?”라는 질문에 대한 <strong>자동화된
+답변</strong></li>
+</ul>
+<h3 id="passfail-판정">Pass/Fail 판정</h3>
+<p>각 메트릭은 threshold와 비교하여 <strong>Pass</strong> 또는
+<strong>Fail</strong>로 판정됩니다:</p>
+<ul>
+<li><strong>Pass (✅)</strong>: 메트릭 값이 threshold를 충족
+<ul>
+<li>“높을수록 좋은” 메트릭: <code>value &gt;= threshold</code></li>
+<li>“낮을수록 좋은” 메트릭: <code>value &lt;= threshold</code></li>
+</ul></li>
+<li><strong>Fail (❌)</strong>: 메트릭 값이 threshold를 불충족
+<ul>
+<li>“높을수록 좋은” 메트릭: <code>value &lt; threshold</code></li>
+<li>“낮을수록 좋은” 메트릭: <code>value &gt; threshold</code></li>
+</ul></li>
+</ul>
+<p><strong>CI/CD에서의 판정</strong>:</p>
+<ul>
+<li><strong>모든 메트릭이 Pass</strong>: 배포 진행 (exit code 0)</li>
+<li><strong>하나라도 Fail</strong>: 배포 차단 (exit code 1)</li>
+</ul>
+<hr />
+<h2 id="layer-1-thresholds-native-metrics">Layer 1 Thresholds (Basic Metrics + Security)</h2>
+<p>Layer 1은 <strong>기본적인 AI 성능 메트릭과 기본 보안 메트릭</strong>입니다.</p>
+<h3 id="task-completion-rate-tcr">1. Task Completion Rate (TCR)</h3>
+<p><strong>메트릭</strong>: <code>tcr</code> <strong>단위</strong>:
+<code>%</code> <strong>방향</strong>: 높을수록 좋음 (higher is better)
+<strong>정의</strong>: 에이전트가 작업을 성공적으로 완료한 비율</p>
+<h4 id="계산-방식">계산 방식</h4>
+<pre><code>TCR = (성공한 작업 수 / 전체 작업 수) × 100</code></pre>
+<h4 id="threshold-권장값">Threshold 권장값</h4>
+<table>
+<thead>
+<tr class="doc-header">
+<th>환경</th>
+<th>권장값</th>
+<th>설명</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>개발 (Dev)</td>
+<td>70-80%</td>
+<td>실험적 기능 허용</td>
+</tr>
+<tr class="even">
+<td>스테이징 (Staging)</td>
+<td>85-90%</td>
+<td>프로덕션 준비 검증</td>
+</tr>
+<tr class="odd">
+<td>프로덕션 (Production)</td>
+<td>95%+</td>
+<td>높은 신뢰성 요구</td>
+</tr>
+</tbody>
+</table>
+<h4 id="설정-예제">설정 예제</h4>
+<div class="sourceCode" id="cb2"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a>monitor.thresholds <span class="op">=</span> {</span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>    <span class="st">&#39;tcr&#39;</span>: <span class="fl">90.0</span>  <span class="co"># 90% 이상이어야 Pass</span></span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>}</span></code></pre></div>
+<h4 id="해석">해석</h4>
+<ul>
+<li><strong>TCR &lt; 90%</strong>: 작업 실패율이 높음 → 프롬프트 개선
+필요</li>
+<li><strong>TCR ≥ 90%</strong>: 안정적 → Pass</li>
+</ul>
+<h3 id="accuracy-정확도">2. Accuracy (정확도)</h3>
+<p><strong>메트릭</strong>: <code>accuracy</code> <strong>단위</strong>:
+<code>%</code> <strong>방향</strong>: 높을수록 좋음
+<strong>정의</strong>: 에이전트 응답이 정답(ground truth)과 얼마나
+유사한지</p>
+<h4 id="계산-방식-1">계산 방식</h4>
+<pre><code>Accuracy = Semantic Similarity Score × 100</code></pre>
+<ul>
+<li>기본: BERT 기반 임베딩 유사도</li>
+<li>설정 가능: OpenAI embeddings, sentence-transformers 등</li>
+</ul>
+<h4 id="threshold-권장값-1">Threshold 권장값</h4>
+<table>
+<thead>
+<tr class="doc-header">
+<th>환경</th>
+<th>권장값</th>
+<th>설명</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>개발</td>
+<td>60-70%</td>
+<td>초기 개발 단계</td>
+</tr>
+<tr class="even">
+<td>스테이징</td>
+<td>75-85%</td>
+<td>품질 검증</td>
+</tr>
+<tr class="odd">
+<td>프로덕션</td>
+<td>85-90%</td>
+<td>높은 정확도 요구</td>
+</tr>
+</tbody>
+</table>
+<h4 id="설정-예제-1">설정 예제</h4>
+<div class="sourceCode" id="cb4"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a>monitor.thresholds <span class="op">=</span> {</span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>    <span class="st">&#39;accuracy&#39;</span>: <span class="fl">85.0</span>  <span class="co"># 85% 이상이어야 Pass</span></span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a>}</span></code></pre></div>
+<h4 id="해석-1">해석</h4>
+<ul>
+<li><strong>Accuracy &lt; 85%</strong>: 응답 품질이 낮음 → Golden
+Dataset 또는 프롬프트 개선</li>
+<li><strong>Accuracy ≥ 85%</strong>: 응답 품질 양호 → Pass</li>
+</ul>
+<h3 id="hallucination-rate-환각-비율">3. Hallucination Rate (환각
+비율)</h3>
+<p><strong>메트릭</strong>: <code>hallucination</code>
+<strong>단위</strong>: <code>%</code> <strong>방향</strong>: 낮을수록
+좋음 (lower is better) <strong>정의</strong>: 에이전트가 사실이 아닌
+정보를 생성한 비율</p>
+<h4 id="계산-방식-2">계산 방식</h4>
+<pre><code>Hallucination Rate = (Hallucination 발생 횟수 / 전체 작업 수) × 100</code></pre>
+<h4 id="threshold-권장값-2">Threshold 권장값</h4>
+<table>
+<thead>
+<tr class="doc-header">
+<th>환경</th>
+<th>권장값</th>
+<th>설명</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>개발</td>
+<td>10-15%</td>
+<td>실험 허용</td>
+</tr>
+<tr class="even">
+<td>스테이징</td>
+<td>5-10%</td>
+<td>품질 검증</td>
+</tr>
+<tr class="odd">
+<td>프로덕션</td>
+<td>2-5%</td>
+<td>매우 낮은 환각률 요구</td>
+</tr>
+</tbody>
+</table>
+<h4 id="설정-예제-2">설정 예제</h4>
+<div class="sourceCode" id="cb6"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a>monitor.thresholds <span class="op">=</span> {</span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a>    <span class="st">&#39;hallucination&#39;</span>: <span class="fl">5.0</span>  <span class="co"># 5% 이하여야 Pass</span></span>
+<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a>}</span></code></pre></div>
+<h4 id="해석-2">해석</h4>
+<ul>
+<li><strong>Hallucination &gt; 5%</strong>: 환각이 너무 많음 → RAG
+시스템 개선, 프롬프트 수정</li>
+<li><strong>Hallucination ≤ 5%</strong>: 환각률 낮음 → Pass</li>
+</ul>
+<h3 id="quality-응답-품질">4. Quality (응답 품질)</h3>
+<p><strong>메트릭</strong>: <code>quality</code> <strong>단위</strong>:
+<code>/10</code> (0-10 척도) <strong>방향</strong>: 높을수록 좋음
+<strong>정의</strong>: 응답의 전반적인 품질 (명확성, 완전성, 관련성
+등)</p>
+<h4 id="계산-방식-3">계산 방식</h4>
+<pre><code>Quality Score = ResponseQualityEvaluator의 평균 점수 × 2 (10점 척도로 변환)</code></pre>
+<ul>
+<li>원본: 5점 척도 (total_score 기준)</li>
+<li>변환: 10점 척도로 환산하여 threshold 비교</li>
+</ul>
+<h4 id="threshold-권장값-3">Threshold 권장값</h4>
+<table>
+<thead>
+<tr class="doc-header">
+<th>환경</th>
+<th>권장값</th>
+<th>설명</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>개발</td>
+<td>5-6/10</td>
+<td>기본 품질</td>
+</tr>
+<tr class="even">
+<td>스테이징</td>
+<td>7-8/10</td>
+<td>좋은 품질</td>
+</tr>
+<tr class="odd">
+<td>프로덕션</td>
+<td>8-9/10</td>
+<td>매우 높은 품질</td>
+</tr>
+</tbody>
+</table>
+<h4 id="설정-예제-3">설정 예제</h4>
+<div class="sourceCode" id="cb8"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a>monitor.thresholds <span class="op">=</span> {</span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a>    <span class="st">&#39;quality&#39;</span>: <span class="fl">7.0</span>  <span class="co"># 7/10 이상이어야 Pass</span></span>
+<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a>}</span></code></pre></div>
+<h4 id="해석-3">해석</h4>
+<ul>
+<li><strong>Quality &lt; 7/10</strong>: 응답 품질 개선 필요</li>
+<li><strong>Quality ≥ 7/10</strong>: 품질 양호 → Pass</li>
+</ul>
+<h3 id="latency-응답-시간">5. Latency (응답 시간)</h3>
+<p><strong>메트릭</strong>: <code>latency</code> <strong>단위</strong>:
+<code>s</code> (초) <strong>방향</strong>: 낮을수록 좋음
+<strong>정의</strong>: 에이전트의 P95 응답 시간 (상위 5% 제외)</p>
+<h4 id="계산-방식-4">계산 방식</h4>
+<pre><code>Latency = P95 응답 시간 (초)</code></pre>
+<ul>
+<li>P95: 95 백분위수 응답 시간 (이상치 제외)</li>
+<li>평균이 아닌 P95 사용하여 더 안정적인 평가</li>
+</ul>
+<h4 id="threshold-권장값-4">Threshold 권장값</h4>
+<table>
+<thead>
+<tr class="doc-header">
+<th>환경</th>
+<th>권장값</th>
+<th>설명</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>실시간 챗봇</td>
+<td>1-2초</td>
+<td>빠른 응답 필요</td>
+</tr>
+<tr class="even">
+<td>일반 에이전트</td>
+<td>3-5초</td>
+<td>적당한 응답 시간</td>
+</tr>
+<tr class="odd">
+<td>복잡한 작업</td>
+<td>10-30초</td>
+<td>시간이 걸리는 작업</td>
+</tr>
+</tbody>
+</table>
+<h4 id="설정-예제-4">설정 예제</h4>
+<div class="sourceCode" id="cb10"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a>monitor.thresholds <span class="op">=</span> {</span>
+<span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a>    <span class="st">&#39;latency&#39;</span>: <span class="fl">3.0</span>  <span class="co"># 3초 이하여야 Pass (P95 기준)</span></span>
+<span id="cb10-3"><a href="#cb10-3" aria-hidden="true" tabindex="-1"></a>}</span></code></pre></div>
+<h4 id="해석-4">해석</h4>
+<ul>
+<li><strong>Latency &gt; 3s</strong>: 응답이 너무 느림 → 프롬프트
+간소화, 모델 최적화</li>
+<li><strong>Latency ≤ 3s</strong>: 응답 속도 양호 → Pass</li>
+</ul>
+<h3 id="cost-per-task-작업당-비용">6. Cost per Task (작업당 비용)</h3>
+<p><strong>메트릭</strong>: <code>cost_per_task</code>
+<strong>단위</strong>: <code>$</code> (달러) <strong>방향</strong>:
+낮을수록 좋음 <strong>정의</strong>: 작업 하나를 처리하는 데 드는 평균
+비용 (LLM API 비용)</p>
+<h4 id="계산-방식-5">계산 방식</h4>
+<pre><code>Cost per Task = (Input Tokens × Input Price + Output Tokens × Output Price)의 평균</code></pre>
+<h4 id="threshold-권장값-5">Threshold 권장값</h4>
+<table>
+<thead>
+<tr class="doc-header">
+<th>환경</th>
+<th>권장값</th>
+<th>설명</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>간단한 QA</td>
+<td>$0.01-0.05</td>
+<td>저비용 작업</td>
+</tr>
+<tr class="even">
+<td>일반 에이전트</td>
+<td>$0.05-0.20</td>
+<td>중간 비용</td>
+</tr>
+<tr class="odd">
+<td>복잡한 작업</td>
+<td>$0.20-1.00</td>
+<td>고비용 허용</td>
+</tr>
+</tbody>
+</table>
+<h4 id="설정-예제-5">설정 예제</h4>
+<div class="sourceCode" id="cb12"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a>monitor.thresholds <span class="op">=</span> {</span>
+<span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a>    <span class="st">&#39;cost_per_task&#39;</span>: <span class="fl">0.10</span>  <span class="co"># $0.10 이하여야 Pass</span></span>
+<span id="cb12-3"><a href="#cb12-3" aria-hidden="true" tabindex="-1"></a>}</span></code></pre></div>
+<h4 id="해석-5">해석</h4>
+<ul>
+<li><strong>Cost &gt; $0.10</strong>: 비용이 너무 높음 → 작은 모델 사용,
+프롬프트 최적화</li>
+<li><strong>Cost ≤ $0.10</strong>: 비용 적절 → Pass</li>
+</ul>
+<h3 id="rag-메트릭-선택적">7. RAG 메트릭 (선택적)</h3>
+<p>RAG 시스템을 사용하는 경우 다음 메트릭을 추가할 수 있습니다:</p>
+<h4 id="faithfulness-충실도">Faithfulness (충실도)</h4>
+<p><strong>메트릭</strong>: <code>faithfulness</code>
+<strong>단위</strong>: (0-1 척도) <strong>방향</strong>: 높을수록 좋음
+<strong>정의</strong>: 생성된 답변이 제공된 컨텍스트에 얼마나
+충실한지</p>
+<div class="sourceCode" id="cb13"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a>monitor.thresholds <span class="op">=</span> {</span>
+<span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a>    <span class="st">&#39;faithfulness&#39;</span>: <span class="fl">0.8</span>  <span class="co"># 0.8 이상이어야 Pass</span></span>
+<span id="cb13-3"><a href="#cb13-3" aria-hidden="true" tabindex="-1"></a>}</span></code></pre></div>
+<p><strong>참고</strong>: 현재는 placeholder 구현. RAG 평가 기능 활성화
+필요.</p>
+<h4 id="answer-relevancy-답변-관련성">Answer Relevancy (답변
+관련성)</h4>
+<p><strong>메트릭</strong>: <code>answer_relevancy</code>
+<strong>단위</strong>: (0-1 척도) <strong>방향</strong>: 높을수록 좋음
+<strong>정의</strong>: 생성된 답변이 질문과 얼마나 관련있는지</p>
+<div class="sourceCode" id="cb14"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a>monitor.thresholds <span class="op">=</span> {</span>
+<span id="cb14-2"><a href="#cb14-2" aria-hidden="true" tabindex="-1"></a>    <span class="st">&#39;answer_relevancy&#39;</span>: <span class="fl">0.8</span>  <span class="co"># 0.8 이상이어야 Pass</span></span>
+<span id="cb14-3"><a href="#cb14-3" aria-hidden="true" tabindex="-1"></a>}</span></code></pre></div>
+<p><strong>참고</strong>: 현재는 placeholder 구현. RAG 평가 기능 활성화
+필요.</p>
+<h4 id="context-recall-컨텍스트-재현율">Context Recall (컨텍스트
+재현율)</h4>
+<p><strong>메트릭</strong>: <code>context_recall</code>
+<strong>단위</strong>: (0-1 척도) <strong>방향</strong>: 높을수록 좋음
+<strong>정의</strong>: 필요한 정보가 검색된 컨텍스트에 얼마나 포함되어
+있는지</p>
+<div class="sourceCode" id="cb15"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a>monitor.thresholds <span class="op">=</span> {</span>
+<span id="cb15-2"><a href="#cb15-2" aria-hidden="true" tabindex="-1"></a>    <span class="st">&#39;context_recall&#39;</span>: <span class="fl">0.8</span>  <span class="co"># 0.8 이상이어야 Pass</span></span>
+<span id="cb15-3"><a href="#cb15-3" aria-hidden="true" tabindex="-1"></a>}</span></code></pre></div>
+<p><strong>참고</strong>: 현재는 placeholder 구현. RAG 평가 기능 활성화
+필요.</p>
+<h4 id="context-precision-컨텍스트-정밀도">Context Precision (컨텍스트
+정밀도)</h4>
+<p><strong>메트릭</strong>: <code>context_precision</code>
+<strong>단위</strong>: (0-1 척도) <strong>방향</strong>: 높을수록 좋음
+<strong>정의</strong>: 검색된 컨텍스트 중 관련 있는 정보의 비율</p>
+<div class="sourceCode" id="cb16"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a>monitor.thresholds <span class="op">=</span> {</span>
+<span id="cb16-2"><a href="#cb16-2" aria-hidden="true" tabindex="-1"></a>    <span class="st">&#39;context_precision&#39;</span>: <span class="fl">0.8</span>  <span class="co"># 0.8 이상이어야 Pass</span></span>
+<span id="cb16-3"><a href="#cb16-3" aria-hidden="true" tabindex="-1"></a>}</span></code></pre></div>
+<p><strong>참고</strong>: 현재는 placeholder 구현. RAG 평가 기능 활성화
+필요.</p>
+<h3 id="security-metrics-layer1">8. Layer 1 Security 메트릭 (v0.5.0 NEW)</h3>
+<p>Layer 1 Security 메트릭은 <strong>기본 보안 위협</strong>을 평가합니다.</p>
+
+<h4 id="input-sanitization">Input Sanitization (입력 검증)</h4>
+<p><strong>메트릭</strong>: <code>input_sanitization</code> <strong>단위</strong>: <code>%</code> <strong>방향</strong>: 높을수록 좋음
+<strong>정의</strong>: 악의적 입력이 적절히 검증/차단되는 비율</p>
+<div class="sourceCode" id="cb16a"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb16a-1"><a href="#cb16a-1" aria-hidden="true" tabindex="-1"></a>monitor.thresholds <span class="op">=</span> {</span>
+<span id="cb16a-2"><a href="#cb16a-2" aria-hidden="true" tabindex="-1"></a>    <span class="st">&#39;input_sanitization&#39;</span>: <span class="fl">95.0</span>  <span class="co"># 95% 이상이어야 Pass</span></span>
+<span id="cb16a-3"><a href="#cb16a-3" aria-hidden="true" tabindex="-1"></a>}</span></code></pre></div>
+
+<h4 id="output-leakage">Output Leakage (출력 유출 방지)</h4>
+<p><strong>메트릭</strong>: <code>output_leakage</code> <strong>단위</strong>: <code>%</code> <strong>방향</strong>: 높을수록 좋음
+<strong>정의</strong>: 민감한 정보가 출력에 포함되지 않는 비율</p>
+<div class="sourceCode" id="cb16b"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb16b-1"><a href="#cb16b-1" aria-hidden="true" tabindex="-1"></a>monitor.thresholds <span class="op">=</span> {</span>
+<span id="cb16b-2"><a href="#cb16b-2" aria-hidden="true" tabindex="-1"></a>    <span class="st">&#39;output_leakage&#39;</span>: <span class="fl">95.0</span>  <span class="co"># 95% 이상이어야 Pass (유출 방지율)</span></span>
+<span id="cb16b-3"><a href="#cb16b-3" aria-hidden="true" tabindex="-1"></a>}</span></code></pre></div>
+
+<h4 id="authorization">Authorization (권한 검증)</h4>
+<p><strong>메트릭</strong>: <code>authorization</code> <strong>단위</strong>: <code>%</code> <strong>방향</strong>: 높을수록 좋음
+<strong>정의</strong>: 권한이 적절히 검증되는 비율</p>
+<div class="sourceCode" id="cb16c"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb16c-1"><a href="#cb16c-1" aria-hidden="true" tabindex="-1"></a>monitor.thresholds <span class="op">=</span> {</span>
+<span id="cb16c-2"><a href="#cb16c-2" aria-hidden="true" tabindex="-1"></a>    <span class="st">&#39;authorization&#39;</span>: <span class="fl">98.0</span>  <span class="co"># 98% 이상이어야 Pass</span></span>
+<span id="cb16c-3"><a href="#cb16c-3" aria-hidden="true" tabindex="-1"></a>}</span></code></pre></div>
+
+<p><strong>통합 예제</strong>:</p>
+<div class="sourceCode" id="cb16d"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb16d-1"><a href="#cb16d-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Layer 1: Basic + Security Thresholds</span></span>
+<span id="cb16d-2"><a href="#cb16d-2" aria-hidden="true" tabindex="-1"></a>monitor.thresholds <span class="op">=</span> {</span>
+<span id="cb16d-3"><a href="#cb16d-3" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Basic Metrics</span></span>
+<span id="cb16d-4"><a href="#cb16d-4" aria-hidden="true" tabindex="-1"></a>    <span class="st">&#39;tcr&#39;</span>: <span class="fl">90.0</span>,</span>
+<span id="cb16d-5"><a href="#cb16d-5" aria-hidden="true" tabindex="-1"></a>    <span class="st">&#39;accuracy&#39;</span>: <span class="fl">85.0</span>,</span>
+<span id="cb16d-6"><a href="#cb16d-6" aria-hidden="true" tabindex="-1"></a>    <span class="st">&#39;hallucination&#39;</span>: <span class="fl">5.0</span>,</span>
+<span id="cb16d-7"><a href="#cb16d-7" aria-hidden="true" tabindex="-1"></a>    <span class="st">&#39;quality&#39;</span>: <span class="fl">7.0</span>,</span>
+<span id="cb16d-8"><a href="#cb16d-8" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Security Metrics</span></span>
+<span id="cb16d-9"><a href="#cb16d-9" aria-hidden="true" tabindex="-1"></a>    <span class="st">&#39;input_sanitization&#39;</span>: <span class="fl">95.0</span>,</span>
+<span id="cb16d-10"><a href="#cb16d-10" aria-hidden="true" tabindex="-1"></a>    <span class="st">&#39;output_leakage&#39;</span>: <span class="fl">95.0</span>,</span>
+<span id="cb16d-11"><a href="#cb16d-11" aria-hidden="true" tabindex="-1"></a>    <span class="st">&#39;authorization&#39;</span>: <span class="fl">98.0</span></span>
+<span id="cb16d-12"><a href="#cb16d-12" aria-hidden="true" tabindex="-1"></a>}</span></code></pre></div>
+<hr />
+<h2 id="layer-2-thresholds-agentic-ai-metrics">Layer 2 Thresholds
+(Agentic Metrics + Security)</h2>
+<p>Layer 2는 <strong>Agentic AI 시스템의 고급 메트릭과 고급 보안 메트릭</strong>입니다.</p>
+<h3 id="tool-selection-accuracy-도구-선택-정확도">1. Tool Selection
+Accuracy (도구 선택 정확도)</h3>
+<p><strong>메트릭</strong>: <code>tool_selection_accuracy</code>
+<strong>단위</strong>: <code>%</code> <strong>방향</strong>: 높을수록
+좋음 <strong>정의</strong>: 에이전트가 올바른 도구를 선택한 비율 (F1
+Score 기반)</p>
+<h4 id="계산-방식-6">계산 방식</h4>
+<pre><code>Tool Selection Accuracy = (모든 작업의 F1 Score 평균) × 100
+
+F1 Score = 2 × (Precision × Recall) / (Precision + Recall)
+- Precision = 올바른 도구 / 사용한 도구
+- Recall = 올바른 도구 / 필요한 도구</code></pre>
+<h4 id="threshold-권장값-6">Threshold 권장값</h4>
+<table>
+<thead>
+<tr class="doc-header">
+<th>환경</th>
+<th>권장값</th>
+<th>설명</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>개발</td>
+<td>60-70%</td>
+<td>초기 개발</td>
+</tr>
+<tr class="even">
+<td>스테이징</td>
+<td>75-85%</td>
+<td>품질 검증</td>
+</tr>
+<tr class="odd">
+<td>프로덕션</td>
+<td>85-95%</td>
+<td>높은 정확도 요구</td>
+</tr>
+</tbody>
+</table>
+<h4 id="설정-예제-6">설정 예제</h4>
+<div class="sourceCode" id="cb18"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb18-1"><a href="#cb18-1" aria-hidden="true" tabindex="-1"></a>monitor.thresholds <span class="op">=</span> {</span>
+<span id="cb18-2"><a href="#cb18-2" aria-hidden="true" tabindex="-1"></a>    <span class="st">&#39;tool_selection_accuracy&#39;</span>: <span class="fl">80.0</span>  <span class="co"># 80% 이상이어야 Pass</span></span>
+<span id="cb18-3"><a href="#cb18-3" aria-hidden="true" tabindex="-1"></a>}</span></code></pre></div>
+<h4 id="해석-6">해석</h4>
+<ul>
+<li><strong>Tool Selection &lt; 80%</strong>: 도구 선택이 부정확함 →
+프롬프트 개선, Golden Dataset 확인</li>
+<li><strong>Tool Selection ≥ 80%</strong>: 도구 선택 양호 → Pass</li>
+</ul>
+<h4 id="golden-dataset-요구사항">Golden Dataset 요구사항</h4>
+<p>Layer 2 메트릭을 사용하려면 Golden Dataset에
+<code>expected_tools</code> 필드가 필요합니다:</p>
+<div class="sourceCode" id="cb19"><pre
+class="sourceCode json"><code class="sourceCode json"><span id="cb19-1"><a href="#cb19-1" aria-hidden="true" tabindex="-1"></a><span class="fu">{</span></span>
+<span id="cb19-2"><a href="#cb19-2" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;id&quot;</span><span class="fu">:</span> <span class="st">&quot;qa_001&quot;</span><span class="fu">,</span></span>
+<span id="cb19-3"><a href="#cb19-3" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;question&quot;</span><span class="fu">:</span> <span class="st">&quot;What is 15 + 27?&quot;</span><span class="fu">,</span></span>
+<span id="cb19-4"><a href="#cb19-4" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;expected_tools&quot;</span><span class="fu">:</span> <span class="ot">[</span><span class="st">&quot;calculator&quot;</span><span class="ot">]</span></span>
+<span id="cb19-5"><a href="#cb19-5" aria-hidden="true" tabindex="-1"></a><span class="fu">}</span></span></code></pre></div>
+<h3 id="agent-coordination-에이전트-협업-점수">2. Agent Coordination
+(에이전트 협업 점수)</h3>
+<p><strong>메트릭</strong>: <code>agent_coordination</code>
+<strong>단위</strong>: <code>/10</code> (0-10 척도)
+<strong>방향</strong>: 높을수록 좋음 <strong>정의</strong>: Multi-agent
+시스템에서 에이전트 간 협업 품질</p>
+<h4 id="계산-방식-7">계산 방식</h4>
+<pre><code>Coordination Score = (
+    0.5 × Success Rate +
+    0.3 × Agent Diversity +
+    0.2 × Interaction Balance
+) × 10
+
+- Success Rate: 성공한 상호작용 비율
+- Agent Diversity: 참여한 고유 에이전트 비율
+- Interaction Balance: 상호작용 유형의 균형도</code></pre>
+<h4 id="threshold-권장값-7">Threshold 권장값</h4>
+<table>
+<thead>
+<tr class="doc-header">
+<th>환경</th>
+<th>권장값</th>
+<th>설명</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>개발</td>
+<td>5-6/10</td>
+<td>초기 개발</td>
+</tr>
+<tr class="even">
+<td>스테이징</td>
+<td>7-8/10</td>
+<td>품질 검증</td>
+</tr>
+<tr class="odd">
+<td>프로덕션</td>
+<td>8-9/10</td>
+<td>높은 협업 품질 요구</td>
+</tr>
+</tbody>
+</table>
+<h4 id="설정-예제-7">설정 예제</h4>
+<div class="sourceCode" id="cb21"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb21-1"><a href="#cb21-1" aria-hidden="true" tabindex="-1"></a>monitor.thresholds <span class="op">=</span> {</span>
+<span id="cb21-2"><a href="#cb21-2" aria-hidden="true" tabindex="-1"></a>    <span class="st">&#39;agent_coordination&#39;</span>: <span class="fl">7.0</span>  <span class="co"># 7/10 이상이어야 Pass</span></span>
+<span id="cb21-3"><a href="#cb21-3" aria-hidden="true" tabindex="-1"></a>}</span></code></pre></div>
+<h4 id="해석-7">해석</h4>
+<ul>
+<li><strong>Coordination &lt; 7/10</strong>: 협업이 원활하지 않음 →
+에이전트 간 통신 개선</li>
+<li><strong>Coordination ≥ 7/10</strong>: 협업 양호 → Pass</li>
+</ul>
+<h4 id="golden-dataset-요구사항-1">Golden Dataset 요구사항</h4>
+<div class="sourceCode" id="cb22"><pre
+class="sourceCode json"><code class="sourceCode json"><span id="cb22-1"><a href="#cb22-1" aria-hidden="true" tabindex="-1"></a><span class="fu">{</span></span>
+<span id="cb22-2"><a href="#cb22-2" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;id&quot;</span><span class="fu">:</span> <span class="st">&quot;qa_002&quot;</span><span class="fu">,</span></span>
+<span id="cb22-3"><a href="#cb22-3" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;question&quot;</span><span class="fu">:</span> <span class="st">&quot;Research AI trends and write a report.&quot;</span><span class="fu">,</span></span>
+<span id="cb22-4"><a href="#cb22-4" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;expected_agents&quot;</span><span class="fu">:</span> <span class="ot">[</span><span class="st">&quot;manager&quot;</span><span class="ot">,</span> <span class="st">&quot;researcher&quot;</span><span class="ot">,</span> <span class="st">&quot;writer&quot;</span><span class="ot">]</span></span>
+<span id="cb22-5"><a href="#cb22-5" aria-hidden="true" tabindex="-1"></a><span class="fu">}</span></span></code></pre></div>
+<h3 id="workflow-execution-success-rate-워크플로우-실행-성공률">3.
+Workflow Execution Success Rate (워크플로우 실행 성공률)</h3>
+<p><strong>메트릭</strong>: <code>workflow_execution</code>
+<strong>단위</strong>: <code>%</code> <strong>방향</strong>: 높을수록
+좋음 <strong>정의</strong>: 워크플로우 단계가 성공적으로 실행된 비율</p>
+<h4 id="계산-방식-8">계산 방식</h4>
+<pre><code>Workflow Execution = (성공한 단계 수 / 전체 단계 수) × 100</code></pre>
+<h4 id="threshold-권장값-8">Threshold 권장값</h4>
+<table>
+<thead>
+<tr class="doc-header">
+<th>환경</th>
+<th>권장값</th>
+<th>설명</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>개발</td>
+<td>70-80%</td>
+<td>실험적 워크플로우</td>
+</tr>
+<tr class="even">
+<td>스테이징</td>
+<td>85-90%</td>
+<td>품질 검증</td>
+</tr>
+<tr class="odd">
+<td>프로덕션</td>
+<td>95-100%</td>
+<td>매우 높은 안정성 요구</td>
+</tr>
+</tbody>
+</table>
+<h4 id="설정-예제-8">설정 예제</h4>
+<div class="sourceCode" id="cb24"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb24-1"><a href="#cb24-1" aria-hidden="true" tabindex="-1"></a>monitor.thresholds <span class="op">=</span> {</span>
+<span id="cb24-2"><a href="#cb24-2" aria-hidden="true" tabindex="-1"></a>    <span class="st">&#39;workflow_execution&#39;</span>: <span class="fl">90.0</span>  <span class="co"># 90% 이상이어야 Pass</span></span>
+<span id="cb24-3"><a href="#cb24-3" aria-hidden="true" tabindex="-1"></a>}</span></code></pre></div>
+<h4 id="해석-8">해석</h4>
+<ul>
+<li><strong>Workflow &lt; 90%</strong>: 워크플로우 단계 실패가 많음 →
+단계 최적화, 에러 처리 강화</li>
+<li><strong>Workflow ≥ 90%</strong>: 워크플로우 안정적 → Pass</li>
+</ul>
+<h4 id="상세-정보-details">상세 정보 (details)</h4>
+<p><code>compare_with_thresholds()</code>에서 반환되는 <code>details</code> 필드:</p>
+<ul>
+<li><code>total_steps</code>: 전체 단계 수</li>
+<li><code>successful_steps</code>: 성공한 단계 수</li>
+<li><code>task_success_rate</code>: 작업 수준의 성공률</li>
+</ul>
+<div class="sourceCode" id="cb25"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb25-1"><a href="#cb25-1" aria-hidden="true" tabindex="-1"></a>{</span>
+<span id="cb25-2"><a href="#cb25-2" aria-hidden="true" tabindex="-1"></a>    <span class="st">&#39;workflow_execution&#39;</span>: {</span>
+<span id="cb25-3"><a href="#cb25-3" aria-hidden="true" tabindex="-1"></a>        <span class="st">&#39;value&#39;</span>: <span class="fl">95.0</span>,</span>
+<span id="cb25-4"><a href="#cb25-4" aria-hidden="true" tabindex="-1"></a>        <span class="st">&#39;threshold&#39;</span>: <span class="fl">90.0</span>,</span>
+<span id="cb25-5"><a href="#cb25-5" aria-hidden="true" tabindex="-1"></a>        <span class="st">&#39;status&#39;</span>: <span class="st">&#39;pass&#39;</span>,</span>
+<span id="cb25-6"><a href="#cb25-6" aria-hidden="true" tabindex="-1"></a>        <span class="st">&#39;details&#39;</span>: {</span>
+<span id="cb25-7"><a href="#cb25-7" aria-hidden="true" tabindex="-1"></a>            <span class="st">&#39;total_steps&#39;</span>: <span class="dv">100</span>,</span>
+<span id="cb25-8"><a href="#cb25-8" aria-hidden="true" tabindex="-1"></a>            <span class="st">&#39;successful_steps&#39;</span>: <span class="dv">95</span>,</span>
+<span id="cb25-9"><a href="#cb25-9" aria-hidden="true" tabindex="-1"></a>            <span class="st">&#39;task_success_rate&#39;</span>: <span class="fl">92.5</span></span>
+<span id="cb25-10"><a href="#cb25-10" aria-hidden="true" tabindex="-1"></a>        }</span>
+<span id="cb25-11"><a href="#cb25-11" aria-hidden="true" tabindex="-1"></a>    }</span>
+<span id="cb25-12"><a href="#cb25-12" aria-hidden="true" tabindex="-1"></a>}</span></code></pre></div>
+<h4 id="golden-dataset-요구사항-2">Golden Dataset 요구사항</h4>
+<div class="sourceCode" id="cb26"><pre
+class="sourceCode json"><code class="sourceCode json"><span id="cb26-1"><a href="#cb26-1" aria-hidden="true" tabindex="-1"></a><span class="fu">{</span></span>
+<span id="cb26-2"><a href="#cb26-2" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;id&quot;</span><span class="fu">:</span> <span class="st">&quot;qa_003&quot;</span><span class="fu">,</span></span>
+<span id="cb26-3"><a href="#cb26-3" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;question&quot;</span><span class="fu">:</span> <span class="st">&quot;Summarize this document.&quot;</span><span class="fu">,</span></span>
+<span id="cb26-4"><a href="#cb26-4" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;expected_workflow_steps&quot;</span><span class="fu">:</span> <span class="ot">[</span><span class="st">&quot;retrieval&quot;</span><span class="ot">,</span> <span class="st">&quot;generation&quot;</span><span class="ot">,</span> <span class="st">&quot;validation&quot;</span><span class="ot">]</span></span>
+<span id="cb26-5"><a href="#cb26-5" aria-hidden="true" tabindex="-1"></a><span class="fu">}</span></span></code></pre></div>
+
+<h3 id="security-metrics-layer2">4. Layer 2 Security 메트릭 (v0.5.0 NEW)</h3>
+<p>Layer 2 Security 메트릭은 <strong>고급 보안 위협</strong>을 평가합니다.</p>
+
+<h4 id="privilege-escalation">Privilege Escalation (권한 상승 감지)</h4>
+<p><strong>메트릭</strong>: <code>privilege_escalation</code> <strong>단위</strong>: <code>%</code> <strong>방향</strong>: 높을수록 좋음
+<strong>정의</strong>: 권한 상승 시도가 적절히 차단되는 비율</p>
+<div class="sourceCode" id="cb26a"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb26a-1"><a href="#cb26a-1" aria-hidden="true" tabindex="-1"></a>monitor.thresholds <span class="op">=</span> {</span>
+<span id="cb26a-2"><a href="#cb26a-2" aria-hidden="true" tabindex="-1"></a>    <span class="st">&#39;privilege_escalation&#39;</span>: <span class="fl">98.0</span>  <span class="co"># 98% 이상이어야 Pass</span></span>
+<span id="cb26a-3"><a href="#cb26a-3" aria-hidden="true" tabindex="-1"></a>}</span></code></pre></div>
+
+<h4 id="attack-detection">Attack Detection (공격 탐지)</h4>
+<p><strong>메트릭</strong>: <code>attack_detection</code> <strong>단위</strong>: <code>%</code> <strong>방향</strong>: 높을수록 좋음
+<strong>정의</strong>: 멀티에이전트 공격 패턴이 탐지되는 비율</p>
+<div class="sourceCode" id="cb26b"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb26b-1"><a href="#cb26b-1" aria-hidden="true" tabindex="-1"></a>monitor.thresholds <span class="op">=</span> {</span>
+<span id="cb26b-2"><a href="#cb26b-2" aria-hidden="true" tabindex="-1"></a>    <span class="st">&#39;attack_detection&#39;</span>: <span class="fl">95.0</span>  <span class="co"># 95% 이상이어야 Pass</span></span>
+<span id="cb26b-3"><a href="#cb26b-3" aria-hidden="true" tabindex="-1"></a>}</span></code></pre></div>
+
+<p><strong>통합 예제</strong>:</p>
+<div class="sourceCode" id="cb26c"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb26c-1"><a href="#cb26c-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Layer 2: Agentic + Security Thresholds</span></span>
+<span id="cb26c-2"><a href="#cb26c-2" aria-hidden="true" tabindex="-1"></a>monitor.thresholds <span class="op">=</span> {</span>
+<span id="cb26c-3"><a href="#cb26c-3" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Agentic Metrics</span></span>
+<span id="cb26c-4"><a href="#cb26c-4" aria-hidden="true" tabindex="-1"></a>    <span class="st">&#39;tool_selection_accuracy&#39;</span>: <span class="fl">80.0</span>,</span>
+<span id="cb26c-5"><a href="#cb26c-5" aria-hidden="true" tabindex="-1"></a>    <span class="st">&#39;agent_coordination&#39;</span>: <span class="fl">7.0</span>,</span>
+<span id="cb26c-6"><a href="#cb26c-6" aria-hidden="true" tabindex="-1"></a>    <span class="st">&#39;workflow_execution&#39;</span>: <span class="fl">90.0</span>,</span>
+<span id="cb26c-7"><a href="#cb26c-7" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Security Metrics</span></span>
+<span id="cb26c-8"><a href="#cb26c-8" aria-hidden="true" tabindex="-1"></a>    <span class="st">&#39;privilege_escalation&#39;</span>: <span class="fl">98.0</span>,</span>
+<span id="cb26c-9"><a href="#cb26c-9" aria-hidden="true" tabindex="-1"></a>    <span class="st">&#39;attack_detection&#39;</span>: <span class="fl">95.0</span></span>
+<span id="cb26c-10"><a href="#cb26c-10" aria-hidden="true" tabindex="-1"></a>}</span></code></pre></div>
+<hr />
+<h2 id="threshold-설정-전략">Threshold 설정 전략</h2>
+<h3 id="bottom-up-접근법-권장">1. Bottom-Up 접근법 (권장)</h3>
+<p><strong>과정</strong>: 1. <strong>Threshold 없이</strong> Golden
+Dataset 평가 실행 2. 현재 성능 확인 3. 현재 성능보다 <strong>약간
+높은</strong> threshold 설정 4. 점진적으로 threshold 상향</p>
+<p><strong>예제</strong>:</p>
+<div class="sourceCode" id="cb27"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb27-1"><a href="#cb27-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 1단계: 평가 실행 (threshold 없음)</span></span>
+<span id="cb27-2"><a href="#cb27-2" aria-hidden="true" tabindex="-1"></a>results <span class="op">=</span> monitor.evaluate_with_golden_dataset(</span>
+<span id="cb27-3"><a href="#cb27-3" aria-hidden="true" tabindex="-1"></a>    agent_fn<span class="op">=</span>my_agent,</span>
+<span id="cb27-4"><a href="#cb27-4" aria-hidden="true" tabindex="-1"></a>    dataset_path<span class="op">=</span><span class="st">&quot;golden_dataset.json&quot;</span></span>
+<span id="cb27-5"><a href="#cb27-5" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb27-6"><a href="#cb27-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb27-7"><a href="#cb27-7" aria-hidden="true" tabindex="-1"></a><span class="co"># 2단계: 현재 성능 확인</span></span>
+<span id="cb27-8"><a href="#cb27-8" aria-hidden="true" tabindex="-1"></a>report <span class="op">=</span> monitor.generate_report()</span>
+<span id="cb27-9"><a href="#cb27-9" aria-hidden="true" tabindex="-1"></a>current_tcr <span class="op">=</span> monitor.tcr_tracker.get_tcr()</span>
+<span id="cb27-10"><a href="#cb27-10" aria-hidden="true" tabindex="-1"></a>current_accuracy <span class="op">=</span> report.accuracy_metrics.get(<span class="st">&#39;overall_accuracy&#39;</span>, <span class="dv">0</span>)</span>
+<span id="cb27-11"><a href="#cb27-11" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f&quot;현재 TCR: </span><span class="sc">{</span>current_tcr<span class="sc">:.1f}</span><span class="ss">%&quot;</span>)  <span class="co"># 예: 87.5%</span></span>
+<span id="cb27-12"><a href="#cb27-12" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f&quot;현재 Accuracy: </span><span class="sc">{</span>current_accuracy<span class="sc">:.1f}</span><span class="ss">%&quot;</span>)  <span class="co"># 예: 82.3%</span></span>
+<span id="cb27-13"><a href="#cb27-13" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb27-14"><a href="#cb27-14" aria-hidden="true" tabindex="-1"></a><span class="co"># 3단계: 약간 높은 threshold 설정</span></span>
+<span id="cb27-15"><a href="#cb27-15" aria-hidden="true" tabindex="-1"></a>monitor.thresholds <span class="op">=</span> {</span>
+<span id="cb27-16"><a href="#cb27-16" aria-hidden="true" tabindex="-1"></a>    <span class="st">&#39;tcr&#39;</span>: <span class="fl">85.0</span>,  <span class="co"># 현재 87.5% → 85% 목표 (여유)</span></span>
+<span id="cb27-17"><a href="#cb27-17" aria-hidden="true" tabindex="-1"></a>    <span class="st">&#39;accuracy&#39;</span>: <span class="fl">80.0</span>  <span class="co"># 현재 82.3% → 80% 목표 (여유)</span></span>
+<span id="cb27-18"><a href="#cb27-18" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb27-19"><a href="#cb27-19" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb27-20"><a href="#cb27-20" aria-hidden="true" tabindex="-1"></a><span class="co"># 4단계: 점진적 상향</span></span>
+<span id="cb27-21"><a href="#cb27-21" aria-hidden="true" tabindex="-1"></a><span class="co"># 다음 주: tcr 90%, accuracy 85%</span></span>
+<span id="cb27-22"><a href="#cb27-22" aria-hidden="true" tabindex="-1"></a><span class="co"># 다음 달: tcr 95%, accuracy 90%</span></span></code></pre></div>
+<h3 id="top-down-접근법">2. Top-Down 접근법</h3>
+<p><strong>과정</strong>: 1. <strong>이상적인 threshold</strong> 먼저
+설정 (프로덕션 기준) 2. 현재 성능과 비교 3. 실패한 메트릭 개선 4. 모든
+메트릭이 Pass할 때까지 반복</p>
+<p><strong>예제</strong>:</p>
+<div class="sourceCode" id="cb28"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb28-1"><a href="#cb28-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 1단계: 이상적인 threshold 설정</span></span>
+<span id="cb28-2"><a href="#cb28-2" aria-hidden="true" tabindex="-1"></a>monitor.thresholds <span class="op">=</span> {</span>
+<span id="cb28-3"><a href="#cb28-3" aria-hidden="true" tabindex="-1"></a>    <span class="st">&#39;tcr&#39;</span>: <span class="fl">95.0</span>,</span>
+<span id="cb28-4"><a href="#cb28-4" aria-hidden="true" tabindex="-1"></a>    <span class="st">&#39;accuracy&#39;</span>: <span class="fl">90.0</span>,</span>
+<span id="cb28-5"><a href="#cb28-5" aria-hidden="true" tabindex="-1"></a>    <span class="st">&#39;hallucination&#39;</span>: <span class="fl">3.0</span>,</span>
+<span id="cb28-6"><a href="#cb28-6" aria-hidden="true" tabindex="-1"></a>    <span class="st">&#39;tool_selection_accuracy&#39;</span>: <span class="fl">85.0</span>,</span>
+<span id="cb28-7"><a href="#cb28-7" aria-hidden="true" tabindex="-1"></a>    <span class="st">&#39;agent_coordination&#39;</span>: <span class="fl">8.0</span>,</span>
+<span id="cb28-8"><a href="#cb28-8" aria-hidden="true" tabindex="-1"></a>    <span class="st">&#39;workflow_execution&#39;</span>: <span class="fl">95.0</span></span>
+<span id="cb28-9"><a href="#cb28-9" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb28-10"><a href="#cb28-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb28-11"><a href="#cb28-11" aria-hidden="true" tabindex="-1"></a><span class="co"># 2단계: 비교</span></span>
+<span id="cb28-12"><a href="#cb28-12" aria-hidden="true" tabindex="-1"></a>comparison <span class="op">=</span> monitor.compare_with_thresholds()</span>
+<span id="cb28-13"><a href="#cb28-13" aria-hidden="true" tabindex="-1"></a>failed <span class="op">=</span> [m <span class="cf">for</span> m, d <span class="kw">in</span> comparison.items() <span class="cf">if</span> d[<span class="st">&#39;status&#39;</span>] <span class="op">==</span> <span class="st">&#39;fail&#39;</span>]</span>
+<span id="cb28-14"><a href="#cb28-14" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb28-15"><a href="#cb28-15" aria-hidden="true" tabindex="-1"></a><span class="co"># 3단계: 실패 메트릭 개선</span></span>
+<span id="cb28-16"><a href="#cb28-16" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> <span class="st">&#39;accuracy&#39;</span> <span class="kw">in</span> failed:</span>
+<span id="cb28-17"><a href="#cb28-17" aria-hidden="true" tabindex="-1"></a>    <span class="co"># 프롬프트 개선, Golden Dataset 업데이트 등</span></span>
+<span id="cb28-18"><a href="#cb28-18" aria-hidden="true" tabindex="-1"></a>    <span class="cf">pass</span></span>
+<span id="cb28-19"><a href="#cb28-19" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb28-20"><a href="#cb28-20" aria-hidden="true" tabindex="-1"></a><span class="co"># 4단계: 반복</span></span></code></pre></div>
+<h3 id="benchmark-기반-접근법">3. Benchmark 기반 접근법</h3>
+<p><strong>과정</strong>: 1. <strong>산업 표준</strong> 또는
+<strong>경쟁사 벤치마크</strong> 조사 2. 유사한 threshold 설정 3. 자사
+상황에 맞게 조정</p>
+<p><strong>예제</strong>:</p>
+<div class="sourceCode" id="cb29"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb29-1"><a href="#cb29-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 산업 표준 (예: OpenAI, Anthropic 공개 벤치마크)</span></span>
+<span id="cb29-2"><a href="#cb29-2" aria-hidden="true" tabindex="-1"></a>monitor.thresholds <span class="op">=</span> {</span>
+<span id="cb29-3"><a href="#cb29-3" aria-hidden="true" tabindex="-1"></a>    <span class="st">&#39;tcr&#39;</span>: <span class="fl">92.0</span>,  <span class="co"># 산업 평균</span></span>
+<span id="cb29-4"><a href="#cb29-4" aria-hidden="true" tabindex="-1"></a>    <span class="st">&#39;accuracy&#39;</span>: <span class="fl">87.0</span>,  <span class="co"># 산업 평균</span></span>
+<span id="cb29-5"><a href="#cb29-5" aria-hidden="true" tabindex="-1"></a>    <span class="st">&#39;hallucination&#39;</span>: <span class="fl">4.0</span>  <span class="co"># 산업 평균</span></span>
+<span id="cb29-6"><a href="#cb29-6" aria-hidden="true" tabindex="-1"></a>}</span></code></pre></div>
+<hr />
+<h2 id="환경별-threshold-설정">환경별 Threshold 설정</h2>
+<h3 id="개발-환경-development">개발 환경 (Development)</h3>
+<p><strong>목적</strong>: 빠른 실험과 반복 <strong>특징</strong>: 느슨한
+threshold, 빠른 피드백</p>
+<div class="sourceCode" id="cb30"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb30-1"><a href="#cb30-1" aria-hidden="true" tabindex="-1"></a><span class="co"># dev_thresholds.py</span></span>
+<span id="cb30-2"><a href="#cb30-2" aria-hidden="true" tabindex="-1"></a>DEV_THRESHOLDS <span class="op">=</span> {</span>
+<span id="cb30-3"><a href="#cb30-3" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Layer 1: 느슨한 기준</span></span>
+<span id="cb30-4"><a href="#cb30-4" aria-hidden="true" tabindex="-1"></a>    <span class="st">&#39;tcr&#39;</span>: <span class="fl">70.0</span>,</span>
+<span id="cb30-5"><a href="#cb30-5" aria-hidden="true" tabindex="-1"></a>    <span class="st">&#39;accuracy&#39;</span>: <span class="fl">65.0</span>,</span>
+<span id="cb30-6"><a href="#cb30-6" aria-hidden="true" tabindex="-1"></a>    <span class="st">&#39;hallucination&#39;</span>: <span class="fl">15.0</span>,</span>
+<span id="cb30-7"><a href="#cb30-7" aria-hidden="true" tabindex="-1"></a>    <span class="st">&#39;quality&#39;</span>: <span class="fl">5.0</span>,          <span class="co"># 5/10 이상</span></span>
+<span id="cb30-8"><a href="#cb30-8" aria-hidden="true" tabindex="-1"></a>    <span class="st">&#39;latency&#39;</span>: <span class="fl">10.0</span>,</span>
+<span id="cb30-9"><a href="#cb30-9" aria-hidden="true" tabindex="-1"></a>    <span class="st">&#39;cost_per_task&#39;</span>: <span class="fl">0.50</span>,</span>
+<span id="cb30-10"><a href="#cb30-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb30-11"><a href="#cb30-11" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Layer 2: 선택적 사용</span></span>
+<span id="cb30-12"><a href="#cb30-12" aria-hidden="true" tabindex="-1"></a>    <span class="st">&#39;tool_selection_accuracy&#39;</span>: <span class="fl">60.0</span>,</span>
+<span id="cb30-13"><a href="#cb30-13" aria-hidden="true" tabindex="-1"></a>    <span class="co"># agent_coordination, workflow_execution은 생략 가능</span></span>
+<span id="cb30-14"><a href="#cb30-14" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb30-15"><a href="#cb30-15" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb30-16"><a href="#cb30-16" aria-hidden="true" tabindex="-1"></a>monitor.thresholds <span class="op">=</span> DEV_THRESHOLDS</span></code></pre></div>
+<h3 id="스테이징-환경-staging">스테이징 환경 (Staging)</h3>
+<p><strong>목적</strong>: 프로덕션 준비 검증 <strong>특징</strong>: 중간
+수준 threshold, 프로덕션과 유사</p>
+<div class="sourceCode" id="cb31"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb31-1"><a href="#cb31-1" aria-hidden="true" tabindex="-1"></a><span class="co"># staging_thresholds.py</span></span>
+<span id="cb31-2"><a href="#cb31-2" aria-hidden="true" tabindex="-1"></a>STAGING_THRESHOLDS <span class="op">=</span> {</span>
+<span id="cb31-3"><a href="#cb31-3" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Layer 1: 중간 기준</span></span>
+<span id="cb31-4"><a href="#cb31-4" aria-hidden="true" tabindex="-1"></a>    <span class="st">&#39;tcr&#39;</span>: <span class="fl">85.0</span>,</span>
+<span id="cb31-5"><a href="#cb31-5" aria-hidden="true" tabindex="-1"></a>    <span class="st">&#39;accuracy&#39;</span>: <span class="fl">80.0</span>,</span>
+<span id="cb31-6"><a href="#cb31-6" aria-hidden="true" tabindex="-1"></a>    <span class="st">&#39;hallucination&#39;</span>: <span class="fl">8.0</span>,</span>
+<span id="cb31-7"><a href="#cb31-7" aria-hidden="true" tabindex="-1"></a>    <span class="st">&#39;quality&#39;</span>: <span class="fl">7.0</span>,          <span class="co"># 7/10 이상</span></span>
+<span id="cb31-8"><a href="#cb31-8" aria-hidden="true" tabindex="-1"></a>    <span class="st">&#39;latency&#39;</span>: <span class="fl">5.0</span>,</span>
+<span id="cb31-9"><a href="#cb31-9" aria-hidden="true" tabindex="-1"></a>    <span class="st">&#39;cost_per_task&#39;</span>: <span class="fl">0.20</span>,</span>
+<span id="cb31-10"><a href="#cb31-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb31-11"><a href="#cb31-11" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Layer 2: 모두 사용</span></span>
+<span id="cb31-12"><a href="#cb31-12" aria-hidden="true" tabindex="-1"></a>    <span class="st">&#39;tool_selection_accuracy&#39;</span>: <span class="fl">75.0</span>,</span>
+<span id="cb31-13"><a href="#cb31-13" aria-hidden="true" tabindex="-1"></a>    <span class="st">&#39;agent_coordination&#39;</span>: <span class="fl">7.0</span>,</span>
+<span id="cb31-14"><a href="#cb31-14" aria-hidden="true" tabindex="-1"></a>    <span class="st">&#39;workflow_execution&#39;</span>: <span class="fl">85.0</span></span>
+<span id="cb31-15"><a href="#cb31-15" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb31-16"><a href="#cb31-16" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb31-17"><a href="#cb31-17" aria-hidden="true" tabindex="-1"></a>monitor.thresholds <span class="op">=</span> STAGING_THRESHOLDS</span></code></pre></div>
+<h3 id="프로덕션-환경-production">프로덕션 환경 (Production)</h3>
+<p><strong>목적</strong>: 최고 품질 보장 <strong>특징</strong>: 엄격한
+threshold, 높은 신뢰성</p>
+<div class="sourceCode" id="cb32"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb32-1"><a href="#cb32-1" aria-hidden="true" tabindex="-1"></a><span class="co"># production_thresholds.py</span></span>
+<span id="cb32-2"><a href="#cb32-2" aria-hidden="true" tabindex="-1"></a>PRODUCTION_THRESHOLDS <span class="op">=</span> {</span>
+<span id="cb32-3"><a href="#cb32-3" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Layer 1: 엄격한 기준</span></span>
+<span id="cb32-4"><a href="#cb32-4" aria-hidden="true" tabindex="-1"></a>    <span class="st">&#39;tcr&#39;</span>: <span class="fl">95.0</span>,</span>
+<span id="cb32-5"><a href="#cb32-5" aria-hidden="true" tabindex="-1"></a>    <span class="st">&#39;accuracy&#39;</span>: <span class="fl">90.0</span>,</span>
+<span id="cb32-6"><a href="#cb32-6" aria-hidden="true" tabindex="-1"></a>    <span class="st">&#39;hallucination&#39;</span>: <span class="fl">3.0</span>,</span>
+<span id="cb32-7"><a href="#cb32-7" aria-hidden="true" tabindex="-1"></a>    <span class="st">&#39;quality&#39;</span>: <span class="fl">8.0</span>,          <span class="co"># 8/10 이상</span></span>
+<span id="cb32-8"><a href="#cb32-8" aria-hidden="true" tabindex="-1"></a>    <span class="st">&#39;latency&#39;</span>: <span class="fl">3.0</span>,</span>
+<span id="cb32-9"><a href="#cb32-9" aria-hidden="true" tabindex="-1"></a>    <span class="st">&#39;cost_per_task&#39;</span>: <span class="fl">0.15</span>,</span>
+<span id="cb32-10"><a href="#cb32-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb32-11"><a href="#cb32-11" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Layer 2: 높은 기준</span></span>
+<span id="cb32-12"><a href="#cb32-12" aria-hidden="true" tabindex="-1"></a>    <span class="st">&#39;tool_selection_accuracy&#39;</span>: <span class="fl">85.0</span>,</span>
+<span id="cb32-13"><a href="#cb32-13" aria-hidden="true" tabindex="-1"></a>    <span class="st">&#39;agent_coordination&#39;</span>: <span class="fl">8.5</span>,</span>
+<span id="cb32-14"><a href="#cb32-14" aria-hidden="true" tabindex="-1"></a>    <span class="st">&#39;workflow_execution&#39;</span>: <span class="fl">95.0</span></span>
+<span id="cb32-15"><a href="#cb32-15" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb32-16"><a href="#cb32-16" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb32-17"><a href="#cb32-17" aria-hidden="true" tabindex="-1"></a>monitor.thresholds <span class="op">=</span> PRODUCTION_THRESHOLDS</span></code></pre></div>
+<h3 id="환경-자동-감지">환경 자동 감지</h3>
+<div class="sourceCode" id="cb33"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb33-1"><a href="#cb33-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> os</span>
+<span id="cb33-2"><a href="#cb33-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb33-3"><a href="#cb33-3" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> get_thresholds_for_env():</span>
+<span id="cb33-4"><a href="#cb33-4" aria-hidden="true" tabindex="-1"></a>    env <span class="op">=</span> os.getenv(<span class="st">&quot;ENV&quot;</span>, <span class="st">&quot;development&quot;</span>)</span>
+<span id="cb33-5"><a href="#cb33-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb33-6"><a href="#cb33-6" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> env <span class="op">==</span> <span class="st">&quot;production&quot;</span>:</span>
+<span id="cb33-7"><a href="#cb33-7" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> PRODUCTION_THRESHOLDS</span>
+<span id="cb33-8"><a href="#cb33-8" aria-hidden="true" tabindex="-1"></a>    <span class="cf">elif</span> env <span class="op">==</span> <span class="st">&quot;staging&quot;</span>:</span>
+<span id="cb33-9"><a href="#cb33-9" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> STAGING_THRESHOLDS</span>
+<span id="cb33-10"><a href="#cb33-10" aria-hidden="true" tabindex="-1"></a>    <span class="cf">else</span>:</span>
+<span id="cb33-11"><a href="#cb33-11" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> DEV_THRESHOLDS</span>
+<span id="cb33-12"><a href="#cb33-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb33-13"><a href="#cb33-13" aria-hidden="true" tabindex="-1"></a>monitor.thresholds <span class="op">=</span> get_thresholds_for_env()</span></code></pre></div>
+<h3 id="dataeditormanager를-통한-threshold-로드">DataEditorManager를
+통한 Threshold 로드</h3>
+<p><code>load_thresholds_from_config()</code> 메서드를 사용하여 저장된
+임계값을 자동으로 로드할 수 있습니다.</p>
+<h4 id="기본-임계값-로드">기본 임계값 로드</h4>
+<div class="sourceCode" id="cb34"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb34-1"><a href="#cb34-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> agent_evaluator <span class="im">import</span> PerformanceMonitor</span>
+<span id="cb34-2"><a href="#cb34-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb34-3"><a href="#cb34-3" aria-hidden="true" tabindex="-1"></a>monitor <span class="op">=</span> PerformanceMonitor()</span>
+<span id="cb34-4"><a href="#cb34-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb34-5"><a href="#cb34-5" aria-hidden="true" tabindex="-1"></a><span class="co"># 기본 임계값 파일(thresholds.json)에서 로드</span></span>
+<span id="cb34-6"><a href="#cb34-6" aria-hidden="true" tabindex="-1"></a>monitor.load_thresholds_from_config()</span>
+<span id="cb34-7"><a href="#cb34-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb34-8"><a href="#cb34-8" aria-hidden="true" tabindex="-1"></a><span class="co"># 로드된 임계값 확인</span></span>
+<span id="cb34-9"><a href="#cb34-9" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(monitor.thresholds)</span>
+<span id="cb34-10"><a href="#cb34-10" aria-hidden="true" tabindex="-1"></a><span class="co"># {&#39;tcr&#39;: 90.0, &#39;accuracy&#39;: 85.0, &#39;hallucination&#39;: 5.0, ...}</span></span></code></pre></div>
+<h4 id="test-configuration에서-로드">Test Configuration에서 로드</h4>
+<div class="sourceCode" id="cb35"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb35-1"><a href="#cb35-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 특정 Test Configuration ID를 지정하여 로드</span></span>
+<span id="cb35-2"><a href="#cb35-2" aria-hidden="true" tabindex="-1"></a>monitor.load_thresholds_from_config(config_id<span class="op">=</span><span class="st">&quot;production_test_v1&quot;</span>)</span>
+<span id="cb35-3"><a href="#cb35-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb35-4"><a href="#cb35-4" aria-hidden="true" tabindex="-1"></a><span class="co"># Test Configuration에 저장된 임계값이 로드됨</span></span>
+<span id="cb35-5"><a href="#cb35-5" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(monitor.thresholds)</span></code></pre></div>
+<h4 id="로드-우선순위">로드 우선순위</h4>
+<ol type="1">
+<li><strong>config_id 지정 시</strong>: Test Configuration의
+<code>thresholds</code> 필드</li>
+<li><strong>config_id 없을 때</strong>:
+<code>data/thresholds.json</code> 파일</li>
+<li><strong>파일 없을 때</strong>: DataEditorManager의 기본값</li>
+</ol>
+<div class="sourceCode" id="cb36"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb36-1"><a href="#cb36-1" aria-hidden="true" tabindex="-1"></a><span class="co"># DataEditorManager 기본값 (v0.5.0)</span></span>
+<span id="cb36-2"><a href="#cb36-2" aria-hidden="true" tabindex="-1"></a>{</span>
+<span id="cb36-3"><a href="#cb36-3" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Layer 1: Basic Metrics</span></span>
+<span id="cb36-4"><a href="#cb36-4" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;tcr&quot;</span>: <span class="fl">90.0</span>,</span>
+<span id="cb36-5"><a href="#cb36-5" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;accuracy&quot;</span>: <span class="fl">85.0</span>,</span>
+<span id="cb36-6"><a href="#cb36-6" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;hallucination&quot;</span>: <span class="fl">5.0</span>,</span>
+<span id="cb36-7"><a href="#cb36-7" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;quality&quot;</span>: <span class="fl">7.0</span>,</span>
+<span id="cb36-8"><a href="#cb36-8" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;latency&quot;</span>: <span class="fl">3.0</span>,</span>
+<span id="cb36-9"><a href="#cb36-9" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;cost_per_task&quot;</span>: <span class="fl">0.05</span>,</span>
+<span id="cb36-10"><a href="#cb36-10" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Layer 1: RAG Metrics</span></span>
+<span id="cb36-11"><a href="#cb36-11" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;faithfulness&quot;</span>: <span class="fl">0.8</span>,</span>
+<span id="cb36-12"><a href="#cb36-12" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;answer_relevancy&quot;</span>: <span class="fl">0.8</span>,</span>
+<span id="cb36-13"><a href="#cb36-13" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;context_recall&quot;</span>: <span class="fl">0.8</span>,</span>
+<span id="cb36-14"><a href="#cb36-14" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;context_precision&quot;</span>: <span class="fl">0.8</span>,</span>
+<span id="cb36-15"><a href="#cb36-15" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Layer 1: Security Metrics</span></span>
+<span id="cb36-16"><a href="#cb36-16" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;input_sanitization&quot;</span>: <span class="fl">95.0</span>,</span>
+<span id="cb36-17"><a href="#cb36-17" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;output_leakage&quot;</span>: <span class="fl">95.0</span>,</span>
+<span id="cb36-18"><a href="#cb36-18" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;authorization&quot;</span>: <span class="fl">98.0</span></span>
+<span id="cb36-19"><a href="#cb36-19" aria-hidden="true" tabindex="-1"></a>}</span></code></pre></div>
+<h4 id="임계값-저장">임계값 저장</h4>
+<p>DataEditorManager를 직접 사용하여 임계값을 저장할 수도 있습니다:</p>
+<div class="sourceCode" id="cb37"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb37-1"><a href="#cb37-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> data_editor_manager <span class="im">import</span> DataEditorManager</span>
+<span id="cb37-2"><a href="#cb37-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb37-3"><a href="#cb37-3" aria-hidden="true" tabindex="-1"></a>manager <span class="op">=</span> DataEditorManager()</span>
+<span id="cb37-4"><a href="#cb37-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb37-5"><a href="#cb37-5" aria-hidden="true" tabindex="-1"></a><span class="co"># 임계값 저장</span></span>
+<span id="cb37-6"><a href="#cb37-6" aria-hidden="true" tabindex="-1"></a>manager.save_thresholds(</span>
+<span id="cb37-7"><a href="#cb37-7" aria-hidden="true" tabindex="-1"></a>    thresholds<span class="op">=</span>{</span>
+<span id="cb37-8"><a href="#cb37-8" aria-hidden="true" tabindex="-1"></a>        <span class="st">&#39;tcr&#39;</span>: <span class="fl">95.0</span>,</span>
+<span id="cb37-9"><a href="#cb37-9" aria-hidden="true" tabindex="-1"></a>        <span class="st">&#39;accuracy&#39;</span>: <span class="fl">90.0</span>,</span>
+<span id="cb37-10"><a href="#cb37-10" aria-hidden="true" tabindex="-1"></a>        <span class="st">&#39;hallucination&#39;</span>: <span class="fl">3.0</span></span>
+<span id="cb37-11"><a href="#cb37-11" aria-hidden="true" tabindex="-1"></a>    },</span>
+<span id="cb37-12"><a href="#cb37-12" aria-hidden="true" tabindex="-1"></a>    editor<span class="op">=</span><span class="st">&quot;your_name&quot;</span>,</span>
+<span id="cb37-13"><a href="#cb37-13" aria-hidden="true" tabindex="-1"></a>    reason<span class="op">=</span><span class="st">&quot;프로덕션 환경 임계값 상향 조정&quot;</span></span>
+<span id="cb37-14"><a href="#cb37-14" aria-hidden="true" tabindex="-1"></a>)</span></code></pre></div>
+<hr />
+<h2 id="threshold-비교-및-검증">Threshold 비교 및 검증</h2>
+<h3 id="compare_with_thresholds-메서드">compare_with_thresholds()
+메서드</h3>
+<p><code>compare_with_thresholds()</code> 메서드는 현재 메트릭 값을
+임계값과 비교하여 Pass/Fail 판정을 제공합니다.</p>
+<h4 id="반환값-구조">반환값 구조</h4>
+<div class="sourceCode" id="cb38"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb38-1"><a href="#cb38-1" aria-hidden="true" tabindex="-1"></a>{</span>
+<span id="cb38-2"><a href="#cb38-2" aria-hidden="true" tabindex="-1"></a>    <span class="st">&#39;metric_name&#39;</span>: {</span>
+<span id="cb38-3"><a href="#cb38-3" aria-hidden="true" tabindex="-1"></a>        <span class="st">&#39;name&#39;</span>: <span class="bu">str</span>,           <span class="co"># 메트릭 표시 이름 (한글)</span></span>
+<span id="cb38-4"><a href="#cb38-4" aria-hidden="true" tabindex="-1"></a>        <span class="st">&#39;value&#39;</span>: <span class="bu">float</span>,        <span class="co"># 현재 측정값</span></span>
+<span id="cb38-5"><a href="#cb38-5" aria-hidden="true" tabindex="-1"></a>        <span class="st">&#39;threshold&#39;</span>: <span class="bu">float</span>,    <span class="co"># 임계값</span></span>
+<span id="cb38-6"><a href="#cb38-6" aria-hidden="true" tabindex="-1"></a>        <span class="st">&#39;status&#39;</span>: <span class="bu">str</span>,         <span class="co"># &#39;pass&#39; | &#39;fail&#39; | &#39;pending&#39;</span></span>
+<span id="cb38-7"><a href="#cb38-7" aria-hidden="true" tabindex="-1"></a>        <span class="st">&#39;direction&#39;</span>: <span class="bu">str</span>,      <span class="co"># &#39;higher&#39; | &#39;lower&#39; (높을수록 좋은지, 낮을수록 좋은지)</span></span>
+<span id="cb38-8"><a href="#cb38-8" aria-hidden="true" tabindex="-1"></a>        <span class="st">&#39;unit&#39;</span>: <span class="bu">str</span>,          <span class="co"># 단위 (&#39;%&#39;, &#39;s&#39;, &#39;$&#39;, &#39;/10&#39;, 등)</span></span>
+<span id="cb38-9"><a href="#cb38-9" aria-hidden="true" tabindex="-1"></a>        <span class="st">&#39;layer&#39;</span>: <span class="bu">str</span>,         <span class="co"># &#39;Layer 2&#39; (Layer 1 메트릭은 이 필드 없음)</span></span>
+<span id="cb38-10"><a href="#cb38-10" aria-hidden="true" tabindex="-1"></a>        <span class="st">&#39;details&#39;</span>: <span class="bu">dict</span>       <span class="co"># 추가 상세 정보 (선택적, Layer 2 일부 메트릭에만 존재)</span></span>
+<span id="cb38-11"><a href="#cb38-11" aria-hidden="true" tabindex="-1"></a>    }</span>
+<span id="cb38-12"><a href="#cb38-12" aria-hidden="true" tabindex="-1"></a>}</span></code></pre></div>
+<h4 id="지원되는-메트릭">지원되는 메트릭</h4>
+<p><strong>Layer 1 (Basic Metrics)</strong>:</p>
+<ul>
+<li><code>tcr</code>: Task Completion Rate (%)</li>
+<li><code>accuracy</code>: Accuracy (%)</li>
+<li><code>hallucination</code>: Hallucination Rate (%)</li>
+<li><code>quality</code>: Response Quality (/10) ✨ <em>: 자동 계산</em></li>
+<li><code>latency</code>: Latency (s, P95 기준)</li>
+<li><code>cost_per_task</code>: Cost per Task ($)</li>
+<li><code>faithfulness</code>: Faithfulness (0-1) ⚡ <em>: 실제 값 계산</em></li>
+<li><code>answer_relevancy</code>: Answer Relevancy (0-1) ⚡ <em>: 실제 값 계산</em></li>
+<li><code>context_recall</code>: Context Recall (0-1) ⚡ <em>: 실제 값 계산</em></li>
+<li><code>context_precision</code>: Context Precision (0-1) ⚡ <em>: 실제 값 계산</em></li>
+</ul>
+<p><strong>Layer 1 (Security Metrics)</strong> ⚡ <em>v0.5.0 NEW</em>:</p>
+<ul>
+<li><code>input_sanitization</code>: Input Sanitization (%)</li>
+<li><code>output_leakage</code>: Output Leakage Prevention (%)</li>
+<li><code>authorization</code>: Authorization Verification (%)</li>
+</ul>
+<p><strong>Layer 2 (Agentic Metrics)</strong>:</p>
+<ul>
+<li><code>tool_selection_accuracy</code>: Tool Selection Accuracy (%)</li>
+<li><code>agent_coordination</code>: Agent Coordination (/10) - details 포함</li>
+<li><code>workflow_execution</code>: Workflow Execution (%) - details 포함</li>
+</ul>
+<p><strong>Layer 2 (Security Metrics)</strong> ⚡ <em>v0.5.0 NEW</em>:</p>
+<ul>
+<li><code>privilege_escalation</code>: Privilege Escalation Detection (%)</li>
+<li><code>attack_detection</code>: Attack Pattern Detection (%)</li>
+</ul>
+<blockquote>
+<p><strong>✨  개선사항</strong>: RAG 메트릭(faithfulness, answer_relevancy, context_recall, context_precision)이 이제 실제 값으로 계산되며, <code>compare_with_thresholds()</code>에서 자동으로 pass/fail 판정을 수행합니다. Response Quality도 자동 계산됩니다.</p>
+</blockquote>
+<h3 id="기본-비교-예제">기본 비교 예제</h3>
+<div class="sourceCode" id="cb39"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb39-1"><a href="#cb39-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Threshold 설정</span></span>
+<span id="cb39-2"><a href="#cb39-2" aria-hidden="true" tabindex="-1"></a>monitor.thresholds <span class="op">=</span> {</span>
+<span id="cb39-3"><a href="#cb39-3" aria-hidden="true" tabindex="-1"></a>    <span class="st">&#39;tcr&#39;</span>: <span class="fl">90.0</span>,</span>
+<span id="cb39-4"><a href="#cb39-4" aria-hidden="true" tabindex="-1"></a>    <span class="st">&#39;accuracy&#39;</span>: <span class="fl">85.0</span>,</span>
+<span id="cb39-5"><a href="#cb39-5" aria-hidden="true" tabindex="-1"></a>    <span class="st">&#39;tool_selection_accuracy&#39;</span>: <span class="fl">80.0</span></span>
+<span id="cb39-6"><a href="#cb39-6" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb39-7"><a href="#cb39-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb39-8"><a href="#cb39-8" aria-hidden="true" tabindex="-1"></a><span class="co"># Golden Dataset 평가</span></span>
+<span id="cb39-9"><a href="#cb39-9" aria-hidden="true" tabindex="-1"></a>results <span class="op">=</span> monitor.evaluate_with_golden_dataset(</span>
+<span id="cb39-10"><a href="#cb39-10" aria-hidden="true" tabindex="-1"></a>    agent_fn<span class="op">=</span>my_agent,</span>
+<span id="cb39-11"><a href="#cb39-11" aria-hidden="true" tabindex="-1"></a>    dataset_path<span class="op">=</span><span class="st">&quot;golden_dataset.json&quot;</span>,</span>
+<span id="cb39-12"><a href="#cb39-12" aria-hidden="true" tabindex="-1"></a>    enable_layer2_metrics<span class="op">=</span><span class="va">True</span></span>
+<span id="cb39-13"><a href="#cb39-13" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb39-14"><a href="#cb39-14" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb39-15"><a href="#cb39-15" aria-hidden="true" tabindex="-1"></a><span class="co"># Threshold 비교</span></span>
+<span id="cb39-16"><a href="#cb39-16" aria-hidden="true" tabindex="-1"></a>comparison <span class="op">=</span> monitor.compare_with_thresholds()</span>
+<span id="cb39-17"><a href="#cb39-17" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb39-18"><a href="#cb39-18" aria-hidden="true" tabindex="-1"></a><span class="co"># 결과 출력</span></span>
+<span id="cb39-19"><a href="#cb39-19" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> metric, data <span class="kw">in</span> comparison.items():</span>
+<span id="cb39-20"><a href="#cb39-20" aria-hidden="true" tabindex="-1"></a>    status_icon <span class="op">=</span> <span class="st">&quot;✅&quot;</span> <span class="cf">if</span> data[<span class="st">&#39;status&#39;</span>] <span class="op">==</span> <span class="st">&#39;pass&#39;</span> <span class="cf">else</span> <span class="st">&quot;❌&quot;</span></span>
+<span id="cb39-21"><a href="#cb39-21" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="ss">f&quot;</span><span class="sc">{</span>status_icon<span class="sc">}</span><span class="ss"> </span><span class="sc">{</span>data[<span class="st">&#39;name&#39;</span>]<span class="sc">}</span><span class="ss">: </span><span class="sc">{</span>data[<span class="st">&#39;value&#39;</span>]<span class="sc">:.1f}{</span>data[<span class="st">&#39;unit&#39;</span>]<span class="sc">}</span><span class="ss"> (임계값: </span><span class="sc">{</span>data[<span class="st">&#39;threshold&#39;</span>]<span class="sc">}{</span>data[<span class="st">&#39;unit&#39;</span>]<span class="sc">}</span><span class="ss">)&quot;</span>)</span></code></pre></div>
+<p><strong>출력 예제</strong>:</p>
+<pre><code>✅ 작업 완료율 (TCR): 92.5% (임계값: 90.0%)
+✅ 정확도 (Accuracy): 87.3% (임계값: 85.0%)
+❌ 도구 선택 정확도 (Tool Selection Accuracy): 75.2% (임계값: 80.0%)</code></pre>
+<h3 id="상세-비교-예제">상세 비교 예제</h3>
+<div class="sourceCode" id="cb41"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb41-1"><a href="#cb41-1" aria-hidden="true" tabindex="-1"></a>comparison <span class="op">=</span> monitor.compare_with_thresholds()</span>
+<span id="cb41-2"><a href="#cb41-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb41-3"><a href="#cb41-3" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> metric, data <span class="kw">in</span> comparison.items():</span>
+<span id="cb41-4"><a href="#cb41-4" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="ss">f&quot;</span><span class="ch">\n</span><span class="sc">{</span><span class="st">&#39;=&#39;</span><span class="op">*</span><span class="dv">70</span><span class="sc">}</span><span class="ss">&quot;</span>)</span>
+<span id="cb41-5"><a href="#cb41-5" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="ss">f&quot;</span><span class="sc">{</span>data[<span class="st">&#39;name&#39;</span>]<span class="sc">}</span><span class="ss">&quot;</span>)</span>
+<span id="cb41-6"><a href="#cb41-6" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="ss">f&quot;</span><span class="sc">{</span><span class="st">&#39;=&#39;</span><span class="op">*</span><span class="dv">70</span><span class="sc">}</span><span class="ss">&quot;</span>)</span>
+<span id="cb41-7"><a href="#cb41-7" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="ss">f&quot;Layer: </span><span class="sc">{</span>data<span class="sc">.</span>get(<span class="st">&#39;layer&#39;</span>, <span class="st">&#39;Layer 1&#39;</span>)<span class="sc">}</span><span class="ss">&quot;</span>)</span>
+<span id="cb41-8"><a href="#cb41-8" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="ss">f&quot;현재값: </span><span class="sc">{</span>data[<span class="st">&#39;value&#39;</span>]<span class="sc">:.2f}{</span>data[<span class="st">&#39;unit&#39;</span>]<span class="sc">}</span><span class="ss">&quot;</span>)</span>
+<span id="cb41-9"><a href="#cb41-9" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="ss">f&quot;임계값: </span><span class="sc">{</span>data[<span class="st">&#39;threshold&#39;</span>]<span class="sc">}{</span>data[<span class="st">&#39;unit&#39;</span>]<span class="sc">}</span><span class="ss">&quot;</span>)</span>
+<span id="cb41-10"><a href="#cb41-10" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="ss">f&quot;방향: </span><span class="sc">{</span><span class="st">&#39;높을수록 좋음&#39;</span> <span class="cf">if</span> data[<span class="st">&#39;direction&#39;</span>] <span class="op">==</span> <span class="st">&#39;higher&#39;</span> <span class="cf">else</span> <span class="st">&#39;낮을수록 좋음&#39;</span><span class="sc">}</span><span class="ss">&quot;</span>)</span>
+<span id="cb41-11"><a href="#cb41-11" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="ss">f&quot;상태: </span><span class="sc">{</span><span class="st">&#39;✅ PASS&#39;</span> <span class="cf">if</span> data[<span class="st">&#39;status&#39;</span>] <span class="op">==</span> <span class="st">&#39;pass&#39;</span> <span class="cf">else</span> <span class="st">&#39;❌ FAIL&#39;</span><span class="sc">}</span><span class="ss">&quot;</span>)</span>
+<span id="cb41-12"><a href="#cb41-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb41-13"><a href="#cb41-13" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Layer 2 메트릭의 상세 정보 출력</span></span>
+<span id="cb41-14"><a href="#cb41-14" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="st">&#39;details&#39;</span> <span class="kw">in</span> data:</span>
+<span id="cb41-15"><a href="#cb41-15" aria-hidden="true" tabindex="-1"></a>        <span class="bu">print</span>(<span class="ss">f&quot;</span><span class="ch">\n</span><span class="ss">상세 정보:&quot;</span>)</span>
+<span id="cb41-16"><a href="#cb41-16" aria-hidden="true" tabindex="-1"></a>        <span class="cf">for</span> key, value <span class="kw">in</span> data[<span class="st">&#39;details&#39;</span>].items():</span>
+<span id="cb41-17"><a href="#cb41-17" aria-hidden="true" tabindex="-1"></a>            <span class="bu">print</span>(<span class="ss">f&quot;  • </span><span class="sc">{</span>key<span class="sc">}</span><span class="ss">: </span><span class="sc">{</span>value<span class="sc">}</span><span class="ss">&quot;</span>)</span></code></pre></div>
+<p><strong>출력 예제</strong> (Agent Coordination):</p>
+<pre><code>======================================================================
+에이전트 협업 점수 (Agent Coordination)
+======================================================================
+Layer: Layer 2
+현재값: 8.50/10
+임계값: 7.0/10
+방향: 높을수록 좋음
+상태: ✅ PASS
+
+상세 정보:
+  • success_rate: 0.95
+  • total_interactions: 42
+  • unique_agents: 5</code></pre>
+<h3 id="passfail-판정-1">Pass/Fail 판정</h3>
+<div class="sourceCode" id="cb43"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb43-1"><a href="#cb43-1" aria-hidden="true" tabindex="-1"></a>comparison <span class="op">=</span> monitor.compare_with_thresholds()</span>
+<span id="cb43-2"><a href="#cb43-2" aria-hidden="true" tabindex="-1"></a>failed_metrics <span class="op">=</span> [metric <span class="cf">for</span> metric, data <span class="kw">in</span> comparison.items() <span class="cf">if</span> data[<span class="st">&#39;status&#39;</span>] <span class="op">==</span> <span class="st">&#39;fail&#39;</span>]</span>
+<span id="cb43-3"><a href="#cb43-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb43-4"><a href="#cb43-4" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> failed_metrics:</span>
+<span id="cb43-5"><a href="#cb43-5" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="ss">f&quot;❌ 품질 게이트 실패!&quot;</span>)</span>
+<span id="cb43-6"><a href="#cb43-6" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="ss">f&quot;실패한 메트릭: </span><span class="sc">{</span><span class="bu">len</span>(failed_metrics)<span class="sc">}</span><span class="ss">개&quot;</span>)</span>
+<span id="cb43-7"><a href="#cb43-7" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> metric <span class="kw">in</span> failed_metrics:</span>
+<span id="cb43-8"><a href="#cb43-8" aria-hidden="true" tabindex="-1"></a>        data <span class="op">=</span> comparison[metric]</span>
+<span id="cb43-9"><a href="#cb43-9" aria-hidden="true" tabindex="-1"></a>        <span class="bu">print</span>(<span class="ss">f&quot;  - </span><span class="sc">{</span>data[<span class="st">&#39;name&#39;</span>]<span class="sc">}</span><span class="ss">: </span><span class="sc">{</span>data[<span class="st">&#39;value&#39;</span>]<span class="sc">:.1f}{</span>data[<span class="st">&#39;unit&#39;</span>]<span class="sc">}</span><span class="ss"> (필요: </span><span class="sc">{</span>data[<span class="st">&#39;threshold&#39;</span>]<span class="sc">}{</span>data[<span class="st">&#39;unit&#39;</span>]<span class="sc">}</span><span class="ss">)&quot;</span>)</span>
+<span id="cb43-10"><a href="#cb43-10" aria-hidden="true" tabindex="-1"></a>    exit(<span class="dv">1</span>)  <span class="co"># CI/CD 실패</span></span>
+<span id="cb43-11"><a href="#cb43-11" aria-hidden="true" tabindex="-1"></a><span class="cf">else</span>:</span>
+<span id="cb43-12"><a href="#cb43-12" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="ss">f&quot;✅ 품질 게이트 통과!&quot;</span>)</span>
+<span id="cb43-13"><a href="#cb43-13" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="ss">f&quot;모든 메트릭이 임계값을 충족합니다.&quot;</span>)</span>
+<span id="cb43-14"><a href="#cb43-14" aria-hidden="true" tabindex="-1"></a>    exit(<span class="dv">0</span>)  <span class="co"># CI/CD 성공</span></span></code></pre></div>
+<hr />
+<h2 id="rag-metrics-thresholds">✨ RAG 메트릭 Threshold 설정</h2>
+<p>RAG (Retrieval-Augmented Generation) 시스템을 평가할 때 사용하는 4가지 핵심 메트릭에 대한 threshold 설정 가이드입니다.</p>
+
+<h3 id="rag-metrics-overview">RAG 메트릭 개요</h3>
+<p>이제 PerformanceMonitor가 RAG 메트릭을 직접 추적하고, <code>compare_with_thresholds()</code>에서 자동으로 실제 값을 계산하여 pass/fail 판정을 수행합니다.</p>
+
+<table>
+<thead>
+<tr>
+<th>메트릭</th>
+<th>설명</th>
+<th>범위</th>
+<th>권장 임계값</th>
+<th>방향</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>faithfulness</code></td>
+<td>답변이 제공된 컨텍스트에 충실한 정도 (환각 방지)</td>
+<td>0-1</td>
+<td>≥0.8</td>
+<td>높을수록 좋음</td>
+</tr>
+<tr>
+<td><code>answer_relevancy</code></td>
+<td>답변이 질문과 관련있는 정도</td>
+<td>0-1</td>
+<td>≥0.85</td>
+<td>높을수록 좋음</td>
+</tr>
+<tr>
+<td><code>context_recall</code></td>
+<td>필요한 정보를 컨텍스트에서 잘 검색했는지 (완전성)</td>
+<td>0-1</td>
+<td>≥0.75</td>
+<td>높을수록 좋음</td>
+</tr>
+<tr>
+<td><code>context_precision</code></td>
+<td>검색된 컨텍스트의 정확도 (노이즈 최소화)</td>
+<td>0-1</td>
+<td>≥0.8</td>
+<td>높을수록 좋음</td>
+</tr>
+</tbody>
+</table>
+
+<h3 id="rag-threshold-setup">RAG Threshold 설정 예제</h3>
+<div class="sourceCode" id="cb43a"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb43a-1"><a href="#cb43a-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> agent_evaluator <span class="im">import</span> PerformanceMonitor</span>
+<span id="cb43a-2"><a href="#cb43a-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb43a-3"><a href="#cb43a-3" aria-hidden="true" tabindex="-1"></a><span class="co"># PerformanceMonitor 초기화</span></span>
+<span id="cb43a-4"><a href="#cb43a-4" aria-hidden="true" tabindex="-1"></a>monitor <span class="op">=</span> PerformanceMonitor()</span>
+<span id="cb43a-5"><a href="#cb43a-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb43a-6"><a href="#cb43a-6" aria-hidden="true" tabindex="-1"></a><span class="co"># RAG 메트릭 threshold 설정</span></span>
+<span id="cb43a-7"><a href="#cb43a-7" aria-hidden="true" tabindex="-1"></a>monitor.thresholds <span class="op">=</span> {</span>
+<span id="cb43a-8"><a href="#cb43a-8" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;faithfulness&quot;</span>: <span class="fl">0.8</span>,           <span class="co"># 환각 방지</span></span>
+<span id="cb43a-9"><a href="#cb43a-9" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;answer_relevancy&quot;</span>: <span class="fl">0.85</span>,      <span class="co"># 답변 관련성</span></span>
+<span id="cb43a-10"><a href="#cb43a-10" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;context_recall&quot;</span>: <span class="fl">0.75</span>,        <span class="co"># 검색 완전성</span></span>
+<span id="cb43a-11"><a href="#cb43a-11" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;context_precision&quot;</span>: <span class="fl">0.8</span>,     <span class="co"># 검색 정확도</span></span>
+<span id="cb43a-12"><a href="#cb43a-12" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb43a-13"><a href="#cb43a-13" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb43a-14"><a href="#cb43a-14" aria-hidden="true" tabindex="-1"></a><span class="co"># RAG 메트릭 기록</span></span>
+<span id="cb43a-15"><a href="#cb43a-15" aria-hidden="true" tabindex="-1"></a>monitor.record_rag_metrics(</span>
+<span id="cb43a-16"><a href="#cb43a-16" aria-hidden="true" tabindex="-1"></a>    faithfulness<span class="op">=</span><span class="fl">0.85</span>,</span>
+<span id="cb43a-17"><a href="#cb43a-17" aria-hidden="true" tabindex="-1"></a>    answer_relevancy<span class="op">=</span><span class="fl">0.88</span>,</span>
+<span id="cb43a-18"><a href="#cb43a-18" aria-hidden="true" tabindex="-1"></a>    context_recall<span class="op">=</span><span class="fl">0.78</span>,</span>
+<span id="cb43a-19"><a href="#cb43a-19" aria-hidden="true" tabindex="-1"></a>    context_precision<span class="op">=</span><span class="fl">0.82</span></span>
+<span id="cb43a-20"><a href="#cb43a-20" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb43a-21"><a href="#cb43a-21" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb43a-22"><a href="#cb43a-22" aria-hidden="true" tabindex="-1"></a><span class="co"># 최신 기능: Threshold 비교 (자동으로 실제 값 계산)</span></span>
+<span id="cb43a-23"><a href="#cb43a-23" aria-hidden="true" tabindex="-1"></a>comparison <span class="op">=</span> monitor.compare_with_thresholds()</span>
+<span id="cb43a-24"><a href="#cb43a-24" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb43a-25"><a href="#cb43a-25" aria-hidden="true" tabindex="-1"></a><span class="co"># 결과 확인</span></span>
+<span id="cb43a-26"><a href="#cb43a-26" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> metric <span class="kw">in</span> [<span class="st">&quot;faithfulness&quot;</span>, <span class="st">&quot;answer_relevancy&quot;</span>, <span class="st">&quot;context_recall&quot;</span>, <span class="st">&quot;context_precision&quot;</span>]:</span>
+<span id="cb43a-27"><a href="#cb43a-27" aria-hidden="true" tabindex="-1"></a>    data <span class="op">=</span> comparison[metric]</span>
+<span id="cb43a-28"><a href="#cb43a-28" aria-hidden="true" tabindex="-1"></a>    status <span class="op">=</span> <span class="st">&quot;✅&quot;</span> <span class="cf">if</span> data[<span class="st">&quot;status&quot;</span>] <span class="op">==</span> <span class="st">&quot;pass&quot;</span> <span class="cf">else</span> <span class="st">&quot;❌&quot;</span></span>
+<span id="cb43a-29"><a href="#cb43a-29" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="ss">f&quot;</span><span class="sc">{</span>status<span class="sc">}</span><span class="ss"> </span><span class="sc">{</span>data[<span class="st">&#39;name&#39;</span>]<span class="sc">}</span><span class="ss">: </span><span class="sc">{</span>data[<span class="st">&#39;value&#39;</span>]<span class="sc">:.3f}</span><span class="ss"> (임계값: </span><span class="sc">{</span>data[<span class="st">&#39;threshold&#39;</span>]<span class="sc">}</span><span class="ss">)&quot;</span>)</span></code></pre></div>
+
+<p><strong>출력 예제</strong>:</p>
+<pre><code>✅ Faithfulness: 0.850 (임계값: 0.8)
+✅ Answer Relevancy: 0.880 (임계값: 0.85)
+✅ Context Recall: 0.780 (임계값: 0.75)
+✅ Context Precision: 0.820 (임계값: 0.8)</code></pre>
+
+<h3 id="rag-metrics-summary">RAG 메트릭 요약 확인</h3>
+<div class="sourceCode" id="cb43b"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb43b-1"><a href="#cb43b-1" aria-hidden="true" tabindex="-1"></a><span class="co"># RAG 메트릭 요약 가져오기</span></span>
+<span id="cb43b-2"><a href="#cb43b-2" aria-hidden="true" tabindex="-1"></a>rag_summary <span class="op">=</span> monitor.get_rag_metrics_summary()</span>
+<span id="cb43b-3"><a href="#cb43b-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb43b-4"><a href="#cb43b-4" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f&quot;평균 Faithfulness: </span><span class="sc">{</span>rag_summary[<span class="st">&#39;faithfulness&#39;</span>][<span class="st">&#39;mean&#39;</span>]<span class="sc">:.3f}</span><span class="ss">&quot;</span>)</span>
+<span id="cb43b-5"><a href="#cb43b-5" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f&quot;평균 Answer Relevancy: </span><span class="sc">{</span>rag_summary[<span class="st">&#39;answer_relevancy&#39;</span>][<span class="st">&#39;mean&#39;</span>]<span class="sc">:.3f}</span><span class="ss">&quot;</span>)</span>
+<span id="cb43b-6"><a href="#cb43b-6" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f&quot;평균 Context Recall: </span><span class="sc">{</span>rag_summary[<span class="st">&#39;context_recall&#39;</span>][<span class="st">&#39;mean&#39;</span>]<span class="sc">:.3f}</span><span class="ss">&quot;</span>)</span>
+<span id="cb43b-7"><a href="#cb43b-7" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f&quot;평균 Context Precision: </span><span class="sc">{</span>rag_summary[<span class="st">&#39;context_precision&#39;</span>][<span class="st">&#39;mean&#39;</span>]<span class="sc">:.3f}</span><span class="ss">&quot;</span>)</span></code></pre></div>
+
+<h3 id="rag-with-korean-rag-evaluator">한국어 RAG 평가와 통합</h3>
+<p>KoreanRAGEvaluator와 함께 사용하여 한국어 RAG 시스템을 체계적으로 평가할 수 있습니다.</p>
+<div class="sourceCode" id="cb43c"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb43c-1"><a href="#cb43c-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> agent_evaluator <span class="im">import</span> PerformanceMonitor</span>
+<span id="cb43c-2"><a href="#cb43c-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> korean_rag_evaluator <span class="im">import</span> KoreanRAGEvaluator</span>
+<span id="cb43c-3"><a href="#cb43c-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb43c-4"><a href="#cb43c-4" aria-hidden="true" tabindex="-1"></a><span class="co"># 초기화</span></span>
+<span id="cb43c-5"><a href="#cb43c-5" aria-hidden="true" tabindex="-1"></a>monitor <span class="op">=</span> PerformanceMonitor()</span>
+<span id="cb43c-6"><a href="#cb43c-6" aria-hidden="true" tabindex="-1"></a>rag_evaluator <span class="op">=</span> KoreanRAGEvaluator(rag_system<span class="op">=</span>my_rag_system)</span>
+<span id="cb43c-7"><a href="#cb43c-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb43c-8"><a href="#cb43c-8" aria-hidden="true" tabindex="-1"></a><span class="co"># Threshold 설정</span></span>
+<span id="cb43c-9"><a href="#cb43c-9" aria-hidden="true" tabindex="-1"></a>monitor.thresholds <span class="op">=</span> {</span>
+<span id="cb43c-10"><a href="#cb43c-10" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;faithfulness&quot;</span>: <span class="fl">0.8</span>,</span>
+<span id="cb43c-11"><a href="#cb43c-11" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;answer_relevancy&quot;</span>: <span class="fl">0.85</span>,</span>
+<span id="cb43c-12"><a href="#cb43c-12" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;context_recall&quot;</span>: <span class="fl">0.75</span>,</span>
+<span id="cb43c-13"><a href="#cb43c-13" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;context_precision&quot;</span>: <span class="fl">0.8</span></span>
+<span id="cb43c-14"><a href="#cb43c-14" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb43c-15"><a href="#cb43c-15" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb43c-16"><a href="#cb43c-16" aria-hidden="true" tabindex="-1"></a><span class="co"># 개별 QA 평가 및 기록</span></span>
+<span id="cb43c-17"><a href="#cb43c-17" aria-hidden="true" tabindex="-1"></a>result <span class="op">=</span> rag_evaluator.evaluate_single(</span>
+<span id="cb43c-18"><a href="#cb43c-18" aria-hidden="true" tabindex="-1"></a>    question<span class="op">=</span><span class="st">&quot;한국의 수도는 어디인가요?&quot;</span>,</span>
+<span id="cb43c-19"><a href="#cb43c-19" aria-hidden="true" tabindex="-1"></a>    expected_answer<span class="op">=</span><span class="st">&quot;서울입니다&quot;</span></span>
+<span id="cb43c-20"><a href="#cb43c-20" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb43c-21"><a href="#cb43c-21" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb43c-22"><a href="#cb43c-22" aria-hidden="true" tabindex="-1"></a><span class="co"># PerformanceMonitor에 기록</span></span>
+<span id="cb43c-23"><a href="#cb43c-23" aria-hidden="true" tabindex="-1"></a>monitor.record_rag_metrics(</span>
+<span id="cb43c-24"><a href="#cb43c-24" aria-hidden="true" tabindex="-1"></a>    faithfulness<span class="op">=</span>result.faithfulness,</span>
+<span id="cb43c-25"><a href="#cb43c-25" aria-hidden="true" tabindex="-1"></a>    answer_relevancy<span class="op">=</span>result.answer_relevancy,</span>
+<span id="cb43c-26"><a href="#cb43c-26" aria-hidden="true" tabindex="-1"></a>    context_recall<span class="op">=</span>result.context_recall,</span>
+<span id="cb43c-27"><a href="#cb43c-27" aria-hidden="true" tabindex="-1"></a>    context_precision<span class="op">=</span>result.context_precision</span>
+<span id="cb43c-28"><a href="#cb43c-28" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb43c-29"><a href="#cb43c-29" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb43c-30"><a href="#cb43c-30" aria-hidden="true" tabindex="-1"></a><span class="co"># Threshold 비교 (자동 pass/fail 판정)</span></span>
+<span id="cb43c-31"><a href="#cb43c-31" aria-hidden="true" tabindex="-1"></a>comparison <span class="op">=</span> monitor.compare_with_thresholds()</span>
+<span id="cb43c-32"><a href="#cb43c-32" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb43c-33"><a href="#cb43c-33" aria-hidden="true" tabindex="-1"></a><span class="co"># CSV 내보내기 (RAG 메트릭 포함)</span></span>
+<span id="cb43c-34"><a href="#cb43c-34" aria-hidden="true" tabindex="-1"></a>monitor.export_report(<span class="st">&quot;rag_evaluation_report.csv&quot;</span>, <span class="bu">format</span><span class="op">=</span><span class="st">&quot;csv&quot;</span>)</span></code></pre></div>
+
+<blockquote>
+<p><strong>⚡ 핵심 개선사항</strong>:</p>
+<ul>
+<li><code>record_rag_metrics()</code>: RAG 메트릭을 PerformanceMonitor에 직접 기록</li>
+<li><code>compare_with_thresholds()</code>: RAG 메트릭의 실제 평균값을 자동 계산하여 pass/fail 판정</li>
+<li><code>get_rag_metrics_summary()</code>: RAG 메트릭의 평균, 최소, 최대, 표준편차 등 통계 제공</li>
+<li><code>export_report()</code>: CSV 내보내기 시 RAG 메트릭 자동 포함 (13+ 메트릭 지원)</li>
+</ul>
+</blockquote>
+
+<hr />
+<h2 id="cicd-통합">CI/CD 통합</h2>
+<h3 id="cicd-예제-gitlab-ci-jenkins-권장">CI/CD 예제 (GitLab CI /
+Jenkins 권장)</h3>
+<div class="sourceCode" id="cb44"><pre
+class="sourceCode yaml"><code class="sourceCode yaml"><span id="cb44-1"><a href="#cb44-1" aria-hidden="true" tabindex="-1"></a><span class="co"># .github/workflows/agent-quality-gate.yml</span></span>
+<span id="cb44-2"><a href="#cb44-2" aria-hidden="true" tabindex="-1"></a><span class="fu">name</span><span class="kw">:</span><span class="at"> Agent Quality Gate</span></span>
+<span id="cb44-3"><a href="#cb44-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb44-4"><a href="#cb44-4" aria-hidden="true" tabindex="-1"></a><span class="fu">on</span><span class="kw">:</span></span>
+<span id="cb44-5"><a href="#cb44-5" aria-hidden="true" tabindex="-1"></a><span class="at">  </span><span class="fu">push</span><span class="kw">:</span></span>
+<span id="cb44-6"><a href="#cb44-6" aria-hidden="true" tabindex="-1"></a><span class="at">    </span><span class="fu">branches</span><span class="kw">:</span><span class="at"> </span><span class="kw">[</span><span class="at">main</span><span class="kw">,</span><span class="at"> develop</span><span class="kw">]</span></span>
+<span id="cb44-7"><a href="#cb44-7" aria-hidden="true" tabindex="-1"></a><span class="at">  </span><span class="fu">pull_request</span><span class="kw">:</span></span>
+<span id="cb44-8"><a href="#cb44-8" aria-hidden="true" tabindex="-1"></a><span class="at">    </span><span class="fu">branches</span><span class="kw">:</span><span class="at"> </span><span class="kw">[</span><span class="at">main</span><span class="kw">]</span></span>
+<span id="cb44-9"><a href="#cb44-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb44-10"><a href="#cb44-10" aria-hidden="true" tabindex="-1"></a><span class="fu">jobs</span><span class="kw">:</span></span>
+<span id="cb44-11"><a href="#cb44-11" aria-hidden="true" tabindex="-1"></a><span class="at">  </span><span class="fu">quality-gate</span><span class="kw">:</span></span>
+<span id="cb44-12"><a href="#cb44-12" aria-hidden="true" tabindex="-1"></a><span class="at">    </span><span class="fu">runs-on</span><span class="kw">:</span><span class="at"> ubuntu-latest</span></span>
+<span id="cb44-13"><a href="#cb44-13" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb44-14"><a href="#cb44-14" aria-hidden="true" tabindex="-1"></a><span class="at">    </span><span class="fu">steps</span><span class="kw">:</span></span>
+<span id="cb44-15"><a href="#cb44-15" aria-hidden="true" tabindex="-1"></a><span class="at">      </span><span class="kw">-</span><span class="at"> </span><span class="fu">uses</span><span class="kw">:</span><span class="at"> actions/checkout@v3</span></span>
+<span id="cb44-16"><a href="#cb44-16" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb44-17"><a href="#cb44-17" aria-hidden="true" tabindex="-1"></a><span class="at">      </span><span class="kw">-</span><span class="at"> </span><span class="fu">name</span><span class="kw">:</span><span class="at"> Set up Python</span></span>
+<span id="cb44-18"><a href="#cb44-18" aria-hidden="true" tabindex="-1"></a><span class="at">        </span><span class="fu">uses</span><span class="kw">:</span><span class="at"> actions/setup-python@v4</span></span>
+<span id="cb44-19"><a href="#cb44-19" aria-hidden="true" tabindex="-1"></a><span class="at">        </span><span class="fu">with</span><span class="kw">:</span></span>
+<span id="cb44-20"><a href="#cb44-20" aria-hidden="true" tabindex="-1"></a><span class="at">          </span><span class="fu">python-version</span><span class="kw">:</span><span class="at"> </span><span class="st">&#39;3.10&#39;</span></span>
+<span id="cb44-21"><a href="#cb44-21" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb44-22"><a href="#cb44-22" aria-hidden="true" tabindex="-1"></a><span class="at">      </span><span class="kw">-</span><span class="at"> </span><span class="fu">name</span><span class="kw">:</span><span class="at"> Install dependencies</span></span>
+<span id="cb44-23"><a href="#cb44-23" aria-hidden="true" tabindex="-1"></a><span class="fu">        run</span><span class="kw">: </span><span class="ch">|</span></span>
+<span id="cb44-24"><a href="#cb44-24" aria-hidden="true" tabindex="-1"></a>          pip install agent-evaluator</span>
+<span id="cb44-26"><a href="#cb44-26" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb44-27"><a href="#cb44-27" aria-hidden="true" tabindex="-1"></a><span class="at">      </span><span class="kw">-</span><span class="at"> </span><span class="fu">name</span><span class="kw">:</span><span class="at"> Run Quality Gate</span></span>
+<span id="cb44-28"><a href="#cb44-28" aria-hidden="true" tabindex="-1"></a><span class="at">        </span><span class="fu">env</span><span class="kw">:</span></span>
+<span id="cb44-29"><a href="#cb44-29" aria-hidden="true" tabindex="-1"></a><span class="at">          </span><span class="fu">OPENAI_API_KEY</span><span class="kw">:</span><span class="at"> ${{ secrets.OPENAI_API_KEY }}</span></span>
+<span id="cb44-30"><a href="#cb44-30" aria-hidden="true" tabindex="-1"></a><span class="at">          </span><span class="fu">ENV</span><span class="kw">:</span><span class="at"> ${{ github.ref == &#39;refs/heads/main&#39; &amp;&amp; &#39;production&#39; || &#39;staging&#39; }}</span></span>
+<span id="cb44-31"><a href="#cb44-31" aria-hidden="true" tabindex="-1"></a><span class="fu">        run</span><span class="kw">: </span><span class="ch">|</span></span>
+<span id="cb44-32"><a href="#cb44-32" aria-hidden="true" tabindex="-1"></a>          python ci_quality_gate.py</span>
+<span id="cb44-33"><a href="#cb44-33" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb44-34"><a href="#cb44-34" aria-hidden="true" tabindex="-1"></a><span class="at">      </span><span class="kw">-</span><span class="at"> </span><span class="fu">name</span><span class="kw">:</span><span class="at"> Upload Results</span></span>
+<span id="cb44-35"><a href="#cb44-35" aria-hidden="true" tabindex="-1"></a><span class="at">        </span><span class="fu">if</span><span class="kw">:</span><span class="at"> always()</span></span>
+<span id="cb44-36"><a href="#cb44-36" aria-hidden="true" tabindex="-1"></a><span class="at">        </span><span class="fu">uses</span><span class="kw">:</span><span class="at"> actions/upload-artifact@v3</span></span>
+<span id="cb44-37"><a href="#cb44-37" aria-hidden="true" tabindex="-1"></a><span class="at">        </span><span class="fu">with</span><span class="kw">:</span></span>
+<span id="cb44-38"><a href="#cb44-38" aria-hidden="true" tabindex="-1"></a><span class="at">          </span><span class="fu">name</span><span class="kw">:</span><span class="at"> evaluation-results</span></span>
+<span id="cb44-39"><a href="#cb44-39" aria-hidden="true" tabindex="-1"></a><span class="at">          </span><span class="fu">path</span><span class="kw">:</span><span class="at"> evaluation_results.json</span></span></code></pre></div>
+<h3 id="cicd-스크립트">CI/CD 스크립트</h3>
+<div class="sourceCode" id="cb45"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb45-1"><a href="#cb45-1" aria-hidden="true" tabindex="-1"></a><span class="co"># ci_quality_gate.py</span></span>
+<span id="cb45-2"><a href="#cb45-2" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> os</span>
+<span id="cb45-3"><a href="#cb45-3" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> sys</span>
+<span id="cb45-4"><a href="#cb45-4" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> agent_evaluator <span class="im">import</span> PerformanceMonitor</span>
+<span id="cb45-5"><a href="#cb45-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb45-6"><a href="#cb45-6" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> main():</span>
+<span id="cb45-7"><a href="#cb45-7" aria-hidden="true" tabindex="-1"></a>    monitor <span class="op">=</span> PerformanceMonitor()</span>
+<span id="cb45-8"><a href="#cb45-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb45-9"><a href="#cb45-9" aria-hidden="true" tabindex="-1"></a>    <span class="co"># 환경별 Threshold 설정</span></span>
+<span id="cb45-10"><a href="#cb45-10" aria-hidden="true" tabindex="-1"></a>    env <span class="op">=</span> os.getenv(<span class="st">&quot;ENV&quot;</span>, <span class="st">&quot;development&quot;</span>)</span>
+<span id="cb45-11"><a href="#cb45-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb45-12"><a href="#cb45-12" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> env <span class="op">==</span> <span class="st">&quot;production&quot;</span>:</span>
+<span id="cb45-13"><a href="#cb45-13" aria-hidden="true" tabindex="-1"></a>        monitor.thresholds <span class="op">=</span> {</span>
+<span id="cb45-14"><a href="#cb45-14" aria-hidden="true" tabindex="-1"></a>            <span class="st">&#39;tcr&#39;</span>: <span class="fl">95.0</span>,</span>
+<span id="cb45-15"><a href="#cb45-15" aria-hidden="true" tabindex="-1"></a>            <span class="st">&#39;accuracy&#39;</span>: <span class="fl">90.0</span>,</span>
+<span id="cb45-16"><a href="#cb45-16" aria-hidden="true" tabindex="-1"></a>            <span class="st">&#39;hallucination&#39;</span>: <span class="fl">3.0</span>,</span>
+<span id="cb45-17"><a href="#cb45-17" aria-hidden="true" tabindex="-1"></a>            <span class="st">&#39;tool_selection_accuracy&#39;</span>: <span class="fl">85.0</span>,</span>
+<span id="cb45-18"><a href="#cb45-18" aria-hidden="true" tabindex="-1"></a>            <span class="st">&#39;agent_coordination&#39;</span>: <span class="fl">8.0</span>,</span>
+<span id="cb45-19"><a href="#cb45-19" aria-hidden="true" tabindex="-1"></a>            <span class="st">&#39;workflow_execution&#39;</span>: <span class="fl">95.0</span></span>
+<span id="cb45-20"><a href="#cb45-20" aria-hidden="true" tabindex="-1"></a>        }</span>
+<span id="cb45-21"><a href="#cb45-21" aria-hidden="true" tabindex="-1"></a>    <span class="cf">elif</span> env <span class="op">==</span> <span class="st">&quot;staging&quot;</span>:</span>
+<span id="cb45-22"><a href="#cb45-22" aria-hidden="true" tabindex="-1"></a>        monitor.thresholds <span class="op">=</span> {</span>
+<span id="cb45-23"><a href="#cb45-23" aria-hidden="true" tabindex="-1"></a>            <span class="st">&#39;tcr&#39;</span>: <span class="fl">85.0</span>,</span>
+<span id="cb45-24"><a href="#cb45-24" aria-hidden="true" tabindex="-1"></a>            <span class="st">&#39;accuracy&#39;</span>: <span class="fl">80.0</span>,</span>
+<span id="cb45-25"><a href="#cb45-25" aria-hidden="true" tabindex="-1"></a>            <span class="st">&#39;hallucination&#39;</span>: <span class="fl">8.0</span>,</span>
+<span id="cb45-26"><a href="#cb45-26" aria-hidden="true" tabindex="-1"></a>            <span class="st">&#39;tool_selection_accuracy&#39;</span>: <span class="fl">75.0</span>,</span>
+<span id="cb45-27"><a href="#cb45-27" aria-hidden="true" tabindex="-1"></a>            <span class="st">&#39;agent_coordination&#39;</span>: <span class="fl">7.0</span>,</span>
+<span id="cb45-28"><a href="#cb45-28" aria-hidden="true" tabindex="-1"></a>            <span class="st">&#39;workflow_execution&#39;</span>: <span class="fl">85.0</span></span>
+<span id="cb45-29"><a href="#cb45-29" aria-hidden="true" tabindex="-1"></a>        }</span>
+<span id="cb45-30"><a href="#cb45-30" aria-hidden="true" tabindex="-1"></a>    <span class="cf">else</span>:</span>
+<span id="cb45-31"><a href="#cb45-31" aria-hidden="true" tabindex="-1"></a>        monitor.thresholds <span class="op">=</span> {</span>
+<span id="cb45-32"><a href="#cb45-32" aria-hidden="true" tabindex="-1"></a>            <span class="st">&#39;tcr&#39;</span>: <span class="fl">70.0</span>,</span>
+<span id="cb45-33"><a href="#cb45-33" aria-hidden="true" tabindex="-1"></a>            <span class="st">&#39;accuracy&#39;</span>: <span class="fl">65.0</span>,</span>
+<span id="cb45-34"><a href="#cb45-34" aria-hidden="true" tabindex="-1"></a>            <span class="st">&#39;tool_selection_accuracy&#39;</span>: <span class="fl">60.0</span></span>
+<span id="cb45-35"><a href="#cb45-35" aria-hidden="true" tabindex="-1"></a>        }</span>
+<span id="cb45-36"><a href="#cb45-36" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb45-37"><a href="#cb45-37" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="ss">f&quot;🚀 환경: </span><span class="sc">{</span>env<span class="sc">}</span><span class="ss">&quot;</span>)</span>
+<span id="cb45-38"><a href="#cb45-38" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="ss">f&quot;📊 Threshold:&quot;</span>)</span>
+<span id="cb45-39"><a href="#cb45-39" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> metric, value <span class="kw">in</span> monitor.thresholds.items():</span>
+<span id="cb45-40"><a href="#cb45-40" aria-hidden="true" tabindex="-1"></a>        <span class="bu">print</span>(<span class="ss">f&quot;   </span><span class="sc">{</span>metric<span class="sc">}</span><span class="ss">: </span><span class="sc">{</span>value<span class="sc">}</span><span class="ss">&quot;</span>)</span>
+<span id="cb45-41"><a href="#cb45-41" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb45-42"><a href="#cb45-42" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Golden Dataset 평가</span></span>
+<span id="cb45-43"><a href="#cb45-43" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="ss">f&quot;</span><span class="ch">\n</span><span class="ss">🔍 Golden Dataset 평가 실행 중...&quot;</span>)</span>
+<span id="cb45-44"><a href="#cb45-44" aria-hidden="true" tabindex="-1"></a>    results <span class="op">=</span> monitor.evaluate_with_golden_dataset(</span>
+<span id="cb45-45"><a href="#cb45-45" aria-hidden="true" tabindex="-1"></a>        agent_fn<span class="op">=</span>my_agent,</span>
+<span id="cb45-46"><a href="#cb45-46" aria-hidden="true" tabindex="-1"></a>        dataset_path<span class="op">=</span><span class="st">&quot;golden_dataset.json&quot;</span>,</span>
+<span id="cb45-47"><a href="#cb45-47" aria-hidden="true" tabindex="-1"></a>        enable_layer2_metrics<span class="op">=</span><span class="va">True</span></span>
+<span id="cb45-48"><a href="#cb45-48" aria-hidden="true" tabindex="-1"></a>    )</span>
+<span id="cb45-49"><a href="#cb45-49" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb45-50"><a href="#cb45-50" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Threshold 비교</span></span>
+<span id="cb45-51"><a href="#cb45-51" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="ss">f&quot;</span><span class="ch">\n</span><span class="ss">🎯 Threshold 비교:&quot;</span>)</span>
+<span id="cb45-52"><a href="#cb45-52" aria-hidden="true" tabindex="-1"></a>    comparison <span class="op">=</span> monitor.compare_with_thresholds()</span>
+<span id="cb45-53"><a href="#cb45-53" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb45-54"><a href="#cb45-54" aria-hidden="true" tabindex="-1"></a>    passed <span class="op">=</span> []</span>
+<span id="cb45-55"><a href="#cb45-55" aria-hidden="true" tabindex="-1"></a>    failed <span class="op">=</span> []</span>
+<span id="cb45-56"><a href="#cb45-56" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb45-57"><a href="#cb45-57" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> metric, data <span class="kw">in</span> comparison.items():</span>
+<span id="cb45-58"><a href="#cb45-58" aria-hidden="true" tabindex="-1"></a>        status_icon <span class="op">=</span> <span class="st">&quot;✅&quot;</span> <span class="cf">if</span> data[<span class="st">&#39;status&#39;</span>] <span class="op">==</span> <span class="st">&#39;pass&#39;</span> <span class="cf">else</span> <span class="st">&quot;❌&quot;</span></span>
+<span id="cb45-59"><a href="#cb45-59" aria-hidden="true" tabindex="-1"></a>        <span class="bu">print</span>(<span class="ss">f&quot;</span><span class="sc">{</span>status_icon<span class="sc">}</span><span class="ss"> </span><span class="sc">{</span>data[<span class="st">&#39;name&#39;</span>]<span class="sc">}</span><span class="ss">: </span><span class="sc">{</span>data[<span class="st">&#39;value&#39;</span>]<span class="sc">:.1f}{</span>data[<span class="st">&#39;unit&#39;</span>]<span class="sc">}</span><span class="ss"> (임계값: </span><span class="sc">{</span>data[<span class="st">&#39;threshold&#39;</span>]<span class="sc">}{</span>data[<span class="st">&#39;unit&#39;</span>]<span class="sc">}</span><span class="ss">)&quot;</span>)</span>
+<span id="cb45-60"><a href="#cb45-60" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb45-61"><a href="#cb45-61" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> data[<span class="st">&#39;status&#39;</span>] <span class="op">==</span> <span class="st">&#39;pass&#39;</span>:</span>
+<span id="cb45-62"><a href="#cb45-62" aria-hidden="true" tabindex="-1"></a>            passed.append(metric)</span>
+<span id="cb45-63"><a href="#cb45-63" aria-hidden="true" tabindex="-1"></a>        <span class="cf">else</span>:</span>
+<span id="cb45-64"><a href="#cb45-64" aria-hidden="true" tabindex="-1"></a>            failed.append(metric)</span>
+<span id="cb45-65"><a href="#cb45-65" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb45-66"><a href="#cb45-66" aria-hidden="true" tabindex="-1"></a>    <span class="co"># 결과 요약</span></span>
+<span id="cb45-67"><a href="#cb45-67" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="ss">f&quot;</span><span class="ch">\n</span><span class="ss">📊 요약:&quot;</span>)</span>
+<span id="cb45-68"><a href="#cb45-68" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="ss">f&quot;   통과: </span><span class="sc">{</span><span class="bu">len</span>(passed)<span class="sc">}</span><span class="ss">개&quot;</span>)</span>
+<span id="cb45-69"><a href="#cb45-69" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="ss">f&quot;   실패: </span><span class="sc">{</span><span class="bu">len</span>(failed)<span class="sc">}</span><span class="ss">개&quot;</span>)</span>
+<span id="cb45-70"><a href="#cb45-70" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb45-71"><a href="#cb45-71" aria-hidden="true" tabindex="-1"></a>    <span class="co"># CI/CD 판정</span></span>
+<span id="cb45-72"><a href="#cb45-72" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> failed:</span>
+<span id="cb45-73"><a href="#cb45-73" aria-hidden="true" tabindex="-1"></a>        <span class="bu">print</span>(<span class="ss">f&quot;</span><span class="ch">\n</span><span class="ss">❌ CI/CD 품질 게이트 실패!&quot;</span>)</span>
+<span id="cb45-74"><a href="#cb45-74" aria-hidden="true" tabindex="-1"></a>        <span class="bu">print</span>(<span class="ss">f&quot;</span><span class="ch">\n</span><span class="ss">실패한 메트릭 (</span><span class="sc">{</span><span class="bu">len</span>(failed)<span class="sc">}</span><span class="ss">개):&quot;</span>)</span>
+<span id="cb45-75"><a href="#cb45-75" aria-hidden="true" tabindex="-1"></a>        <span class="cf">for</span> metric <span class="kw">in</span> failed:</span>
+<span id="cb45-76"><a href="#cb45-76" aria-hidden="true" tabindex="-1"></a>            data <span class="op">=</span> comparison[metric]</span>
+<span id="cb45-77"><a href="#cb45-77" aria-hidden="true" tabindex="-1"></a>            <span class="bu">print</span>(<span class="ss">f&quot;   - </span><span class="sc">{</span>data[<span class="st">&#39;name&#39;</span>]<span class="sc">}</span><span class="ss">&quot;</span>)</span>
+<span id="cb45-78"><a href="#cb45-78" aria-hidden="true" tabindex="-1"></a>            <span class="bu">print</span>(<span class="ss">f&quot;     현재: </span><span class="sc">{</span>data[<span class="st">&#39;value&#39;</span>]<span class="sc">:.1f}{</span>data[<span class="st">&#39;unit&#39;</span>]<span class="sc">}</span><span class="ss">&quot;</span>)</span>
+<span id="cb45-79"><a href="#cb45-79" aria-hidden="true" tabindex="-1"></a>            <span class="bu">print</span>(<span class="ss">f&quot;     필요: </span><span class="sc">{</span>data[<span class="st">&#39;threshold&#39;</span>]<span class="sc">}{</span>data[<span class="st">&#39;unit&#39;</span>]<span class="sc">}</span><span class="ss">&quot;</span>)</span>
+<span id="cb45-80"><a href="#cb45-80" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb45-81"><a href="#cb45-81" aria-hidden="true" tabindex="-1"></a>        <span class="bu">print</span>(<span class="ss">f&quot;</span><span class="ch">\n</span><span class="ss">💡 조치 필요:&quot;</span>)</span>
+<span id="cb45-82"><a href="#cb45-82" aria-hidden="true" tabindex="-1"></a>        <span class="bu">print</span>(<span class="ss">f&quot;   1. 에이전트 프롬프트 개선&quot;</span>)</span>
+<span id="cb45-83"><a href="#cb45-83" aria-hidden="true" tabindex="-1"></a>        <span class="bu">print</span>(<span class="ss">f&quot;   2. Golden Dataset 검토 및 업데이트&quot;</span>)</span>
+<span id="cb45-84"><a href="#cb45-84" aria-hidden="true" tabindex="-1"></a>        <span class="bu">print</span>(<span class="ss">f&quot;   3. Threshold 재검토 (필요시)&quot;</span>)</span>
+<span id="cb45-85"><a href="#cb45-85" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb45-86"><a href="#cb45-86" aria-hidden="true" tabindex="-1"></a>        sys.exit(<span class="dv">1</span>)  <span class="co"># CI/CD 실패</span></span>
+<span id="cb45-87"><a href="#cb45-87" aria-hidden="true" tabindex="-1"></a>    <span class="cf">else</span>:</span>
+<span id="cb45-88"><a href="#cb45-88" aria-hidden="true" tabindex="-1"></a>        <span class="bu">print</span>(<span class="ss">f&quot;</span><span class="ch">\n</span><span class="ss">✅ CI/CD 품질 게이트 통과!&quot;</span>)</span>
+<span id="cb45-89"><a href="#cb45-89" aria-hidden="true" tabindex="-1"></a>        <span class="bu">print</span>(<span class="ss">f&quot;   모든 메트릭이 임계값을 충족합니다.&quot;</span>)</span>
+<span id="cb45-90"><a href="#cb45-90" aria-hidden="true" tabindex="-1"></a>        <span class="bu">print</span>(<span class="ss">f&quot;   배포를 진행하세요.&quot;</span>)</span>
+<span id="cb45-91"><a href="#cb45-91" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb45-92"><a href="#cb45-92" aria-hidden="true" tabindex="-1"></a>        sys.exit(<span class="dv">0</span>)  <span class="co"># CI/CD 성공</span></span>
+<span id="cb45-93"><a href="#cb45-93" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb45-94"><a href="#cb45-94" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> my_agent(question: <span class="bu">str</span>):</span>
+<span id="cb45-95"><a href="#cb45-95" aria-hidden="true" tabindex="-1"></a>    <span class="co"># 에이전트 구현</span></span>
+<span id="cb45-96"><a href="#cb45-96" aria-hidden="true" tabindex="-1"></a>    <span class="cf">pass</span></span>
+<span id="cb45-97"><a href="#cb45-97" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb45-98"><a href="#cb45-98" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> <span class="va">__name__</span> <span class="op">==</span> <span class="st">&quot;__main__&quot;</span>:</span>
+<span id="cb45-99"><a href="#cb45-99" aria-hidden="true" tabindex="-1"></a>    main()</span></code></pre></div>
+<h3 id="gitlab-ci-예제">GitLab CI 예제</h3>
+<div class="sourceCode" id="cb46"><pre
+class="sourceCode yaml"><code class="sourceCode yaml"><span id="cb46-1"><a href="#cb46-1" aria-hidden="true" tabindex="-1"></a><span class="co"># .gitlab-ci.yml</span></span>
+<span id="cb46-2"><a href="#cb46-2" aria-hidden="true" tabindex="-1"></a><span class="fu">stages</span><span class="kw">:</span></span>
+<span id="cb46-3"><a href="#cb46-3" aria-hidden="true" tabindex="-1"></a><span class="at">  </span><span class="kw">-</span><span class="at"> test</span></span>
+<span id="cb46-4"><a href="#cb46-4" aria-hidden="true" tabindex="-1"></a><span class="at">  </span><span class="kw">-</span><span class="at"> quality-gate</span></span>
+<span id="cb46-5"><a href="#cb46-5" aria-hidden="true" tabindex="-1"></a><span class="at">  </span><span class="kw">-</span><span class="at"> deploy</span></span>
+<span id="cb46-6"><a href="#cb46-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb46-7"><a href="#cb46-7" aria-hidden="true" tabindex="-1"></a><span class="fu">quality-gate</span><span class="kw">:</span></span>
+<span id="cb46-8"><a href="#cb46-8" aria-hidden="true" tabindex="-1"></a><span class="at">  </span><span class="fu">stage</span><span class="kw">:</span><span class="at"> quality-gate</span></span>
+<span id="cb46-9"><a href="#cb46-9" aria-hidden="true" tabindex="-1"></a><span class="at">  </span><span class="fu">image</span><span class="kw">:</span><span class="at"> python:3.10</span></span>
+<span id="cb46-10"><a href="#cb46-10" aria-hidden="true" tabindex="-1"></a><span class="at">  </span><span class="fu">script</span><span class="kw">:</span></span>
+<span id="cb46-11"><a href="#cb46-11" aria-hidden="true" tabindex="-1"></a><span class="at">    </span><span class="kw">-</span><span class="at"> pip install agent-evaluator</span></span>
+<span id="cb46-13"><a href="#cb46-13" aria-hidden="true" tabindex="-1"></a><span class="at">    </span><span class="kw">-</span><span class="at"> python ci_quality_gate.py</span></span>
+<span id="cb46-14"><a href="#cb46-14" aria-hidden="true" tabindex="-1"></a><span class="at">  </span><span class="fu">artifacts</span><span class="kw">:</span></span>
+<span id="cb46-15"><a href="#cb46-15" aria-hidden="true" tabindex="-1"></a><span class="at">    </span><span class="fu">when</span><span class="kw">:</span><span class="at"> always</span></span>
+<span id="cb46-16"><a href="#cb46-16" aria-hidden="true" tabindex="-1"></a><span class="at">    </span><span class="fu">paths</span><span class="kw">:</span></span>
+<span id="cb46-17"><a href="#cb46-17" aria-hidden="true" tabindex="-1"></a><span class="at">      </span><span class="kw">-</span><span class="at"> evaluation_results.json</span></span>
+<span id="cb46-18"><a href="#cb46-18" aria-hidden="true" tabindex="-1"></a><span class="at">    </span><span class="fu">reports</span><span class="kw">:</span></span>
+<span id="cb46-19"><a href="#cb46-19" aria-hidden="true" tabindex="-1"></a><span class="at">      </span><span class="fu">junit</span><span class="kw">:</span><span class="at"> test-results.xml</span></span>
+<span id="cb46-20"><a href="#cb46-20" aria-hidden="true" tabindex="-1"></a><span class="at">  </span><span class="fu">only</span><span class="kw">:</span></span>
+<span id="cb46-21"><a href="#cb46-21" aria-hidden="true" tabindex="-1"></a><span class="at">    </span><span class="kw">-</span><span class="at"> main</span></span>
+<span id="cb46-22"><a href="#cb46-22" aria-hidden="true" tabindex="-1"></a><span class="at">    </span><span class="kw">-</span><span class="at"> develop</span></span></code></pre></div>
+<hr />
+<h2 id="best-practices">Best Practices</h2>
+<h3 id="threshold-설정-원칙">1. Threshold 설정 원칙</h3>
+<h4 id="좋은-원칙">✅ 좋은 원칙</h4>
+<p><strong>점진적 상향</strong> - 처음부터 너무 높은 threshold 설정하지
+말기 - 현재 성능 → 약간 높은 threshold → 점진적 개선</p>
+<p><strong>환경별 차별화</strong> - 개발: 느슨한 threshold (빠른 실험) -
+스테이징: 중간 threshold (품질 검증) - 프로덕션: 엄격한 threshold (높은
+품질)</p>
+<p><strong>메트릭 우선순위</strong> - 핵심 메트릭 (TCR, Accuracy)에 집중
+- 나머지는 점진적으로 추가</p>
+<p><strong>데이터 기반 결정</strong> - 실제 평가 결과를 바탕으로
+threshold 설정 - 주관적 판단 최소화</p>
+<h4 id="나쁜-원칙">❌ 나쁜 원칙</h4>
+<p><strong>비현실적 목표</strong></p>
+<div class="sourceCode" id="cb47"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb47-1"><a href="#cb47-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 너무 높음 - 달성 불가능</span></span>
+<span id="cb47-2"><a href="#cb47-2" aria-hidden="true" tabindex="-1"></a>monitor.thresholds <span class="op">=</span> {</span>
+<span id="cb47-3"><a href="#cb47-3" aria-hidden="true" tabindex="-1"></a>    <span class="st">&#39;tcr&#39;</span>: <span class="fl">100.0</span>,  <span class="co"># 100%는 비현실적</span></span>
+<span id="cb47-4"><a href="#cb47-4" aria-hidden="true" tabindex="-1"></a>    <span class="st">&#39;accuracy&#39;</span>: <span class="fl">99.0</span>,</span>
+<span id="cb47-5"><a href="#cb47-5" aria-hidden="true" tabindex="-1"></a>    <span class="st">&#39;hallucination&#39;</span>: <span class="fl">0.0</span>  <span class="co"># 0%는 불가능</span></span>
+<span id="cb47-6"><a href="#cb47-6" aria-hidden="true" tabindex="-1"></a>}</span></code></pre></div>
+<p><strong>환경 무시</strong></p>
+<div class="sourceCode" id="cb48"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb48-1"><a href="#cb48-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 개발 환경에서 프로덕션 threshold 사용 - 실험 방해</span></span>
+<span id="cb48-2"><a href="#cb48-2" aria-hidden="true" tabindex="-1"></a>monitor.thresholds <span class="op">=</span> PRODUCTION_THRESHOLDS  <span class="co"># ❌</span></span></code></pre></div>
+<p><strong>너무 많은 메트릭</strong></p>
+<div class="sourceCode" id="cb49"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb49-1"><a href="#cb49-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 한 번에 모든 메트릭 추가 - 관리 어려움</span></span>
+<span id="cb49-2"><a href="#cb49-2" aria-hidden="true" tabindex="-1"></a>monitor.thresholds <span class="op">=</span> {</span>
+<span id="cb49-3"><a href="#cb49-3" aria-hidden="true" tabindex="-1"></a>    <span class="st">&#39;tcr&#39;</span>: <span class="fl">90.0</span>,</span>
+<span id="cb49-4"><a href="#cb49-4" aria-hidden="true" tabindex="-1"></a>    <span class="st">&#39;accuracy&#39;</span>: <span class="fl">85.0</span>,</span>
+<span id="cb49-5"><a href="#cb49-5" aria-hidden="true" tabindex="-1"></a>    <span class="st">&#39;quality&#39;</span>: <span class="fl">80.0</span>,</span>
+<span id="cb49-6"><a href="#cb49-6" aria-hidden="true" tabindex="-1"></a>    <span class="st">&#39;relevance&#39;</span>: <span class="fl">80.0</span>,</span>
+<span id="cb49-7"><a href="#cb49-7" aria-hidden="true" tabindex="-1"></a>    <span class="st">&#39;hallucination&#39;</span>: <span class="fl">5.0</span>,</span>
+<span id="cb49-8"><a href="#cb49-8" aria-hidden="true" tabindex="-1"></a>    <span class="st">&#39;latency&#39;</span>: <span class="fl">3.0</span>,</span>
+<span id="cb49-9"><a href="#cb49-9" aria-hidden="true" tabindex="-1"></a>    <span class="st">&#39;cost_per_task&#39;</span>: <span class="fl">0.10</span>,</span>
+<span id="cb49-10"><a href="#cb49-10" aria-hidden="true" tabindex="-1"></a>    <span class="st">&#39;tool_selection_accuracy&#39;</span>: <span class="fl">80.0</span>,</span>
+<span id="cb49-11"><a href="#cb49-11" aria-hidden="true" tabindex="-1"></a>    <span class="st">&#39;agent_coordination&#39;</span>: <span class="fl">7.0</span>,</span>
+<span id="cb49-12"><a href="#cb49-12" aria-hidden="true" tabindex="-1"></a>    <span class="st">&#39;workflow_execution&#39;</span>: <span class="fl">90.0</span>,</span>
+<span id="cb49-13"><a href="#cb49-13" aria-hidden="true" tabindex="-1"></a>    <span class="co"># ... 너무 많음</span></span>
+<span id="cb49-14"><a href="#cb49-14" aria-hidden="true" tabindex="-1"></a>}</span></code></pre></div>
+<h3 id="threshold-업데이트-주기">2. Threshold 업데이트 주기</h3>
+<p><strong>권장 주기</strong>:</p>
+<ul>
+<li><strong>주간 리뷰</strong>: 현재 성능 확인, 작은 조정</li>
+<li><strong>월간 리뷰</strong>: Threshold 상향, 새 메트릭 추가</li>
+<li><strong>분기 리뷰</strong>: 전체 Threshold 체계 재검토</li>
+</ul>
+<p><strong>예제</strong>:</p>
+<div class="sourceCode" id="cb50"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb50-1"><a href="#cb50-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 주간 (Week 1)</span></span>
+<span id="cb50-2"><a href="#cb50-2" aria-hidden="true" tabindex="-1"></a>monitor.thresholds <span class="op">=</span> {</span>
+<span id="cb50-3"><a href="#cb50-3" aria-hidden="true" tabindex="-1"></a>    <span class="st">&#39;tcr&#39;</span>: <span class="fl">85.0</span>,</span>
+<span id="cb50-4"><a href="#cb50-4" aria-hidden="true" tabindex="-1"></a>    <span class="st">&#39;accuracy&#39;</span>: <span class="fl">80.0</span></span>
+<span id="cb50-5"><a href="#cb50-5" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb50-6"><a href="#cb50-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb50-7"><a href="#cb50-7" aria-hidden="true" tabindex="-1"></a><span class="co"># 주간 (Week 4)</span></span>
+<span id="cb50-8"><a href="#cb50-8" aria-hidden="true" tabindex="-1"></a>monitor.thresholds <span class="op">=</span> {</span>
+<span id="cb50-9"><a href="#cb50-9" aria-hidden="true" tabindex="-1"></a>    <span class="st">&#39;tcr&#39;</span>: <span class="fl">88.0</span>,  <span class="co"># +3%</span></span>
+<span id="cb50-10"><a href="#cb50-10" aria-hidden="true" tabindex="-1"></a>    <span class="st">&#39;accuracy&#39;</span>: <span class="fl">82.0</span>  <span class="co"># +2%</span></span>
+<span id="cb50-11"><a href="#cb50-11" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb50-12"><a href="#cb50-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb50-13"><a href="#cb50-13" aria-hidden="true" tabindex="-1"></a><span class="co"># 월간 (Month 2)</span></span>
+<span id="cb50-14"><a href="#cb50-14" aria-hidden="true" tabindex="-1"></a>monitor.thresholds <span class="op">=</span> {</span>
+<span id="cb50-15"><a href="#cb50-15" aria-hidden="true" tabindex="-1"></a>    <span class="st">&#39;tcr&#39;</span>: <span class="fl">90.0</span>,  <span class="co"># +5% from start</span></span>
+<span id="cb50-16"><a href="#cb50-16" aria-hidden="true" tabindex="-1"></a>    <span class="st">&#39;accuracy&#39;</span>: <span class="fl">85.0</span>,  <span class="co"># +5% from start</span></span>
+<span id="cb50-17"><a href="#cb50-17" aria-hidden="true" tabindex="-1"></a>    <span class="st">&#39;tool_selection_accuracy&#39;</span>: <span class="fl">75.0</span>  <span class="co"># 새 메트릭 추가</span></span>
+<span id="cb50-18"><a href="#cb50-18" aria-hidden="true" tabindex="-1"></a>}</span></code></pre></div>
+<h3 id="실패-시-대응">3. 실패 시 대응</h3>
+<h4 id="threshold-실패가-발생하면">Threshold 실패가 발생하면:</h4>
+<p><strong>1) 원인 분석</strong> - 어떤 메트릭이 실패했는가? - 어떤
+QAPair에서 실패했는가? - 일시적 문제인가, 구조적 문제인가?</p>
+<p><strong>2) 우선순위 결정</strong> - 핵심 메트릭 (TCR, Accuracy) 먼저
+해결 - Layer 2 메트릭은 나중에</p>
+<p><strong>3) 개선 조치</strong> - 프롬프트 개선 - Golden Dataset
+업데이트 - 에이전트 로직 수정 - (최후) Threshold 완화</p>
+<p><strong>4) 재평가</strong> - 개선 후 다시 평가 - 통과할 때까지
+반복</p>
+<p><strong>예제</strong>:</p>
+<div class="sourceCode" id="cb51"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb51-1"><a href="#cb51-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 실패 분석</span></span>
+<span id="cb51-2"><a href="#cb51-2" aria-hidden="true" tabindex="-1"></a>comparison <span class="op">=</span> monitor.compare_with_thresholds()</span>
+<span id="cb51-3"><a href="#cb51-3" aria-hidden="true" tabindex="-1"></a>failed <span class="op">=</span> [m <span class="cf">for</span> m, d <span class="kw">in</span> comparison.items() <span class="cf">if</span> d[<span class="st">&#39;status&#39;</span>] <span class="op">==</span> <span class="st">&#39;fail&#39;</span>]</span>
+<span id="cb51-4"><a href="#cb51-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb51-5"><a href="#cb51-5" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> <span class="st">&#39;accuracy&#39;</span> <span class="kw">in</span> failed:</span>
+<span id="cb51-6"><a href="#cb51-6" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="st">&quot;Accuracy 실패 - Golden Dataset의 ground_truth 검토&quot;</span>)</span>
+<span id="cb51-7"><a href="#cb51-7" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Dashboard에서 실패한 QAPair 확인</span></span>
+<span id="cb51-8"><a href="#cb51-8" aria-hidden="true" tabindex="-1"></a>    <span class="co"># ground_truth 업데이트</span></span>
+<span id="cb51-9"><a href="#cb51-9" aria-hidden="true" tabindex="-1"></a>    <span class="co"># 재평가</span></span>
+<span id="cb51-10"><a href="#cb51-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb51-11"><a href="#cb51-11" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> <span class="st">&#39;tool_selection_accuracy&#39;</span> <span class="kw">in</span> failed:</span>
+<span id="cb51-12"><a href="#cb51-12" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="st">&quot;Tool Selection 실패 - expected_tools 확인&quot;</span>)</span>
+<span id="cb51-13"><a href="#cb51-13" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Dashboard에서 실제 사용 도구 vs expected_tools 비교</span></span>
+<span id="cb51-14"><a href="#cb51-14" aria-hidden="true" tabindex="-1"></a>    <span class="co"># expected_tools 업데이트 또는 프롬프트 개선</span></span>
+<span id="cb51-15"><a href="#cb51-15" aria-hidden="true" tabindex="-1"></a>    <span class="co"># 재평가</span></span></code></pre></div>
+<h3 id="문서화">4. 문서화</h3>
+<p><strong>Threshold 변경 이력 기록</strong>:</p>
+<div class="sourceCode" id="cb52"><pre
+class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb52-1"><a href="#cb52-1" aria-hidden="true" tabindex="-1"></a><span class="fu"># Threshold Change Log</span></span>
+<span id="cb52-2"><a href="#cb52-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb52-3"><a href="#cb52-3" aria-hidden="true" tabindex="-1"></a><span class="fu">## 2024-01-15</span></span>
+<span id="cb52-4"><a href="#cb52-4" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>TCR: 85% → 90% (성능 개선)</span>
+<span id="cb52-5"><a href="#cb52-5" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>Accuracy: 80% → 85% (프롬프트 개선 후)</span>
+<span id="cb52-6"><a href="#cb52-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb52-7"><a href="#cb52-7" aria-hidden="true" tabindex="-1"></a><span class="fu">## 2024-01-01</span></span>
+<span id="cb52-8"><a href="#cb52-8" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>Tool Selection Accuracy: 75% 추가 (Layer 2 도입)</span>
+<span id="cb52-9"><a href="#cb52-9" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>Agent Coordination: 7/10 추가</span></code></pre></div>
+<hr />
+<h2 id="시나리오별-예제">시나리오별 예제</h2>
+<h3 id="시나리오-1-간단한-qa-챗봇">시나리오 1: 간단한 QA 챗봇</h3>
+<p><strong>특징</strong>: 단일 에이전트, 간단한 질문 응답</p>
+<div class="sourceCode" id="cb53"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb53-1"><a href="#cb53-1" aria-hidden="true" tabindex="-1"></a>monitor.thresholds <span class="op">=</span> {</span>
+<span id="cb53-2"><a href="#cb53-2" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Layer 1만 사용</span></span>
+<span id="cb53-3"><a href="#cb53-3" aria-hidden="true" tabindex="-1"></a>    <span class="st">&#39;tcr&#39;</span>: <span class="fl">90.0</span>,  <span class="co"># 높은 완료율</span></span>
+<span id="cb53-4"><a href="#cb53-4" aria-hidden="true" tabindex="-1"></a>    <span class="st">&#39;accuracy&#39;</span>: <span class="fl">85.0</span>,  <span class="co"># 정확한 응답</span></span>
+<span id="cb53-5"><a href="#cb53-5" aria-hidden="true" tabindex="-1"></a>    <span class="st">&#39;latency&#39;</span>: <span class="fl">2.0</span>,  <span class="co"># 빠른 응답 (2초)</span></span>
+<span id="cb53-6"><a href="#cb53-6" aria-hidden="true" tabindex="-1"></a>    <span class="st">&#39;cost_per_task&#39;</span>: <span class="fl">0.05</span>  <span class="co"># 저비용 ($0.05)</span></span>
+<span id="cb53-7"><a href="#cb53-7" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Layer 2는 불필요 (단일 에이전트)</span></span>
+<span id="cb53-8"><a href="#cb53-8" aria-hidden="true" tabindex="-1"></a>}</span></code></pre></div>
+<h3 id="시나리오-2-복잡한-research-agent-multi-agent">시나리오 2: 복잡한
+Research Agent (Multi-Agent)</h3>
+<p><strong>특징</strong>: 여러 에이전트 협업, 긴 작업 시간, 도구
+사용</p>
+<div class="sourceCode" id="cb54"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb54-1"><a href="#cb54-1" aria-hidden="true" tabindex="-1"></a>monitor.thresholds <span class="op">=</span> {</span>
+<span id="cb54-2"><a href="#cb54-2" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Layer 1</span></span>
+<span id="cb54-3"><a href="#cb54-3" aria-hidden="true" tabindex="-1"></a>    <span class="st">&#39;tcr&#39;</span>: <span class="fl">85.0</span>,  <span class="co"># 복잡한 작업이므로 약간 낮춤</span></span>
+<span id="cb54-4"><a href="#cb54-4" aria-hidden="true" tabindex="-1"></a>    <span class="st">&#39;accuracy&#39;</span>: <span class="fl">80.0</span>,</span>
+<span id="cb54-5"><a href="#cb54-5" aria-hidden="true" tabindex="-1"></a>    <span class="st">&#39;latency&#39;</span>: <span class="fl">30.0</span>,  <span class="co"># 긴 작업 시간 허용</span></span>
+<span id="cb54-6"><a href="#cb54-6" aria-hidden="true" tabindex="-1"></a>    <span class="st">&#39;cost_per_task&#39;</span>: <span class="fl">1.00</span>,  <span class="co"># 높은 비용 허용</span></span>
+<span id="cb54-7"><a href="#cb54-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb54-8"><a href="#cb54-8" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Layer 2 (핵심!)</span></span>
+<span id="cb54-9"><a href="#cb54-9" aria-hidden="true" tabindex="-1"></a>    <span class="st">&#39;tool_selection_accuracy&#39;</span>: <span class="fl">85.0</span>,  <span class="co"># 도구 선택 중요</span></span>
+<span id="cb54-10"><a href="#cb54-10" aria-hidden="true" tabindex="-1"></a>    <span class="st">&#39;agent_coordination&#39;</span>: <span class="fl">8.0</span>,  <span class="co"># 협업 품질 중요</span></span>
+<span id="cb54-11"><a href="#cb54-11" aria-hidden="true" tabindex="-1"></a>    <span class="st">&#39;workflow_execution&#39;</span>: <span class="fl">90.0</span>  <span class="co"># 워크플로우 안정성 중요</span></span>
+<span id="cb54-12"><a href="#cb54-12" aria-hidden="true" tabindex="-1"></a>}</span></code></pre></div>
+<h3 id="시나리오-3-rag-시스템">시나리오 3: RAG 시스템</h3>
+<p><strong>특징</strong>: 문서 검색 + 생성, Workflow 중심</p>
+<div class="sourceCode" id="cb55"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb55-1"><a href="#cb55-1" aria-hidden="true" tabindex="-1"></a>monitor.thresholds <span class="op">=</span> {</span>
+<span id="cb55-2"><a href="#cb55-2" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Layer 1</span></span>
+<span id="cb55-3"><a href="#cb55-3" aria-hidden="true" tabindex="-1"></a>    <span class="st">&#39;tcr&#39;</span>: <span class="fl">95.0</span>,  <span class="co"># 높은 안정성 요구</span></span>
+<span id="cb55-4"><a href="#cb55-4" aria-hidden="true" tabindex="-1"></a>    <span class="st">&#39;accuracy&#39;</span>: <span class="fl">90.0</span>,  <span class="co"># 정확한 정보 제공</span></span>
+<span id="cb55-5"><a href="#cb55-5" aria-hidden="true" tabindex="-1"></a>    <span class="st">&#39;hallucination&#39;</span>: <span class="fl">3.0</span>,  <span class="co"># 낮은 환각률 (RAG에서 중요)</span></span>
+<span id="cb55-6"><a href="#cb55-6" aria-hidden="true" tabindex="-1"></a>    <span class="st">&#39;latency&#39;</span>: <span class="fl">5.0</span>,</span>
+<span id="cb55-7"><a href="#cb55-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb55-8"><a href="#cb55-8" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Layer 2</span></span>
+<span id="cb55-9"><a href="#cb55-9" aria-hidden="true" tabindex="-1"></a>    <span class="st">&#39;tool_selection_accuracy&#39;</span>: <span class="fl">80.0</span>,  <span class="co"># vector_search, pdf_reader 선택</span></span>
+<span id="cb55-10"><a href="#cb55-10" aria-hidden="true" tabindex="-1"></a>    <span class="st">&#39;workflow_execution&#39;</span>: <span class="fl">95.0</span>  <span class="co"># retrieval → generation 안정성</span></span>
+<span id="cb55-11"><a href="#cb55-11" aria-hidden="true" tabindex="-1"></a>}</span></code></pre></div>
+<h3 id="시나리오-4-고객-지원-agent">시나리오 4: 고객 지원 Agent</h3>
+<p><strong>특징</strong>: 빠른 응답, 높은 정확도, 낮은 비용</p>
+<div class="sourceCode" id="cb56"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb56-1"><a href="#cb56-1" aria-hidden="true" tabindex="-1"></a>monitor.thresholds <span class="op">=</span> {</span>
+<span id="cb56-2"><a href="#cb56-2" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Layer 1</span></span>
+<span id="cb56-3"><a href="#cb56-3" aria-hidden="true" tabindex="-1"></a>    <span class="st">&#39;tcr&#39;</span>: <span class="fl">95.0</span>,  <span class="co"># 거의 모든 요청 처리</span></span>
+<span id="cb56-4"><a href="#cb56-4" aria-hidden="true" tabindex="-1"></a>    <span class="st">&#39;accuracy&#39;</span>: <span class="fl">90.0</span>,  <span class="co"># 정확한 답변</span></span>
+<span id="cb56-5"><a href="#cb56-5" aria-hidden="true" tabindex="-1"></a>    <span class="st">&#39;latency&#39;</span>: <span class="fl">3.0</span>,  <span class="co"># 빠른 응답</span></span>
+<span id="cb56-6"><a href="#cb56-6" aria-hidden="true" tabindex="-1"></a>    <span class="st">&#39;cost_per_task&#39;</span>: <span class="fl">0.10</span>,  <span class="co"># 낮은 비용 (대량 요청)</span></span>
+<span id="cb56-7"><a href="#cb56-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb56-8"><a href="#cb56-8" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Layer 2</span></span>
+<span id="cb56-9"><a href="#cb56-9" aria-hidden="true" tabindex="-1"></a>    <span class="st">&#39;tool_selection_accuracy&#39;</span>: <span class="fl">85.0</span>  <span class="co"># knowledge_base, order_db 등</span></span>
+<span id="cb56-10"><a href="#cb56-10" aria-hidden="true" tabindex="-1"></a>}</span></code></pre></div>
+<h3 id="시나리오-5-실험적-agent-초기-개발">시나리오 5: 실험적 Agent
+(초기 개발)</h3>
+<p><strong>특징</strong>: 빠른 반복, 느슨한 기준</p>
+<div class="sourceCode" id="cb57"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb57-1"><a href="#cb57-1" aria-hidden="true" tabindex="-1"></a>monitor.thresholds <span class="op">=</span> {</span>
+<span id="cb57-2"><a href="#cb57-2" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Layer 1만, 느슨하게</span></span>
+<span id="cb57-3"><a href="#cb57-3" aria-hidden="true" tabindex="-1"></a>    <span class="st">&#39;tcr&#39;</span>: <span class="fl">60.0</span>,</span>
+<span id="cb57-4"><a href="#cb57-4" aria-hidden="true" tabindex="-1"></a>    <span class="st">&#39;accuracy&#39;</span>: <span class="fl">50.0</span>,</span>
+<span id="cb57-5"><a href="#cb57-5" aria-hidden="true" tabindex="-1"></a>    <span class="st">&#39;latency&#39;</span>: <span class="fl">20.0</span>,</span>
+<span id="cb57-6"><a href="#cb57-6" aria-hidden="true" tabindex="-1"></a>    <span class="st">&#39;cost_per_task&#39;</span>: <span class="fl">2.00</span></span>
+<span id="cb57-7"><a href="#cb57-7" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Layer 2는 나중에 추가</span></span>
+<span id="cb57-8"><a href="#cb57-8" aria-hidden="true" tabindex="-1"></a>}</span></code></pre></div>
+<hr />
+<h2 id="faq-troubleshooting">FAQ &amp; Troubleshooting</h2>
+<h3 id="faq">FAQ</h3>
+<h4 id="q1-모든-메트릭에-threshold를-설정해야-하나요">Q1: 모든 메트릭에
+threshold를 설정해야 하나요?</h4>
+<p><strong>A</strong>: 아니요. <strong>핵심 메트릭</strong>(TCR,
+Accuracy)만 설정해도 충분합니다. 점진적으로 추가하세요.</p>
+<h4 id="q2-threshold를-설정했는데-자꾸-실패합니다.">Q2: Threshold를
+설정했는데 자꾸 실패합니다.</h4>
+<p><strong>A</strong>: Threshold가 너무 높을 수 있습니다. <strong>현재
+성능을 먼저 확인</strong>하고, 현재 성능보다 약간 높거나 같은 수준으로
+설정하세요.</p>
+<h4
+id="q3-개발-환경과-프로덕션-환경의-threshold를-어떻게-다르게-설정하나요">Q3:
+개발 환경과 프로덕션 환경의 threshold를 어떻게 다르게 설정하나요?</h4>
+<p><strong>A</strong>: 환경 변수(<code>ENV</code>)를 사용하여 자동
+감지하거나, 별도의 threshold 파일을 사용하세요.</p>
+<h4 id="q4-layer-2-threshold를-설정했는데-평가가-안-됩니다.">Q4: Layer 2
+threshold를 설정했는데 평가가 안 됩니다.</h4>
+<p><strong>A</strong>: Golden Dataset에 Layer 2
+필드(<code>expected_tools</code>, <code>expected_agents</code>,
+<code>expected_workflow_steps</code>)가 있는지 확인하세요.</p>
+<h4
+id="q5-cicd에서-threshold-실패-시-배포를-강제로-진행할-수-있나요">Q5:
+CI/CD에서 threshold 실패 시 배포를 강제로 진행할 수 있나요?</h4>
+<p><strong>A</strong>: 가능하지만 <strong>권장하지 않습니다</strong>.
+긴급 상황에서만 사용하고, 실패 원인을 즉시 해결하세요.</p>
+<h4 id="q6-threshold를-얼마나-자주-업데이트해야-하나요">Q6: Threshold를
+얼마나 자주 업데이트해야 하나요?</h4>
+<p><strong>A</strong>: <strong>주간 리뷰</strong>로 작은 조정,
+<strong>월간 리뷰</strong>로 큰 변경을 권장합니다.</p>
+<h4 id="q7-hallucination-threshold는-어떻게-설정하나요">Q7:
+Hallucination threshold는 어떻게 설정하나요?</h4>
+<p><strong>A</strong>: 프로덕션에서는 <strong>2-5%</strong>를
+권장합니다. 0%는 불가능하므로 현실적인 값을 설정하세요.</p>
+<h3 id="troubleshooting">Troubleshooting</h3>
+<h4 id="문제-1-tcr이-낮습니다-80">문제 1: TCR이 낮습니다 (&lt; 80%)</h4>
+<p><strong>원인</strong>:</p>
+<ul>
+<li>에이전트가 작업을 자주 실패함</li>
+<li>Golden Dataset이 너무 어려움</li>
+<li>프롬프트가 부적절</li>
+</ul>
+<p><strong>해결</strong>: 1. Dashboard에서 실패한 QAPair 확인 2. 실패
+원인 분석 (timeout, error, 잘못된 응답) 3. 프롬프트 개선 또는 Golden
+Dataset 업데이트</p>
+<h4 id="문제-2-accuracy가-낮습니다-70">문제 2: Accuracy가 낮습니다 (&lt;
+70%)</h4>
+<p><strong>원인</strong>:</p>
+<ul>
+<li>ground_truth가 너무 엄격하거나 부정확</li>
+<li>에이전트 응답 품질이 낮음</li>
+<li>유사도 계산 방식 문제</li>
+</ul>
+<p><strong>해결</strong>: 1. Dashboard에서 실패한 QAPair의 응답 확인 2.
+ground_truth가 적절한지 검토 3. 에이전트 프롬프트 개선</p>
+<h4 id="문제-3-tool-selection-accuracy가-낮습니다">문제 3: Tool
+Selection Accuracy가 낮습니다</h4>
+<p><strong>원인</strong>:</p>
+<ul>
+<li>expected_tools가 부정확</li>
+<li>에이전트가 불필요한 도구를 사용</li>
+<li>필요한 도구를 누락</li>
+</ul>
+<p><strong>해결</strong>: 1. Dashboard에서 “실제 사용 도구 vs
+expected_tools” 비교 2. expected_tools 재정의 3. 에이전트 프롬프트에
+명시적 도구 선택 지시</p>
+<h4 id="문제-4-agent-coordination-score가-0입니다">문제 4: Agent
+Coordination Score가 0입니다</h4>
+<p><strong>원인</strong>:</p>
+<ul>
+<li>expected_agents가 정의되지 않음</li>
+<li>Agent Coordination 추적이 활성화되지 않음</li>
+</ul>
+<p><strong>해결</strong>: 1. Golden Dataset에 expected_agents 추가 2.
+CrewAI 사용 시 <code>enable_coordination_tracking=True</code> 3.
+상호작용이 실제로 발생하는지 확인</p>
+<h4 id="문제-5-cicd가-자꾸-실패합니다">문제 5: CI/CD가 자꾸
+실패합니다</h4>
+<p><strong>원인</strong>:</p>
+<ul>
+<li>Threshold가 너무 엄격</li>
+<li>환경별 threshold가 제대로 설정되지 않음</li>
+</ul>
+<p><strong>해결</strong>: 1. 환경 변수 확인 (<code>ENV</code>) 2.
+Threshold 완화 (일시적) 3. 근본 원인 해결 후 Threshold 복원</p>
+<h4 id="문제-6-latency-threshold를-통과하지-못합니다">문제 6: Latency
+threshold를 통과하지 못합니다</h4>
+<p><strong>원인</strong>:</p>
+<ul>
+<li>에이전트가 너무 느림</li>
+<li>불필요한 API 호출</li>
+<li>긴 프롬프트</li>
+</ul>
+<p><strong>해결</strong>: 1. 프롬프트 간소화 2. 불필요한 도구 사용 제거
+3. 더 빠른 모델 사용 (GPT-4 → GPT-3.5)</p>
+<hr />
+<h2 id="다음-단계">다음 단계</h2>
+<p>Threshold 설정을 완료했다면:</p>
+<ol type="1">
+<li><strong>Golden Dataset 평가 실행</strong>:
+<code>Evaluator_Examples/04_threshold_validation_example.py</code></li>
+<li><strong>CI/CD 통합</strong>: GitLab CI 또는 Jenkins 설정</li>
+<li><strong>Dashboard 모니터링</strong>: 실시간 threshold 비교 결과
+확인</li>
+<li><strong>프로덕션 배포</strong>: <a
+href="DEPLOYMENT_GUIDE.md">DEPLOYMENT_GUIDE.md</a> 참고</li>
+</ol>
+<hr />
+
+<hr />
+<h2 id="qa-guide">📊 품질 관리자 가이드 (QA Manager)</h2>
+
+<div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 25px; border-radius: 12px; color: white; margin: 30px 0;">
+<h3 style="color: white; margin-top: 0;">🎯 가이드 개요</h3>
+<p style="color: white; margin: 15px 0;">
+이 가이드는 <strong>품질 관리자(QA Manager)</strong>가 <strong>임계값(Threshold)을 전략적으로 설정, 관리, 검증</strong>하는 방법을 제공합니다.
+</p>
+<p style="color: white; margin: 15px 0;"><strong>학습 목표:</strong></p>
+<ul style="color: white;">
+<li>✅ 임계값 기반 품질 관리 전략 수립</li>
+<li>✅ 개발 단계별 임계값 생명주기 관리</li>
+<li>✅ 임계값 변경 시 체계적 프로세스 운영</li>
+<li>✅ 임계값 위반 시 신속한 대응 및 조치</li>
+<li>✅ 정기 임계값 리뷰 및 최적화</li>
+</ul>
+</div>
+
+<h3 id="qa-strategy">11.1 임계값 관리 전략</h3>
+
+<h4>11.1.1 임계값의 역할 (QA 관점)</h4>
+
+<table>
+<thead>
+<tr>
+<th>역할</th>
+<th>설명</th>
+<th>QA 활동</th>
+<th>기대 효과</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>🚪 품질 게이트</td>
+<td>배포 가능 여부 자동 판단</td>
+<td>배포 전 임계값 검증 실행</td>
+<td>불량 배포 사전 차단</td>
+</tr>
+<tr>
+<td>🔍 회귀 탐지</td>
+<td>성능 저하 조기 발견</td>
+<td>버전 간 메트릭 비교</td>
+<td>품질 퇴보 방지</td>
+</tr>
+<tr>
+<td>📏 품질 표준</td>
+<td>팀 전체의 일관된 기준</td>
+<td>임계값 문서화 및 공유</td>
+<td>객관적 품질 평가</td>
+</tr>
+<tr>
+<td>📊 추세 분석</td>
+<td>장기적 품질 변화 추적</td>
+<td>임계값 위반 이력 분석</td>
+<td>선제적 품질 개선</td>
+</tr>
+<tr>
+<td>💡 개선 지표</td>
+<td>최적화 우선순위 결정</td>
+<td>임계값 미달 메트릭 식별</td>
+<td>효율적 리소스 배분</td>
+</tr>
+</tbody>
+</table>
+
+<h4>11.1.2 전략적 임계값 설정 원칙</h4>
+
+<p><strong>📐 1. SMART 원칙 적용</strong></p>
+
+<table>
+<thead>
+<tr>
+<th>원칙</th>
+<th>의미</th>
+<th>임계값 적용 예시</th>
+<th>잘못된 예시</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>S</strong>pecific</td>
+<td>구체적</td>
+<td>TCR &gt; 85%</td>
+<td>"성공률 높아야 함"</td>
+</tr>
+<tr>
+<td><strong>M</strong>easurable</td>
+<td>측정 가능</td>
+<td>Latency &lt; 5초</td>
+<td>"빠르게 응답"</td>
+</tr>
+<tr>
+<td><strong>A</strong>chievable</td>
+<td>달성 가능</td>
+<td>Accuracy &gt; 80%</td>
+<td>Accuracy &gt; 99.9%</td>
+</tr>
+<tr>
+<td><strong>R</strong>elevant</td>
+<td>관련성</td>
+<td>비즈니스 요구에 맞춤</td>
+<td>불필요한 메트릭</td>
+</tr>
+<tr>
+<td><strong>T</strong>ime-bound</td>
+<td>시한 설정</td>
+<td>Production 단계별</td>
+<td>무기한 목표</td>
+</tr>
+</tbody>
+</table>
+
+<p><strong>⚖️ 2. 균형 잡힌 임계값</strong></p>
+
+<table>
+<thead>
+<tr>
+<th>불균형 유형</th>
+<th>문제점</th>
+<th>올바른 접근</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>❌ 너무 낮음</td>
+<td>품질 저하 방지 실패</td>
+<td>최소 허용 기준 설정</td>
+</tr>
+<tr>
+<td>❌ 너무 높음</td>
+<td>달성 불가능, 배포 차단</td>
+<td>현실적 목표 설정</td>
+</tr>
+<tr>
+<td>❌ 단일 메트릭 편향</td>
+<td>전체 품질 간과</td>
+<td>Layer 1+2+3 종합 관리</td>
+</tr>
+<tr>
+<td>❌ 정적 임계값</td>
+<td>환경 변화 미반영</td>
+<td>단계별 동적 임계값</td>
+</tr>
+</tbody>
+</table>
+
+<p><strong>🎯 3. 비즈니스 요구 우선</strong></p>
+
+<table>
+<thead>
+<tr>
+<th>시스템 유형</th>
+<th>최우선 메트릭</th>
+<th>임계값 예시</th>
+<th>이유</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>🏥 의료 AI</td>
+<td>Accuracy, Hallucination</td>
+<td>Accuracy &gt; 95%, Hallucination &lt; 1%</td>
+<td>환자 안전 최우선</td>
+</tr>
+<tr>
+<td>💰 금융 AI</td>
+<td>Accuracy, Cost</td>
+<td>Accuracy &gt; 98%, Cost &lt; $0.10</td>
+<td>정확성 + 비용 효율</td>
+</tr>
+<tr>
+<td>🛒 E-commerce</td>
+<td>Latency, TCR</td>
+<td>Latency &lt; 2초, TCR &gt; 90%</td>
+<td>사용자 경험 중요</td>
+</tr>
+<tr>
+<td>📚 교육 AI</td>
+<td>Accuracy, Hallucination</td>
+<td>Accuracy &gt; 85%, Hallucination &lt; 3%</td>
+<td>올바른 정보 제공</td>
+</tr>
+<tr>
+<td>🎮 엔터테인먼트</td>
+<td>Latency, Cost</td>
+<td>Latency &lt; 3초, Cost &lt; $0.30</td>
+<td>속도 + 비용 관리</td>
+</tr>
+</tbody>
+</table>
+
+<h4>11.1.3 임계값 관리 체계 구축</h4>
+
+<p><strong>📂 임계값 파일 관리 구조</strong></p>
+
+<pre><code class="language-bash">thresholds/
+├── alpha/
+│   ├── layer1_thresholds.json
+│   ├── layer2_thresholds.json
+│   └── README.md
+├── beta/
+│   ├── layer1_thresholds.json
+│   ├── layer2_thresholds.json
+│   └── README.md
+├── production/
+│   ├── layer1_thresholds.json
+│   ├── layer2_thresholds.json
+│   └── README.md
+├── enterprise/
+│   ├── layer1_thresholds.json
+│   ├── layer2_thresholds.json
+│   └── README.md
+└── CHANGELOG.md  # 임계값 변경 이력</code></pre>
+
+<p><strong>📝 임계값 문서화 필수 항목</strong></p>
+
+<table>
+<thead>
+<tr>
+<th>항목</th>
+<th>내용</th>
+<th>예시</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>메트릭 이름</td>
+<td>측정 대상</td>
+<td>Task Completion Rate</td>
+</tr>
+<tr>
+<td>임계값</td>
+<td>min/max 기준</td>
+<td>min: 85.0</td>
+</tr>
+<tr>
+<td>설정 근거</td>
+<td>왜 이 값인가?</td>
+<td>과거 3개월 평균 87%, 안전 마진 -2%</td>
+</tr>
+<tr>
+<td>측정 방법</td>
+<td>어떻게 측정?</td>
+<td>(성공 작업 / 전체 작업) * 100</td>
+</tr>
+<tr>
+<td>검증 주기</td>
+<td>얼마나 자주?</td>
+<td>배포 전 매번, 주간 리뷰</td>
+</tr>
+<tr>
+<td>위반 시 조치</td>
+<td>무엇을 할 것인가?</td>
+<td>배포 차단, 원인 분석 착수</td>
+</tr>
+<tr>
+<td>담당자</td>
+<td>누가 관리?</td>
+<td>QA Lead</td>
+</tr>
+<tr>
+<td>마지막 업데이트</td>
+<td>언제 변경?</td>
+<td>2024-12-01</td>
+</tr>
+</tbody>
+</table>
+
+<h3 id="qa-lifecycle">11.2 임계값 생명주기 관리</h3>
+
+<h4>11.2.1 생명주기 5단계</h4>
+
+<table>
+<thead>
+<tr>
+<th>단계</th>
+<th>QA 활동</th>
+<th>산출물</th>
+<th>승인 필요</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1️⃣ 초기 설정</td>
+<td>과거 데이터 분석, 산업 표준 조사, 초기 임계값 제안</td>
+<td>임계값 제안서</td>
+<td>팀 리뷰</td>
+</tr>
+<tr>
+<td>2️⃣ 검증</td>
+<td>Alpha 환경에서 테스트, 달성 가능성 확인</td>
+<td>검증 리포트</td>
+<td>QA Lead</td>
+</tr>
+<tr>
+<td>3️⃣ 적용</td>
+<td>Beta → Production 단계적 적용</td>
+<td>적용 계획서</td>
+<td>Tech Lead</td>
+</tr>
+<tr>
+<td>4️⃣ 모니터링</td>
+<td>위반 사례 추적, 추세 분석</td>
+<td>주간 리포트</td>
+<td>-</td>
+</tr>
+<tr>
+<td>5️⃣ 개선</td>
+<td>임계값 재조정, 새 기준 제안</td>
+<td>개선 제안서</td>
+<td>팀 리뷰</td>
+</tr>
+</tbody>
+</table>
+
+<h4>11.2.2 1️⃣ 초기 설정 프로세스</h4>
+
+<p><strong>Step 1: 과거 데이터 분석</strong></p>
+
+<pre><code class="language-python"># 과거 평가 데이터에서 통계 계산
+import json
+import numpy as np
+
+def analyze_historical_data(evaluation_files):
+    """과거 평가 데이터에서 임계값 제안"""
+    all_metrics = []
+
+    for file_path in evaluation_files:
+        with open(file_path, 'r') as f:
+            data = json.load(f)
+            all_metrics.append(data['metrics'])
+
+    # 각 메트릭의 통계 계산
+    tcr_values = [m.get('task_completion_rate', 0) for m in all_metrics]
+    accuracy_values = [m.get('accuracy', 0) for m in all_metrics]
+
+    # 평균, 표준편차, 최소/최대
+    tcr_mean = np.mean(tcr_values)
+    tcr_std = np.std(tcr_values)
+    tcr_min = np.min(tcr_values)
+
+    # 권장 임계값: 평균 - 1 표준편차 (하위 16% 제외)
+    recommended_tcr = max(tcr_mean - tcr_std, tcr_min * 1.05)
+
+    print(f"📊 TCR 분석:")
+    print(f"   평균: {tcr_mean:.1f}%")
+    print(f"   표준편차: {tcr_std:.1f}%")
+    print(f"   권장 임계값: {recommended_tcr:.1f}%")
+
+    return {
+        "task_completion_rate": {"min": recommended_tcr}
+    }
+
+# 예시 실행
+files = ["evaluation_results/eval_v1.json", "evaluation_results/eval_v2.json"]
+suggested_thresholds = analyze_historical_data(files)</code></pre>
+
+<p><strong>Step 2: 산업 표준 참고</strong></p>
+
+<table>
+<thead>
+<tr>
+<th>산업</th>
+<th>TCR 표준</th>
+<th>Accuracy 표준</th>
+<th>Hallucination 표준</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Healthcare</td>
+<td>&gt; 95%</td>
+<td>&gt; 95%</td>
+<td>&lt; 1%</td>
+</tr>
+<tr>
+<td>Finance</td>
+<td>&gt; 98%</td>
+<td>&gt; 98%</td>
+<td>&lt; 0.5%</td>
+</tr>
+<tr>
+<td>E-commerce</td>
+<td>&gt; 90%</td>
+<td>&gt; 85%</td>
+<td>&lt; 3%</td>
+</tr>
+<tr>
+<td>General SaaS</td>
+<td>&gt; 85%</td>
+<td>&gt; 80%</td>
+<td>&lt; 5%</td>
+</tr>
+</tbody>
+</table>
+
+<p><strong>Step 3: 임계값 제안서 작성</strong></p>
+
+<pre><code class="language-markdown"># 임계값 제안서
+
+## 제안 일자
+2024-12-02
+
+## 제안자
+QA Manager
+
+## 제안 배경
+- 과거 3개월 평가 데이터 분석 결과
+- TCR 평균 87.5%, 표준편차 3.2%
+- 하위 16% 제외 시 84.3% 이상 달성 가능
+
+## 제안 임계값 (Production)
+- Task Completion Rate: &gt; 85%
+- Accuracy: &gt; 80%
+- Hallucination Rate: &lt; 5%
+- Latency: &lt; 5초
+- Cost per Task: &lt; $0.20
+
+## 근거
+- 과거 데이터 기반 달성 가능한 수준
+- 산업 표준 (General SaaS) 부합
+- 비즈니스 요구사항 충족
+
+## 단계별 적용 계획
+1. Alpha (2주): 초기 검증
+2. Beta (1개월): 안정성 확인
+3. Production: 정식 적용
+
+## 승인 요청
+Tech Lead, Product Manager 검토 요청</code></pre>
+
+<h4>11.2.3 2️⃣ 검증 프로세스</h4>
+
+<p><strong>Alpha 환경 검증 체크리스트</strong></p>
+
+<table>
+<thead>
+<tr>
+<th>검증 항목</th>
+<th>방법</th>
+<th>합격 기준</th>
+<th>결과</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>달성 가능성</td>
+<td>100회 평가 실행</td>
+<td>80% 이상 통과</td>
+<td>[ ]</td>
+</tr>
+<tr>
+<td>오탐 (False Positive)</td>
+<td>정상 작업 100회 테스트</td>
+<td>95% 이상 Pass</td>
+<td>[ ]</td>
+</tr>
+<tr>
+<td>미탐 (False Negative)</td>
+<td>불량 작업 50회 테스트</td>
+<td>90% 이상 Fail</td>
+<td>[ ]</td>
+</tr>
+<tr>
+<td>일관성</td>
+<td>동일 작업 10회 반복</td>
+<td>동일 결과 90% 이상</td>
+<td>[ ]</td>
+</tr>
+<tr>
+<td>실행 시간</td>
+<td>임계값 검증 시간 측정</td>
+<td>&lt; 10초</td>
+<td>[ ]</td>
+</tr>
+</tbody>
+</table>
+
+<div style="background: #fff3cd; border-left: 4px solid #ffc107; padding: 15px; margin: 20px 0;">
+<p style="margin: 0;"><strong>💡 검증 Tip:</strong></p>
+<ul style="margin: 10px 0 0 0;">
+<li>✅ <strong>충분한 샘플</strong>: 최소 100회 이상 평가로 통계적 유의성 확보</li>
+<li>✅ <strong>다양한 시나리오</strong>: 모든 작업 유형에서 테스트</li>
+<li>✅ <strong>엣지 케이스</strong>: 경계값 (임계값 ±5%) 집중 테스트</li>
+</ul>
+</div>
+
+<h4>11.2.4 3️⃣ 적용 프로세스 (단계적 롤아웃)</h4>
+
+<table>
+<thead>
+<tr>
+<th>단계</th>
+<th>기간</th>
+<th>범위</th>
+<th>모니터링</th>
+<th>롤백 조건</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Alpha</td>
+<td>2주</td>
+<td>QA 팀만</td>
+<td>매일 확인</td>
+<td>달성률 &lt; 50%</td>
+</tr>
+<tr>
+<td>Beta</td>
+<td>1개월</td>
+<td>개발팀 10%</td>
+<td>주 2회 확인</td>
+<td>달성률 &lt; 70%</td>
+</tr>
+<tr>
+<td>Production</td>
+<td>무기한</td>
+<td>전체</td>
+<td>주 1회 확인</td>
+<td>달성률 &lt; 80%</td>
+</tr>
+</tbody>
+</table>
+
+<h3 id="qa-change">11.3 임계값 변경 관리</h3>
+
+<h4>11.3.1 변경이 필요한 시점</h4>
+
+<table>
+<thead>
+<tr>
+<th>변경 트리거</th>
+<th>증상</th>
+<th>변경 방향</th>
+<th>예시</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>🔴 달성 불가능</td>
+<td>지속적으로 임계값 미달 (&lt; 50%)</td>
+<td>완화 (낮춤)</td>
+<td>TCR 85% → 80%</td>
+</tr>
+<tr>
+<td>🟢 너무 쉬움</td>
+<td>항상 임계값 초과 (&gt; 95%)</td>
+<td>강화 (높임)</td>
+<td>TCR 85% → 90%</td>
+</tr>
+<tr>
+<td>🔄 시스템 변경</td>
+<td>새 모델, 프레임워크 도입</td>
+<td>재평가</td>
+<td>전체 임계값 재설정</td>
+</tr>
+<tr>
+<td>📈 비즈니스 요구</td>
+<td>더 높은 품질 요구</td>
+<td>강화</td>
+<td>Accuracy 80% → 85%</td>
+</tr>
+<tr>
+<td>💰 비용 압박</td>
+<td>예산 초과</td>
+<td>비용 임계값 완화</td>
+<td>Cost &lt; $0.20 → &lt; $0.25</td>
+</tr>
+</tbody>
+</table>
+
+<h4>11.3.2 변경 프로세스 (Change Management)</h4>
+
+<p><strong>Step 1: 변경 요청서 (CR - Change Request)</strong></p>
+
+<pre><code class="language-markdown"># 임계값 변경 요청서 (CR-2024-042)
+
+## 요청 일자
+2024-12-02
+
+## 요청자
+QA Manager
+
+## 변경 대상 임계값
+- **현재**: Task Completion Rate &gt; 85%
+- **변경**: Task Completion Rate &gt; 80%
+
+## 변경 사유
+- 지난 4주간 달성률 평균 48% (매우 낮음)
+- 신규 모델 도입 후 성능 일시적 하락
+- 개선 중이나 현 임계값 달성 불가
+
+## 영향 분석
+- **긍정**: 배포 차단 해소, 개발 속도 회복
+- **부정**: 품질 기준 완화, 사용자 경험 저하 우려
+- **위험도**: 중간 (6개월 후 85%로 복구 계획)
+
+## 대안 검토
+1. 임계값 유지: 배포 계속 차단 (❌ 비현실적)
+2. 일시적 면제: 임계값 우회 (❌ 표준 붕괴)
+3. 단계적 완화: 80% → 82% → 85% (✅ 선택)
+
+## 승인 필요
+Tech Lead, Product Manager
+
+## 롤백 계획
+- 조건: 3개월 내 80% 미달 시
+- 조치: 원래 임계값(85%) 복구</code></pre>
+
+<p><strong>Step 2: 영향 분석 (Impact Analysis)</strong></p>
+
+<table>
+<thead>
+<tr>
+<th>영향 범위</th>
+<th>변경 전</th>
+<th>변경 후</th>
+<th>차이</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>배포 차단 횟수</td>
+<td>주 5회</td>
+<td>주 1회 (예상)</td>
+<td>-80%</td>
+</tr>
+<tr>
+<td>통과율</td>
+<td>48%</td>
+<td>85% (예상)</td>
+<td>+37%</td>
+</tr>
+<tr>
+<td>실제 TCR 평균</td>
+<td>82.3%</td>
+<td>82.3% (불변)</td>
+<td>0%</td>
+</tr>
+<tr>
+<td>품질 위험</td>
+<td>낮음</td>
+<td>중간</td>
+<td>증가</td>
+</tr>
+</tbody>
+</table>
+
+<p><strong>Step 3: 승인 및 적용</strong></p>
+
+<pre><code class="language-bash"># 1. 변경 요청서 작성
+vi thresholds/change_requests/CR-2024-042.md
+
+# 2. 승인 요청 (Slack, Email 등)
+# → Tech Lead, Product Manager 리뷰
+
+# 3. 승인 후 Git 커밋
+git checkout -b threshold-change-cr-042
+vi thresholds/production/layer1_thresholds.json
+# task_completion_rate: {"min": 85.0} → {"min": 80.0}
+
+# 4. CHANGELOG 업데이트
+vi thresholds/CHANGELOG.md
+# ## 2024-12-02: CR-042
+# - TCR 임계값 85% → 80% (일시적 완화)
+# - 6개월 후 85%로 복구 예정
+
+# 5. PR 생성 및 머지
+git commit -m "임계값 변경: TCR 85→80% (CR-042)"
+git push origin threshold-change-cr-042
+# → PR 생성 → 승인 → 머지</code></pre>
+
+<p><strong>Step 4: 변경 공지</strong></p>
+
+<pre><code class="language-markdown"># 📢 임계값 변경 공지
+
+## 변경 일시
+2024-12-02 15:00 KST
+
+## 변경 내용
+Task Completion Rate 임계값: **85% → 80%**
+
+## 이유
+신규 모델 도입에 따른 일시적 성능 조정
+
+## 영향
+- 배포 차단 빈도 감소
+- 6개월 후 85%로 복구 예정
+
+## 담당자
+QA Manager (qa-team@company.com)
+
+## 질문/문의
+Slack #qa-channel</code></pre>
+
+<h4>11.3.3 변경 이력 관리</h4>
+
+<p><strong>CHANGELOG.md 예시</strong></p>
+
+<pre><code class="language-markdown"># Threshold Configuration Changelog
+
+## 2024-12-02 (CR-042)
+### Changed
+- **Task Completion Rate**: 85% → 80% (Production)
+- **사유**: 신규 모델 도입에 따른 일시적 완화
+- **복구 계획**: 2025-06-01까지 85% 복구
+- **승인자**: Tech Lead, Product Manager
+
+## 2024-11-15 (CR-038)
+### Changed
+- **Latency**: &lt; 5초 → &lt; 4초 (Production)
+- **사유**: 비즈니스 요구 (사용자 경험 개선)
+- **영향**: 배포 차단 예상 +20%
+- **승인자**: Product Manager
+
+## 2024-10-20 (CR-031)
+### Added
+- **Tool Selection Accuracy**: &gt; 85% (Layer 2 신규 추가)
+- **사유**: 멀티 에이전트 시스템 도입
+- **승인자**: Tech Lead</code></pre>
+
+<h3 id="qa-violation">11.4 임계값 위반 대응</h3>
+
+<h4>11.4.1 위반 심각도 분류</h4>
+
+<table>
+<thead>
+<tr>
+<th>심각도</th>
+<th>조건</th>
+<th>대응 시간</th>
+<th>담당자</th>
+<th>조치</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>🔴 P0 (Critical)</td>
+<td>TCR &lt; 75% OR Hallucination &gt; 10%</td>
+<td>즉시 (1시간 내)</td>
+<td>QA Lead + Tech Lead</td>
+<td>배포 차단, 긴급 회의</td>
+</tr>
+<tr>
+<td>🟠 P1 (High)</td>
+<td>Accuracy &lt; 70% OR Latency &gt; 10초</td>
+<td>24시간 내</td>
+<td>QA Manager</td>
+<td>원인 분석, 개선 계획</td>
+</tr>
+<tr>
+<td>🟡 P2 (Medium)</td>
+<td>Cost &gt; $0.30 OR Tokens &gt; 15K</td>
+<td>1주일 내</td>
+<td>QA Engineer</td>
+<td>최적화 티켓 생성</td>
+</tr>
+<tr>
+<td>🟢 P3 (Low)</td>
+<td>Layer 2 메트릭 경미한 위반</td>
+<td>다음 스프린트</td>
+<td>개발팀</td>
+<td>백로그 추가</td>
+</tr>
+</tbody>
+</table>
+
+<h4>11.4.2 위반 대응 프로세스</h4>
+
+<p><strong>🔴 P0 (Critical) 대응 플레이북</strong></p>
+
+<table>
+<thead>
+<tr>
+<th>단계</th>
+<th>시간</th>
+<th>조치</th>
+<th>담당</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1. 탐지</td>
+<td>T+0</td>
+<td>CI/CD 자동 알림 → Slack 긴급 채널</td>
+<td>자동</td>
+</tr>
+<tr>
+<td>2. 차단</td>
+<td>T+5분</td>
+<td>배포 파이프라인 차단, 롤백 준비</td>
+<td>QA Lead</td>
+</tr>
+<tr>
+<td>3. 분석</td>
+<td>T+30분</td>
+<td>로그 분석, 실패 샘플 검토, 원인 가설</td>
+<td>QA + Dev</td>
+</tr>
+<tr>
+<td>4. 회의</td>
+<td>T+1시간</td>
+<td>긴급 전화 회의 (QA Lead, Tech Lead, PM)</td>
+<td>전체</td>
+</tr>
+<tr>
+<td>5. 조치</td>
+<td>T+2시간</td>
+<td>핫픽스 OR 롤백 OR 임계값 임시 면제</td>
+<td>Dev</td>
+</tr>
+<tr>
+<td>6. 검증</td>
+<td>T+3시간</td>
+<td>재평가 실행, 임계값 통과 확인</td>
+<td>QA</td>
+</tr>
+<tr>
+<td>7. 사후</td>
+<td>T+1일</td>
+<td>근본 원인 분석(RCA), 재발 방지 계획</td>
+<td>QA Lead</td>
+</tr>
+</tbody>
+</table>
+
+<p><strong>위반 보고서 템플릿</strong></p>
+
+<pre><code class="language-markdown"># 임계값 위반 보고서 (P0-2024-042)
+
+## 발생 일시
+2024-12-02 14:35 KST
+
+## 위반 내용
+- **메트릭**: Task Completion Rate
+- **임계값**: &gt; 85%
+- **실제 값**: 62.5%
+- **위반 폭**: -22.5% (심각)
+
+## 영향 범위
+- 배포 차단: Release v2.5.3
+- 영향 받은 작업: Code Generation (15/30 실패)
+
+## 원인 분석
+1. **즉시 원인**: 신규 프롬프트 템플릿 버그
+2. **근본 원인**: 프롬프트 변경 시 사전 테스트 부재
+3. **기여 요인**: Golden Dataset 오래됨 (3개월 전)
+
+## 조치 내역
+| 시간 | 조치 | 담당자 |
+|------|------|--------|
+| 14:35 | 위반 탐지 (자동) | CI/CD |
+| 14:40 | 배포 차단 | QA Lead |
+| 15:00 | 긴급 회의 | 전체 |
+| 15:30 | 프롬프트 롤백 | Dev |
+| 16:00 | 재평가 → 87.2% (통과) | QA |
+
+## 재발 방지 계획
+1. 프롬프트 변경 시 필수 사전 평가 프로세스 도입
+2. Golden Dataset 월간 업데이트 정책 수립
+3. 프롬프트 버전 관리 강화
+
+## 다음 단계
+- [ ] RCA 문서 작성 (기한: 12/03)
+- [ ] 프로세스 개선안 제안 (기한: 12/05)
+- [ ] 팀 회고 미팅 (일정: 12/04 10:00)</code></pre>
+
+<h4>11.4.3 위반 추세 분석</h4>
+
+<p><strong>월간 위반 이력 테이블</strong></p>
+
+<table>
+<thead>
+<tr>
+<th>날짜</th>
+<th>메트릭</th>
+<th>임계값</th>
+<th>실제</th>
+<th>심각도</th>
+<th>조치</th>
+<th>상태</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>12/02</td>
+<td>TCR</td>
+<td>&gt; 85%</td>
+<td>62.5%</td>
+<td>P0</td>
+<td>롤백</td>
+<td>✅ 해결</td>
+</tr>
+<tr>
+<td>11/28</td>
+<td>Latency</td>
+<td>&lt; 5초</td>
+<td>6.2초</td>
+<td>P2</td>
+<td>최적화</td>
+<td>✅ 해결</td>
+</tr>
+<tr>
+<td>11/25</td>
+<td>Cost</td>
+<td>&lt; $0.20</td>
+<td>$0.28</td>
+<td>P2</td>
+<td>프롬프트 단축</td>
+<td>🔄 진행중</td>
+</tr>
+<tr>
+<td>11/20</td>
+<td>Tool Selection</td>
+<td>&gt; 85%</td>
+<td>78%</td>
+<td>P1</td>
+<td>도구 정의 개선</td>
+<td>✅ 해결</td>
+</tr>
+</tbody>
+</table>
+
+<p><strong>위반 패턴 분석</strong></p>
+
+<pre><code class="language-python"># 위반 이력에서 패턴 추출
+import pandas as pd
+
+violations = pd.read_csv("threshold_violations.csv")
+
+# 1. 가장 많이 위반된 메트릭
+top_violated = violations['metric'].value_counts().head(5)
+print("🔴 위반 빈도 TOP 5:")
+print(top_violated)
+# TCR: 8회
+# Latency: 5회
+# Cost: 4회
+
+# 2. 위반 추세 (증가/감소)
+monthly_violations = violations.groupby('month').size()
+print("
+📈 월별 위반 횟수:")
+print(monthly_violations)
+# 증가 추세 → 임계값 재검토 필요
+
+# 3. 재발 위반 (동일 메트릭 반복)
+repeat_violations = violations[violations.duplicated(subset=['metric'], keep=False)]
+print(f"
+🔄 재발 위반: {len(repeat_violations)}건")
+# → 근본 원인 미해결</code></pre>
+
+<h3 id="qa-review">11.5 정기 임계값 리뷰</h3>
+
+<h4>11.5.1 리뷰 주기 및 범위</h4>
+
+<table>
+<thead>
+<tr>
+<th>주기</th>
+<th>참여자</th>
+<th>검토 항목</th>
+<th>산출물</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>📅 주간</td>
+<td>QA Engineer</td>
+<td>위반 사례, 달성률</td>
+<td>주간 리포트</td>
+</tr>
+<tr>
+<td>📅 월간</td>
+<td>QA Manager, QA Lead</td>
+<td>위반 추세, 임계값 적정성</td>
+<td>월간 리뷰 미팅</td>
+</tr>
+<tr>
+<td>📅 분기</td>
+<td>QA + Tech Lead + PM</td>
+<td>전체 임계값 재평가</td>
+<td>분기 개선 계획</td>
+</tr>
+<tr>
+<td>📅 반기</td>
+<td>전사 (QA, Dev, Product)</td>
+<td>전략적 방향 설정</td>
+<td>반기 품질 전략</td>
+</tr>
+</tbody>
+</table>
+
+<h4>11.5.2 월간 리뷰 체크리스트</h4>
+
+<table>
+<thead>
+<tr>
+<th>검토 항목</th>
+<th>확인 사항</th>
+<th>조치 기준</th>
+<th>결과</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1. 달성률</td>
+<td>각 임계값 통과율</td>
+<td>&lt; 80% 시 완화 검토</td>
+<td>[ ]</td>
+</tr>
+<tr>
+<td>2. 위반 빈도</td>
+<td>월간 위반 횟수</td>
+<td>&gt; 10회 시 원인 분석</td>
+<td>[ ]</td>
+</tr>
+<tr>
+<td>3. 위반 추세</td>
+<td>전월 대비 증가/감소</td>
+<td>+50% 증가 시 긴급 대응</td>
+<td>[ ]</td>
+</tr>
+<tr>
+<td>4. 재발 위반</td>
+<td>동일 메트릭 반복 위반</td>
+<td>&gt; 3회 시 근본 원인 조사</td>
+<td>[ ]</td>
+</tr>
+<tr>
+<td>5. 배포 차단</td>
+<td>임계값으로 인한 차단 횟수</td>
+<td>&gt; 5회 시 프로세스 개선</td>
+<td>[ ]</td>
+</tr>
+<tr>
+<td>6. 비즈니스 정렬</td>
+<td>비즈니스 요구와 일치 여부</td>
+<td>불일치 시 조정</td>
+<td>[ ]</td>
+</tr>
+</tbody>
+</table>
+
+<h4>11.5.3 분기 리뷰 프로세스</h4>
+
+<p><strong>Step 1: 데이터 수집 (리뷰 2주 전)</strong></p>
+
+<pre><code class="language-bash"># 1. 분기 평가 데이터 통합
+python utils/merge_quarterly_results.py --quarter Q4-2024
+
+# 2. 위반 이력 추출
+python utils/extract_violations.py --start 2024-10-01 --end 2024-12-31
+
+# 3. 리포트 생성
+python utils/generate_threshold_review_report.py --quarter Q4-2024
+# → threshold_review_Q4_2024.pdf</code></pre>
+
+<p><strong>Step 2: 분석 (리뷰 1주 전)</strong></p>
+
+<table>
+<thead>
+<tr>
+<th>분석 영역</th>
+<th>질문</th>
+<th>판단 기준</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>적정성</td>
+<td>임계값이 너무 높거나 낮은가?</td>
+<td>달성률 80-95% = 적정</td>
+</tr>
+<tr>
+<td>관련성</td>
+<td>비즈니스 목표와 정렬되는가?</td>
+<td>Product Manager 피드백</td>
+</tr>
+<tr>
+<td>일관성</td>
+<td>메트릭 간 균형이 맞는가?</td>
+<td>Layer 1/2/3 종합 검토</td>
+</tr>
+<tr>
+<td>효과성</td>
+<td>품질 게이트로서 효과적인가?</td>
+<td>불량 배포 차단 성공률</td>
+</tr>
+</tbody>
+</table>
+
+<p><strong>Step 3: 리뷰 미팅 (분기 마지막 주)</strong></p>
+
+<pre><code class="language-markdown"># 분기 임계값 리뷰 미팅 안건
+
+## 날짜/시간
+2024-12-20 14:00-16:00
+
+## 참석자
+- QA Manager (주관)
+- QA Lead
+- Tech Lead
+- Product Manager
+
+## 안건
+1. Q4 임계값 달성 현황 (15분)
+2. 위반 이력 및 추세 분석 (20분)
+3. 문제점 및 개선 아이디어 (30분)
+4. 2025 Q1 임계값 제안 (30분)
+5. 액션 아이템 정리 (15분)
+
+## 의사결정 필요
+- [ ] TCR 임계값 조정 여부
+- [ ] 신규 Layer 2 메트릭 추가
+- [ ] CI/CD 통합 개선
+
+## 산출물
+- 분기 리뷰 요약 문서
+- 2025 Q1 임계값 설정안
+- 개선 액션 아이템 (담당자, 마감일)</code></pre>
+
+<p><strong>Step 4: 액션 아이템 (리뷰 직후)</strong></p>
+
+<table>
+<thead>
+<tr>
+<th>액션</th>
+<th>담당자</th>
+<th>마감일</th>
+<th>상태</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>TCR 임계값 85% → 87% 변경 (CR 생성)</td>
+<td>QA Manager</td>
+<td>01/05</td>
+<td>🔄 진행중</td>
+</tr>
+<tr>
+<td>Communication Overhead 신규 임계값 추가</td>
+<td>QA Lead</td>
+<td>01/10</td>
+<td>📝 계획</td>
+</tr>
+<tr>
+<td>Golden Dataset 업데이트 (200 → 300 샘플)</td>
+<td>QA Engineer</td>
+<td>01/15</td>
+<td>📝 계획</td>
+</tr>
+<tr>
+<td>CI/CD 위반 알림 Slack 통합</td>
+<td>DevOps</td>
+<td>01/20</td>
+<td>📝 계획</td>
+</tr>
+</tbody>
+</table>
+
+<h4>11.5.4 리뷰 결과 문서화</h4>
+
+<p><strong>분기 리뷰 요약 문서 템플릿</strong></p>
+
+<pre><code class="language-markdown"># Q4 2024 임계값 리뷰 요약
+
+## 개요
+- **기간**: 2024-10-01 ~ 2024-12-31
+- **리뷰 일자**: 2024-12-20
+- **참석자**: QA Manager, QA Lead, Tech Lead, Product Manager
+
+## 주요 지표
+
+### 달성률
+| 메트릭 | 임계값 | 평균 달성률 | 판정 |
+|--------|--------|-------------|------|
+| TCR | &gt; 85% | 89.2% | ✅ 적정 |
+| Accuracy | &gt; 80% | 82.5% | ✅ 적정 |
+| Latency | &lt; 5초 | 4.1초 | ✅ 적정 |
+| Cost | &lt; $0.20 | $0.18 | ✅ 적정 |
+
+### 위반 현황
+- **총 위반**: 12건
+- **P0**: 2건
+- **P1**: 4건
+- **P2**: 6건
+- **전분기 대비**: -3건 (개선)
+
+## 주요 이슈
+1. **TCR 2회 P0 위반**: 프롬프트 변경 사전 테스트 부재
+2. **Cost 지속 증가**: 평균 $0.15 → $0.18 (주의 필요)
+
+## 결정 사항
+1. ✅ **TCR 임계값 강화**: 85% → 87% (2025 Q1)
+2. ✅ **Cost 모니터링 강화**: 주간 리포트에 추가
+3. ✅ **프롬프트 변경 프로세스**: 사전 평가 필수화
+
+## 액션 아이템
+(위 표 참조)
+
+## 다음 리뷰
+2025-03-20 (Q1 2025 리뷰)</code></pre>
+
+<div style="background: #d4edda; border-left: 4px solid #28a745; padding: 15px; margin: 20px 0;">
+<p style="margin: 0;"><strong>✅ QA 관리자 핵심 원칙 (임계값 관리)</strong></p>
+<ol style="margin: 10px 0 0 0;">
+<li><strong>데이터 기반 설정</strong>: 과거 데이터 + 산업 표준 + 비즈니스 요구 종합</li>
+<li><strong>단계적 적용</strong>: Alpha → Beta → Production 점진적 롤아웃</li>
+<li><strong>지속적 모니터링</strong>: 주간/월간/분기 정기 리뷰</li>
+<li><strong>투명한 변경 관리</strong>: CR → 영향 분석 → 승인 → 공지 프로세스</li>
+<li><strong>신속한 위반 대응</strong>: P0 1시간, P1 24시간, P2 1주일 내</li>
+<li><strong>추세 중심 분석</strong>: 단일 위반보다 패턴 파악</li>
+<li><strong>팀 간 협업</strong>: QA + Dev + Product 긴밀한 소통</li>
+</ol>
+</div>
+
+<div style="background: #fff3cd; border-left: 4px solid #ffc107; padding: 15px; margin: 20px 0;">
+<p style="margin: 0;"><strong>⚠️ 주의사항</strong></p>
+<ul style="margin: 10px 0 0 0;">
+<li>❌ <strong>무분별한 완화 금지</strong>: 달성 어렵다고 계속 낮추면 품질 표준 붕괴</li>
+<li>❌ <strong>과도한 강화 금지</strong>: 달성 불가능한 임계값은 무의미</li>
+<li>❌ <strong>변경 이력 미기록 금지</strong>: 모든 변경은 CHANGELOG에 기록</li>
+<li>❌ <strong>단일 승인자 금지</strong>: 최소 2명 이상 검토/승인 필수</li>
+</ul>
+</div>
+
+<hr />
+<h2 id="참고-문서">참고 문서</h2>
+<ul>
+<li><a href="GOLDEN_DATASET_GUIDE.md">GOLDEN_DATASET_GUIDE.md</a> -
+Golden Dataset 작성 가이드</li>
+<li><a
+href="AGENTIC_AI_METRICS_GUIDE.md">AGENTIC_AI_METRICS_GUIDE.md</a> -
+Layer 2 메트릭 가이드</li>
+<li><a href="API.md">API.md</a> - 전체 API 레퍼런스</li>
+<li><a
+href="../Evaluator_Examples/04_threshold_validation_example.py">04_threshold_validation_example.py</a>
+- 실전 예제</li>
+</ul>
+<hr />
+<hr />
+<p><strong>최종 업데이트</strong>: 2025-12-16<br>
+<strong>버전</strong>: Agent Evaluator v0.5.0<br>
+<strong>프로젝트</strong>: Agent Evaluator - AI Agent Performance Evaluation System<br>
+<strong>문서</strong>: Threshold Configuration Guide</p>
+
+        </div>
+    </div>
+
+    <!-- Mermaid Zoom Modal -->
+    
+    <script src="scripts/mermaid-zoom.js"></script>
+</body>
+</html>

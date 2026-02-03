@@ -1,0 +1,2157 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Latency Metrics - Agent Evaluator v0.5.0</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            line-height: 1.8;
+            color: #1a202c;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 40px 20px;
+        }
+
+        .container {
+    max-width: 1400px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 60px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 3.5em;
+            margin-bottom: 20px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.2);
+        }
+
+        .header .subtitle {
+            font-size: 1.4em;
+            opacity: 0.95;
+            font-weight: 300;
+        }
+
+        .version-badge {
+            display: inline-block;
+            background: rgba(255,255,255,0.2);
+            padding: 12px 30px;
+            border-radius: 30px;
+            backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    margin-top: 15px;
+            font-size: 1em;
+        }
+
+        .content {    padding: 60px;
+        }
+
+        .section {
+            margin-bottom: 50px;
+        }
+
+        .section h2 {
+            color: #667eea;
+            font-size: 2.2em;
+            margin-bottom: 25px;
+            padding-bottom: 15px;
+            border-bottom: 3px solid #667eea;
+        }
+
+        .section h3 {
+            color: #764ba2;
+            font-size: 1.6em;
+            margin: 30px 0 20px 0;
+        }
+
+        .section h4 {
+            color: #553c9a;
+            font-size: 1.3em;
+            margin: 25px 0 15px 0;
+        }
+
+        .intro-box {
+            background: linear-gradient(135deg, #f6f8fb 0%, #e9ecf5 100%);
+            padding: 30px;
+            border-radius: 8px;
+            border-left: 5px solid #667eea;
+            margin: 25px 0;
+            font-size: 1.1em;
+            line-height: 1.8;
+        }
+
+        .importance-box {
+            background: linear-gradient(135deg, #fff5f5 0%, #fed7d7 100%);
+            padding: 30px;
+            border-radius: 15px;
+            border-left: 6px solid #f56565;
+            margin: 25px 0;
+        }
+
+        .importance-box h3 {
+            color: #c53030;
+            margin-top: 0;
+        }
+
+        .code-block {
+            background: #2d3748;
+            color: #e2e8f0;
+            padding: 25px;
+            border-radius: 8px;
+            overflow-x: auto;
+            margin: 20px 0;
+            border-left: 4px solid #667eea;
+            font-family: 'Courier New', monospace;
+            font-size: 0.95em;
+            line-height: 1.6;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+
+        .keyword { color: #c678dd; font-weight: bold; }
+        .function { color: #61afef; }
+        .string { color: #98c379; }
+        .comment { color: #5c6370; font-style: italic; }
+        .number { color: #d19a66; }
+        .operator { color: #56b6c2; }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 25px;
+            margin: 30px 0;
+        }
+
+        .stat-card {
+            background: linear-gradient(135deg, #f6f8fb 0%, #e9ecf5 100%);
+            padding: 25px;
+            border-radius: 12px;
+            border-left: 5px solid #667eea;
+        }
+
+        .stat-card h4 {
+            color: #667eea;
+            margin: 0 0 12px 0;
+            font-size: 1.1em;
+        }
+
+        .stat-card p {
+            color: #4a5568;
+            margin: 8px 0;
+            line-height: 1.6;
+        }
+
+        .formula-box {
+            background: #f7fafc;
+            border: 2px solid #667eea;
+            border-radius: 10px;
+            padding: 25px;
+            margin: 25px 0;
+            text-align: center;
+        }
+
+        .formula {
+            font-size: 1.3em;
+            font-weight: bold;
+            color: #2d3748;
+            font-family: 'Courier New', monospace;
+            margin: 15px 0;
+        }
+
+        .warning-box {
+            background: linear-gradient(135deg, #fffaf0 0%, #feebc8 100%);
+            padding: 25px;
+            border-radius: 12px;
+            border-left: 6px solid #dd6b20;
+            margin: 25px 0;
+        }
+
+        .warning-box h4 {
+            color: #c05621;
+            margin-top: 0;
+        }
+
+        ul, ol {
+            margin: 20px 0;
+            padding-left: 30px;
+        }
+
+        li {
+            margin: 12px 0;
+            line-height: 1.7;
+        }
+
+        .highlight {
+            background: linear-gradient(120deg, #fef5e7 0%, #fdebd0 100%);
+            padding: 3px 8px;
+            border-radius: 4px;
+            font-weight: 600;
+            color: #744210;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 25px 0;
+            background: white;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            border-radius: 8px;
+            overflow: hidden;
+        }
+
+        th {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 15px;
+            text-align: left;
+            font-weight: 600;
+        }
+
+        td {
+            padding: 15px;
+            border-bottom: 1px solid #e2e8f0;
+        }
+
+        tr:last-child td {
+            border-bottom: none;
+        }
+
+        tr:hover {
+            background: #f7fafc;
+        }
+
+        .best-practice {
+            background: linear-gradient(135deg, #f0fff4 0%, #c6f6d5 100%);
+            padding: 20px;
+            border-radius: 10px;
+            border-left: 5px solid #38a169;
+            margin: 15px 0;
+        }
+
+        .best-practice strong {
+            color: #22543d;
+        }
+
+        .metric-value {
+            font-size: 2em;
+            font-weight: bold;
+            color: #667eea;
+            margin: 10px 0;
+        }
+
+        .implementation-note {
+            background: #edf2f7;
+            padding: 20px;
+            border-radius: 8px;
+            margin: 20px 0;
+            border-left: 4px solid #4299e1;
+        }
+
+        .implementation-note strong {
+            color: #2c5282;
+        }
+
+        /* Mermaid Diagrams */
+        .mermaid {
+            margin: 40px 0;
+            text-align: center;
+            background: linear-gradient(135deg, #f6f8fb 0%, #e9ecf5 100%);
+            padding: 30px;
+            border-radius: 15px;
+            border: 1px solid #e2e8f0;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            transition: all 0.3s ease;
+        }
+
+        .mermaid:hover {
+            box-shadow: 0 8px 20px rgba(0,0,0,0.15);
+            transform: translateY(-2px);
+        }
+
+        /* Mermaid Diagram Zoom Modal Styles */
+.mermaid-modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 10000;
+    opacity: 0;
+    transition: opacity 0.2s ease;
+}
+
+.mermaid-modal.active {
+    opacity: 1;
+}
+
+.mermaid-modal.closing {
+    opacity: 0;
+}
+
+/* Modal backdrop */
+.mermaid-modal-backdrop {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.85);
+    backdrop-filter: blur(4px);
+}
+
+/* Modal content container */
+.mermaid-modal-content {
+    position: relative;
+    width: 90vw;
+    height: 90vh;
+    max-width: 1400px;
+    max-height: 900px;
+    margin: 5vh auto;
+    background: var(--bg-white);
+    border-radius: var(--radius-xl);
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;  /* Keep border-radius working */
+}
+
+/* Modal header */
+.mermaid-modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: var(--space-md) var(--space-lg);
+    background: linear-gradient(135deg, var(--primary-color) 0%, var(--primary-dark) 100%);
+    color: white;
+    border-bottom: 1px solid var(--bg-border);
+}
+
+.mermaid-modal-title {
+    font-size: 1.1rem;
+    font-weight: 600;
+}
+
+.mermaid-modal-controls {
+    display: flex;
+    gap: var(--space-sm);
+}
+
+.mermaid-btn {
+    background: rgba(255, 255, 255, 0.2);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    color: white;
+    padding: var(--space-sm);
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    transition: all var(--transition-fast);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+}
+
+.mermaid-btn:hover {
+    background: rgba(255, 255, 255, 0.3);
+    border-color: rgba(255, 255, 255, 0.5);
+    transform: scale(1.05);
+}
+
+.mermaid-btn:active {
+    transform: scale(0.95);
+}
+
+.mermaid-btn svg {
+    width: 20px;
+    height: 20px;
+}
+
+/* Modal body */
+.mermaid-modal-body {
+    flex: 1;
+    overflow: visible;  /* Don't clip transformed content */
+    position: relative;
+    background: #ffffff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* Diagram container */
+.mermaid-diagram-container {
+    transform-origin: center center;
+    /* No transition during drag - will be added dynamically only for zoom */
+    transition: none;
+    /* Remove max-width/height constraints to allow diagrams to display at original size */
+    /* The modal-body will handle overflow with scrolling */
+    display: inline-block;
+    position: relative;
+    /* Ensure content is visible even when transformed */
+    pointer-events: auto;
+    z-index: 1;
+    /* Prevent disappearing due to overflow clipping */
+    will-change: transform;
+}
+
+/* Add transition class for zoom (not drag) */
+.mermaid-diagram-container.zoom-transition {
+    transition: transform 0.2s ease;
+}
+
+.mermaid-diagram-container svg {
+    max-width: none !important;
+    max-height: none !important;
+    display: block;
+    cursor: grab;
+}
+
+.mermaid-diagram-container svg:active {
+    cursor: grabbing;
+}
+
+/* Responsive modal */
+@media (max-width: 768px) {
+    .mermaid-modal-content {
+        width: 95vw;
+        height: 85vh;
+        margin: 7.5vh auto;
+    }
+
+    .mermaid-modal-header {
+        padding: var(--space-sm) var(--space-md);
+    }
+
+    .mermaid-modal-title {
+        font-size: 1rem;
+    }
+
+    .mermaid-btn {
+        width: 32px;
+        height: 32px;
+    }
+
+    .mermaid-btn svg {
+        width: 18px;
+        height: 18px;
+    }
+}
+
+/* Dark mode support for modal */
+@media (prefers-color-scheme: dark) {
+    .mermaid-modal-content {
+        background: var(--bg-white);
+        border: 1px solid var(--bg-border);
+    }
+
+    .mermaid-modal-body {
+        background: #ffffff;
+    }
+}
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>⚡ Latency Metrics</h1>
+            <div class="subtitle">Performance and Response Time Analysis</div>
+            <div class="version-badge">Agent Evaluator v0.5.0 - Layer 1 Foundation Metric</div>
+        </div>
+
+        <div class="content">
+            <!-- Introduction -->
+            <div class="section">
+                <h2>📊 개요</h2>
+                <div class="intro-box">
+                    <strong>Latency Metrics</strong>는 AI 에이전트의 <span class="highlight">응답 시간과 성능</span>을 측정하고 분석하는 Layer 1 기본 메트릭입니다.
+                    <br><br>
+                    총 응답 시간을 추적할 뿐만 아니라, 각 구성 요소별 시간을 분석하여 <span class="highlight">성능 병목 지점</span>을 식별하고,
+                    통계적 분석(평균, 중앙값, P95, P99)을 통해 시스템의 <span class="highlight">SLA 준수 여부</span>를 모니터링합니다.
+                </div>
+
+                <div class="importance-box">
+                    <h3>⚠️ 중요성</h3>
+                    <ul>
+                        <li><strong>사용자 경험 (UX)</strong>: 응답 시간이 사용자 만족도에 직접적인 영향을 미침</li>
+                        <li><strong>성능 최적화</strong>: 병목 지점을 식별하여 시스템 개선 우선순위 결정</li>
+                        <li><strong>SLA 관리</strong>: 서비스 수준 협약 준수 여부를 지속적으로 모니터링</li>
+                        <li><strong>용량 계획</strong>: P95/P99 메트릭을 통해 워스트 케이스 시나리오 대비</li>
+                        <li><strong>비용 최적화</strong>: 불필요하게 긴 처리 시간을 식별하여 리소스 낭비 방지</li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- Implementation Location -->
+            <div class="section">
+                <h2>📍 구현 위치</h2>
+                <div class="implementation-note">
+                    <strong>파일:</strong> <code>agent_evaluator/core/agent_evaluator.py</code><br>
+                    <strong>클래스:</strong> <code>LatencyTracker</code><br>
+                    <strong>라인:</strong> 928-1058 (총 131줄)
+                </div>
+
+                <h3>핵심 메서드</h3>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>메서드</th>
+                            <th>라인</th>
+                            <th>기능</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><code>record_latency()</code></td>
+                            <td>934-943</td>
+                            <td>작업의 응답 시간과 구성 요소별 시간 기록</td>
+                        </tr>
+                        <tr>
+                            <td><code>get_latency_stats()</code></td>
+                            <td>945-965</td>
+                            <td>통계적 분석 (평균, 중앙값, P50/P95/P99, 표준편차)</td>
+                        </tr>
+                        <tr>
+                            <td><code>analyze_bottlenecks()</code></td>
+                            <td>967-999</td>
+                            <td>성능 병목 지점 식별 및 분석</td>
+                        </tr>
+                        <tr>
+                            <td><code>get_latency_by_type()</code></td>
+                            <td>1001-1032</td>
+                            <td>작업 유형별 지연 시간 통계 제공</td>
+                        </tr>
+                        <tr>
+                            <td><code>check_sla_compliance()</code></td>
+                            <td>1034-1058</td>
+                            <td>SLA 목표 대비 준수율 계산</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Core Algorithm Section -->
+            <div class="section">
+                <h2>⚙️ 핵심 측정 알고리즘</h2>
+
+                <p><strong>이 섹션에서는</strong> <code>LatencyTracker</code> 클래스의 핵심 메서드들이 <strong>어떻게 동작하는지</strong> 상세히 설명합니다.</p>
+
+                <h3>1️⃣ get_latency_stats() - 통계 계산 메서드</h3>
+                <p><strong>목적</strong>: 응답 시간 데이터로부터 8가지 통계 지표 계산</p>
+                <p><strong>위치</strong>: Lines 945-965</p>
+
+                <div class="code-block">
+<span class="keyword">def</span> <span class="function">get_latency_stats</span>(self, task_type: Optional[<span class="keyword">str</span>] = <span class="keyword">None</span>) -> Dict[<span class="keyword">str</span>, <span class="keyword">float</span>]:
+    <span class="string">"""8가지 통계 지표 계산"""</span>
+
+    <span class="comment"># === 1. 데이터 필터링 === (Lines 947-949)</span>
+    latencies = self.latencies
+    <span class="keyword">if</span> task_type:
+        latencies = [l <span class="keyword">for</span> l <span class="keyword">in</span> latencies <span class="keyword">if</span> l[<span class="string">"task_type"</span>] == task_type]
+
+    <span class="keyword">if not</span> latencies:
+        <span class="keyword">return</span> {}
+
+    <span class="comment"># === 2. 시간 값 추출 === (Line 954)</span>
+    times = [l[<span class="string">"total_time"</span>] <span class="keyword">for</span> l <span class="keyword">in</span> latencies]
+
+    <span class="comment"># === 3. 8가지 통계 지표 계산 === (Lines 956-964)</span>
+    <span class="keyword">return</span> {
+        <span class="string">"mean"</span>: <span class="function">round</span>(statistics.mean(times), 3),        <span class="comment"># 평균</span>
+        <span class="string">"median"</span>: <span class="function">round</span>(statistics.median(times), 3),    <span class="comment"># 중앙값</span>
+        <span class="string">"p50"</span>: <span class="function">round</span>(np.percentile(times, 50), 3),     <span class="comment"># 50th percentile</span>
+        <span class="string">"p95"</span>: <span class="function">round</span>(np.percentile(times, 95), 3),     <span class="comment"># 95th percentile</span>
+        <span class="string">"p99"</span>: <span class="function">round</span>(np.percentile(times, 99), 3),     <span class="comment"># 99th percentile</span>
+        <span class="string">"min"</span>: <span class="function">round</span>(<span class="function">min</span>(times), 3),                    <span class="comment"># 최소값</span>
+        <span class="string">"max"</span>: <span class="function">round</span>(<span class="function">max</span>(times), 3),                    <span class="comment"># 최대값</span>
+        <span class="string">"std"</span>: <span class="function">round</span>(statistics.stdev(times) <span class="keyword">if</span> <span class="function">len</span>(times) > 1 <span class="keyword">else</span> 0, 3)  <span class="comment"># 표준편차</span>
+    }
+</div>
+
+                <div class="info-box">
+                    <h4>📊 8가지 통계 지표 상세</h4>
+
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>지표</th>
+                                <th>계산 방법</th>
+                                <th>의미</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><strong>mean</strong></td>
+                                <td><code>sum(times) / len(times)</code></td>
+                                <td>전체 평균 응답 시간 (이상치에 민감)</td>
+                            </tr>
+                            <tr>
+                                <td><strong>median</strong></td>
+                                <td>정렬 후 중간값</td>
+                                <td>일반적인 사용자 경험 (이상치에 강건)</td>
+                            </tr>
+                            <tr>
+                                <td><strong>p50</strong></td>
+                                <td>50th percentile (median과 동일)</td>
+                                <td>50%의 요청이 이 시간 이하</td>
+                            </tr>
+                            <tr>
+                                <td><strong>p95</strong></td>
+                                <td>95th percentile</td>
+                                <td>95%의 요청이 이 시간 이하 (SLA 기준)</td>
+                            </tr>
+                            <tr>
+                                <td><strong>p99</strong></td>
+                                <td>99th percentile</td>
+                                <td>99%의 요청이 이 시간 이하 (워스트 케이스)</td>
+                            </tr>
+                            <tr>
+                                <td><strong>min</strong></td>
+                                <td>최소값</td>
+                                <td>가장 빠른 응답 시간</td>
+                            </tr>
+                            <tr>
+                                <td><strong>max</strong></td>
+                                <td>최대값</td>
+                                <td>가장 느린 응답 시간</td>
+                            </tr>
+                            <tr>
+                                <td><strong>std</strong></td>
+                                <td>표준편차 <code>√(Σ(x-μ)²/n)</code></td>
+                                <td>응답 시간 변동성 (일관성 지표)</td>
+                            </tr>
+                        </tbody>
+                    </table>
+
+                    <p style="margin-top: 15px;"><strong>주의사항</strong>:</p>
+                    <ul>
+                        <li><strong>단일 데이터 처리</strong>: len(times) == 1인 경우 표준편차는 0으로 반환</li>
+                        <li><strong>소수점 정밀도</strong>: 모든 값은 소수점 3자리로 반올림 (밀리초 단위)</li>
+                        <li><strong>Percentile 계산</strong>: NumPy의 <code>np.percentile()</code> 사용 (선형 보간)</li>
+                    </ul>
+                </div>
+
+                <h3>2️⃣ analyze_bottlenecks() - 병목 지점 식별</h3>
+                <p><strong>목적</strong>: 구성 요소별 평균 시간을 계산하여 가장 느린 병목 지점 식별</p>
+                <p><strong>위치</strong>: Lines 967-999</p>
+
+                <div class="code-block">
+<span class="keyword">def</span> <span class="function">analyze_bottlenecks</span>(self) -> Dict[<span class="keyword">str</span>, Any]:
+    <span class="string">"""병목 지점 분석 알고리즘"""</span>
+    <span class="keyword">if not</span> self.latencies:
+        <span class="keyword">return</span> {}
+
+    <span class="comment"># === 1. 구성 요소별 시간 집계 === (Lines 973-982)</span>
+    breakdown_totals = defaultdict(<span class="keyword">float</span>)
+    breakdown_counts = defaultdict(<span class="keyword">int</span>)
+
+    <span class="keyword">for</span> latency <span class="keyword">in</span> self.latencies:
+        <span class="comment"># breakdown이 없거나 None이면 스킵</span>
+        <span class="keyword">if not</span> latency.get(<span class="string">"breakdown"</span>):
+            <span class="keyword">continue</span>
+        <span class="keyword">for</span> component, time <span class="keyword">in</span> latency[<span class="string">"breakdown"</span>].items():
+            breakdown_totals[component] += time
+            breakdown_counts[component] += 1
+
+    <span class="comment"># === 2. breakdown 데이터가 없으면 빈 결과 반환 === (Lines 984-986)</span>
+    <span class="keyword">if not</span> breakdown_totals:
+        <span class="keyword">return</span> {<span class="string">"breakdown_averages"</span>: {}, <span class="string">"bottleneck"</span>: <span class="keyword">None</span>}
+
+    <span class="comment"># === 3. 구성 요소별 평균 계산 === (Lines 988-991)</span>
+    breakdown_avgs = {
+        component: breakdown_totals[component] / breakdown_counts[component]
+        <span class="keyword">for</span> component <span class="keyword">in</span> breakdown_totals
+    }
+
+    <span class="comment"># === 4. 가장 느린 구성 요소 식별 === (Line 993)</span>
+    bottleneck = <span class="function">max</span>(breakdown_avgs, key=breakdown_avgs.get)
+
+    <span class="comment"># === 5. 결과 반환 === (Lines 995-999)</span>
+    <span class="keyword">return</span> {
+        <span class="string">"breakdown_averages"</span>: {k: <span class="function">round</span>(v, 3) <span class="keyword">for</span> k, v <span class="keyword">in</span> breakdown_avgs.items()},
+        <span class="string">"bottleneck"</span>: bottleneck,
+        <span class="string">"bottleneck_avg_time"</span>: <span class="function">round</span>(breakdown_avgs[bottleneck], 3)
+    }
+</div>
+
+                <div class="success-box">
+                    <h4>✅ 병목 분석 핵심 포인트</h4>
+                    <ol>
+                        <li><strong>구성 요소 (Component) 예시</strong>:
+                            <ul>
+                                <li><code>"llm_call"</code>: LLM API 호출 시간</li>
+                                <li><code>"retrieval"</code>: 문서 검색 시간</li>
+                                <li><code>"preprocessing"</code>: 입력 전처리 시간</li>
+                                <li><code>"postprocessing"</code>: 출력 후처리 시간</li>
+                            </ul>
+                        </li>
+                        <li><strong>평균 계산 방식</strong>: 각 구성 요소의 총 시간 / 발생 횟수</li>
+                        <li><strong>병목 식별</strong>: <code>max(breakdown_avgs, key=breakdown_avgs.get)</code> - 평균이 가장 큰 구성 요소</li>
+                        <li><strong>None 처리</strong>: breakdown 데이터가 없으면 bottleneck=None 반환</li>
+                    </ol>
+                </div>
+
+                <div class="warning-box">
+                    <h4>⚠️ 구현 한계 및 개선 방안</h4>
+                    <ul>
+                        <li><strong>메모리 제한 없음</strong>:
+                            <ul>
+                                <li>모든 latency 데이터를 메모리에 저장 (리스트 크기 무제한)</li>
+                                <li><strong>개선</strong>: 순환 버퍼 (Circular Buffer) 또는 스트리밍 통계 사용</li>
+                            </ul>
+                        </li>
+                        <li><strong>Percentile 정확도</strong>:
+                            <ul>
+                                <li>작은 샘플 크기에서 percentile이 부정확할 수 있음</li>
+                                <li><strong>개선</strong>: T-Digest 알고리즘 또는 HdrHistogram 도입</li>
+                            </ul>
+                        </li>
+                        <li><strong>시간 창 (Time Window) 부재</strong>:
+                            <ul>
+                                <li>모든 과거 데이터를 포함하여 통계 계산</li>
+                                <li><strong>개선</strong>: 슬라이딩 윈도우 (예: 최근 1시간) 지원</li>
+                            </ul>
+                        </li>
+                        <li><strong>실시간 집계 부재</strong>:
+                            <ul>
+                                <li>매번 전체 데이터를 순회하여 계산 (O(n) 복잡도)</li>
+                                <li><strong>개선</strong>: 증분 통계 업데이트 (Incremental Statistics)</li>
+                            </ul>
+                        </li>
+                    </ul>
+                
+        <h4>📊 Latency 통계 계산 흐름</h4>
+        <div class="mermaid">
+graph TD
+    A[latency_log List] --> B{get_latency_stats}
+    B --> C[DataFrame 변환]
+    C --> D[times 리스트 추출]
+    D --> E1[mean 평균]
+    D --> E2[median 중앙값]
+    D --> E3[p50/p95/p99<br/>percentile]
+    D --> E4[min/max]
+    D --> E5[std 표준편차]
+
+    E1 --> F[통계 dict 반환]
+    E2 --> F
+    E3 --> F
+    E4 --> F
+    E5 --> F
+
+    A --> G{analyze_bottlenecks}
+    G --> H[breakdown별 그룹화]
+    H --> I[각 component 평균 계산]
+    I --> J[max 찾기]
+    J --> K[bottleneck 반환]
+
+    style A fill:#667eea,color:#fff
+    style B fill:#48bb78,color:#fff
+    style G fill:#48bb78,color:#fff
+    style F fill:#3182ce,color:#fff
+    style K fill:#e53e3e,color:#fff
+        </div>
+</div>
+            </div>
+
+            <!-- Statistical Metrics -->
+            <div class="section">
+                <h2>📈 통계적 메트릭</h2>
+
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <h4>Mean (평균)</h4>
+                        <p>모든 응답 시간의 산술 평균</p>
+                        <p><strong>용도:</strong> 전반적인 시스템 성능 이해</p>
+                        <p><strong>주의:</strong> 이상치(outlier)에 민감함</p>
+                    </div>
+
+                    <div class="stat-card">
+                        <h4>Median (중앙값)</h4>
+                        <p>정렬된 응답 시간의 중간값 (P50과 동일)</p>
+                        <p><strong>용도:</strong> 일반적인 사용자 경험 대표</p>
+                        <p><strong>장점:</strong> 이상치에 강건함</p>
+                    </div>
+
+                    <div class="stat-card">
+                        <h4>P95 (95th Percentile)</h4>
+                        <p>응답의 95%가 이 값 이하</p>
+                        <p><strong>용도:</strong> SLA 정의에 널리 사용</p>
+                        <p><strong>의미:</strong> 대부분 사용자의 경험</p>
+                    </div>
+
+                    <div class="stat-card">
+                        <h4>P99 (99th Percentile)</h4>
+                        <p>응답의 99%가 이 값 이하</p>
+                        <p><strong>용도:</strong> 워스트 케이스 분석</p>
+                        <p><strong>의미:</strong> 거의 모든 사용자의 경험</p>
+                    </div>
+
+                    <div class="stat-card">
+                        <h4>Standard Deviation (표준편차)</h4>
+                        <p>응답 시간의 변동성 측정</p>
+                        <p><strong>용도:</strong> 성능 일관성 평가</p>
+                        <p><strong>해석:</strong> 낮을수록 안정적</p>
+                    </div>
+
+                    <div class="stat-card">
+                        <h4>Min/Max</h4>
+                        <p>최소 및 최대 응답 시간</p>
+                        <p><strong>용도:</strong> 성능 범위 파악</p>
+                        <p><strong>주의:</strong> 극단적 이상치 가능</p>
+                    </div>
+                </div>
+
+                <h3>통계 메트릭 계산</h3>
+                <div class="code-block">
+<span class="keyword">def</span> <span class="function">get_latency_stats</span>(self, task_type: Optional[str] = None) -> Dict[str, float]:
+    <span class="string">"""Get latency statistics"""</span>
+    latencies = self.latencies
+    <span class="keyword">if</span> task_type:
+        latencies = [l <span class="keyword">for</span> l <span class="keyword">in</span> latencies <span class="keyword">if</span> l[<span class="string">"task_type"</span>] == task_type]
+
+    <span class="keyword">if not</span> latencies:
+        <span class="keyword">return</span> {}
+
+    times = [l[<span class="string">"total_time"</span>] <span class="keyword">for</span> l <span class="keyword">in</span> latencies]
+
+    <span class="keyword">return</span> {
+        <span class="string">"mean"</span>: <span class="function">round</span>(statistics.<span class="function">mean</span>(times), <span class="number">3</span>),
+        <span class="string">"median"</span>: <span class="function">round</span>(statistics.<span class="function">median</span>(times), <span class="number">3</span>),
+        <span class="string">"p50"</span>: <span class="function">round</span>(np.<span class="function">percentile</span>(times, <span class="number">50</span>), <span class="number">3</span>),
+        <span class="string">"p95"</span>: <span class="function">round</span>(np.<span class="function">percentile</span>(times, <span class="number">95</span>), <span class="number">3</span>),
+        <span class="string">"p99"</span>: <span class="function">round</span>(np.<span class="function">percentile</span>(times, <span class="number">99</span>), <span class="number">3</span>),
+        <span class="string">"min"</span>: <span class="function">round</span>(<span class="function">min</span>(times), <span class="number">3</span>),
+        <span class="string">"max"</span>: <span class="function">round</span>(<span class="function">max</span>(times), <span class="number">3</span>),
+        <span class="string">"std"</span>: <span class="function">round</span>(statistics.<span class="function">stdev</span>(times) <span class="keyword">if</span> <span class="function">len</span>(times) > <span class="number">1</span> <span class="keyword">else</span> <span class="number">0</span>, <span class="number">3</span>)
+    }
+                </div>
+            </div>
+
+            <!-- Bottleneck Analysis -->
+            <div class="section">
+                <h2>🔍 병목 지점 분석</h2>
+
+                <div class="intro-box">
+                    <strong>병목 분석</strong>은 시스템에서 가장 시간이 많이 걸리는 구성 요소를 식별합니다.
+                    각 작업의 breakdown을 집계하여 평균 시간이 가장 긴 구성 요소를 찾아냅니다.
+                </div>
+
+                <h3>병목 분석 알고리즘</h3>
+                <div class="code-block">
+<span class="keyword">def</span> <span class="function">analyze_bottlenecks</span>(self) -> Dict[str, Any]:
+    <span class="string">"""Identify performance bottlenecks"""</span>
+    <span class="keyword">if not</span> self.latencies:
+        <span class="keyword">return</span> {}
+
+    <span class="comment"># Aggregate breakdown times</span>
+    breakdown_totals = defaultdict(float)
+    breakdown_counts = defaultdict(int)
+
+    <span class="keyword">for</span> latency <span class="keyword">in</span> self.latencies:
+        <span class="comment"># Skip if breakdown is empty or None</span>
+        <span class="keyword">if not</span> latency.get(<span class="string">"breakdown"</span>):
+            <span class="keyword">continue</span>
+        <span class="keyword">for</span> component, time <span class="keyword">in</span> latency[<span class="string">"breakdown"</span>].items():
+            breakdown_totals[component] += time
+            breakdown_counts[component] += <span class="number">1</span>
+
+    <span class="comment"># Return empty if no breakdown data</span>
+    <span class="keyword">if not</span> breakdown_totals:
+        <span class="keyword">return</span> {<span class="string">"breakdown_averages"</span>: {}, <span class="string">"bottleneck"</span>: None}
+
+    <span class="comment"># Calculate average time per component</span>
+    breakdown_avgs = {
+        component: breakdown_totals[component] / breakdown_counts[component]
+        <span class="keyword">for</span> component <span class="keyword">in</span> breakdown_totals
+    }
+
+    <span class="comment"># Find the slowest component</span>
+    bottleneck = <span class="function">max</span>(breakdown_avgs, key=breakdown_avgs.get)
+
+    <span class="keyword">return</span> {
+        <span class="string">"breakdown_averages"</span>: {k: <span class="function">round</span>(v, <span class="number">3</span>) <span class="keyword">for</span> k, v <span class="keyword">in</span> breakdown_avgs.items()},
+        <span class="string">"bottleneck"</span>: bottleneck,
+        <span class="string">"bottleneck_avg_time"</span>: <span class="function">round</span>(breakdown_avgs[bottleneck], <span class="number">3</span>)
+    }
+                </div>
+
+                <h3>일반적인 병목 지점</h3>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>구성 요소</th>
+                            <th>일반적인 원인</th>
+                            <th>최적화 방법</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><strong>LLM API Call</strong></td>
+                            <td>외부 API 응답 시간</td>
+                            <td>스트리밍 활용, 모델 선택 최적화, 배치 처리</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Context Retrieval</strong></td>
+                            <td>RAG, 벡터 DB 조회</td>
+                            <td>인덱스 최적화, 캐싱, 쿼리 최적화</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Tool Execution</strong></td>
+                            <td>외부 도구/API 호출</td>
+                            <td>병렬 실행, 타임아웃 설정, 캐싱</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Prompt Processing</strong></td>
+                            <td>복잡한 템플릿 렌더링</td>
+                            <td>템플릿 최적화, 사전 컴파일</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Output Parsing</strong></td>
+                            <td>JSON/구조화 데이터 파싱</td>
+                            <td>파서 최적화, 스키마 단순화</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Task Type Breakdown -->
+            <div class="section">
+                <h2>📊 작업 유형별 분석</h2>
+
+                <div class="intro-box">
+                    작업 유형(QA, Code Generation, Reasoning 등)에 따라 지연 시간 특성이 다릅니다.
+                    <code>get_latency_by_type()</code>는 각 작업 유형별로 통계를 분리하여 제공합니다.
+                </div>
+
+                <h3>작업 유형별 통계 계산</h3>
+                <div class="code-block">
+<span class="keyword">def</span> <span class="function">get_latency_by_type</span>(self) -> Dict[str, Dict[str, float]]:
+    <span class="string">"""Get latency statistics broken down by task type"""</span>
+    <span class="keyword">if not</span> self.latencies:
+        <span class="keyword">return</span> {}
+
+    <span class="comment"># Group latencies by task type</span>
+    latencies_by_type = defaultdict(list)
+    <span class="keyword">for</span> latency <span class="keyword">in</span> self.latencies:
+        task_type = latency.get(<span class="string">"task_type"</span>, <span class="string">"unknown"</span>)
+        latencies_by_type[task_type].append(latency[<span class="string">"total_time"</span>])
+
+    <span class="comment"># Calculate statistics for each type</span>
+    type_stats = {}
+    <span class="keyword">for</span> task_type, times <span class="keyword">in</span> latencies_by_type.items():
+        <span class="keyword">if</span> times:
+            type_stats[task_type] = {
+                <span class="string">"avg"</span>: <span class="function">round</span>(statistics.<span class="function">mean</span>(times), <span class="number">3</span>),
+                <span class="string">"median"</span>: <span class="function">round</span>(statistics.<span class="function">median</span>(times), <span class="number">3</span>),
+                <span class="string">"min"</span>: <span class="function">round</span>(<span class="function">min</span>(times), <span class="number">3</span>),
+                <span class="string">"max"</span>: <span class="function">round</span>(<span class="function">max</span>(times), <span class="number">3</span>),
+                <span class="string">"p95"</span>: <span class="function">round</span>(np.<span class="function">percentile</span>(times, <span class="number">95</span>), <span class="number">3</span>),
+                <span class="string">"p99"</span>: <span class="function">round</span>(np.<span class="function">percentile</span>(times, <span class="number">99</span>), <span class="number">3</span>),
+                <span class="string">"count"</span>: <span class="function">len</span>(times),
+                <span class="string">"total_time"</span>: <span class="function">round</span>(<span class="function">sum</span>(times), <span class="number">3</span>),
+                <span class="string">"std"</span>: <span class="function">round</span>(statistics.<span class="function">stdev</span>(times), <span class="number">3</span>) <span class="keyword">if</span> <span class="function">len</span>(times) > <span class="number">1</span> <span class="keyword">else</span> <span class="number">0.0</span>
+            }
+
+    <span class="keyword">return</span> type_stats
+                </div>
+
+                <h3>사용 예시</h3>
+                <div class="code-block">
+<span class="comment"># 작업 유형별 지연 시간 분석</span>
+type_stats = tracker.get_latency_by_type()
+
+<span class="keyword">for</span> task_type, stats <span class="keyword">in</span> type_stats.items():
+    <span class="function">print</span>(<span class="string">f"<span class="operator">\n</span>Task Type: {task_type}"</span>)
+    <span class="function">print</span>(<span class="string">f"  Count: {stats['count']}"</span>)
+    <span class="function">print</span>(<span class="string">f"  Avg: {stats['avg']:.3f}s"</span>)
+    <span class="function">print</span>(<span class="string">f"  P95: {stats['p95']:.3f}s"</span>)
+    <span class="function">print</span>(<span class="string">f"  P99: {stats['p99']:.3f}s"</span>)
+
+<span class="comment"># 출력 예시:
+# Task Type: qa
+#   Count: 150
+#   Avg: 1.234s
+#   P95: 2.456s
+#   P99: 3.789s
+#
+# Task Type: code_generation
+#   Count: 75
+#   Avg: 3.456s
+#   P95: 5.678s
+#   P99: 7.890s</span>
+                </div>
+            </div>
+
+            <!-- SLA Compliance -->
+            <div class="section">
+                <h2>✅ SLA 준수 모니터링</h2>
+
+                <div class="intro-box">
+                    <strong>SLA (Service Level Agreement)</strong> 준수는 서비스 품질 보장의 핵심입니다.
+                    <code>check_sla_compliance()</code>는 작업 유형별 SLA 목표 대비 실제 성능을 모니터링합니다.
+                </div>
+
+                <h3>SLA 준수율 계산</h3>
+                <div class="formula-box">
+                    <div>SLA 준수율 계산식</div>
+                    <div class="formula">
+                        Compliance Rate = (목표 시간 이내 완료 작업 수 / 전체 작업 수) × 100
+                    </div>
+                </div>
+
+                <div class="code-block">
+<span class="keyword">def</span> <span class="function">check_sla_compliance</span>(self, sla_targets: Dict[str, float]) -> Dict[str, Any]:
+    <span class="string">"""Check SLA compliance"""</span>
+    results = {}
+
+    <span class="keyword">for</span> task_type, target <span class="keyword">in</span> sla_targets.items():
+        type_latencies = [
+            l[<span class="string">"total_time"</span>] <span class="keyword">for</span> l <span class="keyword">in</span> self.latencies
+            <span class="keyword">if</span> l[<span class="string">"task_type"</span>] == task_type
+        ]
+
+        <span class="keyword">if not</span> type_latencies:
+            <span class="keyword">continue</span>
+
+        <span class="comment"># Calculate P95 latency</span>
+        p95 = np.<span class="function">percentile</span>(type_latencies, <span class="number">95</span>)
+
+        <span class="comment"># Count how many tasks met the SLA</span>
+        within_sla = <span class="function">sum</span>(<span class="number">1</span> <span class="keyword">for</span> t <span class="keyword">in</span> type_latencies <span class="keyword">if</span> t <= target)
+
+        results[task_type] = {
+            <span class="string">"target"</span>: target,
+            <span class="string">"p95"</span>: <span class="function">round</span>(p95, <span class="number">3</span>),
+            <span class="string">"compliance_rate"</span>: <span class="function">round</span>((within_sla / <span class="function">len</span>(type_latencies)) * <span class="number">100</span>, <span class="number">2</span>),
+            <span class="string">"within_sla"</span>: within_sla,
+            <span class="string">"total"</span>: <span class="function">len</span>(type_latencies)
+        }
+
+    <span class="keyword">return</span> results
+                </div>
+
+                <h3>SLA 목표 설정 예시</h3>
+                <div class="code-block">
+<span class="comment"># SLA 목표 정의 (초 단위)</span>
+sla_targets = {
+    <span class="string">"qa"</span>: <span class="number">2.0</span>,              <span class="comment"># QA 작업은 2초 이내</span>
+    <span class="string">"code_generation"</span>: <span class="number">5.0</span>,  <span class="comment"># 코드 생성은 5초 이내</span>
+    <span class="string">"reasoning"</span>: <span class="number">3.0</span>,        <span class="comment"># 추론 작업은 3초 이내</span>
+    <span class="string">"summarization"</span>: <span class="number">4.0</span>    <span class="comment"># 요약 작업은 4초 이내</span>
+}
+
+<span class="comment"># SLA 준수율 확인</span>
+compliance = tracker.check_sla_compliance(sla_targets)
+
+<span class="keyword">for</span> task_type, result <span class="keyword">in</span> compliance.items():
+    <span class="function">print</span>(<span class="string">f"<span class="operator">\n</span>{task_type}:"</span>)
+    <span class="function">print</span>(<span class="string">f"  Target: {result['target']:.1f}s"</span>)
+    <span class="function">print</span>(<span class="string">f"  P95: {result['p95']:.3f}s"</span>)
+    <span class="function">print</span>(<span class="string">f"  Compliance: {result['compliance_rate']:.1f}%"</span>)
+    <span class="function">print</span>(<span class="string">f"  Within SLA: {result['within_sla']}/{result['total']}"</span>)
+
+    <span class="comment"># Alert if SLA is violated</span>
+    <span class="keyword">if</span> result[<span class="string">'compliance_rate'</span>] < <span class="number">95.0</span>:
+        <span class="function">print</span>(<span class="string">f"  ⚠️ WARNING: SLA compliance below 95%"</span>)
+                </div>
+
+                <h3>SLA 준수율 기준</h3>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>준수율</th>
+                            <th>상태</th>
+                            <th>조치</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>≥ 99%</td>
+                            <td style="color: #22543d;">✅ Excellent</td>
+                            <td>현재 상태 유지</td>
+                        </tr>
+                        <tr>
+                            <td>95-98%</td>
+                            <td style="color: #38a169;">✓ Good</td>
+                            <td>모니터링 계속</td>
+                        </tr>
+                        <tr>
+                            <td>90-94%</td>
+                            <td style="color: #dd6b20;">⚠️ Warning</td>
+                            <td>최적화 검토 필요</td>
+                        </tr>
+                        <tr>
+                            <td>&lt; 90%</td>
+                            <td style="color: #c53030;">❌ Critical</td>
+                            <td>즉각적인 조치 필요</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Usage Examples -->
+            <div class="section">
+                <h2>💻 사용 예시</h2>
+
+                <h3>기본 사용법</h3>
+                <div class="code-block">
+<span class="keyword">from</span> agent_evaluator <span class="keyword">import</span> AgentEvaluator
+<span class="keyword">import</span> time
+
+<span class="comment"># Evaluator 초기화</span>
+evaluator = AgentEvaluator()
+
+<span class="comment"># 작업 시작</span>
+start_time = time.time()
+
+<span class="comment"># 구성 요소별 시간 측정</span>
+breakdown = {}
+
+<span class="comment"># 1. Context retrieval</span>
+context_start = time.time()
+context = retrieve_context(query)
+breakdown[<span class="string">"context_retrieval"</span>] = time.time() - context_start
+
+<span class="comment"># 2. LLM call</span>
+llm_start = time.time()
+response = llm.generate(prompt)
+breakdown[<span class="string">"llm_call"</span>] = time.time() - llm_start
+
+<span class="comment"># 3. Output parsing</span>
+parse_start = time.time()
+result = parse_output(response)
+breakdown[<span class="string">"output_parsing"</span>] = time.time() - parse_start
+
+<span class="comment"># 총 시간 계산</span>
+total_time = time.time() - start_time
+
+<span class="comment"># Latency 기록</span>
+evaluator.record_latency(
+    task_id=<span class="string">"task_001"</span>,
+    task_type=<span class="string">"qa"</span>,
+    total_time=total_time,
+    breakdown=breakdown
+)
+
+<span class="comment"># 통계 조회</span>
+stats = evaluator.get_latency_stats(task_type=<span class="string">"qa"</span>)
+<span class="function">print</span>(<span class="string">f"Mean: {stats['mean']:.3f}s"</span>)
+<span class="function">print</span>(<span class="string">f"P95: {stats['p95']:.3f}s"</span>)
+<span class="function">print</span>(<span class="string">f"P99: {stats['p99']:.3f}s"</span>)
+                </div>
+
+                <h3>병목 분석 예시</h3>
+                <div class="code-block">
+<span class="comment"># 여러 작업 실행 후 병목 분석</span>
+bottleneck_analysis = evaluator.analyze_bottlenecks()
+
+<span class="function">print</span>(<span class="string">"=== Performance Bottleneck Analysis ==="</span>)
+<span class="function">print</span>(<span class="string">f"<span class="operator">\n</span>Component Average Times:"</span>)
+<span class="keyword">for</span> component, avg_time <span class="keyword">in</span> bottleneck_analysis[<span class="string">"breakdown_averages"</span>].items():
+    <span class="function">print</span>(<span class="string">f"  {component}: {avg_time:.3f}s"</span>)
+
+<span class="function">print</span>(<span class="string">f"<span class="operator">\n</span>🔴 Bottleneck: {bottleneck_analysis['bottleneck']}"</span>)
+<span class="function">print</span>(<span class="string">f"   Average Time: {bottleneck_analysis['bottleneck_avg_time']:.3f}s"</span>)
+
+<span class="comment"># 출력 예시:
+# === Performance Bottleneck Analysis ===
+#
+# Component Average Times:
+#   context_retrieval: 0.234s
+#   llm_call: 1.567s
+#   output_parsing: 0.089s
+#
+# 🔴 Bottleneck: llm_call
+#    Average Time: 1.567s</span>
+                </div>
+            </div>
+
+            <!-- Automation Strategies -->
+            <div class="section">
+                <h2>🤖 평가 데이터 자동 처리 방안</h2>
+
+                <div class="intro-box">
+                    <strong>실제 프로젝트에서는 수백~수천 개의 작업에 대한 응답 시간을 측정하고 분석해야 합니다.</strong><br>
+                    Latency Metrics는 <span class="highlight">시간 측정이 자동으로 이루어지므로</span> 별도 데이터 준비가 불필요하지만,
+                    <span class="highlight">측정 자동화, 병목 분석, SLA 모니터링</span> 등을 효율적으로 처리하는 전략이 중요합니다.
+                </div>
+
+                <h3>자동화 수준별 전략</h3>
+
+                <table>
+                    <thead>
+                        <tr>
+                            <th>레벨</th>
+                            <th>자동화 범위</th>
+                            <th>측정 방법</th>
+                            <th>적용 시나리오</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><strong>Level 1</strong></td>
+                            <td>기본 시간 측정</td>
+                            <td>총 시간만 자동 기록</td>
+                            <td>빠른 프로토타입</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Level 2</strong></td>
+                            <td>데코레이터 기반</td>
+                            <td>함수 자동 래핑</td>
+                            <td>기존 코드 최소 수정</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Level 3</strong></td>
+                            <td>컨텍스트 매니저</td>
+                            <td>구성 요소별 자동 측정</td>
+                            <td>상세 병목 분석</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Level 4</strong></td>
+                            <td>프레임워크 통합</td>
+                            <td>콜백 기반 자동 수집</td>
+                            <td>LangChain, CrewAI 등</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Level 5</strong></td>
+                            <td>실시간 모니터링</td>
+                            <td>자동 알림 + 대시보드</td>
+                            <td>프로덕션 환경</td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                <h3>Level 1: 기본 자동 시간 측정</h3>
+
+                <div class="info-box">
+                    <h4>💡 핵심 아이디어</h4>
+                    <p>Agent 실행의 시작/종료 시간만 자동 측정 (breakdown 없음)</p>
+                    <p><strong>장점</strong>: 가장 간단, 코드 수정 최소</p>
+                    <p><strong>단점</strong>: 병목 분석 불가</p>
+                </div>
+
+                <div class="code-block">
+<span class="keyword">from</span> agent_evaluator <span class="keyword">import</span> PerformanceMonitor
+<span class="keyword">import</span> time
+
+<span class="keyword">class</span> <span class="function">BasicLatencyTracker</span>:
+    <span class="string">"""기본 자동 시간 측정"""</span>
+
+    <span class="keyword">def</span> <span class="function">__init__</span>(self, monitor: PerformanceMonitor):
+        self.monitor = monitor
+
+    <span class="keyword">def</span> <span class="function">execute_and_track</span>(self, task_id: <span class="keyword">str</span>, agent_func, *args, **kwargs):
+        <span class="string">"""Agent 함수 실행 + 자동 시간 측정"""</span>
+
+        <span class="comment"># 시작 시간</span>
+        start_time = time.<span class="function">time</span>()
+
+        <span class="keyword">try</span>:
+            <span class="comment"># Agent 실행</span>
+            result = <span class="function">agent_func</span>(*args, **kwargs)
+            success = <span class="keyword">True</span>
+        <span class="keyword">except</span> Exception <span class="keyword">as</span> e:
+            result = <span class="keyword">None</span>
+            success = <span class="keyword">False</span>
+
+        <span class="comment"># 총 시간 계산</span>
+        total_time = time.<span class="function">time</span>() - start_time
+
+        <span class="comment"># 자동 기록</span>
+        self.monitor.<span class="function">record_task</span>(
+            task_id=task_id,
+            success=success,
+            latency=total_time,  <span class="comment">← 자동 측정</span>
+            completion_score=<span class="number">1.0</span> <span class="keyword">if</span> success <span class="keyword">else</span> <span class="number">0.0</span>
+        )
+
+        <span class="keyword">return</span> result
+
+<span class="comment"># ============================================================</span>
+<span class="comment"># 사용 예시</span>
+<span class="comment"># ============================================================</span>
+
+monitor = <span class="function">PerformanceMonitor</span>()
+tracker = <span class="function">BasicLatencyTracker</span>(monitor)
+
+<span class="comment"># 여러 작업 실행</span>
+questions = [
+    <span class="string">"파이썬 리스트 정렬 방법은?"</span>,
+    <span class="string">"머신러닝이란?"</span>,
+    <span class="comment"># ... 수백 개</span>
+]
+
+<span class="keyword">for</span> i, question <span class="keyword">in</span> <span class="function">enumerate</span>(questions):
+    result = tracker.<span class="function">execute_and_track</span>(
+        task_id=<span class="string">f"task_{i:03d}"</span>,
+        agent_func=your_agent.run,
+        question
+    )
+
+<span class="comment"># 통계 자동 계산</span>
+latency_stats = monitor.latency_tracker.<span class="function">get_latency_stats</span>()
+<span class="function">print</span>(<span class="string">f"Mean: {latency_stats['mean']:.3f}s"</span>)
+<span class="function">print</span>(<span class="string">f"P95: {latency_stats['p95']:.3f}s"</span>)
+<span class="function">print</span>(<span class="string">f"P99: {latency_stats['p99']:.3f}s"</span>)
+</div>
+
+                <h3>Level 2: 데코레이터 기반 자동 측정</h3>
+
+                <div class="info-box">
+                    <h4>💡 핵심 아이디어</h4>
+                    <p>Python 데코레이터로 함수에 시간 측정을 자동 추가</p>
+                    <p><strong>장점</strong>: 기존 함수 수정 불필요, 재사용 가능</p>
+                    <p><strong>단점</strong>: Breakdown 측정 제한적</p>
+                </div>
+
+                <div class="code-block">
+<span class="keyword">from</span> agent_evaluator <span class="keyword">import</span> PerformanceMonitor
+<span class="keyword">import</span> time
+<span class="keyword">from</span> functools <span class="keyword">import</span> wraps
+
+<span class="keyword">def</span> <span class="function">track_latency</span>(monitor: PerformanceMonitor, task_type: <span class="keyword">str</span> = <span class="string">"default"</span>):
+    <span class="string">"""시간 측정 데코레이터"""</span>
+
+    <span class="keyword">def</span> <span class="function">decorator</span>(func):
+        <span class="decorator">@wraps</span>(func)
+        <span class="keyword">def</span> <span class="function">wrapper</span>(*args, **kwargs):
+            task_id = kwargs.<span class="function">get</span>(<span class="string">"task_id"</span>, <span class="string">f"{func.__name__}_{int(time.time())}"</span>)
+
+            <span class="comment"># 시작 시간</span>
+            start_time = time.<span class="function">time</span>()
+
+            <span class="keyword">try</span>:
+                result = <span class="function">func</span>(*args, **kwargs)
+                success = <span class="keyword">True</span>
+            <span class="keyword">except</span> Exception <span class="keyword">as</span> e:
+                result = <span class="keyword">None</span>
+                success = <span class="keyword">False</span>
+                <span class="keyword">raise</span>
+            <span class="keyword">finally</span>:
+                <span class="comment"># 시간 자동 기록</span>
+                total_time = time.<span class="function">time</span>() - start_time
+                monitor.<span class="function">record_task</span>(
+                    task_id=task_id,
+                    success=success,
+                    latency=total_time,
+                    completion_score=<span class="number">1.0</span> <span class="keyword">if</span> success <span class="keyword">else</span> <span class="number">0.0</span>
+                )
+
+            <span class="keyword">return</span> result
+
+        <span class="keyword">return</span> wrapper
+    <span class="keyword">return</span> decorator
+
+<span class="comment"># ============================================================</span>
+<span class="comment"># 사용 예시</span>
+<span class="comment"># ============================================================</span>
+
+monitor = <span class="function">PerformanceMonitor</span>()
+
+<span class="decorator">@track_latency</span>(monitor, task_type=<span class="string">"qa"</span>)
+<span class="keyword">def</span> <span class="function">qa_agent</span>(question: <span class="keyword">str</span>, task_id: <span class="keyword">str</span> = <span class="keyword">None</span>) -> <span class="keyword">str</span>:
+    <span class="string">"""QA Agent (자동 시간 측정)"""</span>
+    response = your_llm.<span class="function">generate</span>(question)
+    <span class="keyword">return</span> response
+
+<span class="decorator">@track_latency</span>(monitor, task_type=<span class="string">"code_generation"</span>)
+<span class="keyword">def</span> <span class="function">code_agent</span>(prompt: <span class="keyword">str</span>, task_id: <span class="keyword">str</span> = <span class="keyword">None</span>) -> <span class="keyword">str</span>:
+    <span class="string">"""Code Generation Agent (자동 시간 측정)"""</span>
+    code = your_llm.<span class="function">generate_code</span>(prompt)
+    <span class="keyword">return</span> code
+
+<span class="comment"># 사용 - 데코레이터가 자동으로 시간 측정</span>
+<span class="keyword">for</span> i <span class="keyword">in</span> <span class="function">range</span>(<span class="number">100</span>):
+    qa_response = <span class="function">qa_agent</span>(
+        <span class="string">f"질문 {i}"</span>,
+        task_id=<span class="string">f"qa_{i:03d}"</span>
+    )
+
+<span class="comment"># 통계 자동 계산</span>
+latency_stats = monitor.latency_tracker.<span class="function">get_latency_stats</span>()
+<span class="function">print</span>(<span class="string">f"QA Agent - Mean: {latency_stats['mean']:.3f}s"</span>)
+</div>
+
+                <h3>Level 3: 컨텍스트 매니저로 구성 요소별 자동 측정</h3>
+
+                <div class="info-box">
+                    <h4>💡 핵심 아이디어</h4>
+                    <p>Context Manager로 구성 요소별 시간을 자동 수집하여 병목 분석 가능</p>
+                    <p><strong>장점</strong>: Breakdown 자동 수집, 병목 분석 가능</p>
+                    <p><strong>단점</strong>: 코드 블록 구조 필요</p>
+                </div>
+
+                <div class="code-block">
+<span class="keyword">from</span> agent_evaluator <span class="keyword">import</span> PerformanceMonitor
+<span class="keyword">import</span> time
+<span class="keyword">from</span> contextlib <span class="keyword">import</span> contextmanager
+
+<span class="keyword">class</span> <span class="function">LatencyContextManager</span>:
+    <span class="string">"""구성 요소별 시간 자동 측정"""</span>
+
+    <span class="keyword">def</span> <span class="function">__init__</span>(self, monitor: PerformanceMonitor):
+        self.monitor = monitor
+        self.task_id = <span class="keyword">None</span>
+        self.total_start = <span class="keyword">None</span>
+        self.breakdown = {}
+
+    <span class="keyword">def</span> <span class="function">start_task</span>(self, task_id: <span class="keyword">str</span>):
+        <span class="string">"""작업 시작"""</span>
+        self.task_id = task_id
+        self.total_start = time.<span class="function">time</span>()
+        self.breakdown = {}
+        <span class="keyword">return</span> self
+
+    <span class="decorator">@contextmanager</span>
+    <span class="keyword">def</span> <span class="function">measure_component</span>(self, component_name: <span class="keyword">str</span>):
+        <span class="string">"""구성 요소 시간 측정"""</span>
+        start = time.<span class="function">time</span>()
+        <span class="keyword">try</span>:
+            <span class="keyword">yield</span>
+        <span class="keyword">finally</span>:
+            elapsed = time.<span class="function">time</span>() - start
+            self.breakdown[component_name] = elapsed
+
+    <span class="keyword">def</span> <span class="function">end_task</span>(self, success: <span class="keyword">bool</span> = <span class="keyword">True</span>):
+        <span class="string">"""작업 종료 및 자동 기록"""</span>
+        total_time = time.<span class="function">time</span>() - self.total_start
+
+        self.monitor.<span class="function">record_task</span>(
+            task_id=self.task_id,
+            success=success,
+            latency=total_time,
+            completion_score=<span class="number">1.0</span> <span class="keyword">if</span> success <span class="keyword">else</span> <span class="number">0.0</span>
+        )
+
+        <span class="comment"># Breakdown 별도 기록</span>
+        self.monitor.latency_tracker.<span class="function">record_latency</span>(
+            task_id=self.task_id,
+            task_type=<span class="string">"auto"</span>,
+            total_time=total_time,
+            breakdown=self.breakdown
+        )
+
+<span class="comment"># ============================================================</span>
+<span class="comment"># 사용 예시</span>
+<span class="comment"># ============================================================</span>
+
+monitor = <span class="function">PerformanceMonitor</span>()
+ctx = <span class="function">LatencyContextManager</span>(monitor)
+
+<span class="keyword">for</span> i <span class="keyword">in</span> <span class="function">range</span>(<span class="number">100</span>):
+    <span class="comment"># 작업 시작</span>
+    ctx.<span class="function">start_task</span>(<span class="string">f"task_{i:03d}"</span>)
+
+    <span class="comment"># 구성 요소 1: Context Retrieval</span>
+    <span class="keyword">with</span> ctx.<span class="function">measure_component</span>(<span class="string">"context_retrieval"</span>):
+        context = retrieve_context(query)
+
+    <span class="comment"># 구성 요소 2: LLM Call</span>
+    <span class="keyword">with</span> ctx.<span class="function">measure_component</span>(<span class="string">"llm_call"</span>):
+        response = llm.<span class="function">generate</span>(prompt)
+
+    <span class="comment"># 구성 요소 3: Output Parsing</span>
+    <span class="keyword">with</span> ctx.<span class="function">measure_component</span>(<span class="string">"output_parsing"</span>):
+        result = parse_output(response)
+
+    <span class="comment"># 작업 종료 (자동 기록)</span>
+    ctx.<span class="function">end_task</span>(success=<span class="keyword">True</span>)
+
+<span class="comment"># 병목 분석 자동 수행</span>
+bottleneck_analysis = monitor.latency_tracker.<span class="function">analyze_bottlenecks</span>()
+<span class="function">print</span>(<span class="string">f"Bottleneck: {bottleneck_analysis['bottleneck']}"</span>)
+<span class="function">print</span>(<span class="string">f"Average Time: {bottleneck_analysis['bottleneck_avg_time']:.3f}s"</span>)
+</div>
+
+                <h3>Level 4: 프레임워크 자동 통합 (LangChain 예시)</h3>
+
+                <div class="info-box">
+                    <h4>💡 핵심 아이디어</h4>
+                    <p>프레임워크의 콜백 시스템으로 자동으로 모든 시간 측정</p>
+                    <p><strong>장점</strong>: 완전 자동, 코드 수정 불필요</p>
+                    <p><strong>단점</strong>: 프레임워크 종속적</p>
+                </div>
+
+                <div class="code-block">
+<span class="keyword">from</span> langchain.callbacks <span class="keyword">import</span> BaseCallbackHandler
+<span class="keyword">from</span> agent_evaluator <span class="keyword">import</span> PerformanceMonitor
+<span class="keyword">import</span> time
+
+<span class="keyword">class</span> <span class="function">AutoLatencyCallback</span>(BaseCallbackHandler):
+    <span class="string">"""LangChain 자동 Latency 측정 콜백"""</span>
+
+    <span class="keyword">def</span> <span class="function">__init__</span>(self, monitor: PerformanceMonitor):
+        self.monitor = monitor
+        self.task_times = {}
+        self.breakdowns = {}
+
+    <span class="keyword">def</span> <span class="function">on_chain_start</span>(self, serialized, inputs, run_id, **kwargs):
+        <span class="string">"""체인 시작 - 자동 타이머 시작"""</span>
+        self.task_times[run_id] = time.<span class="function">time</span>()
+        self.breakdowns[run_id] = {}
+
+    <span class="keyword">def</span> <span class="function">on_llm_start</span>(self, serialized, prompts, run_id, **kwargs):
+        <span class="string">"""LLM 시작 - 자동 기록"""</span>
+        self.breakdowns[run_id][<span class="string">"llm_start_time"</span>] = time.<span class="function">time</span>()
+
+    <span class="keyword">def</span> <span class="function">on_llm_end</span>(self, response, run_id, **kwargs):
+        <span class="string">"""LLM 종료 - 자동 계산"""</span>
+        <span class="keyword">if</span> <span class="string">"llm_start_time"</span> <span class="keyword">in</span> self.breakdowns[run_id]:
+            llm_time = time.<span class="function">time</span>() - self.breakdowns[run_id][<span class="string">"llm_start_time"</span>]
+            self.breakdowns[run_id][<span class="string">"llm_call"</span>] = llm_time
+
+    <span class="keyword">def</span> <span class="function">on_retriever_start</span>(self, serialized, query, run_id, **kwargs):
+        <span class="string">"""Retriever 시작"""</span>
+        self.breakdowns[run_id][<span class="string">"retriever_start_time"</span>] = time.<span class="function">time</span>()
+
+    <span class="keyword">def</span> <span class="function">on_retriever_end</span>(self, documents, run_id, **kwargs):
+        <span class="string">"""Retriever 종료"""</span>
+        <span class="keyword">if</span> <span class="string">"retriever_start_time"</span> <span class="keyword">in</span> self.breakdowns[run_id]:
+            retriever_time = time.<span class="function">time</span>() - self.breakdowns[run_id][<span class="string">"retriever_start_time"</span>]
+            self.breakdowns[run_id][<span class="string">"context_retrieval"</span>] = retriever_time
+
+    <span class="keyword">def</span> <span class="function">on_chain_end</span>(self, outputs, run_id, **kwargs):
+        <span class="string">"""체인 종료 - 자동 기록"""</span>
+        total_time = time.<span class="function">time</span>() - self.task_times[run_id]
+
+        <span class="comment"># Breakdown에서 임시 시간 제거</span>
+        breakdown = {
+            k: v <span class="keyword">for</span> k, v <span class="keyword">in</span> self.breakdowns[run_id].<span class="function">items</span>()
+            <span class="keyword">if</span> <span class="keyword">not</span> k.<span class="function">endswith</span>(<span class="string">"_start_time"</span>)
+        }
+
+        <span class="comment"># 자동 기록</span>
+        self.monitor.<span class="function">record_task</span>(
+            task_id=<span class="function">str</span>(run_id),
+            success=<span class="keyword">True</span>,
+            latency=total_time,
+            completion_score=<span class="number">1.0</span>
+        )
+
+        self.monitor.latency_tracker.<span class="function">record_latency</span>(
+            task_id=<span class="function">str</span>(run_id),
+            task_type=<span class="string">"langchain"</span>,
+            total_time=total_time,
+            breakdown=breakdown
+        )
+
+        <span class="comment"># 정리</span>
+        <span class="keyword">del</span> self.task_times[run_id]
+        <span class="keyword">del</span> self.breakdowns[run_id]
+
+<span class="comment"># ============================================================</span>
+<span class="comment"># 사용 예시 - 완전 자동</span>
+<span class="comment"># ============================================================</span>
+
+<span class="keyword">from</span> langchain.chains <span class="keyword">import</span> RetrievalQA
+<span class="keyword">from</span> langchain.llms <span class="keyword">import</span> OpenAI
+
+monitor = <span class="function">PerformanceMonitor</span>()
+callback = <span class="function">AutoLatencyCallback</span>(monitor)
+
+<span class="comment"># LangChain 설정</span>
+llm = <span class="function">OpenAI</span>(temperature=<span class="number">0</span>)
+qa_chain = <span class="function">RetrievalQA</span>.<span class="function">from_chain_type</span>(
+    llm=llm,
+    retriever=vectorstore.<span class="function">as_retriever</span>(),
+    callbacks=[callback]  <span class="comment">← 콜백만 추가하면 자동 측정</span>
+)
+
+<span class="comment"># 실행 - 모든 시간 자동 측정됨</span>
+<span class="keyword">for</span> i, question <span class="keyword">in</span> <span class="function">enumerate</span>(questions):
+    result = qa_chain.<span class="function">run</span>(question)
+
+<span class="comment"># 통계 및 병목 자동 분석</span>
+latency_stats = monitor.latency_tracker.<span class="function">get_latency_stats</span>()
+bottleneck = monitor.latency_tracker.<span class="function">analyze_bottlenecks</span>()
+
+<span class="function">print</span>(<span class="string">f"Mean: {latency_stats['mean']:.3f}s"</span>)
+<span class="function">print</span>(<span class="string">f"P95: {latency_stats['p95']:.3f}s"</span>)
+<span class="function">print</span>(<span class="string">f"Bottleneck: {bottleneck['bottleneck']}"</span>)
+</div>
+
+                <h3>Level 5: 실시간 모니터링 및 자동 알림</h3>
+
+                <div class="info-box">
+                    <h4>💡 핵심 아이디어</h4>
+                    <p>SLA 위반 시 자동 알림, 실시간 대시보드 업데이트</p>
+                    <p><strong>장점</strong>: 프로덕션 모니터링, 조기 경보</p>
+                    <p><strong>단점</strong>: 인프라 필요</p>
+                </div>
+
+                <div class="code-block">
+<span class="keyword">from</span> agent_evaluator <span class="keyword">import</span> PerformanceMonitor
+<span class="keyword">import</span> time
+<span class="keyword">import</span> threading
+<span class="keyword">from</span> typing <span class="keyword">import</span> Callable
+
+<span class="keyword">class</span> <span class="function">RealTimeLatencyMonitor</span>:
+    <span class="string">"""실시간 Latency 모니터링 및 자동 알림"""</span>
+
+    <span class="keyword">def</span> <span class="function">__init__</span>(
+        self,
+        monitor: PerformanceMonitor,
+        sla_targets: <span class="keyword">dict</span>[<span class="keyword">str</span>, <span class="keyword">float</span>],
+        alert_callback: Callable = <span class="keyword">None</span>
+    ):
+        self.monitor = monitor
+        self.sla_targets = sla_targets
+        self.alert_callback = alert_callback <span class="keyword">or</span> self.<span class="function">default_alert</span>
+        self.violation_count = {}
+        self.check_interval = <span class="number">60</span>  <span class="comment"># 60초마다 체크</span>
+        self.running = <span class="keyword">False</span>
+
+    <span class="keyword">def</span> <span class="function">default_alert</span>(self, message: <span class="keyword">str</span>):
+        <span class="string">"""기본 알림 (콘솔 출력)"""</span>
+        <span class="function">print</span>(<span class="string">f"🚨 [ALERT] {message}"</span>)
+
+    <span class="keyword">def</span> <span class="function">start_monitoring</span>(self):
+        <span class="string">"""모니터링 시작 (백그라운드 스레드)"""</span>
+        self.running = <span class="keyword">True</span>
+        thread = threading.<span class="function">Thread</span>(target=self.<span class="function">_monitor_loop</span>, daemon=<span class="keyword">True</span>)
+        thread.<span class="function">start</span>()
+        <span class="function">print</span>(<span class="string">f"✅ Real-time monitoring started (interval: {self.check_interval}s)"</span>)
+
+    <span class="keyword">def</span> <span class="function">stop_monitoring</span>(self):
+        <span class="string">"""모니터링 중지"""</span>
+        self.running = <span class="keyword">False</span>
+
+    <span class="keyword">def</span> <span class="function">_monitor_loop</span>(self):
+        <span class="string">"""모니터링 루프"""</span>
+        <span class="keyword">while</span> self.running:
+            time.<span class="function">sleep</span>(self.check_interval)
+            self.<span class="function">check_sla_violations</span>()
+
+    <span class="keyword">def</span> <span class="function">check_sla_violations</span>(self):
+        <span class="string">"""SLA 위반 체크 및 알림"""</span>
+        compliance = self.monitor.latency_tracker.<span class="function">check_sla_compliance</span>(self.sla_targets)
+
+        <span class="keyword">for</span> task_type, result <span class="keyword">in</span> compliance.<span class="function">items</span>():
+            compliance_rate = result[<span class="string">"compliance_rate"</span>]
+
+            <span class="comment"># 95% 미만이면 경고</span>
+            <span class="keyword">if</span> compliance_rate < <span class="number">95.0</span>:
+                <span class="keyword">if</span> task_type <span class="keyword">not in</span> self.violation_count:
+                    self.violation_count[task_type] = <span class="number">0</span>
+                self.violation_count[task_type] += <span class="number">1</span>
+
+                message = (
+                    <span class="string">f"SLA Violation: {task_type} - "</span>
+                    <span class="string">f"Compliance: {compliance_rate:.1f}% "</span>
+                    <span class="string">f"(Target: {result['target']}s, P95: {result['p95']:.3f}s) "</span>
+                    <span class="string">f"[Count: {self.violation_count[task_type]}]"</span>
+                )
+                self.<span class="function">alert_callback</span>(message)
+
+            <span class="comment"># 90% 미만이면 긴급</span>
+            <span class="keyword">elif</span> compliance_rate < <span class="number">90.0</span>:
+                message = (
+                    <span class="string">f"🔴 CRITICAL SLA Violation: {task_type} - "</span>
+                    <span class="string">f"Compliance: {compliance_rate:.1f}%"</span>
+                )
+                self.<span class="function">alert_callback</span>(message)
+
+    <span class="keyword">def</span> <span class="function">get_real_time_stats</span>(self) -> <span class="keyword">dict</span>:
+        <span class="string">"""실시간 통계 조회"""</span>
+        latency_stats = self.monitor.latency_tracker.<span class="function">get_latency_stats</span>()
+        bottleneck = self.monitor.latency_tracker.<span class="function">analyze_bottlenecks</span>()
+        compliance = self.monitor.latency_tracker.<span class="function">check_sla_compliance</span>(self.sla_targets)
+
+        <span class="keyword">return</span> {
+            <span class="string">"latency_stats"</span>: latency_stats,
+            <span class="string">"bottleneck"</span>: bottleneck,
+            <span class="string">"sla_compliance"</span>: compliance,
+            <span class="string">"violation_count"</span>: self.violation_count
+        }
+
+<span class="comment"># ============================================================</span>
+<span class="comment"># 사용 예시</span>
+<span class="comment"># ============================================================</span>
+
+<span class="keyword">def</span> <span class="function">slack_alert</span>(message: <span class="keyword">str</span>):
+    <span class="string">"""Slack 알림 (예시)"""</span>
+    <span class="comment"># slack_webhook_url로 메시지 전송</span>
+    <span class="function">print</span>(<span class="string">f"Slack: {message}"</span>)
+
+monitor = <span class="function">PerformanceMonitor</span>()
+
+<span class="comment"># SLA 목표 설정</span>
+sla_targets = {
+    <span class="string">"qa"</span>: <span class="number">2.0</span>,
+    <span class="string">"code_generation"</span>: <span class="number">5.0</span>,
+    <span class="string">"reasoning"</span>: <span class="number">3.0</span>
+}
+
+<span class="comment"># 실시간 모니터링 시작</span>
+rt_monitor = <span class="function">RealTimeLatencyMonitor</span>(
+    monitor=monitor,
+    sla_targets=sla_targets,
+    alert_callback=slack_alert  <span class="comment">← 커스텀 알림</span>
+)
+rt_monitor.<span class="function">start_monitoring</span>()
+
+<span class="comment"># 작업 실행 (백그라운드에서 자동 모니터링)</span>
+<span class="keyword">for</span> i <span class="keyword">in</span> <span class="function">range</span>(<span class="number">1000</span>):
+    result = your_agent.<span class="function">run</span>(<span class="string">f"task {i}"</span>)
+    monitor.<span class="function">record_task</span>(<span class="string">f"task_{i}"</span>, success=<span class="keyword">True</span>, latency=<span class="number">1.5</span>)
+
+<span class="comment"># 실시간 통계 조회</span>
+stats = rt_monitor.<span class="function">get_real_time_stats</span>()
+<span class="function">print</span>(<span class="string">f"Current P95: {stats['latency_stats']['p95']:.3f}s"</span>)
+<span class="function">print</span>(<span class="string">f"Bottleneck: {stats['bottleneck']['bottleneck']}"</span>)
+</div>
+
+                <h3>성능 최적화 자동화 팁</h3>
+
+                <div class="best-practice">
+                    <strong>⚡ 대량 Latency 측정 최적화</strong>
+
+                    <h4>1. 측정 오버헤드 최소화</h4>
+                    <ul>
+                        <li><strong>time.perf_counter()</strong>: time.time()보다 정확 (나노초 단위)</li>
+                        <li><strong>샘플링</strong>: 모든 요청이 아닌 10%만 상세 측정</li>
+                        <li><strong>비동기 기록</strong>: 시간 기록을 별도 스레드로 처리</li>
+                    </ul>
+
+                    <h4>2. 메모리 관리</h4>
+                    <ul>
+                        <li><strong>Rolling Window</strong>: 최근 1000개만 메모리 유지</li>
+                        <li><strong>주기적 저장</strong>: 5분마다 파일/DB 저장 후 메모리 정리</li>
+                        <li><strong>집계 우선</strong>: 원본 대신 통계만 저장 (P50/P95/P99)</li>
+                    </ul>
+
+                    <h4>3. 병렬 처리</h4>
+                    <ul>
+                        <li><strong>ThreadPoolExecutor</strong>: I/O 바운드 측정</li>
+                        <li><strong>asyncio</strong>: 비동기 Agent 측정</li>
+                        <li><strong>멀티프로세싱</strong>: CPU 바운드 병목 분석</li>
+                    </ul>
+                </div>
+
+                <div class="code-block">
+<span class="comment"># 고성능 시간 측정 예시</span>
+<span class="keyword">import</span> time
+<span class="keyword">from</span> collections <span class="keyword">import</span> deque
+
+<span class="keyword">class</span> <span class="function">HighPerformanceLatencyTracker</span>:
+    <span class="keyword">def</span> <span class="function">__init__</span>(self, max_size: <span class="keyword">int</span> = <span class="number">1000</span>):
+        self.latencies = <span class="function">deque</span>(maxlen=max_size)  <span class="comment"># Rolling window</span>
+        self.sample_rate = <span class="number">0.1</span>  <span class="comment"># 10%만 샘플링</span>
+
+    <span class="keyword">def</span> <span class="function">measure</span>(self, func, *args, **kwargs):
+        <span class="comment"># 샘플링 결정</span>
+        should_sample = (time.<span class="function">time</span>() % <span class="number">10</span>) < self.sample_rate * <span class="number">10</span>
+
+        <span class="keyword">if</span> should_sample:
+            <span class="comment"># 정밀 측정 (perf_counter)</span>
+            start = time.<span class="function">perf_counter</span>()
+            result = <span class="function">func</span>(*args, **kwargs)
+            elapsed = time.<span class="function">perf_counter</span>() - start
+            self.latencies.<span class="function">append</span>(elapsed)
+        <span class="keyword">else</span>:
+            <span class="comment"># 샘플링 안함 (빠름)</span>
+            result = <span class="function">func</span>(*args, **kwargs)
+
+        <span class="keyword">return</span> result
+
+    <span class="keyword">def</span> <span class="function">get_stats</span>(self):
+        <span class="keyword">if not</span> self.latencies:
+            <span class="keyword">return</span> {}
+        <span class="keyword">import</span> numpy <span class="keyword">as</span> np
+        <span class="keyword">return</span> {
+            <span class="string">"p50"</span>: <span class="function">round</span>(np.<span class="function">percentile</span>(self.latencies, <span class="number">50</span>), <span class="number">3</span>),
+            <span class="string">"p95"</span>: <span class="function">round</span>(np.<span class="function">percentile</span>(self.latencies, <span class="number">95</span>), <span class="number">3</span>),
+            <span class="string">"p99"</span>: <span class="function">round</span>(np.<span class="function">percentile</span>(self.latencies, <span class="number">99</span>), <span class="number">3</span>)
+        }
+</div>
+
+                <div class="warning-box">
+                    <h4>⚠️ 자동화 주의사항</h4>
+                    <ul>
+                        <li><strong>시간 동기화</strong>: 분산 시스템에서는 NTP로 시간 동기화 필수</li>
+                        <li><strong>콜드 스타트</strong>: 첫 요청은 초기화 시간 포함, 별도 처리</li>
+                        <li><strong>타임아웃</strong>: 무한 대기 방지를 위한 적절한 타임아웃 설정</li>
+                        <li><strong>측정 오버헤드</strong>: 너무 잦은 시간 측정은 성능 저하 유발</li>
+                        <li><strong>알림 피로</strong>: 알림 빈도 제한 (같은 이슈는 1시간에 1번)</li>
+                    </ul>
+                </div>
+
+            </div>
+
+            <!-- Framework Integration -->
+            <div class="section">
+                <h2>🔧 프레임워크 통합</h2>
+
+                <h3>LangChain 통합</h3>
+                <div class="code-block">
+<span class="keyword">from</span> langchain.callbacks <span class="keyword">import</span> BaseCallbackHandler
+<span class="keyword">from</span> agent_evaluator <span class="keyword">import</span> AgentEvaluator
+<span class="keyword">import</span> time
+
+<span class="keyword">class</span> <span class="function">LatencyCallbackHandler</span>(BaseCallbackHandler):
+    <span class="keyword">def</span> <span class="function">__init__</span>(self, evaluator: AgentEvaluator):
+        self.evaluator = evaluator
+        self.start_times = {}
+        self.breakdowns = {}
+
+    <span class="keyword">def</span> <span class="function">on_chain_start</span>(self, serialized, inputs, run_id, **kwargs):
+        self.start_times[run_id] = time.time()
+        self.breakdowns[run_id] = {}
+
+    <span class="keyword">def</span> <span class="function">on_llm_start</span>(self, serialized, prompts, run_id, **kwargs):
+        self.breakdowns[run_id][<span class="string">"llm_start"</span>] = time.time()
+
+    <span class="keyword">def</span> <span class="function">on_llm_end</span>(self, response, run_id, **kwargs):
+        llm_time = time.time() - self.breakdowns[run_id][<span class="string">"llm_start"</span>]
+        self.breakdowns[run_id][<span class="string">"llm_call"</span>] = llm_time
+
+    <span class="keyword">def</span> <span class="function">on_chain_end</span>(self, outputs, run_id, **kwargs):
+        total_time = time.time() - self.start_times[run_id]
+
+        self.evaluator.record_latency(
+            task_id=<span class="function">str</span>(run_id),
+            task_type=<span class="string">"langchain"</span>,
+            total_time=total_time,
+            breakdown=self.breakdowns[run_id]
+        )
+
+<span class="comment"># 사용</span>
+evaluator = AgentEvaluator()
+callback = LatencyCallbackHandler(evaluator)
+chain.run(input_text, callbacks=[callback])
+                </div>
+
+                <h3>CrewAI 통합</h3>
+                <div class="code-block">
+<span class="keyword">from</span> crewai <span class="keyword">import</span> Agent, Task, Crew
+<span class="keyword">from</span> agent_evaluator <span class="keyword">import</span> AgentEvaluator
+<span class="keyword">import</span> time
+
+<span class="keyword">class</span> <span class="function">LatencyMonitoredCrew</span>(Crew):
+    <span class="keyword">def</span> <span class="function">__init__</span>(self, *args, evaluator: AgentEvaluator, **kwargs):
+        <span class="function">super</span>().__init__(*args, **kwargs)
+        self.evaluator = evaluator
+
+    <span class="keyword">def</span> <span class="function">kickoff</span>(self, inputs: dict):
+        start_time = time.time()
+        breakdown = {}
+
+        <span class="comment"># Execute crew</span>
+        result = <span class="function">super</span>().kickoff(inputs)
+
+        total_time = time.time() - start_time
+
+        <span class="comment"># Record latency</span>
+        self.evaluator.record_latency(
+            task_id=<span class="string">f"crew_{int(time.time())}"</span>,
+            task_type=<span class="string">"crewai"</span>,
+            total_time=total_time,
+            breakdown=breakdown
+        )
+
+        <span class="keyword">return</span> result
+
+<span class="comment"># 사용</span>
+evaluator = AgentEvaluator()
+crew = LatencyMonitoredCrew(
+    agents=[agent1, agent2],
+    tasks=[task1, task2],
+    evaluator=evaluator
+)
+result = crew.kickoff({<span class="string">"input"</span>: <span class="string">"data"</span>})
+                </div>
+
+                <h3>LangGraph 통합</h3>
+                <div class="code-block">
+<span class="keyword">from</span> langgraph.graph <span class="keyword">import</span> StateGraph
+<span class="keyword">from</span> agent_evaluator <span class="keyword">import</span> AgentEvaluator
+<span class="keyword">import</span> time
+
+<span class="keyword">def</span> <span class="function">create_monitored_graph</span>(evaluator: AgentEvaluator):
+    graph = StateGraph()
+
+    <span class="keyword">def</span> <span class="function">monitored_node</span>(state):
+        node_start = time.time()
+
+        <span class="comment"># Your node logic</span>
+        result = process_node(state)
+
+        node_time = time.time() - node_start
+
+        <span class="comment"># Store timing in state</span>
+        <span class="keyword">if</span> <span class="string">"breakdown"</span> <span class="keyword">not in</span> state:
+            state[<span class="string">"breakdown"</span>] = {}
+        state[<span class="string">"breakdown"</span>][<span class="string">"node_time"</span>] = node_time
+
+        <span class="keyword">return</span> result
+
+    graph.add_node(<span class="string">"monitored"</span>, monitored_node)
+
+    <span class="comment"># Add final node to record total latency</span>
+    <span class="keyword">def</span> <span class="function">record_latency</span>(state):
+        evaluator.record_latency(
+            task_id=state.get(<span class="string">"task_id"</span>),
+            task_type=<span class="string">"langgraph"</span>,
+            total_time=state.get(<span class="string">"total_time"</span>),
+            breakdown=state.get(<span class="string">"breakdown"</span>, {})
+        )
+        <span class="keyword">return</span> state
+
+    graph.add_node(<span class="string">"record"</span>, record_latency)
+
+    <span class="keyword">return</span> graph
+                </div>
+
+                <h3>AutoGen 통합</h3>
+                <div class="code-block">
+<span class="keyword">from</span> autogen <span class="keyword">import</span> AssistantAgent, UserProxyAgent
+<span class="keyword">from</span> agent_evaluator <span class="keyword">import</span> AgentEvaluator
+<span class="keyword">import</span> time
+
+<span class="keyword">class</span> <span class="function">LatencyMonitoredAgent</span>(AssistantAgent):
+    <span class="keyword">def</span> <span class="function">__init__</span>(self, *args, evaluator: AgentEvaluator, **kwargs):
+        <span class="function">super</span>().__init__(*args, **kwargs)
+        self.evaluator = evaluator
+
+    <span class="keyword">def</span> <span class="function">generate_reply</span>(self, messages, sender, config=None):
+        start_time = time.time()
+        breakdown = {}
+
+        <span class="comment"># Generate reply</span>
+        reply_start = time.time()
+        reply = <span class="function">super</span>().generate_reply(messages, sender, config)
+        breakdown[<span class="string">"reply_generation"</span>] = time.time() - reply_start
+
+        total_time = time.time() - start_time
+
+        <span class="comment"># Record latency</span>
+        self.evaluator.record_latency(
+            task_id=<span class="string">f"autogen_{sender.name}_{int(time.time())}"</span>,
+            task_type=<span class="string">"autogen"</span>,
+            total_time=total_time,
+            breakdown=breakdown
+        )
+
+        <span class="keyword">return</span> reply
+
+<span class="comment"># 사용</span>
+evaluator = AgentEvaluator()
+assistant = LatencyMonitoredAgent(
+    name=<span class="string">"assistant"</span>,
+    llm_config=llm_config,
+    evaluator=evaluator
+)
+                </div>
+            </div>
+
+            <!-- Best Practices -->
+            <div class="section">
+                <h2>✨ Best Practices</h2>
+
+                <div class="best-practice">
+                    <strong>1. 의미 있는 Breakdown 제공</strong><br>
+                    총 시간만이 아니라 구성 요소별 시간을 기록하여 병목 지점을 정확히 식별하세요.
+                </div>
+
+                <div class="best-practice">
+                    <strong>2. 작업 유형 구분</strong><br>
+                    QA, Code Generation, Reasoning 등 작업 유형을 명확히 구분하여 각 유형별 성능 특성을 파악하세요.
+                </div>
+
+                <div class="best-practice">
+                    <strong>3. P95/P99 중심 모니터링</strong><br>
+                    평균값보다 P95/P99를 SLA 기준으로 사용하여 대부분의 사용자 경험을 보장하세요.
+                </div>
+
+                <div class="best-practice">
+                    <strong>4. 정기적인 병목 분석</strong><br>
+                    주기적으로 <code>analyze_bottlenecks()</code>를 실행하여 새로운 성능 이슈를 조기에 발견하세요.
+                </div>
+
+                <div class="best-practice">
+                    <strong>5. SLA 목표 현실적 설정</strong><br>
+                    작업 유형의 복잡도와 외부 의존성을 고려하여 달성 가능한 SLA를 설정하세요.
+                </div>
+
+                <div class="best-practice">
+                    <strong>6. 콜드 스타트 고려</strong><br>
+                    첫 번째 요청은 초기화 시간이 포함될 수 있으므로 별도로 추적하거나 제외하세요.
+                </div>
+
+                <div class="best-practice">
+                    <strong>7. 타임스탬프 기록</strong><br>
+                    시간대별 성능 변화를 분석하기 위해 타임스탬프를 함께 기록하세요.
+                </div>
+
+                <div class="best-practice">
+                    <strong>8. 알림 임계값 설정</strong><br>
+                    SLA 준수율이 95% 미만으로 떨어지면 자동 알림을 보내도록 설정하세요.
+                </div>
+            </div>
+
+            <!-- Warnings -->
+            <div class="section">
+                <h2>⚠️ 주의사항</h2>
+
+                <div class="warning-box">
+                    <h4>1. 네트워크 지연 변동성</h4>
+                    외부 API 호출(LLM, RAG)은 네트워크 상태에 따라 지연 시간이 크게 변동될 수 있습니다.
+                    충분한 샘플을 수집하여 통계적 신뢰도를 확보하세요.
+                </div>
+
+                <div class="warning-box">
+                    <h4>2. 시간 측정 오버헤드</h4>
+                    <code>time.time()</code> 호출 자체도 약간의 오버헤드가 있습니다.
+                    매우 짧은 작업(&lt; 10ms)의 경우 측정 오차가 클 수 있습니다.
+                </div>
+
+                <div class="warning-box">
+                    <h4>3. 병렬 처리 고려</h4>
+                    여러 구성 요소가 병렬로 실행되는 경우, breakdown 합계가 total_time보다 클 수 있습니다.
+                    순차/병렬 실행을 명확히 구분하여 기록하세요.
+                </div>
+
+                <div class="warning-box">
+                    <h4>4. 메모리 관리</h4>
+                    모든 latency 기록을 메모리에 유지하면 메모리 부족이 발생할 수 있습니다.
+                    주기적으로 오래된 데이터를 파일/DB에 저장하고 메모리에서 제거하세요.
+                </div>
+
+                <div class="warning-box">
+                    <h4>5. 타임존 일관성</h4>
+                    분산 시스템에서는 모든 노드의 시간이 동기화되어 있는지 확인하세요.
+                    UTC 기준 타임스탬프 사용을 권장합니다.
+                </div>
+            </div>
+
+            <!-- Related Metrics -->
+            <div class="section">
+                <h2>🔗 관련 메트릭</h2>
+
+                <table>
+                    <thead>
+                        <tr>
+                            <th>메트릭</th>
+                            <th>관계</th>
+                            <th>설명</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><strong>Cost/Token Economy</strong></td>
+                            <td>상충 관계</td>
+                            <td>빠른 모델은 비용이 높고, 저렴한 모델은 느린 경향</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Quality Score</strong></td>
+                            <td>균형 필요</td>
+                            <td>응답 속도와 품질 사이의 트레이드오프 존재</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Retry Count</strong></td>
+                            <td>직접 영향</td>
+                            <td>재시도가 많으면 전체 latency 증가</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Task Completion Rate</strong></td>
+                            <td>간접 영향</td>
+                            <td>타임아웃으로 인한 실패는 완료율 저하</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Think Time (Layer 2)</strong></td>
+                            <td>구성 요소</td>
+                            <td>에이전트의 사고 시간은 latency의 일부</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Performance Optimization -->
+            <div class="section">
+                <h2>🚀 성능 최적화 전략</h2>
+
+                <h3>1. LLM API 최적화</h3>
+                <ul>
+                    <li><strong>모델 선택</strong>: 작업에 적합한 가장 작은 모델 사용 (GPT-4 대신 GPT-3.5)</li>
+                    <li><strong>스트리밍</strong>: 긴 응답의 경우 스트리밍으로 첫 토큰 시간(TTFT) 단축</li>
+                    <li><strong>배치 처리</strong>: 독립적인 여러 요청을 한 번에 처리</li>
+                    <li><strong>프롬프트 최적화</strong>: 불필요한 토큰 제거로 처리 시간 단축</li>
+                </ul>
+
+                <h3>2. Context Retrieval 최적화</h3>
+                <ul>
+                    <li><strong>벡터 인덱스</strong>: FAISS, Pinecone 등 효율적인 벡터 DB 사용</li>
+                    <li><strong>캐싱</strong>: 자주 조회되는 컨텍스트를 메모리에 캐싱</li>
+                    <li><strong>Top-K 조정</strong>: 검색 결과 수를 최소화하여 후처리 시간 단축</li>
+                    <li><strong>필터링</strong>: 메타데이터 필터로 검색 범위 사전 축소</li>
+                </ul>
+
+                <h3>3. Tool Execution 최적화</h3>
+                <ul>
+                    <li><strong>병렬 실행</strong>: 독립적인 도구 호출은 병렬로 실행</li>
+                    <li><strong>타임아웃 설정</strong>: 무한 대기 방지를 위한 적절한 타임아웃</li>
+                    <li><strong>결과 캐싱</strong>: 동일한 입력에 대한 도구 실행 결과 재사용</li>
+                    <li><strong>폴백 전략</strong>: 실패 시 빠른 대체 방법 제공</li>
+                </ul>
+
+                <h3>4. 인프라 최적화</h3>
+                <ul>
+                    <li><strong>지역 선택</strong>: API 서버와 가까운 리전에서 실행</li>
+                    <li><strong>연결 풀링</strong>: HTTP 연결 재사용으로 handshake 오버헤드 제거</li>
+                    <li><strong>CDN 활용</strong>: 정적 리소스는 CDN으로 배포</li>
+                    <li><strong>로드 밸런싱</strong>: 트래픽을 여러 인스턴스로 분산</li>
+                </ul>
+            </div>
+
+            <!-- Conclusion -->
+            <div class="section">
+                <h2>📋 요약</h2>
+
+                <div class="intro-box">
+                    <strong>Latency Metrics</strong>는 AI 에이전트의 성능을 종합적으로 모니터링하는 핵심 메트릭입니다.
+
+                    <ul style="margin-top: 15px;">
+                        <li><strong>통계 분석</strong>: Mean, Median, P95, P99로 다양한 관점에서 성능 평가</li>
+                        <li><strong>병목 식별</strong>: 구성 요소별 시간 분석으로 최적화 우선순위 결정</li>
+                        <li><strong>작업 유형별 추적</strong>: 각 작업 유형의 성능 특성 이해</li>
+                        <li><strong>SLA 모니터링</strong>: 서비스 품질 목표 달성 여부 지속적 확인</li>
+                        <li><strong>프레임워크 통합</strong>: LangChain, CrewAI, LangGraph, AutoGen 지원</li>
+                    </ul>
+
+                    <br>
+                    Layer 1 네이티브 메트릭으로 <span class="highlight">외부 의존성 없이</span> 실시간 성능 모니터링이 가능하며,
+                    프로덕션 환경에서 <span class="highlight">SLA 준수와 사용자 경험 최적화</span>에 필수적입니다.
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Mermaid.js for diagrams -->
+    <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+    <script>
+        mermaid.initialize({
+            startOnLoad: true,
+            theme: 'default',
+            flowchart: {
+                useMaxWidth: true,
+                htmlLabels: true,
+                curve: 'basis'
+            }
+        });
+    </script>
+    <script src="../scripts/mermaid-zoom.js"></script>
+</body>
+</html>

@@ -1,0 +1,2654 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>한국어 RAG 평가 가이드 - Agent Evaluator</title>
+
+    <!-- Common Styles -->
+    <link rel="stylesheet" href="styles/common.css">
+
+    <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+    <script>
+        mermaid.initialize({
+            startOnLoad: true,
+            theme: 'default',
+            flowchart: {
+                useMaxWidth: true,
+                htmlLabels: true,
+                curve: 'basis'
+            },
+            themeVariables: {
+                fontSize: '14px'
+            }
+        });
+    </script>
+    
+</head>
+<body>
+    <div class="content-wrapper">
+        <div class="doc-header">
+            <h1>🇰🇷 한국어 RAG 평가 가이드</h1>
+            <p style="color: #4a5568; margin-top: 10px;">한국어 특화 RAG 시스템 평가 및 최적화 (Agent Evaluator v0.5.0)</p>
+        </div>
+
+        <div class="doc-content">
+<h1 id="한국어-rag-평가-가이드">한국어 RAG 평가 가이드</h1>
+<blockquote>
+<p>Golden Dataset 생성 및 RAG 시스템 평가 완벽 가이드</p>
+</blockquote>
+<h2 id="목차">목차</h2>
+<ol type="1">
+<li><a href="#개요">개요</a></li>
+<li><a href="#설치">설치</a></li>
+<li><a href="#golden-dataset-생성">Golden Dataset 생성</a></li>
+<li><a href="#rag-시스템-평가">RAG 시스템 평가</a></li>
+<li><a href="#평가-메트릭">평가 메트릭</a></li>
+<li><a href="#고급-사용법">고급 사용법</a></li>
+<li><a href="#실전-예제-기업-정책-문서-평가">실전 예제: 기업 정책 문서 평가</a></li>
+<li><a href="#dev-guide">💻 개발자 가이드 (Developer Guide)</a>
+<ul>
+<li><a href="#dev-integration">8.1 RAG 시스템 통합</a></li>
+<li><a href="#dev-custom-metrics">8.2 커스텀 메트릭 개발</a></li>
+<li><a href="#dev-performance">8.3 성능 최적화</a></li>
+<li><a href="#dev-production">8.4 프로덕션 배포</a></li>
+<li><a href="#dev-troubleshooting">8.5 문제 해결</a></li>
+</ul>
+</li>
+<li><a href="#faq">FAQ</a></li>
+<li><a href="#구현-세부사항">구현 세부사항</a></li>
+<li><a href="#추가-리소스">추가 리소스</a></li>
+</ol>
+<hr />
+<h2 id="개요">개요</h2>
+<p>이 시스템은 기업 환경에서 한국어 RAG (Retrieval-Augmented Generation)
+시스템을 평가하기 위한 완전한 솔루션을 제공합니다.</p>
+<h3 id="주요-기능">주요 기능</h3>
+<ul>
+<li><strong>📄 PDF에서 Ground Truth 자동 생성</strong>: OpenAI GPT를
+활용하여 한국어 PDF 문서에서 QA 쌍 자동 생성</li>
+<li><strong>📊 표준 RAG 메트릭 평가</strong>: Faithfulness, Context
+Recall, Context Precision, Answer Relevancy, Answer Similarity</li>
+<li><strong>💾 다양한 입력/출력 형식</strong>: JSON, CSV 지원</li>
+<li><strong>🔧 유연한 통합</strong>: RAGSystemInterface를 통한 기존 RAG
+시스템과의 쉬운 통합</li>
+<li><strong>🔍 고급 평가</strong>: HybridPerformanceMonitor를 통한 심층
+분석 (선택적)</li>
+</ul>
+<h3 id="워크플로우">워크플로우</h3>
+<div class="mermaid">
+graph LR
+    A["📄 한국어 PDF<br/>문서 입력"]
+    B["🤖 Golden Dataset 생성<br/>━━━━━━━━━━━━━━━<br/>• AI 기반 QA 쌍 생성<br/>• 질문/답변/컨텍스트<br/>• Ground Truth 포함"]
+    C["💾 저장<br/>JSON/CSV 형식"]
+    D["📊 RAG 시스템 평가<br/>━━━━━━━━━━━━━━━<br/>• Faithfulness<br/>• Context Recall<br/>• Context Precision<br/>• Answer Relevancy"]
+    E["📈 평가 리포트 생성<br/>결과 분석 및 시각화"]
+
+    A --> B
+    B --> C
+    C --> D
+    D --> E
+
+    style A fill:#e3f2fd,stroke:#2196f3,stroke-width:3px
+    style B fill:#fff3e0,stroke:#ff9800,stroke-width:3px
+    style C fill:#f3e5f5,stroke:#9c27b0,stroke-width:3px
+    style D fill:#e8f5e9,stroke:#4caf50,stroke-width:3px
+    style E fill:#fce4ec,stroke:#e91e63,stroke-width:3px
+</div>
+<hr />
+<h2 id="설치">설치</h2>
+<h3 id="기본-설치">1. 기본 설치</h3>
+<div class="sourceCode" id="cb2"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Agent Evaluator 프로젝트 클론</span></span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a><span class="co"># 프로젝트 디렉토리로 이동</span></span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a><span class="bu">cd</span> Agent_Evaluator</span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a><span class="co"># Conda 환경 생성 (권장)</span></span>
+<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a><span class="ex">conda</span> create <span class="at">-n</span> agent_evaluator python=3.11</span>
+<span id="cb2-7"><a href="#cb2-7" aria-hidden="true" tabindex="-1"></a><span class="ex">conda</span> activate agent_evaluator</span>
+<span id="cb2-8"><a href="#cb2-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-9"><a href="#cb2-9" aria-hidden="true" tabindex="-1"></a><span class="co"># 의존성 설치</span></span>
+<span id="cb2-10"><a href="#cb2-10" aria-hidden="true" tabindex="-1"></a><span class="ex">pip</span> install <span class="at">-r</span> requirements.txt</span></code></pre></div>
+<h3 id="필수-라이브러리">2. 필수 라이브러리</h3>
+<div class="sourceCode" id="cb3"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 코어 의존성 (필수)</span></span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a><span class="ex">pip</span> install numpy pandas streamlit plotly</span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a><span class="co"># Golden Dataset 생성용</span></span>
+<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a><span class="ex">pip</span> install PyPDF2 openai python-dotenv</span>
+<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-7"><a href="#cb3-7" aria-hidden="true" tabindex="-1"></a><span class="co"># RAG 평가용 (Ragas)</span></span>
+<span id="cb3-8"><a href="#cb3-8" aria-hidden="true" tabindex="-1"></a><span class="ex">pip</span> install ragas langchain-openai datasets</span>
+<span id="cb3-9"><a href="#cb3-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-10"><a href="#cb3-10" aria-hidden="true" tabindex="-1"></a><span class="co"># 선택: PDF 추출 개선 (PyPDF2 대안)</span></span>
+<span id="cb3-11"><a href="#cb3-11" aria-hidden="true" tabindex="-1"></a><span class="ex">pip</span> install pdfplumber</span>
+<span id="cb3-12"><a href="#cb3-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-13"><a href="#cb3-13" aria-hidden="true" tabindex="-1"></a><span class="co"># 선택: DeepEval 고급 메트릭</span></span>
+<span id="cb3-14"><a href="#cb3-14" aria-hidden="true" tabindex="-1"></a><span class="ex">pip</span> install deepeval</span></code></pre></div>
+<p><strong>라이브러리 선택 가이드</strong>:</p>
+<ul>
+<li><strong>PyPDF2</strong>: 기본 PDF 텍스트 추출 (빠름)</li>
+<li><strong>pdfplumber</strong>: 더 정확한 텍스트 추출 (권장, 특히 복잡한 레이아웃)</li>
+<li><strong>ragas</strong>: RAG 메트릭 계산 필수 (Faithfulness, Context Recall 등)</li>
+<li><strong>deepeval</strong>: 추가 메트릭 (G-Eval, Hallucination, Toxicity) - 선택적</li>
+</ul>
+<h3 id="환경-변수-설정">3. 환경 변수 설정</h3>
+<div class="sourceCode" id="cb4"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="co"># .env 파일 생성</span></span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a><span class="fu">cat</span> <span class="op">&gt;</span> .env <span class="op">&lt;&lt; EOF</span></span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a><span class="st">OPENAI_API_KEY=your-openai-api-key-here</span></span>
+<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a><span class="op">EOF</span></span></code></pre></div>
+<hr />
+<h2 id="golden-dataset-생성">Golden Dataset 생성</h2>
+<h3 id="방법-1-pdf에서-자동-생성">방법 1: PDF에서 자동 생성</h3>
+<p>가장 일반적인 방법으로, 한국어 PDF 문서에서 AI를 활용하여 QA 쌍을
+자동으로 생성합니다.</p>
+<div class="sourceCode" id="cb5"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> agent_evaluator.datasets.korean_rag_dataset_generator <span class="im">import</span> KoreanRAGDatasetGenerator</span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a><span class="co"># 1. Generator 초기화</span></span>
+<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a>generator <span class="op">=</span> KoreanRAGDatasetGenerator(</span>
+<span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a>    model<span class="op">=</span><span class="st">&quot;gpt-4o-mini&quot;</span>,        <span class="co"># 또는 &quot;gpt-4o&quot; (더 비싸지만 품질 좋음)</span></span>
+<span id="cb5-6"><a href="#cb5-6" aria-hidden="true" tabindex="-1"></a>    chunk_size<span class="op">=</span><span class="dv">800</span>,             <span class="co"># 청크 크기 (문자 수)</span></span>
+<span id="cb5-7"><a href="#cb5-7" aria-hidden="true" tabindex="-1"></a>    chunk_overlap<span class="op">=</span><span class="dv">150</span>,          <span class="co"># 청크 간 겹침</span></span>
+<span id="cb5-8"><a href="#cb5-8" aria-hidden="true" tabindex="-1"></a>    output_dir<span class="op">=</span><span class="st">&quot;golden_datasets&quot;</span></span>
+<span id="cb5-9"><a href="#cb5-9" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb5-10"><a href="#cb5-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-11"><a href="#cb5-11" aria-hidden="true" tabindex="-1"></a><span class="co"># 2. PDF에서 Golden Dataset 생성</span></span>
+<span id="cb5-12"><a href="#cb5-12" aria-hidden="true" tabindex="-1"></a>dataset <span class="op">=</span> generator.generate_from_pdf(</span>
+<span id="cb5-13"><a href="#cb5-13" aria-hidden="true" tabindex="-1"></a>    pdf_path<span class="op">=</span><span class="st">&quot;company_policy.pdf&quot;</span>,       <span class="co"># PDF 경로</span></span>
+<span id="cb5-14"><a href="#cb5-14" aria-hidden="true" tabindex="-1"></a>    num_questions_per_chunk<span class="op">=</span><span class="dv">3</span>,           <span class="co"># 청크당 질문 수</span></span>
+<span id="cb5-15"><a href="#cb5-15" aria-hidden="true" tabindex="-1"></a>    question_types<span class="op">=</span>[<span class="st">&quot;factual&quot;</span>, <span class="st">&quot;reasoning&quot;</span>, <span class="st">&quot;summary&quot;</span>],  <span class="co"># 질문 유형</span></span>
+<span id="cb5-16"><a href="#cb5-16" aria-hidden="true" tabindex="-1"></a>    save_format<span class="op">=</span><span class="st">&quot;json&quot;</span>,                  <span class="co"># &quot;json&quot; 또는 &quot;csv&quot;</span></span>
+<span id="cb5-17"><a href="#cb5-17" aria-hidden="true" tabindex="-1"></a>    max_chunks<span class="op">=</span><span class="va">None</span>                      <span class="co"># None이면 전체, 숫자면 테스트용</span></span>
+<span id="cb5-18"><a href="#cb5-18" aria-hidden="true" tabindex="-1"></a>)</span></code></pre></div>
+<h4 id="생성-프로세스">생성 프로세스</h4>
+<ol type="1">
+<li><strong>PDF 텍스트 추출</strong>:
+<ul>
+<li><code>KoreanPDFExtractor</code> 클래스 사용</li>
+<li>PyPDF2 또는 pdfplumber 자동 선택 (설치된 것 사용)</li>
+<li>pdfplumber가 우선 (더 정확한 추출)</li>
+</ul></li>
+<li><strong>텍스트 정제</strong>:
+<ul>
+<li><code>clean_text()</code> 메서드로 불필요한 공백 제거</li>
+<li>연속된 줄바꿈 정리</li>
+</ul></li>
+<li><strong>텍스트 청킹</strong>:
+<ul>
+<li><code>TextChunker</code> 클래스 사용</li>
+<li>의미 단위로 분할 (문장 경계 자동 탐지)</li>
+<li>한국어 문장 부호 고려: <code>. ! ? 。！？</code></li>
+<li>chunk_overlap으로 컨텍스트 유지</li>
+</ul></li>
+<li><strong>QA 쌍 생성</strong>:
+<ul>
+<li><code>KoreanQAGenerator</code> 클래스 사용</li>
+<li>OpenAI GPT로 각 청크마다 질문-답변-ground_truth 생성</li>
+<li>메타 정보 질문 자동 필터링 (페이지 번호, 문서 구조 등)</li>
+<li>실용적인 질문만 생성 (factual, reasoning, summary)</li>
+</ul></li>
+<li><strong>검증 및 저장</strong>:
+<ul>
+<li><code>GoldenDatasetManager</code>로 품질 검증</li>
+<li>필수 필드 체크 (질문, 답변, ground_truth, context)</li>
+<li>길이 검증 (너무 짧은 답변 경고)</li>
+<li>JSON/CSV 형식으로 저장 (utf-8-sig for Excel)</li>
+</ul></li>
+</ol>
+<h4 id="출력-예시">출력 예시</h4>
+<div class="sourceCode" id="cb6"><pre
+class="sourceCode json"><code class="sourceCode json"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="fu">{</span></span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;dataset_id&quot;</span><span class="fu">:</span> <span class="st">&quot;dataset_abc12345&quot;</span><span class="fu">,</span></span>
+<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;source_document&quot;</span><span class="fu">:</span> <span class="st">&quot;company_policy.pdf&quot;</span><span class="fu">,</span></span>
+<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;created_at&quot;</span><span class="fu">:</span> <span class="st">&quot;2024-01-15T10:30:00&quot;</span><span class="fu">,</span></span>
+<span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;total_qa_pairs&quot;</span><span class="fu">:</span> <span class="dv">45</span><span class="fu">,</span></span>
+<span id="cb6-6"><a href="#cb6-6" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;qa_pairs&quot;</span><span class="fu">:</span> <span class="ot">[</span></span>
+<span id="cb6-7"><a href="#cb6-7" aria-hidden="true" tabindex="-1"></a>    <span class="fu">{</span></span>
+<span id="cb6-8"><a href="#cb6-8" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;qa_id&quot;</span><span class="fu">:</span> <span class="st">&quot;chunk_p1_i0_qa0&quot;</span><span class="fu">,</span></span>
+<span id="cb6-9"><a href="#cb6-9" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;question&quot;</span><span class="fu">:</span> <span class="st">&quot;회사의 연차 휴가 정책은 어떻게 되나요?&quot;</span><span class="fu">,</span></span>
+<span id="cb6-10"><a href="#cb6-10" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;answer&quot;</span><span class="fu">:</span> <span class="st">&quot;직원은 1년 근무 시 15일의 연차 휴가를 받을 수 있으며...&quot;</span><span class="fu">,</span></span>
+<span id="cb6-11"><a href="#cb6-11" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;context&quot;</span><span class="fu">:</span> <span class="st">&quot;당사의 연차 휴가 정책에 따르면...&quot;</span><span class="fu">,</span></span>
+<span id="cb6-12"><a href="#cb6-12" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;ground_truth&quot;</span><span class="fu">:</span> <span class="st">&quot;1년 근무 시 15일의 연차 휴가&quot;</span><span class="fu">,</span></span>
+<span id="cb6-13"><a href="#cb6-13" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;metadata&quot;</span><span class="fu">:</span> <span class="fu">{</span></span>
+<span id="cb6-14"><a href="#cb6-14" aria-hidden="true" tabindex="-1"></a>        <span class="dt">&quot;chunk_id&quot;</span><span class="fu">:</span> <span class="st">&quot;chunk_p1_i0_abc123&quot;</span><span class="fu">,</span></span>
+<span id="cb6-15"><a href="#cb6-15" aria-hidden="true" tabindex="-1"></a>        <span class="dt">&quot;page_number&quot;</span><span class="fu">:</span> <span class="dv">1</span></span>
+<span id="cb6-16"><a href="#cb6-16" aria-hidden="true" tabindex="-1"></a>      <span class="fu">}</span></span>
+<span id="cb6-17"><a href="#cb6-17" aria-hidden="true" tabindex="-1"></a>    <span class="fu">}</span></span>
+<span id="cb6-18"><a href="#cb6-18" aria-hidden="true" tabindex="-1"></a>  <span class="ot">]</span></span>
+<span id="cb6-19"><a href="#cb6-19" aria-hidden="true" tabindex="-1"></a><span class="fu">}</span></span></code></pre></div>
+<h3 id="방법-2-수동으로-golden-data-입력">방법 2: 수동으로 Golden Data
+입력</h3>
+<p>기존 데이터나 전문가가 직접 작성한 QA 쌍을 사용할 수 있습니다.</p>
+<div class="sourceCode" id="cb7"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> agent_evaluator.datasets.korean_rag_dataset_generator <span class="im">import</span> (</span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a>    QAPair, GoldenDataset, GoldenDatasetManager</span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> datetime <span class="im">import</span> datetime</span>
+<span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-6"><a href="#cb7-6" aria-hidden="true" tabindex="-1"></a><span class="co"># 1. QA 쌍 수동 생성</span></span>
+<span id="cb7-7"><a href="#cb7-7" aria-hidden="true" tabindex="-1"></a>qa_pairs <span class="op">=</span> [</span>
+<span id="cb7-8"><a href="#cb7-8" aria-hidden="true" tabindex="-1"></a>    QAPair(</span>
+<span id="cb7-9"><a href="#cb7-9" aria-hidden="true" tabindex="-1"></a>        qa_id<span class="op">=</span><span class="st">&quot;manual_001&quot;</span>,</span>
+<span id="cb7-10"><a href="#cb7-10" aria-hidden="true" tabindex="-1"></a>        question<span class="op">=</span><span class="st">&quot;기업의 주요 제품은 무엇인가요?&quot;</span>,</span>
+<span id="cb7-11"><a href="#cb7-11" aria-hidden="true" tabindex="-1"></a>        answer<span class="op">=</span><span class="st">&quot;스마트폰, 태블릿, 웨어러블 기기입니다.&quot;</span>,</span>
+<span id="cb7-12"><a href="#cb7-12" aria-hidden="true" tabindex="-1"></a>        context<span class="op">=</span><span class="st">&quot;당사는 스마트폰, 태블릿, 웨어러블 기기를 주력 제품으로...&quot;</span>,</span>
+<span id="cb7-13"><a href="#cb7-13" aria-hidden="true" tabindex="-1"></a>        ground_truth<span class="op">=</span><span class="st">&quot;스마트폰, 태블릿, 웨어러블 기기&quot;</span>,</span>
+<span id="cb7-14"><a href="#cb7-14" aria-hidden="true" tabindex="-1"></a>        metadata<span class="op">=</span>{<span class="st">&quot;source&quot;</span>: <span class="st">&quot;company_info&quot;</span>}</span>
+<span id="cb7-15"><a href="#cb7-15" aria-hidden="true" tabindex="-1"></a>    ),</span>
+<span id="cb7-16"><a href="#cb7-16" aria-hidden="true" tabindex="-1"></a>    <span class="co"># ... 더 많은 QA 쌍</span></span>
+<span id="cb7-17"><a href="#cb7-17" aria-hidden="true" tabindex="-1"></a>]</span>
+<span id="cb7-18"><a href="#cb7-18" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-19"><a href="#cb7-19" aria-hidden="true" tabindex="-1"></a><span class="co"># 2. Golden Dataset 생성</span></span>
+<span id="cb7-20"><a href="#cb7-20" aria-hidden="true" tabindex="-1"></a>dataset <span class="op">=</span> GoldenDataset(</span>
+<span id="cb7-21"><a href="#cb7-21" aria-hidden="true" tabindex="-1"></a>    dataset_id<span class="op">=</span><span class="st">&quot;manual_dataset&quot;</span>,</span>
+<span id="cb7-22"><a href="#cb7-22" aria-hidden="true" tabindex="-1"></a>    source_document<span class="op">=</span><span class="st">&quot;manual_input&quot;</span>,</span>
+<span id="cb7-23"><a href="#cb7-23" aria-hidden="true" tabindex="-1"></a>    created_at<span class="op">=</span>datetime.now().isoformat(),</span>
+<span id="cb7-24"><a href="#cb7-24" aria-hidden="true" tabindex="-1"></a>    total_qa_pairs<span class="op">=</span><span class="bu">len</span>(qa_pairs),</span>
+<span id="cb7-25"><a href="#cb7-25" aria-hidden="true" tabindex="-1"></a>    qa_pairs<span class="op">=</span>qa_pairs,</span>
+<span id="cb7-26"><a href="#cb7-26" aria-hidden="true" tabindex="-1"></a>    metadata<span class="op">=</span>{<span class="st">&quot;input_type&quot;</span>: <span class="st">&quot;manual&quot;</span>}</span>
+<span id="cb7-27"><a href="#cb7-27" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb7-28"><a href="#cb7-28" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-29"><a href="#cb7-29" aria-hidden="true" tabindex="-1"></a><span class="co"># 3. 저장</span></span>
+<span id="cb7-30"><a href="#cb7-30" aria-hidden="true" tabindex="-1"></a>manager <span class="op">=</span> GoldenDatasetManager()</span>
+<span id="cb7-31"><a href="#cb7-31" aria-hidden="true" tabindex="-1"></a>saved_path <span class="op">=</span> manager.save_dataset(dataset, <span class="bu">format</span><span class="op">=</span><span class="st">&quot;json&quot;</span>)</span></code></pre></div>
+<h3 id="방법-3-csv-파일에서-로드">방법 3: CSV 파일에서 로드</h3>
+<p>Excel이나 스프레드시트에서 작성한 데이터를 사용할 수 있습니다.</p>
+<h4 id="csv-형식">CSV 형식</h4>
+<pre class="csv"><code>qa_id,question,answer,ground_truth,context,chunk_id,page_number,generated_at
+qa_001,회사 설립 연도는?,2010년에 설립되었습니다,2010년,당사는 2010년에 설립되어...,chunk_001,1,2024-01-15
+qa_002,직원 수는?,약 500명입니다,약 500명,현재 약 500명의 직원이...,chunk_002,1,2024-01-15</code></pre>
+<h4 id="로드-코드">로드 코드</h4>
+<div class="sourceCode" id="cb9"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> agent_evaluator.datasets.korean_rag_dataset_generator <span class="im">import</span> GoldenDatasetManager</span>
+<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a>manager <span class="op">=</span> GoldenDatasetManager()</span>
+<span id="cb9-4"><a href="#cb9-4" aria-hidden="true" tabindex="-1"></a>dataset <span class="op">=</span> manager.load_dataset(<span class="st">&quot;golden_datasets/my_dataset.csv&quot;</span>)</span>
+<span id="cb9-5"><a href="#cb9-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-6"><a href="#cb9-6" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f&quot;로드 완료: </span><span class="sc">{</span>dataset<span class="sc">.</span>total_qa_pairs<span class="sc">}</span><span class="ss">개 QA 쌍&quot;</span>)</span></code></pre></div>
+<hr />
+<h2 id="rag-시스템-평가">RAG 시스템 평가</h2>
+<h3 id="rag-시스템-인터페이스-구현">1. RAG 시스템 인터페이스 구현</h3>
+<p>평가를 위해 RAG 시스템을 <code>RAGSystemInterface</code>에 맞춰
+구현해야 합니다.</p>
+<p><strong>중요</strong>: <code>query()</code> 메서드만 구현하면 됩니다.
+반환 타입은 <code>RAGResponse</code>입니다.</p>
+<div class="sourceCode" id="cb10"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> agent_evaluator.datasets.korean_rag_evaluator <span class="im">import</span> RAGSystemInterface, RAGResponse</span>
+<span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-3"><a href="#cb10-3" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> MyRAGSystem(RAGSystemInterface):</span>
+<span id="cb10-4"><a href="#cb10-4" aria-hidden="true" tabindex="-1"></a>    <span class="co">&quot;&quot;&quot;사용자의 RAG 시스템&quot;&quot;&quot;</span></span>
+<span id="cb10-5"><a href="#cb10-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-6"><a href="#cb10-6" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> <span class="fu">__init__</span>(<span class="va">self</span>):</span>
+<span id="cb10-7"><a href="#cb10-7" aria-hidden="true" tabindex="-1"></a>        <span class="co"># 벡터 DB, LLM 등 초기화</span></span>
+<span id="cb10-8"><a href="#cb10-8" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>.vector_db <span class="op">=</span> ...  <span class="co"># Chroma, Pinecone, Qdrant 등</span></span>
+<span id="cb10-9"><a href="#cb10-9" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>.llm <span class="op">=</span> ...        <span class="co"># OpenAI, Anthropic, local model 등</span></span>
+<span id="cb10-10"><a href="#cb10-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-11"><a href="#cb10-11" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> query(<span class="va">self</span>, question: <span class="bu">str</span>) <span class="op">-&gt;</span> RAGResponse:</span>
+<span id="cb10-12"><a href="#cb10-12" aria-hidden="true" tabindex="-1"></a>        <span class="co">&quot;&quot;&quot;</span></span>
+<span id="cb10-13"><a href="#cb10-13" aria-hidden="true" tabindex="-1"></a><span class="co">        RAG 쿼리 실행 - 필수 구현 메서드</span></span>
+<span id="cb10-14"><a href="#cb10-14" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-15"><a href="#cb10-15" aria-hidden="true" tabindex="-1"></a><span class="co">        Args:</span></span>
+<span id="cb10-16"><a href="#cb10-16" aria-hidden="true" tabindex="-1"></a><span class="co">            question: 사용자 질문</span></span>
+<span id="cb10-17"><a href="#cb10-17" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-18"><a href="#cb10-18" aria-hidden="true" tabindex="-1"></a><span class="co">        Returns:</span></span>
+<span id="cb10-19"><a href="#cb10-19" aria-hidden="true" tabindex="-1"></a><span class="co">            RAGResponse: 답변 및 검색된 컨텍스트</span></span>
+<span id="cb10-20"><a href="#cb10-20" aria-hidden="true" tabindex="-1"></a><span class="co">        &quot;&quot;&quot;</span></span>
+<span id="cb10-21"><a href="#cb10-21" aria-hidden="true" tabindex="-1"></a>        <span class="co"># 1. 벡터 검색</span></span>
+<span id="cb10-22"><a href="#cb10-22" aria-hidden="true" tabindex="-1"></a>        retrieved_docs <span class="op">=</span> <span class="va">self</span>.vector_db.search(question, top_k<span class="op">=</span><span class="dv">3</span>)</span>
+<span id="cb10-23"><a href="#cb10-23" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-24"><a href="#cb10-24" aria-hidden="true" tabindex="-1"></a>        <span class="co"># 2. LLM으로 답변 생성</span></span>
+<span id="cb10-25"><a href="#cb10-25" aria-hidden="true" tabindex="-1"></a>        answer <span class="op">=</span> <span class="va">self</span>.llm.generate(</span>
+<span id="cb10-26"><a href="#cb10-26" aria-hidden="true" tabindex="-1"></a>            prompt<span class="op">=</span><span class="va">self</span>._build_prompt(question, retrieved_docs)</span>
+<span id="cb10-27"><a href="#cb10-27" aria-hidden="true" tabindex="-1"></a>        )</span>
+<span id="cb10-28"><a href="#cb10-28" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-29"><a href="#cb10-29" aria-hidden="true" tabindex="-1"></a>        <span class="co"># 3. 응답 반환 (필수: question, answer, retrieved_contexts)</span></span>
+<span id="cb10-30"><a href="#cb10-30" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> RAGResponse(</span>
+<span id="cb10-31"><a href="#cb10-31" aria-hidden="true" tabindex="-1"></a>            question<span class="op">=</span>question,</span>
+<span id="cb10-32"><a href="#cb10-32" aria-hidden="true" tabindex="-1"></a>            answer<span class="op">=</span>answer,</span>
+<span id="cb10-33"><a href="#cb10-33" aria-hidden="true" tabindex="-1"></a>            retrieved_contexts<span class="op">=</span>retrieved_docs,  <span class="co"># List[str] 형태</span></span>
+<span id="cb10-34"><a href="#cb10-34" aria-hidden="true" tabindex="-1"></a>            metadata<span class="op">=</span>{<span class="st">&quot;num_retrieved&quot;</span>: <span class="bu">len</span>(retrieved_docs)}  <span class="co"># 선택적</span></span>
+<span id="cb10-35"><a href="#cb10-35" aria-hidden="true" tabindex="-1"></a>        )</span>
+<span id="cb10-36"><a href="#cb10-36" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-37"><a href="#cb10-37" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> _build_prompt(<span class="va">self</span>, question: <span class="bu">str</span>, contexts: <span class="bu">list</span>) <span class="op">-&gt;</span> <span class="bu">str</span>:</span>
+<span id="cb10-38"><a href="#cb10-38" aria-hidden="true" tabindex="-1"></a>        <span class="co">&quot;&quot;&quot;프롬프트 생성 헬퍼 메서드&quot;&quot;&quot;</span></span>
+<span id="cb10-39"><a href="#cb10-39" aria-hidden="true" tabindex="-1"></a>        context_text <span class="op">=</span> <span class="st">&quot;</span><span class="ch">\n\n</span><span class="st">&quot;</span>.join(contexts)</span>
+<span id="cb10-40"><a href="#cb10-40" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> <span class="ss">f&quot;&quot;&quot;다음 문서를 참고하여 질문에 답변하세요.</span></span>
+<span id="cb10-41"><a href="#cb10-41" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-42"><a href="#cb10-42" aria-hidden="true" tabindex="-1"></a><span class="ss">[문서]</span></span>
+<span id="cb10-43"><a href="#cb10-43" aria-hidden="true" tabindex="-1"></a><span class="sc">{</span>context_text<span class="sc">}</span></span>
+<span id="cb10-44"><a href="#cb10-44" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-45"><a href="#cb10-45" aria-hidden="true" tabindex="-1"></a><span class="ss">[질문]</span></span>
+<span id="cb10-46"><a href="#cb10-46" aria-hidden="true" tabindex="-1"></a><span class="sc">{</span>question<span class="sc">}</span></span>
+<span id="cb10-47"><a href="#cb10-47" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-48"><a href="#cb10-48" aria-hidden="true" tabindex="-1"></a><span class="ss">[답변]</span></span>
+<span id="cb10-49"><a href="#cb10-49" aria-hidden="true" tabindex="-1"></a><span class="ss">&quot;&quot;&quot;</span></span></code></pre></div>
+<p><strong>RAGResponse 필드</strong>:</p>
+<ul>
+<li><code>question</code> (str): 질문</li>
+<li><code>answer</code> (str): 생성된 답변</li>
+<li><code>retrieved_contexts</code> (List[str]): 검색된 컨텍스트 리스트</li>
+<li><code>metadata</code> (Dict[str, Any]): 추가 정보 (선택적)</li>
+</ul>
+<h3 id="평가-실행">2. 평가 실행</h3>
+<div class="sourceCode" id="cb11"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> agent_evaluator.datasets.korean_rag_evaluator <span class="im">import</span> KoreanRAGEvaluator</span>
+<span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> agent_evaluator.datasets.korean_rag_dataset_generator <span class="im">import</span> GoldenDatasetManager</span>
+<span id="cb11-3"><a href="#cb11-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-4"><a href="#cb11-4" aria-hidden="true" tabindex="-1"></a><span class="co"># 1. Golden Dataset 로드</span></span>
+<span id="cb11-5"><a href="#cb11-5" aria-hidden="true" tabindex="-1"></a>manager <span class="op">=</span> GoldenDatasetManager()</span>
+<span id="cb11-6"><a href="#cb11-6" aria-hidden="true" tabindex="-1"></a>dataset <span class="op">=</span> manager.load_dataset(<span class="st">&quot;golden_datasets/my_dataset.json&quot;</span>)</span>
+<span id="cb11-7"><a href="#cb11-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-8"><a href="#cb11-8" aria-hidden="true" tabindex="-1"></a><span class="co"># 2. RAG 시스템 초기화</span></span>
+<span id="cb11-9"><a href="#cb11-9" aria-hidden="true" tabindex="-1"></a>rag_system <span class="op">=</span> MyRAGSystem()</span>
+<span id="cb11-10"><a href="#cb11-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-11"><a href="#cb11-11" aria-hidden="true" tabindex="-1"></a><span class="co"># 3. 평가기 초기화</span></span>
+<span id="cb11-12"><a href="#cb11-12" aria-hidden="true" tabindex="-1"></a>evaluator <span class="op">=</span> KoreanRAGEvaluator(</span>
+<span id="cb11-13"><a href="#cb11-13" aria-hidden="true" tabindex="-1"></a>    rag_system<span class="op">=</span>rag_system,</span>
+<span id="cb11-14"><a href="#cb11-14" aria-hidden="true" tabindex="-1"></a>    use_ragas<span class="op">=</span><span class="va">True</span>,              <span class="co"># Ragas 메트릭 사용 (필수)</span></span>
+<span id="cb11-15"><a href="#cb11-15" aria-hidden="true" tabindex="-1"></a>    ragas_model<span class="op">=</span><span class="st">&quot;gpt-4o-mini&quot;</span>,   <span class="co"># 평가에 사용할 모델</span></span>
+<span id="cb11-16"><a href="#cb11-16" aria-hidden="true" tabindex="-1"></a>    output_dir<span class="op">=</span><span class="st">&quot;evaluation_results&quot;</span></span>
+<span id="cb11-17"><a href="#cb11-17" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb11-18"><a href="#cb11-18" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-19"><a href="#cb11-19" aria-hidden="true" tabindex="-1"></a><span class="co"># 4. 평가 실행</span></span>
+<span id="cb11-20"><a href="#cb11-20" aria-hidden="true" tabindex="-1"></a>report <span class="op">=</span> evaluator.evaluate_dataset(</span>
+<span id="cb11-21"><a href="#cb11-21" aria-hidden="true" tabindex="-1"></a>    dataset,</span>
+<span id="cb11-22"><a href="#cb11-22" aria-hidden="true" tabindex="-1"></a>    use_hybrid_monitor<span class="op">=</span><span class="va">False</span>,  <span class="co"># Hybrid Monitor 사용 여부 (고급)</span></span>
+<span id="cb11-23"><a href="#cb11-23" aria-hidden="true" tabindex="-1"></a>    max_samples<span class="op">=</span><span class="va">None</span>            <span class="co"># None이면 전체 평가, 숫자면 샘플링</span></span>
+<span id="cb11-24"><a href="#cb11-24" aria-hidden="true" tabindex="-1"></a>)</span></code></pre></div>
+<p><strong>평가 프로세스</strong>:</p>
+<ol type="1">
+<li><strong>Golden Dataset의 각 QA 쌍에 대해</strong>:
+<ul>
+<li>RAG 시스템에 질문 전송 (<code>rag_system.query()</code>)</li>
+<li>생성된 답변과 컨텍스트 수집</li>
+</ul></li>
+<li><strong>Ragas 메트릭 계산</strong>:
+<ul>
+<li>각 QA에 대해 5가지 메트릭 계산</li>
+<li><code>datasets.Dataset</code>으로 변환하여 <code>ragas.evaluate()</code> 호출</li>
+</ul></li>
+<li><strong>결과 집계 및 리포트 생성</strong>:
+<ul>
+<li>평균, 최소, 최대 값 계산</li>
+<li>JSON/CSV로 결과 저장</li>
+</ul></li>
+</ol>
+<h3 id="평가-결과">3. 평가 결과</h3>
+<pre><code>================================================================================
+📊 RAG 평가 리포트
+================================================================================
+
+리포트 ID: a1b2c3d4
+평가 시간: 2024-01-15T11:30:00
+Dataset: dataset_abc12345
+소스 문서: company_policy.pdf
+
+================================================================================
+평가 결과 요약
+================================================================================
+
+총 QA 쌍: 45개
+성공: 43개
+실패: 2개
+성공률: 95.6%
+
+================================================================================
+Ragas 메트릭 (평균)
+================================================================================
+
+✓ Faithfulness       : 0.892 (목표: 0.8)
+✓ Answer Relevancy   : 0.856 (목표: 0.8)
+✓ Context Recall     : 0.834 (목표: 0.8)
+✓ Context Precision  : 0.878 (목표: 0.8)
+✓ Answer Similarity  : 0.823 (목표: 0.8)
+
+================================================================================
+통계
+================================================================================
+
+총 평가 시간: 125.34초
+평균 평가 시간: 2.78초/개
+Faithfulness 범위: 0.654 ~ 0.987
+Answer Relevancy 범위: 0.712 ~ 0.945
+
+================================================================================</code></pre>
+<hr />
+<h2 id="평가-메트릭">평가 메트릭</h2>
+<h3 id="faithfulness-충실도">Faithfulness (충실도)</h3>
+<p><strong>정의</strong>: 생성된 답변이 검색된 컨텍스트에 얼마나
+충실한지 측정 (환각 방지)</p>
+<p><strong>계산 방법</strong> (Ragas 내부): 1. LLM이 답변에서
+주장(claims)들을 추출 2. 각 주장이 검색된 컨텍스트에서 뒷받침되는지 검증
+3. <code>(뒷받침된 주장 수) / (전체 주장 수)</code> 계산</p>
+<p><strong>목표</strong>: ≥ 0.8</p>
+<p><strong>개선 방법</strong>:</p>
+<ul>
+<li>RAG 프롬프트에 "문서에 없는 내용은 답변하지 말 것" 명시</li>
+<li>답변 생성 시 temperature를 낮춤 (0.1-0.3)</li>
+<li>검색된 컨텍스트의 품질과 관련성 향상</li>
+</ul>
+<p><strong>실제 구현</strong>: <code>korean_rag_evaluator.py</code>의
+<code>_calculate_ragas_metrics()</code>에서
+<code>ragas.metrics.faithfulness</code> 사용</p>
+<h3 id="answer-relevancy-답변-관련성">Answer Relevancy (답변
+관련성)</h3>
+<p><strong>정의</strong>: 답변이 질문과 얼마나 관련있는지 측정</p>
+<p><strong>계산 방법</strong> (Ragas 내부): 1. 생성된 답변에서 LLM이
+역으로 질문들을 생성 2. 생성된 질문들과 원래 질문의 임베딩 유사도 계산
+3. 평균 코사인 유사도 반환</p>
+<p><strong>목표</strong>: ≥ 0.8</p>
+<p><strong>개선 방법</strong>:</p>
+<ul>
+<li>프롬프트에 질문에 직접 답하도록 명시</li>
+<li>불필요한 부가 정보 제거</li>
+<li>질문의 핵심 키워드를 답변에 포함</li>
+</ul>
+<p><strong>실제 구현</strong>:
+<code>ragas.metrics.answer_relevancy</code> 사용</p>
+<h3 id="context-recall-컨텍스트-재현율">Context Recall (컨텍스트
+재현율)</h3>
+<p><strong>정의</strong>: Ground truth를 생성하는 데 필요한 정보가
+검색된 컨텍스트에 얼마나 포함되어 있는지 측정</p>
+<p><strong>계산 방법</strong> (Ragas 내부): 1. Ground truth를 문장들로
+분리 2. 각 문장이 검색된 컨텍스트에서 추론 가능한지 LLM으로 검증 3.
+<code>(추론 가능한 문장 수) / (전체 문장 수)</code> 계산</p>
+<p><strong>목표</strong>: ≥ 0.8</p>
+<p><strong>개선 방법</strong>:</p>
+<ul>
+<li>검색 top_k 값 증가 (더 많은 컨텍스트 검색)</li>
+<li>벡터 임베딩 모델 개선 (multilingual 모델 사용)</li>
+<li>청크 크기 조정 (더 큰 청크로 컨텍스트 확보)</li>
+<li>하이브리드 검색 (벡터 + 키워드) 사용</li>
+</ul>
+<p><strong>실제 구현</strong>: <code>ragas.metrics.context_recall</code>
+사용</p>
+<h3 id="context-precision-컨텍스트-정밀도">Context Precision (컨텍스트
+정밀도)</h3>
+<p><strong>정의</strong>: 검색된 컨텍스트가 질문에 얼마나 관련 있는지
+측정 (노이즈 최소화)</p>
+<p><strong>계산 방법</strong> (Ragas 내부): 1. 검색된 각 컨텍스트가
+Ground truth와 관련 있는지 LLM으로 판단 2. 관련 있는 컨텍스트들의 순위
+기반 정밀도 계산 3. Precision@K를 평균하여 반환</p>
+<p><strong>목표</strong>: ≥ 0.8</p>
+<p><strong>개선 방법</strong>:</p>
+<ul>
+<li>리랭킹(reranking) 모델 추가 (Cohere Rerank, cross-encoder 등)</li>
+<li>검색 쿼리 개선 (쿼리 확장, HyDE 등)</li>
+<li>필터링 로직 추가 (관련성 임계값 설정)</li>
+<li>메타데이터 필터링 활용</li>
+</ul>
+<p><strong>실제 구현</strong>:
+<code>ragas.metrics.context_precision</code> 사용</p>
+<h3 id="answer-similarity-답변-유사도">Answer Similarity (답변
+유사도)</h3>
+<p><strong>정의</strong>: 생성된 답변이 Ground truth와 얼마나 의미적으로
+유사한지 측정</p>
+<p><strong>계산 방법</strong> (Ragas 내부): 1. 생성된 답변과 Ground
+truth의 임베딩 생성 2. 코사인 유사도 계산 3. 0~1 범위의 유사도 점수
+반환</p>
+<p><strong>목표</strong>: ≥ 0.8</p>
+<p><strong>개선 방법</strong>:</p>
+<ul>
+<li>프롬프트 개선 (더 명확한 지시)</li>
+<li>Few-shot 예시 추가</li>
+<li>Ground truth 품질 개선 (더 구체적이고 완전하게)</li>
+<li>Fine-tuning 고려 (도메인 특화)</li>
+</ul>
+<p><strong>실제 구현</strong>:
+<code>ragas.metrics.answer_similarity</code> 사용</p>
+<p><strong>참고</strong>: 모든 메트릭은
+<code>korean_rag_evaluator.py</code>의
+<code>_calculate_ragas_metrics()</code> 메서드에서 계산되며, 각 QA 쌍에
+대해 개별적으로 평가된 후 평균이 리포트에 포함됩니다.</p>
+<hr />
+<h2 id="고급-사용법">고급 사용법</h2>
+<h3 id="커스텀-질문-유형">1. 커스텀 질문 유형</h3>
+<div class="sourceCode" id="cb13"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a>generator <span class="op">=</span> KoreanRAGDatasetGenerator(...)</span>
+<span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-3"><a href="#cb13-3" aria-hidden="true" tabindex="-1"></a>dataset <span class="op">=</span> generator.generate_from_pdf(</span>
+<span id="cb13-4"><a href="#cb13-4" aria-hidden="true" tabindex="-1"></a>    pdf_path<span class="op">=</span><span class="st">&quot;document.pdf&quot;</span>,</span>
+<span id="cb13-5"><a href="#cb13-5" aria-hidden="true" tabindex="-1"></a>    num_questions_per_chunk<span class="op">=</span><span class="dv">5</span>,</span>
+<span id="cb13-6"><a href="#cb13-6" aria-hidden="true" tabindex="-1"></a>    question_types<span class="op">=</span>[<span class="st">&quot;factual&quot;</span>, <span class="st">&quot;reasoning&quot;</span>, <span class="st">&quot;summary&quot;</span>, <span class="st">&quot;comparison&quot;</span>, <span class="st">&quot;opinion&quot;</span>],</span>
+<span id="cb13-7"><a href="#cb13-7" aria-hidden="true" tabindex="-1"></a>    ...</span>
+<span id="cb13-8"><a href="#cb13-8" aria-hidden="true" tabindex="-1"></a>)</span></code></pre></div>
+<p><strong>질문 유형</strong>:</p>
+<ul>
+<li><code>factual</code>: 사실 확인 질문</li>
+<li><code>reasoning</code>: 추론 질문</li>
+<li><code>summary</code>: 요약 질문</li>
+<li><code>comparison</code>: 비교 질문</li>
+<li><code>opinion</code>: 의견 질문</li>
+</ul>
+<h3 id="청크-크기-최적화">2. 청크 크기 최적화</h3>
+<p>청크 크기는 텍스트 검색 품질과 QA 생성 품질에 직접 영향을
+미칩니다.</p>
+<div class="sourceCode" id="cb14"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 짧은 청크 (세밀한 정보, 빠른 검색)</span></span>
+<span id="cb14-2"><a href="#cb14-2" aria-hidden="true" tabindex="-1"></a>generator <span class="op">=</span> KoreanRAGDatasetGenerator(</span>
+<span id="cb14-3"><a href="#cb14-3" aria-hidden="true" tabindex="-1"></a>    chunk_size<span class="op">=</span><span class="dv">500</span>,</span>
+<span id="cb14-4"><a href="#cb14-4" aria-hidden="true" tabindex="-1"></a>    chunk_overlap<span class="op">=</span><span class="dv">100</span></span>
+<span id="cb14-5"><a href="#cb14-5" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb14-6"><a href="#cb14-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-7"><a href="#cb14-7" aria-hidden="true" tabindex="-1"></a><span class="co"># 중간 청크 (균형잡힌 설정) - 기본값</span></span>
+<span id="cb14-8"><a href="#cb14-8" aria-hidden="true" tabindex="-1"></a>generator <span class="op">=</span> KoreanRAGDatasetGenerator(</span>
+<span id="cb14-9"><a href="#cb14-9" aria-hidden="true" tabindex="-1"></a>    chunk_size<span class="op">=</span><span class="dv">1000</span>,</span>
+<span id="cb14-10"><a href="#cb14-10" aria-hidden="true" tabindex="-1"></a>    chunk_overlap<span class="op">=</span><span class="dv">200</span></span>
+<span id="cb14-11"><a href="#cb14-11" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb14-12"><a href="#cb14-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-13"><a href="#cb14-13" aria-hidden="true" tabindex="-1"></a><span class="co"># 긴 청크 (풍부한 맥락)</span></span>
+<span id="cb14-14"><a href="#cb14-14" aria-hidden="true" tabindex="-1"></a>generator <span class="op">=</span> KoreanRAGDatasetGenerator(</span>
+<span id="cb14-15"><a href="#cb14-15" aria-hidden="true" tabindex="-1"></a>    chunk_size<span class="op">=</span><span class="dv">1500</span>,</span>
+<span id="cb14-16"><a href="#cb14-16" aria-hidden="true" tabindex="-1"></a>    chunk_overlap<span class="op">=</span><span class="dv">300</span></span>
+<span id="cb14-17"><a href="#cb14-17" aria-hidden="true" tabindex="-1"></a>)</span></code></pre></div>
+<p><strong>권장 설정</strong> (문자 수 기준):</p>
+<ul>
+<li><strong>기술 문서</strong>: 800-1000자 (코드 예제, API 설명 등)</li>
+<li><strong>정책/법률</strong>: 1000-1500자 (복잡한 조항, 절차 등)</li>
+<li><strong>일반 문서</strong>: 600-800자 (뉴스, 블로그 등)</li>
+<li><strong>FAQ/간단한 정보</strong>: 400-600자</li>
+</ul>
+<p><strong>청크 크기 선택 가이드</strong>:</p>
+<ul>
+<li><strong>작은 청크 (400-600자)</strong>:
+<ul>
+<li>장점: 정확한 검색, 빠른 처리</li>
+<li>단점: 맥락 손실, 문장이 잘림 가능</li>
+<li>사용: 간단한 사실 기반 QA</li>
+</ul></li>
+<li><strong>중간 청크 (800-1200자)</strong>:
+<ul>
+<li>장점: 맥락과 정확도 균형</li>
+<li>단점: 특별한 단점 없음</li>
+<li>사용: 대부분의 경우 (권장)</li>
+</ul></li>
+<li><strong>큰 청크 (1200-1800자)</strong>:
+<ul>
+<li>장점: 풍부한 맥락, 복잡한 추론 가능</li>
+<li>단점: 노이즈 증가, 느린 처리</li>
+<li>사용: 복잡한 문서, 긴 설명이 필요한 경우</li>
+</ul></li>
+</ul>
+<p><strong>overlap 설정</strong>:</p>
+<ul>
+<li>일반적으로 chunk_size의 15-25%</li>
+<li>예:</li>
+chunk_size=1000 → overlap=150-250 - 너무 작으면 맥락 손실, 너무 크면
+중복 증가</p>
+<p><strong>실제 구현</strong>: <code>TextChunker</code> 클래스에서
+한국어 문장 부호(<code>. ! ? 。！？</code>)를 기준으로 청크 경계
+조정</p>
+<h3 id="배치-평가">3. 배치 평가</h3>
+<div class="sourceCode" id="cb15"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 여러 데이터셋 평가</span></span>
+<span id="cb15-2"><a href="#cb15-2" aria-hidden="true" tabindex="-1"></a>datasets <span class="op">=</span> [</span>
+<span id="cb15-3"><a href="#cb15-3" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;dataset_v1.json&quot;</span>,</span>
+<span id="cb15-4"><a href="#cb15-4" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;dataset_v2.json&quot;</span>,</span>
+<span id="cb15-5"><a href="#cb15-5" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;dataset_v3.json&quot;</span></span>
+<span id="cb15-6"><a href="#cb15-6" aria-hidden="true" tabindex="-1"></a>]</span>
+<span id="cb15-7"><a href="#cb15-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-8"><a href="#cb15-8" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> dataset_path <span class="kw">in</span> datasets:</span>
+<span id="cb15-9"><a href="#cb15-9" aria-hidden="true" tabindex="-1"></a>    dataset <span class="op">=</span> manager.load_dataset(dataset_path)</span>
+<span id="cb15-10"><a href="#cb15-10" aria-hidden="true" tabindex="-1"></a>    report <span class="op">=</span> evaluator.evaluate_dataset(dataset)</span>
+<span id="cb15-11"><a href="#cb15-11" aria-hidden="true" tabindex="-1"></a>    <span class="co"># 결과 비교 분석</span></span></code></pre></div>
+<h3 id="hybrid-monitor-통합-고급">4. Hybrid Monitor 통합 (고급)</h3>
+<p><code>HybridPerformanceMonitor</code>를 사용하면 추가적인 고급
+메트릭과 추적 기능을 활성화할 수 있습니다.</p>
+<div class="sourceCode" id="cb16"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> agent_evaluator.datasets.korean_rag_evaluator <span class="im">import</span> KoreanRAGEvaluator</span>
+<span id="cb16-2"><a href="#cb16-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> agent_evaluator.datasets.korean_rag_dataset_generator <span class="im">import</span> GoldenDatasetManager</span>
+<span id="cb16-3"><a href="#cb16-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-4"><a href="#cb16-4" aria-hidden="true" tabindex="-1"></a><span class="co"># Golden Dataset 로드</span></span>
+<span id="cb16-5"><a href="#cb16-5" aria-hidden="true" tabindex="-1"></a>manager <span class="op">=</span> GoldenDatasetManager()</span>
+<span id="cb16-6"><a href="#cb16-6" aria-hidden="true" tabindex="-1"></a>dataset <span class="op">=</span> manager.load_dataset(<span class="st">&quot;golden_datasets/my_dataset.json&quot;</span>)</span>
+<span id="cb16-7"><a href="#cb16-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-8"><a href="#cb16-8" aria-hidden="true" tabindex="-1"></a><span class="co"># RAG 시스템 초기화</span></span>
+<span id="cb16-9"><a href="#cb16-9" aria-hidden="true" tabindex="-1"></a>rag_system <span class="op">=</span> MyRAGSystem()</span>
+<span id="cb16-10"><a href="#cb16-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-11"><a href="#cb16-11" aria-hidden="true" tabindex="-1"></a><span class="co"># 평가기 초기화 (Hybrid Monitor 활성화)</span></span>
+<span id="cb16-12"><a href="#cb16-12" aria-hidden="true" tabindex="-1"></a>evaluator <span class="op">=</span> KoreanRAGEvaluator(</span>
+<span id="cb16-13"><a href="#cb16-13" aria-hidden="true" tabindex="-1"></a>    rag_system<span class="op">=</span>rag_system,</span>
+<span id="cb16-14"><a href="#cb16-14" aria-hidden="true" tabindex="-1"></a>    use_ragas<span class="op">=</span><span class="va">True</span>,</span>
+<span id="cb16-15"><a href="#cb16-15" aria-hidden="true" tabindex="-1"></a>    ragas_model<span class="op">=</span><span class="st">&quot;gpt-4o-mini&quot;</span>,</span>
+<span id="cb16-16"><a href="#cb16-16" aria-hidden="true" tabindex="-1"></a>    output_dir<span class="op">=</span><span class="st">&quot;evaluation_results&quot;</span></span>
+<span id="cb16-17"><a href="#cb16-17" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb16-18"><a href="#cb16-18" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-19"><a href="#cb16-19" aria-hidden="true" tabindex="-1"></a><span class="co"># 평가 실행 (Hybrid Monitor 활성화)</span></span>
+<span id="cb16-20"><a href="#cb16-20" aria-hidden="true" tabindex="-1"></a>report <span class="op">=</span> evaluator.evaluate_dataset(</span>
+<span id="cb16-21"><a href="#cb16-21" aria-hidden="true" tabindex="-1"></a>    dataset,</span>
+<span id="cb16-22"><a href="#cb16-22" aria-hidden="true" tabindex="-1"></a>    use_hybrid_monitor<span class="op">=</span><span class="va">True</span>,  <span class="co"># Hybrid Monitor 활성화</span></span>
+<span id="cb16-23"><a href="#cb16-23" aria-hidden="true" tabindex="-1"></a>    max_samples<span class="op">=</span><span class="va">None</span></span>
+<span id="cb16-24"><a href="#cb16-24" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb16-25"><a href="#cb16-25" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-26"><a href="#cb16-26" aria-hidden="true" tabindex="-1"></a><span class="co"># Hybrid Monitor의 추가 메트릭 확인 (선택적)</span></span>
+<span id="cb16-27"><a href="#cb16-27" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> evaluator.monitor:</span>
+<span id="cb16-28"><a href="#cb16-28" aria-hidden="true" tabindex="-1"></a>    <span class="co"># TaskResult로 기록된 정보 확인</span></span>
+<span id="cb16-29"><a href="#cb16-29" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="ss">f&quot;모니터링된 태스크 수: </span><span class="sc">{</span><span class="bu">len</span>(evaluator.monitor.extended_tasks)<span class="sc">}</span><span class="ss">&quot;</span>)</span>
+<span id="cb16-30"><a href="#cb16-30" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-31"><a href="#cb16-31" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Hybrid 리포트 생성 (DeepEval, Ragas 통합)</span></span>
+<span id="cb16-32"><a href="#cb16-32" aria-hidden="true" tabindex="-1"></a>    hybrid_report <span class="op">=</span> evaluator.monitor.generate_report()</span></code></pre></div>
+<p><strong>Hybrid Monitor 기능</strong>: - <strong>확장된
+메트릭</strong>: DeepEval (G-Eval, Hallucination, Toxicity, Bias) -
+<strong>태스크 추적</strong>: 각 QA 평가를 <code>TaskResult</code>로
+기록 - <strong>통합 리포트</strong>: Native + Ragas + DeepEval 메트릭을
+하나의 리포트로 - <strong>성능 분석</strong>: 평가 시간, 성공률, 오류
+추적</p>
+<p><strong>실제 구현</strong>: - <code>korean_rag_evaluator.py</code>의
+<code>_record_to_monitor()</code> 메서드 -
+<code>hybrid_monitor.py</code>의 <code>HybridPerformanceMonitor</code>
+클래스 - 각 QA 평가 결과가 <code>TaskResult</code>로 변환되어 기록됨</p>
+<hr />
+<h2 id="실전-예제-기업-정책-문서-평가">실전 예제: 기업 정책 문서
+평가</h2>
+<h3 id="시나리오">시나리오</h3>
+<p>회사의 인사 정책 PDF를 RAG 시스템에 적용하고, 직원들의 질문에
+정확하게 답변하는지 평가합니다.</p>
+<h3 id="단계-golden-dataset-생성">1단계: Golden Dataset 생성</h3>
+<div class="sourceCode" id="cb17"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb17-1"><a href="#cb17-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> agent_evaluator.datasets.korean_rag_dataset_generator <span class="im">import</span> KoreanRAGDatasetGenerator</span>
+<span id="cb17-2"><a href="#cb17-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb17-3"><a href="#cb17-3" aria-hidden="true" tabindex="-1"></a>generator <span class="op">=</span> KoreanRAGDatasetGenerator(</span>
+<span id="cb17-4"><a href="#cb17-4" aria-hidden="true" tabindex="-1"></a>    model<span class="op">=</span><span class="st">&quot;gpt-4o-mini&quot;</span>,</span>
+<span id="cb17-5"><a href="#cb17-5" aria-hidden="true" tabindex="-1"></a>    chunk_size<span class="op">=</span><span class="dv">800</span>,</span>
+<span id="cb17-6"><a href="#cb17-6" aria-hidden="true" tabindex="-1"></a>    chunk_overlap<span class="op">=</span><span class="dv">150</span></span>
+<span id="cb17-7"><a href="#cb17-7" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb17-8"><a href="#cb17-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb17-9"><a href="#cb17-9" aria-hidden="true" tabindex="-1"></a>dataset <span class="op">=</span> generator.generate_from_pdf(</span>
+<span id="cb17-10"><a href="#cb17-10" aria-hidden="true" tabindex="-1"></a>    pdf_path<span class="op">=</span><span class="st">&quot;company_hr_policy.pdf&quot;</span>,</span>
+<span id="cb17-11"><a href="#cb17-11" aria-hidden="true" tabindex="-1"></a>    num_questions_per_chunk<span class="op">=</span><span class="dv">4</span>,</span>
+<span id="cb17-12"><a href="#cb17-12" aria-hidden="true" tabindex="-1"></a>    question_types<span class="op">=</span>[<span class="st">&quot;factual&quot;</span>, <span class="st">&quot;reasoning&quot;</span>],</span>
+<span id="cb17-13"><a href="#cb17-13" aria-hidden="true" tabindex="-1"></a>    save_format<span class="op">=</span><span class="st">&quot;json&quot;</span></span>
+<span id="cb17-14"><a href="#cb17-14" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb17-15"><a href="#cb17-15" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb17-16"><a href="#cb17-16" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f&quot;생성 완료: </span><span class="sc">{</span>dataset<span class="sc">.</span>total_qa_pairs<span class="sc">}</span><span class="ss">개 QA 쌍&quot;</span>)</span></code></pre></div>
+<h3 id="단계-rag-시스템-구축">2단계: RAG 시스템 구축</h3>
+<div class="sourceCode" id="cb18"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb18-1"><a href="#cb18-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> langchain.vectorstores <span class="im">import</span> Chroma</span>
+<span id="cb18-2"><a href="#cb18-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> langchain.embeddings <span class="im">import</span> OpenAIEmbeddings</span>
+<span id="cb18-3"><a href="#cb18-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> langchain.chat_models <span class="im">import</span> ChatOpenAI</span>
+<span id="cb18-4"><a href="#cb18-4" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> agent_evaluator.datasets.korean_rag_evaluator <span class="im">import</span> RAGSystemInterface, RAGResponse</span>
+<span id="cb18-5"><a href="#cb18-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb18-6"><a href="#cb18-6" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> HRPolicyRAG(RAGSystemInterface):</span>
+<span id="cb18-7"><a href="#cb18-7" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> <span class="fu">__init__</span>(<span class="va">self</span>, pdf_path):</span>
+<span id="cb18-8"><a href="#cb18-8" aria-hidden="true" tabindex="-1"></a>        <span class="co"># 벡터 DB 구축</span></span>
+<span id="cb18-9"><a href="#cb18-9" aria-hidden="true" tabindex="-1"></a>        <span class="im">from</span> langchain.document_loaders <span class="im">import</span> PyPDFLoader</span>
+<span id="cb18-10"><a href="#cb18-10" aria-hidden="true" tabindex="-1"></a>        <span class="im">from</span> langchain.text_splitter <span class="im">import</span> RecursiveCharacterTextSplitter</span>
+<span id="cb18-11"><a href="#cb18-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb18-12"><a href="#cb18-12" aria-hidden="true" tabindex="-1"></a>        loader <span class="op">=</span> PyPDFLoader(pdf_path)</span>
+<span id="cb18-13"><a href="#cb18-13" aria-hidden="true" tabindex="-1"></a>        documents <span class="op">=</span> loader.load()</span>
+<span id="cb18-14"><a href="#cb18-14" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb18-15"><a href="#cb18-15" aria-hidden="true" tabindex="-1"></a>        text_splitter <span class="op">=</span> RecursiveCharacterTextSplitter(</span>
+<span id="cb18-16"><a href="#cb18-16" aria-hidden="true" tabindex="-1"></a>            chunk_size<span class="op">=</span><span class="dv">800</span>,</span>
+<span id="cb18-17"><a href="#cb18-17" aria-hidden="true" tabindex="-1"></a>            chunk_overlap<span class="op">=</span><span class="dv">150</span></span>
+<span id="cb18-18"><a href="#cb18-18" aria-hidden="true" tabindex="-1"></a>        )</span>
+<span id="cb18-19"><a href="#cb18-19" aria-hidden="true" tabindex="-1"></a>        splits <span class="op">=</span> text_splitter.split_documents(documents)</span>
+<span id="cb18-20"><a href="#cb18-20" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb18-21"><a href="#cb18-21" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>.vectorstore <span class="op">=</span> Chroma.from_documents(</span>
+<span id="cb18-22"><a href="#cb18-22" aria-hidden="true" tabindex="-1"></a>            documents<span class="op">=</span>splits,</span>
+<span id="cb18-23"><a href="#cb18-23" aria-hidden="true" tabindex="-1"></a>            embedding<span class="op">=</span>OpenAIEmbeddings()</span>
+<span id="cb18-24"><a href="#cb18-24" aria-hidden="true" tabindex="-1"></a>        )</span>
+<span id="cb18-25"><a href="#cb18-25" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb18-26"><a href="#cb18-26" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>.llm <span class="op">=</span> ChatOpenAI(model<span class="op">=</span><span class="st">&quot;gpt-4o-mini&quot;</span>, temperature<span class="op">=</span><span class="fl">0.3</span>)</span>
+<span id="cb18-27"><a href="#cb18-27" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb18-28"><a href="#cb18-28" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> query(<span class="va">self</span>, question: <span class="bu">str</span>) <span class="op">-&gt;</span> RAGResponse:</span>
+<span id="cb18-29"><a href="#cb18-29" aria-hidden="true" tabindex="-1"></a>        <span class="co"># 검색</span></span>
+<span id="cb18-30"><a href="#cb18-30" aria-hidden="true" tabindex="-1"></a>        docs <span class="op">=</span> <span class="va">self</span>.vectorstore.similarity_search(question, k<span class="op">=</span><span class="dv">3</span>)</span>
+<span id="cb18-31"><a href="#cb18-31" aria-hidden="true" tabindex="-1"></a>        contexts <span class="op">=</span> [doc.page_content <span class="cf">for</span> doc <span class="kw">in</span> docs]</span>
+<span id="cb18-32"><a href="#cb18-32" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb18-33"><a href="#cb18-33" aria-hidden="true" tabindex="-1"></a>        <span class="co"># 답변 생성</span></span>
+<span id="cb18-34"><a href="#cb18-34" aria-hidden="true" tabindex="-1"></a>        context_text <span class="op">=</span> <span class="st">&quot;</span><span class="ch">\n\n</span><span class="st">&quot;</span>.join(contexts)</span>
+<span id="cb18-35"><a href="#cb18-35" aria-hidden="true" tabindex="-1"></a>        prompt <span class="op">=</span> <span class="ss">f&quot;&quot;&quot;다음 회사 정책 문서를 참고하여 질문에 답변하세요.</span></span>
+<span id="cb18-36"><a href="#cb18-36" aria-hidden="true" tabindex="-1"></a><span class="ss">답변은 문서의 내용만을 기반으로 하며, 확실하지 않으면 &quot;문서에 명시되지 않음&quot;이라고 답하세요.</span></span>
+<span id="cb18-37"><a href="#cb18-37" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb18-38"><a href="#cb18-38" aria-hidden="true" tabindex="-1"></a><span class="ss">[문서]</span></span>
+<span id="cb18-39"><a href="#cb18-39" aria-hidden="true" tabindex="-1"></a><span class="sc">{</span>context_text<span class="sc">}</span></span>
+<span id="cb18-40"><a href="#cb18-40" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb18-41"><a href="#cb18-41" aria-hidden="true" tabindex="-1"></a><span class="ss">[질문]</span></span>
+<span id="cb18-42"><a href="#cb18-42" aria-hidden="true" tabindex="-1"></a><span class="sc">{</span>question<span class="sc">}</span></span>
+<span id="cb18-43"><a href="#cb18-43" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb18-44"><a href="#cb18-44" aria-hidden="true" tabindex="-1"></a><span class="ss">[답변]</span></span>
+<span id="cb18-45"><a href="#cb18-45" aria-hidden="true" tabindex="-1"></a><span class="ss">&quot;&quot;&quot;</span></span>
+<span id="cb18-46"><a href="#cb18-46" aria-hidden="true" tabindex="-1"></a>        answer <span class="op">=</span> <span class="va">self</span>.llm.predict(prompt)</span>
+<span id="cb18-47"><a href="#cb18-47" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb18-48"><a href="#cb18-48" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> RAGResponse(</span>
+<span id="cb18-49"><a href="#cb18-49" aria-hidden="true" tabindex="-1"></a>            question<span class="op">=</span>question,</span>
+<span id="cb18-50"><a href="#cb18-50" aria-hidden="true" tabindex="-1"></a>            answer<span class="op">=</span>answer,</span>
+<span id="cb18-51"><a href="#cb18-51" aria-hidden="true" tabindex="-1"></a>            retrieved_contexts<span class="op">=</span>contexts,</span>
+<span id="cb18-52"><a href="#cb18-52" aria-hidden="true" tabindex="-1"></a>            metadata<span class="op">=</span>{<span class="st">&quot;model&quot;</span>: <span class="st">&quot;gpt-4o-mini&quot;</span>}</span>
+<span id="cb18-53"><a href="#cb18-53" aria-hidden="true" tabindex="-1"></a>        )</span></code></pre></div>
+<h3 id="단계-평가">3단계: 평가</h3>
+<div class="sourceCode" id="cb19"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb19-1"><a href="#cb19-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> agent_evaluator.datasets.korean_rag_evaluator <span class="im">import</span> KoreanRAGEvaluator</span>
+<span id="cb19-2"><a href="#cb19-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> agent_evaluator.datasets.korean_rag_dataset_generator <span class="im">import</span> GoldenDatasetManager</span>
+<span id="cb19-3"><a href="#cb19-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb19-4"><a href="#cb19-4" aria-hidden="true" tabindex="-1"></a><span class="co"># Golden Dataset 로드</span></span>
+<span id="cb19-5"><a href="#cb19-5" aria-hidden="true" tabindex="-1"></a>manager <span class="op">=</span> GoldenDatasetManager()</span>
+<span id="cb19-6"><a href="#cb19-6" aria-hidden="true" tabindex="-1"></a>dataset <span class="op">=</span> manager.load_dataset(<span class="st">&quot;golden_datasets/hr_policy_dataset.json&quot;</span>)</span>
+<span id="cb19-7"><a href="#cb19-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb19-8"><a href="#cb19-8" aria-hidden="true" tabindex="-1"></a><span class="co"># RAG 시스템 초기화</span></span>
+<span id="cb19-9"><a href="#cb19-9" aria-hidden="true" tabindex="-1"></a>rag <span class="op">=</span> HRPolicyRAG(<span class="st">&quot;company_hr_policy.pdf&quot;</span>)</span>
+<span id="cb19-10"><a href="#cb19-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb19-11"><a href="#cb19-11" aria-hidden="true" tabindex="-1"></a><span class="co"># 평가</span></span>
+<span id="cb19-12"><a href="#cb19-12" aria-hidden="true" tabindex="-1"></a>evaluator <span class="op">=</span> KoreanRAGEvaluator(</span>
+<span id="cb19-13"><a href="#cb19-13" aria-hidden="true" tabindex="-1"></a>    rag_system<span class="op">=</span>rag,</span>
+<span id="cb19-14"><a href="#cb19-14" aria-hidden="true" tabindex="-1"></a>    use_ragas<span class="op">=</span><span class="va">True</span>,</span>
+<span id="cb19-15"><a href="#cb19-15" aria-hidden="true" tabindex="-1"></a>    ragas_model<span class="op">=</span><span class="st">&quot;gpt-4o-mini&quot;</span></span>
+<span id="cb19-16"><a href="#cb19-16" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb19-17"><a href="#cb19-17" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb19-18"><a href="#cb19-18" aria-hidden="true" tabindex="-1"></a>report <span class="op">=</span> evaluator.evaluate_dataset(dataset)</span>
+<span id="cb19-19"><a href="#cb19-19" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb19-20"><a href="#cb19-20" aria-hidden="true" tabindex="-1"></a><span class="co"># 결과 분석</span></span>
+<span id="cb19-21"><a href="#cb19-21" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> report.avg_faithfulness <span class="op">&gt;=</span> <span class="fl">0.8</span>:</span>
+<span id="cb19-22"><a href="#cb19-22" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="st">&quot;✅ RAG 시스템이 정책 문서에 충실합니다&quot;</span>)</span>
+<span id="cb19-23"><a href="#cb19-23" aria-hidden="true" tabindex="-1"></a><span class="cf">else</span>:</span>
+<span id="cb19-24"><a href="#cb19-24" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="st">&quot;⚠️  환각(hallucination) 문제가 있습니다&quot;</span>)</span>
+<span id="cb19-25"><a href="#cb19-25" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb19-26"><a href="#cb19-26" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> report.avg_context_recall <span class="op">&gt;=</span> <span class="fl">0.8</span>:</span>
+<span id="cb19-27"><a href="#cb19-27" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="st">&quot;✅ 검색 성능이 우수합니다&quot;</span>)</span>
+<span id="cb19-28"><a href="#cb19-28" aria-hidden="true" tabindex="-1"></a><span class="cf">else</span>:</span>
+<span id="cb19-29"><a href="#cb19-29" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="st">&quot;⚠️  검색 성능 개선이 필요합니다&quot;</span>)</span></code></pre></div>
+<hr />
+
+<h2 id="performancemonitor-integration">✨ PerformanceMonitor 통합</h2>
+<p>이제 <code>PerformanceMonitor</code>가 RAG 메트릭을 직접 추적하고 관리할 수 있습니다. 이를 통해 한국어 RAG 평가 결과를 threshold와 비교하여 품질 게이트를 구현할 수 있습니다.</p>
+
+<h3 id="pm-overview">개요</h3>
+<p><code>PerformanceMonitor</code>는 Agent Evaluator의 핵심 모니터링 도구로, ✨ 이제 다음 기능을 지원합니다:</p>
+<ul>
+<li><strong>RAG 메트릭 기록</strong>: <code>record_rag_metrics()</code>로 4가지 RAG 메트릭을 직접 추적</li>
+<li><strong>자동 계산</strong>: <code>compare_with_thresholds()</code>에서 실제 평균값을 자동 계산</li>
+<li><strong>Threshold 비교</strong>: 설정된 임계값과 비교하여 pass/fail 판정 (Quality Gate 구현)</li>
+<li><strong>통합 리포트</strong>: CSV export 시 RAG 메트릭 자동 포함 (13+ 메트릭)</li>
+<li><strong>CSV export</strong>: Dashboard에서 한 번의 클릭으로 모든 메트릭을 CSV로 내보내기</li>
+</ul>
+
+<h3 id="pm-basic-usage">기본 사용법</h3>
+<div class="sourceCode" id="cb19a"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb19a-1"><a href="#cb19a-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> agent_evaluator <span class="im">import</span> PerformanceMonitor</span>
+<span id="cb19a-2"><a href="#cb19a-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> agent_evaluator.datasets.korean_rag_evaluator <span class="im">import</span> KoreanRAGEvaluator</span>
+<span id="cb19a-3"><a href="#cb19a-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb19a-4"><a href="#cb19a-4" aria-hidden="true" tabindex="-1"></a><span class="co"># 1. PerformanceMonitor 초기화</span></span>
+<span id="cb19a-5"><a href="#cb19a-5" aria-hidden="true" tabindex="-1"></a>monitor <span class="op">=</span> PerformanceMonitor()</span>
+<span id="cb19a-6"><a href="#cb19a-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb19a-7"><a href="#cb19a-7" aria-hidden="true" tabindex="-1"></a><span class="co"># 2. Threshold 설정</span></span>
+<span id="cb19a-8"><a href="#cb19a-8" aria-hidden="true" tabindex="-1"></a>monitor.thresholds <span class="op">=</span> {</span>
+<span id="cb19a-9"><a href="#cb19a-9" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;faithfulness&quot;</span>: <span class="fl">0.8</span>,           <span class="co"># 환각 방지</span></span>
+<span id="cb19a-10"><a href="#cb19a-10" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;answer_relevancy&quot;</span>: <span class="fl">0.85</span>,      <span class="co"># 답변 관련성</span></span>
+<span id="cb19a-11"><a href="#cb19a-11" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;context_recall&quot;</span>: <span class="fl">0.75</span>,        <span class="co"># 검색 완전성</span></span>
+<span id="cb19a-12"><a href="#cb19a-12" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;context_precision&quot;</span>: <span class="fl">0.8</span>       <span class="co"># 검색 정확도</span></span>
+<span id="cb19a-13"><a href="#cb19a-13" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb19a-14"><a href="#cb19a-14" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb19a-15"><a href="#cb19a-15" aria-hidden="true" tabindex="-1"></a><span class="co"># 3. KoreanRAGEvaluator로 평가</span></span>
+<span id="cb19a-16"><a href="#cb19a-16" aria-hidden="true" tabindex="-1"></a>rag_evaluator <span class="op">=</span> KoreanRAGEvaluator(rag_system<span class="op">=</span>my_rag_system)</span>
+<span id="cb19a-17"><a href="#cb19a-17" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb19a-18"><a href="#cb19a-18" aria-hidden="true" tabindex="-1"></a>result <span class="op">=</span> rag_evaluator.evaluate_single(</span>
+<span id="cb19a-19"><a href="#cb19a-19" aria-hidden="true" tabindex="-1"></a>    question<span class="op">=</span><span class="st">&quot;한국의 수도는 어디인가요?&quot;</span>,</span>
+<span id="cb19a-20"><a href="#cb19a-20" aria-hidden="true" tabindex="-1"></a>    expected_answer<span class="op">=</span><span class="st">&quot;서울입니다&quot;</span></span>
+<span id="cb19a-21"><a href="#cb19a-21" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb19a-22"><a href="#cb19a-22" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb19a-23"><a href="#cb19a-23" aria-hidden="true" tabindex="-1"></a><span class="co"># 4. 최신 기능: PerformanceMonitor에 RAG 메트릭 기록</span></span>
+<span id="cb19a-24"><a href="#cb19a-24" aria-hidden="true" tabindex="-1"></a>monitor.record_rag_metrics(</span>
+<span id="cb19a-25"><a href="#cb19a-25" aria-hidden="true" tabindex="-1"></a>    faithfulness<span class="op">=</span>result.faithfulness,</span>
+<span id="cb19a-26"><a href="#cb19a-26" aria-hidden="true" tabindex="-1"></a>    answer_relevancy<span class="op">=</span>result.answer_relevancy,</span>
+<span id="cb19a-27"><a href="#cb19a-27" aria-hidden="true" tabindex="-1"></a>    context_recall<span class="op">=</span>result.context_recall,</span>
+<span id="cb19a-28"><a href="#cb19a-28" aria-hidden="true" tabindex="-1"></a>    context_precision<span class="op">=</span>result.context_precision</span>
+<span id="cb19a-29"><a href="#cb19a-29" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb19a-30"><a href="#cb19a-30" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb19a-31"><a href="#cb19a-31" aria-hidden="true" tabindex="-1"></a><span class="co"># 5. 최신 기능: Threshold와 자동 비교 (실제 값 계산)</span></span>
+<span id="cb19a-32"><a href="#cb19a-32" aria-hidden="true" tabindex="-1"></a>comparison <span class="op">=</span> monitor.compare_with_thresholds()</span>
+<span id="cb19a-33"><a href="#cb19a-33" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb19a-34"><a href="#cb19a-34" aria-hidden="true" tabindex="-1"></a><span class="co"># 6. 결과 출력</span></span>
+<span id="cb19a-35"><a href="#cb19a-35" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> metric <span class="kw">in</span> [<span class="st">&quot;faithfulness&quot;</span>, <span class="st">&quot;answer_relevancy&quot;</span>, <span class="st">&quot;context_recall&quot;</span>, <span class="st">&quot;context_precision&quot;</span>]:</span>
+<span id="cb19a-36"><a href="#cb19a-36" aria-hidden="true" tabindex="-1"></a>    data <span class="op">=</span> comparison[metric]</span>
+<span id="cb19a-37"><a href="#cb19a-37" aria-hidden="true" tabindex="-1"></a>    status <span class="op">=</span> <span class="st">&quot;✅&quot;</span> <span class="cf">if</span> data[<span class="st">&quot;status&quot;</span>] <span class="op">==</span> <span class="st">&quot;pass&quot;</span> <span class="cf">else</span> <span class="st">&quot;❌&quot;</span></span>
+<span id="cb19a-38"><a href="#cb19a-38" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="ss">f&quot;</span><span class="sc">{</span>status<span class="sc">}</span><span class="ss"> </span><span class="sc">{</span>data[<span class="st">&#39;name&#39;</span>]<span class="sc">}</span><span class="ss">: </span><span class="sc">{</span>data[<span class="st">&#39;value&#39;</span>]<span class="sc">:.3f}</span><span class="ss"> (임계값: </span><span class="sc">{</span>data[<span class="st">&#39;threshold&#39;</span>]<span class="sc">}</span><span class="ss">)&quot;</span>)</span></code></pre></div>
+
+<p><strong>출력 예제</strong>:</p>
+<pre><code>✅ Faithfulness: 0.850 (임계값: 0.8)
+✅ Answer Relevancy: 0.880 (임계값: 0.85)
+✅ Context Recall: 0.780 (임계값: 0.75)
+✅ Context Precision: 0.820 (임계값: 0.8)</code></pre>
+
+<h3 id="pm-complete-workflow">완전한 워크플로우</h3>
+<p>Dataset 전체를 평가하고 PerformanceMonitor로 추적하는 완전한 예제입니다.</p>
+<div class="sourceCode" id="cb19b"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb19b-1"><a href="#cb19b-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> agent_evaluator <span class="im">import</span> PerformanceMonitor</span>
+<span id="cb19b-2"><a href="#cb19b-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> agent_evaluator.datasets.korean_rag_evaluator <span class="im">import</span> KoreanRAGEvaluator</span>
+<span id="cb19b-3"><a href="#cb19b-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> agent_evaluator.datasets.korean_rag_dataset_generator <span class="im">import</span> GoldenDatasetManager</span>
+<span id="cb19b-4"><a href="#cb19b-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb19b-5"><a href="#cb19b-5" aria-hidden="true" tabindex="-1"></a><span class="co"># PerformanceMonitor 초기화 및 Threshold 설정</span></span>
+<span id="cb19b-6"><a href="#cb19b-6" aria-hidden="true" tabindex="-1"></a>monitor <span class="op">=</span> PerformanceMonitor()</span>
+<span id="cb19b-7"><a href="#cb19b-7" aria-hidden="true" tabindex="-1"></a>monitor.thresholds <span class="op">=</span> {</span>
+<span id="cb19b-8"><a href="#cb19b-8" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;faithfulness&quot;</span>: <span class="fl">0.8</span>,</span>
+<span id="cb19b-9"><a href="#cb19b-9" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;answer_relevancy&quot;</span>: <span class="fl">0.85</span>,</span>
+<span id="cb19b-10"><a href="#cb19b-10" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;context_recall&quot;</span>: <span class="fl">0.75</span>,</span>
+<span id="cb19b-11"><a href="#cb19b-11" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;context_precision&quot;</span>: <span class="fl">0.8</span></span>
+<span id="cb19b-12"><a href="#cb19b-12" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb19b-13"><a href="#cb19b-13" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb19b-14"><a href="#cb19b-14" aria-hidden="true" tabindex="-1"></a><span class="co"># Dataset 로드</span></span>
+<span id="cb19b-15"><a href="#cb19b-15" aria-hidden="true" tabindex="-1"></a>manager <span class="op">=</span> GoldenDatasetManager()</span>
+<span id="cb19b-16"><a href="#cb19b-16" aria-hidden="true" tabindex="-1"></a>dataset <span class="op">=</span> manager.load_dataset(<span class="st">&quot;golden_datasets/hr_policy_dataset.json&quot;</span>)</span>
+<span id="cb19b-17"><a href="#cb19b-17" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb19b-18"><a href="#cb19b-18" aria-hidden="true" tabindex="-1"></a><span class="co"># RAG Evaluator 초기화</span></span>
+<span id="cb19b-19"><a href="#cb19b-19" aria-hidden="true" tabindex="-1"></a>rag_evaluator <span class="op">=</span> KoreanRAGEvaluator(</span>
+<span id="cb19b-20"><a href="#cb19b-20" aria-hidden="true" tabindex="-1"></a>    rag_system<span class="op">=</span>my_rag_system,</span>
+<span id="cb19b-21"><a href="#cb19b-21" aria-hidden="true" tabindex="-1"></a>    use_ragas<span class="op">=</span><span class="va">True</span>,</span>
+<span id="cb19b-22"><a href="#cb19b-22" aria-hidden="true" tabindex="-1"></a>    ragas_model<span class="op">=</span><span class="st">&quot;gpt-4o-mini&quot;</span></span>
+<span id="cb19b-23"><a href="#cb19b-23" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb19b-24"><a href="#cb19b-24" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb19b-25"><a href="#cb19b-25" aria-hidden="true" tabindex="-1"></a><span class="co"># Dataset 평가 및 메트릭 기록</span></span>
+<span id="cb19b-26"><a href="#cb19b-26" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> qa_pair <span class="kw">in</span> dataset.qa_pairs:</span>
+<span id="cb19b-27"><a href="#cb19b-27" aria-hidden="true" tabindex="-1"></a>    result <span class="op">=</span> rag_evaluator.evaluate_single(</span>
+<span id="cb19b-28"><a href="#cb19b-28" aria-hidden="true" tabindex="-1"></a>        question<span class="op">=</span>qa_pair.question,</span>
+<span id="cb19b-29"><a href="#cb19b-29" aria-hidden="true" tabindex="-1"></a>        expected_answer<span class="op">=</span>qa_pair.expected_answer</span>
+<span id="cb19b-30"><a href="#cb19b-30" aria-hidden="true" tabindex="-1"></a>    )</span>
+<span id="cb19b-31"><a href="#cb19b-31" aria-hidden="true" tabindex="-1"></a>    </span>
+<span id="cb19b-32"><a href="#cb19b-32" aria-hidden="true" tabindex="-1"></a>    <span class="co"># PerformanceMonitor에 기록</span></span>
+<span id="cb19b-33"><a href="#cb19b-33" aria-hidden="true" tabindex="-1"></a>    monitor.record_rag_metrics(</span>
+<span id="cb19b-34"><a href="#cb19b-34" aria-hidden="true" tabindex="-1"></a>        faithfulness<span class="op">=</span>result.faithfulness,</span>
+<span id="cb19b-35"><a href="#cb19b-35" aria-hidden="true" tabindex="-1"></a>        answer_relevancy<span class="op">=</span>result.answer_relevancy,</span>
+<span id="cb19b-36"><a href="#cb19b-36" aria-hidden="true" tabindex="-1"></a>        context_recall<span class="op">=</span>result.context_recall,</span>
+<span id="cb19b-37"><a href="#cb19b-37" aria-hidden="true" tabindex="-1"></a>        context_precision<span class="op">=</span>result.context_precision</span>
+<span id="cb19b-38"><a href="#cb19b-38" aria-hidden="true" tabindex="-1"></a>    )</span>
+<span id="cb19b-39"><a href="#cb19b-39" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb19b-40"><a href="#cb19b-40" aria-hidden="true" tabindex="-1"></a><span class="co"># 최신 기능: Threshold 비교 (자동 pass/fail 판정)</span></span>
+<span id="cb19b-41"><a href="#cb19b-41" aria-hidden="true" tabindex="-1"></a>comparison <span class="op">=</span> monitor.compare_with_thresholds()</span>
+<span id="cb19b-42"><a href="#cb19b-42" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb19b-43"><a href="#cb19b-43" aria-hidden="true" tabindex="-1"></a><span class="co"># 품질 게이트 체크</span></span>
+<span id="cb19b-44"><a href="#cb19b-44" aria-hidden="true" tabindex="-1"></a>failed_metrics <span class="op">=</span> [</span>
+<span id="cb19b-45"><a href="#cb19b-45" aria-hidden="true" tabindex="-1"></a>    metric <span class="cf">for</span> metric, data <span class="kw">in</span> comparison.items() </span>
+<span id="cb19b-46"><a href="#cb19b-46" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> data[<span class="st">&quot;status&quot;</span>] <span class="op">==</span> <span class="st">&quot;fail&quot;</span></span>
+<span id="cb19b-47"><a href="#cb19b-47" aria-hidden="true" tabindex="-1"></a>]</span>
+<span id="cb19b-48"><a href="#cb19b-48" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb19b-49"><a href="#cb19b-49" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> failed_metrics:</span>
+<span id="cb19b-50"><a href="#cb19b-50" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="ss">f&quot;❌ RAG 품질 게이트 실패! 실패한 메트릭: </span><span class="sc">{</span><span class="bu">len</span>(failed_metrics)<span class="sc">}</span><span class="ss">개&quot;</span>)</span>
+<span id="cb19b-51"><a href="#cb19b-51" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> metric <span class="kw">in</span> failed_metrics:</span>
+<span id="cb19b-52"><a href="#cb19b-52" aria-hidden="true" tabindex="-1"></a>        data <span class="op">=</span> comparison[metric]</span>
+<span id="cb19b-53"><a href="#cb19b-53" aria-hidden="true" tabindex="-1"></a>        <span class="bu">print</span>(<span class="ss">f&quot;  - </span><span class="sc">{</span>data[<span class="st">&#39;name&#39;</span>]<span class="sc">}</span><span class="ss">: </span><span class="sc">{</span>data[<span class="st">&#39;value&#39;</span>]<span class="sc">:.3f}</span><span class="ss"> (필요: </span><span class="sc">{</span>data[<span class="st">&#39;threshold&#39;</span>]<span class="sc">}</span><span class="ss">)&quot;</span>)</span>
+<span id="cb19b-54"><a href="#cb19b-54" aria-hidden="true" tabindex="-1"></a><span class="cf">else</span>:</span>
+<span id="cb19b-55"><a href="#cb19b-55" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="st">&quot;✅ RAG 품질 게이트 통과! 모든 메트릭이 임계값을 충족합니다.&quot;</span>)</span>
+<span id="cb19b-56"><a href="#cb19b-56" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb19b-57"><a href="#cb19b-57" aria-hidden="true" tabindex="-1"></a><span class="co"># RAG 메트릭 요약 확인</span></span>
+<span id="cb19b-58"><a href="#cb19b-58" aria-hidden="true" tabindex="-1"></a>rag_summary <span class="op">=</span> monitor.get_rag_metrics_summary()</span>
+<span id="cb19b-59"><a href="#cb19b-59" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f&quot;</span><span class="ch">\n</span><span class="ss">RAG 메트릭 요약:&quot;</span>)</span>
+<span id="cb19b-60"><a href="#cb19b-60" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f&quot;  평균 Faithfulness: </span><span class="sc">{</span>rag_summary[<span class="st">&#39;faithfulness&#39;</span>][<span class="st">&#39;mean&#39;</span>]<span class="sc">:.3f}</span><span class="ss">&quot;</span>)</span>
+<span id="cb19b-61"><a href="#cb19b-61" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f&quot;  평균 Answer Relevancy: </span><span class="sc">{</span>rag_summary[<span class="st">&#39;answer_relevancy&#39;</span>][<span class="st">&#39;mean&#39;</span>]<span class="sc">:.3f}</span><span class="ss">&quot;</span>)</span>
+<span id="cb19b-62"><a href="#cb19b-62" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f&quot;  평균 Context Recall: </span><span class="sc">{</span>rag_summary[<span class="st">&#39;context_recall&#39;</span>][<span class="st">&#39;mean&#39;</span>]<span class="sc">:.3f}</span><span class="ss">&quot;</span>)</span>
+<span id="cb19b-63"><a href="#cb19b-63" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f&quot;  평균 Context Precision: </span><span class="sc">{</span>rag_summary[<span class="st">&#39;context_precision&#39;</span>][<span class="st">&#39;mean&#39;</span>]<span class="sc">:.3f}</span><span class="ss">&quot;</span>)</span>
+<span id="cb19b-64"><a href="#cb19b-64" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb19b-65"><a href="#cb19b-65" aria-hidden="true" tabindex="-1"></a><span class="co"># CSV 내보내기 (RAG 메트릭 포함)</span></span>
+<span id="cb19b-66"><a href="#cb19b-66" aria-hidden="true" tabindex="-1"></a>monitor.export_report(<span class="st">&quot;rag_evaluation_report.csv&quot;</span>, <span class="bu">format</span><span class="op">=</span><span class="st">&quot;csv&quot;</span>)</span>
+<span id="cb19b-67"><a href="#cb19b-67" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">&quot;</span><span class="ch">\n</span><span class="st">📊 리포트 저장 완료: rag_evaluation_report.csv&quot;</span>)</span></code></pre></div>
+
+<h3 id="pm-key-features">핵심 기능</h3>
+<table>
+<thead>
+<tr>
+<th>기능</th>
+<th>메서드</th>
+<th>설명</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>RAG 메트릭 기록</strong></td>
+<td><code>record_rag_metrics()</code></td>
+<td>faithfulness, answer_relevancy, context_recall, context_precision 기록</td>
+</tr>
+<tr>
+<td><strong>실제 값 계산</strong></td>
+<td><code>compare_with_thresholds()</code></td>
+<td>기록된 RAG 메트릭의 평균값을 자동 계산하여 반환</td>
+</tr>
+<tr>
+<td><strong>Pass/Fail 판정</strong></td>
+<td><code>compare_with_thresholds()</code></td>
+<td>임계값과 비교하여 자동으로 'pass' 또는 'fail' 판정</td>
+</tr>
+<tr>
+<td><strong>통계 요약</strong></td>
+<td><code>get_rag_metrics_summary()</code></td>
+<td>RAG 메트릭의 평균, 최소, 최대, 표준편차 등 제공</td>
+</tr>
+<tr>
+<td><strong>CSV 내보내기</strong></td>
+<td><code>export_report()</code></td>
+<td>13+ 메트릭(기본 + RAG) 포함하여 CSV 저장</td>
+</tr>
+</tbody>
+</table>
+
+<blockquote>
+<p><strong>⚡ 핵심 개선사항</strong>: 이전 버전에서는 RAG 메트릭이 'pending' 상태로 표시되었지만, 이제는 <code>record_rag_metrics()</code>로 기록하면 <code>compare_with_thresholds()</code>에서 자동으로 실제 평균값을 계산하고 pass/fail 판정을 수행합니다.</p>
+</blockquote>
+
+<h3 id="pm-threshold-recommendations">Threshold 권장 설정</h3>
+<table>
+<thead>
+<tr>
+<th>메트릭</th>
+<th>일반적</th>
+<th>엄격함</th>
+<th>관대함</th>
+<th>용도</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>faithfulness</code></td>
+<td>≥0.8</td>
+<td>≥0.9</td>
+<td>≥0.7</td>
+<td>환각 방지 (가장 중요)</td>
+</tr>
+<tr>
+<td><code>answer_relevancy</code></td>
+<td>≥0.85</td>
+<td>≥0.9</td>
+<td>≥0.75</td>
+<td>답변 품질</td>
+</tr>
+<tr>
+<td><code>context_recall</code></td>
+<td>≥0.75</td>
+<td>≥0.85</td>
+<td>≥0.65</td>
+<td>검색 완전성</td>
+</tr>
+<tr>
+<td><code>context_precision</code></td>
+<td>≥0.8</td>
+<td>≥0.9</td>
+<td>≥0.7</td>
+<td>검색 정확도</td>
+</tr>
+</tbody>
+</table>
+
+<p><strong>권장 시나리오</strong>:</p>
+<ul>
+<li><strong>프로덕션 RAG 시스템</strong>: 일반적 설정 사용</li>
+<li><strong>의료/금융/법률 시스템</strong>: 엄격한 설정 사용 (특히 faithfulness ≥0.9)</li>
+<li><strong>개발/테스트 환경</strong>: 관대한 설정 사용</li>
+<li><strong>CI/CD 품질 게이트</strong>: 일반적 설정으로 자동 배포 차단</li>
+</ul>
+
+<hr />
+
+<div class="section">
+<h2 id="dev-guide">💻 개발자 가이드 (Developer Guide)</h2>
+<p>한국어 RAG 시스템을 효율적으로 통합하고 평가하기 위한 개발자 중심 가이드입니다.</p>
+
+<h3 id="dev-integration">8.1 RAG 시스템 통합</h3>
+
+<h4>8.1.1 RAGSystemInterface 구현</h4>
+
+<pre><code class="language-python">from abc import ABC, abstractmethod
+from typing import List, Dict, Tuple
+
+class RAGSystemInterface(ABC):
+    """RAG 시스템 통합을 위한 표준 인터페이스"""
+
+    @abstractmethod
+    def retrieve_and_generate(
+        self,
+        query: str,
+        top_k: int = 5
+    ) -> Tuple[str, List[str]]:
+        """
+        질의에 대한 답변 생성 및 검색된 컨텍스트 반환
+
+        Args:
+            query: 사용자 질의
+            top_k: 검색할 문서 수
+
+        Returns:
+            (answer, contexts): 생성된 답변과 검색된 컨텍스트 리스트
+        """
+        pass
+
+# 실전 구현 예제 1: LangChain 기반 RAG
+from langchain.embeddings import OpenAIEmbeddings
+from langchain.vectorstores import Chroma
+from langchain.chains import RetrievalQA
+from langchain.llms import OpenAI
+
+class LangChainRAGSystem(RAGSystemInterface):
+    """LangChain 기반 RAG 시스템 구현"""
+
+    def __init__(self, vectorstore_path: str):
+        self.embeddings = OpenAIEmbeddings()
+        self.vectorstore = Chroma(
+            persist_directory=vectorstore_path,
+            embedding_function=self.embeddings
+        )
+        self.llm = OpenAI(temperature=0)
+        self.qa_chain = RetrievalQA.from_chain_type(
+            llm=self.llm,
+            chain_type="stuff",
+            retriever=self.vectorstore.as_retriever(search_kwargs={"k": 5}),
+            return_source_documents=True
+        )
+
+    def retrieve_and_generate(
+        self,
+        query: str,
+        top_k: int = 5
+    ) -> Tuple[str, List[str]]:
+        # 검색 및 생성
+        result = self.qa_chain({"query": query})
+
+        # 답변 추출
+        answer = result['result']
+
+        # 컨텍스트 추출
+        contexts = [doc.page_content for doc in result['source_documents']]
+
+        return answer, contexts
+
+# 실전 구현 예제 2: 커스텀 RAG (FAISS + OpenAI)
+import faiss
+import numpy as np
+from openai import OpenAI
+
+class CustomRAGSystem(RAGSystemInterface):
+    """FAISS + OpenAI 기반 커스텀 RAG 시스템"""
+
+    def __init__(self, index_path: str, docs_path: str):
+        # FAISS 인덱스 로드
+        self.index = faiss.read_index(index_path)
+
+        # 문서 로드
+        with open(docs_path, 'r', encoding='utf-8') as f:
+            self.documents = json.load(f)
+
+        # OpenAI 클라이언트
+        self.client = OpenAI()
+
+    def _embed_query(self, query: str) -> np.ndarray:
+        """질의를 임베딩으로 변환"""
+        response = self.client.embeddings.create(
+            model="text-embedding-3-small",
+            input=query
+        )
+        return np.array(response.data[0].embedding, dtype=np.float32)
+
+    def retrieve_and_generate(
+        self,
+        query: str,
+        top_k: int = 5
+    ) -> Tuple[str, List[str]]:
+        # 1. 질의 임베딩
+        query_embedding = self._embed_query(query)
+
+        # 2. FAISS 검색
+        distances, indices = self.index.search(
+            query_embedding.reshape(1, -1),
+            top_k
+        )
+
+        # 3. 검색된 문서 추출
+        contexts = [self.documents[idx] for idx in indices[0]]
+
+        # 4. 프롬프트 구성
+        context_text = "\n\n".join([f"[문서 {i+1}]\n{ctx}" for i, ctx in enumerate(contexts)])
+        prompt = f"""다음 문서들을 참고하여 질문에 답변해주세요.
+
+문서:
+{context_text}
+
+질문: {query}
+
+답변:"""
+
+        # 5. OpenAI로 답변 생성
+        response = self.client.chat.completions.create(
+            model="gpt-4-turbo-preview",
+            messages=[
+                {"role": "system", "content": "당신은 주어진 문서를 기반으로 정확하게 답변하는 AI 어시스턴트입니다."},
+                {"role": "user", "content": prompt}
+            ],
+            temperature=0
+        )
+
+        answer = response.choices[0].message.content
+
+        return answer, contexts
+</code></pre>
+
+<h4>8.1.2 평가 파이프라인 구축</h4>
+
+<pre><code class="language-python">#!/usr/bin/env python3
+"""
+evaluate_rag.py - RAG 시스템 평가 파이프라인
+"""
+from agent_evaluator.datasets import KoreanRAGEvaluator
+from typing import List, Dict
+import json
+from datetime import datetime
+
+class RAGEvaluationPipeline:
+    """RAG 평가 자동화 파이프라인"""
+
+    def __init__(
+        self,
+        rag_system: RAGSystemInterface,
+        golden_dataset_path: str,
+        output_dir: str = "evaluation_results"
+    ):
+        self.rag_system = rag_system
+        self.golden_dataset = self._load_golden_dataset(golden_dataset_path)
+        self.output_dir = output_dir
+        self.evaluator = KoreanRAGEvaluator()
+
+    def _load_golden_dataset(self, path: str) -> List[Dict]:
+        """Golden Dataset 로드"""
+        with open(path, 'r', encoding='utf-8') as f:
+            return json.load(f)
+
+    def run_evaluation(self, test_name: str = None) -> Dict:
+        """전체 평가 실행"""
+        if test_name is None:
+            test_name = f"rag_eval_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+
+        print(f"=== RAG System Evaluation: {test_name} ===")
+        print(f"Golden Dataset: {len(self.golden_dataset)} QA pairs")
+
+        results = []
+        total_questions = len(self.golden_dataset)
+
+        for i, qa_pair in enumerate(self.golden_dataset, 1):
+            print(f"\nProcessing {i}/{total_questions}: {qa_pair['question'][:50]}...")
+
+            try:
+                # RAG 시스템으로 답변 생성
+                answer, contexts = self.rag_system.retrieve_and_generate(
+                    qa_pair['question']
+                )
+
+                # 평가 수행
+                metrics = self.evaluator.evaluate(
+                    question=qa_pair['question'],
+                    answer=answer,
+                    contexts=contexts,
+                    ground_truth=qa_pair['ground_truth']
+                )
+
+                result = {
+                    "question": qa_pair['question'],
+                    "ground_truth": qa_pair['ground_truth'],
+                    "generated_answer": answer,
+                    "contexts": contexts,
+                    "metrics": metrics
+                }
+
+                results.append(result)
+
+                # 실시간 진행 상황 출력
+                print(f"  ✓ Faithfulness: {metrics['faithfulness']:.3f}")
+                print(f"  ✓ Answer Relevancy: {metrics['answer_relevancy']:.3f}")
+
+            except Exception as e:
+                print(f"  ✗ Error: {str(e)}")
+                results.append({
+                    "question": qa_pair['question'],
+                    "error": str(e)
+                })
+
+        # 결과 저장 및 통계 계산
+        report = self._generate_report(results, test_name)
+        self._save_results(results, report, test_name)
+
+        return report
+
+    def _generate_report(self, results: List[Dict], test_name: str) -> Dict:
+        """평가 보고서 생성"""
+        # 에러 케이스 제외
+        valid_results = [r for r in results if 'metrics' in r]
+
+        if not valid_results:
+            return {"error": "No valid results"}
+
+        # 평균 메트릭 계산
+        metrics_sum = {
+            'faithfulness': 0,
+            'answer_relevancy': 0,
+            'answer_similarity': 0,
+            'context_recall': 0,
+            'context_precision': 0
+        }
+
+        for result in valid_results:
+            for key in metrics_sum.keys():
+                metrics_sum[key] += result['metrics'].get(key, 0)
+
+        avg_metrics = {
+            key: value / len(valid_results)
+            for key, value in metrics_sum.items()
+        }
+
+        # 통과/실패 기준 (임계값)
+        thresholds = {
+            'faithfulness': 0.7,
+            'answer_relevancy': 0.7,
+            'answer_similarity': 0.7,
+            'context_recall': 0.7,
+            'context_precision': 0.7
+        }
+
+        passed = all(
+            avg_metrics[key] >= threshold
+            for key, threshold in thresholds.items()
+        )
+
+        report = {
+            "test_name": test_name,
+            "timestamp": datetime.now().isoformat(),
+            "total_questions": len(results),
+            "valid_results": len(valid_results),
+            "errors": len(results) - len(valid_results),
+            "average_metrics": avg_metrics,
+            "thresholds": thresholds,
+            "passed": passed
+        }
+
+        return report
+
+    def _save_results(self, results: List[Dict], report: Dict, test_name: str):
+        """결과 파일 저장"""
+        import os
+        os.makedirs(self.output_dir, exist_ok=True)
+
+        # 상세 결과 저장
+        results_file = f"{self.output_dir}/{test_name}_detailed.json"
+        with open(results_file, 'w', encoding='utf-8') as f:
+            json.dump(results, f, ensure_ascii=False, indent=2)
+        print(f"\n✓ Detailed results saved: {results_file}")
+
+        # 요약 보고서 저장
+        report_file = f"{self.output_dir}/{test_name}_report.json"
+        with open(report_file, 'w', encoding='utf-8') as f:
+            json.dump(report, f, ensure_ascii=False, indent=2)
+        print(f"✓ Report saved: {report_file}")
+
+        # 사람이 읽기 쉬운 형식으로도 저장
+        summary_file = f"{self.output_dir}/{test_name}_summary.txt"
+        with open(summary_file, 'w', encoding='utf-8') as f:
+            f.write(f"=== RAG System Evaluation Report ===\n")
+            f.write(f"Test: {report['test_name']}\n")
+            f.write(f"Date: {report['timestamp']}\n")
+            f.write(f"Total Questions: {report['total_questions']}\n")
+            f.write(f"Valid Results: {report['valid_results']}\n")
+            f.write(f"\n=== Average Metrics ===\n")
+            for metric, value in report['average_metrics'].items():
+                threshold = report['thresholds'][metric]
+                status = "✓" if value >= threshold else "✗"
+                f.write(f"{status} {metric}: {value:.3f} (threshold: {threshold})\n")
+            f.write(f"\n=== Overall Result ===\n")
+            f.write(f"{'PASSED' if report['passed'] else 'FAILED'}\n")
+        print(f"✓ Summary saved: {summary_file}")
+
+# 사용 예시
+if __name__ == "__main__":
+    # 1. RAG 시스템 초기화
+    rag_system = LangChainRAGSystem(vectorstore_path="./chroma_db")
+
+    # 2. 평가 파이프라인 생성
+    pipeline = RAGEvaluationPipeline(
+        rag_system=rag_system,
+        golden_dataset_path="golden_qa_pairs.json",
+        output_dir="evaluation_results"
+    )
+
+    # 3. 평가 실행
+    report = pipeline.run_evaluation(test_name="v1.0_test")
+
+    # 4. 결과 출력
+    print("\n=== Evaluation Complete ===")
+    print(f"Result: {'PASSED' if report['passed'] else 'FAILED'}")
+    print(f"Average Metrics:")
+    for metric, value in report['average_metrics'].items():
+        print(f"  {metric}: {value:.3f}")
+</code></pre>
+
+<h4>8.1.3 다양한 RAG 프레임워크 통합 예제</h4>
+
+<table>
+<thead>
+<tr>
+<th>프레임워크</th>
+<th>구현 클래스</th>
+<th>주요 특징</th>
+<th>적용 사례</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>LangChain</td>
+<td>LangChainRAGSystem</td>
+<td>체인 기반, 다양한 retriever 지원</td>
+<td>프로토타입, MVP</td>
+</tr>
+<tr>
+<td>LlamaIndex</td>
+<td>LlamaIndexRAGSystem</td>
+<td>인덱스 최적화, 쿼리 엔진</td>
+<td>대용량 문서</td>
+</tr>
+<tr>
+<td>Haystack</td>
+<td>HaystackRAGSystem</td>
+<td>파이프라인 기반, 프로덕션 ready</td>
+<td>엔터프라이즈</td>
+</tr>
+<tr>
+<td>Custom</td>
+<td>CustomRAGSystem</td>
+<td>완전한 커스터마이징</td>
+<td>특수 요구사항</td>
+</tr>
+</tbody>
+</table>
+
+<h3 id="dev-custom-metrics">8.2 커스텀 메트릭 개발</h3>
+
+<h4>8.2.1 커스텀 메트릭 구현 가이드</h4>
+
+<pre><code class="language-python">from typing import Dict
+from agent_evaluator.datasets.korean_rag_evaluator import BaseMetric
+
+class CustomHallucinationDetector(BaseMetric):
+    """환각(Hallucination) 탐지 커스텀 메트릭"""
+
+    def __init__(self, openai_api_key: str):
+        self.client = OpenAI(api_key=openai_api_key)
+
+    def evaluate(
+        self,
+        question: str,
+        answer: str,
+        contexts: List[str],
+        ground_truth: str = None
+    ) -> float:
+        """
+        답변이 컨텍스트에 근거하지 않은 정보를 포함하는지 평가
+
+        Returns:
+            0.0 (심각한 환각) ~ 1.0 (환각 없음)
+        """
+        # 컨텍스트 병합
+        context_text = "\n\n".join(contexts)
+
+        # GPT-4로 환각 탐지
+        prompt = f"""다음은 RAG 시스템이 생성한 답변입니다.
+답변이 제공된 문서에 근거하지 않은 정보를 포함하는지 평가해주세요.
+
+문서:
+{context_text}
+
+답변:
+{answer}
+
+평가 기준:
+1. 답변의 모든 사실적 주장이 문서에서 확인 가능한가?
+2. 문서에 없는 정보를 추론하여 추가하지 않았는가?
+3. 문서의 내용을 왜곡하거나 과장하지 않았는가?
+
+다음 형식으로 답변해주세요:
+{{
+  "hallucination_score": 0.0 ~ 1.0 (0.0 = 심각한 환각, 1.0 = 환각 없음),
+  "hallucinated_statements": ["환각된 문장1", "환각된 문장2", ...],
+  "reasoning": "평가 이유"
+}}"""
+
+        response = self.client.chat.completions.create(
+            model="gpt-4-turbo-preview",
+            messages=[
+                {"role": "system", "content": "당신은 RAG 시스템의 답변 품질을 평가하는 전문가입니다."},
+                {"role": "user", "content": prompt}
+            ],
+            temperature=0,
+            response_format={"type": "json_object"}
+        )
+
+        result = json.loads(response.choices[0].message.content)
+        return result['hallucination_score']
+
+class DomainSpecificAccuracy(BaseMetric):
+    """도메인 특화 정확도 메트릭 (예: 법률, 의료, 금융)"""
+
+    def __init__(self, domain: str, terminology_db: Dict[str, List[str]]):
+        """
+        Args:
+            domain: 도메인 이름 (e.g., "legal", "medical")
+            terminology_db: 도메인 용어 사전
+                {
+                    "정확한_용어": ["잘못된_변형1", "잘못된_변형2"],
+                    ...
+                }
+        """
+        self.domain = domain
+        self.terminology_db = terminology_db
+
+    def evaluate(
+        self,
+        question: str,
+        answer: str,
+        contexts: List[str],
+        ground_truth: str = None
+    ) -> float:
+        """도메인 용어 사용의 정확도 평가"""
+
+        errors = 0
+        total_checks = 0
+
+        for correct_term, incorrect_variants in self.terminology_db.items():
+            # 정답에서 정확한 용어를 사용해야 하는 경우
+            if correct_term in ground_truth:
+                total_checks += 1
+
+                # 답변에서 잘못된 변형 사용 여부 확인
+                if any(variant in answer for variant in incorrect_variants):
+                    errors += 1
+                # 정확한 용어를 사용하지 않은 경우
+                elif correct_term not in answer:
+                    errors += 0.5  # 부분 감점
+
+        if total_checks == 0:
+            return 1.0  # 검사 대상 없음
+
+        accuracy = 1.0 - (errors / total_checks)
+        return max(0.0, accuracy)
+
+class AnswerCompleteness(BaseMetric):
+    """답변 완전성 메트릭 - 모든 하위 질문에 답변했는지 확인"""
+
+    def __init__(self, openai_api_key: str):
+        self.client = OpenAI(api_key=openai_api_key)
+
+    def evaluate(
+        self,
+        question: str,
+        answer: str,
+        contexts: List[str],
+        ground_truth: str = None
+    ) -> float:
+        """
+        질문의 모든 부분에 대해 답변이 제공되었는지 평가
+
+        Returns:
+            0.0 (불완전) ~ 1.0 (완전)
+        """
+        prompt = f"""다음 질문과 답변을 분석해주세요.
+
+질문: {question}
+답변: {answer}
+
+질문이 여러 하위 질문으로 구성되어 있다면 각각 식별하고,
+답변이 각 하위 질문에 대해 적절히 답변했는지 평가해주세요.
+
+다음 형식으로 답변해주세요:
+{{
+  "sub_questions": ["하위질문1", "하위질문2", ...],
+  "answered": [true, false, ...],
+  "completeness_score": 0.0 ~ 1.0,
+  "missing_parts": ["답변되지 않은 부분1", ...]
+}}"""
+
+        response = self.client.chat.completions.create(
+            model="gpt-4-turbo-preview",
+            messages=[
+                {"role": "system", "content": "당신은 답변 완전성을 평가하는 전문가입니다."},
+                {"role": "user", "content": prompt}
+            ],
+            temperature=0,
+            response_format={"type": "json_object"}
+        )
+
+        result = json.loads(response.choices[0].message.content)
+        return result['completeness_score']
+
+# 커스텀 메트릭 통합
+class EnhancedRAGEvaluator:
+    """커스텀 메트릭을 포함한 향상된 평가기"""
+
+    def __init__(self):
+        # 기본 메트릭
+        self.base_evaluator = KoreanRAGEvaluator()
+
+        # 커스텀 메트릭
+        self.custom_metrics = {
+            'hallucination': CustomHallucinationDetector(openai_api_key="..."),
+            'domain_accuracy': DomainSpecificAccuracy(
+                domain="legal",
+                terminology_db={
+                    "계약서": ["약정서", "협약서"],
+                    "피고": ["피고인", "피소자"],
+                }
+            ),
+            'completeness': AnswerCompleteness(openai_api_key="...")
+        }
+
+    def evaluate(
+        self,
+        question: str,
+        answer: str,
+        contexts: List[str],
+        ground_truth: str
+    ) -> Dict[str, float]:
+        """기본 + 커스텀 메트릭 모두 평가"""
+
+        # 기본 메트릭
+        results = self.base_evaluator.evaluate(
+            question=question,
+            answer=answer,
+            contexts=contexts,
+            ground_truth=ground_truth
+        )
+
+        # 커스텀 메트릭 추가
+        for metric_name, metric in self.custom_metrics.items():
+            results[metric_name] = metric.evaluate(
+                question=question,
+                answer=answer,
+                contexts=contexts,
+                ground_truth=ground_truth
+            )
+
+        return results
+</code></pre>
+
+<h4>8.2.2 메트릭 조합 및 가중치 설정</h4>
+
+<pre><code class="language-python">class WeightedRAGEvaluator:
+    """가중치 기반 종합 평가"""
+
+    def __init__(self, metric_weights: Dict[str, float]):
+        """
+        Args:
+            metric_weights: 메트릭별 가중치
+                {
+                    'faithfulness': 0.3,
+                    'answer_relevancy': 0.25,
+                    'context_recall': 0.2,
+                    'hallucination': 0.15,
+                    'completeness': 0.1
+                }
+        """
+        self.weights = metric_weights
+        self.evaluator = EnhancedRAGEvaluator()
+
+        # 가중치 합이 1.0인지 확인
+        assert abs(sum(metric_weights.values()) - 1.0) < 0.01, \
+            "Metric weights must sum to 1.0"
+
+    def evaluate(
+        self,
+        question: str,
+        answer: str,
+        contexts: List[str],
+        ground_truth: str
+    ) -> Dict:
+        """가중치 적용 종합 평가"""
+
+        # 개별 메트릭 평가
+        metrics = self.evaluator.evaluate(
+            question=question,
+            answer=answer,
+            contexts=contexts,
+            ground_truth=ground_truth
+        )
+
+        # 가중 평균 계산
+        weighted_score = sum(
+            metrics[metric] * weight
+            for metric, weight in self.weights.items()
+            if metric in metrics
+        )
+
+        return {
+            "metrics": metrics,
+            "weighted_score": weighted_score,
+            "weights": self.weights
+        }
+</code></pre>
+
+<h3 id="dev-performance">8.3 성능 최적화</h3>
+
+<h4>8.3.1 배치 처리 및 병렬화</h4>
+
+<pre><code class="language-python">import concurrent.futures
+from typing import List, Dict
+import time
+
+class OptimizedRAGEvaluator:
+    """성능 최적화된 RAG 평가기"""
+
+    def __init__(
+        self,
+        rag_system: RAGSystemInterface,
+        max_workers: int = 4,
+        batch_size: int = 10
+    ):
+        self.rag_system = rag_system
+        self.max_workers = max_workers
+        self.batch_size = batch_size
+        self.evaluator = KoreanRAGEvaluator()
+
+    def evaluate_batch(
+        self,
+        qa_pairs: List[Dict],
+        use_cache: bool = True
+    ) -> List[Dict]:
+        """배치 평가 - 병렬 처리"""
+
+        print(f"Evaluating {len(qa_pairs)} QA pairs with {self.max_workers} workers...")
+        start_time = time.time()
+
+        results = []
+
+        # 배치 단위로 처리
+        for i in range(0, len(qa_pairs), self.batch_size):
+            batch = qa_pairs[i:i+self.batch_size]
+            print(f"\nProcessing batch {i//self.batch_size + 1} ({len(batch)} items)...")
+
+            # 병렬 처리
+            with concurrent.futures.ThreadPoolExecutor(max_workers=self.max_workers) as executor:
+                future_to_qa = {
+                    executor.submit(self._evaluate_single, qa): qa
+                    for qa in batch
+                }
+
+                for future in concurrent.futures.as_completed(future_to_qa):
+                    qa = future_to_qa[future]
+                    try:
+                        result = future.result()
+                        results.append(result)
+                    except Exception as e:
+                        print(f"Error processing {qa['question'][:50]}: {str(e)}")
+                        results.append({
+                            "question": qa['question'],
+                            "error": str(e)
+                        })
+
+        elapsed = time.time() - start_time
+        print(f"\n✓ Completed in {elapsed:.1f}s ({len(qa_pairs)/elapsed:.1f} QA/s)")
+
+        return results
+
+    def _evaluate_single(self, qa_pair: Dict) -> Dict:
+        """단일 QA 쌍 평가"""
+        # RAG 시스템으로 답변 생성
+        answer, contexts = self.rag_system.retrieve_and_generate(
+            qa_pair['question']
+        )
+
+        # 메트릭 평가
+        metrics = self.evaluator.evaluate(
+            question=qa_pair['question'],
+            answer=answer,
+            contexts=contexts,
+            ground_truth=qa_pair['ground_truth']
+        )
+
+        return {
+            "question": qa_pair['question'],
+            "ground_truth": qa_pair['ground_truth'],
+            "generated_answer": answer,
+            "contexts": contexts,
+            "metrics": metrics
+        }
+
+# 캐싱 전략
+import hashlib
+import json
+import os
+
+class CachedRAGEvaluator:
+    """결과 캐싱을 통한 성능 향상"""
+
+    def __init__(
+        self,
+        rag_system: RAGSystemInterface,
+        cache_dir: str = ".rag_eval_cache"
+    ):
+        self.rag_system = rag_system
+        self.cache_dir = cache_dir
+        os.makedirs(cache_dir, exist_ok=True)
+
+    def _get_cache_key(self, question: str) -> str:
+        """질의에 대한 캐시 키 생성"""
+        return hashlib.md5(question.encode()).hexdigest()
+
+    def _load_from_cache(self, cache_key: str) -> Dict:
+        """캐시에서 결과 로드"""
+        cache_file = os.path.join(self.cache_dir, f"{cache_key}.json")
+        if os.path.exists(cache_file):
+            with open(cache_file, 'r', encoding='utf-8') as f:
+                return json.load(f)
+        return None
+
+    def _save_to_cache(self, cache_key: str, result: Dict):
+        """결과를 캐시에 저장"""
+        cache_file = os.path.join(self.cache_dir, f"{cache_key}.json")
+        with open(cache_file, 'w', encoding='utf-8') as f:
+            json.dump(result, f, ensure_ascii=False, indent=2)
+
+    def evaluate(
+        self,
+        question: str,
+        ground_truth: str,
+        use_cache: bool = True
+    ) -> Dict:
+        """캐시를 활용한 평가"""
+        cache_key = self._get_cache_key(question)
+
+        # 캐시 확인
+        if use_cache:
+            cached_result = self._load_from_cache(cache_key)
+            if cached_result:
+                print(f"  ✓ Cache hit: {question[:50]}...")
+                return cached_result
+
+        # 캐시 미스 - 실제 평가 수행
+        print(f"  ⟳ Evaluating: {question[:50]}...")
+        answer, contexts = self.rag_system.retrieve_and_generate(question)
+
+        evaluator = KoreanRAGEvaluator()
+        metrics = evaluator.evaluate(
+            question=question,
+            answer=answer,
+            contexts=contexts,
+            ground_truth=ground_truth
+        )
+
+        result = {
+            "question": question,
+            "ground_truth": ground_truth,
+            "generated_answer": answer,
+            "contexts": contexts,
+            "metrics": metrics
+        }
+
+        # 캐시에 저장
+        if use_cache:
+            self._save_to_cache(cache_key, result)
+
+        return result
+</code></pre>
+
+<h4>8.3.2 성능 프로파일링</h4>
+
+<pre><code class="language-python">import time
+from functools import wraps
+
+def profile_evaluation(func):
+    """평가 함수 성능 프로파일링 데코레이터"""
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        start = time.time()
+
+        result = func(*args, **kwargs)
+
+        elapsed = time.time() - start
+
+        # 상세 타이밍 정보 추가
+        if isinstance(result, dict):
+            result['_profiling'] = {
+                'elapsed_seconds': elapsed,
+                'function': func.__name__
+            }
+
+        return result
+
+    return wrapper
+
+class ProfilingRAGEvaluator:
+    """성능 프로파일링 기능이 포함된 평가기"""
+
+    def __init__(self, rag_system: RAGSystemInterface):
+        self.rag_system = rag_system
+        self.evaluator = KoreanRAGEvaluator()
+        self.timings = {
+            'retrieval': [],
+            'generation': [],
+            'evaluation': []
+        }
+
+    @profile_evaluation
+    def evaluate_with_profiling(
+        self,
+        question: str,
+        ground_truth: str
+    ) -> Dict:
+        """프로파일링과 함께 평가"""
+
+        # 1. Retrieval + Generation
+        start = time.time()
+        answer, contexts = self.rag_system.retrieve_and_generate(question)
+        rag_time = time.time() - start
+        self.timings['retrieval'].append(rag_time)
+
+        # 2. Evaluation
+        start = time.time()
+        metrics = self.evaluator.evaluate(
+            question=question,
+            answer=answer,
+            contexts=contexts,
+            ground_truth=ground_truth
+        )
+        eval_time = time.time() - start
+        self.timings['evaluation'].append(eval_time)
+
+        return {
+            "question": question,
+            "metrics": metrics,
+            "timing": {
+                "rag_seconds": rag_time,
+                "evaluation_seconds": eval_time,
+                "total_seconds": rag_time + eval_time
+            }
+        }
+
+    def print_profiling_summary(self):
+        """프로파일링 결과 요약"""
+        import statistics
+
+        print("\n=== Performance Profiling Summary ===")
+
+        for operation, times in self.timings.items():
+            if times:
+                print(f"\n{operation.upper()}:")
+                print(f"  Count: {len(times)}")
+                print(f"  Mean: {statistics.mean(times):.3f}s")
+                print(f"  Median: {statistics.median(times):.3f}s")
+                print(f"  Min: {min(times):.3f}s")
+                print(f"  Max: {max(times):.3f}s")
+                print(f"  StdDev: {statistics.stdev(times):.3f}s" if len(times) > 1 else "")
+</code></pre>
+
+<h3 id="dev-production">8.4 프로덕션 배포</h3>
+
+<h4>8.4.1 프로덕션 설정</h4>
+
+<pre><code class="language-python"># production_config.py
+"""프로덕션 환경 설정"""
+import os
+from dataclasses import dataclass
+
+@dataclass
+class ProductionConfig:
+    """프로덕션 환경 설정"""
+
+    # OpenAI 설정
+    openai_api_key: str = os.getenv("OPENAI_API_KEY")
+    openai_model: str = "gpt-4-turbo-preview"
+    openai_max_retries: int = 3
+    openai_timeout: int = 60
+
+    # RAG 설정
+    retrieval_top_k: int = 5
+    chunk_size: int = 1000
+    chunk_overlap: int = 200
+
+    # 평가 설정
+    evaluation_batch_size: int = 10
+    evaluation_max_workers: int = 4
+    evaluation_cache_enabled: bool = True
+    evaluation_cache_dir: str = ".eval_cache"
+
+    # 임계값
+    thresholds: dict = None
+
+    def __post_init__(self):
+        if self.thresholds is None:
+            self.thresholds = {
+                'faithfulness': 0.7,
+                'answer_relevancy': 0.7,
+                'context_recall': 0.7,
+                'context_precision': 0.7,
+                'answer_similarity': 0.7
+            }
+
+    @classmethod
+    def from_env(cls):
+        """환경 변수에서 설정 로드"""
+        return cls(
+            openai_api_key=os.getenv("OPENAI_API_KEY"),
+            openai_model=os.getenv("OPENAI_MODEL", "gpt-4-turbo-preview"),
+            retrieval_top_k=int(os.getenv("RETRIEVAL_TOP_K", "5")),
+            evaluation_batch_size=int(os.getenv("EVAL_BATCH_SIZE", "10")),
+            evaluation_max_workers=int(os.getenv("EVAL_MAX_WORKERS", "4"))
+        )
+
+    def validate(self):
+        """설정 유효성 검증"""
+        if not self.openai_api_key:
+            raise ValueError("OPENAI_API_KEY is required")
+
+        if self.retrieval_top_k < 1:
+            raise ValueError("retrieval_top_k must be >= 1")
+
+        if self.evaluation_batch_size < 1:
+            raise ValueError("evaluation_batch_size must be >= 1")
+
+        print("✓ Configuration validated")
+</code></pre>
+
+<h4>8.4.2 에러 처리 및 재시도</h4>
+
+<pre><code class="language-python">import time
+from typing import Callable, Any
+import openai
+
+class RetryHandler:
+    """재시도 로직을 포함한 에러 처리"""
+
+    def __init__(
+        self,
+        max_retries: int = 3,
+        backoff_factor: float = 2.0,
+        retry_on_exceptions: tuple = (openai.APIError, openai.RateLimitError)
+    ):
+        self.max_retries = max_retries
+        self.backoff_factor = backoff_factor
+        self.retry_on_exceptions = retry_on_exceptions
+
+    def execute_with_retry(
+        self,
+        func: Callable,
+        *args,
+        **kwargs
+    ) -> Any:
+        """재시도 로직과 함께 함수 실행"""
+
+        for attempt in range(self.max_retries):
+            try:
+                return func(*args, **kwargs)
+
+            except self.retry_on_exceptions as e:
+                if attempt == self.max_retries - 1:
+                    # 마지막 시도 실패
+                    raise
+
+                # 대기 후 재시도
+                wait_time = self.backoff_factor ** attempt
+                print(f"⚠️  Retry {attempt + 1}/{self.max_retries} after {wait_time}s: {str(e)}")
+                time.sleep(wait_time)
+
+            except Exception as e:
+                # 재시도 불가능한 에러
+                print(f"❌ Non-retryable error: {str(e)}")
+                raise
+
+class RobustRAGEvaluator:
+    """견고한 에러 처리를 포함한 평가기"""
+
+    def __init__(self, rag_system: RAGSystemInterface):
+        self.rag_system = rag_system
+        self.evaluator = KoreanRAGEvaluator()
+        self.retry_handler = RetryHandler()
+
+    def evaluate_safe(
+        self,
+        question: str,
+        ground_truth: str
+    ) -> Dict:
+        """안전한 평가 - 에러 발생 시 부분 결과 반환"""
+
+        result = {
+            "question": question,
+            "ground_truth": ground_truth,
+            "status": "unknown"
+        }
+
+        try:
+            # RAG 시스템 호출 (재시도 포함)
+            answer, contexts = self.retry_handler.execute_with_retry(
+                self.rag_system.retrieve_and_generate,
+                question
+            )
+
+            result["generated_answer"] = answer
+            result["contexts"] = contexts
+
+            # 평가 수행 (재시도 포함)
+            metrics = self.retry_handler.execute_with_retry(
+                self.evaluator.evaluate,
+                question=question,
+                answer=answer,
+                contexts=contexts,
+                ground_truth=ground_truth
+            )
+
+            result["metrics"] = metrics
+            result["status"] = "success"
+
+        except Exception as e:
+            result["error"] = str(e)
+            result["error_type"] = type(e).__name__
+            result["status"] = "failed"
+            print(f"❌ Evaluation failed for: {question[:50]}... - {str(e)}")
+
+        return result
+</code></pre>
+
+<h4>8.4.3 모니터링 및 로깅</h4>
+
+<pre><code class="language-python">import logging
+from datetime import datetime
+import json
+
+# 로깅 설정
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.FileHandler('rag_evaluation.log'),
+        logging.StreamHandler()
+    ]
+)
+
+logger = logging.getLogger(__name__)
+
+class MonitoredRAGEvaluator:
+    """모니터링 및 로깅이 포함된 평가기"""
+
+    def __init__(self, rag_system: RAGSystemInterface):
+        self.rag_system = rag_system
+        self.evaluator = KoreanRAGEvaluator()
+        self.metrics_log = []
+
+    def evaluate_with_monitoring(
+        self,
+        question: str,
+        ground_truth: str
+    ) -> Dict:
+        """모니터링과 함께 평가"""
+
+        start_time = time.time()
+        logger.info(f"Starting evaluation for: {question[:50]}...")
+
+        try:
+            # RAG 시스템 호출
+            answer, contexts = self.rag_system.retrieve_and_generate(question)
+            logger.info(f"Generated answer ({len(answer)} chars) with {len(contexts)} contexts")
+
+            # 평가 수행
+            metrics = self.evaluator.evaluate(
+                question=question,
+                answer=answer,
+                contexts=contexts,
+                ground_truth=ground_truth
+            )
+
+            elapsed = time.time() - start_time
+
+            # 메트릭 로깅
+            self.metrics_log.append({
+                "timestamp": datetime.now().isoformat(),
+                "question_length": len(question),
+                "answer_length": len(answer),
+                "num_contexts": len(contexts),
+                "metrics": metrics,
+                "elapsed_seconds": elapsed
+            })
+
+            logger.info(f"✓ Evaluation completed in {elapsed:.2f}s")
+            logger.info(f"Metrics: {json.dumps(metrics, indent=2)}")
+
+            return {
+                "question": question,
+                "generated_answer": answer,
+                "metrics": metrics,
+                "elapsed_seconds": elapsed
+            }
+
+        except Exception as e:
+            logger.error(f"❌ Evaluation failed: {str(e)}", exc_info=True)
+            raise
+
+    def export_metrics(self, output_file: str):
+        """메트릭 로그 내보내기"""
+        with open(output_file, 'w', encoding='utf-8') as f:
+            json.dump(self.metrics_log, f, ensure_ascii=False, indent=2)
+        logger.info(f"✓ Metrics exported to {output_file}")
+</code></pre>
+
+<h3 id="dev-troubleshooting">8.5 문제 해결</h3>
+
+<h4>8.5.1 일반적인 문제 및 해결책</h4>
+
+<table>
+<thead>
+<tr>
+<th>문제</th>
+<th>증상</th>
+<th>원인</th>
+<th>해결책</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>낮은 Faithfulness</td>
+<td>0.5 이하</td>
+<td>컨텍스트와 답변 불일치</td>
+<td>프롬프트 개선, retrieval top_k 증가</td>
+</tr>
+<tr>
+<td>낮은 Context Recall</td>
+<td>0.6 이하</td>
+<td>검색된 문서가 정답 포함 안함</td>
+<td>임베딩 모델 변경, chunk 크기 조정</td>
+</tr>
+<tr>
+<td>느린 평가 속도</td>
+<td>&gt; 10s/query</td>
+<td>OpenAI API 지연</td>
+<td>배치 처리, 캐싱, 병렬화</td>
+</tr>
+<tr>
+<td>API Rate Limit</td>
+<td>429 에러</td>
+<td>요청 빈도 초과</td>
+<td>재시도 로직, 요청 간격 조정</td>
+</tr>
+<tr>
+<td>메모리 부족</td>
+<td>OOM 에러</td>
+<td>대용량 문서 처리</td>
+<td>배치 크기 감소, 청크 단위 처리</td>
+</tr>
+</tbody>
+</table>
+
+<h4>8.5.2 디버깅 도구</h4>
+
+<pre><code class="language-python">class RAGDebugger:
+    """RAG 시스템 디버깅 도구"""
+
+    @staticmethod
+    def debug_retrieval(
+        rag_system: RAGSystemInterface,
+        question: str,
+        top_k: int = 5
+    ):
+        """검색 결과 디버깅"""
+        print(f"=== Retrieval Debug ===")
+        print(f"Question: {question}")
+
+        answer, contexts = rag_system.retrieve_and_generate(question, top_k=top_k)
+
+        print(f"\nRetrieved {len(contexts)} contexts:")
+        for i, context in enumerate(contexts, 1):
+            print(f"\n[Context {i}] ({len(context)} chars)")
+            print(context[:200] + "..." if len(context) > 200 else context)
+
+        print(f"\nGenerated Answer ({len(answer)} chars):")
+        print(answer)
+
+    @staticmethod
+    def debug_metrics(
+        evaluator: KoreanRAGEvaluator,
+        question: str,
+        answer: str,
+        contexts: List[str],
+        ground_truth: str
+    ):
+        """메트릭 계산 디버깅"""
+        print(f"=== Metrics Debug ===")
+
+        # 각 메트릭 개별 계산 및 출력
+        metrics = evaluator.evaluate(
+            question=question,
+            answer=answer,
+            contexts=contexts,
+            ground_truth=ground_truth
+        )
+
+        print(f"\nMetrics:")
+        for metric, value in metrics.items():
+            status = "✓" if value >= 0.7 else "⚠️" if value >= 0.5 else "✗"
+            print(f"{status} {metric}: {value:.3f}")
+
+    @staticmethod
+    def compare_rag_systems(
+        systems: Dict[str, RAGSystemInterface],
+        question: str,
+        ground_truth: str
+    ):
+        """여러 RAG 시스템 비교"""
+        print(f"=== RAG Systems Comparison ===")
+        print(f"Question: {question}")
+        print(f"Ground Truth: {ground_truth}")
+
+        evaluator = KoreanRAGEvaluator()
+        results = {}
+
+        for name, system in systems.items():
+            print(f"\n--- {name} ---")
+            answer, contexts = system.retrieve_and_generate(question)
+
+            metrics = evaluator.evaluate(
+                question=question,
+                answer=answer,
+                contexts=contexts,
+                ground_truth=ground_truth
+            )
+
+            results[name] = {
+                "answer": answer,
+                "num_contexts": len(contexts),
+                "metrics": metrics
+            }
+
+            print(f"Answer: {answer[:100]}...")
+            print(f"Metrics: {json.dumps(metrics, indent=2)}")
+
+        # 최고 성능 시스템 식별
+        best_system = max(
+            results.items(),
+            key=lambda x: x[1]['metrics']['faithfulness']
+        )
+        print(f"\n🏆 Best System: {best_system[0]}")
+
+        return results
+</code></pre>
+
+<h4>8.5.3 문제 해결 체크리스트</h4>
+
+<p><strong>평가 품질 문제</strong></p>
+<ul>
+<li>☐ Golden Dataset 품질 확인 (오타, 불완전한 답변)</li>
+<li>☐ RAG 시스템 프롬프트 검토</li>
+<li>☐ 검색 파라미터 조정 (top_k, similarity threshold)</li>
+<li>☐ 청크 크기 및 오버랩 최적화</li>
+<li>☐ 임베딩 모델 평가 (한국어 특화 모델 고려)</li>
+</ul>
+
+<p><strong>성능 문제</strong></p>
+<ul>
+<li>☐ 배치 처리 활성화</li>
+<li>☐ 병렬 처리 workers 수 조정</li>
+<li>☐ 캐싱 활성화</li>
+<li>☐ OpenAI API 요청 최적화 (batch API 고려)</li>
+<li>☐ 프로파일링으로 병목 지점 식별</li>
+</ul>
+
+<p><strong>에러 처리</strong></p>
+<ul>
+<li>☐ 재시도 로직 구현</li>
+<li>☐ Rate limiting 처리</li>
+<li>☐ 타임아웃 설정</li>
+<li>☐ 에러 로깅 활성화</li>
+<li>☐ Fallback 전략 구현</li>
+</ul>
+
+</div>
+<h2 id="faq">FAQ</h2>
+<h3 id="q1-openai-api-비용은-얼마나-드나요">Q1: OpenAI API 비용은 얼마나
+드나요?</h3>
+<p><strong>A</strong>: 예상 비용 (gpt-4o-mini 기준):</p>
+<ul>
+<li>Golden Dataset 생성: 100개 QA 쌍 기준 $0.50-1.00</li>
+<li>RAG 평가: 100개 QA 쌍 기준 $1.00-2.00</li>
+</ul>
+<p><strong>비용 절감 팁</strong>: - <code>max_chunks</code> 파라미터로
+테스트 시 샘플 수 제한 - <code>gpt-4o-mini</code> 사용 (gpt-4o의 1/10
+가격) - 배치 처리로 API 호출 최적화</p>
+<h3 id="q2-pdf-추출이-제대로-안-될-때는">Q2: PDF 추출이 제대로 안 될
+때는?</h3>
+<p><strong>A</strong>: 다음을 시도하세요:</p>
+<p><strong>1단계: pdfplumber 사용</strong></p>
+<div class="sourceCode" id="cb20"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb20-1"><a href="#cb20-1" aria-hidden="true" tabindex="-1"></a><span class="co"># PyPDF2 대신 pdfplumber 사용 (더 정확함)</span></span>
+<span id="cb20-2"><a href="#cb20-2" aria-hidden="true" tabindex="-1"></a><span class="ex">pip</span> install pdfplumber</span></code></pre></div>
+<p>시스템이 자동으로 설치된 라이브러리를 감지합니다: - PyPDF2와
+pdfplumber 둘 다 설치되어 있으면 pdfplumber 우선 사용 -
+<code>KoreanPDFExtractor</code> 클래스가 자동 선택</p>
+<p><strong>2단계: 스캔된 PDF (이미지)</strong></p>
+<p>OCR이 필요한 경우:</p>
+<div class="sourceCode" id="cb21"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb21-1"><a href="#cb21-1" aria-hidden="true" tabindex="-1"></a><span class="ex">pip</span> install pytesseract</span>
+<span id="cb21-2"><a href="#cb21-2" aria-hidden="true" tabindex="-1"></a><span class="co"># 한글 OCR 모델 설치 필요 (Tesseract-OCR)</span></span></code></pre></div>
+<p><strong>3단계: 문제가 계속되면</strong></p>
+<p>직접 텍스트 추출 테스트:</p>
+<div class="sourceCode" id="cb22"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb22-1"><a href="#cb22-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> agent_evaluator.datasets.korean_rag_dataset_generator <span class="im">import</span> KoreanPDFExtractor</span>
+<span id="cb22-2"><a href="#cb22-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb22-3"><a href="#cb22-3" aria-hidden="true" tabindex="-1"></a>extractor <span class="op">=</span> KoreanPDFExtractor()</span>
+<span id="cb22-4"><a href="#cb22-4" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f&quot;사용 중인 라이브러리: </span><span class="sc">{</span>extractor<span class="sc">.</span>library<span class="sc">}</span><span class="ss">&quot;</span>)</span>
+<span id="cb22-5"><a href="#cb22-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb22-6"><a href="#cb22-6" aria-hidden="true" tabindex="-1"></a>pages <span class="op">=</span> extractor.extract_text(<span class="st">&quot;your.pdf&quot;</span>)</span>
+<span id="cb22-7"><a href="#cb22-7" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f&quot;추출된 페이지 수: </span><span class="sc">{</span><span class="bu">len</span>(pages)<span class="sc">}</span><span class="ss">&quot;</span>)</span>
+<span id="cb22-8"><a href="#cb22-8" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f&quot;첫 페이지 샘플:</span><span class="ch">\n</span><span class="sc">{</span>pages[<span class="dv">0</span>][<span class="dv">1</span>][:<span class="dv">200</span>]<span class="sc">}</span><span class="ss">&quot;</span>)</span></code></pre></div>
+<h3 id="q3-ragas-메트릭이-너무-낮게-나올-때는">Q3: Ragas 메트릭이 너무
+낮게 나올 때는?</h3>
+<p><strong>A</strong>: 다음을 확인하세요:</p>
+<ol type="1">
+<li><strong>Golden Dataset 품질 확인</strong>
+<ul>
+<li>Ground truth가 명확한지</li>
+<li>Context가 충분한지</li>
+</ul></li>
+<li><strong>RAG 시스템 개선</strong>
+<ul>
+<li>검색 top_k 증가</li>
+<li>프롬프트 개선</li>
+<li>리랭킹 추가</li>
+</ul></li>
+<li><strong>평가 설정 조정</strong>
+<ul>
+<li><code>ragas_model</code>을 더 강력한 모델로 변경</li>
+<li>Ground truth를 더 구체적으로 작성</li>
+</ul></li>
+</ol>
+<h3 id="q4-csv-형식으로-golden-data를-직접-만들고-싶어요">Q4: CSV
+형식으로 Golden Data를 직접 만들고 싶어요</h3>
+<p><strong>A</strong>: Excel에서 다음 형식으로 작성 후 CSV로 저장:</p>
+<table>
+<colgroup>
+<col style="width: 14%" />
+<col style="width: 20%" />
+<col style="width: 16%" />
+<col style="width: 29%" />
+<col style="width: 18%" />
+</colgroup>
+<thead>
+<tr class="doc-header">
+<th>qa_id</th>
+<th>question</th>
+<th>answer</th>
+<th>ground_truth</th>
+<th>context</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>qa_001</td>
+<td>연차는 몇 일?</td>
+<td>15일입니다</td>
+<td>15일</td>
+<td>연차는 1년 근무 시 15일…</td>
+</tr>
+</tbody>
+</table>
+<div class="sourceCode" id="cb23"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb23-1"><a href="#cb23-1" aria-hidden="true" tabindex="-1"></a>manager <span class="op">=</span> GoldenDatasetManager()</span>
+<span id="cb23-2"><a href="#cb23-2" aria-hidden="true" tabindex="-1"></a>dataset <span class="op">=</span> manager.load_dataset(<span class="st">&quot;my_dataset.csv&quot;</span>)</span></code></pre></div>
+<h3 id="q5-평가가-너무-오래-걸려요">Q5: 평가가 너무 오래 걸려요</h3>
+<p><strong>A</strong>: 다음을 시도하세요:</p>
+<div class="sourceCode" id="cb24"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb24-1"><a href="#cb24-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 1. 샘플 수 제한 (테스트용)</span></span>
+<span id="cb24-2"><a href="#cb24-2" aria-hidden="true" tabindex="-1"></a>report <span class="op">=</span> evaluator.evaluate_dataset(dataset, max_samples<span class="op">=</span><span class="dv">10</span>)</span>
+<span id="cb24-3"><a href="#cb24-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb24-4"><a href="#cb24-4" aria-hidden="true" tabindex="-1"></a><span class="co"># 2. Ragas 비활성화 (빠른 테스트)</span></span>
+<span id="cb24-5"><a href="#cb24-5" aria-hidden="true" tabindex="-1"></a>evaluator <span class="op">=</span> KoreanRAGEvaluator(use_ragas<span class="op">=</span><span class="va">False</span>)</span>
+<span id="cb24-6"><a href="#cb24-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb24-7"><a href="#cb24-7" aria-hidden="true" tabindex="-1"></a><span class="co"># 3. 병렬 처리 (향후 지원 예정)</span></span></code></pre></div>
+<hr />
+<h2 id="구현-세부사항">구현 세부사항</h2>
+<h3 id="주요-클래스-구조">주요 클래스 구조</h3>
+<h4 id="korean-rag-dataset-generator-korean_rag_dataset_generator.py">1.
+Korean RAG Dataset Generator
+(<code>korean_rag_dataset_generator.py</code>)</h4>
+<p><strong>KoreanRAGDatasetGenerator</strong> - <strong>역할</strong>:
+PDF에서 Golden Dataset 생성 파이프라인 - <strong>주요 메서드</strong>: -
+<code>generate_from_pdf()</code>: PDF에서 QA 쌍 자동 생성 - <strong>의존
+클래스</strong>: - <code>KoreanPDFExtractor</code>: PDF 텍스트 추출 -
+<code>TextChunker</code>: 텍스트 청킹 - <code>KoreanQAGenerator</code>:
+OpenAI GPT로 QA 생성 - <code>GoldenDatasetManager</code>:
+저장/로드/검증</p>
+<p><strong>데이터 클래스</strong>:</p>
+<div class="sourceCode" id="cb25"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb25-1"><a href="#cb25-1" aria-hidden="true" tabindex="-1"></a><span class="at">@dataclass</span></span>
+<span id="cb25-2"><a href="#cb25-2" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> QAPair:</span>
+<span id="cb25-3"><a href="#cb25-3" aria-hidden="true" tabindex="-1"></a>    qa_id: <span class="bu">str</span></span>
+<span id="cb25-4"><a href="#cb25-4" aria-hidden="true" tabindex="-1"></a>    question: <span class="bu">str</span></span>
+<span id="cb25-5"><a href="#cb25-5" aria-hidden="true" tabindex="-1"></a>    answer: <span class="bu">str</span></span>
+<span id="cb25-6"><a href="#cb25-6" aria-hidden="true" tabindex="-1"></a>    context: <span class="bu">str</span></span>
+<span id="cb25-7"><a href="#cb25-7" aria-hidden="true" tabindex="-1"></a>    ground_truth: <span class="bu">str</span></span>
+<span id="cb25-8"><a href="#cb25-8" aria-hidden="true" tabindex="-1"></a>    metadata: Dict[<span class="bu">str</span>, Any]</span>
+<span id="cb25-9"><a href="#cb25-9" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Layer 2 필드 (Agentic AI 평가용, 선택적)</span></span>
+<span id="cb25-10"><a href="#cb25-10" aria-hidden="true" tabindex="-1"></a>    expected_tools: Optional[List[<span class="bu">str</span>]] <span class="op">=</span> <span class="va">None</span></span>
+<span id="cb25-11"><a href="#cb25-11" aria-hidden="true" tabindex="-1"></a>    expected_agents: Optional[List[<span class="bu">str</span>]] <span class="op">=</span> <span class="va">None</span></span>
+<span id="cb25-12"><a href="#cb25-12" aria-hidden="true" tabindex="-1"></a>    expected_workflow_steps: Optional[List[<span class="bu">str</span>]] <span class="op">=</span> <span class="va">None</span></span>
+<span id="cb25-13"><a href="#cb25-13" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb25-14"><a href="#cb25-14" aria-hidden="true" tabindex="-1"></a><span class="at">@dataclass</span></span>
+<span id="cb25-15"><a href="#cb25-15" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> GoldenDataset:</span>
+<span id="cb25-16"><a href="#cb25-16" aria-hidden="true" tabindex="-1"></a>    dataset_id: <span class="bu">str</span></span>
+<span id="cb25-17"><a href="#cb25-17" aria-hidden="true" tabindex="-1"></a>    source_document: <span class="bu">str</span></span>
+<span id="cb25-18"><a href="#cb25-18" aria-hidden="true" tabindex="-1"></a>    created_at: <span class="bu">str</span></span>
+<span id="cb25-19"><a href="#cb25-19" aria-hidden="true" tabindex="-1"></a>    total_qa_pairs: <span class="bu">int</span></span>
+<span id="cb25-20"><a href="#cb25-20" aria-hidden="true" tabindex="-1"></a>    qa_pairs: List[QAPair]</span>
+<span id="cb25-21"><a href="#cb25-21" aria-hidden="true" tabindex="-1"></a>    metadata: Dict[<span class="bu">str</span>, Any]</span></code></pre></div>
+<p><strong>KoreanPDFExtractor</strong>: - PyPDF2 또는 pdfplumber 자동
+선택 - <code>extract_text()</code>: 페이지별 텍스트 추출 -
+<code>clean_text()</code>: 공백 정리</p>
+<p><strong>TextChunker</strong>: - 문장 경계 인식 청킹 - 한국어 문장부호
+지원: <code>. ! ? 。！？</code> - overlap으로 컨텍스트 유지</p>
+<p><strong>KoreanQAGenerator</strong>: - OpenAI API 사용 - 프롬프트에
+메타 정보 질문 필터링 포함 - 정규식으로 QA 파싱</p>
+<h4 id="korean-rag-evaluator-korean_rag_evaluator.py">2. Korean RAG
+Evaluator (<code>korean_rag_evaluator.py</code>)</h4>
+<p><strong>KoreanRAGEvaluator</strong> - <strong>역할</strong>: RAG
+시스템 평가 및 메트릭 계산 - <strong>주요 메서드</strong>: -
+<code>evaluate_dataset()</code>: Golden Dataset 전체 평가 -
+<code>evaluate_single()</code>: 단일 질문 평가 -
+<code>_evaluate_single_qa()</code>: 개별 QA 평가 로직 -
+<code>_calculate_ragas_metrics()</code>: Ragas 메트릭 계산 -
+<code>_generate_report()</code>: 리포트 생성 -
+<code>_save_report()</code>: JSON/CSV 저장 -
+<code>_record_to_monitor()</code>: Hybrid Monitor 연동</p>
+<p><strong>데이터 클래스</strong>:</p>
+<div class="sourceCode" id="cb26"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb26-1"><a href="#cb26-1" aria-hidden="true" tabindex="-1"></a><span class="at">@dataclass</span></span>
+<span id="cb26-2"><a href="#cb26-2" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> RAGResponse:</span>
+<span id="cb26-3"><a href="#cb26-3" aria-hidden="true" tabindex="-1"></a>    question: <span class="bu">str</span></span>
+<span id="cb26-4"><a href="#cb26-4" aria-hidden="true" tabindex="-1"></a>    answer: <span class="bu">str</span></span>
+<span id="cb26-5"><a href="#cb26-5" aria-hidden="true" tabindex="-1"></a>    retrieved_contexts: List[<span class="bu">str</span>]</span>
+<span id="cb26-6"><a href="#cb26-6" aria-hidden="true" tabindex="-1"></a>    metadata: Dict[<span class="bu">str</span>, Any]</span>
+<span id="cb26-7"><a href="#cb26-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb26-8"><a href="#cb26-8" aria-hidden="true" tabindex="-1"></a><span class="at">@dataclass</span></span>
+<span id="cb26-9"><a href="#cb26-9" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> EvaluationResult:</span>
+<span id="cb26-10"><a href="#cb26-10" aria-hidden="true" tabindex="-1"></a>    qa_id: <span class="bu">str</span></span>
+<span id="cb26-11"><a href="#cb26-11" aria-hidden="true" tabindex="-1"></a>    question: <span class="bu">str</span></span>
+<span id="cb26-12"><a href="#cb26-12" aria-hidden="true" tabindex="-1"></a>    expected_answer: <span class="bu">str</span></span>
+<span id="cb26-13"><a href="#cb26-13" aria-hidden="true" tabindex="-1"></a>    generated_answer: <span class="bu">str</span></span>
+<span id="cb26-14"><a href="#cb26-14" aria-hidden="true" tabindex="-1"></a>    contexts: List[<span class="bu">str</span>]</span>
+<span id="cb26-15"><a href="#cb26-15" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Ragas 메트릭</span></span>
+<span id="cb26-16"><a href="#cb26-16" aria-hidden="true" tabindex="-1"></a>    faithfulness: Optional[<span class="bu">float</span>] <span class="op">=</span> <span class="va">None</span></span>
+<span id="cb26-17"><a href="#cb26-17" aria-hidden="true" tabindex="-1"></a>    answer_relevancy: Optional[<span class="bu">float</span>] <span class="op">=</span> <span class="va">None</span></span>
+<span id="cb26-18"><a href="#cb26-18" aria-hidden="true" tabindex="-1"></a>    context_recall: Optional[<span class="bu">float</span>] <span class="op">=</span> <span class="va">None</span></span>
+<span id="cb26-19"><a href="#cb26-19" aria-hidden="true" tabindex="-1"></a>    context_precision: Optional[<span class="bu">float</span>] <span class="op">=</span> <span class="va">None</span></span>
+<span id="cb26-20"><a href="#cb26-20" aria-hidden="true" tabindex="-1"></a>    answer_similarity: Optional[<span class="bu">float</span>] <span class="op">=</span> <span class="va">None</span></span>
+<span id="cb26-21"><a href="#cb26-21" aria-hidden="true" tabindex="-1"></a>    <span class="co"># 메타데이터</span></span>
+<span id="cb26-22"><a href="#cb26-22" aria-hidden="true" tabindex="-1"></a>    evaluation_time: <span class="bu">float</span> <span class="op">=</span> <span class="fl">0.0</span></span>
+<span id="cb26-23"><a href="#cb26-23" aria-hidden="true" tabindex="-1"></a>    error: Optional[<span class="bu">str</span>] <span class="op">=</span> <span class="va">None</span></span>
+<span id="cb26-24"><a href="#cb26-24" aria-hidden="true" tabindex="-1"></a>    metadata: Dict[<span class="bu">str</span>, Any] <span class="op">=</span> <span class="va">None</span></span>
+<span id="cb26-25"><a href="#cb26-25" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb26-26"><a href="#cb26-26" aria-hidden="true" tabindex="-1"></a><span class="at">@dataclass</span></span>
+<span id="cb26-27"><a href="#cb26-27" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> RAGEvaluationReport:</span>
+<span id="cb26-28"><a href="#cb26-28" aria-hidden="true" tabindex="-1"></a>    report_id: <span class="bu">str</span></span>
+<span id="cb26-29"><a href="#cb26-29" aria-hidden="true" tabindex="-1"></a>    dataset_id: <span class="bu">str</span></span>
+<span id="cb26-30"><a href="#cb26-30" aria-hidden="true" tabindex="-1"></a>    evaluated_at: <span class="bu">str</span></span>
+<span id="cb26-31"><a href="#cb26-31" aria-hidden="true" tabindex="-1"></a>    total_qa_pairs: <span class="bu">int</span></span>
+<span id="cb26-32"><a href="#cb26-32" aria-hidden="true" tabindex="-1"></a>    successful_evaluations: <span class="bu">int</span></span>
+<span id="cb26-33"><a href="#cb26-33" aria-hidden="true" tabindex="-1"></a>    failed_evaluations: <span class="bu">int</span></span>
+<span id="cb26-34"><a href="#cb26-34" aria-hidden="true" tabindex="-1"></a>    <span class="co"># 평균 메트릭</span></span>
+<span id="cb26-35"><a href="#cb26-35" aria-hidden="true" tabindex="-1"></a>    avg_faithfulness: <span class="bu">float</span></span>
+<span id="cb26-36"><a href="#cb26-36" aria-hidden="true" tabindex="-1"></a>    avg_answer_relevancy: <span class="bu">float</span></span>
+<span id="cb26-37"><a href="#cb26-37" aria-hidden="true" tabindex="-1"></a>    avg_context_recall: <span class="bu">float</span></span>
+<span id="cb26-38"><a href="#cb26-38" aria-hidden="true" tabindex="-1"></a>    avg_context_precision: <span class="bu">float</span></span>
+<span id="cb26-39"><a href="#cb26-39" aria-hidden="true" tabindex="-1"></a>    avg_answer_similarity: <span class="bu">float</span></span>
+<span id="cb26-40"><a href="#cb26-40" aria-hidden="true" tabindex="-1"></a>    <span class="co"># 상세 결과</span></span>
+<span id="cb26-41"><a href="#cb26-41" aria-hidden="true" tabindex="-1"></a>    detailed_results: List[EvaluationResult]</span>
+<span id="cb26-42"><a href="#cb26-42" aria-hidden="true" tabindex="-1"></a>    statistics: Dict[<span class="bu">str</span>, Any]</span>
+<span id="cb26-43"><a href="#cb26-43" aria-hidden="true" tabindex="-1"></a>    metadata: Dict[<span class="bu">str</span>, Any]</span></code></pre></div>
+<p><strong>RAGSystemInterface</strong>: - 추상 인터페이스 -
+<code>query()</code> 메서드만 구현하면 됨 - 예제:
+<code>SimpleRAGSystem</code> (더미), <code>OpenAIRAGSystem</code>
+(실제)</p>
+<h3 id="ragas-통합-방식">Ragas 통합 방식</h3>
+<p><code>_calculate_ragas_metrics()</code> 메서드: 1. 데이터를
+<code>datasets.Dataset</code> 형식으로 변환 2.
+<code>ragas.evaluate()</code> 호출: ```python from ragas import evaluate
+from ragas.metrics import ( faithfulness, answer_relevancy,
+context_recall, context_precision, answer_similarity )</p>
+<p>result = evaluate( dataset, metrics=[ faithfulness, answer_relevancy,
+context_recall, context_precision, answer_similarity ] ) ``` 3. 결과
+딕셔너리에서 각 메트릭 추출 4. 에러 발생 시 빈 딕셔너리 반환 (graceful
+degradation)</p>
+<h3 id="hybridperformancemonitor-통합">HybridPerformanceMonitor
+통합</h3>
+<p><code>_record_to_monitor()</code> 메서드: 1.
+<code>EvaluationResult</code>를 <code>TaskResult</code>로 변환 2.
+<code>TaskType.QA</code> 사용 3. <code>monitor.record_task()</code> 호출
+4. 추가 메트릭 활성화: - <code>enable_advanced_metrics=True</code> -
+<code>input_text</code>, <code>output_text</code>,
+<code>expected_output</code>, <code>retrieved_context</code> 전달</p>
+<h3 id="파일-저장-형식">파일 저장 형식</h3>
+<p><strong>JSON (요약)</strong>:</p>
+<div class="sourceCode" id="cb27"><pre
+class="sourceCode json"><code class="sourceCode json"><span id="cb27-1"><a href="#cb27-1" aria-hidden="true" tabindex="-1"></a><span class="fu">{</span></span>
+<span id="cb27-2"><a href="#cb27-2" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;report_id&quot;</span><span class="fu">:</span> <span class="st">&quot;abc12345&quot;</span><span class="fu">,</span></span>
+<span id="cb27-3"><a href="#cb27-3" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;dataset_id&quot;</span><span class="fu">:</span> <span class="st">&quot;dataset_xyz&quot;</span><span class="fu">,</span></span>
+<span id="cb27-4"><a href="#cb27-4" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;evaluated_at&quot;</span><span class="fu">:</span> <span class="st">&quot;2024-01-15T10:30:00&quot;</span><span class="fu">,</span></span>
+<span id="cb27-5"><a href="#cb27-5" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;total_qa_pairs&quot;</span><span class="fu">:</span> <span class="dv">45</span><span class="fu">,</span></span>
+<span id="cb27-6"><a href="#cb27-6" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;successful_evaluations&quot;</span><span class="fu">:</span> <span class="dv">43</span><span class="fu">,</span></span>
+<span id="cb27-7"><a href="#cb27-7" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;failed_evaluations&quot;</span><span class="fu">:</span> <span class="dv">2</span><span class="fu">,</span></span>
+<span id="cb27-8"><a href="#cb27-8" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;avg_metrics&quot;</span><span class="fu">:</span> <span class="fu">{</span></span>
+<span id="cb27-9"><a href="#cb27-9" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;faithfulness&quot;</span><span class="fu">:</span> <span class="dv">0</span><span class="er">.</span><span class="dv">892</span><span class="fu">,</span></span>
+<span id="cb27-10"><a href="#cb27-10" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;answer_relevancy&quot;</span><span class="fu">:</span> <span class="dv">0</span><span class="er">.</span><span class="dv">856</span><span class="fu">,</span></span>
+<span id="cb27-11"><a href="#cb27-11" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;context_recall&quot;</span><span class="fu">:</span> <span class="dv">0</span><span class="er">.</span><span class="dv">834</span><span class="fu">,</span></span>
+<span id="cb27-12"><a href="#cb27-12" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;context_precision&quot;</span><span class="fu">:</span> <span class="dv">0</span><span class="er">.</span><span class="dv">878</span><span class="fu">,</span></span>
+<span id="cb27-13"><a href="#cb27-13" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;answer_similarity&quot;</span><span class="fu">:</span> <span class="dv">0</span><span class="er">.</span><span class="dv">823</span></span>
+<span id="cb27-14"><a href="#cb27-14" aria-hidden="true" tabindex="-1"></a>  <span class="fu">},</span></span>
+<span id="cb27-15"><a href="#cb27-15" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;statistics&quot;</span><span class="fu">:</span> <span class="fu">{</span><span class="er">...</span><span class="fu">},</span></span>
+<span id="cb27-16"><a href="#cb27-16" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;metadata&quot;</span><span class="fu">:</span> <span class="fu">{</span><span class="er">...</span><span class="fu">}</span></span>
+<span id="cb27-17"><a href="#cb27-17" aria-hidden="true" tabindex="-1"></a><span class="fu">}</span></span></code></pre></div>
+<p><strong>JSON (상세 결과)</strong>: 별도 파일
+(<code>rag_evaluation_details_*.json</code>) - 각 QA 쌍의
+<code>EvaluationResult</code> 배열</p>
+<p><strong>CSV</strong>: - 각 행이 하나의 QA 평가 결과 - Excel 호환
+(utf-8-sig 인코딩)</p>
+<hr />
+<h2 id="추가-리소스">추가 리소스</h2>
+<h3 id="문서">문서</h3>
+<ul>
+<li><a href="../README.md">Agent Evaluator 메인 가이드</a></li>
+<li><a href="https://docs.ragas.io/">Ragas 공식 문서</a></li>
+<li><a href="https://platform.openai.com/docs">OpenAI API 문서</a></li>
+</ul>
+<h3 id="예제-코드">예제 코드</h3>
+<ul>
+<li><a href="../Evaluator_Examples/level_2_advanced/03_rag_system.py">RAG 시스템 평가 예제</a> (Level 2)</li>
+<li><a href="../Evaluator_Examples/level_1_foundation/01_quickstart.py">기본 평가 예제</a> (Level 1)</li>
+</ul>
+<h3 id="커뮤니티">커뮤니티</h3>
+<hr />
+<h2 id="검증-완료-사항">검증 완료 사항</h2>
+<p>이 가이드는 다음 실제 구현과 비교하여 검증되었습니다:</p>
+<h3 id="검증된-파일">검증된 파일</h3>
+<ol type="1">
+<li><strong><code>korean_rag_dataset_generator.py</code></strong>
+(850줄)
+<ul>
+<li>✅ KoreanRAGDatasetGenerator 클래스</li>
+<li>✅ KoreanPDFExtractor (PyPDF2, pdfplumber 자동 선택)</li>
+<li>✅ TextChunker (한국어 문장 부호 인식)</li>
+<li>✅ KoreanQAGenerator (OpenAI GPT 통합)</li>
+<li>✅ GoldenDatasetManager (JSON/CSV 저장/로드)</li>
+<li>✅ 데이터 클래스: QAPair, GoldenDataset, DocumentChunk</li>
+</ul></li>
+<li><strong><code>korean_rag_evaluator.py</code></strong> (690줄)
+<ul>
+<li>✅ KoreanRAGEvaluator 클래스</li>
+<li>✅ RAGSystemInterface (추상 인터페이스)</li>
+<li>✅ Ragas 통합 (5개 메트릭)</li>
+<li>✅ HybridPerformanceMonitor 통합</li>
+<li>✅ 데이터 클래스: RAGResponse, EvaluationResult,
+RAGEvaluationReport</li>
+<li>✅ SimpleRAGSystem 예제 구현</li>
+</ul></li>
+<li><strong><code>Evaluator_Examples/level_2_advanced/03_rag_system.py</code></strong>
+<ul>
+<li>✅ OpenAIRAGSystem 구현 예제</li>
+<li>✅ Golden Dataset 생성 예제</li>
+<li>✅ 더미 데이터셋 생성</li>
+<li>✅ CSV 로드 예제</li>
+<li>✅ 수동 Golden Data 입력 예제</li>
+</ul></li>
+</ol>
+<h3 id="검증된-기능">검증된 기능</h3>
+<p><strong>PDF 처리</strong>: - ✅ PyPDF2 지원 (기본) - ✅ pdfplumber
+지원 (자동 우선 선택) - ✅ 한국어 텍스트 추출 - ✅ 텍스트 정제
+(clean_text)</p>
+<p><strong>텍스트 청킹</strong>: - ✅ 문장 경계 인식 - ✅ 한국어 문장
+부호: <code>. ! ? 。！？</code> - ✅ chunk_overlap 지원 - ✅ 청크 ID
+자동 생성 (MD5 해시 사용)</p>
+<p><strong>QA 생성</strong>: - ✅ OpenAI API 통합 - ✅ gpt-4o-mini,
+gpt-4o 모델 지원 - ✅ 메타 정보 질문 필터링 프롬프트 - ✅ factual,
+reasoning, summary 질문 유형 - ✅ 정규식 기반 QA 파싱</p>
+<p><strong>RAG 평가</strong>: - ✅ RAGSystemInterface 기반 통합 - ✅
+Ragas 5개 메트릭 계산 - ✅ 배치 평가 - ✅ 에러 처리 (graceful
+degradation) - ✅ 진행 상황 출력</p>
+<p><strong>Ragas 메트릭</strong>: - ✅ Faithfulness (환각 탐지) - ✅
+Answer Relevancy (답변 관련성) - ✅ Context Recall (검색 재현율) - ✅
+Context Precision (검색 정밀도) - ✅ Answer Similarity (답변 유사도)</p>
+<p><strong>저장/로드</strong>: - ✅ JSON 형식 (요약 + 상세 결과 분리) -
+✅ CSV 형식 (Excel 호환, utf-8-sig) - ✅ 데이터 검증
+(validate_dataset)</p>
+<p><strong>고급 기능</strong>: - ✅ HybridPerformanceMonitor 통합 - ✅
+TaskResult 변환 - ✅ 평가 시간 추적 - ✅ 성공/실패 통계</p>
+<h3 id="문서-개선-사항">문서 개선 사항</h3>
+<p>이번 검증을 통해 다음 사항들이 개선되었습니다:</p>
+<ol type="1">
+<li><strong>실제 구현 반영</strong>:
+<ul>
+<li>클래스 구조와 메서드명 정확히 반영</li>
+<li>실제 데이터 클래스 필드 명시</li>
+<li>에러 처리 및 graceful degradation 설명</li>
+</ul></li>
+<li><strong>상세한 설명 추가</strong>:
+<ul>
+<li>PDF 라이브러리 자동 선택 로직</li>
+<li>한국어 문장 부호 지원</li>
+<li>Ragas 메트릭 계산 방법 상세 설명</li>
+<li>HybridPerformanceMonitor 통합 방식</li>
+</ul></li>
+<li><strong>사용 예제 개선</strong>:
+<ul>
+<li>RAGSystemInterface 구현 가이드</li>
+<li>RAGResponse 필드 설명</li>
+<li>청크 크기 선택 가이드</li>
+<li>질문 유형 상세 설명</li>
+</ul></li>
+<li><strong>구현 세부사항 섹션 추가</strong>:
+<ul>
+<li>주요 클래스 구조</li>
+<li>Ragas 통합 방식</li>
+<li>HybridPerformanceMonitor 통합</li>
+<li>파일 저장 형식</li>
+</ul></li>
+</ol>
+<hr />
+<h2 id="라이센스">라이센스</h2>
+<p>MIT License - 자유롭게 사용, 수정, 배포 가능합니다.</p>
+<hr />
+<hr />
+<p><strong>최종 업데이트</strong>: 2025-12-16<br>
+<strong>버전</strong>: Agent Evaluator v0.5.0<br>
+<strong>프로젝트</strong>: Agent Evaluator - AI Agent Performance Evaluation System<br>
+<strong>문서</strong>: Korean RAG Evaluation Guide</p>
+
+        </div>
+    </div>
+
+    <!-- Mermaid Zoom Modal -->
+    
+    <script src="scripts/mermaid-zoom.js"></script>
+</body>
+</html>

@@ -1,0 +1,2467 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>데이터 편집 & Test 투명성 가이드 - Agent Evaluator</title>
+
+    <!-- Common Styles -->
+    <link rel="stylesheet" href="styles/common.css">
+
+    <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+    <script>
+        mermaid.initialize({
+            startOnLoad: true,
+            theme: 'default',
+            flowchart: {
+                useMaxWidth: true,
+                htmlLabels: true,
+                curve: 'basis'
+            },
+            themeVariables: {
+                fontSize: '14px'
+            }
+        });
+    </script>
+    
+</head>
+<body>
+    <div class="content-wrapper">
+        <div class="doc-header">
+            <h1>📝 데이터 편집 & 투명성 가이드</h1>
+            <p style="color: #4a5568; margin-top: 10px;">테스트 데이터 관리 및 투명성 보장 (Agent Evaluator v0.5.0)</p>
+        </div>
+
+        <div class="doc-content">
+<h1 id="데이터-편집-test-투명성-가이드">데이터 편집 &amp; Test 투명성
+가이드</h1>
+<blockquote>
+<p>Dashboard를 통한 데이터 편집 및 Test 과정 투명화 완벽 가이드</p>
+</blockquote>
+<h2 id="목차">목차</h2>
+<ol type="1">
+<li><a href="#개요">개요</a></li>
+<li><a href="#데이터-편집-기능">데이터 편집 기능</a></li>
+<li><a href="#test-투명성-기능">Test 투명성 기능</a></li>
+<li><a href="#ux-설계">UX 설계</a></li>
+<li><a href="#사용-방법">사용 방법</a></li>
+<li><a href="#고급-활용">고급 활용</a></li>
+</ol>
+<hr />
+<h2 id="개요">개요</h2>
+<h3 id="제안-배경">제안 배경</h3>
+<p>기존 Agent Evaluator는 평가 데이터를 파일로만 관리하고, Test 과정이
+블랙박스처럼 보이는 문제가 있었습니다. 이를 해결하기 위해 두 가지 핵심
+기능을 추가했습니다:</p>
+<ol type="1">
+<li><strong>Dashboard 데이터 편집</strong>: 평가 데이터를 UI에서 직접
+확인하고 편집</li>
+<li><strong>Test 투명성</strong>: 각 메트릭의 계산 과정을 단계별로
+추적하고, 결과에 의견 추가</li>
+</ol>
+<h3 id="주요-기능">주요 기능</h3>
+<h4 id="데이터-편집-기능">(1) 데이터 편집 기능</h4>
+<p><strong>5개 서브탭 구성 (Test 관리자 워크플로우 최적화)</strong>: 1. ⚙️
+<strong>임계값 설정</strong> (1순위) - 3계층 지표 체계 2. 📄
+<strong>Golden Dataset 편집</strong> (2순위) - QA 쌍 데이터 관리 3. 📋
+<strong>Test 준비</strong> - 준비 상태 확인 및 환경 구성 4. 🔗
+<strong>레지스트리</strong> - 모든 프로젝트 통합 관리 5. 📊
+<strong>이력 관리</strong> - 버전 관리 및 편집 기록</p>
+<p><strong>주요 기능</strong>:</p>
+<ul>
+<li>✅ <strong>3계층 임계값 설정</strong>:
+<ul>
+<li>Layer 1 (Basic + Security): TCR, Accuracy, Quality, Hallucination, RAG 메트릭 + Input Sanitization, Output Leakage, Authorization</li>
+<li>Layer 2 (Agentic + Security): Tool Selection, Efficiency, Multi-Agent, Workflow + Privilege Escalation, Attack Detection</li>
+<li>Layer 3 (Advanced): DeepEval, Ragas 고급 메트릭</li>
+</ul>
+</li>
+<li>✅ <strong>Golden Dataset 편집</strong>: QA 쌍 데이터 관리</li>
+<li>✅ <strong>버전 관리</strong>: 변경 이력 추적 및 롤백</li>
+<li>✅ <strong>편집 기록</strong>: 모든 변경사항 Audit Trail</li>
+</ul>
+<h4 id="test-투명성-기능">(2) Test 투명성 기능</h4>
+
+<p><strong>5가지 새로운 분석 기능</strong>:</p>
+<ul>
+<li>✅ <strong>이상치 탐지 (Anomaly Detection)</strong>: 메트릭 간 불일치 자동 감지</li>
+<li>✅ <strong>상관관계 분석 (Correlation Analysis)</strong>: 메트릭 관계 분석 및 최적화 방향 제시</li>
+<li>✅ <strong>성능 병목 지점 식별 (Performance Bottlenecks)</strong>: 시스템 병목 자동 식별</li>
+<li>✅ <strong>데이터 품질 검증 (Data Quality Validation)</strong>: 평가 데이터 완전성 검증</li>
+<li>✅ <strong>실행 가능한 개선 방안 (Actionable Insights)</strong>: 우선순위 기반 구체적 개선안</li>
+</ul>
+
+<p><strong>기존 기능</strong>:</p>
+<ul>
+<li>✅ <strong>계산 과정 추적</strong>: 메트릭별 계산 단계 시각화</li>
+<li>✅ <strong>주석 시스템</strong>: Test 결과에 코멘트 추가</li>
+<li>✅ <strong>Audit Log</strong>: 모든 평가 활동 기록</li>
+<li>✅ <strong>상세 설명</strong>: 점수가 나온 이유 자동 생성</li>
+</ul>
+
+<h3 id="주요-변경사항">주요 변경사항</h3>
+
+<p><strong>🔥 Agent Evaluator v0.5.0 &  업데이트 (2025-01-14):</strong></p>
+<ol type="1">
+<li><strong>레거시 API 완전 제거</strong>: EvaluatedCrew, LangChainEvaluationCallback 등 deprecated 클래스 제거</li>
+<li><strong>보안 메트릭 통합</strong>: Layer 1/2 Security 메트릭 추가
+<ul>
+<li>Layer 1 Security: Input Sanitization, Output Leakage, Authorization</li>
+<li>Layer 2 Security: Privilege Escalation, Attack Detection</li>
+</ul>
+</li>
+<li><strong>Zero Configuration 강화</strong>: 자동 경로 탐지 및 설정</li>
+<li><strong>통합 보안 대시보드</strong>: 리스크 스코어링 및 알림 시스템</li>
+</ol>
+
+<p></p>
+<ol type="1">
+<li><strong>데이터 편집 탭 순서 변경</strong>: 임계값 설정 → Golden Dataset으로 재배치 (Test 관리자 워크플로우 최적화)</li>
+<li><strong>3계층 지표 체계 도입</strong>: Layer 1 (Basic) + Layer 2 (Agentic) + Layer 3 (Advanced)</li>
+<li><strong>임계값 설정 UI 재구성</strong>: 3개 서브탭으로 분리 (각 계층별 관리)</li>
+<li><strong>Transparency 탭 대폭 개선</strong>: 5가지 새로운 분석 기능 추가</li>
+</ol>
+<h3 id="아키텍처">아키텍처</h3>
+<div class="mermaid">
+graph TB
+    UI[Streamlit Dashboard UI<br/>dashboard_data_editor.py]
+
+    UI --> DEM[Data Editor Manager]
+    UI --> TTM[Test Transparency Manager]
+
+    DEM --> Storage
+    TTM --> Storage
+
+    subgraph Storage["Data Storage (JSON Files)"]
+        S1[performance_data.json]
+        S2[golden_datasets/*.json]
+        S3[thresholds.json<br/>3계층 임계값]
+        S4[traces/*.json]
+        S5[annotations/*.json]
+        S6[audit_logs/*.json]
+    end
+
+    style UI fill:#e3f2fd
+    style DEM fill:#fff3e0
+    style TTM fill:#fff3e0
+    style Storage fill:#f3e5f5
+</div>
+<hr />
+<h2 id="데이터-편집-기능-1">데이터 편집 기능</h2>
+<h3 id="taskresult-편집">1. TaskResult 편집</h3>
+<p>TaskResult는 Agent가 수행한 작업의 평가 결과입니다.</p>
+<h4 id="기능">기능</h4>
+<ul>
+<li><strong>데이터 로드</strong>: <code>performance_data.json</code>
+파일 로드</li>
+<li><strong>필터링</strong>: 작업 유형, 성공 여부, 정렬 기준 선택</li>
+<li><strong>인라인 편집</strong>: 테이블에서 직접 값 수정</li>
+<li><strong>행 추가/삭제</strong>: 새 작업 추가 또는 기존 작업 삭제</li>
+<li><strong>통계 확인</strong>: 실시간 통계 표시</li>
+</ul>
+<h4 id="ui-구성">UI 구성</h4>
+<div class="mermaid">
+graph TB
+    Main["📊 TaskResult 데이터 편집"]
+
+    Main --> FileSelect["파일 선택: performance_data.json"]
+    Main --> Refresh["🔄 새로고침"]
+    Main --> Info["ℹ️ 로드된 TaskResult: 100개"]
+
+    Main --> Filter["🔍 필터 옵션"]
+    Filter --> F1["작업 유형"]
+    Filter --> F2["성공 여부"]
+    Filter --> F3["정렬 기준"]
+
+    Main --> Editor["📋 데이터 편집 테이블"]
+    Editor --> Note["⚠️ 셀을 더블클릭하여 편집"]
+    Editor --> Table["task_id - type - success - score - time"]
+
+    Main --> EditInfo["편집 정보"]
+    EditInfo --> E1["편집자: Admin"]
+    EditInfo --> E2["이유: Data correction"]
+    EditInfo --> Save["💾 저장"]
+
+    Main --> Stats["📈 데이터 통계"]
+    Stats --> S1["전체: 100"]
+    Stats --> S2["성공률: 85%"]
+    Stats --> S3["평균점수: 0.82"]
+
+    style Main fill:#667eea,color:#fff
+    style Editor fill:#e3f2fd
+    style Filter fill:#fff3e0
+    style Stats fill:#e8f5e9
+</div>
+<h4 id="사용-예시">사용 예시</h4>
+<div class="sourceCode" id="cb3"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Dashboard UI에서 수행</span></span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a><span class="co"># 1. &quot;TaskResult 편집&quot; 탭 선택</span></span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a><span class="co"># 2. 필터로 원하는 데이터 찾기</span></span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a><span class="co"># 3. 셀 더블클릭하여 값 수정</span></span>
+<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a><span class="co"># 4. 편집자 이름과 이유 입력</span></span>
+<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a><span class="co"># 5. &quot;저장&quot; 버튼 클릭</span></span>
+<span id="cb3-7"><a href="#cb3-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-8"><a href="#cb3-8" aria-hidden="true" tabindex="-1"></a><span class="co"># 프로그래매틱으로도 가능</span></span>
+<span id="cb3-9"><a href="#cb3-9" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> data_editor_manager <span class="im">import</span> DataEditorManager</span>
+<span id="cb3-10"><a href="#cb3-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-11"><a href="#cb3-11" aria-hidden="true" tabindex="-1"></a>manager <span class="op">=</span> DataEditorManager()</span>
+<span id="cb3-12"><a href="#cb3-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-13"><a href="#cb3-13" aria-hidden="true" tabindex="-1"></a><span class="co"># 데이터 로드</span></span>
+<span id="cb3-14"><a href="#cb3-14" aria-hidden="true" tabindex="-1"></a>df <span class="op">=</span> manager.load_task_results(<span class="st">&quot;evaluation_results/performance_data.json&quot;</span>)</span>
+<span id="cb3-15"><a href="#cb3-15" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-16"><a href="#cb3-16" aria-hidden="true" tabindex="-1"></a><span class="co"># 수정</span></span>
+<span id="cb3-17"><a href="#cb3-17" aria-hidden="true" tabindex="-1"></a>df.loc[df[<span class="st">&#39;task_id&#39;</span>] <span class="op">==</span> <span class="st">&#39;task_001&#39;</span>, <span class="st">&#39;completion_score&#39;</span>] <span class="op">=</span> <span class="fl">0.98</span></span>
+<span id="cb3-18"><a href="#cb3-18" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-19"><a href="#cb3-19" aria-hidden="true" tabindex="-1"></a><span class="co"># 저장 (자동 버전 백업 및 편집 기록 생성)</span></span>
+<span id="cb3-20"><a href="#cb3-20" aria-hidden="true" tabindex="-1"></a>manager.save_task_results(</span>
+<span id="cb3-21"><a href="#cb3-21" aria-hidden="true" tabindex="-1"></a>    df<span class="op">=</span>df,</span>
+<span id="cb3-22"><a href="#cb3-22" aria-hidden="true" tabindex="-1"></a>    filepath<span class="op">=</span><span class="st">&quot;evaluation_results/performance_data.json&quot;</span>,</span>
+<span id="cb3-23"><a href="#cb3-23" aria-hidden="true" tabindex="-1"></a>    editor<span class="op">=</span><span class="st">&quot;John Doe&quot;</span>,</span>
+<span id="cb3-24"><a href="#cb3-24" aria-hidden="true" tabindex="-1"></a>    reason<span class="op">=</span><span class="st">&quot;Manual correction based on expert review&quot;</span></span>
+<span id="cb3-25"><a href="#cb3-25" aria-hidden="true" tabindex="-1"></a>)</span></code></pre></div>
+<h4 id="주요-메서드">주요 메서드</h4>
+
+<p><strong>DataEditorManager 클래스</strong>:</p>
+<ul>
+<li><code>load_task_results(filepath)</code>: TaskResult를 DataFrame으로 로드</li>
+<li><code>save_task_results(df, filepath, editor, reason)</code>: 수정된 데이터 저장 (자동 백업)</li>
+<li><code>add_task_result(task_data, filepath, editor, reason)</code>: 새 TaskResult 추가</li>
+<li><code>delete_task_result(task_id, filepath, editor, reason)</code>: TaskResult 삭제</li>
+<li><code>validate_task_result(task_data)</code>: 데이터 유효성 검증</li>
+</ul>
+<h3 id="golden-dataset-편집">2. Golden Dataset 편집</h3>
+<p>Golden Dataset은 RAG 평가를 위한 QA 쌍 데이터입니다.</p>
+<h4 id="기능-1">기능</h4>
+<ul>
+<li><strong>파일 선택</strong>: <code>golden_datasets</code> 디렉토리의
+JSON 파일 선택</li>
+<li><strong>검색</strong>: 질문 또는 답변 검색</li>
+<li><strong>QA 쌍 편집</strong>: Question, Answer, Ground Truth, Context
+수정</li>
+<li><strong>행 추가/삭제</strong>: 새 QA 쌍 추가 또는 삭제</li>
+<li><strong>상세 보기</strong>: 선택한 QA 쌍의 전체 내용 확인</li>
+<li><strong>Layer 2 필드 지원</strong>: expected_tools, expected_agents,
+expected_workflow_steps (Agentic AI 메트릭용)</li>
+</ul>
+<h4 id="ui-구성-1">UI 구성</h4>
+<div class="mermaid">
+graph TB
+    Main["📚 Golden Dataset 편집"]
+
+    Main --> FileSelect["파일: dataset_001.json"]
+    Main --> Refresh["🔄 새로고침"]
+    Main --> Info["ℹ️ 로드된 QA 쌍: 45개"]
+
+    Main --> Search["🔍 검색"]
+    Search --> SearchBox["질문 또는 답변 검색"]
+
+    Main --> Editor["📋 QA 쌍 편집"]
+    Editor --> Table["qa_id - question - answer - ground_truth"]
+
+    Main --> Detail["📝 QA 쌍 상세 보기"]
+    Detail --> D1["QA ID: qa_001"]
+    Detail --> D2["질문"]
+    Detail --> D3["답변"]
+    Detail --> D4["Ground Truth"]
+    Detail --> D5["컨텍스트"]
+    Detail --> D6["Expected Tools"]
+    Detail --> D7["Expected Agents"]
+
+    Main --> EditInfo["편집 정보"]
+    EditInfo --> E1["편집자"]
+    EditInfo --> E2["이유"]
+    EditInfo --> Save["💾 저장"]
+
+    style Main fill:#667eea,color:#fff
+    style Editor fill:#e3f2fd
+    style Detail fill:#fff3e0
+</div>
+<h4 id="주요-메서드-1">주요 메서드</h4>
+
+<p><strong>Golden Dataset 관리</strong>:</p>
+<ul>
+<li><code>load_golden_dataset(filepath)</code>: Golden Dataset을 DataFrame으로 로드</li>
+<li><code>save_golden_dataset(df, filepath, dataset_id, source_document, editor, reason)</code>: 수정된 데이터 저장</li>
+<li><code>add_qa_pair(qa_data, filepath, editor, reason)</code>: 새 QA 쌍 추가</li>
+<li><code>delete_qa_pair(qa_id, filepath, editor, reason)</code>: QA 쌍 삭제</li>
+<li><code>validate_qa_pair(qa_data)</code>: QA 쌍 유효성 검증</li>
+</ul>
+<p><strong>Layer 2 필드 (Agentic + Security 메트릭)</strong>:</p>
+<div class="sourceCode" id="cb5"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="co"># QA 쌍에 Layer 2 필드 추가</span></span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>qa_data <span class="op">=</span> {</span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;qa_id&quot;</span>: <span class="st">&quot;qa_001&quot;</span>,</span>
+<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;question&quot;</span>: <span class="st">&quot;문서 검색 후 요약하세요&quot;</span>,</span>
+<span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;answer&quot;</span>: <span class="st">&quot;검색 결과를 바탕으로...&quot;</span>,</span>
+<span id="cb5-6"><a href="#cb5-6" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;ground_truth&quot;</span>: <span class="st">&quot;정확한 요약&quot;</span>,</span>
+<span id="cb5-7"><a href="#cb5-7" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;context&quot;</span>: <span class="st">&quot;관련 문서 내용...&quot;</span>,</span>
+<span id="cb5-8"><a href="#cb5-8" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Layer 2 필드</span></span>
+<span id="cb5-9"><a href="#cb5-9" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;expected_tools&quot;</span>: [<span class="st">&quot;search&quot;</span>, <span class="st">&quot;summarize&quot;</span>],  <span class="co"># 리스트</span></span>
+<span id="cb5-10"><a href="#cb5-10" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;expected_agents&quot;</span>: [<span class="st">&quot;search_agent&quot;</span>, <span class="st">&quot;summary_agent&quot;</span>],  <span class="co"># 리스트</span></span>
+<span id="cb5-11"><a href="#cb5-11" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;expected_workflow_steps&quot;</span>: [<span class="st">&quot;step1&quot;</span>, <span class="st">&quot;step2&quot;</span>]  <span class="co"># 리스트</span></span>
+<span id="cb5-12"><a href="#cb5-12" aria-hidden="true" tabindex="-1"></a>}</span></code></pre></div>
+<h3 id="임계값-설정-3계층-지표-체계">3. 임계값 설정 (3계층 지표
+체계)</h3>
+<p>메트릭의 통과/실패 기준값을 3계층 구조로 설정합니다.</p>
+<h4 id="기능-2">기능</h4>
+<ul>
+<li><strong>3계층 서브탭</strong>: Layer 1 (Basic + Security) / Layer 2 (Agentic + Security) / Layer 3 (Advanced)</li>
+<li><strong>슬라이더 조정</strong>: 각 메트릭의 임계값을 슬라이더로
+조정</li>
+<li><strong>계산 방법 명시</strong>: 각 지표마다 계산 방법 표시</li>
+<li><strong>프리셋</strong>: 엄격/표준/관대 프리셋 제공</li>
+<li><strong>즉시 적용</strong>: 저장 즉시 다음 평가부터 적용</li>
+</ul>
+<h4 id="임계값-관리-메서드">임계값 관리 메서드</h4>
+
+<p><strong>DataEditorManager 클래스</strong>:</p>
+<ul>
+<li><code>load_thresholds()</code>: 임계값 설정 로드 (기본값 포함)</li>
+<li><code>save_thresholds(thresholds, editor, reason)</code>: 임계값 설정 저장 (자동 백업)</li>
+<li><code>load_advanced_eval_config()</code>: 고급 평가 설정 로드 (DeepEval, Ragas, LangSmith)</li>
+<li><code>save_advanced_eval_config(config, editor, reason)</code>: 고급 평가 설정 저장</li>
+</ul>
+
+<h4 id="ui-구성-3계층-구조">UI 구성 (3계층 구조)</h4>
+<div class="mermaid">
+graph TB
+    Main["⚙️ 메트릭 임계값 설정"]
+
+    Main --> Info["📊 3계층 지표 체계"]
+
+    Main --> Tab1["Layer 1: Basic + Security"]
+    Tab1 --> T1_1["TCR: 90.0%"]
+    Tab1 --> T1_2["Accuracy: 85.0%"]
+    Tab1 --> T1_3["Quality: 4.0/5.0"]
+    Tab1 --> T1_4["Hallucination: 5.0%"]
+    Tab1 --> T1_5["Input Sanitization: 95.0%"]
+    Tab1 --> T1_More["+ Security 메트릭..."]
+
+    Main --> Tab2["Layer 2: Agentic + Security"]
+    Tab2 --> T2_1["Tool Selection: 85.0%"]
+    Tab2 --> T2_2["Agent Coordination: 80.0%"]
+    Tab2 --> T2_3["Workflow Execution: 85.0%"]
+    Tab2 --> T2_4["Attack Detection: 95.0%"]
+
+    Main --> Tab3["Layer 3: Advanced"]
+    Tab3 --> T3_1["DeepEval 메트릭"]
+    Tab3 --> T3_2["Ragas 메트릭"]
+
+    Main --> Preset["🎨 프리셋"]
+    Preset --> P1["📘 엄격"]
+    Preset --> P2["📗 표준"]
+    Preset --> P3["📙 관대"]
+
+    style Main fill:#667eea,color:#fff
+    style Tab1 fill:#c8e6c9
+    style Tab2 fill:#fff9c4
+    style Tab3 fill:#ffccbc
+</div>
+<h4 id="계층별-임계값-설정-예시">계층별 임계값 설정 예시</h4>
+<p><strong>Layer 1: Basic + Security Metrics</strong></p>
+<div class="sourceCode" id="cb7"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a>thresholds_layer1 <span class="op">=</span> {</span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;tcr&quot;</span>: <span class="fl">90.0</span>,                    <span class="co"># Task Completion Rate</span></span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;accuracy&quot;</span>: <span class="fl">85.0</span>,               <span class="co"># Accuracy</span></span>
+<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;hallucination&quot;</span>: <span class="fl">5.0</span>,           <span class="co"># Hallucination Rate (낮을수록 좋음)</span></span>
+<span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;quality&quot;</span>: <span class="fl">4.0</span>,                 <span class="co"># Response Quality (5점 만점)</span></span>
+<span id="cb7-6"><a href="#cb7-6" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;latency&quot;</span>: <span class="fl">3.0</span>,                 <span class="co"># Latency (초)</span></span>
+<span id="cb7-7"><a href="#cb7-7" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;cost_per_task&quot;</span>: <span class="fl">0.01</span>,          <span class="co"># Cost per task ($)</span></span>
+<span id="cb7-8"><a href="#cb7-8" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;retry_success_rate&quot;</span>: <span class="fl">80.0</span>,     <span class="co"># Retry Success Rate</span></span>
+<span id="cb7-9"><a href="#cb7-9" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Security Metrics</span></span>
+<span id="cb7-10"><a href="#cb7-10" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;input_sanitization&quot;</span>: <span class="fl">95.0</span>,     <span class="co"># Input Sanitization Score</span></span>
+<span id="cb7-11"><a href="#cb7-11" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;output_leakage&quot;</span>: <span class="fl">95.0</span>,          <span class="co"># Output Leakage Prevention</span></span>
+<span id="cb7-12"><a href="#cb7-12" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;authorization&quot;</span>: <span class="fl">98.0</span>              <span class="co"># Authorization Compliance</span></span>
+<span id="cb7-13"><a href="#cb7-13" aria-hidden="true" tabindex="-1"></a>}</span></code></pre></div>
+<p><strong>Layer 2: Agentic + Security Metrics</strong></p>
+<div class="sourceCode" id="cb8"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a>thresholds_layer2 <span class="op">=</span> {</span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;tool_selection_accuracy&quot;</span>: <span class="fl">85.0</span>,  <span class="co"># Tool Selection Accuracy</span></span>
+<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;tool_efficiency&quot;</span>: <span class="fl">90.0</span>,          <span class="co"># Tool Efficiency (moved from Layer 1)</span></span>
+<span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;agent_coordination&quot;</span>: <span class="fl">80.0</span>,       <span class="co"># Agent Coordination Score</span></span>
+<span id="cb8-5"><a href="#cb8-5" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;workflow_execution&quot;</span>: <span class="fl">85.0</span>,       <span class="co"># Workflow Execution Success Rate</span></span>
+<span id="cb8-6"><a href="#cb8-6" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Security Metrics</span></span>
+<span id="cb8-7"><a href="#cb8-7" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;privilege_escalation&quot;</span>: <span class="fl">98.0</span>,    <span class="co"># Privilege Escalation Prevention</span></span>
+<span id="cb8-8"><a href="#cb8-8" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;attack_detection&quot;</span>: <span class="fl">95.0</span>           <span class="co"># Attack Pattern Detection</span></span>
+<span id="cb8-9"><a href="#cb8-9" aria-hidden="true" tabindex="-1"></a>}</span></code></pre></div>
+<p><strong>Layer 3: Advanced Metrics</strong></p>
+<div class="sourceCode" id="cb9"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a>thresholds_layer3 <span class="op">=</span> {</span>
+<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a>    <span class="co"># DeepEval</span></span>
+<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;g_eval&quot;</span>: <span class="fl">0.8</span>,</span>
+<span id="cb9-4"><a href="#cb9-4" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;hallucination_score&quot;</span>: <span class="fl">0.8</span>,</span>
+<span id="cb9-5"><a href="#cb9-5" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Ragas</span></span>
+<span id="cb9-6"><a href="#cb9-6" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;faithfulness&quot;</span>: <span class="fl">0.8</span>,</span>
+<span id="cb9-7"><a href="#cb9-7" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;context_recall&quot;</span>: <span class="fl">0.8</span>,</span>
+<span id="cb9-8"><a href="#cb9-8" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;context_precision&quot;</span>: <span class="fl">0.8</span>,</span>
+<span id="cb9-9"><a href="#cb9-9" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;answer_relevancy&quot;</span>: <span class="fl">0.8</span></span>
+<span id="cb9-10"><a href="#cb9-10" aria-hidden="true" tabindex="-1"></a>}</span></code></pre></div>
+<h4 id="고급-평가-설정-구조">고급 평가 설정 구조</h4>
+<div class="sourceCode" id="cb10"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="co"># advanced_eval_config.json</span></span>
+<span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a>{</span>
+<span id="cb10-3"><a href="#cb10-3" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;deepeval&quot;</span>: {</span>
+<span id="cb10-4"><a href="#cb10-4" aria-hidden="true" tabindex="-1"></a>        <span class="st">&quot;enabled&quot;</span>: <span class="va">True</span>,</span>
+<span id="cb10-5"><a href="#cb10-5" aria-hidden="true" tabindex="-1"></a>        <span class="st">&quot;model&quot;</span>: <span class="st">&quot;gpt-4o-mini&quot;</span>,</span>
+<span id="cb10-6"><a href="#cb10-6" aria-hidden="true" tabindex="-1"></a>        <span class="st">&quot;thresholds&quot;</span>: {</span>
+<span id="cb10-7"><a href="#cb10-7" aria-hidden="true" tabindex="-1"></a>            <span class="st">&quot;g_eval&quot;</span>: <span class="fl">0.7</span>,</span>
+<span id="cb10-8"><a href="#cb10-8" aria-hidden="true" tabindex="-1"></a>            <span class="st">&quot;hallucination&quot;</span>: <span class="fl">0.3</span>,</span>
+<span id="cb10-9"><a href="#cb10-9" aria-hidden="true" tabindex="-1"></a>            <span class="st">&quot;toxicity&quot;</span>: <span class="fl">0.3</span>,</span>
+<span id="cb10-10"><a href="#cb10-10" aria-hidden="true" tabindex="-1"></a>            <span class="st">&quot;bias&quot;</span>: <span class="fl">0.3</span></span>
+<span id="cb10-11"><a href="#cb10-11" aria-hidden="true" tabindex="-1"></a>        }</span>
+<span id="cb10-12"><a href="#cb10-12" aria-hidden="true" tabindex="-1"></a>    },</span>
+<span id="cb10-13"><a href="#cb10-13" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;ragas&quot;</span>: {</span>
+<span id="cb10-14"><a href="#cb10-14" aria-hidden="true" tabindex="-1"></a>        <span class="st">&quot;enabled&quot;</span>: <span class="va">True</span>,</span>
+<span id="cb10-15"><a href="#cb10-15" aria-hidden="true" tabindex="-1"></a>        <span class="st">&quot;model&quot;</span>: <span class="st">&quot;gpt-4o-mini&quot;</span>,</span>
+<span id="cb10-16"><a href="#cb10-16" aria-hidden="true" tabindex="-1"></a>        <span class="st">&quot;thresholds&quot;</span>: {</span>
+<span id="cb10-17"><a href="#cb10-17" aria-hidden="true" tabindex="-1"></a>            <span class="st">&quot;context_relevancy&quot;</span>: <span class="fl">0.7</span>,</span>
+<span id="cb10-18"><a href="#cb10-18" aria-hidden="true" tabindex="-1"></a>            <span class="st">&quot;answer_similarity&quot;</span>: <span class="fl">0.7</span>,</span>
+<span id="cb10-19"><a href="#cb10-19" aria-hidden="true" tabindex="-1"></a>            <span class="st">&quot;answer_correctness&quot;</span>: <span class="fl">0.7</span>,</span>
+<span id="cb10-20"><a href="#cb10-20" aria-hidden="true" tabindex="-1"></a>            <span class="st">&quot;overall_score&quot;</span>: <span class="fl">0.7</span></span>
+<span id="cb10-21"><a href="#cb10-21" aria-hidden="true" tabindex="-1"></a>        }</span>
+<span id="cb10-22"><a href="#cb10-22" aria-hidden="true" tabindex="-1"></a>    },</span>
+<span id="cb10-23"><a href="#cb10-23" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;langsmith&quot;</span>: {</span>
+<span id="cb10-24"><a href="#cb10-24" aria-hidden="true" tabindex="-1"></a>        <span class="st">&quot;enabled&quot;</span>: <span class="va">False</span>,</span>
+<span id="cb10-25"><a href="#cb10-25" aria-hidden="true" tabindex="-1"></a>        <span class="st">&quot;api_key&quot;</span>: <span class="st">&quot;&quot;</span></span>
+<span id="cb10-26"><a href="#cb10-26" aria-hidden="true" tabindex="-1"></a>    },</span>
+<span id="cb10-27"><a href="#cb10-27" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;metadata&quot;</span>: {</span>
+<span id="cb10-28"><a href="#cb10-28" aria-hidden="true" tabindex="-1"></a>        <span class="st">&quot;last_updated&quot;</span>: <span class="st">&quot;2024-11-30T...&quot;</span>,</span>
+<span id="cb10-29"><a href="#cb10-29" aria-hidden="true" tabindex="-1"></a>        <span class="st">&quot;updated_by&quot;</span>: <span class="st">&quot;Admin&quot;</span></span>
+<span id="cb10-30"><a href="#cb10-30" aria-hidden="true" tabindex="-1"></a>    }</span>
+<span id="cb10-31"><a href="#cb10-31" aria-hidden="true" tabindex="-1"></a>}</span></code></pre></div>
+<h3 id="버전-관리">4. 버전 관리</h3>
+<p>데이터 변경 이력을 추적하고 롤백할 수 있습니다.</p>
+<h4 id="기능-3">기능</h4>
+<ul>
+<li><strong>자동 백업</strong>: 데이터 수정 전 자동으로 버전 백업
+(<code>_create_version</code> 메서드)</li>
+<li><strong>버전 목록</strong>: 모든 버전의 생성 시간과 설명 확인</li>
+<li><strong>롤백</strong>: 특정 버전으로 복원</li>
+<li><strong>필터링</strong>: 데이터 이름으로 필터링</li>
+</ul>
+<h4 id="버전-관리-메서드">버전 관리 메서드</h4>
+
+<p><strong>DataEditorManager 클래스</strong>:</p>
+<ul>
+<li><code>_create_version(filepath, description)</code>: 버전 스냅샷 생성 (내부 메서드, 자동 호출)</li>
+<li><code>list_versions(data_name=None)</code>: 버전 목록 조회</li>
+<li><code>rollback_to_version(version_id, target_filepath, editor)</code>: 특정 버전으로 롤백</li>
+</ul>
+<h4 id="버전-저장-위치">버전 저장 위치</h4>
+<ul>
+<li><code>evaluation_results/versions/version_{timestamp}_{filename}.json</code></li>
+<li>버전 ID 형식: <code>YYYYMMDD_HHMMSS</code></li>
+</ul>
+<h4 id="ui-구성-2">UI 구성</h4>
+<div class="mermaid">
+graph TB
+    Main["📚 버전 관리"]
+
+    Main --> Filter["데이터 이름 필터: performance_data"]
+    Main --> Refresh["🔄 새로고침"]
+    Main --> Info["ℹ️ 총 15개의 버전"]
+
+    Main --> V1["🔖 버전 20241128_103045"]
+    V1 --> V1_Info["생성 시간: 2024-11-28 10:30:45<br/>설명: Before edit by John Doe"]
+    V1 --> V1_Action["복원할 파일 선택"]
+    V1 --> V1_Rollback["⏮️ 롤백"]
+
+    Main --> V2["🔖 버전 20241128_091520"]
+    V2 --> V2_Info["이전 버전 정보"]
+
+    style Main fill:#667eea,color:#fff
+    style V1 fill:#e3f2fd
+    style V2 fill:#e3f2fd
+</div>
+<h3 id="편집-기록">5. 편집 기록</h3>
+<p>모든 편집 활동을 추적합니다.</p>
+<h4 id="기능-4">기능</h4>
+<ul>
+<li><strong>편집 로그</strong>: 누가, 언제, 무엇을, 왜 편집했는지
+기록</li>
+<li><strong>필터링</strong>: 데이터 유형, 편집 유형, 편집자로 필터</li>
+<li><strong>상세 보기</strong>: 변경 전/후 값 비교</li>
+<li><strong>Diff 표시</strong>: 변경사항 하이라이트</li>
+</ul>
+<h4 id="편집-기록-메서드">편집 기록 메서드</h4>
+
+<p><strong>DataEditorManager 클래스</strong>:</p>
+<ul>
+<li><code>_record_edit(edit_type, data_type, data_id, editor, reason, before_value, after_value)</code>: 편집 기록 (내부 메서드, 자동 호출)</li>
+<li><code>load_edit_history(limit=100)</code>: 편집 기록 로드 (DataFrame)</li>
+<li><code>get_edit_details(edit_id)</code>: 특정 편집의 상세 정보 조회</li>
+</ul>
+<h4 id="편집-기록-구조-dataedit">편집 기록 구조 (DataEdit)</h4>
+<div class="sourceCode" id="cb12"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="at">@dataclass</span></span>
+<span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> DataEdit:</span>
+<span id="cb12-3"><a href="#cb12-3" aria-hidden="true" tabindex="-1"></a>    edit_id: <span class="bu">str</span>              <span class="co"># 편집 ID (YYYYMMDD_HHMMSS_ffffff)</span></span>
+<span id="cb12-4"><a href="#cb12-4" aria-hidden="true" tabindex="-1"></a>    timestamp: <span class="bu">str</span>            <span class="co"># 편집 시간</span></span>
+<span id="cb12-5"><a href="#cb12-5" aria-hidden="true" tabindex="-1"></a>    editor: <span class="bu">str</span>               <span class="co"># 편집자 이름</span></span>
+<span id="cb12-6"><a href="#cb12-6" aria-hidden="true" tabindex="-1"></a>    edit_type: <span class="bu">str</span>            <span class="co"># &quot;create&quot;, &quot;update&quot;, &quot;delete&quot;, &quot;rollback&quot;</span></span>
+<span id="cb12-7"><a href="#cb12-7" aria-hidden="true" tabindex="-1"></a>    data_type: <span class="bu">str</span>            <span class="co"># &quot;task_result&quot;, &quot;qa_pair&quot;, &quot;threshold&quot;, &quot;golden_dataset&quot;</span></span>
+<span id="cb12-8"><a href="#cb12-8" aria-hidden="true" tabindex="-1"></a>    data_id: <span class="bu">str</span>              <span class="co"># 데이터 ID</span></span>
+<span id="cb12-9"><a href="#cb12-9" aria-hidden="true" tabindex="-1"></a>    before_value: Optional[Dict]  <span class="co"># 변경 전 값</span></span>
+<span id="cb12-10"><a href="#cb12-10" aria-hidden="true" tabindex="-1"></a>    after_value: Optional[Dict]   <span class="co"># 변경 후 값</span></span>
+<span id="cb12-11"><a href="#cb12-11" aria-hidden="true" tabindex="-1"></a>    reason: <span class="bu">str</span>               <span class="co"># 편집 이유</span></span></code></pre></div>
+<h4 id="편집-기록-저장-위치">편집 기록 저장 위치</h4>
+<ul>
+<li><code>evaluation_results/edit_history/edit_{edit_id}.json</code></li>
+</ul>
+<h3 id="test-구성-관리-phase-3">6. Test 구성 관리 (Phase 3)</h3>
+<p>Test 환경을 미리 구성하고 저장하여 재사용할 수 있습니다.</p>
+<h4 id="기능-5">기능</h4>
+<ul>
+<li><strong>환경 설정 저장</strong>: Golden Dataset, 임계값, 고급 평가
+설정을 하나의 구성으로 저장</li>
+<li><strong>구성 재사용</strong>: 저장된 구성을 불러와서 빠르게 Test
+실행</li>
+<li><strong>환경별 관리</strong>: development, staging, production
+환경별 구성</li>
+<li><strong>메타데이터 추적</strong>: 프레임워크, 모델 설정, 태그
+등</li>
+</ul>
+<h4 id="test-구성-관리-메서드">Test 구성 관리 메서드</h4>
+
+<p><strong>DataEditorManager 클래스</strong>:</p>
+<ul>
+<li><code>prepare_test_environment()</code>: Test 환경 준비 상태 확인</li>
+<li><code>validate_test_environment()</code>: Test 환경 유효성 검증</li>
+<li><code>create_test_configuration(test_name, golden_datasets, thresholds, enable_transparency, ...)</code>: Test 구성 생성 및 저장</li>
+<li><code>load_test_configuration(config_id)</code>: Test 구성 로드</li>
+<li><code>list_test_configurations()</code>: 모든 Test 구성 목록 조회</li>
+</ul>
+<h4 id="test-구성-구조-phase-3-enhanced">Test 구성 구조 (Phase 3
+Enhanced)</h4>
+<div class="sourceCode" id="cb13"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a>config <span class="op">=</span> {</span>
+<span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Core fields</span></span>
+<span id="cb13-3"><a href="#cb13-3" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;config_id&quot;</span>: <span class="st">&quot;test_config_20241130_120000&quot;</span>,</span>
+<span id="cb13-4"><a href="#cb13-4" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;test_name&quot;</span>: <span class="st">&quot;Production_API_Test&quot;</span>,</span>
+<span id="cb13-5"><a href="#cb13-5" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;created_at&quot;</span>: <span class="st">&quot;2024-11-30T12:00:00&quot;</span>,</span>
+<span id="cb13-6"><a href="#cb13-6" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;created_by&quot;</span>: <span class="st">&quot;admin@example.com&quot;</span>,</span>
+<span id="cb13-7"><a href="#cb13-7" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;golden_dataset&quot;</span>: <span class="st">&quot;golden_datasets/prod.json&quot;</span>,  <span class="co"># 단일 (호환성)</span></span>
+<span id="cb13-8"><a href="#cb13-8" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;golden_datasets&quot;</span>: [<span class="st">&quot;golden_datasets/prod.json&quot;</span>, <span class="st">&quot;golden_datasets/api.json&quot;</span>],  <span class="co"># 복수</span></span>
+<span id="cb13-9"><a href="#cb13-9" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;thresholds&quot;</span>: {...},  <span class="co"># 임계값</span></span>
+<span id="cb13-10"><a href="#cb13-10" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;enable_transparency&quot;</span>: <span class="va">True</span>,</span>
+<span id="cb13-11"><a href="#cb13-11" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;status&quot;</span>: <span class="st">&quot;ready&quot;</span>,</span>
+<span id="cb13-12"><a href="#cb13-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-13"><a href="#cb13-13" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Phase 3: Enhanced Metadata</span></span>
+<span id="cb13-14"><a href="#cb13-14" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;environment&quot;</span>: <span class="st">&quot;production&quot;</span>,  <span class="co"># development, staging, production</span></span>
+<span id="cb13-15"><a href="#cb13-15" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;version&quot;</span>: <span class="st">&quot;2.0&quot;</span>,</span>
+<span id="cb13-16"><a href="#cb13-16" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;description&quot;</span>: <span class="st">&quot;API 엔드포인트 회귀 테스트&quot;</span>,</span>
+<span id="cb13-17"><a href="#cb13-17" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;tags&quot;</span>: [<span class="st">&quot;api&quot;</span>, <span class="st">&quot;regression&quot;</span>, <span class="st">&quot;critical&quot;</span>],</span>
+<span id="cb13-18"><a href="#cb13-18" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;model_config&quot;</span>: {</span>
+<span id="cb13-19"><a href="#cb13-19" aria-hidden="true" tabindex="-1"></a>        <span class="st">&quot;model_name&quot;</span>: <span class="st">&quot;gpt-4&quot;</span>,</span>
+<span id="cb13-20"><a href="#cb13-20" aria-hidden="true" tabindex="-1"></a>        <span class="st">&quot;temperature&quot;</span>: <span class="fl">0.7</span>,</span>
+<span id="cb13-21"><a href="#cb13-21" aria-hidden="true" tabindex="-1"></a>        <span class="st">&quot;max_tokens&quot;</span>: <span class="dv">2000</span></span>
+<span id="cb13-22"><a href="#cb13-22" aria-hidden="true" tabindex="-1"></a>    },</span>
+<span id="cb13-23"><a href="#cb13-23" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;framework&quot;</span>: <span class="st">&quot;langchain&quot;</span>,  <span class="co"># langchain, crewai, langgraph, autogen, custom</span></span>
+<span id="cb13-24"><a href="#cb13-24" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;expected_duration_seconds&quot;</span>: <span class="dv">300</span>,</span>
+<span id="cb13-25"><a href="#cb13-25" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;metadata&quot;</span>: {</span>
+<span id="cb13-26"><a href="#cb13-26" aria-hidden="true" tabindex="-1"></a>        <span class="st">&quot;team&quot;</span>: <span class="st">&quot;qa&quot;</span>,</span>
+<span id="cb13-27"><a href="#cb13-27" aria-hidden="true" tabindex="-1"></a>        <span class="st">&quot;priority&quot;</span>: <span class="st">&quot;high&quot;</span></span>
+<span id="cb13-28"><a href="#cb13-28" aria-hidden="true" tabindex="-1"></a>    }</span>
+<span id="cb13-29"><a href="#cb13-29" aria-hidden="true" tabindex="-1"></a>}</span></code></pre></div>
+<h4 id="사용-예시-1">사용 예시</h4>
+<div class="sourceCode" id="cb14"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> data_editor_manager <span class="im">import</span> DataEditorManager</span>
+<span id="cb14-2"><a href="#cb14-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-3"><a href="#cb14-3" aria-hidden="true" tabindex="-1"></a>manager <span class="op">=</span> DataEditorManager()</span>
+<span id="cb14-4"><a href="#cb14-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-5"><a href="#cb14-5" aria-hidden="true" tabindex="-1"></a><span class="co"># Test 구성 생성</span></span>
+<span id="cb14-6"><a href="#cb14-6" aria-hidden="true" tabindex="-1"></a>config <span class="op">=</span> manager.create_test_configuration(</span>
+<span id="cb14-7"><a href="#cb14-7" aria-hidden="true" tabindex="-1"></a>    test_name<span class="op">=</span><span class="st">&quot;Production_API_Test&quot;</span>,</span>
+<span id="cb14-8"><a href="#cb14-8" aria-hidden="true" tabindex="-1"></a>    golden_datasets<span class="op">=</span>[<span class="st">&quot;golden_datasets/prod.json&quot;</span>, <span class="st">&quot;golden_datasets/api.json&quot;</span>],</span>
+<span id="cb14-9"><a href="#cb14-9" aria-hidden="true" tabindex="-1"></a>    thresholds<span class="op">=</span><span class="va">None</span>,  <span class="co"># 기본값 사용</span></span>
+<span id="cb14-10"><a href="#cb14-10" aria-hidden="true" tabindex="-1"></a>    enable_transparency<span class="op">=</span><span class="va">True</span>,</span>
+<span id="cb14-11"><a href="#cb14-11" aria-hidden="true" tabindex="-1"></a>    author<span class="op">=</span><span class="st">&quot;admin@example.com&quot;</span>,</span>
+<span id="cb14-12"><a href="#cb14-12" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Phase 3 Enhanced</span></span>
+<span id="cb14-13"><a href="#cb14-13" aria-hidden="true" tabindex="-1"></a>    environment<span class="op">=</span><span class="st">&quot;production&quot;</span>,</span>
+<span id="cb14-14"><a href="#cb14-14" aria-hidden="true" tabindex="-1"></a>    description<span class="op">=</span><span class="st">&quot;API 엔드포인트 회귀 테스트&quot;</span>,</span>
+<span id="cb14-15"><a href="#cb14-15" aria-hidden="true" tabindex="-1"></a>    tags<span class="op">=</span>[<span class="st">&quot;api&quot;</span>, <span class="st">&quot;regression&quot;</span>, <span class="st">&quot;critical&quot;</span>],</span>
+<span id="cb14-16"><a href="#cb14-16" aria-hidden="true" tabindex="-1"></a>    model_config<span class="op">=</span>{</span>
+<span id="cb14-17"><a href="#cb14-17" aria-hidden="true" tabindex="-1"></a>        <span class="st">&quot;model_name&quot;</span>: <span class="st">&quot;gpt-4&quot;</span>,</span>
+<span id="cb14-18"><a href="#cb14-18" aria-hidden="true" tabindex="-1"></a>        <span class="st">&quot;temperature&quot;</span>: <span class="fl">0.7</span>,</span>
+<span id="cb14-19"><a href="#cb14-19" aria-hidden="true" tabindex="-1"></a>        <span class="st">&quot;max_tokens&quot;</span>: <span class="dv">2000</span></span>
+<span id="cb14-20"><a href="#cb14-20" aria-hidden="true" tabindex="-1"></a>    },</span>
+<span id="cb14-21"><a href="#cb14-21" aria-hidden="true" tabindex="-1"></a>    framework<span class="op">=</span><span class="st">&quot;langchain&quot;</span>,</span>
+<span id="cb14-22"><a href="#cb14-22" aria-hidden="true" tabindex="-1"></a>    version<span class="op">=</span><span class="st">&quot;2.0&quot;</span>,</span>
+<span id="cb14-23"><a href="#cb14-23" aria-hidden="true" tabindex="-1"></a>    expected_duration_seconds<span class="op">=</span><span class="dv">300</span>,</span>
+<span id="cb14-24"><a href="#cb14-24" aria-hidden="true" tabindex="-1"></a>    metadata<span class="op">=</span>{<span class="st">&quot;team&quot;</span>: <span class="st">&quot;qa&quot;</span>, <span class="st">&quot;priority&quot;</span>: <span class="st">&quot;high&quot;</span>}</span>
+<span id="cb14-25"><a href="#cb14-25" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb14-26"><a href="#cb14-26" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-27"><a href="#cb14-27" aria-hidden="true" tabindex="-1"></a><span class="co"># Test 구성 로드</span></span>
+<span id="cb14-28"><a href="#cb14-28" aria-hidden="true" tabindex="-1"></a>loaded_config <span class="op">=</span> manager.load_test_configuration(<span class="st">&quot;test_config_20241130_120000&quot;</span>)</span>
+<span id="cb14-29"><a href="#cb14-29" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-30"><a href="#cb14-30" aria-hidden="true" tabindex="-1"></a><span class="co"># 모든 구성 조회</span></span>
+<span id="cb14-31"><a href="#cb14-31" aria-hidden="true" tabindex="-1"></a>all_configs <span class="op">=</span> manager.list_test_configurations()</span></code></pre></div>
+<h4 id="test-구성-저장-위치">Test 구성 저장 위치</h4>
+<ul>
+<li><code>evaluation_results/test_configs/test_config_{timestamp}.json</code></li>
+</ul>
+<h4 id="ui-구성-3">UI 구성</h4>
+<div class="mermaid">
+graph TB
+    Main["📜 편집 기록"]
+
+    Main --> Info["ℹ️ 총 25개의 편집 기록"]
+
+    Main --> Filter["🔍 필터"]
+    Filter --> F1["데이터 유형"]
+    Filter --> F2["편집 유형"]
+    Filter --> F3["편집자"]
+
+    Main --> Table["편집 기록 테이블"]
+    Table --> Col["시간 - 편집자 - 유형 - 데이터 - 이유"]
+
+    Main --> Detail["🔍 편집 상세 보기"]
+    Detail --> D1["편집 ID: 20241128_103045_abc123"]
+    Detail --> D2["시간: 2024-11-28 10:30:45"]
+    Detail --> D3["편집자: John Doe"]
+    Detail --> D4["유형: update"]
+    Detail --> D5["이유: Manual correction"]
+    Detail --> D6["변경 전 값"]
+    Detail --> D7["변경 후 값"]
+
+    style Main fill:#667eea,color:#fff
+    style Table fill:#e3f2fd
+    style Detail fill:#fff3e0
+</div>
+<hr />
+<h2 id="test-투명성-기능-1">Test 투명성 기능</h2>
+
+<div style="background: #e8f5e9; border-left: 4px solid #4CAF50; padding: 15px; margin: 20px 0;">
+<p style="margin: 0;"></p>
+<p style="margin: 10px 0 0 0;">The system now tracks and visualizes <strong>RAG (Retrieval-Augmented Generation) metrics</strong>:</p>
+<ul style="margin: 8px 0 0 20px;">
+<li><strong>Faithfulness:</strong> How grounded the answer is in the retrieved context</li>
+<li><strong>Answer Relevancy:</strong> How relevant the answer is to the question</li>
+<li><strong>Context Recall:</strong> How much of the ground truth is covered by retrieved context</li>
+<li><strong>Context Precision:</strong> How many relevant contexts are in top ranks</li>
+</ul>
+<p style="margin: 10px 0 0 0;"><strong>Usage:</strong> Call <code>monitor.record_rag_metrics()</code> to track these metrics, <code>get_rag_metrics_summary()</code> to view stats, and <code>compare_with_thresholds()</code> for automated pass/fail evaluation.</p>
+</div>
+
+<h3 id="메트릭-계산-과정">1. 메트릭 계산 과정</h3>
+<p>각 메트릭이 어떻게 계산되었는지 단계별로 추적합니다.</p>
+<h4 id="기능-6">기능</h4>
+<ul>
+<li><strong>단계별 추적</strong>: 계산 과정을 여러 단계로 분해</li>
+<li><strong>타임라인 시각화</strong>: 각 단계의 상태와 순서 표시</li>
+<li><strong>중간 결과</strong>: 각 단계의 입출력 데이터 표시</li>
+<li><strong>에러 추적</strong>: 실패 시 원인 파악</li>
+<li><strong>자동 설명</strong>: 왜 이 점수가 나왔는지 자동 생성
+(<code>_generate_explanation</code> 메서드)</li>
+</ul>
+<h4 id="메트릭-계산-추적-메서드">메트릭 계산 추적 메서드</h4>
+
+<p><strong>TestTransparencyManager 클래스</strong>:</p>
+<ul>
+<li><code>start_metric_calculation(metric_name, metric_type, task_id)</code>: 메트릭 계산 시작, trace_id 반환</li>
+<li><code>add_calculation_step(trace_id, step_name, description, input_data, output_data, status, error_message)</code>: 계산 단계 추가</li>
+<li><code>add_intermediate_result(trace_id, step_id, result)</code>: 중간 결과 추가</li>
+<li><code>complete_metric_calculation(trace_id, final_value, threshold_value, explanation, factors)</code>: 메트릭 계산 완료</li>
+<li><code>_generate_explanation(trace)</code>: 메트릭별 자동 설명 생성 (내부 메서드)</li>
+</ul>
+<h4 id="메트릭-계산-추적-구조-metriccalculationtrace">메트릭 계산 추적
+구조 (MetricCalculationTrace)</h4>
+<div class="sourceCode" id="cb16"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a><span class="at">@dataclass</span></span>
+<span id="cb16-2"><a href="#cb16-2" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> MetricCalculationTrace:</span>
+<span id="cb16-3"><a href="#cb16-3" aria-hidden="true" tabindex="-1"></a>    metric_name: <span class="bu">str</span>              <span class="co"># 메트릭 이름</span></span>
+<span id="cb16-4"><a href="#cb16-4" aria-hidden="true" tabindex="-1"></a>    metric_type: <span class="bu">str</span>              <span class="co"># &quot;native&quot;, &quot;deepeval&quot;, &quot;ragas&quot;</span></span>
+<span id="cb16-5"><a href="#cb16-5" aria-hidden="true" tabindex="-1"></a>    task_id: <span class="bu">str</span>                  <span class="co"># 작업 ID</span></span>
+<span id="cb16-6"><a href="#cb16-6" aria-hidden="true" tabindex="-1"></a>    calculation_steps: List[TestStep]  <span class="co"># 계산 단계 목록</span></span>
+<span id="cb16-7"><a href="#cb16-7" aria-hidden="true" tabindex="-1"></a>    final_value: Optional[<span class="bu">float</span>]  <span class="co"># 최종 값</span></span>
+<span id="cb16-8"><a href="#cb16-8" aria-hidden="true" tabindex="-1"></a>    passed_threshold: Optional[<span class="bu">bool</span>]  <span class="co"># 임계값 통과 여부</span></span>
+<span id="cb16-9"><a href="#cb16-9" aria-hidden="true" tabindex="-1"></a>    threshold_value: Optional[<span class="bu">float</span>]  <span class="co"># 임계값</span></span>
+<span id="cb16-10"><a href="#cb16-10" aria-hidden="true" tabindex="-1"></a>    explanation: Optional[<span class="bu">str</span>]    <span class="co"># 자동 생성된 설명</span></span>
+<span id="cb16-11"><a href="#cb16-11" aria-hidden="true" tabindex="-1"></a>    factors: Dict[<span class="bu">str</span>, Any]       <span class="co"># 영향 요인</span></span>
+<span id="cb16-12"><a href="#cb16-12" aria-hidden="true" tabindex="-1"></a>    calculated_at: <span class="bu">str</span>            <span class="co"># 계산 시간</span></span>
+<span id="cb16-13"><a href="#cb16-13" aria-hidden="true" tabindex="-1"></a>    calculation_time: Optional[<span class="bu">float</span>]  <span class="co"># 계산 소요 시간</span></span></code></pre></div>
+<h4 id="teststep-구조">TestStep 구조</h4>
+<div class="sourceCode" id="cb17"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb17-1"><a href="#cb17-1" aria-hidden="true" tabindex="-1"></a><span class="at">@dataclass</span></span>
+<span id="cb17-2"><a href="#cb17-2" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> TestStep:</span>
+<span id="cb17-3"><a href="#cb17-3" aria-hidden="true" tabindex="-1"></a>    step_id: <span class="bu">str</span>                  <span class="co"># 단계 ID</span></span>
+<span id="cb17-4"><a href="#cb17-4" aria-hidden="true" tabindex="-1"></a>    step_name: <span class="bu">str</span>                <span class="co"># 단계 이름</span></span>
+<span id="cb17-5"><a href="#cb17-5" aria-hidden="true" tabindex="-1"></a>    description: <span class="bu">str</span>              <span class="co"># 설명</span></span>
+<span id="cb17-6"><a href="#cb17-6" aria-hidden="true" tabindex="-1"></a>    status: <span class="bu">str</span>                   <span class="co"># TestStepStatus (pending, running, success, failed, skipped)</span></span>
+<span id="cb17-7"><a href="#cb17-7" aria-hidden="true" tabindex="-1"></a>    start_time: Optional[<span class="bu">str</span>]     <span class="co"># 시작 시간</span></span>
+<span id="cb17-8"><a href="#cb17-8" aria-hidden="true" tabindex="-1"></a>    end_time: Optional[<span class="bu">str</span>]       <span class="co"># 종료 시간</span></span>
+<span id="cb17-9"><a href="#cb17-9" aria-hidden="true" tabindex="-1"></a>    duration: Optional[<span class="bu">float</span>]     <span class="co"># 소요 시간</span></span>
+<span id="cb17-10"><a href="#cb17-10" aria-hidden="true" tabindex="-1"></a>    input_data: Optional[Dict]    <span class="co"># 입력 데이터</span></span>
+<span id="cb17-11"><a href="#cb17-11" aria-hidden="true" tabindex="-1"></a>    output_data: Optional[Dict]   <span class="co"># 출력 데이터</span></span>
+<span id="cb17-12"><a href="#cb17-12" aria-hidden="true" tabindex="-1"></a>    intermediate_results: List[Dict]  <span class="co"># 중간 결과</span></span>
+<span id="cb17-13"><a href="#cb17-13" aria-hidden="true" tabindex="-1"></a>    error_message: Optional[<span class="bu">str</span>]  <span class="co"># 에러 메시지</span></span>
+<span id="cb17-14"><a href="#cb17-14" aria-hidden="true" tabindex="-1"></a>    warning_messages: List[<span class="bu">str</span>]   <span class="co"># 경고 메시지</span></span></code></pre></div>
+<h4 id="trace-저장-위치">Trace 저장 위치</h4>
+<ul>
+<li><code>evaluation_results/traces/trace_{metric_name}_{task_id}.json</code></li>
+</ul>
+<h4 id="계산-과정-예시-faithfulness">계산 과정 예시 (Faithfulness)</h4>
+<pre><code>1. Load Context
+   ↓ 검색된 컨텍스트 3개 로드
+   ↓ 총 1500자
+
+2. Extract Claims
+   ↓ 답변에서 주장(claim) 추출
+   ↓ 5개의 주장 발견
+
+3. Verify Claims
+   ↓ 각 주장을 컨텍스트로 검증
+   ↓ 검증됨: 4개, 검증 안 됨: 1개
+
+4. Calculate Score
+   ↓ Faithfulness = 4/5 = 0.8
+   ✅ 완료</code></pre>
+<h4 id="ui-구성-4">UI 구성</h4>
+<div class="mermaid">
+graph TB
+    Main["📊 메트릭 계산 과정"]
+
+    Main --> TraceSelect["Trace: faithfulness_task_001"]
+    Main --> MetricInfo["메트릭: faithfulness - 타입: ragas - 값: 0.800"]
+
+    Main --> Timeline["타임라인"]
+    Timeline --> T1["◯────●────●────●"]
+    Timeline --> T2["1    2    3    4"]
+
+    Main --> Step1["📌 단계 1: Load Context - SUCCESS"]
+    Step1 --> S1_Desc["설명: 검색된 컨텍스트 로드"]
+    Step1 --> S1_Input["입력: context_count: 3"]
+    Step1 --> S1_Output["출력: total_chars: 1500"]
+
+    Main --> Step2["📌 단계 2: Extract Claims - SUCCESS"]
+    Main --> Step3["📌 단계 3: Verify Claims - SUCCESS"]
+
+    Main --> Explanation["💡 설명"]
+    Explanation --> E1["Faithfulness 점수: 0.800"]
+    Explanation --> E2["답변이 대체로 컨텍스트에 충실합니다"]
+
+    Main --> Factors["📈 영향 요인"]
+    Factors --> F1["total_claims: 5"]
+    Factors --> F2["verified_claims: 4"]
+    Factors --> F3["verification_rate: 0.8"]
+
+    style Main fill:#667eea,color:#fff
+    style Step1 fill:#fff3e0
+    style Explanation fill:#e8f5e9
+</div>
+<h4 id="코드-예시">코드 예시</h4>
+<div class="sourceCode" id="cb20"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb20-1"><a href="#cb20-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> test_transparency_manager <span class="im">import</span> TestTransparencyManager, TestStepStatus</span>
+<span id="cb20-2"><a href="#cb20-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb20-3"><a href="#cb20-3" aria-hidden="true" tabindex="-1"></a>manager <span class="op">=</span> TestTransparencyManager()</span>
+<span id="cb20-4"><a href="#cb20-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb20-5"><a href="#cb20-5" aria-hidden="true" tabindex="-1"></a><span class="co"># 1. 메트릭 계산 시작</span></span>
+<span id="cb20-6"><a href="#cb20-6" aria-hidden="true" tabindex="-1"></a>trace_id <span class="op">=</span> manager.start_metric_calculation(</span>
+<span id="cb20-7"><a href="#cb20-7" aria-hidden="true" tabindex="-1"></a>    metric_name<span class="op">=</span><span class="st">&quot;faithfulness&quot;</span>,</span>
+<span id="cb20-8"><a href="#cb20-8" aria-hidden="true" tabindex="-1"></a>    metric_type<span class="op">=</span><span class="st">&quot;ragas&quot;</span>,</span>
+<span id="cb20-9"><a href="#cb20-9" aria-hidden="true" tabindex="-1"></a>    task_id<span class="op">=</span><span class="st">&quot;task_001&quot;</span></span>
+<span id="cb20-10"><a href="#cb20-10" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb20-11"><a href="#cb20-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb20-12"><a href="#cb20-12" aria-hidden="true" tabindex="-1"></a><span class="co"># 2. 각 단계 추가</span></span>
+<span id="cb20-13"><a href="#cb20-13" aria-hidden="true" tabindex="-1"></a>manager.add_calculation_step(</span>
+<span id="cb20-14"><a href="#cb20-14" aria-hidden="true" tabindex="-1"></a>    trace_id<span class="op">=</span>trace_id,</span>
+<span id="cb20-15"><a href="#cb20-15" aria-hidden="true" tabindex="-1"></a>    step_name<span class="op">=</span><span class="st">&quot;Load Context&quot;</span>,</span>
+<span id="cb20-16"><a href="#cb20-16" aria-hidden="true" tabindex="-1"></a>    description<span class="op">=</span><span class="st">&quot;검색된 컨텍스트 로드&quot;</span>,</span>
+<span id="cb20-17"><a href="#cb20-17" aria-hidden="true" tabindex="-1"></a>    input_data<span class="op">=</span>{<span class="st">&quot;context_count&quot;</span>: <span class="dv">3</span>},</span>
+<span id="cb20-18"><a href="#cb20-18" aria-hidden="true" tabindex="-1"></a>    output_data<span class="op">=</span>{<span class="st">&quot;total_chars&quot;</span>: <span class="dv">1500</span>},</span>
+<span id="cb20-19"><a href="#cb20-19" aria-hidden="true" tabindex="-1"></a>    status<span class="op">=</span>TestStepStatus.SUCCESS</span>
+<span id="cb20-20"><a href="#cb20-20" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb20-21"><a href="#cb20-21" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb20-22"><a href="#cb20-22" aria-hidden="true" tabindex="-1"></a>manager.add_calculation_step(</span>
+<span id="cb20-23"><a href="#cb20-23" aria-hidden="true" tabindex="-1"></a>    trace_id<span class="op">=</span>trace_id,</span>
+<span id="cb20-24"><a href="#cb20-24" aria-hidden="true" tabindex="-1"></a>    step_name<span class="op">=</span><span class="st">&quot;Extract Claims&quot;</span>,</span>
+<span id="cb20-25"><a href="#cb20-25" aria-hidden="true" tabindex="-1"></a>    description<span class="op">=</span><span class="st">&quot;답변에서 주장(claim) 추출&quot;</span>,</span>
+<span id="cb20-26"><a href="#cb20-26" aria-hidden="true" tabindex="-1"></a>    input_data<span class="op">=</span>{<span class="st">&quot;answer_length&quot;</span>: <span class="dv">200</span>},</span>
+<span id="cb20-27"><a href="#cb20-27" aria-hidden="true" tabindex="-1"></a>    output_data<span class="op">=</span>{<span class="st">&quot;claims_count&quot;</span>: <span class="dv">5</span>},</span>
+<span id="cb20-28"><a href="#cb20-28" aria-hidden="true" tabindex="-1"></a>    status<span class="op">=</span>TestStepStatus.SUCCESS</span>
+<span id="cb20-29"><a href="#cb20-29" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb20-30"><a href="#cb20-30" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb20-31"><a href="#cb20-31" aria-hidden="true" tabindex="-1"></a>manager.add_calculation_step(</span>
+<span id="cb20-32"><a href="#cb20-32" aria-hidden="true" tabindex="-1"></a>    trace_id<span class="op">=</span>trace_id,</span>
+<span id="cb20-33"><a href="#cb20-33" aria-hidden="true" tabindex="-1"></a>    step_name<span class="op">=</span><span class="st">&quot;Verify Claims&quot;</span>,</span>
+<span id="cb20-34"><a href="#cb20-34" aria-hidden="true" tabindex="-1"></a>    description<span class="op">=</span><span class="st">&quot;각 주장을 컨텍스트로 검증&quot;</span>,</span>
+<span id="cb20-35"><a href="#cb20-35" aria-hidden="true" tabindex="-1"></a>    input_data<span class="op">=</span>{<span class="st">&quot;claims_count&quot;</span>: <span class="dv">5</span>},</span>
+<span id="cb20-36"><a href="#cb20-36" aria-hidden="true" tabindex="-1"></a>    output_data<span class="op">=</span>{<span class="st">&quot;verified_claims&quot;</span>: <span class="dv">4</span>, <span class="st">&quot;unverified_claims&quot;</span>: <span class="dv">1</span>},</span>
+<span id="cb20-37"><a href="#cb20-37" aria-hidden="true" tabindex="-1"></a>    status<span class="op">=</span>TestStepStatus.SUCCESS</span>
+<span id="cb20-38"><a href="#cb20-38" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb20-39"><a href="#cb20-39" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb20-40"><a href="#cb20-40" aria-hidden="true" tabindex="-1"></a><span class="co"># 3. 계산 완료</span></span>
+<span id="cb20-41"><a href="#cb20-41" aria-hidden="true" tabindex="-1"></a>manager.complete_metric_calculation(</span>
+<span id="cb20-42"><a href="#cb20-42" aria-hidden="true" tabindex="-1"></a>    trace_id<span class="op">=</span>trace_id,</span>
+<span id="cb20-43"><a href="#cb20-43" aria-hidden="true" tabindex="-1"></a>    final_value<span class="op">=</span><span class="fl">0.8</span>,</span>
+<span id="cb20-44"><a href="#cb20-44" aria-hidden="true" tabindex="-1"></a>    threshold_value<span class="op">=</span><span class="fl">0.8</span>,</span>
+<span id="cb20-45"><a href="#cb20-45" aria-hidden="true" tabindex="-1"></a>    explanation<span class="op">=</span><span class="st">&quot;답변이 대체로 컨텍스트에 충실합니다.&quot;</span>,</span>
+<span id="cb20-46"><a href="#cb20-46" aria-hidden="true" tabindex="-1"></a>    factors<span class="op">=</span>{</span>
+<span id="cb20-47"><a href="#cb20-47" aria-hidden="true" tabindex="-1"></a>        <span class="st">&quot;total_claims&quot;</span>: <span class="dv">5</span>,</span>
+<span id="cb20-48"><a href="#cb20-48" aria-hidden="true" tabindex="-1"></a>        <span class="st">&quot;verified_claims&quot;</span>: <span class="dv">4</span>,</span>
+<span id="cb20-49"><a href="#cb20-49" aria-hidden="true" tabindex="-1"></a>        <span class="st">&quot;verification_rate&quot;</span>: <span class="fl">0.8</span></span>
+<span id="cb20-50"><a href="#cb20-50" aria-hidden="true" tabindex="-1"></a>    }</span>
+<span id="cb20-51"><a href="#cb20-51" aria-hidden="true" tabindex="-1"></a>)</span></code></pre></div>
+<h3 id="주석annotation-시스템">2. 주석(Annotation) 시스템</h3>
+<p>Test 결과에 의견과 코멘트를 추가할 수 있습니다.</p>
+<h4 id="주석-유형-annotationtype-enum">주석 유형 (AnnotationType
+Enum)</h4>
+<ol type="1">
+<li><strong>Comment (코멘트)</strong>: 일반적인 의견</li>
+<li><strong>Issue (이슈)</strong>: 문제 제기</li>
+<li><strong>Improvement (개선)</strong>: 개선 제안</li>
+<li><strong>Confirmation (확인)</strong>: 정상 확인</li>
+<li><strong>Question (질문)</strong>: 질문</li>
+</ol>
+<h4 id="기능-7">기능</h4>
+<ul>
+<li><strong>주석 추가</strong>: 특정 Task, Metric, Dataset에 주석
+달기</li>
+<li><strong>우선순위</strong>: Low, Normal, High, Critical</li>
+<li><strong>상태 관리</strong>: Open, In Progress, Resolved, Closed</li>
+<li><strong>답변 스레드</strong>: 주석에 답변 달기</li>
+<li><strong>태그</strong>: 분류 및 검색을 위한 태그</li>
+</ul>
+<h4 id="주석-관리-메서드">주석 관리 메서드</h4>
+
+<p><strong>TestTransparencyManager 클래스</strong>:</p>
+<ul>
+<li><code>add_annotation(target_type, target_id, annotation_type, priority, title, content, author, metadata=None)</code>: 주석 추가, annotation 딕셔너리 반환</li>
+<li><code>add_reply_to_annotation(annotation_id, author, content)</code>: 주석에 답변 추가</li>
+<li><code>load_annotations(annotation_type=None, status=None, target_type=None, priority=None)</code>: 주석 로드 (필터링)</li>
+</ul>
+<p><strong>파라미터</strong>:</p>
+<ul>
+<li><code>target_type</code>: "task", "metric", "dataset" 등</li>
+<li><code>target_id</code>: 대상 ID</li>
+<li><code>annotation_type</code>: AnnotationType enum (NOTE, WARNING, REVIEW, IMPROVEMENT, BUG, QUESTION)</li>
+<li><code>priority</code>: "low", "medium", "high", "critical"</li>
+<li><code>title</code>: 주석 제목</li>
+<li><code>content</code>: 주석 내용</li>
+<li><code>author</code>: 작성자 이름/이메일</li>
+<li><code>metadata</code>: 선택적 추가 데이터 (related_metric, related_value 등)</li>
+</ul>
+<h4 id="annotation-구조">Annotation 구조</h4>
+<div class="sourceCode" id="cb21"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb21-1"><a href="#cb21-1" aria-hidden="true" tabindex="-1"></a><span class="at">@dataclass</span></span>
+<span id="cb21-2"><a href="#cb21-2" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> Annotation:</span>
+<span id="cb21-3"><a href="#cb21-3" aria-hidden="true" tabindex="-1"></a>    annotation_id: <span class="bu">str</span>            <span class="co"># 주석 ID (YYYYMMDD_HHMMSS_ffffff)</span></span>
+<span id="cb21-4"><a href="#cb21-4" aria-hidden="true" tabindex="-1"></a>    target_type: <span class="bu">str</span>              <span class="co"># &quot;task&quot;, &quot;metric&quot;, &quot;dataset&quot;</span></span>
+<span id="cb21-5"><a href="#cb21-5" aria-hidden="true" tabindex="-1"></a>    target_id: <span class="bu">str</span>                <span class="co"># 대상 ID</span></span>
+<span id="cb21-6"><a href="#cb21-6" aria-hidden="true" tabindex="-1"></a>    annotation_type: <span class="bu">str</span>          <span class="co"># AnnotationType 값</span></span>
+<span id="cb21-7"><a href="#cb21-7" aria-hidden="true" tabindex="-1"></a>    title: <span class="bu">str</span>                    <span class="co"># 제목</span></span>
+<span id="cb21-8"><a href="#cb21-8" aria-hidden="true" tabindex="-1"></a>    content: <span class="bu">str</span>                  <span class="co"># 내용</span></span>
+<span id="cb21-9"><a href="#cb21-9" aria-hidden="true" tabindex="-1"></a>    author: <span class="bu">str</span>                   <span class="co"># 작성자</span></span>
+<span id="cb21-10"><a href="#cb21-10" aria-hidden="true" tabindex="-1"></a>    created_at: <span class="bu">str</span>               <span class="co"># 생성 시간</span></span>
+<span id="cb21-11"><a href="#cb21-11" aria-hidden="true" tabindex="-1"></a>    related_metric: Optional[<span class="bu">str</span>] <span class="co"># 관련 메트릭</span></span>
+<span id="cb21-12"><a href="#cb21-12" aria-hidden="true" tabindex="-1"></a>    related_value: Optional[<span class="bu">float</span>]<span class="co"># 관련 값</span></span>
+<span id="cb21-13"><a href="#cb21-13" aria-hidden="true" tabindex="-1"></a>    priority: <span class="bu">str</span>                 <span class="co"># &quot;low&quot;, &quot;normal&quot;, &quot;high&quot;, &quot;critical&quot;</span></span>
+<span id="cb21-14"><a href="#cb21-14" aria-hidden="true" tabindex="-1"></a>    status: <span class="bu">str</span>                   <span class="co"># &quot;open&quot;, &quot;in_progress&quot;, &quot;resolved&quot;, &quot;closed&quot;</span></span>
+<span id="cb21-15"><a href="#cb21-15" aria-hidden="true" tabindex="-1"></a>    tags: List[<span class="bu">str</span>]               <span class="co"># 태그</span></span>
+<span id="cb21-16"><a href="#cb21-16" aria-hidden="true" tabindex="-1"></a>    replies: List[Dict]           <span class="co"># 답변 스레드</span></span></code></pre></div>
+<h4 id="주석-저장-위치">주석 저장 위치</h4>
+<ul>
+<li><code>evaluation_results/annotations/annotation_{annotation_id}.json</code></li>
+</ul>
+<h4 id="ui-구성-5">UI 구성</h4>
+<div class="mermaid">
+graph LR
+    Main["📝 주석 관리"]
+
+    Main --> List["📋 주석 목록"]
+    List --> Filter["필터: 유형/상태/우선순위"]
+    List --> Info["ℹ️ 8개의 주석"]
+    List --> Item1["🟡 Faithfulness 점수 검토<br/>COMMENT - open"]
+    List --> Item2["답변 스레드 2개"]
+
+    Main --> Add["➕ 주석 추가"]
+    Add --> A1["대상 유형: metric"]
+    Add --> A2["대상 ID: faithfulness"]
+    Add --> A3["주석 유형: comment"]
+    Add --> A4["우선순위: normal"]
+    Add --> A5["제목 입력"]
+    Add --> A6["내용 입력"]
+    Add --> A7["관련 메트릭"]
+    Add --> A8["태그"]
+    Add --> A9["작성자: Admin"]
+    Add --> Submit["📤 주석 추가"]
+
+    style Main fill:#667eea,color:#fff
+    style List fill:#e3f2fd
+    style Add fill:#fff3e0
+</div>
+<h4 id="코드-예시-1">코드 예시</h4>
+<div class="sourceCode" id="cb23"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb23-1"><a href="#cb23-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> test_transparency_manager <span class="im">import</span> TestTransparencyManager, AnnotationType</span>
+<span id="cb23-2"><a href="#cb23-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb23-3"><a href="#cb23-3" aria-hidden="true" tabindex="-1"></a>manager <span class="op">=</span> TestTransparencyManager()</span>
+<span id="cb23-4"><a href="#cb23-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb23-5"><a href="#cb23-5" aria-hidden="true" tabindex="-1"></a><span class="co"># 주석 추가</span></span>
+<span id="cb23-6"><a href="#cb23-6" aria-hidden="true" tabindex="-1"></a>annotation <span class="op">=</span> manager.add_annotation(</span>
+<span id="cb23-7"><a href="#cb23-7" aria-hidden="true" tabindex="-1"></a>    target_type<span class="op">=</span><span class="st">&quot;metric&quot;</span>,</span>
+<span id="cb23-8"><a href="#cb23-8" aria-hidden="true" tabindex="-1"></a>    target_id<span class="op">=</span><span class="st">&quot;faithfulness_task_001&quot;</span>,</span>
+<span id="cb23-9"><a href="#cb23-9" aria-hidden="true" tabindex="-1"></a>    annotation_type<span class="op">=</span>AnnotationType.NOTE,</span>
+<span id="cb23-10"><a href="#cb23-10" aria-hidden="true" tabindex="-1"></a>    priority<span class="op">=</span><span class="st">&quot;medium&quot;</span>,</span>
+<span id="cb23-11"><a href="#cb23-11" aria-hidden="true" tabindex="-1"></a>    title<span class="op">=</span><span class="st">&quot;Faithfulness 점수 검토&quot;</span>,</span>
+<span id="cb23-12"><a href="#cb23-12" aria-hidden="true" tabindex="-1"></a>    content<span class="op">=</span><span class="st">&quot;&quot;&quot;</span></span>
+<span id="cb23-13"><a href="#cb23-13" aria-hidden="true" tabindex="-1"></a><span class="st">하나의 주장이 검증되지 않았으나, 이는 컨텍스트의 표현 방식 차이로</span></span>
+<span id="cb23-14"><a href="#cb23-14" aria-hidden="true" tabindex="-1"></a><span class="st">인한 것으로 보임. 실제로는 정상.</span></span>
+<span id="cb23-15"><a href="#cb23-15" aria-hidden="true" tabindex="-1"></a><span class="st">    &quot;&quot;&quot;</span>,</span>
+<span id="cb23-16"><a href="#cb23-16" aria-hidden="true" tabindex="-1"></a>    author<span class="op">=</span><span class="st">&quot;reviewer@example.com&quot;</span>,</span>
+<span id="cb23-17"><a href="#cb23-17" aria-hidden="true" tabindex="-1"></a>    metadata<span class="op">=</span>{<span class="st">&quot;related_metric&quot;</span>: <span class="st">&quot;faithfulness&quot;</span>, <span class="st">&quot;related_value&quot;</span>: <span class="fl">0.8</span>}</span>
+<span id="cb23-18"><a href="#cb23-18" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb23-21"><a href="#cb23-21" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb23-22"><a href="#cb23-22" aria-hidden="true" tabindex="-1"></a><span class="co"># 답변 추가</span></span>
+<span id="cb23-23"><a href="#cb23-23" aria-hidden="true" tabindex="-1"></a>manager.add_reply_to_annotation(</span>
+<span id="cb23-24"><a href="#cb23-24" aria-hidden="true" tabindex="-1"></a>    annotation_id<span class="op">=</span>annotation[<span class="st">&quot;annotation_id&quot;</span>],</span>
+<span id="cb23-25"><a href="#cb23-25" aria-hidden="true" tabindex="-1"></a>    author<span class="op">=</span><span class="st">&quot;expert@example.com&quot;</span>,</span>
+<span id="cb23-26"><a href="#cb23-26" aria-hidden="true" tabindex="-1"></a>    content<span class="op">=</span><span class="st">&quot;동의합니다. 이 경우 정상으로 판단됩니다.&quot;</span></span>
+<span id="cb23-27"><a href="#cb23-27" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb23-28"><a href="#cb23-28" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb23-29"><a href="#cb23-29" aria-hidden="true" tabindex="-1"></a><span class="co"># 상태 변경</span></span>
+<span id="cb23-30"><a href="#cb23-30" aria-hidden="true" tabindex="-1"></a>manager.update_annotation_status(</span>
+<span id="cb23-31"><a href="#cb23-31" aria-hidden="true" tabindex="-1"></a>    annotation_id<span class="op">=</span>annotation_id,</span>
+<span id="cb23-32"><a href="#cb23-32" aria-hidden="true" tabindex="-1"></a>    new_status<span class="op">=</span><span class="st">&quot;resolved&quot;</span>,</span>
+<span id="cb23-33"><a href="#cb23-33" aria-hidden="true" tabindex="-1"></a>    user<span class="op">=</span><span class="st">&quot;admin@example.com&quot;</span></span>
+<span id="cb23-34"><a href="#cb23-34" aria-hidden="true" tabindex="-1"></a>)</span></code></pre></div>
+<h3 id="audit-log">3. Audit Log</h3>
+<p>모든 평가 활동을 기록합니다.</p>
+<h4 id="기록-항목">기록 항목</h4>
+<ul>
+<li><strong>Evaluation</strong>: 평가 실행</li>
+<li><strong>Annotation</strong>: 주석 추가/수정</li>
+<li><strong>Edit</strong>: 데이터 편집</li>
+<li><strong>View</strong>: 데이터 조회</li>
+</ul>
+<h4 id="audit-log-메서드">Audit Log 메서드</h4>
+
+<p><strong>TestTransparencyManager 클래스</strong>:</p>
+<ul>
+<li><code>log_event(event_type, user, action, target_type, target_id, details, success, error_message)</code>: 이벤트 로깅</li>
+<li><code>load_audit_logs(event_type, user, limit=100)</code>: Audit Log 로드 (필터링)</li>
+</ul>
+<h4 id="auditlogentry-구조">AuditLogEntry 구조</h4>
+<div class="sourceCode" id="cb24"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb24-1"><a href="#cb24-1" aria-hidden="true" tabindex="-1"></a><span class="at">@dataclass</span></span>
+<span id="cb24-2"><a href="#cb24-2" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> AuditLogEntry:</span>
+<span id="cb24-3"><a href="#cb24-3" aria-hidden="true" tabindex="-1"></a>    log_id: <span class="bu">str</span>                   <span class="co"># 로그 ID (YYYYMMDD_HHMMSS_ffffff)</span></span>
+<span id="cb24-4"><a href="#cb24-4" aria-hidden="true" tabindex="-1"></a>    timestamp: <span class="bu">str</span>                <span class="co"># 시간</span></span>
+<span id="cb24-5"><a href="#cb24-5" aria-hidden="true" tabindex="-1"></a>    event_type: <span class="bu">str</span>               <span class="co"># &quot;evaluation&quot;, &quot;annotation&quot;, &quot;edit&quot;, &quot;view&quot;</span></span>
+<span id="cb24-6"><a href="#cb24-6" aria-hidden="true" tabindex="-1"></a>    user: <span class="bu">str</span>                     <span class="co"># 사용자</span></span>
+<span id="cb24-7"><a href="#cb24-7" aria-hidden="true" tabindex="-1"></a>    action: <span class="bu">str</span>                   <span class="co"># 액션</span></span>
+<span id="cb24-8"><a href="#cb24-8" aria-hidden="true" tabindex="-1"></a>    target_type: <span class="bu">str</span>              <span class="co"># 대상 타입</span></span>
+<span id="cb24-9"><a href="#cb24-9" aria-hidden="true" tabindex="-1"></a>    target_id: <span class="bu">str</span>                <span class="co"># 대상 ID</span></span>
+<span id="cb24-10"><a href="#cb24-10" aria-hidden="true" tabindex="-1"></a>    details: Dict[<span class="bu">str</span>, Any]       <span class="co"># 상세 정보</span></span>
+<span id="cb24-11"><a href="#cb24-11" aria-hidden="true" tabindex="-1"></a>    success: <span class="bu">bool</span>                 <span class="co"># 성공 여부</span></span>
+<span id="cb24-12"><a href="#cb24-12" aria-hidden="true" tabindex="-1"></a>    error_message: Optional[<span class="bu">str</span>]  <span class="co"># 에러 메시지</span></span></code></pre></div>
+<h4 id="audit-log-저장-위치">Audit Log 저장 위치</h4>
+<ul>
+<li><code>evaluation_results/audit_logs/audit_{log_id}.json</code></li>
+</ul>
+<h4 id="ui-구성-6">UI 구성</h4>
+<div class="mermaid">
+graph TB
+    Main["📜 Audit Log"]
+
+    Main --> Filter["필터 옵션"]
+    Filter --> F1["이벤트: 전체"]
+    Filter --> F2["사용자 입력"]
+    Filter --> F3["로그수: 100"]
+
+    Main --> Info["ℹ️ 150개의 로그"]
+
+    Main --> Table["로그 테이블"]
+    Table --> Col["시간 - 이벤트 - 사용자 - 액션 - 대상 - 성공"]
+    Table --> Row1["10:30:45 - eval - John - run - task_001 - ✅"]
+    Table --> Row2["10:25:30 - annot - Jane - create - anno_001 - ✅"]
+
+    Main --> Detail["🔍 로그 상세 보기"]
+    Detail --> D1["로그 ID: 20241128_103045_abc123"]
+    Detail --> D2["시간: 2024-11-28 10:30:45"]
+    Detail --> D3["이벤트 유형: evaluation"]
+    Detail --> D4["사용자: john@example.com"]
+    Detail --> D5["액션: run_evaluation"]
+    Detail --> D6["대상: task / task_001"]
+    Detail --> D7["성공 여부: ✅ 성공"]
+    Detail --> D8["상세 정보 JSON"]
+
+    style Main fill:#667eea,color:#fff
+    style Table fill:#e3f2fd
+    style Detail fill:#fff3e0
+</div>
+<h3 id="상세-리포트">4. 상세 리포트</h3>
+<p>모든 투명성 정보를 하나의 리포트로 통합합니다.</p>
+<h4 id="포함-내용">포함 내용</h4>
+<ul>
+<li>평가 요약</li>
+<li>메트릭 계산 추적</li>
+<li>주석 목록</li>
+<li>Audit Log</li>
+<li>권장사항</li>
+</ul>
+<h4 id="리포트-생성-메서드">리포트 생성 메서드</h4>
+
+<p><strong>TestTransparencyManager 클래스</strong>:</p>
+<ul>
+<li><code>generate_transparent_report(task_id, task_type, success, metric_traces, annotations)</code>: 투명한 평가 리포트 생성</li>
+<li><code>_generate_summary(traces)</code>: 요약 생성 (내부 메서드)</li>
+<li><code>_generate_recommendations(traces)</code>: 권장사항 생성 (내부 메서드)</li>
+</ul>
+<h4 id="transparentevaluationreport-구조">TransparentEvaluationReport
+구조</h4>
+<div class="sourceCode" id="cb26"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb26-1"><a href="#cb26-1" aria-hidden="true" tabindex="-1"></a><span class="at">@dataclass</span></span>
+<span id="cb26-2"><a href="#cb26-2" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> TransparentEvaluationReport:</span>
+<span id="cb26-3"><a href="#cb26-3" aria-hidden="true" tabindex="-1"></a>    report_id: <span class="bu">str</span>                    <span class="co"># 리포트 ID</span></span>
+<span id="cb26-4"><a href="#cb26-4" aria-hidden="true" tabindex="-1"></a>    task_id: <span class="bu">str</span>                      <span class="co"># 작업 ID</span></span>
+<span id="cb26-5"><a href="#cb26-5" aria-hidden="true" tabindex="-1"></a>    evaluated_at: <span class="bu">str</span>                 <span class="co"># 평가 시간</span></span>
+<span id="cb26-6"><a href="#cb26-6" aria-hidden="true" tabindex="-1"></a>    task_type: <span class="bu">str</span>                    <span class="co"># 작업 타입</span></span>
+<span id="cb26-7"><a href="#cb26-7" aria-hidden="true" tabindex="-1"></a>    success: <span class="bu">bool</span>                     <span class="co"># 성공 여부</span></span>
+<span id="cb26-8"><a href="#cb26-8" aria-hidden="true" tabindex="-1"></a>    metric_traces: List[MetricCalculationTrace]  <span class="co"># 메트릭 추적</span></span>
+<span id="cb26-9"><a href="#cb26-9" aria-hidden="true" tabindex="-1"></a>    annotations: List[Annotation]     <span class="co"># 주석 목록</span></span>
+<span id="cb26-10"><a href="#cb26-10" aria-hidden="true" tabindex="-1"></a>    audit_logs: List[AuditLogEntry]   <span class="co"># Audit Log</span></span>
+<span id="cb26-11"><a href="#cb26-11" aria-hidden="true" tabindex="-1"></a>    summary: Dict[<span class="bu">str</span>, Any]           <span class="co"># 요약</span></span>
+<span id="cb26-12"><a href="#cb26-12" aria-hidden="true" tabindex="-1"></a>    recommendations: List[<span class="bu">str</span>]        <span class="co"># 권장사항</span></span></code></pre></div>
+<h4 id="리포트-저장-위치">리포트 저장 위치</h4>
+<ul>
+<li><code>evaluation_results/transparent_report_{report_id}.json</code></li>
+</ul>
+<h3 id="고급-분석-기능-phase-3-enhanced">5. 고급 분석 기능 (Phase 3
+Enhanced)</h3>
+<p>TestTransparencyManager는 5가지 새로운 고급 분석 기능을
+제공합니다.</p>
+<h4 id="이상치-탐지-anomaly-detection">5.1 이상치 탐지 (Anomaly
+Detection)</h4>
+<p><strong>메서드</strong>: <code>analyze_metric_anomalies(monitor)</code></p>
+
+<p>메트릭 간 불일치를 자동으로 감지합니다:</p>
+<ul>
+<li>TCR과 정확도 불일치 (TCR &gt; 90% but Accuracy &lt; 70%)</li>
+<li>품질과 환각률 모순 (Quality &gt; 4.0 but Hallucination &gt; 10%)</li>
+<li>고지연 경고 (Latency &gt; 5.0s)</li>
+<li>낮은 정확도 경고 (Accuracy &lt; 70%)</li>
+</ul>
+<p>반환값:</p>
+<div class="sourceCode" id="cb27"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb27-1"><a href="#cb27-1" aria-hidden="true" tabindex="-1"></a>{</span>
+<span id="cb27-2"><a href="#cb27-2" aria-hidden="true" tabindex="-1"></a>    <span class="st">&#39;anomalies&#39;</span>: [...],      <span class="co"># 이상치 목록</span></span>
+<span id="cb27-3"><a href="#cb27-3" aria-hidden="true" tabindex="-1"></a>    <span class="st">&#39;warnings&#39;</span>: [...],       <span class="co"># 경고 목록</span></span>
+<span id="cb27-4"><a href="#cb27-4" aria-hidden="true" tabindex="-1"></a>    <span class="st">&#39;insights&#39;</span>: [...],       <span class="co"># 긍정적 인사이트</span></span>
+<span id="cb27-5"><a href="#cb27-5" aria-hidden="true" tabindex="-1"></a>    <span class="st">&#39;analyzed_at&#39;</span>: <span class="st">&#39;...&#39;</span></span>
+<span id="cb27-6"><a href="#cb27-6" aria-hidden="true" tabindex="-1"></a>}</span></code></pre></div>
+<h4 id="상관관계-분석-correlation-analysis">5.2 상관관계 분석
+(Correlation Analysis)</h4>
+<p><strong>메서드</strong>: <code>analyze_metric_correlations(monitor)</code></p>
+
+<p>메트릭 간 관계를 분석합니다:</p>
+<ul>
+<li>지연시간 vs 토큰 사용량</li>
+<li>품질 vs 정확도</li>
+<li>비용 vs 성능</li>
+</ul>
+<p>반환값:</p>
+<div class="sourceCode" id="cb28"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb28-1"><a href="#cb28-1" aria-hidden="true" tabindex="-1"></a>{</span>
+<span id="cb28-2"><a href="#cb28-2" aria-hidden="true" tabindex="-1"></a>    <span class="st">&#39;correlations&#39;</span>: [...],   <span class="co"># 상관관계 목록</span></span>
+<span id="cb28-3"><a href="#cb28-3" aria-hidden="true" tabindex="-1"></a>    <span class="st">&#39;analyzed_at&#39;</span>: <span class="st">&#39;...&#39;</span></span>
+<span id="cb28-4"><a href="#cb28-4" aria-hidden="true" tabindex="-1"></a>}</span></code></pre></div>
+<h4 id="성능-병목-지점-식별-performance-bottlenecks">5.3 성능 병목 지점
+식별 (Performance Bottlenecks)</h4>
+<p><strong>메서드</strong>: <code>identify_performance_bottlenecks(monitor)</code></p>
+
+<p>시스템 병목을 자동으로 식별합니다:</p>
+<ul>
+<li>지연시간 아웃라이어 (P95 &gt; Mean × 2)</li>
+<li>과도한 도구 호출 (Avg Tools &gt; 5)</li>
+<li>높은 재시도율 (Retry Rate &gt; 20%)</li>
+</ul>
+<p>반환값:</p>
+<div class="sourceCode" id="cb29"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb29-1"><a href="#cb29-1" aria-hidden="true" tabindex="-1"></a>{</span>
+<span id="cb29-2"><a href="#cb29-2" aria-hidden="true" tabindex="-1"></a>    <span class="st">&#39;bottlenecks&#39;</span>: [...],    <span class="co"># 병목 지점 목록</span></span>
+<span id="cb29-3"><a href="#cb29-3" aria-hidden="true" tabindex="-1"></a>    <span class="st">&#39;analyzed_at&#39;</span>: <span class="st">&#39;...&#39;</span></span>
+<span id="cb29-4"><a href="#cb29-4" aria-hidden="true" tabindex="-1"></a>}</span></code></pre></div>
+<h4 id="데이터-품질-검증-data-quality-validation">5.4 데이터 품질 검증
+(Data Quality Validation)</h4>
+<p><strong>메서드</strong>: <code>generate_data_quality_report(monitor)</code></p>
+
+<p>평가 데이터의 완전성을 검증합니다:</p>
+<ul>
+<li>평가된 작업 수</li>
+<li>점수 누락 여부</li>
+<li>에러 발생률</li>
+<li>품질 평가 완전성</li>
+</ul>
+<p>반환값:</p>
+<div class="sourceCode" id="cb30"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb30-1"><a href="#cb30-1" aria-hidden="true" tabindex="-1"></a>{</span>
+<span id="cb30-2"><a href="#cb30-2" aria-hidden="true" tabindex="-1"></a>    <span class="st">&#39;overall_score&#39;</span>: <span class="fl">85.0</span>,      <span class="co"># 전체 품질 점수 (0-100)</span></span>
+<span id="cb30-3"><a href="#cb30-3" aria-hidden="true" tabindex="-1"></a>    <span class="st">&#39;quality_issues&#39;</span>: [...],    <span class="co"># 품질 이슈 목록</span></span>
+<span id="cb30-4"><a href="#cb30-4" aria-hidden="true" tabindex="-1"></a>    <span class="st">&#39;data_completeness&#39;</span>: {...}, <span class="co"># 데이터 완전성</span></span>
+<span id="cb30-5"><a href="#cb30-5" aria-hidden="true" tabindex="-1"></a>    <span class="st">&#39;analyzed_at&#39;</span>: <span class="st">&#39;...&#39;</span></span>
+<span id="cb30-6"><a href="#cb30-6" aria-hidden="true" tabindex="-1"></a>}</span></code></pre></div>
+<h4 id="실행-가능한-개선-방안-actionable-insights">5.5 실행 가능한 개선
+방안 (Actionable Insights)</h4>
+<p><strong>메서드</strong>:
+<code>generate_actionable_insights(monitor)</code></p>
+<p>우선순위 기반 구체적 개선안을 제시합니다:</p>
+<ul>
+<li>비용 최적화 (Cost &gt; $1.0)</li>
+<li>응답 속도 개선 (Latency &gt; 3.0s)</li>
+<li>정확도 향상 (Accuracy &lt; 85%)</li>
+<li>환각 발생 감소 (Hallucination &gt; 5%)</li>
+<li>응답 품질 개선 (Quality &lt; 4.0)</li>
+</ul>
+<p>반환값:</p>
+<div class="sourceCode" id="cb31"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb31-1"><a href="#cb31-1" aria-hidden="true" tabindex="-1"></a>[</span>
+<span id="cb31-2"><a href="#cb31-2" aria-hidden="true" tabindex="-1"></a>    {</span>
+<span id="cb31-3"><a href="#cb31-3" aria-hidden="true" tabindex="-1"></a>        <span class="st">&#39;priority&#39;</span>: <span class="st">&#39;high&#39;</span>,              <span class="co"># critical, high, medium, low</span></span>
+<span id="cb31-4"><a href="#cb31-4" aria-hidden="true" tabindex="-1"></a>        <span class="st">&#39;category&#39;</span>: <span class="st">&#39;cost&#39;</span>,              <span class="co"># cost, performance, accuracy, reliability, quality</span></span>
+<span id="cb31-5"><a href="#cb31-5" aria-hidden="true" tabindex="-1"></a>        <span class="st">&#39;title&#39;</span>: <span class="st">&#39;비용 최적화 기회&#39;</span>,</span>
+<span id="cb31-6"><a href="#cb31-6" aria-hidden="true" tabindex="-1"></a>        <span class="st">&#39;current_state&#39;</span>: <span class="st">&#39;총 비용: $10.00&#39;</span>,</span>
+<span id="cb31-7"><a href="#cb31-7" aria-hidden="true" tabindex="-1"></a>        <span class="st">&#39;action&#39;</span>: <span class="st">&#39;GPT-4o-mini 사용 고려&#39;</span>,</span>
+<span id="cb31-8"><a href="#cb31-8" aria-hidden="true" tabindex="-1"></a>        <span class="st">&#39;expected_impact&#39;</span>: <span class="st">&#39;비용을 최대 90% 절감&#39;</span>,</span>
+<span id="cb31-9"><a href="#cb31-9" aria-hidden="true" tabindex="-1"></a>        <span class="st">&#39;implementation&#39;</span>: [              <span class="co"># 구체적 구현 단계</span></span>
+<span id="cb31-10"><a href="#cb31-10" aria-hidden="true" tabindex="-1"></a>            <span class="st">&#39;1. create_monitor(profile=&quot;minimal&quot;)&#39;</span>,</span>
+<span id="cb31-11"><a href="#cb31-11" aria-hidden="true" tabindex="-1"></a>            <span class="st">&#39;2. 고급 메트릭 샘플링 적용&#39;</span>,</span>
+<span id="cb31-12"><a href="#cb31-12" aria-hidden="true" tabindex="-1"></a>            <span class="st">&#39;3. 더 저렴한 모델로 변경&#39;</span></span>
+<span id="cb31-13"><a href="#cb31-13" aria-hidden="true" tabindex="-1"></a>        ]</span>
+<span id="cb31-14"><a href="#cb31-14" aria-hidden="true" tabindex="-1"></a>    },</span>
+<span id="cb31-15"><a href="#cb31-15" aria-hidden="true" tabindex="-1"></a>    ...</span>
+<span id="cb31-16"><a href="#cb31-16" aria-hidden="true" tabindex="-1"></a>]</span></code></pre></div>
+<hr />
+<h2 id="ux-설계">UX 설계</h2>
+<h3 id="네비게이션-구조">1. 네비게이션 구조</h3>
+<div class="mermaid">
+graph TD
+    Dashboard[Dashboard 메인]
+
+    Dashboard --> E1[📊 개요]
+    Dashboard --> E2[🎯 정확도 & 품질]
+    Dashboard --> E3[⚡ 효율성]
+    Dashboard --> E4[🔬 고급 평가 지표]
+    Dashboard --> E5[🚨 알림]
+
+    Dashboard --> N1[📝 데이터 편집 ⭐ NEW]
+    N1 --> N1S1[TaskResult 편집]
+    N1 --> N1S2[Golden Dataset 편집]
+    N1 --> N1S3[임계값 설정]
+    N1 --> N1S4[버전 관리]
+    N1 --> N1S5[편집 기록]
+
+    Dashboard --> N2[🔬 Test 투명성 ⭐ NEW]
+    N2 --> N2S1[메트릭 계산 과정]
+    N2 --> N2S2[주석 관리]
+    N2 --> N2S3[Audit Log]
+    N2 --> N2S4[상세 리포트]
+
+    style Dashboard fill:#e3f2fd
+    style N1 fill:#fff9c4
+    style N2 fill:#fff9c4
+</div>
+<h3 id="사용자-플로우">2. 사용자 플로우</h3>
+<h4 id="플로우-1-데이터-수정">플로우 1: 데이터 수정</h4>
+<div class="mermaid">
+flowchart TD
+    A[Dashboard 접속] --> B[데이터 편집 탭 선택]
+    B --> C{편집할 데이터<br/>유형 선택}
+
+    C -->|TaskResult| D1[TaskResult 편집]
+    C -->|Golden Dataset| D2[Golden Dataset 편집]
+    C -->|임계값| D3[임계값 설정]
+
+    D1 --> E[필터/검색으로<br/>대상 찾기]
+    D2 --> E
+    D3 --> E
+
+    E --> F[셀 더블클릭하여<br/>편집]
+    F --> G[편집자 이름과<br/>이유 입력]
+    G --> H[저장 버튼 클릭]
+    H --> I[✅ 자동 백업 및<br/>편집 기록 생성]
+
+    style A fill:#e3f2fd
+    style I fill:#c8e6c9
+</div>
+<h4 id="플로우-2-평가-결과-검토">플로우 2: 평가 결과 검토</h4>
+<div class="mermaid">
+flowchart TD
+    A[Dashboard 접속] --> B[Test 투명성 탭 선택]
+    B --> C[메트릭 계산 과정 선택]
+    C --> D[확인할 Trace 선택]
+    D --> E[계산 단계별 확인]
+
+    E --> F[타임라인 시각화]
+    E --> G[각 단계의 입출력]
+    E --> H[중간 결과]
+
+    F --> I[설명 확인]
+    G --> I
+    H --> I
+
+    I --> J{주석 필요?}
+    J -->|Yes| K[주석 관리 탭 이동]
+    K --> L[주석 추가 폼 작성]
+    L --> M[제출]
+    M --> N[✅ 주석 저장 및<br/>Audit Log 생성]
+
+    J -->|No| O[검토 완료]
+
+    style A fill:#e3f2fd
+    style N fill:#c8e6c9
+    style O fill:#c8e6c9
+</div>
+<h3 id="디자인-원칙">3. 디자인 원칙</h3>
+<h4 id="직관성">직관성</h4>
+<ul>
+<li>명확한 아이콘 사용</li>
+<li>일관된 색상 체계</li>
+<li>단계별 프로세스 표시</li>
+</ul>
+<h4 id="효율성">효율성</h4>
+<ul>
+<li>인라인 편집으로 빠른 수정</li>
+<li>필터/검색으로 빠른 탐색</li>
+<li>벌크 작업 지원</li>
+</ul>
+<h4 id="안전성">안전성</h4>
+<ul>
+<li>자동 백업</li>
+<li>변경 전 확인 메시지</li>
+<li>롤백 기능</li>
+</ul>
+<h4 id="투명성">투명성</h4>
+<ul>
+<li>모든 변경 기록</li>
+<li>상세한 설명 제공</li>
+<li>시각적 피드백</li>
+</ul>
+<hr />
+<h2 id="사용-방법">사용 방법</h2>
+<h3 id="시나리오-1-평가-데이터-수정">시나리오 1: 평가 데이터 수정</h3>
+<p><strong>상황</strong>: Task_001의 completion_score가 잘못 기록되어
+수정이 필요</p>
+<div class="sourceCode" id="cb35"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb35-1"><a href="#cb35-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 1. Dashboard 실행</span></span>
+<span id="cb35-2"><a href="#cb35-2" aria-hidden="true" tabindex="-1"></a><span class="ex">streamlit</span> run streamlit_dashboard.py</span>
+<span id="cb35-3"><a href="#cb35-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb35-4"><a href="#cb35-4" aria-hidden="true" tabindex="-1"></a><span class="co"># 2. &quot;📝 데이터 편집&quot; 탭 클릭</span></span>
+<span id="cb35-5"><a href="#cb35-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb35-6"><a href="#cb35-6" aria-hidden="true" tabindex="-1"></a><span class="co"># 3. &quot;TaskResult 편집&quot; 선택</span></span>
+<span id="cb35-7"><a href="#cb35-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb35-8"><a href="#cb35-8" aria-hidden="true" tabindex="-1"></a><span class="co"># 4. 필터에서 task_id로 검색: &quot;task_001&quot;</span></span>
+<span id="cb35-9"><a href="#cb35-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb35-10"><a href="#cb35-10" aria-hidden="true" tabindex="-1"></a><span class="co"># 5. completion_score 셀 더블클릭하여 0.98로 수정</span></span>
+<span id="cb35-11"><a href="#cb35-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb35-12"><a href="#cb35-12" aria-hidden="true" tabindex="-1"></a><span class="co"># 6. 편집자 이름: &quot;John Doe&quot;</span></span>
+<span id="cb35-13"><a href="#cb35-13" aria-hidden="true" tabindex="-1"></a><span class="co">#    편집 이유: &quot;Manual correction based on expert review&quot;</span></span>
+<span id="cb35-14"><a href="#cb35-14" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb35-15"><a href="#cb35-15" aria-hidden="true" tabindex="-1"></a><span class="co"># 7. &quot;💾 저장&quot; 클릭</span></span>
+<span id="cb35-16"><a href="#cb35-16" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb35-17"><a href="#cb35-17" aria-hidden="true" tabindex="-1"></a><span class="co"># ✅ 완료! 자동으로 버전 백업 및 편집 기록 생성됨</span></span></code></pre></div>
+<h3 id="시나리오-2-golden-dataset-qa-쌍-추가">시나리오 2: Golden Dataset
+QA 쌍 추가</h3>
+<p><strong>상황</strong>: 새로운 QA 쌍을 Golden Dataset에 추가</p>
+<div class="sourceCode" id="cb36"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb36-1"><a href="#cb36-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 1. &quot;📝 데이터 편집&quot; 탭 → &quot;Golden Dataset 편집&quot;</span></span>
+<span id="cb36-2"><a href="#cb36-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb36-3"><a href="#cb36-3" aria-hidden="true" tabindex="-1"></a><span class="co"># 2. 파일 선택: &quot;golden_datasets/company_policy.json&quot;</span></span>
+<span id="cb36-4"><a href="#cb36-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb36-5"><a href="#cb36-5" aria-hidden="true" tabindex="-1"></a><span class="co"># 3. 테이블 하단의 &quot;+&quot; 버튼 클릭 (행 추가)</span></span>
+<span id="cb36-6"><a href="#cb36-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb36-7"><a href="#cb36-7" aria-hidden="true" tabindex="-1"></a><span class="co"># 4. 새 행에 데이터 입력:</span></span>
+<span id="cb36-8"><a href="#cb36-8" aria-hidden="true" tabindex="-1"></a><span class="co">#    - qa_id: &quot;qa_046&quot;</span></span>
+<span id="cb36-9"><a href="#cb36-9" aria-hidden="true" tabindex="-1"></a><span class="co">#    - question: &quot;재택근무 정책은?&quot;</span></span>
+<span id="cb36-10"><a href="#cb36-10" aria-hidden="true" tabindex="-1"></a><span class="co">#    - answer: &quot;주 2회까지 재택근무 가능&quot;</span></span>
+<span id="cb36-11"><a href="#cb36-11" aria-hidden="true" tabindex="-1"></a><span class="co">#    - ground_truth: &quot;주 2회&quot;</span></span>
+<span id="cb36-12"><a href="#cb36-12" aria-hidden="true" tabindex="-1"></a><span class="co">#    - context: &quot;당사의 재택근무 정책...&quot;</span></span>
+<span id="cb36-13"><a href="#cb36-13" aria-hidden="true" tabindex="-1"></a><span class="co">#    - page_number: 15</span></span>
+<span id="cb36-14"><a href="#cb36-14" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb36-15"><a href="#cb36-15" aria-hidden="true" tabindex="-1"></a><span class="co"># 5. &quot;💾 저장&quot; 클릭</span></span>
+<span id="cb36-16"><a href="#cb36-16" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb36-17"><a href="#cb36-17" aria-hidden="true" tabindex="-1"></a><span class="co"># ✅ 완료!</span></span></code></pre></div>
+<h3 id="시나리오-3-임계값-조정">시나리오 3: 임계값 조정</h3>
+<p><strong>상황</strong>: Faithfulness 기준을 0.8에서 0.85로 강화</p>
+<div class="sourceCode" id="cb37"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb37-1"><a href="#cb37-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 1. &quot;📝 데이터 편집&quot; 탭 → &quot;임계값 설정&quot;</span></span>
+<span id="cb37-2"><a href="#cb37-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb37-3"><a href="#cb37-3" aria-hidden="true" tabindex="-1"></a><span class="co"># 2. RAG 메트릭 섹션에서 Faithfulness 슬라이더를 0.85로 조정</span></span>
+<span id="cb37-4"><a href="#cb37-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb37-5"><a href="#cb37-5" aria-hidden="true" tabindex="-1"></a><span class="co"># 3. 편집 이유: &quot;Stricter quality control&quot;</span></span>
+<span id="cb37-6"><a href="#cb37-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb37-7"><a href="#cb37-7" aria-hidden="true" tabindex="-1"></a><span class="co"># 4. &quot;💾 저장&quot; 클릭</span></span>
+<span id="cb37-8"><a href="#cb37-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb37-9"><a href="#cb37-9" aria-hidden="true" tabindex="-1"></a><span class="co"># ✅ 다음 평가부터 새 임계값 적용!</span></span></code></pre></div>
+<h3 id="시나리오-4-평가-과정-확인-및-주석-추가">시나리오 4: 평가 과정
+확인 및 주석 추가</h3>
+<p><strong>상황</strong>: Faithfulness 점수가 낮게 나온 이유를 확인하고
+의견 추가</p>
+<div class="sourceCode" id="cb38"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb38-1"><a href="#cb38-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 1. &quot;🔬 Test 투명성&quot; 탭 클릭</span></span>
+<span id="cb38-2"><a href="#cb38-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb38-3"><a href="#cb38-3" aria-hidden="true" tabindex="-1"></a><span class="co"># 2. &quot;메트릭 계산 과정&quot; 선택</span></span>
+<span id="cb38-4"><a href="#cb38-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb38-5"><a href="#cb38-5" aria-hidden="true" tabindex="-1"></a><span class="co"># 3. Trace 선택: &quot;trace_faithfulness_task_001&quot;</span></span>
+<span id="cb38-6"><a href="#cb38-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb38-7"><a href="#cb38-7" aria-hidden="true" tabindex="-1"></a><span class="co"># 4. 계산 단계 확인:</span></span>
+<span id="cb38-8"><a href="#cb38-8" aria-hidden="true" tabindex="-1"></a><span class="co">#    Step 1: Load Context ✅</span></span>
+<span id="cb38-9"><a href="#cb38-9" aria-hidden="true" tabindex="-1"></a><span class="co">#    Step 2: Extract Claims ✅</span></span>
+<span id="cb38-10"><a href="#cb38-10" aria-hidden="true" tabindex="-1"></a><span class="co">#    Step 3: Verify Claims ✅</span></span>
+<span id="cb38-11"><a href="#cb38-11" aria-hidden="true" tabindex="-1"></a><span class="co">#      → 5개 주장 중 3개만 검증됨</span></span>
+<span id="cb38-12"><a href="#cb38-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb38-13"><a href="#cb38-13" aria-hidden="true" tabindex="-1"></a><span class="co"># 5. 설명 읽기:</span></span>
+<span id="cb38-14"><a href="#cb38-14" aria-hidden="true" tabindex="-1"></a><span class="co">#    &quot;⚠️ 주의: 일부 주장이 컨텍스트로 뒷받침되지 않습니다.&quot;</span></span>
+<span id="cb38-15"><a href="#cb38-15" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb38-16"><a href="#cb38-16" aria-hidden="true" tabindex="-1"></a><span class="co"># 6. 주석 추가 버튼 클릭 (또는 &quot;주석 관리&quot; 탭으로 이동)</span></span>
+<span id="cb38-17"><a href="#cb38-17" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb38-18"><a href="#cb38-18" aria-hidden="true" tabindex="-1"></a><span class="co"># 7. 주석 폼 작성:</span></span>
+<span id="cb38-19"><a href="#cb38-19" aria-hidden="true" tabindex="-1"></a><span class="co">#    - 대상 유형: metric</span></span>
+<span id="cb38-20"><a href="#cb38-20" aria-hidden="true" tabindex="-1"></a><span class="co">#    - 대상 ID: trace_faithfulness_task_001</span></span>
+<span id="cb38-21"><a href="#cb38-21" aria-hidden="true" tabindex="-1"></a><span class="co">#    - 주석 유형: comment</span></span>
+<span id="cb38-22"><a href="#cb38-22" aria-hidden="true" tabindex="-1"></a><span class="co">#    - 제목: &quot;낮은 점수 원인 분석&quot;</span></span>
+<span id="cb38-23"><a href="#cb38-23" aria-hidden="true" tabindex="-1"></a><span class="co">#    - 내용: &quot;검색된 컨텍스트가 불충분함.</span></span>
+<span id="cb38-24"><a href="#cb38-24" aria-hidden="true" tabindex="-1"></a><span class="co">#             검색 top_k를 5로 늘려야 함.&quot;</span></span>
+<span id="cb38-25"><a href="#cb38-25" aria-hidden="true" tabindex="-1"></a><span class="co">#    - 우선순위: high</span></span>
+<span id="cb38-26"><a href="#cb38-26" aria-hidden="true" tabindex="-1"></a><span class="co">#    - 태그: &quot;improvement, search&quot;</span></span>
+<span id="cb38-27"><a href="#cb38-27" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb38-28"><a href="#cb38-28" aria-hidden="true" tabindex="-1"></a><span class="co"># 8. &quot;📤 주석 추가&quot; 클릭</span></span>
+<span id="cb38-29"><a href="#cb38-29" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb38-30"><a href="#cb38-30" aria-hidden="true" tabindex="-1"></a><span class="co"># ✅ 주석 저장 및 Audit Log 기록!</span></span></code></pre></div>
+<h3 id="시나리오-5-버전-롤백">시나리오 5: 버전 롤백</h3>
+<p><strong>상황</strong>: 실수로 데이터를 잘못 수정하여 이전 버전으로
+복원</p>
+<div class="sourceCode" id="cb39"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb39-1"><a href="#cb39-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 1. &quot;📝 데이터 편집&quot; 탭 → &quot;버전 관리&quot;</span></span>
+<span id="cb39-2"><a href="#cb39-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb39-3"><a href="#cb39-3" aria-hidden="true" tabindex="-1"></a><span class="co"># 2. 데이터 이름 필터: &quot;performance_data&quot;</span></span>
+<span id="cb39-4"><a href="#cb39-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb39-5"><a href="#cb39-5" aria-hidden="true" tabindex="-1"></a><span class="co"># 3. 버전 목록에서 복원할 버전 선택:</span></span>
+<span id="cb39-6"><a href="#cb39-6" aria-hidden="true" tabindex="-1"></a><span class="co">#    🔖 버전 20241128_103045</span></span>
+<span id="cb39-7"><a href="#cb39-7" aria-hidden="true" tabindex="-1"></a><span class="co">#    &quot;Before edit by John Doe&quot;</span></span>
+<span id="cb39-8"><a href="#cb39-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb39-9"><a href="#cb39-9" aria-hidden="true" tabindex="-1"></a><span class="co"># 4. &quot;⏮️ 롤백&quot; 버튼 클릭</span></span>
+<span id="cb39-10"><a href="#cb39-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb39-11"><a href="#cb39-11" aria-hidden="true" tabindex="-1"></a><span class="co"># 5. 확인 메시지: &quot;정말로 롤백하시겠습니까?&quot;</span></span>
+<span id="cb39-12"><a href="#cb39-12" aria-hidden="true" tabindex="-1"></a><span class="co">#    → &quot;예&quot; 클릭</span></span>
+<span id="cb39-13"><a href="#cb39-13" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb39-14"><a href="#cb39-14" aria-hidden="true" tabindex="-1"></a><span class="co"># ✅ 복원 완료! 현재 데이터는 자동 백업됨</span></span></code></pre></div>
+<hr />
+<h2 id="고급-활용">고급 활용</h2>
+<h3 id="cicd-통합">1. CI/CD 통합</h3>
+<div class="sourceCode" id="cb40"><pre
+class="sourceCode yaml"><code class="sourceCode yaml"><span id="cb40-1"><a href="#cb40-1" aria-hidden="true" tabindex="-1"></a><span class="co"># .github/workflows/evaluation.yml</span></span>
+<span id="cb40-2"><a href="#cb40-2" aria-hidden="true" tabindex="-1"></a><span class="fu">name</span><span class="kw">:</span><span class="at"> Agent Evaluation</span></span>
+<span id="cb40-3"><a href="#cb40-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb40-4"><a href="#cb40-4" aria-hidden="true" tabindex="-1"></a><span class="fu">on</span><span class="kw">:</span><span class="at"> </span><span class="kw">[</span><span class="at">push</span><span class="kw">,</span><span class="at"> pull_request</span><span class="kw">]</span></span>
+<span id="cb40-5"><a href="#cb40-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb40-6"><a href="#cb40-6" aria-hidden="true" tabindex="-1"></a><span class="fu">jobs</span><span class="kw">:</span></span>
+<span id="cb40-7"><a href="#cb40-7" aria-hidden="true" tabindex="-1"></a><span class="at">  </span><span class="fu">evaluate</span><span class="kw">:</span></span>
+<span id="cb40-8"><a href="#cb40-8" aria-hidden="true" tabindex="-1"></a><span class="at">    </span><span class="fu">runs-on</span><span class="kw">:</span><span class="at"> ubuntu-latest</span></span>
+<span id="cb40-9"><a href="#cb40-9" aria-hidden="true" tabindex="-1"></a><span class="at">    </span><span class="fu">steps</span><span class="kw">:</span></span>
+<span id="cb40-10"><a href="#cb40-10" aria-hidden="true" tabindex="-1"></a><span class="at">      </span><span class="kw">-</span><span class="at"> </span><span class="fu">uses</span><span class="kw">:</span><span class="at"> actions/checkout@v2</span></span>
+<span id="cb40-11"><a href="#cb40-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb40-12"><a href="#cb40-12" aria-hidden="true" tabindex="-1"></a><span class="at">      </span><span class="kw">-</span><span class="at"> </span><span class="fu">name</span><span class="kw">:</span><span class="at"> Setup Python</span></span>
+<span id="cb40-13"><a href="#cb40-13" aria-hidden="true" tabindex="-1"></a><span class="at">        </span><span class="fu">uses</span><span class="kw">:</span><span class="at"> actions/setup-python@v2</span></span>
+<span id="cb40-14"><a href="#cb40-14" aria-hidden="true" tabindex="-1"></a><span class="at">        </span><span class="fu">with</span><span class="kw">:</span></span>
+<span id="cb40-15"><a href="#cb40-15" aria-hidden="true" tabindex="-1"></a><span class="at">          </span><span class="fu">python-version</span><span class="kw">:</span><span class="at"> </span><span class="st">&#39;3.11&#39;</span></span>
+<span id="cb40-16"><a href="#cb40-16" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb40-17"><a href="#cb40-17" aria-hidden="true" tabindex="-1"></a><span class="at">      </span><span class="kw">-</span><span class="at"> </span><span class="fu">name</span><span class="kw">:</span><span class="at"> Install dependencies</span></span>
+<span id="cb40-18"><a href="#cb40-18" aria-hidden="true" tabindex="-1"></a><span class="at">        </span><span class="fu">run</span><span class="kw">:</span><span class="at"> pip install agent-evaluator</span></span>
+<span id="cb40-19"><a href="#cb40-19" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb40-20"><a href="#cb40-20" aria-hidden="true" tabindex="-1"></a><span class="at">      </span><span class="kw">-</span><span class="at"> </span><span class="fu">name</span><span class="kw">:</span><span class="at"> Run Evaluation</span></span>
+<span id="cb40-21"><a href="#cb40-21" aria-hidden="true" tabindex="-1"></a><span class="fu">        run</span><span class="kw">: </span><span class="ch">|</span></span>
+<span id="cb40-22"><a href="#cb40-22" aria-hidden="true" tabindex="-1"></a>          python evaluate_agent.py</span>
+<span id="cb40-23"><a href="#cb40-23" aria-hidden="true" tabindex="-1"></a><span class="at">        </span><span class="fu">env</span><span class="kw">:</span></span>
+<span id="cb40-24"><a href="#cb40-24" aria-hidden="true" tabindex="-1"></a><span class="at">          </span><span class="fu">OPENAI_API_KEY</span><span class="kw">:</span><span class="at"> ${{ secrets.OPENAI_API_KEY }}</span></span>
+<span id="cb40-25"><a href="#cb40-25" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb40-26"><a href="#cb40-26" aria-hidden="true" tabindex="-1"></a><span class="at">      </span><span class="kw">-</span><span class="at"> </span><span class="fu">name</span><span class="kw">:</span><span class="at"> Check Thresholds</span></span>
+<span id="cb40-27"><a href="#cb40-27" aria-hidden="true" tabindex="-1"></a><span class="fu">        run</span><span class="kw">: </span><span class="ch">|</span></span>
+<span id="cb40-28"><a href="#cb40-28" aria-hidden="true" tabindex="-1"></a>          python check_thresholds.py</span>
+<span id="cb40-29"><a href="#cb40-29" aria-hidden="true" tabindex="-1"></a>          # 임계값 미달 시 실패</span>
+<span id="cb40-30"><a href="#cb40-30" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb40-31"><a href="#cb40-31" aria-hidden="true" tabindex="-1"></a><span class="at">      </span><span class="kw">-</span><span class="at"> </span><span class="fu">name</span><span class="kw">:</span><span class="at"> Upload Results</span></span>
+<span id="cb40-32"><a href="#cb40-32" aria-hidden="true" tabindex="-1"></a><span class="at">        </span><span class="fu">uses</span><span class="kw">:</span><span class="at"> actions/upload-artifact@v2</span></span>
+<span id="cb40-33"><a href="#cb40-33" aria-hidden="true" tabindex="-1"></a><span class="at">        </span><span class="fu">with</span><span class="kw">:</span></span>
+<span id="cb40-34"><a href="#cb40-34" aria-hidden="true" tabindex="-1"></a><span class="at">          </span><span class="fu">name</span><span class="kw">:</span><span class="at"> evaluation-results</span></span>
+<span id="cb40-35"><a href="#cb40-35" aria-hidden="true" tabindex="-1"></a><span class="at">          </span><span class="fu">path</span><span class="kw">:</span><span class="at"> evaluation_results/</span></span>
+<span id="cb40-36"><a href="#cb40-36" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb40-37"><a href="#cb40-37" aria-hidden="true" tabindex="-1"></a><span class="at">      </span><span class="kw">-</span><span class="at"> </span><span class="fu">name</span><span class="kw">:</span><span class="at"> Create Annotations</span></span>
+<span id="cb40-38"><a href="#cb40-38" aria-hidden="true" tabindex="-1"></a><span class="at">        </span><span class="fu">if</span><span class="kw">:</span><span class="at"> failure()</span></span>
+<span id="cb40-39"><a href="#cb40-39" aria-hidden="true" tabindex="-1"></a><span class="fu">        run</span><span class="kw">: </span><span class="ch">|</span></span>
+<span id="cb40-40"><a href="#cb40-40" aria-hidden="true" tabindex="-1"></a>          python create_annotation.py \</span>
+<span id="cb40-41"><a href="#cb40-41" aria-hidden="true" tabindex="-1"></a>            --type issue \</span>
+<span id="cb40-42"><a href="#cb40-42" aria-hidden="true" tabindex="-1"></a>            --title &quot;Evaluation Failed&quot; \</span>
+<span id="cb40-43"><a href="#cb40-43" aria-hidden="true" tabindex="-1"></a>            --priority critical</span></code></pre></div>
+<h3 id="자동-알림">2. 자동 알림</h3>
+<div class="sourceCode" id="cb41"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb41-1"><a href="#cb41-1" aria-hidden="true" tabindex="-1"></a><span class="co"># alert_on_threshold_violation.py</span></span>
+<span id="cb41-2"><a href="#cb41-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> data_editor_manager <span class="im">import</span> DataEditorManager</span>
+<span id="cb41-3"><a href="#cb41-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> test_transparency_manager <span class="im">import</span> TestTransparencyManager, AnnotationType</span>
+<span id="cb41-4"><a href="#cb41-4" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> smtplib</span>
+<span id="cb41-5"><a href="#cb41-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb41-6"><a href="#cb41-6" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> check_and_alert():</span>
+<span id="cb41-7"><a href="#cb41-7" aria-hidden="true" tabindex="-1"></a>    <span class="co">&quot;&quot;&quot;임계값 위반 시 자동 알림&quot;&quot;&quot;</span></span>
+<span id="cb41-8"><a href="#cb41-8" aria-hidden="true" tabindex="-1"></a>    manager <span class="op">=</span> DataEditorManager()</span>
+<span id="cb41-9"><a href="#cb41-9" aria-hidden="true" tabindex="-1"></a>    trans_manager <span class="op">=</span> TestTransparencyManager()</span>
+<span id="cb41-10"><a href="#cb41-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb41-11"><a href="#cb41-11" aria-hidden="true" tabindex="-1"></a>    <span class="co"># 최근 평가 결과 로드</span></span>
+<span id="cb41-12"><a href="#cb41-12" aria-hidden="true" tabindex="-1"></a>    df <span class="op">=</span> manager.load_task_results(<span class="st">&quot;evaluation_results/performance_data.json&quot;</span>)</span>
+<span id="cb41-13"><a href="#cb41-13" aria-hidden="true" tabindex="-1"></a>    thresholds <span class="op">=</span> manager.load_thresholds()</span>
+<span id="cb41-14"><a href="#cb41-14" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb41-15"><a href="#cb41-15" aria-hidden="true" tabindex="-1"></a>    <span class="co"># 임계값 확인</span></span>
+<span id="cb41-16"><a href="#cb41-16" aria-hidden="true" tabindex="-1"></a>    violations <span class="op">=</span> []</span>
+<span id="cb41-17"><a href="#cb41-17" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb41-18"><a href="#cb41-18" aria-hidden="true" tabindex="-1"></a>    avg_completion <span class="op">=</span> df[<span class="st">&#39;completion_score&#39;</span>].mean()</span>
+<span id="cb41-19"><a href="#cb41-19" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> avg_completion <span class="op">&lt;</span> thresholds[<span class="st">&#39;tcr&#39;</span>] <span class="op">/</span> <span class="dv">100</span>:</span>
+<span id="cb41-20"><a href="#cb41-20" aria-hidden="true" tabindex="-1"></a>        violations.append({</span>
+<span id="cb41-21"><a href="#cb41-21" aria-hidden="true" tabindex="-1"></a>            <span class="st">&quot;metric&quot;</span>: <span class="st">&quot;TCR&quot;</span>,</span>
+<span id="cb41-22"><a href="#cb41-22" aria-hidden="true" tabindex="-1"></a>            <span class="st">&quot;value&quot;</span>: avg_completion,</span>
+<span id="cb41-23"><a href="#cb41-23" aria-hidden="true" tabindex="-1"></a>            <span class="st">&quot;threshold&quot;</span>: thresholds[<span class="st">&#39;tcr&#39;</span>] <span class="op">/</span> <span class="dv">100</span></span>
+<span id="cb41-24"><a href="#cb41-24" aria-hidden="true" tabindex="-1"></a>        })</span>
+<span id="cb41-25"><a href="#cb41-25" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb41-26"><a href="#cb41-26" aria-hidden="true" tabindex="-1"></a>    <span class="co"># 위반 발견 시</span></span>
+<span id="cb41-27"><a href="#cb41-27" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> violations:</span>
+<span id="cb41-28"><a href="#cb41-28" aria-hidden="true" tabindex="-1"></a>        <span class="co"># 1. 주석 추가</span></span>
+<span id="cb41-29"><a href="#cb41-29" aria-hidden="true" tabindex="-1"></a>        <span class="cf">for</span> v <span class="kw">in</span> violations:</span>
+<span id="cb41-30"><a href="#cb41-30" aria-hidden="true" tabindex="-1"></a>            trans_manager.add_annotation(</span>
+<span id="cb41-31"><a href="#cb41-31" aria-hidden="true" tabindex="-1"></a>                target_type<span class="op">=</span><span class="st">&quot;metric&quot;</span>,</span>
+<span id="cb41-32"><a href="#cb41-32" aria-hidden="true" tabindex="-1"></a>                target_id<span class="op">=</span><span class="ss">f&quot;</span><span class="sc">{</span>v[<span class="st">&#39;metric&#39;</span>]<span class="sc">}</span><span class="ss">_violation&quot;</span>,</span>
+<span id="cb41-33"><a href="#cb41-33" aria-hidden="true" tabindex="-1"></a>                annotation_type<span class="op">=</span>AnnotationType.BUG,</span>
+<span id="cb41-34"><a href="#cb41-34" aria-hidden="true" tabindex="-1"></a>                priority<span class="op">=</span><span class="st">&quot;high&quot;</span>,</span>
+<span id="cb41-35"><a href="#cb41-35" aria-hidden="true" tabindex="-1"></a>                title<span class="op">=</span><span class="ss">f&quot;</span><span class="sc">{</span>v[<span class="st">&#39;metric&#39;</span>]<span class="sc">}</span><span class="ss"> Threshold Violation&quot;</span>,</span>
+<span id="cb41-36"><a href="#cb41-36" aria-hidden="true" tabindex="-1"></a>                content<span class="op">=</span><span class="ss">f&quot;Value: </span><span class="sc">{</span>v[<span class="st">&#39;value&#39;</span>]<span class="sc">:.3f}</span><span class="ss">, Threshold: </span><span class="sc">{</span>v[<span class="st">&#39;threshold&#39;</span>]<span class="sc">:.3f}</span><span class="ss">&quot;</span>,</span>
+<span id="cb41-37"><a href="#cb41-37" aria-hidden="true" tabindex="-1"></a>                author<span class="op">=</span><span class="st">&quot;auto-alert&quot;</span></span>
+<span id="cb41-38"><a href="#cb41-38" aria-hidden="true" tabindex="-1"></a>            )</span>
+<span id="cb41-39"><a href="#cb41-39" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb41-40"><a href="#cb41-40" aria-hidden="true" tabindex="-1"></a>        <span class="co"># 2. 이메일 발송</span></span>
+<span id="cb41-41"><a href="#cb41-41" aria-hidden="true" tabindex="-1"></a>        send_alert_email(violations)</span>
+<span id="cb41-42"><a href="#cb41-42" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb41-43"><a href="#cb41-43" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> send_alert_email(violations):</span>
+<span id="cb41-44"><a href="#cb41-44" aria-hidden="true" tabindex="-1"></a>    <span class="co">&quot;&quot;&quot;알림 이메일 발송&quot;&quot;&quot;</span></span>
+<span id="cb41-45"><a href="#cb41-45" aria-hidden="true" tabindex="-1"></a>    <span class="co"># 구현...</span></span>
+<span id="cb41-46"><a href="#cb41-46" aria-hidden="true" tabindex="-1"></a>    <span class="cf">pass</span></span>
+<span id="cb41-47"><a href="#cb41-47" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb41-48"><a href="#cb41-48" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> <span class="va">__name__</span> <span class="op">==</span> <span class="st">&quot;__main__&quot;</span>:</span>
+<span id="cb41-49"><a href="#cb41-49" aria-hidden="true" tabindex="-1"></a>    check_and_alert()</span></code></pre></div>
+<h3 id="주기적-리포트">3. 주기적 리포트</h3>
+<div class="sourceCode" id="cb42"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb42-1"><a href="#cb42-1" aria-hidden="true" tabindex="-1"></a><span class="co"># generate_weekly_report.py</span></span>
+<span id="cb42-2"><a href="#cb42-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> test_transparency_manager <span class="im">import</span> TestTransparencyManager</span>
+<span id="cb42-3"><a href="#cb42-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> datetime <span class="im">import</span> datetime, timedelta</span>
+<span id="cb42-4"><a href="#cb42-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb42-5"><a href="#cb42-5" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> generate_weekly_report():</span>
+<span id="cb42-6"><a href="#cb42-6" aria-hidden="true" tabindex="-1"></a>    <span class="co">&quot;&quot;&quot;주간 리포트 생성&quot;&quot;&quot;</span></span>
+<span id="cb42-7"><a href="#cb42-7" aria-hidden="true" tabindex="-1"></a>    manager <span class="op">=</span> TestTransparencyManager()</span>
+<span id="cb42-8"><a href="#cb42-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb42-9"><a href="#cb42-9" aria-hidden="true" tabindex="-1"></a>    <span class="co"># 지난 주 Audit Log 조회</span></span>
+<span id="cb42-10"><a href="#cb42-10" aria-hidden="true" tabindex="-1"></a>    week_ago <span class="op">=</span> datetime.now() <span class="op">-</span> timedelta(days<span class="op">=</span><span class="dv">7</span>)</span>
+<span id="cb42-11"><a href="#cb42-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb42-12"><a href="#cb42-12" aria-hidden="true" tabindex="-1"></a>    logs <span class="op">=</span> manager.load_audit_logs(limit<span class="op">=</span><span class="dv">1000</span>)</span>
+<span id="cb42-13"><a href="#cb42-13" aria-hidden="true" tabindex="-1"></a>    recent_logs <span class="op">=</span> [</span>
+<span id="cb42-14"><a href="#cb42-14" aria-hidden="true" tabindex="-1"></a>        log <span class="cf">for</span> log <span class="kw">in</span> logs</span>
+<span id="cb42-15"><a href="#cb42-15" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> datetime.fromisoformat(log.timestamp) <span class="op">&gt;=</span> week_ago</span>
+<span id="cb42-16"><a href="#cb42-16" aria-hidden="true" tabindex="-1"></a>    ]</span>
+<span id="cb42-17"><a href="#cb42-17" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb42-18"><a href="#cb42-18" aria-hidden="true" tabindex="-1"></a>    <span class="co"># 통계 집계</span></span>
+<span id="cb42-19"><a href="#cb42-19" aria-hidden="true" tabindex="-1"></a>    stats <span class="op">=</span> {</span>
+<span id="cb42-20"><a href="#cb42-20" aria-hidden="true" tabindex="-1"></a>        <span class="st">&quot;total_evaluations&quot;</span>: <span class="bu">len</span>([l <span class="cf">for</span> l <span class="kw">in</span> recent_logs <span class="cf">if</span> l.event_type <span class="op">==</span> <span class="st">&quot;evaluation&quot;</span>]),</span>
+<span id="cb42-21"><a href="#cb42-21" aria-hidden="true" tabindex="-1"></a>        <span class="st">&quot;total_edits&quot;</span>: <span class="bu">len</span>([l <span class="cf">for</span> l <span class="kw">in</span> recent_logs <span class="cf">if</span> l.event_type <span class="op">==</span> <span class="st">&quot;edit&quot;</span>]),</span>
+<span id="cb42-22"><a href="#cb42-22" aria-hidden="true" tabindex="-1"></a>        <span class="st">&quot;total_annotations&quot;</span>: <span class="bu">len</span>([l <span class="cf">for</span> l <span class="kw">in</span> recent_logs <span class="cf">if</span> l.event_type <span class="op">==</span> <span class="st">&quot;annotation&quot;</span>]),</span>
+<span id="cb42-23"><a href="#cb42-23" aria-hidden="true" tabindex="-1"></a>        <span class="st">&quot;unique_users&quot;</span>: <span class="bu">len</span>(<span class="bu">set</span>(l.user <span class="cf">for</span> l <span class="kw">in</span> recent_logs))</span>
+<span id="cb42-24"><a href="#cb42-24" aria-hidden="true" tabindex="-1"></a>    }</span>
+<span id="cb42-25"><a href="#cb42-25" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb42-26"><a href="#cb42-26" aria-hidden="true" tabindex="-1"></a>    <span class="co"># 리포트 생성</span></span>
+<span id="cb42-27"><a href="#cb42-27" aria-hidden="true" tabindex="-1"></a>    report <span class="op">=</span> <span class="ss">f&quot;&quot;&quot;</span></span>
+<span id="cb42-28"><a href="#cb42-28" aria-hidden="true" tabindex="-1"></a><span class="ss"># 주간 활동 리포트</span></span>
+<span id="cb42-29"><a href="#cb42-29" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb42-30"><a href="#cb42-30" aria-hidden="true" tabindex="-1"></a><span class="ss">**기간:** </span><span class="sc">{</span>week_ago<span class="sc">.</span>strftime(<span class="st">&#39;%Y-%m-</span><span class="sc">%d</span><span class="st">&#39;</span>)<span class="sc">}</span><span class="ss"> ~ </span><span class="sc">{</span>datetime<span class="sc">.</span>now()<span class="sc">.</span>strftime(<span class="st">&#39;%Y-%m-</span><span class="sc">%d</span><span class="st">&#39;</span>)<span class="sc">}</span></span>
+<span id="cb42-31"><a href="#cb42-31" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb42-32"><a href="#cb42-32" aria-hidden="true" tabindex="-1"></a><span class="ss">## 📊 요약</span></span>
+<span id="cb42-33"><a href="#cb42-33" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb42-34"><a href="#cb42-34" aria-hidden="true" tabindex="-1"></a><span class="ss">- 총 평가: </span><span class="sc">{</span>stats[<span class="st">&#39;total_evaluations&#39;</span>]<span class="sc">}</span><span class="ss">회</span></span>
+<span id="cb42-35"><a href="#cb42-35" aria-hidden="true" tabindex="-1"></a><span class="ss">- 데이터 편집: </span><span class="sc">{</span>stats[<span class="st">&#39;total_edits&#39;</span>]<span class="sc">}</span><span class="ss">회</span></span>
+<span id="cb42-36"><a href="#cb42-36" aria-hidden="true" tabindex="-1"></a><span class="ss">- 주석 추가: </span><span class="sc">{</span>stats[<span class="st">&#39;total_annotations&#39;</span>]<span class="sc">}</span><span class="ss">개</span></span>
+<span id="cb42-37"><a href="#cb42-37" aria-hidden="true" tabindex="-1"></a><span class="ss">- 활동 사용자: </span><span class="sc">{</span>stats[<span class="st">&#39;unique_users&#39;</span>]<span class="sc">}</span><span class="ss">명</span></span>
+<span id="cb42-38"><a href="#cb42-38" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb42-39"><a href="#cb42-39" aria-hidden="true" tabindex="-1"></a><span class="ss">## 📈 상세 활동</span></span>
+<span id="cb42-40"><a href="#cb42-40" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb42-41"><a href="#cb42-41" aria-hidden="true" tabindex="-1"></a><span class="ss">...</span></span>
+<span id="cb42-42"><a href="#cb42-42" aria-hidden="true" tabindex="-1"></a><span class="ss">&quot;&quot;&quot;</span></span>
+<span id="cb42-43"><a href="#cb42-43" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb42-44"><a href="#cb42-44" aria-hidden="true" tabindex="-1"></a>    <span class="co"># 저장</span></span>
+<span id="cb42-45"><a href="#cb42-45" aria-hidden="true" tabindex="-1"></a>    <span class="cf">with</span> <span class="bu">open</span>(<span class="ss">f&quot;weekly_report_</span><span class="sc">{</span>datetime<span class="sc">.</span>now()<span class="sc">.</span>strftime(<span class="st">&#39;%Y%m</span><span class="sc">%d</span><span class="st">&#39;</span>)<span class="sc">}</span><span class="ss">.md&quot;</span>, <span class="st">&#39;w&#39;</span>) <span class="im">as</span> f:</span>
+<span id="cb42-46"><a href="#cb42-46" aria-hidden="true" tabindex="-1"></a>        f.write(report)</span>
+<span id="cb42-47"><a href="#cb42-47" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb42-48"><a href="#cb42-48" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> <span class="va">__name__</span> <span class="op">==</span> <span class="st">&quot;__main__&quot;</span>:</span>
+<span id="cb42-49"><a href="#cb42-49" aria-hidden="true" tabindex="-1"></a>    generate_weekly_report()</span></code></pre></div>
+<hr />
+<h2 id="faq">FAQ</h2>
+<h3 id="q-데이터를-편집하면-기존-파일이-덮어써지나요">Q: 데이터를
+편집하면 기존 파일이 덮어써지나요?</h3>
+<p><strong>A</strong>: 네, 하지만 걱정하지 마세요! 편집하기 전에
+자동으로 버전 백업이 생성됩니다. “버전 관리” 탭에서 언제든지 이전
+버전으로 롤백할 수 있습니다.</p>
+<h3 id="q-여러-사람이-동시에-편집하면-어떻게-되나요">Q: 여러 사람이
+동시에 편집하면 어떻게 되나요?</h3>
+<p><strong>A</strong>: 현재 버전은 파일 기반이므로 동시 편집 시 나중에
+저장한 사람의 변경사항이 적용됩니다. 편집 기록에서 누가 언제 무엇을
+변경했는지 확인할 수 있습니다. 향후 버전에서는 Lock 메커니즘을 추가할
+예정입니다.</p>
+<h3 id="q-test-투명성-기능이-평가-속도를-느리게-하나요">Q: Test 투명성
+기능이 평가 속도를 느리게 하나요?</h3>
+<p><strong>A</strong>: 약간의 오버헤드가 있지만, 대부분 무시할 수 있는
+수준입니다 (약 5-10% 증가). 필요한 경우
+<code>enable_transparency=False</code>로 비활성화할 수 있습니다.</p>
+<h3 id="q-주석을-csv나-excel로-내보낼-수-있나요">Q: 주석을 CSV나 Excel로
+내보낼 수 있나요?</h3>
+<p><strong>A</strong>: 네, 다음 코드로 가능합니다:</p>
+<div class="sourceCode" id="cb43"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb43-1"><a href="#cb43-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> test_transparency_manager <span class="im">import</span> TestTransparencyManager</span>
+<span id="cb43-2"><a href="#cb43-2" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> pandas <span class="im">as</span> pd</span>
+<span id="cb43-3"><a href="#cb43-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb43-4"><a href="#cb43-4" aria-hidden="true" tabindex="-1"></a>manager <span class="op">=</span> TestTransparencyManager()</span>
+<span id="cb43-5"><a href="#cb43-5" aria-hidden="true" tabindex="-1"></a>annotations <span class="op">=</span> manager.load_annotations()</span>
+<span id="cb43-6"><a href="#cb43-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb43-7"><a href="#cb43-7" aria-hidden="true" tabindex="-1"></a><span class="co"># DataFrame으로 변환</span></span>
+<span id="cb43-8"><a href="#cb43-8" aria-hidden="true" tabindex="-1"></a>data <span class="op">=</span> [asdict(a) <span class="cf">for</span> a <span class="kw">in</span> annotations]</span>
+<span id="cb43-9"><a href="#cb43-9" aria-hidden="true" tabindex="-1"></a>df <span class="op">=</span> pd.DataFrame(data)</span>
+<span id="cb43-10"><a href="#cb43-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb43-11"><a href="#cb43-11" aria-hidden="true" tabindex="-1"></a><span class="co"># CSV 저장</span></span>
+<span id="cb43-12"><a href="#cb43-12" aria-hidden="true" tabindex="-1"></a>df.to_csv(<span class="st">&quot;annotations.csv&quot;</span>, index<span class="op">=</span><span class="va">False</span>, encoding<span class="op">=</span><span class="st">&#39;utf-8-sig&#39;</span>)</span></code></pre></div>
+<h3 id="q-audit-log가-너무-많아지면-어떻게-하나요">Q: Audit Log가 너무
+많아지면 어떻게 하나요?</h3>
+<p><strong>A</strong>: 오래된 로그는 주기적으로 아카이빙할 수
+있습니다:</p>
+<div class="sourceCode" id="cb44"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb44-1"><a href="#cb44-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pathlib <span class="im">import</span> Path</span>
+<span id="cb44-2"><a href="#cb44-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> datetime <span class="im">import</span> datetime, timedelta</span>
+<span id="cb44-3"><a href="#cb44-3" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> shutil</span>
+<span id="cb44-4"><a href="#cb44-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb44-5"><a href="#cb44-5" aria-hidden="true" tabindex="-1"></a>audit_dir <span class="op">=</span> Path(<span class="st">&quot;evaluation_results/audit_logs&quot;</span>)</span>
+<span id="cb44-6"><a href="#cb44-6" aria-hidden="true" tabindex="-1"></a>archive_dir <span class="op">=</span> Path(<span class="st">&quot;evaluation_results/audit_logs_archive&quot;</span>)</span>
+<span id="cb44-7"><a href="#cb44-7" aria-hidden="true" tabindex="-1"></a>archive_dir.mkdir(exist_ok<span class="op">=</span><span class="va">True</span>)</span>
+<span id="cb44-8"><a href="#cb44-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb44-9"><a href="#cb44-9" aria-hidden="true" tabindex="-1"></a><span class="co"># 30일 이상 된 로그 아카이빙</span></span>
+<span id="cb44-10"><a href="#cb44-10" aria-hidden="true" tabindex="-1"></a>cutoff_date <span class="op">=</span> datetime.now() <span class="op">-</span> timedelta(days<span class="op">=</span><span class="dv">30</span>)</span>
+<span id="cb44-11"><a href="#cb44-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb44-12"><a href="#cb44-12" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> log_file <span class="kw">in</span> audit_dir.glob(<span class="st">&quot;audit_*.json&quot;</span>):</span>
+<span id="cb44-13"><a href="#cb44-13" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> datetime.fromtimestamp(log_file.stat().st_mtime) <span class="op">&lt;</span> cutoff_date:</span>
+<span id="cb44-14"><a href="#cb44-14" aria-hidden="true" tabindex="-1"></a>        shutil.move(<span class="bu">str</span>(log_file), <span class="bu">str</span>(archive_dir <span class="op">/</span> log_file.name))</span></code></pre></div>
+<hr />
+
+<div class="section">
+<h2 id="qa-guide">🎯 품질 관리자 가이드 (QA Manager Guide)</h2>
+<p>데이터 편집 및 Test 투명성 기능을 활용한 체계적인 품질 관리 전략을 제시합니다.</p>
+
+<h3 id="qa-data-editing">7.1 데이터 편집 품질 관리</h3>
+
+<h4>7.1.1 데이터 편집 품질 체크리스트</h4>
+<table>
+<thead>
+<tr>
+<th>단계</th>
+<th>품질 확인 항목</th>
+<th>검증 방법</th>
+<th>합격 기준</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1️⃣ 편집 전</td>
+<td>원본 데이터 백업, 편집 사유 명확화</td>
+<td>백업 파일 존재 확인, 편집 사유서 작성</td>
+<td>백업 100% 완료, 사유서 승인</td>
+</tr>
+<tr>
+<td>2️⃣ 편집 중</td>
+<td>데이터 형식 검증, 필수 필드 확인</td>
+<td>자동 검증 도구, 필드 체크리스트</td>
+<td>검증 오류 0건</td>
+</tr>
+<tr>
+<td>3️⃣ 편집 후</td>
+<td>변경 이력 기록, 영향 분석</td>
+<td>히스토리 로그, 메트릭 비교</td>
+<td>히스토리 100% 기록, 메트릭 변화 &lt; 5%</td>
+</tr>
+<tr>
+<td>4️⃣ 검증</td>
+<td>재평가 실행, 결과 비교</td>
+<td>A/B 테스트, 통계 분석</td>
+<td>품질 개선 확인, 회귀 없음</td>
+</tr>
+<tr>
+<td>5️⃣ 승인</td>
+<td>QA 검토, 스테이크홀더 승인</td>
+<td>검토 보고서, 승인 워크플로우</td>
+<td>QA/PM 승인 완료</td>
+</tr>
+</tbody>
+</table>
+
+<h4>7.1.2 데이터 편집 권한 관리</h4>
+<table>
+<thead>
+<tr>
+<th>역할</th>
+<th>편집 권한</th>
+<th>승인 필요 여부</th>
+<th>감사 추적</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>👤 QA Manager</td>
+<td>전체 데이터 편집, 삭제, 임계값 수정</td>
+<td>PM 승인 (프로덕션만)</td>
+<td>모든 액션 로깅</td>
+</tr>
+<tr>
+<td>🧑‍💻 Developer</td>
+<td>테스트/개발 데이터 편집</td>
+<td>QA 승인 (스테이징 이상)</td>
+<td>변경 이력 필수</td>
+</tr>
+<tr>
+<td>📊 Data Analyst</td>
+<td>읽기, 보고서 생성</td>
+<td>승인 불필요</td>
+<td>접근 로그만</td>
+</tr>
+<tr>
+<td>👁️ Viewer</td>
+<td>읽기만 가능</td>
+<td>승인 불필요</td>
+<td>접근 로그만</td>
+</tr>
+</tbody>
+</table>
+
+<h4>7.1.3 데이터 편집 시나리오 및 Best Practices</h4>
+
+<p><strong>시나리오 1: Golden Dataset 품질 개선</strong></p>
+<pre><code class="language-python"># QA Manager 워크플로우
+# Step 1: 문제 데이터 식별
+qa_pairs = load_golden_dataset("qa_pairs.json")
+problematic = [qa for qa in qa_pairs if qa['metrics']['accuracy'] &lt; 0.7]
+print(f"문제 데이터: {len(problematic)}개 발견")
+
+# Step 2: 백업 생성
+backup_file = f"qa_pairs_backup_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
+save_backup(qa_pairs, backup_file)
+print(f"✓ 백업 완료: {backup_file}")
+
+# Step 3: Dashboard에서 편집
+# 1. Streamlit Dashboard 실행
+# 2. "📝 데이터 편집" 탭 선택
+# 3. 문제 데이터 필터링 (Accuracy &lt; 0.7)
+# 4. 각 항목 클릭하여 편집:
+#    - Question 명확화
+#    - Expected Answer 구체화
+#    - Context 정보 보완
+
+# Step 4: 변경 이력 확인
+for qa in problematic:
+    history = get_edit_history(qa['id'])
+    print(f"QA {qa['id']}: {len(history)} 변경 기록")
+
+# Step 5: 재평가 및 검증
+new_metrics = re_evaluate_dataset("qa_pairs.json")
+improvement = calculate_improvement(old_metrics, new_metrics)
+print(f"품질 개선: Accuracy {improvement['accuracy']:+.1%}")
+</code></pre>
+
+<p><strong>시나리오 2: 임계값 수정 후 영향 분석</strong></p>
+<pre><code class="language-python"># QA Manager 워크플로우
+# Step 1: 현재 임계값 기록
+current_thresholds = {
+    "task_completion_rate": 0.85,
+    "accuracy": 0.80,
+    "response_time": 5.0
+}
+print("현재 임계값:", current_thresholds)
+
+# Step 2: Dashboard에서 임계값 수정
+# 1. "⚙️ 임계값 설정" 탭 선택
+# 2. 메트릭별 임계값 조정
+# 3. "저장" 클릭
+
+# Step 3: 영향 분석 (Dashboard "📊 Test 투명성" 탭)
+# - 변경 전후 통과율 비교
+# - 영향 받는 테스트 케이스 수
+# - 메트릭 분포 변화
+
+# Step 4: 롤백 결정
+if pass_rate_drop &gt; 0.20:  # 통과율 20% 이상 하락
+    print("❌ 임계값 수정 롤백 필요")
+    rollback_thresholds(current_thresholds)
+else:
+    print("✅ 임계값 수정 승인")
+    approve_threshold_change()
+</code></pre>
+
+<h3 id="qa-test-transparency">7.2 Test 투명성 및 감사 추적</h3>
+
+<h4>7.2.1 감사 로그 모니터링</h4>
+<table>
+<thead>
+<tr>
+<th>로그 유형</th>
+<th>기록 내용</th>
+<th>보관 기간</th>
+<th>접근 권한</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>📝 데이터 편집</td>
+<td>누가, 언제, 무엇을, 왜 변경했는지</td>
+<td>2년</td>
+<td>QA Manager, PM</td>
+</tr>
+<tr>
+<td>⚙️ 임계값 변경</td>
+<td>변경 전후 값, 영향 받는 테스트 수</td>
+<td>2년</td>
+<td>QA Manager, PM</td>
+</tr>
+<tr>
+<td>🔍 테스트 실행</td>
+<td>실행 시간, 결과, 통과율</td>
+<td>6개월</td>
+<td>모든 팀원</td>
+</tr>
+<tr>
+<td>👤 사용자 액션</td>
+<td>로그인, 페이지 접근, 다운로드</td>
+<td>3개월</td>
+<td>Admin만</td>
+</tr>
+</tbody>
+</table>
+
+<h4>7.2.2 Test 투명성 대시보드 활용</h4>
+
+<p><strong>실시간 품질 모니터링</strong></p>
+<pre><code class="language-python"># Streamlit Dashboard "📊 Test 투명성" 탭
+import streamlit as st
+
+# 1. 전체 테스트 통과율
+st.metric("전체 통과율", "87.5%", "+2.3%")
+
+# 2. 메트릭별 통과율
+metrics_pass_rate = {
+    "Task Completion Rate": 0.92,
+    "Accuracy": 0.85,
+    "Response Time": 0.81
+}
+for metric, rate in metrics_pass_rate.items():
+    status = "✅" if rate &gt;= 0.85 else "⚠️" if rate &gt;= 0.75 else "❌"
+    st.write(f"{status} {metric}: {rate:.1%}")
+
+# 3. 실패 케이스 분석
+failed_cases = get_failed_test_cases()
+st.write(f"실패 케이스: {len(failed_cases)}개")
+for case in failed_cases:
+    with st.expander(f"❌ {case['id']}: {case['question'][:50]}..."):
+        st.write(f"**실패 이유**: {case['failure_reason']}")
+        st.write(f"**Expected**: {case['expected']}")
+        st.write(f"**Actual**: {case['actual']}")
+        st.write(f"**메트릭**: {case['metrics']}")
+        if st.button("편집", key=case['id']):
+            edit_qa_pair(case['id'])
+</code></pre>
+
+<h4>7.2.3 변경 이력 추적 및 롤백</h4>
+
+<table>
+<thead>
+<tr>
+<th>변경 유형</th>
+<th>추적 정보</th>
+<th>롤백 절차</th>
+<th>영향 범위</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Golden Dataset 편집</td>
+<td>필드별 before/after, 편집자, 시간</td>
+<td>히스토리에서 이전 버전 선택 → 복원</td>
+<td>해당 QA Pair만</td>
+</tr>
+<tr>
+<td>임계값 변경</td>
+<td>메트릭별 변경 전후 값, 승인자</td>
+<td>설정 파일 이전 버전 복원</td>
+<td>모든 테스트</td>
+</tr>
+<tr>
+<td>대량 데이터 가져오기</td>
+<td>파일명, 추가/수정 수, 타임스탬프</td>
+<td>백업 파일에서 복원</td>
+<td>전체 Dataset</td>
+</tr>
+<tr>
+<td>데이터 삭제</td>
+<td>삭제된 항목, 삭제자, 사유</td>
+<td>휴지통에서 복구 (30일 보관)</td>
+<td>삭제된 항목만</td>
+</tr>
+</tbody>
+</table>
+
+<h3 id="qa-golden-dataset">7.3 Golden Dataset 품질 보증</h3>
+
+<h4>7.3.1 Golden Dataset 품질 기준</h4>
+
+<table>
+<thead>
+<tr>
+<th>품질 차원</th>
+<th>측정 지표</th>
+<th>목표값</th>
+<th>측정 방법</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>✅ 완전성</td>
+<td>필수 필드 채움율</td>
+<td>100%</td>
+<td>null/empty 필드 카운트</td>
+</tr>
+<tr>
+<td>🎯 정확성</td>
+<td>Expected Answer 품질</td>
+<td>Expert 검증 &gt; 95%</td>
+<td>SME(Subject Matter Expert) 리뷰</td>
+</tr>
+<tr>
+<td>📏 일관성</td>
+<td>포맷/스타일 통일성</td>
+<td>&gt; 98%</td>
+<td>자동 검증 스크립트</td>
+</tr>
+<tr>
+<td>🔄 최신성</td>
+<td>업데이트 주기</td>
+<td>분기별 1회</td>
+<td>마지막 업데이트 날짜 확인</td>
+</tr>
+<tr>
+<td>📊 대표성</td>
+<td>시나리오 커버리지</td>
+<td>&gt; 90%</td>
+<td>시나리오 매트릭스 커버리지</td>
+</tr>
+</tbody>
+</table>
+
+<h4>7.3.2 Golden Dataset 유효성 검증 스크립트</h4>
+
+<pre><code class="language-python">#!/usr/bin/env python3
+"""Golden Dataset 품질 검증 스크립트"""
+import json
+from typing import Dict, List
+
+def validate_golden_dataset(dataset_path: str) -&gt; Dict:
+    """Golden Dataset 전체 품질 검증"""
+
+    with open(dataset_path, 'r', encoding='utf-8') as f:
+        qa_pairs = json.load(f)
+
+    report = {
+        "total_pairs": len(qa_pairs),
+        "completeness": check_completeness(qa_pairs),
+        "consistency": check_consistency(qa_pairs),
+        "duplicates": find_duplicates(qa_pairs),
+        "quality_issues": find_quality_issues(qa_pairs)
+    }
+
+    return report
+
+def check_completeness(qa_pairs: List[Dict]) -&gt; Dict:
+    """완전성 검증: 필수 필드 존재 여부"""
+    required_fields = ['id', 'question', 'expected_answer', 'context']
+
+    incomplete = []
+    for qa in qa_pairs:
+        missing = [f for f in required_fields if not qa.get(f)]
+        if missing:
+            incomplete.append({
+                "id": qa.get('id', 'unknown'),
+                "missing_fields": missing
+            })
+
+    return {
+        "complete_rate": (len(qa_pairs) - len(incomplete)) / len(qa_pairs),
+        "incomplete_pairs": incomplete
+    }
+
+def check_consistency(qa_pairs: List[Dict]) -&gt; Dict:
+    """일관성 검증: 포맷, 길이, 스타일"""
+    issues = []
+
+    for qa in qa_pairs:
+        # Question이 너무 짧거나 길 경우
+        q_len = len(qa.get('question', ''))
+        if q_len &lt; 10:
+            issues.append({
+                "id": qa['id'],
+                "issue": "question_too_short",
+                "length": q_len
+            })
+        elif q_len &gt; 500:
+            issues.append({
+                "id": qa['id'],
+                "issue": "question_too_long",
+                "length": q_len
+            })
+
+        # Expected Answer가 비어있거나 너무 짧은 경우
+        ans_len = len(qa.get('expected_answer', ''))
+        if ans_len &lt; 5:
+            issues.append({
+                "id": qa['id'],
+                "issue": "answer_too_short",
+                "length": ans_len
+            })
+
+    return {
+        "consistency_rate": (len(qa_pairs) - len(issues)) / len(qa_pairs),
+        "issues": issues
+    }
+
+def find_duplicates(qa_pairs: List[Dict]) -&gt; List[Dict]:
+    """중복 데이터 탐지"""
+    seen = {}
+    duplicates = []
+
+    for qa in qa_pairs:
+        q = qa['question'].strip().lower()
+        if q in seen:
+            duplicates.append({
+                "duplicate_id": qa['id'],
+                "original_id": seen[q]
+            })
+        else:
+            seen[q] = qa['id']
+
+    return duplicates
+
+def find_quality_issues(qa_pairs: List[Dict]) -&gt; List[Dict]:
+    """품질 문제 탐지"""
+    issues = []
+
+    for qa in qa_pairs:
+        # Question에 오타/문법 오류 가능성 (간단한 휴리스틱)
+        question = qa.get('question', '')
+        if '??' in question or '!!' in question:
+            issues.append({
+                "id": qa['id'],
+                "issue": "potential_typo",
+                "field": "question"
+            })
+
+        # Expected Answer가 Question과 너무 유사 (복사 오류 가능성)
+        answer = qa.get('expected_answer', '')
+        if question and answer and question.lower() == answer.lower():
+            issues.append({
+                "id": qa['id'],
+                "issue": "question_answer_identical"
+            })
+
+    return issues
+
+# 실행 예시
+if __name__ == "__main__":
+    report = validate_golden_dataset("golden_qa_pairs.json")
+
+    print("=== Golden Dataset 품질 검증 보고서 ===")
+    print(f"전체 QA Pairs: {report['total_pairs']}개")
+    print(f"완전성: {report['completeness']['complete_rate']:.1%}")
+    print(f"일관성: {report['consistency']['consistency_rate']:.1%}")
+    print(f"중복: {len(report['duplicates'])}개")
+    print(f"품질 이슈: {len(report['quality_issues'])}개")
+
+    # 불완전한 데이터 출력
+    if report['completeness']['incomplete_pairs']:
+        print("\n❌ 불완전한 QA Pairs:")
+        for pair in report['completeness']['incomplete_pairs'][:5]:
+            print(f"  - {pair['id']}: 누락 필드 {pair['missing_fields']}")
+
+    # 중복 데이터 출력
+    if report['duplicates']:
+        print("\n⚠️ 중복 QA Pairs:")
+        for dup in report['duplicates'][:5]:
+            print(f"  - {dup['duplicate_id']} (원본: {dup['original_id']})")
+</code></pre>
+
+<h4>7.3.3 Golden Dataset 개선 프로세스</h4>
+
+<table>
+<thead>
+<tr>
+<th>단계</th>
+<th>QA 활동</th>
+<th>도구</th>
+<th>산출물</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1️⃣ 현황 분석</td>
+<td>품질 검증 스크립트 실행, 이슈 식별</td>
+<td>validate_golden_dataset.py</td>
+<td>품질 보고서</td>
+</tr>
+<tr>
+<td>2️⃣ 우선순위화</td>
+<td>Critical 이슈 선별, 개선 계획 수립</td>
+<td>Dashboard 필터링</td>
+<td>개선 백로그</td>
+</tr>
+<tr>
+<td>3️⃣ 데이터 편집</td>
+<td>Dashboard에서 이슈 항목 수정</td>
+<td>Streamlit "📝 데이터 편집"</td>
+<td>수정된 Dataset</td>
+</tr>
+<tr>
+<td>4️⃣ 검증</td>
+<td>재평가 실행, 품질 지표 비교</td>
+<td>Dashboard "📊 메트릭"</td>
+<td>검증 보고서</td>
+</tr>
+<tr>
+<td>5️⃣ 승인</td>
+<td>팀 리뷰, 변경 이력 문서화</td>
+<td>Git commit + PR</td>
+<td>승인된 Dataset</td>
+</tr>
+</tbody>
+</table>
+
+<h3 id="qa-threshold-validation">7.4 임계값 검증 워크플로우</h3>
+
+<h4>7.4.1 임계값 변경 전 영향 분석</h4>
+
+<pre><code class="language-python">#!/usr/bin/env python3
+"""임계값 변경 영향 분석 스크립트"""
+import json
+from typing import Dict, List
+
+def analyze_threshold_impact(
+    evaluation_results: List[Dict],
+    current_thresholds: Dict[str, float],
+    proposed_thresholds: Dict[str, float]
+) -&gt; Dict:
+    """임계값 변경 시 통과율 영향 분석"""
+
+    current_pass = []
+    proposed_pass = []
+
+    for result in evaluation_results:
+        # 현재 임계값 기준 통과 여부
+        current_passed = all(
+            result['metrics'].get(metric, 0) &gt;= threshold
+            for metric, threshold in current_thresholds.items()
+        )
+        current_pass.append(current_passed)
+
+        # 제안된 임계값 기준 통과 여부
+        proposed_passed = all(
+            result['metrics'].get(metric, 0) &gt;= threshold
+            for metric, threshold in proposed_thresholds.items()
+        )
+        proposed_pass.append(proposed_passed)
+
+    # 영향 받는 케이스 식별
+    affected = []
+    for i, result in enumerate(evaluation_results):
+        if current_pass[i] != proposed_pass[i]:
+            affected.append({
+                "id": result['id'],
+                "current": "PASS" if current_pass[i] else "FAIL",
+                "proposed": "PASS" if proposed_pass[i] else "FAIL",
+                "metrics": result['metrics']
+            })
+
+    return {
+        "current_pass_rate": sum(current_pass) / len(current_pass),
+        "proposed_pass_rate": sum(proposed_pass) / len(proposed_pass),
+        "affected_count": len(affected),
+        "affected_cases": affected
+    }
+
+# 사용 예시
+if __name__ == "__main__":
+    # 평가 결과 로드
+    with open("evaluation_results.json", 'r') as f:
+        results = json.load(f)
+
+    # 현재 vs 제안 임계값
+    current = {
+        "task_completion_rate": 0.85,
+        "accuracy": 0.80
+    }
+
+    proposed = {
+        "task_completion_rate": 0.90,  # 5% 상향
+        "accuracy": 0.75  # 5% 하향
+    }
+
+    # 영향 분석
+    impact = analyze_threshold_impact(results, current, proposed)
+
+    print("=== 임계값 변경 영향 분석 ===")
+    print(f"현재 통과율: {impact['current_pass_rate']:.1%}")
+    print(f"제안 통과율: {impact['proposed_pass_rate']:.1%}")
+    print(f"변화: {impact['proposed_pass_rate'] - impact['current_pass_rate']:+.1%}")
+    print(f"영향 받는 케이스: {impact['affected_count']}개")
+
+    # 영향 받는 케이스 출력
+    if impact['affected_cases']:
+        print("\n영향 받는 케이스 (최대 5개):")
+        for case in impact['affected_cases'][:5]:
+            print(f"  - {case['id']}: {case['current']} → {case['proposed']}")
+            print(f"    메트릭: {case['metrics']}")
+</code></pre>
+
+<h4>7.4.2 임계값 검증 체크리스트</h4>
+
+<table>
+<thead>
+<tr>
+<th>검증 항목</th>
+<th>확인 방법</th>
+<th>합격 기준</th>
+<th>담당자</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>✅ 영향 분석 완료</td>
+<td>analyze_threshold_impact.py 실행</td>
+<td>통과율 변화 &lt; 20%</td>
+<td>QA Manager</td>
+</tr>
+<tr>
+<td>✅ 비즈니스 정렬</td>
+<td>PM과 목표 확인</td>
+<td>비즈니스 목표와 일치</td>
+<td>QA + PM</td>
+</tr>
+<tr>
+<td>✅ 히스토리 백업</td>
+<td>현재 임계값 Git commit</td>
+<td>백업 완료</td>
+<td>QA Manager</td>
+</tr>
+<tr>
+<td>✅ 팀 공지</td>
+<td>Slack/Email 공지</td>
+<td>전체 팀원 인지</td>
+<td>QA Manager</td>
+</tr>
+<tr>
+<td>✅ 모니터링 설정</td>
+<td>Dashboard 알림 설정</td>
+<td>알림 테스트 성공</td>
+<td>QA Manager</td>
+</tr>
+</tbody>
+</table>
+
+<h3 id="qa-data-review">7.5 정기 데이터 품질 리뷰</h3>
+
+<h4>7.5.1 주간 품질 리뷰 체크리스트</h4>
+
+<table>
+<thead>
+<tr>
+<th>리뷰 항목</th>
+<th>확인 내용</th>
+<th>도구/방법</th>
+<th>Action 조건</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>📊 메트릭 트렌드</td>
+<td>전주 대비 메트릭 변화</td>
+<td>Dashboard "📈 트렌드"</td>
+<td>변화 &gt; 10% → 원인 분석</td>
+</tr>
+<tr>
+<td>❌ 실패 케이스</td>
+<td>반복 실패 패턴</td>
+<td>Dashboard "📊 Test 투명성"</td>
+<td>3회 이상 실패 → 데이터 검토</td>
+</tr>
+<tr>
+<td>📝 편집 이력</td>
+<td>데이터 편집 빈도 및 사유</td>
+<td>편집 로그</td>
+<td>편집 &gt; 10건/주 → 프로세스 개선</td>
+</tr>
+<tr>
+<td>⚙️ 임계값 위반</td>
+<td>임계값 아래 메트릭</td>
+<td>Dashboard 알림</td>
+<td>위반 발생 → 즉시 조치</td>
+</tr>
+</tbody>
+</table>
+
+<h4>7.5.2 월간 품질 리뷰 프로세스</h4>
+
+<table>
+<thead>
+<tr>
+<th>단계</th>
+<th>활동</th>
+<th>산출물</th>
+<th>참석자</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1️⃣ 데이터 수집</td>
+<td>월간 메트릭, 편집 이력, 이슈 수집</td>
+<td>월간 품질 보고서 초안</td>
+<td>QA Manager</td>
+</tr>
+<tr>
+<td>2️⃣ 분석</td>
+<td>트렌드 분석, 근본 원인 분석</td>
+<td>인사이트 및 개선 제안</td>
+<td>QA Team</td>
+</tr>
+<tr>
+<td>3️⃣ 리뷰 미팅</td>
+<td>보고서 발표, 토론, 액션 아이템 도출</td>
+<td>액션 아이템 리스트</td>
+<td>QA, PM, Dev Lead</td>
+</tr>
+<tr>
+<td>4️⃣ 액션</td>
+<td>개선 작업 할당 및 추적</td>
+<td>JIRA 티켓</td>
+<td>담당자들</td>
+</tr>
+<tr>
+<td>5️⃣ Follow-up</td>
+<td>액션 아이템 완료 확인</td>
+<td>완료 보고서</td>
+<td>QA Manager</td>
+</tr>
+</tbody>
+</table>
+
+<h4>7.5.3 월간 품질 보고서 템플릿</h4>
+
+<pre><code class="language-markdown"># 월간 Golden Dataset 품질 보고서
+**기간**: 2025년 11월 1일 ~ 11월 30일
+**작성자**: QA Manager
+**작성일**: 2025년 12월 1일
+
+## 📊 Executive Summary
+- **전체 통과율**: 87.5% (전월 대비 +2.3%)
+- **Golden Dataset 크기**: 250개 QA Pairs (+15개)
+- **데이터 편집**: 8건 (품질 개선)
+- **임계값 변경**: 1건 (Accuracy 0.80 → 0.75)
+
+## 📈 메트릭 트렌드
+| 메트릭 | 10월 평균 | 11월 평균 | 변화 | 상태 |
+|--------|----------|----------|------|------|
+| Task Completion Rate | 0.84 | 0.88 | +4.8% | ✅ 개선 |
+| Accuracy | 0.82 | 0.85 | +3.7% | ✅ 개선 |
+| Response Time | 3.2s | 3.5s | +9.4% | ⚠️ 주의 |
+| Hallucination Rate | 0.08 | 0.06 | -25% | ✅ 개선 |
+
+## 🎯 주요 성과
+1. **Golden Dataset 품질 개선**: 15개 신규 QA Pairs 추가, 품질 검증 완료
+2. **임계값 최적화**: Accuracy 임계값 조정으로 통과율 5% 향상
+3. **프로세스 자동화**: 품질 검증 스크립트 도입으로 검증 시간 50% 단축
+
+## ❌ 주요 이슈
+1. **Response Time 증가**: 복잡한 쿼리 증가로 평균 응답 시간 9.4% 상승
+   - **원인**: Multi-hop reasoning 케이스 증가
+   - **액션**: 성능 최적화 작업 (JIRA-1234)
+
+2. **반복 실패 케이스**: 5개 케이스가 3회 이상 실패
+   - **원인**: 기대 답변 모호성
+   - **액션**: QA Pairs 편집 완료
+
+## 💡 개선 제안
+1. **Golden Dataset 확장**: 엣지 케이스 30개 추가 (Q1 2026)
+2. **자동 알림 강화**: 임계값 위반 시 Slack 알림 설정
+3. **정기 리뷰 주기 변경**: 월간 → 격주 (더 빠른 피드백)
+
+## 📋 Next Month 목표
+- [ ] Golden Dataset 300개로 확장
+- [ ] Response Time 평균 3.0s 이하 달성
+- [ ] 자동 품질 검증 커버리지 100%
+</code></pre>
+
+<h4>7.5.4 품질 리뷰 모범 사례</h4>
+
+<ul>
+<li><strong>✅ 데이터 기반 의사결정</strong>: 주관적 판단이 아닌 메트릭과 데이터로 품질 평가</li>
+<li><strong>✅ 정기적 리뷰</strong>: 주간/월간 정기 리뷰로 지속적 개선</li>
+<li><strong>✅ 팀 협업</strong>: QA, PM, Dev가 함께 품질 목표 설정 및 달성</li>
+<li><strong>✅ 투명성</strong>: 모든 변경 이력을 기록하고 공유</li>
+<li><strong>✅ 자동화</strong>: 반복 작업은 스크립트로 자동화하여 효율성 향상</li>
+<li><strong>✅ 롤백 준비</strong>: 언제든 이전 상태로 복구 가능하도록 백업 유지</li>
+</ul>
+
+</div>
+<h2 id="결론">결론</h2>
+<p>이 가이드에서 제시한 데이터 편집 및 Test 투명성 기능은 다음과 같은
+이점을 제공합니다:</p>
+<h3 id="데이터-편집-기능의-이점">데이터 편집 기능의 이점</h3>
+<ol type="1">
+<li><strong>효율성</strong>: UI에서 직접 데이터 수정, 빠른 반복</li>
+<li><strong>안전성</strong>: 자동 백업 및 롤백, 변경 이력 추적</li>
+<li><strong>협업</strong>: 편집자와 이유 기록, 팀 협업 지원</li>
+<li><strong>유연성</strong>: TaskResult, Golden Dataset, 임계값 모두
+편집 가능</li>
+</ol>
+<h3 id="test-투명성-기능의-이점">Test 투명성 기능의 이점</h3>
+<ol type="1">
+<li><strong>신뢰성</strong>: 메트릭 계산 과정 투명하게 공개</li>
+<li><strong>디버깅</strong>: 문제 발생 시 원인 빠르게 파악</li>
+<li><strong>협업</strong>: 주석으로 의견 공유 및 논의</li>
+<li><strong>추적성</strong>: 모든 평가 활동 Audit Log로 기록</li>
+</ol>
+<h3 id="다음-단계">다음 단계</h3>
+<ol type="1">
+<li><strong>Dashboard 통합</strong>:
+<code>streamlit_dashboard.py</code>에 이 UI 추가</li>
+<li><strong>자동화</strong>: CI/CD 파이프라인에 평가 및 알림 통합</li>
+<li><strong>확장</strong>: 커스텀 메트릭 및 주석 유형 추가</li>
+<li><strong>최적화</strong>: 대용량 데이터 처리 성능 개선</li>
+</ol>
+<hr />
+<h2 id="검증-완료-및-개선-사항-요약">검증 완료 및 개선 사항 요약</h2>
+<h3 id="검증-결과">검증 결과</h3>
+<p>이 문서는 실제 구현 파일과 비교하여 검증되었습니다:</p>
+<ul>
+<li>✅ <strong>data_editor_manager.py</strong>: 모든 클래스 메서드와 데이터 구조 확인</li>
+<li>✅ <strong>test_transparency_manager.py</strong>: 투명성 기능 및 고급 분석 메서드 확인</li>
+<li>✅ <strong>dashboard_data_editor.py</strong>: UI 컴포넌트 및 워크플로우 확인</li>
+</ul>
+<h3 id="주요-개선-사항-2024.11.30">주요 개선 사항 (2024.11.30)</h3>
+<h4 id="dataeditormanager-클래스-메서드-명확화">1. DataEditorManager
+클래스 메서드 명확화</h4>
+<ul>
+<li>모든 주요 메서드에 대한 정확한 시그니처 추가</li>
+<li>자동 백업 및 편집 기록 생성 명시</li>
+<li>Layer 2 필드 (Agentic + Security 메트릭) 지원 문서화</li>
+<li>Test 구성 관리 (Phase 3) 추가</li>
+</ul>
+<h4 id="testtransparencymanager-클래스-메서드-명확화">2.
+TestTransparencyManager 클래스 메서드 명확화</h4>
+<ul>
+<li>메트릭 계산 추적 프로세스 상세화</li>
+<li>주석(Annotation) 시스템 구조 명확화</li>
+<li>Audit Log 구조 및 저장 위치 추가</li>
+<li><strong>5가지 고급 분석 기능 추가</strong>:
+<ul>
+<li>이상치 탐지 (Anomaly Detection)</li>
+<li>상관관계 분석 (Correlation Analysis)</li>
+<li>성능 병목 지점 식별 (Performance Bottlenecks)</li>
+<li>데이터 품질 검증 (Data Quality Validation)</li>
+<li>실행 가능한 개선 방안 (Actionable Insights)</li>
+</ul></li>
+</ul>
+<h4 id="데이터-구조-문서화">3. 데이터 구조 문서화</h4>
+<ul>
+<li>모든 <code>@dataclass</code> 구조 명시 (DataEdit, DataVersion,
+TestStep, MetricCalculationTrace, Annotation, AuditLogEntry,
+TransparentEvaluationReport)</li>
+<li>ID 생성 패턴 (YYYYMMDD_HHMMSS_ffffff)</li>
+<li>파일 저장 위치 및 명명 규칙</li>
+</ul>
+<h4 id="버전-관리-시스템">4. 버전 관리 시스템</h4>
+<ul>
+<li><code>_create_version</code> 메서드가 save 시 자동 호출됨을
+명시</li>
+<li>버전 ID 형식 및 저장 위치 추가</li>
+<li>롤백 프로세스 상세화</li>
+</ul>
+<h4 id="test-구성-관리-phase-3-1">5. Test 구성 관리 (Phase 3)</h4>
+<ul>
+<li>환경별 Test 구성 저장 및 재사용 기능 추가</li>
+<li>Enhanced Metadata 지원 (environment, tags, model_config, framework,
+version)</li>
+<li>복수 Golden Dataset 지원</li>
+</ul>
+<h3 id="개발자를-위한-핵심-정보">개발자를 위한 핵심 정보</h3>
+<h4 id="자동화된-기능">자동화된 기능</h4>
+<p>다음 기능들은 <strong>자동으로 실행</strong>되므로 개발자가 직접 호출할 필요가 없습니다:</p>
+<ul>
+<li>✅ 버전 백업 (<code>save_*</code> 메서드 호출 시 자동)</li>
+<li>✅ 편집 기록 (<code>_record_edit</code> 자동 호출)</li>
+<li>✅ Audit Log (주석 추가/수정 시 자동)</li>
+<li>✅ 메트릭 설명 생성 (<code>_generate_explanation</code> 자동)</li>
+</ul>
+<h4 id="파일-저장-위치-요약">파일 저장 위치 요약</h4>
+<pre><code>evaluation_results/
+├── versions/                    # 버전 백업
+│   └── version_{timestamp}_{filename}.json
+├── edit_history/                # 편집 기록
+│   └── edit_{edit_id}.json
+├── traces/                      # 메트릭 계산 추적
+│   └── trace_{metric_name}_{task_id}.json
+├── annotations/                 # 주석
+│   └── annotation_{annotation_id}.json
+├── audit_logs/                  # Audit Log
+│   └── audit_{log_id}.json
+├── test_configs/                # Test 구성
+│   └── test_config_{timestamp}.json
+├── thresholds.json              # 임계값
+├── advanced_eval_config.json    # 고급 평가 설정
+└── performance_data.json        # TaskResult 데이터</code></pre>
+<h4 id="메서드-호출-순서-투명한-평가">메서드 호출 순서 (투명한
+평가)</h4>
+<ol type="1">
+<li><p><strong>Test 구성 준비</strong></p>
+<div class="sourceCode" id="cb46"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb46-1"><a href="#cb46-1" aria-hidden="true" tabindex="-1"></a>config <span class="op">=</span> manager.create_test_configuration(...)</span></code></pre></div></li>
+<li><p><strong>메트릭 계산 추적</strong></p>
+<div class="sourceCode" id="cb47"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb47-1"><a href="#cb47-1" aria-hidden="true" tabindex="-1"></a>trace_id <span class="op">=</span> transparency.start_metric_calculation(...)</span>
+<span id="cb47-2"><a href="#cb47-2" aria-hidden="true" tabindex="-1"></a>transparency.add_calculation_step(...)</span>
+<span id="cb47-3"><a href="#cb47-3" aria-hidden="true" tabindex="-1"></a>transparency.complete_metric_calculation(...)</span></code></pre></div></li>
+<li><p><strong>주석 추가 (선택)</strong></p>
+<div class="sourceCode" id="cb48"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb48-1"><a href="#cb48-1" aria-hidden="true" tabindex="-1"></a>annotation_id <span class="op">=</span> transparency.add_annotation(...)</span></code></pre></div></li>
+<li><p><strong>리포트 생성</strong></p>
+<div class="sourceCode" id="cb49"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb49-1"><a href="#cb49-1" aria-hidden="true" tabindex="-1"></a>report <span class="op">=</span> transparency.generate_transparent_report(...)</span></code></pre></div></li>
+<li><p><strong>고급 분석 (Phase 3)</strong></p>
+<div class="sourceCode" id="cb50"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb50-1"><a href="#cb50-1" aria-hidden="true" tabindex="-1"></a>anomalies <span class="op">=</span> transparency.analyze_metric_anomalies(monitor)</span>
+<span id="cb50-2"><a href="#cb50-2" aria-hidden="true" tabindex="-1"></a>insights <span class="op">=</span> transparency.generate_actionable_insights(monitor)</span></code></pre></div></li>
+</ol>
+<hr />
+<p><strong>Agent Evaluator</strong> - 투명하고 편집 가능한 AI Agent 평가
+🔬✨</p>
+
+<hr />
+<p><strong>최종 업데이트</strong>: 2025-12-16<br>
+<strong>버전</strong>: Agent Evaluator v0.5.0<br>
+<strong>프로젝트</strong>: Agent Evaluator - AI Agent Performance Evaluation System<br>
+<strong>검증 완료</strong>: data_editor_manager.py, test_transparency_manager.py, dashboard_data_editor.py</p>
+
+        </div>
+    </div>
+
+    <!-- Mermaid Zoom Modal -->
+    
+    <script src="scripts/mermaid-zoom.js"></script>
+</body>
+</html>

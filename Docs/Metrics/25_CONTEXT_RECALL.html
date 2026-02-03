@@ -1,0 +1,1547 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Context Recall (Ragas) - Agent Evaluator v0.5.0</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            line-height: 1.8;
+            color: #1a202c;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 40px 20px;
+        }
+
+        .container {
+    max-width: 1400px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #ed8936 0%, #dd6b20 100%);
+            color: white;
+            padding: 60px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 3.5em;
+            margin-bottom: 20px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.2);
+        }
+
+        .header .subtitle {
+            font-size: 1.4em;
+            opacity: 0.95;
+            font-weight: 300;
+        }
+
+        .version-badge {
+            display: inline-block;
+            background: rgba(255,255,255,0.2);
+            padding: 12px 30px;
+            border-radius: 30px;
+            backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    margin-top: 15px;
+            font-size: 1em;
+        }
+
+        .content {    padding: 60px;
+        }
+
+        .section {
+            margin-bottom: 50px;
+        }
+
+        .section h2 {
+            color: #dd6b20;
+            font-size: 2.2em;
+            margin-bottom: 25px;
+            padding-bottom: 15px;
+            border-bottom: 3px solid #dd6b20;
+        }
+
+        .section h3 {
+            color: #c05621;
+            font-size: 1.6em;
+            margin: 30px 0 20px 0;
+        }
+
+        .section h4 {
+            color: #9c4221;
+            font-size: 1.3em;
+            margin: 25px 0 15px 0;
+        }
+
+        .intro-box {
+            background: linear-gradient(135deg, #fffaf0 0%, #feebc8 100%);
+            padding: 30px;
+            border-radius: 8px;
+            border-left: 5px solid #dd6b20;
+            margin: 25px 0;
+            font-size: 1.1em;
+            line-height: 1.8;
+        }
+
+        .importance-box {
+            background: linear-gradient(135deg, #fffaf0 0%, #feebc8 100%);
+            padding: 30px;
+            border-radius: 15px;
+            border-left: 6px solid #ed8936;
+            margin: 25px 0;
+        }
+
+        .warning-box {
+            background: linear-gradient(135deg, #fff5f5 0%, #fed7d7 100%);
+            padding: 25px;
+            border-radius: 15px;
+            border-left: 6px solid #f56565;
+            margin: 25px 0;
+        }
+
+        .code-block {
+            background: #2d3748;
+            color: #e2e8f0;
+            padding: 25px;
+            border-radius: 10px;
+            overflow-x: auto;
+            margin: 20px 0;
+            font-family: 'Courier New', Courier, monospace;
+            font-size: 0.95em;
+            line-height: 1.6;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+
+        .code-block .comment {
+            color: #f6ad55;
+        }
+
+        .code-block .keyword {
+            color: #fc8181;
+        }
+
+        .code-block .string {
+            color: #fbd38d;
+        }
+
+        .metric-value {
+            display: inline-block;
+            background: #dd6b20;
+            color: white;
+            padding: 5px 15px;
+            border-radius: 20px;
+            font-weight: bold;
+            margin: 0 5px;
+        }
+
+        .best-practice {
+            background: linear-gradient(135deg, #ebf8ff 0%, #bee3f8 100%);
+            padding: 25px;
+            border-radius: 15px;
+            border-left: 6px solid #4299e1;
+            margin: 25px 0;
+        }
+
+        ul, ol {
+            margin-left: 30px;
+            margin-top: 15px;
+            margin-bottom: 15px;
+        }
+
+        li {
+            margin: 12px 0;
+            line-height: 1.8;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 25px 0;
+            background: white;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            border-radius: 10px;
+            overflow: hidden;
+        }
+
+        th {
+            background: linear-gradient(135deg, #dd6b20 0%, #c05621 100%);
+            color: white;
+            padding: 18px;
+            text-align: left;
+            font-weight: 600;
+        }
+
+        td {
+            padding: 15px 18px;
+            border-bottom: 1px solid #e2e8f0;
+        }
+
+        tr:last-child td {
+            border-bottom: none;
+        }
+
+        tr:hover {
+            background: #f7fafc;
+        }
+
+        .footer {
+            background: #2d3748;
+            color: #e2e8f0;
+            padding: 40px 60px;
+            text-align: center;
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 6px 14px;
+            border-radius: 20px;
+            font-size: 0.85em;
+            font-weight: 600;
+            margin: 5px;
+        }
+
+        .badge-ragas {
+            background: #48bb78;
+            color: white;
+        }
+
+        .badge-layer3 {
+            background: #4299e1;
+            color: white;
+        }
+
+        .badge-rag {
+            background: #ed8936;
+            color: white;
+        }
+
+        .badge-retrieval {
+            background: #805ad5;
+            color: white;
+        }
+
+        .badge-conditional {
+            background: #f56565;
+            color: white;
+        }
+
+        strong {
+            color: #2d3748;
+            font-weight: 600;
+        }
+
+        a {
+            color: #dd6b20;
+            text-decoration: none;
+            border-bottom: 2px solid transparent;
+            transition: border-bottom 0.3s;
+        }
+
+        a:hover {
+            border-bottom: 2px solid #dd6b20;
+        }
+    
+
+                /* Mermaid Diagrams */
+        .mermaid {
+            margin: 40px 0;
+            text-align: center;
+            background: linear-gradient(135deg, #f6f8fb 0%, #e9ecf5 100%);
+            padding: 30px;
+            border-radius: 15px;
+            border: 1px solid #e2e8f0;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            transition: all 0.3s ease;
+        }
+
+        .mermaid:hover {
+            box-shadow: 0 8px 20px rgba(0,0,0,0.15);
+            transform: translateY(-2px);
+        }
+
+
+    
+
+        /* Mermaid Zoom Modal Styles */
+        .mermaid-modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 10000;
+    opacity: 0;
+    transition: opacity 0.2s ease;
+}
+
+.mermaid-modal.active {
+    opacity: 1;
+}
+
+.mermaid-modal.closing {
+    opacity: 0;
+}
+
+/* Modal backdrop */
+.mermaid-modal-backdrop {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.85);
+    backdrop-filter: blur(4px);
+}
+
+/* Modal content container */
+.mermaid-modal-content {
+    position: relative;
+    width: 90vw;
+    height: 90vh;
+    max-width: 1400px;
+    max-height: 900px;
+    margin: 5vh auto;
+    background: var(--bg-white);
+    border-radius: var(--radius-xl);
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;  /* Keep border-radius working */
+}
+
+/* Modal header */
+.mermaid-modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: var(--space-md) var(--space-lg);
+    background: linear-gradient(135deg, var(--primary-color) 0%, var(--primary-dark) 100%);
+    color: white;
+    border-bottom: 1px solid var(--bg-border);
+}
+
+.mermaid-modal-title {
+    font-size: 1.1rem;
+    font-weight: 600;
+}
+
+.mermaid-modal-controls {
+    display: flex;
+    gap: var(--space-sm);
+}
+
+.mermaid-btn {
+    background: rgba(255, 255, 255, 0.2);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    color: white;
+    padding: var(--space-sm);
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    transition: all var(--transition-fast);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+}
+
+.mermaid-btn:hover {
+    background: rgba(255, 255, 255, 0.3);
+    border-color: rgba(255, 255, 255, 0.5);
+    transform: scale(1.05);
+}
+
+.mermaid-btn:active {
+    transform: scale(0.95);
+}
+
+.mermaid-btn svg {
+    width: 20px;
+    height: 20px;
+}
+
+/* Modal body */
+.mermaid-modal-body {
+    flex: 1;
+    overflow: visible;  /* Don't clip transformed content */
+    position: relative;
+    background: #ffffff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* Diagram container */
+.mermaid-diagram-container {
+    transform-origin: center center;
+    /* No transition during drag - will be added dynamically only for zoom */
+    transition: none;
+    /* Remove max-width/height constraints to allow diagrams to display at original size */
+    /* The modal-body will handle overflow with scrolling */
+    display: inline-block;
+    position: relative;
+    /* Ensure content is visible even when transformed */
+    pointer-events: auto;
+    z-index: 1;
+    /* Prevent disappearing due to overflow clipping */
+    will-change: transform;
+}
+
+/* Add transition class for zoom (not drag) */
+.mermaid-diagram-container.zoom-transition {
+    transition: transform 0.2s ease;
+}
+
+.mermaid-diagram-container svg {
+    max-width: none !important;
+    max-height: none !important;
+    display: block;
+    cursor: grab;
+}
+
+.mermaid-diagram-container svg:active {
+    cursor: grabbing;
+}
+
+/* Responsive modal */
+@media (max-width: 768px) {
+    .mermaid-modal-content {
+        width: 95vw;
+        height: 85vh;
+        margin: 7.5vh auto;
+    }
+
+    .mermaid-modal-header {
+        padding: var(--space-sm) var(--space-md);
+    }
+
+    .mermaid-modal-title {
+        font-size: 1rem;
+    }
+
+    .mermaid-btn {
+        width: 32px;
+        height: 32px;
+    }
+
+    .mermaid-btn svg {
+        width: 18px;
+        height: 18px;
+    }
+}
+
+/* Dark mode support for modal */
+@media (prefers-color-scheme: dark) {
+    .mermaid-modal-content {
+        background: var(--bg-white);
+        border: 1px solid var(--bg-border);
+    }
+
+    .mermaid-modal-body {
+        background: #ffffff;
+    }
+}
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>📊 Context Recall</h1>
+            <p class="subtitle">Ragas RAG 평가 메트릭 - 검색 재현율 (Retrieval Recall)</p>
+            <div class="version-badge">Agent Evaluator v0.5.0</div>
+            <div style="margin-top: 15px;">
+                <span class="badge badge-ragas">Ragas</span>
+                <span class="badge badge-layer3">Layer 3</span>
+                <span class="badge badge-rag">RAG Evaluation</span>
+                <span class="badge badge-retrieval">Retrieval Quality</span>
+                <span class="badge badge-conditional">Requires Ground Truth</span>
+            </div>
+        </div>
+
+        <div class="content">
+            <!-- 개요 -->
+            <div class="section">
+                <h2>📋 개요</h2>
+                <div class="intro-box">
+                    <p><strong>Context Recall</strong>은 Ragas 라이브러리에서 제공하는 RAG(Retrieval-Augmented Generation) 시스템 전용 평가 메트릭으로, <strong>검색된 컨텍스트들이 정답(Ground Truth)을 생성하는 데 필요한 정보를 얼마나 완전하게 포함하고 있는지</strong>를 측정합니다.</p>
+                    <br>
+                    <p>이 메트릭은 정답의 각 주장(Claim)을 추출한 후, 검색된 컨텍스트에서 해당 주장을 뒷받침할 수 있는 정보가 있는지 검증합니다. <strong>검색 시스템(Retrieval System)의 완전성을 평가</strong>하는 핵심 메트릭으로, Vector DB나 검색 알고리즘이 중요한 정보를 빠뜨리지 않는지 확인합니다.</p>
+                </div>
+
+                <div class="warning-box">
+                    <h3>⚠️ 중요: Ground Truth 필수</h3>
+                    <p><strong>Context Recall은 다른 Ragas 메트릭과 달리 <code>expected_output</code> (ground_truth)이 필수입니다.</strong></p>
+                    <ul>
+                        <li><code>expected_output</code>이 제공되지 않으면 Context Recall은 <strong>자동으로 스킵</strong>됩니다</li>
+                        <li>metric_adapters.py Line 450: <code>self.context_recall</code>은 <code>if context.expected_output:</code> 블록 내에만 포함됨</li>
+                        <li>다른 3개 메트릭(Faithfulness, Answer Relevancy, Context Precision)은 ground truth 없이도 평가 가능</li>
+                    </ul>
+                </div>
+
+                <div class="importance-box">
+                    <h3>🎯 비즈니스 임팩트</h3>
+                    <ul>
+                        <li><strong>검색 완전성 보장</strong>: 중요한 정보 누락으로 인한 불완전한 답변 방지</li>
+                        <li><strong>사용자 만족도</strong>: 질문에 대한 포괄적인 정보 제공</li>
+                        <li><strong>검색 시스템 개선</strong>: top_k, embedding 모델, 청킹 전략 최적화 지표</li>
+                        <li><strong>품질 보증</strong>: 테스트 세트로 검색 시스템의 회귀(regression) 탐지</li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- 구현 위치 -->
+
+<div class="section">
+    <h2>📊 다이어그램 시각화</h2>
+
+    <h3>1️⃣ 핵심 개념 및 재현율 평가 (Ragas)</h3>
+    <pre class="mermaid">
+graph TD
+    A[Question + Contexts + Ground Truth] --> B[ContextRecall Metric<br/>Ragas Framework]
+    B --> C[LLM Judge<br/>gpt-4o-mini]
+
+    C --> D[Ground Truth Claims 추출]
+    D --> E[GT Claim 1, 2, 3, ...]
+
+    E --> F{각 GT Claim 검증}
+    F -->|Context에서 찾음| G[Recalled: 1]
+    F -->|Context에 없음| H[Missing: 0]
+
+    G --> I[Context Recall Calculation]
+    H --> I
+
+    I --> J[Recall Score<br/>= recalled_claims / total_gt_claims]
+
+    J --> K{Coverage Level}
+    K -->|≥ 0.90| L[Excellent: 완전한 Coverage]
+    K -->|0.75-0.89| M[Good: 대부분 포함]
+    K -->|0.60-0.74| N[Moderate: 일부 누락]
+    K -->|< 0.60| O[Poor: 심각한 누락]
+
+    style A fill:#e1f5ff
+    style J fill:#fff3cd
+    style L fill:#d4edda
+    style O fill:#f8d7da
+    </pre>
+
+    <h3>2️⃣ 평가 파이프라인 (Coverage Check)</h3>
+    <pre class="mermaid">
+sequenceDiagram
+    participant RAG as RAG System
+    participant Adapter as RagasAdapter
+    participant Ragas as Ragas Framework
+    participant LLM as gpt-4o-mini
+
+    RAG->>Adapter: evaluate(question, contexts, ground_truth_answer)
+    Note over RAG: ground_truth_answer는<br/>필수 정보 포함
+
+    Adapter->>Adapter: Create Ragas Dataset<br/>SingleTurnSample
+
+    Adapter->>Ragas: evaluate(dataset, metrics=[context_recall])
+
+    Ragas->>LLM: Extract claims from ground_truth
+    LLM-->>Ragas: [GT Claim 1, Claim 2, Claim 3, ...]
+
+    loop For each GT claim
+        Ragas->>LLM: Is claim present in contexts?
+        LLM-->>Ragas: Yes/No
+    end
+
+    Ragas->>Ragas: Calculate: found_claims / total_gt_claims
+
+    Ragas-->>Adapter: context_recall score (0-1)
+
+    Adapter-->>RAG: {'ragas_context_recall': 0.88}
+    </pre>
+
+    <h3>3️⃣ Precision vs Recall Trade-off</h3>
+    <pre class="mermaid">
+graph TD
+    A[RAG Retrieval Optimization] --> B{목표 설정}
+
+    B -->|고정밀도| C[Context Precision 최적화<br/>Metric 24]
+    B -->|고재현율| D[Context Recall 최적화<br/>Metric 25]
+    B -->|균형| E[Precision & Recall 밸런스]
+
+    C --> F[Strategy: Reranker + Top-K=3<br/>Result: Precision ↑, Recall ↓<br/>Use: 정확성 중시 QA]
+
+    D --> G[Strategy: Increase Top-K=10<br/>Result: Recall ↑, Precision ↓<br/>Use: 정보 누락 방지]
+
+    E --> H[Strategy: Hybrid + Rerank + Top-K=5<br/>Result: 균형 잡힌 성능<br/>Use: 프로덕션 권장]
+
+    F --> I[F1-Score = 2×P×R / P+R]
+    G --> I
+    H --> I
+
+    I --> J[최적화 목표:<br/>F1-Score ≥ 0.85]
+
+    J --> K[실험적 Top-K 조정:<br/>3, 5, 10 테스트<br/>Cost vs Quality 분석]
+
+    style A fill:#e1f5ff
+    style I fill:#fff3cd
+    style J fill:#d4edda
+    </pre>
+
+    <h3>4️⃣ 임계값 및 Coverage 최적화</h3>
+    <pre class="mermaid">
+graph TD
+    A[Context Recall Score] --> B{임계값 비교}
+    B -->|≥ 0.90| C[🌟 Excellent<br/>Complete Coverage]
+    B -->|0.75-0.89| D[✅ Good<br/>Most Info Included]
+    B -->|0.60-0.74| E[⚠️ Moderate<br/>Some Missing Info]
+    B -->|< 0.60| F[❌ Poor<br/>Significant Gaps]
+
+    C --> G[권장: 현재 Top-K 유지<br/>Coverage 충분]
+    D --> H[권장: Top-K 증가<br/>0.90 목표]
+    E --> I[권장: Chunk Size 조정<br/>Retrieval 전략 개선]
+    F --> J[권장: 즉시 개선<br/>Embedding/Chunking 재설계]
+
+    style C fill:#d4edda
+    style D fill:#cfe2ff
+    style E fill:#fff3cd
+    style F fill:#f8d7da
+    </pre>
+</div>
+
+
+            <div class="section">
+                <h2>🔍 구현 위치</h2>
+                <table>
+                    <tr>
+                        <th>항목</th>
+                        <th>내용</th>
+                    </tr>
+                    <tr>
+                        <td><strong>파일</strong></td>
+                        <td><code>agent_evaluator/integrations/metric_adapters.py</code></td>
+                    </tr>
+                    <tr>
+                        <td><strong>클래스</strong></td>
+                        <td><code>RagasAdapter</code></td>
+                    </tr>
+                    <tr>
+                        <td><strong>메서드</strong></td>
+                        <td><code>evaluate()</code></td>
+                    </tr>
+                    <tr>
+                        <td><strong>라인 번호</strong></td>
+                        <td>Lines 420-534 (전체 평가 로직)<br>Line 450 (context_recall 메트릭 선택 - <strong>조건부</strong>)</td>
+                    </tr>
+                    <tr>
+                        <td><strong>외부 라이브러리</strong></td>
+                        <td>Ragas (<code>ragas.metrics.context_recall</code>)</td>
+                    </tr>
+                    <tr>
+                        <td><strong>반환 키</strong></td>
+                        <td><code>ragas_context_recall</code></td>
+                    </tr>
+                    <tr>
+                        <td><strong>전제 조건</strong></td>
+                        <td><strong>⚠️ <code>expected_output</code> (ground_truth) 필수</strong></td>
+                    </tr>
+                </table>
+            </div>
+
+            <!-- 평가 원리 -->
+            <div class="section">
+                <h2>⚙️ 평가 원리</h2>
+
+                <h3>Step 1: Ground Truth에서 Claim 추출</h3>
+                <p>LLM을 사용하여 정답(Ground Truth)에서 독립적인 사실 주장(Claims)을 추출합니다.</p>
+                <div class="code-block">Ground Truth: "파이썬 3.11은 2022년 10월에 출시되었으며, 이전 버전보다 10-60% 빠릅니다. Faster CPython 프로젝트의 결과입니다."
+
+→ Extracted Claims:
+  1. "파이썬 3.11은 2022년 10월에 출시되었다"
+  2. "파이썬 3.11은 이전 버전보다 10-60% 빠르다"
+  3. "Faster CPython 프로젝트의 결과이다"</div>
+
+                <h3>Step 2: 컨텍스트에서 Claim 검증</h3>
+                <p>각 Claim이 검색된 컨텍스트에서 확인 가능한지 LLM이 판단합니다.</p>
+                <div class="code-block">Retrieved Contexts:
+  [1] "Python 3.11 was released in October 2022..."
+  [2] "Performance improvements range from 10-60% faster..."
+  [3] "Django is a Python web framework..."  <span class="comment"># Not relevant</span>
+
+Claim 1: ✅ Supported by Context [1]
+Claim 2: ✅ Supported by Context [2]
+Claim 3: ❌ Not found in any context</div>
+
+                <h3>Step 3: Recall Score 계산</h3>
+                <div class="code-block">Context Recall = (검색된 컨텍스트에서 확인 가능한 Claims 수) / (전체 Claims 수)
+
+예시: 2 / 3 = 0.667 (66.7%의 정보만 검색됨)</div>
+
+                <div class="best-practice">
+                    <h4>📊 Score 해석 가이드</h4>
+                    <ul>
+                        <li><span class="metric-value">0.9 ~ 1.0</span>: 완벽한 검색 재현율 (Excellent)</li>
+                        <li><span class="metric-value">0.7 ~ 0.89</span>: 양호한 검색 완전성 (Good)</li>
+                        <li><span class="metric-value">0.5 ~ 0.69</span>: 일부 정보 누락 (Acceptable with caution)</li>
+                        <li><span class="metric-value">< 0.5</span>: 중요한 정보 누락 (Poor - 수정 필요)</li>
+                    </ul>
+                    <p><strong>⚠️ 방향 주의:</strong> 높을수록 좋음 (1.0 = 모든 필요한 정보가 검색됨)</p>
+                    <p><strong>🔍 평가 대상:</strong> 생성 품질이 아닌 <strong>검색(Retrieval) 완전성</strong>을 평가함</p>
+                </div>
+            </div>
+
+            <!-- 메서드 상세 -->
+            <div class="section">
+                <h2>🔧 메서드 상세</h2>
+
+                <h3>RagasAdapter.evaluate() - Context Recall 평가</h3>
+                <p><strong>소스 코드</strong> (metric_adapters.py Lines 420-534):</p>
+
+                <div class="code-block">def evaluate(self, context: EvaluationContext) -> Dict[str, Any]:
+    """Evaluate using Ragas RAG metrics"""
+    if not self._available:
+        return {}
+
+    <span class="comment"># Only evaluate RAG tasks with retrieved context</span>
+    if not context.retrieved_context:
+        return {}
+
+    results = {}
+
+    try:
+        from datasets import Dataset
+
+        <span class="comment"># Prepare data in Ragas format</span>
+        data = {
+            'question': [context.input_text],
+            'answer': [context.output_text],
+            'contexts': [context.retrieved_context]
+        }
+
+        <span class="comment"># Select metrics based on available data</span>
+        <span class="comment"># ⚠️ IMPORTANT: context_recall requires ground_truth</span>
+        if context.expected_output:
+            data['ground_truth'] = [context.expected_output]
+            metrics = [
+                self.faithfulness,
+                self.answer_relevancy,
+                self.context_recall,         <span class="comment"># ← Context Recall (조건부 - ground_truth 필요)</span>
+                self.context_precision
+            ]
+        else:
+            <span class="comment"># Skip context_recall when no ground_truth available</span>
+            metrics = [
+                self.faithfulness,
+                self.answer_relevancy,
+                self.context_precision       <span class="comment"># ← Context Recall은 제외됨</span>
+            ]
+
+        dataset = Dataset.from_dict(data)
+
+        <span class="comment"># Set LLM for all metrics</span>
+        for metric in metrics:
+            if hasattr(metric, 'llm'):
+                metric.llm = self.llm
+
+        eval_result = self.evaluate_fn(
+            dataset,
+            metrics=metrics
+        )
+
+        <span class="comment"># Extract Context Recall score (if ground_truth was provided)</span>
+        import math
+        for metric_name in ['faithfulness', 'answer_relevancy', 'context_recall', 'context_precision']:
+            try:
+                value_list = eval_result[metric_name]
+
+                if isinstance(value_list, (list, tuple)) and len(value_list) > 0:
+                    value = value_list[0]
+                else:
+                    value = value_list
+
+                if value is not None and isinstance(value, (int, float)) and not (isinstance(value, float) and math.isnan(value)):
+                    results[f'ragas_{metric_name}'] = float(value)
+
+            except (KeyError, IndexError, TypeError, AttributeError, ValueError):
+                continue  <span class="comment"># Skip if metric not available</span>
+
+        <span class="comment"># Calculate overall Ragas score</span>
+        numeric_metrics = {k: v for k, v in results.items()
+                           if isinstance(v, (int, float))
+                           and not isinstance(v, bool)}
+        if numeric_metrics:
+            results['ragas_overall_score'] = sum(numeric_metrics.values()) / len(numeric_metrics)
+
+    except Exception as e:
+        import traceback
+        print(f"⚠️  Ragas unexpected error: {e}")
+        results['ragas_error'] = f"Unexpected error: {str(e)}"
+
+    return results</div>
+
+                <div class="best-practice">
+                    <h4>🔑 핵심 포인트</h4>
+                    <ul>
+                        <li><strong>조건부 트리거</strong>: <code>retrieved_context</code>와 <code>expected_output</code>이 모두 제공되어야 Context Recall 평가됨</li>
+                        <li><strong>Ground Truth 필수</strong>: <code>expected_output</code> 없으면 자동으로 스킵됨</li>
+                        <li><strong>LLM 기반</strong>: GPT-4o-mini 또는 GPT-4o를 사용하여 Ground Truth에서 Claim 추출 및 검증</li>
+                        <li><strong>검색 완전성 평가</strong>: 생성 품질이 아닌 검색 시스템의 재현율(Recall)을 측정</li>
+                        <li><strong>Overall Score 포함</strong>: 다른 Ragas 메트릭과 평균화되어 <code>ragas_overall_score</code>에 반영</li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- 데이터 수집 방법 -->
+            <div class="section">
+                <h2>📊 데이터 수집 방법</h2>
+
+                <h3>방법 1: HybridPerformanceMonitor with Ground Truth (권장)</h3>
+                <p>RAG 시스템에서 <code>retrieved_context</code>와 <code>expected_output</code>을 함께 제공하면 Context Recall이 평가됩니다.</p>
+
+                <div class="code-block">from agent_evaluator import HybridPerformanceMonitor, create_taskresult
+
+<span class="comment"># 1. Monitor 초기화 (Ragas 활성화)</span>
+monitor = HybridPerformanceMonitor(
+    use_ragas=True,
+    ragas_model="gpt-4o-mini"
+)
+
+<span class="comment"># 2. 테스트 데이터 준비 (Ground Truth 포함)</span>
+test_cases = [
+    {
+        'question': "파이썬 3.11의 성능 개선 사항은?",
+        'ground_truth': "파이썬 3.11은 2022년 10월에 출시되었으며, 이전 버전보다 10-60% 빠릅니다. Faster CPython 프로젝트의 결과입니다.",
+    },
+    <span class="comment"># ... 더 많은 테스트 케이스</span>
+]
+
+<span class="comment"># 3. RAG 시스템 실행 및 평가</span>
+for test in test_cases:
+    query = test['question']
+    ground_truth = test['ground_truth']
+
+    <span class="comment"># Vector DB에서 컨텍스트 검색</span>
+    retrieved_docs = vector_db.search(query, top_k=5)
+    retrieved_context = [doc.content for doc in retrieved_docs]
+
+    <span class="comment"># LLM 답변 생성</span>
+    llm_response = llm.generate(
+        prompt=f"Question: {query}\n\nContext: {retrieved_context}",
+        context=retrieved_context
+    )
+
+    <span class="comment"># 4. Task 기록 (Context Recall 자동 평가)</span>
+    task = create_taskresult(
+        task_id=f"rag_test_{test['question'][:20]}",
+        task_type="qa",
+        success=True,
+        completion_score=1.0
+    )
+
+    monitor.record_task(
+        task=task,
+        enable_advanced_metrics=True,
+        input_text=query,
+        output_text=llm_response,
+        retrieved_context=retrieved_context,  <span class="comment"># ← 필수</span>
+        expected_output=ground_truth          <span class="comment"># ← Context Recall 트리거 (필수!)</span>
+    )
+
+    <span class="comment"># 5. Context Recall Score 확인</span>
+    latest_task = monitor.extended_tasks[-1]
+    context_recall = latest_task.advanced_metrics.get('ragas_context_recall')
+
+    if context_recall is not None:
+        print(f"Context Recall Score: {context_recall:.3f}")
+
+        if context_recall < 0.7:
+            print(f"⚠️  경고: 낮은 Context Recall - 중요한 정보 누락 가능성")
+    else:
+        print("⚠️  Context Recall이 평가되지 않았습니다 (ground_truth 누락?)")
+</div>
+
+                <h3>방법 2: RagasAdapter 독립 사용 with Ground Truth (고급)</h3>
+                <p>Ragas 메트릭만 단독으로 평가하고 싶을 때 사용합니다.</p>
+
+                <div class="code-block">from agent_evaluator.integrations.metric_adapters import (
+    RagasAdapter,
+    EvaluationContext
+)
+
+<span class="comment"># 1. Adapter 초기화</span>
+ragas = RagasAdapter(llm_model="gpt-4o-mini")
+
+<span class="comment"># 2. Evaluation Context 생성 (Ground Truth 포함)</span>
+context = EvaluationContext(
+    input_text="Kubernetes에서 Pod와 Container의 차이는?",
+    output_text="Pod는 Kubernetes에서 배포 가능한 최소 단위로, 하나 이상의 Container를 포함합니다. Container는 실제 애플리케이션이 실행되는 격리된 환경입니다.",
+    retrieved_context=[
+        "A Pod is the smallest deployable unit in Kubernetes and can contain one or more containers.",
+        "Containers provide isolated runtime environments for applications.",
+        "Pods share network and storage resources."
+    ],
+    expected_output="Pod는 Kubernetes의 최소 배포 단위이며 하나 이상의 Container를 포함합니다. Container는 격리된 실행 환경을 제공하며, Pod 내의 Container들은 네트워크와 스토리지를 공유합니다."  <span class="comment"># ← Ground Truth (필수!)</span>
+)
+
+<span class="comment"># 3. Ragas 평가 실행</span>
+results = ragas.evaluate(context)
+
+<span class="comment"># 4. Context Recall 결과 확인</span>
+if 'ragas_context_recall' in results:
+    print(f"Context Recall: {results['ragas_context_recall']:.3f}")
+    print(f"Context Precision: {results['ragas_context_precision']:.3f}")
+    print(f"Faithfulness: {results['ragas_faithfulness']:.3f}")
+    print(f"Answer Relevancy: {results['ragas_answer_relevancy']:.3f}")
+    print(f"Overall Score: {results['ragas_overall_score']:.3f}")
+    print(f"Quality Level: {results['ragas_quality']}")
+else:
+    print("⚠️  Context Recall이 평가되지 않았습니다")
+</div>
+
+                <h3>방법 3: 검색 시스템 회귀 테스트 (프로덕션)</h3>
+                <p>Golden Dataset으로 검색 시스템의 성능 회귀(regression)를 탐지합니다.</p>
+
+                <div class="code-block">from agent_evaluator import HybridPerformanceMonitor, create_taskresult
+from typing import List, Dict
+import json
+
+class RetrievalRegressionTest:
+    def __init__(self, golden_dataset_path: str):
+        """
+        검색 시스템 회귀 테스트
+
+        Args:
+            golden_dataset_path: Ground Truth가 포함된 테스트 데이터셋 경로
+        """
+        self.monitor = HybridPerformanceMonitor(
+            use_ragas=True,
+            ragas_model="gpt-4o"  <span class="comment"># 회귀 테스트에는 고정밀 모델 사용</span>
+        )
+
+        <span class="comment"># Golden Dataset 로드</span>
+        with open(golden_dataset_path, 'r', encoding='utf-8') as f:
+            self.golden_dataset = json.load(f)
+
+    def run_regression_test(self, retrieval_system) -> Dict:
+        """검색 시스템의 Context Recall 측정"""
+        recall_scores = []
+        failed_cases = []
+
+        for i, test_case in enumerate(self.golden_dataset):
+            query = test_case['question']
+            ground_truth = test_case['ground_truth']
+
+            <span class="comment"># 검색 시스템으로 컨텍스트 검색</span>
+            retrieved = retrieval_system.retrieve(query)
+
+            <span class="comment"># LLM 답변 생성</span>
+            answer = self.llm.generate(query, retrieved)
+
+            <span class="comment"># Context Recall 평가</span>
+            task = create_taskresult(f"regression_test_{i}", "qa", True, 1.0)
+            self.monitor.record_task(
+                task=task,
+                enable_advanced_metrics=True,
+                input_text=query,
+                output_text=answer,
+                retrieved_context=retrieved,
+                expected_output=ground_truth  <span class="comment"># ← Ground Truth (필수)</span>
+            )
+
+            latest = self.monitor.extended_tasks[-1]
+            context_recall = latest.advanced_metrics.get('ragas_context_recall', 0.0)
+            recall_scores.append(context_recall)
+
+            <span class="comment"># 낮은 Recall 케이스 기록</span>
+            if context_recall < 0.7:
+                failed_cases.append({
+                    'question': query,
+                    'ground_truth': ground_truth,
+                    'context_recall': context_recall,
+                    'retrieved_contexts': retrieved
+                })
+
+        avg_recall = sum(recall_scores) / len(recall_scores) if recall_scores else 0
+
+        return {
+            'avg_context_recall': avg_recall,
+            'min_context_recall': min(recall_scores) if recall_scores else 0,
+            'max_context_recall': max(recall_scores) if recall_scores else 0,
+            'failed_cases_count': len(failed_cases),
+            'failed_cases': failed_cases,
+            'total_test_cases': len(self.golden_dataset),
+            'pass_rate': (len(self.golden_dataset) - len(failed_cases)) / len(self.golden_dataset)
+        }
+
+    def compare_with_baseline(self, current_result: Dict,
+                             baseline_recall: float) -> Dict:
+        """현재 결과와 베이스라인 비교"""
+        current_recall = current_result['avg_context_recall']
+        diff = current_recall - baseline_recall
+
+        status = "PASS" if diff >= -0.05 else "FAIL"  <span class="comment"># 5% 이상 하락 시 실패</span>
+
+        return {
+            'status': status,
+            'current_recall': current_recall,
+            'baseline_recall': baseline_recall,
+            'difference': diff,
+            'regression_detected': diff < -0.05
+        }
+
+<span class="comment"># 사용 예시</span>
+<span class="comment"># 1. Golden Dataset 준비 (golden_dataset.json)</span>
+golden_dataset = [
+    {
+        "question": "파이썬 3.11의 성능 개선 사항은?",
+        "ground_truth": "파이썬 3.11은 2022년 10월에 출시되었으며, 이전 버전보다 10-60% 빠릅니다."
+    },
+    <span class="comment"># ... 더 많은 테스트 케이스</span>
+]
+
+<span class="comment"># 2. 회귀 테스트 실행</span>
+regression_test = RetrievalRegressionTest("golden_dataset.json")
+result = regression_test.run_regression_test(my_retrieval_system)
+
+print(f"평균 Context Recall: {result['avg_context_recall']:.3f}")
+print(f"실패한 케이스: {result['failed_cases_count']}/{result['total_test_cases']}")
+print(f"Pass Rate: {result['pass_rate']*100:.1f}%")
+
+<span class="comment"># 3. 베이스라인과 비교</span>
+baseline_recall = 0.85  <span class="comment"># 이전 버전의 Context Recall</span>
+comparison = regression_test.compare_with_baseline(result, baseline_recall)
+
+if comparison['status'] == "FAIL":
+    print(f"🚨 회귀 감지! Context Recall이 {comparison['difference']*100:.1f}% 하락했습니다.")
+else:
+    print(f"✅ 회귀 테스트 통과")
+</div>
+
+                <h3>방법 4: 검색 파라미터 최적화 (A/B 테스트)</h3>
+                <p>서로 다른 검색 파라미터의 Context Recall을 비교하여 최적값을 찾습니다.</p>
+
+                <div class="code-block">from agent_evaluator import HybridPerformanceMonitor, create_taskresult
+from typing import List, Dict
+
+class RetrievalParameterOptimization:
+    def __init__(self, golden_dataset: List[Dict]):
+        """
+        Args:
+            golden_dataset: Ground Truth가 포함된 테스트 데이터
+        """
+        self.golden_dataset = golden_dataset
+        self.monitor = HybridPerformanceMonitor(
+            use_ragas=True,
+            ragas_model="gpt-4o"
+        )
+
+    def test_top_k_parameter(self, retrieval_system) -> Dict:
+        """top_k 파라미터 최적화"""
+        results = {}
+
+        for top_k in [3, 5, 7, 10, 15]:
+            recall_scores = []
+
+            for i, test_case in enumerate(self.golden_dataset):
+                query = test_case['question']
+                ground_truth = test_case['ground_truth']
+
+                <span class="comment"># 다양한 top_k로 검색</span>
+                retrieved = retrieval_system.retrieve(query, top_k=top_k)
+                answer = self.llm.generate(query, retrieved)
+
+                <span class="comment"># Context Recall 평가</span>
+                task = create_taskresult(f"topk_{top_k}_q{i}", "qa", True, 1.0)
+                self.monitor.record_task(
+                    task=task,
+                    enable_advanced_metrics=True,
+                    input_text=query,
+                    output_text=answer,
+                    retrieved_context=retrieved,
+                    expected_output=ground_truth
+                )
+
+                latest = self.monitor.extended_tasks[-1]
+                context_recall = latest.advanced_metrics.get('ragas_context_recall', 0.0)
+                recall_scores.append(context_recall)
+
+            results[top_k] = {
+                'avg_recall': sum(recall_scores) / len(recall_scores),
+                'min_recall': min(recall_scores),
+                'max_recall': max(recall_scores)
+            }
+            print(f"top_k={top_k}: Context Recall = {results[top_k]['avg_recall']:.3f}")
+
+        <span class="comment"># 최적 top_k 선택</span>
+        best_top_k = max(results, key=lambda k: results[k]['avg_recall'])
+        print(f"\n🏆 최적 top_k: {best_top_k} (Recall: {results[best_top_k]['avg_recall']:.3f})")
+
+        return {'best_top_k': best_top_k, 'all_results': results}
+
+    def test_chunk_size(self, retrieval_system) -> Dict:
+        """문서 청킹 크기 최적화"""
+        results = {}
+
+        for chunk_size in [256, 512, 1024, 2048]:
+            recall_scores = []
+
+            <span class="comment"># 문서 재청킹</span>
+            retrieval_system.reindex_with_chunk_size(chunk_size)
+
+            for i, test_case in enumerate(self.golden_dataset):
+                query = test_case['question']
+                ground_truth = test_case['ground_truth']
+
+                retrieved = retrieval_system.retrieve(query, top_k=5)
+                answer = self.llm.generate(query, retrieved)
+
+                task = create_taskresult(f"chunk_{chunk_size}_q{i}", "qa", True, 1.0)
+                self.monitor.record_task(
+                    task=task,
+                    enable_advanced_metrics=True,
+                    input_text=query,
+                    output_text=answer,
+                    retrieved_context=retrieved,
+                    expected_output=ground_truth
+                )
+
+                latest = self.monitor.extended_tasks[-1]
+                context_recall = latest.advanced_metrics.get('ragas_context_recall', 0.0)
+                recall_scores.append(context_recall)
+
+            results[chunk_size] = sum(recall_scores) / len(recall_scores)
+            print(f"chunk_size={chunk_size}: Context Recall = {results[chunk_size]:.3f}")
+
+        best_chunk = max(results, key=results.get)
+        print(f"\n🏆 최적 chunk_size: {best_chunk} (Recall: {results[best_chunk]:.3f})")
+
+        return {'best_chunk_size': best_chunk, 'all_results': results}
+
+<span class="comment"># 사용 예시</span>
+golden_dataset = [
+    {"question": "Q1", "ground_truth": "GT1"},
+    {"question": "Q2", "ground_truth": "GT2"},
+    <span class="comment"># ... 더 많은 테스트 케이스</span>
+]
+
+optimizer = RetrievalParameterOptimization(golden_dataset)
+
+<span class="comment"># top_k 최적화</span>
+top_k_result = optimizer.test_top_k_parameter(my_retrieval_system)
+
+<span class="comment"># chunk_size 최적화</span>
+chunk_result = optimizer.test_chunk_size(my_retrieval_system)
+</div>
+            </div>
+
+            <!-- Best Practices -->
+            <div class="section">
+                <h2>💡 Best Practices</h2>
+
+                <div class="best-practice">
+                    <h3>1. Threshold 설정 전략</h3>
+                    <table>
+                        <tr>
+                            <th>도메인</th>
+                            <th>권장 Threshold</th>
+                            <th>이유</th>
+                        </tr>
+                        <tr>
+                            <td>의료, 법률, 금융</td>
+                            <td><strong>≥ 0.9</strong></td>
+                            <td>중요한 정보 누락 시 심각한 결과 초래</td>
+                        </tr>
+                        <tr>
+                            <td>고객 지원, FAQ</td>
+                            <td><strong>≥ 0.8</strong></td>
+                            <td>완전한 답변 제공 필요</td>
+                        </tr>
+                        <tr>
+                            <td>기술 문서, 튜토리얼</td>
+                            <td><strong>≥ 0.7</strong></td>
+                            <td>핵심 정보 포함 필수</td>
+                        </tr>
+                        <tr>
+                            <td>일반 대화, 브레인스토밍</td>
+                            <td><strong>≥ 0.6</strong></td>
+                            <td>기본 정보 제공 충분</td>
+                        </tr>
+                    </table>
+                </div>
+
+                <div class="best-practice">
+                    <h3>2. Context Recall 개선 방법</h3>
+                    <ol>
+                        <li><strong>top_k 증가</strong>
+                            <ul>
+                                <li>더 많은 컨텍스트 검색 (3 → 5 → 7)</li>
+                                <li>단, Precision 하락 가능성 주의</li>
+                                <li>Recall vs Precision 트레이드오프 고려</li>
+                            </ul>
+                        </li>
+                        <li><strong>Hybrid Search 도입</strong>
+                            <ul>
+                                <li>Semantic search + Keyword search 결합</li>
+                                <li>키워드 매칭으로 놓친 정보 보완</li>
+                                <li>BM25 + Vector search (alpha 가중치 조정)</li>
+                            </ul>
+                        </li>
+                        <li><strong>문서 청킹 전략 개선</strong>
+                            <ul>
+                                <li>Chunk 크기 최적화 (너무 작으면 정보 분산, 너무 크면 노이즈 증가)</li>
+                                <li>Overlap 설정으로 경계 정보 누락 방지</li>
+                                <li>Semantic chunking (문맥 단위로 분할)</li>
+                            </ul>
+                        </li>
+                        <li><strong>Query Expansion</strong>
+                            <ul>
+                                <li>동의어, 유사 표현 추가로 검색 범위 확장</li>
+                                <li>LLM으로 query rewriting (더 구체적/명확하게)</li>
+                                <li>Multi-query retrieval (여러 관점에서 검색)</li>
+                            </ul>
+                        </li>
+                        <li><strong>문서 인덱싱 개선</strong>
+                            <ul>
+                                <li>메타데이터 활용 (카테고리, 태그, 날짜 등)</li>
+                                <li>계층적 인덱싱 (문서 → 섹션 → 단락)</li>
+                                <li>더 나은 Embedding 모델 (text-embedding-3-large)</li>
+                            </ul>
+                        </li>
+                    </ol>
+                </div>
+
+                <div class="warning-box">
+                    <h3>⚠️ 주의사항</h3>
+                    <ul>
+                        <li><strong>Ground Truth 필수</strong>: <code>expected_output</code>이 없으면 Context Recall을 평가할 수 없음</li>
+                        <li><strong>테스트 전용</strong>: Ground Truth가 필요하므로 프로덕션 실시간 평가에는 부적합</li>
+                        <li><strong>LLM 의존성</strong>: GPT 모델 API 비용 및 latency 고려 필요</li>
+                        <li><strong>검색 완전성만 평가</strong>: 생성 품질이 아닌 검색 시스템의 재현율만 측정함</li>
+                        <li><strong>언어 제한</strong>: 영어 최적화, 다른 언어는 성능이 낮을 수 있음</li>
+                        <li><strong>Ground Truth 품질</strong>: Ground Truth 자체가 불완전하면 평가 결과도 부정확함</li>
+                    </ul>
+                </div>
+
+                <div class="best-practice">
+                    <h3>3. Golden Dataset 구축 전략</h3>
+                    <ul>
+                        <li><strong>다양한 질문 유형</strong>: 사실 기반, 비교, 설명, How-to 등 다양한 질문 포함</li>
+                        <li><strong>난이도 분포</strong>: 쉬운 질문부터 어려운 질문까지 균형 있게 구성</li>
+                        <li><strong>도메인 커버리지</strong>: 주요 사용 사례와 도메인을 모두 커버</li>
+                        <li><strong>정기적 업데이트</strong>: 새로운 문서 추가 시 Golden Dataset도 업데이트</li>
+                        <li><strong>Human Review</strong>: Ground Truth는 전문가가 작성하거나 검증</li>
+                    </ul>
+                </div>
+
+                <div class="best-practice">
+                    <h3>4. Precision vs Recall 균형</h3>
+                    <p><strong>Context Precision과 Context Recall을 함께 최적화:</strong></p>
+                    <ul>
+                        <li><strong>Precision만 높으면</strong>: 관련성 높지만 정보 부족 (불완전한 답변)</li>
+                        <li><strong>Recall만 높으면</strong>: 정보는 많지만 노이즈 많음 (품질 저하)</li>
+                        <li><strong>균형 잡힌 전략</strong>:
+                            <ul>
+                                <li>초기 검색: 높은 top_k로 Recall 확보 (예: top_k=20)</li>
+                                <li>Re-ranking: 관련성 높은 컨텍스트만 선택하여 Precision 개선 (최종 top_k=5)</li>
+                            </ul>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- 활용 예시 -->
+            <div class="section">
+                <h2>🎯 활용 예시</h2>
+
+                <h3>예시 1: CI/CD 파이프라인에서 회귀 테스트</h3>
+                <div class="code-block">from agent_evaluator import HybridPerformanceMonitor, create_taskresult
+import sys
+
+class RetrievalCITest:
+    def __init__(self, golden_dataset_path: str, threshold: float = 0.75):
+        self.monitor = HybridPerformanceMonitor(use_ragas=True)
+        self.threshold = threshold
+
+        with open(golden_dataset_path, 'r') as f:
+            self.golden_dataset = json.load(f)
+
+    def run_ci_test(self, retrieval_system) -> bool:
+        """CI/CD에서 실행할 회귀 테스트"""
+        recall_scores = []
+
+        for i, test_case in enumerate(self.golden_dataset):
+            query = test_case['question']
+            ground_truth = test_case['ground_truth']
+
+            retrieved = retrieval_system.retrieve(query)
+            answer = self.llm.generate(query, retrieved)
+
+            task = create_taskresult(f"ci_test_{i}", "qa", True, 1.0)
+            self.monitor.record_task(
+                task=task,
+                enable_advanced_metrics=True,
+                input_text=query,
+                output_text=answer,
+                retrieved_context=retrieved,
+                expected_output=ground_truth
+            )
+
+            latest = self.monitor.extended_tasks[-1]
+            context_recall = latest.advanced_metrics.get('ragas_context_recall', 0.0)
+            recall_scores.append(context_recall)
+
+        avg_recall = sum(recall_scores) / len(recall_scores)
+
+        print(f"평균 Context Recall: {avg_recall:.3f}")
+        print(f"Threshold: {self.threshold}")
+
+        if avg_recall < self.threshold:
+            print(f"❌ 테스트 실패: Context Recall이 threshold보다 낮습니다")
+            return False
+        else:
+            print(f"✅ 테스트 통과")
+            return True
+
+<span class="comment"># CI/CD 스크립트에서 사용</span>
+if __name__ == "__main__":
+    ci_test = RetrievalCITest("golden_dataset.json", threshold=0.75)
+
+    success = ci_test.run_ci_test(my_retrieval_system)
+
+    if not success:
+        sys.exit(1)  <span class="comment"># CI/CD 실패</span>
+</div>
+
+                <h3>예시 2: 검색 시스템 성능 벤치마크</h3>
+                <div class="code-block">from agent_evaluator import HybridPerformanceMonitor, create_taskresult
+
+class RetrievalBenchmark:
+    def __init__(self, golden_dataset: list):
+        self.golden_dataset = golden_dataset
+        self.monitor = HybridPerformanceMonitor(use_ragas=True)
+
+    def benchmark_system(self, system_name: str, retrieval_system) -> dict:
+        """검색 시스템 벤치마크"""
+        recall_scores = []
+        precision_scores = []
+
+        for i, test_case in enumerate(self.golden_dataset):
+            query = test_case['question']
+            ground_truth = test_case['ground_truth']
+
+            retrieved = retrieval_system.retrieve(query)
+            answer = self.llm.generate(query, retrieved)
+
+            task = create_taskresult(f"{system_name}_q{i}", "qa", True, 1.0)
+            self.monitor.record_task(
+                task=task,
+                enable_advanced_metrics=True,
+                input_text=query,
+                output_text=answer,
+                retrieved_context=retrieved,
+                expected_output=ground_truth
+            )
+
+            latest = self.monitor.extended_tasks[-1]
+            context_recall = latest.advanced_metrics.get('ragas_context_recall', 0.0)
+            context_precision = latest.advanced_metrics.get('ragas_context_precision', 0.0)
+
+            recall_scores.append(context_recall)
+            precision_scores.append(context_precision)
+
+        return {
+            'system_name': system_name,
+            'avg_recall': sum(recall_scores) / len(recall_scores),
+            'avg_precision': sum(precision_scores) / len(precision_scores),
+            'f1_score': self._calculate_f1(recall_scores, precision_scores)
+        }
+
+    def _calculate_f1(self, recalls: list, precisions: list) -> float:
+        """F1 Score 계산 (Precision과 Recall의 조화 평균)"""
+        f1_scores = []
+        for r, p in zip(recalls, precisions):
+            if r + p > 0:
+                f1 = 2 * (r * p) / (r + p)
+                f1_scores.append(f1)
+        return sum(f1_scores) / len(f1_scores) if f1_scores else 0
+
+<span class="comment"># 사용</span>
+benchmark = RetrievalBenchmark(golden_dataset)
+
+systems = {
+    'baseline': baseline_system,
+    'improved_v1': improved_system_v1,
+    'improved_v2': improved_system_v2
+}
+
+for name, system in systems.items():
+    result = benchmark.benchmark_system(name, system)
+    print(f"\n{name}:")
+    print(f"  Recall:    {result['avg_recall']:.3f}")
+    print(f"  Precision: {result['avg_precision']:.3f}")
+    print(f"  F1 Score:  {result['f1_score']:.3f}")
+</div>
+
+                <h3>예시 3: 검색 품질 대시보드 (오프라인)</h3>
+                <div class="code-block">from agent_evaluator import HybridPerformanceMonitor, create_taskresult
+import matplotlib.pyplot as plt
+
+class RetrievalQualityDashboard:
+    def __init__(self, golden_dataset: list):
+        self.golden_dataset = golden_dataset
+        self.monitor = HybridPerformanceMonitor(use_ragas=True)
+
+    def generate_quality_report(self, retrieval_system) -> dict:
+        """검색 품질 리포트 생성"""
+        results = {
+            'recall_scores': [],
+            'precision_scores': [],
+            'failed_queries': []
+        }
+
+        for i, test_case in enumerate(self.golden_dataset):
+            query = test_case['question']
+            ground_truth = test_case['ground_truth']
+
+            retrieved = retrieval_system.retrieve(query)
+            answer = self.llm.generate(query, retrieved)
+
+            task = create_taskresult(f"quality_test_{i}", "qa", True, 1.0)
+            self.monitor.record_task(
+                task=task,
+                enable_advanced_metrics=True,
+                input_text=query,
+                output_text=answer,
+                retrieved_context=retrieved,
+                expected_output=ground_truth
+            )
+
+            latest = self.monitor.extended_tasks[-1]
+            recall = latest.advanced_metrics.get('ragas_context_recall', 0.0)
+            precision = latest.advanced_metrics.get('ragas_context_precision', 0.0)
+
+            results['recall_scores'].append(recall)
+            results['precision_scores'].append(precision)
+
+            if recall < 0.7:
+                results['failed_queries'].append({
+                    'query': query,
+                    'recall': recall,
+                    'precision': precision
+                })
+
+        return results
+
+    def plot_quality_metrics(self, results: dict):
+        """품질 메트릭 시각화"""
+        fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 5))
+
+        <span class="comment"># Recall 분포</span>
+        ax1.hist(results['recall_scores'], bins=20, color='orange', alpha=0.7)
+        ax1.set_title('Context Recall Distribution')
+        ax1.set_xlabel('Context Recall')
+        ax1.set_ylabel('Frequency')
+
+        <span class="comment"># Precision vs Recall</span>
+        ax2.scatter(results['recall_scores'], results['precision_scores'],
+                   alpha=0.5, color='purple')
+        ax2.set_title('Precision vs Recall')
+        ax2.set_xlabel('Context Recall')
+        ax2.set_ylabel('Context Precision')
+
+        plt.tight_layout()
+        plt.savefig('retrieval_quality_report.png')
+        print("리포트가 'retrieval_quality_report.png'에 저장되었습니다")
+
+<span class="comment"># 사용</span>
+dashboard = RetrievalQualityDashboard(golden_dataset)
+results = dashboard.generate_quality_report(my_retrieval_system)
+dashboard.plot_quality_metrics(results)
+
+print(f"\n평균 Recall: {sum(results['recall_scores']) / len(results['recall_scores']):.3f}")
+print(f"평균 Precision: {sum(results['precision_scores']) / len(results['precision_scores']):.3f}")
+print(f"실패한 쿼리: {len(results['failed_queries'])}/{len(golden_dataset)}")
+</div>
+            </div>
+
+            <!-- 관련 메트릭 -->
+            <div class="section">
+                <h2>🔗 관련 메트릭</h2>
+
+                <table>
+                    <tr>
+                        <th>메트릭</th>
+                        <th>관계</th>
+                        <th>설명</th>
+                    </tr>
+                    <tr>
+                        <td><strong>Context Precision</strong></td>
+                        <td>보완 관계</td>
+                        <td>검색된 컨텍스트의 정밀도 평가 (Precision)<br>Context Recall은 완전성 평가 (Recall)</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Faithfulness</strong></td>
+                        <td>보완 관계</td>
+                        <td>생성된 답변의 사실성 평가 (생성 품질)<br>Context Recall은 검색 완전성 평가</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Answer Relevancy (Ragas)</strong></td>
+                        <td>보완 관계</td>
+                        <td>답변과 질문의 관련성 평가<br>Context Recall은 검색 완전성 평가</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Correctness (DeepEval)</strong></td>
+                        <td>유사 개념</td>
+                        <td>답변과 Ground Truth의 일치성 평가<br>Context Recall은 검색된 컨텍스트와 Ground Truth의 일치성 평가</td>
+                    </tr>
+                </table>
+
+                <div class="best-practice">
+                    <h4>💡 메트릭 조합 전략</h4>
+                    <p><strong>검색 시스템 품질 보장</strong> - Precision과 Recall 함께 평가:</p>
+                    <ul>
+                        <li><strong>Context Precision</strong> (높을수록 좋음): 검색된 컨텍스트의 정밀도</li>
+                        <li><strong>Context Recall</strong> (높을수록 좋음): 검색된 컨텍스트의 완전성</li>
+                        <li><strong>F1 Score</strong>: 2 × (Precision × Recall) / (Precision + Recall)</li>
+                    </ul>
+                    <p>→ F1 Score 0.8 이상이면 <strong>균형 잡힌 고품질 검색 시스템</strong></p>
+                </div>
+            </div>
+
+            <!-- 참고 자료 -->
+            <div class="section">
+                <h2>📚 참고 자료</h2>
+                <ul>
+                    <li><a href="https://docs.ragas.io/en/latest/concepts/metrics/context_recall.html" target="_blank">Ragas Context Recall 공식 문서</a></li>
+                    <li><a href="https://arxiv.org/abs/2309.15217" target="_blank">RAGAS: Automated Evaluation of RAG (논문)</a></li>
+                    <li><a href="../examples/rag_evaluation.py">Agent Evaluator RAG 평가 예시</a></li>
+                    <li><a href="./22_FAITHFULNESS.html">Faithfulness (Ragas) 문서</a></li>
+                    <li><a href="./23_ANSWER_RELEVANCY_RAGAS.html">Answer Relevancy (Ragas) 문서</a></li>
+                    <li><a href="./24_CONTEXT_PRECISION.html">Context Precision 문서</a></li>
+                </ul>
+            </div>
+        </div>
+
+        <div class="footer">
+            <p><strong>Agent Evaluator v0.5.0</strong> - Layer 3 Ragas Metrics</p>
+            <p>Context Recall: RAG 검색 시스템의 완전성 평가 (Ground Truth 필수)</p>
+            <p style="margin-top: 20px; font-size: 0.9em; opacity: 0.8;">
+                Developed by Agent Evaluator Team |
+                <a href="https://github.com/your-repo/agent-evaluator" style="color: #68d391;">GitHub</a>
+            </p>
+        </div>
+    </div>
+    <script src="../scripts/mermaid-zoom.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+    <script>
+        mermaid.initialize({ startOnLoad: true, theme: 'default' });
+    </script>
+</body>
+</html>

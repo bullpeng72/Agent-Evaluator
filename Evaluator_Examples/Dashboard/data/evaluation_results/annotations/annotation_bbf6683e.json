@@ -1,0 +1,18 @@
+{
+  "annotation_id": "annotation_bbf6683e",
+  "target_type": "metric",
+  "target_id": "reasoning_step_2",
+  "annotation_type": "note",
+  "priority": "medium",
+  "title": "정보 수집: 각 측면의 효과 분석",
+  "content": "Rationale: 과학적 근거 기반 답변을 위해 데이터 필요. Confidence: 85%. Alternatives: 전문가 의견, 일반적 답변",
+  "author": "transparency_manager",
+  "timestamp": "2025-12-14T11:53:21.857221",
+  "created_at": "2025-12-14T11:53:21.857221",
+  "status": "open",
+  "replies": [],
+  "tags": [],
+  "related_metric": null,
+  "related_value": null,
+  "metadata": {}
+}

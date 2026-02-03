@@ -1,0 +1,18 @@
+{
+  "annotation_id": "annotation_94626bea",
+  "target_type": "metric",
+  "target_id": "reasoning_step_1",
+  "annotation_type": "note",
+  "priority": "medium",
+  "title": "문제 분석: 질문 분해",
+  "content": "Rationale: 복잡한 질문이므로 하위 질문으로 분해 필요. Confidence: 90%. Alternatives: 직접 답변, 유사 사례 검색",
+  "author": "transparency_manager",
+  "timestamp": "2025-12-14T11:03:12.405895",
+  "created_at": "2025-12-14T11:03:12.405895",
+  "status": "open",
+  "replies": [],
+  "tags": [],
+  "related_metric": null,
+  "related_value": null,
+  "metadata": {}
+}

@@ -1,0 +1,1456 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Context Precision (Ragas) - Agent Evaluator v0.5.0</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            line-height: 1.8;
+            color: #1a202c;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 40px 20px;
+        }
+
+        .container {
+    max-width: 1400px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #805ad5 0%, #6b46c1 100%);
+            color: white;
+            padding: 60px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 3.5em;
+            margin-bottom: 20px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.2);
+        }
+
+        .header .subtitle {
+            font-size: 1.4em;
+            opacity: 0.95;
+            font-weight: 300;
+        }
+
+        .version-badge {
+            display: inline-block;
+            background: rgba(255,255,255,0.2);
+            padding: 12px 30px;
+            border-radius: 30px;
+            backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    margin-top: 15px;
+            font-size: 1em;
+        }
+
+        .content {    padding: 60px;
+        }
+
+        .section {
+            margin-bottom: 50px;
+        }
+
+        .section h2 {
+            color: #6b46c1;
+            font-size: 2.2em;
+            margin-bottom: 25px;
+            padding-bottom: 15px;
+            border-bottom: 3px solid #6b46c1;
+        }
+
+        .section h3 {
+            color: #553c9a;
+            font-size: 1.6em;
+            margin: 30px 0 20px 0;
+        }
+
+        .section h4 {
+            color: #44337a;
+            font-size: 1.3em;
+            margin: 25px 0 15px 0;
+        }
+
+        .intro-box {
+            background: linear-gradient(135deg, #faf5ff 0%, #e9d8fd 100%);
+            padding: 30px;
+            border-radius: 8px;
+            border-left: 5px solid #6b46c1;
+            margin: 25px 0;
+            font-size: 1.1em;
+            line-height: 1.8;
+        }
+
+        .importance-box {
+            background: linear-gradient(135deg, #fffaf0 0%, #feebc8 100%);
+            padding: 30px;
+            border-radius: 15px;
+            border-left: 6px solid #ed8936;
+            margin: 25px 0;
+        }
+
+        .warning-box {
+            background: linear-gradient(135deg, #fff5f5 0%, #fed7d7 100%);
+            padding: 25px;
+            border-radius: 15px;
+            border-left: 6px solid #f56565;
+            margin: 25px 0;
+        }
+
+        .code-block {
+            background: #2d3748;
+            color: #e2e8f0;
+            padding: 25px;
+            border-radius: 10px;
+            overflow-x: auto;
+            margin: 20px 0;
+            font-family: 'Courier New', Courier, monospace;
+            font-size: 0.95em;
+            line-height: 1.6;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+
+        .code-block .comment {
+            color: #b794f4;
+        }
+
+        .code-block .keyword {
+            color: #fc8181;
+        }
+
+        .code-block .string {
+            color: #fbd38d;
+        }
+
+        .metric-value {
+            display: inline-block;
+            background: #6b46c1;
+            color: white;
+            padding: 5px 15px;
+            border-radius: 20px;
+            font-weight: bold;
+            margin: 0 5px;
+        }
+
+        .best-practice {
+            background: linear-gradient(135deg, #ebf8ff 0%, #bee3f8 100%);
+            padding: 25px;
+            border-radius: 15px;
+            border-left: 6px solid #4299e1;
+            margin: 25px 0;
+        }
+
+        ul, ol {
+            margin-left: 30px;
+            margin-top: 15px;
+            margin-bottom: 15px;
+        }
+
+        li {
+            margin: 12px 0;
+            line-height: 1.8;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 25px 0;
+            background: white;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            border-radius: 10px;
+            overflow: hidden;
+        }
+
+        th {
+            background: linear-gradient(135deg, #6b46c1 0%, #553c9a 100%);
+            color: white;
+            padding: 18px;
+            text-align: left;
+            font-weight: 600;
+        }
+
+        td {
+            padding: 15px 18px;
+            border-bottom: 1px solid #e2e8f0;
+        }
+
+        tr:last-child td {
+            border-bottom: none;
+        }
+
+        tr:hover {
+            background: #f7fafc;
+        }
+
+        .footer {
+            background: #2d3748;
+            color: #e2e8f0;
+            padding: 40px 60px;
+            text-align: center;
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 6px 14px;
+            border-radius: 20px;
+            font-size: 0.85em;
+            font-weight: 600;
+            margin: 5px;
+        }
+
+        .badge-ragas {
+            background: #48bb78;
+            color: white;
+        }
+
+        .badge-layer3 {
+            background: #4299e1;
+            color: white;
+        }
+
+        .badge-rag {
+            background: #ed8936;
+            color: white;
+        }
+
+        .badge-retrieval {
+            background: #805ad5;
+            color: white;
+        }
+
+        strong {
+            color: #2d3748;
+            font-weight: 600;
+        }
+
+        a {
+            color: #6b46c1;
+            text-decoration: none;
+            border-bottom: 2px solid transparent;
+            transition: border-bottom 0.3s;
+        }
+
+        a:hover {
+            border-bottom: 2px solid #6b46c1;
+        }
+    
+
+                /* Mermaid Diagrams */
+        .mermaid {
+            margin: 40px 0;
+            text-align: center;
+            background: linear-gradient(135deg, #f6f8fb 0%, #e9ecf5 100%);
+            padding: 30px;
+            border-radius: 15px;
+            border: 1px solid #e2e8f0;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            transition: all 0.3s ease;
+        }
+
+        .mermaid:hover {
+            box-shadow: 0 8px 20px rgba(0,0,0,0.15);
+            transform: translateY(-2px);
+        }
+
+
+    
+
+        /* Mermaid Zoom Modal Styles */
+        .mermaid-modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 10000;
+    opacity: 0;
+    transition: opacity 0.2s ease;
+}
+
+.mermaid-modal.active {
+    opacity: 1;
+}
+
+.mermaid-modal.closing {
+    opacity: 0;
+}
+
+/* Modal backdrop */
+.mermaid-modal-backdrop {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.85);
+    backdrop-filter: blur(4px);
+}
+
+/* Modal content container */
+.mermaid-modal-content {
+    position: relative;
+    width: 90vw;
+    height: 90vh;
+    max-width: 1400px;
+    max-height: 900px;
+    margin: 5vh auto;
+    background: var(--bg-white);
+    border-radius: var(--radius-xl);
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;  /* Keep border-radius working */
+}
+
+/* Modal header */
+.mermaid-modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: var(--space-md) var(--space-lg);
+    background: linear-gradient(135deg, var(--primary-color) 0%, var(--primary-dark) 100%);
+    color: white;
+    border-bottom: 1px solid var(--bg-border);
+}
+
+.mermaid-modal-title {
+    font-size: 1.1rem;
+    font-weight: 600;
+}
+
+.mermaid-modal-controls {
+    display: flex;
+    gap: var(--space-sm);
+}
+
+.mermaid-btn {
+    background: rgba(255, 255, 255, 0.2);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    color: white;
+    padding: var(--space-sm);
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    transition: all var(--transition-fast);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+}
+
+.mermaid-btn:hover {
+    background: rgba(255, 255, 255, 0.3);
+    border-color: rgba(255, 255, 255, 0.5);
+    transform: scale(1.05);
+}
+
+.mermaid-btn:active {
+    transform: scale(0.95);
+}
+
+.mermaid-btn svg {
+    width: 20px;
+    height: 20px;
+}
+
+/* Modal body */
+.mermaid-modal-body {
+    flex: 1;
+    overflow: visible;  /* Don't clip transformed content */
+    position: relative;
+    background: #ffffff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* Diagram container */
+.mermaid-diagram-container {
+    transform-origin: center center;
+    /* No transition during drag - will be added dynamically only for zoom */
+    transition: none;
+    /* Remove max-width/height constraints to allow diagrams to display at original size */
+    /* The modal-body will handle overflow with scrolling */
+    display: inline-block;
+    position: relative;
+    /* Ensure content is visible even when transformed */
+    pointer-events: auto;
+    z-index: 1;
+    /* Prevent disappearing due to overflow clipping */
+    will-change: transform;
+}
+
+/* Add transition class for zoom (not drag) */
+.mermaid-diagram-container.zoom-transition {
+    transition: transform 0.2s ease;
+}
+
+.mermaid-diagram-container svg {
+    max-width: none !important;
+    max-height: none !important;
+    display: block;
+    cursor: grab;
+}
+
+.mermaid-diagram-container svg:active {
+    cursor: grabbing;
+}
+
+/* Responsive modal */
+@media (max-width: 768px) {
+    .mermaid-modal-content {
+        width: 95vw;
+        height: 85vh;
+        margin: 7.5vh auto;
+    }
+
+    .mermaid-modal-header {
+        padding: var(--space-sm) var(--space-md);
+    }
+
+    .mermaid-modal-title {
+        font-size: 1rem;
+    }
+
+    .mermaid-btn {
+        width: 32px;
+        height: 32px;
+    }
+
+    .mermaid-btn svg {
+        width: 18px;
+        height: 18px;
+    }
+}
+
+/* Dark mode support for modal */
+@media (prefers-color-scheme: dark) {
+    .mermaid-modal-content {
+        background: var(--bg-white);
+        border: 1px solid var(--bg-border);
+    }
+
+    .mermaid-modal-body {
+        background: #ffffff;
+    }
+}
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>📊 Context Precision</h1>
+            <p class="subtitle">Ragas RAG 평가 메트릭 - 검색 정밀도 (Retrieval Precision)</p>
+            <div class="version-badge">Agent Evaluator v0.5.0</div>
+            <div style="margin-top: 15px;">
+                <span class="badge badge-ragas">Ragas</span>
+                <span class="badge badge-layer3">Layer 3</span>
+                <span class="badge badge-rag">RAG Evaluation</span>
+                <span class="badge badge-retrieval">Retrieval Quality</span>
+            </div>
+        </div>
+
+        <div class="content">
+            <!-- 개요 -->
+            <div class="section">
+                <h2>📋 개요</h2>
+                <div class="intro-box">
+                    <p><strong>Context Precision</strong>은 Ragas 라이브러리에서 제공하는 RAG(Retrieval-Augmented Generation) 시스템 전용 평가 메트릭으로, <strong>검색된 컨텍스트들이 질문과 얼마나 관련성이 높은지</strong>를 측정합니다.</p>
+                    <br>
+                    <p>이 메트릭은 검색된 컨텍스트 각각이 질문에 유용한지(relevant) 평가하고, 관련성 높은 컨텍스트가 상위 순위에 배치되었는지 확인합니다. <strong>검색 시스템(Retrieval System)의 품질을 평가</strong>하는 핵심 메트릭으로, Vector DB나 검색 알고리즘의 성능을 측정합니다.</p>
+                </div>
+
+                <div class="importance-box">
+                    <h3>🎯 비즈니스 임팩트</h3>
+                    <ul>
+                        <li><strong>검색 품질 개선</strong>: 무관한 컨텍스트 제거로 LLM 답변 품질 향상</li>
+                        <li><strong>비용 절감</strong>: 불필요한 컨텍스트 전송으로 인한 토큰 비용 낭비 방지</li>
+                        <li><strong>응답 속도 향상</strong>: 관련성 높은 컨텍스트만 전송하여 latency 감소</li>
+                        <li><strong>사용자 만족도</strong>: 정확한 정보 제공으로 신뢰도 증가</li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- 구현 위치 -->
+
+<div class="section">
+    <h2>📊 다이어그램 시각화</h2>
+
+    <h3>1️⃣ 핵심 개념 및 정밀도 평가 (Ragas)</h3>
+    <pre class="mermaid">
+graph TD
+    A[Question + Contexts Ranked List + Ground Truth] --> B[ContextPrecision Metric<br/>Ragas Framework]
+    B --> C[LLM Judge<br/>gpt-4o-mini]
+
+    C --> D[Ranking Quality Analysis]
+    D --> E[Top-K Context Evaluation]
+
+    E --> F{각 Context}
+    F -->|관련성 높음| G[Relevant Context<br/>상위 랭크]
+    F -->|관련성 낮음| H[Irrelevant Context<br/>하위 랭크]
+
+    G --> I{실제 위치}
+    H --> I
+
+    I -->|관련 문맥이 상위| J[High Precision<br/>Good Retrieval]
+    I -->|관련 문맥이 하위| K[Low Precision<br/>Poor Ranking]
+
+    J --> L[Context Precision Score<br/>= relevant@top-k / k]
+
+    K --> L
+
+    L --> M{Quality Level}
+    M -->|≥ 0.90| N[Excellent: 정밀한 Retrieval]
+    M -->|0.75-0.89| O[Good: 양호한 Ranking]
+    M -->|0.60-0.74| P[Moderate: Ranking 개선 필요]
+    M -->|< 0.60| Q[Poor: Retrieval 문제]
+
+    style A fill:#e1f5ff
+    style L fill:#fff3cd
+    style N fill:#d4edda
+    style Q fill:#f8d7da
+    </pre>
+
+    <h3>2️⃣ 평가 파이프라인 (Retrieval Quality)</h3>
+    <pre class="mermaid">
+sequenceDiagram
+    participant RAG as RAG Retrieval
+    participant Adapter as RagasAdapter
+    participant Ragas as Ragas Framework
+    participant LLM as gpt-4o-mini
+
+    RAG->>Adapter: evaluate(question, contexts=[c1,c2,c3,...], ground_truth)
+    Note over RAG: contexts는 relevance score<br/>순서로 정렬된 리스트
+
+    Adapter->>Adapter: Create Ragas Dataset<br/>SingleTurnSample
+
+    Adapter->>Ragas: evaluate(dataset, metrics=[context_precision])
+
+    Ragas->>LLM: Assess relevance of each context
+    Note over LLM: Top-K contexts 중<br/>실제 관련 문맥 비율
+
+    LLM-->>Ragas: Relevance scores per context
+
+    Ragas->>Ragas: Calculate precision@k<br/>= relevant_in_top_k / k
+
+    Ragas-->>Adapter: context_precision score (0-1)
+
+    Adapter-->>RAG: {'ragas_context_precision': 0.85}
+    </pre>
+
+    <h3>3️⃣ Retrieval 최적화 전략</h3>
+    <pre class="mermaid">
+graph TD
+    A[Context Precision 개선] --> B[전략 1: Reranking]
+    A --> C[전략 2: Hybrid Search]
+    A --> D[전략 3: Embedding 개선]
+
+    B --> E[Cohere Rerank<br/>BGE Reranker<br/>Cross-Encoder]
+    E --> F[Before: Precision 0.65<br/>After: Precision 0.85+<br/>Cost: +$0.001/query]
+
+    C --> G[Dense + Sparse<br/>Vector + BM25<br/>Weighted Fusion]
+    G --> H[Before: Precision 0.70<br/>After: Precision 0.80+<br/>Cost: 계산 증가 20%]
+
+    D --> I[Domain-Specific<br/>Fine-tuned Embeddings<br/>Instruction-tuned]
+    I --> J[Before: Precision 0.60<br/>After: Precision 0.75+<br/>Cost: Training 필요]
+
+    F --> K[ROI Analysis]
+    H --> K
+    J --> K
+
+    K --> L[Reranking: 최고 효과/비용<br/>권장: Cohere/BGE]
+
+    style A fill:#e1f5ff
+    style K fill:#fff3cd
+    style L fill:#d4edda
+    </pre>
+
+    <h3>4️⃣ 임계값 및 Retrieval 최적화</h3>
+    <pre class="mermaid">
+graph TD
+    A[Context Precision Score] --> B{임계값 비교}
+    B -->|≥ 0.90| C[🌟 Excellent<br/>Optimal Ranking]
+    B -->|0.75-0.89| D[✅ Good<br/>Good Retrieval]
+    B -->|0.60-0.74| E[⚠️ Moderate<br/>Ranking Issues]
+    B -->|< 0.60| F[❌ Poor<br/>Retrieval Failure]
+
+    C --> G[권장: 현재 시스템 유지<br/>Reranker 효과적]
+    D --> H[권장: Reranker 도입<br/>0.90 목표]
+    E --> I[권장: Hybrid Search 고려<br/>Top-K 조정]
+    F --> J[권장: 즉시 개선<br/>Embedding 재학습]
+
+    style C fill:#d4edda
+    style D fill:#cfe2ff
+    style E fill:#fff3cd
+    style F fill:#f8d7da
+    </pre>
+</div>
+
+
+            <div class="section">
+                <h2>🔍 구현 위치</h2>
+                <table>
+                    <tr>
+                        <th>항목</th>
+                        <th>내용</th>
+                    </tr>
+                    <tr>
+                        <td><strong>파일</strong></td>
+                        <td><code>agent_evaluator/integrations/metric_adapters.py</code></td>
+                    </tr>
+                    <tr>
+                        <td><strong>클래스</strong></td>
+                        <td><code>RagasAdapter</code></td>
+                    </tr>
+                    <tr>
+                        <td><strong>메서드</strong></td>
+                        <td><code>evaluate()</code></td>
+                    </tr>
+                    <tr>
+                        <td><strong>라인 번호</strong></td>
+                        <td>Lines 420-534 (전체 평가 로직)<br>Lines 451, 458 (context_precision 메트릭 선택)</td>
+                    </tr>
+                    <tr>
+                        <td><strong>외부 라이브러리</strong></td>
+                        <td>Ragas (<code>ragas.metrics.context_precision</code>)</td>
+                    </tr>
+                    <tr>
+                        <td><strong>반환 키</strong></td>
+                        <td><code>ragas_context_precision</code></td>
+                    </tr>
+                </table>
+            </div>
+
+            <!-- 평가 원리 -->
+            <div class="section">
+                <h2>⚙️ 평가 원리</h2>
+
+                <h3>Step 1: 컨텍스트 관련성 평가</h3>
+                <p>LLM을 사용하여 각 검색된 컨텍스트가 질문에 유용한지(relevant) 판단합니다.</p>
+                <div class="code-block">Question: "파이썬 3.11의 성능 개선 사항은?"
+
+Retrieved Contexts:
+  [1] "Python 3.11 is 10-60% faster than 3.10..." ✅ Relevant
+  [2] "파이썬은 1991년 Guido van Rossum이 만들었습니다." ❌ Not Relevant
+  [3] "Performance improvements in 3.11 include faster interpreter..." ✅ Relevant
+  [4] "Python 2.7 reached end of life in 2020." ❌ Not Relevant</div>
+
+                <h3>Step 2: Precision@K 계산</h3>
+                <p>상위 K개 컨텍스트 중 관련성 있는 비율을 계산합니다.</p>
+                <div class="code-block">Precision@1 = 1/1 = 1.00 (첫 번째가 relevant)
+Precision@2 = 1/2 = 0.50 (두 번째가 not relevant)
+Precision@3 = 2/3 = 0.67 (세 번째가 relevant)
+Precision@4 = 2/4 = 0.50 (네 번째가 not relevant)</div>
+
+                <h3>Step 3: Average Precision 계산</h3>
+                <div class="code-block">Context Precision = Σ(Precision@K × Relevance@K) / Total Relevant
+
+= (1.00×1 + 0.50×0 + 0.67×1 + 0.50×0) / 2
+= (1.00 + 0.67) / 2
+= 0.835 (높은 정밀도)</div>
+
+                <div class="best-practice">
+                    <h4>📊 Score 해석 가이드</h4>
+                    <ul>
+                        <li><span class="metric-value">0.9 ~ 1.0</span>: 완벽한 검색 정밀도 (Excellent)</li>
+                        <li><span class="metric-value">0.7 ~ 0.89</span>: 양호한 검색 품질 (Good)</li>
+                        <li><span class="metric-value">0.5 ~ 0.69</span>: 일부 무관한 컨텍스트 포함 (Acceptable with caution)</li>
+                        <li><span class="metric-value">< 0.5</span>: 검색 품질 낮음 (Poor - 수정 필요)</li>
+                    </ul>
+                    <p><strong>⚠️ 방향 주의:</strong> 높을수록 좋음 (1.0 = 모든 컨텍스트가 관련성 있음)</p>
+                    <p><strong>🔍 평가 대상:</strong> 생성 품질이 아닌 <strong>검색(Retrieval) 품질</strong>을 평가함</p>
+                </div>
+            </div>
+
+            <!-- 메서드 상세 -->
+            <div class="section">
+                <h2>🔧 메서드 상세</h2>
+
+                <h3>RagasAdapter.evaluate() - Context Precision 평가</h3>
+                <p><strong>소스 코드</strong> (metric_adapters.py Lines 420-534):</p>
+
+                <div class="code-block">def evaluate(self, context: EvaluationContext) -> Dict[str, Any]:
+    """Evaluate using Ragas RAG metrics"""
+    if not self._available:
+        return {}
+
+    <span class="comment"># Only evaluate RAG tasks with retrieved context</span>
+    if not context.retrieved_context:
+        return {}
+
+    results = {}
+
+    try:
+        from datasets import Dataset
+
+        <span class="comment"># Prepare data in Ragas format</span>
+        data = {
+            'question': [context.input_text],
+            'answer': [context.output_text],
+            'contexts': [context.retrieved_context]
+        }
+
+        <span class="comment"># Select metrics based on available data</span>
+        if context.expected_output:
+            data['ground_truth'] = [context.expected_output]
+            metrics = [
+                self.faithfulness,
+                self.answer_relevancy,
+                self.context_recall,
+                self.context_precision       <span class="comment"># ← Context Precision 메트릭</span>
+            ]
+        else:
+            <span class="comment"># Skip context_recall when no ground_truth available</span>
+            metrics = [
+                self.faithfulness,
+                self.answer_relevancy,
+                self.context_precision       <span class="comment"># ← Context Precision 메트릭 (항상 포함)</span>
+            ]
+
+        dataset = Dataset.from_dict(data)
+
+        <span class="comment"># Set LLM for all metrics</span>
+        for metric in metrics:
+            if hasattr(metric, 'llm'):
+                metric.llm = self.llm
+
+        eval_result = self.evaluate_fn(
+            dataset,
+            metrics=metrics
+        )
+
+        <span class="comment"># Extract Context Precision score</span>
+        import math
+        for metric_name in ['faithfulness', 'answer_relevancy', 'context_recall', 'context_precision']:
+            try:
+                value_list = eval_result[metric_name]
+
+                if isinstance(value_list, (list, tuple)) and len(value_list) > 0:
+                    value = value_list[0]
+                else:
+                    value = value_list
+
+                if value is not None and isinstance(value, (int, float)) and not (isinstance(value, float) and math.isnan(value)):
+                    results[f'ragas_{metric_name}'] = float(value)
+
+            except (KeyError, IndexError, TypeError, AttributeError, ValueError):
+                continue
+
+        <span class="comment"># Calculate overall Ragas score</span>
+        numeric_metrics = {k: v for k, v in results.items()
+                           if isinstance(v, (int, float))
+                           and not isinstance(v, bool)}
+        if numeric_metrics:
+            results['ragas_overall_score'] = sum(numeric_metrics.values()) / len(numeric_metrics)
+
+    except Exception as e:
+        import traceback
+        print(f"⚠️  Ragas unexpected error: {e}")
+        results['ragas_error'] = f"Unexpected error: {str(e)}"
+
+    return results</div>
+
+                <div class="best-practice">
+                    <h4>🔑 핵심 포인트</h4>
+                    <ul>
+                        <li><strong>자동 트리거</strong>: <code>retrieved_context</code>가 제공되면 Context Precision이 자동 평가됨</li>
+                        <li><strong>Ground Truth 불필요</strong>: <code>expected_output</code> 없이도 평가 가능 (contexts vs question 비교)</li>
+                        <li><strong>LLM 기반</strong>: GPT-4o-mini 또는 GPT-4o를 사용하여 컨텍스트 관련성 판단</li>
+                        <li><strong>검색 품질 평가</strong>: 생성 품질이 아닌 검색 시스템의 정밀도를 측정</li>
+                        <li><strong>Overall Score 포함</strong>: 다른 Ragas 메트릭과 평균화되어 <code>ragas_overall_score</code>에 반영</li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- 데이터 수집 방법 -->
+            <div class="section">
+                <h2>📊 데이터 수집 방법</h2>
+
+                <h3>방법 1: HybridPerformanceMonitor 자동 평가 (권장)</h3>
+                <p>RAG 시스템에서 <code>retrieved_context</code>만 제공하면 Context Precision이 자동으로 평가됩니다.</p>
+
+                <div class="code-block">from agent_evaluator import HybridPerformanceMonitor, create_taskresult
+
+<span class="comment"># 1. Monitor 초기화 (Ragas 활성화)</span>
+monitor = HybridPerformanceMonitor(
+    use_ragas=True,
+    ragas_model="gpt-4o-mini"  <span class="comment"># 비용 절감</span>
+)
+
+<span class="comment"># 2. RAG 시스템 실행</span>
+user_query = "Rust 언어의 메모리 안전성은 어떻게 보장되나요?"
+
+<span class="comment"># Vector DB에서 컨텍스트 검색</span>
+retrieved_docs = vector_db.search(user_query, top_k=5)
+retrieved_context = [doc.content for doc in retrieved_docs]
+
+<span class="comment"># LLM 답변 생성</span>
+llm_response = llm.generate(
+    prompt=f"Question: {user_query}\n\nContext: {retrieved_context}",
+    context=retrieved_context
+)
+
+<span class="comment"># 3. Task 기록 (Context Precision 자동 평가)</span>
+task = create_taskresult(
+    task_id="rag_query_003",
+    task_type="qa",
+    success=True,
+    completion_score=1.0
+)
+
+monitor.record_task(
+    task=task,
+    enable_advanced_metrics=True,  <span class="comment"># Ragas 활성화</span>
+    input_text=user_query,
+    output_text=llm_response,
+    retrieved_context=retrieved_context  <span class="comment"># ← Context Precision 트리거</span>
+)
+
+<span class="comment"># 4. Context Precision Score 확인</span>
+latest_task = monitor.extended_tasks[-1]
+context_precision = latest_task.advanced_metrics.get('ragas_context_precision')
+overall = latest_task.advanced_metrics.get('ragas_overall_score')
+
+print(f"Context Precision Score: {context_precision:.3f}")
+print(f"Ragas Overall Score: {overall:.3f}")
+
+if context_precision < 0.7:
+    print(f"⚠️  경고: 낮은 Context Precision 감지 - 검색 품질 개선 필요")
+</div>
+
+                <h3>방법 2: RagasAdapter 독립 사용 (고급)</h3>
+                <p>Ragas 메트릭만 단독으로 평가하고 싶을 때 사용합니다.</p>
+
+                <div class="code-block">from agent_evaluator.integrations.metric_adapters import (
+    RagasAdapter,
+    EvaluationContext
+)
+
+<span class="comment"># 1. Adapter 초기화</span>
+ragas = RagasAdapter(llm_model="gpt-4o-mini")
+
+<span class="comment"># 2. Evaluation Context 생성</span>
+context = EvaluationContext(
+    input_text="Kubernetes에서 Pod와 Container의 차이는?",
+    output_text="Pod는 Kubernetes에서 배포 가능한 최소 단위로, 하나 이상의 Container를 포함합니다. Container는 실제 애플리케이션이 실행되는 격리된 환경입니다.",
+    retrieved_context=[
+        "A Pod is the smallest deployable unit in Kubernetes and can contain one or more containers.",
+        "Containers provide isolated runtime environments for applications.",
+        "Kubernetes was originally developed by Google.",  # Less relevant
+        "Pods share network and storage resources."
+    ]
+)
+
+<span class="comment"># 3. Ragas 평가 실행</span>
+results = ragas.evaluate(context)
+
+<span class="comment"># 4. Context Precision 결과 확인</span>
+print(f"Context Precision: {results['ragas_context_precision']:.3f}")
+print(f"Faithfulness: {results['ragas_faithfulness']:.3f}")
+print(f"Answer Relevancy: {results['ragas_answer_relevancy']:.3f}")
+print(f"Overall Score: {results['ragas_overall_score']:.3f}")
+print(f"Quality Level: {results['ragas_quality']}")
+</div>
+
+                <h3>방법 3: 검색 시스템 A/B 테스트 (프로덕션)</h3>
+                <p>서로 다른 검색 알고리즘의 Context Precision을 비교합니다.</p>
+
+                <div class="code-block">from agent_evaluator import HybridPerformanceMonitor, create_taskresult
+from typing import List, Dict
+
+class RetrievalSystemABTest:
+    def __init__(self, test_queries: List[str]):
+        """
+        검색 시스템 A/B 테스트
+
+        Args:
+            test_queries: 테스트용 질문 리스트
+        """
+        self.test_queries = test_queries
+        self.monitor = HybridPerformanceMonitor(
+            use_ragas=True,
+            ragas_model="gpt-4o"  <span class="comment"># A/B 테스트에는 고정밀 모델 사용</span>
+        )
+
+    def test_retrieval_system(self, system_name: str,
+                             retrieval_system) -> Dict:
+        """특정 검색 시스템의 Context Precision 측정"""
+        precision_scores = []
+
+        for i, query in enumerate(self.test_queries):
+            <span class="comment"># 검색 시스템으로 컨텍스트 검색</span>
+            retrieved = retrieval_system.retrieve(query)
+
+            <span class="comment"># LLM 답변 생성 (일관성 유지를 위해 동일 프롬프트 사용)</span>
+            answer = self.llm.generate(query, retrieved)
+
+            <span class="comment"># Context Precision 평가</span>
+            task = create_taskresult(f"{system_name}_q{i}", "qa", True, 1.0)
+            self.monitor.record_task(
+                task=task,
+                enable_advanced_metrics=True,
+                input_text=query,
+                output_text=answer,
+                retrieved_context=retrieved
+            )
+
+            latest = self.monitor.extended_tasks[-1]
+            precision = latest.advanced_metrics.get('ragas_context_precision', 0.0)
+            precision_scores.append(precision)
+
+        return {
+            'system_name': system_name,
+            'avg_context_precision': sum(precision_scores) / len(precision_scores),
+            'min_context_precision': min(precision_scores),
+            'scores': precision_scores
+        }
+
+    def compare_systems(self, retrieval_systems: Dict) -> Dict:
+        """여러 검색 시스템 비교"""
+        results = []
+
+        for system_name, system in retrieval_systems.items():
+            print(f"\n테스트 중: {system_name}...")
+            result = self.test_retrieval_system(system_name, system)
+            results.append(result)
+            print(f"  평균 Context Precision: {result['avg_context_precision']:.3f}")
+
+        <span class="comment"># 최고 성능 검색 시스템 선택</span>
+        best = max(results, key=lambda x: x['avg_context_precision'])
+
+        return {
+            'all_results': results,
+            'best_system': best['system_name'],
+            'best_avg_precision': best['avg_context_precision']
+        }
+
+<span class="comment"># 사용 예시</span>
+test_queries = [
+    "딥러닝 모델의 학습 속도를 높이는 방법은?",
+    "Kubernetes Pod와 Container의 차이는?",
+    "파이썬 3.11의 주요 기능은?",
+    <span class="comment"># ... 더 많은 테스트 쿼리</span>
+]
+
+ab_test = RetrievalSystemABTest(test_queries)
+
+retrieval_systems = {
+    "cosine_similarity": CosineSimilarityRetrieval(top_k=5),
+    "hybrid_search": HybridSearchRetrieval(top_k=5, alpha=0.5),
+    "reranked": RerankedRetrieval(top_k=5, reranker="cohere")
+}
+
+comparison = ab_test.compare_systems(retrieval_systems)
+print(f"\n🏆 최고 성능 검색 시스템: {comparison['best_system']}")
+print(f"   평균 Context Precision: {comparison['best_avg_precision']:.3f}")
+</div>
+
+                <h3>방법 4: 실시간 검색 품질 모니터링</h3>
+                <p>프로덕션 RAG 시스템의 검색 품질을 지속적으로 모니터링합니다.</p>
+
+                <div class="code-block">import random
+from agent_evaluator import HybridPerformanceMonitor, create_taskresult
+from datetime import datetime
+
+class RetrievalQualityMonitor:
+    def __init__(self, sample_rate: float = 0.15, precision_threshold: float = 0.7):
+        """
+        검색 품질 모니터
+
+        Args:
+            sample_rate: 평가 샘플링 비율 (15% = 0.15)
+            precision_threshold: Context Precision 경고 임계값
+        """
+        self.monitor = HybridPerformanceMonitor(
+            use_ragas=True,
+            ragas_model="gpt-4o-mini"
+        )
+        self.sample_rate = sample_rate
+        self.threshold = precision_threshold
+        self.low_precision_incidents = []
+
+    def track_retrieval(self, query_id: str, query: str,
+                       retrieved_contexts: list, answer: str) -> dict:
+        """검색 추적 및 샘플링 평가"""
+
+        <span class="comment"># 샘플링 결정 (15% 확률로 Ragas 평가)</span>
+        should_evaluate = random.random() < self.sample_rate
+
+        if should_evaluate:
+            task = create_taskresult(query_id, "qa", True, 1.0)
+
+            self.monitor.record_task(
+                task=task,
+                enable_advanced_metrics=True,
+                input_text=query,
+                output_text=answer,
+                retrieved_context=retrieved_contexts
+            )
+
+            <span class="comment"># Context Precision Score 확인</span>
+            latest = self.monitor.extended_tasks[-1]
+            context_precision = latest.advanced_metrics.get('ragas_context_precision', 1.0)
+
+            <span class="comment"># 낮은 Context Precision 감지 시 알림</span>
+            if context_precision < self.threshold:
+                self._log_low_precision(query_id, context_precision,
+                                       query, retrieved_contexts)
+
+            return {
+                'evaluated': True,
+                'context_precision': context_precision,
+                'alert_triggered': context_precision < self.threshold
+            }
+        else:
+            return {'evaluated': False}
+
+    def _log_low_precision(self, query_id: str, score: float,
+                          query: str, contexts: list):
+        """낮은 Context Precision 로깅"""
+        incident = {
+            'timestamp': datetime.now().isoformat(),
+            'query_id': query_id,
+            'context_precision': score,
+            'query': query,
+            'num_contexts': len(contexts)
+        }
+        self.low_precision_incidents.append(incident)
+
+        print(f"""
+        🚨 낮은 Context Precision 감지!
+        Query ID: {query_id}
+        Context Precision Score: {score:.3f} (Threshold: {self.threshold})
+
+        Query: {query}
+        Retrieved Contexts: {len(contexts)}개
+
+        권장 조치:
+        1. Embedding 모델 개선 (ada-002 → text-embedding-3-large)
+        2. Hybrid search 도입 (Semantic + Keyword)
+        3. Re-ranking 모델 추가 (Cohere Rerank, Cross-Encoder)
+        4. top_k 파라미터 조정
+        5. 문서 청킹 전략 개선
+        """)
+
+    def generate_weekly_report(self) -> dict:
+        """주간 검색 품질 리포트"""
+        tasks = self.monitor.extended_tasks
+        precision_scores = [
+            t.advanced_metrics.get('ragas_context_precision')
+            for t in tasks
+            if 'ragas_context_precision' in t.advanced_metrics
+        ]
+
+        if not precision_scores:
+            return {'error': 'No data available'}
+
+        return {
+            'week': datetime.now().strftime('%Y-W%U'),
+            'total_evaluated': len(precision_scores),
+            'avg_context_precision': sum(precision_scores) / len(precision_scores),
+            'min_context_precision': min(precision_scores),
+            'max_context_precision': max(precision_scores),
+            'low_precision_count': len(self.low_precision_incidents),
+            'low_precision_rate': len(self.low_precision_incidents) / len(precision_scores),
+            'incidents': self.low_precision_incidents
+        }
+
+<span class="comment"># 사용 예시</span>
+monitor = RetrievalQualityMonitor(
+    sample_rate=0.15,      <span class="comment"># 15% 샘플링 → 비용 85% 절감</span>
+    precision_threshold=0.7
+)
+
+<span class="comment"># RAG 쿼리마다 호출</span>
+result = monitor.track_retrieval(
+    query_id="rag_001",
+    query="Kubernetes에서 StatefulSet과 Deployment의 차이는?",
+    retrieved_contexts=[
+        "StatefulSet provides unique network identities for pods...",
+        "Deployment is used for stateless applications...",
+        "Pods are the smallest deployable units..."
+    ],
+    answer="StatefulSet은 상태를 유지하는 애플리케이션에 사용되며..."
+)
+
+<span class="comment"># 주간 리포트 생성</span>
+weekly = monitor.generate_weekly_report()
+print(f"주간 평균 Context Precision: {weekly['avg_context_precision']:.3f}")
+print(f"낮은 Context Precision 비율: {weekly['low_precision_rate']*100:.1f}%")
+</div>
+            </div>
+
+            <!-- Best Practices -->
+            <div class="section">
+                <h2>💡 Best Practices</h2>
+
+                <div class="best-practice">
+                    <h3>1. Threshold 설정 전략</h3>
+                    <table>
+                        <tr>
+                            <th>도메인</th>
+                            <th>권장 Threshold</th>
+                            <th>이유</th>
+                        </tr>
+                        <tr>
+                            <td>의료, 법률, 금융</td>
+                            <td><strong>≥ 0.9</strong></td>
+                            <td>고위험 분야, 무관한 컨텍스트로 인한 오답 방지</td>
+                        </tr>
+                        <tr>
+                            <td>고객 지원, FAQ</td>
+                            <td><strong>≥ 0.8</strong></td>
+                            <td>정확한 답변을 위한 높은 검색 정밀도 필요</td>
+                        </tr>
+                        <tr>
+                            <td>기술 문서, 튜토리얼</td>
+                            <td><strong>≥ 0.7</strong></td>
+                            <td>다양한 관점의 정보 허용</td>
+                        </tr>
+                        <tr>
+                            <td>일반 대화, 브레인스토밍</td>
+                            <td><strong>≥ 0.6</strong></td>
+                            <td>폭넓은 정보 제공 가능</td>
+                        </tr>
+                    </table>
+                </div>
+
+                <div class="best-practice">
+                    <h3>2. Context Precision 개선 방법</h3>
+                    <ol>
+                        <li><strong>Embedding 모델 업그레이드</strong>
+                            <ul>
+                                <li>OpenAI ada-002 → text-embedding-3-large</li>
+                                <li>다국어 지원: multilingual-e5-large</li>
+                                <li>도메인 특화: fine-tuned embeddings</li>
+                            </ul>
+                        </li>
+                        <li><strong>Hybrid Search 도입</strong>
+                            <ul>
+                                <li>Semantic search + Keyword search 결합</li>
+                                <li>BM25 + Vector search (alpha 가중치 조정)</li>
+                                <li>각 방법의 장점 활용 (의미적 유사성 + 정확한 키워드 매칭)</li>
+                            </ul>
+                        </li>
+                        <li><strong>Re-ranking 추가</strong>
+                            <ul>
+                                <li>Cohere Rerank API 사용</li>
+                                <li>Cross-Encoder 모델 (BERT 기반)</li>
+                                <li>초기 검색 후 관련성 재평가</li>
+                            </ul>
+                        </li>
+                        <li><strong>문서 청킹 전략 최적화</strong>
+                            <ul>
+                                <li>Chunk 크기 조정 (256, 512, 1024 tokens)</li>
+                                <li>Overlap 설정 (문맥 연결성 유지)</li>
+                                <li>Semantic chunking (문장/단락 경계 기준)</li>
+                            </ul>
+                        </li>
+                        <li><strong>top_k 파라미터 조정</strong>
+                            <ul>
+                                <li>너무 많으면: 무관한 컨텍스트 포함 (Precision 하락)</li>
+                                <li>너무 적으면: 중요한 정보 누락 (Recall 하락)</li>
+                                <li>최적값 실험: 3-10개 사이에서 A/B 테스트</li>
+                            </ul>
+                        </li>
+                    </ol>
+                </div>
+
+                <div class="warning-box">
+                    <h3>⚠️ 주의사항</h3>
+                    <ul>
+                        <li><strong>컨텍스트 필수</strong>: <code>retrieved_context</code>가 없으면 Context Precision을 평가할 수 없음</li>
+                        <li><strong>LLM 의존성</strong>: GPT 모델 API 비용 및 latency 고려 필요</li>
+                        <li><strong>검색 품질에만 집중</strong>: Context Precision은 생성 품질이 아닌 검색 품질만 평가함</li>
+                        <li><strong>언어 제한</strong>: 영어 최적화, 다른 언어는 성능이 낮을 수 있음</li>
+                        <li><strong>질문 품질</strong>: 모호한 질문은 낮은 점수를 유발 (질문 명확화 필요)</li>
+                    </ul>
+                </div>
+
+                <div class="best-practice">
+                    <h3>3. 비용 최적화 전략</h3>
+                    <ul>
+                        <li><strong>샘플링 사용</strong>: 프로덕션에서 10-20% 샘플링으로 비용 80-90% 절감</li>
+                        <li><strong>모델 선택</strong>: 일반 평가는 gpt-4o-mini (저렴), 중요 평가는 gpt-4o (고정밀)</li>
+                        <li><strong>배치 평가</strong>: 실시간 대신 야간 배치로 평가하여 부하 분산</li>
+                        <li><strong>캐싱</strong>: 유사한 질문의 재평가 방지</li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- 활용 예시 -->
+            <div class="section">
+                <h2>🎯 활용 예시</h2>
+
+                <h3>예시 1: 검색 알고리즘 최적화</h3>
+                <div class="code-block">from agent_evaluator import HybridPerformanceMonitor, create_taskresult
+
+class RetrievalOptimizer:
+    def __init__(self):
+        self.monitor = HybridPerformanceMonitor(
+            use_ragas=True,
+            ragas_model="gpt-4o"
+        )
+
+    def optimize_top_k(self, test_queries: list, retrieval_system) -> dict:
+        """top_k 파라미터 최적화"""
+        results = {}
+
+        for top_k in [3, 5, 7, 10]:
+            precision_scores = []
+
+            for i, query in enumerate(test_queries):
+                <span class="comment"># 다양한 top_k로 검색</span>
+                retrieved = retrieval_system.retrieve(query, top_k=top_k)
+                answer = self.llm.generate(query, retrieved)
+
+                <span class="comment"># Context Precision 평가</span>
+                task = create_taskresult(f"topk_{top_k}_q{i}", "qa", True, 1.0)
+                self.monitor.record_task(
+                    task=task,
+                    enable_advanced_metrics=True,
+                    input_text=query,
+                    output_text=answer,
+                    retrieved_context=retrieved
+                )
+
+                latest = self.monitor.extended_tasks[-1]
+                precision = latest.advanced_metrics.get('ragas_context_precision', 0.0)
+                precision_scores.append(precision)
+
+            results[top_k] = sum(precision_scores) / len(precision_scores)
+            print(f"top_k={top_k}: Context Precision = {results[top_k]:.3f}")
+
+        <span class="comment"># 최적 top_k 선택</span>
+        best_top_k = max(results, key=results.get)
+        print(f"\n🏆 최적 top_k: {best_top_k} (Precision: {results[best_top_k]:.3f})")
+
+        return {'best_top_k': best_top_k, 'all_results': results}
+
+<span class="comment"># 사용</span>
+optimizer = RetrievalOptimizer()
+test_queries = ["query1", "query2", "query3"]
+result = optimizer.optimize_top_k(test_queries, my_retrieval_system)
+</div>
+
+                <h3>예시 2: Vector DB 성능 비교</h3>
+                <div class="code-block">from agent_evaluator import HybridPerformanceMonitor, create_taskresult
+
+class VectorDBBenchmark:
+    def __init__(self, test_queries: list):
+        self.test_queries = test_queries
+        self.monitor = HybridPerformanceMonitor(use_ragas=True)
+
+    def benchmark_vector_db(self, db_name: str, vector_db) -> dict:
+        """Vector DB의 Context Precision 측정"""
+        precision_scores = []
+
+        for i, query in enumerate(self.test_queries):
+            retrieved = vector_db.search(query, top_k=5)
+            answer = self.llm.generate(query, retrieved)
+
+            task = create_taskresult(f"{db_name}_q{i}", "qa", True, 1.0)
+            self.monitor.record_task(
+                task=task,
+                enable_advanced_metrics=True,
+                input_text=query,
+                output_text=answer,
+                retrieved_context=retrieved
+            )
+
+            latest = self.monitor.extended_tasks[-1]
+            precision = latest.advanced_metrics.get('ragas_context_precision', 0.0)
+            precision_scores.append(precision)
+
+        return {
+            'db_name': db_name,
+            'avg_precision': sum(precision_scores) / len(precision_scores),
+            'scores': precision_scores
+        }
+
+    def compare_vector_dbs(self, vector_dbs: dict) -> dict:
+        """여러 Vector DB 비교"""
+        results = []
+
+        for db_name, db in vector_dbs.items():
+            print(f"\n테스트 중: {db_name}...")
+            result = self.benchmark_vector_db(db_name, db)
+            results.append(result)
+            print(f"  평균 Context Precision: {result['avg_precision']:.3f}")
+
+        best = max(results, key=lambda x: x['avg_precision'])
+        return {'all_results': results, 'best_db': best['db_name']}
+
+<span class="comment"># 사용</span>
+benchmark = VectorDBBenchmark(test_queries)
+vector_dbs = {
+    'pinecone': pinecone_client,
+    'weaviate': weaviate_client,
+    'qdrant': qdrant_client
+}
+comparison = benchmark.compare_vector_dbs(vector_dbs)
+print(f"\n🏆 최고 성능 Vector DB: {comparison['best_db']}")
+</div>
+
+                <h3>예시 3: 실시간 검색 품질 대시보드</h3>
+                <div class="code-block">from agent_evaluator import HybridPerformanceMonitor, create_taskresult
+from collections import deque
+import time
+
+class ContextPrecisionDashboard:
+    """실시간 Context Precision 모니터링"""
+
+    def __init__(self, window_size: int = 100):
+        self.monitor = HybridPerformanceMonitor(use_ragas=True)
+        self.recent_scores = deque(maxlen=window_size)
+        self.alert_count = 0
+
+    def track_retrieval(self, query_id: str, query: str,
+                       answer: str, contexts: list):
+        """검색 추적 및 실시간 메트릭 업데이트"""
+
+        task = create_taskresult(query_id, "qa", True, 1.0)
+        self.monitor.record_task(
+            task=task,
+            enable_advanced_metrics=True,
+            input_text=query,
+            output_text=answer,
+            retrieved_context=contexts
+        )
+
+        latest = self.monitor.extended_tasks[-1]
+        context_precision = latest.advanced_metrics.get('ragas_context_precision', 0.0)
+
+        self.recent_scores.append({
+            'timestamp': time.time(),
+            'query_id': query_id,
+            'context_precision': context_precision
+        })
+
+        if context_precision < 0.6:
+            self.alert_count += 1
+
+    def print_dashboard(self):
+        """콘솔 Dashboard 출력"""
+        if not self.recent_scores:
+            return
+
+        scores = [s['context_precision'] for s in self.recent_scores]
+        avg = sum(scores) / len(scores)
+        last_5_avg = sum(scores[-5:]) / min(5, len(scores))
+
+        print(f"""
+╔══════════════════════════════════════════════════════════╗
+║        Context Precision Live Dashboard                 ║
+╠══════════════════════════════════════════════════════════╣
+║  Current Avg:      {avg:.3f}                            ║
+║  Last 5 Avg:       {last_5_avg:.3f}                            ║
+║  Min/Max:          {min(scores):.3f} / {max(scores):.3f}                  ║
+║  Alert Count:      {self.alert_count}                                  ║
+║  Total Queries:    {len(self.recent_scores)}                                ║
+║  Low Precision:    {sum(1 for s in scores if s < 0.6) / len(scores)*100:.1f}%                          ║
+╚══════════════════════════════════════════════════════════╝
+        """)
+
+<span class="comment"># 사용</span>
+dashboard = ContextPrecisionDashboard(window_size=100)
+
+import threading
+
+def dashboard_loop():
+    while True:
+        dashboard.print_dashboard()
+        time.sleep(10)
+
+threading.Thread(target=dashboard_loop, daemon=True).start()
+</div>
+            </div>
+
+            <!-- 관련 메트릭 -->
+            <div class="section">
+                <h2>🔗 관련 메트릭</h2>
+
+                <table>
+                    <tr>
+                        <th>메트릭</th>
+                        <th>관계</th>
+                        <th>설명</th>
+                    </tr>
+                    <tr>
+                        <td><strong>Context Recall</strong></td>
+                        <td>보완 관계</td>
+                        <td>검색된 컨텍스트의 완전성 평가 (Recall)<br>Context Precision은 정밀도 평가 (Precision)</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Faithfulness</strong></td>
+                        <td>보완 관계</td>
+                        <td>생성된 답변의 사실성 평가 (생성 품질)<br>Context Precision은 검색 품질 평가</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Answer Relevancy (Ragas)</strong></td>
+                        <td>보완 관계</td>
+                        <td>답변과 질문의 관련성 평가<br>Context Precision은 컨텍스트와 질문의 관련성 평가</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Contextual Relevancy (DeepEval)</strong></td>
+                        <td>유사 (다른 구현)</td>
+                        <td>DeepEval의 컨텍스트 관련성 메트릭<br>동일 목적이지만 평가 방법 상이</td>
+                    </tr>
+                </table>
+
+                <div class="best-practice">
+                    <h4>💡 메트릭 조합 전략</h4>
+                    <p><strong>검색 시스템 품질 보장</strong> - Precision과 Recall 함께 평가:</p>
+                    <ul>
+                        <li><strong>Context Precision</strong> (높을수록 좋음): 검색된 컨텍스트의 정밀도</li>
+                        <li><strong>Context Recall</strong> (높을수록 좋음): 검색된 컨텍스트의 완전성</li>
+                    </ul>
+                    <p>→ 둘 다 0.8 이상이면 <strong>고품질 검색 시스템</strong></p>
+                </div>
+            </div>
+
+            <!-- 참고 자료 -->
+            <div class="section">
+                <h2>📚 참고 자료</h2>
+                <ul>
+                    <li><a href="https://docs.ragas.io/en/latest/concepts/metrics/context_precision.html" target="_blank">Ragas Context Precision 공식 문서</a></li>
+                    <li><a href="https://arxiv.org/abs/2309.15217" target="_blank">RAGAS: Automated Evaluation of RAG (논문)</a></li>
+                    <li><a href="../examples/rag_evaluation.py">Agent Evaluator RAG 평가 예시</a></li>
+                    <li><a href="./22_FAITHFULNESS.html">Faithfulness (Ragas) 문서</a></li>
+                    <li><a href="./23_ANSWER_RELEVANCY_RAGAS.html">Answer Relevancy (Ragas) 문서</a></li>
+                    <li><a href="./25_CONTEXT_RECALL.html">Context Recall 문서</a></li>
+                </ul>
+            </div>
+        </div>
+
+        <div class="footer">
+            <p><strong>Agent Evaluator v0.5.0</strong> - Layer 3 Ragas Metrics</p>
+            <p>Context Precision: RAG 검색 시스템의 정밀도 평가</p>
+            <p style="margin-top: 20px; font-size: 0.9em; opacity: 0.8;">
+                Developed by Agent Evaluator Team |
+                <a href="https://github.com/your-repo/agent-evaluator" style="color: #68d391;">GitHub</a>
+            </p>
+        </div>
+    </div>
+    <script src="../scripts/mermaid-zoom.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+    <script>
+        mermaid.initialize({ startOnLoad: true, theme: 'default' });
+    </script>
+</body>
+</html>

@@ -1,0 +1,1417 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Agent Evaluator - API & Metrics Mapping Guide</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            overflow: hidden;
+        }
+
+        header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 40px;
+            text-align: center;
+        }
+
+        header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+
+        header p {
+            font-size: 1.2em;
+            opacity: 0.9;
+        }
+
+        .content {
+            padding: 40px;
+        }
+
+        h2 {
+            color: #667eea;
+            margin: 40px 0 20px 0;
+            padding-bottom: 10px;
+            border-bottom: 3px solid #667eea;
+            font-size: 2em;
+        }
+
+        h3 {
+            color: #764ba2;
+            margin: 30px 0 15px 0;
+            font-size: 1.5em;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+            background: white;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            border-radius: 8px;
+            overflow: hidden;
+        }
+
+        thead {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        th {
+            padding: 15px;
+            text-align: left;
+            font-weight: 600;
+            font-size: 0.95em;
+        }
+
+        td {
+            padding: 12px 15px;
+            border-bottom: 1px solid #eee;
+        }
+
+        tbody tr:hover {
+            background: #f5f7fa;
+        }
+
+        tbody tr:last-child td {
+            border-bottom: none;
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 4px 10px;
+            border-radius: 12px;
+            font-size: 0.85em;
+            font-weight: 600;
+            margin: 2px;
+        }
+
+        .badge-layer1 {
+            background: #e3f2fd;
+            color: #1976d2;
+        }
+
+        .badge-layer2 {
+            background: #f3e5f5;
+            color: #7b1fa2;
+        }
+
+        .badge-layer3 {
+            background: #fff3e0;
+            color: #f57c00;
+        }
+
+        .badge-security {
+            background: #ffebee;
+            color: #c62828;
+        }
+
+        .badge-free {
+            background: #e8f5e9;
+            color: #2e7d32;
+        }
+
+        .badge-paid {
+            background: #fff9c4;
+            color: #f57f17;
+        }
+
+        .badge-new {
+            background: #ff4757;
+            color: white;
+        }
+
+        .info-box {
+            background: #f0f4f8;
+            border-left: 4px solid #667eea;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 5px;
+        }
+
+        .warning-box {
+            background: #fff3cd;
+            border-left: 4px solid #ffc107;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 5px;
+        }
+
+        .security-box {
+            background: #ffebee;
+            border-left: 4px solid #f44336;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 5px;
+        }
+
+        .success-box {
+            background: #e8f5e9;
+            border-left: 4px solid #4caf50;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 5px;
+        }
+
+        code {
+            background: #f5f5f5;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9em;
+        }
+
+        .highlight {
+            background: #fffde7;
+            padding: 2px 4px;
+            border-radius: 3px;
+        }
+
+        footer {
+            background: #2d2d2d;
+            color: white;
+            text-align: center;
+            padding: 30px;
+        }
+
+        .toc {
+            background: #f8f9fa;
+            padding: 25px;
+            border-radius: 8px;
+            margin: 20px 0;
+        }
+
+        .toc ul {
+            list-style: none;
+            margin-left: 20px;
+        }
+
+        .toc li {
+            margin: 8px 0;
+        }
+
+        .toc a {
+            color: #667eea;
+            text-decoration: none;
+            font-weight: 500;
+        }
+
+        .toc a:hover {
+            text-decoration: underline;
+        }
+
+        .api-section {
+            background: #e8eaf6;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 10px 0;
+        }
+
+        .metric-count {
+            display: inline-block;
+            background: #667eea;
+            color: white;
+            padding: 5px 12px;
+            border-radius: 20px;
+            font-weight: bold;
+            font-size: 0.9em;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🗺️ Agent Evaluator</h1>
+            <p>API, Metrics & Examples Mapping Guide</p>
+            <p style="font-size: 0.9em; margin-top: 10px;">Version 0.5.0 | Updated: 2025-12-14</p>
+        </header>
+
+        <div class="content">
+            <!-- Table of Contents -->
+            <div class="toc">
+                <h3>📑 목차</h3>
+                <ul>
+                    <li><a href="#overview">1. 개요 - 25개 메트릭 전체 구조</a></li>
+                    <li><a href="#layer1">2. Layer 1 메트릭 (10개) - Basic + Security</a></li>
+                    <li><a href="#layer2">3. Layer 2 메트릭 (6개) - Agentic + Security</a></li>
+                    <li><a href="#layer3">4. Layer 3 메트릭 (9개) - DeepEval + Ragas</a></li>
+                    <li><a href="#core-api">5. 핵심 API - PerformanceMonitor & HybridMonitor</a></li>
+                    <li><a href="#advanced-api">6. 고급 분석 API (7개) - v0.5.0+ <span class="badge badge-new">NEW</span></a></li>
+                    <li><a href="#examples-level1">7. Level 1 예제 매핑 (10개)</a></li>
+                    <li><a href="#examples-level2">8. Level 2 예제 매핑 (8개)</a></li>
+                    <li><a href="#examples-level3">9. Level 3 예제 매핑 (6개)</a></li>
+                    <li><a href="#uncovered">10. 예제에서 다루지 않는 고급 기능</a></li>
+                    <li><a href="#quick-reference">11. 빠른 참조 - API 사용 패턴</a></li>
+                </ul>
+            </div>
+
+            <!-- Section 1: Overview -->
+            <section id="overview">
+                <h2>1. 개요 - 25개 메트릭 전체 구조</h2>
+
+                <div class="info-box">
+                    <h3>🎯 Agent Evaluator 3계층 아키텍처</h3>
+                    <p><strong>총 25개 메트릭</strong>으로 구성된 포괄적인 AI 에이전트 평가 프레임워크</p>
+                    <ul style="margin: 15px 0 0 20px;">
+                        <li><strong>Layer 1:</strong> <span class="metric-count">10개</span> Basic (7) + Security (3) - 완전 무료, API 키 불필요</li>
+                        <li><strong>Layer 2:</strong> <span class="metric-count">6개</span> Agentic (4) + Security (2) - 완전 무료, 멀티 에이전트 전용</li>
+                        <li><strong>Layer 3:</strong> <span class="metric-count">9개</span> DeepEval (5) + Ragas (4) - 유료, OpenAI API 필요</li>
+                    </ul>
+                </div>
+
+                <table>
+                    <thead>
+                        <tr>
+                            <th style="width: 15%;">Layer</th>
+                            <th style="width: 35%;">메트릭 카테고리</th>
+                            <th style="width: 15%;">개수</th>
+                            <th style="width: 15%;">비용</th>
+                            <th style="width: 20%;">용도</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td rowspan="2"><span class="badge badge-layer1">Layer 1</span></td>
+                            <td><strong>Basic Metrics</strong><br>TCR, Accuracy, Hallucination, Quality, Latency, Cost, Tool Efficiency</td>
+                            <td>7개</td>
+                            <td><span class="badge badge-free">무료</span></td>
+                            <td>모든 에이전트</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Security Metrics</strong><br>Input Sanitization, Output Leakage, Tool Authorization</td>
+                            <td>3개</td>
+                            <td><span class="badge badge-free">무료</span></td>
+                            <td>기본 보안</td>
+                        </tr>
+                        <tr>
+                            <td rowspan="2"><span class="badge badge-layer2">Layer 2</span></td>
+                            <td><strong>Agentic Metrics</strong><br>Tool Selection, Agent Coordination, Workflow Execution, Error Recovery</td>
+                            <td>4개</td>
+                            <td><span class="badge badge-free">무료</span></td>
+                            <td>멀티 에이전트</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Agentic Security</strong><br>Privilege Escalation Detection, Attack Pattern Detection</td>
+                            <td>2개</td>
+                            <td><span class="badge badge-free">무료</span></td>
+                            <td>고급 보안</td>
+                        </tr>
+                        <tr>
+                            <td rowspan="2"><span class="badge badge-layer3">Layer 3</span></td>
+                            <td><strong>DeepEval Metrics</strong><br>G-Eval, Hallucination, Toxicity, Bias, Answer Relevancy</td>
+                            <td>5개</td>
+                            <td><span class="badge badge-paid">유료</span></td>
+                            <td>고급 품질</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Ragas Metrics</strong><br>Faithfulness, Context Precision, Context Recall, Answer Relevancy</td>
+                            <td>4개</td>
+                            <td><span class="badge badge-paid">유료</span></td>
+                            <td>RAG 시스템</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </section>
+
+            <!-- Section 2: Layer 1 Metrics -->
+            <section id="layer1">
+                <h2>2. Layer 1 메트릭 (10개) - Basic + Security</h2>
+
+                <h3>📊 Basic Metrics (7개)</h3>
+                <table>
+                    <thead>
+                        <tr>
+                            <th style="width: 5%;">#</th>
+                            <th style="width: 20%;">메트릭</th>
+                            <th style="width: 25%;">API / Tracker</th>
+                            <th style="width: 30%;">핵심 메서드</th>
+                            <th style="width: 20%;">Dashboard 탭</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>1</td>
+                            <td><strong>TCR</strong><br>Task Completion Rate</td>
+                            <td><code>TaskCompletionTracker</code></td>
+                            <td><code>calculate_tcr()</code><br><code>get_tcr_by_type()</code></td>
+                            <td>Core Metrics</td>
+                        </tr>
+                        <tr>
+                            <td>2</td>
+                            <td><strong>Accuracy</strong><br>정확도 (4가지 유사도)</td>
+                            <td><code>AccuracyEvaluator</code></td>
+                            <td><code>add_evaluation()</code><br><code>get_accuracy_scores()</code><br><code>get_accuracy_by_type()</code></td>
+                            <td>Core Metrics</td>
+                        </tr>
+                        <tr>
+                            <td>3</td>
+                            <td><strong>Hallucination</strong><br>환각 발생률</td>
+                            <td><code>HallucinationDetector</code></td>
+                            <td><code>detect_hallucination()</code><br><code>get_hallucination_rate()</code><br><code>get_hallucination_by_type()</code></td>
+                            <td>Core Metrics</td>
+                        </tr>
+                        <tr>
+                            <td>4</td>
+                            <td><strong>Quality Score</strong><br>응답 품질 (5차원)</td>
+                            <td><code>ResponseQualityEvaluator</code></td>
+                            <td><code>evaluate_response()</code><br><code>get_quality_metrics()</code><br><code>get_quality_by_dimension()</code></td>
+                            <td>Core Metrics</td>
+                        </tr>
+                        <tr>
+                            <td>5</td>
+                            <td><strong>Latency</strong><br>응답 시간</td>
+                            <td><code>LatencyTracker</code></td>
+                            <td><code>record_latency()</code><br><code>get_latency_stats()</code><br><code>get_latency_by_type()</code></td>
+                            <td>Performance</td>
+                        </tr>
+                        <tr>
+                            <td>6</td>
+                            <td><strong>Cost</strong><br>토큰 사용량/비용</td>
+                            <td><code>TokenEconomyTracker</code></td>
+                            <td><code>track_usage()</code><br><code>get_usage_stats()</code><br><code>get_cost_breakdown_by_model()</code></td>
+                            <td>Performance</td>
+                        </tr>
+                        <tr>
+                            <td>7</td>
+                            <td><strong>Tool Efficiency</strong><br>도구 호출 효율</td>
+                            <td><code>ToolCallAnalyzer</code></td>
+                            <td><code>analyze_execution()</code><br><code>get_efficiency_stats()</code><br><code>get_tool_usage_patterns()</code></td>
+                            <td>Core Metrics</td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                <h3>🔒 Security Metrics (3개)</h3>
+                <div class="security-box">
+                    <p><strong>v0.5.0+</strong> Layer 1 보안 메트릭이 내장되어 완전 자동으로 수집됩니다.</p>
+                </div>
+                <table>
+                    <thead>
+                        <tr>
+                            <th style="width: 5%;">#</th>
+                            <th style="width: 20%;">메트릭</th>
+                            <th style="width: 25%;">API / Tracker</th>
+                            <th style="width: 30%;">탐지 패턴</th>
+                            <th style="width: 20%;">Dashboard 탭</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr style="background: #fff9f0;">
+                            <td>8</td>
+                            <td><strong>Input Sanitization</strong><br>입력 보안 위협</td>
+                            <td><code>InputSanitizationTracker</code></td>
+                            <td>SQL Injection, Command Injection, Path Traversal, XSS, Prompt Injection</td>
+                            <td>Layer 1: Security</td>
+                        </tr>
+                        <tr style="background: #fff9f0;">
+                            <td>9</td>
+                            <td><strong>Output Leakage</strong><br>민감 정보 유출</td>
+                            <td><code>OutputLeakageDetector</code></td>
+                            <td>API Keys, Passwords, Credit Cards, Emails, SSNs, IPs</td>
+                            <td>Layer 1: Security</td>
+                        </tr>
+                        <tr style="background: #fff9f0;">
+                            <td>10</td>
+                            <td><strong>Tool Authorization</strong><br>도구 권한 관리</td>
+                            <td><code>ToolAuthorizationTracker</code></td>
+                            <td>Whitelist/Blacklist, Dangerous Parameters, Privilege Levels</td>
+                            <td>Layer 1: Security</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </section>
+
+            <!-- Section 3: Layer 2 Metrics -->
+            <section id="layer2">
+                <h2>3. Layer 2 메트릭 (6개) - Agentic + Security</h2>
+
+                <h3>🤖 Agentic AI Metrics (4개)</h3>
+                <table>
+                    <thead>
+                        <tr>
+                            <th style="width: 5%;">#</th>
+                            <th style="width: 20%;">메트릭</th>
+                            <th style="width: 25%;">API / Tracker</th>
+                            <th style="width: 30%;">핵심 메서드</th>
+                            <th style="width: 20%;">Dashboard 탭</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>11</td>
+                            <td><strong>Tool Selection</strong><br>도구 선택 정확도</td>
+                            <td><code>ToolSelectionTracker</code></td>
+                            <td><code>evaluate_selection()</code><br>Precision, Recall, F1</td>
+                            <td>Layer 2: Agentic</td>
+                        </tr>
+                        <tr>
+                            <td>12</td>
+                            <td><strong>Agent Coordination</strong><br>멀티 에이전트 협업</td>
+                            <td><code>AgentCoordinationTracker</code></td>
+                            <td><code>track_interaction()</code><br><code>calculate_coordination_score()</code><br><code>get_interaction_patterns()</code></td>
+                            <td>Layer 2: Agentic</td>
+                        </tr>
+                        <tr>
+                            <td>13</td>
+                            <td><strong>Workflow Execution</strong><br>워크플로우 실행</td>
+                            <td><code>WorkflowExecutionTracker</code></td>
+                            <td><code>track_step()</code><br><code>calculate_execution_success_rate()</code><br><code>get_critical_path_analysis()</code></td>
+                            <td>Layer 2: Agentic</td>
+                        </tr>
+                        <tr>
+                            <td>14</td>
+                            <td><strong>Error Recovery</strong><br>재시도 성공률</td>
+                            <td><code>RetryCorrectionTracker</code></td>
+                            <td><code>track_attempts()</code><br><code>get_retry_metrics()</code></td>
+                            <td>Layer 2: Agentic</td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                <h3>🛡️ Agentic Security Metrics (2개)</h3>
+                <div class="security-box">
+                    <p><strong>v0.5.0+</strong> Layer 2 보안은 복잡한 멀티 도구 호출 패턴을 분석하여 고급 공격을 탐지합니다.</p>
+                </div>
+                <table>
+                    <thead>
+                        <tr>
+                            <th style="width: 5%;">#</th>
+                            <th style="width: 20%;">메트릭</th>
+                            <th style="width: 25%;">API / Tracker</th>
+                            <th style="width: 30%;">탐지 패턴</th>
+                            <th style="width: 20%;">Dashboard 탭</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr style="background: #fff9f0;">
+                            <td>15</td>
+                            <td><strong>Privilege Escalation</strong><br>권한 상승 탐지</td>
+                            <td><code>PrivilegeEscalationDetector</code></td>
+                            <td>초기 권한 → 최종 권한 추적<br>Risk Score (0-10)</td>
+                            <td>Layer 2: Security</td>
+                        </tr>
+                        <tr style="background: #fff9f0;">
+                            <td>16</td>
+                            <td><strong>Attack Pattern</strong><br>공격 패턴 탐지</td>
+                            <td><code>ToolChainAttackDetector</code></td>
+                            <td>Data Exfiltration, Lateral Movement, Defense Evasion, Persistence</td>
+                            <td>Layer 2: Security</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </section>
+
+            <!-- Section 4: Layer 3 Metrics -->
+            <section id="layer3">
+                <h2>4. Layer 3 메트릭 (9개) - DeepEval + Ragas</h2>
+
+                <div class="warning-box">
+                    <h4>⚠️ Layer 3 사용 시 주의사항</h4>
+                    <ul style="margin-left: 20px; margin-top: 10px;">
+                        <li><strong>OpenAI API 키 필수:</strong> .env 파일 또는 환경 변수 설정</li>
+                        <li><strong>비용 발생:</strong> $0.01-0.02/task (gpt-4o-mini 기준)</li>
+                        <li><strong>속도:</strong> Layer 1 대비 10-30배 느림 (LLM 호출)</li>
+                        <li><strong>설치:</strong> <code>pip install deepeval ragas langchain-openai</code></li>
+                    </ul>
+                </div>
+
+                <h3>🧪 DeepEval Metrics (5개)</h3>
+                <table>
+                    <thead>
+                        <tr>
+                            <th style="width: 5%;">#</th>
+                            <th style="width: 20%;">메트릭</th>
+                            <th style="width: 30%;">설명</th>
+                            <th style="width: 15%;">범위</th>
+                            <th style="width: 30%;">용도</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>17</td>
+                            <td><strong>G-Eval</strong></td>
+                            <td>커스텀 품질 기준 평가</td>
+                            <td>0-1</td>
+                            <td>사용자 정의 평가 기준</td>
+                        </tr>
+                        <tr>
+                            <td>18</td>
+                            <td><strong>Hallucination</strong></td>
+                            <td>의미론적 환각 탐지</td>
+                            <td>0-1 (높을수록 좋음)</td>
+                            <td>Context 기반 사실성 검증</td>
+                        </tr>
+                        <tr>
+                            <td>19</td>
+                            <td><strong>Toxicity</strong></td>
+                            <td>독성 콘텐츠 탐지</td>
+                            <td>0-1 (낮을수록 좋음)</td>
+                            <td>안전한 응답 생성</td>
+                        </tr>
+                        <tr>
+                            <td>20</td>
+                            <td><strong>Bias</strong></td>
+                            <td>편향 탐지</td>
+                            <td>0-1 (낮을수록 좋음)</td>
+                            <td>공정성 검증</td>
+                        </tr>
+                        <tr>
+                            <td>21</td>
+                            <td><strong>Answer Relevancy</strong></td>
+                            <td>답변 관련성</td>
+                            <td>0-1</td>
+                            <td>QA 시스템 평가</td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                <h3>📚 Ragas Metrics (4개)</h3>
+                <table>
+                    <thead>
+                        <tr>
+                            <th style="width: 5%;">#</th>
+                            <th style="width: 20%;">메트릭</th>
+                            <th style="width: 30%;">설명</th>
+                            <th style="width: 15%;">범위</th>
+                            <th style="width: 30%;">용도</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>22</td>
+                            <td><strong>Faithfulness</strong></td>
+                            <td>검색된 문서 충실도</td>
+                            <td>0-1</td>
+                            <td>RAG Generation 품질</td>
+                        </tr>
+                        <tr>
+                            <td>23</td>
+                            <td><strong>Context Precision</strong></td>
+                            <td>검색 정밀도</td>
+                            <td>0-1</td>
+                            <td>RAG Retrieval 정확도</td>
+                        </tr>
+                        <tr>
+                            <td>24</td>
+                            <td><strong>Context Recall</strong></td>
+                            <td>검색 재현율</td>
+                            <td>0-1</td>
+                            <td>RAG Retrieval 완전성</td>
+                        </tr>
+                        <tr>
+                            <td>25</td>
+                            <td><strong>Answer Relevancy</strong></td>
+                            <td>RAG 답변 관련성</td>
+                            <td>0-1</td>
+                            <td>RAG 전체 품질</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </section>
+
+            <!-- Section 5: Core API -->
+            <section id="core-api">
+                <h2>5. 핵심 API - PerformanceMonitor & HybridMonitor</h2>
+
+                <h3>🎯 PerformanceMonitor (Layer 1 + 2)</h3>
+                <div class="api-section">
+                    <p><strong>Import:</strong></p>
+                    <code>from agent_evaluator import PerformanceMonitor, create_taskresult, TaskResult, TaskType</code>
+
+                    <p style="margin-top: 15px;"><strong>주요 메서드:</strong></p>
+                    <ul style="margin-left: 20px; margin-top: 10px;">
+                        <li><code>__init__(enable_hallucination_detection=True, enable_security_metrics=False)</code></li>
+                        <li><code>record_task(task: TaskResult)</code> - Task 기록</li>
+                        <li><code>generate_report() -> Dict</code> - 평가 리포트 생성</li>
+                        <li><code>save_to_file(filename: str)</code> - JSON 파일 저장</li>
+                        <li><code>evaluate_with_golden_dataset(agent_fn, dataset_path, enable_layer2_metrics=False)</code></li>
+                    </ul>
+
+                    <p style="margin-top: 15px;"><strong>내장 Trackers:</strong></p>
+                    <ul style="margin-left: 20px; margin-top: 10px;">
+                        <li><code>monitor.tcr_tracker</code> - TaskCompletionTracker</li>
+                        <li><code>monitor.accuracy_evaluator</code> - AccuracyEvaluator</li>
+                        <li><code>monitor.hallucination_detector</code> - HallucinationDetector</li>
+                        <li><code>monitor.quality_evaluator</code> - ResponseQualityEvaluator</li>
+                        <li><code>monitor.latency_tracker</code> - LatencyTracker</li>
+                        <li><code>monitor.token_tracker</code> - TokenEconomyTracker</li>
+                        <li><code>monitor.tool_analyzer</code> - ToolCallAnalyzer</li>
+                        <li><code>monitor.tool_selection_tracker</code> - ToolSelectionTracker</li>
+                        <li><code>monitor.agent_coordination_tracker</code> - AgentCoordinationTracker</li>
+                        <li><code>monitor.workflow_tracker</code> - WorkflowExecutionTracker</li>
+                        <li><code>monitor.input_sanitizer</code> - InputSanitizationTracker (v0.5.0+)</li>
+                        <li><code>monitor.output_leakage_detector</code> - OutputLeakageDetector (v0.5.0+)</li>
+                        <li><code>monitor.tool_authorizer</code> - ToolAuthorizationTracker (v0.5.0+)</li>
+                        <li><code>monitor.privilege_escalation_detector</code> - PrivilegeEscalationDetector (v0.5.0+)</li>
+                        <li><code>monitor.tool_chain_attack_detector</code> - ToolChainAttackDetector (v0.5.0+)</li>
+                    </ul>
+                </div>
+
+                <h3>🚀 HybridPerformanceMonitor (Layer 1 + 2 + 3)</h3>
+                <div class="api-section">
+                    <p><strong>Import:</strong></p>
+                    <code>from agent_evaluator.core.hybrid_monitor import HybridPerformanceMonitor</code>
+
+                    <p style="margin-top: 15px;"><strong>주요 메서드:</strong></p>
+                    <ul style="margin-left: 20px; margin-top: 10px;">
+                        <li><code>__init__(use_deepeval=True, use_ragas=True, deepeval_model="gpt-4o-mini")</code></li>
+                        <li><code>record_task(task, enable_advanced_metrics=True, input_text=None, output_text=None, expected_output=None, retrieved_context=None, quality_criteria=None)</code></li>
+                        <li><code>generate_hybrid_report() -> Dict</code> - Layer 1+2+3 통합 리포트</li>
+                    </ul>
+
+                    <p style="margin-top: 15px;"><strong>Layer 3 어댑터:</strong></p>
+                    <ul style="margin-left: 20px; margin-top: 10px;">
+                        <li><code>monitor.deepeval_adapter</code> - DeepEvalAdapter (5개 메트릭)</li>
+                        <li><code>monitor.ragas_adapter</code> - RagasAdapter (4개 메트릭)</li>
+                    </ul>
+                </div>
+
+                <h3>📝 TaskResult 생성</h3>
+                <div class="api-section">
+                    <p><strong>Helper 함수:</strong></p>
+                    <code>create_taskresult(task_id, task_type, question, response, ground_truth=None, context=None)</code>
+
+                    <p style="margin-top: 15px;"><strong>직접 생성:</strong></p>
+                    <code>TaskResult(task_id, task_type, question, response, completion_score, accuracy_score, ...)</code>
+
+                    <p style="margin-top: 15px;"><strong>TaskResult 주요 필드:</strong></p>
+                    <ul style="margin-left: 20px; margin-top: 10px;">
+                        <li><code>expected_tools: List[str]</code> - Tool Selection 평가용</li>
+                        <li><code>chain_steps: List[Dict]</code> - LangChain 워크플로우용</li>
+                        <li><code>graph_traversal: Dict</code> - LangGraph 워크플로우용</li>
+                        <li><code>agent_interactions: List[Dict]</code> - Agent 협업 추적용</li>
+                        <li><code>conversation_turns: List[Dict]</code> - 대화 추적용</li>
+                        <li><code>state_transitions: List[Dict]</code> - 상태 전이 추적용</li>
+                    </ul>
+                    <div class="warning-box" style="margin-top: 15px;">
+                        <h4>⚠️ RAG/Ragas 평가 시 주의</h4>
+                        <p><code>retrieved_context</code>는 TaskResult 필드가 아니라 <strong>HybridPerformanceMonitor.record_task()</strong> 메서드의 매개변수로 전달합니다:</p>
+                        <code>monitor.record_task(task, retrieved_context=[doc1, doc2, ...])</code>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Section 6: Advanced API (NEW) -->
+            <section id="advanced-api">
+                <h2>6. 고급 분석 API (7개) - v0.5.0+ <span class="badge badge-new">NEW</span></h2>
+
+                <div class="success-box">
+                    <h3>🎯 개요</h3>
+                    <p><strong>v0.5.0+에서 추가된 7개의 고급 분석 API</strong>는 기본 메트릭을 더 깊이 분석할 수 있는 강력한 도구입니다.</p>
+                    <p style="margin-top: 10px;"><strong>특징:</strong></p>
+                    <ul style="margin-left: 20px; margin-top: 10px;">
+                        <li>✅ 완전 무료 (Layer 1, 2 메트릭 기반)</li>
+                        <li>✅ 유형별, 차원별, 모델별 상세 분석</li>
+                        <li>✅ 병목 지점, 패턴, 최적화 제안 자동 생성</li>
+                        <li>✅ <strong>Level 2 Example 08에서 전체 데모 제공</strong></li>
+                    </ul>
+                </div>
+
+                <table>
+                    <thead>
+                        <tr>
+                            <th style="width: 5%;">#</th>
+                            <th style="width: 30%;">API 메서드</th>
+                            <th style="width: 25%;">Tracker</th>
+                            <th style="width: 25%;">제공 정보</th>
+                            <th style="width: 15%;">예제</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>1</td>
+                            <td><code>get_hallucination_by_type()</code></td>
+                            <td><code>HallucinationDetector</code></td>
+                            <td>환각 유형별 통계 (숫자, 시간, 주장 오류)</td>
+                            <td>L2-08</td>
+                        </tr>
+                        <tr>
+                            <td>2</td>
+                            <td><code>get_quality_by_dimension()</code></td>
+                            <td><code>ResponseQualityEvaluator</code></td>
+                            <td>5개 품질 차원별 점수 분포 (관련성, 완전성, 정확성, 명확성, 유용성)</td>
+                            <td>L2-08</td>
+                        </tr>
+                        <tr>
+                            <td>3</td>
+                            <td><code>get_latency_by_type()</code></td>
+                            <td><code>LatencyTracker</code></td>
+                            <td>Task 타입별 지연시간 (평균, P95, P99)</td>
+                            <td>L2-08</td>
+                        </tr>
+                        <tr>
+                            <td>4</td>
+                            <td><code>get_cost_breakdown_by_model()</code></td>
+                            <td><code>TokenEconomyTracker</code></td>
+                            <td>모델별 비용, 토큰 사용량, 작업당 평균</td>
+                            <td>L2-08</td>
+                        </tr>
+                        <tr>
+                            <td>5</td>
+                            <td><code>get_tool_usage_patterns()</code></td>
+                            <td><code>ToolCallAnalyzer</code></td>
+                            <td>도구 사용 패턴 (중복, 실패, 효율성 분포)</td>
+                            <td>L2-08</td>
+                        </tr>
+                        <tr>
+                            <td>6</td>
+                            <td><code>get_critical_path_analysis()</code></td>
+                            <td><code>WorkflowExecutionTracker</code></td>
+                            <td>병목 지점, 병렬화 기회, 최적화 권장사항</td>
+                            <td>L2-08</td>
+                        </tr>
+                        <tr>
+                            <td>7</td>
+                            <td><code>get_interaction_patterns()</code></td>
+                            <td><code>AgentCoordinationTracker</code></td>
+                            <td>협업 패턴 (Hub, Chain, Mesh), 역할 분석</td>
+                            <td>L2-08</td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                <h3>💡 사용 예시</h3>
+                <div class="api-section">
+                    <pre style="background: #2d2d2d; color: #f8f8f2; padding: 20px; border-radius: 8px; overflow-x: auto;">
+<span style="color: #6a9955;"># 1. 환각 유형별 분석</span>
+breakdown = evaluator.hallucination_detector.<span style="color: #dcdcaa;">get_hallucination_by_type</span>()
+<span style="color: #569cd6;">print</span>(<span style="color: #ce9178;">f"숫자 오류: {breakdown['numerical_errors']}"</span>)
+
+<span style="color: #6a9955;"># 2. 품질 차원별 분석</span>
+quality = evaluator.quality_evaluator.<span style="color: #dcdcaa;">get_quality_by_dimension</span>()
+<span style="color: #569cd6;">print</span>(<span style="color: #ce9178;">f"Relevance: {quality['relevance']:.2f}/5.0"</span>)
+
+<span style="color: #6a9955;"># 3. Task 타입별 지연시간</span>
+latency = evaluator.latency_tracker.<span style="color: #dcdcaa;">get_latency_by_type</span>()
+<span style="color: #569cd6;">print</span>(<span style="color: #ce9178;">f"QA P95: {latency['qa']['p95']:.3f}s"</span>)
+
+<span style="color: #6a9955;"># 4. 모델별 비용 분석</span>
+cost = evaluator.token_tracker.<span style="color: #dcdcaa;">get_cost_breakdown_by_model</span>()
+<span style="color: #569cd6;">print</span>(<span style="color: #ce9178;">f"gpt-4 비용: ${cost['gpt-4']['total_cost']:.4f}"</span>)
+
+<span style="color: #6a9955;"># 5. 도구 사용 패턴</span>
+patterns = evaluator.tool_analyzer.<span style="color: #dcdcaa;">get_tool_usage_patterns</span>()
+<span style="color: #569cd6;">print</span>(<span style="color: #ce9178;">f"중복 호출: {patterns['redundancy_impact']['total_redundant']}"</span>)
+
+<span style="color: #6a9955;"># 6. Critical Path 분석</span>
+analysis = evaluator.workflow_tracker.<span style="color: #dcdcaa;">get_critical_path_analysis</span>()
+<span style="color: #569cd6;">print</span>(<span style="color: #ce9178;">f"병목 지점: {analysis['bottlenecks'][0]['step_name']}"</span>)
+
+<span style="color: #6a9955;"># 7. 상호작용 패턴</span>
+patterns = evaluator.agent_coordination_tracker.<span style="color: #dcdcaa;">get_interaction_patterns</span>()
+<span style="color: #569cd6;">print</span>(<span style="color: #ce9178;">f"패턴 유형: {patterns['pattern_type']}"</span>)
+</pre>
+                </div>
+            </section>
+
+            <!-- Section 7: Level 1 Examples -->
+            <section id="examples-level1">
+                <h2>7. Level 1 예제 매핑 (10개)</h2>
+
+                <div class="info-box">
+                    <h4>📊 JSON 파일 생성 현황</h4>
+                    <ul style="margin-left: 20px; margin-top: 10px;">
+                        <li><strong>✅ Evaluation 예제 (6개):</strong> JSON 파일 생성 - Dashboard 시각화 가능</li>
+                        <li><strong>❌ Demo 예제 (4개):</strong> JSON 파일 미생성 - 콘솔 출력만 (교육 목적)</li>
+                    </ul>
+                </div>
+
+                <table>
+                    <thead>
+                        <tr>
+                            <th style="width: 20%;">예제</th>
+                            <th style="width: 30%;">사용 API</th>
+                            <th style="width: 20%;">사용 메트릭</th>
+                            <th style="width: 15%;">JSON 생성</th>
+                            <th style="width: 15%;">예상 시간</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><strong>01_quickstart.py</strong><br>5분 시작</td>
+                            <td><code>PerformanceMonitor</code><br><code>create_taskresult</code><br><code>record_task</code></td>
+                            <td><span class="badge badge-layer1">TCR</span><br><span class="badge badge-layer1">Accuracy</span><br><span class="badge badge-layer1">Hallucination</span></td>
+                            <td><span class="badge badge-free" style="background: #28a745; color: white;">✅ 생성</span></td>
+                            <td>5분</td>
+                        </tr>
+                        <tr>
+                            <td><strong>02_layer1_trackers.py</strong><br>11개 Tracker 가이드</td>
+                            <td>모든 Tracker 직접 호출<br><code>monitor.tcr_tracker</code><br><code>monitor.accuracy_evaluator</code><br>etc.</td>
+                            <td><span class="badge badge-layer1">Layer 1 (7개)</span><br><span class="badge badge-layer2">Layer 2 (4개)</span></td>
+                            <td><span class="badge badge-free" style="background: #28a745; color: white;">✅ 생성</span></td>
+                            <td>15분</td>
+                        </tr>
+                        <tr style="background: #f8f9fa;">
+                            <td><strong>03_taskresult_helpers.py</strong><br>동적 계산 (Demo)</td>
+                            <td><code>calculate_completion_score</code><br><code>calculate_accuracy_score</code><br><code>create_taskresult_from_execution</code></td>
+                            <td><span class="badge badge-layer1">동적 지표</span></td>
+                            <td><span class="badge" style="background: #6c757d; color: white;">❌ 미생성</span></td>
+                            <td>15분</td>
+                        </tr>
+                        <tr>
+                            <td><strong>04_thresholds_validation.py</strong><br>임계값 검증</td>
+                            <td><code>PerformanceMonitor</code><br>임계값 규칙 정의</td>
+                            <td><span class="badge badge-layer1">Pass/Fail</span></td>
+                            <td><span class="badge badge-free" style="background: #28a745; color: white;">✅ 생성</span></td>
+                            <td>10분</td>
+                        </tr>
+                        <tr style="background: #fff9f0;">
+                            <td><strong>05_layer1_security_basic.py</strong><br>기본 보안</td>
+                            <td><code>InputSanitizationTracker</code><br><code>OutputLeakageDetector</code><br><code>ToolAuthorizationTracker</code></td>
+                            <td><span class="badge badge-security">Input</span><br><span class="badge badge-security">Output</span><br><span class="badge badge-security">Auth</span></td>
+                            <td><span class="badge badge-free" style="background: #28a745; color: white;">✅ 생성</span></td>
+                            <td>15분</td>
+                        </tr>
+                        <tr>
+                            <td><strong>06_advanced_metrics_analysis.py</strong><br>고급 메트릭 분석</td>
+                            <td><code>get_accuracy_by_type</code><br><code>get_tcr_by_type</code><br>고급 분석 API</td>
+                            <td><span class="badge badge-layer1">타입별 분석</span></td>
+                            <td><span class="badge badge-free" style="background: #28a745; color: white;">✅ 생성</span></td>
+                            <td>20분</td>
+                        </tr>
+                        <tr style="background: #f8f9fa;">
+                            <td><strong>07_conversation_state_tracking.py</strong><br>대화/상태 추적 (Demo)</td>
+                            <td><code>TaskResult.conversation_turns</code><br><code>TaskResult.state_transitions</code><br><code>TaskResult.agent_interactions</code></td>
+                            <td><span class="badge badge-layer1">대화 메트릭</span></td>
+                            <td><span class="badge" style="background: #6c757d; color: white;">❌ 미생성</span></td>
+                            <td>15분</td>
+                        </tr>
+                        <tr>
+                            <td><strong>08_new_advanced_apis_quickstart.py</strong><br>신규 고급 API 7종</td>
+                            <td>7개 고급 분석 API<br><code>get_hallucination_by_type()</code><br><code>get_quality_by_dimension()</code><br>등</td>
+                            <td><span class="badge badge-layer1">고급 분석</span></td>
+                            <td><span class="badge badge-free" style="background: #28a745; color: white;">✅ 생성</span></td>
+                            <td>15분</td>
+                        </tr>
+                        <tr style="background: #f8f9fa;">
+                            <td><strong>09_helper_functions_comprehensive.py</strong><br>Helper 함수 종합 (Demo)</td>
+                            <td><code>estimate_tokens</code><br><code>extract_tool_calls_from_openai_functions</code><br><code>validate_input_security</code><br><code>check_output_leakage</code><br><code>validate_tool_authorization</code></td>
+                            <td><span class="badge badge-layer1">Helper Functions</span><br><span class="badge badge-security">Security Helpers</span></td>
+                            <td><span class="badge" style="background: #6c757d; color: white;">❌ 미생성</span></td>
+                            <td>20분</td>
+                        </tr>
+                        <tr style="background: #f8f9fa;">
+                            <td><strong>10_state_transitions_tracking.py</strong><br>상태 전이 추적 (Demo)</td>
+                            <td><code>TaskResult.state_transitions</code><br>FSM 워크플로우 추적</td>
+                            <td><span class="badge badge-layer1">State Machine</span><br><span class="badge badge-layer1">FSM Metrics</span></td>
+                            <td><span class="badge" style="background: #6c757d; color: white;">❌ 미생성</span></td>
+                            <td>20분</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </section>
+
+            <!-- Section 8: Level 2 Examples -->
+            <section id="examples-level2">
+                <h2>8. Level 2 예제 매핑 (8개)</h2>
+
+                <div class="success-box">
+                    <h4>✅ 모든 Level 2 예제는 JSON 파일을 생성합니다</h4>
+                    <p>Level 2는 고급 평가 및 분석이 목적이므로 모든 예제가 평가 결과를 JSON 파일로 저장하여 Dashboard에서 시각화할 수 있습니다.</p>
+                </div>
+
+                <table>
+                    <thead>
+                        <tr>
+                            <th style="width: 25%;">예제</th>
+                            <th style="width: 35%;">사용 API</th>
+                            <th style="width: 25%;">사용 메트릭</th>
+                            <th style="width: 15%;">비용</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><strong>01_golden_dataset.py</strong><br>대량 자동 평가</td>
+                            <td><code>evaluate_with_golden_dataset</code><br><code>TaskResult.expected_tools</code></td>
+                            <td><span class="badge badge-layer1">Layer 1 (10개)</span><br><span class="badge badge-layer2">Tool Selection</span></td>
+                            <td><span class="badge badge-free">무료</span></td>
+                        </tr>
+                        <tr>
+                            <td><strong>02_layer3_hybrid.py</strong><br>Hybrid Monitor</td>
+                            <td><code>HybridPerformanceMonitor</code><br><code>DeepEvalAdapter</code><br><code>RagasAdapter</code></td>
+                            <td><span class="badge badge-layer1">Layer 1</span><br><span class="badge badge-layer3">DeepEval (5)</span><br><span class="badge badge-layer3">Ragas (4)</span></td>
+                            <td><span class="badge badge-paid">~$0.10</span></td>
+                        </tr>
+                        <tr>
+                            <td><strong>03_rag_system.py</strong><br>RAG 평가</td>
+                            <td><code>HybridPerformanceMonitor</code><br><code>retrieved_context</code></td>
+                            <td><span class="badge badge-layer3">Ragas (4개)</span></td>
+                            <td><span class="badge badge-paid">~$0.20</span></td>
+                        </tr>
+                        <tr>
+                            <td><strong>04_tool_selection.py</strong><br>도구 선택 정확도</td>
+                            <td><code>ToolSelectionTracker</code><br><code>evaluate_selection</code></td>
+                            <td><span class="badge badge-layer2">Precision/Recall/F1</span></td>
+                            <td><span class="badge badge-free">무료</span></td>
+                        </tr>
+                        <tr>
+                            <td><strong>05_multi_agent.py</strong><br>멀티 에이전트 협업</td>
+                            <td><code>AgentCoordinationTracker</code><br><code>track_interaction</code></td>
+                            <td><span class="badge badge-layer2">Coordination Score</span></td>
+                            <td><span class="badge badge-free">무료</span></td>
+                        </tr>
+                        <tr>
+                            <td><strong>06_workflow.py</strong><br>워크플로우 실행</td>
+                            <td><code>WorkflowExecutionTracker</code><br><code>track_step</code></td>
+                            <td><span class="badge badge-layer2">Execution Success Rate</span></td>
+                            <td><span class="badge badge-free">무료</span></td>
+                        </tr>
+                        <tr style="background: #fff9f0;">
+                            <td><strong>07_layer2_security_advanced.py</strong><br>고급 보안 <span class="badge badge-security">NEW</span></td>
+                            <td><code>PrivilegeEscalationDetector</code><br><code>ToolChainAttackDetector</code></td>
+                            <td><span class="badge badge-security">Privilege Esc</span><br><span class="badge badge-security">Attack Pattern</span></td>
+                            <td><span class="badge badge-free">무료</span></td>
+                        </tr>
+                        <tr style="background: #e8f5e9;">
+                            <td><strong>08_advanced_api_methods.py</strong><br>고급 API 7종 <span class="badge badge-new">NEW</span></td>
+                            <td>7개 고급 분석 API:<br><code>get_hallucination_by_type()</code><br><code>get_quality_by_dimension()</code><br><code>get_latency_by_type()</code><br><code>get_cost_breakdown_by_model()</code><br><code>get_tool_usage_patterns()</code><br><code>get_critical_path_analysis()</code><br><code>get_interaction_patterns()</code></td>
+                            <td><span class="badge badge-layer1">Layer 1 고급</span><br><span class="badge badge-layer2">Layer 2 고급</span></td>
+                            <td><span class="badge badge-free">무료</span></td>
+                        </tr>
+                    </tbody>
+                </table>
+            </section>
+
+            <!-- Section 9: Level 3 Examples -->
+            <section id="examples-level3">
+                <h2>9. Level 3 예제 매핑 (6개)</h2>
+
+                <div class="success-box">
+                    <h4>✅ 모든 Level 3 예제는 JSON 파일을 생성합니다</h4>
+                    <p>Level 3는 프로덕션 통합 및 모니터링이 목적이므로 모든 예제가 평가 결과를 JSON 파일로 저장하여 실시간 모니터링 및 분석이 가능합니다.</p>
+                </div>
+
+                <table>
+                    <thead>
+                        <tr>
+                            <th style="width: 25%;">예제</th>
+                            <th style="width: 30%;">통합 프레임워크</th>
+                            <th style="width: 30%;">사용 Tracker</th>
+                            <th style="width: 15%;">학습 목표</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><strong>01_framework_crewai.py</strong><br>CrewAI 통합</td>
+                            <td><strong>CrewAI</strong><br>멀티 에이전트 협업</td>
+                            <td><code>AgentCoordinationTracker</code><br><code>ToolSelectionTracker</code><br><code>WorkflowExecutionTracker</code></td>
+                            <td>Agent 협업</td>
+                        </tr>
+                        <tr>
+                            <td><strong>02_cost_optimization.py</strong><br>비용 최적화</td>
+                            <td>-</td>
+                            <td><code>TokenEconomyTracker</code><br>Stratified Sampling</td>
+                            <td>80% 비용 절감</td>
+                        </tr>
+                        <tr>
+                            <td><strong>03_framework_langchain.py</strong><br>LangChain 통합</td>
+                            <td><strong>LangChain</strong><br>체인 실행</td>
+                            <td><code>WorkflowExecutionTracker</code><br><code>chain_steps</code></td>
+                            <td>체인 추적</td>
+                        </tr>
+                        <tr>
+                            <td><strong>04_framework_langgraph.py</strong><br>LangGraph 통합</td>
+                            <td><strong>LangGraph</strong><br>그래프 실행</td>
+                            <td><code>WorkflowExecutionTracker</code><br><code>graph_traversal</code></td>
+                            <td>상태 전이 추적</td>
+                        </tr>
+                        <tr>
+                            <td><strong>05_transparency.py</strong><br>투명성 관리</td>
+                            <td>-</td>
+                            <td>모든 Tracker<br>Trace, Annotation, Audit</td>
+                            <td>완전한 추적성</td>
+                        </tr>
+                        <tr style="background: #fff9f0;">
+                            <td><strong>06_security_production_monitoring.py</strong><br>프로덕션 보안 <span class="badge badge-security">NEW</span></td>
+                            <td>-</td>
+                            <td>Layer 1 Security (3)<br>Layer 2 Security (2)<br>통합 모니터링</td>
+                            <td>실시간 보안</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </section>
+
+            <!-- Section 10: Uncovered Features -->
+            <section id="uncovered">
+                <h2>10. 예제에서 다루지 않는 고급 기능</h2>
+
+                <div class="success-box">
+                    <h3>✅ v0.5.0 업데이트: 대부분의 고급 기능이 예제에서 완전히 다루어집니다!</h3>
+                    <p><strong>새로 추가된 예제 커버리지:</strong></p>
+                    <ul style="margin-left: 20px; margin-top: 10px;">
+                        <li>✅ <strong>Helper 함수 (5개)</strong> → <strong>Level 1 Example 09</strong>에서 종합 다룸 (Demo, JSON 미생성)</li>
+                        <li>✅ <strong>state_transitions 필드</strong> → <strong>Level 1 Example 10</strong>에서 FSM 워크플로우 다룸 (Demo, JSON 미생성)</li>
+                        <li>✅ <strong>고급 분석 API (7개)</strong> → <strong>Level 2 Example 08</strong>에서 전체 다룸 (Evaluation, JSON 생성)</li>
+                        <li>✅ <strong>conversation_turns, state_transitions, agent_interactions</strong> → <strong>Level 1 Example 07</strong>에서 다룸 (Demo, JSON 미생성)</li>
+                    </ul>
+                    <p style="margin-top: 15px;"><strong>현재 예제 커버리지:</strong></p>
+                    <ul style="margin-left: 20px; margin-top: 10px;">
+                        <li>📊 <strong>메트릭 커버리지:</strong> 25개 메트릭 중 16개 직접 다룸 (64%)</li>
+                        <li>🔧 <strong>API 커버리지:</strong> 핵심 API 및 고급 API 7개 완전 커버</li>
+                        <li>🛠️ <strong>Helper 커버리지:</strong> 5개 Helper 함수 모두 커버</li>
+                    </ul>
+                </div>
+
+                <h3>🔧 TaskResult 고급 필드 - 예제 지원 현황</h3>
+                <table>
+                    <thead>
+                        <tr>
+                            <th style="width: 25%;">필드명</th>
+                            <th style="width: 20%;">타입</th>
+                            <th style="width: 35%;">설명</th>
+                            <th style="width: 20%;">예제 지원</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr style="background: #e8f5e9;">
+                            <td><code>conversation_turns</code></td>
+                            <td>List[Dict]</td>
+                            <td>대화형 에이전트의 턴별 대화 기록</td>
+                            <td><span class="badge badge-new">L1-07</span> <strong>완전 지원</strong></td>
+                        </tr>
+                        <tr style="background: #e8f5e9;">
+                            <td><code>state_transitions</code></td>
+                            <td>List[Dict]</td>
+                            <td>상태 기반 워크플로우의 전이 기록 (FSM)</td>
+                            <td><span class="badge badge-new">L1-07, L1-10</span> <strong>완전 지원</strong></td>
+                        </tr>
+                        <tr style="background: #e8f5e9;">
+                            <td><code>agent_interactions</code></td>
+                            <td>List[Dict]</td>
+                            <td>에이전트 간 상호작용 상세 로그</td>
+                            <td><span class="badge badge-new">L1-07</span> <strong>완전 지원</strong><br><span class="badge badge-layer2">L2-05</span> 심화</td>
+                        </tr>
+                        <tr>
+                            <td><code>expected_tools</code></td>
+                            <td>List[str]</td>
+                            <td>Tool Selection 평가를 위한 기대 도구 목록</td>
+                            <td><span class="badge badge-layer2">L2-01, L2-04</span> 지원</td>
+                        </tr>
+                        <tr>
+                            <td><code>chain_steps</code></td>
+                            <td>List[Dict]</td>
+                            <td>LangChain 워크플로우 단계별 기록</td>
+                            <td><span class="badge badge-layer3">L3-03</span> 지원</td>
+                        </tr>
+                        <tr>
+                            <td><code>graph_traversal</code></td>
+                            <td>Dict</td>
+                            <td>LangGraph 그래프 순회 기록</td>
+                            <td><span class="badge badge-layer3">L3-04</span> 지원</td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                <h3>🛠️ Helper 함수 - 고급 기능</h3>
+                <div class="success-box">
+                    <p><strong>✅ 모든 Helper 함수가 Level 1 Example 09에서 다루어집니다!</strong></p>
+                    <p>6개 데모: 5개 Helper 함수 + 1개 통합 시나리오</p>
+                </div>
+                <table>
+                    <thead>
+                        <tr>
+                            <th style="width: 35%;">함수명</th>
+                            <th style="width: 45%;">설명</th>
+                            <th style="width: 20%;">예제 지원</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr style="background: #e8f5e9;">
+                            <td><code>extract_tool_calls_from_openai_functions()</code></td>
+                            <td>OpenAI Function Calling 응답에서 도구 호출 추출</td>
+                            <td><span class="badge badge-new">L1-09</span></td>
+                        </tr>
+                        <tr style="background: #e8f5e9;">
+                            <td><code>estimate_tokens()</code></td>
+                            <td>텍스트 길이 기반 토큰 수 추정 (실제 API 호출 없이)</td>
+                            <td><span class="badge badge-new">L1-09</span></td>
+                        </tr>
+                        <tr style="background: #e8f5e9;">
+                            <td><code>validate_input_security()</code></td>
+                            <td>입력 보안 위협 검증 (standalone 함수)</td>
+                            <td><span class="badge badge-new">L1-09</span></td>
+                        </tr>
+                        <tr style="background: #e8f5e9;">
+                            <td><code>check_output_leakage()</code></td>
+                            <td>출력 민감정보 유출 검사 (standalone 함수)</td>
+                            <td><span class="badge badge-new">L1-09</span></td>
+                        </tr>
+                        <tr style="background: #e8f5e9;">
+                            <td><code>validate_tool_authorization()</code></td>
+                            <td>도구 권한 검증 (standalone 함수)</td>
+                            <td><span class="badge badge-new">L1-09</span></td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                <h3>🔒 보안 관련 - 고급 설정</h3>
+                <table>
+                    <thead>
+                        <tr>
+                            <th style="width: 30%;">기능</th>
+                            <th style="width: 50%;">설명</th>
+                            <th style="width: 20%;">예제</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr style="background: #fff9f0;">
+                            <td><strong>커스텀 위협 패턴</strong></td>
+                            <td>InputSanitizationTracker에 커스텀 SQL/Command Injection 패턴 추가</td>
+                            <td>미지원</td>
+                        </tr>
+                        <tr style="background: #fff9f0;">
+                            <td><strong>화이트리스트/블랙리스트</strong></td>
+                            <td>ToolAuthorizationTracker에 동적 화이트리스트/블랙리스트 설정</td>
+                            <td>부분 지원</td>
+                        </tr>
+                        <tr style="background: #fff9f0;">
+                            <td><strong>민감정보 커스텀 패턴</strong></td>
+                            <td>OutputLeakageDetector에 조직 특화 민감정보 패턴 추가</td>
+                            <td>미지원</td>
+                        </tr>
+                        <tr style="background: #fff9f0;">
+                            <td><strong>공격 체인 커스텀 정의</strong></td>
+                            <td>ToolChainAttackDetector에 새로운 공격 패턴 추가</td>
+                            <td>미지원</td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                <h3>📈 PerformanceMonitor - 고급 설정</h3>
+                <div class="api-section">
+                    <p><strong>예제에서 다루지 않는 초기화 옵션:</strong></p>
+                    <ul style="margin-left: 20px; margin-top: 10px;">
+                        <li><code>enable_cost_tracking=True</code> - 비용 추적 활성화 (기본값 True, 예제에서는 명시 안함)</li>
+                        <li><code>enable_latency_tracking=True</code> - 지연시간 추적 (기본값 True)</li>
+                        <li><code>custom_thresholds: Dict</code> - 커스텀 임계값 설정 (예제 04에서 부분 다룸)</li>
+                        <li><code>enable_layer2_by_default=False</code> - Layer 2 메트릭 기본 활성화 여부</li>
+                    </ul>
+                </div>
+
+                <h3>🧪 HybridPerformanceMonitor - 고급 설정</h3>
+                <div class="api-section">
+                    <p><strong>예제에서 다루지 않는 초기화 옵션:</strong></p>
+                    <ul style="margin-left: 20px; margin-top: 10px;">
+                        <li><code>deepeval_threshold: float</code> - DeepEval 메트릭 Pass/Fail 임계값 설정</li>
+                        <li><code>ragas_threshold: float</code> - Ragas 메트릭 임계값 설정</li>
+                        <li><code>use_langsmith=False</code> - LangSmith 통합 (실험적)</li>
+                        <li><code>cache_evaluations=True</code> - 평가 결과 캐싱으로 비용 절감</li>
+                        <li><code>parallel_evaluation=False</code> - 병렬 평가 (빠르지만 비용 증가)</li>
+                    </ul>
+                </div>
+
+                <div class="warning-box">
+                    <h4>💡 고급 기능 사용 가이드</h4>
+                    <p>위 기능들은 다음과 같은 경우에 유용합니다:</p>
+                    <ul style="margin-left: 20px; margin-top: 10px;">
+                        <li><strong>프로덕션 환경:</strong> 상세한 모니터링 및 디버깅</li>
+                        <li><strong>대규모 평가:</strong> Task 타입별, 모델별 성능 비교 (L2-08에서 다룸)</li>
+                        <li><strong>보안 강화:</strong> 조직 특화 보안 정책 적용</li>
+                        <li><strong>비용 최적화:</strong> 모델별, 타입별 비용 분석 (L2-08에서 다룸)</li>
+                        <li><strong>워크플로우 최적화:</strong> Critical Path, 병목 지점 분석 (L2-08에서 다룸)</li>
+                    </ul>
+                    <p style="margin-top: 15px;">공식 문서에서 해당 API의 상세 사용법을 확인하거나, GitHub Issues에서 사용 예제를 요청하세요.</p>
+                </div>
+            </section>
+
+            <!-- Section 11: Quick Reference -->
+            <section id="quick-reference">
+                <h2>11. 빠른 참조 - API 사용 패턴</h2>
+
+                <h3>🚀 기본 사용 패턴</h3>
+                <div class="api-section">
+                    <pre style="background: #2d2d2d; color: #f8f8f2; padding: 20px; border-radius: 8px; overflow-x: auto;">
+<span style="color: #569cd6;">from</span> agent_evaluator <span style="color: #569cd6;">import</span> PerformanceMonitor, create_taskresult, TaskType
+
+<span style="color: #6a9955;"># 1. Monitor 생성</span>
+monitor = PerformanceMonitor(
+    enable_hallucination_detection=<span style="color: #569cd6;">True</span>,
+    enable_security_metrics=<span style="color: #569cd6;">True</span>  <span style="color: #6a9955;"># v0.5.0+</span>
+)
+
+<span style="color: #6a9955;"># 2. TaskResult 생성</span>
+task = create_taskresult(
+    task_id=<span style="color: #ce9178;">"task_001"</span>,
+    task_type=TaskType.QA,
+    question=<span style="color: #ce9178;">"대한민국의 수도는?"</span>,
+    response=<span style="color: #ce9178;">"서울입니다."</span>,
+    ground_truth=<span style="color: #ce9178;">"서울"</span>
+)
+
+<span style="color: #6a9955;"># 3. Task 기록</span>
+monitor.record_task(task)
+
+<span style="color: #6a9955;"># 4. 리포트 생성</span>
+report = monitor.generate_report()
+
+<span style="color: #6a9955;"># 5. 파일 저장</span>
+monitor.save_to_file(<span style="color: #ce9178;">"evaluation_result.json"</span>)
+</pre>
+                </div>
+
+                <h3>🔒 보안 메트릭 사용 (v0.5.0+)</h3>
+                <div class="api-section">
+                    <pre style="background: #2d2d2d; color: #f8f8f2; padding: 20px; border-radius: 8px; overflow-x: auto;">
+<span style="color: #569cd6;">from</span> agent_evaluator <span style="color: #569cd6;">import</span> PerformanceMonitor
+
+<span style="color: #6a9955;"># Security 활성화</span>
+monitor = PerformanceMonitor(enable_security_metrics=<span style="color: #569cd6;">True</span>)
+
+<span style="color: #6a9955;"># Layer 1 Security: 직접 호출</span>
+input_result = monitor.input_sanitizer.evaluate_input(task_id, user_input)
+output_result = monitor.output_leakage_detector.detect_leakage(task_id, agent_output)
+auth_result = monitor.tool_authorizer.track_tool_call(task_id, tool_name, params)
+
+<span style="color: #6a9955;"># Layer 2 Security: 직접 호출</span>
+esc_result = monitor.privilege_escalation_detector.analyze_privilege_chain(task_id, tool_calls)
+attack_result = monitor.tool_chain_attack_detector.analyze_tool_chain(task_id, tool_sequence)
+
+<span style="color: #6a9955;"># 통합 보안 리포트</span>
+report = monitor.generate_report()
+security_metrics = report[<span style="color: #ce9178;">'security_metrics'</span>]
+</pre>
+                </div>
+
+                <h3>🚀 Hybrid Monitor 사용 (Layer 3)</h3>
+                <div class="api-section">
+                    <pre style="background: #2d2d2d; color: #f8f8f2; padding: 20px; border-radius: 8px; overflow-x: auto;">
+<span style="color: #569cd6;">from</span> agent_evaluator.core.hybrid_monitor <span style="color: #569cd6;">import</span> HybridPerformanceMonitor
+
+<span style="color: #6a9955;"># Hybrid Monitor 생성</span>
+monitor = HybridPerformanceMonitor(
+    use_deepeval=<span style="color: #569cd6;">True</span>,
+    use_ragas=<span style="color: #569cd6;">True</span>,
+    deepeval_model=<span style="color: #ce9178;">"gpt-4o-mini"</span>  <span style="color: #6a9955;"># 비용 절감</span>
+)
+
+<span style="color: #6a9955;"># Layer 3 평가 포함</span>
+monitor.record_task(
+    task,
+    enable_advanced_metrics=<span style="color: #569cd6;">True</span>,
+    input_text=question,
+    output_text=response,
+    expected_output=ground_truth,
+    retrieved_context=[doc1, doc2],  <span style="color: #6a9955;"># RAG용</span>
+    quality_criteria=<span style="color: #ce9178;">"Accuracy and Clarity"</span>  <span style="color: #6a9955;"># G-Eval용</span>
+)
+
+<span style="color: #6a9955;"># Hybrid 리포트 생성</span>
+report = monitor.generate_hybrid_report()
+</pre>
+                </div>
+
+                <h3>🤖 멀티 에이전트 추적 (Layer 2)</h3>
+                <div class="api-section">
+                    <pre style="background: #2d2d2d; color: #f8f8f2; padding: 20px; border-radius: 8px; overflow-x: auto;">
+<span style="color: #6a9955;"># Agent 상호작용 추적</span>
+monitor.agent_coordination_tracker.track_interaction(
+    task_id=<span style="color: #ce9178;">"task_001"</span>,
+    from_agent=<span style="color: #ce9178;">"Manager"</span>,
+    to_agent=<span style="color: #ce9178;">"Researcher"</span>,
+    interaction_type=<span style="color: #ce9178;">"delegation"</span>,
+    success=<span style="color: #569cd6;">True</span>,
+    context={<span style="color: #ce9178;">"task"</span>: <span style="color: #ce9178;">"Collect data"</span>, <span style="color: #ce9178;">"duration"</span>: 2.0}
+)
+
+<span style="color: #6a9955;"># Coordination Score 계산</span>
+score_data = monitor.agent_coordination_tracker.calculate_coordination_score()
+print(<span style="color: #ce9178;">f"Coordination Score: {score_data['coordination_score']:.1f}/100"</span>)
+</pre>
+                </div>
+
+                <h3>📊 Golden Dataset 평가</h3>
+                <div class="api-section">
+                    <pre style="background: #2d2d2d; color: #f8f8f2; padding: 20px; border-radius: 8px; overflow-x: auto;">
+<span style="color: #569cd6;">def</span> my_agent(question):
+    <span style="color: #6a9955;"># Your agent implementation</span>
+    <span style="color: #569cd6;">return</span> response
+
+<span style="color: #6a9955;"># Golden Dataset 자동 평가</span>
+results = monitor.evaluate_with_golden_dataset(
+    agent_fn=my_agent,
+    dataset_path=<span style="color: #ce9178;">"golden_dataset.json"</span>,
+    enable_layer2_metrics=<span style="color: #569cd6;">True</span>,  <span style="color: #6a9955;"># Tool Selection 평가</span>
+    verbose=<span style="color: #569cd6;">True</span>
+)
+
+<span style="color: #6a9955;"># 결과는 자동으로 파일에 저장됨</span>
+</pre>
+                </div>
+
+                <h3>🎯 고급 분석 API 사용 (v0.5.0+ NEW)</h3>
+                <div class="api-section">
+                    <pre style="background: #2d2d2d; color: #f8f8f2; padding: 20px; border-radius: 8px; overflow-x: auto;">
+<span style="color: #6a9955;"># 1. 환각 유형별 분석</span>
+breakdown = monitor.hallucination_detector.<span style="color: #dcdcaa;">get_hallucination_by_type</span>()
+<span style="color: #569cd6;">print</span>(<span style="color: #ce9178;">f"숫자 오류: {breakdown['numerical_errors']}"</span>)
+
+<span style="color: #6a9955;"># 2. 품질 차원별 분석</span>
+quality = monitor.quality_evaluator.<span style="color: #dcdcaa;">get_quality_by_dimension</span>()
+<span style="color: #569cd6;">print</span>(<span style="color: #ce9178;">f"Relevance: {quality['relevance']:.2f}/5.0"</span>)
+
+<span style="color: #6a9955;"># 3. Task 타입별 지연시간</span>
+latency = monitor.latency_tracker.<span style="color: #dcdcaa;">get_latency_by_type</span>()
+<span style="color: #569cd6;">print</span>(<span style="color: #ce9178;">f"QA P95: {latency['qa']['p95']:.3f}s"</span>)
+
+<span style="color: #6a9955;"># 4. 모델별 비용 분석</span>
+cost = monitor.token_tracker.<span style="color: #dcdcaa;">get_cost_breakdown_by_model</span>()
+<span style="color: #569cd6;">print</span>(<span style="color: #ce9178;">f"gpt-4 비용: ${cost['gpt-4']['total_cost']:.4f}"</span>)
+
+<span style="color: #6a9955;"># 5. 도구 사용 패턴</span>
+patterns = monitor.tool_analyzer.<span style="color: #dcdcaa;">get_tool_usage_patterns</span>()
+<span style="color: #569cd6;">print</span>(<span style="color: #ce9178;">f"중복 호출: {patterns['redundancy_impact']['total_redundant']}"</span>)
+
+<span style="color: #6a9955;"># 6. Critical Path 분석</span>
+analysis = monitor.workflow_tracker.<span style="color: #dcdcaa;">get_critical_path_analysis</span>()
+<span style="color: #569cd6;">print</span>(<span style="color: #ce9178;">f"병목: {analysis['bottlenecks'][0]['step_name']}"</span>)
+
+<span style="color: #6a9955;"># 7. 상호작용 패턴</span>
+patterns = monitor.agent_coordination_tracker.<span style="color: #dcdcaa;">get_interaction_patterns</span>()
+<span style="color: #569cd6;">print</span>(<span style="color: #ce9178;">f"패턴: {patterns['pattern_type']}"</span>)
+
+<span style="color: #6a9955;"># 📖 자세한 사용법: Level 2 Example 08 참조</span>
+</pre>
+                </div>
+            </section>
+
+        </div>
+
+        <footer>
+            <h3 style="margin-bottom: 15px;">📚 Agent Evaluator Framework</h3>
+            <p style="margin-bottom: 10px;">
+                Version 0.5.0 | 🔒 Security-First | 25개 메트릭 (Layer 1: 10, Layer 2: 6, Layer 3: 9)
+            </p>
+            <p style="font-size: 0.95em; margin-bottom: 10px;">
+                ✨ 총 24개 예제 (L1: 10, L2: 8, L3: 6) | 7개 고급 분석 API + 5개 Helper 함수 완전 지원
+            </p>
+            <p style="font-size: 0.95em; margin-bottom: 10px;">
+                📊 JSON 생성: Level 1 (6/10), Level 2 (8/8), Level 3 (6/6) | 총 20개 예제가 결과 파일 생성
+            </p>
+            <p style="font-size: 0.9em; opacity: 0.8;">
+                Updated: 2025-12-14 | MIT License
+            </p>
+        </footer>
+    </div>
+</body>
+</html>

@@ -1,0 +1,885 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>보안 지표 가이드 - Agent Evaluator</title>
+
+    <!-- Common Styles -->
+    <link rel="stylesheet" href="styles/common.css">
+
+    <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+    <script>
+        mermaid.initialize({
+            startOnLoad: true,
+            theme: 'default',
+            flowchart: {
+                useMaxWidth: true,
+                htmlLabels: true,
+                curve: 'basis'
+            },
+            themeVariables: {
+                fontSize: '14px'
+            }
+        });
+    </script>
+
+</head>
+<body>
+    <div class="content-wrapper">
+        <div class="doc-header">
+            <h1>🔒 보안 지표 가이드</h1>
+            <p style="color: #4a5568; margin-top: 10px;">AI Agent 보안 평가를 위한 완전한 가이드</p>
+        </div>
+        <div class="doc-content">
+
+<h1 id="security-metrics-guide">🔒 보안 지표 가이드</h1>
+
+<blockquote>
+<p>🛡️ <strong>AI Agent 보안 평가의 새로운 표준</strong></p>
+<p>Agent Evaluator는 AI Agent의 보안을 종합적으로 평가할 수 있는 보안 지표를 제공합니다.</p>
+</blockquote>
+
+<h2 id="version-info">버전 정보</h2>
+
+<div style="background-color: #fff3e0; border: 2px solid #ff9800; border-radius: 8px; padding: 20px; margin: 20px 0;">
+<p><strong>프로덕션 준비 완료!</strong></p>
+<ul>
+<li>✅ <strong>레거시 API 제거</strong>: Clean API로 전환 (75% 코드 감소)</li>
+<li>✅ <strong>안정성 향상</strong>: 프로덕션 환경에서 검증된 보안 메트릭</li>
+<li>✅ <strong>Layer 1 & 2 통합</strong>: 보안 지표가 네이티브 메트릭에 완전 통합</li>
+</ul>
+</div>
+
+<p><strong>현재 버전:</strong> v0.5.0</p>
+<p><strong>최종 업데이트:</strong> 2025-12-14</p>
+<p><strong>주요 기능:</strong></p>
+<ul>
+<li>✅ <strong>Layer 1 보안 지표 (3개)</strong>: 입력 살균, 출력 유출 탐지, 도구 권한 관리</li>
+<li>✅ <strong>Layer 2 보안 지표 (2개)</strong>: 권한 상승 탐지, 공격 패턴 탐지</li>
+<li>✅ <strong>완전 무료</strong>: 외부 API 없이 무료 사용</li>
+<li>✅ <strong>실시간</strong>: < 15ms 오버헤드, 실시간 보안 모니터링</li>
+<li>✅ <strong>프로덕션 준비</strong>: 안정적이고 유지보수하기 쉬운 코드베이스</li>
+</ul>
+
+<h2 id="toc">목차</h2>
+
+<ul>
+<li><a href="#quick-start">🚀 1. 빠른 시작</a></li>
+<li><a href="#overview">📊 2. 보안 지표 개요</a></li>
+<li><a href="#layer1-security">🛡️ 3. Layer 1: Native Security Metrics</a>
+  <ul>
+    <li><a href="#input-sanitization">3.1 Input Sanitization Tracker</a></li>
+    <li><a href="#output-leakage">3.2 Output Leakage Detector</a></li>
+    <li><a href="#tool-authorization">3.3 Tool Authorization Tracker</a></li>
+  </ul>
+</li>
+<li><a href="#layer2-security">🔐 4. Layer 2: Agentic Security Metrics</a>
+  <ul>
+    <li><a href="#privilege-escalation">4.1 Privilege Escalation Detector</a></li>
+    <li><a href="#attack-detection">4.2 Tool Chain Attack Detector</a></li>
+  </ul>
+</li>
+<li><a href="#integration">🔌 5. 통합 및 사용법</a></li>
+<li><a href="#best-practices">💡 6. Best Practices</a></li>
+<li><a href="#use-cases">📋 7. 사용 사례</a></li>
+<li><a href="#api-reference">📚 8. API 레퍼런스</a></li>
+</ul>
+
+<hr />
+
+<h2 id="quick-start">🚀 1. 빠른 시작</h2>
+
+<h3>최소 설정 (3줄)</h3>
+
+<div class="sourceCode"><pre class="sourceCode python"><code class="sourceCode python"><span class="im">from</span> agent_evaluator <span class="im">import</span> PerformanceMonitor
+
+monitor <span class="op">=</span> PerformanceMonitor(
+    enable_security_metrics<span class="op">=</span><span class="va">True</span>,  <span class="co"># 보안 지표 활성화</span>
+    security_config<span class="op">=</span>{
+        <span class="st">'allowed_tools'</span>: [<span class="st">'search'</span>, <span class="st">'read'</span>, <span class="st">'query'</span>],
+        <span class="st">'restricted_tools'</span>: [<span class="st">'delete'</span>, <span class="st">'execute'</span>]
+    }
+)</code></pre></div>
+
+<p>✅ 이제 보안 지표가 자동으로 추적됩니다!</p>
+
+<h3>전체 예제 실행</h3>
+
+<div class="sourceCode"><pre class="sourceCode bash"><code class="sourceCode bash"><span class="co"># 보안 지표 예제 실행</span>
+<span class="bu">cd</span> /path/to/Agent_Evaluator
+<span class="va">PYTHONPATH</span><span class="op">=</span>. python examples/security_metrics_example.py</code></pre></div>
+
+<hr />
+
+<h2 id="overview">📊 2. 보안 지표 개요</h2>
+
+<h3>2계층 보안 지표 체계</h3>
+
+<div class="mermaid">
+flowchart TB
+    L1["<b>Layer 1: Native Security (기본 보안)</b><br/><br/>✅ Input Sanitization<br/>✅ Output Leakage Detection<br/>✅ Tool Authorization<br/><br/>무료 | 실시간 | 정규식 기반"]
+    L2["<b>Layer 2: Agentic Security (에이전트 보안)</b><br/><br/>✅ Privilege Escalation Detection<br/>✅ Tool Chain Attack Detection<br/><br/>무료 | 실시간 | 패턴 분석 기반"]
+
+    L1 -.->|"확장"| L2
+
+    style L1 fill:#fff3cd,stroke:#ff9800,stroke-width:3px,color:#000
+    style L2 fill:#ffe0e0,stroke:#f44336,stroke-width:3px,color:#000
+</div>
+
+<h3>보안 지표 특징 비교</h3>
+
+<table style="width:100%;">
+<thead>
+<tr class="doc-header">
+<th>계층</th>
+<th>지표 수</th>
+<th>탐지 대상</th>
+<th>오버헤드</th>
+<th>차단 가능</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Layer 1</strong></td>
+<td>3개</td>
+<td>Injection, 유출, 권한 위반</td>
+<td>~5-10ms</td>
+<td>✅ 실시간</td>
+</tr>
+<tr>
+<td><strong>Layer 2</strong></td>
+<td>2개</td>
+<td>권한 상승, 공격 체인</td>
+<td>~1-2ms</td>
+<td>⚠️ 사후 분석</td>
+</tr>
+</tbody>
+</table>
+
+<h3>보안 위협 커버리지</h3>
+
+<table style="width:100%;">
+<thead>
+<tr class="doc-header">
+<th>위협 유형</th>
+<th>탐지 지표</th>
+<th>심각도</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>SQL Injection</strong></td>
+<td>Input Sanitization</td>
+<td>🔴 Critical</td>
+</tr>
+<tr>
+<td><strong>Prompt Injection</strong></td>
+<td>Input Sanitization</td>
+<td>🔴 Critical</td>
+</tr>
+<tr>
+<td><strong>API Key Leakage</strong></td>
+<td>Output Leakage</td>
+<td>🔴 Critical</td>
+</tr>
+<tr>
+<td><strong>PII Exposure</strong></td>
+<td>Output Leakage</td>
+<td>🟠 High</td>
+</tr>
+<tr>
+<td><strong>Unauthorized Tool Use</strong></td>
+<td>Tool Authorization</td>
+<td>🔴 Critical</td>
+</tr>
+<tr>
+<td><strong>Privilege Escalation</strong></td>
+<td>Privilege Escalation Detector</td>
+<td>🔴 Critical</td>
+</tr>
+<tr>
+<td><strong>Data Exfiltration</strong></td>
+<td>Tool Chain Attack Detector</td>
+<td>🔴 Critical</td>
+</tr>
+<tr>
+<td><strong>Defense Evasion</strong></td>
+<td>Tool Chain Attack Detector</td>
+<td>🟠 High</td>
+</tr>
+</tbody>
+</table>
+
+<hr />
+
+<h2 id="layer1-security">🛡️ 3. Layer 1: Native Security Metrics</h2>
+
+<p>Layer 1 보안 지표는 정규식과 휴리스틱을 사용하여 실시간으로 보안 위협을 탐지합니다.</p>
+
+<h3 id="input-sanitization">3.1 Input Sanitization Tracker</h3>
+
+<p><strong>📝 설명</strong></p>
+<p>사용자 입력에서 위험한 패턴을 탐지하여 Injection 공격을 방지합니다.</p>
+
+<p><strong>🎯 탐지 대상</strong></p>
+
+<table style="width:100%;">
+<thead>
+<tr class="doc-header">
+<th>공격 유형</th>
+<th>탐지 패턴 예시</th>
+<th>위험도</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>SQL Injection</strong></td>
+<td><code>'; DROP TABLE</code>, <code>UNION SELECT</code></td>
+<td>🔴 Critical</td>
+</tr>
+<tr>
+<td><strong>Command Injection</strong></td>
+<td><code>rm -rf</code>, <code>| curl</code>, <code>$(command)</code></td>
+<td>🔴 Critical</td>
+</tr>
+<tr>
+<td><strong>Path Traversal</strong></td>
+<td><code>../</code>, <code>/etc/passwd</code></td>
+<td>🟠 High</td>
+</tr>
+<tr>
+<td><strong>XSS Attack</strong></td>
+<td><code>&lt;script&gt;</code>, <code>javascript:</code></td>
+<td>🟠 High</td>
+</tr>
+<tr>
+<td><strong>Prompt Injection</strong></td>
+<td><code>ignore previous instructions</code>, <code>admin mode</code></td>
+<td>🔴 Critical</td>
+</tr>
+</tbody>
+</table>
+
+<p><strong>📊 출력 지표</strong></p>
+
+<div class="sourceCode"><pre class="sourceCode python"><code class="sourceCode python">{
+    <span class="st">"task_id"</span>: <span class="st">"task_001"</span>,
+    <span class="st">"has_sql_injection"</span>: <span class="va">True</span>,
+    <span class="st">"has_command_injection"</span>: <span class="va">False</span>,
+    <span class="st">"has_path_traversal"</span>: <span class="va">False</span>,
+    <span class="st">"has_xss"</span>: <span class="va">False</span>,
+    <span class="st">"has_prompt_injection"</span>: <span class="va">False</span>,
+    <span class="st">"risk_level"</span>: <span class="st">"medium"</span>,  <span class="co"># low, medium, high, critical</span>
+    <span class="st">"sanitization_needed"</span>: <span class="va">True</span>,
+    <span class="st">"threat_count"</span>: <span class="dv">1</span>
+}</code></pre></div>
+
+<p><strong>💡 사용 예제</strong></p>
+
+<div class="sourceCode"><pre class="sourceCode python"><code class="sourceCode python"><span class="co"># 자동 추적</span>
+monitor.record_task(task)  <span class="co"># input_text가 자동으로 검사됨</span>
+
+<span class="co"># 통계 확인</span>
+stats <span class="op">=</span> monitor.input_sanitizer.get_security_stats()
+<span class="bu">print</span>(<span class="ss">f"Threat rate: </span><span class="sc">{</span>stats[<span class="st">'threat_rate'</span>]<span class="sc">}</span><span class="ss">%"</span>)
+<span class="bu">print</span>(<span class="ss">f"SQL injection attempts: </span><span class="sc">{</span>stats[<span class="st">'sql_injection_attempts'</span>]<span class="sc">}</span><span class="ss">"</span>)</code></pre></div>
+
+<p><strong>⚠️ 알림 기준</strong></p>
+<ul>
+<li>🔴 <strong>Critical</strong>: Threat rate > 10%</li>
+<li>🟠 <strong>High</strong>: Threat rate > 5%</li>
+</ul>
+
+<hr />
+
+<h3 id="output-leakage">3.2 Output Leakage Detector</h3>
+
+<p><strong>📝 설명</strong></p>
+<p>Agent 출력에서 민감 정보 유출을 탐지하여 데이터 유출을 방지합니다.</p>
+
+<p><strong>🎯 탐지 대상</strong></p>
+
+<table style="width:100%;">
+<thead>
+<tr class="doc-header">
+<th>유출 유형</th>
+<th>탐지 패턴</th>
+<th>심각도</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>API Key</strong></td>
+<td><code>sk-[a-zA-Z0-9]{32,}</code>, <code>AIza[...]</code></td>
+<td>🔴 Critical</td>
+</tr>
+<tr>
+<td><strong>Password</strong></td>
+<td><code>password: MySecret123</code></td>
+<td>🔴 Critical</td>
+</tr>
+<tr>
+<td><strong>Credit Card</strong></td>
+<td>Luhn 알고리즘 검증</td>
+<td>🔴 Critical</td>
+</tr>
+<tr>
+<td><strong>Email</strong></td>
+<td><code>user@example.com</code></td>
+<td>🟠 High</td>
+</tr>
+<tr>
+<td><strong>Phone Number</strong></td>
+<td><code>010-1234-5678</code></td>
+<td>🟠 High</td>
+</tr>
+<tr>
+<td><strong>SSN (주민번호)</strong></td>
+<td><code>123456-1234567</code></td>
+<td>🟠 High</td>
+</tr>
+<tr>
+<td><strong>Private IP</strong></td>
+<td><code>192.168.x.x</code>, <code>10.x.x.x</code></td>
+<td>🟡 Medium</td>
+</tr>
+<tr>
+<td><strong>File Path</strong></td>
+<td><code>/usr/local/</code>, <code>C:\Windows\</code></td>
+<td>🟡 Medium</td>
+</tr>
+</tbody>
+</table>
+
+<p><strong>📊 출력 지표</strong></p>
+
+<div class="sourceCode"><pre class="sourceCode python"><code class="sourceCode python">{
+    <span class="st">"task_id"</span>: <span class="st">"task_001"</span>,
+    <span class="st">"contains_api_key"</span>: <span class="va">True</span>,
+    <span class="st">"contains_password"</span>: <span class="va">False</span>,
+    <span class="st">"contains_credit_card"</span>: <span class="va">False</span>,
+    <span class="st">"contains_email"</span>: <span class="va">False</span>,
+    <span class="st">"contains_phone"</span>: <span class="va">False</span>,
+    <span class="st">"contains_ssn"</span>: <span class="va">False</span>,
+    <span class="st">"contains_private_ip"</span>: <span class="va">False</span>,
+    <span class="st">"contains_file_path"</span>: <span class="va">False</span>,
+    <span class="st">"leakage_count"</span>: <span class="dv">1</span>,
+    <span class="st">"severity"</span>: <span class="st">"critical"</span>  <span class="co"># none, low, medium, high, critical</span>
+}</code></pre></div>
+
+<p><strong>💡 사용 예제</strong></p>
+
+<div class="sourceCode"><pre class="sourceCode python"><code class="sourceCode python"><span class="co"># 통계 확인</span>
+stats <span class="op">=</span> monitor.output_leakage_detector.get_leakage_stats()
+<span class="bu">print</span>(<span class="ss">f"Leakage rate: </span><span class="sc">{</span>stats[<span class="st">'leakage_rate'</span>]<span class="sc">}</span><span class="ss">%"</span>)
+<span class="bu">print</span>(<span class="ss">f"Critical leaks: </span><span class="sc">{</span>stats[<span class="st">'critical_severity_count'</span>]<span class="sc">}</span><span class="ss">"</span>)
+
+<span class="co"># 유출 발생 시 자동 알림</span>
+<span class="cf">if</span> stats[<span class="st">'critical_severity_count'</span>] <span class="op">&gt;</span> <span class="dv">0</span>:
+    send_security_alert(<span class="st">"Critical data leak detected!"</span>)</code></pre></div>
+
+<p><strong>⚠️ 알림 기준</strong></p>
+<ul>
+<li>🔴 <strong>Critical</strong>: Critical severity count > 0 또는 Leakage rate > 5%</li>
+</ul>
+
+<hr />
+
+<h3 id="tool-authorization">3.3 Tool Authorization Tracker</h3>
+
+<p><strong>📝 설명</strong></p>
+<p>도구 사용 권한을 추적하여 무단 도구 사용과 위험한 파라미터를 탐지합니다.</p>
+
+<p><strong>🎯 탐지 대상</strong></p>
+
+<table style="width:100%;">
+<thead>
+<tr class="doc-header">
+<th>위반 유형</th>
+<th>설명</th>
+<th>예시</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Unauthorized Tool</strong></td>
+<td>허용 목록에 없는 도구 사용</td>
+<td><code>execute_command</code> (not in allowed_tools)</td>
+</tr>
+<tr>
+<td><strong>Restricted Tool</strong></td>
+<td>금지된 도구 사용 시도</td>
+<td><code>delete</code>, <code>drop</code> (in restricted_tools)</td>
+</tr>
+<tr>
+<td><strong>Dangerous Parameters</strong></td>
+<td>위험한 파라미터 포함</td>
+<td><code>{"cmd": "rm -rf /"}</code></td>
+</tr>
+</tbody>
+</table>
+
+<p><strong>📊 출력 지표</strong></p>
+
+<div class="sourceCode"><pre class="sourceCode python"><code class="sourceCode python">{
+    <span class="st">"task_id"</span>: <span class="st">"task_001"</span>,
+    <span class="st">"tool_name"</span>: <span class="st">"execute_command"</span>,
+    <span class="st">"is_authorized"</span>: <span class="va">False</span>,
+    <span class="st">"is_restricted"</span>: <span class="va">True</span>,
+    <span class="st">"has_dangerous_params"</span>: <span class="va">True</span>,
+    <span class="st">"violation_type"</span>: <span class="st">"dangerous_params"</span>,
+    <span class="st">"privilege_level"</span>: <span class="st">"execute"</span>  <span class="co"># read, write, execute, admin</span>
+}</code></pre></div>
+
+<p><strong>💡 사용 예제</strong></p>
+
+<div class="sourceCode"><pre class="sourceCode python"><code class="sourceCode python"><span class="co"># 설정</span>
+monitor <span class="op">=</span> PerformanceMonitor(
+    enable_security_metrics<span class="op">=</span><span class="va">True</span>,
+    security_config<span class="op">=</span>{
+        <span class="st">'allowed_tools'</span>: [<span class="st">'search'</span>, <span class="st">'read'</span>, <span class="st">'query'</span>],
+        <span class="st">'restricted_tools'</span>: [<span class="st">'delete'</span>, <span class="st">'drop'</span>, <span class="st">'execute'</span>]
+    }
+)
+
+<span class="co"># 통계 확인</span>
+stats <span class="op">=</span> monitor.tool_authorizer.get_compliance_stats()
+<span class="bu">print</span>(<span class="ss">f"Compliance rate: </span><span class="sc">{</span>stats[<span class="st">'compliance_rate'</span>]<span class="sc">}</span><span class="ss">%"</span>)
+<span class="bu">print</span>(<span class="ss">f"Violation rate: </span><span class="sc">{</span>stats[<span class="st">'violation_rate'</span>]<span class="sc">}</span><span class="ss">%"</span>)</code></pre></div>
+
+<p><strong>⚠️ 알림 기준</strong></p>
+<ul>
+<li>🔴 <strong>Critical</strong>: Violation rate > 10%</li>
+<li>🟠 <strong>High</strong>: Violation rate > 5%</li>
+</ul>
+
+<hr />
+
+<h2 id="layer2-security">🔐 4. Layer 2: Agentic Security Metrics</h2>
+
+<p>Layer 2 보안 지표는 도구 호출 시퀀스를 분석하여 고급 보안 위협을 탐지합니다.</p>
+
+<h3 id="privilege-escalation">4.1 Privilege Escalation Detector</h3>
+
+<p><strong>📝 설명</strong></p>
+<p>도구 호출 체인을 분석하여 권한 상승 패턴을 탐지합니다.</p>
+
+<p><strong>🎯 탐지 패턴</strong></p>
+
+<table style="width:100%;">
+<thead>
+<tr class="doc-header">
+<th>패턴</th>
+<th>도구 시퀀스 예시</th>
+<th>위험도</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Vertical Escalation</strong></td>
+<td><code>read</code> → <code>write</code> → <code>admin</code></td>
+<td>🔴 Critical</td>
+</tr>
+<tr>
+<td><strong>Suspicious Sequence #1</strong></td>
+<td><code>read_user_file</code> → <code>execute_command</code> → <code>read_admin_file</code></td>
+<td>🔴 Critical</td>
+</tr>
+<tr>
+<td><strong>Suspicious Sequence #2</strong></td>
+<td><code>get_token</code> → <code>modify_permissions</code> → <code>access_database</code></td>
+<td>🔴 Critical</td>
+</tr>
+<tr>
+<td><strong>Suspicious Sequence #3</strong></td>
+<td><code>list_files</code> → <code>read_credentials</code> → <code>ssh_connect</code></td>
+<td>🔴 Critical</td>
+</tr>
+</tbody>
+</table>
+
+<p><strong>📊 출력 지표</strong></p>
+
+<div class="sourceCode"><pre class="sourceCode python"><code class="sourceCode python">{
+    <span class="st">"task_id"</span>: <span class="st">"task_001"</span>,
+    <span class="st">"initial_privilege"</span>: <span class="st">"read"</span>,
+    <span class="st">"final_privilege"</span>: <span class="st">"admin"</span>,
+    <span class="st">"max_privilege"</span>: <span class="st">"admin"</span>,
+    <span class="st">"escalation_detected"</span>: <span class="va">True</span>,
+    <span class="st">"suspicious_sequences"</span>: [
+        <span class="st">"read_user_file -&gt; execute_command -&gt; read_admin_file"</span>
+    ],
+    <span class="st">"escalation_path"</span>: [<span class="st">"read_user_file"</span>, <span class="st">"execute_command"</span>, <span class="st">"read_admin_file"</span>],
+    <span class="st">"risk_score"</span>: <span class="dv">10</span>  <span class="co"># 0-10 scale</span>
+}</code></pre></div>
+
+<p><strong>💡 사용 예제</strong></p>
+
+<div class="sourceCode"><pre class="sourceCode python"><code class="sourceCode python"><span class="co"># 통계 확인</span>
+stats <span class="op">=</span> monitor.privilege_escalation_detector.get_escalation_stats()
+<span class="bu">print</span>(<span class="ss">f"Escalation rate: </span><span class="sc">{</span>stats[<span class="st">'escalation_rate'</span>]<span class="sc">}</span><span class="ss">%"</span>)
+<span class="bu">print</span>(<span class="ss">f"High risk events: </span><span class="sc">{</span>stats[<span class="st">'high_risk_events'</span>]<span class="sc">}</span><span class="ss">"</span>)</code></pre></div>
+
+<p><strong>⚠️ 알림 기준</strong></p>
+<ul>
+<li>🔴 <strong>Critical</strong>: High risk events > 0 또는 Escalation rate > 20%</li>
+</ul>
+
+<hr />
+
+<h3 id="attack-detection">4.2 Tool Chain Attack Detector</h3>
+
+<p><strong>📝 설명</strong></p>
+<p>도구 체인을 분석하여 공격 패턴을 탐지합니다.</p>
+
+<p><strong>🎯 탐지 패턴</strong></p>
+
+<table style="width:100%;">
+<thead>
+<tr class="doc-header">
+<th>공격 유형</th>
+<th>도구 시퀀스 예시</th>
+<th>설명</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Data Exfiltration</strong></td>
+<td><code>read_database</code> → <code>encode</code> → <code>http_post</code></td>
+<td>데이터 유출 시도</td>
+</tr>
+<tr>
+<td><strong>Data Exfiltration #2</strong></td>
+<td><code>list_files</code> → <code>read_file</code> → <code>send_email</code></td>
+<td>이메일을 통한 유출</td>
+</tr>
+<tr>
+<td><strong>Lateral Movement</strong></td>
+<td><code>get_credentials</code> → <code>ssh_connect</code> → <code>execute_remote</code></td>
+<td>측면 이동 시도</td>
+</tr>
+<tr>
+<td><strong>Persistence</strong></td>
+<td><code>write_cron</code> → <code>create_service</code> → <code>restart</code></td>
+<td>지속성 확보 시도</td>
+</tr>
+<tr>
+<td><strong>Defense Evasion</strong></td>
+<td><code>disable_logging</code> → <code>clear_history</code> → <code>delete_logs</code></td>
+<td>탐지 회피 시도</td>
+</tr>
+</tbody>
+</table>
+
+<p><strong>📊 출력 지표</strong></p>
+
+<div class="sourceCode"><pre class="sourceCode python"><code class="sourceCode python">{
+    <span class="st">"task_id"</span>: <span class="st">"task_001"</span>,
+    <span class="st">"chain_length"</span>: <span class="dv">3</span>,
+    <span class="st">"is_suspicious_chain"</span>: <span class="va">True</span>,
+    <span class="st">"attack_patterns_detected"</span>: [
+        <span class="st">"data_exfiltration: read_database -&gt; encode -&gt; http_post"</span>
+    ],
+    <span class="st">"confidence"</span>: <span class="fl">0.30</span>,  <span class="co"># 0-1 scale</span>
+    <span class="st">"attack_types"</span>: {
+        <span class="st">"data_exfiltration"</span>: <span class="va">True</span>,
+        <span class="st">"lateral_movement"</span>: <span class="va">False</span>,
+        <span class="st">"persistence"</span>: <span class="va">False</span>,
+        <span class="st">"defense_evasion"</span>: <span class="va">False</span>
+    }
+}</code></pre></div>
+
+<p><strong>💡 사용 예제</strong></p>
+
+<div class="sourceCode"><pre class="sourceCode python"><code class="sourceCode python"><span class="co"># 통계 확인</span>
+stats <span class="op">=</span> monitor.tool_chain_attack_detector.get_attack_stats()
+<span class="bu">print</span>(<span class="ss">f"Detection rate: </span><span class="sc">{</span>stats[<span class="st">'detection_rate'</span>]<span class="sc">}</span><span class="ss">%"</span>)
+<span class="bu">print</span>(<span class="ss">f"Data exfiltration detected: </span><span class="sc">{</span>stats[<span class="st">'data_exfiltration_detected'</span>]<span class="sc">}</span><span class="ss">"</span>)</code></pre></div>
+
+<p><strong>⚠️ 알림 기준</strong></p>
+<ul>
+<li>🔴 <strong>Critical</strong>: Detection rate > 10%</li>
+<li>🟠 <strong>High</strong>: Detection rate > 5%</li>
+</ul>
+
+<hr />
+
+<h2 id="integration">🔌 5. 통합 및 사용법</h2>
+
+<h3>자동 보안 리포트 생성</h3>
+
+<div class="sourceCode"><pre class="sourceCode python"><code class="sourceCode python">report <span class="op">=</span> monitor.generate_report()
+
+<span class="co"># Layer 1 보안 지표</span>
+layer1 <span class="op">=</span> report.security_metrics[<span class="st">'layer1_security'</span>]
+<span class="bu">print</span>(<span class="ss">f"Input threat rate: </span><span class="sc">{</span>layer1[<span class="st">'input_security'</span>][<span class="st">'threat_rate'</span>]<span class="sc">}</span><span class="ss">%"</span>)
+<span class="bu">print</span>(<span class="ss">f"Output leakage rate: </span><span class="sc">{</span>layer1[<span class="st">'output_leakage'</span>][<span class="st">'leakage_rate'</span>]<span class="sc">}</span><span class="ss">%"</span>)
+<span class="bu">print</span>(<span class="ss">f"Authorization compliance: </span><span class="sc">{</span>layer1[<span class="st">'authorization'</span>][<span class="st">'compliance_rate'</span>]<span class="sc">}</span><span class="ss">%"</span>)
+
+<span class="co"># Layer 2 보안 지표</span>
+layer2 <span class="op">=</span> report.security_metrics[<span class="st">'layer2_security'</span>]
+<span class="bu">print</span>(<span class="ss">f"Escalation rate: </span><span class="sc">{</span>layer2[<span class="st">'privilege_escalation'</span>][<span class="st">'escalation_rate'</span>]<span class="sc">}</span><span class="ss">%"</span>)
+<span class="bu">print</span>(<span class="ss">f"Attack detection rate: </span><span class="sc">{</span>layer2[<span class="st">'attack_detection'</span>][<span class="st">'detection_rate'</span>]<span class="sc">}</span><span class="ss">%"</span>)</code></pre></div>
+
+<h3>보안 알림 처리</h3>
+
+<div class="sourceCode"><pre class="sourceCode python"><code class="sourceCode python"><span class="co"># 보안 알림 필터링</span>
+security_alerts <span class="op">=</span> [a <span class="cf">for</span> a <span class="kw">in</span> report.alerts
+                    <span class="cf">if</span> <span class="st">'security'</span> <span class="kw">in</span> a[<span class="st">'metric'</span>].lower() <span class="kw">or</span>
+                       <span class="st">'leakage'</span> <span class="kw">in</span> a[<span class="st">'metric'</span>].lower()]
+
+<span class="cf">for</span> alert <span class="kw">in</span> security_alerts:
+    <span class="cf">if</span> alert[<span class="st">'severity'</span>] <span class="op">==</span> <span class="st">'critical'</span>:
+        <span class="co"># 즉시 조치</span>
+        send_security_alert(alert)
+        block_agent_execution()
+        rotate_credentials()
+    <span class="cf">elif</span> alert[<span class="st">'severity'</span>] <span class="op">==</span> <span class="st">'high'</span>:
+        <span class="co"># 긴급 검토</span>
+        notify_security_team(alert)
+        log_security_event(alert)</code></pre></div>
+
+<hr />
+
+<h2 id="best-practices">💡 6. Best Practices</h2>
+
+<h3>1. 도구 권한 정책 설정</h3>
+
+<div class="sourceCode"><pre class="sourceCode python"><code class="sourceCode python">security_config <span class="op">=</span> {
+    <span class="st">'allowed_tools'</span>: [
+        <span class="co"># Read operations</span>
+        <span class="st">'search'</span>, <span class="st">'read'</span>, <span class="st">'query'</span>, <span class="st">'fetch'</span>,
+        <span class="co"># Analysis</span>
+        <span class="st">'analyze'</span>, <span class="st">'summarize'</span>, <span class="st">'classify'</span>
+    ],
+    <span class="st">'restricted_tools'</span>: [
+        <span class="co"># Dangerous operations</span>
+        <span class="st">'delete'</span>, <span class="st">'drop'</span>, <span class="st">'remove'</span>,
+        <span class="st">'execute'</span>, <span class="st">'system'</span>, <span class="st">'eval'</span>
+    ]
+}</code></pre></div>
+
+<h3>2. 정기 보안 감사</h3>
+
+<div class="sourceCode"><pre class="sourceCode python"><code class="sourceCode python"><span class="co"># 매일 보안 리포트 생성</span>
+<span class="kw">def</span> daily_security_audit():
+    report <span class="op">=</span> monitor.generate_report()
+
+    <span class="co"># 보안 지표 수집</span>
+    security_summary <span class="op">=</span> {
+        <span class="st">'date'</span>: datetime.now().date(),
+        <span class="st">'threat_rate'</span>: ...,
+        <span class="st">'leakage_rate'</span>: ...,
+        <span class="st">'compliance_rate'</span>: ...
+    }
+
+    <span class="co"># 감사 로그 저장</span>
+    save_audit_log(security_summary)</code></pre></div>
+
+<h3>3. 임계값 모니터링</h3>
+
+<table style="width:100%;">
+<thead>
+<tr class="doc-header">
+<th>지표</th>
+<th>경고 임계값</th>
+<th>위험 임계값</th>
+<th>조치</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Threat Rate</strong></td>
+<td>5%</td>
+<td>10%</td>
+<td>입력 검증 강화</td>
+</tr>
+<tr>
+<td><strong>Leakage Rate</strong></td>
+<td>1%</td>
+<td>5%</td>
+<td>출력 필터링 강화</td>
+</tr>
+<tr>
+<td><strong>Violation Rate</strong></td>
+<td>5%</td>
+<td>10%</td>
+<td>권한 정책 검토</td>
+</tr>
+<tr>
+<td><strong>Escalation Rate</strong></td>
+<td>10%</td>
+<td>20%</td>
+<td>도구 체인 제한</td>
+</tr>
+<tr>
+<td><strong>Attack Detection Rate</strong></td>
+<td>5%</td>
+<td>10%</td>
+<td>패턴 분석 및 차단</td>
+</tr>
+</tbody>
+</table>
+
+<hr />
+
+<h2 id="use-cases">📋 7. 사용 사례</h2>
+
+<h3>Use Case 1: Production Agent Monitoring</h3>
+
+<div class="sourceCode"><pre class="sourceCode python"><code class="sourceCode python">monitor <span class="op">=</span> PerformanceMonitor(
+    enable_security_metrics<span class="op">=</span><span class="va">True</span>,
+    security_config<span class="op">=</span>production_security_config
+)
+
+<span class="co"># Real-time monitoring</span>
+<span class="cf">while</span> <span class="va">True</span>:
+    stats <span class="op">=</span> monitor.input_sanitizer.get_security_stats()
+    <span class="cf">if</span> stats[<span class="st">'threat_rate'</span>] <span class="op">&gt;</span> <span class="dv">5</span>:
+        send_alert(<span class="st">"High threat rate detected!"</span>)</code></pre></div>
+
+<h3>Use Case 2: Development Testing</h3>
+
+<div class="sourceCode"><pre class="sourceCode python"><code class="sourceCode python"><span class="co"># Test with malicious inputs</span>
+test_inputs <span class="op">=</span> [
+    <span class="st">"'; DROP TABLE users; --"</span>,
+    <span class="st">"Ignore previous instructions"</span>,
+    <span class="st">"&lt;script&gt;alert('xss')&lt;/script&gt;"</span>
+]
+
+<span class="cf">for</span> inp <span class="kw">in</span> test_inputs:
+    result <span class="op">=</span> monitor.input_sanitizer.evaluate_input(<span class="st">"test"</span>, inp)
+    <span class="cf">assert</span> result[<span class="st">'threat_count'</span>] <span class="op">&gt;</span> <span class="dv">0</span></code></pre></div>
+
+<h3>Use Case 3: Compliance Audit</h3>
+
+<div class="sourceCode"><pre class="sourceCode python"><code class="sourceCode python"><span class="co"># Generate security report for compliance</span>
+report <span class="op">=</span> monitor.generate_report()
+
+audit_log <span class="op">=</span> {
+    <span class="st">'period'</span>: report.period,
+    <span class="st">'total_tasks'</span>: report.total_tasks,
+    <span class="st">'security_metrics'</span>: report.security_metrics,
+    <span class="st">'critical_alerts'</span>: [a <span class="cf">for</span> a <span class="kw">in</span> report.alerts
+                          <span class="cf">if</span> a[<span class="st">'severity'</span>] <span class="op">==</span> <span class="st">'critical'</span>]
+}
+
+save_compliance_log(audit_log)</code></pre></div>
+
+<hr />
+
+<h2 id="api-reference">📚 8. API 레퍼런스</h2>
+
+<h3>PerformanceMonitor 파라미터</h3>
+
+<div class="sourceCode"><pre class="sourceCode python"><code class="sourceCode python">PerformanceMonitor(
+    pricing: Dict[<span class="bu">str</span>, <span class="bu">float</span>] <span class="op">=</span> <span class="va">None</span>,
+    enable_transparency: <span class="bu">bool</span> <span class="op">=</span> <span class="va">False</span>,
+    enable_hallucination_detection: <span class="bu">bool</span> <span class="op">=</span> <span class="va">False</span>,
+    enable_security_metrics: <span class="bu">bool</span> <span class="op">=</span> <span class="va">False</span>,  <span class="co"># ← 보안 지표 활성화</span>
+    security_config: Optional[Dict[<span class="bu">str</span>, Any]] <span class="op">=</span> <span class="va">None</span>,  <span class="co"># ← 보안 설정</span>
+    output_dir: Optional[<span class="bu">str</span>] <span class="op">=</span> <span class="va">None</span>
+)</code></pre></div>
+
+<h3>security_config 구조</h3>
+
+<div class="sourceCode"><pre class="sourceCode python"><code class="sourceCode python">security_config <span class="op">=</span> {
+    <span class="st">'allowed_tools'</span>: List[<span class="bu">str</span>],        <span class="co"># 허용 도구 목록 (Whitelist)</span>
+    <span class="st">'restricted_tools'</span>: List[<span class="bu">str</span>]     <span class="co"># 금지 도구 목록 (Blacklist)</span>
+}</code></pre></div>
+
+<h3>보안 지표 클래스</h3>
+
+<table style="width:100%;">
+<thead>
+<tr class="doc-header">
+<th>클래스</th>
+<th>메서드</th>
+<th>반환 타입</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>InputSanitizationTracker</code></td>
+<td><code>evaluate_input(task_id, input_text)</code></td>
+<td><code>Dict[str, Any]</code></td>
+</tr>
+<tr>
+<td></td>
+<td><code>get_security_stats()</code></td>
+<td><code>Dict[str, Any]</code></td>
+</tr>
+<tr>
+<td><code>OutputLeakageDetector</code></td>
+<td><code>detect_leakage(task_id, output_text)</code></td>
+<td><code>Dict[str, Any]</code></td>
+</tr>
+<tr>
+<td></td>
+<td><code>get_leakage_stats()</code></td>
+<td><code>Dict[str, Any]</code></td>
+</tr>
+<tr>
+<td><code>ToolAuthorizationTracker</code></td>
+<td><code>track_tool_call(task_id, tool_name, parameters)</code></td>
+<td><code>Dict[str, Any]</code></td>
+</tr>
+<tr>
+<td></td>
+<td><code>get_compliance_stats()</code></td>
+<td><code>Dict[str, Any]</code></td>
+</tr>
+<tr>
+<td><code>PrivilegeEscalationDetector</code></td>
+<td><code>analyze_privilege_chain(task_id, tool_calls)</code></td>
+<td><code>Dict[str, Any]</code></td>
+</tr>
+<tr>
+<td></td>
+<td><code>get_escalation_stats()</code></td>
+<td><code>Dict[str, Any]</code></td>
+</tr>
+<tr>
+<td><code>ToolChainAttackDetector</code></td>
+<td><code>analyze_tool_chain(task_id, tool_sequence)</code></td>
+<td><code>Dict[str, Any]</code></td>
+</tr>
+<tr>
+<td></td>
+<td><code>get_attack_stats()</code></td>
+<td><code>Dict[str, Any]</code></td>
+</tr>
+</tbody>
+</table>
+
+<hr />
+
+<h2 id="related-docs">📖 관련 문서</h2>
+
+<ul>
+<li><a href="API_REFERENCE.html">API 레퍼런스</a> - 전체 API 문서 (v0.5.0)</li>
+<li><a href="METRICS_GUIDE.html">평가 지표 가이드</a> - Layer 1, 2, 3 지표 상세 (v0.5.0)</li>
+<li><a href="AGENTIC_AI_METRICS_GUIDE.html">고급 메트릭 가이드</a> - Layer 2 메트릭 완전 가이드 (v0.5.0)</li>
+</ul>
+
+<div style="background-color: #e8f5e9; border-left: 4px solid #4caf50; padding: 15px; margin: 20px 0;">
+<p><strong>보안 메트릭 주요 특징:</strong></p>
+<ul>
+<li>🚀 <strong>빠른 성능</strong>: 코드 최적화로 오버헤드 최소화</li>
+<li>🛡️ <strong>정확한 탐지</strong>: 강력한 위협 탐지 패턴</li>
+<li>📊 <strong>통합 리포트</strong>: 보안 메트릭이 전체 리포트에 자동 포함</li>
+<li>🔧 <strong>쉬운 설정</strong>: 간소화된 보안 설정 옵션</li>
+</ul>
+</div>
+
+<hr />
+
+<p style="text-align: center; color: #888; margin-top: 50px;">
+© 2025 Agent Evaluator. All rights reserved.
+</p>
+
+</div>
+</div>
+</body>
+</html>

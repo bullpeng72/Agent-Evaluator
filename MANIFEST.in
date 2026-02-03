@@ -1,0 +1,35 @@
+# Include documentation and license files
+include README.md
+include LICENSE
+include INSTALLATION_GUIDE.md
+include pyproject.toml
+include setup.py
+
+# Include Python source files
+recursive-include agent_evaluator *.py
+
+# Include data files (if any)
+recursive-include agent_evaluator *.json
+recursive-include agent_evaluator *.yaml
+recursive-include agent_evaluator *.yml
+
+# Exclude unnecessary files
+exclude .gitignore
+exclude .env
+exclude .env.local
+exclude *.zip
+
+# Exclude directories
+prune .git
+prune __pycache__
+prune *.egg-info
+prune .pytest_cache
+prune .mypy_cache
+prune .deepeval
+prune Dashboard
+prune Docs
+prune Evaluator_Examples
+prune data
+prune evaluation_results
+prune dist
+prune build

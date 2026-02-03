@@ -1,0 +1,1342 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tool Selection Accuracy - Agent Evaluator v0.5.0</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            line-height: 1.8;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: #333;
+        }
+
+        .container {
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            overflow: hidden;
+            max-width: 1400px;
+            margin: 40px auto;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 60px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 3.5em;
+            margin-bottom: 20px;
+            font-weight: 700;
+        }
+
+        .subtitle {
+            font-size: 1.4em;
+            margin-bottom: 25px;
+            opacity: 0.95;
+            font-weight: 300;
+        }
+
+        .version-badge {
+            display: inline-block;
+            background: rgba(255, 255, 255, 0.2);
+            padding: 12px 30px;
+            border-radius: 30px;
+            font-size: 1em;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+        }
+
+        .content {            background: white;
+            padding: 60px;
+        }
+
+        .section {
+            margin-bottom: 50px;
+        }
+
+        .section h2 {
+            color: #667eea;
+            font-size: 2.2em;
+            margin-bottom: 25px;
+            padding-bottom: 15px;
+            border-bottom: 3px solid #667eea;
+        }
+
+        .section h3 {
+            color: #764ba2;
+            font-size: 1.6em;
+            margin-top: 30px;
+            margin-bottom: 20px;
+        }
+
+        .section h4 {
+            color: #5a67d8;
+            font-size: 1.3em;
+            margin-top: 25px;
+            margin-bottom: 15px;
+        }
+
+        .intro-box {
+            background: linear-gradient(135deg, #f0f4ff 0%, #e8edff 100%);
+            border-left: 5px solid #667eea;
+            padding: 30px;
+            margin: 25px 0;
+            border-radius: 8px;
+            font-size: 1.05em;
+        }
+
+        .importance-box {
+            background: linear-gradient(135deg, #fff5f7 0%, #ffe8ed 100%);
+            border-left: 5px solid #e53e3e;
+            padding: 30px;
+            margin: 25px 0;
+            border-radius: 8px;
+        }
+
+        .implementation-note {
+            background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%);
+            border-left: 5px solid #10b981;
+            padding: 30px;
+            margin: 25px 0;
+            border-radius: 8px;
+        }
+
+        .highlight {
+            color: #667eea;
+            font-weight: 600;
+        }
+
+        .code-block {
+            background: #2d3748;
+            color: #e2e8f0;
+            padding: 25px;
+            border-radius: 8px;
+            overflow-x: auto;
+            margin: 20px 0;
+            border-left: 4px solid #667eea;
+            font-family: 'Courier New', monospace;
+            font-size: 0.95em;
+            line-height: 1.6;
+            white-space: pre-wrap;
+        }
+
+        .code-block .comment { color: #a0aec0; }
+        .code-block .keyword { color: #f687b3; }
+        .code-block .string { color: #68d391; }
+        .code-block .function { color: #63b3ed; }
+        .code-block .number { color: #fbd38d; }
+
+        .info-box {
+            background: #ebf8ff;
+            border-left: 5px solid #3182ce;
+            padding: 20px;
+            margin: 25px 0;
+            border-radius: 6px;
+        }
+
+        .warning-box {
+            background: #fffaf0;
+            border-left: 5px solid #ed8936;
+            padding: 20px;
+            margin: 25px 0;
+            border-radius: 6px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 25px 0;
+            background: white;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            border-radius: 8px;
+            overflow: hidden;
+        }
+
+        th {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 15px;
+            text-align: left;
+            font-weight: 600;
+        }
+
+        td {
+            padding: 15px;
+            border-bottom: 1px solid #e2e8f0;
+        }
+
+        tr:hover {
+            background: #f7fafc;
+        }
+
+        ul, ol {
+            padding-left: 30px;
+            margin: 20px 0;
+        }
+
+        li {
+            margin: 12px 0;
+        }
+
+        .footer {
+            margin-top: 60px;
+            padding-top: 30px;
+            border-top: 2px solid #e2e8f0;
+            text-align: center;
+            color: #718096;
+            font-size: 0.95em;
+        }
+
+        .metric-badge {
+            display: inline-block;
+            padding: 6px 15px;
+            border-radius: 20px;
+            font-size: 0.85em;
+            font-weight: 600;
+            margin: 5px;
+        }
+
+        .badge-precision { background: #c6f6d5; color: #22543d; }
+        .badge-recall { background: #bee3f8; color: #2c5282; }
+        .badge-f1 { background: #fbd38d; color: #7c2d12; }
+
+        /* Mermaid Diagrams */
+        .mermaid {
+            margin: 40px 0;
+            text-align: center;
+            background: linear-gradient(135deg, #f6f8fb 0%, #e9ecf5 100%);
+            padding: 30px;
+            border-radius: 15px;
+            border: 1px solid #e2e8f0;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            transition: all 0.3s ease;
+        }
+
+        .mermaid:hover {
+            box-shadow: 0 8px 20px rgba(0,0,0,0.15);
+            transform: translateY(-2px);
+        }
+
+        /* Mermaid Diagram Zoom Modal Styles */
+.mermaid-modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 10000;
+    opacity: 0;
+    transition: opacity 0.2s ease;
+}
+
+.mermaid-modal.active {
+    opacity: 1;
+}
+
+.mermaid-modal.closing {
+    opacity: 0;
+}
+
+/* Modal backdrop */
+.mermaid-modal-backdrop {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.85);
+    backdrop-filter: blur(4px);
+}
+
+/* Modal content container */
+.mermaid-modal-content {
+    position: relative;
+    width: 90vw;
+    height: 90vh;
+    max-width: 1400px;
+    max-height: 900px;
+    margin: 5vh auto;
+    background: var(--bg-white);
+    border-radius: var(--radius-xl);
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;  /* Keep border-radius working */
+}
+
+/* Modal header */
+.mermaid-modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: var(--space-md) var(--space-lg);
+    background: linear-gradient(135deg, var(--primary-color) 0%, var(--primary-dark) 100%);
+    color: white;
+    border-bottom: 1px solid var(--bg-border);
+}
+
+.mermaid-modal-title {
+    font-size: 1.1rem;
+    font-weight: 600;
+}
+
+.mermaid-modal-controls {
+    display: flex;
+    gap: var(--space-sm);
+}
+
+.mermaid-btn {
+    background: rgba(255, 255, 255, 0.2);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    color: white;
+    padding: var(--space-sm);
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    transition: all var(--transition-fast);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+}
+
+.mermaid-btn:hover {
+    background: rgba(255, 255, 255, 0.3);
+    border-color: rgba(255, 255, 255, 0.5);
+    transform: scale(1.05);
+}
+
+.mermaid-btn:active {
+    transform: scale(0.95);
+}
+
+.mermaid-btn svg {
+    width: 20px;
+    height: 20px;
+}
+
+/* Modal body */
+.mermaid-modal-body {
+    flex: 1;
+    overflow: visible;  /* Don't clip transformed content */
+    position: relative;
+    background: #ffffff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* Diagram container */
+.mermaid-diagram-container {
+    transform-origin: center center;
+    /* No transition during drag - will be added dynamically only for zoom */
+    transition: none;
+    /* Remove max-width/height constraints to allow diagrams to display at original size */
+    /* The modal-body will handle overflow with scrolling */
+    display: inline-block;
+    position: relative;
+    /* Ensure content is visible even when transformed */
+    pointer-events: auto;
+    z-index: 1;
+    /* Prevent disappearing due to overflow clipping */
+    will-change: transform;
+}
+
+/* Add transition class for zoom (not drag) */
+.mermaid-diagram-container.zoom-transition {
+    transition: transform 0.2s ease;
+}
+
+.mermaid-diagram-container svg {
+    max-width: none !important;
+    max-height: none !important;
+    display: block;
+    cursor: grab;
+}
+
+.mermaid-diagram-container svg:active {
+    cursor: grabbing;
+}
+
+/* Responsive modal */
+@media (max-width: 768px) {
+    .mermaid-modal-content {
+        width: 95vw;
+        height: 85vh;
+        margin: 7.5vh auto;
+    }
+
+    .mermaid-modal-header {
+        padding: var(--space-sm) var(--space-md);
+    }
+
+    .mermaid-modal-title {
+        font-size: 1rem;
+    }
+
+    .mermaid-btn {
+        width: 32px;
+        height: 32px;
+    }
+
+    .mermaid-btn svg {
+        width: 18px;
+        height: 18px;
+    }
+}
+
+/* Dark mode support for modal */
+@media (prefers-color-scheme: dark) {
+    .mermaid-modal-content {
+        background: var(--bg-white);
+        border: 1px solid var(--bg-border);
+    }
+
+    .mermaid-modal-body {
+        background: #ffffff;
+    }
+}
+    </style>
+</head>
+<body>
+    <div class="container">
+    <div class="header">
+        <h1>🎯 Tool Selection Accuracy</h1>
+        <div class="subtitle">AI Agent Tool Selection Precision and Recall Analysis</div>
+        <div class="version-badge">Agent Evaluator v0.5.0 - Layer 2 Advanced Metric</div>
+    </div>
+
+    <div class="content">
+        <div class="section">
+            <h2>🎯 개요</h2>
+
+            <div class="intro-box">
+                <strong>Tool Selection Accuracy (도구 선택 정확도)</strong>는 AI Agent가 주어진 작업을 수행하기 위해 <span class="highlight">올바른 도구를 선택했는지</span> 평가하는 Layer 2 Advanced Metric입니다.
+
+                <ul style="margin-top: 15px;">
+                    <li><strong>측정 대상</strong>: 예상 도구 vs 실제 선택 도구의 일치율</li>
+                    <li><strong>평가 방식</strong>: Precision, Recall, F1-Score 기반 정량 평가</li>
+                    <li><strong>적용 대상</strong>: AutoGen, LangChain, CrewAI 등 Tool-using Agents</li>
+                    <li><strong>구현 위치</strong>: <code>agent_evaluator/core/agent_evaluator.py</code> (Lines 1444-1508)</li>
+                </ul>
+            </div>
+
+            <div class="importance-box">
+                <h4>⚠️ Tool Selection이 중요한 이유</h4>
+                <ul>
+                    <li><strong>작업 성공률 직결</strong>: 올바른 도구 선택 → 작업 성공</li>
+                    <li><strong>효율성</strong>: 불필요한 도구 호출 감소 → 비용/시간 절감</li>
+                    <li><strong>에러 감소</strong>: 잘못된 도구 사용 → 예상치 못한 에러 발생</li>
+                    <li><strong>사용자 신뢰</strong>: 정확한 도구 사용 → 사용자 만족도 향상</li>
+                </ul>
+            </div>
+
+            <div class="implementation-note">
+                <h4>🏗️ 구현 특징</h4>
+                <ul>
+                    <li><strong>클래스</strong>: <code>ToolSelectionTracker</code> (agent_evaluator.py:1444-1508)</li>
+                    <li><strong>평가 메트릭</strong>: Precision, Recall, F1-Score (Information Retrieval 표준)</li>
+                    <li><strong>Layer 2 분류</strong>: Agent 행동 분석 (Framework-specific)</li>
+                    <li><strong>외부 의존성</strong>: 없음 (pandas만 사용)</li>
+                </ul>
+            </div>
+        </div>
+
+        <div class="section">
+            <h2>📊 핵심 평가 메트릭</h2>
+
+            <h3>3가지 평가 지표</h3>
+
+            <table>
+                <thead>
+                    <tr>
+                        <th>메트릭</th>
+                        <th>정의</th>
+                        <th>계산식</th>
+                        <th>의미</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><span class="badge-precision">Precision</span></td>
+                        <td>정밀도 - 선택한 도구 중 올바른 비율</td>
+                        <td>TP / (TP + FP)</td>
+                        <td>불필요한 도구 호출 감소</td>
+                    </tr>
+                    <tr>
+                        <td><span class="badge-recall">Recall</span></td>
+                        <td>재현율 - 필요한 도구 중 선택한 비율</td>
+                        <td>TP / (TP + FN)</td>
+                        <td>필수 도구 누락 방지</td>
+                    </tr>
+                    <tr>
+                        <td><span class="badge-f1">F1-Score</span></td>
+                        <td>조화 평균 - Precision & Recall의 균형</td>
+                        <td>2 × (P × R) / (P + R)</td>
+                        <td>종합 평가 지표</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <div class="info-box">
+                <h4>용어 정의</h4>
+                <ul>
+                    <li><strong>TP (True Positive)</strong>: 예상 도구 ∩ 실제 선택 도구 (올바르게 선택)</li>
+                    <li><strong>FP (False Positive)</strong>: 실제 선택했지만 불필요한 도구 (과잉 선택)</li>
+                    <li><strong>FN (False Negative)</strong>: 선택하지 않았지만 필요한 도구 (누락)</li>
+                </ul>
+            </div>
+
+            <h3>예제로 이해하기</h3>
+
+            <div class="code-block">
+<span class="comment"># 시나리오: "오늘 서울 날씨를 알려주고 파일에 저장해줘"</span>
+
+<span class="comment"># 예상 도구 (Expected Tools)</span>
+expected_tools = [<span class="string">"get_weather"</span>, <span class="string">"write_file"</span>]
+
+<span class="comment"># Agent가 실제 선택한 도구 (Actual Tools)</span>
+actual_tools = [<span class="string">"get_weather"</span>, <span class="string">"write_file"</span>, <span class="string">"search_web"</span>]
+
+<span class="comment"># 평가 결과</span>
+<span class="comment"># TP (True Positive) = 2 (get_weather, write_file - 올바르게 선택)</span>
+<span class="comment"># FP (False Positive) = 1 (search_web - 불필요하게 선택)</span>
+<span class="comment"># FN (False Negative) = 0 (누락된 도구 없음)</span>
+
+<span class="comment"># 계산</span>
+Precision = 2 / (2 + 1) = 66.67%  <span class="comment"># 선택한 3개 중 2개만 필요</span>
+Recall = 2 / (2 + 0) = 100%       <span class="comment"># 필요한 2개를 모두 선택</span>
+F1-Score = 2 × (0.667 × 1.0) / (0.667 + 1.0) = 80.00%
+</div>
+        </div>
+
+        <div class="section">
+            <h2>⚙️ 핵심 알고리즘</h2>
+
+            <h4>📊 Tool Selection 평가 흐름</h4>
+            <div class="mermaid">
+graph TD
+    A[expected_tools, actual_tools] --> B{evaluate_selection}
+    B --> C1[Set 변환<br/>expected_set, actual_set]
+    C1 --> D1[TP 계산<br/>expected ∩ actual]
+    C1 --> D2[FP 계산<br/>actual - expected]
+    C1 --> D3[FN 계산<br/>expected - actual]
+
+    D1 --> E1[Precision<br/>TP / actual_set]
+    D1 --> E2[Recall<br/>TP / expected_set]
+
+    E1 --> F{Precision + Recall > 0?}
+    E2 --> F
+    F -->|Yes| G[F1-Score<br/>2 × P × R / P + R]
+    F -->|No| H[F1-Score = 0]
+
+    G --> I[result 반환]
+    H --> I
+
+    style A fill:#667eea,color:#fff
+    style C1 fill:#48bb78,color:#fff
+    style D1 fill:#38a169,color:#fff
+    style D2 fill:#ed8936,color:#fff
+    style D3 fill:#e53e3e,color:#fff
+    style G fill:#3182ce,color:#fff
+    style I fill:#667eea,color:#fff
+            </div>
+
+            <h3>evaluate_selection() 메서드</h3>
+            <p><strong>위치</strong>: Lines 1450-1490</p>
+            <p><strong>목적</strong>: 예상 도구와 실제 선택 도구를 비교하여 Precision, Recall, F1 계산</p>
+
+            <div class="code-block">
+<span class="keyword">def</span> <span class="function">evaluate_selection</span>(
+    <span class="keyword">self</span>,
+    task_id: <span class="keyword">str</span>,
+    expected_tools: List[<span class="keyword">str</span>],
+    actual_tools: List[<span class="keyword">str</span>]
+) -> Dict[<span class="keyword">str</span>, Any]:
+    <span class="string">"""Evaluate if correct tools were selected"""</span>
+
+    <span class="comment"># 예외 처리: expected_tools가 없으면 100% 정확도</span>
+    <span class="keyword">if not</span> expected_tools:
+        <span class="keyword">return</span> {
+            <span class="string">"task_id"</span>: task_id,
+            <span class="string">"accuracy"</span>: 100.0,
+            <span class="string">"note"</span>: <span class="string">"No expected tools defined"</span>
+        }
+
+    <span class="comment"># Set 변환 (중복 제거 + 빠른 집합 연산)</span>
+    expected_set = <span class="function">set</span>(expected_tools)
+    actual_set = <span class="function">set</span>(actual_tools)
+
+    <span class="comment"># TP, FP, FN 계산</span>
+    true_positives = <span class="function">len</span>(expected_set & actual_set)      <span class="comment"># 교집합</span>
+    false_positives = <span class="function">len</span>(actual_set - expected_set)    <span class="comment"># actual만 있는 것</span>
+    false_negatives = <span class="function">len</span>(expected_set - actual_set)    <span class="comment"># expected만 있는 것</span>
+
+    <span class="comment"># Precision, Recall 계산 (Zero Division 방지)</span>
+    precision = true_positives / <span class="function">len</span>(actual_set) <span class="keyword">if</span> actual_set <span class="keyword">else</span> 0
+    recall = true_positives / <span class="function">len</span>(expected_set) <span class="keyword">if</span> expected_set <span class="keyword">else</span> 0
+
+    <span class="comment"># F1-Score 계산</span>
+    f1_score = (2 * precision * recall) / (precision + recall) \
+               <span class="keyword">if</span> (precision + recall) > 0 <span class="keyword">else</span> 0
+
+    result = {
+        <span class="string">"task_id"</span>: task_id,
+        <span class="string">"expected_tools"</span>: expected_tools,
+        <span class="string">"actual_tools"</span>: actual_tools,
+        <span class="string">"true_positives"</span>: true_positives,
+        <span class="string">"false_positives"</span>: false_positives,
+        <span class="string">"false_negatives"</span>: false_negatives,
+        <span class="string">"precision"</span>: <span class="function">round</span>(precision * 100, 2),
+        <span class="string">"recall"</span>: <span class="function">round</span>(recall * 100, 2),
+        <span class="string">"f1_score"</span>: <span class="function">round</span>(f1_score * 100, 2),
+        <span class="string">"accuracy"</span>: <span class="function">round</span>(f1_score * 100, 2)  <span class="comment"># F1을 accuracy로 사용</span>
+    }
+
+    <span class="keyword">self</span>.selections.<span class="function">append</span>(result)
+    <span class="keyword">return</span> result
+</div>
+
+            <h3>get_accuracy_stats() 메서드</h3>
+            <p><strong>위치</strong>: Lines 1492-1508</p>
+            <p><strong>목적</strong>: 여러 평가 결과를 집계하여 평균 통계 제공</p>
+
+            <div class="code-block">
+<span class="keyword">def</span> <span class="function">get_accuracy_stats</span>(<span class="keyword">self</span>) -> Dict[<span class="keyword">str</span>, Any]:
+    <span class="string">"""Get tool selection accuracy statistics"""</span>
+    <span class="keyword">if not</span> <span class="keyword">self</span>.selections:
+        <span class="keyword">return</span> {}
+
+    df = pd.DataFrame(<span class="keyword">self</span>.selections)
+
+    <span class="keyword">return</span> {
+        <span class="string">"total_evaluations"</span>: <span class="function">len</span>(<span class="keyword">self</span>.selections),
+        <span class="string">"avg_accuracy"</span>: <span class="function">round</span>(df[<span class="string">"accuracy"</span>].mean(), 2),
+        <span class="string">"avg_precision"</span>: <span class="function">round</span>(df[<span class="string">"precision"</span>].mean(), 2),
+        <span class="string">"avg_recall"</span>: <span class="function">round</span>(df[<span class="string">"recall"</span>].mean(), 2),
+        <span class="string">"avg_f1_score"</span>: <span class="function">round</span>(df[<span class="string">"f1_score"</span>].mean(), 2),
+        <span class="string">"total_true_positives"</span>: <span class="function">int</span>(df[<span class="string">"true_positives"</span>].sum()),
+        <span class="string">"total_false_positives"</span>: <span class="function">int</span>(df[<span class="string">"false_positives"</span>].sum()),
+        <span class="string">"total_false_negatives"</span>: <span class="function">int</span>(df[<span class="string">"false_negatives"</span>].sum())
+    }
+</div>
+
+            <div class="info-box">
+                <h4>통계 항목 설명</h4>
+                <ul>
+                    <li><strong>total_evaluations</strong>: 평가 횟수</li>
+                    <li><strong>avg_accuracy</strong>: 평균 F1-Score (종합 정확도)</li>
+                    <li><strong>avg_precision</strong>: 평균 정밀도</li>
+                    <li><strong>avg_recall</strong>: 평균 재현율</li>
+                    <li><strong>total_true_positives</strong>: 전체 올바른 선택 수</li>
+                    <li><strong>total_false_positives</strong>: 전체 과잉 선택 수</li>
+                    <li><strong>total_false_negatives</strong>: 전체 누락 수</li>
+                </ul>
+            </div>
+        </div>
+
+        <div class="section">
+            <h2>🔍 데이터 수집 방법 (실전 가이드)</h2>
+
+            <div class="importance-box">
+                <h4>⚡ Tool Selection 평가의 핵심: 데이터 수집</h4>
+                <p>Tool Selection Accuracy를 측정하려면 <strong>2가지 데이터</strong>가 필요합니다:</p>
+                <ul>
+                    <li><strong>actual_tools</strong>: Agent가 실제로 호출한 도구 목록 (자동 수집 가능)</li>
+                    <li><strong>expected_tools</strong>: 작업에 필요한 정답 도구 목록 (수동 정의 필요)</li>
+                </ul>
+            </div>
+
+            <h3>1. 프레임워크별 actual_tools 자동 수집</h3>
+
+            <h4>LangChain Agent 통합</h4>
+            <div class="code-block"><span class="keyword">from</span> agent_evaluator.integrations <span class="keyword">import</span> LangChainEvaluator
+<span class="keyword">from</span> langchain.agents <span class="keyword">import</span> AgentExecutor, create_react_agent
+
+<span class="comment"># LangChain Agent 생성</span>
+agent = create_react_agent(llm, tools, prompt)
+agent_executor = AgentExecutor(agent=agent, tools=tools)
+
+<span class="comment"># Evaluator로 래핑 (자동으로 tool calls 추적)</span>
+evaluator = <span class="function">LangChainEvaluator</span>(
+    agent_executor,
+    enable_layer2=<span class="keyword">True</span>  <span class="comment"># Tool Selection 자동 추적</span>
+)
+
+<span class="comment"># 실행 시 expected_tools 지정</span>
+result = evaluator.<span class="function">run</span>(
+    query=<span class="string">"오늘 서울 날씨를 알려주고 파일에 저장해줘"</span>,
+    ground_truth=<span class="string">"서울: 맑음, 15도"</span>,
+    expected_tools=[<span class="string">"get_weather"</span>, <span class="string">"write_file"</span>]  <span class="comment"># ✅ 정답 도구 정의</span>
+)
+
+<span class="comment"># actual_tools는 자동으로 수집됨</span>
+report = evaluator.<span class="function">generate_report</span>()
+<span class="function">print</span>(report.agentic_metrics[<span class="string">"tool_selection"</span>])
+</div>
+
+            <h4>AutoGen Agent 통합</h4>
+            <div class="code-block"><span class="keyword">from</span> agent_evaluator.integrations <span class="keyword">import</span> AutoGenEvaluator
+<span class="keyword">from</span> autogen <span class="keyword">import</span> AssistantAgent, UserProxyAgent
+
+<span class="comment"># AutoGen Agent 생성</span>
+assistant = <span class="function">AssistantAgent</span>(
+    name=<span class="string">"assistant"</span>,
+    llm_config={<span class="string">"model"</span>: <span class="string">"gpt-4"</span>},
+    system_message=<span class="string">"You are a helpful assistant."</span>
+)
+
+<span class="comment"># Evaluator로 래핑</span>
+evaluator = <span class="function">AutoGenEvaluator</span>(
+    assistant,
+    enable_layer2=<span class="keyword">True</span>
+)
+
+<span class="comment"># evaluator.agent를 일반 agent처럼 사용</span>
+user_proxy.<span class="function">initiate_chat</span>(
+    evaluator.agent,
+    message=<span class="string">"Search for AI trends and summarize"</span>
+)
+
+<span class="comment"># Tool calls는 자동으로 추적됨</span>
+report = evaluator.<span class="function">generate_report</span>()
+</div>
+
+            <h4>CrewAI Agent 통합</h4>
+            <div class="code-block"><span class="keyword">from</span> agent_evaluator.integrations <span class="keyword">import</span> CrewAIEvaluator
+<span class="keyword">from</span> crewai <span class="keyword">import</span> Crew, Agent, Task
+
+<span class="comment"># CrewAI Crew 생성</span>
+crew = <span class="function">Crew</span>(
+    agents=[researcher, writer],
+    tasks=[research_task, writing_task],
+    process=Process.sequential
+)
+
+<span class="comment"># Evaluator로 래핑</span>
+evaluator = <span class="function">CrewAIEvaluator</span>(
+    crew,
+    enable_layer2=<span class="keyword">True</span>
+)
+
+<span class="comment"># 평가와 함께 실행</span>
+result = evaluator.<span class="function">kickoff</span>(
+    inputs={<span class="string">"topic"</span>: <span class="string">"AI trends"</span>},
+    ground_truth=<span class="string">"Expected output..."</span>,
+    expected_tools=[<span class="string">"search"</span>, <span class="string">"analysis"</span>, <span class="string">"write"</span>]
+)
+
+<span class="comment"># Tool Selection 자동 평가</span>
+report = evaluator.<span class="function">generate_report</span>()
+</div>
+
+            <h4>수동 Tool Calls 추출 (Helper Functions)</h4>
+            <div class="code-block"><span class="keyword">from</span> agent_evaluator <span class="keyword">import</span> (
+    extract_tool_calls_from_langchain,
+    extract_tool_calls_from_openai_functions
+)
+
+<span class="comment"># LangChain intermediate_steps에서 추출</span>
+langchain_result = agent_executor.<span class="function">invoke</span>({<span class="string">"input"</span>: query})
+tool_calls = <span class="function">extract_tool_calls_from_langchain</span>(langchain_result)
+<span class="comment"># Returns: [{"tool": "tool_name", "input": {...}, "output": "..."}]</span>
+
+actual_tools = [call[<span class="string">"tool"</span>] <span class="keyword">for</span> call <span class="keyword">in</span> tool_calls]
+
+<span class="comment"># OpenAI Function Calling 응답에서 추출</span>
+openai_response = openai.chat.completions.<span class="function">create</span>(
+    model=<span class="string">"gpt-4"</span>,
+    messages=messages,
+    tools=tools
+)
+tool_calls = <span class="function">extract_tool_calls_from_openai_functions</span>(openai_response)
+actual_tools = [call[<span class="string">"tool"</span>] <span class="keyword">for</span> call <span class="keyword">in</span> tool_calls]
+</div>
+
+            <h3>2. expected_tools 정의 전략</h3>
+
+            <div class="warning-box">
+                <h4>⚠️ Ground Truth 정의의 중요성</h4>
+                <p><strong>expected_tools</strong>는 자동 수집이 불가능하며, <span class="highlight">도메인 전문가가 수동으로 정의</span>해야 합니다.</p>
+            </div>
+
+            <h4>전략 1: 작업별 Expected Tools 매핑</h4>
+            <div class="code-block"><span class="comment"># 작업 유형별 필수 도구 정의</span>
+TASK_TOOL_MAPPING = {
+    <span class="string">"weather_query"</span>: [<span class="string">"get_weather"</span>],
+    <span class="string">"weather_with_save"</span>: [<span class="string">"get_weather"</span>, <span class="string">"write_file"</span>],
+    <span class="string">"web_search"</span>: [<span class="string">"search_web"</span>],
+    <span class="string">"data_analysis"</span>: [<span class="string">"read_csv"</span>, <span class="string">"calculate"</span>, <span class="string">"visualize"</span>],
+    <span class="string">"email_send"</span>: [<span class="string">"read_contacts"</span>, <span class="string">"send_email"</span>]
+}
+
+<span class="comment"># 작업 분류 → Expected Tools 자동 매핑</span>
+<span class="keyword">def</span> <span class="function">classify_task</span>(query: <span class="keyword">str</span>) -> <span class="keyword">str</span>:
+    <span class="keyword">if</span> <span class="string">"날씨"</span> <span class="keyword">in</span> query <span class="keyword">and</span> <span class="string">"저장"</span> <span class="keyword">in</span> query:
+        <span class="keyword">return</span> <span class="string">"weather_with_save"</span>
+    <span class="keyword">elif</span> <span class="string">"날씨"</span> <span class="keyword">in</span> query:
+        <span class="keyword">return</span> <span class="string">"weather_query"</span>
+    <span class="keyword">elif</span> <span class="string">"검색"</span> <span class="keyword">in</span> query:
+        <span class="keyword">return</span> <span class="string">"web_search"</span>
+    <span class="keyword">return</span> <span class="string">"unknown"</span>
+
+<span class="comment"># 사용 예제</span>
+query = <span class="string">"오늘 서울 날씨를 알려주고 파일에 저장해줘"</span>
+task_type = <span class="function">classify_task</span>(query)
+expected_tools = TASK_TOOL_MAPPING.get(task_type, [])
+</div>
+
+            <h4>전략 2: Test Case Dataset 구축</h4>
+            <div class="code-block"><span class="comment"># test_cases.json</span>
+test_cases = [
+    {
+        <span class="string">"task_id"</span>: <span class="string">"TC001"</span>,
+        <span class="string">"query"</span>: <span class="string">"오늘 서울 날씨 알려줘"</span>,
+        <span class="string">"expected_tools"</span>: [<span class="string">"get_weather"</span>],
+        <span class="string">"ground_truth"</span>: <span class="string">"서울: 맑음, 15도"</span>
+    },
+    {
+        <span class="string">"task_id"</span>: <span class="string">"TC002"</span>,
+        <span class="string">"query"</span>: <span class="string">"AI 트렌드 검색해서 요약해줘"</span>,
+        <span class="string">"expected_tools"</span>: [<span class="string">"search_web"</span>, <span class="string">"summarize"</span>],
+        <span class="string">"ground_truth"</span>: <span class="string">"Expected summary..."</span>
+    },
+    {
+        <span class="string">"task_id"</span>: <span class="string">"TC003"</span>,
+        <span class="string">"query"</span>: <span class="string">"sales.csv 읽고 총합 계산해줘"</span>,
+        <span class="string">"expected_tools"</span>: [<span class="string">"read_csv"</span>, <span class="string">"calculate"</span>],
+        <span class="string">"ground_truth"</span>: <span class="string">"Total: $12,345"</span>
+    }
+]
+
+<span class="comment"># Batch Evaluation</span>
+tracker = <span class="function">ToolSelectionTracker</span>()
+
+<span class="keyword">for</span> test_case <span class="keyword">in</span> test_cases:
+    <span class="comment"># Agent 실행</span>
+    result = agent.<span class="function">run</span>(test_case[<span class="string">"query"</span>])
+    actual_tools = <span class="function">extract_tools_from_result</span>(result)
+
+    <span class="comment"># 평가</span>
+    tracker.<span class="function">evaluate_selection</span>(
+        task_id=test_case[<span class="string">"task_id"</span>],
+        expected_tools=test_case[<span class="string">"expected_tools"</span>],
+        actual_tools=actual_tools
+    )
+
+<span class="comment"># 전체 통계</span>
+stats = tracker.<span class="function">get_accuracy_stats</span>()
+<span class="function">print</span>(<span class="string">f"Overall F1-Score: {stats['avg_f1_score']}%"</span>)
+</div>
+
+            <h4>전략 3: 온라인 학습 (Human-in-the-Loop)</h4>
+            <div class="code-block"><span class="keyword">import</span> json
+
+<span class="comment"># 1. Agent 실행 + Tool Calls 기록</span>
+actual_tools = agent.<span class="function">run_and_log_tools</span>(query)
+
+<span class="comment"># 2. 전문가에게 Expected Tools 입력 요청</span>
+<span class="function">print</span>(<span class="string">f"Query: {query}"</span>)
+<span class="function">print</span>(<span class="string">f"Agent used: {actual_tools}"</span>)
+expected_input = <span class="function">input</span>(<span class="string">"Expected tools (comma-separated): "</span>)
+expected_tools = [t.<span class="function">strip</span>() <span class="keyword">for</span> t <span class="keyword">in</span> expected_input.<span class="function">split</span>(<span class="string">","</span>)]
+
+<span class="comment"># 3. 평가 및 저장</span>
+result = tracker.<span class="function">evaluate_selection</span>(
+    task_id=<span class="string">f"task_{<span class="function">len</span>(labeled_data)}"</span>,
+    expected_tools=expected_tools,
+    actual_tools=actual_tools
+)
+
+<span class="comment"># 4. Labeled Data 축적</span>
+labeled_data.<span class="function">append</span>({
+    <span class="string">"query"</span>: query,
+    <span class="string">"expected_tools"</span>: expected_tools,
+    <span class="string">"actual_tools"</span>: actual_tools,
+    <span class="string">"precision"</span>: result[<span class="string">"precision"</span>],
+    <span class="string">"recall"</span>: result[<span class="string">"recall"</span>],
+    <span class="string">"f1_score"</span>: result[<span class="string">"f1_score"</span>]
+})
+
+<span class="keyword">with</span> <span class="function">open</span>(<span class="string">"tool_selection_dataset.json"</span>, <span class="string">"w"</span>) <span class="keyword">as</span> f:
+    json.<span class="function">dump</span>(labeled_data, f, indent=2)
+</div>
+
+            <h3>3. 프로덕션 통합 예제</h3>
+
+            <div class="code-block"><span class="keyword">from</span> agent_evaluator <span class="keyword">import</span> PerformanceMonitor
+<span class="keyword">from</span> agent_evaluator <span class="keyword">import</span> ToolSelectionTracker
+<span class="keyword">from</span> agent_evaluator.integrations <span class="keyword">import</span> LangChainEvaluator
+
+<span class="comment"># 1. 모니터 및 트래커 초기화</span>
+monitor = <span class="function">PerformanceMonitor</span>()
+tool_tracker = monitor.tool_selection_tracker  <span class="comment"># ✅ 내장 트래커 사용</span>
+
+<span class="comment"># 2. LangChain Agent + Evaluator</span>
+evaluator = <span class="function">LangChainEvaluator</span>(
+    agent_executor,
+    monitor=monitor,
+    enable_layer2=<span class="keyword">True</span>
+)
+
+<span class="comment"># 3. Expected Tools 매핑 로드</span>
+<span class="keyword">with</span> <span class="function">open</span>(<span class="string">"task_tool_mapping.json"</span>) <span class="keyword">as</span> f:
+    task_mapping = json.<span class="function">load</span>(f)
+
+<span class="comment"># 4. 프로덕션 실행</span>
+<span class="keyword">for</span> request <span class="keyword">in</span> production_requests:
+    <span class="comment"># 작업 분류</span>
+    task_type = <span class="function">classify_task</span>(request[<span class="string">"query"</span>])
+    expected_tools = task_mapping.get(task_type, [])
+
+    <span class="comment"># Agent 실행 (Tool Selection 자동 추적)</span>
+    result = evaluator.<span class="function">run</span>(
+        query=request[<span class="string">"query"</span>],
+        expected_tools=expected_tools,  <span class="comment"># ✅ Expected Tools 제공</span>
+        ground_truth=request.get(<span class="string">"ground_truth"</span>)
+    )
+
+    <span class="comment"># 실시간 모니터링</span>
+    <span class="keyword">if</span> request[<span class="string">"task_id"</span>] % 100 == 0:
+        stats = tool_tracker.<span class="function">get_accuracy_stats</span>()
+        <span class="function">print</span>(<span class="string">f"Tool Selection F1: {stats['avg_f1_score']:.1f}%"</span>)
+
+<span class="comment"># 5. 최종 보고서</span>
+report = monitor.<span class="function">generate_report</span>()
+monitor.<span class="function">save_to_file</span>(<span class="string">"production_report.json"</span>)
+</div>
+
+            <h2>💻 사용 예제 (기본)</h2>
+
+            <h3>독립 실행 모드</h3>
+            <div class="code-block">
+<span class="keyword">from</span> agent_evaluator <span class="keyword">import</span> ToolSelectionTracker
+
+<span class="comment"># 트래커 초기화</span>
+tracker = <span class="function">ToolSelectionTracker</span>()
+
+<span class="comment"># 작업 1: 날씨 조회 및 저장</span>
+result1 = tracker.<span class="function">evaluate_selection</span>(
+    task_id=<span class="string">"task_001"</span>,
+    expected_tools=[<span class="string">"get_weather"</span>, <span class="string">"write_file"</span>],
+    actual_tools=[<span class="string">"get_weather"</span>, <span class="string">"write_file"</span>]
+)
+<span class="function">print</span>(result1)
+<span class="comment"># {</span>
+<span class="comment">#   "precision": 100.0,   # 선택한 2개 모두 필요</span>
+<span class="comment">#   "recall": 100.0,      # 필요한 2개 모두 선택</span>
+<span class="comment">#   "f1_score": 100.0,    # 완벽한 선택</span>
+<span class="comment">#   "true_positives": 2,</span>
+<span class="comment">#   "false_positives": 0,</span>
+<span class="comment">#   "false_negatives": 0</span>
+<span class="comment"># }</span>
+
+<span class="comment"># 작업 2: 검색 필요 없는데 선택함</span>
+result2 = tracker.<span class="function">evaluate_selection</span>(
+    task_id=<span class="string">"task_002"</span>,
+    expected_tools=[<span class="string">"get_weather"</span>],
+    actual_tools=[<span class="string">"get_weather"</span>, <span class="string">"search_web"</span>]
+)
+<span class="function">print</span>(result2)
+<span class="comment"># {</span>
+<span class="comment">#   "precision": 50.0,    # 선택한 2개 중 1개만 필요</span>
+<span class="comment">#   "recall": 100.0,      # 필요한 1개는 선택</span>
+<span class="comment">#   "f1_score": 66.67,    # 과잉 선택으로 점수 하락</span>
+<span class="comment">#   "true_positives": 1,</span>
+<span class="comment">#   "false_positives": 1,</span>
+<span class="comment">#   "false_negatives": 0</span>
+<span class="comment"># }</span>
+
+<span class="comment"># 통계 조회</span>
+stats = tracker.<span class="function">get_accuracy_stats</span>()
+<span class="function">print</span>(stats)
+<span class="comment"># {</span>
+<span class="comment">#   "total_evaluations": 2,</span>
+<span class="comment">#   "avg_accuracy": 83.34,</span>
+<span class="comment">#   "avg_precision": 75.0,</span>
+<span class="comment">#   "avg_recall": 100.0</span>
+<span class="comment"># }</span>
+</div>
+
+            <h3>다양한 시나리오</h3>
+
+            <div class="code-block">
+<span class="keyword">from</span> agent_evaluator <span class="keyword">import</span> ToolSelectionTracker
+
+tracker = <span class="function">ToolSelectionTracker</span>()
+
+<span class="comment"># 시나리오 1: 완벽한 선택</span>
+tracker.<span class="function">evaluate_selection</span>(
+    task_id=<span class="string">"perfect"</span>,
+    expected_tools=[<span class="string">"A"</span>, <span class="string">"B"</span>],
+    actual_tools=[<span class="string">"A"</span>, <span class="string">"B"</span>]
+)
+<span class="comment"># Precision: 100%, Recall: 100%, F1: 100%</span>
+
+<span class="comment"># 시나리오 2: 과잉 선택 (FP 발생)</span>
+tracker.<span class="function">evaluate_selection</span>(
+    task_id=<span class="string">"over_selection"</span>,
+    expected_tools=[<span class="string">"A"</span>],
+    actual_tools=[<span class="string">"A"</span>, <span class="string">"B"</span>, <span class="string">"C"</span>]
+)
+<span class="comment"># Precision: 33.33% (1/3), Recall: 100%, F1: 50%</span>
+
+<span class="comment"># 시나리오 3: 누락 발생 (FN 발생)</span>
+tracker.<span class="function">evaluate_selection</span>(
+    task_id=<span class="string">"missing"</span>,
+    expected_tools=[<span class="string">"A"</span>, <span class="string">"B"</span>, <span class="string">"C"</span>],
+    actual_tools=[<span class="string">"A"</span>]
+)
+<span class="comment"># Precision: 100%, Recall: 33.33% (1/3), F1: 50%</span>
+
+<span class="comment"># 시나리오 4: 완전 불일치</span>
+tracker.<span class="function">evaluate_selection</span>(
+    task_id=<span class="string">"mismatch"</span>,
+    expected_tools=[<span class="string">"A"</span>, <span class="string">"B"</span>],
+    actual_tools=[<span class="string">"C"</span>, <span class="string">"D"</span>]
+)
+<span class="comment"># Precision: 0%, Recall: 0%, F1: 0%</span>
+
+<span class="comment"># 전체 통계</span>
+stats = tracker.<span class="function">get_accuracy_stats</span>()
+<span class="function">print</span>(<span class="string">f"Average F1-Score: {stats['avg_f1_score']}%"</span>)
+</div>
+        </div>
+
+        <div class="section">
+            <h2>📈 성능 해석 가이드</h2>
+
+            <table>
+                <thead>
+                    <tr>
+                        <th>지표 조합</th>
+                        <th>의미</th>
+                        <th>문제점</th>
+                        <th>개선 방안</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>High Precision<br/>High Recall</td>
+                        <td>✅ 이상적 - 정확하고 완전한 선택</td>
+                        <td>없음</td>
+                        <td>현 상태 유지</td>
+                    </tr>
+                    <tr>
+                        <td>Low Precision<br/>High Recall</td>
+                        <td>⚠️ 과잉 선택 - 불필요한 도구 많이 호출</td>
+                        <td>비용/시간 낭비, 에러 위험</td>
+                        <td>Tool 필터링 로직 강화</td>
+                    </tr>
+                    <tr>
+                        <td>High Precision<br/>Low Recall</td>
+                        <td>⚠️ 누락 발생 - 필요한 도구 선택 안함</td>
+                        <td>작업 실패, 불완전한 결과</td>
+                        <td>Tool 탐색 범위 확대</td>
+                    </tr>
+                    <tr>
+                        <td>Low Precision<br/>Low Recall</td>
+                        <td>❌ 심각 - 도구 선택 능력 부족</td>
+                        <td>작업 실패율 높음</td>
+                        <td>Prompt 재설계, 모델 교체</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <div class="warning-box">
+                <h4>⚠️ 주의사항</h4>
+                <ul>
+                    <li><strong>Ground Truth 필요</strong>: expected_tools를 정확히 정의해야 함</li>
+                    <li><strong>도구 이름 일치</strong>: 대소문자, 공백 등 정확히 매칭</li>
+                    <li><strong>중복 제거</strong>: Set 변환으로 자동 처리</li>
+                    <li><strong>F1 vs Accuracy</strong>: 이 구현에서는 F1-Score를 accuracy로 사용</li>
+                </ul>
+            </div>
+        </div>
+
+        <div class="section">
+            <h2>🚨 실전 배포 시 주의사항</h2>
+
+            <h3>1. 도구 이름 정규화 문제</h3>
+            <div class="warning-box">
+                <h4>문제: 프레임워크마다 도구 이름 형식이 다름</h4>
+                <ul>
+                    <li><strong>LangChain</strong>: <code>get_weather</code> (snake_case)</li>
+                    <li><strong>OpenAI Functions</strong>: <code>getWeather</code> (camelCase)</li>
+                    <li><strong>CrewAI</strong>: <code>Get Weather</code> (Title Case with spaces)</li>
+                </ul>
+            </div>
+
+            <h4>해결 방법: 정규화 함수 적용</h4>
+            <div class="code-block"><span class="keyword">def</span> <span class="function">normalize_tool_name</span>(tool_name: <span class="keyword">str</span>) -> <span class="keyword">str</span>:
+    <span class="string">"""도구 이름을 표준 형식(snake_case)으로 정규화"""</span>
+    <span class="comment"># 1. 소문자 변환</span>
+    tool_name = tool_name.<span class="function">lower</span>()
+
+    <span class="comment"># 2. 공백/하이픈을 언더스코어로</span>
+    tool_name = tool_name.<span class="function">replace</span>(<span class="string">" "</span>, <span class="string">"_"</span>).<span class="function">replace</span>(<span class="string">"-"</span>, <span class="string">"_"</span>)
+
+    <span class="comment"># 3. camelCase → snake_case</span>
+    <span class="keyword">import</span> re
+    tool_name = re.<span class="function">sub</span>(<span class="string">r'([a-z])([A-Z])'</span>, <span class="string">r'\1_\2'</span>, tool_name)
+
+    <span class="keyword">return</span> tool_name.<span class="function">lower</span>()
+
+<span class="comment"># 평가 시 자동 정규화</span>
+expected_tools_normalized = [<span class="function">normalize_tool_name</span>(t) <span class="keyword">for</span> t <span class="keyword">in</span> expected_tools]
+actual_tools_normalized = [<span class="function">normalize_tool_name</span>(t) <span class="keyword">for</span> t <span class="keyword">in</span> actual_tools]
+
+result = tracker.<span class="function">evaluate_selection</span>(
+    task_id=task_id,
+    expected_tools=expected_tools_normalized,
+    actual_tools=actual_tools_normalized
+)
+</div>
+
+            <h3>2. Expected Tools 불일치 문제</h3>
+            <div class="warning-box">
+                <h4>문제: 작업에 따라 여러 정답이 가능한 경우</h4>
+                <p>예: "서울 날씨 알려줘" → <code>["get_weather"]</code> 또는 <code>["search_web", "extract_info"]</code> 모두 가능</p>
+            </div>
+
+            <h4>해결 방법: Alternative Tools 지원</h4>
+            <div class="code-block"><span class="keyword">def</span> <span class="function">evaluate_with_alternatives</span>(
+    task_id: <span class="keyword">str</span>,
+    expected_tools_list: List[List[<span class="keyword">str</span>]],  <span class="comment"># 여러 정답 가능</span>
+    actual_tools: List[<span class="keyword">str</span>],
+    tracker: ToolSelectionTracker
+) -> Dict[<span class="keyword">str</span>, Any]:
+    <span class="string">"""여러 정답 중 최고 점수 반환"""</span>
+    best_result = <span class="keyword">None</span>
+    best_f1 = 0.0
+
+    <span class="keyword">for</span> expected_tools <span class="keyword">in</span> expected_tools_list:
+        result = tracker.<span class="function">evaluate_selection</span>(
+            task_id=task_id,
+            expected_tools=expected_tools,
+            actual_tools=actual_tools
+        )
+
+        <span class="keyword">if</span> result[<span class="string">"f1_score"</span>] > best_f1:
+            best_f1 = result[<span class="string">"f1_score"</span>]
+            best_result = result
+
+    <span class="keyword">return</span> best_result
+
+<span class="comment"># 사용 예제</span>
+result = <span class="function">evaluate_with_alternatives</span>(
+    task_id=<span class="string">"task_001"</span>,
+    expected_tools_list=[
+        [<span class="string">"get_weather"</span>],                      <span class="comment"># 방법 1</span>
+        [<span class="string">"search_web"</span>, <span class="string">"extract_info"</span>]     <span class="comment"># 방법 2</span>
+    ],
+    actual_tools=actual_tools,
+    tracker=tracker
+)
+</div>
+
+            <h3>3. 프로덕션 모니터링 패턴</h3>
+            <div class="implementation-note">
+                <h4>✅ 권장 패턴: 샘플링 + 주기적 리뷰</h4>
+                <p>모든 요청에 대해 expected_tools를 정의하는 것은 비현실적입니다. 다음 패턴을 권장합니다:</p>
+            </div>
+
+            <div class="code-block"><span class="keyword">import</span> random
+
+<span class="keyword">class</span> <span class="function">ProductionToolSelectionMonitor</span>:
+    <span class="keyword">def</span> <span class="function">__init__</span>(<span class="keyword">self</span>, sampling_rate: <span class="keyword">float</span> = 0.05):
+        <span class="keyword">self</span>.tracker = <span class="function">ToolSelectionTracker</span>()
+        <span class="keyword">self</span>.sampling_rate = sampling_rate
+        <span class="keyword">self</span>.pending_review = []  <span class="comment"># Expected Tools 미정의 케이스</span>
+        <span class="keyword">self</span>.task_tool_mapping = <span class="function">load_mapping</span>(<span class="string">"task_tool_mapping.json"</span>)
+
+    <span class="keyword">def</span> <span class="function">evaluate_request</span>(<span class="keyword">self</span>, task_id, query, actual_tools):
+        <span class="comment"># 1. 작업 분류 시도</span>
+        task_type = <span class="function">classify_task</span>(query)
+        expected_tools = <span class="keyword">self</span>.task_tool_mapping.get(task_type)
+
+        <span class="keyword">if</span> expected_tools:
+            <span class="comment"># Expected Tools가 있으면 즉시 평가</span>
+            result = <span class="keyword">self</span>.tracker.<span class="function">evaluate_selection</span>(
+                task_id=task_id,
+                expected_tools=expected_tools,
+                actual_tools=actual_tools
+            )
+            <span class="keyword">return</span> result
+        <span class="keyword">else</span>:
+            <span class="comment"># 2. 매핑 없으면 샘플링하여 리뷰 대기열에 추가</span>
+            <span class="keyword">if</span> random.<span class="function">random</span>() < <span class="keyword">self</span>.sampling_rate:
+                <span class="keyword">self</span>.pending_review.<span class="function">append</span>({
+                    <span class="string">"task_id"</span>: task_id,
+                    <span class="string">"query"</span>: query,
+                    <span class="string">"actual_tools"</span>: actual_tools,
+                    <span class="string">"timestamp"</span>: datetime.<span class="function">now</span>()
+                })
+            <span class="keyword">return</span> <span class="keyword">None</span>
+
+    <span class="keyword">def</span> <span class="function">export_for_review</span>(<span class="keyword">self</span>, output_path: <span class="keyword">str</span>):
+        <span class="string">"""주간 리뷰용 데이터 내보내기"""</span>
+        <span class="keyword">with</span> <span class="function">open</span>(output_path, <span class="string">"w"</span>) <span class="keyword">as</span> f:
+            json.<span class="function">dump</span>(<span class="keyword">self</span>.pending_review, f, indent=2, default=<span class="keyword">str</span>)
+
+        <span class="function">print</span>(<span class="string">f"📊 {<span class="function">len</span>(<span class="keyword">self</span>.pending_review)} cases exported for review"</span>)
+        <span class="keyword">self</span>.pending_review = []
+
+<span class="comment"># 사용</span>
+monitor = <span class="function">ProductionToolSelectionMonitor</span>(sampling_rate=0.05)  <span class="comment"># 5% 샘플링</span>
+
+<span class="keyword">for</span> request <span class="keyword">in</span> production_requests:
+    actual_tools = agent.<span class="function">run_and_extract_tools</span>(request[<span class="string">"query"</span>])
+    monitor.<span class="function">evaluate_request</span>(
+        task_id=request[<span class="string">"task_id"</span>],
+        query=request[<span class="string">"query"</span>],
+        actual_tools=actual_tools
+    )
+
+<span class="comment"># 주간 리뷰 내보내기</span>
+monitor.<span class="function">export_for_review</span>(<span class="string">"weekly_review_2025_w03.json"</span>)
+</div>
+
+            <h3>4. 성능 최적화 팁</h3>
+            <div class="info-box">
+                <h4>💡 대규모 프로덕션 환경에서의 최적화</h4>
+                <ul>
+                    <li><strong>Batch Evaluation</strong>: 100개씩 묶어서 평가 (pandas DataFrame 활용)</li>
+                    <li><strong>캐싱</strong>: 동일 task_type은 expected_tools 캐싱</li>
+                    <li><strong>비동기 처리</strong>: Tool Selection 평가를 별도 스레드에서 처리</li>
+                    <li><strong>집계 간격</strong>: 실시간 대신 1시간마다 통계 계산</li>
+                </ul>
+            </div>
+
+            <div class="code-block"><span class="keyword">import</span> pandas <span class="keyword">as</span> pd
+<span class="keyword">from</span> concurrent.futures <span class="keyword">import</span> ThreadPoolExecutor
+
+<span class="keyword">def</span> <span class="function">batch_evaluate_tool_selection</span>(
+    evaluations: List[Dict],  <span class="comment"># [{"task_id": ..., "expected": ..., "actual": ...}]</span>
+    tracker: ToolSelectionTracker
+) -> pd.DataFrame:
+    <span class="string">"""대량 평가를 병렬 처리"""</span>
+
+    <span class="keyword">def</span> <span class="function">evaluate_single</span>(eval_item):
+        <span class="keyword">return</span> tracker.<span class="function">evaluate_selection</span>(
+            task_id=eval_item[<span class="string">"task_id"</span>],
+            expected_tools=eval_item[<span class="string">"expected"</span>],
+            actual_tools=eval_item[<span class="string">"actual"</span>]
+        )
+
+    <span class="comment"># 병렬 평가</span>
+    <span class="keyword">with</span> <span class="function">ThreadPoolExecutor</span>(max_workers=10) <span class="keyword">as</span> executor:
+        results = <span class="function">list</span>(executor.<span class="function">map</span>(evaluate_single, evaluations))
+
+    <span class="keyword">return</span> pd.<span class="function">DataFrame</span>(results)
+
+<span class="comment"># 사용</span>
+evaluations = [...]  <span class="comment"># 수집된 평가 데이터</span>
+df_results = <span class="function">batch_evaluate_tool_selection</span>(evaluations, tracker)
+
+<span class="comment"># 통계 출력</span>
+<span class="function">print</span>(df_results[[<span class="string">"precision"</span>, <span class="string">"recall"</span>, <span class="string">"f1_score"</span>]].<span class="function">describe</span>())
+</div>
+        </div>
+
+        <div class="section">
+            <h2>🔗 관련 지표</h2>
+
+            <table>
+                <thead>
+                    <tr>
+                        <th>관련 지표</th>
+                        <th>관계</th>
+                        <th>문서 링크</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><strong>Task Completion Rate</strong></td>
+                        <td>Tool Selection이 높으면 TCR도 향상</td>
+                        <td><a href="01_TASK_COMPLETION_RATE.html">Task Completion 가이드</a></td>
+                    </tr>
+                    <tr>
+                        <td><strong>Tool Authorization</strong></td>
+                        <td>선택된 도구의 권한 검증</td>
+                        <td><a href="10_TOOL_AUTHORIZATION.html">Tool Authorization 가이드</a></td>
+                    </tr>
+                    <tr>
+                        <td><strong>Latency Metrics</strong></td>
+                        <td>불필요한 Tool 호출이 지연 유발</td>
+                        <td><a href="05_LATENCY_METRICS.html">Latency 가이드</a></td>
+                    </tr>
+                    <tr>
+                        <td><strong>Cost/Token Economy</strong></td>
+                        <td>과잉 Tool 선택이 비용 증가</td>
+                        <td><a href="06_COST_TOKEN_ECONOMY.html">Cost 가이드</a></td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div class="section">
+            <h2>📋 요약</h2>
+
+            <div class="intro-box">
+                <strong>Tool Selection Accuracy</strong>는 AI Agent의 도구 선택 능력을 평가하는 핵심 Layer 2 지표입니다.
+
+                <ul style="margin-top: 15px;">
+                    <li><strong>Precision</strong>: 선택한 도구 중 올바른 비율 (과잉 선택 방지)</li>
+                    <li><strong>Recall</strong>: 필요한 도구 중 선택한 비율 (누락 방지)</li>
+                    <li><strong>F1-Score</strong>: 두 지표의 조화 평균 (종합 평가)</li>
+                    <li><strong>적용 대상</strong>: AutoGen, LangChain, CrewAI 등 Tool-using Agents</li>
+                    <li><strong>목표</strong>: F1-Score 90% 이상</li>
+                </ul>
+
+                <br>
+                Layer 2 메트릭으로 <span class="highlight">Agent의 의사결정 품질</span>을 측정하며,
+                프로덕션 AI 시스템의 <span class="highlight">효율성과 신뢰성</span> 향상에 필수적입니다.
+            </div>
+        </div>
+
+        <div class="section">
+            <h2>📚 참고 자료</h2>
+            <ul>
+                <li><a href="../README.html">Agent Evaluator 메인 문서</a></li>
+                <li><a href="../LEARNING_GUIDE.html">종합 학습 가이드</a></li>
+                <li><a href="https://en.wikipedia.org/wiki/Precision_and_recall">Wikipedia: Precision and Recall</a></li>
+                <li><a href="https://en.wikipedia.org/wiki/F-score">Wikipedia: F1-Score</a></li>
+            </ul>
+        </div>
+    </div>
+
+    <div class="footer">
+        <p><strong>최종 업데이트</strong>: 2025-12-18 | <strong>버전</strong>: Agent Evaluator v0.5.0</p>
+        <p><strong>문서</strong>: Tool Selection Accuracy 상세 가이드 (Layer 2 Metric)</p>
+        <p>© 2025 Agent Evaluator. All rights reserved.</p>
+    </div>
+    </div>
+
+    <!-- Mermaid.js for diagrams -->
+    <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+    <script>
+        mermaid.initialize({
+            startOnLoad: true,
+            theme: 'default',
+            flowchart: {
+                useMaxWidth: true,
+                htmlLabels: true,
+                curve: 'basis'
+            }
+        });
+    </script>
+    <script src="../scripts/mermaid-zoom.js"></script>
+</body>
+</html>

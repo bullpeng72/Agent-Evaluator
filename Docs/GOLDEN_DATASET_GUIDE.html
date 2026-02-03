@@ -1,0 +1,2087 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Golden Dataset 가이드 - Agent Evaluator</title>
+
+    <!-- Common Styles -->
+    <link rel="stylesheet" href="styles/common.css">
+
+    <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+    <script>
+        mermaid.initialize({
+            startOnLoad: true,
+            theme: 'default',
+            flowchart: {
+                useMaxWidth: true,
+                htmlLabels: true,
+                curve: 'basis'
+            },
+            themeVariables: {
+                fontSize: '14px'
+            }
+        });
+    </script>
+    
+</head>
+<body>
+    <div class="content-wrapper">
+        <div class="doc-header">
+            <h1>📚 Golden Dataset 가이드</h1>
+            <p style="color: #4a5568; margin-top: 10px;">테스트 데이터셋 생성 및 관리 (Agent Evaluator v0.5.0)</p>
+        </div>
+
+        <div class="doc-content">
+<h1 id="golden-dataset-가이드">Golden Dataset 가이드</h1>
+<h2 id="목차">목차</h2>
+<ol type="1">
+<li><a href="#golden-dataset란">Golden Dataset란?</a></li>
+<li><a href="#qapair-구조-완전-가이드">QAPair 구조 완전 가이드</a></li>
+<li><a href="#layer-1-필드-기본">Layer 1 필드 (기본)</a></li>
+<li><a href="#layer-2-필드-agentic-security">Layer 2 필드 (Agentic + Security)</a></li>
+<li><a href="#golden-dataset-생성-방법">Golden Dataset 생성 방법</a></li>
+<li><a href="#dashboard에서-편집하기">Dashboard에서 편집하기</a></li>
+<li><a href="#자동-평가-워크플로우">자동 평가 워크플로우</a></li>
+<li><a href="#best-practices">Best Practices</a></li>
+<li><a href="#예제-golden-datasets">예제 Golden Datasets</a></li>
+<li><a href="#qa-품질-관리자-가이드">📊 품질 관리자 가이드 (QA Manager)</a>
+<ul>
+<li><a href="#qa-1-golden-dataset-품질-관리">1. Golden Dataset 품질 관리</a></li>
+<li><a href="#qa-2-데이터셋-품질-지표">2. 데이터셋 품질 지표</a></li>
+<li><a href="#qa-3-데이터셋-유지보수">3. 데이터셋 유지보수</a></li>
+<li><a href="#qa-4-문제-시나리오-및-해결">4. 문제 시나리오 및 해결</a></li>
+<li><a href="#qa-5-qa-관리자-핵심-원칙">5. QA 관리자 핵심 원칙</a></li>
+</ul></li>
+<li><a href="#faq-troubleshooting">FAQ &amp; Troubleshooting</a></li>
+</ol>
+<hr />
+<h2 id="중요-문서-vs-실제-구현">중요: 문서 vs 실제 구현</h2>
+<p>이 가이드는 실제 구현 코드와 검증되었으며, 다음 사항을
+확인하십시오:</p>
+<h3 id="검증된-필드명">✅ 검증된 필드명</h3>
+<table>
+<thead>
+<tr class="doc-header">
+<th>문서 표기</th>
+<th>실제 구현</th>
+<th>상태</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>qa_id</code></td>
+<td><code>qa_id</code></td>
+<td>✅ 일치</td>
+</tr>
+<tr class="even">
+<td><code>question</code></td>
+<td><code>question</code></td>
+<td>✅ 일치</td>
+</tr>
+<tr class="odd">
+<td><code>answer</code></td>
+<td><code>answer</code></td>
+<td>✅ 일치 (필수)</td>
+</tr>
+<tr class="even">
+<td><code>context</code></td>
+<td><code>context</code></td>
+<td>✅ 일치 (단수형)</td>
+</tr>
+<tr class="odd">
+<td><code>ground_truth</code></td>
+<td><code>ground_truth</code></td>
+<td>✅ 일치</td>
+</tr>
+<tr class="even">
+<td><code>metadata</code></td>
+<td><code>metadata</code></td>
+<td>✅ 일치</td>
+</tr>
+<tr class="odd">
+<td><code>expected_tools</code></td>
+<td><code>expected_tools</code></td>
+<td>✅ 일치</td>
+</tr>
+<tr class="even">
+<td><code>expected_agents</code></td>
+<td><code>expected_agents</code></td>
+<td>✅ 일치</td>
+</tr>
+<tr class="odd">
+<td><code>expected_workflow_steps</code></td>
+<td><code>expected_workflow_steps</code></td>
+<td>✅ 일치</td>
+</tr>
+</tbody>
+</table>
+<h3 id="검증된-golden-dataset-구조">✅ 검증된 Golden Dataset 구조</h3>
+<div class="sourceCode" id="cb1"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="co"># korean_rag_dataset_generator.py에서 실제 구현</span></span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="at">@dataclass</span></span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> QAPair:</span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a>    qa_id: <span class="bu">str</span>                                    <span class="co"># 고유 ID</span></span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a>    question: <span class="bu">str</span>                                 <span class="co"># 질문</span></span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a>    answer: <span class="bu">str</span>                                   <span class="co"># 완전한 답변 (2-3문장)</span></span>
+<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a>    context: <span class="bu">str</span>                                  <span class="co"># 컨텍스트 (단수형)</span></span>
+<span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a>    ground_truth: <span class="bu">str</span>                             <span class="co"># 평가 기준 답변 (1-2문장)</span></span>
+<span id="cb1-9"><a href="#cb1-9" aria-hidden="true" tabindex="-1"></a>    metadata: Dict[<span class="bu">str</span>, Any]                      <span class="co"># 메타데이터</span></span>
+<span id="cb1-10"><a href="#cb1-10" aria-hidden="true" tabindex="-1"></a>    expected_tools: Optional[List[<span class="bu">str</span>]]           <span class="co"># Layer 2</span></span>
+<span id="cb1-11"><a href="#cb1-11" aria-hidden="true" tabindex="-1"></a>    expected_agents: Optional[List[<span class="bu">str</span>]]          <span class="co"># Layer 2</span></span>
+<span id="cb1-12"><a href="#cb1-12" aria-hidden="true" tabindex="-1"></a>    expected_workflow_steps: Optional[List[<span class="bu">str</span>]]  <span class="co"># Layer 2</span></span>
+<span id="cb1-13"><a href="#cb1-13" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-14"><a href="#cb1-14" aria-hidden="true" tabindex="-1"></a><span class="at">@dataclass</span></span>
+<span id="cb1-15"><a href="#cb1-15" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> GoldenDataset:</span>
+<span id="cb1-16"><a href="#cb1-16" aria-hidden="true" tabindex="-1"></a>    dataset_id: <span class="bu">str</span>           <span class="co"># 데이터셋 ID</span></span>
+<span id="cb1-17"><a href="#cb1-17" aria-hidden="true" tabindex="-1"></a>    source_document: <span class="bu">str</span>      <span class="co"># 소스 문서 경로</span></span>
+<span id="cb1-18"><a href="#cb1-18" aria-hidden="true" tabindex="-1"></a>    created_at: <span class="bu">str</span>           <span class="co"># 생성 시간</span></span>
+<span id="cb1-19"><a href="#cb1-19" aria-hidden="true" tabindex="-1"></a>    total_qa_pairs: <span class="bu">int</span>       <span class="co"># 총 QA 쌍 수</span></span>
+<span id="cb1-20"><a href="#cb1-20" aria-hidden="true" tabindex="-1"></a>    qa_pairs: List[QAPair]    <span class="co"># QA 쌍 리스트</span></span>
+<span id="cb1-21"><a href="#cb1-21" aria-hidden="true" tabindex="-1"></a>    metadata: Dict[<span class="bu">str</span>, Any]  <span class="co"># 추가 메타데이터</span></span></code></pre></div>
+<h3 id="핵심-차이점">🔑 핵심 차이점</h3>
+<ol type="1">
+<li><strong><code>answer</code> vs <code>ground_truth</code></strong>
+<ul>
+<li><code>answer</code>: 문서 기반의 완전한 답변 (2-3문장)</li>
+<li><code>ground_truth</code>: 평가용 간결한 핵심 답변 (1-2문장)</li>
+<li>둘 다 필수 필드</li>
+</ul></li>
+<li><strong><code>context</code> (단수형)</strong>
+<ul>
+<li>❌ <code>contexts</code> (복수형) 아님</li>
+<li>✅ <code>context</code> (단수형) 사용</li>
+</ul></li>
+<li><strong>Golden Dataset 파일 구조</strong>
+<ul>
+<li>최상위: <code>dataset_id</code>, <code>source_document</code>,
+<code>created_at</code>, <code>total_qa_pairs</code>,
+<code>qa_pairs</code>, <code>metadata</code></li>
+<li>❌ <code>dataset_name</code>, <code>version</code> 필드 아님</li>
+</ul></li>
+<li><strong>PDF 생성 프로세스</strong>
+<ul>
+<li>사용 클래스: <code>KoreanRAGDatasetGenerator</code></li>
+<li>청크 크기: 기본 1000자 (설정 가능)</li>
+<li>AI 모델: OpenAI GPT (gpt-4o-mini 또는 gpt-4o)</li>
+<li>Layer 2 필드: 자동 생성 안 됨 (수동 추가 필요)</li>
+</ul></li>
+</ol>
+<hr />
+<h2 id="golden-dataset란">Golden Dataset란?</h2>
+<h3 id="정의">정의</h3>
+<p><strong>Golden Dataset</strong>은 AI 에이전트를 평가하기 위한
+<strong>표준 테스트 데이터셋</strong>입니다. 각 항목은 질문(Question),
+답변(Answer), 정답(Ground Truth), 컨텍스트(Context), 그리고 기대
+동작(Expected Behavior)을 포함합니다.</p>
+<h3 id="왜-필요한가">왜 필요한가?</h3>
+<h4 id="객관적-평가-기준">1. 객관적 평가 기준</h4>
+<ul>
+<li>수동 테스트는 일관성이 없고 재현이 어렵습니다</li>
+<li>Golden Dataset은 <strong>반복 가능하고 객관적인</strong> 평가 기준을
+제공합니다</li>
+<li>CI/CD 파이프라인에 통합 가능합니다</li>
+</ul>
+<h4 id="회귀-테스트">2. 회귀 테스트</h4>
+<ul>
+<li>에이전트를 업데이트할 때마다 <strong>성능이 저하되지
+않았는지</strong> 확인</li>
+<li>이전 버전과 현재 버전의 정량적 비교</li>
+</ul>
+<h4 id="layer-2-agentic-security-메트릭-평가">3. Layer 2 Agentic + Security 메트릭 평가</h4>
+<ul>
+<li><strong>Tool Selection</strong>: 올바른 도구를 선택했는지 검증</li>
+<li><strong>Agent Coordination</strong>: 에이전트 간 협업이 올바른지
+검증</li>
+<li><strong>Workflow Execution</strong>: 워크플로우 실행이 예상대로
+진행되었는지 검증</li>
+</ul>
+<h4 id="프로덕션-준비-검증">4. 프로덕션 준비 검증</h4>
+<ul>
+<li>엄격한 임계값(threshold)과 함께 사용하여 <strong>품질
+게이트</strong> 역할</li>
+<li>모든 테스트를 통과해야만 배포 진행</li>
+</ul>
+<hr />
+<h2 id="qapair-구조-완전-가이드">QAPair 구조 완전 가이드</h2>
+<h3 id="qapair란">QAPair란?</h3>
+<p><strong>QAPair</strong>(Question-Answer Pair)는 Golden Dataset의 기본
+단위입니다. 각 QAPair는 하나의 테스트 케이스를 나타냅니다.</p>
+<h3 id="전체-구조-json">전체 구조 (JSON)</h3>
+<div class="sourceCode" id="cb2"><pre
+class="sourceCode json"><code class="sourceCode json"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="fu">{</span></span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;qa_id&quot;</span><span class="fu">:</span> <span class="st">&quot;qa_001&quot;</span><span class="fu">,</span></span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;question&quot;</span><span class="fu">:</span> <span class="st">&quot;What is the capital of France?&quot;</span><span class="fu">,</span></span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;answer&quot;</span><span class="fu">:</span> <span class="st">&quot;The capital of France is Paris.&quot;</span><span class="fu">,</span></span>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;context&quot;</span><span class="fu">:</span> <span class="st">&quot;France is a country in Western Europe. Its capital and largest city is Paris.&quot;</span><span class="fu">,</span></span>
+<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;ground_truth&quot;</span><span class="fu">:</span> <span class="st">&quot;The capital of France is Paris.&quot;</span><span class="fu">,</span></span>
+<span id="cb2-7"><a href="#cb2-7" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;metadata&quot;</span><span class="fu">:</span> <span class="fu">{</span></span>
+<span id="cb2-8"><a href="#cb2-8" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;domain&quot;</span><span class="fu">:</span> <span class="st">&quot;geography&quot;</span><span class="fu">,</span></span>
+<span id="cb2-9"><a href="#cb2-9" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;difficulty&quot;</span><span class="fu">:</span> <span class="st">&quot;easy&quot;</span><span class="fu">,</span></span>
+<span id="cb2-10"><a href="#cb2-10" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;source&quot;</span><span class="fu">:</span> <span class="st">&quot;manual&quot;</span></span>
+<span id="cb2-11"><a href="#cb2-11" aria-hidden="true" tabindex="-1"></a>  <span class="fu">},</span></span>
+<span id="cb2-12"><a href="#cb2-12" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;expected_tools&quot;</span><span class="fu">:</span> <span class="ot">[</span><span class="st">&quot;search&quot;</span><span class="ot">,</span> <span class="st">&quot;knowledge_base&quot;</span><span class="ot">]</span><span class="fu">,</span></span>
+<span id="cb2-13"><a href="#cb2-13" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;expected_agents&quot;</span><span class="fu">:</span> <span class="ot">[</span><span class="st">&quot;researcher&quot;</span><span class="ot">,</span> <span class="st">&quot;validator&quot;</span><span class="ot">]</span><span class="fu">,</span></span>
+<span id="cb2-14"><a href="#cb2-14" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;expected_workflow_steps&quot;</span><span class="fu">:</span> <span class="ot">[</span><span class="st">&quot;retrieval&quot;</span><span class="ot">,</span> <span class="st">&quot;generation&quot;</span><span class="ot">,</span> <span class="st">&quot;validation&quot;</span><span class="ot">]</span></span>
+<span id="cb2-15"><a href="#cb2-15" aria-hidden="true" tabindex="-1"></a><span class="fu">}</span></span></code></pre></div>
+<h3 id="필드-설명">필드 설명</h3>
+<table>
+<colgroup>
+<col style="width: 19%" />
+<col style="width: 19%" />
+<col style="width: 19%" />
+<col style="width: 22%" />
+<col style="width: 19%" />
+</colgroup>
+<thead>
+<tr class="doc-header">
+<th>필드</th>
+<th>타입</th>
+<th>필수</th>
+<th>Layer</th>
+<th>설명</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>qa_id</code></td>
+<td>string</td>
+<td>✅</td>
+<td>1</td>
+<td>고유 식별자 (예: “qa_001”)</td>
+</tr>
+<tr class="even">
+<td><code>question</code></td>
+<td>string</td>
+<td>✅</td>
+<td>1</td>
+<td>에이전트에게 제공될 질문</td>
+</tr>
+<tr class="odd">
+<td><code>answer</code></td>
+<td>string</td>
+<td>✅</td>
+<td>1</td>
+<td>문서 내용 기반의 완전한 답변 (2-3문장)</td>
+</tr>
+<tr class="even">
+<td><code>context</code></td>
+<td>string</td>
+<td>✅</td>
+<td>1</td>
+<td>질문에 대한 배경 정보/컨텍스트 (단수형)</td>
+</tr>
+<tr class="odd">
+<td><code>ground_truth</code></td>
+<td>string</td>
+<td>✅</td>
+<td>1</td>
+<td>평가를 위한 기준 답변 (1-2문장, 간결하게)</td>
+</tr>
+<tr class="even">
+<td><code>metadata</code></td>
+<td>object</td>
+<td>❌</td>
+<td>1</td>
+<td>추가 메타데이터 (domain, difficulty 등)</td>
+</tr>
+<tr class="odd">
+<td><code>expected_tools</code></td>
+<td>list[string]</td>
+<td>❌</td>
+<td>2</td>
+<td>에이전트가 사용해야 할 도구 목록</td>
+</tr>
+<tr class="even">
+<td><code>expected_agents</code></td>
+<td>list[string]</td>
+<td>❌</td>
+<td>2</td>
+<td>참여해야 할 에이전트 목록</td>
+</tr>
+<tr class="odd">
+<td><code>expected_workflow_steps</code></td>
+<td>list[string]</td>
+<td>❌</td>
+<td>2</td>
+<td>실행되어야 할 워크플로우 단계</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="layer-1-필드-기본">Layer 1 필드 (기본)</h2>
+<p>Layer 1 필드는 <strong>기본적인 QA 평가</strong>에 필요한
+필드들입니다.</p>
+<h3 id="qa_id-필수">1. <code>qa_id</code> (필수)</h3>
+<ul>
+<li><p><strong>타입</strong>: <code>string</code></p></li>
+<li><p><strong>설명</strong>: QAPair의 고유 식별자</p></li>
+<li><p><strong>형식</strong>: 자유 형식이지만 일관된 패턴 권장</p></li>
+<li><p><strong>실제 구현</strong>:
+<code>korean_rag_dataset_generator.py</code>의 <code>QAPair</code>
+클래스에서 <code>qa_id</code> 필드명 사용</p></li>
+<li><p><strong>예제</strong>:</p>
+<div class="sourceCode" id="cb3"><pre
+class="sourceCode json"><code class="sourceCode json"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="er">&quot;qa_id&quot;:</span> <span class="er">&quot;qa_001&quot;</span></span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a><span class="er">&quot;qa_id&quot;:</span> <span class="er">&quot;math_calculation_01&quot;</span></span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a><span class="er">&quot;qa_id&quot;:</span> <span class="er">&quot;customer_support_greeting_001&quot;</span></span></code></pre></div></li>
+</ul>
+<h3 id="question-필수">2. <code>question</code> (필수)</h3>
+<ul>
+<li><p><strong>타입</strong>: <code>string</code></p></li>
+<li><p><strong>설명</strong>: 에이전트에게 제공될 질문 또는
+프롬프트</p></li>
+<li><p><strong>작성 팁</strong>:</p>
+<ul>
+<li>명확하고 구체적으로 작성</li>
+<li>실제 사용자가 물어볼 법한 질문</li>
+<li>모호성을 최소화</li>
+</ul></li>
+<li><p><strong>예제</strong>:</p>
+<div class="sourceCode" id="cb4"><pre
+class="sourceCode json"><code class="sourceCode json"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="er">&quot;question&quot;:</span> <span class="er">&quot;What</span> <span class="er">is</span> <span class="er">25</span> <span class="er">*</span> <span class="er">4?&quot;</span></span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a><span class="er">&quot;question&quot;:</span> <span class="er">&quot;Summarize</span> <span class="er">the</span> <span class="er">main</span> <span class="er">points</span> <span class="er">of</span> <span class="er">the</span> <span class="er">attached</span> <span class="er">PDF</span> <span class="er">document.&quot;</span></span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a><span class="er">&quot;question&quot;:</span> <span class="er">&quot;Find</span> <span class="er">the</span> <span class="er">latest</span> <span class="er">news</span> <span class="er">about</span> <span class="er">AI</span> <span class="er">in</span> <span class="er">healthcare.&quot;</span></span></code></pre></div></li>
+</ul>
+<h3 id="ground_truth-필수">3. <code>ground_truth</code> (필수)</h3>
+<ul>
+<li><p><strong>타입</strong>: <code>string</code></p></li>
+<li><p><strong>설명</strong>: 정답 또는 예상 응답</p></li>
+<li><p><strong>작성 팁</strong>:</p>
+<ul>
+<li>정확하고 완전한 답변</li>
+<li>유연성 허용: 완전 일치가 아닌 유사도 평가</li>
+<li>다양한 표현 허용</li>
+</ul></li>
+<li><p><strong>예제</strong>:</p>
+<div class="sourceCode" id="cb5"><pre
+class="sourceCode json"><code class="sourceCode json"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="er">&quot;ground_truth&quot;:</span> <span class="er">&quot;100&quot;</span></span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a><span class="er">&quot;ground_truth&quot;:</span> <span class="er">&quot;The</span> <span class="er">document</span> <span class="er">discusses</span> <span class="er">three</span> <span class="er">main</span> <span class="er">topics:</span> <span class="er">climate</span> <span class="er">change</span> <span class="er">impacts,</span> <span class="er">renewable</span> <span class="er">energy</span> <span class="er">solutions,</span> <span class="er">and</span> <span class="er">policy</span> <span class="er">recommendations.&quot;</span></span></code></pre></div></li>
+</ul>
+<h3 id="answer-필수">4. <code>answer</code> (필수)</h3>
+<ul>
+<li><p><strong>타입</strong>: <code>string</code></p></li>
+<li><p><strong>설명</strong>: 문서 내용을 바탕으로 한 완전한
+답변</p></li>
+<li><p><strong>실제 구현</strong>: PDF 생성 시 AI가 2-3문장으로 자동
+생성</p></li>
+<li><p><strong>작성 팁</strong>:</p>
+<ul>
+<li>주어진 문서 내용만을 기반으로 작성</li>
+<li>완전하고 상세한 답변 (2-3문장)</li>
+<li><code>ground_truth</code>보다 더 상세함</li>
+</ul></li>
+<li><p><strong>예제</strong>:</p>
+<div class="sourceCode" id="cb6"><pre
+class="sourceCode json"><code class="sourceCode json"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="er">&quot;answer&quot;:</span> <span class="er">&quot;100&quot;</span></span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a><span class="er">&quot;answer&quot;:</span> <span class="er">&quot;The</span> <span class="er">document</span> <span class="er">discusses</span> <span class="er">three</span> <span class="er">main</span> <span class="er">topics:</span> <span class="er">climate</span> <span class="er">change</span> <span class="er">impacts,</span> <span class="er">renewable</span> <span class="er">energy</span> <span class="er">solutions,</span> <span class="er">and</span> <span class="er">policy</span> <span class="er">recommendations.</span> <span class="er">It</span> <span class="er">provides</span> <span class="er">detailed</span> <span class="er">analysis</span> <span class="er">of</span> <span class="er">current</span> <span class="er">trends</span> <span class="er">and</span> <span class="er">future</span> <span class="er">projections.&quot;</span></span></code></pre></div></li>
+</ul>
+<h3 id="context-필수">5. <code>context</code> (필수)</h3>
+<ul>
+<li><p><strong>타입</strong>: <code>string</code> (단수형)</p></li>
+<li><p><strong>설명</strong>: 질문에 대한 배경 정보 또는 컨텍스트 (문서
+청크 내용)</p></li>
+<li><p><strong>실제 구현</strong>: PDF 청킹 시 생성된 청크 내용이
+자동으로 context로 사용됨</p></li>
+<li><p><strong>작성 팁</strong>:</p>
+<ul>
+<li>에이전트가 답변을 생성하는 데 필요한 정보</li>
+<li>RAG 시스템에서는 검색 결과로 사용될 수 있음</li>
+<li>충분한 정보를 제공하되, 불필요한 정보는 제외</li>
+</ul></li>
+<li><p><strong>예제</strong>:</p>
+<div class="sourceCode" id="cb7"><pre
+class="sourceCode json"><code class="sourceCode json"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="er">&quot;context&quot;:</span> <span class="er">&quot;The</span> <span class="er">user</span> <span class="er">is</span> <span class="er">asking</span> <span class="er">for</span> <span class="er">a</span> <span class="er">basic</span> <span class="er">multiplication</span> <span class="er">calculation.&quot;</span></span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a><span class="er">&quot;context&quot;:</span> <span class="er">&quot;The</span> <span class="er">PDF</span> <span class="er">document</span> <span class="er">titled</span> <span class="er">&#39;Climate</span> <span class="er">Action</span> <span class="er">Report</span> <span class="er">2024&#39;</span> <span class="er">contains</span> <span class="er">50</span> <span class="er">pages</span> <span class="er">discussing</span> <span class="er">climate</span> <span class="er">change,</span> <span class="er">renewable</span> <span class="er">energy,</span> <span class="er">and</span> <span class="er">policy</span> <span class="er">recommendations.</span> <span class="er">The</span> <span class="er">report</span> <span class="er">was</span> <span class="er">published</span> <span class="er">by</span> <span class="er">the</span> <span class="er">International</span> <span class="er">Climate</span> <span class="er">Organization.&quot;</span></span></code></pre></div></li>
+</ul>
+<h3 id="ground_truth-필수-1">6. <code>ground_truth</code> (필수)</h3>
+<ul>
+<li><p><strong>타입</strong>: <code>string</code></p></li>
+<li><p><strong>설명</strong>: 평가를 위한 핵심 정답 (간결한
+버전)</p></li>
+<li><p><strong>실제 구현</strong>: AI가 1-2문장으로 간결하게
+생성</p></li>
+<li><p><strong><code>answer</code>와의 차이</strong>:</p>
+<ul>
+<li><code>answer</code>: 완전하고 상세한 답변 (2-3문장)</li>
+<li><code>ground_truth</code>: 평가 기준이 되는 핵심 정답 (1-2문장,
+간결)</li>
+</ul></li>
+<li><p><strong>작성 팁</strong>:</p>
+<ul>
+<li>정확하고 완전한 답변</li>
+<li>유연성 허용: 완전 일치가 아닌 유사도 평가</li>
+<li>다양한 표현 허용</li>
+</ul></li>
+<li><p><strong>예제</strong>:</p>
+<div class="sourceCode" id="cb8"><pre
+class="sourceCode json"><code class="sourceCode json"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="er">&quot;ground_truth&quot;:</span> <span class="er">&quot;100&quot;</span></span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a><span class="er">&quot;ground_truth&quot;:</span> <span class="er">&quot;The</span> <span class="er">document</span> <span class="er">discusses</span> <span class="er">climate</span> <span class="er">change,</span> <span class="er">renewable</span> <span class="er">energy,</span> <span class="er">and</span> <span class="er">policy</span> <span class="er">recommendations.&quot;</span></span></code></pre></div></li>
+</ul>
+<h3 id="metadata-선택">7. <code>metadata</code> (선택)</h3>
+<ul>
+<li><p><strong>타입</strong>: <code>object</code></p></li>
+<li><p><strong>설명</strong>: 추가 메타데이터</p></li>
+<li><p><strong>일반적인 필드</strong>:</p>
+<ul>
+<li><code>domain</code>: 도메인 분류 (예: “math”, “customer_support”,
+“healthcare”)</li>
+<li><code>difficulty</code>: 난이도 (예: “easy”, “medium”, “hard”)</li>
+<li><code>source</code>: 데이터 출처 (예: “manual”, “pdf”,
+“real_user_query”)</li>
+<li><code>tags</code>: 태그 리스트 (예: [“calculation”, “basic”])</li>
+<li><code>created_at</code>: 생성 시간 (ISO 8601)</li>
+</ul></li>
+<li><p><strong>예제</strong>:</p>
+<div class="sourceCode" id="cb9"><pre
+class="sourceCode json"><code class="sourceCode json"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="er">&quot;metadata&quot;:</span> <span class="fu">{</span></span>
+<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;domain&quot;</span><span class="fu">:</span> <span class="st">&quot;mathematics&quot;</span><span class="fu">,</span></span>
+<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;difficulty&quot;</span><span class="fu">:</span> <span class="st">&quot;easy&quot;</span><span class="fu">,</span></span>
+<span id="cb9-4"><a href="#cb9-4" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;source&quot;</span><span class="fu">:</span> <span class="st">&quot;manual&quot;</span><span class="fu">,</span></span>
+<span id="cb9-5"><a href="#cb9-5" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;tags&quot;</span><span class="fu">:</span> <span class="ot">[</span><span class="st">&quot;calculation&quot;</span><span class="ot">,</span> <span class="st">&quot;multiplication&quot;</span><span class="ot">]</span><span class="fu">,</span></span>
+<span id="cb9-6"><a href="#cb9-6" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;created_at&quot;</span><span class="fu">:</span> <span class="st">&quot;2024-01-15T10:30:00Z&quot;</span></span>
+<span id="cb9-7"><a href="#cb9-7" aria-hidden="true" tabindex="-1"></a><span class="fu">}</span></span></code></pre></div></li>
+</ul>
+<hr />
+<h2 id="layer-2-필드-agentic-security">Layer 2 필드 (Agentic + Security)</h2>
+<p>Layer 2 필드는 <strong>Agentic AI 시스템 및 보안 평가</strong>에 필요한 고급
+필드들입니다. 이 필드들은 선택 사항이지만, Layer 2 메트릭을 사용하려면
+필수입니다.</p>
+<h3 id="expected_tools-선택">1. <code>expected_tools</code> (선택)</h3>
+<ul>
+<li><strong>타입</strong>: <code>list[string]</code></li>
+<li><strong>Layer 2 메트릭</strong>: Tool Selection Accuracy</li>
+<li><strong>설명</strong>: 에이전트가 이 질문을 처리하기 위해
+<strong>사용해야 할 도구 목록</strong></li>
+<li><strong>평가 방식</strong>:
+<ul>
+<li>Precision, Recall, F1 Score 계산</li>
+<li>불필요한 도구 사용 검출</li>
+<li>필요한 도구 누락 검출</li>
+</ul></li>
+</ul>
+<h4 id="작성-가이드">작성 가이드</h4>
+<p><strong>1) 도구 이름 일관성</strong> - 에이전트 코드에서 사용하는
+도구 이름과 <strong>정확히 일치</strong>해야 합니다 - 대소문자 구분에
+주의</p>
+<p><strong>2) 필수 도구만 포함</strong> - 이 질문을 답변하는 데
+<strong>반드시 필요한 도구만</strong> 포함 - 선택적 도구는 제외</p>
+<p><strong>3) 순서는 중요하지 않음</strong> - 도구 사용 순서가 아니라
+<strong>사용 여부</strong>만 평가</p>
+<h4 id="예제">예제</h4>
+<p><strong>예제 1: 간단한 검색</strong></p>
+<div class="sourceCode" id="cb10"><pre
+class="sourceCode json"><code class="sourceCode json"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="fu">{</span></span>
+<span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;question&quot;</span><span class="fu">:</span> <span class="st">&quot;What is the population of Tokyo?&quot;</span><span class="fu">,</span></span>
+<span id="cb10-3"><a href="#cb10-3" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;expected_tools&quot;</span><span class="fu">:</span> <span class="ot">[</span><span class="st">&quot;search&quot;</span><span class="ot">]</span></span>
+<span id="cb10-4"><a href="#cb10-4" aria-hidden="true" tabindex="-1"></a><span class="fu">}</span></span></code></pre></div>
+<p><strong>예제 2: 수학 계산</strong></p>
+<div class="sourceCode" id="cb11"><pre
+class="sourceCode json"><code class="sourceCode json"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="fu">{</span></span>
+<span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;question&quot;</span><span class="fu">:</span> <span class="st">&quot;Calculate the compound interest on $1000 at 5% for 10 years.&quot;</span><span class="fu">,</span></span>
+<span id="cb11-3"><a href="#cb11-3" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;expected_tools&quot;</span><span class="fu">:</span> <span class="ot">[</span><span class="st">&quot;calculator&quot;</span><span class="ot">,</span> <span class="st">&quot;python_repl&quot;</span><span class="ot">]</span></span>
+<span id="cb11-4"><a href="#cb11-4" aria-hidden="true" tabindex="-1"></a><span class="fu">}</span></span></code></pre></div>
+<p><strong>예제 3: 복합 작업</strong></p>
+<div class="sourceCode" id="cb12"><pre
+class="sourceCode json"><code class="sourceCode json"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="fu">{</span></span>
+<span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;question&quot;</span><span class="fu">:</span> <span class="st">&quot;Find recent stock prices for AAPL and create a visualization.&quot;</span><span class="fu">,</span></span>
+<span id="cb12-3"><a href="#cb12-3" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;expected_tools&quot;</span><span class="fu">:</span> <span class="ot">[</span><span class="st">&quot;search&quot;</span><span class="ot">,</span> <span class="st">&quot;yahoo_finance&quot;</span><span class="ot">,</span> <span class="st">&quot;python_repl&quot;</span><span class="ot">,</span> <span class="st">&quot;matplotlib&quot;</span><span class="ot">]</span></span>
+<span id="cb12-4"><a href="#cb12-4" aria-hidden="true" tabindex="-1"></a><span class="fu">}</span></span></code></pre></div>
+<p><strong>예제 4: RAG 시스템</strong></p>
+<div class="sourceCode" id="cb13"><pre
+class="sourceCode json"><code class="sourceCode json"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="fu">{</span></span>
+<span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;question&quot;</span><span class="fu">:</span> <span class="st">&quot;Summarize the key findings from the research papers on quantum computing.&quot;</span><span class="fu">,</span></span>
+<span id="cb13-3"><a href="#cb13-3" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;expected_tools&quot;</span><span class="fu">:</span> <span class="ot">[</span><span class="st">&quot;vector_search&quot;</span><span class="ot">,</span> <span class="st">&quot;pdf_reader&quot;</span><span class="ot">,</span> <span class="st">&quot;summarizer&quot;</span><span class="ot">]</span></span>
+<span id="cb13-4"><a href="#cb13-4" aria-hidden="true" tabindex="-1"></a><span class="fu">}</span></span></code></pre></div>
+<h4 id="일반적인-도구-이름">일반적인 도구 이름</h4>
+<table>
+<thead>
+<tr class="doc-header">
+<th>도구 이름</th>
+<th>설명</th>
+<th>용도</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>search</code></td>
+<td>웹 검색</td>
+<td>최신 정보, 일반 지식</td>
+</tr>
+<tr class="even">
+<td><code>calculator</code></td>
+<td>계산기</td>
+<td>기본 수학 계산</td>
+</tr>
+<tr class="odd">
+<td><code>python_repl</code></td>
+<td>Python 인터프리터</td>
+<td>복잡한 계산, 데이터 처리</td>
+</tr>
+<tr class="even">
+<td><code>vector_search</code></td>
+<td>벡터 DB 검색</td>
+<td>RAG, 유사 문서 검색</td>
+</tr>
+<tr class="odd">
+<td><code>sql_db</code></td>
+<td>SQL 데이터베이스</td>
+<td>구조화된 데이터 쿼리</td>
+</tr>
+<tr class="even">
+<td><code>api_call</code></td>
+<td>외부 API 호출</td>
+<td>날씨, 주가, 뉴스 등</td>
+</tr>
+<tr class="odd">
+<td><code>pdf_reader</code></td>
+<td>PDF 읽기</td>
+<td>문서 분석</td>
+</tr>
+<tr class="even">
+<td><code>summarizer</code></td>
+<td>요약</td>
+<td>긴 텍스트 요약</td>
+</tr>
+<tr class="odd">
+<td><code>translator</code></td>
+<td>번역</td>
+<td>다국어 번역</td>
+</tr>
+<tr class="even">
+<td><code>code_interpreter</code></td>
+<td>코드 실행</td>
+<td>코드 생성 및 실행</td>
+</tr>
+</tbody>
+</table>
+<h3 id="expected_agents-선택">2. <code>expected_agents</code>
+(선택)</h3>
+<ul>
+<li><strong>타입</strong>: <code>list[string]</code></li>
+<li><strong>Layer 2 메트릭</strong>: Agent Coordination</li>
+<li><strong>설명</strong>: 이 질문을 처리하는 데 <strong>참여해야 할
+에이전트 목록</strong></li>
+<li><strong>평가 방식</strong>:
+<ul>
+<li>에이전트 간 상호작용 추적</li>
+<li>협업 점수 계산 (0-10)</li>
+<li>성공률, 다양성, 균형 평가</li>
+</ul></li>
+</ul>
+<h4 id="작성-가이드-1">작성 가이드</h4>
+<p><strong>1) Multi-Agent 시스템에만 사용</strong> - 단일 에이전트
+시스템에는 불필요 - CrewAI, AutoGen, LangGraph Multi-Agent 등에 적용</p>
+<p><strong>2) 에이전트 Role/Name 사용</strong> - 에이전트를 식별하는
+고유한 이름 또는 역할 - 코드에서 정의한 이름과 일치</p>
+<p><strong>3) 모든 참여 에이전트 포함</strong> - 직접 작업을 수행하는
+에이전트 - 조정(orchestration)하는 에이전트 - 검증(validation)하는
+에이전트</p>
+<h4 id="예제-1">예제</h4>
+<p><strong>예제 1: CrewAI - 연구 작업</strong></p>
+<div class="sourceCode" id="cb14"><pre
+class="sourceCode json"><code class="sourceCode json"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a><span class="fu">{</span></span>
+<span id="cb14-2"><a href="#cb14-2" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;question&quot;</span><span class="fu">:</span> <span class="st">&quot;Research the latest trends in AI and write a summary report.&quot;</span><span class="fu">,</span></span>
+<span id="cb14-3"><a href="#cb14-3" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;expected_agents&quot;</span><span class="fu">:</span> <span class="ot">[</span><span class="st">&quot;manager&quot;</span><span class="ot">,</span> <span class="st">&quot;researcher&quot;</span><span class="ot">,</span> <span class="st">&quot;writer&quot;</span><span class="ot">,</span> <span class="st">&quot;reviewer&quot;</span><span class="ot">]</span></span>
+<span id="cb14-4"><a href="#cb14-4" aria-hidden="true" tabindex="-1"></a><span class="fu">}</span></span></code></pre></div>
+<p><strong>예제 2: 고객 지원</strong></p>
+<div class="sourceCode" id="cb15"><pre
+class="sourceCode json"><code class="sourceCode json"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a><span class="fu">{</span></span>
+<span id="cb15-2"><a href="#cb15-2" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;question&quot;</span><span class="fu">:</span> <span class="st">&quot;Help me reset my password.&quot;</span><span class="fu">,</span></span>
+<span id="cb15-3"><a href="#cb15-3" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;expected_agents&quot;</span><span class="fu">:</span> <span class="ot">[</span><span class="st">&quot;classifier&quot;</span><span class="ot">,</span> <span class="st">&quot;auth_agent&quot;</span><span class="ot">,</span> <span class="st">&quot;notification_agent&quot;</span><span class="ot">]</span></span>
+<span id="cb15-4"><a href="#cb15-4" aria-hidden="true" tabindex="-1"></a><span class="fu">}</span></span></code></pre></div>
+<p><strong>예제 3: 데이터 분석 파이프라인</strong></p>
+<div class="sourceCode" id="cb16"><pre
+class="sourceCode json"><code class="sourceCode json"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a><span class="fu">{</span></span>
+<span id="cb16-2"><a href="#cb16-2" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;question&quot;</span><span class="fu">:</span> <span class="st">&quot;Analyze sales data and create a dashboard.&quot;</span><span class="fu">,</span></span>
+<span id="cb16-3"><a href="#cb16-3" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;expected_agents&quot;</span><span class="fu">:</span> <span class="ot">[</span><span class="st">&quot;data_loader&quot;</span><span class="ot">,</span> <span class="st">&quot;data_processor&quot;</span><span class="ot">,</span> <span class="st">&quot;analyst&quot;</span><span class="ot">,</span> <span class="st">&quot;visualizer&quot;</span><span class="ot">]</span></span>
+<span id="cb16-4"><a href="#cb16-4" aria-hidden="true" tabindex="-1"></a><span class="fu">}</span></span></code></pre></div>
+<h3 id="expected_workflow_steps-선택">3.
+<code>expected_workflow_steps</code> (선택)</h3>
+<ul>
+<li><strong>타입</strong>: <code>list[string]</code></li>
+<li><strong>Layer 2 메트릭</strong>: Workflow Execution Success
+Rate</li>
+<li><strong>설명</strong>: 워크플로우에서 <strong>실행되어야 할
+단계(노드) 목록</strong></li>
+<li><strong>평가 방식</strong>:
+<ul>
+<li>각 단계의 실행 성공 여부</li>
+<li>단계별 성공률 계산</li>
+<li>작업 전체 성공률 계산</li>
+</ul></li>
+</ul>
+<h4 id="작성-가이드-2">작성 가이드</h4>
+<p><strong>1) LangGraph, LangChain 워크플로우에 사용</strong> -
+LangGraph의 노드 이름 - LangChain의 chain 단계 이름</p>
+<p><strong>2) 실행 순서 포함</strong> - 순서대로 나열 (선택 사항이지만
+권장) - 병렬 실행되는 단계도 모두 포함</p>
+<p><strong>3) 조건부 단계 처리</strong> - 조건부로 실행되는 단계는 실제
+실행 여부에 따라 평가 - 또는 가능한 모든 경로의 단계를 포함</p>
+<h4 id="예제-2">예제</h4>
+<p><strong>예제 1: RAG 워크플로우</strong></p>
+<div class="sourceCode" id="cb17"><pre
+class="sourceCode json"><code class="sourceCode json"><span id="cb17-1"><a href="#cb17-1" aria-hidden="true" tabindex="-1"></a><span class="fu">{</span></span>
+<span id="cb17-2"><a href="#cb17-2" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;question&quot;</span><span class="fu">:</span> <span class="st">&quot;What are the benefits of solar energy?&quot;</span><span class="fu">,</span></span>
+<span id="cb17-3"><a href="#cb17-3" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;expected_workflow_steps&quot;</span><span class="fu">:</span> <span class="ot">[</span><span class="st">&quot;retrieval&quot;</span><span class="ot">,</span> <span class="st">&quot;reranking&quot;</span><span class="ot">,</span> <span class="st">&quot;generation&quot;</span><span class="ot">,</span> <span class="st">&quot;validation&quot;</span><span class="ot">]</span></span>
+<span id="cb17-4"><a href="#cb17-4" aria-hidden="true" tabindex="-1"></a><span class="fu">}</span></span></code></pre></div>
+<p><strong>예제 2: LangGraph 에이전트</strong></p>
+<div class="sourceCode" id="cb18"><pre
+class="sourceCode json"><code class="sourceCode json"><span id="cb18-1"><a href="#cb18-1" aria-hidden="true" tabindex="-1"></a><span class="fu">{</span></span>
+<span id="cb18-2"><a href="#cb18-2" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;question&quot;</span><span class="fu">:</span> <span class="st">&quot;Plan a trip to Paris.&quot;</span><span class="fu">,</span></span>
+<span id="cb18-3"><a href="#cb18-3" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;expected_workflow_steps&quot;</span><span class="fu">:</span> <span class="ot">[</span><span class="st">&quot;planning&quot;</span><span class="ot">,</span> <span class="st">&quot;research&quot;</span><span class="ot">,</span> <span class="st">&quot;booking&quot;</span><span class="ot">,</span> <span class="st">&quot;confirmation&quot;</span><span class="ot">]</span></span>
+<span id="cb18-4"><a href="#cb18-4" aria-hidden="true" tabindex="-1"></a><span class="fu">}</span></span></code></pre></div>
+<p><strong>예제 3: 복잡한 워크플로우</strong></p>
+<div class="sourceCode" id="cb19"><pre
+class="sourceCode json"><code class="sourceCode json"><span id="cb19-1"><a href="#cb19-1" aria-hidden="true" tabindex="-1"></a><span class="fu">{</span></span>
+<span id="cb19-2"><a href="#cb19-2" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;question&quot;</span><span class="fu">:</span> <span class="st">&quot;Analyze customer feedback and suggest improvements.&quot;</span><span class="fu">,</span></span>
+<span id="cb19-3"><a href="#cb19-3" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;expected_workflow_steps&quot;</span><span class="fu">:</span> <span class="ot">[</span></span>
+<span id="cb19-4"><a href="#cb19-4" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;data_ingestion&quot;</span><span class="ot">,</span></span>
+<span id="cb19-5"><a href="#cb19-5" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;preprocessing&quot;</span><span class="ot">,</span></span>
+<span id="cb19-6"><a href="#cb19-6" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;sentiment_analysis&quot;</span><span class="ot">,</span></span>
+<span id="cb19-7"><a href="#cb19-7" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;topic_modeling&quot;</span><span class="ot">,</span></span>
+<span id="cb19-8"><a href="#cb19-8" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;insight_generation&quot;</span><span class="ot">,</span></span>
+<span id="cb19-9"><a href="#cb19-9" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;recommendation&quot;</span></span>
+<span id="cb19-10"><a href="#cb19-10" aria-hidden="true" tabindex="-1"></a>  <span class="ot">]</span></span>
+<span id="cb19-11"><a href="#cb19-11" aria-hidden="true" tabindex="-1"></a><span class="fu">}</span></span></code></pre></div>
+<hr />
+<h2 id="golden-dataset-생성-방법">Golden Dataset 생성 방법</h2>
+<p>Golden Dataset을 생성하는 방법은 크게 3가지입니다.</p>
+<h3 id="방법-1-수동-생성-manual">방법 1: 수동 생성 (Manual)</h3>
+<h4 id="장점">장점</h4>
+<ul>
+<li>정확하고 고품질</li>
+<li>세밀한 제어 가능</li>
+<li>Layer 2 필드를 정확히 정의 가능</li>
+</ul>
+<h4 id="단점">단점</h4>
+<ul>
+<li>시간 소모적</li>
+<li>확장성 제한</li>
+</ul>
+<h4 id="과정">과정</h4>
+<p><strong>1) JSON 파일 직접 작성</strong></p>
+<div class="sourceCode" id="cb20"><pre
+class="sourceCode json"><code class="sourceCode json"><span id="cb20-1"><a href="#cb20-1" aria-hidden="true" tabindex="-1"></a><span class="fu">{</span></span>
+<span id="cb20-2"><a href="#cb20-2" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;dataset_id&quot;</span><span class="fu">:</span> <span class="st">&quot;dataset_a1b2c3d4&quot;</span><span class="fu">,</span></span>
+<span id="cb20-3"><a href="#cb20-3" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;source_document&quot;</span><span class="fu">:</span> <span class="st">&quot;documentation.pdf&quot;</span><span class="fu">,</span></span>
+<span id="cb20-4"><a href="#cb20-4" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;created_at&quot;</span><span class="fu">:</span> <span class="st">&quot;2024-01-15T10:00:00Z&quot;</span><span class="fu">,</span></span>
+<span id="cb20-5"><a href="#cb20-5" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;total_qa_pairs&quot;</span><span class="fu">:</span> <span class="dv">2</span><span class="fu">,</span></span>
+<span id="cb20-6"><a href="#cb20-6" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;qa_pairs&quot;</span><span class="fu">:</span> <span class="ot">[</span></span>
+<span id="cb20-7"><a href="#cb20-7" aria-hidden="true" tabindex="-1"></a>    <span class="fu">{</span></span>
+<span id="cb20-8"><a href="#cb20-8" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;qa_id&quot;</span><span class="fu">:</span> <span class="st">&quot;qa_001&quot;</span><span class="fu">,</span></span>
+<span id="cb20-9"><a href="#cb20-9" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;question&quot;</span><span class="fu">:</span> <span class="st">&quot;What is 15 + 27?&quot;</span><span class="fu">,</span></span>
+<span id="cb20-10"><a href="#cb20-10" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;answer&quot;</span><span class="fu">:</span> <span class="st">&quot;The result of 15 + 27 is 42.&quot;</span><span class="fu">,</span></span>
+<span id="cb20-11"><a href="#cb20-11" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;context&quot;</span><span class="fu">:</span> <span class="st">&quot;Simple arithmetic addition problem for basic calculation.&quot;</span><span class="fu">,</span></span>
+<span id="cb20-12"><a href="#cb20-12" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;ground_truth&quot;</span><span class="fu">:</span> <span class="st">&quot;42&quot;</span><span class="fu">,</span></span>
+<span id="cb20-13"><a href="#cb20-13" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;metadata&quot;</span><span class="fu">:</span> <span class="fu">{</span></span>
+<span id="cb20-14"><a href="#cb20-14" aria-hidden="true" tabindex="-1"></a>        <span class="dt">&quot;domain&quot;</span><span class="fu">:</span> <span class="st">&quot;math&quot;</span><span class="fu">,</span></span>
+<span id="cb20-15"><a href="#cb20-15" aria-hidden="true" tabindex="-1"></a>        <span class="dt">&quot;difficulty&quot;</span><span class="fu">:</span> <span class="st">&quot;easy&quot;</span><span class="fu">,</span></span>
+<span id="cb20-16"><a href="#cb20-16" aria-hidden="true" tabindex="-1"></a>        <span class="dt">&quot;chunk_id&quot;</span><span class="fu">:</span> <span class="st">&quot;chunk_p1_i0_abc123&quot;</span><span class="fu">,</span></span>
+<span id="cb20-17"><a href="#cb20-17" aria-hidden="true" tabindex="-1"></a>        <span class="dt">&quot;page_number&quot;</span><span class="fu">:</span> <span class="dv">1</span></span>
+<span id="cb20-18"><a href="#cb20-18" aria-hidden="true" tabindex="-1"></a>      <span class="fu">},</span></span>
+<span id="cb20-19"><a href="#cb20-19" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;expected_tools&quot;</span><span class="fu">:</span> <span class="ot">[</span><span class="st">&quot;calculator&quot;</span><span class="ot">]</span></span>
+<span id="cb20-20"><a href="#cb20-20" aria-hidden="true" tabindex="-1"></a>    <span class="fu">}</span><span class="ot">,</span></span>
+<span id="cb20-21"><a href="#cb20-21" aria-hidden="true" tabindex="-1"></a>    <span class="fu">{</span></span>
+<span id="cb20-22"><a href="#cb20-22" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;qa_id&quot;</span><span class="fu">:</span> <span class="st">&quot;qa_002&quot;</span><span class="fu">,</span></span>
+<span id="cb20-23"><a href="#cb20-23" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;question&quot;</span><span class="fu">:</span> <span class="st">&quot;Find the latest news on AI.&quot;</span><span class="fu">,</span></span>
+<span id="cb20-24"><a href="#cb20-24" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;answer&quot;</span><span class="fu">:</span> <span class="st">&quot;Recent news includes major advancements in GPT-4, Gemini, and Claude models with improved capabilities.&quot;</span><span class="fu">,</span></span>
+<span id="cb20-25"><a href="#cb20-25" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;context&quot;</span><span class="fu">:</span> <span class="st">&quot;The user wants current information about AI developments in 2024.&quot;</span><span class="fu">,</span></span>
+<span id="cb20-26"><a href="#cb20-26" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;ground_truth&quot;</span><span class="fu">:</span> <span class="st">&quot;Recent advancements in GPT-4, Gemini, and Claude models.&quot;</span><span class="fu">,</span></span>
+<span id="cb20-27"><a href="#cb20-27" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;metadata&quot;</span><span class="fu">:</span> <span class="fu">{</span></span>
+<span id="cb20-28"><a href="#cb20-28" aria-hidden="true" tabindex="-1"></a>        <span class="dt">&quot;domain&quot;</span><span class="fu">:</span> <span class="st">&quot;news&quot;</span><span class="fu">,</span></span>
+<span id="cb20-29"><a href="#cb20-29" aria-hidden="true" tabindex="-1"></a>        <span class="dt">&quot;difficulty&quot;</span><span class="fu">:</span> <span class="st">&quot;medium&quot;</span><span class="fu">,</span></span>
+<span id="cb20-30"><a href="#cb20-30" aria-hidden="true" tabindex="-1"></a>        <span class="dt">&quot;chunk_id&quot;</span><span class="fu">:</span> <span class="st">&quot;chunk_p2_i1_def456&quot;</span><span class="fu">,</span></span>
+<span id="cb20-31"><a href="#cb20-31" aria-hidden="true" tabindex="-1"></a>        <span class="dt">&quot;page_number&quot;</span><span class="fu">:</span> <span class="dv">2</span></span>
+<span id="cb20-32"><a href="#cb20-32" aria-hidden="true" tabindex="-1"></a>      <span class="fu">},</span></span>
+<span id="cb20-33"><a href="#cb20-33" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;expected_tools&quot;</span><span class="fu">:</span> <span class="ot">[</span><span class="st">&quot;search&quot;</span><span class="ot">,</span> <span class="st">&quot;news_api&quot;</span><span class="ot">]</span></span>
+<span id="cb20-34"><a href="#cb20-34" aria-hidden="true" tabindex="-1"></a>    <span class="fu">}</span></span>
+<span id="cb20-35"><a href="#cb20-35" aria-hidden="true" tabindex="-1"></a>  <span class="ot">]</span><span class="fu">,</span></span>
+<span id="cb20-36"><a href="#cb20-36" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;metadata&quot;</span><span class="fu">:</span> <span class="fu">{</span></span>
+<span id="cb20-37"><a href="#cb20-37" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;total_pages&quot;</span><span class="fu">:</span> <span class="dv">50</span><span class="fu">,</span></span>
+<span id="cb20-38"><a href="#cb20-38" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;total_chunks&quot;</span><span class="fu">:</span> <span class="dv">25</span><span class="fu">,</span></span>
+<span id="cb20-39"><a href="#cb20-39" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;chunk_size&quot;</span><span class="fu">:</span> <span class="dv">1000</span><span class="fu">,</span></span>
+<span id="cb20-40"><a href="#cb20-40" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;chunk_overlap&quot;</span><span class="fu">:</span> <span class="dv">200</span><span class="fu">,</span></span>
+<span id="cb20-41"><a href="#cb20-41" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;num_questions_per_chunk&quot;</span><span class="fu">:</span> <span class="dv">3</span><span class="fu">,</span></span>
+<span id="cb20-42"><a href="#cb20-42" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;model&quot;</span><span class="fu">:</span> <span class="st">&quot;gpt-4o-mini&quot;</span></span>
+<span id="cb20-43"><a href="#cb20-43" aria-hidden="true" tabindex="-1"></a>  <span class="fu">}</span></span>
+<span id="cb20-44"><a href="#cb20-44" aria-hidden="true" tabindex="-1"></a><span class="fu">}</span></span></code></pre></div>
+<p><strong>2) Python 코드로 생성 (실제 구조 사용)</strong></p>
+<div class="sourceCode" id="cb21"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb21-1"><a href="#cb21-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> agent_evaluator.datasets.korean_rag_dataset_generator <span class="im">import</span> QAPair, GoldenDataset, GoldenDatasetManager</span>
+<span id="cb21-2"><a href="#cb21-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> datetime <span class="im">import</span> datetime</span>
+<span id="cb21-3"><a href="#cb21-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb21-4"><a href="#cb21-4" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> create_golden_dataset():</span>
+<span id="cb21-5"><a href="#cb21-5" aria-hidden="true" tabindex="-1"></a>    <span class="co"># QAPair 생성</span></span>
+<span id="cb21-6"><a href="#cb21-6" aria-hidden="true" tabindex="-1"></a>    qa_pairs <span class="op">=</span> [</span>
+<span id="cb21-7"><a href="#cb21-7" aria-hidden="true" tabindex="-1"></a>        QAPair(</span>
+<span id="cb21-8"><a href="#cb21-8" aria-hidden="true" tabindex="-1"></a>            qa_id<span class="op">=</span><span class="st">&quot;cs_001&quot;</span>,</span>
+<span id="cb21-9"><a href="#cb21-9" aria-hidden="true" tabindex="-1"></a>            question<span class="op">=</span><span class="st">&quot;How do I reset my password?&quot;</span>,</span>
+<span id="cb21-10"><a href="#cb21-10" aria-hidden="true" tabindex="-1"></a>            answer<span class="op">=</span><span class="st">&quot;To reset your password, go to Settings &gt; Account &gt; Reset Password and follow the instructions.&quot;</span>,</span>
+<span id="cb21-11"><a href="#cb21-11" aria-hidden="true" tabindex="-1"></a>            context<span class="op">=</span><span class="st">&quot;User account management documentation explains the password reset process.&quot;</span>,</span>
+<span id="cb21-12"><a href="#cb21-12" aria-hidden="true" tabindex="-1"></a>            ground_truth<span class="op">=</span><span class="st">&quot;Go to Settings &gt; Account &gt; Reset Password.&quot;</span>,</span>
+<span id="cb21-13"><a href="#cb21-13" aria-hidden="true" tabindex="-1"></a>            metadata<span class="op">=</span>{</span>
+<span id="cb21-14"><a href="#cb21-14" aria-hidden="true" tabindex="-1"></a>                <span class="st">&quot;domain&quot;</span>: <span class="st">&quot;customer_support&quot;</span>,</span>
+<span id="cb21-15"><a href="#cb21-15" aria-hidden="true" tabindex="-1"></a>                <span class="st">&quot;difficulty&quot;</span>: <span class="st">&quot;easy&quot;</span>,</span>
+<span id="cb21-16"><a href="#cb21-16" aria-hidden="true" tabindex="-1"></a>                <span class="st">&quot;category&quot;</span>: <span class="st">&quot;authentication&quot;</span></span>
+<span id="cb21-17"><a href="#cb21-17" aria-hidden="true" tabindex="-1"></a>            },</span>
+<span id="cb21-18"><a href="#cb21-18" aria-hidden="true" tabindex="-1"></a>            expected_tools<span class="op">=</span>[<span class="st">&quot;knowledge_base&quot;</span>],</span>
+<span id="cb21-19"><a href="#cb21-19" aria-hidden="true" tabindex="-1"></a>            expected_agents<span class="op">=</span>[<span class="st">&quot;support_agent&quot;</span>]</span>
+<span id="cb21-20"><a href="#cb21-20" aria-hidden="true" tabindex="-1"></a>        ),</span>
+<span id="cb21-21"><a href="#cb21-21" aria-hidden="true" tabindex="-1"></a>        QAPair(</span>
+<span id="cb21-22"><a href="#cb21-22" aria-hidden="true" tabindex="-1"></a>            qa_id<span class="op">=</span><span class="st">&quot;cs_002&quot;</span>,</span>
+<span id="cb21-23"><a href="#cb21-23" aria-hidden="true" tabindex="-1"></a>            question<span class="op">=</span><span class="st">&quot;What is your refund policy?&quot;</span>,</span>
+<span id="cb21-24"><a href="#cb21-24" aria-hidden="true" tabindex="-1"></a>            answer<span class="op">=</span><span class="st">&quot;We offer a 30-day money-back guarantee for all purchases made through our platform.&quot;</span>,</span>
+<span id="cb21-25"><a href="#cb21-25" aria-hidden="true" tabindex="-1"></a>            context<span class="op">=</span><span class="st">&quot;Company refund policy documentation states the terms and conditions.&quot;</span>,</span>
+<span id="cb21-26"><a href="#cb21-26" aria-hidden="true" tabindex="-1"></a>            ground_truth<span class="op">=</span><span class="st">&quot;30-day money-back guarantee for all purchases.&quot;</span>,</span>
+<span id="cb21-27"><a href="#cb21-27" aria-hidden="true" tabindex="-1"></a>            metadata<span class="op">=</span>{</span>
+<span id="cb21-28"><a href="#cb21-28" aria-hidden="true" tabindex="-1"></a>                <span class="st">&quot;domain&quot;</span>: <span class="st">&quot;customer_support&quot;</span>,</span>
+<span id="cb21-29"><a href="#cb21-29" aria-hidden="true" tabindex="-1"></a>                <span class="st">&quot;difficulty&quot;</span>: <span class="st">&quot;easy&quot;</span>,</span>
+<span id="cb21-30"><a href="#cb21-30" aria-hidden="true" tabindex="-1"></a>                <span class="st">&quot;category&quot;</span>: <span class="st">&quot;billing&quot;</span></span>
+<span id="cb21-31"><a href="#cb21-31" aria-hidden="true" tabindex="-1"></a>            },</span>
+<span id="cb21-32"><a href="#cb21-32" aria-hidden="true" tabindex="-1"></a>            expected_tools<span class="op">=</span>[<span class="st">&quot;policy_db&quot;</span>, <span class="st">&quot;search&quot;</span>],</span>
+<span id="cb21-33"><a href="#cb21-33" aria-hidden="true" tabindex="-1"></a>            expected_agents<span class="op">=</span>[<span class="st">&quot;support_agent&quot;</span>, <span class="st">&quot;billing_agent&quot;</span>]</span>
+<span id="cb21-34"><a href="#cb21-34" aria-hidden="true" tabindex="-1"></a>        )</span>
+<span id="cb21-35"><a href="#cb21-35" aria-hidden="true" tabindex="-1"></a>    ]</span>
+<span id="cb21-36"><a href="#cb21-36" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb21-37"><a href="#cb21-37" aria-hidden="true" tabindex="-1"></a>    <span class="co"># GoldenDataset 생성</span></span>
+<span id="cb21-38"><a href="#cb21-38" aria-hidden="true" tabindex="-1"></a>    dataset <span class="op">=</span> GoldenDataset(</span>
+<span id="cb21-39"><a href="#cb21-39" aria-hidden="true" tabindex="-1"></a>        dataset_id<span class="op">=</span><span class="st">&quot;customer_support_qa&quot;</span>,</span>
+<span id="cb21-40"><a href="#cb21-40" aria-hidden="true" tabindex="-1"></a>        source_document<span class="op">=</span><span class="st">&quot;support_docs.pdf&quot;</span>,</span>
+<span id="cb21-41"><a href="#cb21-41" aria-hidden="true" tabindex="-1"></a>        created_at<span class="op">=</span>datetime.now().isoformat(),</span>
+<span id="cb21-42"><a href="#cb21-42" aria-hidden="true" tabindex="-1"></a>        total_qa_pairs<span class="op">=</span><span class="bu">len</span>(qa_pairs),</span>
+<span id="cb21-43"><a href="#cb21-43" aria-hidden="true" tabindex="-1"></a>        qa_pairs<span class="op">=</span>qa_pairs,</span>
+<span id="cb21-44"><a href="#cb21-44" aria-hidden="true" tabindex="-1"></a>        metadata<span class="op">=</span>{</span>
+<span id="cb21-45"><a href="#cb21-45" aria-hidden="true" tabindex="-1"></a>            <span class="st">&quot;version&quot;</span>: <span class="st">&quot;1.0&quot;</span>,</span>
+<span id="cb21-46"><a href="#cb21-46" aria-hidden="true" tabindex="-1"></a>            <span class="st">&quot;created_by&quot;</span>: <span class="st">&quot;support_team&quot;</span></span>
+<span id="cb21-47"><a href="#cb21-47" aria-hidden="true" tabindex="-1"></a>        }</span>
+<span id="cb21-48"><a href="#cb21-48" aria-hidden="true" tabindex="-1"></a>    )</span>
+<span id="cb21-49"><a href="#cb21-49" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb21-50"><a href="#cb21-50" aria-hidden="true" tabindex="-1"></a>    <span class="co"># 저장</span></span>
+<span id="cb21-51"><a href="#cb21-51" aria-hidden="true" tabindex="-1"></a>    manager <span class="op">=</span> GoldenDatasetManager(output_dir<span class="op">=</span><span class="st">&quot;golden_datasets&quot;</span>)</span>
+<span id="cb21-52"><a href="#cb21-52" aria-hidden="true" tabindex="-1"></a>    saved_path <span class="op">=</span> manager.save_dataset(dataset, <span class="bu">format</span><span class="op">=</span><span class="st">&quot;json&quot;</span>)</span>
+<span id="cb21-53"><a href="#cb21-53" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb21-54"><a href="#cb21-54" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="ss">f&quot;✅ Golden Dataset created: </span><span class="sc">{</span><span class="bu">len</span>(qa_pairs)<span class="sc">}</span><span class="ss"> QAPairs&quot;</span>)</span>
+<span id="cb21-55"><a href="#cb21-55" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="ss">f&quot;   Saved to: </span><span class="sc">{</span>saved_path<span class="sc">}</span><span class="ss">&quot;</span>)</span>
+<span id="cb21-56"><a href="#cb21-56" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb21-57"><a href="#cb21-57" aria-hidden="true" tabindex="-1"></a>create_golden_dataset()</span></code></pre></div>
+<h3 id="방법-2-pdf에서-자동-생성">방법 2: PDF에서 자동 생성</h3>
+<p>Agent Evaluator는 <strong>PDF 문서에서 자동으로 Golden Dataset을
+생성</strong>하는 기능을 제공합니다.</p>
+<h4 id="장점-1">장점</h4>
+<ul>
+<li>대량의 QAPair를 빠르게 생성</li>
+<li>문서 기반 지식을 자동으로 추출</li>
+<li>RAG 시스템 평가에 최적</li>
+</ul>
+<h4 id="사용법">사용법</h4>
+<div class="sourceCode" id="cb22"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb22-1"><a href="#cb22-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> agent_evaluator.datasets.korean_rag_dataset_generator <span class="im">import</span> KoreanRAGDatasetGenerator</span>
+<span id="cb22-2"><a href="#cb22-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb22-3"><a href="#cb22-3" aria-hidden="true" tabindex="-1"></a><span class="co"># 생성기 초기화</span></span>
+<span id="cb22-4"><a href="#cb22-4" aria-hidden="true" tabindex="-1"></a>generator <span class="op">=</span> KoreanRAGDatasetGenerator(</span>
+<span id="cb22-5"><a href="#cb22-5" aria-hidden="true" tabindex="-1"></a>    model<span class="op">=</span><span class="st">&quot;gpt-4o-mini&quot;</span>,  <span class="co"># 또는 &quot;gpt-4o&quot;</span></span>
+<span id="cb22-6"><a href="#cb22-6" aria-hidden="true" tabindex="-1"></a>    chunk_size<span class="op">=</span><span class="dv">1000</span>,      <span class="co"># 청크 크기 (문자 수)</span></span>
+<span id="cb22-7"><a href="#cb22-7" aria-hidden="true" tabindex="-1"></a>    chunk_overlap<span class="op">=</span><span class="dv">200</span>,    <span class="co"># 청크 겹침 (문자 수)</span></span>
+<span id="cb22-8"><a href="#cb22-8" aria-hidden="true" tabindex="-1"></a>    output_dir<span class="op">=</span><span class="st">&quot;golden_datasets&quot;</span></span>
+<span id="cb22-9"><a href="#cb22-9" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb22-10"><a href="#cb22-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb22-11"><a href="#cb22-11" aria-hidden="true" tabindex="-1"></a><span class="co"># PDF에서 Golden Dataset 생성</span></span>
+<span id="cb22-12"><a href="#cb22-12" aria-hidden="true" tabindex="-1"></a>dataset <span class="op">=</span> generator.generate_from_pdf(</span>
+<span id="cb22-13"><a href="#cb22-13" aria-hidden="true" tabindex="-1"></a>    pdf_path<span class="op">=</span><span class="st">&quot;documentation.pdf&quot;</span>,</span>
+<span id="cb22-14"><a href="#cb22-14" aria-hidden="true" tabindex="-1"></a>    num_questions_per_chunk<span class="op">=</span><span class="dv">3</span>,  <span class="co"># 청크당 질문 수</span></span>
+<span id="cb22-15"><a href="#cb22-15" aria-hidden="true" tabindex="-1"></a>    question_types<span class="op">=</span>[<span class="st">&quot;factual&quot;</span>, <span class="st">&quot;reasoning&quot;</span>, <span class="st">&quot;summary&quot;</span>],</span>
+<span id="cb22-16"><a href="#cb22-16" aria-hidden="true" tabindex="-1"></a>    save_format<span class="op">=</span><span class="st">&quot;json&quot;</span>,  <span class="co"># &quot;json&quot; 또는 &quot;csv&quot;</span></span>
+<span id="cb22-17"><a href="#cb22-17" aria-hidden="true" tabindex="-1"></a>    max_chunks<span class="op">=</span><span class="va">None</span>  <span class="co"># 전체 청크 사용 (테스트 시 숫자 지정 가능)</span></span>
+<span id="cb22-18"><a href="#cb22-18" aria-hidden="true" tabindex="-1"></a>)</span></code></pre></div>
+<h4 id="생성-과정">생성 과정</h4>
+<ol type="1">
+<li><strong>PDF 텍스트 추출</strong>: PyPDF2 또는 pdfplumber 사용</li>
+<li><strong>텍스트 청킹</strong>: 설정된 chunk_size와 chunk_overlap에
+따라 분할</li>
+<li><strong>AI 기반 QA 생성</strong>: OpenAI GPT 모델을 사용하여 각
+청크에서 질문-답변 생성
+<ul>
+<li><strong>질문</strong>: 자연스럽고 구체적인 질문</li>
+<li><strong>답변</strong>: 2-3문장의 완전한 답변</li>
+<li><strong>ground_truth</strong>: 1-2문장의 간결한 핵심 정답</li>
+</ul></li>
+<li><strong>검증</strong>: 필수 필드 확인 및 품질 검증</li>
+<li><strong>저장</strong>: JSON 또는 CSV 파일로 저장</li>
+</ol>
+<h4 id="실제-생성-프로세스-korean_rag_dataset_generator.py">실제 생성
+프로세스 (korean_rag_dataset_generator.py)</h4>
+<div class="sourceCode" id="cb23"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb23-1"><a href="#cb23-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 1. PDF 텍스트 추출 (PyPDF2 또는 pdfplumber)</span></span>
+<span id="cb23-2"><a href="#cb23-2" aria-hidden="true" tabindex="-1"></a>extractor <span class="op">=</span> KoreanPDFExtractor()</span>
+<span id="cb23-3"><a href="#cb23-3" aria-hidden="true" tabindex="-1"></a>pages_text <span class="op">=</span> extractor.extract_text(<span class="st">&quot;document.pdf&quot;</span>)</span>
+<span id="cb23-4"><a href="#cb23-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb23-5"><a href="#cb23-5" aria-hidden="true" tabindex="-1"></a><span class="co"># 2. 텍스트 청킹</span></span>
+<span id="cb23-6"><a href="#cb23-6" aria-hidden="true" tabindex="-1"></a>chunker <span class="op">=</span> TextChunker(chunk_size<span class="op">=</span><span class="dv">1000</span>, chunk_overlap<span class="op">=</span><span class="dv">200</span>)</span>
+<span id="cb23-7"><a href="#cb23-7" aria-hidden="true" tabindex="-1"></a>chunks <span class="op">=</span> chunker.chunk_documents(pages_text)</span>
+<span id="cb23-8"><a href="#cb23-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb23-9"><a href="#cb23-9" aria-hidden="true" tabindex="-1"></a><span class="co"># 3. 각 청크에서 QA 생성 (OpenAI API)</span></span>
+<span id="cb23-10"><a href="#cb23-10" aria-hidden="true" tabindex="-1"></a>qa_generator <span class="op">=</span> KoreanQAGenerator(model<span class="op">=</span><span class="st">&quot;gpt-4o-mini&quot;</span>)</span>
+<span id="cb23-11"><a href="#cb23-11" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> chunk <span class="kw">in</span> chunks:</span>
+<span id="cb23-12"><a href="#cb23-12" aria-hidden="true" tabindex="-1"></a>    qa_pairs <span class="op">=</span> qa_generator.generate_qa_pairs(</span>
+<span id="cb23-13"><a href="#cb23-13" aria-hidden="true" tabindex="-1"></a>        chunk,</span>
+<span id="cb23-14"><a href="#cb23-14" aria-hidden="true" tabindex="-1"></a>        num_questions<span class="op">=</span><span class="dv">3</span>,</span>
+<span id="cb23-15"><a href="#cb23-15" aria-hidden="true" tabindex="-1"></a>        question_types<span class="op">=</span>[<span class="st">&quot;factual&quot;</span>, <span class="st">&quot;reasoning&quot;</span>, <span class="st">&quot;summary&quot;</span>]</span>
+<span id="cb23-16"><a href="#cb23-16" aria-hidden="true" tabindex="-1"></a>    )</span>
+<span id="cb23-17"><a href="#cb23-17" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb23-18"><a href="#cb23-18" aria-hidden="true" tabindex="-1"></a><span class="co"># 4. Golden Dataset 생성 및 저장</span></span>
+<span id="cb23-19"><a href="#cb23-19" aria-hidden="true" tabindex="-1"></a>dataset_manager <span class="op">=</span> GoldenDatasetManager()</span>
+<span id="cb23-20"><a href="#cb23-20" aria-hidden="true" tabindex="-1"></a>dataset <span class="op">=</span> dataset_manager.create_dataset(qa_pairs, <span class="st">&quot;document.pdf&quot;</span>)</span>
+<span id="cb23-21"><a href="#cb23-21" aria-hidden="true" tabindex="-1"></a>dataset_manager.save_dataset(dataset, <span class="bu">format</span><span class="op">=</span><span class="st">&quot;json&quot;</span>)</span></code></pre></div>
+<h4 id="중요-layer-2-필드는-수동-추가-권장">중요: Layer 2 필드는 수동
+추가 권장</h4>
+<p>현재 구현에서는 <strong>Layer 2 필드(expected_tools, expected_agents,
+expected_workflow_steps)가 자동으로 생성되지 않습니다</strong>.</p>
+<p>PDF 생성 후: 1. Dashboard에서 Golden Dataset 로드 2. Layer 2 필드를
+수동으로 추가/편집 3. 또는 Python 코드로 직접 추가:</p>
+<div class="sourceCode" id="cb24"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb24-1"><a href="#cb24-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> agent_evaluator.datasets.korean_rag_dataset_generator <span class="im">import</span> GoldenDatasetManager</span>
+<span id="cb24-2"><a href="#cb24-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb24-3"><a href="#cb24-3" aria-hidden="true" tabindex="-1"></a>manager <span class="op">=</span> GoldenDatasetManager()</span>
+<span id="cb24-4"><a href="#cb24-4" aria-hidden="true" tabindex="-1"></a>dataset <span class="op">=</span> manager.load_dataset(<span class="st">&quot;golden_dataset.json&quot;</span>)</span>
+<span id="cb24-5"><a href="#cb24-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb24-6"><a href="#cb24-6" aria-hidden="true" tabindex="-1"></a><span class="co"># Layer 2 필드 추가</span></span>
+<span id="cb24-7"><a href="#cb24-7" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> qa <span class="kw">in</span> dataset.qa_pairs:</span>
+<span id="cb24-8"><a href="#cb24-8" aria-hidden="true" tabindex="-1"></a>    qa.expected_tools <span class="op">=</span> [<span class="st">&quot;vector_search&quot;</span>, <span class="st">&quot;document_reader&quot;</span>]</span>
+<span id="cb24-9"><a href="#cb24-9" aria-hidden="true" tabindex="-1"></a>    qa.expected_agents <span class="op">=</span> [<span class="st">&quot;research_agent&quot;</span>]</span>
+<span id="cb24-10"><a href="#cb24-10" aria-hidden="true" tabindex="-1"></a>    qa.expected_workflow_steps <span class="op">=</span> [<span class="st">&quot;retrieval&quot;</span>, <span class="st">&quot;generation&quot;</span>]</span>
+<span id="cb24-11"><a href="#cb24-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb24-12"><a href="#cb24-12" aria-hidden="true" tabindex="-1"></a><span class="co"># 저장</span></span>
+<span id="cb24-13"><a href="#cb24-13" aria-hidden="true" tabindex="-1"></a>manager.save_dataset(dataset, <span class="bu">format</span><span class="op">=</span><span class="st">&quot;json&quot;</span>)</span></code></pre></div>
+<h3 id="방법-3-dashboard에서-생성">방법 3: Dashboard에서 생성</h3>
+<p>Agent Evaluator Dashboard는 <strong>GUI 기반 Golden Dataset 생성 및
+편집</strong>을 지원합니다.</p>
+<h4 id="장점-2">장점</h4>
+<ul>
+<li>사용자 친화적 인터페이스</li>
+<li>실시간 미리보기</li>
+<li>Layer 2 필드 편집 UI</li>
+</ul>
+<h4 id="사용법-1">사용법</h4>
+<p><strong>1) Dashboard 실행</strong></p>
+<div class="sourceCode" id="cb25"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb25-1"><a href="#cb25-1" aria-hidden="true" tabindex="-1"></a><span class="ex">streamlit</span> run streamlit_dashboard.py</span></code></pre></div>
+<p><strong>2) “Golden Dataset” 탭으로 이동</strong></p>
+<p><strong>3) “Create New QAPair” 클릭</strong></p>
+<p><strong>4) 폼 작성</strong> - <strong>ID</strong>: qa_001 -
+<strong>Question</strong>: What is the capital of France? -
+<strong>Ground Truth</strong>: Paris - <strong>Context</strong>: France
+is a country in Western Europe. - <strong>Metadata</strong>:
+<code>{"domain": "geography", "difficulty": "easy"}</code> -
+<strong>Expected Tools</strong>: [“search”] - <strong>Expected
+Agents</strong>: [“research_agent”]</p>
+<p><strong>5) “Save” 클릭</strong></p>
+<p><strong>6) “Export Dataset” 클릭하여 JSON 다운로드</strong></p>
+<hr />
+<h2 id="dashboard에서-편집하기">Dashboard에서 편집하기</h2>
+<h3 id="기존-golden-dataset-로드">기존 Golden Dataset 로드</h3>
+<p><strong>DataEditorManager를 통한 로드</strong></p>
+<div class="sourceCode" id="cb26"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb26-1"><a href="#cb26-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> data_editor_manager <span class="im">import</span> DataEditorManager</span>
+<span id="cb26-2"><a href="#cb26-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb26-3"><a href="#cb26-3" aria-hidden="true" tabindex="-1"></a>manager <span class="op">=</span> DataEditorManager()</span>
+<span id="cb26-4"><a href="#cb26-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb26-5"><a href="#cb26-5" aria-hidden="true" tabindex="-1"></a><span class="co"># Golden Dataset을 DataFrame으로 로드</span></span>
+<span id="cb26-6"><a href="#cb26-6" aria-hidden="true" tabindex="-1"></a>df <span class="op">=</span> manager.load_golden_dataset(<span class="st">&quot;golden_datasets/my_dataset.json&quot;</span>)</span>
+<span id="cb26-7"><a href="#cb26-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb26-8"><a href="#cb26-8" aria-hidden="true" tabindex="-1"></a><span class="co"># 로드된 데이터 확인</span></span>
+<span id="cb26-9"><a href="#cb26-9" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f&quot;로드된 QA 쌍: </span><span class="sc">{</span><span class="bu">len</span>(df)<span class="sc">}</span><span class="ss">개&quot;</span>)</span>
+<span id="cb26-10"><a href="#cb26-10" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(df.columns)  <span class="co"># qa_id, question, answer, context, ground_truth, metadata, expected_tools, ...</span></span></code></pre></div>
+<h3 id="qapair-편집">QAPair 편집</h3>
+<p><strong>DataFrame 편집 방식</strong></p>
+<div class="sourceCode" id="cb27"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb27-1"><a href="#cb27-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 1. 특정 QAPair 수정</span></span>
+<span id="cb27-2"><a href="#cb27-2" aria-hidden="true" tabindex="-1"></a>df.loc[df[<span class="st">&#39;qa_id&#39;</span>] <span class="op">==</span> <span class="st">&#39;qa_001&#39;</span>, <span class="st">&#39;ground_truth&#39;</span>] <span class="op">=</span> <span class="st">&quot;수정된 정답&quot;</span></span>
+<span id="cb27-3"><a href="#cb27-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb27-4"><a href="#cb27-4" aria-hidden="true" tabindex="-1"></a><span class="co"># 2. Layer 2 필드 추가/수정 (쉼표로 구분된 문자열)</span></span>
+<span id="cb27-5"><a href="#cb27-5" aria-hidden="true" tabindex="-1"></a>df.loc[df[<span class="st">&#39;qa_id&#39;</span>] <span class="op">==</span> <span class="st">&#39;qa_001&#39;</span>, <span class="st">&#39;expected_tools&#39;</span>] <span class="op">=</span> <span class="st">&quot;vector_search,document_reader&quot;</span></span>
+<span id="cb27-6"><a href="#cb27-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb27-7"><a href="#cb27-7" aria-hidden="true" tabindex="-1"></a><span class="co"># 3. 저장</span></span>
+<span id="cb27-8"><a href="#cb27-8" aria-hidden="true" tabindex="-1"></a>manager.save_golden_dataset(</span>
+<span id="cb27-9"><a href="#cb27-9" aria-hidden="true" tabindex="-1"></a>    df<span class="op">=</span>df,</span>
+<span id="cb27-10"><a href="#cb27-10" aria-hidden="true" tabindex="-1"></a>    filepath<span class="op">=</span><span class="st">&quot;golden_datasets/my_dataset.json&quot;</span>,</span>
+<span id="cb27-11"><a href="#cb27-11" aria-hidden="true" tabindex="-1"></a>    dataset_id<span class="op">=</span><span class="st">&quot;my_dataset&quot;</span>,</span>
+<span id="cb27-12"><a href="#cb27-12" aria-hidden="true" tabindex="-1"></a>    source_document<span class="op">=</span><span class="st">&quot;my_document.pdf&quot;</span>,</span>
+<span id="cb27-13"><a href="#cb27-13" aria-hidden="true" tabindex="-1"></a>    editor<span class="op">=</span><span class="st">&quot;Your Name&quot;</span>,</span>
+<span id="cb27-14"><a href="#cb27-14" aria-hidden="true" tabindex="-1"></a>    reason<span class="op">=</span><span class="st">&quot;Updated ground truth and added Layer 2 fields&quot;</span></span>
+<span id="cb27-15"><a href="#cb27-15" aria-hidden="true" tabindex="-1"></a>)</span></code></pre></div>
+<h3 id="qapair-추가">QAPair 추가</h3>
+<div class="sourceCode" id="cb28"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb28-1"><a href="#cb28-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 새 QA 쌍 추가</span></span>
+<span id="cb28-2"><a href="#cb28-2" aria-hidden="true" tabindex="-1"></a>new_qa <span class="op">=</span> {</span>
+<span id="cb28-3"><a href="#cb28-3" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;qa_id&quot;</span>: <span class="st">&quot;qa_new&quot;</span>,</span>
+<span id="cb28-4"><a href="#cb28-4" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;question&quot;</span>: <span class="st">&quot;새로운 질문&quot;</span>,</span>
+<span id="cb28-5"><a href="#cb28-5" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;answer&quot;</span>: <span class="st">&quot;새로운 답변&quot;</span>,</span>
+<span id="cb28-6"><a href="#cb28-6" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;context&quot;</span>: <span class="st">&quot;새로운 컨텍스트&quot;</span>,</span>
+<span id="cb28-7"><a href="#cb28-7" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;ground_truth&quot;</span>: <span class="st">&quot;새로운 정답&quot;</span>,</span>
+<span id="cb28-8"><a href="#cb28-8" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;metadata&quot;</span>: {<span class="st">&quot;domain&quot;</span>: <span class="st">&quot;new&quot;</span>, <span class="st">&quot;difficulty&quot;</span>: <span class="st">&quot;medium&quot;</span>},</span>
+<span id="cb28-9"><a href="#cb28-9" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;expected_tools&quot;</span>: [<span class="st">&quot;search&quot;</span>],</span>
+<span id="cb28-10"><a href="#cb28-10" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;expected_agents&quot;</span>: <span class="va">None</span>,</span>
+<span id="cb28-11"><a href="#cb28-11" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;expected_workflow_steps&quot;</span>: <span class="va">None</span></span>
+<span id="cb28-12"><a href="#cb28-12" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb28-13"><a href="#cb28-13" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb28-14"><a href="#cb28-14" aria-hidden="true" tabindex="-1"></a>manager.add_qa_pair(</span>
+<span id="cb28-15"><a href="#cb28-15" aria-hidden="true" tabindex="-1"></a>    qa_data<span class="op">=</span>new_qa,</span>
+<span id="cb28-16"><a href="#cb28-16" aria-hidden="true" tabindex="-1"></a>    filepath<span class="op">=</span><span class="st">&quot;golden_datasets/my_dataset.json&quot;</span>,</span>
+<span id="cb28-17"><a href="#cb28-17" aria-hidden="true" tabindex="-1"></a>    editor<span class="op">=</span><span class="st">&quot;Your Name&quot;</span>,</span>
+<span id="cb28-18"><a href="#cb28-18" aria-hidden="true" tabindex="-1"></a>    reason<span class="op">=</span><span class="st">&quot;Added new test case&quot;</span></span>
+<span id="cb28-19"><a href="#cb28-19" aria-hidden="true" tabindex="-1"></a>)</span></code></pre></div>
+<h3 id="qapair-삭제">QAPair 삭제</h3>
+<div class="sourceCode" id="cb29"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb29-1"><a href="#cb29-1" aria-hidden="true" tabindex="-1"></a>manager.delete_qa_pair(</span>
+<span id="cb29-2"><a href="#cb29-2" aria-hidden="true" tabindex="-1"></a>    qa_id<span class="op">=</span><span class="st">&quot;qa_001&quot;</span>,</span>
+<span id="cb29-3"><a href="#cb29-3" aria-hidden="true" tabindex="-1"></a>    filepath<span class="op">=</span><span class="st">&quot;golden_datasets/my_dataset.json&quot;</span>,</span>
+<span id="cb29-4"><a href="#cb29-4" aria-hidden="true" tabindex="-1"></a>    editor<span class="op">=</span><span class="st">&quot;Your Name&quot;</span>,</span>
+<span id="cb29-5"><a href="#cb29-5" aria-hidden="true" tabindex="-1"></a>    reason<span class="op">=</span><span class="st">&quot;Removed outdated test case&quot;</span></span>
+<span id="cb29-6"><a href="#cb29-6" aria-hidden="true" tabindex="-1"></a>)</span></code></pre></div>
+<h3 id="layer-2-필드-일괄-추가">Layer 2 필드 일괄 추가</h3>
+<div class="sourceCode" id="cb30"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb30-1"><a href="#cb30-1" aria-hidden="true" tabindex="-1"></a><span class="co"># DataFrame에서 일괄 수정</span></span>
+<span id="cb30-2"><a href="#cb30-2" aria-hidden="true" tabindex="-1"></a>df <span class="op">=</span> manager.load_golden_dataset(<span class="st">&quot;golden_datasets/my_dataset.json&quot;</span>)</span>
+<span id="cb30-3"><a href="#cb30-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb30-4"><a href="#cb30-4" aria-hidden="true" tabindex="-1"></a><span class="co"># 특정 도메인의 QA에 Layer 2 필드 일괄 추가</span></span>
+<span id="cb30-5"><a href="#cb30-5" aria-hidden="true" tabindex="-1"></a>mask <span class="op">=</span> df[<span class="st">&#39;metadata&#39;</span>].<span class="bu">apply</span>(<span class="kw">lambda</span> x: x.get(<span class="st">&#39;domain&#39;</span>) <span class="op">==</span> <span class="st">&#39;math&#39;</span> <span class="cf">if</span> <span class="bu">isinstance</span>(x, <span class="bu">dict</span>) <span class="cf">else</span> <span class="va">False</span>)</span>
+<span id="cb30-6"><a href="#cb30-6" aria-hidden="true" tabindex="-1"></a>df.loc[mask, <span class="st">&#39;expected_tools&#39;</span>] <span class="op">=</span> <span class="st">&quot;calculator,python_repl&quot;</span></span>
+<span id="cb30-7"><a href="#cb30-7" aria-hidden="true" tabindex="-1"></a>df.loc[mask, <span class="st">&#39;expected_workflow_steps&#39;</span>] <span class="op">=</span> <span class="st">&quot;parse,calculate,format&quot;</span></span>
+<span id="cb30-8"><a href="#cb30-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb30-9"><a href="#cb30-9" aria-hidden="true" tabindex="-1"></a><span class="co"># 저장</span></span>
+<span id="cb30-10"><a href="#cb30-10" aria-hidden="true" tabindex="-1"></a>manager.save_golden_dataset(</span>
+<span id="cb30-11"><a href="#cb30-11" aria-hidden="true" tabindex="-1"></a>    df<span class="op">=</span>df,</span>
+<span id="cb30-12"><a href="#cb30-12" aria-hidden="true" tabindex="-1"></a>    filepath<span class="op">=</span><span class="st">&quot;golden_datasets/my_dataset.json&quot;</span>,</span>
+<span id="cb30-13"><a href="#cb30-13" aria-hidden="true" tabindex="-1"></a>    dataset_id<span class="op">=</span><span class="st">&quot;my_dataset&quot;</span>,</span>
+<span id="cb30-14"><a href="#cb30-14" aria-hidden="true" tabindex="-1"></a>    source_document<span class="op">=</span><span class="st">&quot;my_document.pdf&quot;</span>,</span>
+<span id="cb30-15"><a href="#cb30-15" aria-hidden="true" tabindex="-1"></a>    editor<span class="op">=</span><span class="st">&quot;Your Name&quot;</span>,</span>
+<span id="cb30-16"><a href="#cb30-16" aria-hidden="true" tabindex="-1"></a>    reason<span class="op">=</span><span class="st">&quot;Bulk update Layer 2 fields for math domain&quot;</span></span>
+<span id="cb30-17"><a href="#cb30-17" aria-hidden="true" tabindex="-1"></a>)</span></code></pre></div>
+<h3 id="검증">검증</h3>
+<div class="sourceCode" id="cb31"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb31-1"><a href="#cb31-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> agent_evaluator.datasets.korean_rag_dataset_generator <span class="im">import</span> GoldenDatasetManager</span>
+<span id="cb31-2"><a href="#cb31-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb31-3"><a href="#cb31-3" aria-hidden="true" tabindex="-1"></a>manager <span class="op">=</span> GoldenDatasetManager()</span>
+<span id="cb31-4"><a href="#cb31-4" aria-hidden="true" tabindex="-1"></a>dataset <span class="op">=</span> manager.load_dataset(<span class="st">&quot;golden_datasets/my_dataset.json&quot;</span>)</span>
+<span id="cb31-5"><a href="#cb31-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb31-6"><a href="#cb31-6" aria-hidden="true" tabindex="-1"></a><span class="co"># 데이터셋 검증</span></span>
+<span id="cb31-7"><a href="#cb31-7" aria-hidden="true" tabindex="-1"></a>validation <span class="op">=</span> manager.validate_dataset(dataset)</span>
+<span id="cb31-8"><a href="#cb31-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb31-9"><a href="#cb31-9" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> validation[<span class="st">&quot;is_valid&quot;</span>]:</span>
+<span id="cb31-10"><a href="#cb31-10" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="st">&quot;✅ 검증 통과&quot;</span>)</span>
+<span id="cb31-11"><a href="#cb31-11" aria-hidden="true" tabindex="-1"></a><span class="cf">else</span>:</span>
+<span id="cb31-12"><a href="#cb31-12" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="st">&quot;❌ 검증 실패:&quot;</span>)</span>
+<span id="cb31-13"><a href="#cb31-13" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> issue <span class="kw">in</span> validation[<span class="st">&quot;issues&quot;</span>]:</span>
+<span id="cb31-14"><a href="#cb31-14" aria-hidden="true" tabindex="-1"></a>        <span class="bu">print</span>(<span class="ss">f&quot;  - </span><span class="sc">{</span>issue<span class="sc">}</span><span class="ss">&quot;</span>)</span>
+<span id="cb31-15"><a href="#cb31-15" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb31-16"><a href="#cb31-16" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f&quot;</span><span class="ch">\n</span><span class="ss">총 QA 쌍: </span><span class="sc">{</span>validation[<span class="st">&#39;total_qa_pairs&#39;</span>]<span class="sc">}</span><span class="ss">개&quot;</span>)</span></code></pre></div>
+<hr />
+<h2 id="자동-평가-워크플로우">자동 평가 워크플로우</h2>
+<p>Golden Dataset을 사용한 자동 평가는 다음과 같이 진행됩니다.</p>
+<h3 id="기본-워크플로우-실제-구현">기본 워크플로우 (실제 구현)</h3>
+<div class="sourceCode" id="cb32"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb32-1"><a href="#cb32-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> agent_evaluator <span class="im">import</span> PerformanceMonitor</span>
+<span id="cb32-2"><a href="#cb32-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb32-3"><a href="#cb32-3" aria-hidden="true" tabindex="-1"></a><span class="co"># 1. Monitor 초기화</span></span>
+<span id="cb32-4"><a href="#cb32-4" aria-hidden="true" tabindex="-1"></a>monitor <span class="op">=</span> PerformanceMonitor()</span>
+<span id="cb32-5"><a href="#cb32-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb32-6"><a href="#cb32-6" aria-hidden="true" tabindex="-1"></a><span class="co"># 2. 임계값 설정</span></span>
+<span id="cb32-7"><a href="#cb32-7" aria-hidden="true" tabindex="-1"></a>monitor.thresholds <span class="op">=</span> {</span>
+<span id="cb32-8"><a href="#cb32-8" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Layer 1</span></span>
+<span id="cb32-9"><a href="#cb32-9" aria-hidden="true" tabindex="-1"></a>    <span class="st">&#39;tcr&#39;</span>: <span class="fl">90.0</span>,</span>
+<span id="cb32-10"><a href="#cb32-10" aria-hidden="true" tabindex="-1"></a>    <span class="st">&#39;accuracy&#39;</span>: <span class="fl">85.0</span>,</span>
+<span id="cb32-11"><a href="#cb32-11" aria-hidden="true" tabindex="-1"></a>    <span class="st">&#39;hallucination&#39;</span>: <span class="fl">5.0</span>,</span>
+<span id="cb32-12"><a href="#cb32-12" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Layer 2</span></span>
+<span id="cb32-13"><a href="#cb32-13" aria-hidden="true" tabindex="-1"></a>    <span class="st">&#39;tool_selection_accuracy&#39;</span>: <span class="fl">80.0</span></span>
+<span id="cb32-14"><a href="#cb32-14" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb32-15"><a href="#cb32-15" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb32-16"><a href="#cb32-16" aria-hidden="true" tabindex="-1"></a><span class="co"># 3. 에이전트 함수 정의</span></span>
+<span id="cb32-17"><a href="#cb32-17" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> my_agent(question: <span class="bu">str</span>):</span>
+<span id="cb32-18"><a href="#cb32-18" aria-hidden="true" tabindex="-1"></a>    <span class="co">&quot;&quot;&quot;</span></span>
+<span id="cb32-19"><a href="#cb32-19" aria-hidden="true" tabindex="-1"></a><span class="co">    평가할 에이전트 함수</span></span>
+<span id="cb32-20"><a href="#cb32-20" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb32-21"><a href="#cb32-21" aria-hidden="true" tabindex="-1"></a><span class="co">    Args:</span></span>
+<span id="cb32-22"><a href="#cb32-22" aria-hidden="true" tabindex="-1"></a><span class="co">        question: 질문 (Golden Dataset의 &#39;question&#39; 필드)</span></span>
+<span id="cb32-23"><a href="#cb32-23" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb32-24"><a href="#cb32-24" aria-hidden="true" tabindex="-1"></a><span class="co">    Returns:</span></span>
+<span id="cb32-25"><a href="#cb32-25" aria-hidden="true" tabindex="-1"></a><span class="co">        dict: 필수 키</span></span>
+<span id="cb32-26"><a href="#cb32-26" aria-hidden="true" tabindex="-1"></a><span class="co">            - answer: 에이전트의 답변 (문자열)</span></span>
+<span id="cb32-27"><a href="#cb32-27" aria-hidden="true" tabindex="-1"></a><span class="co">            - tools_used: 사용한 도구 리스트 (Layer 2용, 선택)</span></span>
+<span id="cb32-28"><a href="#cb32-28" aria-hidden="true" tabindex="-1"></a><span class="co">            - latency: 응답 시간 (선택)</span></span>
+<span id="cb32-29"><a href="#cb32-29" aria-hidden="true" tabindex="-1"></a><span class="co">            - token_usage: 토큰 사용량 (선택)</span></span>
+<span id="cb32-30"><a href="#cb32-30" aria-hidden="true" tabindex="-1"></a><span class="co">    &quot;&quot;&quot;</span></span>
+<span id="cb32-31"><a href="#cb32-31" aria-hidden="true" tabindex="-1"></a>    <span class="co"># 실제 에이전트 로직 (LLM 호출 등)</span></span>
+<span id="cb32-32"><a href="#cb32-32" aria-hidden="true" tabindex="-1"></a>    response <span class="op">=</span> your_llm.predict(question)</span>
+<span id="cb32-33"><a href="#cb32-33" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb32-34"><a href="#cb32-34" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> {</span>
+<span id="cb32-35"><a href="#cb32-35" aria-hidden="true" tabindex="-1"></a>        <span class="st">&quot;answer&quot;</span>: response,</span>
+<span id="cb32-36"><a href="#cb32-36" aria-hidden="true" tabindex="-1"></a>        <span class="st">&quot;tools_used&quot;</span>: [<span class="st">&quot;search&quot;</span>, <span class="st">&quot;calculator&quot;</span>],  <span class="co"># Layer 2: 실제 사용한 도구</span></span>
+<span id="cb32-37"><a href="#cb32-37" aria-hidden="true" tabindex="-1"></a>        <span class="st">&quot;latency&quot;</span>: <span class="fl">1.5</span>,</span>
+<span id="cb32-38"><a href="#cb32-38" aria-hidden="true" tabindex="-1"></a>        <span class="st">&quot;token_usage&quot;</span>: {<span class="st">&quot;input&quot;</span>: <span class="dv">100</span>, <span class="st">&quot;output&quot;</span>: <span class="dv">50</span>}</span>
+<span id="cb32-39"><a href="#cb32-39" aria-hidden="true" tabindex="-1"></a>    }</span>
+<span id="cb32-40"><a href="#cb32-40" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb32-41"><a href="#cb32-41" aria-hidden="true" tabindex="-1"></a><span class="co"># 4. Golden Dataset 기반 자동 평가</span></span>
+<span id="cb32-42"><a href="#cb32-42" aria-hidden="true" tabindex="-1"></a>results <span class="op">=</span> monitor.evaluate_with_golden_dataset(</span>
+<span id="cb32-43"><a href="#cb32-43" aria-hidden="true" tabindex="-1"></a>    agent_fn<span class="op">=</span>my_agent,</span>
+<span id="cb32-44"><a href="#cb32-44" aria-hidden="true" tabindex="-1"></a>    dataset_path<span class="op">=</span><span class="st">&quot;golden_datasets/sample_dataset.json&quot;</span>,  <span class="co"># 또는 절대 경로</span></span>
+<span id="cb32-45"><a href="#cb32-45" aria-hidden="true" tabindex="-1"></a>    enable_layer2_metrics<span class="op">=</span><span class="va">True</span>,  <span class="co"># Layer 2 자동 평가</span></span>
+<span id="cb32-46"><a href="#cb32-46" aria-hidden="true" tabindex="-1"></a>    enable_advanced_metrics<span class="op">=</span><span class="va">False</span>,  <span class="co"># Layer 3 (유료)</span></span>
+<span id="cb32-47"><a href="#cb32-47" aria-hidden="true" tabindex="-1"></a>    verbose<span class="op">=</span><span class="va">True</span>  <span class="co"># 진행 상황 출력</span></span>
+<span id="cb32-48"><a href="#cb32-48" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb32-49"><a href="#cb32-49" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb32-50"><a href="#cb32-50" aria-hidden="true" tabindex="-1"></a><span class="co"># 5. 결과 확인</span></span>
+<span id="cb32-51"><a href="#cb32-51" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f&quot;</span><span class="ch">\n</span><span class="ss">📊 평가 결과:&quot;</span>)</span>
+<span id="cb32-52"><a href="#cb32-52" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f&quot;  총 평가: </span><span class="sc">{</span>results[<span class="st">&#39;total_evaluated&#39;</span>]<span class="sc">}</span><span class="ss">개&quot;</span>)</span>
+<span id="cb32-53"><a href="#cb32-53" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f&quot;  TCR: </span><span class="sc">{</span>results[<span class="st">&#39;layer1_metrics&#39;</span>][<span class="st">&#39;tcr&#39;</span>]<span class="sc">:.1f}</span><span class="ss">%&quot;</span>)</span>
+<span id="cb32-54"><a href="#cb32-54" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f&quot;  Accuracy: </span><span class="sc">{</span>results[<span class="st">&#39;layer1_metrics&#39;</span>][<span class="st">&#39;accuracy&#39;</span>]<span class="sc">:.1f}</span><span class="ss">%&quot;</span>)</span>
+<span id="cb32-55"><a href="#cb32-55" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f&quot;  Hallucination Rate: </span><span class="sc">{</span>results[<span class="st">&#39;layer1_metrics&#39;</span>][<span class="st">&#39;hallucination_rate&#39;</span>]<span class="sc">:.1f}</span><span class="ss">%&quot;</span>)</span>
+<span id="cb32-56"><a href="#cb32-56" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb32-57"><a href="#cb32-57" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> results.get(<span class="st">&#39;layer2_metrics&#39;</span>):</span>
+<span id="cb32-58"><a href="#cb32-58" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="ss">f&quot;  Tool Selection Accuracy: </span><span class="sc">{</span>results[<span class="st">&#39;layer2_metrics&#39;</span>][<span class="st">&#39;tool_selection_accuracy&#39;</span>]<span class="sc">:.1f}</span><span class="ss">%&quot;</span>)</span>
+<span id="cb32-59"><a href="#cb32-59" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="ss">f&quot;  Tool Selection F1: </span><span class="sc">{</span>results[<span class="st">&#39;layer2_metrics&#39;</span>][<span class="st">&#39;tool_selection_f1&#39;</span>]<span class="sc">:.1f}</span><span class="ss">%&quot;</span>)</span>
+<span id="cb32-60"><a href="#cb32-60" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb32-61"><a href="#cb32-61" aria-hidden="true" tabindex="-1"></a><span class="co"># 6. 임계값 비교</span></span>
+<span id="cb32-62"><a href="#cb32-62" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> results.get(<span class="st">&#39;pass_fail&#39;</span>):</span>
+<span id="cb32-63"><a href="#cb32-63" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="ss">f&quot;</span><span class="ch">\n</span><span class="ss">🎯 임계값 비교:&quot;</span>)</span>
+<span id="cb32-64"><a href="#cb32-64" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> metric, data <span class="kw">in</span> results[<span class="st">&#39;pass_fail&#39;</span>].items():</span>
+<span id="cb32-65"><a href="#cb32-65" aria-hidden="true" tabindex="-1"></a>        status <span class="op">=</span> <span class="st">&quot;✅ PASS&quot;</span> <span class="cf">if</span> data[<span class="st">&#39;status&#39;</span>] <span class="op">==</span> <span class="st">&#39;pass&#39;</span> <span class="cf">else</span> <span class="st">&quot;❌ FAIL&quot;</span></span>
+<span id="cb32-66"><a href="#cb32-66" aria-hidden="true" tabindex="-1"></a>        <span class="bu">print</span>(<span class="ss">f&quot;  </span><span class="sc">{</span>status<span class="sc">}</span><span class="ss"> </span><span class="sc">{</span>data[<span class="st">&#39;name&#39;</span>]<span class="sc">}</span><span class="ss">: </span><span class="sc">{</span>data[<span class="st">&#39;value&#39;</span>]<span class="sc">:.1f}</span><span class="ss"> (임계값: </span><span class="sc">{</span>data[<span class="st">&#39;threshold&#39;</span>]<span class="sc">}</span><span class="ss">)&quot;</span>)</span></code></pre></div>
+<h3 id="중요-evaluate_with_golden_dataset-작동-방식">중요:
+evaluate_with_golden_dataset() 작동 방식</h3>
+<div class="sourceCode" id="cb33"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb33-1"><a href="#cb33-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 내부적으로 다음과 같이 동작합니다:</span></span>
+<span id="cb33-2"><a href="#cb33-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb33-3"><a href="#cb33-3" aria-hidden="true" tabindex="-1"></a><span class="co"># 1. Golden Dataset 로드</span></span>
+<span id="cb33-4"><a href="#cb33-4" aria-hidden="true" tabindex="-1"></a><span class="cf">with</span> <span class="bu">open</span>(dataset_path, <span class="st">&#39;r&#39;</span>) <span class="im">as</span> f:</span>
+<span id="cb33-5"><a href="#cb33-5" aria-hidden="true" tabindex="-1"></a>    golden_datasets <span class="op">=</span> json.load(f)</span>
+<span id="cb33-6"><a href="#cb33-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb33-7"><a href="#cb33-7" aria-hidden="true" tabindex="-1"></a><span class="co"># 2. 각 QA 쌍에 대해 평가</span></span>
+<span id="cb33-8"><a href="#cb33-8" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> qa_pair <span class="kw">in</span> golden_datasets:</span>
+<span id="cb33-9"><a href="#cb33-9" aria-hidden="true" tabindex="-1"></a>    <span class="co"># 2.1 에이전트 실행</span></span>
+<span id="cb33-10"><a href="#cb33-10" aria-hidden="true" tabindex="-1"></a>    result <span class="op">=</span> agent_fn(qa_pair[<span class="st">&#39;question&#39;</span>])</span>
+<span id="cb33-11"><a href="#cb33-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb33-12"><a href="#cb33-12" aria-hidden="true" tabindex="-1"></a>    <span class="co"># 2.2 TaskResult 자동 생성</span></span>
+<span id="cb33-13"><a href="#cb33-13" aria-hidden="true" tabindex="-1"></a>    task <span class="op">=</span> TaskResult(</span>
+<span id="cb33-14"><a href="#cb33-14" aria-hidden="true" tabindex="-1"></a>        task_id<span class="op">=</span>qa_pair[<span class="st">&#39;qa_id&#39;</span>],</span>
+<span id="cb33-15"><a href="#cb33-15" aria-hidden="true" tabindex="-1"></a>        task_type<span class="op">=</span>TaskType.QA,</span>
+<span id="cb33-16"><a href="#cb33-16" aria-hidden="true" tabindex="-1"></a>        <span class="co"># ... 자동으로 메트릭 계산</span></span>
+<span id="cb33-17"><a href="#cb33-17" aria-hidden="true" tabindex="-1"></a>    )</span>
+<span id="cb33-18"><a href="#cb33-18" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb33-19"><a href="#cb33-19" aria-hidden="true" tabindex="-1"></a>    <span class="co"># 2.3 Layer 1 메트릭 자동 계산</span></span>
+<span id="cb33-20"><a href="#cb33-20" aria-hidden="true" tabindex="-1"></a>    monitor.record_task(task)</span>
+<span id="cb33-21"><a href="#cb33-21" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb33-22"><a href="#cb33-22" aria-hidden="true" tabindex="-1"></a>    <span class="co"># 2.4 Layer 2: Tool Selection 자동 평가</span></span>
+<span id="cb33-23"><a href="#cb33-23" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> qa_pair.get(<span class="st">&#39;expected_tools&#39;</span>):</span>
+<span id="cb33-24"><a href="#cb33-24" aria-hidden="true" tabindex="-1"></a>        monitor.tool_selection_tracker.evaluate_selection(</span>
+<span id="cb33-25"><a href="#cb33-25" aria-hidden="true" tabindex="-1"></a>            task_id<span class="op">=</span>task.task_id,</span>
+<span id="cb33-26"><a href="#cb33-26" aria-hidden="true" tabindex="-1"></a>            expected_tools<span class="op">=</span>qa_pair[<span class="st">&#39;expected_tools&#39;</span>],</span>
+<span id="cb33-27"><a href="#cb33-27" aria-hidden="true" tabindex="-1"></a>            actual_tools<span class="op">=</span>result.get(<span class="st">&#39;tools_used&#39;</span>, [])</span>
+<span id="cb33-28"><a href="#cb33-28" aria-hidden="true" tabindex="-1"></a>        )</span>
+<span id="cb33-29"><a href="#cb33-29" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb33-30"><a href="#cb33-30" aria-hidden="true" tabindex="-1"></a><span class="co"># 3. 결과 집계 및 반환</span></span></code></pre></div>
+<h3 id="layer-2-자동-평가-상세">Layer 2 자동 평가 상세</h3>
+<h4 id="tool-selection-평가">Tool Selection 평가</h4>
+<div class="sourceCode" id="cb34"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb34-1"><a href="#cb34-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Golden Dataset QAPair</span></span>
+<span id="cb34-2"><a href="#cb34-2" aria-hidden="true" tabindex="-1"></a>{</span>
+<span id="cb34-3"><a href="#cb34-3" aria-hidden="true" tabindex="-1"></a>  <span class="st">&quot;id&quot;</span>: <span class="st">&quot;qa_001&quot;</span>,</span>
+<span id="cb34-4"><a href="#cb34-4" aria-hidden="true" tabindex="-1"></a>  <span class="st">&quot;question&quot;</span>: <span class="st">&quot;What is 15 + 27?&quot;</span>,</span>
+<span id="cb34-5"><a href="#cb34-5" aria-hidden="true" tabindex="-1"></a>  <span class="st">&quot;expected_tools&quot;</span>: [<span class="st">&quot;calculator&quot;</span>]</span>
+<span id="cb34-6"><a href="#cb34-6" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb34-7"><a href="#cb34-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb34-8"><a href="#cb34-8" aria-hidden="true" tabindex="-1"></a><span class="co"># 에이전트 실행 후</span></span>
+<span id="cb34-9"><a href="#cb34-9" aria-hidden="true" tabindex="-1"></a><span class="co"># 실제 사용 도구: [&quot;search&quot;, &quot;calculator&quot;]</span></span>
+<span id="cb34-10"><a href="#cb34-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb34-11"><a href="#cb34-11" aria-hidden="true" tabindex="-1"></a><span class="co"># 자동 평가</span></span>
+<span id="cb34-12"><a href="#cb34-12" aria-hidden="true" tabindex="-1"></a><span class="co"># - Precision: 1/2 = 50% (calculator는 맞지만 search는 불필요)</span></span>
+<span id="cb34-13"><a href="#cb34-13" aria-hidden="true" tabindex="-1"></a><span class="co"># - Recall: 1/1 = 100% (calculator 사용함)</span></span>
+<span id="cb34-14"><a href="#cb34-14" aria-hidden="true" tabindex="-1"></a><span class="co"># - F1 Score: 2 * (0.5 * 1.0) / (0.5 + 1.0) = 66.7%</span></span></code></pre></div>
+<h4 id="agent-coordination-평가">Agent Coordination 평가</h4>
+<div class="sourceCode" id="cb35"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb35-1"><a href="#cb35-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Golden Dataset QAPair</span></span>
+<span id="cb35-2"><a href="#cb35-2" aria-hidden="true" tabindex="-1"></a>{</span>
+<span id="cb35-3"><a href="#cb35-3" aria-hidden="true" tabindex="-1"></a>  <span class="st">&quot;id&quot;</span>: <span class="st">&quot;qa_002&quot;</span>,</span>
+<span id="cb35-4"><a href="#cb35-4" aria-hidden="true" tabindex="-1"></a>  <span class="st">&quot;question&quot;</span>: <span class="st">&quot;Research AI trends and write a report.&quot;</span>,</span>
+<span id="cb35-5"><a href="#cb35-5" aria-hidden="true" tabindex="-1"></a>  <span class="st">&quot;expected_agents&quot;</span>: [<span class="st">&quot;manager&quot;</span>, <span class="st">&quot;researcher&quot;</span>, <span class="st">&quot;writer&quot;</span>]</span>
+<span id="cb35-6"><a href="#cb35-6" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb35-7"><a href="#cb35-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb35-8"><a href="#cb35-8" aria-hidden="true" tabindex="-1"></a><span class="co"># CrewAI 실행 후</span></span>
+<span id="cb35-9"><a href="#cb35-9" aria-hidden="true" tabindex="-1"></a><span class="co"># 실제 상호작용:</span></span>
+<span id="cb35-10"><a href="#cb35-10" aria-hidden="true" tabindex="-1"></a><span class="co"># - manager → researcher (delegation)</span></span>
+<span id="cb35-11"><a href="#cb35-11" aria-hidden="true" tabindex="-1"></a><span class="co"># - researcher → writer (collaboration)</span></span>
+<span id="cb35-12"><a href="#cb35-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb35-13"><a href="#cb35-13" aria-hidden="true" tabindex="-1"></a><span class="co"># 자동 평가</span></span>
+<span id="cb35-14"><a href="#cb35-14" aria-hidden="true" tabindex="-1"></a><span class="co"># - 모든 expected_agents 참여: ✅</span></span>
+<span id="cb35-15"><a href="#cb35-15" aria-hidden="true" tabindex="-1"></a><span class="co"># - 상호작용 성공률: 100%</span></span>
+<span id="cb35-16"><a href="#cb35-16" aria-hidden="true" tabindex="-1"></a><span class="co"># - 협업 점수: 8.5/10</span></span></code></pre></div>
+<h4 id="workflow-execution-평가">Workflow Execution 평가</h4>
+<div class="sourceCode" id="cb36"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb36-1"><a href="#cb36-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Golden Dataset QAPair</span></span>
+<span id="cb36-2"><a href="#cb36-2" aria-hidden="true" tabindex="-1"></a>{</span>
+<span id="cb36-3"><a href="#cb36-3" aria-hidden="true" tabindex="-1"></a>  <span class="st">&quot;id&quot;</span>: <span class="st">&quot;qa_003&quot;</span>,</span>
+<span id="cb36-4"><a href="#cb36-4" aria-hidden="true" tabindex="-1"></a>  <span class="st">&quot;question&quot;</span>: <span class="st">&quot;Summarize this document.&quot;</span>,</span>
+<span id="cb36-5"><a href="#cb36-5" aria-hidden="true" tabindex="-1"></a>  <span class="st">&quot;expected_workflow_steps&quot;</span>: [<span class="st">&quot;retrieval&quot;</span>, <span class="st">&quot;generation&quot;</span>, <span class="st">&quot;validation&quot;</span>]</span>
+<span id="cb36-6"><a href="#cb36-6" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb36-7"><a href="#cb36-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb36-8"><a href="#cb36-8" aria-hidden="true" tabindex="-1"></a><span class="co"># LangGraph 실행 후</span></span>
+<span id="cb36-9"><a href="#cb36-9" aria-hidden="true" tabindex="-1"></a><span class="co"># 실제 실행 단계:</span></span>
+<span id="cb36-10"><a href="#cb36-10" aria-hidden="true" tabindex="-1"></a><span class="co"># - retrieval (success)</span></span>
+<span id="cb36-11"><a href="#cb36-11" aria-hidden="true" tabindex="-1"></a><span class="co"># - generation (success)</span></span>
+<span id="cb36-12"><a href="#cb36-12" aria-hidden="true" tabindex="-1"></a><span class="co"># - validation (success)</span></span>
+<span id="cb36-13"><a href="#cb36-13" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb36-14"><a href="#cb36-14" aria-hidden="true" tabindex="-1"></a><span class="co"># 자동 평가</span></span>
+<span id="cb36-15"><a href="#cb36-15" aria-hidden="true" tabindex="-1"></a><span class="co"># - 모든 단계 실행: ✅</span></span>
+<span id="cb36-16"><a href="#cb36-16" aria-hidden="true" tabindex="-1"></a><span class="co"># - 단계 성공률: 100%</span></span></code></pre></div>
+<h3 id="framework-통합-예제">Framework 통합 예제</h3>
+<h4 id="langchain">LangChain</h4>
+<div class="sourceCode" id="cb37"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb37-1"><a href="#cb37-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> agent_evaluator.integrations <span class="im">import</span> LangChainEvaluator, AdvancedLangChainCallback</span>
+<span id="cb37-2"><a href="#cb37-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb37-3"><a href="#cb37-3" aria-hidden="true" tabindex="-1"></a><span class="co"># Golden Dataset에서 expected_tools 로드</span></span>
+<span id="cb37-4"><a href="#cb37-4" aria-hidden="true" tabindex="-1"></a>expected_tools <span class="op">=</span> [<span class="st">&quot;search&quot;</span>, <span class="st">&quot;calculator&quot;</span>]</span>
+<span id="cb37-5"><a href="#cb37-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb37-6"><a href="#cb37-6" aria-hidden="true" tabindex="-1"></a><span class="co"># Evaluator 생성</span></span>
+<span id="cb37-7"><a href="#cb37-7" aria-hidden="true" tabindex="-1"></a>evaluator <span class="op">=</span> LangChainEvaluator(</span>
+<span id="cb37-8"><a href="#cb37-8" aria-hidden="true" tabindex="-1"></a>    agent,</span>
+<span id="cb37-9"><a href="#cb37-9" aria-hidden="true" tabindex="-1"></a>    monitor,</span>
+<span id="cb37-10"><a href="#cb37-10" aria-hidden="true" tabindex="-1"></a>    expected_tools<span class="op">=</span>expected_tools,</span>
+<span id="cb37-11"><a href="#cb37-11" aria-hidden="true" tabindex="-1"></a>    enable_layer2<span class="op">=</span><span class="va">True</span></span>
+<span id="cb37-12"><a href="#cb37-12" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb37-13"><a href="#cb37-13" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb37-14"><a href="#cb37-14" aria-hidden="true" tabindex="-1"></a><span class="co"># 에이전트 실행 (자동 추적)</span></span>
+<span id="cb37-15"><a href="#cb37-15" aria-hidden="true" tabindex="-1"></a>result <span class="op">=</span> evaluator.run(</span>
+<span id="cb37-16"><a href="#cb37-16" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;What is 15 + 27 and who invented the calculator?&quot;</span></span>
+<span id="cb37-17"><a href="#cb37-17" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb37-18"><a href="#cb37-18" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb37-19"><a href="#cb37-19" aria-hidden="true" tabindex="-1"></a><span class="co"># Tool Selection 자동 평가됨</span></span></code></pre></div>
+<h4 id="crewai">CrewAI</h4>
+<div class="sourceCode" id="cb38"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb38-1"><a href="#cb38-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> agent_evaluator.integrations <span class="im">import</span> CrewAIEvaluator</span>
+<span id="cb38-2"><a href="#cb38-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb38-3"><a href="#cb38-3" aria-hidden="true" tabindex="-1"></a><span class="co"># Crew 생성</span></span>
+<span id="cb38-4"><a href="#cb38-4" aria-hidden="true" tabindex="-1"></a>crew <span class="op">=</span> Crew(</span>
+<span id="cb38-5"><a href="#cb38-5" aria-hidden="true" tabindex="-1"></a>    agents<span class="op">=</span>[manager, researcher, writer],</span>
+<span id="cb38-6"><a href="#cb38-6" aria-hidden="true" tabindex="-1"></a>    tasks<span class="op">=</span>[research_task, write_task]</span>
+<span id="cb38-7"><a href="#cb38-7" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb38-8"><a href="#cb38-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb38-9"><a href="#cb38-9" aria-hidden="true" tabindex="-1"></a><span class="co"># Evaluator 생성</span></span>
+<span id="cb38-10"><a href="#cb38-10" aria-hidden="true" tabindex="-1"></a>evaluator <span class="op">=</span> CrewAIEvaluator(</span>
+<span id="cb38-11"><a href="#cb38-11" aria-hidden="true" tabindex="-1"></a>    crew,</span>
+<span id="cb38-12"><a href="#cb38-12" aria-hidden="true" tabindex="-1"></a>    monitor,</span>
+<span id="cb38-13"><a href="#cb38-13" aria-hidden="true" tabindex="-1"></a>    enable_layer2<span class="op">=</span><span class="va">True</span>,</span>
+<span id="cb38-14"><a href="#cb38-14" aria-hidden="true" tabindex="-1"></a>    expected_agents<span class="op">=</span>[<span class="st">&quot;manager&quot;</span>, <span class="st">&quot;researcher&quot;</span>, <span class="st">&quot;writer&quot;</span>]</span>
+<span id="cb38-15"><a href="#cb38-15" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb38-16"><a href="#cb38-16" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb38-17"><a href="#cb38-17" aria-hidden="true" tabindex="-1"></a><span class="co"># 실행 (자동 추적)</span></span>
+<span id="cb38-18"><a href="#cb38-18" aria-hidden="true" tabindex="-1"></a>result <span class="op">=</span> evaluator.kickoff()</span>
+<span id="cb38-19"><a href="#cb38-19" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb38-20"><a href="#cb38-20" aria-hidden="true" tabindex="-1"></a><span class="co"># Agent Coordination 자동 평가됨</span></span></code></pre></div>
+<h4 id="langgraph">LangGraph</h4>
+<div class="sourceCode" id="cb39"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb39-1"><a href="#cb39-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> agent_evaluator.integrations <span class="im">import</span> LangGraphEvaluator</span>
+<span id="cb39-2"><a href="#cb39-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb39-3"><a href="#cb39-3" aria-hidden="true" tabindex="-1"></a><span class="co"># Evaluator 생성</span></span>
+<span id="cb39-4"><a href="#cb39-4" aria-hidden="true" tabindex="-1"></a>evaluator <span class="op">=</span> LangGraphEvaluator(</span>
+<span id="cb39-5"><a href="#cb39-5" aria-hidden="true" tabindex="-1"></a>    monitor,</span>
+<span id="cb39-6"><a href="#cb39-6" aria-hidden="true" tabindex="-1"></a>    enable_workflow_tracking<span class="op">=</span><span class="va">True</span>,</span>
+<span id="cb39-7"><a href="#cb39-7" aria-hidden="true" tabindex="-1"></a>    expected_workflow_steps<span class="op">=</span>[<span class="st">&quot;retrieval&quot;</span>, <span class="st">&quot;generation&quot;</span>, <span class="st">&quot;validation&quot;</span>]</span>
+<span id="cb39-8"><a href="#cb39-8" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb39-9"><a href="#cb39-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb39-10"><a href="#cb39-10" aria-hidden="true" tabindex="-1"></a><span class="co"># 노드 추가 (자동 래핑)</span></span>
+<span id="cb39-11"><a href="#cb39-11" aria-hidden="true" tabindex="-1"></a>workflow.add_node(<span class="st">&quot;retrieval&quot;</span>, retrieval_func)</span>
+<span id="cb39-12"><a href="#cb39-12" aria-hidden="true" tabindex="-1"></a>workflow.add_node(<span class="st">&quot;generation&quot;</span>, generation_func)</span>
+<span id="cb39-13"><a href="#cb39-13" aria-hidden="true" tabindex="-1"></a>workflow.add_node(<span class="st">&quot;validation&quot;</span>, validation_func)</span>
+<span id="cb39-14"><a href="#cb39-14" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb39-15"><a href="#cb39-15" aria-hidden="true" tabindex="-1"></a><span class="co"># 실행</span></span>
+<span id="cb39-16"><a href="#cb39-16" aria-hidden="true" tabindex="-1"></a>result <span class="op">=</span> workflow.compile_and_run({<span class="st">&quot;messages&quot;</span>: [<span class="st">&quot;input&quot;</span>]})</span>
+<span id="cb39-17"><a href="#cb39-17" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb39-18"><a href="#cb39-18" aria-hidden="true" tabindex="-1"></a><span class="co"># Workflow Execution 자동 평가됨</span></span></code></pre></div>
+<hr />
+<h2 id="best-practices">Best Practices</h2>
+
+<div style="background: #e8f5e9; border-left: 4px solid #4CAF50; padding: 15px; margin: 20px 0;">
+<p style="margin: 0;"><strong>⚡ IMPROVED: QA Accuracy 30% Improvement (30% 향상)</strong></p>
+<p style="margin: 10px 0 0 0;">The evaluation system now uses <strong>4 similarity metrics (4가지 유사도 메트릭)</strong> to calculate QA accuracy with ground_truth:</p>
+<ul style="margin: 8px 0 0 20px;">
+<li><strong>Token Overlap (40%):</strong> Measures keyword coverage - most important for QA tasks</li>
+<li><strong>Jaccard Similarity (30%):</strong> Measures token set similarity</li>
+<li><strong>LCS - Longest Common Subsequence (20%):</strong> Measures sequence preservation</li>
+<li><strong>Character-level Similarity (10%):</strong> Handles typos and variations</li>
+</ul>
+<p style="margin: 10px 0 0 0;"><strong>Result:</strong> 30% more accurate QA evaluation (30% 향상) compared to simple string matching, using 4가지 유사도 메트릭</p>
+<p style="margin: 8px 0 0 0;"><strong>Response Quality Automation:</strong> When ground_truth is provided, accuracy and usefulness scores are automatically calculated based on these metrics.</p>
+</div>
+
+<h3 id="qapair-작성-best-practices">1. QAPair 작성 Best Practices</h3>
+<h4 id="좋은-예">✅ 좋은 예</h4>
+<p><strong>명확하고 구체적인 질문</strong></p>
+<div class="sourceCode" id="cb40"><pre
+class="sourceCode json"><code class="sourceCode json"><span id="cb40-1"><a href="#cb40-1" aria-hidden="true" tabindex="-1"></a><span class="fu">{</span></span>
+<span id="cb40-2"><a href="#cb40-2" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;question&quot;</span><span class="fu">:</span> <span class="st">&quot;What is the refund policy for digital products purchased within the last 30 days?&quot;</span></span>
+<span id="cb40-3"><a href="#cb40-3" aria-hidden="true" tabindex="-1"></a><span class="fu">}</span></span></code></pre></div>
+<p><strong>완전하고 정확한 정답</strong></p>
+<div class="sourceCode" id="cb41"><pre
+class="sourceCode json"><code class="sourceCode json"><span id="cb41-1"><a href="#cb41-1" aria-hidden="true" tabindex="-1"></a><span class="fu">{</span></span>
+<span id="cb41-2"><a href="#cb41-2" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;ground_truth&quot;</span><span class="fu">:</span> <span class="st">&quot;Digital products purchased within the last 30 days are eligible for a full refund if you contact support at support@example.com.&quot;</span></span>
+<span id="cb41-3"><a href="#cb41-3" aria-hidden="true" tabindex="-1"></a><span class="fu">}</span></span></code></pre></div>
+<p><strong>충분한 컨텍스트</strong></p>
+<div class="sourceCode" id="cb42"><pre
+class="sourceCode json"><code class="sourceCode json"><span id="cb42-1"><a href="#cb42-1" aria-hidden="true" tabindex="-1"></a><span class="fu">{</span></span>
+<span id="cb42-2"><a href="#cb42-2" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;context&quot;</span><span class="fu">:</span> <span class="st">&quot;Company refund policy documentation states: &#39;All digital products come with a 30-day money-back guarantee. To request a refund, contact support@example.com with your order number.&#39;&quot;</span></span>
+<span id="cb42-3"><a href="#cb42-3" aria-hidden="true" tabindex="-1"></a><span class="fu">}</span></span></code></pre></div>
+<h4 id="나쁜-예">❌ 나쁜 예</h4>
+<p><strong>모호한 질문</strong></p>
+<div class="sourceCode" id="cb43"><pre
+class="sourceCode json"><code class="sourceCode json"><span id="cb43-1"><a href="#cb43-1" aria-hidden="true" tabindex="-1"></a><span class="fu">{</span></span>
+<span id="cb43-2"><a href="#cb43-2" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;question&quot;</span><span class="fu">:</span> <span class="st">&quot;How does refund work?&quot;</span></span>
+<span id="cb43-3"><a href="#cb43-3" aria-hidden="true" tabindex="-1"></a><span class="fu">}</span></span></code></pre></div>
+<p><strong>불완전한 정답</strong></p>
+<div class="sourceCode" id="cb44"><pre
+class="sourceCode json"><code class="sourceCode json"><span id="cb44-1"><a href="#cb44-1" aria-hidden="true" tabindex="-1"></a><span class="fu">{</span></span>
+<span id="cb44-2"><a href="#cb44-2" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;ground_truth&quot;</span><span class="fu">:</span> <span class="st">&quot;You can get a refund.&quot;</span></span>
+<span id="cb44-3"><a href="#cb44-3" aria-hidden="true" tabindex="-1"></a><span class="fu">}</span></span></code></pre></div>
+<p><strong>불충분한 컨텍스트</strong></p>
+<div class="sourceCode" id="cb45"><pre
+class="sourceCode json"><code class="sourceCode json"><span id="cb45-1"><a href="#cb45-1" aria-hidden="true" tabindex="-1"></a><span class="fu">{</span></span>
+<span id="cb45-2"><a href="#cb45-2" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;context&quot;</span><span class="fu">:</span> <span class="st">&quot;Refund policy exists.&quot;</span></span>
+<span id="cb45-3"><a href="#cb45-3" aria-hidden="true" tabindex="-1"></a><span class="fu">}</span></span></code></pre></div>
+<h3 id="layer-2-필드-작성-best-practices">2. Layer 2 필드 작성 Best
+Practices</h3>
+<h4 id="expected-tools">Expected Tools</h4>
+<p><strong>✅ 필수 도구만 포함</strong></p>
+<div class="sourceCode" id="cb46"><pre
+class="sourceCode json"><code class="sourceCode json"><span id="cb46-1"><a href="#cb46-1" aria-hidden="true" tabindex="-1"></a><span class="fu">{</span></span>
+<span id="cb46-2"><a href="#cb46-2" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;question&quot;</span><span class="fu">:</span> <span class="st">&quot;What is 15 + 27?&quot;</span><span class="fu">,</span></span>
+<span id="cb46-3"><a href="#cb46-3" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;expected_tools&quot;</span><span class="fu">:</span> <span class="ot">[</span><span class="st">&quot;calculator&quot;</span><span class="ot">]</span></span>
+<span id="cb46-4"><a href="#cb46-4" aria-hidden="true" tabindex="-1"></a><span class="fu">}</span></span></code></pre></div>
+<p><strong>❌ 선택적 도구 포함</strong></p>
+<div class="sourceCode" id="cb47"><pre
+class="sourceCode json"><code class="sourceCode json"><span id="cb47-1"><a href="#cb47-1" aria-hidden="true" tabindex="-1"></a><span class="fu">{</span></span>
+<span id="cb47-2"><a href="#cb47-2" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;question&quot;</span><span class="fu">:</span> <span class="st">&quot;What is 15 + 27?&quot;</span><span class="fu">,</span></span>
+<span id="cb47-3"><a href="#cb47-3" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;expected_tools&quot;</span><span class="fu">:</span> <span class="ot">[</span><span class="st">&quot;calculator&quot;</span><span class="ot">,</span> <span class="st">&quot;search&quot;</span><span class="ot">,</span> <span class="st">&quot;python_repl&quot;</span><span class="ot">]</span></span>
+<span id="cb47-4"><a href="#cb47-4" aria-hidden="true" tabindex="-1"></a>  <span class="er">//</span> <span class="er">search와</span> <span class="er">python_repl은</span> <span class="er">불필요</span></span>
+<span id="cb47-5"><a href="#cb47-5" aria-hidden="true" tabindex="-1"></a><span class="fu">}</span></span></code></pre></div>
+<h4 id="expected-agents">Expected Agents</h4>
+<p><strong>✅ 실제 참여하는 에이전트만</strong></p>
+<div class="sourceCode" id="cb48"><pre
+class="sourceCode json"><code class="sourceCode json"><span id="cb48-1"><a href="#cb48-1" aria-hidden="true" tabindex="-1"></a><span class="fu">{</span></span>
+<span id="cb48-2"><a href="#cb48-2" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;question&quot;</span><span class="fu">:</span> <span class="st">&quot;Research and write a summary.&quot;</span><span class="fu">,</span></span>
+<span id="cb48-3"><a href="#cb48-3" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;expected_agents&quot;</span><span class="fu">:</span> <span class="ot">[</span><span class="st">&quot;researcher&quot;</span><span class="ot">,</span> <span class="st">&quot;writer&quot;</span><span class="ot">]</span></span>
+<span id="cb48-4"><a href="#cb48-4" aria-hidden="true" tabindex="-1"></a><span class="fu">}</span></span></code></pre></div>
+<p><strong>❌ 불필요한 에이전트 포함</strong></p>
+<div class="sourceCode" id="cb49"><pre
+class="sourceCode json"><code class="sourceCode json"><span id="cb49-1"><a href="#cb49-1" aria-hidden="true" tabindex="-1"></a><span class="fu">{</span></span>
+<span id="cb49-2"><a href="#cb49-2" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;question&quot;</span><span class="fu">:</span> <span class="st">&quot;Research and write a summary.&quot;</span><span class="fu">,</span></span>
+<span id="cb49-3"><a href="#cb49-3" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;expected_agents&quot;</span><span class="fu">:</span> <span class="ot">[</span><span class="st">&quot;manager&quot;</span><span class="ot">,</span> <span class="st">&quot;researcher&quot;</span><span class="ot">,</span> <span class="st">&quot;writer&quot;</span><span class="ot">,</span> <span class="st">&quot;reviewer&quot;</span><span class="ot">,</span> <span class="st">&quot;publisher&quot;</span><span class="ot">]</span></span>
+<span id="cb49-4"><a href="#cb49-4" aria-hidden="true" tabindex="-1"></a>  <span class="er">//</span> <span class="er">실제로는</span> <span class="er">researcher와</span> <span class="er">writer만</span> <span class="er">필요</span></span>
+<span id="cb49-5"><a href="#cb49-5" aria-hidden="true" tabindex="-1"></a><span class="fu">}</span></span></code></pre></div>
+<h4 id="expected-workflow-steps">Expected Workflow Steps</h4>
+<p><strong>✅ 실행 순서대로</strong></p>
+<div class="sourceCode" id="cb50"><pre
+class="sourceCode json"><code class="sourceCode json"><span id="cb50-1"><a href="#cb50-1" aria-hidden="true" tabindex="-1"></a><span class="fu">{</span></span>
+<span id="cb50-2"><a href="#cb50-2" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;expected_workflow_steps&quot;</span><span class="fu">:</span> <span class="ot">[</span><span class="st">&quot;retrieval&quot;</span><span class="ot">,</span> <span class="st">&quot;reranking&quot;</span><span class="ot">,</span> <span class="st">&quot;generation&quot;</span><span class="ot">,</span> <span class="st">&quot;validation&quot;</span><span class="ot">]</span></span>
+<span id="cb50-3"><a href="#cb50-3" aria-hidden="true" tabindex="-1"></a><span class="fu">}</span></span></code></pre></div>
+<p><strong>❌ 순서 없음 (비권장)</strong></p>
+<div class="sourceCode" id="cb51"><pre
+class="sourceCode json"><code class="sourceCode json"><span id="cb51-1"><a href="#cb51-1" aria-hidden="true" tabindex="-1"></a><span class="fu">{</span></span>
+<span id="cb51-2"><a href="#cb51-2" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;expected_workflow_steps&quot;</span><span class="fu">:</span> <span class="ot">[</span><span class="st">&quot;generation&quot;</span><span class="ot">,</span> <span class="st">&quot;retrieval&quot;</span><span class="ot">,</span> <span class="st">&quot;validation&quot;</span><span class="ot">,</span> <span class="st">&quot;reranking&quot;</span><span class="ot">]</span></span>
+<span id="cb51-3"><a href="#cb51-3" aria-hidden="true" tabindex="-1"></a><span class="fu">}</span></span></code></pre></div>
+<h3 id="golden-dataset-관리-best-practices">3. Golden Dataset 관리 Best
+Practices</h3>
+<h4 id="버전-관리">버전 관리</h4>
+<ul>
+<li>Golden Dataset을 Git에 커밋</li>
+<li>변경 사항 추적</li>
+<li>버전 태그 사용 (v1.0, v1.1 등)</li>
+</ul>
+<h4 id="정기-업데이트">정기 업데이트</h4>
+<ul>
+<li>에이전트가 발전하면 Golden Dataset도 업데이트</li>
+<li>새로운 기능이 추가되면 관련 QAPair 추가</li>
+<li>오래된 QAPair는 제거 또는 업데이트</li>
+</ul>
+<h4 id="다양성-확보">다양성 확보</h4>
+<ul>
+<li>다양한 난이도의 QAPair 포함 (easy, medium, hard)</li>
+<li>다양한 도메인 포함</li>
+<li>Edge case 포함</li>
+</ul>
+<h4 id="품질-검증">품질 검증</h4>
+<ul>
+<li>주기적으로 QAPair 검토</li>
+<li>ground_truth가 여전히 정확한지 확인</li>
+<li>Layer 2 필드가 최신 상태인지 확인</li>
+</ul>
+<h3 id="임계값-설정-best-practices">4. 임계값 설정 Best Practices</h3>
+<h4 id="초기-설정">초기 설정</h4>
+<ul>
+<li>너무 엄격하지 않게 시작 (예: TCR 80%, Accuracy 70%)</li>
+<li>점진적으로 임계값 상향</li>
+</ul>
+<h4 id="프로덕션-설정">프로덕션 설정</h4>
+<ul>
+<li>엄격한 임계값 설정 (예: TCR 95%, Accuracy 90%)</li>
+<li>Layer 2 메트릭 포함</li>
+</ul>
+<h4 id="예제-3">예제</h4>
+<div class="sourceCode" id="cb52"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb52-1"><a href="#cb52-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 개발 환경</span></span>
+<span id="cb52-2"><a href="#cb52-2" aria-hidden="true" tabindex="-1"></a>monitor.thresholds <span class="op">=</span> {</span>
+<span id="cb52-3"><a href="#cb52-3" aria-hidden="true" tabindex="-1"></a>    <span class="st">&#39;tcr&#39;</span>: <span class="fl">80.0</span>,</span>
+<span id="cb52-4"><a href="#cb52-4" aria-hidden="true" tabindex="-1"></a>    <span class="st">&#39;accuracy&#39;</span>: <span class="fl">70.0</span>,</span>
+<span id="cb52-5"><a href="#cb52-5" aria-hidden="true" tabindex="-1"></a>    <span class="st">&#39;tool_selection_accuracy&#39;</span>: <span class="fl">70.0</span></span>
+<span id="cb52-6"><a href="#cb52-6" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb52-7"><a href="#cb52-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb52-8"><a href="#cb52-8" aria-hidden="true" tabindex="-1"></a><span class="co"># 프로덕션 환경</span></span>
+<span id="cb52-9"><a href="#cb52-9" aria-hidden="true" tabindex="-1"></a>monitor.thresholds <span class="op">=</span> {</span>
+<span id="cb52-10"><a href="#cb52-10" aria-hidden="true" tabindex="-1"></a>    <span class="st">&#39;tcr&#39;</span>: <span class="fl">95.0</span>,</span>
+<span id="cb52-11"><a href="#cb52-11" aria-hidden="true" tabindex="-1"></a>    <span class="st">&#39;accuracy&#39;</span>: <span class="fl">90.0</span>,</span>
+<span id="cb52-12"><a href="#cb52-12" aria-hidden="true" tabindex="-1"></a>    <span class="st">&#39;hallucination&#39;</span>: <span class="fl">2.0</span>,</span>
+<span id="cb52-13"><a href="#cb52-13" aria-hidden="true" tabindex="-1"></a>    <span class="st">&#39;tool_selection_accuracy&#39;</span>: <span class="fl">85.0</span>,</span>
+<span id="cb52-14"><a href="#cb52-14" aria-hidden="true" tabindex="-1"></a>    <span class="st">&#39;agent_coordination&#39;</span>: <span class="fl">8.0</span>,</span>
+<span id="cb52-15"><a href="#cb52-15" aria-hidden="true" tabindex="-1"></a>    <span class="st">&#39;workflow_execution&#39;</span>: <span class="fl">95.0</span></span>
+<span id="cb52-16"><a href="#cb52-16" aria-hidden="true" tabindex="-1"></a>}</span></code></pre></div>
+<hr />
+<h2 id="예제-golden-datasets">예제 Golden Datasets</h2>
+<h3 id="예제-1-간단한-qa-실제-구조">예제 1: 간단한 QA (실제 구조)</h3>
+<div class="sourceCode" id="cb53"><pre
+class="sourceCode json"><code class="sourceCode json"><span id="cb53-1"><a href="#cb53-1" aria-hidden="true" tabindex="-1"></a><span class="fu">{</span></span>
+<span id="cb53-2"><a href="#cb53-2" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;dataset_id&quot;</span><span class="fu">:</span> <span class="st">&quot;simple_qa_abc123&quot;</span><span class="fu">,</span></span>
+<span id="cb53-3"><a href="#cb53-3" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;source_document&quot;</span><span class="fu">:</span> <span class="st">&quot;sample_document.pdf&quot;</span><span class="fu">,</span></span>
+<span id="cb53-4"><a href="#cb53-4" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;created_at&quot;</span><span class="fu">:</span> <span class="st">&quot;2024-01-15T10:00:00Z&quot;</span><span class="fu">,</span></span>
+<span id="cb53-5"><a href="#cb53-5" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;total_qa_pairs&quot;</span><span class="fu">:</span> <span class="dv">2</span><span class="fu">,</span></span>
+<span id="cb53-6"><a href="#cb53-6" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;qa_pairs&quot;</span><span class="fu">:</span> <span class="ot">[</span></span>
+<span id="cb53-7"><a href="#cb53-7" aria-hidden="true" tabindex="-1"></a>    <span class="fu">{</span></span>
+<span id="cb53-8"><a href="#cb53-8" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;qa_id&quot;</span><span class="fu">:</span> <span class="st">&quot;qa_001&quot;</span><span class="fu">,</span></span>
+<span id="cb53-9"><a href="#cb53-9" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;question&quot;</span><span class="fu">:</span> <span class="st">&quot;What is the capital of France?&quot;</span><span class="fu">,</span></span>
+<span id="cb53-10"><a href="#cb53-10" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;answer&quot;</span><span class="fu">:</span> <span class="st">&quot;The capital of France is Paris, which is also the largest city in the country.&quot;</span><span class="fu">,</span></span>
+<span id="cb53-11"><a href="#cb53-11" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;context&quot;</span><span class="fu">:</span> <span class="st">&quot;France is a country in Western Europe. Its capital and largest city is Paris.&quot;</span><span class="fu">,</span></span>
+<span id="cb53-12"><a href="#cb53-12" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;ground_truth&quot;</span><span class="fu">:</span> <span class="st">&quot;Paris&quot;</span><span class="fu">,</span></span>
+<span id="cb53-13"><a href="#cb53-13" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;metadata&quot;</span><span class="fu">:</span> <span class="fu">{</span></span>
+<span id="cb53-14"><a href="#cb53-14" aria-hidden="true" tabindex="-1"></a>        <span class="dt">&quot;domain&quot;</span><span class="fu">:</span> <span class="st">&quot;geography&quot;</span><span class="fu">,</span></span>
+<span id="cb53-15"><a href="#cb53-15" aria-hidden="true" tabindex="-1"></a>        <span class="dt">&quot;difficulty&quot;</span><span class="fu">:</span> <span class="st">&quot;easy&quot;</span><span class="fu">,</span></span>
+<span id="cb53-16"><a href="#cb53-16" aria-hidden="true" tabindex="-1"></a>        <span class="dt">&quot;chunk_id&quot;</span><span class="fu">:</span> <span class="st">&quot;chunk_p1_i0_abc123&quot;</span><span class="fu">,</span></span>
+<span id="cb53-17"><a href="#cb53-17" aria-hidden="true" tabindex="-1"></a>        <span class="dt">&quot;page_number&quot;</span><span class="fu">:</span> <span class="dv">1</span></span>
+<span id="cb53-18"><a href="#cb53-18" aria-hidden="true" tabindex="-1"></a>      <span class="fu">},</span></span>
+<span id="cb53-19"><a href="#cb53-19" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;expected_tools&quot;</span><span class="fu">:</span> <span class="ot">[</span><span class="st">&quot;search&quot;</span><span class="ot">]</span><span class="fu">,</span></span>
+<span id="cb53-20"><a href="#cb53-20" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;expected_agents&quot;</span><span class="fu">:</span> <span class="kw">null</span><span class="fu">,</span></span>
+<span id="cb53-21"><a href="#cb53-21" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;expected_workflow_steps&quot;</span><span class="fu">:</span> <span class="kw">null</span></span>
+<span id="cb53-22"><a href="#cb53-22" aria-hidden="true" tabindex="-1"></a>    <span class="fu">}</span><span class="ot">,</span></span>
+<span id="cb53-23"><a href="#cb53-23" aria-hidden="true" tabindex="-1"></a>    <span class="fu">{</span></span>
+<span id="cb53-24"><a href="#cb53-24" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;qa_id&quot;</span><span class="fu">:</span> <span class="st">&quot;qa_002&quot;</span><span class="fu">,</span></span>
+<span id="cb53-25"><a href="#cb53-25" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;question&quot;</span><span class="fu">:</span> <span class="st">&quot;What is 25 * 4?&quot;</span><span class="fu">,</span></span>
+<span id="cb53-26"><a href="#cb53-26" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;answer&quot;</span><span class="fu">:</span> <span class="st">&quot;The result of 25 multiplied by 4 is 100.&quot;</span><span class="fu">,</span></span>
+<span id="cb53-27"><a href="#cb53-27" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;context&quot;</span><span class="fu">:</span> <span class="st">&quot;Basic multiplication problem for arithmetic calculation.&quot;</span><span class="fu">,</span></span>
+<span id="cb53-28"><a href="#cb53-28" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;ground_truth&quot;</span><span class="fu">:</span> <span class="st">&quot;100&quot;</span><span class="fu">,</span></span>
+<span id="cb53-29"><a href="#cb53-29" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;metadata&quot;</span><span class="fu">:</span> <span class="fu">{</span></span>
+<span id="cb53-30"><a href="#cb53-30" aria-hidden="true" tabindex="-1"></a>        <span class="dt">&quot;domain&quot;</span><span class="fu">:</span> <span class="st">&quot;math&quot;</span><span class="fu">,</span></span>
+<span id="cb53-31"><a href="#cb53-31" aria-hidden="true" tabindex="-1"></a>        <span class="dt">&quot;difficulty&quot;</span><span class="fu">:</span> <span class="st">&quot;easy&quot;</span><span class="fu">,</span></span>
+<span id="cb53-32"><a href="#cb53-32" aria-hidden="true" tabindex="-1"></a>        <span class="dt">&quot;chunk_id&quot;</span><span class="fu">:</span> <span class="st">&quot;chunk_p1_i1_def456&quot;</span><span class="fu">,</span></span>
+<span id="cb53-33"><a href="#cb53-33" aria-hidden="true" tabindex="-1"></a>        <span class="dt">&quot;page_number&quot;</span><span class="fu">:</span> <span class="dv">1</span></span>
+<span id="cb53-34"><a href="#cb53-34" aria-hidden="true" tabindex="-1"></a>      <span class="fu">},</span></span>
+<span id="cb53-35"><a href="#cb53-35" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;expected_tools&quot;</span><span class="fu">:</span> <span class="ot">[</span><span class="st">&quot;calculator&quot;</span><span class="ot">]</span><span class="fu">,</span></span>
+<span id="cb53-36"><a href="#cb53-36" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;expected_agents&quot;</span><span class="fu">:</span> <span class="kw">null</span><span class="fu">,</span></span>
+<span id="cb53-37"><a href="#cb53-37" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;expected_workflow_steps&quot;</span><span class="fu">:</span> <span class="kw">null</span></span>
+<span id="cb53-38"><a href="#cb53-38" aria-hidden="true" tabindex="-1"></a>    <span class="fu">}</span></span>
+<span id="cb53-39"><a href="#cb53-39" aria-hidden="true" tabindex="-1"></a>  <span class="ot">]</span><span class="fu">,</span></span>
+<span id="cb53-40"><a href="#cb53-40" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;metadata&quot;</span><span class="fu">:</span> <span class="fu">{</span></span>
+<span id="cb53-41"><a href="#cb53-41" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;total_pages&quot;</span><span class="fu">:</span> <span class="dv">1</span><span class="fu">,</span></span>
+<span id="cb53-42"><a href="#cb53-42" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;total_chunks&quot;</span><span class="fu">:</span> <span class="dv">2</span><span class="fu">,</span></span>
+<span id="cb53-43"><a href="#cb53-43" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;chunk_size&quot;</span><span class="fu">:</span> <span class="dv">1000</span><span class="fu">,</span></span>
+<span id="cb53-44"><a href="#cb53-44" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;model&quot;</span><span class="fu">:</span> <span class="st">&quot;gpt-4o-mini&quot;</span></span>
+<span id="cb53-45"><a href="#cb53-45" aria-hidden="true" tabindex="-1"></a>  <span class="fu">}</span></span>
+<span id="cb53-46"><a href="#cb53-46" aria-hidden="true" tabindex="-1"></a><span class="fu">}</span></span></code></pre></div>
+<h3 id="예제-2-multi-agent-시스템">예제 2: Multi-Agent 시스템</h3>
+<div class="sourceCode" id="cb54"><pre
+class="sourceCode json"><code class="sourceCode json"><span id="cb54-1"><a href="#cb54-1" aria-hidden="true" tabindex="-1"></a><span class="fu">{</span></span>
+<span id="cb54-2"><a href="#cb54-2" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;dataset_name&quot;</span><span class="fu">:</span> <span class="st">&quot;multi_agent_research&quot;</span><span class="fu">,</span></span>
+<span id="cb54-3"><a href="#cb54-3" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;version&quot;</span><span class="fu">:</span> <span class="st">&quot;1.0&quot;</span><span class="fu">,</span></span>
+<span id="cb54-4"><a href="#cb54-4" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;qa_pairs&quot;</span><span class="fu">:</span> <span class="ot">[</span></span>
+<span id="cb54-5"><a href="#cb54-5" aria-hidden="true" tabindex="-1"></a>    <span class="fu">{</span></span>
+<span id="cb54-6"><a href="#cb54-6" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;id&quot;</span><span class="fu">:</span> <span class="st">&quot;research_001&quot;</span><span class="fu">,</span></span>
+<span id="cb54-7"><a href="#cb54-7" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;question&quot;</span><span class="fu">:</span> <span class="st">&quot;Research the latest trends in renewable energy and write a comprehensive report.&quot;</span><span class="fu">,</span></span>
+<span id="cb54-8"><a href="#cb54-8" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;ground_truth&quot;</span><span class="fu">:</span> <span class="st">&quot;A comprehensive report covering solar, wind, and hydrogen energy trends with current market analysis and future predictions.&quot;</span><span class="fu">,</span></span>
+<span id="cb54-9"><a href="#cb54-9" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;context&quot;</span><span class="fu">:</span> <span class="st">&quot;The user needs a detailed research report on renewable energy trends for a business presentation.&quot;</span><span class="fu">,</span></span>
+<span id="cb54-10"><a href="#cb54-10" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;metadata&quot;</span><span class="fu">:</span> <span class="fu">{</span></span>
+<span id="cb54-11"><a href="#cb54-11" aria-hidden="true" tabindex="-1"></a>        <span class="dt">&quot;domain&quot;</span><span class="fu">:</span> <span class="st">&quot;research&quot;</span><span class="fu">,</span></span>
+<span id="cb54-12"><a href="#cb54-12" aria-hidden="true" tabindex="-1"></a>        <span class="dt">&quot;difficulty&quot;</span><span class="fu">:</span> <span class="st">&quot;hard&quot;</span><span class="fu">,</span></span>
+<span id="cb54-13"><a href="#cb54-13" aria-hidden="true" tabindex="-1"></a>        <span class="dt">&quot;estimated_time&quot;</span><span class="fu">:</span> <span class="st">&quot;300s&quot;</span></span>
+<span id="cb54-14"><a href="#cb54-14" aria-hidden="true" tabindex="-1"></a>      <span class="fu">},</span></span>
+<span id="cb54-15"><a href="#cb54-15" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;expected_tools&quot;</span><span class="fu">:</span> <span class="ot">[</span><span class="st">&quot;search&quot;</span><span class="ot">,</span> <span class="st">&quot;web_scraper&quot;</span><span class="ot">,</span> <span class="st">&quot;pdf_reader&quot;</span><span class="ot">,</span> <span class="st">&quot;summarizer&quot;</span><span class="ot">]</span><span class="fu">,</span></span>
+<span id="cb54-16"><a href="#cb54-16" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;expected_agents&quot;</span><span class="fu">:</span> <span class="ot">[</span><span class="st">&quot;manager&quot;</span><span class="ot">,</span> <span class="st">&quot;researcher&quot;</span><span class="ot">,</span> <span class="st">&quot;analyst&quot;</span><span class="ot">,</span> <span class="st">&quot;writer&quot;</span><span class="ot">,</span> <span class="st">&quot;reviewer&quot;</span><span class="ot">]</span><span class="fu">,</span></span>
+<span id="cb54-17"><a href="#cb54-17" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;expected_workflow_steps&quot;</span><span class="fu">:</span> <span class="ot">[</span></span>
+<span id="cb54-18"><a href="#cb54-18" aria-hidden="true" tabindex="-1"></a>        <span class="st">&quot;task_decomposition&quot;</span><span class="ot">,</span></span>
+<span id="cb54-19"><a href="#cb54-19" aria-hidden="true" tabindex="-1"></a>        <span class="st">&quot;research&quot;</span><span class="ot">,</span></span>
+<span id="cb54-20"><a href="#cb54-20" aria-hidden="true" tabindex="-1"></a>        <span class="st">&quot;data_analysis&quot;</span><span class="ot">,</span></span>
+<span id="cb54-21"><a href="#cb54-21" aria-hidden="true" tabindex="-1"></a>        <span class="st">&quot;writing&quot;</span><span class="ot">,</span></span>
+<span id="cb54-22"><a href="#cb54-22" aria-hidden="true" tabindex="-1"></a>        <span class="st">&quot;review&quot;</span><span class="ot">,</span></span>
+<span id="cb54-23"><a href="#cb54-23" aria-hidden="true" tabindex="-1"></a>        <span class="st">&quot;finalization&quot;</span></span>
+<span id="cb54-24"><a href="#cb54-24" aria-hidden="true" tabindex="-1"></a>      <span class="ot">]</span></span>
+<span id="cb54-25"><a href="#cb54-25" aria-hidden="true" tabindex="-1"></a>    <span class="fu">}</span></span>
+<span id="cb54-26"><a href="#cb54-26" aria-hidden="true" tabindex="-1"></a>  <span class="ot">]</span></span>
+<span id="cb54-27"><a href="#cb54-27" aria-hidden="true" tabindex="-1"></a><span class="fu">}</span></span></code></pre></div>
+<h3 id="예제-3-rag-시스템">예제 3: RAG 시스템</h3>
+<div class="sourceCode" id="cb55"><pre
+class="sourceCode json"><code class="sourceCode json"><span id="cb55-1"><a href="#cb55-1" aria-hidden="true" tabindex="-1"></a><span class="fu">{</span></span>
+<span id="cb55-2"><a href="#cb55-2" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;dataset_name&quot;</span><span class="fu">:</span> <span class="st">&quot;rag_qa&quot;</span><span class="fu">,</span></span>
+<span id="cb55-3"><a href="#cb55-3" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;version&quot;</span><span class="fu">:</span> <span class="st">&quot;1.0&quot;</span><span class="fu">,</span></span>
+<span id="cb55-4"><a href="#cb55-4" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;qa_pairs&quot;</span><span class="fu">:</span> <span class="ot">[</span></span>
+<span id="cb55-5"><a href="#cb55-5" aria-hidden="true" tabindex="-1"></a>    <span class="fu">{</span></span>
+<span id="cb55-6"><a href="#cb55-6" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;id&quot;</span><span class="fu">:</span> <span class="st">&quot;rag_001&quot;</span><span class="fu">,</span></span>
+<span id="cb55-7"><a href="#cb55-7" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;question&quot;</span><span class="fu">:</span> <span class="st">&quot;What are the main benefits of solar energy according to the documentation?&quot;</span><span class="fu">,</span></span>
+<span id="cb55-8"><a href="#cb55-8" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;ground_truth&quot;</span><span class="fu">:</span> <span class="st">&quot;The main benefits of solar energy include: 1) Renewable and sustainable, 2) Reduces electricity bills, 3) Low maintenance costs, 4) Environmentally friendly with zero emissions.&quot;</span><span class="fu">,</span></span>
+<span id="cb55-9"><a href="#cb55-9" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;context&quot;</span><span class="fu">:</span> <span class="st">&quot;Documentation on renewable energy sources, specifically the chapter on solar energy benefits and applications.&quot;</span><span class="fu">,</span></span>
+<span id="cb55-10"><a href="#cb55-10" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;metadata&quot;</span><span class="fu">:</span> <span class="fu">{</span></span>
+<span id="cb55-11"><a href="#cb55-11" aria-hidden="true" tabindex="-1"></a>        <span class="dt">&quot;domain&quot;</span><span class="fu">:</span> <span class="st">&quot;energy&quot;</span><span class="fu">,</span></span>
+<span id="cb55-12"><a href="#cb55-12" aria-hidden="true" tabindex="-1"></a>        <span class="dt">&quot;difficulty&quot;</span><span class="fu">:</span> <span class="st">&quot;medium&quot;</span><span class="fu">,</span></span>
+<span id="cb55-13"><a href="#cb55-13" aria-hidden="true" tabindex="-1"></a>        <span class="dt">&quot;source&quot;</span><span class="fu">:</span> <span class="st">&quot;pdf&quot;</span></span>
+<span id="cb55-14"><a href="#cb55-14" aria-hidden="true" tabindex="-1"></a>      <span class="fu">},</span></span>
+<span id="cb55-15"><a href="#cb55-15" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;expected_tools&quot;</span><span class="fu">:</span> <span class="ot">[</span><span class="st">&quot;vector_search&quot;</span><span class="ot">,</span> <span class="st">&quot;pdf_reader&quot;</span><span class="ot">]</span><span class="fu">,</span></span>
+<span id="cb55-16"><a href="#cb55-16" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;expected_workflow_steps&quot;</span><span class="fu">:</span> <span class="ot">[</span><span class="st">&quot;retrieval&quot;</span><span class="ot">,</span> <span class="st">&quot;reranking&quot;</span><span class="ot">,</span> <span class="st">&quot;generation&quot;</span><span class="ot">,</span> <span class="st">&quot;validation&quot;</span><span class="ot">]</span></span>
+<span id="cb55-17"><a href="#cb55-17" aria-hidden="true" tabindex="-1"></a>    <span class="fu">}</span></span>
+<span id="cb55-18"><a href="#cb55-18" aria-hidden="true" tabindex="-1"></a>  <span class="ot">]</span></span>
+<span id="cb55-19"><a href="#cb55-19" aria-hidden="true" tabindex="-1"></a><span class="fu">}</span></span></code></pre></div>
+<h3 id="예제-4-고객-지원">예제 4: 고객 지원</h3>
+<div class="sourceCode" id="cb56"><pre
+class="sourceCode json"><code class="sourceCode json"><span id="cb56-1"><a href="#cb56-1" aria-hidden="true" tabindex="-1"></a><span class="fu">{</span></span>
+<span id="cb56-2"><a href="#cb56-2" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;dataset_name&quot;</span><span class="fu">:</span> <span class="st">&quot;customer_support&quot;</span><span class="fu">,</span></span>
+<span id="cb56-3"><a href="#cb56-3" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;version&quot;</span><span class="fu">:</span> <span class="st">&quot;1.0&quot;</span><span class="fu">,</span></span>
+<span id="cb56-4"><a href="#cb56-4" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;qa_pairs&quot;</span><span class="fu">:</span> <span class="ot">[</span></span>
+<span id="cb56-5"><a href="#cb56-5" aria-hidden="true" tabindex="-1"></a>    <span class="fu">{</span></span>
+<span id="cb56-6"><a href="#cb56-6" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;id&quot;</span><span class="fu">:</span> <span class="st">&quot;support_001&quot;</span><span class="fu">,</span></span>
+<span id="cb56-7"><a href="#cb56-7" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;question&quot;</span><span class="fu">:</span> <span class="st">&quot;I forgot my password. How can I reset it?&quot;</span><span class="fu">,</span></span>
+<span id="cb56-8"><a href="#cb56-8" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;ground_truth&quot;</span><span class="fu">:</span> <span class="st">&quot;To reset your password: 1) Go to the login page, 2) Click &#39;Forgot Password&#39;, 3) Enter your email address, 4) Check your email for a reset link, 5) Click the link and create a new password.&quot;</span><span class="fu">,</span></span>
+<span id="cb56-9"><a href="#cb56-9" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;context&quot;</span><span class="fu">:</span> <span class="st">&quot;User account management help documentation.&quot;</span><span class="fu">,</span></span>
+<span id="cb56-10"><a href="#cb56-10" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;metadata&quot;</span><span class="fu">:</span> <span class="fu">{</span></span>
+<span id="cb56-11"><a href="#cb56-11" aria-hidden="true" tabindex="-1"></a>        <span class="dt">&quot;domain&quot;</span><span class="fu">:</span> <span class="st">&quot;customer_support&quot;</span><span class="fu">,</span></span>
+<span id="cb56-12"><a href="#cb56-12" aria-hidden="true" tabindex="-1"></a>        <span class="dt">&quot;difficulty&quot;</span><span class="fu">:</span> <span class="st">&quot;easy&quot;</span><span class="fu">,</span></span>
+<span id="cb56-13"><a href="#cb56-13" aria-hidden="true" tabindex="-1"></a>        <span class="dt">&quot;category&quot;</span><span class="fu">:</span> <span class="st">&quot;authentication&quot;</span></span>
+<span id="cb56-14"><a href="#cb56-14" aria-hidden="true" tabindex="-1"></a>      <span class="fu">},</span></span>
+<span id="cb56-15"><a href="#cb56-15" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;expected_tools&quot;</span><span class="fu">:</span> <span class="ot">[</span><span class="st">&quot;knowledge_base&quot;</span><span class="ot">]</span><span class="fu">,</span></span>
+<span id="cb56-16"><a href="#cb56-16" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;expected_agents&quot;</span><span class="fu">:</span> <span class="ot">[</span><span class="st">&quot;support_agent&quot;</span><span class="ot">]</span></span>
+<span id="cb56-17"><a href="#cb56-17" aria-hidden="true" tabindex="-1"></a>    <span class="fu">}</span><span class="ot">,</span></span>
+<span id="cb56-18"><a href="#cb56-18" aria-hidden="true" tabindex="-1"></a>    <span class="fu">{</span></span>
+<span id="cb56-19"><a href="#cb56-19" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;id&quot;</span><span class="fu">:</span> <span class="st">&quot;support_002&quot;</span><span class="fu">,</span></span>
+<span id="cb56-20"><a href="#cb56-20" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;question&quot;</span><span class="fu">:</span> <span class="st">&quot;My order hasn&#39;t arrived yet. It&#39;s been 10 days. Order number: #12345&quot;</span><span class="fu">,</span></span>
+<span id="cb56-21"><a href="#cb56-21" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;ground_truth&quot;</span><span class="fu">:</span> <span class="st">&quot;I can help you track your order #12345. Let me check the shipping status and provide you with an update. If there&#39;s a delay, we&#39;ll arrange expedited shipping or a refund.&quot;</span><span class="fu">,</span></span>
+<span id="cb56-22"><a href="#cb56-22" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;context&quot;</span><span class="fu">:</span> <span class="st">&quot;Order tracking and customer support documentation. Standard delivery time is 5-7 business days.&quot;</span><span class="fu">,</span></span>
+<span id="cb56-23"><a href="#cb56-23" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;metadata&quot;</span><span class="fu">:</span> <span class="fu">{</span></span>
+<span id="cb56-24"><a href="#cb56-24" aria-hidden="true" tabindex="-1"></a>        <span class="dt">&quot;domain&quot;</span><span class="fu">:</span> <span class="st">&quot;customer_support&quot;</span><span class="fu">,</span></span>
+<span id="cb56-25"><a href="#cb56-25" aria-hidden="true" tabindex="-1"></a>        <span class="dt">&quot;difficulty&quot;</span><span class="fu">:</span> <span class="st">&quot;medium&quot;</span><span class="fu">,</span></span>
+<span id="cb56-26"><a href="#cb56-26" aria-hidden="true" tabindex="-1"></a>        <span class="dt">&quot;category&quot;</span><span class="fu">:</span> <span class="st">&quot;shipping&quot;</span></span>
+<span id="cb56-27"><a href="#cb56-27" aria-hidden="true" tabindex="-1"></a>      <span class="fu">},</span></span>
+<span id="cb56-28"><a href="#cb56-28" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;expected_tools&quot;</span><span class="fu">:</span> <span class="ot">[</span><span class="st">&quot;order_db&quot;</span><span class="ot">,</span> <span class="st">&quot;shipping_api&quot;</span><span class="ot">]</span><span class="fu">,</span></span>
+<span id="cb56-29"><a href="#cb56-29" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;expected_agents&quot;</span><span class="fu">:</span> <span class="ot">[</span><span class="st">&quot;support_agent&quot;</span><span class="ot">,</span> <span class="st">&quot;shipping_agent&quot;</span><span class="ot">]</span></span>
+<span id="cb56-30"><a href="#cb56-30" aria-hidden="true" tabindex="-1"></a>    <span class="fu">}</span></span>
+<span id="cb56-31"><a href="#cb56-31" aria-hidden="true" tabindex="-1"></a>  <span class="ot">]</span></span>
+<span id="cb56-32"><a href="#cb56-32" aria-hidden="true" tabindex="-1"></a><span class="fu">}</span></span></code></pre></div>
+<hr />
+<h2 id="performancemonitor-메서드-완전-가이드">PerformanceMonitor 메서드
+완전 가이드</h2>
+<h3 id="load_golden_dataset">load_golden_dataset()</h3>
+<p>Golden Dataset 파일을 로드합니다.</p>
+<div class="sourceCode" id="cb57"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb57-1"><a href="#cb57-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> load_golden_dataset(<span class="va">self</span>, dataset_path: Optional[<span class="bu">str</span>] <span class="op">=</span> <span class="va">None</span>) <span class="op">-&gt;</span> List[Dict]:</span>
+<span id="cb57-2"><a href="#cb57-2" aria-hidden="true" tabindex="-1"></a>    <span class="co">&quot;&quot;&quot;</span></span>
+<span id="cb57-3"><a href="#cb57-3" aria-hidden="true" tabindex="-1"></a><span class="co">    Args:</span></span>
+<span id="cb57-4"><a href="#cb57-4" aria-hidden="true" tabindex="-1"></a><span class="co">        dataset_path: Golden Dataset 파일 경로</span></span>
+<span id="cb57-5"><a href="#cb57-5" aria-hidden="true" tabindex="-1"></a><span class="co">                      - 절대 경로 또는 상대 경로</span></span>
+<span id="cb57-6"><a href="#cb57-6" aria-hidden="true" tabindex="-1"></a><span class="co">                      - 상대 경로일 경우 &#39;golden_datasets/&#39; 디렉토리에서 검색</span></span>
+<span id="cb57-7"><a href="#cb57-7" aria-hidden="true" tabindex="-1"></a><span class="co">                      - None일 경우 생성자에서 지정한 경로 사용</span></span>
+<span id="cb57-8"><a href="#cb57-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb57-9"><a href="#cb57-9" aria-hidden="true" tabindex="-1"></a><span class="co">    Returns:</span></span>
+<span id="cb57-10"><a href="#cb57-10" aria-hidden="true" tabindex="-1"></a><span class="co">        List[Dict]: Golden Dataset 항목 리스트 (qa_pairs)</span></span>
+<span id="cb57-11"><a href="#cb57-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb57-12"><a href="#cb57-12" aria-hidden="true" tabindex="-1"></a><span class="co">    Raises:</span></span>
+<span id="cb57-13"><a href="#cb57-13" aria-hidden="true" tabindex="-1"></a><span class="co">        FileNotFoundError: 파일을 찾을 수 없는 경우</span></span>
+<span id="cb57-14"><a href="#cb57-14" aria-hidden="true" tabindex="-1"></a><span class="co">    &quot;&quot;&quot;</span></span></code></pre></div>
+<p><strong>사용 예시:</strong></p>
+<div class="sourceCode" id="cb58"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb58-1"><a href="#cb58-1" aria-hidden="true" tabindex="-1"></a>monitor <span class="op">=</span> PerformanceMonitor()</span>
+<span id="cb58-2"><a href="#cb58-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb58-3"><a href="#cb58-3" aria-hidden="true" tabindex="-1"></a><span class="co"># 방법 1: 상대 경로 (golden_datasets/ 디렉토리에서 검색)</span></span>
+<span id="cb58-4"><a href="#cb58-4" aria-hidden="true" tabindex="-1"></a>dataset <span class="op">=</span> monitor.load_golden_dataset(<span class="st">&quot;my_dataset.json&quot;</span>)</span>
+<span id="cb58-5"><a href="#cb58-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb58-6"><a href="#cb58-6" aria-hidden="true" tabindex="-1"></a><span class="co"># 방법 2: 절대 경로</span></span>
+<span id="cb58-7"><a href="#cb58-7" aria-hidden="true" tabindex="-1"></a>dataset <span class="op">=</span> monitor.load_golden_dataset(<span class="st">&quot;/path/to/golden_datasets/my_dataset.json&quot;</span>)</span>
+<span id="cb58-8"><a href="#cb58-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb58-9"><a href="#cb58-9" aria-hidden="true" tabindex="-1"></a><span class="co"># 방법 3: 속성으로 지정</span></span>
+<span id="cb58-10"><a href="#cb58-10" aria-hidden="true" tabindex="-1"></a>monitor <span class="op">=</span> PerformanceMonitor()</span>
+<span id="cb58-11"><a href="#cb58-11" aria-hidden="true" tabindex="-1"></a>monitor.golden_dataset_path <span class="op">=</span> <span class="st">&quot;my_dataset.json&quot;</span></span>
+<span id="cb58-12"><a href="#cb58-12" aria-hidden="true" tabindex="-1"></a>dataset <span class="op">=</span> monitor.load_golden_dataset()  <span class="co"># 자동으로 속성 경로 사용</span></span>
+<span id="cb58-12"><a href="#cb58-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb58-13"><a href="#cb58-13" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f&quot;로드된 QA 쌍: </span><span class="sc">{</span><span class="bu">len</span>(dataset)<span class="sc">}</span><span class="ss">개&quot;</span>)</span></code></pre></div>
+<h3
+id="evaluate_with_golden_dataset">evaluate_with_golden_dataset()</h3>
+<p>Golden Dataset 기반 완전 자동 평가 파이프라인입니다.</p>
+<div class="sourceCode" id="cb59"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb59-1"><a href="#cb59-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> evaluate_with_golden_dataset(</span>
+<span id="cb59-2"><a href="#cb59-2" aria-hidden="true" tabindex="-1"></a>    <span class="va">self</span>,</span>
+<span id="cb59-3"><a href="#cb59-3" aria-hidden="true" tabindex="-1"></a>    agent_fn: Callable[[<span class="bu">str</span>], Dict],</span>
+<span id="cb59-4"><a href="#cb59-4" aria-hidden="true" tabindex="-1"></a>    dataset_path: Optional[<span class="bu">str</span>] <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb59-5"><a href="#cb59-5" aria-hidden="true" tabindex="-1"></a>    enable_layer2_metrics: <span class="bu">bool</span> <span class="op">=</span> <span class="va">True</span>,</span>
+<span id="cb59-6"><a href="#cb59-6" aria-hidden="true" tabindex="-1"></a>    enable_advanced_metrics: <span class="bu">bool</span> <span class="op">=</span> <span class="va">False</span>,</span>
+<span id="cb59-7"><a href="#cb59-7" aria-hidden="true" tabindex="-1"></a>    verbose: <span class="bu">bool</span> <span class="op">=</span> <span class="va">True</span></span>
+<span id="cb59-8"><a href="#cb59-8" aria-hidden="true" tabindex="-1"></a>) <span class="op">-&gt;</span> Dict[<span class="bu">str</span>, Any]:</span>
+<span id="cb59-9"><a href="#cb59-9" aria-hidden="true" tabindex="-1"></a>    <span class="co">&quot;&quot;&quot;</span></span>
+<span id="cb59-10"><a href="#cb59-10" aria-hidden="true" tabindex="-1"></a><span class="co">    Args:</span></span>
+<span id="cb59-11"><a href="#cb59-11" aria-hidden="true" tabindex="-1"></a><span class="co">        agent_fn: 평가할 에이전트 함수</span></span>
+<span id="cb59-12"><a href="#cb59-12" aria-hidden="true" tabindex="-1"></a><span class="co">                  - 입력: question (str)</span></span>
+<span id="cb59-13"><a href="#cb59-13" aria-hidden="true" tabindex="-1"></a><span class="co">                  - 출력: Dict with keys:</span></span>
+<span id="cb59-14"><a href="#cb59-14" aria-hidden="true" tabindex="-1"></a><span class="co">                      - answer (str, 필수): 에이전트의 답변</span></span>
+<span id="cb59-15"><a href="#cb59-15" aria-hidden="true" tabindex="-1"></a><span class="co">                      - tools_used (List[str], 선택): 사용한 도구 리스트</span></span>
+<span id="cb59-16"><a href="#cb59-16" aria-hidden="true" tabindex="-1"></a><span class="co">                      - latency (float, 선택): 응답 시간</span></span>
+<span id="cb59-17"><a href="#cb59-17" aria-hidden="true" tabindex="-1"></a><span class="co">                      - token_usage (Dict, 선택): 토큰 사용량</span></span>
+<span id="cb59-18"><a href="#cb59-18" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb59-19"><a href="#cb59-19" aria-hidden="true" tabindex="-1"></a><span class="co">        dataset_path: Golden Dataset 파일 경로 (None이면 이미 로드된 데이터 사용)</span></span>
+<span id="cb59-20"><a href="#cb59-20" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb59-21"><a href="#cb59-21" aria-hidden="true" tabindex="-1"></a><span class="co">        enable_layer2_metrics: Layer 2 메트릭 자동 평가</span></span>
+<span id="cb59-22"><a href="#cb59-22" aria-hidden="true" tabindex="-1"></a><span class="co">                               - Tool Selection Accuracy</span></span>
+<span id="cb59-23"><a href="#cb59-23" aria-hidden="true" tabindex="-1"></a><span class="co">                               - Tool Selection F1 Score</span></span>
+<span id="cb59-24"><a href="#cb59-24" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb59-25"><a href="#cb59-25" aria-hidden="true" tabindex="-1"></a><span class="co">        enable_advanced_metrics: Layer 3 고급 메트릭 (DeepEval, Ragas)</span></span>
+<span id="cb59-26"><a href="#cb59-26" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb59-27"><a href="#cb59-27" aria-hidden="true" tabindex="-1"></a><span class="co">        verbose: 진행 상황 출력 여부</span></span>
+<span id="cb59-28"><a href="#cb59-28" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb59-29"><a href="#cb59-29" aria-hidden="true" tabindex="-1"></a><span class="co">    Returns:</span></span>
+<span id="cb59-30"><a href="#cb59-30" aria-hidden="true" tabindex="-1"></a><span class="co">        Dict: 평가 결과</span></span>
+<span id="cb59-31"><a href="#cb59-31" aria-hidden="true" tabindex="-1"></a><span class="co">        {</span></span>
+<span id="cb59-32"><a href="#cb59-32" aria-hidden="true" tabindex="-1"></a><span class="co">            &quot;total_evaluated&quot;: int,</span></span>
+<span id="cb59-33"><a href="#cb59-33" aria-hidden="true" tabindex="-1"></a><span class="co">            &quot;layer1_metrics&quot;: {</span></span>
+<span id="cb59-34"><a href="#cb59-34" aria-hidden="true" tabindex="-1"></a><span class="co">                &quot;tcr&quot;: float,</span></span>
+<span id="cb59-35"><a href="#cb59-35" aria-hidden="true" tabindex="-1"></a><span class="co">                &quot;accuracy&quot;: float,</span></span>
+<span id="cb59-36"><a href="#cb59-36" aria-hidden="true" tabindex="-1"></a><span class="co">                &quot;hallucination_rate&quot;: float</span></span>
+<span id="cb59-37"><a href="#cb59-37" aria-hidden="true" tabindex="-1"></a><span class="co">            },</span></span>
+<span id="cb59-38"><a href="#cb59-38" aria-hidden="true" tabindex="-1"></a><span class="co">            &quot;layer2_metrics&quot;: {</span></span>
+<span id="cb59-39"><a href="#cb59-39" aria-hidden="true" tabindex="-1"></a><span class="co">                &quot;tool_selection_accuracy&quot;: float,</span></span>
+<span id="cb59-40"><a href="#cb59-40" aria-hidden="true" tabindex="-1"></a><span class="co">                &quot;tool_selection_f1&quot;: float</span></span>
+<span id="cb59-41"><a href="#cb59-41" aria-hidden="true" tabindex="-1"></a><span class="co">            },</span></span>
+<span id="cb59-42"><a href="#cb59-42" aria-hidden="true" tabindex="-1"></a><span class="co">            &quot;pass_fail&quot;: {</span></span>
+<span id="cb59-43"><a href="#cb59-43" aria-hidden="true" tabindex="-1"></a><span class="co">                &quot;metric_name&quot;: {</span></span>
+<span id="cb59-44"><a href="#cb59-44" aria-hidden="true" tabindex="-1"></a><span class="co">                    &quot;status&quot;: &quot;pass&quot; | &quot;fail&quot;,</span></span>
+<span id="cb59-45"><a href="#cb59-45" aria-hidden="true" tabindex="-1"></a><span class="co">                    &quot;value&quot;: float,</span></span>
+<span id="cb59-46"><a href="#cb59-46" aria-hidden="true" tabindex="-1"></a><span class="co">                    &quot;threshold&quot;: float,</span></span>
+<span id="cb59-47"><a href="#cb59-47" aria-hidden="true" tabindex="-1"></a><span class="co">                    &quot;name&quot;: str,</span></span>
+<span id="cb59-48"><a href="#cb59-48" aria-hidden="true" tabindex="-1"></a><span class="co">                    &quot;unit&quot;: str</span></span>
+<span id="cb59-49"><a href="#cb59-49" aria-hidden="true" tabindex="-1"></a><span class="co">                }</span></span>
+<span id="cb59-50"><a href="#cb59-50" aria-hidden="true" tabindex="-1"></a><span class="co">            }</span></span>
+<span id="cb59-51"><a href="#cb59-51" aria-hidden="true" tabindex="-1"></a><span class="co">        }</span></span>
+<span id="cb59-52"><a href="#cb59-52" aria-hidden="true" tabindex="-1"></a><span class="co">    &quot;&quot;&quot;</span></span></code></pre></div>
+<p><strong>완전한 사용 예시:</strong></p>
+<div class="sourceCode" id="cb60"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb60-1"><a href="#cb60-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> agent_evaluator <span class="im">import</span> PerformanceMonitor</span>
+<span id="cb60-2"><a href="#cb60-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb60-3"><a href="#cb60-3" aria-hidden="true" tabindex="-1"></a><span class="co"># 1. Monitor 초기화</span></span>
+<span id="cb60-4"><a href="#cb60-4" aria-hidden="true" tabindex="-1"></a>monitor <span class="op">=</span> PerformanceMonitor()</span>
+<span id="cb60-5"><a href="#cb60-5" aria-hidden="true" tabindex="-1"></a>monitor.thresholds <span class="op">=</span> {</span>
+<span id="cb60-6"><a href="#cb60-6" aria-hidden="true" tabindex="-1"></a>    <span class="st">&#39;tcr&#39;</span>: <span class="fl">90.0</span>,</span>
+<span id="cb60-7"><a href="#cb60-7" aria-hidden="true" tabindex="-1"></a>    <span class="st">&#39;accuracy&#39;</span>: <span class="fl">85.0</span>,</span>
+<span id="cb60-8"><a href="#cb60-8" aria-hidden="true" tabindex="-1"></a>    <span class="st">&#39;tool_selection_accuracy&#39;</span>: <span class="fl">80.0</span></span>
+<span id="cb60-9"><a href="#cb60-9" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb60-10"><a href="#cb60-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb60-11"><a href="#cb60-11" aria-hidden="true" tabindex="-1"></a><span class="co"># 2. 에이전트 함수 정의</span></span>
+<span id="cb60-12"><a href="#cb60-12" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> my_rag_agent(question: <span class="bu">str</span>) <span class="op">-&gt;</span> Dict:</span>
+<span id="cb60-13"><a href="#cb60-13" aria-hidden="true" tabindex="-1"></a>    <span class="co">&quot;&quot;&quot;실제 RAG 에이전트&quot;&quot;&quot;</span></span>
+<span id="cb60-14"><a href="#cb60-14" aria-hidden="true" tabindex="-1"></a>    <span class="co"># 벡터 검색</span></span>
+<span id="cb60-15"><a href="#cb60-15" aria-hidden="true" tabindex="-1"></a>    context <span class="op">=</span> vector_store.search(question)</span>
+<span id="cb60-16"><a href="#cb60-16" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb60-17"><a href="#cb60-17" aria-hidden="true" tabindex="-1"></a>    <span class="co"># LLM 호출</span></span>
+<span id="cb60-18"><a href="#cb60-18" aria-hidden="true" tabindex="-1"></a>    answer <span class="op">=</span> llm.predict(question, context<span class="op">=</span>context)</span>
+<span id="cb60-19"><a href="#cb60-19" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb60-20"><a href="#cb60-20" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> {</span>
+<span id="cb60-21"><a href="#cb60-21" aria-hidden="true" tabindex="-1"></a>        <span class="st">&quot;answer&quot;</span>: answer,</span>
+<span id="cb60-22"><a href="#cb60-22" aria-hidden="true" tabindex="-1"></a>        <span class="st">&quot;tools_used&quot;</span>: [<span class="st">&quot;vector_search&quot;</span>, <span class="st">&quot;llm&quot;</span>],</span>
+<span id="cb60-23"><a href="#cb60-23" aria-hidden="true" tabindex="-1"></a>        <span class="st">&quot;latency&quot;</span>: <span class="fl">1.5</span>,</span>
+<span id="cb60-24"><a href="#cb60-24" aria-hidden="true" tabindex="-1"></a>        <span class="st">&quot;token_usage&quot;</span>: {<span class="st">&quot;input&quot;</span>: <span class="dv">100</span>, <span class="st">&quot;output&quot;</span>: <span class="dv">50</span>}</span>
+<span id="cb60-25"><a href="#cb60-25" aria-hidden="true" tabindex="-1"></a>    }</span>
+<span id="cb60-26"><a href="#cb60-26" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb60-27"><a href="#cb60-27" aria-hidden="true" tabindex="-1"></a><span class="co"># 3. 자동 평가 실행</span></span>
+<span id="cb60-28"><a href="#cb60-28" aria-hidden="true" tabindex="-1"></a>results <span class="op">=</span> monitor.evaluate_with_golden_dataset(</span>
+<span id="cb60-29"><a href="#cb60-29" aria-hidden="true" tabindex="-1"></a>    agent_fn<span class="op">=</span>my_rag_agent,</span>
+<span id="cb60-30"><a href="#cb60-30" aria-hidden="true" tabindex="-1"></a>    dataset_path<span class="op">=</span><span class="st">&quot;rag_test_dataset.json&quot;</span>,</span>
+<span id="cb60-31"><a href="#cb60-31" aria-hidden="true" tabindex="-1"></a>    enable_layer2_metrics<span class="op">=</span><span class="va">True</span>,</span>
+<span id="cb60-32"><a href="#cb60-32" aria-hidden="true" tabindex="-1"></a>    verbose<span class="op">=</span><span class="va">True</span></span>
+<span id="cb60-33"><a href="#cb60-33" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb60-34"><a href="#cb60-34" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb60-35"><a href="#cb60-35" aria-hidden="true" tabindex="-1"></a><span class="co"># 4. 결과 확인</span></span>
+<span id="cb60-36"><a href="#cb60-36" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f&quot;</span><span class="ch">\n</span><span class="ss">📊 평가 결과:&quot;</span>)</span>
+<span id="cb60-37"><a href="#cb60-37" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f&quot;  총 평가: </span><span class="sc">{</span>results[<span class="st">&#39;total_evaluated&#39;</span>]<span class="sc">}</span><span class="ss">개&quot;</span>)</span>
+<span id="cb60-38"><a href="#cb60-38" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f&quot;  TCR: </span><span class="sc">{</span>results[<span class="st">&#39;layer1_metrics&#39;</span>][<span class="st">&#39;tcr&#39;</span>]<span class="sc">:.1f}</span><span class="ss">%&quot;</span>)</span>
+<span id="cb60-39"><a href="#cb60-39" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f&quot;  Accuracy: </span><span class="sc">{</span>results[<span class="st">&#39;layer1_metrics&#39;</span>][<span class="st">&#39;accuracy&#39;</span>]<span class="sc">:.1f}</span><span class="ss">%&quot;</span>)</span>
+<span id="cb60-40"><a href="#cb60-40" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f&quot;  Tool Selection: </span><span class="sc">{</span>results[<span class="st">&#39;layer2_metrics&#39;</span>][<span class="st">&#39;tool_selection_accuracy&#39;</span>]<span class="sc">:.1f}</span><span class="ss">%&quot;</span>)</span>
+<span id="cb60-41"><a href="#cb60-41" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb60-42"><a href="#cb60-42" aria-hidden="true" tabindex="-1"></a><span class="co"># 5. Pass/Fail 확인</span></span>
+<span id="cb60-43"><a href="#cb60-43" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> results.get(<span class="st">&#39;pass_fail&#39;</span>):</span>
+<span id="cb60-44"><a href="#cb60-44" aria-hidden="true" tabindex="-1"></a>    failed_metrics <span class="op">=</span> [m <span class="cf">for</span> m, d <span class="kw">in</span> results[<span class="st">&#39;pass_fail&#39;</span>].items() <span class="cf">if</span> d[<span class="st">&#39;status&#39;</span>] <span class="op">==</span> <span class="st">&#39;fail&#39;</span>]</span>
+<span id="cb60-45"><a href="#cb60-45" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> failed_metrics:</span>
+<span id="cb60-46"><a href="#cb60-46" aria-hidden="true" tabindex="-1"></a>        <span class="bu">print</span>(<span class="ss">f&quot;</span><span class="ch">\n</span><span class="ss">❌ 실패한 메트릭: </span><span class="sc">{</span><span class="st">&#39;, &#39;</span><span class="sc">.</span>join(failed_metrics)<span class="sc">}</span><span class="ss">&quot;</span>)</span>
+<span id="cb60-47"><a href="#cb60-47" aria-hidden="true" tabindex="-1"></a>        exit(<span class="dv">1</span>)</span>
+<span id="cb60-48"><a href="#cb60-48" aria-hidden="true" tabindex="-1"></a>    <span class="cf">else</span>:</span>
+<span id="cb60-49"><a href="#cb60-49" aria-hidden="true" tabindex="-1"></a>        <span class="bu">print</span>(<span class="ss">f&quot;</span><span class="ch">\n</span><span class="ss">✅ 모든 메트릭 통과!&quot;</span>)</span>
+<span id="cb60-50"><a href="#cb60-50" aria-hidden="true" tabindex="-1"></a>        exit(<span class="dv">0</span>)</span></code></pre></div>
+<h3 id="compare_with_thresholds">compare_with_thresholds()</h3>
+<p>현재 메트릭 값을 설정된 임계값과 비교합니다.</p>
+<div class="sourceCode" id="cb61"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb61-1"><a href="#cb61-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> compare_with_thresholds(<span class="va">self</span>) <span class="op">-&gt;</span> Dict[<span class="bu">str</span>, Any]:</span>
+<span id="cb61-2"><a href="#cb61-2" aria-hidden="true" tabindex="-1"></a>    <span class="co">&quot;&quot;&quot;</span></span>
+<span id="cb61-3"><a href="#cb61-3" aria-hidden="true" tabindex="-1"></a><span class="co">    Returns:</span></span>
+<span id="cb61-4"><a href="#cb61-4" aria-hidden="true" tabindex="-1"></a><span class="co">        Dict: 각 메트릭별 비교 결과</span></span>
+<span id="cb61-5"><a href="#cb61-5" aria-hidden="true" tabindex="-1"></a><span class="co">        {</span></span>
+<span id="cb61-6"><a href="#cb61-6" aria-hidden="true" tabindex="-1"></a><span class="co">            &quot;metric_name&quot;: {</span></span>
+<span id="cb61-7"><a href="#cb61-7" aria-hidden="true" tabindex="-1"></a><span class="co">                &quot;status&quot;: &quot;pass&quot; | &quot;fail&quot;,</span></span>
+<span id="cb61-8"><a href="#cb61-8" aria-hidden="true" tabindex="-1"></a><span class="co">                &quot;value&quot;: float,</span></span>
+<span id="cb61-9"><a href="#cb61-9" aria-hidden="true" tabindex="-1"></a><span class="co">                &quot;threshold&quot;: float,</span></span>
+<span id="cb61-10"><a href="#cb61-10" aria-hidden="true" tabindex="-1"></a><span class="co">                &quot;name&quot;: str,</span></span>
+<span id="cb61-11"><a href="#cb61-11" aria-hidden="true" tabindex="-1"></a><span class="co">                &quot;unit&quot;: str</span></span>
+<span id="cb61-12"><a href="#cb61-12" aria-hidden="true" tabindex="-1"></a><span class="co">            }</span></span>
+<span id="cb61-13"><a href="#cb61-13" aria-hidden="true" tabindex="-1"></a><span class="co">        }</span></span>
+<span id="cb61-14"><a href="#cb61-14" aria-hidden="true" tabindex="-1"></a><span class="co">    &quot;&quot;&quot;</span></span></code></pre></div>
+<p><strong>사용 예시:</strong></p>
+<div class="sourceCode" id="cb62"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb62-1"><a href="#cb62-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 임계값 설정</span></span>
+<span id="cb62-2"><a href="#cb62-2" aria-hidden="true" tabindex="-1"></a>monitor.thresholds <span class="op">=</span> {</span>
+<span id="cb62-3"><a href="#cb62-3" aria-hidden="true" tabindex="-1"></a>    <span class="st">&#39;tcr&#39;</span>: <span class="fl">90.0</span>,</span>
+<span id="cb62-4"><a href="#cb62-4" aria-hidden="true" tabindex="-1"></a>    <span class="st">&#39;accuracy&#39;</span>: <span class="fl">85.0</span>,</span>
+<span id="cb62-5"><a href="#cb62-5" aria-hidden="true" tabindex="-1"></a>    <span class="st">&#39;hallucination&#39;</span>: <span class="fl">5.0</span></span>
+<span id="cb62-6"><a href="#cb62-6" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb62-7"><a href="#cb62-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb62-8"><a href="#cb62-8" aria-hidden="true" tabindex="-1"></a><span class="co"># 평가 실행 후</span></span>
+<span id="cb62-9"><a href="#cb62-9" aria-hidden="true" tabindex="-1"></a>comparison <span class="op">=</span> monitor.compare_with_thresholds()</span>
+<span id="cb62-10"><a href="#cb62-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb62-11"><a href="#cb62-11" aria-hidden="true" tabindex="-1"></a><span class="co"># 결과 출력</span></span>
+<span id="cb62-12"><a href="#cb62-12" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> metric, data <span class="kw">in</span> comparison.items():</span>
+<span id="cb62-13"><a href="#cb62-13" aria-hidden="true" tabindex="-1"></a>    status <span class="op">=</span> <span class="st">&quot;✅ PASS&quot;</span> <span class="cf">if</span> data[<span class="st">&#39;status&#39;</span>] <span class="op">==</span> <span class="st">&#39;pass&#39;</span> <span class="cf">else</span> <span class="st">&quot;❌ FAIL&quot;</span></span>
+<span id="cb62-14"><a href="#cb62-14" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="ss">f&quot;</span><span class="sc">{</span>status<span class="sc">}</span><span class="ss"> </span><span class="sc">{</span>data[<span class="st">&#39;name&#39;</span>]<span class="sc">}</span><span class="ss">: </span><span class="sc">{</span>data[<span class="st">&#39;value&#39;</span>]<span class="sc">:.1f}{</span>data[<span class="st">&#39;unit&#39;</span>]<span class="sc">}</span><span class="ss"> (임계값: </span><span class="sc">{</span>data[<span class="st">&#39;threshold&#39;</span>]<span class="sc">}</span><span class="ss">)&quot;</span>)</span></code></pre></div>
+<hr />
+
+<hr />
+<h2 id="qa-품질-관리자-가이드">📊 품질 관리자 가이드 (QA Manager)</h2>
+
+<blockquote>
+<p>💼 <strong>품질 관리자를 위한 Golden Dataset 관리 가이드</strong>: Golden Dataset의 품질을 측정, 평가, 유지보수하는 체계적인 방법을 제공합니다.</p>
+</blockquote>
+
+<div style="background: #f0f4ff; padding: 20px; border-radius: 8px; margin: 20px 0;">
+<p><strong>🎯 이 가이드를 읽으면 알 수 있는 것</strong></p>
+<ul>
+<li>✅ Golden Dataset이 왜 중요하고 품질에 어떤 영향을 미치는지</li>
+<li>✅ 데이터셋 품질을 측정하는 구체적인 지표와 기준</li>
+<li>✅ 데이터셋을 정기적으로 유지보수하는 방법</li>
+<li>✅ 데이터셋 관련 문제 발생 시 해결 방법</li>
+<li>✅ Golden Dataset 관리의 모범 사례</li>
+</ul>
+</div>
+
+<h3 id="qa-1-golden-dataset-품질-관리">1. Golden Dataset 품질 관리</h3>
+
+<h4>🎯 Golden Dataset의 중요성</h4>
+
+<div style="background: #fff3cd; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #ffc107;">
+<p><strong>💡 핵심 개념: "Garbage In, Garbage Out"</strong></p>
+<p>Golden Dataset의 품질이 낮으면, 아무리 좋은 AI 모델도 제대로 평가할 수 없습니다.</p>
+
+<table style="width: 100%; margin: 10px 0; background: white;">
+<thead>
+<tr style="background: #ffc107; color: black;">
+<th style="padding: 10px; border: 1px solid #ddd;">Golden Dataset 품질</th>
+<th style="padding: 10px; border: 1px solid #ddd;">→</th>
+<th style="padding: 10px; border: 1px solid #ddd;">평가 신뢰도</th>
+<th style="padding: 10px; border: 1px solid #ddd;">결과</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="padding: 8px; border: 1px solid #ddd;"><strong>높음</strong> (다양성, 정확성)</td>
+<td style="padding: 8px; border: 1px solid #ddd;">→</td>
+<td style="padding: 8px; border: 1px solid #ddd;">✅ <strong>높음</strong></td>
+<td style="padding: 8px; border: 1px solid #ddd;">신뢰할 수 있는 메트릭</td>
+</tr>
+<tr style="background: #f8f9fa;">
+<td style="padding: 8px; border: 1px solid #ddd;"><strong>낮음</strong> (편향, 오류)</td>
+<td style="padding: 8px; border: 1px solid #ddd;">→</td>
+<td style="padding: 8px; border: 1px solid #ddd;">❌ <strong>낮음</strong></td>
+<td style="padding: 8px; border: 1px solid #ddd;">잘못된 의사결정</td>
+</tr>
+</tbody>
+</table>
+</div>
+
+<h4>📊 Golden Dataset 생명주기</h4>
+
+<div style="background: #e7f3ff; padding: 20px; border-radius: 8px; margin: 20px 0;">
+<p><strong>Golden Dataset은 한번 만들고 끝이 아닙니다!</strong></p>
+<pre style="background: #e2e8f0; padding: 15px; border-radius: 4px; font-family: monospace;">
+1. 📝 생성 (Create)
+   └─ 다양한 시나리오 수집
+   └─ 전문가 검토
+   └─ 초기 품질 검증
+
+2. ✅ 검증 (Validate)
+   └─ 정확성 확인
+   └─ 편향성 검사
+   └─ 커버리지 분석
+
+3. 🔄 사용 (Use)
+   └─ 정기 평가 실행
+   └─ 메트릭 추적
+   └─ 이상 패턴 감지
+
+4. 🔧 유지보수 (Maintain)
+   └─ 실패 케이스 추가
+   └─ 구형 케이스 제거
+   └─ 품질 재검증
+
+5. 📈 개선 (Improve)
+   └─ 새로운 시나리오 추가
+   └─ 다양성 확대
+   └─ 난이도 조정
+</pre>
+</div>
+
+<h3 id="qa-2-데이터셋-품질-지표">2. 데이터셋 품질 지표</h3>
+
+<h4>📏 Golden Dataset 품질 측정 지표</h4>
+
+<table style="width: 100%; border-collapse: collapse; margin: 20px 0;">
+<thead>
+<tr style="background: #667eea; color: white;">
+<th style="padding: 12px; border: 1px solid #ddd;">지표</th>
+<th style="padding: 12px; border: 1px solid #ddd;">측정 내용</th>
+<th style="padding: 12px; border: 1px solid #ddd;">권장 기준</th>
+<th style="padding: 12px; border: 1px solid #ddd;">측정 방법</th>
+</tr>
+</thead>
+<tbody>
+<tr style="background: #f8f9fa;">
+<td style="padding: 10px; border: 1px solid #ddd;"><strong>데이터셋 크기</strong><br/>(Dataset Size)</td>
+<td style="padding: 10px; border: 1px solid #ddd;">QAPair 개수</td>
+<td style="padding: 10px; border: 1px solid #ddd;">최소 <strong>30개</strong><br/>권장 <strong>100개+</strong></td>
+<td style="padding: 10px; border: 1px solid #ddd;"><code>len(qa_pairs)</code></td>
+</tr>
+<tr>
+<td style="padding: 10px; border: 1px solid #ddd;"><strong>시나리오 다양성</strong><br/>(Diversity)</td>
+<td style="padding: 10px; border: 1px solid #ddd;">서로 다른 유형의<br/>질문 비율</td>
+<td style="padding: 10px; border: 1px solid #ddd;">최소 <strong>5가지</strong><br/>유형 이상</td>
+<td style="padding: 10px; border: 1px solid #ddd;">task_type 분포</td>
+</tr>
+<tr style="background: #f8f9fa;">
+<td style="padding: 10px; border: 1px solid #ddd;"><strong>난이도 분포</strong><br/>(Difficulty)</td>
+<td style="padding: 10px; border: 1px solid #ddd;">쉬움, 보통, 어려움<br/>케이스 균형</td>
+<td style="padding: 10px; border: 1px solid #ddd;">쉬움 30%<br/>보통 50%<br/>어려움 20%</td>
+<td style="padding: 10px; border: 1px solid #ddd;">수동 분류</td>
+</tr>
+<tr>
+<td style="padding: 10px; border: 1px solid #ddd;"><strong>답변 품질</strong><br/>(Answer Quality)</td>
+<td style="padding: 10px; border: 1px solid #ddd;">expected_output의<br/>정확성 및 완전성</td>
+<td style="padding: 10px; border: 1px solid #ddd;"><strong>100%</strong><br/>(모두 정확)</td>
+<td style="padding: 10px; border: 1px solid #ddd;">전문가 검토</td>
+</tr>
+<tr style="background: #f8f9fa;">
+<td style="padding: 10px; border: 1px solid #ddd;"><strong>메타데이터 완전성</strong><br/>(Completeness)</td>
+<td style="padding: 10px; border: 1px solid #ddd;">필수 필드 누락 없음</td>
+<td style="padding: 10px; border: 1px solid #ddd;">필수 필드<br/><strong>100%</strong> 존재</td>
+<td style="padding: 10px; border: 1px solid #ddd;">스키마 검증</td>
+</tr>
+<tr>
+<td style="padding: 10px; border: 1px solid #ddd;"><strong>중복 비율</strong><br/>(Duplication)</td>
+<td style="padding: 10px; border: 1px solid #ddd;">유사한 질문 중복</td>
+<td style="padding: 10px; border: 1px solid #ddd;"><strong>&lt; 5%</strong></td>
+<td style="padding: 10px; border: 1px solid #ddd;">유사도 분석</td>
+</tr>
+<tr style="background: #f8f9fa;">
+<td style="padding: 10px; border: 1px solid #ddd;"><strong>실패 케이스 커버리지</strong><br/>(Failure Coverage)</td>
+<td style="padding: 10px; border: 1px solid #ddd;">알려진 실패 패턴<br/>포함 비율</td>
+<td style="padding: 10px; border: 1px solid #ddd;"><strong>≥ 80%</strong></td>
+<td style="padding: 10px; border: 1px solid #ddd;">실패 로그 대조</td>
+</tr>
+</tbody>
+</table>
+
+<h4>🔍 데이터셋 품질 평가 체크리스트</h4>
+
+<div style="background: #fff; border-left: 4px solid #28a745; padding: 20px; margin: 20px 0;">
+<p><strong>✅ Golden Dataset 품질 체크리스트</strong></p>
+
+<table style="width: 100%; border-collapse: collapse; margin: 10px 0;">
+<thead>
+<tr style="background: #28a745; color: white;">
+<th style="padding: 10px; border: 1px solid #ddd; width: 50%;">항목</th>
+<th style="padding: 10px; border: 1px solid #ddd; width: 30%;">기준</th>
+<th style="padding: 10px; border: 1px solid #ddd; width: 20%;">Pass/Fail</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="padding: 8px; border: 1px solid #ddd;"><strong>1. 최소 크기 충족</strong></td>
+<td style="padding: 8px; border: 1px solid #ddd;">≥ 30개 QAPairs</td>
+<td style="padding: 8px; border: 1px solid #ddd; text-align: center;">[ ]</td>
+</tr>
+<tr style="background: #f8f9fa;">
+<td style="padding: 8px; border: 1px solid #ddd;"><strong>2. 시나리오 다양성</strong></td>
+<td style="padding: 8px; border: 1px solid #ddd;">≥ 5가지 유형</td>
+<td style="padding: 8px; border: 1px solid #ddd; text-align: center;">[ ]</td>
+</tr>
+<tr>
+<td style="padding: 8px; border: 1px solid #ddd;"><strong>3. 난이도 균형</strong></td>
+<td style="padding: 8px; border: 1px solid #ddd;">쉬움/보통/어려움</td>
+<td style="padding: 8px; border: 1px solid #ddd; text-align: center;">[ ]</td>
+</tr>
+<tr style="background: #f8f9fa;">
+<td style="padding: 8px; border: 1px solid #ddd;"><strong>4. 답변 정확성</strong></td>
+<td style="padding: 8px; border: 1px solid #ddd;">100% 검증됨</td>
+<td style="padding: 8px; border: 1px solid #ddd; text-align: center;">[ ]</td>
+</tr>
+<tr>
+<td style="padding: 8px; border: 1px solid #ddd;"><strong>5. 필수 필드 완전성</strong></td>
+<td style="padding: 8px; border: 1px solid #ddd;">누락 없음</td>
+<td style="padding: 8px; border: 1px solid #ddd; text-align: center;">[ ]</td>
+</tr>
+<tr style="background: #f8f9fa;">
+<td style="padding: 8px; border: 1px solid #ddd;"><strong>6. 중복 최소화</strong></td>
+<td style="padding: 8px; border: 1px solid #ddd;">&lt; 5% 중복</td>
+<td style="padding: 8px; border: 1px solid #ddd; text-align: center;">[ ]</td>
+</tr>
+<tr>
+<td style="padding: 8px; border: 1px solid #ddd;"><strong>7. 실패 케이스 포함</strong></td>
+<td style="padding: 8px; border: 1px solid #ddd;">≥ 10개 포함</td>
+<td style="padding: 8px; border: 1px solid #ddd; text-align: center;">[ ]</td>
+</tr>
+<tr style="background: #f8f9fa;">
+<td style="padding: 8px; border: 1px solid #ddd;"><strong>8. Layer 2 메타데이터</strong><br/>(멀티 에이전트 시)</td>
+<td style="padding: 8px; border: 1px solid #ddd;">적절히 포함</td>
+<td style="padding: 8px; border: 1px solid #ddd; text-align: center;">[ ]</td>
+</tr>
+</tbody>
+</table>
+
+<p><strong>🔴 하나라도 Fail 시 → 데이터셋 보완 필요</strong></p>
+</div>
+
+<h3 id="qa-3-데이터셋-유지보수">3. 데이터셋 유지보수</h3>
+
+<h4>🔄 정기 유지보수 계획</h4>
+
+<div style="background: #f0f4ff; padding: 20px; border-radius: 8px; margin: 20px 0;">
+<p><strong>📅 Golden Dataset 유지보수 주기</strong></p>
+
+<table style="width: 100%; margin: 10px 0; background: white;">
+<thead>
+<tr style="background: #667eea; color: white;">
+<th style="padding: 10px; border: 1px solid #ddd;">주기</th>
+<th style="padding: 10px; border: 1px solid #ddd;">작업</th>
+<th style="padding: 10px; border: 1px solid #ddd;">목적</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="padding: 8px; border: 1px solid #ddd;"><strong>주간</strong><br/>(Weekly)</td>
+<td style="padding: 8px; border: 1px solid #ddd;">• 실패 케이스 수집<br/>• 신규 패턴 발견</td>
+<td style="padding: 8px; border: 1px solid #ddd;">최신 이슈 반영</td>
+</tr>
+<tr style="background: #f8f9fa;">
+<td style="padding: 8px; border: 1px solid #ddd;"><strong>월간</strong><br/>(Monthly)</td>
+<td style="padding: 8px; border: 1px solid #ddd;">• 품질 지표 분석<br/>• 중복 제거<br/>• 구형 케이스 검토</td>
+<td style="padding: 8px; border: 1px solid #ddd;">데이터셋 정제</td>
+</tr>
+<tr>
+<td style="padding: 8px; border: 1px solid #ddd;"><strong>분기</strong><br/>(Quarterly)</td>
+<td style="padding: 8px; border: 1px solid #ddd;">• 전면 재검토<br/>• 다양성 확대<br/>• 전문가 검토</td>
+<td style="padding: 8px; border: 1px solid #ddd;">대규모 개선</td>
+</tr>
+<tr style="background: #f8f9fa;">
+<td style="padding: 8px; border: 1px solid #ddd;"><strong>반기</strong><br/>(Semi-annual)</td>
+<td style="padding: 8px; border: 1px solid #ddd;">• 새 버전 생성<br/>• A/B 테스트<br/>• 성능 비교</td>
+<td style="padding: 8px; border: 1px solid #ddd;">장기 품질 관리</td>
+</tr>
+</tbody>
+</table>
+</div>
+
+<h3 id="qa-4-문제-시나리오-및-해결">4. 문제 시나리오 및 해결</h3>
+
+<div style="background: #fff; border: 2px solid #dc3545; border-radius: 8px; padding: 20px; margin: 20px 0;">
+<h5 style="color: #dc3545;">🔴 시나리오 1: 평가 메트릭이 계속 나쁨 (TCR &lt; 70%)</h5>
+
+<p><strong>🔍 증상:</strong> Golden Dataset 평가 결과 TCR이 지속적으로 낮음</p>
+
+<p><strong>⚡ 즉시 조치:</strong></p>
+<ol>
+<li>실패 케이스 분석: 어떤 유형의 질문에서 실패하는지 파악</li>
+<li>답변 검증: expected_output이 정확한지 재확인</li>
+<li>난이도 조정: 너무 어려운 케이스는 별도 카테고리로 분리</li>
+</ol>
+</div>
+
+<h3 id="qa-5-qa-관리자-핵심-원칙">5. QA 관리자 핵심 원칙</h3>
+
+<div style="background: #e7f3ff; padding: 20px; border-left: 4px solid #2196f3; margin: 20px 0;">
+<p><strong>💡 Golden Dataset 관리 5대 원칙</strong></p>
+
+<ol>
+<li><strong>📊 데이터가 곧 품질이다</strong>: Golden Dataset의 품질이 낮으면 평가 자체가 무의미합니다.</li>
+<li><strong>🔄 살아있는 문서로 관리하라</strong>: 실패 케이스를 지속적으로 추가하고, 구형 케이스를 제거하세요.</li>
+<li><strong>🎯 실제 사용 패턴을 반영하라</strong>: 프로덕션 로그를 분석하여 실제 사용자 질문을 반영하세요.</li>
+<li><strong>📈 다양성이 핵심이다</strong>: 한 가지 유형에 치우치지 말고 다양한 시나리오를 포함시키세요.</li>
+<li><strong>✅ 검증, 또 검증</strong>: expected_output이 정확한지 전문가가 반드시 검토해야 합니다.</li>
+</ol>
+</div>
+
+<hr />
+<h2 id="faq-troubleshooting">FAQ &amp; Troubleshooting</h2>
+<h3 id="faq">FAQ</h3>
+<h4 id="q1-golden-dataset은-몇-개의-qapair가-적당한가요">Q1: Golden
+Dataset은 몇 개의 QAPair가 적당한가요?</h4>
+<p><strong>A</strong>: 최소 20-50개를 권장합니다. 더 많을수록 평가가
+정확해지지만, 평가 시간도 증가합니다. 프로덕션 환경에서는 100-200개를
+목표로 하세요.</p>
+<h4 id="q2-layer-2-필드는-필수인가요">Q2: Layer 2 필드는
+필수인가요?</h4>
+<p><strong>A</strong>: 아니요. Layer 1 필드만으로도 기본 평가가
+가능합니다. 하지만 Agentic AI 시스템(multi-agent, tool-using,
+workflow-based)을 평가한다면 Layer 2 필드를 강력히 권장합니다.</p>
+<h4 id="q3-pdf에서-생성한-golden-dataset의-품질은-어떤가요">Q3: PDF에서
+생성한 Golden Dataset의 품질은 어떤가요?</h4>
+<p><strong>A</strong>: PDF 자동 생성은 빠르게 대량의 QAPair를 만들 수
+있지만, 품질은 수동 작성보다 낮을 수 있습니다. <strong>자동 생성 후 수동
+검토 및 편집</strong>을 권장합니다. - OpenAI GPT 모델 사용 (gpt-4o-mini
+또는 gpt-4o) - 청크 크기 조정으로 품질 개선 가능 (기본 1000자) - 좋은
+품질의 PDF일수록 좋은 QA 생성</p>
+<h4 id="q4-expected_tools를-정확히-정의하기-어려워요.">Q4:
+expected_tools를 정확히 정의하기 어려워요.</h4>
+<p><strong>A</strong>: 에이전트를 몇 번 실행해보고 실제로 사용하는
+도구를 관찰한 후, 그 중 <strong>필수적인 도구만</strong>
+expected_tools에 포함하세요. Dashboard에서 실시간으로 테스트하며 조정할
+수 있습니다.</p>
+<h4 id="q5-expected_workflow_steps의-순서가-중요한가요">Q5:
+expected_workflow_steps의 순서가 중요한가요?</h4>
+<p><strong>A</strong>: 평가 시 순서는 고려되지 않습니다. 하지만
+<strong>가독성과 디버깅</strong>을 위해 실행 순서대로 나열하는 것을
+권장합니다.</p>
+<h4 id="q6-golden-dataset을-어떻게-버전-관리하나요">Q6: Golden Dataset을
+어떻게 버전 관리하나요?</h4>
+<p><strong>A</strong>: Git으로 관리하고, 파일명 또는 내부
+<code>version</code> 필드로 버전을 표시하세요. 예:
+<code>golden_dataset_v1.0.json</code>,
+<code>golden_dataset_v1.1.json</code></p>
+<h4 id="q7-여러-개의-golden-dataset을-사용할-수-있나요">Q7: 여러 개의
+Golden Dataset을 사용할 수 있나요?</h4>
+<p><strong>A</strong>: 네! 도메인별로 분리하여 관리할 수 있습니다. 예:
+<code>math_qa.json</code>, <code>customer_support_qa.json</code>,
+<code>research_qa.json</code></p>
+<h4 id="q8-자동-평가가-실패했는데-어떻게-디버깅하나요">Q8: 자동 평가가
+실패했는데, 어떻게 디버깅하나요?</h4>
+<p><strong>A</strong>: Dashboard의 “Evaluation History” 탭에서 각
+QAPair의 상세 결과를 확인할 수 있습니다. 어떤 메트릭이 실패했는지, 어떤
+도구가 누락/추가되었는지 등을 볼 수 있습니다.</p>
+<h3 id="troubleshooting">Troubleshooting</h3>
+<h4 id="문제-1-tool-selection-accuracy가-낮아요-50">문제 1: Tool
+Selection Accuracy가 낮아요 (&lt; 50%)</h4>
+<p><strong>원인</strong>:</p>
+<ul>
+<li>expected_tools가 부정확하게 정의됨</li>
+<li>에이전트가 불필요한 도구를 과도하게 사용</li>
+</ul>
+<p><strong>해결</strong>: 1. Dashboard에서 실제 사용된 도구 확인 2.
+expected_tools 재정의 3. 에이전트 프롬프트 개선하여 도구 선택 정확도
+향상</p>
+<h4 id="문제-2-agent-coordination-score가-010이에요">문제 2: Agent
+Coordination Score가 0/10이에요</h4>
+<p><strong>원인</strong>:</p>
+<ul>
+<li>expected_agents가 정의되지 않음</li>
+<li>Agent Coordination 추적이 활성화되지 않음</li>
+<li>실제로 에이전트 간 상호작용이 없음</li>
+</ul>
+<p><strong>해결</strong>: 1. Golden Dataset에 expected_agents 추가 2.
+CrewAI 사용 시 <code>enable_coordination_tracking=True</code> 설정 3.
+에이전트 간 상호작용 로그 확인</p>
+<h4 id="문제-3-workflow-execution이-평가되지-않아요">문제 3: Workflow
+Execution이 평가되지 않아요</h4>
+<p><strong>원인</strong>:</p>
+<ul>
+<li>expected_workflow_steps가 정의되지 않음</li>
+<li>Workflow 추적이 활성화되지 않음</li>
+</ul>
+<p><strong>해결</strong>: 1. Golden Dataset에 expected_workflow_steps
+추가 2. LangGraph 사용 시 <code>enable_workflow_tracking=True</code>
+설정 3. 노드 이름이 코드와 일치하는지 확인</p>
+<h4 id="문제-4-pdf에서-golden-dataset-생성이-너무-느려요">문제 4:
+PDF에서 Golden Dataset 생성이 너무 느려요</h4>
+<p><strong>원인</strong>:</p>
+<ul>
+<li>PDF 크기가 큼</li>
+<li>OpenAI API 호출이 많음 (청크당 1회 API 호출)</li>
+</ul>
+<p><strong>해결</strong>: 1. <code>max_chunks</code> 파라미터로 청크 수
+제한 (테스트용) 2. <code>num_questions_per_chunk</code> 값을 줄임 (기본
+3개) 3. PDF를 작은 단위로 분할 4. gpt-4o-mini 모델 사용 (더 빠르고
+저렴)</p>
+<div class="sourceCode" id="cb63"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb63-1"><a href="#cb63-1" aria-hidden="true" tabindex="-1"></a>generator <span class="op">=</span> KoreanRAGDatasetGenerator(model<span class="op">=</span><span class="st">&quot;gpt-4o-mini&quot;</span>)</span>
+<span id="cb63-2"><a href="#cb63-2" aria-hidden="true" tabindex="-1"></a>dataset <span class="op">=</span> generator.generate_from_pdf(</span>
+<span id="cb63-3"><a href="#cb63-3" aria-hidden="true" tabindex="-1"></a>    pdf_path<span class="op">=</span><span class="st">&quot;large_document.pdf&quot;</span>,</span>
+<span id="cb63-4"><a href="#cb63-4" aria-hidden="true" tabindex="-1"></a>    num_questions_per_chunk<span class="op">=</span><span class="dv">2</span>,  <span class="co"># 청크당 2개로 감소</span></span>
+<span id="cb63-5"><a href="#cb63-5" aria-hidden="true" tabindex="-1"></a>    max_chunks<span class="op">=</span><span class="dv">10</span>  <span class="co"># 처음 10개 청크만 처리</span></span>
+<span id="cb63-6"><a href="#cb63-6" aria-hidden="true" tabindex="-1"></a>)</span></code></pre></div>
+<h4 id="문제-5-자동-평가-결과가-수동-평가와-다릅니다">문제 5: 자동 평가
+결과가 수동 평가와 다릅니다</h4>
+<p><strong>원인</strong>:</p>
+<ul>
+<li>ground_truth가 너무 엄격하거나 모호함</li>
+<li>Accuracy 계산 방식 차이 (유사도 vs 정확 일치)</li>
+</ul>
+<p><strong>해결</strong>: 1. ground_truth를 더 유연하게 작성 2. Accuracy
+threshold를 조정 3. 평가 방식 커스터마이징 (유사도 임계값 변경)</p>
+<h4 id="문제-6-dashboard에서-golden-dataset을-로드할-수-없어요">문제 6:
+Dashboard에서 Golden Dataset을 로드할 수 없어요</h4>
+<p><strong>원인</strong>:</p>
+<ul>
+<li>JSON 형식 오류</li>
+<li>필수 필드 누락</li>
+</ul>
+<p><strong>해결</strong>: 1. JSON 유효성 검사 (online JSON validator
+사용) 2. 필수 필드 확인 (id, question, ground_truth, context) 3. 예제
+파일과 비교</p>
+<hr />
+<h2 id="다음-단계">다음 단계</h2>
+<p>Golden Dataset 작성을 완료했다면:</p>
+<ol type="1">
+<li><strong>임계값 설정</strong>: <a
+href="THRESHOLD_CONFIGURATION_GUIDE.md">THRESHOLD_CONFIGURATION_GUIDE.md</a>
+참고</li>
+<li><strong>자동 평가 실행</strong>:
+<code>Evaluator_Examples/04_threshold_validation_example.py</code> 실행</li>
+<li><strong>CI/CD 통합</strong>: <a
+href="DEPLOYMENT_GUIDE.md">DEPLOYMENT_GUIDE.md</a> 참고</li>
+<li><strong>Dashboard 사용</strong>: 실시간 모니터링 및 분석</li>
+</ol>
+<hr />
+<h2 id="참고-문서">참고 문서</h2>
+<ul>
+<li><a
+href="AGENTIC_AI_METRICS_GUIDE.md">AGENTIC_AI_METRICS_GUIDE.md</a> -
+Layer 2 메트릭 완전 가이드</li>
+<li><a href="API.md">API.md</a> - 전체 API 레퍼런스</li>
+<li><a
+href="../Evaluator_Examples/04_threshold_validation_example.py">04_threshold_validation_example.py</a>
+- 실전 예제</li>
+<li><a
+href="../Evaluator_Examples/07_framework_with_layer2_example.py">07_framework_with_layer2_example.py</a>
+- Framework 통합 예제</li>
+</ul>
+<hr />
+<hr />
+<p><strong>최종 업데이트</strong>: 2025-12-16<br>
+<strong>버전</strong>: Agent Evaluator v0.5.0<br>
+<strong>프로젝트</strong>: Agent Evaluator - AI Agent Performance Evaluation System<br>
+<strong>문서</strong>: Golden Dataset Guide</p>
+
+        </div>
+    </div>
+
+    <!-- Mermaid Zoom Modal -->
+    
+    <script src="scripts/mermaid-zoom.js"></script>
+</body>
+</html>
