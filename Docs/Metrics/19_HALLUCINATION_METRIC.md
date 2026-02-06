@@ -21,7 +21,7 @@ Agent Evaluator v0.5.0 - Layer 3 DeepEval Metric
 ## 📊 다이어그램 시각화
 
 ### 1️⃣ 핵심 개념 및 환각 탐지 (DeepEval Semantic)
-[code] 
+```python
     graph TD
         A[Response + Context] --> B[HallucinationMetric  
     DeepEval]
@@ -53,10 +53,10 @@ Agent Evaluator v0.5.0 - Layer 3 DeepEval Metric
         style I fill:#f8d7da
         style C fill:#fff3cd
         
-[/code]
+```
 
 ### 2️⃣ 평가 파이프라인 (Semantic vs Rule-Based)
-[code] 
+```python
     graph LR
         A[Hallucination Detection] --> B[Layer 1: Rule-Based  
     Metric 03]
@@ -94,10 +94,10 @@ Agent Evaluator v0.5.0 - Layer 3 DeepEval Metric
         style H fill:#d4edda
         style I fill:#ffc107
         
-[/code]
+```
 
 ### 3️⃣ 비용 및 정확도 트레이드오프
-[code] 
+```python
     graph TD
         A[Hallucination Detection Strategy] --> B{Use Case}
     
@@ -130,10 +130,10 @@ Agent Evaluator v0.5.0 - Layer 3 DeepEval Metric
         style I fill:#fff3cd
         style J fill:#d4edda
         
-[/code]
+```
 
 ### 4️⃣ 임계값 및 품질 관리
-[code] 
+```python
     graph TD
         A[Hallucination Score  
     1.0 = No Hallucination] --> B{임계값 비교}
@@ -160,7 +160,7 @@ Agent Evaluator v0.5.0 - Layer 3 DeepEval Metric
         style E fill:#fff3cd
         style F fill:#f8d7da
         
-[/code]
+```
 
 ## 📍 구현 위치
 

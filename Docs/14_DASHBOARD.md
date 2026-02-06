@@ -9,13 +9,13 @@ Streamlit 기반 시각화 및 데이터 관리 (Agent Evaluator v0.5.0)
 이 문서는 Streamlit 기반 대시보드의 모든 기능과 활용 방법을 상세히 설명합니다.
 
 ## 빠른 시작
-[code] 
+```bash
     [](<#cb1-1>)# 메인 대시보드 (평가 결과 분석)
     [](<#cb1-2>)streamlit run streamlit_dashboard.py
     [](<#cb1-3>)
     [](<#cb1-4>)# 데이터 편집 대시보드 (테스트 설정)
     [](<#cb1-5>)streamlit run dashboard_data_editor.py --server.port 8503
-[/code]
+```
 
 ## 대시보드 구성
 
@@ -74,7 +74,7 @@ Agent Evaluator는 **2개의 독립적인 대시보드** 를 제공합니다:
 ### 1.1 실행 방법
 
 #### 메인 대시보드 (평가 결과 분석)
-[code] 
+```bash
     [](<#cb2-1>)# 기본 실행
     [](<#cb2-2>)streamlit run streamlit_dashboard.py
     [](<#cb2-3>)
@@ -83,24 +83,24 @@ Agent Evaluator는 **2개의 독립적인 대시보드** 를 제공합니다:
     [](<#cb2-6>)
     [](<#cb2-7>)# 자동 새로고침 비활성화
     [](<#cb2-8>)streamlit run streamlit_dashboard.py --server.runOnSave false
-[/code]
+```
 
 #### 데이터 편집 대시보드 (테스트 설정 및 관리)
-[code] 
+```bash
     [](<#cb3-1>)# 데이터 편집 및 테스트 설정
     [](<#cb3-2>)streamlit run dashboard_data_editor.py
     [](<#cb3-3>)
     [](<#cb3-4>)# 포트 지정 (메인 대시보드와 동시 실행 가능)
     [](<#cb3-5>)streamlit run dashboard_data_editor.py --server.port 8503
-[/code]
+```
 
 ### 1.2 첫 화면
 
 대시보드 실행 시 다음 URL로 자동 접속됩니다:
-[code] 
+```python
     메인 대시보드: http://localhost:8501
     데이터 편집: http://localhost:8502 (포트 지정 시)
-[/code]
+```
 
 **메인 대시보드 초기 화면 구성**
 
@@ -130,13 +130,13 @@ Agent Evaluator는 **2개의 독립적인 대시보드** 를 제공합니다:
 **방법 2: 실제 평가 데이터 로드** 1\. 평가 코드 실행하여 JSON 파일 생성 `python monitor.save_to_file("my_evaluation.json")` 2\. 사이드바의 “📂 실제 평가 데이터” 섹션에서 파일 선택 3. “📥 실제 데이터 로드” 버튼 클릭
 
 **방법 3: 예제 실행**
-[code] 
+```json
     [](<#cb5-1>)# 기본 예제
     [](<#cb5-2>)python Evaluator_Examples/level_1_foundation/01_quickstart.py
     [](<#cb5-3>)
     [](<#cb5-4>)# 평가 결과가 Dashboard/data/evaluation_results/ 디렉토리에 자동 저장됨
     [](<#cb5-5>)# 대시보드에서 자동으로 인식 (Zero Configuration)
-[/code]
+```
 
 * * *
 
@@ -145,16 +145,16 @@ Agent Evaluator는 **2개의 독립적인 대시보드** 를 제공합니다:
 ### 2.1 데이터 관리
 
 #### 데모 데이터 생성
-[code] 
+```python
     🎲 데모 데이터 생성
-[/code]
+```
 
   * 클릭 시 100개의 샘플 작업 생성
   * 10가지 작업 유형 골고루 분포
   * 리얼리스틱한 메트릭 값
 
 #### 실제 평가 데이터
-[code] 
+```
     📂 실제 평가 데이터
     ✅ 발견된 평가 데이터: N개
     
@@ -164,23 +164,23 @@ Agent Evaluator는 **2개의 독립적인 대시보드** 를 제공합니다:
     └─ ...
     
     📥 실제 데이터 로드
-[/code]
+```
 
 **파일 선택 드롭다운** \- 파일명과 생성 시간 표시 - 최신 파일이 먼저 표시 - 파일 유형 자동 감지 (Agent 평가 / RAG 평가)
 
 **로드 과정** 1\. 드롭다운에서 파일 선택 2. “실제 데이터 로드” 버튼 클릭 3. 로딩 스피너 표시 4. 성공 시 “✅ 파일명 로드 완료!” 메시지 5. 자동으로 대시보드 새로고침
 
 #### 데이터 초기화
-[code] 
+```python
     🔄 데이터 초기화
-[/code]
+```
 
   * 모든 작업 데이터 삭제
   * Monitor 새로 생성
   * 깨끗한 상태로 시작
 
 ### 2.2 가격 설정
-[code] 
+```json
     💰 토큰 가격 설정
     
     입력 토큰 ($/1K 토큰)
@@ -188,7 +188,7 @@ Agent Evaluator는 **2개의 독립적인 대시보드** 를 제공합니다:
     
     출력 토큰 ($/1K 토큰)
     [0.0150]
-[/code]
+```
 
 **일반적인 모델 가격**
 
@@ -241,26 +241,26 @@ Overview 탭은 5개의 주요 섹션으로 구성:
 **5\. 🎯 임계값 비교 (설정된 경우)** \- 통과/경고/미달 항목 요약 - 각 메트릭의 임계값 대비 상태
 
 #### 성능 추세 차트
-[code] 
+```json
     📈 시간별 TCR 및 정확도 추세
     [꺾은선 그래프]
     - X축: 시간 (또는 작업 순서)
     - Y축: 백분율
     - 파란선: TCR
     - 빨간선: 정확도
-[/code]
+```
 
 **차트 기능** \- 🔍 줌: 드래그하여 확대 - 📸 다운로드: 우측 상단 카메라 아이콘 - 🔄 리셋: 더블클릭 - 🎯 호버: 정확한 값 표시
 
 #### 작업 유형별 분포
-[code] 
+```json
     📊 작업 유형 분포
     [파이 차트]
     - QA: 35%
     - 코드 생성: 20%
     - 데이터 분석: 15%
     - ...
-[/code]
+```
 
 **인사이트** \- 가장 많이 수행된 작업 유형 확인 - 각 유형별 성능 비교 가능 - 불균형 감지
 
@@ -280,36 +280,36 @@ Layer 1: Basic 탭은 다음 8개의 서브탭으로 구성됩니다:
 > 💡 **참고** : RAG 메트릭 (Faithfulness, Answer Relevancy, Context Recall, Context Precision)은 **🔬 Advanced 탭** 의 Ragas 섹션에서 확인하실 수 있습니다.
 
 #### 서브탭 1: TCR (작업 완료율)
-[code] 
+```
     📊 작업 완료율 (Task Completion Rate)
     
     전체 TCR        성공한 작업      전체 작업      벤치마크 등급
       92.5%           92개           100개          우수
-[/code]
+```
 
 **TaskType별 완료율** \- 막대 그래프: 각 작업 유형별 TCR 시각화 - 데이터 테이블: TaskType, TCR (%), 성공, 전체
 
 #### 서브탭 2: Accuracy (정확도)
-[code] 
+```python
     🎯 정확도 (Accuracy)
     
     전체 정확도    높은 정확도(≥90%)   낮은 정확도(<70%)   평균 정확도
       88.3%            75개              10개              88.3%
-[/code]
+```
 
 **TaskType별 정확도** \- 막대 그래프: 각 작업 유형별 정확도 분포 - 색상 스케일: 낮음(밝음) → 높음(진함)
 
 #### 서브탭 3: Hallucination (환각)
-[code] 
+```python
     🚨 환각 탐지 (Hallucination Detection)
     
     환각 발생률     검사한 응답     플래그된 응답    안전 등급
       2.5%          98개           2개          안전
       ↓ 낮을수록 좋음
-[/code]
+```
 
 **환각 탐지 설명**
-[code] 
+```python
     환각(Hallucination)은 AI가 사실이 아니거나 제공되지 않은 정보를 생성하는 현상입니다.
     
     - 낮음 (<5%): 매우 안전한 수준
@@ -317,15 +317,15 @@ Layer 1: Basic 탭은 다음 8개의 서브탭으로 구성됩니다:
     - 높음 (>10%): 개선 필요
     
     환각률이 높다면 프롬프트 개선이나 검증 메커니즘 추가를 권장합니다.
-[/code]
+```
 
 #### 서브탭 4: Quality (품질)
-[code] 
+```python
     ⭐ 응답 품질 (Response Quality)
     
     평균 품질      최고 품질      최저 품질      고품질 응답(≥8)
       8.2/10        10/10         5.0/10          65개
-[/code]
+```
 
 **품질 점수 분포** \- 도넛 차트: 품질 범위별 분포 (0-4, 4-6, 6-8, 8-10)
 
@@ -338,7 +338,7 @@ Layer 1: Basic 탭은 다음 8개의 서브탭으로 구성됩니다:
   * **분포 차트** : 히스토그램으로 값 분포 시각화
 
 **활성화 조건** :
-[code] 
+```python
     [](<#cb17-1>)# RAG 메트릭을 사용하려면 평가 시 다음을 활성화:
     [](<#cb17-2>)monitor.record_task(
     [](<#cb17-3>)    task,
@@ -347,7 +347,7 @@ Layer 1: Basic 탭은 다음 8개의 서브탭으로 구성됩니다:
     [](<#cb17-6>)    output_text=answer,
     [](<#cb17-7>)    retrieved_context=context  # RAG 메트릭에 필요
     [](<#cb17-8>))
-[/code]
+```
 
 ### 3.3 ⚡ Performance 탭
 
@@ -362,28 +362,28 @@ Layer 1: Basic 탭은 다음 8개의 서브탭으로 구성됩니다:
 💡 **참고:** 도구 효율성(Tool Efficiency) 지표는 🤖 Layer 2: Agentic 탭으로 이동했습니다.
 
 #### 서브탭 1: ⏱️ 응답 시간 (Latency)
-[code] 
+```python
     ⏱️ 응답 시간 분석
     
     평균 응답 시간    P50 (중앙값)    P95           최대
        2.3초           2.1초         4.2초        6.8초
-[/code]
+```
 
 **TaskType별 응답 시간** \- Box Plot: 각 작업 유형별 응답 시간 분포 및 아웃라이어 - 요약 테이블: TaskType별 평균, 중앙값, 최소, 최대
 
 #### 서브탭 2: 💰 비용 & 토큰 (Cost & Tokens)
-[code] 
+```python
     💰 비용 분석
     
     총 비용        Task당 비용    총 토큰 사용    Task당 평균 토큰
     $12.45         $0.0124       1,245,000       12,450
-[/code]
+```
 
 **토큰 사용 상세**
-[code] 
+```python
     Input 토큰     Output 토큰    Input 비율
      450,000        795,000        36.1%
-[/code]
+```
 
 **비용 최적화 제안**
 
@@ -394,18 +394,18 @@ Task당 비용에 따라 자동으로 제안 제공:
   * **$0.02 미만** : ✅ 효율적 - 매우 효율적인 비용 수준
 
 #### 서브탭 3: 🔄 재시도 성공 (Retry Success)
-[code] 
+```python
     🔄 재시도 성공률 분석
     
     재시도한 Task    재시도율    최종 성공률    수정 성공률
          125개        12.5%       98.7%         87.5%
-[/code]
+```
 
 **상세 지표**
-[code] 
+```python
     평균 시도 횟수    재시도 후 성공    1차 시도 성공률
          1.8회          110개             87.5%
-[/code]
+```
 
 **재시도 횟수 분포**
 
@@ -448,12 +448,12 @@ Task당 비용에 따라 자동으로 제안 제공:
 #### 🛡️ Input Sanitization
 
 사용자 입력의 위험성을 검증하고 공격 패턴을 탐지합니다.
-[code] 
+```python
     🛡️ 입력 검증 (Input Sanitization)
     
     총 입력    위험 감지    차단율    안전 등급
      100개      2개        2.0%      안전
-[/code]
+```
 
 **탐지 패턴:**
 
@@ -465,12 +465,12 @@ Task당 비용에 따라 자동으로 제안 제공:
 #### 🔐 Output Leakage
 
 AI 응답에서 민감 정보 유출 여부를 검사합니다.
-[code] 
+```python
     🔐 출력 유출 방지 (Output Leakage)
     
     총 출력    유출 감지    유출률    보안 등급
      100개      0개        0.0%      안전
-[/code]
+```
 
 **검사 항목:**
 
@@ -482,12 +482,12 @@ AI 응답에서 민감 정보 유출 여부를 검사합니다.
 #### 🔑 Authorization
 
 권한 검증 및 접근 제어 메트릭입니다.
-[code] 
+```python
     🔑 권한 검증 (Authorization)
     
     총 요청    권한 검증    거부율    정책 준수율
      100개      100개       3.0%      97.0%
-[/code]
+```
 
 **상세 내용은[보안 메트릭 가이드](<SECURITY_METRICS_GUIDE.html>)를 참고하세요.**
 
@@ -505,18 +505,18 @@ AI 응답에서 민감 정보 유출 여부를 검사합니다.
 💡 **참고:** 재시도(Retry) 지표는 ⚡ Performance 탭으로 이동했습니다.
 
 #### 서브탭 1: 🔧 Tool Selection
-[code] 
+```python
     🔧 도구 선택 정확도
     
     평균 정확도(F1)  정밀도(Precision)  재현율(Recall)  F1 Score
         92.3%           94.5%            90.2%        92.3%
-[/code]
+```
 
 **상세 분석**
-[code] 
+```python
     평가된 Task 수    정확한 선택    불필요한 도구
          100개           92개            8개
-[/code]
+```
 
 **개선 제안**
 
@@ -528,18 +528,18 @@ AI 응답에서 민감 정보 유출 여부를 검사합니다.
   * **정확도 ≥ 90%** : ✅ 우수한 도구 선택!
 
 #### 서브탭 2: ⚡ Tool Efficiency
-[code] 
+```python
     ⚡ 도구 실행 효율성
     
     총 도구 호출    성공률        효율성 점수    중복률
        1,234        95.5%         92.3%         3.2%
-[/code]
+```
 
 **상세 지표**
-[code] 
+```python
     Task당 평균 호출    평균 실행 시간    실패율
          3.2개            0.85초         4.5%
-[/code]
+```
 
 **도구별 효율성 분석**
 
@@ -560,12 +560,12 @@ api_call | 200 | 88.5% | 2.18s
   * 🟢 **평균 실행 시간 > 2초**: 비동기 호출, 타임아웃 설정
 
 #### 서브탭 3: 🤝 Multi-Agent (CrewAI)
-[code] 
+```python
     🤝 에이전트 협업 분석
     
     협업 점수      총 상호작용    성공률        평균 반응 시간
       8.5/10         245개        94.7%          1.2초
-[/code]
+```
 
 **에이전트 간 상호작용 네트워크** \- 상호작용 매트릭스: 에이전트 간 통신 빈도 - 성공/실패 분석
 
@@ -576,21 +576,21 @@ api_call | 200 | 88.5% | 2.18s
   * **협업 점수 < 6.0**: 🔴 에이전트 역할 재정의 및 통신 프로토콜 개선 필요
 
 #### 서브탭 4: 🔀 Workflow (LangChain/LangGraph)
-[code] 
+```python
     🔀 워크플로우 실행 분석
     
     워크플로우 성공률   총 실행 수    평균 노드 수    평균 실행 시간
          95.3%            450개         12.3개         3.2초
-[/code]
+```
 
 **노드별 실행 통계**
-[code] 
+```python
     노드 유형           실행 횟수    성공률    평균 시간
     Chain Node           1,234      97.8%     0.52s
     Conditional Node       456      95.2%     0.12s
     Parallel Node          234      93.6%     1.45s
     LLM Node               789      96.4%     2.18s
-[/code]
+```
 
 **워크플로우 최적화 제안**
 
@@ -612,22 +612,22 @@ api_call | 200 | 88.5% | 2.18s
 #### 🚨 Privilege Escalation
 
 에이전트가 허용된 권한을 초과하여 작업을 수행하려는 시도를 탐지합니다.
-[code] 
+```python
     🚨 권한 상승 탐지
     
     총 작업    시도 감지    차단 성공    차단율
      100개      1개         1개        100%
-[/code]
+```
 
 #### 🎯 Attack Detection
 
 Prompt Injection, Jailbreak 등 AI 공격 패턴을 탐지합니다.
-[code] 
+```python
     🎯 공격 탐지
     
     총 입력    공격 감지    차단율    오탐률
      100개      3개        100%      0.5%
-[/code]
+```
 
 **탐지 유형:**
 
@@ -683,9 +683,9 @@ Faithfulness
 **RAGAS 지표 설명** \- Faithfulness: 컨텍스트 충실도 - Context Recall: 필요한 정보 포함 정도 - Context Precision: 관련 정보만 포함 - Answer Relevancy: 질문-답변 관련성
 
 #### 작업별 고급 지표 상세
-[code] 
+```python
     ▼ 🔍 Task별 상세 지표 보기
-[/code]
+```
 
 Task ID | 유형 | G-Eval ⬆ | 환각 탐지 | 환각 점수 ⬆ | 유해성 ⬇ | 편향 ⬇ | Faithfulness ⬆  
 ---|---|---|---|---|---|---|---  
@@ -694,16 +694,16 @@ task_002 | RAG | 0.88 | ⚠️ 탐지 | 0.72 | 0.03 | 0.04 | 0.95
 … | … | … | … | … | … | … | …  
   
 **컬럼 설명** \- **G-Eval** : 전반적인 품질 점수 (0~1, 높을수록 좋음) - **환각 탐지** : 플래그 (✅ 없음 / ⚠️ 탐지됨) - **환각 점수** : `hallucination_score` (0~1, 높을수록 환각 없음) - **유해성/편향** : 0~1 (낮을수록 좋음) - **Faithfulness** : RAGAS 컨텍스트 충실도 (0~1, 높을수록 좋음)
-[code] 
+```json
     [다운로드 버튼: CSV로 내보내기]
-[/code]
+```
 
 ### 3.5 🚨 알림 탭
 
 임계값을 벗어난 항목과 개선 제안을 표시합니다.
 
 #### 알림 레벨별 표시
-[code] 
+```json
     🚨 알림 (5)
     
     [Critical] 정확도가 65.5%입니다 (70% 기준 미달)
@@ -722,15 +722,15 @@ task_002 | RAG | 0.88 | ⚠️ 탐지 | 0.72 | 0.03 | 0.04 | 0.95
     [Low] 도구 효율성 88.5% (90% 기준 미달)
       영향: 낮음
       조치: 도구 선택 로직 검토
-[/code]
+```
 
 **필터링**
-[code] 
+```python
     레벨 필터: [전체] [Critical] [High] [Medium] [Low]
-[/code]
+```
 
 #### 개선 제안
-[code] 
+```python
     💡 개선 제안 (우선순위순)
     
     1. 🎯 데이터 분석 작업 정확도 향상
@@ -758,14 +758,14 @@ task_002 | RAG | 0.88 | ⚠️ 탐지 | 0.72 | 0.03 | 0.04 | 0.95
        - 프롬프트 간소화
        - 배치 처리
        예상 효과: -19%
-[/code]
+```
 
 ### 3.6 📈 상세 분석 탭
 
 심층 분석과 고급 시각화를 제공합니다.
 
 #### 시간별 성능 추이
-[code] 
+```json
     📊 시간별 성능 추이
     
     [다중 선 그래프]
@@ -776,12 +776,12 @@ task_002 | RAG | 0.88 | ⚠️ 탐지 | 0.72 | 0.03 | 0.04 | 0.95
     
     X축: 시간 (1시간 단위)
     Y축: 값 (각 메트릭 별 스케일)
-[/code]
+```
 
 **인사이트** \- 피크 시간대 식별 - 성능 저하 구간 감지 - 트렌드 분석
 
 #### 작업 유형별 비교
-[code] 
+```json
     📊 작업 유형별 메트릭 비교
     
     [레이더 차트]
@@ -792,7 +792,7 @@ task_002 | RAG | 0.88 | ⚠️ 탐지 | 0.72 | 0.03 | 0.04 | 0.95
            /      \
           /        \
      지연시간 ---- 비용
-[/code]
+```
 
 **활용** \- 각 작업 유형의 강약점 시각화 - 균형잡힌 최적화 목표 설정
 
@@ -810,7 +810,7 @@ task_002 | RAG | 0.88 | ⚠️ 탐지 | 0.72 | 0.03 | 0.04 | 0.95
 **인사이트:** \- 정확도 ↑ → TCR ↑ (강한 양의 상관관계 0.8) - 지연시간 ↑ → 비용 ↑ (중간 양의 상관관계 0.7) - 지연시간 ↑ → TCR ↓ (약한 음의 상관관계 -0.3)
 
 #### 토큰 사용량 분석
-[code] 
+```json
     📊 토큰 사용 패턴
     
     [적층 영역 차트]
@@ -826,7 +826,7 @@ task_002 | RAG | 0.88 | ⚠️ 탐지 | 0.72 | 0.03 | 0.04 | 0.95
     
     평균 입출력 비율: 1:1.5
     최적 비율 권장: 1:1.2 (비용 절감)
-[/code]
+```
 
 ### 3.7 🚨 Integrated Security 탭
 
@@ -835,12 +835,12 @@ task_002 | RAG | 0.88 | ⚠️ 탐지 | 0.72 | 0.03 | 0.04 | 0.95
 **✨ 신규 추가:** 보안 리스크 스코어링 및 알림 시스템
 
 #### 🎯 보안 리스크 점수
-[code] 
+```python
     🛡️ 전체 보안 점수
     
     리스크 점수    리스크 등급    취약점 수    권장사항 수
        15/100       낮음 (안전)      2개         3개
-[/code]
+```
 
 **리스크 등급:**
 
@@ -875,7 +875,7 @@ AI 기반 보안 개선 제안을 자동으로 생성합니다.
 #### 서브탭 1: 🚨 Alerts
 
 임계값을 벗어난 메트릭에 대한 알림을 심각도별로 표시합니다.
-[code] 
+```python
     🚨 알림 및 경고
     
     총 5개의 알림이 있습니다.
@@ -893,7 +893,7 @@ AI 기반 보안 개선 제안을 자동으로 생성합니다.
     ### 🟢 Medium (보통)
     - 환각률이 다소 높음 (현재: 5.2%, 목표: ≤3%)
       권장사항: Context 보강, 사실 확인 메커니즘 추가
-[/code]
+```
 
 **알림 표시 방식**
 
@@ -904,7 +904,7 @@ AI 기반 보안 개선 제안을 자동으로 생성합니다.
 #### 서브탭 2: 💡 Recommendations
 
 자동 생성된 개선 제안을 우선순위별로 제공합니다.
-[code] 
+```python
     💡 개선 권장사항
     
     총 8개의 개선 제안이 있습니다.
@@ -929,7 +929,7 @@ AI 기반 보안 개선 제안을 자동으로 생성합니다.
     
     📈 예상 효과
     TCR을 85% 이상으로 개선하여 시스템 안정성 향상
-[/code]
+```
 
 **권장사항 표시 방식**
 
@@ -940,7 +940,7 @@ AI 기반 보안 개선 제안을 자동으로 생성합니다.
 #### 서브탭 3: 📈 Task Explorer
 
 개별 Task를 필터링하고 상세 정보를 탐색할 수 있습니다.
-[code] 
+```json
     📈 Task 상세 탐색 (125개)
     
     [필터 옵션]
@@ -960,7 +960,7 @@ AI 기반 보안 개선 제안을 자동으로 생성합니다.
     - 기본 정보: Type, Success, Completion Score, Accuracy, Time, Attempts
     - 토큰 사용량: Input, Output, Total
     - 오류 메시지 (실패한 경우)
-[/code]
+```
 
 **Task Explorer 기능**
 
@@ -1160,11 +1160,11 @@ Test 투명성 탭은 다음 4개의 서브탭으로 구성됩니다:
      * Ragas 메트릭 (Faithfulness, Context Recall/Precision, Answer Similarity/Correctness)
 
 **HTML 리포트 생성**
-[code] 
+```json
     [📥 HTML 리포트 다운로드] 버튼
     - comprehensive_report_YYYYMMDD_HHMMSS.html 형식으로 저장
     - 모든 메트릭과 시각화를 포함한 독립 실행형 HTML 파일
-[/code]
+```
 
 #### 서브탭 2: ⚙️ 평가 환경 & 설정
 
@@ -1206,12 +1206,12 @@ Test 투명성 탭은 다음 4개의 서브탭으로 구성됩니다:
 `dashboard_data_editor.py`는 테스트 설정 및 데이터 관리를 위한 독립 대시보드입니다.
 
 ### 4.1 실행 방법
-[code] 
+```bash
     [](<#cb38-1>)streamlit run dashboard_data_editor.py
     [](<#cb38-2>)
     [](<#cb38-3>)# 메인 대시보드와 동시 실행
     [](<#cb38-4>)streamlit run dashboard_data_editor.py --server.port 8503
-[/code]
+```
 
 ### 4.2 대시보드 구성
 
@@ -1236,12 +1236,12 @@ Test 투명성 탭은 다음 4개의 서브탭으로 구성됩니다:
 평가 메트릭의 임계값을 설정합니다.
 
 **Preset 선택**
-[code] 
+```python
     - Minimal: 기본 메트릭만 (TCR, Accuracy, Hallucination)
     - Balanced: 균형잡힌 설정 (Preset + Agentic AI)
     - Strict: 엄격한 기준 (높은 임계값)
     - Production: 프로덕션 환경 (안정성 중시)
-[/code]
+```
 
 **커스텀 설정** \- Layer 1 Metrics: TCR, Accuracy, Hallucination, Latency - Layer 2 Metrics: Tool Selection, Agent Coordination, Workflow - Layer 3 Metrics: Faithfulness, Context Recall, Answer Relevancy
 
@@ -1266,22 +1266,22 @@ Test 투명성 탭은 다음 4개의 서브탭으로 구성됩니다:
 테스트 실행 준비 상태를 확인하고 구성을 저장합니다.
 
 **준비 상태 확인**
-[code] 
+```
     ✅ Test 실행 준비 완료!
     
     Golden Datasets    Threshold 설정
         5개            Balanced         [🚀 Test 실행]
-[/code]
+```
 
 **Step-by-Step 프로세스**
-[code] 
+```
     Step 1: Golden Dataset 준비 ✅ 완료
     Step 2: Threshold 설정 ✅ 완료
     Step 3: 고급 평가 설정 (선택사항) 💡 기본값
-[/code]
+```
 
 **Test 구성 저장**
-[code] 
+```python
     💾 Test 구성 관리
     
     구성 이름: test_config_20241130_1430
@@ -1292,7 +1292,7 @@ Test 투명성 탭은 다음 4개의 서브탭으로 구성됩니다:
     Golden Datasets 선택: [5개 선택됨]
     
     [💾 저장]  [취소]
-[/code]
+```
 
 #### 서브탭 4: 📊 이력 관리
 
@@ -1311,7 +1311,7 @@ Test 투명성 탭은 다음 4개의 서브탭으로 구성됩니다:
 **Test 과정 시각화** \- 메트릭 계산 단계별 추적 - 각 단계의 입력/출력 데이터 - 계산 시간 및 리소스 사용량
 
 **데이터 품질 검증**
-[code] 
+```
     ✅ 데이터 품질 리포트
     
     전체 품질 점수: 87.5/100
@@ -1320,7 +1320,7 @@ Test 투명성 탭은 다음 4개의 서브탭으로 구성됩니다:
     • 총 작업 수: 120개
     • 점수가 있는 작업: 115개 (95.8%)
     • 품질 평가된 작업: 108개 (90.0%)
-[/code]
+```
 
 **감사 로그** \- 모든 평가 실행 기록 - 사용된 설정 및 데이터 - 결과 변경 이력
 
@@ -1338,18 +1338,18 @@ Test 투명성 탭은 다음 4개의 서브탭으로 구성됩니다:
   4. 메트릭 비교
 
 **팁** : 브라우저 탭을 여러 개 열어 동시에 비교 가능
-[code] 
+```bash
     [](<#cb44-1>)# 탭 1: 포트 8501
     [](<#cb44-2>)streamlit run streamlit_dashboard.py --server.port 8501
     [](<#cb44-3>)
     [](<#cb44-4>)# 탭 2: 포트 8502
     [](<#cb44-5>)streamlit run streamlit_dashboard.py --server.port 8502
-[/code]
+```
 
 ### 4.2 실시간 모니터링
 
 평가 중 실시간으로 대시보드를 업데이트하려면:
-[code] 
+```python
     [](<#cb45-1>)# evaluation_script.py
     [](<#cb45-2>)from agent_evaluator import PerformanceMonitor
     [](<#cb45-3>)import time
@@ -1371,14 +1371,14 @@ Test 투명성 탭은 다음 4개의 서브탭으로 구성됩니다:
     [](<#cb45-19>)
     [](<#cb45-20>)# 최종 저장
     [](<#cb45-21>)monitor.save_to_file("realtime_evaluation.json")
-[/code]
+```
 
 대시보드에서: 1. “realtime_evaluation.json” 로드 2. 10개 작업마다 “실제 데이터 로드” 버튼 클릭 3. 진행 상황 실시간 확인
 
 ### 4.3 커스텀 임계값 설정
 
 코드에서 임계값을 설정한 후 대시보드에서 확인:
-[code] 
+```python
     [](<#cb46-1>)monitor = PerformanceMonitor()
     [](<#cb46-2>)monitor.thresholds = {
     [](<#cb46-3>)    "tcr": 95.0,        # 엄격한 기준
@@ -1387,7 +1387,7 @@ Test 투명성 탭은 다음 4개의 서브탭으로 구성됩니다:
     [](<#cb46-6>)    "latency": 2.0,
     [](<#cb46-7>)    "cost_per_task": 0.01
     [](<#cb46-8>)}
-[/code]
+```
 
 대시보드의 🚨 알림 탭에서 커스텀 임계값 기준으로 알림 표시
 
@@ -1396,30 +1396,30 @@ Test 투명성 탭은 다음 4개의 서브탭으로 구성됩니다:
 두 가지 설정을 비교:
 
   1. **Setup A** : 기존 프롬프트
-[code] [](<#cb47-1>)# run_test_a.py
+``` [](<#cb47-1>)# run_test_a.py
          [](<#cb47-2>)monitor_a = PerformanceMonitor()
          [](<#cb47-3>)# ... 평가 수행
          [](<#cb47-4>)monitor_a.save_to_file("test_a.json")
-[/code]
+```
 
   2. **Setup B** : 개선된 프롬프트
-[code] [](<#cb48-1>)# run_test_b.py
+``` [](<#cb48-1>)# run_test_b.py
          [](<#cb48-2>)monitor_b = PerformanceMonitor()
          [](<#cb48-3>)# ... 평가 수행
          [](<#cb48-4>)monitor_b.save_to_file("test_b.json")
-[/code]
+```
 
   3. **비교** : 대시보드에서 각각 로드하여 메트릭 비교
 
 ### 4.5 자동화된 리포팅
 
 정기적으로 리포트를 생성하려면:
-[code] 
+```bash
     [](<#cb49-1>)# 매일 자동 리포트 생성
     [](<#cb49-2>)# crontab -e
     [](<#cb49-3>)0 9 * * * cd /path/to/project && python generate_daily_report.py
-[/code]
-[code] 
+```
+```python
     [](<#cb50-1>)# generate_daily_report.py
     [](<#cb50-2>)from agent_evaluator import PerformanceMonitor
     [](<#cb50-3>)from datetime import datetime
@@ -1439,7 +1439,7 @@ Test 투명성 탭은 다음 4개의 서브탭으로 구성됩니다:
     [](<#cb50-17>)if alerts:
     [](<#cb50-18>)    # 슬랙/이메일 등으로 알림 발송
     [](<#cb50-19>)    send_notification(alerts)
-[/code]
+```
 
 * * *
 
@@ -1450,18 +1450,18 @@ Test 투명성 탭은 다음 4개의 서브탭으로 구성됩니다:
 #### 문제: 대시보드가 로드되지 않음
 
 **증상**
-[code] 
+```python
     Streamlit is running...
     You can now view your Streamlit app in your browser.
-[/code]
+```
 
 하지만 브라우저에서 접속 안됨
 
 **해결** 1\. 포트 충돌 확인 `bash lsof -i :8501 # 다른 프로세스가 사용 중이면 종료 또는 다른 포트 사용 streamlit run Evaluator_Examples/Dashboard/streamlit_dashboard.py --server.port 8502`
 
   2. 방화벽 확인
-[code] [](<#cb52-1>)# 로컬호스트 접근 허용 확인
-[/code]
+``` [](<#cb52-1>)# 로컬호스트 접근 허용 확인
+```
 
   3. 브라우저 캐시 삭제
 
@@ -1471,20 +1471,20 @@ Test 투명성 탭은 다음 4개의 서브탭으로 구성됩니다:
 #### 문제: 데이터 로드 실패
 
 **증상**
-[code] 
+```
     ❌ example2_ragas_comprehensive.json 로드 실패
-[/code]
+```
 
 **해결** 1\. 파일 경로 확인 `bash ls evaluation_results/ # 파일이 있는지 확인`
 
   2. 파일 권한 확인
-[code] [](<#cb54-1>)chmod 644 evaluation_results/*.json
-[/code]
+``` [](<#cb54-1>)chmod 644 evaluation_results/*.json
+```
 
   3. JSON 형식 검증
-[code] [](<#cb55-1>)python -m json.tool < evaluation_results/example2.json
+``` [](<#cb55-1>)python -m json.tool < evaluation_results/example2.json
          [](<#cb55-2>)# 오류 있으면 표시됨
-[/code]
+```
 
 #### 문제: 고급 메트릭이 표시되지 않음
 
@@ -1495,19 +1495,19 @@ Test 투명성 탭은 다음 4개의 서브탭으로 구성됩니다:
 **해결** 1\. HybridPerformanceMonitor 사용 확인 `python from hybrid_monitor import create_monitor monitor = create_monitor(profile="balanced") # 또는 "rag", "full"`
 
   2. 고급 메트릭 활성화
-[code] [](<#cb56-1>)monitor.record_task(
+``` [](<#cb56-1>)monitor.record_task(
          [](<#cb56-2>)    task,
          [](<#cb56-3>)    enable_advanced_metrics=True,  # ✅
          [](<#cb56-4>)    input_text="...",
          [](<#cb56-5>)    output_text="...",
          [](<#cb56-6>)    quality_criteria="..."
          [](<#cb56-7>))
-[/code]
+```
 
   3. API 키 확인
-[code] [](<#cb57-1>)echo $OPENAI_API_KEY
+``` [](<#cb57-1>)echo $OPENAI_API_KEY
          [](<#cb57-2>)# 설정되어 있는지 확인
-[/code]
+```
 
 #### 문제: 차트가 표시되지 않음
 
@@ -1516,8 +1516,8 @@ Test 투명성 탭은 다음 4개의 서브탭으로 구성됩니다:
 **해결** 1\. 데이터 확인 - 최소 5개 이상의 작업 필요 - 데모 데이터 로드하여 테스트
 
   2. Plotly 재설치
-[code] [](<#cb58-1>)pip install --upgrade plotly
-[/code]
+``` [](<#cb58-1>)pip install --upgrade plotly
+```
 
   3. 브라우저 콘솔 확인
 
@@ -1543,16 +1543,16 @@ Test 투명성 탭은 다음 4개의 서브탭으로 구성됩니다:
 #### 데이터 손실 시
 
 **백업에서 복구**
-[code] 
+```json
     [](<#cb59-1>)# evaluation_results 디렉토리 백업
     [](<#cb59-2>)cp -r evaluation_results evaluation_results_backup
     [](<#cb59-3>)
     [](<#cb59-4>)# 복구
     [](<#cb59-5>)cp evaluation_results_backup/*.json evaluation_results/
-[/code]
+```
 
 #### 손상된 JSON 파일 복구
-[code] 
+```python
     [](<#cb60-1>)# repair_json.py
     [](<#cb60-2>)import json
     [](<#cb60-3>)
@@ -1566,7 +1566,7 @@ Test 투명성 탭은 다음 4개의 서브탭으로 구성됩니다:
     [](<#cb60-11>)    print(f"❌ JSON 오류: {e}")
     [](<#cb60-12>)    print("수동 복구 필요")
     [](<#cb60-13>)    # 텍스트 에디터로 파일 열어서 수정
-[/code]
+```
 
 * * *
 
@@ -1660,12 +1660,12 @@ Step Redundancy | 게이지 차트 | < 10% | > 20% (🟡)
 #### 8.1.2 품질 추세 분석
 
 **📈 Performance 탭 활용**
-[code] 
+```python
     Dashboard → Performance 탭
     ├─ Latency Over Time (시간별 지연 시간 추세)
     ├─ Cost Over Time (시간별 비용 추세)
     └─ Token Usage Over Time (시간별 토큰 사용량 추세)
-[/code]
+```
 
 **모니터링 방법:**
 
@@ -1693,21 +1693,21 @@ Summarization | Accuracy, Token Usage | Accuracy > 85%, Tokens < 5K
 Translation | Accuracy, Cost | Accuracy > 90%, Cost < $0.10  
   
 **분석 방법:**
-[code] 
+```python
     1. Overview 탭에서 "작업 유형별 통계" 테이블 확인
     2. 각 작업 유형의 평균 메트릭 값 검토
     3. 기준값 대비 낮은 항목 식별
     4. 해당 작업 유형의 샘플 데이터 상세 분석 (Insights 탭 활용)
-[/code]
+```
 
 ### 8.2 임계값 기반 품질 관리
 
 #### 8.2.1 임계값 설정 (Data Editor Dashboard 활용)
 
 **실행 방법:**
-[code] 
+```bash
     streamlit run Evaluator_Examples/Dashboard/dashboard_data_editor.py
-[/code]
+```
 
 **데이터 편집 탭 → "임계값 설정" 섹션**
 
@@ -1740,13 +1740,13 @@ Translation | Accuracy, Cost | Accuracy > 90%, Cost < $0.10
 🟢 Low | 모든 메트릭 정상 | 녹색 게이지 | 정기 모니터링  
   
 **Dashboard 위험 신호 체크리스트:**
-[code] 
+```python
     □ Layer 1: Basic 탭에서 빨간색 게이지가 있는가?
     □ Performance 탭에서 급격한 상승 추세가 보이는가?
     □ Layer 2: Agentic 탭에서 Layer 2 메트릭이 저하되었는가?
     □ Insights 탭에서 반복적인 실패 패턴이 있는가?
     □ 특정 작업 유형의 성능이 다른 유형보다 현저히 낮은가?
-[/code]
+```
 
 ### 8.3 배포 전 품질 검증
 
@@ -1776,7 +1776,7 @@ Translation | Accuracy, Cost | Accuracy > 90%, Cost < $0.10
 #### 8.3.2 A/B 테스트 비교 (Dashboard 활용)
 
 **신규 버전과 기존 버전 비교 방법:**
-[code] 
+```python
     # 1. 기존 버전 평가
     python evaluate_current_version.py
     # → evaluation_results/v1.0_baseline.json 생성
@@ -1787,7 +1787,7 @@ Translation | Accuracy, Cost | Accuracy > 90%, Cost < $0.10
     
     # 3. Dashboard에서 각각 로드하여 비교
     streamlit run Evaluator_Examples/Dashboard/streamlit_dashboard.py
-[/code]
+```
 
 **비교 체크리스트:**
 
@@ -1818,7 +1818,7 @@ Cost | $0.18 | $0.22 | +22.2% | ❌ 악화
 🟢 환각 빈발 | Hallucination Rate > 10% | Core Metrics → Hallucination | 부적절한 컨텍스트, 모델 한계  
   
 **실전 분석 프로세스:**
-[code] 
+```python
     1. Overview 탭에서 전체 지표 확인
        └─ 이상 신호 발견 (예: TCR 70%)
     
@@ -1833,7 +1833,7 @@ Cost | $0.18 | $0.22 | +22.2% | ❌ 악화
     
     5. Export 탭에서 상세 데이터 추출
        └─ CSV/JSON으로 다운로드하여 심층 분석
-[/code]
+```
 
 #### 8.4.2 문제 시나리오별 Dashboard 활용법
 
@@ -1883,7 +1883,7 @@ Cost | $0.18 | $0.22 | +22.2% | ❌ 악화
 6\. Golden Dataset | Data Editor → Dataset 검토 | 최신 상태 유지 | 분기별 업데이트  
   
 **주간 리뷰 프로세스:**
-[code] 
+```bash
     1. Dashboard 실행 및 최신 데이터 로드
        streamlit run Evaluator_Examples/Dashboard/streamlit_dashboard.py
     
@@ -1904,7 +1904,7 @@ Cost | $0.18 | $0.22 | +22.2% | ❌ 악화
     
     7. 액션 아이템 정리
        - 개선 필요 항목, 담당자, 마감일
-[/code]
+```
 
 #### 8.5.2 월간 품질 리포트 생성
 
@@ -1921,7 +1921,7 @@ Cost | $0.18 | $0.22 | +22.2% | ❌ 악화
 7\. 다음 달 개선 계획 | 전체 종합 | 우선순위, 목표, 담당자  
   
 **리포트 생성 방법:**
-[code] 
+```bash
     # 1. 월간 데이터 통합 (모든 평가 결과 병합)
     cd Evaluator_Examples/Dashboard
     python utils/merge_evaluation_results.py --month 2024-12
@@ -1937,7 +1937,7 @@ Cost | $0.18 | $0.22 | +22.2% | ❌ 악화
     # 4. 리포트 템플릿에 데이터 반영
     # → Excel/PowerPoint 템플릿 사용
     # → Dashboard 스크린샷 추가
-[/code]
+```
 
 **✅ QA 관리자 핵심 원칙 (Dashboard 활용)**
 
@@ -1990,7 +1990,7 @@ OS | Linux, macOS, Windows | Linux (Ubuntu 20.04+) | 프로덕션 권장
 #### 9.1.2 설치 절차
 
 **Step 1: 의존성 설치**
-[code] 
+```bash
     # 1. Conda 가상환경 생성 (권장)
     conda create --name Evaluator python=3.11
     conda activate Evaluator
@@ -2006,10 +2006,10 @@ OS | Linux, macOS, Windows | Linux (Ubuntu 20.04+) | 프로덕션 권장
     
     python -c "import agent_evaluator; print(agent_evaluator.__version__)"
     # 0.5.0
-[/code]
+```
 
 **Step 2: Dashboard 파일 준비**
-[code] 
+```bash
     # ✅ 권장: 패키지에서 직접 실행 (복사 불필요)
     streamlit run $(python -c "import agent_evaluator; print(agent_evaluator.__path__[0])")/streamlit_dashboard.py
     
@@ -2018,10 +2018,10 @@ OS | Linux, macOS, Windows | Linux (Ubuntu 20.04+) | 프로덕션 권장
     
     # Agent Evaluator 설치 위치 확인
     pip show agent-evaluator | grep Location
-[/code]
+```
 
 **Step 3: 디렉토리 구조 생성**
-[code] 
+```bash
     # 작업 디렉토리 생성
     mkdir -p dashboard_workspace
     cd dashboard_workspace
@@ -2041,10 +2041,10 @@ OS | Linux, macOS, Windows | Linux (Ubuntu 20.04+) | 프로덕션 권장
     # ├── thresholds/
     # ├── logs/
     # └── backups/
-[/code]
+```
 
 **Step 4: 환경 변수 설정**
-[code] 
+```python
     # .env 파일 생성
     cat > .env << EOF
     # Streamlit 설정
@@ -2069,12 +2069,12 @@ OS | Linux, macOS, Windows | Linux (Ubuntu 20.04+) | 프로덕션 권장
     # 환경 변수 로드
     source .env  # Linux/macOS
     # set -a; source .env; set +a  # Windows Git Bash
-[/code]
+```
 
 #### 9.1.3 초기 구성 및 테스트
 
 **Step 1: Dashboard 실행 테스트**
-[code] 
+```bash
     # 메인 Dashboard 실행
     streamlit run Evaluator_Examples/Dashboard/streamlit_dashboard.py --server.port 8501
     
@@ -2084,7 +2084,7 @@ OS | Linux, macOS, Windows | Linux (Ubuntu 20.04+) | 프로덕션 권장
     # 브라우저에서 접속 확인
     # http://localhost:8501  (메인 Dashboard)
     # http://localhost:8502  (Data Editor)
-[/code]
+```
 
 **Step 2: 데모 데이터 로드 테스트**
 
@@ -2097,7 +2097,7 @@ OS | Linux, macOS, Windows | Linux (Ubuntu 20.04+) | 프로덕션 권장
 5 | Performance 탭 확인 | 라인 차트 표시 | Latency, Cost, Token 추세  
   
 **Step 3: 실제 데이터 로드 테스트**
-[code] 
+```bash
     # 테스트용 평가 결과 생성
     cd ..
     python Evaluator_Examples/level_1_foundation/01_quickstart.py
@@ -2111,21 +2111,21 @@ OS | Linux, macOS, Windows | Linux (Ubuntu 20.04+) | 프로덕션 권장
     # 2. 드롭다운에서 파일 선택
     # 3. "📥 실제 데이터 로드" 버튼 클릭
     # 4. "✅ 파일명 로드 완료!" 메시지 확인
-[/code]
+```
 
 #### 9.1.4 방화벽 및 네트워크 설정
 
 **로컬 환경 (개발/테스트)**
-[code] 
+```bash
     # 로컬호스트만 접속 허용 (기본)
     streamlit run Evaluator_Examples/Dashboard/streamlit_dashboard.py --server.address localhost
     
     # 포트 8501 (기본값) 사용
     # http://localhost:8501
-[/code]
+```
 
 **네트워크 환경 (팀 공유)**
-[code] 
+```bash
     # 모든 인터페이스에서 접속 허용
     streamlit run Evaluator_Examples/Dashboard/streamlit_dashboard.py --server.address 0.0.0.0
     
@@ -2135,10 +2135,10 @@ OS | Linux, macOS, Windows | Linux (Ubuntu 20.04+) | 프로덕션 권장
     
     # 접속 URL
     # http://192.168.1.100:8501  (서버 IP 주소)
-[/code]
+```
 
 **프로덕션 환경 (Nginx 리버스 프록시)**
-[code] 
+```python
     # /etc/nginx/sites-available/dashboard
     server {
         listen 80;
@@ -2162,7 +2162,7 @@ OS | Linux, macOS, Windows | Linux (Ubuntu 20.04+) | 프로덕션 권장
     
     # 접속 URL
     # http://dashboard.example.com
-[/code]
+```
 
 ### 9.2 일상 운영 작업
 
@@ -2178,7 +2178,7 @@ OS | Linux, macOS, Windows | Linux (Ubuntu 20.04+) | 프로덕션 권장
 백업 | 주간 | `tar -czf backups/eval_$(date +%Y%m%d).tar.gz evaluation_results/` | 압축 백업  
   
 **자동 정리 스크립트**
-[code] 
+```python
     #!/bin/bash
     # cleanup_old_evaluations.sh
     
@@ -2215,7 +2215,7 @@ OS | Linux, macOS, Windows | Linux (Ubuntu 20.04+) | 프로덕션 권장
     # Cron 등록 (매일 새벽 2시 실행)
     # crontab -e
     # 0 2 * * * /path/to/cleanup_old_evaluations.sh >> /path/to/logs/cleanup.log 2>&1
-[/code]
+```
 
 #### 9.2.2 사용자 지원
 
@@ -2230,7 +2230,7 @@ OS | Linux, macOS, Windows | Linux (Ubuntu 20.04+) | 프로덕션 권장
 "데이터가 사라졌어요" | 페이지 새로고침 | 파일로 저장 후 재로드  
   
 **사용자 가이드 문서 제공**
-[code] 
+```python
     # Dashboard 사용자 가이드
     
     ## 빠른 시작
@@ -2252,7 +2252,7 @@ OS | Linux, macOS, Windows | Linux (Ubuntu 20.04+) | 프로덕션 권장
     ## 문의
     - Email: support@example.com
     - Slack: #dashboard-support
-[/code]
+```
 
 #### 9.2.3 정기 점검 체크리스트
 
@@ -2290,7 +2290,7 @@ CPU 사용률 | `top` | < 70% | > 90% (5분 이상)
 응답 시간 | 브라우저 개발자 도구 | < 3초 | > 10초  
   
 **모니터링 스크립트**
-[code] 
+```bash
     #!/bin/bash
     # monitor_dashboard.sh
     
@@ -2337,12 +2337,12 @@ CPU 사용률 | `top` | < 70% | > 90% (5분 이상)
     # Cron 등록 (매 5분마다 실행)
     # crontab -e
     # */5 * * * * /path/to/monitor_dashboard.sh >> /path/to/logs/monitoring.log 2>&1
-[/code]
+```
 
 #### 9.3.2 알림 설정
 
 **Slack 알림 통합**
-[code] 
+```python
     #!/bin/bash
     # alert_slack.sh
     
@@ -2353,10 +2353,10 @@ CPU 사용률 | `top` | < 70% | > 90% (5분 이상)
     
     # 사용 예시
     # ./alert_slack.sh "🚨 Dashboard CPU usage > 90%!"
-[/code]
+```
 
 **자동 알림 스크립트**
-[code] 
+```python
     #!/bin/bash
     # check_and_alert.sh
     
@@ -2384,7 +2384,7 @@ CPU 사용률 | `top` | < 70% | > 90% (5분 이상)
         ./alert_slack.sh "🔴 Dashboard is DOWN! Attempting restart..."
         streamlit run Evaluator_Examples/Dashboard/streamlit_dashboard.py &
     fi
-[/code]
+```
 
 ### 9.4 운영 트러블슈팅
 
@@ -2401,7 +2401,7 @@ CPU 사용률 | `top` | < 70% | > 90% (5분 이상)
 #### 9.4.2 로그 분석
 
 **로그 파일 위치**
-[code] 
+```python
     # Streamlit 로그
     ~/.streamlit/logs/
     
@@ -2411,10 +2411,10 @@ CPU 사용률 | `top` | < 70% | > 90% (5분 이상)
     # 시스템 로그 (Linux)
     /var/log/syslog  # Ubuntu/Debian
     /var/log/messages  # CentOS/RHEL
-[/code]
+```
 
 **유용한 로그 명령어**
-[code] 
+```python
     # 최근 100줄 확인
     tail -n 100 ~/.streamlit/logs/*.log
     
@@ -2429,12 +2429,12 @@ CPU 사용률 | `top` | < 70% | > 90% (5분 이상)
     
     # 오류 발생 빈도 통계
     grep -i "error" ~/.streamlit/logs/*.log | wc -l
-[/code]
+```
 
 #### 9.4.3 긴급 복구 절차
 
 **시나리오 1: Dashboard 완전 다운**
-[code] 
+```python
     # 1. 프로세스 확인
     ps aux | grep streamlit
     # → 프로세스 없음
@@ -2453,10 +2453,10 @@ CPU 사용률 | `top` | < 70% | > 90% (5분 이상)
     # 5. 로그 확인
     tail -f ~/.streamlit/logs/*.log
     # → 오류 메시지 없는지 확인
-[/code]
+```
 
 **시나리오 2: 데이터 손상**
-[code] 
+```bash
     # 1. 백업에서 복구
     cd backups/
     tar -xzf eval_20241201.tar.gz -C ../
@@ -2467,7 +2467,7 @@ CPU 사용률 | `top` | < 70% | > 90% (5분 이상)
     
     # 3. Dashboard에서 재로드
     # 사이드바 → 파일 선택 → 로드
-[/code]
+```
 
 ### 9.5 유지보수 및 업그레이드
 
@@ -2486,7 +2486,7 @@ CPU 사용률 | `top` | < 70% | > 90% (5분 이상)
 #### 9.5.2 업그레이드 절차
 
 **Step 1: 업그레이드 준비**
-[code] 
+```bash
     # 1. 현재 버전 확인
     streamlit --version
     python -c "import agent_evaluator; print(agent_evaluator.__version__)"
@@ -2496,10 +2496,10 @@ CPU 사용률 | `top` | < 70% | > 90% (5분 이상)
     
     # 3. 릴리스 노트 확인
     # https://docs.streamlit.io/library/changelog
-[/code]
+```
 
 **Step 2: 업그레이드 실행**
-[code] 
+```python
     # 1. Dashboard 중지
     pkill -f streamlit
     
@@ -2515,7 +2515,7 @@ CPU 사용률 | `top` | < 70% | > 90% (5분 이상)
     
     # 5. 버전 확인
     streamlit --version  # 1.31.0 (업그레이드됨)
-[/code]
+```
 
 **Step 3: 업그레이드 검증**
 
@@ -2528,7 +2528,7 @@ Export 기능 | CSV 다운로드 | 파일 정상 생성 | [ ]
 성능 확인 | 응답 시간 측정 | < 3초 | [ ]  
   
 **Step 4: 롤백 (문제 발생 시)**
-[code] 
+```python
     # 1. Dashboard 중지
     pkill -f streamlit
     
@@ -2543,7 +2543,7 @@ Export 기능 | CSV 다운로드 | 파일 정상 생성 | [ ]
     streamlit run Evaluator_Examples/Dashboard/streamlit_dashboard.py &
     
     # 5. 정상 동작 확인
-[/code]
+```
 
 #### 9.5.3 장애 대응 매뉴얼
 

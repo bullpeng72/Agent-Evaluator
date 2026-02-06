@@ -60,7 +60,7 @@ JSON/CSV 형식"] D["📊 RAG 시스템 평가
 ## 설치
 
 ### 1\. 기본 설치
-[code] 
+```bash
     [](<#cb2-1>)# Agent Evaluator 프로젝트 클론
     [](<#cb2-2>)# 프로젝트 디렉토리로 이동
     [](<#cb2-3>)cd Agent_Evaluator
@@ -71,10 +71,10 @@ JSON/CSV 형식"] D["📊 RAG 시스템 평가
     [](<#cb2-8>)
     [](<#cb2-9>)# 의존성 설치
     [](<#cb2-10>)pip install -r requirements.txt
-[/code]
+```
 
 ### 2\. 필수 라이브러리
-[code] 
+```bash
     [](<#cb3-1>)# 코어 의존성 (필수)
     [](<#cb3-2>)pip install numpy pandas streamlit plotly
     [](<#cb3-3>)
@@ -89,7 +89,7 @@ JSON/CSV 형식"] D["📊 RAG 시스템 평가
     [](<#cb3-12>)
     [](<#cb3-13>)# 선택: DeepEval 고급 메트릭
     [](<#cb3-14>)pip install deepeval
-[/code]
+```
 
 **라이브러리 선택 가이드** :
 
@@ -99,12 +99,12 @@ JSON/CSV 형식"] D["📊 RAG 시스템 평가
   * **deepeval** : 추가 메트릭 (G-Eval, Hallucination, Toxicity) - 선택적
 
 ### 3\. 환경 변수 설정
-[code] 
+```json
     [](<#cb4-1>)# .env 파일 생성
     [](<#cb4-2>)cat > .env << EOF
     [](<#cb4-3>)OPENAI_API_KEY=your-openai-api-key-here
     [](<#cb4-4>)EOF
-[/code]
+```
 
 * * *
 
@@ -113,7 +113,7 @@ JSON/CSV 형식"] D["📊 RAG 시스템 평가
 ### 방법 1: PDF에서 자동 생성
 
 가장 일반적인 방법으로, 한국어 PDF 문서에서 AI를 활용하여 QA 쌍을 자동으로 생성합니다.
-[code] 
+```python
     [](<#cb5-1>)from agent_evaluator.datasets.korean_rag_dataset_generator import KoreanRAGDatasetGenerator
     [](<#cb5-2>)
     [](<#cb5-3>)# 1. Generator 초기화
@@ -132,7 +132,7 @@ JSON/CSV 형식"] D["📊 RAG 시스템 평가
     [](<#cb5-16>)    save_format="json",                  # "json" 또는 "csv"
     [](<#cb5-17>)    max_chunks=None                      # None이면 전체, 숫자면 테스트용
     [](<#cb5-18>))
-[/code]
+```
 
 #### 생성 프로세스
 
@@ -160,7 +160,7 @@ JSON/CSV 형식"] D["📊 RAG 시스템 평가
      * JSON/CSV 형식으로 저장 (utf-8-sig for Excel)
 
 #### 출력 예시
-[code] 
+```json
     [](<#cb6-1>){
     [](<#cb6-2>)  "dataset_id": "dataset_abc12345",
     [](<#cb6-3>)  "source_document": "company_policy.pdf",
@@ -180,12 +180,12 @@ JSON/CSV 형식"] D["📊 RAG 시스템 평가
     [](<#cb6-17>)    }
     [](<#cb6-18>)  ]
     [](<#cb6-19>)}
-[/code]
+```
 
 ### 방법 2: 수동으로 Golden Data 입력
 
 기존 데이터나 전문가가 직접 작성한 QA 쌍을 사용할 수 있습니다.
-[code] 
+```python
     [](<#cb7-1>)from agent_evaluator.datasets.korean_rag_dataset_generator import (
     [](<#cb7-2>)    QAPair, GoldenDataset, GoldenDatasetManager
     [](<#cb7-3>))
@@ -217,28 +217,28 @@ JSON/CSV 형식"] D["📊 RAG 시스템 평가
     [](<#cb7-29>)# 3. 저장
     [](<#cb7-30>)manager = GoldenDatasetManager()
     [](<#cb7-31>)saved_path = manager.save_dataset(dataset, format="json")
-[/code]
+```
 
 ### 방법 3: CSV 파일에서 로드
 
 Excel이나 스프레드시트에서 작성한 데이터를 사용할 수 있습니다.
 
 #### CSV 형식
-[code] 
+```python
     qa_id,question,answer,ground_truth,context,chunk_id,page_number,generated_at
     qa_001,회사 설립 연도는?,2010년에 설립되었습니다,2010년,당사는 2010년에 설립되어...,chunk_001,1,2024-01-15
     qa_002,직원 수는?,약 500명입니다,약 500명,현재 약 500명의 직원이...,chunk_002,1,2024-01-15
-[/code]
+```
 
 #### 로드 코드
-[code] 
+```python
     [](<#cb9-1>)from agent_evaluator.datasets.korean_rag_dataset_generator import GoldenDatasetManager
     [](<#cb9-2>)
     [](<#cb9-3>)manager = GoldenDatasetManager()
     [](<#cb9-4>)dataset = manager.load_dataset("golden_datasets/my_dataset.csv")
     [](<#cb9-5>)
     [](<#cb9-6>)print(f"로드 완료: {dataset.total_qa_pairs}개 QA 쌍")
-[/code]
+```
 
 * * *
 
@@ -249,7 +249,7 @@ Excel이나 스프레드시트에서 작성한 데이터를 사용할 수 있습
 평가를 위해 RAG 시스템을 `RAGSystemInterface`에 맞춰 구현해야 합니다.
 
 **중요** : `query()` 메서드만 구현하면 됩니다. 반환 타입은 `RAGResponse`입니다.
-[code] 
+```python
     [](<#cb10-1>)from agent_evaluator.datasets.korean_rag_evaluator import RAGSystemInterface, RAGResponse
     [](<#cb10-2>)
     [](<#cb10-3>)class MyRAGSystem(RAGSystemInterface):
@@ -299,7 +299,7 @@ Excel이나 스프레드시트에서 작성한 데이터를 사용할 수 있습
     [](<#cb10-47>)
     [](<#cb10-48>)[답변]
     [](<#cb10-49>)"""
-[/code]
+```
 
 **RAGResponse 필드** :
 
@@ -309,7 +309,7 @@ Excel이나 스프레드시트에서 작성한 데이터를 사용할 수 있습
   * `metadata` (Dict[str, Any]): 추가 정보 (선택적)
 
 ### 2\. 평가 실행
-[code] 
+```python
     [](<#cb11-1>)from agent_evaluator.datasets.korean_rag_evaluator import KoreanRAGEvaluator
     [](<#cb11-2>)from agent_evaluator.datasets.korean_rag_dataset_generator import GoldenDatasetManager
     [](<#cb11-3>)
@@ -334,7 +334,7 @@ Excel이나 스프레드시트에서 작성한 데이터를 사용할 수 있습
     [](<#cb11-22>)    use_hybrid_monitor=False,  # Hybrid Monitor 사용 여부 (고급)
     [](<#cb11-23>)    max_samples=None            # None이면 전체 평가, 숫자면 샘플링
     [](<#cb11-24>))
-[/code]
+```
 
 **평가 프로세스** :
 
@@ -349,7 +349,7 @@ Excel이나 스프레드시트에서 작성한 데이터를 사용할 수 있습
      * JSON/CSV로 결과 저장
 
 ### 3\. 평가 결과
-[code] 
+```
     ================================================================================
     📊 RAG 평가 리포트
     ================================================================================
@@ -388,7 +388,7 @@ Excel이나 스프레드시트에서 작성한 데이터를 사용할 수 있습
     Answer Relevancy 범위: 0.712 ~ 0.945
     
     ================================================================================
-[/code]
+```
 
 * * *
 
@@ -484,7 +484,7 @@ Excel이나 스프레드시트에서 작성한 데이터를 사용할 수 있습
 ## 고급 사용법
 
 ### 1\. 커스텀 질문 유형
-[code] 
+```json
     [](<#cb13-1>)generator = KoreanRAGDatasetGenerator(...)
     [](<#cb13-2>)
     [](<#cb13-3>)dataset = generator.generate_from_pdf(
@@ -493,7 +493,7 @@ Excel이나 스프레드시트에서 작성한 데이터를 사용할 수 있습
     [](<#cb13-6>)    question_types=["factual", "reasoning", "summary", "comparison", "opinion"],
     [](<#cb13-7>)    ...
     [](<#cb13-8>))
-[/code]
+```
 
 **질문 유형** :
 
@@ -506,7 +506,7 @@ Excel이나 스프레드시트에서 작성한 데이터를 사용할 수 있습
 ### 2\. 청크 크기 최적화
 
 청크 크기는 텍스트 검색 품질과 QA 생성 품질에 직접 영향을 미칩니다.
-[code] 
+```json
     [](<#cb14-1>)# 짧은 청크 (세밀한 정보, 빠른 검색)
     [](<#cb14-2>)generator = KoreanRAGDatasetGenerator(
     [](<#cb14-3>)    chunk_size=500,
@@ -524,7 +524,7 @@ Excel이나 스프레드시트에서 작성한 데이터를 사용할 수 있습
     [](<#cb14-15>)    chunk_size=1500,
     [](<#cb14-16>)    chunk_overlap=300
     [](<#cb14-17>))
-[/code]
+```
 
 **권장 설정** (문자 수 기준):
 
@@ -557,7 +557,7 @@ chunk_size=1000 → overlap=150-250 - 너무 작으면 맥락 손실, 너무 크
 **실제 구현** : `TextChunker` 클래스에서 한국어 문장 부호(`. ! ? 。！？`)를 기준으로 청크 경계 조정
 
 ### 3\. 배치 평가
-[code] [](<#cb15-1>)# 여러 데이터셋 평가
+``` [](<#cb15-1>)# 여러 데이터셋 평가
     [](<#cb15-2>)datasets = [
     [](<#cb15-3>)    "dataset_v1.json",
     [](<#cb15-4>)    "dataset_v2.json",
@@ -568,12 +568,12 @@ chunk_size=1000 → overlap=150-250 - 너무 작으면 맥락 손실, 너무 크
     [](<#cb15-9>)    dataset = manager.load_dataset(dataset_path)
     [](<#cb15-10>)    report = evaluator.evaluate_dataset(dataset)
     [](<#cb15-11>)    # 결과 비교 분석
-[/code]
+```
 
 ### 4\. Hybrid Monitor 통합 (고급)
 
 `HybridPerformanceMonitor`를 사용하면 추가적인 고급 메트릭과 추적 기능을 활성화할 수 있습니다.
-[code] [](<#cb16-1>)from agent_evaluator.datasets.korean_rag_evaluator import KoreanRAGEvaluator
+``` [](<#cb16-1>)from agent_evaluator.datasets.korean_rag_evaluator import KoreanRAGEvaluator
     [](<#cb16-2>)from agent_evaluator.datasets.korean_rag_dataset_generator import GoldenDatasetManager
     [](<#cb16-3>)
     [](<#cb16-4>)# Golden Dataset 로드
@@ -605,7 +605,7 @@ chunk_size=1000 → overlap=150-250 - 너무 작으면 맥락 손실, 너무 크
     [](<#cb16-30>)
     [](<#cb16-31>)    # Hybrid 리포트 생성 (DeepEval, Ragas 통합)
     [](<#cb16-32>)    hybrid_report = evaluator.monitor.generate_report()
-[/code]
+```
 
 **Hybrid Monitor 기능** : - **확장된 메트릭** : DeepEval (G-Eval, Hallucination, Toxicity, Bias) - **태스크 추적** : 각 QA 평가를 `TaskResult`로 기록 - **통합 리포트** : Native + Ragas + DeepEval 메트릭을 하나의 리포트로 - **성능 분석** : 평가 시간, 성공률, 오류 추적
 
@@ -620,7 +620,7 @@ chunk_size=1000 → overlap=150-250 - 너무 작으면 맥락 손실, 너무 크
 회사의 인사 정책 PDF를 RAG 시스템에 적용하고, 직원들의 질문에 정확하게 답변하는지 평가합니다.
 
 ### 1단계: Golden Dataset 생성
-[code] [](<#cb17-1>)from agent_evaluator.datasets.korean_rag_dataset_generator import KoreanRAGDatasetGenerator
+``` [](<#cb17-1>)from agent_evaluator.datasets.korean_rag_dataset_generator import KoreanRAGDatasetGenerator
     [](<#cb17-2>)
     [](<#cb17-3>)generator = KoreanRAGDatasetGenerator(
     [](<#cb17-4>)    model="gpt-4o-mini",
@@ -636,10 +636,10 @@ chunk_size=1000 → overlap=150-250 - 너무 작으면 맥락 손실, 너무 크
     [](<#cb17-14>))
     [](<#cb17-15>)
     [](<#cb17-16>)print(f"생성 완료: {dataset.total_qa_pairs}개 QA 쌍")
-[/code]
+```
 
 ### 2단계: RAG 시스템 구축
-[code] [](<#cb18-1>)from langchain.vectorstores import Chroma
+``` [](<#cb18-1>)from langchain.vectorstores import Chroma
     [](<#cb18-2>)from langchain.embeddings import OpenAIEmbeddings
     [](<#cb18-3>)from langchain.chat_models import ChatOpenAI
     [](<#cb18-4>)from agent_evaluator.datasets.korean_rag_evaluator import RAGSystemInterface, RAGResponse
@@ -692,10 +692,10 @@ chunk_size=1000 → overlap=150-250 - 너무 작으면 맥락 손실, 너무 크
     [](<#cb18-51>)            retrieved_contexts=contexts,
     [](<#cb18-52>)            metadata={"model": "gpt-4o-mini"}
     [](<#cb18-53>)        )
-[/code]
+```
 
 ### 3단계: 평가
-[code] [](<#cb19-1>)from agent_evaluator.datasets.korean_rag_evaluator import KoreanRAGEvaluator
+``` [](<#cb19-1>)from agent_evaluator.datasets.korean_rag_evaluator import KoreanRAGEvaluator
     [](<#cb19-2>)from agent_evaluator.datasets.korean_rag_dataset_generator import GoldenDatasetManager
     [](<#cb19-3>)
     [](<#cb19-4>)# Golden Dataset 로드
@@ -724,7 +724,7 @@ chunk_size=1000 → overlap=150-250 - 너무 작으면 맥락 손실, 너무 크
     [](<#cb19-27>)    print("✅ 검색 성능이 우수합니다")
     [](<#cb19-28>)else:
     [](<#cb19-29>)    print("⚠️  검색 성능 개선이 필요합니다")
-[/code]
+```
 
 * * *
 
@@ -743,7 +743,7 @@ chunk_size=1000 → overlap=150-250 - 너무 작으면 맥락 손실, 너무 크
     * **CSV export** : Dashboard에서 한 번의 클릭으로 모든 메트릭을 CSV로 내보내기
 
 ### 기본 사용법
-[code] [](<#cb19a-1>)from agent_evaluator import PerformanceMonitor
+``` [](<#cb19a-1>)from agent_evaluator import PerformanceMonitor
     [](<#cb19a-2>)from agent_evaluator.datasets.korean_rag_evaluator import KoreanRAGEvaluator
     [](<#cb19a-3>)
     [](<#cb19a-4>)# 1. PerformanceMonitor 초기화
@@ -781,21 +781,21 @@ chunk_size=1000 → overlap=150-250 - 너무 작으면 맥락 손실, 너무 크
     [](<#cb19a-36>)    data = comparison[metric]
     [](<#cb19a-37>)    status = "✅" if data["status"] == "pass" else "❌"
     [](<#cb19a-38>)    print(f"{status} {data['name']}: {data['value']:.3f} (임계값: {data['threshold']})")
-[/code]
+```
 
 **출력 예제** :
 
-[code]
+```
     ✅ Faithfulness: 0.850 (임계값: 0.8)
     ✅ Answer Relevancy: 0.880 (임계값: 0.85)
     ✅ Context Recall: 0.780 (임계값: 0.75)
     ✅ Context Precision: 0.820 (임계값: 0.8)
-[/code]
+```
 
 ### 완전한 워크플로우
 
 Dataset 전체를 평가하고 PerformanceMonitor로 추적하는 완전한 예제입니다.
-[code] 
+```python
     [](<#cb19b-1>)from agent_evaluator import PerformanceMonitor
     [](<#cb19b-2>)from agent_evaluator.datasets.korean_rag_evaluator import KoreanRAGEvaluator
     [](<#cb19b-3>)from agent_evaluator.datasets.korean_rag_dataset_generator import GoldenDatasetManager
@@ -863,7 +863,7 @@ Dataset 전체를 평가하고 PerformanceMonitor로 추적하는 완전한 예�
     [](<#cb19b-65>)# CSV 내보내기 (RAG 메트릭 포함)
     [](<#cb19b-66>)monitor.export_report("rag_evaluation_report.csv", format="csv")
     [](<#cb19b-67>)print("\n📊 리포트 저장 완료: rag_evaluation_report.csv")
-[/code]
+```
 
 ### 핵심 기능
 
@@ -902,7 +902,7 @@ Dataset 전체를 평가하고 PerformanceMonitor로 추적하는 완전한 예�
 ### 8.1 RAG 시스템 통합
 
 #### 8.1.1 RAGSystemInterface 구현
-[code] 
+```python
     from abc import ABC, abstractmethod
     from typing import List, Dict, Tuple
     
@@ -1035,10 +1035,10 @@ Dataset 전체를 평가하고 PerformanceMonitor로 추적하는 완전한 예�
     
             return answer, contexts
     
-[/code]
+```
 
 #### 8.1.2 평가 파이프라인 구축
-[code] 
+```python
     #!/usr/bin/env python3
     """
     evaluate_rag.py - RAG 시스템 평가 파이프라인
@@ -1231,7 +1231,7 @@ Dataset 전체를 평가하고 PerformanceMonitor로 추적하는 완전한 예�
         for metric, value in report['average_metrics'].items():
             print(f"  {metric}: {value:.3f}")
     
-[/code]
+```
 
 #### 8.1.3 다양한 RAG 프레임워크 통합 예제
 
@@ -1245,7 +1245,7 @@ Custom | CustomRAGSystem | 완전한 커스터마이징 | 특수 요구사항
 ### 8.2 커스텀 메트릭 개발
 
 #### 8.2.1 커스텀 메트릭 구현 가이드
-[code] 
+```python
     from typing import Dict
     from agent_evaluator.datasets.korean_rag_evaluator import BaseMetric
     
@@ -1449,10 +1449,10 @@ Custom | CustomRAGSystem | 완전한 커스터마이징 | 특수 요구사항
     
             return results
     
-[/code]
+```
 
 #### 8.2.2 메트릭 조합 및 가중치 설정
-[code] 
+```python
     class WeightedRAGEvaluator:
         """가중치 기반 종합 평가"""
     
@@ -1505,12 +1505,12 @@ Custom | CustomRAGSystem | 완전한 커스터마이징 | 특수 요구사항
                 "weights": self.weights
             }
     
-[/code]
+```
 
 ### 8.3 성능 최적화
 
 #### 8.3.1 배치 처리 및 병렬화
-[code] 
+```python
     import concurrent.futures
     from typing import List, Dict
     import time
@@ -1670,10 +1670,10 @@ Custom | CustomRAGSystem | 완전한 커스터마이징 | 특수 요구사항
     
             return result
     
-[/code]
+```
 
 #### 8.3.2 성능 프로파일링
-[code] 
+```python
     import time
     from functools import wraps
     
@@ -1761,12 +1761,12 @@ Custom | CustomRAGSystem | 완전한 커스터마이징 | 특수 요구사항
                     print(f"  Max: {max(times):.3f}s")
                     print(f"  StdDev: {statistics.stdev(times):.3f}s" if len(times) > 1 else "")
     
-[/code]
+```
 
 ### 8.4 프로덕션 배포
 
 #### 8.4.1 프로덕션 설정
-[code] 
+```python
     # production_config.py
     """프로덕션 환경 설정"""
     import os
@@ -1830,10 +1830,10 @@ Custom | CustomRAGSystem | 완전한 커스터마이징 | 특수 요구사항
     
             print("✓ Configuration validated")
     
-[/code]
+```
 
 #### 8.4.2 에러 처리 및 재시도
-[code] 
+```python
     import time
     from typing import Callable, Any
     import openai
@@ -1929,10 +1929,10 @@ Custom | CustomRAGSystem | 완전한 커스터마이징 | 특수 요구사항
     
             return result
     
-[/code]
+```
 
 #### 8.4.3 모니터링 및 로깅
-[code] 
+```python
     import logging
     from datetime import datetime
     import json
@@ -2012,7 +2012,7 @@ Custom | CustomRAGSystem | 완전한 커스터마이징 | 특수 요구사항
                 json.dump(self.metrics_log, f, ensure_ascii=False, indent=2)
             logger.info(f"✓ Metrics exported to {output_file}")
     
-[/code]
+```
 
 ### 8.5 문제 해결
 
@@ -2027,7 +2027,7 @@ API Rate Limit | 429 에러 | 요청 빈도 초과 | 재시도 로직, 요청 �
 메모리 부족 | OOM 에러 | 대용량 문서 처리 | 배치 크기 감소, 청크 단위 처리  
   
 #### 8.5.2 디버깅 도구
-[code] 
+```python
     class RAGDebugger:
         """RAG 시스템 디버깅 도구"""
     
@@ -2118,7 +2118,7 @@ API Rate Limit | 429 에러 | 요청 빈도 초과 | 재시도 로직, 요청 �
     
             return results
     
-[/code]
+```
 
 #### 8.5.3 문제 해결 체크리스트
 
@@ -2162,25 +2162,25 @@ API Rate Limit | 429 에러 | 요청 빈도 초과 | 재시도 로직, 요청 �
 **A** : 다음을 시도하세요:
 
 **1단계: pdfplumber 사용**
-[code] 
+```bash
     [](<#cb20-1>)# PyPDF2 대신 pdfplumber 사용 (더 정확함)
     [](<#cb20-2>)pip install pdfplumber
-[/code]
+```
 
 시스템이 자동으로 설치된 라이브러리를 감지합니다: - PyPDF2와 pdfplumber 둘 다 설치되어 있으면 pdfplumber 우선 사용 - `KoreanPDFExtractor` 클래스가 자동 선택
 
 **2단계: 스캔된 PDF (이미지)**
 
 OCR이 필요한 경우:
-[code] 
+```bash
     [](<#cb21-1>)pip install pytesseract
     [](<#cb21-2>)# 한글 OCR 모델 설치 필요 (Tesseract-OCR)
-[/code]
+```
 
 **3단계: 문제가 계속되면**
 
 직접 텍스트 추출 테스트:
-[code] 
+```python
     [](<#cb22-1>)from agent_evaluator.datasets.korean_rag_dataset_generator import KoreanPDFExtractor
     [](<#cb22-2>)
     [](<#cb22-3>)extractor = KoreanPDFExtractor()
@@ -2189,7 +2189,7 @@ OCR이 필요한 경우:
     [](<#cb22-6>)pages = extractor.extract_text("your.pdf")
     [](<#cb22-7>)print(f"추출된 페이지 수: {len(pages)}")
     [](<#cb22-8>)print(f"첫 페이지 샘플:\n{pages[0][1][:200]}")
-[/code]
+```
 
 ### Q3: Ragas 메트릭이 너무 낮게 나올 때는?
 
@@ -2213,15 +2213,15 @@ OCR이 필요한 경우:
 qa_id | question | answer | ground_truth | context  
 ---|---|---|---|---  
 qa_001 | 연차는 몇 일? | 15일입니다 | 15일 | 연차는 1년 근무 시 15일…
-[code] 
+```json
     [](<#cb23-1>)manager = GoldenDatasetManager()
     [](<#cb23-2>)dataset = manager.load_dataset("my_dataset.csv")
-[/code]  
+```
   
 ### Q5: 평가가 너무 오래 걸려요
 
 **A** : 다음을 시도하세요:
-[code] 
+```python
     [](<#cb24-1>)# 1. 샘플 수 제한 (테스트용)
     [](<#cb24-2>)report = evaluator.evaluate_dataset(dataset, max_samples=10)
     [](<#cb24-3>)
@@ -2229,7 +2229,7 @@ qa_001 | 연차는 몇 일? | 15일입니다 | 15일 | 연차는 1년 근무 시
     [](<#cb24-5>)evaluator = KoreanRAGEvaluator(use_ragas=False)
     [](<#cb24-6>)
     [](<#cb24-7>)# 3. 병렬 처리 (향후 지원 예정)
-[/code]
+```
 
 * * *
 
@@ -2242,7 +2242,7 @@ qa_001 | 연차는 몇 일? | 15일입니다 | 15일 | 연차는 1년 근무 시
 **KoreanRAGDatasetGenerator** \- **역할** : PDF에서 Golden Dataset 생성 파이프라인 - **주요 메서드** : - `generate_from_pdf()`: PDF에서 QA 쌍 자동 생성 - **의존 클래스** : - `KoreanPDFExtractor`: PDF 텍스트 추출 - `TextChunker`: 텍스트 청킹 - `KoreanQAGenerator`: OpenAI GPT로 QA 생성 - `GoldenDatasetManager`: 저장/로드/검증
 
 **데이터 클래스** :
-[code] 
+```python
     [](<#cb25-1>)@dataclass
     [](<#cb25-2>)class QAPair:
     [](<#cb25-3>)    qa_id: str
@@ -2264,7 +2264,7 @@ qa_001 | 연차는 몇 일? | 15일입니다 | 15일 | 연차는 1년 근무 시
     [](<#cb25-19>)    total_qa_pairs: int
     [](<#cb25-20>)    qa_pairs: List[QAPair]
     [](<#cb25-21>)    metadata: Dict[str, Any]
-[/code]
+```
 
 **KoreanPDFExtractor** : - PyPDF2 또는 pdfplumber 자동 선택 - `extract_text()`: 페이지별 텍스트 추출 - `clean_text()`: 공백 정리
 
@@ -2277,7 +2277,7 @@ qa_001 | 연차는 몇 일? | 15일입니다 | 15일 | 연차는 1년 근무 시
 **KoreanRAGEvaluator** \- **역할** : RAG 시스템 평가 및 메트릭 계산 - **주요 메서드** : - `evaluate_dataset()`: Golden Dataset 전체 평가 - `evaluate_single()`: 단일 질문 평가 - `_evaluate_single_qa()`: 개별 QA 평가 로직 - `_calculate_ragas_metrics()`: Ragas 메트릭 계산 - `_generate_report()`: 리포트 생성 - `_save_report()`: JSON/CSV 저장 - `_record_to_monitor()`: Hybrid Monitor 연동
 
 **데이터 클래스** :
-[code] 
+```python
     [](<#cb26-1>)@dataclass
     [](<#cb26-2>)class RAGResponse:
     [](<#cb26-3>)    question: str
@@ -2321,7 +2321,7 @@ qa_001 | 연차는 몇 일? | 15일입니다 | 15일 | 연차는 1년 근무 시
     [](<#cb26-41>)    detailed_results: List[EvaluationResult]
     [](<#cb26-42>)    statistics: Dict[str, Any]
     [](<#cb26-43>)    metadata: Dict[str, Any]
-[/code]
+```
 
 **RAGSystemInterface** : - 추상 인터페이스 - `query()` 메서드만 구현하면 됨 - 예제: `SimpleRAGSystem` (더미), `OpenAIRAGSystem` (실제)
 
@@ -2338,7 +2338,7 @@ result = evaluate( dataset, metrics=[ faithfulness, answer_relevancy, context_re
 ### 파일 저장 형식
 
 **JSON (요약)** :
-[code] 
+```json
     [](<#cb27-1>){
     [](<#cb27-2>)  "report_id": "abc12345",
     [](<#cb27-3>)  "dataset_id": "dataset_xyz",
@@ -2356,7 +2356,7 @@ result = evaluate( dataset, metrics=[ faithfulness, answer_relevancy, context_re
     [](<#cb27-15>)  "statistics": {...},
     [](<#cb27-16>)  "metadata": {...}
     [](<#cb27-17>)}
-[/code]
+```
 
 **JSON (상세 결과)** : 별도 파일 (`rag_evaluation_details_*.json`) - 각 QA 쌍의 `EvaluationResult` 배열
 

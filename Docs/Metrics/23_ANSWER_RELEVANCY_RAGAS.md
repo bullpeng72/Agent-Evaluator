@@ -25,7 +25,7 @@ Ragas Layer 3 RAG Evaluation
 ## 📊 다이어그램 시각화
 
 ### 1️⃣ 핵심 개념 및 관련성 평가 (Ragas)
-[code] 
+```python
     graph TD
         A[Question + Answer] --> B[AnswerRelevancy Metric  
     Ragas Framework]
@@ -57,10 +57,10 @@ Ragas Layer 3 RAG Evaluation
         style L fill:#d4edda
         style O fill:#f8d7da
         
-[/code]
+```
 
 ### 2️⃣ 평가 파이프라인 (Ragas vs DeepEval 비교)
-[code] 
+```python
     graph LR
         A[Answer Relevancy] --> B[Ragas Implementation  
     Metric 23]
@@ -97,10 +97,10 @@ Ragas Layer 3 RAG Evaluation
         style C fill:#fff3cd
         style L fill:#d4edda
         
-[/code]
+```
 
 ### 3️⃣ 비용 및 프레임워크 선택
-[code] 
+```python
     graph TD
         A[Answer Relevancy 평가] --> B{시스템 유형}
     
@@ -135,10 +135,10 @@ Ragas Layer 3 RAG Evaluation
         style H fill:#ffc107
         style I fill:#d4edda
         
-[/code]
+```
 
 ### 4️⃣ 임계값 및 최적화 가이드
-[code] 
+```python
     graph TD
         A[Relevancy Score  
     Ragas] --> B{임계값 비교}
@@ -165,7 +165,7 @@ Ragas Layer 3 RAG Evaluation
         style E fill:#fff3cd
         style F fill:#f8d7da
         
-[/code]
+```
 
 ## 🔍 구현 위치
 

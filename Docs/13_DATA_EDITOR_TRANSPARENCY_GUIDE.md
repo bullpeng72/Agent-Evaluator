@@ -102,7 +102,7 @@ TaskResult는 Agent가 수행한 작업의 평가 결과입니다.
 graph TB Main["📊 TaskResult 데이터 편집"] Main --> FileSelect["파일 선택: performance_data.json"] Main --> Refresh["🔄 새로고침"] Main --> Info["ℹ️ 로드된 TaskResult: 100개"] Main --> Filter["🔍 필터 옵션"] Filter --> F1["작업 유형"] Filter --> F2["성공 여부"] Filter --> F3["정렬 기준"] Main --> Editor["📋 데이터 편집 테이블"] Editor --> Note["⚠️ 셀을 더블클릭하여 편집"] Editor --> Table["task_id - type - success - score - time"] Main --> EditInfo["편집 정보"] EditInfo --> E1["편집자: Admin"] EditInfo --> E2["이유: Data correction"] EditInfo --> Save["💾 저장"] Main --> Stats["📈 데이터 통계"] Stats --> S1["전체: 100"] Stats --> S2["성공률: 85%"] Stats --> S3["평균점수: 0.82"] style Main fill:#667eea,color:#fff style Editor fill:#e3f2fd style Filter fill:#fff3e0 style Stats fill:#e8f5e9 
 
 #### 사용 예시
-[code] 
+```json
     [](<#cb3-1>)# Dashboard UI에서 수행
     [](<#cb3-2>)# 1. "TaskResult 편집" 탭 선택
     [](<#cb3-3>)# 2. 필터로 원하는 데이터 찾기
@@ -128,7 +128,7 @@ graph TB Main["📊 TaskResult 데이터 편집"] Main --> FileSelect["파일 �
     [](<#cb3-23>)    editor="John Doe",
     [](<#cb3-24>)    reason="Manual correction based on expert review"
     [](<#cb3-25>))
-[/code]
+```
 
 #### 주요 메서드
 
@@ -168,7 +168,7 @@ graph TB Main["📚 Golden Dataset 편집"] Main --> FileSelect["파일: dataset
   * `validate_qa_pair(qa_data)`: QA 쌍 유효성 검증
 
 **Layer 2 필드 (Agentic + Security 메트릭)** :
-[code] 
+```json
     [](<#cb5-1>)# QA 쌍에 Layer 2 필드 추가
     [](<#cb5-2>)qa_data = {
     [](<#cb5-3>)    "qa_id": "qa_001",
@@ -181,7 +181,7 @@ graph TB Main["📚 Golden Dataset 편집"] Main --> FileSelect["파일: dataset
     [](<#cb5-10>)    "expected_agents": ["search_agent", "summary_agent"],  # 리스트
     [](<#cb5-11>)    "expected_workflow_steps": ["step1", "step2"]  # 리스트
     [](<#cb5-12>)}
-[/code]
+```
 
 ### 3\. 임계값 설정 (3계층 지표 체계)
 
@@ -211,7 +211,7 @@ graph TB Main["⚙️ 메트릭 임계값 설정"] Main --> Info["📊 3계층 �
 #### 계층별 임계값 설정 예시
 
 **Layer 1: Basic + Security Metrics**
-[code] 
+```json
     [](<#cb7-1>)thresholds_layer1 = {
     [](<#cb7-2>)    "tcr": 90.0,                    # Task Completion Rate
     [](<#cb7-3>)    "accuracy": 85.0,               # Accuracy
@@ -225,10 +225,10 @@ graph TB Main["⚙️ 메트릭 임계값 설정"] Main --> Info["📊 3계층 �
     [](<#cb7-11>)    "output_leakage": 95.0,          # Output Leakage Prevention
     [](<#cb7-12>)    "authorization": 98.0              # Authorization Compliance
     [](<#cb7-13>)}
-[/code]
+```
 
 **Layer 2: Agentic + Security Metrics**
-[code] 
+```json
     [](<#cb8-1>)thresholds_layer2 = {
     [](<#cb8-2>)    "tool_selection_accuracy": 85.0,  # Tool Selection Accuracy
     [](<#cb8-3>)    "tool_efficiency": 90.0,          # Tool Efficiency (moved from Layer 1)
@@ -238,10 +238,10 @@ graph TB Main["⚙️ 메트릭 임계값 설정"] Main --> Info["📊 3계층 �
     [](<#cb8-7>)    "privilege_escalation": 98.0,    # Privilege Escalation Prevention
     [](<#cb8-8>)    "attack_detection": 95.0           # Attack Pattern Detection
     [](<#cb8-9>)}
-[/code]
+```
 
 **Layer 3: Advanced Metrics**
-[code] 
+```json
     [](<#cb9-1>)thresholds_layer3 = {
     [](<#cb9-2>)    # DeepEval
     [](<#cb9-3>)    "g_eval": 0.8,
@@ -252,10 +252,10 @@ graph TB Main["⚙️ 메트릭 임계값 설정"] Main --> Info["📊 3계층 �
     [](<#cb9-8>)    "context_precision": 0.8,
     [](<#cb9-9>)    "answer_relevancy": 0.8
     [](<#cb9-10>)}
-[/code]
+```
 
 #### 고급 평가 설정 구조
-[code] 
+```json
     [](<#cb10-1>)# advanced_eval_config.json
     [](<#cb10-2>){
     [](<#cb10-3>)    "deepeval": {
@@ -287,7 +287,7 @@ graph TB Main["⚙️ 메트릭 임계값 설정"] Main --> Info["📊 3계층 �
     [](<#cb10-29>)        "updated_by": "Admin"
     [](<#cb10-30>)    }
     [](<#cb10-31>)}
-[/code]
+```
 
 ### 4\. 버전 관리
 
@@ -338,7 +338,7 @@ graph TB Main["📚 버전 관리"] Main --> Filter["데이터 이름 필터: pe
   * `get_edit_details(edit_id)`: 특정 편집의 상세 정보 조회
 
 #### 편집 기록 구조 (DataEdit)
-[code] 
+```python
     [](<#cb12-1>)@dataclass
     [](<#cb12-2>)class DataEdit:
     [](<#cb12-3>)    edit_id: str              # 편집 ID (YYYYMMDD_HHMMSS_ffffff)
@@ -350,7 +350,7 @@ graph TB Main["📚 버전 관리"] Main --> Filter["데이터 이름 필터: pe
     [](<#cb12-9>)    before_value: Optional[Dict]  # 변경 전 값
     [](<#cb12-10>)    after_value: Optional[Dict]   # 변경 후 값
     [](<#cb12-11>)    reason: str               # 편집 이유
-[/code]
+```
 
 #### 편집 기록 저장 위치
 
@@ -378,7 +378,7 @@ Test 환경을 미리 구성하고 저장하여 재사용할 수 있습니다.
   * `list_test_configurations()`: 모든 Test 구성 목록 조회
 
 #### Test 구성 구조 (Phase 3 Enhanced)
-[code] 
+```json
     [](<#cb13-1>)config = {
     [](<#cb13-2>)    # Core fields
     [](<#cb13-3>)    "config_id": "test_config_20241130_120000",
@@ -408,10 +408,10 @@ Test 환경을 미리 구성하고 저장하여 재사용할 수 있습니다.
     [](<#cb13-27>)        "priority": "high"
     [](<#cb13-28>)    }
     [](<#cb13-29>)}
-[/code]
+```
 
 #### 사용 예시
-[code] 
+```python
     [](<#cb14-1>)from data_editor_manager import DataEditorManager
     [](<#cb14-2>)
     [](<#cb14-3>)manager = DataEditorManager()
@@ -443,7 +443,7 @@ Test 환경을 미리 구성하고 저장하여 재사용할 수 있습니다.
     [](<#cb14-29>)
     [](<#cb14-30>)# 모든 구성 조회
     [](<#cb14-31>)all_configs = manager.list_test_configurations()
-[/code]
+```
 
 #### Test 구성 저장 위치
 
@@ -489,7 +489,7 @@ The system now tracks and visualizes **RAG (Retrieval-Augmented Generation) metr
   * `_generate_explanation(trace)`: 메트릭별 자동 설명 생성 (내부 메서드)
 
 #### 메트릭 계산 추적 구조 (MetricCalculationTrace)
-[code] 
+```python
     [](<#cb16-1>)@dataclass
     [](<#cb16-2>)class MetricCalculationTrace:
     [](<#cb16-3>)    metric_name: str              # 메트릭 이름
@@ -503,10 +503,10 @@ The system now tracks and visualizes **RAG (Retrieval-Augmented Generation) metr
     [](<#cb16-11>)    factors: Dict[str, Any]       # 영향 요인
     [](<#cb16-12>)    calculated_at: str            # 계산 시간
     [](<#cb16-13>)    calculation_time: Optional[float]  # 계산 소요 시간
-[/code]
+```
 
 #### TestStep 구조
-[code] 
+```python
     [](<#cb17-1>)@dataclass
     [](<#cb17-2>)class TestStep:
     [](<#cb17-3>)    step_id: str                  # 단계 ID
@@ -521,14 +521,14 @@ The system now tracks and visualizes **RAG (Retrieval-Augmented Generation) metr
     [](<#cb17-12>)    intermediate_results: List[Dict]  # 중간 결과
     [](<#cb17-13>)    error_message: Optional[str]  # 에러 메시지
     [](<#cb17-14>)    warning_messages: List[str]   # 경고 메시지
-[/code]
+```
 
 #### Trace 저장 위치
 
   * `evaluation_results/traces/trace_{metric_name}_{task_id}.json`
 
 #### 계산 과정 예시 (Faithfulness)
-[code] 
+```python
     1. Load Context
        ↓ 검색된 컨텍스트 3개 로드
        ↓ 총 1500자
@@ -544,14 +544,14 @@ The system now tracks and visualizes **RAG (Retrieval-Augmented Generation) metr
     4. Calculate Score
        ↓ Faithfulness = 4/5 = 0.8
        ✅ 완료
-[/code]
+```
 
 #### UI 구성
 
 graph TB Main["📊 메트릭 계산 과정"] Main --> TraceSelect["Trace: faithfulness_task_001"] Main --> MetricInfo["메트릭: faithfulness - 타입: ragas - 값: 0.800"] Main --> Timeline["타임라인"] Timeline --> T1["◯────●────●────●"] Timeline --> T2["1 2 3 4"] Main --> Step1["📌 단계 1: Load Context - SUCCESS"] Step1 --> S1_Desc["설명: 검색된 컨텍스트 로드"] Step1 --> S1_Input["입력: context_count: 3"] Step1 --> S1_Output["출력: total_chars: 1500"] Main --> Step2["📌 단계 2: Extract Claims - SUCCESS"] Main --> Step3["📌 단계 3: Verify Claims - SUCCESS"] Main --> Explanation["💡 설명"] Explanation --> E1["Faithfulness 점수: 0.800"] Explanation --> E2["답변이 대체로 컨텍스트에 충실합니다"] Main --> Factors["📈 영향 요인"] Factors --> F1["total_claims: 5"] Factors --> F2["verified_claims: 4"] Factors --> F3["verification_rate: 0.8"] style Main fill:#667eea,color:#fff style Step1 fill:#fff3e0 style Explanation fill:#e8f5e9 
 
 #### 코드 예시
-[code] 
+```python
     [](<#cb20-1>)from test_transparency_manager import TestTransparencyManager, TestStepStatus
     [](<#cb20-2>)
     [](<#cb20-3>)manager = TestTransparencyManager()
@@ -603,7 +603,7 @@ graph TB Main["📊 메트릭 계산 과정"] Main --> TraceSelect["Trace: faith
     [](<#cb20-49>)        "verification_rate": 0.8
     [](<#cb20-50>)    }
     [](<#cb20-51>))
-[/code]
+```
 
 ### 2\. 주석(Annotation) 시스템
 
@@ -645,7 +645,7 @@ Test 결과에 의견과 코멘트를 추가할 수 있습니다.
   * `metadata`: 선택적 추가 데이터 (related_metric, related_value 등)
 
 #### Annotation 구조
-[code] 
+```python
     [](<#cb21-1>)@dataclass
     [](<#cb21-2>)class Annotation:
     [](<#cb21-3>)    annotation_id: str            # 주석 ID (YYYYMMDD_HHMMSS_ffffff)
@@ -662,7 +662,7 @@ Test 결과에 의견과 코멘트를 추가할 수 있습니다.
     [](<#cb21-14>)    status: str                   # "open", "in_progress", "resolved", "closed"
     [](<#cb21-15>)    tags: List[str]               # 태그
     [](<#cb21-16>)    replies: List[Dict]           # 답변 스레드
-[/code]
+```
 
 #### 주석 저장 위치
 
@@ -674,7 +674,7 @@ graph LR Main["📝 주석 관리"] Main --> List["📋 주석 목록"] List -->
 COMMENT - open"] List --> Item2["답변 스레드 2개"] Main --> Add["➕ 주석 추가"] Add --> A1["대상 유형: metric"] Add --> A2["대상 ID: faithfulness"] Add --> A3["주석 유형: comment"] Add --> A4["우선순위: normal"] Add --> A5["제목 입력"] Add --> A6["내용 입력"] Add --> A7["관련 메트릭"] Add --> A8["태그"] Add --> A9["작성자: Admin"] Add --> Submit["📤 주석 추가"] style Main fill:#667eea,color:#fff style List fill:#e3f2fd style Add fill:#fff3e0 
 
 #### 코드 예시
-[code] 
+```python
     [](<#cb23-1>)from test_transparency_manager import TestTransparencyManager, AnnotationType
     [](<#cb23-2>)
     [](<#cb23-3>)manager = TestTransparencyManager()
@@ -707,7 +707,7 @@ COMMENT - open"] List --> Item2["답변 스레드 2개"] Main --> Add["➕ 주�
     [](<#cb23-32>)    new_status="resolved",
     [](<#cb23-33>)    user="admin@example.com"
     [](<#cb23-34>))
-[/code]
+```
 
 ### 3\. Audit Log
 
@@ -728,7 +728,7 @@ COMMENT - open"] List --> Item2["답변 스레드 2개"] Main --> Add["➕ 주�
   * `load_audit_logs(event_type, user, limit=100)`: Audit Log 로드 (필터링)
 
 #### AuditLogEntry 구조
-[code] 
+```python
     [](<#cb24-1>)@dataclass
     [](<#cb24-2>)class AuditLogEntry:
     [](<#cb24-3>)    log_id: str                   # 로그 ID (YYYYMMDD_HHMMSS_ffffff)
@@ -741,7 +741,7 @@ COMMENT - open"] List --> Item2["답변 스레드 2개"] Main --> Add["➕ 주�
     [](<#cb24-10>)    details: Dict[str, Any]       # 상세 정보
     [](<#cb24-11>)    success: bool                 # 성공 여부
     [](<#cb24-12>)    error_message: Optional[str]  # 에러 메시지
-[/code]
+```
 
 #### Audit Log 저장 위치
 
@@ -772,7 +772,7 @@ graph TB Main["📜 Audit Log"] Main --> Filter["필터 옵션"] Filter --> F1["
   * `_generate_recommendations(traces)`: 권장사항 생성 (내부 메서드)
 
 #### TransparentEvaluationReport 구조
-[code] 
+```python
     [](<#cb26-1>)@dataclass
     [](<#cb26-2>)class TransparentEvaluationReport:
     [](<#cb26-3>)    report_id: str                    # 리포트 ID
@@ -785,7 +785,7 @@ graph TB Main["📜 Audit Log"] Main --> Filter["필터 옵션"] Filter --> F1["
     [](<#cb26-10>)    audit_logs: List[AuditLogEntry]   # Audit Log
     [](<#cb26-11>)    summary: Dict[str, Any]           # 요약
     [](<#cb26-12>)    recommendations: List[str]        # 권장사항
-[/code]
+```
 
 #### 리포트 저장 위치
 
@@ -807,14 +807,14 @@ TestTransparencyManager는 5가지 새로운 고급 분석 기능을 제공합�
   * 낮은 정확도 경고 (Accuracy < 70%)
 
 반환값:
-[code] 
+```json
     [](<#cb27-1>){
     [](<#cb27-2>)    'anomalies': [...],      # 이상치 목록
     [](<#cb27-3>)    'warnings': [...],       # 경고 목록
     [](<#cb27-4>)    'insights': [...],       # 긍정적 인사이트
     [](<#cb27-5>)    'analyzed_at': '...'
     [](<#cb27-6>)}
-[/code]
+```
 
 #### 5.2 상관관계 분석 (Correlation Analysis)
 
@@ -827,12 +827,12 @@ TestTransparencyManager는 5가지 새로운 고급 분석 기능을 제공합�
   * 비용 vs 성능
 
 반환값:
-[code] 
+```json
     [](<#cb28-1>){
     [](<#cb28-2>)    'correlations': [...],   # 상관관계 목록
     [](<#cb28-3>)    'analyzed_at': '...'
     [](<#cb28-4>)}
-[/code]
+```
 
 #### 5.3 성능 병목 지점 식별 (Performance Bottlenecks)
 
@@ -845,12 +845,12 @@ TestTransparencyManager는 5가지 새로운 고급 분석 기능을 제공합�
   * 높은 재시도율 (Retry Rate > 20%)
 
 반환값:
-[code] 
+```json
     [](<#cb29-1>){
     [](<#cb29-2>)    'bottlenecks': [...],    # 병목 지점 목록
     [](<#cb29-3>)    'analyzed_at': '...'
     [](<#cb29-4>)}
-[/code]
+```
 
 #### 5.4 데이터 품질 검증 (Data Quality Validation)
 
@@ -864,14 +864,14 @@ TestTransparencyManager는 5가지 새로운 고급 분석 기능을 제공합�
   * 품질 평가 완전성
 
 반환값:
-[code] 
+```json
     [](<#cb30-1>){
     [](<#cb30-2>)    'overall_score': 85.0,      # 전체 품질 점수 (0-100)
     [](<#cb30-3>)    'quality_issues': [...],    # 품질 이슈 목록
     [](<#cb30-4>)    'data_completeness': {...}, # 데이터 완전성
     [](<#cb30-5>)    'analyzed_at': '...'
     [](<#cb30-6>)}
-[/code]
+```
 
 #### 5.5 실행 가능한 개선 방안 (Actionable Insights)
 
@@ -886,7 +886,7 @@ TestTransparencyManager는 5가지 새로운 고급 분석 기능을 제공합�
   * 응답 품질 개선 (Quality < 4.0)
 
 반환값:
-[code] 
+```json
     [](<#cb31-1>)[
     [](<#cb31-2>)    {
     [](<#cb31-3>)        'priority': 'high',              # critical, high, medium, low
@@ -903,7 +903,7 @@ TestTransparencyManager는 5가지 새로운 고급 분석 기능을 제공합�
     [](<#cb31-14>)    },
     [](<#cb31-15>)    ...
     [](<#cb31-16>)]
-[/code]
+```
 
 * * *
 
@@ -962,7 +962,7 @@ Audit Log 생성] J -->|No| O[검토 완료] style A fill:#e3f2fd style N fill:#
 ### 시나리오 1: 평가 데이터 수정
 
 **상황** : Task_001의 completion_score가 잘못 기록되어 수정이 필요
-[code] 
+```bash
     [](<#cb35-1>)# 1. Dashboard 실행
     [](<#cb35-2>)streamlit run streamlit_dashboard.py
     [](<#cb35-3>)
@@ -980,12 +980,12 @@ Audit Log 생성] J -->|No| O[검토 완료] style A fill:#e3f2fd style N fill:#
     [](<#cb35-15>)# 7. "💾 저장" 클릭
     [](<#cb35-16>)
     [](<#cb35-17>)# ✅ 완료! 자동으로 버전 백업 및 편집 기록 생성됨
-[/code]
+```
 
 ### 시나리오 2: Golden Dataset QA 쌍 추가
 
 **상황** : 새로운 QA 쌍을 Golden Dataset에 추가
-[code] 
+```json
     [](<#cb36-1>)# 1. "📝 데이터 편집" 탭 → "Golden Dataset 편집"
     [](<#cb36-2>)
     [](<#cb36-3>)# 2. 파일 선택: "golden_datasets/company_policy.json"
@@ -1003,12 +1003,12 @@ Audit Log 생성] J -->|No| O[검토 완료] style A fill:#e3f2fd style N fill:#
     [](<#cb36-15>)# 5. "💾 저장" 클릭
     [](<#cb36-16>)
     [](<#cb36-17>)# ✅ 완료!
-[/code]
+```
 
 ### 시나리오 3: 임계값 조정
 
 **상황** : Faithfulness 기준을 0.8에서 0.85로 강화
-[code] 
+```json
     [](<#cb37-1>)# 1. "📝 데이터 편집" 탭 → "임계값 설정"
     [](<#cb37-2>)
     [](<#cb37-3>)# 2. RAG 메트릭 섹션에서 Faithfulness 슬라이더를 0.85로 조정
@@ -1018,12 +1018,12 @@ Audit Log 생성] J -->|No| O[검토 완료] style A fill:#e3f2fd style N fill:#
     [](<#cb37-7>)# 4. "💾 저장" 클릭
     [](<#cb37-8>)
     [](<#cb37-9>)# ✅ 다음 평가부터 새 임계값 적용!
-[/code]
+```
 
 ### 시나리오 4: 평가 과정 확인 및 주석 추가
 
 **상황** : Faithfulness 점수가 낮게 나온 이유를 확인하고 의견 추가
-[code] 
+```json
     [](<#cb38-1>)# 1. "🔬 Test 투명성" 탭 클릭
     [](<#cb38-2>)
     [](<#cb38-3>)# 2. "메트릭 계산 과정" 선택
@@ -1054,12 +1054,12 @@ Audit Log 생성] J -->|No| O[검토 완료] style A fill:#e3f2fd style N fill:#
     [](<#cb38-28>)# 8. "📤 주석 추가" 클릭
     [](<#cb38-29>)
     [](<#cb38-30>)# ✅ 주석 저장 및 Audit Log 기록!
-[/code]
+```
 
 ### 시나리오 5: 버전 롤백
 
 **상황** : 실수로 데이터를 잘못 수정하여 이전 버전으로 복원
-[code] 
+```json
     [](<#cb39-1>)# 1. "📝 데이터 편집" 탭 → "버전 관리"
     [](<#cb39-2>)
     [](<#cb39-3>)# 2. 데이터 이름 필터: "performance_data"
@@ -1074,14 +1074,14 @@ Audit Log 생성] J -->|No| O[검토 완료] style A fill:#e3f2fd style N fill:#
     [](<#cb39-12>)#    → "예" 클릭
     [](<#cb39-13>)
     [](<#cb39-14>)# ✅ 복원 완료! 현재 데이터는 자동 백업됨
-[/code]
+```
 
 * * *
 
 ## 고급 활용
 
 ### 1\. CI/CD 통합
-[code] 
+```json
     [](<#cb40-1>)# .github/workflows/evaluation.yml
     [](<#cb40-2>)name: Agent Evaluation
     [](<#cb40-3>)
@@ -1125,10 +1125,10 @@ Audit Log 생성] J -->|No| O[검토 완료] style A fill:#e3f2fd style N fill:#
     [](<#cb40-41>)            --type issue \
     [](<#cb40-42>)            --title "Evaluation Failed" \
     [](<#cb40-43>)            --priority critical
-[/code]
+```
 
 ### 2\. 자동 알림
-[code] 
+```python
     [](<#cb41-1>)# alert_on_threshold_violation.py
     [](<#cb41-2>)from data_editor_manager import DataEditorManager
     [](<#cb41-3>)from test_transparency_manager import TestTransparencyManager, AnnotationType
@@ -1178,10 +1178,10 @@ Audit Log 생성] J -->|No| O[검토 완료] style A fill:#e3f2fd style N fill:#
     [](<#cb41-47>)
     [](<#cb41-48>)if __name__ == "__main__":
     [](<#cb41-49>)    check_and_alert()
-[/code]
+```
 
 ### 3\. 주기적 리포트
-[code] 
+```python
     [](<#cb42-1>)# generate_weekly_report.py
     [](<#cb42-2>)from test_transparency_manager import TestTransparencyManager
     [](<#cb42-3>)from datetime import datetime, timedelta
@@ -1231,7 +1231,7 @@ Audit Log 생성] J -->|No| O[검토 완료] style A fill:#e3f2fd style N fill:#
     [](<#cb42-47>)
     [](<#cb42-48>)if __name__ == "__main__":
     [](<#cb42-49>)    generate_weekly_report()
-[/code]
+```
 
 * * *
 
@@ -1252,7 +1252,7 @@ Audit Log 생성] J -->|No| O[검토 완료] style A fill:#e3f2fd style N fill:#
 ### Q: 주석을 CSV나 Excel로 내보낼 수 있나요?
 
 **A** : 네, 다음 코드로 가능합니다:
-[code] 
+```python
     [](<#cb43-1>)from test_transparency_manager import TestTransparencyManager
     [](<#cb43-2>)import pandas as pd
     [](<#cb43-3>)
@@ -1265,12 +1265,12 @@ Audit Log 생성] J -->|No| O[검토 완료] style A fill:#e3f2fd style N fill:#
     [](<#cb43-10>)
     [](<#cb43-11>)# CSV 저장
     [](<#cb43-12>)df.to_csv("annotations.csv", index=False, encoding='utf-8-sig')
-[/code]
+```
 
 ### Q: Audit Log가 너무 많아지면 어떻게 하나요?
 
 **A** : 오래된 로그는 주기적으로 아카이빙할 수 있습니다:
-[code] 
+```python
     [](<#cb44-1>)from pathlib import Path
     [](<#cb44-2>)from datetime import datetime, timedelta
     [](<#cb44-3>)import shutil
@@ -1285,7 +1285,7 @@ Audit Log 생성] J -->|No| O[검토 완료] style A fill:#e3f2fd style N fill:#
     [](<#cb44-12>)for log_file in audit_dir.glob("audit_*.json"):
     [](<#cb44-13>)    if datetime.fromtimestamp(log_file.stat().st_mtime) < cutoff_date:
     [](<#cb44-14>)        shutil.move(str(log_file), str(archive_dir / log_file.name))
-[/code]
+```
 
 * * *
 
@@ -1317,7 +1317,7 @@ Audit Log 생성] J -->|No| O[검토 완료] style A fill:#e3f2fd style N fill:#
 #### 7.1.3 데이터 편집 시나리오 및 Best Practices
 
 **시나리오 1: Golden Dataset 품질 개선**
-[code] 
+```python
     # QA Manager 워크플로우
     # Step 1: 문제 데이터 식별
     qa_pairs = load_golden_dataset("qa_pairs.json")
@@ -1348,10 +1348,10 @@ Audit Log 생성] J -->|No| O[검토 완료] style A fill:#e3f2fd style N fill:#
     improvement = calculate_improvement(old_metrics, new_metrics)
     print(f"품질 개선: Accuracy {improvement['accuracy']:+.1%}")
     
-[/code]
+```
 
 **시나리오 2: 임계값 수정 후 영향 분석**
-[code] 
+```python
     # QA Manager 워크플로우
     # Step 1: 현재 임계값 기록
     current_thresholds = {
@@ -1379,7 +1379,7 @@ Audit Log 생성] J -->|No| O[검토 완료] style A fill:#e3f2fd style N fill:#
         print("✅ 임계값 수정 승인")
         approve_threshold_change()
     
-[/code]
+```
 
 ### 7.2 Test 투명성 및 감사 추적
 
@@ -1395,7 +1395,7 @@ Audit Log 생성] J -->|No| O[검토 완료] style A fill:#e3f2fd style N fill:#
 #### 7.2.2 Test 투명성 대시보드 활용
 
 **실시간 품질 모니터링**
-[code] 
+```python
     # Streamlit Dashboard "📊 Test 투명성" 탭
     import streamlit as st
     
@@ -1424,7 +1424,7 @@ Audit Log 생성] J -->|No| O[검토 완료] style A fill:#e3f2fd style N fill:#
             if st.button("편집", key=case['id']):
                 edit_qa_pair(case['id'])
     
-[/code]
+```
 
 #### 7.2.3 변경 이력 추적 및 롤백
 
@@ -1448,7 +1448,7 @@ Golden Dataset 편집 | 필드별 before/after, 편집자, 시간 | 히스토리
 📊 대표성 | 시나리오 커버리지 | > 90% | 시나리오 매트릭스 커버리지  
   
 #### 7.3.2 Golden Dataset 유효성 검증 스크립트
-[code] 
+```python
     #!/usr/bin/env python3
     """Golden Dataset 품질 검증 스크립트"""
     import json
@@ -1586,7 +1586,7 @@ Golden Dataset 편집 | 필드별 before/after, 편집자, 시간 | 히스토리
             for dup in report['duplicates'][:5]:
                 print(f"  - {dup['duplicate_id']} (원본: {dup['original_id']})")
     
-[/code]
+```
 
 #### 7.3.3 Golden Dataset 개선 프로세스
 
@@ -1601,7 +1601,7 @@ Golden Dataset 편집 | 필드별 before/after, 편집자, 시간 | 히스토리
 ### 7.4 임계값 검증 워크플로우
 
 #### 7.4.1 임계값 변경 전 영향 분석
-[code] 
+```python
     #!/usr/bin/env python3
     """임계값 변경 영향 분석 스크립트"""
     import json
@@ -1683,7 +1683,7 @@ Golden Dataset 편집 | 필드별 before/after, 편집자, 시간 | 히스토리
                 print(f"  - {case['id']}: {case['current']} → {case['proposed']}")
                 print(f"    메트릭: {case['metrics']}")
     
-[/code]
+```
 
 #### 7.4.2 임계값 검증 체크리스트
 
@@ -1717,7 +1717,7 @@ Golden Dataset 편집 | 필드별 before/after, 편집자, 시간 | 히스토리
 5️⃣ Follow-up | 액션 아이템 완료 확인 | 완료 보고서 | QA Manager  
   
 #### 7.5.3 월간 품질 보고서 템플릿
-[code] 
+```python
     # 월간 Golden Dataset 품질 보고서
     **기간**: 2025년 11월 1일 ~ 11월 30일
     **작성자**: QA Manager
@@ -1761,7 +1761,7 @@ Golden Dataset 편집 | 필드별 before/after, 편집자, 시간 | 히스토리
     - [ ] Response Time 평균 3.0s 이하 달성
     - [ ] 자동 품질 검증 커버리지 100%
     
-[/code]
+```
 
 #### 7.5.4 품질 리뷰 모범 사례
 
@@ -1860,7 +1860,7 @@ Golden Dataset 편집 | 필드별 before/after, 편집자, 시간 | 히스토리
   * ✅ 메트릭 설명 생성 (`_generate_explanation` 자동)
 
 #### 파일 저장 위치 요약
-[code] 
+```
     evaluation_results/
     ├── versions/                    # 버전 백업
     │   └── version_{timestamp}_{filename}.json
@@ -1877,32 +1877,32 @@ Golden Dataset 편집 | 필드별 before/after, 편집자, 시간 | 히스토리
     ├── thresholds.json              # 임계값
     ├── advanced_eval_config.json    # 고급 평가 설정
     └── performance_data.json        # TaskResult 데이터
-[/code]
+```
 
 #### 메서드 호출 순서 (투명한 평가)
 
   1. **Test 구성 준비**
-[code] [](<#cb46-1>)config = manager.create_test_configuration(...)
-[/code]
+``` [](<#cb46-1>)config = manager.create_test_configuration(...)
+```
 
   2. **메트릭 계산 추적**
-[code] [](<#cb47-1>)trace_id = transparency.start_metric_calculation(...)
+``` [](<#cb47-1>)trace_id = transparency.start_metric_calculation(...)
          [](<#cb47-2>)transparency.add_calculation_step(...)
          [](<#cb47-3>)transparency.complete_metric_calculation(...)
-[/code]
+```
 
   3. **주석 추가 (선택)**
-[code] [](<#cb48-1>)annotation_id = transparency.add_annotation(...)
-[/code]
+``` [](<#cb48-1>)annotation_id = transparency.add_annotation(...)
+```
 
   4. **리포트 생성**
-[code] [](<#cb49-1>)report = transparency.generate_transparent_report(...)
-[/code]
+``` [](<#cb49-1>)report = transparency.generate_transparent_report(...)
+```
 
   5. **고급 분석 (Phase 3)**
-[code] [](<#cb50-1>)anomalies = transparency.analyze_metric_anomalies(monitor)
+``` [](<#cb50-1>)anomalies = transparency.analyze_metric_anomalies(monitor)
          [](<#cb50-2>)insights = transparency.generate_actionable_insights(monitor)
-[/code]
+```
 
 * * *
 

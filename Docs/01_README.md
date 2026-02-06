@@ -334,17 +334,18 @@ LlamaIndex | 다양 | **모든**
 ## 🚀 빠른 시작
 
 ### Step 1: 설치
-[code] 
-    # 방법 1: PyPI에서 설치 (권장 - 프로덕션)
-    pip install agent-evaluator
-    
-    # 방법 2: 로컬 wheel 파일로 설치
-    pip install /home/fomalhaut/Projects/Agent_Evaluator/dist/agent_evaluator-0.5.0-py3-none-any.whl
-    
-    # 방법 3: 개발 모드 설치 (editable)
-    cd /path/to/Agent_Evaluator
-    pip install -e ".[all]"
-[/code]
+
+```bash
+# 방법 1: PyPI에서 설치 (권장 - 프로덕션)
+pip install agent-evaluator
+
+# 방법 2: 로컬 wheel 파일로 설치
+pip install /home/fomalhaut/Projects/Agent_Evaluator/dist/agent_evaluator-0.5.0-py3-none-any.whl
+
+# 방법 3: 개발 모드 설치 (editable)
+cd /path/to/Agent_Evaluator
+pip install -e ".[all]"
+```
 
 #### 💡 설치 옵션 선택 가이드
 
@@ -353,45 +354,46 @@ LlamaIndex | 다양 | **모든**
   * **개발 모드 (-e)** : 코드 수정 필요, 즉시 반영
 
 ### Step 2: 기본 사용 (Zero Configuration)
-[code] 
-    from agent_evaluator import PerformanceMonitor, TaskResult, TaskType
-    from datetime import datetime
-    
-    # 1. 모니터 생성 (Hallucination Detection Opt-in)
-    monitor = PerformanceMonitor(enable_hallucination_detection=True)
-    
-    # 2. Task 기록
-    task = TaskResult(
-        task_id="task_001",
-        task_type=TaskType.QA.value,
-        success=True,
-        completion_score=1.0,
-        accuracy_score=0.95,
-        execution_time=1.2,
-        tokens_used={"input": 100, "output": 50, "total": 150},
-        tool_calls=[],
-        attempts=1,
-        errors=[],
-        timestamp=datetime.now()
-    )
-    monitor.record_task(task)
-    
-    # 3. 리포트 생성
-    report = monitor.generate_report()
-    print(f"Accuracy: {report.accuracy_metrics['overall_accuracy']:.2%}")
-    
-    # 4. 저장 (Zero Configuration - 자동으로 올바른 위치에 저장)
-    monitor.save_to_file("evaluation_results.json")
-    # → Dashboard/data/evaluation_results/evaluation_results.json 자동 저장
-    # → ~/.agent_evaluator/registry.json 레지스트리에 자동 등록
-    
-[/code]
+
+```python
+from agent_evaluator import PerformanceMonitor, TaskResult, TaskType
+from datetime import datetime
+
+# 1. 모니터 생성 (Hallucination Detection Opt-in)
+monitor = PerformanceMonitor(enable_hallucination_detection=True)
+
+# 2. Task 기록
+task = TaskResult(
+    task_id="task_001",
+    task_type=TaskType.QA.value,
+    success=True,
+    completion_score=1.0,
+    accuracy_score=0.95,
+    execution_time=1.2,
+    tokens_used={"input": 100, "output": 50, "total": 150},
+    tool_calls=[],
+    attempts=1,
+    errors=[],
+    timestamp=datetime.now()
+)
+monitor.record_task(task)
+
+# 3. 리포트 생성
+report = monitor.generate_report()
+print(f"Accuracy: {report.accuracy_metrics['overall_accuracy']:.2%}")
+
+# 4. 저장 (Zero Configuration - 자동으로 올바른 위치에 저장)
+monitor.save_to_file("evaluation_results.json")
+# → Dashboard/data/evaluation_results/evaluation_results.json 자동 저장
+# → ~/.agent_evaluator/registry.json 레지스트리에 자동 등록
+```
 
 ### Step 3: Dashboard에서 확인
-[code] 
-    cd Dashboard
-    streamlit run app.py
-[/code]
+
+```bash
+cd Dashboard
+streamlit run app.py
+```
 
 #### 💡 Zero Configuration의 장점
 
@@ -404,21 +406,21 @@ LlamaIndex | 다양 | **모든**
 ## 📦 설치 옵션
 
 ### 옵션 1: PyPI에서 설치 (프로덕션)
-[code] 
-    pip install agent-evaluator
-    
-[/code]
+
+```bash
+pip install agent-evaluator
+```
 
 ### 옵션 2: 로컬 개발 모드 설치
-[code] 
-    # 프로젝트 루트에서
-    cd /path/to/Agent_Evaluator
-    pip install -e .
-    
-    # 또는 전체 기능 포함
-    pip install -e ".[all]"
-    
-[/code]
+
+```bash
+# 프로젝트 루트에서
+cd /path/to/Agent_Evaluator
+pip install -e .
+
+# 또는 전체 기능 포함
+pip install -e ".[all]"
+```
 
 #### 💡 개발 모드의 장점
 
@@ -443,48 +445,60 @@ LlamaIndex | 다양 | **모든**
 
 ### 1\. 📦 agent_evaluator/ - 핵심 Python 패키지
 
-**목적:** PyPI 배포 가능한 핵심 평가 엔진 (`pip install agent-evaluator`)
+**목적:** PyPI 배포 가능한 핵심 평가 엔진
 
-**특징:** Layer 1/2/3 메트릭, 보안 메트릭, Framework 통합
-[code] 
-    agent_evaluator/
-    ├── __init__.py
-    ├── core/                           # 핵심 평가 엔진
-    │   ├── agent_evaluator.py          # PerformanceMonitor (Layer 1+2)
-    │   └── hybrid_monitor.py           # HybridPerformanceMonitor (Layer 1+2+3)
-    ├── integrations/                   # Framework 통합
-    │   ├── crewai_integration.py       # CrewAI Multi-Agent 평가
-    │   ├── langchain_integration.py    # LangChain Agent 평가
-    │   ├── langgraph_integration.py    # LangGraph Workflow 평가
-    │   ├── autogen_integration.py      # AutoGen Agent 평가
-    │   └── framework_integrations.py   # 레거시 통합 (deprecated)
-    ├── datasets/                       # 데이터셋 생성 및 관리
-    │   ├── korean_rag_evaluator.py     # 한국어 RAG 평가
-    │   └── korean_rag_dataset_generator.py  # Golden Dataset 자동 생성
-    ├── examples/                       # 예제 작성 유틸리티
-    │   ├── __init__.py
-    │   └── example_runner.py           # ExampleRunner 베이스 클래스
-    ├── helpers/                        # 헬퍼 함수
-    │   └── taskresult_helpers.py       # 🔒 보안 함수 포함
-    │       ├── validate_input_security()      # Input Sanitization
-    │       ├── check_output_leakage()         # Output Leakage Detection
-    │       └── validate_tool_authorization()  # Authorization Check
-    ├── reporting/                      # 리포트 생성
-    │   └── report_generator.py         # HTML/JSON 리포트
-    └── utils/                          # 유틸리티
-        ├── path_helpers.py             # Zero Configuration 경로 탐지
-        ├── data_registry.py            # 데이터 레지스트리 패턴
-        └── test_transparency_manager.py # Test Transparency 추적
-    
-[/code]
+```bash
+pip install agent-evaluator
+```
+
+**특징:**
+- Layer 1/2/3 메트릭
+- 보안 메트릭
+- Framework 통합
+
+**디렉토리 구조:**
+
+```
+agent_evaluator/
+├── __init__.py
+├── core/                           # 핵심 평가 엔진
+│   ├── agent_evaluator.py          # PerformanceMonitor (Layer 1+2)
+│   └── hybrid_monitor.py           # HybridPerformanceMonitor (Layer 1+2+3)
+├── integrations/                   # Framework 통합
+│   ├── crewai_integration.py       # CrewAI Multi-Agent 평가
+│   ├── langchain_integration.py    # LangChain Agent 평가
+│   ├── langgraph_integration.py    # LangGraph Workflow 평가
+│   ├── autogen_integration.py      # AutoGen Agent 평가
+│   └── framework_integrations.py   # 레거시 통합 (deprecated)
+├── datasets/                       # 데이터셋 생성 및 관리
+│   ├── korean_rag_evaluator.py     # 한국어 RAG 평가
+│   └── korean_rag_dataset_generator.py  # Golden Dataset 자동 생성
+├── examples/                       # 예제 작성 유틸리티
+│   ├── __init__.py
+│   └── example_runner.py           # ExampleRunner 베이스 클래스
+├── helpers/                        # 헬퍼 함수
+│   └── taskresult_helpers.py       # 🔒 보안 함수 포함
+│       ├── validate_input_security()      # Input Sanitization
+│       ├── check_output_leakage()         # Output Leakage Detection
+│       └── validate_tool_authorization()  # Authorization Check
+├── reporting/                      # 리포트 생성
+│   └── report_generator.py         # HTML/JSON 리포트
+└── utils/                          # 유틸리티
+    ├── path_helpers.py             # Zero Configuration 경로 탐지
+    ├── data_registry.py            # 데이터 레지스트리 패턴
+    └── test_transparency_manager.py # Test Transparency 추적
+```
 
 ### 2\. 📚 Evaluator_Examples/ - 예제 및 튜토리얼
 
 **목적:** 실행 가능한 예제 코드 (24개 파일, 8,000+ 라인)
 
 **특징:** 3개 난이도 레벨 (Foundation, Advanced, Production)
-[code] 
-    Evaluator_Examples/
+
+**디렉토리 구조:**
+
+```
+Evaluator_Examples/
     ├── level_1_foundation/             # 기초 예제 (10개)
     │   ├── 01_quickstart.py                        # 5분 Quick Start
     │   ├── 02_layer1_trackers.py                   # Layer 1 Trackers 완전 가이드
@@ -513,16 +527,18 @@ LlamaIndex | 다양 | **모든**
     │   ├── 05_transparency.py                      # 투명성 리포팅
     │   └── 06_security_production_monitoring.py    # 🔒 프로덕션 보안 모니터링
     └── Dashboard/                      # 🌐 독립 실행 가능 Dashboard (아래 참조)
-    
-[/code]
+```
 
 ### 3\. 🌐 Dashboard/ - Streamlit 웹 대시보드
 
 **목적:** 독립 실행 가능한 실시간 모니터링 UI (12 탭)
 
 **특징:** Zero Configuration, 보안 메트릭 시각화, 투명성 보고서
-[code] 
-    Dashboard/
+
+**디렉토리 구조:**
+
+```
+Dashboard/
     ├── app.py                          # Streamlit 앱 진입점
     ├── streamlit_dashboard.py          # 메인 대시보드 (12 탭)
     ├── data/                           # 데이터 저장소 (Zero Config 위치)
@@ -540,16 +556,18 @@ LlamaIndex | 다양 | **모든**
         ├── security_visualizations.py  # 🔒 보안 차트
         ├── data_editor_tabs.py         # 데이터 편집 탭
         └── transparency_tabs.py        # 투명성 분석 탭
-    
-[/code]
+```
 
 ### 4\. 📖 Docs/ - HTML 문서 (18개)
 
 **목적:** 독립 접근 가능한 완전한 문서화
 
 **특징:** 한국어 완전 지원, 보안 가이드 포함
-[code] 
-    Docs/
+
+**디렉토리 구조:**
+
+```
+Docs/
     ├── index.html                      # 문서 홈페이지
     ├── README.html                     # 프로젝트 개요
     │
@@ -576,8 +594,7 @@ LlamaIndex | 다양 | **모든**
     └── API Reference (2개)
         ├── API_REFERENCE.html          # API 상세 문서
         └── index_content.html          # 문서 색인
-    
-[/code]
+```
 
 #### ⚠️ 프로젝트 루트 파일
 
@@ -590,144 +607,148 @@ LlamaIndex | 다양 | **모든**
 ## 📊 사용 예제
 
 ### 예제 1: 기본 평가 (Zero Configuration)
-[code] 
-    from agent_evaluator import PerformanceMonitor
-    
-    # Zero Configuration - 경로 지정 불필요!
-    monitor = PerformanceMonitor()
-    
-    # Agent 실행 및 평가
-    # ... your agent code ...
-    
-    # 결과 저장 (자동으로 Dashboard/data/evaluation_results/에 저장)
-    monitor.save_to_file("my_evaluation.json")
-[/code]
+
+```python
+from agent_evaluator import PerformanceMonitor
+
+# Zero Configuration - 경로 지정 불필요!
+monitor = PerformanceMonitor()
+
+# Agent 실행 및 평가
+# ... your agent code ...
+
+# 결과 저장 (자동으로 Dashboard/data/evaluation_results/에 저장)
+monitor.save_to_file("my_evaluation.json")
+```
 
 ### 예제 2: 한국어 RAG 평가
-[code] 
-    from agent_evaluator.datasets.korean_rag_evaluator import KoreanRAGEvaluator
-    
-    # Zero Configuration
-    evaluator = KoreanRAGEvaluator()
-    
-    result = evaluator.evaluate(
-        question="서울의 인구는?",
-        answer="서울의 인구는 약 1천만명입니다.",
-        context="서울특별시의 인구는 2023년 기준 약 950만명입니다.",
-        ground_truth="서울의 인구는 약 950만명입니다."
-    )
-    
-    print(f"Faithfulness: {result['faithfulness']:.2f}")
-    print(f"Answer Relevancy: {result['answer_relevancy']:.2f}")
-[/code]
+
+```python
+from agent_evaluator.datasets.korean_rag_evaluator import KoreanRAGEvaluator
+
+# Zero Configuration
+evaluator = KoreanRAGEvaluator()
+
+result = evaluator.evaluate(
+    question="서울의 인구는?",
+    answer="서울의 인구는 약 1천만명입니다.",
+    context="서울특별시의 인구는 2023년 기준 약 950만명입니다.",
+    ground_truth="서울의 인구는 약 950만명입니다."
+)
+
+print(f"Faithfulness: {result['faithfulness']:.2f}")
+print(f"Answer Relevancy: {result['answer_relevancy']:.2f}")
+```
 
 ### 예제 3: Hybrid 모니터링 (Basic + Security + Advanced)
-[code] 
-    from agent_evaluator.core.hybrid_monitor import HybridPerformanceMonitor
-    
-    # Zero Configuration + 3-Layer 메트릭
-    monitor = HybridPerformanceMonitor(
-        enable_deepeval=True,
-        enable_ragas=True
-    )
-    
-    # Layer 1: Basic + Security metrics (무료, 10개)
-    # Layer 2: Agentic + Security metrics (무료, 6개)
-    # Layer 3: Advanced metrics (API 비용, 9개)
-    monitor.record_task(task)
-    report = monitor.generate_report()
-[/code]
+
+```python
+from agent_evaluator.core.hybrid_monitor import HybridPerformanceMonitor
+
+# Zero Configuration + 3-Layer 메트릭
+monitor = HybridPerformanceMonitor(
+    enable_deepeval=True,
+    enable_ragas=True
+)
+
+# Layer 1: Basic + Security metrics (무료, 10개)
+# Layer 2: Agentic + Security metrics (무료, 6개)
+# Layer 3: Advanced metrics (API 비용, 9개)
+monitor.record_task(task)
+report = monitor.generate_report()
+```
 
 ### 예제 4: Test Transparency
-[code] 
-    from agent_evaluator.utils import TestTransparencyManager
-    
-    # Zero Configuration
-    transparency = TestTransparencyManager()
-    
-    # Metric 계산 추적
-    trace_id = transparency.start_metric_calculation(
-        metric_name="accuracy",
-        metric_type="quality"
-    )
-    
-    transparency.add_calculation_step(
-        trace_id=trace_id,
-        step_name="data_validation",
-        description="데이터 검증"
-    )
-    
-    transparency.complete_metric_calculation(trace_id, final_value=0.95)
-    # → Dashboard/data/evaluation_results/traces/에 자동 저장
-[/code]
+
+```python
+from agent_evaluator.utils import TestTransparencyManager
+
+# Zero Configuration
+transparency = TestTransparencyManager()
+
+# Metric 계산 추적
+trace_id = transparency.start_metric_calculation(
+    metric_name="accuracy",
+    metric_type="quality"
+)
+
+transparency.add_calculation_step(
+    trace_id=trace_id,
+    step_name="data_validation",
+    description="데이터 검증"
+)
+
+transparency.complete_metric_calculation(trace_id, final_value=0.95)
+# → Dashboard/data/evaluation_results/traces/에 자동 저장
+```
 
 ### 예제 5: 🔒 보안 메트릭 평가
-[code] 
-    from agent_evaluator import PerformanceMonitor
-    from agent_evaluator.helpers import (
-        validate_input_security,
-        check_output_leakage,
-        validate_tool_authorization
-    )
-    
-    # 보안 메트릭 활성화
-    monitor = PerformanceMonitor(enable_security_metrics=True)
-    
-    # 1. 입력 보안 검증
-    user_input = "SELECT * FROM users WHERE id = '1' OR '1'='1'"
-    security_result = validate_input_security(user_input)
-    print(f"입력 보안 위협: {security_result['threat_detected']}")
-    print(f"위협 유형: {security_result['threat_type']}")  # SQL Injection
-    
-    # 2. 출력 민감정보 검사
-    agent_output = "Your API key is sk-1234567890abcdef"
-    leakage = check_output_leakage(agent_output)
-    print(f"정보 유출 감지: {leakage['leakage_detected']}")
-    print(f"유출 유형: {leakage['leakage_types']}")  # ['api_key']
-    
-    # 3. 도구 호출 권한 검증
-    allowed_tools = ["search", "calculator"]
-    requested_tool = "file_delete"
-    auth_result = validate_tool_authorization(requested_tool, allowed_tools)
-    print(f"권한 검증: {auth_result['authorized']}")  # False
-    
-    # 4. 통합 보안 리포트
-    report = monitor.generate_report()
-    security_metrics = report.security_metrics
-    print(f"입력 검증 통과율: {security_metrics['input_sanitization']:.1f}%")
-    print(f"정보 유출 건수: {security_metrics['output_leakage_count']}")
-    print(f"권한 위반 건수: {security_metrics['authorization_violations']}")
-    
-[/code]
+
+```python
+from agent_evaluator import PerformanceMonitor
+from agent_evaluator.helpers import (
+    validate_input_security,
+    check_output_leakage,
+    validate_tool_authorization
+)
+
+# 보안 메트릭 활성화
+monitor = PerformanceMonitor(enable_security_metrics=True)
+
+# 1. 입력 보안 검증
+user_input = "SELECT * FROM users WHERE id = '1' OR '1'='1'"
+security_result = validate_input_security(user_input)
+print(f"입력 보안 위협: {security_result['threat_detected']}")
+print(f"위협 유형: {security_result['threat_type']}")  # SQL Injection
+
+# 2. 출력 민감정보 검사
+agent_output = "Your API key is sk-1234567890abcdef"
+leakage = check_output_leakage(agent_output)
+print(f"정보 유출 감지: {leakage['leakage_detected']}")
+print(f"유출 유형: {leakage['leakage_types']}")  # ['api_key']
+
+# 3. 도구 호출 권한 검증
+allowed_tools = ["search", "calculator"]
+requested_tool = "file_delete"
+auth_result = validate_tool_authorization(requested_tool, allowed_tools)
+print(f"권한 검증: {auth_result['authorized']}")  # False
+
+# 4. 통합 보안 리포트
+report = monitor.generate_report()
+security_metrics = report.security_metrics
+print(f"입력 검증 통과율: {security_metrics['input_sanitization']:.1f}%")
+print(f"정보 유출 건수: {security_metrics['output_leakage_count']}")
+print(f"권한 위반 건수: {security_metrics['authorization_violations']}")
+```
 
 ### 예제 6: 🆕 Hallucination Detection
-[code] 
-    from agent_evaluator import PerformanceMonitor
-    
-    # Layer1 Hallucination Detection 활성화 (Opt-in, 무료, <1ms)
-    monitor = PerformanceMonitor(enable_hallucination_detection=True)
-    
-    # Context와 Response 제공 시 자동 환각 탐지
-    context = "서울은 대한민국의 수도이며, 인구는 약 1천만 명입니다."
-    response = "서울은 약 2천5백만 명의 인구가 살고 있습니다."  # 숫자 불일치!
-    
-    monitor.record_task(
-        task,
-        context=context,
-        response=response,
-        ground_truth="서울은 1천만 명"
-    )
-    
-    # Hallucination 통계 확인
-    hall_stats = monitor.hallucination_detector.get_hallucination_rate()
-    print(f"환각률: {hall_stats['overall_rate']:.1f}%")
-    print(f"탐지된 환각: {hall_stats['total_flagged']}개")
-    
-    # 비용 최적화: Layer1(무료) → Layer3(유료) 하이브리드 전략
-    # - Layer1으로 모든 응답 필터링 ($0)
-    # - 의심스러운 경우만 Layer3로 정밀 검증 (95% 비용 절감!)
-    
-[/code]
+
+```python
+from agent_evaluator import PerformanceMonitor
+
+# Layer1 Hallucination Detection 활성화 (Opt-in, 무료, <1ms)
+monitor = PerformanceMonitor(enable_hallucination_detection=True)
+
+# Context와 Response 제공 시 자동 환각 탐지
+context = "서울은 대한민국의 수도이며, 인구는 약 1천만 명입니다."
+response = "서울은 약 2천5백만 명의 인구가 살고 있습니다."  # 숫자 불일치!
+
+monitor.record_task(
+    task,
+    context=context,
+    response=response,
+    ground_truth="서울은 1천만 명"
+)
+
+# Hallucination 통계 확인
+hall_stats = monitor.hallucination_detector.get_hallucination_rate()
+print(f"환각률: {hall_stats['overall_rate']:.1f}%")
+print(f"탐지된 환각: {hall_stats['total_flagged']}개")
+
+# 비용 최적화: Layer1(무료) → Layer3(유료) 하이브리드 전략
+# - Layer1으로 모든 응답 필터링 ($0)
+# - 의심스러운 경우만 Layer3로 정밀 검증 (95% 비용 절감!)
+```
 
 #### 💡 Hallucination Detection 사용 전략
 
@@ -771,12 +792,13 @@ Zero Configuration에 대한 자세한 설명은 [Zero Configuration 가이드](
 Agent Evaluator는 **데이터 레지스트리 패턴** 을 통해 개발자와 품질 관리자 간 데이터를 자동으로 공유합니다.
 
 ### 개발자 측
-[code] 
-    monitor = PerformanceMonitor()
-    # ... 평가 수행 ...
-    monitor.save_to_file("results.json")
-    # 출력: 📋 Dashboard 레지스트리에 자동 등록됨 (~/.agent_evaluator/registry.json)
-[/code]
+
+```python
+monitor = PerformanceMonitor()
+# ... 평가 수행 ...
+monitor.save_to_file("results.json")
+# 출력: 📋 Dashboard 레지스트리에 자동 등록됨 (~/.agent_evaluator/registry.json)
+```
 
 ### 품질 관리자 측 (Dashboard)
 

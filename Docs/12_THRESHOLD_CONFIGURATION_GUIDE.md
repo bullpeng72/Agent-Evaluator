@@ -100,9 +100,9 @@ Layer 1은 **기본적인 AI 성능 메트릭과 기본 보안 메트릭** 입�
 **메트릭** : `tcr` **단위** : `%` **방향** : 높을수록 좋음 (higher is better) **정의** : 에이전트가 작업을 성공적으로 완료한 비율
 
 #### 계산 방식
-[code] 
+```python
     TCR = (성공한 작업 수 / 전체 작업 수) × 100
-[/code]
+```
 
 #### Threshold 권장값
 
@@ -113,11 +113,11 @@ Layer 1은 **기본적인 AI 성능 메트릭과 기본 보안 메트릭** 입�
 프로덕션 (Production) | 95%+ | 높은 신뢰성 요구  
   
 #### 설정 예제
-[code] 
+```python
     [](<#cb2-1>)monitor.thresholds = {
     [](<#cb2-2>)    'tcr': 90.0  # 90% 이상이어야 Pass
     [](<#cb2-3>)}
-[/code]
+```
 
 #### 해석
 
@@ -129,9 +129,9 @@ Layer 1은 **기본적인 AI 성능 메트릭과 기본 보안 메트릭** 입�
 **메트릭** : `accuracy` **단위** : `%` **방향** : 높을수록 좋음 **정의** : 에이전트 응답이 정답(ground truth)과 얼마나 유사한지
 
 #### 계산 방식
-[code] 
+```python
     Accuracy = Semantic Similarity Score × 100
-[/code]
+```
 
   * 기본: BERT 기반 임베딩 유사도
   * 설정 가능: OpenAI embeddings, sentence-transformers 등
@@ -145,11 +145,11 @@ Layer 1은 **기본적인 AI 성능 메트릭과 기본 보안 메트릭** 입�
 프로덕션 | 85-90% | 높은 정확도 요구  
   
 #### 설정 예제
-[code] 
+```python
     [](<#cb4-1>)monitor.thresholds = {
     [](<#cb4-2>)    'accuracy': 85.0  # 85% 이상이어야 Pass
     [](<#cb4-3>)}
-[/code]
+```
 
 #### 해석
 
@@ -161,9 +161,9 @@ Layer 1은 **기본적인 AI 성능 메트릭과 기본 보안 메트릭** 입�
 **메트릭** : `hallucination` **단위** : `%` **방향** : 낮을수록 좋음 (lower is better) **정의** : 에이전트가 사실이 아닌 정보를 생성한 비율
 
 #### 계산 방식
-[code] 
+```python
     Hallucination Rate = (Hallucination 발생 횟수 / 전체 작업 수) × 100
-[/code]
+```
 
 #### Threshold 권장값
 
@@ -174,11 +174,11 @@ Layer 1은 **기본적인 AI 성능 메트릭과 기본 보안 메트릭** 입�
 프로덕션 | 2-5% | 매우 낮은 환각률 요구  
   
 #### 설정 예제
-[code] 
+```python
     [](<#cb6-1>)monitor.thresholds = {
     [](<#cb6-2>)    'hallucination': 5.0  # 5% 이하여야 Pass
     [](<#cb6-3>)}
-[/code]
+```
 
 #### 해석
 
@@ -190,9 +190,9 @@ Layer 1은 **기본적인 AI 성능 메트릭과 기본 보안 메트릭** 입�
 **메트릭** : `quality` **단위** : `/10` (0-10 척도) **방향** : 높을수록 좋음 **정의** : 응답의 전반적인 품질 (명확성, 완전성, 관련성 등)
 
 #### 계산 방식
-[code] 
+```python
     Quality Score = ResponseQualityEvaluator의 평균 점수 × 2 (10점 척도로 변환)
-[/code]
+```
 
   * 원본: 5점 척도 (total_score 기준)
   * 변환: 10점 척도로 환산하여 threshold 비교
@@ -206,11 +206,11 @@ Layer 1은 **기본적인 AI 성능 메트릭과 기본 보안 메트릭** 입�
 프로덕션 | 8-9/10 | 매우 높은 품질  
   
 #### 설정 예제
-[code] 
+```python
     [](<#cb8-1>)monitor.thresholds = {
     [](<#cb8-2>)    'quality': 7.0  # 7/10 이상이어야 Pass
     [](<#cb8-3>)}
-[/code]
+```
 
 #### 해석
 
@@ -222,9 +222,9 @@ Layer 1은 **기본적인 AI 성능 메트릭과 기본 보안 메트릭** 입�
 **메트릭** : `latency` **단위** : `s` (초) **방향** : 낮을수록 좋음 **정의** : 에이전트의 P95 응답 시간 (상위 5% 제외)
 
 #### 계산 방식
-[code] 
+```python
     Latency = P95 응답 시간 (초)
-[/code]
+```
 
   * P95: 95 백분위수 응답 시간 (이상치 제외)
   * 평균이 아닌 P95 사용하여 더 안정적인 평가
@@ -238,11 +238,11 @@ Layer 1은 **기본적인 AI 성능 메트릭과 기본 보안 메트릭** 입�
 복잡한 작업 | 10-30초 | 시간이 걸리는 작업  
   
 #### 설정 예제
-[code] 
+```python
     [](<#cb10-1>)monitor.thresholds = {
     [](<#cb10-2>)    'latency': 3.0  # 3초 이하여야 Pass (P95 기준)
     [](<#cb10-3>)}
-[/code]
+```
 
 #### 해석
 
@@ -254,9 +254,9 @@ Layer 1은 **기본적인 AI 성능 메트릭과 기본 보안 메트릭** 입�
 **메트릭** : `cost_per_task` **단위** : `$` (달러) **방향** : 낮을수록 좋음 **정의** : 작업 하나를 처리하는 데 드는 평균 비용 (LLM API 비용)
 
 #### 계산 방식
-[code] 
+```python
     Cost per Task = (Input Tokens × Input Price + Output Tokens × Output Price)의 평균
-[/code]
+```
 
 #### Threshold 권장값
 
@@ -267,11 +267,11 @@ Layer 1은 **기본적인 AI 성능 메트릭과 기본 보안 메트릭** 입�
 복잡한 작업 | $0.20-1.00 | 고비용 허용  
   
 #### 설정 예제
-[code] 
+```python
     [](<#cb12-1>)monitor.thresholds = {
     [](<#cb12-2>)    'cost_per_task': 0.10  # $0.10 이하여야 Pass
     [](<#cb12-3>)}
-[/code]
+```
 
 #### 해석
 
@@ -285,44 +285,44 @@ RAG 시스템을 사용하는 경우 다음 메트릭을 추가할 수 있습니
 #### Faithfulness (충실도)
 
 **메트릭** : `faithfulness` **단위** : (0-1 척도) **방향** : 높을수록 좋음 **정의** : 생성된 답변이 제공된 컨텍스트에 얼마나 충실한지
-[code] 
+```python
     [](<#cb13-1>)monitor.thresholds = {
     [](<#cb13-2>)    'faithfulness': 0.8  # 0.8 이상이어야 Pass
     [](<#cb13-3>)}
-[/code]
+```
 
 **참고** : 현재는 placeholder 구현. RAG 평가 기능 활성화 필요.
 
 #### Answer Relevancy (답변 관련성)
 
 **메트릭** : `answer_relevancy` **단위** : (0-1 척도) **방향** : 높을수록 좋음 **정의** : 생성된 답변이 질문과 얼마나 관련있는지
-[code] 
+```python
     [](<#cb14-1>)monitor.thresholds = {
     [](<#cb14-2>)    'answer_relevancy': 0.8  # 0.8 이상이어야 Pass
     [](<#cb14-3>)}
-[/code]
+```
 
 **참고** : 현재는 placeholder 구현. RAG 평가 기능 활성화 필요.
 
 #### Context Recall (컨텍스트 재현율)
 
 **메트릭** : `context_recall` **단위** : (0-1 척도) **방향** : 높을수록 좋음 **정의** : 필요한 정보가 검색된 컨텍스트에 얼마나 포함되어 있는지
-[code] 
+```python
     [](<#cb15-1>)monitor.thresholds = {
     [](<#cb15-2>)    'context_recall': 0.8  # 0.8 이상이어야 Pass
     [](<#cb15-3>)}
-[/code]
+```
 
 **참고** : 현재는 placeholder 구현. RAG 평가 기능 활성화 필요.
 
 #### Context Precision (컨텍스트 정밀도)
 
 **메트릭** : `context_precision` **단위** : (0-1 척도) **방향** : 높을수록 좋음 **정의** : 검색된 컨텍스트 중 관련 있는 정보의 비율
-[code] 
+```python
     [](<#cb16-1>)monitor.thresholds = {
     [](<#cb16-2>)    'context_precision': 0.8  # 0.8 이상이어야 Pass
     [](<#cb16-3>)}
-[/code]
+```
 
 **참고** : 현재는 placeholder 구현. RAG 평가 기능 활성화 필요.
 
@@ -333,32 +333,32 @@ Layer 1 Security 메트릭은 **기본 보안 위협** 을 평가합니다.
 #### Input Sanitization (입력 검증)
 
 **메트릭** : `input_sanitization` **단위** : `%` **방향** : 높을수록 좋음 **정의** : 악의적 입력이 적절히 검증/차단되는 비율
-[code] 
+```python
     [](<#cb16a-1>)monitor.thresholds = {
     [](<#cb16a-2>)    'input_sanitization': 95.0  # 95% 이상이어야 Pass
     [](<#cb16a-3>)}
-[/code]
+```
 
 #### Output Leakage (출력 유출 방지)
 
 **메트릭** : `output_leakage` **단위** : `%` **방향** : 높을수록 좋음 **정의** : 민감한 정보가 출력에 포함되지 않는 비율
-[code] 
+```python
     [](<#cb16b-1>)monitor.thresholds = {
     [](<#cb16b-2>)    'output_leakage': 95.0  # 95% 이상이어야 Pass (유출 방지율)
     [](<#cb16b-3>)}
-[/code]
+```
 
 #### Authorization (권한 검증)
 
 **메트릭** : `authorization` **단위** : `%` **방향** : 높을수록 좋음 **정의** : 권한이 적절히 검증되는 비율
-[code] 
+```python
     [](<#cb16c-1>)monitor.thresholds = {
     [](<#cb16c-2>)    'authorization': 98.0  # 98% 이상이어야 Pass
     [](<#cb16c-3>)}
-[/code]
+```
 
 **통합 예제** :
-[code] 
+```python
     [](<#cb16d-1>)# Layer 1: Basic + Security Thresholds
     [](<#cb16d-2>)monitor.thresholds = {
     [](<#cb16d-3>)    # Basic Metrics
@@ -371,7 +371,7 @@ Layer 1 Security 메트릭은 **기본 보안 위협** 을 평가합니다.
     [](<#cb16d-10>)    'output_leakage': 95.0,
     [](<#cb16d-11>)    'authorization': 98.0
     [](<#cb16d-12>)}
-[/code]
+```
 
 * * *
 
@@ -384,13 +384,13 @@ Layer 2는 **Agentic AI 시스템의 고급 메트릭과 고급 보안 메트릭
 **메트릭** : `tool_selection_accuracy` **단위** : `%` **방향** : 높을수록 좋음 **정의** : 에이전트가 올바른 도구를 선택한 비율 (F1 Score 기반)
 
 #### 계산 방식
-[code] 
+```python
     Tool Selection Accuracy = (모든 작업의 F1 Score 평균) × 100
     
     F1 Score = 2 × (Precision × Recall) / (Precision + Recall)
     - Precision = 올바른 도구 / 사용한 도구
     - Recall = 올바른 도구 / 필요한 도구
-[/code]
+```
 
 #### Threshold 권장값
 
@@ -401,11 +401,11 @@ Layer 2는 **Agentic AI 시스템의 고급 메트릭과 고급 보안 메트릭
 프로덕션 | 85-95% | 높은 정확도 요구  
   
 #### 설정 예제
-[code] 
+```python
     [](<#cb18-1>)monitor.thresholds = {
     [](<#cb18-2>)    'tool_selection_accuracy': 80.0  # 80% 이상이어야 Pass
     [](<#cb18-3>)}
-[/code]
+```
 
 #### 해석
 
@@ -415,20 +415,20 @@ Layer 2는 **Agentic AI 시스템의 고급 메트릭과 고급 보안 메트릭
 #### Golden Dataset 요구사항
 
 Layer 2 메트릭을 사용하려면 Golden Dataset에 `expected_tools` 필드가 필요합니다:
-[code] 
+```json
     [](<#cb19-1>){
     [](<#cb19-2>)  "id": "qa_001",
     [](<#cb19-3>)  "question": "What is 15 + 27?",
     [](<#cb19-4>)  "expected_tools": ["calculator"]
     [](<#cb19-5>)}
-[/code]
+```
 
 ### 2\. Agent Coordination (에이전트 협업 점수)
 
 **메트릭** : `agent_coordination` **단위** : `/10` (0-10 척도) **방향** : 높을수록 좋음 **정의** : Multi-agent 시스템에서 에이전트 간 협업 품질
 
 #### 계산 방식
-[code] 
+```python
     Coordination Score = (
         0.5 × Success Rate +
         0.3 × Agent Diversity +
@@ -438,7 +438,7 @@ Layer 2 메트릭을 사용하려면 Golden Dataset에 `expected_tools` 필드�
     - Success Rate: 성공한 상호작용 비율
     - Agent Diversity: 참여한 고유 에이전트 비율
     - Interaction Balance: 상호작용 유형의 균형도
-[/code]
+```
 
 #### Threshold 권장값
 
@@ -449,11 +449,11 @@ Layer 2 메트릭을 사용하려면 Golden Dataset에 `expected_tools` 필드�
 프로덕션 | 8-9/10 | 높은 협업 품질 요구  
   
 #### 설정 예제
-[code] 
+```python
     [](<#cb21-1>)monitor.thresholds = {
     [](<#cb21-2>)    'agent_coordination': 7.0  # 7/10 이상이어야 Pass
     [](<#cb21-3>)}
-[/code]
+```
 
 #### 해석
 
@@ -461,22 +461,22 @@ Layer 2 메트릭을 사용하려면 Golden Dataset에 `expected_tools` 필드�
   * **Coordination ≥ 7/10** : 협업 양호 → Pass
 
 #### Golden Dataset 요구사항
-[code] 
+```json
     [](<#cb22-1>){
     [](<#cb22-2>)  "id": "qa_002",
     [](<#cb22-3>)  "question": "Research AI trends and write a report.",
     [](<#cb22-4>)  "expected_agents": ["manager", "researcher", "writer"]
     [](<#cb22-5>)}
-[/code]
+```
 
 ### 3\. Workflow Execution Success Rate (워크플로우 실행 성공률)
 
 **메트릭** : `workflow_execution` **단위** : `%` **방향** : 높을수록 좋음 **정의** : 워크플로우 단계가 성공적으로 실행된 비율
 
 #### 계산 방식
-[code] 
+```python
     Workflow Execution = (성공한 단계 수 / 전체 단계 수) × 100
-[/code]
+```
 
 #### Threshold 권장값
 
@@ -487,11 +487,11 @@ Layer 2 메트릭을 사용하려면 Golden Dataset에 `expected_tools` 필드�
 프로덕션 | 95-100% | 매우 높은 안정성 요구  
   
 #### 설정 예제
-[code] 
+```python
     [](<#cb24-1>)monitor.thresholds = {
     [](<#cb24-2>)    'workflow_execution': 90.0  # 90% 이상이어야 Pass
     [](<#cb24-3>)}
-[/code]
+```
 
 #### 해석
 
@@ -507,7 +507,7 @@ Layer 2 메트릭을 사용하려면 Golden Dataset에 `expected_tools` 필드�
   * `task_success_rate`: 작업 수준의 성공률
 
 
-[code] 
+```json
     [](<#cb25-1>){
     [](<#cb25-2>)    'workflow_execution': {
     [](<#cb25-3>)        'value': 95.0,
@@ -520,16 +520,16 @@ Layer 2 메트릭을 사용하려면 Golden Dataset에 `expected_tools` 필드�
     [](<#cb25-10>)        }
     [](<#cb25-11>)    }
     [](<#cb25-12>)}
-[/code]
+```
 
 #### Golden Dataset 요구사항
-[code] 
+```json
     [](<#cb26-1>){
     [](<#cb26-2>)  "id": "qa_003",
     [](<#cb26-3>)  "question": "Summarize this document.",
     [](<#cb26-4>)  "expected_workflow_steps": ["retrieval", "generation", "validation"]
     [](<#cb26-5>)}
-[/code]
+```
 
 ### 4\. Layer 2 Security 메트릭 (v0.5.0 NEW)
 
@@ -538,23 +538,23 @@ Layer 2 Security 메트릭은 **고급 보안 위협** 을 평가합니다.
 #### Privilege Escalation (권한 상승 감지)
 
 **메트릭** : `privilege_escalation` **단위** : `%` **방향** : 높을수록 좋음 **정의** : 권한 상승 시도가 적절히 차단되는 비율
-[code] 
+```python
     [](<#cb26a-1>)monitor.thresholds = {
     [](<#cb26a-2>)    'privilege_escalation': 98.0  # 98% 이상이어야 Pass
     [](<#cb26a-3>)}
-[/code]
+```
 
 #### Attack Detection (공격 탐지)
 
 **메트릭** : `attack_detection` **단위** : `%` **방향** : 높을수록 좋음 **정의** : 멀티에이전트 공격 패턴이 탐지되는 비율
-[code] 
+```python
     [](<#cb26b-1>)monitor.thresholds = {
     [](<#cb26b-2>)    'attack_detection': 95.0  # 95% 이상이어야 Pass
     [](<#cb26b-3>)}
-[/code]
+```
 
 **통합 예제** :
-[code] 
+```python
     [](<#cb26c-1>)# Layer 2: Agentic + Security Thresholds
     [](<#cb26c-2>)monitor.thresholds = {
     [](<#cb26c-3>)    # Agentic Metrics
@@ -565,7 +565,7 @@ Layer 2 Security 메트릭은 **고급 보안 위협** 을 평가합니다.
     [](<#cb26c-8>)    'privilege_escalation': 98.0,
     [](<#cb26c-9>)    'attack_detection': 95.0
     [](<#cb26c-10>)}
-[/code]
+```
 
 * * *
 
@@ -576,7 +576,7 @@ Layer 2 Security 메트릭은 **고급 보안 위협** 을 평가합니다.
 **과정** : 1. **Threshold 없이** Golden Dataset 평가 실행 2. 현재 성능 확인 3. 현재 성능보다 **약간 높은** threshold 설정 4. 점진적으로 threshold 상향
 
 **예제** :
-[code] 
+```python
     [](<#cb27-1>)# 1단계: 평가 실행 (threshold 없음)
     [](<#cb27-2>)results = monitor.evaluate_with_golden_dataset(
     [](<#cb27-3>)    agent_fn=my_agent,
@@ -599,14 +599,14 @@ Layer 2 Security 메트릭은 **고급 보안 위협** 을 평가합니다.
     [](<#cb27-20>)# 4단계: 점진적 상향
     [](<#cb27-21>)# 다음 주: tcr 90%, accuracy 85%
     [](<#cb27-22>)# 다음 달: tcr 95%, accuracy 90%
-[/code]
+```
 
 ### 2\. Top-Down 접근법
 
 **과정** : 1. **이상적인 threshold** 먼저 설정 (프로덕션 기준) 2. 현재 성능과 비교 3. 실패한 메트릭 개선 4. 모든 메트릭이 Pass할 때까지 반복
 
 **예제** :
-[code] 
+```python
     [](<#cb28-1>)# 1단계: 이상적인 threshold 설정
     [](<#cb28-2>)monitor.thresholds = {
     [](<#cb28-3>)    'tcr': 95.0,
@@ -627,21 +627,21 @@ Layer 2 Security 메트릭은 **고급 보안 위협** 을 평가합니다.
     [](<#cb28-18>)    pass
     [](<#cb28-19>)
     [](<#cb28-20>)# 4단계: 반복
-[/code]
+```
 
 ### 3\. Benchmark 기반 접근법
 
 **과정** : 1. **산업 표준** 또는 **경쟁사 벤치마크** 조사 2. 유사한 threshold 설정 3. 자사 상황에 맞게 조정
 
 **예제** :
-[code] 
+```python
     [](<#cb29-1>)# 산업 표준 (예: OpenAI, Anthropic 공개 벤치마크)
     [](<#cb29-2>)monitor.thresholds = {
     [](<#cb29-3>)    'tcr': 92.0,  # 산업 평균
     [](<#cb29-4>)    'accuracy': 87.0,  # 산업 평균
     [](<#cb29-5>)    'hallucination': 4.0  # 산업 평균
     [](<#cb29-6>)}
-[/code]
+```
 
 * * *
 
@@ -650,7 +650,7 @@ Layer 2 Security 메트릭은 **고급 보안 위협** 을 평가합니다.
 ### 개발 환경 (Development)
 
 **목적** : 빠른 실험과 반복 **특징** : 느슨한 threshold, 빠른 피드백
-[code] 
+```json
     [](<#cb30-1>)# dev_thresholds.py
     [](<#cb30-2>)DEV_THRESHOLDS = {
     [](<#cb30-3>)    # Layer 1: 느슨한 기준
@@ -667,12 +667,12 @@ Layer 2 Security 메트릭은 **고급 보안 위협** 을 평가합니다.
     [](<#cb30-14>)}
     [](<#cb30-15>)
     [](<#cb30-16>)monitor.thresholds = DEV_THRESHOLDS
-[/code]
+```
 
 ### 스테이징 환경 (Staging)
 
 **목적** : 프로덕션 준비 검증 **특징** : 중간 수준 threshold, 프로덕션과 유사
-[code] 
+```json
     [](<#cb31-1>)# staging_thresholds.py
     [](<#cb31-2>)STAGING_THRESHOLDS = {
     [](<#cb31-3>)    # Layer 1: 중간 기준
@@ -690,12 +690,12 @@ Layer 2 Security 메트릭은 **고급 보안 위협** 을 평가합니다.
     [](<#cb31-15>)}
     [](<#cb31-16>)
     [](<#cb31-17>)monitor.thresholds = STAGING_THRESHOLDS
-[/code]
+```
 
 ### 프로덕션 환경 (Production)
 
 **목적** : 최고 품질 보장 **특징** : 엄격한 threshold, 높은 신뢰성
-[code] 
+```json
     [](<#cb32-1>)# production_thresholds.py
     [](<#cb32-2>)PRODUCTION_THRESHOLDS = {
     [](<#cb32-3>)    # Layer 1: 엄격한 기준
@@ -713,10 +713,10 @@ Layer 2 Security 메트릭은 **고급 보안 위협** 을 평가합니다.
     [](<#cb32-15>)}
     [](<#cb32-16>)
     [](<#cb32-17>)monitor.thresholds = PRODUCTION_THRESHOLDS
-[/code]
+```
 
 ### 환경 자동 감지
-[code] 
+```python
     [](<#cb33-1>)import os
     [](<#cb33-2>)
     [](<#cb33-3>)def get_thresholds_for_env():
@@ -730,14 +730,14 @@ Layer 2 Security 메트릭은 **고급 보안 위협** 을 평가합니다.
     [](<#cb33-11>)        return DEV_THRESHOLDS
     [](<#cb33-12>)
     [](<#cb33-13>)monitor.thresholds = get_thresholds_for_env()
-[/code]
+```
 
 ### DataEditorManager를 통한 Threshold 로드
 
 `load_thresholds_from_config()` 메서드를 사용하여 저장된 임계값을 자동으로 로드할 수 있습니다.
 
 #### 기본 임계값 로드
-[code] 
+```python
     [](<#cb34-1>)from agent_evaluator import PerformanceMonitor
     [](<#cb34-2>)
     [](<#cb34-3>)monitor = PerformanceMonitor()
@@ -748,16 +748,16 @@ Layer 2 Security 메트릭은 **고급 보안 위협** 을 평가합니다.
     [](<#cb34-8>)# 로드된 임계값 확인
     [](<#cb34-9>)print(monitor.thresholds)
     [](<#cb34-10>)# {'tcr': 90.0, 'accuracy': 85.0, 'hallucination': 5.0, ...}
-[/code]
+```
 
 #### Test Configuration에서 로드
-[code] 
+```python
     [](<#cb35-1>)# 특정 Test Configuration ID를 지정하여 로드
     [](<#cb35-2>)monitor.load_thresholds_from_config(config_id="production_test_v1")
     [](<#cb35-3>)
     [](<#cb35-4>)# Test Configuration에 저장된 임계값이 로드됨
     [](<#cb35-5>)print(monitor.thresholds)
-[/code]
+```
 
 #### 로드 우선순위
 
@@ -766,7 +766,7 @@ Layer 2 Security 메트릭은 **고급 보안 위협** 을 평가합니다.
   3. **파일 없을 때** : DataEditorManager의 기본값
 
 
-[code] 
+```json
     [](<#cb36-1>)# DataEditorManager 기본값 (v0.5.0)
     [](<#cb36-2>){
     [](<#cb36-3>)    # Layer 1: Basic Metrics
@@ -786,12 +786,12 @@ Layer 2 Security 메트릭은 **고급 보안 위협** 을 평가합니다.
     [](<#cb36-17>)    "output_leakage": 95.0,
     [](<#cb36-18>)    "authorization": 98.0
     [](<#cb36-19>)}
-[/code]
+```
 
 #### 임계값 저장
 
 DataEditorManager를 직접 사용하여 임계값을 저장할 수도 있습니다:
-[code] 
+```python
     [](<#cb37-1>)from data_editor_manager import DataEditorManager
     [](<#cb37-2>)
     [](<#cb37-3>)manager = DataEditorManager()
@@ -806,7 +806,7 @@ DataEditorManager를 직접 사용하여 임계값을 저장할 수도 있습니
     [](<#cb37-12>)    editor="your_name",
     [](<#cb37-13>)    reason="프로덕션 환경 임계값 상향 조정"
     [](<#cb37-14>))
-[/code]
+```
 
 * * *
 
@@ -817,7 +817,7 @@ DataEditorManager를 직접 사용하여 임계값을 저장할 수도 있습니
 `compare_with_thresholds()` 메서드는 현재 메트릭 값을 임계값과 비교하여 Pass/Fail 판정을 제공합니다.
 
 #### 반환값 구조
-[code] 
+```json
     [](<#cb38-1>){
     [](<#cb38-2>)    'metric_name': {
     [](<#cb38-3>)        'name': str,           # 메트릭 표시 이름 (한글)
@@ -830,7 +830,7 @@ DataEditorManager를 직접 사용하여 임계값을 저장할 수도 있습니
     [](<#cb38-10>)        'details': dict       # 추가 상세 정보 (선택적, Layer 2 일부 메트릭에만 존재)
     [](<#cb38-11>)    }
     [](<#cb38-12>)}
-[/code]
+```
 
 #### 지원되는 메트릭
 
@@ -867,7 +867,7 @@ DataEditorManager를 직접 사용하여 임계값을 저장할 수도 있습니
 > **✨ 개선사항** : RAG 메트릭(faithfulness, answer_relevancy, context_recall, context_precision)이 이제 실제 값으로 계산되며, `compare_with_thresholds()`에서 자동으로 pass/fail 판정을 수행합니다. Response Quality도 자동 계산됩니다.
 
 ### 기본 비교 예제
-[code] 
+```python
     [](<#cb39-1>)# Threshold 설정
     [](<#cb39-2>)monitor.thresholds = {
     [](<#cb39-3>)    'tcr': 90.0,
@@ -889,17 +889,17 @@ DataEditorManager를 직접 사용하여 임계값을 저장할 수도 있습니
     [](<#cb39-19>)for metric, data in comparison.items():
     [](<#cb39-20>)    status_icon = "✅" if data['status'] == 'pass' else "❌"
     [](<#cb39-21>)    print(f"{status_icon} {data['name']}: {data['value']:.1f}{data['unit']} (임계값: {data['threshold']}{data['unit']})")
-[/code]
+```
 
 **출력 예제** :
-[code] 
+```
     ✅ 작업 완료율 (TCR): 92.5% (임계값: 90.0%)
     ✅ 정확도 (Accuracy): 87.3% (임계값: 85.0%)
     ❌ 도구 선택 정확도 (Tool Selection Accuracy): 75.2% (임계값: 80.0%)
-[/code]
+```
 
 ### 상세 비교 예제
-[code] 
+```python
     [](<#cb41-1>)comparison = monitor.compare_with_thresholds()
     [](<#cb41-2>)
     [](<#cb41-3>)for metric, data in comparison.items():
@@ -917,10 +917,10 @@ DataEditorManager를 직접 사용하여 임계값을 저장할 수도 있습니
     [](<#cb41-15>)        print(f"\n상세 정보:")
     [](<#cb41-16>)        for key, value in data['details'].items():
     [](<#cb41-17>)            print(f"  • {key}: {value}")
-[/code]
+```
 
 **출력 예제** (Agent Coordination):
-[code] 
+```
     ======================================================================
     에이전트 협업 점수 (Agent Coordination)
     ======================================================================
@@ -934,10 +934,10 @@ DataEditorManager를 직접 사용하여 임계값을 저장할 수도 있습니
       • success_rate: 0.95
       • total_interactions: 42
       • unique_agents: 5
-[/code]
+```
 
 ### Pass/Fail 판정
-[code] 
+```python
     [](<#cb43-1>)comparison = monitor.compare_with_thresholds()
     [](<#cb43-2>)failed_metrics = [metric for metric, data in comparison.items() if data['status'] == 'fail']
     [](<#cb43-3>)
@@ -952,7 +952,7 @@ DataEditorManager를 직접 사용하여 임계값을 저장할 수도 있습니
     [](<#cb43-12>)    print(f"✅ 품질 게이트 통과!")
     [](<#cb43-13>)    print(f"모든 메트릭이 임계값을 충족합니다.")
     [](<#cb43-14>)    exit(0)  # CI/CD 성공
-[/code]
+```
 
 * * *
 
@@ -972,7 +972,7 @@ RAG (Retrieval-Augmented Generation) 시스템을 평가할 때 사용하는 4�
 `context_precision` | 검색된 컨텍스트의 정확도 (노이즈 최소화) | 0-1 | ≥0.8 | 높을수록 좋음  
   
 ### RAG Threshold 설정 예제
-[code] 
+```python
     [](<#cb43a-1>)from agent_evaluator import PerformanceMonitor
     [](<#cb43a-2>)
     [](<#cb43a-3>)# PerformanceMonitor 초기화
@@ -1002,18 +1002,18 @@ RAG (Retrieval-Augmented Generation) 시스템을 평가할 때 사용하는 4�
     [](<#cb43a-27>)    data = comparison[metric]
     [](<#cb43a-28>)    status = "✅" if data["status"] == "pass" else "❌"
     [](<#cb43a-29>)    print(f"{status} {data['name']}: {data['value']:.3f} (임계값: {data['threshold']})")
-[/code]
+```
 
 **출력 예제** :
-[code] 
+```
     ✅ Faithfulness: 0.850 (임계값: 0.8)
     ✅ Answer Relevancy: 0.880 (임계값: 0.85)
     ✅ Context Recall: 0.780 (임계값: 0.75)
     ✅ Context Precision: 0.820 (임계값: 0.8)
-[/code]
+```
 
 ### RAG 메트릭 요약 확인
-[code] 
+```python
     [](<#cb43b-1>)# RAG 메트릭 요약 가져오기
     [](<#cb43b-2>)rag_summary = monitor.get_rag_metrics_summary()
     [](<#cb43b-3>)
@@ -1021,12 +1021,12 @@ RAG (Retrieval-Augmented Generation) 시스템을 평가할 때 사용하는 4�
     [](<#cb43b-5>)print(f"평균 Answer Relevancy: {rag_summary['answer_relevancy']['mean']:.3f}")
     [](<#cb43b-6>)print(f"평균 Context Recall: {rag_summary['context_recall']['mean']:.3f}")
     [](<#cb43b-7>)print(f"평균 Context Precision: {rag_summary['context_precision']['mean']:.3f}")
-[/code]
+```
 
 ### 한국어 RAG 평가와 통합
 
 KoreanRAGEvaluator와 함께 사용하여 한국어 RAG 시스템을 체계적으로 평가할 수 있습니다.
-[code] 
+```python
     [](<#cb43c-1>)from agent_evaluator import PerformanceMonitor
     [](<#cb43c-2>)from korean_rag_evaluator import KoreanRAGEvaluator
     [](<#cb43c-3>)
@@ -1061,7 +1061,7 @@ KoreanRAGEvaluator와 함께 사용하여 한국어 RAG 시스템을 체계적�
     [](<#cb43c-32>)
     [](<#cb43c-33>)# CSV 내보내기 (RAG 메트릭 포함)
     [](<#cb43c-34>)monitor.export_report("rag_evaluation_report.csv", format="csv")
-[/code]
+```
 
 > **⚡ 핵심 개선사항** :
 > 
@@ -1077,7 +1077,7 @@ KoreanRAGEvaluator와 함께 사용하여 한국어 RAG 시스템을 체계적�
 ## CI/CD 통합
 
 ### CI/CD 예제 (GitLab CI / Jenkins 권장)
-[code] 
+```json
     [](<#cb44-1>)# .github/workflows/agent-quality-gate.yml
     [](<#cb44-2>)name: Agent Quality Gate
     [](<#cb44-3>)
@@ -1116,10 +1116,10 @@ KoreanRAGEvaluator와 함께 사용하여 한국어 RAG 시스템을 체계적�
     [](<#cb44-37>)        with:
     [](<#cb44-38>)          name: evaluation-results
     [](<#cb44-39>)          path: evaluation_results.json
-[/code]
+```
 
 ### CI/CD 스크립트
-[code] 
+```python
     [](<#cb45-1>)# ci_quality_gate.py
     [](<#cb45-2>)import os
     [](<#cb45-3>)import sys
@@ -1219,10 +1219,10 @@ KoreanRAGEvaluator와 함께 사용하여 한국어 RAG 시스템을 체계적�
     [](<#cb45-97>)
     [](<#cb45-98>)if __name__ == "__main__":
     [](<#cb45-99>)    main()
-[/code]
+```
 
 ### GitLab CI 예제
-[code] 
+```json
     [](<#cb46-1>)# .gitlab-ci.yml
     [](<#cb46-2>)stages:
     [](<#cb46-3>)  - test
@@ -1244,7 +1244,7 @@ KoreanRAGEvaluator와 함께 사용하여 한국어 RAG 시스템을 체계적�
     [](<#cb46-20>)  only:
     [](<#cb46-21>)    - main
     [](<#cb46-22>)    - develop
-[/code]
+```
 
 * * *
 
@@ -1265,23 +1265,23 @@ KoreanRAGEvaluator와 함께 사용하여 한국어 RAG 시스템을 체계적�
 #### ❌ 나쁜 원칙
 
 **비현실적 목표**
-[code] 
+```python
     [](<#cb47-1>)# 너무 높음 - 달성 불가능
     [](<#cb47-2>)monitor.thresholds = {
     [](<#cb47-3>)    'tcr': 100.0,  # 100%는 비현실적
     [](<#cb47-4>)    'accuracy': 99.0,
     [](<#cb47-5>)    'hallucination': 0.0  # 0%는 불가능
     [](<#cb47-6>)}
-[/code]
+```
 
 **환경 무시**
-[code] 
+```python
     [](<#cb48-1>)# 개발 환경에서 프로덕션 threshold 사용 - 실험 방해
     [](<#cb48-2>)monitor.thresholds = PRODUCTION_THRESHOLDS  # ❌
-[/code]
+```
 
 **너무 많은 메트릭**
-[code] 
+```python
     [](<#cb49-1>)# 한 번에 모든 메트릭 추가 - 관리 어려움
     [](<#cb49-2>)monitor.thresholds = {
     [](<#cb49-3>)    'tcr': 90.0,
@@ -1296,7 +1296,7 @@ KoreanRAGEvaluator와 함께 사용하여 한국어 RAG 시스템을 체계적�
     [](<#cb49-12>)    'workflow_execution': 90.0,
     [](<#cb49-13>)    # ... 너무 많음
     [](<#cb49-14>)}
-[/code]
+```
 
 ### 2\. Threshold 업데이트 주기
 
@@ -1307,7 +1307,7 @@ KoreanRAGEvaluator와 함께 사용하여 한국어 RAG 시스템을 체계적�
   * **분기 리뷰** : 전체 Threshold 체계 재검토
 
 **예제** :
-[code] 
+```python
     [](<#cb50-1>)# 주간 (Week 1)
     [](<#cb50-2>)monitor.thresholds = {
     [](<#cb50-3>)    'tcr': 85.0,
@@ -1326,7 +1326,7 @@ KoreanRAGEvaluator와 함께 사용하여 한국어 RAG 시스템을 체계적�
     [](<#cb50-16>)    'accuracy': 85.0,  # +5% from start
     [](<#cb50-17>)    'tool_selection_accuracy': 75.0  # 새 메트릭 추가
     [](<#cb50-18>)}
-[/code]
+```
 
 ### 3\. 실패 시 대응
 
@@ -1341,7 +1341,7 @@ KoreanRAGEvaluator와 함께 사용하여 한국어 RAG 시스템을 체계적�
 **4) 재평가** \- 개선 후 다시 평가 - 통과할 때까지 반복
 
 **예제** :
-[code] 
+```python
     [](<#cb51-1>)# 실패 분석
     [](<#cb51-2>)comparison = monitor.compare_with_thresholds()
     [](<#cb51-3>)failed = [m for m, d in comparison.items() if d['status'] == 'fail']
@@ -1357,12 +1357,12 @@ KoreanRAGEvaluator와 함께 사용하여 한국어 RAG 시스템을 체계적�
     [](<#cb51-13>)    # Dashboard에서 실제 사용 도구 vs expected_tools 비교
     [](<#cb51-14>)    # expected_tools 업데이트 또는 프롬프트 개선
     [](<#cb51-15>)    # 재평가
-[/code]
+```
 
 ### 4\. 문서화
 
 **Threshold 변경 이력 기록** :
-[code] 
+```json
     [](<#cb52-1>)# Threshold Change Log
     [](<#cb52-2>)
     [](<#cb52-3>)## 2024-01-15
@@ -1372,7 +1372,7 @@ KoreanRAGEvaluator와 함께 사용하여 한국어 RAG 시스템을 체계적�
     [](<#cb52-7>)## 2024-01-01
     [](<#cb52-8>)- Tool Selection Accuracy: 75% 추가 (Layer 2 도입)
     [](<#cb52-9>)- Agent Coordination: 7/10 추가
-[/code]
+```
 
 * * *
 
@@ -1381,7 +1381,7 @@ KoreanRAGEvaluator와 함께 사용하여 한국어 RAG 시스템을 체계적�
 ### 시나리오 1: 간단한 QA 챗봇
 
 **특징** : 단일 에이전트, 간단한 질문 응답
-[code] 
+```python
     [](<#cb53-1>)monitor.thresholds = {
     [](<#cb53-2>)    # Layer 1만 사용
     [](<#cb53-3>)    'tcr': 90.0,  # 높은 완료율
@@ -1390,12 +1390,12 @@ KoreanRAGEvaluator와 함께 사용하여 한국어 RAG 시스템을 체계적�
     [](<#cb53-6>)    'cost_per_task': 0.05  # 저비용 ($0.05)
     [](<#cb53-7>)    # Layer 2는 불필요 (단일 에이전트)
     [](<#cb53-8>)}
-[/code]
+```
 
 ### 시나리오 2: 복잡한 Research Agent (Multi-Agent)
 
 **특징** : 여러 에이전트 협업, 긴 작업 시간, 도구 사용
-[code] 
+```python
     [](<#cb54-1>)monitor.thresholds = {
     [](<#cb54-2>)    # Layer 1
     [](<#cb54-3>)    'tcr': 85.0,  # 복잡한 작업이므로 약간 낮춤
@@ -1408,12 +1408,12 @@ KoreanRAGEvaluator와 함께 사용하여 한국어 RAG 시스템을 체계적�
     [](<#cb54-10>)    'agent_coordination': 8.0,  # 협업 품질 중요
     [](<#cb54-11>)    'workflow_execution': 90.0  # 워크플로우 안정성 중요
     [](<#cb54-12>)}
-[/code]
+```
 
 ### 시나리오 3: RAG 시스템
 
 **특징** : 문서 검색 + 생성, Workflow 중심
-[code] 
+```python
     [](<#cb55-1>)monitor.thresholds = {
     [](<#cb55-2>)    # Layer 1
     [](<#cb55-3>)    'tcr': 95.0,  # 높은 안정성 요구
@@ -1425,12 +1425,12 @@ KoreanRAGEvaluator와 함께 사용하여 한국어 RAG 시스템을 체계적�
     [](<#cb55-9>)    'tool_selection_accuracy': 80.0,  # vector_search, pdf_reader 선택
     [](<#cb55-10>)    'workflow_execution': 95.0  # retrieval → generation 안정성
     [](<#cb55-11>)}
-[/code]
+```
 
 ### 시나리오 4: 고객 지원 Agent
 
 **특징** : 빠른 응답, 높은 정확도, 낮은 비용
-[code] 
+```python
     [](<#cb56-1>)monitor.thresholds = {
     [](<#cb56-2>)    # Layer 1
     [](<#cb56-3>)    'tcr': 95.0,  # 거의 모든 요청 처리
@@ -1441,12 +1441,12 @@ KoreanRAGEvaluator와 함께 사용하여 한국어 RAG 시스템을 체계적�
     [](<#cb56-8>)    # Layer 2
     [](<#cb56-9>)    'tool_selection_accuracy': 85.0  # knowledge_base, order_db 등
     [](<#cb56-10>)}
-[/code]
+```
 
 ### 시나리오 5: 실험적 Agent (초기 개발)
 
 **특징** : 빠른 반복, 느슨한 기준
-[code] 
+```python
     [](<#cb57-1>)monitor.thresholds = {
     [](<#cb57-2>)    # Layer 1만, 느슨하게
     [](<#cb57-3>)    'tcr': 60.0,
@@ -1455,7 +1455,7 @@ KoreanRAGEvaluator와 함께 사용하여 한국어 RAG 시스템을 체계적�
     [](<#cb57-6>)    'cost_per_task': 2.00
     [](<#cb57-7>)    # Layer 2는 나중에 추가
     [](<#cb57-8>)}
-[/code]
+```
 
 * * *
 
@@ -1626,7 +1626,7 @@ Threshold 설정을 완료했다면:
 #### 11.1.3 임계값 관리 체계 구축
 
 **📂 임계값 파일 관리 구조**
-[code] 
+```
     thresholds/
     ├── alpha/
     │   ├── layer1_thresholds.json
@@ -1645,7 +1645,7 @@ Threshold 설정을 완료했다면:
     │   ├── layer2_thresholds.json
     │   └── README.md
     └── CHANGELOG.md  # 임계값 변경 이력
-[/code]
+```
 
 **📝 임계값 문서화 필수 항목**
 
@@ -1675,7 +1675,7 @@ Threshold 설정을 완료했다면:
 #### 11.2.2 1️⃣ 초기 설정 프로세스
 
 **Step 1: 과거 데이터 분석**
-[code] 
+```python
     # 과거 평가 데이터에서 통계 계산
     import json
     import numpy as np
@@ -1713,7 +1713,7 @@ Threshold 설정을 완료했다면:
     # 예시 실행
     files = ["evaluation_results/eval_v1.json", "evaluation_results/eval_v2.json"]
     suggested_thresholds = analyze_historical_data(files)
-[/code]
+```
 
 **Step 2: 산업 표준 참고**
 
@@ -1725,7 +1725,7 @@ E-commerce | > 90% | > 85% | < 3%
 General SaaS | > 85% | > 80% | < 5%  
   
 **Step 3: 임계값 제안서 작성**
-[code] 
+```python
     # 임계값 제안서
     
     ## 제안 일자
@@ -1758,7 +1758,7 @@ General SaaS | > 85% | > 80% | < 5%
     
     ## 승인 요청
     Tech Lead, Product Manager 검토 요청
-[/code]
+```
 
 #### 11.2.3 2️⃣ 검증 프로세스
 
@@ -1801,7 +1801,7 @@ Production | 무기한 | 전체 | 주 1회 확인 | 달성률 < 80%
 #### 11.3.2 변경 프로세스 (Change Management)
 
 **Step 1: 변경 요청서 (CR - Change Request)**
-[code] 
+```python
     # 임계값 변경 요청서 (CR-2024-042)
     
     ## 요청 일자
@@ -1835,7 +1835,7 @@ Production | 무기한 | 전체 | 주 1회 확인 | 달성률 < 80%
     ## 롤백 계획
     - 조건: 3개월 내 80% 미달 시
     - 조치: 원래 임계값(85%) 복구
-[/code]
+```
 
 **Step 2: 영향 분석 (Impact Analysis)**
 
@@ -1847,7 +1847,7 @@ Production | 무기한 | 전체 | 주 1회 확인 | 달성률 < 80%
 품질 위험 | 낮음 | 중간 | 증가  
   
 **Step 3: 승인 및 적용**
-[code] 
+```python
     # 1. 변경 요청서 작성
     vi thresholds/change_requests/CR-2024-042.md
     
@@ -1869,10 +1869,10 @@ Production | 무기한 | 전체 | 주 1회 확인 | 달성률 < 80%
     git commit -m "임계값 변경: TCR 85→80% (CR-042)"
     git push origin threshold-change-cr-042
     # → PR 생성 → 승인 → 머지
-[/code]
+```
 
 **Step 4: 변경 공지**
-[code] 
+```python
     # 📢 임계값 변경 공지
     
     ## 변경 일시
@@ -1893,12 +1893,12 @@ Production | 무기한 | 전체 | 주 1회 확인 | 달성률 < 80%
     
     ## 질문/문의
     Slack #qa-channel
-[/code]
+```
 
 #### 11.3.3 변경 이력 관리
 
 **CHANGELOG.md 예시**
-[code] 
+```python
     # Threshold Configuration Changelog
     
     ## 2024-12-02 (CR-042)
@@ -1920,7 +1920,7 @@ Production | 무기한 | 전체 | 주 1회 확인 | 달성률 < 80%
     - **Tool Selection Accuracy**: > 85% (Layer 2 신규 추가)
     - **사유**: 멀티 에이전트 시스템 도입
     - **승인자**: Tech Lead
-[/code]
+```
 
 ### 11.4 임계값 위반 대응
 
@@ -1948,7 +1948,7 @@ Production | 무기한 | 전체 | 주 1회 확인 | 달성률 < 80%
 7\. 사후 | T+1일 | 근본 원인 분석(RCA), 재발 방지 계획 | QA Lead  
   
 **위반 보고서 템플릿**
-[code] 
+```python
     # 임계값 위반 보고서 (P0-2024-042)
     
     ## 발생 일시
@@ -1987,7 +1987,7 @@ Production | 무기한 | 전체 | 주 1회 확인 | 달성률 < 80%
     - [ ] RCA 문서 작성 (기한: 12/03)
     - [ ] 프로세스 개선안 제안 (기한: 12/05)
     - [ ] 팀 회고 미팅 (일정: 12/04 10:00)
-[/code]
+```
 
 #### 11.4.3 위반 추세 분석
 
@@ -2001,7 +2001,7 @@ Production | 무기한 | 전체 | 주 1회 확인 | 달성률 < 80%
 11/20 | Tool Selection | > 85% | 78% | P1 | 도구 정의 개선 | ✅ 해결  
   
 **위반 패턴 분석**
-[code] 
+```python
     # 위반 이력에서 패턴 추출
     import pandas as pd
     
@@ -2027,7 +2027,7 @@ Production | 무기한 | 전체 | 주 1회 확인 | 달성률 < 80%
     print(f"
     🔄 재발 위반: {len(repeat_violations)}건")
     # → 근본 원인 미해결
-[/code]
+```
 
 ### 11.5 정기 임계값 리뷰
 
@@ -2054,7 +2054,7 @@ Production | 무기한 | 전체 | 주 1회 확인 | 달성률 < 80%
 #### 11.5.3 분기 리뷰 프로세스
 
 **Step 1: 데이터 수집 (리뷰 2주 전)**
-[code] 
+```python
     # 1. 분기 평가 데이터 통합
     python utils/merge_quarterly_results.py --quarter Q4-2024
     
@@ -2064,7 +2064,7 @@ Production | 무기한 | 전체 | 주 1회 확인 | 달성률 < 80%
     # 3. 리포트 생성
     python utils/generate_threshold_review_report.py --quarter Q4-2024
     # → threshold_review_Q4_2024.pdf
-[/code]
+```
 
 **Step 2: 분석 (리뷰 1주 전)**
 
@@ -2076,7 +2076,7 @@ Production | 무기한 | 전체 | 주 1회 확인 | 달성률 < 80%
 효과성 | 품질 게이트로서 효과적인가? | 불량 배포 차단 성공률  
   
 **Step 3: 리뷰 미팅 (분기 마지막 주)**
-[code] 
+```python
     # 분기 임계값 리뷰 미팅 안건
     
     ## 날짜/시간
@@ -2104,7 +2104,7 @@ Production | 무기한 | 전체 | 주 1회 확인 | 달성률 < 80%
     - 분기 리뷰 요약 문서
     - 2025 Q1 임계값 설정안
     - 개선 액션 아이템 (담당자, 마감일)
-[/code]
+```
 
 **Step 4: 액션 아이템 (리뷰 직후)**
 
@@ -2118,7 +2118,7 @@ CI/CD 위반 알림 Slack 통합 | DevOps | 01/20 | 📝 계획
 #### 11.5.4 리뷰 결과 문서화
 
 **분기 리뷰 요약 문서 템플릿**
-[code] 
+```python
     # Q4 2024 임계값 리뷰 요약
     
     ## 개요
@@ -2157,7 +2157,7 @@ CI/CD 위반 알림 Slack 통합 | DevOps | 01/20 | 📝 계획
     
     ## 다음 리뷰
     2025-03-20 (Q1 2025 리뷰)
-[/code]
+```
 
 **✅ QA 관리자 핵심 원칙 (임계값 관리)**
 

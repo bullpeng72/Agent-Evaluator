@@ -66,7 +66,7 @@ CI/CD 통합 및 프로덕션 배포 전략
 ### Dependencies
 
 **Core Dependencies** (필수):
-[code] 
+```json
     [](<#cb1-1>)# 데이터 처리
     [](<#cb1-2>)numpy>=1.20.0
     [](<#cb1-3>)pandas>=1.3.0
@@ -79,7 +79,7 @@ CI/CD 통합 및 프로덕션 배포 전략
     [](<#cb1-10>)
     [](<#cb1-11>)# 환경 변수 관리
     [](<#cb1-12>)python-dotenv>=1.0.0
-[/code]
+```
 
 **고급 통합 클래스**
 
@@ -93,7 +93,7 @@ CI/CD 통합 및 프로덕션 배포 전략
 자세한 내용은 [프레임워크 통합 가이드](<FRAMEWORK_INTEGRATION.html>)를 참고하세요.
 
 **Framework Integration** (선택 - 사용하는 프레임워크만 설치):
-[code] 
+```bash
     [](<#cb2-1>)# LangChain 통합
     [](<#cb2-2>)pip install langchain>=0.1.0
     [](<#cb2-3>)pip install langchain-core>=0.1.0
@@ -108,10 +108,10 @@ CI/CD 통합 및 프로덕션 배포 전략
     [](<#cb2-12>)
     [](<#cb2-13>)# AutoGen 통합
     [](<#cb2-14>)pip install pyautogen>=0.2.0
-[/code]
+```
 
 **Advanced Metrics** (선택 - Layer 3 고급 메트릭 사용 시):
-[code] 
+```bash
     [](<#cb3-1>)# DeepEval - G-Eval, Hallucination, Toxicity, Bias 탐지
     [](<#cb3-2>)pip install deepeval>=0.20.0
     [](<#cb3-3>)
@@ -126,24 +126,24 @@ CI/CD 통합 및 프로덕션 배포 전략
     [](<#cb3-12>)
     [](<#cb3-13>)# LangSmith (선택 - 프로덕션 추적)
     [](<#cb3-14>)pip install langsmith>=0.1.0
-[/code]
+```
 
 **Korean RAG Dataset Generator** (선택):
-[code] 
+```bash
     [](<#cb4-1>)# PDF 처리
     [](<#cb4-2>)pip install PyPDF2>=3.0.0
     [](<#cb4-3>)# 또는 pdfplumber>=0.10.0  # 더 정확한 추출
     [](<#cb4-4>)
     [](<#cb4-5>)# OpenAI API
     [](<#cb4-6>)pip install openai>=1.0.0
-[/code]
+```
 
 ### API Keys
 
 **OpenAI API** (선택): - DeepEval, Ragas, 일부 고급 메트릭 사용 시 필요 - Layer 1 (Native Metrics)만 사용 시 불필요
-[code] 
+```bash
     [](<#cb5-1>)export OPENAI_API_KEY='your-api-key-here'
-[/code]
+```
 
 **기타 LLM API** (선택): - Anthropic Claude API - Cohere API - 자체 호스팅 모델
 
@@ -152,7 +152,7 @@ CI/CD 통합 및 프로덕션 배포 전략
 ## Installation
 
 ### Method 1: From Source (현재 프로젝트 방식)
-[code] 
+```bash
     [](<#cb6-1>)# Repository clone
     [](<#cb6-2>)# 프로젝트 디렉토리로 이동
     [](<#cb6-3>)cd Agent_Evaluator
@@ -163,24 +163,24 @@ CI/CD 통합 및 프로덕션 배포 전략
     [](<#cb6-12>)
     [](<#cb6-13>)# 의존성 설치
     [](<#cb6-14>)pip install -r requirements.txt
-[/code]
+```
 
 ### Method 2: 최소 설치 (Native Metrics만 사용)
-[code] 
+```bash
     [](<#cb7-1>)# Core dependencies만 설치
     [](<#cb7-2>)pip install numpy>=1.24.0 pandas>=2.0.0 streamlit>=1.28.0 plotly>=5.17.0 python-dotenv>=1.0.0
-[/code]
+```
 
 ### Method 3: 완전 설치 (모든 기능 사용)
-[code] 
+```bash
     [](<#cb8-1>)# 모든 의존성 설치
     [](<#cb8-2>)pip install -r requirements.txt
-[/code]
+```
 
 ### Verification
 
 설치 확인:
-[code] 
+```python
     [](<#cb9-1>)# Python 버전 확인
     [](<#cb9-2>)python --version  # Python 3.11+ 권장
     [](<#cb9-3>)
@@ -189,7 +189,7 @@ CI/CD 통합 및 프로덕션 배포 전략
     [](<#cb9-6>)
     [](<#cb9-7>)# 대시보드 실행 테스트
     [](<#cb9-8>)cd Evaluator_Examples/Dashboard && streamlit run app.py
-[/code]
+```
 
 ### Project Structure
 
@@ -200,7 +200,7 @@ v0.5.0부터 프로젝트는 4개의 독립적인 컴포넌트로 구성됩니�
 **목적** : PyPI 배포 가능한 핵심 평가 패키지
 
 **설치** : `pip install agent-evaluator`
-[code] 
+```python
     agent_evaluator/
     ├── __init__.py                     # Package entry point
     │                                   # from agent_evaluator import PerformanceMonitor
@@ -240,14 +240,14 @@ v0.5.0부터 프로젝트는 4개의 독립적인 컴포넌트로 구성됩니�
     └── reporting/                      # 📄 보고서
         └── comprehensive_report.py     # ComprehensiveReportGenerator 클래스
                                         # - Markdown/HTML 종합 보고서 생성
-[/code]
+```
 
 #### 2\. 📚 Evaluator_Examples/ - Examples & Tutorials
 
 **목적** : 실행 가능한 예제 코드 모음
 
 **사용** : agent_evaluator 패키지 설치 후 예제 실행
-[code] 
+```
     Evaluator_Examples/
     ├── level_1_foundation/             # 🎯 Layer 1: Basic + Security Metrics
     │   ├── 00_new_api_demo.py          # v0.5.0 신규 API 데모 (quick start)
@@ -275,7 +275,7 @@ v0.5.0부터 프로젝트는 4개의 독립적인 컴포넌트로 구성됩니�
     │   └── 06_security_production_monitoring.py # 프로덕션 보안 모니터링
     │
     └── Dashboard/                      # → 독립 컴포넌트 (아래 섹션 3 참조)
-[/code]
+```
 
 #### 3\. 🌐 Dashboard/ - Web Dashboard (Standalone)
 
@@ -284,7 +284,7 @@ v0.5.0부터 프로젝트는 4개의 독립적인 컴포넌트로 구성됩니�
 **실행** : `cd Evaluator_Examples/Dashboard && streamlit run app.py`
 
 **위치** : `Evaluator_Examples/Dashboard/`
-[code] 
+```bash
     Dashboard/                          # 독립적인 Streamlit 앱
     ├── app.py                          # 🚪 Streamlit 앱 진입점
     │                                   # → streamlit run app.py
@@ -329,14 +329,14 @@ v0.5.0부터 프로젝트는 4개의 독립적인 컴포넌트로 구성됩니�
         ├── security_visualizations.py  # 보안 차트 및 시각화
         ├── enhanced_recommendations.py # 추천 시스템
         └── merge_evaluation_results.py # 평가 결과 병합 도구
-[/code]
+```
 
 #### 4\. 📖 Docs/ - Documentation (Standalone)
 
 **목적** : HTML 문서 (GitHub Pages 배포 가능)
 
 **접근** : 웹 브라우저로 직접 열기 또는 `index.html`
-[code] 
+```
     Docs/
     ├── index.html                      # 📑 문서 인덱스 (진입점)
     ├── index_content.html              # 인덱스 컨텐츠
@@ -409,10 +409,10 @@ v0.5.0부터 프로젝트는 4개의 독립적인 컴포넌트로 구성됩니�
     │
     └── scripts/                        # ⚙️ JavaScript
         └── docs.js                     # 문서 인터랙션
-[/code]
+```
 
 #### 프로젝트 루트 구조
-[code] 
+```bash
     Agent_Evaluator/                    # 프로젝트 루트
     ├── agent_evaluator/                # → 1. Core Package (pip install)
     ├── Evaluator_Examples/             # → 2. Examples & Tutorials
@@ -421,7 +421,7 @@ v0.5.0부터 프로젝트는 4개의 독립적인 컴포넌트로 구성됩니�
     ├── setup.py                        # PyPI 패키징 설정
     ├── requirements.txt                # Core 패키지 의존성
     └── README.md                       # 프로젝트 README
-[/code]
+```
 
 **⚡ 독립 실행 가능 컴포넌트:**
 
@@ -439,7 +439,7 @@ v0.5.0부터 프로젝트는 4개의 독립적인 컴포넌트로 구성됩니�
 **목적** : 빠른 실험과 반복
 
 **설정** :
-[code] 
+```python
     [](<#cb11-1>)# config/dev.py
     [](<#cb11-2>)from agent_evaluator import PerformanceMonitor
     [](<#cb11-3>)
@@ -453,10 +453,10 @@ v0.5.0부터 프로젝트는 4개의 독립적인 컴포넌트로 구성됩니�
     [](<#cb11-11>)    }
     [](<#cb11-12>)
     [](<#cb11-13>)    return monitor
-[/code]
+```
 
 **환경 변수** (`.env.dev`):
-[code] 
+```json
     [](<#cb12-1>)# Agent Evaluator 환경 변수 설정
     [](<#cb12-2>)
     [](<#cb12-3>)# =============================================================================
@@ -475,14 +475,14 @@ v0.5.0부터 프로젝트는 4개의 독립적인 컴포넌트로 구성됩니�
     [](<#cb12-16>)GOLDEN_DATASET_PATH=golden_datasets/dev_dataset.json
     [](<#cb12-17>)ENABLE_TRANSPARENCY=true
     [](<#cb12-18>)CACHE_ENABLED=true
-[/code]
+```
 
 ### Staging Environment
 
 **목적** : 프로덕션 준비 검증
 
 **설정** :
-[code] 
+```python
     [](<#cb13-1>)# config/staging.py
     [](<#cb13-2>)from agent_evaluator import PerformanceMonitor
     [](<#cb13-3>)
@@ -499,23 +499,23 @@ v0.5.0부터 프로젝트는 4개의 독립적인 컴포넌트로 구성됩니�
     [](<#cb13-14>)    }
     [](<#cb13-15>)
     [](<#cb13-16>)    return monitor
-[/code]
+```
 
 **환경 변수** (`.env.staging`):
-[code] 
+```json
     [](<#cb14-1>)ENV=staging
     [](<#cb14-2>)LOG_LEVEL=INFO
     [](<#cb14-3>)GOLDEN_DATASET_PATH=golden_datasets/staging_dataset.json
     [](<#cb14-4>)ENABLE_TRANSPARENCY=true
     [](<#cb14-5>)ALERT_WEBHOOK=https://hooks.slack.com/services/YOUR/STAGING/WEBHOOK
-[/code]
+```
 
 ### Production Environment
 
 **목적** : 최고 품질 보장
 
 **설정** :
-[code] 
+```python
     [](<#cb15-1>)# config/production.py
     [](<#cb15-2>)from agent_evaluator import PerformanceMonitor
     [](<#cb15-3>)import os
@@ -538,10 +538,10 @@ v0.5.0부터 프로젝트는 4개의 독립적인 컴포넌트로 구성됩니�
     [](<#cb15-20>)    }
     [](<#cb15-21>)
     [](<#cb15-22>)    return monitor
-[/code]
+```
 
 **환경 변수** (`.env.production`):
-[code] 
+```json
     [](<#cb16-1>)ENV=production
     [](<#cb16-2>)LOG_LEVEL=WARNING
     [](<#cb16-3>)GOLDEN_DATASET_PATH=golden_datasets/production_dataset.json
@@ -549,10 +549,10 @@ v0.5.0부터 프로젝트는 4개의 독립적인 컴포넌트로 구성됩니�
     [](<#cb16-5>)ALERT_WEBHOOK=https://hooks.slack.com/services/YOUR/PROD/WEBHOOK
     [](<#cb16-6>)SENTRY_DSN=https://your-sentry-dsn
     [](<#cb16-7>)MONITORING_ENABLED=true
-[/code]
+```
 
 ### Environment Auto-Detection
-[code] 
+```python
     [](<#cb17-1>)# config/__init__.py
     [](<#cb17-2>)import os
     [](<#cb17-3>)from .dev import get_dev_monitor
@@ -569,7 +569,7 @@ v0.5.0부터 프로젝트는 4개의 독립적인 컴포넌트로 구성됩니�
     [](<#cb17-14>)        return get_staging_monitor()
     [](<#cb17-15>)    else:
     [](<#cb17-16>)        return get_dev_monitor()
-[/code]
+```
 
 * * *
 
@@ -578,7 +578,7 @@ v0.5.0부터 프로젝트는 4개의 독립적인 컴포넌트로 구성됩니�
 ### CI/CD 통합 (GitLab CI / Jenkins 권장)
 
 #### Basic Quality Gate
-[code] 
+```json
     [](<#cb18-1>)# .github/workflows/quality-gate.yml
     [](<#cb18-2>)name: Agent Quality Gate
     [](<#cb18-3>)
@@ -619,10 +619,10 @@ v0.5.0부터 프로젝트는 4개의 독립적인 컴포넌트로 구성됩니�
     [](<#cb18-38>)        with:
     [](<#cb18-39>)          name: evaluation-results
     [](<#cb18-40>)          path: evaluation_results/
-[/code]
+```
 
 #### Advanced: Multi-Environment
-[code] 
+```json
     [](<#cb19-1>)# .github/workflows/multi-env-test.yml
     [](<#cb19-2>)name: Multi-Environment Testing
     [](<#cb19-3>)
@@ -684,10 +684,10 @@ v0.5.0부터 프로젝트는 4개의 독립적인 컴포넌트로 구성됩니�
     [](<#cb19-59>)        with:
     [](<#cb19-60>)          status: ${{ job.status }}
     [](<#cb19-61>)          webhook_url: ${{ secrets.SLACK_WEBHOOK }}
-[/code]
+```
 
 ### GitLab CI/CD
-[code] 
+```json
     [](<#cb20-1>)# .gitlab-ci.yml
     [](<#cb20-2>)stages:
     [](<#cb20-3>)  - test
@@ -740,10 +740,10 @@ v0.5.0부터 프로젝트는 4개의 독립적인 컴포넌트로 구성됩니�
     [](<#cb20-50>)    paths:
     [](<#cb20-51>)      - evaluation_results/
     [](<#cb20-52>)  allow_failure: false
-[/code]
+```
 
 ### Jenkins Pipeline
-[code] 
+```json
     [](<#cb21-1>)// Jenkinsfile
     [](<#cb21-2>)pipeline {
     [](<#cb21-3>)    agent any
@@ -831,12 +831,12 @@ v0.5.0부터 프로젝트는 4개의 독립적인 컴포넌트로 구성됩니�
     [](<#cb21-85>)        }
     [](<#cb21-86>)    }
     [](<#cb21-87>)}
-[/code]
+```
 
 ### Quality Gate Script
 
 실제 프로젝트 기반 예제:
-[code] 
+```python
     [](<#cb22-1>)# scripts/quality_gate.py
     [](<#cb22-2>)import os
     [](<#cb22-3>)import sys
@@ -1019,7 +1019,7 @@ v0.5.0부터 프로젝트는 4개의 독립적인 컴포넌트로 구성됩니�
     [](<#cb22-180>)
     [](<#cb22-181>)if __name__ == "__main__":
     [](<#cb22-182>)    main()
-[/code]
+```
 
 * * *
 
@@ -1028,7 +1028,7 @@ v0.5.0부터 프로젝트는 4개의 독립적인 컴포넌트로 구성됩니�
 ### Dockerfile
 
 실제 프로젝트 기반:
-[code] 
+```json
     [](<#cb23-1>)# Dockerfile
     [](<#cb23-2>)FROM python:3.11-slim
     [](<#cb23-3>)
@@ -1076,12 +1076,12 @@ v0.5.0부터 프로젝트는 4개의 독립적인 컴포넌트로 구성됩니�
     [](<#cb23-31>)
     [](<#cb23-32>)# Default command: Run dashboard
     [](<#cb23-33>)CMD ["streamlit", "run", "Evaluator_Examples/Dashboard/app.py", "--server.port=8501", "--server.address=0.0.0.0"]
-[/code]
+```
 
 ### docker-compose.yml
 
 실제 프로젝트 기반:
-[code] 
+```json
     [](<#cb24-1>)# docker-compose.yml
     [](<#cb24-2>)version: '3.8'
     [](<#cb24-3>)
@@ -1131,10 +1131,10 @@ v0.5.0부터 프로젝트는 4개의 독립적인 컴포넌트로 구성됩니�
     [](<#cb24-47>)volumes:
     [](<#cb24-48>)  evaluation_results:
     [](<#cb24-49>)  golden_datasets:
-[/code]
+```
 
 ### .dockerignore
-[code] 
+```python
     # .dockerignore
     __pycache__/
     *.py[cod]
@@ -1162,10 +1162,10 @@ v0.5.0부터 프로젝트는 4개의 독립적인 컴포넌트로 구성됩니�
     dist/
     build/
     *.egg-info/
-[/code]
+```
 
 ### Build and Run
-[code] 
+```json
     [](<#cb26-1>)# ============================================================================
     [](<#cb26-2>)# 방법 1: Docker Compose 사용 (권장)
     [](<#cb26-3>)# ============================================================================
@@ -1250,14 +1250,14 @@ v0.5.0부터 프로젝트는 4개의 독립적인 컴포넌트로 구성됩니�
     [](<#cb26-82>)
     [](<#cb26-83>)# 리소스 사용량 확인
     [](<#cb26-84>)docker stats agent-evaluator-dashboard
-[/code]
+```
 
 * * *
 
 ## Production Configuration
 
 ### config/production.py
-[code] 
+```python
     [](<#cb27-1>)import os
     [](<#cb27-2>)from agent_evaluator import PerformanceMonitor
     [](<#cb27-3>)from data_editor_manager import DataEditorManager
@@ -1314,14 +1314,14 @@ v0.5.0부터 프로젝트는 4개의 독립적인 컴포넌트로 구성됩니�
     [](<#cb27-54>)    config = get_production_config()
     [](<#cb27-55>)    monitor = PerformanceMonitor.from_test_config(config["config_id"])
     [](<#cb27-56>)    return monitor
-[/code]
+```
 
 * * *
 
 ## Monitoring & Logging
 
 ### Logging Configuration
-[code] 
+```python
     [](<#cb28-1>)# logging_config.py
     [](<#cb28-2>)import logging
     [](<#cb28-3>)import os
@@ -1340,10 +1340,10 @@ v0.5.0부터 프로젝트는 4개의 독립적인 컴포넌트로 구성됩니�
     [](<#cb28-16>)    )
     [](<#cb28-17>)
     [](<#cb28-18>)    return logging.getLogger("agent_evaluator")
-[/code]
+```
 
 ### Sentry Integration
-[code] 
+```python
     [](<#cb29-1>)# monitoring.py
     [](<#cb29-2>)import sentry_sdk
     [](<#cb29-3>)import os
@@ -1357,10 +1357,10 @@ v0.5.0부터 프로젝트는 4개의 독립적인 컴포넌트로 구성됩니�
     [](<#cb29-11>)            environment=os.getenv("ENV", "development"),
     [](<#cb29-12>)            traces_sample_rate=0.1
     [](<#cb29-13>)        )
-[/code]
+```
 
 ### Prometheus Metrics
-[code] 
+```python
     [](<#cb30-1>)# metrics.py
     [](<#cb30-2>)from prometheus_client import Counter, Histogram, Gauge, start_http_server
     [](<#cb30-3>)
@@ -1373,7 +1373,7 @@ v0.5.0부터 프로젝트는 4개의 독립적인 컴포넌트로 구성됩니�
     [](<#cb30-10>)def start_metrics_server(port=9090):
     [](<#cb30-11>)    """Prometheus 메트릭 서버 시작"""
     [](<#cb30-12>)    start_http_server(port)
-[/code]
+```
 
 * * *
 
@@ -1382,15 +1382,15 @@ v0.5.0부터 프로젝트는 4개의 독립적인 컴포넌트로 구성됩니�
 ### API Key Management
 
 **DO** : - 환경 변수로 관리 - Secrets Manager 사용 (AWS Secrets Manager, HashiCorp Vault) - CI/CD에서 안전하게 주입
-[code] 
+```json
     [](<#cb31-1>)# .env (Git에 커밋하지 말 것!)
     [](<#cb31-2>)OPENAI_API_KEY=sk-...
-[/code]
+```
 
 **DON’T** : - 코드에 하드코딩 - Git에 커밋 - 로그에 출력
 
 ### Input Validation
-[code] 
+```python
     [](<#cb32-1>)def validate_input(question: str):
     [](<#cb32-2>)    """입력 검증"""
     [](<#cb32-3>)    if not question or len(question) > 10000:
@@ -1401,10 +1401,10 @@ v0.5.0부터 프로젝트는 4개의 독립적인 컴포넌트로 구성됩니�
     [](<#cb32-8>)        raise ValueError("Suspicious input detected")
     [](<#cb32-9>)
     [](<#cb32-10>)    return True
-[/code]
+```
 
 ### Rate Limiting
-[code] 
+```python
     [](<#cb33-1>)from functools import wraps
     [](<#cb33-2>)import time
     [](<#cb33-3>)
@@ -1431,14 +1431,14 @@ v0.5.0부터 프로젝트는 4개의 독립적인 컴포넌트로 구성됩니�
     [](<#cb33-24>)def evaluate_agent(question):
     [](<#cb33-25>)    """Rate limited evaluation"""
     [](<#cb33-26>)    pass
-[/code]
+```
 
 * * *
 
 ## Performance Optimization
 
 ### Caching
-[code] 
+```python
     [](<#cb34-1>)from functools import lru_cache
     [](<#cb34-2>)
     [](<#cb34-3>)@lru_cache(maxsize=1000)
@@ -1446,10 +1446,10 @@ v0.5.0부터 프로젝트는 4개의 독립적인 컴포넌트로 구성됩니�
     [](<#cb34-5>)    """유사도 계산 캐싱"""
     [](<#cb34-6>)    # 계산 로직
     [](<#cb34-7>)    pass
-[/code]
+```
 
 ### Batch Processing
-[code] 
+```python
     [](<#cb35-1>)def batch_evaluate(questions: List[str], batch_size=10):
     [](<#cb35-2>)    """배치 평가로 성능 향상"""
     [](<#cb35-3>)    results = []
@@ -1460,10 +1460,10 @@ v0.5.0부터 프로젝트는 4개의 독립적인 컴포넌트로 구성됩니�
     [](<#cb35-8>)        results.extend(batch_results)
     [](<#cb35-9>)
     [](<#cb35-10>)    return results
-[/code]
+```
 
 ### Parallel Execution
-[code] 
+```python
     [](<#cb36-1>)from concurrent.futures import ThreadPoolExecutor
     [](<#cb36-2>)
     [](<#cb36-3>)def parallel_evaluate(questions: List[str], max_workers=4):
@@ -1471,7 +1471,7 @@ v0.5.0부터 프로젝트는 4개의 독립적인 컴포넌트로 구성됩니�
     [](<#cb36-5>)    with ThreadPoolExecutor(max_workers=max_workers) as executor:
     [](<#cb36-6>)        results = list(executor.map(evaluate, questions))
     [](<#cb36-7>)    return results
-[/code]
+```
 
 * * *
 
@@ -1480,29 +1480,29 @@ v0.5.0부터 프로젝트는 4개의 독립적인 컴포넌트로 구성됩니�
 ### Common Issues
 
 #### Issue 1: Import Error
-[code] 
+```python
     ModuleNotFoundError: No module named 'agent_evaluator'
-[/code]
+```
 
 **Solution** :
-[code] 
+```bash
     [](<#cb38-1>)pip install agent-evaluator
-[/code]
+```
 
 #### Issue 2: API Key Error
-[code] 
+```python
     AuthenticationError: Invalid API key
-[/code]
+```
 
 **Solution** :
-[code] 
+```bash
     [](<#cb40-1>)export OPENAI_API_KEY='your-valid-key'
-[/code]
+```
 
 #### Issue 3: Memory Error
-[code] 
+```python
     MemoryError: Unable to allocate memory
-[/code]
+```
 
 **Solution** : - Reduce batch size - Enable caching - Increase system RAM
 
@@ -1511,13 +1511,13 @@ v0.5.0부터 프로젝트는 4개의 독립적인 컴포넌트로 구성됩니�
 ## Maintenance
 
 ### Updating Agent Evaluator
-[code] 
+```bash
     [](<#cb42-1>)# 최신 버전으로 업데이트
     [](<#cb42-2>)pip install --upgrade agent-evaluator
     [](<#cb42-3>)
     [](<#cb42-4>)# 특정 버전으로 업데이트
     [](<#cb42-5>)pip install agent-evaluator==0.5.0
-[/code]
+```
 
 ### Golden Dataset Maintenance
 
@@ -1538,7 +1538,7 @@ v0.5.0부터 프로젝트는 4개의 독립적인 컴포넌트로 구성됩니�
 배포 전 확인 사항:
 
 ### 1\. 환경 설정 확인
-[code] 
+```json
     [](<#cb43-1>)# ✓ Python 버전 확인
     [](<#cb43-2>)python --version  # 3.11+ 권장
     [](<#cb43-3>)
@@ -1550,10 +1550,10 @@ v0.5.0부터 프로젝트는 4개의 독립적인 컴포넌트로 구성됩니�
     [](<#cb43-9>)
     [](<#cb43-10>)# ✓ 디렉토리 구조 확인
     [](<#cb43-11>)ls -la golden_datasets/ evaluation_results/
-[/code]
+```
 
 ### 2\. 기능 테스트
-[code] 
+```bash
     [](<#cb44-1>)# ✓ Core 모듈 import 테스트
     [](<#cb44-2>)python -c "
     [](<#cb44-3>)from agent_evaluator import PerformanceMonitor
@@ -1572,10 +1572,10 @@ v0.5.0부터 프로젝트는 4개의 독립적인 컴포넌트로 구성됩니�
     [](<#cb44-16>)
     [](<#cb44-17>)# ✓ 패키지 import 테스트
     [](<#cb44-18>)python -c "from agent_evaluator import PerformanceMonitor; print('✅ Package import OK')"
-[/code]
+```
 
 ### 3\. 성능 및 보안
-[code] 
+```bash
     [](<#cb45-1>)# ✓ .env 파일이 Git에 포함되지 않았는지 확인
     [](<#cb45-2>)git check-ignore .env  # .env 출력되어야 함
     [](<#cb45-3>)
@@ -1589,10 +1589,10 @@ v0.5.0부터 프로젝트는 4개의 독립적인 컴포넌트로 구성됩니�
     [](<#cb45-11>)monitor = PerformanceMonitor()
     [](<#cb45-12>)print(f'Memory usage: {sys.getsizeof(monitor)} bytes')
     [](<#cb45-13>)"
-[/code]
+```
 
 ### 4\. CI/CD 통합 확인
-[code] 
+```json
     [](<#cb46-1>)# ✓ Quality Gate 스크립트 테스트
     [](<#cb46-2>)python scripts/quality_gate.py
     [](<#cb46-3>)
@@ -1603,10 +1603,10 @@ v0.5.0부터 프로젝트는 4개의 독립적인 컴포넌트로 구성됩니�
     [](<#cb46-8>)monitor.thresholds = {'tcr': 95.0, 'accuracy': 90.0}
     [](<#cb46-9>)print('Thresholds:', monitor.thresholds)
     [](<#cb46-10>)"
-[/code]
+```
 
 ### 5\. Docker 배포 (선택)
-[code] 
+```bash
     [](<#cb47-1>)# ✓ Dockerfile 존재 확인
     [](<#cb47-2>)test -f Dockerfile && echo "Dockerfile exists" || echo "Dockerfile missing"
     [](<#cb47-3>)
@@ -1618,7 +1618,7 @@ v0.5.0부터 프로젝트는 4개의 독립적인 컴포넌트로 구성됩니�
     [](<#cb47-9>)
     [](<#cb47-10>)# ✓ 컨테이너 실행 테스트
     [](<#cb47-11>)docker run --rm -e ENV=test agent-evaluator:test python -c "import agent_evaluator; print('OK')"
-[/code]
+```
 
 ### 6\. 문서화
 
@@ -1641,7 +1641,7 @@ v0.5.0부터 프로젝트는 4개의 독립적인 컴포넌트로 구성됩니�
 ## Quick Reference
 
 ### 주요 파일 위치
-[code] 
+```python
     Agent_Evaluator/
     ├── agent_evaluator/                          # Core Python Package
     │   ├── core/
@@ -1661,10 +1661,10 @@ v0.5.0부터 프로젝트는 4개의 독립적인 컴포넌트로 구성됩니�
     ├── requirements.txt                          # Core 패키지 의존성
     ├── setup.py                                  # PyPI 패키징
     └── .env                                      # 환경 변수 (OPENAI_API_KEY)
-[/code]
+```
 
 ### 주요 명령어
-[code] 
+```bash
     [](<#cb49-1>)# Dashboard 실행
     [](<#cb49-2>)cd Evaluator_Examples/Dashboard && streamlit run app.py
     [](<#cb49-3>)
@@ -1679,10 +1679,10 @@ v0.5.0부터 프로젝트는 4개의 독립적인 컴포넌트로 구성됩니�
     [](<#cb49-12>)
     [](<#cb49-13>)# Hybrid 평가 (Layer 3, 예제)
     [](<#cb49-14>)python Evaluator_Examples/01_hybrid_evaluation_example.py
-[/code]
+```
 
 ### 환경 변수
-[code] 
+```json
     [](<#cb50-1>)# 필수
     [](<#cb50-2>)OPENAI_API_KEY=your-api-key-here
     [](<#cb50-3>)
@@ -1692,14 +1692,14 @@ v0.5.0부터 프로젝트는 4개의 독립적인 컴포넌트로 구성됩니�
     [](<#cb50-7>)GOLDEN_DATASET_PATH=golden_datasets/sample_dataset.json
     [](<#cb50-8>)ALERT_WEBHOOK=https://hooks.slack.com/services/...
     [](<#cb50-9>)SENTRY_DSN=https://...
-[/code]
+```
 
 ### 포트 및 네트워크
-[code] 
+```python
     Streamlit Dashboard: http://localhost:8501
     Docker Dashboard:    http://localhost:8501
     Health Check:        http://localhost:8501/_stcore/health
-[/code]
+```
 
 * * *
 
@@ -1725,7 +1725,7 @@ Agent Evaluator를 효율적으로 배포하고 관리하기 위한 개발자 �
 ### 13.1 배포 자동화
 
 #### 13.1.1 배포 스크립트 (deploy.sh)
-[code] 
+```python
     #!/bin/bash
     # deploy.sh - Agent Evaluator 자동 배포 스크립트
     set -e  # Exit on error
@@ -1913,12 +1913,12 @@ Agent Evaluator를 효율적으로 배포하고 관리하기 위한 개발자 �
     log "Version: $(git describe --tags --always)"
     log "Backup: $BACKUP_FILE"
     
-[/code]
+```
 
 #### 13.1.2 CI/CD 파이프라인 통합
 
 **GitHub Actions 예제**
-[code] 
+```python
     # .github/workflows/deploy.yml
     name: Deploy Agent Evaluator
     
@@ -2017,10 +2017,10 @@ Agent Evaluator를 효율적으로 배포하고 관리하기 위한 개발자 �
                 Commit: ${{ github.sha }}
               webhook_url: ${{ secrets.SLACK_WEBHOOK }}
     
-[/code]
+```
 
 #### 13.1.3 Blue-Green 배포 스크립트
-[code] 
+```python
     #!/usr/bin/env python3
     """
     blue_green_deploy.py - Blue-Green 배포 자동화
@@ -2219,7 +2219,7 @@ Agent Evaluator를 효율적으로 배포하고 관리하기 위한 개발자 �
         deployer = BlueGreenDeployer(environment)
         deployer.deploy()
     
-[/code]
+```
 
 ### 13.2 환경별 배포 전략
 
@@ -2233,7 +2233,7 @@ Agent Evaluator를 효율적으로 배포하고 관리하기 위한 개발자 �
 🔬 Canary | 일부 사용자 선행 배포 | Production 배포 전 | PM + Tech Lead 승인 | 자동 롤백 (에러율 > 1%)  
   
 #### 13.2.2 환경별 설정 파일 관리
-[code] 
+```
     # 디렉토리 구조
     config/
     ├── common.env          # 공통 설정
@@ -2245,10 +2245,10 @@ Agent Evaluator를 효율적으로 배포하고 관리하기 위한 개발자 �
         ├── staging-secrets.env
         └── prod-secrets.env
     
-[/code]
+```
 
 **환경 설정 예시**
-[code] 
+```python
     # config/production.env
     # Application
     APP_ENV=production
@@ -2285,10 +2285,10 @@ Agent Evaluator를 효율적으로 배포하고 관리하기 위한 개발자 �
     SESSION_COOKIE_SECURE=true
     CSRF_COOKIE_SECURE=true
     
-[/code]
+```
 
 #### 13.2.3 Canary 배포 전략
-[code] 
+```python
     #!/usr/bin/env python3
     """
     canary_deploy.py - Canary 배포 및 자동 모니터링
@@ -2433,12 +2433,12 @@ Agent Evaluator를 효율적으로 배포하고 관리하기 위한 개발자 �
         success = deployer.deploy_canary()
         exit(0 if success else 1)
     
-[/code]
+```
 
 ### 13.3 롤백 및 복구
 
 #### 13.3.1 즉시 롤백 스크립트
-[code] 
+```python
     #!/bin/bash
     # rollback.sh - 이전 버전으로 즉시 롤백
     set -e
@@ -2505,10 +2505,10 @@ Agent Evaluator를 효율적으로 배포하고 관리하기 위한 개발자 �
     echo "Check logs: sudo journalctl -u agent-evaluator -n 100"
     exit 1
     
-[/code]
+```
 
 #### 13.3.2 데이터베이스 마이그레이션 롤백
-[code] 
+```python
     #!/usr/bin/env python3
     """
     db_rollback.py - 데이터베이스 마이그레이션 롤백
@@ -2549,7 +2549,7 @@ Agent Evaluator를 효율적으로 배포하고 관리하기 위한 개발자 �
         else:
             print("Rollback cancelled")
     
-[/code]
+```
 
 #### 13.3.3 자동 롤백 트리거
 
@@ -2563,7 +2563,7 @@ CPU/Memory 급증 | CPU > 90%, Memory > 95% | 15분 대기 후 롤백 | Slack
 ### 13.4 배포 디버깅
 
 #### 13.4.1 배포 후 즉시 체크 스크립트
-[code] 
+```python
     #!/usr/bin/env python3
     """
     post_deploy_check.py - 배포 후 즉시 실행하는 종합 체크
@@ -2733,7 +2733,7 @@ CPU/Memory 급증 | CPU > 90%, Memory > 95% | 15분 대기 후 롤백 | Slack
         success = checker.run_all_checks()
         sys.exit(0 if success else 1)
     
-[/code]
+```
 
 #### 13.4.2 배포 문제 트러블슈팅 가이드
 
@@ -2748,7 +2748,7 @@ DB 연결 실패 | 네트워크, 인증 오류 | `telnet db-host 5432` | DB 연�
 ### 13.5 성능 튜닝
 
 #### 13.5.1 Gunicorn 최적 설정
-[code] 
+```python
     # gunicorn_config.py
     import multiprocessing
     import os
@@ -2807,10 +2807,10 @@ DB 연결 실패 | 네트워크, 인증 오류 | `telnet db-host 5432` | DB 연�
         """워커 fork 후 실행"""
         print(f"Worker spawned (pid: {worker.pid})")
     
-[/code]
+```
 
 #### 13.5.2 성능 벤치마크 스크립트
-[code] 
+```python
     #!/bin/bash
     # benchmark.sh - 성능 벤치마크 실행
     
@@ -2843,7 +2843,7 @@ DB 연결 실패 | 네트워크, 인증 오류 | `telnet db-host 5432` | DB 연�
     
     echo -e "\n=== Benchmark Completed ==="
     
-[/code]
+```
 
 #### 13.5.3 프로덕션 최적화 체크리스트
 

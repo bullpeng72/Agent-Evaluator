@@ -35,7 +35,7 @@ agent-evaluator는 **Zero Configuration** 철학을 따릅니다. 별도의 설�
 ### 프로젝트 구조
 
 agent-evaluator는 다음과 같은 표준 프로젝트 구조를 권장합니다:
-[code] 
+```
     MyProject/                    # 프로젝트 루트
     ├── .git/                     # Git 저장소 (선택사항)
     ├── Dashboard/                # Dashboard 앱
@@ -45,7 +45,7 @@ agent-evaluator는 다음과 같은 표준 프로젝트 구조를 권장합니�
     │       └── golden_datasets/       # Golden Datasets
     ├── my_agent.py               # Agent 코드
     └── requirements.txt
-[/code]
+```
 
 ### 자동 경로 감지
 
@@ -63,7 +63,7 @@ agent-evaluator는 다음 우선순위로 프로젝트 루트를 자동 감지�
 ## 사용 방법
 
 ### 1\. 기본 사용 (Zero Configuration)
-[code] 
+```python
     from agent_evaluator import PerformanceMonitor, TaskResult, TaskType
     from datetime import datetime
     
@@ -90,7 +90,7 @@ agent-evaluator는 다음 우선순위로 프로젝트 루트를 자동 감지�
     # 3. 저장 (자동으로 올바른 위치에 저장)
     monitor.save_to_file("my_evaluation.json")
     # → {프로젝트_루트}/Dashboard/data/evaluation_results/my_evaluation.json
-[/code]
+```
 
 #### 💡 저장되는 위치
 
@@ -99,7 +99,7 @@ agent-evaluator는 다음 우선순위로 프로젝트 루트를 자동 감지�
   * 그 외: `{Current_Dir}/Dashboard/data/evaluation_results/`
 
 ### 2\. KoreanRAGEvaluator (Zero Configuration)
-[code] 
+```python
     from agent_evaluator.datasets.korean_rag_evaluator import KoreanRAGEvaluator
     
     # Zero Configuration - 경로 지정 안 함!
@@ -110,10 +110,10 @@ agent-evaluator는 다음 우선순위로 프로젝트 루트를 자동 감지�
     # 평가 수행
     results = evaluator.evaluate_dataset(dataset)
     # → {프로젝트_루트}/Dashboard/data/evaluation_results/에 자동 저장
-[/code]
+```
 
 ### 3\. TestTransparencyManager (Zero Configuration)
-[code] 
+```python
     from agent_evaluator.utils.test_transparency_manager import TestTransparencyManager
     
     # Zero Configuration - 경로 지정 안 함!
@@ -125,12 +125,12 @@ agent-evaluator는 다음 우선순위로 프로젝트 루트를 자동 감지�
     trace_id = transparency_mgr.start_metric_calculation("accuracy", "quality")
     transparency_mgr.complete_metric_calculation(trace_id, 0.95)
     # → {프로젝트_루트}/Dashboard/data/evaluation_results/traces/에 자동 저장
-[/code]
+```
 
 ### 4\. 환경 변수로 명시적 지정
 
 프로젝트 루트를 명시적으로 지정하고 싶은 경우:
-[code] 
+```bash
     # Linux/Mac
     export AGENT_EVALUATOR_ROOT=/path/to/my/project
     
@@ -140,12 +140,12 @@ agent-evaluator는 다음 우선순위로 프로젝트 루트를 자동 감지�
     # Python 코드에서
     import os
     os.environ['AGENT_EVALUATOR_ROOT'] = '/path/to/my/project'
-[/code]
+```
 
 ### 5\. 절대 경로 사용 (옵션)
 
 특정 위치에 저장하고 싶은 경우:
-[code] 
+```python
     # 절대 경로 사용 시 자동 경로 감지를 우회
     monitor.save_to_file("/custom/path/my_evaluation.json")
     
@@ -157,7 +157,7 @@ agent-evaluator는 다음 우선순위로 프로젝트 루트를 자동 감지�
     
     # TestTransparencyManager에서 커스텀 경로 지정
     transparency_mgr = TestTransparencyManager(output_dir="/custom/evaluation_results")
-[/code]
+```
 
 * * *
 
@@ -175,7 +175,7 @@ agent-evaluator는 다음 우선순위로 프로젝트 루트를 자동 감지�
   * **자동 디렉토리 생성** : 필요한 경로 자동 생성
 
 #### 핵심 함수들
-[code] 
+```python
     from agent_evaluator.utils.path_helpers import (
         find_project_root,           # 프로젝트 루트 자동 탐지
         get_evaluation_results_dir,  # 평가 결과 디렉토리 경로
@@ -202,10 +202,10 @@ agent-evaluator는 다음 우선순위로 프로젝트 루트를 자동 감지�
     is_valid = is_valid_dashboard(dashboard_dir)
     print(f"유효한 Dashboard: {is_valid}")
     # → True (app.py 또는 streamlit_dashboard.py 존재 시)
-[/code]
+```
 
 ### 프로젝트 루트 감지 과정
-[code] 
+```python
     from pathlib import Path
     import os
     
@@ -248,7 +248,7 @@ agent-evaluator는 다음 우선순위로 프로젝트 루트를 자동 감지�
     
         # 4. 폴백: 현재 작업 디렉토리
         return Path.cwd().resolve()
-[/code]
+```
 
 #### 💡 Dashboard 검증 로직
 
@@ -260,7 +260,7 @@ v0.5.0부터 Dashboard 디렉토리를 찾을 때 **실제 agent_evaluator Dashb
   * 이를 통해 우연히 같은 이름을 가진 다른 폴더와 구분
 
 ### 자동 저장 로직
-[code] 
+```python
     def save_to_file(self, filename: str = "performance_data.json"):
         """자동으로 올바른 위치에 저장"""
     
@@ -274,7 +274,7 @@ v0.5.0부터 Dashboard 디렉토리를 찾을 때 **실제 agent_evaluator Dashb
         # 파일 저장
         with open(filename, 'w', encoding='utf-8') as f:
             json.dump(data, f, indent=2, ensure_ascii=False)
-[/code]
+```
 
 * * *
 
@@ -283,7 +283,7 @@ v0.5.0부터 Dashboard 디렉토리를 찾을 때 **실제 agent_evaluator Dashb
 ### 자동 레지스트리 등록
 
 저장된 파일은 자동으로 `~/.agent_evaluator/registry.json`에 등록됩니다:
-[code] 
+```json
     {
       "version": "0.5.0",
       "created_at": "2025-12-08T10:00:00",
@@ -301,7 +301,7 @@ v0.5.0부터 Dashboard 디렉토리를 찾을 때 **실제 agent_evaluator Dashb
         }
       }
     }
-[/code]
+```
 
 ### Dashboard에서 자동 인식
 
@@ -316,7 +316,7 @@ Dashboard는 다음 방법으로 데이터를 자동 인식합니다:
 ## 실전 예시
 
 ### 예시 1: Git 프로젝트
-[code] 
+```
     MyProject/
     ├── .git/                    # ← Git 루트 감지
     ├── Dashboard/
@@ -324,8 +324,8 @@ Dashboard는 다음 방법으로 데이터를 자동 인식합니다:
     │       └── evaluation_results/  # ← 여기에 저장됨
     ├── my_agent.py
     └── run_evaluation.py
-[/code]
-[code] 
+```
+```python
     # run_evaluation.py
     from agent_evaluator import PerformanceMonitor
     
@@ -333,28 +333,28 @@ Dashboard는 다음 방법으로 데이터를 자동 인식합니다:
     # ... task 기록 ...
     monitor.save_to_file("results.json")
     # → MyProject/Dashboard/data/evaluation_results/results.json
-[/code]
+```
 
 ### 예시 2: Dashboard 프로젝트
-[code] 
+```
     AgentApp/
     ├── Dashboard/               # ← Dashboard 감지
     │   └── data/
     │       └── evaluation_results/  # ← 여기에 저장됨
     └── src/
         └── agent.py
-[/code]
-[code] 
+```
+```python
     # src/agent.py
     from agent_evaluator import PerformanceMonitor
     
     monitor = PerformanceMonitor()
     monitor.save_to_file("agent_results.json")
     # → AgentApp/Dashboard/data/evaluation_results/agent_results.json
-[/code]
+```
 
 ### 예시 3: 환경 변수 사용
-[code] 
+```bash
     # 프로젝트 루트 명시적 지정
     export AGENT_EVALUATOR_ROOT=/home/user/projects/MyAgent
     
@@ -362,7 +362,7 @@ Dashboard는 다음 방법으로 데이터를 자동 인식합니다:
     cd /tmp
     python /home/user/projects/MyAgent/src/agent.py
     # → /home/user/projects/MyAgent/Dashboard/data/evaluation_results/에 저장
-[/code]
+```
 
 * * *
 
@@ -371,7 +371,7 @@ Dashboard는 다음 방법으로 데이터를 자동 인식합니다:
 ### 1\. 표준 설치 (권장)
 
 프로젝트 루트에 Dashboard 폴더 생성:
-[code] 
+```bash
     cd /path/to/MyProject
     mkdir -p Dashboard/data/{evaluation_results,golden_datasets}
     
@@ -379,13 +379,13 @@ Dashboard는 다음 방법으로 데이터를 자동 인식합니다:
     # 방법 1: GitHub에서 Dashboard 폴더 다운로드
     # 방법 2: pip 설치 위치에서 Dashboard 템플릿 복사
     # pip show agent-evaluator로 설치 위치 확인 후 복사
-[/code]
+```
 
 ### 2\. Dashboard 실행
-[code] 
+```bash
     cd /path/to/MyProject
     streamlit run Dashboard/app.py
-[/code]
+```
 
 Dashboard가 자동으로 `Dashboard/data/` 하위 데이터를 인식합니다.
 
@@ -396,7 +396,7 @@ Dashboard가 자동으로 `Dashboard/data/` 하위 데이터를 인식합니다.
 ### 기본 사용법
 
 기존 클래스 메서드 대신 `path_helpers` 모듈을 직접 사용할 수 있습니다:
-[code] 
+```python
     from agent_evaluator.utils.path_helpers import (
         find_project_root,
         get_evaluation_results_dir,
@@ -421,14 +421,14 @@ Dashboard가 자동으로 `Dashboard/data/` 하위 데이터를 인식합니다.
         print("✅ 유효한 Dashboard입니다!")
     else:
         print("⚠️ Dashboard가 존재하지 않거나 유효하지 않습니다.")
-[/code]
+```
 
 ### 마이그레이션 가이드
 
 기존 코드를 새로운 `path_helpers` 모듈로 마이그레이션하는 방법:
 
 #### Before (하드코딩된 경로)
-[code] 
+```python
     from pathlib import Path
     
     # ❌ 문제: 상위 디렉토리를 하드코딩하면 잘못된 위치에 저장될 수 있음
@@ -438,10 +438,10 @@ Dashboard가 자동으로 `Dashboard/data/` 하위 데이터를 인식합니다.
     # 결과 저장
     with open(EVALUATION_RESULTS_DIR / "results.json", 'w') as f:
         json.dump(data, f)
-[/code]
+```
 
 #### After (Zero Configuration)
-[code] 
+```python
     from agent_evaluator.utils.path_helpers import get_evaluation_results_dir
     
     # ✅ 해결: 자동으로 올바른 위치 탐지
@@ -450,25 +450,25 @@ Dashboard가 자동으로 `Dashboard/data/` 하위 데이터를 인식합니다.
     # 결과 저장 (디렉토리 자동 생성됨)
     with open(results_dir / "results.json", 'w') as f:
         json.dump(data, f)
-[/code]
+```
 
 #### Before (클래스 메서드 사용)
-[code] 
+```python
     from agent_evaluator import PerformanceMonitor
     
     # ✓ 동작하지만 권장하지 않음
     project_root = PerformanceMonitor._find_project_root()
     results_dir = project_root / "Dashboard" / "data" / "evaluation_results"
-[/code]
+```
 
 #### After (직접 import)
-[code] 
+```python
     from agent_evaluator.utils.path_helpers import find_project_root, get_evaluation_results_dir
     
     # ✅ 권장: 직접 path_helpers 모듈 사용
     project_root = find_project_root()
     results_dir = get_evaluation_results_dir()
-[/code]
+```
 
 #### 💡 하위 호환성 보장
 
@@ -480,7 +480,7 @@ Dashboard가 자동으로 `Dashboard/data/` 하위 데이터를 인식합니다.
 ### 고급 사용 예시
 
 #### 커스텀 프로젝트 루트 지정
-[code] 
+```python
     from pathlib import Path
     from agent_evaluator.utils.path_helpers import get_evaluation_results_dir
     
@@ -496,10 +496,10 @@ Dashboard가 자동으로 `Dashboard/data/` 하위 데이터를 인식합니다.
     # 이후 모든 호출은 지정된 루트 사용
     results_dir = get_evaluation_results_dir()
     # → /path/to/custom/project/Dashboard/data/evaluation_results
-[/code]
+```
 
 #### 여러 프로젝트 동시 관리
-[code] 
+```python
     from pathlib import Path
     from agent_evaluator.utils.path_helpers import get_evaluation_results_dir, is_valid_dashboard
     
@@ -518,7 +518,7 @@ Dashboard가 자동으로 `Dashboard/data/` 하위 데이터를 인식합니다.
         dashboard = project / "Dashboard"
         status = "✅ 유효" if is_valid_dashboard(dashboard) else "❌ 무효"
         print(f"{project.name}: {status}")
-[/code]
+```
 
 ### path_helpers 모듈 사용의 이점
 
@@ -539,19 +539,19 @@ Dashboard가 자동으로 `Dashboard/data/` 하위 데이터를 인식합니다.
 ### 커스텀 데이터 경로
 
 특정 경로를 사용하고 싶은 경우:
-[code] 
+```python
     # 방법 1: 환경 변수
     import os
     os.environ['AGENT_EVALUATOR_ROOT'] = '/custom/path'
     
     # 방법 2: 절대 경로
     monitor.save_to_file("/custom/path/Dashboard/data/evaluation_results/results.json")
-[/code]
+```
 
 ### 멀티 프로젝트 환경
 
 여러 프로젝트를 운영하는 경우:
-[code] 
+```
     Projects/
     ├── ProjectA/
     │   └── Dashboard/data/evaluation_results/  # ProjectA 데이터
@@ -560,7 +560,7 @@ Dashboard가 자동으로 `Dashboard/data/` 하위 데이터를 인식합니다.
     └── Shared_Dashboard/
         └── data/
             └── evaluation_results/              # 통합 대시보드용 (레지스트리에서 가져오기)
-[/code]
+```
 
 * * *
 
@@ -575,7 +575,7 @@ Dashboard가 자동으로 `Dashboard/data/` 하위 데이터를 인식합니다.
   3. Dashboard 폴더 확인: `Dashboard/` 디렉토리 존재 여부
 
 **해결방법:**
-[code] 
+```python
     # 프로젝트 루트 확인
     from agent_evaluator import PerformanceMonitor
     monitor = PerformanceMonitor()
@@ -584,7 +584,7 @@ Dashboard가 자동으로 `Dashboard/data/` 하위 데이터를 인식합니다.
     # 명시적 지정
     import os
     os.environ['AGENT_EVALUATOR_ROOT'] = '/correct/path'
-[/code]
+```
 
 ### Q2: Dashboard에서 데이터가 보이지 않습니다
 
@@ -595,14 +595,14 @@ Dashboard가 자동으로 `Dashboard/data/` 하위 데이터를 인식합니다.
   3. 파일 권한 확인
 
 **해결방법:**
-[code] 
+```python
     # 데이터 파일 확인
     ls -la Dashboard/data/evaluation_results/
     
     # Dashboard 실행 (올바른 위치에서)
     cd /path/to/MyProject
     streamlit run Dashboard/app.py
-[/code]
+```
 
 ### Q3: 레지스트리에 등록되지 않습니다
 
@@ -611,14 +611,14 @@ Dashboard가 자동으로 `Dashboard/data/` 하위 데이터를 인식합니다.
   * `~/.agent_evaluator/registry.json` 파일 존재 및 권한 확인
 
 **해결방법:**
-[code] 
+```
     # 레지스트리 파일 확인
     cat ~/.agent_evaluator/registry.json
     
     # 레지스트리 디렉토리 재생성
     mkdir -p ~/.agent_evaluator
     chmod 755 ~/.agent_evaluator
-[/code]
+```
 
 * * *
 

@@ -36,14 +36,15 @@ Agent Evaluator는 PyPI에 배포되어 있어 pip로 간단히 설치할 수 �
 ### 옵션 1: 기본 설치 (권장) ⭐
 
 **대부분의 사용자에게 권장합니다.**
-[code] 
-    [](<#cb1-1>)# 1. Conda 가상환경 생성 (권장)
-    [](<#cb1-2>)conda create --name Evaluator python=3.11
-    [](<#cb1-3>)conda activate Evaluator
-    [](<#cb1-4>)
-    [](<#cb1-5>)# 2. Agent Evaluator 설치
-    [](<#cb1-11>)pip install agent-evaluator
-[/code]
+
+```bash
+# 1. Conda 가상환경 생성 (권장)
+    conda create --name Evaluator python=3.11
+    conda activate Evaluator
+    
+    # 2. Agent Evaluator 설치
+    pip install agent-evaluator
+```
 
 **포함 기능:**
 
@@ -66,11 +67,12 @@ Agent Evaluator는 PyPI에 배포되어 있어 pip로 간단히 설치할 수 �
 ### 옵션 2: 최소 설치
 
 **대시보드 없이 코어 기능만 필요한 경우:**
-[code] 
-    [](<#cb2-1>)# 코어 기능만 설치
-    [](<#cb2-2>)pip install agent-evaluator --no-deps
-    [](<#cb2-3>)pip install numpy pandas
-[/code]
+
+```bash
+# 코어 기능만 설치
+    pip install agent-evaluator --no-deps
+    pip install numpy pandas
+```
 
 **포함 기능:**
 
@@ -92,16 +94,17 @@ Agent Evaluator는 PyPI에 배포되어 있어 pip로 간단히 설치할 수 �
 ### 옵션 3: 전체 설치
 
 **모든 기능이 필요한 경우:**
-[code] 
-    [](<#cb3-1>)# 기본 패키지 설치
-    [](<#cb3-2>)pip install agent-evaluator
-    [](<#cb3-3>)
-    [](<#cb3-4>)# 추가 프레임워크 설치
-    [](<#cb3-5>)pip install crewai>=0.11.0 crewai-tools>=0.2.0
-    [](<#cb3-6>)pip install langgraph>=0.0.20
-    [](<#cb3-7>)pip install deepeval>=0.20.0
-    [](<#cb3-8>)pip install ragas>=0.1.0 datasets>=2.14.0 langchain-openai>=0.0.5
-[/code]
+
+```bash
+# 기본 패키지 설치
+    pip install agent-evaluator
+    
+    # 추가 프레임워크 설치
+    pip install crewai>=0.11.0 crewai-tools>=0.2.0
+    pip install langgraph>=0.0.20
+    pip install deepeval>=0.20.0
+    pip install ragas>=0.1.0 datasets>=2.14.0 langchain-openai>=0.0.5
+```
 
 **포함 기능:**
 
@@ -123,24 +126,28 @@ Agent Evaluator는 PyPI에 배포되어 있어 pip로 간단히 설치할 수 �
 표준 설치 후 필요한 프레임워크만 추가로 설치할 수 있습니다:
 
 #### CrewAI 추가
-[code] 
-    [](<#cb4-1>)pip install crewai>=0.11.0 crewai-tools>=0.2.0
-[/code]
+
+```bash 
+    pip install crewai>=0.11.0 crewai-tools>=0.2.0
+```
 
 #### LangGraph 추가
-[code] 
-    [](<#cb5-1>)pip install langgraph>=0.0.20
-[/code]
+
+```bash 
+    pip install langgraph>=0.0.20
+```
 
 #### DeepEval 추가
-[code] 
-    [](<#cb6-1>)pip install deepeval>=0.20.0
-[/code]
+
+```bash 
+    pip install deepeval>=0.20.0
+```
 
 #### Ragas 추가
-[code] 
-    [](<#cb7-1>)pip install ragas>=0.1.0 datasets>=2.14.0 langchain-openai>=0.0.5
-[/code]
+
+```bash 
+    pip install ragas>=0.1.0 datasets>=2.14.0 langchain-openai>=0.0.5
+```
 
 * * *
 
@@ -149,21 +156,23 @@ Agent Evaluator는 PyPI에 배포되어 있어 pip로 간단히 설치할 수 �
 ### 1\. 환경 변수 설정 (선택사항)
 
 Layer 3 고급 메트릭을 사용하는 경우 OpenAI API 키가 필요합니다:
-[code] 
-    [](<#cb8-1>)# 터미널에서 직접 설정
-    [](<#cb8-2>)export OPENAI_API_KEY='your-api-key-here'
-    [](<#cb8-3>)
-    [](<#cb8-4>)# 또는 .env 파일에 설정
-    [](<#cb8-5>)echo "OPENAI_API_KEY=your-api-key-here" > .env
-[/code]
+
+```bash 
+    # 터미널에서 직접 설정
+    export OPENAI_API_KEY='your-api-key-here'
+    
+    # 또는 .env 파일에 설정
+    echo "OPENAI_API_KEY=your-api-key-here" > .env
+```
 
 **참고:** Layer 1, 2 메트릭은 API 키 없이 사용 가능합니다.
 
 ### 2\. 설치 확인 테스트
-[code] 
-    [](<#cb10-1>)# Python에서 확인
-    [](<#cb10-2>)python -c "from agent_evaluator import PerformanceMonitor; print('✅ Agent Evaluator 설치 완료')"
-[/code]
+
+```bash
+# Python에서 확인
+    python -c "from agent_evaluator import PerformanceMonitor; print('✅ Agent Evaluator 설치 완료')"
+```
 
 * * *
 
@@ -176,30 +185,31 @@ Agent Evaluator는 **별도 설정 없이 자동으로 올바른 위치에 데�
 ### 기본 사용법
 
 Agent Evaluator를 설치한 후, Python 코드에서 직접 사용할 수 있습니다:
-[code] 
-    [](<#cb11-1>)from agent_evaluator import PerformanceMonitor
-    [](<#cb11-2>)from agent_evaluator.helpers import create_taskresult_from_execution
-    [](<#cb11-3>)
-    [](<#cb11-4>)# 모니터 생성 (설정 불필요!)
-    [](<#cb11-5>)monitor = PerformanceMonitor()
-    [](<#cb11-6>)
-    [](<#cb11-7>)# 간편한 작업 결과 생성 (Helper 함수 사용)
-    [](<#cb11-8>)task = create_taskresult_from_execution(
-    [](<#cb11-9>)    task_id="task_001",
-    [](<#cb11-10>)    question="대한민국의 수도는 어디인가요?",
-    [](<#cb11-11>)    response="서울입니다",
-    [](<#cb11-12>)    ground_truth="서울",
-    [](<#cb11-13>)    execution_time=1.2
-    [](<#cb11-14>))
-    [](<#cb11-15>)monitor.record_task(task)
-    [](<#cb11-16>)
-    [](<#cb11-17>)# 자동 저장 (Dashboard/data/evaluation_results/my_eval.json)
-    [](<#cb11-18>)monitor.save_to_file("my_eval.json")
-    [](<#cb11-19>)
-    [](<#cb11-20>)# 리포트 생성
-    [](<#cb11-21>)report = monitor.generate_report()
-    [](<#cb11-22>)print(f"TCR: {report.accuracy_metrics.tcr}")
-[/code]
+
+```python
+from agent_evaluator import PerformanceMonitor
+from agent_evaluator.helpers import create_taskresult_from_execution
+
+# 모니터 생성 (설정 불필요!)
+monitor = PerformanceMonitor()
+
+# 간편한 작업 결과 생성 (Helper 함수 사용)
+task = create_taskresult_from_execution(
+    task_id="task_001",
+    question="대한민국의 수도는 어디인가요?",
+    response="서울입니다",
+    ground_truth="서울",
+    execution_time=1.2
+)
+monitor.record_task(task)
+
+# 자동 저장 (Dashboard/data/evaluation_results/my_eval.json)
+monitor.save_to_file("my_eval.json")
+
+# 리포트 생성
+report = monitor.generate_report()
+print(f"TCR: {report.accuracy_metrics.tcr}")
+```
 
 **자동 저장 위치:** `{프로젝트_루트}/Dashboard/data/evaluation_results/my_eval.json`  
 더 자세한 사용법은 [API 레퍼런스](<API_REFERENCE.html>)를 참조하세요.
@@ -390,19 +400,21 @@ Agent Evaluator는 평가 결과를 터미널에서 즉시 확인할 수 있는 
 ### 방법 1: print_summary() - 빠른 요약
 
 핵심 메트릭을 간략하게 출력합니다:
-[code] 
-    [](<#cb-t1-1>)from agent_evaluator import PerformanceMonitor
-    [](<#cb-t1-2>)
-    [](<#cb-t1-3>)monitor = PerformanceMonitor()
-    [](<#cb-t1-4>)# ... Agent 평가 수행 ...
-    [](<#cb-t1-5>)
-    [](<#cb-t1-6>)# 요약 출력
-    [](<#cb-t1-7>)report = monitor.generate_report()
-    [](<#cb-t1-8>)monitor.print_summary(report)
-[/code]
+
+```python
+    from agent_evaluator import PerformanceMonitor
+    
+    monitor = PerformanceMonitor()
+    # ... Agent 평가 수행 ...
+    
+    # 요약 출력
+    report = monitor.generate_report()
+    monitor.print_summary(report)
+```
 
 **출력 예시:**
-[code] 
+
+```python
     ========================================
              성능 요약 보고서
     ========================================
@@ -424,50 +436,54 @@ Agent Evaluator는 평가 결과를 터미널에서 즉시 확인할 수 있는 
       - 총 비용: $0.23
     
     ========================================
-[/code]
+```
 
 ### 방법 2: print_detailed_report() - 상세 분석
 
 모든 메트릭과 Layer별 상세 정보를 출력합니다:
-[code] 
-    [](<#cb-t2-1>)report = monitor.generate_report()
-    [](<#cb-t2-2>)monitor.print_detailed_report(report)
-[/code]
+
+```python
+    report = monitor.generate_report()
+    monitor.print_detailed_report(report)
+```
 
 ### 방법 3: 커스텀 출력
 
 필요한 메트릭만 선택하여 출력할 수 있습니다:
-[code] 
-    [](<#cb-t3-1>)report = monitor.generate_report()
-    [](<#cb-t3-2>)
-    [](<#cb-t3-3>)print("핵심 메트릭:")
-    [](<#cb-t3-4>)print(f"TCR: {report.accuracy_metrics['tcr']['tcr']:.1f}%")
-    [](<#cb-t3-5>)print(f"Latency: {report.efficiency_metrics['latency']['average']:.2f}s")
-[/code]
+
+```python
+    report = monitor.generate_report()
+    
+    print("핵심 메트릭:")
+    print(f"TCR: {report.accuracy_metrics['tcr']['tcr']:.1f}%")
+    print(f"Latency: {report.efficiency_metrics['latency']['average']:.2f}s")
+```
 
 ### 방법 4: Quality Gate 출력
 
 임계값 비교 결과를 Pass/Fail 형식으로 출력합니다:
-[code] 
-    [](<#cb-t4-1>)monitor.thresholds = {
-    [](<#cb-t4-2>)    'tcr': 95.0,
-    [](<#cb-t4-3>)    'accuracy': 90.0,
-    [](<#cb-t4-4>)    'latency': 2.0,
-    [](<#cb-t4-5>)}
-    [](<#cb-t4-6>)
-    [](<#cb-t4-7>)comparison = monitor.compare_with_thresholds()
-    [](<#cb-t4-8>)
-    [](<#cb-t4-9>)for metric, result in comparison.items():
-    [](<#cb-t4-10>)    status = "✅ PASS" if result["status"] == "pass" else "❌ FAIL"
-    [](<#cb-t4-11>)    print(f"{status} {metric}: {result['actual']:.2f} (임계값: {result['threshold']:.2f})")
-[/code]
+
+```python
+    monitor.thresholds = {
+        'tcr': 95.0,
+        'accuracy': 90.0,
+        'latency': 2.0,
+    }
+    
+    comparison = monitor.compare_with_thresholds()
+    
+    for metric, result in comparison.items():
+        status = "✅ PASS" if result["status"] == "pass" else "❌ FAIL"
+        print(f"{status} {metric}: {result['actual']:.2f} (임계값: {result['threshold']:.2f})")
+```
 
 **출력 예시:**
-[code] 
+
+```python
     ✅ PASS tcr: 95.00 (임계값: 95.00)
     ✅ PASS accuracy: 92.50 (임계값: 90.00)
     ✅ PASS latency: 1.23 (임계값: 2.00)
-[/code]
+```
 
 #### 💡 터미널 출력 활용 팁
 
@@ -481,33 +497,34 @@ Agent Evaluator는 평가 결과를 터미널에서 즉시 확인할 수 있는 
 ## 사용 예제
 
 ### 기본 평가 예제
-[code] 
-    [](<#cb12-1>)from agent_evaluator import PerformanceMonitor
-    [](<#cb12-2>)from agent_evaluator.helpers import create_taskresult_from_execution
-    [](<#cb12-3>)
-    [](<#cb12-4>)# 모니터 생성
-    [](<#cb12-5>)monitor = PerformanceMonitor()
-    [](<#cb12-6>)
-    [](<#cb12-7>)# 여러 작업 평가
-    [](<#cb12-8>)questions = ["수도는?", "인구는?", "언어는?", "화폐는?", "면적은?"]
-    [](<#cb12-9>)responses = ["서울", "약 5천만명", "한국어", "원", "약 100,000km²"]
-    [](<#cb12-10>)truths = ["서울", "5천만명", "한국어", "원", "100,378km²"]
-    [](<#cb12-11>)
-    [](<#cb12-12>)for i in range(5):
-    [](<#cb12-13>)    task = create_taskresult_from_execution(
-    [](<#cb12-14>)        task_id=f"task_{i:03d}",
-    [](<#cb12-15>)        question=questions[i],
-    [](<#cb12-16>)        response=responses[i],
-    [](<#cb12-17>)        ground_truth=truths[i],
-    [](<#cb12-18>)        execution_time=1.5
-    [](<#cb12-19>)    )
-    [](<#cb12-20>)    monitor.record_task(task)
-    [](<#cb12-21>)
-    [](<#cb12-22>)# 리포트 생성
-    [](<#cb12-23>)report = monitor.generate_report()
-    [](<#cb12-24>)print(f"TCR: {report.accuracy_metrics.tcr}")
-    [](<#cb12-25>)print(f"평균 지연시간: {report.latency_metrics.mean}초")
-[/code]
+
+```python
+    from agent_evaluator import PerformanceMonitor
+    from agent_evaluator.helpers import create_taskresult_from_execution
+    
+    # 모니터 생성
+    monitor = PerformanceMonitor()
+    
+    # 여러 작업 평가
+    questions = ["수도는?", "인구는?", "언어는?", "화폐는?", "면적은?"]
+    responses = ["서울", "약 5천만명", "한국어", "원", "약 100,000km²"]
+    truths = ["서울", "5천만명", "한국어", "원", "100,378km²"]
+    
+    for i in range(5):
+        task = create_taskresult_from_execution(
+            task_id=f"task_{i:03d}",
+            question=questions[i],
+            response=responses[i],
+            ground_truth=truths[i],
+            execution_time=1.5
+        )
+        monitor.record_task(task)
+    
+    # 리포트 생성
+    report = monitor.generate_report()
+    print(f"TCR: {report.accuracy_metrics.tcr}")
+    print(f"평균 지연시간: {report.latency_metrics.mean}초")
+```
 
 ### 프레임워크 통합 예제
 
@@ -516,35 +533,37 @@ Agent Evaluator는 평가 결과를 터미널에서 즉시 확인할 수 있는 
 Layer 1/2 보안 메트릭, Layer 3 고급 평가, 자동 추적 기능이 포함된 새로운 통합 클래스를 사용하세요:
 
 #### CrewAI 통합
-[code] 
-    [](<#cb-crewai-1>)from agent_evaluator.integrations.crewai_evaluator import CrewAIEvaluator
-    [](<#cb-crewai-2>)from crewai import Crew, Agent, Task
-    [](<#cb-crewai-3>)
-    [](<#cb-crewai-4>)# Crew 생성
-    [](<#cb-crewai-5>)crew = Crew(agents=[agent], tasks=[task])
-    [](<#cb-crewai-6>)
-    [](<#cb-crewai-7>)# 평가 래퍼 생성 (Layer 2 자동 추적)
-    [](<#cb-crewai-8>)evaluator = CrewAIEvaluator(crew, enable_layer2=True)
-    [](<#cb-crewai-9>)
-    [](<#cb-crewai-10>)# 실행 및 평가
-    [](<#cb-crewai-11>)result = evaluator.kickoff(inputs={"topic": "AI"})
-    [](<#cb-crewai-12>)report = evaluator.generate_report()
-[/code]
+
+```python
+    from agent_evaluator.integrations.crewai_evaluator import CrewAIEvaluator
+    from crewai import Crew, Agent, Task
+    
+    # Crew 생성
+    crew = Crew(agents=[agent], tasks=[task])
+    
+    # 평가 래퍼 생성 (Layer 2 자동 추적)
+    evaluator = CrewAIEvaluator(crew, enable_layer2=True)
+    
+    # 실행 및 평가
+    result = evaluator.kickoff(inputs={"topic": "AI"})
+    report = evaluator.generate_report()
+```
 
 #### LangChain 통합
-[code] 
-    [](<#cb-langchain-1>)from agent_evaluator.integrations.langchain_evaluator import LangChainEvaluator
-    [](<#cb-langchain-2>)
-    [](<#cb-langchain-3>)# LangChain 에이전트 생성
-    [](<#cb-langchain-4>)agent = initialize_agent(tools, llm)
-    [](<#cb-langchain-5>)
-    [](<#cb-langchain-6>)# 평가 래퍼 생성
-    [](<#cb-langchain-7>)evaluator = LangChainEvaluator(agent, enable_layer2=True)
-    [](<#cb-langchain-8>)
-    [](<#cb-langchain-9>)# 실행 및 평가 (Tool Selection 자동 추적)
-    [](<#cb-langchain-10>)result = evaluator.run("What is AI?", expected_tools=["search"])
-    [](<#cb-langchain-11>)report = evaluator.generate_report()
-[/code]
+
+```python
+    from agent_evaluator.integrations.langchain_evaluator import LangChainEvaluator
+    
+    # LangChain 에이전트 생성
+    agent = initialize_agent(tools, llm)
+    
+    # 평가 래퍼 생성
+    evaluator = LangChainEvaluator(agent, enable_layer2=True)
+    
+    # 실행 및 평가 (Tool Selection 자동 추적)
+    result = evaluator.run("What is AI?", expected_tools=["search"])
+    report = evaluator.generate_report()
+```
 
 자세한 내용은 [프레임워크 통합 가이드](<FRAMEWORK_INTEGRATION.html>)를 참조하세요.
 
@@ -561,41 +580,45 @@ Layer 1/2 보안 메트릭, Layer 3 고급 평가, 자동 추적 기능이 포�
 **원인:** LangChain이 설치되지 않음
 
 **해결:**
-[code] 
-    [](<#cb13-1>)pip install langchain langchain-core langchain-community
-[/code]
+
+```bash 
+    pip install langchain langchain-core langchain-community
+```
 
 #### ImportError: No module named ‘pyautogen’
 
 **원인:** AutoGen이 설치되지 않음
 
 **해결:**
-[code] 
-    [](<#cb14-1>)pip install pyautogen
-[/code]
+
+```bash 
+    pip install pyautogen
+```
 
 #### Streamlit 실행 오류
 
 **원인:** Streamlit이 설치되지 않음
 
 **해결:**
-[code] 
-    [](<#cb15-1>)pip install streamlit>=1.28.0
-[/code]
+
+```bash 
+    pip install streamlit>=1.28.0
+```
 
 #### 버전 충돌
 
 **원인:** 패키지 버전 충돌
 
 **해결:**
-[code] 
-    [](<#cb16-1>)# 가상환경 재생성
-    [](<#cb16-2>)conda deactivate
-    [](<#cb16-3>)conda remove -n agent_evaluator --all
-    [](<#cb16-4>)conda create -n agent_evaluator python=3.11
-    [](<#cb16-5>)conda activate agent_evaluator
-    [](<#cb16-6>)pip install agent-evaluator
-[/code]
+
+```bash
+# 가상환경 재생성
+    conda deactivate
+    conda remove -n agent_evaluator --all
+    conda create -n agent_evaluator python=3.11
+    conda activate agent_evaluator
+    pip install agent-evaluator
+```
 
 더 자세한 문제 해결은 [문서 디렉토리](<docs/>)를 참조하세요.
 
@@ -612,25 +635,26 @@ Layer 1/2 보안 메트릭, Layer 3 고급 평가, 자동 추적 기능이 포�
 #### Golden Dataset 구조 오류가 발생합니다
 
 **올바른 JSON 구조:**
-[code] 
-    [](<#cb17-1>){
-    [](<#cb17-2>)  "dataset_id": "your_dataset_id",
-    [](<#cb17-3>)  "source_document": "문서명",
-    [](<#cb17-4>)  "created_at": "2025-11-30T12:00:00.000000",
-    [](<#cb17-5>)  "total_qa_pairs": 1,
-    [](<#cb17-6>)  "metadata": {},
-    [](<#cb17-7>)  "qa_pairs": [
-    [](<#cb17-8>)    {
-    [](<#cb17-9>)      "qa_id": "qa_001",
-    [](<#cb17-10>)      "question": "질문?",
-    [](<#cb17-11>)      "answer": "답변",
-    [](<#cb17-12>)      "context": "컨텍스트 (문자열, 단수형)",
-    [](<#cb17-13>)      "ground_truth": "정답",
-    [](<#cb17-14>)      "metadata": {}
-    [](<#cb17-15>)    }
-    [](<#cb17-16>)  ]
-    [](<#cb17-17>)}
-[/code]
+
+```json
+{
+  "dataset_id": "your_dataset_id",
+      "source_document": "문서명",
+      "created_at": "2025-11-30T12:00:00.000000",
+      "total_qa_pairs": 1,
+      "metadata": {},
+      "qa_pairs": [
+        {
+          "qa_id": "qa_001",
+          "question": "질문?",
+          "answer": "답변",
+          "context": "컨텍스트 (문자열, 단수형)",
+          "ground_truth": "정답",
+          "metadata": {}
+        }
+      ]
+    }
+```
 
 **주의사항:** \- `context` (단수형) 사용 - `contexts` (복수형) ❌ - `ground_truth` 필드 필수 \- 최상위에 `dataset_id`, `source_document` 등 위치
 
@@ -683,8 +707,9 @@ Layer 1/2 보안 메트릭, Layer 3 고급 평가, 자동 추적 기능이 포�
 * * *
 
 ## 주요 파일 위치
-[code] 
-    프로젝트 구조 예시:
+
+```
+프로젝트 구조 예시:
     
     YourProject/                     # 사용자 프로젝트 루트
     ├── .git/                        # Git 저장소 (선택사항)
@@ -714,7 +739,7 @@ Layer 1/2 보안 메트릭, Layer 3 고급 평가, 자동 추적 기능이 포�
     
     참고: agent_evaluator는 pip로 설치하여 사용합니다.
           Dashboard는 별도로 설치해야 합니다.
-[/code]
+```
 
 * * *
 

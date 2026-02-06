@@ -32,11 +32,11 @@ Agent Evaluator v0.5.0 - Layer 2 Advanced Metric
 ### Efficiency Score (효율성 점수)
 
 #### 계산 공식
-[code] 
+```python
     waste_rate = (redundant_calls + failed_calls) / total_calls
     efficiency_score = max(0, 100 - (waste_rate × 100))
                     
-[/code]
+```
 
 **의미** : 100점에서 낭비율을 뺀 점수
 
@@ -209,11 +209,11 @@ def _count_redundant_calls(self, tool_calls: List) -> int: """Count redundant to
   * **Tool + Parameters 조합** : 동일한 Tool을 동일한 인자로 호출 → 중복
   * **Parameters 정규화** : JSON 직렬화 + sort_keys로 순서 무관하게 비교
   * **예시** : 
-[code]Tool 1: read_file(path="/data/file.txt")
+```Tool 1: read_file(path="/data/file.txt")
         Tool 2: read_file(path="/data/file.txt")  // 중복!
         Tool 3: read_file(path="/data/other.txt") // 중복 아님 (다른 파라미터)
                                 
-[/code]
+```
 
 ### get_efficiency_stats() 메서드
 

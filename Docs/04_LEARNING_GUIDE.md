@@ -166,7 +166,7 @@ compare_with_thresholds()
 ### 2.4 파일 시스템 구조
 
 #### evaluation_results/ 디렉토리 구조 (실행 시 자동 생성됨)
-[code] 
+```
     evaluation_results/
     ├── performance_data.json          # 메인 평가 결과 데이터
     ├── thresholds.json                # Threshold 설정
@@ -194,7 +194,7 @@ compare_with_thresholds()
     ├── dataset_002.json
     └── ...
     
-[/code]
+```
 
 #### 주요 파일 형식
 
@@ -385,17 +385,17 @@ compare_with_thresholds()
 ### 4.1 설치
 
 #### 기본 설치 (Layer 1 + 2)
-[code] 
+```bash
     # Conda 환경 생성 (권장)
     conda create -n agent_evaluator python=3.11
     conda activate agent_evaluator
     
     # 기본 의존성 설치
     pip install numpy pandas streamlit plotly python-dotenv
-[/code]
+```
 
 #### 전체 설치 (Layer 1 + 2 + 3)
-[code] 
+```bash
     # 기본 패키지 설치
     pip install agent-evaluator
     
@@ -405,7 +405,7 @@ compare_with_thresholds()
     
     # .env 파일 생성 (Layer 3 사용 시)
     echo "OPENAI_API_KEY='your-api-key-here'" > .env
-[/code]
+```
 
 ### 4.2 첫 번째 평가 (5분 완성) - 복사 붙여넣기 즉시 실행!
 
@@ -414,7 +414,7 @@ compare_with_thresholds()
 아래 코드를 `first_evaluation.py`로 저장하고 `python first_evaluation.py`로 실행하세요!
 
 실행 가능 복사
-[code] 
+```python
     #!/usr/bin/env python3
     """
     첫 번째 Agent 평가 - 완전 실행 가능 예제
@@ -496,10 +496,10 @@ compare_with_thresholds()
     
     print("\n🎉 첫 번째 평가 완료!")
     
-[/code]
+```
 
 #### 예상 출력:
-[code] 
+```python
     🚀 Agent Evaluator 시작...
     
     📝 Task 1: 한국의 수도는 어디인가요?
@@ -524,7 +524,7 @@ compare_with_thresholds()
     ✅ 저장 완료: first_evaluation_report.json
     
     🎉 첫 번째 평가 완료!
-[/code]
+```
 
 #### 실습 체크리스트
 
@@ -541,7 +541,7 @@ ImportError: No module named 'agent_evaluator'
 **원인:** agent_evaluator가 제대로 설치되지 않음
 
 **해결:** pip로 agent-evaluator를 설치하세요
-[code] 
+```python
     # agent-evaluator 설치 확인
     pip show agent-evaluator
     
@@ -550,7 +550,7 @@ ImportError: No module named 'agent_evaluator'
     
     # 최신 버전으로 업그레이드
     pip install --upgrade agent-evaluator
-[/code]
+```
 
 **⚠️ 참고:** v0.5.0부터는 PYTHONPATH 설정이 필요 없습니다. pip install로 패키지를 설치하면 어디서든 import 가능합니다.
 
@@ -567,16 +567,16 @@ KeyError when accessing report['accuracy_metrics']
 **원인:** generate_report() 반환 형식이 다름
 
 **해결:** report가 딕셔너리인지 확인하고 올바른 키 사용
-[code] 
+```python
     # 방법 1: 딕셔너리로 접근
     print(report['accuracy_metrics']['tcr'])
     
     # 방법 2: 속성으로 접근 (ReportResult 객체인 경우)
     print(report.accuracy_metrics.tcr)
-[/code]
+```
 
 ### 4.3 프로그래밍 방식으로 평가 결과 확인
-[code] 
+```python
     # 평가 리포트 생성 및 확인
     report = monitor.generate_report()
     
@@ -589,7 +589,7 @@ KeyError when accessing report['accuracy_metrics']
     import json
     with open('evaluation_results.json', 'w') as f:
         json.dump(report.to_dict(), f, indent=2)
-[/code]
+```
 
 **사용 가능한 주요 메트릭:**
 
@@ -644,7 +644,7 @@ TaskResult의 필드들은 하드코딩이 아닌 **실제 계산 함수** 를 �
 #### 완전한 헬퍼 함수 모음 (taskresult_helpers.py)
 
 ✅ 실행 가능 📋 복사
-[code] 
+```python
     #!/usr/bin/env python3
     """
     TaskResult 필드 동적 계산 헬퍼 함수 모음
@@ -1074,7 +1074,7 @@ TaskResult의 필드들은 하드코딩이 아닌 **실제 계산 함수** 를 �
             errors=[error_message] if error_message else [],
             timestamp=datetime.now()
         )
-[/code]
+```
 
 ### 5.3 Scenario 1: 기본 수동 평가 (헬퍼 함수 사용)
 
@@ -1083,7 +1083,7 @@ TaskResult의 필드들은 하드코딩이 아닌 **실제 계산 함수** 를 �
 헬퍼 함수를 사용하여 모든 필드를 동적으로 계산합니다. **하드코딩된 값이 없습니다!**
 
 ✅ 실행 가능 📋 복사
-[code] 
+```python
     from agent_evaluator import PerformanceMonitor, TaskType
     from taskresult_helpers import create_taskresult_from_execution
     import time
@@ -1119,7 +1119,7 @@ TaskResult의 필드들은 하드코딩이 아닌 **실제 계산 함수** 를 �
     report = monitor.generate_report()
     print(f"\nTCR: {report['accuracy_metrics']['tcr']:.1f}%")
     print(f"Accuracy: {report['accuracy_metrics']['accuracy']:.1f}%")
-[/code]
+```
 
 ### 5.4 Scenario 2: OpenAI API 실전 예제
 
@@ -1128,7 +1128,7 @@ TaskResult의 필드들은 하드코딩이 아닌 **실제 계산 함수** 를 �
 OpenAI API 응답에서 토큰 사용량을 자동으로 추출하고, 헬퍼 함수로 모든 메트릭을 동적 계산합니다.
 
 ✅ 실행 가능 📋 복사
-[code] 
+```python
     from agent_evaluator import PerformanceMonitor
     from taskresult_helpers import create_taskresult_from_execution
     from openai import OpenAI
@@ -1205,7 +1205,7 @@ OpenAI API 응답에서 토큰 사용량을 자동으로 추출하고, 헬퍼 �
     report = monitor.generate_report()
     print(f"\n📊 전체 TCR: {report['accuracy_metrics']['tcr']:.1f}%")
     print(f"📊 전체 Accuracy: {report['accuracy_metrics']['accuracy']:.1f}%")
-[/code]
+```
 
 ### 5.5 Scenario 3: LangChain Agent 실전 예제
 
@@ -1214,7 +1214,7 @@ OpenAI API 응답에서 토큰 사용량을 자동으로 추출하고, 헬퍼 �
 LangChain Agent 실행 결과에서 tool_calls를 자동으로 추출하고, Layer 2 메트릭을 평가합니다.
 
 ✅ 실행 가능 📋 복사
-[code] 
+```python
     from agent_evaluator import PerformanceMonitor
     from taskresult_helpers import (
         create_taskresult_from_execution,
@@ -1275,12 +1275,12 @@ LangChain Agent 실행 결과에서 tool_calls를 자동으로 추출하고, Lay
     tool_metrics = monitor.tool_selection_tracker.calculate_metrics()
     print(f"\n📊 Tool Selection F1 Score: {tool_metrics['f1_score']:.2f}")
     print(f"📊 Tool Selection Accuracy: {tool_metrics['accuracy']:.2f}")
-[/code]
+```
 
 #### 💡 LangChain 사용 시 팁
 
 **tool_calls 자동 추출:** `extract_tool_calls_from_langchain()`은 `intermediate_steps`에서 도구 사용 정보를 자동으로 추출합니다.
-[code] 
+```python
     # 수동 추출 방법 (헬퍼 함수 미사용 시)
     tool_calls = []
     if hasattr(agent_result, 'intermediate_steps'):
@@ -1291,7 +1291,7 @@ LangChain Agent 실행 결과에서 tool_calls를 자동으로 추출하고, Lay
                 "output": str(observation),
                 "success": observation is not None
             })
-[/code]
+```
 
 ### 5.6 데이터 준비 체크리스트
 
@@ -1331,7 +1331,7 @@ LangChain Agent 실행 결과에서 tool_calls를 자동으로 추출하고, Lay
 **헬퍼 함수를 사용하면 모든 메트릭이 자동으로 계산됩니다!**
 
 ✅ 실행 가능 📋 복사
-[code] 
+```python
     # 방법 1: 헬퍼 함수 사용 (가장 권장) ⭐
     from taskresult_helpers import (
         calculate_accuracy_score,
@@ -1364,12 +1364,12 @@ LangChain Agent 실행 결과에서 tool_calls를 자동으로 추출하고, Lay
     # 방법 3: 간단한 유사도 계산 (헬퍼 함수의 "simple" 모드)
     accuracy_simple = calculate_accuracy_score(response, ground_truth, method="simple")
     print(f"Accuracy (simple): {accuracy_simple:.2f}")  # 1.0 (포함됨)
-[/code]
+```
 
 #### Tip 3: tool_calls 올바른 형식
 
 tool_calls는 반드시 List[Dict] 형식이어야 하며, 각 Dict는 최소한 'name' 키를 포함해야 합니다:
-[code] 
+```json
     # ✅ 올바른 형식
     tool_calls = [
         {"name": "web_search", "input": "AI trends"},
@@ -1381,7 +1381,7 @@ tool_calls는 반드시 List[Dict] 형식이어야 하며, 각 Dict는 최소한
     
     # ✅ 도구를 사용하지 않았다면
     tool_calls = []  # 빈 리스트
-[/code]
+```
 
 #### 흔한 문제와 해결
 
@@ -1390,31 +1390,31 @@ ValueError: completion_score must be between 0.0 and 1.0
 **원인:** completion_score가 0.0~1.0 범위를 벗어남
 
 **해결:** 값을 0.0~1.0으로 정규화
-[code] 
+```python
     completion_score = max(0.0, min(1.0, raw_score))
-[/code]
+```
 
 TypeError: tokens_used must be a dictionary
 
 **원인:** tokens_used가 Dict가 아님
 
 **해결:** 최소한 input, output 키 포함
-[code] 
+```python
     tokens_used = {"input": 100, "output": 50}
     # 또는
     tokens_used = {"input": 100, "output": 50, "total": 150}
-[/code]
+```
 
 AssertionError: tool_calls must be a list of dicts
 
 **원인:** tool_calls가 올바른 형식이 아님
 
 **해결:** List[Dict] 형식으로 변환, 각 Dict는 'name' 키 필수
-[code] 
+```python
     # 문자열 리스트를 Dict 리스트로 변환
     tool_names = ["search", "calculator"]
     tool_calls = [{"name": name} for name in tool_names]
-[/code]
+```
 
 ## 📚 6. Golden Dataset 가이드
 
@@ -1423,7 +1423,7 @@ AssertionError: tool_calls must be a list of dicts
 **Golden Dataset** 은 Agent 평가를 위한 **Ground Truth 데이터셋** 입니다. 질문(Question), 기대 답변(Answer), 컨텍스트(Context) 등을 포함하며, 자동 평가의 기준이 됩니다.
 
 ### 6.2 QAPair 구조
-[code] 
+```json
     {
       "qa_id": "qa_001",
       "question": "Agent Evaluator의 주요 기능은?",
@@ -1443,7 +1443,7 @@ AssertionError: tool_calls must be a list of dicts
         "difficulty": "medium"
       }
     }
-[/code]
+```
 
 ### 6.3 Golden Dataset 생성 방법
 
@@ -1455,7 +1455,7 @@ AssertionError: tool_calls must be a list of dicts
   4. 저장 버튼 클릭
 
 #### 방법 2: PDF에서 자동 생성
-[code] 
+```python
     from agent_evaluator.datasets.korean_rag_dataset_generator import KoreanRAGDatasetGenerator
     
     generator = KoreanRAGDatasetGenerator()
@@ -1467,10 +1467,10 @@ AssertionError: tool_calls must be a list of dicts
         chunk_size=500,
         num_qa_pairs_per_chunk=2
     )
-[/code]
+```
 
 #### 방법 3: Python 코드로 작성
-[code] 
+```python
     from agent_evaluator.datasets.korean_rag_dataset_generator import GoldenDataset, QAPair
     
     qa_pairs = [
@@ -1492,12 +1492,12 @@ AssertionError: tool_calls must be a list of dicts
     )
     
     dataset.save("golden_datasets/my_dataset.json")
-[/code]
+```
 
 ### 6.4 Golden Dataset 기반 자동 평가
 
 #### 수동 평가 (현재 지원)
-[code] 
+```python
     monitor = PerformanceMonitor.from_test_config("test_config_...")
     
     # Golden Dataset 로드
@@ -1525,7 +1525,7 @@ AssertionError: tool_calls must be a list of dicts
                 qa['expected_tools'],
                 task.tool_calls
             )
-[/code]
+```
 
 **💡 Best Practice:** Golden Dataset은 도메인별로 최소 20-50개의 QA Pair를 포함하는 것을 권장합니다. 다양한 난이도와 시나리오를 포함하여 포괄적인 평가가 가능합니다. 
 
@@ -1558,7 +1558,7 @@ AssertionError: tool_calls must be a list of dicts
   4. 저장 버튼 클릭
 
 #### 방법 2: Python 코드로 설정
-[code] 
+```python
     monitor = PerformanceMonitor()
     
     # 환경별 Threshold
@@ -1579,10 +1579,10 @@ AssertionError: tool_calls must be a list of dicts
             # ...
         }
     
-[/code]
+```
 
 ### 7.4 Threshold 검증
-[code] 
+```python
     # 평가 수행
     for task in tasks:
         monitor.record_task(task)
@@ -1605,7 +1605,7 @@ AssertionError: tool_calls must be a list of dicts
             if result['status'] == 'fail':
                 print(f"  - {metric}: {result['message']}")
         sys.exit(1)  # CI/CD 실패
-[/code]
+```
 
 ### 7.5 도메인별 Threshold 튜닝
 
@@ -1692,7 +1692,7 @@ Agent 상호작용 + Security 자동 추적
 **권장:** `LangChainEvaluator` 클래스 사용 (보안 메트릭 자동 추적)
 
 #### ✨ LangChainEvaluator 사용
-[code] 
+```python
     from agent_evaluator.integrations import LangChainEvaluator
     from langchain.agents import initialize_agent
     
@@ -1717,24 +1717,24 @@ Agent 상호작용 + Security 자동 추적
     report = evaluator.generate_report()
     # ✅ Layer 1: TCR, Accuracy, Latency + Security (Input Sanitization, Output Leakage, Authorization)
     # ✅ Layer 2: Tool Selection, Workflow + Security (Privilege Escalation, Attack Detection)
-[/code]
+```
 
 #### ⚠️ 기존 방식 (v4.0에서 제거 예정)
-[code] 
+```python
     from framework_integrations import LangChainEvaluationCallback
     from agent_evaluator import PerformanceMonitor
     
     # 기존 콜백 방식 (deprecated)
     callback = LangChainEvaluationCallback(monitor, ...)
     result = agent_executor.run("query", callbacks=[callback])
-[/code]
+```
 
 ### 8.3 CrewAI 통합 예제
 
 **권장:** `CrewAIEvaluator` 클래스 사용 (보안 메트릭 자동 추적)
 
 #### ✨ CrewAIEvaluator 사용
-[code] 
+```python
     from agent_evaluator.integrations import CrewAIEvaluator
     from crewai import Crew, Agent, Task
     
@@ -1763,23 +1763,23 @@ Agent 상호작용 + Security 자동 추적
     report = evaluator.generate_report()
     # ✅ Layer 1: TCR, Accuracy, Latency + Security (Input Sanitization, Output Leakage, Authorization)
     # ✅ Layer 2: Agent Coordination, Workflow + Security (Privilege Escalation, Attack Detection)
-[/code]
+```
 
 #### ⚠️ 기존 방식 (v4.0에서 제거 예정)
-[code] 
+```python
     from framework_integrations import EvaluatedCrew
     
     # 기존 방식 (deprecated)
     evaluated_crew = EvaluatedCrew(crew, monitor, ...)
     result = evaluated_crew.kickoff(...)
-[/code]
+```
 
 ### 8.4 LangGraph 통합 예제
 
 **권장:** `LangGraphEvaluator` 클래스 사용 (보안 메트릭 자동 추적)
 
 #### ✨ LangGraphEvaluator 사용
-[code] 
+```python
     from agent_evaluator.integrations import LangGraphEvaluator
     
     # 평가 래퍼 생성
@@ -1807,21 +1807,21 @@ Agent 상호작용 + Security 자동 추적
     report = evaluator.generate_report()
     # ✅ 각 노드의 실행 시간, 성공률 자동 추적
     # ✅ Workflow Execution Score + Security Metrics 자동 계산
-[/code]
+```
 
 #### ⚠️ 기존 방식 (v4.0에서 제거 예정)
-[code] 
+```python
     from framework_integrations import LangGraphEvaluatedWorkflow
     
     # 기존 방식 (deprecated)
     workflow = LangGraphEvaluatedWorkflow(monitor, ...)
     result = workflow.compile_and_run(...)
-[/code]
+```
 
 ### 8.5 AutoGen 통합 예제
 
 #### ✨ 새로운 AutoGenEvaluator (보안 메트릭 자동 추적)
-[code] 
+```python
     from agent_evaluator.integrations import AutoGenEvaluator
     from autogen import AssistantAgent, UserProxyAgent
     
@@ -1842,7 +1842,7 @@ Agent 상호작용 + Security 자동 추적
     report = evaluator.generate_report()
     # ✅ Agent Coordination + Security Metrics 자동 추적
     # ✅ 메시지 교환 분석 + 보안 위협 탐지
-[/code]
+```
 
 **✅ v0.5.0 통합의 장점:**
 
@@ -1998,7 +1998,7 @@ Golden Dataset + Threshold를 포함하는 Test Config 생성 및 저장.
 #### TaskResult 준비 단계별 완전 예제
 
 실행 가능 복사
-[code] 
+```python
     from agent_evaluator import PerformanceMonitor, TaskResult, TaskType
     from datetime import datetime
     import time
@@ -2089,7 +2089,7 @@ Golden Dataset + Threshold를 포함하는 Test Config 생성 및 저장.
     report = monitor.generate_report()
     print(f"\n📊 TCR: {report['accuracy_metrics']['tcr']:.1f}%")
     print(f"📊 Accuracy: {report['accuracy_metrics']['accuracy']:.1f}%")
-[/code]
+```
 
 #### Phase 1 체크리스트
 
@@ -2102,7 +2102,7 @@ Golden Dataset + Threshold를 포함하는 Test Config 생성 및 저장.
   * □ Test Configuration 생성 완료
 
 ### 10.2 Phase 2: 평가 실행
-[code] 
+```python
     # Test Configuration에서 Monitor 생성
     from agent_evaluator import PerformanceMonitor
     
@@ -2169,10 +2169,10 @@ Golden Dataset + Threshold를 포함하는 Test Config 생성 및 저장.
     
     # 결과 저장
     monitor.save_to_file("evaluation_results/test_results.json")
-[/code]
+```
 
 ### 10.3 Phase 3: Threshold 검증
-[code] 
+```python
     # Threshold 비교
     comparison = monitor.compare_with_thresholds()
     
@@ -2194,7 +2194,7 @@ Golden Dataset + Threshold를 포함하는 Test Config 생성 및 저장.
         for m in failed_metrics:
             print(f"  - {m}")
         sys.exit(1)
-[/code]
+```
 
 ### 10.4 Phase 4: 결과 분석
 
@@ -2225,7 +2225,7 @@ Dashboard에서 PDF/HTML 리포트 다운로드 및 공유
 ### 10.5 CI/CD 통합
 
 #### 품질 게이트 스크립트 예제
-[code] 
+```python
     # scripts/quality_gate.py
     from agent_evaluator import PerformanceMonitor
     import sys
@@ -2260,7 +2260,7 @@ Dashboard에서 PDF/HTML 리포트 다운로드 및 공유
         for m in failed_metrics:
             print(f"  - {m}: {comparison[m]['message']}")
         sys.exit(1)
-[/code]
+```
 
 **✅ 완전한 자동화:** 이 워크플로우를 사용하면 Golden Dataset 작성 → 평가 실행 → Threshold 검증 → CI/CD 통합까지 완전 자동화할 수 있습니다. 
 
@@ -2280,7 +2280,7 @@ Dashboard에서 PDF/HTML 리포트 다운로드 및 공유
 #### 기능 1: 메트릭 이상치 탐지 (Anomaly Detection)
 
 **설명:** Z-Score 기반 통계 분석으로 비정상적인 메트릭 값을 자동 탐지합니다.
-[code] 
+```python
     from test_transparency_manager import TestTransparencyManager
     
     transparency = TestTransparencyManager(output_dir="evaluation_results")
@@ -2295,14 +2295,14 @@ Dashboard에서 PDF/HTML 리포트 다운로드 및 공유
     for anomaly in anomalies:
         print(f"  - {anomaly['metric']}: {anomaly['value']} (Z-Score: {anomaly['zscore']:.2f})")
         print(f"    평균: {anomaly['mean']:.2f}, 표준편차: {anomaly['std']:.2f}")
-[/code]
+```
 
 **활용:** 갑작스런 성능 저하, 비용 급증, 품질 하락을 조기에 발견하여 신속한 대응 가능
 
 #### 기능 2: 메트릭 상관관계 분석 (Correlation Analysis)
 
 **설명:** 메트릭 간 상호 영향을 분석하여 숨겨진 패턴을 발견합니다.
-[code] 
+```python
     # 메트릭 상관관계 분석
     correlations = transparency.analyze_metric_correlations(monitor)
     
@@ -2315,14 +2315,14 @@ Dashboard에서 PDF/HTML 리포트 다운로드 및 공유
     for corr in correlations['strong_negative']:
         print(f"  {corr['metric1']} ↔ {corr['metric2']}: {corr['correlation']:.2f}")
         print(f"    해석: {corr['interpretation']}")
-[/code]
+```
 
 **활용:** 예) "Latency가 증가하면 Quality가 감소" → 응답 시간 최적화가 품질 개선에 직접 영향
 
 #### 기능 3: 성능 병목 식별 (Performance Bottleneck Identification)
 
 **설명:** Critical Path 분석으로 성능 저하의 주요 원인을 식별합니다.
-[code] 
+```python
     # 성능 병목 식별
     bottlenecks = transparency.identify_performance_bottlenecks(monitor)
     
@@ -2335,14 +2335,14 @@ Dashboard에서 PDF/HTML 리포트 다운로드 및 공유
     print("\nWarning 병목 (모니터링 필요):")
     for b in bottlenecks['warning_bottlenecks']:
         print(f"  - {b['metric']}: {b['description']}")
-[/code]
+```
 
 **활용:** 성능 최적화의 우선순위를 정하고, 가장 효과적인 개선 영역을 파악
 
 #### 기능 4: 데이터 품질 검증 (Data Quality Validation)
 
 **설명:** 평가 데이터의 무결성, 완전성, 일관성을 자동으로 검증합니다.
-[code] 
+```python
     # 데이터 품질 검증
     quality_report = transparency.generate_data_quality_report(monitor)
     
@@ -2356,14 +2356,14 @@ Dashboard에서 PDF/HTML 리포트 다운로드 및 공유
         for issue in quality_report['issues']:
             print(f"  - [{issue['severity']}] {issue['type']}: {issue['description']}")
             print(f"    해결 방법: {issue['solution']}")
-[/code]
+```
 
 **활용:** 평가 결과의 신뢰성을 보장하고, 데이터 입력 오류를 조기에 발견
 
 #### 기능 5: 실행 가능한 개선 방안 (Actionable Insights)
 
 **설명:** AI 기반 분석으로 구체적이고 실행 가능한 개선 방안을 우선순위와 함께 제시합니다.
-[code] 
+```python
     # 실행 가능한 개선 방안
     insights = transparency.generate_actionable_insights(monitor)
     
@@ -2382,7 +2382,7 @@ Dashboard에서 PDF/HTML 리포트 다운로드 및 공유
     print("\nLow Priority 개선 방안 (선택적 실행):")
     for insight in insights['low_priority']:
         print(f"  - {insight['title']}")
-[/code]
+```
 
 **활용:** 개발 로드맵 수립, 성능 개선 작업의 우선순위 결정, ROI 높은 최적화 식별
 
@@ -2400,7 +2400,7 @@ Dashboard에서 PDF/HTML 리포트 다운로드 및 공유
 #### 기능 1: 메트릭 추적 (Traces)
 
 **설명:** 각 메트릭의 계산 과정을 단계별로 추적하여 투명성을 제공합니다.
-[code] 
+```python
     # 메트릭 계산 시작
     trace_id = transparency.start_metric_calculation(
         metric_name="tcr",
@@ -2429,14 +2429,14 @@ Dashboard에서 PDF/HTML 리포트 다운로드 및 공유
     traces = transparency.get_metric_traces(metric_name="tcr")
     for trace in traces:
         print(f"Trace {trace['trace_id']}: {trace['final_result']}")
-[/code]
+```
 
 **활용:** 메트릭 계산의 정확성 검증, 디버깅, 계산 로직 이해
 
 #### 기능 2: 주석 및 코멘트 (Annotations)
 
 **설명:** 메트릭, Task, Dataset에 주석을 추가하여 팀 간 커뮤니케이션을 개선합니다.
-[code] 
+```python
     # 주석 추가
     annotation_id = transparency.add_annotation(
         target_type="metric",
@@ -2464,14 +2464,14 @@ Dashboard에서 PDF/HTML 리포트 다운로드 및 공유
     
     # 주석 상태 변경
     transparency.update_annotation_status(annotation_id, "resolved")
-[/code]
+```
 
 **활용:** 이슈 추적, 팀 협업, 문제 해결 과정 기록, 품질 관리
 
 #### 기능 3: Audit Log (감사 로그)
 
 **설명:** 모든 시스템 이벤트를 자동으로 기록하여 보안 감사 및 변경 추적이 가능합니다.
-[code] 
+```python
     # Audit Log는 자동 생성됨
     # 예: Threshold 변경 시 자동 로그
     
@@ -2487,7 +2487,7 @@ Dashboard에서 PDF/HTML 리포트 다운로드 및 공유
         print(f"{log['timestamp']}: {log['user']} - {log['action']}")
         print(f"  Target: {log['target_type']}/{log['target_id']}")
         print(f"  Details: {log['details']}")
-[/code]
+```
 
 **활용:** 규정 준수, 보안 감사, 변경 이력 추적, 문제 원인 분석
 
@@ -2499,7 +2499,7 @@ Dashboard에서 PDF/HTML 리포트 다운로드 및 공유
 ### 11.3 버전 관리 (Versioning)
 
 Golden Dataset과 Threshold의 모든 변경을 자동으로 백업하고, 필요시 복원할 수 있습니다.
-[code] 
+```python
     from data_editor_manager import DataEditorManager
     
     manager = DataEditorManager()
@@ -2518,7 +2518,7 @@ Golden Dataset과 Threshold의 모든 변경을 자동으로 백업하고, 필�
     )
     
     print("✅ 이전 버전으로 복원 완료")
-[/code]
+```
 
 **💡 고급 기능 종합 활용:**
 
@@ -2540,7 +2540,7 @@ Golden Dataset과 Threshold의 모든 변경을 자동으로 백업하고, 필�
   * completion_score가 1.0 미만
 
 **해결:**
-[code] 
+```python
     # TCR 계산 로직 확인
     tcr_data = monitor.tcr_tracker.calculate_tcr()
     print(f"Total: {tcr_data['total_tasks']}")
@@ -2551,7 +2551,7 @@ Golden Dataset과 Threshold의 모든 변경을 자동으로 백업하고, 필�
     failed_tasks = [t for t in monitor.tasks if not t.success]
     for task in failed_tasks:
         print(f"Task {task.task_id}: {task.errors}")
-[/code]
+```
 
 #### Q2: Tool Selection Accuracy가 계산되지 않습니다
 
@@ -2561,7 +2561,7 @@ Golden Dataset과 Threshold의 모든 변경을 자동으로 백업하고, 필�
   * evaluate_selection() 메서드를 호출하지 않음
 
 **해결:**
-[code] 
+```python
     # Golden Dataset 확인
     for qa in monitor.golden_datasets:
         if 'expected_tools' not in qa or not qa['expected_tools']:
@@ -2574,7 +2574,7 @@ Golden Dataset과 Threshold의 모든 변경을 자동으로 백업하고, 필�
             qa['expected_tools'],
             task.tool_calls
         )
-[/code]
+```
 
 #### Q3: Dashboard가 로드되지 않습니다
 
@@ -2584,7 +2584,7 @@ Golden Dataset과 Threshold의 모든 변경을 자동으로 백업하고, 필�
   * 파일 형식이 잘못됨
 
 **해결:**
-[code] 
+```python
     # 데이터 파일 확인
     import os
     if not os.path.exists("evaluation_results/performance_data.json"):
@@ -2596,7 +2596,7 @@ Golden Dataset과 Threshold의 모든 변경을 자동으로 백업하고, 필�
     with open("evaluation_results/performance_data.json") as f:
         data = json.load(f)
         print(f"✅ 유효한 JSON. Tasks: {len(data.get('tasks', []))}")
-[/code]
+```
 
 ### 12.2 성능 문제
 
@@ -2607,7 +2607,7 @@ Dashboard 로딩 느림 | 대용량 데이터 (1000+ tasks) | 샘플링 사용 �
 메모리 부족 | 너무 많은 TaskResult 메모리 보관 | 주기적으로 save_to_file() 및 메모리 정리  
   
 ### 12.3 디버깅 팁
-[code] 
+```python
     # 디버그 모드로 리포트 생성
     report = monitor.generate_report(debug=True)
     
@@ -2637,7 +2637,7 @@ Dashboard 로딩 느림 | 대용량 데이터 (1000+ tasks) | 샘플링 사용 �
     print("Issues:")
     for issue in quality['issues']:
         print(f"  - {issue['type']}: {issue['description']}")
-[/code]
+```
 
 ### 12.4 지원 및 문서
 

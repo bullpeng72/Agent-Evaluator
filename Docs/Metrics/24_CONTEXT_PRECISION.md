@@ -25,7 +25,7 @@ Ragas Layer 3 RAG Evaluation Retrieval Quality
 ## 📊 다이어그램 시각화
 
 ### 1️⃣ 핵심 개념 및 정밀도 평가 (Ragas)
-[code] 
+```python
     graph TD
         A[Question + Contexts Ranked List + Ground Truth] --> B[ContextPrecision Metric  
     Ragas Framework]
@@ -65,10 +65,10 @@ Ragas Layer 3 RAG Evaluation Retrieval Quality
         style N fill:#d4edda
         style Q fill:#f8d7da
         
-[/code]
+```
 
 ### 2️⃣ 평가 파이프라인 (Retrieval Quality)
-[code] 
+```python
     sequenceDiagram
         participant RAG as RAG Retrieval
         participant Adapter as RagasAdapter
@@ -97,10 +97,10 @@ Ragas Layer 3 RAG Evaluation Retrieval Quality
     
         Adapter-->>RAG: {'ragas_context_precision': 0.85}
         
-[/code]
+```
 
 ### 3️⃣ Retrieval 최적화 전략
-[code] 
+```python
     graph TD
         A[Context Precision 개선] --> B[전략 1: Reranking]
         A --> C[전략 2: Hybrid Search]
@@ -138,10 +138,10 @@ Ragas Layer 3 RAG Evaluation Retrieval Quality
         style K fill:#fff3cd
         style L fill:#d4edda
         
-[/code]
+```
 
 ### 4️⃣ 임계값 및 Retrieval 최적화
-[code] 
+```python
     graph TD
         A[Context Precision Score] --> B{임계값 비교}
         B -->|≥ 0.90| C[🌟 Excellent  
@@ -167,7 +167,7 @@ Ragas Layer 3 RAG Evaluation Retrieval Quality
         style E fill:#fff3cd
         style F fill:#f8d7da
         
-[/code]
+```
 
 ## 🔍 구현 위치
 

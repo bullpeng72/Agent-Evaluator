@@ -34,21 +34,23 @@ AI Agent 코드 | ✅ 필수 | 평가할 Agent 함수
 1
 
 설치하기
-[code] 
+
+```python
     # Conda 가상환경 생성 (권장)
     conda create --name Evaluator python=3.11
     conda activate Evaluator
     
     # Agent Evaluator 설치
     pip install agent-evaluator
-[/code]
+```python
 
 2
 
 첫 번째 평가 실행하기
 
 `my_first_evaluation.py` 파일을 만들고 다음 코드를 입력하세요:
-[code] 
+
+```python
     from agent_evaluator import PerformanceMonitor, TaskResult
     from datetime import datetime
     
@@ -87,21 +89,23 @@ AI Agent 코드 | ✅ 필수 | 평가할 Agent 함수
     print(f"✅ Task Completion Rate: {report.accuracy_metrics['tcr']['tcr']:.1f}%")
     print(f"✅ Accuracy: {report.accuracy_metrics['accuracy_scores']['overall_accuracy']:.2f}%")
     print(f"✅ Latency: {report.efficiency_metrics['latency']['average']:.2f}s")
-[/code]
+```python
 
 3
 
 실행하기
-[code] 
+
+```python
     python my_first_evaluation.py
-[/code]
+```python
 
 **예상 출력:**
-[code] 
+
+```python
     ✅ Task Completion Rate: 100.0%
     ✅ Accuracy: 95.00%
     ✅ Latency: 0.10s
-[/code]
+```python
 
 🎉 축하합니다!
 
@@ -114,7 +118,8 @@ AI Agent 코드 | ✅ 필수 | 평가할 Agent 함수
 직접 `TaskResult`를 만드는 대신 **Helper 함수** 를 사용하면 훨씬 간단합니다:
 
 예제: Helper 함수 사용
-[code] 
+
+```python
     from agent_evaluator import PerformanceMonitor
     from agent_evaluator.helpers import create_taskresult_from_execution
     import time
@@ -149,7 +154,7 @@ AI Agent 코드 | ✅ 필수 | 평가할 Agent 함수
     report = monitor.generate_report()
     print(f"Total tasks: {report.total_tasks}")
     print(f"Success rate: {report.success_rate:.2%}")
-[/code]
+```python
 
 💡 Helper 함수의 장점
 
@@ -163,7 +168,8 @@ AI Agent 코드 | ✅ 필수 | 평가할 Agent 함수
 실전에서는 여러 작업을 평가해야 합니다:
 
 예제: 여러 작업 평가
-[code] 
+
+```python
     from agent_evaluator import PerformanceMonitor
     from agent_evaluator.helpers import create_taskresult_from_execution
     
@@ -197,14 +203,15 @@ AI Agent 코드 | ✅ 필수 | 평가할 Agent 함수
     
     # 결과 저장
     monitor.save_to_file("evaluation_results/my_evaluation.json")
-[/code]
+```python
 
 ### Step 3: 임계값 설정 및 Pass/Fail 판정
 
 프로덕션 환경에서는 **임계값** 을 설정하여 품질을 보장합니다:
 
 예제: 임계값 설정
-[code] 
+
+```python
     from agent_evaluator import PerformanceMonitor
     
     # 임계값과 함께 모니터 생성
@@ -231,7 +238,7 @@ AI Agent 코드 | ✅ 필수 | 평가할 Agent 함수
     if not all_passed:
         print("\n⚠️  일부 메트릭이 임계값을 통과하지 못했습니다!")
         exit(1)  # CI/CD에서 실패 처리
-[/code]
+```python
 
 ## 4\. Golden Dataset 활용하기 (자동 평가)
 
@@ -251,7 +258,8 @@ AI Agent 코드 | ✅ 필수 | 평가할 Agent 함수
 `golden_datasets/sample.json` 파일을 만듭니다:
 
 예제: Golden Dataset (JSON 형식)
-[code] 
+
+```json
     [
       {
         "qa_id": "qa_001",
@@ -276,14 +284,15 @@ AI Agent 코드 | ✅ 필수 | 평가할 Agent 함수
         }
       }
     ]
-[/code]
+```python
 
 ### Step 2: Agent 함수 작성
 
 Golden Dataset을 사용하려면 Agent 함수가 **Dict를 반환** 해야 합니다:
 
 예제: Golden Dataset용 Agent 함수
-[code] 
+
+```python
     def my_agent(question: str) -> dict:
         """
         Agent 함수
@@ -307,7 +316,7 @@ Golden Dataset을 사용하려면 Agent 함수가 **Dict를 반환** 해야 합�
             "confidence": 0.95,  # 선택
             "sources": ["knowledge_base"]  # 선택
         }
-[/code]
+```python
 
 ⚠️ 중요: Dict 반환 형식
 
@@ -318,7 +327,8 @@ Agent 함수는 반드시 **`'answer'` 키를 포함한 Dict**를 반환해야 �
 이제 단 몇 줄로 자동 평가를 실행할 수 있습니다:
 
 예제: Golden Dataset 자동 평가
-[code] 
+
+```python
     from agent_evaluator import PerformanceMonitor
     
     # 모니터 생성
@@ -341,7 +351,7 @@ Agent 함수는 반드시 **`'answer'` 키를 포함한 Dict**를 반환해야 �
     report = monitor.generate_report()
     print(f"Total tasks: {report.total_tasks}")
     print(f"Success rate: {report.success_rate:.2%}")
-[/code]
+```python
 
 🚀 자동 평가의 강력함
 
@@ -352,7 +362,8 @@ Agent 함수는 반드시 **`'answer'` 키를 포함한 Dict**를 반환해야 �
 PDF 문서에서 자동으로 Golden Dataset을 생성할 수 있습니다:
 
 예제: PDF에서 Golden Dataset 생성
-[code] 
+
+```python
     from agent_evaluator.datasets.korean_rag_dataset_generator import KoreanRAGDatasetGenerator
     
     # Generator 초기화 (OpenAI API 키 필요)
@@ -370,7 +381,7 @@ PDF 문서에서 자동으로 Golden Dataset을 생성할 수 있습니다:
     
     print(f"✅ {len(dataset['qa_pairs'])}개의 QA 쌍 생성 완료!")
     print(f"✅ 저장 위치: golden_datasets/generated.json")
-[/code]
+```python
 
 ## 5\. 터미널 출력 방법 📟
 
@@ -390,7 +401,8 @@ Agent Evaluator는 평가 결과를 터미널에서 바로 확인할 수 있도�
 가장 간단한 방법으로, 핵심 메트릭을 한눈에 확인할 수 있습니다:
 
 예제: 기본 요약 출력
-[code] 
+
+```python
     from agent_evaluator import PerformanceMonitor
     
     monitor = PerformanceMonitor()
@@ -400,10 +412,11 @@ Agent Evaluator는 평가 결과를 터미널에서 바로 확인할 수 있도�
     # 기본 요약 출력
     report = monitor.generate_report()
     monitor.print_summary(report)
-[/code]
+```python
 
 **출력 예시:**
-[code] 
+
+```python
     ========================================
              성능 요약 보고서
     ========================================
@@ -425,14 +438,15 @@ Agent Evaluator는 평가 결과를 터미널에서 바로 확인할 수 있도�
       - 총 비용: $0.23
     
     ========================================
-[/code]
+```python
 
 ### 방법 2: print_detailed_report() - 상세 분석
 
 모든 메트릭과 통계를 자세히 확인할 수 있습니다:
 
 예제: 상세 리포트 출력
-[code] 
+
+```python
     from agent_evaluator import PerformanceMonitor
     
     monitor = PerformanceMonitor()
@@ -442,10 +456,11 @@ Agent Evaluator는 평가 결과를 터미널에서 바로 확인할 수 있도�
     # 상세 리포트 출력
     report = monitor.generate_report()
     monitor.print_detailed_report(report)
-[/code]
+```python
 
 **출력 예시:**
-[code] 
+
+```python
     ================================================================================
                                 상세 성능 분석 보고서
     ================================================================================
@@ -517,14 +532,15 @@ Agent Evaluator는 평가 결과를 터미널에서 바로 확인할 수 있도�
         - Context Recall     : 0.87
     
     ================================================================================
-[/code]
+```python
 
 ### 방법 3: 프로그래밍 방식 - 커스텀 출력
 
 직접 Report 객체에서 필요한 데이터만 추출하여 출력할 수 있습니다:
 
 예제: 커스텀 출력
-[code] 
+
+```python
     from agent_evaluator import PerformanceMonitor
     
     monitor = PerformanceMonitor()
@@ -554,10 +570,11 @@ Agent Evaluator는 평가 결과를 터미널에서 바로 확인할 수 있도�
         print(f"\n🎯 G-Eval Score: {report.advanced_metrics['deepeval']['g_eval']:.2f}")
     
     print("=" * 60)
-[/code]
+```python
 
 **출력 예시:**
-[code] 
+
+```python
     ============================================================
     🎯 핵심 메트릭 요약
     ============================================================
@@ -571,14 +588,15 @@ Agent Evaluator는 평가 결과를 터미널에서 바로 확인할 수 있도�
     
     🎯 G-Eval Score: 0.89
     ============================================================
-[/code]
+```python
 
 ### 방법 4: JSON 형식 출력 - 파싱 가능
 
 다른 도구와 통합하거나 자동화된 분석을 위해 JSON 형식으로 출력할 수 있습니다:
 
 예제: JSON 출력
-[code] 
+
+```python
     import json
     from agent_evaluator import PerformanceMonitor
     
@@ -592,14 +610,15 @@ Agent Evaluator는 평가 결과를 터미널에서 바로 확인할 수 있도�
     
     # 보기 좋게 출력
     print(json.dumps(report_dict, indent=2, ensure_ascii=False))
-[/code]
+```python
 
 ### 방법 5: 임계값 비교 출력 - Quality Gate
 
 임계값과 비교하여 Pass/Fail 상태를 명확하게 표시합니다:
 
 예제: 임계값 비교 출력
-[code] 
+
+```python
     from agent_evaluator import PerformanceMonitor
     
     monitor = PerformanceMonitor()
@@ -636,10 +655,11 @@ Agent Evaluator는 평가 결과를 터미널에서 바로 확인할 수 있도�
     else:
         print("❌ Quality Gate: FAILED - 일부 메트릭이 임계값을 통과하지 못했습니다.")
     print("=" * 70)
-[/code]
+```python
 
 **출력 예시:**
-[code] 
+
+```python
     ======================================================================
     📊 Quality Gate 결과
     ======================================================================
@@ -650,18 +670,20 @@ Agent Evaluator는 평가 결과를 터미널에서 바로 확인할 수 있도�
     ======================================================================
     ✅ Quality Gate: PASSED - 모든 메트릭이 임계값을 통과했습니다!
     ======================================================================
-[/code]
+```python
 
 ### 실전 활용 팁
 
 #### 1\. 개발 중: 빠른 확인
-[code] 
+
+```python
     # 개발하면서 빠르게 확인
     monitor.print_summary(report)
-[/code]
+```python
 
 #### 2\. CI/CD: 자동화된 검증
-[code] 
+
+```python
     # GitHub Actions, Jenkins 등에서 사용
     comparison = monitor.compare_with_thresholds()
     all_passed = all(r["status"] == "pass" for r in comparison.values())
@@ -672,20 +694,22 @@ Agent Evaluator는 평가 결과를 터미널에서 바로 확인할 수 있도�
     else:
         print("✅ Quality Gate Passed!")
         exit(0)
-[/code]
+```python
 
 #### 3\. 디버깅: 상세 분석
-[code] 
+
+```python
     # 문제 발생 시 상세 분석
     monitor.print_detailed_report(report)
-[/code]
+```python
 
 #### 4\. 자동화: JSON 파싱
-[code] 
+
+```python
     # 다른 시스템과 통합
     report_json = json.dumps(report.to_dict())
     # Slack, Email, 모니터링 시스템으로 전송
-[/code]
+```python
 
 ⚠️ 주의사항
 
@@ -731,7 +755,8 @@ Layer | 이름 | 설명 | 개수 | 비용 | API 키
 **10\. Tool Authorization** | 도구 권한 검증 | 100% 검증  
   
 예제: Layer 1 메트릭 확인
-[code] 
+
+```python
     # 평가 후 리포트 생성
     report = monitor.generate_report()
     
@@ -747,7 +772,7 @@ Layer | 이름 | 설명 | 개수 | 비용 | API 키
     if 'security' in report.accuracy_metrics:
         print(f"Input Sanitization: {report.accuracy_metrics['security'].get('input_sanitization', 0):.1f}%")
         print(f"Output Leakage: {report.accuracy_metrics['security'].get('output_leakage', 0):.1f}%")
-[/code]
+```python
 
 ### Layer 2: Agentic AI Metrics (무료, Multi-Agent용) - 총 6개
 
@@ -800,7 +825,8 @@ AI 기반 고급 평가가 필요할 때만 사용합니다 (OpenAI API 키 필�
 Layer 3는 OpenAI API 호출 비용이 발생합니다. 프로덕션 환경에서는 Layer 1 + Layer 2만 사용하고, Layer 3는 개발 단계에서만 사용하는 것을 권장합니다.
 
 예제: Layer 3 활성화 (고급)
-[code] 
+
+```python
     from agent_evaluator.core.hybrid_monitor import HybridPerformanceMonitor
     
     # Layer 3 활성화 (OpenAI API 키 필요)
@@ -818,14 +844,15 @@ Layer 3는 OpenAI API 호출 비용이 발생합니다. 프로덕션 환경에�
     # Layer 3 메트릭 확인
     print(f"Hallucination (DeepEval): {results['advanced_metrics']['deepeval']['hallucination']:.2f}")
     print(f"Faithfulness (Ragas): {results['advanced_metrics']['ragas']['faithfulness']:.2f}")
-[/code]
+```python
 
 ## 7\. 실전 예제
 
 ### 예제 1: LangChain Agent 평가
 
 LangChain Agent 평가하기
-[code] 
+
+```python
     from langchain_openai import ChatOpenAI
     from langchain.chains import LLMChain
     from langchain.prompts import PromptTemplate
@@ -852,12 +879,13 @@ LangChain Agent 평가하기
     )
     
     print(f"LangChain Agent TCR: {results['tcr']:.1f}%")
-[/code]
+```python
 
 ### 예제 2: A/B 테스트 - 두 Agent 비교
 
 두 Agent 성능 비교
-[code] 
+
+```python
     from agent_evaluator import PerformanceMonitor
     
     # 두 개의 Agent
@@ -888,12 +916,13 @@ LangChain Agent 평가하기
     print(f"V1 Accuracy: {results_v1['accuracy']:.2f}%")
     print(f"V2 Accuracy: {results_v2['accuracy']:.2f}%")
     print(f"개선율: {results_v2['accuracy'] - results_v1['accuracy']:+.2f}%")
-[/code]
+```python
 
 ### 예제 3: CI/CD 통합
 
 GitHub Actions CI/CD
-[code] 
+
+```python
     # .github/workflows/quality-gate.yml
     name: Agent Quality Gate
     
@@ -922,10 +951,11 @@ GitHub Actions CI/CD
               python scripts/quality_gate.py
             env:
               ENV: production
-[/code]
+```python
 
 `scripts/quality_gate.py`:
-[code] 
+
+```python
     from agent_evaluator import PerformanceMonitor
     
     monitor = PerformanceMonitor()
@@ -949,7 +979,7 @@ GitHub Actions CI/CD
     
     print("✅ Quality Gate Passed!")
     exit(0)
-[/code]
+```python
 
 ## 8\. 자주 묻는 질문 (FAQ)
 
@@ -978,7 +1008,8 @@ Helper 함수를 사용하면 자동으로 계산됩니다.
 ### Q4: Agent 함수가 Dict를 반환해야 하나요?
 
 **A:** `evaluate_with_golden_dataset()`를 사용할 때만 Dict 반환이 필요합니다. 수동 평가(`record_task`)는 어떤 형식이든 괜찮습니다.
-[code] 
+
+```python
     # Golden Dataset용 (Dict 필수)
     def my_agent(question: str) -> dict:
         return {"answer": "답변"}
@@ -986,7 +1017,7 @@ Helper 함수를 사용하면 자동으로 계산됩니다.
     # 수동 평가용 (자유 형식)
     def my_agent(question: str) -> str:
         return "답변"
-[/code]
+```python
 
 ### Q5: 결과를 저장하면 어디에 저장되나요?
 
@@ -999,7 +1030,8 @@ Helper 함수를 사용하면 자동으로 계산됩니다.
 ### Q6: 메모리 부족 오류가 발생합니다
 
 **A:** 대량의 작업을 평가할 때는 주기적으로 저장하고 초기화하세요:
-[code] 
+
+```python
     for i in range(10000):
         task = create_taskresult_from_execution(...)
         monitor.record_task(task)
@@ -1008,7 +1040,7 @@ Helper 함수를 사용하면 자동으로 계산됩니다.
         if i % 1000 == 0:
             monitor.save_to_file(f"batch_{i//1000}.json")
             monitor = PerformanceMonitor()  # 새로 생성
-[/code]
+```python
 
 ## 9\. 다음 단계
 
@@ -1050,7 +1082,8 @@ Agent Evaluator는 **3개 레벨 24개의 실행 가능한 예제 파일** 을 �
   * `06_security_production_monitoring.py` \- 🔒 프로덕션 보안
 
 **실행 방법:**
-[code] 
+
+```python
     # Level 1 예제 실행
     python Evaluator_Examples/level_1_foundation/01_quickstart.py
     
@@ -1059,7 +1092,7 @@ Agent Evaluator는 **3개 레벨 24개의 실행 가능한 예제 파일** 을 �
     
     # Level 3 예제 실행
     python Evaluator_Examples/level_3_production/01_framework_crewai.py
-[/code]
+```python
 
 ### 🎓 더 배우기
 

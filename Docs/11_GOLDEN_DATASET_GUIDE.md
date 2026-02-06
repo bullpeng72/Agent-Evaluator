@@ -44,7 +44,7 @@
 `expected_workflow_steps` | `expected_workflow_steps` | ✅ 일치  
   
 ### ✅ 검증된 Golden Dataset 구조
-[code] 
+```python
     [](<#cb1-1>)# korean_rag_dataset_generator.py에서 실제 구현
     [](<#cb1-2>)@dataclass
     [](<#cb1-3>)class QAPair:
@@ -66,7 +66,7 @@
     [](<#cb1-19>)    total_qa_pairs: int       # 총 QA 쌍 수
     [](<#cb1-20>)    qa_pairs: List[QAPair]    # QA 쌍 리스트
     [](<#cb1-21>)    metadata: Dict[str, Any]  # 추가 메타데이터
-[/code]
+```
 
 ### 🔑 핵심 차이점
 
@@ -127,7 +127,7 @@
 **QAPair**(Question-Answer Pair)는 Golden Dataset의 기본 단위입니다. 각 QAPair는 하나의 테스트 케이스를 나타냅니다.
 
 ### 전체 구조 (JSON)
-[code] 
+```json
     [](<#cb2-1>){
     [](<#cb2-2>)  "qa_id": "qa_001",
     [](<#cb2-3>)  "question": "What is the capital of France?",
@@ -143,7 +143,7 @@
     [](<#cb2-13>)  "expected_agents": ["researcher", "validator"],
     [](<#cb2-14>)  "expected_workflow_steps": ["retrieval", "generation", "validation"]
     [](<#cb2-15>)}
-[/code]
+```
 
 ### 필드 설명
 
@@ -176,10 +176,10 @@ Layer 1 필드는 **기본적인 QA 평가** 에 필요한 필드들입니다.
   * **실제 구현** : `korean_rag_dataset_generator.py`의 `QAPair` 클래스에서 `qa_id` 필드명 사용
 
   * **예제** :
-[code] [](<#cb3-1>)"qa_id": "qa_001"
+``` [](<#cb3-1>)"qa_id": "qa_001"
         [](<#cb3-2>)"qa_id": "math_calculation_01"
         [](<#cb3-3>)"qa_id": "customer_support_greeting_001"
-[/code]
+```
 
 ### 2\. `question` (필수)
 
@@ -193,10 +193,10 @@ Layer 1 필드는 **기본적인 QA 평가** 에 필요한 필드들입니다.
     * 실제 사용자가 물어볼 법한 질문
     * 모호성을 최소화
   * **예제** :
-[code] [](<#cb4-1>)"question": "What is 25 * 4?"
+``` [](<#cb4-1>)"question": "What is 25 * 4?"
         [](<#cb4-2>)"question": "Summarize the main points of the attached PDF document."
         [](<#cb4-3>)"question": "Find the latest news about AI in healthcare."
-[/code]
+```
 
 ### 3\. `ground_truth` (필수)
 
@@ -210,9 +210,9 @@ Layer 1 필드는 **기본적인 QA 평가** 에 필요한 필드들입니다.
     * 유연성 허용: 완전 일치가 아닌 유사도 평가
     * 다양한 표현 허용
   * **예제** :
-[code] [](<#cb5-1>)"ground_truth": "100"
+``` [](<#cb5-1>)"ground_truth": "100"
         [](<#cb5-2>)"ground_truth": "The document discusses three main topics: climate change impacts, renewable energy solutions, and policy recommendations."
-[/code]
+```
 
 ### 4\. `answer` (필수)
 
@@ -228,9 +228,9 @@ Layer 1 필드는 **기본적인 QA 평가** 에 필요한 필드들입니다.
     * 완전하고 상세한 답변 (2-3문장)
     * `ground_truth`보다 더 상세함
   * **예제** :
-[code] [](<#cb6-1>)"answer": "100"
+``` [](<#cb6-1>)"answer": "100"
         [](<#cb6-2>)"answer": "The document discusses three main topics: climate change impacts, renewable energy solutions, and policy recommendations. It provides detailed analysis of current trends and future projections."
-[/code]
+```
 
 ### 5\. `context` (필수)
 
@@ -246,9 +246,9 @@ Layer 1 필드는 **기본적인 QA 평가** 에 필요한 필드들입니다.
     * RAG 시스템에서는 검색 결과로 사용될 수 있음
     * 충분한 정보를 제공하되, 불필요한 정보는 제외
   * **예제** :
-[code] [](<#cb7-1>)"context": "The user is asking for a basic multiplication calculation."
+``` [](<#cb7-1>)"context": "The user is asking for a basic multiplication calculation."
         [](<#cb7-2>)"context": "The PDF document titled 'Climate Action Report 2024' contains 50 pages discussing climate change, renewable energy, and policy recommendations. The report was published by the International Climate Organization."
-[/code]
+```
 
 ### 6\. `ground_truth` (필수)
 
@@ -268,9 +268,9 @@ Layer 1 필드는 **기본적인 QA 평가** 에 필요한 필드들입니다.
     * 유연성 허용: 완전 일치가 아닌 유사도 평가
     * 다양한 표현 허용
   * **예제** :
-[code] [](<#cb8-1>)"ground_truth": "100"
+``` [](<#cb8-1>)"ground_truth": "100"
         [](<#cb8-2>)"ground_truth": "The document discusses climate change, renewable energy, and policy recommendations."
-[/code]
+```
 
 ### 7\. `metadata` (선택)
 
@@ -286,14 +286,14 @@ Layer 1 필드는 **기본적인 QA 평가** 에 필요한 필드들입니다.
     * `tags`: 태그 리스트 (예: [“calculation”, “basic”])
     * `created_at`: 생성 시간 (ISO 8601)
   * **예제** :
-[code] [](<#cb9-1>)"metadata": {
+``` [](<#cb9-1>)"metadata": {
         [](<#cb9-2>)  "domain": "mathematics",
         [](<#cb9-3>)  "difficulty": "easy",
         [](<#cb9-4>)  "source": "manual",
         [](<#cb9-5>)  "tags": ["calculation", "multiplication"],
         [](<#cb9-6>)  "created_at": "2024-01-15T10:30:00Z"
         [](<#cb9-7>)}
-[/code]
+```
 
 * * *
 
@@ -322,36 +322,36 @@ Layer 2 필드는 **Agentic AI 시스템 및 보안 평가** 에 필요한 고�
 #### 예제
 
 **예제 1: 간단한 검색**
-[code] 
+```json
     [](<#cb10-1>){
     [](<#cb10-2>)  "question": "What is the population of Tokyo?",
     [](<#cb10-3>)  "expected_tools": ["search"]
     [](<#cb10-4>)}
-[/code]
+```
 
 **예제 2: 수학 계산**
-[code] 
+```json
     [](<#cb11-1>){
     [](<#cb11-2>)  "question": "Calculate the compound interest on $1000 at 5% for 10 years.",
     [](<#cb11-3>)  "expected_tools": ["calculator", "python_repl"]
     [](<#cb11-4>)}
-[/code]
+```
 
 **예제 3: 복합 작업**
-[code] 
+```json
     [](<#cb12-1>){
     [](<#cb12-2>)  "question": "Find recent stock prices for AAPL and create a visualization.",
     [](<#cb12-3>)  "expected_tools": ["search", "yahoo_finance", "python_repl", "matplotlib"]
     [](<#cb12-4>)}
-[/code]
+```
 
 **예제 4: RAG 시스템**
-[code] 
+```json
     [](<#cb13-1>){
     [](<#cb13-2>)  "question": "Summarize the key findings from the research papers on quantum computing.",
     [](<#cb13-3>)  "expected_tools": ["vector_search", "pdf_reader", "summarizer"]
     [](<#cb13-4>)}
-[/code]
+```
 
 #### 일반적인 도구 이름
 
@@ -389,28 +389,28 @@ Layer 2 필드는 **Agentic AI 시스템 및 보안 평가** 에 필요한 고�
 #### 예제
 
 **예제 1: CrewAI - 연구 작업**
-[code] 
+```json
     [](<#cb14-1>){
     [](<#cb14-2>)  "question": "Research the latest trends in AI and write a summary report.",
     [](<#cb14-3>)  "expected_agents": ["manager", "researcher", "writer", "reviewer"]
     [](<#cb14-4>)}
-[/code]
+```
 
 **예제 2: 고객 지원**
-[code] 
+```json
     [](<#cb15-1>){
     [](<#cb15-2>)  "question": "Help me reset my password.",
     [](<#cb15-3>)  "expected_agents": ["classifier", "auth_agent", "notification_agent"]
     [](<#cb15-4>)}
-[/code]
+```
 
 **예제 3: 데이터 분석 파이프라인**
-[code] 
+```json
     [](<#cb16-1>){
     [](<#cb16-2>)  "question": "Analyze sales data and create a dashboard.",
     [](<#cb16-3>)  "expected_agents": ["data_loader", "data_processor", "analyst", "visualizer"]
     [](<#cb16-4>)}
-[/code]
+```
 
 ### 3\. `expected_workflow_steps` (선택)
 
@@ -433,23 +433,23 @@ Layer 2 필드는 **Agentic AI 시스템 및 보안 평가** 에 필요한 고�
 #### 예제
 
 **예제 1: RAG 워크플로우**
-[code] 
+```json
     [](<#cb17-1>){
     [](<#cb17-2>)  "question": "What are the benefits of solar energy?",
     [](<#cb17-3>)  "expected_workflow_steps": ["retrieval", "reranking", "generation", "validation"]
     [](<#cb17-4>)}
-[/code]
+```
 
 **예제 2: LangGraph 에이전트**
-[code] 
+```json
     [](<#cb18-1>){
     [](<#cb18-2>)  "question": "Plan a trip to Paris.",
     [](<#cb18-3>)  "expected_workflow_steps": ["planning", "research", "booking", "confirmation"]
     [](<#cb18-4>)}
-[/code]
+```
 
 **예제 3: 복잡한 워크플로우**
-[code] 
+```json
     [](<#cb19-1>){
     [](<#cb19-2>)  "question": "Analyze customer feedback and suggest improvements.",
     [](<#cb19-3>)  "expected_workflow_steps": [
@@ -461,7 +461,7 @@ Layer 2 필드는 **Agentic AI 시스템 및 보안 평가** 에 필요한 고�
     [](<#cb19-9>)    "recommendation"
     [](<#cb19-10>)  ]
     [](<#cb19-11>)}
-[/code]
+```
 
 * * *
 
@@ -485,7 +485,7 @@ Golden Dataset을 생성하는 방법은 크게 3가지입니다.
 #### 과정
 
 **1) JSON 파일 직접 작성**
-[code] 
+```json
     [](<#cb20-1>){
     [](<#cb20-2>)  "dataset_id": "dataset_a1b2c3d4",
     [](<#cb20-3>)  "source_document": "documentation.pdf",
@@ -530,10 +530,10 @@ Golden Dataset을 생성하는 방법은 크게 3가지입니다.
     [](<#cb20-42>)    "model": "gpt-4o-mini"
     [](<#cb20-43>)  }
     [](<#cb20-44>)}
-[/code]
+```
 
 **2) Python 코드로 생성 (실제 구조 사용)**
-[code] 
+```python
     [](<#cb21-1>)from agent_evaluator.datasets.korean_rag_dataset_generator import QAPair, GoldenDataset, GoldenDatasetManager
     [](<#cb21-2>)from datetime import datetime
     [](<#cb21-3>)
@@ -591,7 +591,7 @@ Golden Dataset을 생성하는 방법은 크게 3가지입니다.
     [](<#cb21-55>)    print(f"   Saved to: {saved_path}")
     [](<#cb21-56>)
     [](<#cb21-57>)create_golden_dataset()
-[/code]
+```
 
 ### 방법 2: PDF에서 자동 생성
 
@@ -604,7 +604,7 @@ Agent Evaluator는 **PDF 문서에서 자동으로 Golden Dataset을 생성** �
   * RAG 시스템 평가에 최적
 
 #### 사용법
-[code] 
+```python
     [](<#cb22-1>)from agent_evaluator.datasets.korean_rag_dataset_generator import KoreanRAGDatasetGenerator
     [](<#cb22-2>)
     [](<#cb22-3>)# 생성기 초기화
@@ -623,7 +623,7 @@ Agent Evaluator는 **PDF 문서에서 자동으로 Golden Dataset을 생성** �
     [](<#cb22-16>)    save_format="json",  # "json" 또는 "csv"
     [](<#cb22-17>)    max_chunks=None  # 전체 청크 사용 (테스트 시 숫자 지정 가능)
     [](<#cb22-18>))
-[/code]
+```
 
 #### 생성 과정
 
@@ -637,7 +637,7 @@ Agent Evaluator는 **PDF 문서에서 자동으로 Golden Dataset을 생성** �
   5. **저장** : JSON 또는 CSV 파일로 저장
 
 #### 실제 생성 프로세스 (korean_rag_dataset_generator.py)
-[code] 
+```json
     [](<#cb23-1>)# 1. PDF 텍스트 추출 (PyPDF2 또는 pdfplumber)
     [](<#cb23-2>)extractor = KoreanPDFExtractor()
     [](<#cb23-3>)pages_text = extractor.extract_text("document.pdf")
@@ -659,14 +659,14 @@ Agent Evaluator는 **PDF 문서에서 자동으로 Golden Dataset을 생성** �
     [](<#cb23-19>)dataset_manager = GoldenDatasetManager()
     [](<#cb23-20>)dataset = dataset_manager.create_dataset(qa_pairs, "document.pdf")
     [](<#cb23-21>)dataset_manager.save_dataset(dataset, format="json")
-[/code]
+```
 
 #### 중요: Layer 2 필드는 수동 추가 권장
 
 현재 구현에서는 **Layer 2 필드(expected_tools, expected_agents, expected_workflow_steps)가 자동으로 생성되지 않습니다**.
 
 PDF 생성 후: 1. Dashboard에서 Golden Dataset 로드 2. Layer 2 필드를 수동으로 추가/편집 3. 또는 Python 코드로 직접 추가:
-[code] 
+```python
     [](<#cb24-1>)from agent_evaluator.datasets.korean_rag_dataset_generator import GoldenDatasetManager
     [](<#cb24-2>)
     [](<#cb24-3>)manager = GoldenDatasetManager()
@@ -680,7 +680,7 @@ PDF 생성 후: 1. Dashboard에서 Golden Dataset 로드 2. Layer 2 필드를 �
     [](<#cb24-11>)
     [](<#cb24-12>)# 저장
     [](<#cb24-13>)manager.save_dataset(dataset, format="json")
-[/code]
+```
 
 ### 방법 3: Dashboard에서 생성
 
@@ -695,9 +695,9 @@ Agent Evaluator Dashboard는 **GUI 기반 Golden Dataset 생성 및 편집** 을
 #### 사용법
 
 **1) Dashboard 실행**
-[code] 
+```bash
     [](<#cb25-1>)streamlit run streamlit_dashboard.py
-[/code]
+```
 
 **2) “Golden Dataset” 탭으로 이동**
 
@@ -716,7 +716,7 @@ Agent Evaluator Dashboard는 **GUI 기반 Golden Dataset 생성 및 편집** 을
 ### 기존 Golden Dataset 로드
 
 **DataEditorManager를 통한 로드**
-[code] 
+```python
     [](<#cb26-1>)from data_editor_manager import DataEditorManager
     [](<#cb26-2>)
     [](<#cb26-3>)manager = DataEditorManager()
@@ -727,12 +727,12 @@ Agent Evaluator Dashboard는 **GUI 기반 Golden Dataset 생성 및 편집** 을
     [](<#cb26-8>)# 로드된 데이터 확인
     [](<#cb26-9>)print(f"로드된 QA 쌍: {len(df)}개")
     [](<#cb26-10>)print(df.columns)  # qa_id, question, answer, context, ground_truth, metadata, expected_tools, ...
-[/code]
+```
 
 ### QAPair 편집
 
 **DataFrame 편집 방식**
-[code] 
+```json
     [](<#cb27-1>)# 1. 특정 QAPair 수정
     [](<#cb27-2>)df.loc[df['qa_id'] == 'qa_001', 'ground_truth'] = "수정된 정답"
     [](<#cb27-3>)
@@ -748,10 +748,10 @@ Agent Evaluator Dashboard는 **GUI 기반 Golden Dataset 생성 및 편집** 을
     [](<#cb27-13>)    editor="Your Name",
     [](<#cb27-14>)    reason="Updated ground truth and added Layer 2 fields"
     [](<#cb27-15>))
-[/code]
+```
 
 ### QAPair 추가
-[code] 
+```json
     [](<#cb28-1>)# 새 QA 쌍 추가
     [](<#cb28-2>)new_qa = {
     [](<#cb28-3>)    "qa_id": "qa_new",
@@ -771,20 +771,20 @@ Agent Evaluator Dashboard는 **GUI 기반 Golden Dataset 생성 및 편집** 을
     [](<#cb28-17>)    editor="Your Name",
     [](<#cb28-18>)    reason="Added new test case"
     [](<#cb28-19>))
-[/code]
+```
 
 ### QAPair 삭제
-[code] 
+```json
     [](<#cb29-1>)manager.delete_qa_pair(
     [](<#cb29-2>)    qa_id="qa_001",
     [](<#cb29-3>)    filepath="golden_datasets/my_dataset.json",
     [](<#cb29-4>)    editor="Your Name",
     [](<#cb29-5>)    reason="Removed outdated test case"
     [](<#cb29-6>))
-[/code]
+```
 
 ### Layer 2 필드 일괄 추가
-[code] 
+```json
     [](<#cb30-1>)# DataFrame에서 일괄 수정
     [](<#cb30-2>)df = manager.load_golden_dataset("golden_datasets/my_dataset.json")
     [](<#cb30-3>)
@@ -802,10 +802,10 @@ Agent Evaluator Dashboard는 **GUI 기반 Golden Dataset 생성 및 편집** 을
     [](<#cb30-15>)    editor="Your Name",
     [](<#cb30-16>)    reason="Bulk update Layer 2 fields for math domain"
     [](<#cb30-17>))
-[/code]
+```
 
 ### 검증
-[code] 
+```python
     [](<#cb31-1>)from agent_evaluator.datasets.korean_rag_dataset_generator import GoldenDatasetManager
     [](<#cb31-2>)
     [](<#cb31-3>)manager = GoldenDatasetManager()
@@ -822,7 +822,7 @@ Agent Evaluator Dashboard는 **GUI 기반 Golden Dataset 생성 및 편집** 을
     [](<#cb31-14>)        print(f"  - {issue}")
     [](<#cb31-15>)
     [](<#cb31-16>)print(f"\n총 QA 쌍: {validation['total_qa_pairs']}개")
-[/code]
+```
 
 * * *
 
@@ -831,7 +831,7 @@ Agent Evaluator Dashboard는 **GUI 기반 Golden Dataset 생성 및 편집** 을
 Golden Dataset을 사용한 자동 평가는 다음과 같이 진행됩니다.
 
 ### 기본 워크플로우 (실제 구현)
-[code] 
+```python
     [](<#cb32-1>)from agent_evaluator import PerformanceMonitor
     [](<#cb32-2>)
     [](<#cb32-3>)# 1. Monitor 초기화
@@ -898,10 +898,10 @@ Golden Dataset을 사용한 자동 평가는 다음과 같이 진행됩니다.
     [](<#cb32-64>)    for metric, data in results['pass_fail'].items():
     [](<#cb32-65>)        status = "✅ PASS" if data['status'] == 'pass' else "❌ FAIL"
     [](<#cb32-66>)        print(f"  {status} {data['name']}: {data['value']:.1f} (임계값: {data['threshold']})")
-[/code]
+```
 
 ### 중요: evaluate_with_golden_dataset() 작동 방식
-[code] 
+```json
     [](<#cb33-1>)# 내부적으로 다음과 같이 동작합니다:
     [](<#cb33-2>)
     [](<#cb33-3>)# 1. Golden Dataset 로드
@@ -932,12 +932,12 @@ Golden Dataset을 사용한 자동 평가는 다음과 같이 진행됩니다.
     [](<#cb33-28>)        )
     [](<#cb33-29>)
     [](<#cb33-30>)# 3. 결과 집계 및 반환
-[/code]
+```
 
 ### Layer 2 자동 평가 상세
 
 #### Tool Selection 평가
-[code] 
+```json
     [](<#cb34-1>)# Golden Dataset QAPair
     [](<#cb34-2>){
     [](<#cb34-3>)  "id": "qa_001",
@@ -952,10 +952,10 @@ Golden Dataset을 사용한 자동 평가는 다음과 같이 진행됩니다.
     [](<#cb34-12>)# - Precision: 1/2 = 50% (calculator는 맞지만 search는 불필요)
     [](<#cb34-13>)# - Recall: 1/1 = 100% (calculator 사용함)
     [](<#cb34-14>)# - F1 Score: 2 * (0.5 * 1.0) / (0.5 + 1.0) = 66.7%
-[/code]
+```
 
 #### Agent Coordination 평가
-[code] 
+```json
     [](<#cb35-1>)# Golden Dataset QAPair
     [](<#cb35-2>){
     [](<#cb35-3>)  "id": "qa_002",
@@ -972,10 +972,10 @@ Golden Dataset을 사용한 자동 평가는 다음과 같이 진행됩니다.
     [](<#cb35-14>)# - 모든 expected_agents 참여: ✅
     [](<#cb35-15>)# - 상호작용 성공률: 100%
     [](<#cb35-16>)# - 협업 점수: 8.5/10
-[/code]
+```
 
 #### Workflow Execution 평가
-[code] 
+```json
     [](<#cb36-1>)# Golden Dataset QAPair
     [](<#cb36-2>){
     [](<#cb36-3>)  "id": "qa_003",
@@ -992,12 +992,12 @@ Golden Dataset을 사용한 자동 평가는 다음과 같이 진행됩니다.
     [](<#cb36-14>)# 자동 평가
     [](<#cb36-15>)# - 모든 단계 실행: ✅
     [](<#cb36-16>)# - 단계 성공률: 100%
-[/code]
+```
 
 ### Framework 통합 예제
 
 #### LangChain
-[code] 
+```python
     [](<#cb37-1>)from agent_evaluator.integrations import LangChainEvaluator, AdvancedLangChainCallback
     [](<#cb37-2>)
     [](<#cb37-3>)# Golden Dataset에서 expected_tools 로드
@@ -1017,10 +1017,10 @@ Golden Dataset을 사용한 자동 평가는 다음과 같이 진행됩니다.
     [](<#cb37-17>))
     [](<#cb37-18>)
     [](<#cb37-19>)# Tool Selection 자동 평가됨
-[/code]
+```
 
 #### CrewAI
-[code] 
+```python
     [](<#cb38-1>)from agent_evaluator.integrations import CrewAIEvaluator
     [](<#cb38-2>)
     [](<#cb38-3>)# Crew 생성
@@ -1041,10 +1041,10 @@ Golden Dataset을 사용한 자동 평가는 다음과 같이 진행됩니다.
     [](<#cb38-18>)result = evaluator.kickoff()
     [](<#cb38-19>)
     [](<#cb38-20>)# Agent Coordination 자동 평가됨
-[/code]
+```
 
 #### LangGraph
-[code] 
+```python
     [](<#cb39-1>)from agent_evaluator.integrations import LangGraphEvaluator
     [](<#cb39-2>)
     [](<#cb39-3>)# Evaluator 생성
@@ -1063,7 +1063,7 @@ Golden Dataset을 사용한 자동 평가는 다음과 같이 진행됩니다.
     [](<#cb39-16>)result = workflow.compile_and_run({"messages": ["input"]})
     [](<#cb39-17>)
     [](<#cb39-18>)# Workflow Execution 자동 평가됨
-[/code]
+```
 
 * * *
 
@@ -1087,104 +1087,104 @@ The evaluation system now uses **4 similarity metrics (4가지 유사도 메트�
 #### ✅ 좋은 예
 
 **명확하고 구체적인 질문**
-[code] 
+```json
     [](<#cb40-1>){
     [](<#cb40-2>)  "question": "What is the refund policy for digital products purchased within the last 30 days?"
     [](<#cb40-3>)}
-[/code]
+```
 
 **완전하고 정확한 정답**
-[code] 
+```json
     [](<#cb41-1>){
     [](<#cb41-2>)  "ground_truth": "Digital products purchased within the last 30 days are eligible for a full refund if you contact support at support@example.com."
     [](<#cb41-3>)}
-[/code]
+```
 
 **충분한 컨텍스트**
-[code] 
+```json
     [](<#cb42-1>){
     [](<#cb42-2>)  "context": "Company refund policy documentation states: 'All digital products come with a 30-day money-back guarantee. To request a refund, contact support@example.com with your order number.'"
     [](<#cb42-3>)}
-[/code]
+```
 
 #### ❌ 나쁜 예
 
 **모호한 질문**
-[code] 
+```json
     [](<#cb43-1>){
     [](<#cb43-2>)  "question": "How does refund work?"
     [](<#cb43-3>)}
-[/code]
+```
 
 **불완전한 정답**
-[code] 
+```json
     [](<#cb44-1>){
     [](<#cb44-2>)  "ground_truth": "You can get a refund."
     [](<#cb44-3>)}
-[/code]
+```
 
 **불충분한 컨텍스트**
-[code] 
+```json
     [](<#cb45-1>){
     [](<#cb45-2>)  "context": "Refund policy exists."
     [](<#cb45-3>)}
-[/code]
+```
 
 ### 2\. Layer 2 필드 작성 Best Practices
 
 #### Expected Tools
 
 **✅ 필수 도구만 포함**
-[code] 
+```json
     [](<#cb46-1>){
     [](<#cb46-2>)  "question": "What is 15 + 27?",
     [](<#cb46-3>)  "expected_tools": ["calculator"]
     [](<#cb46-4>)}
-[/code]
+```
 
 **❌ 선택적 도구 포함**
-[code] 
+```json
     [](<#cb47-1>){
     [](<#cb47-2>)  "question": "What is 15 + 27?",
     [](<#cb47-3>)  "expected_tools": ["calculator", "search", "python_repl"]
     [](<#cb47-4>)  // search와 python_repl은 불필요
     [](<#cb47-5>)}
-[/code]
+```
 
 #### Expected Agents
 
 **✅ 실제 참여하는 에이전트만**
-[code] 
+```json
     [](<#cb48-1>){
     [](<#cb48-2>)  "question": "Research and write a summary.",
     [](<#cb48-3>)  "expected_agents": ["researcher", "writer"]
     [](<#cb48-4>)}
-[/code]
+```
 
 **❌ 불필요한 에이전트 포함**
-[code] 
+```json
     [](<#cb49-1>){
     [](<#cb49-2>)  "question": "Research and write a summary.",
     [](<#cb49-3>)  "expected_agents": ["manager", "researcher", "writer", "reviewer", "publisher"]
     [](<#cb49-4>)  // 실제로는 researcher와 writer만 필요
     [](<#cb49-5>)}
-[/code]
+```
 
 #### Expected Workflow Steps
 
 **✅ 실행 순서대로**
-[code] 
+```json
     [](<#cb50-1>){
     [](<#cb50-2>)  "expected_workflow_steps": ["retrieval", "reranking", "generation", "validation"]
     [](<#cb50-3>)}
-[/code]
+```
 
 **❌ 순서 없음 (비권장)**
-[code] 
+```json
     [](<#cb51-1>){
     [](<#cb51-2>)  "expected_workflow_steps": ["generation", "retrieval", "validation", "reranking"]
     [](<#cb51-3>)}
-[/code]
+```
 
 ### 3\. Golden Dataset 관리 Best Practices
 
@@ -1225,7 +1225,7 @@ The evaluation system now uses **4 similarity metrics (4가지 유사도 메트�
   * Layer 2 메트릭 포함
 
 #### 예제
-[code] 
+```python
     [](<#cb52-1>)# 개발 환경
     [](<#cb52-2>)monitor.thresholds = {
     [](<#cb52-3>)    'tcr': 80.0,
@@ -1242,14 +1242,14 @@ The evaluation system now uses **4 similarity metrics (4가지 유사도 메트�
     [](<#cb52-14>)    'agent_coordination': 8.0,
     [](<#cb52-15>)    'workflow_execution': 95.0
     [](<#cb52-16>)}
-[/code]
+```
 
 * * *
 
 ## 예제 Golden Datasets
 
 ### 예제 1: 간단한 QA (실제 구조)
-[code] 
+```json
     [](<#cb53-1>){
     [](<#cb53-2>)  "dataset_id": "simple_qa_abc123",
     [](<#cb53-3>)  "source_document": "sample_document.pdf",
@@ -1296,10 +1296,10 @@ The evaluation system now uses **4 similarity metrics (4가지 유사도 메트�
     [](<#cb53-44>)    "model": "gpt-4o-mini"
     [](<#cb53-45>)  }
     [](<#cb53-46>)}
-[/code]
+```
 
 ### 예제 2: Multi-Agent 시스템
-[code] 
+```json
     [](<#cb54-1>){
     [](<#cb54-2>)  "dataset_name": "multi_agent_research",
     [](<#cb54-3>)  "version": "1.0",
@@ -1327,10 +1327,10 @@ The evaluation system now uses **4 similarity metrics (4가지 유사도 메트�
     [](<#cb54-25>)    }
     [](<#cb54-26>)  ]
     [](<#cb54-27>)}
-[/code]
+```
 
 ### 예제 3: RAG 시스템
-[code] 
+```json
     [](<#cb55-1>){
     [](<#cb55-2>)  "dataset_name": "rag_qa",
     [](<#cb55-3>)  "version": "1.0",
@@ -1350,10 +1350,10 @@ The evaluation system now uses **4 similarity metrics (4가지 유사도 메트�
     [](<#cb55-17>)    }
     [](<#cb55-18>)  ]
     [](<#cb55-19>)}
-[/code]
+```
 
 ### 예제 4: 고객 지원
-[code] 
+```json
     [](<#cb56-1>){
     [](<#cb56-2>)  "dataset_name": "customer_support",
     [](<#cb56-3>)  "version": "1.0",
@@ -1386,7 +1386,7 @@ The evaluation system now uses **4 similarity metrics (4가지 유사도 메트�
     [](<#cb56-30>)    }
     [](<#cb56-31>)  ]
     [](<#cb56-32>)}
-[/code]
+```
 
 * * *
 
@@ -1395,7 +1395,7 @@ The evaluation system now uses **4 similarity metrics (4가지 유사도 메트�
 ### load_golden_dataset()
 
 Golden Dataset 파일을 로드합니다.
-[code] 
+```python
     [](<#cb57-1>)def load_golden_dataset(self, dataset_path: Optional[str] = None) -> List[Dict]:
     [](<#cb57-2>)    """
     [](<#cb57-3>)    Args:
@@ -1410,10 +1410,10 @@ Golden Dataset 파일을 로드합니다.
     [](<#cb57-12>)    Raises:
     [](<#cb57-13>)        FileNotFoundError: 파일을 찾을 수 없는 경우
     [](<#cb57-14>)    """
-[/code]
+```
 
 **사용 예시:**
-[code] 
+```python
     [](<#cb58-1>)monitor = PerformanceMonitor()
     [](<#cb58-2>)
     [](<#cb58-3>)# 방법 1: 상대 경로 (golden_datasets/ 디렉토리에서 검색)
@@ -1428,12 +1428,12 @@ Golden Dataset 파일을 로드합니다.
     [](<#cb58-12>)dataset = monitor.load_golden_dataset()  # 자동으로 속성 경로 사용
     [](<#cb58-12>)
     [](<#cb58-13>)print(f"로드된 QA 쌍: {len(dataset)}개")
-[/code]
+```
 
 ### evaluate_with_golden_dataset()
 
 Golden Dataset 기반 완전 자동 평가 파이프라인입니다.
-[code] 
+```python
     [](<#cb59-1>)def evaluate_with_golden_dataset(
     [](<#cb59-2>)    self,
     [](<#cb59-3>)    agent_fn: Callable[[str], Dict],
@@ -1486,10 +1486,10 @@ Golden Dataset 기반 완전 자동 평가 파이프라인입니다.
     [](<#cb59-50>)            }
     [](<#cb59-51>)        }
     [](<#cb59-52>)    """
-[/code]
+```
 
 **완전한 사용 예시:**
-[code] 
+```python
     [](<#cb60-1>)from agent_evaluator import PerformanceMonitor
     [](<#cb60-2>)
     [](<#cb60-3>)# 1. Monitor 초기화
@@ -1540,12 +1540,12 @@ Golden Dataset 기반 완전 자동 평가 파이프라인입니다.
     [](<#cb60-48>)    else:
     [](<#cb60-49>)        print(f"\n✅ 모든 메트릭 통과!")
     [](<#cb60-50>)        exit(0)
-[/code]
+```
 
 ### compare_with_thresholds()
 
 현재 메트릭 값을 설정된 임계값과 비교합니다.
-[code] 
+```python
     [](<#cb61-1>)def compare_with_thresholds(self) -> Dict[str, Any]:
     [](<#cb61-2>)    """
     [](<#cb61-3>)    Returns:
@@ -1560,10 +1560,10 @@ Golden Dataset 기반 완전 자동 평가 파이프라인입니다.
     [](<#cb61-12>)            }
     [](<#cb61-13>)        }
     [](<#cb61-14>)    """
-[/code]
+```
 
 **사용 예시:**
-[code] 
+```python
     [](<#cb62-1>)# 임계값 설정
     [](<#cb62-2>)monitor.thresholds = {
     [](<#cb62-3>)    'tcr': 90.0,
@@ -1578,7 +1578,7 @@ Golden Dataset 기반 완전 자동 평가 파이프라인입니다.
     [](<#cb62-12>)for metric, data in comparison.items():
     [](<#cb62-13>)    status = "✅ PASS" if data['status'] == 'pass' else "❌ FAIL"
     [](<#cb62-14>)    print(f"{status} {data['name']}: {data['value']:.1f}{data['unit']} (임계값: {data['threshold']})")
-[/code]
+```
 
 * * *
 
@@ -1612,7 +1612,7 @@ Golden Dataset 품질 | → | 평가 신뢰도 | 결과
 #### 📊 Golden Dataset 생명주기
 
 **Golden Dataset은 한번 만들고 끝이 아닙니다!**
-[code] 
+```python
     1. 📝 생성 (Create)
        └─ 다양한 시나리오 수집
        └─ 전문가 검토
@@ -1638,7 +1638,7 @@ Golden Dataset 품질 | → | 평가 신뢰도 | 결과
        └─ 다양성 확대
        └─ 난이도 조정
     
-[/code]
+```
 
 ### 2\. 데이터셋 품질 지표
 
@@ -1811,14 +1811,14 @@ Golden Dataset 품질 | → | 평가 신뢰도 | 결과
   * OpenAI API 호출이 많음 (청크당 1회 API 호출)
 
 **해결** : 1. `max_chunks` 파라미터로 청크 수 제한 (테스트용) 2. `num_questions_per_chunk` 값을 줄임 (기본 3개) 3. PDF를 작은 단위로 분할 4. gpt-4o-mini 모델 사용 (더 빠르고 저렴)
-[code] 
+```json
     [](<#cb63-1>)generator = KoreanRAGDatasetGenerator(model="gpt-4o-mini")
     [](<#cb63-2>)dataset = generator.generate_from_pdf(
     [](<#cb63-3>)    pdf_path="large_document.pdf",
     [](<#cb63-4>)    num_questions_per_chunk=2,  # 청크당 2개로 감소
     [](<#cb63-5>)    max_chunks=10  # 처음 10개 청크만 처리
     [](<#cb63-6>))
-[/code]
+```
 
 #### 문제 5: 자동 평가 결과가 수동 평가와 다릅니다
 

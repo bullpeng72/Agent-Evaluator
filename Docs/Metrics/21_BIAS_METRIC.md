@@ -21,7 +21,7 @@ Agent Evaluator v0.5.0 - Layer 3 DeepEval Metric
 ## 📊 다이어그램 시각화
 
 ### 1️⃣ 핵심 개념 및 편향 탐지 (DeepEval)
-[code] 
+```python
     graph TD
         A[Agent Output] --> B[BiasMetric  
     DeepEval]
@@ -61,10 +61,10 @@ Agent Evaluator v0.5.0 - Layer 3 DeepEval Metric
         style M fill:#d4edda
         style P fill:#f8d7da
         
-[/code]
+```
 
 ### 2️⃣ 평가 파이프라인 (Fairness Check)
-[code] 
+```python
     sequenceDiagram
         participant Agent as AI Agent
         participant Adapter as DeepEvalAdapter
@@ -96,10 +96,10 @@ Agent Evaluator v0.5.0 - Layer 3 DeepEval Metric
             Agent->>Agent: Pass as fair
         end
         
-[/code]
+```
 
 ### 3️⃣ 비용 및 적용 범위
-[code] 
+```python
     graph TD
         A[Bias Detection Strategy] --> B{Evaluation Frequency}
     
@@ -138,10 +138,10 @@ Agent Evaluator v0.5.0 - Layer 3 DeepEval Metric
         style I fill:#fff3cd
         style K fill:#ffc107
         
-[/code]
+```
 
 ### 4️⃣ 임계값 및 공정성 정책
-[code] 
+```python
     graph TD
         A[Bias Score] --> B{임계값 비교}
         B -->|< 0.10| C[🌟 Excellent  
@@ -167,7 +167,7 @@ Agent Evaluator v0.5.0 - Layer 3 DeepEval Metric
         style E fill:#fff3cd
         style F fill:#f8d7da
         
-[/code]
+```
 
 ## 📍 구현 위치
 

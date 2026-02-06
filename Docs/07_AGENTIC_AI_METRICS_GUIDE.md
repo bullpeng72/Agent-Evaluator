@@ -93,7 +93,7 @@ Layer 2 & Layer 3 AI 품질 메트릭
 ### 메트릭 계산 (실제 구현)
 
 **구현 위치** : `agent_evaluator/core/agent_evaluator.py` \- `ToolSelectionTracker.evaluate_selection()` (lines 1444-1508)
-[code] 
+```json
     [](<#cb1-1>)# 1. 집합 연산으로 TP, FP, FN 계산
     [](<#cb1-2>)expected_set = set(expected_tools)
     [](<#cb1-3>)actual_set = set(actual_tools)
@@ -109,10 +109,10 @@ Layer 2 & Layer 3 AI 품질 메트릭
     [](<#cb1-13>)
     [](<#cb1-14>)# 3. Accuracy = F1 Score (백분율로 변환)
     [](<#cb1-15>)accuracy = f1_score * 100
-[/code]
+```
 
 **예시:** \- Expected Tools: `["search", "calculator", "python_repl"]` \- Actual Tools: `["search", "calculator"]`
-[code] 
+```json
     [](<#cb2-1>)True Positives = 2  # {"search", "calculator"} ∩ expected
     [](<#cb2-2>)False Positives = 0  # actual - expected = {}
     [](<#cb2-3>)False Negatives = 1  # expected - actual = {"python_repl"}
@@ -121,12 +121,12 @@ Layer 2 & Layer 3 AI 품질 메트릭
     [](<#cb2-6>)Recall = 2 / 3 = 66.7%
     [](<#cb2-7>)F1 Score = 2 × (1.0 × 0.667) / (1.0 + 0.667) = 80%
     [](<#cb2-8>)Accuracy = 80%
-[/code]
+```
 
 **특별 케이스** : expected_tools가 비어있으면 `{"accuracy": 100.0, "note": "No expected tools defined"}` 반환
 
 ### 기본 사용법
-[code] 
+```python
     [](<#cb3-1>)from agent_evaluator import PerformanceMonitor
     [](<#cb3-2>)
     [](<#cb3-3>)monitor = PerformanceMonitor()
@@ -142,12 +142,12 @@ Layer 2 & Layer 3 AI 품질 메트릭
     [](<#cb3-13>)print(f"Precision: {result['precision']}%")
     [](<#cb3-14>)print(f"Recall: {result['recall']}%")
     [](<#cb3-15>)print(f"F1 Score: {result['f1_score']}%")
-[/code]
+```
 
 ### LangChain 자동 평가
 
 **✨ 새로운 방식 (권장):**
-[code] 
+```python
     [](<#cb4-1>)from agent_evaluator.integrations import LangChainEvaluator
     [](<#cb4-2>)
     [](<#cb4-3>)# LangChain Agent 래핑
@@ -165,10 +165,10 @@ Layer 2 & Layer 3 AI 품질 메트릭
     [](<#cb4-15>)
     [](<#cb4-16>)# 평가 보고서 생성
     [](<#cb4-17>)report = evaluator.generate_report()
-[/code]
+```
 
 **📌 레거시 방식 (DEPRECATED):**
-[code] 
+```python
     [](<#cb4b-1>)# ⚠️ v4.0에서 제거 예정
     [](<#cb4b-2>)from agent_evaluator.integrations import LangChainEvaluationCallback
     [](<#cb4b-3>)
@@ -177,10 +177,10 @@ Layer 2 & Layer 3 AI 품질 메트릭
     [](<#cb4b-6>)    expected_tools=["search", "calculator"]
     [](<#cb4b-7>))
     [](<#cb4b-8>)result = agent.run("What is 2+2?", callbacks=[callback])
-[/code]
+```
 
 ### Golden Dataset 기반 자동 평가
-[code] 
+```json
     [](<#cb5-1>)# Golden Dataset에 expected_tools 포함
     [](<#cb5-2>)# {
     [](<#cb5-3>)#   "qa_id": "qa_001",
@@ -196,30 +196,30 @@ Layer 2 & Layer 3 AI 품질 메트릭
     [](<#cb5-13>))
     [](<#cb5-14>)
     [](<#cb5-15>)print(f"Tool Selection Accuracy: {results['layer2_metrics']['tool_selection_accuracy']}%")
-[/code]
+```
 
 ### Best Practices
 
 #### 1\. expected_tools 정의
 
 **좋은 예:**
-[code] 
+```json
     [](<#cb6-1>){
     [](<#cb6-2>)  "question": "2024년 3분기 매출은?",
     [](<#cb6-3>)  "expected_tools": ["database_query", "calculator", "chart_generator"]
     [](<#cb6-4>)}
-[/code]
+```
 
 **나쁜 예:**
-[code] 
+```json
     [](<#cb7-1>){
     [](<#cb7-2>)  "question": "2024년 3분기 매출은?",
     [](<#cb7-3>)  "expected_tools": []  # 비어있음 - 평가 불가
     [](<#cb7-4>)}
-[/code]
+```
 
 #### 2\. 도구 이름 일관성
-[code] 
+```json
     [](<#cb8-1>)# 일관된 이름 사용
     [](<#cb8-2>)expected_tools = ["web_search", "calculator"]
     [](<#cb8-3>)actual_tools = ["web_search", "calculator"]  # ✅ 일치
@@ -227,16 +227,16 @@ Layer 2 & Layer 3 AI 품질 메트릭
     [](<#cb8-5>)# 대소문자 주의
     [](<#cb8-6>)expected_tools = ["WebSearch", "Calculator"]
     [](<#cb8-7>)actual_tools = ["web_search", "calculator"]  # ❌ 불일치
-[/code]
+```
 
 #### 3\. 도구 세분화 수준
-[code] 
+```json
     [](<#cb9-1>)# 너무 세분화 (권장하지 않음)
     [](<#cb9-2>)expected_tools = ["google_search", "bing_search", "duckduckgo_search"]
     [](<#cb9-3>)
     [](<#cb9-4>)# 적절한 수준 (권장)
     [](<#cb9-5>)expected_tools = ["web_search", "calculator", "code_execution"]
-[/code]
+```
 
 * * *
 
@@ -256,16 +256,16 @@ Layer 2 & Layer 3 AI 품질 메트릭
 ### 계산 방식
 
 **구현 위치** : `agent_evaluator/core/agent_evaluator.py` \- `ToolCallAnalyzer` (lines 1195-1343)
-[code] 
+```python
     # Tool Efficiency 계산
     success_rate = (successful_calls / total_calls) * 100
     redundancy_rate = (redundant_calls / total_calls) * 100
     efficiency_score = success_rate * (1 - redundancy_rate / 100)
     
-[/code]
+```
 
 ### 사용 예시
-[code] 
+```python
     from agent_evaluator import PerformanceMonitor
     
     monitor = PerformanceMonitor()
@@ -277,7 +277,7 @@ Layer 2 & Layer 3 AI 품질 메트릭
     print(f"Efficiency Score: {tool_stats['avg_efficiency_score']:.1f}%")
     print(f"Redundancy Rate: {tool_stats['redundancy_rate']:.1f}%")
     
-[/code]
+```
 
 ### Best Practices
 
@@ -303,7 +303,7 @@ Layer 2 & Layer 3 AI 품질 메트릭
 ### 점수 계산 (0-10 척도) - 실제 구현
 
 **구현 위치** : `agent_evaluator/core/agent_evaluator.py` \- `AgentCoordinationTracker.calculate_coordination_score()` (lines 1515-1746)
-[code] 
+```json
     [](<#cb10-1>)# 1. 성공률 계산 (0-100%)
     [](<#cb10-2>)success_rate = sum(1 for i in interactions if i["success"]) / len(interactions) * 100
     [](<#cb10-3>)
@@ -328,10 +328,10 @@ Layer 2 & Layer 3 AI 품질 메트릭
     [](<#cb10-22>)    diversity_score * 0.3 +        # 30% 가중치
     [](<#cb10-23>)    balance_score * 0.2            # 20% 가중치
     [](<#cb10-24>))
-[/code]
+```
 
 **반환값** :
-[code] 
+```json
     [](<#cb11-1>){
     [](<#cb11-2>)    "score": 7.85,  # 최종 협업 점수 (0-10)
     [](<#cb11-3>)    "success_rate": 95.0,  # 성공률 (%)
@@ -343,10 +343,10 @@ Layer 2 & Layer 3 AI 품질 메트릭
     [](<#cb11-9>)        "collaboration": 3
     [](<#cb11-10>)    }
     [](<#cb11-11>)}
-[/code]
+```
 
 ### 기본 사용법
-[code] 
+```python
     [](<#cb12-1>)# 상호작용 기록
     [](<#cb12-2>)monitor.agent_coordination_tracker.track_interaction(
     [](<#cb12-3>)    task_id="task_001",
@@ -363,14 +363,14 @@ Layer 2 & Layer 3 AI 품질 메트릭
     [](<#cb12-14>)print(f"Coordination Score: {score_data['score']}/10")
     [](<#cb12-15>)print(f"Success Rate: {score_data['success_rate']}%")
     [](<#cb12-16>)print(f"Unique Agents: {score_data['unique_agents']}")
-[/code]
+```
 
 ### 상호작용 유형
 
 #### 1\. Delegation (작업 위임)
 
 Manager가 Worker에게 작업을 위임하는 경우:
-[code] 
+```python
     [](<#cb13-1>)monitor.agent_coordination_tracker.track_interaction(
     [](<#cb13-2>)    task_id="task_001",
     [](<#cb13-3>)    from_agent="manager",
@@ -379,12 +379,12 @@ Manager가 Worker에게 작업을 위임하는 경우:
     [](<#cb13-6>)    success=True,
     [](<#cb13-7>)    context={"task": "data_collection", "deadline": "2024-12-01"}
     [](<#cb13-8>))
-[/code]
+```
 
 #### 2\. Communication (정보 전달)
 
 에이전트 간 정보를 공유하는 경우:
-[code] 
+```python
     [](<#cb14-1>)monitor.agent_coordination_tracker.track_interaction(
     [](<#cb14-2>)    task_id="task_001",
     [](<#cb14-3>)    from_agent="researcher",
@@ -393,12 +393,12 @@ Manager가 Worker에게 작업을 위임하는 경우:
     [](<#cb14-6>)    success=True,
     [](<#cb14-7>)    context={"data": "research_findings", "format": "json"}
     [](<#cb14-8>))
-[/code]
+```
 
 #### 3\. Collaboration (협업 작업)
 
 에이전트들이 함께 작업하는 경우:
-[code] 
+```python
     [](<#cb15-1>)monitor.agent_coordination_tracker.track_interaction(
     [](<#cb15-2>)    task_id="task_001",
     [](<#cb15-3>)    from_agent="developer",
@@ -407,12 +407,12 @@ Manager가 Worker에게 작업을 위임하는 경우:
     [](<#cb15-6>)    success=True,
     [](<#cb15-7>)    context={"project": "feature_x", "branch": "dev"}
     [](<#cb15-8>))
-[/code]
+```
 
 ### CrewAI 자동 추적
 
 **✨ 새로운 방식 (권장):**
-[code] 
+```python
     [](<#cb16-1>)from agent_evaluator.integrations import CrewAIEvaluator
     [](<#cb16-2>)from crewai import Crew, Agent, Task
     [](<#cb16-3>)
@@ -440,10 +440,10 @@ Manager가 Worker에게 작업을 위임하는 경우:
     [](<#cb16-25>)
     [](<#cb16-26>)# 평가 보고서 생성 - 모든 Layer 메트릭 포함
     [](<#cb16-27>)report = evaluator.generate_report()
-[/code]
+```
 
 **📌 레거시 방식 (DEPRECATED):**
-[code] 
+```python
     [](<#cb16b-1>)# ⚠️ v4.0에서 제거 예정
     [](<#cb16b-2>)from agent_evaluator.integrations import EvaluatedCrew
     [](<#cb16b-3>)
@@ -452,10 +452,10 @@ Manager가 Worker에게 작업을 위임하는 경우:
     [](<#cb16b-6>)    enable_coordination_tracking=True
     [](<#cb16b-7>))
     [](<#cb16b-8>)result = evaluated.kickoff()
-[/code]
+```
 
 ### Golden Dataset 활용
-[code] 
+```json
     [](<#cb17-1>){
     [](<#cb17-2>)  "qa_id": "qa_001",
     [](<#cb17-3>)  "question": "시장 분석 보고서 작성",
@@ -466,21 +466,21 @@ Manager가 Worker에게 작업을 위임하는 경우:
     [](<#cb17-8>)    {"from": "analyst", "to": "writer", "type": "collaboration"}
     [](<#cb17-9>)  ]
     [](<#cb17-10>)}
-[/code]
+```
 
 ### Best Practices
 
 #### 1\. 명확한 에이전트 역할 정의
-[code] 
+```json
     [](<#cb18-1>)# 좋은 예: 역할이 명확함
     [](<#cb18-2>)agents = ["manager", "researcher", "writer", "reviewer"]
     [](<#cb18-3>)
     [](<#cb18-4>)# 나쁜 예: 역할이 불명확함
     [](<#cb18-5>)agents = ["agent1", "agent2", "agent3"]
-[/code]
+```
 
 #### 2\. 상호작용 성공/실패 기록
-[code] 
+```python
     [](<#cb19-1>)# 성공한 위임
     [](<#cb19-2>)monitor.agent_coordination_tracker.track_interaction(
     [](<#cb19-3>)    task_id="task_001",
@@ -499,15 +499,15 @@ Manager가 Worker에게 작업을 위임하는 경우:
     [](<#cb19-16>)    success=False,
     [](<#cb19-17>)    context={"reason": "worker_busy"}
     [](<#cb19-18>))
-[/code]
+```
 
 #### 3\. 위임 성공률 모니터링
-[code] 
+```python
     [](<#cb20-1>)delegation_rate = monitor.agent_coordination_tracker.get_delegation_success_rate()
     [](<#cb20-2>)
     [](<#cb20-3>)if delegation_rate < 80.0:
     [](<#cb20-4>)    print("⚠️ 위임 성공률이 낮습니다. 작업 분배 전략을 검토하세요.")
-[/code]
+```
 
 * * *
 
@@ -528,7 +528,7 @@ Manager가 Worker에게 작업을 위임하는 경우:
 ### 성공률 계산 (실제 구현)
 
 **calculate_execution_success_rate() 반환값** :
-[code] 
+```json
     [](<#cb21-1>){
     [](<#cb21-2>)    "step_success_rate": 95.0,  # 개별 단계 성공률 (%)
     [](<#cb21-3>)    "total_steps": 20,  # 총 단계 수
@@ -539,12 +539,12 @@ Manager가 Worker에게 작업을 위임하는 경우:
     [](<#cb21-8>)    "task_success_rate": 80.0,  # 작업 성공률 (%)
     [](<#cb21-9>)    "avg_steps_per_task": 4.0  # 작업당 평균 단계 수
     [](<#cb21-10>)}
-[/code]
+```
 
 ### 그래프 순회 효율성 (LangGraph 전용)
 
 **get_graph_traversal_efficiency() 반환값** :
-[code] 
+```json
     [](<#cb22-1>){
     [](<#cb22-2>)    "efficiency": 85.0,  # 효율성 = (successful_nodes / total_steps) * 100
     [](<#cb22-3>)    "total_steps": 20,  # 전체 단계 수 (node + branch + edge)
@@ -553,10 +553,10 @@ Manager가 Worker에게 작업을 위임하는 경우:
     [](<#cb22-6>)    "successful_nodes": 14,  # 성공한 노드 수
     [](<#cb22-7>)    "avg_node_time": 0.523  # 평균 노드 실행 시간 (초)
     [](<#cb22-8>)}
-[/code]
+```
 
 ### 기본 사용법
-[code] 
+```python
     [](<#cb23-1>)# 워크플로우 단계 추적
     [](<#cb23-2>)monitor.workflow_tracker.track_step(
     [](<#cb23-3>)    task_id="task_001",
@@ -573,12 +573,12 @@ Manager가 Worker에게 작업을 위임하는 경우:
     [](<#cb23-14>)
     [](<#cb23-15>)print(f"Step Success Rate: {stats['step_success_rate']}%")
     [](<#cb23-16>)print(f"Task Success Rate: {stats['task_success_rate']}%")
-[/code]
+```
 
 ### 단계 유형
 
 #### 1\. chain_step (LangChain)
-[code] 
+```python
     [](<#cb24-1>)monitor.workflow_tracker.track_step(
     [](<#cb24-2>)    task_id="task_001",
     [](<#cb24-3>)    step_name="document_retrieval",
@@ -587,10 +587,10 @@ Manager가 Worker에게 작업을 위임하는 경우:
     [](<#cb24-6>)    execution_time=1.2,
     [](<#cb24-7>)    framework="langchain"
     [](<#cb24-8>))
-[/code]
+```
 
 #### 2\. node (LangGraph)
-[code] 
+```python
     [](<#cb25-1>)monitor.workflow_tracker.track_step(
     [](<#cb25-2>)    task_id="task_001",
     [](<#cb25-3>)    step_name="agent_decision",
@@ -600,10 +600,10 @@ Manager가 Worker에게 작업을 위임하는 경우:
     [](<#cb25-7>)    framework="langgraph",
     [](<#cb25-8>)    metadata={"node_id": "decision_node"}
     [](<#cb25-9>))
-[/code]
+```
 
 #### 3\. edge (LangGraph)
-[code] 
+```python
     [](<#cb26-1>)monitor.workflow_tracker.track_step(
     [](<#cb26-2>)    task_id="task_001",
     [](<#cb26-3>)    step_name="transition",
@@ -612,10 +612,10 @@ Manager가 Worker에게 작업을 위임하는 경우:
     [](<#cb26-6>)    execution_time=0.01,
     [](<#cb26-7>)    framework="langgraph"
     [](<#cb26-8>))
-[/code]
+```
 
 #### 4\. branch (LangGraph)
-[code] 
+```python
     [](<#cb27-1>)monitor.workflow_tracker.track_step(
     [](<#cb27-2>)    task_id="task_001",
     [](<#cb27-3>)    step_name="conditional_branch",
@@ -625,10 +625,10 @@ Manager가 Worker에게 작업을 위임하는 경우:
     [](<#cb27-7>)    framework="langgraph",
     [](<#cb27-8>)    metadata={"condition": "high_confidence"}
     [](<#cb27-9>))
-[/code]
+```
 
 ### LangGraph 자동 추적
-[code] 
+```python
     [](<#cb28-1>)from agent_evaluator.integrations import LangGraphEvaluator
     [](<#cb28-2>)
     [](<#cb28-3>)evaluator = LangGraphEvaluator(
@@ -650,10 +650,10 @@ Manager가 Worker에게 작업을 위임하는 경우:
     [](<#cb28-19>)
     [](<#cb28-20>)# 통계 확인
     [](<#cb28-21>)stats = monitor.workflow_tracker.calculate_execution_success_rate()
-[/code]
+```
 
 ### 그래프 순회 효율성 (LangGraph 전용)
-[code] 
+```python
     [](<#cb29-1>)efficiency = monitor.workflow_tracker.get_graph_traversal_efficiency(
     [](<#cb29-2>)    task_id="task_001"
     [](<#cb29-3>))
@@ -662,12 +662,12 @@ Manager가 Worker에게 작업을 위임하는 경우:
     [](<#cb29-6>)print(f"Nodes Executed: {efficiency['nodes_executed']}")
     [](<#cb29-7>)print(f"Branches Taken: {efficiency['branches_taken']}")
     [](<#cb29-8>)print(f"Avg Node Time: {efficiency['avg_node_time']}s")
-[/code]
+```
 
 ### Best Practices
 
 #### 1\. 실패 단계 상세 기록
-[code] 
+```json
     [](<#cb30-1>)try:
     [](<#cb30-2>)    result = execute_step()
     [](<#cb30-3>)    success = True
@@ -685,19 +685,19 @@ Manager가 Worker에게 작업을 위임하는 경우:
     [](<#cb30-15>)    framework="langgraph",
     [](<#cb30-16>)    metadata={"error": error} if error else {}
     [](<#cb30-17>))
-[/code]
+```
 
 #### 2\. 단계 이름 일관성
-[code] 
+```json
     [](<#cb31-1>)# 좋은 예: 명확하고 일관된 이름
     [](<#cb31-2>)steps = ["data_retrieval", "data_processing", "result_generation"]
     [](<#cb31-3>)
     [](<#cb31-4>)# 나쁜 예: 불명확한 이름
     [](<#cb31-5>)steps = ["step1", "step2", "step3"]
-[/code]
+```
 
 #### 3\. 프레임워크별 필터링
-[code] 
+```python
     [](<#cb32-1>)# LangChain 워크플로우만
     [](<#cb32-2>)langchain_stats = monitor.workflow_tracker.calculate_execution_success_rate(
     [](<#cb32-3>)    framework="langchain"
@@ -707,7 +707,7 @@ Manager가 Worker에게 작업을 위임하는 경우:
     [](<#cb32-7>)langgraph_stats = monitor.workflow_tracker.calculate_execution_success_rate(
     [](<#cb32-8>)    framework="langgraph"
     [](<#cb32-9>))
-[/code]
+```
 
 * * *
 
@@ -718,7 +718,7 @@ Manager가 Worker에게 작업을 위임하는 경우:
 ### 1\. LangChain - Tool Selection 자동 평가
 
 **클래스** : `LangChainEvaluator` \+ `AdvancedLangChainCallback`
-[code] 
+```python
     [](<#cb33-1>)from agent_evaluator.integrations import LangChainEvaluator, AdvancedLangChainCallback
     [](<#cb33-2>)from agent_evaluator import PerformanceMonitor
     [](<#cb33-3>)
@@ -743,7 +743,7 @@ Manager가 Worker에게 작업을 위임하는 경우:
     [](<#cb33-22>)# 보고서 생성
     [](<#cb33-23>)report = evaluator.generate_report()
     [](<#cb33-24>)print(f"Tool Selection Accuracy: {report.tool_selection_accuracy:.1f}%")
-[/code]
+```
 
 **자동 추적 기능** :
 
@@ -755,7 +755,7 @@ Manager가 Worker에게 작업을 위임하는 경우:
 ### 2\. CrewAI - Agent Coordination 자동 추적
 
 **클래스** : `CrewAIEvaluator`
-[code] 
+```python
     [](<#cb34-1>)from agent_evaluator.integrations import CrewAIEvaluator
     [](<#cb34-2>)from agent_evaluator import PerformanceMonitor
     [](<#cb34-3>)from crewai import Crew, Agent, Task
@@ -784,7 +784,7 @@ Manager가 Worker에게 작업을 위임하는 경우:
     [](<#cb34-26>)# 보고서 생성
     [](<#cb34-27>)report = evaluator.generate_report()
     [](<#cb34-28>)print(f"Coordination Score: {report.coordination_score:.1f}/10")
-[/code]
+```
 
 **자동 추적 기능** :
 
@@ -796,7 +796,7 @@ Manager가 Worker에게 작업을 위임하는 경우:
 ### 3\. LangGraph - Workflow Execution 자동 추적
 
 **클래스** : `LangGraphEvaluator`
-[code] 
+```python
     [](<#cb35-1>)from agent_evaluator.integrations import LangGraphEvaluator
     [](<#cb35-2>)from agent_evaluator import PerformanceMonitor
     [](<#cb35-2>)
@@ -832,7 +832,7 @@ Manager가 Worker에게 작업을 위임하는 경우:
     [](<#cb35-32>)# LangGraph 전용: 그래프 순회 효율성
     [](<#cb35-33>)efficiency = monitor.workflow_tracker.get_graph_traversal_efficiency(task_id)
     [](<#cb35-34>)print(f"Efficiency: {efficiency['efficiency']:.1f}%")
-[/code]
+```
 
 **자동 추적 기능** :
 
@@ -844,7 +844,7 @@ Manager가 Worker에게 작업을 위임하는 경우:
 ### 4\. AutoGen - Multi-Agent Conversation
 
 **클래스** : `AutoGenEvaluator` (lines 558-634)
-[code] 
+```python
     [](<#cb36-1>)from agent_evaluator.integrations import AutoGenEvaluator
     [](<#cb36-2>)from autogen import AssistantAgent, UserProxyAgent
     [](<#cb36-3>)
@@ -866,7 +866,7 @@ Manager가 Worker에게 작업을 위임하는 경우:
     [](<#cb36-19>)
     [](<#cb36-20>)# 통계 확인
     [](<#cb36-21>)stats = monitor.get_performance_stats()
-[/code]
+```
 
 **자동 추적 기능** :
 
@@ -889,7 +889,7 @@ Framework | Layer 2 메트릭 | 자동 추적 | 통합 방식 | 구현 난이도
 ### 예제 1: RAG 시스템 평가
 
 **시나리오** : 문서 검색 후 답변 생성하는 RAG 시스템
-[code] 
+```python
     [](<#cb37-1>)from agent_evaluator import PerformanceMonitor
     [](<#cb37-2>)from agent_evaluator.integrations import LangChainEvaluator, AdvancedLangChainCallback
     [](<#cb37-3>)
@@ -916,12 +916,12 @@ Framework | Layer 2 메트릭 | 자동 추적 | 통합 방식 | 구현 난이도
     [](<#cb37-24>)print(f"Tool Selection Accuracy: {tool_stats['avg_accuracy']:.1f}%")
     [](<#cb37-25>)print(f"Precision: {tool_stats['avg_precision']:.1f}%")
     [](<#cb37-26>)print(f"Recall: {tool_stats['avg_recall']:.1f}%")
-[/code]
+```
 
 ### 예제 2: 멀티 에이전트 컨텐츠 생성
 
 **시나리오** : 리서치 → 작성 → 리뷰 파이프라인
-[code] 
+```python
     [](<#cb38-1>)from agent_evaluator.integrations import CrewAIEvaluator
     [](<#cb38-2>)from crewai import Crew, Agent, Task
     [](<#cb38-3>)
@@ -988,12 +988,12 @@ Framework | Layer 2 메트릭 | 자동 추적 | 통합 방식 | 구현 난이도
     [](<#cb38-64>)# 위임 성공률
     [](<#cb38-65>)delegation_rate = monitor.agent_coordination_tracker.get_delegation_success_rate()
     [](<#cb38-66>)print(f"위임 성공률: {delegation_rate:.1f}%")
-[/code]
+```
 
 ### 예제 3: LangGraph 복잡한 워크플로우
 
 **시나리오** : 조건부 분기가 있는 데이터 처리 파이프라인
-[code] 
+```python
     [](<#cb39-1>)from agent_evaluator.integrations import LangGraphEvaluator
     [](<#cb39-2>)
     [](<#cb39-3>)monitor = PerformanceMonitor()
@@ -1054,12 +1054,12 @@ Framework | Layer 2 메트릭 | 자동 추적 | 통합 방식 | 구현 난이도
     [](<#cb39-58>)efficiency = monitor.workflow_tracker.get_graph_traversal_efficiency(task_id)
     [](<#cb39-59>)print(f"\n그래프 효율성: {efficiency['efficiency']:.1f}%")
     [](<#cb39-60>)print(f"평균 노드 시간: {efficiency['avg_node_time']:.3f}초")
-[/code]
+```
 
 ### 예제 4: 통합 평가 - Golden Dataset 사용
 
 **시나리오** : Golden Dataset으로 전체 시스템 평가
-[code] 
+```python
     [](<#cb40-1>)from agent_evaluator import PerformanceMonitor
     [](<#cb40-2>)
     [](<#cb40-3>)monitor = PerformanceMonitor()
@@ -1101,12 +1101,12 @@ Framework | Layer 2 메트릭 | 자동 추적 | 통합 방식 | 구현 난이도
     [](<#cb40-39>)    if data.get('layer') == 'Layer 2':
     [](<#cb40-40>)        status = "✅" if data['status'] == 'pass' else "❌"
     [](<#cb40-41>)        print(f"{status} {data['name']}: {data['value']:.1f}{data['unit']} (임계값: {data['threshold']}{data['unit']})")
-[/code]
+```
 
 ### 예제 5: CI/CD 파이프라인 통합
 
 **시나리오** : CI/CD 파이프라인에서 자동 평가
-[code] 
+```python
     [](<#cb41-1>)# test_agent_performance.py
     [](<#cb41-2>)import sys
     [](<#cb41-3>)from agent_evaluator import PerformanceMonitor
@@ -1141,8 +1141,8 @@ Framework | Layer 2 메트릭 | 자동 추적 | 통합 방식 | 구현 난이도
     [](<#cb41-32>)
     [](<#cb41-33>)if __name__ == "__main__":
     [](<#cb41-34>)    sys.exit(test_agent_performance())
-[/code]
-[code] 
+```
+```json
     [](<#cb42-1>)# .gitlab-ci.yml (권장)
     [](<#cb42-2>)# GitLab CI를 사용한 CI/CD 예제
     [](<#cb42-3>)
@@ -1158,14 +1158,14 @@ Framework | Layer 2 메트릭 | 자동 추적 | 통합 방식 | 구현 난이도
     [](<#cb42-13>)  only:
     [](<#cb42-14>)    - merge_requests
     [](<#cb42-15>)    - main
-[/code]
+```
 
 * * *
 
 ## Golden Dataset 활용
 
 ### QAPair 구조 (Layer 2 포함)
-[code] 
+```json
     [](<#cb43-1>){
     [](<#cb43-2>)  "qa_id": "qa_001",
     [](<#cb43-3>)  "question": "2024년 3분기 매출 분석 보고서 작성",
@@ -1180,7 +1180,7 @@ Framework | Layer 2 메트릭 | 자동 추적 | 통합 방식 | 구현 난이도
     [](<#cb43-12>)  "expected_agents": ["data_analyst", "finance_expert", "report_writer"],
     [](<#cb43-13>)  "expected_workflow_steps": ["data_collection", "analysis", "visualization", "report_generation"]
     [](<#cb43-14>)}
-[/code]
+```
 
 ### Dashboard에서 편집
 
@@ -1198,7 +1198,7 @@ Framework | Layer 2 메트릭 | 자동 추적 | 통합 방식 | 구현 난이도
 ## Threshold 설정
 
 ### Layer 2 임계값
-[code] 
+```python
     [](<#cb44-1>)monitor.thresholds = {
     [](<#cb44-2>)    # Layer 1
     [](<#cb44-3>)    'tcr': 90.0,
@@ -1217,43 +1217,43 @@ Framework | Layer 2 메트릭 | 자동 추적 | 통합 방식 | 구현 난이도
     [](<#cb44-16>)    if data.get('layer') == 'Layer 2':
     [](<#cb44-17>)        print(f"{data['name']}: {data['value']:.1f}{data['unit']} (임계값: {data['threshold']}{data['unit']})")
     [](<#cb44-18>)        print(f"상태: {data['status']}")
-[/code]
+```
 
 ### 프로파일별 임계값 권장
 
 #### Development (개발 환경)
-[code] 
+```json
     [](<#cb45-1>)thresholds = {
     [](<#cb45-2>)    'tool_selection_accuracy': 70.0,
     [](<#cb45-3>)    'agent_coordination': 5.0,
     [](<#cb45-4>)    'workflow_execution': 80.0
     [](<#cb45-5>)}
-[/code]
+```
 
 #### Staging (스테이징 환경)
-[code] 
+```json
     [](<#cb46-1>)thresholds = {
     [](<#cb46-2>)    'tool_selection_accuracy': 80.0,
     [](<#cb46-3>)    'agent_coordination': 7.0,
     [](<#cb46-4>)    'workflow_execution': 90.0
     [](<#cb46-5>)}
-[/code]
+```
 
 #### Production (프로덕션 환경)
-[code] 
+```json
     [](<#cb47-1>)thresholds = {
     [](<#cb47-2>)    'tool_selection_accuracy': 90.0,
     [](<#cb47-3>)    'agent_coordination': 8.5,
     [](<#cb47-4>)    'workflow_execution': 95.0
     [](<#cb47-5>)}
-[/code]
+```
 
 * * *
 
 ## Best Practices
 
 ### 1\. 점진적 도입
-[code] 
+```python
     [](<#cb48-1>)# Phase 1: Layer 1만 사용
     [](<#cb48-2>)monitor = PerformanceMonitor()
     [](<#cb48-3>)# TCR, Accuracy 등만 측정
@@ -1266,7 +1266,7 @@ Framework | Layer 2 메트릭 | 자동 추적 | 통합 방식 | 구현 난이도
     [](<#cb48-10>)
     [](<#cb48-11>)# Phase 3: 모든 Layer 2 활성화
     [](<#cb48-12>)# CrewAI, LangGraph 통합
-[/code]
+```
 
 ### 2\. Golden Dataset 품질
 
@@ -1276,7 +1276,7 @@ Framework | Layer 2 메트릭 | 자동 추적 | 통합 방식 | 구현 난이도
   * ❌ 모든 QA에 동일한 도구 사용하지 않기
 
 ### 3\. 모니터링 주기
-[code] 
+```json
     [](<#cb49-1>)# 개발 중: 매 커밋
     [](<#cb49-2>)# CI/CD: Pull Request마다
     [](<#cb49-3>)# 프로덕션: 매일 또는 매주
@@ -1285,7 +1285,7 @@ Framework | Layer 2 메트릭 | 자동 추적 | 통합 방식 | 구현 난이도
     [](<#cb49-6>)results = monitor.evaluate_with_golden_dataset(...)
     [](<#cb49-7>)if results['layer2_metrics']['tool_selection_accuracy'] < 80.0:
     [](<#cb49-8>)    send_alert("Tool Selection Accuracy 저하!")
-[/code]
+```
 
 ### 4\. 메트릭 해석
 
@@ -1319,7 +1319,7 @@ Framework | Layer 2 메트릭 | 자동 추적 | 통합 방식 | 구현 난이도
 **원인:** \- expected_tools가 비어있거나 None - 도구 이름 불일치 (대소문자, 공백) - 실제로 도구가 사용되지 않음
 
 **해결:**
-[code] 
+```python
     [](<#cb50-1>)# 1. Golden Dataset 확인
     [](<#cb50-2>)qa_pair = load_qa_pair()
     [](<#cb50-3>)print(f"Expected tools: {qa_pair.get('expected_tools')}")
@@ -1336,10 +1336,10 @@ Framework | Layer 2 메트릭 | 자동 추적 | 통합 방식 | 구현 난이도
     [](<#cb50-14>)# 3. 실제 도구 사용 추적 확인
     [](<#cb50-15>)evaluator = LangChainEvaluator(agent,monitor, expected_tools=expected)
     [](<#cb50-16>)# on_tool_start()가 호출되는지 로그 확인
-[/code]
+```
 
 **디버깅 팁** :
-[code] 
+```python
     [](<#cb51-1>)# evaluate_selection() 반환값 확인
     [](<#cb51-2>)result = monitor.tool_selection_tracker.evaluate_selection(
     [](<#cb51-3>)    task_id="test",
@@ -1348,14 +1348,14 @@ Framework | Layer 2 메트릭 | 자동 추적 | 통합 방식 | 구현 난이도
     [](<#cb51-6>))
     [](<#cb51-7>)print(result)
     [](<#cb51-8>)# {'accuracy': 100.0, 'precision': 100.0, ...} 나오는지 확인
-[/code]
+```
 
 ### Q2: Agent Coordination Score가 항상 0입니다
 
 **원인:** \- 상호작용이 전혀 기록되지 않음 - `enable_coordination_tracking=False` \- CrewAI에서 에이전트 간 통신이 없음
 
 **해결:**
-[code] 
+```python
     [](<#cb52-1>)# 1. 상호작용 기록 확인
     [](<#cb52-2>)interactions = monitor.agent_coordination_tracker.interactions
     [](<#cb52-3>)print(f"Total interactions: {len(interactions)}")  # 0이면 문제
@@ -1377,10 +1377,10 @@ Framework | Layer 2 메트릭 | 자동 추적 | 통합 방식 | 구현 난이도
     [](<#cb52-19>)    monitor,
     [](<#cb52-20>)    enable_coordination_tracking=True  # 반드시 True!
     [](<#cb52-21>))
-[/code]
+```
 
 **일반적인 함정** :
-[code] 
+```json
     [](<#cb53-1>)# ❌ 잘못된 사용
     [](<#cb53-2>)evaluator = CrewAIEvaluator(crew, monitor)  # 자동 추적 비활성화 상태
     [](<#cb53-3>)result = evaluated.kickoff()
@@ -1392,14 +1392,14 @@ Framework | Layer 2 메트릭 | 자동 추적 | 통합 방식 | 구현 난이도
     [](<#cb53-9>)    enable_coordination_tracking=True  # 명시적으로 활성화
     [](<#cb53-10>))
     [](<#cb53-11>)result = evaluated.kickoff()
-[/code]
+```
 
 ### Q3: Workflow Execution Rate이 항상 0%입니다
 
 **원인:** \- 워크플로우 단계가 추적되지 않음 - `enable_workflow_tracking=False` \- 수동으로 track_step()을 호출하지 않음
 
 **해결:**
-[code] 
+```python
     [](<#cb54-1>)# 1. 단계 추적 확인
     [](<#cb54-2>)executions = monitor.workflow_tracker.executions
     [](<#cb54-3>)print(f"Total steps tracked: {len(executions)}")  # 0이면 문제
@@ -1421,14 +1421,14 @@ Framework | Layer 2 메트릭 | 자동 추적 | 통합 방식 | 구현 난이도
     [](<#cb54-19>)    monitor,
     [](<#cb54-20>)    enable_workflow_tracking=True  # 반드시 True!
     [](<#cb54-21>))
-[/code]
+```
 
 ### Q4: 임계값 비교에 Layer 2가 나타나지 않습니다
 
 **원인:** \- Layer 2 메트릭이 평가되지 않음 - 임계값이 설정되지 않음 - 메트릭 이름 불일치
 
 **해결:**
-[code] 
+```python
     [](<#cb55-1>)# 1. 임계값 설정 확인
     [](<#cb55-2>)print(monitor.thresholds)
     [](<#cb55-3>)# 출력: {'tool_selection_accuracy': 80.0, 'agent_coordination': 7.0, ...}
@@ -1446,14 +1446,14 @@ Framework | Layer 2 메트릭 | 자동 추적 | 통합 방식 | 구현 난이도
     [](<#cb55-15>)# 3. 임계값과 메트릭 이름이 일치하는지 확인
     [](<#cb55-16>)# 임계값 키: 'tool_selection_accuracy'
     [](<#cb55-17>)# compare_with_thresholds()가 사용하는 키도 동일해야 함
-[/code]
+```
 
 ### Q5: get_accuracy_stats()에서 빈 딕셔너리 {}가 반환됩니다
 
 **원인:** \- `selections` 리스트가 비어있음 (평가가 한 번도 안 됨)
 
 **해결:**
-[code] 
+```python
     [](<#cb56-1>)# 구현 확인 (agent_evaluator/core/agent_evaluator.py lines 1492-1508)
     [](<#cb56-2>)# if not self.selections:
     [](<#cb56-3>)#     return {}
@@ -1468,14 +1468,14 @@ Framework | Layer 2 메트릭 | 자동 추적 | 통합 방식 | 구현 난이도
     [](<#cb56-12>)# 이제 stats 확인 가능
     [](<#cb56-13>)stats = monitor.tool_selection_tracker.get_accuracy_stats()
     [](<#cb56-14>)print(stats)  # {'total_evaluations': 1, 'avg_accuracy': 100.0, ...}
-[/code]
+```
 
 ### Q6: Coordination Score 계산 공식이 이상합니다
 
 **문제** : Score가 예상보다 낮거나 높게 나옴
 
 **이해:**
-[code] 
+```python
     [](<#cb57-1>)# 실제 구현 (agent_evaluator/core/agent_evaluator.py lines 1544-1585)
     [](<#cb57-2>)# 성공률: 0-100% → 0-10으로 정규화 (÷10) → 50% 가중치
     [](<#cb57-3>)# 다양성: 에이전트 수 ÷ 5 → 0-10 → 30% 가중치
@@ -1487,23 +1487,23 @@ Framework | Layer 2 메트릭 | 자동 추적 | 통합 방식 | 구현 난이도
     [](<#cb57-9>)    balance_score * 0.2            # 3가지 유형일 때 2점
     [](<#cb57-10>))
     [](<#cb57-11>)# 최대 점수 = 5 + 3 + 2 = 10
-[/code]
+```
 
 **예시 계산** :
-[code] 
+```json
     [](<#cb58-1>)# success_rate = 100%, 4명 참여, 2가지 유형 사용
     [](<#cb58-2>)success_contribution = 100 * 0.5 / 10 = 5.0
     [](<#cb58-3>)diversity_contribution = (4/5) * 10 * 0.3 = 2.4
     [](<#cb58-4>)balance_contribution = (2/3) * 10 * 0.2 = 1.33
     [](<#cb58-5>)total_score = 5.0 + 2.4 + 1.33 = 8.73
-[/code]
+```
 
 ### Q7: LangGraph efficiency가 100%를 초과합니다
 
 **원인** : 실제로는 100%를 초과할 수 없음 - 버그 가능성
 
 **확인:**
-[code] 
+```python
     [](<#cb59-1>)# 구현 확인 (agent_evaluator/core/agent_evaluator.py lines 1823-1846)
     [](<#cb59-2>)# efficiency = (successful_nodes / len(steps)) * 100
     [](<#cb59-3>)
@@ -1514,14 +1514,14 @@ Framework | Layer 2 메트릭 | 자동 추적 | 통합 방식 | 구현 난이도
     [](<#cb59-8>)print(f"Efficiency: {efficiency['efficiency']}")
     [](<#cb59-9>)
     [](<#cb59-10>)# successful_nodes > total_steps면 버그
-[/code]
+```
 
 ### Q8: 메트릭이 Golden Dataset 평가 후에도 업데이트되지 않습니다
 
 **원인:** \- `enable_layer2_metrics=False` \- Golden Dataset에 Layer 2 필드 누락
 
 **해결:**
-[code] 
+```python
     [](<#cb60-1>)# 1. Layer 2 활성화 확인
     [](<#cb60-2>)results = monitor.evaluate_with_golden_dataset(
     [](<#cb60-3>)    agent_fn=my_agent,
@@ -1539,14 +1539,14 @@ Framework | Layer 2 메트릭 | 자동 추적 | 통합 방식 | 구현 난이도
     [](<#cb60-15>)        print(f"  expected_agents: {qa.get('expected_agents')}")
     [](<#cb60-16>)        print(f"  expected_workflow_steps: {qa.get('expected_workflow_steps')}")
     [](<#cb60-17>)        # 하나라도 None이면 해당 메트릭 평가 안 됨
-[/code]
+```
 
 ### Q9: 프레임워크 통합이 작동하지 않습니다
 
 **원인:** \- 프레임워크가 설치되지 않음 - Import 오류
 
 **해결:**
-[code] 
+```python
     [](<#cb61-1>)# 1. 설치 확인
     [](<#cb61-2>)try:
     [](<#cb61-3>)    from langchain.callbacks.base import BaseCallbackHandler
@@ -1577,7 +1577,7 @@ Framework | Layer 2 메트릭 | 자동 추적 | 통합 방식 | 구현 난이도
     [](<#cb61-28>)print(f"CrewAI: {CREWAI_AVAILABLE}")
     [](<#cb61-29>)print(f"LangGraph: {LANGGRAPH_AVAILABLE}")
     [](<#cb61-30>)print(f"AutoGen: {AUTOGEN_AVAILABLE}")
-[/code]
+```
 
 * * *
 
@@ -1659,7 +1659,7 @@ Layer 2 문제 | → | Layer 1 영향 | 결과
 #### 🔍 실전 예시: 메트릭 해석 연습
 
 **시나리오:** 다음과 같은 메트릭 결과를 받았습니다.
-[code] 
+```python
     Layer 1:
       - TCR: 78% (목표: 90%)
       - Accuracy: 82% (목표: 85%)
@@ -1672,7 +1672,7 @@ Layer 2 문제 | → | Layer 1 영향 | 결과
       - Agent Coordination: 3.8/10
       - Workflow Execution: 72%
     
-[/code]
+```
 
 **📊 분석:**
 
@@ -1749,7 +1749,7 @@ Efficiency ≥ 80%
 ≥ Production 기준  
   
 #### ⚙️ 실전 코드: Layer 2 임계값 설정 및 검증
-[code] 
+```python
     [](<#cb-qa-layer2-code-1>)from agent_evaluator import HybridPerformanceMonitor
     [](<#cb-qa-layer2-code-2>)
     [](<#cb-qa-layer2-code-3>)# Production 단계 Layer 2 임계값 (4개 메트릭)
@@ -1801,7 +1801,7 @@ Efficiency ≥ 80%
     [](<#cb-qa-layer2-code-50>)
     [](<#cb-qa-layer2-code-51>)# 실행
     [](<#cb-qa-layer2-code-52>)validate_layer2_thresholds(results, LAYER2_THRESHOLDS_PRODUCTION)
-[/code]
+```
 
 ### 3\. 배포 전 품질 체크리스트
 
@@ -1865,7 +1865,7 @@ Total Cost per Task | < 예산 | $_____ | [ ]
 
   1. 📊 **로그 분석:** 도구 선택 실패 케이스 Top 10 추출
   2. 📝 **프롬프트 강화:** 각 도구의 설명(description) 명확화 
-[code]# 나쁜 예
+```# 나쁜 예
          tools = [Tool(name="search", description="Search")]
          
          # 좋은 예
@@ -1873,7 +1873,7 @@ Total Cost per Task | < 예산 | $_____ | [ ]
              name="search",
              description="웹에서 최신 정보를 검색할 때 사용. 실시간 데이터, 뉴스, 사실 확인에 적합. 내부 지식보다 최신성이 중요한 경우 선택."
          )]
-[/code]
+```
 
   3. 🎯 **Few-shot 예제 추가:** 올바른 도구 선택 예시 3개 제공
   4. 🔄 **임시 롤백:** 이전 버전으로 되돌린 후 비교 테스트
@@ -1906,7 +1906,7 @@ Total Cost per Task | < 예산 | $_____ | [ ]
 
   1. 📊 **메시지 교환 로그 분석:** 에이전트 간 통신 패턴 시각화
   2. 🎭 **역할 재정의:** 각 에이전트의 역할(role)과 책임 명확화 
-[code]# 나쁜 예
+```# 나쁜 예
          agent1 = Agent(role="assistant")
          agent2 = Agent(role="helper")
          
@@ -1920,7 +1920,7 @@ Total Cost per Task | < 예산 | $_____ | [ ]
              role="답변 작성 전문가",
              goal="수집된 정보를 바탕으로 사용자 친화적 답변 작성"
          )
-[/code]
+```
 
   3. 👨‍✈️ **Supervisor 추가:** 에이전트 조율을 담당하는 상위 에이전트 도입
   4. 🔍 **협업 실패 케이스 수동 검토:** 가장 심각한 5개 케이스 분석
@@ -1952,9 +1952,9 @@ Total Cost per Task | < 예산 | $_____ | [ ]
 **⚡ 즉시 조치:**
 
   1. 📊 **워크플로우 실행 로그 시각화:** Mermaid/Graphviz로 시각화 
-[code]Step 1 (0.5s) → Step 2 (2.1s) → Step 3 (0.3s) → Step 4 (3.8s ⚠️) → Step 5 (0.4s)
+```Step 1 (0.5s) → Step 2 (2.1s) → Step 3 (0.3s) → Step 4 (3.8s ⚠️) → Step 5 (0.4s)
                                                                ↑ 병목!
-[/code]
+```
 
   2. 🎯 **병목 단계 식별:** 가장 오래 걸리는 단계 Top 3
   3. 📉 **단계 최적화:** 중복 실행 및 불필요한 단계 제거
@@ -2006,8 +2006,8 @@ Dev Team | 원인 분석
   1. **🔗 Layer 1 + Layer 2 통합 모니터링**
 
 두 레이어를 함께 분석하여 근본 원인을 파악합니다. Layer 2 문제가 Layer 1에 미치는 영향을 항상 염두에 둡니다.
-[code] 예: TCR 하락 → Layer 2 Tool Selection 확인 → 도구 선택 로직 개선
-[/code]
+``` 예: TCR 하락 → Layer 2 Tool Selection 확인 → 도구 선택 로직 개선
+```
 
   2. **🛠️ 도구 중심 최적화**
 
@@ -2098,11 +2098,11 @@ Efficiency 향상을 위해 품질(Quality, Accuracy)을 희생하지 마세요.
   * ✅ `get_accuracy_stats()`로 통계 확인
 
 **검증** :
-[code] 
+```python
     [](<#cb62-1>)stats = monitor.tool_selection_tracker.get_accuracy_stats()
     [](<#cb62-2>)assert stats.get('total_evaluations', 0) > 0, "No evaluations recorded"
     [](<#cb62-3>)assert stats['avg_accuracy'] >= 80.0, "Below threshold"
-[/code]
+```
 
 ### Agent Coordination (CrewAI, AutoGen)
 
@@ -2113,11 +2113,11 @@ Efficiency 향상을 위해 품질(Quality, Accuracy)을 희생하지 마세요.
   * ✅ `calculate_coordination_score()`로 점수 계산
 
 **검증** :
-[code] 
+```python
     [](<#cb63-1>)score_data = monitor.agent_coordination_tracker.calculate_coordination_score()
     [](<#cb63-2>)assert score_data.get('total_interactions', 0) > 0, "No interactions recorded"
     [](<#cb63-3>)assert score_data['score'] >= 7.0, "Below threshold"
-[/code]
+```
 
 ### Workflow Execution (LangChain, LangGraph)
 
@@ -2128,31 +2128,31 @@ Efficiency 향상을 위해 품질(Quality, Accuracy)을 희생하지 마세요.
   * ✅ `calculate_execution_success_rate()`로 성공률 계산
 
 **검증** :
-[code] 
+```python
     [](<#cb64-1>)stats = monitor.workflow_tracker.calculate_execution_success_rate()
     [](<#cb64-2>)assert stats.get('total_steps', 0) > 0, "No steps tracked"
     [](<#cb64-3>)assert stats['step_success_rate'] >= 90.0, "Below threshold"
-[/code]
+```
 
 ### 임계값 설정 가이드
 
 **개발 환경** :
-[code] 
+```python
     [](<#cb65-1>)monitor.thresholds = {
     [](<#cb65-2>)    'tool_selection_accuracy': 70.0,
     [](<#cb65-3>)    'agent_coordination': 5.0,
     [](<#cb65-4>)    'workflow_execution': 80.0
     [](<#cb65-5>)}
-[/code]
+```
 
 **프로덕션 환경** :
-[code] 
+```python
     [](<#cb66-1>)monitor.thresholds = {
     [](<#cb66-2>)    'tool_selection_accuracy': 90.0,
     [](<#cb66-3>)    'agent_coordination': 8.5,
     [](<#cb66-4>)    'workflow_execution': 95.0
     [](<#cb66-5>)}
-[/code]
+```
 
 ### 일반적인 실수 방지
 
@@ -2167,7 +2167,7 @@ Import 에러 | 프레임워크 미설치 | `pip install langchain crewai langgr
 ### 코드 템플릿
 
 **최소 실행 가능 예제** :
-[code] 
+```python
     [](<#cb67-1>)from agent_evaluator import PerformanceMonitor
     [](<#cb67-2>)from agent_evaluator.integrations import LangChainEvaluator, AdvancedLangChainCallback
     [](<#cb67-3>)
@@ -2199,7 +2199,7 @@ Import 에러 | 프레임워크 미설치 | `pip install langchain crewai langgr
     [](<#cb67-29>)for metric, data in comparison.items():
     [](<#cb67-30>)    if data.get('layer') == 'Layer 2':
     [](<#cb67-31>)        print(f"{data['name']}: {data['status']}")
-[/code]
+```
 
 * * *
 

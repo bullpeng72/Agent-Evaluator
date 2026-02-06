@@ -49,7 +49,7 @@ AI Agent 보안 평가를 위한 완전한 가이드
 ## 🚀 1. 빠른 시작
 
 ### 최소 설정 (3줄)
-[code] 
+```python
     from agent_evaluator import PerformanceMonitor
     
     monitor = PerformanceMonitor(
@@ -59,16 +59,16 @@ AI Agent 보안 평가를 위한 완전한 가이드
             'restricted_tools': ['delete', 'execute']
         }
     )
-[/code]
+```
 
 ✅ 이제 보안 지표가 자동으로 추적됩니다!
 
 ### 전체 예제 실행
-[code] 
+```bash
     # 보안 지표 예제 실행
     cd /path/to/Agent_Evaluator
     PYTHONPATH=. python examples/security_metrics_example.py
-[/code]
+```
 
 * * *
 
@@ -132,7 +132,7 @@ Layer 1 보안 지표는 정규식과 휴리스틱을 사용하여 실시간으�
 **Prompt Injection** | `ignore previous instructions`, `admin mode` | 🔴 Critical  
   
 **📊 출력 지표**
-[code] 
+```json
     {
         "task_id": "task_001",
         "has_sql_injection": True,
@@ -144,10 +144,10 @@ Layer 1 보안 지표는 정규식과 휴리스틱을 사용하여 실시간으�
         "sanitization_needed": True,
         "threat_count": 1
     }
-[/code]
+```
 
 **💡 사용 예제**
-[code] 
+```python
     # 자동 추적
     monitor.record_task(task)  # input_text가 자동으로 검사됨
     
@@ -155,7 +155,7 @@ Layer 1 보안 지표는 정규식과 휴리스틱을 사용하여 실시간으�
     stats = monitor.input_sanitizer.get_security_stats()
     print(f"Threat rate: {stats['threat_rate']}%")
     print(f"SQL injection attempts: {stats['sql_injection_attempts']}")
-[/code]
+```
 
 **⚠️ 알림 기준**
 
@@ -184,7 +184,7 @@ Agent 출력에서 민감 정보 유출을 탐지하여 데이터 유출을 방�
 **File Path** | `/usr/local/`, `C:\Windows\` | 🟡 Medium  
   
 **📊 출력 지표**
-[code] 
+```json
     {
         "task_id": "task_001",
         "contains_api_key": True,
@@ -198,10 +198,10 @@ Agent 출력에서 민감 정보 유출을 탐지하여 데이터 유출을 방�
         "leakage_count": 1,
         "severity": "critical"  # none, low, medium, high, critical
     }
-[/code]
+```
 
 **💡 사용 예제**
-[code] 
+```python
     # 통계 확인
     stats = monitor.output_leakage_detector.get_leakage_stats()
     print(f"Leakage rate: {stats['leakage_rate']}%")
@@ -210,7 +210,7 @@ Agent 출력에서 민감 정보 유출을 탐지하여 데이터 유출을 방�
     # 유출 발생 시 자동 알림
     if stats['critical_severity_count'] > 0:
         send_security_alert("Critical data leak detected!")
-[/code]
+```
 
 **⚠️ 알림 기준**
 
@@ -233,7 +233,7 @@ Agent 출력에서 민감 정보 유출을 탐지하여 데이터 유출을 방�
 **Dangerous Parameters** | 위험한 파라미터 포함 | `{"cmd": "rm -rf /"}`  
   
 **📊 출력 지표**
-[code] 
+```json
     {
         "task_id": "task_001",
         "tool_name": "execute_command",
@@ -243,10 +243,10 @@ Agent 출력에서 민감 정보 유출을 탐지하여 데이터 유출을 방�
         "violation_type": "dangerous_params",
         "privilege_level": "execute"  # read, write, execute, admin
     }
-[/code]
+```
 
 **💡 사용 예제**
-[code] 
+```python
     # 설정
     monitor = PerformanceMonitor(
         enable_security_metrics=True,
@@ -260,7 +260,7 @@ Agent 출력에서 민감 정보 유출을 탐지하여 데이터 유출을 방�
     stats = monitor.tool_authorizer.get_compliance_stats()
     print(f"Compliance rate: {stats['compliance_rate']}%")
     print(f"Violation rate: {stats['violation_rate']}%")
-[/code]
+```
 
 **⚠️ 알림 기준**
 
@@ -289,7 +289,7 @@ Layer 2 보안 지표는 도구 호출 시퀀스를 분석하여 고급 보안 �
 **Suspicious Sequence #3** | `list_files` → `read_credentials` → `ssh_connect` | 🔴 Critical  
   
 **📊 출력 지표**
-[code] 
+```json
     {
         "task_id": "task_001",
         "initial_privilege": "read",
@@ -302,15 +302,15 @@ Layer 2 보안 지표는 도구 호출 시퀀스를 분석하여 고급 보안 �
         "escalation_path": ["read_user_file", "execute_command", "read_admin_file"],
         "risk_score": 10  # 0-10 scale
     }
-[/code]
+```
 
 **💡 사용 예제**
-[code] 
+```python
     # 통계 확인
     stats = monitor.privilege_escalation_detector.get_escalation_stats()
     print(f"Escalation rate: {stats['escalation_rate']}%")
     print(f"High risk events: {stats['high_risk_events']}")
-[/code]
+```
 
 **⚠️ 알림 기준**
 
@@ -335,7 +335,7 @@ Layer 2 보안 지표는 도구 호출 시퀀스를 분석하여 고급 보안 �
 **Defense Evasion** | `disable_logging` → `clear_history` → `delete_logs` | 탐지 회피 시도  
   
 **📊 출력 지표**
-[code] 
+```json
     {
         "task_id": "task_001",
         "chain_length": 3,
@@ -351,15 +351,15 @@ Layer 2 보안 지표는 도구 호출 시퀀스를 분석하여 고급 보안 �
             "defense_evasion": False
         }
     }
-[/code]
+```
 
 **💡 사용 예제**
-[code] 
+```python
     # 통계 확인
     stats = monitor.tool_chain_attack_detector.get_attack_stats()
     print(f"Detection rate: {stats['detection_rate']}%")
     print(f"Data exfiltration detected: {stats['data_exfiltration_detected']}")
-[/code]
+```
 
 **⚠️ 알림 기준**
 
@@ -371,7 +371,7 @@ Layer 2 보안 지표는 도구 호출 시퀀스를 분석하여 고급 보안 �
 ## 🔌 5. 통합 및 사용법
 
 ### 자동 보안 리포트 생성
-[code] 
+```python
     report = monitor.generate_report()
     
     # Layer 1 보안 지표
@@ -384,10 +384,10 @@ Layer 2 보안 지표는 도구 호출 시퀀스를 분석하여 고급 보안 �
     layer2 = report.security_metrics['layer2_security']
     print(f"Escalation rate: {layer2['privilege_escalation']['escalation_rate']}%")
     print(f"Attack detection rate: {layer2['attack_detection']['detection_rate']}%")
-[/code]
+```
 
 ### 보안 알림 처리
-[code] 
+```python
     # 보안 알림 필터링
     security_alerts = [a for a in report.alerts
                         if 'security' in a['metric'].lower() or
@@ -403,14 +403,14 @@ Layer 2 보안 지표는 도구 호출 시퀀스를 분석하여 고급 보안 �
             # 긴급 검토
             notify_security_team(alert)
             log_security_event(alert)
-[/code]
+```
 
 * * *
 
 ## 💡 6. Best Practices
 
 ### 1\. 도구 권한 정책 설정
-[code] 
+```python
     security_config = {
         'allowed_tools': [
             # Read operations
@@ -424,10 +424,10 @@ Layer 2 보안 지표는 도구 호출 시퀀스를 분석하여 고급 보안 �
             'execute', 'system', 'eval'
         ]
     }
-[/code]
+```
 
 ### 2\. 정기 보안 감사
-[code] 
+```python
     # 매일 보안 리포트 생성
     def daily_security_audit():
         report = monitor.generate_report()
@@ -442,7 +442,7 @@ Layer 2 보안 지표는 도구 호출 시퀀스를 분석하여 고급 보안 �
     
         # 감사 로그 저장
         save_audit_log(security_summary)
-[/code]
+```
 
 ### 3\. 임계값 모니터링
 
@@ -459,7 +459,7 @@ Layer 2 보안 지표는 도구 호출 시퀀스를 분석하여 고급 보안 �
 ## 📋 7. 사용 사례
 
 ### Use Case 1: Production Agent Monitoring
-[code] 
+```python
     monitor = PerformanceMonitor(
         enable_security_metrics=True,
         security_config=production_security_config
@@ -470,10 +470,10 @@ Layer 2 보안 지표는 도구 호출 시퀀스를 분석하여 고급 보안 �
         stats = monitor.input_sanitizer.get_security_stats()
         if stats['threat_rate'] > 5:
             send_alert("High threat rate detected!")
-[/code]
+```
 
 ### Use Case 2: Development Testing
-[code] 
+```python
     # Test with malicious inputs
     test_inputs = [
         "'; DROP TABLE users; --",
@@ -484,10 +484,10 @@ Layer 2 보안 지표는 도구 호출 시퀀스를 분석하여 고급 보안 �
     for inp in test_inputs:
         result = monitor.input_sanitizer.evaluate_input("test", inp)
         assert result['threat_count'] > 0
-[/code]
+```
 
 ### Use Case 3: Compliance Audit
-[code] 
+```python
     # Generate security report for compliance
     report = monitor.generate_report()
     
@@ -500,14 +500,14 @@ Layer 2 보안 지표는 도구 호출 시퀀스를 분석하여 고급 보안 �
     }
     
     save_compliance_log(audit_log)
-[/code]
+```
 
 * * *
 
 ## 📚 8. API 레퍼런스
 
 ### PerformanceMonitor 파라미터
-[code] 
+```python
     PerformanceMonitor(
         pricing: Dict[str, float] = None,
         enable_transparency: bool = False,
@@ -516,15 +516,15 @@ Layer 2 보안 지표는 도구 호출 시퀀스를 분석하여 고급 보안 �
         security_config: Optional[Dict[str, Any]] = None,  # ← 보안 설정
         output_dir: Optional[str] = None
     )
-[/code]
+```
 
 ### security_config 구조
-[code] 
+```python
     security_config = {
         'allowed_tools': List[str],        # 허용 도구 목록 (Whitelist)
         'restricted_tools': List[str]     # 금지 도구 목록 (Blacklist)
     }
-[/code]
+```
 
 ### 보안 지표 클래스
 

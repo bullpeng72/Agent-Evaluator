@@ -33,7 +33,7 @@ Ragas Layer 3 RAG Evaluation Retrieval Quality Requires Ground Truth
 ## 📊 다이어그램 시각화
 
 ### 1️⃣ 핵심 개념 및 재현율 평가 (Ragas)
-[code] 
+```python
     graph TD
         A[Question + Contexts + Ground Truth] --> B[ContextRecall Metric  
     Ragas Framework]
@@ -64,10 +64,10 @@ Ragas Layer 3 RAG Evaluation Retrieval Quality Requires Ground Truth
         style L fill:#d4edda
         style O fill:#f8d7da
         
-[/code]
+```
 
 ### 2️⃣ 평가 파이프라인 (Coverage Check)
-[code] 
+```python
     sequenceDiagram
         participant RAG as RAG System
         participant Adapter as RagasAdapter
@@ -97,10 +97,10 @@ Ragas Layer 3 RAG Evaluation Retrieval Quality Requires Ground Truth
     
         Adapter-->>RAG: {'ragas_context_recall': 0.88}
         
-[/code]
+```
 
 ### 3️⃣ Precision vs Recall Trade-off
-[code] 
+```python
     graph TD
         A[RAG Retrieval Optimization] --> B{목표 설정}
     
@@ -137,10 +137,10 @@ Ragas Layer 3 RAG Evaluation Retrieval Quality Requires Ground Truth
         style I fill:#fff3cd
         style J fill:#d4edda
         
-[/code]
+```
 
 ### 4️⃣ 임계값 및 Coverage 최적화
-[code] 
+```python
     graph TD
         A[Context Recall Score] --> B{임계값 비교}
         B -->|≥ 0.90| C[🌟 Excellent  
@@ -166,7 +166,7 @@ Ragas Layer 3 RAG Evaluation Retrieval Quality Requires Ground Truth
         style E fill:#fff3cd
         style F fill:#f8d7da
         
-[/code]
+```
 
 ## 🔍 구현 위치
 

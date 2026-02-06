@@ -41,17 +41,20 @@ LangChain, LlamaIndex, CrewAI 통합 방법
 ### 설치 방법
 
 **기본 설치** (Layer 1 메트릭)
-[code] 
+
+```bash
     [](<#cb1-1>)pip install agent-evaluator
-[/code]
+```
 
 **고급 메트릭 포함** (Layer 3)
-[code] 
+
+```bash
     [](<#cb2-1>)pip install agent-evaluator deepeval ragas
-[/code]
+```
 
 **프레임워크별 설치**
-[code] 
+
+```bash
     [](<#cb3-1>)# CrewAI + Agent Evaluator
     [](<#cb3-2>)pip install crewai agent-evaluator
     [](<#cb3-3>)
@@ -60,7 +63,7 @@ LangChain, LlamaIndex, CrewAI 통합 방법
     [](<#cb3-6>)
     [](<#cb3-7>)# AutoGen + Agent Evaluator
     [](<#cb3-8>)pip install pyautogen agent-evaluator
-[/code]
+```
 
 ### 호환성 참고사항
 
@@ -94,10 +97,11 @@ LangChain, LlamaIndex, CrewAI 통합 방법
 **✨ LangChainEvaluator** \- LangChain 전용 평가 클래스
 
 Layer 1/2/3 완전 지원, 동적 계산, 자동 Tool Selection 및 Workflow 추적
-[code] 
+
+```python
     from agent_evaluator.integrations import LangChainEvaluator
     evaluator = LangChainEvaluator(agent, enable_layer2=True)
-[/code]
+```
 
 자세한 내용은 [API Reference](<API_REFERENCE.html#langchain-evaluator>)를 참고하세요.
 
@@ -113,16 +117,18 @@ Layer 1/2/3 완전 지원, 동적 계산, 자동 Tool Selection 및 Workflow 추
   * 🤖 **에이전트** : 자율적 의사결정
 
 ### 1.2 설치
-[code] 
+
+```bash
     [](<#cb5-1>)pip install langchain langchain-openai agent-evaluator
-[/code]
+```
 
 ### 1.3 콜백 기반 통합
 
 Agent Evaluator는 `LangChainEvaluator` 클래스를 제공하여 LangChain의 실행을 자동으로 추적합니다.
 
 #### 주요 콜백 메서드
-[code] 
+
+```python
     [](<#cb6-1>)class LangChainEvaluator:
     [](<#cb6-2>)    """LangChain용 평가 콜백 핸들러"""
     [](<#cb6-3>)
@@ -146,10 +152,11 @@ Agent Evaluator는 `LangChainEvaluator` 클래스를 제공하여 LangChain의 �
     [](<#cb6-21>)
     [](<#cb6-22>)    def on_chain_end(self, outputs, **kwargs):
     [](<#cb6-23>)        """체인 완료 - TaskResult 생성 및 기록"""
-[/code]
+```
 
 ### 1.4 기본 사용법
-[code] 
+
+```python
     [](<#cb7-1>)from langchain.agents import AgentExecutor, create_openai_functions_agent
     [](<#cb7-2>)from langchain_openai import ChatOpenAI
     [](<#cb7-3>)from langchain.tools import Tool
@@ -192,12 +199,13 @@ Agent Evaluator는 `LangChainEvaluator` 클래스를 제공하여 LangChain의 �
     [](<#cb7-40>)
     [](<#cb7-41>)# 6. 리포트 확인
     [](<#cb7-42>)monitor.print_summary()
-[/code]
+```
 
 ### 1.5 Layer 2: Tool Selection 자동 평가
 
 LangChain 콜백은 **Tool Selection** 메트릭을 자동으로 평가할 수 있습니다.
-[code] 
+
+```json
     [](<#cb8-1>)# Golden Dataset에서 expected_tools 로드
     [](<#cb8-2>)expected_tools = ["search", "calculator", "python_repl"]
     [](<#cb8-3>)
@@ -220,7 +228,7 @@ LangChain 콜백은 **Tool Selection** 메트릭을 자동으로 평가할 수 �
     [](<#cb8-20>)print(f"Precision: {stats['avg_precision']:.1f}%")
     [](<#cb8-21>)print(f"Recall: {stats['avg_recall']:.1f}%")
     [](<#cb8-22>)print(f"F1 Score: {stats['avg_f1_score']:.1f}%")
-[/code]
+```
 
 **자동 추적 메커니즘:**
 
@@ -232,7 +240,8 @@ LangChain 콜백은 **Tool Selection** 메트릭을 자동으로 평가할 수 �
 ### 1.6 헬퍼 클래스: LangChainEvaluator
 
 간편한 사용을 위한 래퍼 클래스:
-[code] 
+
+```python
     [](<#cb9-1>)from agent_evaluator.integrations import LangChainEvaluator
     [](<#cb9-2>)
     [](<#cb9-3>)# Evaluator 생성
@@ -243,10 +252,11 @@ LangChain 콜백은 **Tool Selection** 메트릭을 자동으로 평가할 수 �
     [](<#cb9-8>)
     [](<#cb9-9>)# 리포트 생성
     [](<#cb9-10>)report = evaluator.get_report()
-[/code]
+```
 
 ### 1.7 실전 예제: RAG 시스템 평가
-[code] 
+
+```python
     [](<#cb10-1>)from langchain_openai import OpenAIEmbeddings
     [](<#cb10-2>)from langchain.vectorstores import Chroma
     [](<#cb10-3>)from langchain.chains import RetrievalQA
@@ -295,7 +305,7 @@ LangChain 콜백은 **Tool Selection** 메트릭을 자동으로 평가할 수 �
     [](<#cb10-46>)hybrid_report = monitor.generate_hybrid_report()
     [](<#cb10-47>)print(f"Faithfulness: {hybrid_report.advanced_metrics_summary.get('ragas_faithfulness', {}).get('mean', 0):.3f}")
     [](<#cb10-48>)print(f"Context Precision: {hybrid_report.advanced_metrics_summary.get('ragas_context_precision', {}).get('mean', 0):.3f}")
-[/code]
+```
 
 * * *
 
@@ -304,11 +314,12 @@ LangChain 콜백은 **Tool Selection** 메트릭을 자동으로 평가할 수 �
 **✨ LangGraphEvaluator** \- LangGraph 전용 평가 클래스
 
 노드별 자동 추적, Workflow Execution 메트릭, Layer 1/2/3 완전 지원
-[code] 
+
+```python
     from agent_evaluator.integrations import LangGraphEvaluator
     evaluator = LangGraphEvaluator(enable_layer2=True)
     evaluator.add_node("step1", your_function)
-[/code]
+```
 
 자세한 내용은 [API Reference](<API_REFERENCE.html#langgraph-evaluator>)를 참고하세요.
 
@@ -324,17 +335,19 @@ LangChain 콜백은 **Tool Selection** 메트릭을 자동으로 평가할 수 �
   * 🧩 **노드/엣지** : 명시적 워크플로우 정의
 
 ### 2.2 설치
-[code] 
+
+```bash
     [](<#cb11-1>)pip install langgraph
     [](<#cb11-2>)pip install agent-evaluator
-[/code]
+```
 
 ### 2.3 래퍼 기반 통합
 
 Agent Evaluator는 `LangGraphEvaluator` 클래스를 제공하여 LangGraph 워크플로우를 래핑합니다.
 
 #### 주요 메서드
-[code] 
+
+```python
     [](<#cb12-1>)class LangGraphEvaluator:
     [](<#cb12-2>)    """LangGraph 워크플로우에 평가 기능 통합"""
     [](<#cb12-3>)
@@ -355,10 +368,11 @@ Agent Evaluator는 `LangGraphEvaluator` 클래스를 제공하여 LangGraph 워�
     [](<#cb12-18>)
     [](<#cb12-19>)    def compile_and_run(self, initial_state: dict):
     [](<#cb12-20>)        """워크플로우 컴파일 및 실행"""
-[/code]
+```
 
 ### 2.4 기본 사용법
-[code] 
+
+```python
     [](<#cb13-1>)from agent_evaluator.integrations import LangGraphEvaluator
     [](<#cb13-2>)from agent_evaluator import PerformanceMonitor, TaskType
     [](<#cb13-3>)
@@ -404,12 +418,13 @@ Agent Evaluator는 `LangGraphEvaluator` 클래스를 제공하여 LangGraph 워�
     [](<#cb13-43>)
     [](<#cb13-44>)# 6. 리포트 확인
     [](<#cb13-45>)monitor.print_summary()
-[/code]
+```
 
 ### 2.5 Layer 2: Workflow Execution 자동 추적
 
 LangGraph는 **Workflow Execution** 메트릭을 자동으로 추적합니다.
-[code] 
+
+```json
     [](<#cb14-1>)# Layer 2 자동 추적 활성화
     [](<#cb14-2>)evaluator = LangGraphEvaluator(
     [](<#cb14-3>)    monitor,
@@ -438,7 +453,7 @@ LangGraph는 **Workflow Execution** 메트릭을 자동으로 추적합니다.
     [](<#cb14-26>)print(f"Graph Traversal Efficiency: {efficiency['efficiency']:.1f}%")
     [](<#cb14-27>)print(f"Nodes Executed: {efficiency['nodes_executed']}")
     [](<#cb14-28>)print(f"Avg Node Time: {efficiency['avg_node_time']:.3f}s")
-[/code]
+```
 
 **자동 추적 메커니즘:**
 
@@ -449,7 +464,8 @@ LangGraph는 **Workflow Execution** 메트릭을 자동으로 추적합니다.
   5. `state["evaluation_data"]["workflow_steps"]`에도 기록
 
 ### 2.6 실전 예제: RAG 워크플로우
-[code] 
+
+```python
     [](<#cb15-1>)from langgraph.graph import StateGraph, END
     [](<#cb15-2>)from typing import TypedDict
     [](<#cb15-3>)
@@ -493,7 +509,7 @@ LangGraph는 **Workflow Execution** 메트릭을 자동으로 추적합니다.
     [](<#cb15-41>)
     [](<#cb15-42>)# 실행
     [](<#cb15-43>)result = workflow.compile_and_run({"query": "What is AI?"})
-[/code]
+```
 
 * * *
 
@@ -502,11 +518,12 @@ LangGraph는 **Workflow Execution** 메트릭을 자동으로 추적합니다.
 **✨ CrewAIEvaluator** \- CrewAI 전용 평가 클래스
 
 Layer 1/2/3 완전 지원, Agent Coordination 자동 추적, Golden Dataset 지원, Manual Tracking APIs
-[code] 
+
+```python
     from agent_evaluator.integrations import CrewAIEvaluator
     evaluator = CrewAIEvaluator(crew, enable_layer2=True)
     result = evaluator.kickoff()
-[/code]
+```
 
 자세한 내용은 [API Reference](<API_REFERENCE.html#crewai-evaluator>)를 참고하세요.
 
@@ -522,16 +539,18 @@ Layer 1/2/3 완전 지원, Agent Coordination 자동 추적, Golden Dataset 지�
   * 🧰 **도구 통합** : 다양한 도구 사용
 
 ### 3.2 설치
-[code] 
+
+```bash
     [](<#cb16-1>)pip install crewai crewai-tools agent-evaluator
-[/code]
+```
 
 ### 3.3 래퍼 기반 통합
 
 Agent Evaluator는 `CrewAIEvaluator` 클래스를 제공하여 CrewAI Crew를 래핑합니다.
 
 #### 주요 메서드
-[code] 
+
+```python
     [](<#cb17-1>)class CrewAIEvaluator:
     [](<#cb17-2>)    """CrewAI에 평가 기능 통합"""
     [](<#cb17-3>)
@@ -555,10 +574,11 @@ Agent Evaluator는 `CrewAIEvaluator` 클래스를 제공하여 CrewAI Crew를 �
     [](<#cb17-21>)
     [](<#cb17-22>)    def _track_agent_interactions_end(self, task_id: str):
     [](<#cb17-23>)        """Agent Coordination 추적 완료"""
-[/code]
+```
 
 ### 3.4 기본 사용법
-[code] 
+
+```python
     [](<#cb18-1>)from crewai import Agent, Task, Crew, Process
     [](<#cb18-2>)from agent_evaluator.integrations import CrewAIEvaluator
     [](<#cb18-3>)from agent_evaluator import PerformanceMonitor, TaskType
@@ -618,12 +638,13 @@ Agent Evaluator는 `CrewAIEvaluator` 클래스를 제공하여 CrewAI Crew를 �
     [](<#cb18-57>)# 7. 리포트 확인
     [](<#cb18-58>)monitor.print_summary()
     [](<#cb18-59>)monitor.save_to_file("crew_evaluation.json")
-[/code]
+```
 
 ### 3.5 Layer 2: Agent Coordination 자동 추적
 
 CrewAI는 **Agent Coordination** 메트릭을 자동으로 추적할 수 있습니다.
-[code] 
+
+```json
     [](<#cb19-1>)# Golden Dataset에서 expected_agents 로드
     [](<#cb19-2>)expected_agents = ["researcher", "writer", "reviewer"]
     [](<#cb19-3>)
@@ -649,7 +670,7 @@ CrewAI는 **Agent Coordination** 메트릭을 자동으로 추적할 수 있습�
     [](<#cb19-23>)# Delegation 성공률
     [](<#cb19-24>)delegation_rate = monitor.agent_coordination_tracker.get_delegation_success_rate()
     [](<#cb19-25>)print(f"Delegation Success Rate: {delegation_rate:.1f}%")
-[/code]
+```
 
 **자동 추적 메커니즘:**
 
@@ -660,7 +681,8 @@ CrewAI는 **Agent Coordination** 메트릭을 자동으로 추적할 수 있습�
   5. `_track_agent_interactions_end()`: Crew 실행 완료 시 모든 상호작용 기록
 
 ### 3.6 헬퍼 클래스: CrewAIEvaluator
-[code] 
+
+```python
     [](<#cb20-1>)from agent_evaluator.integrations import CrewAIEvaluator
     [](<#cb20-2>)
     [](<#cb20-3>)# Evaluator 생성
@@ -675,10 +697,11 @@ CrewAI는 **Agent Coordination** 메트릭을 자동으로 추적할 수 있습�
     [](<#cb20-12>)
     [](<#cb20-13>)# 실행
     [](<#cb20-14>)result = evaluated_crew.kickoff()
-[/code]
+```
 
 ### 3.7 실전 예제: 멀티 에이전트 뉴스레터 생성
-[code] 
+
+```python
     [](<#cb21-1>)from crewai import Agent, Task, Crew, Process
     [](<#cb21-2>)from crewai.tools import SerperDevTool, ScrapeWebsiteTool
     [](<#cb21-3>)from agent_evaluator.integrations import CrewAIEvaluator
@@ -760,7 +783,7 @@ CrewAI는 **Agent Coordination** 메트릭을 자동으로 추적할 수 있습�
     [](<#cb21-79>)# 7. 하이브리드 리포트 생성
     [](<#cb21-80>)hybrid_report = monitor.generate_hybrid_report()
     [](<#cb21-81>)monitor.print_summary()
-[/code]
+```
 
 * * *
 
@@ -769,11 +792,12 @@ CrewAI는 **Agent Coordination** 메트릭을 자동으로 추적할 수 있습�
 **✨ AutoGenEvaluator** \- AutoGen 전용 평가 클래스
 
 메서드 래핑, Agent Coordination 자동 추적, Layer 1/2/3 완전 지원
-[code] 
+
+```python
     from agent_evaluator.integrations import AutoGenEvaluator
     evaluator = AutoGenEvaluator(assistant, enable_layer2=True)
     user_proxy.initiate_chat(evaluator.agent, message="Hello")
-[/code]
+```
 
 자세한 내용은 [API Reference](<API_REFERENCE.html#autogen-evaluator>)를 참고하세요.
 
@@ -789,17 +813,19 @@ CrewAI는 **Agent Coordination** 메트릭을 자동으로 추적할 수 있습�
   * 🎭 **역할 기반** : 사용자/어시스턴트 역할
 
 ### 4.2 설치
-[code] 
+
+```bash
     [](<#cb22-1>)pip install pyautogen  # 0.2.0 이상 권장
     [](<#cb22-2>)pip install agent-evaluator
-[/code]
+```
 
 ### 4.3 래퍼 기반 통합
 
 Agent Evaluator는 `AutoGenEvaluator` 클래스를 제공하여 AutoGen Agent를 래핑합니다.
 
 #### 주요 메서드
-[code] 
+
+```python
     [](<#cb23-1>)class AutoGenEvaluator:
     [](<#cb23-2>)    """AutoGen Agent에 평가 기능 통합"""
     [](<#cb23-3>)
@@ -814,10 +840,11 @@ Agent Evaluator는 `AutoGenEvaluator` 클래스를 제공하여 AutoGen Agent를
     [](<#cb23-12>)
     [](<#cb23-13>)    def _estimate_tokens(self, messages, reply):
     [](<#cb23-14>)        """토큰 사용량 추정"""
-[/code]
+```
 
 ### 4.4 기본 사용법
-[code] 
+
+```python
     [](<#cb24-1>)import autogen
     [](<#cb24-2>)from agent_evaluator.integrations import AutoGenEvaluator
     [](<#cb24-3>)from agent_evaluator import PerformanceMonitor, TaskType
@@ -867,10 +894,11 @@ Agent Evaluator는 `AutoGenEvaluator` 클래스를 제공하여 AutoGen Agent를
     [](<#cb24-47>)
     [](<#cb24-48>)# 6. 리포트 확인
     [](<#cb24-49>)monitor.print_summary()
-[/code]
+```
 
 ### 4.5 헬퍼 클래스: AutoGenEvaluator
-[code] 
+
+```python
     [](<#cb25-1>)from agent_evaluator.integrations import AutoGenEvaluator
     [](<#cb25-2>)
     [](<#cb25-3>)# Evaluator 생성
@@ -887,10 +915,11 @@ Agent Evaluator는 `AutoGenEvaluator` 클래스를 제공하여 AutoGen Agent를
     [](<#cb25-14>)    evaluated_assistant.agent,
     [](<#cb25-15>)    message="What is AI?"
     [](<#cb25-16>))
-[/code]
+```
 
 ### 4.6 실전 예제: 코드 생성 평가
-[code] 
+
+```python
     [](<#cb26-1>)import autogen
     [](<#cb26-2>)from agent_evaluator.integrations import AutoGenEvaluator
     [](<#cb26-3>)from agent_evaluator import PerformanceMonitor, TaskType
@@ -930,7 +959,7 @@ Agent Evaluator는 `AutoGenEvaluator` 클래스를 제공하여 AutoGen Agent를
     [](<#cb26-37>)
     [](<#cb26-38>)# 리포트 확인
     [](<#cb26-39>)monitor.print_summary()
-[/code]
+```
 
 * * *
 
@@ -1012,7 +1041,8 @@ Agent Evaluator는 프레임워크별로 **Layer 2 메트릭** 을 자동으로 
 ### 6.2 Tool Selection (LangChain)
 
 **자동 추적 메커니즘:**
-[code] 
+
+```python
     [](<#cb27-1>)# agent_evaluator/integrations/__init__.py
     [](<#cb27-2>)class LangChainEvaluator:
     [](<#cb27-3>)    def __init__(self, monitor, expected_tools=None):
@@ -1037,10 +1067,11 @@ Agent Evaluator는 프레임워크별로 **Layer 2 메트릭** 을 자동으로 
     [](<#cb27-22>)                expected_tools=self.expected_tools,
     [](<#cb27-23>)                actual_tools=actual_tools
     [](<#cb27-24>)            )
-[/code]
+```
 
 **사용 예제:**
-[code] 
+
+```json
     [](<#cb28-1>)# Golden Dataset에서 expected_tools 로드
     [](<#cb28-2>)golden_dataset = {
     [](<#cb28-3>)    "task_1": {"expected_tools": ["search", "calculator"]},
@@ -1064,12 +1095,13 @@ Agent Evaluator는 프레임워크별로 **Layer 2 메트릭** 을 자동으로 
     [](<#cb28-21>)print(f"Precision: {stats['avg_precision']:.1f}%")
     [](<#cb28-22>)print(f"Recall: {stats['avg_recall']:.1f}%")
     [](<#cb28-23>)print(f"F1 Score: {stats['avg_f1_score']:.1f}%")
-[/code]
+```
 
 ### 6.3 Agent Coordination (CrewAI)
 
 **자동 추적 메커니즘:**
-[code] 
+
+```python
     [](<#cb29-1>)# agent_evaluator/integrations/__init__.py
     [](<#cb29-2>)class CrewAIEvaluator:
     [](<#cb29-3>)    def kickoff(self, inputs=None):
@@ -1109,10 +1141,11 @@ Agent Evaluator는 프레임워크별로 **Layer 2 메트릭** 을 자동으로 
     [](<#cb29-37>)                success=interaction["success"],
     [](<#cb29-38>)                context={"framework": "crewai"}
     [](<#cb29-39>)            )
-[/code]
+```
 
 **사용 예제:**
-[code] 
+
+```json
     [](<#cb30-1>)# 에이전트 간 상호작용 자동 추적
     [](<#cb30-2>)evaluator = CrewAIEvaluator(
     [](<#cb30-3>)    crew,
@@ -1132,12 +1165,13 @@ Agent Evaluator는 프레임워크별로 **Layer 2 메트릭** 을 자동으로 
     [](<#cb30-17>)# Delegation 성공률
     [](<#cb30-18>)delegation_rate = monitor.agent_coordination_tracker.get_delegation_success_rate()
     [](<#cb30-19>)print(f"Delegation Success Rate: {delegation_rate:.1f}%")
-[/code]
+```
 
 ### 6.4 Workflow Execution (LangGraph)
 
 **자동 추적 메커니즘:**
-[code] 
+
+```python
     [](<#cb31-1>)# agent_evaluator/integrations/__init__.py
     [](<#cb31-2>)class LangGraphEvaluator:
     [](<#cb31-3>)    def add_node(self, name: str, func):
@@ -1183,10 +1217,11 @@ Agent Evaluator는 프레임워크별로 **Layer 2 메트릭** 을 자동으로 
     [](<#cb31-43>)            return result
     [](<#cb31-44>)
     [](<#cb31-45>)        return wrapped
-[/code]
+```
 
 **사용 예제:**
-[code] 
+
+```json
     [](<#cb32-1>)# 워크플로우 단계 자동 추적
     [](<#cb32-2>)evaluator = LangGraphEvaluator(
     [](<#cb32-3>)    monitor,
@@ -1212,10 +1247,11 @@ Agent Evaluator는 프레임워크별로 **Layer 2 메트릭** 을 자동으로 
     [](<#cb32-23>)efficiency = monitor.workflow_tracker.get_graph_traversal_efficiency(task_id)
     [](<#cb32-24>)print(f"Graph Traversal Efficiency: {efficiency['efficiency']:.1f}%")
     [](<#cb32-25>)print(f"Nodes Executed: {efficiency['nodes_executed']}")
-[/code]
+```
 
 ### 6.5 Layer 2 메트릭 임계값 설정
-[code] 
+
+```python
     [](<#cb33-1>)# 임계값 설정
     [](<#cb33-2>)monitor.thresholds = {
     [](<#cb33-3>)    # Layer 1
@@ -1237,7 +1273,7 @@ Agent Evaluator는 프레임워크별로 **Layer 2 메트릭** 을 자동으로 
     [](<#cb33-19>)    if data.get('layer') == 'Layer 2':
     [](<#cb33-20>)        status_icon = "✅" if data['status'] == 'pass' else "❌"
     [](<#cb33-21>)        print(f"{status_icon} {data['name']}: {data['value']:.1f}{data['unit']} (threshold: {data['threshold']}{data['unit']})")
-[/code]
+```
 
 * * *
 
@@ -1260,13 +1296,14 @@ Agent Evaluator는 프레임워크별로 **Layer 2 메트릭** 을 자동으로 
      * LangChain: 콜백 기반 (낮은 오버헤드)
      * CrewAI/AutoGen: 래퍼 기반 (투명한 통합)
   2. **Layer 2 샘플링** :
-[code] [](<#cb34-1>)import random
+
+``` [](<#cb34-1>)import random
          [](<#cb34-2>)enable_layer2 = (random.random() < 0.1)  # 10%만 Layer 2 평가
          [](<#cb34-3>)evaluator = LangChainEvaluator(agent,
          [](<#cb34-4>)    monitor,
          [](<#cb34-5>)    expected_tools=expected_tools if enable_layer2 else None
          [](<#cb34-6>))
-[/code]
+```
 
   3. **비동기 처리** :
 
@@ -1276,19 +1313,21 @@ Agent Evaluator는 프레임워크별로 **Layer 2 메트릭** 을 자동으로 
 ### 7.3 문제 해결
 
 **문제: 토큰 수가 정확하지 않음** \- **해결** : LLM 응답에서 `usage` 정보 추출
-[code] 
+
+```python
     [](<#cb35-1>)# LangChain 콜백에서
     [](<#cb35-2>)def on_llm_end(self, response: LLMResult, **kwargs):
     [](<#cb35-3>)    if response.llm_output:
     [](<#cb35-4>)        token_usage = response.llm_output.get("token_usage", {})
     [](<#cb35-5>)        self.tokens_used["input"] = token_usage.get("prompt_tokens", 0)
     [](<#cb35-6>)        self.tokens_used["output"] = token_usage.get("completion_tokens", 0)
-[/code]
+```
 
 **문제: CrewAI에서 에이전트 상호작용을 정확히 추적할 수 없음** \- **해결** : CrewAI는 내부 로그를 제공하지 않으므로 순차적 상호작용 시뮬레이션 사용 - 더 정확한 추적을 위해서는 CrewAI의 커스텀 콜백 구현 필요
 
 **문제: Layer 2 메트릭이 너무 느림** \- **해결** : 샘플링 사용 또는 배치 평가
-[code] 
+
+```json
     [](<#cb36-1>)# 10개마다 한 번만 Layer 2 평가
     [](<#cb36-2>)if task_count % 10 == 0:
     [](<#cb36-3>)    evaluator = CrewAIEvaluator(
@@ -1296,7 +1335,7 @@ Agent Evaluator는 프레임워크별로 **Layer 2 메트릭** 을 자동으로 
     [](<#cb36-5>)        monitor,
     [](<#cb36-6>)        enable_coordination_tracking=True
     [](<#cb36-7>)    )
-[/code]
+```
 
 * * *
 
@@ -1363,7 +1402,8 @@ Agent Evaluator는 프레임워크별로 **Layer 2 메트릭** 을 자동으로 
 #### 8.1.2 공통 구현 패턴
 
 **패턴 1: Monitor 싱글톤 패턴**
-[code] 
+
+```python
     # 싱글톤으로 Monitor 관리 (전역 상태 공유)
     class MonitorManager:
         _instance = None
@@ -1389,10 +1429,11 @@ Agent Evaluator는 프레임워크별로 **Layer 2 메트릭** 을 자동으로 
     
     # 테스트 후 초기화
     MonitorManager.reset()
-[/code]
+```
 
 **패턴 2: Context Manager 패턴**
-[code] 
+
+```python
     # 자동 시작/종료 관리
     from contextlib import contextmanager
     from datetime import datetime
@@ -1429,10 +1470,11 @@ Agent Evaluator는 프레임워크별로 **Layer 2 메트릭** 을 자동으로 
     with track_agent_task(monitor, "task_001", "code_generation") as mon:
         result = agent.invoke({"input": "Generate Python code..."})
         # 자동으로 성공/실패 기록됨
-[/code]
+```
 
 **패턴 3: Decorator 패턴**
-[code] 
+
+```python
     # 함수 데코레이터로 자동 추적
     from functools import wraps
     
@@ -1457,12 +1499,13 @@ Agent Evaluator는 프레임워크별로 **Layer 2 메트릭** 을 자동으로 
     
     # 호출 시 자동으로 추적됨
     result = analyze_data("sales_data.csv")
-[/code]
+```
 
 #### 8.1.3 에러 처리 전략
 
 **전략 1: Graceful Degradation (점진적 저하)**
-[code] 
+
+```python
     # Monitor 실패 시에도 Agent는 정상 작동
     def safe_monitor_operation(func):
         """Monitor 작업을 안전하게 실행"""
@@ -1491,10 +1534,11 @@ Agent Evaluator는 프레임워크별로 **Layer 2 메트릭** 을 자동으로 
     # 사용 예시
     safe_monitor = SafeMonitor(monitor)
     safe_monitor.start_task({"task_id": "task_001"})  # 실패해도 예외 없음
-[/code]
+```
 
 **전략 2: Retry 메커니즘**
-[code] 
+
+```python
     # Monitor 작업 재시도
     from tenacity import retry, stop_after_attempt, wait_exponential
     
@@ -1513,10 +1557,11 @@ Agent Evaluator는 프레임워크별로 **Layer 2 메트릭** 을 자동으로 
     # 사용 예시
     resilient_monitor = ResilientMonitor(monitor)
     resilient_monitor.save_to_file("results.json")  # 실패 시 자동 재시도
-[/code]
+```
 
 **전략 3: Fallback 메커니즘**
-[code] 
+
+```python
     # 기본값 제공
     def get_metrics_safe(monitor, default=None):
         """메트릭 안전하게 가져오기"""
@@ -1533,7 +1578,7 @@ Agent Evaluator는 프레임워크별로 **Layer 2 메트릭** 을 자동으로 
     
     # 사용 예시
     metrics = get_metrics_safe(monitor, default={"layer1_metrics": {"tcr": 0.0}})
-[/code]
+```
 
 ### 8.2 성능 최적화
 
@@ -1549,7 +1594,8 @@ Agent Evaluator는 프레임워크별로 **Layer 2 메트릭** 을 자동으로 
 대량 배치 (100 tasks) | 120초 | 135초 | +12% | ⚠️ > 10%  
   
 **최적화 기법 1: 샘플링**
-[code] 
+
+```python
     # 모든 요청을 추적하지 않고 일부만 샘플링
     import random
     
@@ -1576,10 +1622,11 @@ Agent Evaluator는 프레임워크별로 **Layer 2 메트릭** 을 자동으로 
     # 사용 예시
     sampling_monitor = SamplingMonitor(monitor, sample_rate=0.1)  # 10%만 추적
     # → 오버헤드 12% → 1.2%로 감소
-[/code]
+```
 
 **최적화 기법 2: 비동기 수집**
-[code] 
+
+```python
     # 메트릭 수집을 백그라운드 스레드에서 처리
     import threading
     import queue
@@ -1627,10 +1674,11 @@ Agent Evaluator는 프레임워크별로 **Layer 2 메트릭** 을 자동으로 
     # ... Agent 실행 ...
     async_monitor.end_task(task_id="task_001")  # 즉시 반환
     async_monitor.shutdown()  # 프로그램 종료 시
-[/code]
+```
 
 **최적화 기법 3: 배치 처리**
-[code] 
+
+```python
     # 메트릭을 모아서 한 번에 저장
     class BatchMonitor:
         def __init__(self, monitor, batch_size=10):
@@ -1666,7 +1714,7 @@ Agent Evaluator는 프레임워크별로 **Layer 2 메트릭** 을 자동으로 
         batch_monitor.add_task({"task_id": f"task_{i}"})
         # 10개마다 자동으로 저장됨
     batch_monitor.flush()  # 남은 것 저장
-[/code]
+```
 
 #### 8.2.2 메모리 최적화
 
@@ -1680,7 +1728,8 @@ Agent Evaluator는 프레임워크별로 **Layer 2 메트릭** 을 자동으로 
 100,000 | 50 GB | ❌ OOM (Out of Memory)  
   
 **해결책: 주기적 파일 저장 및 메모리 클리어**
-[code] 
+
+```python
     # 일정 주기마다 파일에 저장하고 메모리 정리
     class StreamingMonitor:
         def __init__(self, monitor, output_dir="./evaluation_results", flush_interval=100):
@@ -1719,10 +1768,11 @@ Agent Evaluator는 프레임워크별로 **Layer 2 메트릭** 을 자동으로 
         # 1000개마다 자동 저장 및 메모리 클리어
     streaming_monitor.flush()  # 마지막 남은 것 저장
     # → 메모리 사용량: 50 GB → 500 MB (1/100)
-[/code]
+```
 
 #### 8.2.3 성능 프로파일링
-[code] 
+
+```python
     # Monitor 성능 측정
     import time
     from contextlib import contextmanager
@@ -1783,12 +1833,13 @@ Agent Evaluator는 프레임워크별로 **Layer 2 메트릭** 을 자동으로 
     #   Count: 1
     #   Total: 0.234s
     #   Average: 0.234s
-[/code]
+```
 
 ### 8.3 디버깅 및 문제 해결
 
 #### 8.3.1 디버깅 모드 활성화
-[code] 
+
+```python
     # 상세 로깅 설정
     import logging
     
@@ -1823,7 +1874,7 @@ Agent Evaluator는 프레임워크별로 **Layer 2 메트릭** 을 자동으로 
         llm_config=llm_config,
         verbose=True  # 대화 내용 출력
     )
-[/code]
+```
 
 #### 8.3.2 일반적인 문제 및 해결책
 
@@ -1839,7 +1890,8 @@ Agent Evaluator는 프레임워크별로 **Layer 2 메트릭** 을 자동으로 
 #### 8.3.3 문제 해결 체크리스트
 
 **Step 1: 기본 설정 확인**
-[code] 
+
+```python
     # 디버깅 체크리스트
     def debug_monitor_setup(monitor, callback):
         """Monitor 설정 검증"""
@@ -1869,10 +1921,11 @@ Agent Evaluator는 프레임워크별로 **Layer 2 메트릭** 을 자동으로 
     
     # 사용 예시
     debug_monitor_setup(monitor, callback)
-[/code]
+```
 
 **Step 2: 프레임워크별 확인**
-[code] 
+
+```python
     # LangChain 디버깅
     def debug_langchain_integration(agent, callback):
         """LangChain 통합 검증"""
@@ -1893,10 +1946,11 @@ Agent Evaluator는 프레임워크별로 **Layer 2 메트릭** 을 자동으로 
     
     # 사용 예시
     debug_langchain_integration(agent, callback)
-[/code]
+```
 
 #### 8.3.4 로깅 전략
-[code] 
+
+```python
     # 구조화된 로깅
     import json
     import logging
@@ -1932,7 +1986,7 @@ Agent Evaluator는 프레임워크별로 **Layer 2 메트릭** 을 자동으로 
     # 로그 출력:
     # {"task_id": "task_001", "event": "start", "task_type": "code_generation"}
     # {"type": "metric", "name": "tcr", "value": 0.85, "stage": "production"}
-[/code]
+```
 
 ### 8.4 프로덕션 배포
 
@@ -1952,7 +2006,8 @@ Agent Evaluator는 프레임워크별로 **Layer 2 메트릭** 을 자동으로 
 🛡️ 에러 처리 | Retry 메커니즘 | 파일 저장 재시도 | [ ]  
   
 #### 8.4.2 프로덕션 설정 예시
-[code] 
+
+```python
     # 프로덕션 환경 설정
     import os
     from pathlib import Path
@@ -2002,10 +2057,11 @@ Agent Evaluator는 프레임워크별로 **Layer 2 메트릭** 을 자동으로 
     # 사용 예시
     config = ProductionConfig()
     monitor = config.create_monitor()
-[/code]
+```
 
 #### 8.4.3 모니터링 및 알림
-[code] 
+
+```python
     # 메트릭 임계값 위반 시 알림
     import requests
     
@@ -2052,12 +2108,13 @@ Agent Evaluator는 프레임워크별로 **Layer 2 메트릭** 을 자동으로 
     metrics = monitor.calculate_metrics()
     thresholds = {"tcr": 85, "accuracy": 80}
     alerter.check_and_alert(metrics, thresholds)
-[/code]
+```
 
 ### 8.5 고급 활용
 
 #### 8.5.1 커스텀 메트릭 추가
-[code] 
+
+```python
     # 비즈니스 메트릭 추가
     class CustomMetricsMonitor(Monitor):
         def __init__(self):
@@ -2095,10 +2152,11 @@ Agent Evaluator는 프레임워크별로 **Layer 2 메트릭** 을 자동으로 
     #   "revenue_generated": {"mean": 125.5, "min": 125.5, "max": 125.5},
     #   "user_satisfaction": {"mean": 4.5, "min": 4.5, "max": 4.5}
     # }
-[/code]
+```
 
 #### 8.5.2 분산 추적 (Distributed Tracing)
-[code] 
+
+```bash
     # OpenTelemetry 통합
     from opentelemetry import trace
     from opentelemetry.sdk.trace import TracerProvider
@@ -2140,10 +2198,11 @@ Agent Evaluator는 프레임워크별로 **Layer 2 메트릭** 을 자동으로 
     # 사용 예시
     traced_monitor = TracedMonitor()
     # → Jaeger/Zipkin에서 분산 추적 가능
-[/code]
+```
 
 #### 8.5.3 멀티 프레임워크 통합
-[code] 
+
+```python
     # 여러 프레임워크를 동시에 사용하는 경우
     class MultiFrameworkMonitor:
         def __init__(self):
@@ -2177,7 +2236,7 @@ Agent Evaluator는 프레임워크별로 **Layer 2 메트릭** 을 자동으로 
     # 통합 메트릭
     metrics = multi_monitor.get_metrics()
     # → LangChain + CrewAI 작업이 모두 포함된 메트릭
-[/code]
+```
 
 **✅ 개발자 핵심 원칙**
 

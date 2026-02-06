@@ -61,7 +61,8 @@ Layer별 메트릭 상세 설명 및 사용법
 ## 🚀 0. 빠른 시작 (개발자용)
 
 > 💡 **3분 시작 가이드** : Agent Evaluator를 빠르게 시작하는 핵심 코드
-[code] 
+
+```python
     [](<#cb-qs-1-1>)# 1. 기본 사용 (무료, Layer 1)
     [](<#cb-qs-1-2>)from agent_evaluator import PerformanceMonitor, TaskResult
     [](<#cb-qs-1-3>)monitor = PerformanceMonitor()
@@ -78,7 +79,7 @@ Layer별 메트릭 상세 설명 및 사용법
     [](<#cb-qs-1-14>)    agent_fn=my_agent,
     [](<#cb-qs-1-15>)    dataset_path="golden_datasets/sample.json"
     [](<#cb-qs-1-16>))
-[/code]
+```
 
 📚 **자세한 API 사용법** : [01_API.html](<01_API.html>) 참조
 
@@ -148,7 +149,8 @@ Ragas | 4개 (Faithfulness, Answer Relevancy, Context Recall, Context Precision)
 **📝 설명** Agent가 주어진 작업을 성공적으로 완료한 비율을 측정합니다.
 
 **📐 계산식**
-[code] 
+
+```python
     TCR = (모든 작업의 completion_score 합계 / 전체 작업 수) × 100
     
     여기서 completion_score는 0.0 ~ 1.0 범위의 값:
@@ -157,7 +159,7 @@ Ragas | 4개 (Faithfulness, Answer Relevancy, Context Recall, Context Precision)
     - 실패: completion_score < 0.7
     
     각 작업의 completion_score가 가중치로 작용하여 최종 TCR을 계산합니다.
-[/code]
+```
 
 **⚠️ 중요 변경사항 (2025년 1월)**
 
@@ -186,7 +188,8 @@ Ragas | 4개 (Faithfulness, Answer Relevancy, Context Recall, Context Precision)
   4. 작업 복잡도 단순화
 
 **📌 예제**
-[code] 
+
+```json
     [](<#cb3-1>)# 전체 작업: 100개
     [](<#cb3-2>)# 각 작업의 completion_score 합계를 계산
     [](<#cb3-3>)
@@ -215,7 +218,7 @@ Ragas | 4개 (Faithfulness, Answer Relevancy, Context Recall, Context Precision)
     [](<#cb3-26>)    errors=[],
     [](<#cb3-27>)    timestamp=datetime.now()
     [](<#cb3-28>))
-[/code]
+```
 
 * * *
 
@@ -224,16 +227,18 @@ Ragas | 4개 (Faithfulness, Answer Relevancy, Context Recall, Context Precision)
 **📝 설명** 에이전트의 답변이 ground truth와 얼마나 일치하는지 측정합니다.
 
 **📐 계산식**
-[code] 
+
+```python
     Accuracy = Σ(작업별 정확도 점수) / 전체 작업 수 × 100
     
     작업 유형별 정확도 계산:
-[/code]
+```
 
 #### QA 정확도 계산 방법
 
 4가지 유사도 메트릭을 가중 조합하여 정확도를 측정합니다:
-[code] 
+
+```python
     accuracy = 0.4 × Token_Overlap + 0.3 × Jaccard + 0.2 × LCS + 0.1 × Char_Similarity
     
     여기서:
@@ -241,7 +246,7 @@ Ragas | 4개 (Faithfulness, Answer Relevancy, Context Recall, Context Precision)
     - Jaccard Similarity (30%): 교집합 / 합집합 (양방향 유사도)
     - Longest Common Subsequence (20%): 순서를 고려한 유사도
     - Character-level Similarity (10%): 오타 및 변형에 강건
-[/code]
+```
 
 #### 다른 작업 유형
 
@@ -249,7 +254,7 @@ Ragas | 4개 (Faithfulness, Answer Relevancy, Context Recall, Context Precision)
   * **General 정확도** : 문자열 정확 비교
 
 
-[code] 
+```json
     [](<#cb5-1>)# QA 정확도 계산
     [](<#cb5-2>)gt_tokens = set(ground_truth.lower().split())
     [](<#cb5-3>)pred_tokens = set(prediction.lower().split())
@@ -260,7 +265,7 @@ Ragas | 4개 (Faithfulness, Answer Relevancy, Context Recall, Context Precision)
     [](<#cb5-8>)
     [](<#cb5-9>)# General 정확도 계산
     [](<#cb5-10>)accuracy = 1.0 if str(ground_truth) == str(prediction) else 0.0
-[/code]
+```
 
 **📊 평가 기준**
 
@@ -285,7 +290,8 @@ Ragas | 4개 (Faithfulness, Answer Relevancy, Context Recall, Context Precision)
   4. 모델 파라미터 튜닝 (temperature, top_p)
 
 **📌 예제**
-[code] 
+
+```json
     [](<#cb6-1>)# AccuracyEvaluator 사용
     [](<#cb6-2>)evaluator = AccuracyEvaluator()
     [](<#cb6-3>)
@@ -304,7 +310,7 @@ Ragas | 4개 (Faithfulness, Answer Relevancy, Context Recall, Context Precision)
     [](<#cb6-16>)# 작업 유형별 정확도
     [](<#cb6-17>)by_type = evaluator.get_accuracy_by_type()
     [](<#cb6-18>)# {'qa': 87.5, 'code_generation': 95.0, ...}
-[/code]
+```
 
 * * *
 
@@ -315,11 +321,12 @@ Ragas | 4개 (Faithfulness, Answer Relevancy, Context Recall, Context Precision)
 **⚠️ 중요** : 이것은 **규칙 기반 탐지** 입니다. 더 정확한 AI 기반 탐지는 [DeepEval 환각 탐지](<#환각-없음-점수-hallucination-score---deepeval>)를 참조하세요.
 
 **📐 계산식**
-[code] 
+
+```python
     Hallucination Rate = (환각 플래그 작업 수 / 컨텍스트가 있는 작업 수) × 100
     
     개별 작업의 환각률 = 환각 지표 수 / 응답 문장 수
-[/code]
+```
 
 **탐지 방법 (규칙 기반)** 1\. **컨텍스트 불일치 (Unsupported Claim)** \- 응답 문장과 컨텍스트의 단어 중첩률 < 30% - 문장 길이 > 5 단어인 경우만 검사 - 심각도: Medium
 
@@ -329,7 +336,8 @@ Ragas | 4개 (Faithfulness, Answer Relevancy, Context Recall, Context Precision)
      * 심각도: High
 
 **실제 구현 방식**
-[code] 
+
+```json
     [](<#cb8-1>)# 1. 문장별 컨텍스트 중첩 검사
     [](<#cb8-2>)response_sentences = [s.strip() for s in response.split('.') if s.strip()]
     [](<#cb8-3>)context_words = set(context.lower().split())
@@ -352,7 +360,7 @@ Ragas | 4개 (Faithfulness, Answer Relevancy, Context Recall, Context Precision)
     [](<#cb8-20>)
     [](<#cb8-21>)# 3. 환각률 계산
     [](<#cb8-22>)hallucination_rate = len(hallucination_indicators) / len(response_sentences)
-[/code]
+```
 
 **📊 평가 기준**
 
@@ -376,7 +384,8 @@ Ragas | 4개 (Faithfulness, Answer Relevancy, Context Recall, Context Precision)
   4. DeepEval 환각 탐지 활성화 (AI 기반, 90-95% 정확도)
 
 **📌 사용법**
-[code] 
+
+```python
     [](<#cb9-new1-1>)# 방법 1: PerformanceMonitor (Opt-in)
     [](<#cb9-new1-2>)from agent_evaluator import PerformanceMonitor
     [](<#cb9-new1-3>)
@@ -404,10 +413,11 @@ Ragas | 4개 (Faithfulness, Answer Relevancy, Context Recall, Context Precision)
     [](<#cb9-new1-25>)    output_text="프랑스의 수도는 파리입니다.",
     [](<#cb9-new1-26>)    retrieved_context=["파리는 프랑스의 수도입니다."]
     [](<#cb9-new1-27>))
-[/code]
+```
 
 **📌 직접 탐지**
-[code] 
+
+```json
     [](<#cb9-1>)# HallucinationDetector 직접 사용
     [](<#cb9-2>)detector = HallucinationDetector()
     [](<#cb9-3>)
@@ -437,7 +447,7 @@ Ragas | 4개 (Faithfulness, Answer Relevancy, Context Recall, Context Precision)
     [](<#cb9-27>)#   'unsupported_claims_count': 8,
     [](<#cb9-28>)#   'numerical_inconsistencies_count': 4
     [](<#cb9-29>)# }
-[/code]
+```
 
 * * *
 
@@ -446,7 +456,8 @@ Ragas | 4개 (Faithfulness, Answer Relevancy, Context Recall, Context Precision)
 **📝 설명** 응답의 완전성, 관련성, 명확성을 종합적으로 평가합니다.
 
 **📐 계산식**
-[code] 
+
+```python
     Quality Score = Σ(dimension_score × weight) for all dimensions
     
     가중치:
@@ -457,30 +468,33 @@ Ragas | 4개 (Faithfulness, Answer Relevancy, Context Recall, Context Precision)
     - Usefulness (유용성): 15%
     
     각 dimension은 0-5점 척도로 평가됩니다.
-[/code]
+```
 
 **평가 요소 및 계산 방식**
 
   1. **Relevance (관련성) - 25%**
-[code] [](<#cb11-1>)request_words = set(request.lower().split())
+
+``` [](<#cb11-1>)request_words = set(request.lower().split())
          [](<#cb11-2>)response_words = set(response.lower().split())
          [](<#cb11-3>)relevance = len(request_words & response_words) / len(request_words)
          [](<#cb11-4>)score = min(relevance * 5, 5.0)
-[/code]
+```
 
   2. **Completeness (완전성) - 25%**
-[code] [](<#cb12-1>)found_elements = sum(1 for elem in expected_elements
+
+``` [](<#cb12-1>)found_elements = sum(1 for elem in expected_elements
          [](<#cb12-2>)                     if elem.lower() in response.lower())
          [](<#cb12-3>)completeness = found_elements / len(expected_elements)
          [](<#cb12-4>)score = completeness * 5
-[/code]
+```
 
   3. **Clarity (명확성) - 15%**
-[code] [](<#cb13-1>)word_count = len(response.split())
+
+``` [](<#cb13-1>)word_count = len(response.split())
          [](<#cb13-2>)has_structure = '\n' in response or '.' in response
          [](<#cb13-3>)clarity = min(word_count / 100, 1.0) * (1.2 if has_structure else 1.0)
          [](<#cb13-4>)score = min(clarity * 5, 5.0)
-[/code]
+```
 
   4. **Accuracy (정확도) - 20%** & **Usefulness (유용성) - 15%**
 
@@ -509,7 +523,8 @@ Ragas | 4개 (Faithfulness, Answer Relevancy, Context Recall, Context Precision)
   4. 필수 요소 체크리스트 제공 (Completeness 향상)
 
 **📌 예제**
-[code] 
+
+```python
     [](<#cb14-1>)# ResponseQualityEvaluator 사용
     [](<#cb14-2>)evaluator = ResponseQualityEvaluator()
     [](<#cb14-3>)
@@ -546,7 +561,7 @@ Ragas | 4개 (Faithfulness, Answer Relevancy, Context Recall, Context Precision)
     [](<#cb14-34>)#     'usefulness': 4.0
     [](<#cb14-35>)#   }
     [](<#cb14-36>)# }
-[/code]
+```
 
 * * *
 
@@ -555,9 +570,10 @@ Ragas | 4개 (Faithfulness, Answer Relevancy, Context Recall, Context Precision)
 **📝 설명** Agent가 요청을 받고 응답을 생성하기까지 걸리는 시간입니다.
 
 **📐 계산식**
-[code] 
+
+```
     Latency = 응답 완료 시간 - 요청 시작 시간 (초)
-[/code]
+```
 
 **📊 평가 기준**
 
@@ -580,7 +596,8 @@ Ragas | 4개 (Faithfulness, Answer Relevancy, Context Recall, Context Precision)
   4. 병렬 처리 최적화
 
 **📌 예제**
-[code] 
+
+```json
     [](<#cb16-1>)# Latency 측정 예제
     [](<#cb16-2>)task = TaskResult(
     [](<#cb16-3>)    task_id="task_latency_001",
@@ -595,7 +612,7 @@ Ragas | 4개 (Faithfulness, Answer Relevancy, Context Recall, Context Precision)
     [](<#cb16-12>)    errors=[],
     [](<#cb16-13>)    timestamp=datetime.now()
     [](<#cb16-14>))
-[/code]
+```
 
 * * *
 
@@ -604,9 +621,10 @@ Ragas | 4개 (Faithfulness, Answer Relevancy, Context Recall, Context Precision)
 **📝 설명** LLM API 사용에 따른 토큰 비용을 추적합니다.
 
 **📐 계산식**
-[code] 
+
+```python
     Cost = (입력 토큰 × 입력 가격 + 출력 토큰 × 출력 가격) / 1000
-[/code]
+```
 
 **📊 평가 기준** (작업당)
 
@@ -627,7 +645,8 @@ Ragas | 4개 (Faithfulness, Answer Relevancy, Context Recall, Context Precision)
   4. 배치 처리로 오버헤드 감소
 
 **📌 예제**
-[code] 
+
+```python
     [](<#cb18-1>)monitor = PerformanceMonitor(
     [](<#cb18-2>)    pricing={
     [](<#cb18-3>)        "input": 0.003,   # $0.003 per 1K tokens
@@ -637,7 +656,7 @@ Ragas | 4개 (Faithfulness, Answer Relevancy, Context Recall, Context Precision)
     [](<#cb18-7>)
     [](<#cb18-8>)# GPT-4o-mini: input $0.15/1M, output $0.60/1M
     [](<#cb18-9>)# → input: 0.00015/1K, output: 0.0006/1K
-[/code]
+```
 
 * * *
 
@@ -646,10 +665,11 @@ Ragas | 4개 (Faithfulness, Answer Relevancy, Context Recall, Context Precision)
 **📝 설명** 실패 후 재시도를 통해 성공적으로 복구한 비율을 측정합니다.
 
 **📐 계산식**
-[code] 
+
+```python
     재시도율 = 재시도한 작업 수 / 전체 작업 수 × 100
     재시도 성공률 = 재시도 후 성공 수 / 재시도한 작업 수 × 100
-[/code]
+```
 
 **📊 평가 기준** (재시도 성공률)
 
@@ -685,7 +705,8 @@ Ragas | 4개 (Faithfulness, Answer Relevancy, Context Recall, Context Precision)
   * ✅ **무료** : API 키 불필요, 정규식 기반
 
 **📐 계산 방법**
-[code] 
+
+```python
     # 자동 계산
     monitor = PerformanceMonitor()
     monitor.record_task(task)  # input_text가 자동으로 검사됨
@@ -694,7 +715,7 @@ Ragas | 4개 (Faithfulness, Answer Relevancy, Context Recall, Context Precision)
     stats = monitor.input_sanitizer.get_security_stats()
     print(f"Threat rate: {stats['threat_rate']}%")
     print(f"SQL injection attempts: {stats['sql_injection_attempts']}")
-[/code]
+```
 
 **📊 출력 지표**
 
@@ -735,7 +756,8 @@ Agent 출력에서 민감 정보 유출을 탐지하여 데이터 유출을 방�
   * ✅ **무료** : API 키 불필요, 정규식 + Luhn 알고리즘
 
 **📐 계산 방법**
-[code] 
+
+```python
     # 자동 계산
     monitor = PerformanceMonitor()
     monitor.record_task(task)  # output_text가 자동으로 검사됨
@@ -748,7 +770,7 @@ Agent 출력에서 민감 정보 유출을 탐지하여 데이터 유출을 방�
     # 알림 설정
     if stats['critical_severity_count'] > 0:
         send_security_alert("Critical data leak detected!")
-[/code]
+```
 
 **📊 출력 지표**
 
@@ -788,7 +810,8 @@ Agent 출력에서 민감 정보 유출을 탐지하여 데이터 유출을 방�
   * ✅ **권한 레벨 추적** : guest, read, write, execute, admin
 
 **📐 계산 방법**
-[code] 
+
+```python
     # 자동 계산
     monitor = PerformanceMonitor()
     monitor.tool_authorizer = ToolAuthorizationTracker(
@@ -801,7 +824,7 @@ Agent 출력에서 민감 정보 유출을 탐지하여 데이터 유출을 방�
     stats = monitor.tool_authorizer.get_compliance_stats()
     print(f"Compliance rate: {stats['compliance_rate']}%")
     print(f"Unauthorized calls: {stats['unauthorized_calls']}")
-[/code]
+```
 
 **📊 출력 지표**
 
@@ -849,7 +872,8 @@ Layer 2는 **Agentic AI 시스템에 특화된 지표** 입니다. 도구 호출
 **📝 설명** Agent가 외부 도구를 얼마나 효율적으로 사용하는지 측정합니다. 도구 호출 패턴, 중복 호출, 실패한 호출 등을 종합적으로 분석하여 도구 사용 효율성을 평가합니다.
 
 **📐 계산식**
-[code] 
+
+```python
     Tool Efficiency = 100 - (낭비율 × 100)
     
     여기서:
@@ -861,10 +885,11 @@ Layer 2는 **Agentic AI 시스템에 특화된 지표** 입니다. 도구 호출
     - 실패 호출: 8회
     - 낭비율 = (5 + 8) / 100 = 0.13
     - Tool Efficiency = 100 - (0.13 × 100) = 87% (양호)
-[/code]
+```
 
 **실제 구현 방식**
-[code] 
+
+```json
     [](<#cb24-1>)# 중복 호출 카운트 (tool_name + parameters 조합으로 판단)
     [](<#cb24-2>)seen = set()
     [](<#cb24-3>)redundant = 0
@@ -883,7 +908,7 @@ Layer 2는 **Agentic AI 시스템에 특화된 지표** 입니다. 도구 호출
     [](<#cb24-16>)# 효율성 계산
     [](<#cb24-17>)waste_rate = (redundant + failed_calls) / len(tool_calls)
     [](<#cb24-18>)efficiency_score = 100 - (waste_rate * 100)
-[/code]
+```
 
 **📊 평가 기준**
 
@@ -908,7 +933,8 @@ Layer 2는 **Agentic AI 시스템에 특화된 지표** 입니다. 도구 호출
   4. 에러 핸들링 강화
 
 **📌 예제**
-[code] 
+
+```json
     [](<#cb25-1>)# ToolCallAnalyzer 사용
     [](<#cb25-2>)analyzer = ToolCallAnalyzer()
     [](<#cb25-3>)
@@ -941,7 +967,7 @@ Layer 2는 **Agentic AI 시스템에 특화된 지표** 입니다. 도구 호출
     [](<#cb25-30>)#   'redundancy_rate': 6.0,
     [](<#cb25-31>)#   'failure_rate': 4.0
     [](<#cb25-32>)# }
-[/code]
+```
 
 * * *
 
@@ -950,7 +976,8 @@ Layer 2는 **Agentic AI 시스템에 특화된 지표** 입니다. 도구 호출
 **📝 설명** Agent가 작업에 적합한 도구를 선택하는 정확도를 측정합니다. Precision, Recall, F1 Score를 기반으로 평가합니다.
 
 **📐 계산식**
-[code] 
+
+```python
     Tool Selection Accuracy = F1 Score × 100
     
     F1 Score = 2 × (Precision × Recall) / (Precision + Recall)
@@ -962,10 +989,11 @@ Layer 2는 **Agentic AI 시스템에 특화된 지표** 입니다. 도구 호출
     - True Positives: 기대한 도구 중 실제로 사용된 도구
     - False Positives: 기대하지 않았지만 사용된 도구
     - False Negatives: 기대했지만 사용되지 않은 도구
-[/code]
+```
 
 **실제 구현 방식**
-[code] 
+
+```json
     [](<#cb21-1>)expected_set = set(expected_tools)
     [](<#cb21-2>)actual_set = set(actual_tools)
     [](<#cb21-3>)
@@ -980,7 +1008,7 @@ Layer 2는 **Agentic AI 시스템에 특화된 지표** 입니다. 도구 호출
     [](<#cb21-12>)f1_score = (2 * precision * recall) / (precision + recall) if (precision + recall) > 0 else 0
     [](<#cb21-13>)
     [](<#cb21-14>)accuracy = f1_score * 100
-[/code]
+```
 
 **📊 평가 기준**
 
@@ -1005,7 +1033,8 @@ Layer 2는 **Agentic AI 시스템에 특화된 지표** 입니다. 도구 호출
   4. 사용 빈도 기반 우선순위 조정
 
 **📌 예제**
-[code] 
+
+```json
     [](<#cb22-1>)# ToolSelectionTracker 사용
     [](<#cb22-2>)tracker = ToolSelectionTracker()
     [](<#cb22-3>)
@@ -1036,7 +1065,7 @@ Layer 2는 **Agentic AI 시스템에 특화된 지표** 입니다. 도구 호출
     [](<#cb22-28>)#   'total_false_positives': 18,
     [](<#cb22-29>)#   'total_false_negatives': 22
     [](<#cb22-30>)# }
-[/code]
+```
 
 * * *
 
@@ -1045,7 +1074,8 @@ Layer 2는 **Agentic AI 시스템에 특화된 지표** 입니다. 도구 호출
 **📝 설명** Multi-agent 시스템에서 에이전트 간 협업의 효율성을 측정합니다. CrewAI 같은 멀티 에이전트 프레임워크에 최적화되어 있습니다.
 
 **📐 계산식**
-[code] 
+
+```python
     Coordination Score = (Success Rate × 50%) + (Diversity Score × 30%) + (Balance Score × 20%)
     
     Success Rate = (성공한 상호작용 수 / 전체 상호작용 수) × 100
@@ -1055,10 +1085,11 @@ Layer 2는 **Agentic AI 시스템에 특화된 지표** 입니다. 도구 호출
     
     Balance Score = (상호작용 유형 수 / 3) × 10
       (delegation, communication, collaboration 3가지 유형)
-[/code]
+```
 
 **실제 구현 방식**
-[code] 
+
+```json
     [](<#cb27-1>)# Success Rate 계산
     [](<#cb27-2>)success_rate = sum(1 for i in interactions if i["success"]) / len(interactions) * 100
     [](<#cb27-3>)
@@ -1081,7 +1112,7 @@ Layer 2는 **Agentic AI 시스템에 특화된 지표** 입니다. 도구 호출
     [](<#cb27-20>)    diversity_score * 0.3 +
     [](<#cb27-21>)    balance_score * 0.2
     [](<#cb27-22>))
-[/code]
+```
 
 **📊 평가 기준** (0-10 척도)
 
@@ -1106,7 +1137,8 @@ Layer 2는 **Agentic AI 시스템에 특화된 지표** 입니다. 도구 호출
   4. Delegation 로직 최적화 → Balance 향상
 
 **📌 예제 (CrewAI)**
-[code] 
+
+```json
     [](<#cb28-1>)# AgentCoordinationTracker 사용
     [](<#cb28-2>)tracker = AgentCoordinationTracker()
     [](<#cb28-3>)
@@ -1154,7 +1186,7 @@ Layer 2는 **Agentic AI 시스템에 특화된 지표** 입니다. 도구 호출
     [](<#cb28-45>)# Delegation 성공률 확인
     [](<#cb28-46>)delegation_rate = tracker.get_delegation_success_rate()
     [](<#cb28-47>)# 100.0 (delegation 타입만 필터링)
-[/code]
+```
 
 * * *
 
@@ -1163,16 +1195,18 @@ Layer 2는 **Agentic AI 시스템에 특화된 지표** 입니다. 도구 호출
 **📝 설명** LangChain/LangGraph의 체인 및 그래프 실행 성공률을 측정합니다. 스텝 수준과 작업 수준 모두를 추적합니다.
 
 **📐 계산식**
-[code] 
+
+```python
     Step Success Rate = (성공한 스텝 수 / 전체 스텝 수) × 100
     
     Task Success Rate = (모든 스텝이 성공한 작업 수 / 전체 작업 수) × 100
     
     Avg Steps Per Task = 전체 스텝 수 / 전체 작업 수
-[/code]
+```
 
 **실제 구현 방식**
-[code] 
+
+```json
     [](<#cb30-1>)# 스텝 수준 성공률
     [](<#cb30-2>)success_count = sum(1 for e in executions if e["success"])
     [](<#cb30-3>)step_success_rate = (success_count / len(executions)) * 100
@@ -1190,7 +1224,7 @@ Layer 2는 **Agentic AI 시스템에 특화된 지표** 입니다. 도구 호출
     [](<#cb30-15>)
     [](<#cb30-16>)# 작업당 평균 스텝 수
     [](<#cb30-17>)avg_steps_per_task = len(executions) / len(task_groups)
-[/code]
+```
 
 **📊 평가 기준**
 
@@ -1215,7 +1249,8 @@ Layer 2는 **Agentic AI 시스템에 특화된 지표** 입니다. 도구 호출
   4. 스텝 간 의존성 최소화
 
 **📌 예제 (LangGraph)**
-[code] 
+
+```json
     [](<#cb31-1>)# WorkflowExecutionTracker 사용
     [](<#cb31-2>)tracker = WorkflowExecutionTracker()
     [](<#cb31-3>)
@@ -1269,7 +1304,7 @@ Layer 2는 **Agentic AI 시스템에 특화된 지표** 입니다. 도구 호출
     [](<#cb31-51>)# LangGraph 효율성 분석 (그래프 탐색 최적화)
     [](<#cb31-52>)efficiency = tracker.get_graph_traversal_efficiency(task_id="task_001")
     [](<#cb31-53>)# LangGraph 특화: 노드 전환, 브랜치 사용 등 분석
-[/code]
+```
 
 * * *
 
@@ -1286,7 +1321,8 @@ Layer 2는 **Agentic AI 시스템에 특화된 지표** 입니다. 도구 호출
   * ✅ **Risk Score 계산** : 0-10 점 (10점 = 최고 위험)
 
 **📐 계산 방법**
-[code] 
+
+```python
     from agent_evaluator import PrivilegeEscalationDetector
     
     detector = PrivilegeEscalationDetector()
@@ -1308,7 +1344,7 @@ Layer 2는 **Agentic AI 시스템에 특화된 지표** 입니다. 도구 호출
     #     'risk_score': 10,
     #     'escalation_path': ['read_user_file', 'execute_command', 'read_admin_file']
     # }
-[/code]
+```
 
 **📊 출력 지표**
 
@@ -1346,7 +1382,8 @@ Layer 2는 **Agentic AI 시스템에 특화된 지표** 입니다. 도구 호출
   * ✅ **Threat Level 평가** : low, medium, high, critical
 
 **📐 계산 방법**
-[code] 
+
+```python
     from agent_evaluator import ToolChainAttackDetector
     
     detector = ToolChainAttackDetector()
@@ -1365,7 +1402,7 @@ Layer 2는 **Agentic AI 시스템에 특화된 지표** 입니다. 도구 호출
     #     'threat_level': 'high',
     #     'risk_score': 8
     # }
-[/code]
+```
 
 **📊 출력 지표**
 
@@ -1436,7 +1473,8 @@ DeepEval은 LLM을 평가자로 사용하여 더 정확하고 인간 친화적�
   3. **주관적 품질** : 창의성, 유용성 등
 
 **📌 예제**
-[code] 
+
+```python
     [](<#cb32-1>)monitor.record_task(
     [](<#cb32-2>)    task,
     [](<#cb32-3>)    enable_advanced_metrics=True,
@@ -1450,7 +1488,7 @@ DeepEval은 LLM을 평가자로 사용하여 더 정확하고 인간 친화적�
     [](<#cb32-11>)    4. 명확성: 이해하기 쉬운 표현
     [](<#cb32-12>)    """
     [](<#cb32-13>))
-[/code]
+```
 
 * * *
 
@@ -1533,7 +1571,8 @@ DeepEval은 LLM을 평가자로 사용하여 더 정확하고 인간 친화적�
 설명 | 없음 | 있음  
   
 **📌 예제**
-[code] 
+
+```json
     [](<#cb33-1>)# DeepEval 환각 없음 점수
     [](<#cb33-2>){
     [](<#cb33-3>)    'hallucination_score': 0.92,      # ⬆ 환각 없음 점수 (높을수록 좋음)
@@ -1544,7 +1583,7 @@ DeepEval은 LLM을 평가자로 사용하여 더 정확하고 인간 친화적�
     [](<#cb33-8>)# 점수 해석:
     [](<#cb33-9>)# 0.92 = 매우 우수 → 컨텍스트에 충실한 응답
     [](<#cb33-10>)# 만약 0.65였다면 → 환각이 많이 감지됨, 개선 필요
-[/code]
+```
 
 * * *
 
@@ -1635,9 +1674,10 @@ RAGAS는 Retrieval-Augmented Generation (RAG) 시스템 전용 평가 프레임�
   * **주장 검증** : 각 주장이 컨텍스트에서 지원되는지 확인
 
 **📐 계산식**
-[code] 
+
+```python
     Faithfulness = 컨텍스트에서 지원되는 주장 수 / 전체 주장 수
-[/code]
+```
 
 **📊 평가 기준**
 
@@ -1652,7 +1692,8 @@ RAGAS는 Retrieval-Augmented Generation (RAG) 시스템 전용 평가 프레임�
   * **0.7 미만** : 환각 문제 심각
 
 **📌 예제**
-[code] 
+
+```json
     [](<#cb35-1>)# 검색된 컨텍스트
     [](<#cb35-2>)retrieved_context = [
     [](<#cb35-3>)    "파리는 프랑스의 수도입니다.",
@@ -1666,7 +1707,7 @@ RAGAS는 Retrieval-Augmented Generation (RAG) 시스템 전용 평가 프레임�
     [](<#cb35-11>)# 환각이 있는 답변
     [](<#cb35-12>)answer = "파리는 프랑스의 수도이며 인구는 1000만명입니다."
     [](<#cb35-13>)# ❌ "인구 1000만" 주장이 컨텍스트에 없음 → Faithfulness < 1.0
-[/code]
+```
 
 * * *
 
@@ -1680,9 +1721,10 @@ RAGAS는 Retrieval-Augmented Generation (RAG) 시스템 전용 평가 프레임�
   * **노이즈 탐지** : 불필요한 정보 포함 여부
 
 **📐 계산식**
-[code] 
+
+```python
     Context Precision = 관련 있는 컨텍스트 수 / 전체 검색된 컨텍스트 수
-[/code]
+```
 
 **📊 평가 기준**
 
@@ -1715,9 +1757,10 @@ RAGAS는 Retrieval-Augmented Generation (RAG) 시스템 전용 평가 프레임�
   * **누락 탐지** : 중요 정보 누락 여부
 
 **📐 계산식**
-[code] 
+
+```python
     Context Recall = 검색된 관련 정보 수 / 필요한 전체 정보 수
-[/code]
+```
 
 **📊 평가 기준**
 
@@ -1768,10 +1811,11 @@ RAGAS는 Retrieval-Augmented Generation (RAG) 시스템 전용 평가 프레임�
 **📝 설명** 모든 RAGAS 메트릭의 종합 점수입니다.
 
 **📐 계산식**
-[code] 
+
+```python
     RAGAS Overall = (Faithfulness + Context Precision +
                      Context Recall + Answer Relevancy) / 4
-[/code]
+```
 
 **⚠️ 중요 참고사항**
 
@@ -1803,9 +1847,10 @@ RAGAS는 Retrieval-Augmented Generation (RAG) 시스템 전용 평가 프레임�
 #### 시나리오 1: 개발/테스트 (무료)
 
 **사용 계층** : Layer 1만
-[code] 
+
+```json
     [](<#cb39-1>)monitor = create_monitor(profile="minimal")
-[/code]
+```
 
   * ✅ 완전 무료
   * ✅ 빠른 피드백
@@ -1815,10 +1860,11 @@ RAGAS는 Retrieval-Augmented Generation (RAG) 시스템 전용 평가 프레임�
 #### 시나리오 2: Agentic AI 시스템
 
 **사용 계층** : Layer 1 + Layer 2
-[code] 
+
+```json
     [](<#cb40-1>)monitor = HybridPerformanceMonitor()
     [](<#cb40-2>)# TaskResult에 framework, expected_tools 등 설정
-[/code]
+```
 
   * ✅ 무료
   * ✅ Agent 특화 지표
@@ -1827,9 +1873,10 @@ RAGAS는 Retrieval-Augmented Generation (RAG) 시스템 전용 평가 프레임�
 #### 시나리오 3: RAG 시스템
 
 **사용 계층** : Layer 1 + Layer 3 (Ragas)
-[code] 
+
+```json
     [](<#cb41-1>)monitor = create_monitor(profile="rag")
-[/code]
+```
 
   * ⚠️ API 비용 발생
   * ✅ RAG 최적화
@@ -1838,9 +1885,10 @@ RAGAS는 Retrieval-Augmented Generation (RAG) 시스템 전용 평가 프레임�
 #### 시나리오 4: 프로덕션 검증 (전체)
 
 **사용 계층** : Layer 1 + Layer 2 + Layer 3
-[code] 
+
+```json
     [](<#cb42-1>)monitor = create_monitor(profile="full")
-[/code]
+```
 
   * ⚠️ 높은 API 비용
   * ✅ 최고 정확도
@@ -1881,36 +1929,40 @@ RAGAS는 Retrieval-Augmented Generation (RAG) 시스템 전용 평가 프레임�
 ### 5.3 프로파일별 메트릭 구성
 
 #### Minimal (무료)
-[code] 
+
+```json
     [](<#cb43-1>)monitor = create_monitor(profile="minimal")
-[/code]
+```
 
   * Native 메트릭만 (8개)
   * API 비용 없음
   * 빠른 평가
 
 #### Balanced (권장)
-[code] 
+
+```json
     [](<#cb44-1>)monitor = create_monitor(profile="balanced")
-[/code]
+```
 
   * Native + DeepEval
   * 중간 비용
   * 대부분의 사용 사례에 적합
 
 #### RAG (RAG 시스템용)
-[code] 
+
+```json
     [](<#cb45-1>)monitor = create_monitor(profile="rag")
-[/code]
+```
 
   * Native + DeepEval + RAGAS
   * RAG 시스템 전용
   * 종합 평가
 
 #### Full (전체)
-[code] 
+
+```json
     [](<#cb46-1>)monitor = create_monitor(profile="full")
-[/code]
+```
 
   * 모든 메트릭 활성화
   * 최고 정확도
@@ -1932,7 +1984,8 @@ Full | $80-120 | 95% | 미션 크리티컬
 ## 6\. 실전 활용 팁
 
 ### 6.1 임계값 설정 (계층별)
-[code] 
+
+```json
     [](<#cb47-1>)# Layer 1: Native Metrics (기본)
     [](<#cb47-2>)thresholds_layer1 = {
     [](<#cb47-3>)    "tcr": 90.0,                    # Task Completion Rate
@@ -1988,7 +2041,7 @@ Full | $80-120 | 95% | 미션 크리티컬
     [](<#cb47-46>)    **thresholds_layer2,
     [](<#cb47-47>)    **thresholds_layer3
     [](<#cb47-48>)}
-[/code]
+```
 
 ### 6.2 메트릭 해석 체크리스트
 
@@ -2147,7 +2200,8 @@ Hallucination < 10%
 예산 내 유지  
   
 #### ⚙️ 실전 임계값 설정 코드
-[code] 
+
+```json
     [](<#cb-qa-thresholds-1>)# Alpha 단계 임계값
     [](<#cb-qa-thresholds-2>)thresholds_alpha = {
     [](<#cb-qa-thresholds-3>)    "tcr": 70.0,
@@ -2175,7 +2229,7 @@ Hallucination < 10%
     [](<#cb-qa-thresholds-25>)    print("⚠️  TCR 기준 미달: 배포 불가")
     [](<#cb-qa-thresholds-26>)if results["hallucination"] > thresholds_production["hallucination"]:
     [](<#cb-qa-thresholds-27>)    print("🚨 Hallucination 위험: 긴급 개선 필요")
-[/code]
+```
 
 ### 7.3 품질 보증 체크리스트
 

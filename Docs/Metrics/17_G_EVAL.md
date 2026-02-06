@@ -21,7 +21,7 @@ Agent Evaluator v0.5.0 - Layer 3 DeepEval Metric
 ## 📊 다이어그램 시각화
 
 ### 1️⃣ 핵심 개념 및 평가 흐름 (LLM-as-Judge)
-[code] 
+```python
     graph TD
         A[Input + Actual Output + Expected Output + Context] --> B[DeepEval G-Eval Metric]
         B --> C[Custom Evaluation Criteria  
@@ -56,10 +56,10 @@ Agent Evaluator v0.5.0 - Layer 3 DeepEval Metric
         style N fill:#d4edda
         style Q fill:#f8d7da
         
-[/code]
+```
 
 ### 2️⃣ G-Eval 평가 파이프라인 (DeepEval Integration)
-[code] 
+```python
     sequenceDiagram
         participant Agent as AI Agent
         participant Adapter as DeepEvalAdapter
@@ -84,10 +84,10 @@ Agent Evaluator v0.5.0 - Layer 3 DeepEval Metric
     
         Adapter-->>Agent: {'g_eval_score': 0.85, 'g_eval_reason': '...'}
         
-[/code]
+```
 
 ### 3️⃣ 비용 및 성능 고려사항
-[code] 
+```python
     graph TD
         A[G-Eval Configuration] --> B[Model Selection]
         B --> C[gpt-4o-mini  
@@ -121,10 +121,10 @@ Agent Evaluator v0.5.0 - Layer 3 DeepEval Metric
         style J fill:#fff3cd
         style K fill:#ffc107
         
-[/code]
+```
 
 ### 4️⃣ 임계값 및 품질 관리
-[code] 
+```python
     graph TD
         A[G-Eval Score] --> B{임계값 비교}
         B -->|≥ 0.90| C[🌟 Excellent  
@@ -150,7 +150,7 @@ Agent Evaluator v0.5.0 - Layer 3 DeepEval Metric
         style E fill:#fff3cd
         style F fill:#f8d7da
         
-[/code]
+```
 
 ## 📍 구현 위치
 

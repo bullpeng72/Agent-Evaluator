@@ -80,7 +80,7 @@
 > 💡 **개발자를 위한 최소 실행 가이드** : 3분 안에 Agent Evaluator를 사용할 수 있는 핵심 API만 빠르게 소개합니다.
 
 ### 최소 실행 코드 (3줄)
-[code] 
+```python
     [](<#cb0-1>)from agent_evaluator import PerformanceMonitor, create_taskresult
     [](<#cb0-2>)
     [](<#cb0-3>)monitor = PerformanceMonitor()
@@ -89,10 +89,10 @@
     [](<#cb0-6>)    ground_truth="정답", execution_time=1.0
     [](<#cb0-7>))
     [](<#cb0-8>)monitor.record_task(task)
-[/code]
+```
 
 #### ✅ 보안 함수 Import
-[code] 
+```python
     [](<#cb0_sec-1>)# Security helper functions
     [](<#cb0_sec-2>)from agent_evaluator.helpers import (
     [](<#cb0_sec-3>)    validate_input_security,
@@ -108,14 +108,14 @@
     [](<#cb0_sec-13>)    PrivilegeEscalationDetector,
     [](<#cb0_sec-14>)    ToolChainAttackDetector
     [](<#cb0_sec-15>))
-[/code]
+```
 
 ### API 사용 패턴 (3가지)
 
 #### ✅ 패턴 1: 기본 패턴 (수동 기록)
 
 **언제 사용?** 개별 작업을 하나씩 평가하고 싶을 때
-[code] 
+```python
     [](<#cb0a-1>)from agent_evaluator import PerformanceMonitor, create_taskresult
     [](<#cb0a-2>)
     [](<#cb0a-3>)# 1. 모니터 생성
@@ -138,12 +138,12 @@
     [](<#cb0a-20>)# 4. 레포트 확인
     [](<#cb0a-21>)report = monitor.generate_report()
     [](<#cb0a-22>)print(f"TCR: {report['tcr']}%")
-[/code]
+```
 
 #### ⚡ 패턴 2: 자동 평가 패턴 (Golden Dataset)
 
 **언제 사용?** 대량의 테스트 케이스를 자동으로 평가하고 싶을 때
-[code] 
+```python
     [](<#cb0b-1>)from agent_evaluator import PerformanceMonitor
     [](<#cb0b-2>)
     [](<#cb0b-3>)# 1. Agent 함수 정의 (Dict 반환 필수)
@@ -159,12 +159,12 @@
     [](<#cb0b-13>))
     [](<#cb0b-14>)
     [](<#cb0b-15>)# ✅ 자동 계산: TCR, Accuracy, Hallucination Rate
-[/code]
+```
 
 #### 🔬 패턴 3: 고급 평가 패턴 (Layer 2 + 3)
 
 **언제 사용?** 도구 선택, 에이전트 협업, AI 품질을 깊이 평가하고 싶을 때
-[code] 
+```python
     [](<#cb0c-1>)from agent_evaluator import HybridPerformanceMonitor
     [](<#cb0c-2>)
     [](<#cb0c-3>)# 1. Hybrid 모니터 생성 (DeepEval, Ragas 포함)
@@ -181,7 +181,7 @@
     [](<#cb0c-14>))
     [](<#cb0c-15>)
     [](<#cb0c-16>)# ✅ 측정: Layer 1 + Layer 2 + Layer 3 모든 메트릭
-[/code]
+```
 
 ### 핵심 클래스 요약
 
@@ -213,7 +213,7 @@
 **Q2: Golden Dataset 형식은?**
 
 **A** : JSON 배열 형식입니다.
-[code] 
+```json
     [
       {
         "question": "프랑스의 수도는?",
@@ -221,7 +221,7 @@
         "expected_tools": ["search"]  // Layer 2용 (선택)
       }
     ]
-[/code]
+```
 
 **Q3: Layer 2와 Layer 3의 차이는?**
 
@@ -277,12 +277,12 @@ PerformanceMonitor는 내부적으로 **16개의 Tracker** 를 사용하여 메�
 **📝 참고:** 대부분의 Tracker는 PerformanceMonitor가 자동으로 관리합니다. 고급 사용자만 직접 import하여 개별 사용할 수 있습니다.
 
 #### 생성자
-[code] 
+```json
     [](<#cb1-1>)PerformanceMonitor(
     [](<#cb1-2>)    pricing: Optional[Dict[str, float]] = None,
     [](<#cb1-3>)    enable_transparency: bool = False
     [](<#cb1-4>))
-[/code]
+```
 
 **파라미터** \- `pricing` (dict, optional): 토큰 가격 설정 - `input` (float): 입력 토큰 가격 ($/1K tokens) \- `output` (float): 출력 토큰 가격 ($/1K tokens) - 기본값: `{"input": 0.003, "output": 0.015}` (GPT-4o-mini)
 
@@ -293,7 +293,7 @@ PerformanceMonitor는 내부적으로 **16개의 Tracker** 를 사용하여 메�
 **참고** : 임계값(thresholds)은 생성자가 아닌 `load_thresholds_from_config()` 메서드나 `from_test_config()` 클래스 메서드를 통해 설정합니다
 
 **예제**
-[code] 
+```python
     [](<#cb2-1>)from agent_evaluator import PerformanceMonitor
     [](<#cb2-2>)
     [](<#cb2-3>)# 기본 생성
@@ -320,14 +320,14 @@ PerformanceMonitor는 내부적으로 **16개의 Tracker** 를 사용하여 메�
     [](<#cb2-24>)    "latency": 3.0,
     [](<#cb2-25>)    "cost_per_task": 0.05
     [](<#cb2-26>)}
-[/code]
+```
 
 #### 메서드
 
 ##### record_task()
 
 작업 결과를 기록합니다.
-[code] 
+```json
     [](<#cb3-1>)record_task(
     [](<#cb3-2>)    task_result: TaskResult,
     [](<#cb3-3>)    ground_truth: Optional[Any] = None,
@@ -335,14 +335,14 @@ PerformanceMonitor는 내부적으로 **16개의 Tracker** 를 사용하여 메�
     [](<#cb3-5>)    request: Optional[str] = None,
     [](<#cb3-6>)    expected_elements: Optional[List[str]] = None
     [](<#cb3-7>)) -> None
-[/code]
+```
 
 **파라미터** \- `task_result` (TaskResult): 기록할 작업 결과 - `ground_truth` (Any, optional): 정답 데이터 (현재 사용 안 함, TaskResult에 포함) - `context` (str, optional): 컨텍스트 정보 (현재 사용 안 함, TaskResult에 포함) - `request` (str, optional): 요청 내용 (현재 사용 안 함) - `expected_elements` (List[str], optional): 기대 요소 목록 (현재 사용 안 함)
 
 **참고** : - 대부분의 정보는 TaskResult 객체에 포함되어 있습니다 - 추가 파라미터들은 향후 확장을 위해 남겨져 있으나 현재 구현에서는 사용되지 않습니다 - TaskResult에 `expected_tools`, `agent_interactions`, `chain_steps` 등 Layer 2 필드를 포함하면 자동으로 해당 메트릭이 계산됩니다
 
 **예제**
-[code] 
+```python
     [](<#cb4-1>)from agent_evaluator import TaskResult, TaskType
     [](<#cb4-2>)from datetime import datetime
     [](<#cb4-3>)
@@ -361,21 +361,21 @@ PerformanceMonitor는 내부적으로 **16개의 Tracker** 를 사용하여 메�
     [](<#cb4-16>))
     [](<#cb4-17>)
     [](<#cb4-18>)monitor.record_task(task)
-[/code]
+```
 
 ##### generate_report()
 
 평가 리포트를 생성합니다.
-[code] 
+```json
     [](<#cb5-1>)generate_report() -> EvaluationReport
-[/code]
+```
 
 **반환값** \- `EvaluationReport`: 평가 리포트 객체 - `period` (str): 고정값 “current_session” - `total_tasks` (int): 총 작업 수 - `accuracy_metrics` (dict): 정확도 관련 메트릭 - `efficiency_metrics` (dict): 효율성 메트릭 - `quality_metrics` (dict): 품질 메트릭 - `alerts` (list): 알림 목록 - `recommendations` (list): 개선 제안 - `timestamp` (datetime): 생성 시각
 
 **참고** : - 클래스 이름은 `EvaluationReport`입니다 (`PerformanceReport`가 아님) - `period` 파라미터는 없으며, 항상 “current_session”으로 설정됩니다
 
 **예제**
-[code] 
+```python
     [](<#cb6-1>)report = monitor.generate_report()
     [](<#cb6-2>)
     [](<#cb6-3>)# 리포트 필드 접근
@@ -393,23 +393,23 @@ PerformanceMonitor는 내부적으로 **16개의 Tracker** 를 사용하여 메�
     [](<#cb6-15>)# 비용
     [](<#cb6-16>)tokens = report.efficiency_metrics['tokens']
     [](<#cb6-17>)print(f"총 비용: ${tokens['total_cost']:.4f}")
-[/code]
+```
 
 ##### print_report()
 
 콘솔에 포맷팅된 리포트를 출력합니다.
-[code] 
+```json
     [](<#cb7-1>)print_report(
     [](<#cb7-2>)    report: Optional[EvaluationReport] = None
     [](<#cb7-3>)) -> None
-[/code]
+```
 
 **파라미터** \- `report` (EvaluationReport, optional): 출력할 리포트 (None이면 자동 생성)
 
 **참고** : - 메서드명이 `print_summary()`가 아닌 `print_report()`입니다 - 리포트를 전달하지 않으면 내부적으로 `generate_report()`를 호출합니다
 
 **예제**
-[code] 
+```python
     [](<#cb8-1>)# 자동으로 리포트 생성 후 출력
     [](<#cb8-2>)monitor.print_report()
     [](<#cb8-3>)
@@ -432,16 +432,16 @@ PerformanceMonitor는 내부적으로 **16개의 Tracker** 를 사용하여 메�
     [](<#cb8-20>)#   - Failures: 7 tasks
     [](<#cb8-21>)#   - Status: Good Performance
     [](<#cb8-22>)# ...
-[/code]
+```
 
 ##### save_to_file()
 
 평가 데이터를 JSON 파일로 저장합니다.
-[code] 
+```json
     [](<#cb9-1>)save_to_file(
     [](<#cb9-2>)    filename: str = "performance_data.json"
     [](<#cb9-3>)) -> str
-[/code]
+```
 
 **파라미터** \- `filename` (str): 저장할 파일명 - 절대 경로가 아닌 경우 자동으로 `evaluation_results/` 디렉토리에 저장됩니다
 
@@ -450,7 +450,7 @@ PerformanceMonitor는 내부적으로 **16개의 Tracker** 를 사용하여 메�
 **참고** : - `include_tasks` 파라미터는 없으며, 항상 모든 작업 데이터를 저장합니다 - Evaluator 데이터(quality, hallucination, tool_selection 등)도 함께 저장됩니다
 
 **예제**
-[code] 
+```python
     [](<#cb10-1>)# 기본 경로에 저장 (evaluation_results/performance_data.json)
     [](<#cb10-2>)saved_path = monitor.save_to_file()
     [](<#cb10-3>)print(f"저장됨: {saved_path}")
@@ -460,25 +460,25 @@ PerformanceMonitor는 내부적으로 **16개의 Tracker** 를 사용하여 메�
     [](<#cb10-7>)
     [](<#cb10-8>)# 절대 경로로 저장
     [](<#cb10-9>)monitor.save_to_file("/path/to/custom/location/data.json")
-[/code]
+```
 
 ##### load_from_file() [클래스 메서드]
 
 파일에서 데이터를 로드합니다.
-[code] 
+```json
     [](<#cb11-1>)@classmethod
     [](<#cb11-2>)load_from_file(
     [](<#cb11-3>)    cls,
     [](<#cb11-4>)    filename: str = "performance_data.json"
     [](<#cb11-5>)) -> PerformanceMonitor
-[/code]
+```
 
 **파라미터** \- `filename` (str): 로드할 파일명
 
 **반환값** \- `PerformanceMonitor`: 로드된 모니터 인스턴스
 
 **예제**
-[code] 
+```python
     [](<#cb12-1>)# 저장된 데이터 로드
     [](<#cb12-2>)monitor = PerformanceMonitor.load_from_file("my_evaluation.json")
     [](<#cb12-3>)
@@ -488,17 +488,17 @@ PerformanceMonitor는 내부적으로 **16개의 Tracker** 를 사용하여 메�
     [](<#cb12-7>)# Evaluator 데이터도 자동으로 복원됨
     [](<#cb12-8>)print(f"복원된 Quality 평가: {len(monitor.quality_evaluator.evaluations)}개")
     [](<#cb12-9>)print(f"복원된 Tool Selection: {len(monitor.tool_selection_tracker.selections)}개")
-[/code]
+```
 
 ##### export_report()
 
 리포트를 파일로 내보냅니다.
-[code] 
+```json
     [](<#cb13-1>)export_report(
     [](<#cb13-2>)    filename: str,
     [](<#cb13-3>)    format: str = "json"
     [](<#cb13-4>)) -> None
-[/code]
+```
 
 **파라미터** \- `filename` (str): 저장할 파일명 - `format` (str): 파일 형식 (“json” 또는 “csv”)
 
@@ -511,7 +511,7 @@ PerformanceMonitor는 내부적으로 **16개의 Tracker** 를 사용하여 메�
   * ✅ 3개 컬럼 구조: Metric, Value, Unit
 
 **CSV 출력 예제**
-[code] 
+```python
     Metric,Value,Unit
     Task Completion Rate (TCR),95.00,%
     Overall Accuracy,88.50,%
@@ -529,12 +529,12 @@ PerformanceMonitor는 내부적으로 **16개의 Tracker** 를 사용하여 메�
     Context Recall,0.820,score
     Context Precision,0.860,score
     
-[/code]
+```
 
 **참고** : - `get_cost_analysis()` 메서드는 별도로 존재하지 않습니다 - 비용 정보는 `monitor.token_tracker.get_usage_stats()`로 접근 가능합니다 - `get_alerts()` 메서드도 별도로 존재하지 않습니다 - 알림은 `report.alerts`로 접근하거나 `monitor._generate_alerts()`를 직접 호출합니다 (내부 메서드)
 
 **예제**
-[code] 
+```python
     [](<#cb14-1>)# JSON으로 내보내기
     [](<#cb14-2>)monitor.export_report("report.json", format="json")
     [](<#cb14-3>)
@@ -550,19 +550,19 @@ PerformanceMonitor는 내부적으로 **16개의 Tracker** 를 사용하여 메�
     [](<#cb14-13>)report = monitor.generate_report()
     [](<#cb14-14>)for alert in report.alerts:
     [](<#cb14-15>)    print(f"[{alert['severity'].upper()}] {alert['metric']}: {alert['message']}")
-[/code]
+```
 
 ##### from_test_config() (클래스 메서드)
 
 Test 구성에서 PerformanceMonitor 인스턴스를 생성합니다.
-[code] 
+```json
     [](<#cb15-1>)@classmethod
     [](<#cb15-2>)from_test_config(
     [](<#cb15-3>)    cls,
     [](<#cb15-4>)    config_id: str,
     [](<#cb15-5>)    pricing: Optional[Dict[str, float]] = None
     [](<#cb15-6>)) -> PerformanceMonitor
-[/code]
+```
 
 **파라미터** \- `config_id` (str): Test 구성 ID (DataEditorManager에서 생성) - `pricing` (dict, optional): 토큰 가격 설정 (None이면 기본값 사용)
 
@@ -571,7 +571,7 @@ Test 구성에서 PerformanceMonitor 인스턴스를 생성합니다.
 **설명** \- Test 구성에서 자동으로 임계값, Golden Dataset 경로, 투명성 추적 설정 로드 - DataEditorManager와 통합되어 Dashboard에서 설정한 구성 자동 적용
 
 **예제**
-[code] 
+```python
     [](<#cb16-1>)from agent_evaluator import PerformanceMonitor
     [](<#cb16-2>)
     [](<#cb16-3>)# Test 구성에서 Monitor 생성
@@ -582,45 +582,45 @@ Test 구성에서 PerformanceMonitor 인스턴스를 생성합니다.
     [](<#cb16-8>)# 임계값, Golden Dataset 경로가 자동으로 설정됨
     [](<#cb16-9>)print(f"임계값: {monitor.thresholds}")
     [](<#cb16-10>)print(f"Golden Dataset: {monitor.golden_dataset_path}")
-[/code]
+```
 
 ##### load_thresholds_from_config()
 
 DataEditorManager에서 임계값을 로드합니다.
-[code] 
+```json
     [](<#cb17-1>)load_thresholds_from_config(
     [](<#cb17-2>)    config_id: Optional[str] = None
     [](<#cb17-3>)) -> Dict[str, float]
-[/code]
+```
 
 **파라미터** \- `config_id` (str, optional): Test 구성 ID (None이면 기본 임계값 사용)
 
 **반환값** \- `dict`: 임계값 설정 - `tcr` (float): 최소 TCR - `accuracy` (float): 최소 정확도 - `hallucination` (float): 최대 환각률 - 기타 Layer 1, 2, 3 메트릭 임계값
 
 **예제**
-[code] 
+```python
     [](<#cb18-1>)# Test 구성에서 임계값 로드
     [](<#cb18-2>)thresholds = monitor.load_thresholds_from_config("test_config_20241129_234453")
     [](<#cb18-3>)
     [](<#cb18-4>)# 기본 임계값 로드
     [](<#cb18-5>)thresholds = monitor.load_thresholds_from_config()
-[/code]
+```
 
 ##### load_golden_dataset()
 
 Golden Dataset을 로드합니다.
-[code] 
+```json
     [](<#cb19-1>)load_golden_dataset(
     [](<#cb19-2>)    dataset_path: Optional[str] = None
     [](<#cb19-3>)) -> List[Dict[str, Any]]
-[/code]
+```
 
 **파라미터** \- `dataset_path` (str, optional): Golden Dataset 파일 경로 - None이면 `self.golden_dataset_path` 사용 - 상대 경로는 `golden_datasets/` 디렉토리 기준
 
 **반환값** \- `list`: Golden Dataset 항목 리스트 - 각 항목: QAPair 구조 (question, answer, context, ground_truth 등)
 
 **예제**
-[code] 
+```python
     [](<#cb20-1>)# Golden Dataset 로드
     [](<#cb20-2>)dataset = monitor.load_golden_dataset("sample_dataset.json")
     [](<#cb20-3>)
@@ -631,21 +631,21 @@ Golden Dataset을 로드합니다.
     [](<#cb20-8>)    # Layer 2 필드도 사용 가능
     [](<#cb20-9>)    if 'expected_tools' in qa_pair:
     [](<#cb20-10>)        print(f"예상 도구: {qa_pair['expected_tools']}")
-[/code]
+```
 
 ##### compare_with_thresholds()
 
 현재 메트릭 값을 임계값과 비교합니다.
-[code] 
+```json
     [](<#cb21-1>)compare_with_thresholds() -> Dict[str, Any]
-[/code]
+```
 
 **반환값** \- `dict`: 각 메트릭별 비교 결과 - `metric_name` (dict): - `name` (str): 메트릭 표시 이름 - `value` (float): 현재 값 - `threshold` (float): 임계값 - `status` (str): “pass” 또는 “fail” - `direction` (str): “higher” (높을수록 좋음) 또는 “lower” (낮을수록 좋음) - `unit` (str): 단위 (“%”, “초”, “$” 등)
 
 **지원 메트릭** \- Layer 1: tcr, accuracy, hallucination, quality, latency, cost_per_task, tool_efficiency, retry_success_rate - Layer 2: tool_selection_accuracy, agent_coordination, workflow_execution \- Layer 3: faithfulness, context_precision, context_recall, answer_relevancy
 
 **예제**
-[code] 
+```python
     [](<#cb22-1>)# 임계값 설정
     [](<#cb22-2>)monitor.thresholds = {
     [](<#cb22-3>)    'tcr': 90.0,
@@ -667,19 +667,19 @@ Golden Dataset을 로드합니다.
     [](<#cb22-19>)# ✅ 정확도 (Accuracy): 88.2% (임계값: 85.0%)
     [](<#cb22-20>)# ❌ 환각률 (Hallucination): 7.3% (임계값: 5.0%)
     [](<#cb22-21>)# ✅ 도구 선택 정확도: 85.0% (임계값: 80.0%)
-[/code]
+```
 
 ##### record_rag_metrics() (NEW)
 
 RAG 평가 메트릭을 기록합니다.
-[code] 
+```json
     [](<#cb_rag1-1>)record_rag_metrics(
     [](<#cb_rag1-2>)    faithfulness: Optional[float] = None,
     [](<#cb_rag1-3>)    answer_relevancy: Optional[float] = None,
     [](<#cb_rag1-4>)    context_recall: Optional[float] = None,
     [](<#cb_rag1-5>)    context_precision: Optional[float] = None
     [](<#cb_rag1-6>)) -> None
-[/code]
+```
 
 **파라미터**
 
@@ -704,7 +704,7 @@ RAG 평가 메트릭을 기록합니다.
   * `compare_with_thresholds()`에서 평균값 계산
 
 **예제**
-[code] 
+```python
     [](<#cb_rag2-1>)from agent_evaluator import PerformanceMonitor
     [](<#cb_rag2-2>)from korean_rag_evaluator import KoreanRAGEvaluator
     [](<#cb_rag2-3>)
@@ -732,14 +732,14 @@ RAG 평가 메트릭을 기록합니다.
     [](<#cb_rag2-25>)    answer_relevancy=0.92
     [](<#cb_rag2-26>)    # context_recall, context_precision은 생략
     [](<#cb_rag2-27>))
-[/code]
+```
 
 ##### get_rag_metrics_summary() (NEW)
 
 기록된 RAG 메트릭의 요약 통계를 반환합니다.
-[code] 
+```json
     [](<#cb_rag3-1>)get_rag_metrics_summary() -> Dict[str, Any]
-[/code]
+```
 
 **반환값**
 
@@ -754,7 +754,7 @@ RAG 평가 메트릭을 기록합니다.
   * 메트릭이 기록되지 않은 경우 모든 값이 0.0
 
 **예제**
-[code] 
+```python
     [](<#cb_rag4-1>)# RAG 메트릭 기록
     [](<#cb_rag4-2>)monitor.record_rag_metrics(faithfulness=0.85, answer_relevancy=0.90)
     [](<#cb_rag4-3>)monitor.record_rag_metrics(faithfulness=0.78, answer_relevancy=0.82)
@@ -776,7 +776,7 @@ RAG 평가 메트릭을 기록합니다.
     [](<#cb_rag4-19>)for metric_name, stats in summary.items():
     [](<#cb_rag4-20>)    if stats["count"] > 0:
     [](<#cb_rag4-21>)        print(f"{metric_name}: avg={stats['avg']:.3f}, min={stats['min']:.3f}, max={stats['max']:.3f}")
-[/code]
+```
 
 ##### compare_with_thresholds() - RAG 메트릭 지원 (UPDATED)
 
@@ -788,7 +788,7 @@ RAG 평가 메트릭을 기록합니다.
   * ✅ **현재** : 실제 기록된 메트릭의 평균값 계산, `status: 'pass'/'fail'` 판정
 
 **RAG 임계값 설정 예제**
-[code] 
+```python
     [](<#cb_rag5-1>)# 1. 임계값 설정
     [](<#cb_rag5-2>)monitor.thresholds = {
     [](<#cb_rag5-3>)    # Layer 1
@@ -818,12 +818,12 @@ RAG 평가 메트릭을 기록합니다.
     [](<#cb_rag5-27>)#     'direction': 'higher',
     [](<#cb_rag5-28>)#     'unit': ''
     [](<#cb_rag5-29>)# }
-[/code]
+```
 
 ##### evaluate_with_golden_dataset()
 
 Golden Dataset 기반 완전 자동 평가 파이프라인입니다. ✅ 100% 구현 완료 (2025-12-02)
-[code] 
+```json
     [](<#cb23-1>)evaluate_with_golden_dataset(
     [](<#cb23-2>)    agent_fn: Callable,
     [](<#cb23-3>)    dataset_path: Optional[str] = None,
@@ -831,7 +831,7 @@ Golden Dataset 기반 완전 자동 평가 파이프라인입니다. ✅ 100% �
     [](<#cb23-5>)    enable_advanced_metrics: bool = False,
     [](<#cb23-6>)    verbose: bool = True
     [](<#cb23-7>)) -> Dict[str, Any]
-[/code]
+```
 
 **파라미터**
 
@@ -871,7 +871,7 @@ Golden Dataset 기반 완전 자동 평가 파이프라인입니다. ✅ 100% �
   * ✅ 진행 상황 실시간 출력
 
 **예제 1: 기본 사용**
-[code] 
+```python
     [](<#cb24-1>)from agent_evaluator import PerformanceMonitor
     [](<#cb24-2>)
     [](<#cb24-3>)# 1. Monitor 생성
@@ -894,10 +894,10 @@ Golden Dataset 기반 완전 자동 평가 파이프라인입니다. ✅ 100% �
     [](<#cb24-20>)print(f"총 평가: {results['total_evaluated']}개")
     [](<#cb24-21>)print(f"TCR: {results['layer1_metrics']['tcr']:.1f}%")
     [](<#cb24-22>)print(f"Accuracy: {results['layer1_metrics']['accuracy']:.1f}% (자동 계산!)")
-[/code]
+```
 
 **예제 2: Layer 2 메트릭 자동 평가**
-[code] 
+```python
     [](<#cb25-1>)monitor = PerformanceMonitor()
     [](<#cb25-2>)
     [](<#cb25-3>)# 임계값 설정
@@ -931,7 +931,7 @@ Golden Dataset 기반 완전 자동 평가 파이프라인입니다. ✅ 100% �
     [](<#cb25-31>)for metric, data in results['pass_fail'].items():
     [](<#cb25-32>)    status = "✅" if data['status'] == 'pass' else "❌"
     [](<#cb25-33>)    print(f"{status} {data['name']}: {data['value']:.1f} (임계값: {data['threshold']})")
-[/code]
+```
 
 **주의사항**
 
@@ -957,7 +957,7 @@ Golden Dataset 기반 완전 자동 평가 파이프라인입니다. ✅ 100% �
 `PerformanceMonitor`의 모든 기능을 포함하며, 추가 기능을 제공합니다.
 
 #### 생성자
-[code] 
+```json
     [](<#cb23-1>)HybridPerformanceMonitor(
     [](<#cb23-2>)    use_deepeval: bool = True,
     [](<#cb23-3>)    use_ragas: bool = True,
@@ -966,7 +966,7 @@ Golden Dataset 기반 완전 자동 평가 파이프라인입니다. ✅ 100% �
     [](<#cb23-6>)    ragas_model: str = "gpt-4o-mini",
     [](<#cb23-7>)    langsmith_api_key: Optional[str] = None
     [](<#cb23-8>))
-[/code]
+```
 
 **파라미터**
 
@@ -978,7 +978,7 @@ Golden Dataset 기반 완전 자동 평가 파이프라인입니다. ✅ 100% �
   * `langsmith_api_key` (str, optional): LangSmith API 키
 
 **예제**
-[code] 
+```python
     [](<#cb24-1>)from agent_evaluator.hybrid_monitor import HybridPerformanceMonitor
     [](<#cb24-2>)
     [](<#cb24-3>)# 기본 생성 (DeepEval과 Ragas 모두 활성화)
@@ -1003,14 +1003,14 @@ Golden Dataset 기반 완전 자동 평가 파이프라인입니다. ✅ 100% �
     [](<#cb24-22>)    use_langsmith=True,
     [](<#cb24-23>)    langsmith_api_key="your-api-key"
     [](<#cb24-24>))
-[/code]
+```
 
 #### 추가 메서드
 
 ##### record_task() [오버라이드]
 
 고급 메트릭을 포함한 작업 기록.
-[code] 
+```json
     [](<#cb25-1>)record_task(
     [](<#cb25-2>)    task: TaskResult,
     [](<#cb25-3>)    enable_advanced_metrics: bool = False,
@@ -1021,12 +1021,12 @@ Golden Dataset 기반 완전 자동 평가 파이프라인입니다. ✅ 100% �
     [](<#cb25-8>)    retrieved_context: Optional[List[str]] = None,
     [](<#cb25-9>)    quality_criteria: Optional[str] = None
     [](<#cb25-10>)) -> None
-[/code]
+```
 
 **파라미터** \- `task` (TaskResult): 기본 작업 결과 - `enable_advanced_metrics` (bool): 고급 메트릭 활성화 - `input_text` (str, optional): 입력 텍스트 - `output_text` (str, optional): 출력 텍스트 - `expected_output` (str, optional): 기대 출력 (Ground Truth) - `context` (list, optional): 컨텍스트 정보 - `retrieved_context` (list, optional): 검색된 컨텍스트 (RAG용) \- `quality_criteria` (str, optional): G-Eval 품질 기준
 
 **예제**
-[code] 
+```python
     [](<#cb26-1>)# 기본 메트릭만
     [](<#cb26-2>)monitor.record_task(task)
     [](<#cb26-3>)
@@ -1053,21 +1053,21 @@ Golden Dataset 기반 완전 자동 평가 파이프라인입니다. ✅ 100% �
     [](<#cb26-24>)    ],
     [](<#cb26-25>)    quality_criteria="Answer should be based on retrieved context."
     [](<#cb26-26>))
-[/code]
+```
 
 ##### generate_hybrid_report()
 
 고급 메트릭을 포함한 하이브리드 리포트 생성.
-[code] 
+```json
     [](<#cb27-1>)generate_hybrid_report(
     [](<#cb27-2>)    period: str = "전체 기간"
     [](<#cb27-3>)) -> HybridPerformanceReport
-[/code]
+```
 
 **반환값** \- `HybridPerformanceReport`: 하이브리드 리포트 (PerformanceReport 확장) - 모든 네이티브 메트릭 - `advanced_metrics_summary`: 고급 메트릭 요약 - `providers_used`: 사용된 프로바이더 목록
 
 **예제**
-[code] 
+```python
     [](<#cb28-1>)hybrid_report = monitor.generate_hybrid_report()
     [](<#cb28-2>)
     [](<#cb28-3>)# 네이티브 메트릭
@@ -1081,12 +1081,12 @@ Golden Dataset 기반 완전 자동 평가 파이프라인입니다. ✅ 100% �
     [](<#cb28-11>)if 'ragas_faithfulness' in hybrid_report.advanced_metrics_summary:
     [](<#cb28-12>)    faith = hybrid_report.advanced_metrics_summary['ragas_faithfulness']
     [](<#cb28-13>)    print(f"Faithfulness: {faith['mean']:.3f}")
-[/code]
+```
 
 ##### create_monitor() [헬퍼 함수]
 
 프로파일 기반 모니터 생성.
-[code] 
+```python
     [](<#cb29-1>)from hybrid_monitor import create_monitor
     [](<#cb29-2>)
     [](<#cb29-3>)monitor = create_monitor(
@@ -1094,12 +1094,12 @@ Golden Dataset 기반 완전 자동 평가 파이프라인입니다. ✅ 100% �
     [](<#cb29-5>)    pricing: Optional[Dict[str, float]] = None,
     [](<#cb29-6>)    thresholds: Optional[Dict[str, float]] = None
     [](<#cb29-7>)) -> HybridPerformanceMonitor
-[/code]
+```
 
 **파라미터** \- `profile` (str): 프로파일 선택 \- `"minimal"`: 네이티브 메트릭만 (무료) - `"balanced"`: DeepEval 포함 (권장) - `"rag"`: DeepEval + RAGAS - `"full"`: 모든 메트릭
 
 **예제**
-[code] 
+```json
     [](<#cb30-1>)# 권장 설정
     [](<#cb30-2>)monitor = create_monitor(profile="balanced")
     [](<#cb30-3>)
@@ -1108,7 +1108,7 @@ Golden Dataset 기반 완전 자동 평가 파이프라인입니다. ✅ 100% �
     [](<#cb30-6>)
     [](<#cb30-7>)# 모든 기능
     [](<#cb30-8>)monitor = create_monitor(profile="full")
-[/code]
+```
 
 * * *
 
@@ -1117,7 +1117,7 @@ Golden Dataset 기반 완전 자동 평가 파이프라인입니다. ✅ 100% �
 작업 결과를 나타내는 데이터 클래스입니다.
 
 #### 생성자
-[code] 
+```python
     [](<#cb31-1>)@dataclass
     [](<#cb31-2>)class TaskResult:
     [](<#cb31-3>)    # 필수 필드 (Layer 1)
@@ -1141,7 +1141,7 @@ Golden Dataset 기반 완전 자동 평가 파이프라인입니다. ✅ 100% �
     [](<#cb31-21>)    expected_tools: Optional[List[str]] = None
     [](<#cb31-22>)    state_transitions: Optional[List[Dict[str, Any]]] = None
     [](<#cb31-23>)    framework: Optional[str] = None
-[/code]
+```
 
 **필드 설명**
 
@@ -1167,16 +1167,16 @@ Golden Dataset 기반 완전 자동 평가 파이프라인입니다. ✅ 100% �
 `framework` | str | 사용 프레임워크 (crewai, langchain, langgraph, autogen) | ❌ | 2  
   
 **tokens_used 구조**
-[code] 
+```json
     [](<#cb32-1>){
     [](<#cb32-2>)    "input": 150,    # 입력 토큰 수
     [](<#cb32-3>)    "output": 200,   # 출력 토큰 수
     [](<#cb32-4>)    "total": 350     # 총 토큰 수
     [](<#cb32-5>)}
-[/code]
+```
 
 **tool_calls 구조** (⚠️ 중요)
-[code] 
+```json
     [](<#cb33-1>)# 올바른 형식: List[Dict[str, Any]]
     [](<#cb33-2>)tool_calls = [
     [](<#cb33-3>)    {
@@ -1194,10 +1194,10 @@ Golden Dataset 기반 완전 자동 평가 파이프라인입니다. ✅ 100% �
     [](<#cb33-15>)
     [](<#cb33-16>)# ❌ 잘못된 형식: List[str]
     [](<#cb33-17>)# tool_calls = ["search", "calculator"]  # 이것은 작동하지 않습니다!
-[/code]
+```
 
 **Layer 2 필드 사용 예제**
-[code] 
+```json
     [](<#cb34-1>)# CrewAI: agent_interactions
     [](<#cb34-2>)agent_interactions = [
     [](<#cb34-3>)    {
@@ -1228,10 +1228,10 @@ Golden Dataset 기반 완전 자동 평가 파이프라인입니다. ✅ 100% �
     [](<#cb34-28>)
     [](<#cb34-29>)# Golden Dataset: expected_tools
     [](<#cb34-30>)expected_tools = ["web_search", "calculator", "python_repl"]
-[/code]
+```
 
 **예제**
-[code] 
+```python
     [](<#cb35-1>)from agent_evaluator import TaskResult, TaskType
     [](<#cb35-2>)from datetime import datetime
     [](<#cb35-3>)
@@ -1318,7 +1318,7 @@ Golden Dataset 기반 완전 자동 평가 파이프라인입니다. ✅ 100% �
     [](<#cb35-84>)    errors=["API timeout", "Rate limit exceeded"],
     [](<#cb35-85>)    timestamp=datetime.now()
     [](<#cb35-86>))
-[/code]
+```
 
 * * *
 
@@ -1327,7 +1327,7 @@ Golden Dataset 기반 완전 자동 평가 파이프라인입니다. ✅ 100% �
 작업 유형을 나타내는 Enum 클래스입니다.
 
 #### 사용 가능한 타입
-[code] 
+```python
     [](<#cb36-1>)from enum import Enum
     [](<#cb36-2>)
     [](<#cb36-3>)class TaskType(Enum):
@@ -1341,10 +1341,10 @@ Golden Dataset 기반 완전 자동 평가 파이프라인입니다. ✅ 100% �
     [](<#cb36-11>)    CODING = "coding"                      # 코딩
     [](<#cb36-12>)    PLANNING = "planning"                  # 계획 수립
     [](<#cb36-13>)    TOOL_USE = "tool_use"                 # 도구 사용
-[/code]
+```
 
 **사용법**
-[code] 
+```python
     [](<#cb37-1>)from agent_evaluator import TaskType
     [](<#cb37-2>)
     [](<#cb37-3>)# Enum 값 사용 (권장)
@@ -1366,7 +1366,7 @@ Golden Dataset 기반 완전 자동 평가 파이프라인입니다. ✅ 100% �
     [](<#cb37-19>)    TaskType.CODE_GENERATION: "실행 가능성 중요",
     [](<#cb37-20>)    TaskType.INFORMATION_RETRIEVAL: "재현율 중요"
     [](<#cb37-21>)}
-[/code]
+```
 
 * * *
 
@@ -1384,30 +1384,30 @@ Layer 2 메트릭은 멀티 에이전트 AI 시스템의 고급 성능을 평가
 에이전트가 작업에 적합한 도구를 선택했는지 평가합니다.
 
 #### 접근 방법
-[code] 
+```python
     [](<#cb38-1>)from agent_evaluator import PerformanceMonitor
     [](<#cb38-2>)
     [](<#cb38-3>)monitor = PerformanceMonitor()
     [](<#cb38-4>)tracker = monitor.tool_selection_tracker  # ToolSelectionTracker 인스턴스
-[/code]
+```
 
 #### evaluate_selection()
 
 에이전트의 도구 선택을 평가하고 정확도 메트릭을 계산합니다.
-[code] 
+```json
     [](<#cb39-1>)evaluate_selection(
     [](<#cb39-2>)    task_id: str,
     [](<#cb39-3>)    expected_tools: List[str],
     [](<#cb39-4>)    actual_tools: List[str]
     [](<#cb39-5>)) -> Dict[str, Any]
-[/code]
+```
 
 **파라미터** \- `task_id` (str): 작업 고유 ID \- `expected_tools` (List[str]): 작업에 필요한 도구 목록 (Golden Dataset에서 정의) - `actual_tools` (List[str]): 에이전트가 실제로 사용한 도구 목록
 
 **반환값** \- `dict`: 평가 결과 - `task_id` (str): 작업 ID - `expected_tools` (List[str]): 예상 도구 목록 - `actual_tools` (List[str]): 실제 사용 도구 목록 - `true_positives` (int): 올바르게 선택한 도구 수 - `false_positives` (int): 불필요하게 선택한 도구 수 \- `false_negatives` (int): 선택하지 않은 필요 도구 수 - `precision` (float): 정밀도 (0-100) - `recall` (float): 재현율 (0-100) - `f1_score` (float): F1 점수 (0-100) \- `accuracy` (float): 전체 정확도 (F1 기준, 0-100)
 
 **예제**
-[code] 
+```python
     [](<#cb40-1>)# Golden Dataset에서 expected_tools 정의
     [](<#cb40-2>)result = monitor.tool_selection_tracker.evaluate_selection(
     [](<#cb40-3>)    task_id="task_001",
@@ -1423,21 +1423,21 @@ Layer 2 메트릭은 멀티 에이전트 AI 시스템의 고급 성능을 평가
     [](<#cb40-13>)# 도구 선택 정확도: 80.0%
     [](<#cb40-14>)# 정밀도: 100.0%, 재현율: 66.67%
     [](<#cb40-15>)# F1 Score: 80.0%
-[/code]
+```
 
 **사용 시나리오** \- LangChain 에이전트가 올바른 도구를 선택했는지 검증 - Golden Dataset 기반 자동 평가 - 도구 선택 최적화
 
 #### get_accuracy_stats()
 
 전체 평가 세션의 도구 선택 통계를 반환합니다.
-[code] 
+```json
     [](<#cb41-1>)get_accuracy_stats() -> Dict[str, Any]
-[/code]
+```
 
 **반환값** \- `dict`: 통계 정보 - `total_evaluations` (int): 총 평가 횟수 - `avg_accuracy` (float): 평균 정확도 - `avg_precision` (float): 평균 정밀도 - `avg_recall` (float): 평균 재현율 - `avg_f1_score` (float): 평균 F1 점수 - `total_true_positives` (int): 총 True Positive 수 - `total_false_positives` (int): 총 False Positive 수 - `total_false_negatives` (int): 총 False Negative 수
 
 **예제**
-[code] 
+```python
     [](<#cb42-1>)# 여러 작업 평가 후 통계 확인
     [](<#cb42-2>)for task in tasks:
     [](<#cb42-3>)    monitor.tool_selection_tracker.evaluate_selection(
@@ -1451,7 +1451,7 @@ Layer 2 메트릭은 멀티 에이전트 AI 시스템의 고급 성능을 평가
     [](<#cb42-11>)print(f"총 {stats['total_evaluations']}개 작업 평가")
     [](<#cb42-12>)print(f"평균 정확도: {stats['avg_accuracy']}%")
     [](<#cb42-13>)print(f"평균 F1 Score: {stats['avg_f1_score']}%")
-[/code]
+```
 
 * * *
 
@@ -1460,15 +1460,15 @@ Layer 2 메트릭은 멀티 에이전트 AI 시스템의 고급 성능을 평가
 멀티 에이전트 시스템에서 에이전트 간 협업 품질을 추적합니다.
 
 #### 접근 방법
-[code] 
+```python
     [](<#cb43-1>)monitor = PerformanceMonitor()
     [](<#cb43-2>)tracker = monitor.agent_coordination_tracker  # AgentCoordinationTracker 인스턴스
-[/code]
+```
 
 #### track_interaction()
 
 에이전트 간 상호작용(위임, 통신, 협업)을 기록합니다.
-[code] 
+```json
     [](<#cb44-1>)track_interaction(
     [](<#cb44-2>)    task_id: str,
     [](<#cb44-3>)    from_agent: str,
@@ -1477,14 +1477,14 @@ Layer 2 메트릭은 멀티 에이전트 AI 시스템의 고급 성능을 평가
     [](<#cb44-6>)    success: bool,
     [](<#cb44-7>)    context: Optional[Dict[str, Any]] = None
     [](<#cb44-8>)) -> Dict[str, Any]
-[/code]
+```
 
 **파라미터** \- `task_id` (str): 작업 고유 ID \- `from_agent` (str): 상호작용을 시작한 에이전트 이름 - `to_agent` (str): 상호작용 대상 에이전트 이름 - `interaction_type` (str): 상호작용 유형 - `"delegation"`: 작업 위임 - `"communication"`: 정보 전달 - `"collaboration"`: 협업 작업 - `success` (bool): 상호작용 성공 여부 - `context` (dict, optional): 추가 컨텍스트 정보
 
 **반환값** \- `dict`: 상호작용 기록 - `task_id` (str): 작업 ID - `from_agent` (str): 출발 에이전트 - `to_agent` (str): 도착 에이전트 - `interaction_type` (str): 상호작용 유형 - `success` (bool): 성공 여부 - `timestamp` (datetime): 기록 시각 - `context` (dict): 컨텍스트 정보
 
 **예제**
-[code] 
+```python
     [](<#cb45-1>)# CrewAI에서 Manager가 Researcher에게 작업 위임
     [](<#cb45-2>)monitor.agent_coordination_tracker.track_interaction(
     [](<#cb45-3>)    task_id="task_001",
@@ -1504,16 +1504,16 @@ Layer 2 메트릭은 멀티 에이전트 AI 시스템의 고급 성능을 평가
     [](<#cb45-17>)    success=True,
     [](<#cb45-18>)    context={"shared_data": "research_findings"}
     [](<#cb45-19>))
-[/code]
+```
 
 #### calculate_coordination_score()
 
 에이전트 협업 품질 점수를 계산합니다 (0-10 척도).
-[code] 
+```json
     [](<#cb46-1>)calculate_coordination_score(
     [](<#cb46-2>)    task_id: Optional[str] = None
     [](<#cb46-3>)) -> Dict[str, Any]
-[/code]
+```
 
 **파라미터** \- `task_id` (str, optional): 특정 작업의 점수만 계산 (None이면 전체)
 
@@ -1522,7 +1522,7 @@ Layer 2 메트릭은 멀티 에이전트 AI 시스템의 고급 성능을 평가
 **점수 계산 방식** \- 50% 성공률 - 30% 에이전트 다양성 (5+ 에이전트 = 이상적) - 20% 상호작용 유형 균형 (3가지 유형 = 이상적)
 
 **예제**
-[code] 
+```python
     [](<#cb47-1>)# 여러 상호작용 추적 후 점수 계산
     [](<#cb47-2>)score_data = monitor.agent_coordination_tracker.calculate_coordination_score(
     [](<#cb47-3>)    task_id="task_001"
@@ -1538,22 +1538,22 @@ Layer 2 메트릭은 멀티 에이전트 AI 시스템의 고급 성능을 평가
     [](<#cb47-13>)# 성공률: 95.0%
     [](<#cb47-14>)# 참여 에이전트: 4명
     [](<#cb47-15>)# 상호작용 유형: {'delegation': 5, 'communication': 8, 'collaboration': 3}
-[/code]
+```
 
 #### get_delegation_success_rate()
 
 작업 위임 성공률을 계산합니다.
-[code] 
+```json
     [](<#cb48-1>)get_delegation_success_rate() -> float
-[/code]
+```
 
 **반환값** \- `float`: 위임 성공률 (0-100)
 
 **예제**
-[code] 
+```python
     [](<#cb49-1>)delegation_rate = monitor.agent_coordination_tracker.get_delegation_success_rate()
     [](<#cb49-2>)print(f"작업 위임 성공률: {delegation_rate}%")
-[/code]
+```
 
 * * *
 
@@ -1562,15 +1562,15 @@ Layer 2 메트릭은 멀티 에이전트 AI 시스템의 고급 성능을 평가
 LangChain 체인 및 LangGraph 워크플로우의 실행을 추적합니다.
 
 #### 접근 방법
-[code] 
+```python
     [](<#cb50-1>)monitor = PerformanceMonitor()
     [](<#cb50-2>)tracker = monitor.workflow_tracker  # WorkflowExecutionTracker 인스턴스
-[/code]
+```
 
 #### track_step()
 
 워크플로우의 개별 단계 실행을 기록합니다.
-[code] 
+```json
     [](<#cb51-1>)track_step(
     [](<#cb51-2>)    task_id: str,
     [](<#cb51-3>)    step_name: str,
@@ -1580,14 +1580,14 @@ LangChain 체인 및 LangGraph 워크플로우의 실행을 추적합니다.
     [](<#cb51-7>)    framework: str = "langchain",
     [](<#cb51-8>)    metadata: Optional[Dict[str, Any]] = None
     [](<#cb51-9>)) -> Dict[str, Any]
-[/code]
+```
 
 **파라미터** \- `task_id` (str): 작업 고유 ID \- `step_name` (str): 단계 이름 - `step_type` (str): 단계 유형 - `"chain_step"`: LangChain 체인 단계 - `"node"`: LangGraph 노드 - `"edge"`: LangGraph 엣지 - `"branch"`: 분기 로직 - `success` (bool): 단계 실행 성공 여부 - `execution_time` (float): 실행 시간 (초) - `framework` (str): 프레임워크 (“langchain” 또는 “langgraph”) - `metadata` (dict, optional): 추가 메타데이터
 
 **반환값** \- `dict`: 단계 실행 기록 - `task_id` (str): 작업 ID - `step_name` (str): 단계 이름 - `step_type` (str): 단계 유형 - `success` (bool): 성공 여부 - `execution_time` (float): 실행 시간 - `framework` (str): 프레임워크 - `timestamp` (datetime): 기록 시각 - `metadata` (dict): 메타데이터
 
 **예제**
-[code] 
+```python
     [](<#cb52-1>)# LangChain 체인 단계 추적
     [](<#cb52-2>)monitor.workflow_tracker.track_step(
     [](<#cb52-3>)    task_id="task_001",
@@ -1609,24 +1609,24 @@ LangChain 체인 및 LangGraph 워크플로우의 실행을 추적합니다.
     [](<#cb52-19>)    framework="langgraph",
     [](<#cb52-20>)    metadata={"node_id": "decision_node_1"}
     [](<#cb52-21>))
-[/code]
+```
 
 #### calculate_execution_success_rate()
 
 워크플로우 실행 성공률을 계산합니다.
-[code] 
+```json
     [](<#cb53-1>)calculate_execution_success_rate(
     [](<#cb53-2>)    task_id: Optional[str] = None,
     [](<#cb53-3>)    framework: Optional[str] = None
     [](<#cb53-4>)) -> Dict[str, Any]
-[/code]
+```
 
 **파라미터** \- `task_id` (str, optional): 특정 작업으로 필터링 - `framework` (str, optional): 특정 프레임워크로 필터링
 
 **반환값** \- `dict`: 실행 통계 - `step_success_rate` (float): 단계별 성공률 (%) - `total_steps` (int): 총 단계 수 - `successful_steps` (int): 성공한 단계 수 - `failed_steps` (int): 실패한 단계 수 - `total_tasks` (int): 총 작업 수 - `fully_successful_tasks` (int): 전체 단계 성공한 작업 수 - `task_success_rate` (float): 작업 성공률 (%) - `avg_steps_per_task` (float): 작업당 평균 단계 수
 
 **예제**
-[code] 
+```python
     [](<#cb54-1>)# LangChain 워크플로우 성공률
     [](<#cb54-2>)stats = monitor.workflow_tracker.calculate_execution_success_rate(
     [](<#cb54-3>)    framework="langchain"
@@ -1642,16 +1642,16 @@ LangChain 체인 및 LangGraph 워크플로우의 실행을 추적합니다.
     [](<#cb54-13>)# 작업 성공률: 87.5%
     [](<#cb54-14>)# 총 8개 작업, 44개 단계
     [](<#cb54-15>)# 작업당 평균 5.5개 단계
-[/code]
+```
 
 #### get_graph_traversal_efficiency()
 
 LangGraph 그래프 순회 효율성을 계산합니다.
-[code] 
+```json
     [](<#cb55-1>)get_graph_traversal_efficiency(
     [](<#cb55-2>)    task_id: str
     [](<#cb55-3>)) -> Dict[str, Any]
-[/code]
+```
 
 **파라미터** \- `task_id` (str): 작업 고유 ID
 
@@ -1660,7 +1660,7 @@ LangGraph 그래프 순회 효율성을 계산합니다.
 **효율성 계산** \- 효율성 = (성공한 노드 수 / 총 단계 수) × 100
 
 **예제**
-[code] 
+```python
     [](<#cb56-1>)# LangGraph 작업의 그래프 순회 효율성
     [](<#cb56-2>)efficiency = monitor.workflow_tracker.get_graph_traversal_efficiency(
     [](<#cb56-3>)    task_id="task_002"
@@ -1670,14 +1670,14 @@ LangGraph 그래프 순회 효율성을 계산합니다.
     [](<#cb56-7>)print(f"실행 노드: {efficiency['nodes_executed']}개")
     [](<#cb56-8>)print(f"분기 횟수: {efficiency['branches_taken']}회")
     [](<#cb56-9>)print(f"평균 노드 시간: {efficiency['avg_node_time']}초")
-[/code]
+```
 
 * * *
 
 ### 1.5.4. Layer 2 워크플로우 예제
 
 #### 전체 Layer 2 메트릭 통합 예제
-[code] 
+```python
     [](<#cb57-1>)from agent_evaluator import PerformanceMonitor, TaskResult, TaskType
     [](<#cb57-2>)from datetime import datetime
     [](<#cb57-3>)
@@ -1757,12 +1757,12 @@ LangGraph 그래프 순회 효율성을 계산합니다.
     [](<#cb57-77>)# 6. 전체 리포트 생성
     [](<#cb57-78>)report = monitor.generate_report()
     [](<#cb57-79>)print(report.summary())
-[/code]
+```
 
 #### Golden Dataset 기반 자동 평가 사용 예제
 
 ✅ `evaluate_with_golden_dataset()` 메서드를 사용하여 완전 자동 평가를 수행할 수 있습니다.
-[code] 
+```python
     [](<#cb58-1>)from agent_evaluator import PerformanceMonitor
     [](<#cb58-2>)
     [](<#cb58-3>)# Monitor 생성 및 임계값 설정
@@ -1802,7 +1802,7 @@ LangGraph 그래프 순회 효율성을 계산합니다.
     [](<#cb58-37>)for metric, data in results['pass_fail'].items():
     [](<#cb58-38>)    status = "✅" if data['status'] == 'pass' else "❌"
     [](<#cb58-39>)    print(f"{status} {data['name']}: {data['value']:.1f} (임계값: {data['threshold']})")
-[/code]
+```
 
 **완성도:** 100% ✅ (2025-12-02)
 
@@ -1829,9 +1829,9 @@ LangGraph 그래프 순회 효율성을 계산합니다.
 사용자 입력에서 위험한 패턴을 탐지하여 Injection 공격을 방지합니다.
 
 **Import:**
-[code] 
+```python
     from agent_evaluator import InputSanitizationTracker
-[/code]
+```
 
 **🎯 탐지 대상 (22개 패턴)**
 
@@ -1844,7 +1844,7 @@ XSS Attack| 8| `<script>`, `javascript:`| 🟠 High
 Prompt Injection| 7| `ignore previous instructions`| 🔴 Critical  
   
 **💡 사용 예제**
-[code] 
+```python
     [](<#cb_sec1-1>)# 방법 1: PerformanceMonitor와 자동 통합
     [](<#cb_sec1-2>)from agent_evaluator import PerformanceMonitor
     [](<#cb_sec1-3>)
@@ -1878,10 +1878,10 @@ Prompt Injection| 7| `ignore previous instructions`| 🔴 Critical
     [](<#cb_sec1-31>)#     'sanitization_needed': True,
     [](<#cb_sec1-32>)#     'threat_count': 1
     [](<#cb_sec1-33>)# }
-[/code]
+```
 
 **📊 출력 지표**
-[code] 
+```json
     {
         "task_id": "task_001",
         "has_sql_injection": True,
@@ -1893,7 +1893,7 @@ Prompt Injection| 7| `ignore previous instructions`| 🔴 Critical
         "sanitization_needed": True,
         "threat_count": 1
     }
-[/code]
+```
 
 **⚠️ 알림 기준**
 
@@ -1909,9 +1909,9 @@ Prompt Injection| 7| `ignore previous instructions`| 🔴 Critical
 Agent 출력에서 민감 정보 유출을 탐지하여 데이터 유출을 방지합니다.
 
 **Import:**
-[code] 
+```python
     from agent_evaluator import OutputLeakageDetector
-[/code]
+```
 
 **🎯 탐지 대상 (10개 패턴)**
 
@@ -1927,7 +1927,7 @@ Private IP| `192.168.x.x`, `10.x.x.x`| 🟡 Medium
 File Path| `/usr/local/`, `C:\Windows\`| 🟡 Medium  
   
 **💡 사용 예제**
-[code] 
+```python
     [](<#cb_sec2-1>)# 방법 1: PerformanceMonitor와 자동 통합
     [](<#cb_sec2-2>)monitor = PerformanceMonitor()
     [](<#cb_sec2-3>)task = create_taskresult(
@@ -1955,7 +1955,7 @@ File Path| `/usr/local/`, `C:\Windows\`| 🟡 Medium
     [](<#cb_sec2-25>)    output_text="API key: sk-1234567890abcdefghijklmnopqrstuvwxyz"
     [](<#cb_sec2-26>))
     [](<#cb_sec2-27>)print(result['severity'])  # 'critical'
-[/code]
+```
 
 **⚠️ 알림 기준**
 
@@ -1970,9 +1970,9 @@ File Path| `/usr/local/`, `C:\Windows\`| 🟡 Medium
 도구 사용 권한을 추적하여 무단 도구 사용과 위험한 파라미터를 탐지합니다.
 
 **Import:**
-[code] 
+```python
     from agent_evaluator import ToolAuthorizationTracker
-[/code]
+```
 
 **🎯 탐지 대상**
 
@@ -1983,7 +1983,7 @@ Restricted Tool| 제한된 도구 사용| `delete_database` (in restricted_tools
 Dangerous Parameters| 위험한 파라미터 포함| `{"command": "rm -rf /"}`  
   
 **💡 사용 예제**
-[code] 
+```python
     [](<#cb_sec3-1>)# 방법 1: PerformanceMonitor와 자동 통합
     [](<#cb_sec3-2>)monitor = PerformanceMonitor()
     [](<#cb_sec3-3>)
@@ -2028,7 +2028,7 @@ Dangerous Parameters| 위험한 파라미터 포함| `{"command": "rm -rf /"}`
     [](<#cb_sec3-42>)#     'violation_type': 'restricted_tool',
     [](<#cb_sec3-43>)#     'privilege_level': 'execute'
     [](<#cb_sec3-44>)# }
-[/code]
+```
 
 * * *
 
@@ -2041,9 +2041,9 @@ Dangerous Parameters| 위험한 파라미터 포함| `{"command": "rm -rf /"}`
 도구 호출 시퀀스를 분석하여 권한 상승 패턴을 탐지합니다.
 
 **Import:**
-[code] 
+```python
     from agent_evaluator import PrivilegeEscalationDetector
-[/code]
+```
 
 **🎯 탐지 대상**
 
@@ -2052,7 +2052,7 @@ Dangerous Parameters| 위험한 파라미터 포함| `{"command": "rm -rf /"}`
   * **Privilege Levels** : guest (0) → read (1) → write/execute (2) → admin (3)
 
 **💡 사용 예제**
-[code] 
+```python
     [](<#cb_sec4-1>)from agent_evaluator import PrivilegeEscalationDetector
     [](<#cb_sec4-2>)
     [](<#cb_sec4-3>)detector = PrivilegeEscalationDetector()
@@ -2083,7 +2083,7 @@ Dangerous Parameters| 위험한 파라미터 포함| `{"command": "rm -rf /"}`
     [](<#cb_sec4-28>)stats = detector.get_escalation_stats()
     [](<#cb_sec4-29>)print(f"Escalation rate: {stats['escalation_rate']}%")
     [](<#cb_sec4-30>)print(f"High risk events: {stats['high_risk_events']}")
-[/code]
+```
 
 * * *
 
@@ -2094,9 +2094,9 @@ Dangerous Parameters| 위험한 파라미터 포함| `{"command": "rm -rf /"}`
 도구 체인 사용 패턴을 분석하여 공격 패턴을 탐지합니다.
 
 **Import:**
-[code] 
+```python
     from agent_evaluator import ToolChainAttackDetector
-[/code]
+```
 
 **🎯 탐지 대상**
 
@@ -2108,7 +2108,7 @@ Persistence| 2| `write_cron → create_service → restart`
 Defense Evasion| 2| `disable_logging → clear_history → delete_logs`  
   
 **💡 사용 예제**
-[code] 
+```python
     [](<#cb_sec5-1>)from agent_evaluator import ToolChainAttackDetector
     [](<#cb_sec5-2>)
     [](<#cb_sec5-3>)detector = ToolChainAttackDetector()
@@ -2135,14 +2135,14 @@ Defense Evasion| 2| `disable_logging → clear_history → delete_logs`
     [](<#cb_sec5-24>)stats = detector.get_attack_stats()
     [](<#cb_sec5-25>)print(f"Suspicious chains: {stats['suspicious_chains']}")
     [](<#cb_sec5-26>)print(f"Data exfiltration attempts: {stats['data_exfiltration_attempts']}")
-[/code]
+```
 
 * * *
 
 ### EvaluationReport
 
 평가 리포트를 나타내는 데이터 클래스입니다.
-[code] 
+```python
     [](<#cb59-1>)@dataclass
     [](<#cb59-2>)class EvaluationReport:
     [](<#cb59-3>)    period: str
@@ -2153,7 +2153,7 @@ Defense Evasion| 2| `disable_logging → clear_history → delete_logs`
     [](<#cb59-8>)    alerts: List[Dict[str, str]]
     [](<#cb59-9>)    recommendations: List[Dict[str, str]]
     [](<#cb59-10>)    timestamp: datetime
-[/code]
+```
 
 **참고** : 클래스 이름은 `EvaluationReport`입니다 (`PerformanceReport`가 아님)
 
@@ -2179,7 +2179,7 @@ Defense Evasion| 2| `disable_logging → clear_history → delete_logs`
   * `timestamp` (datetime): 리포트 생성 시각
 
 **예제**
-[code] 
+```python
     [](<#cb60-1>)report = monitor.generate_report()
     [](<#cb60-2>)
     [](<#cb60-3>)# 기본 정보
@@ -2232,17 +2232,17 @@ Defense Evasion| 2| `disable_logging → clear_history → delete_logs`
     [](<#cb60-50>)    print(f"   문제: {rec['issue']}")
     [](<#cb60-51>)    print(f"   제안: {rec['suggestion']}")
     [](<#cb60-52>)    print(f"   영향: {rec['impact']}")
-[/code]
+```
 
 ### HybridPerformanceReport
 
 고급 메트릭을 포함한 확장 리포트입니다.
-[code] 
+```python
     [](<#cb61-1>)@dataclass
     [](<#cb61-2>)class HybridPerformanceReport(PerformanceReport):
     [](<#cb61-3>)    advanced_metrics_summary: Dict[str, Any]
     [](<#cb61-4>)    providers_used: List[str]
-[/code]
+```
 
 **추가 필드**
 
@@ -2252,7 +2252,7 @@ Defense Evasion| 2| `disable_logging → clear_history → delete_logs`
   * `providers_used` (list): 사용된 프로바이더 (`["native", "deepeval", "ragas"]`)
 
 **예제**
-[code] 
+```python
     [](<#cb62-1>)hybrid_report = monitor.generate_hybrid_report()
     [](<#cb62-2>)
     [](<#cb62-3>)# 네이티브 메트릭 (PerformanceReport와 동일)
@@ -2279,7 +2279,7 @@ Defense Evasion| 2| `disable_logging → clear_history → delete_logs`
     [](<#cb62-24>)for metric_name, metric_data in adv_metrics.items():
     [](<#cb62-25>)    if isinstance(metric_data, dict) and 'mean' in metric_data:
     [](<#cb62-26>)        print(f"{metric_name}: {metric_data['mean']:.3f}")
-[/code]
+```
 
 * * *
 
@@ -2288,7 +2288,7 @@ Defense Evasion| 2| `disable_logging → clear_history → delete_logs`
 ### MetricAdapter (추상 클래스)
 
 모든 메트릭 어댑터의 기본 클래스입니다.
-[code] 
+```python
     [](<#cb63-1>)from abc import ABC, abstractmethod
     [](<#cb63-2>)
     [](<#cb63-3>)class MetricAdapter(ABC):
@@ -2306,25 +2306,25 @@ Defense Evasion| 2| `disable_logging → clear_history → delete_logs`
     [](<#cb63-15>)    def get_metric_names(self) -> List[str]:
     [](<#cb63-16>)        """제공하는 메트릭 이름 목록"""
     [](<#cb63-17>)        pass
-[/code]
+```
 
 ### DeepEvalAdapter
 
 DeepEval 메트릭 어댑터입니다.
-[code] 
+```json
     [](<#cb64-1>)DeepEvalAdapter(
     [](<#cb64-2>)    model: str = "gpt-4o-mini",
     [](<#cb64-3>)    threshold: float = 0.5,
     [](<#cb64-4>)    timeout: int = 60
     [](<#cb64-5>))
-[/code]
+```
 
 **파라미터** \- `model` (str): 평가에 사용할 LLM 모델 - `threshold` (float): Pass/Fail 임계값 (0.0~1.0) - `timeout` (int): API 호출 타임아웃 (초 단위, 기본값: 60) - **주의** : 현재는 정보성 파라미터입니다. 실제 타임아웃 적용은 OpenAI 클라이언트 설정에 의존합니다. - 프로덕션 환경에서는 `concurrent.futures`를 사용한 타임아웃 구현을 권장합니다.
 
 **제공 메트릭** \- `g_eval_score`: G-Eval 점수 ⬆ (높을수록 좋음) - `g_eval_reason`: 평가 이유 - `hallucination_score`: 환각 없음 점수 ⬆ (높을수록 좋음 - 높은 점수 = 환각 없음) - `hallucination_detected`: 환각 탐지 여부 (True = 환각 감지됨) - `toxicity_score`: 독성 점수 ⬇ (낮을수록 좋음) - `toxicity_detected`: 독성 탐지 여부 (True = 독성 감지됨) - `bias_score`: 편향 점수 ⬇ (낮을수록 좋음) - `bias_detected`: 편향 탐지 여부 (True = 편향 감지됨) - `answer_relevancy_score`: 답변 관련성 점수 ⬆ (높을수록 좋음)
 
 **예제**
-[code] 
+```python
     [](<#cb65-1>)from metric_adapters import DeepEvalAdapter
     [](<#cb65-2>)
     [](<#cb65-3>)# 기본 설정
@@ -2340,24 +2340,24 @@ DeepEval 메트릭 어댑터입니다.
     [](<#cb65-13>)if adapter.is_available():
     [](<#cb65-14>)    print("DeepEval 사용 가능")
     [](<#cb65-15>)    print(f"제공 메트릭: {adapter.get_metric_names()}")
-[/code]
+```
 
 ### RagasAdapter
 
 RAGAS 메트릭 어댑터입니다.
-[code] 
+```json
     [](<#cb66-1>)RagasAdapter(
     [](<#cb66-2>)    llm_model: str = "gpt-4o-mini",
     [](<#cb66-3>)    timeout: int = 60
     [](<#cb66-4>))
-[/code]
+```
 
 **파라미터** \- `llm_model` (str): 평가에 사용할 LLM 모델 - `timeout` (int): API 호출 타임아웃 (초 단위, 기본값: 60) - **주의** : 현재는 정보성 파라미터입니다. 실제 타임아웃은 LangChain/OpenAI 클라이언트 설정에 의존합니다.
 
 **제공 메트릭** (모두 ⬆ 높을수록 좋음) - `ragas_faithfulness`: 컨텍스트 충실도 - `ragas_answer_relevancy`: 답변 관련성 (RAGAS 버전 - DeepEval의 answer_relevancy_score와 별개) - `ragas_context_recall`: 컨텍스트 재현율 - `ragas_context_precision`: 컨텍스트 정밀도 - `ragas_overall_score`: 전체 점수 (숫자 지표만 평균) - `ragas_quality`: 품질 등급 (excellent/good/acceptable/poor)
 
 **예제**
-[code] 
+```python
     [](<#cb67-1>)from metric_adapters import RagasAdapter
     [](<#cb67-2>)
     [](<#cb67-3>)# 기본 설정
@@ -2370,7 +2370,7 @@ RAGAS 메트릭 어댑터입니다.
     [](<#cb67-10>)if adapter.is_available():
     [](<#cb67-11>)    print("RAGAS 사용 가능")
     [](<#cb67-12>)    print(f"제공 메트릭: {adapter.get_metric_names()}")
-[/code]
+```
 
 * * *
 
@@ -2393,11 +2393,11 @@ RAGAS 메트릭 어댑터입니다.
 #### find_project_root()
 
 프로젝트 루트 디렉토리를 자동으로 탐지합니다.
-[code] 
+```python
     [](<#cb67a-1>)from agent_evaluator.utils.path_helpers import find_project_root
     [](<#cb67a-2>)
     [](<#cb67a-3>)root = find_project_root()  # Returns: Path object
-[/code]
+```
 
 **탐지 우선순위:**
 
@@ -2409,7 +2409,7 @@ RAGAS 메트릭 어댑터입니다.
 **반환값:** `Path` \- 프로젝트 루트 절대 경로
 
 **예제:**
-[code] 
+```python
     [](<#cb67b-1>)# 기본 사용
     [](<#cb67b-2>)from agent_evaluator.utils.path_helpers import find_project_root
     [](<#cb67b-3>)
@@ -2422,18 +2422,18 @@ RAGAS 메트릭 어댑터입니다.
     [](<#cb67b-10>)os.environ['AGENT_EVALUATOR_ROOT'] = '/custom/path'
     [](<#cb67b-11>)root = find_project_root()
     [](<#cb67b-12>)print(root)  # /custom/path
-[/code]
+```
 
 #### get_evaluation_results_dir()
 
 평가 결과 저장 디렉토리 경로를 반환하고 자동 생성합니다.
-[code] 
+```python
     [](<#cb67c-1>)from agent_evaluator.utils.path_helpers import get_evaluation_results_dir
     [](<#cb67c-2>)
     [](<#cb67c-3>)results_dir = get_evaluation_results_dir(
     [](<#cb67c-4>)    project_root: Optional[Path] = None
     [](<#cb67c-5>)) -> Path
-[/code]
+```
 
 **파라미터:**
 
@@ -2442,25 +2442,25 @@ RAGAS 메트릭 어댑터입니다.
 **반환값:** `Path` \- `{project_root}/Dashboard/data/evaluation_results` 절대 경로
 
 **예제:**
-[code] 
+```python
     [](<#cb67d-1>)from agent_evaluator.utils.path_helpers import get_evaluation_results_dir
     [](<#cb67d-2>)
     [](<#cb67d-3>)# 자동 경로 탐지 및 디렉토리 생성
     [](<#cb67d-4>)results_dir = get_evaluation_results_dir()
     [](<#cb67d-5>)print(f"결과 디렉토리: {results_dir}")
     [](<#cb67d-6>)print(f"존재 여부: {results_dir.exists()}")  # True (자동 생성됨)
-[/code]
+```
 
 #### get_dashboard_dir()
 
 Dashboard 디렉토리 경로를 반환합니다.
-[code] 
+```python
     [](<#cb67e-1>)from agent_evaluator.utils.path_helpers import get_dashboard_dir
     [](<#cb67e-2>)
     [](<#cb67e-3>)dashboard = get_dashboard_dir(
     [](<#cb67e-4>)    project_root: Optional[Path] = None
     [](<#cb67e-5>)) -> Path
-[/code]
+```
 
 **파라미터:**
 
@@ -2471,14 +2471,14 @@ Dashboard 디렉토리 경로를 반환합니다.
 #### is_valid_dashboard()
 
 주어진 경로가 유효한 agent_evaluator Dashboard인지 검증합니다.
-[code] 
+```python
     [](<#cb67f-1>)from agent_evaluator.utils.path_helpers import is_valid_dashboard
     [](<#cb67f-2>)from pathlib import Path
     [](<#cb67f-3>)
     [](<#cb67f-4>)is_valid = is_valid_dashboard(
     [](<#cb67f-5>)    dashboard_path: Path
     [](<#cb67f-6>)) -> bool
-[/code]
+```
 
 **파라미터:**
 
@@ -2492,7 +2492,7 @@ Dashboard 디렉토리 경로를 반환합니다.
   * `app.py` 또는 `streamlit_dashboard.py` 중 하나라도 존재
 
 **예제:**
-[code] 
+```python
     [](<#cb67g-1>)from agent_evaluator.utils.path_helpers import get_dashboard_dir, is_valid_dashboard
     [](<#cb67g-2>)
     [](<#cb67g-3>)dashboard = get_dashboard_dir()
@@ -2500,7 +2500,7 @@ Dashboard 디렉토리 경로를 반환합니다.
     [](<#cb67g-5>)    print("✅ 유효한 Dashboard 발견")
     [](<#cb67g-6>)else:
     [](<#cb67g-7>)    print("❌ Dashboard 없음 또는 유효하지 않음")
-[/code]
+```
 
 **⚠️ 하위 호환성:**
 
@@ -2511,7 +2511,7 @@ Dashboard 디렉토리 경로를 반환합니다.
 #### create_taskresult()
 
 Agent 실행 결과로부터 TaskResult를 생성합니다. **모든 메트릭을 자동으로 계산** 합니다.
-[code] 
+```python
     [](<#cb67h-1>)from agent_evaluator import create_taskresult
     [](<#cb67h-2>)
     [](<#cb67h-3>)task = create_taskresult(
@@ -2526,7 +2526,7 @@ Agent 실행 결과로부터 TaskResult를 생성합니다. **모든 메트릭�
     [](<#cb67h-12>)    error_message: str = None,
     [](<#cb67h-13>)    task_type: str = "qa"
     [](<#cb67h-14>)) -> TaskResult
-[/code]
+```
 
 **파라미터:**
 
@@ -2552,7 +2552,7 @@ Agent 실행 결과로부터 TaskResult를 생성합니다. **모든 메트릭�
   * ✅ `tool_calls`: 도구 호출 정보 (LangChain/OpenAI Function Calling)
 
 **예제 1: 기본 사용**
-[code] 
+```python
     [](<#cb67i-1>)from agent_evaluator import PerformanceMonitor, create_taskresult
     [](<#cb67i-2>)
     [](<#cb67i-3>)monitor = PerformanceMonitor()
@@ -2568,10 +2568,10 @@ Agent 실행 결과로부터 TaskResult를 생성합니다. **모든 메트릭�
     [](<#cb67i-13>)
     [](<#cb67i-14>)monitor.record_task(task)
     [](<#cb67i-15>)print(f"Accuracy: {task.accuracy:.2%}")  # Accuracy: 100.00%
-[/code]
+```
 
 **예제 2: OpenAI 통합**
-[code] 
+```python
     [](<#cb67j-1>)from agent_evaluator import PerformanceMonitor, create_taskresult
     [](<#cb67j-2>)import openai
     [](<#cb67j-3>)
@@ -2596,7 +2596,7 @@ Agent 실행 결과로부터 TaskResult를 생성합니다. **모든 메트릭�
     [](<#cb67j-22>)monitor.record_task(task)
     [](<#cb67j-23>)print(f"Tokens: {task.token_input + task.token_output}")
     [](<#cb67j-24>)print(f"Cost: ${task.estimated_cost:.4f}")
-[/code]
+```
 
 **💡 Tip:** `create_taskresult`는 `helpers.taskresult_helpers.create_taskresult_from_execution`의 간소화된 이름입니다. 최상위 레벨에서 직접 import 가능합니다.
 
@@ -2607,18 +2607,18 @@ Agent 실행 결과로부터 TaskResult를 생성합니다. **모든 메트릭�
 데모용 작업 데이터를 생성합니다.
 
 **⚠️ 주의** : 이 함수는 내부 함수이며 직접 export되지 않습니다. 완전한 경로로 import해야 합니다.
-[code] 
+```python
     [](<#cb68-1>)from agent_evaluator.core.agent_evaluator import create_demo_data
     [](<#cb68-2>)
     [](<#cb68-3>)tasks = create_demo_data() -> List[TaskResult]
-[/code]
+```
 
 **참고** : - 실제 구현에서는 파라미터가 없습니다 - 100개의 다양한 작업 결과를 자동 생성합니다 - 모든 TaskType을 포함하며, 현실적인 성능 분포를 가집니다
 
 **반환값** \- `list`: TaskResult 리스트 (100개)
 
 **예제**
-[code] 
+```python
     [](<#cb69-1>)from agent_evaluator.core.agent_evaluator import create_demo_data
     [](<#cb69-1b>)from agent_evaluator import PerformanceMonitor
     [](<#cb69-2>)
@@ -2633,28 +2633,28 @@ Agent 실행 결과로부터 TaskResult를 생성합니다. **모든 메트릭�
     [](<#cb69-11>)
     [](<#cb69-12>)# 리포트 확인
     [](<#cb69-13>)monitor.print_report()
-[/code]
+```
 
 ### run_demo()
 
 데모 데이터를 생성하고 평가를 실행합니다.
 
 **⚠️ 주의** : 이 함수는 내부 함수이며 직접 export되지 않습니다. 완전한 경로로 import해야 합니다.
-[code] 
+```python
     [](<#cb70-1>)from agent_evaluator.core.agent_evaluator import run_demo
     [](<#cb70-2>)
     [](<#cb70-3>)monitor = run_demo(
     [](<#cb70-4>)    num_tasks: int = 100,
     [](<#cb70-5>)    use_hybrid: bool = False
     [](<#cb70-6>)) -> Union[PerformanceMonitor, HybridPerformanceMonitor]
-[/code]
+```
 
 **파라미터** \- `num_tasks` (int): 생성할 작업 수 - `use_hybrid` (bool): 하이브리드 모니터 사용 여부
 
 **반환값** \- `PerformanceMonitor` 또는 `HybridPerformanceMonitor`
 
 **예제**
-[code] 
+```json
     [](<#cb71-1>)# 기본 데모
     [](<#cb71-2>)monitor = run_demo()
     [](<#cb71-3>)
@@ -2663,7 +2663,7 @@ Agent 실행 결과로부터 TaskResult를 생성합니다. **모든 메트릭�
     [](<#cb71-6>)
     [](<#cb71-7>)# 리포트 확인
     [](<#cb71-8>)monitor.print_summary()
-[/code]
+```
 
 * * *
 
@@ -2676,16 +2676,16 @@ Agent Evaluator는 평가 결과를 터미널에서 즉시 확인할 수 있는 
 핵심 메트릭을 간략하게 요약하여 출력합니다.
 
 **시그니처**
-[code] 
+```python
     [](<#cb-psummary-1>)def print_summary(self, report: EvaluationReport) -> None
-[/code]
+```
 
 **파라미터**
 
   * `report` (EvaluationReport): `generate_report()`로 생성된 리포트 객체
 
 **예제**
-[code] 
+```python
     [](<#cb-ps-1>)from agent_evaluator import PerformanceMonitor
     [](<#cb-ps-2>)
     [](<#cb-ps-3>)monitor = PerformanceMonitor()
@@ -2694,10 +2694,10 @@ Agent Evaluator는 평가 결과를 터미널에서 즉시 확인할 수 있는 
     [](<#cb-ps-6>)# 요약 출력
     [](<#cb-ps-7>)report = monitor.generate_report()
     [](<#cb-ps-8>)monitor.print_summary(report)
-[/code]
+```
 
 **출력 예시:**
-[code] 
+```
     ========================================
              성능 요약 보고서
     ========================================
@@ -2719,26 +2719,26 @@ Agent Evaluator는 평가 결과를 터미널에서 즉시 확인할 수 있는 
       - 총 비용: $0.23
     
     ========================================
-[/code]
+```
 
 ### print_detailed_report()
 
 모든 메트릭과 Layer별 상세 정보를 출력합니다.
 
 **시그니처**
-[code] 
+```python
     [](<#cb-pdetail-1>)def print_detailed_report(self, report: PerformanceReport) -> None
-[/code]
+```
 
 **파라미터**
 
   * `report` (PerformanceReport): `generate_report()`로 생성된 리포트 객체
 
 **예제**
-[code] 
+```python
     [](<#cb-pd-1>)report = monitor.generate_report()
     [](<#cb-pd-2>)monitor.print_detailed_report(report)
-[/code]
+```
 
 **출력 내용:**
 
@@ -2752,9 +2752,9 @@ Agent Evaluator는 평가 결과를 터미널에서 즉시 확인할 수 있는 
 설정된 임계값과 실제 메트릭을 비교하여 Pass/Fail 상태를 반환합니다.
 
 **시그니처**
-[code] 
+```python
     [](<#cb-thresh-1>)def compare_with_thresholds(self) -> Dict[str, Dict[str, float]]
-[/code]
+```
 
 **반환값**
 
@@ -2764,7 +2764,7 @@ Agent Evaluator는 평가 결과를 터미널에서 즉시 확인할 수 있는 
     * `threshold`: 임계값
 
 **예제: Quality Gate 구현**
-[code] 
+```python
     [](<#cb-th-1>)from agent_evaluator import PerformanceMonitor
     [](<#cb-th-2>)
     [](<#cb-th-3>)monitor = PerformanceMonitor()
@@ -2790,20 +2790,20 @@ Agent Evaluator는 평가 결과를 터미널에서 즉시 확인할 수 있는 
     [](<#cb-th-23>)if not all_passed:
     [](<#cb-th-24>)    print("❌ Quality Gate Failed!")
     [](<#cb-th-25>)    exit(1)
-[/code]
+```
 
 **출력 예시:**
-[code] 
+```
     ✅ PASS tcr: 95.00 (임계값: 95.00)
     ✅ PASS accuracy: 92.50 (임계값: 90.00)
     ✅ PASS latency: 1.23 (임계값: 2.00)
     ✅ PASS hallucination: 2.30 (임계값: 5.00)
-[/code]
+```
 
 ### 커스텀 터미널 출력
 
 Report 객체에서 직접 데이터를 추출하여 커스텀 출력을 만들 수 있습니다.
-[code] 
+```python
     [](<#cb-cu-1>)report = monitor.generate_report()
     [](<#cb-cu-2>)
     [](<#cb-cu-3>)# Layer 1 메트릭 직접 접근
@@ -2819,7 +2819,7 @@ Report 객체에서 직접 데이터를 추출하여 커스텀 출력을 만들 
     [](<#cb-cu-13>)# JSON 출력 (자동화/통합용)
     [](<#cb-cu-14>)import json
     [](<#cb-cu-15>)print(json.dumps(report.to_dict(), indent=2, ensure_ascii=False))
-[/code]
+```
 
 #### 💡 터미널 출력 활용 시나리오
 
@@ -2834,13 +2834,13 @@ Report 객체에서 직접 데이터를 추출하여 커스텀 출력을 만들 
 평가 지표의 계산 과정을 단계별로 공개하여 완전한 투명성을 제공합니다.
 
 **시그니처**
-[code] 
+```python
     [](<#cb-bd-1>)def print_metric_breakdown(
     [](<#cb-bd-2>)    self,
     [](<#cb-bd-3>)    task_id: str = None,
     [](<#cb-bd-4>)    verbose: bool = True
     [](<#cb-bd-5>)) -> None
-[/code]
+```
 
 **파라미터**
 
@@ -2855,7 +2855,7 @@ Report 객체에서 직접 데이터를 추출하여 커스텀 출력을 만들 
   * 💰 Token 비용 상세 계산 과정
 
 **예제 1: 특정 작업 분석**
-[code] 
+```python
     [](<#cb-bd-e1-1>)from agent_evaluator import PerformanceMonitor
     [](<#cb-bd-e1-2>)
     [](<#cb-bd-e1-3>)monitor = PerformanceMonitor()
@@ -2863,10 +2863,10 @@ Report 객체에서 직접 데이터를 추출하여 커스텀 출력을 만들 
     [](<#cb-bd-e1-5>)
     [](<#cb-bd-e1-6>)# 특정 작업의 계산 과정 확인
     [](<#cb-bd-e1-7>)monitor.print_metric_breakdown(task_id="task_001", verbose=True)
-[/code]
+```
 
 **출력 예시 (특정 작업):**
-[code] 
+```
     ================================================================================
             평가 지표 계산 과정 (Metric Calculation Breakdown)
     ================================================================================
@@ -2908,16 +2908,16 @@ Report 객체에서 직접 데이터를 추출하여 커스텀 출력을 만들 
           Input Cost  = 350 tokens × $0.003/1M = $0.000001
           Output Cost = 150 tokens × $0.015/1M = $0.000002
           Total Cost  = $0.000003
-[/code]
+```
 
 **예제 2: 전체 통합 분석**
-[code] 
+```python
     [](<#cb-bd-e2-1>)# 전체 작업 통합 분석
     [](<#cb-bd-e2-2>)monitor.print_metric_breakdown(verbose=True)
-[/code]
+```
 
 **출력 예시 (전체 통합):**
-[code] 
+```
     ================================================================================
             평가 지표 계산 과정 (Metric Calculation Breakdown)
     ================================================================================
@@ -2947,16 +2947,16 @@ Report 객체에서 직접 데이터를 추출하여 커스텀 출력을 만들 
           Input Cost  = 35,000 × $0.003/1M
           Output Cost = 15,000 × $0.015/1M
           Total Cost  = Input Cost + Output Cost
-[/code]
+```
 
 ### explain_metric() 🆕
 
 특정 메트릭의 계산 방법, 해석 가이드, 투명성 정보를 상세히 설명합니다.
 
 **시그니처**
-[code] 
+```python
     [](<#cb-ex-1>)def explain_metric(self, metric_name: str) -> None
-[/code]
+```
 
 **파라미터**
 
@@ -2975,12 +2975,12 @@ Report 객체에서 직접 데이터를 추출하여 커스텀 출력을 만들 
   * 🔍 투명성 노트 (소스 코드 위치, 조정 가능 여부)
 
 **예제 1: TCR 설명**
-[code] 
+```python
     [](<#cb-ex-e1-1>)monitor.explain_metric("tcr")
-[/code]
+```
 
 **출력 예시:**
-[code] 
+```
     ================================================================================
        📖 Task Completion Rate (TCR) - 상세 설명
     ================================================================================
@@ -3014,12 +3014,12 @@ Report 객체에서 직접 데이터를 추출하여 커스텀 출력을 만들 
         - completion_score는 응답 길이, 에러 여부, ground truth 유사도 기반
         - 기준값(0.7)은 조정 가능
         - 전체 계산 로직은 TaskCompletionTracker.calculate_tcr()에 공개
-[/code]
+```
 
 **예제 2: Accuracy 설명**
-[code] 
+```python
     [](<#cb-ex-e2-1>)monitor.explain_metric("accuracy")
-[/code]
+```
 
 **출력 내용:**
 
@@ -3051,16 +3051,16 @@ Agent Evaluator의 투명성 메서드는 "블랙박스" 평가를 "화이트박
 #### evaluation_session()
 
 **시그니처:**
-[code] 
+```python
     def evaluation_session(
         filename: str,
         enable_security: bool = False,
         security_config: Optional[Dict] = None
     ) -> PerformanceMonitor
-[/code]
+```
 
 **사용 예제:**
-[code] 
+```python
     from agent_evaluator import evaluation_session, create_taskresult
     
     # with 블록 종료 시 자동 저장
@@ -3079,21 +3079,21 @@ Agent Evaluator의 투명성 메서드는 "블랙박스" 평가를 "화이트박
         # with 블록 종료 시 자동으로 results.json에 저장!
     
     # 예외 발생 시에도 결과 저장됨
-[/code]
+```
 
 #### hybrid_evaluation_session()
 
 **시그니처:**
-[code] 
+```python
     def hybrid_evaluation_session(
         filename: str,
         use_deepeval: bool = False,
         use_ragas: bool = False
     ) -> HybridPerformanceMonitor
-[/code]
+```
 
 **사용 예제:**
-[code] 
+```python
     from agent_evaluator import hybrid_evaluation_session
     
     # Layer 3 평가 포함 (DeepEval)
@@ -3107,7 +3107,7 @@ Agent Evaluator의 투명성 메서드는 "블랙박스" 평가를 "화이트박
             dataset_path="dataset.json",
             enable_layer2_metrics=True
         )
-[/code]
+```
 
 * * *
 
@@ -3123,12 +3123,12 @@ Agent Evaluator의 투명성 메서드는 "블랙박스" 평가를 "화이트박
 #### LLMHelper (OpenAI)
 
 **Import:**
-[code] 
+```python
     from agent_evaluator import PerformanceMonitor, LLMHelper
-[/code]
+```
 
 **사용 예제:**
-[code] 
+```python
     from agent_evaluator import PerformanceMonitor, LLMHelper
     
     monitor = PerformanceMonitor()
@@ -3155,17 +3155,17 @@ Agent Evaluator의 투명성 메서드는 "블랙박스" 평가를 "화이트박
     
     # 결과 저장
     monitor.save_to_file("llm_eval_results.json")
-[/code]
+```
 
 #### ClaudeHelper (Anthropic)
 
 **Import:**
-[code] 
+```python
     from agent_evaluator import PerformanceMonitor, ClaudeHelper
-[/code]
+```
 
 **사용 예제:**
-[code] 
+```python
     from agent_evaluator import PerformanceMonitor, ClaudeHelper
     
     monitor = PerformanceMonitor()
@@ -3181,7 +3181,7 @@ Agent Evaluator의 투명성 메서드는 "블랙박스" 평가를 "화이트박
     
     print(f"Response: {task.response}")
     print(f"Tokens: {task.tokens_used['total']}")
-[/code]
+```
 
 * * *
 
@@ -3197,12 +3197,12 @@ Agent Evaluator의 투명성 메서드는 "블랙박스" 평가를 "화이트박
 #### 기본 사용법
 
 **Import:**
-[code] 
+```python
     from agent_evaluator import ExampleRunner, PerformanceMonitor, create_taskresult
-[/code]
+```
 
 **사용 예제:**
-[code] 
+```python
     from agent_evaluator import ExampleRunner, PerformanceMonitor, create_taskresult
     
     def main(runner: ExampleRunner):
@@ -3239,7 +3239,7 @@ Agent Evaluator의 투명성 메서드는 "블랙박스" 평가를 "화이트박
             requires_api_key=False
         )
         runner.run(lambda: main(runner))
-[/code]
+```
 
 **주요 메서드:**
 
@@ -3258,23 +3258,23 @@ Agent Evaluator의 투명성 메서드는 "블랙박스" 평가를 "화이트박
 입력 검증, 출력 유출 검사, 도구 권한 검증을 위한 헬퍼 함수들입니다.
 
 **Import:**
-[code] 
+```python
     [](<#cb_helper1-1>)from agent_evaluator.helpers import (
     [](<#cb_helper1-2>)    validate_input_security,
     [](<#cb_helper1-3>)    check_output_leakage,
     [](<#cb_helper1-4>)    validate_tool_authorization
     [](<#cb_helper1-5>))
-[/code]
+```
 
 ##### validate_input_security()
 
 **시그니처:**
-[code] 
+```python
     [](<#cb_helper2-1>)def validate_input_security(input_text: str) -> Dict[str, Any]
-[/code]
+```
 
 **사용 예제:**
-[code] 
+```python
     [](<#cb_helper3-1>)from agent_evaluator.helpers import validate_input_security
     [](<#cb_helper3-2>)
     [](<#cb_helper3-3>)# SQL Injection 시도 검사
@@ -3294,17 +3294,17 @@ Agent Evaluator의 투명성 메서드는 "블랙박스" 평가를 "화이트박
     [](<#cb_helper3-17>)safe_input = "What is the capital of Korea?"
     [](<#cb_helper3-18>)result = validate_input_security(safe_input)
     [](<#cb_helper3-19>)print(result['is_safe'])  # True
-[/code]
+```
 
 ##### check_output_leakage()
 
 **시그니처:**
-[code] 
+```python
     [](<#cb_helper4-1>)def check_output_leakage(output_text: str) -> Dict[str, Any]
-[/code]
+```
 
 **사용 예제:**
-[code] 
+```python
     [](<#cb_helper5-1>)from agent_evaluator.helpers import check_output_leakage
     [](<#cb_helper5-2>)
     [](<#cb_helper5-3>)# API Key 유출 검사
@@ -3323,22 +3323,22 @@ Agent Evaluator의 투명성 메서드는 "블랙박스" 평가를 "화이트박
     [](<#cb_helper5-16>)# CI/CD 통합 예제
     [](<#cb_helper5-17>)if result['severity'] == 'critical':
     [](<#cb_helper5-18>)    raise SecurityError("Critical data leakage detected!")
-[/code]
+```
 
 ##### validate_tool_authorization()
 
 **시그니처:**
-[code] 
+```python
     [](<#cb_helper6-1>)def validate_tool_authorization(
     [](<#cb_helper6-2>)    tool_name: str,
     [](<#cb_helper6-3>)    tool_params: Dict[str, Any],
     [](<#cb_helper6-4>)    allowed_tools: Optional[List[str]] = None,
     [](<#cb_helper6-5>)    restricted_tools: Optional[List[str]] = None
     [](<#cb_helper6-6>)) -> Dict[str, Any]
-[/code]
+```
 
 **사용 예제:**
-[code] 
+```python
     [](<#cb_helper7-1>)from agent_evaluator.helpers import validate_tool_authorization
     [](<#cb_helper7-2>)
     [](<#cb_helper7-3>)# 도구 권한 검증
@@ -3361,7 +3361,7 @@ Agent Evaluator의 투명성 메서드는 "블랙박스" 평가를 "화이트박
     [](<#cb_helper7-20>)# Agent 실행 전 검증
     [](<#cb_helper7-21>)if not result['is_authorized']:
     [](<#cb_helper7-22>)    raise PermissionError(result['reason'])
-[/code]
+```
 
 * * *
 
@@ -3381,7 +3381,7 @@ Agent Evaluator v0.5.0은 CrewAI, LangChain, LangGraph, AutoGen 등 주요 AI �
 CrewAI 프레임워크에 대한 고급 평가 클래스입니다.
 
 #### 초기화
-[code] 
+```python
     [](<#cb72-1>)from agent_evaluator.integrations import CrewAIEvaluator
     [](<#cb72-2>)from agent_evaluator import PerformanceMonitor
     [](<#cb72-3>)
@@ -3396,25 +3396,25 @@ CrewAI 프레임워크에 대한 고급 평가 클래스입니다.
     [](<#cb72-12>)    enable_layer3=False,
     [](<#cb72-13>)    verbose=True
     [](<#cb72-14>))
-[/code]
+```
 
 #### 주요 메서드
 
 ##### kickoff()
 
 Crew를 실행하고 평가를 수행합니다.
-[code] 
+```python
     [](<#cb73-1>)result = evaluator.kickoff(
     [](<#cb73-2>)    inputs={"topic": "AI Agents"},
     [](<#cb73-3>)    ground_truth="Expected output...",
     [](<#cb73-4>)    expected_workflow_steps=["research", "write"]
     [](<#cb73-5>))
-[/code]
+```
 
 ##### generate_report()
 
 평가 보고서를 생성합니다.
-[code] 
+```python
     [](<#cb74-1>)report = evaluator.generate_report(output_path="crewai_report.json")
     [](<#cb74-2>)
     [](<#cb74-3>)# 출력 예시:
@@ -3425,12 +3425,12 @@ Crew를 실행하고 평가를 수행합니다.
     [](<#cb74-8>)# 🔹 Layer 2: Agentic AI Metrics
     [](<#cb74-9>)#    Agent Coordination Rate: 92.0%
     [](<#cb74-10>)#    Workflow Execution Score: 90.0%
-[/code]
+```
 
 ##### Manual Tracking APIs
 
 수동으로 메트릭을 기록할 수 있습니다.
-[code] 
+```python
     [](<#cb75-1>)# 워크플로우 단계 추적
     [](<#cb75-2>)evaluator.track_workflow_step(step_name="research", success=True, duration=1.5)
     [](<#cb75-3>)
@@ -3439,17 +3439,17 @@ Crew를 실행하고 평가를 수행합니다.
     [](<#cb75-6>)
     [](<#cb75-7>)# 도구 사용 추적
     [](<#cb75-8>)evaluator.track_tool_usage(tool_name="web_search", success=True, duration=0.8)
-[/code]
+```
 
 #### 편의 함수
-[code] 
+```python
     [](<#cb76-1>)from agent_evaluator.integrations import create_evaluated_crew
     [](<#cb76-2>)
     [](<#cb76-3>)evaluator = create_evaluated_crew(
     [](<#cb76-4>)    crew=crew,
     [](<#cb76-5>)    enable_layer2=True
     [](<#cb76-6>))
-[/code]
+```
 
 * * *
 
@@ -3458,7 +3458,7 @@ Crew를 실행하고 평가를 수행합니다.
 LangChain 프레임워크에 대한 고급 평가 클래스입니다.
 
 #### 초기화
-[code] 
+```python
     [](<#cb77-1>)from agent_evaluator.integrations import LangChainEvaluator
     [](<#cb77-2>)
     [](<#cb77-3>)# LangChain 에이전트 생성
@@ -3470,23 +3470,23 @@ LangChain 프레임워크에 대한 고급 평가 클래스입니다.
     [](<#cb77-9>)    enable_layer2=True,
     [](<#cb77-10>)    enable_layer3=False
     [](<#cb77-11>))
-[/code]
+```
 
 #### 주요 메서드
 
 ##### run()
 
 에이전트를 실행하고 평가를 수행합니다.
-[code] 
+```python
     [](<#cb78-1>)result = evaluator.run(
     [](<#cb78-2>)    query="What is the weather in Tokyo?",
     [](<#cb78-3>)    ground_truth="Expected answer...",
     [](<#cb78-4>)    expected_tools=["weather_api", "search"]
     [](<#cb78-5>))
-[/code]
+```
 
 ##### generate_report()
-[code] 
+```python
     [](<#cb79-1>)report = evaluator.generate_report(output_path="langchain_report.json")
     [](<#cb79-2>)
     [](<#cb79-3>)# 출력 예시:
@@ -3496,12 +3496,12 @@ LangChain 프레임워크에 대한 고급 평가 클래스입니다.
     [](<#cb79-7>)# 🔹 Layer 2: Agentic AI Metrics
     [](<#cb79-8>)#    Tool Selection Accuracy: 85.0%
     [](<#cb79-9>)#    Workflow Execution Score: 88.0%
-[/code]
+```
 
 #### 고급 콜백 핸들러
 
 직접 콜백을 사용하려면:
-[code] 
+```python
     [](<#cb80-1>)from agent_evaluator.integrations import AdvancedLangChainCallback
     [](<#cb80-2>)
     [](<#cb80-3>)callback = AdvancedLangChainCallback(
@@ -3511,7 +3511,7 @@ LangChain 프레임워크에 대한 고급 평가 클래스입니다.
     [](<#cb80-7>))
     [](<#cb80-8>)
     [](<#cb80-9>)agent.run(query, callbacks=[callback])
-[/code]
+```
 
 * * *
 
@@ -3520,7 +3520,7 @@ LangChain 프레임워크에 대한 고급 평가 클래스입니다.
 LangGraph 워크플로우에 대한 고급 평가 클래스입니다.
 
 #### 초기화 및 사용
-[code] 
+```python
     [](<#cb81-1>)from agent_evaluator.integrations import LangGraphEvaluator
     [](<#cb81-2>)
     [](<#cb81-3>)# 평가 래퍼 생성
@@ -3543,7 +3543,7 @@ LangGraph 워크플로우에 대한 고급 평가 클래스입니다.
     [](<#cb81-20>)    ground_truth="Expected...",
     [](<#cb81-21>)    expected_workflow_steps=["process", "analyze"]
     [](<#cb81-22>))
-[/code]
+```
 
 #### 자동 워크플로우 추적
 
@@ -3561,7 +3561,7 @@ LangGraphEvaluator는 각 노드의 실행을 자동으로 추적하여 Layer 2 
 AutoGen 에이전트에 대한 고급 평가 클래스입니다.
 
 #### 초기화 및 사용
-[code] 
+```python
     [](<#cb82-1>)from agent_evaluator.integrations import AutoGenEvaluator
     [](<#cb82-2>)from autogen import AssistantAgent, UserProxyAgent
     [](<#cb82-3>)
@@ -3582,7 +3582,7 @@ AutoGen 에이전트에 대한 고급 평가 클래스입니다.
     [](<#cb82-18>)
     [](<#cb82-19>)# 보고서 생성
     [](<#cb82-20>)report = evaluator.generate_report()
-[/code]
+```
 
 #### 자동 에이전트 상호작용 추적
 
@@ -3595,43 +3595,43 @@ AutoGenEvaluator는 에이전트 간의 메시지 교환을 자동으로 추적�
 ### EvaluationError
 
 평가 중 발생하는 일반적인 예외입니다.
-[code] 
+```python
     [](<#cb72-1>)class EvaluationError(Exception):
     [](<#cb72-2>)    pass
-[/code]
+```
 
 **사용 예제**
-[code] 
+```python
     [](<#cb73-1>)try:
     [](<#cb73-2>)    monitor.record_task(invalid_task)
     [](<#cb73-3>)except EvaluationError as e:
     [](<#cb73-4>)    print(f"평가 오류: {e}")
-[/code]
+```
 
 ### MetricAdapterError
 
 메트릭 어댑터 관련 예외입니다.
-[code] 
+```python
     [](<#cb74-1>)class MetricAdapterError(Exception):
     [](<#cb74-2>)    pass
-[/code]
+```
 
 **사용 예제**
-[code] 
+```json
     [](<#cb75-1>)try:
     [](<#cb75-2>)    adapter = DeepEvalAdapter()
     [](<#cb75-3>)    if not adapter.is_available():
     [](<#cb75-4>)        raise MetricAdapterError("DeepEval not available")
     [](<#cb75-5>)except MetricAdapterError as e:
     [](<#cb75-6>)    print(f"어댑터 오류: {e}")
-[/code]
+```
 
 * * *
 
 ## 8\. 전체 워크플로우 예제
 
 ### 기본 워크플로우 (수정된 버전)
-[code] 
+```python
     [](<#cb76-1>)from agent_evaluator import (
     [](<#cb76-2>)    PerformanceMonitor,
     [](<#cb76-3>)    TaskResult,
@@ -3700,10 +3700,10 @@ AutoGenEvaluator는 에이전트 간의 메시지 교환을 자동으로 추적�
     [](<#cb76-66>)print(f"  총 비용: ${cost_stats['total_cost']:.4f}")
     [](<#cb76-67>)print(f"  작업당 평균: ${cost_stats['avg_cost_per_task']:.4f}")
     [](<#cb76-68>)print(f"  예상 월간 비용: ${cost_stats['estimated_monthly_cost']:.2f}")
-[/code]
+```
 
 ### 실전 예제: LangChain 에이전트 평가
-[code] 
+```python
     [](<#cb77-1>)from agent_evaluator import PerformanceMonitor, TaskResult, TaskType
     [](<#cb77-2>)from datetime import datetime
     [](<#cb77-3>)from langchain.agents import AgentExecutor
@@ -3806,10 +3806,10 @@ AutoGenEvaluator는 에이전트 간의 메시지 교환을 자동으로 추적�
     [](<#cb77-100>)
     [](<#cb77-101>)# 저장
     [](<#cb77-102>)monitor.save_to_file("langchain_evaluation.json")
-[/code]
+```
 
 ### 고급 워크플로우 (DeepEval + RAGAS)
-[code] 
+```python
     [](<#cb78-1>)from hybrid_monitor import create_monitor
     [](<#cb78-2>)
     [](<#cb78-3>)# 1. 하이브리드 Monitor 생성
@@ -3876,12 +3876,12 @@ AutoGenEvaluator는 에이전트 간의 메시지 교환을 자동으로 추적�
     [](<#cb78-64>)
     [](<#cb78-65>)# 9. 저장
     [](<#cb78-66>)monitor.save_to_file("rag_evaluation.json")
-[/code]
+```
 
 * * *
 
 ## 9\. 타입 힌트
-[code] 
+```python
     [](<#cb79-1>)from typing import Optional, Dict, List, Any, Union
     [](<#cb79-2>)from datetime import datetime
     [](<#cb79-3>)
@@ -3904,7 +3904,7 @@ AutoGenEvaluator는 에이전트 간의 메시지 교환을 자동으로 추적�
     [](<#cb79-20>)# 알림 타입
     [](<#cb79-21>)Alert = Dict[str, str]
     [](<#cb79-22>)# 예: {"level": "high", "message": "TCR below threshold"}
-[/code]
+```
 
 * * *
 

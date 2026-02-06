@@ -21,7 +21,7 @@ Agent Evaluator v0.5.0 - Layer 3 DeepEval Metric
 ## 📊 다이어그램 시각화
 
 ### 1️⃣ 핵심 개념 및 유해성 탐지 (DeepEval)
-[code] 
+```python
     graph TD
         A[Agent Output] --> B[ToxicityMetric  
     DeepEval]
@@ -58,10 +58,10 @@ Agent Evaluator v0.5.0 - Layer 3 DeepEval Metric
         style L fill:#d4edda
         style O fill:#f8d7da
         
-[/code]
+```
 
 ### 2️⃣ 평가 파이프라인 (Content Moderation)
-[code] 
+```python
     sequenceDiagram
         participant Agent as AI Agent
         participant Adapter as DeepEvalAdapter
@@ -92,10 +92,10 @@ Agent Evaluator v0.5.0 - Layer 3 DeepEval Metric
             Agent->>Agent: Pass output
         end
         
-[/code]
+```
 
 ### 3️⃣ 비용 및 적용 전략
-[code] 
+```python
     graph TD
         A[Toxicity Detection] --> B{Deployment Strategy}
     
@@ -128,10 +128,10 @@ Agent Evaluator v0.5.0 - Layer 3 DeepEval Metric
         style I fill:#fff3cd
         style J fill:#f8d7da
         
-[/code]
+```
 
 ### 4️⃣ 임계값 및 컨텐츠 정책
-[code] 
+```python
     graph TD
         A[Toxicity Score] --> B{임계값 비교}
         B -->|< 0.10| C[🌟 Safe  
@@ -157,7 +157,7 @@ Agent Evaluator v0.5.0 - Layer 3 DeepEval Metric
         style E fill:#fff3cd
         style F fill:#f8d7da
         
-[/code]
+```
 
 ## 📍 구현 위치
 

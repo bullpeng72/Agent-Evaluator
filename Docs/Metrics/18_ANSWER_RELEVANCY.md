@@ -21,7 +21,7 @@ Agent Evaluator v0.5.0 - Layer 3 DeepEval Metric
 ## 📊 다이어그램 시각화
 
 ### 1️⃣ 핵심 개념 및 관련성 평가 (DeepEval)
-[code] 
+```python
     graph TD
         A[Query + Answer] --> B[AnswerRelevancyMetric  
     DeepEval]
@@ -52,10 +52,10 @@ Agent Evaluator v0.5.0 - Layer 3 DeepEval Metric
         style L fill:#d4edda
         style O fill:#f8d7da
         
-[/code]
+```
 
 ### 2️⃣ 평가 파이프라인 (QA Task)
-[code] 
+```python
     sequenceDiagram
         participant QA as QA System
         participant Adapter as DeepEvalAdapter
@@ -83,10 +83,10 @@ Agent Evaluator v0.5.0 - Layer 3 DeepEval Metric
     
         Adapter-->>QA: {'answer_relevancy_score': 0.88, 'reason': '...'}
         
-[/code]
+```
 
 ### 3️⃣ 비용 및 적용 범위
-[code] 
+```python
     graph TD
         A[Answer Relevancy Config] --> B{Task Type Check}
         B -->|qa, information_retrieval| C[평가 실행]
@@ -120,10 +120,10 @@ Agent Evaluator v0.5.0 - Layer 3 DeepEval Metric
         style J fill:#fff3cd
         style L fill:#ffc107
         
-[/code]
+```
 
 ### 4️⃣ 임계값 및 최적화 가이드
-[code] 
+```python
     graph TD
         A[Relevancy Score] --> B{임계값 비교}
         B -->|≥ 0.90| C[🌟 Excellent  
@@ -149,7 +149,7 @@ Agent Evaluator v0.5.0 - Layer 3 DeepEval Metric
         style E fill:#fff3cd
         style F fill:#f8d7da
         
-[/code]
+```
 
 ## 📍 구현 위치
 

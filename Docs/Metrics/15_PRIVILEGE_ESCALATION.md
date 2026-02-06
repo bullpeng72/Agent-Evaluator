@@ -79,7 +79,7 @@ def analyze_privilege_chain(self, task_id: str, tool_calls: List) -> Dict[str, A
 def _check_suspicious_sequences(self, tools: List[str]) -> List[str]: """Check if tools match suspicious sequences""" found = [] for seq in self.suspicious_sequences: if self._is_subsequence(seq, tools): found.append(" -> ".join(seq)) return found def _is_subsequence(self, subseq: List[str], seq: List[str]) -> bool: """Check if subseq is a subsequence of seq""" it = iter(seq) return all(item in it for item in subseq) 
 
 #### Suspicious Sequence 정의 (Lines 2303-2309)
-[code] 
+```json
     suspicious_sequences = [
         ["read_user_file", "execute_command", "read_admin_file"],
         ["get_token", "modify_permissions", "access_database"],
@@ -87,7 +87,7 @@ def _check_suspicious_sequences(self, tools: List[str]) -> List[str]: """Check i
         ["query_database", "modify_schema", "drop_table"]
     ]
                     
-[/code]
+```
 
 ### get_escalation_stats() 메서드
 
