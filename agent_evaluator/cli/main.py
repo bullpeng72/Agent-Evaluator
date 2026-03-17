@@ -624,38 +624,131 @@ from agent_evaluator.config import init_from_app  # noqa: E402 (re-export)
 def main() -> None:
     parser = argparse.ArgumentParser(
         prog="agent-eval",
-        description="Agent Evaluator CLI — API 키 설정, 환경 확인, 대시보드",
+        description=(
+            "Agent Evaluator CLI — AI 에이전트 평가 프레임워크\n"
+            "\n"
+            "평가 결과 수집·저장·시각화 전 구간을 단일 명령어로 관리합니다.\n"
+            "API 키 설정, 환경 상태 확인, 웹 대시보드 실행을 지원합니다."
+        ),
         formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog="""
-예시:
-  agent-eval init                  대화형 API 키 설정 마법사 실행
-  agent-eval check                 현재 설정 상태 출력
-  agent-eval serve                 결과 대시보드 웹 서버 실행
-  agent-eval serve ./results --open --watch
-  agent-eval version               버전 출력
-""",
+        epilog=(
+            "명령어:\n"
+            "  init     OpenAI·Anthropic·LangSmith 등 API 키를 대화형으로 설정\n"
+            "  check    현재 환경의 API 키 및 설정값 상태를 출력\n"
+            "  serve    평가 결과를 시각화하는 FastAPI 웹 대시보드 실행\n"
+            "  version  패키지 버전 출력\n"
+            "\n"
+            "예시:\n"
+            "  agent-eval init\n"
+            "  agent-eval check\n"
+            "  agent-eval serve\n"
+            "  agent-eval serve ./results --port 8080\n"
+            "  agent-eval serve ./results --watch --no-open\n"
+            "  agent-eval serve ./results --share\n"
+            "  agent-eval version\n"
+            "\n"
+            "더 자세한 도움말:\n"
+            "  agent-eval <명령어> --help"
+        ),
     )
 
     sub = parser.add_subparsers(dest="command")
 
-    sub.add_parser("init",    help="대화형 API 키 설정 마법사")
-    sub.add_parser("check",   help="현재 설정 상태 확인")
-    sub.add_parser("version", help="버전 출력")
+    sub.add_parser(
+        "init",
+        help="대화형 API 키 설정 마법사",
+        description=(
+            "OpenAI, Anthropic, LangSmith, DeepEval API 키를\n"
+            "대화형으로 입력하고 .env 파일에 저장합니다.\n"
+            "\n"
+            "설정 항목:\n"
+            "  OPENAI_API_KEY              (필수) LLMHelper, DeepEval, Ragas 평가\n"
+            "  ANTHROPIC_API_KEY           (선택) ClaudeHelper 사용 시\n"
+            "  LANGSMITH_API_KEY           (선택) LangSmith 트레이싱 연동\n"
+            "  DEEPEVAL_API_KEY            (선택) Confident AI 대시보드 연동\n"
+            "  AGENT_EVALUATOR_OUTPUT_DIR  평가 결과 저장 디렉토리 (기본: ./results)\n"
+            "\n"
+            "저장 위치를 대화형으로 선택할 수 있습니다:\n"
+            "  [1] 기존 .env 업데이트\n"
+            "  [2] 현재 디렉토리 .env 생성\n"
+            "  [3] 전역 설정 (~/.config/agent-evaluator/.env)\n"
+            "  [4] 저장하지 않음"
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    sub.add_parser(
+        "check",
+        help="현재 설정 상태 확인",
+        description=(
+            "현재 환경에 설정된 API 키 및 설정값 상태를 출력합니다.\n"
+            "\n"
+            "출력 항목:\n"
+            "  API 키 상태    OPENAI_API_KEY, ANTHROPIC_API_KEY,\n"
+            "                 LANGSMITH_API_KEY, DEEPEVAL_API_KEY\n"
+            "  기타 설정      AGENT_EVALUATOR_OUTPUT_DIR, OPENAI_MODEL,\n"
+            "                 ANTHROPIC_MODEL, LANGCHAIN_TRACING_V2\n"
+            "  .env 위치      로드된 .env 파일 경로\n"
+            "\n"
+            "API 키는 앞 8자만 표시되며 나머지는 마스킹됩니다."
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    sub.add_parser(
+        "version",
+        help="패키지 버전 출력",
+        description="설치된 agent-evaluator 패키지 버전을 출력합니다.",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
 
     # serve subcommand
-    serve_p = sub.add_parser("serve", help="평가 결과 웹 대시보드 실행")
+    serve_p = sub.add_parser(
+        "serve",
+        help="평가 결과 웹 대시보드 실행",
+        description=(
+            "평가 결과 JSON 파일을 읽어 FastAPI 웹 대시보드를 실행합니다.\n"
+            "\n"
+            "결과 디렉토리 자동 탐지 순서:\n"
+            "  1. 명시적으로 지정한 results_dir 인수\n"
+            "  2. ./results (JSON 파일이 존재하는 경우)\n"
+            "  3. AGENT_EVALUATOR_OUTPUT_DIR 환경변수\n"
+            "  4. git/pyproject.toml 루트의 results/ 디렉토리\n"
+            "\n"
+            "접속 URL:\n"
+            "  http://localhost:8765          메인 대시보드\n"
+            "  http://localhost:8765/slides   슬라이드 뷰\n"
+            "  http://localhost:8765/api/docs Swagger UI (OAS 3.1)\n"
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog=(
+            "예시:\n"
+            "  agent-eval serve\n"
+            "  agent-eval serve ./results --port 8080\n"
+            "  agent-eval serve ./results --watch\n"
+            "  agent-eval serve ./results --no-open\n"
+            "  agent-eval serve ./results --share\n"
+            "  agent-eval serve /path/to/results --title '프로젝트 평가'"
+        ),
+    )
     serve_p.add_argument(
         "results_dir", nargs="?", default="./results",
-        help="평가 결과 디렉토리 (기본: ./results)",
+        help="평가 결과 JSON 파일 디렉토리 (기본: ./results, 자동 탐지 지원)",
     )
-    serve_p.add_argument("--host",  default="127.0.0.1", help="바인딩 호스트")
-    serve_p.add_argument("--port",  default=8765, type=int, help="포트 번호")
-    serve_p.add_argument("--open",  action="store_true", default=True, help="브라우저 자동 오픈 (기본값: 활성화)")
-    serve_p.add_argument("--no-open", dest="open", action="store_false", help="브라우저 자동 오픈 비활성화")
-    serve_p.add_argument("--watch", action="store_true", help="파일 변경 감시 (핫 리로드)")
-    serve_p.add_argument("--slide", action="store_true", help="시작 화면을 슬라이드로 설정")
-    serve_p.add_argument("--share", action="store_true", help="외부 접근 허용 (host=0.0.0.0)")
-    serve_p.add_argument("--title", default="Agent Evaluator Dashboard", help="대시보드 제목")
+    serve_p.add_argument("--host",  default="127.0.0.1", metavar="HOST",
+                         help="바인딩 호스트 (기본: 127.0.0.1)")
+    serve_p.add_argument("--port",  default=8765, type=int, metavar="PORT",
+                         help="포트 번호 (기본: 8765)")
+    serve_p.add_argument("--open",  action="store_true", default=True,
+                         help="서버 시작 후 브라우저 자동 오픈 (기본값)")
+    serve_p.add_argument("--no-open", dest="open", action="store_false",
+                         help="브라우저 자동 오픈 비활성화")
+    serve_p.add_argument("--watch", action="store_true",
+                         help="결과 파일 변경 감시 후 대시보드 자동 갱신")
+    serve_p.add_argument("--slide", action="store_true",
+                         help="브라우저를 슬라이드 뷰(/slides)로 오픈")
+    serve_p.add_argument("--share", action="store_true",
+                         help="외부 접근 허용 — host를 0.0.0.0으로 변경 (팀 공유)")
+    serve_p.add_argument("--title", default="Agent Evaluator Dashboard", metavar="TITLE",
+                         help="대시보드 제목 (기본: 'Agent Evaluator Dashboard')")
 
     args = parser.parse_args()
 
