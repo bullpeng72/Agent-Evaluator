@@ -72,3 +72,11 @@ docs/_build/
 # Data
 *.csv
 *.json.bak
+
+# Generated evaluation results (agent-eval serve reads from here)
+results/
+golden_datasets/
+Dashboard/
+
+# Evaluator_Examples generated HTML reports
+Evaluator_Examples/**/*.html
