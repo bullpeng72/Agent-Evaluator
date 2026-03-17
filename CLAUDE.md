@@ -104,19 +104,30 @@ agent_evaluator/
 ├── datasets/
 │   ├── korean_rag_dataset_generator.py
 │   └── korean_rag_evaluator.py
+├── serve/                   # FastAPI 대시보드 서버 (v0.5.1+)
+│   ├── server.py            # FastAPI app 진입점
+│   ├── loader.py            # 평가 결과 로더
+│   ├── watcher.py           # 파일 변경 감시 (--watch)
+│   └── routers/             # API 라우터 (data, export, golden, stream, transparency)
+├── cli/
+│   └── main.py              # agent-eval CLI 진입점
 ├── utils/
-│   └── dashboard_integration.py  # Dashboard storage path helper
+│   ├── dashboard_integration.py  # Dashboard storage path helper
+│   ├── data_registry.py     # 평가 결과 데이터 레지스트리
+│   ├── path_helpers.py      # 결과 디렉토리 경로 헬퍼
+│   └── test_transparency_manager.py  # ⚠️ 프로덕션 클래스 (테스트 파일 아님)
 ├── examples/
 │   └── example_runner.py    # ExampleRunner base class
+├── config.py                # 환경변수 설정 로더 (load_env, get_settings)
 └── __init__.py              # Public API surface
 
 Evaluator_Examples/          # 실제 사용 예시 (패키지 외부)
-├── level_1_foundation/      # 기초 예시 10개
-├── level_2_advanced/        # 고급 예시
-├── level_3_production/      # 프로덕션 예시
-└── Dashboard/               # Streamlit 대시보드
+├── level_1_foundation/      # 기초 예시 10개 (01~10)
+├── level_2_advanced/        # 고급 예시 8개 (01~08)
+├── level_3_production/      # 프로덕션 예시 6개 (01~06)
+└── Dashboard/               # Streamlit 대시보드 (레거시 — FastAPI로 대체됨)
 
-Docs/Metrics/                # 43개 지표별 마크다운 문서
+Docs/Metrics/                # 25개 지표별 마크다운 문서
 ```
 
 ---
@@ -236,12 +247,12 @@ from agent_evaluator import (
 | 🔴 High | `agent_evaluator.py` 5,318줄 단일 파일 — trackers/ 분리 필요 | `core/agent_evaluator.py` |
 | 🔴 High | 테스트 없음 — `tests/` 디렉토리 미존재 | 프로젝트 전체 |
 | 🔴 High | `import re` 9회 함수 내부에서 임포트 → 모듈 상단으로 이동 필요 | `core/agent_evaluator.py` |
-| 🔴 High | `warnings.filterwarnings('ignore')` 전역 적용 → 타겟 필터로 교체 필요 | `integrations/metric_adapters.py:16` |
-| 🔴 High | `os.chdir()` 라이브러리 코드 내 사용 → `importlib` 방식으로 교체 필요 | `utils/dashboard_integration.py:44` |
-| 🟡 Medium | `pandas>=1.3.0` 상한선 없음 → `<3.0.0` 추가 필요 | `pyproject.toml:40` |
-| 🟡 Medium | `PyPDF2`, `pdfplumber` 사용하지만 `pyproject.toml` 미등록 | `datasets/korean_rag_dataset_generator.py` |
+| 🔴 High | `os.chdir()` 라이브러리 코드 내 사용 → `importlib` 방식으로 교체 필요 | `utils/dashboard_integration.py:44,82` |
 | 🟡 Medium | 12곳에서 bare `except Exception:` 로 에러 무시 | 여러 파일 |
 | 🟡 Medium | `_check_patterns()`, `_is_subsequence()` 중복 구현 | `core/agent_evaluator.py` |
+| ✅ Fixed | `pandas>=1.3.0` 상한선 없음 → `<3.0.0` 추가 완료 | `pyproject.toml` |
+| ✅ Fixed | `PyPDF2`, `pdfplumber` `pyproject.toml` 미등록 → `[datasets]` extra 등록 완료 | `pyproject.toml` |
+| ✅ Fixed | `warnings.filterwarnings('ignore')` 전역 적용 → 카테고리/모듈 타겟 필터로 교체 완료 | `integrations/metric_adapters.py` |
 
 ---
 
@@ -272,17 +283,15 @@ pytest
 
 ### Core (항상 설치됨)
 - `numpy>=1.20.0,<2.0.0`
-- `pandas>=1.3.0` ⚠️ 상한선 필요 (`<3.0.0`)
-- `python-dotenv>=0.19.0`
+- `pandas>=1.3.0,<3.0.0`
+- `python-dotenv>=0.19.0,<2.0.0`
 
 ### Optional (extras)
-- `deepeval>=0.20.0` — `pip install agent-evaluator[deepeval]`
-- `ragas>=0.1.0` — `pip install agent-evaluator[ragas]`
-- `langchain>=0.1.0` — `pip install agent-evaluator[langchain]`
-
-### 미선언 의존성 (사용 중이나 pyproject.toml 미등록)
-- `PyPDF2` — `datasets/korean_rag_dataset_generator.py`
-- `pdfplumber` — `datasets/korean_rag_dataset_generator.py`
+- `deepeval>=0.20.0,<2.0.0` — `pip install agent-evaluator[deepeval]`
+- `ragas>=0.1.0,<2.0.0` — `pip install agent-evaluator[ragas]`
+- `langchain>=0.1.0,<1.0.0` — `pip install agent-evaluator[langchain]`
+- `PyPDF2>=3.0.0,<4.0.0` + `pdfplumber>=0.10.0,<1.0.0` — `pip install agent-evaluator[datasets]`
+- `fastapi>=0.110.0` + `uvicorn[standard]>=0.29.0` + `jinja2>=3.1.0` — `pip install agent-evaluator[serve]`
 
 ---
 

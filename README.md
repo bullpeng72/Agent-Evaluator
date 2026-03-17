@@ -113,6 +113,7 @@ pip install "agent-evaluator[deepeval]"    # DeepEval 통합
 pip install "agent-evaluator[ragas]"       # Ragas RAG 평가
 pip install "agent-evaluator[langchain]"   # LangChain 통합
 pip install "agent-evaluator[datasets]"    # PDF 데이터셋 생성 (PyPDF2, pdfplumber)
+pip install "agent-evaluator[serve]"       # FastAPI 대시보드 서버
 pip install "agent-evaluator[all]"         # 모든 선택적 의존성
 ```
 
@@ -286,16 +287,105 @@ results/
 
 ---
 
-## 대시보드
+## CLI
 
-FastAPI + Alpine.js 기반 웹 대시보드로 평가 결과를 시각화합니다.
-별도 설치 없이 `pip install "agent-evaluator[serve]"` 한 줄로 실행됩니다.
+`pip install agent-evaluator` 후 즉시 사용할 수 있는 `agent-eval` 명령어를 제공합니다.
+
+### 명령어 목록
+
+| 명령어 | 설명 |
+|--------|------|
+| `agent-eval init` | 대화형 API 키 설정 마법사 |
+| `agent-eval check` | 현재 설정 상태 및 API 키 확인 |
+| `agent-eval serve` | FastAPI 대시보드 웹 서버 실행 |
+| `agent-eval version` | 패키지 버전 출력 |
+
+### `agent-eval init`
+
+API 키를 대화형으로 입력·저장하는 마법사입니다.
 
 ```bash
-agent-eval serve                        # 대시보드 실행 (기본 포트 8765)
-agent-eval serve --port 8080 --watch    # 포트 지정 + 파일 변경 자동 갱신
-agent-eval serve --open                 # 브라우저 자동 오픈
+agent-eval init
 ```
+
+설정하는 항목:
+- `OPENAI_API_KEY` (필수) — LLMHelper, DeepEval, Ragas 평가에 사용
+- `ANTHROPIC_API_KEY` (선택) — ClaudeHelper 사용 시 필요
+- `LANGSMITH_API_KEY` (선택) — LangSmith 트레이싱 연동
+- `DEEPEVAL_API_KEY` (선택) — Confident AI 대시보드 연동
+- `AGENT_EVALUATOR_OUTPUT_DIR` — 결과 저장 디렉토리 (기본: `./results`)
+
+저장 위치를 대화형으로 선택할 수 있습니다: 기존 `.env` 업데이트 / 현재 디렉토리 `.env` 생성 / 전역 설정 파일 (`~/.config/agent-evaluator/.env`).
+
+### `agent-eval check`
+
+현재 환경에 설정된 API 키 및 설정값 상태를 출력합니다.
+
+```bash
+agent-eval check
+```
+
+출력 예시:
+```
+  Agent Evaluator v0.5.1 — 설정 상태
+  ──────────────────────────────────────────────────
+  .env 로드: /home/user/project/.env
+
+API 키 상태:
+  OPENAI_API_KEY       ✅  sk-proj...  (loaded .env)
+  ANTHROPIC_API_KEY    ✅  sk-ant-...  (system env)
+  LANGSMITH_API_KEY    ⚪  미설정 (선택)
+  DEEPEVAL_API_KEY     ⚪  미설정 (선택)
+
+기타 설정:
+  AGENT_EVALUATOR_OUTPUT_DIR    ./results
+  OPENAI_MODEL                  gpt-4o-mini
+  ANTHROPIC_MODEL               claude-haiku-4-5-20251001
+```
+
+### `agent-eval serve`
+
+평가 결과를 시각화하는 FastAPI 웹 대시보드를 실행합니다.
+
+```bash
+agent-eval serve [results_dir] [옵션]
+```
+
+| 옵션 | 기본값 | 설명 |
+|------|--------|------|
+| `results_dir` | `./results` | 평가 결과 JSON 파일이 있는 디렉토리 |
+| `--host HOST` | `127.0.0.1` | 바인딩 호스트 |
+| `--port PORT` | `8765` | 포트 번호 |
+| `--open` | — | 서버 시작 후 브라우저 자동 오픈 |
+| `--watch` | — | 파일 변경 감시 (핫 리로드) |
+| `--slide` | — | 시작 화면을 슬라이드 뷰로 설정 |
+| `--share` | — | 외부 접근 허용 (`host=0.0.0.0`) |
+| `--title TITLE` | `Agent Evaluator Dashboard` | 대시보드 제목 |
+
+```bash
+agent-eval serve                                    # 기본 실행
+agent-eval serve ./results --port 8080 --open       # 포트 지정 + 브라우저 오픈
+agent-eval serve ./results --watch                  # 파일 변경 시 자동 갱신
+agent-eval serve ./results --share                  # 외부 접근 허용 (팀 공유)
+```
+
+> `results_dir`을 지정하지 않으면 `./results` → `path_helpers` 자동 탐지 순으로 결과 디렉토리를 찾습니다.
+
+---
+
+## 대시보드
+
+FastAPI + Alpine.js 기반 SPA 웹 대시보드로 평가 결과를 시각화합니다.
+`pip install "agent-evaluator[serve]"` 후 `agent-eval serve`로 실행합니다.
+
+실행 후 접근 가능한 URL:
+
+| URL | 설명 |
+|-----|------|
+| `http://localhost:8765` | 메인 대시보드 |
+| `http://localhost:8765/slides` | 슬라이드 뷰 |
+| `http://localhost:8765/api/docs` | Swagger UI (OAS 3.1) |
+| `http://localhost:8765/api/redoc` | Redoc API 문서 |
 
 **제공 기능:**
 - 전체 지표 개요 및 트렌드 (TCR·정확도·할루시네이션·레이턴시·비용)
@@ -306,7 +396,7 @@ agent-eval serve --open                 # 브라우저 자동 오픈
 - Layer 3 Advanced 지표 (DeepEval·Ragas, 옵션)
 - 상관관계 히트맵 (4×4 Pearson 지표 행렬)
 - HTML/CSV/JSON 내보내기 + PDF 출력
-- OAS 3.1 API 문서 (`/api/docs`)
+- OAS 3.1 API 문서 (`/api/docs`, `/api/redoc`)
 
 ---
 
@@ -325,7 +415,8 @@ agent-evaluator/
 │   │   ├── langgraph_integration.py
 │   │   ├── autogen_integration.py
 │   │   ├── llm_helpers.py       # LLMHelper (OpenAI), ClaudeHelper (Anthropic)
-│   │   └── metric_adapters.py   # DeepEval / Ragas / LangSmith 어댑터
+│   │   ├── metric_adapters.py   # DeepEval / Ragas / LangSmith 어댑터
+│   │   └── framework_integrations.py
 │   ├── helpers/
 │   │   └── taskresult_helpers.py  # create_taskresult(), 토큰 추출 유틸
 │   ├── reporting/
@@ -333,16 +424,26 @@ agent-evaluator/
 │   ├── datasets/
 │   │   ├── korean_rag_dataset_generator.py  # 한국어 RAG 데이터셋 생성
 │   │   └── korean_rag_evaluator.py          # 한국어 RAG 평가
-│   └── utils/
-│       └── dashboard_integration.py
+│   ├── serve/                   # FastAPI 대시보드 서버
+│   │   ├── server.py            # FastAPI app 진입점
+│   │   ├── loader.py            # 평가 결과 로더
+│   │   ├── watcher.py           # 파일 변경 감시
+│   │   └── routers/             # API 라우터 (data, export, golden, stream, transparency)
+│   ├── cli/
+│   │   └── main.py              # agent-eval CLI 진입점
+│   ├── utils/
+│   │   ├── dashboard_integration.py
+│   │   ├── data_registry.py
+│   │   └── path_helpers.py
+│   └── config.py                # 환경변수 설정 로더
 │
 ├── Evaluator_Examples/           # 단계별 실습 예제
-│   ├── level_1_foundation/       # 기초 (5~10분)
-│   ├── level_2_advanced/         # 고급 (15~30분)
-│   ├── level_3_production/       # 프로덕션 (30분+)
-│   └── Dashboard/                # Streamlit 대시보드
+│   ├── level_1_foundation/       # 기초 — 10개 (5~10분)
+│   ├── level_2_advanced/         # 고급 — 8개 (15~30분)
+│   ├── level_3_production/       # 프로덕션 — 6개 (30분+)
+│   └── Dashboard/                # Streamlit 대시보드 (레거시 — FastAPI로 대체됨)
 │
-├── Docs/Metrics/                 # 지표별 상세 문서 (43개)
+├── Docs/Metrics/                 # 지표별 상세 문서 (25개)
 ├── pyproject.toml
 ├── LICENSE
 └── CHANGELOG.md
@@ -356,32 +457,40 @@ agent-evaluator/
 
 ```bash
 cd Evaluator_Examples
-python level_1_foundation/01_quickstart.py         # 기본 워크플로우
-python level_1_foundation/02_layer1_trackers.py    # Layer 1 지표 전체
-python level_1_foundation/03_taskresult_helpers.py # 헬퍼 함수
-python level_1_foundation/04_thresholds_validation.py  # 품질 임계값
-python level_1_foundation/05_layer1_security_basic.py  # 보안 지표 기초
+python level_1_foundation/01_quickstart.py              # 기본 워크플로우
+python level_1_foundation/02_layer1_trackers.py         # Layer 1 지표 전체
+python level_1_foundation/03_taskresult_helpers.py      # 헬퍼 함수
+python level_1_foundation/04_thresholds_validation.py   # 품질 임계값
+python level_1_foundation/05_layer1_security_basic.py   # 보안 지표 기초
+python level_1_foundation/06_latency_token_economy.py   # 지연시간·토큰 비용
+python level_1_foundation/07_hallucination_detection.py # 할루시네이션 탐지
+python level_1_foundation/08_response_quality.py        # 응답 품질 6차원
+python level_1_foundation/09_evaluation_session.py      # Context Manager 활용
+python level_1_foundation/10_state_transitions_tracking.py  # 상태 전이 추적
 ```
 
 ### Level 2 — 고급 (15~30분)
 
 ```bash
-python level_2_advanced/01_golden_dataset.py  # 골든 데이터셋 생성·평가
-python level_2_advanced/02_layer3_hybrid.py   # DeepEval/Ragas 하이브리드
-python level_2_advanced/03_rag_system.py      # RAG 시스템 평가
-python level_2_advanced/04_tool_selection.py  # 툴 선택 최적화
-python level_2_advanced/05_multi_agent.py     # 멀티 에이전트 협업
-python level_2_advanced/06_workflow.py        # 복잡한 워크플로우 추적
+python level_2_advanced/01_golden_dataset.py       # 골든 데이터셋 생성·평가
+python level_2_advanced/02_layer3_hybrid.py        # DeepEval/Ragas 하이브리드
+python level_2_advanced/03_rag_system.py           # RAG 시스템 평가
+python level_2_advanced/04_tool_selection.py       # 툴 선택 최적화
+python level_2_advanced/05_multi_agent.py          # 멀티 에이전트 협업
+python level_2_advanced/06_workflow.py             # 복잡한 워크플로우 추적
+python level_2_advanced/07_security_advanced.py    # 보안 지표 고급
+python level_2_advanced/08_advanced_api_methods.py # 고급 API 메서드
 ```
 
 ### Level 3 — 프로덕션 (30분+)
 
 ```bash
-python level_3_production/01_framework_crewai.py     # CrewAI 통합
-python level_3_production/02_cost_optimization.py    # 비용 최적화
-python level_3_production/03_framework_langchain.py  # LangChain 통합
-python level_3_production/04_framework_langgraph.py  # LangGraph 통합
-python level_3_production/05_transparency.py         # 설명가능성
+python level_3_production/01_framework_crewai.py          # CrewAI 통합
+python level_3_production/02_cost_optimization.py         # 비용 최적화
+python level_3_production/03_framework_langchain.py       # LangChain 통합
+python level_3_production/04_framework_langgraph.py       # LangGraph 통합
+python level_3_production/05_transparency.py              # 설명가능성
+python level_3_production/06_security_production_monitoring.py  # 프로덕션 보안 모니터링
 ```
 
 ---
@@ -457,6 +566,7 @@ mypy agent_evaluator/
 | `[ragas]` | ragas | RAG 특화 평가 |
 | `[langchain]` | langchain | LangChain 프레임워크 통합 |
 | `[datasets]` | PyPDF2, pdfplumber | PDF 데이터셋 생성 |
+| `[serve]` | fastapi, uvicorn, jinja2 | FastAPI 대시보드 서버 |
 
 ---
 
