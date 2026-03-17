@@ -68,6 +68,40 @@ def _hdr(msg: str)  -> str: return f"{B}{C}{msg}{R}"
 
 
 # ---------------------------------------------------------------------------
+# ColoredHelpFormatter — argparse 도움말 컬러 출력
+# ---------------------------------------------------------------------------
+
+class ColoredHelpFormatter(argparse.RawDescriptionHelpFormatter):
+    """ANSI 색상이 적용된 argparse HelpFormatter.
+
+    TTY 여부는 _COLOR 전역 변수로 제어된다 (non-TTY 에서는 색상 없음).
+    """
+
+    def start_section(self, heading: Optional[str]) -> None:  # type: ignore[override]
+        if heading and _COLOR:
+            heading = f"{B}{heading}{R}"
+        super().start_section(heading)
+
+    def _format_usage(self, usage, actions, groups, prefix):  # type: ignore[override]
+        if prefix is None:
+            prefix = f"{B}사용법{R}: " if _COLOR else "사용법: "
+        result = super()._format_usage(usage, actions, groups, prefix)
+        if _COLOR:
+            import re as _re
+            result = _re.sub(r"\bagent-eval\b", f"{C}agent-eval{R}", result, count=1)
+        return result
+
+    def _format_action(self, action):  # type: ignore[override]
+        result = super()._format_action(action)
+        if not _COLOR:
+            return result
+        import re as _re
+        # --option 플래그 → 노란색
+        result = _re.sub(r"(--?[\w-]+)", f"{Y}\\1{R}", result)
+        return result
+
+
+# ---------------------------------------------------------------------------
 # 키 메타데이터
 # ---------------------------------------------------------------------------
 
@@ -625,30 +659,30 @@ def main() -> None:
     parser = argparse.ArgumentParser(
         prog="agent-eval",
         description=(
-            "Agent Evaluator CLI — AI 에이전트 평가 프레임워크\n"
+            f"{B}{C}Agent Evaluator CLI{R} — AI 에이전트 평가 프레임워크\n"
             "\n"
             "평가 결과 수집·저장·시각화 전 구간을 단일 명령어로 관리합니다.\n"
             "API 키 설정, 환경 상태 확인, 웹 대시보드 실행을 지원합니다."
         ),
-        formatter_class=argparse.RawDescriptionHelpFormatter,
+        formatter_class=ColoredHelpFormatter,
         epilog=(
-            "명령어:\n"
-            "  init     OpenAI·Anthropic·LangSmith 등 API 키를 대화형으로 설정\n"
-            "  check    현재 환경의 API 키 및 설정값 상태를 출력\n"
-            "  serve    평가 결과를 시각화하는 FastAPI 웹 대시보드 실행\n"
-            "  version  패키지 버전 출력\n"
+            f"{B}명령어:{R}\n"
+            f"  {Y}init{R}     OpenAI·Anthropic·LangSmith 등 API 키를 대화형으로 설정\n"
+            f"  {Y}check{R}    현재 환경의 API 키 및 설정값 상태를 출력\n"
+            f"  {Y}serve{R}    평가 결과를 시각화하는 FastAPI 웹 대시보드 실행\n"
+            f"  {Y}version{R}  패키지 버전 출력\n"
             "\n"
-            "예시:\n"
-            "  agent-eval init\n"
-            "  agent-eval check\n"
-            "  agent-eval serve\n"
-            "  agent-eval serve ./results --port 8080\n"
-            "  agent-eval serve ./results --watch --no-open\n"
-            "  agent-eval serve ./results --share\n"
-            "  agent-eval version\n"
+            f"{B}예시:{R}\n"
+            f"  {G}agent-eval init{R}\n"
+            f"  {G}agent-eval check{R}\n"
+            f"  {G}agent-eval serve{R}\n"
+            f"  {G}agent-eval serve ./results --port 8080{R}\n"
+            f"  {G}agent-eval serve ./results --watch --no-open{R}\n"
+            f"  {G}agent-eval serve ./results --share{R}\n"
+            f"  {G}agent-eval version{R}\n"
             "\n"
-            "더 자세한 도움말:\n"
-            "  agent-eval <명령어> --help"
+            f"{B}더 자세한 도움말:{R}\n"
+            f"  {D}agent-eval <명령어> --help{R}"
         ),
     )
 
@@ -661,20 +695,20 @@ def main() -> None:
             "OpenAI, Anthropic, LangSmith, DeepEval API 키를\n"
             "대화형으로 입력하고 .env 파일에 저장합니다.\n"
             "\n"
-            "설정 항목:\n"
-            "  OPENAI_API_KEY              (필수) LLMHelper, DeepEval, Ragas 평가\n"
-            "  ANTHROPIC_API_KEY           (선택) ClaudeHelper 사용 시\n"
-            "  LANGSMITH_API_KEY           (선택) LangSmith 트레이싱 연동\n"
-            "  DEEPEVAL_API_KEY            (선택) Confident AI 대시보드 연동\n"
-            "  AGENT_EVALUATOR_OUTPUT_DIR  평가 결과 저장 디렉토리 (기본: ./results)\n"
+            f"{B}설정 항목:{R}\n"
+            f"  {C}OPENAI_API_KEY{R}              {RD}(필수){R} LLMHelper, DeepEval, Ragas 평가\n"
+            f"  {C}ANTHROPIC_API_KEY{R}           {D}(선택){R} ClaudeHelper 사용 시\n"
+            f"  {C}LANGSMITH_API_KEY{R}           {D}(선택){R} LangSmith 트레이싱 연동\n"
+            f"  {C}DEEPEVAL_API_KEY{R}            {D}(선택){R} Confident AI 대시보드 연동\n"
+            f"  {C}AGENT_EVALUATOR_OUTPUT_DIR{R}  평가 결과 저장 디렉토리 {D}(기본: ./results){R}\n"
             "\n"
-            "저장 위치를 대화형으로 선택할 수 있습니다:\n"
-            "  [1] 기존 .env 업데이트\n"
-            "  [2] 현재 디렉토리 .env 생성\n"
-            "  [3] 전역 설정 (~/.config/agent-evaluator/.env)\n"
-            "  [4] 저장하지 않음"
+            f"{B}저장 위치:{R} 대화형으로 선택할 수 있습니다\n"
+            f"  {Y}[1]{R} 기존 .env 업데이트\n"
+            f"  {Y}[2]{R} 현재 디렉토리 .env 생성\n"
+            f"  {Y}[3]{R} 전역 설정 {D}(~/.config/agent-evaluator/.env){R}\n"
+            f"  {Y}[4]{R} 저장하지 않음"
         ),
-        formatter_class=argparse.RawDescriptionHelpFormatter,
+        formatter_class=ColoredHelpFormatter,
     )
     sub.add_parser(
         "check",
@@ -682,22 +716,22 @@ def main() -> None:
         description=(
             "현재 환경에 설정된 API 키 및 설정값 상태를 출력합니다.\n"
             "\n"
-            "출력 항목:\n"
-            "  API 키 상태    OPENAI_API_KEY, ANTHROPIC_API_KEY,\n"
-            "                 LANGSMITH_API_KEY, DEEPEVAL_API_KEY\n"
-            "  기타 설정      AGENT_EVALUATOR_OUTPUT_DIR, OPENAI_MODEL,\n"
-            "                 ANTHROPIC_MODEL, LANGCHAIN_TRACING_V2\n"
-            "  .env 위치      로드된 .env 파일 경로\n"
+            f"{B}출력 항목:{R}\n"
+            f"  {Y}API 키 상태{R}    {C}OPENAI_API_KEY{R}, {C}ANTHROPIC_API_KEY{R},\n"
+            f"               {C}LANGSMITH_API_KEY{R}, {C}DEEPEVAL_API_KEY{R}\n"
+            f"  {Y}기타 설정{R}      {C}AGENT_EVALUATOR_OUTPUT_DIR{R}, {C}OPENAI_MODEL{R},\n"
+            f"               {C}ANTHROPIC_MODEL{R}, {C}LANGCHAIN_TRACING_V2{R}\n"
+            f"  {Y}.env 위치{R}      로드된 .env 파일 경로\n"
             "\n"
-            "API 키는 앞 8자만 표시되며 나머지는 마스킹됩니다."
+            f"{D}API 키는 앞 8자만 표시되며 나머지는 마스킹됩니다.{R}"
         ),
-        formatter_class=argparse.RawDescriptionHelpFormatter,
+        formatter_class=ColoredHelpFormatter,
     )
     sub.add_parser(
         "version",
         help="패키지 버전 출력",
-        description="설치된 agent-evaluator 패키지 버전을 출력합니다.",
-        formatter_class=argparse.RawDescriptionHelpFormatter,
+        description=f"설치된 {C}agent-evaluator{R} 패키지 버전을 출력합니다.",
+        formatter_class=ColoredHelpFormatter,
     )
 
     # serve subcommand
@@ -707,26 +741,26 @@ def main() -> None:
         description=(
             "평가 결과 JSON 파일을 읽어 FastAPI 웹 대시보드를 실행합니다.\n"
             "\n"
-            "결과 디렉토리 자동 탐지 순서:\n"
-            "  1. 명시적으로 지정한 results_dir 인수\n"
-            "  2. ./results (JSON 파일이 존재하는 경우)\n"
-            "  3. AGENT_EVALUATOR_OUTPUT_DIR 환경변수\n"
-            "  4. git/pyproject.toml 루트의 results/ 디렉토리\n"
+            f"{B}결과 디렉토리 자동 탐지 순서:{R}\n"
+            f"  {Y}1.{R} 명시적으로 지정한 results_dir 인수\n"
+            f"  {Y}2.{R} ./results {D}(JSON 파일이 존재하는 경우){R}\n"
+            f"  {Y}3.{R} {C}AGENT_EVALUATOR_OUTPUT_DIR{R} 환경변수\n"
+            f"  {Y}4.{R} git/pyproject.toml 루트의 results/ 디렉토리\n"
             "\n"
-            "접속 URL:\n"
-            "  http://localhost:8765          메인 대시보드\n"
-            "  http://localhost:8765/slides   슬라이드 뷰\n"
-            "  http://localhost:8765/api/docs Swagger UI (OAS 3.1)\n"
+            f"{B}접속 URL:{R}\n"
+            f"  {G}http://localhost:8765{R}          메인 대시보드\n"
+            f"  {G}http://localhost:8765/slides{R}   슬라이드 뷰\n"
+            f"  {G}http://localhost:8765/api/docs{R} Swagger UI {D}(OAS 3.1){R}\n"
         ),
-        formatter_class=argparse.RawDescriptionHelpFormatter,
+        formatter_class=ColoredHelpFormatter,
         epilog=(
-            "예시:\n"
-            "  agent-eval serve\n"
-            "  agent-eval serve ./results --port 8080\n"
-            "  agent-eval serve ./results --watch\n"
-            "  agent-eval serve ./results --no-open\n"
-            "  agent-eval serve ./results --share\n"
-            "  agent-eval serve /path/to/results --title '프로젝트 평가'"
+            f"{B}예시:{R}\n"
+            f"  {G}agent-eval serve{R}\n"
+            f"  {G}agent-eval serve ./results --port 8080{R}\n"
+            f"  {G}agent-eval serve ./results --watch{R}\n"
+            f"  {G}agent-eval serve ./results --no-open{R}\n"
+            f"  {G}agent-eval serve ./results --share{R}\n"
+            f"  {G}agent-eval serve /path/to/results --title '프로젝트 평가'{R}"
         ),
     )
     serve_p.add_argument(
