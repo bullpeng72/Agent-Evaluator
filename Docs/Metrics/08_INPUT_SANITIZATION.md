@@ -2,7 +2,7 @@
 
 AI Agent Input Security and Injection Attack Detection
 
-Agent Evaluator v0.5.1 - Layer 1 Security Metric
+Agent Evaluator v0.5.2 - Layer 1 Security Metric
 
 ## 🎯 개요
 

@@ -6,6 +6,25 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
 
+## [0.5.2] — 2026-03-17
+
+### Added
+- **SDK 레퍼런스 페이지 (`/sdk-docs`)** — Agent 평가용 Python SDK 전체 레퍼런스. PerformanceMonitor·TaskResult·TaskType·Layer 1/2/3 트래커·프레임워크 통합 문서화
+- **UI API / SDK API 버튼 분리** — 대시보드 헤더의 단일 API 버튼을 `📡 UI API` (Swagger) 와 `📖 SDK` (/sdk-docs) 로 분리
+- **CLI 웰컴 화면** — `agent-eval` 인수 없이 실행 시 API 키 현황 프로그레스 바 + 명령어 목록 표시
+- **컬러 도움말** — `ColoredHelpFormatter` 적용. TTY에서 섹션 헤더 bold, 플래그 yellow, 예시 green, 환경변수 cyan
+
+### Changed
+- **`agent-eval --version`** — `version` 서브커맨드를 표준 `--version` 플래그로 변경
+- **브라우저 자동 오픈 기본값 활성화** — `agent-eval serve` 실행 시 `--open` 기본값 `True`
+- **`__init__.py` 버전 동기화** — `0.5.0` → `0.5.2` (pyproject.toml 불일치 수정)
+
+### Fixed
+- **결과 경로 통일** — `path_helpers.get_evaluation_results_dir()` 이 `results/` 로 통일. Dashboard/data/ 경로 잔존 제거
+- **golden dataset 경로** — `serve/routers/golden.py` 에서 stale Streamlit 경로 제거
+
+---
+
 ## [0.5.1] — 2026-03-17
 
 ### Added

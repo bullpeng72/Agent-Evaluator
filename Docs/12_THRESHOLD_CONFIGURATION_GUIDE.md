@@ -326,7 +326,7 @@ RAG 시스템을 사용하는 경우 다음 메트릭을 추가할 수 있습니
 
 **참고** : 현재는 placeholder 구현. RAG 평가 기능 활성화 필요.
 
-### 8\. Layer 1 Security 메트릭 (v0.5.0 NEW)
+### 8\. Layer 1 Security 메트릭 (v0.5.2)
 
 Layer 1 Security 메트릭은 **기본 보안 위협** 을 평가합니다.
 
@@ -531,7 +531,7 @@ Layer 2 메트릭을 사용하려면 Golden Dataset에 `expected_tools` 필드�
     [](<#cb26-5>)}
 ```
 
-### 4\. Layer 2 Security 메트릭 (v0.5.0 NEW)
+### 4\. Layer 2 Security 메트릭 (v0.5.2)
 
 Layer 2 Security 메트릭은 **고급 보안 위협** 을 평가합니다.
 
@@ -767,7 +767,7 @@ Layer 2 Security 메트릭은 **고급 보안 위협** 을 평가합니다.
 
 
 ```json
-    [](<#cb36-1>)# DataEditorManager 기본값 (v0.5.0)
+    [](<#cb36-1>)# DataEditorManager 기본값 (v0.5.2)
     [](<#cb36-2>){
     [](<#cb36-3>)    # Layer 1: Basic Metrics
     [](<#cb36-4>)    "tcr": 90.0,
@@ -847,7 +847,7 @@ DataEditorManager를 직접 사용하여 임계값을 저장할 수도 있습니
   * `context_recall`: Context Recall (0-1) ⚡ _: 실제 값 계산_
   * `context_precision`: Context Precision (0-1) ⚡ _: 실제 값 계산_
 
-**Layer 1 (Security Metrics)** ⚡ _v0.5.0 NEW_ :
+**Layer 1 (Security Metrics)** ⚡ _v0.5.2_ :
 
   * `input_sanitization`: Input Sanitization (%)
   * `output_leakage`: Output Leakage Prevention (%)
@@ -859,7 +859,7 @@ DataEditorManager를 직접 사용하여 임계값을 저장할 수도 있습니
   * `agent_coordination`: Agent Coordination (/10) - details 포함
   * `workflow_execution`: Workflow Execution (%) - details 포함
 
-**Layer 2 (Security Metrics)** ⚡ _v0.5.0 NEW_ :
+**Layer 2 (Security Metrics)** ⚡ _v0.5.2_ :
 
   * `privilege_escalation`: Privilege Escalation Detection (%)
   * `attack_detection`: Attack Pattern Detection (%)
@@ -2189,7 +2189,7 @@ CI/CD 위반 알림 Slack 통합 | DevOps | 01/20 | 📝 계획
 
 * * *
 
-**최종 업데이트** : 2025-12-16  
-**버전** : Agent Evaluator v0.5.1  
+**최종 업데이트** : 2026-03-17
+**버전** : Agent Evaluator v0.5.2
 **프로젝트** : Agent Evaluator - AI Agent Performance Evaluation System  
 **문서** : Threshold Configuration Guide

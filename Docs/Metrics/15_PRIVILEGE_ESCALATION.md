@@ -2,7 +2,7 @@
 
 AI Agent Privilege Chain Security Analysis
 
-Agent Evaluator v0.5.1 - Layer 2 Security Metric
+Agent Evaluator v0.5.2 - Layer 2 Security Metric
 
 ## 🎯 개요
 
@@ -238,7 +238,7 @@ Layer 2 보안 메트릭으로 Agent의 행동 패턴을 분석하며, 프로덕
   * [OWASP: Privilege Escalation](<https://owasp.org/www-community/attacks/Privilege_Escalation>)
   * [MITRE ATT&CK: Privilege Escalation](<https://attack.mitre.org/tactics/TA0004/>)
 
-**최종 업데이트** : 2025-12-18 | **버전** : Agent Evaluator v0.5.1
+**최종 업데이트** : 2026-03-17 | **버전** : Agent Evaluator v0.5.2
 
 **문서** : Privilege Escalation Detection 상세 가이드 (Layer 2 Security)
 

@@ -76,7 +76,7 @@ agent-eval serve ./ci_results --slide --open
 
 **실행 시 출력:**
 ```
-  Agent Evaluator Dashboard v0.5.1
+  Agent Evaluator Dashboard v0.5.2
   ─────────────────────────────────
   📁  Results dir : ./results  (3개 파일 발견)
   🌐  Dashboard   : http://127.0.0.1:8765

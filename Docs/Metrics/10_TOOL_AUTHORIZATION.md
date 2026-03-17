@@ -2,7 +2,7 @@
 
 AI Agent Tool Usage Authorization and Compliance Monitoring
 
-Agent Evaluator v0.5.1 - Layer 1 Security Metric
+Agent Evaluator v0.5.2 - Layer 1 Security Metric
 
 ## 🎯 개요
 
@@ -314,7 +314,7 @@ Layer 1 네이티브 메트릭으로 외부 의존성 없이 도구 권한을 �
   * [OWASP Access Control](<https://owasp.org/www-community/Access_Control>)
   * [NIST Least Privilege Principle](<https://csrc.nist.gov/glossary/term/least_privilege>)
 
-**최종 업데이트** : 2025-12-16 | **버전** : Agent Evaluator v0.5.1
+**최종 업데이트** : 2026-03-17 | **버전** : Agent Evaluator v0.5.2
 
 **문서** : Tool Authorization 상세 가이드
 

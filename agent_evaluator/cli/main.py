@@ -20,7 +20,7 @@ try:
     from importlib.metadata import PackageNotFoundError, version as _pkg_version
     __version__ = _pkg_version("agent-evaluator")
 except PackageNotFoundError:
-    __version__ = "0.5.1"
+    __version__ = "0.5.2"
 
 from agent_evaluator.config import (
     DEFAULTS,

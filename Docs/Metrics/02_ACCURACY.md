@@ -2,7 +2,7 @@
 
 Response Accuracy Measurement and Evaluation
 
-Agent Evaluator v0.5.1 - Layer 1 Foundation Metric
+Agent Evaluator v0.5.2 - Layer 1 Foundation Metric
 
 ## 📊 개요
 
@@ -203,7 +203,7 @@ Agent Evaluator Dashboard는 Golden Dataset을 관리하고, 이를 기반으로
   * **metadata** : 데이터셋 메타정보 (이름, 버전, 설명)
   * **qa_pairs** : 질문-정답 쌍 배열
 
-# Golden Dataset 구조 예시 { "dataset_id": "sample_qa_dataset_001", "source_document": "Sample QA Collection", "created_at": "2024-12-10", "total_qa_pairs": 10, "metadata": { "dataset_name": "Sample QA Dataset", "version": "0.5.0", "description": "자동 평가를 위한 샘플 Golden Dataset" }, "qa_pairs": [ { "qa_id": "qa_001", "question": "대한민국의 수도는 어디인가요?", "answer": "대한민국의 수도는 서울입니다.", "context": "서울은 대한민국의 수도이며...", "ground_truth": "서울", ← Accuracy 평가에 사용 "expected_tools": ["search", "knowledge_base"], "task_type": "qa" } ] } 
+# Golden Dataset 구조 예시 { "dataset_id": "sample_qa_dataset_001", "source_document": "Sample QA Collection", "created_at": "2024-12-10", "total_qa_pairs": 10, "metadata": { "dataset_name": "Sample QA Dataset", "version": "0.5.2", "description": "자동 평가를 위한 샘플 Golden Dataset" }, "qa_pairs": [ { "qa_id": "qa_001", "question": "대한민국의 수도는 어디인가요?", "answer": "대한민국의 수도는 서울입니다.", "context": "서울은 대한민국의 수도이며...", "ground_truth": "서울", ← Accuracy 평가에 사용 "expected_tools": ["search", "knowledge_base"], "task_type": "qa" } ] } 
 
 ### 5.2 Golden Dataset 기반 자동 평가 (기본)
 
@@ -406,7 +406,7 @@ from langchain.agents import AgentExecutor from agent_evaluator.integrations imp
   * [종합 학습 가이드](<../LEARNING_GUIDE.html>)
   * [전체 지표 인덱스](<ALL_METRICS_INDEX.html>)
 
-**최종 업데이트** : 2025-12-16 | **버전** : Agent Evaluator v0.5.1
+**최종 업데이트** : 2026-03-17 | **버전** : Agent Evaluator v0.5.2
 
 **문서** : Accuracy 상세 가이드
 

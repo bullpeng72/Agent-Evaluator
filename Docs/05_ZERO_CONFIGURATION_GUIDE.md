@@ -252,10 +252,10 @@ agent-evaluator는 다음 우선순위로 프로젝트 루트를 자동 감지�
 
 #### 💡 Dashboard 검증 로직
 
-v0.5.0부터 Dashboard 디렉토리를 찾을 때 **실제 agent_evaluator Dashboard인지 검증** 합니다:
+v0.5.2부터 Dashboard 디렉토리를 찾을 때 **실제 agent_evaluator Dashboard인지 검증** 합니다:
 
-  * `app.py` 존재 확인 (Streamlit 앱)
-  * `streamlit_dashboard.py` 존재 확인 (대체 이름)
+  * `server.py` 존재 확인 (FastAPI 앱)
+  * `~/.agent_evaluator/registry.json` 레지스트리 확인
   * 둘 중 하나라도 존재하면 유효한 Dashboard로 인정
   * 이를 통해 우연히 같은 이름을 가진 다른 폴더와 구분
 
@@ -285,14 +285,14 @@ v0.5.0부터 Dashboard 디렉토리를 찾을 때 **실제 agent_evaluator Dashb
 저장된 파일은 자동으로 `~/.agent_evaluator/registry.json`에 등록됩니다:
 ```json
     {
-      "version": "0.5.0",
-      "created_at": "2025-12-08T10:00:00",
+      "version": "0.5.2",
+      "created_at": "2026-03-17T10:00:00",
       "data_files": {
         "/path/to/Dashboard/data/evaluation_results/my_evaluation.json": {
           "filepath": "/path/to/Dashboard/data/evaluation_results/my_evaluation.json",
           "project_name": "MyProject",
-          "registered_at": "2025-12-08T10:00:00",
-          "last_modified": "2025-12-08T10:00:00",
+          "registered_at": "2026-03-17T10:00:00",
+          "last_modified": "2026-03-17T10:00:00",
           "file_size": 1234,
           "metadata": {
             "total_tasks": 10,
@@ -672,7 +672,7 @@ Dashboard가 자동으로 `Dashboard/data/` 하위 데이터를 인식합니다.
 
 #### 🎉 100% Zero Configuration 달성!
 
-agent-evaluator v0.5.0 버전부터 모든 핵심 클래스가 Zero Configuration을 완벽하게 지원합니다!
+agent-evaluator v0.5.2 버전부터 모든 핵심 클래스가 Zero Configuration을 완벽하게 지원합니다!
 
   * ✅ `PerformanceMonitor` \- 자동 경로 감지
   * ✅ `HybridPerformanceMonitor` \- 상속으로 자동 적용
@@ -690,8 +690,8 @@ agent-evaluator v0.5.0 버전부터 모든 핵심 클래스가 Zero Configuratio
 
 * * *
 
-**문서 버전** : 0.5.0  
-**최종 업데이트** : 2025-12-15  
+**문서 버전** : 0.5.2
+**최종 업데이트** : 2026-03-17
 **변경사항** :  
 \- Evaluator_Examples 경로 탐지 로직 제거  
 \- 클래스 메서드 _find_project_root() 제거, path_helpers 직접 사용 권장  

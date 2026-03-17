@@ -1,14 +1,14 @@
 # AI Agent 실무 대시보드 고도화 기획안
 
 **버전:** 1.0
-**기준:** `agent-eval serve` FastAPI 대시보드 v0.5.1 위에 단계적 구현
+**기준:** `agent-eval serve` FastAPI 대시보드 v0.5.2 위에 단계적 구현
 **목적:** AI Agent 개발 및 운영 실무에서 즉시 활용 가능한 수준의 대시보드
 
 ---
 
 ## 현황 분석
 
-### 현재 구현된 기능 (v0.5.1)
+### 현재 구현된 기능 (v0.5.2)
 - Overview KPI 카드 (TCR, Accuracy, Hallucination, Latency, Cost, Tasks)
 - Health Score 게이지 (Layer 1/2/성능/보안 가중 평균)
 - Layer 1 (TCR·Accuracy·Quality·Hallucination·RAG·DeepEval)

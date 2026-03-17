@@ -2,7 +2,7 @@
 
 AI Agent를 위한 프로덕션급 평가 프레임워크
 
-![Python Version](https://img.shields.io/badge/python-3.8+-blue.svg) ![License](https://img.shields.io/badge/license-MIT-green.svg) ![Version](https://img.shields.io/badge/version-0.5.1-brightgreen.svg) ![Zero Configuration](https://img.shields.io/badge/Zero_Config-100%25-blue.svg) ![Security Metrics](https://img.shields.io/badge/Security_Metrics-5_Built--in-orange.svg)
+![Python Version](https://img.shields.io/badge/python-3.8+-blue.svg) ![License](https://img.shields.io/badge/license-MIT-green.svg) ![Version](https://img.shields.io/badge/version-0.5.2-brightgreen.svg) ![Zero Configuration](https://img.shields.io/badge/Zero_Config-100%25-blue.svg) ![Security Metrics](https://img.shields.io/badge/Security_Metrics-5_Built--in-orange.svg)
 
 ## 🎯 핵심 특징
 
@@ -126,4 +126,4 @@ Agentic AI 평가 지표와 베스트 프랙티스를 학습하세요.
 
 [ Getting Started → ](<GETTING_STARTED.html>)
 
-Agent Evaluator v0.5.1 | 🔒 Security-First | MIT License | Created by KIM SUNGWOO
+Agent Evaluator v0.5.2 | 🔒 Security-First | MIT License | Created by KIM SUNGWOO

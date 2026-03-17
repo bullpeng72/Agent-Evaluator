@@ -188,12 +188,12 @@ CI/CD 통합 및 프로덕션 배포 전략
     [](<#cb9-5>)python -c "import agent_evaluator; import streamlit; print('Installation successful!')"
     [](<#cb9-6>)
     [](<#cb9-7>)# 대시보드 실행 테스트
-    [](<#cb9-8>)cd Evaluator_Examples/Dashboard && streamlit run app.py
+    [](<#cb9-8>)agent-eval serve
 ```
 
 ### Project Structure
 
-v0.5.0부터 프로젝트는 4개의 독립적인 컴포넌트로 구성됩니다:
+v0.5.2부터 프로젝트는 4개의 독립적인 컴포넌트로 구성됩니다:
 
 #### 1\. 📦 agent_evaluator/ - Core Python Package
 
@@ -250,7 +250,7 @@ v0.5.0부터 프로젝트는 4개의 독립적인 컴포넌트로 구성됩니�
 ```
     Evaluator_Examples/
     ├── level_1_foundation/             # 🎯 Layer 1: Basic + Security Metrics
-    │   ├── 00_new_api_demo.py          # v0.5.0 신규 API 데모 (quick start)
+    │   ├── 00_new_api_demo.py          # v0.5.2 신규 API 데모 (quick start)
     │   ├── 01_quickstart.py            # 빠른 시작 가이드
     │   ├── 02_layer1_trackers.py       # Layer 1 메트릭 추적 (TCR, Accuracy 등)
     │   ├── 03_taskresult_helpers.py    # TaskResult 헬퍼 사용법
@@ -1516,7 +1516,7 @@ v0.5.0부터 프로젝트는 4개의 독립적인 컴포넌트로 구성됩니�
     [](<#cb42-2>)pip install --upgrade agent-evaluator
     [](<#cb42-3>)
     [](<#cb42-4>)# 특정 버전으로 업데이트
-    [](<#cb42-5>)pip install agent-evaluator==0.5.0
+    [](<#cb42-5>)pip install agent-evaluator==0.5.2
 ```
 
 ### Golden Dataset Maintenance
@@ -2888,7 +2888,7 @@ DB 연결 실패 | 네트워크, 인증 오류 | `telnet db-host 5432` | DB 연�
 
 * * *
 
-**최종 업데이트** : 2025-12-16  
-**버전** : v0.5.0  
+**최종 업데이트** : 2026-03-17
+**버전** : v0.5.2
 **프로젝트** : Agent Evaluator - AI Agent Performance Evaluation System  
 **문서 타입** : 배포 가이드 (Deployment Guide)

@@ -2,7 +2,7 @@
 
 Multi-Agent System Interaction Pattern Analysis
 
-Agent Evaluator v0.5.1 - Layer 2 Advanced Metric
+Agent Evaluator v0.5.2 - Layer 2 Advanced Metric
 
 ## 🎯 개요
 
@@ -293,7 +293,7 @@ Layer 2 메트릭으로 Multi-Agent 시스템의 협업 패턴을 분석하며, 
   * [Wikipedia: Multi-Agent System](<https://en.wikipedia.org/wiki/Multi-agent_system>)
   * [CrewAI Documentation](<https://www.crewai.com/>)
 
-**최종 업데이트** : 2025-12-18 | **버전** : Agent Evaluator v0.5.1
+**최종 업데이트** : 2026-03-17 | **버전** : Agent Evaluator v0.5.2
 
 **문서** : Agent Coordination Quality 상세 가이드 (Layer 2 Metric)
 

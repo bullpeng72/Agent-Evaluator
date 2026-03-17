@@ -5,7 +5,7 @@
 **Agent-Evaluator** is a production-ready Python SDK for evaluating AI agents.
 20개의 성능 지표를 세 개의 레이어(기본/고급/하이브리드)로 측정한다.
 
-- **Version:** 0.5.1 (Beta)
+- **Version:** 0.5.2 (Beta)
 - **Python:** 3.8+
 - **License:** MIT
 - **Author:** Sungwoo Kim
@@ -25,7 +25,7 @@ pip install -e ".[all]"
 # --- CLI (pip install 후 바로 사용 가능) ---
 agent-eval init          # 대화형 API 키 설정 마법사
 agent-eval check         # 현재 설정 상태 출력
-agent-eval version       # 버전 출력
+agent-eval --version     # 버전 출력
 
 # 테스트 실행 (tests/ 디렉토리 없음 — 아직 생성 필요)
 pytest
@@ -41,10 +41,10 @@ python -m build
 twine upload --repository testpypi dist/*   # 테스트
 twine upload dist/*                          # 실제 배포
 
-# 대시보드 실행 (FastAPI, v0.5.1+)
-agent-eval serve                        # 기본 포트 8765
+# 대시보드 실행 (FastAPI, v0.5.2+)
+agent-eval serve                        # 기본 포트 8765, 브라우저 자동 오픈
 agent-eval serve --port 8080 --watch    # 포트 지정 + 파일 변경 자동 갱신
-agent-eval serve --open                 # 브라우저 자동 오픈
+agent-eval serve --no-open              # 브라우저 자동 오픈 비활성화
 ```
 
 ---
@@ -86,7 +86,7 @@ Layer 3 — Hybrid Evaluation (requires optional deps)
 ```
 agent_evaluator/
 ├── core/
-│   ├── agent_evaluator.py   # 모든 14개 트래커 + PerformanceMonitor (5,318줄 — 분리 예정)
+│   ├── agent_evaluator.py   # 모든 16개 트래커 + PerformanceMonitor (5,318줄 — 분리 예정)
 │   ├── hybrid_monitor.py    # HybridPerformanceMonitor
 │   └── monitor_context.py   # Context managers
 ├── integrations/
@@ -104,7 +104,7 @@ agent_evaluator/
 ├── datasets/
 │   ├── korean_rag_dataset_generator.py
 │   └── korean_rag_evaluator.py
-├── serve/                   # FastAPI 대시보드 서버 (v0.5.1+)
+├── serve/                   # FastAPI 대시보드 서버 (v0.5.2+)
 │   ├── server.py            # FastAPI app 진입점
 │   ├── loader.py            # 평가 결과 로더
 │   ├── watcher.py           # 파일 변경 감시 (--watch)
@@ -125,8 +125,6 @@ Evaluator_Examples/          # 실제 사용 예시 (패키지 외부)
 ├── level_1_foundation/      # 기초 예시 10개 (01~10)
 ├── level_2_advanced/        # 고급 예시 8개 (01~08)
 ├── level_3_production/      # 프로덕션 예시 6개 (01~06)
-└── Dashboard/               # Streamlit 대시보드 (레거시 — FastAPI로 대체됨)
-
 Docs/Metrics/                # 25개 지표별 마크다운 문서
 ```
 
@@ -218,7 +216,7 @@ from agent_evaluator import (
 
 ## Coding Conventions
 
-- **Formatter:** black, line-length=100
+- **Formatter:** ruff, line-length=100
 - **Python target:** 3.8+ (f-string, dataclass, typing)
 - **Type hints:** 모든 public 함수에 필수. `Any` 사용 시 주석 필요
 - **Docstrings:** Args / Returns / Example 섹션 포함
@@ -236,7 +234,7 @@ from agent_evaluator import (
 2. **트래커 분리** — 각 트래커는 독립적으로 테스트 가능해야 함
 3. **side-effect 최소화** — 라이브러리 코드에서 `sys.path`, `os.chdir()`, 전역 state 변경 금지
 4. **보안 지표 격리** — `InputSanitizationTracker` 등 보안 트래커는 성능에 영향을 주므로 opt-in
-5. **Dashboard 분리** — `Evaluator_Examples/Dashboard/`는 패키지 외부 앱이며 패키지가 의존해선 안 됨
+5. **serve 분리** — `agent_evaluator/serve/`는 선택적 FastAPI 서버이며 핵심 평가 로직이 의존해선 안 됨
 
 ---
 

@@ -2,7 +2,7 @@
 
 AI Agent Hallucination Detection and Analysis
 
-Agent Evaluator v0.5.1 - Layer 1 Foundation Metric
+Agent Evaluator v0.5.2 - Layer 1 Foundation Metric
 
 ## 🎯 개요
 
@@ -168,7 +168,7 @@ from langchain.vectorstores import FAISS from langchain.embeddings import OpenAI
 
 #### Step 1: Golden Dataset JSON 작성
 
-# hallucination_test_dataset.json { "dataset_id": "hallucination_test_001", "source_document": "Hallucination Detection Test Cases", "created_at": "2024-12-16", "total_qa_pairs": 3, "metadata": { "dataset_name": "Hallucination Detection Dataset", "version": "0.5.0", "description": "Context 포함 환각 탐지 테스트용" }, "qa_pairs": [ { "qa_id": "qa_001", "question": "서울의 인구는?", "context": "서울은 대한민국의 수도이며, 약 970만 명의 인구가 살고 있습니다.", "ground_truth": "970만명", "task_type": "qa" }, { "qa_id": "qa_002", "question": "Python은 언제 만들어졌나요?", "context": "Python은 1991년 Guido van Rossum이 개발한 프로그래밍 언어입니다.", "ground_truth": "1991년", "task_type": "qa" }, { "qa_id": "qa_003", "question": "지구의 자전 주기는?", "context": "지구는 약 24시간(정확히는 23시간 56분)에 한 바퀴 자전합니다.", "ground_truth": "24시간", "task_type": "qa" } ] } 
+# hallucination_test_dataset.json { "dataset_id": "hallucination_test_001", "source_document": "Hallucination Detection Test Cases", "created_at": "2024-12-16", "total_qa_pairs": 3, "metadata": { "dataset_name": "Hallucination Detection Dataset", "version": "0.5.2", "description": "Context 포함 환각 탐지 테스트용" }, "qa_pairs": [ { "qa_id": "qa_001", "question": "서울의 인구는?", "context": "서울은 대한민국의 수도이며, 약 970만 명의 인구가 살고 있습니다.", "ground_truth": "970만명", "task_type": "qa" }, { "qa_id": "qa_002", "question": "Python은 언제 만들어졌나요?", "context": "Python은 1991년 Guido van Rossum이 개발한 프로그래밍 언어입니다.", "ground_truth": "1991년", "task_type": "qa" }, { "qa_id": "qa_003", "question": "지구의 자전 주기는?", "context": "지구는 약 24시간(정확히는 23시간 56분)에 한 바퀴 자전합니다.", "ground_truth": "24시간", "task_type": "qa" } ] } 
 
 #### Step 2: Golden Dataset 로드 및 평가
 
@@ -263,7 +263,7 @@ from langchain.vectorstores import FAISS from langchain.embeddings import OpenAI
 
 **단점** : Golden Dataset 작성 필요
 
-import json from pathlib import Path from agent_evaluator import PerformanceMonitor, TaskType # ============================================================ # Golden Dataset 구조 (context 포함) # ============================================================ # hallucination_golden_dataset.json golden_dataset_structure = { "dataset_id": "hallucination_test_v1", "metadata": { "dataset_name": "Hallucination Detection Golden Dataset", "version": "0.5.0" }, "qa_pairs": [ { "qa_id": "qa_001", "question": "서울의 인구는?", "context": "서울은 대한민국의 수도이며 약 970만명이 거주합니다.", "ground_truth": "970만명", # 선택 (숫자 검증용) "task_type": "qa" } ] } # ============================================================ # Golden Dataset 로드 및 평가 # ============================================================ dataset_path = Path("Evaluator_Examples/Dashboard/data/golden_datasets/hallucination_test.json") with open(dataset_path, 'r', encoding='utf-8') as f: golden_data = json.load(f) monitor = PerformanceMonitor(enable_hallucination_detection=True) print(f"📦 Golden Dataset: {golden_data['metadata']['dataset_name']}") print(f" 총 {len(golden_data['qa_pairs'])}개 테스트 케이스\n") # 각 케이스 평가 for qa_pair in golden_data["qa_pairs"]: print(f"평가: {qa_pair['qa_id']}") # Agent 실행 agent_response = your_agent.run(qa_pair["question"]) # 환각 탐지 (context 자동 제공) monitor.record_task( task_id=qa_pair["qa_id"], task_type=getattr(TaskType, qa_pair["task_type"].upper(), TaskType.QA), success=True, latency=1.0, completion_score=1.0, context=qa_pair["context"], ← Golden Dataset에서 response=agent_response, ground_truth=qa_pair.get("ground_truth") ← 선택 ) # 결과 확인 hall_stats = monitor.hallucination_detector.get_hallucination_rate() print(f"\n✅ Hallucination Rate: {hall_stats['overall_rate']}%") print(f"Unsupported Claims: {hall_stats['unsupported_claims_count']}") print(f"Numerical Errors: {hall_stats['numerical_inconsistencies_count']}") 
+import json from pathlib import Path from agent_evaluator import PerformanceMonitor, TaskType # ============================================================ # Golden Dataset 구조 (context 포함) # ============================================================ # hallucination_golden_dataset.json golden_dataset_structure = { "dataset_id": "hallucination_test_v1", "metadata": { "dataset_name": "Hallucination Detection Golden Dataset", "version": "0.5.2" }, "qa_pairs": [ { "qa_id": "qa_001", "question": "서울의 인구는?", "context": "서울은 대한민국의 수도이며 약 970만명이 거주합니다.", "ground_truth": "970만명", # 선택 (숫자 검증용) "task_type": "qa" } ] } # ============================================================ # Golden Dataset 로드 및 평가 # ============================================================ dataset_path = Path("Evaluator_Examples/Dashboard/data/golden_datasets/hallucination_test.json") with open(dataset_path, 'r', encoding='utf-8') as f: golden_data = json.load(f) monitor = PerformanceMonitor(enable_hallucination_detection=True) print(f"📦 Golden Dataset: {golden_data['metadata']['dataset_name']}") print(f" 총 {len(golden_data['qa_pairs'])}개 테스트 케이스\n") # 각 케이스 평가 for qa_pair in golden_data["qa_pairs"]: print(f"평가: {qa_pair['qa_id']}") # Agent 실행 agent_response = your_agent.run(qa_pair["question"]) # 환각 탐지 (context 자동 제공) monitor.record_task( task_id=qa_pair["qa_id"], task_type=getattr(TaskType, qa_pair["task_type"].upper(), TaskType.QA), success=True, latency=1.0, completion_score=1.0, context=qa_pair["context"], ← Golden Dataset에서 response=agent_response, ground_truth=qa_pair.get("ground_truth") ← 선택 ) # 결과 확인 hall_stats = monitor.hallucination_detector.get_hallucination_rate() print(f"\n✅ Hallucination Rate: {hall_stats['overall_rate']}%") print(f"Unsupported Claims: {hall_stats['unsupported_claims_count']}") print(f"Numerical Errors: {hall_stats['numerical_inconsistencies_count']}") 
 
 ### Level 3: LLM 기반 Context 자동 생성
 
@@ -389,7 +389,7 @@ Layer 1 네이티브 메트릭으로 빠르고 무료로 기본 환각을 탐지
   * [종합 학습 가이드](<../LEARNING_GUIDE.html>)
   * [DeepEval Hallucination Metric](<https://docs.confident-ai.com/docs/metrics-hallucination>)
 
-**최종 업데이트** : 2025-12-16 | **버전** : Agent Evaluator v0.5.1
+**최종 업데이트** : 2026-03-17 | **버전** : Agent Evaluator v0.5.2
 
 **문서** : Hallucination Detection 상세 가이드
 

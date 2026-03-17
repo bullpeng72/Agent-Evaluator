@@ -1,12 +1,12 @@
 # 📊 대시보드 가이드
 
-Streamlit 기반 시각화 및 데이터 관리 (Agent Evaluator v0.5.1)
+FastAPI 기반 시각화 및 데이터 관리 (Agent Evaluator v0.5.2)
 
-# Streamlit 대시보드 가이드
+# FastAPI 대시보드 가이드
 
 > 📊 Agent Evaluator 대시보드 완벽 활용 가이드
 
-이 문서는 Streamlit 기반 대시보드의 모든 기능과 활용 방법을 상세히 설명합니다.
+이 문서는 FastAPI 기반 대시보드의 모든 기능과 활용 방법을 상세히 설명합니다.
 
 ## 빠른 시작
 ```bash
@@ -2005,7 +2005,7 @@ OS | Linux, macOS, Windows | Linux (Ubuntu 20.04+) | 프로덕션 권장
     # Streamlit, version 1.30.0
     
     python -c "import agent_evaluator; print(agent_evaluator.__version__)"
-    # 0.5.0
+    # 0.5.2
 ```
 
 **Step 2: Dashboard 파일 준비**
@@ -2534,7 +2534,7 @@ Export 기능 | CSV 다운로드 | 파일 정상 생성 | [ ]
     
     # 2. 이전 버전으로 다운그레이드
     pip install streamlit==1.30.0
-    pip install agent-evaluator==0.5.0
+    pip install agent-evaluator==0.5.2
     
     # 3. 백업 복구 (필요 시)
     tar -xzf backup_before_upgrade_20241202.tar.gz
@@ -2585,6 +2585,6 @@ Export 기능 | CSV 다운로드 | 파일 정상 생성 | [ ]
 
 * * *
 
-**최종 업데이트** : 2025-12-16  
-**버전** : v0.5.0  
+**최종 업데이트** : 2026-03-17
+**버전** : v0.5.2  
 **프로젝트** : Agent Evaluator - AI Agent Performance Evaluation System

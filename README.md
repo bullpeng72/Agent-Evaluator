@@ -3,7 +3,7 @@
 [![PyPI version](https://img.shields.io/pypi/v/agent-evaluator.svg)](https://pypi.org/project/agent-evaluator/)
 [![Python Version](https://img.shields.io/badge/python-3.8%2B-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Version](https://img.shields.io/badge/version-0.5.1-green.svg)](https://github.com/bullpeng72/Agent-Evaluator)
+[![Version](https://img.shields.io/badge/version-0.5.2-green.svg)](https://github.com/bullpeng72/Agent-Evaluator)
 
 **AI 에이전트를 위한 프로덕션 레디 평가 프레임워크**
 
@@ -70,7 +70,7 @@ Agent Evaluator의 핵심은 **계층적 평가 모델**입니다.
 | **Task Completion Rate** | `TaskCompletionTracker` | 성공률, 실패 원인 분류, 벤치마크 비교 | `tcr`, `full_success`, `partial_success`, `failures` |
 | **Accuracy Evaluation** | `AccuracyEvaluator` | QA/코드/일반 유형별 정확도. Token Overlap(40%) + Jaccard(30%) + LCS(20%) + 문자 유사도(10%) 가중 조합 | `overall_accuracy`, `median_accuracy`, `std_accuracy` |
 | **Hallucination Detection** | `HallucinationDetector` | 컨텍스트 대비 응답 사실 일관성. 미지원 주장·수치 불일치 탐지 | `hallucination_rate`, `unsupported_claims_count`, `by_severity` |
-| **Response Quality** | `ResponseQualityEvaluator` | 관련성·완결성·정확성·명확성·유용성 5차원 평가, A~F 등급 산출 | `dimension_scores`, `total_score` (0–5), `grade` |
+| **Response Quality** | `ResponseQualityEvaluator` | 관련성·완결성·정확성·명확성·유용성·안전성 6차원 평가, A~F 등급 산출 | `dimension_scores`, `total_score` (0–5), `grade` |
 | **Latency Tracking** | `LatencyTracker` | 백분위 지연 시간 분석, 병목 컴포넌트 탐지, SLA 준수 여부 | `p50`, `p95`, `p99`, `bottleneck`, `mean` |
 | **Token Economy** | `TokenEconomyTracker` | 입출력 토큰 비율, 실시간 비용 추정, 월간 비용 예측 | `total_tokens`, `total_cost`, `estimated_monthly_cost`, `token_distribution` |
 
@@ -358,7 +358,7 @@ results/
 | `agent-eval init` | 대화형 API 키 설정 마법사 |
 | `agent-eval check` | 현재 설정 상태 및 API 키 확인 |
 | `agent-eval serve` | FastAPI 대시보드 웹 서버 실행 |
-| `agent-eval version` | 패키지 버전 출력 |
+| `agent-eval --version` | 패키지 버전 출력 |
 
 ### `agent-eval init`
 
@@ -387,7 +387,7 @@ agent-eval check
 
 출력 예시:
 ```
-  Agent Evaluator v0.5.1 — 설정 상태
+  Agent Evaluator v0.5.2 — 설정 상태
   ──────────────────────────────────────────────────
   .env 로드: /home/user/project/.env
 
@@ -468,7 +468,7 @@ FastAPI + Alpine.js 기반 SPA 웹 대시보드로 평가 결과를 시각화합
 agent-evaluator/
 ├── agent_evaluator/              # 메인 패키지
 │   ├── core/
-│   │   ├── agent_evaluator.py   # 14개 트래커 + PerformanceMonitor
+│   │   ├── agent_evaluator.py   # 16개 트래커 + PerformanceMonitor
 │   │   ├── hybrid_monitor.py    # HybridPerformanceMonitor
 │   │   └── monitor_context.py   # Context managers
 │   ├── integrations/
@@ -503,7 +503,6 @@ agent-evaluator/
 │   ├── level_1_foundation/       # 기초 — 10개 (5~10분)
 │   ├── level_2_advanced/         # 고급 — 8개 (15~30분)
 │   ├── level_3_production/       # 프로덕션 — 6개 (30분+)
-│   └── Dashboard/                # Streamlit 대시보드 (레거시 — FastAPI로 대체됨)
 │
 ├── Docs/Metrics/                 # 지표별 상세 문서 (25개)
 ├── pyproject.toml
@@ -524,10 +523,10 @@ python level_1_foundation/02_layer1_trackers.py         # Layer 1 지표 전체
 python level_1_foundation/03_taskresult_helpers.py      # 헬퍼 함수
 python level_1_foundation/04_thresholds_validation.py   # 품질 임계값
 python level_1_foundation/05_layer1_security_basic.py   # 보안 지표 기초
-python level_1_foundation/06_latency_token_economy.py   # 지연시간·토큰 비용
-python level_1_foundation/07_hallucination_detection.py # 할루시네이션 탐지
-python level_1_foundation/08_response_quality.py        # 응답 품질 6차원
-python level_1_foundation/09_evaluation_session.py      # Context Manager 활용
+python level_1_foundation/06_advanced_metrics_analysis.py      # 고급 지표 분석
+python level_1_foundation/07_conversation_state_tracking.py    # 대화 상태 추적
+python level_1_foundation/08_new_advanced_apis_quickstart.py   # 고급 API 빠른 시작
+python level_1_foundation/09_helper_functions_comprehensive.py # 헬퍼 함수 종합
 python level_1_foundation/10_state_transitions_tracking.py  # 상태 전이 추적
 ```
 
@@ -540,7 +539,7 @@ python level_2_advanced/03_rag_system.py           # RAG 시스템 평가
 python level_2_advanced/04_tool_selection.py       # 툴 선택 최적화
 python level_2_advanced/05_multi_agent.py          # 멀티 에이전트 협업
 python level_2_advanced/06_workflow.py             # 복잡한 워크플로우 추적
-python level_2_advanced/07_security_advanced.py    # 보안 지표 고급
+python level_2_advanced/07_layer2_security_advanced.py # 보안 지표 고급
 python level_2_advanced/08_advanced_api_methods.py # 고급 API 메서드
 ```
 
@@ -668,7 +667,7 @@ MIT License — 자세한 내용은 [LICENSE](LICENSE) 파일을 참고하세요
   title   = {Agent Evaluator: Production-ready evaluation framework for AI agents},
   author  = {Kim, Sungwoo},
   year    = {2024},
-  version = {0.5.1},
+  version = {0.5.2},
   url     = {https://github.com/bullpeng72/Agent-Evaluator},
   license = {MIT}
 }

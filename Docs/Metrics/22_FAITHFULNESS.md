@@ -2,7 +2,7 @@
 
 Ragas RAG 평가 메트릭 - 사실적 일관성 (Factual Consistency)
 
-Agent Evaluator v0.5.1
+Agent Evaluator v0.5.2
 
 Ragas Layer 3 RAG Evaluation
 
@@ -329,7 +329,7 @@ Faithfulness는 LLM 기반 정교한 평가
   * [Context Precision 문서](<./24_CONTEXT_PRECISION.html>)
   * [Context Recall 문서](<./25_CONTEXT_RECALL.html>)
 
-**Agent Evaluator v0.5.1** \- Layer 3 Ragas Metrics
+**Agent Evaluator v0.5.2** \- Layer 3 Ragas Metrics
 
 Faithfulness: RAG 시스템의 사실적 일관성 평가
 

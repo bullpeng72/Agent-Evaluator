@@ -21,7 +21,7 @@ Layer별 메트릭 상세 설명 및 사용법
 
 **이 가이드는 다음 버전을 기준으로 작성되었습니다:**
 
-  * Agent Evaluator: **v0.5.0**
+  * Agent Evaluator: **v0.5.2**
   * Python: 3.8+
   * DeepEval: 0.20.0+ (선택사항, Layer 3)
   * Ragas: 0.1.0+ (선택사항, Layer 3)
@@ -2393,7 +2393,7 @@ LangGraph | `LangGraphEvaluator` | Evaluator로 그래프 래핑
 CrewAI | `CrewAIEvaluator` | Evaluator로 Crew 래핑  
 AutoGen | `AutoGenEvaluator` | Evaluator로 Agent 래핑  
   
-**📚 v0.5.0 통합 가이드:**
+**📚 v0.5.2 통합 가이드:**
 
   * ✅ **Clean API** : 모든 프레임워크에서 일관된 `Evaluator` 패턴 사용
   * ✅ **Layer 1/2/3 자동 추적** : `enable_layer2=True`로 고급 메트릭 활성화
@@ -2414,8 +2414,8 @@ AutoGen | `AutoGenEvaluator` | Evaluator로 Agent 래핑
 
 * * *
 
-**Agent Evaluator v0.5.1**
+**Agent Evaluator v0.5.2**
 
-**최종 업데이트** : 2025-12-15
+**최종 업데이트** : 2026-03-17
 
 © 2024-2025 MIT License

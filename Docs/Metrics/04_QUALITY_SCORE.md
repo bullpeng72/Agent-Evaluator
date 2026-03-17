@@ -2,7 +2,7 @@
 
 Multi-Dimensional AI Response Quality Evaluation
 
-Agent Evaluator v0.5.1 - Layer 1 Foundation Metric
+Agent Evaluator v0.5.2 - Layer 1 Foundation Metric
 
 ## 🎯 개요
 
@@ -23,7 +23,7 @@ Agent Evaluator v0.5.1 - Layer 1 Foundation Metric
 #### 🏗️ 구현 특징
 
   * **클래스** : `ResponseQualityEvaluator` (agent_evaluator.py:628-921)
-  * **평가 방식** : 5가지 차원 × 가중치 합산
+  * **평가 방식** : 6가지 차원 × 가중치 합산
   * **외부 의존성** : 없음 (Layer 1 Native Metric)
   * **커스터마이징** : 도메인별 가중치 조정 가능
   * **등급 시스템** : A (4.5-5.0) ~ F (0-2.9) 5단계
@@ -96,7 +96,7 @@ Quality = 0.25 × Relevance + 0.25 × Completeness + 0.20 × Accuracy
 메서드 | 라인 | 설명  
 ---|---|---  
 `__init__()` | 631-639 | 평가자 초기화, 가중치 설정  
-`evaluate_response()` | 641-727 | **5차원 품질 평가**  
+`evaluate_response()` | 641-727 | **6차원 품질 평가**  
 `_assign_grade()` | 729-740 | 점수 → 등급 변환 (A-F)  
 `_calculate_similarity()` | 742-782 | Ground Truth 유사도  
 `get_quality_metrics()` | 784-837 | 통계 집계  
@@ -107,15 +107,15 @@ Quality = 0.25 × Relevance + 0.25 × Completeness + 0.20 × Accuracy
 
 **이 섹션에서는** `ResponseQualityEvaluator` 클래스의 핵심 메서드들이 **어떻게 동작하는지** 상세히 설명합니다.
 
-### 1️⃣ evaluate_response() - 5차원 품질 평가 메서드
+### 1️⃣ evaluate_response() - 6차원 품질 평가 메서드
 
-**목적** : AI Agent 응답을 5가지 차원에서 평가하고 가중 평균 점수 계산
+**목적** : AI Agent 응답을 6가지 차원에서 평가하고 가중 평균 점수 계산
 
 **위치** : Lines 641-727
 
-def evaluate_response(self, task_id: str, response: str, request: str, expected_elements: List[str], ground_truth: Optional[str] = None) -> Dict[str, Any]: """5차원 품질 평가 수행""" scores = {} # === 1. Relevance (관련성) 평가 === (Lines 659-668) request_words = set(request.lower().split()) response_words = set(response.lower().split()) if not request_words: relevance = 0.0 else: # 키워드 겹침 비율 계산 relevance = len(request_words & response_words) / len(request_words) scores["relevance"] = min(relevance * 5, 5.0) # === 2. Completeness (완전성) 평가 === (Lines 670-679) found_elements = sum(1 for elem in expected_elements if elem.lower() in response.lower()) if expected_elements and len(expected_elements) > 0: completeness = found_elements / len(expected_elements) else: completeness = 1.0 # 요구사항 없으면 100% 완료 scores["completeness"] = completeness * 5 # === 3. Clarity (명확성) 평가 === (Lines 681-685) word_count = len(response.split()) has_structure = '\n' in response or '.' in response clarity = min(word_count / 100, 1.0) * (1.2 if has_structure else 1.0) scores["clarity"] = min(clarity * 5, 5.0) # === 4. Accuracy (정확성) 평가 === (Lines 687-694) if ground_truth: similarity = self._calculate_similarity(response, ground_truth) scores["accuracy"] = similarity * 5 else: # Heuristic: 완전성 기반 추정 scores["accuracy"] = min(completeness * 4.5, 5.0) # === 5. Usefulness (유용성) 평가 === (Lines 696-708) has_examples = any(word in response.lower() for word in ['예를 들어', 'example', ':', '•', '-']) has_numbers = any(char.isdigit() for char in response) usefulness = ( 0.4 * min(word_count / 150, 1.0) + # 적절한 길이 0.3 * (1.0 if has_structure else 0.5) + # 잘 구조화됨 0.2 * (1.0 if has_examples else 0.5) + # 예시 포함 0.1 * (1.0 if has_numbers else 0.5) # 구체적 데이터 ) scores["usefulness"] = usefulness * 5 # === 6. 가중 평균 계산 === (Lines 710-714) total_score = sum( scores[dim] * weight for dim, weight in self.dimensions.items() ) # === 7. 등급 부여 === (Line 716) grade = self._assign_grade(total_score) return { "task_id": task_id, "dimension_scores": scores, "total_score": round(total_score, 2), "grade": grade, "timestamp": datetime.now() } 
+def evaluate_response(self, task_id: str, response: str, request: str, expected_elements: List[str], ground_truth: Optional[str] = None) -> Dict[str, Any]: """6차원 품질 평가 수행""" scores = {} # === 1. Relevance (관련성) 평가 === (Lines 659-668) request_words = set(request.lower().split()) response_words = set(response.lower().split()) if not request_words: relevance = 0.0 else: # 키워드 겹침 비율 계산 relevance = len(request_words & response_words) / len(request_words) scores["relevance"] = min(relevance * 5, 5.0) # === 2. Completeness (완전성) 평가 === (Lines 670-679) found_elements = sum(1 for elem in expected_elements if elem.lower() in response.lower()) if expected_elements and len(expected_elements) > 0: completeness = found_elements / len(expected_elements) else: completeness = 1.0 # 요구사항 없으면 100% 완료 scores["completeness"] = completeness * 5 # === 3. Clarity (명확성) 평가 === (Lines 681-685) word_count = len(response.split()) has_structure = '\n' in response or '.' in response clarity = min(word_count / 100, 1.0) * (1.2 if has_structure else 1.0) scores["clarity"] = min(clarity * 5, 5.0) # === 4. Accuracy (정확성) 평가 === (Lines 687-694) if ground_truth: similarity = self._calculate_similarity(response, ground_truth) scores["accuracy"] = similarity * 5 else: # Heuristic: 완전성 기반 추정 scores["accuracy"] = min(completeness * 4.5, 5.0) # === 5. Usefulness (유용성) 평가 === (Lines 696-708) has_examples = any(word in response.lower() for word in ['예를 들어', 'example', ':', '•', '-']) has_numbers = any(char.isdigit() for char in response) usefulness = ( 0.4 * min(word_count / 150, 1.0) + # 적절한 길이 0.3 * (1.0 if has_structure else 0.5) + # 잘 구조화됨 0.2 * (1.0 if has_examples else 0.5) + # 예시 포함 0.1 * (1.0 if has_numbers else 0.5) # 구체적 데이터 ) scores["usefulness"] = usefulness * 5 # === 6. 가중 평균 계산 === (Lines 710-714) total_score = sum( scores[dim] * weight for dim, weight in self.dimensions.items() ) # === 7. 등급 부여 === (Line 716) grade = self._assign_grade(total_score) return { "task_id": task_id, "dimension_scores": scores, "total_score": round(total_score, 2), "grade": grade, "timestamp": datetime.now() } 
 
-#### 🔍 5가지 평가 차원 상세 알고리즘
+#### 🔍 6가지 평가 차원 상세 알고리즘
 
 #### 📌 1. Relevance (관련성) - 키워드 겹침 비율
 
@@ -206,7 +206,7 @@ def get_quality_metrics(self) -> Dict[str, Any]: """전체 품질 통계 계산"
   * **std_dev** : 점수의 표준편차 (일관성 측정, NaN 처리 포함)
   * **grade_distribution** : 등급별 개수 딕셔너리 `{'A': 15, 'B': 20, ...}`
   * **high_quality_percentage** : A 또는 B 등급 비율
-  * **dimension_averages** : 5가지 차원별 평균 점수
+  * **dimension_averages** : 6가지 차원별 평균 점수
   * **total_evaluations** : 총 평가 건수
 
 #### ⚠️ 구현 한계 및 개선 방안
@@ -225,7 +225,7 @@ def get_quality_metrics(self) -> Dict[str, Any]: """전체 품질 통계 계산"
     * Clarity, Usefulness는 주관적 요소가 많음
     * **개선** : 사용자 피드백 학습 또는 Readability 지표 도입
 
-#### 📊 Response Quality 5차원 평가 흐름
+#### 📊 Response Quality 6차원 평가 흐름
 
 graph TD A[response, request, expected_elements] --> B[1. Relevance 계산  
 키워드 겹침 비율] A --> C[2. Completeness 계산  
@@ -252,7 +252,7 @@ from agent_evaluator import PerformanceMonitor monitor = PerformanceMonitor() # 
 ## 🤖 평가 데이터 자동 처리 방안
 
 **실제 프로젝트에서는 수백~수천 개의 응답 품질을 평가해야 합니다.**  
-Quality Score는 5가지 차원 (Relevance, Completeness, Accuracy, Clarity, Usefulness)을 측정하므로, Expected Elements와 Ground Truth 자동 생성이 핵심입니다. 
+Quality Score는 6가지 차원 (Relevance, Completeness, Accuracy, Clarity, Usefulness)을 측정하므로, Expected Elements와 Ground Truth 자동 생성이 핵심입니다. 
 
 ### 자동화 수준별 전략
 
@@ -282,11 +282,11 @@ from agent_evaluator import PerformanceMonitor, TaskType from concurrent.futures
 
 Expected Elements와 Ground Truth가 포함된 Golden Dataset으로 정확한 품질 평가
 
-**장점** : 5가지 차원 모두 정확 평가
+**장점** : 6가지 차원 모두 정확 평가
 
 **단점** : Golden Dataset 작성 필요
 
-import json from pathlib import Path from agent_evaluator import PerformanceMonitor, TaskType # ============================================================ # Golden Dataset 구조 (Quality 평가용) # ============================================================ golden_dataset_structure = { "dataset_id": "quality_eval_v1", "metadata": { "dataset_name": "Quality Score Golden Dataset", "version": "0.5.0" }, "qa_pairs": [ { "qa_id": "qa_001", "question": "파이썬 리스트 정렬 방법은?", "expected_elements": [ "sort", # Completeness 평가용 "sorted", "차이점", "예시" ], "ground_truth": "sort() 메서드와 sorted() 함수를 사용. sort()는 원본 변경, sorted()는 새 리스트 반환", # Accuracy 평가용 "task_type": "qa" } ] } # ============================================================ # Golden Dataset 로드 및 평가 # ============================================================ dataset_path = Path("Evaluator_Examples/Dashboard/data/golden_datasets/quality_eval_dataset.json") with open(dataset_path, 'r', encoding='utf-8') as f: golden_data = json.load(f) monitor = PerformanceMonitor() print(f"📦 Golden Dataset: {golden_data['metadata']['dataset_name']}") print(f" 총 {len(golden_data['qa_pairs'])}개 테스트 케이스\n") for qa_pair in golden_data["qa_pairs"]: print(f"평가: {qa_pair['qa_id']}") # Agent 실행 agent_response = your_agent.run(qa_pair["question"]) # 품질 평가 (5차원 모두 정확) monitor.record_task( task_id=qa_pair["qa_id"], task_type=getattr(TaskType, qa_pair["task_type"].upper(), TaskType.QA), success=True, latency=1.0, completion_score=1.0, request=qa_pair["question"], ← Relevance expected_output=qa_pair["expected_elements"], ← Completeness ground_truth=qa_pair["ground_truth"], ← Accuracy actual_output=agent_response ← Clarity, Usefulness ) # 결과 확인 quality_stats = monitor.quality_evaluator.get_quality_metrics() print(f"\n✅ Average Quality: {quality_stats['avg_total_score']:.2f}") print(f"Grade Distribution: {quality_stats['grade_distribution']}") # 차원별 점수 dimensions = quality_stats['dimension_averages'] print(f"\n=== Dimension Scores ===") print(f"Relevance: {dimensions['relevance']:.2f}") print(f"Completeness: {dimensions['completeness']:.2f}") print(f"Accuracy: {dimensions['accuracy']:.2f}") print(f"Clarity: {dimensions['clarity']:.2f}") print(f"Usefulness: {dimensions['usefulness']:.2f}") 
+import json from pathlib import Path from agent_evaluator import PerformanceMonitor, TaskType # ============================================================ # Golden Dataset 구조 (Quality 평가용) # ============================================================ golden_dataset_structure = { "dataset_id": "quality_eval_v1", "metadata": { "dataset_name": "Quality Score Golden Dataset", "version": "0.5.2" }, "qa_pairs": [ { "qa_id": "qa_001", "question": "파이썬 리스트 정렬 방법은?", "expected_elements": [ "sort", # Completeness 평가용 "sorted", "차이점", "예시" ], "ground_truth": "sort() 메서드와 sorted() 함수를 사용. sort()는 원본 변경, sorted()는 새 리스트 반환", # Accuracy 평가용 "task_type": "qa" } ] } # ============================================================ # Golden Dataset 로드 및 평가 # ============================================================ dataset_path = Path("Evaluator_Examples/Dashboard/data/golden_datasets/quality_eval_dataset.json") with open(dataset_path, 'r', encoding='utf-8') as f: golden_data = json.load(f) monitor = PerformanceMonitor() print(f"📦 Golden Dataset: {golden_data['metadata']['dataset_name']}") print(f" 총 {len(golden_data['qa_pairs'])}개 테스트 케이스\n") for qa_pair in golden_data["qa_pairs"]: print(f"평가: {qa_pair['qa_id']}") # Agent 실행 agent_response = your_agent.run(qa_pair["question"]) # 품질 평가 (6차원 모두 정확) monitor.record_task( task_id=qa_pair["qa_id"], task_type=getattr(TaskType, qa_pair["task_type"].upper(), TaskType.QA), success=True, latency=1.0, completion_score=1.0, request=qa_pair["question"], ← Relevance expected_output=qa_pair["expected_elements"], ← Completeness ground_truth=qa_pair["ground_truth"], ← Accuracy actual_output=agent_response ← Clarity, Usefulness ) # 결과 확인 quality_stats = monitor.quality_evaluator.get_quality_metrics() print(f"\n✅ Average Quality: {quality_stats['avg_total_score']:.2f}") print(f"Grade Distribution: {quality_stats['grade_distribution']}") # 차원별 점수 dimensions = quality_stats['dimension_averages'] print(f"\n=== Dimension Scores ===") print(f"Relevance: {dimensions['relevance']:.2f}") print(f"Completeness: {dimensions['completeness']:.2f}") print(f"Accuracy: {dimensions['accuracy']:.2f}") print(f"Clarity: {dimensions['clarity']:.2f}") print(f"Usefulness: {dimensions['usefulness']:.2f}") 
 
 ### Level 3: LLM 기반 Expected Elements 자동 생성
 
@@ -400,7 +400,7 @@ from agent_evaluator import ResponseQualityEvaluator # 기본 가중치 evaluato
 
 **Quality Score (품질 점수)** 는 AI Agent 응답의 종합 품질을 다차원으로 평가하는 핵심 메트릭입니다. 
 
-  * **5가지 차원** : Relevance (25%), Completeness (25%), Accuracy (20%), Clarity (15%), Usefulness (15%)
+  * **6가지 차원** : Relevance (25%), Completeness (25%), Accuracy (20%), Clarity (15%), Usefulness (15%)
   * **0-5점 척도** : 가중 평균으로 종합 품질 점수 계산
   * **등급 시스템** : A (4.5-5.0) ~ F (0-2.9) 5단계 분류
   * **가중치 조정** : 도메인 특성에 맞게 차원별 가중치 커스터마이징 가능
@@ -415,7 +415,7 @@ Layer 1 네이티브 메트릭으로 외부 의존성 없이 다차원 품질 �
   * [종합 학습 가이드](<../LEARNING_GUIDE.html>)
   * [전체 지표 인덱스](<ALL_METRICS_INDEX.html>)
 
-**최종 업데이트** : 2025-12-16 | **버전** : Agent Evaluator v0.5.1
+**최종 업데이트** : 2026-03-17 | **버전** : Agent Evaluator v0.5.2
 
 **문서** : Quality Score 상세 가이드
 

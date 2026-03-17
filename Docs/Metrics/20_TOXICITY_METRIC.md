@@ -2,7 +2,7 @@
 
 Harmful Content Detection with DeepEval
 
-Agent Evaluator v0.5.1 - Layer 3 DeepEval Metric
+Agent Evaluator v0.5.2 - Layer 3 DeepEval Metric
 
 ## 🎯 개요
 

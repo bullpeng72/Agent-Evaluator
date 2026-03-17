@@ -2,7 +2,7 @@
 
 Token Usage and Cost Tracking for AI Agents
 
-Agent Evaluator v0.5.1 - Layer 1 Foundation Metric
+Agent Evaluator v0.5.2 - Layer 1 Foundation Metric
 
 ## 📊 개요
 

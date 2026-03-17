@@ -2205,7 +2205,7 @@ Import 에러 | 프레임워크 미설치 | `pip install langchain crewai langgr
 
 ## 문서 검증 정보
 
-**검증 날짜** : 2025-12-16 **검증 대상** : `agent_evaluator/core/agent_evaluator.py` **검증 범위** : \- ✅ `ToolCallAnalyzer` (lines 1195-1343) \- ✅ `ToolSelectionTracker` (lines 1444-1508) \- ✅ `AgentCoordinationTracker` (lines 1515-1746) \- ✅ `WorkflowExecutionTracker` (lines 1752-1971) \- ✅ Framework Integrations (`agent_evaluator/integrations/`) \- ✅ 예제 코드 (`Evaluator_Examples/framework_with_layer2_example.py`)
+**검증 날짜** : 2026-03-17 **검증 대상** : `agent_evaluator/core/agent_evaluator.py` **검증 범위** : \- ✅ `ToolCallAnalyzer` (lines 1195-1343) \- ✅ `ToolSelectionTracker` (lines 1444-1508) \- ✅ `AgentCoordinationTracker` (lines 1515-1746) \- ✅ `WorkflowExecutionTracker` (lines 1752-1971) \- ✅ Framework Integrations (`agent_evaluator/integrations/`) \- ✅ 예제 코드 (`Evaluator_Examples/framework_with_layer2_example.py`)
 
 **주요 개선사항** : 1. 실제 구현과 문서 설명 일치 확인 2. 메서드 시그니처 및 반환값 검증 3. 계산 공식 상세 설명 추가 4. 5개 실전 예제 추가 (RAG, Multi-Agent, LangGraph, Golden Dataset, CI/CD) 5. 9개 트러블슈팅 시나리오 추가 6. AutoGen 통합 예제 추가 7. Framework 비교표 추가 8. 빠른 체크리스트 및 코드 템플릿 추가
 
@@ -2219,7 +2219,7 @@ Layer 2 메트릭에 대한 질문이나 피드백이 있으시면 프로젝트 
 
 * * *
 
-**최종 업데이트** : 2025-12-16  
-**버전** : Agent Evaluator v0.5.1  
+**최종 업데이트** : 2026-03-17
+**버전** : Agent Evaluator v0.5.2
 **프로젝트** : Agent Evaluator - AI Agent Performance Evaluation System  
 **문서** : Agentic AI Metrics Guide (Layer 2)

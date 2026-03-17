@@ -2,7 +2,7 @@
 
 LangChain/LangGraph Workflow Performance Analysis
 
-Agent Evaluator v0.5.1 - Layer 2 Advanced Metric
+Agent Evaluator v0.5.2 - Layer 2 Advanced Metric
 
 ## 🎯 개요
 
@@ -259,7 +259,7 @@ Layer 2 메트릭으로 복잡한 워크플로우의 성능 병목을 분석하�
   * [LangChain Documentation](<https://python.langchain.com/>)
   * [LangGraph Documentation](<https://langchain-ai.github.io/langgraph/>)
 
-**최종 업데이트** : 2025-12-18 | **버전** : Agent Evaluator v0.5.1
+**최종 업데이트** : 2026-03-17 | **버전** : Agent Evaluator v0.5.2
 
 **문서** : Workflow Execution Tracking 상세 가이드 (Layer 2 Metric)
 

@@ -2,7 +2,7 @@
 
 Malicious Tool Usage Pattern Analysis
 
-Agent Evaluator v0.5.1 - Layer 2 Security Metric
+Agent Evaluator v0.5.2 - Layer 2 Security Metric
 
 ## 🎯 개요
 
@@ -327,7 +327,7 @@ Layer 2 보안 메트릭으로 복잡한 공격 시나리오를 탐지하며, �
   * [MITRE ATT&CK Framework](<https://attack.mitre.org/>)
   * [OWASP Top 10](<https://owasp.org/www-project-top-ten/>)
 
-**최종 업데이트** : 2025-12-18 | **버전** : Agent Evaluator v0.5.1
+**최종 업데이트** : 2026-03-17 | **버전** : Agent Evaluator v0.5.2
 
 **문서** : Tool Chain Attack Detection 상세 가이드 (Layer 2 Security)
 

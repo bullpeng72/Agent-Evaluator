@@ -1132,12 +1132,12 @@ Agent Evaluator의 다양한 기능에 대해 더 알아보세요:
 
 이제 Agent Evaluator의 기본을 모두 배웠습니다. 실제 프로젝트에 적용해보세요!
 
-**Agent Evaluator v0.5.1**
+**Agent Evaluator v0.5.2**
 
 개발자: **KIM SUNGWOO**
 
 Email: [sungwoo.kim@gmail.com](<mailto:sungwoo.kim@gmail.com>)
 
-**최종 업데이트** : 2025-12-16
+**최종 업데이트** : 2026-03-17
 
 © 2024-2025 MIT License
