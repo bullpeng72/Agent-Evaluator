@@ -1,0 +1,65 @@
+{
+  "trace_id": "trace_hallucination_detection_e5ad91dc",
+  "metric_name": "hallucination_detection",
+  "metric_type": "validation",
+  "task_id": "halluc_validation",
+  "start_time": "2026-03-17T21:55:33.665513",
+  "steps": [
+    {
+      "step_name": "validate_halluc_001",
+      "description": "Checking: 에펠탑의 높이는?",
+      "input_data": {
+        "question": "에펠탑의 높이는?",
+        "context": "에펠탑은 프랑스 파리에 있는 철탑으로 높이는 324미터입니다.",
+        "response": "에펠탑은 324미터입니다."
+      },
+      "output_data": {
+        "is_hallucination": false,
+        "hallucination_type": "none",
+        "ground_truth": "324미터"
+      },
+      "status": "success",
+      "timestamp": "2026-03-17T21:55:33.665525"
+    },
+    {
+      "step_name": "validate_halluc_002",
+      "description": "Checking: 한국의 수도는?",
+      "input_data": {
+        "question": "한국의 수도는?",
+        "context": "대한민국의 수도는 서울특별시입니다.",
+        "response": "한국의 수도는 부산입니다."
+      },
+      "output_data": {
+        "is_hallucination": true,
+        "hallucination_type": "factual_error",
+        "ground_truth": "서울"
+      },
+      "status": "failed",
+      "timestamp": "2026-03-17T21:55:33.665534"
+    },
+    {
+      "step_name": "validate_halluc_003",
+      "description": "Checking: 태양계의 행성 개수는?",
+      "input_data": {
+        "question": "태양계의 행성 개수는?",
+        "context": "태양계에는 8개의 행성이 있습니다. 명왕성은 2006년 왜소행성으로 재분류되었습니다.",
+        "response": "태양계에는 9개의 행성이 있습니다. 명왕성을 포함하면 10개입니다."
+      },
+      "output_data": {
+        "is_hallucination": true,
+        "hallucination_type": "fabrication",
+        "ground_truth": "8개"
+      },
+      "status": "failed",
+      "timestamp": "2026-03-17T21:55:33.665544"
+    }
+  ],
+  "status": "completed",
+  "final_value": 0.33333333333333337,
+  "metadata": {
+    "hallucination_rate": 0.6666666666666666,
+    "detected": 2,
+    "total": 3
+  },
+  "end_time": "2026-03-17T21:55:33.665552"
+}

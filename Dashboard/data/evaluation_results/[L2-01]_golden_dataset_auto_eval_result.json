@@ -1,0 +1,801 @@
+{
+  "tasks": [
+    {
+      "task_id": "qa_001",
+      "task_type": "qa",
+      "success": true,
+      "completion_score": 1.0,
+      "accuracy_score": 0.30000000000000004,
+      "execution_time": 1.2,
+      "tokens_used": {
+        "input": 0,
+        "output": 0
+      },
+      "tool_calls": [
+        {
+          "name": "search",
+          "success": true,
+          "duration": 0.5
+        },
+        {
+          "name": "knowledge_base",
+          "success": true,
+          "duration": 0.3
+        }
+      ],
+      "attempts": 0,
+      "errors": [],
+      "timestamp": "2026-03-17T21:56:53.853302",
+      "agent_interactions": null,
+      "chain_steps": null,
+      "graph_traversal": null,
+      "conversation_turns": null,
+      "expected_tools": [
+        "search",
+        "knowledge_base"
+      ],
+      "state_transitions": null,
+      "framework": null
+    },
+    {
+      "task_id": "qa_002",
+      "task_type": "qa",
+      "success": true,
+      "completion_score": 1.0,
+      "accuracy_score": 0.30000000000000004,
+      "execution_time": 0.9,
+      "tokens_used": {
+        "input": 0,
+        "output": 0
+      },
+      "tool_calls": [
+        {
+          "name": "knowledge_base",
+          "success": true,
+          "duration": 0.4
+        }
+      ],
+      "attempts": 0,
+      "errors": [],
+      "timestamp": "2026-03-17T21:56:53.853623",
+      "agent_interactions": null,
+      "chain_steps": null,
+      "graph_traversal": null,
+      "conversation_turns": null,
+      "expected_tools": [
+        "search",
+        "knowledge_base"
+      ],
+      "state_transitions": null,
+      "framework": null
+    },
+    {
+      "task_id": "qa_003",
+      "task_type": "qa",
+      "success": true,
+      "completion_score": 1.0,
+      "accuracy_score": 0.30000000000000004,
+      "execution_time": 1.1,
+      "tokens_used": {
+        "input": 0,
+        "output": 0
+      },
+      "tool_calls": [
+        {
+          "name": "search",
+          "success": true,
+          "duration": 0.6
+        }
+      ],
+      "attempts": 0,
+      "errors": [],
+      "timestamp": "2026-03-17T21:56:53.853832",
+      "agent_interactions": null,
+      "chain_steps": null,
+      "graph_traversal": null,
+      "conversation_turns": null,
+      "expected_tools": [
+        "search",
+        "knowledge_base"
+      ],
+      "state_transitions": null,
+      "framework": null
+    },
+    {
+      "task_id": "qa_004",
+      "task_type": "qa",
+      "success": true,
+      "completion_score": 1.0,
+      "accuracy_score": 0.55,
+      "execution_time": 0.8,
+      "tokens_used": {
+        "input": 0,
+        "output": 0
+      },
+      "tool_calls": [
+        {
+          "name": "knowledge_base",
+          "success": true,
+          "duration": 0.3
+        }
+      ],
+      "attempts": 0,
+      "errors": [],
+      "timestamp": "2026-03-17T21:56:53.854123",
+      "agent_interactions": null,
+      "chain_steps": null,
+      "graph_traversal": null,
+      "conversation_turns": null,
+      "expected_tools": [
+        "knowledge_base"
+      ],
+      "state_transitions": null,
+      "framework": null
+    },
+    {
+      "task_id": "qa_005",
+      "task_type": "qa",
+      "success": true,
+      "completion_score": 1.0,
+      "accuracy_score": 0.55,
+      "execution_time": 1.0,
+      "tokens_used": {
+        "input": 0,
+        "output": 0
+      },
+      "tool_calls": [
+        {
+          "name": "knowledge_base",
+          "success": true,
+          "duration": 0.4
+        },
+        {
+          "name": "search",
+          "success": true,
+          "duration": 0.2
+        }
+      ],
+      "attempts": 0,
+      "errors": [],
+      "timestamp": "2026-03-17T21:56:53.854390",
+      "agent_interactions": null,
+      "chain_steps": null,
+      "graph_traversal": null,
+      "conversation_turns": null,
+      "expected_tools": [
+        "knowledge_base",
+        "search"
+      ],
+      "state_transitions": null,
+      "framework": null
+    },
+    {
+      "task_id": "qa_006",
+      "task_type": "qa",
+      "success": true,
+      "completion_score": 1.0,
+      "accuracy_score": 0.04000000000000001,
+      "execution_time": 0.5,
+      "tokens_used": {
+        "input": 0,
+        "output": 0
+      },
+      "tool_calls": [
+        {
+          "name": "search",
+          "success": false,
+          "duration": 0.2
+        }
+      ],
+      "attempts": 0,
+      "errors": [],
+      "timestamp": "2026-03-17T21:56:53.854627",
+      "agent_interactions": null,
+      "chain_steps": null,
+      "graph_traversal": null,
+      "conversation_turns": null,
+      "expected_tools": [
+        "calculator",
+        "knowledge_base"
+      ],
+      "state_transitions": null,
+      "framework": null
+    },
+    {
+      "task_id": "qa_007",
+      "task_type": "qa",
+      "success": true,
+      "completion_score": 1.0,
+      "accuracy_score": 0.016666666666666666,
+      "execution_time": 0.5,
+      "tokens_used": {
+        "input": 0,
+        "output": 0
+      },
+      "tool_calls": [
+        {
+          "name": "search",
+          "success": false,
+          "duration": 0.2
+        }
+      ],
+      "attempts": 0,
+      "errors": [],
+      "timestamp": "2026-03-17T21:56:53.854876",
+      "agent_interactions": null,
+      "chain_steps": null,
+      "graph_traversal": null,
+      "conversation_turns": null,
+      "expected_tools": [
+        "knowledge_base"
+      ],
+      "state_transitions": null,
+      "framework": null
+    },
+    {
+      "task_id": "qa_008",
+      "task_type": "qa",
+      "success": true,
+      "completion_score": 1.0,
+      "accuracy_score": 0.0,
+      "execution_time": 0.5,
+      "tokens_used": {
+        "input": 0,
+        "output": 0
+      },
+      "tool_calls": [
+        {
+          "name": "search",
+          "success": false,
+          "duration": 0.2
+        }
+      ],
+      "attempts": 0,
+      "errors": [],
+      "timestamp": "2026-03-17T21:56:53.855037",
+      "agent_interactions": null,
+      "chain_steps": null,
+      "graph_traversal": null,
+      "conversation_turns": null,
+      "expected_tools": [
+        "knowledge_base",
+        "search"
+      ],
+      "state_transitions": null,
+      "framework": null
+    },
+    {
+      "task_id": "qa_009",
+      "task_type": "qa",
+      "success": true,
+      "completion_score": 1.0,
+      "accuracy_score": 0.027777777777777776,
+      "execution_time": 0.5,
+      "tokens_used": {
+        "input": 0,
+        "output": 0
+      },
+      "tool_calls": [
+        {
+          "name": "search",
+          "success": false,
+          "duration": 0.2
+        }
+      ],
+      "attempts": 0,
+      "errors": [],
+      "timestamp": "2026-03-17T21:56:53.855258",
+      "agent_interactions": null,
+      "chain_steps": null,
+      "graph_traversal": null,
+      "conversation_turns": null,
+      "expected_tools": [
+        "knowledge_base"
+      ],
+      "state_transitions": null,
+      "framework": null
+    },
+    {
+      "task_id": "qa_010",
+      "task_type": "qa",
+      "success": true,
+      "completion_score": 1.0,
+      "accuracy_score": 0.0,
+      "execution_time": 0.5,
+      "tokens_used": {
+        "input": 0,
+        "output": 0
+      },
+      "tool_calls": [
+        {
+          "name": "search",
+          "success": false,
+          "duration": 0.2
+        }
+      ],
+      "attempts": 0,
+      "errors": [],
+      "timestamp": "2026-03-17T21:56:53.855403",
+      "agent_interactions": null,
+      "chain_steps": null,
+      "graph_traversal": null,
+      "conversation_turns": null,
+      "expected_tools": [
+        "search",
+        "knowledge_base"
+      ],
+      "state_transitions": null,
+      "framework": null
+    }
+  ],
+  "pricing": {
+    "input": 0.003,
+    "output": 0.015
+  },
+  "timestamp": "2026-03-17T21:56:53.869668",
+  "evaluators": {
+    "quality": {
+      "evaluations": []
+    },
+    "hallucination": {
+      "detections": []
+    },
+    "retry": {
+      "attempts": []
+    },
+    "tool_selection": {
+      "selections": [
+        {
+          "task_id": "qa_001",
+          "expected_tools": [
+            "search",
+            "knowledge_base"
+          ],
+          "actual_tools": [
+            "search",
+            "knowledge_base"
+          ],
+          "true_positives": 2,
+          "false_positives": 0,
+          "false_negatives": 0,
+          "precision": 100.0,
+          "recall": 100.0,
+          "f1_score": 100.0,
+          "accuracy": 100.0
+        },
+        {
+          "task_id": "qa_001",
+          "expected_tools": [
+            "search",
+            "knowledge_base"
+          ],
+          "actual_tools": [],
+          "true_positives": 0,
+          "false_positives": 0,
+          "false_negatives": 2,
+          "precision": 0,
+          "recall": 0.0,
+          "f1_score": 0,
+          "accuracy": 0
+        },
+        {
+          "task_id": "qa_002",
+          "expected_tools": [
+            "search",
+            "knowledge_base"
+          ],
+          "actual_tools": [
+            "knowledge_base"
+          ],
+          "true_positives": 1,
+          "false_positives": 0,
+          "false_negatives": 1,
+          "precision": 100.0,
+          "recall": 50.0,
+          "f1_score": 66.67,
+          "accuracy": 66.67
+        },
+        {
+          "task_id": "qa_002",
+          "expected_tools": [
+            "search",
+            "knowledge_base"
+          ],
+          "actual_tools": [],
+          "true_positives": 0,
+          "false_positives": 0,
+          "false_negatives": 2,
+          "precision": 0,
+          "recall": 0.0,
+          "f1_score": 0,
+          "accuracy": 0
+        },
+        {
+          "task_id": "qa_003",
+          "expected_tools": [
+            "search",
+            "knowledge_base"
+          ],
+          "actual_tools": [
+            "search"
+          ],
+          "true_positives": 1,
+          "false_positives": 0,
+          "false_negatives": 1,
+          "precision": 100.0,
+          "recall": 50.0,
+          "f1_score": 66.67,
+          "accuracy": 66.67
+        },
+        {
+          "task_id": "qa_003",
+          "expected_tools": [
+            "search",
+            "knowledge_base"
+          ],
+          "actual_tools": [],
+          "true_positives": 0,
+          "false_positives": 0,
+          "false_negatives": 2,
+          "precision": 0,
+          "recall": 0.0,
+          "f1_score": 0,
+          "accuracy": 0
+        },
+        {
+          "task_id": "qa_004",
+          "expected_tools": [
+            "knowledge_base"
+          ],
+          "actual_tools": [
+            "knowledge_base"
+          ],
+          "true_positives": 1,
+          "false_positives": 0,
+          "false_negatives": 0,
+          "precision": 100.0,
+          "recall": 100.0,
+          "f1_score": 100.0,
+          "accuracy": 100.0
+        },
+        {
+          "task_id": "qa_004",
+          "expected_tools": [
+            "knowledge_base"
+          ],
+          "actual_tools": [],
+          "true_positives": 0,
+          "false_positives": 0,
+          "false_negatives": 1,
+          "precision": 0,
+          "recall": 0.0,
+          "f1_score": 0,
+          "accuracy": 0
+        },
+        {
+          "task_id": "qa_005",
+          "expected_tools": [
+            "knowledge_base",
+            "search"
+          ],
+          "actual_tools": [
+            "knowledge_base",
+            "search"
+          ],
+          "true_positives": 2,
+          "false_positives": 0,
+          "false_negatives": 0,
+          "precision": 100.0,
+          "recall": 100.0,
+          "f1_score": 100.0,
+          "accuracy": 100.0
+        },
+        {
+          "task_id": "qa_005",
+          "expected_tools": [
+            "knowledge_base",
+            "search"
+          ],
+          "actual_tools": [],
+          "true_positives": 0,
+          "false_positives": 0,
+          "false_negatives": 2,
+          "precision": 0,
+          "recall": 0.0,
+          "f1_score": 0,
+          "accuracy": 0
+        },
+        {
+          "task_id": "qa_006",
+          "expected_tools": [
+            "calculator",
+            "knowledge_base"
+          ],
+          "actual_tools": [
+            "search"
+          ],
+          "true_positives": 0,
+          "false_positives": 1,
+          "false_negatives": 2,
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1_score": 0,
+          "accuracy": 0
+        },
+        {
+          "task_id": "qa_006",
+          "expected_tools": [
+            "calculator",
+            "knowledge_base"
+          ],
+          "actual_tools": [],
+          "true_positives": 0,
+          "false_positives": 0,
+          "false_negatives": 2,
+          "precision": 0,
+          "recall": 0.0,
+          "f1_score": 0,
+          "accuracy": 0
+        },
+        {
+          "task_id": "qa_007",
+          "expected_tools": [
+            "knowledge_base"
+          ],
+          "actual_tools": [
+            "search"
+          ],
+          "true_positives": 0,
+          "false_positives": 1,
+          "false_negatives": 1,
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1_score": 0,
+          "accuracy": 0
+        },
+        {
+          "task_id": "qa_007",
+          "expected_tools": [
+            "knowledge_base"
+          ],
+          "actual_tools": [],
+          "true_positives": 0,
+          "false_positives": 0,
+          "false_negatives": 1,
+          "precision": 0,
+          "recall": 0.0,
+          "f1_score": 0,
+          "accuracy": 0
+        },
+        {
+          "task_id": "qa_008",
+          "expected_tools": [
+            "knowledge_base",
+            "search"
+          ],
+          "actual_tools": [
+            "search"
+          ],
+          "true_positives": 1,
+          "false_positives": 0,
+          "false_negatives": 1,
+          "precision": 100.0,
+          "recall": 50.0,
+          "f1_score": 66.67,
+          "accuracy": 66.67
+        },
+        {
+          "task_id": "qa_008",
+          "expected_tools": [
+            "knowledge_base",
+            "search"
+          ],
+          "actual_tools": [],
+          "true_positives": 0,
+          "false_positives": 0,
+          "false_negatives": 2,
+          "precision": 0,
+          "recall": 0.0,
+          "f1_score": 0,
+          "accuracy": 0
+        },
+        {
+          "task_id": "qa_009",
+          "expected_tools": [
+            "knowledge_base"
+          ],
+          "actual_tools": [
+            "search"
+          ],
+          "true_positives": 0,
+          "false_positives": 1,
+          "false_negatives": 1,
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1_score": 0,
+          "accuracy": 0
+        },
+        {
+          "task_id": "qa_009",
+          "expected_tools": [
+            "knowledge_base"
+          ],
+          "actual_tools": [],
+          "true_positives": 0,
+          "false_positives": 0,
+          "false_negatives": 1,
+          "precision": 0,
+          "recall": 0.0,
+          "f1_score": 0,
+          "accuracy": 0
+        },
+        {
+          "task_id": "qa_010",
+          "expected_tools": [
+            "search",
+            "knowledge_base"
+          ],
+          "actual_tools": [
+            "search"
+          ],
+          "true_positives": 1,
+          "false_positives": 0,
+          "false_negatives": 1,
+          "precision": 100.0,
+          "recall": 50.0,
+          "f1_score": 66.67,
+          "accuracy": 66.67
+        },
+        {
+          "task_id": "qa_010",
+          "expected_tools": [
+            "search",
+            "knowledge_base"
+          ],
+          "actual_tools": [],
+          "true_positives": 0,
+          "false_positives": 0,
+          "false_negatives": 2,
+          "precision": 0,
+          "recall": 0.0,
+          "f1_score": 0,
+          "accuracy": 0
+        }
+      ]
+    },
+    "agent_coordination": {
+      "interactions": []
+    },
+    "workflow": {
+      "executions": []
+    }
+  },
+  "rag_metrics": {
+    "faithfulness": [],
+    "answer_relevancy": [],
+    "context_recall": [],
+    "context_precision": []
+  },
+  "total_tasks": 10,
+  "accuracy_metrics": {
+    "tcr": {
+      "tcr": 100.0,
+      "total_tasks": 10,
+      "full_success": 10,
+      "partial_success": 0,
+      "failures": 0,
+      "success_rate": 100.0
+    },
+    "accuracy_scores": {
+      "overall_accuracy": 20.84,
+      "median_accuracy": 17.0,
+      "min_accuracy": 0.0,
+      "max_accuracy": 55.0,
+      "std_accuracy": 21.6
+    },
+    "hallucination": {
+      "overall_rate": 0.0,
+      "total_evaluated": 0,
+      "total_flagged": 0,
+      "unsupported_claims_count": 0,
+      "numerical_inconsistencies_count": 0
+    },
+    "quality": {}
+  },
+  "efficiency_metrics": {
+    "latency": {
+      "mean": 0.75,
+      "median": 0.65,
+      "p50": 0.65,
+      "p95": 1.155,
+      "p99": 1.191,
+      "min": 0.5,
+      "max": 1.2,
+      "std": 0.284
+    },
+    "tokens": {
+      "total_tasks": 10,
+      "total_tokens": 0,
+      "total_input_tokens": 0,
+      "total_output_tokens": 0,
+      "total_cost": 0.0,
+      "avg_tokens_per_task": 0.0,
+      "avg_cost_per_task": 0.0,
+      "estimated_monthly_cost": 0.0,
+      "token_distribution": {
+        "input_ratio": 0,
+        "output_ratio": 0
+      },
+      "cost_percentiles": {
+        "p50": 0.0,
+        "p90": 0.0,
+        "p95": 0.0
+      }
+    },
+    "tool_efficiency": {
+      "total_calls": 12,
+      "success_rate": 58.33,
+      "avg_duration": 0.3,
+      "avg_calls_per_task": 1.2,
+      "avg_efficiency_score": 50.0,
+      "total_redundant_calls": 0,
+      "total_failed_calls": 5,
+      "redundancy_rate": 0.0,
+      "failure_rate": 41.67
+    },
+    "retries": {}
+  },
+  "quality_metrics": {},
+  "security_metrics": {},
+  "recommendations": [
+    {
+      "area": "\uc815\ud655\ub3c4 \uac1c\uc120",
+      "title": "\uc815\ub2f5 \uc815\ud655\ub3c4\uac00 \uae30\uc900\uce58 \ub300\ube44 64.2%p \ubd80\uc871",
+      "priority": "high",
+      "issue": "\ud604\uc7ac \uc815\ud655\ub3c4 20.8% (\ubaa9\ud45c: 85% \uc774\uc0c1). \uc751\ub2f5\uc758 \uc0ac\uc2e4 \uc815\ud655\uc131\uc774 \ubd80\uc871\ud558\uc5ec \uc0ac\uc6a9\uc790\uc5d0\uac8c \uc798\ubabb\ub41c \uc815\ubcf4\ub97c \uc81c\uacf5\ud560 \uc704\ud5d8\uc774 \uc788\uc2b5\ub2c8\ub2e4.",
+      "suggestion": "**\uc989\uc2dc \uc2e4\ud589 \uac00\ub2a5\ud55c \uac1c\uc120 \ubc29\uc548:**\n1. **\uac80\uc99d \ub2e8\uacc4 \ucd94\uac00**:\n   - RAG \uae30\ubc18 \uc791\uc5c5: \uac80\uc0c9\ub41c \ucee8\ud14d\uc2a4\ud2b8\uc640 \uc751\ub2f5\uc758 \uc77c\uce58\uc131\uc744 \uc790\ub3d9 \uac80\uc99d\ud558\ub294 \ud6c4\ucc98\ub9ac \ub2e8\uacc4 \ucd94\uac00\n   - \uacc4\uc0b0/\ucd94\ub860 \uc791\uc5c5: \uc911\uac04 \ub2e8\uacc4 \uacb0\uacfc\ub97c \uba85\uc2dc\uc801\uc73c\ub85c \ucd9c\ub825\ud558\uace0 \uac80\uc99d\n2. **Few-shot \uc608\uc2dc \uc81c\uacf5**: \uc791\uc5c5 \uc720\ud615\ubcc4\ub85c 3-5\uac1c\uc758 \uace0\ud488\uc9c8 \uc608\uc2dc\ub97c \ud504\ub86c\ud504\ud2b8\uc5d0 \ud3ec\ud568\n3. **\ud504\ub86c\ud504\ud2b8 \uad6c\uc870\ud654**:\n   - \ub2e8\uacc4\ubcc4 \uc0ac\uace0 \uacfc\uc815(Chain-of-Thought) \uc720\ub3c4\n   - \ucd5c\uc885 \ub2f5\ubcc0 \uc804 \uc790\uae30 \uac80\uc99d(Self-verification) \ub2e8\uacc4 \ucd94\uac00\n4. **Golden Dataset \ud65c\uc6a9**: \ud604\uc7ac \ud3c9\uac00 \ub370\uc774\ud130\uc14b\uc744 \uae30\ubc18\uc73c\ub85c \uc624\ub2f5 \ud328\ud134 \ubd84\uc11d \ubc0f \ud559\uc2b5 \ub370\uc774\ud130 \ubcf4\uac15\n5. **\ubaa8\ub378 \ud30c\ub77c\ubbf8\ud130 \uc870\uc815**: Temperature \ub0ae\ucd94\uae30(0.3-0.5), Top-P \uc870\uc815\uc73c\ub85c \uc77c\uad00\uc131 \ud5a5\uc0c1",
+      "impact": "**\uc608\uc0c1 \uac1c\uc120 \ud6a8\uacfc:**\n\u2022 \uc815\ud655\ub3c4 85% \ub2ec\uc131 \uc2dc \uc624\ub2f5\ub960 79.2% \u2192 15%\ub85c 64.2%p \uac10\uc18c\n\u2022 \uc0ac\uc6a9\uc790 \uc2e0\ub8b0\ub3c4 20-30% \ud5a5\uc0c1\n\u2022 \uc798\ubabb\ub41c \uc815\ubcf4\ub85c \uc778\ud55c \ube44\uc988\ub2c8\uc2a4 \ub9ac\uc2a4\ud06c 79% \uac10\uc18c\n\u2022 \uc0ac\uc2e4 \ud655\uc778 \ubc0f \uc218\uc815 \uc791\uc5c5 \uc2dc\uac04 \uc8fc\ub2f9 10-15\uc2dc\uac04 \uc808\uac10"
+    }
+  ],
+  "alerts": [
+    {
+      "severity": "critical",
+      "metric": "\uc815\ud655\ub3c4 (Accuracy)",
+      "message": "\uc815\ud655\ub3c4\uac00 20.8%\uc785\ub2c8\ub2e4 (85.0% \uae30\uc900 \ubbf8\ub2ec)",
+      "action": "\uc989\uc2dc \uac80\uc99d \ub85c\uc9c1\uc744 \uac15\ud654\ud558\uace0 \ud504\ub86c\ud504\ud2b8\ub97c \uac1c\uc120\ud558\uc138\uc694"
+    },
+    {
+      "severity": "high",
+      "metric": "\ub3c4\uad6c \ud6a8\uc728\uc131 (Tool Efficiency)",
+      "message": "\ub3c4\uad6c \ud6a8\uc728\uc131\uc774 50.0%\uc785\ub2c8\ub2e4 (60% \uae30\uc900 \ubbf8\ub2ec)",
+      "action": "\ub3c4\uad6c \ud638\ucd9c \ud328\ud134\uc744 \ubd84\uc11d\ud558\uace0 \uc911\ubcf5\uc744 \uc81c\uac70\ud558\uc138\uc694"
+    }
+  ],
+  "completion_tracker": {
+    "tcr": {
+      "tcr": 100.0,
+      "total_tasks": 10,
+      "full_success": 10,
+      "partial_success": 0,
+      "failures": 0,
+      "success_rate": 100.0
+    },
+    "completion_by_type": {
+      "qa": {
+        "tcr": 100.0,
+        "total_tasks": 10,
+        "full_success": 10,
+        "partial_success": 0,
+        "failures": 0,
+        "success_rate": 100.0
+      }
+    },
+    "accuracy_stats": {
+      "overall_accuracy": 20.84,
+      "median_accuracy": 17.0,
+      "min_accuracy": 0.0,
+      "max_accuracy": 55.0,
+      "std_accuracy": 21.6
+    }
+  }
+}

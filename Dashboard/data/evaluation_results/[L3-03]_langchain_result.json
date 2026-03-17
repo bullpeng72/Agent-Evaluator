@@ -1,0 +1,555 @@
+{
+  "tasks": [
+    {
+      "task_id": "lcel_001",
+      "task_type": "qa",
+      "success": true,
+      "completion_score": 0.7,
+      "accuracy_score": 0.589,
+      "execution_time": 1.2301578521728516,
+      "tokens_used": {
+        "input": 11,
+        "output": 16,
+        "total": 27
+      },
+      "tool_calls": [],
+      "attempts": 1,
+      "errors": [],
+      "timestamp": "2026-03-17T21:56:59.539496",
+      "agent_interactions": null,
+      "chain_steps": null,
+      "graph_traversal": null,
+      "conversation_turns": null,
+      "expected_tools": null,
+      "state_transitions": null,
+      "framework": null
+    },
+    {
+      "task_id": "agent_001",
+      "task_type": "qa",
+      "success": true,
+      "completion_score": 0.5,
+      "accuracy_score": 0.019,
+      "execution_time": 3.0,
+      "tokens_used": {
+        "input": 23,
+        "output": 19,
+        "total": 42
+      },
+      "tool_calls": [
+        {
+          "tool": "search",
+          "success": true,
+          "duration": 0.8
+        },
+        {
+          "tool": "search",
+          "success": true,
+          "duration": 0.7
+        },
+        {
+          "tool": "calculator",
+          "success": true,
+          "duration": 0.1
+        }
+      ],
+      "attempts": 1,
+      "errors": [],
+      "timestamp": "2026-03-17T21:56:59.539992",
+      "agent_interactions": null,
+      "chain_steps": null,
+      "graph_traversal": null,
+      "conversation_turns": null,
+      "expected_tools": [
+        "search",
+        "calculator"
+      ],
+      "state_transitions": null,
+      "framework": null
+    },
+    {
+      "task_id": "seq_chain_001",
+      "task_type": "qa",
+      "success": true,
+      "completion_score": 1.0,
+      "accuracy_score": 0.0,
+      "execution_time": 3.9000000000000004,
+      "tokens_used": {
+        "input": 11,
+        "output": 21,
+        "total": 32
+      },
+      "tool_calls": [],
+      "attempts": 1,
+      "errors": [],
+      "timestamp": "2026-03-17T21:56:59.540598",
+      "agent_interactions": null,
+      "chain_steps": null,
+      "graph_traversal": null,
+      "conversation_turns": null,
+      "expected_tools": null,
+      "state_transitions": null,
+      "framework": null
+    },
+    {
+      "task_id": "rag_001",
+      "task_type": "qa",
+      "success": true,
+      "completion_score": 0.5,
+      "accuracy_score": 0.469,
+      "execution_time": 1.5,
+      "tokens_used": {
+        "input": 8,
+        "output": 20,
+        "total": 28
+      },
+      "tool_calls": [],
+      "attempts": 1,
+      "errors": [],
+      "timestamp": "2026-03-17T21:56:59.542828",
+      "agent_interactions": null,
+      "chain_steps": null,
+      "graph_traversal": null,
+      "conversation_turns": null,
+      "expected_tools": null,
+      "state_transitions": null,
+      "framework": null
+    },
+    {
+      "task_id": "parallel_001",
+      "task_type": "qa",
+      "success": true,
+      "completion_score": 1.0,
+      "accuracy_score": 0.0,
+      "execution_time": 0.8,
+      "tokens_used": {
+        "input": 16,
+        "output": 24,
+        "total": 40
+      },
+      "tool_calls": [],
+      "attempts": 1,
+      "errors": [],
+      "timestamp": "2026-03-17T21:56:59.543049",
+      "agent_interactions": null,
+      "chain_steps": null,
+      "graph_traversal": null,
+      "conversation_turns": null,
+      "expected_tools": null,
+      "state_transitions": null,
+      "framework": null
+    }
+  ],
+  "pricing": {
+    "input": 0.003,
+    "output": 0.015
+  },
+  "timestamp": "2026-03-17T21:56:59.573467",
+  "evaluators": {
+    "quality": {
+      "evaluations": []
+    },
+    "hallucination": {
+      "detections": []
+    },
+    "retry": {
+      "attempts": []
+    },
+    "tool_selection": {
+      "selections": [
+        {
+          "task_id": "agent_001",
+          "expected_tools": [
+            "search",
+            "calculator"
+          ],
+          "actual_tools": [
+            "search",
+            "search",
+            "calculator"
+          ],
+          "true_positives": 2,
+          "false_positives": 0,
+          "false_negatives": 0,
+          "precision": 100.0,
+          "recall": 100.0,
+          "f1_score": 100.0,
+          "accuracy": 100.0
+        },
+        {
+          "task_id": "agent_001",
+          "expected_tools": [
+            "search",
+            "calculator"
+          ],
+          "actual_tools": [
+            "calculator",
+            "search"
+          ],
+          "true_positives": 2,
+          "false_positives": 0,
+          "false_negatives": 0,
+          "precision": 100.0,
+          "recall": 100.0,
+          "f1_score": 100.0,
+          "accuracy": 100.0
+        },
+        {
+          "task_id": "agent_001",
+          "expected_tools": [
+            "search",
+            "calculator"
+          ],
+          "actual_tools": [
+            "calculator",
+            "search"
+          ],
+          "true_positives": 2,
+          "false_positives": 0,
+          "false_negatives": 0,
+          "precision": 100.0,
+          "recall": 100.0,
+          "f1_score": 100.0,
+          "accuracy": 100.0
+        }
+      ]
+    },
+    "agent_coordination": {
+      "interactions": []
+    },
+    "workflow": {
+      "executions": [
+        {
+          "task_id": "lcel_001",
+          "step_name": "prompt_template",
+          "step_type": "runnable",
+          "success": true,
+          "execution_time": 0.01,
+          "framework": "langchain",
+          "timestamp": "2026-03-17 21:56:59.539570",
+          "metadata": {}
+        },
+        {
+          "task_id": "lcel_001",
+          "step_name": "llm_invoke",
+          "step_type": "runnable",
+          "success": true,
+          "execution_time": 1.2,
+          "framework": "langchain",
+          "timestamp": "2026-03-17 21:56:59.539577",
+          "metadata": {}
+        },
+        {
+          "task_id": "lcel_001",
+          "step_name": "output_parser",
+          "step_type": "runnable",
+          "success": true,
+          "execution_time": 0.02,
+          "framework": "langchain",
+          "timestamp": "2026-03-17 21:56:59.539580",
+          "metadata": {}
+        },
+        {
+          "task_id": "agent_001",
+          "step_name": "think",
+          "step_type": "agent_task",
+          "success": true,
+          "execution_time": 0.5,
+          "framework": "langchain",
+          "timestamp": "2026-03-17 21:56:59.540362",
+          "metadata": {}
+        },
+        {
+          "task_id": "agent_001",
+          "step_name": "tool_use",
+          "step_type": "tool_call",
+          "success": true,
+          "execution_time": 0.8,
+          "framework": "langchain",
+          "timestamp": "2026-03-17 21:56:59.540404",
+          "metadata": {}
+        },
+        {
+          "task_id": "agent_001",
+          "step_name": "think",
+          "step_type": "agent_task",
+          "success": true,
+          "execution_time": 0.3,
+          "framework": "langchain",
+          "timestamp": "2026-03-17 21:56:59.540410",
+          "metadata": {}
+        },
+        {
+          "task_id": "agent_001",
+          "step_name": "tool_use",
+          "step_type": "tool_call",
+          "success": true,
+          "execution_time": 0.7,
+          "framework": "langchain",
+          "timestamp": "2026-03-17 21:56:59.540414",
+          "metadata": {}
+        },
+        {
+          "task_id": "agent_001",
+          "step_name": "think",
+          "step_type": "agent_task",
+          "success": true,
+          "execution_time": 0.2,
+          "framework": "langchain",
+          "timestamp": "2026-03-17 21:56:59.540419",
+          "metadata": {}
+        },
+        {
+          "task_id": "agent_001",
+          "step_name": "tool_use",
+          "step_type": "tool_call",
+          "success": true,
+          "execution_time": 0.1,
+          "framework": "langchain",
+          "timestamp": "2026-03-17 21:56:59.540423",
+          "metadata": {}
+        },
+        {
+          "task_id": "agent_001",
+          "step_name": "final_answer",
+          "step_type": "agent_task",
+          "success": true,
+          "execution_time": 0.4,
+          "framework": "langchain",
+          "timestamp": "2026-03-17 21:56:59.540427",
+          "metadata": {}
+        },
+        {
+          "task_id": "seq_chain_001",
+          "step_name": "topic_extraction",
+          "step_type": "agent_task",
+          "success": true,
+          "execution_time": 0.6,
+          "framework": "langchain",
+          "timestamp": "2026-03-17 21:56:59.540662",
+          "metadata": {}
+        },
+        {
+          "task_id": "seq_chain_001",
+          "step_name": "content_generation",
+          "step_type": "agent_task",
+          "success": true,
+          "execution_time": 2.5,
+          "framework": "langchain",
+          "timestamp": "2026-03-17 21:56:59.540666",
+          "metadata": {}
+        },
+        {
+          "task_id": "seq_chain_001",
+          "step_name": "summarization",
+          "step_type": "agent_task",
+          "success": true,
+          "execution_time": 0.8,
+          "framework": "langchain",
+          "timestamp": "2026-03-17 21:56:59.540687",
+          "metadata": {}
+        },
+        {
+          "task_id": "rag_001",
+          "step_name": "retrieval",
+          "step_type": "tool_call",
+          "success": true,
+          "execution_time": 0.3,
+          "framework": "langchain",
+          "timestamp": "2026-03-17 21:56:59.542891",
+          "metadata": {}
+        },
+        {
+          "task_id": "rag_001",
+          "step_name": "generation",
+          "step_type": "agent_task",
+          "success": true,
+          "execution_time": 1.2,
+          "framework": "langchain",
+          "timestamp": "2026-03-17 21:56:59.542896",
+          "metadata": {}
+        },
+        {
+          "task_id": "parallel_001",
+          "step_name": "translation",
+          "step_type": "parallel_group",
+          "success": true,
+          "execution_time": 0.8,
+          "framework": "langchain",
+          "timestamp": "2026-03-17 21:56:59.543131",
+          "metadata": {}
+        },
+        {
+          "task_id": "parallel_001",
+          "step_name": "sentiment",
+          "step_type": "parallel_group",
+          "success": true,
+          "execution_time": 0.6,
+          "framework": "langchain",
+          "timestamp": "2026-03-17 21:56:59.543137",
+          "metadata": {}
+        },
+        {
+          "task_id": "parallel_001",
+          "step_name": "keywords",
+          "step_type": "parallel_group",
+          "success": true,
+          "execution_time": 0.5,
+          "framework": "langchain",
+          "timestamp": "2026-03-17 21:56:59.543140",
+          "metadata": {}
+        }
+      ]
+    }
+  },
+  "rag_metrics": {
+    "faithfulness": [],
+    "answer_relevancy": [],
+    "context_recall": [],
+    "context_precision": []
+  },
+  "total_tasks": 5,
+  "accuracy_metrics": {
+    "tcr": {
+      "tcr": 74.0,
+      "total_tasks": 5,
+      "full_success": 2,
+      "partial_success": 1,
+      "failures": 2,
+      "success_rate": 40.0
+    },
+    "accuracy_scores": {
+      "overall_accuracy": 21.54,
+      "median_accuracy": 1.9,
+      "min_accuracy": 0.0,
+      "max_accuracy": 58.9,
+      "std_accuracy": 28.95
+    },
+    "hallucination": {
+      "overall_rate": 0.0,
+      "total_evaluated": 0,
+      "total_flagged": 0,
+      "unsupported_claims_count": 0,
+      "numerical_inconsistencies_count": 0
+    },
+    "quality": {}
+  },
+  "efficiency_metrics": {
+    "latency": {
+      "mean": 2.086,
+      "median": 1.5,
+      "p50": 1.5,
+      "p95": 3.72,
+      "p99": 3.864,
+      "min": 0.8,
+      "max": 3.9,
+      "std": 1.309
+    },
+    "tokens": {
+      "total_tasks": 5,
+      "total_tokens": 169,
+      "total_input_tokens": 69,
+      "total_output_tokens": 100,
+      "total_cost": 0.0017,
+      "avg_tokens_per_task": 33.8,
+      "avg_cost_per_task": 0.0003,
+      "estimated_monthly_cost": 0.05,
+      "token_distribution": {
+        "input_ratio": 0.408,
+        "output_ratio": 0.592
+      },
+      "cost_percentiles": {
+        "p50": 0.0003,
+        "p90": 0.0004,
+        "p95": 0.0004
+      }
+    },
+    "tool_efficiency": {
+      "total_calls": 3,
+      "success_rate": 100.0,
+      "avg_duration": 0.533,
+      "avg_calls_per_task": 3.0,
+      "avg_efficiency_score": 66.67,
+      "total_redundant_calls": 1,
+      "total_failed_calls": 0,
+      "redundancy_rate": 33.33,
+      "failure_rate": 0.0
+    },
+    "retries": {}
+  },
+  "quality_metrics": {},
+  "security_metrics": {},
+  "recommendations": [
+    {
+      "area": "\uc791\uc5c5 \uc644\ub8cc\uc728 \uac1c\uc120",
+      "title": "\uc791\uc5c5 \uc644\ub8cc\uc728(TCR)\uc774 \ubaa9\ud45c\uce58 \ub300\ube44 16.0%p \ub0ae\uc74c",
+      "priority": "high",
+      "issue": "\ud604\uc7ac TCR 74.0% (\ubaa9\ud45c: 90% \uc774\uc0c1). \uc804\uccb4 \uc131\uacf5 2\uac74, \ubd80\ubd84 \uc131\uacf5 1\uac74, \uc2e4\ud328 2\uac74\uc73c\ub85c \uc2e4\ud328 \uc791\uc5c5\uc758 \uc6d0\uc778 \ubd84\uc11d\uc774 \ud544\uc694\ud569\ub2c8\ub2e4.",
+      "suggestion": "**\uc989\uc2dc \uc2e4\ud589 \uac00\ub2a5\ud55c \uac1c\uc120 \ubc29\uc548:**\n1. **\uc2e4\ud328 \uc791\uc5c5 \ud328\ud134 \ubd84\uc11d**: \uc2e4\ud328\ud55c 2\uac1c \uc791\uc5c5\uc758 \uacf5\ud1b5 \uc624\ub958 \ud328\ud134 \ud30c\uc545 (\ud0c0\uc784\uc544\uc6c3, API \uc624\ub958, \uc785\ub825 \uac80\uc99d \uc2e4\ud328 \ub4f1)\n2. **\ud504\ub86c\ud504\ud2b8 \uba85\ud655\ud654**: \uc791\uc5c5 \uc9c0\uc2dc\uc0ac\ud56d\uc5d0 \uad6c\uccb4\uc801\uc778 \uc131\uacf5 \uae30\uc900\uacfc \ucd9c\ub825 \ud615\uc2dd \uba85\uc2dc\n3. **\uc791\uc5c5 \ubd84\ud560 \uc804\ub7b5**: \ubcf5\uc7a1\ud55c \uc791\uc5c5\uc744 3-5\uac1c\uc758 \ud558\uc704 \uc791\uc5c5\uc73c\ub85c \ubd84\ud560\ud558\uc5ec \ub2e8\uacc4\ubcc4 \uac80\uc99d \uc218\ud589\n4. **\uc7ac\uc2dc\ub3c4 \uba54\ucee4\ub2c8\uc998**: \uc77c\uc2dc\uc801 \uc624\ub958(\ub124\ud2b8\uc6cc\ud06c, API \uc81c\ud55c)\uc5d0 \ub300\ud55c \uc9c0\uc218 \ubc31\uc624\ud504 \uc7ac\uc2dc\ub3c4 \uad6c\ud604\n5. **\uc785\ub825 \uac80\uc99d \uac15\ud654**: \uc791\uc5c5 \uc2e4\ud589 \uc804 \ud544\uc218 \ud30c\ub77c\ubbf8\ud130\uc640 \ucee8\ud14d\uc2a4\ud2b8 \uac80\uc99d \ub85c\uc9c1 \ucd94\uac00",
+      "impact": "**\uc608\uc0c1 \uac1c\uc120 \ud6a8\uacfc:**\n\u2022 TCR \ubaa9\ud45c \ub2ec\uc131 \uc2dc \uc5f0\uac04 104\uac74 \uc2e4\ud328 \uc791\uc5c5 \uac10\uc18c (\uc8fc\uac04 2\uac74 \uae30\uc900)\n\u2022 \uc0ac\uc6a9\uc790 \ub9cc\uc871\ub3c4 15-25% \ud5a5\uc0c1 (90% TCR \ub2ec\uc131 \uc2dc)\n\u2022 \uc7ac\uc791\uc5c5 \ube44\uc6a9 \uc808\uac10: \uc2e4\ud328 \uc791\uc5c5\ub2f9 \ud3c9\uade0 5\ubd84 \uc18c\uc694 \uc2dc \uc8fc\ub2f9 10\ubd84 \uc808\uc57d\n\u2022 \uc2dc\uc2a4\ud15c \uc2e0\ub8b0\ub3c4 \ud5a5\uc0c1\uc73c\ub85c \ud504\ub85c\ub355\uc158 \ubc30\ud3ec \ub9ac\uc2a4\ud06c \uac10\uc18c"
+    },
+    {
+      "area": "\uc815\ud655\ub3c4 \uac1c\uc120",
+      "title": "\uc815\ub2f5 \uc815\ud655\ub3c4\uac00 \uae30\uc900\uce58 \ub300\ube44 63.5%p \ubd80\uc871",
+      "priority": "high",
+      "issue": "\ud604\uc7ac \uc815\ud655\ub3c4 21.5% (\ubaa9\ud45c: 85% \uc774\uc0c1). \uc751\ub2f5\uc758 \uc0ac\uc2e4 \uc815\ud655\uc131\uc774 \ubd80\uc871\ud558\uc5ec \uc0ac\uc6a9\uc790\uc5d0\uac8c \uc798\ubabb\ub41c \uc815\ubcf4\ub97c \uc81c\uacf5\ud560 \uc704\ud5d8\uc774 \uc788\uc2b5\ub2c8\ub2e4.",
+      "suggestion": "**\uc989\uc2dc \uc2e4\ud589 \uac00\ub2a5\ud55c \uac1c\uc120 \ubc29\uc548:**\n1. **\uac80\uc99d \ub2e8\uacc4 \ucd94\uac00**:\n   - RAG \uae30\ubc18 \uc791\uc5c5: \uac80\uc0c9\ub41c \ucee8\ud14d\uc2a4\ud2b8\uc640 \uc751\ub2f5\uc758 \uc77c\uce58\uc131\uc744 \uc790\ub3d9 \uac80\uc99d\ud558\ub294 \ud6c4\ucc98\ub9ac \ub2e8\uacc4 \ucd94\uac00\n   - \uacc4\uc0b0/\ucd94\ub860 \uc791\uc5c5: \uc911\uac04 \ub2e8\uacc4 \uacb0\uacfc\ub97c \uba85\uc2dc\uc801\uc73c\ub85c \ucd9c\ub825\ud558\uace0 \uac80\uc99d\n2. **Few-shot \uc608\uc2dc \uc81c\uacf5**: \uc791\uc5c5 \uc720\ud615\ubcc4\ub85c 3-5\uac1c\uc758 \uace0\ud488\uc9c8 \uc608\uc2dc\ub97c \ud504\ub86c\ud504\ud2b8\uc5d0 \ud3ec\ud568\n3. **\ud504\ub86c\ud504\ud2b8 \uad6c\uc870\ud654**:\n   - \ub2e8\uacc4\ubcc4 \uc0ac\uace0 \uacfc\uc815(Chain-of-Thought) \uc720\ub3c4\n   - \ucd5c\uc885 \ub2f5\ubcc0 \uc804 \uc790\uae30 \uac80\uc99d(Self-verification) \ub2e8\uacc4 \ucd94\uac00\n4. **Golden Dataset \ud65c\uc6a9**: \ud604\uc7ac \ud3c9\uac00 \ub370\uc774\ud130\uc14b\uc744 \uae30\ubc18\uc73c\ub85c \uc624\ub2f5 \ud328\ud134 \ubd84\uc11d \ubc0f \ud559\uc2b5 \ub370\uc774\ud130 \ubcf4\uac15\n5. **\ubaa8\ub378 \ud30c\ub77c\ubbf8\ud130 \uc870\uc815**: Temperature \ub0ae\ucd94\uae30(0.3-0.5), Top-P \uc870\uc815\uc73c\ub85c \uc77c\uad00\uc131 \ud5a5\uc0c1",
+      "impact": "**\uc608\uc0c1 \uac1c\uc120 \ud6a8\uacfc:**\n\u2022 \uc815\ud655\ub3c4 85% \ub2ec\uc131 \uc2dc \uc624\ub2f5\ub960 78.5% \u2192 15%\ub85c 63.5%p \uac10\uc18c\n\u2022 \uc0ac\uc6a9\uc790 \uc2e0\ub8b0\ub3c4 20-30% \ud5a5\uc0c1\n\u2022 \uc798\ubabb\ub41c \uc815\ubcf4\ub85c \uc778\ud55c \ube44\uc988\ub2c8\uc2a4 \ub9ac\uc2a4\ud06c 78% \uac10\uc18c\n\u2022 \uc0ac\uc2e4 \ud655\uc778 \ubc0f \uc218\uc815 \uc791\uc5c5 \uc2dc\uac04 \uc8fc\ub2f9 10-15\uc2dc\uac04 \uc808\uac10"
+    },
+    {
+      "area": "\ub3c4\uad6c \ud638\ucd9c \ucd5c\uc801\ud654",
+      "title": "\uc911\ubcf5 \ub3c4\uad6c \ud638\ucd9c\ub85c \uc778\ud55c \ube44\ud6a8\uc728 \ubc1c\uc0dd (33%)",
+      "priority": "medium",
+      "issue": "\ucd1d 3\ud68c \ub3c4\uad6c \ud638\ucd9c \uc911 \uc57d 0\ud68c\uac00 \uc911\ubcf5 \ud638\ucd9c (\uc911\ubcf5\ub960 33.3%). \ub3d9\uc77c\ud55c \ud30c\ub77c\ubbf8\ud130\ub85c \uac19\uc740 \ub3c4\uad6c\ub97c \ubc18\ubcf5 \ud638\ucd9c\ud558\uc5ec \ubd88\ud544\uc694\ud55c \uc9c0\uc5f0\uacfc \ube44\uc6a9\uc774 \ubc1c\uc0dd\ud569\ub2c8\ub2e4.",
+      "suggestion": "**\uc989\uc2dc \uc2e4\ud589 \uac00\ub2a5\ud55c \uac1c\uc120 \ubc29\uc548:**\n1. **\uacb0\uacfc \uce90\uc2f1 \uba54\ucee4\ub2c8\uc998**:\n   - \ub3c4\uad6c \ud638\ucd9c \uacb0\uacfc\ub97c \uba54\ubaa8\ub9ac \uce90\uc2dc\uc5d0 \uc800\uc7a5 (\uc791\uc5c5 \uc138\uc158 \ub3d9\uc548 \uc720\uc9c0)\n   - \uce90\uc2dc \ud0a4: (\ub3c4\uad6c\uba85, \ud30c\ub77c\ubbf8\ud130 \ud574\uc2dc) \uc870\ud569\n   - \ucd5c\ub300 100\uac1c \uacb0\uacfc \uc800\uc7a5, LRU \uc815\ucc45\uc73c\ub85c \uad00\ub9ac\n2. **\uc911\ubcf5 \uac80\uc0ac \ub85c\uc9c1**:\n   - \ub3c4\uad6c \ud638\ucd9c \uc804 \ucd5c\uadfc 5\ud68c \ud638\ucd9c \uc774\ub825 \ud655\uc778\n   - \ub3d9\uc77c \ud30c\ub77c\ubbf8\ud130 \ubc1c\uacac \uc2dc \uce90\uc2dc\ub41c \uacb0\uacfc \uc7ac\uc0ac\uc6a9\n3. **\uc5d0\uc774\uc804\ud2b8 \ub85c\uc9c1 \uac1c\uc120**:\n   - \ub3c4\uad6c \ud638\ucd9c \uc774\ub825\uc744 \ud504\ub86c\ud504\ud2b8\uc5d0 \ud3ec\ud568\ud558\uc5ec LLM\uc774 \uc911\ubcf5 \uc778\uc9c0\ud558\ub3c4\ub85d \uc720\ub3c4\n   - \"\uc774\uc804\uc5d0 \uc774\ubbf8 \uac80\uc0c9\ud55c \ub0b4\uc6a9\uc785\ub2c8\ub2e4\" \uac19\uc740 \ud53c\ub4dc\ubc31 \uc81c\uacf5\n4. **\ubc30\uce58 \ucc98\ub9ac**:\n   - \uc5ec\ub7ec \uac1c\uc758 \uc720\uc0ac\ud55c \ub3c4\uad6c \ud638\ucd9c\uc744 \ud558\ub098\ub85c \ud1b5\ud569 (\uc608: 10\uac1c \ubb38\uc11c \uac80\uc0c9 \u2192 1\ud68c \ubc30\uce58 \uac80\uc0c9)\n5. **\ub3c4\uad6c \ud638\ucd9c \ubd84\uc11d**: \uc0c1\uc704 5\uac1c \uc911\ubcf5 \ub3c4\uad6c \ud30c\uc545 \ud6c4 \uc6b0\uc120 \ucd5c\uc801\ud654",
+      "impact": "**\uc608\uc0c1 \uac1c\uc120 \ud6a8\uacfc:**\n\u2022 \uc911\ubcf5 \ud638\ucd9c 33% \uc81c\uac70 \uc2dc \ub3c4\uad6c \ud638\ucd9c \uc2dc\uac04 33% \ub2e8\ucd95\n\u2022 API \ube44\uc6a9 \uc808\uac10: \uc678\ubd80 API \ub3c4\uad6c\uc758 \uacbd\uc6b0 \uc6d4\uac04 \uc218\ubc31 \ub2ec\ub7ec \uc808\uac10 \uac00\ub2a5\n\u2022 \ud3c9\uade0 \uc791\uc5c5 \uc644\ub8cc \uc2dc\uac04 15-20% \uac1c\uc120\n\u2022 \uc2dc\uc2a4\ud15c \ubd80\ud558 \uac10\uc18c\ub85c \ub3d9\uc2dc \ucc98\ub9ac \uac00\ub2a5 \uc791\uc5c5 \uc218 1.5\ubc30 \uc99d\uac00"
+    }
+  ],
+  "alerts": [
+    {
+      "severity": "high",
+      "metric": "\uc791\uc5c5 \uc644\ub8cc\uc728 (TCR)",
+      "message": "TCR\uc774 74.0%\uc785\ub2c8\ub2e4 (80.0% \uae30\uc900 \ubbf8\ub2ec)",
+      "action": "\ud504\ub86c\ud504\ud2b8\uc640 \ub3c4\uad6c \uc124\uc815\uc744 \uac80\ud1a0\ud558\uc138\uc694"
+    },
+    {
+      "severity": "critical",
+      "metric": "\uc815\ud655\ub3c4 (Accuracy)",
+      "message": "\uc815\ud655\ub3c4\uac00 21.5%\uc785\ub2c8\ub2e4 (70.0% \uae30\uc900 \ubbf8\ub2ec)",
+      "action": "\uc989\uc2dc \uac80\uc99d \ub85c\uc9c1\uc744 \uac15\ud654\ud558\uace0 \ud504\ub86c\ud504\ud2b8\ub97c \uac1c\uc120\ud558\uc138\uc694"
+    },
+    {
+      "severity": "medium",
+      "metric": "\ub3c4\uad6c \ud6a8\uc728\uc131 (Tool Efficiency)",
+      "message": "\ub3c4\uad6c \ud6a8\uc728\uc131\uc774 66.7%\uc785\ub2c8\ub2e4 (70% \uae30\uc900 \ubbf8\ub2ec)",
+      "action": "\ub3c4\uad6c \uc0ac\uc6a9 \ucd5c\uc801\ud654\ub97c \uace0\ub824\ud558\uc138\uc694"
+    }
+  ],
+  "completion_tracker": {
+    "tcr": {
+      "tcr": 74.0,
+      "total_tasks": 5,
+      "full_success": 2,
+      "partial_success": 1,
+      "failures": 2,
+      "success_rate": 40.0
+    },
+    "completion_by_type": {
+      "qa": {
+        "tcr": 74.0,
+        "total_tasks": 5,
+        "full_success": 2,
+        "partial_success": 1,
+        "failures": 2,
+        "success_rate": 40.0
+      }
+    },
+    "accuracy_stats": {
+      "overall_accuracy": 21.54,
+      "median_accuracy": 1.9,
+      "min_accuracy": 0.0,
+      "max_accuracy": 58.9,
+      "std_accuracy": 28.95
+    }
+  }
+}

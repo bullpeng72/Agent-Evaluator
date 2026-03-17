@@ -1,0 +1,15 @@
+{
+  "log_id": "audit_d1f06e7c",
+  "event_type": "evaluation",
+  "user": "transparency_manager",
+  "action": "summarize 복구 성공",
+  "target_type": "task",
+  "target_id": "error_001",
+  "details": {
+    "attempts": 3,
+    "duration": 1.2,
+    "result": "3 summaries generated"
+  },
+  "success": true,
+  "timestamp": "2026-03-17T21:57:00.680701"
+}

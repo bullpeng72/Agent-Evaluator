@@ -43,7 +43,14 @@ def find_project_root() -> Path:
             return current.resolve()
         current = current.parent
 
-    # 3. 폴백: 현재 작업 디렉토리
+    # 3. pyproject.toml / setup.py 기준 프로젝트 루트 찾기
+    current = Path.cwd()
+    while current != current.parent:
+        if (current / "pyproject.toml").exists() or (current / "setup.py").exists():
+            return current.resolve()
+        current = current.parent
+
+    # 4. 폴백: 현재 작업 디렉토리
     return Path.cwd().resolve()
 
 

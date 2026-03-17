@@ -20,21 +20,21 @@ router = APIRouter(prefix="/api/golden")
 _GOLDEN_CANDIDATES = [
     "golden_datasets",
     "data/golden_datasets",
-    "Evaluator_Examples/Dashboard/data/golden_datasets",
 ]
 
 
 def _golden_dir(request: Request) -> Path:
     results_dir: Path = request.app.state.results_dir
-    # Walk up to find golden_datasets directory
+    # 1. results_dir 안에 golden_datasets 서브디렉토리
+    p = results_dir / "golden_datasets"
+    if p.exists():
+        return p
+    # 2. results_dir 의 형제 디렉토리로 탐색 (project_root/golden_datasets)
     for cand in _GOLDEN_CANDIDATES:
         p = results_dir.parent / cand
         if p.exists():
             return p
-        p = results_dir.parent.parent / cand
-        if p.exists():
-            return p
-    # Fall back to results_dir sibling
+    # 3. 폴백: project_root/golden_datasets 생성
     d = results_dir.parent / "golden_datasets"
     d.mkdir(parents=True, exist_ok=True)
     return d
