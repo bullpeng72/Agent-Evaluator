@@ -531,6 +531,56 @@ def cmd_version(_args: argparse.Namespace) -> int:
 
 
 # ---------------------------------------------------------------------------
+# _print_welcome — `agent-eval` (인수 없음) 전용 웰컴 화면
+# ---------------------------------------------------------------------------
+
+def _print_welcome() -> None:
+    """agent-eval 을 인수 없이 실행했을 때의 간결한 시작 화면."""
+
+    # ── API 키 빠른 상태 체크 (import 없이 os.environ 직독) ──────────────
+    load_env()
+    _key_vars = [
+        ("OPENAI_API_KEY",    "OpenAI",    True),
+        ("ANTHROPIC_API_KEY", "Anthropic", False),
+        ("LANGSMITH_API_KEY", "LangSmith", False),
+        ("DEEPEVAL_API_KEY",  "DeepEval",  False),
+    ]
+    set_count = sum(1 for k, _, _ in _key_vars if os.environ.get(k, ""))
+    total     = len(_key_vars)
+
+    key_lines = []
+    for env_var, label, required in _key_vars:
+        if os.environ.get(env_var, ""):
+            key_lines.append(f"  {G}✔{R}  {label}")
+        elif required:
+            key_lines.append(f"  {RD}✘{R}  {label} {RD}(필수 — agent-eval init 으로 설정){R}")
+        else:
+            key_lines.append(f"  {D}–{R}  {label} {D}(선택){R}")
+
+    bar_filled = "█" * set_count
+    bar_empty  = "░" * (total - set_count)
+    bar_color  = G if set_count == total else (Y if set_count > 0 else RD)
+    bar        = f"{bar_color}{bar_filled}{D}{bar_empty}{R}"
+
+    print()
+    print(f"  {B}{C}Agent Evaluator{R}  {D}v{__version__}{R}")
+    print(f"  {D}{'─' * 36}{R}")
+    print()
+    print(f"  {B}API 키 현황{R}  {bar}  {set_count}/{total}")
+    for line in key_lines:
+        print(line)
+    print()
+    print(f"  {B}명령어{R}")
+    print(f"  {Y}init{R}     API 키 대화형 설정 마법사")
+    print(f"  {Y}check{R}    현재 설정 상태 출력")
+    print(f"  {Y}serve{R}    웹 대시보드 실행  {D}(기본 포트 8765){R}")
+    print(f"  {Y}version{R}  버전 출력")
+    print()
+    print(f"  {D}전체 옵션 보기: {R}{C}agent-eval --help{R}")
+    print()
+
+
+# ---------------------------------------------------------------------------
 # cmd_serve
 # ---------------------------------------------------------------------------
 
@@ -794,7 +844,7 @@ def main() -> None:
     }
 
     if args.command is None:
-        parser.print_help()
+        _print_welcome()
         sys.exit(0)
 
     handler = handlers.get(args.command)
