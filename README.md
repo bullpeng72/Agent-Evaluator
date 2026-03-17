@@ -416,16 +416,18 @@ agent-eval serve [results_dir] [옵션]
 | `results_dir` | `./results` | 평가 결과 JSON 파일이 있는 디렉토리 |
 | `--host HOST` | `127.0.0.1` | 바인딩 호스트 |
 | `--port PORT` | `8765` | 포트 번호 |
-| `--open` | — | 서버 시작 후 브라우저 자동 오픈 |
+| `--open` | 기본 활성화 | 서버 시작 후 브라우저 자동 오픈 |
+| `--no-open` | — | 브라우저 자동 오픈 비활성화 |
 | `--watch` | — | 파일 변경 감시 (핫 리로드) |
 | `--slide` | — | 시작 화면을 슬라이드 뷰로 설정 |
 | `--share` | — | 외부 접근 허용 (`host=0.0.0.0`) |
 | `--title TITLE` | `Agent Evaluator Dashboard` | 대시보드 제목 |
 
 ```bash
-agent-eval serve                                    # 기본 실행
-agent-eval serve ./results --port 8080 --open       # 포트 지정 + 브라우저 오픈
+agent-eval serve                                    # 기본 실행 (브라우저 자동 오픈)
+agent-eval serve ./results --port 8080              # 포트 지정
 agent-eval serve ./results --watch                  # 파일 변경 시 자동 갱신
+agent-eval serve ./results --no-open                # 브라우저 오픈 없이 서버만 시작
 agent-eval serve ./results --share                  # 외부 접근 허용 (팀 공유)
 ```
 
