@@ -15,6 +15,7 @@ def _rs(request: Request):
 
 
 def _to_meta(f) -> Dict[str, Any]:
+    hall_rate = f.accuracy_metrics.get("hallucination", {}).get("overall_rate", 0) or 0
     return {
         "id":            f.file_id,
         "name":          f.name,
@@ -22,6 +23,7 @@ def _to_meta(f) -> Dict[str, Any]:
         "total_tasks":   f.total_tasks,
         "tcr":           round(f.tcr, 2),
         "accuracy":      round(f.accuracy, 2),
+        "hallucination": round(float(hall_rate), 2),
         "avg_latency":   round(f.avg_latency, 3),
         "total_cost":    round(f.total_cost, 6),
         "has_security":  f.has_security,

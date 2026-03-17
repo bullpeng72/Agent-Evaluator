@@ -46,6 +46,16 @@ select{background:var(--bg3);color:var(--text);border:1px solid var(--border);bo
 .kpi-lbl{font-size:10px;color:var(--text2);text-transform:uppercase;letter-spacing:.04em}
 .kpi-val{font-size:24px;font-weight:800;margin:3px 0}
 .kpi-sub{font-size:11px}.kpi-sub.ok{color:var(--green)}.kpi-sub.warn{color:var(--yellow)}
+.kpi-delta{font-size:10px;margin-top:2px}.kpi-delta.up{color:var(--green)}.kpi-delta.dn{color:var(--red)}.kpi-delta.neu{color:var(--text2)}
+/* deploy gate */
+.dgate{display:flex;gap:10px;margin-bottom:14px;flex-wrap:wrap}
+.dgate-box{flex:1;min-width:150px;background:var(--bg2);border:2px solid var(--border);border-radius:var(--r);padding:12px;transition:border-color .15s}
+.dgate-box.pass{border-color:var(--green)}.dgate-box.partial{border-color:var(--yellow)}.dgate-box.fail{border-color:var(--red)}
+.dgate-title{font-size:12px;font-weight:700;margin-bottom:6px;display:flex;align-items:center;justify-content:space-between}
+.dgate-badge{font-size:10px;padding:1px 6px;border-radius:99px;font-weight:600}
+.dgate-box.pass .dgate-badge{background:#4ade8022;color:var(--green)}.dgate-box.partial .dgate-badge{background:#facc1522;color:var(--yellow)}.dgate-box.fail .dgate-badge{background:#f8717122;color:var(--red)}
+.dgate-row{font-size:10px;color:var(--text2);display:flex;align-items:center;gap:5px;padding:2px 0}
+.dgate-row .dv{margin-left:auto;font-size:9px;opacity:.7}
 /* sections */
 .sec{background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);padding:14px;margin-bottom:12px}
 .sec-t{font-size:13px;font-weight:600;margin-bottom:10px;display:flex;align-items:center;gap:6px}
@@ -210,31 +220,56 @@ textarea.gd-input{height:60px;resize:vertical;font-family:inherit}
 
 <!-- ══ OVERVIEW ══ -->
 <div x-show="data && sec==='overview'" x-cloak>
+
+  <!-- Deployment Readiness Gate -->
+  <div class="dgate">
+    <template x-for="g in deployGates()" :key="g.key">
+      <div class="dgate-box" :class="g.cls">
+        <div class="dgate-title">
+          <span x-text="g.label"></span>
+          <span class="dgate-badge" x-text="g.cls==='pass'?'PASS':g.cls==='fail'?'FAIL':`${g.passed}/${g.total}`"></span>
+        </div>
+        <template x-for="c in g.criteria" :key="c.name">
+          <div class="dgate-row">
+            <span x-text="c.pass?'✅':'❌'"></span>
+            <span x-text="c.name"></span>
+            <span class="dv" x-text="c.val"></span>
+          </div>
+        </template>
+      </div>
+    </template>
+  </div>
+
   <div class="kpi-grid">
     <div class="kpi" @click="sec='layer1'">
       <div class="kpi-lbl">Task Completion</div>
       <div class="kpi-val" x-text="pct(tcr())"></div>
       <div class="kpi-sub" :class="tc(tcr(),thresholds.tcr)"><span x-text="tlbl(tcr(),thresholds.tcr)"></span></div>
+      <div class="kpi-delta" x-show="prevFile()" :class="(deltaFmt(tcr(), prevFile()?.tcr, true)||{}).cls||'neu'" x-text="(deltaFmt(tcr(), prevFile()?.tcr, true)||{txt:''}).txt + (prevFile()?' vs 이전':'')"></div>
     </div>
     <div class="kpi" @click="sec='layer1'">
       <div class="kpi-lbl">Accuracy</div>
       <div class="kpi-val" x-text="pct(acc())"></div>
       <div class="kpi-sub" :class="tc(acc(),thresholds.acc)"><span x-text="tlbl(acc(),thresholds.acc)"></span></div>
+      <div class="kpi-delta" x-show="prevFile()" :class="(deltaFmt(acc(), prevFile()?.accuracy, true)||{}).cls||'neu'" x-text="(deltaFmt(acc(), prevFile()?.accuracy, true)||{txt:''}).txt + (prevFile()?' vs 이전':'')"></div>
     </div>
     <div class="kpi" @click="sec='layer1'">
       <div class="kpi-lbl">Hallucination</div>
       <div class="kpi-val" :style="hr_col(hall())" x-text="pct(hall())"></div>
       <div class="kpi-sub" x-text="hr_lbl(hall())"></div>
+      <div class="kpi-delta" x-show="prevFile()" :class="(deltaFmt(hall(), prevFile()?.hallucination, false)||{}).cls||'neu'" x-text="(deltaFmt(hall(), prevFile()?.hallucination, false)||{txt:''}).txt + (prevFile()?' vs 이전':'')"></div>
     </div>
     <div class="kpi" @click="sec='performance'">
       <div class="kpi-lbl">Avg Latency</div>
       <div class="kpi-val" x-text="sec_(lat_mean())"></div>
       <div class="kpi-sub" :class="lat_cl(data.efficiency_metrics?.latency?.p95)">P95: <span x-text="sec_(data.efficiency_metrics?.latency?.p95)"></span></div>
+      <div class="kpi-delta" x-show="prevFile()" :class="(deltaFmt(lat_mean(), prevFile()?.avg_latency, false)||{}).cls||'neu'" x-text="(deltaFmt(lat_mean(), prevFile()?.avg_latency, false)||{txt:''}).txt + (prevFile()?' vs 이전':'')"></div>
     </div>
     <div class="kpi" @click="sec='performance'">
       <div class="kpi-lbl">Total Cost</div>
       <div class="kpi-val" x-text="cost(data.efficiency_metrics?.tokens?.total_cost)"></div>
       <div class="kpi-sub" style="color:var(--text2)">Task당: <span x-text="cost(data.efficiency_metrics?.tokens?.avg_cost_per_task)"></span></div>
+      <div class="kpi-delta" x-show="prevFile()" :class="(deltaFmt(data.efficiency_metrics?.tokens?.total_cost, prevFile()?.total_cost, false)||{}).cls||'neu'" x-text="(deltaFmt(data.efficiency_metrics?.tokens?.total_cost, prevFile()?.total_cost, false)||{txt:''}).txt + (prevFile()?' vs 이전':'')"></div>
     </div>
     <div class="kpi">
       <div class="kpi-lbl">Total Tasks</div>
@@ -264,6 +299,12 @@ textarea.gd-input{height:60px;resize:vertical;font-family:inherit}
   <div class="cg">
     <div class="cbox"><div class="ct">성공/실패 분포</div><div id="ov-donut" class="plt-chart"></div></div>
     <div class="cbox"><div class="ct">TaskType별 Task 수</div><div id="ov-type" class="plt-chart"></div></div>
+  </div>
+
+  <!-- Trend Chart (2+ files) -->
+  <div x-show="files.length >= 2" class="sec">
+    <div class="sec-t">📈 평가 트렌드 <span class="badge" x-text="files.length + '개 파일'"></span></div>
+    <div id="ov-trend" style="height:220px"></div>
   </div>
 
   <!-- Alerts summary (if any) -->
@@ -1644,6 +1685,7 @@ function app() { return {
   taskFilter: { type:'all', status:'all', sort:'task_id' },
   filteredTaskCount: 0,
   thresholds: { tcr: 90, acc: 70, hall: 5, p95: 2.0, cost: 0.01 },
+  _hallucination: null, // cached hallucination rate for delta
   taskDetail: null,
   gdFiles: [], gdSelected: null, gdItems: {}, gdNewName: '', gdShowCreate: false,
 
@@ -1728,6 +1770,105 @@ function app() { return {
     finally { this.loading = false; }
   },
 
+  // ── Phase 1: Deployment Gate & Trend ──
+
+  prevFile() {
+    if (!this.selId || this.files.length < 2) return null;
+    const idx = this.files.findIndex(f => f.id === this.selId);
+    return (idx >= 0 && idx + 1 < this.files.length) ? this.files[idx + 1] : null;
+  },
+
+  deltaFmt(curr, prev, higherBetter = true) {
+    if (prev == null || curr == null || isNaN(prev) || isNaN(curr)) return null;
+    const d = curr - prev;
+    if (Math.abs(d) < 0.005) return { txt: '─ 변화없음', cls: 'neu' };
+    const up = d > 0;
+    const good = higherBetter ? up : !up;
+    return { txt: `${up ? '▲' : '▼'} ${Math.abs(d).toFixed(1)}%`, cls: good ? 'up' : 'dn' };
+  },
+
+  deployGates() {
+    if (!this.data) return [];
+    const tcr  = this.tcr()  || 0;
+    const acc  = this.acc()  || 0;
+    const hall = this.hall() || 0;
+    const p95  = this.data.efficiency_metrics?.latency?.p95 || 0;
+    const cost = this.data.efficiency_metrics?.tokens?.avg_cost_per_task || 0;
+    const gates = [
+      {
+        label: '🔬 개발', key: 'dev',
+        criteria: [
+          { name: 'TCR ≥ 80%',         pass: tcr  >= 80, val: `${tcr.toFixed(1)}%`  },
+          { name: 'Accuracy ≥ 70%',    pass: acc  >= 70, val: `${acc.toFixed(1)}%`  },
+          { name: 'Hall ≤ 10%',        pass: hall <= 10, val: `${hall.toFixed(1)}%` },
+        ]
+      },
+      {
+        label: '🚀 스테이징', key: 'staging',
+        criteria: [
+          { name: 'TCR ≥ 90%',         pass: tcr  >= 90, val: `${tcr.toFixed(1)}%`  },
+          { name: 'Accuracy ≥ 85%',    pass: acc  >= 85, val: `${acc.toFixed(1)}%`  },
+          { name: 'Hall ≤ 5%',         pass: hall <= 5,  val: `${hall.toFixed(1)}%` },
+          { name: 'P95 ≤ 2s',          pass: p95  <= 2,  val: `${p95.toFixed(2)}s`  },
+        ]
+      },
+      {
+        label: '🏭 프로덕션', key: 'prod',
+        criteria: [
+          { name: 'TCR ≥ 95%',         pass: tcr  >= 95,   val: `${tcr.toFixed(1)}%`  },
+          { name: 'Accuracy ≥ 90%',    pass: acc  >= 90,   val: `${acc.toFixed(1)}%`  },
+          { name: 'Hall ≤ 3%',         pass: hall <= 3,    val: `${hall.toFixed(1)}%` },
+          { name: 'P95 ≤ 2s',          pass: p95  <= 2,    val: `${p95.toFixed(2)}s`  },
+          { name: 'Cost ≤ $0.01/task', pass: cost <= 0.01, val: `$${cost.toFixed(4)}`  },
+        ]
+      },
+    ];
+    return gates.map(g => ({
+      ...g,
+      passed: g.criteria.filter(c => c.pass).length,
+      total:  g.criteria.length,
+      cls:    g.criteria.every(c => c.pass)  ? 'pass'
+            : g.criteria.every(c => !c.pass) ? 'fail'
+            : 'partial',
+    }));
+  },
+
+  renderTrend() {
+    if (this.files.length < 2) return;
+    const TC = this.dark ? '#8890b0' : '#5a6080';
+    const GC = this.dark ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.07)';
+    const sorted = [...this.files].reverse(); // oldest first
+    const names  = sorted.map(f => f.name.substring(0, 18));
+    const curIdx = sorted.findIndex(f => f.id === this.selId);
+    const mkMarker = (arr) => ({
+      size: arr.map((_,i) => i === curIdx ? 10 : 6),
+      opacity: arr.map((_,i) => i === curIdx ? 1 : 0.6),
+    });
+    const tcrY  = sorted.map(f => +(f.tcr || 0));
+    const accY  = sorted.map(f => +(f.accuracy || 0));
+    const latY  = sorted.map(f => +(f.avg_latency || 0));
+    const traces = [
+      { name:'TCR %',      x:names, y:tcrY, mode:'lines+markers', line:{color:'#6c8ef5',width:2}, marker:{...mkMarker(tcrY), color:'#6c8ef5'}, yaxis:'y' },
+      { name:'Accuracy %', x:names, y:accY, mode:'lines+markers', line:{color:'#4ade80',width:2}, marker:{...mkMarker(accY), color:'#4ade80'}, yaxis:'y' },
+      { name:'Latency s',  x:names, y:latY, mode:'lines+markers', line:{color:'#facc15',width:1.5,dash:'dot'}, marker:{...mkMarker(latY), color:'#facc15'}, yaxis:'y2' },
+    ];
+    const layout = {
+      height:200, margin:{t:10,b:40,l:40,r:50},
+      xaxis:  {tickfont:{color:TC,size:9}, gridcolor:GC, automargin:true},
+      yaxis:  {tickfont:{color:TC}, gridcolor:GC, range:[0,105], ticksuffix:'%', title:{text:'%', font:{color:TC,size:10}}},
+      yaxis2: {tickfont:{color:TC}, gridcolor:GC, overlaying:'y', side:'right', title:{text:'s', font:{color:TC,size:10}}},
+      legend: {font:{color:TC,size:10}, orientation:'h', y:1.15},
+      paper_bgcolor:'transparent', plot_bgcolor:'transparent', autosize:true,
+      shapes: [
+        {type:'line', x0:0, x1:1, xref:'paper', y0:this.thresholds.tcr, y1:this.thresholds.tcr, yref:'y', line:{color:'#6c8ef560',dash:'dash',width:1}},
+        {type:'line', x0:0, x1:1, xref:'paper', y0:this.thresholds.acc, y1:this.thresholds.acc, yref:'y', line:{color:'#4ade8060',dash:'dash',width:1}},
+      ],
+    };
+    if (window.Plotly && document.getElementById('ov-trend')) {
+      Plotly.react('ov-trend', traces, layout, {responsive:true, displayModeBar:false});
+    }
+  },
+
   startSSE() {
     const es = new EventSource('/api/stream');
     es.onopen = () => { this.connected = true; };
@@ -1761,6 +1902,7 @@ function app() { return {
 
   renderAll() {
     const d = this.data; if (!d) return;
+    this.renderTrend();
     const TC = this.dark ? '#8890b0' : '#5a6080';
     const GC = this.dark ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.07)';
     const scX = {tickfont:{color:TC}, gridcolor:GC, zerolinecolor:GC};
