@@ -343,6 +343,7 @@ textarea.gd-input{height:60px;resize:vertical;font-family:inherit}
       <div class="cbox"><div class="ct">성공/실패 비율</div><div id="l1-donut" class="plt-chart"></div></div>
       <div class="cbox"><div class="ct">TaskType별 성공률</div><div id="l1-type" class="plt-chart"></div></div>
     </div>
+    <div class="cbox"><div class="ct">실패 원인 분류</div><div id="l1-fail-reason" class="plt-chart"></div></div>
     <div class="sec" x-show="typeBreakdown().length>0">
       <div class="sec-t">TaskType별 상세</div>
       <template x-for="tp in typeBreakdown()" :key="tp.type">
@@ -363,6 +364,11 @@ textarea.gd-input{height:60px;resize:vertical;font-family:inherit}
       <div class="kpi"><div class="kpi-lbl">Min</div><div class="kpi-val" x-text="pct(data.accuracy_metrics?.accuracy_scores?.min_accuracy)"></div></div>
       <div class="kpi"><div class="kpi-lbl">Max</div><div class="kpi-val" x-text="pct(data.accuracy_metrics?.accuracy_scores?.max_accuracy)"></div></div>
       <div class="kpi"><div class="kpi-lbl">Std Dev</div><div class="kpi-val" x-text="pct(data.accuracy_metrics?.accuracy_scores?.std_accuracy)"></div></div>
+    </div>
+    <div class="sec">
+      <div class="sec-t">📐 정확도 계산 방식</div>
+      <div style="font-size:11px;color:var(--text2);margin-bottom:8px">Token Overlap(40%) · Jaccard(30%) · LCS Ratio(20%) · Char Similarity(10%) 가중 평균</div>
+      <div id="acc-weights" style="height:80px"></div>
     </div>
     <div class="sec"><div class="sec-t">정확도 분포</div><div id="acc-hist" class="plt-chart"></div></div>
     <div class="sec" x-show="lowAccTasks().length>0">
@@ -401,6 +407,10 @@ textarea.gd-input{height:60px;resize:vertical;font-family:inherit}
             </div>
           </template>
         </div>
+      </div>
+      <div class="sec" x-show="data.quality_detail?.dimension_summary && Object.keys(data.quality_detail?.dimension_summary||{}).length>0">
+        <div class="sec-t">🗺️ TaskType × 품질 차원 히트맵</div>
+        <div id="qual-heatmap" style="height:220px"></div>
       </div>
     </div>
   </div>
@@ -622,6 +632,10 @@ textarea.gd-input{height:60px;resize:vertical;font-family:inherit}
             <span class="tag" x-text="fw"></span>
           </template>
         </div>
+        <div class="sec" x-show="data.agentic?.workflow_summary">
+          <div class="sec-t">🔀 워크플로우 실행 퍼널</div>
+          <div id="l2-wf-funnel" style="height:240px"></div>
+        </div>
         <div class="sec">
           <div class="sec-t">워크플로우 실행 스텝</div>
           <div class="slist">
@@ -646,6 +660,10 @@ textarea.gd-input{height:60px;resize:vertical;font-family:inherit}
       </div>
       <div class="sec" x-show="(data.agentic?.retry_attempts||[]).length===0">
         <div style="font-size:12px;color:var(--text2)">재시도 기록 없음 (재시도가 발생한 태스크가 없거나 TrackerRetry가 비활성화됨)</div>
+      </div>
+      <div class="cg">
+        <div class="cbox"><div class="ct">시도 횟수 분포</div><div id="l2-retry-dist" class="plt-chart"></div></div>
+        <div class="cbox"><div class="ct">태스크 유형별 평균 시도 횟수</div><div id="l2-retry-type" class="plt-chart"></div></div>
       </div>
     </div>
   </div>
@@ -766,6 +784,11 @@ textarea.gd-input{height:60px;resize:vertical;font-family:inherit}
     <div class="cg" style="margin-top:12px">
       <div class="cbox"><div class="ct">Latency Box Plot (분포 요약)</div><div id="lat-box" class="plt-chart"></div></div>
       <div class="cbox"><div class="ct">TaskType별 Latency 비교</div><div id="lat-type-box" class="plt-chart"></div></div>
+    </div>
+    <div class="sec">
+      <div class="sec-t">🔬 Latency vs Accuracy 상관관계</div>
+      <div id="perf-scatter" style="height:260px"></div>
+      <div style="font-size:11px;color:var(--text2);margin-top:6px" x-text="pearsonCorr()"></div>
     </div>
   </div>
 
@@ -1373,7 +1396,8 @@ textarea.gd-input{height:60px;resize:vertical;font-family:inherit}
 
 <!-- ══ GLOSSARY ══ -->
 <div x-show="data && sec==='glossary'" x-cloak>
-  <template x-for="g in glossary" :key="g.term">
+  <input x-model="glossSearch" type="text" placeholder="지표 검색..." style="width:100%;padding:7px 10px;background:var(--bg3);border:1px solid var(--border);border-radius:var(--r);color:var(--text);font-size:12px;margin-bottom:10px">
+  <template x-for="g in glossary.filter(g=>!glossSearch||g.term.toLowerCase().includes(glossSearch.toLowerCase()))" :key="g.term">
     <div class="gterm">
       <h4><span x-text="g.icon"></span> <span x-text="g.term"></span> <span class="badge" x-text="g.layer"></span></h4>
       <p x-text="g.desc"></p>
@@ -1577,6 +1601,12 @@ textarea.gd-input{height:60px;resize:vertical;font-family:inherit}
 <div x-show="data && sec==='settings'" x-cloak>
   <div class="sec">
     <div class="sec-t">⚙️ 임계값 설정 (실시간 pass/fail 재판정)</div>
+    <div style="margin-bottom:12px">
+      <span style="font-size:11px;color:var(--text2);margin-right:8px">프리셋:</span>
+      <button class="btn" @click="thresholds={tcr:90,acc:70,hall:5,p95:2.0,cost:0.01}">기본값</button>
+      <button class="btn" @click="thresholds={tcr:95,acc:85,hall:3,p95:1.5,cost:0.005}" style="margin-left:6px">엄격</button>
+      <button class="btn" @click="thresholds={tcr:80,acc:60,hall:10,p95:3.0,cost:0.02}" style="margin-left:6px">완화</button>
+    </div>
     <div class="drow" style="align-items:center">
       <span class="dk">TCR 목표</span>
       <input type="range" x-model.number="thresholds.tcr" min="50" max="100" step="1" style="flex:1;margin:0 10px;accent-color:var(--accent)">
@@ -1688,6 +1718,7 @@ function app() { return {
   _hallucination: null, // cached hallucination rate for delta
   taskDetail: null,
   gdFiles: [], gdSelected: null, gdItems: {}, gdNewName: '', gdShowCreate: false,
+  glossSearch: '',
 
   nav: [
     { id:'overview',      icon:'📊', label:'Overview' },
@@ -1942,6 +1973,21 @@ function app() { return {
       marker:{color:rates.map(v=>v>=90?'#4ade8080':v>=70?'#facc1580':'#f8717180'), line:{color:rates.map(v=>v>=90?'#4ade80':v>=70?'#facc15':'#f87171'), width:1}}}],
       {xaxis:{...scX,range:[0,100],ticksuffix:'%'}, yaxis:{...scY,automargin:true}, ...noLeg, margin:{t:10,b:10,l:120,r:16}});
 
+    // ── Failure reason pie ──
+    const errTypes = {};
+    (d.tasks||[]).filter(t=>!t.success).forEach(t=>{
+      (t.errors||[]).forEach(e=>{
+        const et = (typeof e==='string'?e:(e.type||e.error_type||String(e))).split(':')[0].trim().substring(0,20)||'Unknown';
+        errTypes[et]=(errTypes[et]||0)+1;
+      });
+      if(!(t.errors||[]).length) errTypes['Unknown']=(errTypes['Unknown']||0)+1;
+    });
+    if(Object.keys(errTypes).length>0){
+      this._plt('l1-fail-reason',[{type:'pie',values:Object.values(errTypes),labels:Object.keys(errTypes),
+        marker:{colors:['#f87171','#fb923c','#facc15','#a78bfa','#60a5fa']},textinfo:'label+percent',textfont:{color:TC,size:10}}],
+        {height:200,showlegend:false,margin:{t:10,b:10,l:10,r:10}});
+    }
+
     // ── Health gauge ──
     const hs = this.hs;
     const gc = hs>=80?'#4ade80':hs>=60?'#facc15':'#f87171';
@@ -1972,6 +2018,16 @@ function app() { return {
          annotations:[{x:this.thresholds.acc,yref:'paper',y:1,text:`목표 ${this.thresholds.acc}%`,showarrow:false,font:{color:'#facc15',size:10},yanchor:'bottom'}]});
     }
 
+    // ── Accuracy weights ──
+    this._plt('acc-weights',[{
+      type:'bar',orientation:'h',
+      y:['Char Sim','LCS Ratio','Jaccard','Token Overlap'],
+      x:[10,20,30,40],
+      text:['10%','20%','30%','40%'],
+      textposition:'inside',
+      marker:{color:['#6c8ef580','#6c8ef5a0','#6c8ef5c0','#6c8ef5']}
+    }],{height:80,margin:{t:5,b:5,l:90,r:40},xaxis:{...scX,range:[0,50],showticklabels:false},yaxis:{...scY,automargin:true},...noLeg});
+
     // ── Quality radar ──
     const qd=d.quality_detail?.dimension_summary||{};
     if (Object.keys(qd).length) {
@@ -1980,6 +2036,48 @@ function app() { return {
         fill:'toself', fillcolor:'#6c8ef530', line:{color:'#6c8ef5'}, marker:{color:'#6c8ef5'}}],
         {polar:{radialaxis:{range:[0,2],tickfont:{color:TC},gridcolor:GC},angularaxis:{tickfont:{color:TC}},bgcolor:'transparent'},
          paper_bgcolor:'transparent', ...noLeg, height:240, margin:{t:20,b:20,l:40,r:40}});
+    }
+
+    // ── Quality heatmap ──
+    const dimSumm = d.quality_detail?.dimension_summary||{};
+    const dims = Object.keys(dimSumm);
+    if(dims.length>0){
+      const typeMap={};
+      (d.tasks||[]).forEach(t=>{
+        if(!typeMap[t.task_type]) typeMap[t.task_type]={};
+        dims.forEach(dim=>{
+          if(!typeMap[t.task_type][dim]) typeMap[t.task_type][dim]=[];
+        });
+      });
+      // Build per-type dimension averages from quality_detail evaluations
+      const evals=d.quality_detail?.evaluations||[];
+      evals.forEach(ev=>{
+        const tp=ev.task_type||'Unknown';
+        if(!typeMap[tp]) typeMap[tp]={};
+        dims.forEach(dim=>{
+          if(ev[dim]!=null){
+            if(!typeMap[tp][dim]) typeMap[tp][dim]=[];
+            typeMap[tp][dim].push(+ev[dim]);
+          }
+        });
+      });
+      const qualTypes=Object.keys(typeMap).filter(tp=>dims.some(dd=>typeMap[tp][dd]?.length>0));
+      if(qualTypes.length>0){
+        const z=qualTypes.map(tp=>dims.map(dim=>{
+          const arr=typeMap[tp][dim]||[];
+          return arr.length?+(arr.reduce((s,v)=>s+v,0)/arr.length*10).toFixed(1):null;
+        }));
+        this._plt('qual-heatmap',[{type:'heatmap',z,x:dims,y:qualTypes,
+          colorscale:[[0,'#f87171'],[0.5,'#facc15'],[1,'#4ade80']],
+          zmin:0,zmax:10,text:z,texttemplate:'%{text}',showscale:true,
+          colorbar:{tickfont:{color:TC},len:0.8}}],
+          {margin:{t:10,b:60,l:120,r:60},xaxis:{...scX,automargin:true},yaxis:{...scY,automargin:true}});
+      } else {
+        // Fallback: use dimension_summary global averages as single-row heatmap
+        const vals=dims.map(dim=>+(dimSumm[dim]||0));
+        this._plt('qual-heatmap',[{type:'bar',x:dims,y:vals,marker:{color:vals.map(v=>v>=8?'#4ade80':v>=6?'#facc15':'#f87171')}}],
+          {xaxis:{...scX,automargin:true},yaxis:{...scY,range:[0,10]},...noLeg,margin:{t:10,b:60,l:40,r:10}});
+      }
     }
 
     // ── RAG bar ──
@@ -2001,6 +2099,26 @@ function app() { return {
         marker:{color:['#4ade8080','#6c8ef580','#facc1580','#f8717180'], line:{color:['#4ade80','#6c8ef5','#facc15','#f87171'],width:1}}}],
         {xaxis:scX, yaxis:{...scY,ticksuffix:'%',range:[0,100]}, ...noLeg});
     }
+
+    // ── Retry distribution ──
+    const atmCnt={};
+    (d.tasks||[]).forEach(t=>{ const a=t.attempts||1; atmCnt[a]=(atmCnt[a]||0)+1; });
+    const atmKeys=Object.keys(atmCnt).map(Number).sort((a,b)=>a-b);
+    this._plt('l2-retry-dist',[{type:'bar',x:atmKeys.map(k=>`${k}회`),y:atmKeys.map(k=>atmCnt[k]),
+      marker:{color:atmKeys.map(k=>k===1?'#4ade80':k<=2?'#facc15':'#f87171')}}],
+      {xaxis:{...scX},yaxis:{...scY,title:{text:'태스크 수',font:{color:TC,size:10}}},...noLeg});
+
+    // ── Retry by task type ──
+    const typeAtm={};
+    (d.tasks||[]).forEach(t=>{
+      if(!typeAtm[t.task_type]) typeAtm[t.task_type]=[];
+      typeAtm[t.task_type].push(t.attempts||1);
+    });
+    const taTypes=Object.keys(typeAtm);
+    const taAvg=taTypes.map(tp=>+(typeAtm[tp].reduce((s,v)=>s+v,0)/typeAtm[tp].length).toFixed(2));
+    this._plt('l2-retry-type',[{type:'bar',orientation:'h',y:taTypes,x:taAvg,
+      marker:{color:taAvg.map(v=>v<=1.2?'#4ade80':v<=1.5?'#facc15':'#f87171')}}],
+      {xaxis:{...scX,title:{text:'평균 시도 횟수',font:{color:TC,size:10}}},yaxis:{...scY,automargin:true},...noLeg,margin:{t:10,b:30,l:120,r:16}});
 
     // ── Latency percentile bar ──
     const lat=d.efficiency_metrics?.latency||{};
@@ -2039,6 +2157,21 @@ function app() { return {
         hovertemplate:`${name}<br>%{y:.3f}s<extra></extra>`,
       }));
       this._plt('lat-type-box', boxTraces, {yaxis:{...scY,ticksuffix:'s'}, showlegend:false, margin:{t:10,b:50,l:46,r:10}});
+    }
+
+    // ── Latency vs Accuracy scatter ──
+    const scPts = (d.tasks||[]).filter(t=>t.execution_time>0);
+    if(scPts.length>0){
+      const typeColors={'QA':'#6c8ef5','CODE_GENERATION':'#4ade80','REASONING':'#facc15','DATA_ANALYSIS':'#f87171','SUMMARIZATION':'#a78bfa','TRANSLATION':'#60a5fa'};
+      const byType={};
+      scPts.forEach(t=>{byType[t.task_type]=byType[t.task_type]||[];byType[t.task_type].push(t);});
+      const scTraces=Object.entries(byType).map(([tp,ts])=>({
+        type:'scatter',mode:'markers',name:tp,
+        x:ts.map(t=>t.execution_time),y:ts.map(t=>t.accuracy_score*100),
+        text:ts.map(t=>t.task_id),
+        marker:{size:7,color:typeColors[tp]||'#8890b0',opacity:0.7}
+      }));
+      this._plt('perf-scatter',scTraces,{xaxis:{...scX,title:{text:'Latency (s)',font:{color:TC,size:10}}},yaxis:{...scY,title:{text:'Accuracy (%)',font:{color:TC,size:10}},range:[0,105]},legend:{font:{color:TC,size:10}},margin:{t:10,b:50,l:60,r:10}});
     }
 
     // ── Token pie ──
@@ -2195,6 +2328,25 @@ function app() { return {
         displaylogo:false,
         modeBarButtonsToRemove:['select2d','lasso2d','toggleSpikelines','hoverClosestCartesian','hoverCompareCartesian'],
       });
+    }
+
+    // ── Workflow funnel ──
+    const wfSum=d.agentic?.workflow_summary||{};
+    const totalTasks=d.total_tasks||0;
+    const wfExecs=d.agentic?.workflow_executions||[];
+    const wfTaskCount=new Set(wfExecs.map(w=>w.task_id)).size||totalTasks;
+    const successSteps=wfExecs.filter(w=>w.success).length;
+    const totalSteps=wfExecs.length;
+    const wfSuccTasks=Math.round(wfTaskCount*(wfSum.step_success_rate||1));
+    if(totalTasks>0){
+      const funnelY=['입력 태스크','워크플로우 시작','단계 실행','단계 성공','최종 완료'];
+      const funnelX=[totalTasks, wfTaskCount||totalTasks, totalSteps||totalTasks, successSteps||wfSuccTasks, wfSuccTasks||totalTasks];
+      this._plt('l2-wf-funnel',[{type:'funnel',y:funnelY,x:funnelX,
+        textinfo:'value+percent initial',
+        marker:{color:['#6c8ef5','#818cf8','#4ade80','#34d399','#22c55e']},
+        connector:{line:{color:'transparent'}}}],
+        {margin:{t:10,b:10,l:130,r:60},funnelmode:'stack',
+         xaxis:{...scX},yaxis:{...scY,automargin:true}});
     }
 
     // ── Integrated Security radar (duplicate for intsec tab) ──
@@ -2743,6 +2895,22 @@ function app() { return {
       tasks: files.reduce((s,d)=>s+(d.total_tasks||0),0),
       cost:  files.reduce((s,d)=>s+(d.efficiency_metrics?.tokens?.total_cost||0),0),
     };
+  },
+
+  pearsonCorr() {
+    if (!this.data) return '';
+    const pts = (this.data.tasks||[]).filter(t=>t.execution_time>0&&t.accuracy_score>=0);
+    if (pts.length < 3) return '';
+    const n = pts.length;
+    const xs = pts.map(t=>t.execution_time), ys = pts.map(t=>t.accuracy_score*100);
+    const mx = xs.reduce((s,v)=>s+v,0)/n, my = ys.reduce((s,v)=>s+v,0)/n;
+    const num = xs.reduce((s,v,i)=>s+(v-mx)*(ys[i]-my),0);
+    const den = Math.sqrt(xs.reduce((s,v)=>s+(v-mx)**2,0)*ys.reduce((s,v)=>s+(v-my)**2,0));
+    if (!den) return '';
+    const r = num/den;
+    const interp = Math.abs(r)>=0.7?'강한':Math.abs(r)>=0.4?'중간':'약한';
+    const dir = r>0?'양의':'음의';
+    return `Pearson r = ${r.toFixed(3)} — ${interp} ${dir} 상관관계 (n=${n})`;
   },
 
   // ── Format helpers ─────────────────────────────────────────────────────
