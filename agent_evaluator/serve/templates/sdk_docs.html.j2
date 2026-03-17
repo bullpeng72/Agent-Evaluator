@@ -1,0 +1,760 @@
+<!DOCTYPE html>
+<html lang="ko" id="root">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>SDK 레퍼런스 — {{ title }}</title>
+<style>
+/* ── 테마 변수 (dashboard와 동일한 팔레트) ── */
+:root{
+  --bg:#0f1117;--bg2:#1a1d27;--bg3:#22263a;--border:#2d3148;
+  --text:#e2e4f0;--text2:#8890b0;--accent:#6c8ef5;
+  --green:#4ade80;--yellow:#facc15;--red:#f87171;--orange:#fb923c;
+  --r:8px;
+}
+html.light{
+  --bg:#f4f6fc;--bg2:#fff;--bg3:#eef0f8;--border:#d1d5e8;
+  --text:#1a1d2e;--text2:#5a6080;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(--text);font-size:14px;line-height:1.65}
+
+/* ── 레이아웃 ── */
+.layout{display:grid;grid-template-columns:230px 1fr;height:100vh}
+.side{background:var(--bg2);border-right:1px solid var(--border);overflow-y:auto;position:sticky;top:0;height:100vh;padding:0 0 24px}
+.main{overflow-y:auto;padding:32px 40px;max-width:900px}
+
+/* ── 상단 헤더 (사이드바 안) ── */
+.side-hdr{padding:16px 14px 10px;border-bottom:1px solid var(--border);margin-bottom:8px}
+.side-hdr .logo{font-weight:700;font-size:13px}.side-hdr .logo span{color:var(--accent)}
+.side-hdr .badge{font-size:10px;color:var(--text2);background:var(--bg3);border:1px solid var(--border);border-radius:99px;padding:1px 7px;margin-left:6px}
+
+/* ── 사이드 네비게이션 ── */
+.nav-group{margin:10px 0 2px;padding:0 14px;font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--text2)}
+.nav-item{display:flex;align-items:center;gap:8px;padding:6px 14px;cursor:pointer;font-size:12px;color:var(--text2);border-left:3px solid transparent;text-decoration:none;transition:background .1s}
+.nav-item:hover,.nav-item.on{background:var(--bg3);color:var(--text);border-left-color:var(--accent)}
+.nav-item .tag{margin-left:auto;font-size:9px;padding:1px 5px;border-radius:99px;background:var(--bg3);color:var(--text2)}
+
+/* ── 콘텐츠 섹션 ── */
+.sec{margin-bottom:40px;scroll-margin-top:20px}
+.sec-title{font-size:20px;font-weight:700;margin-bottom:6px;display:flex;align-items:center;gap:10px}
+.sec-title .icon{font-size:18px}
+.sec-sub{color:var(--text2);font-size:13px;margin-bottom:18px;border-bottom:1px solid var(--border);padding-bottom:10px}
+
+/* ── 클래스 카드 ── */
+.cls-card{background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);margin-bottom:16px;overflow:hidden}
+.cls-head{padding:12px 16px;background:var(--bg3);border-bottom:1px solid var(--border);display:flex;align-items:baseline;gap:10px}
+.cls-name{font-size:15px;font-weight:700;font-family:monospace;color:var(--accent)}
+.cls-kind{font-size:10px;padding:2px 7px;border-radius:99px;font-weight:600}
+.cls-kind.class{background:#6c8ef522;color:var(--accent)}
+.cls-kind.func{background:#4ade8022;color:var(--green)}
+.cls-kind.enum{background:#facc1522;color:var(--yellow)}
+.cls-kind.ctx{background:#fb923c22;color:var(--orange)}
+.cls-desc{padding:12px 16px;color:var(--text2);font-size:13px}
+.cls-body{padding:0 16px 14px}
+
+/* ── 메서드/파라미터 테이블 ── */
+.mtable{width:100%;border-collapse:collapse;font-size:12px;margin-top:8px}
+.mtable th{text-align:left;padding:5px 10px;font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:var(--text2);background:var(--bg3);border-bottom:1px solid var(--border)}
+.mtable td{padding:6px 10px;border-bottom:1px solid var(--border);vertical-align:top}
+.mtable tr:last-child td{border-bottom:none}
+.mtable tr:hover td{background:var(--bg3)}
+.mtable .param{font-family:monospace;color:var(--accent);font-size:11px}
+.mtable .type{font-family:monospace;color:var(--yellow);font-size:11px}
+.mtable .ret{font-family:monospace;color:var(--green);font-size:11px}
+.mtable .req{color:var(--red);font-size:10px;margin-left:4px}
+.mtable .opt{color:var(--text2);font-size:10px;margin-left:4px}
+
+/* ── 코드 블록 ── */
+pre{background:var(--bg3);border:1px solid var(--border);border-radius:var(--r);padding:14px 16px;overflow-x:auto;font-size:12px;font-family:'Cascadia Code','Fira Code',monospace;margin:10px 0;line-height:1.6}
+code{font-family:'Cascadia Code','Fira Code',monospace;font-size:12px}
+.kw{color:#c792ea}.cn{color:var(--accent)}.fn{color:var(--green)}
+.st{color:#c3e88d}.cm{color:var(--text2);font-style:italic}.nm{color:var(--yellow)}
+
+/* ── 뱃지 / 태그 ── */
+.badge{display:inline-block;font-size:10px;padding:1px 7px;border-radius:99px;font-weight:600;margin-left:4px}
+.badge.l1{background:#6c8ef522;color:var(--accent)}
+.badge.l2{background:#4ade8022;color:var(--green)}
+.badge.l3{background:#fb923c22;color:var(--orange)}
+.badge.req{background:#f8717122;color:var(--red)}
+.badge.opt{background:#22263a;color:var(--text2);border:1px solid var(--border)}
+
+/* ── 상단 툴바 ── */
+.toolbar{position:sticky;top:0;background:var(--bg2);border-bottom:1px solid var(--border);padding:8px 14px;display:flex;align-items:center;gap:10px;z-index:10;font-size:12px}
+.toolbar .title{font-weight:700;color:var(--accent)}.toolbar .sp{flex:1}
+.btn{background:var(--bg3);color:var(--text);border:1px solid var(--border);border-radius:6px;padding:4px 10px;font-size:11px;cursor:pointer;text-decoration:none;display:inline-flex;align-items:center;gap:4px}
+.btn:hover{background:var(--accent);color:#fff;border-color:var(--accent)}
+input[type=search]{background:var(--bg3);color:var(--text);border:1px solid var(--border);border-radius:6px;padding:4px 10px;font-size:12px;width:200px;outline:none}
+input[type=search]:focus{border-color:var(--accent)}
+
+/* ── 알림 박스 ── */
+.note{background:var(--bg3);border-left:3px solid var(--accent);border-radius:0 var(--r) var(--r) 0;padding:10px 14px;font-size:12px;color:var(--text2);margin:10px 0}
+.note.warn{border-left-color:var(--yellow)}.note.tip{border-left-color:var(--green)}
+
+/* ── 검색 하이라이트 ── */
+mark{background:#facc1544;color:var(--yellow);border-radius:2px}
+
+/* ── 분리선 ── */
+hr{border:none;border-top:1px solid var(--border);margin:20px 0}
+
+/* ── 레이어 헤더 ── */
+.layer-hdr{background:var(--bg3);border:1px solid var(--border);border-radius:var(--r);padding:10px 14px;margin-bottom:16px;display:flex;align-items:center;gap:10px}
+.layer-hdr .lnum{font-size:22px;font-weight:800;color:var(--accent);font-family:monospace}
+.layer-hdr .linfo{flex:1}
+.layer-hdr .ltitle{font-weight:700;font-size:14px}
+.layer-hdr .ldesc{font-size:11px;color:var(--text2);margin-top:2px}
+.layer-hdr .ldep{font-size:10px;padding:2px 8px;border-radius:99px;border:1px solid var(--border);color:var(--text2)}
+
+/* ── 트래커 그리드 ── */
+.tracker-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px;margin-bottom:14px}
+.tracker-card{background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);padding:12px}
+.tracker-card:hover{border-color:var(--accent)}
+.tracker-card .tc-name{font-family:monospace;font-size:12px;font-weight:700;color:var(--accent);margin-bottom:4px}
+.tracker-card .tc-metric{font-size:11px;color:var(--green);margin-bottom:4px}
+.tracker-card .tc-desc{font-size:11px;color:var(--text2)}
+</style>
+</head>
+<body>
+<div class="layout">
+
+<!-- ══════════════════════════════════════════
+     사이드바 네비게이션
+═══════════════════════════════════════════ -->
+<nav class="side" id="sidebar">
+  <div class="side-hdr">
+    <div class="logo">🤖 <span>Agent</span> Evaluator <span class="badge">v{{ version }}</span></div>
+    <div style="font-size:11px;color:var(--text2);margin-top:4px">📖 SDK 레퍼런스</div>
+  </div>
+
+  <div class="nav-group">시작하기</div>
+  <a class="nav-item" href="#quickstart">⚡ Quick Start</a>
+  <a class="nav-item" href="#install">📦 설치 &amp; 의존성</a>
+
+  <div class="nav-group">핵심 클래스</div>
+  <a class="nav-item" href="#performance-monitor">PerformanceMonitor <span class="tag">core</span></a>
+  <a class="nav-item" href="#task-result">TaskResult <span class="tag">dataclass</span></a>
+  <a class="nav-item" href="#task-type">TaskType <span class="tag">enum</span></a>
+  <a class="nav-item" href="#helpers">create_taskresult() <span class="tag">helper</span></a>
+  <a class="nav-item" href="#context-mgr">evaluation_session() <span class="tag">ctx</span></a>
+
+  <div class="nav-group">Layer 1 — 기초 지표</div>
+  <a class="nav-item" href="#layer1">개요 &amp; 트래커 목록</a>
+
+  <div class="nav-group">Layer 2 — 에이전틱</div>
+  <a class="nav-item" href="#layer2-agentic">에이전틱 지표 (5종)</a>
+  <a class="nav-item" href="#layer2-security">보안 지표 (5종)</a>
+
+  <div class="nav-group">Layer 3 — 하이브리드</div>
+  <a class="nav-item" href="#layer3">HybridPerformanceMonitor</a>
+  <a class="nav-item" href="#adapters">외부 어댑터</a>
+
+  <div class="nav-group">프레임워크 통합</div>
+  <a class="nav-item" href="#frameworks">CrewAI / LangChain / AutoGen</a>
+  <a class="nav-item" href="#llm-helpers">LLMHelper / ClaudeHelper</a>
+
+  <div class="nav-group">링크</div>
+  <a class="nav-item" href="/api/docs" target="_blank">📡 UI API (Swagger)</a>
+  <a class="nav-item" href="/" target="_blank">🏠 대시보드</a>
+</nav>
+
+<!-- ══════════════════════════════════════════
+     메인 콘텐츠
+═══════════════════════════════════════════ -->
+<div style="display:flex;flex-direction:column;overflow:hidden">
+
+<!-- 툴바 -->
+<div class="toolbar">
+  <span class="title">📖 Agent Evaluator SDK 레퍼런스</span>
+  <input type="search" id="search" placeholder="클래스·메서드 검색…" oninput="doSearch(this.value)">
+  <div class="sp"></div>
+  <a class="btn" href="/api/docs" target="_blank">📡 UI API</a>
+  <a class="btn" href="/">← 대시보드</a>
+  <button class="btn" onclick="toggleTheme()">🌓</button>
+</div>
+
+<div class="main" id="content">
+
+<!-- ── Quick Start ─────────────────────────────────────────────── -->
+<section class="sec" id="quickstart">
+  <div class="sec-title"><span class="icon">⚡</span> Quick Start</div>
+  <div class="sec-sub">3단계로 첫 평가를 시작합니다</div>
+
+  <div class="cls-card">
+    <div class="cls-head"><span class="cls-name">1. 설치</span></div>
+    <div class="cls-body">
+<pre><span class="cm"># 기본 설치 (Layer 1 + 2)</span>
+pip install agent-evaluator
+
+<span class="cm"># 모든 선택 의존성 포함</span>
+pip install <span class="st">"agent-evaluator[all]"</span>
+
+<span class="cm"># 개별 extra</span>
+pip install <span class="st">"agent-evaluator[deepeval]"</span>   <span class="cm"># DeepEval 통합</span>
+pip install <span class="st">"agent-evaluator[ragas]"</span>      <span class="cm"># Ragas RAG 평가</span>
+pip install <span class="st">"agent-evaluator[serve]"</span>     <span class="cm"># 웹 대시보드</span></pre>
+    </div>
+  </div>
+
+  <div class="cls-card">
+    <div class="cls-head"><span class="cls-name">2. 최소 예시</span></div>
+    <div class="cls-body">
+<pre><span class="kw">from</span> <span class="cn">agent_evaluator</span> <span class="kw">import</span> PerformanceMonitor, TaskResult, TaskType
+
+<span class="cm"># 모니터 초기화</span>
+monitor = <span class="fn">PerformanceMonitor</span>(output_dir=<span class="st">"results/"</span>)
+
+<span class="cm"># 태스크 결과 기록</span>
+result = <span class="fn">TaskResult</span>(
+    task_id=<span class="st">"task_001"</span>,
+    task_type=<span class="cn">TaskType</span>.QA,
+    success=<span class="kw">True</span>,
+    response=<span class="st">"서울은 대한민국의 수도입니다."</span>,
+    expected_output=<span class="st">"서울"</span>,
+    execution_time=<span class="nm">1.23</span>,
+    tokens_used={<span class="st">"input"</span>: <span class="nm">100</span>, <span class="st">"output"</span>: <span class="nm">50</span>, <span class="st">"total"</span>: <span class="nm">150</span>},
+)
+monitor.<span class="fn">record_task</span>(result)
+
+<span class="cm"># JSON + HTML 리포트 저장</span>
+monitor.<span class="fn">save_to_file</span>(<span class="st">"evaluation"</span>)</pre>
+    </div>
+  </div>
+
+  <div class="cls-card">
+    <div class="cls-head"><span class="cls-name">3. 대시보드 실행</span></div>
+    <div class="cls-body">
+<pre><span class="cm"># CLI로 웹 대시보드 실행</span>
+agent-eval serve
+
+<span class="cm"># 또는 포트/경로 지정</span>
+agent-eval serve ./results --port <span class="nm">8080</span></pre>
+    </div>
+  </div>
+</section>
+
+<!-- ── 설치 & 의존성 ─────────────────────────────────────────────── -->
+<section class="sec" id="install">
+  <div class="sec-title"><span class="icon">📦</span> 설치 &amp; 의존성</div>
+  <div class="sec-sub">Python 3.8+ 지원. Core 의존성은 numpy, pandas, python-dotenv 뿐입니다.</div>
+
+  <table class="mtable">
+    <thead><tr><th>Extra</th><th>pip install</th><th>추가되는 기능</th><th>의존성</th></tr></thead>
+    <tbody>
+      <tr><td><code class="type">core</code></td><td><code>agent-evaluator</code></td><td>Layer 1 + 2 전체, CLI, 대시보드</td><td>numpy, pandas, python-dotenv</td></tr>
+      <tr><td><code class="type">deepeval</code></td><td><code>agent-evaluator[deepeval]</code></td><td>DeepEvalAdapter</td><td>deepeval ≥0.20</td></tr>
+      <tr><td><code class="type">ragas</code></td><td><code>agent-evaluator[ragas]</code></td><td>RagasAdapter</td><td>ragas ≥0.1</td></tr>
+      <tr><td><code class="type">langchain</code></td><td><code>agent-evaluator[langchain]</code></td><td>LangChain/LangGraph 통합</td><td>langchain ≥0.1</td></tr>
+      <tr><td><code class="type">serve</code></td><td><code>agent-evaluator[serve]</code></td><td>웹 대시보드 서버</td><td>fastapi, uvicorn, jinja2</td></tr>
+      <tr><td><code class="type">datasets</code></td><td><code>agent-evaluator[datasets]</code></td><td>PDF 처리, 한국어 RAG 데이터셋</td><td>PyPDF2, pdfplumber</td></tr>
+      <tr><td><code class="type">all</code></td><td><code>agent-evaluator[all]</code></td><td>위 전체 포함</td><td>—</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<!-- ── PerformanceMonitor ────────────────────────────────────────── -->
+<section class="sec" id="performance-monitor">
+  <div class="sec-title"><span class="icon">🎛️</span> PerformanceMonitor</div>
+  <div class="sec-sub">모든 트래커를 내부에서 조율하는 중앙 오케스트레이터입니다.</div>
+
+  <div class="cls-card">
+    <div class="cls-head">
+      <span class="cls-name">PerformanceMonitor</span>
+      <span class="cls-kind class">class</span>
+      <span style="font-size:11px;color:var(--text2);margin-left:auto">agent_evaluator.core.agent_evaluator</span>
+    </div>
+    <div class="cls-desc">Layer 1 + 2 트래커 14종을 자동으로 구성하고, <code>record_task()</code>로 수집한 결과를 집계해 리포트를 생성합니다.</div>
+    <div class="cls-body">
+      <div style="font-size:11px;font-weight:700;color:var(--text2);margin-bottom:6px;text-transform:uppercase;letter-spacing:.05em">생성자 파라미터</div>
+      <table class="mtable">
+        <thead><tr><th>파라미터</th><th>타입</th><th>기본값</th><th>설명</th></tr></thead>
+        <tbody>
+          <tr><td><span class="param">output_dir</span><span class="opt">opt</span></td><td><span class="type">str</span></td><td><code>"results/"</code></td><td>JSON/HTML 리포트 저장 디렉토리</td></tr>
+          <tr><td><span class="param">enable_hallucination_detection</span><span class="opt">opt</span></td><td><span class="type">bool</span></td><td><code>False</code></td><td>환각 탐지 활성화 (LLM 호출 비용 발생)</td></tr>
+          <tr><td><span class="param">enable_security_metrics</span><span class="opt">opt</span></td><td><span class="type">bool</span></td><td><code>False</code></td><td>보안 지표 (Layer 2 보안) 활성화</td></tr>
+        </tbody>
+      </table>
+
+      <div style="font-size:11px;font-weight:700;color:var(--text2);margin:14px 0 6px;text-transform:uppercase;letter-spacing:.05em">주요 메서드</div>
+      <table class="mtable">
+        <thead><tr><th>메서드</th><th>반환</th><th>설명</th></tr></thead>
+        <tbody>
+          <tr><td><span class="param">record_task(result)</span></td><td><span class="ret">None</span></td><td>TaskResult 하나를 모든 트래커에 기록</td></tr>
+          <tr><td><span class="param">generate_report()</span></td><td><span class="ret">EvaluationReport</span></td><td>수집된 데이터를 집계해 리포트 객체 반환</td></tr>
+          <tr><td><span class="param">save_to_file(stem)</span></td><td><span class="ret">Path</span></td><td>JSON + HTML 파일 저장, 저장 경로 반환</td></tr>
+          <tr><td><span class="param">reset()</span></td><td><span class="ret">None</span></td><td>모든 트래커 상태 초기화</td></tr>
+        </tbody>
+      </table>
+
+      <div style="font-size:11px;font-weight:700;color:var(--text2);margin:14px 0 6px;text-transform:uppercase;letter-spacing:.05em">예시</div>
+<pre><span class="kw">from</span> <span class="cn">agent_evaluator</span> <span class="kw">import</span> PerformanceMonitor
+
+monitor = <span class="fn">PerformanceMonitor</span>(
+    output_dir=<span class="st">"results/"</span>,
+    enable_hallucination_detection=<span class="kw">True</span>,
+    enable_security_metrics=<span class="kw">True</span>,
+)
+
+<span class="kw">for</span> task <span class="kw">in</span> tasks:
+    result = agent.<span class="fn">run</span>(task)
+    monitor.<span class="fn">record_task</span>(result)
+
+path = monitor.<span class="fn">save_to_file</span>(<span class="st">"my_eval"</span>)  <span class="cm"># → results/my_eval.json</span></pre>
+    </div>
+  </div>
+</section>
+
+<!-- ── TaskResult ───────────────────────────────────────────────── -->
+<section class="sec" id="task-result">
+  <div class="sec-title"><span class="icon">📋</span> TaskResult</div>
+  <div class="sec-sub">단일 태스크 실행 결과를 담는 dataclass입니다. 44개 필드를 가집니다.</div>
+
+  <div class="cls-card">
+    <div class="cls-head">
+      <span class="cls-name">TaskResult</span>
+      <span class="cls-kind class">dataclass</span>
+      <span style="font-size:11px;color:var(--text2);margin-left:auto">agent_evaluator.core.agent_evaluator</span>
+    </div>
+    <div class="cls-desc">모든 평가 지표는 이 객체를 기반으로 계산됩니다. 필수 필드만 채워도 동작하며, 선택 필드는 해당 트래커 활성화 시 사용됩니다.</div>
+    <div class="cls-body">
+      <table class="mtable">
+        <thead><tr><th>필드</th><th>타입</th><th>필수</th><th>설명</th></tr></thead>
+        <tbody>
+          <tr><td><span class="param">task_id</span></td><td><span class="type">str</span></td><td><span class="req">✦</span></td><td>태스크 고유 식별자</td></tr>
+          <tr><td><span class="param">task_type</span></td><td><span class="type">TaskType</span></td><td><span class="req">✦</span></td><td>태스크 유형 (QA, CODE_GENERATION 등)</td></tr>
+          <tr><td><span class="param">success</span></td><td><span class="type">bool</span></td><td><span class="req">✦</span></td><td>태스크 성공 여부</td></tr>
+          <tr><td><span class="param">response</span></td><td><span class="type">str</span></td><td></td><td>에이전트 응답 텍스트</td></tr>
+          <tr><td><span class="param">expected_output</span></td><td><span class="type">str</span></td><td></td><td>정답/기대 출력 (정확도 계산에 사용)</td></tr>
+          <tr><td><span class="param">execution_time</span></td><td><span class="type">float</span></td><td></td><td>실행 시간 (초)</td></tr>
+          <tr><td><span class="param">tokens_used</span></td><td><span class="type">dict</span></td><td></td><td><code>{"input": N, "output": N, "total": N}</code></td></tr>
+          <tr><td><span class="param">tool_calls</span></td><td><span class="type">list</span></td><td></td><td>도구 호출 목록 <code>[{"name": "...", "success": True}]</code></td></tr>
+          <tr><td><span class="param">expected_tools</span></td><td><span class="type">list[str]</span></td><td></td><td>기대 도구 목록 (Tool Selection F1 계산용)</td></tr>
+          <tr><td><span class="param">context</span></td><td><span class="type">str</span></td><td></td><td>RAG 컨텍스트 (Ragas 평가용)</td></tr>
+          <tr><td><span class="param">error_message</span></td><td><span class="type">str</span></td><td></td><td>실패 시 오류 메시지</td></tr>
+          <tr><td><span class="param">retry_count</span></td><td><span class="type">int</span></td><td></td><td>재시도 횟수</td></tr>
+          <tr><td><span class="param">metadata</span></td><td><span class="type">dict</span></td><td></td><td>사용자 정의 메타데이터</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<!-- ── TaskType ──────────────────────────────────────────────────── -->
+<section class="sec" id="task-type">
+  <div class="sec-title"><span class="icon">🏷️</span> TaskType</div>
+  <div class="sec-sub">태스크 유형을 나타내는 Enum입니다. 정확도 계산 전략이 유형별로 달라집니다.</div>
+
+  <div class="cls-card">
+    <div class="cls-head"><span class="cls-name">TaskType</span><span class="cls-kind enum">enum</span></div>
+    <div class="cls-body">
+      <table class="mtable">
+        <thead><tr><th>값</th><th>정확도 전략</th><th>주요 용도</th></tr></thead>
+        <tbody>
+          <tr><td><span class="param">TaskType.QA</span></td><td>Token F1 + Jaccard + LCS</td><td>질의응답, 정보 검색</td></tr>
+          <tr><td><span class="param">TaskType.CODE_GENERATION</span></td><td>AST 비교 → 정규화 비교</td><td>코드 생성, 코드 수정</td></tr>
+          <tr><td><span class="param">TaskType.DATA_ANALYSIS</span></td><td>수치 추출 + 텍스트 유사도</td><td>데이터 분석, 통계 요약</td></tr>
+          <tr><td><span class="param">TaskType.REASONING</span></td><td>단계 정합성 + 결론 매칭</td><td>추론, 논리 문제</td></tr>
+          <tr><td><span class="param">TaskType.CREATIVE</span></td><td>다양성 지표 (유사도 역산)</td><td>창작, 글쓰기</td></tr>
+          <tr><td><span class="param">TaskType.CLASSIFICATION</span></td><td>정확 일치 (대소문자 무시)</td><td>분류, 레이블링</td></tr>
+          <tr><td><span class="param">TaskType.SUMMARIZATION</span></td><td>ROUGE-L 근사</td><td>요약</td></tr>
+          <tr><td><span class="param">TaskType.TRANSLATION</span></td><td>토큰 중복률</td><td>번역</td></tr>
+          <tr><td><span class="param">TaskType.GENERAL</span></td><td>가중 혼합</td><td>기타</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<!-- ── Helpers ───────────────────────────────────────────────────── -->
+<section class="sec" id="helpers">
+  <div class="sec-title"><span class="icon">🔧</span> create_taskresult()</div>
+  <div class="sec-sub">TaskResult 생성을 간소화하는 헬퍼 함수입니다.</div>
+
+  <div class="cls-card">
+    <div class="cls-head">
+      <span class="cls-name">create_taskresult</span>
+      <span class="cls-kind func">function</span>
+      <span style="font-size:11px;color:var(--text2);margin-left:auto">agent_evaluator.helpers.taskresult_helpers</span>
+    </div>
+    <div class="cls-desc">딕셔너리 또는 키워드 인수로 TaskResult를 생성합니다. task_type을 문자열로 전달해도 자동 변환됩니다.</div>
+    <div class="cls-body">
+<pre><span class="kw">from</span> <span class="cn">agent_evaluator</span> <span class="kw">import</span> create_taskresult, TaskType
+
+result = <span class="fn">create_taskresult</span>(
+    task_id=<span class="st">"t1"</span>,
+    task_type=TaskType.QA,          <span class="cm"># 또는 문자열 "qa"</span>
+    success=<span class="kw">True</span>,
+    response=<span class="st">"답변 텍스트"</span>,
+    expected_output=<span class="st">"기대 텍스트"</span>,
+    execution_time=<span class="nm">0.8</span>,
+    tokens_used={<span class="st">"input"</span>:<span class="nm">80</span>, <span class="st">"output"</span>:<span class="nm">40</span>, <span class="st">"total"</span>:<span class="nm">120</span>},
+)</pre>
+    </div>
+  </div>
+</section>
+
+<!-- ── Context Manager ──────────────────────────────────────────── -->
+<section class="sec" id="context-mgr">
+  <div class="sec-title"><span class="icon">🔄</span> evaluation_session()</div>
+  <div class="sec-sub">평가 세션을 자동으로 열고 닫는 async 컨텍스트 매니저입니다.</div>
+
+  <div class="cls-card">
+    <div class="cls-head">
+      <span class="cls-name">evaluation_session</span>
+      <span class="cls-kind ctx">async context</span>
+      <span style="font-size:11px;color:var(--text2);margin-left:auto">agent_evaluator</span>
+    </div>
+    <div class="cls-desc">세션 종료 시 <code>save_to_file()</code>을 자동 호출합니다. 예외 발생 시에도 부분 결과를 저장합니다.</div>
+    <div class="cls-body">
+<pre><span class="kw">import</span> asyncio
+<span class="kw">from</span> <span class="cn">agent_evaluator</span> <span class="kw">import</span> PerformanceMonitor, evaluation_session
+
+monitor = <span class="fn">PerformanceMonitor</span>(output_dir=<span class="st">"results/"</span>)
+
+<span class="kw">async def</span> <span class="fn">run_eval</span>():
+    <span class="kw">async with</span> <span class="fn">evaluation_session</span>(monitor, stem=<span class="st">"session_01"</span>) <span class="kw">as</span> m:
+        result = <span class="kw">await</span> agent.<span class="fn">run</span>(task)
+        m.<span class="fn">record_task</span>(result)
+    <span class="cm"># 세션 종료 시 results/session_01.json 자동 저장</span></pre>
+    </div>
+  </div>
+</section>
+
+<!-- ── Layer 1 ───────────────────────────────────────────────────── -->
+<section class="sec" id="layer1">
+  <div class="sec-title"><span class="icon">📈</span> Layer 1 — Foundation Metrics</div>
+  <div class="sec-sub">외부 의존성 없이 동작하는 6종의 기초 성능 지표 트래커입니다.</div>
+
+  <div class="layer-hdr">
+    <div class="lnum">L1</div>
+    <div class="linfo">
+      <div class="ltitle">Foundation Metrics — 6 트래커</div>
+      <div class="ldesc">native Python, numpy, pandas만 사용. 외부 API 호출 없음</div>
+    </div>
+    <div class="ldep">의존성 없음</div>
+  </div>
+
+  <div class="tracker-grid">
+    <div class="tracker-card">
+      <div class="tc-name">TaskCompletionTracker</div>
+      <div class="tc-metric">→ TCR (Task Completion Rate)</div>
+      <div class="tc-desc">성공/실패 집계, 태스크 유형별 완료율</div>
+    </div>
+    <div class="tracker-card">
+      <div class="tc-name">AccuracyEvaluator</div>
+      <div class="tc-metric">→ accuracy_score (0–1)</div>
+      <div class="tc-desc">QA: Token F1+Jaccard+LCS, Code: AST 비교</div>
+    </div>
+    <div class="tracker-card">
+      <div class="tc-name">HallucinationDetector</div>
+      <div class="tc-metric">→ hallucination_rate</div>
+      <div class="tc-desc">사실 일관성 스코어. enable_hallucination_detection=True 필요</div>
+    </div>
+    <div class="tracker-card">
+      <div class="tc-name">ResponseQualityEvaluator</div>
+      <div class="tc-metric">→ quality_score (6차원)</div>
+      <div class="tc-desc">완성도·명확성·관련성·일관성·깊이·안전성</div>
+    </div>
+    <div class="tracker-card">
+      <div class="tc-name">LatencyTracker</div>
+      <div class="tc-metric">→ p50, p95, p99 (ms)</div>
+      <div class="tc-desc">백분위 기반 지연 시간 분석</div>
+    </div>
+    <div class="tracker-card">
+      <div class="tc-name">TokenEconomyTracker</div>
+      <div class="tc-metric">→ total_cost (USD)</div>
+      <div class="tc-desc">토큰 사용량 + 모델별 비용 추정</div>
+    </div>
+  </div>
+
+  <div class="note tip">개별 트래커는 <code>from agent_evaluator import AccuracyEvaluator</code>로 독립 사용 가능합니다.</div>
+</section>
+
+<!-- ── Layer 2 에이전틱 ──────────────────────────────────────────── -->
+<section class="sec" id="layer2-agentic">
+  <div class="sec-title"><span class="icon">🤖</span> Layer 2 — 에이전틱 지표 (5종)</div>
+  <div class="sec-sub">도구 사용·워크플로우·멀티에이전트 상호작용을 측정합니다. <code>tool_calls</code> 필드가 필요합니다.</div>
+
+  <div class="layer-hdr">
+    <div class="lnum">L2</div>
+    <div class="linfo">
+      <div class="ltitle">Agentic Metrics — 5 트래커</div>
+      <div class="ldesc">TaskResult.tool_calls, expected_tools 필드 필요</div>
+    </div>
+    <div class="ldep">의존성 없음</div>
+  </div>
+
+  <div class="tracker-grid">
+    <div class="tracker-card">
+      <div class="tc-name">ToolCallAnalyzer</div>
+      <div class="tc-metric">→ tool_efficiency</div>
+      <div class="tc-desc">도구 호출 패턴, 성공률, 사용 빈도</div>
+    </div>
+    <div class="tracker-card">
+      <div class="tc-name">ToolSelectionTracker</div>
+      <div class="tc-metric">→ F1, precision, recall</div>
+      <div class="tc-desc">예상 도구 vs 실제 도구 F1 기반 정확도</div>
+    </div>
+    <div class="tracker-card">
+      <div class="tc-name">RetryCorrectionTracker</div>
+      <div class="tc-metric">→ retry_rate</div>
+      <div class="tc-desc">재시도 횟수, 자기 수정 성공률</div>
+    </div>
+    <div class="tracker-card">
+      <div class="tc-name">AgentCoordinationTracker</div>
+      <div class="tc-metric">→ coordination_score</div>
+      <div class="tc-desc">멀티에이전트 상호작용 품질</div>
+    </div>
+    <div class="tracker-card">
+      <div class="tc-name">WorkflowExecutionTracker</div>
+      <div class="tc-metric">→ workflow_success_rate</div>
+      <div class="tc-desc">워크플로우 완료율, 분기 탐색 커버리지</div>
+    </div>
+  </div>
+</section>
+
+<!-- ── Layer 2 보안 ──────────────────────────────────────────────── -->
+<section class="sec" id="layer2-security">
+  <div class="sec-title"><span class="icon">🛡️</span> Layer 2 — 보안 지표 (5종)</div>
+  <div class="sec-sub"><code>enable_security_metrics=True</code>로 활성화해야 합니다. 성능 영향이 있으므로 기본값은 비활성화입니다.</div>
+
+  <div class="layer-hdr">
+    <div class="lnum">L2</div>
+    <div class="linfo">
+      <div class="ltitle">Security Metrics — 5 트래커</div>
+      <div class="ldesc">PerformanceMonitor(enable_security_metrics=True) 필요</div>
+    </div>
+    <div class="ldep badge req">opt-in</div>
+  </div>
+
+  <div class="tracker-grid">
+    <div class="tracker-card">
+      <div class="tc-name">InputSanitizationTracker</div>
+      <div class="tc-metric">→ injection_detected</div>
+      <div class="tc-desc">SQL/Command/Path/XSS/Prompt Injection 탐지</div>
+    </div>
+    <div class="tracker-card">
+      <div class="tc-name">OutputLeakageDetector</div>
+      <div class="tc-metric">→ leakage_detected</div>
+      <div class="tc-desc">민감 데이터(PII, 시크릿) 출력 탐지</div>
+    </div>
+    <div class="tracker-card">
+      <div class="tc-name">ToolAuthorizationTracker</div>
+      <div class="tc-metric">→ unauthorized_calls</div>
+      <div class="tc-desc">권한 없는 도구 호출 탐지</div>
+    </div>
+    <div class="tracker-card">
+      <div class="tc-name">PrivilegeEscalationDetector</div>
+      <div class="tc-metric">→ escalation_attempts</div>
+      <div class="tc-desc">권한 상승 시도 패턴 탐지</div>
+    </div>
+    <div class="tracker-card">
+      <div class="tc-name">ToolChainAttackDetector</div>
+      <div class="tc-metric">→ chain_attack_score</div>
+      <div class="tc-desc">도구 체인 연결 공격 패턴 탐지</div>
+    </div>
+  </div>
+
+  <div class="note warn">⚠️ <code>OutputLeakageDetector</code>의 generic 패턴 <code>[a-zA-Z0-9]{32,}</code>은 false-positive가 높습니다. 프로덕션 적용 전 threshold 조정을 권장합니다.</div>
+</section>
+
+<!-- ── Layer 3 ───────────────────────────────────────────────────── -->
+<section class="sec" id="layer3">
+  <div class="sec-title"><span class="icon">🔬</span> Layer 3 — HybridPerformanceMonitor</div>
+  <div class="sec-sub">Layer 1+2에 외부 평가 라이브러리를 추가한 하이브리드 모니터입니다.</div>
+
+  <div class="cls-card">
+    <div class="cls-head">
+      <span class="cls-name">HybridPerformanceMonitor</span>
+      <span class="cls-kind class">class</span>
+      <span style="font-size:11px;color:var(--text2);margin-left:auto">agent_evaluator.core.hybrid_monitor</span>
+    </div>
+    <div class="cls-desc"><code>PerformanceMonitor</code>를 상속하고 <code>DeepEvalAdapter</code>, <code>RagasAdapter</code>, <code>LangSmithAdapter</code>를 선택적으로 추가합니다.</div>
+    <div class="cls-body">
+<pre><span class="kw">from</span> <span class="cn">agent_evaluator</span> <span class="kw">import</span> HybridPerformanceMonitor
+<span class="kw">from</span> <span class="cn">agent_evaluator.integrations.metric_adapters</span> <span class="kw">import</span> RagasAdapter
+
+monitor = <span class="fn">HybridPerformanceMonitor</span>(
+    output_dir=<span class="st">"results/"</span>,
+    adapters=[<span class="fn">RagasAdapter</span>()],
+)</pre>
+    </div>
+  </div>
+</section>
+
+<!-- ── 어댑터 ──────────────────────────────────────────────────────── -->
+<section class="sec" id="adapters">
+  <div class="sec-title"><span class="icon">🔌</span> 외부 어댑터</div>
+  <div class="sec-sub">DeepEval, Ragas, LangSmith와 연동하는 어댑터입니다. 각 extra 설치가 필요합니다.</div>
+
+  <table class="mtable">
+    <thead><tr><th>어댑터</th><th>제공 지표</th><th>필요 Extra</th><th>환경변수</th></tr></thead>
+    <tbody>
+      <tr>
+        <td><span class="param">DeepEvalAdapter</span></td>
+        <td>AnswerRelevancy, Faithfulness, ContextualPrecision, ContextualRecall, Hallucination</td>
+        <td><code>agent-evaluator[deepeval]</code></td>
+        <td><code>OPENAI_API_KEY</code> 또는 <code>DEEPEVAL_API_KEY</code></td>
+      </tr>
+      <tr>
+        <td><span class="param">RagasAdapter</span></td>
+        <td>faithfulness, answer_relevancy, context_recall, context_precision</td>
+        <td><code>agent-evaluator[ragas]</code></td>
+        <td><code>OPENAI_API_KEY</code></td>
+      </tr>
+      <tr>
+        <td><span class="param">LangSmithAdapter</span></td>
+        <td>LangSmith 트레이스 수집, run 메타데이터</td>
+        <td><code>agent-evaluator[langchain]</code></td>
+        <td><code>LANGSMITH_API_KEY</code>, <code>LANGCHAIN_TRACING_V2=true</code></td>
+      </tr>
+    </tbody>
+  </table>
+</section>
+
+<!-- ── 프레임워크 통합 ─────────────────────────────────────────────── -->
+<section class="sec" id="frameworks">
+  <div class="sec-title"><span class="icon">🔗</span> 프레임워크 통합</div>
+  <div class="sec-sub">팩토리 함수로 기존 프레임워크에 평가 레이어를 투명하게 삽입합니다.</div>
+
+  <div class="cls-card">
+    <div class="cls-head"><span class="cls-name">Factory 함수 목록</span><span class="cls-kind func">functions</span></div>
+    <div class="cls-body">
+      <table class="mtable">
+        <thead><tr><th>함수</th><th>프레임워크</th><th>import 경로</th></tr></thead>
+        <tbody>
+          <tr><td><span class="param">create_evaluated_crew()</span></td><td>CrewAI</td><td><code>agent_evaluator.integrations.crewai_integration</code></td></tr>
+          <tr><td><span class="param">create_evaluated_langchain_agent()</span></td><td>LangChain</td><td><code>agent_evaluator.integrations.langchain_integration</code></td></tr>
+          <tr><td><span class="param">create_evaluated_langgraph()</span></td><td>LangGraph</td><td><code>agent_evaluator.integrations.langgraph_integration</code></td></tr>
+          <tr><td><span class="param">create_evaluated_autogen_agent()</span></td><td>AutoGen</td><td><code>agent_evaluator.integrations.autogen_integration</code></td></tr>
+        </tbody>
+      </table>
+
+<pre><span class="kw">from</span> <span class="cn">agent_evaluator.integrations.crewai_integration</span> <span class="kw">import</span> (
+    create_evaluated_crew
+)
+
+crew = <span class="fn">create_evaluated_crew</span>(
+    tasks=tasks,
+    agents=agents,
+    monitor=monitor,
+)</pre>
+    </div>
+  </div>
+</section>
+
+<!-- ── LLM Helpers ───────────────────────────────────────────────── -->
+<section class="sec" id="llm-helpers">
+  <div class="sec-title"><span class="icon">🤖</span> LLMHelper / ClaudeHelper</div>
+  <div class="sec-sub">LLM을 이용한 고품질 평가 보조 클래스입니다.</div>
+
+  <div class="cls-card">
+    <div class="cls-head"><span class="cls-name">LLMHelper</span><span class="cls-kind class">class</span><span style="margin-left:8px;font-size:11px;color:var(--text2)">alias: LLMEvaluationHelper</span></div>
+    <div class="cls-desc">OpenAI 모델을 사용해 응답 품질을 LLM-as-judge 방식으로 평가합니다. <code>OPENAI_API_KEY</code> 필요.</div>
+    <div class="cls-body">
+<pre><span class="kw">from</span> <span class="cn">agent_evaluator</span> <span class="kw">import</span> LLMHelper
+
+helper = <span class="fn">LLMHelper</span>(model=<span class="st">"gpt-4o-mini"</span>)
+score = <span class="kw">await</span> helper.<span class="fn">evaluate_response</span>(
+    question=<span class="st">"수도는?"</span>,
+    response=<span class="st">"서울입니다."</span>,
+    expected=<span class="st">"서울"</span>,
+)</pre>
+    </div>
+  </div>
+
+  <div class="cls-card">
+    <div class="cls-head"><span class="cls-name">ClaudeHelper</span><span class="cls-kind class">class</span><span style="margin-left:8px;font-size:11px;color:var(--text2)">alias: AnthropicEvaluationHelper</span></div>
+    <div class="cls-desc">Anthropic Claude 모델을 사용하는 평가 헬퍼입니다. <code>ANTHROPIC_API_KEY</code> 필요.</div>
+    <div class="cls-body">
+<pre><span class="kw">from</span> <span class="cn">agent_evaluator</span> <span class="kw">import</span> ClaudeHelper
+
+helper = <span class="fn">ClaudeHelper</span>(model=<span class="st">"claude-haiku-4-5-20251001"</span>)
+score = <span class="kw">await</span> helper.<span class="fn">evaluate_response</span>(
+    question=<span class="st">"질문"</span>,
+    response=<span class="st">"응답"</span>,
+)</pre>
+    </div>
+  </div>
+</section>
+
+<!-- 하단 여백 -->
+<div style="height:60px"></div>
+</div><!-- /main -->
+</div><!-- /flex col -->
+</div><!-- /layout -->
+
+<script>
+// ── 테마 토글 ──────────────────────────────────────────────────────
+const root = document.getElementById('root');
+const THEME_KEY = 'ae-sdk-theme';
+(function(){
+  if(localStorage.getItem(THEME_KEY) === 'light') root.classList.add('light');
+})();
+function toggleTheme(){
+  root.classList.toggle('light');
+  localStorage.setItem(THEME_KEY, root.classList.contains('light') ? 'light' : 'dark');
+}
+
+// ── 활성 네비게이션 하이라이트 ──────────────────────────────────────
+const navItems = document.querySelectorAll('.nav-item[href^="#"]');
+const sections = [...document.querySelectorAll('section.sec')];
+const content  = document.getElementById('content');
+
+function updateNav(){
+  let active = sections[0]?.id;
+  for(const s of sections){
+    if(s.getBoundingClientRect().top <= 80) active = s.id;
+  }
+  navItems.forEach(a=>{
+    a.classList.toggle('on', a.getAttribute('href')==='#'+active);
+  });
+}
+content.addEventListener('scroll', updateNav, {passive:true});
+updateNav();
+
+// 네비게이션 클릭 시 스크롤
+navItems.forEach(a=>{
+  a.addEventListener('click', e=>{
+    e.preventDefault();
+    const id = a.getAttribute('href').slice(1);
+    document.getElementById(id)?.scrollIntoView({behavior:'smooth'});
+  });
+});
+
+// ── 검색 ────────────────────────────────────────────────────────────
+function doSearch(q){
+  // 기존 하이라이트 제거
+  document.querySelectorAll('mark').forEach(m=>{
+    const t = document.createTextNode(m.textContent);
+    m.parentNode.replaceChild(t,m);
+  });
+  if(!q || q.length < 2) return;
+  const walker = document.createTreeWalker(
+    document.getElementById('content'),
+    NodeFilter.SHOW_TEXT,
+    { acceptNode: n => n.parentElement.closest('script,style,input') ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT }
+  );
+  const nodes=[];
+  while(walker.nextNode()) nodes.push(walker.currentNode);
+  const re = new RegExp(q.replace(/[.*+?^${}()|[\]\\]/g,'\\$&'), 'gi');
+  nodes.forEach(node=>{
+    if(!re.test(node.textContent)) return;
+    re.lastIndex=0;
+    const frag = document.createDocumentFragment();
+    let last=0, m;
+    while((m=re.exec(node.textContent))!==null){
+      frag.appendChild(document.createTextNode(node.textContent.slice(last,m.index)));
+      const mark=document.createElement('mark');
+      mark.textContent=m[0];
+      frag.appendChild(mark);
+      last=m.index+m[0].length;
+    }
+    frag.appendChild(document.createTextNode(node.textContent.slice(last)));
+    node.parentNode.replaceChild(frag,node);
+  });
+  // 첫 번째 결과로 스크롤
+  document.querySelector('mark')?.scrollIntoView({behavior:'smooth',block:'center'});
+}
+</script>
+</body>
+</html>

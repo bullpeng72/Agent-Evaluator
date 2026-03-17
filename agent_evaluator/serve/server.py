@@ -113,4 +113,15 @@ def create_app(
             },
         )
 
+    @app.get("/sdk-docs", response_class=HTMLResponse)
+    async def sdk_docs(request: Request):
+        return templates.TemplateResponse(
+            "sdk_docs.html.j2",
+            {
+                "request": request,
+                "title":   app.state.title,
+                "version": app.state.version,
+            },
+        )
+
     return app

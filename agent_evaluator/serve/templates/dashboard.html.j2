@@ -186,7 +186,8 @@ textarea.gd-input{height:60px;resize:vertical;font-family:inherit}
   </select>
   <button class="btn" @click="refresh()" title="새로고침">🔄</button>
   <button class="btn" @click="window.open('/slides','_blank')">📊 Slides</button>
-  <a class="btn" href="/api/docs" target="_blank" title="OAS 3.1 Swagger UI">📖 API</a>
+  <a class="btn" href="/api/docs"  target="_blank" title="UI 개발용 REST API — Swagger UI (OAS 3.1)">📡 UI API</a>
+  <a class="btn" href="/sdk-docs" target="_blank" title="Agent 평가용 Python SDK 레퍼런스">📖 SDK</a>
   <div class="sp"></div>
   <span class="dot" :class="{'live':connected,'off':!connected}"></span>
   <span x-text="connected?'Live':'Offline'" style="font-size:11px;color:var(--text2)"></span>
