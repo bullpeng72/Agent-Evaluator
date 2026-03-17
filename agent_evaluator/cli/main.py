@@ -2,9 +2,9 @@
 agent-eval CLI — Agent Evaluator 설정 마법사.
 
 사용법:
-    agent-eval init      API 키 대화형 설정
-    agent-eval check     현재 설정 상태 확인
-    agent-eval version   버전 출력
+    agent-eval init       API 키 대화형 설정
+    agent-eval check      현재 설정 상태 확인
+    agent-eval --version  버전 출력
 """
 
 from __future__ import annotations
@@ -574,7 +574,7 @@ def _print_welcome() -> None:
     print(f"  {Y}init{R}     API 키 대화형 설정 마법사")
     print(f"  {Y}check{R}    현재 설정 상태 출력")
     print(f"  {Y}serve{R}    웹 대시보드 실행  {D}(기본 포트 8765){R}")
-    print(f"  {Y}version{R}  버전 출력")
+    print(f"  {Y}--version{R}  버전 출력")
     print()
     print(f"  {D}전체 옵션 보기: {R}{C}agent-eval --help{R}")
     print()
@@ -717,10 +717,10 @@ def main() -> None:
         formatter_class=ColoredHelpFormatter,
         epilog=(
             f"{B}명령어:{R}\n"
-            f"  {Y}init{R}     OpenAI·Anthropic·LangSmith 등 API 키를 대화형으로 설정\n"
-            f"  {Y}check{R}    현재 환경의 API 키 및 설정값 상태를 출력\n"
-            f"  {Y}serve{R}    평가 결과를 시각화하는 FastAPI 웹 대시보드 실행\n"
-            f"  {Y}version{R}  패키지 버전 출력\n"
+            f"  {Y}init{R}       OpenAI·Anthropic·LangSmith 등 API 키를 대화형으로 설정\n"
+            f"  {Y}check{R}      현재 환경의 API 키 및 설정값 상태를 출력\n"
+            f"  {Y}serve{R}      평가 결과를 시각화하는 FastAPI 웹 대시보드 실행\n"
+            f"  {Y}--version{R}  패키지 버전 출력\n"
             "\n"
             f"{B}예시:{R}\n"
             f"  {G}agent-eval init{R}\n"
@@ -729,7 +729,7 @@ def main() -> None:
             f"  {G}agent-eval serve ./results --port 8080{R}\n"
             f"  {G}agent-eval serve ./results --watch --no-open{R}\n"
             f"  {G}agent-eval serve ./results --share{R}\n"
-            f"  {G}agent-eval version{R}\n"
+            f"  {G}agent-eval --version{R}\n"
             "\n"
             f"{B}더 자세한 도움말:{R}\n"
             f"  {D}agent-eval <명령어> --help{R}"
@@ -777,13 +777,6 @@ def main() -> None:
         ),
         formatter_class=ColoredHelpFormatter,
     )
-    sub.add_parser(
-        "version",
-        help="패키지 버전 출력",
-        description=f"설치된 {C}agent-evaluator{R} 패키지 버전을 출력합니다.",
-        formatter_class=ColoredHelpFormatter,
-    )
-
     # serve subcommand
     serve_p = sub.add_parser(
         "serve",
@@ -834,12 +827,19 @@ def main() -> None:
     serve_p.add_argument("--title", default="Agent Evaluator Dashboard", metavar="TITLE",
                          help="대시보드 제목 (기본: 'Agent Evaluator Dashboard')")
 
+    parser.add_argument(
+        "--version", action="store_true",
+        help="패키지 버전 출력",
+    )
+
     args = parser.parse_args()
+
+    if args.version:
+        sys.exit(cmd_version(args))
 
     handlers = {
         "init":    cmd_init,
         "check":   cmd_check,
-        "version": cmd_version,
         "serve":   cmd_serve,
     }
 
