@@ -44,47 +44,69 @@ Agent Evaluator의 핵심은 **계층적 평가 모델**입니다.
 필요에 따라 Layer 3로 확장할 수 있습니다.
 
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│  Layer 3 — Hybrid Evaluation  (선택적 외부 라이브러리 통합)         │
-│  DeepEval · Ragas · LangSmith                                   │
-├─────────────────────────────────────────────────────────────────┤
-│  Layer 2 — Agentic Metrics  (에이전트 특화 지표, 의존성 없음)        │
-│  Tool Use · Retry · Coordination · Workflow · Security(5종)     │
-├─────────────────────────────────────────────────────────────────┤
-│  Layer 1 — Foundation Metrics  (핵심 품질 지표, 의존성 없음)         │
-│  Task Completion · Accuracy · Hallucination · Quality · Latency │
-└─────────────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────────┐
+│  Layer 3 — Hybrid Evaluation  (선택적 외부 라이브러리 통합)             │
+│  DeepEval (5종) · Ragas (4종) · LangSmith (트레이스 데이터)            │
+├─────────────────────────────────────────────────────────────────────┤
+│  Layer 2 — Agentic Metrics  (에이전트 특화 지표, 의존성 없음, 10종)      │
+│  Tool Use · Retry · Tool Selection · Coordination · Workflow        │
+│  + Security 5종: Input Sanitization · Output Leakage ·             │
+│    Tool Authorization · Privilege Escalation · Tool Chain Attack    │
+├─────────────────────────────────────────────────────────────────────┤
+│  Layer 1 — Foundation Metrics  (핵심 품질 지표, 의존성 없음, 6종)        │
+│  Task Completion · Accuracy · Hallucination · Quality · Latency     │
+│  · Token Economy                                                    │
+└─────────────────────────────────────────────────────────────────────┘
 ```
+
+---
 
 ### Layer 1 — 기초 지표 (6종)
 
-| 지표 | 클래스 | 설명 |
-|------|--------|------|
-| **Task Completion Rate** | `TaskCompletionTracker` | 성공률, 실패 원인 분류, 벤치마크 비교 |
-| **Accuracy Evaluation** | `AccuracyEvaluator` | QA/코드/일반 유형별 정확도. Token Overlap(40%) + Jaccard(30%) + LCS(20%) + 문자 유사도(10%) 가중 조합 |
-| **Hallucination Detection** | `HallucinationDetector` | 컨텍스트 대비 응답 사실 일관성 측정 |
-| **Response Quality** | `ResponseQualityEvaluator` | 관련성·완결성·명확성·일관성·효율성·안전성 6차원 평가 |
-| **Latency Tracking** | `LatencyTracker` | P50/P95/P99 백분위 지연 시간 분석 |
-| **Token Economy** | `TokenEconomyTracker` | 입출력 토큰 비율, 비용 추정, 월간 예측 |
+외부 의존성 없이 동작하는 핵심 품질 지표입니다.
 
-### Layer 2 — 에이전틱 지표 (9종)
+| 지표 | 클래스 | 설명 | 주요 출력 지표 |
+|------|--------|------|----------------|
+| **Task Completion Rate** | `TaskCompletionTracker` | 성공률, 실패 원인 분류, 벤치마크 비교 | `tcr`, `full_success`, `partial_success`, `failures` |
+| **Accuracy Evaluation** | `AccuracyEvaluator` | QA/코드/일반 유형별 정확도. Token Overlap(40%) + Jaccard(30%) + LCS(20%) + 문자 유사도(10%) 가중 조합 | `overall_accuracy`, `median_accuracy`, `std_accuracy` |
+| **Hallucination Detection** | `HallucinationDetector` | 컨텍스트 대비 응답 사실 일관성. 미지원 주장·수치 불일치 탐지 | `hallucination_rate`, `unsupported_claims_count`, `by_severity` |
+| **Response Quality** | `ResponseQualityEvaluator` | 관련성·완결성·정확성·명확성·유용성 5차원 평가, A~F 등급 산출 | `dimension_scores`, `total_score` (0–5), `grade` |
+| **Latency Tracking** | `LatencyTracker` | 백분위 지연 시간 분석, 병목 컴포넌트 탐지, SLA 준수 여부 | `p50`, `p95`, `p99`, `bottleneck`, `mean` |
+| **Token Economy** | `TokenEconomyTracker` | 입출력 토큰 비율, 실시간 비용 추정, 월간 비용 예측 | `total_tokens`, `total_cost`, `estimated_monthly_cost`, `token_distribution` |
 
-| 지표 | 클래스 | 설명 |
-|------|--------|------|
-| **Tool Call Analysis** | `ToolCallAnalyzer` | 툴 호출 성공률, 평균 호출 수, 불필요 호출 탐지 |
-| **Retry & Correction** | `RetryCorrectionTracker` | 재시도 패턴, 자기 수정 능력, 루프 탐지 |
-| **Tool Selection** | `ToolSelectionTracker` | Precision/Recall/F1 기반 툴 선택 정확도 |
-| **Agent Coordination** | `AgentCoordinationTracker` | 멀티 에이전트 협업 품질, 인터랙션 성공률 |
-| **Workflow Execution** | `WorkflowExecutionTracker` | 워크플로우 완료율, 분기 처리, 병목 감지 |
-| **Input Sanitization** | `InputSanitizationTracker` | SQL Injection, Command Injection, Prompt Injection 등 탐지 |
-| **Output Leakage** | `OutputLeakageDetector` | API 키, PII, 민감 데이터 응답 노출 탐지 |
-| **Tool Authorization** | `ToolAuthorizationTracker` | 비인가 툴 사용 시도 탐지 |
-| **Privilege Escalation** | `PrivilegeEscalationDetector` | 권한 탈취 패턴 탐지 |
-| **Tool Chain Attack** | `ToolChainAttackDetector` | 연쇄 툴 호출을 통한 공격 패턴 탐지 |
+---
+
+### Layer 2 — 에이전틱 지표 (10종)
+
+에이전트 행동 패턴을 측정하는 지표 5종과 보안 지표 5종으로 구성됩니다.
+`PerformanceMonitor(enable_security_metrics=True)` 옵션으로 보안 지표를 활성화합니다.
+
+#### 에이전틱 동작 (5종)
+
+| 지표 | 클래스 | 설명 | 주요 출력 지표 |
+|------|--------|------|----------------|
+| **Tool Call Analysis** | `ToolCallAnalyzer` | 툴 호출 성공률, 중복 호출 탐지, 효율 점수(0–100) 산출 | `efficiency_score`, `redundancy_rate`, `failure_rate` |
+| **Retry & Correction** | `RetryCorrectionTracker` | 재시도 패턴 분석, 자기 수정 능력, 첫 시도 성공률 | `retry_rate`, `first_attempt_success_rate`, `correction_success_rate` |
+| **Tool Selection** | `ToolSelectionTracker` | 기대 툴 대비 실제 선택 툴 F1 기반 정확도 평가 | `precision`, `recall`, `f1_score` |
+| **Agent Coordination** | `AgentCoordinationTracker` | 멀티 에이전트 협업 품질(0–10), Hub/Chain/Mesh 패턴 탐지 | `score`, `pattern_type`, `pattern_confidence`, `unique_agents` |
+| **Workflow Execution** | `WorkflowExecutionTracker` | 워크플로우 단계별 성공률, 병목 탐지, 병렬화 기회 분석 | `step_success_rate`, `task_success_rate`, `bottlenecks` |
+
+#### 보안 (5종)
+
+| 지표 | 클래스 | 탐지 대상 | 주요 출력 지표 |
+|------|--------|-----------|----------------|
+| **Input Sanitization** | `InputSanitizationTracker` | SQL Injection · Command Injection · Path Traversal · XSS · Prompt Injection (40개 패턴) | `risk_level`, `threat_count`, `threat_rate` |
+| **Output Leakage** | `OutputLeakageDetector` | API 키 · 비밀번호 · 신용카드 · 이메일 · 전화번호 · SSN · 내부 IP · 파일 경로 | `severity`, `leakage_count`, `leakage_rate` |
+| **Tool Authorization** | `ToolAuthorizationTracker` | 비인가 툴 사용, 위험 파라미터(`rm -rf`, `DROP TABLE`, `eval()` 등 9종) | `compliance_rate`, `violation_rate`, `unauthorized_calls` |
+| **Privilege Escalation** | `PrivilegeEscalationDetector` | guest→read→write/execute→admin 권한 상승 체인, 의심 시퀀스 탐지 | `risk_score` (0–10), `escalation_detected`, `escalation_path` |
+| **Tool Chain Attack** | `ToolChainAttackDetector` | 데이터 유출·횡적 이동·지속성·방어 회피 4가지 공격 체인 패턴 탐지 | `confidence` (0–1), `attack_types`, `is_suspicious_chain` |
+
+---
 
 ### Layer 3 — 하이브리드 평가
 
-외부 라이브러리와 연동해 더 깊은 평가를 수행합니다.
+외부 평가 라이브러리와 연동해 더 깊은 품질 측정을 수행합니다.
+Layer 1/2 지표를 그대로 유지하면서 외부 지표를 추가합니다.
 
 ```python
 from agent_evaluator import HybridPerformanceMonitor
@@ -95,6 +117,44 @@ monitor = HybridPerformanceMonitor(
     enable_langsmith=True,  # LangSmith API 키 필요
 )
 ```
+
+#### DeepEval 어댑터 (5종)
+
+`pip install "agent-evaluator[deepeval]"` 필요. LLM 기반 시맨틱 평가를 수행합니다.
+
+| 지표 | 출력 키 | 설명 | 조건 |
+|------|---------|------|------|
+| **G-Eval** | `g_eval_score`, `g_eval_reason`, `g_eval_passed` | 사용자 정의 품질 기준으로 LLM이 직접 채점 (0–1) | `quality_criteria` 전달 시 |
+| **Hallucination** | `hallucination_score`, `hallucination_detected` | 시맨틱 할루시네이션 탐지 (높을수록 낮은 할루시네이션) | `retrieved_context` 전달 시 |
+| **Toxicity** | `toxicity_score`, `toxicity_detected` | 유해·공격적 콘텐츠 탐지 (0–1) | 항상 |
+| **Bias** | `bias_score`, `bias_detected` | 편향 탐지 (0–1) | 항상 |
+| **Answer Relevancy** | `answer_relevancy_score`, `answer_relevancy_passed` | QA 답변 관련성 평가 | `task_type`이 qa/information_retrieval 일 때 |
+
+#### Ragas 어댑터 (4종)
+
+`pip install "agent-evaluator[ragas]"` 필요. RAG 파이프라인 특화 평가입니다.
+`retrieved_context`를 전달해야 동작합니다.
+
+| 지표 | 출력 키 | 설명 | 조건 |
+|------|---------|------|------|
+| **Faithfulness** | `ragas_faithfulness` | 컨텍스트 대비 응답 사실 일관성 (0–1) | `retrieved_context` 필요 |
+| **Answer Relevancy** | `ragas_answer_relevancy` | 질문에 대한 답변 품질 (0–1) | `retrieved_context` 필요 |
+| **Context Precision** | `ragas_context_precision` | 검색된 컨텍스트의 관련성 (0–1) | `retrieved_context` 필요 |
+| **Context Recall** | `ragas_context_recall` | 컨텍스트 완전성 (0–1) | `retrieved_context` + `expected_output` 필요 |
+
+종합 점수: `ragas_overall_score` (평균), `ragas_quality` (excellent ≥0.8 / good ≥0.6 / acceptable ≥0.4 / poor)
+
+#### LangSmith 어댑터
+
+LangSmith 트레이싱 데이터를 가져와 네이티브 지표와 통합합니다.
+`LANGSMITH_API_KEY` 환경변수와 `metadata.langsmith_run_id` 가 필요합니다.
+
+| 출력 키 | 설명 |
+|---------|------|
+| `langsmith_latency` | 트레이스 기준 실행 시간 |
+| `langsmith_tokens` | LangSmith 집계 토큰 수 |
+| `langsmith_cost` | LangSmith 집계 비용 |
+| `langsmith_feedback_scores` | 사용자 피드백 점수 통계 |
 
 ---
 
