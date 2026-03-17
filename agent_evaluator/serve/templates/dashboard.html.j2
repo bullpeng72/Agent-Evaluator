@@ -1,0 +1,2620 @@
+<!DOCTYPE html>
+<html lang="ko" x-data="app()" x-init="init()" :class="{'dark': dark}">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>{{ title }}</title>
+<script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.1/dist/cdn.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/plotly.js-dist-min@2.32.0/plotly.min.js"></script>
+<link href="https://cdn.jsdelivr.net/npm/tabulator-tables@6.2.1/dist/css/tabulator_midnight.min.css" rel="stylesheet" id="tab-theme">
+<script src="https://cdn.jsdelivr.net/npm/tabulator-tables@6.2.1/dist/js/tabulator.min.js"></script>
+<style>
+:root{
+  --bg:#0f1117;--bg2:#1a1d27;--bg3:#22263a;--border:#2d3148;
+  --text:#e2e4f0;--text2:#8890b0;--accent:#6c8ef5;
+  --green:#4ade80;--yellow:#facc15;--red:#f87171;--orange:#fb923c;--r:10px;
+}
+html:not(.dark){
+  --bg:#f4f6fc;--bg2:#fff;--bg3:#eef0f8;--border:#d1d5e8;
+  --text:#1a1d2e;--text2:#5a6080;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(--text);font-size:14px}
+.layout{display:grid;grid-template-rows:52px 1fr 28px;height:100vh}
+.hdr{background:var(--bg2);border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px;padding:0 14px;position:sticky;top:0;z-index:100}
+.body{display:grid;grid-template-columns:190px 1fr;overflow:hidden}
+.side{background:var(--bg2);border-right:1px solid var(--border);overflow-y:auto;padding:8px 0}
+.main{overflow-y:auto;padding:16px}
+.sbar{background:var(--bg2);border-top:1px solid var(--border);display:flex;align-items:center;gap:12px;padding:0 14px;font-size:11px;color:var(--text2)}
+/* header */
+.logo{font-weight:700;font-size:14px;white-space:nowrap}.logo span{color:var(--accent)}
+select{background:var(--bg3);color:var(--text);border:1px solid var(--border);border-radius:6px;padding:3px 7px;font-size:12px;max-width:240px}
+.btn{background:var(--bg3);color:var(--text);border:1px solid var(--border);border-radius:6px;padding:4px 9px;font-size:11px;cursor:pointer;white-space:nowrap;text-decoration:none;display:inline-flex;align-items:center;gap:4px}
+.btn:hover,.btn.active{background:var(--accent);color:#fff;border-color:var(--accent)}
+.sp{flex:1}
+.dot{width:7px;height:7px;border-radius:50%;background:var(--green);display:inline-block}
+.dot.off{background:var(--text2)}.dot.live{animation:pulse 1.5s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
+/* sidebar */
+.nav{display:flex;align-items:center;gap:7px;padding:7px 13px;cursor:pointer;font-size:12px;color:var(--text2);border-left:3px solid transparent}
+.nav:hover,.nav.on{background:var(--bg3);color:var(--text);border-left-color:var(--accent)}
+.nav-badge{margin-left:auto;background:var(--bg);border-radius:99px;font-size:10px;padding:1px 5px;color:var(--text2)}
+/* cards */
+.kpi-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;margin-bottom:14px}
+.kpi{background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);padding:12px 14px;cursor:pointer;transition:border-color .15s}
+.kpi:hover{border-color:var(--accent)}
+.kpi-lbl{font-size:10px;color:var(--text2);text-transform:uppercase;letter-spacing:.04em}
+.kpi-val{font-size:24px;font-weight:800;margin:3px 0}
+.kpi-sub{font-size:11px}.kpi-sub.ok{color:var(--green)}.kpi-sub.warn{color:var(--yellow)}
+/* sections */
+.sec{background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);padding:14px;margin-bottom:12px}
+.sec-t{font-size:13px;font-weight:600;margin-bottom:10px;display:flex;align-items:center;gap:6px}
+.badge{background:var(--bg3);border-radius:4px;font-size:10px;padding:1px 5px;color:var(--text2)}
+/* tabs */
+.tabs{display:flex;gap:2px;border-bottom:1px solid var(--border);margin-bottom:12px;flex-wrap:wrap}
+.tab{padding:5px 12px;font-size:12px;cursor:pointer;border-bottom:2px solid transparent;color:var(--text2)}
+.tab.on{color:var(--accent);border-bottom-color:var(--accent)}
+/* charts */
+.cg{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.cg3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px}
+.cg4{display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:10px}
+.cg>*,.cg3>*,.cg4>*{min-width:0;overflow:hidden}
+.cbox{background:var(--bg3);border-radius:8px;padding:10px;overflow:hidden;min-width:0}
+.cbox .js-plotly-plot{height:100%!important}
+.plt-chart{min-width:0;width:100%}
+.ct{font-size:11px;color:var(--text2);margin-bottom:6px}
+/* health gauge */
+.hr{display:grid;grid-template-columns:160px 1fr;gap:14px;align-items:center}
+.gw{position:relative;width:140px;height:140px;margin:0 auto}
+.gs{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);text-align:center}
+.gn{font-size:28px;font-weight:800}
+.gl{font-size:10px;color:var(--text2)}
+.bars{display:flex;flex-direction:column;gap:7px}
+.brow{font-size:11px}
+.blbl{display:flex;justify-content:space-between;color:var(--text2);margin-bottom:2px}
+.btrack{background:var(--bg);border-radius:99px;height:5px;overflow:hidden}
+.bfill{height:100%;border-radius:99px;transition:width .4s}
+/* pills */
+.pill{display:inline-flex;align-items:center;gap:3px;font-size:10px;border-radius:99px;padding:2px 7px;font-weight:600}
+.pg{background:rgba(74,222,128,.15);color:var(--green)}
+.py{background:rgba(250,204,21,.15);color:var(--yellow)}
+.pr{background:rgba(248,113,113,.15);color:var(--red)}
+.po{background:rgba(251,146,60,.15);color:var(--orange)}
+/* alert cards */
+.alert{border-radius:8px;padding:10px 12px;margin-bottom:8px;border-left:3px solid}
+.alert.critical{background:rgba(248,113,113,.1);border-color:var(--red)}
+.alert.high{background:rgba(251,146,60,.1);border-color:var(--orange)}
+.alert.medium{background:rgba(250,204,21,.1);border-color:var(--yellow)}
+.alert.low{background:rgba(74,222,128,.1);border-color:var(--green)}
+.alert-t{font-size:12px;font-weight:600;margin-bottom:3px}
+.alert-b{font-size:11px;color:var(--text2)}
+/* rec cards */
+.rec{background:var(--bg3);border-radius:8px;padding:10px 12px;margin-bottom:8px}
+.rec-t{font-size:12px;font-weight:600;margin-bottom:4px}
+.rec-b{font-size:11px;color:var(--text2)}
+/* table */
+.tw{border-radius:8px;overflow:hidden}
+/* detail rows */
+.drow{display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid var(--border);font-size:12px}
+.drow:last-child{border-bottom:none}
+.dk{color:var(--text2)}
+/* tag */
+.tag{display:inline-block;background:var(--bg3);border-radius:4px;font-size:10px;padding:1px 6px;margin:1px;color:var(--text2)}
+/* empty */
+.empty{text-align:center;padding:40px 20px;color:var(--text2)}
+.empty h3{font-size:15px;margin-bottom:6px}
+.empty p{font-size:12px}
+/* scrollable list */
+.slist{max-height:300px;overflow-y:auto}
+/* risk gauge bar */
+.rg{margin:10px 0}
+.rgt{background:var(--bg3);border-radius:99px;height:14px;overflow:hidden;margin-bottom:4px}
+.rgf{height:100%;border-radius:99px;transition:width .4s}
+/* interaction row */
+.irow{background:var(--bg3);border-radius:6px;padding:7px 10px;margin-bottom:5px;font-size:11px;display:flex;align-items:center;gap:8px}
+/* step row */
+.step{background:var(--bg3);border-radius:6px;padding:7px 10px;margin-bottom:5px;font-size:11px}
+.step-t{font-weight:600;margin-bottom:2px}
+/* trace step */
+.trace-step{border-left:2px solid var(--accent);padding:6px 10px;margin-bottom:6px}
+.trace-step h4{font-size:11px;font-weight:600;color:var(--accent)}
+.trace-step p{font-size:11px;color:var(--text2);margin-top:2px}
+/* glossary */
+.gterm{border-left:3px solid var(--accent);padding:8px 12px;margin-bottom:8px;background:var(--bg3);border-radius:0 6px 6px 0}
+.gterm h4{font-size:12px;font-weight:600;margin-bottom:3px}
+.gterm p{font-size:11px;color:var(--text2);line-height:1.5}
+/* compare table */
+.cmp-tbl{width:100%;border-collapse:collapse;font-size:12px}
+.cmp-tbl th,.cmp-tbl td{padding:6px 10px;border:1px solid var(--border);text-align:right}
+.cmp-tbl th:first-child,.cmp-tbl td:first-child{text-align:left;color:var(--text2)}
+.cmp-tbl thead th{background:var(--bg3);font-weight:600}
+/* grade badge */
+.grade{display:inline-block;border-radius:4px;font-size:11px;font-weight:700;padding:1px 7px;margin-left:6px}
+.grade-A{background:rgba(74,222,128,.2);color:var(--green)}
+.grade-B{background:rgba(108,142,245,.2);color:var(--accent)}
+.grade-C{background:rgba(250,204,21,.2);color:var(--yellow)}
+.grade-D{background:rgba(251,146,60,.2);color:var(--orange)}
+.grade-F{background:rgba(248,113,113,.2);color:var(--red)}
+/* filter bar */
+.fbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px}
+.fbar label{font-size:11px;color:var(--text2)}
+@media(max-width:768px){
+  .body{grid-template-columns:1fr}.side{display:none}
+  .cg,.cg3,.cg4{grid-template-columns:1fr}
+}
+.plt-chart{height:200px}.gw .plt-chart{height:140px!important;width:140px!important}
+.modal-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:200;display:flex;align-items:center;justify-content:center}
+.modal{background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:20px;max-width:700px;width:90%;max-height:85vh;overflow-y:auto}
+.modal-t{font-size:14px;font-weight:700;margin-bottom:14px;display:flex;align-items:center;justify-content:space-between}
+.gd-row{display:grid;grid-template-columns:auto 1fr 1fr auto;gap:8px;align-items:center;padding:6px 0;border-bottom:1px solid var(--border);font-size:12px}
+.gd-row:last-child{border-bottom:none}
+.gd-input{background:var(--bg3);color:var(--text);border:1px solid var(--border);border-radius:6px;padding:4px 8px;font-size:12px;width:100%}
+textarea.gd-input{height:60px;resize:vertical;font-family:inherit}
+@media print{
+  .side,.hdr,.sbar,.fbar,.tabs,.btn{display:none!important}
+  .layout{display:block;height:auto}
+  .body{display:block}
+  .main{overflow:visible;padding:0}
+  .kpi-grid{grid-template-columns:repeat(3,1fr)}
+  .cg,.cg3{grid-template-columns:1fr 1fr}
+  @page{margin:15mm}
+}
+[x-cloak]{display:none!important}
+</style>
+</head>
+<body>
+<div class="layout">
+
+<!-- ===== HEADER ===== -->
+<header class="hdr">
+  <div class="logo">🤖 <span>Agent</span> Evaluator</div>
+  <select x-model="selId" @change="loadFile(selId)" style="flex:0 1 260px">
+    <option value="">— 파일 선택 —</option>
+    <template x-for="f in files" :key="f.id">
+      <option :value="f.id" x-text="`${f.name.substring(0,36)}  (${f.total_tasks}t)`"></option>
+    </template>
+  </select>
+  <button class="btn" @click="refresh()" title="새로고침">🔄</button>
+  <button class="btn" @click="window.open('/slides','_blank')">📊 Slides</button>
+  <a class="btn" href="/api/docs" target="_blank" title="OAS 3.1 Swagger UI">📖 API</a>
+  <div class="sp"></div>
+  <span class="dot" :class="{'live':connected,'off':!connected}"></span>
+  <span x-text="connected?'Live':'Offline'" style="font-size:11px;color:var(--text2)"></span>
+  <button class="btn" @click="dark=!dark" x-text="dark?'☀️':'🌙'"></button>
+</header>
+
+<!-- ===== BODY ===== -->
+<div class="body">
+
+<!-- Sidebar -->
+<nav class="side">
+  <template x-for="n in nav" :key="n.id">
+    <div class="nav" :class="{on:sec===n.id}" @click="sec=n.id">
+      <span x-text="n.icon"></span>
+      <span x-text="n.label" style="flex:1"></span>
+      <span class="nav-badge" x-show="n.badge && data" x-text="n.badge && data ? n.badge(data) : ''"></span>
+    </div>
+  </template>
+</nav>
+
+<!-- Main -->
+<main class="main">
+
+<!-- Empty state -->
+<div x-show="!data && !loading" class="empty">
+  <h3>결과 파일을 선택하세요</h3>
+  <p x-show="files.length===0" style="color:var(--red);margin-top:8px">⚠️ 결과 디렉토리에 JSON 파일이 없습니다.</p>
+  <p x-show="files.length>0">상단 드롭다운에서 평가 결과 파일을 선택하세요.</p>
+</div>
+<div x-show="loading" class="empty"><p>로딩 중…</p></div>
+
+<!-- ══ OVERVIEW ══ -->
+<div x-show="data && sec==='overview'" x-cloak>
+  <div class="kpi-grid">
+    <div class="kpi" @click="sec='layer1'">
+      <div class="kpi-lbl">Task Completion</div>
+      <div class="kpi-val" x-text="pct(tcr())"></div>
+      <div class="kpi-sub" :class="tc(tcr(),thresholds.tcr)"><span x-text="tlbl(tcr(),thresholds.tcr)"></span></div>
+    </div>
+    <div class="kpi" @click="sec='layer1'">
+      <div class="kpi-lbl">Accuracy</div>
+      <div class="kpi-val" x-text="pct(acc())"></div>
+      <div class="kpi-sub" :class="tc(acc(),thresholds.acc)"><span x-text="tlbl(acc(),thresholds.acc)"></span></div>
+    </div>
+    <div class="kpi" @click="sec='layer1'">
+      <div class="kpi-lbl">Hallucination</div>
+      <div class="kpi-val" :style="hr_col(hall())" x-text="pct(hall())"></div>
+      <div class="kpi-sub" x-text="hr_lbl(hall())"></div>
+    </div>
+    <div class="kpi" @click="sec='performance'">
+      <div class="kpi-lbl">Avg Latency</div>
+      <div class="kpi-val" x-text="sec_(lat_mean())"></div>
+      <div class="kpi-sub" :class="lat_cl(data.efficiency_metrics?.latency?.p95)">P95: <span x-text="sec_(data.efficiency_metrics?.latency?.p95)"></span></div>
+    </div>
+    <div class="kpi" @click="sec='performance'">
+      <div class="kpi-lbl">Total Cost</div>
+      <div class="kpi-val" x-text="cost(data.efficiency_metrics?.tokens?.total_cost)"></div>
+      <div class="kpi-sub" style="color:var(--text2)">Task당: <span x-text="cost(data.efficiency_metrics?.tokens?.avg_cost_per_task)"></span></div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-lbl">Total Tasks</div>
+      <div class="kpi-val" x-text="data.total_tasks"></div>
+      <div class="kpi-sub" style="color:var(--text2)" x-text="data.name?.substring(0,22)"></div>
+    </div>
+  </div>
+
+  <!-- Health Score -->
+  <div class="sec">
+    <div class="sec-t">🏥 시스템 Health Score</div>
+    <div class="hr">
+      <div class="gw">
+        <div id="gauge-c" style="width:140px;height:140px"></div>
+        <div class="gs" style="display:none"><div class="gn" x-text="hs"></div><div class="gl" x-text="hl"></div></div>
+      </div>
+      <div class="bars">
+        <div class="brow"><div class="blbl"><span>Layer 1 기초</span><span x-text="pct(l1s)"></span></div><div class="btrack"><div class="bfill" style="background:var(--accent)" :style="`width:${l1s}%`"></div></div></div>
+        <div class="brow"><div class="blbl"><span>Layer 2 에이전틱</span><span x-text="pct(l2s)"></span></div><div class="btrack"><div class="bfill" :style="`width:${l2s}%;background:${bc(l2s)}`"></div></div></div>
+        <div class="brow"><div class="blbl"><span>성능 Latency</span><span x-text="pct(ps)"></span></div><div class="btrack"><div class="bfill" :style="`width:${ps}%;background:${bc(ps)}`"></div></div></div>
+        <div class="brow"><div class="blbl"><span>보안</span><span x-text="pct(ss)"></span></div><div class="btrack"><div class="bfill" :style="`width:${ss}%;background:${bc(ss)}`"></div></div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Overview charts -->
+  <div class="cg">
+    <div class="cbox"><div class="ct">성공/실패 분포</div><div id="ov-donut" class="plt-chart"></div></div>
+    <div class="cbox"><div class="ct">TaskType별 Task 수</div><div id="ov-type" class="plt-chart"></div></div>
+  </div>
+
+  <!-- Alerts summary (if any) -->
+  <div x-show="data.insights?.alerts?.length>0" class="sec">
+    <div class="sec-t">🚨 주요 알림 <span class="badge" x-text="data.insights?.alerts?.length"></span></div>
+    <template x-for="a in (data.insights?.alerts||[]).slice(0,3)" :key="a.metric">
+      <div class="alert" :class="a.severity">
+        <div class="alert-t" x-text="`[${a.severity.toUpperCase()}] ${a.metric}`"></div>
+        <div class="alert-b" x-text="a.message"></div>
+      </div>
+    </template>
+    <button class="btn" x-show="data.insights?.alerts?.length>3" @click="sec='insights'">전체 보기 →</button>
+  </div>
+</div>
+
+<!-- ══ LAYER 1: BASIC ══ -->
+<div x-show="data && sec==='layer1'" x-cloak>
+  <div class="tabs">
+    <div class="tab" :class="{on:t1==='tcr'}"    @click="t1='tcr'">📋 TCR</div>
+    <div class="tab" :class="{on:t1==='acc'}"    @click="t1='acc'">🎯 Accuracy</div>
+    <div class="tab" :class="{on:t1==='qual'}"   @click="t1='qual'">⭐ Quality</div>
+    <div class="tab" :class="{on:t1==='hall'}"   @click="t1='hall'">🧠 Hallucination</div>
+    <div class="tab" :class="{on:t1==='rag'}"    @click="t1='rag'">📚 RAG</div>
+    <div class="tab" :class="{on:t1==='deepeval'}" @click="t1='deepeval'">🤖 DeepEval</div>
+  </div>
+
+  <!-- TCR -->
+  <div x-show="t1==='tcr'">
+    <div class="kpi-grid">
+      <div class="kpi"><div class="kpi-lbl">TCR</div><div class="kpi-val"><span x-text="pct(tcr())"></span><span class="grade" :class="`grade-${benchGrade(tcr()).letter}`" x-text="benchGrade(tcr()).letter"></span></div></div>
+      <div class="kpi"><div class="kpi-lbl">완전 성공</div><div class="kpi-val" x-text="data.accuracy_metrics?.tcr?.full_success??'-'"></div></div>
+      <div class="kpi"><div class="kpi-lbl">부분 성공</div><div class="kpi-val" x-text="data.accuracy_metrics?.tcr?.partial_success??'-'"></div></div>
+      <div class="kpi"><div class="kpi-lbl">실패</div><div class="kpi-val" style="color:var(--red)" x-text="data.accuracy_metrics?.tcr?.failures??'-'"></div></div>
+    </div>
+    <div class="cg">
+      <div class="cbox"><div class="ct">성공/실패 비율</div><div id="l1-donut" class="plt-chart"></div></div>
+      <div class="cbox"><div class="ct">TaskType별 성공률</div><div id="l1-type" class="plt-chart"></div></div>
+    </div>
+    <div class="sec" x-show="typeBreakdown().length>0">
+      <div class="sec-t">TaskType별 상세</div>
+      <template x-for="tp in typeBreakdown()" :key="tp.type">
+        <div class="drow">
+          <span class="dk" x-text="tp.type"></span>
+          <span x-text="`${tp.n}건`" style="color:var(--text2)"></span>
+          <span :style="`color:${tp.rate>=90?'var(--green)':tp.rate>=70?'var(--yellow)':'var(--red)'}`" x-text="pct(tp.rate)"></span>
+        </div>
+      </template>
+    </div>
+  </div>
+
+  <!-- Accuracy -->
+  <div x-show="t1==='acc'">
+    <div class="kpi-grid">
+      <div class="kpi"><div class="kpi-lbl">전체 Accuracy</div><div class="kpi-val" x-text="pct(acc())"></div></div>
+      <div class="kpi"><div class="kpi-lbl">Median</div><div class="kpi-val" x-text="pct(data.accuracy_metrics?.accuracy_scores?.median_accuracy)"></div></div>
+      <div class="kpi"><div class="kpi-lbl">Min</div><div class="kpi-val" x-text="pct(data.accuracy_metrics?.accuracy_scores?.min_accuracy)"></div></div>
+      <div class="kpi"><div class="kpi-lbl">Max</div><div class="kpi-val" x-text="pct(data.accuracy_metrics?.accuracy_scores?.max_accuracy)"></div></div>
+      <div class="kpi"><div class="kpi-lbl">Std Dev</div><div class="kpi-val" x-text="pct(data.accuracy_metrics?.accuracy_scores?.std_accuracy)"></div></div>
+    </div>
+    <div class="sec"><div class="sec-t">정확도 분포</div><div id="acc-hist" class="plt-chart"></div></div>
+    <div class="sec" x-show="lowAccTasks().length>0">
+      <div class="sec-t">낮은 정확도 태스크 <span class="badge" x-text="`< 70% : ${lowAccTasks().length}건`"></span></div>
+      <div class="slist">
+        <template x-for="t in lowAccTasks()" :key="t.task_id">
+          <div class="drow">
+            <span class="dk" x-text="t.task_id"></span>
+            <span x-text="t.task_type" style="color:var(--text2)"></span>
+            <span style="color:var(--red)" x-text="pct(t.accuracy_score*100)"></span>
+            <span x-text="`${t.attempts}회`" style="color:var(--text2)"></span>
+          </div>
+        </template>
+      </div>
+    </div>
+  </div>
+
+  <!-- Quality -->
+  <div x-show="t1==='qual'">
+    <div x-show="!data.has_quality" class="empty"><p>품질 평가 데이터 없음 — QualityEvaluator를 활성화하세요.</p></div>
+    <div x-show="data.has_quality">
+      <div class="kpi-grid">
+        <div class="kpi"><div class="kpi-lbl">평균 품질 점수</div><div class="kpi-val" x-text="(data.quality_detail?.avg_score||0).toFixed(2)"></div></div>
+        <template x-for="[g,n] in Object.entries(data.quality_detail?.grade_distribution||{})" :key="g">
+          <div class="kpi"><div class="kpi-lbl">등급 <span x-text="g"></span></div><div class="kpi-val" x-text="n"></div></div>
+        </template>
+      </div>
+      <div class="cg">
+        <div class="cbox"><div class="ct">품질 레이더 (6차원)</div><div id="qual-radar" class="plt-chart"></div></div>
+        <div class="cbox">
+          <div class="ct">차원별 평균 점수</div>
+          <template x-for="[dim,val] in Object.entries(data.quality_detail?.dimension_summary||{})" :key="dim">
+            <div class="brow" style="margin-bottom:7px">
+              <div class="blbl"><span x-text="dim"></span><span x-text="val.toFixed(2)"></span></div>
+              <div class="btrack"><div class="bfill" :style="`width:${val*10}%;background:${bc(val*10)}`"></div></div>
+            </div>
+          </template>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Hallucination -->
+  <div x-show="t1==='hall'">
+    <div class="kpi-grid">
+      <div class="kpi"><div class="kpi-lbl">환각 발생률</div><div class="kpi-val" :style="hr_col(hall())" x-text="pct(hall())"></div></div>
+      <div class="kpi"><div class="kpi-lbl">평가 건수</div><div class="kpi-val" x-text="data.accuracy_metrics?.hallucination?.total_evaluated??0"></div></div>
+      <div class="kpi"><div class="kpi-lbl">감지 건수</div><div class="kpi-val" x-text="data.accuracy_metrics?.hallucination?.total_flagged??0"></div></div>
+      <div class="kpi"><div class="kpi-lbl">미지원 주장</div><div class="kpi-val" x-text="data.accuracy_metrics?.hallucination?.unsupported_claims_count??0"></div></div>
+    </div>
+    <div class="sec">
+      <div class="sec-t">환각 위험 수준</div>
+      <div class="rg"><div class="rgt"><div class="rgf" :style="`width:${Math.min(100,(hall()/30)*100)}%;background:${hr_col2(hall())}`"></div></div>
+      <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--text2)"><span>0% SAFE</span><span :style="`color:${hr_col2(hall())}`" x-text="pct(hall())+' 현재'"></span><span>30% CRITICAL</span></div></div>
+    </div>
+    <div class="sec" x-show="Object.keys(data.hallucination_detail?.indicator_types||{}).length>0">
+      <div class="sec-t">환각 유형별 분류</div>
+      <template x-for="[t,n] in Object.entries(data.hallucination_detail?.indicator_types||{})" :key="t">
+        <div class="drow"><span class="dk" x-text="t"></span><span x-text="`${n}건`"></span></div>
+      </template>
+    </div>
+  </div>
+
+  <!-- RAG -->
+  <div x-show="t1==='rag'">
+    <div x-show="!data.has_rag" class="empty">
+      <h3>RAG 지표 없음</h3>
+      <p>HybridPerformanceMonitor에서 Ragas를 활성화하거나 RAG 평가 예제를 실행하세요.</p>
+    </div>
+    <div x-show="data.has_rag">
+      <div class="kpi-grid">
+        <template x-for="key in ['faithfulness','answer_relevancy','context_recall','context_precision']" :key="key">
+          <div class="kpi">
+            <div class="kpi-lbl" x-text="key.replace(/_/g,' ')"></div>
+            <div class="kpi-val" x-text="ragAvg(key)"></div>
+            <div class="kpi-sub" style="color:var(--text2)" x-text="`${(data.advanced?.rag_metrics?.[key]||[]).length}건 평가`"></div>
+          </div>
+        </template>
+      </div>
+      <div class="cg">
+        <div class="cbox"><div class="ct">RAG 지표 비교</div><div id="rag-bar" class="plt-chart"></div></div>
+        <div class="cbox">
+          <div class="ct">Advanced Metrics (DeepEval)</div>
+          <template x-for="[k,v] in Object.entries(data.advanced?.summary||{})" :key="k">
+            <div class="drow" x-show="typeof v==='object'&&v.mean!==undefined">
+              <span class="dk" x-text="k.replace(/_/g,' ')"></span>
+              <span x-text="(v.mean??0).toFixed(3)"></span>
+            </div>
+          </template>
+          <div x-show="!Object.keys(data.advanced?.summary||{}).length" style="font-size:11px;color:var(--text2)">DeepEval 지표 없음</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- DeepEval -->
+  <div x-show="t1==='deepeval'">
+    <div x-show="!data.has_advanced" class="empty">
+      <h3>DeepEval 지표 없음</h3>
+      <p>HybridPerformanceMonitor에서 DeepEval (G-Eval, Hallucination, Answer Relevancy)을 활성화하세요.</p>
+    </div>
+    <div x-show="data.has_advanced">
+      <div class="kpi-grid">
+        <template x-for="[k,v] in Object.entries(data.advanced?.summary||{})" :key="k">
+          <div class="kpi" x-show="typeof v==='object'&&v.mean!==undefined">
+            <div class="kpi-lbl" x-text="k.replace(/_/g,' ')"></div>
+            <div class="kpi-val" style="font-size:18px" x-text="(v.mean??0).toFixed(3)"></div>
+            <div class="kpi-sub" style="color:var(--text2)" x-text="`min ${(v.min??0).toFixed(2)} / max ${(v.max??0).toFixed(2)}`"></div>
+          </div>
+        </template>
+      </div>
+      <div class="cg">
+        <div class="cbox">
+          <div class="ct">G-Eval Score 분포</div>
+          <div id="deepeval-hist" class="plt-chart"></div>
+        </div>
+        <div class="cbox">
+          <div class="ct">DeepEval 지표 요약</div>
+          <template x-for="[k,v] in Object.entries(data.advanced?.summary||{})" :key="k">
+            <div class="brow" x-show="typeof v==='object'&&v.mean!==undefined" style="margin-bottom:7px">
+              <div class="blbl">
+                <span x-text="k.replace(/_/g,' ')"></span>
+                <span x-text="(v.mean??0).toFixed(3)"></span>
+              </div>
+              <div class="btrack"><div class="bfill" :style="`width:${(v.mean??0)*100}%;background:${bc((v.mean??0)*100)}`"></div></div>
+            </div>
+          </template>
+        </div>
+      </div>
+      <div class="sec" x-show="(data.advanced?.per_task||[]).length>0">
+        <div class="sec-t">태스크별 DeepEval 상세 <span class="badge" x-text="`${(data.advanced?.per_task||[]).length}건`"></span></div>
+        <div class="slist">
+          <template x-for="(t,i) in (data.advanced?.per_task||[]).slice(0,50)" :key="i">
+            <div class="drow">
+              <span class="dk" x-text="t.task_id||`#${i+1}`"></span>
+              <template x-for="[mk,mv] in Object.entries(t.metrics||t)" :key="mk">
+                <span x-show="typeof mv==='number'" class="tag" x-text="`${mk.replace(/_/g,' ')}: ${(+mv).toFixed(3)}`"></span>
+              </template>
+            </div>
+          </template>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ LAYER 2: AGENTIC ══ -->
+<div x-show="data && sec==='agentic'" x-cloak>
+  <div x-show="!data.has_agentic" class="empty">
+    <h3>Agentic 지표 없음</h3>
+    <p>Tool Selection, Multi-Agent, Workflow 평가가 포함된 예제를 실행하세요.</p>
+  </div>
+  <div x-show="data.has_agentic">
+    <div class="tabs">
+      <div class="tab" :class="{on:t2==='tsel'}"   @click="t2='tsel'">🔧 Tool Selection</div>
+      <div class="tab" :class="{on:t2==='teff'}"   @click="t2='teff'">⚡ Tool Efficiency</div>
+      <div class="tab" :class="{on:t2==='coord'}"  @click="t2='coord'">🤝 Multi-Agent</div>
+      <div class="tab" :class="{on:t2==='wf'}"     @click="t2='wf'">🔀 Workflow</div>
+      <div class="tab" :class="{on:t2==='retry'}"  @click="t2='retry'">🔁 Retry</div>
+    </div>
+
+    <!-- Tool Selection -->
+    <div x-show="t2==='tsel'">
+      <div x-show="!data.agentic?.tool_selections?.length" class="empty"><p>Tool Selection 데이터 없음 — expected_tools를 설정하세요.</p></div>
+      <div x-show="data.agentic?.tool_selections?.length>0">
+        <div class="kpi-grid">
+          <div class="kpi"><div class="kpi-lbl">평균 Precision</div><div class="kpi-val" x-text="pct(data.agentic?.tool_selection_summary?.avg_precision)"></div></div>
+          <div class="kpi"><div class="kpi-lbl">평균 Recall</div><div class="kpi-val" x-text="pct(data.agentic?.tool_selection_summary?.avg_recall)"></div></div>
+          <div class="kpi"><div class="kpi-lbl">평균 F1</div><div class="kpi-val" x-text="pct(data.agentic?.tool_selection_summary?.avg_f1_score)"></div></div>
+          <div class="kpi"><div class="kpi-lbl">평균 Accuracy</div><div class="kpi-val" x-text="pct(data.agentic?.tool_selection_summary?.avg_accuracy)"></div></div>
+          <div class="kpi"><div class="kpi-lbl">평가 Tasks</div><div class="kpi-val" x-text="data.agentic?.tool_selection_summary?.total_selections??0"></div></div>
+        </div>
+        <div class="sec">
+          <div class="sec-t">태스크별 Tool Selection 상세</div>
+          <div class="slist">
+            <template x-for="s in data.agentic?.tool_selections||[]" :key="s.task_id">
+              <div class="drow">
+                <span class="dk" x-text="s.task_id"></span>
+                <span style="color:var(--text2)" x-text="(s.expected_tools||[]).join(',')||'-'"></span>
+                <span :class="s.f1_score>=90?'pg':s.f1_score>=70?'py':'pr'" class="pill" x-text="`F1:${(s.f1_score||0).toFixed(0)}%`"></span>
+              </div>
+            </template>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tool Efficiency -->
+    <div x-show="t2==='teff'">
+      <div x-show="!data.agentic?.tool_efficiency?.total_calls" class="empty"><p>Tool Efficiency 데이터 없음</p></div>
+      <div x-show="data.agentic?.tool_efficiency?.total_calls">
+        <div class="kpi-grid">
+          <div class="kpi"><div class="kpi-lbl">총 Tool 호출</div><div class="kpi-val" x-text="data.agentic?.tool_efficiency?.total_calls||0"></div></div>
+          <div class="kpi"><div class="kpi-lbl">성공률</div><div class="kpi-val" x-text="pct(data.agentic?.tool_efficiency?.success_rate)"></div></div>
+          <div class="kpi"><div class="kpi-lbl">평균 효율성</div><div class="kpi-val" x-text="pct(data.agentic?.tool_efficiency?.avg_efficiency_score)"></div></div>
+          <div class="kpi"><div class="kpi-lbl">중복 호출률</div><div class="kpi-val" :style="`color:${data.agentic?.tool_efficiency?.redundancy_rate>0?'var(--yellow)':'var(--green)'}`" x-text="pct(data.agentic?.tool_efficiency?.redundancy_rate)"></div></div>
+          <div class="kpi"><div class="kpi-lbl">실패률</div><div class="kpi-val" style="color:var(--red)" x-text="pct(data.agentic?.tool_efficiency?.failure_rate)"></div></div>
+          <div class="kpi"><div class="kpi-lbl">Task당 평균</div><div class="kpi-val" x-text="(data.agentic?.tool_efficiency?.avg_calls_per_task||0).toFixed(1)+'회'"></div></div>
+        </div>
+        <div class="cbox" style="margin-top:10px"><div class="ct">Tool 효율성 지표 비교</div><div id="teff-bar" class="plt-chart"></div></div>
+      </div>
+    </div>
+
+    <!-- Multi-Agent Coordination -->
+    <div x-show="t2==='coord'">
+      <div x-show="!data.agentic?.agent_interactions?.length" class="empty"><p>Multi-Agent 데이터 없음</p></div>
+      <div x-show="data.agentic?.agent_interactions?.length>0">
+        <div class="kpi-grid">
+          <div class="kpi"><div class="kpi-lbl">총 상호작용</div><div class="kpi-val" x-text="data.agentic?.coordination_summary?.total_interactions||0"></div></div>
+          <div class="kpi"><div class="kpi-lbl">성공 상호작용</div><div class="kpi-val" x-text="data.agentic?.coordination_summary?.successful_interactions||0"></div></div>
+          <div class="kpi"><div class="kpi-lbl">성공률</div><div class="kpi-val" x-text="pct(data.agentic?.coordination_summary?.success_rate)"></div></div>
+          <div class="kpi"><div class="kpi-lbl">참여 에이전트</div><div class="kpi-val" x-text="data.agentic?.coordination_summary?.unique_agents||0"></div></div>
+        </div>
+        <div class="sec">
+          <div class="sec-t">에이전트 목록</div>
+          <template x-for="a in data.agentic?.coordination_summary?.agent_list||[]" :key="a">
+            <span class="tag" x-text="a"></span>
+          </template>
+        </div>
+        <!-- Network Graph -->
+        <div class="sec" x-show="(data.agentic?.agent_interactions||[]).length>1">
+          <div class="sec-t">🕸️ 에이전트 상호작용 네트워크</div>
+          <p style="font-size:11px;color:var(--text2);margin-bottom:8px">노드: 에이전트 | 엣지 두께: 상호작용 횟수 | 색상: 성공률</p>
+          <div class="cbox"><div id="agent-network" class="plt-chart" :style="`height:${Math.max(380, Math.min(560, (data.agentic?.agent_interactions?.length||0)*12+260)}px`"></div></div>
+        </div>
+
+        <div class="sec">
+          <div class="sec-t">상호작용 로그 <span class="badge" x-text="`${(data.agentic?.agent_interactions||[]).length}건`"></span></div>
+          <div class="slist">
+            <template x-for="(i,idx) in (data.agentic?.agent_interactions||[]).slice(0,50)" :key="idx">
+              <div class="irow">
+                <span :class="i.success?'pg':'pr'" class="pill" x-text="i.success?'✓':'✗'"></span>
+                <span x-text="i.from_agent" style="color:var(--accent)"></span>
+                <span style="color:var(--text2)">→</span>
+                <span x-text="i.to_agent"></span>
+                <span style="color:var(--text2)" x-text="i.interaction_type"></span>
+                <span style="color:var(--text2);margin-left:auto;font-size:10px" x-text="i.timestamp?.substring(0,16)||''"></span>
+              </div>
+            </template>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Workflow -->
+    <div x-show="t2==='wf'">
+      <div x-show="!data.agentic?.workflow_executions?.length" class="empty"><p>Workflow 데이터 없음</p></div>
+      <div x-show="data.agentic?.workflow_executions?.length>0">
+        <div class="kpi-grid">
+          <div class="kpi"><div class="kpi-lbl">총 스텝</div><div class="kpi-val" x-text="data.agentic?.workflow_summary?.total_steps||0"></div></div>
+          <div class="kpi"><div class="kpi-lbl">성공 스텝</div><div class="kpi-val" x-text="data.agentic?.workflow_summary?.successful_steps||0"></div></div>
+          <div class="kpi"><div class="kpi-lbl">스텝 성공률</div><div class="kpi-val" x-text="pct(data.agentic?.workflow_summary?.step_success_rate)"></div></div>
+        </div>
+        <div class="sec" x-show="(data.agentic?.workflow_summary?.frameworks||[]).length>0">
+          <div class="sec-t">사용 프레임워크</div>
+          <template x-for="fw in data.agentic?.workflow_summary?.frameworks||[]" :key="fw">
+            <span class="tag" x-text="fw"></span>
+          </template>
+        </div>
+        <div class="sec">
+          <div class="sec-t">워크플로우 실행 스텝</div>
+          <div class="slist">
+            <template x-for="(s,idx) in (data.agentic?.workflow_executions||[]).slice(0,30)" :key="idx">
+              <div class="step">
+                <div class="step-t"><span :class="s.success?'pg':'pr'" class="pill" x-text="s.success?'✓':'✗'"></span> <span x-text="s.step_name||s.task_id"></span></div>
+                <div style="color:var(--text2);font-size:10px" x-text="`${s.framework||''} | ${s.execution_time||0}s | ${s.step_type||''}`"></div>
+              </div>
+            </template>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Retry -->
+    <div x-show="t2==='retry'">
+      <div class="kpi-grid">
+        <div class="kpi"><div class="kpi-lbl">재시도 기록</div><div class="kpi-val" x-text="(data.agentic?.retry_attempts||[]).length"></div></div>
+        <template x-for="[k,v] in Object.entries(data.agentic?.retry_summary||{})" :key="k">
+          <div class="kpi"><div class="kpi-lbl" x-text="k.replace(/_/g,' ')"></div><div class="kpi-val" x-text="typeof v==='number'?v.toFixed(1):v"></div></div>
+        </template>
+      </div>
+      <div class="sec" x-show="(data.agentic?.retry_attempts||[]).length===0">
+        <div style="font-size:12px;color:var(--text2)">재시도 기록 없음 (재시도가 발생한 태스크가 없거나 TrackerRetry가 비활성화됨)</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ LAYER 3: ADVANCED ══ -->
+<div x-show="data && sec==='layer3'" x-cloak>
+  <div x-show="!data.has_advanced && !data.has_rag" class="empty">
+    <h3>Layer 3 Advanced 지표 없음</h3>
+    <p>HybridPerformanceMonitor에서 DeepEval 또는 Ragas를 활성화하세요.</p>
+  </div>
+  <div x-show="data.has_advanced || data.has_rag">
+    <div class="tabs">
+      <div class="tab" :class="{on:tl3==='deepeval'}" @click="tl3='deepeval'">🤖 DeepEval</div>
+      <div class="tab" :class="{on:tl3==='ragas'}"    @click="tl3='ragas'">📚 Ragas</div>
+      <div class="tab" :class="{on:tl3==='pertask'}"  @click="tl3='pertask'">📋 태스크별</div>
+    </div>
+
+    <!-- DeepEval -->
+    <div x-show="tl3==='deepeval'">
+      <div x-show="!data.has_advanced" class="empty"><p>DeepEval 지표 없음</p></div>
+      <div x-show="data.has_advanced">
+        <div class="kpi-grid">
+          <template x-for="[k,v] in Object.entries(data.advanced?.summary||{})" :key="k">
+            <div class="kpi" x-show="typeof v==='object'&&v.mean!==undefined">
+              <div class="kpi-lbl" x-text="k.replace(/_/g,' ')"></div>
+              <div class="kpi-val" style="font-size:18px" x-text="(v.mean??0).toFixed(3)"></div>
+              <div class="kpi-sub" style="color:var(--text2)" x-text="`min ${(v.min??0).toFixed(2)} · max ${(v.max??0).toFixed(2)}`"></div>
+            </div>
+          </template>
+        </div>
+        <div class="cg">
+          <div class="cbox"><div class="ct">G-Eval Score 분포</div><div id="l3-geval-hist" class="plt-chart"></div></div>
+          <div class="cbox">
+            <div class="ct">DeepEval 지표 요약</div>
+            <template x-for="[k,v] in Object.entries(data.advanced?.summary||{})" :key="k">
+              <div class="brow" x-show="typeof v==='object'&&v.mean!==undefined" style="margin-bottom:7px">
+                <div class="blbl"><span x-text="k.replace(/_/g,' ')"></span><span x-text="(v.mean??0).toFixed(3)"></span></div>
+                <div class="btrack"><div class="bfill" :style="`width:${(v.mean??0)*100}%;background:${bc((v.mean??0)*100)}`"></div></div>
+              </div>
+            </template>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Ragas -->
+    <div x-show="tl3==='ragas'">
+      <div x-show="!data.has_rag" class="empty"><p>Ragas 지표 없음 — RAGPipelineEvaluator를 활성화하세요.</p></div>
+      <div x-show="data.has_rag">
+        <div class="kpi-grid">
+          <template x-for="key in ['faithfulness','answer_relevancy','context_recall','context_precision']" :key="key">
+            <div class="kpi">
+              <div class="kpi-lbl" x-text="key.replace(/_/g,' ')"></div>
+              <div class="kpi-val" x-text="ragAvg(key)"></div>
+              <div class="kpi-sub" style="color:var(--text2)" x-text="`${(data.advanced?.rag_metrics?.[key]||[]).length}건 평가`"></div>
+            </div>
+          </template>
+        </div>
+        <div class="cg">
+          <div class="cbox"><div class="ct">Ragas 지표 비교</div><div id="l3-rag-bar" class="plt-chart"></div></div>
+          <div class="cbox">
+            <div class="ct">Advanced Metrics (DeepEval)</div>
+            <template x-for="[k,v] in Object.entries(data.advanced?.summary||{})" :key="k">
+              <div class="drow" x-show="typeof v==='object'&&v.mean!==undefined">
+                <span class="dk" x-text="k.replace(/_/g,' ')"></span>
+                <span x-text="(v.mean??0).toFixed(3)"></span>
+              </div>
+            </template>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Per-task -->
+    <div x-show="tl3==='pertask'">
+      <div x-show="!(data.advanced?.per_task?.length>0)" class="empty"><p>태스크별 advanced 데이터 없음</p></div>
+      <div x-show="data.advanced?.per_task?.length>0">
+        <div class="sec-t">태스크별 DeepEval/Ragas 상세 <span class="badge" x-text="`${(data.advanced?.per_task||[]).length}건`"></span></div>
+        <div class="slist">
+          <template x-for="(t,i) in (data.advanced?.per_task||[]).slice(0,50)" :key="i">
+            <div class="drow">
+              <span class="dk" x-text="t.task_id||`#${i+1}`"></span>
+              <template x-for="[mk,mv] in Object.entries(t.metrics||t)" :key="mk">
+                <span x-show="typeof mv==='number'" class="tag" x-text="`${mk.replace(/_/g,' ')}: ${(+mv).toFixed(3)}`"></span>
+              </template>
+            </div>
+          </template>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ PERFORMANCE ══ -->
+<div x-show="data && sec==='performance'" x-cloak>
+  <div class="tabs">
+    <div class="tab" :class="{on:tp==='lat'}"  @click="tp='lat'">📊 Latency</div>
+    <div class="tab" :class="{on:tp==='tok'}"  @click="tp='tok'">🔢 Token</div>
+    <div class="tab" :class="{on:tp==='cost'}" @click="tp='cost'">💰 Cost</div>
+    <div class="tab" :class="{on:tp==='fw'}"   @click="tp='fw'">🔀 Framework</div>
+  </div>
+
+  <!-- Latency -->
+  <div x-show="tp==='lat'">
+    <div class="kpi-grid">
+      <div class="kpi"><div class="kpi-lbl">평균(Mean)</div><div class="kpi-val" x-text="sec_(data.efficiency_metrics?.latency?.mean)"></div></div>
+      <div class="kpi"><div class="kpi-lbl">P50</div><div class="kpi-val" x-text="sec_(data.efficiency_metrics?.latency?.p50)"></div></div>
+      <div class="kpi"><div class="kpi-lbl">P95</div><div class="kpi-val" :class="lat_cl(data.efficiency_metrics?.latency?.p95)" x-text="sec_(data.efficiency_metrics?.latency?.p95)"></div></div>
+      <div class="kpi"><div class="kpi-lbl">P99</div><div class="kpi-val" x-text="sec_(data.efficiency_metrics?.latency?.p99)"></div></div>
+      <div class="kpi"><div class="kpi-lbl">Max</div><div class="kpi-val" style="color:var(--red)" x-text="sec_(data.efficiency_metrics?.latency?.max)"></div></div>
+      <div class="kpi"><div class="kpi-lbl">Std Dev</div><div class="kpi-val" x-text="sec_(data.efficiency_metrics?.latency?.std)"></div></div>
+    </div>
+    <div class="cg">
+      <div class="cbox"><div class="ct">Latency 백분위</div><div id="lat-bar" class="plt-chart"></div></div>
+      <div class="cbox"><div class="ct">태스크별 응답시간 분포</div><div id="lat-hist" class="plt-chart"></div></div>
+    </div>
+    <div class="cg" style="margin-top:12px">
+      <div class="cbox"><div class="ct">Latency Box Plot (분포 요약)</div><div id="lat-box" class="plt-chart"></div></div>
+      <div class="cbox"><div class="ct">TaskType별 Latency 비교</div><div id="lat-type-box" class="plt-chart"></div></div>
+    </div>
+  </div>
+
+  <!-- Token -->
+  <div x-show="tp==='tok'">
+    <div class="kpi-grid">
+      <div class="kpi"><div class="kpi-lbl">총 토큰</div><div class="kpi-val" x-text="(data.efficiency_metrics?.tokens?.total_tokens||0).toLocaleString()"></div></div>
+      <div class="kpi"><div class="kpi-lbl">Input 토큰</div><div class="kpi-val" x-text="(data.efficiency_metrics?.tokens?.total_input_tokens||0).toLocaleString()"></div></div>
+      <div class="kpi"><div class="kpi-lbl">Output 토큰</div><div class="kpi-val" x-text="(data.efficiency_metrics?.tokens?.total_output_tokens||0).toLocaleString()"></div></div>
+      <div class="kpi"><div class="kpi-lbl">Task당 평균</div><div class="kpi-val" x-text="Math.round(data.efficiency_metrics?.tokens?.avg_tokens_per_task||0).toLocaleString()"></div></div>
+    </div>
+    <div class="cg">
+      <div class="cbox"><div class="ct">Input / Output 비율</div><div id="tok-pie" class="plt-chart"></div></div>
+      <div class="cbox"><div class="ct">태스크별 토큰 분포</div><div id="tok-hist" class="plt-chart"></div></div>
+    </div>
+  </div>
+
+  <!-- Cost -->
+  <div x-show="tp==='cost'">
+    <div class="kpi-grid">
+      <div class="kpi"><div class="kpi-lbl">총 비용</div><div class="kpi-val" x-text="cost(data.efficiency_metrics?.tokens?.total_cost)"></div></div>
+      <div class="kpi"><div class="kpi-lbl">Task당 비용</div><div class="kpi-val" x-text="cost(data.efficiency_metrics?.tokens?.avg_cost_per_task)"></div></div>
+      <div class="kpi"><div class="kpi-lbl">월간 추정</div><div class="kpi-val" x-text="cost(data.efficiency_metrics?.tokens?.estimated_monthly_cost)"></div></div>
+    </div>
+    <div class="sec">
+      <div class="drow"><span class="dk">Input 단가</span><span x-text="'$'+(data.pricing?.input||0).toFixed(4)+' / 1K tokens'"></span></div>
+      <div class="drow"><span class="dk">Output 단가</span><span x-text="'$'+(data.pricing?.output||0).toFixed(4)+' / 1K tokens'"></span></div>
+      <div class="drow"><span class="dk">P50 비용</span><span x-text="cost(data.efficiency_metrics?.tokens?.cost_percentiles?.p50)"></span></div>
+      <div class="drow"><span class="dk">P90 비용</span><span x-text="cost(data.efficiency_metrics?.tokens?.cost_percentiles?.p90)"></span></div>
+    </div>
+  </div>
+
+  <!-- Framework Distribution -->
+  <div x-show="tp==='fw'">
+    <div x-show="!frameworkDist().length" class="empty"><p>Framework 정보 없음 — 태스크에 framework 필드를 설정하세요.</p></div>
+    <div x-show="frameworkDist().length>0">
+      <div class="kpi-grid">
+        <template x-for="fw in frameworkDist()" :key="fw.name">
+          <div class="kpi">
+            <div class="kpi-lbl" x-text="fw.name||'unknown'"></div>
+            <div class="kpi-val" x-text="fw.count+'건'"></div>
+            <div class="kpi-sub" style="color:var(--text2)" x-text="pct(fw.rate)+'  성공률'"></div>
+          </div>
+        </template>
+      </div>
+      <div class="cbox" style="margin-top:10px"><div class="ct">Framework별 Task 분포</div><div id="fw-bar" class="plt-chart"></div></div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ SECURITY ══ -->
+<div x-show="data && sec==='security'" x-cloak>
+  <div x-show="!data.has_security" class="empty">
+    <h3>보안 지표 없음</h3>
+    <p>InputSanitizationTracker, OutputLeakageDetector 등 보안 트래커를 활성화하세요.</p>
+  </div>
+  <div x-show="data.has_security">
+    <div class="tabs">
+      <div class="tab" :class="{on:tsec==='l1in'}"  @click="tsec='l1in'">🔍 입력 검사</div>
+      <div class="tab" :class="{on:tsec==='l1out'}" @click="tsec='l1out'">📤 출력 유출</div>
+      <div class="tab" :class="{on:tsec==='l1auth'}" @click="tsec='l1auth'">🔐 권한</div>
+      <div class="tab" :class="{on:tsec==='l2pe'}"  @click="tsec='l2pe'">🚀 권한 상승</div>
+      <div class="tab" :class="{on:tsec==='l2atk'}" @click="tsec='l2atk'">⚔️ 공격 탐지</div>
+      <div class="tab" :class="{on:tsec==='int'}"   @click="tsec='int'">🛡️ 통합</div>
+    </div>
+
+    <!-- Input Sanitization -->
+    <div x-show="tsec==='l1in'">
+      <div class="kpi-grid">
+        <div class="kpi"><div class="kpi-lbl">평가 입력</div><div class="kpi-val" x-text="data.security_l1?.input_security?.total_inputs_evaluated||0"></div></div>
+        <div class="kpi"><div class="kpi-lbl">위협 탐지</div><div class="kpi-val" style="color:var(--red)" x-text="data.security_l1?.input_security?.inputs_with_threats||0"></div></div>
+        <div class="kpi"><div class="kpi-lbl">위협률</div><div class="kpi-val" :style="`color:${(data.security_l1?.input_security?.threat_rate||0)>20?'var(--red)':'var(--green)'}`" x-text="pct(data.security_l1?.input_security?.threat_rate)"></div></div>
+      </div>
+      <div class="sec">
+        <div class="sec-t">위협 유형별</div>
+        <div class="cg4">
+          <div class="cbox"><div class="ct">SQL Injection</div><div style="font-size:20px;font-weight:800;color:var(--red)" x-text="data.security_l1?.input_security?.sql_injection_attempts||0"></div></div>
+          <div class="cbox"><div class="ct">Command Injection</div><div style="font-size:20px;font-weight:800;color:var(--red)" x-text="data.security_l1?.input_security?.command_injection_attempts||0"></div></div>
+          <div class="cbox"><div class="ct">Path Traversal</div><div style="font-size:20px;font-weight:800;color:var(--orange)" x-text="data.security_l1?.input_security?.path_traversal_attempts||0"></div></div>
+          <div class="cbox"><div class="ct">XSS</div><div style="font-size:20px;font-weight:800;color:var(--orange)" x-text="data.security_l1?.input_security?.xss_attempts||0"></div></div>
+          <div class="cbox"><div class="ct">Prompt Injection</div><div style="font-size:20px;font-weight:800;color:var(--red)" x-text="data.security_l1?.input_security?.prompt_injection_attempts||0"></div></div>
+        </div>
+      </div>
+      <div class="sec" x-show="data.security_l1?.input_evals?.length>0">
+        <div class="sec-t">입력 평가 상세 <span class="badge" x-text="`${(data.security_l1?.input_evals||[]).length}건`"></span></div>
+        <div class="slist">
+          <template x-for="e in (data.security_l1?.input_evals||[]).slice(0,30)" :key="e.task_id">
+            <div class="drow">
+              <span class="dk" x-text="e.task_id"></span>
+              <span :class="e.sanitization_needed?'pr':'pg'" class="pill" x-text="e.sanitization_needed?'위협':'안전'"></span>
+              <span class="tag" x-text="e.risk_level||'low'"></span>
+              <span style="font-size:10px;color:var(--text2)" x-text="`위협${e.threat_count||0}개`"></span>
+            </div>
+          </template>
+        </div>
+      </div>
+    </div>
+
+    <!-- Output Leakage -->
+    <div x-show="tsec==='l1out'">
+      <div class="kpi-grid">
+        <div class="kpi"><div class="kpi-lbl">평가 출력</div><div class="kpi-val" x-text="data.security_l1?.output_leakage?.total_outputs_evaluated||0"></div></div>
+        <div class="kpi"><div class="kpi-lbl">유출 탐지</div><div class="kpi-val" style="color:var(--red)" x-text="data.security_l1?.output_leakage?.outputs_with_leakage||0"></div></div>
+        <div class="kpi"><div class="kpi-lbl">유출률</div><div class="kpi-val" :style="`color:${(data.security_l1?.output_leakage?.leakage_rate||0)>10?'var(--red)':'var(--green)'}`" x-text="pct(data.security_l1?.output_leakage?.leakage_rate)"></div></div>
+      </div>
+      <div class="sec">
+        <div class="sec-t">유출 유형별</div>
+        <div class="cg4">
+          <div class="cbox"><div class="ct">API Key</div><div style="font-size:20px;font-weight:800;color:var(--red)" x-text="data.security_l1?.output_leakage?.api_key_leaks||0"></div></div>
+          <div class="cbox"><div class="ct">Password</div><div style="font-size:20px;font-weight:800;color:var(--red)" x-text="data.security_l1?.output_leakage?.password_leaks||0"></div></div>
+          <div class="cbox"><div class="ct">Email</div><div style="font-size:20px;font-weight:800;color:var(--orange)" x-text="data.security_l1?.output_leakage?.email_leaks||0"></div></div>
+          <div class="cbox"><div class="ct">Phone</div><div style="font-size:20px;font-weight:800;color:var(--orange)" x-text="data.security_l1?.output_leakage?.phone_leaks||0"></div></div>
+          <div class="cbox"><div class="ct">Private IP</div><div style="font-size:20px;font-weight:800;color:var(--yellow)" x-text="data.security_l1?.output_leakage?.private_ip_leaks||0"></div></div>
+        </div>
+      </div>
+      <div class="sec" x-show="data.security_l1?.output_detections?.length>0">
+        <div class="sec-t">출력 탐지 상세</div>
+        <div class="slist">
+          <template x-for="d in (data.security_l1?.output_detections||[]).slice(0,30)" :key="d.task_id">
+            <div class="drow">
+              <span class="dk" x-text="d.task_id"></span>
+              <span :class="d.leakage_count>0?'pr':'pg'" class="pill" x-text="d.leakage_count>0?`유출${d.leakage_count}`:'안전'"></span>
+              <span class="tag" x-text="d.severity||'none'"></span>
+            </div>
+          </template>
+        </div>
+      </div>
+    </div>
+
+    <!-- Authorization -->
+    <div x-show="tsec==='l1auth'">
+      <div class="kpi-grid">
+        <div class="kpi"><div class="kpi-lbl">총 Tool 호출</div><div class="kpi-val" x-text="data.security_l1?.authorization?.total_tool_calls||0"></div></div>
+        <div class="kpi"><div class="kpi-lbl">준수율</div><div class="kpi-val" :style="`color:${(data.security_l1?.authorization?.compliance_rate||100)<90?'var(--red)':'var(--green)'}`" x-text="pct(data.security_l1?.authorization?.compliance_rate)"></div></div>
+        <div class="kpi"><div class="kpi-lbl">위반 건수</div><div class="kpi-val" style="color:var(--red)" x-text="data.security_l1?.authorization?.violations||0"></div></div>
+        <div class="kpi"><div class="kpi-lbl">제한 도구 시도</div><div class="kpi-val" x-text="data.security_l1?.authorization?.restricted_attempts||0"></div></div>
+        <div class="kpi"><div class="kpi-lbl">위험 파라미터</div><div class="kpi-val" x-text="data.security_l1?.authorization?.dangerous_params||0"></div></div>
+      </div>
+      <div class="sec" x-show="data.security_l1?.tool_calls_detail?.length>0">
+        <div class="sec-t">Tool 호출 상세</div>
+        <div class="slist">
+          <template x-for="t in (data.security_l1?.tool_calls_detail||[]).slice(0,30)" :key="t.task_id+(t.tool_name||'')">
+            <div class="drow">
+              <span class="dk" x-text="t.task_id"></span>
+              <span x-text="t.tool_name||'-'"></span>
+              <span :class="t.is_authorized?'pg':'pr'" class="pill" x-text="t.is_authorized?'인가':'위반'"></span>
+              <span class="tag" x-text="t.privilege_level||'normal'"></span>
+            </div>
+          </template>
+        </div>
+      </div>
+    </div>
+
+    <!-- Privilege Escalation -->
+    <div x-show="tsec==='l2pe'">
+      <div x-show="!data.security_l2?.privilege_escalation?.total_evaluations" class="empty"><p>권한 상승 탐지 데이터 없음 — PrivilegeEscalationDetector를 활성화하세요.</p></div>
+      <div x-show="data.security_l2?.privilege_escalation?.total_evaluations>0">
+        <div class="kpi-grid">
+          <div class="kpi"><div class="kpi-lbl">평가 건수</div><div class="kpi-val" x-text="data.security_l2?.privilege_escalation?.total_evaluations||0"></div></div>
+          <div class="kpi"><div class="kpi-lbl">상승 탐지율</div><div class="kpi-val" style="color:var(--red)" x-text="pct(data.security_l2?.privilege_escalation?.escalation_rate)"></div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Attack Detection -->
+    <div x-show="tsec==='l2atk'">
+      <div x-show="!data.security_l2?.attack_detection?.total_chains_analyzed" class="empty"><p>공격 탐지 데이터 없음 — ToolChainAttackDetector를 활성화하세요.</p></div>
+      <div x-show="data.security_l2?.attack_detection?.total_chains_analyzed>0">
+        <div class="kpi-grid">
+          <div class="kpi"><div class="kpi-lbl">분석 체인</div><div class="kpi-val" x-text="data.security_l2?.attack_detection?.total_chains_analyzed||0"></div></div>
+          <div class="kpi"><div class="kpi-lbl">탐지율</div><div class="kpi-val" style="color:var(--red)" x-text="pct(data.security_l2?.attack_detection?.detection_rate)"></div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Integrated Security View -->
+    <div x-show="tsec==='int'">
+      <div class="sec">
+        <div class="sec-t">🛡️ 통합 보안 점수</div>
+        <div class="cg">
+          <div>
+            <div class="brow" style="margin-bottom:10px">
+              <div class="blbl"><span>입력 보안 (Input Sanitization)</span><span x-text="secScore('input')+'점'"></span></div>
+              <div class="btrack"><div class="bfill" :style="`width:${secScore('input')}%;background:${bc(secScore('input'))}`"></div></div>
+            </div>
+            <div class="brow" style="margin-bottom:10px">
+              <div class="blbl"><span>출력 보안 (Output Leakage)</span><span x-text="secScore('output')+'점'"></span></div>
+              <div class="btrack"><div class="bfill" :style="`width:${secScore('output')}%;background:${bc(secScore('output'))}`"></div></div>
+            </div>
+            <div class="brow" style="margin-bottom:10px">
+              <div class="blbl"><span>권한 준수 (Authorization)</span><span x-text="secScore('auth')+'점'"></span></div>
+              <div class="btrack"><div class="bfill" :style="`width:${secScore('auth')}%;background:${bc(secScore('auth'))}`"></div></div>
+            </div>
+          </div>
+          <div class="cbox"><div class="ct">보안 위협 분포</div><div id="sec-radar" class="plt-chart"></div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ INTEGRATED SECURITY ══ -->
+<div x-show="data && sec==='intsec'" x-cloak>
+  <div x-show="!data.has_security" class="empty">
+    <h3>보안 지표 없음</h3>
+    <p>보안 트래커를 활성화하세요.</p>
+  </div>
+  <div x-show="data.has_security">
+    <!-- Overall risk score -->
+    <div class="sec">
+      <div class="sec-t">🛡️ 통합 보안 위험도</div>
+      <div class="kpi-grid">
+        <div class="kpi">
+          <div class="kpi-lbl">종합 보안 점수</div>
+          <div class="kpi-val" :style="`color:${bc(ss)}`" x-text="ss+'점'"></div>
+          <div class="kpi-sub" :class="ss>=80?'ok':'warn'" x-text="ss>=80?'✅ 안전':ss>=60?'⚠️ 주의':'🚨 위험'"></div>
+        </div>
+        <div class="kpi">
+          <div class="kpi-lbl">입력 보안</div>
+          <div class="kpi-val" :style="`color:${bc(secScore('input'))}`" x-text="secScore('input')+'점'"></div>
+        </div>
+        <div class="kpi">
+          <div class="kpi-lbl">출력 보안</div>
+          <div class="kpi-val" :style="`color:${bc(secScore('output'))}`" x-text="secScore('output')+'점'"></div>
+        </div>
+        <div class="kpi">
+          <div class="kpi-lbl">권한 준수</div>
+          <div class="kpi-val" :style="`color:${bc(secScore('auth'))}`" x-text="secScore('auth')+'점'"></div>
+        </div>
+        <div class="kpi">
+          <div class="kpi-lbl">입력 위협 탐지</div>
+          <div class="kpi-val" style="color:var(--red)" x-text="pct(data.security_l1?.input_security?.threat_rate)"></div>
+        </div>
+        <div class="kpi">
+          <div class="kpi-lbl">출력 유출률</div>
+          <div class="kpi-val" style="color:var(--red)" x-text="pct(data.security_l1?.output_leakage?.leakage_rate)"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Radar + bars side by side -->
+    <div class="cg">
+      <div class="cbox"><div class="ct">보안 위협 분포 (레이더)</div><div id="intsec-radar" class="plt-chart" style="height:240px"></div></div>
+      <div>
+        <div class="sec" style="margin-bottom:8px">
+          <div class="sec-t">🔍 위협 유형별 집계</div>
+          <div class="brow" style="margin-bottom:8px">
+            <div class="blbl"><span>SQL Injection</span><span x-text="data.security_l1?.input_security?.sql_injection_attempts||0"></span></div>
+            <div class="btrack"><div class="bfill" style="background:var(--red)" :style="`width:${Math.min(100,(data.security_l1?.input_security?.sql_injection_attempts||0)*10)}%`"></div></div>
+          </div>
+          <div class="brow" style="margin-bottom:8px">
+            <div class="blbl"><span>Prompt Injection</span><span x-text="data.security_l1?.input_security?.prompt_injection_attempts||0"></span></div>
+            <div class="btrack"><div class="bfill" style="background:var(--red)" :style="`width:${Math.min(100,(data.security_l1?.input_security?.prompt_injection_attempts||0)*10)}%`"></div></div>
+          </div>
+          <div class="brow" style="margin-bottom:8px">
+            <div class="blbl"><span>XSS</span><span x-text="data.security_l1?.input_security?.xss_attempts||0"></span></div>
+            <div class="btrack"><div class="bfill" style="background:var(--orange)" :style="`width:${Math.min(100,(data.security_l1?.input_security?.xss_attempts||0)*10)}%`"></div></div>
+          </div>
+          <div class="brow" style="margin-bottom:8px">
+            <div class="blbl"><span>Command Injection</span><span x-text="data.security_l1?.input_security?.command_injection_attempts||0"></span></div>
+            <div class="btrack"><div class="bfill" style="background:var(--red)" :style="`width:${Math.min(100,(data.security_l1?.input_security?.command_injection_attempts||0)*10)}%`"></div></div>
+          </div>
+          <div class="brow">
+            <div class="blbl"><span>Path Traversal</span><span x-text="data.security_l1?.input_security?.path_traversal_attempts||0"></span></div>
+            <div class="btrack"><div class="bfill" style="background:var(--orange)" :style="`width:${Math.min(100,(data.security_l1?.input_security?.path_traversal_attempts||0)*10)}%`"></div></div>
+          </div>
+        </div>
+        <div class="sec">
+          <div class="sec-t">📤 유출 유형별</div>
+          <template x-for="[k,v] in [['API Key',data.security_l1?.output_leakage?.api_key_leaks||0],['Password',data.security_l1?.output_leakage?.password_leaks||0],['Email',data.security_l1?.output_leakage?.email_leaks||0],['Phone',data.security_l1?.output_leakage?.phone_leaks||0]]" :key="k">
+            <div class="drow"><span class="dk" x-text="k"></span><span :style="`color:${v>0?'var(--red)':'var(--green)'}`" x-text="v+'건'"></span></div>
+          </template>
+        </div>
+      </div>
+    </div>
+
+    <!-- L2 Security -->
+    <div class="sec" x-show="data.security_l2?.privilege_escalation?.total_evaluations>0 || data.security_l2?.attack_detection?.total_chains_analyzed>0">
+      <div class="sec-t">🚀 Layer 2 보안 위협</div>
+      <div class="kpi-grid">
+        <div class="kpi"><div class="kpi-lbl">권한 상승 탐지율</div><div class="kpi-val" style="color:var(--red)" x-text="pct(data.security_l2?.privilege_escalation?.escalation_rate)"></div></div>
+        <div class="kpi"><div class="kpi-lbl">공격 체인 탐지율</div><div class="kpi-val" style="color:var(--red)" x-text="pct(data.security_l2?.attack_detection?.detection_rate)"></div></div>
+        <div class="kpi"><div class="kpi-lbl">분석 체인 수</div><div class="kpi-val" x-text="data.security_l2?.attack_detection?.total_chains_analyzed||0"></div></div>
+      </div>
+    </div>
+
+    <!-- Alerts specific to security -->
+    <div class="sec" x-show="(data.insights?.alerts||[]).filter(a=>['input','output','auth','escalation','attack'].some(k=>a.metric?.toLowerCase().includes(k))).length>0">
+      <div class="sec-t">🚨 보안 알림</div>
+      <template x-for="(a,i) in (data.insights?.alerts||[]).filter(a=>['input','output','auth','escalation','attack','security','injection','leak'].some(k=>(a.metric||'').toLowerCase().includes(k)))" :key="i">
+        <div class="alert" :class="a.severity">
+          <div class="alert-t" x-text="`[${(a.severity||'').toUpperCase()}] ${a.metric}`"></div>
+          <div class="alert-b" x-text="a.message"></div>
+        </div>
+      </template>
+    </div>
+
+    <!-- Security Event Timeline -->
+    <div class="sec">
+      <div class="sec-t">⏱️ 보안 이벤트 타임라인</div>
+      <div x-show="secEventTimeline().length>0">
+        <p style="font-size:11px;color:var(--text2);margin-bottom:8px">L1 입력위협 · L1 출력유출 · L2 고급위협 — 마커 크기: 위험도, 색상: 레이어</p>
+        <div class="cbox"><div id="sec-timeline" class="plt-chart" style="height:280px"></div></div>
+      </div>
+      <div x-show="!secEventTimeline().length" class="empty" style="padding:16px">
+        <p>보안 이벤트 없음 — 보안 트래커 데이터를 확인하세요.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ INSIGHTS ══ -->
+<div x-show="data && sec==='insights'" x-cloak>
+  <div class="tabs">
+    <div class="tab" :class="{on:ti==='alerts'}" @click="ti='alerts'">🚨 알림 <span class="badge" x-text="data.insights?.alerts?.length||0"></span></div>
+    <div class="tab" :class="{on:ti==='recs'}"   @click="ti='recs'">💡 권고사항 <span class="badge" x-text="data.insights?.recommendations?.length||0"></span></div>
+    <div class="tab" :class="{on:ti==='anom'}"   @click="ti='anom'">🔍 이상치 탐지</div>
+    <div class="tab" :class="{on:ti==='corr'}"   @click="ti='corr'">📈 상관관계</div>
+    <div class="tab" :class="{on:ti==='dq'}"     @click="ti='dq'">🗂️ 데이터 품질</div>
+  </div>
+
+  <!-- Alerts -->
+  <div x-show="ti==='alerts'">
+    <div x-show="!(data.insights?.alerts?.length>0)" class="empty"><p>알림이 없습니다 — 모든 지표 정상</p></div>
+    <template x-for="(a,i) in data.insights?.alerts||[]" :key="i">
+      <div class="alert" :class="a.severity">
+        <div class="alert-t"><span :class="{'pr':a.severity==='critical','po':a.severity==='high','py':a.severity==='medium','pg':a.severity==='low'}" class="pill" x-text="a.severity?.toUpperCase()"></span> <span x-text="a.metric"></span></div>
+        <div class="alert-b" x-text="a.message"></div>
+        <div style="font-size:11px;color:var(--accent);margin-top:4px" x-text="a.action"></div>
+      </div>
+    </template>
+  </div>
+
+  <!-- Recommendations -->
+  <div x-show="ti==='recs'">
+    <div x-show="!(data.insights?.recommendations?.length>0)" class="empty"><p>권고사항이 없습니다</p></div>
+    <template x-for="(r,i) in data.insights?.recommendations||[]" :key="i">
+      <div class="rec">
+        <div class="rec-t">
+          <span :class="{'pr':r.priority==='high','py':r.priority==='medium','pg':r.priority==='low'}" class="pill" x-text="r.priority?.toUpperCase()"></span>
+          <span style="margin-left:6px" x-text="r.title||r.area"></span>
+        </div>
+        <div class="rec-b" x-show="r.issue" x-text="r.issue"></div>
+        <details style="margin-top:6px">
+          <summary style="cursor:pointer;font-size:11px;color:var(--accent)">개선 방안 보기</summary>
+          <div style="font-size:11px;margin-top:6px;white-space:pre-wrap;color:var(--text2)" x-text="r.suggestion"></div>
+        </details>
+      </div>
+    </template>
+  </div>
+
+  <!-- Anomaly Detection -->
+  <div x-show="ti==='anom'">
+    <div class="sec">
+      <div class="sec-t">🔍 규칙 기반 이상치</div>
+      <template x-for="a in autoAnomalies()" :key="a.title">
+        <div class="alert" :class="a.sev">
+          <div class="alert-t" x-text="a.title"></div>
+          <div class="alert-b" x-text="a.desc"></div>
+        </div>
+      </template>
+      <div x-show="autoAnomalies().length===0" class="empty"><p style="padding:20px">✅ 이상치가 감지되지 않았습니다</p></div>
+    </div>
+    <div class="sec">
+      <div class="sec-t">📐 통계적 이상치 (Z-score ≥ 2.0) <span class="badge" x-text="`${statAnomalies().length}건`"></span></div>
+      <template x-for="(a,i) in statAnomalies()" :key="i">
+        <div class="alert" :class="a.sev">
+          <div class="alert-t" x-text="a.title"></div>
+          <div class="alert-b" x-text="a.desc"></div>
+        </div>
+      </template>
+      <div x-show="statAnomalies().length===0" class="empty"><p style="padding:10px">통계적 이상치 없음</p></div>
+    </div>
+    <div class="sec">
+      <div class="sec-t">📊 지표 상태 요약</div>
+      <template x-for="m in metricStatus()" :key="m.name">
+        <div class="drow">
+          <span class="dk" x-text="m.name"></span>
+          <span x-text="m.value"></span>
+          <span :class="m.cls" class="pill" x-text="m.status"></span>
+        </div>
+      </template>
+    </div>
+  </div>
+
+  <!-- Metric Correlation -->
+  <div x-show="ti==='corr'">
+    <div x-show="!metricCorr().length" class="empty"><p>분석 가능한 태스크 데이터 부족 (최소 3건 필요)</p></div>
+    <div x-show="metricCorr().length>0">
+      <div class="sec">
+        <div class="sec-t">📊 상관관계 히트맵 (Pearson)</div>
+        <p style="font-size:11px;color:var(--text2);margin-bottom:10px">정확도 · 지연시간 · 토큰 · 완료율 4×4 매트릭스 — 파랑(음의 상관) / 흰색(0) / 빨강(양의 상관)</p>
+        <div class="cbox"><div id="corr-heatmap" class="plt-chart" style="height:300px"></div></div>
+      </div>
+      <div class="sec">
+        <div class="sec-t">상세 수치</div>
+        <template x-for="c in metricCorr()" :key="c.label">
+          <div class="drow">
+            <span class="dk" x-text="c.label"></span>
+            <span x-text="c.r.toFixed(3)" :style="`color:${Math.abs(c.r)>=0.5?'var(--accent)':Math.abs(c.r)>=0.3?'var(--yellow)':'var(--text2)'}`"></span>
+            <span class="pill" :class="Math.abs(c.r)>=0.5?'po':Math.abs(c.r)>=0.3?'py':'pg'" x-text="Math.abs(c.r)>=0.5?'강한 상관':Math.abs(c.r)>=0.3?'중간 상관':'약한 상관'"></span>
+            <span style="font-size:10px;color:var(--text2)" x-text="c.r>0?'양의 상관':'음의 상관'"></span>
+          </div>
+        </template>
+      </div>
+    </div>
+  </div>
+
+  <!-- Data Quality -->
+  <div x-show="ti==='dq'">
+    <div class="sec">
+      <div class="sec-t">🗂️ 데이터 품질 점수</div>
+      <div class="kpi-grid">
+        <div class="kpi">
+          <div class="kpi-lbl">전체 완전도</div>
+          <div class="kpi-val" x-text="pct(dataQuality().overall)"></div>
+        </div>
+        <template x-for="f in dataQuality().fields" :key="f.name">
+          <div class="kpi">
+            <div class="kpi-lbl" x-text="f.name"></div>
+            <div class="kpi-val" :style="`color:${f.pct>=90?'var(--green)':f.pct>=70?'var(--yellow)':'var(--red)'}`" x-text="pct(f.pct)"></div>
+            <div class="kpi-sub" style="color:var(--text2)" x-text="`${f.filled}/${f.total}`"></div>
+          </div>
+        </template>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ TRANSPARENCY ══ -->
+<div x-show="data && sec==='transparency'" x-cloak>
+  <div class="tabs">
+    <div class="tab" :class="{on:ttr==='anom'}"  @click="ttr='anom'">🚨 이상치 탐지</div>
+    <div class="tab" :class="{on:ttr==='corr'}"  @click="ttr='corr'">🔗 상관관계</div>
+    <div class="tab" :class="{on:ttr==='bottleneck'}" @click="ttr='bottleneck'">🎯 성능 병목</div>
+    <div class="tab" :class="{on:ttr==='dquality'}" @click="ttr='dquality'">📊 데이터 품질</div>
+    <div class="tab" :class="{on:ttr==='improve'}" @click="ttr='improve'">💡 개선 방안</div>
+    <div class="tab" :class="{on:ttr==='tr'}"   @click="loadTransparency('traces');ttr='tr'">📍 Traces <span class="badge" x-text="trData.traces.length"></span></div>
+    <div class="tab" :class="{on:ttr==='ann'}"  @click="loadTransparency('annotations');ttr='ann'">📝 Annotations <span class="badge" x-text="trData.annotations.length"></span></div>
+    <div class="tab" :class="{on:ttr==='aud'}"  @click="loadTransparency('audit');ttr='aud'">🗒️ Audit Log <span class="badge" x-text="trData.audit.length"></span></div>
+  </div>
+
+  <!-- Anomaly Detection -->
+  <div x-show="ttr==='anom'">
+    <div class="sec">
+      <div class="sec-t">🚨 규칙 기반 이상치</div>
+      <template x-for="a in autoAnomalies()" :key="a.title">
+        <div class="alert" :class="a.sev">
+          <div class="alert-t" x-text="a.title"></div>
+          <div class="alert-b" x-text="a.desc"></div>
+        </div>
+      </template>
+      <div x-show="!autoAnomalies().length" class="empty"><p>✅ 규칙 기반 이상치 없음</p></div>
+    </div>
+    <div class="sec">
+      <div class="sec-t">📐 통계적 이상치 (Z-score ≥ 2.0)</div>
+      <template x-for="(a,i) in statAnomalies()" :key="i">
+        <div class="alert" :class="a.sev">
+          <div class="alert-t" x-text="a.title"></div>
+          <div class="alert-b" x-text="a.desc"></div>
+        </div>
+      </template>
+      <div x-show="!statAnomalies().length" class="empty"><p>통계적 이상치 없음</p></div>
+    </div>
+  </div>
+
+  <!-- Correlation Analysis -->
+  <div x-show="ttr==='corr'">
+    <div x-show="!metricCorr().length" class="empty"><p>분석 가능한 데이터 부족 (최소 3건 필요)</p></div>
+    <div x-show="metricCorr().length>0">
+      <div class="sec">
+        <div class="sec-t">🔗 상관관계 히트맵 (Pearson)</div>
+        <p style="font-size:11px;color:var(--text2);margin-bottom:8px">정확도 · 지연시간 · 토큰 · 완료율 4×4 매트릭스 — 파랑(음) / 흰색(0) / 빨강(양)</p>
+        <div class="cbox"><div id="tr-corr-heatmap" class="plt-chart" style="height:300px"></div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Performance Bottleneck -->
+  <div x-show="ttr==='bottleneck'">
+    <template x-for="(b,i) in bottleneckAnalysis()" :key="i">
+      <div class="alert" :class="b.severity">
+        <div class="alert-t" x-text="b.title"></div>
+        <div class="alert-b" x-text="b.desc"></div>
+        <div x-show="b.tasks.length>0" style="margin-top:8px;display:flex;flex-wrap:wrap;gap:4px">
+          <template x-for="t in b.tasks" :key="t.task_id">
+            <span class="tag" x-text="`${t.task_id} (${(t.execution_time||0).toFixed(2)}s)`"></span>
+          </template>
+        </div>
+      </div>
+    </template>
+    <div x-show="!bottleneckAnalysis().length" class="empty"><p>✅ 성능 병목 없음</p></div>
+  </div>
+
+  <!-- Data Quality -->
+  <div x-show="ttr==='dquality'">
+    <div class="sec">
+      <div class="sec-t">📊 데이터 완전도</div>
+      <div class="kpi-grid">
+        <div class="kpi">
+          <div class="kpi-lbl">전체 완전도</div>
+          <div class="kpi-val" :style="`color:${bc(dataQuality().overall)}`" x-text="pct(dataQuality().overall)"></div>
+        </div>
+        <template x-for="f in dataQuality().fields" :key="f.name">
+          <div class="kpi">
+            <div class="kpi-lbl" x-text="f.name"></div>
+            <div class="kpi-val" style="font-size:16px" :style="`color:${f.pct>=90?'var(--green)':f.pct>=70?'var(--yellow)':'var(--red)'}`" x-text="pct(f.pct)"></div>
+            <div class="kpi-sub" style="color:var(--text2)" x-text="`${f.filled}/${f.total}`"></div>
+          </div>
+        </template>
+      </div>
+    </div>
+  </div>
+
+  <!-- Improvement Suggestions -->
+  <div x-show="ttr==='improve'">
+    <div x-show="!(data.insights?.recommendations?.length>0)" class="empty"><p>권고사항이 없습니다</p></div>
+    <template x-for="(r,i) in data.insights?.recommendations||[]" :key="i">
+      <div class="rec">
+        <div class="rec-t">
+          <span :class="{'pr':r.priority==='high','py':r.priority==='medium','pg':r.priority==='low'}" class="pill" x-text="r.priority?.toUpperCase()"></span>
+          <span style="margin-left:6px" x-text="r.title||r.area"></span>
+        </div>
+        <div class="rec-b" x-show="r.issue" x-text="r.issue"></div>
+        <details style="margin-top:6px">
+          <summary style="cursor:pointer;font-size:11px;color:var(--accent)">개선 방안 보기</summary>
+          <div style="font-size:11px;margin-top:6px;white-space:pre-wrap;color:var(--text2)" x-text="r.suggestion"></div>
+        </details>
+      </div>
+    </template>
+    <!-- Bottleneck recommendations -->
+    <template x-for="(b,i) in bottleneckAnalysis()" :key="i">
+      <div class="rec">
+        <div class="rec-t">
+          <span class="pill" :class="b.severity==='high'?'pr':b.severity==='medium'?'py':'pg'" x-text="b.severity.toUpperCase()"></span>
+          <span style="margin-left:6px" x-text="b.title"></span>
+        </div>
+        <div class="rec-b" x-text="b.desc"></div>
+      </div>
+    </template>
+  </div>
+
+  <!-- Traces -->
+  <div x-show="ttr==='tr'">
+    <div x-show="trData.traces.length===0" class="empty"><p>Trace 파일 없음 — 투명성 예제를 실행하세요.</p></div>
+    <template x-for="(tr,i) in trData.traces" :key="i">
+      <div class="sec">
+        <div class="sec-t">📍 <span x-text="tr.stem||tr.name"></span></div>
+        <div x-show="!trDetail[tr.stem]">
+          <button class="btn" @click="loadTrace(tr.stem)">상세 보기</button>
+        </div>
+        <div x-show="trDetail[tr.stem]">
+          <div class="drow"><span class="dk">Metric</span><span x-text="trDetail[tr.stem]?.metric_name"></span></div>
+          <div class="drow"><span class="dk">Status</span><span x-text="trDetail[tr.stem]?.status"></span></div>
+          <div class="drow"><span class="dk">Final Value</span><span x-text="trDetail[tr.stem]?.final_value"></span></div>
+          <div style="margin-top:8px">
+            <template x-for="(s,si) in trDetail[tr.stem]?.steps||[]" :key="si">
+              <div class="trace-step">
+                <h4 x-text="`Step ${si+1}: ${s.step_name}`"></h4>
+                <p x-text="s.description"></p>
+                <p x-show="s.output_data?.reasoning" x-text="`추론: ${s.output_data?.reasoning}`"></p>
+              </div>
+            </template>
+          </div>
+        </div>
+      </div>
+    </template>
+  </div>
+
+  <!-- Annotations -->
+  <div x-show="ttr==='ann'">
+    <div x-show="trData.annotations.length===0" class="empty"><p>Annotation 파일 없음</p></div>
+    <template x-for="(an,i) in trData.annotations" :key="i">
+      <div class="sec">
+        <div class="sec-t">📝 <span x-text="an.stem"></span></div>
+        <button class="btn" x-show="!annDetail[an.stem]" @click="loadAnnotation(an.stem)">상세 보기</button>
+        <div x-show="annDetail[an.stem]">
+          <div class="drow"><span class="dk">Type</span><span x-text="annDetail[an.stem]?.annotation_type"></span></div>
+          <div class="drow"><span class="dk">Priority</span><span :class="{'pr':annDetail[an.stem]?.priority==='high','py':annDetail[an.stem]?.priority==='medium','pg':annDetail[an.stem]?.priority==='low'}" class="pill" x-text="annDetail[an.stem]?.priority"></span></div>
+          <div class="drow"><span class="dk">Author</span><span x-text="annDetail[an.stem]?.author"></span></div>
+          <div style="margin-top:6px;font-size:11px;color:var(--text2)" x-text="annDetail[an.stem]?.content"></div>
+          <div x-show="(annDetail[an.stem]?.tags||[]).length>0" style="margin-top:6px">
+            <template x-for="t in annDetail[an.stem]?.tags||[]" :key="t"><span class="tag" x-text="t"></span></template>
+          </div>
+        </div>
+      </div>
+    </template>
+  </div>
+
+  <!-- Audit Log -->
+  <div x-show="ttr==='aud'">
+    <div x-show="trData.audit.length===0" class="empty"><p>Audit Log 없음</p></div>
+    <div class="slist">
+      <template x-for="(au,i) in trData.auditItems" :key="i">
+        <div class="irow">
+          <span :class="au.success?'pg':'pr'" class="pill" x-text="au.success?'✓':'✗'"></span>
+          <span x-text="au.event_type||au.stem" style="color:var(--accent)"></span>
+          <span x-text="au.action||''" style="color:var(--text2)"></span>
+          <span style="margin-left:auto;font-size:10px;color:var(--text2)" x-text="(au.timestamp||'').substring(0,16)"></span>
+        </div>
+      </template>
+    </div>
+  </div>
+</div>
+
+<!-- ══ GLOSSARY ══ -->
+<div x-show="data && sec==='glossary'" x-cloak>
+  <template x-for="g in glossary" :key="g.term">
+    <div class="gterm">
+      <h4><span x-text="g.icon"></span> <span x-text="g.term"></span> <span class="badge" x-text="g.layer"></span></h4>
+      <p x-text="g.desc"></p>
+      <p style="margin-top:4px;color:var(--accent);font-size:10px" x-text="`범위: ${g.range} | 목표: ${g.target}`"></p>
+    </div>
+  </template>
+</div>
+
+<!-- ══ TASKS ══ -->
+<div x-show="data && sec==='tasks'" x-cloak>
+  <div class="sec">
+    <div class="sec-t">📋 전체 태스크 <span class="badge" x-text="data.total_tasks+'건'"></span></div>
+    <!-- Filter bar -->
+    <div class="fbar">
+      <label>Type</label>
+      <select x-model="taskFilter.type" @change="applyTaskFilter()" style="max-width:140px">
+        <option value="all">전체</option>
+        <template x-for="tp in taskTypes()" :key="tp"><option :value="tp" x-text="tp"></option></template>
+      </select>
+      <label>상태</label>
+      <select x-model="taskFilter.status" @change="applyTaskFilter()" style="max-width:110px">
+        <option value="all">전체</option>
+        <option value="success">성공</option>
+        <option value="fail">실패</option>
+      </select>
+      <label>정렬</label>
+      <select x-model="taskFilter.sort" @change="applyTaskFilter()" style="max-width:140px">
+        <option value="task_id">Task ID</option>
+        <option value="accuracy_score">Accuracy ↓</option>
+        <option value="execution_time">Latency ↓</option>
+        <option value="completion_score">Completion ↓</option>
+      </select>
+      <button class="btn" @click="taskFilter={type:'all',status:'all',sort:'task_id'};applyTaskFilter()">초기화</button>
+      <span style="font-size:11px;color:var(--text2)" x-text="`${filteredTaskCount}건 표시`"></span>
+    </div>
+    <div class="tw"><div id="task-table"></div></div>
+  </div>
+</div>
+
+<!-- ══ COMPARE ══ -->
+<div x-show="sec==='compare'" x-cloak>
+  <div class="sec">
+    <div class="sec-t">⚖️ 파일 비교 <span class="badge" x-text="`${compareIds.length}개 선택`"></span></div>
+    <p style="font-size:11px;color:var(--text2);margin-bottom:10px">비교할 파일을 선택하세요 (최대 5개)</p>
+    <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px">
+      <template x-for="f in files" :key="f.id">
+        <label style="display:flex;align-items:center;gap:5px;cursor:pointer;font-size:12px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;padding:4px 10px" :style="compareIds.includes(f.id)?'border-color:var(--accent);color:var(--accent)':''">
+          <input type="checkbox" :value="f.id" :checked="compareIds.includes(f.id)" @change="toggleCompare(f.id)" style="accent-color:var(--accent)">
+          <span x-text="f.name.substring(0,28)"></span>
+        </label>
+      </template>
+    </div>
+    <button class="btn" @click="loadCompare()" :disabled="compareIds.length<2" style="margin-bottom:14px">📊 비교 실행</button>
+    <div x-show="Object.keys(compareData).length>0">
+      <div style="overflow-x:auto">
+        <table class="cmp-tbl">
+          <thead>
+            <tr>
+              <th>지표</th>
+              <template x-for="id in compareIds" :key="id">
+                <th x-text="compareData[id]?.name?.substring(0,20)||id"></th>
+              </template>
+            </tr>
+          </thead>
+          <tbody>
+            <template x-for="row in compareRows()" :key="row.key">
+              <tr>
+                <td x-text="row.label"></td>
+                <template x-for="id in compareIds" :key="id">
+                  <td x-text="row.fmt(compareData[id])" :style="row.best && compareData[id] ? (row.fmt(compareData[id])===row.best(compareIds.map(i=>compareData[i]).filter(Boolean)) ? 'color:var(--green);font-weight:700' : '') : ''"></td>
+                </template>
+              </tr>
+            </template>
+          </tbody>
+        </table>
+      </div>
+    </div>
+    <div x-show="compareIds.length<2 && Object.keys(compareData).length===0" class="empty" style="padding:20px">
+      <p>파일을 2개 이상 선택 후 비교 실행 버튼을 누르세요</p>
+    </div>
+    <!-- Merge analysis -->
+    <div x-show="Object.keys(compareData).length>=2" style="margin-top:12px">
+      <div class="sec">
+        <div class="sec-t">🔀 병합 통계 (선택된 파일 합산)</div>
+        <div class="kpi-grid">
+          <div class="kpi">
+            <div class="kpi-lbl">평균 TCR</div>
+            <div class="kpi-val" x-text="pct(mergedStats().tcr)"></div>
+          </div>
+          <div class="kpi">
+            <div class="kpi-lbl">평균 Accuracy</div>
+            <div class="kpi-val" x-text="pct(mergedStats().acc)"></div>
+          </div>
+          <div class="kpi">
+            <div class="kpi-lbl">평균 Hallucination</div>
+            <div class="kpi-val" x-text="pct(mergedStats().hall)"></div>
+          </div>
+          <div class="kpi">
+            <div class="kpi-lbl">평균 Latency</div>
+            <div class="kpi-val" x-text="sec_(mergedStats().lat)"></div>
+          </div>
+          <div class="kpi">
+            <div class="kpi-lbl">총 Tasks</div>
+            <div class="kpi-val" x-text="mergedStats().tasks"></div>
+          </div>
+          <div class="kpi">
+            <div class="kpi-lbl">총 비용</div>
+            <div class="kpi-val" x-text="cost(mergedStats().cost)"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ GOLDEN DATASET ══ -->
+<div x-show="sec==='golden'" x-cloak>
+  <div class="sec">
+    <div class="sec-t">📝 Golden Dataset 관리</div>
+    <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap">
+      <button class="btn" @click="loadGoldenList()">🔄 목록 새로고침</button>
+      <button class="btn" @click="gdNewName='';gdShowCreate=true" style="color:var(--green);border-color:var(--green)">＋ 새 Dataset</button>
+    </div>
+    <!-- Create form -->
+    <div x-show="gdShowCreate" class="sec" style="border-color:var(--accent)">
+      <div class="sec-t">새 Golden Dataset 생성</div>
+      <div style="display:flex;gap:8px;margin-bottom:8px;align-items:center">
+        <label style="font-size:11px;color:var(--text2);white-space:nowrap">파일명</label>
+        <input class="gd-input" x-model="gdNewName" placeholder="my_golden_dataset" style="flex:1">
+        <button class="btn" @click="createGolden()" :disabled="!gdNewName">저장</button>
+        <button class="btn" @click="gdShowCreate=false">취소</button>
+      </div>
+      <div style="font-size:11px;color:var(--text2)">빈 dataset이 생성됩니다. 생성 후 항목을 추가하세요.</div>
+    </div>
+    <!-- File list -->
+    <div x-show="!gdFiles.length" class="empty"><p>Golden Dataset 없음 — golden_datasets/ 디렉토리에 JSON 파일을 추가하세요.</p></div>
+    <template x-for="f in gdFiles" :key="f.name">
+      <div class="sec" style="margin-bottom:8px">
+        <div class="sec-t" style="margin-bottom:8px">
+          <span x-text="f.name"></span>
+          <span class="badge" x-text="`${f.count}건`"></span>
+          <span class="badge" x-text="`${(f.size_bytes/1024).toFixed(1)}KB`"></span>
+          <button class="btn" style="margin-left:auto" @click="loadGoldenFile(f.stem)">📂 편집</button>
+        </div>
+        <div x-show="gdSelected===f.stem">
+          <div style="margin-bottom:8px;display:flex;gap:8px;align-items:center">
+            <span style="font-size:11px;color:var(--text2)" x-text="`${(gdItems[f.stem]||[]).length}개 항목`"></span>
+            <button class="btn" style="color:var(--green);border-color:var(--green)" @click="addGoldenItem(f.stem)">＋ 항목 추가</button>
+            <button class="btn" @click="saveGolden(f.stem)">💾 저장</button>
+          </div>
+          <template x-for="(item,idx) in (gdItems[f.stem]||[])" :key="idx">
+            <div style="background:var(--bg3);border-radius:8px;padding:10px;margin-bottom:6px">
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+                <span style="font-size:11px;color:var(--text2)" x-text="`#${idx+1}`"></span>
+                <button class="btn" style="color:var(--red);border-color:var(--red);padding:2px 7px;font-size:10px" @click="removeGoldenItem(f.stem,idx)">✕</button>
+              </div>
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+                <div>
+                  <div style="font-size:10px;color:var(--text2);margin-bottom:3px">질문 (Question)</div>
+                  <textarea class="gd-input" x-model="gdItems[f.stem][idx].question" placeholder="질문을 입력하세요"></textarea>
+                </div>
+                <div>
+                  <div style="font-size:10px;color:var(--text2);margin-bottom:3px">정답 (Ground Truth)</div>
+                  <textarea class="gd-input" x-model="gdItems[f.stem][idx].ground_truth" placeholder="정답을 입력하세요"></textarea>
+                </div>
+              </div>
+              <div style="margin-top:6px">
+                <div style="font-size:10px;color:var(--text2);margin-bottom:3px">컨텍스트 (Context, 선택사항)</div>
+                <input class="gd-input" x-model="gdItems[f.stem][idx].context" placeholder="RAG 컨텍스트 (선택사항)">
+              </div>
+            </div>
+          </template>
+        </div>
+      </div>
+    </template>
+  </div>
+</div>
+
+<!-- ══ EXPORT ══ -->
+<div x-show="data && sec==='export'" x-cloak>
+  <div class="sec">
+    <div class="sec-t">📦 내보내기</div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px">
+      <a :href="`/api/export/json/${selId}`" class="btn">⬇️ JSON</a>
+      <a :href="`/api/export/csv/${selId}`"  class="btn">⬇️ CSV</a>
+      <a :href="`/api/export/html/${selId}`" class="btn">⬇️ HTML 리포트</a>
+      <button class="btn" @click="window.open('/slides','_blank')">📊 Slides 열기</button>
+      <button class="btn" @click="window.print()" title="현재 페이지를 PDF로 저장">🖨️ PDF 출력</button>
+    </div>
+    <div class="drow"><span class="dk">파일</span><span x-text="data.name"></span></div>
+    <div class="drow"><span class="dk">타임스탬프</span><span x-text="data.timestamp"></span></div>
+    <div class="drow"><span class="dk">총 Tasks</span><span x-text="data.total_tasks"></span></div>
+    <div class="drow"><span class="dk">Agentic 지표</span><span x-text="data.has_agentic?'있음':'없음'"></span></div>
+    <div class="drow"><span class="dk">보안 지표</span><span x-text="data.has_security?'있음':'없음'"></span></div>
+    <div class="drow"><span class="dk">고급 지표</span><span x-text="data.has_advanced?'있음':'없음'"></span></div>
+    <div class="drow"><span class="dk">RAG 지표</span><span x-text="data.has_rag?'있음':'없음'"></span></div>
+  </div>
+</div>
+
+<!-- ══ SETTINGS ══ -->
+<div x-show="data && sec==='settings'" x-cloak>
+  <div class="sec">
+    <div class="sec-t">⚙️ 임계값 설정 (실시간 pass/fail 재판정)</div>
+    <div class="drow" style="align-items:center">
+      <span class="dk">TCR 목표</span>
+      <input type="range" x-model.number="thresholds.tcr" min="50" max="100" step="1" style="flex:1;margin:0 10px;accent-color:var(--accent)">
+      <span style="min-width:38px;text-align:right" x-text="thresholds.tcr+'%'"></span>
+      <span class="pill" :class="tcr()>=thresholds.tcr?'pg':'pr'" x-text="tcr()>=thresholds.tcr?'✅ 통과':'❌ 실패'"></span>
+    </div>
+    <div class="drow" style="align-items:center">
+      <span class="dk">Accuracy 목표</span>
+      <input type="range" x-model.number="thresholds.acc" min="30" max="100" step="1" style="flex:1;margin:0 10px;accent-color:var(--accent)">
+      <span style="min-width:38px;text-align:right" x-text="thresholds.acc+'%'"></span>
+      <span class="pill" :class="acc()>=thresholds.acc?'pg':'pr'" x-text="acc()>=thresholds.acc?'✅ 통과':'❌ 실패'"></span>
+    </div>
+    <div class="drow" style="align-items:center">
+      <span class="dk">Hallucination 허용</span>
+      <input type="range" x-model.number="thresholds.hall" min="0" max="30" step="0.5" style="flex:1;margin:0 10px;accent-color:var(--accent)">
+      <span style="min-width:38px;text-align:right" x-text="thresholds.hall+'%'"></span>
+      <span class="pill" :class="hall()<=thresholds.hall?'pg':'pr'" x-text="hall()<=thresholds.hall?'✅ 통과':'❌ 실패'"></span>
+    </div>
+    <div class="drow" style="align-items:center">
+      <span class="dk">P95 Latency 목표</span>
+      <input type="range" x-model.number="thresholds.p95" min="0.5" max="10" step="0.1" style="flex:1;margin:0 10px;accent-color:var(--accent)">
+      <span style="min-width:38px;text-align:right" x-text="thresholds.p95+'s'"></span>
+      <span class="pill" :class="(data.efficiency_metrics?.latency?.p95||99)<=thresholds.p95?'pg':'pr'" x-text="(data.efficiency_metrics?.latency?.p95||99)<=thresholds.p95?'✅ 통과':'❌ 실패'"></span>
+    </div>
+    <div class="drow" style="align-items:center">
+      <span class="dk">Task당 비용 목표</span>
+      <input type="range" x-model.number="thresholds.cost" min="0.001" max="0.1" step="0.001" style="flex:1;margin:0 10px;accent-color:var(--accent)">
+      <span style="min-width:60px;text-align:right" x-text="'$'+thresholds.cost.toFixed(3)"></span>
+      <span class="pill" :class="(data.efficiency_metrics?.tokens?.avg_cost_per_task||99)<=thresholds.cost?'pg':'pr'" x-text="(data.efficiency_metrics?.tokens?.avg_cost_per_task||99)<=thresholds.cost?'✅ 통과':'❌ 실패'"></span>
+    </div>
+  </div>
+</div>
+
+<!-- ══ TASK DETAIL MODAL ══ -->
+<div class="modal-backdrop" x-show="taskDetail" x-cloak @click.self="taskDetail=null">
+  <div class="modal" x-show="taskDetail">
+    <div class="modal-t">
+      <span>📋 Task 상세: <span x-text="taskDetail?.task_id"></span></span>
+      <button class="btn" @click="taskDetail=null">✕ 닫기</button>
+    </div>
+    <div x-show="taskDetail">
+      <div class="kpi-grid" style="margin-bottom:12px">
+        <div class="kpi"><div class="kpi-lbl">Type</div><div class="kpi-val" style="font-size:14px" x-text="taskDetail?.task_type||'—'"></div></div>
+        <div class="kpi"><div class="kpi-lbl">성공</div><div class="kpi-val" x-text="taskDetail?.success?'✅':'❌'"></div></div>
+        <div class="kpi"><div class="kpi-lbl">Completion</div><div class="kpi-val" style="font-size:16px" x-text="pct((taskDetail?.completion_score||0)*100)"></div></div>
+        <div class="kpi"><div class="kpi-lbl">Accuracy</div><div class="kpi-val" style="font-size:16px" x-text="pct((taskDetail?.accuracy_score||0)*100)"></div></div>
+        <div class="kpi"><div class="kpi-lbl">Latency</div><div class="kpi-val" style="font-size:16px" x-text="sec_(taskDetail?.execution_time)"></div></div>
+        <div class="kpi"><div class="kpi-lbl">Tokens</div><div class="kpi-val" style="font-size:16px" x-text="(taskDetail?.tokens_used?.total||0).toLocaleString()"></div></div>
+      </div>
+      <div class="sec-t" style="margin-bottom:8px">상세 정보</div>
+      <div class="drow"><span class="dk">Attempts</span><span x-text="taskDetail?.attempts??'—'"></span></div>
+      <div class="drow"><span class="dk">Framework</span><span x-text="taskDetail?.framework||'—'"></span></div>
+      <div class="drow"><span class="dk">Timestamp</span><span x-text="(taskDetail?.timestamp||'').substring(0,19)"></span></div>
+      <div class="drow" x-show="(taskDetail?.expected_tools||[]).length>0">
+        <span class="dk">Expected Tools</span>
+        <span>
+          <template x-for="t in taskDetail?.expected_tools||[]" :key="t"><span class="tag" x-text="t"></span></template>
+        </span>
+      </div>
+      <div class="drow" x-show="(taskDetail?.tool_calls||[]).length>0">
+        <span class="dk">Tool Calls</span><span x-text="(taskDetail?.tool_calls||[]).length+'건'"></span>
+      </div>
+      <div x-show="(taskDetail?.errors||[]).length>0" style="margin-top:8px">
+        <div class="sec-t" style="color:var(--red);margin-bottom:6px">⚠️ 오류</div>
+        <template x-for="(e,i) in taskDetail?.errors||[]" :key="i">
+          <div style="font-size:11px;color:var(--red);background:rgba(248,113,113,.08);border-radius:6px;padding:6px 10px;margin-bottom:4px" x-text="typeof e==='string'?e:JSON.stringify(e)"></div>
+        </template>
+      </div>
+      <div x-show="taskDetail?.advanced_metrics && Object.keys(taskDetail?.advanced_metrics||{}).length>0" style="margin-top:8px">
+        <div class="sec-t" style="margin-bottom:6px">🔬 Advanced Metrics</div>
+        <template x-for="[k,v] in Object.entries(taskDetail?.advanced_metrics||{})" :key="k">
+          <div class="drow"><span class="dk" x-text="k.replace(/_/g,' ')"></span><span x-text="typeof v==='number'?v.toFixed(4):JSON.stringify(v)"></span></div>
+        </template>
+      </div>
+    </div>
+  </div>
+</div>
+
+</main>
+</div>
+
+<!-- ===== STATUS BAR ===== -->
+<div class="sbar">
+  <span>업데이트: <b x-text="lastUpd"></b></span>
+  <span>|</span>
+  <span><b x-text="files.length"></b>개 파일</span>
+  <span x-show="data">| 총 <b x-text="data?.total_tasks??0"></b> tasks</span>
+  <span x-show="data" x-text="data?.name?.substring(0,30)"></span>
+  <div class="sp"></div>
+  <span>Agent Evaluator v{{ version }}</span>
+</div>
+</div><!-- /layout -->
+
+<script>
+const WATCH = {{ "true" if watch else "false" }};
+
+function app() { return {
+  dark: true, sec: 'overview',
+  t1:'tcr', t2:'tsel', tp:'lat', tsec:'l1in', ti:'alerts', ttr:'anom', tl3:'deepeval',
+  files: [], selId: '', data: null, loading: false,
+  connected: false, lastUpd: '—',
+  trData: { traces:[], annotations:[], audit:[], auditItems:[] },
+  trDetail: {}, annDetail: {},
+  _taskTable: null,
+  compareIds: [], compareData: {},
+  taskFilter: { type:'all', status:'all', sort:'task_id' },
+  filteredTaskCount: 0,
+  thresholds: { tcr: 90, acc: 70, hall: 5, p95: 2.0, cost: 0.01 },
+  taskDetail: null,
+  gdFiles: [], gdSelected: null, gdItems: {}, gdNewName: '', gdShowCreate: false,
+
+  nav: [
+    { id:'overview',      icon:'📊', label:'Overview' },
+    { id:'layer1',        icon:'📈', label:'Layer 1 기초' },
+    { id:'agentic',       icon:'🤖', label:'Layer 2 에이전틱', badge: d=>d.has_agentic?'✓':'' },
+    { id:'layer3',        icon:'🔬', label:'Layer 3 Advanced', badge: d=>d.has_advanced?'✓':'' },
+    { id:'performance',   icon:'⚡', label:'Performance' },
+    { id:'security',      icon:'🛡️', label:'Security', badge: d=>d.has_security?'✓':'' },
+    { id:'intsec',        icon:'🚨', label:'통합 보안', badge: d=>d.has_security?'✓':'' },
+    { id:'insights',      icon:'💡', label:'Insights', badge: d=>(d.insights?.alerts?.length||0)||'' },
+    { id:'transparency',  icon:'🔍', label:'투명성' },
+    { id:'glossary',      icon:'📚', label:'지표 설명' },
+    { id:'tasks',         icon:'📋', label:'Tasks' },
+    { id:'compare',       icon:'⚖️', label:'파일 비교' },
+    { id:'golden',        icon:'📝', label:'Golden Dataset' },
+    { id:'export',        icon:'📦', label:'Export' },
+    { id:'settings',      icon:'⚙️', label:'Settings' },
+  ],
+
+  glossary: [
+    { icon:'📋', term:'TCR (Task Completion Rate)', layer:'Layer 1', desc:'모든 작업의 Completion Score 합계 ÷ 전체 작업 수 × 100. 완전 성공(100%), 부분 성공(70~99%), 실패(<70%)로 분류.', range:'0~100%', target:'≥ 90%' },
+    { icon:'🎯', term:'Accuracy', layer:'Layer 1', desc:'Token Overlap(40%), Jaccard(30%), LCS(20%), Char Similarity(10%) 가중 평균으로 계산된 응답 정확도.', range:'0~100%', target:'≥ 70%' },
+    { icon:'⭐', term:'Response Quality', layer:'Layer 1', desc:'관련성(Relevance), 완전성(Completeness), 명확성(Clarity), 정확성(Accuracy), 유용성(Usefulness) 5개 차원 평가. 각 0~2점.', range:'0~10', target:'≥ 7.0' },
+    { icon:'🧠', term:'Hallucination Rate', layer:'Layer 1', desc:'미지원 주장, 수치 불일치를 탐지. 낮을수록 좋음. SAFE(<5%), WARNING(5~15%), DANGER(>15%).', range:'0~100%', target:'≤ 5%' },
+    { icon:'⏱️', term:'Latency P95', layer:'Layer 1', desc:'상위 5% 고지연 요청의 응답 시간. P50(중앙값)보다 사용자 경험을 더 잘 반영.', range:'>0s', target:'≤ 2s' },
+    { icon:'💰', term:'Cost per Task', layer:'Layer 1', desc:'API 입출력 토큰 수 × 단가로 계산된 작업당 평균 비용.', range:'$0~', target:'< $0.01' },
+    { icon:'🔧', term:'Tool Selection (F1)', layer:'Layer 2', desc:'예상 도구 집합과 실제 도구 집합의 F1-Score. Precision×Recall의 조화 평균. 오탐(불필요 도구)과 누락(필수 도구 미사용) 모두 패널티.', range:'0~100%', target:'≥ 85%' },
+    { icon:'⚡', term:'Tool Efficiency', layer:'Layer 2', desc:'도구 호출 성공률, 중복 제거율, 실패율을 합산한 종합 효율성 점수.', range:'0~100%', target:'≥ 80%' },
+    { icon:'🤝', term:'Agent Coordination', layer:'Layer 2', desc:'Multi-Agent 시스템에서 에이전트 간 상호작용의 성공률. 위임(delegation), 협업(collaboration) 등 인터랙션 유형 분류.', range:'0~100%', target:'≥ 80%' },
+    { icon:'🔀', term:'Workflow Execution', layer:'Layer 2', desc:'LangChain/LangGraph 체인의 단계별 실행 성공률. Critical Path 분석.', range:'0~100%', target:'≥ 90%' },
+    { icon:'📚', term:'Faithfulness (Ragas)', layer:'Layer 3', desc:'생성된 답변이 제공된 컨텍스트에 기반하는 정도. 높을수록 환각이 적음.', range:'0~1', target:'≥ 0.8' },
+    { icon:'🔍', term:'Answer Relevancy (Ragas)', layer:'Layer 3', desc:'생성된 답변이 질문에 얼마나 관련 있는지. 완전히 관련 있으면 1.0.', range:'0~1', target:'≥ 0.8' },
+    { icon:'📋', term:'Context Recall (Ragas)', layer:'Layer 3', desc:'정답 생성에 필요한 정보가 검색된 컨텍스트에 얼마나 포함되는지.', range:'0~1', target:'≥ 0.7' },
+    { icon:'🎯', term:'Context Precision (Ragas)', layer:'Layer 3', desc:'검색된 컨텍스트 중 실제로 답변 생성에 유용한 비율.', range:'0~1', target:'≥ 0.7' },
+    { icon:'🔍', term:'Input Sanitization', layer:'Security L1', desc:'SQL Injection, Prompt Injection, XSS, Path Traversal, Command Injection 탐지. 위협 탐지율이 낮을수록 안전.', range:'0~100%', target:'< 5%' },
+    { icon:'📤', term:'Output Leakage', layer:'Security L1', desc:'API Key, Password, Email, Phone, SSN, Private IP 등 민감 정보 유출 탐지.', range:'0~100%', target:'0%' },
+    { icon:'🔐', term:'Authorization Compliance', layer:'Security L1', desc:'허용된 도구만 사용하는 비율. 제한된 도구 사용 시도와 위험 파라미터 전달 탐지.', range:'0~100%', target:'≥ 95%' },
+    { icon:'🚀', term:'Privilege Escalation', layer:'Security L2', desc:'정상 권한을 초과한 작업 시도 탐지. 0%가 목표.', range:'0~100%', target:'0%' },
+    { icon:'⚔️', term:'Tool Chain Attack', layer:'Security L2', desc:'연속된 Tool 호출 패턴에서 공격 체인 탐지. 데이터 유출 시도 등 포함.', range:'0~100%', target:'0%' },
+  ],
+
+  async init() {
+    this.dark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+    await this.refresh();
+    if (WATCH) this.startSSE();
+    await this.loadGoldenList();
+  },
+
+  async refresh() {
+    try {
+      const r = await fetch('/api/results');
+      this.files = await r.json();
+      this.lastUpd = new Date().toLocaleTimeString('ko-KR');
+      // Invalidate transparency list cache so new files are picked up
+      this.trData = { traces:[], annotations:[], audit:[], auditItems:[] };
+      this.trDetail = {};
+      this.annDetail = {};
+      if (this.files.length > 0 && !this.selId) {
+        this.selId = this.files[0].id;
+        await this.loadFile(this.selId);
+      }
+    } catch(e) { console.error(e); }
+  },
+
+  async loadFile(id) {
+    if (!id) { this.data = null; return; }
+    this.loading = true;
+    // Invalidate transparency caches — they are global, not per-file
+    this.trData = { traces:[], annotations:[], audit:[], auditItems:[] };
+    this.trDetail = {};
+    this.annDetail = {};
+    try {
+      const r = await fetch(`/api/results/${id}`);
+      this.data = await r.json();
+      this.lastUpd = new Date().toLocaleTimeString('ko-KR');
+      await this.$nextTick();
+      this.renderAll();
+      this.renderTable();
+    } catch(e) { console.error(e); }
+    finally { this.loading = false; }
+  },
+
+  startSSE() {
+    const es = new EventSource('/api/stream');
+    es.onopen = () => { this.connected = true; };
+    es.onerror = () => { this.connected = false; };
+    es.onmessage = async e => {
+      const m = JSON.parse(e.data);
+      if (m.type === 'update') { await this.refresh(); if (this.selId) await this.loadFile(this.selId); }
+    };
+  },
+
+  // ── Chart helpers ──────────────────────────────────────────────────────
+  _plt(id, traces, layout, cfg) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    const TC = this.dark ? '#8890b0' : '#5a6080';
+    const GC = this.dark ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.07)';
+    const PBG = 'transparent';
+    const base = {
+      margin: {t:10, b:40, l:50, r:16, pad:2},
+      paper_bgcolor: PBG, plot_bgcolor: PBG,
+      font: {color: TC, size: 11, family: "'Segoe UI',system-ui,sans-serif"},
+      xaxis: {tickfont:{color:TC,size:10}, gridcolor:GC, zerolinecolor:GC, automargin:true},
+      yaxis: {tickfont:{color:TC,size:10}, gridcolor:GC, zerolinecolor:GC, automargin:true},
+      showlegend: false,
+      height: 200,
+      autosize: true,
+      modebar: {remove: ['all']},
+    };
+    Plotly.react(el, traces, Object.assign({}, base, layout), Object.assign({responsive:true, displayModeBar:false, scrollZoom:false}, cfg||{}));
+  },
+
+  renderAll() {
+    const d = this.data; if (!d) return;
+    const TC = this.dark ? '#8890b0' : '#5a6080';
+    const GC = this.dark ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.07)';
+    const scX = {tickfont:{color:TC}, gridcolor:GC, zerolinecolor:GC};
+    const scY = {tickfont:{color:TC}, gridcolor:GC, zerolinecolor:GC};
+    const noLeg = {showlegend:false};
+
+    // ── Overview donut (success/fail) ──
+    const tcr = d.accuracy_metrics?.tcr||{};
+    const full=tcr.full_success||0, part=tcr.partial_success||0;
+    const fail=tcr.failures||(d.total_tasks-(full+part));
+    const donutTrace = [{
+      type:'pie', hole:0.7,
+      values:[full,part,fail],
+      labels:['완전성공','부분성공','실패'],
+      marker:{colors:['#4ade80','#facc15','#f87171']},
+      textinfo:'none',
+    }];
+    const donutLayout = {height:200, showlegend:true, legend:{font:{color:TC,size:10}}, margin:{t:10,b:10,l:10,r:10}};
+    this._plt('ov-donut', donutTrace, donutLayout);
+    this._plt('l1-donut', donutTrace, donutLayout);
+
+    // ── Overview type bar ──
+    const typeCnt={};
+    (d.tasks||[]).forEach(t=>{ typeCnt[t.task_type]=(typeCnt[t.task_type]||0)+1; });
+    this._plt('ov-type', [{type:'bar', x:Object.keys(typeCnt), y:Object.values(typeCnt), marker:{color:'#6c8ef580', line:{color:'#6c8ef5',width:1}}}],
+      {xaxis:scX, yaxis:scY, ...noLeg});
+
+    // ── Layer1 type success rates (horizontal) ──
+    const tSuc={},tTot={};
+    (d.tasks||[]).forEach(t=>{
+      tTot[t.task_type]=(tTot[t.task_type]||0)+1;
+      if(t.success) tSuc[t.task_type]=(tSuc[t.task_type]||0)+1;
+    });
+    const types=Object.keys(tTot);
+    const rates=types.map(tp=>tTot[tp]?(tSuc[tp]||0)/tTot[tp]*100:0);
+    this._plt('l1-type', [{type:'bar', orientation:'h', y:types, x:rates,
+      marker:{color:rates.map(v=>v>=90?'#4ade8080':v>=70?'#facc1580':'#f8717180'), line:{color:rates.map(v=>v>=90?'#4ade80':v>=70?'#facc15':'#f87171'), width:1}}}],
+      {xaxis:{...scX,range:[0,100],ticksuffix:'%'}, yaxis:{...scY,automargin:true}, ...noLeg, margin:{t:10,b:10,l:120,r:16}});
+
+    // ── Health gauge ──
+    const hs = this.hs;
+    const gc = hs>=80?'#4ade80':hs>=60?'#facc15':'#f87171';
+    const hl = this.hl;
+    Plotly.react('gauge-c', [{
+      type:'indicator', mode:'gauge+number',
+      value: hs,
+      number: {font:{size:26, color: this.dark?'#e2e4f0':'#1a1d2e'}},
+      title: {text:hl, font:{size:9, color:TC}},
+      gauge: {
+        axis:{range:[0,100], tickcolor:TC, tickfont:{color:TC,size:8}},
+        bar:{color:gc},
+        bgcolor:'rgba(255,255,255,0.04)',
+        borderwidth:0,
+        steps:[{range:[0,60],color:'rgba(248,113,113,0.12)'},{range:[60,80],color:'rgba(250,204,21,0.12)'},{range:[80,100],color:'rgba(74,222,128,0.12)'}],
+      },
+    }], {
+      paper_bgcolor:'transparent', margin:{t:20,b:10,l:20,r:20}, height:140, width:140,
+      font:{color:TC, family:"'Segoe UI',system-ui,sans-serif"},
+    }, {responsive:false, displayModeBar:false, staticPlot:true});
+
+    // ── Accuracy histogram ──
+    const accs=(d.tasks||[]).map(t=>t.accuracy_score*100).filter(v=>v>0);
+    if (accs.length) {
+      this._plt('acc-hist', [{type:'histogram', x:accs, nbinsx:10, marker:{color:'#6c8ef580', line:{color:'#6c8ef5',width:1}}}],
+        {xaxis:{...scX,title:{text:'Accuracy %',font:{color:TC,size:10}}}, yaxis:scY, ...noLeg, height:220,
+         shapes:[{type:'line',x0:this.thresholds.acc,x1:this.thresholds.acc,yref:'paper',y0:0,y1:1,line:{color:'#facc15',dash:'dash',width:1.5}}],
+         annotations:[{x:this.thresholds.acc,yref:'paper',y:1,text:`목표 ${this.thresholds.acc}%`,showarrow:false,font:{color:'#facc15',size:10},yanchor:'bottom'}]});
+    }
+
+    // ── Quality radar ──
+    const qd=d.quality_detail?.dimension_summary||{};
+    if (Object.keys(qd).length) {
+      const dims=Object.keys(qd), vals=Object.values(qd);
+      this._plt('qual-radar', [{type:'scatterpolar', r:[...vals,vals[0]], theta:[...dims,dims[0]],
+        fill:'toself', fillcolor:'#6c8ef530', line:{color:'#6c8ef5'}, marker:{color:'#6c8ef5'}}],
+        {polar:{radialaxis:{range:[0,2],tickfont:{color:TC},gridcolor:GC},angularaxis:{tickfont:{color:TC}},bgcolor:'transparent'},
+         paper_bgcolor:'transparent', ...noLeg, height:240, margin:{t:20,b:20,l:40,r:40}});
+    }
+
+    // ── RAG bar ──
+    const rk=['faithfulness','answer_relevancy','context_recall','context_precision'];
+    const rvs=rk.map(k=>{ const arr=d.advanced?.rag_metrics?.[k]||[]; return arr.length?arr.reduce((a,b)=>a+b,0)/arr.length:0; });
+    if (rvs.some(v=>v>0)) {
+      this._plt('rag-bar', [{type:'bar', x:rk.map(k=>k.replace(/_/g,'<br>')), y:rvs, marker:{color:'#6c8ef580',line:{color:'#6c8ef5',width:1}}}],
+        {xaxis:scX, yaxis:{...scY,range:[0,1]}, ...noLeg,
+         shapes:[{type:'line',x0:-0.5,x1:rk.length-0.5,xref:'x',y0:0.8,y1:0.8,line:{color:'#4ade80',dash:'dot',width:1.5}}],
+         annotations:[{x:rk.length-0.5,y:0.8,text:'목표 0.8',showarrow:false,font:{color:'#4ade80',size:9},xanchor:'right',yanchor:'bottom'}]});
+    }
+
+    // ── Tool efficiency bar ──
+    const te=d.agentic?.tool_efficiency||{};
+    if (te.total_calls) {
+      this._plt('teff-bar', [{type:'bar',
+        x:['성공률','효율성','중복률','실패률'],
+        y:[te.success_rate,te.avg_efficiency_score,te.redundancy_rate,te.failure_rate].map(v=>v||0),
+        marker:{color:['#4ade8080','#6c8ef580','#facc1580','#f8717180'], line:{color:['#4ade80','#6c8ef5','#facc15','#f87171'],width:1}}}],
+        {xaxis:scX, yaxis:{...scY,ticksuffix:'%',range:[0,100]}, ...noLeg});
+    }
+
+    // ── Latency percentile bar ──
+    const lat=d.efficiency_metrics?.latency||{};
+    this._plt('lat-bar', [{type:'bar', x:['P50','P95','P99','Max'],
+      y:[lat.p50,lat.p95,lat.p99,lat.max].map(v=>+(v||0).toFixed(3)),
+      marker:{color:['#4ade8080','#facc1580','#f8717180','#f8717180'], line:{color:['#4ade80','#facc15','#f87171','#f87171'],width:1}}}],
+      {xaxis:scX, yaxis:{...scY,ticksuffix:'s'}, ...noLeg});
+
+    // ── Latency histogram ──
+    const lats=(d.tasks||[]).map(t=>t.execution_time).filter(v=>v>0);
+    if (lats.length) {
+      this._plt('lat-hist', [{type:'histogram', x:lats, nbinsx:8, marker:{color:'#6c8ef580',line:{color:'#6c8ef5',width:1}}}],
+        {xaxis:{...scX,ticksuffix:'s',tickangle:-30,nticks:6,automargin:true}, yaxis:scY, ...noLeg, margin:{t:10,b:50,l:46,r:10}});
+    }
+
+    // ── Latency box plot ──
+    if (lats.length) {
+      this._plt('lat-box', [{type:'box', y:lats, name:'Latency',
+        marker:{color:'#6c8ef5'}, fillcolor:'#6c8ef520', line:{color:'#6c8ef5'},
+        boxmean:'sd',
+        hovertemplate:'%{y:.3f}s<extra></extra>'}],
+        {yaxis:{...scY,ticksuffix:'s'}, ...noLeg,
+         shapes:[{type:'line',x0:-0.5,x1:0.5,xref:'x',y0:this.thresholds.p95,y1:this.thresholds.p95,
+           line:{color:'#facc15',dash:'dash',width:1.5}},
+         ],
+         annotations:[{x:0.5,y:this.thresholds.p95,xref:'x',yref:'y',text:`목표 P95: ${this.thresholds.p95}s`,
+           showarrow:false,font:{color:'#facc15',size:10},xanchor:'left'}],
+        });
+    }
+    // ── TaskType별 latency grouped box ──
+    const typeMap={};
+    (d.tasks||[]).forEach(t=>{ const k=t.task_type||'unknown'; (typeMap[k]=typeMap[k]||[]).push(t.execution_time||0); });
+    if (Object.keys(typeMap).length>0) {
+      const boxTraces = Object.entries(typeMap).map(([name,vals])=>({
+        type:'box', y:vals, name, boxmean:true,
+        hovertemplate:`${name}<br>%{y:.3f}s<extra></extra>`,
+      }));
+      this._plt('lat-type-box', boxTraces, {yaxis:{...scY,ticksuffix:'s'}, showlegend:false, margin:{t:10,b:50,l:46,r:10}});
+    }
+
+    // ── Token pie ──
+    const tok=d.efficiency_metrics?.tokens||{};
+    this._plt('tok-pie', [{type:'pie', hole:0.6,
+      values:[tok.total_input_tokens||0, tok.total_output_tokens||0],
+      labels:['Input','Output'],
+      marker:{colors:['#6c8ef5','#4ade80']},
+      textinfo:'none'}],
+      {height:200, showlegend:true, legend:{font:{color:TC,size:10}}, margin:{t:10,b:10,l:10,r:10}});
+
+    // ── Token histogram ──
+    const tkLst=(d.tasks||[]).map(t=>(t.tokens_used?.total||0)).filter(v=>v>0);
+    if (tkLst.length) {
+      this._plt('tok-hist', [{type:'histogram', x:tkLst, nbinsx:8, marker:{color:'#6c8ef580',line:{color:'#6c8ef5',width:1}}}],
+        {xaxis:scX, yaxis:scY, ...noLeg});
+    }
+
+    // ── Security radar ──
+    const sl1=d.security_l1||{};
+    const threatR=sl1.input_security?.threat_rate||0;
+    const leakR=sl1.output_leakage?.leakage_rate||0;
+    const vioR=sl1.authorization?.violation_rate||0;
+    const escR=d.security_l2?.privilege_escalation?.escalation_rate||0;
+    const atkR=d.security_l2?.attack_detection?.detection_rate||0;
+    if (d.has_security) {
+      const dims2=['입력위협','출력유출','권한위반','권한상승','공격탐지'];
+      const vals2=[threatR,leakR,vioR,escR,atkR];
+      this._plt('sec-radar', [{type:'scatterpolar', r:[...vals2,vals2[0]], theta:[...dims2,dims2[0]],
+        fill:'toself', fillcolor:'#f8717130', line:{color:'#f87171'}, marker:{color:'#f87171'}}],
+        {polar:{radialaxis:{range:[0,100],tickfont:{color:TC},gridcolor:GC},angularaxis:{tickfont:{color:TC}},bgcolor:'transparent'},
+         paper_bgcolor:'transparent', ...noLeg, height:220, margin:{t:20,b:20,l:40,r:40}});
+    }
+
+    // ── Framework bar ──
+    const fwDist=this.frameworkDist();
+    if (fwDist.length) {
+      this._plt('fw-bar', [{type:'bar', x:fwDist.map(f=>f.name||'unknown'), y:fwDist.map(f=>f.count),
+        marker:{color:'#6c8ef580',line:{color:'#6c8ef5',width:1}}}],
+        {xaxis:scX, yaxis:scY, ...noLeg});
+    }
+
+    // ── Correlation scatter ──
+    const tasks2=d.tasks||[];
+    if (tasks2.length>=3) {
+      const pts=tasks2.filter(t=>t.execution_time>0&&t.accuracy_score>=0).map(t=>({x:t.execution_time, y:t.accuracy_score*100}));
+      this._plt('corr-scatter', [{type:'scatter', mode:'markers',
+        x:pts.map(p=>p.x), y:pts.map(p=>p.y),
+        text:tasks2.filter(t=>t.execution_time>0&&t.accuracy_score>=0).map(t=>t.task_id),
+        hovertemplate:'%{text}<br>Latency: %{x:.2f}s<br>Accuracy: %{y:.1f}%<extra></extra>',
+        marker:{color:'#6c8ef560',line:{color:'#6c8ef5',width:1},size:8}}],
+        {xaxis:{...scX,title:{text:'Latency (s)',font:{color:TC,size:10}}},
+         yaxis:{...scY,title:{text:'Accuracy (%)',font:{color:TC,size:10}}},
+         ...noLeg, height:220});
+    }
+
+    // ── DeepEval G-Eval histogram ──
+    const gEvals=(d.advanced?.per_task||[]).map(t=>t.g_eval_score||t.metrics?.g_eval||0).filter(v=>v>0);
+    if (gEvals.length) {
+      this._plt('deepeval-hist', [{type:'histogram', x:gEvals, nbinsx:10, marker:{color:'#6c8ef580',line:{color:'#6c8ef5',width:1}}}],
+        {xaxis:{...scX,title:{text:'G-Eval Score',font:{color:TC,size:10}}}, yaxis:scY, ...noLeg, height:220});
+    }
+
+    // ── Layer 3 charts (same data as layer1 deepeval/rag but for layer3 nav) ──
+    if (gEvals.length) {
+      this._plt('l3-geval-hist', [{type:'histogram', x:gEvals, nbinsx:10, marker:{color:'#6c8ef580',line:{color:'#6c8ef5',width:1}}}],
+        {xaxis:{...scX,title:{text:'G-Eval Score',font:{color:TC,size:10}}}, yaxis:scY, ...noLeg, height:220});
+    }
+    if (rvs.some(v=>v>0)) {
+      this._plt('l3-rag-bar', [{type:'bar', x:rk.map(k=>k.replace(/_/g,'<br>')), y:rvs, marker:{color:'#6c8ef580',line:{color:'#6c8ef5',width:1}}}],
+        {xaxis:scX, yaxis:{...scY,range:[0,1]}, ...noLeg,
+         shapes:[{type:'line',x0:-0.5,x1:rk.length-0.5,xref:'x',y0:0.8,y1:0.8,line:{color:'#4ade80',dash:'dot',width:1.5}}],
+         annotations:[{x:rk.length-0.5,y:0.8,text:'목표 0.8',showarrow:false,font:{color:'#4ade80',size:9},xanchor:'right',yanchor:'bottom'}]});
+    }
+
+    // ── Correlation Heatmap (Insights + Transparency) ──
+    const cm = this.metricCorrMatrix();
+    if (cm.labels.length) {
+      const hmTrace = [{
+        type:'heatmap', z:cm.z, x:cm.labels, y:cm.labels,
+        colorscale:'RdBu', zmid:0, zmin:-1, zmax:1,
+        text:cm.z.map(row=>row.map(v=>v.toFixed(2))),
+        texttemplate:'%{text}', showscale:true,
+        colorbar:{thickness:14, len:0.9, tickfont:{color:TC,size:9}, outlinecolor:GC},
+        hovertemplate:'%{y} × %{x}: %{z:.3f}<extra></extra>',
+      }];
+      const hmLayout = {xaxis:{...scX,tickangle:-20,automargin:true}, yaxis:{...scY,automargin:true}, height:300, margin:{t:10,b:70,l:90,r:60}};
+      this._plt('corr-heatmap',    hmTrace, hmLayout);
+      this._plt('tr-corr-heatmap', hmTrace, hmLayout);
+    }
+
+    // ── Security Event Timeline ──
+    const secEvts = this.secEventTimeline();
+    if (secEvts.length) {
+      const layerColors = {'L1 입력위협':'#f87171','L1 출력유출':'#fb923c','L2 고급위협':'#facc15'};
+      const layers = Object.keys(layerColors);
+      const timelineTraces = layers.map(layer=>{
+        const pts = secEvts.filter(e=>e.layer===layer);
+        if (!pts.length) return null;
+        return {
+          type:'scatter', mode:'markers', name:layer,
+          x:pts.map(e=>e.idx), y:pts.map(e=>e.category),
+          text:pts.map(e=>`[${e.layer}] ${e.taskId}<br>위협: ${e.category}<br>위험도: ${e.risk}`),
+          hovertemplate:'%{text}<extra></extra>',
+          marker:{color:layerColors[layer]||'#6c8ef5', size:pts.map(e=>e.risk*5+8), symbol:'circle', opacity:0.85, line:{color:'#ffffff40',width:1}},
+        };
+      }).filter(Boolean);
+      if (timelineTraces.length) {
+        this._plt('sec-timeline', timelineTraces, {
+          xaxis:{...scX, title:{text:'이벤트 순서',font:{color:TC,size:10}}, automargin:true},
+          yaxis:{...scY, automargin:true},
+          showlegend:true, legend:{font:{color:TC,size:10},bgcolor:'transparent'},
+          height:280, margin:{t:10,b:50,l:130,r:10}
+        });
+      }
+    }
+
+    // ── Agent Network Graph ──
+    const net = this.agentNetworkData();
+    if (net.nodes.length>=2) {
+      const maxCnt = Math.max(...net.edges.map(e=>e.count),1);
+      const edgeTraces = net.edges.map(e=>{
+        const alpha = 0.2 + 0.7*(e.count/maxCnt);
+        const rate = e.count?e.success/e.count:0;
+        const col = rate>=0.8?`rgba(74,222,128,${alpha})`:rate>=0.5?`rgba(250,204,21,${alpha})`:`rgba(248,113,113,${alpha})`;
+        return {type:'scatter',mode:'lines',
+          x:[e.fx,e.tx,null], y:[e.fy,e.ty,null],
+          line:{color:col, width:1+3*(e.count/maxCnt)},
+          hoverinfo:'skip', showlegend:false};
+      });
+      const nodeTrace = {
+        type:'scatter', mode:'markers+text',
+        x:net.nodes.map(n=>n.x), y:net.nodes.map(n=>n.y),
+        text:net.nodes.map(n=>n.name),
+        textposition:'top center',
+        textfont:{color:TC,size:10},
+        hovertext:net.nodes.map(n=>`${n.name}<br>연결수: ${n.degree}`),
+        hovertemplate:'%{hovertext}<extra></extra>',
+        marker:{color:'#6c8ef5', size:net.nodes.map(n=>14+n.degree*3), line:{color:'#ffffff80',width:2}},
+        showlegend:false,
+      };
+      // Dynamic height: 260 + 12px per interaction (capped 380–560)
+      const netH = Math.max(380, Math.min(560, (d.agentic?.agent_interactions?.length||0)*12+260));
+      this._plt('agent-network', [...edgeTraces, nodeTrace], {
+        xaxis:{visible:false, range:[-1.7,1.7]},
+        yaxis:{visible:false, range:[-1.7,1.7]},
+        paper_bgcolor:'transparent', plot_bgcolor:'transparent',
+        dragmode:'pan',
+        showlegend:false, height:netH, margin:{t:30,b:30,l:30,r:30},
+      }, {
+        responsive:true,
+        scrollZoom:true,
+        displayModeBar:true,
+        displaylogo:false,
+        modeBarButtonsToRemove:['select2d','lasso2d','toggleSpikelines','hoverClosestCartesian','hoverCompareCartesian'],
+      });
+    }
+
+    // ── Integrated Security radar (duplicate for intsec tab) ──
+    if (d.has_security) {
+      const dims3=['입력위협','출력유출','권한위반','권한상승','공격탐지'];
+      const vals3=[threatR,leakR,vioR,escR,atkR];
+      this._plt('intsec-radar', [{type:'scatterpolar', r:[...vals3,vals3[0]], theta:[...dims3,dims3[0]],
+        fill:'toself', fillcolor:'#f8717130', line:{color:'#f87171'}, marker:{color:'#f87171'}}],
+        {polar:{radialaxis:{range:[0,100],tickfont:{color:TC},gridcolor:GC},angularaxis:{tickfont:{color:TC}},bgcolor:'transparent'},
+         paper_bgcolor:'transparent', ...noLeg, height:240, margin:{t:20,b:20,l:40,r:40}});
+    }
+  },
+
+  renderTable() {
+    const d = this.data; if (!d || !document.getElementById('task-table')) return;
+    if (this._taskTable) { this._taskTable.destroy(); this._taskTable=null; }
+    const f = this.taskFilter;
+    let rows = d.tasks||[];
+    if (f.type !== 'all') rows = rows.filter(t=>t.task_type===f.type);
+    if (f.status === 'success') rows = rows.filter(t=>t.success);
+    else if (f.status === 'fail') rows = rows.filter(t=>!t.success);
+    if (f.sort === 'accuracy_score') rows = [...rows].sort((a,b)=>b.accuracy_score-a.accuracy_score);
+    else if (f.sort === 'execution_time') rows = [...rows].sort((a,b)=>b.execution_time-a.execution_time);
+    else if (f.sort === 'completion_score') rows = [...rows].sort((a,b)=>b.completion_score-a.completion_score);
+    this.filteredTaskCount = rows.length;
+    this._taskTable = new Tabulator('#task-table', {
+      data: rows,
+      layout: 'fitDataFill',
+      height: '420px',
+      rowClick: (e, row) => { this.taskDetail = row.getData(); },
+      columns: [
+        {title:'Task ID',     field:'task_id',         width:150},
+        {title:'Type',        field:'task_type',        width:110},
+        {title:'✓',           field:'success',          width:50, formatter:c=>c.getValue()?'✅':'❌'},
+        {title:'Completion',  field:'completion_score', width:100, formatter:c=>(c.getValue()*100).toFixed(1)+'%'},
+        {title:'Accuracy',    field:'accuracy_score',   width:90,  formatter:c=>(c.getValue()*100).toFixed(1)+'%'},
+        {title:'Latency',     field:'execution_time',   width:85,  formatter:c=>c.getValue().toFixed(2)+'s'},
+        {title:'Tokens',      field:'tokens_used',      width:70,  formatter:c=>(c.getValue()?.total||0)},
+        {title:'Attempts',    field:'attempts',          width:70},
+        {title:'Framework',   field:'framework',         width:100, formatter:c=>c.getValue()||'-'},
+        {title:'Timestamp',   field:'timestamp',         minWidth:150, formatter:c=>(c.getValue()||'').substring(0,19)},
+      ],
+    });
+  },
+
+  applyTaskFilter() {
+    this.renderTable();
+  },
+
+  taskTypes() {
+    const types = new Set((this.data?.tasks||[]).map(t=>t.task_type).filter(Boolean));
+    return [...types];
+  },
+
+  // ── Transparency ──────────────────────────────────────────────────────
+  async loadTransparency(type) {
+    if (type==='traces' && !this.trData.traces.length) {
+      const r = await fetch('/api/transparency/traces');
+      this.trData.traces = await r.json();
+    }
+    if (type==='annotations' && !this.trData.annotations.length) {
+      const r = await fetch('/api/transparency/annotations');
+      this.trData.annotations = await r.json();
+    }
+    if (type==='audit' && !this.trData.audit.length) {
+      const r = await fetch('/api/transparency/audit');
+      this.trData.audit = await r.json();
+      // Load all audit files for listing
+      const items = [];
+      for (const a of this.trData.audit) {
+        try {
+          const rd = await fetch(`/api/transparency/audit/${a.stem}`);
+          const detail = await rd.json();
+          items.push({ ...a, ...detail });
+        } catch(e) { items.push(a); }
+      }
+      this.trData.auditItems = items;
+    }
+  },
+
+  async loadTrace(stem) {
+    try {
+      const r = await fetch(`/api/transparency/traces/${stem}`);
+      const d = await r.json();
+      this.trDetail = { ...this.trDetail, [stem]: d };
+    } catch(e) {}
+  },
+
+  async loadAnnotation(stem) {
+    try {
+      const r = await fetch(`/api/transparency/annotations/${stem}`);
+      const d = await r.json();
+      this.annDetail = { ...this.annDetail, [stem]: d };
+    } catch(e) {}
+  },
+
+  // ── Data helpers ───────────────────────────────────────────────────────
+  tcr()  { return this.data?.accuracy_metrics?.tcr?.tcr || 0; },
+  acc()  { return this.data?.accuracy_metrics?.accuracy_scores?.overall_accuracy || 0; },
+  hall() { return this.data?.accuracy_metrics?.hallucination?.overall_rate || 0; },
+  lat_mean() { return this.data?.efficiency_metrics?.latency?.mean || 0; },
+
+  typeBreakdown() {
+    const d = this.data; if (!d) return [];
+    const suc={},tot={};
+    (d.tasks||[]).forEach(t=>{
+      tot[t.task_type]=(tot[t.task_type]||0)+1;
+      if(t.success) suc[t.task_type]=(suc[t.task_type]||0)+1;
+    });
+    return Object.keys(tot).map(tp=>({ type:tp, n:tot[tp], rate:tot[tp]?(suc[tp]||0)/tot[tp]*100:0 }));
+  },
+
+  lowAccTasks() {
+    return (this.data?.tasks||[]).filter(t=>t.accuracy_score<0.7 && t.accuracy_score>0);
+  },
+
+  ragAvg(key) {
+    const arr = this.data?.advanced?.rag_metrics?.[key] || [];
+    if (!arr.length) return '—';
+    return (arr.reduce((a,b)=>a+b,0)/arr.length).toFixed(3);
+  },
+
+  // ── Health scoring ─────────────────────────────────────────────────────
+  get l1s() {
+    const d=this.data; if(!d) return 0;
+    const tcr=d.accuracy_metrics?.tcr?.tcr||0;
+    const acc=d.accuracy_metrics?.accuracy_scores?.overall_accuracy||0;
+    const h=Math.max(0,100-(d.accuracy_metrics?.hallucination?.overall_rate||0)*10);
+    return Math.round((tcr+acc+h)/3);
+  },
+  get l2s() {
+    const d=this.data; if(!d||!d.has_agentic) return 50;
+    const toolAcc=d.agentic?.tool_selection_summary?.avg_f1_score||0;
+    const coord=d.agentic?.coordination_summary?.success_rate||0;
+    const wf=d.agentic?.workflow_summary?.step_success_rate||0;
+    const cnt=[toolAcc,coord,wf].filter(v=>v>0);
+    return cnt.length?Math.round(cnt.reduce((a,b)=>a+b,0)/cnt.length):50;
+  },
+  get ps() {
+    const p95=this.data?.efficiency_metrics?.latency?.p95||0;
+    return Math.max(0,Math.min(100,Math.round(100-p95*15)));
+  },
+  get ss() {
+    const d=this.data; if(!d||!d.has_security) return 50;
+    const thr=100-(d.security_l1?.input_security?.threat_rate||0);
+    const leak=100-(d.security_l1?.output_leakage?.leakage_rate||0);
+    const auth=d.security_l1?.authorization?.compliance_rate||100;
+    return Math.round((thr+leak+auth)/3);
+  },
+  get hs() { return Math.round((this.l1s+this.l2s+this.ps+this.ss)/4); },
+  get hl() { const s=this.hs; return s>=90?'EXCELLENT':s>=80?'GOOD':s>=70?'FAIR':'NEEDS WORK'; },
+
+  secScore(type) {
+    const d=this.data;
+    if (type==='input')  return Math.max(0,Math.round(100-(d?.security_l1?.input_security?.threat_rate||0)));
+    if (type==='output') return Math.max(0,Math.round(100-(d?.security_l1?.output_leakage?.leakage_rate||0)));
+    if (type==='auth')   return Math.round(d?.security_l1?.authorization?.compliance_rate||100);
+    return 50;
+  },
+
+  // Anomaly detection (rule-based)
+  autoAnomalies() {
+    const d=this.data; if(!d) return [];
+    const a=[];
+    const tTCR=this.thresholds.tcr, tACC=this.thresholds.acc, tHALL=this.thresholds.hall, tP95=this.thresholds.p95;
+    if (this.tcr()<tTCR*0.78) a.push({sev:'critical', title:'TCR 위험 수준', desc:`TCR ${this.pct(this.tcr())} (목표 ≥${tTCR}%). 즉시 실패 태스크 원인 분석 필요.`});
+    else if (this.tcr()<tTCR) a.push({sev:'medium', title:'TCR 목표 미달', desc:`TCR ${this.pct(this.tcr())} (목표 ≥${tTCR}%).`});
+    if (this.acc()<tACC*0.71) a.push({sev:'critical', title:'Accuracy 매우 낮음', desc:`Accuracy ${this.pct(this.acc())} — 응답 검증 로직 점검 필요.`});
+    if (this.hall()>tHALL*3) a.push({sev:'critical', title:'환각 발생률 위험', desc:`${this.pct(this.hall())} (허용 ≤${tHALL}%). RAG 파이프라인 검증 필요.`});
+    else if (this.hall()>tHALL) a.push({sev:'medium', title:'환각 발생률 주의', desc:`${this.pct(this.hall())} (허용 ≤${tHALL}%).`});
+    const p95=d.efficiency_metrics?.latency?.p95||0;
+    if (p95>tP95*2.5) a.push({sev:'high', title:'P95 Latency 심각', desc:`${p95.toFixed(2)}s (목표 ≤${tP95}s). 모델 경량화 또는 캐싱 검토.`});
+    else if (p95>tP95) a.push({sev:'medium', title:'P95 Latency 초과', desc:`${p95.toFixed(2)}s (목표 ≤${tP95}s).`});
+    const txR=d.security_l1?.input_security?.threat_rate||0;
+    if (txR>20) a.push({sev:'high', title:'입력 위협률 높음', desc:`${txR.toFixed(1)}% 입력에서 보안 위협 탐지.`});
+    const lkR=d.security_l1?.output_leakage?.leakage_rate||0;
+    if (lkR>0) a.push({sev:'critical', title:'민감 정보 유출 탐지', desc:`출력에서 ${lkR.toFixed(1)}% 유출률 — 즉시 확인 필요.`});
+    return a;
+  },
+
+  metricStatus() {
+    const d=this.data; if(!d) return [];
+    const tTCR=this.thresholds.tcr, tACC=this.thresholds.acc, tHALL=this.thresholds.hall, tP95=this.thresholds.p95;
+    return [
+      { name:'TCR',           value:this.pct(this.tcr()),  cls:this.tcr()>=tTCR?'pg':this.tcr()>=(tTCR*0.78)?'py':'pr', status:this.tcr()>=tTCR?'✅ 목표달성':'⚠️ 개선필요' },
+      { name:'Accuracy',      value:this.pct(this.acc()),  cls:this.acc()>=tACC?'pg':'pr', status:this.acc()>=tACC?'✅':'❌' },
+      { name:'Hallucination', value:this.pct(this.hall()), cls:this.hall()<=tHALL?'pg':this.hall()<=tHALL*3?'py':'pr', status:this.hall()<=tHALL?'✅ SAFE':this.hall()<=tHALL*3?'⚠️ WARNING':'🚨 DANGER' },
+      { name:'P95 Latency',   value:this.sec_(d.efficiency_metrics?.latency?.p95), cls:this.ps>=80?'pg':this.ps>=60?'py':'pr', status:(d.efficiency_metrics?.latency?.p95||0)<=tP95?'✅':'⚠️' },
+    ];
+  },
+
+  // ── Benchmark grade ────────────────────────────────────────────────────
+  benchGrade(tcr) {
+    if (tcr >= 95) return { letter:'A', label:'Excellent' };
+    if (tcr >= 85) return { letter:'B', label:'Good' };
+    if (tcr >= 70) return { letter:'C', label:'Fair' };
+    if (tcr >= 55) return { letter:'D', label:'Poor' };
+    return { letter:'F', label:'Fail' };
+  },
+
+  // ── Framework distribution ─────────────────────────────────────────────
+  frameworkDist() {
+    const tasks = this.data?.tasks||[];
+    const cnt={}, suc={};
+    tasks.forEach(t=>{
+      const fw = t.framework||'unknown';
+      cnt[fw]=(cnt[fw]||0)+1;
+      if (t.success) suc[fw]=(suc[fw]||0)+1;
+    });
+    return Object.entries(cnt).map(([name,count])=>({ name, count, rate:count?(suc[name]||0)/count*100:0 })).sort((a,b)=>b.count-a.count);
+  },
+
+  // ── Statistical anomaly detection (Z-score) ───────────────────────────
+  statAnomalies() {
+    const tasks = this.data?.tasks||[];
+    if (tasks.length < 3) return [];
+    const results = [];
+    const fields = [
+      { key:'accuracy_score', label:'Accuracy', scale:100 },
+      { key:'execution_time', label:'Latency', scale:1 },
+    ];
+    fields.forEach(({key,label,scale})=>{
+      const vals = tasks.map(t=>+(t[key]||0)*scale).filter(v=>v>0);
+      if (vals.length<3) return;
+      const mean = vals.reduce((a,b)=>a+b,0)/vals.length;
+      const std  = Math.sqrt(vals.map(v=>(v-mean)**2).reduce((a,b)=>a+b,0)/vals.length);
+      if (std===0) return;
+      tasks.forEach(t=>{
+        const v = +(t[key]||0)*scale;
+        if (v<=0) return;
+        const z = Math.abs((v-mean)/std);
+        if (z>=2.0) {
+          const dir = v>mean?'높음':'낮음';
+          results.push({ sev:z>=3?'high':'medium', title:`[${label}] 이상치: ${t.task_id}`, desc:`Z-score ${z.toFixed(2)} — 값 ${v.toFixed(2)}, 평균 ${mean.toFixed(2)} (${dir})` });
+        }
+      });
+    });
+    return results.slice(0,10);
+  },
+
+  // ── Metric correlation (Pearson) ───────────────────────────────────────
+  metricCorr() {
+    const tasks = this.data?.tasks||[];
+    if (tasks.length < 3) return [];
+    function pearson(xs, ys) {
+      const n=xs.length; if(!n) return 0;
+      const mx=xs.reduce((a,b)=>a+b,0)/n, my=ys.reduce((a,b)=>a+b,0)/n;
+      const num=xs.reduce((s,x,i)=>s+(x-mx)*(ys[i]-my),0);
+      const dx=Math.sqrt(xs.reduce((s,x)=>s+(x-mx)**2,0));
+      const dy=Math.sqrt(ys.reduce((s,y)=>s+(y-my)**2,0));
+      return (dx&&dy)?num/(dx*dy):0;
+    }
+    const acc   = tasks.map(t=>t.accuracy_score*100);
+    const lat   = tasks.map(t=>t.execution_time||0);
+    const tok   = tasks.map(t=>(t.tokens_used?.total||0));
+    const comp  = tasks.map(t=>t.completion_score*100);
+    return [
+      { label:'Accuracy ↔ Latency',    r:pearson(acc,lat)  },
+      { label:'Accuracy ↔ Tokens',     r:pearson(acc,tok)  },
+      { label:'Accuracy ↔ Completion', r:pearson(acc,comp) },
+      { label:'Latency ↔ Tokens',      r:pearson(lat,tok)  },
+    ];
+  },
+
+  // ── Correlation matrix (4×4 for heatmap) ─────────────────────────────
+  metricCorrMatrix() {
+    const tasks = this.data?.tasks||[];
+    if (tasks.length < 3) return {labels:[], z:[]};
+    function pearson(xs, ys) {
+      const n=xs.length; if(!n) return 0;
+      const mx=xs.reduce((a,b)=>a+b,0)/n, my=ys.reduce((a,b)=>a+b,0)/n;
+      const num=xs.reduce((s,x,i)=>s+(x-mx)*(ys[i]-my),0);
+      const dx=Math.sqrt(xs.reduce((s,x)=>s+(x-mx)**2,0));
+      const dy=Math.sqrt(ys.reduce((s,y)=>s+(y-my)**2,0));
+      return (dx&&dy)?+(num/(dx*dy)).toFixed(3):0;
+    }
+    const labels = ['정확도','지연시간','토큰수','완료율'];
+    const vecs = [
+      tasks.map(t=>t.accuracy_score*100),
+      tasks.map(t=>t.execution_time||0),
+      tasks.map(t=>(t.tokens_used?.total||0)),
+      tasks.map(t=>t.completion_score*100),
+    ];
+    const z = vecs.map(a=>vecs.map(b=>pearson(a,b)));
+    return {labels, z};
+  },
+
+  // ── Security Event Timeline ────────────────────────────────────────────
+  secEventTimeline() {
+    const d = this.data; if (!d) return [];
+    const evts = [];
+    let idx = 0;
+    // L1 input threats
+    for (const e of (d.security_l1?.input_evals||[])) {
+      const cats = [];
+      if (e.sql_injection)       cats.push('SQL Injection');
+      if (e.prompt_injection)    cats.push('Prompt Injection');
+      if (e.xss)                 cats.push('XSS');
+      if (e.command_injection)   cats.push('Command Injection');
+      if (e.path_traversal)      cats.push('Path Traversal');
+      const risk = e.threat_level==='critical'?3:e.threat_level==='high'?2:1;
+      for (const cat of cats) {
+        evts.push({idx:idx++, taskId:e.task_id||'?', category:cat, layer:'L1 입력위협', risk});
+      }
+    }
+    // L1 output leakage
+    for (const e of (d.security_l1?.output_detections||[])) {
+      if (!e.has_leakage) continue;
+      const cats = [];
+      if (e.api_key_detected)   cats.push('API Key');
+      if (e.password_detected)  cats.push('Password');
+      if (e.email_detected)     cats.push('Email');
+      if (e.phone_detected)     cats.push('Phone');
+      if (!cats.length)         cats.push('Leakage');
+      for (const cat of cats) {
+        evts.push({idx:idx++, taskId:e.task_id||'?', category:cat, layer:'L1 출력유출', risk:2});
+      }
+    }
+    // L2 escalation events
+    for (const e of (d.security_l2?.escalation_events||[])) {
+      evts.push({idx:idx++, taskId:e.task_id||'?', category:'Privilege Escalation', layer:'L2 고급위협', risk:3});
+    }
+    // L2 attack detections
+    for (const e of (d.security_l2?.attack_detections||[])) {
+      evts.push({idx:idx++, taskId:e.task_id||'?', category:e.attack_type||'Attack Chain', layer:'L2 고급위협', risk:3});
+    }
+    return evts;
+  },
+
+  // ── Agent Network Graph ────────────────────────────────────────────────
+  agentNetworkData() {
+    const d = this.data; if (!d) return {nodes:[], edges:[]};
+    const interactions = d.agentic?.agent_interactions||[];
+    if (interactions.length < 2) return {nodes:[], edges:[]};
+    const nodeSet = new Set();
+    const edgeMap = {};
+    for (const intr of interactions) {
+      const fa = intr.from_agent||'?', ta = intr.to_agent||'?';
+      nodeSet.add(fa); nodeSet.add(ta);
+      const key = `${fa}→${ta}`;
+      if (!edgeMap[key]) edgeMap[key] = {from:fa, to:ta, count:0, success:0};
+      edgeMap[key].count++;
+      if (intr.success) edgeMap[key].success++;
+    }
+    const names = [...nodeSet];
+    const n = names.length;
+    const pos = {};
+    names.forEach((name,i)=>{
+      const a = (2*Math.PI*i/n) - Math.PI/2;
+      pos[name] = {x:+Math.cos(a).toFixed(4), y:+Math.sin(a).toFixed(4)};
+    });
+    // Degree = total interactions per node
+    const degree = {};
+    names.forEach(name=>{ degree[name]=0; });
+    Object.values(edgeMap).forEach(e=>{ degree[e.from]+=e.count; degree[e.to]+=e.count; });
+    const nodes = names.map(name=>({name, ...pos[name], degree:degree[name]||0}));
+    const edges = Object.values(edgeMap).map(e=>({
+      ...e,
+      fx:pos[e.from]?.x||0, fy:pos[e.from]?.y||0,
+      tx:pos[e.to]?.x||0,   ty:pos[e.to]?.y||0,
+    }));
+    return {nodes, edges};
+  },
+
+  // ── Data quality score ─────────────────────────────────────────────────
+  dataQuality() {
+    const tasks = this.data?.tasks||[];
+    if (!tasks.length) return { overall:0, fields:[] };
+    const checks = [
+      { name:'task_id',         fn:t=>!!t.task_id },
+      { name:'task_type',       fn:t=>!!t.task_type },
+      { name:'accuracy_score',  fn:t=>t.accuracy_score!=null&&t.accuracy_score>=0 },
+      { name:'execution_time',  fn:t=>t.execution_time!=null&&t.execution_time>0 },
+      { name:'tokens_used',     fn:t=>!!(t.tokens_used?.total) },
+      { name:'framework',       fn:t=>!!t.framework },
+      { name:'expected_tools',  fn:t=>!!(t.expected_tools?.length) },
+      { name:'timestamp',       fn:t=>!!t.timestamp },
+    ];
+    const fields = checks.map(c=>{
+      const filled = tasks.filter(c.fn).length;
+      return { name:c.name, filled, total:tasks.length, pct:filled/tasks.length*100 };
+    });
+    const overall = fields.reduce((s,f)=>s+f.pct,0)/fields.length;
+    return { overall, fields };
+  },
+
+  // ── Multi-file comparison ──────────────────────────────────────────────
+  toggleCompare(id) {
+    if (this.compareIds.includes(id)) {
+      this.compareIds = this.compareIds.filter(i=>i!==id);
+    } else if (this.compareIds.length < 5) {
+      this.compareIds = [...this.compareIds, id];
+    }
+  },
+
+  async loadCompare() {
+    for (const id of this.compareIds) {
+      if (!this.compareData[id]) {
+        try {
+          const r = await fetch(`/api/results/${id}`);
+          const d = await r.json();
+          this.compareData = { ...this.compareData, [id]: d };
+        } catch(e) { console.error(e); }
+      }
+    }
+  },
+
+  compareRows() {
+    return [
+      { key:'tcr',      label:'TCR',           fmt:d=>this.pct(d?.accuracy_metrics?.tcr?.tcr),                              best:ds=>this.pct(Math.max(...ds.map(d=>d?.accuracy_metrics?.tcr?.tcr||0))) },
+      { key:'acc',      label:'Accuracy',       fmt:d=>this.pct(d?.accuracy_metrics?.accuracy_scores?.overall_accuracy),    best:ds=>this.pct(Math.max(...ds.map(d=>d?.accuracy_metrics?.accuracy_scores?.overall_accuracy||0))) },
+      { key:'hall',     label:'Hallucination',  fmt:d=>this.pct(d?.accuracy_metrics?.hallucination?.overall_rate),          best:ds=>this.pct(Math.min(...ds.map(d=>d?.accuracy_metrics?.hallucination?.overall_rate||0))) },
+      { key:'lat_mean', label:'Avg Latency',    fmt:d=>this.sec_(d?.efficiency_metrics?.latency?.mean),                     best:ds=>this.sec_(Math.min(...ds.map(d=>d?.efficiency_metrics?.latency?.mean||99))) },
+      { key:'p95',      label:'P95 Latency',    fmt:d=>this.sec_(d?.efficiency_metrics?.latency?.p95),                      best:ds=>this.sec_(Math.min(...ds.map(d=>d?.efficiency_metrics?.latency?.p95||99))) },
+      { key:'cost',     label:'Total Cost',     fmt:d=>this.cost(d?.efficiency_metrics?.tokens?.total_cost),                best:ds=>this.cost(Math.min(...ds.map(d=>d?.efficiency_metrics?.tokens?.total_cost||99))) },
+      { key:'tasks',    label:'Total Tasks',    fmt:d=>d?.total_tasks??'—',                                                  best:null },
+      { key:'grade',    label:'Benchmark Grade',fmt:d=>this.benchGrade(d?.accuracy_metrics?.tcr?.tcr||0).letter,            best:null },
+    ];
+  },
+
+  // ── Golden Dataset ──────────────────────────────────────────────────────
+  async loadGoldenList() {
+    try {
+      const r = await fetch('/api/golden');
+      this.gdFiles = await r.json();
+    } catch(e) { console.error(e); }
+  },
+
+  async loadGoldenFile(stem) {
+    if (this.gdSelected === stem) { this.gdSelected = null; return; }
+    try {
+      const r = await fetch(`/api/golden/${stem}`);
+      let data = await r.json();
+      // Normalize: could be array or object with items/questions key
+      if (Array.isArray(data)) {
+        this.gdItems = { ...this.gdItems, [stem]: data };
+      } else {
+        const arr = data.items || data.questions || Object.values(data);
+        this.gdItems = { ...this.gdItems, [stem]: Array.isArray(arr) ? arr : [] };
+      }
+      this.gdSelected = stem;
+    } catch(e) { console.error(e); }
+  },
+
+  async saveGolden(stem) {
+    try {
+      const items = this.gdItems[stem] || [];
+      const r = await fetch(`/api/golden/${stem}`, {
+        method: 'PUT',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify(items),
+      });
+      const result = await r.json();
+      if (result.ok) {
+        alert(`✅ 저장 완료: ${result.name}`);
+        await this.loadGoldenList();
+      }
+    } catch(e) { alert('저장 실패: ' + e.message); }
+  },
+
+  async createGolden() {
+    if (!this.gdNewName) return;
+    try {
+      const r = await fetch('/api/golden', {
+        method: 'POST',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({name: this.gdNewName, items: []}),
+      });
+      const result = await r.json();
+      if (result.ok) {
+        this.gdShowCreate = false;
+        this.gdNewName = '';
+        await this.loadGoldenList();
+      }
+    } catch(e) { alert('생성 실패: ' + e.message); }
+  },
+
+  addGoldenItem(stem) {
+    const items = this.gdItems[stem] || [];
+    this.gdItems = { ...this.gdItems, [stem]: [...items, {question:'', ground_truth:'', context:''}] };
+  },
+
+  removeGoldenItem(stem, idx) {
+    const items = [...(this.gdItems[stem]||[])];
+    items.splice(idx, 1);
+    this.gdItems = { ...this.gdItems, [stem]: items };
+  },
+
+  // ── Performance bottleneck analysis ───────────────────────────────────
+  bottleneckAnalysis() {
+    const tasks = this.data?.tasks||[]; if (!tasks.length) return [];
+    const results = [];
+    // Top 5 slowest tasks
+    const sorted = [...tasks].sort((a,b)=>(b.execution_time||0)-(a.execution_time||0));
+    const slowThreshold = (this.data?.efficiency_metrics?.latency?.p95 || 2);
+    const slow = sorted.filter(t=>(t.execution_time||0)>slowThreshold);
+    if (slow.length) {
+      results.push({type:'slow_tasks', severity:'high',
+        title:`느린 태스크 ${slow.length}건 (P95 초과)`,
+        desc:`P95 기준(${slowThreshold.toFixed(2)}s) 초과: ${slow.slice(0,3).map(t=>t.task_id).join(', ')}${slow.length>3?'...':''}`,
+        tasks: slow.slice(0,5),
+      });
+    }
+    // TaskType bottleneck
+    const typeLatency={};
+    tasks.forEach(t=>{ const k=t.task_type||'unknown'; (typeLatency[k]=typeLatency[k]||[]).push(t.execution_time||0); });
+    const typeAvg = Object.entries(typeLatency).map(([k,v])=>({type:k, avg:v.reduce((a,b)=>a+b,0)/v.length, n:v.length}));
+    const worstType = typeAvg.sort((a,b)=>b.avg-a.avg)[0];
+    if (worstType && worstType.avg > slowThreshold*0.7) {
+      results.push({type:'type_bottleneck', severity:'medium',
+        title:`${worstType.type} 유형이 가장 느림`,
+        desc:`평균 ${worstType.avg.toFixed(2)}s (${worstType.n}건) — 해당 유형의 프롬프트/로직 최적화 필요`,
+        tasks:[]});
+    }
+    // High token tasks
+    const tokenSorted = [...tasks].sort((a,b)=>(b.tokens_used?.total||0)-(a.tokens_used?.total||0));
+    const avgTok = tasks.reduce((s,t)=>s+(t.tokens_used?.total||0),0)/tasks.length;
+    const heavyTok = tokenSorted.filter(t=>(t.tokens_used?.total||0)>avgTok*2);
+    if (heavyTok.length) {
+      results.push({type:'token_heavy', severity:'low',
+        title:`토큰 과다 사용 태스크 ${heavyTok.length}건`,
+        desc:`평균 대비 2배 이상 사용: ${heavyTok.slice(0,3).map(t=>t.task_id).join(', ')}`,
+        tasks: heavyTok.slice(0,5)});
+    }
+    // Failure correlation with latency
+    const failedAvgLat = tasks.filter(t=>!t.success).reduce((s,t,_,a)=>s+(t.execution_time||0)/a.length,0) || 0;
+    const successAvgLat = tasks.filter(t=>t.success).reduce((s,t,_,a)=>s+(t.execution_time||0)/a.length,0) || 0;
+    if (failedAvgLat>0 && successAvgLat>0 && failedAvgLat>successAvgLat*1.3) {
+      results.push({type:'fail_latency', severity:'medium',
+        title:'실패 태스크가 성공 태스크보다 느림',
+        desc:`실패 평균 ${failedAvgLat.toFixed(2)}s vs 성공 평균 ${successAvgLat.toFixed(2)}s — 타임아웃 관련 실패 의심`,
+        tasks:[]});
+    }
+    return results;
+  },
+
+  mergedStats() {
+    const files = this.compareIds.map(id=>this.compareData[id]).filter(Boolean);
+    if (!files.length) return {};
+    const avg = (getter) => files.reduce((s,d)=>s+(getter(d)||0),0)/files.length;
+    return {
+      tcr:   avg(d=>d.accuracy_metrics?.tcr?.tcr),
+      acc:   avg(d=>d.accuracy_metrics?.accuracy_scores?.overall_accuracy),
+      hall:  avg(d=>d.accuracy_metrics?.hallucination?.overall_rate),
+      lat:   avg(d=>d.efficiency_metrics?.latency?.mean),
+      tasks: files.reduce((s,d)=>s+(d.total_tasks||0),0),
+      cost:  files.reduce((s,d)=>s+(d.efficiency_metrics?.tokens?.total_cost||0),0),
+    };
+  },
+
+  // ── Format helpers ─────────────────────────────────────────────────────
+  pct(v)  { return v===undefined||v===null?'—':(+v).toFixed(1)+'%'; },
+  sec_(v) { return v===undefined||v===null?'—':(+v).toFixed(3)+'s'; },
+  cost(v) { if(v===undefined||v===null)return'—'; return +v<0.01?'$'+(+v).toFixed(6):'$'+(+v).toFixed(4); },
+  tc(v,t) { return v>=t?'kpi-sub ok':'kpi-sub warn'; },
+  tlbl(v,t){ return v>=t?`✅ ≥${t}% 통과`:`⚠️ <${t}% 주의`; },
+  bc(v)   { return v>=80?'var(--green)':v>=60?'var(--yellow)':'var(--red)'; },
+  hr_col(v){ return `color:${!v||v<=5?'var(--green)':v<=15?'var(--yellow)':'var(--red)'}`; },
+  hr_col2(v){ return !v||v<=5?'var(--green)':v<=15?'var(--yellow)':'var(--red)'; },
+  hr_lbl(v){ return !v||v<=5?'✅ SAFE':v<=15?'⚠️ WARNING':'🚨 DANGER'; },
+  lat_cl(v){ return !v||v<=2?'':v<=5?'kpi-sub warn':'kpi-sub'; },
+};}
+</script>
+</body>
+</html>

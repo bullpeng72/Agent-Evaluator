@@ -2,7 +2,7 @@
 
 Sensitive Information Detection in AI Agent Outputs
 
-Agent Evaluator v0.5.0 - Layer 1 Security Metric
+Agent Evaluator v0.5.1 - Layer 1 Security Metric
 
 ## 🎯 개요
 
@@ -499,7 +499,7 @@ Layer 1 네이티브 메트릭으로 외부 의존성 없이 출력 보안을 �
   * [GDPR Official Site](<https://gdpr.eu/>)
   * [OWASP Information Exposure](<https://owasp.org/www-community/vulnerabilities/Information_exposure_through_query_strings_in_url>)
 
-**최종 업데이트** : 2025-12-16 | **버전** : Agent Evaluator v0.5.0
+**최종 업데이트** : 2025-12-16 | **버전** : Agent Evaluator v0.5.1
 
 **문서** : Output Leakage Prevention 상세 가이드
 

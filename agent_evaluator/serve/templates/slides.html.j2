@@ -1,0 +1,692 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{{ title }} — Slides</title>
+
+<!-- reveal.js -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/reset.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/reveal.css">
+<link id="reveal-theme" rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/theme/night.css">
+<!-- Chart.js -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+
+<style>
+/* ── CSS variables (dark default) ── */
+:root {
+  --accent:#6c8ef5; --green:#4ade80; --red:#f87171; --yellow:#facc15; --orange:#fb923c;
+  --tc:#d0d4e8; --tc2:#8890b0; --gc:rgba(255,255,255,.07);
+  --kpi-bg:rgba(255,255,255,.06); --kpi-bd:rgba(255,255,255,.12);
+  --bar-bg:rgba(255,255,255,.1); --card-bg:rgba(255,255,255,.05);
+  --divider:rgba(255,255,255,.12);
+}
+body.light {
+  --tc:#1e2030; --tc2:#5a6080; --gc:rgba(0,0,0,.08);
+  --kpi-bg:rgba(0,0,0,.04); --kpi-bd:rgba(0,0,0,.1);
+  --bar-bg:rgba(0,0,0,.08); --card-bg:rgba(0,0,0,.03);
+  --divider:rgba(0,0,0,.1);
+}
+
+/* ── Reset reveal.js theme overrides — all px to avoid em cascade ── */
+.reveal,
+.reveal h1,
+.reveal h2,
+.reveal h3,
+.reveal p,
+.reveal ul,
+.reveal li { font-family: 'Segoe UI', system-ui, sans-serif !important; }
+
+/* Force slide base font so px sizes are absolute */
+.reveal { font-size: 16px !important; }
+
+.reveal .slides section {
+  text-align: left !important;
+  padding: 28px 44px 20px !important;
+  box-sizing: border-box !important;
+  display: flex !important;
+  flex-direction: column !important;
+  overflow: hidden !important;
+  top: 0 !important;
+}
+
+/* h2 — 24px fixed, never affected by theme */
+.reveal .slides section h2 {
+  font-size: 24px !important;
+  font-weight: 700 !important;
+  text-transform: none !important;
+  letter-spacing: 0 !important;
+  margin: 0 0 12px !important;
+  padding-bottom: 10px !important;
+  border-bottom: 1px solid var(--divider) !important;
+  color: var(--tc) !important;
+  line-height: 1.2 !important;
+  flex-shrink: 0 !important;
+}
+/* h1 on title/thank-you slides */
+.reveal .slides section h1 {
+  font-size: 52px !important;
+  font-weight: 800 !important;
+  letter-spacing: -1px !important;
+  margin: 0 !important;
+  color: var(--tc) !important;
+  line-height: 1.1 !important;
+}
+
+/* ── Theme toggle ── */
+#theme-toggle {
+  position: fixed; top: 8px; right: 8px; z-index: 9999;
+  background: rgba(108,142,245,.15); color: var(--tc);
+  border: 1px solid rgba(108,142,245,.3); border-radius: 16px;
+  padding: 5px 12px; font-size: 13px; cursor: pointer;
+  backdrop-filter: blur(6px);
+}
+#theme-toggle:hover { background: rgba(108,142,245,.3); }
+
+/* ── KPI grid ── */
+.kpi-row {
+  display: grid;
+  gap: 10px;
+  margin-bottom: 12px;
+  flex-shrink: 0;
+}
+/* Default: 3-col */
+.kpi-row { grid-template-columns: repeat(3, 1fr); }
+/* 6-item: 2 rows × 3 cols — use .kpi-row-6 */
+.kpi-row-6 { grid-template-columns: repeat(3, 1fr); }
+
+.kpi-box {
+  background: var(--kpi-bg);
+  border: 1px solid var(--kpi-bd);
+  border-radius: 10px;
+  padding: 12px 16px;
+  overflow: hidden;
+}
+.kpi-lbl {
+  font-size: 11px !important;
+  color: var(--tc2) !important;
+  text-transform: uppercase !important;
+  letter-spacing: .06em !important;
+  margin-bottom: 5px !important;
+  white-space: nowrap !important;
+}
+.kpi-val {
+  font-size: 30px !important;
+  font-weight: 800 !important;
+  color: var(--tc) !important;
+  line-height: 1.1 !important;
+  margin: 0 !important;
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+}
+.kpi-sub { font-size: 12px !important; color: var(--tc2) !important; margin-top: 3px !important; }
+
+/* ── Colors ── */
+.c-green  { color: var(--green)  !important; }
+.c-red    { color: var(--red)    !important; }
+.c-yellow { color: var(--yellow) !important; }
+.c-accent { color: var(--accent) !important; }
+
+/* ── Two-col layout ── */
+.two-col {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+  align-items: start;
+  flex: 1;
+  min-height: 0;
+}
+
+/* ── Chart containers ── */
+.chart-wrap {
+  position: relative;
+  height: 220px;
+  flex-shrink: 0;
+}
+.chart-label {
+  font-size: 13px !important;
+  color: var(--tc2) !important;
+  margin-top: 6px !important;
+  text-align: center !important;
+}
+
+/* ── Bars ── */
+.bar-list  { flex: 1; overflow: hidden; }
+.bar-row   { margin-bottom: 10px; }
+.bar-lbl   { display: flex; justify-content: space-between; font-size: 14px !important; color: var(--tc2) !important; margin-bottom: 4px !important; }
+.bar-lbl span:last-child { font-weight: 700 !important; }
+.bar-track { background: var(--bar-bg); border-radius: 99px; height: 8px; overflow: hidden; }
+.bar-fill  { height: 100%; border-radius: 99px; }
+.bar-title { font-size: 15px !important; font-weight: 600 !important; color: var(--tc) !important; margin-bottom: 10px !important; }
+
+/* ── Pills ── */
+.pill   { display: inline-flex; align-items: center; gap: 4px; border-radius: 99px; padding: 4px 12px; font-size: 13px !important; font-weight: 600; }
+.p-ok   { background: rgba(74,222,128,.15); color: var(--green); }
+.p-warn { background: rgba(250,204,21,.15);  color: var(--yellow); }
+.p-fail { background: rgba(248,113,113,.15); color: var(--red); }
+
+/* ── Insight / step cards ── */
+.insight-card {
+  background: var(--card-bg);
+  border: 1px solid var(--kpi-bd);
+  border-radius: 8px;
+  padding: 12px 16px;
+  margin-bottom: 10px;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  flex-shrink: 0;
+}
+.insight-icon  { font-size: 20px; flex-shrink: 0; margin-top: 1px; }
+.insight-body  { flex: 1; min-width: 0; }
+.insight-title { font-size: 15px !important; font-weight: 700 !important; color: var(--tc) !important; margin-bottom: 3px !important; }
+.insight-sub   { font-size: 13px !important; color: var(--tc2) !important; line-height: 1.5 !important; }
+
+/* ── Gauge bar ── */
+.gauge-track { background: var(--bar-bg); border-radius: 99px; height: 14px; overflow: hidden; }
+.gauge-fill  { height: 100%; border-radius: 99px; transition: width .4s; }
+.gauge-lbls  { display: flex; justify-content: space-between; font-size: 13px !important; color: var(--tc2) !important; margin-top: 6px !important; }
+
+/* ── Verdict row ── */
+.verdict { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; flex-shrink: 0; }
+
+/* ── Health score big number ── */
+.health-big { font-size: 96px !important; font-weight: 800 !important; line-height: 1 !important; margin: 0 !important; }
+.health-lbl { font-size: 16px !important; color: var(--tc2) !important; margin-top: 6px !important; }
+
+/* ── Slide content flex area ── */
+.slide-content { flex: 1; display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
+
+/* ── Slide number ── */
+.reveal .slide-number { font-size: 10px; }
+
+/* ── Title slide specific ── */
+.title-slide-inner { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; text-align: center; gap: 12px; }
+.title-sub { font-size: 13px !important; color: var(--tc2) !important; }
+.title-name { font-size: 14px !important; color: var(--accent) !important; font-weight: 600; }
+.title-meta { font-size: 12px !important; color: var(--tc2) !important; }
+.title-hint { font-size: 11px !important; color: var(--tc2) !important; margin-top: 8px; }
+.title-hint kbd {
+  background: var(--kpi-bg);
+  border: 1px solid var(--kpi-bd);
+  border-radius: 4px;
+  padding: 1px 6px;
+  font-family: monospace;
+  font-size: 11px;
+  color: var(--tc);
+}
+
+/* ── Flex content area ── */
+.slide-content { flex: 1; display: flex; flex-direction: column; min-height: 0; }
+</style>
+</head>
+<body>
+<button id="theme-toggle" onclick="toggleTheme()" title="테마 전환">☀️ Light</button>
+<div class="reveal">
+<div class="slides">
+
+<!-- 1. Title -->
+<section style="padding:0 !important">
+  <div class="title-slide-inner">
+    <div style="font-size:2.8em">🤖</div>
+    <h1>Agent Evaluator</h1>
+    <div class="title-sub">평가 결과 리포트</div>
+    <div style="height:1px;width:60px;background:var(--divider)"></div>
+    <div class="title-name" id="slide-title">—</div>
+    <div class="title-meta" id="slide-meta">—</div>
+    <div class="title-hint">Press <kbd>→</kbd> to advance &nbsp;|&nbsp; <kbd>F</kbd> fullscreen</div>
+  </div>
+</section>
+
+<!-- 2. Executive Summary -->
+<section>
+  <h2>📊 Executive Summary</h2>
+  <!-- Row 1: accuracy metrics -->
+  <div class="kpi-row kpi-row-6" style="margin-bottom:10px">
+    <div class="kpi-box"><div class="kpi-lbl">Task Completion</div><div class="kpi-val c-green" id="s-tcr">—</div></div>
+    <div class="kpi-box"><div class="kpi-lbl">Accuracy</div><div class="kpi-val" id="s-acc">—</div></div>
+    <div class="kpi-box"><div class="kpi-lbl">Hallucination Rate</div><div class="kpi-val" id="s-hallu">—</div></div>
+  </div>
+  <!-- Row 2: efficiency metrics -->
+  <div class="kpi-row kpi-row-6">
+    <div class="kpi-box"><div class="kpi-lbl">Avg Latency</div><div class="kpi-val" id="s-lat">—</div></div>
+    <div class="kpi-box"><div class="kpi-lbl">Total Cost</div><div class="kpi-val" id="s-cost">—</div></div>
+    <div class="kpi-box"><div class="kpi-lbl">Total Tasks</div><div class="kpi-val" id="s-tasks">—</div></div>
+  </div>
+  <div class="verdict" id="summary-verdict"></div>
+</section>
+
+<!-- 3. Task Completion Rate -->
+<section>
+  <h2>📋 Task Completion Rate</h2>
+  <div class="two-col" style="flex:1; align-items:start">
+    <div>
+      <div class="chart-wrap" style="height:260px"><canvas id="sl-donut"></canvas></div>
+      <div class="chart-label">성공 / 부분성공 / 실패 비율</div>
+    </div>
+    <div style="padding-top:8px">
+      <div class="bar-title">TaskType별 성공률</div>
+      <div id="sl-type-bars"></div>
+    </div>
+  </div>
+</section>
+
+<!-- 4. Accuracy Analysis -->
+<section>
+  <h2>🎯 Accuracy Analysis</h2>
+  <div class="kpi-row">
+    <div class="kpi-box"><div class="kpi-lbl">Overall Accuracy</div><div class="kpi-val" id="sl-acc-overall">—</div></div>
+    <div class="kpi-box"><div class="kpi-lbl">Median</div><div class="kpi-val" id="sl-acc-med">—</div></div>
+    <div class="kpi-box"><div class="kpi-lbl">Std Dev</div><div class="kpi-val" id="sl-acc-std">—</div></div>
+  </div>
+  <div class="chart-wrap" style="flex:1; height:auto"><canvas id="sl-acc-hist"></canvas></div>
+  <div class="chart-label">정확도 분포 (10% 구간)</div>
+</section>
+
+<!-- 5. Latency & Token Economy -->
+<section>
+  <h2>⚡ Latency &amp; Token Economy</h2>
+  <div class="two-col" style="flex:1; align-items:start">
+    <div>
+      <div class="chart-wrap" style="height:270px"><canvas id="sl-lat-bar"></canvas></div>
+      <div class="chart-label">Latency 백분위 (초)</div>
+    </div>
+    <div>
+      <div class="chart-wrap" style="height:270px"><canvas id="sl-tok-pie"></canvas></div>
+      <div class="chart-label" id="sl-tok-info"></div>
+    </div>
+  </div>
+</section>
+
+<!-- 6. Cost Analysis -->
+<section>
+  <h2>💰 Cost Analysis</h2>
+  <div class="kpi-row" style="grid-template-columns:repeat(3,1fr)">
+    <div class="kpi-box"><div class="kpi-lbl">총 비용</div><div class="kpi-val c-green" id="sl-cost-total">—</div></div>
+    <div class="kpi-box"><div class="kpi-lbl">Task당 비용</div><div class="kpi-val" id="sl-cost-task">—</div></div>
+    <div class="kpi-box"><div class="kpi-lbl">월간 추정</div><div class="kpi-val c-yellow" id="sl-cost-monthly">—</div></div>
+  </div>
+  <div id="sl-cost-detail" style="font-size:12px; color:var(--tc2); margin-top:10px"></div>
+  <div style="margin-top:14px">
+    <div class="bar-title">토큰 사용량</div>
+    <div id="sl-cost-tok-bars"></div>
+  </div>
+</section>
+
+<!-- 7. Hallucination Detection -->
+<section>
+  <h2>🧠 Hallucination Detection</h2>
+  <div class="kpi-row" style="grid-template-columns:repeat(3,1fr)">
+    <div class="kpi-box"><div class="kpi-lbl">발생률</div><div class="kpi-val" id="sl-hallu-rate">—</div></div>
+    <div class="kpi-box"><div class="kpi-lbl">평가 건수</div><div class="kpi-val" id="sl-hallu-total">—</div></div>
+    <div class="kpi-box"><div class="kpi-lbl">감지 건수</div><div class="kpi-val c-red" id="sl-hallu-flagged">—</div></div>
+  </div>
+  <div class="gauge-wrap" style="margin-top:14px">
+    <div style="font-size:11px; color:var(--tc2); margin-bottom:6px">환각 위험 수준</div>
+    <div id="sl-hallu-gauge"></div>
+  </div>
+</section>
+
+<!-- 8. Security Overview -->
+<section>
+  <h2>🛡️ Security Overview</h2>
+  <div id="sl-security-content" class="slide-content">
+    <p style="font-size:13px; color:var(--tc2); margin-top:20px">보안 트래커가 활성화된 경우 여기에 보안 지표가 표시됩니다.</p>
+  </div>
+</section>
+
+<!-- 9. Agentic (conditional) -->
+<section id="sl-agentic-section" style="display:none">
+  <h2>🤖 Agentic Metrics</h2>
+  <div id="sl-agentic-content" class="slide-content"></div>
+</section>
+
+<!-- 10. Insights & Recommendations -->
+<section>
+  <h2>💡 Insights &amp; Recommendations</h2>
+  <div id="sl-insights" class="slide-content"></div>
+</section>
+
+<!-- 11. Overall Health Score -->
+<section>
+  <h2>🏥 Overall Health Score</h2>
+  <div class="two-col" style="align-items:center; flex:1">
+    <div style="text-align:center; padding:20px 0">
+      <div class="health-big" id="sl-health-score">—</div>
+      <div class="health-lbl" id="sl-health-label"></div>
+      <div style="font-size:14px; color:var(--tc2); margin-top:8px">/ 100</div>
+    </div>
+    <div id="sl-health-bars" style="width:100%"></div>
+  </div>
+</section>
+
+<!-- 12. Next Steps -->
+<section>
+  <h2>🚀 Next Steps</h2>
+  <div id="sl-next-steps" class="slide-content"></div>
+</section>
+
+<!-- 13. Thank you -->
+<section style="padding:0 !important">
+  <div class="title-slide-inner">
+    <div style="font-size:2em">🎉</div>
+    <h1>감사합니다</h1>
+    <div class="title-sub">Agent Evaluator v{{ version }}</div>
+    <div style="height:1px;width:60px;background:var(--divider)"></div>
+    <a href="/" style="color:var(--accent); font-size:13px; text-decoration:none">← 대시보드로 돌아가기</a>
+  </div>
+</section>
+
+</div><!-- /slides -->
+</div><!-- /reveal -->
+
+<script src="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/reveal.js"></script>
+<script>
+Reveal.initialize({
+  hash: true,
+  center: false,
+  slideNumber: true,
+  transition: 'fade',
+  transitionSpeed: 'fast',
+  width: 1280,
+  height: 720,
+  margin: 0,
+  plugins: [],
+});
+
+// ── Theme toggle ──────────────────────────────────────────────────────────────
+const DARK_THEME  = 'https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/theme/night.css';
+const LIGHT_THEME = 'https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/theme/white.css';
+
+function applyTheme(light) {
+  document.getElementById('reveal-theme').href = light ? LIGHT_THEME : DARK_THEME;
+  document.body.classList.toggle('light', light);
+  document.getElementById('theme-toggle').textContent = light ? '🌙 Dark' : '☀️ Light';
+  localStorage.setItem('sl-theme', light ? 'light' : 'dark');
+  if (window._slideData) renderCharts(window._slideData);
+}
+
+function toggleTheme() { applyTheme(!document.body.classList.contains('light')); }
+
+(function() {
+  const saved = localStorage.getItem('sl-theme');
+  const dashDark = localStorage.getItem('ae-dark');
+  const preferLight = saved ? saved === 'light' : dashDark === 'false';
+  if (preferLight) applyTheme(true);
+})();
+
+// ── Data populate ─────────────────────────────────────────────────────────────
+async function populateSlides() {
+  let files, data;
+  try { files = await (await fetch('/api/results')).json(); } catch(e) { return; }
+  if (!files?.length) return;
+  try { data = await (await fetch(`/api/results/${files[0].id}`)).json(); } catch(e) { return; }
+
+  const tcr   = data.accuracy_metrics?.tcr || {};
+  const acc   = data.accuracy_metrics?.accuracy_scores || {};
+  const hallu = data.accuracy_metrics?.hallucination || {};
+  const lat   = data.efficiency_metrics?.latency || {};
+  const tok   = data.efficiency_metrics?.tokens || {};
+
+  // Slide 1 — title
+  document.getElementById('slide-title').textContent = data.name || '';
+  document.getElementById('slide-meta').textContent  = `${(data.timestamp||'').substring(0,10)} · ${data.total_tasks} tasks`;
+
+  // Slide 2 — executive summary KPIs
+  const tcr_v = tcr.tcr||0, acc_v = acc.overall_accuracy||0, hall_v = hallu.overall_rate||0;
+  document.getElementById('s-tcr').textContent   = fmtPct(tcr_v);
+  document.getElementById('s-acc').textContent   = fmtPct(acc_v);
+  document.getElementById('s-hallu').textContent = fmtPct(hall_v);
+  document.getElementById('s-lat').textContent   = fmtSec(lat.mean);
+  document.getElementById('s-cost').textContent  = fmtCost(tok.total_cost);
+  document.getElementById('s-tasks').textContent = data.total_tasks;
+  // Color corrections
+  document.getElementById('s-acc').className   = `kpi-val ${acc_v>=70?'c-green':acc_v>=50?'c-yellow':'c-red'}`;
+  document.getElementById('s-hallu').className = `kpi-val ${hall_v<=5?'c-green':hall_v<=15?'c-yellow':'c-red'}`;
+
+  const issues = [];
+  if (tcr_v  < 90) issues.push(`TCR ${fmtPct(tcr_v)} < 90%`);
+  if (acc_v  < 70) issues.push(`Accuracy ${fmtPct(acc_v)} < 70%`);
+  if (hall_v > 5)  issues.push(`Hallucination ${fmtPct(hall_v)} > 5%`);
+  if ((lat.p95||0) > 2) issues.push(`P95 ${fmtSec(lat.p95)} > 2s`);
+  document.getElementById('summary-verdict').innerHTML = issues.length === 0
+    ? '<span class="pill p-ok">✅ 모든 핵심 지표 정상</span>'
+    : issues.map(i=>`<span class="pill p-warn">⚠️ ${i}</span>`).join('');
+
+  // Slide 3 — TCR type bars (rendered once, no theme dependency)
+  const typeSuc={}, typeTot={};
+  (data.tasks||[]).forEach(t => {
+    typeTot[t.task_type]=(typeTot[t.task_type]||0)+1;
+    if(t.success) typeSuc[t.task_type]=(typeSuc[t.task_type]||0)+1;
+  });
+  document.getElementById('sl-type-bars').innerHTML = Object.entries(typeTot)
+    .sort((a,b)=>b[1]-a[1])
+    .map(([tp,n]) => {
+      const rate = Math.round((typeSuc[tp]||0)/n*100);
+      const col  = rate>=90?'#4ade80':rate>=70?'#facc15':'#f87171';
+      return `<div class="bar-row">
+        <div class="bar-lbl"><span>${tp}</span><span style="color:${col};font-weight:600">${rate}%</span></div>
+        <div class="bar-track"><div class="bar-fill" style="width:${rate}%;background:${col}"></div></div>
+      </div>`;
+    }).join('');
+
+  // Slide 4 — accuracy KPIs
+  document.getElementById('sl-acc-overall').textContent = fmtPct(acc_v);
+  document.getElementById('sl-acc-med').textContent     = fmtPct(acc.median_accuracy);
+  document.getElementById('sl-acc-std').textContent     = (acc.std_accuracy||0).toFixed(2);
+  document.getElementById('sl-acc-overall').className   = `kpi-val ${acc_v>=70?'c-green':acc_v>=50?'c-yellow':'c-red'}`;
+
+  // Slide 5 — tok info
+  document.getElementById('sl-tok-info').textContent =
+    `총 ${(tok.total_tokens||0).toLocaleString()} 토큰 · Task당 평균 ${Math.round(tok.avg_tokens_per_task||0)}`;
+
+  // Slide 6 — cost
+  document.getElementById('sl-cost-total').textContent   = fmtCost(tok.total_cost);
+  document.getElementById('sl-cost-task').textContent    = fmtCost(tok.avg_cost_per_task);
+  document.getElementById('sl-cost-monthly').textContent = fmtCost(tok.estimated_monthly_cost);
+  document.getElementById('sl-cost-detail').textContent  =
+    `Input: ${(tok.total_input_tokens||0).toLocaleString()} tokens   ·   Output: ${(tok.total_output_tokens||0).toLocaleString()} tokens`;
+  const maxTok = Math.max(tok.total_input_tokens||0, tok.total_output_tokens||1);
+  document.getElementById('sl-cost-tok-bars').innerHTML =
+    [['Input',  tok.total_input_tokens||0,  '#6c8ef5'],
+     ['Output', tok.total_output_tokens||0, '#4ade80']].map(([lbl,v,c]) =>
+    `<div class="bar-row">
+       <div class="bar-lbl"><span>${lbl}</span><span style="color:${c}">${(v||0).toLocaleString()}</span></div>
+       <div class="bar-track"><div class="bar-fill" style="width:${Math.round((v/maxTok)*100)}%;background:${c}"></div></div>
+     </div>`).join('');
+
+  // Slide 7 — hallucination
+  const hr_v = hallu.overall_rate||0;
+  document.getElementById('sl-hallu-rate').textContent    = fmtPct(hr_v);
+  document.getElementById('sl-hallu-rate').className      = `kpi-val ${hr_v<=5?'c-green':hr_v<=15?'c-yellow':'c-red'}`;
+  document.getElementById('sl-hallu-total').textContent   = hallu.total_evaluated||0;
+  document.getElementById('sl-hallu-flagged').textContent = hallu.total_flagged||0;
+  const hpct = Math.min(100,(hr_v/30)*100);
+  const hcol = hr_v<=5?'#4ade80':hr_v<=15?'#facc15':'#f87171';
+  document.getElementById('sl-hallu-gauge').innerHTML =
+    `<div class="gauge-track"><div class="gauge-fill" style="width:${hpct}%;background:${hcol}"></div></div>
+     <div class="gauge-lbls"><span>0% SAFE</span><span style="color:${hcol};font-weight:600">${fmtPct(hr_v)} 현재</span><span>30% CRITICAL</span></div>`;
+
+  // Slide 8 — security
+  if (data.has_security) {
+    const s1 = data.security_l1||{}, s2 = data.security_l2||{};
+    const thr  = s1.input_security?.threat_rate||0;
+    const leak = s1.output_leakage?.leakage_rate||0;
+    const auth = s1.authorization?.compliance_rate||100;
+    const esc  = s2.privilege_escalation?.escalation_rate||0;
+    const atk  = s2.attack_detection?.detection_rate||0;
+    const sc   = v => v<=5?'#4ade80':v<=20?'#facc15':'#f87171';
+    document.getElementById('sl-security-content').innerHTML =
+      `<div class="kpi-row" style="grid-template-columns:repeat(3,1fr);margin-top:4px">
+        <div class="kpi-box"><div class="kpi-lbl">입력 위협률</div><div class="kpi-val" style="color:${sc(thr)}">${fmtPct(thr)}</div></div>
+        <div class="kpi-box"><div class="kpi-lbl">출력 유출률</div><div class="kpi-val" style="color:${sc(leak)}">${fmtPct(leak)}</div></div>
+        <div class="kpi-box"><div class="kpi-lbl">권한 준수율</div><div class="kpi-val" style="color:${auth>=90?'#4ade80':'#facc15'}">${fmtPct(auth)}</div></div>
+        <div class="kpi-box"><div class="kpi-lbl">권한 상승률 (L2)</div><div class="kpi-val" style="color:${sc(esc)}">${fmtPct(esc)}</div></div>
+        <div class="kpi-box"><div class="kpi-lbl">공격 탐지율 (L2)</div><div class="kpi-val c-accent">${fmtPct(atk)}</div></div>
+      </div>`;
+  }
+
+  // Slide 9 — agentic
+  if (data.has_agentic) {
+    document.getElementById('sl-agentic-section').style.display = '';
+    const ag = data.agentic||{};
+    document.getElementById('sl-agentic-content').innerHTML =
+      `<div class="kpi-row" style="grid-template-columns:repeat(3,1fr);margin-top:4px">
+        <div class="kpi-box"><div class="kpi-lbl">Tool F1 Score</div><div class="kpi-val c-accent">${((ag.tool_selection_summary?.avg_f1_score||0)*100).toFixed(1)}%</div></div>
+        <div class="kpi-box"><div class="kpi-lbl">멀티에이전트 성공률</div><div class="kpi-val">${fmtPct(ag.coordination_summary?.success_rate)}</div></div>
+        <div class="kpi-box"><div class="kpi-lbl">워크플로우 단계 성공</div><div class="kpi-val">${fmtPct(ag.workflow_summary?.step_success_rate)}</div></div>
+        <div class="kpi-box"><div class="kpi-lbl">재시도 횟수</div><div class="kpi-val">${ag.retry_summary?.total_retries||0}</div></div>
+        <div class="kpi-box"><div class="kpi-lbl">재시도 성공률</div><div class="kpi-val">${fmtPct(ag.retry_summary?.success_rate)}</div></div>
+      </div>`;
+  }
+
+  // Slide 10 — insights (card style)
+  const inItems = [
+    { ok: tcr_v>=90,  title:'Task Completion Rate', ok_t:'정상 (≥90%)',   fail_t:`개선 필요: ${fmtPct(tcr_v)} → 목표 90%` },
+    { ok: acc_v>=70,  title:'Accuracy',             ok_t:'목표 달성 (≥70%)', fail_t:`개선 필요: ${fmtPct(acc_v)} → 목표 70%` },
+    { ok: hall_v<=5,  title:'Hallucination',         ok_t:'안전 수준 (≤5%)', fail_t:`주의: ${fmtPct(hall_v)} → 목표 ≤5%` },
+    { ok: (lat.p95||0)<=2, title:'P95 Latency',     ok_t:`달성 (${fmtSec(lat.p95)})`, fail_t:`개선 필요: ${fmtSec(lat.p95)} → 목표 2s` },
+  ];
+  document.getElementById('sl-insights').innerHTML = inItems.map(i =>
+    `<div class="insight-card">
+       <div class="insight-icon">${i.ok?'✅':'⚠️'}</div>
+       <div class="insight-body">
+         <div class="insight-title">${i.title}</div>
+         <div class="insight-sub">${i.ok?i.ok_t:i.fail_t}</div>
+       </div>
+     </div>`).join('');
+
+  // Slide 11 — health
+  const l1 = calcL1(tcr, acc, hallu);
+  const perf = Math.max(0, Math.min(100, Math.round(100-(lat.p95||0)*15)));
+  const sl1 = data.security_l1||{};
+  const secSc = data.has_security
+    ? Math.round(((100-(sl1.input_security?.threat_rate||0))+(100-(sl1.output_leakage?.leakage_rate||0))+(sl1.authorization?.compliance_rate||100))/3)
+    : 50;
+  const health = Math.round((l1+50+perf+secSc)/4);
+  const hEl = document.getElementById('sl-health-score');
+  hEl.textContent   = health;
+  hEl.style.color   = health>=80?'#4ade80':health>=60?'#facc15':'#f87171';
+  document.getElementById('sl-health-label').textContent =
+    health>=90?'EXCELLENT':health>=80?'GOOD':health>=70?'FAIR':'NEEDS WORK';
+  const bc = v => v>=80?'#4ade80':v>=60?'#facc15':'#f87171';
+  document.getElementById('sl-health-bars').innerHTML =
+    [['Layer 1 기초 (TCR·Accuracy·Hallucination)', l1],
+     ['성능 (P95 Latency 기반)', perf],
+     ['보안 (Security L1)', secSc]].map(([lbl,v]) =>
+    `<div class="bar-row">
+       <div class="bar-lbl"><span>${lbl}</span><span style="color:${bc(v)};font-weight:600">${v}%</span></div>
+       <div class="bar-track"><div class="bar-fill" style="width:${v}%;background:${bc(v)}"></div></div>
+     </div>`).join('');
+
+  // Slide 12 — next steps (card style)
+  const steps = [];
+  if (tcr_v  < 90) steps.push(['🔧','TCR 향상',           '실패 태스크 원인 분석 및 프롬프트 개선']);
+  if (acc_v  < 70) steps.push(['📚','정확도 개선',         'Golden Dataset 확장 및 Fine-tuning 검토']);
+  if (hall_v > 5)  steps.push(['🧠','환각 억제',           'RAG 기반 응답 검증 파이프라인 도입 검토']);
+  if ((lat.p95||0) > 2) steps.push(['⚡','응답 속도 최적화', '캐싱, 청크 크기 조정, 모델 경량화 검토']);
+  if (!steps.length) steps.push(['✅','모든 지표 정상',     '지속적인 모니터링 유지']);
+  steps.push(['📊','다음 평가 실행',    'agent-eval serve --watch 로 실시간 모니터링']);
+  document.getElementById('sl-next-steps').innerHTML = steps.map(([ic,t,s]) =>
+    `<div class="insight-card">
+       <div class="insight-icon">${ic}</div>
+       <div class="insight-body">
+         <div class="insight-title">${t}</div>
+         <div class="insight-sub">${s}</div>
+       </div>
+     </div>`).join('');
+
+  window._slideData = data;
+  renderCharts(data);
+}
+
+// ── Theme-aware charts ────────────────────────────────────────────────────────
+window._charts = {};
+
+function _mk(id, cfg) {
+  if (window._charts[id]) window._charts[id].destroy();
+  const el = document.getElementById(id);
+  if (!el) return;
+  window._charts[id] = new Chart(el, cfg);
+}
+
+function renderCharts(data) {
+  if (!data) return;
+  const isLight = document.body.classList.contains('light');
+  const TC  = isLight ? '#333' : '#ccc';
+  const GC  = isLight ? 'rgba(0,0,0,.1)' : 'rgba(255,255,255,.07)';
+  const noLeg = { plugins:{ legend:{ display:false } } };
+  const FONT = { size:13, family:"'Segoe UI',system-ui,sans-serif" };
+  const scX = { ticks:{ color:TC, font:FONT } };
+  const scY = { ticks:{ color:TC, font:FONT }, grid:{ color:GC } };
+  const MAR = false; // maintainAspectRatio
+
+  const tcr = data.accuracy_metrics?.tcr || {};
+  const acc = data.accuracy_metrics?.accuracy_scores || {};
+  const lat = data.efficiency_metrics?.latency || {};
+  const tok = data.efficiency_metrics?.tokens || {};
+
+  // Donut
+  const full=tcr.full_success||0, partial=tcr.partial_success||0;
+  const fail=tcr.failures||(data.total_tasks-(full+partial));
+  _mk('sl-donut', { type:'doughnut',
+    data:{ labels:['완전성공','부분성공','실패'],
+           datasets:[{ data:[full,partial,fail],
+             backgroundColor:['#4ade80','#facc15','#f87171'], borderWidth:0 }] },
+    options:{ maintainAspectRatio:MAR, cutout:'60%',
+              plugins:{ legend:{ position:'bottom', labels:{ color:TC, font:FONT, padding:14 } } } }
+  });
+
+  // Accuracy histogram
+  const scores = (data.tasks||[]).map(t=>t.accuracy_score*100).filter(v=>v>0);
+  if (scores.length) {
+    const bk=Array(10).fill(0);
+    scores.forEach(s=>{ bk[Math.min(Math.floor(s/10),9)]++; });
+    _mk('sl-acc-hist', { type:'bar',
+      data:{ labels:['0','10','20','30','40','50','60','70','80','90'],
+             datasets:[{ data:bk, backgroundColor:'#6c8ef560', borderColor:'#6c8ef5', borderWidth:1 }] },
+      options:{ maintainAspectRatio:MAR, ...noLeg,
+                scales:{ x:{ ...scX, title:{ display:true, text:'Accuracy %', color:TC, font:{size:9} } }, y:scY } }
+    });
+  }
+
+  // Latency bar
+  _mk('sl-lat-bar', { type:'bar',
+    data:{ labels:['P50','P95','P99','Max'],
+           datasets:[{ data:[lat.p50,lat.p95,lat.p99,lat.max].map(v=>+(v||0).toFixed(2)),
+             backgroundColor:['#4ade8070','#facc1570','#f8717170','#f8717150'],
+             borderColor:   ['#4ade80',  '#facc15',  '#f87171',  '#f87171'],
+             borderWidth:1 }] },
+    options:{ maintainAspectRatio:MAR, ...noLeg,
+              scales:{ x:scX, y:{ ...scY, ticks:{ ...scY.ticks, callback:v=>v+'s' } } } }
+  });
+
+  // Token pie
+  _mk('sl-tok-pie', { type:'doughnut',
+    data:{ labels:['Input','Output'],
+           datasets:[{ data:[tok.total_input_tokens||0,tok.total_output_tokens||0],
+             backgroundColor:['#6c8ef560','#4ade8060'],
+             borderColor:['#6c8ef5','#4ade80'], borderWidth:1 }] },
+    options:{ maintainAspectRatio:MAR, cutout:'60%',
+              plugins:{ legend:{ position:'bottom', labels:{ color:TC, font:FONT, padding:14 } } } }
+  });
+}
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+function calcL1(tcr, acc, hallu) {
+  return Math.round(((tcr.tcr||0)+(acc.overall_accuracy||0)+Math.max(0,100-(hallu.overall_rate||0)*10))/3);
+}
+function fmtPct(v)  { return v==null ? '—' : (+v).toFixed(1)+'%'; }
+function fmtSec(v)  { return v==null ? '—' : (+v).toFixed(2)+'s'; }
+function fmtCost(v) { return v==null ? '—' : (+v<0.01 ? '$'+(+v).toFixed(6) : '$'+(+v).toFixed(4)); }
+
+Reveal.on('ready', () => populateSlides());
+
+// Re-fetch when tab regains focus (stale _slideData after --watch updates)
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible' && window._slideData) populateSlides();
+});
+</script>
+</body>
+</html>

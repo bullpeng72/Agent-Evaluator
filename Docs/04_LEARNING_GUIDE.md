@@ -2656,4 +2656,4 @@ Dashboard 로딩 느림 | 대용량 데이터 (1000+ tasks) | 샘플링 사용 �
 
 © 2025 Agent Evaluator. All rights reserved.
 
-**최종 업데이트** : 2025-12-16 | **버전** : Agent Evaluator v0.5.0 | **문서** : 종합 학습 가이드
+**최종 업데이트** : 2025-12-16 | **버전** : Agent Evaluator v0.5.1 | **문서** : 종합 학습 가이드

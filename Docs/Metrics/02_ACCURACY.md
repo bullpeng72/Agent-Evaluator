@@ -2,7 +2,7 @@
 
 Response Accuracy Measurement and Evaluation
 
-Agent Evaluator v0.5.0 - Layer 1 Foundation Metric
+Agent Evaluator v0.5.1 - Layer 1 Foundation Metric
 
 ## 📊 개요
 
@@ -406,7 +406,7 @@ from langchain.agents import AgentExecutor from agent_evaluator.integrations imp
   * [종합 학습 가이드](<../LEARNING_GUIDE.html>)
   * [전체 지표 인덱스](<ALL_METRICS_INDEX.html>)
 
-**최종 업데이트** : 2025-12-16 | **버전** : Agent Evaluator v0.5.0
+**최종 업데이트** : 2025-12-16 | **버전** : Agent Evaluator v0.5.1
 
 **문서** : Accuracy 상세 가이드
 

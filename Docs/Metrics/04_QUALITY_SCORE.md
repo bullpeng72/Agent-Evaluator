@@ -2,7 +2,7 @@
 
 Multi-Dimensional AI Response Quality Evaluation
 
-Agent Evaluator v0.5.0 - Layer 1 Foundation Metric
+Agent Evaluator v0.5.1 - Layer 1 Foundation Metric
 
 ## 🎯 개요
 
@@ -415,7 +415,7 @@ Layer 1 네이티브 메트릭으로 외부 의존성 없이 다차원 품질 �
   * [종합 학습 가이드](<../LEARNING_GUIDE.html>)
   * [전체 지표 인덱스](<ALL_METRICS_INDEX.html>)
 
-**최종 업데이트** : 2025-12-16 | **버전** : Agent Evaluator v0.5.0
+**최종 업데이트** : 2025-12-16 | **버전** : Agent Evaluator v0.5.1
 
 **문서** : Quality Score 상세 가이드
 

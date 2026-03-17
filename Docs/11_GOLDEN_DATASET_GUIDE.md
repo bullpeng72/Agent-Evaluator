@@ -1,6 +1,6 @@
 # 📚 Golden Dataset 가이드
 
-테스트 데이터셋 생성 및 관리 (Agent Evaluator v0.5.0)
+테스트 데이터셋 생성 및 관리 (Agent Evaluator v0.5.1)
 
 # Golden Dataset 가이드
 
@@ -1863,6 +1863,6 @@ Golden Dataset 작성을 완료했다면:
 * * *
 
 **최종 업데이트** : 2025-12-16  
-**버전** : Agent Evaluator v0.5.0  
+**버전** : Agent Evaluator v0.5.1  
 **프로젝트** : Agent Evaluator - AI Agent Performance Evaluation System  
 **문서** : Golden Dataset Guide

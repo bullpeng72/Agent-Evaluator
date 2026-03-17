@@ -2,7 +2,7 @@
 
 Ragas RAG 평가 메트릭 - 검색 정밀도 (Retrieval Precision)
 
-Agent Evaluator v0.5.0
+Agent Evaluator v0.5.1
 
 Ragas Layer 3 RAG Evaluation Retrieval Quality
 
@@ -346,7 +346,7 @@ Context Precision은 컨텍스트와 질문의 관련성 평가
   * [Answer Relevancy (Ragas) 문서](<./23_ANSWER_RELEVANCY_RAGAS.html>)
   * [Context Recall 문서](<./25_CONTEXT_RECALL.html>)
 
-**Agent Evaluator v0.5.0** \- Layer 3 Ragas Metrics
+**Agent Evaluator v0.5.1** \- Layer 3 Ragas Metrics
 
 Context Precision: RAG 검색 시스템의 정밀도 평가
 

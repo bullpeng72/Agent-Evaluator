@@ -8,7 +8,7 @@ LangChain, LlamaIndex, CrewAI 통합 방법
 
 ## 버전 정보
 
-**현재 버전:** v0.5.0
+**현재 버전:** v0.5.1
 
 **최종 업데이트:** 2025-12-14
 
@@ -25,7 +25,7 @@ LangChain, LlamaIndex, CrewAI 통합 방법
 
 ### 필수 및 권장 버전
 
-**Agent Evaluator v0.5.0** 호환성 정보:
+**Agent Evaluator v0.5.1** 호환성 정보:
 
 구분 | 패키지 | 버전 요구사항 | 설치 명령  
 ---|---|---|---  

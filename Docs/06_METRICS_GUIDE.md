@@ -2414,7 +2414,7 @@ AutoGen | `AutoGenEvaluator` | Evaluator로 Agent 래핑
 
 * * *
 
-**Agent Evaluator v0.5.0**
+**Agent Evaluator v0.5.1**
 
 **최종 업데이트** : 2025-12-15
 

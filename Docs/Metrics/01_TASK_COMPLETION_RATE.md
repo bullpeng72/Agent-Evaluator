@@ -2,7 +2,7 @@
 
 AI Agent Task Completion Tracking and Analysis
 
-Agent Evaluator v0.5.0 - Layer 1 Foundation Metric
+Agent Evaluator v0.5.1 - Layer 1 Foundation Metric
 
 ## 🎯 개요
 
@@ -134,7 +134,7 @@ from agent_evaluator import ( calculate_completion_score, create_taskresult ) # 
 
 ### 🤖 create_taskresult() 자동 평가 알고리즘
 
-**버전** : Agent Evaluator v0.5.0
+**버전** : Agent Evaluator v0.5.1
 
 **위치** : `agent_evaluator/helpers/taskresult_helpers.py` (Lines 410-513)
 

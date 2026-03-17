@@ -85,6 +85,9 @@ from .integrations.llm_helpers import (
 # Import example runner
 from .examples import ExampleRunner
 
+# Config & init helpers (cli.main 임포트 없이 제공 — import-time side-effect 없음)
+from .config import load_env, get_settings, init_from_app
+
 __all__ = [
     # Core
     'PerformanceMonitor',
@@ -104,6 +107,11 @@ __all__ = [
     'LLMHelper',  # Simplified name
     'ClaudeHelper',  # Simplified name
     'ExampleRunner',  # Example base class
+
+    # Config & setup
+    'load_env',       # Smart .env loader (priority: system > CWD .env > global)
+    'get_settings',   # Settings singleton
+    'init_from_app',  # Programmatic init for library callers
 
     # Trackers (for advanced users)
     'TaskCompletionTracker',

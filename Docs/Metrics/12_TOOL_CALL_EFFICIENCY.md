@@ -2,7 +2,7 @@
 
 AI Agent Tool Usage Optimization Analysis
 
-Agent Evaluator v0.5.0 - Layer 2 Advanced Metric
+Agent Evaluator v0.5.1 - Layer 2 Advanced Metric
 
 ## 🎯 개요
 
@@ -294,7 +294,7 @@ Layer 2 메트릭으로 Agent의 Tool 사용 최적화를 측정하며, 프로�
   * [Tool Selection Accuracy](<11_TOOL_SELECTION.html>)
   * [Latency Metrics](<05_LATENCY_METRICS.html>)
 
-**최종 업데이트** : 2025-12-18 | **버전** : Agent Evaluator v0.5.0
+**최종 업데이트** : 2025-12-18 | **버전** : Agent Evaluator v0.5.1
 
 **문서** : Tool Call Efficiency 상세 가이드 (Layer 2 Metric)
 

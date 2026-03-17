@@ -2,7 +2,7 @@
 
 AI Agent Tool Selection Precision and Recall Analysis
 
-Agent Evaluator v0.5.0 - Layer 2 Advanced Metric
+Agent Evaluator v0.5.1 - Layer 2 Advanced Metric
 
 ## 🎯 개요
 
@@ -237,7 +237,7 @@ Layer 2 메트릭으로 Agent의 의사결정 품질을 측정하며, 프로덕�
   * [Wikipedia: Precision and Recall](<https://en.wikipedia.org/wiki/Precision_and_recall>)
   * [Wikipedia: F1-Score](<https://en.wikipedia.org/wiki/F-score>)
 
-**최종 업데이트** : 2025-12-18 | **버전** : Agent Evaluator v0.5.0
+**최종 업데이트** : 2025-12-18 | **버전** : Agent Evaluator v0.5.1
 
 **문서** : Tool Selection Accuracy 상세 가이드 (Layer 2 Metric)
 

@@ -2,7 +2,7 @@
 
 Fairness and Bias Detection with DeepEval
 
-Agent Evaluator v0.5.0 - Layer 3 DeepEval Metric
+Agent Evaluator v0.5.1 - Layer 3 DeepEval Metric
 
 ## 🎯 개요
 

@@ -1,6 +1,6 @@
 # 📊 대시보드 가이드
 
-Streamlit 기반 시각화 및 데이터 관리 (Agent Evaluator v0.5.0)
+Streamlit 기반 시각화 및 데이터 관리 (Agent Evaluator v0.5.1)
 
 # Streamlit 대시보드 가이드
 

@@ -2,7 +2,7 @@
 
 Ragas RAG 평가 메트릭 - 답변 관련성 (Answer-Question Relevance)
 
-Agent Evaluator v0.5.0
+Agent Evaluator v0.5.1
 
 Ragas Layer 3 RAG Evaluation
 
@@ -337,7 +337,7 @@ Answer Relevancy는 답변과 질문의 관련성 평가
   * [Context Precision 문서](<./24_CONTEXT_PRECISION.html>)
   * [Context Recall 문서](<./25_CONTEXT_RECALL.html>)
 
-**Agent Evaluator v0.5.0** \- Layer 3 Ragas Metrics
+**Agent Evaluator v0.5.1** \- Layer 3 Ragas Metrics
 
 Answer Relevancy: RAG 시스템의 답변 관련성 평가
 

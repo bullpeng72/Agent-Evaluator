@@ -12,8 +12,11 @@ from typing import Dict, Any, List, Optional
 from enum import Enum
 from dataclasses import dataclass
 
-# Suppress warnings for cleaner output
-warnings.filterwarnings('ignore')
+# DeepEval / Ragas / LangSmith 의 비동기 이벤트 루프 정리 관련
+# DeprecationWarning 만 타겟 억제 (전역 억제 금지 — CLAUDE.md 참조)
+warnings.filterwarnings("ignore", category=DeprecationWarning, module=r"deepeval|ragas|langsmith")
+warnings.filterwarnings("ignore", message=r".*Event loop.*", category=DeprecationWarning)
+warnings.filterwarnings("ignore", message=r".*coroutine.*was never awaited.*")
 
 
 # ============================================================================

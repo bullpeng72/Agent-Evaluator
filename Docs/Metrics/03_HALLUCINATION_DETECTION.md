@@ -2,7 +2,7 @@
 
 AI Agent Hallucination Detection and Analysis
 
-Agent Evaluator v0.5.0 - Layer 1 Foundation Metric
+Agent Evaluator v0.5.1 - Layer 1 Foundation Metric
 
 ## 🎯 개요
 
@@ -389,7 +389,7 @@ Layer 1 네이티브 메트릭으로 빠르고 무료로 기본 환각을 탐지
   * [종합 학습 가이드](<../LEARNING_GUIDE.html>)
   * [DeepEval Hallucination Metric](<https://docs.confident-ai.com/docs/metrics-hallucination>)
 
-**최종 업데이트** : 2025-12-16 | **버전** : Agent Evaluator v0.5.0
+**최종 업데이트** : 2025-12-16 | **버전** : Agent Evaluator v0.5.1
 
 **문서** : Hallucination Detection 상세 가이드
 

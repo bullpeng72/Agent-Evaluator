@@ -1,6 +1,6 @@
 # 📝 데이터 편집 & 투명성 가이드
 
-테스트 데이터 관리 및 투명성 보장 (Agent Evaluator v0.5.0)
+테스트 데이터 관리 및 투명성 보장 (Agent Evaluator v0.5.1)
 
 # 데이터 편집 & Test 투명성 가이드
 
@@ -61,7 +61,7 @@
 
 ### 주요 변경사항
 
-**🔥 Agent Evaluator v0.5.0 & 업데이트 (2025-01-14):**
+**🔥 Agent Evaluator v0.5.1 & 업데이트 (2025-01-14):**
 
   1. **레거시 API 완전 제거** : EvaluatedCrew, LangChainEvaluationCallback 등 deprecated 클래스 제거
   2. **보안 메트릭 통합** : Layer 1/2 Security 메트릭 추가 
@@ -1911,6 +1911,6 @@ Golden Dataset 편집 | 필드별 before/after, 편집자, 시간 | 히스토리
 * * *
 
 **최종 업데이트** : 2025-12-16  
-**버전** : Agent Evaluator v0.5.0  
+**버전** : Agent Evaluator v0.5.1  
 **프로젝트** : Agent Evaluator - AI Agent Performance Evaluation System  
 **검증 완료** : data_editor_manager.py, test_transparency_manager.py, dashboard_data_editor.py

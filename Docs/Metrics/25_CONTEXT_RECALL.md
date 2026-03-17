@@ -2,7 +2,7 @@
 
 Ragas RAG 평가 메트릭 - 검색 재현율 (Retrieval Recall)
 
-Agent Evaluator v0.5.0
+Agent Evaluator v0.5.1
 
 Ragas Layer 3 RAG Evaluation Retrieval Quality Requires Ground Truth
 
@@ -359,7 +359,7 @@ Context Recall은 검색된 컨텍스트와 Ground Truth의 일치성 평가
   * [Answer Relevancy (Ragas) 문서](<./23_ANSWER_RELEVANCY_RAGAS.html>)
   * [Context Precision 문서](<./24_CONTEXT_PRECISION.html>)
 
-**Agent Evaluator v0.5.0** \- Layer 3 Ragas Metrics
+**Agent Evaluator v0.5.1** \- Layer 3 Ragas Metrics
 
 Context Recall: RAG 검색 시스템의 완전성 평가 (Ground Truth 필수)
 
