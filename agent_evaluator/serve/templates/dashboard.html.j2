@@ -1603,6 +1603,7 @@ textarea.gd-input{height:60px;resize:vertical;font-family:inherit}
     </div>
   </div>
 </div>
+</div>
 
 <!-- ══ INSIGHTS ══ -->
 <div x-show="data && sec==='insights'" x-cloak>
@@ -2304,8 +2305,9 @@ function app() { return {
     } catch(e) { /* ignore — keep defaults */ }
     // Plotly charts rendered in hidden divs (x-show) get 0 dimensions.
     // Re-dispatch resize whenever any tab variable changes so Plotly relayouts.
-    const _resize = () => this.$nextTick(() => window.dispatchEvent(new Event('resize')));
-    ['sec','t1','t2','tp','tsec','ti','ttr','tl3','tq','tperf','tag','tsec2'].forEach(k => this.$watch(k, _resize));
+    // Re-render all charts when any tab changes (resize alone can't fix corrupted categorical axes)
+    const _rerender = () => this.$nextTick(() => this.renderAll());
+    ['sec','t1','t2','tp','tsec','ti','ttr','tl3','tq','tperf','tag','tsec2'].forEach(k => this.$watch(k, _rerender));
   },
 
   async refresh() {
@@ -2454,7 +2456,7 @@ function app() { return {
   // ── Chart helpers ──────────────────────────────────────────────────────
   _plt(id, traces, layout, cfg) {
     const el = document.getElementById(id);
-    if (!el) return;
+    if (!el || el.clientWidth === 0) return; // skip hidden x-show divs (avoids 0×0 Plotly corruption)
     const TC = this.dark ? '#8890b0' : '#5a6080';
     const GC = this.dark ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.07)';
     const PBG = 'transparent';
@@ -2881,9 +2883,9 @@ function app() { return {
     const totalSteps=wfExecs.length;
     const successSteps=wfExecs.filter(w=>w.success).length;
     const failSteps=totalSteps-successSteps;
-    const wfSuccTasks=Math.round(wfTaskCount*(wfSum.step_success_rate||1));
+    const wfSuccTasks=Math.round(wfTaskCount*((wfSum.step_success_rate||0)/100));
     const wfFailTasks=wfTaskCount-wfSuccTasks;
-    if(totalTasks>0){
+    if(totalSteps>0){
       // Use percentage of steps/tasks so bars are always comparable
       const stepsTotal=totalSteps||1;
       const tasksTotal=wfTaskCount||1;
