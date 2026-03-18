@@ -1799,6 +1799,10 @@ function app() { return {
       const r = await fetch('/api/thresholds');
       if (r.ok) { const d = await r.json(); this.thresholds = {...this.thresholds, ...d}; }
     } catch(e) { /* ignore — keep defaults */ }
+    // Plotly charts rendered in hidden divs (x-show) get 0 dimensions.
+    // Re-dispatch resize whenever any tab variable changes so Plotly relayouts.
+    const _resize = () => this.$nextTick(() => window.dispatchEvent(new Event('resize')));
+    ['sec','t1','t2','tp','tsec','ti','ttr','tl3'].forEach(k => this.$watch(k, _resize));
   },
 
   async refresh() {
