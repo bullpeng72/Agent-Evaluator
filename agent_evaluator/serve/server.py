@@ -22,6 +22,7 @@ from .routers import stream as stream_router
 from .routers import transparency as transparency_router
 from .routers import golden as golden_router
 from .routers import config as config_router
+from .routers import webhook as webhook_router
 
 _TEMPLATES_DIR = Path(__file__).parent / "templates"
 _STATIC_DIR = Path(__file__).parent / "static"
@@ -102,6 +103,7 @@ def create_app(
     app.include_router(transparency_router.router)
     app.include_router(golden_router.router)
     app.include_router(config_router.router)
+    app.include_router(webhook_router.router)
 
     # Templates
     templates = Jinja2Templates(directory=str(_TEMPLATES_DIR))

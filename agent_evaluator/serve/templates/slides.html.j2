@@ -425,7 +425,12 @@ async function populateSlides() {
   let files, data;
   try { files = await (await fetch('/api/results')).json(); } catch(e) { return; }
   if (!files?.length) return;
-  try { data = await (await fetch(`/api/results/${files[0].id}`)).json(); } catch(e) { return; }
+
+  // URL 파라미터 ?id=xxx 가 있으면 해당 파일 사용, 없으면 첫 번째(최신) 파일 사용
+  const paramId = new URLSearchParams(window.location.search).get('id');
+  const targetId = (paramId && files.some(f => f.id === paramId)) ? paramId : files[0].id;
+
+  try { data = await (await fetch(`/api/results/${targetId}`)).json(); } catch(e) { return; }
 
   const tcr   = data.accuracy_metrics?.tcr || {};
   const acc   = data.accuracy_metrics?.accuracy_scores || {};
@@ -685,7 +690,17 @@ function fmtPct(v)  { return v==null ? '—' : (+v).toFixed(1)+'%'; }
 function fmtSec(v)  { return v==null ? '—' : (+v).toFixed(2)+'s'; }
 function fmtCost(v) { return v==null ? '—' : (+v<0.01 ? '$'+(+v).toFixed(6) : '$'+(+v).toFixed(4)); }
 
-Reveal.on('ready', () => populateSlides());
+Reveal.on('ready', () => {
+  populateSlides();
+  // Generate QR code pointing to the dashboard
+  const qrUrl = window.location.origin + '/';
+  const qrEl = document.getElementById('sl-qr');
+  const qrLbl = document.getElementById('sl-qr-url');
+  if (qrEl && window.QRCode) {
+    QRCode.toCanvas(qrEl, qrUrl, { width: 100, margin: 1, color: { dark: '#000', light: '#fff' } });
+    if (qrLbl) qrLbl.textContent = qrUrl;
+  }
+});
 
 // Re-fetch when tab regains focus (stale _slideData after --watch updates)
 document.addEventListener('visibilitychange', () => {
