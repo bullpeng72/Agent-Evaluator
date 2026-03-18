@@ -1,0 +1,57 @@
+"""
+Configuration API — threshold settings persistence.
+
+GET  /api/thresholds   — load saved thresholds (returns defaults if not saved)
+POST /api/thresholds   — persist threshold settings to .thresholds.json
+"""
+from __future__ import annotations
+
+import json
+from typing import Any, Dict
+
+from fastapi import APIRouter, Request
+
+router = APIRouter(prefix="/api")
+
+_DEFAULTS: Dict[str, float] = {
+    "tcr": 90.0,
+    "acc": 70.0,
+    "hall": 5.0,
+    "p95": 2.0,
+    "cost": 0.01,
+}
+
+
+def _threshold_path(request: Request):
+    return request.app.state.results_dir / ".thresholds.json"
+
+
+@router.get("/thresholds")
+def get_thresholds(request: Request) -> Dict[str, Any]:
+    """Load persisted thresholds; return defaults when no file exists."""
+    p = _threshold_path(request)
+    if p.exists():
+        try:
+            saved = json.loads(p.read_text(encoding="utf-8"))
+            merged = _DEFAULTS.copy()
+            merged.update({k: float(v) for k, v in saved.items() if k in _DEFAULTS})
+            return merged
+        except Exception:
+            pass
+    return _DEFAULTS.copy()
+
+
+@router.post("/thresholds")
+async def save_thresholds(request: Request) -> Dict[str, Any]:
+    """Persist threshold settings; unknown keys are ignored."""
+    body = await request.json()
+    merged = _DEFAULTS.copy()
+    for k in _DEFAULTS:
+        if k in body:
+            try:
+                merged[k] = float(body[k])
+            except (TypeError, ValueError):
+                pass
+    p = _threshold_path(request)
+    p.write_text(json.dumps(merged, indent=2), encoding="utf-8")
+    return merged

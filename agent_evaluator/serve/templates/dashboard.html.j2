@@ -1510,6 +1510,13 @@ textarea.gd-input{height:60px;resize:vertical;font-family:inherit}
           </div>
         </div>
       </div>
+      <!-- Trend chart -->
+      <div class="sec" style="margin-top:10px">
+        <div class="sec-t">📈 지표 트렌드 (선택 파일 순서)</div>
+        <div id="compare-trend-wrap" style="height:220px;position:relative">
+          <canvas id="compare-trend-chart"></canvas>
+        </div>
+      </div>
     </div>
   </div>
 </div>
@@ -1521,6 +1528,21 @@ textarea.gd-input{height:60px;resize:vertical;font-family:inherit}
     <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap">
       <button class="btn" @click="loadGoldenList()">🔄 목록 새로고침</button>
       <button class="btn" @click="gdNewName='';gdShowCreate=true" style="color:var(--green);border-color:var(--green)">＋ 새 Dataset</button>
+      <label class="btn" style="cursor:pointer;color:var(--accent);border-color:var(--accent)" :style="gdPdfUploading?'opacity:.6;pointer-events:none':''">
+        📄 PDF → Dataset
+        <input type="file" accept=".pdf" style="display:none" @change="uploadPdf($event)">
+      </label>
+    </div>
+    <!-- PDF extraction result preview -->
+    <div x-show="gdPdfUploading" style="font-size:11px;color:var(--text2);margin-bottom:8px">⏳ PDF 텍스트 추출 중...</div>
+    <div x-show="gdPdfResult" class="sec" style="border-color:var(--accent);margin-bottom:10px">
+      <div class="sec-t">📄 PDF 추출 결과 <span class="badge" x-text="`${gdPdfResult?.item_count||0}개 항목`"></span></div>
+      <div style="font-size:11px;color:var(--text2);margin-bottom:8px" x-text="`파일: ${gdPdfResult?.filename||''} · ${(gdPdfResult?.total_chars||0).toLocaleString()} 문자`"></div>
+      <div style="display:flex;gap:8px;align-items:center">
+        <input class="gd-input" x-model="gdPdfSaveName" placeholder="dataset_from_pdf" style="flex:1">
+        <button class="btn" style="color:var(--green);border-color:var(--green)" @click="savePdfResult()">💾 Dataset으로 저장</button>
+        <button class="btn" @click="gdPdfResult=null">✕</button>
+      </div>
     </div>
     <!-- Create form -->
     <div x-show="gdShowCreate" class="sec" style="border-color:var(--accent)">
@@ -1638,6 +1660,10 @@ textarea.gd-input{height:60px;resize:vertical;font-family:inherit}
       <span style="min-width:60px;text-align:right" x-text="'$'+thresholds.cost.toFixed(3)"></span>
       <span class="pill" :class="(data.efficiency_metrics?.tokens?.avg_cost_per_task||99)<=thresholds.cost?'pg':'pr'" x-text="(data.efficiency_metrics?.tokens?.avg_cost_per_task||99)<=thresholds.cost?'✅ 통과':'❌ 실패'"></span>
     </div>
+    <div style="display:flex;gap:8px;margin-top:14px;align-items:center">
+      <button class="btn" style="color:var(--green);border-color:var(--green)" @click="saveThresholds()">💾 저장</button>
+      <span x-show="thresholdSaved" x-transition style="font-size:11px;color:var(--green)">✅ 저장됨</span>
+    </div>
   </div>
 </div>
 
@@ -1716,9 +1742,11 @@ function app() { return {
   taskFilter: { type:'all', status:'all', sort:'task_id' },
   filteredTaskCount: 0,
   thresholds: { tcr: 90, acc: 70, hall: 5, p95: 2.0, cost: 0.01 },
+  thresholdSaved: false,
   _hallucination: null, // cached hallucination rate for delta
   taskDetail: null,
   gdFiles: [], gdSelected: null, gdItems: {}, gdNewName: '', gdShowCreate: false,
+  gdPdfUploading: false, gdPdfResult: null, gdPdfSaveName: '',
   glossSearch: '',
 
   nav: [
@@ -1766,6 +1794,11 @@ function app() { return {
     await this.refresh();
     if (WATCH) this.startSSE();
     await this.loadGoldenList();
+    // Load persisted thresholds from server
+    try {
+      const r = await fetch('/api/thresholds');
+      if (r.ok) { const d = await r.json(); this.thresholds = {...this.thresholds, ...d}; }
+    } catch(e) { /* ignore — keep defaults */ }
   },
 
   async refresh() {
@@ -2331,23 +2364,37 @@ function app() { return {
       });
     }
 
-    // ── Workflow funnel ──
+    // ── Workflow funnel (horizontal bar — step-level counts, not task-level) ──
     const wfSum=d.agentic?.workflow_summary||{};
     const totalTasks=d.total_tasks||0;
     const wfExecs=d.agentic?.workflow_executions||[];
     const wfTaskCount=new Set(wfExecs.map(w=>w.task_id)).size||totalTasks;
-    const successSteps=wfExecs.filter(w=>w.success).length;
     const totalSteps=wfExecs.length;
+    const successSteps=wfExecs.filter(w=>w.success).length;
+    const failSteps=totalSteps-successSteps;
     const wfSuccTasks=Math.round(wfTaskCount*(wfSum.step_success_rate||1));
+    const wfFailTasks=wfTaskCount-wfSuccTasks;
     if(totalTasks>0){
-      const funnelY=['입력 태스크','워크플로우 시작','단계 실행','단계 성공','최종 완료'];
-      const funnelX=[totalTasks, wfTaskCount||totalTasks, totalSteps||totalTasks, successSteps||wfSuccTasks, wfSuccTasks||totalTasks];
-      this._plt('l2-wf-funnel',[{type:'funnel',y:funnelY,x:funnelX,
-        textinfo:'value+percent initial',
-        marker:{color:['#6c8ef5','#818cf8','#4ade80','#34d399','#22c55e']},
-        connector:{line:{color:'transparent'}}}],
-        {margin:{t:10,b:10,l:130,r:60},funnelmode:'stack',
-         xaxis:{...scX},yaxis:{...scY,automargin:true}});
+      // Use percentage of steps/tasks so bars are always comparable
+      const stepsTotal=totalSteps||1;
+      const tasksTotal=wfTaskCount||1;
+      const funnelLabels=['태스크 수','단계 수','성공 단계','실패 단계','완료 태스크','미완료 태스크'];
+      const funnelVals=[wfTaskCount, totalSteps, successSteps, failSteps, wfSuccTasks, wfFailTasks];
+      const funnelText=funnelVals.map((v,i)=>{
+        if(i===0) return `${v}개`;
+        if(i===1) return `${v}개 (태스크당 ${totalSteps&&wfTaskCount?(totalSteps/wfTaskCount).toFixed(1):'-'}단계)`;
+        if(i===2) return `${v}개 (${totalSteps?(v/totalSteps*100).toFixed(1):0}%)`;
+        if(i===3) return `${v}개 (${totalSteps?(v/totalSteps*100).toFixed(1):0}%)`;
+        if(i===4) return `${v}개 (${wfTaskCount?(v/wfTaskCount*100).toFixed(1):0}%)`;
+        return `${v}개 (${wfTaskCount?(v/wfTaskCount*100).toFixed(1):0}%)`;
+      });
+      const funnelColors=['#6c8ef5','#818cf8','#4ade80','#f87171','#22c55e','#ef4444'];
+      this._plt('l2-wf-funnel',[{type:'bar',orientation:'h',
+        y:funnelLabels,x:funnelVals,text:funnelText,textposition:'outside',
+        marker:{color:funnelColors},cliponaxis:false}],
+        {margin:{t:10,b:10,l:120,r:80},
+         xaxis:{...scX,title:'건수'},yaxis:{...scY,automargin:true},
+         bargap:0.35});
     }
 
     // ── Integrated Security radar (duplicate for intsec tab) ──
@@ -2753,6 +2800,41 @@ function app() { return {
         } catch(e) { console.error(e); }
       }
     }
+    await this.$nextTick();
+    this.renderCompareTrend();
+  },
+
+  renderCompareTrend() {
+    const canvas = document.getElementById('compare-trend-chart');
+    if (!canvas || !window.Plotly) return;
+    const ids = this.compareIds.filter(id => this.compareData[id]);
+    if (ids.length < 2) return;
+    const labels = ids.map(id => (this.compareData[id]?.name || id).substring(0, 20));
+    const metrics = [
+      { name: 'TCR (%)',      color: '#6c8ef5', fn: d => d?.accuracy_metrics?.tcr?.tcr ?? null },
+      { name: 'Accuracy (%)', color: '#4ade80', fn: d => d?.accuracy_metrics?.accuracy_scores?.overall_accuracy ?? null },
+      { name: 'Latency P95 (s)', color: '#facc15', fn: d => d?.efficiency_metrics?.latency?.p95 ?? null },
+    ];
+    const traces = metrics.map(m => ({
+      x: labels,
+      y: ids.map(id => m.fn(this.compareData[id])),
+      name: m.name,
+      type: 'scatter', mode: 'lines+markers',
+      line: { color: m.color, width: 2 },
+      marker: { color: m.color, size: 7 },
+    }));
+    const isDark = !document.body.classList.contains('light');
+    const bg = isDark ? 'rgba(0,0,0,0)' : 'rgba(0,0,0,0)';
+    const fc = isDark ? '#ccc' : '#333';
+    const gc = isDark ? 'rgba(255,255,255,.07)' : 'rgba(0,0,0,.07)';
+    const layout = {
+      paper_bgcolor: bg, plot_bgcolor: bg,
+      margin: { t: 10, b: 60, l: 45, r: 10 },
+      legend: { orientation: 'h', y: -0.25, font: { color: fc, size: 11 } },
+      xaxis: { tickfont: { color: fc, size: 10 }, gridcolor: gc, linecolor: gc },
+      yaxis: { tickfont: { color: fc, size: 10 }, gridcolor: gc, linecolor: gc },
+    };
+    Plotly.react('compare-trend-chart', traces, layout, { displayModeBar: false, responsive: true });
   },
 
   compareRows() {
@@ -2768,7 +2850,62 @@ function app() { return {
     ];
   },
 
+  // ── Threshold persistence ────────────────────────────────────────────────
+  async saveThresholds() {
+    try {
+      const r = await fetch('/api/thresholds', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(this.thresholds),
+      });
+      if (r.ok) {
+        this.thresholdSaved = true;
+        setTimeout(() => { this.thresholdSaved = false; }, 2500);
+      }
+    } catch(e) { console.error('threshold save failed', e); }
+  },
+
   // ── Golden Dataset ──────────────────────────────────────────────────────
+  async uploadPdf(evt) {
+    const file = evt.target.files[0];
+    if (!file) return;
+    evt.target.value = '';
+    this.gdPdfUploading = true;
+    this.gdPdfResult = null;
+    try {
+      const fd = new FormData();
+      fd.append('file', file);
+      const r = await fetch('/api/golden/pdf', { method: 'POST', body: fd });
+      if (!r.ok) {
+        const err = await r.json().catch(() => ({ detail: r.statusText }));
+        alert('PDF 추출 실패: ' + (err.detail || r.statusText));
+      } else {
+        this.gdPdfResult = await r.json();
+        this.gdPdfSaveName = file.name.replace(/\.pdf$/i, '').replace(/\s+/g, '_');
+      }
+    } catch(e) { alert('PDF 업로드 오류: ' + e.message); }
+    finally { this.gdPdfUploading = false; }
+  },
+
+  async savePdfResult() {
+    if (!this.gdPdfResult || !this.gdPdfSaveName) return;
+    const name = this.gdPdfSaveName;
+    const fname = name.endsWith('.json') ? name : name + '.json';
+    try {
+      const r = await fetch(`/api/golden/${fname}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(this.gdPdfResult.items),
+      });
+      if (r.ok) {
+        this.gdPdfResult = null;
+        await this.loadGoldenList();
+      } else {
+        alert('저장 실패: ' + r.statusText);
+      }
+    } catch(e) { alert('저장 오류: ' + e.message); }
+  },
+
   async loadGoldenList() {
     try {
       const r = await fetch('/api/golden');

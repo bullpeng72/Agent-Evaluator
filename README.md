@@ -8,7 +8,8 @@
 **AI 에이전트를 위한 프로덕션 레디 평가 프레임워크**
 
 LangChain, CrewAI, AutoGen, LangGraph 등 주요 프레임워크를 지원하며,
-태스크 완료율부터 보안 취약점까지 **20개 지표**를 단일 SDK로 측정합니다.
+태스크 완료율부터 보안 취약점까지 **25개 지표**를 단일 SDK로 측정합니다.
+(네이티브 16개 — 추가 설치 없이 즉시 사용 / Layer 3 하이브리드 9개 — 선택적 추가)
 
 ---
 
@@ -27,7 +28,8 @@ LangChain, CrewAI, AutoGen, LangGraph 등 주요 프레임워크를 지원하며
 ### Agent Evaluator의 해결책
 
 ```
-✅ 20개 지표를 단일 SDK로 — 추가 설치 없이 즉시 사용
+✅ 16개 네이티브 지표 — 추가 설치 없이 즉시 사용 (Layer 1 6종 + Layer 2 10종)
+✅ 9개 하이브리드 지표 — DeepEval 5종 + Ragas 4종 (선택적 추가 설치)
 ✅ 4개 프레임워크 통합 — LangChain / CrewAI / LangGraph / AutoGen
 ✅ 3-Layer 구조 — 기본 → 에이전틱 → 하이브리드로 점진 확장
 ✅ 보안 지표 내장 — Prompt Injection, Output Leakage 등 5종
@@ -43,21 +45,11 @@ Agent Evaluator의 핵심은 **계층적 평가 모델**입니다.
 외부 의존성 없이 Layer 1/2만으로도 완전한 평가가 가능하고,
 필요에 따라 Layer 3로 확장할 수 있습니다.
 
-```
-┌─────────────────────────────────────────────────────────────────────┐
-│  Layer 3 — Hybrid Evaluation  (선택적 외부 라이브러리 통합)             │
-│  DeepEval (5종) · Ragas (4종) · LangSmith (트레이스 데이터)            │
-├─────────────────────────────────────────────────────────────────────┤
-│  Layer 2 — Agentic Metrics  (에이전트 특화 지표, 의존성 없음, 10종)      │
-│  Tool Use · Retry · Tool Selection · Coordination · Workflow        │
-│  + Security 5종: Input Sanitization · Output Leakage ·             │
-│    Tool Authorization · Privilege Escalation · Tool Chain Attack    │
-├─────────────────────────────────────────────────────────────────────┤
-│  Layer 1 — Foundation Metrics  (핵심 품질 지표, 의존성 없음, 6종)        │
-│  Task Completion · Accuracy · Hallucination · Quality · Latency     │
-│  · Token Economy                                                    │
-└─────────────────────────────────────────────────────────────────────┘
-```
+| 레이어 | 지표 수 | 포함 지표 | 외부 의존성 |
+|--------|---------|----------|------------|
+| **Layer 3** — Hybrid Evaluation | **9종** | DeepEval 5종 (G-Eval · Hallucination · Toxicity · Bias · Answer Relevancy) + Ragas 4종 (Faithfulness · Answer Relevancy · Context Precision · Context Recall) | 필요 (`[deepeval]`, `[ragas]`) |
+| **Layer 2** — Agentic Metrics | **10종** | 에이전틱 5종: Tool Call · Retry · Tool Selection · Coordination · Workflow<br>보안 5종: Input Sanitization · Output Leakage · Tool Authorization · Privilege Escalation · Tool Chain Attack | 없음 (네이티브) |
+| **Layer 1** — Foundation Metrics | **6종** | Task Completion · Accuracy · Hallucination · Quality · Latency · Token Economy | 없음 (네이티브) |
 
 ---
 

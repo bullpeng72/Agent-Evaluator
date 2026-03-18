@@ -605,10 +605,11 @@ def cmd_serve(args: argparse.Namespace) -> int:
     raw_dir     = getattr(args, "results_dir", None)
     host        = getattr(args, "host",  "127.0.0.1")
     port        = getattr(args, "port",  8765)
-    watch       = getattr(args, "watch", False)
-    open_browser= getattr(args, "open",  False)
-    slide       = getattr(args, "slide", False)
-    share       = getattr(args, "share", False)
+    watch       = getattr(args, "watch",    False)
+    open_browser= getattr(args, "open",     False)
+    slide       = getattr(args, "slide",    False)
+    share       = getattr(args, "share",    False)
+    offline     = getattr(args, "offline",  False)
     title       = getattr(args, "title", "Agent Evaluator Dashboard")
 
     if share:
@@ -675,6 +676,7 @@ def cmd_serve(args: argparse.Namespace) -> int:
         title=title,
         watch=watch,
         version=__version__,
+        offline=offline,
     )
 
     if open_browser:
@@ -824,6 +826,8 @@ def main() -> None:
                          help="브라우저를 슬라이드 뷰(/slides)로 오픈")
     serve_p.add_argument("--share", action="store_true",
                          help="외부 접근 허용 — host를 0.0.0.0으로 변경 (팀 공유)")
+    serve_p.add_argument("--offline", action="store_true",
+                         help="CDN 에셋을 로컬에 캐시해 인터넷 없이 실행 (첫 실행 시 다운로드)")
     serve_p.add_argument("--title", default="Agent Evaluator Dashboard", metavar="TITLE",
                          help="대시보드 제목 (기본: 'Agent Evaluator Dashboard')")
 

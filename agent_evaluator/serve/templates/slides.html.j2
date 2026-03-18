@@ -11,6 +11,8 @@
 <link id="reveal-theme" rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/theme/night.css">
 <!-- Chart.js -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+<!-- QR Code -->
+<script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
 
 <style>
 /* ── CSS variables (dark default) ── */
@@ -373,8 +375,10 @@ body.light {
     <div style="font-size:2em">🎉</div>
     <h1>감사합니다</h1>
     <div class="title-sub">Agent Evaluator v{{ version }}</div>
-    <div style="height:1px;width:60px;background:var(--divider)"></div>
-    <a href="/" style="color:var(--accent); font-size:13px; text-decoration:none">← 대시보드로 돌아가기</a>
+    <div style="height:1px;width:60px;background:var(--divider);margin:8px auto"></div>
+    <canvas id="sl-qr" style="border-radius:8px;background:#fff;padding:6px;width:100px;height:100px"></canvas>
+    <div style="font-size:11px;color:var(--tc2);margin-top:4px" id="sl-qr-url"></div>
+    <a href="/" style="color:var(--accent); font-size:13px; text-decoration:none; margin-top:8px">← 대시보드로 돌아가기</a>
   </div>
 </section>
 

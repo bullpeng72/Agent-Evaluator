@@ -5,14 +5,17 @@ GET  /api/golden                 — list golden dataset files
 GET  /api/golden/{name}          — get content of a golden dataset
 PUT  /api/golden/{name}          — save/update a golden dataset
 POST /api/golden                 — create a new golden dataset
+POST /api/golden/pdf             — extract text from PDF and return as golden QA pairs
 """
 from __future__ import annotations
 
+import io
 import json
+import re
 from pathlib import Path
 from typing import Any, Dict, List
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, File, HTTPException, Request, UploadFile
 from fastapi.responses import Response
 
 router = APIRouter(prefix="/api/golden")
@@ -98,3 +101,68 @@ async def create_golden(request: Request) -> Dict[str, Any]:
         return {"ok": True, "name": fname, "count": len(items)}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/pdf")
+async def extract_pdf(file: UploadFile = File(...)) -> Dict[str, Any]:
+    """Extract text from an uploaded PDF and return paragraph chunks as golden dataset items.
+
+    Uses pdfplumber if available, falls back to PyPDF2, then raw byte extraction.
+    Returns a list of {question, context} items suitable for Golden Dataset use.
+    """
+    if not file.filename or not file.filename.lower().endswith(".pdf"):
+        raise HTTPException(status_code=400, detail="PDF 파일만 업로드 가능합니다.")
+
+    content = await file.read()
+
+    # -- Extract text ----------------------------------------------------------
+    text = ""
+    try:
+        import pdfplumber
+        with pdfplumber.open(io.BytesIO(content)) as pdf:
+            text = "\n".join(
+                (page.extract_text() or "") for page in pdf.pages
+            )
+    except ImportError:
+        pass
+
+    if not text.strip():
+        try:
+            import PyPDF2
+            reader = PyPDF2.PdfReader(io.BytesIO(content))
+            text = "\n".join(
+                (page.extract_text() or "") for page in reader.pages
+            )
+        except ImportError:
+            pass
+
+    if not text.strip():
+        raise HTTPException(
+            status_code=422,
+            detail=(
+                "PDF에서 텍스트를 추출할 수 없습니다. "
+                "pip install 'agent-evaluator[datasets]' 로 pdfplumber를 설치하세요."
+            ),
+        )
+
+    # -- Split into meaningful paragraphs and generate QA pairs ----------------
+    paragraphs = [p.strip() for p in re.split(r"\n{2,}", text) if len(p.strip()) > 80]
+    items: List[Dict[str, Any]] = []
+    for i, para in enumerate(paragraphs[:50], 1):  # cap at 50 items
+        # Generate a simple question placeholder from the paragraph
+        first_sentence = re.split(r"[.?!。]", para)[0].strip()
+        question = f"Q{i}: {first_sentence[:120]}에 대해 설명하세요." if first_sentence else f"단락 {i}의 내용을 설명하세요."
+        items.append({
+            "id": f"pdf_item_{i:03d}",
+            "question": question,
+            "context": para,
+            "expected_answer": "",
+        })
+
+    return {
+        "ok": True,
+        "filename": file.filename,
+        "total_chars": len(text),
+        "item_count": len(items),
+        "items": items,
+    }
