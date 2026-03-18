@@ -70,7 +70,7 @@ def create_app(
     results_dir: Path,
     title: str = "Agent Evaluator Dashboard",
     watch: bool = False,
-    version: str = "0.5.2",
+    version: str = "0.5.3",
     offline: bool = False,
 ) -> FastAPI:
     app = FastAPI(title=title, version=version, docs_url="/api/docs",

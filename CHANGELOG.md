@@ -6,6 +6,27 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
 
+## [0.5.3] — 2026-03-19
+
+### Added
+- **AI Agent 평가 프레임워크 비교 분석 문서** (`AI_EVAL_FRAMEWORK_COMPARISON.md`) — LangSmith, Phoenix, DeepEval, Ragas, PromptLayer 등 주요 프레임워크 대비 분석
+
+### Changed
+- **대시보드 UI 관점 재구성** — Layer 1/2/3 레이어 중심에서 품질/성능/에이전틱/보안 관점으로 변경
+- **예제 구조 재편** — Level 1/2/3 계층 구조(24개 파일) → 플랫 5개 파일로 간소화
+- **문서 현행화** — Streamlit → FastAPI 대시보드 전환 반영 (Port 8501/8503 → 8765, `agent-eval serve`)
+
+### Fixed
+- **보안 섹션 div 미닫힘 버그** — 보안 섹션 이후 모든 섹션이 표시되지 않던 버그 해결
+- **Plotly 차트 렌더링** — 숨겨진 탭(`x-show`)에서 0×0으로 렌더링되는 버그 해결
+- **Workflow funnel chart** — Phase 1 비즈니스 대시보드 기능 수정
+
+### Docs
+- 구버전 기획 문서 삭제 (`DASHBOARD_PLAN.md`, `CONVERSION_REPORT.md`, `DATA_EDITOR_TRANSPARENCY_GUIDE.md`, `DASHBOARD.md`)
+- Docs prefix 재조정 — 13/14번 파일 삭제 후 15→13, 16→14로 리넘버링
+
+---
+
 ## [0.5.2] — 2026-03-17
 
 ### Added

@@ -2189,7 +2189,7 @@ CI/CD 위반 알림 Slack 통합 | DevOps | 01/20 | 📝 계획
 
 * * *
 
-**최종 업데이트** : 2026-03-17
+**최종 업데이트** : 2026-03-19
 **버전** : Agent Evaluator v0.5.2
 **프로젝트** : Agent Evaluator - AI Agent Performance Evaluation System  
 **문서** : Threshold Configuration Guide

@@ -1,113 +1,49 @@
-# Agent Evaluator Examples - Requirements
+# Agent Evaluator 예제 의존성
 # Python 3.11+
+# 설치: pip install -e ".[all]" (프로젝트 루트에서)
+# 또는:  pip install agent-evaluator[all]
 
-# ============================================
-# Core Dependencies (All Levels)
-# ============================================
-
-# Agent Evaluator Framework (가정: 로컬 또는 PyPI에서 설치)
-# agent-evaluator>=1.0.0
-
-# Data Processing & Analysis
-numpy>=1.24.0,<2.0.0
-pandas>=2.0.0
-
-# Utilities
-python-dotenv>=1.0.0
-pydantic>=2.0.0
-typing-extensions>=4.5.0
-
-# ============================================
-# Level 1: Foundation
-# ============================================
-# 기본 Python 표준 라이브러리만 사용
-# - time, json, datetime (표준 라이브러리)
-
-# ============================================
-# Level 2: Advanced
-# ============================================
-
-# Layer 3 Evaluation Providers
-deepeval>=0.21.0  # DeepEval metrics (Correctness, Hallucination, etc.)
-ragas>=0.1.0      # RAG evaluation metrics
-
-# LLM Providers (Layer 3용)
-openai>=1.0.0     # OpenAI API for Layer 3 metrics
-anthropic>=0.18.0 # Claude API (optional)
-
-# Vector Store & Embeddings (RAG 예제용)
-chromadb>=0.4.0           # Vector database
-sentence-transformers>=2.2.0  # Embedding models
-faiss-cpu>=1.7.4          # FAISS for vector search (CPU version)
-# faiss-gpu>=1.7.4        # Use this for GPU support instead
-
-# Document Processing (RAG 예제용)
-langchain>=0.1.0          # Document loaders and text splitters
-langchain-community>=0.0.20
-
-# ============================================
-# Level 3: Production
-# ============================================
-
-# Framework Integrations
-crewai>=0.1.0             # CrewAI multi-agent framework
-langchain>=0.1.0          # LangChain framework
-langchain-openai>=0.0.5   # LangChain OpenAI integration
-langgraph>=0.0.20         # LangGraph state machine
-
-# Additional LangChain Components
-langchain-core>=0.1.0
-langchain-community>=0.0.20
-
-# Scheduling & Monitoring
-schedule>=1.2.0           # Task scheduling for monitoring
-apscheduler>=3.10.0       # Advanced scheduling (optional)
-
-# Visualization & Dashboard (Optional)
-streamlit>=1.30.0         # Dashboard UI
-plotly>=5.18.0           # Interactive charts
-matplotlib>=3.8.0        # Static plots
-
-# ============================================
-# Testing & Development
-# ============================================
-pytest>=7.4.0            # Testing framework
-pytest-asyncio>=0.21.0   # Async testing
-pytest-cov>=4.1.0        # Coverage reporting
-
-# Code Quality
-black>=23.0.0            # Code formatter
-flake8>=6.1.0            # Linting
-mypy>=1.7.0              # Type checking
-
-# ============================================
-# Optional: Advanced Features
-# ============================================
-
-# CI/CD Integration
-pyyaml>=6.0              # YAML config files
-requests>=2.31.0         # HTTP requests
-httpx>=0.25.0            # Async HTTP client
-
-# Logging & Monitoring
-loguru>=0.7.0            # Advanced logging
-rich>=13.7.0             # Rich terminal output
-
-# Database (for production storage)
-sqlalchemy>=2.0.0        # ORM for metrics storage
-alembic>=1.13.0          # Database migrations
-
-# Cloud Storage (optional)
-boto3>=1.34.0            # AWS S3 storage
-google-cloud-storage>=2.14.0  # GCP storage
-
-# ============================================
-# Notes
-# ============================================
+# ─────────────────────────────────────────────────────────────────────────────
+# Core (필수)
+# ─────────────────────────────────────────────────────────────────────────────
 # agent-evaluator 패키지가 로컬에 있는 경우:
-#    pip install -e /path/to/agent-evaluator
-#
-# 또는 PyPI에서 설치:
-#    pip install agent-evaluator>=0.5.0
+#   pip install -e /path/to/agent-evaluator
+# PyPI에서 설치:
+#   pip install agent-evaluator
 
+numpy>=1.24.0,<2.0.0
+pandas>=2.0.0,<3.0.0
+python-dotenv>=1.0.0
 
+# ─────────────────────────────────────────────────────────────────────────────
+# 예제 01 — 품질 지표  (외부 의존성 없음)
+# ─────────────────────────────────────────────────────────────────────────────
+# 별도 설치 필요 없음
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 예제 02 — 성능 지표  (외부 의존성 없음)
+# ─────────────────────────────────────────────────────────────────────────────
+# 별도 설치 필요 없음
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 예제 03 — 에이전트 지표  (외부 의존성 없음)
+# ─────────────────────────────────────────────────────────────────────────────
+# 별도 설치 필요 없음
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 예제 04 — 보안 지표  (외부 의존성 없음)
+# ─────────────────────────────────────────────────────────────────────────────
+# 별도 설치 필요 없음
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Layer 3 하이브리드 지표 (선택적 — 예제 01 RAG 시뮬레이션에는 불필요)
+# ─────────────────────────────────────────────────────────────────────────────
+# pip install "agent-evaluator[deepeval]"    # DeepEval LLM 평가
+# pip install "agent-evaluator[ragas]"       # Ragas RAG 평가
+# pip install "agent-evaluator[langchain]"   # LangChain 통합
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 대시보드 서버
+# ─────────────────────────────────────────────────────────────────────────────
+# pip install "agent-evaluator[serve]"
+# agent-eval serve ../results

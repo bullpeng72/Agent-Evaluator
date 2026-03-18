@@ -398,7 +398,25 @@ class RagasAdapter(MetricAdapter):
                 context_entity_recall
             )
             from ragas.llms import LangchainLLMWrapper
-            from langchain_openai import ChatOpenAI
+
+            # Use OpenAI if available, otherwise fall back to Anthropic
+            openai_key = os.getenv("OPENAI_API_KEY")
+            anthropic_key = os.getenv("ANTHROPIC_API_KEY")
+
+            if openai_key:
+                from langchain_openai import ChatOpenAI
+                llm_instance = ChatOpenAI(model=llm_model)
+                active_model = llm_model
+            elif anthropic_key:
+                from langchain_anthropic import ChatAnthropic
+                llm_instance = ChatAnthropic(
+                    model="claude-3-haiku-20240307",
+                    anthropic_api_key=anthropic_key,
+                    temperature=0
+                )
+                active_model = "claude-3-haiku-20240307 (Anthropic)"
+            else:
+                raise ImportError("Neither OPENAI_API_KEY nor ANTHROPIC_API_KEY is set")
 
             self._available = True
             self.evaluate_fn = evaluate
@@ -409,9 +427,9 @@ class RagasAdapter(MetricAdapter):
             self.context_entity_recall = context_entity_recall
 
             # Initialize LLM for Ragas
-            self.llm = LangchainLLMWrapper(ChatOpenAI(model=llm_model))
+            self.llm = LangchainLLMWrapper(llm_instance)
 
-            print(f"✅ Ragas adapter initialized (model: {llm_model})")
+            print(f"✅ Ragas adapter initialized (model: {active_model})")
 
         except ImportError as e:
             print(f"⚠️  Ragas not available: {e}")

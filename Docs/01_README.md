@@ -2,7 +2,7 @@
 
 AI Agent를 위한 프로덕션급 평가 프레임워크
 
-![Python Version](https://img.shields.io/badge/python-3.8+-blue.svg) ![License](https://img.shields.io/badge/license-MIT-green.svg) ![Version](https://img.shields.io/badge/version-0.5.2-brightgreen.svg) ![Zero Configuration](https://img.shields.io/badge/Zero_Config-100%25-blue.svg) ![Security Metrics](https://img.shields.io/badge/Security_Metrics-5_Built--in-orange.svg)
+![Python Version](https://img.shields.io/badge/python-3.8+-blue.svg) ![License](https://img.shields.io/badge/license-MIT-green.svg) ![Version](https://img.shields.io/badge/version-0.5.3-brightgreen.svg) ![Zero Configuration](https://img.shields.io/badge/Zero_Config-100%25-blue.svg) ![Security Metrics](https://img.shields.io/badge/Security_Metrics-5_Built--in-orange.svg)
 
 ## 목차
 
@@ -36,7 +36,7 @@ AI Agent를 위한 프로덕션급 평가 프레임워크
 
   * ✅ **100% Zero Configuration** \- 경로 설정 불필요
   * ✅ **3-Layer 메트릭 체계** \- Basic + Security → Agentic + Security → Advanced
-  * ✅ **실시간 Dashboard** \- Streamlit 기반 모니터링
+  * ✅ **실시간 Dashboard** \- FastAPI 기반 모니터링
   * ✅ **자동 레지스트리** \- 개발자 ↔ QA 간 데이터 공유
   * ✅ **프레임워크 통합** \- LangChain, CrewAI, AutoGen 지원
 
@@ -88,7 +88,7 @@ AI Agent를 위한 프로덕션급 평가 프레임워크
   * **Framework 통합** : LangChain, CrewAI, AutoGen, LangGraph (보안 메트릭 포함)
   * **Test Transparency** : Metric 계산 추적, Anomaly 탐지, 보안 감사 로그
   * **Threshold Configuration** : Quality Gate + 보안 정책 설정 및 비교
-  * **Dashboard** : 실시간 모니터링 UI (12 탭, 보안 시각화 포함)
+  * **Dashboard** : 실시간 모니터링 UI (다중 섹션, 보안 시각화 포함)
 
 * * *
 
@@ -114,7 +114,7 @@ $0.01~$0.05/eval (Layer 3 API)
 **한국어 지원** | ❌ 제한적 | ✅ **완전 지원**  
 (Korean RAG Evaluator 내장)  
 **Zero Configuration** | ❌ 클라우드 설정 필요 | ✅ **100% 자동**  
-**Dashboard** | 웹 기반 (클라우드) | **Streamlit** (로컬/배포 모두)  
+**Dashboard** | 웹 기반 (클라우드) | **FastAPI Dashboard** (로컬/배포 모두)  
 **네트워크 요구** | 필수 (클라우드 연결) | **선택** (Layer 3만 필요)  
 **사용 사례** | LangChain 프로젝트  
 클라우드 배포 선호 | **모든 프레임워크**  
@@ -144,7 +144,7 @@ $0.01~$0.05/eval (Layer 3 API)
 (Native + Agentic + Advanced)  
 **Agentic AI** | ❌ 제한적 | ✅ **Layer 2 전용 메트릭**  
 **API 의존성** | 필수 (Confident AI API) | **선택** (Layer 1/2는 무료)  
-**Dashboard** | Confident AI 웹 (클라우드) | **Streamlit** (로컬)  
+**Dashboard** | Confident AI 웹 (클라우드) | **FastAPI Dashboard** (로컬)  
 **통합** | DeepEval 메트릭 사용 | **DeepEval 포함 + Layer 1/2**  
 **Golden Dataset** | 수동 생성 | **자동 생성/관리**  
 **사용 사례** | LLM 품질 평가 전문 | **Agent 포괄 평가**  
@@ -160,7 +160,7 @@ $0.01~$0.05/eval (Layer 3 API)
   * **포괄적 평가** : LLM 품질 + Agent 행동 + Tool 사용
   * **DeepEval 포함** : Layer 3에서 DeepEval 메트릭 사용 가능
   * **무료 시작** : Layer 1/2만으로도 충분한 평가
-  * **로컬 Dashboard** : Confident AI 계정 불필요
+  * **FastAPI Dashboard** : Confident AI 계정 불필요
 
 ### 🟢 vs Ragas (RAG 평가)
 
@@ -172,7 +172,7 @@ $0.01~$0.05/eval (Layer 3 API)
 Answer Similarity | **Ragas 포함 + Layer 1/2 16개 (10 Basic+Security + 6 Agentic+Security)**  
 **한국어** | ❌ 제한적 (영어 중심) | ✅ **Korean RAG Evaluator 전용**  
 **Golden Dataset** | 수동 준비 | **자동 생성 도구**  
-**Dashboard** | ❌ 없음 (Jupyter만) | ✅ **Streamlit Dashboard**  
+**Dashboard** | ❌ 없음 (Jupyter만) | ✅ **FastAPI Dashboard**  
 **통합** | Ragas 메트릭 사용 | **Ragas 포함 + 추가 메트릭**  
 **사용 사례** | RAG 시스템 품질 평가 | **RAG + Agent 통합 평가**  
   
@@ -187,7 +187,7 @@ Answer Similarity | **Ragas 포함 + Layer 1/2 16개 (10 Basic+Security + 6 Agen
   * **Ragas 포함** : Layer 3에서 Ragas 사용 가능
   * **한국어 RAG** : 한국어 특화 평가 (KoreanRAGEvaluator)
   * **Agent 확장** : RAG + Tool + Multi-Agent
-  * **Dashboard** : 실시간 시각화 및 모니터링
+  * **FastAPI Dashboard** : 실시간 시각화 및 모니터링
 
 ### 🔴 vs TruLens (TruEra)
 
@@ -196,7 +196,7 @@ Answer Similarity | **Ragas 포함 + Layer 1/2 16개 (10 Basic+Security + 6 Agen
 **타입** | 오픈소스 + 엔터프라이즈 | **완전 오픈소스**  
 **초점** | LLM 평가 및 추적 | **Agent 포괄 평가**  
 **복잡도** | 높음 (설정 복잡) | **낮음 (Zero Configuration)**  
-**Dashboard** | 자체 UI (복잡) | **Streamlit (직관적)**  
+**Dashboard** | 자체 UI (복잡) | **FastAPI Dashboard (직관적)**  
 **Learning Curve** | 가파름 | **완만함 (5분 시작)**  
 **프레임워크** | LangChain, LlamaIndex | **LangChain, CrewAI, AutoGen, LangGraph**  
 **사용 사례** | 대규모 엔터프라이즈  
@@ -213,7 +213,7 @@ Answer Similarity | **Ragas 포함 + Layer 1/2 16개 (10 Basic+Security + 6 Agen
 
   * **Zero Configuration** : 5분 내 시작 가능
   * **간단한 API** : 학습 곡선 최소화
-  * **Streamlit Dashboard** : 익숙한 UI
+  * **FastAPI Dashboard** : 익숙한 UI
   * **가벼운 의존성** : 설치/운영 간단
 
 ### 🟠 vs Arize Phoenix (Arize AI)
@@ -222,7 +222,7 @@ Answer Similarity | **Ragas 포함 + Layer 1/2 16개 (10 Basic+Security + 6 Agen
 ---|---|---  
 **타입** | 오픈소스 + 클라우드 (Arize) | **완전 오픈소스**  
 **초점** | LLM Observability | **Agent Evaluation**  
-**실시간 모니터링** | ✅ 강력 | ✅ Streamlit 기반  
+**실시간 모니터링** | ✅ 강력 | ✅ FastAPI 기반  
 **트레이싱** | OpenTelemetry 기반 | **자체 Test Transparency**  
 **비용** | 무료 (오픈소스)  
 Arize 클라우드 유료 | **$0 (Layer 1/2)**  
@@ -256,7 +256,7 @@ Arize 클라우드 유료 | **$0 (Layer 1/2)**
 **한국어 지원** | ⭐ | ⭐ | ⭐ | ⭐ | ⭐ | **⭐⭐⭐⭐**  
 **프레임워크** | LangChain | 다양 | 다양 | LangChain  
 LlamaIndex | 다양 | **모든**  
-**Dashboard** | 클라우드 | 클라우드 | ❌ | 자체 UI | Phoenix UI | **Streamlit**  
+**Dashboard** | 클라우드 | 클라우드 | ❌ | 자체 UI | Phoenix UI | **FastAPI Dashboard**  
 **데이터 주권** | ❌ | ⚠️ | ✅ | ✅ | ✅ | **✅ 완전**  
 **Learning Curve** | 중간 | 낮음 | 중간 | 높음 | 중간 | **매우 낮음**  
 **Golden Dataset** | 수동 | 수동 | 수동 | 수동 | 수동 | **자동 생성**  
@@ -310,7 +310,7 @@ LlamaIndex | 다양 | **모든**
 #### 7\. 🎯 프로덕션 준비 완료 (Production-Ready)
 
   * **3-Layer 메트릭** : 25개 지표로 포괄적 평가 (Layer 1: 10개, Layer 2: 6개, Layer 3: 9개)
-  * **Streamlit Dashboard** : 실시간 모니터링 및 보안 메트릭 시각화
+  * **FastAPI Dashboard** : 실시간 모니터링 및 보안 메트릭 시각화
   * **Test Transparency** : 메트릭 계산 과정 추적
   * **Threshold Configuration** : Quality Gate + 보안 정책 자동 검증
 
@@ -391,8 +391,9 @@ monitor.save_to_file("evaluation_results.json")
 ### Step 3: Dashboard에서 확인
 
 ```bash
-cd Dashboard
-streamlit run app.py
+pip install agent-evaluator[serve]
+agent-eval serve
+# → http://localhost:8765 에서 자동으로 브라우저 열림
 ```
 
 #### 💡 Zero Configuration의 장점
@@ -440,7 +441,7 @@ pip install -e ".[all]"
 
   * **agent_evaluator/** : PyPI 배포 가능한 핵심 패키지
   * **Evaluator_Examples/** : 독립 실행 가능한 튜토리얼
-  * **Dashboard/** : 독립 실행 가능한 Streamlit 대시보드
+  * **Dashboard/** : 데이터 저장소 (Zero Configuration)
   * **Docs/** : 독립 접근 가능한 HTML 문서
 
 ### 1\. 📦 agent_evaluator/ - 핵심 Python 패키지
@@ -491,71 +492,49 @@ agent_evaluator/
 
 ### 2\. 📚 Evaluator_Examples/ - 예제 및 튜토리얼
 
-**목적:** 실행 가능한 예제 코드 (24개 파일, 8,000+ 라인)
+**목적:** 실행 가능한 예제 코드 (5개 플랫 파일)
 
-**특징:** 3개 난이도 레벨 (Foundation, Advanced, Production)
+**특징:** 4개 파일로 20개 지표 전체 검증 (품질 / 성능 / 에이전틱 / 보안)
 
 **디렉토리 구조:**
 
 ```
 Evaluator_Examples/
-    ├── level_1_foundation/             # 기초 예제 (10개)
-    │   ├── 01_quickstart.py                        # 5분 Quick Start
-    │   ├── 02_layer1_trackers.py                   # Layer 1 Trackers 완전 가이드
-    │   ├── 03_taskresult_helpers.py                # TaskResult Helpers (동적 계산)
-    │   ├── 04_thresholds_validation.py             # 임계값 시스템
-    │   ├── 05_layer1_security_basic.py             # 🔒 Layer 1 보안 기초
-    │   ├── 06_advanced_metrics_analysis.py         # 고급 메트릭 분석
-    │   ├── 07_conversation_state_tracking.py       # 대화 상태 추적
-    │   ├── 08_new_advanced_apis_quickstart.py      # 신규 API Quick Start
-    │   ├── 09_helper_functions_comprehensive.py    # Helper 함수 종합
-    │   └── 10_state_transitions_tracking.py        # 상태 전환 추적
-    ├── level_2_advanced/               # 고급 예제 (8개)
-    │   ├── 01_golden_dataset.py                    # Golden Dataset 자동 평가
-    │   ├── 02_layer3_hybrid.py                     # Layer 3 Hybrid 평가
-    │   ├── 03_rag_system.py                        # RAG 시스템 평가
-    │   ├── 04_tool_selection.py                    # Tool Selection 평가
-    │   ├── 05_multi_agent.py                       # 멀티 에이전트 평가
-    │   ├── 06_workflow.py                          # 워크플로우 평가
-    │   ├── 07_layer2_security_advanced.py          # 🔒 Layer 2 보안 고급
-    │   └── 08_advanced_api_methods.py              # 고급 API 메서드
-    ├── level_3_production/             # 프로덕션 예제 (6개)
-    │   ├── 01_framework_crewai.py                  # CrewAI 프레임워크 통합
-    │   ├── 02_cost_optimization.py                 # 비용 최적화
-    │   ├── 03_framework_langchain.py               # LangChain 프레임워크 통합
-    │   ├── 04_framework_langgraph.py               # LangGraph 프레임워크 통합
-    │   ├── 05_transparency.py                      # 투명성 리포팅
-    │   └── 06_security_production_monitoring.py    # 🔒 프로덕션 보안 모니터링
-    └── Dashboard/                      # 🌐 독립 실행 가능 Dashboard (아래 참조)
+    ├── 01_quality_metrics.py     # 품질 지표 — Accuracy, Hallucination, Response Quality, RAG
+    ├── 02_performance_metrics.py # 성능 지표 — TCR, Latency (p50/p95/p99), Token Economy
+    ├── 03_agentic_metrics.py     # 에이전틱 지표 — Tool Call, Coordination, Workflow, Retry
+    ├── 04_security_metrics.py    # 보안 지표 — Input Sanitization, Leakage, Auth, Escalation, Attack
+    └── 05_hybrid_advanced.py     # 하이브리드 평가 — DeepEval, Ragas, LangSmith 통합
 ```
 
-### 3\. 🌐 Dashboard/ - Streamlit 웹 대시보드
+### 3\. 🌐 Dashboard/ - 데이터 저장소
 
-**목적:** 독립 실행 가능한 실시간 모니터링 UI (12 탭)
+**목적:** Zero Configuration 데이터 저장소 (FastAPI 대시보드는 `agent-eval serve`로 실행)
 
-**특징:** Zero Configuration, 보안 메트릭 시각화, 투명성 보고서
+**실행 방법:**
+
+```bash
+pip install agent-evaluator[serve]
+agent-eval serve              # 기본 포트 8765, 브라우저 자동 오픈
+agent-eval serve --port 8080  # 포트 지정
+agent-eval serve --watch       # 파일 변경 자동 갱신
+```
+
+**대시보드 서버 위치:** `agent_evaluator/serve/server.py`
 
 **디렉토리 구조:**
 
 ```
 Dashboard/
-    ├── app.py                          # Streamlit 앱 진입점
-    ├── streamlit_dashboard.py          # 메인 대시보드 (12 탭)
-    ├── data/                           # 데이터 저장소 (Zero Config 위치)
-    │   ├── evaluation_results/         # 평가 결과 저장
-    │   │   ├── traces/                 # Test Transparency 추적
-    │   │   ├── annotations/            # 메트릭 주석
-    │   │   ├── audit_logs/             # 🔒 보안 감사 로그
-    │   │   └── transparent_reports/    # 투명성 보고서
-    │   ├── golden_datasets/            # Golden Dataset 저장
-    │   ├── thresholds/                 # Threshold 설정
-    │   └── test_configs/               # Test Config 저장
-    └── utils/                          # Dashboard 유틸리티
-        ├── metric_visualizations.py    # 메트릭 시각화
-        ├── security_tabs.py            # 🔒 보안 메트릭 탭
-        ├── security_visualizations.py  # 🔒 보안 차트
-        ├── data_editor_tabs.py         # 데이터 편집 탭
-        └── transparency_tabs.py        # 투명성 분석 탭
+    └── data/                           # 데이터 저장소 (Zero Config 위치)
+        ├── evaluation_results/         # 평가 결과 저장
+        │   ├── traces/                 # Test Transparency 추적
+        │   ├── annotations/            # 메트릭 주석
+        │   ├── audit_logs/             # 🔒 보안 감사 로그
+        │   └── transparent_reports/    # 투명성 보고서
+        ├── golden_datasets/            # Golden Dataset 저장
+        ├── thresholds/                 # Threshold 설정
+        └── test_configs/               # Test Config 저장
 ```
 
 ### 4\. 📖 Docs/ - HTML 문서 (18개)
@@ -802,7 +781,7 @@ monitor.save_to_file("results.json")
 
 ### 품질 관리자 측 (Dashboard)
 
-  1. Dashboard 실행: `streamlit run Dashboard/app.py`
+  1. Dashboard 실행: `agent-eval serve` (Port 8765)
   2. "데이터 편집" → "🔗 외부 데이터 소스" 탭
   3. 자동으로 검색된 프로젝트 선택
   4. "데이터 가져오기" 클릭
@@ -831,37 +810,15 @@ Agent Evaluator는 풍부한 문서를 제공합니다:
   
 ### 예제 카탈로그
 
-**총 24개 예제 파일 (8,000+ 라인)**
+**총 5개 예제 파일 (플랫 구조)**
 
-레벨 | 예제 파일 | 설명 | Layer  
----|---|---|---  
-**🎓 Level 1: Foundation (기초) - 10개**  
-L1-01 | `01_quickstart.py` | 5분 Quick Start | Layer 1  
-L1-02 | `02_layer1_trackers.py` | Layer 1 Trackers 완전 가이드 (11개 Tracker) | Layer 1,2  
-L1-03 | `03_taskresult_helpers.py` | TaskResult Helpers (동적 계산) | Layer 1  
-L1-04 | `04_thresholds_validation.py` | 임계값 시스템 마스터 | Layer 1,2,3  
-L1-05 | `05_layer1_security_basic.py` | 🔒 Layer 1 보안 기초 (Input/Output/Tool) | Layer 1 Security  
-L1-06 | `06_advanced_metrics_analysis.py` | 고급 메트릭 분석 (타입별, 모델별) | Layer 1  
-L1-07 | `07_conversation_state_tracking.py` | 대화 및 상태 전이 추적 | Layer 1  
-L1-08 | `08_new_advanced_apis_quickstart.py` | 신규 고급 API 7종 Quick Start | Layer 1,2  
-L1-09 | `09_helper_functions_comprehensive.py` | Helper 함수 종합 (토큰 추정, 보안 검증) | Layer 1  
-L1-10 | `10_state_transitions_tracking.py` | 상태 전환 추적 (FSM 워크플로우) | Layer 1  
-**🚀 Level 2: Advanced (고급) - 8개**  
-L2-01 | `01_golden_dataset.py` | Golden Dataset 자동 평가 | Layer 1,2  
-L2-02 | `02_layer3_hybrid.py` | Layer 3 Hybrid 평가 (DeepEval + Ragas) | Layer 1,3  
-L2-03 | `03_rag_system.py` | RAG 시스템 완전 평가 (Ragas 4대 지표) | Layer 1,3  
-L2-04 | `04_tool_selection.py` | Tool Selection 심화 (Precision, Recall, F1) | Layer 2  
-L2-05 | `05_multi_agent.py` | Multi-Agent 협업 패턴 평가 | Layer 2  
-L2-06 | `06_workflow.py` | Workflow Execution 패턴 평가 | Layer 2  
-L2-07 | `07_layer2_security_advanced.py` | 🔒 Layer 2 보안 고급 (권한 상승, 도구 체인 공격) | Layer 2 Security  
-L2-08 | `08_advanced_api_methods.py` | 고급 API 메서드 7종 활용 | Layer 1,2  
-**🏭 Level 3: Production (프로덕션) - 6개**  
-L3-01 | `01_framework_crewai.py` | CrewAI 프레임워크 통합 | Layer 1,2  
-L3-02 | `02_cost_optimization.py` | 비용 최적화 전략 (샘플링, 90% 절감) | Layer 1,3  
-L3-03 | `03_framework_langchain.py` | LangChain 프레임워크 통합 (LCEL, Agent) | Layer 1,2  
-L3-04 | `04_framework_langgraph.py` | LangGraph State Machine 통합 | Layer 1,2  
-L3-05 | `05_transparency.py` | 투명성 관리 (Trace, Annotation, 설명 가능성) | Layer 1  
-L3-06 | `06_security_production_monitoring.py` | 🔒 프로덕션 보안 모니터링 (실전 시나리오) | Layer 1,2 Security  
+번호 | 예제 파일 | 설명 | Layer
+---|---|---|---
+01 | `01_quality_metrics.py` | 품질 지표 — Accuracy, Hallucination, Response Quality, RAG | Layer 1
+02 | `02_performance_metrics.py` | 성능 지표 — TCR, Latency (p50/p95/p99), Token Economy | Layer 1
+03 | `03_agentic_metrics.py` | 에이전틱 지표 — Tool Call, Coordination, Workflow, Retry | Layer 2
+04 | `04_security_metrics.py` | 보안 지표 — Input Sanitization, Leakage, Auth, Escalation, Attack | Layer 2
+05 | `05_hybrid_metrics.py` | 하이브리드 평가 — DeepEval, Ragas, LangSmith 통합 | Layer 3  
   
 * * *
 
@@ -869,11 +826,11 @@ L3-06 | `06_security_production_monitoring.py` | 🔒 프로덕션 보안 모니
 
 이 프로젝트는 MIT 라이센스를 따릅니다. 자세한 내용은 [LICENSE](<LICENSE>) 파일을 참조하세요.
 
-**Agent Evaluator v0.5.2**
+**Agent Evaluator v0.5.3**
 
 100% Zero Configuration | 3-Layer Metrics | Production-Ready
 
-**최종 업데이트** : 2026-03-17 | **버전** : Agent Evaluator v0.5.2
+**최종 업데이트** : 2026-03-19 | **버전** : Agent Evaluator v0.5.3
 
 Developed by **KIM SUNGWOO**
 

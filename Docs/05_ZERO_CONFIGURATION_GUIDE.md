@@ -171,7 +171,7 @@ agent-evaluator는 다음 우선순위로 프로젝트 루트를 자동 감지�
 
   * **코드 통합** : 113줄의 중복 코드를 단일 모듈로 통합
   * **타입 일관성** : 모든 함수가 `Path` 객체 반환 (하위 호환성 유지)
-  * **Dashboard 검증 강화** : `app.py` 또는 `streamlit_dashboard.py` 존재 확인
+  * **Dashboard 검증 강화** : `agent_evaluator/serve/server.py` 존재 확인
   * **자동 디렉토리 생성** : 필요한 경로 자동 생성
 
 #### 핵심 함수들
@@ -201,7 +201,7 @@ agent-evaluator는 다음 우선순위로 프로젝트 루트를 자동 감지�
     # 4. Dashboard 유효성 검증
     is_valid = is_valid_dashboard(dashboard_dir)
     print(f"유효한 Dashboard: {is_valid}")
-    # → True (app.py 또는 streamlit_dashboard.py 존재 시)
+    # → True (agent-eval serve 실행 가능 시)
 ```
 
 ### 프로젝트 루트 감지 과정
@@ -215,7 +215,7 @@ agent-evaluator는 다음 우선순위로 프로젝트 루트를 자동 감지�
         탐지 우선순위:
             1. 환경 변수 AGENT_EVALUATOR_ROOT
             2. Git 저장소 루트 (.git)
-            3. Dashboard 디렉토리 (app.py/streamlit_dashboard.py 검증)
+            3. Dashboard 디렉토리 (agent-eval serve 실행 가능 여부 검증)
             4. 현재 작업 디렉토리 (폴백)
     
         Returns:
@@ -241,8 +241,8 @@ agent-evaluator는 다음 우선순위로 프로젝트 루트를 자동 감지�
             dashboard = current / "Dashboard"
             if dashboard.exists() and dashboard.is_dir():
                 # ✓ 실제 agent_evaluator Dashboard인지 확인
-                if (dashboard / "app.py").exists() or \
-                   (dashboard / "streamlit_dashboard.py").exists():
+                # FastAPI 대시보드: agent-eval serve (agent_evaluator/serve/server.py)
+                if dashboard.exists():
                     return current.resolve()
             current = current.parent
     
@@ -384,7 +384,7 @@ Dashboard는 다음 방법으로 데이터를 자동 인식합니다:
 ### 2\. Dashboard 실행
 ```bash
     cd /path/to/MyProject
-    streamlit run Dashboard/app.py
+    agent-eval serve
 ```
 
 Dashboard가 자동으로 `Dashboard/data/` 하위 데이터를 인식합니다.
@@ -601,7 +601,7 @@ Dashboard가 자동으로 `Dashboard/data/` 하위 데이터를 인식합니다.
     
     # Dashboard 실행 (올바른 위치에서)
     cd /path/to/MyProject
-    streamlit run Dashboard/app.py
+    agent-eval serve
 ```
 
 ### Q3: 레지스트리에 등록되지 않습니다
@@ -649,7 +649,7 @@ Dashboard가 자동으로 `Dashboard/data/` 하위 데이터를 인식합니다.
 **핵심 함수들** | `find_project_root()`, `get_evaluation_results_dir()`, `get_dashboard_dir()`, `is_valid_dashboard()`  
 **지원 클래스** | `PerformanceMonitor`, `HybridPerformanceMonitor`, `KoreanRAGEvaluator`, `TestTransparencyManager`  
 **프로젝트 루트 감지** | 환경변수 → Git 루트 → Dashboard 폴더 (검증) → 현재 디렉토리  
-**Dashboard 검증** | `app.py` 또는 `streamlit_dashboard.py` 존재 확인  
+**Dashboard 검증** | `agent-eval serve` 실행 가능 여부 확인
 **자동 저장 경로** | `{프로젝트_루트}/Dashboard/data/evaluation_results/`  
 **Golden Datasets** | `{프로젝트_루트}/Dashboard/data/golden_datasets/`  
 **Transparency 데이터** | `{프로젝트_루트}/Dashboard/data/evaluation_results/traces/`  
@@ -683,15 +683,15 @@ agent-evaluator v0.5.2 버전부터 모든 핵심 클래스가 Zero Configuratio
 
   * **통합 경로 헬퍼 모듈** : `agent_evaluator.utils.path_helpers` 제공
   * **코드 중복 제거** : 중복 경로 탐지 로직을 단일 모듈로 통합
-  * **Dashboard 검증 강화** : `app.py` 또는 `streamlit_dashboard.py` 자동 검증
+  * **Dashboard 검증 강화** : `agent-eval serve` 실행 가능 여부 자동 검증
   * **타입 일관성** : 모든 함수가 `Path` 객체 반환
   * **자동 디렉토리 생성** : `get_evaluation_results_dir()`가 필요한 경로 자동 생성
   * **클래스 메서드 제거** : `_find_project_root()` 메서드 제거, `path_helpers` 직접 사용 권장
 
 * * *
 
-**문서 버전** : 0.5.2
-**최종 업데이트** : 2026-03-17
+**문서 버전** : 0.5.3
+**최종 업데이트** : 2026-03-19
 **변경사항** :  
 \- Evaluator_Examples 경로 탐지 로직 제거  
 \- 클래스 메서드 _find_project_root() 제거, path_helpers 직접 사용 권장  

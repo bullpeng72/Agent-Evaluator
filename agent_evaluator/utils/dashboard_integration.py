@@ -106,10 +106,9 @@ def get_save_path(filename: str, prefer_dashboard: bool = True) -> Path:
         if dashboard_path and dashboard_path.exists():
             return dashboard_path / filename
 
-    # Fallback to local evaluation_results directory
-    local_results = Path("evaluation_results")
-    local_results.mkdir(parents=True, exist_ok=True)
-
+    # Fallback to results/ directory
+    from .path_helpers import get_evaluation_results_dir
+    local_results = get_evaluation_results_dir(create=True)
     return local_results / filename
 
 

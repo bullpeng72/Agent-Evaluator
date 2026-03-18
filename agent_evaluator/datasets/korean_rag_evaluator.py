@@ -137,12 +137,10 @@ class KoreanRAGEvaluator:
 
         우선순위:
         1. 환경변수 AGENT_EVALUATOR_DATA_DIR
-        2. Git 저장소 루트의 Dashboard/data/
-        3. 현재 작업 디렉토리의 Dashboard/data/
-        4. 홈 디렉토리 ~/.agent_evaluator/data/ (fallback)
+        2. path_helpers로 프로젝트 루트 탐지 → results/
+        3. 홈 디렉토리 ~/.agent_evaluator/data/ (fallback)
         """
         import os
-        import sys
 
         # 1. 환경변수
         if 'AGENT_EVALUATOR_DATA_DIR' in os.environ:
@@ -150,25 +148,14 @@ class KoreanRAGEvaluator:
             if data_dir.exists():
                 return data_dir
 
-        # 2. path_helpers를 사용하여 Dashboard 자동 탐지
+        # 2. path_helpers로 results/ 탐지
         try:
-            from ..utils.path_helpers import get_dashboard_dir, find_project_root
-            project_root = find_project_root()
-            dashboard_dir = get_dashboard_dir(project_root)
-            dashboard_data = dashboard_dir / "data"
-            if dashboard_data.exists() or dashboard_dir.exists():
-                return dashboard_data
+            from ..utils.path_helpers import get_evaluation_results_dir
+            return get_evaluation_results_dir(create=True)
         except ImportError:
-            pass  # path_helpers를 사용할 수 없으면 다음 방법 시도
+            pass
 
-        # 3. Git 저장소 루트 찾기
-        current = Path.cwd()
-        for parent in [current] + list(current.parents):
-            if (parent / ".git").exists():
-                # Git 루트를 반환 (Dashboard 하드코딩 제거)
-                return parent / "data"
-
-        # 4. Fallback: 홈 디렉토리
+        # 3. Fallback: 홈 디렉토리
         return Path.home() / ".agent_evaluator" / "data"
 
     def __init__(
@@ -193,22 +180,15 @@ class KoreanRAGEvaluator:
 
         # Zero Configuration: 자동 경로 감지
         if output_dir is None:
-            data_dir = self._detect_data_directory()
-            self.output_dir = data_dir / "evaluation_results"
+            self.output_dir = self._detect_data_directory()
         else:
             self.output_dir = Path(output_dir)
 
         self.output_dir.mkdir(parents=True, exist_ok=True)
 
-        # Golden Dataset Manager - Zero Configuration 지원
+        # Golden Dataset Manager - results/golden_datasets/ 사용
         if golden_datasets_dir is None:
-            if output_dir is None:
-                # Zero Configuration: 자동 감지된 경로 사용
-                data_dir = self._detect_data_directory()
-                golden_datasets_dir = str(data_dir / "golden_datasets")
-            else:
-                # 명시적 output_dir가 있으면 그 부모의 golden_datasets 사용
-                golden_datasets_dir = str(self.output_dir.parent / "golden_datasets")
+            golden_datasets_dir = str(self.output_dir / "golden_datasets")
         self.dataset_manager = GoldenDatasetManager(output_dir=golden_datasets_dir)
 
         # Hybrid Monitor (optional, for advanced tracking)

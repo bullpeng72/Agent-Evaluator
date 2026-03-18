@@ -65,13 +65,12 @@ Agent Evaluator는 AI Agent의 성능을 다각도로 평가하고 모니터링�
 
 ### 2.1 전체 구조
 
-graph TB subgraph UI["사용자 인터페이스 레이어"] Dashboard["🖥️ Streamlit Dashboard  
-\- Main (9개 탭, Port 8501)  
-Overview, Core, Performance,  
-Agentic, Advanced, Insights,  
-Test 투명성, 지표 설명, Export  
-\- Data Editor (Port 8503)  
-데이터 편집 (4개 서브탭)"] PythonAPI["🐍 Python API  
+graph TB subgraph UI["사용자 인터페이스 레이어"] Dashboard["🖥️ FastAPI Dashboard
+\- Single Dashboard (Port 8765)
+agent-eval serve
+Overview, Core, Performance,
+Agentic, Advanced, Insights,
+투명성, 지표 설명, Export"] PythonAPI["🐍 Python API
 \- PerformanceMonitor  
 \- Framework Integration  
 \- Golden Dataset 평가"] end subgraph Core["핵심 평가 엔진 (Core Evaluation Engine)"] AgentEval["📊 agent_evaluator.py  
@@ -159,8 +158,7 @@ compare_with_thresholds()
 **hybrid_monitor.py** | Layer 3 통합 | 45KB | DeepEval, Ragas 통합  
 **framework_integrations.py** | 프레임워크 통합 | 26KB | LangChain, CrewAI, LangGraph 자동 추적  
 **data_editor_manager.py** | 데이터 관리 | 37KB | Golden Dataset, Threshold, Test Config 관리  
-**streamlit_dashboard.py** | 메인 Dashboard | 216KB | 9개 탭, 실시간 시각화, 리포트 생성  
-**dashboard_data_editor.py** | 데이터 편집 Dashboard | 132KB | Golden Dataset, Threshold 관리, Test 투명성  
+**agent_evaluator/serve/server.py** | FastAPI 대시보드 서버 | - | 실시간 시각화, 리포트 생성, Golden Dataset/Threshold 관리
 **test_transparency_manager.py** | Test 투명성 관리 | 56KB | 5개 고급 분석, Traces, Annotations, Audit Log  
   
 ### 2.4 파일 시스템 구조
@@ -391,7 +389,7 @@ compare_with_thresholds()
     conda activate agent_evaluator
     
     # 기본 의존성 설치
-    pip install numpy pandas streamlit plotly python-dotenv
+    pip install agent-evaluator[serve]
 ```
 
 #### 전체 설치 (Layer 1 + 2 + 3)
@@ -600,9 +598,9 @@ KeyError when accessing report['accuracy_metrics']
   * 🤖 **Agentic AI 메트릭:** Tool Selection, Agent Coordination, Workflow Execution (Layer 2)
   * 🔬 **고급 메트릭:** DeepEval, Ragas 평가 (Layer 3, 별도 설치 필요)
 
-**데이터 편집 Dashboard (Port 8503):**
+**FastAPI Dashboard (Port 8765):**
 
-  * 📝 **데이터 편집:** 4개 서브탭 - 임계값 설정, Golden Dataset, Test 준비, 이력 관리
+  * 📊 **통합 관리:** 임계값 설정, Golden Dataset, Test 준비, 이력 관리
 
 **✅ 5분 만에 완료!** 이제 Agent의 성능을 실시간으로 모니터링하고, Dashboard에서 시각화할 수 있습니다. 
 
@@ -1855,11 +1853,11 @@ Agent 상호작용 + Security 자동 추적
 
 ## 🖥️ 9. Dashboard 사용법
 
-**💡 Dual Dashboard 시스템:** Agent Evaluator는 2개의 독립적인 Dashboard를 제공합니다.  
-\- **메인 Dashboard (Port 8501):** 분석, 시각화, Test 투명성, 리포트 생성  
-\- **데이터 편집 Dashboard (Port 8503):** Golden Dataset, Threshold 관리 
+**💡 FastAPI Dashboard:** Agent Evaluator는 단일 통합 Dashboard를 제공합니다.
+\- **FastAPI Dashboard (Port 8765):** 분석, 시각화, Test 투명성, 리포트 생성, Golden Dataset/Threshold 관리
+\- 실행 방법: `agent-eval serve`
 
-### 9.1 메인 Dashboard - 9개 탭 (Port 8501)
+### 9.1 FastAPI Dashboard (Port 8765)
 
 #### 📊 개요 (Overview)
 
@@ -1901,16 +1899,14 @@ _참고: Python API의 5개 고급 분석 기능(이상치 탐지, 상관관계 
 
 **2개 서브탭:** Reports (HTML 리포트), 평가 환경 & 설정 (시스템 정보, 임계값, 요금제)
 
-### 9.2 데이터 편집 Dashboard (Port 8503)
+### 9.2 데이터 관리 (FastAPI Dashboard 통합)
 
-#### 📝 데이터 편집
+FastAPI Dashboard (Port 8765)는 데이터 편집 기능을 통합 제공합니다.
 
-**4개 서브탭 (순서대로):**
-
-  1. ⚙️ **임계값 설정:** 20개 메트릭 Threshold 편집, 환경별 프리셋
-  2. 📄 **Golden Dataset:** QA Pair 추가/수정/삭제, Layer 2 필드 편집
-  3. 📋 **Test 준비:** Test Configuration 생성, 환경 설정
-  4. 📊 **이력 관리:** 버전 백업, 복원, 변경 이력 추적
+  * ⚙️ **임계값 설정:** 20개 메트릭 Threshold 편집, 환경별 프리셋
+  * 📄 **Golden Dataset:** QA Pair 추가/수정/삭제, Layer 2 필드 편집
+  * 📋 **Test 준비:** Test Configuration 생성, 환경 설정
+  * 📊 **이력 관리:** 버전 백업, 복원, 변경 이력 추적
 
 ### 9.3 실시간 모니터링
 
@@ -2202,7 +2198,7 @@ Golden Dataset + Threshold를 포함하는 Test Config 생성 및 저장.
 
 **Dashboard 확인**
 
-Streamlit Dashboard로 결과 시각화 및 상세 분석
+FastAPI Dashboard로 결과 시각화 (agent-eval serve)
 
 2
 
@@ -2273,7 +2269,7 @@ Dashboard에서 PDF/HTML 리포트 다운로드 및 공유
 **사용 방법:**
 
   * **Python API:** 5개 고급 분석 기능 (이상치 탐지, 상관관계 분석, 성능 병목, 데이터 품질, 개선 방안) - 아래 섹션 참고
-  * **메인 Dashboard (Port 8501):** "🔍 Test 투명성" 탭 - 메타 투명성 기능 (Traces, Annotations, Audit Log, 상세 리포트)
+  * **FastAPI Dashboard (Port 8765):** 투명성 섹션 - 메타 투명성 기능 (Traces, Annotations, Audit Log, 상세 리포트)
 
 **참고:** 메인 Dashboard의 "💡 Insights" 탭은 임계값 기반 Alerts 및 Recommendations를 제공합니다. Test Transparency Manager는 더 심층적인 통계 분석 및 AI 기반 인사이트를 제공합니다. 
 
@@ -2394,7 +2390,7 @@ Dashboard에서 PDF/HTML 리포트 다운로드 및 공유
   
 **사용 위치:**
 
-  * **메인 Dashboard (Port 8501):** "🔍 Test 투명성" 탭 - GUI로 Traces, Annotations, Audit Log 조회
+  * **FastAPI Dashboard (Port 8765):** 투명성 섹션 - GUI로 Traces, Annotations, Audit Log 조회
   * **Python API:** TestTransparencyManager - 프로그래밍 방식으로 메타 데이터 관리
 
 #### 기능 1: 메트릭 추적 (Traces)
@@ -2656,4 +2652,4 @@ Dashboard 로딩 느림 | 대용량 데이터 (1000+ tasks) | 샘플링 사용 �
 
 © 2025 Agent Evaluator. All rights reserved.
 
-**최종 업데이트** : 2026-03-17 | **버전** : Agent Evaluator v0.5.2 | **문서** : 종합 학습 가이드
+**최종 업데이트** : 2026-03-19 | **버전** : Agent Evaluator v0.5.3 | **문서** : 종합 학습 가이드

@@ -1155,12 +1155,14 @@ monitor = create_monitor(
 
     # Get transparency data from file system
     from pathlib import Path
+    from ..utils.path_helpers import get_evaluation_results_dir
     transparency_stats = {}
 
-    traces_dir = Path("evaluation_results/traces")
-    annotations_dir = Path("evaluation_results/annotations")
-    audit_logs_dir = Path("evaluation_results/audit_logs")
-    reports_dir = Path("evaluation_results/transparent_reports")
+    _results = get_evaluation_results_dir()
+    traces_dir = _results / "traces"
+    annotations_dir = _results / "annotations"
+    audit_logs_dir = _results / "audit_logs"
+    reports_dir = _results / "transparent_reports"
 
     has_traces = traces_dir.exists() and list(traces_dir.glob("trace_*.json"))
     has_annotations = annotations_dir.exists() and list(annotations_dir.glob("annotation_*.json"))
@@ -1233,7 +1235,7 @@ monitor = create_monitor(
                     <li><strong>규정 준수:</strong> 감사 로그를 통해 평가 과정의 투명성 입증 (Compliance)</li>
                     <li><strong>지식 공유:</strong> 상세 리포트를 팀과 공유하여 개선 방안 논의</li>
                 </ul>
-                <p style="margin-top: 15px;"><strong>접근 방법:</strong> Dashboard의 "🔍 Test 투명성" 탭에서 각 리포트를 확인할 수 있습니다.</p>
+                <p style="margin-top: 15px;"><strong>접근 방법:</strong> <code>agent-eval serve</code> 대시보드의 투명성 섹션에서 각 리포트를 확인할 수 있습니다.</p>
             </div>''')
     else:
         html_parts.append('''

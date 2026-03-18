@@ -186,7 +186,7 @@ textarea.gd-input{height:60px;resize:vertical;font-family:inherit}
     </template>
   </select>
   <button class="btn" @click="refresh()" title="새로고침">🔄</button>
-  <button class="btn" @click="window.open('/slides','_blank')">📊 Slides</button>
+  <button class="btn" @click="window.open('/slides'+(selId?'?id='+selId:''),'_blank')">📊 Slides</button>
   <a class="btn" href="/api/docs"  target="_blank" title="UI 개발용 REST API — Swagger UI (OAS 3.1)">📡 UI API</a>
   <a class="btn" href="/sdk-docs" target="_blank" title="Agent 평가용 Python SDK 레퍼런스">📖 SDK</a>
   <div class="sp"></div>
@@ -2111,7 +2111,7 @@ textarea.gd-input{height:60px;resize:vertical;font-family:inherit}
       <a :href="`/api/export/json/${selId}`" class="btn">⬇️ JSON</a>
       <a :href="`/api/export/csv/${selId}`"  class="btn">⬇️ CSV</a>
       <a :href="`/api/export/html/${selId}`" class="btn">⬇️ HTML 리포트</a>
-      <button class="btn" @click="window.open('/slides','_blank')">📊 Slides 열기</button>
+      <button class="btn" @click="window.open('/slides'+(selId?'?id='+selId:''),'_blank')">📊 Slides 열기</button>
       <button class="btn" @click="window.print()" title="현재 페이지를 PDF로 저장">🖨️ PDF 출력</button>
     </div>
     <div class="drow"><span class="dk">파일</span><span x-text="data.name"></span></div>

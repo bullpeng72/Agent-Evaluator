@@ -1083,16 +1083,13 @@ Agent Evaluator는 **3개 레벨 24개의 실행 가능한 예제 파일** 을 �
 
 **실행 방법:**
 
-```python
-    # Level 1 예제 실행
-    python Evaluator_Examples/level_1_foundation/01_quickstart.py
-    
-    # Level 2 예제 실행
-    python Evaluator_Examples/level_2_advanced/01_golden_dataset.py
-    
-    # Level 3 예제 실행
-    python Evaluator_Examples/level_3_production/01_framework_crewai.py
-```python
+```bash
+    cd Evaluator_Examples
+    python 01_quality_metrics.py      # 품질 지표 (Accuracy, Hallucination, Quality, RAG)
+    python 02_performance_metrics.py  # 성능 지표 (TCR, Latency, Token Economy)
+    python 03_agentic_metrics.py      # 에이전틱 지표 (Tool, Coordination, Workflow)
+    python 04_security_metrics.py     # 보안 지표 (Sanitization, Leakage, Auth, Attack)
+```
 
 ### 🎓 더 배우기
 
@@ -1138,6 +1135,6 @@ Agent Evaluator의 다양한 기능에 대해 더 알아보세요:
 
 Email: [sungwoo.kim@gmail.com](<mailto:sungwoo.kim@gmail.com>)
 
-**최종 업데이트** : 2026-03-17
+**최종 업데이트** : 2026-03-19
 
 © 2024-2025 MIT License

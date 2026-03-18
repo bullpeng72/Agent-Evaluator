@@ -48,7 +48,7 @@ Agent Evaluator는 PyPI에 배포되어 있어 pip로 간단히 설치할 수 �
 
 **포함 기능:**
 
-  * ✅ Streamlit 대시보드 (12 탭)
+  * ✅ FastAPI 대시보드 (`agent-eval serve`, Port 8765, 브라우저 자동 오픈)
   * ✅ Layer 1: Basic + Security 메트릭 (TCR, Accuracy, Latency, Token Usage, Input Sanitization, Output Leakage, Authorization)
   * ✅ Layer 2: Agentic + Security 메트릭 (Tool Selection, Agent Coordination, Workflow, Privilege Escalation, Attack Detection)
   * ✅ **LangChain 통합** (자동 추적)
@@ -81,7 +81,7 @@ Agent Evaluator는 PyPI에 배포되어 있어 pip로 간단히 설치할 수 �
 
 **제외 기능:**
 
-  * ❌ Streamlit 대시보드
+  * ❌ FastAPI 대시보드 (별도 `[serve]` extra 필요)
   * ❌ 프레임워크 통합
   * ❌ Layer 2, 3 메트릭
 
@@ -595,14 +595,15 @@ Layer 1/2 보안 메트릭, Layer 3 고급 평가, 자동 추적 기능이 포�
     pip install pyautogen
 ```
 
-#### Streamlit 실행 오류
+#### 대시보드 실행 오류
 
-**원인:** Streamlit이 설치되지 않음
+**원인:** `serve` extra가 설치되지 않음
 
 **해결:**
 
-```bash 
-    pip install streamlit>=1.28.0
+```bash
+    pip install agent-evaluator[serve]
+    agent-eval serve
 ```
 
 #### 버전 충돌
@@ -713,32 +714,19 @@ Layer 1/2 보안 메트릭, Layer 3 고급 평가, 자동 추적 기능이 포�
     
     YourProject/                     # 사용자 프로젝트 루트
     ├── .git/                        # Git 저장소 (선택사항)
-    ├── Dashboard/                   # 🌐 Dashboard (설치 필요)
-    │   ├── app.py                   # Streamlit 앱 진입점
-    │   ├── streamlit_dashboard.py  # 메인 대시보드
-    │   ├── requirements.txt         # Dashboard 전용 의존성
-    │   ├── pages/                   # Streamlit 멀티페이지
-    │   │   └── 데이터편집.py         # 데이터 편집 페이지
-    │   ├── data/                    # 데이터 저장소 (Zero Configuration)
-    │   │   ├── evaluation_results/  # 평가 결과 저장소
-    │   │   │   ├── *.json           # 평가 데이터 파일
-    │   │   │   ├── traces/          # 메트릭 계산 추적
-    │   │   │   ├── annotations/     # 사용자 주석
-    │   │   │   ├── audit_logs/      # 감사 로그
-    │   │   │   └── transparent_reports/ # 투명성 보고서
-    │   │   └── golden_datasets/     # Golden Dataset 저장소
-    │   │       └── *.json
-    │   └── utils/                   # Dashboard 유틸리티
-    │       ├── dashboard_utils.py
-    │       ├── security_tabs.py     # 보안 메트릭 탭
-    │       └── security_visualizations.py
+    ├── Dashboard/                   # 데이터 저장소 (Zero Configuration)
+    │   └── data/
+    │       ├── evaluation_results/  # 평가 결과 저장소
+    │       │   └── *.json           # 평가 데이터 파일
+    │       └── golden_datasets/     # Golden Dataset 저장소
+    │           └── *.json
     │
     ├── src/                         # 사용자 코드
     │   └── my_agent.py
     └── requirements.txt
-    
+
     참고: agent_evaluator는 pip로 설치하여 사용합니다.
-          Dashboard는 별도로 설치해야 합니다.
+          대시보드는 pip install agent-evaluator[serve] 후 agent-eval serve 로 실행합니다.
 ```
 
 * * *
@@ -751,9 +739,9 @@ Layer 1/2 보안 메트릭, Layer 3 고급 평가, 자동 추적 기능이 포�
   2. **[API_REFERENCE.html](<API_REFERENCE.html>)** \- API 레퍼런스
   3. **[LEARNING_GUIDE.html](<LEARNING_GUIDE.html>)** \- 학습 가이드
   4. **[ZERO_CONFIGURATION_GUIDE.html](<ZERO_CONFIGURATION_GUIDE.html>)** \- Zero Configuration 상세 가이드
-  5. **[DASHBOARD.html](<DASHBOARD.html>)** \- Dashboard 사용 가이드
+  5. **[DEPLOYMENT_GUIDE.html](<DEPLOYMENT_GUIDE.html>)** \- 배포 가이드
 
 * * *
 
-**문서 버전** : v0.5.2
-**최종 업데이트** : 2026-03-17
+**문서 버전** : v0.5.3
+**최종 업데이트** : 2026-03-19

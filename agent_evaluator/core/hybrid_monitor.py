@@ -463,10 +463,9 @@ class HybridPerformanceMonitor(PerformanceMonitor):
         }
 
     def save_to_file(self, filename: str = "hybrid_evaluation_results.json"):
-        """Save results with advanced metrics to JSON file in Dashboard/data/evaluation_results"""
-        # Dashboard/data/evaluation_results 디렉토리에 저장 (절대 경로가 아닌 경우)
+        """Save results with advanced metrics to JSON file in results/"""
+        # results/ 디렉토리에 저장 (절대 경로가 아닌 경우)
         if not os.path.isabs(filename):
-            # get_evaluation_results_dir()를 사용하여 올바른 Dashboard 위치 탐지
             from ..utils.path_helpers import get_evaluation_results_dir
             results_dir = get_evaluation_results_dir(create=True)
             filename = os.path.join(results_dir, filename)
@@ -534,9 +533,10 @@ class HybridPerformanceMonitor(PerformanceMonitor):
     @classmethod
     def load_from_file(cls, filename: str) -> 'HybridPerformanceMonitor':
         """Load results from JSON file"""
-        # Try evaluation_results directory first if file not found in current dir
+        # results/ 디렉토리에서 탐색 (현재 디렉토리에 없는 경우)
         if not os.path.exists(filename):
-            results_dir_file = os.path.join("evaluation_results", filename)
+            from ..utils.path_helpers import get_evaluation_results_dir
+            results_dir_file = os.path.join(get_evaluation_results_dir(), filename)
             if os.path.exists(results_dir_file):
                 filename = results_dir_file
 

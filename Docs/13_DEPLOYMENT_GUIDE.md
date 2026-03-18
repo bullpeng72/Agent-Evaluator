@@ -71,12 +71,10 @@ CI/CD 통합 및 프로덕션 배포 전략
     [](<#cb1-2>)numpy>=1.20.0
     [](<#cb1-3>)pandas>=1.3.0
     [](<#cb1-4>)
-    [](<#cb1-5>)# 웹 대시보드
-    [](<#cb1-6>)streamlit>=1.28.0,<2.0.0
-    [](<#cb1-7>)
-    [](<#cb1-8>)# 시각화
-    [](<#cb1-9>)plotly>=5.17.0,<6.0.0
-    [](<#cb1-10>)
+    [](<#cb1-5>)# 웹 대시보드 (FastAPI)
+    [](<#cb1-6>)fastapi>=0.110.0
+    [](<#cb1-7>)uvicorn[standard]>=0.29.0
+    [](<#cb1-8>)
     [](<#cb1-11>)# 환경 변수 관리
     [](<#cb1-12>)python-dotenv>=1.0.0
 ```
@@ -168,7 +166,7 @@ CI/CD 통합 및 프로덕션 배포 전략
 ### Method 2: 최소 설치 (Native Metrics만 사용)
 ```bash
     [](<#cb7-1>)# Core dependencies만 설치
-    [](<#cb7-2>)pip install numpy>=1.24.0 pandas>=2.0.0 streamlit>=1.28.0 plotly>=5.17.0 python-dotenv>=1.0.0
+    [](<#cb7-2>)pip install agent-evaluator[serve]
 ```
 
 ### Method 3: 완전 설치 (모든 기능 사용)
@@ -185,7 +183,7 @@ CI/CD 통합 및 프로덕션 배포 전략
     [](<#cb9-2>)python --version  # Python 3.11+ 권장
     [](<#cb9-3>)
     [](<#cb9-4>)# 주요 모듈 import 확인
-    [](<#cb9-5>)python -c "import agent_evaluator; import streamlit; print('Installation successful!')"
+    [](<#cb9-5>)python -c "import agent_evaluator; from agent_evaluator.serve import server; print('Installation successful!')"
     [](<#cb9-6>)
     [](<#cb9-7>)# 대시보드 실행 테스트
     [](<#cb9-8>)agent-eval serve
@@ -249,86 +247,29 @@ v0.5.2부터 프로젝트는 4개의 독립적인 컴포넌트로 구성됩니�
 **사용** : agent_evaluator 패키지 설치 후 예제 실행
 ```
     Evaluator_Examples/
-    ├── level_1_foundation/             # 🎯 Layer 1: Basic + Security Metrics
-    │   ├── 00_new_api_demo.py          # v0.5.2 신규 API 데모 (quick start)
-    │   ├── 01_quickstart.py            # 빠른 시작 가이드
-    │   ├── 02_layer1_trackers.py       # Layer 1 메트릭 추적 (TCR, Accuracy 등)
-    │   ├── 03_taskresult_helpers.py    # TaskResult 헬퍼 사용법
-    │   ├── 04_thresholds_validation.py # Threshold 검증 및 Quality Gate
-    │   └── 05_layer1_security_basic.py # Layer 1 보안 메트릭 (Input Sanitization 등)
-    │
-    ├── level_2_advanced/               # 🤖 Layer 2: Agentic + Security Metrics
-    │   ├── 01_golden_dataset.py        # Golden Dataset 생성 및 사용
-    │   ├── 02_layer3_hybrid.py         # Layer 3 하이브리드 평가 (DeepEval, Ragas)
-    │   ├── 03_rag_system.py            # RAG 시스템 평가 (Faithfulness 등)
-    │   ├── 04_tool_selection.py        # Tool Selection Accuracy 추적
-    │   ├── 05_multi_agent.py           # Multi-Agent 시스템 평가
-    │   ├── 06_workflow.py              # Workflow Execution 추적
-    │   └── 07_layer2_security_advanced.py # Layer 2 보안 메트릭 (Privilege Escalation 등)
-    │
-    ├── level_3_production/             # 🚀 Layer 3: Production & Framework Integration
-    │   ├── 01_framework_crewai.py      # CrewAI 통합 예제
-    │   ├── 02_cost_optimization.py     # 비용 최적화 및 모니터링
-    │   ├── 03_framework_langchain.py   # LangChain 통합 예제
-    │   ├── 04_framework_langgraph.py   # LangGraph 통합 예제
-    │   ├── 05_transparency.py          # 투명성 보고서 생성
-    │   └── 06_security_production_monitoring.py # 프로덕션 보안 모니터링
-    │
-    └── Dashboard/                      # → 독립 컴포넌트 (아래 섹션 3 참조)
+    ├── 01_quality_metrics.py     # 🎯 품질 지표 — Accuracy, Hallucination, Quality, RAG
+    ├── 02_performance_metrics.py # ⚡ 성능 지표 — TCR, Latency (p50/p95/p99), Token Economy
+    ├── 03_agentic_metrics.py     # 🤖 에이전틱 지표 — Tool Call, Coordination, Workflow, Retry
+    └── 04_security_metrics.py   # 🔒 보안 지표 — Input Sanitization, Leakage, Auth, Escalation, Attack
 ```
 
 #### 3\. 🌐 Dashboard/ - Web Dashboard (Standalone)
 
 **목적** : 평가 결과 시각화 및 관리 (독립 실행 가능)
 
-**실행** : `cd Evaluator_Examples/Dashboard && streamlit run app.py`
+**실행** : `agent-eval serve`
 
-**위치** : `Evaluator_Examples/Dashboard/`
+**위치** : `agent_evaluator/serve/` (패키지 내장)
 ```bash
-    Dashboard/                          # 독립적인 Streamlit 앱
-    ├── app.py                          # 🚪 Streamlit 앱 진입점
-    │                                   # → streamlit run app.py
-    │
-    ├── streamlit_dashboard.py          # 📊 메인 대시보드 (12 탭 구조)
-    │                                   # Tab 1: Overview & Summary
-    │                                   # Tab 2-6: Layer 1 메트릭 (Basic + Security)
-    │                                   # Tab 7-11: Layer 2 메트릭 (Agentic + Security)
-    │                                   # Tab 12: Layer 3 메트릭 (DeepEval, Ragas)
-    │
-    ├── dashboard_data_editor.py        # ✏️ 데이터 편집 UI 컴포넌트
-    │                                   # - Test Configuration 테이블 편집
-    │                                   # - Golden Dataset 업로드
-    │
-    ├── data_editor_manager.py          # 💾 Test Configuration 관리 클래스
-    │                                   # - CRUD 작업 (Create, Read, Update, Delete)
-    │                                   # - Threshold 설정 및 검증
-    │
-    ├── requirements.txt                # Dashboard 전용 의존성
-    │                                   # agent_evaluator + streamlit + plotly
-    │
-    ├── .env.example                    # 환경 변수 템플릿
-    │                                   # OPENAI_API_KEY, ANTHROPIC_API_KEY 등
-    │
-    ├── pages/                          # 📄 Streamlit 멀티페이지
-    │   └── 데이터편집.py                # 데이터 편집 전용 페이지
-    │                                   # (Streamlit 페이지 라우팅)
-    │
-    ├── data/                           # 💾 Dashboard 데이터 저장소
-    │   ├── evaluation_results/         # 평가 결과 JSON 파일들
-    │   │   ├── annotations/            # 사용자 주석 (annotations/*.json)
-    │   │   ├── audit_logs/             # 감사 로그 (audit_logs/*.json)
-    │   │   ├── traces/                 # 실행 추적 로그 (traces/*.json)
-    │   │   └── transparent_reports/    # 투명성 보고서 (transparent_reports/*.md)
-    │   └── golden_datasets/            # Golden Dataset 저장소
-    │       └── *.json                  # 사용자 업로드 Golden Dataset
-    │
-    └── utils/                          # 🛠️ Dashboard 유틸리티
-        ├── __init__.py                 # 패키지 초기화
-        ├── dashboard_utils.py          # 공통 유틸리티 함수
-        ├── security_tabs.py            # 보안 메트릭 탭 렌더링
-        ├── security_visualizations.py  # 보안 차트 및 시각화
-        ├── enhanced_recommendations.py # 추천 시스템
-        └── merge_evaluation_results.py # 평가 결과 병합 도구
+    Dashboard/
+    └── data/                           # 💾 Dashboard 데이터 저장소
+        ├── evaluation_results/         # 평가 결과 JSON 파일들
+        │   ├── annotations/            # 사용자 주석 (annotations/*.json)
+        │   ├── audit_logs/             # 감사 로그 (audit_logs/*.json)
+        │   ├── traces/                 # 실행 추적 로그 (traces/*.json)
+        │   └── transparent_reports/    # 투명성 보고서 (transparent_reports/*.md)
+        └── golden_datasets/            # Golden Dataset 저장소
+            └── *.json                  # 사용자 업로드 Golden Dataset
 ```
 
 #### 4\. 📖 Docs/ - Documentation (Standalone)
@@ -1071,11 +1012,11 @@ v0.5.2부터 프로젝트는 4개의 독립적인 컴포넌트로 구성됩니�
     [](<#cb23-26>)HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     [](<#cb23-27>)    CMD python -c "import agent_evaluator; print('OK')" || exit 1
     [](<#cb23-28>)
-    [](<#cb23-29>)# Expose Streamlit port
-    [](<#cb23-30>)EXPOSE 8501
+    [](<#cb23-29>)# Expose FastAPI dashboard port
+    [](<#cb23-30>)EXPOSE 8765
     [](<#cb23-31>)
     [](<#cb23-32>)# Default command: Run dashboard
-    [](<#cb23-33>)CMD ["streamlit", "run", "Evaluator_Examples/Dashboard/app.py", "--server.port=8501", "--server.address=0.0.0.0"]
+    [](<#cb23-33>)CMD ["agent-eval", "serve", "--port", "8765", "--no-open"]
 ```
 
 ### docker-compose.yml
@@ -1086,12 +1027,12 @@ v0.5.2부터 프로젝트는 4개의 독립적인 컴포넌트로 구성됩니�
     [](<#cb24-2>)version: '3.8'
     [](<#cb24-3>)
     [](<#cb24-4>)services:
-    [](<#cb24-5>)  # Streamlit Dashboard Service
+    [](<#cb24-5>)  # FastAPI Dashboard Service
     [](<#cb24-6>)  dashboard:
     [](<#cb24-7>)    build: .
     [](<#cb24-8>)    container_name: agent-evaluator-dashboard
     [](<#cb24-9>)    ports:
-    [](<#cb24-10>)      - "8501:8501"
+    [](<#cb24-10>)      - "8765:8765"
     [](<#cb24-11>)    environment:
     [](<#cb24-12>)      - ENV=${ENV:-production}
     [](<#cb24-13>)      - OPENAI_API_KEY=${OPENAI_API_KEY}
@@ -1101,10 +1042,10 @@ v0.5.2부터 프로젝트는 4개의 독립적인 컴포넌트로 구성됩니�
     [](<#cb24-17>)      - ./evaluation_results:/app/evaluation_results
     [](<#cb24-18>)      - ./golden_datasets:/app/golden_datasets
     [](<#cb24-19>)      - ./.env:/app/.env
-    [](<#cb24-20>)    command: streamlit run Dashboard/streamlit_dashboard.py --server.port 8501 --server.address 0.0.0.0
+    [](<#cb24-20>)    command: agent-eval serve --port 8765 --no-open
     [](<#cb24-21>)    restart: unless-stopped
     [](<#cb24-22>)    healthcheck:
-    [](<#cb24-23>)      test: ["CMD", "curl", "-f", "http://localhost:8501/_stcore/health"]
+    [](<#cb24-23>)      test: ["CMD", "curl", "-f", "http://localhost:8765/health"]
     [](<#cb24-24>)      interval: 30s
     [](<#cb24-25>)      timeout: 10s
     [](<#cb24-26>)      retries: 3
@@ -1174,7 +1115,7 @@ v0.5.2부터 프로젝트는 4개의 독립적인 컴포넌트로 구성됩니�
     [](<#cb26-6>)docker-compose up -d dashboard
     [](<#cb26-7>)
     [](<#cb26-8>)# 브라우저에서 접속
-    [](<#cb26-9>)# http://localhost:8501
+    [](<#cb26-9>)# http://localhost:8765
     [](<#cb26-10>)
     [](<#cb26-11>)# 로그 확인
     [](<#cb26-12>)docker-compose logs -f dashboard
@@ -1195,7 +1136,7 @@ v0.5.2부터 프로젝트는 4개의 독립적인 컴포넌트로 구성됩니�
     [](<#cb26-27>)# Dashboard 실행
     [](<#cb26-28>)docker run -d \
     [](<#cb26-29>)  --name agent-evaluator-dashboard \
-    [](<#cb26-30>)  -p 8501:8501 \
+    [](<#cb26-30>)  -p 8765:8765 \
     [](<#cb26-31>)  -e OPENAI_API_KEY=${OPENAI_API_KEY} \
     [](<#cb26-32>)  -e ENV=production \
     [](<#cb26-33>)  -v $(pwd)/evaluation_results:/app/evaluation_results \
@@ -1226,7 +1167,7 @@ v0.5.2부터 프로젝트는 4개의 독립적인 컴포넌트로 구성됩니�
     [](<#cb26-58>)
     [](<#cb26-59>)docker run -d \
     [](<#cb26-60>)  --name agent-evaluator-dev \
-    [](<#cb26-61>)  -p 8501:8501 \
+    [](<#cb26-61>)  -p 8765:8765 \
     [](<#cb26-62>)  -e ENV=development \
     [](<#cb26-63>)  -e OPENAI_API_KEY=${OPENAI_API_KEY} \
     [](<#cb26-64>)  -v $(pwd):/app \
@@ -1543,7 +1484,7 @@ v0.5.2부터 프로젝트는 4개의 독립적인 컴포넌트로 구성됩니�
     [](<#cb43-2>)python --version  # 3.11+ 권장
     [](<#cb43-3>)
     [](<#cb43-4>)# ✓ 의존성 설치 확인
-    [](<#cb43-5>)pip list | grep -E "numpy|pandas|streamlit|plotly"
+    [](<#cb43-5>)pip list | grep -E "numpy|pandas|fastapi|uvicorn"
     [](<#cb43-6>)
     [](<#cb43-7>)# ✓ 환경 변수 확인
     [](<#cb43-8>)python -c "from dotenv import load_dotenv; import os; load_dotenv(); print('OPENAI_API_KEY:', 'SET' if os.getenv('OPENAI_API_KEY') else 'NOT SET')"
@@ -1651,13 +1592,10 @@ v0.5.2부터 프로젝트는 4개의 독립적인 컴포넌트로 구성됩니�
     │   ├── utils/                                # 유틸리티 (path_helpers 등)
     │   └── helpers/                              # Helper 클래스
     ├── Evaluator_Examples/                       # 예제 코드
-    │   └── Dashboard/                            # Dashboard (독립 실행)
-    │       ├── app.py                            # Dashboard 진입점
-    │       ├── streamlit_dashboard.py            # 메인 대시보드
-    │       ├── data/                             # 데이터 저장소
-    │       │   ├── evaluation_results/           # 평가 결과
-    │       │   └── golden_datasets/              # Golden Dataset
-    │       └── requirements.txt                  # Dashboard 의존성
+    │   └── Dashboard/                            # Dashboard 데이터 디렉토리
+    │       └── data/                             # 데이터 저장소
+    │           ├── evaluation_results/           # 평가 결과
+    │           └── golden_datasets/              # Golden Dataset
     ├── requirements.txt                          # Core 패키지 의존성
     ├── setup.py                                  # PyPI 패키징
     └── .env                                      # 환경 변수 (OPENAI_API_KEY)
@@ -1666,7 +1604,7 @@ v0.5.2부터 프로젝트는 4개의 독립적인 컴포넌트로 구성됩니�
 ### 주요 명령어
 ```bash
     [](<#cb49-1>)# Dashboard 실행
-    [](<#cb49-2>)cd Evaluator_Examples/Dashboard && streamlit run app.py
+    [](<#cb49-2>)agent-eval serve
     [](<#cb49-3>)
     [](<#cb49-4>)# Quality Gate 실행 (예제 스크립트)
     [](<#cb49-5>)python scripts/quality_gate.py  # 사용자가 직접 작성 필요
@@ -1696,9 +1634,9 @@ v0.5.2부터 프로젝트는 4개의 독립적인 컴포넌트로 구성됩니�
 
 ### 포트 및 네트워크
 ```python
-    Streamlit Dashboard: http://localhost:8501
-    Docker Dashboard:    http://localhost:8501
-    Health Check:        http://localhost:8501/_stcore/health
+    FastAPI Dashboard:   http://localhost:8765
+    Docker Dashboard:    http://localhost:8765
+    Health Check:        http://localhost:8765/health
 ```
 
 * * *
@@ -2873,7 +2811,7 @@ DB 연결 실패 | 네트워크, 인증 오류 | `telnet db-host 5432` | DB 연�
 
 ### 외부 참고 자료
 
-  * [Streamlit Documentation](<https://docs.streamlit.io/>)
+  * [FastAPI Documentation](<https://fastapi.tiangolo.com/>)
   * [Docker Documentation](<https://docs.docker.com/>)
   * [DeepEval Documentation](<https://docs.confident-ai.com/>)
   * [Ragas Documentation](<https://docs.ragas.io/>)
@@ -2888,7 +2826,7 @@ DB 연결 실패 | 네트워크, 인증 오류 | `telnet db-host 5432` | DB 연�
 
 * * *
 
-**최종 업데이트** : 2026-03-17
+**최종 업데이트** : 2026-03-19
 **버전** : v0.5.2
 **프로젝트** : Agent Evaluator - AI Agent Performance Evaluation System  
 **문서 타입** : 배포 가이드 (Deployment Guide)

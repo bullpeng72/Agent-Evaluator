@@ -75,8 +75,10 @@ docs/_build/
 
 # Generated evaluation results (agent-eval serve reads from here)
 results/
-golden_datasets/
-Dashboard/
 
 # Evaluator_Examples generated HTML reports
 Evaluator_Examples/**/*.html
+
+# DeepEval telemetry (auto-generated, UUID only)
+.deepeval_telemtry.txt
+.deepeval/

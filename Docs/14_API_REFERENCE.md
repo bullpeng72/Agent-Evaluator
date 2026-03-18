@@ -12,7 +12,7 @@
 
 **현재 버전:** v0.5.2
 
-**최종 업데이트:** 2026-03-17
+**최종 업데이트:** 2026-03-19
 
 **테스트된 환경:**
 
@@ -2385,7 +2385,7 @@ RAGAS 메트릭 어댑터입니다.
 **💡 핵심 특징:**
 
   * ✅ **자동 프로젝트 루트 탐지** : 환경 변수, Git 저장소, Dashboard 폴더를 자동으로 탐색
-  * ✅ **Dashboard 검증** : app.py 또는 streamlit_dashboard.py 존재 확인
+  * ✅ **Dashboard 검증** : Dashboard/data/ 디렉토리 존재 확인
   * ✅ **일관된 타입** : 모든 함수가 Path 객체 반환
   * ✅ **자동 디렉토리 생성** : 필요한 경로 자동 생성
   * ✅ **중복 제거** : 3곳의 중복 코드를 하나로 통합 (104줄 감소)
@@ -2403,7 +2403,7 @@ RAGAS 메트릭 어댑터입니다.
 
   1. **환경 변수** : `AGENT_EVALUATOR_ROOT` (명시적 지정)
   2. **Git 저장소** : `.git` 디렉토리 탐색
-  3. **Dashboard 디렉토리** : `app.py` 또는 `streamlit_dashboard.py` 검증
+  3. **Dashboard 디렉토리** : `Dashboard/data/` 존재 검증
   4. **현재 디렉토리** : 위의 모든 방법 실패 시 폴백
 
 **반환값:** `Path` \- 프로젝트 루트 절대 경로
@@ -2489,7 +2489,7 @@ Dashboard 디렉토리 경로를 반환합니다.
 **검증 기준:**
 
   * 디렉토리가 존재하고
-  * `app.py` 또는 `streamlit_dashboard.py` 중 하나라도 존재
+  * `Dashboard/data/` 디렉토리가 존재
 
 **예제:**
 ```python
@@ -3912,4 +3912,4 @@ AutoGenEvaluator는 에이전트 간의 메시지 교환을 자동으로 추적�
 
   * [메트릭 가이드](<METRICS_GUIDE.md>): 모든 평가 지표 상세 설명
   * [프레임워크 통합 가이드](<FRAMEWORK_INTEGRATION.md>): CrewAI, AutoGen 등 통합
-  * [대시보드 가이드](<DASHBOARD.md>): Streamlit 대시보드 활용
+  * [배포 가이드](<13_DEPLOYMENT_GUIDE.md>): FastAPI 대시보드 배포 (`agent-eval serve`)

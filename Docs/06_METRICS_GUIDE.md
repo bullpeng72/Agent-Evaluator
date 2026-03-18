@@ -2416,6 +2416,6 @@ AutoGen | `AutoGenEvaluator` | Evaluator로 Agent 래핑
 
 **Agent Evaluator v0.5.2**
 
-**최종 업데이트** : 2026-03-17
+**최종 업데이트** : 2026-03-19
 
 © 2024-2025 MIT License

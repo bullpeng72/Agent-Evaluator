@@ -3,7 +3,7 @@
 [![PyPI version](https://img.shields.io/pypi/v/agent-evaluator.svg)](https://pypi.org/project/agent-evaluator/)
 [![Python Version](https://img.shields.io/badge/python-3.8%2B-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Version](https://img.shields.io/badge/version-0.5.2-green.svg)](https://github.com/bullpeng72/Agent-Evaluator)
+[![Version](https://img.shields.io/badge/version-0.5.3-green.svg)](https://github.com/bullpeng72/Agent-Evaluator)
 
 **AI 에이전트를 위한 프로덕션 레디 평가 프레임워크**
 
@@ -379,7 +379,7 @@ agent-eval check
 
 출력 예시:
 ```
-  Agent Evaluator v0.5.2 — 설정 상태
+  Agent Evaluator v0.5.3 — 설정 상태
   ──────────────────────────────────────────────────
   .env 로드: /home/user/project/.env
 
@@ -491,10 +491,12 @@ agent-evaluator/
 │   │   └── path_helpers.py
 │   └── config.py                # 환경변수 설정 로더
 │
-├── Evaluator_Examples/           # 단계별 실습 예제
-│   ├── level_1_foundation/       # 기초 — 10개 (5~10분)
-│   ├── level_2_advanced/         # 고급 — 8개 (15~30분)
-│   ├── level_3_production/       # 프로덕션 — 6개 (30분+)
+├── Evaluator_Examples/           # 카테고리별 평가 예제 (5개)
+│   ├── 01_quality_metrics.py     # 품질 지표 — Accuracy, Hallucination, Quality, RAG
+│   ├── 02_performance_metrics.py # 성능 지표 — TCR, Latency, Token Economy
+│   ├── 03_agentic_metrics.py     # 에이전틱 지표 — Tool Call, Coordination, Workflow
+│   ├── 04_security_metrics.py    # 보안 지표 — Input Sanitization, Leakage, Auth, Escalation
+│   └── 05_hybrid_metrics.py      # 하이브리드 평가 — DeepEval, Ragas, LangSmith 통합
 │
 ├── Docs/Metrics/                 # 지표별 상세 문서 (25개)
 ├── pyproject.toml
@@ -506,44 +508,18 @@ agent-evaluator/
 
 ## 예제 가이드
 
-### Level 1 — 기초 (5~10분)
+5개의 예제 파일로 Layer 1/2/3 전체 지표를 검증할 수 있습니다.
 
 ```bash
 cd Evaluator_Examples
-python level_1_foundation/01_quickstart.py              # 기본 워크플로우
-python level_1_foundation/02_layer1_trackers.py         # Layer 1 지표 전체
-python level_1_foundation/03_taskresult_helpers.py      # 헬퍼 함수
-python level_1_foundation/04_thresholds_validation.py   # 품질 임계값
-python level_1_foundation/05_layer1_security_basic.py   # 보안 지표 기초
-python level_1_foundation/06_advanced_metrics_analysis.py      # 고급 지표 분석
-python level_1_foundation/07_conversation_state_tracking.py    # 대화 상태 추적
-python level_1_foundation/08_new_advanced_apis_quickstart.py   # 고급 API 빠른 시작
-python level_1_foundation/09_helper_functions_comprehensive.py # 헬퍼 함수 종합
-python level_1_foundation/10_state_transitions_tracking.py  # 상태 전이 추적
-```
+python 01_quality_metrics.py      # 품질 지표 — Accuracy, Hallucination, Quality, RAG
+python 02_performance_metrics.py  # 성능 지표 — TCR, Latency (p50/p95/p99), Token Economy
+python 03_agentic_metrics.py      # 에이전틱 지표 — Tool Call, Coordination, Workflow, Retry
+python 04_security_metrics.py     # 보안 지표 — Input Sanitization, Leakage, Auth, Escalation, Attack
+python 05_hybrid_metrics.py       # 하이브리드 평가 — DeepEval, Ragas, LangSmith 통합 (API 키 필요)
 
-### Level 2 — 고급 (15~30분)
-
-```bash
-python level_2_advanced/01_golden_dataset.py       # 골든 데이터셋 생성·평가
-python level_2_advanced/02_layer3_hybrid.py        # DeepEval/Ragas 하이브리드
-python level_2_advanced/03_rag_system.py           # RAG 시스템 평가
-python level_2_advanced/04_tool_selection.py       # 툴 선택 최적화
-python level_2_advanced/05_multi_agent.py          # 멀티 에이전트 협업
-python level_2_advanced/06_workflow.py             # 복잡한 워크플로우 추적
-python level_2_advanced/07_layer2_security_advanced.py # 보안 지표 고급
-python level_2_advanced/08_advanced_api_methods.py # 고급 API 메서드
-```
-
-### Level 3 — 프로덕션 (30분+)
-
-```bash
-python level_3_production/01_framework_crewai.py          # CrewAI 통합
-python level_3_production/02_cost_optimization.py         # 비용 최적화
-python level_3_production/03_framework_langchain.py       # LangChain 통합
-python level_3_production/04_framework_langgraph.py       # LangGraph 통합
-python level_3_production/05_transparency.py              # 설명가능성
-python level_3_production/06_security_production_monitoring.py  # 프로덕션 보안 모니터링
+# 대시보드 실행 (결과 자동 반영)
+agent-eval serve --watch
 ```
 
 ---
@@ -659,7 +635,7 @@ MIT License — 자세한 내용은 [LICENSE](LICENSE) 파일을 참고하세요
   title   = {Agent Evaluator: Production-ready evaluation framework for AI agents},
   author  = {Kim, Sungwoo},
   year    = {2024},
-  version = {0.5.2},
+  version = {0.5.3},
   url     = {https://github.com/bullpeng72/Agent-Evaluator},
   license = {MIT}
 }

@@ -138,20 +138,12 @@ class ExampleRunner:
         print("🎉 예제 완료!")
         print("=" * 70)
 
-        print("\n📊 Dashboard에서 결과 확인하기:")
+        print("\n📊 대시보드에서 결과 확인하기:")
         print("-" * 70)
-        print("1. Dashboard 실행:")
-        print("   cd Dashboard")
-        print("   streamlit run streamlit_dashboard.py")
+        print("1. 대시보드 실행:")
+        print("   agent-eval serve")
         print("")
-
-        if dashboard_tabs:
-            print("2. Dashboard에서 확인할 탭:")
-            for tab in dashboard_tabs:
-                print(f"   {tab}")
-            print("")
-
-        print("3. 파일 선택:")
+        print("2. 파일 선택:")
         print(f"   {filename} 선택")
         print("")
 

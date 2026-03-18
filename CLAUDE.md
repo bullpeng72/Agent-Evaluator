@@ -5,7 +5,7 @@
 **Agent-Evaluator** is a production-ready Python SDK for evaluating AI agents.
 20개의 성능 지표를 세 개의 레이어(기본/고급/하이브리드)로 측정한다.
 
-- **Version:** 0.5.2 (Beta)
+- **Version:** 0.5.3 (Beta)
 - **Python:** 3.8+
 - **License:** MIT
 - **Author:** Sungwoo Kim
@@ -108,7 +108,7 @@ agent_evaluator/
 │   ├── server.py            # FastAPI app 진입점
 │   ├── loader.py            # 평가 결과 로더
 │   ├── watcher.py           # 파일 변경 감시 (--watch)
-│   └── routers/             # API 라우터 (data, export, golden, stream, transparency)
+│   └── routers/             # API 라우터 (data, export, golden, stream, transparency, config, webhook)
 ├── cli/
 │   └── main.py              # agent-eval CLI 진입점
 ├── utils/
@@ -121,10 +121,12 @@ agent_evaluator/
 ├── config.py                # 환경변수 설정 로더 (load_env, get_settings)
 └── __init__.py              # Public API surface
 
-Evaluator_Examples/          # 실제 사용 예시 (패키지 외부)
-├── level_1_foundation/      # 기초 예시 10개 (01~10)
-├── level_2_advanced/        # 고급 예시 8개 (01~08)
-├── level_3_production/      # 프로덕션 예시 6개 (01~06)
+Evaluator_Examples/          # 실제 사용 예시 (패키지 외부, 5개 플랫 파일)
+├── 01_quality_metrics.py    # 품질 지표 — Accuracy, Hallucination, Quality, RAG
+├── 02_performance_metrics.py # 성능 지표 — TCR, Latency, Token Economy
+├── 03_agentic_metrics.py    # 에이전틱 지표 — Tool Call, Coordination, Workflow
+├── 04_security_metrics.py   # 보안 지표 — Input Sanitization, Leakage, Auth, Escalation
+└── 05_hybrid_metrics.py     # 하이브리드 평가 — DeepEval, Ragas, LangSmith 통합
 Docs/Metrics/                # 25개 지표별 마크다운 문서
 ```
 
@@ -147,26 +149,29 @@ monitor.save_to_file("evaluation")  # JSON + HTML 자동 생성
 ```
 
 ### `TaskResult`
-단일 태스크 실행 결과를 담는 dataclass (44개 필드).
+단일 태스크 실행 결과를 담는 dataclass (18개 필드).
 
 ```python
-from agent_evaluator import TaskResult, TaskType
+from agent_evaluator import create_taskresult
 
-result = TaskResult(
+# 권장: create_taskresult() 헬퍼 사용 (점수 자동 계산)
+result = create_taskresult(
     task_id="task_001",
-    task_type=TaskType.QA,
-    success=True,
-    response="...",
-    expected_output="...",
+    question="한국의 수도는?",
+    response="서울입니다.",
+    ground_truth="서울",
     execution_time=1.23,
-    tokens_used={"input": 100, "output": 50, "total": 150},
-    tool_calls=[{"name": "search", "success": True}],
+    task_type="qa",
 )
+
+# 직접 생성 시 필수 필드 (11개):
+# task_id, task_type, success, completion_score, accuracy_score,
+# execution_time, tokens_used, tool_calls, attempts, errors, timestamp
 ```
 
 ### `TaskType` (Enum)
-`QA`, `DATA_ANALYSIS`, `CODE_GENERATION`, `REASONING`, `CREATIVE`,
-`CLASSIFICATION`, `SUMMARIZATION`, `TRANSLATION`, `GENERAL`
+`QA`, `DATA_ANALYSIS`, `CODE_GENERATION`, `DOCUMENT_CREATION`, `INFORMATION_RETRIEVAL`,
+`REASONING`, `CREATIVE`, `CODING`, `PLANNING`, `TOOL_USE`
 
 ### `evaluation_session` (Context Manager)
 ```python
@@ -246,7 +251,7 @@ from agent_evaluator import (
 | 🔴 High | 테스트 없음 — `tests/` 디렉토리 미존재 | 프로젝트 전체 |
 | 🔴 High | `import re` 9회 함수 내부에서 임포트 → 모듈 상단으로 이동 필요 | `core/agent_evaluator.py` |
 | 🔴 High | `os.chdir()` 라이브러리 코드 내 사용 → `importlib` 방식으로 교체 필요 | `utils/dashboard_integration.py:44,82` |
-| 🟡 Medium | 12곳에서 bare `except Exception:` 로 에러 무시 | 여러 파일 |
+| 🟡 Medium | ~14곳에서 bare `except Exception:` 로 에러 무시 | 여러 파일 |
 | 🟡 Medium | `_check_patterns()`, `_is_subsequence()` 중복 구현 | `core/agent_evaluator.py` |
 | ✅ Fixed | `pandas>=1.3.0` 상한선 없음 → `<3.0.0` 추가 완료 | `pyproject.toml` |
 | ✅ Fixed | `PyPDF2`, `pdfplumber` `pyproject.toml` 미등록 → `[datasets]` extra 등록 완료 | `pyproject.toml` |
@@ -289,7 +294,7 @@ pytest
 - `ragas>=0.1.0,<2.0.0` — `pip install agent-evaluator[ragas]`
 - `langchain>=0.1.0,<1.0.0` — `pip install agent-evaluator[langchain]`
 - `PyPDF2>=3.0.0,<4.0.0` + `pdfplumber>=0.10.0,<1.0.0` — `pip install agent-evaluator[datasets]`
-- `fastapi>=0.110.0` + `uvicorn[standard]>=0.29.0` + `jinja2>=3.1.0` — `pip install agent-evaluator[serve]`
+- `fastapi>=0.110.0` + `uvicorn[standard]>=0.29.0` + `jinja2>=3.1.0` + `python-multipart>=0.0.9` — `pip install agent-evaluator[serve]`
 
 ---
 

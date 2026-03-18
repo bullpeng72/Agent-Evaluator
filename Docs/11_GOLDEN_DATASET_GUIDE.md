@@ -696,7 +696,7 @@ Agent Evaluator Dashboard는 **GUI 기반 Golden Dataset 생성 및 편집** 을
 
 **1) Dashboard 실행**
 ```bash
-    [](<#cb25-1>)streamlit run streamlit_dashboard.py
+    [](<#cb25-1>)agent-eval serve
 ```
 
 **2) “Golden Dataset” 탭으로 이동**
@@ -1862,7 +1862,7 @@ Golden Dataset 작성을 완료했다면:
 
 * * *
 
-**최종 업데이트** : 2026-03-17
+**최종 업데이트** : 2026-03-19
 **버전** : Agent Evaluator v0.5.2
 **프로젝트** : Agent Evaluator - AI Agent Performance Evaluation System  
 **문서** : Golden Dataset Guide

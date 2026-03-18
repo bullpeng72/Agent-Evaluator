@@ -76,7 +76,7 @@ JSON/CSV 형식"] D["📊 RAG 시스템 평가
 ### 2\. 필수 라이브러리
 ```bash
     [](<#cb3-1>)# 코어 의존성 (필수)
-    [](<#cb3-2>)pip install numpy pandas streamlit plotly
+    [](<#cb3-2>)pip install agent-evaluator[serve]
     [](<#cb3-3>)
     [](<#cb3-4>)# Golden Dataset 생성용
     [](<#cb3-5>)pip install PyPDF2 openai python-dotenv
@@ -2374,8 +2374,8 @@ result = evaluate( dataset, metrics=[ faithfulness, answer_relevancy, context_re
 
 ### 예제 코드
 
-  * [RAG 시스템 평가 예제](<../Evaluator_Examples/level_2_advanced/03_rag_system.py>) (Level 2)
-  * [기본 평가 예제](<../Evaluator_Examples/level_1_foundation/01_quickstart.py>) (Level 1)
+  * [RAG 지표 평가 예제](<../Evaluator_Examples/01_quality_metrics.py>) (RAG Metrics 섹션)
+  * [성능 평가 예제](<../Evaluator_Examples/02_performance_metrics.py>)
 
 ### 커뮤니티
 
@@ -2401,7 +2401,7 @@ result = evaluate( dataset, metrics=[ faithfulness, answer_relevancy, context_re
      * ✅ HybridPerformanceMonitor 통합
      * ✅ 데이터 클래스: RAGResponse, EvaluationResult, RAGEvaluationReport
      * ✅ SimpleRAGSystem 예제 구현
-  3. **`Evaluator_Examples/level_2_advanced/03_rag_system.py`**
+  3. **`Evaluator_Examples/01_quality_metrics.py`** (RAG Metrics 섹션)
      * ✅ OpenAIRAGSystem 구현 예제
      * ✅ Golden Dataset 생성 예제
      * ✅ 더미 데이터셋 생성
@@ -2458,7 +2458,7 @@ MIT License - 자유롭게 사용, 수정, 배포 가능합니다.
 
 * * *
 
-**최종 업데이트** : 2026-03-17
+**최종 업데이트** : 2026-03-19
 **버전** : Agent Evaluator v0.5.2
 **프로젝트** : Agent Evaluator - AI Agent Performance Evaluation System  
 **문서** : Korean RAG Evaluation Guide
