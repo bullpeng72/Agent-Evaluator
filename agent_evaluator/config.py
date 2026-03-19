@@ -177,11 +177,6 @@ class Settings:
         )
     )
 
-    # DeepEval
-    deepeval_api_key: Optional[str] = field(
-        default_factory=lambda: os.getenv("DEEPEVAL_API_KEY")
-    )
-
     # 출력 디렉토리
     output_dir: Path = field(
         default_factory=lambda: Path(
@@ -205,9 +200,6 @@ class Settings:
 
     def has_langsmith(self) -> bool:
         return bool(self.langsmith_api_key)
-
-    def has_deepeval(self) -> bool:
-        return bool(self.deepeval_api_key)
 
 
 # ---------------------------------------------------------------------------
@@ -278,7 +270,6 @@ def init_from_app(
         "OPENAI_API_KEY":             settings.openai_api_key,
         "ANTHROPIC_API_KEY":          settings.anthropic_api_key,
         "LANGSMITH_API_KEY":          settings.langsmith_api_key,
-        "DEEPEVAL_API_KEY":           settings.deepeval_api_key,
         "AGENT_EVALUATOR_OUTPUT_DIR": str(settings.output_dir),
     }
 

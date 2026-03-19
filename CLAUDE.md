@@ -5,7 +5,7 @@
 **Agent-Evaluator** is a production-ready Python SDK for evaluating AI agents.
 25개의 성능 지표를 세 개의 레이어(기본/에이전틱/하이브리드)로 측정한다.
 
-- **Version:** 0.5.3 (Beta)
+- **Version:** 0.5.4 (Beta)
 - **Python:** 3.8+
 - **License:** MIT
 - **Author:** Sungwoo Kim
@@ -318,3 +318,19 @@ pytest
 - SQL Injection, Command Injection, Path Traversal, XSS, Prompt Injection
 
 ⚠️ `OutputLeakageDetector`의 generic 패턴 `[a-zA-Z0-9]{32,}`은 false-positive 높음 — 개선 필요.
+
+---
+
+## 📝 변경 이력
+
+### v0.5.4 (2026-03-20) — DEEPEVAL_API_KEY 제거 및 문서·SDK 레퍼런스 정비
+
+- 🔧 `DEEPEVAL_API_KEY` 제거 — 실제 코드에서 미사용, `config.py`·`cli/main.py`·`README` 전파 제거
+- 🔧 `evaluation_session` 시그니처 오류 수정 (async → sync @contextmanager)
+- 🔧 `ResponseQualityEvaluator` 6차원 → 5차원 수정 (안전성 제거, 가중치 명시)
+- 📝 `sdk_docs.html.j2` 16개 트래커 API 명세 전면 추가 — TaskResult/TaskType/create_taskresult 오류 수정
+- 📝 README 연도 2024 → 2026, 예시 파일명 현행화
+- 📝 `results/` 예시 데이터 git 추적 추가
+- 🗑️ `verify_installation.py` 삭제 (미사용, 구식 Streamlit 참조 포함)
+- 🗑️ `Docs/Metrics/` 개별 지표 파일 삭제 (06_METRICS_GUIDE.md 통합)
+- ✨ `agent_evaluator/py.typed` 추가 (PEP 561)

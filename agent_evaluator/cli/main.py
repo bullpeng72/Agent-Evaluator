@@ -20,7 +20,7 @@ try:
     from importlib.metadata import PackageNotFoundError, version as _pkg_version
     __version__ = _pkg_version("agent-evaluator")
 except PackageNotFoundError:
-    __version__ = "0.5.3"
+    __version__ = "0.5.4"
 
 from agent_evaluator.config import (
     DEFAULTS,
@@ -139,15 +139,6 @@ KEY_DEFS: List[Dict] = [
             ("LANGCHAIN_TRACING_V2", "true",             "LangSmith 트레이싱 활성화"),
             ("LANGCHAIN_PROJECT",    "agent-evaluator",  "LangSmith 프로젝트명"),
         ],
-    },
-    {
-        "env":      "DEEPEVAL_API_KEY",
-        "label":    "DeepEval API Key",
-        "required": False,
-        "used_for": "DeepEvalAdapter — Confident AI 대시보드 연동 (선택, OpenAI 키로도 동작)",
-        "url":      "https://app.confident-ai.com/",
-        "prefix":   "",
-        "companion": [],
     },
 ]
 
@@ -543,7 +534,6 @@ def _print_welcome() -> None:
         ("OPENAI_API_KEY",    "OpenAI",    True),
         ("ANTHROPIC_API_KEY", "Anthropic", False),
         ("LANGSMITH_API_KEY", "LangSmith", False),
-        ("DEEPEVAL_API_KEY",  "DeepEval",  False),
     ]
     set_count = sum(1 for k, _, _ in _key_vars if os.environ.get(k, ""))
     total     = len(_key_vars)
@@ -751,7 +741,6 @@ def main() -> None:
             f"  {C}OPENAI_API_KEY{R}              {RD}(필수){R} LLMHelper, DeepEval, Ragas 평가\n"
             f"  {C}ANTHROPIC_API_KEY{R}           {D}(선택){R} ClaudeHelper 사용 시\n"
             f"  {C}LANGSMITH_API_KEY{R}           {D}(선택){R} LangSmith 트레이싱 연동\n"
-            f"  {C}DEEPEVAL_API_KEY{R}            {D}(선택){R} Confident AI 대시보드 연동\n"
             f"  {C}AGENT_EVALUATOR_OUTPUT_DIR{R}  평가 결과 저장 디렉토리 {D}(기본: ./results){R}\n"
             "\n"
             f"{B}저장 위치:{R} 대화형으로 선택할 수 있습니다\n"
@@ -770,7 +759,7 @@ def main() -> None:
             "\n"
             f"{B}출력 항목:{R}\n"
             f"  {Y}API 키 상태{R}    {C}OPENAI_API_KEY{R}, {C}ANTHROPIC_API_KEY{R},\n"
-            f"               {C}LANGSMITH_API_KEY{R}, {C}DEEPEVAL_API_KEY{R}\n"
+            f"               {C}LANGSMITH_API_KEY{R}\n"
             f"  {Y}기타 설정{R}      {C}AGENT_EVALUATOR_OUTPUT_DIR{R}, {C}OPENAI_MODEL{R},\n"
             f"               {C}ANTHROPIC_MODEL{R}, {C}LANGCHAIN_TRACING_V2{R}\n"
             f"  {Y}.env 위치{R}      로드된 .env 파일 경로\n"

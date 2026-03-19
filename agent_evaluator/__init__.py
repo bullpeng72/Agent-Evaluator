@@ -1,5 +1,5 @@
 """
-Agent Evaluator SDK v0.5.3
+Agent Evaluator SDK v0.5.4
 ===========================
 
 Production-ready evaluation framework for AI agents.
@@ -35,7 +35,7 @@ Quick Start (LLM Integration):
     >>> # Auto-recorded in monitor!
 """
 
-__version__ = "0.5.3"
+__version__ = "0.5.4"
 __author__ = "Sungwoo Kim"
 
 # Import from core module

@@ -13,7 +13,7 @@ try:
     from importlib.metadata import version as _pkg_version, PackageNotFoundError
     _VERSION = _pkg_version("agent-evaluator")
 except Exception:
-    _VERSION = "0.5.3"
+    _VERSION = "0.5.4"
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware

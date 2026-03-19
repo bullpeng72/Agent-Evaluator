@@ -3,7 +3,7 @@
 [![PyPI version](https://img.shields.io/pypi/v/agent-evaluator.svg)](https://pypi.org/project/agent-evaluator/)
 [![Python Version](https://img.shields.io/badge/python-3.8%2B-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Version](https://img.shields.io/badge/version-0.5.3-green.svg)](https://github.com/bullpeng72/Agent-Evaluator)
+[![Version](https://img.shields.io/badge/version-0.5.4-green.svg)](https://github.com/bullpeng72/Agent-Evaluator)
 
 **AI 에이전트를 위한 프로덕션 레디 평가 프레임워크**
 
@@ -364,7 +364,6 @@ agent-eval init
 - `OPENAI_API_KEY` (필수) — LLMHelper, DeepEval, Ragas 평가에 사용
 - `ANTHROPIC_API_KEY` (선택) — ClaudeHelper 사용 시 필요
 - `LANGSMITH_API_KEY` (선택) — LangSmith 트레이싱 연동
-- `DEEPEVAL_API_KEY` (선택) — Confident AI 대시보드 연동
 - `AGENT_EVALUATOR_OUTPUT_DIR` — 결과 저장 디렉토리 (기본: `./results`)
 
 저장 위치를 대화형으로 선택할 수 있습니다: 기존 `.env` 업데이트 / 현재 디렉토리 `.env` 생성 / 전역 설정 파일 (`~/.config/agent-evaluator/.env`).
@@ -379,20 +378,26 @@ agent-eval check
 
 출력 예시:
 ```
-  Agent Evaluator v0.5.3 — 설정 상태
+  Agent Evaluator v0.5.4 — 설정 상태
   ──────────────────────────────────────────────────
-  .env 로드: /home/user/project/.env
+ℹ  .env 로드: /home/user/project/.env
+
+발견된 .env 파일:
+  /home/user/project/.env  (2개 키)
 
 API 키 상태:
-  OPENAI_API_KEY       ✅  sk-proj...  (loaded .env)
-  ANTHROPIC_API_KEY    ✅  sk-ant-...  (system env)
-  LANGSMITH_API_KEY    ⚪  미설정 (선택)
-  DEEPEVAL_API_KEY     ⚪  미설정 (선택)
+  OPENAI_API_KEY     ✅  sk-proj-...  (loaded .env)
+  ANTHROPIC_API_KEY  ✅  sk-ant-...   (system env)
+  LANGSMITH_API_KEY  ⚪  미설정 (선택)
 
 기타 설정:
-  AGENT_EVALUATOR_OUTPUT_DIR    ./results
-  OPENAI_MODEL                  gpt-4o-mini
-  ANTHROPIC_MODEL               claude-haiku-4-5-20251001
+  AGENT_EVALUATOR_OUTPUT_DIR           ./results
+  OPENAI_MODEL                         gpt-4o-mini
+  ANTHROPIC_MODEL                      claude-haiku-4-5-20251001
+  LANGCHAIN_TRACING_V2                 false
+  LANGCHAIN_PROJECT                    agent-evaluator
+
+  'agent-eval init' 을 실행하면 누락된 키를 설정할 수 있습니다.
 ```
 
 ### `agent-eval serve`
@@ -633,7 +638,7 @@ MIT License — 자세한 내용은 [LICENSE](LICENSE) 파일을 참고하세요
   title   = {Agent Evaluator: Production-ready evaluation framework for AI agents},
   author  = {Kim, Sungwoo},
   year    = {2026},
-  version = {0.5.3},
+  version = {0.5.4},
   url     = {https://github.com/bullpeng72/Agent-Evaluator},
   license = {MIT}
 }
