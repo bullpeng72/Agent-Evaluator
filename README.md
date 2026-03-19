@@ -62,7 +62,7 @@ Agent Evaluator의 핵심은 **계층적 평가 모델**입니다.
 | **Task Completion Rate** | `TaskCompletionTracker` | 성공률, 실패 원인 분류, 벤치마크 비교 | `tcr`, `full_success`, `partial_success`, `failures` |
 | **Accuracy Evaluation** | `AccuracyEvaluator` | QA/코드/일반 유형별 정확도. Token Overlap(40%) + Jaccard(30%) + LCS(20%) + 문자 유사도(10%) 가중 조합 | `overall_accuracy`, `median_accuracy`, `std_accuracy` |
 | **Hallucination Detection** | `HallucinationDetector` | 컨텍스트 대비 응답 사실 일관성. 미지원 주장·수치 불일치 탐지 | `hallucination_rate`, `unsupported_claims_count`, `by_severity` |
-| **Response Quality** | `ResponseQualityEvaluator` | 관련성·완결성·정확성·명확성·유용성·안전성 6차원 평가, A~F 등급 산출 | `dimension_scores`, `total_score` (0–5), `grade` |
+| **Response Quality** | `ResponseQualityEvaluator` | 관련성(25%)·완결성(25%)·정확성(20%)·명확성(15%)·유용성(15%) 5차원 평가 | `dimension_scores`, `total_score` (0–5) |
 | **Latency Tracking** | `LatencyTracker` | 백분위 지연 시간 분석, 병목 컴포넌트 탐지, SLA 준수 여부 | `p50`, `p95`, `p99`, `bottleneck`, `mean` |
 | **Token Economy** | `TokenEconomyTracker` | 입출력 토큰 비율, 실시간 비용 추정, 월간 비용 예측 | `total_tokens`, `total_cost`, `estimated_monthly_cost`, `token_distribution` |
 
@@ -313,8 +313,8 @@ agent = create_evaluated_autogen_agent(config, monitor=monitor)
 
 ```
 results/
-├── evaluation_20240101_120000.json   ← 원시 데이터 (프로그래밍 활용)
-└── evaluation_20240101_120000.html   ← 시각화 리포트 (브라우저에서 확인)
+├── evaluation_20260101_120000.json   ← 원시 데이터 (프로그래밍 활용)
+└── evaluation_20260101_120000.html   ← 시각화 리포트 (브라우저에서 확인)
 ```
 
 **JSON 리포트 구조:**
@@ -632,7 +632,7 @@ MIT License — 자세한 내용은 [LICENSE](LICENSE) 파일을 참고하세요
 @software{agent_evaluator,
   title   = {Agent Evaluator: Production-ready evaluation framework for AI agents},
   author  = {Kim, Sungwoo},
-  year    = {2024},
+  year    = {2026},
   version = {0.5.3},
   url     = {https://github.com/bullpeng72/Agent-Evaluator},
   license = {MIT}
