@@ -482,7 +482,7 @@ agent-evaluator/
 │   │   ├── server.py            # FastAPI app 진입점
 │   │   ├── loader.py            # 평가 결과 로더
 │   │   ├── watcher.py           # 파일 변경 감시
-│   │   └── routers/             # API 라우터 (data, export, golden, stream, transparency)
+│   │   └── routers/             # API 라우터 (data, export, golden, stream, transparency, config, webhook)
 │   ├── cli/
 │   │   └── main.py              # agent-eval CLI 진입점
 │   ├── utils/
@@ -498,10 +498,8 @@ agent-evaluator/
 │   ├── 04_security_metrics.py    # 보안 지표 — Input Sanitization, Leakage, Auth, Escalation
 │   └── 05_hybrid_metrics.py      # 하이브리드 평가 — DeepEval, Ragas, LangSmith 통합
 │
-├── Docs/Metrics/                 # 지표별 상세 문서 (25개)
 ├── pyproject.toml
-├── LICENSE
-└── CHANGELOG.md
+└── LICENSE
 ```
 
 ---
@@ -530,8 +528,8 @@ agent-eval serve --watch
 from agent_evaluator import (
     # 핵심 클래스
     PerformanceMonitor,      # 중앙 오케스트레이터
-    TaskResult,              # 태스크 실행 결과 (44개 필드)
-    TaskType,                # QA / CODE_GENERATION / REASONING 등 9종
+    TaskResult,              # 태스크 실행 결과 (18개 필드)
+    TaskType,                # QA / CODE_GENERATION / REASONING 등 10종
     EvaluationReport,        # 집계 평가 리포트
 
     # 하이브리드
@@ -585,7 +583,7 @@ mypy agent_evaluator/
 |--------|------|------|
 | `numpy` | >=1.20.0, <2.0.0 | 수치 연산 |
 | `pandas` | >=1.3.0, <3.0.0 | 지표 집계 |
-| `python-dotenv` | >=0.19.0 | 환경변수 관리 |
+| `python-dotenv` | >=0.19.0, <2.0.0 | 환경변수 관리 |
 
 ### 선택적 의존성
 

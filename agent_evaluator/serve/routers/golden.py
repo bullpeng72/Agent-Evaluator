@@ -28,17 +28,17 @@ _GOLDEN_CANDIDATES = [
 
 def _golden_dir(request: Request) -> Path:
     results_dir: Path = request.app.state.results_dir
-    # 1. results_dir 안에 golden_datasets 서브디렉토리
+    # 1. results_dir 안에 golden_datasets 서브디렉토리 (정규 위치)
     p = results_dir / "golden_datasets"
     if p.exists():
         return p
-    # 2. results_dir 의 형제 디렉토리로 탐색 (project_root/golden_datasets)
+    # 2. results_dir 의 형제 디렉토리로 탐색 (레거시 위치 호환)
     for cand in _GOLDEN_CANDIDATES:
         p = results_dir.parent / cand
         if p.exists():
             return p
-    # 3. 폴백: project_root/golden_datasets 생성
-    d = results_dir.parent / "golden_datasets"
+    # 3. 폴백: results_dir/golden_datasets 생성 (루트가 아닌 results 아래에)
+    d = results_dir / "golden_datasets"
     d.mkdir(parents=True, exist_ok=True)
     return d
 

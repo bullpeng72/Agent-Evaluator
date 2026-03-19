@@ -44,37 +44,34 @@ AI Agent를 위한 프로덕션급 평가 프레임워크
 
 ## ✨ 주요 기능
 
-### Layer 1: Basic + Security Metrics (100% 무료)
+### Layer 1: Foundation Metrics (6개, 100% 무료)
 
-#### 📊 Basic Metrics (7개)
+외부 의존성 없이 즉시 사용 가능한 기본 성능 지표
 
   * **Task Completion Rate (TCR)** : 작업 성공률
-  * **Accuracy** : 응답 정확도
-  * **Latency** : 실행 시간 분석
-  * **Token Economy** : 토큰 사용량 및 비용
-  * **Quality Metrics** : 응답 품질 평가
-  * **🆕 Hallucination Detection** : 룰 기반 환각 감지 (무료, <1ms, Opt-in)
-  * **Retry Mechanism Tracking** : 재시도 성공률 추적
+  * **Accuracy** : 응답 정확도 (Token Overlap, Jaccard, LCS, Char 가중 평균)
+  * **Hallucination Detection** : 룰 기반 환각 감지 (Opt-in, <1ms)
+  * **Quality Metrics** : 6차원 응답 품질 평가
+  * **Latency** : 실행 시간 분석 (P50/P95/P99)
+  * **Token Economy** : 토큰 사용량 및 비용 추정
 
-#### 🔒 Security Metrics (3개)
+### Layer 2: Agentic + Security Metrics (10개, 무료)
 
-  * **Input Sanitization** : SQL Injection, Command Injection, Path Traversal 탐지
-  * **Output Leakage** : API 키, 비밀번호, 토큰, 개인정보 유출 검사
-  * **Authorization** : 도구 호출 권한 검증
+#### 🤖 Agentic Metrics (5개)
 
-### Layer 2: Agentic + Security Metrics (무료)
-
-#### 🤖 Agentic Metrics (4개)
-
-  * **Tool Selection Accuracy** : 올바른 도구 선택 평가
-  * **Tool Efficiency** : 도구 실행 효율성
+  * **Tool Call Analysis** : 도구 호출 패턴 및 효율성 분석
+  * **Retry & Correction** : 재시도 동작 및 자기 수정 능력 평가
+  * **Tool Selection Accuracy** : F1 기반 올바른 도구 선택 평가
   * **Agent Coordination** : 멀티 에이전트 협업 품질
-  * **Workflow Execution** : 워크플로우 실행 성공률
+  * **Workflow Execution** : 워크플로우 실행 성공률 및 분기 추적
 
-#### 🔒 Security Metrics (2개)
+#### 🔒 Security Metrics (5개, Opt-in)
 
+  * **Input Sanitization** : SQL/Command Injection, Path Traversal, XSS, Prompt Injection 탐지
+  * **Output Leakage** : API 키, 비밀번호, 개인정보 유출 검사
+  * **Tool Authorization** : 허가된 도구만 호출했는지 검증
   * **Privilege Escalation Detection** : Agent의 권한 상승 시도 탐지
-  * **Attack Detection** : 악의적인 프롬프트 및 공격 패턴 탐지
+  * **Tool Chain Attack Detection** : 연쇄 도구 호출 공격 패턴 탐지
 
 ### Layer 3: Advanced Metrics (API 비용)
 
@@ -169,7 +166,7 @@ $0.01~$0.05/eval (Layer 3 API)
 **타입** | 오픈소스 (RAG 전용) | **오픈소스 (Agent 포괄)**  
 **초점** | RAG 시스템 평가 | **RAG + Agent + Tool + Workflow**  
 **메트릭** | Faithfulness, Context Precision/Recall  
-Answer Similarity | **Ragas 포함 + Layer 1/2 16개 (10 Basic+Security + 6 Agentic+Security)**  
+Answer Similarity | **Ragas 포함 + Layer 1/2 16개 (6 Foundation + 10 Agentic+Security)**  
 **한국어** | ❌ 제한적 (영어 중심) | ✅ **Korean RAG Evaluator 전용**  
 **Golden Dataset** | 수동 준비 | **자동 생성 도구**  
 **Dashboard** | ❌ 없음 (Jupyter만) | ✅ **FastAPI Dashboard**  
@@ -309,7 +306,7 @@ LlamaIndex | 다양 | **모든**
 
 #### 7\. 🎯 프로덕션 준비 완료 (Production-Ready)
 
-  * **3-Layer 메트릭** : 25개 지표로 포괄적 평가 (Layer 1: 10개, Layer 2: 6개, Layer 3: 9개)
+  * **3-Layer 메트릭** : 25개 지표로 포괄적 평가 (Layer 1: 6개, Layer 2: 10개, Layer 3: 9개)
   * **FastAPI Dashboard** : 실시간 모니터링 및 보안 메트릭 시각화
   * **Test Transparency** : 메트릭 계산 과정 추적
   * **Threshold Configuration** : Quality Gate + 보안 정책 자동 검증
@@ -340,7 +337,7 @@ LlamaIndex | 다양 | **모든**
 pip install agent-evaluator
 
 # 방법 2: 로컬 wheel 파일로 설치
-pip install /home/fomalhaut/Projects/Agent_Evaluator/dist/agent_evaluator-0.5.2-py3-none-any.whl
+pip install /home/fomalhaut/Projects/Agent_Evaluator/dist/agent_evaluator-0.5.3-py3-none-any.whl
 
 # 방법 3: 개발 모드 설치 (editable)
 cd /path/to/Agent_Evaluator
@@ -578,7 +575,7 @@ Docs/
 #### ⚠️ 프로젝트 루트 파일
 
   * **pyproject.toml, setup.py** : 패키지 빌드 설정
-  * **dist/** : 빌드된 wheel/tar.gz (agent_evaluator-0.5.2-*)
+  * **dist/** : 빌드된 wheel/tar.gz (agent_evaluator-0.5.3-*)
   * **MANIFEST.in** : 패키지 추가 파일 포함 설정
 
 * * *
@@ -630,8 +627,8 @@ monitor = HybridPerformanceMonitor(
     enable_ragas=True
 )
 
-# Layer 1: Basic + Security metrics (무료, 10개)
-# Layer 2: Agentic + Security metrics (무료, 6개)
+# Layer 1: Foundation metrics (무료, 6개)
+# Layer 2: Agentic + Security metrics (무료, 10개)
 # Layer 3: Advanced metrics (API 비용, 9개)
 monitor.record_task(task)
 report = monitor.generate_report()

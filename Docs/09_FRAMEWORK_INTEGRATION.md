@@ -25,12 +25,12 @@ LangChain, LlamaIndex, CrewAI 통합 방법
 
 ### 필수 및 권장 버전
 
-**Agent Evaluator v0.5.2** 호환성 정보:
+**Agent Evaluator v0.5.3** 호환성 정보:
 
-구분 | 패키지 | 버전 요구사항 | 설치 명령  
----|---|---|---  
-**필수** | Python | 3.8+ | -  
-**필수** | Agent Evaluator | 0.5.2 | `pip install agent-evaluator`  
+구분 | 패키지 | 버전 요구사항 | 설치 명령
+---|---|---|---
+**필수** | Python | 3.8+ | -
+**필수** | Agent Evaluator | 0.5.3 | `pip install agent-evaluator`
 **선택 (프레임워크)** | CrewAI | 최신 버전 | `pip install crewai`  
 **선택 (프레임워크)** | LangChain | 0.1.0+ | `pip install langchain`  
 **선택 (프레임워크)** | LangGraph | 최신 버전 | `pip install langgraph`  

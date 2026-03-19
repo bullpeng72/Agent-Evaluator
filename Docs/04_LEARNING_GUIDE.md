@@ -2,7 +2,7 @@
 
 개발자 & 품질관리자를 위한 완벽 학습서
 
-v0.5.2 Layer 1/2 Security 4개 프레임워크
+v0.5.3 — 25개 메트릭 · 3-Layer · 4개 프레임워크
 
 ## 📊 1. Agent Evaluator 개요
 
@@ -12,19 +12,18 @@ Agent Evaluator는 AI Agent의 성능을 다각도로 평가하고 모니터링�
 
 ### 1.1 주요 특징
 
-#### 🆓 Layer 1: Basic + Security Metrics
+#### 🆓 Layer 1: Foundation Metrics
 
-**완전 무료, API 키 불필요 (v0.5.2)**
+**완전 무료, API 키 불필요 (v0.5.3)**
 
-  * **Basic (7개):** TCR, Accuracy, Hallucination, Quality, Latency, Cost, Retry Success Rate
-  * **Security (3개):** Input Sanitization, Output Leakage, Authorization
+  * **Foundation (6개):** TCR, Accuracy, Hallucination Detection, Quality, Latency, Token Economy
 
 #### 🤖 Layer 2: Agentic + Security Metrics
 
-**Multi-Agent & 보안 통합 평가 (v0.5.2)**
+**Multi-Agent & 보안 통합 평가 (v0.5.3)**
 
-  * **Agentic (4개):** Tool Selection Accuracy, Tool Efficiency, Agent Coordination, Workflow Execution
-  * **Security (2개):** Privilege Escalation, Attack Detection
+  * **Agentic (5개):** Tool Call Analysis, Retry/Correction, Tool Selection Accuracy, Agent Coordination, Workflow Execution
+  * **Security (5개):** Input Sanitization, Output Leakage, Tool Authorization, Privilege Escalation, Tool Chain Attack Detection
 
 #### 🔬 Layer 3: Advanced Metrics
 
@@ -39,8 +38,8 @@ Agent Evaluator는 AI Agent의 성능을 다각도로 평가하고 모니터링�
 ---|---|---  
 **코드베이스** | 11개 파일 | 783KB, 23개 클래스, 99개 메서드  
 **문서** | 18개 파일 | ~2MB (10개 docs/ 가이드 + 6개 루트 HTML + 2개 Evaluator_Examples/ 리포트)  
-**예제** | 21개 파일 | Evaluator_Examples/ 디렉토리 (11개 기본 + 10개 CrewAI)  
-**메트릭** | 25개 | Layer 1 (10개: 7 Basic + 3 Security) + Layer 2 (6개: 4 Agentic + 2 Security) + Layer 3 (9개)  
+**예제** | 5개 파일 | Evaluator_Examples/ 디렉토리 (품질/성능/에이전틱/보안/하이브리드 각 1개)  
+**메트릭** | 25개 | Layer 1 (6개: Foundation) + Layer 2 (10개: 5 Agentic + 5 Security) + Layer 3 (9개: Hybrid)
 **프레임워크 지원** | 4개 | LangChain, CrewAI, LangGraph, AutoGen  
   
 ### 1.3 사용 대상
@@ -68,25 +67,22 @@ Agent Evaluator는 AI Agent의 성능을 다각도로 평가하고 모니터링�
 graph TB subgraph UI["사용자 인터페이스 레이어"] Dashboard["🖥️ FastAPI Dashboard
 \- Single Dashboard (Port 8765)
 agent-eval serve
-Overview, Core, Performance,
-Agentic, Advanced, Insights,
-투명성, 지표 설명, Export"] PythonAPI["🐍 Python API
-\- PerformanceMonitor  
-\- Framework Integration  
-\- Golden Dataset 평가"] end subgraph Core["핵심 평가 엔진 (Core Evaluation Engine)"] AgentEval["📊 agent_evaluator.py  
-221KB, 20 classes, 112 methods  
-━━━━━━━━━━━━━━━━━━━━  
-▸ PerformanceMonitor  
-▸ Layer 1 Trackers (10개)  
-• Basic: TCR, Accuracy, Quality  
-Hallucination, Latency, Cost, Retry  
-• Security: Input Sanitization,  
-Output Leakage, Authorization  
-▸ Layer 2 Trackers (6개)  
-• Agentic: Tool Selection, Tool Efficiency  
-Agent Coordination, Workflow Execution  
-• Security: Privilege Escalation,  
-Attack Detection"] HybridMon["🔬 hybrid_monitor.py  
+품질 / 성능 / 에이전틱 / 보안
+(관점 기반 네비게이션)"] PythonAPI["🐍 Python API
+\- PerformanceMonitor
+\- Framework Integration
+\- Golden Dataset 평가"] end subgraph Core["핵심 평가 엔진 (Core Evaluation Engine)"] AgentEval["📊 agent_evaluator.py
+━━━━━━━━━━━━━━━━━━━━
+▸ PerformanceMonitor
+▸ Layer 1 Trackers (6개)
+• TCR, Accuracy, Hallucination
+Quality, Latency, Token Economy
+▸ Layer 2 Trackers (10개)
+• Agentic (5): Tool Call, Retry
+Tool Selection, Coordination, Workflow
+• Security (5): Input Sanitization
+Output Leakage, Tool Auth
+Privilege Escalation, Attack Detection"] HybridMon["🔬 hybrid_monitor.py  
 45KB  
 ━━━━━━━━━━━━━━━━━━━━  
 ▸ Layer 3 통합  
@@ -99,29 +95,18 @@ Attack Detection"] HybridMon["🔬 hybrid_monitor.py
 ━━━━━━━━━━━━━━━━━━━━  
 ▸ LangChain Callback  
 ▸ LangGraph Workflow  
-▸ CrewAI Integration  
-▸ AutoGen Agent"] end subgraph DataMgmt["데이터 관리 레이어 (Data Management)"] DataEditor["📝 data_editor_manager  
-36KB, 59 methods  
-━━━━━━━━━━━━━━━━━━━━  
-▸ Golden Dataset 관리  
-▸ Threshold 관리  
-▸ Test Config 관리"] Transparency["🔍 test_transparency_manager  
-56KB, 30 methods  
-━━━━━━━━━━━━━━━━━━━━  
-▸ 메트릭 이상치 탐지  
-▸ 성능 병목 식별  
-▸ Audit Log 추적"] end subgraph Storage["저장소 레이어 (Storage)"] GoldenDS["📚 golden_datasets/  
-• QA Pairs (JSON)  
-• Layer 2 fields  
-• expected_tools  
-• expected_agents  
-• expected_workflow_steps"] EvalResults["💾 evaluation_results/  
-• performance_data.json  
-• versions/ (백업)  
-• traces/ (메트릭 추적)  
-• annotations/ (주석)  
-• audit_logs/ (감사 로그)  
-• test_configs/ (설정)"] end Dashboard --> AgentEval PythonAPI --> AgentEval AgentEval --> HybridMon AgentEval --> Framework HybridMon --> DataEditor Framework --> DataEditor AgentEval --> DataEditor DataEditor --> Transparency DataEditor --> GoldenDS DataEditor --> EvalResults Transparency --> EvalResults AgentEval --> EvalResults style UI fill:#e0e7ff,stroke:#4f46e5,stroke-width:3px style Core fill:#dbeafe,stroke:#2563eb,stroke-width:3px style DataMgmt fill:#d1fae5,stroke:#10b981,stroke-width:3px style Storage fill:#fef3c7,stroke:#f59e0b,stroke-width:3px style Dashboard fill:#c7d2fe,stroke:#4f46e5,stroke-width:2px style PythonAPI fill:#c7d2fe,stroke:#4f46e5,stroke-width:2px style AgentEval fill:#93c5fd,stroke:#2563eb,stroke-width:2px style HybridMon fill:#93c5fd,stroke:#2563eb,stroke-width:2px style Framework fill:#93c5fd,stroke:#2563eb,stroke-width:2px style DataEditor fill:#a7f3d0,stroke:#10b981,stroke-width:2px style Transparency fill:#a7f3d0,stroke:#10b981,stroke-width:2px style GoldenDS fill:#fde68a,stroke:#f59e0b,stroke-width:2px style EvalResults fill:#fde68a,stroke:#f59e0b,stroke-width:2px 
+▸ CrewAI Integration
+▸ AutoGen Agent"] end subgraph DataMgmt["데이터 관리 레이어 (Data Management)"] Transparency["🔍 test_transparency_manager
+━━━━━━━━━━━━━━━━━━━━
+▸ 메트릭 이상치 탐지
+▸ 성능 병목 식별
+▸ Audit Log 추적"] end subgraph Storage["저장소 레이어 (Storage)"] GoldenDS["📚 results/golden_datasets/
+• QA Pairs (JSON)
+• expected_tools
+• expected_agents
+• expected_workflow_steps"] EvalResults["💾 results/
+• *_evaluation.json
+• *_report.html"] end Dashboard --> AgentEval PythonAPI --> AgentEval AgentEval --> HybridMon AgentEval --> Framework AgentEval --> Transparency Transparency --> GoldenDS AgentEval --> EvalResults style UI fill:#e0e7ff,stroke:#4f46e5,stroke-width:3px style Core fill:#dbeafe,stroke:#2563eb,stroke-width:3px style DataMgmt fill:#d1fae5,stroke:#10b981,stroke-width:3px style Storage fill:#fef3c7,stroke:#f59e0b,stroke-width:3px style Dashboard fill:#c7d2fe,stroke:#4f46e5,stroke-width:2px style PythonAPI fill:#c7d2fe,stroke:#4f46e5,stroke-width:2px style AgentEval fill:#93c5fd,stroke:#2563eb,stroke-width:2px style HybridMon fill:#93c5fd,stroke:#2563eb,stroke-width:2px style Framework fill:#93c5fd,stroke:#2563eb,stroke-width:2px style Transparency fill:#a7f3d0,stroke:#10b981,stroke-width:2px style GoldenDS fill:#fde68a,stroke:#f59e0b,stroke-width:2px style EvalResults fill:#fde68a,stroke:#f59e0b,stroke-width:2px
 
 ### 2.2 데이터 흐름
 
@@ -152,59 +137,33 @@ compare_with_thresholds()
 
 ### 2.3 핵심 컴포넌트
 
-컴포넌트 | 역할 | 파일 크기 | 주요 기능  
----|---|---|---  
-**agent_evaluator.py** | 메인 평가 엔진 | 221KB | Layer 1+2 메트릭 추적, TaskResult 기록, 20개 클래스, 112개 메서드  
-**hybrid_monitor.py** | Layer 3 통합 | 45KB | DeepEval, Ragas 통합  
-**framework_integrations.py** | 프레임워크 통합 | 26KB | LangChain, CrewAI, LangGraph 자동 추적  
-**data_editor_manager.py** | 데이터 관리 | 37KB | Golden Dataset, Threshold, Test Config 관리  
-**agent_evaluator/serve/server.py** | FastAPI 대시보드 서버 | - | 실시간 시각화, 리포트 생성, Golden Dataset/Threshold 관리
-**test_transparency_manager.py** | Test 투명성 관리 | 56KB | 5개 고급 분석, Traces, Annotations, Audit Log  
+컴포넌트 | 역할 | 주요 기능
+---|---|---
+**core/agent_evaluator.py** | 메인 평가 엔진 | Layer 1+2 트래커 16개 + PerformanceMonitor
+**core/hybrid_monitor.py** | Layer 3 통합 | DeepEval, Ragas, LangSmith 어댑터
+**integrations/** | 프레임워크 통합 | LangChain, CrewAI, LangGraph, AutoGen 자동 추적
+**serve/server.py** | FastAPI 대시보드 서버 | 관점 기반 시각화 (품질/성능/에이전틱/보안), Export
+**utils/test_transparency_manager.py** | Test 투명성 관리 | 이상치 탐지, Traces, Annotations, Audit Log  
   
 ### 2.4 파일 시스템 구조
 
-#### evaluation_results/ 디렉토리 구조 (실행 시 자동 생성됨)
+#### results/ 디렉토리 구조 (실행 시 자동 생성됨)
 ```
-    evaluation_results/
-    ├── performance_data.json          # 메인 평가 결과 데이터
-    ├── thresholds.json                # Threshold 설정
-    ├── versions/                      # 버전 백업 디렉토리
-    │   ├── version_YYYYMMDD_HHMMSS_thresholds.json
-    │   ├── version_YYYYMMDD_HHMMSS_golden_dataset.json
-    │   └── version_YYYYMMDD_HHMMSS_test_config.json
-    ├── traces/                        # 메트릭 계산 추적
-    │   ├── trace_YYYYMMDD_HHMMSS_tcr.json
-    │   ├── trace_YYYYMMDD_HHMMSS_accuracy.json
-    │   └── ...
-    ├── annotations/                   # 주석 및 코멘트
-    │   ├── annotation_001.json
-    │   ├── annotation_002.json
-    │   └── ...
-    ├── audit_logs/                    # 감사 로그
-    │   ├── audit_YYYYMMDD.json
-    │   └── ...
-    └── test_configs/                  # Test Configuration 파일
-        ├── test_config_YYYYMMDD_HHMMSS.json
+    results/
+    ├── *_evaluation.json              # 평가 결과 데이터 (monitor.save_to_file() 생성)
+    ├── *_report.html                  # HTML 리포트
+    └── golden_datasets/               # Golden Dataset 파일
+        ├── dataset_001.json
         └── ...
-    
-    golden_datasets/
-    ├── dataset_001.json               # Golden Dataset 파일
-    ├── dataset_002.json
-    └── ...
-    
 ```
 
 #### 주요 파일 형식
 
-파일 | 용도 | 관리 방법  
----|---|---  
-**performance_data.json** | 평가 결과, TaskResult, 메트릭 데이터 | monitor.save_to_file()로 저장  
-**thresholds.json** | 20개 메트릭 임계값 설정 | Dashboard 또는 DataEditorManager  
-**versions/** | 자동 버전 백업 (변경 이력 추적) | 자동 생성, 복원 가능  
-**traces/** | 메트릭 계산 과정 단계별 추적 | TestTransparencyManager  
-**annotations/** | 메트릭, Task, Dataset에 대한 주석 | TestTransparencyManager  
-**audit_logs/** | 모든 시스템 이벤트 로그 | 자동 생성 (읽기 전용)  
-**test_configs/** | 환경별 Test Configuration | Dashboard Test 준비 탭  
+파일 | 용도 | 관리 방법
+---|---|---
+**results/*_evaluation.json** | 평가 결과, TaskResult, 메트릭 데이터 | monitor.save_to_file()로 저장
+**results/*_report.html** | HTML 시각화 리포트 | monitor.save_to_file() 자동 생성
+**results/golden_datasets/*.json** | Golden Dataset (QA 쌍, 도구 기대값) | 수동 작성 또는 API로 생성  
   
 **💡 파일 관리 Best Practice:**
 
@@ -216,31 +175,36 @@ compare_with_thresholds()
 
 ## 📈 3. 3-Layer 메트릭 체계
 
-### 3.1 Layer 1: Basic + Security Metrics - 무료
+### 3.1 Layer 1: Foundation Metrics (6개) - 무료
 
-메트릭 | 설명 | 계산 방법 | 목표값  
----|---|---|---  
-**TCR** | Task Completion Rate | (성공 작업 수 / 전체 작업 수) × 100 | ≥ 95%  
-**Accuracy** | 정확도 (의미론적 유사도) | 평균 accuracy_score | ≥ 90%  
-**Quality** | 응답 품질 점수 | 평균 quality_score | ≥ 8.5/10  
-**Hallucination** | 환각 발생률 | (환각 발생 작업 수 / 전체) × 100 | < 1%  
-**Latency** | 응답 시간 (P95) | 95 percentile execution_time | < 3s  
-**Cost** | 평균 토큰 비용 | 평균 (input_tokens × price + output × price) | 최소화  
-**Retry Success** | 재시도 성공률 | (재시도 성공 / 전체 재시도) × 100 | ≥ 80%  
-  
-#### 🔒 Security Metrics (3개)
+외부 의존성 없이 즉시 측정 가능한 기본 성능 지표입니다.
 
-메트릭 | 설명 | 계산 방법 | 목표값  
----|---|---|---  
-**Input Sanitization** | 입력 보안 위협 검증 | SQL Injection, Command Injection, Path Traversal 탐지 | ≥ 99%  
-**Output Leakage** | 출력 민감정보 유출 검사 | API 키, 비밀번호, 토큰, 개인정보 탐지 | 0 leaks  
-**Authorization** | 도구 호출 권한 검증 | 허가된 Tool만 사용했는지 검증 | 100%  
-  
-**✅ Layer 1의 장점:** 완전 무료, API 키 불필요, 빠른 실행, 기본 성능 평가 + 보안 검증 
+메트릭 | 설명 | 계산 방법 | 목표값
+---|---|---|---
+**TCR** | Task Completion Rate | (성공 작업 수 / 전체 작업 수) × 100 | ≥ 95%
+**Accuracy** | 정확도 (의미론적 유사도) | 평균 accuracy_score | ≥ 90%
+**Hallucination** | 환각 발생률 | 룰 기반 사실 일관성 검사 | < 1%
+**Quality** | 응답 품질 점수 | 6차원 품질 평가 평균 | ≥ 8.5/10
+**Latency** | 응답 시간 (P95) | 95 percentile execution_time | < 3s
+**Token Economy** | 토큰 비용 분석 | 토큰 사용량 + 비용 추정 | 최소화
 
-### 3.2 Layer 2: Agentic + Security Metrics - 무료
+**✅ Layer 1의 장점:** 완전 무료, API 키 불필요, 빠른 실행 (외부 호출 없음)
 
-#### 📊 Agentic Metrics (4개)
+### 3.2 Layer 2: Agentic + Security Metrics (10개) - 무료
+
+#### 📊 Agentic Metrics (5개)
+
+#### 🔄 Retry & Correction
+
+**설명:** Agent의 재시도 및 자기 수정 동작 분석
+
+**계산 방법:**
+
+  * **Retry Rate:** 재시도 발생 비율
+  * **Correction Success Rate:** 재시도 후 성공 비율
+  * **Convergence Speed:** 목표 달성까지 평균 시도 횟수
+
+**목표값:** Retry Success Rate ≥ 80%
 
 #### 🎯 Tool Selection Accuracy
 
@@ -259,7 +223,7 @@ compare_with_thresholds()
   * LangChain Agent의 도구 선택 정확도 평가
   * Golden Dataset에 expected_tools 정의 필요
 
-#### 🔧 Tool Efficiency
+#### 🔧 Tool Call Efficiency
 
 **설명:** Agent가 도구를 얼마나 효율적으로 사용하는지 측정 (성공률 및 유용성)
 
@@ -312,40 +276,23 @@ compare_with_thresholds()
   * LangChain Chain의 각 단계 성공률
   * LangGraph의 노드별 실행 추적
 
-#### 🔒 Security Metrics (2개)
+#### 🔒 Security Metrics (5개)
 
-#### ⚠️ Privilege Escalation Detection
+보안 트래커는 기본값 `False` — `enable_security_metrics=True`로 활성화.
 
-**설명:** Agent의 권한 상승 시도 탐지
-
-**계산 방법:**
-
-  * **Detection Rate:** 탐지된 권한 상승 시도 수
-  * **Prevention Rate:** 차단된 권한 상승 시도 비율
-
-**목표값:** 0 escalation attempts
-
-**사용 시나리오:**
-
-  * Multi-Agent 시스템의 권한 관리
-  * Tool 호출 권한 검증
-
-#### 🛡️ Attack Detection
-
-**설명:** 악의적인 프롬프트 및 공격 패턴 탐지
-
-**계산 방법:**
-
-  * **Injection Detection:** 프롬프트 인젝션 시도 탐지
-  * **Jailbreak Detection:** 제약 우회 시도 탐지
-  * **Overall Security Score:** 종합 보안 점수
-
-**목표값:** ≥ 98% detection rate
+메트릭 | 설명 | 목표값
+---|---|---
+**Input Sanitization** | SQL Injection, Command Injection, Path Traversal, XSS, Prompt Injection 탐지 | 0 threats
+**Output Leakage** | API 키, 비밀번호, 개인정보 등 민감 데이터 유출 검사 | 0 leaks
+**Tool Authorization** | 허가된 도구만 호출했는지 검증 | 100%
+**Privilege Escalation** | Agent의 권한 상승 시도 탐지 | 0 escalations
+**Tool Chain Attack** | 연쇄 도구 호출을 통한 공격 패턴 탐지 | 0 attacks
 
 **사용 시나리오:**
 
-  * Agent 입력 검증
-  * 악의적인 사용자 패턴 분석
+  * Multi-Agent 시스템 보안 감사
+  * 입력/출력 데이터 보안 검증
+  * 악의적인 프롬프트 인젝션 방어
 
 **💡 Layer 2의 가치:** Multi-Agent 시스템과 복잡한 워크플로우의 품질을 정량적으로 측정하고, 보안 위협을 실시간으로 탐지합니다. Golden Dataset 기반 자동 평가 지원. 
 
@@ -1842,7 +1789,7 @@ Agent 상호작용 + Security 자동 추적
     # ✅ 메시지 교환 분석 + 보안 위협 탐지
 ```
 
-**✅ v0.5.2 통합의 장점:**
+**✅ v0.5.3 통합의 장점:**
 
   * **완전 자동화:** Layer 1/2/3 메트릭 자동 추적
   * **동적 계산:** TCR, Accuracy 등 실시간 계산
@@ -1891,7 +1838,7 @@ _참고: Python API의 5개 고급 분석 기능(이상치 탐지, 상관관계 
 
 #### 📚 지표 설명 (Metrics Guide)
 
-모든 25개 메트릭(Layer 1: 10개, Layer 2: 6개, Layer 3: 9개)의 용도, 산출식, 기준값을 펼침목록 형태로 제공
+모든 25개 메트릭(Layer 1: 6개, Layer 2: 10개, Layer 3: 9개)의 용도, 산출식, 기준값을 펼침목록 형태로 제공
 
 각 메트릭별 상세 설명, 계산 방법, 권장 임계값, 해석 가이드 포함
 
@@ -2494,26 +2441,15 @@ Dashboard에서 PDF/HTML 리포트 다운로드 및 공유
 
 ### 11.3 버전 관리 (Versioning)
 
-Golden Dataset과 Threshold의 모든 변경을 자동으로 백업하고, 필요시 복원할 수 있습니다.
-```python
-    from data_editor_manager import DataEditorManager
-    
-    manager = DataEditorManager()
-    
-    # 버전 백업은 자동 생성됨 (save_golden_dataset, save_thresholds 호출 시)
-    
-    # 버전 목록 조회
-    versions = manager.list_versions(file_type="thresholds")
-    for v in versions:
-        print(f"{v['version_id']}: {v['timestamp']} - {v['reason']}")
-    
-    # 버전 복원
-    manager.restore_from_version(
-        version_id="version_20251130_120000_thresholds",
-        target_file="thresholds.json"
-    )
-    
-    print("✅ 이전 버전으로 복원 완료")
+Golden Dataset과 설정 파일은 git을 통해 버전 관리하는 것을 권장합니다.
+
+```bash
+    # results/golden_datasets/를 git으로 관리
+    git add results/golden_datasets/
+    git commit -m "feat: golden dataset v2 추가"
+
+    # 이전 버전 복원
+    git checkout HEAD~1 -- results/golden_datasets/my_dataset.json
 ```
 
 **💡 고급 기능 종합 활용:**

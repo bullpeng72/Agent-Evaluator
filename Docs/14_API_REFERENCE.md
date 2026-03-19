@@ -10,7 +10,7 @@
 
 ## 버전 정보
 
-**현재 버전:** v0.5.2
+**현재 버전:** v0.5.3
 
 **최종 업데이트:** 2026-03-19
 
@@ -54,7 +54,7 @@
     * [**5.5 Context Managers**](<#context-managers>)
     * [**5.6 LLM 통합 헬퍼**](<#llm-helpers>)
     * [**5.7 ExampleRunner**](<#example-runner>)
-  * [**🔌 6. 프레임워크 통합 (v0.5.2)**](<#프레임워크-통합>)
+  * [**🔌 6. 프레임워크 통합 (v0.5.3)**](<#프레임워크-통합>)
     * [6.1 CrewAIEvaluator](<#crewai-evaluator>)
     * [6.2 LangChainEvaluator](<#langchain-evaluator>)
     * [6.3 LangGraphEvaluator](<#langgraph-evaluator>)
@@ -246,7 +246,7 @@
 
 PerformanceMonitor는 내부적으로 **16개의 Tracker** 를 사용하여 메트릭을 수집합니다:
 
-##### 📊 Layer 1 - Basic Metrics (7개)
+##### 📊 Layer 1 - Foundation Metrics (6개)
 
   * `TaskCompletionTracker`: 작업 완료율 추적
   * `AccuracyEvaluator`: 정확도 평가 (4가지 유사도 메트릭)
@@ -254,23 +254,20 @@ PerformanceMonitor는 내부적으로 **16개의 Tracker** 를 사용하여 메�
   * `ResponseQualityEvaluator`: 응답 품질 평가
   * `LatencyTracker`: 지연시간 추적
   * `TokenEconomyTracker`: 토큰 경제성 분석
-  * `ToolCallAnalyzer`: 도구 호출 분석
 
-##### 🛡️ Layer 1 - Security (3개)
+##### 🤖 Layer 2 - Agentic Metrics (5개)
 
-  * `InputSanitizationTracker`: 입력 보안 검증 → [Section 2.1.1](<#inputsanitizationtracker>)
-  * `OutputLeakageDetector`: 출력 유출 탐지 → [Section 2.1.2](<#outputleakagedetector>)
-  * `ToolAuthorizationTracker`: 도구 권한 검증 → [Section 2.1.3](<#toolauthorizationtracker>)
-
-##### 🤖 Layer 2 - Agentic AI (4개)
-
+  * `ToolCallAnalyzer`: 도구 호출 패턴 분석
   * `RetryCorrectionTracker`: 재시도/수정 추적
   * `ToolSelectionTracker`: 도구 선택 최적화 → [Section 1.5.1](<#toolselectiontracker>)
   * `AgentCoordinationTracker`: 에이전트 협업 → [Section 1.5.2](<#agentcoordinationtracker>)
   * `WorkflowExecutionTracker`: 워크플로우 실행 → [Section 1.5.3](<#workflowexecutiontracker>)
 
-##### 🛡️ Layer 2 - Security (2개)
+##### 🛡️ Layer 2 - Security Metrics (5개, Opt-in)
 
+  * `InputSanitizationTracker`: 입력 보안 검증 → [Section 2.1.1](<#inputsanitizationtracker>)
+  * `OutputLeakageDetector`: 출력 유출 탐지 → [Section 2.1.2](<#outputleakagedetector>)
+  * `ToolAuthorizationTracker`: 도구 권한 검증 → [Section 2.1.3](<#toolauthorizationtracker>)
   * `PrivilegeEscalationDetector`: 권한 상승 탐지 → [Section 2.2.1](<#privilegeescalationdetector>)
   * `ToolChainAttackDetector`: 도구 체인 공격 탐지 → [Section 2.2.2](<#toolchainattackdetector>)
 
@@ -288,7 +285,7 @@ PerformanceMonitor는 내부적으로 **16개의 Tracker** 를 사용하여 메�
 
   * `enable_transparency` (bool, optional): Test 투명성 추적 활성화 여부 (기본값: False) 
     * True일 경우 TestTransparencyManager를 초기화하여 평가 과정을 추적합니다
-    * DataEditorManager와 통합되어 Dashboard에서 평가 이력을 관리할 수 있습니다
+    * Dashboard API를 통해 평가 이력을 관리할 수 있습니다
 
 **참고** : 임계값(thresholds)은 생성자가 아닌 `load_thresholds_from_config()` 메서드나 `from_test_config()` 클래스 메서드를 통해 설정합니다
 
@@ -443,7 +440,7 @@ PerformanceMonitor는 내부적으로 **16개의 Tracker** 를 사용하여 메�
     [](<#cb9-3>)) -> str
 ```
 
-**파라미터** \- `filename` (str): 저장할 파일명 - 절대 경로가 아닌 경우 자동으로 `evaluation_results/` 디렉토리에 저장됩니다
+**파라미터** \- `filename` (str): 저장할 파일명 - 절대 경로가 아닌 경우 자동으로 `results/` 디렉토리에 저장됩니다
 
 **반환값** \- `str`: 저장된 파일의 전체 경로
 
@@ -451,11 +448,11 @@ PerformanceMonitor는 내부적으로 **16개의 Tracker** 를 사용하여 메�
 
 **예제**
 ```python
-    [](<#cb10-1>)# 기본 경로에 저장 (evaluation_results/performance_data.json)
+    [](<#cb10-1>)# 기본 경로에 저장 (results/my_evaluation.json)
     [](<#cb10-2>)saved_path = monitor.save_to_file()
     [](<#cb10-3>)print(f"저장됨: {saved_path}")
     [](<#cb10-4>)
-    [](<#cb10-5>)# 커스텀 파일명 (evaluation_results/my_evaluation.json)
+    [](<#cb10-5>)# 커스텀 파일명 (results/my_evaluation.json)
     [](<#cb10-6>)monitor.save_to_file("my_evaluation.json")
     [](<#cb10-7>)
     [](<#cb10-8>)# 절대 경로로 저장
@@ -564,11 +561,11 @@ Test 구성에서 PerformanceMonitor 인스턴스를 생성합니다.
     [](<#cb15-6>)) -> PerformanceMonitor
 ```
 
-**파라미터** \- `config_id` (str): Test 구성 ID (DataEditorManager에서 생성) - `pricing` (dict, optional): 토큰 가격 설정 (None이면 기본값 사용)
+**파라미터** \- `config_id` (str): Test 구성 ID - `pricing` (dict, optional): 토큰 가격 설정 (None이면 기본값 사용)
 
 **반환값** \- `PerformanceMonitor`: 구성이 로드된 Monitor 인스턴스
 
-**설명** \- Test 구성에서 자동으로 임계값, Golden Dataset 경로, 투명성 추적 설정 로드 - DataEditorManager와 통합되어 Dashboard에서 설정한 구성 자동 적용
+**설명** \- Test 구성에서 자동으로 임계값, Golden Dataset 경로, 투명성 추적 설정 로드 - Dashboard에서 설정한 구성 자동 적용
 
 **예제**
 ```python
@@ -586,7 +583,7 @@ Test 구성에서 PerformanceMonitor 인스턴스를 생성합니다.
 
 ##### load_thresholds_from_config()
 
-DataEditorManager에서 임계값을 로드합니다.
+저장된 임계값 파일에서 임계값을 로드합니다.
 ```json
     [](<#cb17-1>)load_thresholds_from_config(
     [](<#cb17-2>)    config_id: Optional[str] = None
@@ -3227,7 +3224,7 @@ Agent Evaluator의 투명성 메서드는 "블랙박스" 평가를 "화이트박
         runner.save_and_finish(
             monitor=monitor,
             filename_suffix="demo_results",
-            dashboard_tabs=["📊 Overview", "🔒 Security"]
+            dashboard_tabs=["품질", "보안"]
         )
     
     if __name__ == "__main__":
@@ -3249,7 +3246,7 @@ Agent Evaluator의 투명성 메서드는 "블랙박스" 평가를 "화이트박
 
 * * *
 
-## 🔌 6. 프레임워크 통합 (v0.5.2)
+## 🔌 6. 프레임워크 통합 (v0.5.3)
 
 #### 5.4 보안 헬퍼 함수
 
@@ -3365,7 +3362,7 @@ Agent Evaluator의 투명성 메서드는 "블랙박스" 평가를 "화이트박
 
 * * *
 
-Agent Evaluator v0.5.2은 CrewAI, LangChain, LangGraph, AutoGen 등 주요 AI 프레임워크에 대한 고급 통합 기능을 제공합니다. 모든 통합은 **Layer 1/2/3 메트릭을 완전히 지원** 하며, 동적 계산 및 자동 추적 기능을 갖추고 있습니다.
+Agent Evaluator v0.5.3은 CrewAI, LangChain, LangGraph, AutoGen 등 주요 AI 프레임워크에 대한 고급 통합 기능을 제공합니다. 모든 통합은 **Layer 1/2/3 메트릭을 완전히 지원** 하며, 동적 계산 및 자동 추적 기능을 갖추고 있습니다.
 
 ### 주요 특징
 

@@ -21,7 +21,7 @@ Layer별 메트릭 상세 설명 및 사용법
 
 **이 가이드는 다음 버전을 기준으로 작성되었습니다:**
 
-  * Agent Evaluator: **v0.5.2**
+  * Agent Evaluator: **v0.5.3**
   * Python: 3.8+
   * DeepEval: 0.20.0+ (선택사항, Layer 3)
   * Ragas: 0.1.0+ (선택사항, Layer 3)
@@ -32,9 +32,9 @@ Layer별 메트릭 상세 설명 및 사용법
 
   * [🚀 0. 빠른 시작 (개발자용)](<#빠른-시작>)
   * [1\. 메트릭 체계 개요](<#메트릭-체계-개요>)
-  * [2\. Layer 1: Native Metrics (기본 메트릭 10개)](<#layer-1-native-metrics-기본-메트릭-10개>)
-  * [3\. Layer 2: Agentic AI Metrics (에이전트 메트릭 6개)](<#layer-2-agentic-ai-metrics-에이전트-메트릭-6개>)
-  * [4\. Layer 3: Advanced Metrics (고급 메트릭 9~10개)](<#layer-3-advanced-metrics-고급-메트릭-9개>)
+  * [2\. Layer 1: Foundation Metrics (기본 메트릭 6개)](<#layer-1-foundation-metrics-기본-메트릭-6개>)
+  * [3\. Layer 2: Agentic + Security Metrics (에이전트 메트릭 10개)](<#layer-2-agentic-security-metrics-에이전트-메트릭-10개>)
+  * [4\. Layer 3: Advanced Metrics (고급 메트릭 9개)](<#layer-3-advanced-metrics-고급-메트릭-9개>)
     * [4.1 DeepEval 메트릭](<#deepeval-메트릭>)
     * [4.2 RAGAS 메트릭 (RAG 전용)](<#ragas-메트릭-rag-전용>)
   * [5\. 메트릭 선택 가이드](<#메트릭-선택-가이드>)
@@ -52,8 +52,8 @@ Layer별 메트릭 상세 설명 및 사용법
 
 **AI Agent 보안 평가 기능이 포함되어 있습니다!**
 
-  * ✅ **Layer 1** : 10개 지표 (기본 성능 7개 + 보안 3개)
-  * ✅ **Layer 2** : 6개 지표 (에이전트 AI 4개 + 고급 보안 2개)
+  * ✅ **Layer 1** : 6개 지표 (Foundation: TCR, Accuracy, Hallucination, Quality, Latency, Token Economy)
+  * ✅ **Layer 2** : 10개 지표 (Agentic 5개 + Security 5개)
   * ✅ **무료 & 실시간** 보안 모니터링
 
 📚 **상세 가이드** : [보안 지표 가이드](<SECURITY_METRICS_GUIDE.html>)
@@ -91,17 +91,16 @@ Agent Evaluator는 AI Agent 성능을 종합적으로 평가하기 위해 **3계
 
 ### 📊 3계층 지표 체계 (3-Layer Metrics Framework)
 
-flowchart BT L1["**Layer 1: Native Metrics (기본 메트릭 10개)**  
-  
-📊 성능(7): TCR, Accuracy, Hallucination, Response Quality, Latency, Token Economy, Retry & Correction  
-🔒 보안(3): Input Sanitization, Output Leakage, Tool Authorization  
-  
-📌 API 키 불필요 | 무료 | 모든 Agent 기본 제공"] L2["**Layer 2: Agentic AI Metrics (에이전트 메트릭 6개)**  
-  
-🤖 에이전트(4): Tool Call Analysis, Tool Selection, Agent Coordination, Workflow Execution  
-🔒 보안(2): Privilege Escalation, Tool Chain Attack  
-  
-📌 API 키 불필요 | 무료 | Multi-Agent 시스템 특화"] L3["**Layer 3: Advanced Metrics (고급 메트릭 9~10개)**  
+flowchart BT L1["**Layer 1: Foundation Metrics (기본 메트릭 6개)**
+
+📊 Foundation(6): TCR, Accuracy, Hallucination, Response Quality, Latency, Token Economy
+
+📌 API 키 불필요 | 무료 | 모든 Agent 기본 제공"] L2["**Layer 2: Agentic + Security Metrics (에이전트 메트릭 10개)**
+
+🤖 에이전틱(5): Tool Call Analysis, Retry/Correction, Tool Selection, Agent Coordination, Workflow Execution
+🔒 보안(5): Input Sanitization, Output Leakage, Tool Authorization, Privilege Escalation, Tool Chain Attack
+
+📌 API 키 불필요 | 무료 | Multi-Agent 시스템 특화"] L3["**Layer 3: Advanced Metrics (고급 메트릭 9개)**
   
 🎯 DeepEval(5): G-Eval, Hallucination, Toxicity, Bias, Answer Relevancy  
 📚 Ragas(4): Faithfulness, Answer Relevancy, Context Recall, Context Precision  
@@ -112,33 +111,32 @@ flowchart BT L1["**Layer 1: Native Metrics (기본 메트릭 10개)**
 
 계층 | 지표 수 | API 필요 | 비용 | 주요 용도  
 ---|---|---|---|---  
-**Layer 1: Native** | 10개 (🔒 보안 3개 포함) | ❌ 불필요 | 무료 | 기본 성능 + 보안 측정  
-**Layer 2: Agentic AI** | 6개 (🤖 에이전트 4개 + 🔒 보안 2개) | ❌ 불필요 | 무료 | 에이전트 시스템 + 보안 평가  
-**Layer 3: Advanced** | 10개 (DeepEval 5개 + Ragas 5개) | ✅ OpenAI | 유료 | 고급 품질 분석 (RAG 특화)  
+**Layer 1: Foundation** | 6개 | ❌ 불필요 | 무료 | 기본 성능 측정
+**Layer 2: Agentic+Security** | 10개 (🤖 에이전트 5개 + 🔒 보안 5개) | ❌ 불필요 | 무료 | 에이전트 시스템 + 보안 평가
+**Layer 3: Advanced** | 9개 (DeepEval 5개 + Ragas 4개) | ✅ OpenAI | 유료 | 고급 품질 분석 (RAG 특화)  
   
-### 📊 전체 메트릭 요약 (총 25~26개)
+### 📊 전체 메트릭 요약 (총 25개)
 
-계층 | 카테고리 | 메트릭 수 | API 필요 | 비용  
----|---|---|---|---  
-**Layer 1** | 성능 | 7개 (TCR, Accuracy, Hallucination, Response Quality, Latency, Token Economy, Tool Call Analysis) | ❌ | 무료  
-보안 | 3개 (Input Sanitization, Output Leakage, Tool Authorization) | ❌ | 무료  
-**Layer 2** | 에이전트 AI | 4개 (Tool Call Analysis, Tool Selection, Agent Coordination, Workflow Execution) | ❌ | 무료  
-고급 보안 | 2개 (Privilege Escalation, Tool Chain Attack Detection) | ❌ | 무료  
-**Layer 3** | DeepEval | 5개 (G-Eval, Hallucination, Toxicity, Bias, Answer Relevancy) | ✅ OpenAI | 유료  
-Ragas | 4개 (Faithfulness, Answer Relevancy, Context Recall, Context Precision) | ✅ OpenAI | 유료  
-**전체** | **25~26개 메트릭** | 무료 16개 + 유료 9~10개  
+계층 | 카테고리 | 메트릭 수 | API 필요 | 비용
+---|---|---|---|---
+**Layer 1** | Foundation | 6개 (TCR, Accuracy, Hallucination, Response Quality, Latency, Token Economy) | ❌ | 무료
+**Layer 2** | Agentic | 5개 (Tool Call, Retry/Correction, Tool Selection, Coordination, Workflow) | ❌ | 무료
+**Layer 2** | Security | 5개 (Input Sanitization, Output Leakage, Tool Authorization, Privilege Escalation, Tool Chain Attack) | ❌ | 무료
+**Layer 3** | DeepEval | 5개 (G-Eval, Hallucination, Toxicity, Bias, Answer Relevancy) | ✅ OpenAI | 유료
+**Layer 3** | Ragas | 4개 (Faithfulness, Answer Relevancy, Context Recall, Context Precision) | ✅ OpenAI | 유료
+**전체** | **25개 메트릭** | 무료 16개 + 유료 9개  
   
 ### 사용 권장 사항
 
-  * **개발/테스트 단계** : Layer 1 만으로 충분 (10개 메트릭)
+  * **개발/테스트 단계** : Layer 1 만으로 충분 (6개 메트릭)
   * **Agentic AI 시스템** : Layer 1 + Layer 2 조합 (16개 메트릭, 보안 포함)
   * **RAG 시스템** : Layer 1 + Layer 3 (Ragas) 조합 (14개 메트릭)
-  * **프로덕션 품질 검증** : 전체 계층 활용 (25~26개 메트릭)
+  * **프로덕션 품질 검증** : 전체 계층 활용 (25개 메트릭)
   * **보안 중점 평가** : Layer 1 + Layer 2 with `enable_security_metrics=True` (5개 보안 메트릭)
 
 * * *
 
-## 2\. Layer 1: Native Metrics (기본 메트릭 10개)
+## 2\. Layer 1: Foundation Metrics (기본 메트릭 6개)
 
 기본 메트릭은 외부 라이브러리 없이 작동하며, **API 키가 필요 없고 완전히 무료** 입니다. 모든 Agent 평가에 기본적으로 사용됩니다.
 
@@ -850,7 +848,7 @@ Agent 출력에서 민감 정보 유출을 탐지하여 데이터 유출을 방�
 
 * * *
 
-## 3\. Layer 2: Agentic AI Metrics (에이전트 메트릭 6개)
+## 3\. Layer 2: Agentic + Security Metrics (에이전트 메트릭 10개)
 
 Layer 2는 **Agentic AI 시스템에 특화된 지표** 입니다. 도구 호출 분석, 도구 선택, Multi-agent 협업, 워크플로우 실행 등을 평가합니다.
 
@@ -1428,7 +1426,7 @@ Layer 2는 **Agentic AI 시스템에 특화된 지표** 입니다. 도구 호출
 
 * * *
 
-## 4\. Layer 3: Advanced Metrics (고급 메트릭 10개)
+## 4\. Layer 3: Advanced Metrics (고급 메트릭 9개)
 
 Layer 3는 **DeepEval과 Ragas를 활용한 고급 평가 지표** 입니다. LLM 기반 평가로 높은 정확도를 제공합니다.
 
@@ -2393,7 +2391,7 @@ LangGraph | `LangGraphEvaluator` | Evaluator로 그래프 래핑
 CrewAI | `CrewAIEvaluator` | Evaluator로 Crew 래핑  
 AutoGen | `AutoGenEvaluator` | Evaluator로 Agent 래핑  
   
-**📚 v0.5.2 통합 가이드:**
+**📚 v0.5.3 통합 가이드:**
 
   * ✅ **Clean API** : 모든 프레임워크에서 일관된 `Evaluator` 패턴 사용
   * ✅ **Layer 1/2/3 자동 추적** : `enable_layer2=True`로 고급 메트릭 활성화
@@ -2414,7 +2412,7 @@ AutoGen | `AutoGenEvaluator` | Evaluator로 Agent 래핑
 
 * * *
 
-**Agent Evaluator v0.5.2**
+**Agent Evaluator v0.5.3**
 
 **최종 업데이트** : 2026-03-19
 

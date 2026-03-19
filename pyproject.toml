@@ -5,8 +5,8 @@ build-backend = "hatchling.build"
 [project]
 name = "agent-evaluator"
 version = "0.5.3"
-description = "Production-ready evaluation framework for AI agents — 20 metrics across task completion, accuracy, hallucination, latency, security, and agentic behavior"
-readme = "README.md"
+description = "Production-ready evaluation framework for AI agents — 25 metrics across task completion, accuracy, hallucination, latency, security, and agentic behavior"
+readme = {file = "README.md", content-type = "text/markdown"}
 requires-python = ">=3.8"
 license = "MIT"
 license-files = ["LICENSE"]
@@ -93,7 +93,6 @@ Homepage = "https://github.com/bullpeng72/Agent-Evaluator"
 Repository = "https://github.com/bullpeng72/Agent-Evaluator"
 "Bug Tracker" = "https://github.com/bullpeng72/Agent-Evaluator/issues"
 Documentation = "https://github.com/bullpeng72/Agent-Evaluator/blob/main/README.md"
-Changelog = "https://github.com/bullpeng72/Agent-Evaluator/blob/main/CHANGELOG.md"
 
 [project.scripts]
 agent-eval = "agent_evaluator.cli.main:main"

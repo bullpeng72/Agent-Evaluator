@@ -414,10 +414,10 @@ ground_truth: [평가를 위한 핵심 정답 (1-2문장, 간결하게)]
 class GoldenDatasetManager:
     """Golden Dataset 관리자 - 저장/로드/검증"""
 
-    def __init__(self, output_dir: str = "golden_datasets"):
+    def __init__(self, output_dir: str = "results/golden_datasets"):
         """
         Args:
-            output_dir: 저장 디렉토리
+            output_dir: 저장 디렉토리 (기본: results/golden_datasets)
         """
         self.output_dir = Path(output_dir)
         self.output_dir.mkdir(parents=True, exist_ok=True)

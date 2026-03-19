@@ -3,10 +3,17 @@ FastAPI application factory for agent-eval serve.
 """
 from __future__ import annotations
 
+import os
 import shutil
 import urllib.request
 from pathlib import Path
 from typing import Optional
+
+try:
+    from importlib.metadata import version as _pkg_version, PackageNotFoundError
+    _VERSION = _pkg_version("agent-evaluator")
+except Exception:
+    _VERSION = "0.5.3"
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -25,7 +32,11 @@ from .routers import config as config_router
 from .routers import webhook as webhook_router
 
 _TEMPLATES_DIR = Path(__file__).parent / "templates"
-_STATIC_DIR = Path(__file__).parent / "static"
+# CDN 에셋 캐시는 사용자 홈 디렉토리에 저장 — pip 설치 경로(site-packages)는 읽기 전용일 수 있음
+_STATIC_DIR = Path(
+    os.environ.get("AGENT_EVALUATOR_CACHE_DIR",
+                   str(Path.home() / ".cache" / "agent-evaluator" / "static"))
+)
 
 # CDN assets to cache for --offline mode
 _OFFLINE_ASSETS = {
@@ -70,7 +81,7 @@ def create_app(
     results_dir: Path,
     title: str = "Agent Evaluator Dashboard",
     watch: bool = False,
-    version: str = "0.5.3",
+    version: str = _VERSION,
     offline: bool = False,
 ) -> FastAPI:
     app = FastAPI(title=title, version=version, docs_url="/api/docs",

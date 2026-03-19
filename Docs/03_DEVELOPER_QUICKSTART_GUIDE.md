@@ -725,15 +725,15 @@ Agent Evaluator는 **3개의 계층(Layer)** 으로 구성된 메트릭을 제�
 
 Layer | 이름 | 설명 | 개수 | 비용 | API 키  
 ---|---|---|---|---|---  
-1 | Native Metrics | 기본 성능 지표 7개 (TCR, Accuracy, Hallucination, Response Quality, Latency, Token Economy, Tool Call Analysis) + 보안 메트릭 3개 (Input Sanitization, Output Leakage, Tool Authorization) | **10개** | 무료 | ❌ 불필요  
-2 | Agentic AI Metrics | 에이전트 시스템 지표 4개 (Retry/Correction, Tool Selection, Agent Coordination, Workflow Execution) + 보안 메트릭 2개 (Privilege Escalation, Tool Chain Attack Detection) | **6개** | 무료 | ❌ 불필요  
-3 | Advanced Metrics | AI 기반 고급 평가 (DeepEval 5종, Ragas 4종) | **9~10개** | 유료 | ✅ OpenAI API  
-  
-### Layer 1: Native Metrics (무료, 추천) - 총 10개
+1 | Foundation Metrics | 기본 성능 지표 6개 (TCR, Accuracy, Hallucination, Response Quality, Latency, Token Economy) | **6개** | 무료 | ❌ 불필요
+2 | Agentic + Security Metrics | 에이전틱 5개 (Tool Call, Retry, Tool Selection, Coordination, Workflow) + 보안 5개 (Input Sanitization, Output Leakage, Tool Auth, Privilege Escalation, Tool Chain Attack) | **10개** | 무료 | ❌ 불필요
+3 | Advanced Metrics | AI 기반 고급 평가 (DeepEval 5종, Ragas 4종) | **9개** | 유료 | ✅ OpenAI API
+
+### Layer 1: Foundation Metrics (무료, 추천) - 총 6개
 
 초보자는 **Layer 1만 사용** 해도 충분합니다. API 키 불필요, 완전 무료입니다.
 
-#### 📊 기본 성능 메트릭 (7개):
+#### 📊 기본 성능 메트릭 (6개):
 
 메트릭 | 설명 | 좋은 값  
 ---|---|---  
@@ -744,15 +744,6 @@ Layer | 이름 | 설명 | 개수 | 비용 | API 키
 **4\. Response Quality** | 응답 품질 (Completeness, Relevance, Clarity, Accuracy, Usefulness) | ≥ 85%  
 **5\. Latency** | 평균 응답 시간 | ≤ 2초  
 **6\. Token Economy** | 토큰 사용량 및 비용 추적 | ≤ $0.10/task  
-**7\. Tool Call Analysis** | 도구 호출 성공률 및 사용 패턴 | ≥ 95%  
-  
-#### 🛡️ 보안 메트릭 (3개):
-
-메트릭 | 설명 | 좋은 값  
----|---|---  
-**8\. Input Sanitization** | 입력 검증 및 인젝션 공격 탐지 | 100% 검증  
-**9\. Output Leakage** | 민감 정보 (PII, API 키) 노출 탐지 | 0건  
-**10\. Tool Authorization** | 도구 권한 검증 | 100% 검증  
   
 예제: Layer 1 메트릭 확인
 
@@ -774,25 +765,29 @@ Layer | 이름 | 설명 | 개수 | 비용 | API 키
         print(f"Output Leakage: {report.accuracy_metrics['security'].get('output_leakage', 0):.1f}%")
 ```python
 
-### Layer 2: Agentic AI Metrics (무료, Multi-Agent용) - 총 6개
+### Layer 2: Agentic + Security Metrics (무료) - 총 10개
 
 Multi-Agent 시스템, 워크플로우, 도구 사용 Agent를 평가할 때 사용합니다.
 
-#### 🤖 에이전트 AI 메트릭 (4개):
+#### 🤖 에이전틱 메트릭 (5개):
 
-메트릭 | 설명 | 좋은 값  
----|---|---  
-**1\. Retry & Correction** | 재시도 횟수 및 자가 수정 능력 | ≤ 2회/task  
-**2\. Tool Selection Accuracy** | 올바른 도구를 선택했는지 평가 | ≥ 90%  
-**3\. Agent Coordination** | 에이전트 간 협업 품질 | ≥ 85%  
-**4\. Workflow Execution** | 워크플로우 실행 성공률 및 단계별 추적 | ≥ 95%  
-  
-#### 🛡️ 고급 보안 메트릭 (2개):
+메트릭 | 설명 | 좋은 값
+---|---|---
+**1\. Tool Call Analysis** | 도구 호출 패턴 및 성공률 분석 | ≥ 95%
+**2\. Retry & Correction** | 재시도 횟수 및 자가 수정 능력 | ≤ 2회/task
+**3\. Tool Selection Accuracy** | 올바른 도구를 선택했는지 평가 | ≥ 90%
+**4\. Agent Coordination** | 에이전트 간 협업 품질 | ≥ 85%
+**5\. Workflow Execution** | 워크플로우 실행 성공률 및 단계별 추적 | ≥ 95%
 
-메트릭 | 설명 | 좋은 값  
----|---|---  
-**5\. Privilege Escalation** | 권한 상승 공격 탐지 | 0건  
-**6\. Tool Chain Attack Detection** | 도구 체인 공격 패턴 탐지 | 0건  
+#### 🛡️ 보안 메트릭 (5개, Opt-in `enable_security_metrics=True`):
+
+메트릭 | 설명 | 좋은 값
+---|---|---
+**6\. Input Sanitization** | SQL/Command Injection, Path Traversal, XSS, Prompt Injection 탐지 | 0건
+**7\. Output Leakage** | API 키, 비밀번호, 개인정보 유출 탐지 | 0건
+**8\. Tool Authorization** | 허가된 도구만 호출했는지 검증 | 100%
+**9\. Privilege Escalation** | 권한 상승 공격 탐지 | 0건
+**10\. Tool Chain Attack Detection** | 도구 체인 공격 패턴 탐지 | 0건  
   
 💡 Layer 2는 언제 사용하나요?
 
@@ -801,7 +796,7 @@ Multi-Agent 시스템, 워크플로우, 도구 사용 Agent를 평가할 때 사
   * **워크플로우 Agent** : Layer 1 + Layer 2 사용 (LangGraph)
   * **도구 사용 Agent** : Layer 1 + Layer 2 (Tool Selection) 사용
 
-### Layer 3: Advanced Metrics (유료, 고급 사용자용) - 총 9~10개
+### Layer 3: Advanced Metrics (유료, 고급 사용자용) - 총 9개
 
 AI 기반 고급 평가가 필요할 때만 사용합니다 (OpenAI API 키 필요):
 
@@ -1044,42 +1039,15 @@ Helper 함수를 사용하면 자동으로 계산됩니다.
 
 ## 9\. 다음 단계
 
-### 📝 실전 예제 파일 (총 24개)
+### 📝 실전 예제 파일 (총 5개)
 
-Agent Evaluator는 **3개 레벨 24개의 실행 가능한 예제 파일** 을 제공합니다:
+Agent Evaluator는 **카테고리별 5개의 실행 가능한 예제 파일** 을 제공합니다:
 
-🎓 Level 1: Foundation (기초) - 10개
-
-  * `01_quickstart.py` \- 5분 Quick Start
-  * `02_layer1_trackers.py` \- Layer 1 Trackers 완전 가이드
-  * `03_taskresult_helpers.py` \- TaskResult Helpers (동적 계산)
-  * `04_thresholds_validation.py` \- 임계값 시스템
-  * `05_layer1_security_basic.py` \- 🔒 Layer 1 보안 기초
-  * `06_advanced_metrics_analysis.py` \- 고급 메트릭 분석
-  * `07_conversation_state_tracking.py` \- 대화 상태 추적
-  * `08_new_advanced_apis_quickstart.py` \- 신규 API 7종
-  * `09_helper_functions_comprehensive.py` \- Helper 함수 종합
-  * `10_state_transitions_tracking.py` \- 상태 전환 추적
-
-🚀 Level 2: Advanced (고급) - 8개
-
-  * `01_golden_dataset.py` \- Golden Dataset 자동 평가
-  * `02_layer3_hybrid.py` \- Layer 3 Hybrid (DeepEval + Ragas)
-  * `03_rag_system.py` \- RAG 시스템 완전 평가
-  * `04_tool_selection.py` \- Tool Selection 심화
-  * `05_multi_agent.py` \- Multi-Agent 협업 평가
-  * `06_workflow.py` \- Workflow Execution 평가
-  * `07_layer2_security_advanced.py` \- 🔒 Layer 2 보안 고급
-  * `08_advanced_api_methods.py` \- 고급 API 메서드 7종
-
-🏭 Level 3: Production (프로덕션) - 6개
-
-  * `01_framework_crewai.py` \- CrewAI 프레임워크 통합
-  * `02_cost_optimization.py` \- 비용 최적화 (90% 절감)
-  * `03_framework_langchain.py` \- LangChain 프레임워크 통합
-  * `04_framework_langgraph.py` \- LangGraph State Machine
-  * `05_transparency.py` \- 투명성 관리
-  * `06_security_production_monitoring.py` \- 🔒 프로덕션 보안
+  * `01_quality_metrics.py` \- 품질 지표 — Accuracy, Hallucination, Response Quality, RAG
+  * `02_performance_metrics.py` \- 성능 지표 — TCR, Latency (p50/p95/p99), Token Economy
+  * `03_agentic_metrics.py` \- 에이전틱 지표 — Tool Call, Coordination, Workflow, Retry
+  * `04_security_metrics.py` \- 보안 지표 — Input Sanitization, Leakage, Auth, Escalation, Attack
+  * `05_hybrid_metrics.py` \- 하이브리드 평가 — DeepEval, Ragas 통합 (OpenAI API 키 필요)
 
 **실행 방법:**
 
@@ -1129,7 +1097,7 @@ Agent Evaluator의 다양한 기능에 대해 더 알아보세요:
 
 이제 Agent Evaluator의 기본을 모두 배웠습니다. 실제 프로젝트에 적용해보세요!
 
-**Agent Evaluator v0.5.2**
+**Agent Evaluator v0.5.3**
 
 개발자: **KIM SUNGWOO**
 

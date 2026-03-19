@@ -5,751 +5,1016 @@
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
 <title>SDK 레퍼런스 — {{ title }}</title>
 <style>
-/* ── 테마 변수 (dashboard와 동일한 팔레트) ── */
-:root{
-  --bg:#0f1117;--bg2:#1a1d27;--bg3:#22263a;--border:#2d3148;
-  --text:#e2e4f0;--text2:#8890b0;--accent:#6c8ef5;
-  --green:#4ade80;--yellow:#facc15;--red:#f87171;--orange:#fb923c;
-  --r:8px;
-}
-html.light{
-  --bg:#f4f6fc;--bg2:#fff;--bg3:#eef0f8;--border:#d1d5e8;
-  --text:#1a1d2e;--text2:#5a6080;
-}
+:root{--bg:#0f1117;--bg2:#1a1d27;--bg3:#22263a;--border:#2d3148;--text:#e2e4f0;--text2:#9098b8;--accent:#6c8ef5;--green:#4ade80;--yellow:#facc15;--red:#f87171;--orange:#fb923c;--r:8px}
+html.light{--bg:#f4f6fc;--bg2:#fff;--bg3:#eef0f8;--border:#d1d5e8;--text:#1a1d2e;--text2:#5a6080}
 *{box-sizing:border-box;margin:0;padding:0}
-body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(--text);font-size:14px;line-height:1.65}
-
-/* ── 레이아웃 ── */
-.layout{display:grid;grid-template-columns:230px 1fr;height:100vh}
-.side{background:var(--bg2);border-right:1px solid var(--border);overflow-y:auto;position:sticky;top:0;height:100vh;padding:0 0 24px}
-.main{overflow-y:auto;padding:32px 40px;max-width:900px}
-
-/* ── 상단 헤더 (사이드바 안) ── */
-.side-hdr{padding:16px 14px 10px;border-bottom:1px solid var(--border);margin-bottom:8px}
-.side-hdr .logo{font-weight:700;font-size:13px}.side-hdr .logo span{color:var(--accent)}
-.side-hdr .badge{font-size:10px;color:var(--text2);background:var(--bg3);border:1px solid var(--border);border-radius:99px;padding:1px 7px;margin-left:6px}
-
-/* ── 사이드 네비게이션 ── */
-.nav-group{margin:10px 0 2px;padding:0 14px;font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--text2)}
-.nav-item{display:flex;align-items:center;gap:8px;padding:6px 14px;cursor:pointer;font-size:12px;color:var(--text2);border-left:3px solid transparent;text-decoration:none;transition:background .1s}
+body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(--text);font-size:15px;line-height:1.7}
+.layout{display:grid;grid-template-columns:260px 1fr;height:100vh}
+.side{background:var(--bg2);border-right:1px solid var(--border);overflow-y:auto;position:sticky;top:0;height:100vh;padding:0 0 28px}
+.main{overflow-y:auto;padding:36px 48px;max-width:980px}
+.side-hdr{padding:18px 16px 12px;border-bottom:1px solid var(--border);margin-bottom:8px}
+.side-hdr .logo{font-weight:700;font-size:14px}.side-hdr .logo span{color:var(--accent)}
+.side-hdr .ver{font-size:11px;color:var(--text2);background:var(--bg3);border:1px solid var(--border);border-radius:99px;padding:2px 8px;margin-left:6px}
+.nav-group{margin:10px 0 2px;padding:0 16px;font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--text2)}
+.nav-item{display:flex;align-items:center;gap:6px;padding:6px 16px;font-size:13px;color:var(--text2);border-left:3px solid transparent;text-decoration:none;transition:background .1s}
 .nav-item:hover,.nav-item.on{background:var(--bg3);color:var(--text);border-left-color:var(--accent)}
-.nav-item .tag{margin-left:auto;font-size:9px;padding:1px 5px;border-radius:99px;background:var(--bg3);color:var(--text2)}
-
-/* ── 콘텐츠 섹션 ── */
-.sec{margin-bottom:40px;scroll-margin-top:20px}
-.sec-title{font-size:20px;font-weight:700;margin-bottom:6px;display:flex;align-items:center;gap:10px}
-.sec-title .icon{font-size:18px}
-.sec-sub{color:var(--text2);font-size:13px;margin-bottom:18px;border-bottom:1px solid var(--border);padding-bottom:10px}
-
-/* ── 클래스 카드 ── */
-.cls-card{background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);margin-bottom:16px;overflow:hidden}
-.cls-head{padding:12px 16px;background:var(--bg3);border-bottom:1px solid var(--border);display:flex;align-items:baseline;gap:10px}
-.cls-name{font-size:15px;font-weight:700;font-family:monospace;color:var(--accent)}
-.cls-kind{font-size:10px;padding:2px 7px;border-radius:99px;font-weight:600}
-.cls-kind.class{background:#6c8ef522;color:var(--accent)}
-.cls-kind.func{background:#4ade8022;color:var(--green)}
-.cls-kind.enum{background:#facc1522;color:var(--yellow)}
-.cls-kind.ctx{background:#fb923c22;color:var(--orange)}
-.cls-desc{padding:12px 16px;color:var(--text2);font-size:13px}
-.cls-body{padding:0 16px 14px}
-
-/* ── 메서드/파라미터 테이블 ── */
-.mtable{width:100%;border-collapse:collapse;font-size:12px;margin-top:8px}
-.mtable th{text-align:left;padding:5px 10px;font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:var(--text2);background:var(--bg3);border-bottom:1px solid var(--border)}
-.mtable td{padding:6px 10px;border-bottom:1px solid var(--border);vertical-align:top}
-.mtable tr:last-child td{border-bottom:none}
-.mtable tr:hover td{background:var(--bg3)}
-.mtable .param{font-family:monospace;color:var(--accent);font-size:11px}
-.mtable .type{font-family:monospace;color:var(--yellow);font-size:11px}
-.mtable .ret{font-family:monospace;color:var(--green);font-size:11px}
-.mtable .req{color:var(--red);font-size:10px;margin-left:4px}
-.mtable .opt{color:var(--text2);font-size:10px;margin-left:4px}
-
-/* ── 코드 블록 ── */
-pre{background:var(--bg3);border:1px solid var(--border);border-radius:var(--r);padding:14px 16px;overflow-x:auto;font-size:12px;font-family:'Cascadia Code','Fira Code',monospace;margin:10px 0;line-height:1.6}
-code{font-family:'Cascadia Code','Fira Code',monospace;font-size:12px}
-.kw{color:#c792ea}.cn{color:var(--accent)}.fn{color:var(--green)}
-.st{color:#c3e88d}.cm{color:var(--text2);font-style:italic}.nm{color:var(--yellow)}
-
-/* ── 뱃지 / 태그 ── */
-.badge{display:inline-block;font-size:10px;padding:1px 7px;border-radius:99px;font-weight:600;margin-left:4px}
-.badge.l1{background:#6c8ef522;color:var(--accent)}
-.badge.l2{background:#4ade8022;color:var(--green)}
-.badge.l3{background:#fb923c22;color:var(--orange)}
-.badge.req{background:#f8717122;color:var(--red)}
-.badge.opt{background:#22263a;color:var(--text2);border:1px solid var(--border)}
-
-/* ── 상단 툴바 ── */
-.toolbar{position:sticky;top:0;background:var(--bg2);border-bottom:1px solid var(--border);padding:8px 14px;display:flex;align-items:center;gap:10px;z-index:10;font-size:12px}
-.toolbar .title{font-weight:700;color:var(--accent)}.toolbar .sp{flex:1}
-.btn{background:var(--bg3);color:var(--text);border:1px solid var(--border);border-radius:6px;padding:4px 10px;font-size:11px;cursor:pointer;text-decoration:none;display:inline-flex;align-items:center;gap:4px}
+.nav-item .tag{margin-left:auto;font-size:10px;padding:1px 5px;border-radius:99px;background:var(--bg3);color:var(--text2)}
+.sec{margin-bottom:48px;scroll-margin-top:20px}
+.sec-title{font-size:22px;font-weight:700;margin-bottom:8px;display:flex;align-items:center;gap:10px}
+.sec-sub{color:var(--text2);font-size:14px;margin-bottom:20px;border-bottom:1px solid var(--border);padding-bottom:12px}
+.cls-card{background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);margin-bottom:18px;overflow:hidden}
+.cls-head{padding:13px 18px;background:var(--bg3);border-bottom:1px solid var(--border);display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+.cls-name{font-size:16px;font-weight:700;font-family:monospace;color:var(--accent)}
+.kind{font-size:11px;padding:2px 8px;border-radius:99px;font-weight:600}
+.kind.cls{background:#6c8ef522;color:var(--accent)}.kind.fn{background:#4ade8022;color:var(--green)}
+.kind.en{background:#facc1522;color:var(--yellow)}.kind.ctx{background:#fb923c22;color:var(--orange)}
+.cls-src{font-size:11px;color:var(--text2);margin-left:auto}
+.cls-desc{padding:13px 18px;color:var(--text2);font-size:14px;line-height:1.6}
+.cls-body{padding:0 18px 16px}
+.mtable{width:100%;border-collapse:collapse;font-size:13px;margin-top:10px}
+.mtable th{text-align:left;padding:6px 10px;font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--text2);background:var(--bg3);border-bottom:1px solid var(--border)}
+.mtable td{padding:7px 10px;border-bottom:1px solid var(--border);vertical-align:top;line-height:1.5}
+.mtable tr:last-child td{border-bottom:none}.mtable tr:hover td{background:var(--bg3)}
+.p{font-family:monospace;color:var(--accent);font-size:13px}
+.t{font-family:monospace;color:var(--yellow);font-size:12px}
+.r{font-family:monospace;color:var(--green);font-size:12px}
+.req{color:var(--red);font-size:10px;margin-left:3px}.opt{color:var(--text2);font-size:10px;margin-left:3px}
+pre{background:var(--bg3);border:1px solid var(--border);border-radius:var(--r);padding:15px 18px;overflow-x:auto;font-size:13px;font-family:'Cascadia Code','Fira Code',monospace;margin:12px 0;line-height:1.65}
+code{font-family:'Cascadia Code','Fira Code',monospace;font-size:13px}
+.kw{color:#c792ea}.cn{color:var(--accent)}.fn{color:var(--green)}.st{color:#c3e88d}.cm{color:var(--text2);font-style:italic}.nm{color:var(--yellow)}
+.badge{display:inline-block;font-size:11px;padding:2px 8px;border-radius:99px;font-weight:600}
+.l1{background:#6c8ef522;color:var(--accent)}.l2{background:#4ade8022;color:var(--green)}.l3{background:#fb923c22;color:var(--orange)}
+.req-b{background:#f8717122;color:var(--red)}.opt-b{background:#22263a;color:var(--text2);border:1px solid var(--border)}
+.toolbar{position:sticky;top:0;background:var(--bg2);border-bottom:1px solid var(--border);padding:9px 16px;display:flex;align-items:center;gap:10px;z-index:10;font-size:13px}
+.toolbar .title{font-weight:700;color:var(--accent)}.sp{flex:1}
+.btn{background:var(--bg3);color:var(--text);border:1px solid var(--border);border-radius:6px;padding:5px 12px;font-size:12px;cursor:pointer;text-decoration:none;display:inline-flex;align-items:center;gap:4px}
 .btn:hover{background:var(--accent);color:#fff;border-color:var(--accent)}
-input[type=search]{background:var(--bg3);color:var(--text);border:1px solid var(--border);border-radius:6px;padding:4px 10px;font-size:12px;width:200px;outline:none}
+input[type=search]{background:var(--bg3);color:var(--text);border:1px solid var(--border);border-radius:6px;padding:5px 12px;font-size:13px;width:220px;outline:none}
 input[type=search]:focus{border-color:var(--accent)}
-
-/* ── 알림 박스 ── */
-.note{background:var(--bg3);border-left:3px solid var(--accent);border-radius:0 var(--r) var(--r) 0;padding:10px 14px;font-size:12px;color:var(--text2);margin:10px 0}
+.note{background:var(--bg3);border-left:3px solid var(--accent);border-radius:0 var(--r) var(--r) 0;padding:12px 16px;font-size:13px;color:var(--text2);margin:12px 0;line-height:1.6}
 .note.warn{border-left-color:var(--yellow)}.note.tip{border-left-color:var(--green)}
-
-/* ── 검색 하이라이트 ── */
 mark{background:#facc1544;color:var(--yellow);border-radius:2px}
-
-/* ── 분리선 ── */
 hr{border:none;border-top:1px solid var(--border);margin:20px 0}
-
-/* ── 레이어 헤더 ── */
-.layer-hdr{background:var(--bg3);border:1px solid var(--border);border-radius:var(--r);padding:10px 14px;margin-bottom:16px;display:flex;align-items:center;gap:10px}
-.layer-hdr .lnum{font-size:22px;font-weight:800;color:var(--accent);font-family:monospace}
-.layer-hdr .linfo{flex:1}
-.layer-hdr .ltitle{font-weight:700;font-size:14px}
-.layer-hdr .ldesc{font-size:11px;color:var(--text2);margin-top:2px}
-.layer-hdr .ldep{font-size:10px;padding:2px 8px;border-radius:99px;border:1px solid var(--border);color:var(--text2)}
-
-/* ── 트래커 그리드 ── */
-.tracker-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px;margin-bottom:14px}
-.tracker-card{background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);padding:12px}
-.tracker-card:hover{border-color:var(--accent)}
-.tracker-card .tc-name{font-family:monospace;font-size:12px;font-weight:700;color:var(--accent);margin-bottom:4px}
-.tracker-card .tc-metric{font-size:11px;color:var(--green);margin-bottom:4px}
-.tracker-card .tc-desc{font-size:11px;color:var(--text2)}
+.lhdr{background:var(--bg3);border:1px solid var(--border);border-radius:var(--r);padding:12px 16px;margin-bottom:16px;display:flex;align-items:center;gap:12px}
+.lhdr .lnum{font-size:24px;font-weight:800;color:var(--accent);font-family:monospace}
+.lhdr .ltitle{font-weight:700;font-size:15px}.lhdr .ldesc{font-size:12px;color:var(--text2);margin-top:2px}
+.lhdr .ldep{font-size:11px;padding:3px 10px;border-radius:99px;border:1px solid var(--border);color:var(--text2)}
+.tgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px;margin-bottom:14px}
+.tc{background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);padding:12px}
+.tc:hover{border-color:var(--accent)}.tc .tn{font-family:monospace;font-size:13px;font-weight:700;color:var(--accent);margin-bottom:4px}
+.tc .tm{font-size:12px;color:var(--green);margin-bottom:4px}.tc .td{font-size:12px;color:var(--text2);line-height:1.5}
+.slbl{font-size:11px;font-weight:700;color:var(--text2);margin:16px 0 8px;text-transform:uppercase;letter-spacing:.05em}
+.ret-box{background:var(--bg3);border:1px solid var(--border);border-radius:6px;padding:8px 12px;font-size:12px;font-family:monospace;margin-top:6px;line-height:1.6}
+.ret-box .rk{color:var(--accent)}.ret-box .rv{color:var(--text2)}
 </style>
 </head>
 <body>
 <div class="layout">
-
-<!-- ══════════════════════════════════════════
-     사이드바 네비게이션
-═══════════════════════════════════════════ -->
 <nav class="side" id="sidebar">
   <div class="side-hdr">
-    <div class="logo">🤖 <span>Agent</span> Evaluator <span class="badge">v{{ version }}</span></div>
+    <div class="logo">🤖 <span>Agent</span> Evaluator <span class="ver">v{{ version }}</span></div>
     <div style="font-size:11px;color:var(--text2);margin-top:4px">📖 SDK 레퍼런스</div>
   </div>
-
   <div class="nav-group">시작하기</div>
   <a class="nav-item" href="#quickstart">⚡ Quick Start</a>
   <a class="nav-item" href="#install">📦 설치 &amp; 의존성</a>
-
+  <a class="nav-item" href="#architecture">🏗️ 아키텍처 개요</a>
   <div class="nav-group">핵심 클래스</div>
   <a class="nav-item" href="#performance-monitor">PerformanceMonitor <span class="tag">core</span></a>
   <a class="nav-item" href="#task-result">TaskResult <span class="tag">dataclass</span></a>
   <a class="nav-item" href="#task-type">TaskType <span class="tag">enum</span></a>
   <a class="nav-item" href="#helpers">create_taskresult() <span class="tag">helper</span></a>
   <a class="nav-item" href="#context-mgr">evaluation_session() <span class="tag">ctx</span></a>
-
-  <div class="nav-group">Layer 1 — 기초 지표</div>
-  <a class="nav-item" href="#layer1">개요 &amp; 트래커 목록</a>
-
-  <div class="nav-group">Layer 2 — 에이전틱</div>
-  <a class="nav-item" href="#layer2-agentic">에이전틱 지표 (5종)</a>
-  <a class="nav-item" href="#layer2-security">보안 지표 (5종)</a>
-
-  <div class="nav-group">Layer 3 — 하이브리드</div>
-  <a class="nav-item" href="#layer3">HybridPerformanceMonitor</a>
-  <a class="nav-item" href="#adapters">외부 어댑터</a>
-
+  <div class="nav-group">Layer 1 — Foundation</div>
+  <a class="nav-item" href="#tcr">TaskCompletionTracker</a>
+  <a class="nav-item" href="#accuracy">AccuracyEvaluator</a>
+  <a class="nav-item" href="#hallucination">HallucinationDetector</a>
+  <a class="nav-item" href="#quality">ResponseQualityEvaluator</a>
+  <a class="nav-item" href="#latency">LatencyTracker</a>
+  <a class="nav-item" href="#token">TokenEconomyTracker</a>
+  <div class="nav-group">Layer 2 — Agentic</div>
+  <a class="nav-item" href="#toolcall">ToolCallAnalyzer</a>
+  <a class="nav-item" href="#toolsel">ToolSelectionTracker</a>
+  <a class="nav-item" href="#retry">RetryCorrectionTracker</a>
+  <a class="nav-item" href="#coord">AgentCoordinationTracker</a>
+  <a class="nav-item" href="#workflow">WorkflowExecutionTracker</a>
+  <div class="nav-group">Layer 2 — Security</div>
+  <a class="nav-item" href="#sanitize">InputSanitizationTracker</a>
+  <a class="nav-item" href="#leakage">OutputLeakageDetector</a>
+  <a class="nav-item" href="#authz">ToolAuthorizationTracker</a>
+  <a class="nav-item" href="#privesc">PrivilegeEscalationDetector</a>
+  <a class="nav-item" href="#chainatk">ToolChainAttackDetector</a>
+  <div class="nav-group">Layer 3 — Hybrid</div>
+  <a class="nav-item" href="#hybrid">HybridPerformanceMonitor</a>
+  <a class="nav-item" href="#adapters">외부 어댑터 (3종)</a>
   <div class="nav-group">프레임워크 통합</div>
-  <a class="nav-item" href="#frameworks">CrewAI / LangChain / AutoGen</a>
+  <a class="nav-item" href="#frameworks">CrewAI / LangChain / LangGraph / AutoGen</a>
   <a class="nav-item" href="#llm-helpers">LLMHelper / ClaudeHelper</a>
-
 </nav>
 
-<!-- ══════════════════════════════════════════
-     메인 콘텐츠
-═══════════════════════════════════════════ -->
 <div style="display:flex;flex-direction:column;overflow:hidden">
-
-<!-- 툴바 -->
 <div class="toolbar">
   <span class="title">📖 Agent Evaluator SDK 레퍼런스</span>
   <input type="search" id="search" placeholder="클래스·메서드 검색…" oninput="doSearch(this.value)">
   <div class="sp"></div>
-  <a class="btn" href="/api/docs" target="_blank">📡 UI API</a>
+  <a class="btn" href="/api/docs" target="_blank">📡 REST API</a>
   <a class="btn" href="/">← 대시보드</a>
   <button class="btn" onclick="toggleTheme()">🌓</button>
 </div>
 
 <div class="main" id="content">
 
-<!-- ── Quick Start ─────────────────────────────────────────────── -->
+<!-- ── Quick Start ── -->
 <section class="sec" id="quickstart">
-  <div class="sec-title"><span class="icon">⚡</span> Quick Start</div>
-  <div class="sec-sub">3단계로 첫 평가를 시작합니다</div>
-
+  <div class="sec-title">⚡ Quick Start</div>
+  <div class="sec-sub">핵심 패턴: <code>create_taskresult()</code> + <code>PerformanceMonitor</code>. 점수 필드는 자동으로 계산됩니다.</div>
   <div class="cls-card">
-    <div class="cls-head"><span class="cls-name">1. 설치</span></div>
+    <div class="cls-head"><span class="cls-name">기본 사용 패턴</span></div>
     <div class="cls-body">
-<pre><span class="cm"># 기본 설치 (Layer 1 + 2)</span>
-pip install agent-evaluator
+<pre><span class="kw">from</span> <span class="cn">agent_evaluator</span> <span class="kw">import</span> PerformanceMonitor, create_taskresult
 
-<span class="cm"># 모든 선택 의존성 포함</span>
-pip install <span class="st">"agent-evaluator[all]"</span>
-
-<span class="cm"># 개별 extra</span>
-pip install <span class="st">"agent-evaluator[deepeval]"</span>   <span class="cm"># DeepEval 통합</span>
-pip install <span class="st">"agent-evaluator[ragas]"</span>      <span class="cm"># Ragas RAG 평가</span>
-pip install <span class="st">"agent-evaluator[serve]"</span>     <span class="cm"># 웹 대시보드</span></pre>
-    </div>
-  </div>
-
-  <div class="cls-card">
-    <div class="cls-head"><span class="cls-name">2. 최소 예시</span></div>
-    <div class="cls-body">
-<pre><span class="kw">from</span> <span class="cn">agent_evaluator</span> <span class="kw">import</span> PerformanceMonitor, TaskResult, TaskType
-
-<span class="cm"># 모니터 초기화</span>
 monitor = <span class="fn">PerformanceMonitor</span>(output_dir=<span class="st">"results/"</span>)
 
-<span class="cm"># 태스크 결과 기록</span>
-result = <span class="fn">TaskResult</span>(
+task = <span class="fn">create_taskresult</span>(
     task_id=<span class="st">"task_001"</span>,
-    task_type=<span class="cn">TaskType</span>.QA,
-    success=<span class="kw">True</span>,
-    response=<span class="st">"서울은 대한민국의 수도입니다."</span>,
-    expected_output=<span class="st">"서울"</span>,
+    question=<span class="st">"한국의 수도는?"</span>,
+    response=<span class="st">"서울입니다."</span>,
+    ground_truth=<span class="st">"서울"</span>,
     execution_time=<span class="nm">1.23</span>,
-    tokens_used={<span class="st">"input"</span>: <span class="nm">100</span>, <span class="st">"output"</span>: <span class="nm">50</span>, <span class="st">"total"</span>: <span class="nm">150</span>},
 )
-monitor.<span class="fn">record_task</span>(result)
-
-<span class="cm"># JSON + HTML 리포트 저장</span>
-monitor.<span class="fn">save_to_file</span>(<span class="st">"evaluation"</span>)</pre>
+monitor.<span class="fn">record_task</span>(task)
+monitor.<span class="fn">save_to_file</span>(<span class="st">"eval_run"</span>)  <span class="cm"># → results/eval_run.json + .html</span></pre>
     </div>
   </div>
-
   <div class="cls-card">
-    <div class="cls-head"><span class="cls-name">3. 대시보드 실행</span></div>
+    <div class="cls-head"><span class="cls-name">컨텍스트 매니저 패턴</span></div>
     <div class="cls-body">
-<pre><span class="cm"># CLI로 웹 대시보드 실행</span>
-agent-eval serve
+<pre><span class="kw">from</span> <span class="cn">agent_evaluator</span> <span class="kw">import</span> evaluation_session, create_taskresult
 
-<span class="cm"># 또는 포트/경로 지정</span>
-agent-eval serve ./results --port <span class="nm">8080</span></pre>
+<span class="kw">with</span> <span class="fn">evaluation_session</span>(<span class="st">"session_01"</span>, output_dir=<span class="st">"results/"</span>) <span class="kw">as</span> monitor:
+    <span class="kw">for</span> q, expected <span class="kw">in</span> test_cases:
+        task = <span class="fn">create_taskresult</span>(task_id=<span class="st">f"t_{i}"</span>, question=q, response=agent.<span class="fn">run</span>(q), ground_truth=expected, execution_time=<span class="nm">1.0</span>)
+        monitor.<span class="fn">record_task</span>(task)
+<span class="cm"># 세션 종료 시 자동 저장</span></pre>
+    </div>
+  </div>
+  <div class="cls-card">
+    <div class="cls-head"><span class="cls-name">대시보드 실행</span></div>
+    <div class="cls-body">
+<pre><span class="cm"># pip install "agent-evaluator[serve]" 필요</span>
+agent-eval serve                        <span class="cm"># 기본: ./results, 포트 8765</span>
+agent-eval serve ./results --port <span class="nm">8080</span> --watch</pre>
     </div>
   </div>
 </section>
 
-<!-- ── 설치 & 의존성 ─────────────────────────────────────────────── -->
+<!-- ── 설치 ── -->
 <section class="sec" id="install">
-  <div class="sec-title"><span class="icon">📦</span> 설치 &amp; 의존성</div>
-  <div class="sec-sub">Python 3.8+ 지원. Core 의존성은 numpy, pandas, python-dotenv 뿐입니다.</div>
-
+  <div class="sec-title">📦 설치 &amp; 의존성</div>
+  <div class="sec-sub">Python 3.8+. Core 의존성: <code>numpy</code>, <code>pandas</code>, <code>python-dotenv</code>.</div>
   <table class="mtable">
-    <thead><tr><th>Extra</th><th>pip install</th><th>추가되는 기능</th><th>의존성</th></tr></thead>
+    <thead><tr><th>Extra</th><th>설치 명령</th><th>추가 기능</th><th>의존성</th></tr></thead>
     <tbody>
-      <tr><td><code class="type">core</code></td><td><code>agent-evaluator</code></td><td>Layer 1 + 2 전체, CLI, 대시보드</td><td>numpy, pandas, python-dotenv</td></tr>
-      <tr><td><code class="type">deepeval</code></td><td><code>agent-evaluator[deepeval]</code></td><td>DeepEvalAdapter</td><td>deepeval ≥0.20</td></tr>
-      <tr><td><code class="type">ragas</code></td><td><code>agent-evaluator[ragas]</code></td><td>RagasAdapter</td><td>ragas ≥0.1</td></tr>
-      <tr><td><code class="type">langchain</code></td><td><code>agent-evaluator[langchain]</code></td><td>LangChain/LangGraph 통합</td><td>langchain ≥0.1</td></tr>
-      <tr><td><code class="type">serve</code></td><td><code>agent-evaluator[serve]</code></td><td>웹 대시보드 서버</td><td>fastapi, uvicorn, jinja2</td></tr>
-      <tr><td><code class="type">datasets</code></td><td><code>agent-evaluator[datasets]</code></td><td>PDF 처리, 한국어 RAG 데이터셋</td><td>PyPDF2, pdfplumber</td></tr>
-      <tr><td><code class="type">all</code></td><td><code>agent-evaluator[all]</code></td><td>위 전체 포함</td><td>—</td></tr>
+      <tr><td><code class="t">core</code></td><td><code>pip install agent-evaluator</code></td><td>Layer 1+2 (16종 지표), CLI</td><td>numpy, pandas, python-dotenv</td></tr>
+      <tr><td><code class="t">deepeval</code></td><td><code>agent-evaluator[deepeval]</code></td><td>DeepEvalAdapter (5종)</td><td>deepeval ≥0.20</td></tr>
+      <tr><td><code class="t">ragas</code></td><td><code>agent-evaluator[ragas]</code></td><td>RagasAdapter (4종 RAG 지표)</td><td>ragas ≥0.1</td></tr>
+      <tr><td><code class="t">langchain</code></td><td><code>agent-evaluator[langchain]</code></td><td>LangChain / LangGraph 통합</td><td>langchain ≥0.1</td></tr>
+      <tr><td><code class="t">serve</code></td><td><code>agent-evaluator[serve]</code></td><td>웹 대시보드 서버</td><td>fastapi, uvicorn, jinja2</td></tr>
+      <tr><td><code class="t">datasets</code></td><td><code>agent-evaluator[datasets]</code></td><td>PDF 처리, 한국어 RAG 데이터셋</td><td>PyPDF2, pdfplumber</td></tr>
+      <tr><td><code class="t">all</code></td><td><code>agent-evaluator[all]</code></td><td>위 전체 포함</td><td>—</td></tr>
     </tbody>
   </table>
 </section>
 
-<!-- ── PerformanceMonitor ────────────────────────────────────────── -->
-<section class="sec" id="performance-monitor">
-  <div class="sec-title"><span class="icon">🎛️</span> PerformanceMonitor</div>
-  <div class="sec-sub">모든 트래커를 내부에서 조율하는 중앙 오케스트레이터입니다.</div>
+<!-- ── 아키텍처 ── -->
+<section class="sec" id="architecture">
+  <div class="sec-title">🏗️ 아키텍처 개요</div>
+  <div class="sec-sub">3개 레이어, 25개 지표. Layer 1+2 (16종)는 외부 API 없이 동작.</div>
+  <table class="mtable">
+    <thead><tr><th>레이어</th><th>분류</th><th>트래커 수</th><th>의존성</th><th>핵심 지표</th></tr></thead>
+    <tbody>
+      <tr><td><span class="badge l1">L1</span></td><td>Foundation</td><td>6종</td><td>없음</td><td>TCR, Accuracy, Hallucination, Quality, Latency, Token Cost</td></tr>
+      <tr><td><span class="badge l2">L2</span></td><td>Agentic</td><td>5종</td><td>없음</td><td>Tool Efficiency, Selection F1, Retry, Coordination, Workflow</td></tr>
+      <tr><td><span class="badge l2">L2</span></td><td>Security <span class="badge req-b">opt-in</span></td><td>5종</td><td>없음</td><td>Injection, Leakage, AuthZ, PrivEsc, ChainAttack</td></tr>
+      <tr><td><span class="badge l3">L3</span></td><td>DeepEval</td><td>5종</td><td>deepeval + OpenAI</td><td>G-Eval, Hallucination, Toxicity, Bias, Answer Relevancy</td></tr>
+      <tr><td><span class="badge l3">L3</span></td><td>Ragas</td><td>4종</td><td>ragas + OpenAI</td><td>faithfulness, answer_relevancy, context_recall, context_precision</td></tr>
+    </tbody>
+  </table>
+</section>
 
+<!-- ── PerformanceMonitor ── -->
+<section class="sec" id="performance-monitor">
+  <div class="sec-title">🎛️ PerformanceMonitor</div>
+  <div class="sec-sub">Layer 1+2 트래커 16종을 내부에서 조율하는 중앙 오케스트레이터. 대부분의 사용 사례에서 이 클래스만으로 충분합니다.</div>
   <div class="cls-card">
     <div class="cls-head">
-      <span class="cls-name">PerformanceMonitor</span>
-      <span class="cls-kind class">class</span>
-      <span style="font-size:11px;color:var(--text2);margin-left:auto">agent_evaluator.core.agent_evaluator</span>
+      <span class="cls-name">PerformanceMonitor</span><span class="kind cls">class</span>
+      <span class="cls-src">agent_evaluator.core.agent_evaluator</span>
     </div>
-    <div class="cls-desc">Layer 1 + 2 트래커 14종을 자동으로 구성하고, <code>record_task()</code>로 수집한 결과를 집계해 리포트를 생성합니다.</div>
     <div class="cls-body">
-      <div style="font-size:11px;font-weight:700;color:var(--text2);margin-bottom:6px;text-transform:uppercase;letter-spacing:.05em">생성자 파라미터</div>
+      <div class="slbl">생성자 파라미터</div>
       <table class="mtable">
         <thead><tr><th>파라미터</th><th>타입</th><th>기본값</th><th>설명</th></tr></thead>
         <tbody>
-          <tr><td><span class="param">output_dir</span><span class="opt">opt</span></td><td><span class="type">str</span></td><td><code>"results/"</code></td><td>JSON/HTML 리포트 저장 디렉토리</td></tr>
-          <tr><td><span class="param">enable_hallucination_detection</span><span class="opt">opt</span></td><td><span class="type">bool</span></td><td><code>False</code></td><td>환각 탐지 활성화 (LLM 호출 비용 발생)</td></tr>
-          <tr><td><span class="param">enable_security_metrics</span><span class="opt">opt</span></td><td><span class="type">bool</span></td><td><code>False</code></td><td>보안 지표 (Layer 2 보안) 활성화</td></tr>
+          <tr><td><span class="p">output_dir</span><span class="opt">opt</span></td><td><span class="t">str</span></td><td><code>"results/"</code></td><td>JSON/HTML 리포트 저장 디렉토리</td></tr>
+          <tr><td><span class="p">pricing</span><span class="opt">opt</span></td><td><span class="t">Dict[str,float]</span></td><td><code>{"input":0.003,"output":0.015}</code></td><td>1K 토큰당 비용 (USD). TokenEconomyTracker에 전달됩니다.</td></tr>
+          <tr><td><span class="p">enable_hallucination_detection</span><span class="opt">opt</span></td><td><span class="t">bool</span></td><td><code>False</code></td><td>HallucinationDetector 활성화 (LLM 호출 비용 발생)</td></tr>
+          <tr><td><span class="p">enable_security_metrics</span><span class="opt">opt</span></td><td><span class="t">bool</span></td><td><code>False</code></td><td>Layer 2 보안 트래커 5종 활성화</td></tr>
+          <tr><td><span class="p">security_config</span><span class="opt">opt</span></td><td><span class="t">Dict</span></td><td><code>None</code></td><td>ToolAuthorizationTracker 설정 (allowed_tools, restricted_tools 등)</td></tr>
+          <tr><td><span class="p">enable_transparency</span><span class="opt">opt</span></td><td><span class="t">bool</span></td><td><code>False</code></td><td>TestTransparencyManager 활성화</td></tr>
         </tbody>
       </table>
-
-      <div style="font-size:11px;font-weight:700;color:var(--text2);margin:14px 0 6px;text-transform:uppercase;letter-spacing:.05em">주요 메서드</div>
+      <div class="slbl">주요 메서드</div>
       <table class="mtable">
-        <thead><tr><th>메서드</th><th>반환</th><th>설명</th></tr></thead>
+        <thead><tr><th>메서드 시그니처</th><th>반환</th><th>설명</th></tr></thead>
         <tbody>
-          <tr><td><span class="param">record_task(result)</span></td><td><span class="ret">None</span></td><td>TaskResult 하나를 모든 트래커에 기록</td></tr>
-          <tr><td><span class="param">generate_report()</span></td><td><span class="ret">EvaluationReport</span></td><td>수집된 데이터를 집계해 리포트 객체 반환</td></tr>
-          <tr><td><span class="param">save_to_file(stem)</span></td><td><span class="ret">Path</span></td><td>JSON + HTML 파일 저장, 저장 경로 반환</td></tr>
-          <tr><td><span class="param">reset()</span></td><td><span class="ret">None</span></td><td>모든 트래커 상태 초기화</td></tr>
+          <tr><td><span class="p">record_task(result, ground_truth=None, context=None, request=None, response=None, expected_elements=None)</span></td><td><span class="r">None</span></td><td>TaskResult를 모든 활성 트래커에 기록. 선택 파라미터로 정확도·품질 평가 정밀도 향상.</td></tr>
+          <tr><td><span class="p">generate_report()</span></td><td><span class="r">EvaluationReport</span></td><td>수집 데이터를 집계해 EvaluationReport 객체 반환</td></tr>
+          <tr><td><span class="p">save_to_file(filename)</span></td><td><span class="r">None</span></td><td><code>{output_dir}/{filename}.json</code> + <code>.html</code> 저장</td></tr>
+          <tr><td><span class="p">evaluate_with_golden_dataset(agent_fn, dataset_path=None, ...)</span></td><td><span class="r">Dict</span></td><td>골든 데이터셋으로 에이전트 자동 평가</td></tr>
+          <tr><td><span class="p">compare_with_thresholds()</span></td><td><span class="r">Dict</span></td><td>업계 임계값과 현재 지표 비교</td></tr>
+          <tr><td><span class="p">reset()</span></td><td><span class="r">None</span></td><td>모든 트래커 상태 초기화</td></tr>
         </tbody>
       </table>
-
-      <div style="font-size:11px;font-weight:700;color:var(--text2);margin:14px 0 6px;text-transform:uppercase;letter-spacing:.05em">예시</div>
-<pre><span class="kw">from</span> <span class="cn">agent_evaluator</span> <span class="kw">import</span> PerformanceMonitor
-
-monitor = <span class="fn">PerformanceMonitor</span>(
-    output_dir=<span class="st">"results/"</span>,
-    enable_hallucination_detection=<span class="kw">True</span>,
-    enable_security_metrics=<span class="kw">True</span>,
-)
-
-<span class="kw">for</span> task <span class="kw">in</span> tasks:
-    result = agent.<span class="fn">run</span>(task)
-    monitor.<span class="fn">record_task</span>(result)
-
-path = monitor.<span class="fn">save_to_file</span>(<span class="st">"my_eval"</span>)  <span class="cm"># → results/my_eval.json</span></pre>
+      <div class="note tip" style="margin-top:12px">💡 <strong>record_task 팁</strong>: <code>request</code>(질문), <code>ground_truth</code>(정답), <code>expected_elements</code>(체크리스트)를 함께 전달하면 정확도·품질 평가 정밀도가 높아집니다.</div>
     </div>
   </div>
 </section>
 
-<!-- ── TaskResult ───────────────────────────────────────────────── -->
+<!-- ── TaskResult ── -->
 <section class="sec" id="task-result">
-  <div class="sec-title"><span class="icon">📋</span> TaskResult</div>
-  <div class="sec-sub">단일 태스크 실행 결과를 담는 dataclass입니다. 44개 필드를 가집니다.</div>
-
+  <div class="sec-title">📋 TaskResult</div>
+  <div class="sec-sub">단일 태스크 실행 결과를 담는 dataclass. <strong>직접 생성보다 <code>create_taskresult()</code> 사용을 권장합니다</strong> — 점수 필드를 자동 계산합니다.</div>
   <div class="cls-card">
-    <div class="cls-head">
-      <span class="cls-name">TaskResult</span>
-      <span class="cls-kind class">dataclass</span>
-      <span style="font-size:11px;color:var(--text2);margin-left:auto">agent_evaluator.core.agent_evaluator</span>
-    </div>
-    <div class="cls-desc">모든 평가 지표는 이 객체를 기반으로 계산됩니다. 필수 필드만 채워도 동작하며, 선택 필드는 해당 트래커 활성화 시 사용됩니다.</div>
+    <div class="cls-head"><span class="cls-name">TaskResult</span><span class="kind cls">dataclass</span><span class="cls-src">agent_evaluator.core.agent_evaluator</span></div>
     <div class="cls-body">
+      <div class="slbl">필수 필드 (11개)</div>
       <table class="mtable">
-        <thead><tr><th>필드</th><th>타입</th><th>필수</th><th>설명</th></tr></thead>
+        <thead><tr><th>필드</th><th>타입</th><th>설명</th></tr></thead>
         <tbody>
-          <tr><td><span class="param">task_id</span></td><td><span class="type">str</span></td><td><span class="req">✦</span></td><td>태스크 고유 식별자</td></tr>
-          <tr><td><span class="param">task_type</span></td><td><span class="type">TaskType</span></td><td><span class="req">✦</span></td><td>태스크 유형 (QA, CODE_GENERATION 등)</td></tr>
-          <tr><td><span class="param">success</span></td><td><span class="type">bool</span></td><td><span class="req">✦</span></td><td>태스크 성공 여부</td></tr>
-          <tr><td><span class="param">response</span></td><td><span class="type">str</span></td><td></td><td>에이전트 응답 텍스트</td></tr>
-          <tr><td><span class="param">expected_output</span></td><td><span class="type">str</span></td><td></td><td>정답/기대 출력 (정확도 계산에 사용)</td></tr>
-          <tr><td><span class="param">execution_time</span></td><td><span class="type">float</span></td><td></td><td>실행 시간 (초)</td></tr>
-          <tr><td><span class="param">tokens_used</span></td><td><span class="type">dict</span></td><td></td><td><code>{"input": N, "output": N, "total": N}</code></td></tr>
-          <tr><td><span class="param">tool_calls</span></td><td><span class="type">list</span></td><td></td><td>도구 호출 목록 <code>[{"name": "...", "success": True}]</code></td></tr>
-          <tr><td><span class="param">expected_tools</span></td><td><span class="type">list[str]</span></td><td></td><td>기대 도구 목록 (Tool Selection F1 계산용)</td></tr>
-          <tr><td><span class="param">context</span></td><td><span class="type">str</span></td><td></td><td>RAG 컨텍스트 (Ragas 평가용)</td></tr>
-          <tr><td><span class="param">error_message</span></td><td><span class="type">str</span></td><td></td><td>실패 시 오류 메시지</td></tr>
-          <tr><td><span class="param">retry_count</span></td><td><span class="type">int</span></td><td></td><td>재시도 횟수</td></tr>
-          <tr><td><span class="param">metadata</span></td><td><span class="type">dict</span></td><td></td><td>사용자 정의 메타데이터</td></tr>
+          <tr><td><span class="p">task_id</span></td><td><span class="t">str</span></td><td>태스크 고유 식별자</td></tr>
+          <tr><td><span class="p">task_type</span></td><td><span class="t">str</span></td><td>TaskType.value 문자열 (e.g. <code>"qa"</code>)</td></tr>
+          <tr><td><span class="p">success</span></td><td><span class="t">bool</span></td><td>태스크 성공 여부</td></tr>
+          <tr><td><span class="p">completion_score</span></td><td><span class="t">float</span></td><td>완료도 점수 (0.0–1.0). create_taskresult()가 자동 계산.</td></tr>
+          <tr><td><span class="p">accuracy_score</span></td><td><span class="t">float</span></td><td>정확도 점수 (0.0–1.0). Token F1+Jaccard+LCS+Char 가중 조합.</td></tr>
+          <tr><td><span class="p">execution_time</span></td><td><span class="t">float</span></td><td>실행 시간 (초)</td></tr>
+          <tr><td><span class="p">tokens_used</span></td><td><span class="t">Dict[str,int]</span></td><td><code>{"input": N, "output": N, "total": N}</code></td></tr>
+          <tr><td><span class="p">tool_calls</span></td><td><span class="t">List[Dict]</span></td><td><code>[{"tool": "name", "input": {...}, "output": "..."}]</code></td></tr>
+          <tr><td><span class="p">attempts</span></td><td><span class="t">int</span></td><td>시도 횟수 (1 = 재시도 없음)</td></tr>
+          <tr><td><span class="p">errors</span></td><td><span class="t">List[str]</span></td><td>오류 메시지 목록. 없으면 <code>[]</code>.</td></tr>
+          <tr><td><span class="p">timestamp</span></td><td><span class="t">datetime</span></td><td>기록 시각</td></tr>
+        </tbody>
+      </table>
+      <div class="slbl">선택 필드 (7개)</div>
+      <table class="mtable">
+        <thead><tr><th>필드</th><th>타입</th><th>용도</th></tr></thead>
+        <tbody>
+          <tr><td><span class="p">expected_tools</span></td><td><span class="t">Optional[List[str]]</span></td><td>기대 도구 목록 — ToolSelectionTracker F1 계산</td></tr>
+          <tr><td><span class="p">agent_interactions</span></td><td><span class="t">Optional[List[Dict]]</span></td><td>멀티에이전트 상호작용 (CrewAI)</td></tr>
+          <tr><td><span class="p">chain_steps</span></td><td><span class="t">Optional[List[Dict]]</span></td><td>체인 실행 단계 (LangChain)</td></tr>
+          <tr><td><span class="p">graph_traversal</span></td><td><span class="t">Optional[Dict]</span></td><td>그래프 순회 경로 (LangGraph)</td></tr>
+          <tr><td><span class="p">conversation_turns</span></td><td><span class="t">Optional[List[Dict]]</span></td><td>대화 턴 기록 (AutoGen)</td></tr>
+          <tr><td><span class="p">state_transitions</span></td><td><span class="t">Optional[List[Dict]]</span></td><td>상태 전이 이력 (LangGraph)</td></tr>
+          <tr><td><span class="p">framework</span></td><td><span class="t">Optional[str]</span></td><td>프레임워크 식별자 (<code>"crewai"</code>, <code>"langchain"</code> 등)</td></tr>
         </tbody>
       </table>
     </div>
   </div>
 </section>
 
-<!-- ── TaskType ──────────────────────────────────────────────────── -->
+<!-- ── TaskType ── -->
 <section class="sec" id="task-type">
-  <div class="sec-title"><span class="icon">🏷️</span> TaskType</div>
-  <div class="sec-sub">태스크 유형을 나타내는 Enum입니다. 정확도 계산 전략이 유형별로 달라집니다.</div>
-
+  <div class="sec-title">🏷️ TaskType</div>
+  <div class="sec-sub">태스크 유형 Enum. 유형별로 정확도 계산 전략이 달라집니다. <code>create_taskresult()</code>에서는 소문자 문자열로도 전달 가능합니다.</div>
   <div class="cls-card">
-    <div class="cls-head"><span class="cls-name">TaskType</span><span class="cls-kind enum">enum</span></div>
+    <div class="cls-head"><span class="cls-name">TaskType</span><span class="kind en">enum</span><span class="cls-src">agent_evaluator.core.agent_evaluator</span></div>
     <div class="cls-body">
       <table class="mtable">
-        <thead><tr><th>값</th><th>정확도 전략</th><th>주요 용도</th></tr></thead>
+        <thead><tr><th>Enum 값</th><th>문자열</th><th>정확도 전략</th><th>용도</th></tr></thead>
         <tbody>
-          <tr><td><span class="param">TaskType.QA</span></td><td>Token F1 + Jaccard + LCS</td><td>질의응답, 정보 검색</td></tr>
-          <tr><td><span class="param">TaskType.CODE_GENERATION</span></td><td>AST 비교 → 정규화 비교</td><td>코드 생성, 코드 수정</td></tr>
-          <tr><td><span class="param">TaskType.DATA_ANALYSIS</span></td><td>수치 추출 + 텍스트 유사도</td><td>데이터 분석, 통계 요약</td></tr>
-          <tr><td><span class="param">TaskType.REASONING</span></td><td>단계 정합성 + 결론 매칭</td><td>추론, 논리 문제</td></tr>
-          <tr><td><span class="param">TaskType.CREATIVE</span></td><td>다양성 지표 (유사도 역산)</td><td>창작, 글쓰기</td></tr>
-          <tr><td><span class="param">TaskType.CLASSIFICATION</span></td><td>정확 일치 (대소문자 무시)</td><td>분류, 레이블링</td></tr>
-          <tr><td><span class="param">TaskType.SUMMARIZATION</span></td><td>ROUGE-L 근사</td><td>요약</td></tr>
-          <tr><td><span class="param">TaskType.TRANSLATION</span></td><td>토큰 중복률</td><td>번역</td></tr>
-          <tr><td><span class="param">TaskType.GENERAL</span></td><td>가중 혼합</td><td>기타</td></tr>
+          <tr><td><span class="p">TaskType.QA</span></td><td><code>"qa"</code></td><td>Token F1(40%) + Jaccard(30%) + LCS(20%) + Char(10%)</td><td>질의응답, 사실 확인</td></tr>
+          <tr><td><span class="p">TaskType.CODE_GENERATION</span></td><td><code>"code_generation"</code></td><td>AST 비교 → 정규화 비교</td><td>코드 생성</td></tr>
+          <tr><td><span class="p">TaskType.DATA_ANALYSIS</span></td><td><code>"data_analysis"</code></td><td>수치 추출 + 텍스트 유사도</td><td>데이터 분석</td></tr>
+          <tr><td><span class="p">TaskType.DOCUMENT_CREATION</span></td><td><code>"document_creation"</code></td><td>텍스트 유사도 + 구조 검사</td><td>문서·보고서 작성</td></tr>
+          <tr><td><span class="p">TaskType.INFORMATION_RETRIEVAL</span></td><td><code>"information_retrieval"</code></td><td>Token F1 + Jaccard</td><td>정보 검색, RAG</td></tr>
+          <tr><td><span class="p">TaskType.REASONING</span></td><td><code>"reasoning"</code></td><td>단계 정합성 + 결론 매칭</td><td>추론, 논리 문제</td></tr>
+          <tr><td><span class="p">TaskType.CREATIVE</span></td><td><code>"creative"</code></td><td>다양성 지표 (유사도 역산)</td><td>창작, 글쓰기</td></tr>
+          <tr><td><span class="p">TaskType.CODING</span></td><td><code>"coding"</code></td><td>AST 비교 → 정규화 비교</td><td>코딩 태스크</td></tr>
+          <tr><td><span class="p">TaskType.PLANNING</span></td><td><code>"planning"</code></td><td>단계 커버리지 + 순서 매칭</td><td>계획 수립</td></tr>
+          <tr><td><span class="p">TaskType.TOOL_USE</span></td><td><code>"tool_use"</code></td><td>도구 선택 F1 + 결과 품질</td><td>도구 호출</td></tr>
         </tbody>
       </table>
     </div>
   </div>
 </section>
 
-<!-- ── Helpers ───────────────────────────────────────────────────── -->
+<!-- ── create_taskresult ── -->
 <section class="sec" id="helpers">
-  <div class="sec-title"><span class="icon">🔧</span> create_taskresult()</div>
-  <div class="sec-sub">TaskResult 생성을 간소화하는 헬퍼 함수입니다.</div>
-
+  <div class="sec-title">🔧 create_taskresult()</div>
+  <div class="sec-sub">Agent 실행 결과에서 TaskResult를 생성하는 권장 방법. completion_score, accuracy_score, tokens_used, tool_calls, timestamp를 자동 계산합니다.</div>
   <div class="cls-card">
-    <div class="cls-head">
-      <span class="cls-name">create_taskresult</span>
-      <span class="cls-kind func">function</span>
-      <span style="font-size:11px;color:var(--text2);margin-left:auto">agent_evaluator.helpers.taskresult_helpers</span>
-    </div>
-    <div class="cls-desc">딕셔너리 또는 키워드 인수로 TaskResult를 생성합니다. task_type을 문자열로 전달해도 자동 변환됩니다.</div>
+    <div class="cls-head"><span class="cls-name">create_taskresult</span><span class="kind fn">function</span><span class="cls-src">agent_evaluator.helpers.taskresult_helpers (alias: create_taskresult_from_execution)</span></div>
     <div class="cls-body">
-<pre><span class="kw">from</span> <span class="cn">agent_evaluator</span> <span class="kw">import</span> create_taskresult, TaskType
+      <table class="mtable">
+        <thead><tr><th>파라미터</th><th>타입</th><th>기본값</th><th>설명</th></tr></thead>
+        <tbody>
+          <tr><td><span class="p">task_id</span><span class="req">✦</span></td><td><span class="t">str</span></td><td>—</td><td>태스크 고유 식별자</td></tr>
+          <tr><td><span class="p">question</span><span class="req">✦</span></td><td><span class="t">str</span></td><td>—</td><td>에이전트에 전달한 질문/입력</td></tr>
+          <tr><td><span class="p">response</span><span class="req">✦</span></td><td><span class="t">str</span></td><td>—</td><td>에이전트 응답 텍스트</td></tr>
+          <tr><td><span class="p">ground_truth</span><span class="req">✦</span></td><td><span class="t">str</span></td><td>—</td><td>정답/기대 출력 — accuracy_score 계산 기준</td></tr>
+          <tr><td><span class="p">execution_time</span><span class="req">✦</span></td><td><span class="t">float</span></td><td>—</td><td>실행 시간 (초)</td></tr>
+          <tr><td><span class="p">task_type</span><span class="opt">opt</span></td><td><span class="t">str</span></td><td><code>"qa"</code></td><td>TaskType 소문자 문자열</td></tr>
+          <tr><td><span class="p">openai_response</span><span class="opt">opt</span></td><td><span class="t">Any</span></td><td><code>None</code></td><td>OpenAI 응답 객체 — 토큰/도구 자동 추출</td></tr>
+          <tr><td><span class="p">langchain_result</span><span class="opt">opt</span></td><td><span class="t">Any</span></td><td><code>None</code></td><td>LangChain 결과 dict — 토큰/도구 자동 추출</td></tr>
+          <tr><td><span class="p">has_error</span><span class="opt">opt</span></td><td><span class="t">bool</span></td><td><code>False</code></td><td>에러 발생 시 completion_score = 0</td></tr>
+          <tr><td><span class="p">error_message</span><span class="opt">opt</span></td><td><span class="t">str</span></td><td><code>None</code></td><td>에러 메시지</td></tr>
+        </tbody>
+      </table>
+<pre style="margin-top:12px"><span class="kw">from</span> <span class="cn">agent_evaluator</span> <span class="kw">import</span> create_taskresult
 
-result = <span class="fn">create_taskresult</span>(
-    task_id=<span class="st">"t1"</span>,
-    task_type=TaskType.QA,          <span class="cm"># 또는 문자열 "qa"</span>
-    success=<span class="kw">True</span>,
-    response=<span class="st">"답변 텍스트"</span>,
-    expected_output=<span class="st">"기대 텍스트"</span>,
-    execution_time=<span class="nm">0.8</span>,
-    tokens_used={<span class="st">"input"</span>:<span class="nm">80</span>, <span class="st">"output"</span>:<span class="nm">40</span>, <span class="st">"total"</span>:<span class="nm">120</span>},
+task = <span class="fn">create_taskresult</span>(
+    task_id=<span class="st">"qa_001"</span>, question=<span class="st">"수도는?"</span>,
+    response=<span class="st">"서울입니다."</span>, ground_truth=<span class="st">"서울"</span>,
+    execution_time=<span class="nm">1.23</span>, task_type=<span class="st">"qa"</span>,
+)
+<span class="cm"># OpenAI 응답 자동 추출</span>
+task = <span class="fn">create_taskresult</span>(task_id=<span class="st">"qa_002"</span>, question=q, response=resp.choices[<span class="nm">0</span>].message.content,
+    ground_truth=expected, execution_time=elapsed, openai_response=resp)</pre>
+    </div>
+  </div>
+</section>
+
+<!-- ── evaluation_session ── -->
+<section class="sec" id="context-mgr">
+  <div class="sec-title">🔄 evaluation_session()</div>
+  <div class="sec-sub">평가 세션을 자동으로 열고 닫는 <strong>동기 컨텍스트 매니저</strong>. 세션 종료 또는 예외 발생 시에도 자동으로 결과를 저장합니다.</div>
+  <div class="cls-card">
+    <div class="cls-head"><span class="cls-name">evaluation_session</span><span class="kind ctx">@contextmanager</span><span class="cls-src">agent_evaluator.core.monitor_context</span></div>
+    <div class="cls-body">
+      <table class="mtable">
+        <thead><tr><th>파라미터</th><th>타입</th><th>기본값</th><th>설명</th></tr></thead>
+        <tbody>
+          <tr><td><span class="p">output_filename</span><span class="req">✦</span></td><td><span class="t">str</span></td><td>—</td><td>저장 파일명 stem (확장자 제외)</td></tr>
+          <tr><td><span class="p">enable_security</span><span class="opt">opt</span></td><td><span class="t">bool</span></td><td><code>False</code></td><td>보안 지표 활성화</td></tr>
+          <tr><td><span class="p">enable_hallucination</span><span class="opt">opt</span></td><td><span class="t">bool</span></td><td><code>True</code></td><td>환각 탐지 활성화</td></tr>
+          <tr><td><span class="p">**monitor_kwargs</span><span class="opt">opt</span></td><td><span class="t">Any</span></td><td>—</td><td>PerformanceMonitor 생성자 추가 인수</td></tr>
+        </tbody>
+      </table>
+<pre style="margin-top:10px"><span class="kw">with</span> <span class="fn">evaluation_session</span>(<span class="st">"run_01"</span>, output_dir=<span class="st">"results/"</span>, enable_security=<span class="kw">True</span>) <span class="kw">as</span> m:
+    m.<span class="fn">record_task</span>(<span class="fn">create_taskresult</span>(...))
+
+<span class="cm"># 하이브리드 버전 (Layer 3 포함)</span>
+<span class="kw">from</span> <span class="cn">agent_evaluator</span> <span class="kw">import</span> hybrid_evaluation_session
+<span class="kw">from</span> <span class="cn">agent_evaluator.integrations.metric_adapters</span> <span class="kw">import</span> RagasAdapter
+<span class="kw">with</span> <span class="fn">hybrid_evaluation_session</span>(<span class="st">"rag_run"</span>, adapters=[<span class="fn">RagasAdapter</span>()]) <span class="kw">as</span> m:
+    m.<span class="fn">record_task</span>(<span class="fn">create_taskresult</span>(...))</pre>
+    </div>
+  </div>
+</section>
+
+<hr>
+<div style="font-size:18px;font-weight:700;margin-bottom:28px;color:var(--accent)">📊 Layer 1 — Foundation Metrics</div>
+
+<!-- ── TaskCompletionTracker ── -->
+<section class="sec" id="tcr">
+  <div class="sec-title"><span class="badge l1">L1</span> TaskCompletionTracker</div>
+  <div class="sec-sub">성공/실패를 집계하고 태스크 유형별 완료율(TCR)을 산출합니다.</div>
+  <div class="cls-card">
+    <div class="cls-head"><span class="cls-name">TaskCompletionTracker</span><span class="kind cls">class</span><span class="cls-src">core.agent_evaluator</span></div>
+    <div class="cls-desc">생성자 파라미터 없음. <code>PerformanceMonitor</code> 내부에서 자동으로 인스턴스화됩니다. 독립 사용 시 직접 생성 가능.</div>
+    <div class="cls-body">
+      <table class="mtable">
+        <thead><tr><th>메서드</th><th>파라미터</th><th>반환 키</th></tr></thead>
+        <tbody>
+          <tr><td><span class="p">add_task(task)</span></td><td><span class="t">task: TaskResult</span></td><td>—</td></tr>
+          <tr>
+            <td><span class="p">calculate_tcr(task_type=None)</span></td>
+            <td><span class="t">task_type: Optional[str]</span></td>
+            <td><code class="t">tcr</code>, <code class="t">total_tasks</code>, <code class="t">full_success</code>, <code class="t">partial_success</code>, <code class="t">failures</code>, <code class="t">success_rate</code></td>
+          </tr>
+          <tr>
+            <td><span class="p">get_tcr_by_type()</span></td>
+            <td>—</td>
+            <td><code class="t">Dict[task_type → {tcr, total, ...}]</code></td>
+          </tr>
+          <tr>
+            <td><span class="p">get_benchmark_status(tcr)</span></td>
+            <td><span class="t">tcr: float</span></td>
+            <td><code class="t">"Industry Leading" | "Good" | "Acceptable" | "Needs Improvement"</code></td>
+          </tr>
+        </tbody>
+      </table>
+<pre style="margin-top:10px"><span class="kw">from</span> <span class="cn">agent_evaluator</span> <span class="kw">import</span> TaskCompletionTracker, create_taskresult
+
+tracker = <span class="fn">TaskCompletionTracker</span>()
+tracker.<span class="fn">add_task</span>(<span class="fn">create_taskresult</span>(...))
+result = tracker.<span class="fn">calculate_tcr</span>()
+<span class="cm"># → {'tcr': 0.92, 'total_tasks': 50, 'full_success': 44, 'failures': 4, 'success_rate': 0.92}</span>
+by_type = tracker.<span class="fn">get_tcr_by_type</span>()
+status = tracker.<span class="fn">get_benchmark_status</span>(result[<span class="st">'tcr'</span>])  <span class="cm"># → "Good Performance"</span></pre>
+    </div>
+  </div>
+</section>
+
+<!-- ── AccuracyEvaluator ── -->
+<section class="sec" id="accuracy">
+  <div class="sec-title"><span class="badge l1">L1</span> AccuracyEvaluator</div>
+  <div class="sec-sub">QA·코드·일반 태스크에 걸쳐 정확도를 산출합니다. 유형별로 전략이 자동 선택됩니다.</div>
+  <div class="cls-card">
+    <div class="cls-head"><span class="cls-name">AccuracyEvaluator</span><span class="kind cls">class</span><span class="cls-src">core.agent_evaluator</span></div>
+    <div class="cls-body">
+      <table class="mtable">
+        <thead><tr><th>메서드</th><th>파라미터</th><th>반환 키</th></tr></thead>
+        <tbody>
+          <tr><td><span class="p">add_evaluation(task_id, ground_truth, prediction, task_type)</span></td><td><span class="t">str, Any, Any, str</span></td><td>—</td></tr>
+          <tr>
+            <td><span class="p">get_accuracy_scores()</span></td><td>—</td>
+            <td><code class="t">overall_accuracy</code>, <code class="t">median_accuracy</code>, <code class="t">min_accuracy</code>, <code class="t">max_accuracy</code>, <code class="t">std_accuracy</code> (0–100 스케일)</td>
+          </tr>
+          <tr>
+            <td><span class="p">get_accuracy_by_type()</span></td><td>—</td>
+            <td><code class="t">Dict[task_type → float]</code> — 유형별 평균 정확도</td>
+          </tr>
+        </tbody>
+      </table>
+      <div class="note tip" style="margin-top:8px">📐 <strong>정확도 계산 가중치</strong>: Token Overlap 40% + Jaccard 30% + LCS 20% + Char Similarity 10%</div>
+    </div>
+  </div>
+</section>
+
+<!-- ── HallucinationDetector ── -->
+<section class="sec" id="hallucination">
+  <div class="sec-title"><span class="badge l1">L1</span> HallucinationDetector</div>
+  <div class="sec-sub">응답의 사실 일관성을 검사합니다. <code>PerformanceMonitor(enable_hallucination_detection=True)</code> 필요.</div>
+  <div class="cls-card">
+    <div class="cls-head"><span class="cls-name">HallucinationDetector</span><span class="kind cls">class</span><span class="cls-src">core.agent_evaluator</span></div>
+    <div class="cls-body">
+      <table class="mtable">
+        <thead><tr><th>메서드</th><th>파라미터</th><th>반환 키</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><span class="p">detect_hallucination(task_id, response, context, ground_truth=None)</span></td>
+            <td><span class="t">str, str, str, Optional[str]</span></td>
+            <td><code class="t">hallucination_rate</code> (0–1), <code class="t">indicators</code> (List[{type, severity}])</td>
+          </tr>
+          <tr>
+            <td><span class="p">get_hallucination_rate()</span></td><td>—</td>
+            <td><code class="t">overall_rate</code>, <code class="t">median_rate</code>, <code class="t">max_rate</code>, <code class="t">tasks_with_hallucinations</code>, <code class="t">total_tasks_checked</code></td>
+          </tr>
+          <tr>
+            <td><span class="p">get_hallucination_by_type()</span></td><td>—</td>
+            <td><code class="t">unsupported_claims</code>, <code class="t">numerical_errors</code>, <code class="t">temporal_errors</code>, <code class="t">other_errors</code>, <code class="t">by_severity</code></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<!-- ── ResponseQualityEvaluator ── -->
+<section class="sec" id="quality">
+  <div class="sec-title"><span class="badge l1">L1</span> ResponseQualityEvaluator</div>
+  <div class="sec-sub">응답 품질을 5개 차원으로 평가합니다. <code>expected_elements</code> 리스트로 체크리스트 기반 완성도를 측정합니다.</div>
+  <div class="cls-card">
+    <div class="cls-head"><span class="cls-name">ResponseQualityEvaluator</span><span class="kind cls">class</span><span class="cls-src">core.agent_evaluator</span></div>
+    <div class="cls-body">
+      <table class="mtable">
+        <thead><tr><th>메서드</th><th>파라미터</th><th>반환 키</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><span class="p">evaluate_response(task_id, response, request, expected_elements, ground_truth=None)</span></td>
+            <td><span class="t">str, str, str, List[str], Optional[str]</span></td>
+            <td><code class="t">dimension_scores</code> (5차원 각 0–5), <code class="t">total_score</code> (0–5), <code class="t">grade</code> (A–F)</td>
+          </tr>
+          <tr>
+            <td><span class="p">get_quality_metrics()</span></td><td>—</td>
+            <td><code class="t">avg_total_score</code>, <code class="t">grade_distribution</code>, <code class="t">dimension_averages</code>, <code class="t">high_quality_count</code></td>
+          </tr>
+          <tr>
+            <td><span class="p">get_quality_by_dimension()</span></td><td>—</td>
+            <td><code class="t">relevance</code>, <code class="t">completeness</code>, <code class="t">accuracy</code>, <code class="t">clarity</code>, <code class="t">usefulness</code> 각 평균값</td>
+          </tr>
+        </tbody>
+      </table>
+      <div class="ret-box" style="margin-top:10px">
+        <div style="margin-bottom:4px;font-size:11px;color:var(--text2);text-transform:uppercase;letter-spacing:.05em">dimension_scores 구조</div>
+        <span class="rk">relevance</span><span class="rv">: 0–5 (가중치 25%) — 질문과의 관련성</span><br>
+        <span class="rk">completeness</span><span class="rv">: 0–5 (가중치 25%) — 기대 요소 포함률</span><br>
+        <span class="rk">accuracy</span><span class="rv">: 0–5 (가중치 20%) — ground_truth 대비 정확도</span><br>
+        <span class="rk">clarity</span><span class="rv">: 0–5 (가중치 15%) — 응답 길이·구조 기반 명확성</span><br>
+        <span class="rk">usefulness</span><span class="rv">: 0–5 (가중치 15%) — 실용적 유용성</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ── LatencyTracker ── -->
+<section class="sec" id="latency">
+  <div class="sec-title"><span class="badge l1">L1</span> LatencyTracker</div>
+  <div class="sec-sub">백분위 기반 지연 시간 분석. SLA 준수 여부 검사 기능을 제공합니다.</div>
+  <div class="cls-card">
+    <div class="cls-head"><span class="cls-name">LatencyTracker</span><span class="kind cls">class</span><span class="cls-src">core.agent_evaluator</span></div>
+    <div class="cls-body">
+      <table class="mtable">
+        <thead><tr><th>메서드</th><th>파라미터</th><th>반환 키</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><span class="p">record_latency(task_id, task_type, total_time, breakdown)</span></td>
+            <td><span class="t">str, str, float, Dict[str,float]</span></td>
+            <td>— (<code>breakdown</code>은 단계별 시간 dict, e.g. <code>{"llm": 0.8, "tool": 0.3}</code>)</td>
+          </tr>
+          <tr>
+            <td><span class="p">get_latency_stats(task_type=None)</span></td>
+            <td><span class="t">Optional[str]</span></td>
+            <td><code class="t">mean</code>, <code class="t">median</code>, <code class="t">p50</code>, <code class="t">p95</code>, <code class="t">p99</code>, <code class="t">min</code>, <code class="t">max</code>, <code class="t">std</code> (단위: 초)</td>
+          </tr>
+          <tr>
+            <td><span class="p">get_latency_by_type()</span></td><td>—</td>
+            <td><code class="t">Dict[task_type → {avg, median, p95, p99, count, ...}]</code></td>
+          </tr>
+          <tr>
+            <td><span class="p">analyze_bottlenecks()</span></td><td>—</td>
+            <td><code class="t">breakdown_averages</code>, <code class="t">bottleneck</code> (단계명), <code class="t">bottleneck_avg_time</code></td>
+          </tr>
+          <tr>
+            <td><span class="p">check_sla_compliance(sla_targets)</span></td>
+            <td><span class="t">Dict[task_type → float]</span></td>
+            <td><code class="t">Dict[task_type → {target, p95, compliance_rate, within_sla, total}]</code></td>
+          </tr>
+        </tbody>
+      </table>
+<pre style="margin-top:10px"><span class="cm"># SLA 준수 검사 예시</span>
+sla = {<span class="st">"qa"</span>: <span class="nm">2.0</span>, <span class="st">"code_generation"</span>: <span class="nm">5.0</span>}  <span class="cm"># 초 단위</span>
+compliance = tracker.<span class="fn">check_sla_compliance</span>(sla)
+<span class="cm"># → {"qa": {"target": 2.0, "p95": 1.8, "compliance_rate": 0.97, ...}}</span></pre>
+    </div>
+  </div>
+</section>
+
+<!-- ── TokenEconomyTracker ── -->
+<section class="sec" id="token">
+  <div class="sec-title"><span class="badge l1">L1</span> TokenEconomyTracker</div>
+  <div class="sec-sub">토큰 사용량을 집계하고 모델별 비용을 추정합니다. <code>pricing</code>은 <code>PerformanceMonitor</code> 생성 시 전달됩니다.</div>
+  <div class="cls-card">
+    <div class="cls-head"><span class="cls-name">TokenEconomyTracker</span><span class="kind cls">class</span><span class="cls-src">core.agent_evaluator</span></div>
+    <div class="cls-desc">생성자: <code>__init__(self, pricing: Dict[str, float])</code> — <code>pricing</code> 예: <code>{"input": 0.003, "output": 0.015}</code> (1K 토큰당 USD)</div>
+    <div class="cls-body">
+      <table class="mtable">
+        <thead><tr><th>메서드</th><th>파라미터</th><th>반환 키</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><span class="p">track_usage(task_id, input_tokens, output_tokens, task_type, model="default")</span></td>
+            <td><span class="t">str, int, int, str, str</span></td>
+            <td>—</td>
+          </tr>
+          <tr>
+            <td><span class="p">get_usage_stats()</span></td><td>—</td>
+            <td><code class="t">total_tokens</code>, <code class="t">total_cost</code>, <code class="t">avg_cost_per_task</code>, <code class="t">estimated_monthly_cost</code>, <code class="t">token_distribution</code>, <code class="t">cost_percentiles</code></td>
+          </tr>
+          <tr>
+            <td><span class="p">get_usage_by_type()</span></td><td>—</td>
+            <td><code class="t">Dict[task_type → {total_tokens, total_cost, avg_tokens, avg_cost}]</code></td>
+          </tr>
+          <tr>
+            <td><span class="p">get_cost_breakdown_by_model()</span></td><td>—</td>
+            <td><code class="t">Dict[model → {total_cost, avg_cost_per_task, total_tokens, cost_per_1k_tokens}]</code></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<hr>
+<div style="font-size:18px;font-weight:700;margin-bottom:28px;color:var(--green)">🤖 Layer 2 — Agentic Metrics</div>
+
+<!-- ── ToolCallAnalyzer ── -->
+<section class="sec" id="toolcall">
+  <div class="sec-title"><span class="badge l2">L2</span> ToolCallAnalyzer</div>
+  <div class="sec-sub">도구 호출 패턴·효율성·중복 호출을 분석합니다. <code>TaskResult.tool_calls</code> 필드가 필요합니다.</div>
+  <div class="cls-card">
+    <div class="cls-head"><span class="cls-name">ToolCallAnalyzer</span><span class="kind cls">class</span><span class="cls-src">core.agent_evaluator</span></div>
+    <div class="cls-body">
+      <table class="mtable">
+        <thead><tr><th>메서드</th><th>파라미터</th><th>반환 키</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><span class="p">analyze_execution(task_id, tool_calls)</span></td>
+            <td><span class="t">str, List[Dict]</span></td>
+            <td><code class="t">total_calls</code>, <code class="t">unique_tools</code>, <code class="t">redundant_calls</code>, <code class="t">failed_calls</code>, <code class="t">avg_call_duration</code>, <code class="t">efficiency_score</code> (0–100)</td>
+          </tr>
+          <tr>
+            <td><span class="p">get_efficiency_stats()</span></td><td>—</td>
+            <td><code class="t">total_calls</code>, <code class="t">success_rate</code>, <code class="t">avg_duration</code>, <code class="t">redundancy_rate</code>, <code class="t">failure_rate</code>, <code class="t">avg_efficiency_score</code></td>
+          </tr>
+          <tr>
+            <td><span class="p">get_tool_usage_patterns()</span></td><td>—</td>
+            <td><code class="t">pattern_analysis</code>, <code class="t">usage_distribution</code>, <code class="t">efficiency_distribution</code></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<!-- ── ToolSelectionTracker ── -->
+<section class="sec" id="toolsel">
+  <div class="sec-title"><span class="badge l2">L2</span> ToolSelectionTracker</div>
+  <div class="sec-sub">기대 도구 vs 실제 도구를 F1 기반으로 평가합니다. <code>TaskResult.expected_tools</code> 필드가 필요합니다.</div>
+  <div class="cls-card">
+    <div class="cls-head"><span class="cls-name">ToolSelectionTracker</span><span class="kind cls">class</span><span class="cls-src">core.agent_evaluator</span></div>
+    <div class="cls-body">
+      <table class="mtable">
+        <thead><tr><th>메서드</th><th>파라미터</th><th>반환 키</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><span class="p">evaluate_selection(task_id, expected_tools, actual_tools)</span></td>
+            <td><span class="t">str, List[str], List[str]</span></td>
+            <td><code class="t">precision</code>, <code class="t">recall</code>, <code class="t">f1_score</code>, <code class="t">accuracy</code>, <code class="t">true_positives</code>, <code class="t">false_positives</code>, <code class="t">false_negatives</code> (0–100%)</td>
+          </tr>
+          <tr>
+            <td><span class="p">get_accuracy_stats()</span></td><td>—</td>
+            <td><code class="t">avg_accuracy</code>, <code class="t">avg_f1_score</code>, <code class="t">avg_precision</code>, <code class="t">avg_recall</code>, <code class="t">total_evaluations</code></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<!-- ── RetryCorrectionTracker ── -->
+<section class="sec" id="retry">
+  <div class="sec-title"><span class="badge l2">L2</span> RetryCorrectionTracker</div>
+  <div class="sec-sub">재시도 횟수와 자기 수정 성공률을 측정합니다. <code>TaskResult.attempts</code> 필드를 사용합니다.</div>
+  <div class="cls-card">
+    <div class="cls-head"><span class="cls-name">RetryCorrectionTracker</span><span class="kind cls">class</span><span class="cls-src">core.agent_evaluator</span></div>
+    <div class="cls-body">
+      <table class="mtable">
+        <thead><tr><th>메서드</th><th>파라미터</th><th>반환 키</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><span class="p">track_attempts(task_id, attempts_log)</span></td>
+            <td><span class="t">str, List[Dict]</span></td>
+            <td>— (<code>attempts_log</code>: <code>[{success: bool, reason: str, time: float}]</code>)</td>
+          </tr>
+          <tr>
+            <td><span class="p">get_retry_metrics()</span></td><td>—</td>
+            <td><code class="t">retry_rate</code>, <code class="t">first_attempt_success_rate</code>, <code class="t">eventual_success_rate</code>, <code class="t">correction_success_rate</code>, <code class="t">avg_attempts_per_task</code>, <code class="t">total_retry_time</code></td>
+          </tr>
+          <tr>
+            <td><span class="p">analyze_failure_patterns()</span></td><td>—</td>
+            <td><code class="t">patterns</code> (빈도순 정렬), <code class="t">most_common</code> 실패 원인</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<!-- ── AgentCoordinationTracker ── -->
+<section class="sec" id="coord">
+  <div class="sec-title"><span class="badge l2">L2</span> AgentCoordinationTracker</div>
+  <div class="sec-sub">멀티에이전트 상호작용 품질과 패턴(hub/chain/mesh)을 분석합니다.</div>
+  <div class="cls-card">
+    <div class="cls-head"><span class="cls-name">AgentCoordinationTracker</span><span class="kind cls">class</span><span class="cls-src">core.agent_evaluator</span></div>
+    <div class="cls-body">
+      <table class="mtable">
+        <thead><tr><th>메서드</th><th>파라미터</th><th>반환 키</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><span class="p">track_interaction(task_id, from_agent, to_agent, interaction_type, success, context=None)</span></td>
+            <td><span class="t">str, str, str, str, bool, Optional[Dict]</span></td>
+            <td>기록된 상호작용 Dict 반환</td>
+          </tr>
+          <tr>
+            <td><span class="p">calculate_coordination_score(task_id=None)</span></td>
+            <td><span class="t">Optional[str]</span></td>
+            <td><code class="t">score</code> (0–10), <code class="t">success_rate</code>, <code class="t">total_interactions</code>, <code class="t">unique_agents</code>, <code class="t">interaction_types</code></td>
+          </tr>
+          <tr>
+            <td><span class="p">get_delegation_success_rate()</span></td><td>—</td>
+            <td><code class="t">float</code> — 위임 상호작용의 성공률 (0–100%)</td>
+          </tr>
+          <tr>
+            <td><span class="p">get_interaction_patterns()</span></td><td>—</td>
+            <td><code class="t">pattern_type</code> (hub/chain/mesh/unknown), <code class="t">pattern_confidence</code>, <code class="t">hub_agent</code>, <code class="t">agent_roles</code>, <code class="t">top_agent_pairs</code></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<!-- ── WorkflowExecutionTracker ── -->
+<section class="sec" id="workflow">
+  <div class="sec-title"><span class="badge l2">L2</span> WorkflowExecutionTracker</div>
+  <div class="sec-sub">워크플로우 단계별 성공률과 병목 지점을 분석합니다. LangGraph/LangChain 스텝 추적에 사용합니다.</div>
+  <div class="cls-card">
+    <div class="cls-head"><span class="cls-name">WorkflowExecutionTracker</span><span class="kind cls">class</span><span class="cls-src">core.agent_evaluator</span></div>
+    <div class="cls-body">
+      <table class="mtable">
+        <thead><tr><th>메서드</th><th>파라미터</th><th>반환 키</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><span class="p">track_step(task_id, step_name, step_type, success, execution_time, framework="langchain", metadata=None)</span></td>
+            <td><span class="t">str, str, str, bool, float, str, Optional[Dict]</span></td>
+            <td>기록된 스텝 Dict 반환</td>
+          </tr>
+          <tr>
+            <td><span class="p">calculate_execution_success_rate(task_id=None, framework=None)</span></td>
+            <td><span class="t">Optional[str], Optional[str]</span></td>
+            <td><code class="t">step_success_rate</code>, <code class="t">task_success_rate</code>, <code class="t">total_steps</code>, <code class="t">avg_steps_per_task</code></td>
+          </tr>
+          <tr>
+            <td><span class="p">get_graph_traversal_efficiency(task_id)</span></td>
+            <td><span class="t">str</span></td>
+            <td><code class="t">efficiency</code> (%), <code class="t">nodes_executed</code>, <code class="t">branches_taken</code>, <code class="t">avg_node_time</code></td>
+          </tr>
+          <tr>
+            <td><span class="p">get_critical_path_analysis()</span></td><td>—</td>
+            <td><code class="t">critical_path</code> (시간순 정렬), <code class="t">bottlenecks</code>, <code class="t">parallelization_opportunities</code>, <code class="t">optimization_recommendations</code></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<hr>
+<div style="font-size:18px;font-weight:700;margin-bottom:28px;color:var(--red)">🛡️ Layer 2 — Security Metrics <span class="badge req-b" style="font-size:13px">enable_security_metrics=True 필요</span></div>
+
+<!-- ── InputSanitizationTracker ── -->
+<section class="sec" id="sanitize">
+  <div class="sec-title"><span class="badge l2">L2</span> InputSanitizationTracker</div>
+  <div class="sec-sub">SQL·Command·Path·XSS·Prompt Injection 5종의 입력 공격 패턴을 정규식으로 탐지합니다.</div>
+  <div class="cls-card">
+    <div class="cls-head"><span class="cls-name">InputSanitizationTracker</span><span class="kind cls">class</span><span class="cls-src">core.agent_evaluator</span></div>
+    <div class="cls-body">
+      <table class="mtable">
+        <thead><tr><th>메서드</th><th>파라미터</th><th>반환 키</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><span class="p">evaluate_input(task_id, input_text)</span></td>
+            <td><span class="t">str, str</span></td>
+            <td><code class="t">has_sql_injection</code>, <code class="t">has_command_injection</code>, <code class="t">has_path_traversal</code>, <code class="t">has_xss</code>, <code class="t">has_prompt_injection</code> (bool), <code class="t">risk_level</code> (critical/high/medium/low), <code class="t">threat_count</code></td>
+          </tr>
+          <tr>
+            <td><span class="p">get_security_stats()</span></td><td>—</td>
+            <td><code class="t">threat_rate</code> (%), <code class="t">sql_injection_attempts</code>, <code class="t">command_injection_attempts</code>, <code class="t">path_traversal_attempts</code>, <code class="t">xss_attempts</code>, <code class="t">prompt_injection_attempts</code>, <code class="t">critical_risk_inputs</code></td>
+          </tr>
+        </tbody>
+      </table>
+<pre style="margin-top:10px"><span class="kw">from</span> <span class="cn">agent_evaluator</span> <span class="kw">import</span> InputSanitizationTracker
+tracker = <span class="fn">InputSanitizationTracker</span>()
+r = tracker.<span class="fn">evaluate_input</span>(<span class="st">"t1"</span>, <span class="st">"SELECT * FROM users; DROP TABLE users"</span>)
+<span class="cm"># → {'has_sql_injection': True, 'risk_level': 'high', 'threat_count': 1, ...}</span></pre>
+    </div>
+  </div>
+</section>
+
+<!-- ── OutputLeakageDetector ── -->
+<section class="sec" id="leakage">
+  <div class="sec-title"><span class="badge l2">L2</span> OutputLeakageDetector</div>
+  <div class="sec-sub">에이전트 출력에서 API 키·비밀번호·카드번호·이메일·SSN·내부 IP 등 민감 정보 유출을 탐지합니다.</div>
+  <div class="cls-card">
+    <div class="cls-head"><span class="cls-name">OutputLeakageDetector</span><span class="kind cls">class</span><span class="cls-src">core.agent_evaluator</span></div>
+    <div class="cls-body">
+      <table class="mtable">
+        <thead><tr><th>메서드</th><th>파라미터</th><th>반환 키</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><span class="p">detect_leakage(task_id, output_text)</span></td>
+            <td><span class="t">str, str</span></td>
+            <td><code class="t">contains_api_key</code>, <code class="t">contains_password</code>, <code class="t">contains_credit_card</code>, <code class="t">contains_email</code>, <code class="t">contains_phone</code>, <code class="t">contains_ssn</code>, <code class="t">contains_private_ip</code>, <code class="t">contains_file_path</code> (bool), <code class="t">leakage_count</code>, <code class="t">severity</code></td>
+          </tr>
+          <tr>
+            <td><span class="p">get_leakage_stats()</span></td><td>—</td>
+            <td><code class="t">leakage_rate</code> (%), <code class="t">api_key_leaks</code>, <code class="t">password_leaks</code>, <code class="t">credit_card_leaks</code>, <code class="t">email_leaks</code>, <code class="t">ssn_leaks</code>, <code class="t">critical_severity_count</code></td>
+          </tr>
+        </tbody>
+      </table>
+      <div class="note warn" style="margin-top:8px">⚠️ <code>api_key</code> 패턴은 OpenAI(<code>sk-...</code>), AWS(<code>AKIA...</code>), Google(<code>AIza...</code>)를 명시적으로 탐지합니다. 32자 이상 영숫자 generic 패턴은 false-positive가 높으므로 임계값 조정을 권장합니다.</div>
+    </div>
+  </div>
+</section>
+
+<!-- ── ToolAuthorizationTracker ── -->
+<section class="sec" id="authz">
+  <div class="sec-title"><span class="badge l2">L2</span> ToolAuthorizationTracker</div>
+  <div class="sec-sub">화이트리스트/블랙리스트 기반 도구 호출 권한 검증 및 위험 파라미터(rm -rf, DROP TABLE 등) 탐지.</div>
+  <div class="cls-card">
+    <div class="cls-head"><span class="cls-name">ToolAuthorizationTracker</span><span class="kind cls">class</span><span class="cls-src">core.agent_evaluator</span></div>
+    <div class="cls-desc">생성자: <code>__init__(allowed_tools=None, restricted_tools=None)</code> — <code>allowed_tools</code>(화이트리스트), <code>restricted_tools</code>(블랙리스트). <code>security_config</code>로 <code>PerformanceMonitor</code>에 전달 가능.</div>
+    <div class="cls-body">
+      <table class="mtable">
+        <thead><tr><th>메서드</th><th>파라미터</th><th>반환 키</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><span class="p">track_tool_call(task_id, tool_name, parameters=None)</span></td>
+            <td><span class="t">str, str, Optional[Dict]</span></td>
+            <td><code class="t">is_authorized</code> (bool), <code class="t">is_restricted</code> (bool), <code class="t">has_dangerous_params</code> (bool), <code class="t">violation_type</code>, <code class="t">privilege_level</code></td>
+          </tr>
+          <tr>
+            <td><span class="p">get_compliance_stats()</span></td><td>—</td>
+            <td><code class="t">compliance_rate</code> (%), <code class="t">violation_rate</code> (%), <code class="t">unauthorized_calls</code>, <code class="t">restricted_tool_attempts</code>, <code class="t">dangerous_param_attempts</code>, <code class="t">admin_privilege_calls</code></td>
+          </tr>
+        </tbody>
+      </table>
+<pre style="margin-top:10px"><span class="cm"># PerformanceMonitor에 보안 설정 주입</span>
+monitor = <span class="fn">PerformanceMonitor</span>(
+    enable_security_metrics=<span class="kw">True</span>,
+    security_config={
+        <span class="st">"allowed_tools"</span>: [<span class="st">"search"</span>, <span class="st">"calculator"</span>, <span class="st">"read_file"</span>],
+        <span class="st">"restricted_tools"</span>: [<span class="st">"execute_command"</span>, <span class="st">"delete_file"</span>],
+    }
 )</pre>
     </div>
   </div>
 </section>
 
-<!-- ── Context Manager ──────────────────────────────────────────── -->
-<section class="sec" id="context-mgr">
-  <div class="sec-title"><span class="icon">🔄</span> evaluation_session()</div>
-  <div class="sec-sub">평가 세션을 자동으로 열고 닫는 async 컨텍스트 매니저입니다.</div>
-
+<!-- ── PrivilegeEscalationDetector ── -->
+<section class="sec" id="privesc">
+  <div class="sec-title"><span class="badge l2">L2</span> PrivilegeEscalationDetector</div>
+  <div class="sec-sub">도구 호출 시퀀스에서 권한 레벨 상승 패턴을 탐지합니다. 권한: guest(0) → read(1) → write(2) → execute(3) → admin(4)</div>
   <div class="cls-card">
-    <div class="cls-head">
-      <span class="cls-name">evaluation_session</span>
-      <span class="cls-kind ctx">async context</span>
-      <span style="font-size:11px;color:var(--text2);margin-left:auto">agent_evaluator</span>
-    </div>
-    <div class="cls-desc">세션 종료 시 <code>save_to_file()</code>을 자동 호출합니다. 예외 발생 시에도 부분 결과를 저장합니다.</div>
+    <div class="cls-head"><span class="cls-name">PrivilegeEscalationDetector</span><span class="kind cls">class</span><span class="cls-src">core.agent_evaluator</span></div>
     <div class="cls-body">
-<pre><span class="kw">import</span> asyncio
-<span class="kw">from</span> <span class="cn">agent_evaluator</span> <span class="kw">import</span> PerformanceMonitor, evaluation_session
-
-monitor = <span class="fn">PerformanceMonitor</span>(output_dir=<span class="st">"results/"</span>)
-
-<span class="kw">async def</span> <span class="fn">run_eval</span>():
-    <span class="kw">async with</span> <span class="fn">evaluation_session</span>(monitor, stem=<span class="st">"session_01"</span>) <span class="kw">as</span> m:
-        result = <span class="kw">await</span> agent.<span class="fn">run</span>(task)
-        m.<span class="fn">record_task</span>(result)
-    <span class="cm"># 세션 종료 시 results/session_01.json 자동 저장</span></pre>
+      <table class="mtable">
+        <thead><tr><th>메서드</th><th>파라미터</th><th>반환 키</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><span class="p">analyze_privilege_chain(task_id, tool_calls)</span></td>
+            <td><span class="t">str, List[Dict]</span></td>
+            <td><code class="t">escalation_detected</code> (bool), <code class="t">initial_privilege</code>, <code class="t">final_privilege</code>, <code class="t">max_privilege</code>, <code class="t">suspicious_sequences</code>, <code class="t">escalation_path</code>, <code class="t">risk_score</code> (0–10)</td>
+          </tr>
+          <tr>
+            <td><span class="p">get_escalation_stats()</span></td><td>—</td>
+            <td><code class="t">escalation_rate</code> (%), <code class="t">avg_risk_score</code>, <code class="t">high_risk_events</code>, <code class="t">suspicious_sequence_count</code></td>
+          </tr>
+        </tbody>
+      </table>
     </div>
   </div>
 </section>
 
-<!-- ── Layer 1 ───────────────────────────────────────────────────── -->
-<section class="sec" id="layer1">
-  <div class="sec-title"><span class="icon">📈</span> Layer 1 — Foundation Metrics</div>
-  <div class="sec-sub">외부 의존성 없이 동작하는 6종의 기초 성능 지표 트래커입니다.</div>
-
-  <div class="layer-hdr">
-    <div class="lnum">L1</div>
-    <div class="linfo">
-      <div class="ltitle">Foundation Metrics — 6 트래커</div>
-      <div class="ldesc">native Python, numpy, pandas만 사용. 외부 API 호출 없음</div>
-    </div>
-    <div class="ldep">의존성 없음</div>
-  </div>
-
-  <div class="tracker-grid">
-    <div class="tracker-card">
-      <div class="tc-name">TaskCompletionTracker</div>
-      <div class="tc-metric">→ TCR (Task Completion Rate)</div>
-      <div class="tc-desc">성공/실패 집계, 태스크 유형별 완료율</div>
-    </div>
-    <div class="tracker-card">
-      <div class="tc-name">AccuracyEvaluator</div>
-      <div class="tc-metric">→ accuracy_score (0–1)</div>
-      <div class="tc-desc">QA: Token F1+Jaccard+LCS, Code: AST 비교</div>
-    </div>
-    <div class="tracker-card">
-      <div class="tc-name">HallucinationDetector</div>
-      <div class="tc-metric">→ hallucination_rate</div>
-      <div class="tc-desc">사실 일관성 스코어. enable_hallucination_detection=True 필요</div>
-    </div>
-    <div class="tracker-card">
-      <div class="tc-name">ResponseQualityEvaluator</div>
-      <div class="tc-metric">→ quality_score (6차원)</div>
-      <div class="tc-desc">완성도·명확성·관련성·일관성·깊이·안전성</div>
-    </div>
-    <div class="tracker-card">
-      <div class="tc-name">LatencyTracker</div>
-      <div class="tc-metric">→ p50, p95, p99 (ms)</div>
-      <div class="tc-desc">백분위 기반 지연 시간 분석</div>
-    </div>
-    <div class="tracker-card">
-      <div class="tc-name">TokenEconomyTracker</div>
-      <div class="tc-metric">→ total_cost (USD)</div>
-      <div class="tc-desc">토큰 사용량 + 모델별 비용 추정</div>
-    </div>
-  </div>
-
-  <div class="note tip">개별 트래커는 <code>from agent_evaluator import AccuracyEvaluator</code>로 독립 사용 가능합니다.</div>
-</section>
-
-<!-- ── Layer 2 에이전틱 ──────────────────────────────────────────── -->
-<section class="sec" id="layer2-agentic">
-  <div class="sec-title"><span class="icon">🤖</span> Layer 2 — 에이전틱 지표 (5종)</div>
-  <div class="sec-sub">도구 사용·워크플로우·멀티에이전트 상호작용을 측정합니다. <code>tool_calls</code> 필드가 필요합니다.</div>
-
-  <div class="layer-hdr">
-    <div class="lnum">L2</div>
-    <div class="linfo">
-      <div class="ltitle">Agentic Metrics — 5 트래커</div>
-      <div class="ldesc">TaskResult.tool_calls, expected_tools 필드 필요</div>
-    </div>
-    <div class="ldep">의존성 없음</div>
-  </div>
-
-  <div class="tracker-grid">
-    <div class="tracker-card">
-      <div class="tc-name">ToolCallAnalyzer</div>
-      <div class="tc-metric">→ tool_efficiency</div>
-      <div class="tc-desc">도구 호출 패턴, 성공률, 사용 빈도</div>
-    </div>
-    <div class="tracker-card">
-      <div class="tc-name">ToolSelectionTracker</div>
-      <div class="tc-metric">→ F1, precision, recall</div>
-      <div class="tc-desc">예상 도구 vs 실제 도구 F1 기반 정확도</div>
-    </div>
-    <div class="tracker-card">
-      <div class="tc-name">RetryCorrectionTracker</div>
-      <div class="tc-metric">→ retry_rate</div>
-      <div class="tc-desc">재시도 횟수, 자기 수정 성공률</div>
-    </div>
-    <div class="tracker-card">
-      <div class="tc-name">AgentCoordinationTracker</div>
-      <div class="tc-metric">→ coordination_score</div>
-      <div class="tc-desc">멀티에이전트 상호작용 품질</div>
-    </div>
-    <div class="tracker-card">
-      <div class="tc-name">WorkflowExecutionTracker</div>
-      <div class="tc-metric">→ workflow_success_rate</div>
-      <div class="tc-desc">워크플로우 완료율, 분기 탐색 커버리지</div>
-    </div>
-  </div>
-</section>
-
-<!-- ── Layer 2 보안 ──────────────────────────────────────────────── -->
-<section class="sec" id="layer2-security">
-  <div class="sec-title"><span class="icon">🛡️</span> Layer 2 — 보안 지표 (5종)</div>
-  <div class="sec-sub"><code>enable_security_metrics=True</code>로 활성화해야 합니다. 성능 영향이 있으므로 기본값은 비활성화입니다.</div>
-
-  <div class="layer-hdr">
-    <div class="lnum">L2</div>
-    <div class="linfo">
-      <div class="ltitle">Security Metrics — 5 트래커</div>
-      <div class="ldesc">PerformanceMonitor(enable_security_metrics=True) 필요</div>
-    </div>
-    <div class="ldep badge req">opt-in</div>
-  </div>
-
-  <div class="tracker-grid">
-    <div class="tracker-card">
-      <div class="tc-name">InputSanitizationTracker</div>
-      <div class="tc-metric">→ injection_detected</div>
-      <div class="tc-desc">SQL/Command/Path/XSS/Prompt Injection 탐지</div>
-    </div>
-    <div class="tracker-card">
-      <div class="tc-name">OutputLeakageDetector</div>
-      <div class="tc-metric">→ leakage_detected</div>
-      <div class="tc-desc">민감 데이터(PII, 시크릿) 출력 탐지</div>
-    </div>
-    <div class="tracker-card">
-      <div class="tc-name">ToolAuthorizationTracker</div>
-      <div class="tc-metric">→ unauthorized_calls</div>
-      <div class="tc-desc">권한 없는 도구 호출 탐지</div>
-    </div>
-    <div class="tracker-card">
-      <div class="tc-name">PrivilegeEscalationDetector</div>
-      <div class="tc-metric">→ escalation_attempts</div>
-      <div class="tc-desc">권한 상승 시도 패턴 탐지</div>
-    </div>
-    <div class="tracker-card">
-      <div class="tc-name">ToolChainAttackDetector</div>
-      <div class="tc-metric">→ chain_attack_score</div>
-      <div class="tc-desc">도구 체인 연결 공격 패턴 탐지</div>
-    </div>
-  </div>
-
-  <div class="note warn">⚠️ <code>OutputLeakageDetector</code>의 generic 패턴 <code>[a-zA-Z0-9]{32,}</code>은 false-positive가 높습니다. 프로덕션 적용 전 threshold 조정을 권장합니다.</div>
-</section>
-
-<!-- ── Layer 3 ───────────────────────────────────────────────────── -->
-<section class="sec" id="layer3">
-  <div class="sec-title"><span class="icon">🔬</span> Layer 3 — HybridPerformanceMonitor</div>
-  <div class="sec-sub">Layer 1+2에 외부 평가 라이브러리를 추가한 하이브리드 모니터입니다.</div>
-
+<!-- ── ToolChainAttackDetector ── -->
+<section class="sec" id="chainatk">
+  <div class="sec-title"><span class="badge l2">L2</span> ToolChainAttackDetector</div>
+  <div class="sec-sub">도구 호출 시퀀스에서 data exfiltration·lateral movement·persistence·defense evasion 4종 공격 패턴을 탐지합니다.</div>
   <div class="cls-card">
-    <div class="cls-head">
-      <span class="cls-name">HybridPerformanceMonitor</span>
-      <span class="cls-kind class">class</span>
-      <span style="font-size:11px;color:var(--text2);margin-left:auto">agent_evaluator.core.hybrid_monitor</span>
+    <div class="cls-head"><span class="cls-name">ToolChainAttackDetector</span><span class="kind cls">class</span><span class="cls-src">core.agent_evaluator</span></div>
+    <div class="cls-body">
+      <table class="mtable">
+        <thead><tr><th>메서드</th><th>파라미터</th><th>반환 키</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><span class="p">analyze_tool_chain(task_id, tool_sequence)</span></td>
+            <td><span class="t">str, List[str]</span></td>
+            <td><code class="t">is_suspicious_chain</code> (bool), <code class="t">confidence</code> (0–1), <code class="t">attack_patterns_detected</code> (List[str]), <code class="t">attack_types</code> (dict of bools: data_exfiltration, lateral_movement, persistence, defense_evasion)</td>
+          </tr>
+          <tr>
+            <td><span class="p">get_attack_stats()</span></td><td>—</td>
+            <td><code class="t">detection_rate</code> (%), <code class="t">avg_confidence</code>, <code class="t">data_exfiltration_detected</code>, <code class="t">lateral_movement_detected</code>, <code class="t">persistence_detected</code>, <code class="t">defense_evasion_detected</code></td>
+          </tr>
+        </tbody>
+      </table>
+<pre style="margin-top:10px"><span class="kw">from</span> <span class="cn">agent_evaluator</span> <span class="kw">import</span> ToolChainAttackDetector
+detector = <span class="fn">ToolChainAttackDetector</span>()
+r = detector.<span class="fn">analyze_tool_chain</span>(<span class="st">"t1"</span>, [<span class="st">"read_file"</span>, <span class="st">"search_db"</span>, <span class="st">"send_email"</span>, <span class="st">"delete_logs"</span>])
+<span class="cm"># → {'is_suspicious_chain': True, 'confidence': 0.82, 'attack_types': {'data_exfiltration': True, ...}}</span></pre>
     </div>
-    <div class="cls-desc"><code>PerformanceMonitor</code>를 상속하고 <code>DeepEvalAdapter</code>, <code>RagasAdapter</code>, <code>LangSmithAdapter</code>를 선택적으로 추가합니다.</div>
+  </div>
+</section>
+
+<hr>
+<div style="font-size:18px;font-weight:700;margin-bottom:28px;color:var(--orange)">🔬 Layer 3 — Hybrid Evaluation</div>
+
+<!-- ── HybridPerformanceMonitor ── -->
+<section class="sec" id="hybrid">
+  <div class="sec-title"><span class="badge l3">L3</span> HybridPerformanceMonitor</div>
+  <div class="sec-sub">PerformanceMonitor를 상속하고 DeepEval·Ragas·LangSmith 어댑터를 추가합니다. <strong>추가 설치 및 OpenAI API 키 필요.</strong></div>
+  <div class="cls-card">
+    <div class="cls-head"><span class="cls-name">HybridPerformanceMonitor</span><span class="kind cls">class</span><span class="cls-src">core.hybrid_monitor</span></div>
     <div class="cls-body">
 <pre><span class="kw">from</span> <span class="cn">agent_evaluator</span> <span class="kw">import</span> HybridPerformanceMonitor
-<span class="kw">from</span> <span class="cn">agent_evaluator.integrations.metric_adapters</span> <span class="kw">import</span> RagasAdapter
+<span class="kw">from</span> <span class="cn">agent_evaluator.integrations.metric_adapters</span> <span class="kw">import</span> DeepEvalAdapter, RagasAdapter
 
 monitor = <span class="fn">HybridPerformanceMonitor</span>(
     output_dir=<span class="st">"results/"</span>,
-    adapters=[<span class="fn">RagasAdapter</span>()],
-)</pre>
+    adapters=[<span class="fn">DeepEvalAdapter</span>(model=<span class="st">"gpt-4o-mini"</span>), <span class="fn">RagasAdapter</span>()],
+)
+monitor.<span class="fn">record_task</span>(task)
+monitor.<span class="fn">save_to_file</span>(<span class="st">"hybrid_eval"</span>)</pre>
     </div>
   </div>
 </section>
 
-<!-- ── 어댑터 ──────────────────────────────────────────────────────── -->
+<!-- ── 어댑터 ── -->
 <section class="sec" id="adapters">
-  <div class="sec-title"><span class="icon">🔌</span> 외부 어댑터</div>
-  <div class="sec-sub">DeepEval, Ragas, LangSmith와 연동하는 어댑터입니다. 각 extra 설치가 필요합니다.</div>
-
+  <div class="sec-title"><span class="badge l3">L3</span> 외부 어댑터 (3종)</div>
+  <div class="sec-sub">DeepEval, Ragas, LangSmith와 연동. 각 extra 설치 + 환경변수 필요.</div>
   <table class="mtable">
-    <thead><tr><th>어댑터</th><th>제공 지표</th><th>필요 Extra</th><th>환경변수</th></tr></thead>
+    <thead><tr><th>어댑터</th><th>제공 지표</th><th>생성자 파라미터</th><th>필요 Extra</th><th>환경변수</th></tr></thead>
     <tbody>
       <tr>
-        <td><span class="param">DeepEvalAdapter</span></td>
-        <td>AnswerRelevancy, Faithfulness, ContextualPrecision, ContextualRecall, Hallucination</td>
+        <td><span class="p">DeepEvalAdapter</span></td>
+        <td>G-Eval, Hallucination, Toxicity, Bias, Answer Relevancy</td>
+        <td><code>model="gpt-4o-mini"</code>, <code>threshold=0.5</code>, <code>timeout=60</code></td>
         <td><code>agent-evaluator[deepeval]</code></td>
-        <td><code>OPENAI_API_KEY</code> 또는 <code>DEEPEVAL_API_KEY</code></td>
+        <td><code>OPENAI_API_KEY</code></td>
       </tr>
       <tr>
-        <td><span class="param">RagasAdapter</span></td>
+        <td><span class="p">RagasAdapter</span></td>
         <td>faithfulness, answer_relevancy, context_recall, context_precision</td>
+        <td>—</td>
         <td><code>agent-evaluator[ragas]</code></td>
         <td><code>OPENAI_API_KEY</code></td>
       </tr>
       <tr>
-        <td><span class="param">LangSmithAdapter</span></td>
-        <td>LangSmith 트레이스 수집, run 메타데이터</td>
+        <td><span class="p">LangSmithAdapter</span></td>
+        <td>트레이스 수집, run 메타데이터</td>
+        <td>—</td>
         <td><code>agent-evaluator[langchain]</code></td>
         <td><code>LANGSMITH_API_KEY</code>, <code>LANGCHAIN_TRACING_V2=true</code></td>
       </tr>
     </tbody>
   </table>
+  <div class="note warn" style="margin-top:12px">💰 Layer 3 어댑터는 OpenAI API를 호출하므로 비용이 발생합니다. 대량 평가 시 <code>gpt-4o-mini</code> 등 저비용 모델 사용을 권장합니다.</div>
 </section>
 
-<!-- ── 프레임워크 통합 ─────────────────────────────────────────────── -->
+<!-- ── 프레임워크 통합 ── -->
 <section class="sec" id="frameworks">
-  <div class="sec-title"><span class="icon">🔗</span> 프레임워크 통합</div>
+  <div class="sec-title">🔗 프레임워크 통합</div>
   <div class="sec-sub">팩토리 함수로 기존 프레임워크에 평가 레이어를 투명하게 삽입합니다.</div>
-
   <div class="cls-card">
-    <div class="cls-head"><span class="cls-name">Factory 함수 목록</span><span class="cls-kind func">functions</span></div>
+    <div class="cls-head"><span class="cls-name">Factory 함수 목록</span><span class="kind fn">functions</span></div>
     <div class="cls-body">
       <table class="mtable">
         <thead><tr><th>함수</th><th>프레임워크</th><th>import 경로</th></tr></thead>
         <tbody>
-          <tr><td><span class="param">create_evaluated_crew()</span></td><td>CrewAI</td><td><code>agent_evaluator.integrations.crewai_integration</code></td></tr>
-          <tr><td><span class="param">create_evaluated_langchain_agent()</span></td><td>LangChain</td><td><code>agent_evaluator.integrations.langchain_integration</code></td></tr>
-          <tr><td><span class="param">create_evaluated_langgraph()</span></td><td>LangGraph</td><td><code>agent_evaluator.integrations.langgraph_integration</code></td></tr>
-          <tr><td><span class="param">create_evaluated_autogen_agent()</span></td><td>AutoGen</td><td><code>agent_evaluator.integrations.autogen_integration</code></td></tr>
+          <tr><td><span class="p">create_evaluated_crew(tasks, agents, monitor)</span></td><td>CrewAI</td><td><code>agent_evaluator.integrations.crewai_integration</code></td></tr>
+          <tr><td><span class="p">create_evaluated_langchain_agent(llm, tools, monitor)</span></td><td>LangChain</td><td><code>agent_evaluator.integrations.langchain_integration</code></td></tr>
+          <tr><td><span class="p">create_evaluated_langgraph(graph, monitor)</span></td><td>LangGraph</td><td><code>agent_evaluator.integrations.langgraph_integration</code></td></tr>
+          <tr><td><span class="p">create_evaluated_autogen_agent(config, monitor)</span></td><td>AutoGen</td><td><code>agent_evaluator.integrations.autogen_integration</code></td></tr>
         </tbody>
       </table>
+<pre style="margin-top:10px"><span class="kw">from</span> <span class="cn">agent_evaluator</span> <span class="kw">import</span> PerformanceMonitor
+<span class="kw">from</span> <span class="cn">agent_evaluator.integrations.langchain_integration</span> <span class="kw">import</span> create_evaluated_langchain_agent
 
-<pre><span class="kw">from</span> <span class="cn">agent_evaluator.integrations.crewai_integration</span> <span class="kw">import</span> (
-    create_evaluated_crew
-)
-
-crew = <span class="fn">create_evaluated_crew</span>(
-    tasks=tasks,
-    agents=agents,
-    monitor=monitor,
-)</pre>
+monitor = <span class="fn">PerformanceMonitor</span>(output_dir=<span class="st">"results/"</span>)
+agent = <span class="fn">create_evaluated_langchain_agent</span>(llm=llm, tools=tools, monitor=monitor)
+result = agent.<span class="fn">invoke</span>({<span class="st">"input"</span>: <span class="st">"질문"</span>})
+monitor.<span class="fn">save_to_file</span>(<span class="st">"langchain_eval"</span>)</pre>
     </div>
   </div>
 </section>
 
-<!-- ── LLM Helpers ───────────────────────────────────────────────── -->
+<!-- ── LLM Helpers ── -->
 <section class="sec" id="llm-helpers">
-  <div class="sec-title"><span class="icon">🤖</span> LLMHelper / ClaudeHelper</div>
-  <div class="sec-sub">LLM을 이용한 고품질 평가 보조 클래스입니다.</div>
-
+  <div class="sec-title">🤖 LLMHelper / ClaudeHelper</div>
+  <div class="sec-sub">LLM-as-judge 방식으로 응답 품질을 평가하는 보조 클래스입니다.</div>
   <div class="cls-card">
-    <div class="cls-head"><span class="cls-name">LLMHelper</span><span class="cls-kind class">class</span><span style="margin-left:8px;font-size:11px;color:var(--text2)">alias: LLMEvaluationHelper</span></div>
-    <div class="cls-desc">OpenAI 모델을 사용해 응답 품질을 LLM-as-judge 방식으로 평가합니다. <code>OPENAI_API_KEY</code> 필요.</div>
+    <div class="cls-head"><span class="cls-name">LLMHelper</span><span class="kind cls">class</span><span style="font-size:12px;color:var(--text2);margin-left:8px">alias: LLMEvaluationHelper</span></div>
+    <div class="cls-desc">OpenAI 모델 사용. <code>OPENAI_API_KEY</code> 필요.</div>
     <div class="cls-body">
 <pre><span class="kw">from</span> <span class="cn">agent_evaluator</span> <span class="kw">import</span> LLMHelper
-
 helper = <span class="fn">LLMHelper</span>(model=<span class="st">"gpt-4o-mini"</span>)
-score = <span class="kw">await</span> helper.<span class="fn">evaluate_response</span>(
-    question=<span class="st">"수도는?"</span>,
-    response=<span class="st">"서울입니다."</span>,
-    expected=<span class="st">"서울"</span>,
-)</pre>
+score = <span class="kw">await</span> helper.<span class="fn">evaluate_response</span>(question=<span class="st">"수도는?"</span>, response=<span class="st">"서울"</span>, expected=<span class="st">"서울"</span>)</pre>
     </div>
   </div>
-
   <div class="cls-card">
-    <div class="cls-head"><span class="cls-name">ClaudeHelper</span><span class="cls-kind class">class</span><span style="margin-left:8px;font-size:11px;color:var(--text2)">alias: AnthropicEvaluationHelper</span></div>
-    <div class="cls-desc">Anthropic Claude 모델을 사용하는 평가 헬퍼입니다. <code>ANTHROPIC_API_KEY</code> 필요.</div>
+    <div class="cls-head"><span class="cls-name">ClaudeHelper</span><span class="kind cls">class</span><span style="font-size:12px;color:var(--text2);margin-left:8px">alias: AnthropicEvaluationHelper</span></div>
+    <div class="cls-desc">Anthropic Claude 모델 사용. <code>ANTHROPIC_API_KEY</code> 필요.</div>
     <div class="cls-body">
 <pre><span class="kw">from</span> <span class="cn">agent_evaluator</span> <span class="kw">import</span> ClaudeHelper
-
 helper = <span class="fn">ClaudeHelper</span>(model=<span class="st">"claude-haiku-4-5-20251001"</span>)
-score = <span class="kw">await</span> helper.<span class="fn">evaluate_response</span>(
-    question=<span class="st">"질문"</span>,
-    response=<span class="st">"응답"</span>,
-)</pre>
+score = <span class="kw">await</span> helper.<span class="fn">evaluate_response</span>(question=<span class="st">"질문"</span>, response=<span class="st">"응답"</span>)</pre>
     </div>
   </div>
 </section>
 
-<!-- 하단 여백 -->
 <div style="height:60px"></div>
-</div><!-- /main -->
-</div><!-- /flex col -->
-</div><!-- /layout -->
+</div></div></div>
 
 <script>
-// ── 테마 토글 ──────────────────────────────────────────────────────
-const root = document.getElementById('root');
-const THEME_KEY = 'ae-sdk-theme';
-(function(){
-  if(localStorage.getItem(THEME_KEY) === 'light') root.classList.add('light');
-})();
-function toggleTheme(){
-  root.classList.toggle('light');
-  localStorage.setItem(THEME_KEY, root.classList.contains('light') ? 'light' : 'dark');
-}
-
-// ── 활성 네비게이션 하이라이트 ──────────────────────────────────────
-const navItems = document.querySelectorAll('.nav-item[href^="#"]');
-const sections = [...document.querySelectorAll('section.sec')];
-const content  = document.getElementById('content');
-
-function updateNav(){
-  let active = sections[0]?.id;
-  for(const s of sections){
-    if(s.getBoundingClientRect().top <= 80) active = s.id;
-  }
-  navItems.forEach(a=>{
-    a.classList.toggle('on', a.getAttribute('href')==='#'+active);
-  });
-}
-content.addEventListener('scroll', updateNav, {passive:true});
-updateNav();
-
-// 네비게이션 클릭 시 스크롤
-navItems.forEach(a=>{
-  a.addEventListener('click', e=>{
-    e.preventDefault();
-    const id = a.getAttribute('href').slice(1);
-    document.getElementById(id)?.scrollIntoView({behavior:'smooth'});
-  });
-});
-
-// ── 검색 ────────────────────────────────────────────────────────────
+const root=document.getElementById('root'),THEME_KEY='ae-sdk-theme';
+(function(){if(localStorage.getItem(THEME_KEY)==='light')root.classList.add('light')})();
+function toggleTheme(){root.classList.toggle('light');localStorage.setItem(THEME_KEY,root.classList.contains('light')?'light':'dark')}
+const navItems=document.querySelectorAll('.nav-item[href^="#"]');
+const sections=[...document.querySelectorAll('section.sec')];
+const content=document.getElementById('content');
+function updateNav(){let a=sections[0]?.id;for(const s of sections){if(s.getBoundingClientRect().top<=80)a=s.id}navItems.forEach(x=>x.classList.toggle('on',x.getAttribute('href')==='#'+a))}
+content.addEventListener('scroll',updateNav,{passive:true});updateNav();
+navItems.forEach(a=>a.addEventListener('click',e=>{e.preventDefault();document.getElementById(a.getAttribute('href').slice(1))?.scrollIntoView({behavior:'smooth'})}));
 function doSearch(q){
-  // 기존 하이라이트 제거
-  document.querySelectorAll('mark').forEach(m=>{
-    const t = document.createTextNode(m.textContent);
-    m.parentNode.replaceChild(t,m);
-  });
-  if(!q || q.length < 2) return;
-  const walker = document.createTreeWalker(
-    document.getElementById('content'),
-    NodeFilter.SHOW_TEXT,
-    { acceptNode: n => n.parentElement.closest('script,style,input') ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT }
-  );
-  const nodes=[];
-  while(walker.nextNode()) nodes.push(walker.currentNode);
-  const re = new RegExp(q.replace(/[.*+?^${}()|[\]\\]/g,'\\$&'), 'gi');
-  nodes.forEach(node=>{
-    if(!re.test(node.textContent)) return;
-    re.lastIndex=0;
-    const frag = document.createDocumentFragment();
-    let last=0, m;
-    while((m=re.exec(node.textContent))!==null){
-      frag.appendChild(document.createTextNode(node.textContent.slice(last,m.index)));
-      const mark=document.createElement('mark');
-      mark.textContent=m[0];
-      frag.appendChild(mark);
-      last=m.index+m[0].length;
-    }
-    frag.appendChild(document.createTextNode(node.textContent.slice(last)));
-    node.parentNode.replaceChild(frag,node);
-  });
-  // 첫 번째 결과로 스크롤
+  document.querySelectorAll('mark').forEach(m=>{const t=document.createTextNode(m.textContent);m.parentNode.replaceChild(t,m)});
+  if(!q||q.length<2)return;
+  const walker=document.createTreeWalker(content,NodeFilter.SHOW_TEXT,{acceptNode:n=>n.parentElement.closest('script,style,input')?NodeFilter.FILTER_REJECT:NodeFilter.FILTER_ACCEPT});
+  const nodes=[];while(walker.nextNode())nodes.push(walker.currentNode);
+  const re=new RegExp(q.replace(/[.*+?^${}()|[\]\\]/g,'\\$&'),'gi');
+  nodes.forEach(node=>{if(!re.test(node.textContent))return;re.lastIndex=0;const frag=document.createDocumentFragment();let last=0,m;
+    while((m=re.exec(node.textContent))!==null){frag.appendChild(document.createTextNode(node.textContent.slice(last,m.index)));const mk=document.createElement('mark');mk.textContent=m[0];frag.appendChild(mk);last=m.index+m[0].length}
+    frag.appendChild(document.createTextNode(node.textContent.slice(last)));node.parentNode.replaceChild(frag,node)});
   document.querySelector('mark')?.scrollIntoView({behavior:'smooth',block:'center'});
 }
 </script>

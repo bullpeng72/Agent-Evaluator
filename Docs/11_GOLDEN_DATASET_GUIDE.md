@@ -1,6 +1,6 @@
 # 📚 Golden Dataset 가이드
 
-테스트 데이터셋 생성 및 관리 (Agent Evaluator v0.5.2)
+테스트 데이터셋 생성 및 관리 (Agent Evaluator v0.5.3)
 
 # Golden Dataset 가이드
 
@@ -715,18 +715,15 @@ Agent Evaluator Dashboard는 **GUI 기반 Golden Dataset 생성 및 편집** 을
 
 ### 기존 Golden Dataset 로드
 
-**DataEditorManager를 통한 로드**
+**JSON 직접 로드**
 ```python
-    [](<#cb26-1>)from data_editor_manager import DataEditorManager
+    [](<#cb26-1>)import json
     [](<#cb26-2>)
-    [](<#cb26-3>)manager = DataEditorManager()
-    [](<#cb26-4>)
-    [](<#cb26-5>)# Golden Dataset을 DataFrame으로 로드
-    [](<#cb26-6>)df = manager.load_golden_dataset("golden_datasets/my_dataset.json")
-    [](<#cb26-7>)
-    [](<#cb26-8>)# 로드된 데이터 확인
-    [](<#cb26-9>)print(f"로드된 QA 쌍: {len(df)}개")
-    [](<#cb26-10>)print(df.columns)  # qa_id, question, answer, context, ground_truth, metadata, expected_tools, ...
+    [](<#cb26-3>)with open("results/golden_datasets/my_dataset.json") as f:
+    [](<#cb26-4>)    dataset = json.load(f)
+    [](<#cb26-5>)
+    [](<#cb26-6>)# 로드된 데이터 확인
+    [](<#cb26-7>)print(f"로드된 QA 쌍: {len(dataset)}개")
 ```
 
 ### QAPair 편집
@@ -1863,6 +1860,6 @@ Golden Dataset 작성을 완료했다면:
 * * *
 
 **최종 업데이트** : 2026-03-19
-**버전** : Agent Evaluator v0.5.2
-**프로젝트** : Agent Evaluator - AI Agent Performance Evaluation System  
+**버전** : Agent Evaluator v0.5.3
+**프로젝트** : Agent Evaluator - AI Agent Performance Evaluation System
 **문서** : Golden Dataset Guide

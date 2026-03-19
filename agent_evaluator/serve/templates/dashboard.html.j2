@@ -471,10 +471,10 @@ textarea.gd-input{height:60px;resize:vertical;font-family:inherit}
         <div class="slist">
           <template x-for="t in lowAccTasks()" :key="t.task_id">
             <div class="drow">
-              <span class="dk" x-text="t.task_id"></span>
-              <span x-text="t.task_type" style="color:var(--text2)"></span>
-              <span style="color:var(--red)" x-text="pct(t.accuracy_score*100)"></span>
-              <span x-text="`${t.attempts}회`" style="color:var(--text2)"></span>
+              <span class="dk" style="flex:2" x-text="t.task_id"></span>
+              <span style="flex:1;text-align:center;color:var(--text2)" x-text="t.task_type"></span>
+              <span style="flex:1;text-align:right;color:var(--red)" x-text="pct(t.accuracy_score*100)"></span>
+              <span style="flex:0 0 50px;text-align:right;color:var(--text2)" x-text="`${t.attempts}회`"></span>
             </div>
           </template>
         </div>
@@ -822,10 +822,10 @@ textarea.gd-input{height:60px;resize:vertical;font-family:inherit}
       <div class="slist">
         <template x-for="t in lowAccTasks()" :key="t.task_id">
           <div class="drow">
-            <span class="dk" x-text="t.task_id"></span>
-            <span x-text="t.task_type" style="color:var(--text2)"></span>
-            <span style="color:var(--red)" x-text="pct(t.accuracy_score*100)"></span>
-            <span x-text="`${t.attempts}회`" style="color:var(--text2)"></span>
+            <span class="dk" style="flex:2" x-text="t.task_id"></span>
+            <span style="flex:1;text-align:center;color:var(--text2)" x-text="t.task_type"></span>
+            <span style="flex:1;text-align:right;color:var(--red)" x-text="pct(t.accuracy_score*100)"></span>
+            <span style="flex:0 0 50px;text-align:right;color:var(--text2)" x-text="`${t.attempts}회`"></span>
           </div>
         </template>
       </div>
@@ -1578,14 +1578,27 @@ textarea.gd-input{height:60px;resize:vertical;font-family:inherit}
   <!-- ── 심화 티어 ── -->
   <div x-show="tsec2==='advanced'">
     <!-- 위협 패턴 인텔리전스 -->
-    <div class="sec">
+    <div class="sec" x-data="{
+      threatItems() {
+        const s = data.security_l1?.input_security || {};
+        const map = {
+          'SQL Injection':       s.sql_injection_attempts,
+          'Command Injection':   s.command_injection_attempts,
+          'Path Traversal':      s.path_traversal_attempts,
+          'XSS':                 s.xss_attempts,
+          'Prompt Injection':    s.prompt_injection_attempts,
+        };
+        return Object.entries(map).filter(([k,v]) => v > 0).map(([k,v]) => ({name:k, count:v}));
+      }
+    }">
       <div class="sec-t">🔬 위협 패턴 인텔리전스</div>
-      <div x-show="(data.security_l1?.input_sanitization?.threat_types_detected||[]).length===0" class="empty"><p>탐지된 위협 패턴 없음 ✅</p></div>
-      <div x-show="(data.security_l1?.input_sanitization?.threat_types_detected||[]).length>0">
-        <template x-for="t in (data.security_l1?.input_sanitization?.threat_types_detected||[])" :key="t">
+      <div x-show="threatItems().length===0" class="empty"><p>탐지된 위협 패턴 없음 ✅</p></div>
+      <div x-show="threatItems().length>0">
+        <template x-for="t in threatItems()" :key="t.name">
           <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;font-size:14px">
-            <span style="min-width:160px" x-text="t"></span>
+            <span style="min-width:160px" x-text="t.name"></span>
             <span style="color:var(--red)">⚠️ 탐지됨</span>
+            <span style="color:var(--text2)" x-text="`${t.count}건`"></span>
           </div>
         </template>
       </div>
@@ -1842,7 +1855,7 @@ textarea.gd-input{height:60px;resize:vertical;font-family:inherit}
         <div class="rec-b" x-show="r.issue" x-text="r.issue"></div>
         <details style="margin-top:6px">
           <summary style="cursor:pointer;font-size:13px;color:var(--accent)">개선 방안 보기</summary>
-          <div style="font-size:13px;margin-top:6px;white-space:pre-wrap;color:var(--text2)" x-text="r.suggestion"></div>
+          <div style="font-size:13px;margin-top:6px;white-space:pre-wrap;color:var(--text2)" x-html="md2html(r.suggestion)"></div>
         </details>
       </div>
     </template>
@@ -1984,7 +1997,7 @@ textarea.gd-input{height:60px;resize:vertical;font-family:inherit}
         <div class="rec-b" x-show="r.issue" x-text="r.issue"></div>
         <details style="margin-top:6px">
           <summary style="cursor:pointer;font-size:13px;color:var(--accent)">개선 방안 보기</summary>
-          <div style="font-size:13px;margin-top:6px;white-space:pre-wrap;color:var(--text2)" x-text="r.suggestion"></div>
+          <div style="font-size:13px;margin-top:6px;white-space:pre-wrap;color:var(--text2)" x-html="md2html(r.suggestion)"></div>
         </details>
       </div>
     </template>
@@ -4298,6 +4311,17 @@ function app() { return {
     return `Pearson r = ${r.toFixed(3)} — ${interp} ${dir} 상관관계 (n=${n})`;
   },
 
+  // ── Markdown → HTML (for AI-generated suggestions) ─────────────────────
+  md2html(s) {
+    if (!s) return '';
+    return s
+      .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+      .replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>')
+      .replace(/\*(.+?)\*/g,'<em>$1</em>')
+      .replace(/^(\d+)\.\s+/gm,'<br>$1. ')
+      .replace(/\n/g,'<br>')
+      .replace(/^<br>/,'');
+  },
   // ── Format helpers ─────────────────────────────────────────────────────
   pct(v)  { return v===undefined||v===null?'—':(+v).toFixed(1)+'%'; },
   sec_(v) { return v===undefined||v===null?'—':(+v).toFixed(3)+'s'; },

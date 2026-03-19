@@ -16,18 +16,18 @@
   2. **지원되는 메트릭** : 
      * Layer 1 (Basic): `tcr`, `accuracy`, `hallucination`, `quality`, `latency`, `cost_per_task`
      * Layer 1 (RAG): `faithfulness`, `answer_relevancy`, `context_recall`, `context_precision`
-     * Layer 1 (Security): `input_sanitization`, `output_leakage`, `authorization`
-     * Layer 2 (Agentic): `tool_selection_accuracy`, `agent_coordination`, `workflow_execution`
-     * Layer 2 (Security): `privilege_escalation`, `attack_detection`
+     * Layer 2 (Security): `input_sanitization`, `output_leakage`, `authorization`, `privilege_escalation`, `tool_chain_attack`
+     * Layer 2 (Agentic): `tool_selection_accuracy`, `agent_coordination`, `workflow_execution`, `retry_success_rate`
+     * Layer 2 (Security): `input_sanitization`, `output_leakage`, `authorization`, `privilege_escalation`, `tool_chain_attack`
   3. **compare_with_thresholds() 반환값** : `{metric: {name, value, threshold, status, direction, unit, layer?, details?}}`
-  4. **load_thresholds_from_config()** : DataEditorManager를 통한 자동 로드 지원
+  4. **load_thresholds_from_config()** : 저장된 임계값 파일에서 자동 로드 지원
   5. **Latency 계산** : P95 (95 백분위수) 사용, 평균이 아님
   6. **Quality 변환** : 5점 척도 → 10점 척도 (×2 변환)
 
 ## 목차
 
   1. [Threshold란?](<#threshold란>)
-  2. [Layer 1 Thresholds (Basic Metrics + Security)](<#layer-1-thresholds-native-metrics>)
+  2. [Layer 1 Thresholds (Foundation Metrics)](<#layer-1-thresholds-native-metrics>)
   3. [Layer 2 Thresholds (Agentic Metrics + Security)](<#layer-2-thresholds-agentic-ai-metrics>)
   4. [Threshold 설정 전략](<#threshold-설정-전략>)
   5. [환경별 Threshold 설정](<#환경별-threshold-설정>)
@@ -91,7 +91,7 @@
 
 * * *
 
-## Layer 1 Thresholds (Basic Metrics + Security)
+## Layer 1 Thresholds (Foundation Metrics)
 
 Layer 1은 **기본적인 AI 성능 메트릭과 기본 보안 메트릭** 입니다.
 
@@ -326,9 +326,9 @@ RAG 시스템을 사용하는 경우 다음 메트릭을 추가할 수 있습니
 
 **참고** : 현재는 placeholder 구현. RAG 평가 기능 활성화 필요.
 
-### 8\. Layer 1 Security 메트릭 (v0.5.2)
+### 8. Layer 2 Security 메트릭 (v0.5.3)
 
-Layer 1 Security 메트릭은 **기본 보안 위협** 을 평가합니다.
+Layer 2 Security 메트릭은 **보안 위협** 을 평가합니다 (`enable_security_metrics=True` 필요).
 
 #### Input Sanitization (입력 검증)
 
@@ -359,7 +359,7 @@ Layer 1 Security 메트릭은 **기본 보안 위협** 을 평가합니다.
 
 **통합 예제** :
 ```python
-    [](<#cb16d-1>)# Layer 1: Basic + Security Thresholds
+    [](<#cb16d-1>)# Layer 1: Foundation Thresholds
     [](<#cb16d-2>)monitor.thresholds = {
     [](<#cb16d-3>)    # Basic Metrics
     [](<#cb16d-4>)    'tcr': 90.0,
@@ -531,7 +531,7 @@ Layer 2 메트릭을 사용하려면 Golden Dataset에 `expected_tools` 필드�
     [](<#cb26-5>)}
 ```
 
-### 4\. Layer 2 Security 메트릭 (v0.5.2)
+### 4\. Layer 2 Security 메트릭 (v0.5.3)
 
 Layer 2 Security 메트릭은 **고급 보안 위협** 을 평가합니다.
 
@@ -732,7 +732,7 @@ Layer 2 Security 메트릭은 **고급 보안 위협** 을 평가합니다.
     [](<#cb33-13>)monitor.thresholds = get_thresholds_for_env()
 ```
 
-### DataEditorManager를 통한 Threshold 로드
+### Threshold 파일에서 로드
 
 `load_thresholds_from_config()` 메서드를 사용하여 저장된 임계값을 자동으로 로드할 수 있습니다.
 
@@ -763,49 +763,46 @@ Layer 2 Security 메트릭은 **고급 보안 위협** 을 평가합니다.
 
   1. **config_id 지정 시** : Test Configuration의 `thresholds` 필드
   2. **config_id 없을 때** : `data/thresholds.json` 파일
-  3. **파일 없을 때** : DataEditorManager의 기본값
+  3. **파일 없을 때** : PerformanceMonitor 내장 기본값
 
 
 ```json
-    [](<#cb36-1>)# DataEditorManager 기본값 (v0.5.2)
+    [](<#cb36-1>)// PerformanceMonitor 기본 임계값 (v0.5.3)
     [](<#cb36-2>){
-    [](<#cb36-3>)    # Layer 1: Basic Metrics
+    [](<#cb36-3>)    "// Layer 1: Foundation Metrics": "",
     [](<#cb36-4>)    "tcr": 90.0,
     [](<#cb36-5>)    "accuracy": 85.0,
     [](<#cb36-6>)    "hallucination": 5.0,
     [](<#cb36-7>)    "quality": 7.0,
     [](<#cb36-8>)    "latency": 3.0,
     [](<#cb36-9>)    "cost_per_task": 0.05,
-    [](<#cb36-10>)    # Layer 1: RAG Metrics
-    [](<#cb36-11>)    "faithfulness": 0.8,
-    [](<#cb36-12>)    "answer_relevancy": 0.8,
-    [](<#cb36-13>)    "context_recall": 0.8,
-    [](<#cb36-14>)    "context_precision": 0.8,
-    [](<#cb36-15>)    # Layer 1: Security Metrics
-    [](<#cb36-16>)    "input_sanitization": 95.0,
-    [](<#cb36-17>)    "output_leakage": 95.0,
-    [](<#cb36-18>)    "authorization": 98.0
+    [](<#cb36-10>)    "// Layer 2: Security Metrics": "",
+    [](<#cb36-11>)    "input_sanitization": 95.0,
+    [](<#cb36-12>)    "output_leakage": 95.0,
+    [](<#cb36-13>)    "authorization": 98.0,
+    [](<#cb36-14>)    "// Layer 3: Hybrid Metrics": "",
+    [](<#cb36-15>)    "faithfulness": 0.8,
+    [](<#cb36-16>)    "answer_relevancy": 0.8,
+    [](<#cb36-17>)    "context_recall": 0.8,
+    [](<#cb36-18>)    "context_precision": 0.8
     [](<#cb36-19>)}
 ```
 
-#### 임계값 저장
+#### 임계값 저장 (JSON 파일)
 
-DataEditorManager를 직접 사용하여 임계값을 저장할 수도 있습니다:
+임계값을 JSON 파일에 저장하고 `load_thresholds_from_config()`로 불러올 수 있습니다:
 ```python
-    [](<#cb37-1>)from data_editor_manager import DataEditorManager
-    [](<#cb37-2>)
-    [](<#cb37-3>)manager = DataEditorManager()
-    [](<#cb37-4>)
-    [](<#cb37-5>)# 임계값 저장
-    [](<#cb37-6>)manager.save_thresholds(
-    [](<#cb37-7>)    thresholds={
-    [](<#cb37-8>)        'tcr': 95.0,
-    [](<#cb37-9>)        'accuracy': 90.0,
-    [](<#cb37-10>)        'hallucination': 3.0
-    [](<#cb37-11>)    },
-    [](<#cb37-12>)    editor="your_name",
-    [](<#cb37-13>)    reason="프로덕션 환경 임계값 상향 조정"
-    [](<#cb37-14>))
+    [](<#cb37-1>)import json
+    [](<#cb37-2>)from agent_evaluator import PerformanceMonitor
+    [](<#cb37-3>)
+    [](<#cb37-4>)# 임계값을 파일에 저장
+    [](<#cb37-5>)thresholds = {'tcr': 95.0, 'accuracy': 90.0, 'hallucination': 3.0}
+    [](<#cb37-6>)with open("thresholds.json", "w") as f:
+    [](<#cb37-7>)    json.dump(thresholds, f)
+    [](<#cb37-8>)
+    [](<#cb37-9>)# 저장된 임계값 로드
+    [](<#cb37-10>)monitor = PerformanceMonitor()
+    [](<#cb37-11>)monitor.load_thresholds_from_config()
 ```
 
 * * *
@@ -847,7 +844,7 @@ DataEditorManager를 직접 사용하여 임계값을 저장할 수도 있습니
   * `context_recall`: Context Recall (0-1) ⚡ _: 실제 값 계산_
   * `context_precision`: Context Precision (0-1) ⚡ _: 실제 값 계산_
 
-**Layer 1 (Security Metrics)** ⚡ _v0.5.2_ :
+**Layer 2 (Security Metrics)** ⚡ _v0.5.3_ :
 
   * `input_sanitization`: Input Sanitization (%)
   * `output_leakage`: Output Leakage Prevention (%)
@@ -859,7 +856,7 @@ DataEditorManager를 직접 사용하여 임계값을 저장할 수도 있습니
   * `agent_coordination`: Agent Coordination (/10) - details 포함
   * `workflow_execution`: Workflow Execution (%) - details 포함
 
-**Layer 2 (Security Metrics)** ⚡ _v0.5.2_ :
+**Layer 2 (Security Metrics)** ⚡ _v0.5.3_ :
 
   * `privilege_escalation`: Privilege Escalation Detection (%)
   * `attack_detection`: Attack Pattern Detection (%)
@@ -2190,6 +2187,6 @@ CI/CD 위반 알림 Slack 통합 | DevOps | 01/20 | 📝 계획
 * * *
 
 **최종 업데이트** : 2026-03-19
-**버전** : Agent Evaluator v0.5.2
-**프로젝트** : Agent Evaluator - AI Agent Performance Evaluation System  
+**버전** : Agent Evaluator v0.5.3
+**프로젝트** : Agent Evaluator - AI Agent Performance Evaluation System
 **문서** : Threshold Configuration Guide

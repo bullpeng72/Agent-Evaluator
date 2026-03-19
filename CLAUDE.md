@@ -3,7 +3,7 @@
 ## Project Overview
 
 **Agent-Evaluator** is a production-ready Python SDK for evaluating AI agents.
-20개의 성능 지표를 세 개의 레이어(기본/고급/하이브리드)로 측정한다.
+25개의 성능 지표를 세 개의 레이어(기본/에이전틱/하이브리드)로 측정한다.
 
 - **Version:** 0.5.3 (Beta)
 - **Python:** 3.8+
@@ -86,7 +86,7 @@ Layer 3 — Hybrid Evaluation (requires optional deps)
 ```
 agent_evaluator/
 ├── core/
-│   ├── agent_evaluator.py   # 모든 16개 트래커 + PerformanceMonitor (5,318줄 — 분리 예정)
+│   ├── agent_evaluator.py   # 모든 16개 트래커 + PerformanceMonitor (5,409줄 — 분리 예정)
 │   ├── hybrid_monitor.py    # HybridPerformanceMonitor
 │   └── monitor_context.py   # Context managers
 ├── integrations/
@@ -127,7 +127,6 @@ Evaluator_Examples/          # 실제 사용 예시 (패키지 외부, 5개 플�
 ├── 03_agentic_metrics.py    # 에이전틱 지표 — Tool Call, Coordination, Workflow
 ├── 04_security_metrics.py   # 보안 지표 — Input Sanitization, Leakage, Auth, Escalation
 └── 05_hybrid_metrics.py     # 하이브리드 평가 — DeepEval, Ragas, LangSmith 통합
-Docs/Metrics/                # 25개 지표별 마크다운 문서
 ```
 
 ---

@@ -400,9 +400,10 @@ Helicone     ✅ 비용/레이턴시/오류율만 — LLM 계산 없음
 W&B Weave    ⚠️ Online Scorers: LLM 판단자 기반 (선택)
              → 커스텀 스코어러로 LLM 없이도 가능
 
-Agent Evaluator ✅ 20개 지표 전부 LLM 없이 계산
+Agent Evaluator ✅ 16개 네이티브 지표 전부 LLM 없이 계산
              → 알고리즘 기반: LCS, F1, 패턴 매칭, 통계
-             → 추가 API 비용 $0
+             → Layer 3 (9개)는 DeepEval/Ragas LLM 사용 (선택)
+             → 네이티브 지표 추가 API 비용 $0
 ```
 
 ### 5.2 계산 비용 비교 (1,000 태스크 기준)
@@ -539,7 +540,7 @@ Ragas           ███████░░░  (데이터셋 전체 수동 구�
               Ragas       DeepEval
           (RAG 특화)    (14+ 지표)
                               Agent Evaluator
-                            (20지표+보안+Agentic)
+                            (25지표, 보안·Agentic 포함)
 ──────────────────────────────────────────────── → 에이전트 특화도
  Helicone    Evidently   LangSmith    Arize Phoenix
 (인프라만)  (ML모니터링)  (트레이싱)   (OTEL+품질)
@@ -577,7 +578,7 @@ Ragas           ███████░░░  (데이터셋 전체 수동 구�
 1. **Agentic 보안 지표 5종** — 업계 어디에도 없는 지표 (프롬프트 인젝션, 출력 유출, 권한 상승, Tool 체인 공격, 비인가 Tool 사용)
 2. **Retry/자기수정 분석** — 에이전트가 얼마나 스스로 오류를 수정하는지
 3. **Tool Selection F1** — Tool 선택 정밀도/재현율 기반 정량 평가 (DeepEval과 달리 LLM 불필요)
-4. **LLM 없이 20개 지표 전부 계산** — $0 추가 비용
+4. **LLM 없이 16개 네이티브 지표 계산** — $0 추가 비용 (Layer 3 하이브리드 9개는 선택적)
 5. **완전 로컬 대시보드** — 평가 데이터가 외부로 나가지 않음
 
 ### 현재 없는 것 (개선 기회)

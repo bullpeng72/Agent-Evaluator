@@ -191,7 +191,7 @@ CI/CD 통합 및 프로덕션 배포 전략
 
 ### Project Structure
 
-v0.5.2부터 프로젝트는 4개의 독립적인 컴포넌트로 구성됩니다:
+v0.5.3 기준 프로젝트는 4개의 독립적인 컴포넌트로 구성됩니다:
 
 #### 1\. 📦 agent_evaluator/ - Core Python Package
 
@@ -204,22 +204,21 @@ v0.5.2부터 프로젝트는 4개의 독립적인 컴포넌트로 구성됩니�
     │                                   # from agent_evaluator import PerformanceMonitor
     │
     ├── core/                           # 📊 핵심 평가 엔진
-    │   ├── monitor.py                  # PerformanceMonitor 클래스
-    │   │                               # - Layer 1 메트릭: TCR, Accuracy, Hallucination, Quality
-    │   │                               # - Layer 1 Security: Input Sanitization, Output Leakage, Authorization
-    │   │                               # - Layer 2 메트릭: Tool Selection, Agent Coordination, Workflow
-    │   │                               # - Layer 2 Security: Privilege Escalation, Attack Detection
-    │   └── hybrid_monitor.py           # HybridMonitor 클래스
+    │   ├── agent_evaluator.py          # PerformanceMonitor + 16개 트래커
+    │   │                               # - Layer 1 메트릭: TCR, Accuracy, Hallucination, Quality, Latency, TokenEconomy
+    │   │                               # - Layer 2 에이전틱: Tool Call, Retry, Tool Selection, Coordination, Workflow
+    │   │                               # - Layer 2 보안: Input Sanitization, Output Leakage, Authorization, Privilege, Attack
+    │   └── hybrid_monitor.py           # HybridPerformanceMonitor 클래스
     │                                   # - Layer 3 고급 메트릭 (DeepEval, Ragas 통합)
     │
     ├── integrations/                   # 🔌 Framework 통합
-    │   ├── crewai_evaluator.py         # CrewAI → Agent Coordination 자동 추적
-    │   ├── langchain_evaluator.py      # LangChain → Tool Selection 자동 추적
-    │   ├── langgraph_evaluator.py      # LangGraph → Workflow Execution 자동 추적
-    │   └── autogen_evaluator.py        # AutoGen → Agent Coordination 자동 추적
+    │   ├── crewai_integration.py       # CrewAI → Agent Coordination 자동 추적
+    │   ├── langchain_integration.py    # LangChain → Tool Selection 자동 추적
+    │   ├── langgraph_integration.py    # LangGraph → Workflow Execution 자동 추적
+    │   └── autogen_integration.py      # AutoGen → Agent Coordination 자동 추적
     │
     ├── datasets/                       # 📚 Dataset 관리
-    │   └── rag_dataset_generator.py    # PDF → Golden Dataset 자동 생성
+    │   └── korean_rag_dataset_generator.py  # PDF → Korean Golden Dataset 자동 생성
     │                                   # - 한국어/영어 지원
     │                                   # - Question-Answer-Context 트리플 생성
     │
@@ -227,17 +226,18 @@ v0.5.2부터 프로젝트는 4개의 독립적인 컴포넌트로 구성됩니�
     │   ├── path_helpers.py             # Zero Configuration 경로 탐지
     │   │                               # - find_project_root()
     │   │                               # - get_evaluation_results_dir()
-    │   └── metric_adapters.py          # 메트릭 어댑터
-    │                                   # - DeepEval/Ragas → PerformanceMonitor 변환
+    │   ├── data_registry.py            # 평가 결과 데이터 레지스트리
+    │   ├── dashboard_integration.py    # Dashboard 저장 경로 헬퍼
+    │   └── test_transparency_manager.py # TestTransparencyManager 클래스 (프로덕션)
+    │                                   # - 이상치 탐지, Traces, Audit Log
     │
     ├── helpers/                        # 📝 Helper 클래스
-    │   └── data_editor_manager.py      # DataEditorManager 클래스
-    │                                   # - Test Configuration CRUD
-    │                                   # - Threshold 관리
+    │   └── taskresult_helpers.py       # create_taskresult() 헬퍼
+    │                                   # - 점수 자동 계산
     │
     └── reporting/                      # 📄 보고서
         └── comprehensive_report.py     # ComprehensiveReportGenerator 클래스
-                                        # - Markdown/HTML 종합 보고서 생성
+                                        # - HTML/텍스트 종합 보고서 생성
 ```
 
 #### 2\. 📚 Evaluator_Examples/ - Examples & Tutorials
@@ -253,24 +253,30 @@ v0.5.2부터 프로젝트는 4개의 독립적인 컴포넌트로 구성됩니�
     └── 04_security_metrics.py   # 🔒 보안 지표 — Input Sanitization, Leakage, Auth, Escalation, Attack
 ```
 
-#### 3\. 🌐 Dashboard/ - Web Dashboard (Standalone)
+#### 3\. 🌐 FastAPI Dashboard (패키지 내장)
 
-**목적** : 평가 결과 시각화 및 관리 (독립 실행 가능)
+**목적** : 평가 결과 시각화 및 관리 — 관점 기반 UI (품질/성능/에이전틱/보안)
 
-**실행** : `agent-eval serve`
+**위치** : `agent_evaluator/serve/` (패키지 내장, v0.5.2+)
 
-**위치** : `agent_evaluator/serve/` (패키지 내장)
 ```bash
-    Dashboard/
-    └── data/                           # 💾 Dashboard 데이터 저장소
-        ├── evaluation_results/         # 평가 결과 JSON 파일들
-        │   ├── annotations/            # 사용자 주석 (annotations/*.json)
-        │   ├── audit_logs/             # 감사 로그 (audit_logs/*.json)
-        │   ├── traces/                 # 실행 추적 로그 (traces/*.json)
-        │   └── transparent_reports/    # 투명성 보고서 (transparent_reports/*.md)
-        └── golden_datasets/            # Golden Dataset 저장소
-            └── *.json                  # 사용자 업로드 Golden Dataset
+    # 기본 실행 (포트 8765, 브라우저 자동 오픈)
+    agent-eval serve
+
+    # 결과 디렉토리 지정
+    agent-eval serve results/
+
+    # 옵션 지정
+    agent-eval serve --port 8080        # 포트 변경
+    agent-eval serve --watch            # 파일 변경 감시 (자동 갱신)
+    agent-eval serve --no-open          # 브라우저 자동 오픈 비활성화
+    agent-eval serve --share            # 공유 URL 생성 (ngrok 필요)
+    agent-eval serve --offline          # 오프라인 모드
+    agent-eval serve --title "내 평가"  # 대시보드 제목 지정
+    agent-eval serve --slide            # 슬라이드 뷰로 시작
 ```
+
+데이터는 `results/` 디렉토리에서 자동으로 로드됩니다.
 
 #### 4\. 📖 Docs/ - Documentation (Standalone)
 
@@ -290,7 +296,6 @@ v0.5.2부터 프로젝트는 4개의 독립적인 컴포넌트로 구성됩니�
     ├── 📚 Core Documentation
     │   ├── API_REFERENCE.html          # API 레퍼런스 (전체)
     │   │                               # - PerformanceMonitor, HybridMonitor
-    │   │                               # - DataEditorManager, ComprehensiveReportGenerator
     │   │                               # - Framework Integrations API
     │   │
     │   ├── METRICS_GUIDE.html          # 메트릭 종합 가이드
@@ -472,7 +477,7 @@ v0.5.2부터 프로젝트는 4개의 독립적인 컴포넌트로 구성됩니�
     [](<#cb15-13>)        'latency': 3.0,
     [](<#cb15-14>)        'cost_per_task': 0.15,
     [](<#cb15-15>)
-    [](<#cb15-16>)        # Layer 2: Agentic AI
+    [](<#cb15-16>)        # Layer 2: Agentic
     [](<#cb15-17>)        'tool_selection_accuracy': 85.0,
     [](<#cb15-18>)        'agent_coordination': 8.5,
     [](<#cb15-19>)        'workflow_execution': 95.0
@@ -783,7 +788,6 @@ v0.5.2부터 프로젝트는 4개의 독립적인 컴포넌트로 구성됩니�
     [](<#cb22-3>)import sys
     [](<#cb22-4>)from dotenv import load_dotenv
     [](<#cb22-5>)from agent_evaluator import PerformanceMonitor
-    [](<#cb22-6>)from data_editor_manager import DataEditorManager
     [](<#cb22-7>)
     [](<#cb22-8>)# 환경 변수 로드
     [](<#cb22-9>)load_dotenv()
@@ -799,14 +803,14 @@ v0.5.2부터 프로젝트는 4개의 독립적인 컴포넌트로 구성됩니�
     [](<#cb22-19>)    # 환경별 Threshold 설정
     [](<#cb22-20>)    if env == "production":
     [](<#cb22-21>)        monitor.thresholds = {
-    [](<#cb22-22>)            # Layer 1: Native Metrics
+    [](<#cb22-22>)            # Layer 1: Foundation Metrics
     [](<#cb22-23>)            'tcr': 95.0,
     [](<#cb22-24>)            'accuracy': 90.0,
     [](<#cb22-25>)            'hallucination': 3.0,
     [](<#cb22-26>)            'latency': 3.0,
     [](<#cb22-27>)            'cost_per_task': 0.15,
     [](<#cb22-28>)
-    [](<#cb22-29>)            # Layer 2: Agentic AI Metrics
+    [](<#cb22-29>)            # Layer 2: Agentic Metrics
     [](<#cb22-30>)            'tool_selection_accuracy': 85.0,
     [](<#cb22-31>)            'agent_coordination': 8.5,
     [](<#cb22-32>)            'workflow_execution': 95.0
@@ -1201,59 +1205,28 @@ v0.5.2부터 프로젝트는 4개의 독립적인 컴포넌트로 구성됩니�
 ```python
     [](<#cb27-1>)import os
     [](<#cb27-2>)from agent_evaluator import PerformanceMonitor
-    [](<#cb27-3>)from data_editor_manager import DataEditorManager
-    [](<#cb27-4>)
-    [](<#cb27-5>)def get_production_config():
-    [](<#cb27-6>)    """프로덕션 환경 구성"""
-    [](<#cb27-7>)
-    [](<#cb27-8>)    # Test Configuration 생성
-    [](<#cb27-9>)    manager = DataEditorManager(base_dir="evaluation_results")
+    [](<#cb27-3>)
+    [](<#cb27-4>)def get_production_monitor():
+    [](<#cb27-5>)    """프로덕션 Monitor 생성"""
+    [](<#cb27-6>)    monitor = PerformanceMonitor(
+    [](<#cb27-7>)        output_dir="results/",
+    [](<#cb27-8>)        enable_security_metrics=True
+    [](<#cb27-9>)    )
     [](<#cb27-10>)
-    [](<#cb27-11>)    config = manager.create_test_configuration(
-    [](<#cb27-12>)        test_name="Production_Quality_Gate",
-    [](<#cb27-13>)        environment="production",
-    [](<#cb27-14>)        description="프로덕션 배포 품질 게이트 - 엄격한 기준",
-    [](<#cb27-15>)        tags=["production", "quality-gate", "critical"],
-    [](<#cb27-16>)        golden_datasets=[
-    [](<#cb27-17>)            "golden_datasets/production_api.json",
-    [](<#cb27-18>)            "golden_datasets/edge_cases.json",
-    [](<#cb27-19>)            "golden_datasets/regression.json"
-    [](<#cb27-20>)        ],
-    [](<#cb27-21>)        thresholds={
-    [](<#cb27-22>)            # Layer 1
-    [](<#cb27-23>)            'tcr': 95.0,
-    [](<#cb27-24>)            'accuracy': 90.0,
-    [](<#cb27-25>)            'hallucination': 3.0,
-    [](<#cb27-26>)            'latency': 3.0,
-    [](<#cb27-27>)            'cost_per_task': 0.15,
-    [](<#cb27-28>)
-    [](<#cb27-29>)            # Layer 2
-    [](<#cb27-30>)            'tool_selection_accuracy': 85.0,
-    [](<#cb27-31>)            'agent_coordination': 8.5,
-    [](<#cb27-32>)            'workflow_execution': 95.0
-    [](<#cb27-33>)        },
-    [](<#cb27-34>)        model_config={
-    [](<#cb27-35>)            "model_name": "gpt-4",
-    [](<#cb27-36>)            "temperature": 0.3,
-    [](<#cb27-37>)            "max_tokens": 2000
-    [](<#cb27-38>)        },
-    [](<#cb27-39>)        framework="langchain",
-    [](<#cb27-40>)        version="2.0",
-    [](<#cb27-41>)        expected_duration_seconds=900,
-    [](<#cb27-42>)        enable_transparency=True,
-    [](<#cb27-43>)        metadata={
-    [](<#cb27-44>)            "sla_target": "99.9%",
-    [](<#cb27-45>)            "priority": "critical",
-    [](<#cb27-46>)            "alert_channels": ["#alerts-prod", "ops@company.com"]
-    [](<#cb27-47>)        }
-    [](<#cb27-48>)    )
-    [](<#cb27-49>)
-    [](<#cb27-50>)    return config
-    [](<#cb27-51>)
-    [](<#cb27-52>)def get_production_monitor():
-    [](<#cb27-53>)    """프로덕션 Monitor 생성"""
-    [](<#cb27-54>)    config = get_production_config()
-    [](<#cb27-55>)    monitor = PerformanceMonitor.from_test_config(config["config_id"])
+    [](<#cb27-11>)    # 프로덕션 임계값 설정
+    [](<#cb27-12>)    monitor.thresholds = {
+    [](<#cb27-13>)        # Layer 1: Foundation Metrics
+    [](<#cb27-14>)        'tcr': 95.0,
+    [](<#cb27-15>)        'accuracy': 90.0,
+    [](<#cb27-16>)        'hallucination': 3.0,
+    [](<#cb27-17>)        'latency': 3.0,
+    [](<#cb27-18>)        'cost_per_task': 0.15,
+    [](<#cb27-19>)
+    [](<#cb27-20>)        # Layer 2: Agentic Metrics
+    [](<#cb27-21>)        'tool_selection_accuracy': 85.0,
+    [](<#cb27-22>)        'agent_coordination': 8.5,
+    [](<#cb27-23>)        'workflow_execution': 95.0
+    [](<#cb27-24>)    }
     [](<#cb27-56>)    return monitor
 ```
 
@@ -1457,7 +1430,7 @@ v0.5.2부터 프로젝트는 4개의 독립적인 컴포넌트로 구성됩니�
     [](<#cb42-2>)pip install --upgrade agent-evaluator
     [](<#cb42-3>)
     [](<#cb42-4>)# 특정 버전으로 업데이트
-    [](<#cb42-5>)pip install agent-evaluator==0.5.2
+    [](<#cb42-5>)pip install agent-evaluator==0.5.3
 ```
 
 ### Golden Dataset Maintenance
@@ -1497,19 +1470,17 @@ v0.5.2부터 프로젝트는 4개의 독립적인 컴포넌트로 구성됩니�
 ```bash
     [](<#cb44-1>)# ✓ Core 모듈 import 테스트
     [](<#cb44-2>)python -c "
-    [](<#cb44-3>)from agent_evaluator import PerformanceMonitor
-    [](<#cb44-4>)from data_editor_manager import DataEditorManager
-    [](<#cb44-5>)from hybrid_monitor import HybridPerformanceMonitor
-    [](<#cb44-6>)print('All imports successful')
-    [](<#cb44-7>)"
-    [](<#cb44-8>)
-    [](<#cb44-9>)# ✓ Golden Dataset 로드 테스트
-    [](<#cb44-10>)python -c "
-    [](<#cb44-11>)import json
-    [](<#cb44-12>)with open('golden_datasets/sample_dataset.json', 'r', encoding='utf-8') as f:
-    [](<#cb44-13>)    data = json.load(f)
-    [](<#cb44-14>)print(f'Golden Dataset loaded: {len(data)} QA pairs')
-    [](<#cb44-15>)"
+    [](<#cb44-3>)from agent_evaluator import PerformanceMonitor, HybridPerformanceMonitor
+    [](<#cb44-4>)print('All imports successful')
+    [](<#cb44-5>)"
+    [](<#cb44-6>)
+    [](<#cb44-7>)# ✓ Golden Dataset 로드 테스트
+    [](<#cb44-8>)python -c "
+    [](<#cb44-9>)import json
+    [](<#cb44-10>)with open('results/golden_datasets/sample_dataset.json', 'r', encoding='utf-8') as f:
+    [](<#cb44-11>)    data = json.load(f)
+    [](<#cb44-12>)print(f'Golden Dataset loaded: {len(data)} QA pairs')
+    [](<#cb44-13>)"
     [](<#cb44-16>)
     [](<#cb44-17>)# ✓ 패키지 import 테스트
     [](<#cb44-18>)python -c "from agent_evaluator import PerformanceMonitor; print('✅ Package import OK')"
@@ -2827,6 +2798,6 @@ DB 연결 실패 | 네트워크, 인증 오류 | `telnet db-host 5432` | DB 연�
 * * *
 
 **최종 업데이트** : 2026-03-19
-**버전** : v0.5.2
-**프로젝트** : Agent Evaluator - AI Agent Performance Evaluation System  
+**버전** : v0.5.3
+**프로젝트** : Agent Evaluator - AI Agent Performance Evaluation System
 **문서 타입** : 배포 가이드 (Deployment Guide)
