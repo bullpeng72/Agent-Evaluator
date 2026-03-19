@@ -21,7 +21,13 @@ from datetime import datetime, timedelta
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
-from agent_evaluator import PerformanceMonitor, TaskResult
+from agent_evaluator import (
+    PerformanceMonitor,
+    TaskResult,
+    TestTransparencyManager,
+    AnnotationType,
+    TestStepStatus,
+)
 
 # ────────────────────────────────────────────────────────────────────────────────
 # 에이전트 역할 정의
@@ -167,6 +173,7 @@ def run_agentic_evaluation():
 
     monitor = PerformanceMonitor(
         enable_hallucination_detection=True,
+        enable_transparency=True,
         output_dir=str(project_root / "results"),
     )
 
@@ -324,5 +331,345 @@ def run_agentic_evaluation():
     return saved_path
 
 
+def run_tool_selection_golden_demo():
+    """
+    Golden Dataset 파일 기반 Tool Selection 정확도 평가 데모
+    ─────────────────────────────────────────────────────────
+    results/golden_datasets/agentic_tool_selection.json 을 로드하고
+    ToolSelectionTracker 로 F1 기반 정확도를 측정합니다.
+
+    각 항목의 expected_tools 와 시뮬레이션 agent 가 반환하는
+    actual_tools 를 비교합니다.
+    """
+    import json
+
+    print("\n" + "=" * 70)
+    print("  Tool Selection Golden Dataset 평가 데모")
+    print("  파일: results/golden_datasets/agentic_tool_selection.json")
+    print("=" * 70)
+
+    golden_path = project_root / "results" / "golden_datasets" / "agentic_tool_selection.json"
+    if not golden_path.exists():
+        print(f"\n⚠️  Golden Dataset 파일이 없습니다: {golden_path}")
+        return
+
+    with open(golden_path, encoding="utf-8") as f:
+        golden_items = json.load(f)
+
+    rng = random.Random(7777)
+    monitor = PerformanceMonitor(output_dir=str(project_root / "results"))
+
+    print(f"\n  총 {len(golden_items)}개 시나리오 평가 중...\n")
+
+    for item in golden_items:
+        task_id = f"golden_{item['qa_id']}"
+        expected = item["expected_tools"]
+
+        # 시뮬레이션: 난이도에 따라 도구 선택 정확도 조절
+        difficulty = item.get("difficulty", "medium")
+        if difficulty == "easy":
+            match_prob = 0.95
+        elif difficulty == "medium":
+            match_prob = 0.80
+        else:  # hard
+            match_prob = 0.65
+
+        # 실제 도구 = expected를 기반으로 일부 추가/제거 (시뮬레이션)
+        actual = list(expected)
+        if rng.random() > match_prob:
+            # 일부 도구를 잘못 선택
+            all_available = list(ALL_TOOLS)
+            wrong = rng.choice([t for t in all_available if t not in expected])
+            if actual:
+                actual[-1] = wrong  # 마지막 도구를 잘못된 도구로 교체
+
+        success = set(actual) == set(expected)
+        completion = 1.0 if success else rng.uniform(0.4, 0.8)
+
+        tool_calls = [
+            {"name": t, "tool_name": t, "success": True, "execution_time": rng.uniform(0.1, 0.5)}
+            for t in actual
+        ]
+
+        task = TaskResult(
+            task_id=task_id,
+            task_type=item.get("task_type", "tool_use"),
+            success=success,
+            completion_score=round(completion, 3),
+            accuracy_score=round(completion, 3),
+            execution_time=round(rng.uniform(0.5, 5.0), 3),
+            tokens_used={"input": rng.randint(100, 500), "output": rng.randint(50, 300), "total": 0},
+            tool_calls=tool_calls,
+            attempts=1,
+            errors=[] if success else ["wrong_tool_selected"],
+            timestamp=datetime.now(),
+            expected_tools=expected,
+            framework="crewai",
+        )
+        task.tokens_used["total"] = task.tokens_used["input"] + task.tokens_used["output"]
+
+        monitor.record_task(
+            task,
+            ground_truth=item["ground_truth"],
+            request=item["question"],
+            response="작업 완료" if success else "도구 선택 오류",
+        )
+
+        # Tool Selection Tracker 에 직접 등록
+        monitor.tool_selection_tracker.evaluate_selection(
+            task_id=task_id,
+            expected_tools=expected,
+            actual_tools=actual,
+        )
+
+        match_icon = "✅" if success else "⚠️ "
+        print(f"  {match_icon} {item['qa_id']:<20} expected={expected}  actual={actual}")
+
+    # 결과 출력
+    tool_sel = monitor.tool_selection_tracker.get_accuracy_stats()
+    print(f"\n{'─'*70}")
+    print(f"  [Tool Selection 골든 데이터셋 평가 결과]")
+    if tool_sel:
+        print(f"    Precision : {tool_sel.get('avg_precision', 0):.1f}%")
+        print(f"    Recall    : {tool_sel.get('avg_recall', 0):.1f}%")
+        print(f"    F1 Score  : {tool_sel.get('avg_f1_score', tool_sel.get('avg_accuracy', 0)):.1f}%")
+        print(f"    평가 건수 : {tool_sel.get('total_evaluations', 0)}건")
+    print(f"{'─'*70}\n")
+
+
+def run_transparency_demo(monitor: PerformanceMonitor, saved_path: str):
+    """
+    투명성 데모 — Traces / Annotations / Audit Log 생성
+    ────────────────────────────────────────────────────
+    TestTransparencyManager를 사용해 평가 계산 과정을 추적하고
+    어노테이션·감사 로그를 남깁니다.
+
+    생성 파일:
+      results/traces/          → 지표 계산 단계별 트레이스 JSON
+      results/annotations/     → 검토 메모·경고 JSON
+      results/audit_logs/      → 이벤트 감사 로그 JSON
+    """
+    print("\n" + "=" * 70)
+    print("  투명성 데모 — Traces · Annotations · Audit Log")
+    print("=" * 70)
+
+    results_dir = str(project_root / "results")
+    tm = TestTransparencyManager(output_dir=results_dir)
+
+    report = monitor.generate_report()
+    tool_sel = monitor.tool_selection_tracker.get_accuracy_stats()
+    coord    = monitor.agent_coordination_tracker.calculate_coordination_score()
+    workflow = monitor.workflow_tracker.calculate_execution_success_rate()
+
+    # ── 1. Traces: 주요 지표 계산 과정 기록 ──────────────────────────────────
+
+    # (1a) Tool Selection F1 트레이스
+    f1_score = tool_sel.get("avg_f1_score", tool_sel.get("avg_accuracy", 0))
+    trace_id = tm.start_metric_calculation(
+        metric_name="tool_selection_f1",
+        metric_type="agentic",
+    )
+    tm.add_calculation_step(
+        trace_id=trace_id,
+        step_name="collect_selections",
+        description="전체 태스크의 expected/actual tool 목록 수집",
+        input_data={"total_tasks": report.total_tasks},
+        output_data={"evaluations": tool_sel.get("total_evaluations", 0)},
+        status=TestStepStatus.SUCCESS,
+    )
+    tm.add_calculation_step(
+        trace_id=trace_id,
+        step_name="compute_precision_recall",
+        description="각 태스크별 Precision·Recall 계산 후 평균",
+        input_data={"method": "set_intersection / union"},
+        output_data={
+            "avg_precision": tool_sel.get("avg_precision", 0),
+            "avg_recall":    tool_sel.get("avg_recall", 0),
+        },
+        status=TestStepStatus.SUCCESS,
+    )
+    tm.add_calculation_step(
+        trace_id=trace_id,
+        step_name="compute_f1",
+        description="F1 = 2 × (Precision × Recall) / (Precision + Recall)",
+        input_data={
+            "precision": tool_sel.get("avg_precision", 0),
+            "recall":    tool_sel.get("avg_recall", 0),
+        },
+        output_data={"f1_score": round(f1_score, 2)},
+        status=TestStepStatus.SUCCESS,
+    )
+    tm.complete_metric_calculation(
+        trace_id=trace_id,
+        final_value=round(f1_score, 2),
+        metadata={"unit": "%", "threshold": 70.0},
+    )
+
+    # (1b) Agent Coordination 트레이스
+    coord_score = coord.get("score", 0) if coord else 0
+    trace_id2 = tm.start_metric_calculation(
+        metric_name="agent_coordination_score",
+        metric_type="agentic",
+    )
+    tm.add_calculation_step(
+        trace_id=trace_id2,
+        step_name="collect_interactions",
+        description="멀티 에이전트 상호작용 목록 수집",
+        input_data={"agents": list(AGENTS.keys())},
+        output_data={
+            "total_interactions": coord.get("total_interactions", 0) if coord else 0,
+            "unique_agents":      coord.get("unique_agents", 0) if coord else 0,
+        },
+        status=TestStepStatus.SUCCESS,
+    )
+    tm.add_calculation_step(
+        trace_id=trace_id2,
+        step_name="score_coordination",
+        description="성공률·다양성·패턴 기반 0-10 점수 산출",
+        input_data={"success_rate": coord.get("success_rate", 0) if coord else 0},
+        output_data={"score": round(coord_score, 2)},
+        status=TestStepStatus.SUCCESS,
+    )
+    tm.complete_metric_calculation(
+        trace_id=trace_id2,
+        final_value=round(coord_score, 2),
+        metadata={"unit": "/10", "threshold": 7.0},
+    )
+
+    # (1c) Workflow Execution 트레이스
+    step_success = workflow.get("step_success_rate", 0) if workflow else 0
+    trace_id3 = tm.start_metric_calculation(
+        metric_name="workflow_step_success_rate",
+        metric_type="agentic",
+    )
+    tm.add_calculation_step(
+        trace_id=trace_id3,
+        step_name="collect_steps",
+        description="워크플로우 전체 단계 수집",
+        input_data={"workflows": len(WORKFLOW_STEPS)},
+        output_data={
+            "total_steps":      workflow.get("total_steps", 0) if workflow else 0,
+            "successful_steps": workflow.get("successful_steps", 0) if workflow else 0,
+        },
+        status=TestStepStatus.SUCCESS,
+    )
+    tm.add_calculation_step(
+        trace_id=trace_id3,
+        step_name="identify_bottlenecks",
+        description="실행 시간 상위 단계 병목 탐지",
+        input_data={"bottleneck_steps": ["data_retrieval", "analysis"]},
+        output_data={"step_success_rate": round(step_success, 2)},
+        status=TestStepStatus.SUCCESS if step_success >= 80 else TestStepStatus.FAILED,
+    )
+    tm.complete_metric_calculation(
+        trace_id=trace_id3,
+        final_value=round(step_success, 2),
+        metadata={"unit": "%", "threshold": 85.0},
+    )
+
+    # ── 2. Annotations: 주목할 점 기록 ───────────────────────────────────────
+
+    # 낮은 F1 경고
+    if f1_score < 70:
+        ann_id = tm.add_annotation(
+            target_type="metric",
+            target_id="tool_selection_f1",
+            annotation_type=AnnotationType.WARNING,
+            priority="high",
+            title=f"Tool Selection F1 낮음 ({f1_score:.1f}%)",
+            content=(
+                f"Tool Selection F1이 {f1_score:.1f}%로 임계값(70%) 미달입니다. "
+                "wrong_tool_* 시나리오에서 도구 미스매치가 빈번하게 발생했습니다. "
+                "에이전트 도구 선택 로직 개선이 필요합니다."
+            ),
+            author="evaluator",
+            metadata={"threshold": 70.0, "actual": round(f1_score, 2)},
+        )
+        tm.add_reply_to_annotation(
+            annotation_id=ann_id,
+            author="reviewer",
+            content="wrong_tool_1, wrong_tool_2 시나리오 우선 검토 권장.",
+        )
+
+    # 워크플로우 병목 노트
+    tm.add_annotation(
+        target_type="metric",
+        target_id="workflow_execution",
+        annotation_type=AnnotationType.NOTE,
+        priority="medium",
+        title="data_retrieval · analysis 단계 병목 확인됨",
+        content=(
+            "워크플로우에서 data_retrieval·analysis 단계의 실행 시간이 "
+            "다른 단계 대비 최대 3배 높습니다. "
+            "병렬 실행 또는 캐싱 전략 도입을 검토하세요."
+        ),
+        author="evaluator",
+    )
+
+    # 전체 개선 제안
+    tm.add_annotation(
+        target_type="evaluation",
+        target_id="agentic_metrics_run",
+        annotation_type=AnnotationType.IMPROVEMENT,
+        priority="low",
+        title="redundant_calls 시나리오 — 중복 호출 제거 가능",
+        content=(
+            "redundant_calls_1·2 시나리오에서 동일 도구를 2회 이상 호출합니다. "
+            "Tool Call Analyzer의 중복 탐지 결과를 에이전트 피드백 루프에 반영하면 "
+            "토큰 비용과 실행 시간을 줄일 수 있습니다."
+        ),
+        author="evaluator",
+    )
+
+    # ── 3. Audit Log: 에이전틱 전용 세부 지표 (자동 생성 lifecycle 이벤트와 별개) ──
+
+    tm.log_event(
+        event_type="evaluation_started",
+        user="evaluator",
+        action="에이전틱 지표 평가 세션 시작",
+        target_type="monitor",
+        target_id="agentic_metrics_run",
+        details={"scenarios": len(SCENARIOS), "trackers": ["tool_call", "tool_selection", "coordination", "workflow", "retry"]},
+        success=True,
+    )
+    tm.log_event(
+        event_type="report_generated",
+        user="evaluator",
+        action="평가 리포트 생성",
+        target_type="report",
+        target_id="agentic_metrics_run",
+        details={
+            "total_tasks":      report.total_tasks,
+            "tool_selection_f1": round(f1_score, 2),
+            "coord_score":       round(coord_score, 2),
+            "step_success_rate": round(step_success, 2),
+        },
+        success=True,
+    )
+    tm.log_event(
+        event_type="file_saved",
+        user="evaluator",
+        action="결과 파일 저장",
+        target_type="file",
+        target_id=str(saved_path),
+        details={"format": "json", "path": str(saved_path)},
+        success=bool(saved_path),
+    )
+
+    # ── 결과 요약 출력 ────────────────────────────────────────────────────────
+    summary = tm.get_transparency_summary()
+    print(f"\n  [Transparency 생성 결과]")
+    print(f"    Traces     : {summary.get('total_traces', 0)}개  → {results_dir}/traces/")
+    print(f"    Annotations: {summary.get('total_annotations', 0)}개  → {results_dir}/annotations/")
+    print(f"    Audit Logs : {summary.get('total_audit_logs', 0)}개  → {results_dir}/audit_logs/")
+    print(f"\n  대시보드 '투명성' 탭에서 Traces · Annotations · Audit Log를 확인하세요.")
+    print(f"{'─'*70}\n")
+
+
 if __name__ == "__main__":
-    run_agentic_evaluation()
+    # enable_transparency=True → save_to_file() 시 Traces·Audit Log 자동 생성
+    saved_path = run_agentic_evaluation()
+    run_tool_selection_golden_demo()
+    # Annotations 데모 (수동 입력 예시 — dashboard UI로도 작성 가능)
+    _demo_monitor = PerformanceMonitor(output_dir=str(project_root / "results"))
+    run_transparency_demo(_demo_monitor, saved_path)

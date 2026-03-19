@@ -11,13 +11,13 @@ Test Transparency Manager
 5. 투명성 요약 생성
 """
 
-from datetime import datetime
-from typing import List, Dict, Any, Optional
-from pathlib import Path
-from enum import Enum
 import json
-import uuid
 import statistics
+import uuid
+from datetime import datetime
+from enum import Enum
+from pathlib import Path
+from typing import Any, Dict, List, Optional
 
 
 class AnnotationType(Enum):
@@ -472,7 +472,6 @@ class TestTransparencyManager:
         Returns:
             Reliability analysis dictionary
         """
-        import statistics
 
         # Get tasks
         tasks = getattr(monitor, 'tasks', None) or getattr(monitor.tcr_tracker, 'tasks', [])
@@ -667,7 +666,7 @@ class TestTransparencyManager:
                         "action": "현재 설정을 유지하고 다른 프로젝트에도 적용을 고려하세요."
                     })
 
-        except Exception as e:
+        except Exception:
             pass
 
         return {
@@ -913,7 +912,7 @@ class TestTransparencyManager:
             # Try both individual files and batch files
             for filepath in self.annotations_dir.glob("annotation*.json"):
                 try:
-                    with open(filepath, 'r', encoding='utf-8') as f:
+                    with open(filepath, encoding='utf-8') as f:
                         data = json.load(f)
                         # Check if it's a batch file with "annotations" key
                         if isinstance(data, dict) and 'annotations' in data:
@@ -973,7 +972,7 @@ class TestTransparencyManager:
                 reverse=True
             ):
                 try:
-                    with open(filepath, 'r', encoding='utf-8') as f:
+                    with open(filepath, encoding='utf-8') as f:
                         data = json.load(f)
                         # Check if it's a batch file with "audit_logs" key
                         if isinstance(data, dict) and 'audit_logs' in data:
@@ -1027,7 +1026,7 @@ class TestTransparencyManager:
         if self.traces_dir.exists():
             for filepath in self.traces_dir.glob("trace_*.json"):
                 try:
-                    with open(filepath, 'r', encoding='utf-8') as f:
+                    with open(filepath, encoding='utf-8') as f:
                         trace = json.load(f)
                         traces.append(trace)
                 except Exception as e:
@@ -1141,7 +1140,6 @@ class TestTransparencyManager:
             List of report metadata sorted by date (newest first)
         """
         import json
-        from pathlib import Path
 
         reports_dir = self.output_dir / "transparent_reports"
 
@@ -1153,7 +1151,7 @@ class TestTransparencyManager:
 
         for report_file in report_files:
             try:
-                with open(report_file, 'r', encoding='utf-8') as f:
+                with open(report_file, encoding='utf-8') as f:
                     report_data = json.load(f)
 
                 task_id = report_data.get('task_id', '')
@@ -1203,7 +1201,6 @@ class TestTransparencyManager:
             Report dictionary or None if not found
         """
         import json
-        from pathlib import Path
 
         reports_dir = self.output_dir / "transparent_reports"
 
@@ -1216,7 +1213,7 @@ class TestTransparencyManager:
             return None
 
         try:
-            with open(report_file, 'r', encoding='utf-8') as f:
+            with open(report_file, encoding='utf-8') as f:
                 return json.load(f)
         except Exception:
             return None

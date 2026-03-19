@@ -39,54 +39,59 @@ __version__ = "0.5.3"
 __author__ = "Sungwoo Kim"
 
 # Import from core module
+# Config & init helpers (cli.main 임포트 없이 제공 — import-time side-effect 없음)
+from .config import get_settings, init_from_app, load_env
+
+# Transparency
+from .utils.test_transparency_manager import (
+    AnnotationType,
+    TestStepStatus,
+    TestTransparencyManager,
+)
 from .core.agent_evaluator import (
-    PerformanceMonitor,
-    TaskResult,
-    TaskType,
-    EvaluationReport,
-    TaskCompletionTracker,
     AccuracyEvaluator,
-    HallucinationDetector,
-    ResponseQualityEvaluator,
-    LatencyTracker,
-    TokenEconomyTracker,
-    ToolCallAnalyzer,
-    RetryCorrectionTracker,
-    ToolSelectionTracker,
     AgentCoordinationTracker,
-    WorkflowExecutionTracker,
+    EvaluationReport,
+    HallucinationDetector,
     # Security Metrics (Layer 1 & 2)
     InputSanitizationTracker,
+    LatencyTracker,
     OutputLeakageDetector,
-    ToolAuthorizationTracker,
+    PerformanceMonitor,
     PrivilegeEscalationDetector,
+    ResponseQualityEvaluator,
+    RetryCorrectionTracker,
+    TaskCompletionTracker,
+    TaskResult,
+    TaskType,
+    TokenEconomyTracker,
+    ToolAuthorizationTracker,
+    ToolCallAnalyzer,
     ToolChainAttackDetector,
+    ToolSelectionTracker,
+    WorkflowExecutionTracker,
 )
 
 # Import Hybrid Monitor (with external library integration)
 from .core.hybrid_monitor import (
-    HybridPerformanceMonitor,
     ExtendedTaskResult,
     HybridEvaluationReport,
+    HybridPerformanceMonitor,
 )
-
-# Import helpers with simplified names
-from .helpers.taskresult_helpers import create_taskresult_from_execution as create_taskresult
 
 # Import context managers
 from .core.monitor_context import evaluation_session, hybrid_evaluation_session
 
-# Import LLM helpers
+# Import helpers with simplified names
+from .helpers.taskresult_helpers import create_taskresult_from_execution as create_taskresult
 from .integrations.llm_helpers import (
-    LLMEvaluationHelper as LLMHelper,
     AnthropicEvaluationHelper as ClaudeHelper,
 )
 
-# Import example runner
-from .examples import ExampleRunner
-
-# Config & init helpers (cli.main 임포트 없이 제공 — import-time side-effect 없음)
-from .config import load_env, get_settings, init_from_app
+# Import LLM helpers
+from .integrations.llm_helpers import (
+    LLMEvaluationHelper as LLMHelper,
+)
 
 __all__ = [
     # Core
@@ -106,7 +111,6 @@ __all__ = [
     'hybrid_evaluation_session',  # Context manager
     'LLMHelper',  # Simplified name
     'ClaudeHelper',  # Simplified name
-    'ExampleRunner',  # Example base class
 
     # Config & setup
     'load_env',       # Smart .env loader (priority: system > CWD .env > global)
@@ -132,4 +136,9 @@ __all__ = [
     'ToolAuthorizationTracker',
     'PrivilegeEscalationDetector',
     'ToolChainAttackDetector',
+
+    # Transparency
+    'TestTransparencyManager',
+    'AnnotationType',
+    'TestStepStatus',
 ]

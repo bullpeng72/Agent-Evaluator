@@ -6,12 +6,14 @@ adjacent to the results directory.
 """
 from __future__ import annotations
 
-import json
 import hashlib
+import json
+import logging
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
 # Leaf models
@@ -643,8 +645,8 @@ def load_results(results_dir: Path) -> ResultSet:
             ):
                 continue
             files.append(rf)
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug("registry operation error: %s", e)
 
     files.sort(key=lambda f: f.timestamp, reverse=True)
     transparency = _load_transparency(results_dir)

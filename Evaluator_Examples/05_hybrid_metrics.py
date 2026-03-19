@@ -220,6 +220,79 @@ RAG_CASES = [
 ]
 
 
+def load_hybrid_golden_dataset() -> tuple:
+    """
+    results/golden_datasets/hybrid_rag_evaluation.json 에서
+    DEEPEVAL_ONLY_CASES 와 RAG_CASES 를 동적으로 로드합니다.
+
+    JSON 파일이 없으면 모듈 상단의 인라인 데이터로 폴백합니다.
+
+    Returns:
+        (deepeval_cases, rag_cases) 튜플
+    """
+    import json
+
+    golden_path = project_root / "results" / "golden_datasets" / "hybrid_rag_evaluation.json"
+    if not golden_path.exists():
+        return DEEPEVAL_ONLY_CASES, RAG_CASES
+
+    try:
+        with open(golden_path, encoding="utf-8") as f:
+            items = json.load(f)
+
+        deepeval_cases = []
+        rag_cases = []
+        for item in items:
+            if item.get("layer") == "deepeval_only":
+                deepeval_cases.append({
+                    "task_id":         item["qa_id"],
+                    "question":        item["question"],
+                    "answer":          item.get("answer", ""),   # 파일에 없으면 빈 문자열 — 실제 에이전트 응답으로 교체
+                    "expected":        item["ground_truth"],
+                    "task_type":       item.get("task_type", "qa"),
+                    "quality_criteria": item.get("quality_criteria", ""),
+                    "success":         not item.get("is_hallucination_test", False),
+                    "accuracy_score":  item.get("expected_accuracy", 0.85),
+                })
+            elif item.get("layer") == "deepeval_ragas":
+                rag_cases.append({
+                    "task_id":              item["qa_id"],
+                    "question":             item["question"],
+                    "answer":               item.get("answer", ""),
+                    "expected":             item["ground_truth"],
+                    "contexts":             item.get("contexts", []),
+                    "task_type":            item.get("task_type", "qa"),
+                    "quality_criteria":     item.get("quality_criteria", ""),
+                    "success":              not item.get("is_hallucination_test", False),
+                    "accuracy_score":       item.get("expected_accuracy", 0.85),
+                    "is_hallucination_test": item.get("is_hallucination_test", False),
+                })
+
+        # 파일에 answer 필드가 없으면 인라인 케이스로 보완
+        if not deepeval_cases:
+            deepeval_cases = DEEPEVAL_ONLY_CASES
+        if not rag_cases:
+            rag_cases = RAG_CASES
+
+        # answer 필드 보완: 인라인 데이터에서 매칭
+        _inline_de = {c["task_id"]: c for c in DEEPEVAL_ONLY_CASES}
+        _inline_rag = {c["task_id"]: c for c in RAG_CASES}
+        for c in deepeval_cases:
+            if not c.get("answer") and c["task_id"] in _inline_de:
+                c["answer"] = _inline_de[c["task_id"]]["answer"]
+        for c in rag_cases:
+            if not c.get("answer") and c["task_id"] in _inline_rag:
+                c["answer"] = _inline_rag[c["task_id"]]["answer"]
+
+        print(f"✅ Golden Dataset 로드: deepeval={len(deepeval_cases)}건, rag={len(rag_cases)}건")
+        print(f"   경로: {golden_path}")
+        return deepeval_cases, rag_cases
+
+    except Exception as e:
+        print(f"⚠️  Golden Dataset 로드 실패 ({e}) — 인라인 데이터 사용")
+        return DEEPEVAL_ONLY_CASES, RAG_CASES
+
+
 def _print_metric_row(label: str, values: list, width: int = 24) -> None:
     if values:
         avg = sum(values) / len(values)
@@ -237,6 +310,9 @@ def run_hybrid_evaluation():
     print("\n⚠️  이 예제는 OpenAI API 를 호출합니다 (모델: gpt-4o-mini).")
     print("   6개 태스크 기준 예상 비용: $0.01~0.05 수준\n")
 
+    # Golden Dataset 파일 로드 (없으면 인라인 케이스 폴백)
+    deepeval_cases, rag_cases = load_hybrid_golden_dataset()
+
     monitor = HybridPerformanceMonitor(
         use_deepeval=True,
         use_ragas=True,
@@ -244,6 +320,7 @@ def run_hybrid_evaluation():
         deepeval_model="gpt-4o-mini",
         ragas_model="gpt-4o-mini",
         enable_hallucination_detection=True,
+        enable_transparency=True,
         output_dir=str(project_root / "results"),
     )
 
@@ -251,12 +328,12 @@ def run_hybrid_evaluation():
     # [Part 1] DeepEval 단독 케이스
     # ─────────────────────────────────────────────────────────────────────────
     print("\n" + "─" * 70)
-    print(f"  [Part 1] DeepEval 단독 ({len(DEEPEVAL_ONLY_CASES)}건)")
+    print(f"  [Part 1] DeepEval 단독 ({len(deepeval_cases)}건)")
     print("           적용 지표: G-Eval · Toxicity · Bias · Answer Relevancy (QA)")
     print("─" * 70)
 
-    for i, case in enumerate(DEEPEVAL_ONLY_CASES, 1):
-        print(f"\n  [{i}/{len(DEEPEVAL_ONLY_CASES)}] {case['task_id']}  {case['question'][:45]}...")
+    for i, case in enumerate(deepeval_cases, 1):
+        print(f"\n  [{i}/{len(deepeval_cases)}] {case['task_id']}  {case['question'][:45]}...")
 
         task = TaskResult(
             task_id=case["task_id"],
@@ -270,6 +347,7 @@ def run_hybrid_evaluation():
             attempts=1,
             errors=[],
             timestamp=datetime.now(),
+            framework="langchain",
         )
 
         monitor.record_task(
@@ -285,13 +363,13 @@ def run_hybrid_evaluation():
     # [Part 2] DeepEval + Ragas 통합 (RAG)
     # ─────────────────────────────────────────────────────────────────────────
     print("\n" + "─" * 70)
-    print(f"  [Part 2] DeepEval + Ragas 통합 ({len(RAG_CASES)}건, RAG 컨텍스트 포함)")
+    print(f"  [Part 2] DeepEval + Ragas 통합 ({len(rag_cases)}건, RAG 컨텍스트 포함)")
     print("           적용 지표: 위 5개 + Faithfulness · Context Precision · Context Recall")
     print("─" * 70)
 
-    for i, case in enumerate(RAG_CASES, 1):
+    for i, case in enumerate(rag_cases, 1):
         label = "⚠️  환각 유발 케이스" if case["is_hallucination_test"] else "✅ 정상 케이스"
-        print(f"\n  [{i}/{len(RAG_CASES)}] {case['task_id']}  {label}")
+        print(f"\n  [{i}/{len(rag_cases)}] {case['task_id']}  {label}")
         print(f"       질문: {case['question'][:50]}...")
 
         task = TaskResult(
@@ -306,6 +384,7 @@ def run_hybrid_evaluation():
             attempts=1,
             errors=["hallucination_detected"] if case["is_hallucination_test"] else [],
             timestamp=datetime.now(),
+            framework="langchain",
         )
 
         monitor.record_task(

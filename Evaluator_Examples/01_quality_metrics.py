@@ -231,6 +231,7 @@ def run_quality_evaluation():
 
     monitor = PerformanceMonitor(
         enable_hallucination_detection=True,
+        enable_transparency=True,
         output_dir=str(project_root / "results"),
     )
 
@@ -361,6 +362,7 @@ def run_quality_evaluation():
             attempts=1 if cc["accuracy"] > 0.5 else 2,
             errors=[] if cc["accuracy"] >= 0.7 else ["code_mismatch"],
             timestamp=base_time + timedelta(hours=1),
+            framework="langchain",
         )
         code_task.tokens_used["total"] = code_task.tokens_used["input"] + code_task.tokens_used["output"]
 
@@ -423,5 +425,73 @@ def run_quality_evaluation():
     return saved_path
 
 
+def run_golden_dataset_demo():
+    """
+    Golden Dataset 파일 기반 자동 평가 데모
+    ─────────────────────────────────────────
+    results/golden_datasets/quality_tech_qa.json 을 로드하고
+    PerformanceMonitor.evaluate_with_golden_dataset() 파이프라인을 시연합니다.
+
+    실제 에이전트 연동 시에는 simulated_agent() 대신
+    LLM API 호출 함수를 전달하면 됩니다.
+    """
+    print("\n" + "=" * 70)
+    print("  Golden Dataset 기반 자동 평가 데모")
+    print("  파일: results/golden_datasets/quality_tech_qa.json")
+    print("=" * 70)
+
+    golden_path = project_root / "results" / "golden_datasets" / "quality_tech_qa.json"
+    if not golden_path.exists():
+        print(f"\n⚠️  Golden Dataset 파일이 없습니다: {golden_path}")
+        print("   먼저 01_quality_metrics.py 를 한 번 실행하여 파일을 생성하세요.")
+        return
+
+    # 시뮬레이션 에이전트 — QA_DATASET 응답을 조회 반환
+    _qa_lookup = {item["q"]: item["a"] for item in QA_DATASET}
+
+    def simulated_agent(question: str) -> dict:
+        """실제 에이전트 함수 자리 — LLM API 호출로 교체 가능"""
+        answer = _qa_lookup.get(question, "관련 정보를 찾을 수 없습니다.")
+        return {
+            "answer": answer,
+            "tools_used": ["web_search"] if "검색" in question else [],
+            "latency": random.uniform(0.5, 2.0),
+            "token_usage": {
+                "input": random.randint(50, 200),
+                "output": random.randint(40, 150),
+                "total": 0,
+            },
+        }
+
+    monitor = PerformanceMonitor(
+        enable_hallucination_detection=True,
+        enable_transparency=True,
+        output_dir=str(project_root / "results"),
+    )
+
+    results = monitor.evaluate_with_golden_dataset(
+        agent_fn=simulated_agent,
+        dataset_path=str(golden_path),
+        enable_layer2_metrics=False,   # tool selection 평가 비활성 (QA 전용 데이터셋)
+        enable_advanced_metrics=False,
+        verbose=True,
+    )
+
+    if "error" not in results:
+        print(f"\n{'─'*70}")
+        print(f"  [Golden Dataset 평가 결과]")
+        print(f"  총 평가: {results.get('total_evaluated', 0)}건")
+        l1 = results.get("layer1_metrics", {})
+        accuracy_val = l1.get("accuracy", 0)
+        print(f"  평균 정확도: {accuracy_val:.1f}%")
+        pf = results.get("pass_fail", {})
+        if pf:
+            print(f"  Pass:  {pf.get('pass', 0)}건  Fail: {pf.get('fail', 0)}건")
+        print(f"{'─'*70}\n")
+    else:
+        print(f"\n❌ 평가 실패: {results['error']}\n")
+
+
 if __name__ == "__main__":
     run_quality_evaluation()
+    run_golden_dataset_demo()

@@ -143,6 +143,7 @@ def run_performance_evaluation():
     monitor = PerformanceMonitor(
         pricing={"input": 0.00015, "output": 0.0006},  # per 1K tokens
         enable_hallucination_detection=True,
+        enable_transparency=True,
         output_dir=str(project_root / "results"),
     )
 

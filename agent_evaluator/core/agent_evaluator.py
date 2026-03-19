@@ -5,15 +5,19 @@ Comprehensive evaluation framework for AI Agent performance metrics
 """
 
 import json
+import logging
+import re
+import statistics
+from collections import defaultdict
+from dataclasses import asdict, dataclass
+from datetime import datetime, timedelta
+from enum import Enum
+from typing import Any, Dict, List, Optional
+
 import numpy as np
 import pandas as pd
-from datetime import datetime, timedelta
-from typing import Dict, List, Any, Optional
-from dataclasses import dataclass, asdict
-from collections import defaultdict
-import statistics
-from enum import Enum
 
+logger = logging.getLogger(__name__)
 
 # ============================================================================
 # Data Classes
@@ -125,7 +129,7 @@ class TaskCompletionTracker:
         """Get TCR breakdown by task type"""
         task_types = set(t.task_type for t in self.tasks)
         return {
-            task_type: self.calculate_tcr(task_type)
+            (task_type.value if hasattr(task_type, 'value') else str(task_type)): self.calculate_tcr(task_type)
             for task_type in task_types
         }
     
@@ -182,8 +186,6 @@ class AccuracyEvaluator:
         - Longest common subsequence ratio
         - Character-level similarity
         """
-        import re
-
         # Normalize text
         def normalize(text):
             # Convert to lowercase
@@ -331,8 +333,8 @@ class AccuracyEvaluator:
         except SyntaxError:
             # If either code has syntax errors, AST comparison fails
             return 0.0
-        except Exception:
-            # Other parsing errors
+        except Exception as e:
+            logger.debug("taskresult calculation error: %s", e)
             return 0.0
 
     def _normalized_code_comparison(self, code1: str, code2: str) -> float:
@@ -342,8 +344,6 @@ class AccuracyEvaluator:
         Returns:
             Similarity score (0.0 - 1.0)
         """
-        import re
-
         def normalize_code(code: str) -> str:
             # Remove comments
             code = re.sub(r'#.*?$', '', code, flags=re.MULTILINE)
@@ -486,7 +486,6 @@ class HallucinationDetector:
                 })
 
         # 2. Check for numerical inconsistencies
-        import re
         response_numbers = re.findall(r'\d+\.?\d*', response)
         context_numbers = re.findall(r'\d+\.?\d*', context)
 
@@ -745,8 +744,6 @@ class ResponseQualityEvaluator:
 
         Uses token-based similarity with normalization
         """
-        import re
-
         # Normalize text
         def normalize(text):
             text = text.lower()
@@ -1974,7 +1971,18 @@ class WorkflowExecutionTracker:
 # 11. Security Metrics - Layer 1 (Native Security)
 # ============================================================================
 
-class InputSanitizationTracker:
+class SecurityTrackerMixin:
+    """Shared utilities for security tracker classes."""
+
+    def _check_patterns(self, text: str, patterns: List[str], flags: int = 0) -> bool:
+        """Check if text matches any of the given regex patterns."""
+        for pattern in patterns:
+            if re.search(pattern, text, flags):
+                return True
+        return False
+
+
+class InputSanitizationTracker(SecurityTrackerMixin):
     """
     Track input sanitization and detect injection attacks
 
@@ -2016,8 +2024,6 @@ class InputSanitizationTracker:
 
     def evaluate_input(self, task_id: str, input_text: str) -> Dict[str, Any]:
         """Evaluate input for security threats"""
-        import re
-
         result = {
             "task_id": task_id,
             "has_sql_injection": self._check_patterns(input_text, self.sql_injection_patterns),
@@ -2044,14 +2050,6 @@ class InputSanitizationTracker:
         self.evaluations.append(result)
         return result
 
-    def _check_patterns(self, text: str, patterns: List[str], flags=0) -> bool:
-        """Check if text matches any pattern"""
-        import re
-        for pattern in patterns:
-            if re.search(pattern, text, flags):
-                return True
-        return False
-
     def get_security_stats(self) -> Dict[str, Any]:
         """Get input security statistics"""
         if not self.evaluations:
@@ -2075,7 +2073,7 @@ class InputSanitizationTracker:
         }
 
 
-class OutputLeakageDetector:
+class OutputLeakageDetector(SecurityTrackerMixin):
     """
     Detect sensitive information leakage in outputs
 
@@ -2121,8 +2119,6 @@ class OutputLeakageDetector:
 
     def detect_leakage(self, task_id: str, output_text: str) -> Dict[str, Any]:
         """Detect sensitive information in output"""
-        import re
-
         result = {
             "task_id": task_id,
             "contains_api_key": self._check_patterns(output_text, self.api_key_patterns),
@@ -2153,14 +2149,6 @@ class OutputLeakageDetector:
 
         self.detections.append(result)
         return result
-
-    def _check_patterns(self, text: str, patterns: List[str], flags=0) -> bool:
-        """Check if text matches any pattern"""
-        import re
-        for pattern in patterns:
-            if re.search(pattern, text, flags):
-                return True
-        return False
 
     def get_leakage_stats(self) -> Dict[str, Any]:
         """Get output leakage statistics"""
@@ -2210,8 +2198,6 @@ class ToolAuthorizationTracker:
     def track_tool_call(self, task_id: str, tool_name: str,
                        parameters: Optional[Dict] = None) -> Dict[str, Any]:
         """Track and evaluate tool call authorization"""
-        import re
-
         result = {
             "task_id": task_id,
             "tool_name": tool_name,
@@ -2291,13 +2277,14 @@ class PrivilegeEscalationDetector:
     def __init__(self):
         self.escalation_events: List[Dict[str, Any]] = []
 
-        # Privilege levels (0 = lowest, 3 = highest)
+        # Privilege levels (0 = lowest, 4 = highest)
+        # write and execute are separated: read→write is normal, read→execute is suspicious
         self.privilege_levels = {
             "guest": 0,
             "read": 1,
             "write": 2,
-            "execute": 2,
-            "admin": 3
+            "execute": 3,
+            "admin": 4
         }
 
         # Suspicious tool sequences
@@ -2335,7 +2322,9 @@ class PrivilegeEscalationDetector:
         final_privilege = privilege_values[-1] if privilege_values else 1
         max_privilege = max(privilege_values) if privilege_values else 1
 
-        escalation_detected = final_privilege > initial_privilege or max_privilege - initial_privilege >= 2
+        # Escalation: reaching execute(3)/admin(4) from lower level, OR jumping ≥2 levels
+        # read→write (1→2) is normal and NOT flagged; read→execute (1→3) IS flagged
+        escalation_detected = (final_privilege >= 3 and initial_privilege < 3) or max_privilege - initial_privilege >= 2
 
         # Check for suspicious sequences
         suspicious = self._check_suspicious_sequences(tools)
@@ -2346,7 +2335,7 @@ class PrivilegeEscalationDetector:
             risk_score += 3
         if suspicious:
             risk_score += 4
-        if max_privilege == 3:  # Admin privilege reached
+        if max_privilege >= 3:  # Execute or admin privilege reached
             risk_score += 3
         risk_score = min(risk_score, 10)
 
@@ -2368,11 +2357,11 @@ class PrivilegeEscalationDetector:
         """Check if tools match suspicious sequences"""
         found = []
         for seq in self.suspicious_sequences:
-            if self._is_subsequence(seq, tools):
+            if self._is_exact_subsequence(seq, tools):
                 found.append(" -> ".join(seq))
         return found
 
-    def _is_subsequence(self, subseq: List[str], seq: List[str]) -> bool:
+    def _is_exact_subsequence(self, subseq: List[str], seq: List[str]) -> bool:
         """Check if subseq is a subsequence of seq"""
         it = iter(seq)
         return all(item in it for item in subseq)
@@ -2437,7 +2426,7 @@ class ToolChainAttackDetector:
         # Check each attack pattern category
         for attack_type, patterns in self.attack_patterns.items():
             for pattern in patterns:
-                if self._is_subsequence(pattern, tool_sequence):
+                if self._is_fuzzy_subsequence(pattern, tool_sequence):
                     attack_types_detected[attack_type] = True
                     patterns_detected.append(f"{attack_type}: {' -> '.join(pattern)}")
                     break
@@ -2459,7 +2448,7 @@ class ToolChainAttackDetector:
         self.detections.append(result)
         return result
 
-    def _is_subsequence(self, subseq: List[str], seq: List[str]) -> bool:
+    def _is_fuzzy_subsequence(self, subseq: List[str], seq: List[str]) -> bool:
         """Check if subseq is a subsequence of seq (with fuzzy matching)"""
         it = iter(seq)
         return all(any(sub_item.lower() in item.lower() for item in it) for sub_item in subseq)
@@ -2587,6 +2576,20 @@ class PerformanceMonitor:
                 from ..utils.test_transparency_manager import TestTransparencyManager
                 self.transparency_manager = TestTransparencyManager(output_dir=str(self.output_dir))
                 print("✅ Test 투명성 추적 활성화됨")
+                # Auto audit: evaluation session started
+                self.transparency_manager.log_event(
+                    event_type="lifecycle",
+                    user="system",
+                    action="evaluation_started",
+                    target_type="monitor",
+                    target_id="performance_monitor",
+                    details={
+                        "enable_hallucination_detection": enable_hallucination_detection,
+                        "enable_security_metrics": enable_security_metrics,
+                        "output_dir": str(self.output_dir),
+                    },
+                    success=True,
+                )
             except ImportError as e:
                 print(f"⚠️  test_transparency_manager를 찾을 수 없습니다: {e}")
                 print("   투명성 추적 비활성화됨")
@@ -2596,50 +2599,6 @@ class PerformanceMonitor:
         self.thresholds = None
         self.golden_dataset_path = None
         self.golden_datasets = []
-
-    def load_thresholds_from_config(self, config_id: Optional[str] = None):
-        """
-        DataEditorManager에서 임계값 로드 (Dashboard 통합 시에만 사용 가능)
-
-        Args:
-            config_id: Test 구성 ID (None이면 기본 임계값 사용)
-
-        Note:
-            DataEditorManager는 Dashboard 패키지의 일부입니다.
-            Dashboard가 설치되지 않은 경우 이 메서드는 실패하고 None을 반환합니다.
-        """
-        try:
-            # CRITICAL FIX: DataEditorManager is part of Dashboard, not agent_evaluator
-            # This import will fail if Dashboard is not available
-            import sys
-            from pathlib import Path
-
-            # Try to import from Dashboard directory
-            dashboard_path = Path(__file__).parent.parent.parent / "Dashboard"
-            if dashboard_path.exists() and str(dashboard_path) not in sys.path:
-                sys.path.insert(0, str(dashboard_path))
-
-            from data_editor_manager import DataEditorManager
-            manager = DataEditorManager()
-
-            if config_id:
-                try:
-                    config = manager.load_test_configuration(config_id)
-                    self.thresholds = config.get('thresholds', {})
-                    print(f"✅ Test 구성에서 임계값 로드: {len(self.thresholds)}개")
-                except FileNotFoundError:
-                    print(f"⚠️  Test 구성 '{config_id}'를 찾을 수 없습니다. 기본 임계값 사용")
-                    self.thresholds = manager.load_thresholds()
-            else:
-                self.thresholds = manager.load_thresholds()
-                print(f"✅ 기본 임계값 로드: {len(self.thresholds)}개")
-
-            return self.thresholds
-
-        except ImportError as e:
-            print(f"⚠️  DataEditorManager를 사용할 수 없습니다: {e}")
-            print("   Dashboard 통합 없이 기본 임계값을 사용하세요.")
-            return None
 
     def load_golden_dataset(self, dataset_path: Optional[str] = None):
         """
@@ -2673,7 +2632,7 @@ class PerformanceMonitor:
             return []
 
         try:
-            with open(dataset_path, 'r', encoding='utf-8') as f:
+            with open(dataset_path, encoding='utf-8') as f:
                 data = json.load(f)
 
             # Handle both formats: direct array or object with qa_pairs key
@@ -2682,7 +2641,7 @@ class PerformanceMonitor:
             elif isinstance(data, dict) and 'qa_pairs' in data:
                 self.golden_datasets = data['qa_pairs']
             else:
-                print(f"⚠️  Unexpected Golden Dataset format")
+                print("⚠️  Unexpected Golden Dataset format")
                 self.golden_datasets = []
                 return []
 
@@ -2810,7 +2769,7 @@ class PerformanceMonitor:
                     )
 
                 if verbose:
-                    print(f"   ✅ 평가 완료")
+                    print("   ✅ 평가 완료")
 
             except Exception as e:
                 if verbose:
@@ -2847,7 +2806,7 @@ class PerformanceMonitor:
         }
 
         if verbose:
-            print(f"\n📊 평가 결과 요약:")
+            print("\n📊 평가 결과 요약:")
             print(f"   TCR: {results['layer1_metrics']['tcr']:.1f}%")
             print(f"   Accuracy: {results['layer1_metrics']['accuracy']:.1f}%")
             if enable_layer2_metrics and results['layer2_metrics']:
@@ -3575,7 +3534,7 @@ class PerformanceMonitor:
                     "title": f"정답 정확도가 기준치 대비 {gap:.1f}%p 부족",
                     "priority": "high" if overall_acc < 75 else "medium",
                     "issue": f"현재 정확도 {overall_acc:.1f}% (목표: 85% 이상). 응답의 사실 정확성이 부족하여 사용자에게 잘못된 정보를 제공할 위험이 있습니다.",
-                    "suggestion": f"""**즉시 실행 가능한 개선 방안:**
+                    "suggestion": """**즉시 실행 가능한 개선 방안:**
 1. **검증 단계 추가**:
    - RAG 기반 작업: 검색된 컨텍스트와 응답의 일치성을 자동 검증하는 후처리 단계 추가
    - 계산/추론 작업: 중간 단계 결과를 명시적으로 출력하고 검증
@@ -3604,7 +3563,7 @@ class PerformanceMonitor:
                     "title": f"응답 품질 점수가 목표치 대비 {gap:.1f}점 낮음 (10점 만점)",
                     "priority": "medium",
                     "issue": f"현재 품질 점수 {avg_quality:.1f}/10 (목표: 8.0 이상). 응답의 완성도, 관련성, 가독성이 사용자 기대 수준에 미치지 못하고 있습니다.",
-                    "suggestion": f"""**즉시 실행 가능한 개선 방안:**
+                    "suggestion": """**즉시 실행 가능한 개선 방안:**
 1. **응답 구조화 템플릿 적용**:
    - 질문형 작업: 직접적 답변 → 근거 제시 → 추가 정보 순으로 구조화
    - 분석형 작업: 요약 → 상세 분석 → 결론 및 권장사항 순으로 구성
@@ -3639,7 +3598,7 @@ class PerformanceMonitor:
                 "title": f"입력 토큰 비율이 {input_ratio:.0f}%로 과도하게 높음",
                 "priority": "medium",
                 "issue": f"전체 토큰 사용량의 {input_ratio:.0f}%가 입력 토큰 (총 {total_tokens:,} 토큰, 비용 ${total_cost:.2f}). 불필요하게 긴 컨텍스트나 반복적인 프롬프트가 비용 증가의 주요 원인입니다.",
-                "suggestion": f"""**즉시 실행 가능한 개선 방안:**
+                "suggestion": """**즉시 실행 가능한 개선 방안:**
 1. **컨텍스트 요약 기법**:
    - 긴 문서는 임베딩 기반 검색 후 상위 3-5개 청크만 사용
    - 대화 히스토리는 최근 5턴으로 제한하고 이전 내용은 요약본 사용
@@ -3670,7 +3629,7 @@ class PerformanceMonitor:
                     "title": f"평균 응답 시간이 {mean_latency:.1f}초로 사용자 기대치 초과",
                     "priority": "high" if mean_latency > 5 else "medium",
                     "issue": f"평균 {mean_latency:.2f}초, P95 {p95:.2f}초 (목표: 3초 이내). 긴 대기 시간은 사용자 이탈률 증가와 직결됩니다.",
-                    "suggestion": f"""**즉시 실행 가능한 개선 방안:**
+                    "suggestion": """**즉시 실행 가능한 개선 방안:**
 1. **병렬 처리 구현**:
    - 독립적인 도구 호출은 asyncio로 병렬 실행 (2-3배 속도 향상)
    - RAG 검색과 LLM 추론을 파이프라인으로 중첩 처리
@@ -3706,7 +3665,7 @@ class PerformanceMonitor:
                     "title": f"중복 도구 호출로 인한 비효율 발생 ({redundancy_rate:.0f}%)",
                     "priority": "medium",
                     "issue": f"총 {total_calls}회 도구 호출 중 약 {redundant_calls}회가 중복 호출 (중복률 {redundancy_rate:.1f}%). 동일한 파라미터로 같은 도구를 반복 호출하여 불필요한 지연과 비용이 발생합니다.",
-                    "suggestion": f"""**즉시 실행 가능한 개선 방안:**
+                    "suggestion": """**즉시 실행 가능한 개선 방안:**
 1. **결과 캐싱 메커니즘**:
    - 도구 호출 결과를 메모리 캐시에 저장 (작업 세션 동안 유지)
    - 캐시 키: (도구명, 파라미터 해시) 조합
@@ -3736,7 +3695,7 @@ class PerformanceMonitor:
                 "title": f"재시도율이 {retry_rate:.0f}%로 과도하게 높음",
                 "priority": "high" if retry_rate > 30 else "medium",
                 "issue": f"전체 작업의 {retry_rate:.1f}%가 재시도 필요. 높은 재시도율은 근본 원인 해결 없이 임시방편으로 대응하고 있음을 의미하며, 사용자 경험과 시스템 효율을 저하시킵니다.",
-                "suggestion": f"""**즉시 실행 가능한 개선 방안:**
+                "suggestion": """**즉시 실행 가능한 개선 방안:**
 1. **실패 패턴 분석 대시보드 구축**:
    - 재시도 원인별 통계 (API 타임아웃, 파싱 오류, 검증 실패 등)
    - 시간대별, 작업 유형별 실패율 추적
@@ -3769,7 +3728,7 @@ class PerformanceMonitor:
             report = self.generate_report()
         
         print("\n" + "="*80)
-        print(f"AI AGENT PERFORMANCE EVALUATION REPORT")
+        print("AI AGENT PERFORMANCE EVALUATION REPORT")
         print(f"Generated: {report.timestamp.strftime('%Y-%m-%d %H:%M:%S')}")
         print(f"Total Tasks Evaluated: {report.total_tasks}")
         print("="*80 + "\n")
@@ -3787,7 +3746,7 @@ class PerformanceMonitor:
         
         accuracy = report.accuracy_metrics.get("accuracy_scores", {})
         if accuracy:
-            print(f"\nAccuracy Scores:")
+            print("\nAccuracy Scores:")
             print(f"  - Overall: {accuracy.get('overall_accuracy', 0):.1f}%")
             print(f"  - Median: {accuracy.get('median_accuracy', 0):.1f}%")
         
@@ -3805,7 +3764,7 @@ class PerformanceMonitor:
         
         latency = report.efficiency_metrics.get("latency", {})
         if latency:
-            print(f"Response Time:")
+            print("Response Time:")
             print(f"  - Mean: {latency.get('mean', 0):.3f}s")
             print(f"  - Median: {latency.get('median', 0):.3f}s")
             print(f"  - P95: {latency.get('p95', 0):.3f}s")
@@ -3813,7 +3772,7 @@ class PerformanceMonitor:
         
         tokens = report.efficiency_metrics.get("tokens", {})
         if tokens:
-            print(f"\nToken Usage:")
+            print("\nToken Usage:")
             print(f"  - Total Tokens: {tokens.get('total_tokens', 0):,}")
             print(f"  - Avg per Task: {tokens.get('avg_tokens_per_task', 0):.0f}")
             print(f"  - Total Cost: ${tokens.get('total_cost', 0):.4f}")
@@ -3821,14 +3780,14 @@ class PerformanceMonitor:
         
         tool_eff = report.efficiency_metrics.get("tool_efficiency", {})
         if tool_eff:
-            print(f"\nTool Call Efficiency:")
+            print("\nTool Call Efficiency:")
             print(f"  - Avg Calls per Task: {tool_eff.get('avg_calls_per_task', 0):.1f}")
             print(f"  - Efficiency Score: {tool_eff.get('avg_efficiency_score', 0):.1f}%")
             print(f"  - Redundancy Rate: {tool_eff.get('redundancy_rate', 0):.1f}%")
         
         retries = report.efficiency_metrics.get("retries", {})
         if retries:
-            print(f"\nRetry Statistics:")
+            print("\nRetry Statistics:")
             print(f"  - Retry Rate: {retries.get('overall_retry_rate', 0):.1f}%")
             print(f"  - First Attempt Success: {retries.get('first_attempt_success_rate', 0):.1f}%")
         
@@ -4215,7 +4174,7 @@ class PerformanceMonitor:
                     print()
                     print("   📝 Retry 효율성 계산:")
                     print(f"      최종 성공 여부: {'✅ 성공' if task.success else '❌ 실패'}")
-                    print(f"      Retry Efficiency = 최종 성공 / 총 시도 횟수")
+                    print("      Retry Efficiency = 최종 성공 / 총 시도 횟수")
                 print()
 
         else:
@@ -4239,7 +4198,7 @@ class PerformanceMonitor:
             print()
             if verbose:
                 print("   📝 TCR 계산식:")
-                print(f"      TCR = (Full Success × 1.0 + Partial Success × 0.5) / Total Tasks × 100")
+                print("      TCR = (Full Success × 1.0 + Partial Success × 0.5) / Total Tasks × 100")
                 weighted_success = (full_success * 1.0 + partial_success * 0.5)
                 tcr_calculated = (weighted_success / total * 100) if total > 0 else 0
                 print(f"      TCR = ({full_success} × 1.0 + {partial_success} × 0.5) / {total} × 100")
@@ -4293,7 +4252,7 @@ class PerformanceMonitor:
                     print("   📝 비용 계산식:")
                     print(f"      Input Cost  = {token_stats.get('total_input', 0):,} × ${self.token_tracker.pricing['input']}/1M")
                     print(f"      Output Cost = {token_stats.get('total_output', 0):,} × ${self.token_tracker.pricing['output']}/1M")
-                    print(f"      Total Cost  = Input Cost + Output Cost")
+                    print("      Total Cost  = Input Cost + Output Cost")
                     print()
 
         print("=" * 80)
@@ -4661,6 +4620,13 @@ class PerformanceMonitor:
 
         print(f"✅ Performance data saved to {filename}")
 
+        # Auto transparency: generate metric traces + audit logs
+        if self.transparency_manager:
+            try:
+                self._auto_transparency_on_save(filename)
+            except Exception:
+                pass  # Transparency failure must never break evaluation
+
         # 레지스트리에 자동 등록
         try:
             from ..utils.data_registry import DataRegistry
@@ -4690,13 +4656,200 @@ class PerformanceMonitor:
             )
 
             if success:
-                print(f"📋 Dashboard 레지스트리에 자동 등록됨 (~/.agent_evaluator/registry.json)")
+                print("📋 Dashboard 레지스트리에 자동 등록됨 (~/.agent_evaluator/registry.json)")
 
         except Exception as e:
             # 레지스트리 등록 실패해도 데이터 저장은 성공한 것으로 처리
             print(f"⚠️  레지스트리 등록 실패 (데이터는 정상 저장됨): {e}")
 
         return filename
+
+    def _auto_transparency_on_save(self, filename: str):
+        """
+        Auto-generate transparency data on save_to_file().
+        Produces:
+          - 5 metric traces (TCR, Accuracy, Latency, Token Economy, Quality)
+          - 2 audit log entries (report_generated, file_saved)
+        Called only when enable_transparency=True.
+        """
+        from ..utils.test_transparency_manager import TestStepStatus
+
+        tm = self.transparency_manager
+        tasks = self.tcr_tracker.tasks
+        n = len(tasks)
+        if n == 0:
+            return
+
+        # ── 1. TCR trace ────────────────────────────────────────────────────
+        tcr_data = self.tcr_tracker.calculate_tcr()
+        success_count = sum(1 for t in tasks if t.success)
+        tcr_val = round(tcr_data.get("tcr", 0), 2)
+
+        tid = tm.start_metric_calculation("tcr", "basic")
+        tm.add_calculation_step(
+            tid, "collect_tasks", f"{n}개 태스크 수집",
+            {"total_tasks": n},
+            {"tasks_collected": n},
+            TestStepStatus.SUCCESS,
+        )
+        tm.add_calculation_step(
+            tid, "count_successes", f"성공 {success_count} / 전체 {n}",
+            {"total": n, "success": success_count},
+            {"success_count": success_count, "fail_count": n - success_count},
+            TestStepStatus.SUCCESS,
+        )
+        tm.add_calculation_step(
+            tid, "calculate_tcr", f"TCR = {success_count}/{n} × 100 = {tcr_val}%",
+            {"success_count": success_count, "total": n},
+            {"tcr": tcr_val},
+            TestStepStatus.SUCCESS,
+        )
+        tm.complete_metric_calculation(
+            tid, final_value=tcr_val,
+            metadata={"formula": "success_count / total_tasks × 100", "task_count": n},
+        )
+
+        # ── 2. Accuracy trace ───────────────────────────────────────────────
+        acc_data = self.accuracy_evaluator.get_accuracy_scores()
+        overall_acc = round(acc_data.get("overall_accuracy", 0), 4)
+        scores = [e.get("accuracy", 0) for e in self.accuracy_evaluator.evaluations]
+
+        tid2 = tm.start_metric_calculation("accuracy", "quality")
+        tm.add_calculation_step(
+            tid2, "collect_scores", f"{len(scores)}개 태스크 정확도 점수 수집",
+            {"evaluations": len(scores)},
+            {"score_min": round(min(scores), 3) if scores else 0,
+             "score_max": round(max(scores), 3) if scores else 0},
+            TestStepStatus.SUCCESS,
+        )
+        tm.add_calculation_step(
+            tid2, "weighted_aggregate",
+            "Token Overlap 40% + Jaccard 30% + LCS 20% + Char 10% 가중 평균",
+            {"weights": {"token_overlap": 0.4, "jaccard": 0.3, "lcs": 0.2, "char": 0.1}},
+            {"overall_accuracy": overall_acc},
+            TestStepStatus.SUCCESS,
+        )
+        tm.complete_metric_calculation(
+            tid2, final_value=overall_acc,
+            metadata={"method": "weighted_average", "task_count": len(scores)},
+        )
+
+        # ── 3. Latency trace ────────────────────────────────────────────────
+        lat_data = self.latency_tracker.get_latency_stats()
+        mean_lat = round(lat_data.get("mean", 0), 3)
+        p95_lat = round(lat_data.get("p95", 0), 3)
+        times = [t.execution_time for t in tasks]
+
+        tid3 = tm.start_metric_calculation("latency", "performance")
+        tm.add_calculation_step(
+            tid3, "collect_times", f"{len(times)}개 실행 시간 수집",
+            {"task_count": len(times)},
+            {"min_s": round(min(times), 3) if times else 0,
+             "max_s": round(max(times), 3) if times else 0},
+            TestStepStatus.SUCCESS,
+        )
+        tm.add_calculation_step(
+            tid3, "percentiles", "평균·p50·p95·p99 백분위수 계산",
+            {"values_count": len(times)},
+            {"mean_s": mean_lat, "p95_s": p95_lat},
+            TestStepStatus.SUCCESS,
+        )
+        tm.complete_metric_calculation(
+            tid3, final_value=mean_lat,
+            metadata={"unit": "seconds", "p95": p95_lat},
+        )
+
+        # ── 4. Token Economy trace ──────────────────────────────────────────
+        tok_data = self.token_tracker.get_usage_stats()
+        total_tokens = tok_data.get("total_tokens", 0)
+        total_cost = round(tok_data.get("total_cost", 0.0), 6)
+
+        tid4 = tm.start_metric_calculation("token_economy", "performance")
+        tm.add_calculation_step(
+            tid4, "sum_tokens", "태스크별 input/output 토큰 합산",
+            {"task_count": n},
+            {"total_input": tok_data.get("total_input", 0),
+             "total_output": tok_data.get("total_output", 0),
+             "total_tokens": total_tokens},
+            TestStepStatus.SUCCESS,
+        )
+        tm.add_calculation_step(
+            tid4, "calculate_cost", "총 비용 = Σ(토큰 × 단가)",
+            {"total_tokens": total_tokens},
+            {"total_cost_usd": total_cost,
+             "avg_cost_per_task": round(total_cost / n, 6) if n else 0},
+            TestStepStatus.SUCCESS,
+        )
+        tm.complete_metric_calculation(
+            tid4, final_value=total_tokens,
+            metadata={"total_cost_usd": total_cost},
+        )
+
+        # ── 5. Quality trace (only when quality evaluations exist) ──────────
+        q_evals = self.quality_evaluator.evaluations
+        if q_evals:
+            q_data = self.quality_evaluator.get_quality_metrics()
+            avg_q = round(q_data.get("average_total_score", 0), 4)
+            dim_scores = q_data.get("average_dimension_scores", {})
+
+            tid5 = tm.start_metric_calculation("response_quality", "quality")
+            tm.add_calculation_step(
+                tid5, "collect_evaluations", f"{len(q_evals)}개 응답 품질 평가 수집",
+                {"evaluations": len(q_evals)},
+                {"dimension_count": len(dim_scores)},
+                TestStepStatus.SUCCESS,
+            )
+            tm.add_calculation_step(
+                tid5, "dimension_scoring",
+                "6개 차원 채점 (relevance · clarity · completeness · accuracy · coherence · helpfulness)",
+                {"dimensions": list(dim_scores.keys())},
+                {"avg_dimension_scores": {k: round(v, 3) for k, v in dim_scores.items()}},
+                TestStepStatus.SUCCESS,
+            )
+            tm.add_calculation_step(
+                tid5, "aggregate_quality", f"종합 품질 점수 = {avg_q}",
+                {"method": "weighted_dimension_average"},
+                {"avg_quality_score": avg_q},
+                TestStepStatus.SUCCESS,
+            )
+            tm.complete_metric_calculation(
+                tid5, final_value=avg_q,
+                metadata={"scale": "0-1", "grade_distribution": q_data.get("grade_distribution", {})},
+            )
+
+        # ── Audit: report_generated ─────────────────────────────────────────
+        tm.log_event(
+            event_type="lifecycle",
+            user="system",
+            action="report_generated",
+            target_type="report",
+            target_id="evaluation_report",
+            details={
+                "total_tasks": n,
+                "tcr": tcr_val,
+                "overall_accuracy": overall_acc,
+                "mean_latency_s": mean_lat,
+                "total_tokens": total_tokens,
+                "total_cost_usd": total_cost,
+            },
+            success=True,
+        )
+
+        # ── Audit: file_saved ───────────────────────────────────────────────
+        import os as _os
+        tm.log_event(
+            event_type="lifecycle",
+            user="system",
+            action="file_saved",
+            target_type="file",
+            target_id=_os.path.basename(filename),
+            details={
+                "filepath": filename,
+                "total_tasks": n,
+                "file_size_bytes": _os.path.getsize(filename) if _os.path.exists(filename) else 0,
+            },
+            success=True,
+        )
 
     def _get_security_evaluator_data(self) -> dict:
         """
@@ -4779,7 +4932,7 @@ class PerformanceMonitor:
             if os.path.exists(alt_path):
                 filename = alt_path
 
-        with open(filename, 'r', encoding='utf-8') as f:
+        with open(filename, encoding='utf-8') as f:
             data = json.load(f)
 
         # Create new monitor instance
@@ -4857,7 +5010,7 @@ class PerformanceMonitor:
                 if "tool_chain_attack_detector" in security_data:
                     monitor.tool_chain_attack_detector.detections = security_data["tool_chain_attack_detector"].get("detections", [])
 
-            print(f"   Restored evaluator data:")
+            print("   Restored evaluator data:")
             print(f"     - Quality: {len(monitor.quality_evaluator.evaluations)} evaluations")
             print(f"     - Hallucination: {len(monitor.hallucination_detector.detections)} detections")
             print(f"     - Tool Selection: {len(monitor.tool_selection_tracker.selections)} selections")
@@ -4885,68 +5038,6 @@ class PerformanceMonitor:
         print(f"✅ Performance data loaded from {filename}")
         print(f"   Loaded {len(data.get('tasks', []))} tasks")
         return monitor
-
-    @classmethod
-    def from_test_config(cls, config_id: str, pricing: Dict[str, float] = None):
-        """
-        Test 구성에서 PerformanceMonitor 생성 (Dashboard 통합 시에만 사용 가능)
-
-        Args:
-            config_id: Test 구성 ID
-            pricing: Token pricing (None이면 기본값 사용)
-
-        Returns:
-            PerformanceMonitor instance with loaded configuration
-
-        Note:
-            DataEditorManager는 Dashboard 패키지의 일부입니다.
-            Dashboard가 설치되지 않은 경우 이 메서드는 실패합니다.
-        """
-        try:
-            # CRITICAL FIX: DataEditorManager is part of Dashboard, not agent_evaluator
-            import sys
-            from pathlib import Path
-
-            # Try to import from Dashboard directory
-            dashboard_path = Path(__file__).parent.parent.parent / "Dashboard"
-            if dashboard_path.exists() and str(dashboard_path) not in sys.path:
-                sys.path.insert(0, str(dashboard_path))
-
-            from data_editor_manager import DataEditorManager
-
-            manager = DataEditorManager()
-
-            config = manager.load_test_configuration(config_id)
-            print(f"✅ Test 구성 로드: {config['test_name']}")
-
-            # PerformanceMonitor 생성
-            monitor = cls(
-                pricing=pricing if pricing else {"input": 0.003, "output": 0.015},
-                enable_transparency=config.get('enable_transparency', False)
-            )
-
-            # 임계값 로드
-            monitor.thresholds = config.get('thresholds', {})
-            print(f"   임계값 로드: {len(monitor.thresholds)}개")
-
-            # Golden Dataset 경로 저장
-            monitor.golden_dataset_path = config.get('golden_dataset')
-            if monitor.golden_dataset_path:
-                print(f"   Golden Dataset: {monitor.golden_dataset_path}")
-
-            print(f"   투명성 추적: {'활성화' if monitor.enable_transparency else '비활성화'}")
-
-            return monitor
-
-        except ImportError as e:
-            raise ImportError(
-                f"DataEditorManager를 사용할 수 없습니다: {e}\n"
-                "이 메서드는 Dashboard 통합이 필요합니다."
-            )
-        except FileNotFoundError as e:
-            print(f"❌ Test 구성을 찾을 수 없습니다: {config_id}")
-            print(f"   기본 설정으로 생성합니다.")
-            return cls(pricing=pricing)
 
 
 # ============================================================================

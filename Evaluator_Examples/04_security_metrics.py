@@ -215,6 +215,7 @@ def run_security_evaluation():
     monitor = PerformanceMonitor(
         enable_security_metrics=True,
         enable_hallucination_detection=True,
+        enable_transparency=True,
         security_config={
             "allowed_tools":     ALLOWED_TOOLS,
             "restricted_tools":  RESTRICTED_TOOLS,
@@ -243,6 +244,7 @@ def run_security_evaluation():
             attempts=1,
             errors=[] if is_benign else [f"security_threat_{result['risk_level']}"],
             timestamp=base_time + timedelta(seconds=idx * 10),
+            framework="langgraph",
         )
         task.tokens_used["total"] = task.tokens_used["input"] + task.tokens_used["output"]
         monitor.record_task(task, context=input_text, request=input_text, response="보안 검사 완료")

@@ -5,31 +5,26 @@ Extends native Agent Evaluator with external library metrics
 (DeepEval, Ragas, LangSmith)
 """
 
-import os
-import json
-import warnings
 import atexit
-from typing import Dict, List, Any, Optional
-from dataclasses import dataclass, field, asdict
+import json
+import os
+import warnings
+from dataclasses import asdict, dataclass, field
 from datetime import datetime
-
-# Import native Agent Evaluator
-from .agent_evaluator import (
-    PerformanceMonitor,
-    TaskResult,
-    EvaluationReport
-)
+from typing import Any, Dict, List, Optional
 
 # Import metric adapters
 from ..integrations.metric_adapters import (
-    MetricProvider,
-    MetricAdapter,
-    MetricAdapterFactory,
-    EvaluationContext,
     DeepEvalAdapter,
+    EvaluationContext,
+    LangSmithAdapter,
+    MetricAdapter,
+    MetricProvider,
     RagasAdapter,
-    LangSmithAdapter
 )
+
+# Import native Agent Evaluator
+from .agent_evaluator import EvaluationReport, PerformanceMonitor, TaskResult
 
 # Suppress async event loop warnings from httpx/DeepEval/Ragas
 # These occur when async clients clean up after the event loop closes
@@ -82,6 +77,7 @@ class HybridPerformanceMonitor(PerformanceMonitor):
         enable_hallucination_detection: bool = True,
         enable_security_metrics: bool = False,
         security_config: Optional[Dict[str, Any]] = None,
+        enable_transparency: bool = False,
         output_dir: Optional[str] = None
     ):
         """
@@ -97,6 +93,7 @@ class HybridPerformanceMonitor(PerformanceMonitor):
             enable_hallucination_detection: Enable Layer1 hallucination detection (default: True for Hybrid)
             enable_security_metrics: Enable security metrics (Layer 1 & 2 security trackers)
             security_config: Security configuration (allowed_tools, restricted_tools, etc.)
+            enable_transparency: Enable transparency logging (traces, audit logs)
             output_dir: Output directory (None이면 자동 감지)
         """
         # Initialize native monitor with Zero Configuration and hallucination detection enabled
@@ -104,7 +101,8 @@ class HybridPerformanceMonitor(PerformanceMonitor):
             output_dir=output_dir,
             enable_security_metrics=enable_security_metrics,
             security_config=security_config,
-            enable_hallucination_detection=enable_hallucination_detection
+            enable_hallucination_detection=enable_hallucination_detection,
+            enable_transparency=enable_transparency,
         )
 
         # Initialize metric adapters
@@ -247,6 +245,7 @@ class HybridPerformanceMonitor(PerformanceMonitor):
             attempts=task.attempts,
             errors=task.errors,
             timestamp=task.timestamp,
+            framework=getattr(task, 'framework', None),
             advanced_metrics=advanced_metrics,
             evaluation_context={
                 'input_text': input_text,
@@ -385,7 +384,7 @@ class HybridPerformanceMonitor(PerformanceMonitor):
                     metric_values[metric_name].append(float(value))
 
         if debug:
-            print(f"\n📊 Metrics collected:")
+            print("\n📊 Metrics collected:")
             for metric_name, count in sorted(metric_counts.items()):
                 print(f"  • {metric_name}: {count} tasks")
 
@@ -540,7 +539,7 @@ class HybridPerformanceMonitor(PerformanceMonitor):
             if os.path.exists(results_dir_file):
                 filename = results_dir_file
 
-        with open(filename, 'r', encoding='utf-8') as f:
+        with open(filename, encoding='utf-8') as f:
             data = json.load(f)
 
         # Check if security metrics are present in the data
@@ -644,7 +643,7 @@ class HybridPerformanceMonitor(PerformanceMonitor):
                 if "tool_chain_attack_detector" in security_data:
                     monitor.tool_chain_attack_detector.detections = security_data["tool_chain_attack_detector"].get("detections", [])
 
-                print(f"   🔒 Restored security evaluators:")
+                print("   🔒 Restored security evaluators:")
                 print(f"      - Input Sanitizer: {len(monitor.input_sanitizer.evaluations)} evaluations")
                 print(f"      - Output Leakage: {len(monitor.output_leakage_detector.detections)} detections")
                 print(f"      - Tool Authorizer: {len(monitor.tool_authorizer.tool_calls)} calls")
@@ -672,7 +671,7 @@ class HybridPerformanceMonitor(PerformanceMonitor):
         print("="*70)
 
         # Native metrics
-        print(f"\n📊 NATIVE METRICS")
+        print("\n📊 NATIVE METRICS")
         print(f"   Total Tasks: {report.total_tasks}")
 
         # CRITICAL FIX: Use correct keys from generate_report()
@@ -708,7 +707,7 @@ class HybridPerformanceMonitor(PerformanceMonitor):
                     print(f"      Pass Rate: {pass_rate['passed']}/{pass_rate['total']} ({pass_rate['rate']*100:.1f}%)")
             else:
                 if 'deepeval' in report.providers_used:
-                    print(f"   ℹ️  G-Eval: Not evaluated (requires quality_criteria parameter)")
+                    print("   ℹ️  G-Eval: Not evaluated (requires quality_criteria parameter)")
 
             # Hallucination
             if 'hallucination_score' in report.advanced_metrics_summary:
@@ -756,7 +755,7 @@ class HybridPerformanceMonitor(PerformanceMonitor):
                     metric_name = metric.replace('ragas_', '').replace('_', ' ').title()
                     print(f"      {metric_name}: {data.get('mean', 0):.3f}")
         else:
-            print(f"\n📊 No advanced metrics (Enable with enable_advanced_metrics=True)")
+            print("\n📊 No advanced metrics (Enable with enable_advanced_metrics=True)")
 
         # Alerts
         if report.alerts:
