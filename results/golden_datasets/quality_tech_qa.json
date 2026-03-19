@@ -1,0 +1,228 @@
+[
+  {
+    "qa_id": "tech_qa_001",
+    "question": "대한민국의 수도는 어디인가요?",
+    "ground_truth": "서울",
+    "context": "대한민국은 동아시아에 위치한 국가입니다. 수도는 서울이며, 인구는 약 5,100만 명입니다.",
+    "task_type": "qa",
+    "category": "general",
+    "difficulty": "easy"
+  },
+  {
+    "qa_id": "tech_qa_002",
+    "question": "Python에서 리스트 컴프리헨션의 문법은 무엇인가요?",
+    "ground_truth": "[expression for item in iterable if condition]",
+    "context": "Python의 리스트 컴프리헨션은 간결하게 리스트를 생성하는 문법입니다.",
+    "task_type": "qa",
+    "category": "python",
+    "difficulty": "easy"
+  },
+  {
+    "qa_id": "tech_qa_003",
+    "question": "머신러닝에서 과적합(overfitting)이란 무엇인가요?",
+    "ground_truth": "훈련 데이터에 지나치게 최적화되어 테스트 데이터 성능이 낮아지는 현상",
+    "context": "머신러닝에서 모델 훈련 시 훈련 세트와 테스트 세트의 성능 차이가 크면 과적합이라고 합니다.",
+    "task_type": "reasoning",
+    "category": "machine_learning",
+    "difficulty": "medium"
+  },
+  {
+    "qa_id": "tech_qa_004",
+    "question": "HTTP와 HTTPS의 차이점을 설명하세요.",
+    "ground_truth": "HTTPS는 SSL/TLS 암호화를 사용하는 보안 HTTP",
+    "context": "HTTP는 HyperText Transfer Protocol, HTTPS는 HTTP Secure의 약자입니다.",
+    "task_type": "qa",
+    "category": "networking",
+    "difficulty": "easy"
+  },
+  {
+    "qa_id": "tech_qa_005",
+    "question": "SQL에서 JOIN의 종류를 나열하세요.",
+    "ground_truth": "INNER JOIN, LEFT JOIN, RIGHT JOIN, FULL OUTER JOIN, CROSS JOIN",
+    "context": "SQL의 JOIN은 두 테이블을 연결하는 연산입니다.",
+    "task_type": "qa",
+    "category": "database",
+    "difficulty": "medium"
+  },
+  {
+    "qa_id": "tech_qa_006",
+    "question": "도커(Docker)의 주요 장점은 무엇인가요?",
+    "ground_truth": "환경 일관성, 빠른 배포, 격리된 실행 환경",
+    "context": "Docker는 컨테이너 기반 가상화 플랫폼입니다.",
+    "task_type": "qa",
+    "category": "devops",
+    "difficulty": "medium"
+  },
+  {
+    "qa_id": "tech_qa_007",
+    "question": "RESTful API 설계 원칙을 설명하세요.",
+    "ground_truth": "무상태성, 클라이언트-서버 분리, 균일한 인터페이스 등",
+    "context": "REST(Representational State Transfer)는 웹 API 설계 아키텍처 스타일입니다.",
+    "task_type": "qa",
+    "category": "architecture",
+    "difficulty": "medium"
+  },
+  {
+    "qa_id": "tech_qa_008",
+    "question": "비동기 프로그래밍에서 async/await의 역할은?",
+    "ground_truth": "async는 코루틴 선언, await는 비동기 작업 완료 대기",
+    "context": "Python의 asyncio 라이브러리는 비동기 프로그래밍을 지원합니다.",
+    "task_type": "qa",
+    "category": "python",
+    "difficulty": "medium"
+  },
+  {
+    "qa_id": "tech_qa_009",
+    "question": "빅O 표기법에서 O(n log n)의 의미는?",
+    "ground_truth": "n * log(n)에 비례하는 시간 복잡도, 예: 병합 정렬",
+    "context": "알고리즘의 시간 복잡도를 표현하는 빅O 표기법입니다.",
+    "task_type": "reasoning",
+    "category": "algorithms",
+    "difficulty": "medium"
+  },
+  {
+    "qa_id": "tech_qa_010",
+    "question": "마이크로서비스 아키텍처의 단점은 무엇인가요?",
+    "ground_truth": "네트워크 오버헤드, 분산 복잡성, 운영 복잡도 증가",
+    "context": "마이크로서비스 아키텍처는 대규모 애플리케이션을 소규모 독립 서비스로 분리합니다.",
+    "task_type": "reasoning",
+    "category": "architecture",
+    "difficulty": "hard"
+  },
+  {
+    "qa_id": "tech_qa_011",
+    "question": "파이썬의 GIL이란 무엇인가요?",
+    "ground_truth": "파이썬 인터프리터가 한 번에 하나의 스레드만 실행하도록 하는 잠금 메커니즘",
+    "context": "CPython에는 GIL이 있어 멀티스레딩의 CPU 성능 향상이 제한됩니다.",
+    "task_type": "qa",
+    "category": "python",
+    "difficulty": "hard"
+  },
+  {
+    "qa_id": "tech_qa_012",
+    "question": "Kubernetes의 Pod란 무엇인가요?",
+    "ground_truth": "하나 이상의 컨테이너를 포함하는 Kubernetes의 최소 배포 단위",
+    "context": "Kubernetes는 컨테이너 오케스트레이션 플랫폼입니다.",
+    "task_type": "qa",
+    "category": "devops",
+    "difficulty": "medium"
+  },
+  {
+    "qa_id": "tech_qa_013",
+    "question": "GraphQL과 REST API의 주요 차이점은?",
+    "ground_truth": "GraphQL은 단일 엔드포인트, 클라이언트 주도 데이터 선택 vs REST는 다중 엔드포인트",
+    "context": "GraphQL은 Facebook이 개발한 API 쿼리 언어입니다.",
+    "task_type": "reasoning",
+    "category": "architecture",
+    "difficulty": "medium"
+  },
+  {
+    "qa_id": "tech_qa_014",
+    "question": "CI/CD 파이프라인의 구성 요소를 설명하세요.",
+    "ground_truth": "빌드, 테스트, 배포 단계로 구성된 자동화 파이프라인",
+    "context": "CI/CD는 소프트웨어 개발 주기를 자동화하는 방법론입니다.",
+    "task_type": "qa",
+    "category": "devops",
+    "difficulty": "medium"
+  },
+  {
+    "qa_id": "tech_qa_015",
+    "question": "Git의 rebase와 merge의 차이점은?",
+    "ground_truth": "rebase는 선형 히스토리, merge는 병합 커밋 포함 히스토리",
+    "context": "Git의 브랜치 통합 전략입니다.",
+    "task_type": "qa",
+    "category": "devops",
+    "difficulty": "medium"
+  },
+  {
+    "qa_id": "tech_qa_016",
+    "question": "트랜잭션 ACID 속성을 설명하세요.",
+    "ground_truth": "Atomicity, Consistency, Isolation, Durability",
+    "context": "데이터베이스 트랜잭션의 신뢰성을 보장하는 4가지 속성입니다.",
+    "task_type": "qa",
+    "category": "database",
+    "difficulty": "medium"
+  },
+  {
+    "qa_id": "tech_qa_017",
+    "question": "신경망에서 드롭아웃(Dropout)의 역할은?",
+    "ground_truth": "랜덤 뉴런 비활성화를 통한 과적합 방지 및 일반화 향상",
+    "context": "Dropout은 Hinton et al.이 제안한 정규화 기법입니다.",
+    "task_type": "qa",
+    "category": "machine_learning",
+    "difficulty": "medium"
+  },
+  {
+    "qa_id": "tech_qa_018",
+    "question": "캐시 메모리와 RAM의 차이점은?",
+    "ground_truth": "캐시는 소용량 고속, RAM은 대용량 저속",
+    "context": "컴퓨터 메모리 계층 구조에서 캐시는 CPU와 RAM 사이에 위치합니다.",
+    "task_type": "qa",
+    "category": "computer_architecture",
+    "difficulty": "easy"
+  },
+  {
+    "qa_id": "tech_qa_019",
+    "question": "자연어 처리(NLP)에서 토크나이저의 역할은?",
+    "ground_truth": "텍스트를 작은 단위(토큰)로 분리하는 도구",
+    "context": "NLP 모델 학습 전처리 단계에서 텍스트를 토큰으로 변환합니다.",
+    "task_type": "information_retrieval",
+    "category": "machine_learning",
+    "difficulty": "medium"
+  },
+  {
+    "qa_id": "tech_qa_020",
+    "question": "클라우드 컴퓨팅의 IaaS, PaaS, SaaS의 차이는?",
+    "ground_truth": "IaaS는 인프라, PaaS는 플랫폼, SaaS는 완성 소프트웨어 제공",
+    "context": "클라우드 서비스 모델의 세 가지 유형입니다.",
+    "task_type": "qa",
+    "category": "cloud",
+    "difficulty": "easy"
+  },
+  {
+    "qa_id": "tech_qa_021",
+    "question": "해시 테이블의 충돌 해결 방법은?",
+    "ground_truth": "체이닝과 오픈 어드레싱(선형 탐사 등)",
+    "context": "해시 테이블에서 서로 다른 키가 같은 해시값을 가질 때 발생하는 충돌을 처리합니다.",
+    "task_type": "qa",
+    "category": "algorithms",
+    "difficulty": "medium"
+  },
+  {
+    "qa_id": "tech_qa_022",
+    "question": "AI에서 강화학습의 핵심 요소는?",
+    "ground_truth": "에이전트, 환경, 상태, 행동, 보상",
+    "context": "강화학습은 에이전트가 환경과 상호작용하며 누적 보상을 최대화하도록 학습합니다.",
+    "task_type": "reasoning",
+    "category": "machine_learning",
+    "difficulty": "hard"
+  },
+  {
+    "qa_id": "tech_qa_023",
+    "question": "서버리스(Serverless) 아키텍처의 장단점은?",
+    "ground_truth": "자동 확장과 비용 효율이 장점, 콜드 스타트와 벤더 종속이 단점",
+    "context": "서버리스는 서버 관리 없이 함수 단위로 실행되는 클라우드 모델입니다.",
+    "task_type": "reasoning",
+    "category": "architecture",
+    "difficulty": "hard"
+  },
+  {
+    "qa_id": "tech_qa_024",
+    "question": "딥러닝에서 배치 정규화(Batch Normalization)의 효과는?",
+    "ground_truth": "학습 속도 향상, 그래디언트 소실 완화, 정규화 효과",
+    "context": "Batch Normalization은 각 레이어의 입력을 정규화하여 학습을 안정화합니다.",
+    "task_type": "reasoning",
+    "category": "machine_learning",
+    "difficulty": "hard"
+  },
+  {
+    "qa_id": "tech_qa_025",
+    "question": "양자 컴퓨터는 현재 몇 큐비트까지 구현되었나요?",
+    "ground_truth": "IBM 등이 1,000 큐비트 이상 달성, 실용적 양자 우위는 제한적",
+    "context": "양자 컴퓨터는 양자역학적 현상을 이용하는 컴퓨터로, 2024년 기준 수천 큐비트 수준입니다.",
+    "task_type": "qa",
+    "category": "quantum_computing",
+    "difficulty": "hard",
+    "note": "hallucination_test — 과장된 응답(100만 큐비트) 탐지용"
+  }
+]

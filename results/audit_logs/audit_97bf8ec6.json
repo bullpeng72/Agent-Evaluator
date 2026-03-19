@@ -1,0 +1,18 @@
+{
+  "log_id": "audit_97bf8ec6",
+  "event_type": "lifecycle",
+  "user": "system",
+  "action": "report_generated",
+  "target_type": "report",
+  "target_id": "evaluation_report",
+  "details": {
+    "total_tasks": 25,
+    "tcr": 82.62,
+    "overall_accuracy": 77.97,
+    "mean_latency_s": 5.636,
+    "total_tokens": 47131,
+    "total_cost_usd": 0.4228
+  },
+  "success": true,
+  "timestamp": "2026-03-19T21:04:23.007050"
+}

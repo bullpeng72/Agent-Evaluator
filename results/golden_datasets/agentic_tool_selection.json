@@ -1,0 +1,142 @@
+[
+  {
+    "qa_id": "agent_001",
+    "question": "최신 AI 뉴스를 검색해 주세요.",
+    "ground_truth": "web_search 도구를 사용하여 최신 AI 관련 뉴스를 검색한 결과입니다.",
+    "expected_tools": ["web_search"],
+    "agents": ["researcher"],
+    "task_type": "information_retrieval",
+    "scenario": "simple_search",
+    "difficulty": "easy"
+  },
+  {
+    "qa_id": "agent_002",
+    "question": "데이터베이스에서 사용자 ID 12345의 주문 내역을 조회하고 분석해 주세요.",
+    "ground_truth": "db_lookup과 data_query 도구를 사용하여 주문 내역을 조회하고 분석합니다.",
+    "expected_tools": ["db_lookup", "data_query"],
+    "agents": ["analyst"],
+    "task_type": "data_analysis",
+    "scenario": "data_lookup",
+    "difficulty": "medium"
+  },
+  {
+    "qa_id": "agent_003",
+    "question": "주어진 Python 코드를 실행하고 결과를 반환해 주세요.",
+    "ground_truth": "code_executor 도구를 사용하여 Python 코드를 실행합니다.",
+    "expected_tools": ["code_executor"],
+    "agents": ["analyst"],
+    "task_type": "tool_use",
+    "scenario": "code_run",
+    "difficulty": "easy"
+  },
+  {
+    "qa_id": "agent_004",
+    "question": "이미지를 분류하고 카테고리를 반환해 주세요.",
+    "ground_truth": "classifier 도구를 사용하여 이미지를 분류합니다.",
+    "expected_tools": ["classifier"],
+    "agents": ["analyst"],
+    "task_type": "tool_use",
+    "scenario": "classify_task",
+    "difficulty": "easy"
+  },
+  {
+    "qa_id": "agent_005",
+    "question": "웹에서 관련 문서를 검색하고 요약본을 작성해 주세요.",
+    "ground_truth": "web_search와 summarizer 도구를 조합하여 검색 후 요약합니다.",
+    "expected_tools": ["web_search", "summarizer"],
+    "agents": ["researcher", "writer"],
+    "task_type": "planning",
+    "scenario": "research_hub",
+    "difficulty": "medium"
+  },
+  {
+    "qa_id": "agent_006",
+    "question": "데이터를 쿼리하고 시각화 차트를 생성해 주세요.",
+    "ground_truth": "data_query와 chart_generator 도구를 사용하여 데이터 시각화를 수행합니다.",
+    "expected_tools": ["data_query", "chart_generator"],
+    "agents": ["analyst", "writer"],
+    "task_type": "data_analysis",
+    "scenario": "analysis_hub",
+    "difficulty": "medium"
+  },
+  {
+    "qa_id": "agent_007",
+    "question": "문서를 읽고, 요약한 후, 보고서를 작성해 주세요.",
+    "ground_truth": "doc_reader, summarizer, report_writer 세 도구를 순서대로 사용합니다.",
+    "expected_tools": ["doc_reader", "summarizer", "report_writer"],
+    "agents": ["researcher", "writer"],
+    "task_type": "planning",
+    "scenario": "document_hub",
+    "difficulty": "hard"
+  },
+  {
+    "qa_id": "agent_008",
+    "question": "웹 검색 후 분석하고 최종 보고서를 작성해 주세요.",
+    "ground_truth": "web_search, summarizer, report_writer를 체인 방식으로 사용합니다.",
+    "expected_tools": ["web_search", "summarizer", "report_writer"],
+    "agents": ["researcher", "analyst", "writer"],
+    "task_type": "planning",
+    "scenario": "chain_research",
+    "difficulty": "hard"
+  },
+  {
+    "qa_id": "agent_009",
+    "question": "데이터 분류 후 시각화 차트를 생성해 주세요.",
+    "ground_truth": "data_query, classifier, chart_generator 세 도구를 조합합니다.",
+    "expected_tools": ["data_query", "classifier", "chart_generator"],
+    "agents": ["analyst", "writer"],
+    "task_type": "data_analysis",
+    "scenario": "chain_analysis",
+    "difficulty": "hard"
+  },
+  {
+    "qa_id": "agent_010",
+    "question": "이미지를 분석하고 분류 결과를 반환해 주세요.",
+    "ground_truth": "image_analyzer와 classifier 도구를 사용하여 이미지 분석 및 분류를 수행합니다.",
+    "expected_tools": ["image_analyzer", "classifier"],
+    "agents": ["analyst"],
+    "task_type": "tool_use",
+    "scenario": "image_analysis",
+    "difficulty": "medium"
+  },
+  {
+    "qa_id": "agent_011",
+    "question": "데이터베이스를 조회하고 이메일로 결과를 전송해 주세요.",
+    "ground_truth": "db_lookup 후 email_sender를 사용하여 알림을 전송합니다.",
+    "expected_tools": ["db_lookup", "email_sender"],
+    "agents": ["orchestrator", "analyst"],
+    "task_type": "planning",
+    "scenario": "notification_flow",
+    "difficulty": "medium"
+  },
+  {
+    "qa_id": "agent_012",
+    "question": "웹 검색, 데이터 분석, 차트 생성, 보고서 작성을 모두 수행해 주세요.",
+    "ground_truth": "web_search, data_query, summarizer, chart_generator, report_writer 전체 파이프라인 실행.",
+    "expected_tools": ["web_search", "data_query", "summarizer", "chart_generator", "report_writer"],
+    "agents": ["orchestrator", "researcher", "analyst", "writer", "reviewer"],
+    "task_type": "planning",
+    "scenario": "full_report",
+    "difficulty": "hard"
+  },
+  {
+    "qa_id": "agent_013",
+    "question": "외국어 문서를 번역하고 요약해 주세요.",
+    "ground_truth": "doc_reader, translator, summarizer 순서로 도구를 사용합니다.",
+    "expected_tools": ["doc_reader", "translator", "summarizer"],
+    "agents": ["researcher", "writer"],
+    "task_type": "planning",
+    "scenario": "translation_chain",
+    "difficulty": "medium"
+  },
+  {
+    "qa_id": "agent_014",
+    "question": "ML 모델 학습 데이터를 쿼리하고, 코드를 실행한 후 결과를 분류하고 시각화해 주세요.",
+    "ground_truth": "data_query, code_executor, classifier, chart_generator 네 도구를 순서대로 사용합니다.",
+    "expected_tools": ["data_query", "code_executor", "classifier", "chart_generator"],
+    "agents": ["orchestrator", "analyst", "writer"],
+    "task_type": "planning",
+    "scenario": "ml_pipeline",
+    "difficulty": "hard"
+  }
+]
