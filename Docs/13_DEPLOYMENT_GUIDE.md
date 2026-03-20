@@ -191,7 +191,7 @@ CI/CD 통합 및 프로덕션 배포 전략
 
 ### Project Structure
 
-v0.5.4 기준 프로젝트는 4개의 독립적인 컴포넌트로 구성됩니다:
+v0.5.5 기준 프로젝트는 4개의 독립적인 컴포넌트로 구성됩니다:
 
 #### 1\. 📦 agent_evaluator/ - Core Python Package
 
@@ -270,7 +270,7 @@ v0.5.4 기준 프로젝트는 4개의 독립적인 컴포넌트로 구성됩니�
     agent-eval serve --port 8080        # 포트 변경
     agent-eval serve --watch            # 파일 변경 감시 (자동 갱신)
     agent-eval serve --no-open          # 브라우저 자동 오픈 비활성화
-    agent-eval serve --share            # 공유 URL 생성 (ngrok 필요)
+    agent-eval serve --share            # 외부 접근 허용 (host=0.0.0.0으로 바인딩)
     agent-eval serve --offline          # 오프라인 모드
     agent-eval serve --title "내 평가"  # 대시보드 제목 지정
     agent-eval serve --slide            # 슬라이드 뷰로 시작
@@ -1430,7 +1430,7 @@ v0.5.4 기준 프로젝트는 4개의 독립적인 컴포넌트로 구성됩니�
     [](<#cb42-2>)pip install --upgrade agent-evaluator
     [](<#cb42-3>)
     [](<#cb42-4>)# 특정 버전으로 업데이트
-    [](<#cb42-5>)pip install agent-evaluator==0.5.4
+    [](<#cb42-5>)pip install agent-evaluator==0.5.5
 ```
 
 ### Golden Dataset Maintenance
@@ -2798,6 +2798,6 @@ DB 연결 실패 | 네트워크, 인증 오류 | `telnet db-host 5432` | DB 연�
 * * *
 
 **최종 업데이트** : 2026-03-20
-**버전** : v0.5.4
+**버전** : v0.5.5
 **프로젝트** : Agent Evaluator - AI Agent Performance Evaluation System
 **문서 타입** : 배포 가이드 (Deployment Guide)

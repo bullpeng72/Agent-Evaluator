@@ -3,7 +3,7 @@
 [![PyPI version](https://img.shields.io/pypi/v/agent-evaluator.svg)](https://pypi.org/project/agent-evaluator/)
 [![Python Version](https://img.shields.io/badge/python-3.8%2B-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Version](https://img.shields.io/badge/version-0.5.4-green.svg)](https://github.com/bullpeng72/Agent-Evaluator)
+[![Version](https://img.shields.io/badge/version-0.5.5-green.svg)](https://github.com/bullpeng72/Agent-Evaluator)
 
 **AI 에이전트를 위한 프로덕션 레디 평가 프레임워크**
 
@@ -47,7 +47,7 @@ Agent Evaluator의 핵심은 **계층적 평가 모델**입니다.
 
 | 레이어 | 지표 수 | 포함 지표 | 외부 의존성 |
 |--------|---------|----------|------------|
-| **Layer 3** — Hybrid Evaluation | **9종** | DeepEval 5종 (G-Eval · Hallucination · Toxicity · Bias · Answer Relevancy) + Ragas 4종 (Faithfulness · Answer Relevancy · Context Precision · Context Recall) | 필요 (`[deepeval]`, `[ragas]`) |
+| **Layer 3** — Hybrid Evaluation | **9종** | DeepEval 5종 (G-Eval · Hallucination · Toxicity · Bias · Answer Relevancy) + Ragas 4종 (Faithfulness · Answer Relevancy · Context Precision · Context Recall) | 필요 (`[eval]`) |
 | **Layer 2** — Agentic Metrics | **10종** | 에이전틱 5종: Tool Call · Retry · Tool Selection · Coordination · Workflow<br>보안 5종: Input Sanitization · Output Leakage · Tool Authorization · Privilege Escalation · Tool Chain Attack | 없음 (네이티브) |
 | **Layer 1** — Foundation Metrics | **6종** | Task Completion · Accuracy · Hallucination · Quality · Latency · Token Economy | 없음 (네이티브) |
 
@@ -62,7 +62,7 @@ Agent Evaluator의 핵심은 **계층적 평가 모델**입니다.
 | **Task Completion Rate** | `TaskCompletionTracker` | 성공률, 실패 원인 분류, 벤치마크 비교 | `tcr`, `full_success`, `partial_success`, `failures` |
 | **Accuracy Evaluation** | `AccuracyEvaluator` | QA/코드/일반 유형별 정확도. Token Overlap(40%) + Jaccard(30%) + LCS(20%) + 문자 유사도(10%) 가중 조합 | `overall_accuracy`, `median_accuracy`, `std_accuracy` |
 | **Hallucination Detection** | `HallucinationDetector` | 컨텍스트 대비 응답 사실 일관성. 미지원 주장·수치 불일치 탐지 | `hallucination_rate`, `unsupported_claims_count`, `by_severity` |
-| **Response Quality** | `ResponseQualityEvaluator` | 관련성(25%)·완결성(25%)·정확성(20%)·명확성(15%)·유용성(15%) 5차원 평가 | `dimension_scores`, `total_score` (0–5) |
+| **Response Quality** | `ResponseQualityEvaluator` | 관련성(25%)·완결성(25%)·정확성(20%)·명확성(15%)·유용성(15%) 5차원 평가 | `dimension_scores`, `total_score` (0–5), `grade` |
 | **Latency Tracking** | `LatencyTracker` | 백분위 지연 시간 분석, 병목 컴포넌트 탐지, SLA 준수 여부 | `p50`, `p95`, `p99`, `bottleneck`, `mean` |
 | **Token Economy** | `TokenEconomyTracker` | 입출력 토큰 비율, 실시간 비용 추정, 월간 비용 예측 | `total_tokens`, `total_cost`, `estimated_monthly_cost`, `token_distribution` |
 
@@ -104,15 +104,15 @@ Layer 1/2 지표를 그대로 유지하면서 외부 지표를 추가합니다.
 from agent_evaluator import HybridPerformanceMonitor
 
 monitor = HybridPerformanceMonitor(
-    enable_deepeval=True,   # pip install agent-evaluator[deepeval]
-    enable_ragas=True,      # pip install agent-evaluator[ragas]
+    enable_deepeval=True,   # pip install agent-evaluator[eval]
+    enable_ragas=True,      # pip install agent-evaluator[eval]
     enable_langsmith=True,  # LangSmith API 키 필요
 )
 ```
 
 #### DeepEval 어댑터 (5종)
 
-`pip install "agent-evaluator[deepeval]"` 필요. LLM 기반 시맨틱 평가를 수행합니다.
+`pip install "agent-evaluator[eval]"` 필요. LLM 기반 시맨틱 평가를 수행합니다.
 
 | 지표 | 출력 키 | 설명 | 조건 |
 |------|---------|------|------|
@@ -124,7 +124,7 @@ monitor = HybridPerformanceMonitor(
 
 #### Ragas 어댑터 (4종)
 
-`pip install "agent-evaluator[ragas]"` 필요. RAG 파이프라인 특화 평가입니다.
+`pip install "agent-evaluator[eval]"` 필요. RAG 파이프라인 특화 평가입니다.
 `retrieved_context`를 전달해야 동작합니다.
 
 | 지표 | 출력 키 | 설명 | 조건 |
@@ -161,12 +161,11 @@ pip install agent-evaluator
 ### 선택적 의존성 추가
 
 ```bash
-pip install "agent-evaluator[deepeval]"    # DeepEval 통합
-pip install "agent-evaluator[ragas]"       # Ragas RAG 평가
-pip install "agent-evaluator[langchain]"   # LangChain 통합
-pip install "agent-evaluator[datasets]"    # PDF 데이터셋 생성 (PyPDF2, pdfplumber)
+pip install "agent-evaluator[llm]"         # OpenAI + Anthropic 클라이언트
+pip install "agent-evaluator[frameworks]"  # LangChain / LangGraph / CrewAI / AutoGen
+pip install "agent-evaluator[eval]"        # DeepEval + Ragas (Layer 3 평가)
 pip install "agent-evaluator[serve]"       # FastAPI 대시보드 서버
-pip install "agent-evaluator[all]"         # 모든 선택적 의존성
+pip install "agent-evaluator[all]"         # 모든 선택적 의존성 (PDF 도구 포함)
 ```
 
 ### 소스에서 개발 설치
@@ -361,7 +360,7 @@ agent-eval init
 ```
 
 설정하는 항목:
-- `OPENAI_API_KEY` (필수) — LLMHelper, DeepEval, Ragas 평가에 사용
+- `OPENAI_API_KEY` (선택) — LLMHelper, DeepEval, Ragas 평가에 사용 (Layer 1/2는 불필요)
 - `ANTHROPIC_API_KEY` (선택) — ClaudeHelper 사용 시 필요
 - `LANGSMITH_API_KEY` (선택) — LangSmith 트레이싱 연동
 - `AGENT_EVALUATOR_OUTPUT_DIR` — 결과 저장 디렉토리 (기본: `./results`)
@@ -378,7 +377,7 @@ agent-eval check
 
 출력 예시:
 ```
-  Agent Evaluator v0.5.4 — 설정 상태
+  Agent Evaluator v0.5.5 — 설정 상태
   ──────────────────────────────────────────────────
 ℹ  .env 로드: /home/user/project/.env
 
@@ -418,6 +417,7 @@ agent-eval serve [results_dir] [옵션]
 | `--watch` | — | 파일 변경 감시 (핫 리로드) |
 | `--slide` | — | 시작 화면을 슬라이드 뷰로 설정 |
 | `--share` | — | 외부 접근 허용 (`host=0.0.0.0`) |
+| `--offline` | — | CDN 에셋을 로컬 캐시해 인터넷 없이 실행 |
 | `--title TITLE` | `Agent Evaluator Dashboard` | 대시보드 제목 |
 
 ```bash
@@ -443,6 +443,7 @@ FastAPI + Alpine.js 기반 SPA 웹 대시보드로 평가 결과를 시각화합
 |-----|------|
 | `http://localhost:8765` | 메인 대시보드 |
 | `http://localhost:8765/slides` | 슬라이드 뷰 |
+| `http://localhost:8765/sdk-docs` | SDK 레퍼런스 문서 |
 | `http://localhost:8765/api/docs` | Swagger UI (OAS 3.1) |
 | `http://localhost:8765/api/redoc` | Redoc API 문서 |
 
@@ -456,6 +457,41 @@ FastAPI + Alpine.js 기반 SPA 웹 대시보드로 평가 결과를 시각화합
 - 상관관계 히트맵 (4×4 Pearson 지표 행렬)
 - HTML/CSV/JSON 내보내기 + PDF 출력
 - OAS 3.1 API 문서 (`/api/docs`, `/api/redoc`)
+
+### 27개 지표 × 대시보드 메뉴 Mapping
+
+| # | 지표 | 메뉴 | 서브탭 |
+|---|------|------|--------|
+| 1 | TCR (Task Completion Rate) | 📊 품질 · 🔵 기본 | TCR 탭 |
+| 2 | Accuracy | 📊 품질 · 🔵 기본 | Accuracy 탭 |
+| 3 | Response Quality | 📊 품질 · 🔵 기본 | Quality 탭 |
+| 4 | Hallucination Rate | 📊 품질 · 🔵 기본 | Hallucination 탭 |
+| 5 | Latency — Mean / P50 | ⚡ 성능 · 🔵 기본 | Latency |
+| 6 | Latency — P95 / P99 | ⚡ 성능 · 🔵 기본 | Latency |
+| 7 | Token Economy | ⚡ 성능 · 🟡 심화 | Token 탭 |
+| 8 | Cost per Task | ⚡ 성능 · 🟡 심화 | Cost 탭 |
+| 9 | Retry / Correction | 🤖 에이전틱 · 🔵 기본 | Retry 탭 |
+| 10 | Tool Efficiency | 🤖 에이전틱 · 🔵 기본 | Tool Efficiency 탭 |
+| 11 | Tool Selection (F1) | 🤖 에이전틱 · 🟡 심화 | Tool 선택 탭 |
+| 12 | Agent Coordination | 🤖 에이전틱 · 🟡 심화 | 멀티에이전트 탭 |
+| 13 | Workflow Execution | 🤖 에이전틱 · 🟡 심화 | 워크플로우 탭 |
+| 14 | Input Sanitization | 🔒 보안 · 🔵 기본 | 입력 검사 탭 |
+| 15 | Output Leakage | 🔒 보안 · 🔵 기본 | 출력 유출 탭 |
+| 16 | Authorization Compliance | 🔒 보안 · 🟡 심화 | 권한 탭 |
+| 17 | Privilege Escalation | 🔒 보안 · 🟡 심화 | 권한 상승 탭 |
+| 18 | Tool Chain Attack | 🔒 보안 · 🟡 심화 | 통합 탭 |
+| 19 | Faithfulness (Ragas) | 📊 품질 · 🟡 심화 | RAG 섹션 |
+| 20 | Answer Relevancy (Ragas) | 📊 품질 · 🟡 심화 | RAG 섹션 |
+| 21 | Context Recall (Ragas) | 📊 품질 · 🟡 심화 | RAG 섹션 |
+| 22 | Context Precision (Ragas) | 📊 품질 · 🟡 심화 | RAG 섹션 |
+| 23 | Answer Relevancy (DeepEval) | 📊 품질 · 🟣 통합 | DeepEval 탭 |
+| 24 | G-Eval Score (DeepEval) | 📊 품질 · 🟣 통합 | DeepEval 탭 |
+| 25 | Toxicity Score (DeepEval) | 📊 품질 · 🟣 통합 | DeepEval 탭 |
+| 26 | Bias Score (DeepEval) | 📊 품질 · 🟣 통합 | DeepEval 탭 |
+| 27 | Hallucination Score (DeepEval) | 📊 품질 · 🟣 통합 | DeepEval 탭 |
+
+> **참고:** 1~4번(TCR·Accuracy·Hallucination)은 **Overview** KPI 카드에도 요약 표시됩니다.
+> Ragas 4종(19~22번)은 🟡 심화와 🟣 통합 > Ragas 탭 양쪽에서 확인 가능합니다.
 
 ---
 
@@ -493,7 +529,8 @@ agent-evaluator/
 │   ├── utils/
 │   │   ├── dashboard_integration.py
 │   │   ├── data_registry.py
-│   │   └── path_helpers.py
+│   │   ├── path_helpers.py
+│   │   └── test_transparency_manager.py  # ⚠️ 프로덕션 클래스 (테스트 파일 아님)
 │   └── config.py                # 환경변수 설정 로더
 │
 ├── Evaluator_Examples/           # 카테고리별 평가 예제 (5개)
@@ -594,11 +631,11 @@ mypy agent_evaluator/
 
 | Extra | 패키지 | 용도 |
 |-------|--------|------|
-| `[deepeval]` | deepeval | 고급 LLM 평가 지표 |
-| `[ragas]` | ragas | RAG 특화 평가 |
-| `[langchain]` | langchain | LangChain 프레임워크 통합 |
-| `[datasets]` | PyPDF2, pdfplumber | PDF 데이터셋 생성 |
+| `[llm]` | openai, anthropic | LLMHelper / ClaudeHelper 사용 |
+| `[frameworks]` | langchain, langgraph, crewai, pyautogen | 프레임워크 통합 |
+| `[eval]` | deepeval, ragas, langchain | Layer 3 하이브리드 평가 |
 | `[serve]` | fastapi, uvicorn, jinja2 | FastAPI 대시보드 서버 |
+| `[all]` | 위 모두 + PyPDF2, pdfplumber | 전체 (PDF 데이터셋 포함) |
 
 ---
 
@@ -638,7 +675,7 @@ MIT License — 자세한 내용은 [LICENSE](LICENSE) 파일을 참고하세요
   title   = {Agent Evaluator: Production-ready evaluation framework for AI agents},
   author  = {Kim, Sungwoo},
   year    = {2026},
-  version = {0.5.4},
+  version = {0.5.5},
   url     = {https://github.com/bullpeng72/Agent-Evaluator},
   license = {MIT}
 }

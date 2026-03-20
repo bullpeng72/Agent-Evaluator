@@ -20,7 +20,7 @@ try:
     from importlib.metadata import PackageNotFoundError, version as _pkg_version
     __version__ = _pkg_version("agent-evaluator")
 except PackageNotFoundError:
-    __version__ = "0.5.4"
+    __version__ = "0.5.5"
 
 from agent_evaluator.config import (
     DEFAULTS,
@@ -109,8 +109,9 @@ KEY_DEFS: List[Dict] = [
     {
         "env":      "OPENAI_API_KEY",
         "label":    "OpenAI API Key",
-        "required": True,
-        "used_for": "LLMHelper, DeepEval, Ragas (GPT 모델 기반 평가)",
+        "required": False,
+        "extra":    "llm",
+        "used_for": "LLMHelper · DeepEval · Ragas — Layer 3 평가 (pip install 'agent-evaluator[llm]')",
         "url":      "https://platform.openai.com/api-keys",
         "prefix":   "sk-",
         "companion": [
@@ -121,7 +122,8 @@ KEY_DEFS: List[Dict] = [
         "env":      "ANTHROPIC_API_KEY",
         "label":    "Anthropic API Key",
         "required": False,
-        "used_for": "ClaudeHelper (Claude 모델 기반 평가)",
+        "extra":    "llm",
+        "used_for": "ClaudeHelper — Layer 3 Claude 평가 (pip install 'agent-evaluator[llm]')",
         "url":      "https://console.anthropic.com/settings/keys",
         "prefix":   "sk-ant-",
         "companion": [
@@ -132,7 +134,8 @@ KEY_DEFS: List[Dict] = [
         "env":      "LANGSMITH_API_KEY",
         "label":    "LangSmith API Key",
         "required": False,
-        "used_for": "LangSmithAdapter — LangChain 트레이싱 연동 (선택)",
+        "extra":    "frameworks",
+        "used_for": "LangSmithAdapter — LangChain 트레이싱 (pip install 'agent-evaluator[frameworks]')",
         "url":      "https://smith.langchain.com/settings",
         "prefix":   "ls__",
         "companion": [
@@ -142,10 +145,6 @@ KEY_DEFS: List[Dict] = [
     },
 ]
 
-# 기타 설정값
-EXTRA_DEFS: List[Tuple[str, str, str]] = [
-    ("AGENT_EVALUATOR_OUTPUT_DIR", "./results", "평가 결과 저장 디렉토리"),
-]
 
 
 # ---------------------------------------------------------------------------
@@ -418,6 +417,18 @@ def cmd_init(args: argparse.Namespace) -> int:  # noqa: C901
     print()
     print(_ok(f"설정이 저장되었습니다 → {save_path}"))
     print()
+
+    # 저장된 키에 따라 필요한 extra 설치 힌트
+    extras_needed: List[str] = []
+    for kd in KEY_DEFS:
+        if kd["env"] in to_save and kd.get("extra") not in extras_needed:
+            extras_needed.append(kd["extra"])
+    if extras_needed:
+        print(_dim("  필요한 패키지 설치:"))
+        for extra in extras_needed:
+            print(f"    {C}pip install 'agent-evaluator[{extra}]'{R}")
+        print()
+
     print(_dim("  라이브러리에서 자동 로드하려면:"))
     print(f"    {C}from agent_evaluator.config import load_env{R}")
     print(f"    {C}load_env()  # 혹은 dotenv_path=Path('...') 지정{R}")
@@ -506,6 +517,25 @@ def cmd_check(_args: argparse.Namespace) -> int:
         val = os.getenv(extra_var, default_val)
         print(f"  {extra_var:35s}  {val}")
 
+    # 패키지 설치 상태
+    print()
+    print(f"{B}패키지 상태:{R}")
+    _PKG_MAP = [
+        ("openai",     "llm",        "LLMHelper · DeepEval · Ragas"),
+        ("anthropic",  "llm",        "ClaudeHelper"),
+        ("langsmith",  "frameworks", "LangSmithAdapter"),
+        ("deepeval",   "eval",       "DeepEvalAdapter"),
+        ("ragas",      "eval",       "RagasAdapter"),
+        ("fastapi",    "serve",      "웹 대시보드"),
+    ]
+    import importlib
+    for pkg, extra, usage in _PKG_MAP:
+        try:
+            importlib.import_module(pkg)
+            print(f"  {G}✅{R}  {pkg:12s}  {_dim(usage)}")
+        except ImportError:
+            print(f"  {D}⚪{R}  {pkg:12s}  {_dim(f'미설치  →  pip install agent-evaluator[{extra}]')}")
+
     print()
     print(_dim("  'agent-eval init' 을 실행하면 누락된 키를 설정할 수 있습니다."))
     print()
@@ -531,7 +561,7 @@ def _print_welcome() -> None:
     # ── API 키 빠른 상태 체크 (import 없이 os.environ 직독) ──────────────
     load_env()
     _key_vars = [
-        ("OPENAI_API_KEY",    "OpenAI",    True),
+        ("OPENAI_API_KEY",    "OpenAI",    False),
         ("ANTHROPIC_API_KEY", "Anthropic", False),
         ("LANGSMITH_API_KEY", "LangSmith", False),
     ]
@@ -734,20 +764,23 @@ def main() -> None:
         "init",
         help="대화형 API 키 설정 마법사",
         description=(
-            "OpenAI, Anthropic, LangSmith, DeepEval API 키를\n"
+            "OpenAI, Anthropic, LangSmith API 키를\n"
             "대화형으로 입력하고 .env 파일에 저장합니다.\n"
             "\n"
             f"{B}설정 항목:{R}\n"
-            f"  {C}OPENAI_API_KEY{R}              {RD}(필수){R} LLMHelper, DeepEval, Ragas 평가\n"
-            f"  {C}ANTHROPIC_API_KEY{R}           {D}(선택){R} ClaudeHelper 사용 시\n"
-            f"  {C}LANGSMITH_API_KEY{R}           {D}(선택){R} LangSmith 트레이싱 연동\n"
+            f"  {C}OPENAI_API_KEY{R}              {D}(선택){R} LLMHelper·DeepEval·Ragas — Layer 3 평가\n"
+            f"  {C}ANTHROPIC_API_KEY{R}           {D}(선택){R} ClaudeHelper — Layer 3 Claude 평가\n"
+            f"  {C}LANGSMITH_API_KEY{R}           {D}(선택){R} LangSmithAdapter 트레이싱 연동\n"
             f"  {C}AGENT_EVALUATOR_OUTPUT_DIR{R}  평가 결과 저장 디렉토리 {D}(기본: ./results){R}\n"
             "\n"
-            f"{B}저장 위치:{R} 대화형으로 선택할 수 있습니다\n"
-            f"  {Y}[1]{R} 기존 .env 업데이트\n"
-            f"  {Y}[2]{R} 현재 디렉토리 .env 생성\n"
-            f"  {Y}[3]{R} 전역 설정 {D}(~/.config/agent-evaluator/.env){R}\n"
-            f"  {Y}[4]{R} 저장하지 않음"
+            f"{B}저장 위치:{R} 실행 시 대화형으로 선택합니다\n"
+            f"  • 탐지된 기존 .env 업데이트 {D}(존재하는 경우){R}\n"
+            f"  • 현재 디렉토리에 .env 생성\n"
+            f"  • 전역 설정 {D}(~/.agent-evaluator/.env — 모든 프로젝트에서 사용){R}\n"
+            f"  • 저장하지 않음 {D}(export 명령어 출력){R}\n"
+            "\n"
+            f"{B}로드 우선순위:{R}\n"
+            f"  시스템 환경변수 > 명시적 경로 > CWD 탐색 .env > ~/.agent-evaluator/.env"
         ),
         formatter_class=ColoredHelpFormatter,
     )
@@ -782,9 +815,10 @@ def main() -> None:
             f"  {Y}4.{R} git/pyproject.toml 루트의 results/ 디렉토리\n"
             "\n"
             f"{B}접속 URL:{R}\n"
-            f"  {G}http://localhost:8765{R}          메인 대시보드\n"
-            f"  {G}http://localhost:8765/slides{R}   슬라이드 뷰\n"
-            f"  {G}http://localhost:8765/api/docs{R} Swagger UI {D}(OAS 3.1){R}\n"
+            f"  {G}http://localhost:8765{R}           메인 대시보드\n"
+            f"  {G}http://localhost:8765/slides{R}    슬라이드 뷰\n"
+            f"  {G}http://localhost:8765/sdk-docs{R}  SDK 레퍼런스 문서\n"
+            f"  {G}http://localhost:8765/api/docs{R}  Swagger UI {D}(OAS 3.1){R}\n"
         ),
         formatter_class=ColoredHelpFormatter,
         epilog=(

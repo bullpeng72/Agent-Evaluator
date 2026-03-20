@@ -18,7 +18,7 @@
 | **Braintrust** | SaaS + OSS SDK | v0.5.2 (2025) | LLM 실험 + 에이전트 관측 |
 | **Helicone** | SaaS + OSS | 시맨틱 버전 없음 (활발 유지) | LLM 프록시 + 비용 관측 |
 | **W&B Weave** | SaaS + OSS SDK | v0.72+ (2025) | 에이전트 평가 + 실험 관리 |
-| **Agent Evaluator** | OSS SDK | v0.5.4 (2026.03) | Agentic AI 전문 평가 |
+| **Agent Evaluator** | OSS SDK | v0.5.5 (2026.03) | Agentic AI 전문 평가 |
 
 ---
 
@@ -567,7 +567,7 @@ Ragas           ███████░░░  (데이터셋 전체 수동 구�
 | 프로덕션 ML 모델 드리프트 + LLM 품질 통합 모니터링 | **Evidently AI** |
 | **에이전트 보안 검증** (프롬프트 인젝션, 권한 상승 등) | **Agent Evaluator** |
 | **Agentic 행동 분석** (tool 선택 F1, retry, 멀티에이전트) | **Agent Evaluator** |
-| **추가 API 비용 없이 20개 지표 측정** | **Agent Evaluator** |
+| **추가 API 비용 없이 16개 네이티브 지표 측정** | **Agent Evaluator** |
 | **데이터 외부 유출 없는 완전 로컬 평가** | **Agent Evaluator** |
 
 ---

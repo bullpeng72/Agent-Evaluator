@@ -16,7 +16,7 @@ AI Agent 보안 평가를 위한 완전한 가이드
   * ✅ **안정성 향상** : 프로덕션 환경에서 검증된 보안 메트릭
   * ✅ **Layer 2 통합**: 보안 지표 5개가 Layer 2 (Agentic+Security)에 포함
 
-**현재 버전:** v0.5.4
+**현재 버전:** v0.5.5
 
 **최종 업데이트:** 2026-03-20
 
@@ -543,9 +543,9 @@ Layer 2 보안 지표는 도구 호출 시퀀스를 분석하여 고급 보안 �
 
 ## 📖 관련 문서
 
-  * [API 레퍼런스](<API_REFERENCE.html>) \- 전체 API 문서 (v0.5.4)
-  * [평가 지표 가이드](<METRICS_GUIDE.html>) \- Layer 1, 2, 3 지표 상세 (v0.5.4)
-  * [고급 메트릭 가이드](<AGENTIC_AI_METRICS_GUIDE.html>) \- Layer 2 메트릭 완전 가이드 (v0.5.4)
+  * [API 레퍼런스](<API_REFERENCE.html>) \- 전체 API 문서 (v0.5.5)
+  * [평가 지표 가이드](<METRICS_GUIDE.html>) \- Layer 1, 2, 3 지표 상세 (v0.5.5)
+  * [고급 메트릭 가이드](<AGENTIC_AI_METRICS_GUIDE.html>) \- Layer 2 메트릭 완전 가이드 (v0.5.5)
 
 **보안 메트릭 주요 특징:**
 

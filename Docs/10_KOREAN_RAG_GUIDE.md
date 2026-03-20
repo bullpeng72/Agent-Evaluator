@@ -1,6 +1,6 @@
 # 🇰🇷 한국어 RAG 평가 가이드
 
-한국어 특화 RAG 시스템 평가 및 최적화 (Agent Evaluator v0.5.4)
+한국어 특화 RAG 시스템 평가 및 최적화 (Agent Evaluator v0.5.5)
 
 # 한국어 RAG 평가 가이드
 
@@ -2459,6 +2459,6 @@ MIT License - 자유롭게 사용, 수정, 배포 가능합니다.
 * * *
 
 **최종 업데이트** : 2026-03-20
-**버전** : Agent Evaluator v0.5.4
+**버전** : Agent Evaluator v0.5.5
 **프로젝트** : Agent Evaluator - AI Agent Performance Evaluation System
 **문서** : Korean RAG Evaluation Guide

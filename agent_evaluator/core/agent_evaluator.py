@@ -4801,7 +4801,7 @@ class PerformanceMonitor:
             )
             tm.add_calculation_step(
                 tid5, "dimension_scoring",
-                "6개 차원 채점 (relevance · clarity · completeness · accuracy · coherence · helpfulness)",
+                "5개 차원 채점 (relevance · completeness · accuracy · clarity · usefulness)",
                 {"dimensions": list(dim_scores.keys())},
                 {"avg_dimension_scores": {k: round(v, 3) for k, v in dim_scores.items()}},
                 TestStepStatus.SUCCESS,

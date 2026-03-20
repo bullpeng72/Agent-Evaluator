@@ -4,10 +4,17 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
 <title>{{ title }}</title>
+{% if offline %}
+<script defer src="/static/alpine.min.js"></script>
+<script src="/static/plotly.min.js"></script>
+<link href="/static/tabulator.min.css" rel="stylesheet" id="tab-theme">
+<script src="/static/tabulator.min.js"></script>
+{% else %}
 <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.1/dist/cdn.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/plotly.js-dist-min@2.32.0/plotly.min.js"></script>
-<link href="https://cdn.jsdelivr.net/npm/tabulator-tables@6.2.1/dist/css/tabulator_midnight.min.css" rel="stylesheet" id="tab-theme">
-<script src="https://cdn.jsdelivr.net/npm/tabulator-tables@6.2.1/dist/js/tabulator.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/plotly.js-dist@2.35.2/plotly.min.js"></script>
+<link href="https://cdn.jsdelivr.net/npm/tabulator-tables@6.3.0/dist/css/tabulator_midnight.min.css" rel="stylesheet" id="tab-theme">
+<script src="https://cdn.jsdelivr.net/npm/tabulator-tables@6.3.0/dist/js/tabulator.min.js"></script>
+{% endif %}
 <style>
 :root{
   --bg:#0f1117;--bg2:#1a1d27;--bg3:#22263a;--border:#2d3148;
@@ -174,6 +181,22 @@ textarea.gd-input{height:60px;resize:vertical;font-family:inherit}
   .cg,.cg3{grid-template-columns:1fr 1fr}
   @page{margin:15mm}
 }
+/* data tables — 공통화 */
+.dt{width:100%;border-collapse:collapse;font-size:14px;table-layout:fixed}
+.dt thead tr{color:var(--text2);border-bottom:1px solid var(--border)}
+.dt th{padding:6px 8px;font-weight:600}
+.dt td{padding:6px 8px}
+.dt tbody tr:not(:last-child){border-bottom:1px solid var(--border)}
+.dt-card{width:100%;border-collapse:collapse;font-size:13px;border:1px solid var(--border);border-radius:6px;overflow:hidden}
+.dt-card thead tr{background:var(--bg3);color:var(--text2);font-weight:600}
+.dt-card th,.dt-card td{padding:6px 10px;border-bottom:1px solid var(--border)}
+.dt-card th:first-child,.dt-card td:first-child{text-align:left}
+.dt-card th:not(:first-child){text-align:right}
+.dt-card td:not(:first-child){text-align:right;font-variant-numeric:tabular-nums}
+.dt-grid{width:100%;border-collapse:collapse;font-size:14px}
+.dt-grid thead tr{background:var(--bg3);color:var(--text2)}
+.dt-grid th{padding:7px 10px;border:1px solid var(--border)}
+.dt-grid td{padding:6px 10px;border:1px solid var(--border)}
 [x-cloak]{display:none!important}
 </style>
 </head>
@@ -492,7 +515,7 @@ textarea.gd-input{height:60px;resize:vertical;font-family:inherit}
           </template>
         </div>
         <div class="cg">
-          <div class="cbox"><div class="ct">품질 레이더 (6차원)</div><div id="q-qual-radar" class="plt-chart"></div></div>
+          <div class="cbox"><div class="ct">품질 레이더 (5차원)</div><div id="q-qual-radar" class="plt-chart"></div></div>
           <div class="cbox">
             <div class="ct">차원별 평균 점수</div>
             <template x-for="[dim,val] in Object.entries(data.quality_detail?.dimension_summary||{})" :key="dim">
@@ -570,7 +593,7 @@ textarea.gd-input{height:60px;resize:vertical;font-family:inherit}
     <!-- 벤치마크 비교 -->
     <div class="sec">
       <div class="sec-t">📐 벤치마크 비교</div>
-      <table style="width:100%;border-collapse:collapse;font-size:14px;table-layout:fixed">
+      <table class="dt">
         <colgroup>
           <col style="width:auto">
           <col style="width:100px">
@@ -578,37 +601,37 @@ textarea.gd-input{height:60px;resize:vertical;font-family:inherit}
           <col style="width:140px">
         </colgroup>
         <thead>
-          <tr style="color:var(--text2);border-bottom:1px solid var(--border)">
-            <th style="text-align:left;padding:6px 8px;font-weight:600">지표</th>
-            <th style="text-align:right;padding:6px 8px;font-weight:600">내 값</th>
-            <th style="text-align:center;padding:6px 8px;font-weight:600">업계 평균</th>
-            <th style="text-align:left;padding:6px 8px;font-weight:600">판정</th>
+          <tr>
+            <th style="text-align:left">지표</th>
+            <th style="text-align:right">내 값</th>
+            <th style="text-align:center">업계 평균</th>
+            <th style="text-align:left">판정</th>
           </tr>
         </thead>
         <tbody>
-          <tr style="border-bottom:1px solid var(--border)">
-            <td style="padding:6px 8px">TCR</td>
-            <td style="padding:6px 8px;text-align:right" x-text="tcr().toFixed(1)+'%'"></td>
-            <td style="padding:6px 8px;text-align:center">
+          <tr>
+            <td>TCR</td>
+            <td style="text-align:right" x-text="tcr().toFixed(1)+'%'"></td>
+            <td style="text-align:center">
               <input type="number" x-model.number="benchmarks.tcr" style="width:64px;background:var(--bg3);border:1px solid var(--border);border-radius:4px;color:var(--text);padding:2px 6px;text-align:right"> %
             </td>
-            <td style="padding:6px 8px;text-align:left" :style="tcr()>=benchmarks.tcr?'color:var(--green)':'color:var(--orange)'" x-text="tcr()>=benchmarks.tcr?'✅ 평균 상회':'⚠️ 평균 미달'"></td>
-          </tr>
-          <tr style="border-bottom:1px solid var(--border)">
-            <td style="padding:6px 8px">Accuracy</td>
-            <td style="padding:6px 8px;text-align:right" x-text="acc().toFixed(1)+'%'"></td>
-            <td style="padding:6px 8px;text-align:center">
-              <input type="number" x-model.number="benchmarks.accuracy" style="width:64px;background:var(--bg3);border:1px solid var(--border);border-radius:4px;color:var(--text);padding:2px 6px;text-align:right"> %
-            </td>
-            <td style="padding:6px 8px;text-align:left" :style="acc()>=benchmarks.accuracy?'color:var(--green)':'color:var(--orange)'" x-text="acc()>=benchmarks.accuracy?'✅ 평균 상회':'⚠️ 평균 미달'"></td>
+            <td style="text-align:left" :style="tcr()>=benchmarks.tcr?'color:var(--green)':'color:var(--orange)'" x-text="tcr()>=benchmarks.tcr?'✅ 평균 상회':'⚠️ 평균 미달'"></td>
           </tr>
           <tr>
-            <td style="padding:6px 8px">Hallucination</td>
-            <td style="padding:6px 8px;text-align:right" x-text="hall().toFixed(1)+'%'"></td>
-            <td style="padding:6px 8px;text-align:center">
+            <td>Accuracy</td>
+            <td style="text-align:right" x-text="acc().toFixed(1)+'%'"></td>
+            <td style="text-align:center">
+              <input type="number" x-model.number="benchmarks.accuracy" style="width:64px;background:var(--bg3);border:1px solid var(--border);border-radius:4px;color:var(--text);padding:2px 6px;text-align:right"> %
+            </td>
+            <td style="text-align:left" :style="acc()>=benchmarks.accuracy?'color:var(--green)':'color:var(--orange)'" x-text="acc()>=benchmarks.accuracy?'✅ 평균 상회':'⚠️ 평균 미달'"></td>
+          </tr>
+          <tr>
+            <td>Hallucination</td>
+            <td style="text-align:right" x-text="hall().toFixed(1)+'%'"></td>
+            <td style="text-align:center">
               <input type="number" x-model.number="benchmarks.hallucination" style="width:64px;background:var(--bg3);border:1px solid var(--border);border-radius:4px;color:var(--text);padding:2px 6px;text-align:right"> %
             </td>
-            <td style="padding:6px 8px;text-align:left" :style="hall()<=benchmarks.hallucination?'color:var(--green)':'color:var(--orange)'" x-text="hall()<=benchmarks.hallucination?'✅ 평균 하회':'⚠️ 평균 초과'"></td>
+            <td style="text-align:left" :style="hall()<=benchmarks.hallucination?'color:var(--green)':'color:var(--orange)'" x-text="hall()<=benchmarks.hallucination?'✅ 평균 하회':'⚠️ 평균 초과'"></td>
           </tr>
         </tbody>
       </table>
@@ -644,14 +667,14 @@ textarea.gd-input{height:60px;resize:vertical;font-family:inherit}
             <p style="font-weight:600;margin-bottom:8px">모든 품질 지표 회귀 없음</p>
           </div>
           <!-- 지표별 비교 요약 -->
-          <table style="width:100%;border-collapse:collapse;font-size:13px;border:1px solid var(--border);border-radius:6px;overflow:hidden">
+          <table class="dt-card">
             <colgroup><col style="width:auto"><col style="width:80px"><col style="width:80px"><col style="width:72px"></colgroup>
             <thead>
-              <tr style="background:var(--bg3);color:var(--text2);font-weight:600">
-                <th style="padding:6px 10px;text-align:left;border-bottom:1px solid var(--border)">지표</th>
-                <th style="padding:6px 10px;text-align:right;border-bottom:1px solid var(--border)">이전</th>
-                <th style="padding:6px 10px;text-align:right;border-bottom:1px solid var(--border)">현재</th>
-                <th style="padding:6px 10px;text-align:right;border-bottom:1px solid var(--border)">변화</th>
+              <tr>
+                <th>지표</th>
+                <th>이전</th>
+                <th>현재</th>
+                <th>변화</th>
               </tr>
             </thead>
             <tbody>
@@ -662,11 +685,10 @@ textarea.gd-input{height:60px;resize:vertical;font-family:inherit}
                 {label:'Response Quality',curr:(data.quality_detail?.avg_score||0)*10,   prev:prevFile()?.quality_avg||0,   unit:'',  invert:false},
               ]" :key="it.label">
                 <tr>
-                  <td style="padding:6px 10px;border-bottom:1px solid var(--border)" x-text="it.label"></td>
-                  <td style="padding:6px 10px;text-align:right;border-bottom:1px solid var(--border);color:var(--text2);font-variant-numeric:tabular-nums" x-text="it.prev.toFixed(1)+it.unit"></td>
-                  <td style="padding:6px 10px;text-align:right;border-bottom:1px solid var(--border);font-variant-numeric:tabular-nums" x-text="it.curr.toFixed(1)+it.unit"></td>
-                  <td style="padding:6px 10px;text-align:right;border-bottom:1px solid var(--border);font-variant-numeric:tabular-nums"
-                    :style="(()=>{const d=it.invert?it.prev-it.curr:it.curr-it.prev;return d>0.05?'color:var(--green)':d<-0.05?'color:var(--orange)':'color:var(--text2)'})()"
+                  <td x-text="it.label"></td>
+                  <td x-text="it.prev.toFixed(1)+it.unit"></td>
+                  <td x-text="it.curr.toFixed(1)+it.unit"></td>
+                  <td :style="(()=>{const d=it.invert?it.prev-it.curr:it.curr-it.prev;return d>0.05?'color:var(--green)':d<-0.05?'color:var(--orange)':'color:var(--text2)'})()"
                     x-text="(()=>{const d=it.invert?it.prev-it.curr:it.curr-it.prev;const s=d>0.05?'▲':d<-0.05?'▼':'─';return s+' '+Math.abs(d).toFixed(1)+it.unit})()"
                   ></td>
                 </tr>
@@ -843,7 +865,7 @@ textarea.gd-input{height:60px;resize:vertical;font-family:inherit}
         </template>
       </div>
       <div class="cg">
-        <div class="cbox"><div class="ct">품질 레이더 (6차원)</div><div id="qual-radar" class="plt-chart"></div></div>
+        <div class="cbox"><div class="ct">품질 레이더 (5차원)</div><div id="qual-radar" class="plt-chart"></div></div>
         <div class="cbox">
           <div class="ct">차원별 평균 점수</div>
           <template x-for="[dim,val] in Object.entries(data.quality_detail?.dimension_summary||{})" :key="dim">
@@ -1195,25 +1217,24 @@ textarea.gd-input{height:60px;resize:vertical;font-family:inherit}
       </div>
       <!-- 프레임워크 있음 -->
       <div x-show="frameworkDist().some(f=>f.name!=='unknown')">
-        <table style="width:100%;border-collapse:collapse;font-size:13px;border:1px solid var(--border);border-radius:6px;overflow:hidden">
+        <table class="dt-card">
           <colgroup><col style="width:auto"><col style="width:72px"><col style="width:80px"><col style="width:80px"></colgroup>
           <thead>
-            <tr style="background:var(--bg3);color:var(--text2);font-weight:600">
-              <th style="padding:6px 10px;text-align:left;border-bottom:1px solid var(--border)">프레임워크</th>
-              <th style="padding:6px 10px;text-align:right;border-bottom:1px solid var(--border)">태스크</th>
-              <th style="padding:6px 10px;text-align:right;border-bottom:1px solid var(--border)">성공률</th>
-              <th style="padding:6px 10px;text-align:right;border-bottom:1px solid var(--border)">비율</th>
+            <tr>
+              <th>프레임워크</th>
+              <th>태스크</th>
+              <th>성공률</th>
+              <th>비율</th>
             </tr>
           </thead>
           <tbody>
             <template x-for="fw in frameworkDist().filter(f=>f.name!=='unknown')" :key="fw.name">
               <tr>
-                <td style="padding:6px 10px;border-bottom:1px solid var(--border);font-weight:500" x-text="fw.name"></td>
-                <td style="padding:6px 10px;text-align:right;border-bottom:1px solid var(--border);font-variant-numeric:tabular-nums" x-text="fw.count"></td>
-                <td style="padding:6px 10px;text-align:right;border-bottom:1px solid var(--border);font-variant-numeric:tabular-nums"
-                  :style="fw.rate>=80?'color:var(--green)':fw.rate>=50?'color:var(--yellow)':'color:var(--red)'"
+                <td style="font-weight:500" x-text="fw.name"></td>
+                <td x-text="fw.count"></td>
+                <td :style="fw.rate>=80?'color:var(--green)':fw.rate>=50?'color:var(--yellow)':'color:var(--red)'"
                   x-text="fw.rate.toFixed(1)+'%'"></td>
-                <td style="padding:6px 10px;text-align:right;border-bottom:1px solid var(--border);color:var(--text2);font-variant-numeric:tabular-nums"
+                <td style="color:var(--text2)"
                   x-text="((fw.count/(data.total_tasks||1))*100).toFixed(1)+'%'"></td>
               </tr>
             </template>
@@ -1254,7 +1275,7 @@ textarea.gd-input{height:60px;resize:vertical;font-family:inherit}
     <!-- SLA 준수 현황 -->
     <div class="sec">
       <div class="sec-t">📋 SLA 준수 현황</div>
-      <table style="width:100%;border-collapse:collapse;font-size:14px;table-layout:fixed">
+      <table class="dt">
         <colgroup>
           <col style="width:auto">
           <col style="width:110px">
@@ -1262,31 +1283,31 @@ textarea.gd-input{height:60px;resize:vertical;font-family:inherit}
           <col style="width:110px">
         </colgroup>
         <thead>
-          <tr style="color:var(--text2);border-bottom:1px solid var(--border)">
-            <th style="text-align:left;padding:6px 8px;font-weight:600">SLA 항목</th>
-            <th style="text-align:right;padding:6px 8px;font-weight:600">목표</th>
-            <th style="text-align:right;padding:6px 8px;font-weight:600">현재</th>
-            <th style="text-align:left;padding:6px 8px;font-weight:600">상태</th>
+          <tr>
+            <th style="text-align:left">SLA 항목</th>
+            <th style="text-align:right">목표</th>
+            <th style="text-align:right">현재</th>
+            <th style="text-align:left">상태</th>
           </tr>
         </thead>
         <tbody>
-          <tr style="border-bottom:1px solid var(--border)">
-            <td style="padding:6px 8px">응답 시간 P95</td>
-            <td style="padding:6px 8px;text-align:right;color:var(--text2)">≤ 2.0s</td>
-            <td style="padding:6px 8px;text-align:right" x-text="(data.efficiency_metrics?.latency?.p95||0).toFixed(2)+'s'"></td>
-            <td style="padding:6px 8px;text-align:left" :style="(data.efficiency_metrics?.latency?.p95||0)<=2?'color:var(--green)':'color:var(--red)'" x-text="(data.efficiency_metrics?.latency?.p95||0)<=2?'✅ PASS':'❌ FAIL'"></td>
-          </tr>
-          <tr style="border-bottom:1px solid var(--border)">
-            <td style="padding:6px 8px">응답 시간 P99</td>
-            <td style="padding:6px 8px;text-align:right;color:var(--text2)">≤ 5.0s</td>
-            <td style="padding:6px 8px;text-align:right" x-text="(data.efficiency_metrics?.latency?.p99||0).toFixed(2)+'s'"></td>
-            <td style="padding:6px 8px;text-align:left" :style="(data.efficiency_metrics?.latency?.p99||0)<=5?'color:var(--green)':'color:var(--red)'" x-text="(data.efficiency_metrics?.latency?.p99||0)<=5?'✅ PASS':'❌ FAIL'"></td>
+          <tr>
+            <td>응답 시간 P95</td>
+            <td style="text-align:right;color:var(--text2)">≤ 2.0s</td>
+            <td style="text-align:right" x-text="(data.efficiency_metrics?.latency?.p95||0).toFixed(2)+'s'"></td>
+            <td style="text-align:left" :style="(data.efficiency_metrics?.latency?.p95||0)<=2?'color:var(--green)':'color:var(--red)'" x-text="(data.efficiency_metrics?.latency?.p95||0)<=2?'✅ PASS':'❌ FAIL'"></td>
           </tr>
           <tr>
-            <td style="padding:6px 8px">Task당 비용</td>
-            <td style="padding:6px 8px;text-align:right;color:var(--text2)">≤ $0.01</td>
-            <td style="padding:6px 8px;text-align:right" x-text="'$'+(data.efficiency_metrics?.tokens?.avg_cost_per_task||0).toFixed(4)"></td>
-            <td style="padding:6px 8px;text-align:left" :style="(data.efficiency_metrics?.tokens?.avg_cost_per_task||0)<=0.01?'color:var(--green)':'color:var(--red)'" x-text="(data.efficiency_metrics?.tokens?.avg_cost_per_task||0)<=0.01?'✅ PASS':'❌ FAIL'"></td>
+            <td>응답 시간 P99</td>
+            <td style="text-align:right;color:var(--text2)">≤ 5.0s</td>
+            <td style="text-align:right" x-text="(data.efficiency_metrics?.latency?.p99||0).toFixed(2)+'s'"></td>
+            <td style="text-align:left" :style="(data.efficiency_metrics?.latency?.p99||0)<=5?'color:var(--green)':'color:var(--red)'" x-text="(data.efficiency_metrics?.latency?.p99||0)<=5?'✅ PASS':'❌ FAIL'"></td>
+          </tr>
+          <tr>
+            <td>Task당 비용</td>
+            <td style="text-align:right;color:var(--text2)">≤ $0.01</td>
+            <td style="text-align:right" x-text="'$'+(data.efficiency_metrics?.tokens?.avg_cost_per_task||0).toFixed(4)"></td>
+            <td style="text-align:left" :style="(data.efficiency_metrics?.tokens?.avg_cost_per_task||0)<=0.01?'color:var(--green)':'color:var(--red)'" x-text="(data.efficiency_metrics?.tokens?.avg_cost_per_task||0)<=0.01?'✅ PASS':'❌ FAIL'"></td>
           </tr>
         </tbody>
       </table>
@@ -1778,13 +1799,13 @@ textarea.gd-input{height:60px;resize:vertical;font-family:inherit}
       <div class="sec-t">📋 OWASP LLM Top 10 매핑</div>
       <p style="font-size:13px;color:var(--text2);margin-bottom:10px">현재 평가 결과와 OWASP LLM Top 10 (2025) 위협 항목의 매핑</p>
       <div style="overflow-x:auto">
-        <table style="width:100%;border-collapse:collapse;font-size:14px">
+        <table class="dt-grid">
           <thead>
-            <tr style="background:var(--bg3);color:var(--text2)">
-              <th style="padding:7px 10px;text-align:left;border:1px solid var(--border)">#</th>
-              <th style="padding:7px 10px;text-align:left;border:1px solid var(--border)">위협</th>
-              <th style="padding:7px 10px;text-align:left;border:1px solid var(--border)">관련 지표</th>
-              <th style="padding:7px 10px;text-align:center;border:1px solid var(--border)">상태</th>
+            <tr>
+              <th style="text-align:left">#</th>
+              <th style="text-align:left">위협</th>
+              <th style="text-align:left">관련 지표</th>
+              <th style="text-align:center">상태</th>
             </tr>
           </thead>
           <tbody>
@@ -1801,10 +1822,10 @@ textarea.gd-input{height:60px;resize:vertical;font-family:inherit}
               ['LLM10','Unbounded Consumption','PrivilegeEscalationDetector',(data.security_l2?.privilege_escalation?.escalations_detected||0)===0]
             ]" :key="num">
               <tr :style="check===false&&check!==undefined?'background:rgba(248,113,113,0.07)':''">
-                <td style="padding:6px 10px;border:1px solid var(--border);font-weight:700;color:var(--accent)" x-text="num"></td>
-                <td style="padding:6px 10px;border:1px solid var(--border)" x-text="threat"></td>
-                <td style="padding:6px 10px;border:1px solid var(--border);color:var(--text2);font-size:13px" x-text="metric"></td>
-                <td style="padding:6px 10px;border:1px solid var(--border);text-align:center">
+                <td style="font-weight:700;color:var(--accent)" x-text="num"></td>
+                <td x-text="threat"></td>
+                <td style="color:var(--text2);font-size:13px" x-text="metric"></td>
+                <td style="text-align:center">
                   <span x-show="check===true" style="color:var(--green);font-weight:700">✅ PASS</span>
                   <span x-show="check===false" style="color:var(--red);font-weight:700">⚠️ RISK</span>
                   <span x-show="check===undefined||metric==='N/A (Layer 3 필요)'" style="color:var(--text2);font-size:13px">— 미평가</span>
@@ -2269,7 +2290,8 @@ textarea.gd-input{height:60px;resize:vertical;font-family:inherit}
               <span x-text="g.term" style="font-size:14px;font-weight:700"></span>
               <span class="badge" x-text="g.layer" style="font-size:13px"></span>
             </h4>
-            <p x-text="g.desc" style="margin-top:5px"></p>
+            <p x-text="g.purpose" style="margin-top:5px;font-size:13px;font-weight:600;color:var(--text)"></p>
+            <p x-text="g.desc" style="margin-top:3px;font-size:12px;color:var(--text2)"></p>
             <p style="margin-top:5px;font-size:14px;display:flex;gap:14px;flex-wrap:wrap">
               <span style="color:var(--text2)">범위: <b x-text="g.range"></b></span>
               <span :style="`color:${catColor}`">
@@ -2674,86 +2696,116 @@ function app() { return {
   glossary: [
     // ── 품질 ────────────────────────────────────────────────────────────
     { cat:'quality',  icon:'📋', term:'TCR (Task Completion Rate)', layer:'Layer 1 · 기본', tKey:'tcr',
-      desc:'모든 작업의 Completion Score 합계 ÷ 전체 작업 수 × 100. 완전 성공(score=1.0), 부분 성공(0.7~0.99), 실패(<0.7)로 분류. 에이전트 전반 성능의 핵심 지표.',
+      purpose:'에이전트가 주어진 작업을 얼마나 완수했는지 나타내는 핵심 성과 지표.',
+      desc:'모든 작업의 Completion Score 합계 ÷ 전체 작업 수 × 100. 완전 성공(score=1.0), 부분 성공(0.7~0.99), 실패(<0.7)로 분류.',
       range:'0~100%', target:'≥ 90%' },
     { cat:'quality',  icon:'🎯', term:'Accuracy', layer:'Layer 1 · 기본', tKey:'acc',
-      desc:'Token Overlap(40%) · Jaccard Similarity(30%) · LCS Ratio(20%) · Char Similarity(10%) 가중 평균. QA 태스크는 이 방식으로, 코드 태스크는 AST 비교 → 정규화 비교 순 fallback.',
+      purpose:'에이전트 답변이 정답(ground truth)과 얼마나 일치하는지 측정.',
+      desc:'Token Overlap(40%) · Jaccard Similarity(30%) · LCS Ratio(20%) · Char Similarity(10%) 가중 평균. 코드 태스크는 AST 비교 → 정규화 비교 순 fallback.',
       range:'0~100%', target:'≥ 70%' },
     { cat:'quality',  icon:'⭐', term:'Response Quality', layer:'Layer 1 · 기본',
+      purpose:'정답 일치와 무관하게 응답 자체의 실용적 품질을 다차원으로 평가.',
       desc:'관련성(Relevance) · 완전성(Completeness) · 명확성(Clarity) · 정확성(Accuracy) · 유용성(Usefulness) 5개 차원을 각 0~2점으로 평가. 총점 0~10점. 규칙 기반이므로 외부 API 불필요.',
       range:'0~10', target:'≥ 7.0' },
     { cat:'quality',  icon:'🧠', term:'Hallucination Rate', layer:'Layer 1 · 기본', tKey:'hall',
+      purpose:'에이전트가 사실이 아닌 내용을 만들어내는 빈도를 측정. 신뢰도의 핵심 지표.',
       desc:'근거 없는 수치 주장, 미지원 사실 주장, 출처 불일치를 탐지. SAFE(<5%), WARNING(5~15%), DANGER(>15%). enable_hallucination_detection=True 시 활성화.',
       range:'0~100%', target:'≤ 5%' },
     // ── 성능 ────────────────────────────────────────────────────────────
     { cat:'performance', icon:'⏱️', term:'Latency — Mean / P50', layer:'Layer 1 · 기본',
+      purpose:'에이전트 응답 속도의 평균적 수준을 파악. 일반적인 사용자 체감 성능 기준.',
       desc:'평균 응답 시간과 중앙값(P50). 평균은 이상치에 민감하므로 P50과 함께 비교. P50 > Mean 이면 소수 고지연 태스크가 전체를 끌어올리는 신호.',
       range:'>0s', target:'Mean < 3s' },
     { cat:'performance', icon:'⏱️', term:'Latency — P95 / P99', layer:'Layer 1 · 기본', tKey:'p95',
-      desc:'상위 5%(P95) · 1%(P99)의 고지연 요청 응답 시간. SLA 위반 여부 판단의 기준. P95가 SLA 경고선, P99가 위험선으로 사용.',
+      purpose:'최악의 경우 응답 지연이 SLA 기준을 충족하는지 검증. 서비스 안정성 판단 기준.',
+      desc:'상위 5%(P95) · 1%(P99)의 고지연 요청 응답 시간. P95가 SLA 경고선, P99가 위험선으로 사용.',
       range:'>0s', target:'P95 ≤ 2s' },
     { cat:'performance', icon:'🪙', term:'Token Economy', layer:'Layer 1 · 기본',
-      desc:'총 입력/출력 토큰 수, 입출력 비율, 작업당 평균 토큰 소비량. 비율 분석으로 과도한 프롬프트(입력 과다) 또는 과잉 생성(출력 과다)을 진단.',
+      purpose:'에이전트의 토큰 소비 패턴과 효율성을 측정. 과도한 프롬프트나 과잉 생성을 진단.',
+      desc:'총 입력/출력 토큰 수, 입출력 비율, 작업당 평균 토큰 소비량. 비율 분석으로 과도한 프롬프트(입력 과다) 또는 과잉 생성(출력 과다)을 식별.',
       range:'정수', target:'입출력 비율 균형' },
     { cat:'performance', icon:'💰', term:'Cost per Task', layer:'Layer 1 · 기본', tKey:'cost',
+      purpose:'에이전트 운영에 실제로 발생하는 API 비용을 추적. 예산 계획 및 ROI 평가의 기준.',
       desc:'입출력 토큰 수 × 모델 단가로 계산된 작업당 평균 API 비용. 월간 예상 비용으로 자동 환산 (30일 × 일평균 태스크 수 기준).',
       range:'$0~', target:'< $0.01' },
     // ── 에이전틱 ─────────────────────────────────────────────────────────
     { cat:'agentic', icon:'🔧', term:'Tool Selection (F1)', layer:'Layer 2 · 기본',
-      desc:'예상 도구 집합(expected_tools)과 실제 사용 도구의 F1-Score. Precision=불필요 도구 미사용, Recall=필수 도구 누락 방지. 두 지표의 조화 평균으로 양방향 패널티.',
+      purpose:'에이전트가 상황에 맞는 도구를 정확하게 선택하는 능력을 평가. 도구 과다 호출과 누락을 동시에 감지.',
+      desc:'예상 도구 집합(expected_tools)과 실제 사용 도구의 F1-Score. Precision=불필요 도구 미사용, Recall=필수 도구 누락 방지. 두 지표의 조화 평균.',
       range:'0~100%', target:'≥ 85%' },
     { cat:'agentic', icon:'⚡', term:'Tool Efficiency', layer:'Layer 2 · 기본',
+      purpose:'에이전트의 도구 호출이 얼마나 낭비 없이 이루어지는지 평가. 계획 능력의 간접 지표.',
       desc:'도구 호출 성공률, 중복 호출률(redundancy), 실패율을 합산한 종합 효율성 점수. 중복 호출이 높으면 에이전트의 계획 능력 문제 신호.',
       range:'0~100', target:'≥ 80' },
     { cat:'agentic', icon:'🤝', term:'Agent Coordination', layer:'Layer 2 · 기본',
-      desc:'Multi-Agent 시스템에서 에이전트 간 상호작용 성공률. 위임(delegation) · 협업(collaboration) · 검토(review) 유형별 분류. 고유 에이전트 수, 상호작용 패턴(mesh/hub-spoke) 분석.',
+      purpose:'멀티에이전트 시스템에서 에이전트 간 협업이 올바르게 이루어지는지 평가.',
+      desc:'에이전트 간 상호작용 성공률. 위임(delegation) · 협업(collaboration) · 검토(review) 유형별 분류. 고유 에이전트 수, 상호작용 패턴(mesh/hub-spoke) 분석.',
       range:'0~100%', target:'≥ 80%' },
     { cat:'agentic', icon:'🔀', term:'Workflow Execution', layer:'Layer 2 · 기본',
+      purpose:'복잡한 체인/그래프 워크플로우가 설계 의도대로 실행되는지 검증.',
       desc:'LangChain/LangGraph 체인의 단계별 실행 성공률. Critical Path 분석으로 병목 단계 식별. 분기 실행 여부(branching), 실패 단계 이름도 기록.',
       range:'0~100%', target:'≥ 90%' },
     { cat:'agentic', icon:'🔁', term:'Retry / Correction', layer:'Layer 2 · 기본',
+      purpose:'에이전트가 스스로 오류를 감지하고 수정하는 자기 교정 능력을 평가.',
       desc:'재시도 발생률(retry_rate), 첫 시도 성공률(first_attempt_success), 재시도 후 최종 성공률(correction_success_rate). 높은 재시도율은 초기 응답 품질 문제를 나타냄.',
       range:'0~100%', target:'첫시도 성공 ≥ 80%' },
     // ── 보안 ─────────────────────────────────────────────────────────────
     { cat:'security', icon:'🛡️', term:'Input Sanitization', layer:'Layer 1 · 보안',
+      purpose:'외부 입력을 통한 공격 시도가 에이전트에 영향을 미치는지 측정. 입력 경계 보안 검증.',
       desc:'SQL Injection · Command Injection · Path Traversal · XSS · Prompt Injection 5종 패턴 탐지. 위협 탐지 시 threat_level(low/medium/high/critical) 분류. enable_security_metrics=True 필요.',
       range:'0~100%', target:'위협율 < 5%' },
     { cat:'security', icon:'📤', term:'Output Leakage', layer:'Layer 1 · 보안',
-      desc:'API Key · Password · Email · Phone Number · SSN · Private IP 등 민감 정보 유출 탐지. 정규식 기반. 유출율 0%가 목표. false-positive 방지를 위해 컨텍스트 확인 권장.',
+      purpose:'에이전트 응답을 통해 민감 정보가 외부로 유출되는지 탐지. 데이터 보안 규정 준수 검증.',
+      desc:'API Key · Password · Email · Phone Number · SSN · Private IP 등 민감 정보 유출 탐지. 정규식 기반. false-positive 방지를 위해 컨텍스트 확인 권장.',
       range:'0~100%', target:'0%' },
     { cat:'security', icon:'🔐', term:'Authorization Compliance', layer:'Layer 1 · 보안',
+      purpose:'에이전트가 허가된 도구와 권한 범위 내에서만 동작하는지 검증. 최소 권한 원칙 준수 확인.',
       desc:'허용 도구 목록(allowlist) 기반 검사. 제한 도구 호출 시도, 위험 파라미터(rm -rf, DROP TABLE 등) 전달 여부 탐지. 준수율 높을수록 안전.',
       range:'0~100%', target:'≥ 95%' },
     { cat:'security', icon:'🚀', term:'Privilege Escalation', layer:'Layer 2 · 보안',
-      desc:'권한 체인(guest→read→write→execute→admin) 분석. execute(3) 이상에 도달하거나 2레벨 이상 점프 시 탐지. risk_score(0~10)로 위험도 정량화. 의심 시퀀스 패턴 매칭 병행.',
+      purpose:'에이전트가 점진적으로 높은 권한을 획득하려는 패턴을 탐지. 권한 남용 공격 방어.',
+      desc:'권한 체인(guest→read→write→execute→admin) 분석. execute(3) 이상 도달 또는 2레벨 이상 점프 시 탐지. risk_score(0~10)로 위험도 정량화.',
       range:'탐지율 0~100%', target:'0%' },
     { cat:'security', icon:'⚔️', term:'Tool Chain Attack', layer:'Layer 2 · 보안',
+      purpose:'여러 도구를 연계하는 복합 공격 패턴을 탐지. 단일 도구 검사로는 식별하기 어려운 공격 감지.',
       desc:'연속 도구 호출 패턴에서 공격 체인 탐지. 데이터 유출(exfiltration) · 횡적 이동(lateral_movement) · 지속성(persistence) · 방어 회피(defense_evasion) 4가지 유형 분류.',
       range:'신뢰도 0~1', target:'탐지율 0%' },
     // ── 하이브리드 (외부 라이브러리) ─────────────────────────────────────
     { cat:'hybrid', icon:'📚', term:'Faithfulness (Ragas)', layer:'Layer 3 · Ragas',
-      desc:'생성된 답변이 제공된 컨텍스트에 근거한 정도. 높을수록 환각이 적음. Ragas 라이브러리와 LLM API가 필요. pip install agent-evaluator[ragas]',
+      purpose:'RAG 에이전트가 검색된 컨텍스트에만 근거하여 답변하는지 평가. 출처 없는 내용 생성 여부 확인.',
+      desc:'생성된 답변이 제공된 컨텍스트에 근거한 정도. 높을수록 환각이 적음. Ragas 라이브러리와 LLM API 필요. pip install agent-evaluator[ragas]',
       range:'0~1', target:'≥ 0.8' },
     { cat:'hybrid', icon:'🔍', term:'Answer Relevancy (Ragas)', layer:'Layer 3 · Ragas',
-      desc:'생성된 답변이 질문과 관련 있는 정도. 완전 관련 시 1.0. 답변이 질문을 무시하거나 다른 주제로 이탈하면 낮아짐.',
+      purpose:'생성된 답변이 사용자 질문의 핵심을 충실히 다루는지 평가. 주제 이탈 및 불완전 응답 감지.',
+      desc:'답변이 질문과 관련 있는 정도. 완전 관련 시 1.0. 답변이 질문을 무시하거나 다른 주제로 이탈하면 낮아짐.',
       range:'0~1', target:'≥ 0.8' },
     { cat:'hybrid', icon:'📋', term:'Context Recall (Ragas)', layer:'Layer 3 · Ragas',
-      desc:'정답 생성에 필요한 정보가 검색된 컨텍스트에 포함된 정도. 낮으면 검색(Retrieval) 단계가 충분한 정보를 가져오지 못하는 신호.',
+      purpose:'검색 시스템이 정답 도출에 필요한 정보를 빠짐없이 가져오는지 평가. 검색 단계의 커버리지 측정.',
+      desc:'정답 생성에 필요한 정보가 검색된 컨텍스트에 포함된 정도. 낮으면 Retrieval 단계가 충분한 정보를 가져오지 못하는 신호.',
       range:'0~1', target:'≥ 0.7' },
     { cat:'hybrid', icon:'🎯', term:'Context Precision (Ragas)', layer:'Layer 3 · Ragas',
+      purpose:'검색 시스템이 불필요한 노이즈 없이 유용한 정보만 가져오는지 평가. 검색 단계의 정밀도 측정.',
       desc:'검색된 컨텍스트 중 실제로 답변 생성에 유용한 비율. 낮으면 불필요한 청크가 많이 검색된다는 의미. Precision↑ + Recall↑ 동시 달성이 목표.',
       range:'0~1', target:'≥ 0.7' },
+    { cat:'hybrid', icon:'🔍', term:'Answer Relevancy (DeepEval)', layer:'Layer 3 · DeepEval',
+      purpose:'생성된 답변이 사용자 질문과 얼마나 관련 있는지 LLM 심판으로 평가. Ragas 기반 측정의 LLM-as-judge 대안.',
+      desc:'질문에 대한 답변의 관련성을 DeepEval의 LLM 기반 방식으로 채점. 답변이 질문을 직접 다루는지 판단. pip install agent-evaluator[deepeval]',
+      range:'0~1', target:'≥ 0.8' },
     { cat:'hybrid', icon:'🧪', term:'G-Eval Score (DeepEval)', layer:'Layer 3 · DeepEval',
-      desc:'LLM-as-judge 방식. GPT/Claude가 평가 루브릭(criteria)에 따라 Chain-of-Thought로 응답 품질을 채점. 인간 평가와 높은 상관관계. pip install agent-evaluator[deepeval]',
+      purpose:'LLM을 심판으로 활용해 응답 품질을 인간에 가깝게 평가. 규칙 기반으로 포착하기 어려운 품질 차이 감지.',
+      desc:'GPT/Claude가 평가 루브릭(criteria)에 따라 Chain-of-Thought로 응답 품질을 채점. 인간 평가와 높은 상관관계. pip install agent-evaluator[deepeval]',
       range:'0~1', target:'≥ 0.7' },
     { cat:'hybrid', icon:'☣️', term:'Toxicity Score (DeepEval)', layer:'Layer 3 · DeepEval',
-      desc:'응답 내 유해 콘텐츠(혐오 표현, 차별, 폭력 조장 등) 탐지. 낮을수록 안전. 0에 가까울수록 무독성. 공개 서비스 배포 전 필수 점검 지표.',
+      purpose:'에이전트 응답에 유해하거나 공격적인 내용이 포함되는지 탐지. 공개 서비스 배포 전 필수 점검.',
+      desc:'응답 내 유해 콘텐츠(혐오 표현, 차별, 폭력 조장 등) 탐지. 낮을수록 안전. 0에 가까울수록 무독성.',
       range:'0~1', target:'≤ 0.1' },
     { cat:'hybrid', icon:'⚖️', term:'Bias Score (DeepEval)', layer:'Layer 3 · DeepEval',
-      desc:'성별·인종·연령 등 편향적 표현 탐지. 낮을수록 공정. 0에 가까울수록 편향 없음. 규제 환경(EU AI Act 등)에서 필수 모니터링 항목.',
+      purpose:'에이전트 응답에 특정 집단에 대한 편향이 있는지 탐지. EU AI Act 등 규제 환경에서 필수 모니터링.',
+      desc:'성별·인종·연령 등 편향적 표현 탐지. 낮을수록 공정. 0에 가까울수록 편향 없음.',
       range:'0~1', target:'≤ 0.1' },
     { cat:'hybrid', icon:'🧠', term:'Hallucination Score (DeepEval)', layer:'Layer 3 · DeepEval',
-      desc:'LLM-as-judge 방식 환각 탐지. Layer 1의 규칙 기반 탐지와 상호보완. 1.0=환각 없음, 0.0=완전 환각. 컨텍스트와 응답의 사실 일치 여부를 LLM이 판단.',
+      purpose:'LLM 기반 심층 검증으로 응답의 사실 신뢰도를 평가. Layer 1 규칙 기반 탐지의 보완재.',
+      desc:'LLM-as-judge 방식 환각 탐지. 1.0=환각 없음, 0.0=완전 환각. 컨텍스트와 응답의 사실 일치 여부를 LLM이 판단.',
       range:'0~1', target:'≥ 0.9' },
   ],
 

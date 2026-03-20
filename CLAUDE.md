@@ -5,7 +5,7 @@
 **Agent-Evaluator** is a production-ready Python SDK for evaluating AI agents.
 25개의 성능 지표를 세 개의 레이어(기본/에이전틱/하이브리드)로 측정한다.
 
-- **Version:** 0.5.4 (Beta)
+- **Version:** 0.5.5 (Beta)
 - **Python:** 3.8+
 - **License:** MIT
 - **Author:** Sungwoo Kim
@@ -19,7 +19,7 @@
 pip install -e ".[dev]"
 
 # 선택적 의존성 포함 설치
-pip install -e ".[deepeval,ragas,langchain]"
+pip install -e ".[eval,frameworks,llm]"
 pip install -e ".[all]"
 
 # --- CLI (pip install 후 바로 사용 가능) ---
@@ -45,6 +45,7 @@ twine upload dist/*                          # 실제 배포
 agent-eval serve                        # 기본 포트 8765, 브라우저 자동 오픈
 agent-eval serve --port 8080 --watch    # 포트 지정 + 파일 변경 자동 갱신
 agent-eval serve --no-open              # 브라우저 자동 오픈 비활성화
+agent-eval serve --offline              # CDN 에셋 로컬 캐시 (인터넷 없이 실행)
 ```
 
 ---
@@ -58,7 +59,7 @@ Layer 1 — Foundation Metrics (native, no external deps)
   TaskCompletionTracker     → Task Completion Rate (TCR)
   AccuracyEvaluator         → QA / Code / General accuracy
   HallucinationDetector     → Fact consistency scoring
-  ResponseQualityEvaluator  → 6-dimension quality assessment
+  ResponseQualityEvaluator  → 5-dimension quality assessment
   LatencyTracker            → Percentile-based latency
   TokenEconomyTracker       → Token usage + cost estimation
 
@@ -174,10 +175,10 @@ result = create_taskresult(
 
 ### `evaluation_session` (Context Manager)
 ```python
-async with evaluation_session(monitor) as m:
-    result = await agent.run(task)
-    m.record_task(result)
-# 세션 종료 시 자동 저장
+with evaluation_session("output_filename") as monitor:
+    result = agent.run(task)
+    monitor.record_task(result)
+# 세션 종료 시 자동 저장 (예외 발생 시에도 안전)
 ```
 
 ### Framework Factory Functions
@@ -198,13 +199,19 @@ from agent_evaluator import (
     PerformanceMonitor, TaskResult, TaskType, EvaluationReport,
 
     # Hybrid
-    HybridPerformanceMonitor, ExtendedTaskResult,
+    HybridPerformanceMonitor, ExtendedTaskResult, HybridEvaluationReport,
 
     # Helpers
     create_taskresult, evaluation_session, hybrid_evaluation_session,
 
     # LLM Helpers
     LLMHelper, ClaudeHelper,  # aliases for LLMEvaluationHelper, AnthropicEvaluationHelper
+
+    # Transparency Subsystem
+    TestTransparencyManager, AnnotationType, TestStepStatus,
+
+    # Config Helpers
+    load_env, get_settings, init_from_app,
 
     # Individual Trackers (고급 사용자용)
     TaskCompletionTracker, AccuracyEvaluator, HallucinationDetector,
@@ -246,14 +253,14 @@ from agent_evaluator import (
 
 | 우선순위 | 항목 | 위치 |
 |---------|------|------|
-| 🔴 High | `agent_evaluator.py` 5,318줄 단일 파일 — trackers/ 분리 필요 | `core/agent_evaluator.py` |
+| 🔴 High | `agent_evaluator.py` 5,409줄 단일 파일 — trackers/ 분리 필요 | `core/agent_evaluator.py` |
 | 🔴 High | 테스트 없음 — `tests/` 디렉토리 미존재 | 프로젝트 전체 |
 | 🔴 High | `import re` 9회 함수 내부에서 임포트 → 모듈 상단으로 이동 필요 | `core/agent_evaluator.py` |
 | 🔴 High | `os.chdir()` 라이브러리 코드 내 사용 → `importlib` 방식으로 교체 필요 | `utils/dashboard_integration.py:44,82` |
 | 🟡 Medium | ~14곳에서 bare `except Exception:` 로 에러 무시 | 여러 파일 |
 | 🟡 Medium | `_check_patterns()`, `_is_subsequence()` 중복 구현 | `core/agent_evaluator.py` |
 | ✅ Fixed | `pandas>=1.3.0` 상한선 없음 → `<3.0.0` 추가 완료 | `pyproject.toml` |
-| ✅ Fixed | `PyPDF2`, `pdfplumber` `pyproject.toml` 미등록 → `[datasets]` extra 등록 완료 | `pyproject.toml` |
+| ✅ Fixed | `PyPDF2`, `pdfplumber` `pyproject.toml` 미등록 → `[all]` extra에 포함 완료 | `pyproject.toml` |
 | ✅ Fixed | `warnings.filterwarnings('ignore')` 전역 적용 → 카테고리/모듈 타겟 필터로 교체 완료 | `integrations/metric_adapters.py` |
 
 ---
@@ -289,11 +296,11 @@ pytest
 - `python-dotenv>=0.19.0,<2.0.0`
 
 ### Optional (extras)
-- `deepeval>=0.20.0,<2.0.0` — `pip install agent-evaluator[deepeval]`
-- `ragas>=0.1.0,<2.0.0` — `pip install agent-evaluator[ragas]`
-- `langchain>=0.1.0,<1.0.0` — `pip install agent-evaluator[langchain]`
-- `PyPDF2>=3.0.0,<4.0.0` + `pdfplumber>=0.10.0,<1.0.0` — `pip install agent-evaluator[datasets]`
-- `fastapi>=0.110.0` + `uvicorn[standard]>=0.29.0` + `jinja2>=3.1.0` + `python-multipart>=0.0.9` — `pip install agent-evaluator[serve]`
+- `[llm]` — `openai>=1.0.0,<3.0.0` + `anthropic>=0.20.0,<1.0.0` — `pip install agent-evaluator[llm]`
+- `[frameworks]` — `langchain>=0.1.0,<3.0.0` + `langgraph` + `crewai` + `pyautogen` — `pip install agent-evaluator[frameworks]`
+- `[eval]` — `deepeval>=0.20.0,<4.0.0` + `ragas>=0.1.0,<2.0.0` + `langchain` — `pip install agent-evaluator[eval]`
+- `[serve]` — `fastapi>=0.110.0` + `uvicorn[standard]>=0.29.0` + `jinja2>=3.1.0` + `python-multipart>=0.0.9` — `pip install agent-evaluator[serve]`
+- `[all]` — 위 모든 것 + `PyPDF2>=3.0.0` + `pdfplumber>=0.10.0` — `pip install agent-evaluator[all]`
 
 ---
 
@@ -322,6 +329,14 @@ pytest
 ---
 
 ## 📝 변경 이력
+
+### v0.5.5 (2026-03-20) — CLI/대시보드/지표 문서 오류 수정 및 Public API 보완
+
+- 🔧 `--share` 옵션 설명 수정 — ngrok 불필요, `host=0.0.0.0` 바인딩으로 정정 (`Docs/13_DEPLOYMENT_GUIDE.md`)
+- 🔧 `ResponseQuality.total_score` 범위 수정 — `(0–10)` → `(0–5)` (API 반환값 기준) + `grade` 필드 추가 (`README.md`)
+- 📝 CLAUDE.md Public API에 Transparency 서브시스템(`TestTransparencyManager`, `AnnotationType`, `TestStepStatus`) 및 Config 헬퍼(`load_env`, `get_settings`, `init_from_app`) 누락 항목 추가
+- 📝 README.md 프로젝트 트리에 `utils/test_transparency_manager.py` 추가
+- 📝 Docs/04_LEARNING_GUIDE.md, Docs/01_README.md 최종 업데이트 날짜 2026-03-19 → 2026-03-20
 
 ### v0.5.4 (2026-03-20) — DEEPEVAL_API_KEY 제거 및 문서·SDK 레퍼런스 정비
 

@@ -5,6 +5,16 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>{{ title }} — Slides</title>
 
+{% if offline %}
+<!-- reveal.js (offline) -->
+<link rel="stylesheet" href="/static/reveal-reset.css">
+<link rel="stylesheet" href="/static/reveal.css">
+<link id="reveal-theme" rel="stylesheet" href="/static/reveal-night.css">
+<!-- Chart.js (offline) -->
+<script src="/static/chart.min.js"></script>
+<!-- QR Code (offline) -->
+<script src="/static/qrcode.min.js"></script>
+{% else %}
 <!-- reveal.js -->
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/reset.css">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/reveal.css">
@@ -12,7 +22,8 @@
 <!-- Chart.js -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
 <!-- QR Code -->
-<script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.1/build/qrcode.min.js"></script>
+{% endif %}
 
 <style>
 /* ── CSS variables (dark default) ── */
@@ -385,7 +396,7 @@ body.light {
 </div><!-- /slides -->
 </div><!-- /reveal -->
 
-<script src="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/reveal.js"></script>
+{% if offline %}<script src="/static/reveal.js"></script>{% else %}<script src="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/reveal.js"></script>{% endif %}
 <script>
 Reveal.initialize({
   hash: true,
@@ -400,8 +411,13 @@ Reveal.initialize({
 });
 
 // ── Theme toggle ──────────────────────────────────────────────────────────────
+{% if offline %}
+const DARK_THEME  = '/static/reveal-night.css';
+const LIGHT_THEME = '/static/reveal-white.css';
+{% else %}
 const DARK_THEME  = 'https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/theme/night.css';
 const LIGHT_THEME = 'https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/theme/white.css';
+{% endif %}
 
 function applyTheme(light) {
   document.getElementById('reveal-theme').href = light ? LIGHT_THEME : DARK_THEME;

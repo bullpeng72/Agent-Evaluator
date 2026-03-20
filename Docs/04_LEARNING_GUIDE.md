@@ -2,7 +2,7 @@
 
 개발자 & 품질관리자를 위한 완벽 학습서
 
-v0.5.4 — 25개 메트릭 · 3-Layer · 4개 프레임워크
+v0.5.5 — 25개 메트릭 · 3-Layer · 4개 프레임워크
 
 ## 📊 1. Agent Evaluator 개요
 
@@ -14,13 +14,13 @@ Agent Evaluator는 AI Agent의 성능을 다각도로 평가하고 모니터링�
 
 #### 🆓 Layer 1: Foundation Metrics
 
-**완전 무료, API 키 불필요 (v0.5.4)**
+**완전 무료, API 키 불필요 (v0.5.5)**
 
   * **Foundation (6개):** TCR, Accuracy, Hallucination Detection, Quality, Latency, Token Economy
 
 #### 🤖 Layer 2: Agentic + Security Metrics
 
-**Multi-Agent & 보안 통합 평가 (v0.5.4)**
+**Multi-Agent & 보안 통합 평가 (v0.5.5)**
 
   * **Agentic (5개):** Tool Call Analysis, Retry/Correction, Tool Selection Accuracy, Agent Coordination, Workflow Execution
   * **Security (5개):** Input Sanitization, Output Leakage, Tool Authorization, Privilege Escalation, Tool Chain Attack Detection
@@ -184,7 +184,7 @@ compare_with_thresholds()
 **TCR** | Task Completion Rate | (성공 작업 수 / 전체 작업 수) × 100 | ≥ 95%
 **Accuracy** | 정확도 (의미론적 유사도) | 평균 accuracy_score | ≥ 90%
 **Hallucination** | 환각 발생률 | 룰 기반 사실 일관성 검사 | < 1%
-**Quality** | 응답 품질 점수 | 6차원 품질 평가 평균 | ≥ 8.5/10
+**Quality** | 응답 품질 점수 | 5차원 품질 평가 평균 | ≥ 8.5/10
 **Latency** | 응답 시간 (P95) | 95 percentile execution_time | < 3s
 **Token Economy** | 토큰 비용 분석 | 토큰 사용량 + 비용 추정 | 최소화
 
@@ -1789,7 +1789,7 @@ Agent 상호작용 + Security 자동 추적
     # ✅ 메시지 교환 분석 + 보안 위협 탐지
 ```
 
-**✅ v0.5.4 통합의 장점:**
+**✅ v0.5.5 통합의 장점:**
 
   * **완전 자동화:** Layer 1/2/3 메트릭 자동 추적
   * **동적 계산:** TCR, Accuracy 등 실시간 계산
@@ -1850,7 +1850,7 @@ _참고: Python API의 5개 고급 분석 기능(이상치 탐지, 상관관계 
 
 FastAPI Dashboard (Port 8765)는 데이터 편집 기능을 통합 제공합니다.
 
-  * ⚙️ **임계값 설정:** 20개 메트릭 Threshold 편집, 환경별 프리셋
+  * ⚙️ **임계값 설정:** 5개 메트릭 Threshold 편집 (TCR·Accuracy·Hallucination·P95·Cost), 환경별 프리셋
   * 📄 **Golden Dataset:** QA Pair 추가/수정/삭제, Layer 2 필드 편집
   * 📋 **Test 준비:** Test Configuration 생성, 환경 설정
   * 📊 **이력 관리:** 버전 백업, 복원, 변경 이력 추적
@@ -1875,7 +1875,7 @@ FastAPI Dashboard (Port 8765)는 데이터 편집 기능을 통합 제공합니�
 
 #### Threshold 설정 (데이터 편집 Dashboard)
 
-  * 20개 메트릭 임계값 슬라이더 조정
+  * 5개 메트릭 임계값 슬라이더 조정 (TCR · Accuracy · Hallucination · P95 · Cost)
   * 환경별 프리셋 (Development, Staging, Production)
   * 변경 이력 자동 추적 (Audit Log)
   * JSON 파일로 저장 (thresholds.json)
@@ -2588,4 +2588,4 @@ Dashboard 로딩 느림 | 대용량 데이터 (1000+ tasks) | 샘플링 사용 �
 
 © 2025 Agent Evaluator. All rights reserved.
 
-**최종 업데이트** : 2026-03-19 | **버전** : Agent Evaluator v0.5.4 | **문서** : 종합 학습 가이드
+**최종 업데이트** : 2026-03-20 | **버전** : Agent Evaluator v0.5.5 | **문서** : 종합 학습 가이드

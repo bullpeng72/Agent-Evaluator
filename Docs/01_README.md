@@ -2,7 +2,7 @@
 
 AI Agent를 위한 프로덕션급 평가 프레임워크
 
-![Python Version](https://img.shields.io/badge/python-3.8+-blue.svg) ![License](https://img.shields.io/badge/license-MIT-green.svg) ![Version](https://img.shields.io/badge/version-0.5.4-brightgreen.svg) ![Zero Configuration](https://img.shields.io/badge/Zero_Config-100%25-blue.svg) ![Security Metrics](https://img.shields.io/badge/Security_Metrics-5_Built--in-orange.svg)
+![Python Version](https://img.shields.io/badge/python-3.8+-blue.svg) ![License](https://img.shields.io/badge/license-MIT-green.svg) ![Version](https://img.shields.io/badge/version-0.5.5-brightgreen.svg) ![Zero Configuration](https://img.shields.io/badge/Zero_Config-100%25-blue.svg) ![Security Metrics](https://img.shields.io/badge/Security_Metrics-5_Built--in-orange.svg)
 
 ## 목차
 
@@ -51,7 +51,7 @@ AI Agent를 위한 프로덕션급 평가 프레임워크
   * **Task Completion Rate (TCR)** : 작업 성공률
   * **Accuracy** : 응답 정확도 (Token Overlap, Jaccard, LCS, Char 가중 평균)
   * **Hallucination Detection** : 룰 기반 환각 감지 (Opt-in, <1ms)
-  * **Quality Metrics** : 6차원 응답 품질 평가
+  * **Quality Metrics** : 5차원 응답 품질 평가
   * **Latency** : 실행 시간 분석 (P50/P95/P99)
   * **Token Economy** : 토큰 사용량 및 비용 추정
 
@@ -337,7 +337,7 @@ LlamaIndex | 다양 | **모든**
 pip install agent-evaluator
 
 # 방법 2: 로컬 wheel 파일로 설치
-pip install /home/fomalhaut/Projects/Agent_Evaluator/dist/agent_evaluator-0.5.4-py3-none-any.whl
+pip install /home/fomalhaut/Projects/Agent_Evaluator/dist/agent_evaluator-0.5.5-py3-none-any.whl
 
 # 방법 3: 개발 모드 설치 (editable)
 cd /path/to/Agent_Evaluator
@@ -491,7 +491,7 @@ agent_evaluator/
 
 **목적:** 실행 가능한 예제 코드 (5개 플랫 파일)
 
-**특징:** 4개 파일로 20개 지표 전체 검증 (품질 / 성능 / 에이전틱 / 보안)
+**특징:** 5개 파일로 25개 지표 전체 검증 (품질 / 성능 / 에이전틱 / 보안 / 하이브리드)
 
 **디렉토리 구조:**
 
@@ -575,7 +575,7 @@ Docs/
 #### ⚠️ 프로젝트 루트 파일
 
   * **pyproject.toml, setup.py** : 패키지 빌드 설정
-  * **dist/** : 빌드된 wheel/tar.gz (agent_evaluator-0.5.4-*)
+  * **dist/** : 빌드된 wheel/tar.gz (agent_evaluator-0.5.5-*)
   * **MANIFEST.in** : 패키지 추가 파일 포함 설정
 
 * * *
@@ -823,11 +823,11 @@ Agent Evaluator는 풍부한 문서를 제공합니다:
 
 이 프로젝트는 MIT 라이센스를 따릅니다. 자세한 내용은 [LICENSE](<LICENSE>) 파일을 참조하세요.
 
-**Agent Evaluator v0.5.4**
+**Agent Evaluator v0.5.5**
 
 100% Zero Configuration | 3-Layer Metrics | Production-Ready
 
-**최종 업데이트** : 2026-03-19 | **버전** : Agent Evaluator v0.5.4
+**최종 업데이트** : 2026-03-20 | **버전** : Agent Evaluator v0.5.5
 
 Developed by **KIM SUNGWOO**
 

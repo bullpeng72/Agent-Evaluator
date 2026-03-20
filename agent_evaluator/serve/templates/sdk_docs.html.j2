@@ -1,3 +1,21 @@
+{%- macro tracker_table() %}
+      <table class="mtable">
+        <thead><tr><th>메서드</th><th>파라미터</th><th>반환 키</th></tr></thead>
+        <tbody>{{ caller() }}</tbody>
+      </table>
+{%- endmacro %}
+{%- macro param_table() %}
+      <table class="mtable">
+        <thead><tr><th>파라미터</th><th>타입</th><th>기본값</th><th>설명</th></tr></thead>
+        <tbody>{{ caller() }}</tbody>
+      </table>
+{%- endmacro %}
+{%- macro field_table(col3='설명') %}
+      <table class="mtable">
+        <thead><tr><th>필드</th><th>타입</th><th>{{ col3 }}</th></tr></thead>
+        <tbody>{{ caller() }}</tbody>
+      </table>
+{%- endmacro %}
 <!DOCTYPE html>
 <html lang="ko" id="root">
 <head>
@@ -213,17 +231,14 @@ agent-eval serve ./results --port <span class="nm">8080</span> --watch</pre>
     </div>
     <div class="cls-body">
       <div class="slbl">생성자 파라미터</div>
-      <table class="mtable">
-        <thead><tr><th>파라미터</th><th>타입</th><th>기본값</th><th>설명</th></tr></thead>
-        <tbody>
+      {% call param_table() %}
           <tr><td><span class="p">output_dir</span><span class="opt">opt</span></td><td><span class="t">str</span></td><td><code>"results/"</code></td><td>JSON/HTML 리포트 저장 디렉토리</td></tr>
           <tr><td><span class="p">pricing</span><span class="opt">opt</span></td><td><span class="t">Dict[str,float]</span></td><td><code>{"input":0.003,"output":0.015}</code></td><td>1K 토큰당 비용 (USD). TokenEconomyTracker에 전달됩니다.</td></tr>
           <tr><td><span class="p">enable_hallucination_detection</span><span class="opt">opt</span></td><td><span class="t">bool</span></td><td><code>False</code></td><td>HallucinationDetector 활성화 (LLM 호출 비용 발생)</td></tr>
           <tr><td><span class="p">enable_security_metrics</span><span class="opt">opt</span></td><td><span class="t">bool</span></td><td><code>False</code></td><td>Layer 2 보안 트래커 5종 활성화</td></tr>
           <tr><td><span class="p">security_config</span><span class="opt">opt</span></td><td><span class="t">Dict</span></td><td><code>None</code></td><td>ToolAuthorizationTracker 설정 (allowed_tools, restricted_tools 등)</td></tr>
           <tr><td><span class="p">enable_transparency</span><span class="opt">opt</span></td><td><span class="t">bool</span></td><td><code>False</code></td><td>TestTransparencyManager 활성화</td></tr>
-        </tbody>
-      </table>
+      {% endcall %}
       <div class="slbl">주요 메서드</div>
       <table class="mtable">
         <thead><tr><th>메서드 시그니처</th><th>반환</th><th>설명</th></tr></thead>
@@ -249,9 +264,7 @@ agent-eval serve ./results --port <span class="nm">8080</span> --watch</pre>
     <div class="cls-head"><span class="cls-name">TaskResult</span><span class="kind cls">dataclass</span><span class="cls-src">agent_evaluator.core.agent_evaluator</span></div>
     <div class="cls-body">
       <div class="slbl">필수 필드 (11개)</div>
-      <table class="mtable">
-        <thead><tr><th>필드</th><th>타입</th><th>설명</th></tr></thead>
-        <tbody>
+      {% call field_table() %}
           <tr><td><span class="p">task_id</span></td><td><span class="t">str</span></td><td>태스크 고유 식별자</td></tr>
           <tr><td><span class="p">task_type</span></td><td><span class="t">str</span></td><td>TaskType.value 문자열 (e.g. <code>"qa"</code>)</td></tr>
           <tr><td><span class="p">success</span></td><td><span class="t">bool</span></td><td>태스크 성공 여부</td></tr>
@@ -263,12 +276,9 @@ agent-eval serve ./results --port <span class="nm">8080</span> --watch</pre>
           <tr><td><span class="p">attempts</span></td><td><span class="t">int</span></td><td>시도 횟수 (1 = 재시도 없음)</td></tr>
           <tr><td><span class="p">errors</span></td><td><span class="t">List[str]</span></td><td>오류 메시지 목록. 없으면 <code>[]</code>.</td></tr>
           <tr><td><span class="p">timestamp</span></td><td><span class="t">datetime</span></td><td>기록 시각</td></tr>
-        </tbody>
-      </table>
+      {% endcall %}
       <div class="slbl">선택 필드 (7개)</div>
-      <table class="mtable">
-        <thead><tr><th>필드</th><th>타입</th><th>용도</th></tr></thead>
-        <tbody>
+      {% call field_table(col3='용도') %}
           <tr><td><span class="p">expected_tools</span></td><td><span class="t">Optional[List[str]]</span></td><td>기대 도구 목록 — ToolSelectionTracker F1 계산</td></tr>
           <tr><td><span class="p">agent_interactions</span></td><td><span class="t">Optional[List[Dict]]</span></td><td>멀티에이전트 상호작용 (CrewAI)</td></tr>
           <tr><td><span class="p">chain_steps</span></td><td><span class="t">Optional[List[Dict]]</span></td><td>체인 실행 단계 (LangChain)</td></tr>
@@ -276,8 +286,7 @@ agent-eval serve ./results --port <span class="nm">8080</span> --watch</pre>
           <tr><td><span class="p">conversation_turns</span></td><td><span class="t">Optional[List[Dict]]</span></td><td>대화 턴 기록 (AutoGen)</td></tr>
           <tr><td><span class="p">state_transitions</span></td><td><span class="t">Optional[List[Dict]]</span></td><td>상태 전이 이력 (LangGraph)</td></tr>
           <tr><td><span class="p">framework</span></td><td><span class="t">Optional[str]</span></td><td>프레임워크 식별자 (<code>"crewai"</code>, <code>"langchain"</code> 등)</td></tr>
-        </tbody>
-      </table>
+      {% endcall %}
     </div>
   </div>
 </section>
@@ -315,9 +324,7 @@ agent-eval serve ./results --port <span class="nm">8080</span> --watch</pre>
   <div class="cls-card">
     <div class="cls-head"><span class="cls-name">create_taskresult</span><span class="kind fn">function</span><span class="cls-src">agent_evaluator.helpers.taskresult_helpers (alias: create_taskresult_from_execution)</span></div>
     <div class="cls-body">
-      <table class="mtable">
-        <thead><tr><th>파라미터</th><th>타입</th><th>기본값</th><th>설명</th></tr></thead>
-        <tbody>
+      {% call param_table() %}
           <tr><td><span class="p">task_id</span><span class="req">✦</span></td><td><span class="t">str</span></td><td>—</td><td>태스크 고유 식별자</td></tr>
           <tr><td><span class="p">question</span><span class="req">✦</span></td><td><span class="t">str</span></td><td>—</td><td>에이전트에 전달한 질문/입력</td></tr>
           <tr><td><span class="p">response</span><span class="req">✦</span></td><td><span class="t">str</span></td><td>—</td><td>에이전트 응답 텍스트</td></tr>
@@ -328,8 +335,7 @@ agent-eval serve ./results --port <span class="nm">8080</span> --watch</pre>
           <tr><td><span class="p">langchain_result</span><span class="opt">opt</span></td><td><span class="t">Any</span></td><td><code>None</code></td><td>LangChain 결과 dict — 토큰/도구 자동 추출</td></tr>
           <tr><td><span class="p">has_error</span><span class="opt">opt</span></td><td><span class="t">bool</span></td><td><code>False</code></td><td>에러 발생 시 completion_score = 0</td></tr>
           <tr><td><span class="p">error_message</span><span class="opt">opt</span></td><td><span class="t">str</span></td><td><code>None</code></td><td>에러 메시지</td></tr>
-        </tbody>
-      </table>
+      {% endcall %}
 <pre style="margin-top:12px"><span class="kw">from</span> <span class="cn">agent_evaluator</span> <span class="kw">import</span> create_taskresult
 
 task = <span class="fn">create_taskresult</span>(
@@ -351,15 +357,12 @@ task = <span class="fn">create_taskresult</span>(task_id=<span class="st">"qa_00
   <div class="cls-card">
     <div class="cls-head"><span class="cls-name">evaluation_session</span><span class="kind ctx">@contextmanager</span><span class="cls-src">agent_evaluator.core.monitor_context</span></div>
     <div class="cls-body">
-      <table class="mtable">
-        <thead><tr><th>파라미터</th><th>타입</th><th>기본값</th><th>설명</th></tr></thead>
-        <tbody>
+      {% call param_table() %}
           <tr><td><span class="p">output_filename</span><span class="req">✦</span></td><td><span class="t">str</span></td><td>—</td><td>저장 파일명 stem (확장자 제외)</td></tr>
           <tr><td><span class="p">enable_security</span><span class="opt">opt</span></td><td><span class="t">bool</span></td><td><code>False</code></td><td>보안 지표 활성화</td></tr>
           <tr><td><span class="p">enable_hallucination</span><span class="opt">opt</span></td><td><span class="t">bool</span></td><td><code>True</code></td><td>환각 탐지 활성화</td></tr>
           <tr><td><span class="p">**monitor_kwargs</span><span class="opt">opt</span></td><td><span class="t">Any</span></td><td>—</td><td>PerformanceMonitor 생성자 추가 인수</td></tr>
-        </tbody>
-      </table>
+      {% endcall %}
 <pre style="margin-top:10px"><span class="kw">with</span> <span class="fn">evaluation_session</span>(<span class="st">"run_01"</span>, output_dir=<span class="st">"results/"</span>, enable_security=<span class="kw">True</span>) <span class="kw">as</span> m:
     m.<span class="fn">record_task</span>(<span class="fn">create_taskresult</span>(...))
 
@@ -383,9 +386,7 @@ task = <span class="fn">create_taskresult</span>(task_id=<span class="st">"qa_00
     <div class="cls-head"><span class="cls-name">TaskCompletionTracker</span><span class="kind cls">class</span><span class="cls-src">core.agent_evaluator</span></div>
     <div class="cls-desc">생성자 파라미터 없음. <code>PerformanceMonitor</code> 내부에서 자동으로 인스턴스화됩니다. 독립 사용 시 직접 생성 가능.</div>
     <div class="cls-body">
-      <table class="mtable">
-        <thead><tr><th>메서드</th><th>파라미터</th><th>반환 키</th></tr></thead>
-        <tbody>
+      {% call tracker_table() %}
           <tr><td><span class="p">add_task(task)</span></td><td><span class="t">task: TaskResult</span></td><td>—</td></tr>
           <tr>
             <td><span class="p">calculate_tcr(task_type=None)</span></td>
@@ -402,8 +403,7 @@ task = <span class="fn">create_taskresult</span>(task_id=<span class="st">"qa_00
             <td><span class="t">tcr: float</span></td>
             <td><code class="t">"Industry Leading" | "Good" | "Acceptable" | "Needs Improvement"</code></td>
           </tr>
-        </tbody>
-      </table>
+      {% endcall %}
 <pre style="margin-top:10px"><span class="kw">from</span> <span class="cn">agent_evaluator</span> <span class="kw">import</span> TaskCompletionTracker, create_taskresult
 
 tracker = <span class="fn">TaskCompletionTracker</span>()
@@ -423,9 +423,7 @@ status = tracker.<span class="fn">get_benchmark_status</span>(result[<span class
   <div class="cls-card">
     <div class="cls-head"><span class="cls-name">AccuracyEvaluator</span><span class="kind cls">class</span><span class="cls-src">core.agent_evaluator</span></div>
     <div class="cls-body">
-      <table class="mtable">
-        <thead><tr><th>메서드</th><th>파라미터</th><th>반환 키</th></tr></thead>
-        <tbody>
+      {% call tracker_table() %}
           <tr><td><span class="p">add_evaluation(task_id, ground_truth, prediction, task_type)</span></td><td><span class="t">str, Any, Any, str</span></td><td>—</td></tr>
           <tr>
             <td><span class="p">get_accuracy_scores()</span></td><td>—</td>
@@ -435,8 +433,7 @@ status = tracker.<span class="fn">get_benchmark_status</span>(result[<span class
             <td><span class="p">get_accuracy_by_type()</span></td><td>—</td>
             <td><code class="t">Dict[task_type → float]</code> — 유형별 평균 정확도</td>
           </tr>
-        </tbody>
-      </table>
+      {% endcall %}
       <div class="note tip" style="margin-top:8px">📐 <strong>정확도 계산 가중치</strong>: Token Overlap 40% + Jaccard 30% + LCS 20% + Char Similarity 10%</div>
     </div>
   </div>
@@ -449,9 +446,7 @@ status = tracker.<span class="fn">get_benchmark_status</span>(result[<span class
   <div class="cls-card">
     <div class="cls-head"><span class="cls-name">HallucinationDetector</span><span class="kind cls">class</span><span class="cls-src">core.agent_evaluator</span></div>
     <div class="cls-body">
-      <table class="mtable">
-        <thead><tr><th>메서드</th><th>파라미터</th><th>반환 키</th></tr></thead>
-        <tbody>
+      {% call tracker_table() %}
           <tr>
             <td><span class="p">detect_hallucination(task_id, response, context, ground_truth=None)</span></td>
             <td><span class="t">str, str, str, Optional[str]</span></td>
@@ -465,8 +460,7 @@ status = tracker.<span class="fn">get_benchmark_status</span>(result[<span class
             <td><span class="p">get_hallucination_by_type()</span></td><td>—</td>
             <td><code class="t">unsupported_claims</code>, <code class="t">numerical_errors</code>, <code class="t">temporal_errors</code>, <code class="t">other_errors</code>, <code class="t">by_severity</code></td>
           </tr>
-        </tbody>
-      </table>
+      {% endcall %}
     </div>
   </div>
 </section>
@@ -478,9 +472,7 @@ status = tracker.<span class="fn">get_benchmark_status</span>(result[<span class
   <div class="cls-card">
     <div class="cls-head"><span class="cls-name">ResponseQualityEvaluator</span><span class="kind cls">class</span><span class="cls-src">core.agent_evaluator</span></div>
     <div class="cls-body">
-      <table class="mtable">
-        <thead><tr><th>메서드</th><th>파라미터</th><th>반환 키</th></tr></thead>
-        <tbody>
+      {% call tracker_table() %}
           <tr>
             <td><span class="p">evaluate_response(task_id, response, request, expected_elements, ground_truth=None)</span></td>
             <td><span class="t">str, str, str, List[str], Optional[str]</span></td>
@@ -494,8 +486,7 @@ status = tracker.<span class="fn">get_benchmark_status</span>(result[<span class
             <td><span class="p">get_quality_by_dimension()</span></td><td>—</td>
             <td><code class="t">relevance</code>, <code class="t">completeness</code>, <code class="t">accuracy</code>, <code class="t">clarity</code>, <code class="t">usefulness</code> 각 평균값</td>
           </tr>
-        </tbody>
-      </table>
+      {% endcall %}
       <div class="ret-box" style="margin-top:10px">
         <div style="margin-bottom:4px;font-size:11px;color:var(--text2);text-transform:uppercase;letter-spacing:.05em">dimension_scores 구조</div>
         <span class="rk">relevance</span><span class="rv">: 0–5 (가중치 25%) — 질문과의 관련성</span><br>
@@ -515,9 +506,7 @@ status = tracker.<span class="fn">get_benchmark_status</span>(result[<span class
   <div class="cls-card">
     <div class="cls-head"><span class="cls-name">LatencyTracker</span><span class="kind cls">class</span><span class="cls-src">core.agent_evaluator</span></div>
     <div class="cls-body">
-      <table class="mtable">
-        <thead><tr><th>메서드</th><th>파라미터</th><th>반환 키</th></tr></thead>
-        <tbody>
+      {% call tracker_table() %}
           <tr>
             <td><span class="p">record_latency(task_id, task_type, total_time, breakdown)</span></td>
             <td><span class="t">str, str, float, Dict[str,float]</span></td>
@@ -541,8 +530,7 @@ status = tracker.<span class="fn">get_benchmark_status</span>(result[<span class
             <td><span class="t">Dict[task_type → float]</span></td>
             <td><code class="t">Dict[task_type → {target, p95, compliance_rate, within_sla, total}]</code></td>
           </tr>
-        </tbody>
-      </table>
+      {% endcall %}
 <pre style="margin-top:10px"><span class="cm"># SLA 준수 검사 예시</span>
 sla = {<span class="st">"qa"</span>: <span class="nm">2.0</span>, <span class="st">"code_generation"</span>: <span class="nm">5.0</span>}  <span class="cm"># 초 단위</span>
 compliance = tracker.<span class="fn">check_sla_compliance</span>(sla)
@@ -559,9 +547,7 @@ compliance = tracker.<span class="fn">check_sla_compliance</span>(sla)
     <div class="cls-head"><span class="cls-name">TokenEconomyTracker</span><span class="kind cls">class</span><span class="cls-src">core.agent_evaluator</span></div>
     <div class="cls-desc">생성자: <code>__init__(self, pricing: Dict[str, float])</code> — <code>pricing</code> 예: <code>{"input": 0.003, "output": 0.015}</code> (1K 토큰당 USD)</div>
     <div class="cls-body">
-      <table class="mtable">
-        <thead><tr><th>메서드</th><th>파라미터</th><th>반환 키</th></tr></thead>
-        <tbody>
+      {% call tracker_table() %}
           <tr>
             <td><span class="p">track_usage(task_id, input_tokens, output_tokens, task_type, model="default")</span></td>
             <td><span class="t">str, int, int, str, str</span></td>
@@ -579,8 +565,7 @@ compliance = tracker.<span class="fn">check_sla_compliance</span>(sla)
             <td><span class="p">get_cost_breakdown_by_model()</span></td><td>—</td>
             <td><code class="t">Dict[model → {total_cost, avg_cost_per_task, total_tokens, cost_per_1k_tokens}]</code></td>
           </tr>
-        </tbody>
-      </table>
+      {% endcall %}
     </div>
   </div>
 </section>
@@ -595,9 +580,7 @@ compliance = tracker.<span class="fn">check_sla_compliance</span>(sla)
   <div class="cls-card">
     <div class="cls-head"><span class="cls-name">ToolCallAnalyzer</span><span class="kind cls">class</span><span class="cls-src">core.agent_evaluator</span></div>
     <div class="cls-body">
-      <table class="mtable">
-        <thead><tr><th>메서드</th><th>파라미터</th><th>반환 키</th></tr></thead>
-        <tbody>
+      {% call tracker_table() %}
           <tr>
             <td><span class="p">analyze_execution(task_id, tool_calls)</span></td>
             <td><span class="t">str, List[Dict]</span></td>
@@ -611,8 +594,7 @@ compliance = tracker.<span class="fn">check_sla_compliance</span>(sla)
             <td><span class="p">get_tool_usage_patterns()</span></td><td>—</td>
             <td><code class="t">pattern_analysis</code>, <code class="t">usage_distribution</code>, <code class="t">efficiency_distribution</code></td>
           </tr>
-        </tbody>
-      </table>
+      {% endcall %}
     </div>
   </div>
 </section>
@@ -624,9 +606,7 @@ compliance = tracker.<span class="fn">check_sla_compliance</span>(sla)
   <div class="cls-card">
     <div class="cls-head"><span class="cls-name">ToolSelectionTracker</span><span class="kind cls">class</span><span class="cls-src">core.agent_evaluator</span></div>
     <div class="cls-body">
-      <table class="mtable">
-        <thead><tr><th>메서드</th><th>파라미터</th><th>반환 키</th></tr></thead>
-        <tbody>
+      {% call tracker_table() %}
           <tr>
             <td><span class="p">evaluate_selection(task_id, expected_tools, actual_tools)</span></td>
             <td><span class="t">str, List[str], List[str]</span></td>
@@ -636,8 +616,7 @@ compliance = tracker.<span class="fn">check_sla_compliance</span>(sla)
             <td><span class="p">get_accuracy_stats()</span></td><td>—</td>
             <td><code class="t">avg_accuracy</code>, <code class="t">avg_f1_score</code>, <code class="t">avg_precision</code>, <code class="t">avg_recall</code>, <code class="t">total_evaluations</code></td>
           </tr>
-        </tbody>
-      </table>
+      {% endcall %}
     </div>
   </div>
 </section>
@@ -649,9 +628,7 @@ compliance = tracker.<span class="fn">check_sla_compliance</span>(sla)
   <div class="cls-card">
     <div class="cls-head"><span class="cls-name">RetryCorrectionTracker</span><span class="kind cls">class</span><span class="cls-src">core.agent_evaluator</span></div>
     <div class="cls-body">
-      <table class="mtable">
-        <thead><tr><th>메서드</th><th>파라미터</th><th>반환 키</th></tr></thead>
-        <tbody>
+      {% call tracker_table() %}
           <tr>
             <td><span class="p">track_attempts(task_id, attempts_log)</span></td>
             <td><span class="t">str, List[Dict]</span></td>
@@ -665,8 +642,7 @@ compliance = tracker.<span class="fn">check_sla_compliance</span>(sla)
             <td><span class="p">analyze_failure_patterns()</span></td><td>—</td>
             <td><code class="t">patterns</code> (빈도순 정렬), <code class="t">most_common</code> 실패 원인</td>
           </tr>
-        </tbody>
-      </table>
+      {% endcall %}
     </div>
   </div>
 </section>
@@ -678,9 +654,7 @@ compliance = tracker.<span class="fn">check_sla_compliance</span>(sla)
   <div class="cls-card">
     <div class="cls-head"><span class="cls-name">AgentCoordinationTracker</span><span class="kind cls">class</span><span class="cls-src">core.agent_evaluator</span></div>
     <div class="cls-body">
-      <table class="mtable">
-        <thead><tr><th>메서드</th><th>파라미터</th><th>반환 키</th></tr></thead>
-        <tbody>
+      {% call tracker_table() %}
           <tr>
             <td><span class="p">track_interaction(task_id, from_agent, to_agent, interaction_type, success, context=None)</span></td>
             <td><span class="t">str, str, str, str, bool, Optional[Dict]</span></td>
@@ -699,8 +673,7 @@ compliance = tracker.<span class="fn">check_sla_compliance</span>(sla)
             <td><span class="p">get_interaction_patterns()</span></td><td>—</td>
             <td><code class="t">pattern_type</code> (hub/chain/mesh/unknown), <code class="t">pattern_confidence</code>, <code class="t">hub_agent</code>, <code class="t">agent_roles</code>, <code class="t">top_agent_pairs</code></td>
           </tr>
-        </tbody>
-      </table>
+      {% endcall %}
     </div>
   </div>
 </section>
@@ -712,9 +685,7 @@ compliance = tracker.<span class="fn">check_sla_compliance</span>(sla)
   <div class="cls-card">
     <div class="cls-head"><span class="cls-name">WorkflowExecutionTracker</span><span class="kind cls">class</span><span class="cls-src">core.agent_evaluator</span></div>
     <div class="cls-body">
-      <table class="mtable">
-        <thead><tr><th>메서드</th><th>파라미터</th><th>반환 키</th></tr></thead>
-        <tbody>
+      {% call tracker_table() %}
           <tr>
             <td><span class="p">track_step(task_id, step_name, step_type, success, execution_time, framework="langchain", metadata=None)</span></td>
             <td><span class="t">str, str, str, bool, float, str, Optional[Dict]</span></td>
@@ -734,8 +705,7 @@ compliance = tracker.<span class="fn">check_sla_compliance</span>(sla)
             <td><span class="p">get_critical_path_analysis()</span></td><td>—</td>
             <td><code class="t">critical_path</code> (시간순 정렬), <code class="t">bottlenecks</code>, <code class="t">parallelization_opportunities</code>, <code class="t">optimization_recommendations</code></td>
           </tr>
-        </tbody>
-      </table>
+      {% endcall %}
     </div>
   </div>
 </section>
@@ -750,9 +720,7 @@ compliance = tracker.<span class="fn">check_sla_compliance</span>(sla)
   <div class="cls-card">
     <div class="cls-head"><span class="cls-name">InputSanitizationTracker</span><span class="kind cls">class</span><span class="cls-src">core.agent_evaluator</span></div>
     <div class="cls-body">
-      <table class="mtable">
-        <thead><tr><th>메서드</th><th>파라미터</th><th>반환 키</th></tr></thead>
-        <tbody>
+      {% call tracker_table() %}
           <tr>
             <td><span class="p">evaluate_input(task_id, input_text)</span></td>
             <td><span class="t">str, str</span></td>
@@ -762,8 +730,7 @@ compliance = tracker.<span class="fn">check_sla_compliance</span>(sla)
             <td><span class="p">get_security_stats()</span></td><td>—</td>
             <td><code class="t">threat_rate</code> (%), <code class="t">sql_injection_attempts</code>, <code class="t">command_injection_attempts</code>, <code class="t">path_traversal_attempts</code>, <code class="t">xss_attempts</code>, <code class="t">prompt_injection_attempts</code>, <code class="t">critical_risk_inputs</code></td>
           </tr>
-        </tbody>
-      </table>
+      {% endcall %}
 <pre style="margin-top:10px"><span class="kw">from</span> <span class="cn">agent_evaluator</span> <span class="kw">import</span> InputSanitizationTracker
 tracker = <span class="fn">InputSanitizationTracker</span>()
 r = tracker.<span class="fn">evaluate_input</span>(<span class="st">"t1"</span>, <span class="st">"SELECT * FROM users; DROP TABLE users"</span>)
@@ -779,9 +746,7 @@ r = tracker.<span class="fn">evaluate_input</span>(<span class="st">"t1"</span>,
   <div class="cls-card">
     <div class="cls-head"><span class="cls-name">OutputLeakageDetector</span><span class="kind cls">class</span><span class="cls-src">core.agent_evaluator</span></div>
     <div class="cls-body">
-      <table class="mtable">
-        <thead><tr><th>메서드</th><th>파라미터</th><th>반환 키</th></tr></thead>
-        <tbody>
+      {% call tracker_table() %}
           <tr>
             <td><span class="p">detect_leakage(task_id, output_text)</span></td>
             <td><span class="t">str, str</span></td>
@@ -791,8 +756,7 @@ r = tracker.<span class="fn">evaluate_input</span>(<span class="st">"t1"</span>,
             <td><span class="p">get_leakage_stats()</span></td><td>—</td>
             <td><code class="t">leakage_rate</code> (%), <code class="t">api_key_leaks</code>, <code class="t">password_leaks</code>, <code class="t">credit_card_leaks</code>, <code class="t">email_leaks</code>, <code class="t">ssn_leaks</code>, <code class="t">critical_severity_count</code></td>
           </tr>
-        </tbody>
-      </table>
+      {% endcall %}
       <div class="note warn" style="margin-top:8px">⚠️ <code>api_key</code> 패턴은 OpenAI(<code>sk-...</code>), AWS(<code>AKIA...</code>), Google(<code>AIza...</code>)를 명시적으로 탐지합니다. 32자 이상 영숫자 generic 패턴은 false-positive가 높으므로 임계값 조정을 권장합니다.</div>
     </div>
   </div>
@@ -806,9 +770,7 @@ r = tracker.<span class="fn">evaluate_input</span>(<span class="st">"t1"</span>,
     <div class="cls-head"><span class="cls-name">ToolAuthorizationTracker</span><span class="kind cls">class</span><span class="cls-src">core.agent_evaluator</span></div>
     <div class="cls-desc">생성자: <code>__init__(allowed_tools=None, restricted_tools=None)</code> — <code>allowed_tools</code>(화이트리스트), <code>restricted_tools</code>(블랙리스트). <code>security_config</code>로 <code>PerformanceMonitor</code>에 전달 가능.</div>
     <div class="cls-body">
-      <table class="mtable">
-        <thead><tr><th>메서드</th><th>파라미터</th><th>반환 키</th></tr></thead>
-        <tbody>
+      {% call tracker_table() %}
           <tr>
             <td><span class="p">track_tool_call(task_id, tool_name, parameters=None)</span></td>
             <td><span class="t">str, str, Optional[Dict]</span></td>
@@ -818,8 +780,7 @@ r = tracker.<span class="fn">evaluate_input</span>(<span class="st">"t1"</span>,
             <td><span class="p">get_compliance_stats()</span></td><td>—</td>
             <td><code class="t">compliance_rate</code> (%), <code class="t">violation_rate</code> (%), <code class="t">unauthorized_calls</code>, <code class="t">restricted_tool_attempts</code>, <code class="t">dangerous_param_attempts</code>, <code class="t">admin_privilege_calls</code></td>
           </tr>
-        </tbody>
-      </table>
+      {% endcall %}
 <pre style="margin-top:10px"><span class="cm"># PerformanceMonitor에 보안 설정 주입</span>
 monitor = <span class="fn">PerformanceMonitor</span>(
     enable_security_metrics=<span class="kw">True</span>,
@@ -839,9 +800,7 @@ monitor = <span class="fn">PerformanceMonitor</span>(
   <div class="cls-card">
     <div class="cls-head"><span class="cls-name">PrivilegeEscalationDetector</span><span class="kind cls">class</span><span class="cls-src">core.agent_evaluator</span></div>
     <div class="cls-body">
-      <table class="mtable">
-        <thead><tr><th>메서드</th><th>파라미터</th><th>반환 키</th></tr></thead>
-        <tbody>
+      {% call tracker_table() %}
           <tr>
             <td><span class="p">analyze_privilege_chain(task_id, tool_calls)</span></td>
             <td><span class="t">str, List[Dict]</span></td>
@@ -851,8 +810,7 @@ monitor = <span class="fn">PerformanceMonitor</span>(
             <td><span class="p">get_escalation_stats()</span></td><td>—</td>
             <td><code class="t">escalation_rate</code> (%), <code class="t">avg_risk_score</code>, <code class="t">high_risk_events</code>, <code class="t">suspicious_sequence_count</code></td>
           </tr>
-        </tbody>
-      </table>
+      {% endcall %}
     </div>
   </div>
 </section>
@@ -864,9 +822,7 @@ monitor = <span class="fn">PerformanceMonitor</span>(
   <div class="cls-card">
     <div class="cls-head"><span class="cls-name">ToolChainAttackDetector</span><span class="kind cls">class</span><span class="cls-src">core.agent_evaluator</span></div>
     <div class="cls-body">
-      <table class="mtable">
-        <thead><tr><th>메서드</th><th>파라미터</th><th>반환 키</th></tr></thead>
-        <tbody>
+      {% call tracker_table() %}
           <tr>
             <td><span class="p">analyze_tool_chain(task_id, tool_sequence)</span></td>
             <td><span class="t">str, List[str]</span></td>
@@ -876,8 +832,7 @@ monitor = <span class="fn">PerformanceMonitor</span>(
             <td><span class="p">get_attack_stats()</span></td><td>—</td>
             <td><code class="t">detection_rate</code> (%), <code class="t">avg_confidence</code>, <code class="t">data_exfiltration_detected</code>, <code class="t">lateral_movement_detected</code>, <code class="t">persistence_detected</code>, <code class="t">defense_evasion_detected</code></td>
           </tr>
-        </tbody>
-      </table>
+      {% endcall %}
 <pre style="margin-top:10px"><span class="kw">from</span> <span class="cn">agent_evaluator</span> <span class="kw">import</span> ToolChainAttackDetector
 detector = <span class="fn">ToolChainAttackDetector</span>()
 r = detector.<span class="fn">analyze_tool_chain</span>(<span class="st">"t1"</span>, [<span class="st">"read_file"</span>, <span class="st">"search_db"</span>, <span class="st">"send_email"</span>, <span class="st">"delete_logs"</span>])

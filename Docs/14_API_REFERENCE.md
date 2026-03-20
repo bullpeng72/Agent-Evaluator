@@ -10,7 +10,7 @@
 
 ## 버전 정보
 
-**현재 버전:** v0.5.4
+**현재 버전:** v0.5.5
 
 **최종 업데이트:** 2026-03-20
 
@@ -54,7 +54,7 @@
     * [**5.5 Context Managers**](<#context-managers>)
     * [**5.6 LLM 통합 헬퍼**](<#llm-helpers>)
     * [**5.7 ExampleRunner**](<#example-runner>)
-  * [**🔌 6. 프레임워크 통합 (v0.5.4)**](<#프레임워크-통합>)
+  * [**🔌 6. 프레임워크 통합 (v0.5.5)**](<#프레임워크-통합>)
     * [6.1 CrewAIEvaluator](<#crewai-evaluator>)
     * [6.2 LangChainEvaluator](<#langchain-evaluator>)
     * [6.3 LangGraphEvaluator](<#langgraph-evaluator>)
@@ -3246,7 +3246,7 @@ Agent Evaluator의 투명성 메서드는 "블랙박스" 평가를 "화이트박
 
 * * *
 
-## 🔌 6. 프레임워크 통합 (v0.5.4)
+## 🔌 6. 프레임워크 통합 (v0.5.5)
 
 #### 5.4 보안 헬퍼 함수
 
@@ -3362,7 +3362,7 @@ Agent Evaluator의 투명성 메서드는 "블랙박스" 평가를 "화이트박
 
 * * *
 
-Agent Evaluator v0.5.4은 CrewAI, LangChain, LangGraph, AutoGen 등 주요 AI 프레임워크에 대한 고급 통합 기능을 제공합니다. 모든 통합은 **Layer 1/2/3 메트릭을 완전히 지원** 하며, 동적 계산 및 자동 추적 기능을 갖추고 있습니다.
+Agent Evaluator v0.5.5은 CrewAI, LangChain, LangGraph, AutoGen 등 주요 AI 프레임워크에 대한 고급 통합 기능을 제공합니다. 모든 통합은 **Layer 1/2/3 메트릭을 완전히 지원** 하며, 동적 계산 및 자동 추적 기능을 갖추고 있습니다.
 
 ### 주요 특징
 

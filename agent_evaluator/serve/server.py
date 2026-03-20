@@ -13,7 +13,7 @@ try:
     from importlib.metadata import version as _pkg_version, PackageNotFoundError
     _VERSION = _pkg_version("agent-evaluator")
 except Exception:
-    _VERSION = "0.5.4"
+    _VERSION = "0.5.5"
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -51,13 +51,13 @@ _OFFLINE_ASSETS = {
     "reveal-reset.css": "https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/reset.css",
     "reveal-night.css": "https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/theme/night.css",
     "reveal-white.css": "https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/theme/white.css",
-    "qrcode.min.js":    "https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js",
+    "qrcode.min.js":    "https://cdn.jsdelivr.net/npm/qrcode@1.5.1/build/qrcode.min.js",
 }
 
 
 def _setup_offline_assets(app: FastAPI) -> None:
     """Download CDN assets once and mount them at /static."""
-    _STATIC_DIR.mkdir(exist_ok=True)
+    _STATIC_DIR.mkdir(parents=True, exist_ok=True)
     missing = [name for name in _OFFLINE_ASSETS if not (_STATIC_DIR / name).exists()]
     if missing:
         print(f"[offline] {len(missing)}개 CDN 에셋 다운로드 중...")
@@ -157,6 +157,7 @@ def create_app(
                 "title":   app.state.title,
                 "version": app.state.version,
                 "watch":   watch,
+                "offline": app.state.offline,
             },
         )
 
@@ -168,6 +169,7 @@ def create_app(
                 "request": request,
                 "title":   app.state.title,
                 "version": app.state.version,
+                "offline": app.state.offline,
             },
         )
 
@@ -179,6 +181,7 @@ def create_app(
                 "request": request,
                 "title":   app.state.title,
                 "version": app.state.version,
+                "offline": app.state.offline,
             },
         )
 
