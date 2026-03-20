@@ -20,12 +20,11 @@ try:
     from importlib.metadata import PackageNotFoundError, version as _pkg_version
     __version__ = _pkg_version("agent-evaluator")
 except PackageNotFoundError:
-    __version__ = "0.5.5"
+    __version__ = "0.5.6"
 
 from agent_evaluator.config import (
     DEFAULTS,
     find_dotenv,
-    get_global_config_dir,
     get_global_env_path,
     key_source,
     load_env,
@@ -720,7 +719,6 @@ def cmd_serve(args: argparse.Namespace) -> int:
 # (cli/main.py 를 라이브러리 모드로 임포트하는 비용 없이 사용 가능)
 # ---------------------------------------------------------------------------
 
-from agent_evaluator.config import init_from_app  # noqa: E402 (re-export)
 
 
 # ---------------------------------------------------------------------------

@@ -4,16 +4,14 @@ FastAPI application factory for agent-eval serve.
 from __future__ import annotations
 
 import os
-import shutil
 import urllib.request
 from pathlib import Path
-from typing import Optional
 
 try:
-    from importlib.metadata import version as _pkg_version, PackageNotFoundError
+    from importlib.metadata import version as _pkg_version
     _VERSION = _pkg_version("agent-evaluator")
 except Exception:
-    _VERSION = "0.5.5"
+    _VERSION = "0.5.6"
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -22,7 +20,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from fastapi import Request
 
-from .loader import ResultSet, load_results
+from .loader import load_results
 from .routers import data as data_router
 from .routers import export as export_router
 from .routers import stream as stream_router
