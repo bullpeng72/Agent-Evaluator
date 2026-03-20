@@ -667,7 +667,7 @@ Layer 1/2 보안 메트릭, Layer 3 고급 평가, 자동 추적 기능이 포�
 
 **원인:** Test 투명성 기능은 새로 실행된 평가부터 추적됩니다.
 
-**해결 방법:** 1\. `test_transparency_manager.py`를 평가 코드에 통합 2. 메트릭 계산 시 `start_metric_calculation()` 호출 3. 각 단계마다 `add_calculation_step()` 호출
+**해결 방법:** 1\. `transparency_manager.py`를 평가 코드에 통합 2. 메트릭 계산 시 `start_metric_calculation()` 호출 3. 각 단계마다 `add_calculation_step()` 호출
 
 ### OpenAI API 관련
 
@@ -743,5 +743,5 @@ Layer 1/2 보안 메트릭, Layer 3 고급 평가, 자동 추적 기능이 포�
 
 * * *
 
-**문서 버전** : v0.5.7
-**최종 업데이트** : 2026-03-20
+**문서 버전** : v0.5.8
+**최종 업데이트** : 2026-03-21

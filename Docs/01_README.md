@@ -2,7 +2,7 @@
 
 AI Agent를 위한 프로덕션급 평가 프레임워크
 
-![Python Version](https://img.shields.io/badge/python-3.8+-blue.svg) ![License](https://img.shields.io/badge/license-MIT-green.svg) ![Version](https://img.shields.io/badge/version-0.5.7-brightgreen.svg) ![Zero Configuration](https://img.shields.io/badge/Zero_Config-100%25-blue.svg) ![Security Metrics](https://img.shields.io/badge/Security_Metrics-5_Built--in-orange.svg)
+![Python Version](https://img.shields.io/badge/python-3.8+-blue.svg) ![License](https://img.shields.io/badge/license-MIT-green.svg) ![Version](https://img.shields.io/badge/version-0.5.8-brightgreen.svg) ![Zero Configuration](https://img.shields.io/badge/Zero_Config-100%25-blue.svg) ![Security Metrics](https://img.shields.io/badge/Security_Metrics-5_Built--in-orange.svg)
 
 ## 목차
 
@@ -337,7 +337,7 @@ LlamaIndex | 다양 | **모든**
 pip install agent-evaluator
 
 # 방법 2: 로컬 wheel 파일로 설치
-pip install /home/fomalhaut/Projects/Agent_Evaluator/dist/agent_evaluator-0.5.7-py3-none-any.whl
+pip install /home/fomalhaut/Projects/Agent_Evaluator/dist/agent_evaluator-0.5.8-py3-none-any.whl
 
 # 방법 3: 개발 모드 설치 (editable)
 cd /path/to/Agent_Evaluator
@@ -484,7 +484,7 @@ agent_evaluator/
 └── utils/                          # 유틸리티
     ├── path_helpers.py             # Zero Configuration 경로 탐지
     ├── data_registry.py            # 데이터 레지스트리 패턴
-    └── test_transparency_manager.py # Test Transparency 추적
+    └── transparency_manager.py # Test Transparency 추적
 ```
 
 ### 2\. 📚 Evaluator_Examples/ - 예제 및 튜토리얼
@@ -575,7 +575,7 @@ Docs/
 #### ⚠️ 프로젝트 루트 파일
 
   * **pyproject.toml, setup.py** : 패키지 빌드 설정
-  * **dist/** : 빌드된 wheel/tar.gz (agent_evaluator-0.5.7-*)
+  * **dist/** : 빌드된 wheel/tar.gz (agent_evaluator-0.5.8-*)
   * **MANIFEST.in** : 패키지 추가 파일 포함 설정
 
 * * *
@@ -823,11 +823,11 @@ Agent Evaluator는 풍부한 문서를 제공합니다:
 
 이 프로젝트는 MIT 라이센스를 따릅니다. 자세한 내용은 [LICENSE](<LICENSE>) 파일을 참조하세요.
 
-**Agent Evaluator v0.5.7**
+**Agent Evaluator v0.5.8**
 
 100% Zero Configuration | 3-Layer Metrics | Production-Ready
 
-**최종 업데이트** : 2026-03-20 | **버전** : Agent Evaluator v0.5.7
+**최종 업데이트** : 2026-03-21 | **버전** : Agent Evaluator v0.5.8
 
 Developed by **KIM SUNGWOO**
 

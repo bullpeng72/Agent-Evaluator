@@ -2,7 +2,7 @@
 
 개발자 & 품질관리자를 위한 완벽 학습서
 
-v0.5.7 — 25개 메트릭 · 3-Layer · 4개 프레임워크
+v0.5.8 — 25개 메트릭 · 3-Layer · 4개 프레임워크
 
 ## 📊 1. Agent Evaluator 개요
 
@@ -14,13 +14,13 @@ Agent Evaluator는 AI Agent의 성능을 다각도로 평가하고 모니터링�
 
 #### 🆓 Layer 1: Foundation Metrics
 
-**완전 무료, API 키 불필요 (v0.5.7)**
+**완전 무료, API 키 불필요 (v0.5.8)**
 
   * **Foundation (6개):** TCR, Accuracy, Hallucination Detection, Quality, Latency, Token Economy
 
 #### 🤖 Layer 2: Agentic + Security Metrics
 
-**Multi-Agent & 보안 통합 평가 (v0.5.7)**
+**Multi-Agent & 보안 통합 평가 (v0.5.8)**
 
   * **Agentic (5개):** Tool Call Analysis, Retry/Correction, Tool Selection Accuracy, Agent Coordination, Workflow Execution
   * **Security (5개):** Input Sanitization, Output Leakage, Tool Authorization, Privilege Escalation, Tool Chain Attack Detection
@@ -96,7 +96,7 @@ Privilege Escalation, Attack Detection"] HybridMon["🔬 hybrid_monitor.py
 ▸ LangChain Callback  
 ▸ LangGraph Workflow  
 ▸ CrewAI Integration
-▸ AutoGen Agent"] end subgraph DataMgmt["데이터 관리 레이어 (Data Management)"] Transparency["🔍 test_transparency_manager
+▸ AutoGen Agent"] end subgraph DataMgmt["데이터 관리 레이어 (Data Management)"] Transparency["🔍 transparency_manager
 ━━━━━━━━━━━━━━━━━━━━
 ▸ 메트릭 이상치 탐지
 ▸ 성능 병목 식별
@@ -143,7 +143,7 @@ compare_with_thresholds()
 **core/hybrid_monitor.py** | Layer 3 통합 | DeepEval, Ragas, LangSmith 어댑터
 **integrations/** | 프레임워크 통합 | LangChain, CrewAI, LangGraph, AutoGen 자동 추적
 **serve/server.py** | FastAPI 대시보드 서버 | 관점 기반 시각화 (품질/성능/에이전틱/보안), Export
-**utils/test_transparency_manager.py** | Test 투명성 관리 | 이상치 탐지, Traces, Annotations, Audit Log  
+**utils/transparency_manager.py** | Test 투명성 관리 | 이상치 탐지, Traces, Annotations, Audit Log  
   
 ### 2.4 파일 시스템 구조
 
@@ -1030,7 +1030,7 @@ TaskResult의 필드들은 하드코딩이 아닌 **실제 계산 함수** 를 �
 ✅ 실행 가능 📋 복사
 ```python
     from agent_evaluator import PerformanceMonitor, TaskType
-    from taskresult_helpers import create_taskresult_from_execution
+    from agent_evaluator.helpers import create_taskresult_from_execution
     import time
     
     monitor = PerformanceMonitor()
@@ -1075,7 +1075,7 @@ OpenAI API 응답에서 토큰 사용량을 자동으로 추출하고, 헬퍼 �
 ✅ 실행 가능 📋 복사
 ```python
     from agent_evaluator import PerformanceMonitor
-    from taskresult_helpers import create_taskresult_from_execution
+    from agent_evaluator.helpers import create_taskresult_from_execution
     from openai import OpenAI
     import time
     
@@ -1161,7 +1161,7 @@ LangChain Agent 실행 결과에서 tool_calls를 자동으로 추출하고, Lay
 ✅ 실행 가능 📋 복사
 ```python
     from agent_evaluator import PerformanceMonitor
-    from taskresult_helpers import (
+    from agent_evaluator.helpers import (
         create_taskresult_from_execution,
         extract_tool_calls_from_langchain,
         extract_tokens_from_langchain
@@ -1278,7 +1278,7 @@ LangChain Agent 실행 결과에서 tool_calls를 자동으로 추출하고, Lay
 ✅ 실행 가능 📋 복사
 ```python
     # 방법 1: 헬퍼 함수 사용 (가장 권장) ⭐
-    from taskresult_helpers import (
+    from agent_evaluator.helpers import (
         calculate_accuracy_score,
         calculate_completion_score
     )
@@ -1789,7 +1789,7 @@ Agent 상호작용 + Security 자동 추적
     # ✅ 메시지 교환 분석 + 보안 위협 탐지
 ```
 
-**✅ v0.5.7 통합의 장점:**
+**✅ v0.5.8 통합의 장점:**
 
   * **완전 자동화:** Layer 1/2/3 메트릭 자동 추적
   * **동적 계산:** TCR, Accuracy 등 실시간 계산
@@ -2068,7 +2068,7 @@ Golden Dataset + Threshold를 포함하는 Test Config 생성 및 저장.
         execution_time = time.time() - start
     
         # TaskResult 생성 및 기록 (헬퍼 함수 사용 권장)
-        # from taskresult_helpers import create_taskresult_from_execution
+        # from agent_evaluator.helpers import create_taskresult_from_execution
         #
         # task = create_taskresult_from_execution(
         #     task_id=qa['qa_id'],
@@ -2079,7 +2079,7 @@ Golden Dataset + Threshold를 포함하는 Test Config 생성 및 저장.
         # )
     
         # 또는 수동으로 생성:
-        from taskresult_helpers import (
+        from agent_evaluator.helpers import (
             calculate_completion_score,
             calculate_accuracy_score,
             estimate_tokens
@@ -2224,8 +2224,8 @@ Dashboard에서 PDF/HTML 리포트 다운로드 및 공유
 
 **설명:** Z-Score 기반 통계 분석으로 비정상적인 메트릭 값을 자동 탐지합니다.
 ```python
-    from test_transparency_manager import TestTransparencyManager
-    
+    from agent_evaluator.utils.transparency_manager import TestTransparencyManager
+
     transparency = TestTransparencyManager(output_dir="evaluation_results")
     
     # 메트릭 이상치 탐지
@@ -2560,7 +2560,7 @@ Dashboard 로딩 느림 | 대용량 데이터 (1000+ tasks) | 샘플링 사용 �
         print(f"  {key}: {value}")
     
     # Transparency 분석
-    from test_transparency_manager import TestTransparencyManager
+    from agent_evaluator.utils.transparency_manager import TestTransparencyManager
     transparency = TestTransparencyManager()
     
     # 데이터 품질 검증
@@ -2588,4 +2588,4 @@ Dashboard 로딩 느림 | 대용량 데이터 (1000+ tasks) | 샘플링 사용 �
 
 © 2025 Agent Evaluator. All rights reserved.
 
-**최종 업데이트** : 2026-03-20 | **버전** : Agent Evaluator v0.5.7 | **문서** : 종합 학습 가이드
+**최종 업데이트** : 2026-03-21 | **버전** : Agent Evaluator v0.5.8 | **문서** : 종합 학습 가이드

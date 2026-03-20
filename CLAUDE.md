@@ -5,7 +5,7 @@
 **Agent-Evaluator** is a production-ready Python SDK for evaluating AI agents.
 25개의 성능 지표를 세 개의 레이어(기본/에이전틱/하이브리드)로 측정한다.
 
-- **Version:** 0.5.7 (Beta)
+- **Version:** 0.5.8 (Beta)
 - **Python:** 3.8+
 - **License:** MIT
 - **Author:** Sungwoo Kim
@@ -116,7 +116,7 @@ agent_evaluator/
 │   ├── dashboard_integration.py  # Dashboard storage path helper
 │   ├── data_registry.py     # 평가 결과 데이터 레지스트리
 │   ├── path_helpers.py      # 결과 디렉토리 경로 헬퍼
-│   └── test_transparency_manager.py  # ⚠️ 프로덕션 클래스 (테스트 파일 아님)
+│   └── transparency_manager.py  # TestTransparencyManager 프로덕션 클래스
 ├── examples/
 │   └── example_runner.py    # ExampleRunner base class
 ├── config.py                # 환경변수 설정 로더 (load_env, get_settings)
@@ -332,6 +332,11 @@ pytest
 ---
 
 ## 📝 변경 이력
+
+### v0.5.8 (2026-03-21) — 골든 데이터 질문 생성 품질 개선
+
+- 🐛 `serve/routers/golden.py` — `_is_bad_token()`: "이"/"가" 어미 2자 토큰을 bad token으로 잘못 필터링하던 버그 수정 ("평가", "의미" 등 유효 명사가 토픽에서 제외되던 문제 해결)
+- 🔧 `serve/routers/golden.py` — `_SUBJ_PARTICLES`에 "을"/"를" 추가 — 대격 조사 부착 명사("표현을")에서 조사를 제거해 자연스러운 질문 토픽 생성
 
 ### v0.5.7 (2026-03-20) — 프레임워크 통합 개선 및 PyPDF2 → pypdf 교체
 

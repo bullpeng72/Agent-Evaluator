@@ -21,14 +21,10 @@ import hashlib
 
 # PDF 처리
 try:
-    import pypdf as PyPDF2  # pypdf is the maintained successor of PyPDF2 (API-compatible)
-    PDF_LIBRARY = "PyPDF2"
+    import pdfplumber
+    PDF_LIBRARY = "pdfplumber"
 except ImportError:
-    try:
-        import pdfplumber
-        PDF_LIBRARY = "pdfplumber"
-    except ImportError:
-        PDF_LIBRARY = None
+    PDF_LIBRARY = None
 
 # OpenAI
 try:
@@ -96,8 +92,8 @@ class KoreanPDFExtractor:
     def __init__(self):
         if PDF_LIBRARY is None:
             raise ImportError(
-                "PDF 처리 라이브러리가 필요합니다. 다음 중 하나를 설치하세요:\n"
-                "pip install PyPDF2  또는  pip install pdfplumber"
+                "PDF 처리 라이브러리가 필요합니다:\n"
+                "pip install pdfplumber  또는  pip install 'agent-evaluator[all]'"
             )
         self.library = PDF_LIBRARY
 
@@ -114,30 +110,7 @@ class KoreanPDFExtractor:
         if not os.path.exists(pdf_path):
             raise FileNotFoundError(f"PDF 파일을 찾을 수 없습니다: {pdf_path}")
 
-        if self.library == "PyPDF2":
-            return self._extract_with_pypdf2(pdf_path)
-        elif self.library == "pdfplumber":
-            return self._extract_with_pdfplumber(pdf_path)
-
-    def _extract_with_pypdf2(self, pdf_path: str) -> List[Tuple[int, str]]:
-        """PyPDF2를 사용한 텍스트 추출"""
-        import warnings
-
-        pages_text = []
-
-        # PyPDF2 경고 억제 (FontBBox 등)
-        with warnings.catch_warnings():
-            warnings.filterwarnings('ignore', category=UserWarning)
-
-            with open(pdf_path, 'rb') as file:
-                pdf_reader = PyPDF2.PdfReader(file)
-
-                for page_num, page in enumerate(pdf_reader.pages, 1):
-                    text = page.extract_text()
-                    if text.strip():
-                        pages_text.append((page_num, text))
-
-        return pages_text
+        return self._extract_with_pdfplumber(pdf_path)
 
     def _extract_with_pdfplumber(self, pdf_path: str) -> List[Tuple[int, str]]:
         """pdfplumber를 사용한 텍스트 추출 (더 정확함)"""
@@ -844,8 +817,6 @@ Korean RAG Dataset Generator
    OPENAI_API_KEY=your-api-key
 
 필수 라이브러리:
-   pip install PyPDF2 openai pandas python-dotenv
-   # 또는
    pip install pdfplumber openai pandas python-dotenv
 
 예제 실행:

@@ -191,7 +191,7 @@ CI/CD 통합 및 프로덕션 배포 전략
 
 ### Project Structure
 
-v0.5.7 기준 프로젝트는 4개의 독립적인 컴포넌트로 구성됩니다:
+v0.5.8 기준 프로젝트는 4개의 독립적인 컴포넌트로 구성됩니다:
 
 #### 1\. 📦 agent_evaluator/ - Core Python Package
 
@@ -228,7 +228,7 @@ v0.5.7 기준 프로젝트는 4개의 독립적인 컴포넌트로 구성됩니�
     │   │                               # - get_evaluation_results_dir()
     │   ├── data_registry.py            # 평가 결과 데이터 레지스트리
     │   ├── dashboard_integration.py    # Dashboard 저장 경로 헬퍼
-    │   └── test_transparency_manager.py # TestTransparencyManager 클래스 (프로덕션)
+    │   └── transparency_manager.py # TestTransparencyManager 클래스 (프로덕션)
     │                                   # - 이상치 탐지, Traces, Audit Log
     │
     ├── helpers/                        # 📝 Helper 클래스
@@ -2797,7 +2797,7 @@ DB 연결 실패 | 네트워크, 인증 오류 | `telnet db-host 5432` | DB 연�
 
 * * *
 
-**최종 업데이트** : 2026-03-20
-**버전** : v0.5.7
+**최종 업데이트** : 2026-03-21
+**버전** : v0.5.8
 **프로젝트** : Agent Evaluator - AI Agent Performance Evaluation System
 **문서 타입** : 배포 가이드 (Deployment Guide)
