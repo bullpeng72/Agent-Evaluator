@@ -101,7 +101,7 @@
     <header>
         <h1>🗺️ Agent Evaluator</h1>
         <p>API, Metrics &amp; Examples Mapping Guide</p>
-        <p style="font-size: 0.9em; margin-top: 10px;">Version 0.5.2 | Updated: 2026-03-18</p>
+        <p style="font-size: 0.9em; margin-top: 10px;">Version 0.5.6 | Updated: 2026-03-20</p>
     </header>
 
     <div class="content">
@@ -109,12 +109,12 @@
         <div class="toc">
             <h3>📑 목차</h3>
             <ul>
-                <li><a href="#overview">1. 개요 — 20개 지표 전체 구조</a></li>
+                <li><a href="#overview">1. 개요 — 25개 지표 전체 구조</a></li>
                 <li><a href="#layer1">2. Layer 1 Foundation 지표 (6개)</a></li>
                 <li><a href="#layer2">3. Layer 2 Agentic 지표 (5개) + 보안 (5개)</a></li>
-                <li><a href="#layer3">4. Layer 3 Hybrid 지표 (4개 Ragas + 5개 DeepEval)</a></li>
+                <li><a href="#layer3">4. Layer 3 Hybrid 지표 (DeepEval 5개 + Ragas 4개)</a></li>
                 <li><a href="#core-api">5. 핵심 API — PerformanceMonitor</a></li>
-                <li><a href="#examples">6. 예제 파일 매핑 (4개)</a></li>
+                <li><a href="#examples">6. 예제 파일 매핑 (5개)</a></li>
                 <li><a href="#coverage">7. 지표 커버리지 분석</a></li>
                 <li><a href="#quick-reference">8. 빠른 참조 — API 패턴</a></li>
             </ul>
@@ -122,13 +122,13 @@
 
         <!-- Section 1 -->
         <section id="overview">
-            <h2>1. 개요 — 20개 지표 전체 구조</h2>
+            <h2>1. 개요 — 25개 지표 전체 구조</h2>
             <div class="info-box">
                 <h3>🎯 Agent Evaluator 3계층 아키텍처</h3>
-                <p><strong>총 20개 지표</strong>로 구성된 프로덕션급 AI 에이전트 평가 프레임워크</p>
+                <p><strong>총 25개 지표</strong>로 구성된 프로덕션급 AI 에이전트 평가 프레임워크</p>
                 <ul style="margin: 15px 0 0 20px;">
                     <li><strong>Layer 1 Foundation:</strong> <span class="metric-count">6개</span> — 외부 의존성 없음, 무료</li>
-                    <li><strong>Layer 2 Agentic:</strong> <span class="metric-count">9개</span> (에이전틱 5 + 보안 4) — 외부 의존성 없음, 무료</li>
+                    <li><strong>Layer 2 Agentic:</strong> <span class="metric-count">10개</span> (에이전틱 5 + 보안 5) — 외부 의존성 없음, 무료</li>
                     <li><strong>Layer 3 Hybrid:</strong> <span class="metric-count">9개</span> (DeepEval 5 + Ragas 4) — 유료 (OpenAI API), <strong>05_hybrid_metrics.py</strong>로 실제 API 커버</li>
                 </ul>
             </div>
@@ -140,29 +140,23 @@
                 </thead>
                 <tbody>
                     <tr>
-                        <td rowspan="2"><span class="badge badge-layer1">Layer 1</span></td>
+                        <td><span class="badge badge-layer1">Layer 1</span></td>
                         <td>Foundation</td>
                         <td>TCR, Accuracy, Hallucination, Response Quality, Latency, Token Economy</td>
                         <td>6개</td>
                         <td><span class="badge badge-free">무료</span></td>
                     </tr>
                     <tr>
-                        <td>Security (Layer 1)</td>
-                        <td>Input Sanitization, Output Leakage, Tool Authorization</td>
-                        <td>3개</td>
-                        <td><span class="badge badge-free">무료</span></td>
-                    </tr>
-                    <tr>
                         <td rowspan="2"><span class="badge badge-layer2">Layer 2</span></td>
                         <td>Agentic</td>
-                        <td>Tool Call Efficiency, Retry/Error Recovery, Tool Selection, Agent Coordination, Workflow Execution</td>
+                        <td>Tool Call Efficiency, Retry &amp; Error Recovery, Tool Selection, Agent Coordination, Workflow Execution</td>
                         <td>5개</td>
                         <td><span class="badge badge-free">무료</span></td>
                     </tr>
                     <tr>
-                        <td>Security (Layer 2)</td>
-                        <td>Privilege Escalation, Tool Chain Attack</td>
-                        <td>2개</td>
+                        <td>Security</td>
+                        <td>Input Sanitization, Output Leakage, Tool Authorization, Privilege Escalation, Tool Chain Attack</td>
+                        <td>5개</td>
                         <td><span class="badge badge-free">무료</span></td>
                     </tr>
                     <tr>
@@ -209,7 +203,7 @@
                     </tr>
                     <tr>
                         <td>4</td>
-                        <td><strong>Response Quality</strong><br>6차원 (relevance·completeness·accuracy·clarity·usefulness·avg)</td>
+                        <td><strong>Response Quality</strong><br>5차원 (relevance·completeness·accuracy·clarity·usefulness)</td>
                         <td><code>ResponseQualityEvaluator</code></td>
                         <td><code>evaluate_response()</code><br><code>get_quality_metrics()</code></td>
                         <td><span class="file-badge f01">01_quality</span></td>
@@ -230,8 +224,55 @@
                     </tr>
                 </tbody>
             </table>
+        </section>
 
-            <h3>🔒 Layer 1 Security (3개)</h3>
+        <!-- Section 3 -->
+        <section id="layer2">
+            <h2>3. Layer 2 Agentic 지표 (5개) + 보안 (5개)</h2>
+            <table>
+                <thead>
+                    <tr><th>#</th><th>지표</th><th>Tracker</th><th>핵심 메서드</th><th>예제 파일</th></tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>7</td>
+                        <td><strong>Tool Call Efficiency</strong><br>효율성 점수·중복·실패율</td>
+                        <td><code>ToolCallAnalyzer</code></td>
+                        <td><code>analyze_execution()</code><br><code>get_efficiency_stats()</code></td>
+                        <td><span class="file-badge f03">03_agentic</span></td>
+                    </tr>
+                    <tr>
+                        <td>8</td>
+                        <td><strong>Retry &amp; Error Recovery</strong><br>재시도율·첫 시도 성공률·수정 성공률</td>
+                        <td><code>RetryCorrectionTracker</code></td>
+                        <td><code>track_attempts()</code><br><code>get_retry_metrics()</code></td>
+                        <td><span class="file-badge f03">03_agentic</span></td>
+                    </tr>
+                    <tr>
+                        <td>9</td>
+                        <td><strong>Tool Selection Accuracy</strong><br>Precision·Recall·F1</td>
+                        <td><code>ToolSelectionTracker</code></td>
+                        <td><code>evaluate_selection()</code><br><code>get_accuracy_stats()</code></td>
+                        <td><span class="file-badge f03">03_agentic</span></td>
+                    </tr>
+                    <tr>
+                        <td>10</td>
+                        <td><strong>Agent Coordination</strong><br>협업 점수·성공률·패턴(Hub/Chain/Mesh)</td>
+                        <td><code>AgentCoordinationTracker</code></td>
+                        <td><code>track_interaction()</code><br><code>calculate_coordination_score()</code></td>
+                        <td><span class="file-badge f03">03_agentic</span></td>
+                    </tr>
+                    <tr>
+                        <td>11</td>
+                        <td><strong>Workflow Execution</strong><br>단계 성공률·태스크 성공률·총 단계 수</td>
+                        <td><code>WorkflowExecutionTracker</code></td>
+                        <td><code>track_step()</code><br><code>calculate_execution_success_rate()</code></td>
+                        <td><span class="file-badge f03">03_agentic</span></td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <h3>🛡️ Layer 2 Security (5개)</h3>
             <div class="security-box">
                 <p><code>PerformanceMonitor(enable_security_metrics=True)</code> 으로 활성화. 직접 메서드 호출 필요.</p>
             </div>
@@ -241,82 +282,26 @@
                 </thead>
                 <tbody>
                     <tr style="background:#fff9f0;">
-                        <td>7</td>
+                        <td>12</td>
                         <td><strong>Input Sanitization</strong><br>입력 보안 위협 탐지</td>
                         <td><code>InputSanitizationTracker</code></td>
                         <td>SQL Injection, Command Injection, Path Traversal, XSS, Prompt Injection</td>
                         <td><span class="file-badge f04">04_security</span></td>
                     </tr>
                     <tr style="background:#fff9f0;">
-                        <td>8</td>
+                        <td>13</td>
                         <td><strong>Output Leakage</strong><br>민감 정보 유출 탐지</td>
                         <td><code>OutputLeakageDetector</code></td>
                         <td>API Keys, Passwords, Credit Cards, Emails, SSNs, Private IPs</td>
                         <td><span class="file-badge f04">04_security</span></td>
                     </tr>
                     <tr style="background:#fff9f0;">
-                        <td>9</td>
+                        <td>14</td>
                         <td><strong>Tool Authorization</strong><br>도구 권한 정책 검증</td>
                         <td><code>ToolAuthorizationTracker</code></td>
                         <td>Whitelist/Blacklist, Dangerous Params, Privilege Levels</td>
                         <td><span class="file-badge f04">04_security</span></td>
                     </tr>
-                </tbody>
-            </table>
-        </section>
-
-        <!-- Section 3 -->
-        <section id="layer2">
-            <h2>3. Layer 2 Agentic 지표 (5개) + 보안 (2개)</h2>
-            <table>
-                <thead>
-                    <tr><th>#</th><th>지표</th><th>Tracker</th><th>핵심 메서드</th><th>예제 파일</th></tr>
-                </thead>
-                <tbody>
-                    <tr>
-                        <td>10</td>
-                        <td><strong>Tool Call Efficiency</strong><br>효율성 점수·중복·실패율</td>
-                        <td><code>ToolCallAnalyzer</code></td>
-                        <td><code>analyze_execution()</code><br><code>get_efficiency_stats()</code></td>
-                        <td><span class="file-badge f03">03_agentic</span></td>
-                    </tr>
-                    <tr>
-                        <td>11</td>
-                        <td><strong>Retry &amp; Error Recovery</strong><br>재시도율·첫 시도 성공률·수정 성공률</td>
-                        <td><code>RetryCorrectionTracker</code></td>
-                        <td><code>track_attempts()</code><br><code>get_retry_metrics()</code></td>
-                        <td><span class="file-badge f03">03_agentic</span></td>
-                    </tr>
-                    <tr>
-                        <td>12</td>
-                        <td><strong>Tool Selection Accuracy</strong><br>Precision·Recall·F1</td>
-                        <td><code>ToolSelectionTracker</code></td>
-                        <td><code>evaluate_selection()</code><br><code>get_accuracy_stats()</code></td>
-                        <td><span class="file-badge f03">03_agentic</span></td>
-                    </tr>
-                    <tr>
-                        <td>13</td>
-                        <td><strong>Agent Coordination</strong><br>협업 점수·성공률·패턴(Hub/Chain/Mesh)</td>
-                        <td><code>AgentCoordinationTracker</code></td>
-                        <td><code>track_interaction()</code><br><code>calculate_coordination_score()</code></td>
-                        <td><span class="file-badge f03">03_agentic</span></td>
-                    </tr>
-                    <tr>
-                        <td>14</td>
-                        <td><strong>Workflow Execution</strong><br>단계 성공률·태스크 성공률·총 단계 수</td>
-                        <td><code>WorkflowExecutionTracker</code></td>
-                        <td><code>track_step()</code><br><code>calculate_execution_success_rate()</code></td>
-                        <td><span class="file-badge f03">03_agentic</span></td>
-                    </tr>
-                </tbody>
-            </table>
-
-            <h3>🛡️ Layer 2 Security (2개)</h3>
-            <table>
-                <thead>
-                    <tr><th>#</th><th>지표</th><th>Tracker</th><th>탐지 패턴</th><th>예제 파일</th></tr>
-                </thead>
-                <tbody>
                     <tr style="background:#fff9f0;">
                         <td>15</td>
                         <td><strong>Privilege Escalation</strong><br>초기→최종 권한 추적, Risk Score</td>
@@ -344,7 +329,7 @@
                     <li><strong>OpenAI API 키 필수</strong> — DeepEval / Ragas 모두 LLM 호출 사용</li>
                     <li><strong>비용 발생</strong> — 태스크당 약 $0.01–0.02 (gpt-4o-mini 기준)</li>
                     <li><strong>속도</strong> — Layer 1/2 대비 10–30배 느림</li>
-                    <li><strong>설치</strong> — <code>pip install agent-evaluator[deepeval,ragas]</code></li>
+                    <li><strong>설치</strong> — <code>pip install agent-evaluator[eval]</code></li>
                     <li><strong>실제 API 예제</strong> — <strong>05_hybrid_metrics.py</strong>: DeepEval 5개 + Ragas 4개 실제 API 호출 포함</li>
                     <li><strong>시뮬레이션 대안</strong> — <code>monitor.record_rag_metrics()</code>로 Ragas 4개 값을 직접 기록 가능 (01_quality_metrics.py에서 사용)</li>
                 </ul>
@@ -409,28 +394,28 @@
                         <td><strong>Faithfulness</strong></td>
                         <td>검색 문서 충실도 (RAG Generation 품질)</td>
                         <td>0–1</td>
-                        <td><span class="file-badge f01">01_quality</span> <small>(시뮬)</small></td>
+                        <td><span class="file-badge f01">01_quality</span> <small>(시뮬)</small><br><span class="file-badge f05">05_hybrid</span> <small>(실제)</small></td>
                     </tr>
                     <tr>
                         <td>23</td>
                         <td><strong>Answer Relevancy (Ragas)</strong></td>
                         <td>RAG 답변 관련성</td>
                         <td>0–1</td>
-                        <td><span class="file-badge f01">01_quality</span> <small>(시뮬)</small></td>
+                        <td><span class="file-badge f01">01_quality</span> <small>(시뮬)</small><br><span class="file-badge f05">05_hybrid</span> <small>(실제)</small></td>
                     </tr>
                     <tr>
                         <td>24</td>
                         <td><strong>Context Precision</strong></td>
                         <td>검색 정밀도</td>
                         <td>0–1</td>
-                        <td><span class="file-badge f01">01_quality</span> <small>(시뮬)</small></td>
+                        <td><span class="file-badge f01">01_quality</span> <small>(시뮬)</small><br><span class="file-badge f05">05_hybrid</span> <small>(실제)</small></td>
                     </tr>
                     <tr>
                         <td>25</td>
                         <td><strong>Context Recall</strong></td>
                         <td>검색 재현율</td>
                         <td>0–1</td>
-                        <td><span class="file-badge f01">01_quality</span> <small>(시뮬)</small></td>
+                        <td><span class="file-badge f01">01_quality</span> <small>(시뮬)</small><br><span class="file-badge f05">05_hybrid</span> <small>(실제)</small></td>
                     </tr>
                 </tbody>
             </table>
@@ -473,12 +458,12 @@
             <div class="api-section">
                 <p>보안 트래커는 <code>record_task()</code>를 통해 자동 호출되지 않으며 <strong>별도로 직접 호출</strong>해야 합니다:</p>
                 <pre style="background: #2d2d2d; color: #f8f8f2; padding: 15px; border-radius: 6px; overflow-x: auto; margin-top: 10px; font-size: 0.9em;">
-<span style="color:#6a9955;"># Layer 1 보안</span>
+<span style="color:#6a9955;"># Layer 2 Security — 입출력 및 도구 권한 검사</span>
 monitor.input_sanitizer.evaluate_input(task_id, input_text)
 monitor.output_leakage_detector.detect_leakage(task_id, output_text)
 monitor.tool_authorizer.track_tool_call(task_id, tool_name, args)
 
-<span style="color:#6a9955;"># Layer 2 보안</span>
+<span style="color:#6a9955;"># Layer 2 Security — 권한 상승 / 체인 공격 분석</span>
 monitor.privilege_escalation_detector.analyze_privilege_chain(task_id, tool_calls_list)
 monitor.tool_chain_attack_detector.analyze_tool_chain(task_id, tool_sequence_list)
 </pre>
@@ -501,14 +486,15 @@ monitor.quality_evaluator.evaluate_response(
 
         <!-- Section 6 -->
         <section id="examples">
-            <h2>6. 예제 파일 매핑 (4개)</h2>
+            <h2>6. 예제 파일 매핑 (5개)</h2>
 
             <div class="info-box">
                 <h4>📂 파일 색상 코드</h4>
                 <span class="file-badge f01">01_quality_metrics.py</span> &nbsp;
                 <span class="file-badge f02">02_performance_metrics.py</span> &nbsp;
                 <span class="file-badge f03">03_agentic_metrics.py</span> &nbsp;
-                <span class="file-badge f04">04_security_metrics.py</span>
+                <span class="file-badge f04">04_security_metrics.py</span> &nbsp;
+                <span class="file-badge f05">05_hybrid_metrics.py</span>
             </div>
 
             <!-- 01 -->
@@ -529,7 +515,7 @@ monitor.quality_evaluator.evaluate_response(
                         <td><code>enable_hallucination_detection=True</code> 필요</td>
                     </tr>
                     <tr>
-                        <td><span class="badge badge-layer1">Response Quality (6-dim)</span></td>
+                        <td><span class="badge badge-layer1">Response Quality (5-dim)</span></td>
                         <td><code>monitor.quality_evaluator.evaluate_response()</code></td>
                         <td>별도 직접 호출 필요</td>
                     </tr>
@@ -652,6 +638,77 @@ monitor.quality_evaluator.evaluate_response(
             <div class="success-box">
                 <p><strong>생성 파일:</strong> <code>[S]_security_metrics_YYYYMMDD_HHMMSS.json</code> — 27개 태스크 + 직접 보안 호출</p>
             </div>
+
+            <!-- 05 -->
+            <h3>📄 05_hybrid_metrics.py — 하이브리드 지표 (실제 API)</h3>
+            <div class="warning-box">
+                <p>⚠️ <strong>OpenAI API 키 필요</strong> — <code>OPENAI_API_KEY</code>를 <code>.env</code>에 설정 후 실행.<br>
+                사전 설치: <code>pip install agent-evaluator[eval]</code></p>
+            </div>
+            <table>
+                <thead>
+                    <tr><th>지표</th><th>시나리오 수</th><th>API 호출 방식</th><th>비고</th></tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><span class="badge badge-layer3">G-Eval</span></td>
+                        <td>6건</td>
+                        <td><code>HybridPerformanceMonitor.record_task(quality_criteria=...)</code></td>
+                        <td>LLM 기반 품질 평가</td>
+                    </tr>
+                    <tr>
+                        <td><span class="badge badge-layer3">Hallucination (DeepEval)</span></td>
+                        <td>3건 (RAG)</td>
+                        <td><code>record_task(retrieved_context=[...])</code></td>
+                        <td>컨텍스트와 응답 비교</td>
+                    </tr>
+                    <tr>
+                        <td><span class="badge badge-layer3">Toxicity</span></td>
+                        <td>6건</td>
+                        <td>자동 (record_task 통해)</td>
+                        <td>독성 점수 0=무독성</td>
+                    </tr>
+                    <tr>
+                        <td><span class="badge badge-layer3">Bias</span></td>
+                        <td>6건</td>
+                        <td>자동 (record_task 통해)</td>
+                        <td>편향 점수 0=무편향</td>
+                    </tr>
+                    <tr>
+                        <td><span class="badge badge-layer3">Answer Relevancy (DE)</span></td>
+                        <td>5건</td>
+                        <td>자동 (record_task 통해)</td>
+                        <td>질문-답변 관련성</td>
+                    </tr>
+                    <tr>
+                        <td><span class="badge badge-layer3">Faithfulness (Ragas)</span></td>
+                        <td>3건 (RAG)</td>
+                        <td><code>record_task(retrieved_context=[...])</code></td>
+                        <td>검색 문서 충실도</td>
+                    </tr>
+                    <tr>
+                        <td><span class="badge badge-layer3">Answer Relevancy (Ragas)</span></td>
+                        <td>3건 (RAG)</td>
+                        <td>자동 (record_task 통해)</td>
+                        <td>RAG 답변 관련성</td>
+                    </tr>
+                    <tr>
+                        <td><span class="badge badge-layer3">Context Precision</span></td>
+                        <td>3건 (RAG)</td>
+                        <td>자동 (record_task 통해)</td>
+                        <td>검색 정밀도</td>
+                    </tr>
+                    <tr>
+                        <td><span class="badge badge-layer3">Context Recall</span></td>
+                        <td>3건 (RAG)</td>
+                        <td>자동 (record_task 통해)</td>
+                        <td>검색 재현율</td>
+                    </tr>
+                </tbody>
+            </table>
+            <div class="success-box">
+                <p><strong>생성 파일:</strong> <code>[H]_hybrid_metrics_YYYYMMDD_HHMMSS.json</code> — 6개 태스크 (DeepEval 3 + RAG 3), Golden Dataset 자동 로드</p>
+            </div>
         </section>
 
         <!-- Section 7 -->
@@ -661,7 +718,8 @@ monitor.quality_evaluator.evaluate_response(
             <div class="success-box">
                 <h3>✅ 현행 커버리지 요약</h3>
                 <ul style="margin-left: 20px; margin-top: 10px;">
-                    <li>📊 <strong>Layer 1/2 지표 16개</strong> — 01~04 예제 파일로 100% 커버</li>
+                    <li>📊 <strong>Layer 1 지표 6개</strong> — 01~02 예제 파일로 100% 커버</li>
+                    <li>📊 <strong>Layer 2 지표 10개</strong> (Agentic 5 + Security 5) — 03~04 예제 파일로 100% 커버</li>
                     <li>📊 <strong>Ragas 4개</strong> — 05_hybrid_metrics.py (실제 API) + 01_quality_metrics.py (시뮬레이션)</li>
                     <li>📊 <strong>DeepEval 5개</strong> — 05_hybrid_metrics.py (실제 API, OpenAI 키 필요)</li>
                     <li>🎯 <strong>전체 25개 지표 100% 예제 커버 달성</strong></li>
@@ -691,7 +749,7 @@ monitor.quality_evaluator.evaluate_response(
                         <td><span class="badge badge-covered">✅ 완전</span></td>
                     </tr>
                     <tr>
-                        <td>4</td><td>Response Quality (6-dim)</td><td><span class="badge badge-layer1">Layer 1</span></td>
+                        <td>4</td><td>Response Quality (5-dim)</td><td><span class="badge badge-layer1">Layer 1</span></td>
                         <td><span class="file-badge f01">01</span></td>
                         <td><span class="badge badge-covered">✅ 완전</span></td>
                     </tr>
@@ -705,44 +763,44 @@ monitor.quality_evaluator.evaluate_response(
                         <td><span class="file-badge f02">02</span></td>
                         <td><span class="badge badge-covered">✅ 완전</span></td>
                     </tr>
-                    <tr style="background:#fff9f0;">
-                        <td>7</td><td>Input Sanitization</td><td><span class="badge badge-security">Security L1</span></td>
-                        <td><span class="file-badge f04">04</span></td>
-                        <td><span class="badge badge-covered">✅ 완전</span></td>
-                    </tr>
-                    <tr style="background:#fff9f0;">
-                        <td>8</td><td>Output Leakage</td><td><span class="badge badge-security">Security L1</span></td>
-                        <td><span class="file-badge f04">04</span></td>
-                        <td><span class="badge badge-covered">✅ 완전</span></td>
-                    </tr>
-                    <tr style="background:#fff9f0;">
-                        <td>9</td><td>Tool Authorization</td><td><span class="badge badge-security">Security L1</span></td>
-                        <td><span class="file-badge f04">04</span></td>
-                        <td><span class="badge badge-covered">✅ 완전</span></td>
-                    </tr>
                     <tr>
-                        <td>10</td><td>Tool Call Efficiency</td><td><span class="badge badge-layer2">Layer 2</span></td>
+                        <td>7</td><td>Tool Call Efficiency</td><td><span class="badge badge-layer2">Layer 2</span></td>
                         <td><span class="file-badge f03">03</span></td>
                         <td><span class="badge badge-covered">✅ 완전</span></td>
                     </tr>
                     <tr>
-                        <td>11</td><td>Retry &amp; Error Recovery</td><td><span class="badge badge-layer2">Layer 2</span></td>
+                        <td>8</td><td>Retry &amp; Error Recovery</td><td><span class="badge badge-layer2">Layer 2</span></td>
                         <td><span class="file-badge f02">02</span> <span class="file-badge f03">03</span></td>
                         <td><span class="badge badge-covered">✅ 완전</span></td>
                     </tr>
                     <tr>
-                        <td>12</td><td>Tool Selection Accuracy (F1)</td><td><span class="badge badge-layer2">Layer 2</span></td>
+                        <td>9</td><td>Tool Selection Accuracy (F1)</td><td><span class="badge badge-layer2">Layer 2</span></td>
                         <td><span class="file-badge f03">03</span></td>
                         <td><span class="badge badge-covered">✅ 완전</span></td>
                     </tr>
                     <tr>
-                        <td>13</td><td>Agent Coordination</td><td><span class="badge badge-layer2">Layer 2</span></td>
+                        <td>10</td><td>Agent Coordination</td><td><span class="badge badge-layer2">Layer 2</span></td>
                         <td><span class="file-badge f03">03</span></td>
                         <td><span class="badge badge-covered">✅ 완전</span></td>
                     </tr>
                     <tr>
-                        <td>14</td><td>Workflow Execution</td><td><span class="badge badge-layer2">Layer 2</span></td>
+                        <td>11</td><td>Workflow Execution</td><td><span class="badge badge-layer2">Layer 2</span></td>
                         <td><span class="file-badge f03">03</span></td>
+                        <td><span class="badge badge-covered">✅ 완전</span></td>
+                    </tr>
+                    <tr style="background:#fff9f0;">
+                        <td>12</td><td>Input Sanitization</td><td><span class="badge badge-security">Security L2</span></td>
+                        <td><span class="file-badge f04">04</span></td>
+                        <td><span class="badge badge-covered">✅ 완전</span></td>
+                    </tr>
+                    <tr style="background:#fff9f0;">
+                        <td>13</td><td>Output Leakage</td><td><span class="badge badge-security">Security L2</span></td>
+                        <td><span class="file-badge f04">04</span></td>
+                        <td><span class="badge badge-covered">✅ 완전</span></td>
+                    </tr>
+                    <tr style="background:#fff9f0;">
+                        <td>14</td><td>Tool Authorization</td><td><span class="badge badge-security">Security L2</span></td>
+                        <td><span class="file-badge f04">04</span></td>
                         <td><span class="badge badge-covered">✅ 완전</span></td>
                     </tr>
                     <tr style="background:#fff9f0;">
@@ -755,36 +813,50 @@ monitor.quality_evaluator.evaluate_response(
                         <td><span class="file-badge f04">04</span></td>
                         <td><span class="badge badge-covered">✅ 완전</span></td>
                     </tr>
+                    <tr style="background:#fafafa;">
+                        <td>17</td><td>G-Eval</td><td><span class="badge badge-layer3">DeepEval</span></td>
+                        <td><span class="file-badge f05">05</span></td>
+                        <td><span class="badge badge-covered">✅ 실제 API</span></td>
+                    </tr>
+                    <tr style="background:#fafafa;">
+                        <td>18</td><td>Hallucination (DeepEval)</td><td><span class="badge badge-layer3">DeepEval</span></td>
+                        <td><span class="file-badge f05">05</span></td>
+                        <td><span class="badge badge-covered">✅ 실제 API</span></td>
+                    </tr>
+                    <tr style="background:#fafafa;">
+                        <td>19</td><td>Toxicity</td><td><span class="badge badge-layer3">DeepEval</span></td>
+                        <td><span class="file-badge f05">05</span></td>
+                        <td><span class="badge badge-covered">✅ 실제 API</span></td>
+                    </tr>
+                    <tr style="background:#fafafa;">
+                        <td>20</td><td>Bias</td><td><span class="badge badge-layer3">DeepEval</span></td>
+                        <td><span class="file-badge f05">05</span></td>
+                        <td><span class="badge badge-covered">✅ 실제 API</span></td>
+                    </tr>
+                    <tr style="background:#fafafa;">
+                        <td>21</td><td>Answer Relevancy (DeepEval)</td><td><span class="badge badge-layer3">DeepEval</span></td>
+                        <td><span class="file-badge f05">05</span></td>
+                        <td><span class="badge badge-covered">✅ 실제 API</span></td>
+                    </tr>
                     <tr>
-                        <td>17–20</td><td>Faithfulness / Answer Relevancy / Context Precision / Context Recall</td>
-                        <td><span class="badge badge-layer3">Ragas</span></td>
+                        <td>22</td><td>Faithfulness</td><td><span class="badge badge-layer3">Ragas</span></td>
                         <td><span class="file-badge f05">05</span> <span class="file-badge f01">01</span></td>
                         <td><span class="badge badge-covered">✅ 실제 API</span> <span class="badge badge-partial">⚠️ 시뮬레이션</span></td>
                     </tr>
-                    <tr style="background:#fafafa;">
-                        <td>21</td><td>G-Eval</td><td><span class="badge badge-layer3">DeepEval</span></td>
-                        <td><span class="file-badge f05">05</span></td>
-                        <td><span class="badge badge-covered">✅ 실제 API</span></td>
+                    <tr>
+                        <td>23</td><td>Answer Relevancy (Ragas)</td><td><span class="badge badge-layer3">Ragas</span></td>
+                        <td><span class="file-badge f05">05</span> <span class="file-badge f01">01</span></td>
+                        <td><span class="badge badge-covered">✅ 실제 API</span> <span class="badge badge-partial">⚠️ 시뮬레이션</span></td>
                     </tr>
-                    <tr style="background:#fafafa;">
-                        <td>22</td><td>Hallucination (DeepEval)</td><td><span class="badge badge-layer3">DeepEval</span></td>
-                        <td><span class="file-badge f05">05</span></td>
-                        <td><span class="badge badge-covered">✅ 실제 API</span></td>
+                    <tr>
+                        <td>24</td><td>Context Precision</td><td><span class="badge badge-layer3">Ragas</span></td>
+                        <td><span class="file-badge f05">05</span> <span class="file-badge f01">01</span></td>
+                        <td><span class="badge badge-covered">✅ 실제 API</span> <span class="badge badge-partial">⚠️ 시뮬레이션</span></td>
                     </tr>
-                    <tr style="background:#fafafa;">
-                        <td>23</td><td>Toxicity</td><td><span class="badge badge-layer3">DeepEval</span></td>
-                        <td><span class="file-badge f05">05</span></td>
-                        <td><span class="badge badge-covered">✅ 실제 API</span></td>
-                    </tr>
-                    <tr style="background:#fafafa;">
-                        <td>24</td><td>Bias</td><td><span class="badge badge-layer3">DeepEval</span></td>
-                        <td><span class="file-badge f05">05</span></td>
-                        <td><span class="badge badge-covered">✅ 실제 API</span></td>
-                    </tr>
-                    <tr style="background:#fafafa;">
-                        <td>25</td><td>Answer Relevancy (DeepEval)</td><td><span class="badge badge-layer3">DeepEval</span></td>
-                        <td><span class="file-badge f05">05</span></td>
-                        <td><span class="badge badge-covered">✅ 실제 API</span></td>
+                    <tr>
+                        <td>25</td><td>Context Recall</td><td><span class="badge badge-layer3">Ragas</span></td>
+                        <td><span class="file-badge f05">05</span> <span class="file-badge f01">01</span></td>
+                        <td><span class="badge badge-covered">✅ 실제 API</span> <span class="badge badge-partial">⚠️ 시뮬레이션</span></td>
                     </tr>
                 </tbody>
             </table>
@@ -794,7 +866,7 @@ monitor.quality_evaluator.evaluate_response(
                 <p>DeepEval 5개 + Ragas 4개 지표를 실제 OpenAI API로 평가합니다. <code>Evaluator_Examples/.env</code>에 <code>OPENAI_API_KEY</code>를 설정 후 실행하세요.</p>
                 <pre style="background: #2d2d2d; color: #f8f8f2; padding: 12px; border-radius: 6px; margin-top: 10px; font-size: 0.88em;">
 # 사전 요구사항
-pip install agent-evaluator[deepeval,ragas] langchain-openai datasets
+pip install agent-evaluator[eval]
 
 # 실행
 cd Evaluator_Examples
@@ -866,17 +938,17 @@ task = TaskResult(
 </pre>
             </div>
 
-            <h3>🔒 보안 패턴 (Layer 1+2)</h3>
+            <h3>🔒 보안 패턴 (Layer 2 Security)</h3>
             <div class="api-section">
                 <pre style="background: #2d2d2d; color: #f8f8f2; padding: 20px; border-radius: 8px; overflow-x: auto;">
 monitor = PerformanceMonitor(enable_security_metrics=<span style="color:#569cd6;">True</span>)
 
-<span style="color:#6a9955;"># Layer 1 Security</span>
+<span style="color:#6a9955;"># 입출력 및 도구 권한 검사</span>
 monitor.input_sanitizer.evaluate_input(task_id, user_input)
 monitor.output_leakage_detector.detect_leakage(task_id, agent_output)
 monitor.tool_authorizer.track_tool_call(task_id, tool_name, {})
 
-<span style="color:#6a9955;"># Layer 2 Security</span>
+<span style="color:#6a9955;"># 권한 상승 / 체인 공격 분석</span>
 monitor.privilege_escalation_detector.analyze_privilege_chain(
     task_id, [{<span style="color:#ce9178;">"name"</span>:<span style="color:#ce9178;">"read_file"</span>, <span style="color:#ce9178;">"privilege_level"</span>:<span style="color:#ce9178;">"read"</span>}])
 monitor.tool_chain_attack_detector.analyze_tool_chain(
@@ -903,10 +975,10 @@ agent-eval serve --watch
     </div>
 
     <footer>
-        <h3 style="margin-bottom: 15px;">📚 Agent Evaluator Framework v0.5.2</h3>
+        <h3 style="margin-bottom: 15px;">📚 Agent Evaluator Framework v0.5.6</h3>
         <p style="margin-bottom: 10px;">
-            🎯 Layer 1: 6개 지표 + 3개 보안 &nbsp;|&nbsp;
-            🤖 Layer 2: 5개 에이전틱 + 2개 보안 &nbsp;|&nbsp;
+            🎯 Layer 1: 6개 지표 &nbsp;|&nbsp;
+            🤖 Layer 2: 5개 에이전틱 + 5개 보안 &nbsp;|&nbsp;
             🧪 Layer 3: 9개 (DeepEval 5 + Ragas 4)
         </p>
         <p style="font-size: 0.95em; margin-bottom: 10px;">
@@ -914,7 +986,7 @@ agent-eval serve --watch
             05_hybrid_metrics.py: DeepEval 5 + Ragas 4 실제 API (OpenAI 키 필요)
         </p>
         <p style="font-size: 0.9em; opacity: 0.8;">
-            Updated: 2026-03-18 | MIT License | Python 3.8+
+            Updated: 2026-03-20 | MIT License | Python 3.8+
         </p>
     </footer>
 </div>
