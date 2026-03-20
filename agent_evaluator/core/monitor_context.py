@@ -3,9 +3,10 @@ Context manager for evaluation sessions
 Provides automatic resource management and result saving
 """
 
+import logging
 from contextlib import contextmanager
-from typing import Optional
-from pathlib import Path
+
+logger = logging.getLogger(__name__)
 
 
 @contextmanager
@@ -68,6 +69,7 @@ def evaluation_session(
             else:
                 print(f"✅ 자동 저장 완료: {output_filename}")
         except Exception as save_error:
+            logger.error("evaluation_session: 저장 중 오류 발생: %s", save_error)
             print(f"❌ 저장 중 오류 발생: {save_error}")
 
         # Now raise the original exception if it occurred
@@ -135,6 +137,7 @@ def hybrid_evaluation_session(
             else:
                 print(f"✅ 자동 저장 완료: {output_filename}")
         except Exception as save_error:
+            logger.error("hybrid_evaluation_session: 저장 중 오류 발생: %s", save_error)
             print(f"❌ 저장 중 오류 발생: {save_error}")
 
         if exception_occurred:

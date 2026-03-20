@@ -514,7 +514,7 @@ class RagasAdapter(MetricAdapter):
                     if value is not None and isinstance(value, (int, float)) and not (isinstance(value, float) and math.isnan(value)):
                         results[f'ragas_{metric_name}'] = float(value)
 
-                except (KeyError, IndexError, TypeError, AttributeError, ValueError) as e:
+                except (KeyError, IndexError, TypeError, AttributeError, ValueError):
                     # Skip metrics that are not available or resulted in error
                     continue
 

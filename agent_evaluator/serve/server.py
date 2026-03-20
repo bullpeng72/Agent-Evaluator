@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import os
 import urllib.request
+from contextlib import asynccontextmanager
 from pathlib import Path
 
 try:
@@ -82,8 +83,34 @@ def create_app(
     version: str = _VERSION,
     offline: bool = False,
 ) -> FastAPI:
+    # ------------------------------------------------------------------ #
+    # Lifespan: file watcher startup / shutdown
+    # ------------------------------------------------------------------ #
+    @asynccontextmanager
+    async def lifespan(app: FastAPI):
+        if watch:
+            from .watcher import FileWatcher
+            watcher = FileWatcher(results_dir)
+            watcher.start()
+            app.state.watcher = watcher
+
+            # Hook: reload result_set on every file change
+            original_broadcast = watcher._broadcast
+
+            def _reload_and_broadcast(event: str) -> None:
+                reload_results(app)
+                original_broadcast(event)
+
+            watcher._broadcast = _reload_and_broadcast
+
+        yield
+
+        if watch and app.state.watcher:
+            app.state.watcher.stop()
+
     app = FastAPI(title=title, version=version, docs_url="/api/docs",
-                  redoc_url="/api/redoc", openapi_version="3.1.0")
+                  redoc_url="/api/redoc", openapi_version="3.1.0",
+                  lifespan=lifespan)
 
     # CORS — allow same-origin + localhost dev access
     app.add_middleware(
@@ -116,31 +143,6 @@ def create_app(
 
     # Templates
     templates = Jinja2Templates(directory=str(_TEMPLATES_DIR))
-
-    # ------------------------------------------------------------------ #
-    # File watcher (optional)
-    # ------------------------------------------------------------------ #
-    if watch:
-        from .watcher import FileWatcher
-        watcher = FileWatcher(results_dir)
-
-        @app.on_event("startup")
-        def start_watcher() -> None:
-            watcher.start()
-            app.state.watcher = watcher
-
-            # Hook: reload result_set on every file change
-            original_broadcast = watcher._broadcast
-
-            def _reload_and_broadcast(event: str) -> None:
-                reload_results(app)
-                original_broadcast(event)
-
-            watcher._broadcast = _reload_and_broadcast
-
-        @app.on_event("shutdown")
-        def stop_watcher() -> None:
-            watcher.stop()
 
     # ------------------------------------------------------------------ #
     # HTML routes

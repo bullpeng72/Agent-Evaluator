@@ -326,7 +326,7 @@ RAG 시스템을 사용하는 경우 다음 메트릭을 추가할 수 있습니
 
 **참고** : 현재는 placeholder 구현. RAG 평가 기능 활성화 필요.
 
-### 8. Layer 2 Security 메트릭 (v0.5.5)
+### 8. Layer 2 Security 메트릭 (v0.5.6)
 
 Layer 2 Security 메트릭은 **보안 위협** 을 평가합니다 (`enable_security_metrics=True` 필요).
 
@@ -531,7 +531,7 @@ Layer 2 메트릭을 사용하려면 Golden Dataset에 `expected_tools` 필드�
     [](<#cb26-5>)}
 ```
 
-### 4\. Layer 2 Security 메트릭 (v0.5.5)
+### 4\. Layer 2 Security 메트릭 (v0.5.6)
 
 Layer 2 Security 메트릭은 **고급 보안 위협** 을 평가합니다.
 
@@ -767,7 +767,7 @@ Layer 2 Security 메트릭은 **고급 보안 위협** 을 평가합니다.
 
 
 ```json
-    [](<#cb36-1>)// PerformanceMonitor 기본 임계값 (v0.5.5)
+    [](<#cb36-1>)// PerformanceMonitor 기본 임계값 (v0.5.6)
     [](<#cb36-2>){
     [](<#cb36-3>)    "// Layer 1: Foundation Metrics": "",
     [](<#cb36-4>)    "tcr": 90.0,
@@ -844,7 +844,7 @@ Layer 2 Security 메트릭은 **고급 보안 위협** 을 평가합니다.
   * `context_recall`: Context Recall (0-1) ⚡ _: 실제 값 계산_
   * `context_precision`: Context Precision (0-1) ⚡ _: 실제 값 계산_
 
-**Layer 2 (Security Metrics)** ⚡ _v0.5.5_ :
+**Layer 2 (Security Metrics)** ⚡ _v0.5.6_ :
 
   * `input_sanitization`: Input Sanitization (%)
   * `output_leakage`: Output Leakage Prevention (%)
@@ -856,7 +856,7 @@ Layer 2 Security 메트릭은 **고급 보안 위협** 을 평가합니다.
   * `agent_coordination`: Agent Coordination (/10) - details 포함
   * `workflow_execution`: Workflow Execution (%) - details 포함
 
-**Layer 2 (Security Metrics)** ⚡ _v0.5.5_ :
+**Layer 2 (Security Metrics)** ⚡ _v0.5.6_ :
 
   * `privilege_escalation`: Privilege Escalation Detection (%)
   * `attack_detection`: Attack Pattern Detection (%)
@@ -2187,6 +2187,6 @@ CI/CD 위반 알림 Slack 통합 | DevOps | 01/20 | 📝 계획
 * * *
 
 **최종 업데이트** : 2026-03-20
-**버전** : Agent Evaluator v0.5.5
+**버전** : Agent Evaluator v0.5.6
 **프로젝트** : Agent Evaluator - AI Agent Performance Evaluation System
 **문서** : Threshold Configuration Guide

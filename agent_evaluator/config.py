@@ -282,7 +282,7 @@ def init_from_app(
                 f"  'agent-eval init' 을 실행하거나 .env 파일을 확인하세요."
             )
             if raise_on_missing:
-                raise EnvironmentError(msg)
+                raise OSError(msg)
             print(f"\033[33m⚠️  {msg}\033[0m", file=sys.stderr)
 
     return status

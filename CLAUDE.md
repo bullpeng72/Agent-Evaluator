@@ -5,7 +5,7 @@
 **Agent-Evaluator** is a production-ready Python SDK for evaluating AI agents.
 25개의 성능 지표를 세 개의 레이어(기본/에이전틱/하이브리드)로 측정한다.
 
-- **Version:** 0.5.5 (Beta)
+- **Version:** 0.5.6 (Beta)
 - **Python:** 3.8+
 - **License:** MIT
 - **Author:** Sungwoo Kim
@@ -329,6 +329,11 @@ pytest
 ---
 
 ## 📝 변경 이력
+
+### v0.5.6 (2026-03-20) — `datasets` 의존성 상한 추가 및 pipx 설치 오류 수정
+
+- 🐛 `pyproject.toml` `[eval]`·`[all]` extra에 `datasets>=2.14.0` 상한 추가 — ragas/crewai 전이 의존성이 구버전 `datasets` 소스 빌드를 시도해 발생하는 `FileNotFoundError: DESCRIPTION.rst` 수정
+- 🔧 `server.py` — deprecated `on_event` → `asynccontextmanager` lifespan 방식으로 리팩터
 
 ### v0.5.5 (2026-03-20) — CLI/대시보드/지표 문서 오류 수정 및 Public API 보완
 

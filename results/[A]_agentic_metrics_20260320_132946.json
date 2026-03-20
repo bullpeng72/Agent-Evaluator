@@ -1,0 +1,4706 @@
+{
+  "tasks": [
+    {
+      "task_id": "agent_001_simple_search",
+      "task_type": "tool_use",
+      "success": true,
+      "completion_score": 0.835,
+      "accuracy_score": 0.75,
+      "execution_time": 7.8,
+      "tokens_used": {
+        "input": 1366,
+        "output": 575,
+        "total": 1941
+      },
+      "tool_calls": [
+        {
+          "name": "web_search",
+          "tool_name": "web_search",
+          "success": true,
+          "execution_time": 0.534,
+          "args": {
+            "query": "task_query_web_search"
+          }
+        }
+      ],
+      "attempts": 1,
+      "errors": [],
+      "timestamp": "2026-03-20T10:29:46.072972",
+      "agent_interactions": null,
+      "chain_steps": null,
+      "graph_traversal": null,
+      "conversation_turns": null,
+      "expected_tools": [
+        "web_search"
+      ],
+      "state_transitions": null,
+      "framework": "langchain"
+    },
+    {
+      "task_id": "agent_002_data_lookup",
+      "task_type": "tool_use",
+      "success": false,
+      "completion_score": 0.33,
+      "accuracy_score": 0.265,
+      "execution_time": 0.709,
+      "tokens_used": {
+        "input": 1244,
+        "output": 236,
+        "total": 1480
+      },
+      "tool_calls": [
+        {
+          "name": "db_lookup",
+          "tool_name": "db_lookup",
+          "success": false,
+          "execution_time": 0.351,
+          "args": {
+            "query": "task_query_db_lookup"
+          }
+        },
+        {
+          "name": "data_query",
+          "tool_name": "data_query",
+          "success": false,
+          "execution_time": 0.625,
+          "args": {
+            "query": "task_query_data_query"
+          }
+        }
+      ],
+      "attempts": 1,
+      "errors": [
+        "execution_error"
+      ],
+      "timestamp": "2026-03-20T10:33:46.072972",
+      "agent_interactions": null,
+      "chain_steps": null,
+      "graph_traversal": null,
+      "conversation_turns": null,
+      "expected_tools": [
+        "db_lookup",
+        "data_query"
+      ],
+      "state_transitions": null,
+      "framework": "langchain"
+    },
+    {
+      "task_id": "agent_003_code_run",
+      "task_type": "tool_use",
+      "success": true,
+      "completion_score": 0.942,
+      "accuracy_score": 0.946,
+      "execution_time": 7.552,
+      "tokens_used": {
+        "input": 1508,
+        "output": 914,
+        "total": 2422
+      },
+      "tool_calls": [
+        {
+          "name": "code_executor",
+          "tool_name": "code_executor",
+          "success": true,
+          "execution_time": 0.196,
+          "args": {
+            "query": "task_query_code_executor"
+          }
+        }
+      ],
+      "attempts": 1,
+      "errors": [],
+      "timestamp": "2026-03-20T10:37:46.072972",
+      "agent_interactions": null,
+      "chain_steps": null,
+      "graph_traversal": null,
+      "conversation_turns": null,
+      "expected_tools": [
+        "code_executor"
+      ],
+      "state_transitions": null,
+      "framework": "langchain"
+    },
+    {
+      "task_id": "agent_004_classify_task",
+      "task_type": "tool_use",
+      "success": true,
+      "completion_score": 0.919,
+      "accuracy_score": 0.859,
+      "execution_time": 2.061,
+      "tokens_used": {
+        "input": 698,
+        "output": 1340,
+        "total": 2038
+      },
+      "tool_calls": [
+        {
+          "name": "classifier",
+          "tool_name": "classifier",
+          "success": true,
+          "execution_time": 0.316,
+          "args": {
+            "query": "task_query_classifier"
+          }
+        }
+      ],
+      "attempts": 1,
+      "errors": [],
+      "timestamp": "2026-03-20T10:41:46.072972",
+      "agent_interactions": null,
+      "chain_steps": null,
+      "graph_traversal": null,
+      "conversation_turns": null,
+      "expected_tools": [
+        "classifier"
+      ],
+      "state_transitions": null,
+      "framework": "langchain"
+    },
+    {
+      "task_id": "agent_005_wrong_tool_1",
+      "task_type": "tool_use",
+      "success": false,
+      "completion_score": 0.41,
+      "accuracy_score": 0.546,
+      "execution_time": 3.955,
+      "tokens_used": {
+        "input": 768,
+        "output": 1006,
+        "total": 1774
+      },
+      "tool_calls": [
+        {
+          "name": "doc_reader",
+          "tool_name": "doc_reader",
+          "success": false,
+          "execution_time": 0.638,
+          "args": {
+            "query": "task_query_doc_reader"
+          }
+        }
+      ],
+      "attempts": 1,
+      "errors": [
+        "tool_mismatch"
+      ],
+      "timestamp": "2026-03-20T10:45:46.072972",
+      "agent_interactions": null,
+      "chain_steps": null,
+      "graph_traversal": null,
+      "conversation_turns": null,
+      "expected_tools": [
+        "web_search"
+      ],
+      "state_transitions": null,
+      "framework": "langchain"
+    },
+    {
+      "task_id": "agent_006_wrong_tool_2",
+      "task_type": "tool_use",
+      "success": false,
+      "completion_score": 0.397,
+      "accuracy_score": 0.384,
+      "execution_time": 6.493,
+      "tokens_used": {
+        "input": 1134,
+        "output": 917,
+        "total": 2051
+      },
+      "tool_calls": [
+        {
+          "name": "db_lookup",
+          "tool_name": "db_lookup",
+          "success": true,
+          "execution_time": 0.483,
+          "args": {
+            "query": "task_query_db_lookup"
+          }
+        }
+      ],
+      "attempts": 2,
+      "errors": [
+        "tool_mismatch"
+      ],
+      "timestamp": "2026-03-20T10:49:46.072972",
+      "agent_interactions": null,
+      "chain_steps": null,
+      "graph_traversal": null,
+      "conversation_turns": null,
+      "expected_tools": [
+        "data_query",
+        "chart_generator"
+      ],
+      "state_transitions": null,
+      "framework": "langchain"
+    },
+    {
+      "task_id": "agent_007_partial_match",
+      "task_type": "tool_use",
+      "success": true,
+      "completion_score": 0.952,
+      "accuracy_score": 0.921,
+      "execution_time": 6.799,
+      "tokens_used": {
+        "input": 905,
+        "output": 564,
+        "total": 1469
+      },
+      "tool_calls": [
+        {
+          "name": "web_search",
+          "tool_name": "web_search",
+          "success": true,
+          "execution_time": 0.618,
+          "args": {
+            "query": "task_query_web_search"
+          }
+        },
+        {
+          "name": "doc_reader",
+          "tool_name": "doc_reader",
+          "success": true,
+          "execution_time": 0.541,
+          "args": {
+            "query": "task_query_doc_reader"
+          }
+        }
+      ],
+      "attempts": 1,
+      "errors": [],
+      "timestamp": "2026-03-20T10:53:46.072972",
+      "agent_interactions": null,
+      "chain_steps": null,
+      "graph_traversal": null,
+      "conversation_turns": null,
+      "expected_tools": [
+        "web_search",
+        "summarizer"
+      ],
+      "state_transitions": null,
+      "framework": "langchain"
+    },
+    {
+      "task_id": "agent_008_research_hub",
+      "task_type": "planning",
+      "success": true,
+      "completion_score": 0.872,
+      "accuracy_score": 0.862,
+      "execution_time": 10.391,
+      "tokens_used": {
+        "input": 688,
+        "output": 745,
+        "total": 1433
+      },
+      "tool_calls": [
+        {
+          "name": "web_search",
+          "tool_name": "web_search",
+          "success": true,
+          "execution_time": 0.5,
+          "args": {
+            "query": "task_query_web_search"
+          }
+        },
+        {
+          "name": "summarizer",
+          "tool_name": "summarizer",
+          "success": true,
+          "execution_time": 0.26,
+          "args": {
+            "query": "task_query_summarizer"
+          }
+        }
+      ],
+      "attempts": 1,
+      "errors": [],
+      "timestamp": "2026-03-20T10:57:46.072972",
+      "agent_interactions": [
+        {
+          "from_agent": "writer",
+          "to_agent": "researcher",
+          "type": "result_sharing",
+          "success": false,
+          "context": "writer \u2192 researcher \ud611\uc5c5"
+        },
+        {
+          "from_agent": "writer",
+          "to_agent": "orchestrator",
+          "type": "coordination",
+          "success": true,
+          "context": "writer \u2192 orchestrator \ud611\uc5c5"
+        },
+        {
+          "from_agent": "writer",
+          "to_agent": "orchestrator",
+          "type": "feedback",
+          "success": true,
+          "context": "writer \u2192 orchestrator \ud611\uc5c5"
+        },
+        {
+          "from_agent": "writer",
+          "to_agent": "researcher",
+          "type": "task_delegation",
+          "success": true,
+          "context": "writer \u2192 researcher \ud611\uc5c5"
+        }
+      ],
+      "chain_steps": [
+        {
+          "name": "input_validation",
+          "type": "validation",
+          "success": true,
+          "execution_time": 2.08,
+          "metadata": {
+            "bottleneck": false
+          }
+        },
+        {
+          "name": "data_retrieval",
+          "type": "retrieval",
+          "success": true,
+          "execution_time": 8.688,
+          "metadata": {
+            "bottleneck": true
+          }
+        },
+        {
+          "name": "data_preprocessing",
+          "type": "transform",
+          "success": true,
+          "execution_time": 1.775,
+          "metadata": {
+            "bottleneck": false
+          }
+        },
+        {
+          "name": "analysis",
+          "type": "analysis",
+          "success": false,
+          "execution_time": 4.754,
+          "metadata": {
+            "bottleneck": true
+          }
+        },
+        {
+          "name": "synthesis",
+          "type": "synthesis",
+          "success": true,
+          "execution_time": 2.873,
+          "metadata": {
+            "bottleneck": false
+          }
+        }
+      ],
+      "graph_traversal": null,
+      "conversation_turns": null,
+      "expected_tools": [
+        "web_search",
+        "summarizer"
+      ],
+      "state_transitions": null,
+      "framework": "crewai"
+    },
+    {
+      "task_id": "agent_009_analysis_hub",
+      "task_type": "planning",
+      "success": true,
+      "completion_score": 0.958,
+      "accuracy_score": 0.766,
+      "execution_time": 9.672,
+      "tokens_used": {
+        "input": 322,
+        "output": 114,
+        "total": 436
+      },
+      "tool_calls": [
+        {
+          "name": "data_query",
+          "tool_name": "data_query",
+          "success": true,
+          "execution_time": 0.163,
+          "args": {
+            "query": "task_query_data_query"
+          }
+        },
+        {
+          "name": "chart_generator",
+          "tool_name": "chart_generator",
+          "success": true,
+          "execution_time": 0.222,
+          "args": {
+            "query": "task_query_chart_generator"
+          }
+        }
+      ],
+      "attempts": 1,
+      "errors": [],
+      "timestamp": "2026-03-20T11:01:46.072972",
+      "agent_interactions": [
+        {
+          "from_agent": "analyst",
+          "to_agent": "orchestrator",
+          "type": "coordination",
+          "success": true,
+          "context": "analyst \u2192 orchestrator \ud611\uc5c5"
+        },
+        {
+          "from_agent": "analyst",
+          "to_agent": "orchestrator",
+          "type": "feedback",
+          "success": true,
+          "context": "analyst \u2192 orchestrator \ud611\uc5c5"
+        },
+        {
+          "from_agent": "writer",
+          "to_agent": "analyst",
+          "type": "coordination",
+          "success": true,
+          "context": "writer \u2192 analyst \ud611\uc5c5"
+        },
+        {
+          "from_agent": "orchestrator",
+          "to_agent": "reviewer",
+          "type": "feedback",
+          "success": true,
+          "context": "orchestrator \u2192 reviewer \ud611\uc5c5"
+        },
+        {
+          "from_agent": "reviewer",
+          "to_agent": "writer",
+          "type": "coordination",
+          "success": true,
+          "context": "reviewer \u2192 writer \ud611\uc5c5"
+        },
+        {
+          "from_agent": "reviewer",
+          "to_agent": "analyst",
+          "type": "feedback",
+          "success": true,
+          "context": "reviewer \u2192 analyst \ud611\uc5c5"
+        },
+        {
+          "from_agent": "analyst",
+          "to_agent": "writer",
+          "type": "result_sharing",
+          "success": true,
+          "context": "analyst \u2192 writer \ud611\uc5c5"
+        }
+      ],
+      "chain_steps": [
+        {
+          "name": "input_validation",
+          "type": "validation",
+          "success": true,
+          "execution_time": 2.347,
+          "metadata": {
+            "bottleneck": false
+          }
+        },
+        {
+          "name": "data_retrieval",
+          "type": "retrieval",
+          "success": true,
+          "execution_time": 2.871,
+          "metadata": {
+            "bottleneck": true
+          }
+        },
+        {
+          "name": "data_preprocessing",
+          "type": "transform",
+          "success": true,
+          "execution_time": 0.682,
+          "metadata": {
+            "bottleneck": false
+          }
+        },
+        {
+          "name": "analysis",
+          "type": "analysis",
+          "success": true,
+          "execution_time": 4.129,
+          "metadata": {
+            "bottleneck": true
+          }
+        }
+      ],
+      "graph_traversal": null,
+      "conversation_turns": null,
+      "expected_tools": [
+        "data_query",
+        "chart_generator"
+      ],
+      "state_transitions": null,
+      "framework": "crewai"
+    },
+    {
+      "task_id": "agent_010_document_hub",
+      "task_type": "planning",
+      "success": true,
+      "completion_score": 0.917,
+      "accuracy_score": 0.893,
+      "execution_time": 8.818,
+      "tokens_used": {
+        "input": 1753,
+        "output": 1162,
+        "total": 2915
+      },
+      "tool_calls": [
+        {
+          "name": "doc_reader",
+          "tool_name": "doc_reader",
+          "success": true,
+          "execution_time": 0.273,
+          "args": {
+            "query": "task_query_doc_reader"
+          }
+        },
+        {
+          "name": "summarizer",
+          "tool_name": "summarizer",
+          "success": true,
+          "execution_time": 0.506,
+          "args": {
+            "query": "task_query_summarizer"
+          }
+        },
+        {
+          "name": "report_writer",
+          "tool_name": "report_writer",
+          "success": true,
+          "execution_time": 0.091,
+          "args": {
+            "query": "task_query_report_writer"
+          }
+        }
+      ],
+      "attempts": 1,
+      "errors": [],
+      "timestamp": "2026-03-20T11:05:46.072972",
+      "agent_interactions": [
+        {
+          "from_agent": "writer",
+          "to_agent": "researcher",
+          "type": "feedback",
+          "success": true,
+          "context": "writer \u2192 researcher \ud611\uc5c5"
+        },
+        {
+          "from_agent": "researcher",
+          "to_agent": "writer",
+          "type": "task_delegation",
+          "success": true,
+          "context": "researcher \u2192 writer \ud611\uc5c5"
+        },
+        {
+          "from_agent": "writer",
+          "to_agent": "researcher",
+          "type": "result_sharing",
+          "success": true,
+          "context": "writer \u2192 researcher \ud611\uc5c5"
+        },
+        {
+          "from_agent": "writer",
+          "to_agent": "orchestrator",
+          "type": "coordination",
+          "success": true,
+          "context": "writer \u2192 orchestrator \ud611\uc5c5"
+        }
+      ],
+      "chain_steps": [
+        {
+          "name": "input_validation",
+          "type": "validation",
+          "success": true,
+          "execution_time": 2.854,
+          "metadata": {
+            "bottleneck": false
+          }
+        },
+        {
+          "name": "data_retrieval",
+          "type": "retrieval",
+          "success": true,
+          "execution_time": 7.35,
+          "metadata": {
+            "bottleneck": true
+          }
+        },
+        {
+          "name": "data_preprocessing",
+          "type": "transform",
+          "success": false,
+          "execution_time": 0.75,
+          "metadata": {
+            "bottleneck": false
+          }
+        },
+        {
+          "name": "analysis",
+          "type": "analysis",
+          "success": true,
+          "execution_time": 5.436,
+          "metadata": {
+            "bottleneck": true
+          }
+        },
+        {
+          "name": "synthesis",
+          "type": "synthesis",
+          "success": true,
+          "execution_time": 1.425,
+          "metadata": {
+            "bottleneck": false
+          }
+        },
+        {
+          "name": "quality_check",
+          "type": "validation",
+          "success": false,
+          "execution_time": 0.786,
+          "metadata": {
+            "bottleneck": false
+          }
+        }
+      ],
+      "graph_traversal": null,
+      "conversation_turns": null,
+      "expected_tools": [
+        "doc_reader",
+        "summarizer",
+        "report_writer"
+      ],
+      "state_transitions": null,
+      "framework": "crewai"
+    },
+    {
+      "task_id": "agent_011_chain_research",
+      "task_type": "planning",
+      "success": true,
+      "completion_score": 0.93,
+      "accuracy_score": 0.759,
+      "execution_time": 1.975,
+      "tokens_used": {
+        "input": 1688,
+        "output": 675,
+        "total": 2363
+      },
+      "tool_calls": [
+        {
+          "name": "web_search",
+          "tool_name": "web_search",
+          "success": true,
+          "execution_time": 0.308,
+          "args": {
+            "query": "task_query_web_search"
+          }
+        },
+        {
+          "name": "summarizer",
+          "tool_name": "summarizer",
+          "success": true,
+          "execution_time": 0.556,
+          "args": {
+            "query": "task_query_summarizer"
+          }
+        },
+        {
+          "name": "report_writer",
+          "tool_name": "report_writer",
+          "success": false,
+          "execution_time": 0.518,
+          "args": {
+            "query": "task_query_report_writer"
+          }
+        }
+      ],
+      "attempts": 1,
+      "errors": [],
+      "timestamp": "2026-03-20T11:09:46.072972",
+      "agent_interactions": [
+        {
+          "from_agent": "writer",
+          "to_agent": "analyst",
+          "type": "feedback",
+          "success": true,
+          "context": "writer \u2192 analyst \ud611\uc5c5"
+        },
+        {
+          "from_agent": "researcher",
+          "to_agent": "writer",
+          "type": "feedback",
+          "success": true,
+          "context": "researcher \u2192 writer \ud611\uc5c5"
+        }
+      ],
+      "chain_steps": [
+        {
+          "name": "input_validation",
+          "type": "validation",
+          "success": true,
+          "execution_time": 2.118,
+          "metadata": {
+            "bottleneck": false
+          }
+        },
+        {
+          "name": "data_retrieval",
+          "type": "retrieval",
+          "success": true,
+          "execution_time": 2.648,
+          "metadata": {
+            "bottleneck": true
+          }
+        },
+        {
+          "name": "data_preprocessing",
+          "type": "transform",
+          "success": true,
+          "execution_time": 1.163,
+          "metadata": {
+            "bottleneck": false
+          }
+        },
+        {
+          "name": "analysis",
+          "type": "analysis",
+          "success": true,
+          "execution_time": 8.142,
+          "metadata": {
+            "bottleneck": true
+          }
+        },
+        {
+          "name": "synthesis",
+          "type": "synthesis",
+          "success": true,
+          "execution_time": 0.962,
+          "metadata": {
+            "bottleneck": false
+          }
+        },
+        {
+          "name": "quality_check",
+          "type": "validation",
+          "success": true,
+          "execution_time": 2.476,
+          "metadata": {
+            "bottleneck": false
+          }
+        }
+      ],
+      "graph_traversal": null,
+      "conversation_turns": null,
+      "expected_tools": [
+        "web_search",
+        "summarizer",
+        "report_writer"
+      ],
+      "state_transitions": null,
+      "framework": "crewai"
+    },
+    {
+      "task_id": "agent_012_chain_analysis",
+      "task_type": "planning",
+      "success": true,
+      "completion_score": 0.825,
+      "accuracy_score": 0.924,
+      "execution_time": 2.484,
+      "tokens_used": {
+        "input": 428,
+        "output": 231,
+        "total": 659
+      },
+      "tool_calls": [
+        {
+          "name": "data_query",
+          "tool_name": "data_query",
+          "success": true,
+          "execution_time": 0.448,
+          "args": {
+            "query": "task_query_data_query"
+          }
+        },
+        {
+          "name": "classifier",
+          "tool_name": "classifier",
+          "success": true,
+          "execution_time": 0.537,
+          "args": {
+            "query": "task_query_classifier"
+          }
+        },
+        {
+          "name": "chart_generator",
+          "tool_name": "chart_generator",
+          "success": true,
+          "execution_time": 0.206,
+          "args": {
+            "query": "task_query_chart_generator"
+          }
+        },
+        {
+          "name": "chart_generator",
+          "tool_name": "chart_generator",
+          "success": true,
+          "execution_time": 0.206,
+          "args": {
+            "query": "task_query_chart_generator"
+          },
+          "redundant": true
+        }
+      ],
+      "attempts": 1,
+      "errors": [],
+      "timestamp": "2026-03-20T11:13:46.072972",
+      "agent_interactions": [
+        {
+          "from_agent": "writer",
+          "to_agent": "analyst",
+          "type": "task_delegation",
+          "success": true,
+          "context": "writer \u2192 analyst \ud611\uc5c5"
+        },
+        {
+          "from_agent": "analyst",
+          "to_agent": "reviewer",
+          "type": "result_sharing",
+          "success": true,
+          "context": "analyst \u2192 reviewer \ud611\uc5c5"
+        },
+        {
+          "from_agent": "analyst",
+          "to_agent": "writer",
+          "type": "feedback",
+          "success": true,
+          "context": "analyst \u2192 writer \ud611\uc5c5"
+        },
+        {
+          "from_agent": "reviewer",
+          "to_agent": "analyst",
+          "type": "result_sharing",
+          "success": true,
+          "context": "reviewer \u2192 analyst \ud611\uc5c5"
+        }
+      ],
+      "chain_steps": [
+        {
+          "name": "input_validation",
+          "type": "validation",
+          "success": true,
+          "execution_time": 0.848,
+          "metadata": {
+            "bottleneck": false
+          }
+        },
+        {
+          "name": "data_retrieval",
+          "type": "retrieval",
+          "success": true,
+          "execution_time": 7.208,
+          "metadata": {
+            "bottleneck": true
+          }
+        },
+        {
+          "name": "data_preprocessing",
+          "type": "transform",
+          "success": true,
+          "execution_time": 2.85,
+          "metadata": {
+            "bottleneck": false
+          }
+        },
+        {
+          "name": "analysis",
+          "type": "analysis",
+          "success": false,
+          "execution_time": 1.887,
+          "metadata": {
+            "bottleneck": true
+          }
+        },
+        {
+          "name": "synthesis",
+          "type": "synthesis",
+          "success": true,
+          "execution_time": 2.942,
+          "metadata": {
+            "bottleneck": false
+          }
+        }
+      ],
+      "graph_traversal": null,
+      "conversation_turns": null,
+      "expected_tools": [
+        "data_query",
+        "classifier",
+        "chart_generator"
+      ],
+      "state_transitions": null,
+      "framework": "crewai"
+    },
+    {
+      "task_id": "agent_013_retry_on_fail_1",
+      "task_type": "tool_use",
+      "success": true,
+      "completion_score": 0.975,
+      "accuracy_score": 0.789,
+      "execution_time": 2.144,
+      "tokens_used": {
+        "input": 1303,
+        "output": 540,
+        "total": 1843
+      },
+      "tool_calls": [
+        {
+          "name": "web_search",
+          "tool_name": "web_search",
+          "success": true,
+          "execution_time": 0.422,
+          "args": {
+            "query": "task_query_web_search"
+          }
+        }
+      ],
+      "attempts": 2,
+      "errors": [],
+      "timestamp": "2026-03-20T11:17:46.072972",
+      "agent_interactions": null,
+      "chain_steps": null,
+      "graph_traversal": null,
+      "conversation_turns": null,
+      "expected_tools": [
+        "web_search"
+      ],
+      "state_transitions": null,
+      "framework": "langchain"
+    },
+    {
+      "task_id": "agent_014_retry_on_fail_2",
+      "task_type": "tool_use",
+      "success": false,
+      "completion_score": 0.431,
+      "accuracy_score": 0.44,
+      "execution_time": 5.504,
+      "tokens_used": {
+        "input": 442,
+        "output": 1402,
+        "total": 1844
+      },
+      "tool_calls": [
+        {
+          "name": "code_executor",
+          "tool_name": "code_executor",
+          "success": true,
+          "execution_time": 0.788,
+          "args": {
+            "query": "task_query_code_executor"
+          }
+        },
+        {
+          "name": "data_query",
+          "tool_name": "data_query",
+          "success": true,
+          "execution_time": 0.475,
+          "args": {
+            "query": "task_query_data_query"
+          }
+        }
+      ],
+      "attempts": 3,
+      "errors": [
+        "execution_error"
+      ],
+      "timestamp": "2026-03-20T11:21:46.072972",
+      "agent_interactions": null,
+      "chain_steps": null,
+      "graph_traversal": null,
+      "conversation_turns": null,
+      "expected_tools": [
+        "code_executor",
+        "data_query"
+      ],
+      "state_transitions": null,
+      "framework": "langchain"
+    },
+    {
+      "task_id": "agent_015_retry_success",
+      "task_type": "planning",
+      "success": true,
+      "completion_score": 0.86,
+      "accuracy_score": 0.881,
+      "execution_time": 6.781,
+      "tokens_used": {
+        "input": 1485,
+        "output": 1424,
+        "total": 2909
+      },
+      "tool_calls": [
+        {
+          "name": "db_lookup",
+          "tool_name": "db_lookup",
+          "success": true,
+          "execution_time": 0.614,
+          "args": {
+            "query": "task_query_db_lookup"
+          }
+        }
+      ],
+      "attempts": 2,
+      "errors": [],
+      "timestamp": "2026-03-20T11:25:46.072972",
+      "agent_interactions": null,
+      "chain_steps": [
+        {
+          "name": "input_validation",
+          "type": "validation",
+          "success": true,
+          "execution_time": 1.535,
+          "metadata": {
+            "bottleneck": false
+          }
+        },
+        {
+          "name": "data_retrieval",
+          "type": "retrieval",
+          "success": true,
+          "execution_time": 6.254,
+          "metadata": {
+            "bottleneck": true
+          }
+        },
+        {
+          "name": "data_preprocessing",
+          "type": "transform",
+          "success": true,
+          "execution_time": 2.561,
+          "metadata": {
+            "bottleneck": false
+          }
+        },
+        {
+          "name": "analysis",
+          "type": "analysis",
+          "success": true,
+          "execution_time": 7.642,
+          "metadata": {
+            "bottleneck": true
+          }
+        },
+        {
+          "name": "synthesis",
+          "type": "synthesis",
+          "success": true,
+          "execution_time": 2.784,
+          "metadata": {
+            "bottleneck": false
+          }
+        }
+      ],
+      "graph_traversal": null,
+      "conversation_turns": null,
+      "expected_tools": [
+        "db_lookup"
+      ],
+      "state_transitions": null,
+      "framework": "langchain"
+    },
+    {
+      "task_id": "agent_016_redundant_calls_1",
+      "task_type": "tool_use",
+      "success": true,
+      "completion_score": 0.994,
+      "accuracy_score": 0.841,
+      "execution_time": 7.31,
+      "tokens_used": {
+        "input": 345,
+        "output": 1255,
+        "total": 1600
+      },
+      "tool_calls": [
+        {
+          "name": "web_search",
+          "tool_name": "web_search",
+          "success": false,
+          "execution_time": 0.702,
+          "args": {
+            "query": "task_query_web_search"
+          }
+        },
+        {
+          "name": "doc_reader",
+          "tool_name": "doc_reader",
+          "success": true,
+          "execution_time": 0.599,
+          "args": {
+            "query": "task_query_doc_reader"
+          }
+        },
+        {
+          "name": "doc_reader",
+          "tool_name": "doc_reader",
+          "success": true,
+          "execution_time": 0.599,
+          "args": {
+            "query": "task_query_doc_reader"
+          },
+          "redundant": true
+        }
+      ],
+      "attempts": 1,
+      "errors": [],
+      "timestamp": "2026-03-20T11:29:46.072972",
+      "agent_interactions": null,
+      "chain_steps": null,
+      "graph_traversal": null,
+      "conversation_turns": null,
+      "expected_tools": [
+        "web_search",
+        "doc_reader"
+      ],
+      "state_transitions": null,
+      "framework": "langchain"
+    },
+    {
+      "task_id": "agent_017_redundant_calls_2",
+      "task_type": "tool_use",
+      "success": true,
+      "completion_score": 0.904,
+      "accuracy_score": 0.927,
+      "execution_time": 5.226,
+      "tokens_used": {
+        "input": 883,
+        "output": 1226,
+        "total": 2109
+      },
+      "tool_calls": [
+        {
+          "name": "data_query",
+          "tool_name": "data_query",
+          "success": true,
+          "execution_time": 0.082,
+          "args": {
+            "query": "task_query_data_query"
+          }
+        },
+        {
+          "name": "data_query",
+          "tool_name": "data_query",
+          "success": true,
+          "execution_time": 0.082,
+          "args": {
+            "query": "task_query_data_query"
+          },
+          "redundant": true
+        }
+      ],
+      "attempts": 1,
+      "errors": [],
+      "timestamp": "2026-03-20T11:33:46.072972",
+      "agent_interactions": null,
+      "chain_steps": null,
+      "graph_traversal": null,
+      "conversation_turns": null,
+      "expected_tools": [
+        "data_query"
+      ],
+      "state_transitions": null,
+      "framework": "langchain"
+    },
+    {
+      "task_id": "agent_018_complex_pipeline",
+      "task_type": "planning",
+      "success": true,
+      "completion_score": 0.928,
+      "accuracy_score": 0.77,
+      "execution_time": 10.478,
+      "tokens_used": {
+        "input": 726,
+        "output": 180,
+        "total": 906
+      },
+      "tool_calls": [
+        {
+          "name": "web_search",
+          "tool_name": "web_search",
+          "success": true,
+          "execution_time": 0.514,
+          "args": {
+            "query": "task_query_web_search"
+          }
+        },
+        {
+          "name": "data_query",
+          "tool_name": "data_query",
+          "success": true,
+          "execution_time": 0.756,
+          "args": {
+            "query": "task_query_data_query"
+          }
+        },
+        {
+          "name": "chart_generator",
+          "tool_name": "chart_generator",
+          "success": true,
+          "execution_time": 0.49,
+          "args": {
+            "query": "task_query_chart_generator"
+          }
+        },
+        {
+          "name": "report_writer",
+          "tool_name": "report_writer",
+          "success": false,
+          "execution_time": 0.44,
+          "args": {
+            "query": "task_query_report_writer"
+          }
+        }
+      ],
+      "attempts": 1,
+      "errors": [],
+      "timestamp": "2026-03-20T11:37:46.072972",
+      "agent_interactions": [
+        {
+          "from_agent": "researcher",
+          "to_agent": "analyst",
+          "type": "result_sharing",
+          "success": true,
+          "context": "researcher \u2192 analyst \ud611\uc5c5"
+        },
+        {
+          "from_agent": "writer",
+          "to_agent": "researcher",
+          "type": "coordination",
+          "success": true,
+          "context": "writer \u2192 researcher \ud611\uc5c5"
+        },
+        {
+          "from_agent": "analyst",
+          "to_agent": "researcher",
+          "type": "result_sharing",
+          "success": true,
+          "context": "analyst \u2192 researcher \ud611\uc5c5"
+        },
+        {
+          "from_agent": "orchestrator",
+          "to_agent": "writer",
+          "type": "task_delegation",
+          "success": true,
+          "context": "orchestrator \u2192 writer \ud611\uc5c5"
+        },
+        {
+          "from_agent": "researcher",
+          "to_agent": "analyst",
+          "type": "result_sharing",
+          "success": true,
+          "context": "researcher \u2192 analyst \ud611\uc5c5"
+        },
+        {
+          "from_agent": "writer",
+          "to_agent": "reviewer",
+          "type": "coordination",
+          "success": true,
+          "context": "writer \u2192 reviewer \ud611\uc5c5"
+        },
+        {
+          "from_agent": "researcher",
+          "to_agent": "analyst",
+          "type": "feedback",
+          "success": true,
+          "context": "researcher \u2192 analyst \ud611\uc5c5"
+        },
+        {
+          "from_agent": "analyst",
+          "to_agent": "reviewer",
+          "type": "task_delegation",
+          "success": true,
+          "context": "analyst \u2192 reviewer \ud611\uc5c5"
+        },
+        {
+          "from_agent": "reviewer",
+          "to_agent": "orchestrator",
+          "type": "feedback",
+          "success": true,
+          "context": "reviewer \u2192 orchestrator \ud611\uc5c5"
+        }
+      ],
+      "chain_steps": [
+        {
+          "name": "input_validation",
+          "type": "validation",
+          "success": true,
+          "execution_time": 1.217,
+          "metadata": {
+            "bottleneck": false
+          }
+        },
+        {
+          "name": "data_retrieval",
+          "type": "retrieval",
+          "success": true,
+          "execution_time": 8.136,
+          "metadata": {
+            "bottleneck": true
+          }
+        },
+        {
+          "name": "data_preprocessing",
+          "type": "transform",
+          "success": true,
+          "execution_time": 2.49,
+          "metadata": {
+            "bottleneck": false
+          }
+        },
+        {
+          "name": "analysis",
+          "type": "analysis",
+          "success": true,
+          "execution_time": 2.996,
+          "metadata": {
+            "bottleneck": true
+          }
+        },
+        {
+          "name": "synthesis",
+          "type": "synthesis",
+          "success": true,
+          "execution_time": 1.202,
+          "metadata": {
+            "bottleneck": false
+          }
+        }
+      ],
+      "graph_traversal": null,
+      "conversation_turns": null,
+      "expected_tools": [
+        "web_search",
+        "data_query",
+        "chart_generator",
+        "report_writer"
+      ],
+      "state_transitions": null,
+      "framework": "crewai"
+    },
+    {
+      "task_id": "agent_019_ml_pipeline",
+      "task_type": "planning",
+      "success": true,
+      "completion_score": 0.885,
+      "accuracy_score": 0.775,
+      "execution_time": 3.107,
+      "tokens_used": {
+        "input": 289,
+        "output": 1222,
+        "total": 1511
+      },
+      "tool_calls": [
+        {
+          "name": "data_query",
+          "tool_name": "data_query",
+          "success": true,
+          "execution_time": 0.251,
+          "args": {
+            "query": "task_query_data_query"
+          }
+        },
+        {
+          "name": "code_executor",
+          "tool_name": "code_executor",
+          "success": true,
+          "execution_time": 0.524,
+          "args": {
+            "query": "task_query_code_executor"
+          }
+        },
+        {
+          "name": "classifier",
+          "tool_name": "classifier",
+          "success": true,
+          "execution_time": 0.385,
+          "args": {
+            "query": "task_query_classifier"
+          }
+        },
+        {
+          "name": "chart_generator",
+          "tool_name": "chart_generator",
+          "success": true,
+          "execution_time": 0.666,
+          "args": {
+            "query": "task_query_chart_generator"
+          }
+        },
+        {
+          "name": "code_executor",
+          "tool_name": "code_executor",
+          "success": true,
+          "execution_time": 0.524,
+          "args": {
+            "query": "task_query_code_executor"
+          },
+          "redundant": true
+        }
+      ],
+      "attempts": 1,
+      "errors": [],
+      "timestamp": "2026-03-20T11:41:46.072972",
+      "agent_interactions": [
+        {
+          "from_agent": "writer",
+          "to_agent": "orchestrator",
+          "type": "feedback",
+          "success": true,
+          "context": "writer \u2192 orchestrator \ud611\uc5c5"
+        },
+        {
+          "from_agent": "writer",
+          "to_agent": "analyst",
+          "type": "result_sharing",
+          "success": true,
+          "context": "writer \u2192 analyst \ud611\uc5c5"
+        },
+        {
+          "from_agent": "analyst",
+          "to_agent": "orchestrator",
+          "type": "feedback",
+          "success": true,
+          "context": "analyst \u2192 orchestrator \ud611\uc5c5"
+        },
+        {
+          "from_agent": "orchestrator",
+          "to_agent": "analyst",
+          "type": "task_delegation",
+          "success": true,
+          "context": "orchestrator \u2192 analyst \ud611\uc5c5"
+        }
+      ],
+      "chain_steps": [
+        {
+          "name": "input_validation",
+          "type": "validation",
+          "success": true,
+          "execution_time": 1.48,
+          "metadata": {
+            "bottleneck": false
+          }
+        },
+        {
+          "name": "data_retrieval",
+          "type": "retrieval",
+          "success": true,
+          "execution_time": 8.579,
+          "metadata": {
+            "bottleneck": true
+          }
+        },
+        {
+          "name": "data_preprocessing",
+          "type": "transform",
+          "success": true,
+          "execution_time": 1.441,
+          "metadata": {
+            "bottleneck": false
+          }
+        },
+        {
+          "name": "analysis",
+          "type": "analysis",
+          "success": true,
+          "execution_time": 6.048,
+          "metadata": {
+            "bottleneck": true
+          }
+        },
+        {
+          "name": "synthesis",
+          "type": "synthesis",
+          "success": true,
+          "execution_time": 2.816,
+          "metadata": {
+            "bottleneck": false
+          }
+        }
+      ],
+      "graph_traversal": null,
+      "conversation_turns": null,
+      "expected_tools": [
+        "data_query",
+        "code_executor",
+        "classifier",
+        "chart_generator"
+      ],
+      "state_transitions": null,
+      "framework": "crewai"
+    },
+    {
+      "task_id": "agent_020_translation_chain",
+      "task_type": "planning",
+      "success": true,
+      "completion_score": 0.979,
+      "accuracy_score": 0.845,
+      "execution_time": 5.6,
+      "tokens_used": {
+        "input": 1299,
+        "output": 1446,
+        "total": 2745
+      },
+      "tool_calls": [
+        {
+          "name": "doc_reader",
+          "tool_name": "doc_reader",
+          "success": true,
+          "execution_time": 0.481,
+          "args": {
+            "query": "task_query_doc_reader"
+          }
+        },
+        {
+          "name": "translator",
+          "tool_name": "translator",
+          "success": true,
+          "execution_time": 0.798,
+          "args": {
+            "query": "task_query_translator"
+          }
+        },
+        {
+          "name": "summarizer",
+          "tool_name": "summarizer",
+          "success": true,
+          "execution_time": 0.452,
+          "args": {
+            "query": "task_query_summarizer"
+          }
+        }
+      ],
+      "attempts": 1,
+      "errors": [],
+      "timestamp": "2026-03-20T11:45:46.072972",
+      "agent_interactions": [
+        {
+          "from_agent": "writer",
+          "to_agent": "researcher",
+          "type": "coordination",
+          "success": true,
+          "context": "writer \u2192 researcher \ud611\uc5c5"
+        },
+        {
+          "from_agent": "writer",
+          "to_agent": "researcher",
+          "type": "result_sharing",
+          "success": true,
+          "context": "writer \u2192 researcher \ud611\uc5c5"
+        },
+        {
+          "from_agent": "writer",
+          "to_agent": "researcher",
+          "type": "coordination",
+          "success": true,
+          "context": "writer \u2192 researcher \ud611\uc5c5"
+        }
+      ],
+      "chain_steps": [
+        {
+          "name": "input_validation",
+          "type": "validation",
+          "success": true,
+          "execution_time": 1.734,
+          "metadata": {
+            "bottleneck": false
+          }
+        },
+        {
+          "name": "data_retrieval",
+          "type": "retrieval",
+          "success": true,
+          "execution_time": 8.88,
+          "metadata": {
+            "bottleneck": true
+          }
+        },
+        {
+          "name": "data_preprocessing",
+          "type": "transform",
+          "success": true,
+          "execution_time": 2.397,
+          "metadata": {
+            "bottleneck": false
+          }
+        },
+        {
+          "name": "analysis",
+          "type": "analysis",
+          "success": true,
+          "execution_time": 4.363,
+          "metadata": {
+            "bottleneck": true
+          }
+        },
+        {
+          "name": "synthesis",
+          "type": "synthesis",
+          "success": true,
+          "execution_time": 1.555,
+          "metadata": {
+            "bottleneck": false
+          }
+        }
+      ],
+      "graph_traversal": null,
+      "conversation_turns": null,
+      "expected_tools": [
+        "doc_reader",
+        "translator",
+        "summarizer"
+      ],
+      "state_transitions": null,
+      "framework": "crewai"
+    },
+    {
+      "task_id": "agent_021_workflow_fail_1",
+      "task_type": "planning",
+      "success": true,
+      "completion_score": 0.965,
+      "accuracy_score": 0.859,
+      "execution_time": 6.385,
+      "tokens_used": {
+        "input": 784,
+        "output": 1329,
+        "total": 2113
+      },
+      "tool_calls": [
+        {
+          "name": "data_query",
+          "tool_name": "data_query",
+          "success": true,
+          "execution_time": 0.337,
+          "args": {
+            "query": "task_query_data_query"
+          }
+        }
+      ],
+      "attempts": 1,
+      "errors": [],
+      "timestamp": "2026-03-20T11:49:46.072972",
+      "agent_interactions": null,
+      "chain_steps": [
+        {
+          "name": "input_validation",
+          "type": "validation",
+          "success": false,
+          "execution_time": 1.282,
+          "metadata": {
+            "bottleneck": false
+          }
+        },
+        {
+          "name": "data_retrieval",
+          "type": "retrieval",
+          "success": true,
+          "execution_time": 5.888,
+          "metadata": {
+            "bottleneck": true
+          }
+        },
+        {
+          "name": "data_preprocessing",
+          "type": "transform",
+          "success": true,
+          "execution_time": 2.734,
+          "metadata": {
+            "bottleneck": false
+          }
+        },
+        {
+          "name": "analysis",
+          "type": "analysis",
+          "success": true,
+          "execution_time": 4.008,
+          "metadata": {
+            "bottleneck": true
+          }
+        }
+      ],
+      "graph_traversal": null,
+      "conversation_turns": null,
+      "expected_tools": [
+        "data_query",
+        "analysis"
+      ],
+      "state_transitions": null,
+      "framework": "langchain"
+    },
+    {
+      "task_id": "agent_022_workflow_fail_2",
+      "task_type": "planning",
+      "success": true,
+      "completion_score": 0.86,
+      "accuracy_score": 0.937,
+      "execution_time": 7.491,
+      "tokens_used": {
+        "input": 932,
+        "output": 1313,
+        "total": 2245
+      },
+      "tool_calls": [
+        {
+          "name": "web_search",
+          "tool_name": "web_search",
+          "success": true,
+          "execution_time": 0.522,
+          "args": {
+            "query": "task_query_web_search"
+          }
+        }
+      ],
+      "attempts": 2,
+      "errors": [],
+      "timestamp": "2026-03-20T11:53:46.072972",
+      "agent_interactions": null,
+      "chain_steps": [
+        {
+          "name": "input_validation",
+          "type": "validation",
+          "success": true,
+          "execution_time": 1.102,
+          "metadata": {
+            "bottleneck": false
+          }
+        },
+        {
+          "name": "data_retrieval",
+          "type": "retrieval",
+          "success": true,
+          "execution_time": 6.601,
+          "metadata": {
+            "bottleneck": true
+          }
+        },
+        {
+          "name": "data_preprocessing",
+          "type": "transform",
+          "success": true,
+          "execution_time": 0.69,
+          "metadata": {
+            "bottleneck": false
+          }
+        },
+        {
+          "name": "analysis",
+          "type": "analysis",
+          "success": true,
+          "execution_time": 5.06,
+          "metadata": {
+            "bottleneck": true
+          }
+        },
+        {
+          "name": "synthesis",
+          "type": "synthesis",
+          "success": true,
+          "execution_time": 2.41,
+          "metadata": {
+            "bottleneck": false
+          }
+        }
+      ],
+      "graph_traversal": null,
+      "conversation_turns": null,
+      "expected_tools": [
+        "web_search",
+        "summarizer"
+      ],
+      "state_transitions": null,
+      "framework": "langchain"
+    },
+    {
+      "task_id": "agent_023_notification_flow",
+      "task_type": "planning",
+      "success": true,
+      "completion_score": 0.823,
+      "accuracy_score": 0.814,
+      "execution_time": 1.471,
+      "tokens_used": {
+        "input": 1840,
+        "output": 1338,
+        "total": 3178
+      },
+      "tool_calls": [
+        {
+          "name": "db_lookup",
+          "tool_name": "db_lookup",
+          "success": true,
+          "execution_time": 0.703,
+          "args": {
+            "query": "task_query_db_lookup"
+          }
+        },
+        {
+          "name": "email_sender",
+          "tool_name": "email_sender",
+          "success": true,
+          "execution_time": 0.157,
+          "args": {
+            "query": "task_query_email_sender"
+          }
+        }
+      ],
+      "attempts": 1,
+      "errors": [],
+      "timestamp": "2026-03-20T11:57:46.072972",
+      "agent_interactions": [
+        {
+          "from_agent": "orchestrator",
+          "to_agent": "analyst",
+          "type": "task_delegation",
+          "success": true,
+          "context": "orchestrator \u2192 analyst \ud611\uc5c5"
+        }
+      ],
+      "chain_steps": [
+        {
+          "name": "input_validation",
+          "type": "validation",
+          "success": true,
+          "execution_time": 0.955,
+          "metadata": {
+            "bottleneck": false
+          }
+        },
+        {
+          "name": "data_retrieval",
+          "type": "retrieval",
+          "success": true,
+          "execution_time": 1.866,
+          "metadata": {
+            "bottleneck": true
+          }
+        },
+        {
+          "name": "data_preprocessing",
+          "type": "transform",
+          "success": true,
+          "execution_time": 1.718,
+          "metadata": {
+            "bottleneck": false
+          }
+        },
+        {
+          "name": "analysis",
+          "type": "analysis",
+          "success": true,
+          "execution_time": 1.681,
+          "metadata": {
+            "bottleneck": true
+          }
+        },
+        {
+          "name": "synthesis",
+          "type": "synthesis",
+          "success": true,
+          "execution_time": 2.507,
+          "metadata": {
+            "bottleneck": false
+          }
+        },
+        {
+          "name": "quality_check",
+          "type": "validation",
+          "success": true,
+          "execution_time": 1.589,
+          "metadata": {
+            "bottleneck": false
+          }
+        },
+        {
+          "name": "output_generation",
+          "type": "output",
+          "success": false,
+          "execution_time": 2.805,
+          "metadata": {
+            "bottleneck": false
+          }
+        }
+      ],
+      "graph_traversal": null,
+      "conversation_turns": null,
+      "expected_tools": [
+        "db_lookup",
+        "email_sender"
+      ],
+      "state_transitions": null,
+      "framework": "crewai"
+    },
+    {
+      "task_id": "agent_024_image_analysis",
+      "task_type": "tool_use",
+      "success": true,
+      "completion_score": 0.854,
+      "accuracy_score": 0.795,
+      "execution_time": 0.914,
+      "tokens_used": {
+        "input": 554,
+        "output": 1209,
+        "total": 1763
+      },
+      "tool_calls": [
+        {
+          "name": "image_analyzer",
+          "tool_name": "image_analyzer",
+          "success": true,
+          "execution_time": 0.142,
+          "args": {
+            "query": "task_query_image_analyzer"
+          }
+        },
+        {
+          "name": "classifier",
+          "tool_name": "classifier",
+          "success": true,
+          "execution_time": 0.496,
+          "args": {
+            "query": "task_query_classifier"
+          }
+        }
+      ],
+      "attempts": 1,
+      "errors": [],
+      "timestamp": "2026-03-20T12:01:46.072972",
+      "agent_interactions": null,
+      "chain_steps": null,
+      "graph_traversal": null,
+      "conversation_turns": null,
+      "expected_tools": [
+        "image_analyzer",
+        "classifier"
+      ],
+      "state_transitions": null,
+      "framework": "langchain"
+    },
+    {
+      "task_id": "agent_025_full_report",
+      "task_type": "planning",
+      "success": true,
+      "completion_score": 0.91,
+      "accuracy_score": 0.944,
+      "execution_time": 9.79,
+      "tokens_used": {
+        "input": 296,
+        "output": 1088,
+        "total": 1384
+      },
+      "tool_calls": [
+        {
+          "name": "web_search",
+          "tool_name": "web_search",
+          "success": true,
+          "execution_time": 0.351,
+          "args": {
+            "query": "task_query_web_search"
+          }
+        },
+        {
+          "name": "data_query",
+          "tool_name": "data_query",
+          "success": true,
+          "execution_time": 0.306,
+          "args": {
+            "query": "task_query_data_query"
+          }
+        },
+        {
+          "name": "summarizer",
+          "tool_name": "summarizer",
+          "success": true,
+          "execution_time": 0.372,
+          "args": {
+            "query": "task_query_summarizer"
+          }
+        },
+        {
+          "name": "chart_generator",
+          "tool_name": "chart_generator",
+          "success": true,
+          "execution_time": 0.673,
+          "args": {
+            "query": "task_query_chart_generator"
+          }
+        },
+        {
+          "name": "report_writer",
+          "tool_name": "report_writer",
+          "success": false,
+          "execution_time": 0.422,
+          "args": {
+            "query": "task_query_report_writer"
+          }
+        }
+      ],
+      "attempts": 1,
+      "errors": [],
+      "timestamp": "2026-03-20T12:05:46.072972",
+      "agent_interactions": [
+        {
+          "from_agent": "researcher",
+          "to_agent": "orchestrator",
+          "type": "feedback",
+          "success": true,
+          "context": "researcher \u2192 orchestrator \ud611\uc5c5"
+        },
+        {
+          "from_agent": "analyst",
+          "to_agent": "writer",
+          "type": "feedback",
+          "success": true,
+          "context": "analyst \u2192 writer \ud611\uc5c5"
+        },
+        {
+          "from_agent": "orchestrator",
+          "to_agent": "researcher",
+          "type": "result_sharing",
+          "success": true,
+          "context": "orchestrator \u2192 researcher \ud611\uc5c5"
+        },
+        {
+          "from_agent": "writer",
+          "to_agent": "orchestrator",
+          "type": "coordination",
+          "success": true,
+          "context": "writer \u2192 orchestrator \ud611\uc5c5"
+        }
+      ],
+      "chain_steps": [
+        {
+          "name": "input_validation",
+          "type": "validation",
+          "success": true,
+          "execution_time": 2.066,
+          "metadata": {
+            "bottleneck": false
+          }
+        },
+        {
+          "name": "data_retrieval",
+          "type": "retrieval",
+          "success": true,
+          "execution_time": 2.073,
+          "metadata": {
+            "bottleneck": true
+          }
+        },
+        {
+          "name": "data_preprocessing",
+          "type": "transform",
+          "success": true,
+          "execution_time": 1.665,
+          "metadata": {
+            "bottleneck": false
+          }
+        },
+        {
+          "name": "analysis",
+          "type": "analysis",
+          "success": true,
+          "execution_time": 7.226,
+          "metadata": {
+            "bottleneck": true
+          }
+        },
+        {
+          "name": "synthesis",
+          "type": "synthesis",
+          "success": true,
+          "execution_time": 0.59,
+          "metadata": {
+            "bottleneck": false
+          }
+        },
+        {
+          "name": "quality_check",
+          "type": "validation",
+          "success": true,
+          "execution_time": 2.319,
+          "metadata": {
+            "bottleneck": false
+          }
+        },
+        {
+          "name": "output_generation",
+          "type": "output",
+          "success": true,
+          "execution_time": 2.164,
+          "metadata": {
+            "bottleneck": false
+          }
+        }
+      ],
+      "graph_traversal": null,
+      "conversation_turns": null,
+      "expected_tools": [
+        "web_search",
+        "data_query",
+        "summarizer",
+        "chart_generator",
+        "report_writer"
+      ],
+      "state_transitions": null,
+      "framework": "crewai"
+    }
+  ],
+  "pricing": {
+    "input": 0.003,
+    "output": 0.015
+  },
+  "timestamp": "2026-03-20T13:29:46.080760",
+  "evaluators": {
+    "quality": {
+      "evaluations": [
+        {
+          "task_id": "agent_001_simple_search",
+          "dimension_scores": {
+            "relevance": 0.0,
+            "completeness": 0.0,
+            "clarity": 0.12,
+            "accuracy": 0.0,
+            "usefulness": 2.2766666666666664
+          },
+          "total_score": 0.36,
+          "grade": "F",
+          "timestamp": "2026-03-20 13:29:46.073064"
+        },
+        {
+          "task_id": "agent_002_data_lookup",
+          "dimension_scores": {
+            "relevance": 0.0,
+            "completeness": 0.0,
+            "clarity": 0.3,
+            "accuracy": 0.0,
+            "usefulness": 2.3166666666666664
+          },
+          "total_score": 0.39,
+          "grade": "F",
+          "timestamp": "2026-03-20 13:29:46.073097"
+        },
+        {
+          "task_id": "agent_003_code_run",
+          "dimension_scores": {
+            "relevance": 0.0,
+            "completeness": 0.0,
+            "clarity": 0.12,
+            "accuracy": 0.0,
+            "usefulness": 2.2766666666666664
+          },
+          "total_score": 0.36,
+          "grade": "F",
+          "timestamp": "2026-03-20 13:29:46.073125"
+        },
+        {
+          "task_id": "agent_004_classify_task",
+          "dimension_scores": {
+            "relevance": 0.0,
+            "completeness": 0.0,
+            "clarity": 0.12,
+            "accuracy": 0.0,
+            "usefulness": 2.2766666666666664
+          },
+          "total_score": 0.36,
+          "grade": "F",
+          "timestamp": "2026-03-20 13:29:46.073155"
+        },
+        {
+          "task_id": "agent_005_wrong_tool_1",
+          "dimension_scores": {
+            "relevance": 0.0,
+            "completeness": 0.0,
+            "clarity": 0.3,
+            "accuracy": 0.0,
+            "usefulness": 2.3166666666666664
+          },
+          "total_score": 0.39,
+          "grade": "F",
+          "timestamp": "2026-03-20 13:29:46.073179"
+        },
+        {
+          "task_id": "agent_006_wrong_tool_2",
+          "dimension_scores": {
+            "relevance": 0.0,
+            "completeness": 0.0,
+            "clarity": 0.3,
+            "accuracy": 0.0,
+            "usefulness": 2.3166666666666664
+          },
+          "total_score": 0.39,
+          "grade": "F",
+          "timestamp": "2026-03-20 13:29:46.073202"
+        },
+        {
+          "task_id": "agent_007_partial_match",
+          "dimension_scores": {
+            "relevance": 0.0,
+            "completeness": 0.0,
+            "clarity": 0.12,
+            "accuracy": 0.0,
+            "usefulness": 2.2766666666666664
+          },
+          "total_score": 0.36,
+          "grade": "F",
+          "timestamp": "2026-03-20 13:29:46.073224"
+        },
+        {
+          "task_id": "agent_008_research_hub",
+          "dimension_scores": {
+            "relevance": 0.0,
+            "completeness": 0.0,
+            "clarity": 0.12,
+            "accuracy": 0.0,
+            "usefulness": 2.2766666666666664
+          },
+          "total_score": 0.36,
+          "grade": "F",
+          "timestamp": "2026-03-20 13:29:46.073289"
+        },
+        {
+          "task_id": "agent_009_analysis_hub",
+          "dimension_scores": {
+            "relevance": 0.0,
+            "completeness": 0.0,
+            "clarity": 0.12,
+            "accuracy": 0.0,
+            "usefulness": 2.2766666666666664
+          },
+          "total_score": 0.36,
+          "grade": "F",
+          "timestamp": "2026-03-20 13:29:46.073330"
+        },
+        {
+          "task_id": "agent_010_document_hub",
+          "dimension_scores": {
+            "relevance": 0.0,
+            "completeness": 0.0,
+            "clarity": 0.12,
+            "accuracy": 0.0,
+            "usefulness": 2.2766666666666664
+          },
+          "total_score": 0.36,
+          "grade": "F",
+          "timestamp": "2026-03-20 13:29:46.073408"
+        },
+        {
+          "task_id": "agent_011_chain_research",
+          "dimension_scores": {
+            "relevance": 0.0,
+            "completeness": 0.0,
+            "clarity": 0.12,
+            "accuracy": 0.0,
+            "usefulness": 2.2766666666666664
+          },
+          "total_score": 0.36,
+          "grade": "F",
+          "timestamp": "2026-03-20 13:29:46.073438"
+        },
+        {
+          "task_id": "agent_012_chain_analysis",
+          "dimension_scores": {
+            "relevance": 0.0,
+            "completeness": 0.0,
+            "clarity": 0.12,
+            "accuracy": 0.0,
+            "usefulness": 2.2766666666666664
+          },
+          "total_score": 0.36,
+          "grade": "F",
+          "timestamp": "2026-03-20 13:29:46.073473"
+        },
+        {
+          "task_id": "agent_013_retry_on_fail_1",
+          "dimension_scores": {
+            "relevance": 0.0,
+            "completeness": 0.0,
+            "clarity": 0.12,
+            "accuracy": 0.0,
+            "usefulness": 2.2766666666666664
+          },
+          "total_score": 0.36,
+          "grade": "F",
+          "timestamp": "2026-03-20 13:29:46.073492"
+        },
+        {
+          "task_id": "agent_014_retry_on_fail_2",
+          "dimension_scores": {
+            "relevance": 0.0,
+            "completeness": 0.0,
+            "clarity": 0.3,
+            "accuracy": 0.0,
+            "usefulness": 2.3166666666666664
+          },
+          "total_score": 0.39,
+          "grade": "F",
+          "timestamp": "2026-03-20 13:29:46.073513"
+        },
+        {
+          "task_id": "agent_015_retry_success",
+          "dimension_scores": {
+            "relevance": 0.0,
+            "completeness": 0.0,
+            "clarity": 0.12,
+            "accuracy": 0.0,
+            "usefulness": 2.2766666666666664
+          },
+          "total_score": 0.36,
+          "grade": "F",
+          "timestamp": "2026-03-20 13:29:46.073533"
+        },
+        {
+          "task_id": "agent_016_redundant_calls_1",
+          "dimension_scores": {
+            "relevance": 0.0,
+            "completeness": 0.0,
+            "clarity": 0.12,
+            "accuracy": 0.0,
+            "usefulness": 2.2766666666666664
+          },
+          "total_score": 0.36,
+          "grade": "F",
+          "timestamp": "2026-03-20 13:29:46.073553"
+        },
+        {
+          "task_id": "agent_017_redundant_calls_2",
+          "dimension_scores": {
+            "relevance": 0.0,
+            "completeness": 0.0,
+            "clarity": 0.12,
+            "accuracy": 0.0,
+            "usefulness": 2.2766666666666664
+          },
+          "total_score": 0.36,
+          "grade": "F",
+          "timestamp": "2026-03-20 13:29:46.073569"
+        },
+        {
+          "task_id": "agent_018_complex_pipeline",
+          "dimension_scores": {
+            "relevance": 0.0,
+            "completeness": 0.0,
+            "clarity": 0.12,
+            "accuracy": 0.0,
+            "usefulness": 2.2766666666666664
+          },
+          "total_score": 0.36,
+          "grade": "F",
+          "timestamp": "2026-03-20 13:29:46.073604"
+        },
+        {
+          "task_id": "agent_019_ml_pipeline",
+          "dimension_scores": {
+            "relevance": 0.0,
+            "completeness": 0.0,
+            "clarity": 0.12,
+            "accuracy": 0.0,
+            "usefulness": 2.2766666666666664
+          },
+          "total_score": 0.36,
+          "grade": "F",
+          "timestamp": "2026-03-20 13:29:46.073637"
+        },
+        {
+          "task_id": "agent_020_translation_chain",
+          "dimension_scores": {
+            "relevance": 0.0,
+            "completeness": 0.0,
+            "clarity": 0.12,
+            "accuracy": 0.0,
+            "usefulness": 2.2766666666666664
+          },
+          "total_score": 0.36,
+          "grade": "F",
+          "timestamp": "2026-03-20 13:29:46.073664"
+        },
+        {
+          "task_id": "agent_021_workflow_fail_1",
+          "dimension_scores": {
+            "relevance": 0.0,
+            "completeness": 0.0,
+            "clarity": 0.12,
+            "accuracy": 0.0,
+            "usefulness": 2.2766666666666664
+          },
+          "total_score": 0.36,
+          "grade": "F",
+          "timestamp": "2026-03-20 13:29:46.073683"
+        },
+        {
+          "task_id": "agent_022_workflow_fail_2",
+          "dimension_scores": {
+            "relevance": 0.0,
+            "completeness": 0.0,
+            "clarity": 0.12,
+            "accuracy": 0.0,
+            "usefulness": 2.2766666666666664
+          },
+          "total_score": 0.36,
+          "grade": "F",
+          "timestamp": "2026-03-20 13:29:46.073704"
+        },
+        {
+          "task_id": "agent_023_notification_flow",
+          "dimension_scores": {
+            "relevance": 0.0,
+            "completeness": 0.0,
+            "clarity": 0.12,
+            "accuracy": 0.0,
+            "usefulness": 2.2766666666666664
+          },
+          "total_score": 0.36,
+          "grade": "F",
+          "timestamp": "2026-03-20 13:29:46.073728"
+        },
+        {
+          "task_id": "agent_024_image_analysis",
+          "dimension_scores": {
+            "relevance": 0.0,
+            "completeness": 0.0,
+            "clarity": 0.12,
+            "accuracy": 0.0,
+            "usefulness": 2.2766666666666664
+          },
+          "total_score": 0.36,
+          "grade": "F",
+          "timestamp": "2026-03-20 13:29:46.073745"
+        },
+        {
+          "task_id": "agent_025_full_report",
+          "dimension_scores": {
+            "relevance": 0.0,
+            "completeness": 0.0,
+            "clarity": 0.12,
+            "accuracy": 0.0,
+            "usefulness": 2.2766666666666664
+          },
+          "total_score": 0.36,
+          "grade": "F",
+          "timestamp": "2026-03-20 13:29:46.073775"
+        }
+      ]
+    },
+    "hallucination": {
+      "detections": [
+        {
+          "task_id": "agent_001_simple_search",
+          "hallucination_rate": 0.0,
+          "indicators": [],
+          "timestamp": "2026-03-20 13:29:46.073036"
+        },
+        {
+          "task_id": "agent_002_data_lookup",
+          "hallucination_rate": 0.0,
+          "indicators": [],
+          "timestamp": "2026-03-20 13:29:46.073087"
+        },
+        {
+          "task_id": "agent_003_code_run",
+          "hallucination_rate": 0.0,
+          "indicators": [],
+          "timestamp": "2026-03-20 13:29:46.073112"
+        },
+        {
+          "task_id": "agent_004_classify_task",
+          "hallucination_rate": 0.0,
+          "indicators": [],
+          "timestamp": "2026-03-20 13:29:46.073148"
+        },
+        {
+          "task_id": "agent_005_wrong_tool_1",
+          "hallucination_rate": 0.0,
+          "indicators": [],
+          "timestamp": "2026-03-20 13:29:46.073171"
+        },
+        {
+          "task_id": "agent_006_wrong_tool_2",
+          "hallucination_rate": 0.0,
+          "indicators": [],
+          "timestamp": "2026-03-20 13:29:46.073195"
+        },
+        {
+          "task_id": "agent_007_partial_match",
+          "hallucination_rate": 0.0,
+          "indicators": [],
+          "timestamp": "2026-03-20 13:29:46.073218"
+        },
+        {
+          "task_id": "agent_008_research_hub",
+          "hallucination_rate": 0.0,
+          "indicators": [],
+          "timestamp": "2026-03-20 13:29:46.073278"
+        },
+        {
+          "task_id": "agent_009_analysis_hub",
+          "hallucination_rate": 0.0,
+          "indicators": [],
+          "timestamp": "2026-03-20 13:29:46.073323"
+        },
+        {
+          "task_id": "agent_010_document_hub",
+          "hallucination_rate": 0.0,
+          "indicators": [],
+          "timestamp": "2026-03-20 13:29:46.073401"
+        },
+        {
+          "task_id": "agent_011_chain_research",
+          "hallucination_rate": 0.0,
+          "indicators": [],
+          "timestamp": "2026-03-20 13:29:46.073432"
+        },
+        {
+          "task_id": "agent_012_chain_analysis",
+          "hallucination_rate": 0.0,
+          "indicators": [],
+          "timestamp": "2026-03-20 13:29:46.073466"
+        },
+        {
+          "task_id": "agent_013_retry_on_fail_1",
+          "hallucination_rate": 0.0,
+          "indicators": [],
+          "timestamp": "2026-03-20 13:29:46.073486"
+        },
+        {
+          "task_id": "agent_014_retry_on_fail_2",
+          "hallucination_rate": 0.0,
+          "indicators": [],
+          "timestamp": "2026-03-20 13:29:46.073506"
+        },
+        {
+          "task_id": "agent_015_retry_success",
+          "hallucination_rate": 0.0,
+          "indicators": [],
+          "timestamp": "2026-03-20 13:29:46.073527"
+        },
+        {
+          "task_id": "agent_016_redundant_calls_1",
+          "hallucination_rate": 0.0,
+          "indicators": [],
+          "timestamp": "2026-03-20 13:29:46.073548"
+        },
+        {
+          "task_id": "agent_017_redundant_calls_2",
+          "hallucination_rate": 0.0,
+          "indicators": [],
+          "timestamp": "2026-03-20 13:29:46.073565"
+        },
+        {
+          "task_id": "agent_018_complex_pipeline",
+          "hallucination_rate": 0.0,
+          "indicators": [],
+          "timestamp": "2026-03-20 13:29:46.073599"
+        },
+        {
+          "task_id": "agent_019_ml_pipeline",
+          "hallucination_rate": 0.0,
+          "indicators": [],
+          "timestamp": "2026-03-20 13:29:46.073632"
+        },
+        {
+          "task_id": "agent_020_translation_chain",
+          "hallucination_rate": 0.0,
+          "indicators": [],
+          "timestamp": "2026-03-20 13:29:46.073659"
+        },
+        {
+          "task_id": "agent_021_workflow_fail_1",
+          "hallucination_rate": 0.0,
+          "indicators": [],
+          "timestamp": "2026-03-20 13:29:46.073678"
+        },
+        {
+          "task_id": "agent_022_workflow_fail_2",
+          "hallucination_rate": 0.0,
+          "indicators": [],
+          "timestamp": "2026-03-20 13:29:46.073699"
+        },
+        {
+          "task_id": "agent_023_notification_flow",
+          "hallucination_rate": 0.0,
+          "indicators": [],
+          "timestamp": "2026-03-20 13:29:46.073723"
+        },
+        {
+          "task_id": "agent_024_image_analysis",
+          "hallucination_rate": 0.0,
+          "indicators": [],
+          "timestamp": "2026-03-20 13:29:46.073740"
+        },
+        {
+          "task_id": "agent_025_full_report",
+          "hallucination_rate": 0.0,
+          "indicators": [],
+          "timestamp": "2026-03-20 13:29:46.073770"
+        }
+      ]
+    },
+    "retry": {
+      "attempts": [
+        {
+          "task_id": "agent_006_wrong_tool_2",
+          "total_attempts": 2,
+          "first_attempt_success": false,
+          "final_success": true,
+          "retry_reasons": [
+            "unknown"
+          ],
+          "total_retry_time": 1.0
+        },
+        {
+          "task_id": "agent_013_retry_on_fail_1",
+          "total_attempts": 2,
+          "first_attempt_success": false,
+          "final_success": true,
+          "retry_reasons": [
+            "unknown"
+          ],
+          "total_retry_time": 1.0
+        },
+        {
+          "task_id": "agent_014_retry_on_fail_2",
+          "total_attempts": 3,
+          "first_attempt_success": false,
+          "final_success": true,
+          "retry_reasons": [
+            "unknown",
+            "unknown"
+          ],
+          "total_retry_time": 2.0
+        },
+        {
+          "task_id": "agent_015_retry_success",
+          "total_attempts": 2,
+          "first_attempt_success": false,
+          "final_success": true,
+          "retry_reasons": [
+            "unknown"
+          ],
+          "total_retry_time": 1.0
+        },
+        {
+          "task_id": "agent_022_workflow_fail_2",
+          "total_attempts": 2,
+          "first_attempt_success": false,
+          "final_success": true,
+          "retry_reasons": [
+            "unknown"
+          ],
+          "total_retry_time": 1.0
+        },
+        {
+          "task_id": "retry_ext_001",
+          "total_attempts": 3,
+          "first_attempt_success": false,
+          "final_success": true,
+          "retry_reasons": [
+            "unknown",
+            "unknown"
+          ],
+          "total_retry_time": 2.4
+        },
+        {
+          "task_id": "retry_ext_002",
+          "total_attempts": 2,
+          "first_attempt_success": false,
+          "final_success": true,
+          "retry_reasons": [
+            "unknown"
+          ],
+          "total_retry_time": 1.1
+        },
+        {
+          "task_id": "retry_ext_003",
+          "total_attempts": 1,
+          "first_attempt_success": true,
+          "final_success": true,
+          "retry_reasons": [],
+          "total_retry_time": 0
+        },
+        {
+          "task_id": "retry_ext_004",
+          "total_attempts": 3,
+          "first_attempt_success": false,
+          "final_success": false,
+          "retry_reasons": [
+            "unknown",
+            "unknown",
+            "unknown"
+          ],
+          "total_retry_time": 4.5
+        },
+        {
+          "task_id": "retry_ext_005",
+          "total_attempts": 2,
+          "first_attempt_success": false,
+          "final_success": true,
+          "retry_reasons": [
+            "unknown"
+          ],
+          "total_retry_time": 0.8
+        }
+      ]
+    },
+    "tool_selection": {
+      "selections": [
+        {
+          "task_id": "agent_001_simple_search",
+          "expected_tools": [
+            "web_search"
+          ],
+          "actual_tools": [
+            "web_search"
+          ],
+          "true_positives": 1,
+          "false_positives": 0,
+          "false_negatives": 0,
+          "precision": 100.0,
+          "recall": 100.0,
+          "f1_score": 100.0,
+          "accuracy": 100.0
+        },
+        {
+          "task_id": "agent_002_data_lookup",
+          "expected_tools": [
+            "db_lookup",
+            "data_query"
+          ],
+          "actual_tools": [
+            "db_lookup",
+            "data_query"
+          ],
+          "true_positives": 2,
+          "false_positives": 0,
+          "false_negatives": 0,
+          "precision": 100.0,
+          "recall": 100.0,
+          "f1_score": 100.0,
+          "accuracy": 100.0
+        },
+        {
+          "task_id": "agent_003_code_run",
+          "expected_tools": [
+            "code_executor"
+          ],
+          "actual_tools": [
+            "code_executor"
+          ],
+          "true_positives": 1,
+          "false_positives": 0,
+          "false_negatives": 0,
+          "precision": 100.0,
+          "recall": 100.0,
+          "f1_score": 100.0,
+          "accuracy": 100.0
+        },
+        {
+          "task_id": "agent_004_classify_task",
+          "expected_tools": [
+            "classifier"
+          ],
+          "actual_tools": [
+            "classifier"
+          ],
+          "true_positives": 1,
+          "false_positives": 0,
+          "false_negatives": 0,
+          "precision": 100.0,
+          "recall": 100.0,
+          "f1_score": 100.0,
+          "accuracy": 100.0
+        },
+        {
+          "task_id": "agent_005_wrong_tool_1",
+          "expected_tools": [
+            "web_search"
+          ],
+          "actual_tools": [
+            "doc_reader"
+          ],
+          "true_positives": 0,
+          "false_positives": 1,
+          "false_negatives": 1,
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1_score": 0,
+          "accuracy": 0
+        },
+        {
+          "task_id": "agent_006_wrong_tool_2",
+          "expected_tools": [
+            "data_query",
+            "chart_generator"
+          ],
+          "actual_tools": [
+            "db_lookup"
+          ],
+          "true_positives": 0,
+          "false_positives": 1,
+          "false_negatives": 2,
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1_score": 0,
+          "accuracy": 0
+        },
+        {
+          "task_id": "agent_007_partial_match",
+          "expected_tools": [
+            "web_search",
+            "summarizer"
+          ],
+          "actual_tools": [
+            "web_search",
+            "doc_reader"
+          ],
+          "true_positives": 1,
+          "false_positives": 1,
+          "false_negatives": 1,
+          "precision": 50.0,
+          "recall": 50.0,
+          "f1_score": 50.0,
+          "accuracy": 50.0
+        },
+        {
+          "task_id": "agent_008_research_hub",
+          "expected_tools": [
+            "web_search",
+            "summarizer"
+          ],
+          "actual_tools": [
+            "web_search",
+            "summarizer"
+          ],
+          "true_positives": 2,
+          "false_positives": 0,
+          "false_negatives": 0,
+          "precision": 100.0,
+          "recall": 100.0,
+          "f1_score": 100.0,
+          "accuracy": 100.0
+        },
+        {
+          "task_id": "agent_009_analysis_hub",
+          "expected_tools": [
+            "data_query",
+            "chart_generator"
+          ],
+          "actual_tools": [
+            "data_query",
+            "chart_generator"
+          ],
+          "true_positives": 2,
+          "false_positives": 0,
+          "false_negatives": 0,
+          "precision": 100.0,
+          "recall": 100.0,
+          "f1_score": 100.0,
+          "accuracy": 100.0
+        },
+        {
+          "task_id": "agent_010_document_hub",
+          "expected_tools": [
+            "doc_reader",
+            "summarizer",
+            "report_writer"
+          ],
+          "actual_tools": [
+            "doc_reader",
+            "summarizer",
+            "report_writer"
+          ],
+          "true_positives": 3,
+          "false_positives": 0,
+          "false_negatives": 0,
+          "precision": 100.0,
+          "recall": 100.0,
+          "f1_score": 100.0,
+          "accuracy": 100.0
+        },
+        {
+          "task_id": "agent_011_chain_research",
+          "expected_tools": [
+            "web_search",
+            "summarizer",
+            "report_writer"
+          ],
+          "actual_tools": [
+            "web_search",
+            "summarizer",
+            "report_writer"
+          ],
+          "true_positives": 3,
+          "false_positives": 0,
+          "false_negatives": 0,
+          "precision": 100.0,
+          "recall": 100.0,
+          "f1_score": 100.0,
+          "accuracy": 100.0
+        },
+        {
+          "task_id": "agent_012_chain_analysis",
+          "expected_tools": [
+            "data_query",
+            "classifier",
+            "chart_generator"
+          ],
+          "actual_tools": [
+            "data_query",
+            "classifier",
+            "chart_generator",
+            "chart_generator"
+          ],
+          "true_positives": 3,
+          "false_positives": 0,
+          "false_negatives": 0,
+          "precision": 100.0,
+          "recall": 100.0,
+          "f1_score": 100.0,
+          "accuracy": 100.0
+        },
+        {
+          "task_id": "agent_013_retry_on_fail_1",
+          "expected_tools": [
+            "web_search"
+          ],
+          "actual_tools": [
+            "web_search"
+          ],
+          "true_positives": 1,
+          "false_positives": 0,
+          "false_negatives": 0,
+          "precision": 100.0,
+          "recall": 100.0,
+          "f1_score": 100.0,
+          "accuracy": 100.0
+        },
+        {
+          "task_id": "agent_014_retry_on_fail_2",
+          "expected_tools": [
+            "code_executor",
+            "data_query"
+          ],
+          "actual_tools": [
+            "code_executor",
+            "data_query"
+          ],
+          "true_positives": 2,
+          "false_positives": 0,
+          "false_negatives": 0,
+          "precision": 100.0,
+          "recall": 100.0,
+          "f1_score": 100.0,
+          "accuracy": 100.0
+        },
+        {
+          "task_id": "agent_015_retry_success",
+          "expected_tools": [
+            "db_lookup"
+          ],
+          "actual_tools": [
+            "db_lookup"
+          ],
+          "true_positives": 1,
+          "false_positives": 0,
+          "false_negatives": 0,
+          "precision": 100.0,
+          "recall": 100.0,
+          "f1_score": 100.0,
+          "accuracy": 100.0
+        },
+        {
+          "task_id": "agent_016_redundant_calls_1",
+          "expected_tools": [
+            "web_search",
+            "doc_reader"
+          ],
+          "actual_tools": [
+            "web_search",
+            "doc_reader",
+            "doc_reader"
+          ],
+          "true_positives": 2,
+          "false_positives": 0,
+          "false_negatives": 0,
+          "precision": 100.0,
+          "recall": 100.0,
+          "f1_score": 100.0,
+          "accuracy": 100.0
+        },
+        {
+          "task_id": "agent_017_redundant_calls_2",
+          "expected_tools": [
+            "data_query"
+          ],
+          "actual_tools": [
+            "data_query",
+            "data_query"
+          ],
+          "true_positives": 1,
+          "false_positives": 0,
+          "false_negatives": 0,
+          "precision": 100.0,
+          "recall": 100.0,
+          "f1_score": 100.0,
+          "accuracy": 100.0
+        },
+        {
+          "task_id": "agent_018_complex_pipeline",
+          "expected_tools": [
+            "web_search",
+            "data_query",
+            "chart_generator",
+            "report_writer"
+          ],
+          "actual_tools": [
+            "web_search",
+            "data_query",
+            "chart_generator",
+            "report_writer"
+          ],
+          "true_positives": 4,
+          "false_positives": 0,
+          "false_negatives": 0,
+          "precision": 100.0,
+          "recall": 100.0,
+          "f1_score": 100.0,
+          "accuracy": 100.0
+        },
+        {
+          "task_id": "agent_019_ml_pipeline",
+          "expected_tools": [
+            "data_query",
+            "code_executor",
+            "classifier",
+            "chart_generator"
+          ],
+          "actual_tools": [
+            "data_query",
+            "code_executor",
+            "classifier",
+            "chart_generator",
+            "code_executor"
+          ],
+          "true_positives": 4,
+          "false_positives": 0,
+          "false_negatives": 0,
+          "precision": 100.0,
+          "recall": 100.0,
+          "f1_score": 100.0,
+          "accuracy": 100.0
+        },
+        {
+          "task_id": "agent_020_translation_chain",
+          "expected_tools": [
+            "doc_reader",
+            "translator",
+            "summarizer"
+          ],
+          "actual_tools": [
+            "doc_reader",
+            "translator",
+            "summarizer"
+          ],
+          "true_positives": 3,
+          "false_positives": 0,
+          "false_negatives": 0,
+          "precision": 100.0,
+          "recall": 100.0,
+          "f1_score": 100.0,
+          "accuracy": 100.0
+        },
+        {
+          "task_id": "agent_021_workflow_fail_1",
+          "expected_tools": [
+            "data_query",
+            "analysis"
+          ],
+          "actual_tools": [
+            "data_query"
+          ],
+          "true_positives": 1,
+          "false_positives": 0,
+          "false_negatives": 1,
+          "precision": 100.0,
+          "recall": 50.0,
+          "f1_score": 66.67,
+          "accuracy": 66.67
+        },
+        {
+          "task_id": "agent_022_workflow_fail_2",
+          "expected_tools": [
+            "web_search",
+            "summarizer"
+          ],
+          "actual_tools": [
+            "web_search"
+          ],
+          "true_positives": 1,
+          "false_positives": 0,
+          "false_negatives": 1,
+          "precision": 100.0,
+          "recall": 50.0,
+          "f1_score": 66.67,
+          "accuracy": 66.67
+        },
+        {
+          "task_id": "agent_023_notification_flow",
+          "expected_tools": [
+            "db_lookup",
+            "email_sender"
+          ],
+          "actual_tools": [
+            "db_lookup",
+            "email_sender"
+          ],
+          "true_positives": 2,
+          "false_positives": 0,
+          "false_negatives": 0,
+          "precision": 100.0,
+          "recall": 100.0,
+          "f1_score": 100.0,
+          "accuracy": 100.0
+        },
+        {
+          "task_id": "agent_024_image_analysis",
+          "expected_tools": [
+            "image_analyzer",
+            "classifier"
+          ],
+          "actual_tools": [
+            "image_analyzer",
+            "classifier"
+          ],
+          "true_positives": 2,
+          "false_positives": 0,
+          "false_negatives": 0,
+          "precision": 100.0,
+          "recall": 100.0,
+          "f1_score": 100.0,
+          "accuracy": 100.0
+        },
+        {
+          "task_id": "agent_025_full_report",
+          "expected_tools": [
+            "web_search",
+            "data_query",
+            "summarizer",
+            "chart_generator",
+            "report_writer"
+          ],
+          "actual_tools": [
+            "web_search",
+            "data_query",
+            "summarizer",
+            "chart_generator",
+            "report_writer"
+          ],
+          "true_positives": 5,
+          "false_positives": 0,
+          "false_negatives": 0,
+          "precision": 100.0,
+          "recall": 100.0,
+          "f1_score": 100.0,
+          "accuracy": 100.0
+        }
+      ]
+    },
+    "agent_coordination": {
+      "interactions": [
+        {
+          "task_id": "agent_008_research_hub",
+          "from_agent": "writer",
+          "to_agent": "researcher",
+          "interaction_type": "result_sharing",
+          "success": false,
+          "timestamp": "2026-03-20 13:29:46.073271",
+          "context": "writer \u2192 researcher \ud611\uc5c5"
+        },
+        {
+          "task_id": "agent_008_research_hub",
+          "from_agent": "writer",
+          "to_agent": "orchestrator",
+          "interaction_type": "coordination",
+          "success": true,
+          "timestamp": "2026-03-20 13:29:46.073272",
+          "context": "writer \u2192 orchestrator \ud611\uc5c5"
+        },
+        {
+          "task_id": "agent_008_research_hub",
+          "from_agent": "writer",
+          "to_agent": "orchestrator",
+          "interaction_type": "feedback",
+          "success": true,
+          "timestamp": "2026-03-20 13:29:46.073272",
+          "context": "writer \u2192 orchestrator \ud611\uc5c5"
+        },
+        {
+          "task_id": "agent_008_research_hub",
+          "from_agent": "writer",
+          "to_agent": "researcher",
+          "interaction_type": "task_delegation",
+          "success": true,
+          "timestamp": "2026-03-20 13:29:46.073273",
+          "context": "writer \u2192 researcher \ud611\uc5c5"
+        },
+        {
+          "task_id": "agent_009_analysis_hub",
+          "from_agent": "analyst",
+          "to_agent": "orchestrator",
+          "interaction_type": "coordination",
+          "success": true,
+          "timestamp": "2026-03-20 13:29:46.073316",
+          "context": "analyst \u2192 orchestrator \ud611\uc5c5"
+        },
+        {
+          "task_id": "agent_009_analysis_hub",
+          "from_agent": "analyst",
+          "to_agent": "orchestrator",
+          "interaction_type": "feedback",
+          "success": true,
+          "timestamp": "2026-03-20 13:29:46.073316",
+          "context": "analyst \u2192 orchestrator \ud611\uc5c5"
+        },
+        {
+          "task_id": "agent_009_analysis_hub",
+          "from_agent": "writer",
+          "to_agent": "analyst",
+          "interaction_type": "coordination",
+          "success": true,
+          "timestamp": "2026-03-20 13:29:46.073317",
+          "context": "writer \u2192 analyst \ud611\uc5c5"
+        },
+        {
+          "task_id": "agent_009_analysis_hub",
+          "from_agent": "orchestrator",
+          "to_agent": "reviewer",
+          "interaction_type": "feedback",
+          "success": true,
+          "timestamp": "2026-03-20 13:29:46.073317",
+          "context": "orchestrator \u2192 reviewer \ud611\uc5c5"
+        },
+        {
+          "task_id": "agent_009_analysis_hub",
+          "from_agent": "reviewer",
+          "to_agent": "writer",
+          "interaction_type": "coordination",
+          "success": true,
+          "timestamp": "2026-03-20 13:29:46.073317",
+          "context": "reviewer \u2192 writer \ud611\uc5c5"
+        },
+        {
+          "task_id": "agent_009_analysis_hub",
+          "from_agent": "reviewer",
+          "to_agent": "analyst",
+          "interaction_type": "feedback",
+          "success": true,
+          "timestamp": "2026-03-20 13:29:46.073318",
+          "context": "reviewer \u2192 analyst \ud611\uc5c5"
+        },
+        {
+          "task_id": "agent_009_analysis_hub",
+          "from_agent": "analyst",
+          "to_agent": "writer",
+          "interaction_type": "result_sharing",
+          "success": true,
+          "timestamp": "2026-03-20 13:29:46.073318",
+          "context": "analyst \u2192 writer \ud611\uc5c5"
+        },
+        {
+          "task_id": "agent_010_document_hub",
+          "from_agent": "writer",
+          "to_agent": "researcher",
+          "interaction_type": "feedback",
+          "success": true,
+          "timestamp": "2026-03-20 13:29:46.073396",
+          "context": "writer \u2192 researcher \ud611\uc5c5"
+        },
+        {
+          "task_id": "agent_010_document_hub",
+          "from_agent": "researcher",
+          "to_agent": "writer",
+          "interaction_type": "task_delegation",
+          "success": true,
+          "timestamp": "2026-03-20 13:29:46.073396",
+          "context": "researcher \u2192 writer \ud611\uc5c5"
+        },
+        {
+          "task_id": "agent_010_document_hub",
+          "from_agent": "writer",
+          "to_agent": "researcher",
+          "interaction_type": "result_sharing",
+          "success": true,
+          "timestamp": "2026-03-20 13:29:46.073396",
+          "context": "writer \u2192 researcher \ud611\uc5c5"
+        },
+        {
+          "task_id": "agent_010_document_hub",
+          "from_agent": "writer",
+          "to_agent": "orchestrator",
+          "interaction_type": "coordination",
+          "success": true,
+          "timestamp": "2026-03-20 13:29:46.073397",
+          "context": "writer \u2192 orchestrator \ud611\uc5c5"
+        },
+        {
+          "task_id": "agent_011_chain_research",
+          "from_agent": "writer",
+          "to_agent": "analyst",
+          "interaction_type": "feedback",
+          "success": true,
+          "timestamp": "2026-03-20 13:29:46.073427",
+          "context": "writer \u2192 analyst \ud611\uc5c5"
+        },
+        {
+          "task_id": "agent_011_chain_research",
+          "from_agent": "researcher",
+          "to_agent": "writer",
+          "interaction_type": "feedback",
+          "success": true,
+          "timestamp": "2026-03-20 13:29:46.073427",
+          "context": "researcher \u2192 writer \ud611\uc5c5"
+        },
+        {
+          "task_id": "agent_012_chain_analysis",
+          "from_agent": "writer",
+          "to_agent": "analyst",
+          "interaction_type": "task_delegation",
+          "success": true,
+          "timestamp": "2026-03-20 13:29:46.073461",
+          "context": "writer \u2192 analyst \ud611\uc5c5"
+        },
+        {
+          "task_id": "agent_012_chain_analysis",
+          "from_agent": "analyst",
+          "to_agent": "reviewer",
+          "interaction_type": "result_sharing",
+          "success": true,
+          "timestamp": "2026-03-20 13:29:46.073461",
+          "context": "analyst \u2192 reviewer \ud611\uc5c5"
+        },
+        {
+          "task_id": "agent_012_chain_analysis",
+          "from_agent": "analyst",
+          "to_agent": "writer",
+          "interaction_type": "feedback",
+          "success": true,
+          "timestamp": "2026-03-20 13:29:46.073462",
+          "context": "analyst \u2192 writer \ud611\uc5c5"
+        },
+        {
+          "task_id": "agent_012_chain_analysis",
+          "from_agent": "reviewer",
+          "to_agent": "analyst",
+          "interaction_type": "result_sharing",
+          "success": true,
+          "timestamp": "2026-03-20 13:29:46.073462",
+          "context": "reviewer \u2192 analyst \ud611\uc5c5"
+        },
+        {
+          "task_id": "agent_018_complex_pipeline",
+          "from_agent": "researcher",
+          "to_agent": "analyst",
+          "interaction_type": "result_sharing",
+          "success": true,
+          "timestamp": "2026-03-20 13:29:46.073592",
+          "context": "researcher \u2192 analyst \ud611\uc5c5"
+        },
+        {
+          "task_id": "agent_018_complex_pipeline",
+          "from_agent": "writer",
+          "to_agent": "researcher",
+          "interaction_type": "coordination",
+          "success": true,
+          "timestamp": "2026-03-20 13:29:46.073592",
+          "context": "writer \u2192 researcher \ud611\uc5c5"
+        },
+        {
+          "task_id": "agent_018_complex_pipeline",
+          "from_agent": "analyst",
+          "to_agent": "researcher",
+          "interaction_type": "result_sharing",
+          "success": true,
+          "timestamp": "2026-03-20 13:29:46.073593",
+          "context": "analyst \u2192 researcher \ud611\uc5c5"
+        },
+        {
+          "task_id": "agent_018_complex_pipeline",
+          "from_agent": "orchestrator",
+          "to_agent": "writer",
+          "interaction_type": "task_delegation",
+          "success": true,
+          "timestamp": "2026-03-20 13:29:46.073593",
+          "context": "orchestrator \u2192 writer \ud611\uc5c5"
+        },
+        {
+          "task_id": "agent_018_complex_pipeline",
+          "from_agent": "researcher",
+          "to_agent": "analyst",
+          "interaction_type": "result_sharing",
+          "success": true,
+          "timestamp": "2026-03-20 13:29:46.073593",
+          "context": "researcher \u2192 analyst \ud611\uc5c5"
+        },
+        {
+          "task_id": "agent_018_complex_pipeline",
+          "from_agent": "writer",
+          "to_agent": "reviewer",
+          "interaction_type": "coordination",
+          "success": true,
+          "timestamp": "2026-03-20 13:29:46.073594",
+          "context": "writer \u2192 reviewer \ud611\uc5c5"
+        },
+        {
+          "task_id": "agent_018_complex_pipeline",
+          "from_agent": "researcher",
+          "to_agent": "analyst",
+          "interaction_type": "feedback",
+          "success": true,
+          "timestamp": "2026-03-20 13:29:46.073594",
+          "context": "researcher \u2192 analyst \ud611\uc5c5"
+        },
+        {
+          "task_id": "agent_018_complex_pipeline",
+          "from_agent": "analyst",
+          "to_agent": "reviewer",
+          "interaction_type": "task_delegation",
+          "success": true,
+          "timestamp": "2026-03-20 13:29:46.073594",
+          "context": "analyst \u2192 reviewer \ud611\uc5c5"
+        },
+        {
+          "task_id": "agent_018_complex_pipeline",
+          "from_agent": "reviewer",
+          "to_agent": "orchestrator",
+          "interaction_type": "feedback",
+          "success": true,
+          "timestamp": "2026-03-20 13:29:46.073595",
+          "context": "reviewer \u2192 orchestrator \ud611\uc5c5"
+        },
+        {
+          "task_id": "agent_019_ml_pipeline",
+          "from_agent": "writer",
+          "to_agent": "orchestrator",
+          "interaction_type": "feedback",
+          "success": true,
+          "timestamp": "2026-03-20 13:29:46.073627",
+          "context": "writer \u2192 orchestrator \ud611\uc5c5"
+        },
+        {
+          "task_id": "agent_019_ml_pipeline",
+          "from_agent": "writer",
+          "to_agent": "analyst",
+          "interaction_type": "result_sharing",
+          "success": true,
+          "timestamp": "2026-03-20 13:29:46.073627",
+          "context": "writer \u2192 analyst \ud611\uc5c5"
+        },
+        {
+          "task_id": "agent_019_ml_pipeline",
+          "from_agent": "analyst",
+          "to_agent": "orchestrator",
+          "interaction_type": "feedback",
+          "success": true,
+          "timestamp": "2026-03-20 13:29:46.073628",
+          "context": "analyst \u2192 orchestrator \ud611\uc5c5"
+        },
+        {
+          "task_id": "agent_019_ml_pipeline",
+          "from_agent": "orchestrator",
+          "to_agent": "analyst",
+          "interaction_type": "task_delegation",
+          "success": true,
+          "timestamp": "2026-03-20 13:29:46.073628",
+          "context": "orchestrator \u2192 analyst \ud611\uc5c5"
+        },
+        {
+          "task_id": "agent_020_translation_chain",
+          "from_agent": "writer",
+          "to_agent": "researcher",
+          "interaction_type": "coordination",
+          "success": true,
+          "timestamp": "2026-03-20 13:29:46.073654",
+          "context": "writer \u2192 researcher \ud611\uc5c5"
+        },
+        {
+          "task_id": "agent_020_translation_chain",
+          "from_agent": "writer",
+          "to_agent": "researcher",
+          "interaction_type": "result_sharing",
+          "success": true,
+          "timestamp": "2026-03-20 13:29:46.073655",
+          "context": "writer \u2192 researcher \ud611\uc5c5"
+        },
+        {
+          "task_id": "agent_020_translation_chain",
+          "from_agent": "writer",
+          "to_agent": "researcher",
+          "interaction_type": "coordination",
+          "success": true,
+          "timestamp": "2026-03-20 13:29:46.073655",
+          "context": "writer \u2192 researcher \ud611\uc5c5"
+        },
+        {
+          "task_id": "agent_023_notification_flow",
+          "from_agent": "orchestrator",
+          "to_agent": "analyst",
+          "interaction_type": "task_delegation",
+          "success": true,
+          "timestamp": "2026-03-20 13:29:46.073719",
+          "context": "orchestrator \u2192 analyst \ud611\uc5c5"
+        },
+        {
+          "task_id": "agent_025_full_report",
+          "from_agent": "researcher",
+          "to_agent": "orchestrator",
+          "interaction_type": "feedback",
+          "success": true,
+          "timestamp": "2026-03-20 13:29:46.073765",
+          "context": "researcher \u2192 orchestrator \ud611\uc5c5"
+        },
+        {
+          "task_id": "agent_025_full_report",
+          "from_agent": "analyst",
+          "to_agent": "writer",
+          "interaction_type": "feedback",
+          "success": true,
+          "timestamp": "2026-03-20 13:29:46.073765",
+          "context": "analyst \u2192 writer \ud611\uc5c5"
+        },
+        {
+          "task_id": "agent_025_full_report",
+          "from_agent": "orchestrator",
+          "to_agent": "researcher",
+          "interaction_type": "result_sharing",
+          "success": true,
+          "timestamp": "2026-03-20 13:29:46.073765",
+          "context": "orchestrator \u2192 researcher \ud611\uc5c5"
+        },
+        {
+          "task_id": "agent_025_full_report",
+          "from_agent": "writer",
+          "to_agent": "orchestrator",
+          "interaction_type": "coordination",
+          "success": true,
+          "timestamp": "2026-03-20 13:29:46.073766",
+          "context": "writer \u2192 orchestrator \ud611\uc5c5"
+        }
+      ]
+    },
+    "workflow": {
+      "executions": [
+        {
+          "task_id": "agent_008_research_hub",
+          "step_name": "input_validation",
+          "step_type": "validation",
+          "success": true,
+          "execution_time": 2.08,
+          "framework": "crewai",
+          "timestamp": "2026-03-20 13:29:46.073274",
+          "metadata": {
+            "bottleneck": false
+          }
+        },
+        {
+          "task_id": "agent_008_research_hub",
+          "step_name": "data_retrieval",
+          "step_type": "retrieval",
+          "success": true,
+          "execution_time": 8.688,
+          "framework": "crewai",
+          "timestamp": "2026-03-20 13:29:46.073274",
+          "metadata": {
+            "bottleneck": true
+          }
+        },
+        {
+          "task_id": "agent_008_research_hub",
+          "step_name": "data_preprocessing",
+          "step_type": "transform",
+          "success": true,
+          "execution_time": 1.775,
+          "framework": "crewai",
+          "timestamp": "2026-03-20 13:29:46.073275",
+          "metadata": {
+            "bottleneck": false
+          }
+        },
+        {
+          "task_id": "agent_008_research_hub",
+          "step_name": "analysis",
+          "step_type": "analysis",
+          "success": false,
+          "execution_time": 4.754,
+          "framework": "crewai",
+          "timestamp": "2026-03-20 13:29:46.073275",
+          "metadata": {
+            "bottleneck": true
+          }
+        },
+        {
+          "task_id": "agent_008_research_hub",
+          "step_name": "synthesis",
+          "step_type": "synthesis",
+          "success": true,
+          "execution_time": 2.873,
+          "framework": "crewai",
+          "timestamp": "2026-03-20 13:29:46.073275",
+          "metadata": {
+            "bottleneck": false
+          }
+        },
+        {
+          "task_id": "agent_009_analysis_hub",
+          "step_name": "input_validation",
+          "step_type": "validation",
+          "success": true,
+          "execution_time": 2.347,
+          "framework": "crewai",
+          "timestamp": "2026-03-20 13:29:46.073319",
+          "metadata": {
+            "bottleneck": false
+          }
+        },
+        {
+          "task_id": "agent_009_analysis_hub",
+          "step_name": "data_retrieval",
+          "step_type": "retrieval",
+          "success": true,
+          "execution_time": 2.871,
+          "framework": "crewai",
+          "timestamp": "2026-03-20 13:29:46.073319",
+          "metadata": {
+            "bottleneck": true
+          }
+        },
+        {
+          "task_id": "agent_009_analysis_hub",
+          "step_name": "data_preprocessing",
+          "step_type": "transform",
+          "success": true,
+          "execution_time": 0.682,
+          "framework": "crewai",
+          "timestamp": "2026-03-20 13:29:46.073320",
+          "metadata": {
+            "bottleneck": false
+          }
+        },
+        {
+          "task_id": "agent_009_analysis_hub",
+          "step_name": "analysis",
+          "step_type": "analysis",
+          "success": true,
+          "execution_time": 4.129,
+          "framework": "crewai",
+          "timestamp": "2026-03-20 13:29:46.073320",
+          "metadata": {
+            "bottleneck": true
+          }
+        },
+        {
+          "task_id": "agent_010_document_hub",
+          "step_name": "input_validation",
+          "step_type": "validation",
+          "success": true,
+          "execution_time": 2.854,
+          "framework": "crewai",
+          "timestamp": "2026-03-20 13:29:46.073397",
+          "metadata": {
+            "bottleneck": false
+          }
+        },
+        {
+          "task_id": "agent_010_document_hub",
+          "step_name": "data_retrieval",
+          "step_type": "retrieval",
+          "success": true,
+          "execution_time": 7.35,
+          "framework": "crewai",
+          "timestamp": "2026-03-20 13:29:46.073398",
+          "metadata": {
+            "bottleneck": true
+          }
+        },
+        {
+          "task_id": "agent_010_document_hub",
+          "step_name": "data_preprocessing",
+          "step_type": "transform",
+          "success": false,
+          "execution_time": 0.75,
+          "framework": "crewai",
+          "timestamp": "2026-03-20 13:29:46.073398",
+          "metadata": {
+            "bottleneck": false
+          }
+        },
+        {
+          "task_id": "agent_010_document_hub",
+          "step_name": "analysis",
+          "step_type": "analysis",
+          "success": true,
+          "execution_time": 5.436,
+          "framework": "crewai",
+          "timestamp": "2026-03-20 13:29:46.073398",
+          "metadata": {
+            "bottleneck": true
+          }
+        },
+        {
+          "task_id": "agent_010_document_hub",
+          "step_name": "synthesis",
+          "step_type": "synthesis",
+          "success": true,
+          "execution_time": 1.425,
+          "framework": "crewai",
+          "timestamp": "2026-03-20 13:29:46.073399",
+          "metadata": {
+            "bottleneck": false
+          }
+        },
+        {
+          "task_id": "agent_010_document_hub",
+          "step_name": "quality_check",
+          "step_type": "validation",
+          "success": false,
+          "execution_time": 0.786,
+          "framework": "crewai",
+          "timestamp": "2026-03-20 13:29:46.073399",
+          "metadata": {
+            "bottleneck": false
+          }
+        },
+        {
+          "task_id": "agent_011_chain_research",
+          "step_name": "input_validation",
+          "step_type": "validation",
+          "success": true,
+          "execution_time": 2.118,
+          "framework": "crewai",
+          "timestamp": "2026-03-20 13:29:46.073428",
+          "metadata": {
+            "bottleneck": false
+          }
+        },
+        {
+          "task_id": "agent_011_chain_research",
+          "step_name": "data_retrieval",
+          "step_type": "retrieval",
+          "success": true,
+          "execution_time": 2.648,
+          "framework": "crewai",
+          "timestamp": "2026-03-20 13:29:46.073428",
+          "metadata": {
+            "bottleneck": true
+          }
+        },
+        {
+          "task_id": "agent_011_chain_research",
+          "step_name": "data_preprocessing",
+          "step_type": "transform",
+          "success": true,
+          "execution_time": 1.163,
+          "framework": "crewai",
+          "timestamp": "2026-03-20 13:29:46.073429",
+          "metadata": {
+            "bottleneck": false
+          }
+        },
+        {
+          "task_id": "agent_011_chain_research",
+          "step_name": "analysis",
+          "step_type": "analysis",
+          "success": true,
+          "execution_time": 8.142,
+          "framework": "crewai",
+          "timestamp": "2026-03-20 13:29:46.073429",
+          "metadata": {
+            "bottleneck": true
+          }
+        },
+        {
+          "task_id": "agent_011_chain_research",
+          "step_name": "synthesis",
+          "step_type": "synthesis",
+          "success": true,
+          "execution_time": 0.962,
+          "framework": "crewai",
+          "timestamp": "2026-03-20 13:29:46.073429",
+          "metadata": {
+            "bottleneck": false
+          }
+        },
+        {
+          "task_id": "agent_011_chain_research",
+          "step_name": "quality_check",
+          "step_type": "validation",
+          "success": true,
+          "execution_time": 2.476,
+          "framework": "crewai",
+          "timestamp": "2026-03-20 13:29:46.073430",
+          "metadata": {
+            "bottleneck": false
+          }
+        },
+        {
+          "task_id": "agent_012_chain_analysis",
+          "step_name": "input_validation",
+          "step_type": "validation",
+          "success": true,
+          "execution_time": 0.848,
+          "framework": "crewai",
+          "timestamp": "2026-03-20 13:29:46.073462",
+          "metadata": {
+            "bottleneck": false
+          }
+        },
+        {
+          "task_id": "agent_012_chain_analysis",
+          "step_name": "data_retrieval",
+          "step_type": "retrieval",
+          "success": true,
+          "execution_time": 7.208,
+          "framework": "crewai",
+          "timestamp": "2026-03-20 13:29:46.073463",
+          "metadata": {
+            "bottleneck": true
+          }
+        },
+        {
+          "task_id": "agent_012_chain_analysis",
+          "step_name": "data_preprocessing",
+          "step_type": "transform",
+          "success": true,
+          "execution_time": 2.85,
+          "framework": "crewai",
+          "timestamp": "2026-03-20 13:29:46.073463",
+          "metadata": {
+            "bottleneck": false
+          }
+        },
+        {
+          "task_id": "agent_012_chain_analysis",
+          "step_name": "analysis",
+          "step_type": "analysis",
+          "success": false,
+          "execution_time": 1.887,
+          "framework": "crewai",
+          "timestamp": "2026-03-20 13:29:46.073463",
+          "metadata": {
+            "bottleneck": true
+          }
+        },
+        {
+          "task_id": "agent_012_chain_analysis",
+          "step_name": "synthesis",
+          "step_type": "synthesis",
+          "success": true,
+          "execution_time": 2.942,
+          "framework": "crewai",
+          "timestamp": "2026-03-20 13:29:46.073464",
+          "metadata": {
+            "bottleneck": false
+          }
+        },
+        {
+          "task_id": "agent_015_retry_success",
+          "step_name": "input_validation",
+          "step_type": "validation",
+          "success": true,
+          "execution_time": 1.535,
+          "framework": "langchain",
+          "timestamp": "2026-03-20 13:29:46.073524",
+          "metadata": {
+            "bottleneck": false
+          }
+        },
+        {
+          "task_id": "agent_015_retry_success",
+          "step_name": "data_retrieval",
+          "step_type": "retrieval",
+          "success": true,
+          "execution_time": 6.254,
+          "framework": "langchain",
+          "timestamp": "2026-03-20 13:29:46.073524",
+          "metadata": {
+            "bottleneck": true
+          }
+        },
+        {
+          "task_id": "agent_015_retry_success",
+          "step_name": "data_preprocessing",
+          "step_type": "transform",
+          "success": true,
+          "execution_time": 2.561,
+          "framework": "langchain",
+          "timestamp": "2026-03-20 13:29:46.073524",
+          "metadata": {
+            "bottleneck": false
+          }
+        },
+        {
+          "task_id": "agent_015_retry_success",
+          "step_name": "analysis",
+          "step_type": "analysis",
+          "success": true,
+          "execution_time": 7.642,
+          "framework": "langchain",
+          "timestamp": "2026-03-20 13:29:46.073525",
+          "metadata": {
+            "bottleneck": true
+          }
+        },
+        {
+          "task_id": "agent_015_retry_success",
+          "step_name": "synthesis",
+          "step_type": "synthesis",
+          "success": true,
+          "execution_time": 2.784,
+          "framework": "langchain",
+          "timestamp": "2026-03-20 13:29:46.073525",
+          "metadata": {
+            "bottleneck": false
+          }
+        },
+        {
+          "task_id": "agent_018_complex_pipeline",
+          "step_name": "input_validation",
+          "step_type": "validation",
+          "success": true,
+          "execution_time": 1.217,
+          "framework": "crewai",
+          "timestamp": "2026-03-20 13:29:46.073595",
+          "metadata": {
+            "bottleneck": false
+          }
+        },
+        {
+          "task_id": "agent_018_complex_pipeline",
+          "step_name": "data_retrieval",
+          "step_type": "retrieval",
+          "success": true,
+          "execution_time": 8.136,
+          "framework": "crewai",
+          "timestamp": "2026-03-20 13:29:46.073595",
+          "metadata": {
+            "bottleneck": true
+          }
+        },
+        {
+          "task_id": "agent_018_complex_pipeline",
+          "step_name": "data_preprocessing",
+          "step_type": "transform",
+          "success": true,
+          "execution_time": 2.49,
+          "framework": "crewai",
+          "timestamp": "2026-03-20 13:29:46.073596",
+          "metadata": {
+            "bottleneck": false
+          }
+        },
+        {
+          "task_id": "agent_018_complex_pipeline",
+          "step_name": "analysis",
+          "step_type": "analysis",
+          "success": true,
+          "execution_time": 2.996,
+          "framework": "crewai",
+          "timestamp": "2026-03-20 13:29:46.073596",
+          "metadata": {
+            "bottleneck": true
+          }
+        },
+        {
+          "task_id": "agent_018_complex_pipeline",
+          "step_name": "synthesis",
+          "step_type": "synthesis",
+          "success": true,
+          "execution_time": 1.202,
+          "framework": "crewai",
+          "timestamp": "2026-03-20 13:29:46.073596",
+          "metadata": {
+            "bottleneck": false
+          }
+        },
+        {
+          "task_id": "agent_019_ml_pipeline",
+          "step_name": "input_validation",
+          "step_type": "validation",
+          "success": true,
+          "execution_time": 1.48,
+          "framework": "crewai",
+          "timestamp": "2026-03-20 13:29:46.073628",
+          "metadata": {
+            "bottleneck": false
+          }
+        },
+        {
+          "task_id": "agent_019_ml_pipeline",
+          "step_name": "data_retrieval",
+          "step_type": "retrieval",
+          "success": true,
+          "execution_time": 8.579,
+          "framework": "crewai",
+          "timestamp": "2026-03-20 13:29:46.073629",
+          "metadata": {
+            "bottleneck": true
+          }
+        },
+        {
+          "task_id": "agent_019_ml_pipeline",
+          "step_name": "data_preprocessing",
+          "step_type": "transform",
+          "success": true,
+          "execution_time": 1.441,
+          "framework": "crewai",
+          "timestamp": "2026-03-20 13:29:46.073629",
+          "metadata": {
+            "bottleneck": false
+          }
+        },
+        {
+          "task_id": "agent_019_ml_pipeline",
+          "step_name": "analysis",
+          "step_type": "analysis",
+          "success": true,
+          "execution_time": 6.048,
+          "framework": "crewai",
+          "timestamp": "2026-03-20 13:29:46.073629",
+          "metadata": {
+            "bottleneck": true
+          }
+        },
+        {
+          "task_id": "agent_019_ml_pipeline",
+          "step_name": "synthesis",
+          "step_type": "synthesis",
+          "success": true,
+          "execution_time": 2.816,
+          "framework": "crewai",
+          "timestamp": "2026-03-20 13:29:46.073630",
+          "metadata": {
+            "bottleneck": false
+          }
+        },
+        {
+          "task_id": "agent_020_translation_chain",
+          "step_name": "input_validation",
+          "step_type": "validation",
+          "success": true,
+          "execution_time": 1.734,
+          "framework": "crewai",
+          "timestamp": "2026-03-20 13:29:46.073655",
+          "metadata": {
+            "bottleneck": false
+          }
+        },
+        {
+          "task_id": "agent_020_translation_chain",
+          "step_name": "data_retrieval",
+          "step_type": "retrieval",
+          "success": true,
+          "execution_time": 8.88,
+          "framework": "crewai",
+          "timestamp": "2026-03-20 13:29:46.073656",
+          "metadata": {
+            "bottleneck": true
+          }
+        },
+        {
+          "task_id": "agent_020_translation_chain",
+          "step_name": "data_preprocessing",
+          "step_type": "transform",
+          "success": true,
+          "execution_time": 2.397,
+          "framework": "crewai",
+          "timestamp": "2026-03-20 13:29:46.073656",
+          "metadata": {
+            "bottleneck": false
+          }
+        },
+        {
+          "task_id": "agent_020_translation_chain",
+          "step_name": "analysis",
+          "step_type": "analysis",
+          "success": true,
+          "execution_time": 4.363,
+          "framework": "crewai",
+          "timestamp": "2026-03-20 13:29:46.073656",
+          "metadata": {
+            "bottleneck": true
+          }
+        },
+        {
+          "task_id": "agent_020_translation_chain",
+          "step_name": "synthesis",
+          "step_type": "synthesis",
+          "success": true,
+          "execution_time": 1.555,
+          "framework": "crewai",
+          "timestamp": "2026-03-20 13:29:46.073657",
+          "metadata": {
+            "bottleneck": false
+          }
+        },
+        {
+          "task_id": "agent_021_workflow_fail_1",
+          "step_name": "input_validation",
+          "step_type": "validation",
+          "success": false,
+          "execution_time": 1.282,
+          "framework": "langchain",
+          "timestamp": "2026-03-20 13:29:46.073675",
+          "metadata": {
+            "bottleneck": false
+          }
+        },
+        {
+          "task_id": "agent_021_workflow_fail_1",
+          "step_name": "data_retrieval",
+          "step_type": "retrieval",
+          "success": true,
+          "execution_time": 5.888,
+          "framework": "langchain",
+          "timestamp": "2026-03-20 13:29:46.073676",
+          "metadata": {
+            "bottleneck": true
+          }
+        },
+        {
+          "task_id": "agent_021_workflow_fail_1",
+          "step_name": "data_preprocessing",
+          "step_type": "transform",
+          "success": true,
+          "execution_time": 2.734,
+          "framework": "langchain",
+          "timestamp": "2026-03-20 13:29:46.073676",
+          "metadata": {
+            "bottleneck": false
+          }
+        },
+        {
+          "task_id": "agent_021_workflow_fail_1",
+          "step_name": "analysis",
+          "step_type": "analysis",
+          "success": true,
+          "execution_time": 4.008,
+          "framework": "langchain",
+          "timestamp": "2026-03-20 13:29:46.073676",
+          "metadata": {
+            "bottleneck": true
+          }
+        },
+        {
+          "task_id": "agent_022_workflow_fail_2",
+          "step_name": "input_validation",
+          "step_type": "validation",
+          "success": true,
+          "execution_time": 1.102,
+          "framework": "langchain",
+          "timestamp": "2026-03-20 13:29:46.073695",
+          "metadata": {
+            "bottleneck": false
+          }
+        },
+        {
+          "task_id": "agent_022_workflow_fail_2",
+          "step_name": "data_retrieval",
+          "step_type": "retrieval",
+          "success": true,
+          "execution_time": 6.601,
+          "framework": "langchain",
+          "timestamp": "2026-03-20 13:29:46.073696",
+          "metadata": {
+            "bottleneck": true
+          }
+        },
+        {
+          "task_id": "agent_022_workflow_fail_2",
+          "step_name": "data_preprocessing",
+          "step_type": "transform",
+          "success": true,
+          "execution_time": 0.69,
+          "framework": "langchain",
+          "timestamp": "2026-03-20 13:29:46.073696",
+          "metadata": {
+            "bottleneck": false
+          }
+        },
+        {
+          "task_id": "agent_022_workflow_fail_2",
+          "step_name": "analysis",
+          "step_type": "analysis",
+          "success": true,
+          "execution_time": 5.06,
+          "framework": "langchain",
+          "timestamp": "2026-03-20 13:29:46.073697",
+          "metadata": {
+            "bottleneck": true
+          }
+        },
+        {
+          "task_id": "agent_022_workflow_fail_2",
+          "step_name": "synthesis",
+          "step_type": "synthesis",
+          "success": true,
+          "execution_time": 2.41,
+          "framework": "langchain",
+          "timestamp": "2026-03-20 13:29:46.073697",
+          "metadata": {
+            "bottleneck": false
+          }
+        },
+        {
+          "task_id": "agent_023_notification_flow",
+          "step_name": "input_validation",
+          "step_type": "validation",
+          "success": true,
+          "execution_time": 0.955,
+          "framework": "crewai",
+          "timestamp": "2026-03-20 13:29:46.073719",
+          "metadata": {
+            "bottleneck": false
+          }
+        },
+        {
+          "task_id": "agent_023_notification_flow",
+          "step_name": "data_retrieval",
+          "step_type": "retrieval",
+          "success": true,
+          "execution_time": 1.866,
+          "framework": "crewai",
+          "timestamp": "2026-03-20 13:29:46.073719",
+          "metadata": {
+            "bottleneck": true
+          }
+        },
+        {
+          "task_id": "agent_023_notification_flow",
+          "step_name": "data_preprocessing",
+          "step_type": "transform",
+          "success": true,
+          "execution_time": 1.718,
+          "framework": "crewai",
+          "timestamp": "2026-03-20 13:29:46.073720",
+          "metadata": {
+            "bottleneck": false
+          }
+        },
+        {
+          "task_id": "agent_023_notification_flow",
+          "step_name": "analysis",
+          "step_type": "analysis",
+          "success": true,
+          "execution_time": 1.681,
+          "framework": "crewai",
+          "timestamp": "2026-03-20 13:29:46.073720",
+          "metadata": {
+            "bottleneck": true
+          }
+        },
+        {
+          "task_id": "agent_023_notification_flow",
+          "step_name": "synthesis",
+          "step_type": "synthesis",
+          "success": true,
+          "execution_time": 2.507,
+          "framework": "crewai",
+          "timestamp": "2026-03-20 13:29:46.073720",
+          "metadata": {
+            "bottleneck": false
+          }
+        },
+        {
+          "task_id": "agent_023_notification_flow",
+          "step_name": "quality_check",
+          "step_type": "validation",
+          "success": true,
+          "execution_time": 1.589,
+          "framework": "crewai",
+          "timestamp": "2026-03-20 13:29:46.073721",
+          "metadata": {
+            "bottleneck": false
+          }
+        },
+        {
+          "task_id": "agent_023_notification_flow",
+          "step_name": "output_generation",
+          "step_type": "output",
+          "success": false,
+          "execution_time": 2.805,
+          "framework": "crewai",
+          "timestamp": "2026-03-20 13:29:46.073721",
+          "metadata": {
+            "bottleneck": false
+          }
+        },
+        {
+          "task_id": "agent_025_full_report",
+          "step_name": "input_validation",
+          "step_type": "validation",
+          "success": true,
+          "execution_time": 2.066,
+          "framework": "crewai",
+          "timestamp": "2026-03-20 13:29:46.073766",
+          "metadata": {
+            "bottleneck": false
+          }
+        },
+        {
+          "task_id": "agent_025_full_report",
+          "step_name": "data_retrieval",
+          "step_type": "retrieval",
+          "success": true,
+          "execution_time": 2.073,
+          "framework": "crewai",
+          "timestamp": "2026-03-20 13:29:46.073766",
+          "metadata": {
+            "bottleneck": true
+          }
+        },
+        {
+          "task_id": "agent_025_full_report",
+          "step_name": "data_preprocessing",
+          "step_type": "transform",
+          "success": true,
+          "execution_time": 1.665,
+          "framework": "crewai",
+          "timestamp": "2026-03-20 13:29:46.073767",
+          "metadata": {
+            "bottleneck": false
+          }
+        },
+        {
+          "task_id": "agent_025_full_report",
+          "step_name": "analysis",
+          "step_type": "analysis",
+          "success": true,
+          "execution_time": 7.226,
+          "framework": "crewai",
+          "timestamp": "2026-03-20 13:29:46.073767",
+          "metadata": {
+            "bottleneck": true
+          }
+        },
+        {
+          "task_id": "agent_025_full_report",
+          "step_name": "synthesis",
+          "step_type": "synthesis",
+          "success": true,
+          "execution_time": 0.59,
+          "framework": "crewai",
+          "timestamp": "2026-03-20 13:29:46.073768",
+          "metadata": {
+            "bottleneck": false
+          }
+        },
+        {
+          "task_id": "agent_025_full_report",
+          "step_name": "quality_check",
+          "step_type": "validation",
+          "success": true,
+          "execution_time": 2.319,
+          "framework": "crewai",
+          "timestamp": "2026-03-20 13:29:46.073768",
+          "metadata": {
+            "bottleneck": false
+          }
+        },
+        {
+          "task_id": "agent_025_full_report",
+          "step_name": "output_generation",
+          "step_type": "output",
+          "success": true,
+          "execution_time": 2.164,
+          "framework": "crewai",
+          "timestamp": "2026-03-20 13:29:46.073768",
+          "metadata": {
+            "bottleneck": false
+          }
+        }
+      ]
+    }
+  },
+  "rag_metrics": {
+    "faithfulness": [
+      0.745,
+      0.791,
+      0.721,
+      0.635,
+      0.918,
+      0.833,
+      0.77,
+      0.668,
+      0.685,
+      0.747,
+      0.963,
+      0.801,
+      0.881
+    ],
+    "answer_relevancy": [
+      0.928,
+      0.674,
+      0.947,
+      0.775,
+      0.833,
+      0.772,
+      0.695,
+      0.76,
+      0.863,
+      0.939,
+      1.0,
+      0.767,
+      0.915
+    ],
+    "context_recall": [
+      0.802,
+      0.87,
+      0.789,
+      0.729,
+      0.668,
+      0.605,
+      0.695,
+      0.762,
+      0.943,
+      0.774,
+      0.728,
+      0.748,
+      0.783
+    ],
+    "context_precision": [
+      0.684,
+      0.883,
+      0.813,
+      0.889,
+      0.694,
+      0.649,
+      0.792,
+      0.875,
+      0.744,
+      0.749,
+      0.855,
+      0.708,
+      0.691
+    ]
+  },
+  "total_tasks": 25,
+  "accuracy_metrics": {
+    "tcr": {
+      "tcr": 82.62,
+      "total_tasks": 25,
+      "full_success": 0,
+      "partial_success": 21,
+      "failures": 4,
+      "success_rate": 0.0
+    },
+    "accuracy_scores": {
+      "overall_accuracy": 77.97,
+      "median_accuracy": 84.1,
+      "min_accuracy": 26.5,
+      "max_accuracy": 94.6,
+      "std_accuracy": 18.11
+    },
+    "hallucination": {
+      "overall_rate": 0.0,
+      "median_rate": 0.0,
+      "max_rate": 0.0,
+      "tasks_with_hallucinations": 0,
+      "total_tasks_checked": 25,
+      "total_evaluated": 25,
+      "total_flagged": 0,
+      "unsupported_claims_count": 0,
+      "numerical_inconsistencies_count": 0
+    },
+    "quality": {
+      "avg_total_score": 0.36,
+      "median_total_score": 0.36,
+      "min_total_score": 0.36,
+      "max_total_score": 0.39,
+      "std_total_score": 0.01,
+      "grade_distribution": {
+        "F": 25
+      },
+      "high_quality_count": 0,
+      "total_evaluated": 25,
+      "dimension_averages": {
+        "relevance": 0.0,
+        "completeness": 0.0,
+        "accuracy": 0.0,
+        "clarity": 0.15,
+        "usefulness": 2.28
+      },
+      "dimension_scores": {
+        "relevance": 0.0,
+        "completeness": 0.0,
+        "accuracy": 0.0,
+        "clarity": 0.15,
+        "usefulness": 2.28
+      },
+      "quality_distribution": {
+        "0-6 (Very Poor)": 25
+      }
+    }
+  },
+  "efficiency_metrics": {
+    "latency": {
+      "mean": 5.636,
+      "median": 6.385,
+      "p50": 6.385,
+      "p95": 10.271,
+      "p99": 10.457,
+      "min": 0.709,
+      "max": 10.478,
+      "std": 3.095
+    },
+    "tokens": {
+      "total_tasks": 25,
+      "total_tokens": 47131,
+      "total_input_tokens": 23680,
+      "total_output_tokens": 23451,
+      "total_cost": 0.4228,
+      "avg_tokens_per_task": 1885.24,
+      "avg_cost_per_task": 0.0169,
+      "estimated_monthly_cost": 12.68,
+      "token_distribution": {
+        "input_ratio": 0.502,
+        "output_ratio": 0.498
+      },
+      "cost_percentiles": {
+        "p50": 0.0182,
+        "p90": 0.0244,
+        "p95": 0.0256
+      }
+    },
+    "tool_efficiency": {
+      "total_calls": 55,
+      "success_rate": 87.27,
+      "avg_duration": 0.0,
+      "avg_calls_per_task": 2.2,
+      "avg_efficiency_score": 82.4,
+      "total_redundant_calls": 4,
+      "total_failed_calls": 7,
+      "redundancy_rate": 7.27,
+      "failure_rate": 12.73
+    },
+    "retries": {
+      "total_tasks_with_retries": 9,
+      "retry_rate": 90.0,
+      "first_attempt_success_rate": 10.0,
+      "eventual_success_rate": 90.0,
+      "retry_success_count": 8,
+      "correction_success_rate": 88.89,
+      "avg_attempts_per_task": 2.2,
+      "total_retry_time": 14.8,
+      "avg_retry_time": 1.48,
+      "overall_retry_rate": 90.0,
+      "avg_retries_per_task": 1.2
+    }
+  },
+  "quality_metrics": {},
+  "security_metrics": {},
+  "recommendations": [
+    {
+      "area": "\uc791\uc5c5 \uc644\ub8cc\uc728 \uac1c\uc120",
+      "title": "\uc791\uc5c5 \uc644\ub8cc\uc728(TCR)\uc774 \ubaa9\ud45c\uce58 \ub300\ube44 7.4%p \ub0ae\uc74c",
+      "priority": "medium",
+      "issue": "\ud604\uc7ac TCR 82.6% (\ubaa9\ud45c: 90% \uc774\uc0c1). \uc804\uccb4 \uc131\uacf5 0\uac74, \ubd80\ubd84 \uc131\uacf5 21\uac74, \uc2e4\ud328 4\uac74\uc73c\ub85c \uc2e4\ud328 \uc791\uc5c5\uc758 \uc6d0\uc778 \ubd84\uc11d\uc774 \ud544\uc694\ud569\ub2c8\ub2e4.",
+      "suggestion": "**\uc989\uc2dc \uc2e4\ud589 \uac00\ub2a5\ud55c \uac1c\uc120 \ubc29\uc548:**\n1. **\uc2e4\ud328 \uc791\uc5c5 \ud328\ud134 \ubd84\uc11d**: \uc2e4\ud328\ud55c 4\uac1c \uc791\uc5c5\uc758 \uacf5\ud1b5 \uc624\ub958 \ud328\ud134 \ud30c\uc545 (\ud0c0\uc784\uc544\uc6c3, API \uc624\ub958, \uc785\ub825 \uac80\uc99d \uc2e4\ud328 \ub4f1)\n2. **\ud504\ub86c\ud504\ud2b8 \uba85\ud655\ud654**: \uc791\uc5c5 \uc9c0\uc2dc\uc0ac\ud56d\uc5d0 \uad6c\uccb4\uc801\uc778 \uc131\uacf5 \uae30\uc900\uacfc \ucd9c\ub825 \ud615\uc2dd \uba85\uc2dc\n3. **\uc791\uc5c5 \ubd84\ud560 \uc804\ub7b5**: \ubcf5\uc7a1\ud55c \uc791\uc5c5\uc744 3-5\uac1c\uc758 \ud558\uc704 \uc791\uc5c5\uc73c\ub85c \ubd84\ud560\ud558\uc5ec \ub2e8\uacc4\ubcc4 \uac80\uc99d \uc218\ud589\n4. **\uc7ac\uc2dc\ub3c4 \uba54\ucee4\ub2c8\uc998**: \uc77c\uc2dc\uc801 \uc624\ub958(\ub124\ud2b8\uc6cc\ud06c, API \uc81c\ud55c)\uc5d0 \ub300\ud55c \uc9c0\uc218 \ubc31\uc624\ud504 \uc7ac\uc2dc\ub3c4 \uad6c\ud604\n5. **\uc785\ub825 \uac80\uc99d \uac15\ud654**: \uc791\uc5c5 \uc2e4\ud589 \uc804 \ud544\uc218 \ud30c\ub77c\ubbf8\ud130\uc640 \ucee8\ud14d\uc2a4\ud2b8 \uac80\uc99d \ub85c\uc9c1 \ucd94\uac00",
+      "impact": "**\uc608\uc0c1 \uac1c\uc120 \ud6a8\uacfc:**\n\u2022 TCR \ubaa9\ud45c \ub2ec\uc131 \uc2dc \uc5f0\uac04 208\uac74 \uc2e4\ud328 \uc791\uc5c5 \uac10\uc18c (\uc8fc\uac04 4\uac74 \uae30\uc900)\n\u2022 \uc0ac\uc6a9\uc790 \ub9cc\uc871\ub3c4 15-25% \ud5a5\uc0c1 (90% TCR \ub2ec\uc131 \uc2dc)\n\u2022 \uc7ac\uc791\uc5c5 \ube44\uc6a9 \uc808\uac10: \uc2e4\ud328 \uc791\uc5c5\ub2f9 \ud3c9\uade0 5\ubd84 \uc18c\uc694 \uc2dc \uc8fc\ub2f9 20\ubd84 \uc808\uc57d\n\u2022 \uc2dc\uc2a4\ud15c \uc2e0\ub8b0\ub3c4 \ud5a5\uc0c1\uc73c\ub85c \ud504\ub85c\ub355\uc158 \ubc30\ud3ec \ub9ac\uc2a4\ud06c \uac10\uc18c"
+    },
+    {
+      "area": "\uc815\ud655\ub3c4 \uac1c\uc120",
+      "title": "\uc815\ub2f5 \uc815\ud655\ub3c4\uac00 \uae30\uc900\uce58 \ub300\ube44 7.0%p \ubd80\uc871",
+      "priority": "medium",
+      "issue": "\ud604\uc7ac \uc815\ud655\ub3c4 78.0% (\ubaa9\ud45c: 85% \uc774\uc0c1). \uc751\ub2f5\uc758 \uc0ac\uc2e4 \uc815\ud655\uc131\uc774 \ubd80\uc871\ud558\uc5ec \uc0ac\uc6a9\uc790\uc5d0\uac8c \uc798\ubabb\ub41c \uc815\ubcf4\ub97c \uc81c\uacf5\ud560 \uc704\ud5d8\uc774 \uc788\uc2b5\ub2c8\ub2e4.",
+      "suggestion": "**\uc989\uc2dc \uc2e4\ud589 \uac00\ub2a5\ud55c \uac1c\uc120 \ubc29\uc548:**\n1. **\uac80\uc99d \ub2e8\uacc4 \ucd94\uac00**:\n   - RAG \uae30\ubc18 \uc791\uc5c5: \uac80\uc0c9\ub41c \ucee8\ud14d\uc2a4\ud2b8\uc640 \uc751\ub2f5\uc758 \uc77c\uce58\uc131\uc744 \uc790\ub3d9 \uac80\uc99d\ud558\ub294 \ud6c4\ucc98\ub9ac \ub2e8\uacc4 \ucd94\uac00\n   - \uacc4\uc0b0/\ucd94\ub860 \uc791\uc5c5: \uc911\uac04 \ub2e8\uacc4 \uacb0\uacfc\ub97c \uba85\uc2dc\uc801\uc73c\ub85c \ucd9c\ub825\ud558\uace0 \uac80\uc99d\n2. **Few-shot \uc608\uc2dc \uc81c\uacf5**: \uc791\uc5c5 \uc720\ud615\ubcc4\ub85c 3-5\uac1c\uc758 \uace0\ud488\uc9c8 \uc608\uc2dc\ub97c \ud504\ub86c\ud504\ud2b8\uc5d0 \ud3ec\ud568\n3. **\ud504\ub86c\ud504\ud2b8 \uad6c\uc870\ud654**:\n   - \ub2e8\uacc4\ubcc4 \uc0ac\uace0 \uacfc\uc815(Chain-of-Thought) \uc720\ub3c4\n   - \ucd5c\uc885 \ub2f5\ubcc0 \uc804 \uc790\uae30 \uac80\uc99d(Self-verification) \ub2e8\uacc4 \ucd94\uac00\n4. **Golden Dataset \ud65c\uc6a9**: \ud604\uc7ac \ud3c9\uac00 \ub370\uc774\ud130\uc14b\uc744 \uae30\ubc18\uc73c\ub85c \uc624\ub2f5 \ud328\ud134 \ubd84\uc11d \ubc0f \ud559\uc2b5 \ub370\uc774\ud130 \ubcf4\uac15\n5. **\ubaa8\ub378 \ud30c\ub77c\ubbf8\ud130 \uc870\uc815**: Temperature \ub0ae\ucd94\uae30(0.3-0.5), Top-P \uc870\uc815\uc73c\ub85c \uc77c\uad00\uc131 \ud5a5\uc0c1",
+      "impact": "**\uc608\uc0c1 \uac1c\uc120 \ud6a8\uacfc:**\n\u2022 \uc815\ud655\ub3c4 85% \ub2ec\uc131 \uc2dc \uc624\ub2f5\ub960 22.0% \u2192 15%\ub85c 7.0%p \uac10\uc18c\n\u2022 \uc0ac\uc6a9\uc790 \uc2e0\ub8b0\ub3c4 20-30% \ud5a5\uc0c1\n\u2022 \uc798\ubabb\ub41c \uc815\ubcf4\ub85c \uc778\ud55c \ube44\uc988\ub2c8\uc2a4 \ub9ac\uc2a4\ud06c 22% \uac10\uc18c\n\u2022 \uc0ac\uc2e4 \ud655\uc778 \ubc0f \uc218\uc815 \uc791\uc5c5 \uc2dc\uac04 \uc8fc\ub2f9 10-15\uc2dc\uac04 \uc808\uac10"
+    },
+    {
+      "area": "\uc751\ub2f5 \ud488\uc9c8 \uac1c\uc120",
+      "title": "\uc751\ub2f5 \ud488\uc9c8 \uc810\uc218\uac00 \ubaa9\ud45c\uce58 \ub300\ube44 7.3\uc810 \ub0ae\uc74c (10\uc810 \ub9cc\uc810)",
+      "priority": "medium",
+      "issue": "\ud604\uc7ac \ud488\uc9c8 \uc810\uc218 0.7/10 (\ubaa9\ud45c: 8.0 \uc774\uc0c1). \uc751\ub2f5\uc758 \uc644\uc131\ub3c4, \uad00\ub828\uc131, \uac00\ub3c5\uc131\uc774 \uc0ac\uc6a9\uc790 \uae30\ub300 \uc218\uc900\uc5d0 \ubbf8\uce58\uc9c0 \ubabb\ud558\uace0 \uc788\uc2b5\ub2c8\ub2e4.",
+      "suggestion": "**\uc989\uc2dc \uc2e4\ud589 \uac00\ub2a5\ud55c \uac1c\uc120 \ubc29\uc548:**\n1. **\uc751\ub2f5 \uad6c\uc870\ud654 \ud15c\ud50c\ub9bf \uc801\uc6a9**:\n   - \uc9c8\ubb38\ud615 \uc791\uc5c5: \uc9c1\uc811\uc801 \ub2f5\ubcc0 \u2192 \uadfc\uac70 \uc81c\uc2dc \u2192 \ucd94\uac00 \uc815\ubcf4 \uc21c\uc73c\ub85c \uad6c\uc870\ud654\n   - \ubd84\uc11d\ud615 \uc791\uc5c5: \uc694\uc57d \u2192 \uc0c1\uc138 \ubd84\uc11d \u2192 \uacb0\ub860 \ubc0f \uad8c\uc7a5\uc0ac\ud56d \uc21c\uc73c\ub85c \uad6c\uc131\n2. **\uc644\uc131\ub3c4 \uccb4\ud06c\ub9ac\uc2a4\ud2b8 \ub3c4\uc785**:\n   - \uc9c8\ubb38\uc758 \ubaa8\ub4e0 \ubd80\ubd84\uc5d0 \ub2f5\ubcc0\ud588\ub294\uac00?\n   - \uadfc\uac70\ub098 \uc608\uc2dc\uac00 \ucda9\ubd84\ud788 \uc81c\uacf5\ub418\uc5c8\ub294\uac00?\n   - \uacb0\ub860\uc774 \uba85\ud655\ud558\uac8c \uc81c\uc2dc\ub418\uc5c8\ub294\uac00?\n3. **\uad00\ub828\uc131 \uac15\ud654**:\n   - \uc81c\uacf5\ub41c \ucee8\ud14d\uc2a4\ud2b8\ub098 \uc9c8\ubb38\uc5d0\uc11c \ubc97\uc5b4\ub09c \ub0b4\uc6a9 \uc81c\uac70\n   - \ud575\uc2ec \ud0a4\uc6cc\ub4dc\ub97c \uc751\ub2f5\uc5d0 \uc790\uc5f0\uc2a4\ub7fd\uac8c \ud3ec\ud568\n4. **\uac00\ub3c5\uc131 \uac1c\uc120**:\n   - \uae34 \ubb38\uc7a5(50\uc790 \uc774\uc0c1) \ubd84\ud560\n   - \ubd88\ub9bf \ud3ec\uc778\ud2b8\ub098 \ubc88\ud638 \ub9e4\uae30\uae30 \ud65c\uc6a9\n   - \uc804\ubb38 \uc6a9\uc5b4 \uc0ac\uc6a9 \uc2dc \uac04\ub2e8\ud55c \uc124\uba85 \ucd94\uac00\n5. **\uc0ac\uc6a9\uc790 \ub9de\ucda4\ud654**: \uc751\ub2f5 \ud1a4\uacfc \ub514\ud14c\uc77c \uc218\uc900\uc744 \uc0ac\uc6a9\uc790 \ucee8\ud14d\uc2a4\ud2b8\uc5d0 \ub9de\uac8c \uc870\uc815",
+      "impact": "**\uc608\uc0c1 \uac1c\uc120 \ud6a8\uacfc:**\n\u2022 \ud488\uc9c8 \uc810\uc218 8.0 \ub2ec\uc131 \uc2dc \uc0ac\uc6a9\uc790 \uc7ac\uc9c8\ubb38\ub960 30-40% \uac10\uc18c\n\u2022 \uc751\ub2f5 \uc774\ud574\ub3c4 \ud5a5\uc0c1\uc73c\ub85c \uace0\uac1d \uc9c0\uc6d0 \ubb38\uc758 \uc8fc\ub2f9 20-30\uac74 \uac10\uc18c\n\u2022 \uc0ac\uc6a9\uc790 \uc138\uc158 \uc2dc\uac04 15-20% \uc99d\uac00 (\ub9cc\uc871\ub3c4 \ud5a5\uc0c1)\n\u2022 \uc751\ub2f5 \uc7ac\uc791\uc131 \ud544\uc694\uc131 91% \uac10\uc18c\ub85c \uc6b4\uc601 \ud6a8\uc728 \uc99d\ub300"
+    },
+    {
+      "area": "\uc751\ub2f5 \uc2dc\uac04 \ucd5c\uc801\ud654",
+      "title": "\ud3c9\uade0 \uc751\ub2f5 \uc2dc\uac04\uc774 5.6\ucd08\ub85c \uc0ac\uc6a9\uc790 \uae30\ub300\uce58 \ucd08\uacfc",
+      "priority": "high",
+      "issue": "\ud3c9\uade0 5.64\ucd08, P95 10.27\ucd08 (\ubaa9\ud45c: 3\ucd08 \uc774\ub0b4). \uae34 \ub300\uae30 \uc2dc\uac04\uc740 \uc0ac\uc6a9\uc790 \uc774\ud0c8\ub960 \uc99d\uac00\uc640 \uc9c1\uacb0\ub429\ub2c8\ub2e4.",
+      "suggestion": "**\uc989\uc2dc \uc2e4\ud589 \uac00\ub2a5\ud55c \uac1c\uc120 \ubc29\uc548:**\n1. **\ubcd1\ub82c \ucc98\ub9ac \uad6c\ud604**:\n   - \ub3c5\ub9bd\uc801\uc778 \ub3c4\uad6c \ud638\ucd9c\uc740 asyncio\ub85c \ubcd1\ub82c \uc2e4\ud589 (2-3\ubc30 \uc18d\ub3c4 \ud5a5\uc0c1)\n   - RAG \uac80\uc0c9\uacfc LLM \ucd94\ub860\uc744 \ud30c\uc774\ud504\ub77c\uc778\uc73c\ub85c \uc911\ucca9 \ucc98\ub9ac\n2. **\uce90\uc2f1 \uc804\ub7b5 \uc801\uc6a9**:\n   - \ube48\ubc88\ud55c \uc9c8\ubb38(FAQ)\uc5d0 \ub300\ud55c \uc751\ub2f5 \uce90\uc2f1 (Redis/Memcached)\n   - \uac80\uc0c9 \uacb0\uacfc \uce90\uc2f1: \ub3d9\uc77c \ucffc\ub9ac 24\uc2dc\uac04 \uce90\uc2dc\n   - \uc784\ubca0\ub529 \uce90\uc2f1: \ub3d9\uc77c \ud14d\uc2a4\ud2b8 \uc7ac\uacc4\uc0b0 \ubc29\uc9c0\n3. **\ubaa8\ub378 \ucd5c\uc801\ud654**:\n   - \uac04\ub2e8\ud55c \uc791\uc5c5(\ubd84\ub958, \uac04\ub2e8\ud55c QA)\uc740 \uacbd\ub7c9 \ubaa8\ub378 \uc0ac\uc6a9 (GPT-3.5, Claude Haiku)\n   - \ubcf5\uc7a1\ud55c \uc791\uc5c5\ub9cc \uace0\uc131\ub2a5 \ubaa8\ub378 \uc0ac\uc6a9\n   - Streaming \uc751\ub2f5 \ud65c\uc131\ud654\ub85c \uccb4\uac10 \uc18d\ub3c4 \uac1c\uc120\n4. **\uc778\ud504\ub77c \ucd5c\uc801\ud654**:\n   - API \uc5d4\ub4dc\ud3ec\uc778\ud2b8\ub97c \uc9c0\ub9ac\uc801\uc73c\ub85c \uac00\uae4c\uc6b4 \ub9ac\uc804 \uc0ac\uc6a9\n   - \uc5f0\uacb0 \ud480\ub9c1 \ubc0f Keep-Alive \uc124\uc815\n5. **\ud0c0\uc784\uc544\uc6c3 \uc124\uc815**: 5\ucd08 \ucd08\uacfc \uc791\uc5c5\uc740 \uc911\ub2e8 \ud6c4 \uac04\uc18c\ud654\ub41c \uc751\ub2f5 \uc81c\uacf5",
+      "impact": "**\uc608\uc0c1 \uac1c\uc120 \ud6a8\uacfc:**\n\u2022 \ud3c9\uade0 \uc751\ub2f5 \uc2dc\uac04 3\ucd08 \ub2ec\uc131 \uc2dc \uc0ac\uc6a9\uc790 \uc774\ud0c8\ub960 25-35% \uac10\uc18c\n\u2022 P95\ub97c 5\ucd08 \uc774\ud558\ub85c \uac1c\uc120\ud558\uba74 \uc0c1\uc704 5% \ubd88\ub9cc\uc871 \uc0ac\uc6a9\uc790 \uacbd\ud5d8 \ub300\ud3ed \uac1c\uc120\n\u2022 \ucc98\ub9ac\ub7c9 1.9\ubc30 \uc99d\uac00 (\ub3d9\uc77c \ub9ac\uc18c\uc2a4\ub85c \ub354 \ub9ce\uc740 \uc694\uccad \ucc98\ub9ac)\n\u2022 \uc0ac\uc6a9\uc790 \ub9cc\uc871\ub3c4 \uc870\uc0ac \uc810\uc218 0.5-1.0\uc810 \ud5a5\uc0c1 (5\uc810 \ub9cc\uc810)"
+    },
+    {
+      "area": "\uc5d0\ub7ec \ucc98\ub9ac \uac1c\uc120",
+      "title": "\uc7ac\uc2dc\ub3c4\uc728\uc774 90%\ub85c \uacfc\ub3c4\ud558\uac8c \ub192\uc74c",
+      "priority": "high",
+      "issue": "\uc804\uccb4 \uc791\uc5c5\uc758 90.0%\uac00 \uc7ac\uc2dc\ub3c4 \ud544\uc694. \ub192\uc740 \uc7ac\uc2dc\ub3c4\uc728\uc740 \uadfc\ubcf8 \uc6d0\uc778 \ud574\uacb0 \uc5c6\uc774 \uc784\uc2dc\ubc29\ud3b8\uc73c\ub85c \ub300\uc751\ud558\uace0 \uc788\uc74c\uc744 \uc758\ubbf8\ud558\uba70, \uc0ac\uc6a9\uc790 \uacbd\ud5d8\uacfc \uc2dc\uc2a4\ud15c \ud6a8\uc728\uc744 \uc800\ud558\uc2dc\ud0b5\ub2c8\ub2e4.",
+      "suggestion": "**\uc989\uc2dc \uc2e4\ud589 \uac00\ub2a5\ud55c \uac1c\uc120 \ubc29\uc548:**\n1. **\uc2e4\ud328 \ud328\ud134 \ubd84\uc11d \ub300\uc2dc\ubcf4\ub4dc \uad6c\ucd95**:\n   - \uc7ac\uc2dc\ub3c4 \uc6d0\uc778\ubcc4 \ud1b5\uacc4 (API \ud0c0\uc784\uc544\uc6c3, \ud30c\uc2f1 \uc624\ub958, \uac80\uc99d \uc2e4\ud328 \ub4f1)\n   - \uc2dc\uac04\ub300\ubcc4, \uc791\uc5c5 \uc720\ud615\ubcc4 \uc2e4\ud328\uc728 \ucd94\uc801\n   - \uc8fc\uac04 \ub9ac\ud3ec\ud2b8 \uc790\ub3d9 \uc0dd\uc131\n2. **\uccab \uc2dc\ub3c4 \uc131\uacf5\ub960 \uac1c\uc120**:\n   - **API \ud0c0\uc784\uc544\uc6c3**: \ud0c0\uc784\uc544\uc6c3 \uc124\uc815 10\ucd08 \u2192 15\ucd08\ub85c \uc99d\uac00, \uc911\uc694 \uc791\uc5c5 \uc6b0\uc120\uc21c\uc704 \ubd80\uc5ec\n   - **\ud30c\uc2f1 \uc624\ub958**: \uc751\ub2f5 \ud615\uc2dd\uc744 JSON Schema\ub85c \uba85\uc2dc, Pydantic \uac80\uc99d \ucd94\uac00\n   - **\uac80\uc99d \uc2e4\ud328**: \uc785\ub825 \uc804\ucc98\ub9ac \ub2e8\uacc4\uc5d0\uc11c \ud544\uc218 \ud544\ub4dc \uac80\uc99d \uac15\ud654\n3. **\uc9c0\ub2a5\ud615 \uc7ac\uc2dc\ub3c4 \uc804\ub7b5**:\n   - \uc77c\uc2dc\uc801 \uc624\ub958(\ub124\ud2b8\uc6cc\ud06c): \uc9c0\uc218 \ubc31\uc624\ud504 (1\ucd08 \u2192 2\ucd08 \u2192 4\ucd08)\n   - \uc601\uad6c\uc801 \uc624\ub958(\uc798\ubabb\ub41c \uc785\ub825): \uc7ac\uc2dc\ub3c4 \uc5c6\uc774 \uc989\uc2dc \uc2e4\ud328 \ucc98\ub9ac\n   - \ucd5c\ub300 \uc7ac\uc2dc\ub3c4 \ud69f\uc218 3\ud68c\ub85c \uc81c\ud55c (\ubb34\ud55c \ub8e8\ud504 \ubc29\uc9c0)\n4. **\ub300\uccb4 \uc804\ub7b5 \uad6c\ud604**:\n   - Primary API \uc2e4\ud328 \uc2dc Fallback API\ub85c \uc790\ub3d9 \uc804\ud658\n   - \ubcf5\uc7a1\ud55c \uc791\uc5c5 \uc2e4\ud328 \uc2dc \ub2e8\uc21c\ud654\ub41c \ubc84\uc804\uc73c\ub85c \uc7ac\uc2dc\ub3c4\n5. **\uc54c\ub9bc \uc2dc\uc2a4\ud15c**: \uc7ac\uc2dc\ub3c4\uc728 30% \ucd08\uacfc \uc2dc \uac1c\ubc1c\ud300\uc5d0 \uc790\ub3d9 \uc54c\ub9bc",
+      "impact": "**\uc608\uc0c1 \uac1c\uc120 \ud6a8\uacfc:**\n\u2022 \uc7ac\uc2dc\ub3c4\uc728 10% \uc774\ud558\ub85c \uac10\uc18c \uc2dc \ud3c9\uade0 \uc791\uc5c5 \uc2dc\uac04 45% \ub2e8\ucd95\n\u2022 \uc0ac\uc6a9\uc790 \uccb4\uac10 \uc18d\ub3c4 30-40% \ud5a5\uc0c1\n\u2022 \uc2dc\uc2a4\ud15c \ub9ac\uc18c\uc2a4 \ud6a8\uc728 90% \uac1c\uc120 (\uc911\ubcf5 \ucc98\ub9ac \uac10\uc18c)\n\u2022 \uc548\uc815\uc131 \ud5a5\uc0c1\uc73c\ub85c \ud504\ub85c\ub355\uc158 \uc2e0\ub8b0\ub3c4 \uc99d\uac00\n\u2022 \uc7a5\uc560 \ub300\uc751 \uc2dc\uac04 50% \ub2e8\ucd95 (\uba85\ud655\ud55c \uc2e4\ud328 \ud328\ud134 \ud30c\uc545)"
+    }
+  ],
+  "alerts": [
+    {
+      "severity": "medium",
+      "metric": "\uc791\uc5c5 \uc644\ub8cc\uc728 (TCR)",
+      "message": "TCR\uc774 82.6%\uc785\ub2c8\ub2e4 (90% \uae30\uc900 \ubbf8\ub2ec)",
+      "action": "\uc791\uc5c5 \uc644\ub8cc\uc728 \uac1c\uc120\uc744 \uace0\ub824\ud558\uc138\uc694"
+    },
+    {
+      "severity": "high",
+      "metric": "\uc815\ud655\ub3c4 (Accuracy)",
+      "message": "\uc815\ud655\ub3c4\uac00 78.0%\uc785\ub2c8\ub2e4 (80% \uae30\uc900 \ubbf8\ub2ec)",
+      "action": "\ud504\ub86c\ud504\ud2b8 \uac1c\uc120\uacfc \uc608\uc2dc \ucd94\uac00\ub97c \uace0\ub824\ud558\uc138\uc694"
+    },
+    {
+      "severity": "high",
+      "metric": "\uc751\ub2f5 \ud488\uc9c8 (Quality)",
+      "message": "\ud3c9\uade0 \ud488\uc9c8\uc774 0.7/10\uc785\ub2c8\ub2e4 (6.0 \uae30\uc900 \ubbf8\ub2ec)",
+      "action": "\uc751\ub2f5 \uc644\uc131\ub3c4, \uad00\ub828\uc131, \uba85\ud655\uc131\uc744 \uac1c\uc120\ud558\uc138\uc694"
+    },
+    {
+      "severity": "high",
+      "metric": "\uc751\ub2f5 \uc2dc\uac04 (Latency)",
+      "message": "P95 \uc751\ub2f5 \uc2dc\uac04\uc774 10.27\ucd08\uc785\ub2c8\ub2e4 (10.00\ucd08 \uae30\uc900 \ucd08\uacfc)",
+      "action": "\uc131\ub2a5 \ucd5c\uc801\ud654\uc640 \ubcd1\ub82c \ucc98\ub9ac\ub97c \uace0\ub824\ud558\uc138\uc694"
+    }
+  ],
+  "completion_tracker": {
+    "tcr": {
+      "tcr": 82.62,
+      "total_tasks": 25,
+      "full_success": 0,
+      "partial_success": 21,
+      "failures": 4,
+      "success_rate": 0.0
+    },
+    "completion_by_type": {
+      "tool_use": {
+        "tcr": 74.52,
+        "total_tasks": 12,
+        "full_success": 0,
+        "partial_success": 8,
+        "failures": 4,
+        "success_rate": 0.0
+      },
+      "planning": {
+        "tcr": 90.09,
+        "total_tasks": 13,
+        "full_success": 0,
+        "partial_success": 13,
+        "failures": 0,
+        "success_rate": 0.0
+      }
+    },
+    "accuracy_stats": {
+      "overall_accuracy": 77.97,
+      "median_accuracy": 84.1,
+      "min_accuracy": 26.5,
+      "max_accuracy": 94.6,
+      "std_accuracy": 18.11
+    }
+  }
+}

@@ -16,7 +16,6 @@ from pathlib import Path
 from typing import Any, Dict, List
 
 from fastapi import APIRouter, File, HTTPException, Request, UploadFile
-from fastapi.responses import Response
 
 router = APIRouter(prefix="/api/golden")
 

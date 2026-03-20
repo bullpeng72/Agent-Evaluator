@@ -11,7 +11,6 @@ Korean RAG Dataset Generator
 """
 
 import json
-import csv
 import os
 import re
 from typing import List, Dict, Any, Optional, Tuple
@@ -524,7 +523,7 @@ class GoldenDatasetManager:
 
     def _load_from_json(self, filepath: Path) -> GoldenDataset:
         """JSON에서 로드"""
-        with open(filepath, 'r', encoding='utf-8') as f:
+        with open(filepath, encoding='utf-8') as f:
             data = json.load(f)
 
         # QAPair 객체로 변환

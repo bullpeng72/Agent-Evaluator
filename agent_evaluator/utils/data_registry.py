@@ -14,7 +14,6 @@ Data Registry Module
 """
 
 import json
-import os
 import sys
 import time
 from pathlib import Path
@@ -160,7 +159,7 @@ class DataRegistry:
                     # Unix/Linux/Mac: fcntl.flock
                     fcntl.flock(file_handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
                 return True
-            except (IOError, OSError):
+            except OSError:
                 # Lock is held by another process, wait and retry
                 time.sleep(0.1)
 
@@ -199,7 +198,7 @@ class DataRegistry:
 
         try:
             # Open with shared lock for reading
-            with open(cls.REGISTRY_FILE, 'r', encoding='utf-8') as f:
+            with open(cls.REGISTRY_FILE, encoding='utf-8') as f:
                 # Acquire shared lock (non-blocking for reads)
                 if sys.platform != 'win32':
                     fcntl.flock(f.fileno(), fcntl.LOCK_SH)

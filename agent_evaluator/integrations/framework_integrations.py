@@ -11,7 +11,7 @@ All evaluation classes have been moved to dedicated integration modules:
 - autogen_integration.py: AutoGenEvaluator
 """
 
-from typing import Dict, List, Optional
+from typing import Dict
 
 
 # ==============================================================================

@@ -7,6 +7,7 @@ Allows examples and external code to save results directly to Dashboard's
 configured storage location.
 """
 
+import importlib.util
 import sys
 from pathlib import Path
 from typing import Optional
@@ -27,11 +28,7 @@ def get_dashboard_storage_path(data_type: str = "results") -> Optional[Path]:
         >>> if results_path:
         >>>     monitor.save_to_file(str(results_path / "my_eval.json"))
     """
-    import os
-
     try:
-        # Find Dashboard directory
-        # Zero Configuration: Use path_helpers for consistent project root detection
         from .path_helpers import find_project_root, get_dashboard_dir
 
         project_root = find_project_root()
@@ -40,46 +37,33 @@ def get_dashboard_storage_path(data_type: str = "results") -> Optional[Path]:
         if not dashboard_dir.exists():
             return None
 
-        # Save current directory
-        original_cwd = os.getcwd()
+        # Load data_storage_manager without changing CWD — use importlib directly
+        module_path = dashboard_dir / "data_storage_manager.py"
+        if not module_path.exists():
+            return None
 
-        try:
-            # Change to Dashboard directory (important for relative paths)
-            os.chdir(str(dashboard_dir))
+        spec = importlib.util.spec_from_file_location(
+            "data_storage_manager", module_path
+        )
+        if spec is None or spec.loader is None:
+            return None
 
-            # Add Dashboard to path temporarily
-            dashboard_str = str(dashboard_dir)
-            if dashboard_str not in sys.path:
-                sys.path.insert(0, dashboard_str)
+        mod = importlib.util.module_from_spec(spec)
+        # Make the module resolve relative paths from its own directory
+        sys.modules.setdefault("data_storage_manager", mod)
+        spec.loader.exec_module(mod)  # type: ignore[union-attr]
 
-            try:
-                from data_storage_manager import get_default_storage_manager
+        storage_mgr = mod.get_default_storage_manager()
 
-                storage_mgr = get_default_storage_manager()
-
-                # Get requested path type
-                if data_type == "results":
-                    path = storage_mgr.get_results_path()
-                elif data_type == "golden_datasets":
-                    path = storage_mgr.get_golden_dataset_path()
-                elif data_type == "edit_history":
-                    path = storage_mgr.get_edit_history_path()
-                elif data_type == "versions":
-                    path = storage_mgr.get_versions_path()
-                else:
-                    path = storage_mgr.get_results_path()  # Default
-
-                # Return absolute path
-                return path.resolve() if path else None
-
-            finally:
-                # Remove Dashboard from path
-                if dashboard_str in sys.path:
-                    sys.path.remove(dashboard_str)
-
-        finally:
-            # Restore original directory
-            os.chdir(original_cwd)
+        path_map = {
+            "results":        storage_mgr.get_results_path,
+            "golden_datasets": storage_mgr.get_golden_dataset_path,
+            "edit_history":   storage_mgr.get_edit_history_path,
+            "versions":       storage_mgr.get_versions_path,
+        }
+        get_path = path_map.get(data_type, storage_mgr.get_results_path)
+        path = get_path()
+        return path.resolve() if path else None
 
     except Exception:
         return None

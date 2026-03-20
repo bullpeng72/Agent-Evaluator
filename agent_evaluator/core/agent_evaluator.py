@@ -2573,7 +2573,7 @@ class PerformanceMonitor:
         if enable_transparency:
             try:
                 # CRITICAL FIX: Use correct relative import path
-                from ..utils.test_transparency_manager import TestTransparencyManager
+                from ..utils.transparency_manager import TestTransparencyManager
                 self.transparency_manager = TestTransparencyManager(output_dir=str(self.output_dir))
                 print("✅ Test 투명성 추적 활성화됨")
                 # Auto audit: evaluation session started
@@ -2591,7 +2591,7 @@ class PerformanceMonitor:
                     success=True,
                 )
             except ImportError as e:
-                print(f"⚠️  test_transparency_manager를 찾을 수 없습니다: {e}")
+                print(f"⚠️  transparency_manager를 찾을 수 없습니다: {e}")
                 print("   투명성 추적 비활성화됨")
                 self.enable_transparency = False
 
@@ -2648,6 +2648,7 @@ class PerformanceMonitor:
             print(f"✅ Golden Dataset 로드: {len(self.golden_datasets)}개 항목")
             return self.golden_datasets
         except Exception as e:
+            logger.error("Golden Dataset 로드 실패: %s", e)
             print(f"❌ Golden Dataset 로드 실패: {str(e)}")
             return []
 
@@ -2772,6 +2773,7 @@ class PerformanceMonitor:
                     print("   ✅ 평가 완료")
 
             except Exception as e:
+                logger.warning("Golden Dataset 평가 항목 오류 (continue): %s", e)
                 if verbose:
                     print(f"   ❌ 오류: {str(e)}")
                 continue
@@ -4624,8 +4626,8 @@ class PerformanceMonitor:
         if self.transparency_manager:
             try:
                 self._auto_transparency_on_save(filename)
-            except Exception:
-                pass  # Transparency failure must never break evaluation
+            except Exception as e:
+                logger.warning("투명성 데이터 생성 실패 (평가 결과는 정상 저장됨): %s", e)
 
         # 레지스트리에 자동 등록
         try:
@@ -4660,6 +4662,7 @@ class PerformanceMonitor:
 
         except Exception as e:
             # 레지스트리 등록 실패해도 데이터 저장은 성공한 것으로 처리
+            logger.warning("레지스트리 등록 실패 (데이터는 정상 저장됨): %s", e)
             print(f"⚠️  레지스트리 등록 실패 (데이터는 정상 저장됨): {e}")
 
         return filename
@@ -4672,7 +4675,7 @@ class PerformanceMonitor:
           - 2 audit log entries (report_generated, file_saved)
         Called only when enable_transparency=True.
         """
-        from ..utils.test_transparency_manager import TestStepStatus
+        from ..utils.transparency_manager import TestStepStatus
 
         tm = self.transparency_manager
         tasks = self.tcr_tracker.tasks

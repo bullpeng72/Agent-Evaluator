@@ -4,7 +4,6 @@ Handles common patterns: environment check, file prefix, dashboard instructions
 """
 
 from typing import Optional, List, Callable
-from pathlib import Path
 import os
 from dotenv import load_dotenv
 

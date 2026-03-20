@@ -12,7 +12,7 @@ Golden Dataset을 활용한 한국어 RAG 시스템 평가
 
 import json
 import os
-from typing import List, Dict, Any, Optional, Callable
+from typing import List, Dict, Any, Optional
 from dataclasses import dataclass, asdict
 from datetime import datetime
 from pathlib import Path
@@ -140,7 +140,6 @@ class KoreanRAGEvaluator:
         2. path_helpers로 프로젝트 루트 탐지 → results/
         3. 홈 디렉토리 ~/.agent_evaluator/data/ (fallback)
         """
-        import os
 
         # 1. 환경변수
         if 'AGENT_EVALUATOR_DATA_DIR' in os.environ:
@@ -391,7 +390,6 @@ class KoreanRAGEvaluator:
         try:
             # Configure Ragas to use OpenAI via LangChain
             from langchain_openai import ChatOpenAI, OpenAIEmbeddings
-            import os
 
             # Initialize LLM and embeddings for Ragas
             llm = ChatOpenAI(model=self.ragas_model, temperature=0)

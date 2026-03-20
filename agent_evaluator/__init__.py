@@ -43,7 +43,7 @@ __author__ = "Sungwoo Kim"
 from .config import get_settings, init_from_app, load_env
 
 # Transparency
-from .utils.test_transparency_manager import (
+from .utils.transparency_manager import (
     AnnotationType,
     TestStepStatus,
     TestTransparencyManager,

@@ -18,7 +18,7 @@
 | **Braintrust** | SaaS + OSS SDK | v0.5.2 (2025) | LLM 실험 + 에이전트 관측 |
 | **Helicone** | SaaS + OSS | 시맨틱 버전 없음 (활발 유지) | LLM 프록시 + 비용 관측 |
 | **W&B Weave** | SaaS + OSS SDK | v0.72+ (2025) | 에이전트 평가 + 실험 관리 |
-| **Agent Evaluator** | OSS SDK | v0.5.5 (2026.03) | Agentic AI 전문 평가 |
+| **Agent Evaluator** | OSS SDK | v0.5.6 (2026.03) | Agentic AI 전문 평가 |
 
 ---
 
