@@ -5,7 +5,7 @@
 커버 지표 (품질 카테고리):
   Layer 1  │ Accuracy Evaluation        (QA / Code / General)
            │ Hallucination Detection    (Fact consistency)
-           │ Response Quality           (6-dimension: relevance·completeness·accuracy·clarity·usefulness·safety)
+           │ Response Quality           (5-dimension: relevance·completeness·accuracy·clarity·usefulness)
   Layer 3  │ Ragas: Faithfulness · Answer Relevancy · Context Precision · Context Recall (시뮬레이션)
 
 실행:
@@ -288,7 +288,7 @@ def run_quality_evaluation():
             expected_elements=item["truth"].split("·") if "·" in item["truth"] else [item["truth"]],
         )
 
-        # Response quality 평가 (6-dimension)
+        # Response quality 평가 (5-dimension)
         monitor.quality_evaluator.evaluate_response(
             task_id=task_id,
             response=item["a"],
@@ -362,7 +362,7 @@ def run_quality_evaluation():
             attempts=1 if cc["accuracy"] > 0.5 else 2,
             errors=[] if cc["accuracy"] >= 0.7 else ["code_mismatch"],
             timestamp=base_time + timedelta(hours=1),
-            framework="langchain",
+            framework="native",
         )
         code_task.tokens_used["total"] = code_task.tokens_used["input"] + code_task.tokens_used["output"]
 
@@ -400,7 +400,7 @@ def run_quality_evaluation():
     print(f"    평균 정확도: {accuracy_data.get('overall_accuracy', 0):.1f}%")
     print(f"    중간값:      {accuracy_data.get('median_accuracy', 0):.1f}%")
 
-    print(f"\n  [Response Quality — 6 Dimensions]")
+    print(f"\n  [Response Quality — 5 Dimensions]")
     dim_scores = quality_data.get("dimension_scores", quality_data.get("dimension_averages", {}))
     for dim in ["relevance", "completeness", "accuracy", "clarity", "usefulness"]:
         score = dim_scores.get(dim, 0)

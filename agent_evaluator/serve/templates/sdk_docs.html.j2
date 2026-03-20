@@ -194,12 +194,11 @@ agent-eval serve ./results --port <span class="nm">8080</span> --watch</pre>
     <thead><tr><th>Extra</th><th>설치 명령</th><th>추가 기능</th><th>의존성</th></tr></thead>
     <tbody>
       <tr><td><code class="t">core</code></td><td><code>pip install agent-evaluator</code></td><td>Layer 1+2 (16종 지표), CLI</td><td>numpy, pandas, python-dotenv</td></tr>
-      <tr><td><code class="t">deepeval</code></td><td><code>agent-evaluator[deepeval]</code></td><td>DeepEvalAdapter (5종)</td><td>deepeval ≥0.20</td></tr>
-      <tr><td><code class="t">ragas</code></td><td><code>agent-evaluator[ragas]</code></td><td>RagasAdapter (4종 RAG 지표)</td><td>ragas ≥0.1</td></tr>
-      <tr><td><code class="t">langchain</code></td><td><code>agent-evaluator[langchain]</code></td><td>LangChain / LangGraph 통합</td><td>langchain ≥0.1</td></tr>
-      <tr><td><code class="t">serve</code></td><td><code>agent-evaluator[serve]</code></td><td>웹 대시보드 서버</td><td>fastapi, uvicorn, jinja2</td></tr>
-      <tr><td><code class="t">datasets</code></td><td><code>agent-evaluator[datasets]</code></td><td>PDF 처리, 한국어 RAG 데이터셋</td><td>PyPDF2, pdfplumber</td></tr>
-      <tr><td><code class="t">all</code></td><td><code>agent-evaluator[all]</code></td><td>위 전체 포함</td><td>—</td></tr>
+      <tr><td><code class="t">llm</code></td><td><code>pip install "agent-evaluator[llm]"</code></td><td>LLMHelper (OpenAI), ClaudeHelper (Anthropic)</td><td>openai ≥1.0, anthropic ≥0.20</td></tr>
+      <tr><td><code class="t">frameworks</code></td><td><code>pip install "agent-evaluator[frameworks]"</code></td><td>LangChain / LangGraph / CrewAI / AutoGen 통합</td><td>langchain ≥0.1, langgraph, crewai, pyautogen</td></tr>
+      <tr><td><code class="t">eval</code></td><td><code>pip install "agent-evaluator[eval]"</code></td><td>DeepEvalAdapter (5종) + RagasAdapter (4종 RAG)</td><td>deepeval ≥0.20, ragas ≥0.1, langchain</td></tr>
+      <tr><td><code class="t">serve</code></td><td><code>pip install "agent-evaluator[serve]"</code></td><td>웹 대시보드 서버</td><td>fastapi, uvicorn, jinja2</td></tr>
+      <tr><td><code class="t">all</code></td><td><code>pip install "agent-evaluator[all]"</code></td><td>위 전체 + PDF 처리 · 한국어 RAG 데이터셋</td><td>pypdf, pdfplumber 포함</td></tr>
     </tbody>
   </table>
 </section>
@@ -875,21 +874,21 @@ monitor.<span class="fn">save_to_file</span>(<span class="st">"hybrid_eval"</spa
         <td><span class="p">DeepEvalAdapter</span></td>
         <td>G-Eval, Hallucination, Toxicity, Bias, Answer Relevancy</td>
         <td><code>model="gpt-4o-mini"</code>, <code>threshold=0.5</code>, <code>timeout=60</code></td>
-        <td><code>agent-evaluator[deepeval]</code></td>
+        <td><code>agent-evaluator[eval]</code></td>
         <td><code>OPENAI_API_KEY</code></td>
       </tr>
       <tr>
         <td><span class="p">RagasAdapter</span></td>
         <td>faithfulness, answer_relevancy, context_recall, context_precision</td>
         <td>—</td>
-        <td><code>agent-evaluator[ragas]</code></td>
+        <td><code>agent-evaluator[eval]</code></td>
         <td><code>OPENAI_API_KEY</code></td>
       </tr>
       <tr>
         <td><span class="p">LangSmithAdapter</span></td>
         <td>트레이스 수집, run 메타데이터</td>
         <td>—</td>
-        <td><code>agent-evaluator[langchain]</code></td>
+        <td><code>agent-evaluator[frameworks]</code></td>
         <td><code>LANGSMITH_API_KEY</code>, <code>LANGCHAIN_TRACING_V2=true</code></td>
       </tr>
     </tbody>
@@ -900,7 +899,45 @@ monitor.<span class="fn">save_to_file</span>(<span class="st">"hybrid_eval"</spa
 <!-- ── 프레임워크 통합 ── -->
 <section class="sec" id="frameworks">
   <div class="sec-title">🔗 프레임워크 통합</div>
-  <div class="sec-sub">팩토리 함수로 기존 프레임워크에 평가 레이어를 투명하게 삽입합니다.</div>
+  <div class="sec-sub">팩토리 함수로 기존 프레임워크에 평가 레이어를 투명하게 삽입합니다. <code>pip install "agent-evaluator[frameworks]"</code> 필요.</div>
+
+  <!-- 커버리지 매트릭스 -->
+  <table class="mtable" style="margin-bottom:20px">
+    <thead><tr><th>프레임워크</th><th>지표 커버리지</th><th>토큰 추적</th><th>도구 추적</th><th>워크플로우</th><th>재시도</th></tr></thead>
+    <tbody>
+      <tr>
+        <td><strong>CrewAI</strong></td><td>80%</td>
+        <td>✅ 실제 usage 파싱</td>
+        <td>✅ tool_calls 자동 수집</td>
+        <td>✅ task 구조 기반</td>
+        <td>✅ on_retry 콜백</td>
+      </tr>
+      <tr>
+        <td><strong>LangChain</strong></td><td>77%</td>
+        <td>✅ LLMResult.llm_output</td>
+        <td>✅ on_tool_start/end</td>
+        <td>✅ AgentAction 시퀀스</td>
+        <td>✅ on_retry 실시간</td>
+      </tr>
+      <tr>
+        <td><strong>LangGraph</strong></td><td>65%</td>
+        <td>⚡ AIMessage.usage_metadata <span class="badge req-b">LangChain LLM 사용 시</span></td>
+        <td>⚡ ToolMessage 파싱</td>
+        <td>✅ 노드 실행 추적</td>
+        <td>⚡ 수동 설정 권장</td>
+      </tr>
+      <tr>
+        <td><strong>AutoGen</strong></td><td>65%</td>
+        <td>⚡ tiktoken 우선 / 한·영 휴리스틱 fallback</td>
+        <td>⚡ 함수 호출 패턴 파싱</td>
+        <td>✅ 메시지 히스토리 자동 변환</td>
+        <td>⚡ 수동 설정 권장</td>
+      </tr>
+    </tbody>
+  </table>
+  <div class="note" style="margin-bottom:20px">✅ 자동 / ⚡ 부분 지원 (조건 있음) / ❌ 미지원</div>
+
+  <!-- Factory 함수 목록 -->
   <div class="cls-card">
     <div class="cls-head"><span class="cls-name">Factory 함수 목록</span><span class="kind fn">functions</span></div>
     <div class="cls-body">
@@ -920,6 +957,37 @@ monitor = <span class="fn">PerformanceMonitor</span>(output_dir=<span class="st"
 agent = <span class="fn">create_evaluated_langchain_agent</span>(llm=llm, tools=tools, monitor=monitor)
 result = agent.<span class="fn">invoke</span>({<span class="st">"input"</span>: <span class="st">"질문"</span>})
 monitor.<span class="fn">save_to_file</span>(<span class="st">"langchain_eval"</span>)</pre>
+    </div>
+  </div>
+
+  <!-- LangGraph 상세 -->
+  <div class="cls-card" style="margin-top:14px">
+    <div class="cls-head"><span class="cls-name">LangGraph 통합 노트</span><span class="kind fn">v0.5.7+</span></div>
+    <div class="cls-body">
+      <div class="note" style="margin-bottom:8px">⚡ 토큰 카운트는 LangChain LLM(<code>ChatOpenAI</code> 등)을 사용하는 노드에서만 <code>AIMessage.usage_metadata</code>로 자동 수집됩니다. 커스텀 LLM 사용 시 <code>task_result.tokens_used</code>를 수동으로 채워주세요.</div>
+<pre><span class="kw">from</span> <span class="cn">agent_evaluator.integrations.langgraph_integration</span> <span class="kw">import</span> create_evaluated_langgraph
+
+monitor = <span class="fn">PerformanceMonitor</span>(output_dir=<span class="st">"results/"</span>)
+evaluated_graph = <span class="fn">create_evaluated_langgraph</span>(graph, monitor=monitor)
+
+<span class="cm"># ground_truth는 invoke 전 set_ground_truth()로 지정하거나 후처리로 설정</span>
+result = evaluated_graph.<span class="fn">invoke</span>({<span class="st">"messages"</span>: [(<span class="st">"user"</span>, <span class="st">"질문"</span>)]})</pre>
+    </div>
+  </div>
+
+  <!-- AutoGen 상세 -->
+  <div class="cls-card" style="margin-top:14px">
+    <div class="cls-head"><span class="cls-name">AutoGen 통합 노트</span><span class="kind fn">v0.5.7+</span></div>
+    <div class="cls-body">
+      <div class="note" style="margin-bottom:8px">⚡ 토큰 추정은 <strong>tiktoken</strong> 라이브러리가 설치된 경우 cl100k_base 인코딩을 사용하고, 없으면 한국어·영어 혼합 휴리스틱(한글 1.5자/토큰, 영어 4자/토큰)으로 fallback합니다. 워크플로우 스텝은 메시지 히스토리에서 자동 구성됩니다.</div>
+<pre><span class="kw">from</span> <span class="cn">agent_evaluator.integrations.autogen_integration</span> <span class="kw">import</span> create_evaluated_autogen_agent
+
+monitor = <span class="fn">PerformanceMonitor</span>(output_dir=<span class="st">"results/"</span>)
+agent = <span class="fn">create_evaluated_autogen_agent</span>(config_list=config_list, monitor=monitor)
+
+<span class="cm"># ground_truth 지정 (선택)  ← 정확도 지표 활성화</span>
+agent.<span class="fn">set_ground_truth</span>(<span class="st">"task_001"</span>, <span class="st">"기대 정답"</span>)
+<span class="cm"># tiktoken 설치 권장: pip install tiktoken</span></pre>
     </div>
   </div>
 </section>

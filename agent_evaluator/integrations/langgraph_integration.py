@@ -98,6 +98,7 @@ class LangGraphEvaluator:
         self.custom_nodes = {}
         self.execution_history = []
         self.current_task_id = None
+        self._current_ground_truth: Optional[str] = None
 
         # 기본 노드 추가
         self.workflow.add_node("start", self._start_node)
@@ -137,13 +138,16 @@ class LangGraphEvaluator:
             print(f"\n📊 평가 완료 (소요 시간: {execution_time:.2f}초)")
 
         # Layer 1: TaskResult 기록
+        ground_truth = self._current_ground_truth or ""
+        response_text = self._extract_response(state)
+
         if create_taskresult_from_execution:
             task = create_taskresult_from_execution(
                 task_id=eval_data["task_id"],
                 task_type=self.task_type,
                 question=str(state.get("messages", "")),
-                response=str(state.get("messages", "")[-1] if state.get("messages") else ""),
-                ground_truth="",  # Will be set externally
+                response=response_text,
+                ground_truth=ground_truth,
                 execution_time=execution_time,
                 has_error=not success,
                 error_message=eval_data["errors"][0] if eval_data["errors"] else None
@@ -164,7 +168,34 @@ class LangGraphEvaluator:
             )
 
         self.monitor.record_task(task)
+
+        # Accuracy 평가 (ground_truth가 있는 경우)
+        if ground_truth and response_text:
+            self.monitor.accuracy_evaluator.add_evaluation(
+                task_id=eval_data["task_id"],
+                ground_truth=ground_truth,
+                prediction=response_text,
+                task_type=self.task_type
+            )
+
         return state
+
+    def _extract_response(self, state: dict) -> str:
+        """상태에서 최종 응답 텍스트 추출"""
+        messages = state.get("messages", [])
+        if not messages:
+            return str(state.get("output", state.get("result", "")))
+        try:
+            from langchain_core.messages import AIMessage
+            ai_msgs = [m for m in messages if isinstance(m, AIMessage)]
+            if ai_msgs:
+                return ai_msgs[-1].content
+        except ImportError:
+            pass
+        last = messages[-1]
+        if isinstance(last, dict):
+            return str(last.get("content", last))
+        return str(last)
 
     def add_node(self, name: str, func):
         """커스텀 노드 추가"""
@@ -214,6 +245,25 @@ class LangGraphEvaluator:
                     "execution_time": execution_time
                 })
 
+            # ToolMessage / AIMessage에서 tool_calls · token 추출
+            if result and isinstance(result, dict) and "messages" in result:
+                try:
+                    from langchain_core.messages import ToolMessage, AIMessage
+                    eval_data = result.get("evaluation_data", {})
+                    for msg in result["messages"]:
+                        if isinstance(msg, ToolMessage):
+                            eval_data.setdefault("tool_calls", []).append({
+                                "tool_name": getattr(msg, "name", None) or "unknown_tool",
+                                "success": "error" not in str(msg.content).lower(),
+                                "duration": execution_time,
+                            })
+                        elif isinstance(msg, AIMessage):
+                            usage = getattr(msg, "usage_metadata", None) or {}
+                            eval_data["tokens"]["input"] += usage.get("input_tokens", 0)
+                            eval_data["tokens"]["output"] += usage.get("output_tokens", 0)
+                except ImportError:
+                    pass
+
             return result
 
         return wrapped
@@ -229,6 +279,7 @@ class LangGraphEvaluator:
         expected_workflow_steps: Optional[List[str]] = None
     ):
         """워크플로우 실행 및 평가"""
+        self._current_ground_truth = ground_truth
         app = self.workflow.compile()
         result = app.invoke(initial_state)
 

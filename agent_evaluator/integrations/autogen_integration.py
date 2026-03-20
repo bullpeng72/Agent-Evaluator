@@ -37,11 +37,12 @@ from ..core.agent_evaluator import PerformanceMonitor, TaskResult, TaskType
 
 # Import helpers
 try:
-    from ..helpers.taskresult_helpers import create_taskresult_from_execution
+    from ..helpers.taskresult_helpers import create_taskresult_from_execution, estimate_tokens
     _HELPERS_AVAILABLE = True
 except ImportError:
     _HELPERS_AVAILABLE = False
     create_taskresult_from_execution = None
+    estimate_tokens = None
 
 # AutoGen imports
 try:
@@ -89,6 +90,7 @@ class AutoGenEvaluator:
         self.execution_history = []
         self.agent_interactions = []
         self.current_task_id = None
+        self.ground_truth: Optional[str] = None
 
         # 원본 메서드 백업 및 래핑
         self._original_generate_reply = agent.generate_reply
@@ -99,6 +101,10 @@ class AutoGenEvaluator:
 
         if self.verbose:
             print(f"✅ AutoGenEvaluator 초기화 완료 (Layer2: {enable_layer2}, Layer3: {enable_layer3})")
+
+    def set_ground_truth(self, ground_truth: Optional[str]) -> None:
+        """Accuracy 평가를 위한 정답 설정"""
+        self.ground_truth = ground_truth
 
     def _evaluated_generate_reply(self, messages, sender, **kwargs):
         """평가가 통합된 응답 생성"""
@@ -132,6 +138,9 @@ class AutoGenEvaluator:
 
         execution_time = time.time() - start_time
 
+        # 메시지 히스토리에서 Workflow steps 구성
+        workflow_steps = self._build_workflow_steps_from_messages(messages)
+
         # Layer 1: TaskResult 기록
         self._record_layer1_metrics(
             task_id=self.current_task_id,
@@ -144,7 +153,7 @@ class AutoGenEvaluator:
 
         # Layer 2: Agentic Metrics 기록
         if self.enable_layer2:
-            self._record_layer2_metrics(self.current_task_id)
+            self._record_layer2_metrics(self.current_task_id, workflow_steps=workflow_steps)
 
         if self.verbose:
             print(f"\n📊 평가 완료 (소요 시간: {execution_time:.2f}초)")
@@ -158,6 +167,30 @@ class AutoGenEvaluator:
         })
 
         return reply
+
+    def _build_workflow_steps_from_messages(self, messages: List) -> List[Dict[str, Any]]:
+        """메시지 히스토리에서 Workflow steps 구성"""
+        steps = []
+        role_to_type = {
+            "user": "input",
+            "assistant": "generation",
+            "function": "tool_call",
+            "tool": "tool_call",
+        }
+        for i, msg in enumerate(messages):
+            if not isinstance(msg, dict):
+                continue
+            role = msg.get("role", "unknown")
+            content = str(msg.get("content", ""))
+            step_type = role_to_type.get(role, "generation")
+            success = "error" not in content.lower() and "exception" not in content.lower()
+            steps.append({
+                "name": f"turn_{i + 1}_{role}",
+                "type": step_type,
+                "success": success,
+                "execution_time": 0.0,
+            })
+        return steps
 
     def _track_agent_interaction(self, sender):
         """Agent Coordination 추적"""
@@ -179,12 +212,13 @@ class AutoGenEvaluator:
         if self.verbose:
             print(f"\n📈 Layer 1: Native Metrics 기록 중...")
 
-        # 토큰 추정
+        # 토큰 추정 (tiktoken 우선, fallback 휴리스틱)
         input_text = " ".join([str(m) for m in messages if m is not None])
         output_text = str(reply) if reply else ""
+        _est = estimate_tokens if estimate_tokens else (lambda t: max(1, len(t) // 4))
         tokens_used = {
-            "input": len(input_text) // 4,
-            "output": len(output_text) // 4
+            "input": _est(input_text),
+            "output": _est(output_text)
         }
 
         if create_taskresult_from_execution:
@@ -193,7 +227,7 @@ class AutoGenEvaluator:
                 task_type=self.task_type,
                 question=input_text,
                 response=output_text,
-                ground_truth="",  # Can be set externally
+                ground_truth=self.ground_truth or "",
                 execution_time=execution_time,
                 has_error=not success,
                 error_message=errors[0] if errors else None
@@ -215,13 +249,22 @@ class AutoGenEvaluator:
 
         self.monitor.record_task(task)
 
+        # Accuracy 평가 (ground_truth가 있는 경우)
+        if self.ground_truth and output_text:
+            self.monitor.accuracy_evaluator.add_evaluation(
+                task_id=task_id,
+                ground_truth=self.ground_truth,
+                prediction=output_text,
+                task_type=self.task_type
+            )
+
         if self.verbose:
             print(f"   ✅ Layer 1 메트릭 기록 완료")
             print(f"      - TCR: {task.completion_score * 100:.1f}%")
             print(f"      - Latency: {execution_time:.2f}s")
             print(f"      - Tokens: Input={tokens_used['input']}, Output={tokens_used['output']}")
 
-    def _record_layer2_metrics(self, task_id: str):
+    def _record_layer2_metrics(self, task_id: str, workflow_steps: Optional[List] = None):
         """Layer 2 메트릭 기록"""
         if self.verbose:
             print(f"\n🤖 Layer 2: Agentic AI Metrics 기록 중...")
@@ -243,6 +286,20 @@ class AutoGenEvaluator:
 
             # 초기화
             self.agent_interactions = []
+
+        # Workflow Execution (메시지 히스토리 기반)
+        if workflow_steps:
+            for step in workflow_steps:
+                self.monitor.workflow_tracker.track_step(
+                    task_id=task_id,
+                    step_name=step["name"],
+                    step_type=step["type"],
+                    success=step["success"],
+                    execution_time=step["execution_time"],
+                    framework="autogen"
+                )
+            if self.verbose:
+                print(f"   ✅ Workflow Execution: {len(workflow_steps)} steps tracked")
 
     def generate_report(self, output_path: Optional[str] = None) -> Dict[str, Any]:
         """평가 보고서 생성"""

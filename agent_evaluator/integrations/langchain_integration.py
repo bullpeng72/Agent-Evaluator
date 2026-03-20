@@ -98,6 +98,8 @@ if LANGCHAIN_AVAILABLE:
             self.errors = []
             self.task_input = ""
             self.task_output = ""
+            self.tool_start_times: Dict[str, float] = {}
+            self.retry_count = 0
 
         def on_chain_start(self, serialized: Dict[str, Any], inputs: Dict[str, Any], **kwargs):
             """체인 시작"""
@@ -108,6 +110,8 @@ if LANGCHAIN_AVAILABLE:
             self.workflow_steps = []
             self.errors = []
             self.task_input = str(inputs)
+            self.tool_start_times = {}
+            self.retry_count = 0
 
             if self.verbose:
                 print(f"\n{'='*70}")
@@ -131,22 +135,49 @@ if LANGCHAIN_AVAILABLE:
                     self.task_output += generation.text
 
         def on_agent_action(self, action: AgentAction, **kwargs):
-            """도구 호출"""
+            """도구 호출 - 시작 시간 기록"""
+            run_id = str(kwargs.get("run_id", ""))
             tool_name = action.tool
+            self.tool_start_times[run_id] = time.time()
             self.tool_calls.append({
                 "tool_name": tool_name,
                 "parameters": {"input": str(action.tool_input)},
                 "success": True,
-                "duration": 0.1
+                "duration": 0.0
             })
 
-            # Layer 2: Workflow step tracking
+            # Layer 2: Workflow step tracking (list for mutability)
             if self.enable_layer2:
-                self.workflow_steps.append((tool_name, True, 0.1))
+                self.workflow_steps.append([tool_name, True, 0.0])
 
         def on_tool_end(self, output: str, **kwargs):
-            """도구 호출 완료"""
-            pass
+            """도구 호출 완료 - 실제 duration/success 업데이트"""
+            run_id = str(kwargs.get("run_id", ""))
+            if run_id in self.tool_start_times:
+                elapsed = time.time() - self.tool_start_times.pop(run_id)
+                if self.tool_calls:
+                    self.tool_calls[-1]["duration"] = elapsed
+                if self.enable_layer2 and self.workflow_steps:
+                    self.workflow_steps[-1][2] = elapsed
+
+        def on_tool_error(self, error: Exception, **kwargs):
+            """도구 호출 실패"""
+            run_id = str(kwargs.get("run_id", ""))
+            elapsed = 0.0
+            if run_id in self.tool_start_times:
+                elapsed = time.time() - self.tool_start_times.pop(run_id)
+            if self.tool_calls:
+                self.tool_calls[-1]["success"] = False
+                self.tool_calls[-1]["duration"] = elapsed
+                self.tool_calls[-1]["error"] = str(error)
+            if self.enable_layer2 and self.workflow_steps:
+                self.workflow_steps[-1][1] = False
+                self.workflow_steps[-1][2] = elapsed
+            self.errors.append(f"Tool error: {error}")
+
+        def on_retry(self, retry_state: Any, **kwargs):
+            """재시도 추적"""
+            self.retry_count += 1
 
         def on_chain_error(self, error: Exception, **kwargs):
             """에러 발생"""
@@ -208,6 +239,7 @@ if LANGCHAIN_AVAILABLE:
                     has_error=not success,
                     error_message=self.errors[0] if self.errors else None
                 )
+                task.attempts = 1 + self.retry_count
             else:
                 task = TaskResult(
                     task_id=task_id,
@@ -218,7 +250,7 @@ if LANGCHAIN_AVAILABLE:
                     execution_time=execution_time,
                     tokens_used=self.tokens_used,
                     tool_calls=self.tool_calls,
-                    attempts=1,
+                    attempts=1 + self.retry_count,
                     errors=self.errors,
                     timestamp=datetime.now()
                 )

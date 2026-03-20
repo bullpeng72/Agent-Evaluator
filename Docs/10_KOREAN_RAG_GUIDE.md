@@ -1,6 +1,6 @@
 # 🇰🇷 한국어 RAG 평가 가이드
 
-한국어 특화 RAG 시스템 평가 및 최적화 (Agent Evaluator v0.5.6)
+한국어 특화 RAG 시스템 평가 및 최적화 (Agent Evaluator v0.5.7)
 
 # 한국어 RAG 평가 가이드
 
@@ -79,12 +79,12 @@ JSON/CSV 형식"] D["📊 RAG 시스템 평가
     [](<#cb3-2>)pip install agent-evaluator[serve]
     [](<#cb3-3>)
     [](<#cb3-4>)# Golden Dataset 생성용
-    [](<#cb3-5>)pip install PyPDF2 openai python-dotenv
+    [](<#cb3-5>)pip install pypdf openai python-dotenv
     [](<#cb3-6>)
     [](<#cb3-7>)# RAG 평가용 (Ragas)
     [](<#cb3-8>)pip install ragas langchain-openai datasets
     [](<#cb3-9>)
-    [](<#cb3-10>)# 선택: PDF 추출 개선 (PyPDF2 대안)
+    [](<#cb3-10>)# 선택: PDF 추출 개선 (pypdf 대안)
     [](<#cb3-11>)pip install pdfplumber
     [](<#cb3-12>)
     [](<#cb3-13>)# 선택: DeepEval 고급 메트릭
@@ -93,7 +93,7 @@ JSON/CSV 형식"] D["📊 RAG 시스템 평가
 
 **라이브러리 선택 가이드** :
 
-  * **PyPDF2** : 기본 PDF 텍스트 추출 (빠름)
+  * **pypdf** : 기본 PDF 텍스트 추출 (빠름)
   * **pdfplumber** : 더 정확한 텍스트 추출 (권장, 특히 복잡한 레이아웃)
   * **ragas** : RAG 메트릭 계산 필수 (Faithfulness, Context Recall 등)
   * **deepeval** : 추가 메트릭 (G-Eval, Hallucination, Toxicity) - 선택적
@@ -138,7 +138,7 @@ JSON/CSV 형식"] D["📊 RAG 시스템 평가
 
   1. **PDF 텍스트 추출** : 
      * `KoreanPDFExtractor` 클래스 사용
-     * PyPDF2 또는 pdfplumber 자동 선택 (설치된 것 사용)
+     * pypdf 또는 pdfplumber 자동 선택 (설치된 것 사용)
      * pdfplumber가 우선 (더 정확한 추출)
   2. **텍스트 정제** : 
      * `clean_text()` 메서드로 불필요한 공백 제거
@@ -2163,11 +2163,11 @@ API Rate Limit | 429 에러 | 요청 빈도 초과 | 재시도 로직, 요청 �
 
 **1단계: pdfplumber 사용**
 ```bash
-    [](<#cb20-1>)# PyPDF2 대신 pdfplumber 사용 (더 정확함)
+    [](<#cb20-1>)# pypdf 대신 pdfplumber 사용 (더 정확함)
     [](<#cb20-2>)pip install pdfplumber
 ```
 
-시스템이 자동으로 설치된 라이브러리를 감지합니다: - PyPDF2와 pdfplumber 둘 다 설치되어 있으면 pdfplumber 우선 사용 - `KoreanPDFExtractor` 클래스가 자동 선택
+시스템이 자동으로 설치된 라이브러리를 감지합니다: - pypdf와 pdfplumber 둘 다 설치되어 있으면 pdfplumber 우선 사용 - `KoreanPDFExtractor` 클래스가 자동 선택
 
 **2단계: 스캔된 PDF (이미지)**
 
@@ -2266,7 +2266,7 @@ qa_001 | 연차는 몇 일? | 15일입니다 | 15일 | 연차는 1년 근무 시
     [](<#cb25-21>)    metadata: Dict[str, Any]
 ```
 
-**KoreanPDFExtractor** : - PyPDF2 또는 pdfplumber 자동 선택 - `extract_text()`: 페이지별 텍스트 추출 - `clean_text()`: 공백 정리
+**KoreanPDFExtractor** : - pypdf 또는 pdfplumber 자동 선택 - `extract_text()`: 페이지별 텍스트 추출 - `clean_text()`: 공백 정리
 
 **TextChunker** : - 문장 경계 인식 청킹 - 한국어 문장부호 지원: `. ! ? 。！？` \- overlap으로 컨텍스트 유지
 
@@ -2389,7 +2389,7 @@ result = evaluate( dataset, metrics=[ faithfulness, answer_relevancy, context_re
 
   1. **`korean_rag_dataset_generator.py`** (850줄) 
      * ✅ KoreanRAGDatasetGenerator 클래스
-     * ✅ KoreanPDFExtractor (PyPDF2, pdfplumber 자동 선택)
+     * ✅ KoreanPDFExtractor (pypdf, pdfplumber 자동 선택)
      * ✅ TextChunker (한국어 문장 부호 인식)
      * ✅ KoreanQAGenerator (OpenAI GPT 통합)
      * ✅ GoldenDatasetManager (JSON/CSV 저장/로드)
@@ -2410,7 +2410,7 @@ result = evaluate( dataset, metrics=[ faithfulness, answer_relevancy, context_re
 
 ### 검증된 기능
 
-**PDF 처리** : - ✅ PyPDF2 지원 (기본) - ✅ pdfplumber 지원 (자동 우선 선택) - ✅ 한국어 텍스트 추출 - ✅ 텍스트 정제 (clean_text)
+**PDF 처리** : - ✅ pypdf 지원 (기본) - ✅ pdfplumber 지원 (자동 우선 선택) - ✅ 한국어 텍스트 추출 - ✅ 텍스트 정제 (clean_text)
 
 **텍스트 청킹** : - ✅ 문장 경계 인식 - ✅ 한국어 문장 부호: `. ! ? 。！？` \- ✅ chunk_overlap 지원 - ✅ 청크 ID 자동 생성 (MD5 해시 사용)
 
@@ -2459,6 +2459,6 @@ MIT License - 자유롭게 사용, 수정, 배포 가능합니다.
 * * *
 
 **최종 업데이트** : 2026-03-20
-**버전** : Agent Evaluator v0.5.6
+**버전** : Agent Evaluator v0.5.7
 **프로젝트** : Agent Evaluator - AI Agent Performance Evaluation System
 **문서** : Korean RAG Evaluation Guide

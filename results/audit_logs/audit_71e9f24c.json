@@ -1,0 +1,20 @@
+{
+  "log_id": "audit_71e9f24c",
+  "event_type": "evaluation_started",
+  "user": "evaluator",
+  "action": "에이전틱 지표 평가 세션 시작",
+  "target_type": "monitor",
+  "target_id": "agentic_metrics_run",
+  "details": {
+    "scenarios": 25,
+    "trackers": [
+      "tool_call",
+      "tool_selection",
+      "coordination",
+      "workflow",
+      "retry"
+    ]
+  },
+  "success": true,
+  "timestamp": "2026-03-20T18:14:02.392319"
+}

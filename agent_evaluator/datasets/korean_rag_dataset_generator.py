@@ -21,7 +21,7 @@ import hashlib
 
 # PDF 처리
 try:
-    import PyPDF2
+    import pypdf as PyPDF2  # pypdf is the maintained successor of PyPDF2 (API-compatible)
     PDF_LIBRARY = "PyPDF2"
 except ImportError:
     try:

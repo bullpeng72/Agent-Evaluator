@@ -3,7 +3,7 @@
 [![PyPI version](https://img.shields.io/pypi/v/agent-evaluator.svg)](https://pypi.org/project/agent-evaluator/)
 [![Python Version](https://img.shields.io/badge/python-3.8%2B-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Version](https://img.shields.io/badge/version-0.5.6-green.svg)](https://github.com/bullpeng72/Agent-Evaluator)
+[![Version](https://img.shields.io/badge/version-0.5.7-green.svg)](https://github.com/bullpeng72/Agent-Evaluator)
 
 **AI 에이전트를 위한 프로덕션 레디 평가 프레임워크**
 
@@ -377,7 +377,7 @@ agent-eval check
 
 출력 예시:
 ```
-  Agent Evaluator v0.5.6 — 설정 상태
+  Agent Evaluator v0.5.7 — 설정 상태
   ──────────────────────────────────────────────────
 ℹ  .env 로드: /home/user/project/.env
 
@@ -635,7 +635,7 @@ mypy agent_evaluator/
 | `[frameworks]` | langchain, langgraph, crewai, pyautogen | 프레임워크 통합 |
 | `[eval]` | deepeval, ragas, langchain | Layer 3 하이브리드 평가 |
 | `[serve]` | fastapi, uvicorn, jinja2 | FastAPI 대시보드 서버 |
-| `[all]` | 위 모두 + PyPDF2, pdfplumber | 전체 (PDF 데이터셋 포함) |
+| `[all]` | 위 모두 + pypdf, pdfplumber | 전체 (PDF 데이터셋 포함) |
 
 ---
 
@@ -675,7 +675,7 @@ MIT License — 자세한 내용은 [LICENSE](LICENSE) 파일을 참고하세요
   title   = {Agent Evaluator: Production-ready evaluation framework for AI agents},
   author  = {Kim, Sungwoo},
   year    = {2026},
-  version = {0.5.6},
+  version = {0.5.7},
   url     = {https://github.com/bullpeng72/Agent-Evaluator},
   license = {MIT}
 }

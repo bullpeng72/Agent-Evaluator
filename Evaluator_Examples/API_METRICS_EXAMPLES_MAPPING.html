@@ -101,7 +101,7 @@
     <header>
         <h1>🗺️ Agent Evaluator</h1>
         <p>API, Metrics &amp; Examples Mapping Guide</p>
-        <p style="font-size: 0.9em; margin-top: 10px;">Version 0.5.6 | Updated: 2026-03-20</p>
+        <p style="font-size: 0.9em; margin-top: 10px;">Version 0.5.7 | Updated: 2026-03-20</p>
     </header>
 
     <div class="content">
@@ -557,10 +557,20 @@ monitor.quality_evaluator.evaluate_response(
                         <td><code>TaskResult(attempts=N)</code></td>
                         <td>attempts &gt; 1이면 retry_tracker 자동 등록</td>
                     </tr>
+                    <tr>
+                        <td><span class="badge badge-layer1">Accuracy</span></td>
+                        <td><code>monitor.accuracy_evaluator.add_evaluation(task_id, ground_truth, response, task_type)</code></td>
+                        <td>9가지 태스크 유형별 ground_truth 지정 — 직접 호출</td>
+                    </tr>
+                    <tr>
+                        <td><span class="badge badge-layer1">Response Quality (5-dim)</span></td>
+                        <td><code>monitor.quality_evaluator.evaluate_response(task_id, response, request, expected_elements, ground_truth)</code></td>
+                        <td>태스크 유형별 expected_elements 지정 — 직접 호출</td>
+                    </tr>
                 </tbody>
             </table>
             <div class="success-box">
-                <p><strong>생성 파일:</strong> <code>[P]_performance_metrics_YYYYMMDD_HHMMSS.json</code> — 47개 태스크, 8가지 태스크 유형, GPT-4o-mini 가격 기준</p>
+                <p><strong>생성 파일:</strong> <code>[P]_performance_metrics_YYYYMMDD_HHMMSS.json</code> — 47개 태스크, 9가지 태스크 유형, GPT-4o-mini 가격 기준</p>
             </div>
 
             <!-- 03 -->
@@ -594,6 +604,16 @@ monitor.quality_evaluator.evaluate_response(
                         <td><span class="badge badge-layer2">Retry &amp; Correction</span></td>
                         <td><code>monitor.retry_tracker.track_attempts(tid, log)</code></td>
                         <td>직접 5건 추가 등록</td>
+                    </tr>
+                    <tr>
+                        <td><span class="badge badge-layer1">Accuracy</span></td>
+                        <td><code>monitor.accuracy_evaluator.add_evaluation(task_id, ground_truth, response, task_type)</code></td>
+                        <td>24개 시나리오별 ground_truth 지정 — 직접 호출</td>
+                    </tr>
+                    <tr>
+                        <td><span class="badge badge-layer1">Response Quality (5-dim)</span></td>
+                        <td><code>monitor.quality_evaluator.evaluate_response(task_id, response, request, expected_elements, ground_truth)</code></td>
+                        <td>시나리오별 expected_elements 지정 — 직접 호출</td>
                     </tr>
                 </tbody>
             </table>
@@ -632,6 +652,16 @@ monitor.quality_evaluator.evaluate_response(
                         <td><span class="badge badge-security">Tool Chain Attack</span></td>
                         <td>16건 (정상 6 + 공격 10)</td>
                         <td><code>monitor.tool_chain_attack_detector.analyze_tool_chain(task_id, tool_sequence)</code></td>
+                    </tr>
+                    <tr>
+                        <td><span class="badge badge-layer1">Accuracy</span></td>
+                        <td>27건</td>
+                        <td><code>monitor.accuracy_evaluator.add_evaluation(task_id, ground_truth_sec, security_response, "qa")</code></td>
+                    </tr>
+                    <tr>
+                        <td><span class="badge badge-layer1">Response Quality (5-dim)</span></td>
+                        <td>27건</td>
+                        <td><code>monitor.quality_evaluator.evaluate_response(task_id, security_response, input_text, expected_sec, ground_truth_sec)</code></td>
                     </tr>
                 </tbody>
             </table>
@@ -740,7 +770,7 @@ monitor.quality_evaluator.evaluate_response(
                     </tr>
                     <tr>
                         <td>2</td><td>Accuracy</td><td><span class="badge badge-layer1">Layer 1</span></td>
-                        <td><span class="file-badge f01">01</span></td>
+                        <td><span class="file-badge f01">01</span> <span class="file-badge f02">02</span> <span class="file-badge f03">03</span> <span class="file-badge f04">04</span></td>
                         <td><span class="badge badge-covered">✅ 완전</span></td>
                     </tr>
                     <tr>
@@ -750,7 +780,7 @@ monitor.quality_evaluator.evaluate_response(
                     </tr>
                     <tr>
                         <td>4</td><td>Response Quality (5-dim)</td><td><span class="badge badge-layer1">Layer 1</span></td>
-                        <td><span class="file-badge f01">01</span></td>
+                        <td><span class="file-badge f01">01</span> <span class="file-badge f02">02</span> <span class="file-badge f03">03</span> <span class="file-badge f04">04</span></td>
                         <td><span class="badge badge-covered">✅ 완전</span></td>
                     </tr>
                     <tr>
@@ -975,7 +1005,7 @@ agent-eval serve --watch
     </div>
 
     <footer>
-        <h3 style="margin-bottom: 15px;">📚 Agent Evaluator Framework v0.5.6</h3>
+        <h3 style="margin-bottom: 15px;">📚 Agent Evaluator Framework v0.5.7</h3>
         <p style="margin-bottom: 10px;">
             🎯 Layer 1: 6개 지표 &nbsp;|&nbsp;
             🤖 Layer 2: 5개 에이전틱 + 5개 보안 &nbsp;|&nbsp;

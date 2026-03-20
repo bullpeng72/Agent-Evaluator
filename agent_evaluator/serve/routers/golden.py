@@ -127,7 +127,7 @@ async def extract_pdf(file: UploadFile = File(...)) -> Dict[str, Any]:
 
     if not text.strip():
         try:
-            import PyPDF2
+            import pypdf as PyPDF2  # pypdf is the maintained successor of PyPDF2
             reader = PyPDF2.PdfReader(io.BytesIO(content))
             text = "\n".join(
                 (page.extract_text() or "") for page in reader.pages

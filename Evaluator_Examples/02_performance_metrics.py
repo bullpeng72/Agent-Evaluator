@@ -131,6 +131,75 @@ def _gen_completion(profile: str, rng: random.Random) -> tuple:
         return False, score, acc, False
 
 
+# ── 태스크 타입별 대표 콘텐츠 ─────────────────────────────────────────────────────
+# (request, response_ok, response_fail, ground_truth, expected_elements)
+_TASK_CONTENT = {
+    "qa": (
+        "Python GIL(Global Interpreter Lock)이란 무엇이며 멀티스레딩에 어떤 영향을 주나요?",
+        "GIL은 CPython에서 한 번에 하나의 스레드만 Python 바이트코드를 실행하도록 제한하는 뮤텍스입니다. CPU 바운드 작업에서는 멀티스레딩 병렬 효과가 제한되지만, I/O 바운드 작업에서는 GIL이 해제되어 유효합니다. CPU 병렬 처리가 필요하면 multiprocessing 모듈을 사용하세요.",
+        "GIL에 대한 정보를 찾지 못했습니다.",
+        "CPython 스레드 동시 실행 제한 뮤텍스, CPU 바운드 제약·I/O 바운드는 유효, multiprocessing 권장",
+        ["GIL", "CPython", "스레드", "CPU 바운드"],
+    ),
+    "data_analysis": (
+        "2024년 분기별 매출 데이터를 분석하고 성장 추세를 파악하세요.",
+        "Q1 1.2억(기준), Q2 1.5억(+25%), Q3 1.8억(+20%), Q4 2.1억(+17%). 전체 CAGR 75%. 성장세는 지속되나 증가율은 점차 둔화 중입니다. Q4 집중 마케팅 전략 검토 권고.",
+        "데이터 분석을 완료하지 못했습니다.",
+        "분기별 성장률 계산, CAGR 75%, 증가율 둔화 추세 주목",
+        ["CAGR", "성장률", "분기", "추세"],
+    ),
+    "code_generation": (
+        "Python으로 이진 탐색(Binary Search) 함수를 구현하세요.",
+        "def binary_search(arr: list, target: int) -> int:\n    left, right = 0, len(arr) - 1\n    while left <= right:\n        mid = (left + right) // 2\n        if arr[mid] == target:\n            return mid\n        elif arr[mid] < target:\n            left = mid + 1\n        else:\n            right = mid - 1\n    return -1",
+        "def search(arr, target): return -1",
+        "이진 탐색 O(log n), left/right 포인터, 타입 힌트 포함",
+        ["binary_search", "left", "right", "mid"],
+    ),
+    "reasoning": (
+        "마이크로서비스 아키텍처 도입 시 주요 트레이드오프를 분석하세요.",
+        "장점: 독립 배포, 기술 다양성, 장애 격리, 팀 자율성. 단점: 네트워크 오버헤드, 분산 트랜잭션 복잡도, 서비스 디스커버리 필요, 운영 복잡도 증가. 트래픽이 충분하고 팀이 성숙한 경우에 유리합니다.",
+        "마이크로서비스는 복잡합니다.",
+        "독립 배포·장애 격리 장점 vs 운영 복잡도·네트워크 오버헤드 단점 트레이드오프",
+        ["독립 배포", "장애 격리", "운영 복잡도", "네트워크"],
+    ),
+    "document_creation": (
+        "AI 에이전트 평가 시스템 도입 제안서를 작성하세요.",
+        "## AI 에이전트 평가 시스템 도입 제안서\n\n**배경**: 운영 중인 LLM 서비스 품질·안전성 모니터링 체계 부재\n\n**제안**: 25개 지표 기반 Agent Evaluator SDK 도입\n- Layer 1: 정확도·완료율·응답 품질 자동 측정\n- Layer 2: 도구 사용·워크플로우·보안 추적\n\n**기대 효과**: 품질 지표 30% 개선, 이슈 탐지 시간 60% 단축",
+        "AI 평가 시스템이 필요합니다.",
+        "배경·제안 내용·기대 효과 포함, Layer 1·2 설명, 정량 목표 명시",
+        ["Layer 1", "Layer 2", "품질 지표", "도입"],
+    ),
+    "information_retrieval": (
+        "Agent Evaluator에서 지원하는 보안 메트릭 5종을 설명하세요.",
+        "Layer 2 보안 메트릭 5종: ① InputSanitizationTracker — SQL·XSS·프롬프트 인젝션 탐지 ② OutputLeakageDetector — API키·PII·내부경로 유출 탐지 ③ ToolAuthorizationTracker — 비인가 도구 사용 탐지 ④ PrivilegeEscalationDetector — 권한 상승 체인 탐지 ⑤ ToolChainAttackDetector — APT·횡적 이동 패턴 탐지.",
+        "보안 메트릭 정보를 찾지 못했습니다.",
+        "InputSanitization, OutputLeakage, ToolAuthorization, PrivilegeEscalation, ToolChainAttack",
+        ["InputSanitization", "OutputLeakage", "ToolAuthorization", "PrivilegeEscalation"],
+    ),
+    "planning": (
+        "신규 AI 챗봇 서비스 출시를 위한 3개월 개발 계획을 수립하세요.",
+        "1개월차: 요구사항 정의·아키텍처 설계·LLM 선정 / 2개월차: 핵심 기능 개발·RAG 파이프라인 구축·내부 테스트 / 3개월차: 베타 테스트·성능 최적화·모니터링 체계 구축·정식 출시. 단계별 품질 게이트와 KPI 정의 필수.",
+        "계획을 수립하지 못했습니다.",
+        "3개월 로드맵: 설계→개발→베타→출시, 단계별 품질 게이트",
+        ["1개월차", "2개월차", "3개월차", "품질 게이트"],
+    ),
+    "tool_use": (
+        "web_search 도구로 최신 AI 에이전트 프레임워크 동향을 조사하세요.",
+        "web_search('AI agent framework 2024') 실행 완료. 주요 동향: LangGraph(멀티에이전트 DAG), CrewAI(역할 기반 협업), AutoGen(대화형 에이전트). 공통 트렌드: RAG 통합, 툴 자동화, 평가 파이프라인 내재화.",
+        "검색을 완료하지 못했습니다.",
+        "LangGraph·CrewAI·AutoGen 동향, RAG·툴 자동화·평가 트렌드",
+        ["LangGraph", "CrewAI", "AutoGen", "RAG"],
+    ),
+    "creative": (
+        "AI 시대의 개발자 역할 변화에 대한 짧은 에세이를 작성하세요.",
+        "AI가 코드를 생성하는 시대에 개발자는 '코드 타이피스트'에서 '시스템 설계자'로 진화합니다. 요구사항을 정확히 이해하고 AI 결과물을 검증하며 복잡한 문제를 분해하는 능력이 핵심 역량이 됩니다. 코딩 실력보다 사고력·맥락 파악 능력이 더 중요해지는 전환점입니다.",
+        "개발자는 변화가 필요합니다.",
+        "AI 시대 개발자 역할: 코드 타이피스트→시스템 설계자, 검증·분해 능력 중요",
+        ["시스템 설계자", "검증", "사고력", "맥락"],
+    ),
+}
+
+
 def run_performance_evaluation():
     print("\n" + "=" * 70)
     print("  성능 지표 평가 — Agent Evaluator")
@@ -184,9 +253,11 @@ def run_performance_evaluation():
             framework="native",
         )
 
-        request_text = f"{task_type} 태스크 #{n}: 관련 작업을 수행하세요"
-        response_text = "완료된 결과입니다." if success else "처리 중 오류가 발생했습니다."
-        ground_truth_text = f"expected_output_{task_id}"
+        req, resp_ok, resp_fail, ground_truth_text, expected_elems = _TASK_CONTENT.get(
+            task_type, _TASK_CONTENT["qa"]
+        )
+        request_text  = req
+        response_text = resp_ok if success else resp_fail
 
         monitor.record_task(
             task,
@@ -196,12 +267,21 @@ def run_performance_evaluation():
             response=response_text,
         )
 
+        # Response Quality — 성공 시 expected_elements 기반 5차원 품질 평가
         monitor.quality_evaluator.evaluate_response(
             task_id=task_id,
             response=response_text,
             request=request_text,
-            expected_elements=[ground_truth_text],
+            expected_elements=expected_elems if success else [],
             ground_truth=ground_truth_text,
+        )
+
+        # Accuracy — ground_truth 대비 실제 응답 정확도 명시적 평가
+        monitor.accuracy_evaluator.add_evaluation(
+            task_id=task_id,
+            ground_truth=ground_truth_text,
+            prediction=response_text,
+            task_type=task_type,
         )
 
         if task_type in ("qa", "information_retrieval"):

@@ -14,7 +14,7 @@
             │ Context Recall       (컨텍스트 재현율 — 실제 Ragas, RAG 태스크)
 
 사전 요구사항:
-    pip install agent-evaluator[deepeval,ragas]
+    pip install agent-evaluator[eval]
     pip install langchain-openai datasets
 
 실행:
@@ -78,7 +78,7 @@ except ImportError:
 if _missing:
     print(f"❌ 필수 패키지 미설치: {', '.join(_missing)}")
     print("   다음 명령으로 설치하세요:")
-    print("   pip install agent-evaluator[deepeval,ragas] langchain-openai datasets")
+    print("   pip install agent-evaluator[eval] langchain-openai datasets")
     sys.exit(1)
 
 from agent_evaluator import TaskResult
@@ -153,7 +153,7 @@ RAG_CASES = [
         ),
         "expected": "Layer 1(Foundation), Layer 2(Agentic), Layer 3(Hybrid)의 세 레이어",
         "contexts": [
-            "Agent Evaluator SDK는 20개의 성능 지표를 세 개의 레이어로 측정합니다.",
+            "Agent Evaluator SDK는 25개의 성능 지표를 세 개의 레이어로 측정합니다.",
             "Layer 1(Foundation Metrics)은 외부 의존성 없이 알고리즘 기반으로 태스크 완료율, 정확도, 할루시네이션, 응답 품질, 지연 시간, 토큰 비용을 측정합니다.",
             "Layer 2(Agentic Metrics)는 도구 호출 분석, 재시도 추적, 도구 선택 정확도, 멀티에이전트 협조, 워크플로우 실행, 보안 메트릭을 포함합니다.",
             "Layer 3(Hybrid Evaluation)는 HybridPerformanceMonitor를 통해 DeepEval, Ragas, LangSmith 등 외부 라이브러리와 통합하여 GPT 기반 평가를 제공합니다.",
@@ -335,14 +335,23 @@ def run_hybrid_evaluation():
     for i, case in enumerate(deepeval_cases, 1):
         print(f"\n  [{i}/{len(deepeval_cases)}] {case['task_id']}  {case['question'][:45]}...")
 
+        _q_len = len(case["question"])
+        _a_len = len(case["answer"])
+        _exec_time = round(0.4 + _q_len / 600 + _a_len / 900, 2)
+        _tokens = {
+            "input":  max(50, _q_len // 4),
+            "output": max(40, _a_len // 4),
+            "total":  max(50, _q_len // 4) + max(40, _a_len // 4),
+        }
+
         task = TaskResult(
             task_id=case["task_id"],
             task_type=case["task_type"],
             success=case["success"],
             completion_score=case["accuracy_score"],
             accuracy_score=case["accuracy_score"],
-            execution_time=1.5,
-            tokens_used={"input": 150, "output": 100, "total": 250},
+            execution_time=_exec_time,
+            tokens_used=_tokens,
             tool_calls=[],
             attempts=1,
             errors=[],
@@ -372,14 +381,24 @@ def run_hybrid_evaluation():
         print(f"\n  [{i}/{len(rag_cases)}] {case['task_id']}  {label}")
         print(f"       질문: {case['question'][:50]}...")
 
+        _q_len   = len(case["question"])
+        _a_len   = len(case["answer"])
+        _ctx_len = sum(len(c) for c in case.get("contexts", []))
+        _exec_time = round(0.6 + (_q_len + _ctx_len) / 900 + _a_len / 700, 2)
+        _tokens = {
+            "input":  max(100, (_q_len + _ctx_len) // 4),
+            "output": max(80,  _a_len // 4),
+            "total":  max(100, (_q_len + _ctx_len) // 4) + max(80, _a_len // 4),
+        }
+
         task = TaskResult(
             task_id=case["task_id"],
             task_type=case["task_type"],
             success=case["success"],
             completion_score=case["accuracy_score"],
             accuracy_score=case["accuracy_score"],
-            execution_time=2.0,
-            tokens_used={"input": 300, "output": 200, "total": 500},
+            execution_time=_exec_time,
+            tokens_used=_tokens,
             tool_calls=[],
             attempts=1,
             errors=["hallucination_detected"] if case["is_hallucination_test"] else [],

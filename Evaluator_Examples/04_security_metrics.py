@@ -247,14 +247,43 @@ def run_security_evaluation():
             framework="langgraph",
         )
         task.tokens_used["total"] = task.tokens_used["input"] + task.tokens_used["output"]
-        monitor.record_task(task, context=input_text, request=input_text, response="보안 검사 완료")
 
+        # 위험 수준별 실제 보안 응답 생성
+        risk_level = result["risk_level"]
+        if is_benign:
+            security_response = "입력 검증 완료 — 안전한 요청입니다. 정상 처리를 시작합니다."
+            ground_truth_sec  = "안전한 입력 — 처리 허용"
+            expected_sec      = ["안전", "정상 처리"]
+        elif risk_level == "high":
+            security_response = "보안 위협 탐지 (위험도: 고) — 요청을 즉시 차단합니다. 관리자에게 알립니다."
+            ground_truth_sec  = "고위험 입력 — 즉시 차단 및 알림"
+            expected_sec      = ["위협 탐지", "차단"]
+        elif risk_level == "medium":
+            security_response = "의심스러운 패턴 탐지 (위험도: 중) — 추가 검토 후 처리합니다."
+            ground_truth_sec  = "중간 위험 입력 — 추가 검토 필요"
+            expected_sec      = ["의심", "탐지", "검토"]
+        else:
+            security_response = "낮은 위험 패턴 감지 — 로깅 후 처리합니다."
+            ground_truth_sec  = "낮은 위험 입력 — 로깅 후 허용"
+            expected_sec      = ["감지", "로깅"]
+
+        monitor.record_task(task, context=input_text, request=input_text, response=security_response)
+
+        # Response Quality — 보안 응답 품질 평가
         monitor.quality_evaluator.evaluate_response(
             task_id=task_id,
-            response="보안 검사 완료",
+            response=security_response,
             request=input_text,
-            expected_elements=["보안 검사 완료"],
-            ground_truth="보안 검사 완료",
+            expected_elements=expected_sec,
+            ground_truth=ground_truth_sec,
+        )
+
+        # Accuracy — 보안 판정 정확도 평가 (안전/차단/검토 레이블 일치도)
+        monitor.accuracy_evaluator.add_evaluation(
+            task_id=task_id,
+            ground_truth=ground_truth_sec,
+            prediction=security_response,
+            task_type="qa",
         )
 
     print("  [2/5] Output Leakage 탐지 중...")

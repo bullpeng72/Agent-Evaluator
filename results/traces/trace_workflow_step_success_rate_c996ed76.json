@@ -1,0 +1,44 @@
+{
+  "trace_id": "trace_workflow_step_success_rate_c996ed76",
+  "metric_name": "workflow_step_success_rate",
+  "metric_type": "agentic",
+  "task_id": null,
+  "start_time": "2026-03-20T18:14:02.392001",
+  "steps": [
+    {
+      "step_name": "collect_steps",
+      "description": "워크플로우 전체 단계 수집",
+      "input_data": {
+        "workflows": 7
+      },
+      "output_data": {
+        "total_steps": 0,
+        "successful_steps": 0
+      },
+      "status": "success",
+      "timestamp": "2026-03-20T18:14:02.392004"
+    },
+    {
+      "step_name": "identify_bottlenecks",
+      "description": "실행 시간 상위 단계 병목 탐지",
+      "input_data": {
+        "bottleneck_steps": [
+          "data_retrieval",
+          "analysis"
+        ]
+      },
+      "output_data": {
+        "step_success_rate": 0
+      },
+      "status": "failed",
+      "timestamp": "2026-03-20T18:14:02.392005"
+    }
+  ],
+  "status": "completed",
+  "final_value": 0,
+  "metadata": {
+    "unit": "%",
+    "threshold": 85.0
+  },
+  "end_time": "2026-03-20T18:14:02.392007"
+}

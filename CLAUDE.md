@@ -5,7 +5,7 @@
 **Agent-Evaluator** is a production-ready Python SDK for evaluating AI agents.
 25개의 성능 지표를 세 개의 레이어(기본/에이전틱/하이브리드)로 측정한다.
 
-- **Version:** 0.5.6 (Beta)
+- **Version:** 0.5.7 (Beta)
 - **Python:** 3.8+
 - **License:** MIT
 - **Author:** Sungwoo Kim
@@ -27,7 +27,7 @@ agent-eval init          # 대화형 API 키 설정 마법사
 agent-eval check         # 현재 설정 상태 출력
 agent-eval --version     # 버전 출력
 
-# 테스트 실행 (tests/ 디렉토리 없음 — 아직 생성 필요)
+# 테스트 실행
 pytest
 
 # 코드 품질
@@ -254,35 +254,38 @@ from agent_evaluator import (
 | 우선순위 | 항목 | 위치 |
 |---------|------|------|
 | 🔴 High | `agent_evaluator.py` 5,409줄 단일 파일 — trackers/ 분리 필요 | `core/agent_evaluator.py` |
-| 🔴 High | 테스트 없음 — `tests/` 디렉토리 미존재 | 프로젝트 전체 |
+| ✅ Fixed | 테스트 없음 — `tests/` 4개 파일, 33개 테스트 함수 작성 완료 | `tests/` |
 | 🔴 High | `import re` 9회 함수 내부에서 임포트 → 모듈 상단으로 이동 필요 | `core/agent_evaluator.py` |
 | 🔴 High | `os.chdir()` 라이브러리 코드 내 사용 → `importlib` 방식으로 교체 필요 | `utils/dashboard_integration.py:44,82` |
 | 🟡 Medium | ~14곳에서 bare `except Exception:` 로 에러 무시 | 여러 파일 |
 | 🟡 Medium | `_check_patterns()`, `_is_subsequence()` 중복 구현 | `core/agent_evaluator.py` |
 | ✅ Fixed | `pandas>=1.3.0` 상한선 없음 → `<3.0.0` 추가 완료 | `pyproject.toml` |
-| ✅ Fixed | `PyPDF2`, `pdfplumber` `pyproject.toml` 미등록 → `[all]` extra에 포함 완료 | `pyproject.toml` |
+| ✅ Fixed | `PyPDF2` deprecated → `pypdf>=3.0.0,<7.0.0` 으로 교체 완료 (`pdfplumber` 유지) | `pyproject.toml` |
 | ✅ Fixed | `warnings.filterwarnings('ignore')` 전역 적용 → 카테고리/모듈 타겟 필터로 교체 완료 | `integrations/metric_adapters.py` |
 
 ---
 
 ## Testing
 
-현재 `tests/` 디렉토리가 없음. 새 테스트 작성 시:
+`tests/` 디렉토리에 4개 파일, 33개 테스트 함수 존재.
 
 ```bash
-mkdir tests/
 # pytest.ini_options in pyproject.toml already configured:
 # testpaths = ["tests"]
 # addopts = "-v --cov=agent_evaluator --cov-report=html"
 pytest
 ```
 
-테스트 우선순위:
-1. `AccuracyEvaluator._qa_accuracy()` — LCS 알고리즘 정확성
-2. `HallucinationDetector.detect_hallucination()`
-3. `InputSanitizationTracker.evaluate_input()` — 보안 패턴 매칭
-4. `OutputLeakageDetector.detect_leakage()`
-5. `PerformanceMonitor.generate_report()` — 집계 파이프라인
+현재 테스트 파일:
+- `tests/test_accuracy_evaluator.py`
+- `tests/test_hallucination_detector.py`
+- `tests/test_input_sanitization.py`
+- `tests/test_performance_monitor.py`
+
+추가 테스트 필요 항목:
+1. `OutputLeakageDetector.detect_leakage()`
+2. `ToolCallAnalyzer` / `AgentCoordinationTracker`
+3. `PerformanceMonitor.generate_report()` — 집계 파이프라인 end-to-end
 
 주의: `agent_evaluator/utils/test_transparency_manager.py`는 테스트 파일이 **아님** — `TestTransparencyManager`라는 프로덕션 클래스임.
 
@@ -300,7 +303,7 @@ pytest
 - `[frameworks]` — `langchain>=0.1.0,<3.0.0` + `langgraph` + `crewai` + `pyautogen` — `pip install agent-evaluator[frameworks]`
 - `[eval]` — `deepeval>=0.20.0,<4.0.0` + `ragas>=0.1.0,<2.0.0` + `langchain` — `pip install agent-evaluator[eval]`
 - `[serve]` — `fastapi>=0.110.0` + `uvicorn[standard]>=0.29.0` + `jinja2>=3.1.0` + `python-multipart>=0.0.9` — `pip install agent-evaluator[serve]`
-- `[all]` — 위 모든 것 + `PyPDF2>=3.0.0` + `pdfplumber>=0.10.0` — `pip install agent-evaluator[all]`
+- `[all]` — 위 모든 것 + `pypdf>=3.0.0` + `pdfplumber>=0.10.0` — `pip install agent-evaluator[all]`
 
 ---
 
@@ -329,6 +332,15 @@ pytest
 ---
 
 ## 📝 변경 이력
+
+### v0.5.7 (2026-03-20) — 프레임워크 통합 개선 및 PyPDF2 → pypdf 교체
+
+- 🔧 `langgraph_integration.py` — `AIMessage.usage_metadata`로 토큰 자동 추출 + `ToolMessage` 파싱으로 도구 추적 지원 (LangChain LLM 사용 시), 커버리지 44% → 65%
+- 🔧 `autogen_integration.py` — `tiktoken` 우선 토큰 추정 + 한/영 휴리스틱 fallback, 메시지 히스토리에서 Workflow steps 자동 구성, 커버리지 52% → 65%
+- 🔧 `langchain_integration.py` — 실측 타이밍·재시도 추적 개선
+- 🐛 `pyproject.toml` — deprecated `PyPDF2>=3.0.0` → `pypdf>=3.0.0,<7.0.0` 교체 (`[all]` extra)
+- 📝 `FRAMEWORK_METRICS_MAP.md` 추가 (HTML → Markdown) + P0 개선 사항 반영
+- 📝 `CLAUDE.md` — `tests/` 디렉토리 현행화 (33개 테스트 함수 기재)
 
 ### v0.5.6 (2026-03-20) — `datasets` 의존성 상한 추가 및 pipx 설치 오류 수정
 

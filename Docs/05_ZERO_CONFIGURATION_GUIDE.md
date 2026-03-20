@@ -250,7 +250,7 @@ agent-evaluator는 다음 우선순위로 결과 저장 위치를 결정합니�
 
 #### 💡 Dashboard 검증 로직
 
-v0.5.6부터 Dashboard 디렉토리를 찾을 때 **실제 agent_evaluator Dashboard인지 검증** 합니다:
+v0.5.7부터 Dashboard 디렉토리를 찾을 때 **실제 agent_evaluator Dashboard인지 검증** 합니다:
 
   * `server.py` 존재 확인 (FastAPI 앱)
   * `~/.agent_evaluator/registry.json` 레지스트리 확인
@@ -283,7 +283,7 @@ v0.5.6부터 Dashboard 디렉토리를 찾을 때 **실제 agent_evaluator Dashb
 저장된 파일은 자동으로 `~/.agent_evaluator/registry.json`에 등록됩니다:
 ```json
     {
-      "version": "0.5.6",
+      "version": "0.5.7",
       "created_at": "2026-03-20T10:00:00",
       "data_files": {
         "/path/to/results/my_evaluation.json": {
@@ -664,7 +664,7 @@ Dashboard는 다음 방법으로 데이터를 자동 인식합니다:
 
 #### 🎉 100% Zero Configuration 달성!
 
-agent-evaluator v0.5.6 버전부터 모든 핵심 클래스가 Zero Configuration을 완벽하게 지원합니다!
+agent-evaluator v0.5.7 버전부터 모든 핵심 클래스가 Zero Configuration을 완벽하게 지원합니다!
 
   * ✅ `PerformanceMonitor` \- 자동 경로 감지
   * ✅ `HybridPerformanceMonitor` \- 상속으로 자동 적용
@@ -682,7 +682,7 @@ agent-evaluator v0.5.6 버전부터 모든 핵심 클래스가 Zero Configuratio
 
 * * *
 
-**문서 버전** : 0.5.6
+**문서 버전** : 0.5.7
 **최종 업데이트** : 2026-03-20
 **변경사항** :  
 \- Evaluator_Examples 경로 탐지 로직 제거  

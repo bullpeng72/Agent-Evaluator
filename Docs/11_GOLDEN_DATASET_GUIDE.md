@@ -1,6 +1,6 @@
 # 📚 Golden Dataset 가이드
 
-테스트 데이터셋 생성 및 관리 (Agent Evaluator v0.5.6)
+테스트 데이터셋 생성 및 관리 (Agent Evaluator v0.5.7)
 
 # Golden Dataset 가이드
 
@@ -627,7 +627,7 @@ Agent Evaluator는 **PDF 문서에서 자동으로 Golden Dataset을 생성** �
 
 #### 생성 과정
 
-  1. **PDF 텍스트 추출** : PyPDF2 또는 pdfplumber 사용
+  1. **PDF 텍스트 추출** : pypdf 또는 pdfplumber 사용
   2. **텍스트 청킹** : 설정된 chunk_size와 chunk_overlap에 따라 분할
   3. **AI 기반 QA 생성** : OpenAI GPT 모델을 사용하여 각 청크에서 질문-답변 생성 
      * **질문** : 자연스럽고 구체적인 질문
@@ -638,7 +638,7 @@ Agent Evaluator는 **PDF 문서에서 자동으로 Golden Dataset을 생성** �
 
 #### 실제 생성 프로세스 (korean_rag_dataset_generator.py)
 ```json
-    [](<#cb23-1>)# 1. PDF 텍스트 추출 (PyPDF2 또는 pdfplumber)
+    [](<#cb23-1>)# 1. PDF 텍스트 추출 (pypdf 또는 pdfplumber)
     [](<#cb23-2>)extractor = KoreanPDFExtractor()
     [](<#cb23-3>)pages_text = extractor.extract_text("document.pdf")
     [](<#cb23-4>)
@@ -1860,6 +1860,6 @@ Golden Dataset 작성을 완료했다면:
 * * *
 
 **최종 업데이트** : 2026-03-20
-**버전** : Agent Evaluator v0.5.6
+**버전** : Agent Evaluator v0.5.7
 **프로젝트** : Agent Evaluator - AI Agent Performance Evaluation System
 **문서** : Golden Dataset Guide

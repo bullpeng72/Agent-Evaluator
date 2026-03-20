@@ -163,6 +163,187 @@ SCENARIOS = [
 ]
 
 
+# ── 시나리오별 대표 콘텐츠 ────────────────────────────────────────────────────────
+# (request, response_ok, response_fail, ground_truth, expected_elements)
+_SCENARIO_CONTENT = {
+    "simple_search": (
+        "최신 AI 에이전트 프레임워크 동향을 웹에서 검색해 요약하세요.",
+        "web_search 실행 결과: LangGraph·CrewAI·AutoGen이 주요 트렌드. 멀티에이전트 협업, 툴 통합, 평가 파이프라인 지원이 공통 특징입니다.",
+        "검색 결과를 가져오지 못했습니다.",
+        "LangGraph, CrewAI, AutoGen 동향 — 멀티에이전트·툴 통합·평가 파이프라인",
+        ["LangGraph", "CrewAI", "AutoGen", "멀티에이전트"],
+    ),
+    "data_lookup": (
+        "데이터베이스에서 사용자 ID 12345의 최근 주문 내역을 조회하세요.",
+        "db_lookup 결과: 사용자 12345 / 최근 주문 3건 — 2024-01-15 노트북 ₩1,200,000 / 2024-01-22 마우스 ₩45,000 / 2024-02-03 SSD ₩180,000.",
+        "데이터베이스 조회 실패.",
+        "사용자 12345 최근 주문 3건, 날짜·상품·금액 포함",
+        ["12345", "주문", "조회"],
+    ),
+    "code_run": (
+        "Python 코드를 실행하고 결과를 반환하세요: sorted([3,1,4,1,5], reverse=True)",
+        "code_executor 실행 완료. 결과: [5, 4, 3, 1, 1]. sorted() 내장 함수 내림차순 정렬 성공.",
+        "코드 실행 실패.",
+        "[5, 4, 3, 1, 1] — 내림차순 정렬 결과",
+        ["[5, 4, 3, 1, 1]", "정렬", "code_executor"],
+    ),
+    "classify_task": (
+        "텍스트 감성을 분류하세요: '이 제품은 정말 만족스럽고 다시 구매하고 싶습니다.'",
+        "classifier 실행 결과: 긍정(Positive) 분류 — 신뢰도 0.97. 감성 키워드: '만족스럽고', '다시 구매하고 싶습니다'.",
+        "분류 모델 오류.",
+        "긍정(Positive), 신뢰도 0.97 이상",
+        ["긍정", "Positive", "신뢰도"],
+    ),
+    "wrong_tool_1": (
+        "최신 AI 뉴스를 검색해 주세요.",
+        "doc_reader로 로컬 문서 검색 시도 — 최신 뉴스 없음. web_search 도구가 필요합니다.",
+        "관련 정보를 찾지 못했습니다.",
+        "web_search로 최신 AI 뉴스 검색 필요",
+        ["web_search", "뉴스"],
+    ),
+    "wrong_tool_2": (
+        "제품별 월간 판매량 데이터를 분석하고 차트를 생성하세요.",
+        "db_lookup으로 데이터 일부 조회 완료. data_query·chart_generator 없이 완전한 분석·시각화 불가.",
+        "데이터 분석 실패.",
+        "data_query로 데이터 조회 후 chart_generator로 시각화 필요",
+        ["data_query", "chart_generator"],
+    ),
+    "partial_match": (
+        "경쟁사 제품 리뷰를 수집하고 요약하세요.",
+        "web_search로 리뷰 수집 완료. doc_reader 대신 summarizer 필요. 수집 리뷰 요약: 경쟁사 A 제품은 배터리 성능에서 높은 평가.",
+        "요약 실패.",
+        "web_search + summarizer 조합으로 리뷰 수집 및 요약",
+        ["web_search", "summarizer", "요약"],
+    ),
+    "research_hub": (
+        "AI 에이전트 시장 동향 보고서를 작성하세요.",
+        "오케스트레이터→리서처(web_search)→작성자(report_writer) 허브 실행 완료. 2024 AI 에이전트 시장 규모 $5.2B, 연간 43% 성장 전망. 주요 플레이어: OpenAI, Anthropic, Google.",
+        "보고서 작성 실패.",
+        "시장 규모 $5.2B, 연간 성장률 43%, 주요 플레이어 포함",
+        ["시장 규모", "성장", "$5.2B"],
+    ),
+    "analysis_hub": (
+        "Q4 판매 데이터를 분석하고 시각화 보고서를 작성하세요.",
+        "오케스트레이터→분석가(data_query)→작성자(chart_generator)→검토자 허브 완료. Q4 매출 2.1억, 전분기 대비 17% 성장. 차트 3종 생성.",
+        "분석 파이프라인 실패.",
+        "Q4 매출 2.1억, 전분기 17% 성장, 시각화 차트 포함",
+        ["Q4", "매출", "성장", "chart_generator"],
+    ),
+    "document_hub": (
+        "기술 문서를 요약하고 보고서를 생성하세요.",
+        "리서처(doc_reader)→summarizer→작성자(report_writer) 허브 완료. 총 47페이지 보고서 생성.",
+        "문서 처리 실패.",
+        "doc_reader→summarizer→report_writer 파이프라인 성공, 47페이지",
+        ["doc_reader", "summarizer", "report_writer"],
+    ),
+    "chain_research": (
+        "신기술 트렌드를 조사하고 분석 보고서를 작성하세요.",
+        "researcher(web_search)→analyst(summarizer)→writer(report_writer) 체인 완료. 2024 3대 기술 트렌드: 생성형 AI, 엣지 컴퓨팅, 양자 컴퓨팅.",
+        "체인 실패.",
+        "web_search→summarizer→report_writer 체인, 3대 기술 트렌드 보고서",
+        ["생성형 AI", "엣지 컴퓨팅", "양자 컴퓨팅"],
+    ),
+    "chain_analysis": (
+        "고객 행동 데이터를 분석하고 세그먼트별 차트를 생성하세요.",
+        "analyst(data_query)→writer(classifier)→reviewer(chart_generator) 체인 완료. 고객 3개 세그먼트: 충성(32%), 이탈 위험(28%), 신규(40%). 차트 생성.",
+        "분석 체인 부분 실패.",
+        "data_query→classifier→chart_generator, 3개 세그먼트 분류 차트",
+        ["세그먼트", "분류", "차트", "data_query"],
+    ),
+    "retry_on_fail_1": (
+        "날씨 API에서 서울 현재 날씨를 검색하세요.",
+        "첫 번째 web_search 실패(API 타임아웃) → 재시도 성공. 서울 현재 날씨: 맑음 12°C, 습도 45%, 바람 북서풍 3m/s.",
+        "날씨 검색 최종 실패.",
+        "서울 날씨 맑음 12°C, 재시도 후 성공",
+        ["서울", "날씨", "맑음", "재시도"],
+    ),
+    "retry_on_fail_2": (
+        "복잡한 데이터 쿼리를 실행하고 결과를 반환하세요.",
+        "1차 code_executor 실패(메모리) → 2차 data_query 실패(타임아웃) → 3차 성공. 쿼리 결과: 총 12,847건 반환.",
+        "3회 시도 모두 실패.",
+        "3회 재시도 후 최종 성공, 12,847건 반환",
+        ["재시도", "성공", "12,847"],
+    ),
+    "retry_success": (
+        "데이터베이스에서 부서별 인원 현황을 조회하세요.",
+        "첫 번째 db_lookup 실패(연결 오류) → 재시도 성공. 부서별 인원: 개발팀 45명, 마케팅 23명, 인사 12명, 재무 18명. 총 98명.",
+        "DB 조회 실패.",
+        "부서별 인원 조회, 총 98명 — 개발팀 최다",
+        ["개발팀", "마케팅", "총 98명", "db_lookup"],
+    ),
+    "redundant_calls_1": (
+        "AI 최신 논문을 검색하고 주요 내용을 정리하세요.",
+        "web_search 1회 + doc_reader 1회 + web_search 중복 1회(불필요). 논문 요약: GPT-4 기술 보고서, Llama 3 아키텍처, Gemini 멀티모달 연구.",
+        "검색 중 오류.",
+        "web_search + doc_reader로 논문 수집 (중복 호출 최소화 필요)",
+        ["web_search", "doc_reader", "논문", "GPT-4"],
+    ),
+    "redundant_calls_2": (
+        "현재 시스템 상태를 점검하세요.",
+        "data_query 2회 중복 실행(최적화 필요). 시스템 상태: CPU 45%, 메모리 62%, 디스크 23%. 전체 정상.",
+        "시스템 점검 실패.",
+        "단일 data_query로 시스템 상태 조회 (CPU·메모리·디스크)",
+        ["CPU", "메모리", "디스크", "data_query"],
+    ),
+    "complex_pipeline": (
+        "경쟁사 비교 분석 종합 보고서를 작성하세요.",
+        "5에이전트 파이프라인 완료: 오케스트레이터→리서처(web_search)→분석가(data_query)→작성자(chart_generator + report_writer)→검토자. 경쟁사 A·B·C 시장점유율·가격·기능 비교표 포함.",
+        "복잡 파이프라인 실패.",
+        "5에이전트 파이프라인, 경쟁사 3사 비교 분석 보고서",
+        ["경쟁사", "비교", "파이프라인", "report_writer"],
+    ),
+    "ml_pipeline": (
+        "고객 이탈 예측 모델을 학습하고 결과를 시각화하세요.",
+        "data_query→code_executor(모델 학습)→classifier(예측)→chart_generator(ROC 곡선) 완료. 이탈 예측 AUC 0.87, 정밀도 0.83, 재현율 0.79.",
+        "ML 파이프라인 오류.",
+        "AUC 0.87, 정밀도 0.83, 재현율 0.79, ROC 곡선 포함",
+        ["AUC", "정밀도", "재현율", "ROC"],
+    ),
+    "translation_chain": (
+        "영문 기술 문서를 한국어로 번역하고 요약하세요.",
+        "doc_reader(문서 로드)→translator(영→한)→summarizer(핵심 요약) 체인 완료. 번역 15페이지 / 핵심 요약: 마이크로서비스 아키텍처 7가지 모범 사례.",
+        "번역 체인 실패.",
+        "doc_reader→translator→summarizer 체인, 15페이지 번역 완료",
+        ["번역", "요약", "마이크로서비스", "summarizer"],
+    ),
+    "workflow_fail_1": (
+        "매출 데이터를 분석하고 핵심 인사이트를 도출하세요.",
+        "data_query 부분 완료 후 analyzer 도구 미사용으로 분석 중단. 조회 데이터: 이번 달 총 매출 ₩850M.",
+        "데이터 분석 중단.",
+        "data_query + analyzer로 완전한 인사이트 도출 필요",
+        ["data_query", "분석", "매출"],
+    ),
+    "workflow_fail_2": (
+        "최신 기사를 검색하고 인사이트를 요약하세요.",
+        "web_search 완료, summarizer 없어 원문 반환. 원문: OpenAI GPT-5 개발 중, 멀티모달 강화 예정...",
+        "요약 실패.",
+        "web_search + summarizer 조합 필요, 요약 미완성",
+        ["web_search", "summarizer", "요약"],
+    ),
+    "notification_flow": (
+        "VIP 고객 목록을 조회하고 이메일 알림을 발송하세요.",
+        "db_lookup으로 VIP 고객 127명 조회 → email_sender로 맞춤형 알림 발송 완료. 발송 성공률 99.2%.",
+        "알림 발송 실패.",
+        "db_lookup + email_sender, VIP 127명 발송 성공률 99.2%",
+        ["db_lookup", "email_sender", "VIP", "127명"],
+    ),
+    "image_analysis": (
+        "업로드된 제품 이미지를 분석하고 카테고리를 분류하세요.",
+        "image_analyzer로 이미지 특징 추출 → classifier로 카테고리 분류. 결과: 전자제품 > 노트북 (신뢰도 0.94).",
+        "이미지 분석 오류.",
+        "image_analyzer + classifier, 전자제품>노트북 신뢰도 0.94",
+        ["image_analyzer", "classifier", "전자제품", "신뢰도"],
+    ),
+    "full_report": (
+        "시장 조사부터 최종 보고서까지 전체 파이프라인을 실행하세요.",
+        "5에이전트 풀 파이프라인 완료: 오케스트레이터→리서처(web_search)→분석가(data_query + summarizer)→작성자(chart_generator + report_writer)→검토자. 최종 보고서 52페이지 생성.",
+        "풀 파이프라인 실패.",
+        "5에이전트 풀 파이프라인, 52페이지 최종 보고서",
+        ["풀 파이프라인", "보고서", "52페이지"],
+    ),
+}
+
+
 def run_agentic_evaluation():
     print("\n" + "=" * 70)
     print("  에이전트 지표 평가 — Agent Evaluator")
@@ -228,9 +409,9 @@ def run_agentic_evaluation():
             framework="crewai" if len(agents) > 1 else "langchain",
         )
 
-        request_text = f"{name} 작업을 수행하세요"
-        response_text = "작업이 완료되었습니다." if success else "작업 수행 중 오류가 발생했습니다."
-        ground_truth_text = f"expected_result_{name}"
+        _content = _SCENARIO_CONTENT.get(name, _SCENARIO_CONTENT["simple_search"])
+        request_text, resp_ok, resp_fail, ground_truth_text, expected_elems = _content
+        response_text = resp_ok if success else resp_fail
 
         monitor.record_task(
             task,
@@ -240,12 +421,21 @@ def run_agentic_evaluation():
             response=response_text,
         )
 
+        # Response Quality — 5차원 품질 평가 (성공 시 expected_elements 기반)
         monitor.quality_evaluator.evaluate_response(
             task_id=task_id,
             response=response_text,
             request=request_text,
-            expected_elements=[ground_truth_text],
+            expected_elements=expected_elems if success else [],
             ground_truth=ground_truth_text,
+        )
+
+        # Accuracy — ground_truth 대비 정확도 명시적 평가
+        monitor.accuracy_evaluator.add_evaluation(
+            task_id=task_id,
+            ground_truth=ground_truth_text,
+            prediction=response_text,
+            task_type=task.task_type,
         )
 
         if has_wf:

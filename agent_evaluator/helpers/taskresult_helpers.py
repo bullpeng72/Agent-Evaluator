@@ -312,33 +312,34 @@ def extract_tokens_from_langchain(langchain_result) -> Dict[str, int]:
 
 def estimate_tokens(text: str, model: str = "gpt-3.5-turbo") -> int:
     """
-    텍스트 길이로 토큰 수 추정 (간단한 휴리스틱)
+    텍스트의 토큰 수 추정. tiktoken 설치 시 정확한 값, 아니면 언어별 휴리스틱 사용.
 
     Args:
         text: 추정할 텍스트
-        model: 모델명 (영향 없음, 호환성 유지용)
+        model: tiktoken 모델명 (기본: gpt-3.5-turbo)
 
     Returns:
         int: 추정 토큰 수
-
-    Note:
-        정확한 토큰 수는 tiktoken 라이브러리 사용 권장
-        이 함수는 간단한 근사치 제공
     """
     if not text:
         return 0
 
-    # 간단한 휴리스틱: 영문 4자 ≈ 1토큰, 한글 1.5자 ≈ 1토큰
-    char_count = len(text)
+    try:
+        import tiktoken
+        try:
+            enc = tiktoken.encoding_for_model(model)
+        except KeyError:
+            enc = tiktoken.get_encoding("cl100k_base")
+        return len(enc.encode(text))
+    except ImportError:
+        pass
 
-    # 한글 비율 추정
+    # Fallback: 언어별 휴리스틱 (영문 4자 ≈ 1토큰, 한글 1.5자 ≈ 1토큰)
     korean_chars = len(re.findall(r'[가-힣]', text))
     english_chars = len(re.findall(r'[a-zA-Z]', text))
-
-    # 가중 평균
-    estimated_tokens = (korean_chars / 1.5) + (english_chars / 4) + (char_count - korean_chars - english_chars) / 3
-
-    return int(estimated_tokens)
+    other_chars = len(text) - korean_chars - english_chars
+    estimated = (korean_chars / 1.5) + (english_chars / 4) + (other_chars / 3)
+    return max(1, int(estimated))
 
 
 # ============================================================================
