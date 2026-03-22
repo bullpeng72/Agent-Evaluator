@@ -27,17 +27,12 @@ from .korean_rag_dataset_generator import (
     GoldenDatasetManager
 )
 
-# Ragas (선택적)
+# Ragas (선택적) — ragas 0.4.x API (EvaluationDataset / SingleTurnSample)
 try:
-    from ragas import evaluate
-    from ragas.metrics import (
-        faithfulness,
-        answer_relevancy,
-        context_recall,
-        context_precision,
-        answer_similarity
-    )
-    from datasets import Dataset
+    from ragas import evaluate, EvaluationDataset
+    from ragas.dataset_schema import SingleTurnSample
+    from ragas.metrics import Faithfulness, AnswerRelevancy, ContextRecall, ContextPrecision
+    from ragas.llms import LangchainLLMWrapper
     RAGAS_AVAILABLE = True
 except ImportError:
     RAGAS_AVAILABLE = False
@@ -75,7 +70,7 @@ class EvaluationResult:
     # 추가 정보
     evaluation_time: float = 0.0
     error: Optional[str] = None
-    metadata: Dict[str, Any] = None
+    metadata: Optional[Dict[str, Any]] = None
 
 
 @dataclass
@@ -383,52 +378,49 @@ class KoreanRAGEvaluator:
         contexts: List[str],
         ground_truth: str
     ) -> Dict[str, float]:
-        """Ragas 메트릭 계산"""
+        """Ragas 메트릭 계산 (ragas 0.4.x API)"""
         if not self.use_ragas:
             return {}
 
         try:
-            # Configure Ragas to use OpenAI via LangChain
+            # ragas 0.4.x: LangchainLLMWrapper + class-instance metrics
             from langchain_openai import ChatOpenAI, OpenAIEmbeddings
+            from ragas.embeddings import LangchainEmbeddingsWrapper
 
-            # Initialize LLM and embeddings for Ragas
-            llm = ChatOpenAI(model=self.ragas_model, temperature=0)
-            embeddings = OpenAIEmbeddings()
+            llm_instance = ChatOpenAI(model=self.ragas_model, temperature=0)
+            llm_wrapper = LangchainLLMWrapper(llm_instance)
+            embeddings_wrapper = LangchainEmbeddingsWrapper(OpenAIEmbeddings())
 
-            # Ragas Dataset 생성
-            data = {
-                "question": [question],
-                "answer": [answer],
-                "contexts": [contexts],
-                "ground_truth": [ground_truth]
-            }
-
-            dataset = Dataset.from_dict(data)
-
-            # 평가 실행 with explicit LLM
-            result = evaluate(
-                dataset,
-                metrics=[
-                    faithfulness,
-                    answer_relevancy,
-                    context_recall,
-                    context_precision,
-                    answer_similarity
-                ],
-                llm=llm,
-                embeddings=embeddings
+            # ragas 0.4.x: SingleTurnSample + EvaluationDataset
+            # Field mapping: question→user_input, answer→response,
+            #                contexts→retrieved_contexts, ground_truth→reference
+            sample = SingleTurnSample(
+                user_input=question,
+                response=answer,
+                retrieved_contexts=contexts,
+                reference=ground_truth if ground_truth else None,
             )
+            dataset = EvaluationDataset(samples=[sample])
 
-            # 결과 추출
-            metrics = {
-                "faithfulness": result["faithfulness"],
-                "answer_relevancy": result["answer_relevancy"],
-                "context_recall": result["context_recall"],
-                "context_precision": result["context_precision"],
-                "answer_similarity": result["answer_similarity"]
-            }
+            # ragas 0.4.x: 클래스 인스턴스 방식으로 메트릭 생성
+            metrics_list = [
+                Faithfulness(llm=llm_wrapper),
+                ContextPrecision(llm=llm_wrapper),
+                AnswerRelevancy(llm=llm_wrapper, embeddings=embeddings_wrapper),
+            ]
+            if ground_truth:
+                metrics_list.append(ContextRecall(llm=llm_wrapper))
 
-            return metrics
+            result = evaluate(dataset, metrics=metrics_list)
+
+            # 결과 추출 — EvaluationResult[metric.name] returns list (one value per sample)
+            output: Dict[str, float] = {}
+            for metric_obj in metrics_list:
+                name = metric_obj.name
+                val = result[name]
+                output[name] = float(val[0]) if isinstance(val, (list, tuple)) else float(val)
+
+            return output
 
         except Exception as e:
             print(f"⚠️  Ragas 메트릭 계산 실패: {e}")

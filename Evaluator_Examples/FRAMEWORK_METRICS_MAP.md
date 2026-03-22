@@ -2,7 +2,7 @@
 
 Agent Evaluator가 지원하는 4개 프레임워크별 지표 커버리지 현황
 
-CrewAI · LangChain · LangGraph · AutoGen | Version 0.5.7 | 2026-03-20
+CrewAI · LangChain · LangGraph · AutoGen | Version 0.6.0 | 2026-03-22
 
 ---
 
@@ -30,10 +30,10 @@ CrewAI · LangChain · LangGraph · AutoGen | Version 0.5.7 | 2026-03-20
 
 | 프레임워크 | 설치 | 통합 클래스 | 팩토리 함수 |
 |-----------|------|------------|------------|
-| 🔵 CrewAI    | `pip install agent-evaluator[frameworks]` | `CrewAIEvaluator`    | `create_evaluated_crew()` |
-| 🟢 LangChain | `pip install agent-evaluator[frameworks]` | `LangChainEvaluator` | `create_evaluated_langchain_agent()` |
-| 🟠 LangGraph | `pip install agent-evaluator[frameworks]` | `LangGraphEvaluator` | `create_evaluated_langgraph()` |
-| 🟣 AutoGen   | `pip install agent-evaluator[frameworks]` | `AutoGenEvaluator`   | `create_evaluated_autogen_agent()` |
+| 🔵 CrewAI    | `pip install agent-evaluator[crewai]`    | `CrewAIEvaluator`    | `create_evaluated_crew()` |
+| 🟢 LangChain | `pip install agent-evaluator[langchain]` | `LangChainEvaluator` | `create_evaluated_langchain_agent()` |
+| 🟠 LangGraph | `pip install agent-evaluator[langchain]` | `LangGraphEvaluator` | `create_evaluated_langgraph()` |
+| 🟣 AutoGen   | `pip install agent-evaluator[autogen]`   | `AutoGenEvaluator`   | `create_evaluated_autogen_agent()` |
 
 ---
 
@@ -48,7 +48,7 @@ CrewAI · LangChain · LangGraph · AutoGen | Version 0.5.7 | 2026-03-20
 | 토큰 계산 | 추정값 (0으로 초기화) |
 | 도구 추적 | agents 속성 추론 |
 | 멀티에이전트 | ✅ 지원 |
-| 전체 지표 커버리지 | **80%** (25개 중 ~20개) |
+| 전체 지표 커버리지 | **~78%** (25개 중 ~20개) |
 
 ### 🟢 LangChain
 
@@ -59,29 +59,29 @@ CrewAI · LangChain · LangGraph · AutoGen | Version 0.5.7 | 2026-03-20
 | 토큰 계산 | ✅ LLM 실제 응답값 |
 | 도구 추적 | ✅ AgentAction 실시간 |
 | 멀티에이전트 | ✗ 단일 에이전트 |
-| 전체 지표 커버리지 | **77%** (25개 중 ~19.3개) |
+| 전체 지표 커버리지 | **~82%** (25개 중 ~21개) |
 
 ### 🟠 LangGraph
 
 | 항목 | 내용 |
 |------|------|
 | 아키텍처 | 상태 머신 / 그래프 |
-| 추적 방식 | 노드 래핑 (per-node) |
+| 추적 방식 | stream() 기반 노드 래핑 (per-node 실측 타이밍) |
 | 토큰 계산 | 🔶 AIMessage.usage_metadata (LC LLM 사용 시) |
 | 도구 추적 | 🔶 ToolMessage 파싱 (LC LLM 사용 시) |
-| 멀티에이전트 | ✗ 미구현 |
-| 전체 지표 커버리지 | **65%** (25개 중 ~16.3개) |
+| 멀티에이전트 | 🔶 노드 전환 기반 부분 지원 |
+| 전체 지표 커버리지 | **~82%** (25개 중 ~21개) |
 
 ### 🟣 AutoGen
 
 | 항목 | 내용 |
 |------|------|
 | 아키텍처 | 대화형 멀티에이전트 |
-| 추적 방식 | generate_reply 래핑 |
+| 추적 방식 | on_messages() / team.run() 통합 (async-first, 0.4+) |
 | 토큰 계산 | 🔶 tiktoken 우선, 한/영 휴리스틱 fallback |
-| 도구 추적 | ✗ SDK 미노출 |
+| 도구 추적 | ✅ ToolCallRequestEvent/ToolCallExecutionEvent 기반 (0.4+) |
 | 멀티에이전트 | ✅ 메시지 기반 |
-| 전체 지표 커버리지 | **65%** (25개 중 ~16.3개) |
+| 전체 지표 커버리지 | **~80%** (25개 중 ~20개) |
 
 ---
 
@@ -93,20 +93,20 @@ CrewAI · LangChain · LangGraph · AutoGen | Version 0.5.7 | 2026-03-20
 |---|------|-----------|-------------|-------------|----------|
 | 1 | **Task Completion Rate (TCR)**<br>완전/부분/실패 분류 · success 필드 | ✅ 예외 기반 자동 | ✅ 콜백 기반 자동 | ✅ 노드 오류 기반 | ✅ 예외 기반 자동 |
 | 2 | **Accuracy**<br>Token Overlap·Jaccard·LCS·Char 유사도 | ✅ ground_truth 제공 시 | ✅ ground_truth 제공 시 | ✅ run(ground_truth=...) 제공 시 자동 | ✅ set_ground_truth() 후 자동 |
-| 3 | **Hallucination Detection**<br>규칙 기반 사실 일관성 검사 | ✅ context + response 제공 시 | ✅ context + response 제공 시 | ✗ 미구현 | ✗ 미구현 |
-| 4 | **Response Quality (5-dim)**<br>relevance·completeness·accuracy·clarity·usefulness | 🔧 `monitor.quality_evaluator.evaluate_response()` | 🔧 `monitor.quality_evaluator.evaluate_response()` | 🔧 `monitor.quality_evaluator.evaluate_response()` | 🔧 `monitor.quality_evaluator.evaluate_response()` |
-| 5 | **Latency**<br>p50·p95·p99·mean·SLA 준수율 | ✅ 전체 실행 시간 | ✅ 콜백 on_chain_end 측정 | ✅ 노드별 실측 + 총 시간 | ✅ generate_reply 측정 |
+| 3 | **Hallucination Detection**<br>규칙 기반 사실 일관성 검사 | ✅ tasks_output에서 자동 수집 | 🔶 on_retriever_end 콜백 시 (Retriever 미사용 시 수집 불가) | 🔶 ToolMessage 컨텍스트 자동 수집 | 🔶 도구 결과 컨텍스트 자동 수집 |
+| 4 | **Response Quality (5-dim)**<br>relevance·completeness·accuracy·clarity·usefulness | ✅ question/response 제공 시 자동 연결 | ✅ question/response 제공 시 자동 연결 | ✅ question/response 제공 시 자동 연결 | ✅ question/response 제공 시 자동 연결 |
+| 5 | **Latency**<br>p50·p95·p99·mean·SLA 준수율 | 🔶 전체 시간 ÷ 태스크 수 균등 분배 (추정) | ✅ 콜백 on_chain_end 실측 | ✅ 노드별 실측 + 총 시간 | 🔶 team.run() 총 시간 (도구 레벨 타이밍 추정) |
 | 6 | **Token Economy**<br>입출력 비율·비용 추정·월간 예측 | ✗ SDK 미노출 (항상 0) | ✅ LLM 실제 응답 token_usage | 🔶 AIMessage.usage_metadata (LC LLM 시) | 🔶 tiktoken 우선, 한/영 휴리스틱 fallback |
 
 ### 🤖 Layer 2 — Agentic 지표 (5개)
 
 | # | 지표 | 🔵 CrewAI | 🟢 LangChain | 🟠 LangGraph | 🟣 AutoGen |
 |---|------|-----------|-------------|-------------|----------|
-| 7  | **Tool Call Efficiency**<br>효율성 점수·중복 호출·실패율 | 🔶 agents 속성에서 도구 추론 | ✅ on_agent_action/tool_end/tool_error 실측 | 🔶 ToolMessage 파싱 (LC LLM 시) | ✗ AutoGen SDK 미노출 |
+| 7  | **Tool Call Efficiency**<br>효율성 점수·중복 호출·실패율 | 🔶 agents 속성에서 도구 추론 | ✅ on_agent_action/tool_end/tool_error 실측 | 🔶 ToolMessage 파싱 (LC LLM 시) | ✅ ToolCallRequestEvent/ToolCallExecutionEvent 기반 |
 | 8  | **Retry & Error Recovery**<br>재시도율·첫 시도 성공률·수정 성공률 | 🔶 attempts=1 고정 | ✅ on_retry 콜백 자동, attempts=1+count | 🔶 attempts=1 고정 | 🔶 attempts=1 고정 |
-| 9  | **Tool Selection Accuracy**<br>Precision·Recall·F1 (기대 vs 실제 도구) | ✅ expected_tools vs 실행 도구 F1 | ✅ expected_tools vs AgentAction F1 | ✗ 도구 추적 없음 | ✗ 도구 추적 없음 |
-| 10 | **Agent Coordination**<br>협업 점수·패턴(Hub/Chain/Mesh)·성공률 | ✅ Hierarchical/Sequential 패턴 추론 | ✗ 단일 에이전트 — 멀티 미지원 | ✗ 미구현 | ✅ generate_reply sender 추적 |
-| 11 | **Workflow Execution**<br>단계 성공률·태스크 성공률·총 단계 수 | ✅ task별 workflow step 추적 | 🔶 도구 호출 = 스텝 (실측 타이밍) | ✅ 노드 실행 = 스텝 (실측 타이밍) | 🔶 메시지 히스토리 기반 자동 추적 |
+| 9  | **Tool Selection Accuracy**<br>Precision·Recall·F1 (기대 vs 실제 도구) | ✅ expected_tools vs 실행 도구 F1 | ✅ expected_tools vs AgentAction F1 | ✅ expected_tools 제공 시 자동 (ToolMessage 기반) | ✅ ToolCallEvent 기반 자동 추적 |
+| 10 | **Agent Coordination**<br>협업 점수·패턴(Hub/Chain/Mesh)·성공률 | ✅ Hierarchical/Sequential 패턴 추론 | ✗ 단일 에이전트 — 멀티 미지원 | ✅ 노드 전환 감지 → from/to 쌍 자동 기록 | ✅ on_messages() sender 추적 |
+| 11 | **Workflow Execution**<br>단계 성공률·태스크 성공률·총 단계 수 | 🔶 태스크명 키워드 추론 (실행 상태 미확인) | 🔶 도구 호출 = 스텝 (실측 타이밍) | ✅ 노드 실행 = 스텝 (실측 타이밍) | 🔶 메시지 히스토리 기반 자동 추적 |
 
 ### 🛡 Layer 2 — Security 지표 (5개)
 
@@ -214,21 +214,22 @@ agent = create_evaluated_langchain_agent(
 ```python
 from agent_evaluator import PerformanceMonitor
 from agent_evaluator.integrations.langgraph_integration import (
-    LangGraphEvaluator, create_evaluated_langgraph
+    LangGraphEvaluator, create_evaluated_langgraph_agent
 )
 
 monitor = PerformanceMonitor(output_dir="results/")
 
-# 노드별 Workflow 자동 추적
-graph = create_evaluated_langgraph(
-    graph=my_compiled_graph,
+# 기존 컴파일 그래프 직접 래핑 (from_compiled 방식, v0.6.0+)
+graph = create_evaluated_langgraph_agent(
+    my_compiled_graph,         # 컴파일된 그래프를 첫 번째 인자로 전달
     monitor=monitor,
-    enable_layer2=True,  # 노드 래핑 활성화
+    enable_layer2=True,        # 노드 래핑 활성화
 )
-result = graph.invoke(state)
+# stream() 기반으로 노드별 실측 타이밍 자동 수집
+result = graph.run(state)
 
 # ground_truth 제공 시 Accuracy 자동 평가
-result = evaluator.run(
+result = graph.run(
     initial_state={"messages": [HumanMessage(content=query)]},
     ground_truth="예상 답변",
 )
@@ -247,16 +248,17 @@ from agent_evaluator.integrations.autogen_integration import (
 
 monitor = PerformanceMonitor(output_dir="results/")
 
-# generate_reply 래핑으로 에이전트 상호작용 추적
+# async-first 재설계 (0.4+): on_messages() / team.run() 통합
 evaluator = AutoGenEvaluator(agent=assistant, monitor=monitor)
 
 # Accuracy 평가를 위한 정답 설정
 evaluator.set_ground_truth("예상 답변")
 
 # 멀티에이전트 협업 + 워크플로우 자동 추적
-# → 메시지 히스토리에서 workflow_steps 자동 구성
-# Token Economy: tiktoken 설치 시 정확한 값, 미설치 시 휴리스틱
-# Tool calls: AutoGen SDK에서 미노출
+# → on_messages() sender 기반 에이전트 상호작용 기록
+# → ToolCallRequestEvent/ToolCallExecutionEvent 기반 도구 추적 (v0.6.0+)
+# Token Economy: tiktoken 설치 시 정확한 값, 미설치 시 휴리스틱 fallback
+# 0.3.x: generate_reply 래핑 불가 → UserWarning 후 수동 record_task() 권고
 ```
 
 ### 🛡 보안 지표 추가 (모든 프레임워크 공통)
@@ -286,8 +288,9 @@ monitor.tool_chain_attack_detector.analyze_tool_chain(task_id, tool_sequence)
 | 🟢 LangChain | Agent Coordination 미지원 | 단일 에이전트 아키텍처 | CrewAI 또는 AutoGen으로 교체 |
 | 🟠 LangGraph | Token Economy 부분 수집 | LangChain LLM 미사용 시 토큰 접근 불가 | LangChain 통합 LLM 사용 또는 수동 설정 |
 | 🟠 LangGraph | 도구 추적 부분 지원 | ToolMessage 기반 — LangChain LLM 통합 필요 | LangChain 통합 LLM 사용 시 자동 추출 |
-| 🟣 AutoGen | 도구 호출 미추적 | AutoGen SDK에서 function call 미노출 | function_map 래퍼에 tracker 삽입 (P1) |
-| CrewAI / LangGraph / AutoGen | Retry 미추적 (attempts=1 고정) | 재시도 로직이 프레임워크 내부에 은닉 | `retry_tracker.track_attempts()` 수동 호출 (\* LangChain은 on_retry 자동 추적) |
+| 🟣 AutoGen | 0.3.x generate_reply 미지원 | 0.4+ async API 전환으로 generate_reply 래핑 불가 | UserWarning 안내, 수동 `monitor.record_task()` 사용 또는 0.4+ async API 사용 |
+| CrewAI / LangGraph | Retry 부분 추적 (attempts=1 고정, 실패 이벤트 감지) | 재시도 카운트가 프레임워크 내부에 은닉 | `retry_tracker.track_attempts()` 수동 호출 (\* LangChain은 on_retry 자동 추적) |
+| 🟣 AutoGen | Retry 부분 추적 (is_error=True 도구 실패 감지) | async API 전환 후 재시도 카운트 미노출 | `retry_tracker.track_attempts()` 수동 호출 |
 
 ### 🎯 프레임워크 선택 가이드
 
@@ -296,9 +299,9 @@ monitor.tool_chain_attack_detector.analyze_tool_chain(task_id, tool_sequence)
 | 정확한 비용 추적이 필요한 경우 | 🟢 **LangChain** | 유일하게 실제 토큰 수를 자동 수집 |
 | 멀티에이전트 협업 분석 | 🔵 **CrewAI** | Agent Coordination + Tool Selection 자동 추적 |
 | 복잡한 상태 머신 / DAG 워크플로우 | 🟠 **LangGraph** | 노드별 실측 타이밍 + Workflow Execution 자동 추적 |
-| 대화형 에이전트 간 상호작용 분석 | 🟣 **AutoGen** | 에이전트 메시지 교환 자동 추적 |
-| 전체 25개 지표 최대 커버리지 | 🔵 **CrewAI** | Layer 1/2 자동 지표 수가 가장 많음 (~20개) |
+| 대화형 에이전트 간 상호작용 분석 | 🟣 **AutoGen** | 에이전트 메시지 교환 자동 추적 (async-first; `run_sync()` 동기 래퍼 제공) |
+| 전체 25개 지표 최대 커버리지 | 🟢 **LangChain** / 🟠 **LangGraph** | 공동 최고 ~82% (~21개) — LangChain: Token Economy ✅ 실제값 + Retry ✅ 자동, LangGraph: Latency ✅ 노드별 실측 |
 
 ---
 
-*Updated: 2026-03-20 (P0 improvements applied) | MIT License | Python 3.8+*
+*Updated: 2026-03-22 (v0.6.0 — 4개 프레임워크 완전 지원 반영) | MIT License | Python 3.8+*

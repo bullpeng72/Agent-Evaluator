@@ -5,7 +5,7 @@
 **Agent-Evaluator** is a production-ready Python SDK for evaluating AI agents.
 25개의 성능 지표를 세 개의 레이어(기본/에이전틱/하이브리드)로 측정한다.
 
-- **Version:** 0.5.8 (Beta)
+- **Version:** 0.6.0 (Beta)
 - **Python:** 3.8+
 - **License:** MIT
 - **Author:** Sungwoo Kim
@@ -19,8 +19,13 @@
 pip install -e ".[dev]"
 
 # 선택적 의존성 포함 설치
-pip install -e ".[eval,frameworks,llm]"
-pip install -e ".[all]"
+pip install -e ".[llm,serve]"          # 가장 빠른 실용 구성
+pip install -e ".[langchain,serve]"    # LangChain/LangGraph 포함
+pip install -e ".[eval]"               # DeepEval/Ragas 평가
+pip install -e ".[crewai]"            # CrewAI 단독 (무거움)
+pip install -e ".[autogen]"           # AutoGen 단독 (무거움)
+pip install -e ".[all]"               # crewai/autogen 제외 전체 (권장)
+pip install -e ".[full]"              # 진짜 전체 (⚠️ 10분+ 소요)
 
 # --- CLI (pip install 후 바로 사용 가능) ---
 agent-eval init          # 대화형 API 키 설정 마법사
@@ -87,7 +92,7 @@ Layer 3 — Hybrid Evaluation (requires optional deps)
 ```
 agent_evaluator/
 ├── core/
-│   ├── agent_evaluator.py   # 모든 16개 트래커 + PerformanceMonitor (5,409줄 — 분리 예정)
+│   ├── agent_evaluator.py   # 모든 16개 트래커 + PerformanceMonitor (5,458줄 — 분리 예정)
 │   ├── hybrid_monitor.py    # HybridPerformanceMonitor
 │   └── monitor_context.py   # Context managers
 ├── integrations/
@@ -249,11 +254,20 @@ from agent_evaluator import (
 
 ---
 
+## Dependency Constraints (Known)
+
+| 항목 | 상태 | 설명 |
+|------|------|------|
+| `ragas>=0.4.0` | ✅ 지원 | 0.4.x API(EvaluationDataset, SingleTurnSample) 완전 지원. `datasets>=4.0.0,<6.0.0` 함께 적용 |
+| `[frameworks]`/`[full]` pydantic 충돌 | 🟡 허용 | crewai(pydantic<2.12) + pyautogen(pydantic>=2.12 선호) 동시 설치 시 pydantic 2.11.x로 silent downgrade. 기능 동작은 정상이나 autogen 최신 기능 일부 제한 가능 |
+| `pyautogen>=0.3.0` 0.4+ async API | 🟡 부분 지원 | 0.4+(autogen-agentchat 0.4+)는 async API로 전환 → generate_reply wrapping 불가. UserWarning으로 안내하며 수동 `monitor.record_task()` 사용 필요 |
+| `AnswerRelevancy` embeddings | 🟡 조건부 | OpenAI API 키 있을 때만 자동 설정. Anthropic-only 환경에서는 AnswerRelevancy 지표 제외됨 |
+
 ## Known Technical Debt
 
 | 우선순위 | 항목 | 위치 |
 |---------|------|------|
-| 🔴 High | `agent_evaluator.py` 5,409줄 단일 파일 — trackers/ 분리 필요 | `core/agent_evaluator.py` |
+| 🔴 High | `agent_evaluator.py` 5,458줄 단일 파일 — trackers/ 분리 필요 | `core/agent_evaluator.py` |
 | ✅ Fixed | 테스트 없음 — `tests/` 4개 파일, 33개 테스트 함수 작성 완료 | `tests/` |
 | 🔴 High | `import re` 9회 함수 내부에서 임포트 → 모듈 상단으로 이동 필요 | `core/agent_evaluator.py` |
 | 🔴 High | `os.chdir()` 라이브러리 코드 내 사용 → `importlib` 방식으로 교체 필요 | `utils/dashboard_integration.py:44,82` |
@@ -298,12 +312,19 @@ pytest
 - `pandas>=1.3.0,<3.0.0`
 - `python-dotenv>=0.19.0,<2.0.0`
 
-### Optional (extras)
-- `[llm]` — `openai>=1.0.0,<3.0.0` + `anthropic>=0.20.0,<1.0.0` — `pip install agent-evaluator[llm]`
-- `[frameworks]` — `langchain>=0.1.0,<3.0.0` + `langgraph` + `crewai` + `pyautogen` — `pip install agent-evaluator[frameworks]`
-- `[eval]` — `deepeval>=0.20.0,<4.0.0` + `ragas>=0.1.0,<2.0.0` + `langchain` — `pip install agent-evaluator[eval]`
-- `[serve]` — `fastapi>=0.110.0` + `uvicorn[standard]>=0.29.0` + `jinja2>=3.1.0` + `python-multipart>=0.0.9` — `pip install agent-evaluator[serve]`
-- `[all]` — 위 모든 것 + `pypdf>=3.0.0` + `pdfplumber>=0.10.0` — `pip install agent-evaluator[all]`
+### Optional (단위 extras)
+- `[llm]` — `openai>=1.0.0,<3.0.0` + `anthropic>=0.20.0,<1.0.0` — 빠름
+- `[langchain]` — `langchain>=1.0.0,<3.0.0` + `langchain-core/openai/anthropic>=1.0.0` + `langgraph>=1.0.0` — 중간
+- `[crewai]` — `crewai>=1.0.0,<2.0.0` — 무거움 (전이 의존성 100개+), 단독 격리
+- `[autogen]` — `pyautogen>=0.3.0,<1.0.0` + `autogen-agentchat/core>=0.4.0` — 무거움, 단독 격리
+- `[eval]` — `deepeval>=0.20.0,<4.0.0` + `ragas>=0.4.0,<2.0.0` + `datasets>=4.0.0,<6.0.0` + `langchain>=0.2.0`
+- `[serve]` — `fastapi>=0.110.0` + `uvicorn[standard]>=0.29.0` + `jinja2>=3.1.0` + `python-multipart>=0.0.9` — 빠름
+- `[pdf]` — `pypdf>=3.0.0,<7.0.0` + `pdfplumber>=0.10.0,<1.0.0` — 빠름
+
+### Optional (조합 편의 extras)
+- `[frameworks]` — `langchain` + `crewai` + `autogen` 한 번에 (기존 호환, 무거움)
+- `[all]` — crewai/autogen **제외** 전체 (권장, 합리적 설치 시간) — `pip install agent-evaluator[all]`
+- `[full]` — crewai/autogen 포함 진짜 전체 (⚠️ 10분+ 소요) — `pip install agent-evaluator[full]`
 
 ---
 
@@ -333,41 +354,44 @@ pytest
 
 ## 📝 변경 이력
 
-### v0.5.8 (2026-03-21) — 골든 데이터 질문 생성 품질 개선
+### v0.6.0 (2026-03-21) — 4개 프레임워크 완전 지원 + ragas 0.4.x + 의존성 재설계
 
-- 🐛 `serve/routers/golden.py` — `_is_bad_token()`: "이"/"가" 어미 2자 토큰을 bad token으로 잘못 필터링하던 버그 수정 ("평가", "의미" 등 유효 명사가 토픽에서 제외되던 문제 해결)
-- 🔧 `serve/routers/golden.py` — `_SUBJ_PARTICLES`에 "을"/"를" 추가 — 대격 조사 부착 명사("표현을")에서 조사를 제거해 자연스러운 질문 토픽 생성
+#### 프레임워크 최신 버전 완전 지원 (LangChain 1.2.x / LangGraph 1.1.x / CrewAI 1.11.x / AutoGen 0.7.x)
+- ✨ LangChain — `agent.invoke(config={"callbacks":[...]})` (LCEL Runnable), Chat 모델 토큰 멀티 포맷 통합, `langchain>=1.0.0` 상향
+- ✨ LangGraph — `from_compiled()` 기존 그래프 직접 래핑, `stream()` 전환으로 노드별 실측 타이밍 수집, `START` import 추가
+- ✨ CrewAI — `result.raw` / `crew.usage_metrics` / `result.tasks_output` 기반 실측 추적, `kickoff_async()` 지원, `crewai>=1.0.0` 상향
+- ✨ AutoGen — async-first 재설계, `on_messages()` + `team.run()` 통합, `ToolCallRequestEvent`/`ToolCallExecutionEvent` 기반 도구 추적, `run_sync()` 동기 래퍼 추가
 
-### v0.5.7 (2026-03-20) — 프레임워크 통합 개선 및 PyPDF2 → pypdf 교체
+#### 지표 커버리지 전면 확대 (4개 프레임워크 공통)
+- ✨ `HallucinationDetector` — RAG 컨텍스트 자동 수집·연결 (LangChain retriever, LangGraph ToolMessage, CrewAI 중간 태스크, AutoGen 도구 결과)
+- ✨ `AgentCoordinationTracker` — LangGraph 노드 전환 감지 → from/to 쌍 자동 기록
+- ✨ `RetryCorrectionTracker` — LangChain `on_retry`, AutoGen `is_error=True` 도구 실패, LangGraph/CrewAI 실패 노드·태스크 감지
+- ✨ `ResponseQualityEvaluator` — 4개 프레임워크 모두 request/response 기반 5차원 자동 연결
+- ✨ `ToolCallAnalyzer` + `ToolSelectionTracker` — 4개 프레임워크 `_record_layer2()` 전면 연결
+- ✨ `TokenEconomy` model_name 추적 — `on_chat_model_start` / `model_client.total_usage()` / tiktoken fallback
+- ✨ 보안 트래커 opt-in — `enable_security=True` 플래그로 `InputSanitizationTracker` / `OutputLeakageDetector` / `ToolAuthorizationTracker` / `PrivilegeEscalationDetector` / `ToolChainAttackDetector` 전체 자동 초기화 (4개 프레임워크 + `create_evaluated_*` 편의 함수 전파)
+- 🔧 `generate_report()` — ResponseQuality·Hallucination·ToolCallAnalyzer·PrivilegeEscalation·ToolChainAttack·Retry 통계 균일 출력
 
-- 🔧 `langgraph_integration.py` — `AIMessage.usage_metadata`로 토큰 자동 추출 + `ToolMessage` 파싱으로 도구 추적 지원 (LangChain LLM 사용 시), 커버리지 44% → 65%
-- 🔧 `autogen_integration.py` — `tiktoken` 우선 토큰 추정 + 한/영 휴리스틱 fallback, 메시지 히스토리에서 Workflow steps 자동 구성, 커버리지 52% → 65%
-- 🔧 `langchain_integration.py` — 실측 타이밍·재시도 추적 개선
-- 🐛 `pyproject.toml` — deprecated `PyPDF2>=3.0.0` → `pypdf>=3.0.0,<7.0.0` 교체 (`[all]` extra)
-- 📝 `FRAMEWORK_METRICS_MAP.md` 추가 (HTML → Markdown) + P0 개선 사항 반영
-- 📝 `CLAUDE.md` — `tests/` 디렉토리 현행화 (33개 테스트 함수 기재)
+#### ragas 0.4.x 및 의존성 구조 재설계
+- ✨ `RagasAdapter` — ragas 0.4.x API 완전 지원 (`EvaluationDataset`/`SingleTurnSample`, 클래스 인스턴스 방식, 필드명 전면 변경)
+- 🔧 `pyproject.toml` — `[all]`에서 crewai·pyautogen 분리, `[langchain]`/`[crewai]`/`[autogen]`/`[pdf]`/`[full]` 단위 extras 추가
+- 🔧 `ragas>=0.4.0,<2.0.0` + `datasets>=4.0.0,<6.0.0` 상한 조정
+- 🐛 pydantic silent downgrade 경고 문서화, deprecated `PyPDF2` → `pypdf>=3.0.0,<7.0.0` 교체
+- 🐛 `serve/routers/golden.py` 한국어 어미 필터 오버필터링 수정 (`_is_bad_token()`, `_SUBJ_PARTICLES`)
+- 🔧 `server.py` deprecated `on_event` → `asynccontextmanager` lifespan 방식
 
-### v0.5.6 (2026-03-20) — `datasets` 의존성 상한 추가 및 pipx 설치 오류 수정
+### v0.5.x (2026-03-20) — 초기 안정화 및 문서·의존성 정비
 
-- 🐛 `pyproject.toml` `[eval]`·`[all]` extra에 `datasets>=2.14.0` 상한 추가 — ragas/crewai 전이 의존성이 구버전 `datasets` 소스 빌드를 시도해 발생하는 `FileNotFoundError: DESCRIPTION.rst` 수정
-- 🔧 `server.py` — deprecated `on_event` → `asynccontextmanager` lifespan 방식으로 리팩터
-
-### v0.5.5 (2026-03-20) — CLI/대시보드/지표 문서 오류 수정 및 Public API 보완
-
-- 🔧 `--share` 옵션 설명 수정 — ngrok 불필요, `host=0.0.0.0` 바인딩으로 정정 (`Docs/13_DEPLOYMENT_GUIDE.md`)
-- 🔧 `ResponseQuality.total_score` 범위 수정 — `(0–10)` → `(0–5)` (API 반환값 기준) + `grade` 필드 추가 (`README.md`)
-- 📝 CLAUDE.md Public API에 Transparency 서브시스템(`TestTransparencyManager`, `AnnotationType`, `TestStepStatus`) 및 Config 헬퍼(`load_env`, `get_settings`, `init_from_app`) 누락 항목 추가
-- 📝 README.md 프로젝트 트리에 `utils/test_transparency_manager.py` 추가
-- 📝 Docs/04_LEARNING_GUIDE.md, Docs/01_README.md 최종 업데이트 날짜 2026-03-19 → 2026-03-20
-
-### v0.5.4 (2026-03-20) — DEEPEVAL_API_KEY 제거 및 문서·SDK 레퍼런스 정비
-
-- 🔧 `DEEPEVAL_API_KEY` 제거 — 실제 코드에서 미사용, `config.py`·`cli/main.py`·`README` 전파 제거
-- 🔧 `evaluation_session` 시그니처 오류 수정 (async → sync @contextmanager)
-- 🔧 `ResponseQualityEvaluator` 6차원 → 5차원 수정 (안전성 제거, 가중치 명시)
-- 📝 `sdk_docs.html.j2` 16개 트래커 API 명세 전면 추가 — TaskResult/TaskType/create_taskresult 오류 수정
-- 📝 README 연도 2024 → 2026, 예시 파일명 현행화
-- 📝 `results/` 예시 데이터 git 추적 추가
-- 🗑️ `verify_installation.py` 삭제 (미사용, 구식 Streamlit 참조 포함)
-- 🗑️ `Docs/Metrics/` 개별 지표 파일 삭제 (06_METRICS_GUIDE.md 통합)
-- ✨ `agent_evaluator/py.typed` 추가 (PEP 561)
+- ✨ `py.typed` 추가 (PEP 561 타입 스텁 선언)
+- ✨ FastAPI 대시보드 서버(`agent-eval serve`) 초기 구현 — 포트 지정·파일 변경 감시·오프라인 모드
+- ✨ `agent-eval init` / `check` CLI 명령어 추가
+- 🔧 `ResponseQualityEvaluator` 6차원 → 5차원 정리 (안전성 제거, 가중치 명시), `total_score` 범위 `(0–10)` → `(0–5)` 수정
+- 🔧 `evaluation_session` 시그니처 수정 (async → sync @contextmanager)
+- 🔧 `DEEPEVAL_API_KEY` 전 코드베이스에서 제거 (미사용 환경변수)
+- 🔧 Public API에 `TestTransparencyManager` / `AnnotationType` / `TestStepStatus` / `load_env` / `get_settings` / `init_from_app` 추가
+- 🔧 `datasets` 의존성 상한 추가 — `FileNotFoundError: DESCRIPTION.rst` 설치 오류 수정
+- 🔧 LangGraph `AIMessage.usage_metadata` 토큰 추출 + `ToolMessage` 파싱 도구 추적
+- 🔧 AutoGen tiktoken 우선 토큰 추정 + 한/영 휴리스틱 fallback
+- 🐛 `sdk_docs.html.j2` TaskResult/TaskType/create_taskresult API 명세 오류 수정
+- 🗑️ `verify_installation.py` 삭제, `Docs/Metrics/` 개별 파일 → `06_METRICS_GUIDE.md` 통합
+- 📝 `FRAMEWORK_METRICS_MAP.md` 추가, `tests/` 33개 테스트 함수 현행화

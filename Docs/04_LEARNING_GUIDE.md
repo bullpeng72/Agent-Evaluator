@@ -2,7 +2,7 @@
 
 개발자 & 품질관리자를 위한 완벽 학습서
 
-v0.5.8 — 25개 메트릭 · 3-Layer · 4개 프레임워크
+v0.6.0 — 25개 메트릭 · 3-Layer · 4개 프레임워크
 
 ## 📊 1. Agent Evaluator 개요
 
@@ -14,13 +14,13 @@ Agent Evaluator는 AI Agent의 성능을 다각도로 평가하고 모니터링�
 
 #### 🆓 Layer 1: Foundation Metrics
 
-**완전 무료, API 키 불필요 (v0.5.8)**
+**완전 무료, API 키 불필요 (v0.6.0)**
 
   * **Foundation (6개):** TCR, Accuracy, Hallucination Detection, Quality, Latency, Token Economy
 
 #### 🤖 Layer 2: Agentic + Security Metrics
 
-**Multi-Agent & 보안 통합 평가 (v0.5.8)**
+**Multi-Agent & 보안 통합 평가 (v0.6.0)**
 
   * **Agentic (5개):** Tool Call Analysis, Retry/Correction, Tool Selection Accuracy, Agent Coordination, Workflow Execution
   * **Security (5개):** Input Sanitization, Output Leakage, Tool Authorization, Privilege Escalation, Tool Chain Attack Detection
@@ -37,7 +37,7 @@ Agent Evaluator는 AI Agent의 성능을 다각도로 평가하고 모니터링�
 항목 | 수량 | 세부사항  
 ---|---|---  
 **코드베이스** | 11개 파일 | 783KB, 23개 클래스, 99개 메서드  
-**문서** | 18개 파일 | ~2MB (10개 docs/ 가이드 + 6개 루트 HTML + 2개 Evaluator_Examples/ 리포트)  
+**문서** | 14개 파일 | ~2MB (Docs/ 디렉토리 14개 가이드)  
 **예제** | 5개 파일 | Evaluator_Examples/ 디렉토리 (품질/성능/에이전틱/보안/하이브리드 각 1개)  
 **메트릭** | 25개 | Layer 1 (6개: Foundation) + Layer 2 (10개: 5 Agentic + 5 Security) + Layer 3 (9개: Hybrid)
 **프레임워크 지원** | 4개 | LangChain, CrewAI, LangGraph, AutoGen  
@@ -345,8 +345,8 @@ compare_with_thresholds()
     pip install agent-evaluator
     
     # 추가 프레임워크 설치 (필요 시)
-    pip install crewai>=0.11.0 langgraph>=0.0.20
-    pip install deepeval>=0.21.0 ragas>=0.1.0
+    pip install crewai>=1.0.0 langgraph>=1.0.0
+    pip install deepeval>=0.20.0 ragas>=0.4.0 datasets>=4.0.0
     
     # .env 파일 생성 (Layer 3 사용 시)
     echo "OPENAI_API_KEY='your-api-key-here'" > .env
@@ -398,8 +398,8 @@ compare_with_thresholds()
         exec_time = time.time() - start
     
         # TaskResult 생성 (간단한 방식)
-        # 참고: 실제 프로덕션에서는 taskresult_helpers.py의
-        # create_taskresult_from_execution() 함수를 사용하는 것이 권장됩니다!
+        # 참고: 실제 프로덕션에서는 create_taskresult() 헬퍼 함수를 사용하는 것이 권장됩니다!
+        # from agent_evaluator import create_taskresult
         accuracy = 1.0 if expected.replace(" ", "").lower() in response.replace(" ", "").lower() else 0.5
     
         task = TaskResult(
@@ -1029,22 +1029,21 @@ TaskResult의 필드들은 하드코딩이 아닌 **실제 계산 함수** 를 �
 
 ✅ 실행 가능 📋 복사
 ```python
-    from agent_evaluator import PerformanceMonitor, TaskType
-    from agent_evaluator.helpers import create_taskresult_from_execution
+    from agent_evaluator import PerformanceMonitor, TaskType, create_taskresult
     import time
-    
+
     monitor = PerformanceMonitor()
-    
+
     # 1. Agent 실행
     question = "한국의 수도는 어디인가요?"
     ground_truth = "서울"
-    
+
     start_time = time.time()
     response = "서울입니다"  # your_agent.run(question)
     execution_time = time.time() - start_time
-    
+
     # 2. TaskResult 생성 (모든 필드 동적 계산!)
-    task = create_taskresult_from_execution(
+    task = create_taskresult(
         task_id="task_001",
         question=question,
         response=response,
@@ -1074,18 +1073,17 @@ OpenAI API 응답에서 토큰 사용량을 자동으로 추출하고, 헬퍼 �
 
 ✅ 실행 가능 📋 복사
 ```python
-    from agent_evaluator import PerformanceMonitor
-    from agent_evaluator.helpers import create_taskresult_from_execution
+    from agent_evaluator import PerformanceMonitor, create_taskresult
     from openai import OpenAI
     import time
-    
+
     monitor = PerformanceMonitor()
     client = OpenAI()
-    
+
     # 1. 평가할 질문과 정답
     question = "한국의 수도는 어디인가요?"
     ground_truth = "서울"
-    
+
     # 2. OpenAI API 호출
     start = time.time()
     openai_response = client.chat.completions.create(
@@ -1093,28 +1091,30 @@ OpenAI API 응답에서 토큰 사용량을 자동으로 추출하고, 헬퍼 �
         messages=[{"role": "user", "content": question}]
     )
     exec_time = time.time() - start
-    
+
     # 3. 응답 추출
     response = openai_response.choices[0].message.content
-    
-    # 4. TaskResult 자동 생성 (모든 필드 동적!)
-    task = create_taskresult_from_execution(
+    usage = openai_response.usage
+    tokens = {"input": usage.prompt_tokens, "output": usage.completion_tokens,
+              "total": usage.total_tokens}
+
+    # 4. TaskResult 자동 생성
+    task = create_taskresult(
         task_id="task_openai_001",
         question=question,
         response=response,
         ground_truth=ground_truth,
         execution_time=exec_time,
-        openai_response=openai_response  # ← 토큰 자동 추출
+        tokens_used=tokens
     )
-    
+
     # 5. 자동 계산 결과 확인
-    print(f"✅ Completion Score: {task.completion_score:.2f}")  # 응답 길이/완성도 기반
-    print(f"✅ Accuracy Score: {task.accuracy_score:.2f}")      # Ground truth 비교 
-    print(f"✅ Tokens: {task.tokens_used}")                     # OpenAI usage에서 추출
-    print(f"✅ Tool Calls: {len(task.tool_calls)}")            # Function calling 사용 시 추출
-    
+    print(f"✅ Completion Score: {task.completion_score:.2f}")
+    print(f"✅ Accuracy Score: {task.accuracy_score:.2f}")
+    print(f"✅ Tokens: {task.tokens_used}")
+
     monitor.record_task(task)
-    
+
     # 6. 여러 질문 배치 평가 예제
     golden_dataset = [
         {"qa_id": "qa_001", "question": "Agent Evaluator의 주요 기능은?",
@@ -1122,7 +1122,7 @@ OpenAI API 응답에서 토큰 사용량을 자동으로 추출하고, 헬퍼 �
         {"qa_id": "qa_002", "question": "TCR은 무엇인가요?",
          "answer": "Task Completion Rate로 작업 완료율을 의미합니다"}
     ]
-    
+
     for qa in golden_dataset:
         start = time.time()
         openai_response = client.chat.completions.create(
@@ -1130,17 +1130,20 @@ OpenAI API 응답에서 토큰 사용량을 자동으로 추출하고, 헬퍼 �
             messages=[{"role": "user", "content": qa['question']}]
         )
         exec_time = time.time() - start
-    
+
         response = openai_response.choices[0].message.content
-    
-        # 헬퍼 함수로 TaskResult 생성 - 모든 필드 동적 계산!
-        task = create_taskresult_from_execution(
+        usage = openai_response.usage
+        tokens = {"input": usage.prompt_tokens, "output": usage.completion_tokens,
+                  "total": usage.total_tokens}
+
+        # create_taskresult() 헬퍼로 TaskResult 생성
+        task = create_taskresult(
             task_id=qa['qa_id'],
             question=qa['question'],
             response=response,
             ground_truth=qa['answer'],
             execution_time=exec_time,
-            openai_response=openai_response
+            tokens_used=tokens
         )
     
         monitor.record_task(task)
@@ -1160,17 +1163,12 @@ LangChain Agent 실행 결과에서 tool_calls를 자동으로 추출하고, Lay
 
 ✅ 실행 가능 📋 복사
 ```python
-    from agent_evaluator import PerformanceMonitor
-    from agent_evaluator.helpers import (
-        create_taskresult_from_execution,
-        extract_tool_calls_from_langchain,
-        extract_tokens_from_langchain
-    )
+    from agent_evaluator import PerformanceMonitor, create_taskresult
     from langchain.agents import AgentExecutor
     import time
-    
+
     monitor = PerformanceMonitor()
-    
+
     # Golden Dataset with expected tools (Layer 2 평가용)
     qa_with_tools = {
         "qa_id": "qa_003",
@@ -1178,23 +1176,25 @@ LangChain Agent 실행 결과에서 tool_calls를 자동으로 추출하고, Lay
         "answer": "2024년 주요 AI 트렌드는 생성형 AI, 멀티모달 모델, 에이전트 시스템입니다",
         "expected_tools": ["web_search", "summarizer"]  # Layer 2
     }
-    
-    # 1. LangChain Agent 실행
+
+    # 1. LangChain Agent 실행 (create_evaluated_langchain_agent 사용 권장)
     start = time.time()
-    agent_result = your_langchain_agent.invoke(qa_with_tools['question'])
+    agent_result = your_langchain_agent.invoke(
+        {"input": qa_with_tools['question']},
+        config={"callbacks": []}  # 평가 콜백 여기에 추가
+    )
     exec_time = time.time() - start
-    
+
     # 2. 응답 추출
     response = agent_result.get("output", "")
-    
-    # 3. TaskResult 자동 생성 (헬퍼 함수 사용)
-    task = create_taskresult_from_execution(
+
+    # 3. TaskResult 생성
+    task = create_taskresult(
         task_id=qa_with_tools['qa_id'],
         question=qa_with_tools['question'],
         response=response,
         ground_truth=qa_with_tools['answer'],
-        execution_time=exec_time,
-        langchain_result=agent_result  # ← tool_calls, tokens 자동 추출
+        execution_time=exec_time
     )
     
     # 4. Layer 2 필드 수동 추가 (Multi-Agent 시스템용)
@@ -1660,8 +1660,8 @@ Agent 상호작용 + Security 자동 추적
     
     # 보고서 생성
     report = evaluator.generate_report()
-    # ✅ Layer 1: TCR, Accuracy, Latency + Security (Input Sanitization, Output Leakage, Authorization)
-    # ✅ Layer 2: Tool Selection, Workflow + Security (Privilege Escalation, Attack Detection)
+    # ✅ Layer 1: TCR, Accuracy, Latency (Foundation)
+    # ✅ Layer 2: Tool Selection, Workflow + Security (Input Sanitization, Output Leakage, Authorization, Privilege Escalation, Attack Detection)
 ```
 
 #### ⚠️ 기존 방식 (v4.0에서 제거 예정)
@@ -1706,8 +1706,8 @@ Agent 상호작용 + Security 자동 추적
     
     # 보고서 생성
     report = evaluator.generate_report()
-    # ✅ Layer 1: TCR, Accuracy, Latency + Security (Input Sanitization, Output Leakage, Authorization)
-    # ✅ Layer 2: Agent Coordination, Workflow + Security (Privilege Escalation, Attack Detection)
+    # ✅ Layer 1: TCR, Accuracy, Latency (Foundation)
+    # ✅ Layer 2: Agent Coordination, Workflow + Security (Input Sanitization, Output Leakage, Authorization, Privilege Escalation, Attack Detection)
 ```
 
 #### ⚠️ 기존 방식 (v4.0에서 제거 예정)
@@ -1789,7 +1789,7 @@ Agent 상호작용 + Security 자동 추적
     # ✅ 메시지 교환 분석 + 보안 위협 탐지
 ```
 
-**✅ v0.5.8 통합의 장점:**
+**✅ v0.6.0 통합의 장점:**
 
   * **완전 자동화:** Layer 1/2/3 메트릭 자동 추적
   * **동적 계산:** TCR, Accuracy 등 실시간 계산
@@ -2068,9 +2068,9 @@ Golden Dataset + Threshold를 포함하는 Test Config 생성 및 저장.
         execution_time = time.time() - start
     
         # TaskResult 생성 및 기록 (헬퍼 함수 사용 권장)
-        # from agent_evaluator.helpers import create_taskresult_from_execution
+        # from agent_evaluator import create_taskresult
         #
-        # task = create_taskresult_from_execution(
+        # task = create_taskresult(
         #     task_id=qa['qa_id'],
         #     question=qa['question'],
         #     response=response,
@@ -2588,4 +2588,4 @@ Dashboard 로딩 느림 | 대용량 데이터 (1000+ tasks) | 샘플링 사용 �
 
 © 2025 Agent Evaluator. All rights reserved.
 
-**최종 업데이트** : 2026-03-21 | **버전** : Agent Evaluator v0.5.8 | **문서** : 종합 학습 가이드
+**최종 업데이트** : 2026-03-22 | **버전** : Agent Evaluator v0.6.0 | **문서** : 종합 학습 가이드

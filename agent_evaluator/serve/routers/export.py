@@ -57,7 +57,8 @@ def export_csv(file_id: str, request: Request):
             "completion_score": t.completion_score,
             "accuracy_score":   round(t.accuracy_score, 4),
             "execution_time":   t.execution_time,
-            "tokens_total":     t.tokens_used.get("total", 0),
+            "tokens_total":     t.tokens_used.get("total",
+                                    t.tokens_used.get("input", 0) + t.tokens_used.get("output", 0)),
             "attempts":         t.attempts,
             "errors":           "; ".join(str(e) for e in t.errors),
         })
@@ -103,7 +104,7 @@ def export_html(file_id: str, request: Request):
             f"<td>{pct(t.completion_score * 100)}</td>"
             f"<td>{pct(t.accuracy_score * 100)}</td>"
             f"<td>{sec_(t.execution_time)}</td>"
-            f"<td>{t.tokens_used.get('total', 0)}</td>"
+            f"<td>{t.tokens_used.get('total', t.tokens_used.get('input', 0) + t.tokens_used.get('output', 0))}</td>"
             f"<td>{t.attempts}</td></tr>\n"
         )
 

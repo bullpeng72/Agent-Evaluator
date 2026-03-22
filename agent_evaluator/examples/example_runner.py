@@ -126,8 +126,7 @@ class ExampleRunner:
         """
         filename = f"{self.file_prefix}{filename_suffix}.json"
 
-        # Use the new save_to_file with include_full_report=True
-        monitor.save_to_file(filename, include_full_report=True)
+        monitor.save_to_file(filename)
 
         print(f"\n✅ 저장 완료: {filename}")
         print(f"   위치: {monitor.output_dir / filename}")

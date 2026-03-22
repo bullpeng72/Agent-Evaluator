@@ -558,11 +558,11 @@ async function populateSlides() {
     const ag = data.agentic||{};
     document.getElementById('sl-agentic-content').innerHTML =
       `<div class="kpi-row" style="grid-template-columns:repeat(3,1fr);margin-top:4px">
-        <div class="kpi-box"><div class="kpi-lbl">Tool F1 Score</div><div class="kpi-val c-accent">${((ag.tool_selection_summary?.avg_f1_score||0)*100).toFixed(1)}%</div></div>
+        <div class="kpi-box"><div class="kpi-lbl">Tool F1 Score</div><div class="kpi-val c-accent">${(ag.tool_selection_summary?.avg_f1_score||0).toFixed(1)}%</div></div>
         <div class="kpi-box"><div class="kpi-lbl">멀티에이전트 성공률</div><div class="kpi-val">${fmtPct(ag.coordination_summary?.success_rate)}</div></div>
         <div class="kpi-box"><div class="kpi-lbl">워크플로우 단계 성공</div><div class="kpi-val">${fmtPct(ag.workflow_summary?.step_success_rate)}</div></div>
-        <div class="kpi-box"><div class="kpi-lbl">재시도 횟수</div><div class="kpi-val">${ag.retry_summary?.total_retries||0}</div></div>
-        <div class="kpi-box"><div class="kpi-lbl">재시도 성공률</div><div class="kpi-val">${fmtPct(ag.retry_summary?.success_rate)}</div></div>
+        <div class="kpi-box"><div class="kpi-lbl">재시도 횟수</div><div class="kpi-val">${ag.retry_summary?.total_tasks_with_retries||ag.retry_summary?.total_attempts||0}</div></div>
+        <div class="kpi-box"><div class="kpi-lbl">재시도 성공률</div><div class="kpi-val">${fmtPct(ag.retry_summary?.eventual_success_rate)}</div></div>
       </div>`;
   }
 
@@ -584,12 +584,19 @@ async function populateSlides() {
 
   // Slide 11 — health
   const l1 = calcL1(tcr, acc, hallu);
-  const perf = Math.max(0, Math.min(100, Math.round(100-(lat.p95||0)*15)));
+  const p95v = lat.p95;
+  const perf = (p95v==null||(p95v===0&&!data.total_tasks)) ? 0 : p95v===0 ? 100 : Math.max(5, Math.round(100 * Math.exp(-0.25 * p95v)));
   const sl1 = data.security_l1||{};
   const secSc = data.has_security
     ? Math.round(((100-(sl1.input_security?.threat_rate||0))+(100-(sl1.output_leakage?.leakage_rate||0))+(sl1.authorization?.compliance_rate||100))/3)
-    : 50;
-  const health = Math.round((l1+50+perf+secSc)/4);
+    : 0;
+  const agVals = data.has_agentic
+    ? [data.agentic?.tool_selection_summary?.avg_f1_score||0, data.agentic?.coordination_summary?.success_rate||0, data.agentic?.workflow_summary?.step_success_rate||0, data.agentic?.tool_efficiency?.success_rate||0].filter(v=>v>0)
+    : [];
+  const agSc = agVals.length ? Math.round(agVals.reduce((a,b)=>a+b,0)/agVals.length) : 0;
+  // 측정된 차원만 평균 — 미측정(0) 차원은 제외해 과소평가 방지
+  const healthVals = [l1, agSc, perf, secSc].filter(v=>v>0);
+  const health = healthVals.length ? Math.round(healthVals.reduce((a,b)=>a+b,0)/healthVals.length) : 0;
   const hEl = document.getElementById('sl-health-score');
   hEl.textContent   = health;
   hEl.style.color   = health>=80?'#4ade80':health>=60?'#facc15':'#f87171';
@@ -598,6 +605,7 @@ async function populateSlides() {
   const bc = v => v>=80?'#4ade80':v>=60?'#facc15':'#f87171';
   document.getElementById('sl-health-bars').innerHTML =
     [['Layer 1 기초 (TCR·Accuracy·Hallucination)', l1],
+     ['에이전틱 (Tool·Coordination·Workflow)', agSc],
      ['성능 (P95 Latency 기반)', perf],
      ['보안 (Security L1)', secSc]].map(([lbl,v]) =>
     `<div class="bar-row">
@@ -700,7 +708,10 @@ function renderCharts(data) {
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function calcL1(tcr, acc, hallu) {
-  return Math.round(((tcr.tcr||0)+(acc.overall_accuracy||0)+Math.max(0,100-(hallu.overall_rate||0)*10))/3);
+  const vals = [tcr.tcr||0, acc.overall_accuracy||0];
+  if ((hallu.total_evaluated||0) > 0)
+    vals.push(Math.max(0, 100 - (hallu.overall_rate||0)*10));
+  return vals.length ? Math.round(vals.reduce((a,b)=>a+b,0)/vals.length) : 0;
 }
 function fmtPct(v)  { return v==null ? '—' : (+v).toFixed(1)+'%'; }
 function fmtSec(v)  { return v==null ? '—' : (+v).toFixed(2)+'s'; }

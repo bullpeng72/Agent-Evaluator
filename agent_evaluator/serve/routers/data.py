@@ -26,7 +26,7 @@ def _to_meta(f) -> Dict[str, Any]:
         "hallucination": round(float(hall_rate), 2),
         "avg_latency":   round(f.avg_latency, 3),
         "total_cost":    round(f.total_cost, 6),
-        "quality_avg":   round(f.quality_detail.avg_score * 10, 1),
+        "quality_avg":   round(f.quality_detail.avg_score * 20, 1),
         "has_security":  f.has_security,
         "has_agentic":   f.has_agentic,
         "has_advanced":  f.has_advanced,

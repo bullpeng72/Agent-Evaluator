@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """
 에이전트 지표 검증 예제 — Agent Evaluator
 ==========================================
@@ -459,6 +461,55 @@ def run_agentic_evaluation():
     for tid, log in extra_retry_cases:
         monitor.retry_tracker.track_attempts(tid, log)
 
+    # ─── 추가: ToolCallAnalyzer 직접 호출 — 효율성 점수 케이스별 검증 ──────────
+    # record_task는 tool_calls 필드가 있으면 analyze_execution()을 자동 호출하지만
+    # 아래처럼 직접 호출하면 반환된 dict에서 케이스별 점수를 직접 확인할 수 있다.
+    direct_tool_cases = [
+        # (task_id, tool_calls, 설명)
+        # 정상 단일 호출 — 효율성 100에 가까워야 함
+        ("tool_direct_001",
+         [{"name": "web_search", "tool_name": "web_search", "success": True,  "duration": 0.3}],
+         "단일 성공 호출 (효율성 최고)"),
+        # 중복 없는 3-도구 체인
+        ("tool_direct_002",
+         [{"name": "data_query",  "tool_name": "data_query",  "success": True,  "duration": 0.5},
+          {"name": "classifier",  "tool_name": "classifier",  "success": True,  "duration": 0.4},
+          {"name": "chart_gen",   "tool_name": "chart_generator","success": True,"duration": 0.6}],
+         "3-도구 체인, 중복 없음"),
+        # 중복 호출 포함 — 효율성 낮아야 함
+        ("tool_direct_003",
+         [{"name": "web_search", "tool_name": "web_search", "success": True,  "duration": 0.3},
+          {"name": "web_search", "tool_name": "web_search", "success": True,  "duration": 0.3},  # 중복
+          {"name": "summarizer", "tool_name": "summarizer", "success": True,  "duration": 0.4}],
+         "web_search 중복 호출"),
+        # 실패 포함 — 효율성 낮아야 함
+        ("tool_direct_004",
+         [{"name": "code_executor", "tool_name": "code_executor", "success": False, "duration": 2.0},
+          {"name": "code_executor", "tool_name": "code_executor", "success": False, "duration": 2.5},
+          {"name": "code_executor", "tool_name": "code_executor", "success": True,  "duration": 1.2}],
+         "2회 실패 후 성공"),
+        # 완전 실패 체인
+        ("tool_direct_005",
+         [{"name": "db_lookup",   "tool_name": "db_lookup",   "success": False, "duration": 1.0},
+          {"name": "data_query",  "tool_name": "data_query",  "success": False, "duration": 1.5}],
+         "전체 실패 체인"),
+        # 빈 호출 — 효율성 100 반환해야 함
+        ("tool_direct_006",
+         [],
+         "도구 호출 없음 (효율성 100)"),
+    ]
+
+    print(f"\n  [직접 ToolCallAnalyzer 호출 — 케이스별 효율성 점수]")
+    for tid, calls, desc in direct_tool_cases:
+        result = monitor.tool_analyzer.analyze_execution(tid, calls)
+        score       = result.get("efficiency_score", 0)
+        total_calls = result.get("total_calls", 0)
+        redundant   = result.get("redundant_calls", 0)
+        failed      = result.get("failed_calls", 0)
+        flag = "🟢" if score >= 80 else ("🟡" if score >= 50 else "🔴")
+        print(f"    {flag} {tid}: score={score:.1f}/100  calls={total_calls}  "
+              f"dup={redundant}  fail={failed}  ({desc})")
+
     # 리포트 저장
     report = monitor.generate_report()
     filename = f"[A]_agentic_metrics_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
@@ -516,6 +567,49 @@ def run_agentic_evaluation():
         print(f"\n  [Alerts — {len(report.alerts)}건]")
         for a in report.alerts[:3]:
             print(f"    [{a['severity'].upper()}] {a['metric']}")
+
+    # ─── 검증 테이블 ─────────────────────────────────────────────────────────
+    eff_score    = eff_data.get("avg_efficiency_score", 0) if eff_data else 0
+    redundancy   = eff_data.get("redundancy_rate", 0) if eff_data else 0
+    tool_f1      = tool_sel.get("avg_f1_score", tool_sel.get("avg_accuracy", 0)) if tool_sel else 0
+    coord_score  = coord.get("score", 0) if coord else 0
+    coord_suc    = coord.get("success_rate", 0) if coord else 0
+    wf_step_suc  = workflow.get("step_success_rate", 0) if workflow else 0
+    wf_task_suc  = workflow.get("task_success_rate", 0) if workflow else 0
+    retry_m      = monitor.retry_tracker.get_retry_metrics()
+    first_suc    = retry_m.get("first_attempt_success_rate", 0)
+
+    # direct_tool_cases 검증: 중복 호출 케이스(003)의 효율성이 정상 케이스(001)보다 낮아야 함
+    res_normal   = monitor.tool_analyzer.analyze_execution("val_normal",
+        [{"name": "web_search", "tool_name": "web_search", "success": True, "duration": 0.3}])
+    res_dup      = monitor.tool_analyzer.analyze_execution("val_dup",
+        [{"name": "web_search", "tool_name": "web_search", "success": True, "duration": 0.3},
+         {"name": "web_search", "tool_name": "web_search", "success": True, "duration": 0.3}])
+    dup_separation = res_normal.get("efficiency_score", 0) > res_dup.get("efficiency_score", 0)
+
+    checks = [
+        #  항목                               기준           실제값                     통과
+        ("Tool Call 효율성 점수",             "> 50/100",  f"{eff_score:.1f}",          eff_score > 50),
+        ("중복 호출률",                        "< 30%",     f"{redundancy:.1f}%",        redundancy < 30.0),
+        ("Tool Selection F1",                 "> 50%",     f"{tool_f1:.1f}%",           tool_f1 > 50.0),
+        ("Agent Coordination 점수",           "> 5/10",    f"{coord_score:.2f}",        coord_score > 5.0),
+        ("Agent Coordination 성공률",         "> 70%",     f"{coord_suc:.1f}%",         coord_suc > 70.0),
+        ("Workflow 단계 성공률",              "> 70%",     f"{wf_step_suc:.1f}%",       wf_step_suc > 70.0),
+        ("Workflow 태스크 성공률",            "> 50%",     f"{wf_task_suc:.1f}%",       wf_task_suc > 50.0),
+        ("첫시도 성공률 (직접 retry 포함)",   "> 5%",      f"{first_suc:.1f}%",         first_suc > 5.0),
+        ("중복 호출 효율성 점수 분리",         "정상>중복", str(dup_separation),         dup_separation),
+    ]
+
+    print(f"\n  {'═'*66}")
+    print(f"  {'검증 항목':<32} {'기준':<12} {'실측값':<12} {'결과'}")
+    print(f"  {'─'*66}")
+    pass_cnt = 0
+    for name, threshold, actual, ok in checks:
+        mark = "PASS ✅" if ok else "FAIL ❌"
+        if ok: pass_cnt += 1
+        print(f"  {name:<32} {threshold:<12} {actual:<12} {mark}")
+    print(f"  {'═'*66}")
+    print(f"  합계: {pass_cnt}/{len(checks)} 통과\n")
 
     print(f"{'─'*70}\n")
     return saved_path

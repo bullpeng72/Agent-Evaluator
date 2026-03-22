@@ -172,13 +172,16 @@ class ResultFile:
     def has_security(self) -> bool:
         return bool(self.security_l1.input_evals or
                     self.security_l1.output_detections or
-                    self.security_l1.tool_calls)
+                    self.security_l1.tool_calls or
+                    self.security_l2.escalation_events or
+                    self.security_l2.attack_detections)
 
     @property
     def has_agentic(self) -> bool:
         return bool(self.agentic.tool_selections or
                     self.agentic.agent_interactions or
-                    self.agentic.workflow_executions)
+                    self.agentic.workflow_executions or
+                    self.agentic.retry_attempts)
 
     @property
     def has_advanced(self) -> bool:
@@ -260,6 +263,8 @@ def _safe_dict(d: dict, *keys) -> dict:
 def _parse_security_l1(raw: dict) -> SecurityL1:
     sec_eval = _safe_dict(raw, "evaluators", "security")
     sec_metrics = _safe_dict(raw, "security_metrics", "layer1_security")
+    if not sec_metrics:
+        sec_metrics = _safe_dict(raw.get("report", {}), "security_metrics", "layer1_security")
 
     input_evals = _safe_list(sec_eval, "input_sanitizer", "evaluations")
     output_dets = _safe_list(sec_eval, "output_leakage_detector", "detections")
@@ -289,11 +294,15 @@ def _parse_security_l1(raw: dict) -> SecurityL1:
             "total_outputs_evaluated": n,
             "outputs_with_leakage": leaked,
             "leakage_rate": round(leaked / n * 100, 1) if n else 0,
-            "api_key_leaks":    sum(1 for e in output_dets if e.get("contains_api_key")),
-            "password_leaks":   sum(1 for e in output_dets if e.get("contains_password")),
-            "email_leaks":      sum(1 for e in output_dets if e.get("contains_email")),
-            "phone_leaks":      sum(1 for e in output_dets if e.get("contains_phone")),
-            "private_ip_leaks": sum(1 for e in output_dets if e.get("contains_private_ip")),
+            "api_key_leaks":         sum(1 for e in output_dets if e.get("contains_api_key")),
+            "password_leaks":        sum(1 for e in output_dets if e.get("contains_password")),
+            "credit_card_leaks":     sum(1 for e in output_dets if e.get("contains_credit_card")),
+            "email_leaks":           sum(1 for e in output_dets if e.get("contains_email")),
+            "ssn_leaks":             sum(1 for e in output_dets if e.get("contains_ssn")),
+            "phone_leaks":           sum(1 for e in output_dets if e.get("contains_phone")),
+            "private_ip_leaks":      sum(1 for e in output_dets if e.get("contains_private_ip")),
+            "critical_severity_count": sum(1 for e in output_dets if e.get("severity") == "critical"),
+            "high_severity_count":     sum(1 for e in output_dets if e.get("severity") == "high"),
         }
 
     authorization = _safe_dict(sec_metrics, "authorization")
@@ -303,12 +312,23 @@ def _parse_security_l1(raw: dict) -> SecurityL1:
         authorization = {
             "total_tool_calls": n,
             "authorized_calls": n - violations,
+            "unauthorized_calls": violations,
             "compliance_rate": round((n - violations) / n * 100, 1) if n else 100,
             "violation_rate": round(violations / n * 100, 1) if n else 0,
             "violations": violations,
+            "restricted_tool_attempts": sum(1 for t in tool_calls if t.get("is_restricted")),
+            "dangerous_param_attempts": sum(1 for t in tool_calls if t.get("has_dangerous_params")),
             "restricted_attempts": sum(1 for t in tool_calls if t.get("is_restricted")),
             "dangerous_params": sum(1 for t in tool_calls if t.get("has_dangerous_params")),
         }
+    elif authorization:
+        # Normalize keys: tracker uses long names, dashboard expects short aliases
+        if "violations" not in authorization:
+            authorization["violations"] = authorization.get("unauthorized_calls", 0)
+        if "restricted_attempts" not in authorization:
+            authorization["restricted_attempts"] = authorization.get("restricted_tool_attempts", 0)
+        if "dangerous_params" not in authorization:
+            authorization["dangerous_params"] = authorization.get("dangerous_param_attempts", 0)
 
     return SecurityL1(
         input_security=input_security,
@@ -323,6 +343,8 @@ def _parse_security_l1(raw: dict) -> SecurityL1:
 def _parse_security_l2(raw: dict) -> SecurityL2:
     sec_eval = _safe_dict(raw, "evaluators", "security")
     sec_metrics = _safe_dict(raw, "security_metrics", "layer2_security")
+    if not sec_metrics:
+        sec_metrics = _safe_dict(raw.get("report", {}), "security_metrics", "layer2_security")
 
     esc_events = _safe_list(sec_eval, "privilege_escalation_detector", "escalation_events")
     atk_dets   = _safe_list(sec_eval, "tool_chain_attack_detector", "detections")
@@ -333,17 +355,25 @@ def _parse_security_l2(raw: dict) -> SecurityL2:
         detected = sum(1 for e in esc_events if e.get("escalation_detected"))
         priv_esc = {
             "total_evaluations": n,
+            "escalations_detected": detected,
             "escalation_rate": round(detected / n * 100, 1) if n else 0,
         }
+    elif priv_esc and "escalations_detected" not in priv_esc:
+        # ensure dashboard key exists even when loaded from report-level data
+        priv_esc["escalations_detected"] = priv_esc.get("total_escalations_detected", 0)
 
     atk_summary = _safe_dict(sec_metrics, "attack_detection")
     if not atk_summary and atk_dets:
         n = len(atk_dets)
-        detected = sum(1 for d in atk_dets if d.get("attack_detected"))
+        suspicious = sum(1 for d in atk_dets if d.get("is_suspicious_chain"))
         atk_summary = {
             "total_chains_analyzed": n,
-            "detection_rate": round(detected / n * 100, 1) if n else 0,
+            "suspicious_chains": suspicious,
+            "detection_rate": round(suspicious / n * 100, 1) if n else 0,
         }
+    elif atk_summary and "suspicious_chains" not in atk_summary:
+        # ensure dashboard key exists even when loaded from report-level data
+        atk_summary["suspicious_chains"] = atk_summary.get("total_suspicious_chains", 0)
 
     return SecurityL2(
         privilege_escalation=priv_esc,
@@ -377,7 +407,10 @@ def _parse_agentic(raw: dict) -> AgenticMetrics:
         }
 
     # Tool Efficiency (from efficiency_metrics, not evaluators)
+    # Fallback: HybridPerformanceMonitor stores efficiency_metrics inside "report"
     tool_eff = _safe_dict(raw, "efficiency_metrics", "tool_efficiency")
+    if not tool_eff:
+        tool_eff = _safe_dict(raw.get("report", {}), "efficiency_metrics", "tool_efficiency")
 
     # Agent Coordination
     interactions = _safe_list(ev, "agent_coordination", "interactions")
@@ -403,19 +436,41 @@ def _parse_agentic(raw: dict) -> AgenticMetrics:
     if wf_executions:
         successful_steps = sum(1 for s in wf_executions if s.get("success"))
         frameworks = list({s.get("framework", "") for s in wf_executions} - {""})
+        # Group by task_id to compute task-level success rate
+        from collections import defaultdict as _dd
+        task_groups: dict = _dd(list)
+        for s in wf_executions:
+            task_groups[s.get("task_id", "_")].append(s)
+        fully_successful = sum(
+            1 for steps in task_groups.values() if all(s.get("success") for s in steps)
+        )
+        task_count = len(task_groups)
         wf_summary = {
             "total_steps": len(wf_executions),
             "successful_steps": successful_steps,
             "step_success_rate": round(successful_steps / len(wf_executions) * 100, 1),
+            "total_tasks": task_count,
+            "fully_successful_tasks": fully_successful,
+            "task_success_rate": round(fully_successful / task_count * 100, 1) if task_count else 0.0,
             "frameworks": frameworks,
         }
 
     # Retry
     retry_attempts = _safe_list(ev, "retry", "attempts")
     retry_summary = _safe_dict(raw, "efficiency_metrics", "retries")
+    if not retry_summary:
+        retry_summary = _safe_dict(raw.get("report", {}), "efficiency_metrics", "retries")
     if retry_attempts and not retry_summary:
         total = len(retry_attempts)
-        retry_summary = {"total_attempts": total}
+        all_attempts = [a.get("total_attempts", 1) for a in retry_attempts]
+        tasks_with_retry = sum(1 for a in retry_attempts if a.get("total_attempts", 1) > 1)
+        successful = sum(1 for a in retry_attempts if a.get("final_success", True))
+        retry_summary = {
+            "total_attempts": total,
+            "total_tasks_with_retries": tasks_with_retry,
+            "avg_attempts_per_task": round(sum(all_attempts) / len(all_attempts), 2) if all_attempts else 1.0,
+            "eventual_success_rate": round(successful / total * 100, 1) if total else 0.0,
+        }
 
     return AgenticMetrics(
         tool_selections=selections,
@@ -439,9 +494,9 @@ def _parse_quality_detail(raw: dict) -> QualityDetail:
     if not evals:
         # Some files put quality data at accuracy_metrics.quality
         q = _safe_dict(raw, "accuracy_metrics", "quality")
-        dim = q.get("average_dimension_scores", {})
+        dim = q.get("dimension_averages", {})
         grade = q.get("grade_distribution", {})
-        avg = q.get("average_total_score", 0.0)
+        avg = q.get("avg_total_score", 0.0)
         return QualityDetail(evaluations=[], dimension_summary=dim, grade_distribution=grade, avg_score=avg)
 
     # Aggregate dimension scores from evaluations
@@ -486,8 +541,11 @@ _RAGAS_KEYS = (
 
 
 def _parse_advanced(raw: dict) -> AdvancedMetrics:
-    # Summary from report.advanced_metrics_summary (L3 hybrid files)
+    # Summary from report.advanced_metrics_summary (HybridPerformanceMonitor)
+    # or top-level advanced_metrics_summary (PerformanceMonitor.save_to_file)
     summary = _safe_dict(raw, "report", "advanced_metrics_summary")
+    if not summary:
+        summary = _safe_dict(raw, "advanced_metrics_summary")
 
     # Per-task advanced_metrics
     per_task = []
@@ -646,7 +704,7 @@ def load_results(results_dir: Path) -> ResultSet:
                 continue
             files.append(rf)
         except Exception as e:
-            logger.debug("registry operation error: %s", e)
+            logger.debug("Failed to parse result file %s: %s", json_path, e)
 
     files.sort(key=lambda f: f.timestamp, reverse=True)
     transparency = _load_transparency(results_dir)

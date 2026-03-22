@@ -298,13 +298,13 @@ textarea.gd-input{height:60px;resize:vertical;font-family:inherit}
       <div class="kpi-lbl">Avg Latency</div>
       <div class="kpi-val" x-text="sec_(lat_mean())"></div>
       <div class="kpi-sub" :class="lat_cl(data.efficiency_metrics?.latency?.p95)">P95: <span x-text="sec_(data.efficiency_metrics?.latency?.p95)"></span></div>
-      <div class="kpi-delta" x-show="prevFile()" :class="(deltaFmt(lat_mean(), prevFile()?.avg_latency, false)||{}).cls||'neu'" x-text="(deltaFmt(lat_mean(), prevFile()?.avg_latency, false)||{txt:''}).txt + (prevFile()?' vs 이전':'')"></div>
+      <div class="kpi-delta" x-show="prevFile()" :class="(deltaFmt(lat_mean(), prevFile()?.avg_latency, false, 's')||{}).cls||'neu'" x-text="(deltaFmt(lat_mean(), prevFile()?.avg_latency, false, 's')||{txt:''}).txt + (prevFile()?' vs 이전':'')"></div>
     </div>
     <div class="kpi" @click="sec='performance'">
       <div class="kpi-lbl">Total Cost</div>
       <div class="kpi-val" x-text="cost(data.efficiency_metrics?.tokens?.total_cost)"></div>
       <div class="kpi-sub" style="color:var(--text2)">Task당: <span x-text="cost(data.efficiency_metrics?.tokens?.avg_cost_per_task)"></span></div>
-      <div class="kpi-delta" x-show="prevFile()" :class="(deltaFmt(data.efficiency_metrics?.tokens?.total_cost, prevFile()?.total_cost, false)||{}).cls||'neu'" x-text="(deltaFmt(data.efficiency_metrics?.tokens?.total_cost, prevFile()?.total_cost, false)||{txt:''}).txt + (prevFile()?' vs 이전':'')"></div>
+      <div class="kpi-delta" x-show="prevFile()" :class="(deltaFmt(data.efficiency_metrics?.tokens?.total_cost, prevFile()?.total_cost, false, '$')||{}).cls||'neu'" x-text="(deltaFmt(data.efficiency_metrics?.tokens?.total_cost, prevFile()?.total_cost, false, '$')||{txt:''}).txt + (prevFile()?' vs 이전':'')"></div>
     </div>
     <div class="kpi">
       <div class="kpi-lbl">Total Tasks</div>
@@ -425,7 +425,7 @@ textarea.gd-input{height:60px;resize:vertical;font-family:inherit}
         </div>
         <div class="cbox">
           <div class="ct">Response Quality</div>
-          <div class="cv" x-text="(data.quality_metrics?.overall_score||0).toFixed(1)+'/10'"></div>
+          <div class="cv" x-text="((data.quality_detail?.avg_score||0)*2).toFixed(1)+'/10'"></div>
           <div style="font-size:14px;color:var(--text2)">가중치 25%</div>
         </div>
         <div class="cbox">
@@ -442,6 +442,7 @@ textarea.gd-input{height:60px;resize:vertical;font-family:inherit}
       <div class="tab" :class="{on:t1==='acc'}"   @click="t1='acc'">🎯 Accuracy</div>
       <div class="tab" :class="{on:t1==='qual'}"  @click="t1='qual'">⭐ Quality</div>
       <div class="tab" :class="{on:t1==='hall'}"  @click="t1='hall'">🧠 Hallucination</div>
+      <div class="tab" :class="{on:t1==='rag'}"   @click="t1='rag'"  x-show="data.has_rag">📚 RAG</div>
     </div>
 
     <!-- TCR -->
@@ -521,7 +522,7 @@ textarea.gd-input{height:60px;resize:vertical;font-family:inherit}
             <template x-for="[dim,val] in Object.entries(data.quality_detail?.dimension_summary||{})" :key="dim">
               <div class="brow" style="margin-bottom:7px">
                 <div class="blbl"><span x-text="dim"></span><span x-text="val.toFixed(2)"></span></div>
-                <div class="btrack"><div class="bfill" :style="`width:${val*10}%;background:${bc(val*10)}`"></div></div>
+                <div class="btrack"><div class="bfill" :style="`width:${val*20}%;background:${bc(val*20)}`"></div></div>
               </div>
             </template>
           </div>
@@ -682,7 +683,7 @@ textarea.gd-input{height:60px;resize:vertical;font-family:inherit}
                 {label:'TCR',             curr:tcr(),                                    prev:prevFile()?.tcr||0,           unit:'%', invert:false},
                 {label:'Accuracy',        curr:acc(),                                    prev:prevFile()?.accuracy||0,      unit:'%', invert:false},
                 {label:'Hallucination',   curr:hall(),                                   prev:prevFile()?.hallucination||0, unit:'%', invert:true },
-                {label:'Response Quality',curr:(data.quality_detail?.avg_score||0)*10,   prev:prevFile()?.quality_avg||0,   unit:'',  invert:false},
+                {label:'Response Quality',curr:(data.quality_detail?.avg_score||0)*20,   prev:prevFile()?.quality_avg||0,   unit:'%', invert:false},
               ]" :key="it.label">
                 <tr>
                   <td x-text="it.label"></td>
@@ -871,7 +872,7 @@ textarea.gd-input{height:60px;resize:vertical;font-family:inherit}
           <template x-for="[dim,val] in Object.entries(data.quality_detail?.dimension_summary||{})" :key="dim">
             <div class="brow" style="margin-bottom:7px">
               <div class="blbl"><span x-text="dim"></span><span x-text="val.toFixed(2)"></span></div>
-              <div class="btrack"><div class="bfill" :style="`width:${val*10}%;background:${bc(val*10)}`"></div></div>
+              <div class="btrack"><div class="bfill" :style="`width:${val*20}%;background:${bc(val*20)}`"></div></div>
             </div>
           </template>
         </div>
@@ -925,12 +926,12 @@ textarea.gd-input{height:60px;resize:vertical;font-family:inherit}
         <div class="cbox">
           <div class="ct">Advanced Metrics (DeepEval)</div>
           <template x-for="[k,v] in Object.entries(data.advanced?.summary||{})" :key="k">
-            <div class="drow" x-show="typeof v==='object'&&v.mean!==undefined">
+            <div class="drow" x-show="typeof v==='object'&&v.mean!==undefined&&!k.startsWith('ragas_')">
               <span class="dk" x-text="k.replace(/_/g,' ')"></span>
               <span x-text="(v.mean??0).toFixed(3)"></span>
             </div>
           </template>
-          <div x-show="!Object.keys(data.advanced?.summary||{}).length" style="font-size:13px;color:var(--text2)">DeepEval 지표 없음</div>
+          <div x-show="!Object.entries(data.advanced?.summary||{}).some(([k,v])=>typeof v==='object'&&v.mean!==undefined&&!k.startsWith('ragas_'))" style="font-size:13px;color:var(--text2)">DeepEval 지표 없음</div>
         </div>
       </div>
     </div>
@@ -1187,7 +1188,7 @@ textarea.gd-input{height:60px;resize:vertical;font-family:inherit}
               <template x-for="(tc,i) in t.tool_calls||[]" :key="i">
                 <div style="display:flex;gap:8px;align-items:center;padding:3px 0;font-size:13px">
                   <span style="color:var(--text2);font-variant-numeric:tabular-nums;min-width:18px;text-align:right" x-text="(i+1)+'.'"></span>
-                  <span class="tag" x-text="typeof tc==='string'?tc:(tc.tool_name||tc.name||tc.function||JSON.stringify(tc))"></span>
+                  <span class="tag" x-text="typeof tc==='string'?tc:(tc.tool_name||tc.tool||tc.name||tc.function||JSON.stringify(tc))"></span>
                   <template x-if="typeof tc==='object' && tc!=null">
                     <span :class="tc.success===false?'pr':tc.success===true?'pg':''" class="pill"
                       x-show="tc.success!=null" x-text="tc.success?'OK':'FAIL'" style="font-size:11px"></span>
@@ -1476,7 +1477,7 @@ textarea.gd-input{height:60px;resize:vertical;font-family:inherit}
         </div>
         <div class="cbox">
           <div class="ct">공격 체인</div>
-          <div class="cv" :style="(data.security_l2?.tool_chain_attack?.total_attacks||0)===0?'color:var(--green)':'color:var(--red)'" x-text="(data.security_l2?.tool_chain_attack?.total_attacks||0)+'건'"></div>
+          <div class="cv" :style="(data.security_l2?.attack_detection?.suspicious_chains||0)===0?'color:var(--green)':'color:var(--red)'" x-text="(data.security_l2?.attack_detection?.suspicious_chains||0)+'건'"></div>
           <div style="font-size:14px;color:var(--text2)">목표 0건</div>
         </div>
       </div>
@@ -2420,7 +2421,7 @@ textarea.gd-input{height:60px;resize:vertical;font-family:inherit}
       <div class="sec" style="margin-top:10px">
         <div class="sec-t">📈 지표 트렌드 (선택 파일 순서)</div>
         <div id="compare-trend-wrap" style="height:220px;position:relative">
-          <canvas id="compare-trend-chart"></canvas>
+          <div id="compare-trend-chart" style="width:100%;height:100%"></div>
         </div>
       </div>
     </div>
@@ -2663,7 +2664,7 @@ textarea.gd-input{height:60px;resize:vertical;font-family:inherit}
         <div class="kpi"><div class="kpi-lbl">Completion</div><div class="kpi-val" style="font-size:16px" x-text="pct((taskDetail?.completion_score||0)*100)"></div></div>
         <div class="kpi"><div class="kpi-lbl">Accuracy</div><div class="kpi-val" style="font-size:16px" x-text="pct((taskDetail?.accuracy_score||0)*100)"></div></div>
         <div class="kpi"><div class="kpi-lbl">Latency</div><div class="kpi-val" style="font-size:16px" x-text="sec_(taskDetail?.execution_time)"></div></div>
-        <div class="kpi"><div class="kpi-lbl">Tokens</div><div class="kpi-val" style="font-size:16px" x-text="(taskDetail?.tokens_used?.total||0).toLocaleString()"></div></div>
+        <div class="kpi"><div class="kpi-lbl">Tokens</div><div class="kpi-val" style="font-size:16px" x-text="((taskDetail?.tokens_used?.total)||(taskDetail?.tokens_used?.input||0)+(taskDetail?.tokens_used?.output||0)).toLocaleString()"></div></div>
       </div>
       <div class="sec-t" style="margin-bottom:8px">상세 정보</div>
       <div class="drow"><span class="dk">Attempts</span><span x-text="taskDetail?.attempts??'—'"></span></div>
@@ -2765,8 +2766,8 @@ function app() { return {
       range:'0~100%', target:'≥ 70%' },
     { cat:'quality',  icon:'⭐', term:'Response Quality', layer:'Layer 1 · 기본',
       purpose:'정답 일치와 무관하게 응답 자체의 실용적 품질을 다차원으로 평가.',
-      desc:'관련성(Relevance) · 완전성(Completeness) · 명확성(Clarity) · 정확성(Accuracy) · 유용성(Usefulness) 5개 차원을 각 0~2점으로 평가. 총점 0~10점. 규칙 기반이므로 외부 API 불필요.',
-      range:'0~10', target:'≥ 7.0' },
+      desc:'관련성(Relevance) · 완전성(Completeness) · 명확성(Clarity) · 정확성(Accuracy) · 유용성(Usefulness) 5개 차원을 각 0~5점으로 평가. 총점 0~5점 (가중 평균). 규칙 기반이므로 외부 API 불필요.',
+      range:'0~5', target:'≥ 3.5' },
     { cat:'quality',  icon:'🧠', term:'Hallucination Rate', layer:'Layer 1 · 기본', tKey:'hall',
       purpose:'에이전트가 사실이 아닌 내용을 만들어내는 빈도를 측정. 신뢰도의 핵심 지표.',
       desc:'근거 없는 수치 주장, 미지원 사실 주장, 출처 불일치를 탐지. SAFE(<5%), WARNING(5~15%), DANGER(>15%). enable_hallucination_detection=True 시 활성화.',
@@ -2928,13 +2929,17 @@ function app() { return {
     return (idx >= 0 && idx + 1 < this.files.length) ? this.files[idx + 1] : null;
   },
 
-  deltaFmt(curr, prev, higherBetter = true) {
+  deltaFmt(curr, prev, higherBetter = true, unit = '%') {
     if (prev == null || curr == null || isNaN(prev) || isNaN(curr)) return null;
     const d = curr - prev;
     if (Math.abs(d) < 0.005) return { txt: '─ 변화없음', cls: 'neu' };
     const up = d > 0;
     const good = higherBetter ? up : !up;
-    return { txt: `${up ? '▲' : '▼'} ${Math.abs(d).toFixed(1)}%`, cls: good ? 'up' : 'dn' };
+    let fmtVal;
+    if (unit === '$') fmtVal = '$' + Math.abs(d).toFixed(4);
+    else if (unit === 's') fmtVal = Math.abs(d).toFixed(3) + 's';
+    else fmtVal = Math.abs(d).toFixed(1) + '%';
+    return { txt: `${up ? '▲' : '▼'} ${fmtVal}`, cls: good ? 'up' : 'dn' };
   },
 
   deployGates() {
@@ -3167,7 +3172,7 @@ function app() { return {
       const dims=Object.keys(qd), vals=Object.values(qd);
       this._plt('qual-radar', [{type:'scatterpolar', r:[...vals,vals[0]], theta:[...dims,dims[0]],
         fill:'toself', fillcolor:'#6c8ef530', line:{color:'#6c8ef5'}, marker:{color:'#6c8ef5'}}],
-        {polar:{radialaxis:{range:[0,2],tickfont:{color:TC},gridcolor:GC},angularaxis:{tickfont:{color:TC}},bgcolor:'transparent'},
+        {polar:{radialaxis:{range:[0,5],tickfont:{color:TC},gridcolor:GC},angularaxis:{tickfont:{color:TC}},bgcolor:'transparent'},
          paper_bgcolor:'transparent', ...noLeg, height:240, margin:{t:20,b:20,l:40,r:40}});
     }
 
@@ -3321,7 +3326,7 @@ function app() { return {
       {height:200, showlegend:true, legend:{font:{color:TC,size:10}}, margin:{t:10,b:10,l:10,r:10}});
 
     // ── Token histogram ──
-    const tkLst=(d.tasks||[]).map(t=>(t.tokens_used?.total||0)).filter(v=>v>0);
+    const tkLst=(d.tasks||[]).map(t=>((t.tokens_used?.total)||(t.tokens_used?.input||0)+(t.tokens_used?.output||0))).filter(v=>v>0);
     if (tkLst.length) {
       this._plt('tok-hist', [{type:'histogram', x:tkLst, nbinsx:8, marker:{color:'#6c8ef580',line:{color:'#6c8ef5',width:1}}}],
         {xaxis:scX, yaxis:scY, ...noLeg});
@@ -3473,11 +3478,14 @@ function app() { return {
     const wfSum=d.agentic?.workflow_summary||{};
     const totalTasks=d.total_tasks||0;
     const wfExecs=d.agentic?.workflow_executions||[];
-    const wfTaskCount=new Set(wfExecs.map(w=>w.task_id)).size||totalTasks;
+    const wfTaskCount=wfSum.total_tasks||new Set(wfExecs.map(w=>w.task_id)).size||totalTasks;
     const totalSteps=wfExecs.length;
     const successSteps=wfExecs.filter(w=>w.success).length;
     const failSteps=totalSteps-successSteps;
-    const wfSuccTasks=Math.round(wfTaskCount*((wfSum.step_success_rate||0)/100));
+    // Use task_success_rate if available (task-level), else approximate from step-level
+    const wfSuccTasks=wfSum.fully_successful_tasks!=null
+      ? wfSum.fully_successful_tasks
+      : Math.round(wfTaskCount*((wfSum.task_success_rate||wfSum.step_success_rate||0)/100));
     const wfFailTasks=wfTaskCount-wfSuccTasks;
     if(totalSteps>0){
       // Use percentage of steps/tasks so bars are always comparable
@@ -3683,29 +3691,39 @@ function app() { return {
     const d=this.data; if(!d) return 0;
     const tcr=d.accuracy_metrics?.tcr?.tcr||0;
     const acc=d.accuracy_metrics?.accuracy_scores?.overall_accuracy||0;
-    const h=Math.max(0,100-(d.accuracy_metrics?.hallucination?.overall_rate||0)*10);
-    return Math.round((tcr+acc+h)/3);
+    const vals=[tcr,acc];
+    if ((d.accuracy_metrics?.hallucination?.total_evaluated||0)>0)
+      vals.push(Math.max(0,100-(d.accuracy_metrics.hallucination.overall_rate||0)*10));
+    return vals.length?Math.round(vals.reduce((a,b)=>a+b,0)/vals.length):0;
   },
   get l2s() {
-    const d=this.data; if(!d||!d.has_agentic) return 50;
+    const d=this.data; if(!d||!d.has_agentic) return 0;
     const toolAcc=d.agentic?.tool_selection_summary?.avg_f1_score||0;
     const coord=d.agentic?.coordination_summary?.success_rate||0;
     const wf=d.agentic?.workflow_summary?.step_success_rate||0;
-    const cnt=[toolAcc,coord,wf].filter(v=>v>0);
-    return cnt.length?Math.round(cnt.reduce((a,b)=>a+b,0)/cnt.length):50;
+    const teff=d.agentic?.tool_efficiency?.success_rate||0;
+    const cnt=[toolAcc,coord,wf,teff].filter(v=>v>0);
+    return cnt.length?Math.round(cnt.reduce((a,b)=>a+b,0)/cnt.length):0;
   },
   get ps() {
-    const p95=this.data?.efficiency_metrics?.latency?.p95||0;
-    return Math.max(0,Math.min(100,Math.round(100-p95*15)));
+    const p95=this.data?.efficiency_metrics?.latency?.p95;
+    if(p95==null||(p95===0&&!(this.data?.total_tasks))) return 0;
+    if(p95===0) return 100;
+    return Math.max(5,Math.round(100*Math.exp(-0.25*p95)));
   },
   get ss() {
-    const d=this.data; if(!d||!d.has_security) return 50;
+    const d=this.data; if(!d||!d.has_security) return 0;
     const thr=100-(d.security_l1?.input_security?.threat_rate||0);
     const leak=100-(d.security_l1?.output_leakage?.leakage_rate||0);
     const auth=d.security_l1?.authorization?.compliance_rate||100;
     return Math.round((thr+leak+auth)/3);
   },
-  get hs() { return Math.round((this.l1s+this.l2s+this.ps+this.ss)/4); },
+  get hs() {
+    // 측정된 차원만 평균 — 미측정(0) 차원은 제외해 과소평가 방지
+    const scores=[this.l1s,this.l2s,this.ps,this.ss];
+    const measured=scores.filter(v=>v>0);
+    return measured.length?Math.round(measured.reduce((a,b)=>a+b,0)/measured.length):0;
+  },
   get hl() { const s=this.hs; return s>=90?'EXCELLENT':s>=80?'GOOD':s>=70?'FAIR':'NEEDS WORK'; },
 
   secScore(type) {
@@ -3722,11 +3740,12 @@ function app() { return {
     if (pid === 'quality') {
       const tcr = d.accuracy_metrics?.tcr?.tcr || 0;
       const acc = d.accuracy_metrics?.accuracy_scores?.overall_accuracy || 0;
-      const hall = Math.max(0, 100 - (d.accuracy_metrics?.hallucination?.overall_rate || 0) * 10);
-      const qual = (d.quality_detail?.avg_score || 0) * 10;
-      const vals = [tcr, acc, hall];
+      const qual = (d.quality_detail?.avg_score || 0) * 20;
+      const vals = [tcr, acc];
+      if ((d.accuracy_metrics?.hallucination?.total_evaluated||0) > 0)
+        vals.push(Math.max(0, 100 - (d.accuracy_metrics.hallucination.overall_rate||0) * 10));
       if (d.has_quality) vals.push(qual);
-      return Math.round(vals.reduce((a,b)=>a+b,0)/vals.length);
+      return vals.length ? Math.round(vals.reduce((a,b)=>a+b,0)/vals.length) : 0;
     }
     if (pid === 'performance') {
       const latency = d.efficiency_metrics?.latency || {};
@@ -3774,7 +3793,7 @@ function app() { return {
       { key:'tcr',          label:'TCR',             curr:this.tcr(),                          prev:prev.tcr||0,           unit:'%', invert:false },
       { key:'accuracy',     label:'Accuracy',         curr:this.acc(),                          prev:prev.accuracy||0,      unit:'%', invert:false },
       { key:'hallucination',label:'Hallucination',    curr:this.hall(),                         prev:prev.hallucination||0, unit:'%', invert:true  },
-      { key:'quality',      label:'Response Quality', curr:(d.quality_detail?.avg_score||0)*10, prev:prev.quality_avg||0,   unit:'',  invert:false },
+      { key:'quality',      label:'Response Quality', curr:(d.quality_detail?.avg_score||0)*20, prev:prev.quality_avg||0,   unit:'%', invert:false },
     ];
     return items.map(it => {
       // negative delta = regression (curr worse than prev)
@@ -3794,7 +3813,7 @@ function app() { return {
       d.agentic?.tool_efficiency?.avg_efficiency_score || 0,
       d.agentic?.coordination_summary?.success_rate || 0,
       d.agentic?.workflow_summary?.step_success_rate || 0,
-      Math.max(0, 100 - ((d.agentic?.retry_summary?.avg_attempts||1) - 1) * 30),
+      Math.max(0, 100 - ((d.agentic?.retry_summary?.avg_attempts_per_task||1) - 1) * 30),
     ];
     return { dims, vals };
   },
@@ -3875,7 +3894,7 @@ function app() { return {
     const qd2=d.quality_detail?.dimension_summary||{};
     if(Object.keys(qd2).length){
       const dims3=Object.keys(qd2),vals3=Object.values(qd2);
-      this._plt('q-qual-radar',[{type:'scatterpolar',r:[...vals3,vals3[0]],theta:[...dims3,dims3[0]],fill:'toself',fillcolor:'#6c8ef530',line:{color:'#6c8ef5'},marker:{color:'#6c8ef5'}}],{polar:{radialaxis:{range:[0,2],tickfont:{color:TC},gridcolor:GC},angularaxis:{tickfont:{color:TC}},bgcolor:'transparent'},paper_bgcolor:'transparent',...noLeg,height:240,margin:{t:20,b:20,l:40,r:40}});
+      this._plt('q-qual-radar',[{type:'scatterpolar',r:[...vals3,vals3[0]],theta:[...dims3,dims3[0]],fill:'toself',fillcolor:'#6c8ef530',line:{color:'#6c8ef5'},marker:{color:'#6c8ef5'}}],{polar:{radialaxis:{range:[0,5],tickfont:{color:TC},gridcolor:GC},angularaxis:{tickfont:{color:TC}},bgcolor:'transparent'},paper_bgcolor:'transparent',...noLeg,height:240,margin:{t:20,b:20,l:40,r:40}});
     }
 
     // q-qual-heatmap
@@ -4011,7 +4030,7 @@ function app() { return {
     }
     const acc   = tasks.map(t=>t.accuracy_score*100);
     const lat   = tasks.map(t=>t.execution_time||0);
-    const tok   = tasks.map(t=>(t.tokens_used?.total||0));
+    const tok   = tasks.map(t=>((t.tokens_used?.total)||(t.tokens_used?.input||0)+(t.tokens_used?.output||0)));
     const comp  = tasks.map(t=>t.completion_score*100);
     return [
       { label:'Accuracy ↔ Latency',    r:pearson(acc,lat)  },
@@ -4037,7 +4056,7 @@ function app() { return {
     const vecs = [
       tasks.map(t=>t.accuracy_score*100),
       tasks.map(t=>t.execution_time||0),
-      tasks.map(t=>(t.tokens_used?.total||0)),
+      tasks.map(t=>((t.tokens_used?.total)||(t.tokens_used?.input||0)+(t.tokens_used?.output||0))),
       tasks.map(t=>t.completion_score*100),
     ];
     const z = vecs.map(a=>vecs.map(b=>pearson(a,b)));
@@ -4052,24 +4071,24 @@ function app() { return {
     // L1 input threats
     for (const e of (d.security_l1?.input_evals||[])) {
       const cats = [];
-      if (e.sql_injection)       cats.push('SQL Injection');
-      if (e.prompt_injection)    cats.push('Prompt Injection');
-      if (e.xss)                 cats.push('XSS');
-      if (e.command_injection)   cats.push('Command Injection');
-      if (e.path_traversal)      cats.push('Path Traversal');
-      const risk = e.threat_level==='critical'?3:e.threat_level==='high'?2:1;
+      if (e.has_sql_injection)       cats.push('SQL Injection');
+      if (e.has_prompt_injection)    cats.push('Prompt Injection');
+      if (e.has_xss)                 cats.push('XSS');
+      if (e.has_command_injection)   cats.push('Command Injection');
+      if (e.has_path_traversal)      cats.push('Path Traversal');
+      const risk = e.risk_level==='critical'?3:e.risk_level==='high'?2:1;
       for (const cat of cats) {
         evts.push({idx:idx++, taskId:e.task_id||'?', category:cat, layer:'L1 입력위협', risk});
       }
     }
     // L1 output leakage
     for (const e of (d.security_l1?.output_detections||[])) {
-      if (!e.has_leakage) continue;
+      if (!(e.leakage_count > 0)) continue;
       const cats = [];
-      if (e.api_key_detected)   cats.push('API Key');
-      if (e.password_detected)  cats.push('Password');
-      if (e.email_detected)     cats.push('Email');
-      if (e.phone_detected)     cats.push('Phone');
+      if (e.contains_api_key)   cats.push('API Key');
+      if (e.contains_password)  cats.push('Password');
+      if (e.contains_email)     cats.push('Email');
+      if (e.contains_phone)     cats.push('Phone');
       if (!cats.length)         cats.push('Leakage');
       for (const cat of cats) {
         evts.push({idx:idx++, taskId:e.task_id||'?', category:cat, layer:'L1 출력유출', risk:2});
@@ -4177,8 +4196,8 @@ function app() { return {
   },
 
   renderCompareTrend() {
-    const canvas = document.getElementById('compare-trend-chart');
-    if (!canvas || !window.Plotly) return;
+    const el = document.getElementById('compare-trend-chart');
+    if (!el || !window.Plotly) return;
     const ids = this.compareIds.filter(id => this.compareData[id]);
     if (ids.length < 2) return;
     const labels = ids.map(id => (this.compareData[id]?.name || id).substring(0, 20));
@@ -4391,9 +4410,10 @@ function app() { return {
         tasks:[]});
     }
     // High token tasks
-    const tokenSorted = [...tasks].sort((a,b)=>(b.tokens_used?.total||0)-(a.tokens_used?.total||0));
-    const avgTok = tasks.reduce((s,t)=>s+(t.tokens_used?.total||0),0)/tasks.length;
-    const heavyTok = tokenSorted.filter(t=>(t.tokens_used?.total||0)>avgTok*2);
+    const _tok = t => (t.tokens_used?.total)||(t.tokens_used?.input||0)+(t.tokens_used?.output||0);
+    const tokenSorted = [...tasks].sort((a,b)=>_tok(b)-_tok(a));
+    const avgTok = tasks.reduce((s,t)=>s+_tok(t),0)/tasks.length;
+    const heavyTok = tokenSorted.filter(t=>_tok(t)>avgTok*2);
     if (heavyTok.length) {
       results.push({type:'token_heavy', severity:'low',
         title:`토큰 과다 사용 태스크 ${heavyTok.length}건`,

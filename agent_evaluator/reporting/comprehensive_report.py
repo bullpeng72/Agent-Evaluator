@@ -627,16 +627,16 @@ def _build_agentic_section(monitor, tool_selection_stats, coordination_stats, wo
 
             <h3>도구 선택 정확도 (Tool Selection Accuracy)</h3>''')
 
-    if tool_selection_stats and tool_selection_stats.get('total_tasks', 0) > 0:
-        tool_acc = tool_selection_stats.get('overall_accuracy', 0) * 100
+    if tool_selection_stats and tool_selection_stats.get('total_evaluations', 0) > 0:
+        tool_acc = tool_selection_stats.get('avg_f1_score', 0)  # already 0-100 scale
         tool_class = 'success' if tool_acc >= 85 else 'warning' if tool_acc >= 70 else 'critical'
 
         parts.append(f'''
             <div class="insight-box {tool_class}">
                 <h4>도구 선택 요약</h4>
-                <p><strong>전체 정확도:</strong> {tool_acc:.1f}%</p>
-                <p><strong>평가된 Task:</strong> {tool_selection_stats.get('total_tasks', 0)}개</p>
-                <p><strong>올바른 도구 선택:</strong> {tool_selection_stats.get('correct_selections', 0)}개</p>
+                <p><strong>F1 정확도:</strong> {tool_acc:.1f}%</p>
+                <p><strong>평가된 Task:</strong> {tool_selection_stats.get('total_evaluations', 0)}개</p>
+                <p><strong>올바른 도구 선택:</strong> {tool_selection_stats.get('total_true_positives', 0)}개</p>
             </div>''')
 
     # Tool Efficiency
@@ -662,23 +662,29 @@ def _build_agentic_section(monitor, tool_selection_stats, coordination_stats, wo
 
             <h4>도구별 실행 통계</h4>''')
 
-        # Get per-tool breakdown if available
-        if hasattr(monitor.tool_analyzer, 'executions') and monitor.tool_analyzer.executions:
+        # Get per-tool breakdown from task results (tool_analyzer.executions stores only summary metrics)
+        _tasks = monitor.tcr_tracker.tasks if hasattr(monitor, 'tcr_tracker') else []
+        if _tasks:
             tool_breakdown = {}
-            for execution in monitor.tool_analyzer.executions:
-                for call in execution.get('tool_calls', []):
-                    tool_name = call.get('tool_name', 'Unknown')
+            for task in _tasks:
+                for call in (task.tool_calls or []):
+                    if isinstance(call, str):
+                        tool_name = call
+                        success, duration = True, 0.0
+                    elif isinstance(call, dict):
+                        tool_name = call.get('tool_name') or call.get('tool') or call.get('name', 'Unknown')
+                        success = call.get('success', True)
+                        duration = call.get('duration', 0.0)
+                    else:
+                        continue
                     if tool_name not in tool_breakdown:
                         tool_breakdown[tool_name] = {'success': 0, 'failure': 0, 'total': 0, 'total_duration': 0}
-
                     tool_breakdown[tool_name]['total'] += 1
-                    if call.get('success', False):
+                    if success:
                         tool_breakdown[tool_name]['success'] += 1
                     else:
                         tool_breakdown[tool_name]['failure'] += 1
-
-                    if 'duration' in call:
-                        tool_breakdown[tool_name]['total_duration'] += call['duration']
+                    tool_breakdown[tool_name]['total_duration'] += duration
 
             if tool_breakdown:
                 parts.append('''
@@ -746,12 +752,12 @@ def _build_agentic_section(monitor, tool_selection_stats, coordination_stats, wo
                 <h4>협업 요약</h4>
                 <p><strong>협업 점수:</strong> {coord_score:.1f}%</p>
                 <p><strong>총 상호작용:</strong> {coordination_stats.get('total_interactions', 0)}개</p>
-                <p><strong>성공적인 상호작용:</strong> {coordination_stats.get('successful_interactions', 0)}개</p>
+                <p><strong>성공적인 상호작용:</strong> {int(coordination_stats.get('total_interactions', 0) * coordination_stats.get('success_rate', 0) / 100)}개</p>
             </div>''')
 
     # Workflow Execution
     parts.append('<h3>워크플로우 실행 (Workflow Execution)</h3>')
-    if workflow_stats and workflow_stats.get('total_workflows', 0) > 0:
+    if workflow_stats and workflow_stats.get('total_tasks', 0) > 0:
         # CRITICAL FIX: Use 'step_success_rate' not 'success_rate', and it's already a percentage (don't multiply by 100)
         workflow_rate = workflow_stats.get('step_success_rate', 0)
         workflow_class = 'success' if workflow_rate >= 85 else 'warning' if workflow_rate >= 70 else 'critical'
@@ -760,8 +766,8 @@ def _build_agentic_section(monitor, tool_selection_stats, coordination_stats, wo
             <div class="insight-box {workflow_class}">
                 <h4>워크플로우 요약</h4>
                 <p><strong>성공률:</strong> {workflow_rate:.1f}%</p>
-                <p><strong>총 워크플로우:</strong> {workflow_stats.get('total_workflows', 0)}개</p>
-                <p><strong>성공:</strong> {workflow_stats.get('successful_workflows', 0)}개</p>
+                <p><strong>총 워크플로우:</strong> {workflow_stats.get('total_tasks', 0)}개</p>
+                <p><strong>성공:</strong> {workflow_stats.get('fully_successful_tasks', 0)}개</p>
             </div>''')
 
     # Retry Patterns
@@ -805,7 +811,7 @@ def _build_agentic_section(monitor, tool_selection_stats, coordination_stats, wo
     if has_security_metrics:
         # Input Sanitization Stats
         try:
-            input_stats = monitor.input_sanitizer.get_sanitization_stats()
+            input_stats = monitor.input_sanitizer.get_security_stats()
             if input_stats.get('total_inputs_evaluated', 0) > 0:
                 threat_rate = input_stats.get('threat_rate', 0)
                 critical_count = input_stats.get('critical_risk_inputs', 0)
@@ -864,7 +870,7 @@ def _build_agentic_section(monitor, tool_selection_stats, coordination_stats, wo
 
         # Tool Authorization Stats
         try:
-            auth_stats = monitor.tool_authorizer.get_authorization_stats()
+            auth_stats = monitor.tool_authorizer.get_compliance_stats()
             if auth_stats.get('total_tool_calls', 0) > 0:
                 compliance_rate = auth_stats.get('compliance_rate', 0)
                 violation_rate = auth_stats.get('violation_rate', 0)
@@ -1260,7 +1266,10 @@ report = transparency.generate_transparent_report(
 def _build_security_section(monitor) -> str:
     """Build the standalone Security section. Returns empty string if security metrics unavailable."""
     # Check if security metrics are available
-    has_security = hasattr(monitor, 'input_sanitizer') and hasattr(monitor, 'output_leakage_detector')
+    has_security = (
+        getattr(monitor, 'input_sanitizer', None) is not None
+        and getattr(monitor, 'output_leakage_detector', None) is not None
+    )
 
     if not has_security:
         return ""
@@ -1279,15 +1288,15 @@ def _build_security_section(monitor) -> str:
         # Layer 1 Security
         input_sec_stats = monitor.input_sanitizer.get_security_stats()
         output_leak_stats = monitor.output_leakage_detector.get_leakage_stats()
-        auth_stats = monitor.tool_authorizer.get_compliance_stats() if hasattr(monitor, 'tool_authorizer') else {}
+        auth_stats = monitor.tool_authorizer.get_compliance_stats() if getattr(monitor, 'tool_authorizer', None) is not None else {}
 
         threat_rate = input_sec_stats.get('threat_rate', 0)
         leakage_rate = output_leak_stats.get('leakage_rate', 0)
         compliance_rate = auth_stats.get('compliance_rate', 100)
 
         # Layer 2 Security
-        esc_stats = monitor.privilege_escalation_detector.get_escalation_stats() if hasattr(monitor, 'privilege_escalation_detector') else {}
-        attack_stats = monitor.tool_chain_attack_detector.get_attack_stats() if hasattr(monitor, 'tool_chain_attack_detector') else {}
+        esc_stats = monitor.privilege_escalation_detector.get_escalation_stats() if getattr(monitor, 'privilege_escalation_detector', None) is not None else {}
+        attack_stats = monitor.tool_chain_attack_detector.get_attack_stats() if getattr(monitor, 'tool_chain_attack_detector', None) is not None else {}
 
         esc_rate = esc_stats.get('escalation_rate', 0)
         attack_rate = attack_stats.get('detection_rate', 0)
@@ -1639,8 +1648,12 @@ def _build_conclusion_section(total_tasks, tcr, acc, hall_rate) -> str:
 def generate_comprehensive_html_report(monitor) -> str:
     """Generate detailed comprehensive HTML report with all metrics and actionable insights"""
 
-    # Get all metrics
-    report = monitor.generate_hybrid_report()
+    # Get all metrics — HybridPerformanceMonitor provides generate_hybrid_report();
+    # fall back to generate_report() for plain PerformanceMonitor
+    if hasattr(monitor, 'generate_hybrid_report'):
+        report = monitor.generate_hybrid_report()
+    else:
+        report = monitor.generate_report()
     quality_metrics = monitor.quality_evaluator.get_quality_metrics()
     hallucination_data = monitor.hallucination_detector.get_hallucination_rate()
     token_stats = monitor.token_tracker.get_usage_stats()

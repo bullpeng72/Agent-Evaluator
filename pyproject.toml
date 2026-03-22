@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "agent-evaluator"
-version = "0.5.8"
+version = "0.6.0"
 description = "Production-ready evaluation framework for AI agents — 25 metrics across task completion, accuracy, hallucination, latency, security, and agentic behavior"
 readme = {file = "README.md", content-type = "text/markdown"}
 requires-python = ">=3.8"
@@ -47,48 +47,107 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-# LLM 클라이언트 — LLMHelper / ClaudeHelper 사용 시
+# ── 단위 extras ─────────────────────────────────────────────────────────────
+
+# LLM 클라이언트 — LLMHelper / ClaudeHelper 사용 시 (빠름, ~5개 패키지)
 llm = [
     "openai>=1.0.0,<3.0.0",
     "anthropic>=0.20.0,<1.0.0",
 ]
-# 에이전트 프레임워크 통합 — LangChain / LangGraph / CrewAI / AutoGen
-frameworks = [
-    "langchain>=0.1.0,<3.0.0",
+# LangChain / LangGraph 통합 (중간, ~30개 패키지)
+# langchain 1.x LCEL Runnable 기반, BaseCallbackHandler 실시간 추적
+langchain = [
+    "langchain>=1.0.0,<3.0.0",
+    "langchain-core>=1.0.0,<3.0.0",
     "langchain-openai>=0.1.0,<3.0.0",
     "langchain-anthropic>=0.1.0,<3.0.0",
-    "langgraph>=0.1.0,<3.0.0",
-    "crewai>=0.1.0,<2.0.0",
-    "pyautogen>=0.2.0,<1.0.0",
+    "langgraph>=1.0.0,<3.0.0",
 ]
-# 외부 평가 라이브러리 — DeepEval / Ragas
+# CrewAI 통합 (무거움 — 전이 의존성 100개+, 단독 격리)
+# crewai 1.x: CrewOutput.raw, crew.usage_metrics, result.tasks_output
+crewai = [
+    "crewai>=1.0.0,<2.0.0",
+]
+# AutoGen 통합 (무거움, 단독 격리)
+# autogen-agentchat 0.7.x async-first API: on_messages(), team.run()
+autogen = [
+    "pyautogen>=0.3.0,<1.0.0",
+    "autogen-agentchat>=0.4.0,<1.0.0",
+    "autogen-core>=0.4.0,<1.0.0",
+]
+# 외부 평가 라이브러리 — DeepEval / Ragas (무거움, langchain 필요)
+# ragas 0.4.x API: EvaluationDataset + SingleTurnSample, datasets>=4.0.0 필요
 eval = [
     "deepeval>=0.20.0,<4.0.0",
-    "ragas>=0.1.0,<2.0.0",
-    "datasets>=2.14.0",
-    "langchain>=0.1.0,<3.0.0",
+    "ragas>=0.4.0,<2.0.0",
+    "datasets>=4.0.0,<6.0.0",
+    "langchain>=0.2.0,<3.0.0",
     "langchain-openai>=0.1.0,<3.0.0",
 ]
-# 웹 대시보드 — agent-eval serve
+# 웹 대시보드 — agent-eval serve (빠름, ~8개 패키지)
 serve = [
     "fastapi>=0.110.0,<1.0.0",
     "uvicorn[standard]>=0.29.0,<1.0.0",
     "jinja2>=3.1.0,<4.0.0",
     "python-multipart>=0.0.9,<1.0.0",
 ]
-# 전체
+# PDF 처리 (빠름, ~3개 패키지)
+pdf = [
+    "pypdf>=3.0.0,<7.0.0",
+    "pdfplumber>=0.10.0,<1.0.0",
+]
+
+# ── 조합 편의 extras ─────────────────────────────────────────────────────────
+
+# 기존 호환 — LangChain + CrewAI + AutoGen 한 번에 (무거움)
+# ⚠️ crewai(pydantic<2.12)와 pyautogen(pydantic>=2.12 선호) 간 silent downgrade 발생 가능
+frameworks = [
+    "langchain>=1.0.0,<3.0.0",
+    "langchain-core>=1.0.0,<3.0.0",
+    "langchain-openai>=0.1.0,<3.0.0",
+    "langchain-anthropic>=0.1.0,<3.0.0",
+    "langgraph>=1.0.0,<3.0.0",
+    "crewai>=1.0.0,<2.0.0",
+    "pyautogen>=0.3.0,<1.0.0",
+    "autogen-agentchat>=0.4.0,<1.0.0",
+    "autogen-core>=0.4.0,<1.0.0",
+]
+# 일반 사용자 권장 — crewai/autogen 제외, 합리적 설치 시간
 all = [
     "openai>=1.0.0,<3.0.0",
     "anthropic>=0.20.0,<1.0.0",
-    "langchain>=0.1.0,<3.0.0",
+    "langchain>=1.0.0,<3.0.0",
+    "langchain-core>=1.0.0,<3.0.0",
     "langchain-openai>=0.1.0,<3.0.0",
     "langchain-anthropic>=0.1.0,<3.0.0",
-    "langgraph>=0.1.0,<3.0.0",
-    "crewai>=0.1.0,<2.0.0",
-    "pyautogen>=0.2.0,<1.0.0",
+    "langgraph>=1.0.0,<3.0.0",
     "deepeval>=0.20.0,<4.0.0",
-    "ragas>=0.1.0,<2.0.0",
-    "datasets>=2.14.0",
+    "ragas>=0.4.0,<2.0.0",
+    "datasets>=4.0.0,<6.0.0",
+    "pypdf>=3.0.0,<7.0.0",
+    "pdfplumber>=0.10.0,<1.0.0",
+    "fastapi>=0.110.0,<1.0.0",
+    "uvicorn[standard]>=0.29.0,<1.0.0",
+    "jinja2>=3.1.0,<4.0.0",
+    "python-multipart>=0.0.9,<1.0.0",
+]
+# 전체 (crewai/autogen 포함 — ⚠️ 설치 10분+ 소요, pydantic 버전 충돌 silent downgrade 가능)
+full = [
+    "openai>=1.0.0,<3.0.0",
+    "anthropic>=0.20.0,<1.0.0",
+    "langchain>=1.0.0,<3.0.0",
+    "langchain-core>=1.0.0,<3.0.0",
+    "langchain-openai>=0.1.0,<3.0.0",
+    "langchain-anthropic>=0.1.0,<3.0.0",
+    "langgraph>=1.0.0,<3.0.0",
+    "crewai>=1.0.0,<2.0.0",
+    "pyautogen>=0.3.0,<1.0.0",
+    "autogen-agentchat>=0.4.0,<1.0.0",
+    "autogen-core>=0.4.0,<1.0.0",
+    "deepeval>=0.20.0,<4.0.0",
+    "ragas>=0.4.0,<2.0.0",
+    "datasets>=4.0.0,<6.0.0",
+    "pypdf>=3.0.0,<7.0.0",
     "pdfplumber>=0.10.0,<1.0.0",
     "fastapi>=0.110.0,<1.0.0",
     "uvicorn[standard]>=0.29.0,<1.0.0",

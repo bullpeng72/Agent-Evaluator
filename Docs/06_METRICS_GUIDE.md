@@ -21,11 +21,11 @@ Layer별 메트릭 상세 설명 및 사용법
 
 **이 가이드는 다음 버전을 기준으로 작성되었습니다:**
 
-  * Agent Evaluator: **v0.5.8**
+  * Agent Evaluator: **v0.6.0**
   * Python: 3.8+
   * DeepEval: 0.20.0+ (선택사항, Layer 3)
-  * Ragas: 0.1.0+ (선택사항, Layer 3)
-  * LangChain: 0.1.0+ (선택사항)
+  * Ragas: 0.4.0+ (선택사항, Layer 3)
+  * LangChain: 1.0.0+ (선택사항)
   * CrewAI: 최신 버전 (선택사항)
 
 ## 목차
@@ -48,7 +48,7 @@ Layer별 메트릭 상세 설명 및 사용법
 
 * * *
 
-### 🔒 보안 지표 (Layer 1 & 2)
+### 🔒 보안 지표 (Layer 2 Security)
 
 **AI Agent 보안 평가 기능이 포함되어 있습니다!**
 
@@ -140,7 +140,7 @@ flowchart BT L1["**Layer 1: Foundation Metrics (기본 메트릭 6개)**
 
 기본 메트릭은 외부 라이브러리 없이 작동하며, **API 키가 필요 없고 완전히 무료** 입니다. 모든 Agent 평가에 기본적으로 사용됩니다.
 
-**🔒 보안 지표 포함** : 입력 살균, 출력 유출 탐지, 도구 권한 관리 지표가 포함되어 있습니다. 상세 내용은 [보안 지표 가이드](<SECURITY_METRICS_GUIDE.html>)를 참조하세요.
+**🔒 보안 지표** : 입력 살균, 출력 유출 탐지, 도구 권한 관리 지표는 Layer 2 Security에 포함되어 있습니다 (`enable_security_metrics=True` 필요). 상세 내용은 [보안 지표 가이드](<SECURITY_METRICS_GUIDE.html>)를 참조하세요.
 
 ### 2.1 작업 완료율 (Task Completion Rate, TCR)
 
@@ -2391,7 +2391,7 @@ LangGraph | `LangGraphEvaluator` | Evaluator로 그래프 래핑
 CrewAI | `CrewAIEvaluator` | Evaluator로 Crew 래핑  
 AutoGen | `AutoGenEvaluator` | Evaluator로 Agent 래핑  
   
-**📚 v0.5.8 통합 가이드:**
+**📚 v0.6.0 통합 가이드:**
 
   * ✅ **Clean API** : 모든 프레임워크에서 일관된 `Evaluator` 패턴 사용
   * ✅ **Layer 1/2/3 자동 추적** : `enable_layer2=True`로 고급 메트릭 활성화
@@ -2412,8 +2412,8 @@ AutoGen | `AutoGenEvaluator` | Evaluator로 Agent 래핑
 
 * * *
 
-**Agent Evaluator v0.5.8**
+**Agent Evaluator v0.6.0**
 
-**최종 업데이트** : 2026-03-21
+**최종 업데이트** : 2026-03-22
 
 © 2024-2025 MIT License

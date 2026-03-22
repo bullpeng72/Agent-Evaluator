@@ -3,7 +3,7 @@
 [![PyPI version](https://img.shields.io/pypi/v/agent-evaluator.svg)](https://pypi.org/project/agent-evaluator/)
 [![Python Version](https://img.shields.io/badge/python-3.8%2B-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Version](https://img.shields.io/badge/version-0.5.8-green.svg)](https://github.com/bullpeng72/Agent-Evaluator)
+[![Version](https://img.shields.io/badge/version-0.6.0-green.svg)](https://github.com/bullpeng72/Agent-Evaluator)
 
 **AI 에이전트를 위한 프로덕션 레디 평가 프레임워크**
 
@@ -104,9 +104,9 @@ Layer 1/2 지표를 그대로 유지하면서 외부 지표를 추가합니다.
 from agent_evaluator import HybridPerformanceMonitor
 
 monitor = HybridPerformanceMonitor(
-    enable_deepeval=True,   # pip install agent-evaluator[eval]
-    enable_ragas=True,      # pip install agent-evaluator[eval]
-    enable_langsmith=True,  # LangSmith API 키 필요
+    use_deepeval=True,      # pip install agent-evaluator[eval]
+    use_ragas=True,         # pip install agent-evaluator[eval]
+    use_langsmith=True,     # LangSmith API 키 필요
 )
 ```
 
@@ -161,11 +161,19 @@ pip install agent-evaluator
 ### 선택적 의존성 추가
 
 ```bash
-pip install "agent-evaluator[llm]"         # OpenAI + Anthropic 클라이언트
-pip install "agent-evaluator[frameworks]"  # LangChain / LangGraph / CrewAI / AutoGen
+# 단위 extras (필요한 것만 선택)
+pip install "agent-evaluator[llm]"         # OpenAI + Anthropic 클라이언트 (빠름)
+pip install "agent-evaluator[serve]"       # FastAPI 대시보드 서버 (빠름)
+pip install "agent-evaluator[langchain]"   # LangChain / LangGraph
+pip install "agent-evaluator[crewai]"      # CrewAI (무거움, 단독 격리)
+pip install "agent-evaluator[autogen]"     # AutoGen (무거움, 단독 격리)
 pip install "agent-evaluator[eval]"        # DeepEval + Ragas (Layer 3 평가)
-pip install "agent-evaluator[serve]"       # FastAPI 대시보드 서버
-pip install "agent-evaluator[all]"         # 모든 선택적 의존성 (PDF 도구 포함)
+pip install "agent-evaluator[pdf]"         # pypdf + pdfplumber
+
+# 조합 편의 extras
+pip install "agent-evaluator[frameworks]"  # langchain + crewai + autogen (기존 호환)
+pip install "agent-evaluator[all]"         # crewai/autogen 제외 전체 (권장)
+pip install "agent-evaluator[full]"        # 진짜 전체 (⚠️ 설치 10분+ 소요)
 ```
 
 ### 소스에서 개발 설치
@@ -226,7 +234,7 @@ monitor = PerformanceMonitor()
 
 # OpenAI GPT
 llm = LLMHelper(monitor)
-task = llm.evaluate_openai(
+task = llm.evaluate_openai_call(
     task_id="gpt_001",
     prompt="머신러닝이란 무엇인가요?",
     ground_truth="머신러닝은 데이터로부터 패턴을 학습하는 AI 기법입니다."
@@ -234,7 +242,7 @@ task = llm.evaluate_openai(
 
 # Anthropic Claude
 claude = ClaudeHelper(monitor)
-task = claude.evaluate_claude(
+task = claude.evaluate_claude_call(
     task_id="claude_001",
     prompt="강화학습을 설명해주세요.",
     ground_truth="강화학습은 보상을 통해 학습하는 방식입니다."
@@ -269,10 +277,11 @@ from agent_evaluator import PerformanceMonitor
 from agent_evaluator.integrations import create_evaluated_langchain_agent
 
 monitor = PerformanceMonitor()
-agent = create_evaluated_langchain_agent(llm, tools, monitor=monitor)
+# my_agent: 기존 LangChain AgentExecutor 등
+evaluated_agent = create_evaluated_langchain_agent(my_agent, monitor=monitor)
 
 # 에이전트 실행 → 자동으로 지표 수집
-result = agent.run("질문을 입력하세요")
+result = evaluated_agent.run("질문을 입력하세요")
 ```
 
 ### CrewAI
@@ -280,19 +289,19 @@ result = agent.run("질문을 입력하세요")
 ```python
 from agent_evaluator.integrations import create_evaluated_crew
 
-# CrewAI Crew 실행 + 자동 평가
-crew = create_evaluated_crew(tasks, agents, monitor=monitor)
-result = crew.kickoff()
+# my_crew: 기존 CrewAI Crew 객체
+evaluated_crew = create_evaluated_crew(my_crew, monitor=monitor)
+result = evaluated_crew.kickoff()
 ```
 
 ### LangGraph
 
 ```python
-from agent_evaluator.integrations import create_evaluated_langgraph
+from agent_evaluator.integrations.langgraph_integration import create_evaluated_langgraph_agent
 
-# StateGraph 실행 + 워크플로우 추적
-evaluated_graph = create_evaluated_langgraph(graph, monitor=monitor)
-result = evaluated_graph.invoke({"input": "..."})
+# my_compiled_graph: 컴파일된 LangGraph StateGraph
+evaluated_graph = create_evaluated_langgraph_agent(my_compiled_graph, monitor=monitor)
+result = evaluated_graph.run({"messages": [("user", "질문")]})
 ```
 
 ### AutoGen
@@ -300,7 +309,8 @@ result = evaluated_graph.invoke({"input": "..."})
 ```python
 from agent_evaluator.integrations import create_evaluated_autogen_agent
 
-agent = create_evaluated_autogen_agent(config, monitor=monitor)
+# my_agent_or_team: AssistantAgent, RoundRobinGroupChat 등
+evaluated_agent = create_evaluated_autogen_agent(my_agent_or_team, monitor=monitor)
 # 멀티 에이전트 대화 자동 추적
 ```
 
@@ -377,7 +387,7 @@ agent-eval check
 
 출력 예시:
 ```
-  Agent Evaluator v0.5.8 — 설정 상태
+  Agent Evaluator v0.6.0 — 설정 상태
   ──────────────────────────────────────────────────
 ℹ  .env 로드: /home/user/project/.env
 
@@ -451,7 +461,7 @@ FastAPI + Alpine.js 기반 SPA 웹 대시보드로 평가 결과를 시각화합
 - 전체 지표 개요 및 트렌드 (TCR·정확도·할루시네이션·레이턴시·비용)
 - 태스크별 정확도/지연시간 분포 및 이상치 탐지
 - 툴 사용 패턴 분석 (Tool Selection F1, 효율성, 중복 호출)
-- 보안 이벤트 타임라인 (L1/L2 보안 이벤트 시각화)
+- 보안 이벤트 타임라인 (L2 보안 이벤트 시각화)
 - Agent 협업 네트워크 그래프 (Pan/Zoom 지원)
 - Layer 3 Advanced 지표 (DeepEval·Ragas, 옵션)
 - 상관관계 히트맵 (4×4 Pearson 지표 행렬)
@@ -490,8 +500,8 @@ FastAPI + Alpine.js 기반 SPA 웹 대시보드로 평가 결과를 시각화합
 | 26 | Bias Score (DeepEval) | 📊 품질 · 🟣 통합 | DeepEval 탭 |
 | 27 | Hallucination Score (DeepEval) | 📊 품질 · 🟣 통합 | DeepEval 탭 |
 
-> **참고:** 1~4번(TCR·Accuracy·Hallucination)은 **Overview** KPI 카드에도 요약 표시됩니다.
-> Ragas 4종(19~22번)은 🟡 심화와 🟣 통합 > Ragas 탭 양쪽에서 확인 가능합니다.
+> **참고:** 1-4번(TCR·Accuracy·Hallucination)은 **Overview** KPI 카드에도 요약 표시됩니다.
+> Ragas 4종(19-22번)은 🟡 심화와 🟣 통합 > Ragas 탭 양쪽에서 확인 가능합니다.
 
 ---
 
@@ -540,6 +550,11 @@ agent-evaluator/
 │   ├── 04_security_metrics.py    # 보안 지표 — Input Sanitization, Leakage, Auth, Escalation
 │   └── 05_hybrid_metrics.py      # 하이브리드 평가 — DeepEval, Ragas, LangSmith 통합
 │
+├── tests/                        # 단위 테스트 (33개 테스트 함수, 4개 파일)
+│   ├── test_accuracy_evaluator.py
+│   ├── test_hallucination_detector.py
+│   ├── test_input_sanitization.py
+│   └── test_performance_monitor.py
 ├── pyproject.toml
 └── LICENSE
 ```
@@ -577,6 +592,7 @@ from agent_evaluator import (
     # 하이브리드
     HybridPerformanceMonitor,
     ExtendedTaskResult,
+    HybridEvaluationReport,
 
     # 헬퍼
     create_taskresult,       # TaskResult 간편 생성 함수
@@ -629,13 +645,18 @@ mypy agent_evaluator/
 
 ### 선택적 의존성
 
-| Extra | 패키지 | 용도 |
-|-------|--------|------|
-| `[llm]` | openai, anthropic | LLMHelper / ClaudeHelper 사용 |
-| `[frameworks]` | langchain, langgraph, crewai, pyautogen | 프레임워크 통합 |
-| `[eval]` | deepeval, ragas, langchain | Layer 3 하이브리드 평가 |
-| `[serve]` | fastapi, uvicorn, jinja2 | FastAPI 대시보드 서버 |
-| `[all]` | 위 모두 + pypdf, pdfplumber | 전체 (PDF 데이터셋 포함) |
+| Extra | 패키지 | 용도 | 속도 |
+|-------|--------|------|------|
+| `[llm]` | openai, anthropic | LLMHelper / ClaudeHelper 사용 | 빠름 |
+| `[langchain]` | langchain ≥1.0, langchain-core/openai/anthropic, langgraph ≥1.0 | LangChain/LangGraph 통합 | 중간 |
+| `[crewai]` | crewai ≥1.0 | CrewAI 통합 | 무거움 |
+| `[autogen]` | pyautogen ≥0.3, autogen-agentchat/core ≥0.4 | AutoGen 통합 (async-first) | 무거움 |
+| `[eval]` | deepeval, ragas ≥0.4, datasets ≥4.0, langchain | Layer 3 하이브리드 평가 | 무거움 |
+| `[serve]` | fastapi, uvicorn, jinja2 | FastAPI 대시보드 서버 | 빠름 |
+| `[pdf]` | pypdf, pdfplumber | PDF 데이터셋 처리 | 빠름 |
+| `[frameworks]` | langchain + crewai + autogen | 기존 호환 (전체 프레임워크) | 무거움 |
+| `[all]` | llm + langchain + eval + serve + pdf | **권장** — crewai/autogen 제외 | 중간 |
+| `[full]` | all + crewai + autogen | 진짜 전체 ⚠️ 10분+ | 매우 무거움 |
 
 ---
 
@@ -675,7 +696,7 @@ MIT License — 자세한 내용은 [LICENSE](LICENSE) 파일을 참고하세요
   title   = {Agent Evaluator: Production-ready evaluation framework for AI agents},
   author  = {Kim, Sungwoo},
   year    = {2026},
-  version = {0.5.8},
+  version = {0.6.0},
   url     = {https://github.com/bullpeng72/Agent-Evaluator},
   license = {MIT}
 }

@@ -3,6 +3,7 @@ LLM Integration Helpers
 Simplify real LLM API calls with automatic evaluation and recording
 """
 
+from datetime import datetime
 from typing import Optional, Dict, Any, List
 import time
 
@@ -142,7 +143,7 @@ class LLMEvaluationHelper:
                 tool_calls=[],
                 attempts=1,
                 errors=[str(e)],
-                timestamp=None
+                timestamp=datetime.now()
             )
 
             # Record failure
@@ -314,7 +315,7 @@ class AnthropicEvaluationHelper:
                 tool_calls=[],
                 attempts=1,
                 errors=[str(e)],
-                timestamp=None
+                timestamp=datetime.now()
             )
 
             self.monitor.record_task(task)

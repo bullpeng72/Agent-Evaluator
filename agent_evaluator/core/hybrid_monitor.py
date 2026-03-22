@@ -469,12 +469,16 @@ class HybridPerformanceMonitor(PerformanceMonitor):
             results_dir = get_evaluation_results_dir(create=True)
             filename = os.path.join(results_dir, filename)
 
+        _now = datetime.now().isoformat()
         data = {
+            'total_tasks': len(self.extended_tasks),
+            'timestamp': _now,
             'metadata': {
-                'created_at': datetime.now().isoformat(),
+                'created_at': _now,
                 'total_tasks': len(self.extended_tasks),
                 'providers_used': self.enabled_providers
             },
+            'pricing': self.token_tracker.pricing,
             'tasks': [
                 {
                     'task_id': task.task_id,
@@ -487,7 +491,7 @@ class HybridPerformanceMonitor(PerformanceMonitor):
                     'tool_calls': task.tool_calls,
                     'attempts': task.attempts,
                     'errors': task.errors,
-                    'timestamp': task.timestamp.isoformat(),
+                    'timestamp': task.timestamp.isoformat() if hasattr(task.timestamp, 'isoformat') else str(task.timestamp),
                     'advanced_metrics': task.advanced_metrics,
                     'providers_used': task.metric_providers_used,
                     # Add Agentic AI fields
@@ -520,9 +524,21 @@ class HybridPerformanceMonitor(PerformanceMonitor):
                 },
                 'workflow': {
                     'executions': self.workflow_tracker.executions
+                },
+                'tool_calls': {
+                    'executions': self.tool_analyzer.executions
                 }
             }
         }
+
+        # RAG metrics
+        data['rag_metrics'] = self.rag_metrics
+
+        # 보안 트래커 데이터 (enable_security=True 로 생성된 경우)
+        if getattr(self, 'input_sanitizer', None) is not None:
+            security_data = self._get_security_evaluator_data()
+            if security_data:
+                data['evaluators']['security'] = security_data
 
         with open(filename, 'w', encoding='utf-8') as f:
             json.dump(data, f, indent=2, ensure_ascii=False, default=str)
@@ -619,6 +635,10 @@ class HybridPerformanceMonitor(PerformanceMonitor):
             if "workflow" in evaluators:
                 monitor.workflow_tracker.executions = evaluators["workflow"].get("executions", [])
 
+            # Tool call executions
+            if "tool_calls" in evaluators:
+                monitor.tool_analyzer.executions = evaluators["tool_calls"].get("executions", [])
+
             # Security evaluators (Layer 1 & 2)
             if "security" in evaluators:
                 security_data = evaluators["security"]
@@ -651,9 +671,15 @@ class HybridPerformanceMonitor(PerformanceMonitor):
                 print(f"      - Attack Detector: {len(monitor.tool_chain_attack_detector.detections)} detections")
 
         # Restore advanced_metrics_summary (DeepEval, Ragas 등)
-        if "advanced_metrics_summary" in data:
-            monitor._advanced_metrics_summary = data["advanced_metrics_summary"]
-            print(f"   📊 Restored advanced metrics summary with {len(data['advanced_metrics_summary'])} metrics")
+        # Saved at top-level by save_to_file() and also inside report dict
+        _ams = data.get("advanced_metrics_summary") or data.get("report", {}).get("advanced_metrics_summary")
+        if _ams:
+            monitor._advanced_metrics_summary = _ams
+            print(f"   📊 Restored advanced metrics summary with {len(_ams)} metrics")
+
+        # Restore rag_metrics
+        if "rag_metrics" in data:
+            monitor.rag_metrics = data["rag_metrics"]
 
         # Store evaluators data for Dashboard compatibility
         if "evaluators" in data:

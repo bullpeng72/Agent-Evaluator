@@ -49,8 +49,8 @@ Agent Evaluator는 PyPI에 배포되어 있어 pip로 간단히 설치할 수 �
 **포함 기능:**
 
   * ✅ FastAPI 대시보드 (`agent-eval serve`, Port 8765, 브라우저 자동 오픈)
-  * ✅ Layer 1: Basic + Security 메트릭 (TCR, Accuracy, Latency, Token Usage, Input Sanitization, Output Leakage, Authorization)
-  * ✅ Layer 2: Agentic + Security 메트릭 (Tool Selection, Agent Coordination, Workflow, Privilege Escalation, Attack Detection)
+  * ✅ Layer 1: Foundation 메트릭 (TCR, Accuracy, Latency, Token Usage)
+  * ✅ Layer 2: Agentic + Security 메트릭 (Tool Selection, Agent Coordination, Workflow, Input Sanitization, Output Leakage, Authorization, Privilege Escalation, Attack Detection)
   * ✅ **LangChain 통합** (자동 추적)
   * ✅ **AutoGen 통합** (자동 추적)
   * ✅ 한국어 RAG Dataset Generator
@@ -100,20 +100,20 @@ Agent Evaluator는 PyPI에 배포되어 있어 pip로 간단히 설치할 수 �
     pip install agent-evaluator
     
     # 추가 프레임워크 설치
-    pip install crewai>=0.11.0 crewai-tools>=0.2.0
-    pip install langgraph>=0.0.20
+    pip install crewai>=1.0.0
+    pip install langgraph>=1.0.0
     pip install deepeval>=0.20.0
-    pip install ragas>=0.1.0 datasets>=2.14.0 langchain-openai>=0.0.5
+    pip install ragas>=0.4.0 datasets>=4.0.0 langchain-openai>=1.0.0
 ```
 
 **포함 기능:**
 
-  * ✅ 기본 설치의 모든 기능 (Layer 1/2 Basic + Security)
+  * ✅ 기본 설치의 모든 기능 (Layer 1 Foundation + Layer 2 Agentic + Security)
   * ✅ **CrewAI 통합** (Agent Coordination 자동 추적)
   * ✅ **LangGraph 통합** (Workflow Execution 자동 추적)
   * ✅ **DeepEval** (Layer 3: G-Eval, Hallucination, Toxicity, Bias)
   * ✅ **Ragas** (Layer 3: Faithfulness, Context Precision/Recall)
-  * ✅ **완전 보안 모니터링** (Layer 1/2 Security 통합)
+  * ✅ **완전 보안 모니터링** (Layer 2 Security 통합)
 
 **사용 사례:**
 
@@ -127,14 +127,14 @@ Agent Evaluator는 PyPI에 배포되어 있어 pip로 간단히 설치할 수 �
 
 #### CrewAI 추가
 
-```bash 
-    pip install crewai>=0.11.0 crewai-tools>=0.2.0
+```bash
+    pip install crewai>=1.0.0
 ```
 
 #### LangGraph 추가
 
-```bash 
-    pip install langgraph>=0.0.20
+```bash
+    pip install langgraph>=1.0.0
 ```
 
 #### DeepEval 추가
@@ -145,8 +145,8 @@ Agent Evaluator는 PyPI에 배포되어 있어 pip로 간단히 설치할 수 �
 
 #### Ragas 추가
 
-```bash 
-    pip install ragas>=0.1.0 datasets>=2.14.0 langchain-openai>=0.0.5
+```bash
+    pip install ragas>=0.4.0 datasets>=4.0.0 langchain-openai>=1.0.0
 ```
 
 * * *
@@ -188,13 +188,13 @@ Agent Evaluator를 설치한 후, Python 코드에서 직접 사용할 수 있�
 
 ```python
 from agent_evaluator import PerformanceMonitor
-from agent_evaluator.helpers import create_taskresult_from_execution
+from agent_evaluator import create_taskresult
 
 # 모니터 생성 (설정 불필요!)
 monitor = PerformanceMonitor()
 
 # 간편한 작업 결과 생성 (Helper 함수 사용)
-task = create_taskresult_from_execution(
+task = create_taskresult(
     task_id="task_001",
     question="대한민국의 수도는 어디인가요?",
     response="서울입니다",
@@ -500,7 +500,7 @@ Agent Evaluator는 평가 결과를 터미널에서 즉시 확인할 수 있는 
 
 ```python
     from agent_evaluator import PerformanceMonitor
-    from agent_evaluator.helpers import create_taskresult_from_execution
+    from agent_evaluator import create_taskresult
     
     # 모니터 생성
     monitor = PerformanceMonitor()
@@ -511,7 +511,7 @@ Agent Evaluator는 평가 결과를 터미널에서 즉시 확인할 수 있는 
     truths = ["서울", "5천만명", "한국어", "원", "100,378km²"]
     
     for i in range(5):
-        task = create_taskresult_from_execution(
+        task = create_taskresult(
             task_id=f"task_{i:03d}",
             question=questions[i],
             response=responses[i],
@@ -528,9 +528,9 @@ Agent Evaluator는 평가 결과를 터미널에서 즉시 확인할 수 있는 
 
 ### 프레임워크 통합 예제
 
-**🎉 v0.5.7 신규:** 보안 메트릭 및 고급 통합 클래스 추가!
+**v0.6.0:** 보안 메트릭 및 고급 통합 클래스 지원.
 
-Layer 1/2 보안 메트릭, Layer 3 고급 평가, 자동 추적 기능이 포함된 새로운 통합 클래스를 사용하세요:
+Layer 2 보안 메트릭, Layer 3 고급 평가, 자동 추적 기능이 포함된 통합 클래스를 사용하세요:
 
 #### CrewAI 통합
 
@@ -743,5 +743,5 @@ Layer 1/2 보안 메트릭, Layer 3 고급 평가, 자동 추적 기능이 포�
 
 * * *
 
-**문서 버전** : v0.5.8
-**최종 업데이트** : 2026-03-21
+**문서 버전** : v0.6.0
+**최종 업데이트** : 2026-03-22

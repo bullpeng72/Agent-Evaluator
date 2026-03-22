@@ -16,9 +16,9 @@ AI Agent 보안 평가를 위한 완전한 가이드
   * ✅ **안정성 향상** : 프로덕션 환경에서 검증된 보안 메트릭
   * ✅ **Layer 2 통합**: 보안 지표 5개가 Layer 2 (Agentic+Security)에 포함
 
-**현재 버전:** v0.5.8
+**현재 버전:** v0.6.0
 
-**최종 업데이트:** 2026-03-21
+**최종 업데이트:** 2026-03-22
 
 **주요 기능:**
 
@@ -31,13 +31,12 @@ AI Agent 보안 평가를 위한 완전한 가이드
 
   * [🚀 1. 빠른 시작](<#quick-start>)
   * [📊 2. 보안 지표 개요](<#overview>)
-  * [🛡️ 3. Layer 1: Native Security Metrics](<#layer1-security>)
+  * [🛡️ 3. Layer 2: Security Metrics (5개)](<#layer2-security>)
     * [3.1 Input Sanitization Tracker](<#input-sanitization>)
     * [3.2 Output Leakage Detector](<#output-leakage>)
     * [3.3 Tool Authorization Tracker](<#tool-authorization>)
-  * [🔐 4. Layer 2: Agentic Security Metrics](<#layer2-security>)
-    * [4.1 Privilege Escalation Detector](<#privilege-escalation>)
-    * [4.2 Tool Chain Attack Detector](<#attack-detection>)
+    * [3.4 Privilege Escalation Detector](<#privilege-escalation>)
+    * [3.5 Tool Chain Attack Detector](<#attack-detection>)
   * [🔌 5. 통합 및 사용법](<#integration>)
   * [💡 6. Best Practices](<#best-practices>)
   * [📋 7. 사용 사례](<#use-cases>)
@@ -73,20 +72,17 @@ AI Agent 보안 평가를 위한 완전한 가이드
 
 ## 📊 2. 보안 지표 개요
 
-### 2계층 보안 지표 체계
+### 보안 지표 체계 (Layer 2 전체)
 
-flowchart TB L1["**Layer 1: Native Security (기본 보안)**  
-  
-✅ Input Sanitization  
-✅ Output Leakage Detection  
-✅ Tool Authorization  
-  
-무료 | 실시간 | 정규식 기반"] L2["**Layer 2: Agentic Security (에이전트 보안)**  
-  
-✅ Privilege Escalation Detection  
-✅ Tool Chain Attack Detection  
-  
-무료 | 실시간 | 패턴 분석 기반"] L1 -.->|"확장"| L2 style L1 fill:#fff3cd,stroke:#ff9800,stroke-width:3px,color:#000 style L2 fill:#ffe0e0,stroke:#f44336,stroke-width:3px,color:#000 
+flowchart TB L2["**Layer 2: Security (Opt-in)**
+
+✅ Input Sanitization
+✅ Output Leakage Detection
+✅ Tool Authorization
+✅ Privilege Escalation Detection
+✅ Tool Chain Attack Detection
+
+무료 | 실시간 | 정규식·패턴 분석 기반"] style L2 fill:#ffe0e0,stroke:#f44336,stroke-width:3px,color:#000
 
 ### 보안 지표 특징 비교
 
@@ -109,9 +105,9 @@ flowchart TB L1["**Layer 1: Native Security (기본 보안)**
   
 * * *
 
-## 🛡️ 3. Layer 1: Native Security Metrics
+## 🛡️ 3. Layer 2: Security Metrics (5개)
 
-Layer 1 보안 지표는 정규식과 휴리스틱을 사용하여 실시간으로 보안 위협을 탐지합니다.
+Layer 2 보안 지표는 정규식과 휴리스틱, 패턴 분석을 사용하여 실시간으로 보안 위협을 탐지합니다.
 
 ### 3.1 Input Sanitization Tracker
 
@@ -146,9 +142,9 @@ Layer 1 보안 지표는 정규식과 휴리스틱을 사용하여 실시간으�
 
 **💡 사용 예제**
 ```python
-    # 자동 추적
-    monitor.record_task(task)  # input_text가 자동으로 검사됨
-    
+    # 명시적 호출 필요 (record_task()는 보안 검사를 자동으로 수행하지 않음)
+    monitor.input_sanitizer.evaluate_input(task_id, input_text)
+
     # 통계 확인
     stats = monitor.input_sanitizer.get_security_stats()
     print(f"Threat rate: {stats['threat_rate']}%")
@@ -267,11 +263,7 @@ Agent 출력에서 민감 정보 유출을 탐지하여 데이터 유출을 방�
 
 * * *
 
-## 🔐 4. Layer 2: Agentic Security Metrics
-
-Layer 2 보안 지표는 도구 호출 시퀀스를 분석하여 고급 보안 위협을 탐지합니다.
-
-### 4.1 Privilege Escalation Detector
+### 3.4 Privilege Escalation Detector
 
 **📝 설명**
 
@@ -316,7 +308,7 @@ Layer 2 보안 지표는 도구 호출 시퀀스를 분석하여 고급 보안 �
 
 * * *
 
-### 4.2 Tool Chain Attack Detector
+### 3.5 Tool Chain Attack Detector
 
 **📝 설명**
 
@@ -372,16 +364,13 @@ Layer 2 보안 지표는 도구 호출 시퀀스를 분석하여 고급 보안 �
 ```python
     report = monitor.generate_report()
     
-    # Layer 1 보안 지표
-    layer1 = report.security_metrics['layer1_security']
-    print(f"Input threat rate: {layer1['input_security']['threat_rate']}%")
-    print(f"Output leakage rate: {layer1['output_leakage']['leakage_rate']}%")
-    print(f"Authorization compliance: {layer1['authorization']['compliance_rate']}%")
-    
-    # Layer 2 보안 지표
-    layer2 = report.security_metrics['layer2_security']
-    print(f"Escalation rate: {layer2['privilege_escalation']['escalation_rate']}%")
-    print(f"Attack detection rate: {layer2['attack_detection']['detection_rate']}%")
+    # Layer 2 보안 지표 (5개 모두)
+    sec = report.security_metrics
+    print(f"Input threat rate: {sec['input_security']['threat_rate']}%")
+    print(f"Output leakage rate: {sec['output_leakage']['leakage_rate']}%")
+    print(f"Authorization compliance: {sec['authorization']['compliance_rate']}%")
+    print(f"Escalation rate: {sec['privilege_escalation']['escalation_rate']}%")
+    print(f"Attack detection rate: {sec['attack_detection']['detection_rate']}%")
 ```
 
 ### 보안 알림 처리
@@ -543,9 +532,9 @@ Layer 2 보안 지표는 도구 호출 시퀀스를 분석하여 고급 보안 �
 
 ## 📖 관련 문서
 
-  * [API 레퍼런스](<API_REFERENCE.html>) \- 전체 API 문서 (v0.5.8)
-  * [평가 지표 가이드](<METRICS_GUIDE.html>) \- Layer 1, 2, 3 지표 상세 (v0.5.8)
-  * [고급 메트릭 가이드](<AGENTIC_AI_METRICS_GUIDE.html>) \- Layer 2 메트릭 완전 가이드 (v0.5.8)
+  * [API 레퍼런스](<API_REFERENCE.html>) \- 전체 API 문서 (v0.6.0)
+  * [평가 지표 가이드](<METRICS_GUIDE.html>) \- Layer 1, 2, 3 지표 상세 (v0.6.0)
+  * [고급 메트릭 가이드](<AGENTIC_AI_METRICS_GUIDE.html>) \- Layer 2 메트릭 완전 가이드 (v0.6.0)
 
 **보안 메트릭 주요 특징:**
 

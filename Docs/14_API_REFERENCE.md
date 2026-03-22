@@ -10,19 +10,19 @@
 
 ## 버전 정보
 
-**현재 버전:** v0.5.8
+**현재 버전:** v0.6.0
 
-**최종 업데이트:** 2026-03-21
+**최종 업데이트:** 2026-03-22
 
 **테스트된 환경:**
 
   * Python: 3.8+ (3.12 테스트 완료)
-  * LangChain: 0.1.0+ (선택)
-  * LangGraph: 0.1.0+ (선택)
+  * LangChain: 1.0.0+ (선택)
+  * LangGraph: 1.0.0+ (선택)
   * DeepEval: 0.20.0+ (선택)
-  * Ragas: 0.1.0+ (선택)
-  * CrewAI: 0.11.0+ (선택)
-  * AutoGen: 0.2.0+ (선택)
+  * Ragas: 0.4.0+ (선택)
+  * CrewAI: 1.0.0+ (선택)
+  * AutoGen: 0.3.0+ (선택)
 
 ## 목차
 
@@ -36,14 +36,12 @@
       * [1.5.1 ToolSelectionTracker](<#toolselectiontracker>)
       * [1.5.2 AgentCoordinationTracker](<#agentcoordinationtracker>)
       * [1.5.3 WorkflowExecutionTracker](<#workflowexecutiontracker>)
-  * [**🛡️ 2. 보안 메트릭 (Security Metrics)**](<#보안-메트릭>)
-    * [2.1 Layer 1: Native Security Metrics](<#layer1-security>)
-      * [2.1.1 InputSanitizationTracker](<#inputsanitizationtracker>)
-      * [2.1.2 OutputLeakageDetector](<#outputleakagedetector>)
-      * [2.1.3 ToolAuthorizationTracker](<#toolauthorizationtracker>)
-    * [2.2 Layer 2: Agentic Security Metrics](<#layer2-security>)
-      * [2.2.1 PrivilegeEscalationDetector](<#privilegeescalationdetector>)
-      * [2.2.2 ToolChainAttackDetector](<#toolchainattackdetector>)
+  * [**🛡️ 2. 보안 메트릭 (Security Metrics) — 모두 Layer 2**](<#보안-메트릭>)
+      * [2.1 InputSanitizationTracker](<#inputsanitizationtracker>)
+      * [2.2 OutputLeakageDetector](<#outputleakagedetector>)
+      * [2.3 ToolAuthorizationTracker](<#toolauthorizationtracker>)
+      * [2.4 PrivilegeEscalationDetector](<#privilegeescalationdetector>)
+      * [2.5 ToolChainAttackDetector](<#toolchainattackdetector>)
   * [3\. 리포트 클래스](<#리포트-클래스>)
   * [4\. 메트릭 어댑터](<#메트릭-어댑터>)
   * [5\. 헬퍼 함수](<#헬퍼-함수>)
@@ -54,7 +52,7 @@
     * [**5.5 Context Managers**](<#context-managers>)
     * [**5.6 LLM 통합 헬퍼**](<#llm-helpers>)
     * [**5.7 ExampleRunner**](<#example-runner>)
-  * [**🔌 6. 프레임워크 통합 (v0.5.8)**](<#프레임워크-통합>)
+  * [**🔌 6. 프레임워크 통합 (v0.6.0)**](<#프레임워크-통합>)
     * [6.1 CrewAIEvaluator](<#crewai-evaluator>)
     * [6.2 LangChainEvaluator](<#langchain-evaluator>)
     * [6.3 LangGraphEvaluator](<#langgraph-evaluator>)
@@ -69,8 +67,7 @@
 
 **AI Agent 보안 평가 기능이 추가되었습니다!**
 
-  * ✅ **Layer 1 보안** : 입력 살균, 출력 유출 탐지, 도구 권한 관리
-  * ✅ **Layer 2 보안** : 권한 상승 탐지, 공격 패턴 탐지
+  * ✅ **Layer 2 보안** : 입력 살균, 출력 유출 탐지, 도구 권한 관리, 권한 상승 탐지, 공격 패턴 탐지
   * ✅ **무료 & 실시간** (< 15ms 오버헤드)
 
 📚 **상세 가이드** : [보안 지표 가이드](<SECURITY_METRICS_GUIDE.html>)
@@ -277,15 +274,26 @@ PerformanceMonitor는 내부적으로 **16개의 Tracker** 를 사용하여 메�
 ```json
     [](<#cb1-1>)PerformanceMonitor(
     [](<#cb1-2>)    pricing: Optional[Dict[str, float]] = None,
-    [](<#cb1-3>)    enable_transparency: bool = False
-    [](<#cb1-4>))
+    [](<#cb1-3>)    enable_transparency: bool = False,
+    [](<#cb1-4>)    enable_hallucination_detection: bool = False,
+    [](<#cb1-5>)    enable_security_metrics: bool = False,
+    [](<#cb1-6>)    security_config: Optional[Dict] = None,
+    [](<#cb1-7>)    output_dir: Optional[str] = None
+    [](<#cb1-8>))
 ```
 
 **파라미터** \- `pricing` (dict, optional): 토큰 가격 설정 - `input` (float): 입력 토큰 가격 ($/1K tokens) \- `output` (float): 출력 토큰 가격 ($/1K tokens) - 기본값: `{"input": 0.003, "output": 0.015}` (GPT-4o-mini)
 
-  * `enable_transparency` (bool, optional): Test 투명성 추적 활성화 여부 (기본값: False) 
+  * `enable_transparency` (bool, optional): Test 투명성 추적 활성화 여부 (기본값: False)
     * True일 경우 TestTransparencyManager를 초기화하여 평가 과정을 추적합니다
     * Dashboard API를 통해 평가 이력을 관리할 수 있습니다
+  * `enable_hallucination_detection` (bool, optional): 환각 탐지 활성화 여부 (기본값: False)
+    * 성능에 영향을 줄 수 있으므로 opt-in 방식
+  * `enable_security_metrics` (bool, optional): 보안 메트릭(Layer 2) 활성화 여부 (기본값: False)
+    * InputSanitizationTracker, OutputLeakageDetector 등 5개 보안 트래커 초기화
+    * `security_config`와 함께 사용하여 허용/차단 도구 목록 설정 가능
+  * `security_config` (dict, optional): 보안 설정 딕셔너리 (`allowed_tools`, `restricted_tools` 등)
+  * `output_dir` (str, optional): 결과 저장 디렉토리 (미지정 시 Zero Configuration 자동 탐지)
 
 **참고** : 임계값(thresholds)은 생성자가 아닌 `load_thresholds_from_config()` 메서드나 `from_test_config()` 클래스 메서드를 통해 설정합니다
 
@@ -1813,13 +1821,10 @@ LangGraph 그래프 순회 효율성을 계산합니다.
 
 **보안 메트릭은 AI Agent의 보안 위협을 실시간으로 탐지합니다**
 
-  * ✅ **Layer 1** : Input Sanitization, Output Leakage, Tool Authorization (무료, ~5ms)
-  * ✅ **Layer 2** : Privilege Escalation, Tool Chain Attack Detection (무료, ~10ms)
+  * ✅ **Layer 2 보안** : Input Sanitization, Output Leakage, Tool Authorization, Privilege Escalation, Tool Chain Attack Detection (무료, ~5–15ms)
   * ✅ **40+ 위협 패턴** : SQL Injection, XSS, Command Injection, Prompt Injection, Data Exfiltration 등
 
-### 2.1 Layer 1: Native Security Metrics
-
-#### 2.1.1 InputSanitizationTracker
+### 2.1 InputSanitizationTracker
 
 **📝 설명**
 
@@ -1851,7 +1856,7 @@ Prompt Injection| 7| `ignore previous instructions`| 🔴 Critical
     [](<#cb_sec1-7>)    question="SELECT * FROM users WHERE '1'='1'",  # SQL Injection 시도
     [](<#cb_sec1-8>)    response="..."
     [](<#cb_sec1-9>))
-    [](<#cb_sec1-10>)monitor.record_task(task)  # 자동으로 입력 검사
+    [](<#cb_sec1-10>)monitor.record_task(task)  # 보안 검사는 아래처럼 명시적 호출 필요
     [](<#cb_sec1-11>)
     [](<#cb_sec1-12>)# 통계 확인
     [](<#cb_sec1-13>)stats = monitor.input_sanitizer.get_security_stats()
@@ -1899,7 +1904,7 @@ Prompt Injection| 7| `ignore previous instructions`| 🔴 Critical
 
 * * *
 
-#### 2.1.2 OutputLeakageDetector
+### 2.2 OutputLeakageDetector
 
 **📝 설명**
 
@@ -1960,7 +1965,7 @@ File Path| `/usr/local/`, `C:\Windows\`| 🟡 Medium
 
 * * *
 
-#### 2.1.3 ToolAuthorizationTracker
+### 2.3 ToolAuthorizationTracker
 
 **📝 설명**
 
@@ -2029,9 +2034,7 @@ Dangerous Parameters| 위험한 파라미터 포함| `{"command": "rm -rf /"}`
 
 * * *
 
-### 2.2 Layer 2: Agentic Security Metrics
-
-#### 2.2.1 PrivilegeEscalationDetector
+### 2.4 PrivilegeEscalationDetector
 
 **📝 설명**
 
@@ -2084,7 +2087,7 @@ Dangerous Parameters| 위험한 파라미터 포함| `{"command": "rm -rf /"}`
 
 * * *
 
-#### 2.2.2 ToolChainAttackDetector
+### 2.5 ToolChainAttackDetector
 
 **📝 설명**
 
@@ -2595,7 +2598,7 @@ Agent 실행 결과로부터 TaskResult를 생성합니다. **모든 메트릭�
     [](<#cb67j-24>)print(f"Cost: ${task.estimated_cost:.4f}")
 ```
 
-**💡 Tip:** `create_taskresult`는 `helpers.taskresult_helpers.create_taskresult_from_execution`의 간소화된 이름입니다. 최상위 레벨에서 직접 import 가능합니다.
+**💡 Tip:** `create_taskresult`는 `agent_evaluator.helpers.taskresult_helpers`에 정의된 헬퍼 함수이며, 최상위 레벨 `from agent_evaluator import create_taskresult`로 바로 import 가능합니다.
 
 * * *
 
@@ -3051,7 +3054,7 @@ Agent Evaluator의 투명성 메서드는 "블랙박스" 평가를 "화이트박
 ```python
     def evaluation_session(
         filename: str,
-        enable_security: bool = False,
+        enable_security_metrics: bool = False,
         security_config: Optional[Dict] = None
     ) -> PerformanceMonitor
 ```
@@ -3061,7 +3064,7 @@ Agent Evaluator의 투명성 메서드는 "블랙박스" 평가를 "화이트박
     from agent_evaluator import evaluation_session, create_taskresult
     
     # with 블록 종료 시 자동 저장
-    with evaluation_session("results.json", enable_security=True) as monitor:
+    with evaluation_session("results.json", enable_security_metrics=True) as monitor:
         # 평가 코드 작성
         for i in range(10):
             task = create_taskresult(
@@ -3246,7 +3249,7 @@ Agent Evaluator의 투명성 메서드는 "블랙박스" 평가를 "화이트박
 
 * * *
 
-## 🔌 6. 프레임워크 통합 (v0.5.8)
+## 🔌 6. 프레임워크 통합 (v0.6.0)
 
 #### 5.4 보안 헬퍼 함수
 
@@ -3362,7 +3365,7 @@ Agent Evaluator의 투명성 메서드는 "블랙박스" 평가를 "화이트박
 
 * * *
 
-Agent Evaluator v0.5.8은 CrewAI, LangChain, LangGraph, AutoGen 등 주요 AI 프레임워크에 대한 고급 통합 기능을 제공합니다. 모든 통합은 **Layer 1/2/3 메트릭을 완전히 지원** 하며, 동적 계산 및 자동 추적 기능을 갖추고 있습니다.
+Agent Evaluator v0.6.0은 CrewAI, LangChain, LangGraph, AutoGen 등 주요 AI 프레임워크에 대한 고급 통합 기능을 제공합니다. 모든 통합은 **Layer 1/2/3 메트릭을 완전히 지원** 하며, 동적 계산 및 자동 추적 기능을 갖추고 있습니다.
 
 ### 주요 특징
 

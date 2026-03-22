@@ -364,14 +364,13 @@ class DeepEvalAdapter(MetricAdapter):
 
 class RagasAdapter(MetricAdapter):
     """
-    Adapter for Ragas RAG evaluation metrics
+    Adapter for Ragas RAG evaluation metrics (ragas >= 0.4.0)
 
     Provides:
     - Faithfulness: Factual consistency with context
-    - Answer Relevancy: Answer quality for question
-    - Context Precision: Retrieved context relevance
-    - Context Recall: Context completeness
-    - Context Entity Recall: Entity coverage
+    - AnswerRelevancy: Answer quality for question (requires embeddings)
+    - ContextPrecision: Retrieved context relevance
+    - ContextRecall: Context completeness (requires reference/ground_truth)
     """
 
     def __init__(self, llm_model: str = "gpt-4o-mini", timeout: int = 60):
@@ -387,16 +386,13 @@ class RagasAdapter(MetricAdapter):
         self.llm_model = llm_model
         self.timeout = timeout
         self._available = False
+        self._embeddings_wrapper = None
 
         try:
-            from ragas import evaluate
-            from ragas.metrics import (
-                faithfulness,
-                answer_relevancy,
-                context_recall,
-                context_precision,
-                context_entity_recall
-            )
+            # ragas 0.4.x API: EvaluationDataset + SingleTurnSample
+            from ragas import evaluate, EvaluationDataset
+            from ragas.dataset_schema import SingleTurnSample
+            from ragas.metrics import Faithfulness, AnswerRelevancy, ContextRecall, ContextPrecision
             from ragas.llms import LangchainLLMWrapper
 
             # Use OpenAI if available, otherwise fall back to Anthropic
@@ -420,26 +416,36 @@ class RagasAdapter(MetricAdapter):
 
             self._available = True
             self.evaluate_fn = evaluate
-            self.faithfulness = faithfulness
-            self.answer_relevancy = answer_relevancy
-            self.context_recall = context_recall
-            self.context_precision = context_precision
-            self.context_entity_recall = context_entity_recall
+            self.EvaluationDataset = EvaluationDataset
+            self.SingleTurnSample = SingleTurnSample
+            self.Faithfulness = Faithfulness
+            self.AnswerRelevancy = AnswerRelevancy
+            self.ContextRecall = ContextRecall
+            self.ContextPrecision = ContextPrecision
+            self.llm_wrapper = LangchainLLMWrapper(llm_instance)
 
-            # Initialize LLM for Ragas
-            self.llm = LangchainLLMWrapper(llm_instance)
+            # AnswerRelevancy requires embeddings — only auto-configured for OpenAI
+            if openai_key:
+                try:
+                    from langchain_openai import OpenAIEmbeddings
+                    from ragas.embeddings import LangchainEmbeddingsWrapper
+                    self._embeddings_wrapper = LangchainEmbeddingsWrapper(OpenAIEmbeddings())
+                except ImportError:
+                    pass
 
             print(f"✅ Ragas adapter initialized (model: {active_model})")
+            if not self._embeddings_wrapper:
+                print("   ℹ️  No embeddings configured — AnswerRelevancy will be skipped")
 
         except ImportError as e:
             print(f"⚠️  Ragas not available: {e}")
-            print("   Install with: pip install ragas langchain-openai")
+            print("   Install with: pip install 'agent-evaluator[eval]'")
 
     def is_available(self) -> bool:
         return self._available
 
     def evaluate(self, context: EvaluationContext) -> Dict[str, Any]:
-        """Evaluate using Ragas RAG metrics"""
+        """Evaluate using Ragas RAG metrics (ragas 0.4.x API)"""
         if not self._available:
             return {}
 
@@ -450,85 +456,62 @@ class RagasAdapter(MetricAdapter):
         results = {}
 
         try:
-            from datasets import Dataset
-
-            # Prepare data in Ragas format
-            # CRITICAL FIX: Only include ground_truth if expected_output exists
-            # Using output_text as ground_truth inflates scores artificially
-            data = {
-                'question': [context.input_text],
-                'answer': [context.output_text],
-                'contexts': [context.retrieved_context]
-            }
-
-            # Select metrics based on available data
-            # context_recall requires ground_truth, others don't
-            if context.expected_output:
-                data['ground_truth'] = [context.expected_output]
-                metrics = [
-                    self.faithfulness,           # Compares answer vs contexts
-                    self.answer_relevancy,       # Compares answer vs question
-                    self.context_recall,         # Compares ground_truth vs contexts (needs ground_truth)
-                    self.context_precision       # Compares contexts vs question
-                ]
-            else:
-                # Skip context_recall when no ground_truth available
-                metrics = [
-                    self.faithfulness,           # Compares answer vs contexts
-                    self.answer_relevancy,       # Compares answer vs question
-                    self.context_precision       # Compares contexts vs question
-                ]
-
-            dataset = Dataset.from_dict(data)
-
-            # Set LLM for all metrics
-            for metric in metrics:
-                if hasattr(metric, 'llm'):
-                    metric.llm = self.llm
-
-            eval_result = self.evaluate_fn(
-                dataset,
-                metrics=metrics
-            )
-
-            # Extract scores - EvaluationResult supports [] access and to_pandas()
-            results = {}
-
-            # EvaluationResult supports dictionary-style access
-            # result[metric_name] returns a list with one value
             import math
 
-            for metric_name in ['faithfulness', 'answer_relevancy', 'context_recall', 'context_precision']:
+            # ragas 0.4.x: SingleTurnSample replaces the old dict-based Dataset
+            # Field mapping: question→user_input, answer→response,
+            #                contexts→retrieved_contexts, ground_truth→reference
+            sample = self.SingleTurnSample(
+                user_input=context.input_text,
+                response=context.output_text,
+                retrieved_contexts=context.retrieved_context,
+                reference=context.expected_output if context.expected_output else None,
+            )
+            dataset = self.EvaluationDataset(samples=[sample])
+
+            # Build metric instances with LLM — ragas 0.4.x requires class instantiation
+            faithfulness = self.Faithfulness(llm=self.llm_wrapper)
+            context_precision = self.ContextPrecision(llm=self.llm_wrapper)
+            metrics = [faithfulness, context_precision]
+
+            # AnswerRelevancy needs embeddings in ragas 0.4.x
+            if self._embeddings_wrapper:
+                answer_relevancy = self.AnswerRelevancy(
+                    llm=self.llm_wrapper,
+                    embeddings=self._embeddings_wrapper,
+                )
+                metrics.append(answer_relevancy)
+
+            # ContextRecall requires a reference (ground_truth)
+            if context.expected_output:
+                context_recall = self.ContextRecall(llm=self.llm_wrapper)
+                metrics.append(context_recall)
+
+            eval_result = self.evaluate_fn(dataset, metrics=metrics)
+
+            # Extract scores — EvaluationResult[metric.name] returns a list (one value per sample)
+            for metric_obj in metrics:
+                metric_name = metric_obj.name
                 try:
-                    # Access via dictionary-style (returns a list)
                     value_list = eval_result[metric_name]
-
-                    # Extract the first (and only) value from the list
-                    if isinstance(value_list, (list, tuple)) and len(value_list) > 0:
-                        value = value_list[0]
-                    else:
-                        # Direct numeric value
-                        value = value_list
-
-                    # MEDIUM PRIORITY FIX: Better NaN check using math.isnan
-                    if value is not None and isinstance(value, (int, float)) and not (isinstance(value, float) and math.isnan(value)):
+                    value = value_list[0] if isinstance(value_list, (list, tuple)) and value_list else value_list
+                    if value is not None and isinstance(value, (int, float)) and not (
+                        isinstance(value, float) and math.isnan(value)
+                    ):
                         results[f'ragas_{metric_name}'] = float(value)
-
                 except (KeyError, IndexError, TypeError, AttributeError, ValueError):
-                    # Skip metrics that are not available or resulted in error
                     continue
 
-            # MEDIUM PRIORITY FIX: Calculate overall Ragas score from numeric metrics only, excluding booleans
-            numeric_metrics = {k: v for k, v in results.items()
-                               if isinstance(v, (int, float))
-                               and not isinstance(v, bool)
-                               and not k.endswith('_error')
-                               and not k.endswith('_passed')
-                               and not k.endswith('_detected')}
+            # Overall score from numeric metrics only
+            numeric_metrics = {
+                k: v for k, v in results.items()
+                if isinstance(v, (int, float))
+                and not isinstance(v, bool)
+                and not k.endswith(('_error', '_passed', '_detected'))
+            }
             if numeric_metrics:
                 results['ragas_overall_score'] = sum(numeric_metrics.values()) / len(numeric_metrics)
 
-            # Add interpretation (only if we have overall score)
             if 'ragas_overall_score' in results:
                 overall = results['ragas_overall_score']
                 if overall >= 0.8:

@@ -93,19 +93,19 @@ CI/CD 통합 및 프로덕션 배포 전략
 **Framework Integration** (선택 - 사용하는 프레임워크만 설치):
 ```bash
     [](<#cb2-1>)# LangChain 통합
-    [](<#cb2-2>)pip install langchain>=0.1.0
-    [](<#cb2-3>)pip install langchain-core>=0.1.0
-    [](<#cb2-4>)pip install langchain-community>=0.0.10
+    [](<#cb2-2>)pip install langchain>=1.0.0
+    [](<#cb2-3>)pip install langchain-core>=1.0.0
+    [](<#cb2-4>)pip install langchain-community>=1.0.0
     [](<#cb2-5>)
     [](<#cb2-6>)# LangGraph 통합
-    [](<#cb2-7>)pip install langgraph>=0.0.20
+    [](<#cb2-7>)pip install langgraph>=1.0.0
     [](<#cb2-8>)
     [](<#cb2-9>)# CrewAI 통합
-    [](<#cb2-10>)pip install crewai>=0.11.0
-    [](<#cb2-11>)pip install crewai-tools>=0.2.0
+    [](<#cb2-10>)pip install crewai>=1.0.0
+    [](<#cb2-11>)
     [](<#cb2-12>)
     [](<#cb2-13>)# AutoGen 통합
-    [](<#cb2-14>)pip install pyautogen>=0.2.0
+    [](<#cb2-14>)pip install pyautogen>=0.3.0 autogen-agentchat>=0.4.0 autogen-core>=0.4.0
 ```
 
 **Advanced Metrics** (선택 - Layer 3 고급 메트릭 사용 시):
@@ -114,13 +114,13 @@ CI/CD 통합 및 프로덕션 배포 전략
     [](<#cb3-2>)pip install deepeval>=0.20.0
     [](<#cb3-3>)
     [](<#cb3-4>)# Ragas - RAG 시스템 평가
-    [](<#cb3-5>)pip install ragas>=0.1.0
+    [](<#cb3-5>)pip install ragas>=0.4.0
     [](<#cb3-6>)
     [](<#cb3-7>)# LangChain OpenAI (DeepEval, Ragas 의존성)
-    [](<#cb3-8>)pip install langchain-openai>=0.0.5
+    [](<#cb3-8>)pip install langchain-openai>=1.0.0
     [](<#cb3-9>)
     [](<#cb3-10>)# Datasets (Ragas 의존성)
-    [](<#cb3-11>)pip install datasets>=2.14.0
+    [](<#cb3-11>)pip install datasets>=4.0.0
     [](<#cb3-12>)
     [](<#cb3-13>)# LangSmith (선택 - 프로덕션 추적)
     [](<#cb3-14>)pip install langsmith>=0.1.0
@@ -129,7 +129,7 @@ CI/CD 통합 및 프로덕션 배포 전략
 **Korean RAG Dataset Generator** (선택):
 ```bash
     [](<#cb4-1>)# PDF 처리
-    [](<#cb4-2>)pip install PyPDF2>=3.0.0
+    [](<#cb4-2>)pip install pypdf>=3.0.0
     [](<#cb4-3>)# 또는 pdfplumber>=0.10.0  # 더 정확한 추출
     [](<#cb4-4>)
     [](<#cb4-5>)# OpenAI API
@@ -191,7 +191,7 @@ CI/CD 통합 및 프로덕션 배포 전략
 
 ### Project Structure
 
-v0.5.8 기준 프로젝트는 4개의 독립적인 컴포넌트로 구성됩니다:
+v0.6.0 기준 프로젝트는 4개의 독립적인 컴포넌트로 구성됩니다:
 
 #### 1\. 📦 agent_evaluator/ - Core Python Package
 
@@ -308,8 +308,8 @@ v0.5.8 기준 프로젝트는 4개의 독립적인 컴포넌트로 구성됩니�
     │   │                               # - Tool Selection, Workflow 메트릭 상세
     │   │
     │   └── SECURITY_METRICS_GUIDE.html # 보안 메트릭 전문 가이드
-    │                                   # - Layer 1 Security: Input Sanitization 등
-    │                                   # - Layer 2 Security: Privilege Escalation 등
+    │                                   # - Layer 2 Security: Input Sanitization, Output Leakage 등
+    │                                   # - Layer 2 Security: Privilege Escalation, Attack Detection 등
     │
     ├── 🎯 Feature Guides
     │   ├── FRAMEWORK_INTEGRATION.html  # Framework 통합 가이드
@@ -1430,7 +1430,7 @@ v0.5.8 기준 프로젝트는 4개의 독립적인 컴포넌트로 구성됩니�
     [](<#cb42-2>)pip install --upgrade agent-evaluator
     [](<#cb42-3>)
     [](<#cb42-4>)# 특정 버전으로 업데이트
-    [](<#cb42-5>)pip install agent-evaluator==0.5.7
+    [](<#cb42-5>)pip install agent-evaluator==0.6.0
 ```
 
 ### Golden Dataset Maintenance
@@ -2797,7 +2797,7 @@ DB 연결 실패 | 네트워크, 인증 오류 | `telnet db-host 5432` | DB 연�
 
 * * *
 
-**최종 업데이트** : 2026-03-21
-**버전** : v0.5.8
+**최종 업데이트** : 2026-03-22
+**버전** : v0.6.0
 **프로젝트** : Agent Evaluator - AI Agent Performance Evaluation System
 **문서 타입** : 배포 가이드 (Deployment Guide)

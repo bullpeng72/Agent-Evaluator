@@ -1,6 +1,6 @@
 # 🔌 프레임워크 통합 가이드
 
-LangChain, LlamaIndex, CrewAI 통합 방법
+LangChain, LangGraph, CrewAI, AutoGen 통합 방법
 
 # 프레임워크 통합 가이드
 
@@ -8,9 +8,9 @@ LangChain, LlamaIndex, CrewAI 통합 방법
 
 ## 버전 정보
 
-**현재 버전:** v0.5.8
+**현재 버전:** v0.6.0
 
-**최종 업데이트:** 2026-03-21
+**최종 업데이트:** 2026-03-22
 
 이 문서는 주요 AI Agent 프레임워크에 Agent Evaluator를 통합하는 방법을 상세히 설명합니다.
 
@@ -25,18 +25,18 @@ LangChain, LlamaIndex, CrewAI 통합 방법
 
 ### 필수 및 권장 버전
 
-**Agent Evaluator v0.5.8** 호환성 정보:
+**Agent Evaluator v0.6.0** 호환성 정보:
 
 구분 | 패키지 | 버전 요구사항 | 설치 명령
 ---|---|---|---
 **필수** | Python | 3.8+ | -
-**필수** | Agent Evaluator | 0.5.7 | `pip install agent-evaluator`
-**선택 (프레임워크)** | CrewAI | 최신 버전 | `pip install crewai`  
-**선택 (프레임워크)** | LangChain | 0.1.0+ | `pip install langchain`  
-**선택 (프레임워크)** | LangGraph | 최신 버전 | `pip install langgraph`  
-**선택 (프레임워크)** | AutoGen | 0.2.0+ | `pip install pyautogen`  
-**선택 (고급 메트릭)** | DeepEval | 0.20.0+ | `pip install deepeval`  
-**선택 (RAG 평가)** | Ragas | 0.1.0+ | `pip install ragas`  
+**필수** | Agent Evaluator | 0.6.0 | `pip install agent-evaluator`
+**선택 (프레임워크)** | CrewAI | 1.0.0+ | `pip install crewai`
+**선택 (프레임워크)** | LangChain | 1.0.0+ | `pip install langchain`
+**선택 (프레임워크)** | LangGraph | 1.0.0+ | `pip install langgraph`
+**선택 (프레임워크)** | AutoGen | 0.3.0+ (autogen-agentchat/core ≥0.4.0) | `pip install pyautogen autogen-agentchat autogen-core`
+**선택 (고급 메트릭)** | DeepEval | 0.20.0+ | `pip install deepeval`
+**선택 (RAG 평가)** | Ragas | 0.4.0+ | `pip install ragas`  
   
 ### 설치 방법
 
@@ -62,14 +62,14 @@ LangChain, LlamaIndex, CrewAI 통합 방법
     [](<#cb3-5>)pip install langchain langchain-openai agent-evaluator
     [](<#cb3-6>)
     [](<#cb3-7>)# AutoGen + Agent Evaluator
-    [](<#cb3-8>)pip install pyautogen agent-evaluator
+    [](<#cb3-8>)pip install pyautogen autogen-agentchat autogen-core agent-evaluator
 ```
 
 ### 호환성 참고사항
 
   * **Python 3.8+** 필수 (3.12까지 테스트 완료)
   * **프레임워크** : CrewAI, LangChain, LangGraph, AutoGen 모두 지원
-  * **고급 메트릭** : DeepEval (0.20.0+), Ragas (0.1.0+) 선택 설치
+  * **고급 메트릭** : DeepEval (0.20.0+), Ragas (0.4.0+) 선택 설치
   * **의존성** : numpy (1.20.0+), pandas (1.3.0+) 자동 설치
 
 * * *
@@ -815,7 +815,7 @@ CrewAI는 **Agent Coordination** 메트릭을 자동으로 추적할 수 있습�
 ### 4.2 설치
 
 ```bash
-    [](<#cb22-1>)pip install pyautogen  # 0.2.0 이상 권장
+    [](<#cb22-1>)pip install pyautogen autogen-agentchat autogen-core  # 0.3.0+ / 0.4.0+ 권장
     [](<#cb22-2>)pip install agent-evaluator
 ```
 

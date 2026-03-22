@@ -1,6 +1,6 @@
 # AI Agent 평가 프레임워크 비교 분석
 
-**작성일**: 2026-03-19
+**작성일**: 2026-03-22
 **기준 버전**: 각 프레임워크 2025–2026년 최신 릴리스 기준
 **분석 목적**: 개발자가 서비스 코드 외에 작성해야 하는 코드량 / 자동화 수준 비교
 
@@ -18,7 +18,7 @@
 | **Braintrust** | SaaS + OSS SDK | v0.5.2 (2025) | LLM 실험 + 에이전트 관측 |
 | **Helicone** | SaaS + OSS | 시맨틱 버전 없음 (활발 유지) | LLM 프록시 + 비용 관측 |
 | **W&B Weave** | SaaS + OSS SDK | v0.72+ (2025) | 에이전트 평가 + 실험 관리 |
-| **Agent Evaluator** | OSS SDK | v0.5.6 (2026.03) | Agentic AI 전문 평가 |
+| **Agent Evaluator** | OSS SDK | v0.6.0 (2026.03) | Agentic AI 전문 평가 |
 
 ---
 
@@ -309,27 +309,37 @@ weave.init("mcp-project")
 | `evaluation_session` 컨텍스트 매니저 | ~5줄 | 세션 단위 자동 저장 |
 
 ```python
-from agent_evaluator import PerformanceMonitor, TaskResult, TaskType
-from agent_evaluator import create_evaluated_crew  # Framework factory
+from agent_evaluator import PerformanceMonitor, create_taskresult
+from agent_evaluator.integrations import create_evaluated_crew  # Framework factory
 
-# 방법 1: TaskResult 직접 구성
+# 방법 1: create_taskresult() 헬퍼 사용 (권장)
+# TaskResult 필수 필드(11개)를 자동 계산해 생성
 monitor = PerformanceMonitor(
     output_dir="results/",
     enable_security_metrics=True,    # 보안 지표 활성화
     enable_hallucination_detection=True,
 )
-result = TaskResult(
-    task_id="task_001", task_type=TaskType.QA,
-    success=True, response=agent_output,
+result = create_taskresult(
+    task_id="task_001",
+    question="가장 가까운 약국 찾아줘",
+    response=agent_output,
+    ground_truth="CVS 약국, 0.3km 거리",
     execution_time=1.23,
-    tokens_used={"input": 100, "output": 50, "total": 150},
-    tool_calls=[{"name": "search", "success": True, "args": {...}}],
-    expected_tools=["search"],
+    task_type="qa",
 )
-monitor.record_task(result)
+monitor.record_task(result, request="가장 가까운 약국 찾아줘", response=agent_output)
+
+# Tool 선택 정확도 (ToolSelectionTracker 직접 호출)
+# create_taskresult()는 openai_response/langchain_result 없이 호출 시 tool_calls=[]
+# → 실제 에이전트가 호출한 도구 목록을 직접 지정
+monitor.tool_selection_tracker.evaluate_selection(
+    task_id="task_001",
+    expected_tools=["search"],
+    actual_tools=["search"],  # 실제 에이전트가 호출한 도구 목록
+)
 
 # 방법 2: CrewAI factory (1줄 계측)
-crew = create_evaluated_crew(tasks, agents, monitor=monitor)
+crew = create_evaluated_crew(my_crew, monitor=monitor)
 ```
 
 ---
@@ -530,6 +540,8 @@ Ragas           ███████░░░  (데이터셋 전체 수동 구�
 | W&B Weave | ✅ | ✅ | ✅ | ❌ | ✅ | ❌ | ✅ | ✅ |
 | **Agent Evaluator** | ✅ factory | ✅ factory | ✅ factory | ✅ factory | ❌ | ❌ | ❌ | ❌ |
 
+> **v0.6.0 업데이트**: LangChain ≥1.0 / LangGraph ≥1.0 / CrewAI ≥1.0 / AutoGen 0.4+ (async-first) 최신 API 완전 지원. 4개 프레임워크 모두 16개 네이티브 지표 + 9개 Layer3 하이브리드 = 25개 지표 체계 적용 (프레임워크별 커버리지: LangChain ~82%, LangGraph ~82%, AutoGen ~80%, CrewAI ~78%).
+
 ---
 
 ## 8. 포지셔닝 맵
@@ -540,7 +552,7 @@ Ragas           ███████░░░  (데이터셋 전체 수동 구�
               Ragas       DeepEval
           (RAG 특화)    (14+ 지표)
                               Agent Evaluator
-                            (25지표, 보안·Agentic 포함)
+                            (16개 네이티브+9개 Layer3=25지표, 보안·Agentic 포함)
 ──────────────────────────────────────────────── → 에이전트 특화도
  Helicone    Evidently   LangSmith    Arize Phoenix
 (인프라만)  (ML모니터링)  (트레이싱)   (OTEL+품질)
@@ -576,10 +588,11 @@ Ragas           ███████░░░  (데이터셋 전체 수동 구�
 
 ### 유일하게 제공하는 것
 1. **Agentic 보안 지표 5종** — 업계 어디에도 없는 지표 (프롬프트 인젝션, 출력 유출, 권한 상승, Tool 체인 공격, 비인가 Tool 사용)
-2. **Retry/자기수정 분석** — 에이전트가 얼마나 스스로 오류를 수정하는지
+2. **Retry/자기수정 분석** — 에이전트가 얼마나 스스로 오류를 수정하는지 (LangChain `on_retry`, AutoGen `is_error=True`, LangGraph/CrewAI 실패 노드·태스크 감지)
 3. **Tool Selection F1** — Tool 선택 정밀도/재현율 기반 정량 평가 (DeepEval과 달리 LLM 불필요)
-4. **LLM 없이 16개 네이티브 지표 계산** — $0 추가 비용 (Layer 3 하이브리드 9개는 선택적)
+4. **LLM 없이 16개 네이티브 지표 계산** — $0 추가 비용 (Layer 3 하이브리드 9개는 선택적); v0.6.0부터 LangChain/LangGraph/CrewAI/AutoGen 4개 프레임워크 전체 지원 (커버리지: LangChain ~82%, LangGraph ~82%, AutoGen ~80%, CrewAI ~78%)
 5. **완전 로컬 대시보드** — 평가 데이터가 외부로 나가지 않음
+6. **RAG 컨텍스트 자동 수집** — `HallucinationDetector`가 LangChain retriever, LangGraph ToolMessage, CrewAI 중간 태스크, AutoGen 도구 결과에서 컨텍스트를 자동 연결해 faithfulness 측정
 
 ### 현재 없는 것 (개선 기회)
 1. **실시간 span 트레이싱** — LangSmith/Phoenix처럼 실행 중 UI 반영 불가

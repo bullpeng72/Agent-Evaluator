@@ -393,7 +393,9 @@ class AccuracyEvaluator:
             "median_accuracy": round(df["accuracy"].median() * 100, 2),
             "min_accuracy": round(df["accuracy"].min() * 100, 2),
             "max_accuracy": round(df["accuracy"].max() * 100, 2),
-            "std_accuracy": round(std_val * 100, 2) if not pd.isna(std_val) else 0.0
+            "std_accuracy": round(std_val * 100, 2) if not pd.isna(std_val) else 0.0,
+            "high_accuracy_count": int((df["accuracy"] >= 0.9).sum()),
+            "low_accuracy_count": int((df["accuracy"] < 0.7).sum()),
         }
     
     def get_accuracy_by_type(self) -> Dict[str, float]:
@@ -504,7 +506,7 @@ class HallucinationDetector:
         if not response_sentences:
             hallucination_rate = 1.0  # Empty response is 100% hallucination
         else:
-            hallucination_rate = len(hallucination_indicators) / len(response_sentences)
+            hallucination_rate = min(len(hallucination_indicators) / len(response_sentences), 1.0)
         
         detection = {
             "task_id": task_id,
@@ -807,20 +809,22 @@ class ResponseQualityEvaluator:
         for _, eval_data in df.iterrows():
             score = eval_data["total_score"]
             if score >= 4.5:
-                range_key = "9-10 (Excellent)"
+                range_key = "4.5-5.0 (Excellent)"
             elif score >= 4.0:
-                range_key = "8-9 (Good)"
+                range_key = "4.0-4.5 (Good)"
             elif score >= 3.5:
-                range_key = "7-8 (Fair)"
+                range_key = "3.5-4.0 (Fair)"
             elif score >= 3.0:
-                range_key = "6-7 (Poor)"
+                range_key = "3.0-3.5 (Poor)"
             else:
-                range_key = "0-6 (Very Poor)"
+                range_key = "0-3.0 (Very Poor)"
 
             quality_distribution[range_key] = quality_distribution.get(range_key, 0) + 1
 
+        avg_score = round(df["total_score"].mean(), 2)
         return {
-            "avg_total_score": round(df["total_score"].mean(), 2),
+            "avg_total_score": avg_score,
+            "avg_grade": self._assign_grade(avg_score),
             "median_total_score": round(df["total_score"].median(), 2),
             "min_total_score": round(df["total_score"].min(), 2),
             "max_total_score": round(df["total_score"].max(), 2),
@@ -1015,7 +1019,7 @@ class LatencyTracker:
         for task_type, times in latencies_by_type.items():
             if times:
                 type_stats[task_type] = {
-                    "avg": round(statistics.mean(times), 3),
+                    "mean": round(statistics.mean(times), 3),
                     "median": round(statistics.median(times), 3),
                     "min": round(min(times), 3),
                     "max": round(max(times), 3),
@@ -1221,8 +1225,12 @@ class ToolCallAnalyzer:
                 tool_name = "unknown"
             tool_names.append(tool_name)
 
-        # HIGH PRIORITY FIX: Filter tool calls with duration to avoid skewing average with zeros
-        durations = [call.get("duration", 0) for call in tool_calls if isinstance(call, dict) and "duration" in call]
+        # DQ-126: duration=0.0은 측정 불가 값이므로 평균에서 제외
+        # "duration" 키 존재 + 값이 0보다 클 때만 포함 (0은 콜백 미작동으로 수집 안 된 케이스)
+        durations = [
+            call["duration"] for call in tool_calls
+            if isinstance(call, dict) and call.get("duration", 0) > 0
+        ]
 
         metrics = {
             "task_id": task_id,
@@ -1364,6 +1372,9 @@ class RetryCorrectionTracker:
     
     def track_attempts(self, task_id: str, attempts_log: List[Dict[str, Any]]):
         """Track retry attempts for a task"""
+        # DQ-135: 빈 attempts_log는 IndexError 발생 — 단일 성공 시도로 기록하고 조기 반환
+        if not attempts_log:
+            return
         analysis = {
             "task_id": task_id,
             "total_attempts": len(attempts_log),
@@ -1458,8 +1469,8 @@ class ToolSelectionTracker:
                 "note": "No expected tools defined"
             }
 
-        expected_set = set(expected_tools)
-        actual_set = set(actual_tools)
+        expected_set = set(t.lower() for t in expected_tools)
+        actual_set = set(t.lower() for t in actual_tools)
 
         # Calculate precision, recall, F1
         true_positives = len(expected_set & actual_set)
@@ -1525,6 +1536,13 @@ class AgentCoordinationTracker:
         context: Optional[Dict[str, Any]] = None
     ) -> Dict[str, Any]:
         """Track agent-to-agent interaction"""
+        # DQ-166: 빈 에이전트 이름은 집계를 오염시킴 — placeholder로 대체
+        from_agent = from_agent or "unknown_agent"
+        to_agent = to_agent or "unknown_agent"
+        # DQ-167: allowed interaction_type 외 값은 "delegation"으로 정규화
+        _ALLOWED_TYPES = {"delegation", "communication", "collaboration"}
+        if interaction_type not in _ALLOWED_TYPES:
+            interaction_type = "delegation"
         interaction = {
             "task_id": task_id,
             "from_agent": from_agent,
@@ -1838,7 +1856,10 @@ class WorkflowExecutionTracker:
             "nodes_executed": len(nodes),
             "branches_taken": len(branches),
             "successful_nodes": successful_nodes,
-            "avg_node_time": round(statistics.mean([n["execution_time"] for n in nodes]), 3) if nodes else 0
+            # DQ-164: 0.0 durations are unmeasured — exclude from mean
+            "avg_node_time": round(statistics.mean(
+                [n["execution_time"] for n in nodes if n["execution_time"] > 0]
+            ), 3) if any(n["execution_time"] > 0 for n in nodes) else 0
         }
 
     def get_critical_path_analysis(self) -> Dict[str, Any]:
@@ -1866,7 +1887,9 @@ class WorkflowExecutionTracker:
         for task_id, steps in task_groups.items():
             for step in steps:
                 step_name = step["step_name"]
-                step_stats[step_name]["execution_times"].append(step["execution_time"])
+                # DQ-164: exclude 0.0 durations (unmeasured) from critical path analysis
+                if step["execution_time"] > 0:
+                    step_stats[step_name]["execution_times"].append(step["execution_time"])
                 step_stats[step_name]["total_count"] += 1
                 if step["success"]:
                     step_stats[step_name]["success_count"] += 1
@@ -1876,13 +1899,13 @@ class WorkflowExecutionTracker:
         # Calculate statistics for each step
         step_analysis = []
         for step_name, stats in step_stats.items():
-            times = stats["execution_times"]
+            times = stats["execution_times"]  # already filtered (>0) when appended
             step_analysis.append({
                 "step_name": step_name,
-                "avg_time": round(statistics.mean(times), 3),
-                "median_time": round(statistics.median(times), 3),
-                "max_time": round(max(times), 3),
-                "min_time": round(min(times), 3),
+                "avg_time": round(statistics.mean(times), 3) if times else 0.0,
+                "median_time": round(statistics.median(times), 3) if times else 0.0,
+                "max_time": round(max(times), 3) if times else 0.0,
+                "min_time": round(min(times), 3) if times else 0.0,
                 "std_time": round(statistics.stdev(times), 3) if len(times) > 1 else 0.0,
                 "success_rate": round((stats["success_count"] / stats["total_count"]) * 100, 2),
                 "execution_count": stats["total_count"]
@@ -2169,6 +2192,8 @@ class OutputLeakageDetector(SecurityTrackerMixin):
             "credit_card_leaks": int(df["contains_credit_card"].sum()),
             "email_leaks": int(df["contains_email"].sum()),
             "ssn_leaks": int(df["contains_ssn"].sum()),
+            "phone_leaks": int(df["contains_phone"].sum()) if "contains_phone" in df.columns else 0,
+            "private_ip_leaks": int(df["contains_private_ip"].sum()) if "contains_private_ip" in df.columns else 0,
             "critical_severity_count": int((df["severity"] == "critical").sum()),
             "high_severity_count": int((df["severity"] == "high").sum())
         }
@@ -2341,9 +2366,9 @@ class PrivilegeEscalationDetector:
 
         result = {
             "task_id": task_id,
-            "initial_privilege": list(self.privilege_levels.keys())[initial_privilege],
-            "final_privilege": list(self.privilege_levels.keys())[final_privilege],
-            "max_privilege": list(self.privilege_levels.keys())[max_privilege],
+            "initial_privilege": {v: k for k, v in self.privilege_levels.items()}.get(initial_privilege, "unknown"),
+            "final_privilege": {v: k for k, v in self.privilege_levels.items()}.get(final_privilege, "unknown"),
+            "max_privilege": {v: k for k, v in self.privilege_levels.items()}.get(max_privilege, "unknown"),
             "escalation_detected": escalation_detected,
             "suspicious_sequences": suspicious,
             "escalation_path": tools if escalation_detected else [],
@@ -2394,26 +2419,52 @@ class ToolChainAttackDetector:
     def __init__(self):
         self.detections: List[Dict[str, Any]] = []
 
-        # Attack patterns
+        # Attack patterns — 짧은 키워드 조각으로 정의하여 실제 도구 이름과 매칭 가능
+        # _is_fuzzy_subsequence() 가 substring 매칭이므로 "database" 는 "query_database" 에 매칭됨
         self.attack_patterns = {
             "data_exfiltration": [
-                ["read_database", "encode", "http_post"],
-                ["list_files", "read_file", "send_email"],
-                ["query", "export", "upload"]
+                ["database", "encode", "post"],        # DB읽기 → 인코딩 → HTTP POST 전송
+                ["file", "read", "send"],              # 파일읽기 → 전송
+                ["query", "export", "upload"],         # 쿼리 → 내보내기 → 업로드
+                ["search", "extract", "transmit"],     # 검색 → 추출 → 전송
+                ["read", "compress", "transfer"],      # 읽기 → 압축 → 전송
             ],
             "lateral_movement": [
-                ["get_credentials", "ssh_connect", "execute_remote"],
-                ["list_servers", "connect", "escalate"]
+                ["credential", "connect", "execute"],  # 자격증명 → 접속 → 실행
+                ["server", "connect", "escalate"],     # 서버목록 → 접속 → 권한상승
+                ["login", "access", "deploy"],         # 로그인 → 접근 → 배포
+                ["token", "authenticate", "run"],      # 토큰 → 인증 → 실행
             ],
             "persistence": [
-                ["write_cron", "create_service", "restart"],
-                ["modify_startup", "create_task"]
+                ["cron", "service", "restart"],        # 크론/서비스 등록
+                ["startup", "install", "run"],         # 시작프로그램 등록
+                ["schedule", "create", "execute"],     # 스케줄 생성 → 실행
+                ["write", "register", "enable"],       # 설정파일 쓰기 → 등록 → 활성화
             ],
             "defense_evasion": [
-                ["disable_logging", "clear_history", "delete_logs"],
-                ["stop_monitor", "bypass_firewall"]
+                ["log", "clear", "delete"],            # 로그 삭제
+                ["monitor", "disable", "bypass"],      # 모니터링 우회
+                ["audit", "disable", "hide"],          # 감사 비활성화
+                ["history", "clear", "wipe"],          # 히스토리 삭제
             ]
         }
+
+    def register_pattern(self, attack_type: str, pattern: List[str]) -> None:
+        """사용자 정의 공격 패턴 등록.
+
+        Args:
+            attack_type: 공격 유형 이름 (기존 키 또는 새 키 모두 허용)
+            pattern: 도구 이름 키워드 조각 리스트 (순서 중요).
+                     각 조각은 실제 도구 이름에 substring 매칭됨.
+                     예: ["database", "encode", "post"]
+
+        Example:
+            >>> detector = ToolChainAttackDetector()
+            >>> detector.register_pattern("custom_exfil", ["s3_get", "zip", "ftp_send"])
+        """
+        if attack_type not in self.attack_patterns:
+            self.attack_patterns[attack_type] = []
+        self.attack_patterns[attack_type].append(pattern)
 
     def analyze_tool_chain(self, task_id: str, tool_sequence: List[str]) -> Dict[str, Any]:
         """Analyze tool sequence for attack patterns"""
@@ -2465,10 +2516,10 @@ class ToolChainAttackDetector:
             "suspicious_chains": int(df["is_suspicious_chain"].sum()),
             "detection_rate": round((df["is_suspicious_chain"].sum() / len(self.detections)) * 100, 2),
             "avg_confidence": round(df["confidence"].mean(), 2),
-            "data_exfiltration_detected": sum(d["attack_types"]["data_exfiltration"] for d in self.detections),
-            "lateral_movement_detected": sum(d["attack_types"]["lateral_movement"] for d in self.detections),
-            "persistence_detected": sum(d["attack_types"]["persistence"] for d in self.detections),
-            "defense_evasion_detected": sum(d["attack_types"]["defense_evasion"] for d in self.detections)
+            "data_exfiltration_detected": sum(d["attack_types"].get("data_exfiltration", False) for d in self.detections),
+            "lateral_movement_detected": sum(d["attack_types"].get("lateral_movement", False) for d in self.detections),
+            "persistence_detected": sum(d["attack_types"].get("persistence", False) for d in self.detections),
+            "defense_evasion_detected": sum(d["attack_types"].get("defense_evasion", False) for d in self.detections)
         }
 
 
@@ -3036,11 +3087,14 @@ class PerformanceMonitor:
         self.tcr_tracker.add_task(task_result)
         
         # Accuracy - use TaskResult's accuracy_score
-        # TaskResult already contains calculated accuracy_score, so we use it directly
+        # Normalize to 0-1 scale: users may pass 0-100 scale values
+        _accuracy = task_result.accuracy_score
+        if _accuracy is not None and _accuracy > 1.0:
+            _accuracy = _accuracy / 100.0
         self.accuracy_evaluator.evaluations.append({
             "task_id": task_result.task_id,
             "task_type": task_result.task_type,
-            "accuracy": task_result.accuracy_score,  # Use pre-calculated accuracy
+            "accuracy": _accuracy,
             "timestamp": datetime.now()
         })
         
@@ -3058,7 +3112,8 @@ class PerformanceMonitor:
                 task_result.task_id,
                 task_result.tokens_used.get("input", 0),
                 task_result.tokens_used.get("output", 0),
-                task_result.task_type
+                task_result.task_type,
+                model=task_result.tokens_used.get("model", "default"),  # DQ-150
             )
         
         # Tool calls
@@ -3068,30 +3123,35 @@ class PerformanceMonitor:
                 task_result.tool_calls
             )
         
-        # Retries
+        # Retries — integration(_record_layer2)이 이미 기록했으면 합성 데이터로 중복 기록하지 않음
         if task_result.attempts > 1:
-            attempts_log = [
-                {"success": i == task_result.attempts - 1, "duration": 1.0}
-                for i in range(task_result.attempts)
-            ]
-            self.retry_tracker.track_attempts(task_result.task_id, attempts_log)
+            existing_retry_ids = {a.get('task_id') for a in self.retry_tracker.attempts}
+            if task_result.task_id not in existing_retry_ids:
+                attempts_log = [
+                    {"success": i == task_result.attempts - 1, "duration": 1.0}
+                    for i in range(task_result.attempts)
+                ]
+                self.retry_tracker.track_attempts(task_result.task_id, attempts_log)
 
         # Agentic AI: Tool Selection Accuracy
+        # integration(_record_layer2)이 이미 기록했으면 중복 기록하지 않음
         if task_result.expected_tools and task_result.tool_calls:
-            actual_tools = []
-            for call in task_result.tool_calls:
-                if isinstance(call, str):
-                    actual_tools.append(call)
-                elif isinstance(call, dict):
-                    tool_name = call.get("tool_name") or call.get("tool") or call.get("name", "unknown")
-                    actual_tools.append(tool_name)
-                else:
-                    actual_tools.append("unknown")
-            self.tool_selection_tracker.evaluate_selection(
-                task_result.task_id,
-                task_result.expected_tools,
-                actual_tools
-            )
+            existing_selection_ids = {s.get('task_id') for s in self.tool_selection_tracker.selections}
+            if task_result.task_id not in existing_selection_ids:
+                actual_tools = []
+                for call in task_result.tool_calls:
+                    if isinstance(call, str):
+                        actual_tools.append(call)
+                    elif isinstance(call, dict):
+                        tool_name = call.get("tool_name") or call.get("tool") or call.get("name", "unknown")
+                        actual_tools.append(tool_name)
+                    else:
+                        actual_tools.append("unknown")
+                self.tool_selection_tracker.evaluate_selection(
+                    task_result.task_id,
+                    task_result.expected_tools,
+                    actual_tools
+                )
 
         # Agentic AI: Agent Coordination (CrewAI)
         if task_result.agent_interactions:
@@ -3250,7 +3310,7 @@ class PerformanceMonitor:
             'hallucination': 10.0,
             'quality': 6.0,
             'latency': 10.0,
-            'cost_per_task': 1000.0,
+            'cost_per_task': 0.05,
         }
 
         # Check TCR
@@ -3923,7 +3983,7 @@ class PerformanceMonitor:
         # Retry statistics
         retries = report.efficiency_metrics.get("retries", {})
         if retries:
-            print(f"  평균 재시도 횟수        : {retries.get('avg_attempts', 0):.1f}")
+            print(f"  평균 재시도 횟수        : {retries.get('avg_attempts_per_task', 0):.1f}")
         print()
 
         # ========== Layer 1: Native Metrics ==========
@@ -3962,8 +4022,8 @@ class PerformanceMonitor:
         tokens = report.efficiency_metrics.get("tokens", {})
         if tokens:
             print("  [토큰 사용량]")
-            print(f"    - 총 Input Tokens    : {tokens.get('total_input', 0):,}")
-            print(f"    - 총 Output Tokens   : {tokens.get('total_output', 0):,}")
+            print(f"    - 총 Input Tokens    : {tokens.get('total_input_tokens', 0):,}")
+            print(f"    - 총 Output Tokens   : {tokens.get('total_output_tokens', 0):,}")
             print(f"    - 총 Tokens          : {tokens.get('total_tokens', 0):,}")
             print(f"    - 평균 (작업당)      : {tokens.get('avg_tokens_per_task', 0):.0f} tokens")
             print()
@@ -3988,7 +4048,7 @@ class PerformanceMonitor:
 
             # Tool selection accuracy (if available)
             tool_selection = self.tool_selection_tracker.get_accuracy_stats()
-            if tool_selection and tool_selection.get('total_tasks', 0) > 0:
+            if tool_selection and tool_selection.get('total_evaluations', 0) > 0:
                 print(f"    - Tool Selection Accuracy    : {tool_selection.get('avg_accuracy', 0):.1f}%")
 
             print(f"    - Tool Efficiency            : {tool_eff.get('avg_efficiency_score', 0):.1f}%")
@@ -3999,27 +4059,29 @@ class PerformanceMonitor:
             print()
 
         # Agent coordination
-        coord_stats = self.agent_coordination_tracker.get_coordination_stats()
+        coord_stats = self.agent_coordination_tracker.calculate_coordination_score()
         if coord_stats and coord_stats.get('total_interactions', 0) > 0:
             print("  [에이전트 협업]")
-            print(f"    - Agent Coordination Score   : {coord_stats.get('avg_success_rate', 0):.1f}%")
-            print(f"    - 평균 메시지 교환 수        : {coord_stats.get('avg_interactions_per_task', 0):.1f}")
+            print(f"    - Agent Coordination Score   : {coord_stats.get('score', 0):.2f}")
+            print(f"    - 협업 성공률                : {coord_stats.get('success_rate', 0):.1f}%")
+            print(f"    - 고유 에이전트 수           : {coord_stats.get('unique_agents', 0)}")
             print(f"    - 총 상호작용 수             : {coord_stats.get('total_interactions', 0)}")
             print()
 
         # Workflow execution
-        workflow_stats = self.workflow_tracker.get_workflow_stats()
-        if workflow_stats and workflow_stats.get('total_workflows', 0) > 0:
+        workflow_stats = self.workflow_tracker.calculate_execution_success_rate()
+        if workflow_stats and workflow_stats.get('total_tasks', 0) > 0:
             print("  [워크플로우 실행]")
-            print(f"    - Workflow Success Rate      : {workflow_stats.get('avg_success_rate', 0):.1f}%")
-            print(f"    - 평균 단계 수               : {workflow_stats.get('avg_steps_per_workflow', 0):.1f}")
-            print(f"    - 평균 실행 시간             : {workflow_stats.get('avg_execution_time', 0):.2f}초")
+            print(f"    - Workflow Success Rate      : {workflow_stats.get('task_success_rate', 0):.1f}%")
+            print(f"    - Step Success Rate          : {workflow_stats.get('step_success_rate', 0):.1f}%")
+            print(f"    - 평균 단계 수               : {workflow_stats.get('avg_steps_per_task', 0):.1f}")
+            print(f"    - 총 실행 태스크 수          : {workflow_stats.get('total_tasks', 0)}")
             print()
 
         # If no Layer 2 metrics
         if (not tool_eff or tool_eff.get("total_calls", 0) == 0) and \
            (not coord_stats or coord_stats.get('total_interactions', 0) == 0) and \
-           (not workflow_stats or workflow_stats.get('total_workflows', 0) == 0):
+           (not workflow_stats or workflow_stats.get('total_tasks', 0) == 0):
             print("  (Layer 2 메트릭 데이터 없음)")
             print()
 
@@ -4245,15 +4307,15 @@ class PerformanceMonitor:
             print("─" * 80)
             token_stats = self.token_tracker.get_usage_stats()
             if token_stats:
-                print(f"   Total Input Tokens: {token_stats.get('total_input', 0):,}")
-                print(f"   Total Output Tokens: {token_stats.get('total_output', 0):,}")
+                print(f"   Total Input Tokens: {token_stats.get('total_input_tokens', 0):,}")
+                print(f"   Total Output Tokens: {token_stats.get('total_output_tokens', 0):,}")
                 print(f"   Total Tokens: {token_stats.get('total_tokens', 0):,}")
                 print(f"   Total Cost: ${token_stats.get('total_cost', 0):.4f}")
                 print()
                 if verbose:
                     print("   📝 비용 계산식:")
-                    print(f"      Input Cost  = {token_stats.get('total_input', 0):,} × ${self.token_tracker.pricing['input']}/1M")
-                    print(f"      Output Cost = {token_stats.get('total_output', 0):,} × ${self.token_tracker.pricing['output']}/1M")
+                    print(f"      Input Cost  = {token_stats.get('total_input_tokens', 0):,} × ${self.token_tracker.pricing['input']}/1M")
+                    print(f"      Output Cost = {token_stats.get('total_output_tokens', 0):,} × ${self.token_tracker.pricing['output']}/1M")
                     print("      Total Cost  = Input Cost + Output Cost")
                     print()
 
@@ -4498,7 +4560,7 @@ class PerformanceMonitor:
             # Latency
             latency_stats = report.efficiency_metrics.get("latency", {})
             data["Metric"].append("Average Latency")
-            data["Value"].append(f"{latency_stats.get('avg', 0):.3f}")
+            data["Value"].append(f"{latency_stats.get('mean', 0):.3f}")
             data["Unit"].append("s")
 
             data["Metric"].append("P95 Latency")
@@ -4508,11 +4570,11 @@ class PerformanceMonitor:
             # Token Usage & Cost
             token_stats = report.efficiency_metrics.get("tokens", {})
             data["Metric"].append("Total Input Tokens")
-            data["Value"].append(f"{token_stats.get('total_input', 0)}")
+            data["Value"].append(f"{token_stats.get('total_input_tokens', 0)}")
             data["Unit"].append("tokens")
 
             data["Metric"].append("Total Output Tokens")
-            data["Value"].append(f"{token_stats.get('total_output', 0)}")
+            data["Value"].append(f"{token_stats.get('total_output_tokens', 0)}")
             data["Unit"].append("tokens")
 
             data["Metric"].append("Total Cost")
@@ -4540,7 +4602,7 @@ class PerformanceMonitor:
                 if metric_data['count'] > 0:
                     display_name = metric_name.replace('_', ' ').title()
                     data["Metric"].append(display_name)
-                    data["Value"].append(f"{metric_data['avg']:.3f}")
+                    data["Value"].append(f"{metric_data['mean']:.3f}")
                     data["Unit"].append("score")
 
             df = pd.DataFrame(data)
@@ -4589,6 +4651,9 @@ class PerformanceMonitor:
                 "retry": {
                     "attempts": self.retry_tracker.attempts
                 },
+                "tool_calls": {
+                    "executions": self.tool_analyzer.executions
+                },
                 "tool_selection": {
                     "selections": self.tool_selection_tracker.selections
                 },
@@ -4600,7 +4665,9 @@ class PerformanceMonitor:
                 }
             },
             # Save RAG metrics
-            "rag_metrics": self.rag_metrics
+            "rag_metrics": self.rag_metrics,
+            # Save advanced metrics summary (DeepEval, Ragas 등)
+            "advanced_metrics_summary": getattr(self, '_advanced_metrics_summary', {})
         }
 
         # Auto-add security evaluators if enabled
@@ -4612,10 +4679,13 @@ class PerformanceMonitor:
         # Always add full report data (for Dashboard compatibility)
         self._append_report_data(data)
 
-        # Convert datetime objects to strings
+        # Convert datetime objects and enum values to strings
         for task in data["tasks"]:
             if isinstance(task.get("timestamp"), datetime):
                 task["timestamp"] = task["timestamp"].isoformat()
+            tt = task.get("task_type")
+            if hasattr(tt, "value"):
+                task["task_type"] = tt.value
 
         with open(filename, 'w', encoding='utf-8') as f:
             json.dump(data, f, indent=2, default=str)
@@ -4701,15 +4771,16 @@ class PerformanceMonitor:
             {"success_count": success_count, "fail_count": n - success_count},
             TestStepStatus.SUCCESS,
         )
+        weighted = round(sum(t.completion_score for t in tasks), 2)
         tm.add_calculation_step(
-            tid, "calculate_tcr", f"TCR = {success_count}/{n} × 100 = {tcr_val}%",
-            {"success_count": success_count, "total": n},
+            tid, "calculate_tcr", f"TCR = Σ(completion_score)/{n} × 100 = {weighted}/{n} × 100 = {tcr_val}%",
+            {"weighted_completions": weighted, "total": n},
             {"tcr": tcr_val},
             TestStepStatus.SUCCESS,
         )
         tm.complete_metric_calculation(
             tid, final_value=tcr_val,
-            metadata={"formula": "success_count / total_tasks × 100", "task_count": n},
+            metadata={"formula": "Σ(completion_score) / total_tasks × 100", "task_count": n},
         )
 
         # ── 2. Accuracy trace ───────────────────────────────────────────────
@@ -4771,8 +4842,8 @@ class PerformanceMonitor:
         tm.add_calculation_step(
             tid4, "sum_tokens", "태스크별 input/output 토큰 합산",
             {"task_count": n},
-            {"total_input": tok_data.get("total_input", 0),
-             "total_output": tok_data.get("total_output", 0),
+            {"total_input": tok_data.get("total_input_tokens", 0),
+             "total_output": tok_data.get("total_output_tokens", 0),
              "total_tokens": total_tokens},
             TestStepStatus.SUCCESS,
         )
@@ -4792,8 +4863,8 @@ class PerformanceMonitor:
         q_evals = self.quality_evaluator.evaluations
         if q_evals:
             q_data = self.quality_evaluator.get_quality_metrics()
-            avg_q = round(q_data.get("average_total_score", 0), 4)
-            dim_scores = q_data.get("average_dimension_scores", {})
+            avg_q = round(q_data.get("avg_total_score", 0), 4)
+            dim_scores = q_data.get("dimension_averages", {})
 
             tid5 = tm.start_metric_calculation("response_quality", "quality")
             tm.add_calculation_step(
@@ -4817,7 +4888,7 @@ class PerformanceMonitor:
             )
             tm.complete_metric_calculation(
                 tid5, final_value=avg_q,
-                metadata={"scale": "0-1", "grade_distribution": q_data.get("grade_distribution", {})},
+                metadata={"scale": "0-5", "grade_distribution": q_data.get("grade_distribution", {})},
             )
 
         # ── Audit: report_generated ─────────────────────────────────────────
@@ -4938,8 +5009,12 @@ class PerformanceMonitor:
         with open(filename, encoding='utf-8') as f:
             data = json.load(f)
 
-        # Create new monitor instance
-        monitor = cls(pricing=data.get("pricing", {"input": 0.003, "output": 0.015}))
+        # Create new monitor instance — enable security if JSON contains security evaluator data
+        has_security = "security" in data.get("evaluators", {})
+        monitor = cls(
+            pricing=data.get("pricing", {"input": 0.003, "output": 0.015}),
+            enable_security_metrics=has_security,
+        )
 
         # Restore tasks
         for task_dict in data.get("tasks", []):
@@ -4957,8 +5032,10 @@ class PerformanceMonitor:
             if "execution_time" in task_dict:
                 task_dict["execution_time"] = float(task_dict["execution_time"])
 
-            # Create TaskResult object
-            task = TaskResult(**task_dict)
+            # Create TaskResult object — filter extra keys for cross-monitor compatibility
+            import dataclasses as _dc
+            _tr_fields = {f.name for f in _dc.fields(TaskResult)}
+            task = TaskResult(**{k: v for k, v in task_dict.items() if k in _tr_fields})
             monitor.record_task(task)
 
         # Restore evaluator data (if available)
@@ -4989,6 +5066,10 @@ class PerformanceMonitor:
             if "workflow" in evaluators:
                 monitor.workflow_tracker.executions = evaluators["workflow"].get("executions", [])
 
+            # Tool call executions
+            if "tool_calls" in evaluators:
+                monitor.tool_analyzer.executions = evaluators["tool_calls"].get("executions", [])
+
             # Security evaluators (Layer 1 & 2)
             if "security" in evaluators:
                 security_data = evaluators["security"]
@@ -5016,16 +5097,18 @@ class PerformanceMonitor:
             print("   Restored evaluator data:")
             print(f"     - Quality: {len(monitor.quality_evaluator.evaluations)} evaluations")
             print(f"     - Hallucination: {len(monitor.hallucination_detector.detections)} detections")
+            print(f"     - Tool Calls: {len(monitor.tool_analyzer.executions)} executions")
             print(f"     - Tool Selection: {len(monitor.tool_selection_tracker.selections)} selections")
             print(f"     - Agent Coordination: {len(monitor.agent_coordination_tracker.interactions)} interactions")
             print(f"     - Workflow: {len(monitor.workflow_tracker.executions)} executions")
             if "security" in evaluators:
                 print(f"     - Security: {len(monitor.input_sanitizer.evaluations)} input evals, {len(monitor.output_leakage_detector.detections)} output detections, {len(monitor.tool_authorizer.tool_calls)} tool calls")
 
-        # Restore advanced_metrics_summary (DeepEval, Ragas 등)
-        if "advanced_metrics_summary" in data:
-            monitor._advanced_metrics_summary = data["advanced_metrics_summary"]
-            print(f"   Restored advanced metrics summary with {len(data['advanced_metrics_summary'])} metrics")
+        # Restore advanced_metrics_summary (DeepEval, Ragas 등) — check both top-level and report.*
+        _ams = data.get("advanced_metrics_summary") or data.get("report", {}).get("advanced_metrics_summary")
+        if _ams:
+            monitor._advanced_metrics_summary = _ams
+            print(f"   Restored advanced metrics summary with {len(_ams)} metrics")
 
         # Restore RAG metrics
         if "rag_metrics" in data:
@@ -5298,34 +5381,33 @@ def run_demo():
 
     print("📈 Task Completion Rate by Type:")
     tcr_by_type = monitor.tcr_tracker.get_tcr_by_type()
-    for task_type, tcr in sorted(tcr_by_type.items()):
-        print(f"   • {task_type}: {tcr:.1f}%")
+    for task_type, tcr_data in sorted(tcr_by_type.items()):
+        print(f"   • {task_type}: {tcr_data.get('tcr', 0):.1f}%")
 
     print("\n⏱️  Latency Analysis:")
     bottlenecks = monitor.latency_tracker.analyze_bottlenecks()
-    if bottlenecks:
-        print("   Top slowest operations:")
-        for bottleneck in bottlenecks[:5]:
-            print(f"   • {bottleneck}")
+    if bottlenecks and bottlenecks.get("bottleneck"):
+        print(f"   Bottleneck: {bottlenecks['bottleneck']} (avg {bottlenecks.get('bottleneck_avg_time', 0):.3f}s)")
+        for comp, avg_time in bottlenecks.get("breakdown_averages", {}).items():
+            print(f"   • {comp}: {avg_time:.3f}s")
     else:
         print("   No significant bottlenecks detected")
 
     print("\n🔄 Failure Pattern Analysis:")
     failure_patterns = monitor.retry_tracker.analyze_failure_patterns()
-    if failure_patterns:
-        for pattern in failure_patterns[:5]:
-            print(f"   • {pattern}")
+    if failure_patterns and failure_patterns.get("patterns"):
+        for reason, count in list(failure_patterns["patterns"].items())[:5]:
+            print(f"   • {reason}: {count} occurrences")
     else:
         print("   No significant failure patterns")
 
     print("\n💰 Cost Analysis:")
     report = monitor.generate_report()
-    if 'cost_metrics' in report:
-        cost = report['cost_metrics']
-        print(f"   • Total cost: ${cost.get('total_cost', 0):.4f}")
-        print(f"   • Input tokens cost: ${cost.get('input_cost', 0):.4f}")
-        print(f"   • Output tokens cost: ${cost.get('output_cost', 0):.4f}")
-        print(f"   • Tokens per task (avg): {cost.get('average_tokens_per_task', 0):.0f}")
+    tokens = report.efficiency_metrics.get('tokens', {})
+    if tokens:
+        print(f"   • Total cost: ${tokens.get('total_cost', 0):.4f}")
+        print(f"   • Avg cost per task: ${tokens.get('avg_cost_per_task', 0):.4f}")
+        print(f"   • Tokens per task (avg): {tokens.get('avg_tokens_per_task', 0):.0f}")
 
     # Export comprehensive report
     print("\n📁 Exporting results...")

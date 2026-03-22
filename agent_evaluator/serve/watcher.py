@@ -9,7 +9,7 @@ import asyncio
 import threading
 import time
 from pathlib import Path
-from typing import List
+from typing import Dict, List, Optional, Tuple
 
 
 class FileWatcher:
@@ -21,11 +21,12 @@ class FileWatcher:
     def __init__(self, watch_dir: Path, poll_interval: float = 2.0):
         self._dir = watch_dir
         self._poll_interval = poll_interval
-        self._subscribers: List[asyncio.Queue] = []
+        # Store (loop, queue) pairs so _broadcast can use call_soon_threadsafe
+        self._subscribers: List[Tuple[asyncio.AbstractEventLoop, asyncio.Queue]] = []
         self._lock = threading.Lock()
-        self._thread: threading.Thread | None = None
+        self._thread: Optional[threading.Thread] = None
         self._running = False
-        self._last_snapshot: dict[str, float] = {}
+        self._last_snapshot: Dict[str, float] = {}
 
     # ------------------------------------------------------------------ #
     # Public API
@@ -41,21 +42,23 @@ class FileWatcher:
         self._running = False
 
     def subscribe(self) -> asyncio.Queue:
+        """Register caller's asyncio queue. Must be called from an asyncio context."""
+        loop = asyncio.get_event_loop()
         q: asyncio.Queue = asyncio.Queue(maxsize=32)
         with self._lock:
-            self._subscribers.append(q)
+            self._subscribers.append((loop, q))
         return q
 
     def unsubscribe(self, q: asyncio.Queue) -> None:
         with self._lock:
-            self._subscribers = [s for s in self._subscribers if s is not q]
+            self._subscribers = [(l, s) for l, s in self._subscribers if s is not q]
 
     # ------------------------------------------------------------------ #
     # Internal
     # ------------------------------------------------------------------ #
 
-    def _snapshot(self) -> dict[str, float]:
-        result: dict[str, float] = {}
+    def _snapshot(self) -> Dict[str, float]:
+        result: Dict[str, float] = {}
         if not self._dir.exists():
             return result
         for p in self._dir.rglob("*.json"):
@@ -74,12 +77,14 @@ class FileWatcher:
                 self._broadcast("update")
 
     def _broadcast(self, event: str) -> None:
+        """Thread-safe broadcast using call_soon_threadsafe to put into asyncio queues."""
         with self._lock:
             dead = []
-            for q in self._subscribers:
+            for loop, q in self._subscribers:
                 try:
-                    q.put_nowait(event)
-                except asyncio.QueueFull:
+                    loop.call_soon_threadsafe(q.put_nowait, event)
+                except RuntimeError:
+                    # Loop is closed — mark subscriber for removal
                     dead.append(q)
-            for q in dead:
-                self._subscribers.remove(q)
+            if dead:
+                self._subscribers = [(l, s) for l, s in self._subscribers if s not in dead]

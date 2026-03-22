@@ -121,24 +121,24 @@ AI Agent 코드 | ✅ 필수 | 평가할 Agent 함수
 
 ```python
     from agent_evaluator import PerformanceMonitor
-    from agent_evaluator.helpers import create_taskresult_from_execution
+    from agent_evaluator import create_taskresult
     import time
-    
+
     monitor = PerformanceMonitor()
-    
+
     def my_agent(question: str) -> str:
         """실제 Agent 로직"""
         # ... Agent 실행 ...
         return "답변입니다"
-    
+
     # Agent 실행 및 시간 측정
     question = "프랑스의 수도는?"
     start = time.time()
     response = my_agent(question)
     elapsed = time.time() - start
-    
+
     # Helper 함수로 TaskResult 자동 생성
-    task = create_taskresult_from_execution(
+    task = create_taskresult(
         task_id="task_001",
         question=question,
         response=response,
@@ -171,10 +171,10 @@ AI Agent 코드 | ✅ 필수 | 평가할 Agent 함수
 
 ```python
     from agent_evaluator import PerformanceMonitor
-    from agent_evaluator.helpers import create_taskresult_from_execution
-    
+    from agent_evaluator import create_taskresult
+
     monitor = PerformanceMonitor()
-    
+
     # 테스트 케이스들
     test_cases = [
         {"question": "2+2는?", "expected": "4"},
@@ -182,12 +182,12 @@ AI Agent 코드 | ✅ 필수 | 평가할 Agent 함수
         {"question": "지구는 태양 주위를 도는가?", "expected": "네"},
         # ... 더 많은 테스트 케이스
     ]
-    
+
     # 각 테스트 케이스 평가
     for i, test in enumerate(test_cases):
         response = my_agent(test["question"])
-    
-        task = create_taskresult_from_execution(
+
+        task = create_taskresult(
             task_id=f"task_{i:03d}",
             question=test["question"],
             response=response,
@@ -472,7 +472,7 @@ Agent Evaluator는 평가 결과를 터미널에서 바로 확인할 수 있도�
       실패                    : 5 (5.0%)
       평균 재시도 횟수        : 1.2
     
-    ✅ Layer 1: Basic + Security Metrics (기본 성능 + 보안 지표)
+    ✅ Layer 1: Foundation Metrics (기본 성능 지표)
     ────────────────────────────────────────────────────────────────────────────────
       [정확도]
         - TCR                 : 95.0%
@@ -751,15 +751,15 @@ Layer | 이름 | 설명 | 개수 | 비용 | API 키
     # 평가 후 리포트 생성
     report = monitor.generate_report()
     
-    # Layer 1: Basic Metrics
-    print("=== Layer 1: Basic + Security Metrics ===")
+    # Layer 1: Foundation Metrics
+    print("=== Layer 1: Foundation Metrics ===")
     print(f"TCR: {report.accuracy_metrics['tcr']['tcr']:.1f}%")
     print(f"Accuracy: {report.accuracy_metrics['accuracy_scores']['overall_accuracy']:.2f}%")
     print(f"Hallucination Rate: {report.accuracy_metrics.get('hallucination', {}).get('rate', 0):.2f}%")
     print(f"Latency: {report.efficiency_metrics['latency']['average']:.2f}s")
     print(f"Cost: ${report.efficiency_metrics['tokens']['total_cost']:.4f}")
-    
-    # Layer 1: Security Metrics
+
+    # Layer 2: Security Metrics (enable_security_metrics=True 필요)
     if 'security' in report.accuracy_metrics:
         print(f"Input Sanitization: {report.accuracy_metrics['security'].get('input_sanitization', 0):.1f}%")
         print(f"Output Leakage: {report.accuracy_metrics['security'].get('output_leakage', 0):.1f}%")
@@ -1028,7 +1028,7 @@ Helper 함수를 사용하면 자동으로 계산됩니다.
 
 ```python
     for i in range(10000):
-        task = create_taskresult_from_execution(...)
+        task = create_taskresult(...)
         monitor.record_task(task)
     
         # 1000개마다 저장 및 초기화
@@ -1063,7 +1063,7 @@ Agent Evaluator는 **카테고리별 5개의 실행 가능한 예제 파일** �
 
   * **API Reference** : 모든 API의 상세 명세 확인 (`Docs/API_REFERENCE.html`)
   * **메트릭 가이드** : 각 메트릭의 상세 설명 (`Docs/METRICS_GUIDE.html`)
-  * **보안 메트릭 가이드** : Layer 1/2 보안 메트릭 (`Docs/SECURITY_METRICS_GUIDE.html`)
+  * **보안 메트릭 가이드** : Layer 2 보안 메트릭 (`Docs/SECURITY_METRICS_GUIDE.html`)
   * **Golden Dataset 가이드** : 데이터셋 생성 완전 가이드 (`Docs/GOLDEN_DATASET_GUIDE.html`)
   * **배포 가이드** : 프로덕션 배포 방법 (`Docs/DEPLOYMENT_GUIDE.html`)
 
@@ -1081,7 +1081,7 @@ Agent Evaluator의 다양한 기능에 대해 더 알아보세요:
 
   * [API 레퍼런스](<API_REFERENCE.html>): 전체 API 문서 (PerformanceMonitor, HybridMonitor 등)
   * [메트릭 가이드](<METRICS_GUIDE.html>): Layer 1/2/3 메트릭 종합 설명
-  * [보안 메트릭 가이드](<SECURITY_METRICS_GUIDE.html>): Layer 1/2 보안 메트릭 상세
+  * [보안 메트릭 가이드](<SECURITY_METRICS_GUIDE.html>): Layer 2 보안 메트릭 상세
   * [프레임워크 통합 가이드](<FRAMEWORK_INTEGRATION.html>): CrewAI, LangChain, LangGraph, AutoGen
   * [Agentic AI 메트릭 가이드](<AGENTIC_AI_METRICS_GUIDE.html>): Layer 2 Agentic 메트릭 상세
   * [임계값 설정 가이드](<THRESHOLD_CONFIGURATION_GUIDE.html>): Quality Gate 구성
@@ -1097,12 +1097,12 @@ Agent Evaluator의 다양한 기능에 대해 더 알아보세요:
 
 이제 Agent Evaluator의 기본을 모두 배웠습니다. 실제 프로젝트에 적용해보세요!
 
-**Agent Evaluator v0.5.8**
+**Agent Evaluator v0.6.0**
 
 개발자: **KIM SUNGWOO**
 
 Email: [sungwoo.kim@gmail.com](<mailto:sungwoo.kim@gmail.com>)
 
-**최종 업데이트** : 2026-03-21
+**최종 업데이트** : 2026-03-22
 
 © 2024-2025 MIT License

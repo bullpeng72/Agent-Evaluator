@@ -1,0 +1,14 @@
+{
+  "log_id": "audit_5f59b8bb",
+  "event_type": "file_saved",
+  "user": "evaluator",
+  "action": "결과 파일 저장",
+  "target_type": "file",
+  "target_id": "/home/fomalhaut/Projects/Agent-Evaluator/results/[A]_agentic_metrics_20260322_144325.json",
+  "details": {
+    "format": "json",
+    "path": "/home/fomalhaut/Projects/Agent-Evaluator/results/[A]_agentic_metrics_20260322_144325.json"
+  },
+  "success": true,
+  "timestamp": "2026-03-22T14:43:25.961970"
+}

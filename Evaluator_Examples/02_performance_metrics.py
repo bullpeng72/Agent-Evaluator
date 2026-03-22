@@ -300,6 +300,75 @@ def run_performance_evaluation():
         "mean": 5.0,  # 5초
     }
 
+    # ─── 직접 트래커 API 호출 — 풍부한 데이터로 각 트래커 기능 검증 ──────────────
+    # ① LatencyTracker: 단계별 breakdown 포함 직접 기록
+    detailed_latency_cases = [
+        # (task_id, task_type, total_time, breakdown)
+        ("lat_direct_001", "qa",              0.42, {"preprocessing": 0.02, "model_call": 0.35, "postprocessing": 0.05}),
+        ("lat_direct_002", "code_generation", 5.80, {"preprocessing": 0.10, "model_call": 5.20, "postprocessing": 0.50}),
+        ("lat_direct_003", "data_analysis",   8.30, {"preprocessing": 0.20, "model_call": 7.50, "postprocessing": 0.60}),
+        ("lat_direct_004", "reasoning",       3.10, {"preprocessing": 0.05, "model_call": 2.80, "postprocessing": 0.25}),
+        ("lat_direct_005", "qa",              0.28, {"preprocessing": 0.01, "model_call": 0.22, "postprocessing": 0.05}),
+        ("lat_direct_006", "document_creation", 12.5, {"preprocessing": 0.30, "model_call": 11.50, "postprocessing": 0.70}),
+        ("lat_direct_007", "information_retrieval", 0.65, {"preprocessing": 0.03, "model_call": 0.55, "postprocessing": 0.07}),
+        ("lat_direct_008", "planning",        9.20, {"preprocessing": 0.15, "model_call": 8.60, "postprocessing": 0.45}),
+    ]
+    for tid, ttype, total, breakdown in detailed_latency_cases:
+        monitor.latency_tracker.record_latency(tid, ttype, total, breakdown)
+
+    # ② TokenEconomyTracker: 모델별 비용 비교를 위한 직접 기록
+    # 동일 태스크를 두 모델로 처리했을 때 비용 차이 비교
+    model_comparison_cases = [
+        # (task_id, input_tokens, output_tokens, task_type, model)
+        ("tok_claude_001", 850,  420, "reasoning",       "claude-3-5-sonnet"),
+        ("tok_claude_002", 1200, 680, "code_generation", "claude-3-5-sonnet"),
+        ("tok_claude_003", 320,  180, "qa",              "claude-3-5-sonnet"),
+        ("tok_gpt4o_001",  850,  410, "reasoning",       "gpt-4o"),
+        ("tok_gpt4o_002",  1190, 670, "code_generation", "gpt-4o"),
+        ("tok_mini_001",   820,  390, "reasoning",       "gpt-4o-mini"),
+        ("tok_mini_002",   1150, 650, "code_generation", "gpt-4o-mini"),
+        ("tok_mini_003",   3800, 1800, "data_analysis",  "gpt-4o-mini"),
+        ("tok_haiku_001",  310,  175, "qa",              "claude-3-haiku"),
+        ("tok_haiku_002",  2500, 1200, "document_creation", "claude-3-haiku"),
+    ]
+    for tid, inp, out, ttype, model in model_comparison_cases:
+        monitor.token_tracker.track_usage(tid, inp, out, ttype, model=model)
+
+    # ③ RetryCorrectionTracker: 다양한 재시도 패턴 직접 기록
+    # record_task는 attempts 수만 전달 (성공/실패 구분 없는 단순 로그)
+    # 직접 호출로 실제 시도별 성공/실패·소요 시간을 정밀하게 기록
+    named_retry_patterns = [
+        # (task_id, attempts_log)  ← 첫 시도 실패 후 즉시 성공
+        ("retry_pat_001_immediate_fix",
+         [{"success": False, "duration": 1.2}, {"success": True, "duration": 0.8}]),
+        # 3회 재시도 후 성공
+        ("retry_pat_002_triple_fail",
+         [{"success": False, "duration": 2.5}, {"success": False, "duration": 2.1},
+          {"success": False, "duration": 1.8}, {"success": True, "duration": 1.0}]),
+        # 첫 시도 성공 (재시도 없음)
+        ("retry_pat_003_first_success",
+         [{"success": True, "duration": 0.5}]),
+        # 2회 실패 → 성공
+        ("retry_pat_004_two_fails",
+         [{"success": False, "duration": 3.0}, {"success": False, "duration": 2.8},
+          {"success": True, "duration": 1.5}]),
+        # 첫 시도 성공 (고속)
+        ("retry_pat_005_fast_success",
+         [{"success": True, "duration": 0.2}]),
+        # 전체 실패 (eventual_success=False)
+        ("retry_pat_006_all_fail",
+         [{"success": False, "duration": 5.0}, {"success": False, "duration": 4.5},
+          {"success": False, "duration": 4.0}]),
+        # 첫 시도 실패 → 성공 (느린 재시도)
+        ("retry_pat_007_slow_retry",
+         [{"success": False, "duration": 8.0}, {"success": True, "duration": 5.0}]),
+        # 단번 성공 (중간 속도)
+        ("retry_pat_008_normal",
+         [{"success": True, "duration": 1.5}]),
+    ]
+    for tid, log in named_retry_patterns:
+        monitor.retry_tracker.track_attempts(tid, log)
+
     # 리포트 저장
     report = monitor.generate_report()
     filename = f"[P]_performance_metrics_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
@@ -380,6 +449,54 @@ def run_performance_evaluation():
         print(f"\n  [Recommendations — {len(report.recommendations)}건]")
         for r in report.recommendations[:3]:
             print(f"    → [{r.get('priority','').upper()}] {r.get('title', r.get('area', ''))}")
+
+    # ─── 검증 테이블 ─────────────────────────────────────────────────────────
+    tcr_val     = tcr_data.get("tcr", 0) if tcr_data else 0
+    lat         = latency_data.get("all", latency_data) if latency_data else {}
+    if not isinstance(lat, dict) or "p95" not in lat:
+        for v in (latency_data or {}).values():
+            if isinstance(v, dict) and "p95" in v:
+                lat = v; break
+    p95_val     = lat.get("p95", 0)
+    total_cost  = token_data.get("total_cost", 0) if token_data else 0
+    retry_rate  = retry_data.get("retry_rate", 0) if retry_data else 0
+    first_suc   = retry_data.get("first_attempt_success_rate", 0) if retry_data else 0
+
+    # 모델별 비용 비교 — track_usage() 직접 호출 결과 검증
+    # usage_log에서 model 필드 집계 (get_usage_stats는 per-model 분리 미지원)
+    unique_models = {e["model"] for e in monitor.token_tracker.usage_log
+                     if e.get("model") and e["model"] != "default"}
+    multi_model = len(unique_models) >= 2  # 2가지 이상 모델 명시 기록 확인
+
+    # 재시도 직접 등록 — first_attempt_success_rate 분리 확인
+    retry_stats = monitor.retry_tracker.get_retry_metrics()
+    first_suc_r = retry_stats.get("first_attempt_success_rate", 0)
+
+    # Latency breakdown — 직접 등록한 케이스가 트래커에 반영됐는지 확인
+    lat_stats_qa = monitor.latency_tracker.get_latency_stats(task_type="qa")
+    lat_qa_p50   = lat_stats_qa.get("p50", 0)
+
+    checks = [
+        #  항목                           기준            실제값                  통과 여부
+        ("TCR (전체 완료율)",              "> 60.0%",   f"{tcr_val:.1f}%",       tcr_val > 60.0),
+        ("p95 지연 시간",                  "< 25.0s",   f"{p95_val:.2f}s",       p95_val < 25.0),
+        ("전체 추정 비용",                 "< $1.00",   f"${total_cost:.4f}",    total_cost < 1.00),
+        ("재시도율 (retry_rate)",          "> 0%",      f"{retry_rate:.1f}%",    retry_rate > 0),
+        ("첫시도 성공률 (retry 직접 등록)","≥ 10%",     f"{first_suc_r:.1f}%",   first_suc_r >= 10.0),
+        ("모델별 비용 분리 (≥2종)",        "True",      str(multi_model),        multi_model),
+        ("QA p50 직접 기록 반영",          "> 0s",      f"{lat_qa_p50:.3f}s",    lat_qa_p50 > 0),
+    ]
+
+    print(f"\n  {'═'*66}")
+    print(f"  {'검증 항목':<30} {'기준':<12} {'실측값':<14} {'결과'}")
+    print(f"  {'─'*66}")
+    pass_cnt = 0
+    for name, threshold, actual, ok in checks:
+        mark = "PASS ✅" if ok else "FAIL ❌"
+        if ok: pass_cnt += 1
+        print(f"  {name:<30} {threshold:<12} {actual:<14} {mark}")
+    print(f"  {'═'*66}")
+    print(f"  합계: {pass_cnt}/{len(checks)} 통과\n")
 
     print(f"{'─'*70}\n")
     return saved_path

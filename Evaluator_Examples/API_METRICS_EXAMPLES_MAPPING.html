@@ -101,7 +101,7 @@
     <header>
         <h1>🗺️ Agent Evaluator</h1>
         <p>API, Metrics &amp; Examples Mapping Guide</p>
-        <p style="font-size: 0.9em; margin-top: 10px;">Version 0.5.7 | Updated: 2026-03-20</p>
+        <p style="font-size: 0.9em; margin-top: 10px;">Version 0.6.0 | Updated: 2026-03-22</p>
     </header>
 
     <div class="content">
@@ -471,7 +471,8 @@ monitor.tool_chain_attack_detector.analyze_tool_chain(task_id, tool_sequence_lis
 
             <h3>📝 Quality Evaluator 직접 호출 패턴</h3>
             <div class="api-section">
-                <p><code>ResponseQualityEvaluator</code>도 <code>record_task()</code> 외에 <strong>별도 호출</strong>이 필요합니다:</p>
+                <p><code>PerformanceMonitor.record_task()</code>는 <code>ResponseQualityEvaluator</code>를 자동 호출하지 않으므로 <strong>별도 직접 호출</strong>이 필요합니다.<br>
+                (단, <code>CrewAIEvaluator</code> · <code>LangChainEvaluator</code> · <code>LangGraphEvaluator</code> · <code>AutoGenEvaluator</code> 프레임워크 통합 클래스는 <code>question</code>/<code>response</code> 제공 시 자동 연결)</p>
                 <pre style="background: #2d2d2d; color: #f8f8f2; padding: 15px; border-radius: 6px; overflow-x: auto; margin-top: 10px; font-size: 0.9em;">
 monitor.quality_evaluator.evaluate_response(
     task_id=task_id,
@@ -517,7 +518,7 @@ monitor.quality_evaluator.evaluate_response(
                     <tr>
                         <td><span class="badge badge-layer1">Response Quality (5-dim)</span></td>
                         <td><code>monitor.quality_evaluator.evaluate_response()</code></td>
-                        <td>별도 직접 호출 필요</td>
+                        <td>PerformanceMonitor 직접 사용 시 별도 호출 필요<br><small>(프레임워크 통합 시 자동)</small></td>
                     </tr>
                     <tr>
                         <td><span class="badge badge-layer3">Ragas 4개 (시뮬)</span></td>
@@ -544,18 +545,21 @@ monitor.quality_evaluator.evaluate_response(
                     </tr>
                     <tr>
                         <td><span class="badge badge-layer1">Latency (p50/p95/p99)</span></td>
-                        <td><code>record_task(execution_time=...)</code> → <code>latency_tracker</code></td>
+                        <td><code>record_task(execution_time=...)</code> → <code>latency_tracker</code><br>
+                            <small>+ <code>latency_tracker.record_latency(task_id, task_type, total_time, breakdown)</code> 직접 호출 8건 (단계별 breakdown 포함)</small></td>
                         <td>SLA 검사 포함 (<code>check_sla_compliance()</code>)</td>
                     </tr>
                     <tr>
                         <td><span class="badge badge-layer1">Token Economy</span></td>
-                        <td><code>record_task(tokens_used={"input":..., "output":..., "total":...})</code></td>
-                        <td>월간 비용 예측 포함</td>
+                        <td><code>record_task(tokens_used={...})</code><br>
+                            <small>+ <code>token_tracker.track_usage(task_id, input, output, task_type, model="claude-3-5-sonnet")</code> 직접 호출 10건 (모델명 명시)</small></td>
+                        <td>모델별 비용 비교 · 월간 예측 포함</td>
                     </tr>
                     <tr>
                         <td><span class="badge badge-layer2">Retry &amp; Correction</span></td>
-                        <td><code>TaskResult(attempts=N)</code></td>
-                        <td>attempts &gt; 1이면 retry_tracker 자동 등록</td>
+                        <td><code>TaskResult(attempts=N)</code><br>
+                            <small>+ <code>retry_tracker.track_attempts(task_id, attempts_log)</code> 직접 호출 8건 (named 패턴: immediate_fix / triple_fail / all_fail 등)</small></td>
+                        <td>attempts &gt; 1이면 retry_tracker 자동 등록 + 직접 등록으로 다양한 패턴 검증</td>
                     </tr>
                     <tr>
                         <td><span class="badge badge-layer1">Accuracy</span></td>
@@ -570,7 +574,8 @@ monitor.quality_evaluator.evaluate_response(
                 </tbody>
             </table>
             <div class="success-box">
-                <p><strong>생성 파일:</strong> <code>[P]_performance_metrics_YYYYMMDD_HHMMSS.json</code> — 47개 태스크, 9가지 태스크 유형, GPT-4o-mini 가격 기준</p>
+                <p><strong>생성 파일:</strong> <code>[P]_performance_metrics_YYYYMMDD_HHMMSS.json</code> — 44개 태스크, 9가지 태스크 유형, GPT-4o-mini 가격 기준</p>
+                <p style="margin-top:6px;">직접 트래커 API 호출: latency 8건 (단계별 breakdown) · token 10건 (4종 모델 비교) · retry 8건 (named 패턴) · PASS/FAIL 검증 테이블 7항목</p>
             </div>
 
             <!-- 03 -->
@@ -582,8 +587,9 @@ monitor.quality_evaluator.evaluate_response(
                 <tbody>
                     <tr>
                         <td><span class="badge badge-layer2">Tool Call Efficiency</span></td>
-                        <td><code>TaskResult(tool_calls=[...])</code></td>
-                        <td>효율성·중복·실패율 자동 계산</td>
+                        <td><code>TaskResult(tool_calls=[...])</code><br>
+                            <small>+ <code>monitor.tool_analyzer.analyze_execution(task_id, tool_calls)</code> 직접 호출 6건 (단순/체인/중복/실패/빈 케이스)</small></td>
+                        <td>효율성·중복·실패율 자동 계산 + 케이스별 점수 직접 캡처</td>
                     </tr>
                     <tr>
                         <td><span class="badge badge-layer2">Tool Selection (F1)</span></td>
@@ -603,7 +609,7 @@ monitor.quality_evaluator.evaluate_response(
                     <tr>
                         <td><span class="badge badge-layer2">Retry &amp; Correction</span></td>
                         <td><code>monitor.retry_tracker.track_attempts(tid, log)</code></td>
-                        <td>직접 5건 추가 등록</td>
+                        <td>직접 5건 추가 등록 (다양한 실패→성공 패턴)</td>
                     </tr>
                     <tr>
                         <td><span class="badge badge-layer1">Accuracy</span></td>
@@ -618,7 +624,8 @@ monitor.quality_evaluator.evaluate_response(
                 </tbody>
             </table>
             <div class="success-box">
-                <p><strong>생성 파일:</strong> <code>[A]_agentic_metrics_YYYYMMDD_HHMMSS.json</code> — 25개 태스크 + 5 retry 직접 등록</p>
+                <p><strong>생성 파일:</strong> <code>[A]_agentic_metrics_YYYYMMDD_HHMMSS.json</code> — 25개 태스크 + 5 retry 직접 등록 + 6 ToolCallAnalyzer 직접 호출</p>
+                <p style="margin-top:6px;">중복 호출 효율성 분리 검증 포함 · PASS/FAIL 검증 테이블 9항목</p>
             </div>
 
             <!-- 04 -->
@@ -630,12 +637,12 @@ monitor.quality_evaluator.evaluate_response(
                 <tbody>
                     <tr style="background:#fff9f0;">
                         <td><span class="badge badge-security">Input Sanitization</span></td>
-                        <td>27건 (정상 16 + 위협 11)</td>
+                        <td>27건 (정상 13 + edge 3 + 위협 11)</td>
                         <td><code>monitor.input_sanitizer.evaluate_input(task_id, input_text)</code></td>
                     </tr>
                     <tr style="background:#fff9f0;">
                         <td><span class="badge badge-security">Output Leakage</span></td>
-                        <td>20건 (정상 11 + 유출 9)</td>
+                        <td>20건 (정상 10 + 유출 10)</td>
                         <td><code>monitor.output_leakage_detector.detect_leakage(task_id, output_text)</code></td>
                     </tr>
                     <tr style="background:#fff9f0;">
@@ -645,7 +652,7 @@ monitor.quality_evaluator.evaluate_response(
                     </tr>
                     <tr style="background:#fff9f0;">
                         <td><span class="badge badge-security">Privilege Escalation</span></td>
-                        <td>8건 (정상 2 + 상승 6)</td>
+                        <td>8건 (정상 4 + 상승 4)</td>
                         <td><code>monitor.privilege_escalation_detector.analyze_privilege_chain(task_id, tool_calls)</code></td>
                     </tr>
                     <tr style="background:#fff9f0;">
@@ -667,6 +674,7 @@ monitor.quality_evaluator.evaluate_response(
             </table>
             <div class="success-box">
                 <p><strong>생성 파일:</strong> <code>[S]_security_metrics_YYYYMMDD_HHMMSS.json</code> — 27개 태스크 + 직접 보안 호출</p>
+                <p style="margin-top:6px;">탐지기별 TP/TN/FP/FN 추적 · Precision/Recall/F1 계산 · PASS/FAIL 검증 테이블 10항목</p>
             </div>
 
             <!-- 05 -->
@@ -1005,7 +1013,7 @@ agent-eval serve --watch
     </div>
 
     <footer>
-        <h3 style="margin-bottom: 15px;">📚 Agent Evaluator Framework v0.5.7</h3>
+        <h3 style="margin-bottom: 15px;">📚 Agent Evaluator Framework v0.6.0</h3>
         <p style="margin-bottom: 10px;">
             🎯 Layer 1: 6개 지표 &nbsp;|&nbsp;
             🤖 Layer 2: 5개 에이전틱 + 5개 보안 &nbsp;|&nbsp;
@@ -1016,7 +1024,7 @@ agent-eval serve --watch
             05_hybrid_metrics.py: DeepEval 5 + Ragas 4 실제 API (OpenAI 키 필요)
         </p>
         <p style="font-size: 0.9em; opacity: 0.8;">
-            Updated: 2026-03-20 | MIT License | Python 3.8+
+            Updated: 2026-03-22 | MIT License | Python 3.8+
         </p>
     </footer>
 </div>
