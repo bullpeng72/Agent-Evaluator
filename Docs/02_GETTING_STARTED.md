@@ -103,7 +103,7 @@ Agent Evaluator는 PyPI에 배포되어 있어 pip로 간단히 설치할 수 �
     pip install crewai>=1.0.0
     pip install langgraph>=1.0.0
     pip install deepeval>=0.20.0
-    pip install ragas>=0.4.0 datasets>=4.0.0 langchain-openai>=1.0.0
+    pip install ragas>=0.4.0 "datasets>=4.0.0,<6.0.0" langchain-openai>=1.0.0
 ```
 
 **포함 기능:**
@@ -146,7 +146,7 @@ Agent Evaluator는 PyPI에 배포되어 있어 pip로 간단히 설치할 수 �
 #### Ragas 추가
 
 ```bash
-    pip install ragas>=0.4.0 datasets>=4.0.0 langchain-openai>=1.0.0
+    pip install ragas>=0.4.0 "datasets>=4.0.0,<6.0.0" langchain-openai>=1.0.0
 ```
 
 * * *
@@ -585,14 +585,14 @@ Layer 2 보안 메트릭, Layer 3 고급 평가, 자동 추적 기능이 포함�
     pip install langchain langchain-core langchain-community
 ```
 
-#### ImportError: No module named ‘pyautogen’
+#### ImportError: No module named ‘autogen_agentchat’
 
 **원인:** AutoGen이 설치되지 않음
 
 **해결:**
 
-```bash 
-    pip install pyautogen
+```bash
+    pip install autogen-agentchat autogen-core
 ```
 
 #### 대시보드 실행 오류
@@ -744,4 +744,4 @@ Layer 2 보안 메트릭, Layer 3 고급 평가, 자동 추적 기능이 포함�
 * * *
 
 **문서 버전** : v0.6.0
-**최종 업데이트** : 2026-03-22
+**최종 업데이트** : 2026-03-23

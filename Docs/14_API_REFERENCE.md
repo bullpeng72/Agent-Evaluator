@@ -12,7 +12,7 @@
 
 **현재 버전:** v0.6.0
 
-**최종 업데이트:** 2026-03-22
+**최종 업데이트:** 2026-03-23
 
 **테스트된 환경:**
 
@@ -521,7 +521,7 @@ PerformanceMonitor는 내부적으로 **16개의 Tracker** 를 사용하여 메�
     Task Completion Rate (TCR),95.00,%
     Overall Accuracy,88.50,%
     Hallucination Rate,0.00,%
-    Response Quality,8.00,/10
+    Response Quality,4.00,/5
     Average Latency,1.234,s
     P95 Latency,2.456,s
     Total Input Tokens,5000,tokens

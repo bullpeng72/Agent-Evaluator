@@ -1103,6 +1103,6 @@ Agent Evaluator의 다양한 기능에 대해 더 알아보세요:
 
 Email: [sungwoo.kim@gmail.com](<mailto:sungwoo.kim@gmail.com>)
 
-**최종 업데이트** : 2026-03-22
+**최종 업데이트** : 2026-03-23
 
 © 2024-2025 MIT License

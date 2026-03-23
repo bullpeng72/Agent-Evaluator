@@ -540,7 +540,7 @@ agent-evaluator/
 │   │   ├── dashboard_integration.py
 │   │   ├── data_registry.py
 │   │   ├── path_helpers.py
-│   │   └── test_transparency_manager.py  # ⚠️ 프로덕션 클래스 (테스트 파일 아님)
+│   │   └── transparency_manager.py       # TestTransparencyManager 프로덕션 클래스
 │   └── config.py                # 환경변수 설정 로더
 │
 ├── Evaluator_Examples/           # 카테고리별 평가 예제 (5개)

@@ -92,7 +92,7 @@ Layer 3 — Hybrid Evaluation (requires optional deps)
 ```
 agent_evaluator/
 ├── core/
-│   ├── agent_evaluator.py   # 모든 16개 트래커 + PerformanceMonitor (5,458줄 — 분리 예정)
+│   ├── agent_evaluator.py   # 모든 16개 트래커 + PerformanceMonitor (5,501줄 — 분리 예정)
 │   ├── hybrid_monitor.py    # HybridPerformanceMonitor
 │   └── monitor_context.py   # Context managers
 ├── integrations/
@@ -267,7 +267,7 @@ from agent_evaluator import (
 
 | 우선순위 | 항목 | 위치 |
 |---------|------|------|
-| 🔴 High | `agent_evaluator.py` 5,458줄 단일 파일 — trackers/ 분리 필요 | `core/agent_evaluator.py` |
+| 🔴 High | `agent_evaluator.py` 5,501줄 단일 파일 — trackers/ 분리 필요 | `core/agent_evaluator.py` |
 | ✅ Fixed | 테스트 없음 — `tests/` 4개 파일, 33개 테스트 함수 작성 완료 | `tests/` |
 | 🔴 High | `import re` 9회 함수 내부에서 임포트 → 모듈 상단으로 이동 필요 | `core/agent_evaluator.py` |
 | 🔴 High | `os.chdir()` 라이브러리 코드 내 사용 → `importlib` 방식으로 교체 필요 | `utils/dashboard_integration.py:44,82` |
@@ -353,6 +353,34 @@ pytest
 ---
 
 ## 📝 변경 이력
+
+### v0.6.0-post (2026-03-23) — 대시보드 품질·RAG·DeepEval 탭 전면 개선
+
+#### 핵심 지표 파이프라인 수정
+- 🐛 `HallucinationDetector.detect_hallucination()` — `request` 파라미터 추가, detection dict에 `"question"` 저장 → 상세 화면에 질문 표시
+- 🐛 `HybridPerformanceMonitor.record_task()` — `request=input_text` 전파 누락 수정
+- 🐛 `PerformanceMonitor.record_task()` — `request=request` 를 `detect_hallucination()` 호출에 전달
+
+#### 대시보드 Quality 탭
+- 🔧 품질 점수 스케일 `/10` → `/5` 통일 (ResponseQualityEvaluator 실제 범위 반영)
+- 🔧 환각 게이지 공식 수정: `(hall/30)*100` → `Math.min(100, hall)` (항상 100% 표시 버그 수정)
+- 🔧 환각 유형별 분류 — 확장 가능한 상세 패널 추가 (질문·컨텍스트·심각도 표시)
+- 🔧 G-Eval 단일 점수 기반 vs ResponseQualityEvaluator 개별 측정 설명 노트 추가
+- 🔧 차원별 의미 설명 (relevance / completeness / clarity / accuracy / usefulness)
+
+#### 대시보드 RAG 탭
+- ✨ Ragas Overall Score KPI 카드 추가 (기본·심화 공통)
+- 🔧 수직 레이아웃으로 재구성: 📖 지표 설명 → 차트 → 태스크별 상세
+- 🔧 4개 지표 설명 카드 추가 (Faithfulness / Answer Relevancy / Context Recall / Context Precision / Overall)
+- 🔧 KPI sub-text: `N건 평가` → `N건 | min X / max X` (범위 표시)
+- 🔧 호버 툴팁 소수점 수정: `0.6666667` → `0.667` (`hovertemplate:'%{y:.3f}'`)
+- 🔧 태스크별 RAG 상세 테이블 컬럼 정렬 수정 (flex + 고정 width)
+
+#### 대시보드 DeepEval 탭
+- 🔧 KPI 카드에서 Ragas 지표(`ragas_*`) 제거 → DeepEval 전용 지표만 표시
+- 🔧 지표 요약 바에서 Ragas 지표 제거 (양쪽 티어 모두)
+- 🔧 수직 레이아웃으로 재구성: 📖 지표 설명 → G-Eval 분포 → 지표 요약
+- 🔧 DeepEval 미설치 배너 제거 → "지표 없음" 메시지로 통일
 
 ### v0.6.0 (2026-03-21) — 4개 프레임워크 완전 지원 + ragas 0.4.x + 의존성 재설계
 

@@ -46,6 +46,7 @@ class TaskResult:
     expected_tools: Optional[List[str]] = None                     # Expected tools from golden dataset
     state_transitions: Optional[List[Dict[str, Any]]] = None       # State transitions (LangGraph)
     framework: Optional[str] = None                                 # Framework used (crewai, langchain, langgraph, autogen)
+    partial_reason: Optional[str] = None                            # 부분 성공/실패 원인 설명 (자동 추론 또는 사용자 직접 지정)
 
 
 @dataclass
@@ -445,7 +446,8 @@ class HallucinationDetector:
         self.detections: List[Dict[str, Any]] = []
     
     def detect_hallucination(self, task_id: str, response: str,
-                            context: str, ground_truth: Optional[str] = None) -> Dict[str, Any]:
+                            context: str, ground_truth: Optional[str] = None,
+                            request: Optional[str] = None) -> Dict[str, Any]:
         """
         Detect hallucinations using rule-based patterns
 
@@ -454,6 +456,7 @@ class HallucinationDetector:
             response: Agent's response text
             context: Context/retrieved documents used for generation
             ground_truth: Optional expected answer for validation
+            request: Original question/query (displayed in dashboard)
 
         Returns:
             Detection result with hallucination rate and indicators
@@ -512,6 +515,8 @@ class HallucinationDetector:
             "task_id": task_id,
             "hallucination_rate": hallucination_rate,
             "indicators": hallucination_indicators,
+            "question": request[:200] if request else None,  # 원래 질문 (최대 200자)
+            "context": context[:300] if context else None,   # 참조 컨텍스트 (최대 300자)
             "timestamp": datetime.now()
         }
         
@@ -3193,7 +3198,8 @@ class PerformanceMonitor:
                     task_id=task_result.task_id,
                     response=response,
                     context=context,
-                    ground_truth=ground_truth_str
+                    ground_truth=ground_truth_str,
+                    request=request
                 )
             except Exception as e:
                 # Silent fail - don't break the entire evaluation
@@ -3616,15 +3622,16 @@ class PerformanceMonitor:
         # Quality improvement
         quality_data = self.quality_evaluator.get_quality_metrics()
         if quality_data and "avg_total_score" in quality_data:
-            # MEDIUM PRIORITY FIX: Only generate recommendations when data actually exists
-            avg_quality = quality_data["avg_total_score"] * 2
-            if avg_quality < 8.0:
-                gap = 8.0 - avg_quality
+            # 품질 점수는 0~5 범위 (v0.5.x 이후). 목표: 4.0/5
+            avg_quality = quality_data["avg_total_score"]  # 0~5 그대로 사용
+            quality_target = 4.0
+            if avg_quality < quality_target:
+                gap = quality_target - avg_quality
                 recommendations.append({
                     "area": "응답 품질 개선",
-                    "title": f"응답 품질 점수가 목표치 대비 {gap:.1f}점 낮음 (10점 만점)",
+                    "title": f"응답 품질 점수가 목표치 대비 {gap:.1f}점 낮음 (5점 만점)",
                     "priority": "medium",
-                    "issue": f"현재 품질 점수 {avg_quality:.1f}/10 (목표: 8.0 이상). 응답의 완성도, 관련성, 가독성이 사용자 기대 수준에 미치지 못하고 있습니다.",
+                    "issue": f"현재 품질 점수 {avg_quality:.1f}/5.0 (목표: {quality_target:.1f} 이상). 응답의 완성도, 관련성, 가독성이 사용자 기대 수준에 미치지 못하고 있습니다.",
                     "suggestion": """**즉시 실행 가능한 개선 방안:**
 1. **응답 구조화 템플릿 적용**:
    - 질문형 작업: 직접적 답변 → 근거 제시 → 추가 정보 순으로 구조화
@@ -3642,10 +3649,10 @@ class PerformanceMonitor:
    - 전문 용어 사용 시 간단한 설명 추가
 5. **사용자 맞춤화**: 응답 톤과 디테일 수준을 사용자 컨텍스트에 맞게 조정""",
                     "impact": f"""**예상 개선 효과:**
-• 품질 점수 8.0 달성 시 사용자 재질문률 30-40% 감소
+• 품질 점수 {quality_target:.1f}/5.0 달성 시 사용자 재질문률 30-40% 감소
 • 응답 이해도 향상으로 고객 지원 문의 주당 20-30건 감소
 • 사용자 세션 시간 15-20% 증가 (만족도 향상)
-• 응답 재작성 필요성 {((8.0-avg_quality)/8.0)*100:.0f}% 감소로 운영 효율 증대"""
+• 응답 재작성 필요성 {(gap/quality_target)*100:.0f}% 감소로 운영 효율 증대"""
                 })
 
         # Token optimization

@@ -184,7 +184,7 @@ compare_with_thresholds()
 **TCR** | Task Completion Rate | (성공 작업 수 / 전체 작업 수) × 100 | ≥ 95%
 **Accuracy** | 정확도 (의미론적 유사도) | 평균 accuracy_score | ≥ 90%
 **Hallucination** | 환각 발생률 | 룰 기반 사실 일관성 검사 | < 1%
-**Quality** | 응답 품질 점수 | 5차원 품질 평가 평균 | ≥ 8.5/10
+**Quality** | 응답 품질 점수 | 5차원 품질 평가 평균 | ≥ 4.0/5
 **Latency** | 응답 시간 (P95) | 95 percentile execution_time | < 3s
 **Token Economy** | 토큰 비용 분석 | 토큰 사용량 + 비용 추정 | 최소화
 
@@ -346,7 +346,7 @@ compare_with_thresholds()
     
     # 추가 프레임워크 설치 (필요 시)
     pip install crewai>=1.0.0 langgraph>=1.0.0
-    pip install deepeval>=0.20.0 ragas>=0.4.0 datasets>=4.0.0
+    pip install deepeval>=0.20.0 ragas>=0.4.0 "datasets>=4.0.0,<6.0.0"
     
     # .env 파일 생성 (Layer 3 사용 시)
     echo "OPENAI_API_KEY='your-api-key-here'" > .env
@@ -2588,4 +2588,4 @@ Dashboard 로딩 느림 | 대용량 데이터 (1000+ tasks) | 샘플링 사용 �
 
 © 2025 Agent Evaluator. All rights reserved.
 
-**최종 업데이트** : 2026-03-22 | **버전** : Agent Evaluator v0.6.0 | **문서** : 종합 학습 가이드
+**최종 업데이트** : 2026-03-23 | **버전** : Agent Evaluator v0.6.0 | **문서** : 종합 학습 가이드

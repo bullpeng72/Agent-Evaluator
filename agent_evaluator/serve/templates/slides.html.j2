@@ -715,7 +715,13 @@ function calcL1(tcr, acc, hallu) {
 }
 function fmtPct(v)  { return v==null ? '—' : (+v).toFixed(1)+'%'; }
 function fmtSec(v)  { return v==null ? '—' : (+v).toFixed(2)+'s'; }
-function fmtCost(v) { return v==null ? '—' : (+v<0.01 ? '$'+(+v).toFixed(6) : '$'+(+v).toFixed(4)); }
+function fmtCost(v) {
+  if(v==null) return '—';
+  const n=+v;
+  if(n===0) return '$0';
+  const s = n<0.001 ? n.toFixed(6) : n<0.01 ? n.toFixed(4) : n<1 ? n.toFixed(4) : n.toFixed(2);
+  return '$'+s.replace(/(\.\d*?)0+$/, '$1').replace(/\.$/, '');
+}
 
 Reveal.on('ready', () => {
   populateSlides();

@@ -105,7 +105,7 @@ CI/CD 통합 및 프로덕션 배포 전략
     [](<#cb2-11>)
     [](<#cb2-12>)
     [](<#cb2-13>)# AutoGen 통합
-    [](<#cb2-14>)pip install pyautogen>=0.3.0 autogen-agentchat>=0.4.0 autogen-core>=0.4.0
+    [](<#cb2-14>)pip install autogen-agentchat>=0.4.0 autogen-core>=0.4.0
 ```
 
 **Advanced Metrics** (선택 - Layer 3 고급 메트릭 사용 시):
@@ -120,7 +120,7 @@ CI/CD 통합 및 프로덕션 배포 전략
     [](<#cb3-8>)pip install langchain-openai>=1.0.0
     [](<#cb3-9>)
     [](<#cb3-10>)# Datasets (Ragas 의존성)
-    [](<#cb3-11>)pip install datasets>=4.0.0
+    [](<#cb3-11>)pip install "datasets>=4.0.0,<6.0.0"
     [](<#cb3-12>)
     [](<#cb3-13>)# LangSmith (선택 - 프로덕션 추적)
     [](<#cb3-14>)pip install langsmith>=0.1.0
@@ -2797,7 +2797,7 @@ DB 연결 실패 | 네트워크, 인증 오류 | `telnet db-host 5432` | DB 연�
 
 * * *
 
-**최종 업데이트** : 2026-03-22
+**최종 업데이트** : 2026-03-23
 **버전** : v0.6.0
 **프로젝트** : Agent Evaluator - AI Agent Performance Evaluation System
 **문서 타입** : 배포 가이드 (Deployment Guide)

@@ -188,7 +188,8 @@ class HybridPerformanceMonitor(PerformanceMonitor):
             task,
             context=context_for_hallucination,
             response=output_text if output_text else None,
-            ground_truth=expected_output
+            ground_truth=expected_output,
+            request=input_text if input_text else None
         )
 
         # 2. Evaluate with external libraries (optional, slower)

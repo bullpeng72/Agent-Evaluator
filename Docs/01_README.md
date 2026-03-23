@@ -827,7 +827,7 @@ Agent Evaluator는 풍부한 문서를 제공합니다:
 
 100% Zero Configuration | 3-Layer Metrics | Production-Ready
 
-**최종 업데이트** : 2026-03-22 | **버전** : Agent Evaluator v0.6.0
+**최종 업데이트** : 2026-03-23 | **버전** : Agent Evaluator v0.6.0
 
 Developed by **KIM SUNGWOO**
 

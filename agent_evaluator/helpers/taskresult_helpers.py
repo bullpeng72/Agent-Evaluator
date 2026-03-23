@@ -418,7 +418,8 @@ def create_taskresult_from_execution(
     langchain_result = None,
     has_error: bool = False,
     error_message: str = None,
-    task_type: str = "qa"
+    task_type: str = "qa",
+    partial_reason: str = None,
 ):
     """
     Agent 실행 결과로부터 TaskResult 생성 (모든 필드 동적 계산)
@@ -498,7 +499,26 @@ def create_taskresult_from_execution(
     elif langchain_result:
         tool_calls = extract_tool_calls_from_langchain(langchain_result)
 
-    # 5. TaskResult 생성
+    # 5. partial_reason 자동 추론 (사용자가 직접 지정하지 않은 경우)
+    if partial_reason is None and completion < 1.0:
+        if has_error and error_message:
+            partial_reason = f"오류 발생: {error_message}"
+        elif not response or not response.strip():
+            partial_reason = "응답 없음"
+        elif ground_truth:
+            sim = _calculate_simple_similarity(response, ground_truth)
+            if completion == 0.0:
+                partial_reason = f"ground_truth 불일치 (유사도 {sim:.0%} — 임계값 미달)"
+            elif sim >= 0.5:
+                partial_reason = f"ground_truth 부분 일치 (유사도 {sim:.0%}, 완전 일치 미달)"
+            else:
+                partial_reason = f"ground_truth 유사도 낮음 (유사도 {sim:.0%})"
+        elif len((response or "").strip()) < 10:
+            partial_reason = f"응답 길이 부족 ({len((response or '').strip())}자)"
+        # completion_score를 사용자가 직접 지정한 경우 — 추론 불가
+        # partial_reason은 None으로 유지
+
+    # 6. TaskResult 생성
     return TaskResult(
         task_id=task_id,
         task_type=getattr(TaskType, task_type.upper(), TaskType.QA).value,
@@ -510,7 +530,8 @@ def create_taskresult_from_execution(
         tool_calls=tool_calls,            # ✅ 동적 추출
         attempts=1,
         errors=[error_message] if error_message else [],
-        timestamp=datetime.now()
+        timestamp=datetime.now(),
+        partial_reason=partial_reason,    # ✅ 자동 추론 또는 사용자 지정
     )
 
 

@@ -195,6 +195,44 @@ class ResultFile:
     def has_quality_detail(self) -> bool:
         return len(self.quality_detail.evaluations) > 0
 
+    @property
+    def has_hallucination(self) -> bool:
+        return len(self.hallucination_detail.detections) > 0
+
+    # --- Agentic sub-flags ---
+    @property
+    def has_tool_use(self) -> bool:
+        return bool(self.agentic.tool_selections or self.agentic.tool_efficiency)
+
+    @property
+    def has_coordination(self) -> bool:
+        return bool(self.agentic.agent_interactions)
+
+    @property
+    def has_workflow(self) -> bool:
+        return bool(self.agentic.workflow_executions)
+
+    @property
+    def has_retry(self) -> bool:
+        return bool(self.agentic.retry_attempts)
+
+    # --- Security sub-flags ---
+    @property
+    def has_input_security(self) -> bool:
+        return bool(self.security_l1.input_evals)
+
+    @property
+    def has_output_security(self) -> bool:
+        return bool(self.security_l1.output_detections)
+
+    @property
+    def has_tool_auth(self) -> bool:
+        return bool(self.security_l1.tool_calls)
+
+    @property
+    def has_attack_detect(self) -> bool:
+        return bool(self.security_l2.escalation_events or self.security_l2.attack_detections)
+
 
 @dataclass
 class ResultSet:

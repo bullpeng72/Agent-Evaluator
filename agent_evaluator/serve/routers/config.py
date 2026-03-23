@@ -18,6 +18,7 @@ _DEFAULTS: Dict[str, float] = {
     "acc": 70.0,
     "hall": 5.0,
     "p95": 2.0,
+    "p99": 5.0,
     "cost": 0.01,
 }
 

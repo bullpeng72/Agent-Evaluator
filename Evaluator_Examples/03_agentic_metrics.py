@@ -30,6 +30,7 @@ from agent_evaluator import (
     AnnotationType,
     TestStepStatus,
 )
+from agent_evaluator.reporting import generate_comprehensive_html_report
 
 # ────────────────────────────────────────────────────────────────────────────────
 # 에이전트 역할 정의
@@ -514,6 +515,10 @@ def run_agentic_evaluation():
     report = monitor.generate_report()
     filename = f"[A]_agentic_metrics_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
     saved_path = monitor.save_to_file(filename)
+    html_path = Path(saved_path).with_suffix('.html')
+    with open(html_path, 'w', encoding='utf-8') as f:
+        f.write(generate_comprehensive_html_report(monitor))
+    print(f"📄 HTML 리포트 저장: {html_path}")
 
     # ─── 결과 출력 ────────────────────────────────────────────────────────────
     eff_data    = report.efficiency_metrics.get("tool_efficiency", {})

@@ -52,17 +52,20 @@ def markdown_to_html(text: str) -> str:
             # Content already has <strong> tags from markdown conversion, don't add more
             result_lines.append(f'<li>{content}')
 
-        # Check for bullet list item (starts with -)
-        elif re.match(r'^\s*-\s+', line):
-            # We're inside a numbered list item, add nested bullet list
+        # Check for bullet list item (starts with - or •)
+        elif re.match(r'^\s*[-•]\s*', line) and re.sub(r'^\s*[-•]\s*', '', line).strip():
+            content = re.sub(r'^\s*[-•]\s*', '', line.strip())
             if in_numbered_list:
+                # Nested bullet inside numbered list
                 if not in_bullet_list:
-                    # Start nested bullet list without extra line break
                     result_lines.append('<ul style="margin: 5px 0 5px 20px; line-height: 1.8;">')
                     in_bullet_list = True
-
-                content = re.sub(r'^\s*-\s+', '', line.strip())
-                result_lines.append(f'<li>{content}</li>')
+            else:
+                # Top-level bullet list
+                if not in_bullet_list:
+                    result_lines.append('<ul style="margin: 10px 0 10px 20px; line-height: 2.0;">')
+                    in_bullet_list = True
+            result_lines.append(f'<li>{content}</li>')
 
         # Regular text line
         else:
@@ -1548,10 +1551,10 @@ def _build_recommendations_section(report, hall_rate, latency, quality_metrics) 
                 content_parts.append(f"<p style=\"margin: 10px 0; line-height: 1.8;\"><strong>🔍 현재 문제점</strong><br/>{rec['issue']}</p>")
 
             if 'suggestion' in rec and rec['suggestion']:
-                content_parts.append(f"<p style=\"margin: 10px 0; line-height: 1.8;\"><strong>💡 개선 제안</strong><br/>{rec['suggestion']}</p>")
+                content_parts.append(f"<div style=\"margin: 10px 0;\"><strong>💡 개선 제안</strong>{markdown_to_html(rec['suggestion'])}</div>")
 
             if 'impact' in rec and rec['impact']:
-                content_parts.append(f"<p style=\"margin: 10px 0; line-height: 1.8;\"><strong>📈 예상 효과</strong><br/>{rec['impact']}</p>")
+                content_parts.append(f"<div style=\"margin: 10px 0;\"><strong>📈 예상 효과</strong>{markdown_to_html(rec['impact'])}</div>")
 
             # If no structured fields, use suggestion as plain HTML
             if not content_parts and 'suggestion' in rec:
@@ -1628,15 +1631,25 @@ def _build_conclusion_section(total_tasks, tcr, acc, hall_rate) -> str:
             </ol>
 
             <h3>문의 및 지원</h3>
-            <p>본 리포트에 대한 질문이나 Agent Evaluator 사용에 관한 지원이 필요하시면 개발팀에 문의하세요.</p>
+            <p>본 리포트에 대한 질문이나 Agent Evaluator 사용에 관한 지원이 필요하시면 GitHub 저장소를 방문하세요.</p>
+            <p>
+                <strong>GitHub:</strong>
+                <a href="https://github.com/bullpeng72/Agent-Evaluator" target="_blank">
+                    https://github.com/bullpeng72/Agent-Evaluator
+                </a>
+                &nbsp;·&nbsp;
+                <strong>Author:</strong> Sungwoo Kim
+                &nbsp;·&nbsp;
+                <strong>License:</strong> MIT
+            </p>
         </div>
 
         <!-- Footer -->
         <div class="footer">
-            <p><strong>Agent Evaluator</strong> - AI 에이전트 성능 평가 시스템</p>
+            <p><strong>Agent Evaluator</strong> v0.6.0 - AI 에이전트 성능 평가 시스템</p>
             <p>Designed for AI Agent Developers and Quality Managers</p>
             <p>Generated at {datetime.now().strftime('%Y년 %m월 %d일 %H:%M:%S')}</p>
-            <p>© 2025 Agent Evaluator. All rights reserved.</p>
+            <p>© 2026 Sungwoo Kim. Agent Evaluator is released under the MIT License.</p>
         </div>
     </div>
 </body>

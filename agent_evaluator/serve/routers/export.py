@@ -94,7 +94,10 @@ def export_html(file_id: str, request: Request):
         if v is None:
             return "—"
         v = float(v)
-        return f"${v:.6f}" if v < 0.01 else f"${v:.4f}"
+        if v == 0:
+            return "$0"
+        s = f"{v:.6f}" if v < 0.01 else f"{v:.4f}"
+        return "$" + s.rstrip("0").rstrip(".")
 
     tasks_rows = ""
     for t in rf.tasks:
@@ -123,20 +126,20 @@ def export_html(file_id: str, request: Request):
 <title>Agent Evaluator Report — {rf.name}</title>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
 <style>
-body{{font-family:'Segoe UI',system-ui,sans-serif;background:#0f1117;color:#e2e4f0;margin:0;padding:20px;font-size:14px}}
-h1{{font-size:20px;margin-bottom:4px}} h2{{font-size:14px;font-weight:600;margin:16px 0 8px}}
-.meta{{font-size:12px;color:#8890b0;margin-bottom:20px}}
+body{{font-family:'Segoe UI',system-ui,sans-serif;background:#f5f6fa;color:#1e2030;margin:0;padding:20px;font-size:14px}}
+h1{{font-size:20px;margin-bottom:4px}} h2{{font-size:14px;font-weight:600;margin:16px 0 8px;color:#1e2030}}
+.meta{{font-size:12px;color:#5a6080;margin-bottom:20px}}
 .kpis{{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px;margin-bottom:20px}}
-.kpi{{background:#1a1d27;border:1px solid #2d3148;border-radius:10px;padding:12px}}
-.kpi-lbl{{font-size:10px;color:#8890b0;text-transform:uppercase}}
-.kpi-val{{font-size:22px;font-weight:800;margin:3px 0}}
+.kpi{{background:#ffffff;border:1px solid #dde0ec;border-radius:10px;padding:12px}}
+.kpi-lbl{{font-size:10px;color:#5a6080;text-transform:uppercase}}
+.kpi-val{{font-size:22px;font-weight:800;margin:3px 0;color:#1e2030}}
 table{{width:100%;border-collapse:collapse;font-size:12px;margin-bottom:20px}}
-th{{background:#1a1d27;padding:7px 10px;text-align:left;border-bottom:1px solid #2d3148;color:#8890b0}}
-td{{padding:6px 10px;border-bottom:1px solid #1a1d27}}
-tr:hover td{{background:#1a1d27}}
-.chart-wrap{{background:#1a1d27;border:1px solid #2d3148;border-radius:10px;padding:12px;margin-bottom:16px;max-width:400px}}
+th{{background:#eef0f8;padding:7px 10px;text-align:left;border-bottom:1px solid #dde0ec;color:#5a6080}}
+td{{padding:6px 10px;border-bottom:1px solid #eef0f8;color:#1e2030}}
+tr:hover td{{background:#eef0f8}}
+.chart-wrap{{background:#ffffff;border:1px solid #dde0ec;border-radius:10px;padding:12px;margin-bottom:16px;max-width:400px}}
 canvas{{max-height:200px}}
-.footer{{margin-top:24px;font-size:11px;color:#8890b0;border-top:1px solid #2d3148;padding-top:10px}}
+.footer{{margin-top:24px;font-size:11px;color:#5a6080;border-top:1px solid #dde0ec;padding-top:10px}}
 </style>
 </head>
 <body>
@@ -175,7 +178,7 @@ new Chart(document.getElementById('donut'), {{
     labels: ['완전성공','부분성공','실패'],
     datasets: [{{ data:[D.full,D.part,D.fail], backgroundColor:['#4ade80','#facc15','#f87171'], borderWidth:0 }}]
   }},
-  options: {{ cutout:'70%', plugins:{{ legend:{{ labels:{{ color:'#8890b0', font:{{size:11}} }} }} }} }}
+  options: {{ cutout:'70%', plugins:{{ legend:{{ labels:{{ color:'#5a6080', font:{{size:11}} }} }} }} }}
 }});
 </script>
 </body>

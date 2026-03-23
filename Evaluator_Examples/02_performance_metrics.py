@@ -20,6 +20,7 @@ project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
 from agent_evaluator import PerformanceMonitor, TaskResult
+from agent_evaluator.reporting import generate_comprehensive_html_report
 
 # ────────────────────────────────────────────────────────────────────────────────
 # 태스크 시나리오 정의
@@ -373,6 +374,10 @@ def run_performance_evaluation():
     report = monitor.generate_report()
     filename = f"[P]_performance_metrics_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
     saved_path = monitor.save_to_file(filename)
+    html_path = Path(saved_path).with_suffix('.html')
+    with open(html_path, 'w', encoding='utf-8') as f:
+        f.write(generate_comprehensive_html_report(monitor))
+    print(f"📄 HTML 리포트 저장: {html_path}")
 
     # ─── 결과 출력 ────────────────────────────────────────────────────────────
     tcr_data    = report.accuracy_metrics.get("tcr", {})

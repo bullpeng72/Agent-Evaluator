@@ -343,7 +343,7 @@ Excel이나 스프레드시트에서 작성한 데이터를 사용할 수 있습
      * 생성된 답변과 컨텍스트 수집
   2. **Ragas 메트릭 계산** : 
      * 각 QA에 대해 5가지 메트릭 계산
-     * `datasets.Dataset`으로 변환하여 `ragas.evaluate()` 호출
+     * `EvaluationDataset` / `SingleTurnSample`로 변환하여 ragas 0.4.x API 호출
   3. **결과 집계 및 리포트 생성** : 
      * 평균, 최소, 최대 값 계산
      * JSON/CSV로 결과 저장
@@ -2327,9 +2327,13 @@ qa_001 | 연차는 몇 일? | 15일입니다 | 15일 | 연차는 1년 근무 시
 
 ### Ragas 통합 방식
 
-`_calculate_ragas_metrics()` 메서드: 1. 데이터를 `datasets.Dataset` 형식으로 변환 2. `ragas.evaluate()` 호출: ```python from ragas import evaluate from ragas.metrics import ( faithfulness, answer_relevancy, context_recall, context_precision, answer_similarity )
+`_calculate_ragas_metrics()` 메서드: 1. 데이터를 `EvaluationDataset` / `SingleTurnSample` 형식으로 변환 (ragas 0.4.x API) 2. 메트릭 인스턴스 기반으로 평가 호출: ```python from ragas import EvaluationDataset, SingleTurnSample
+from ragas.metrics import Faithfulness, AnswerRelevancy, ContextRecall, ContextPrecision
 
-result = evaluate( dataset, metrics=[ faithfulness, answer_relevancy, context_recall, context_precision, answer_similarity ] ) ``` 3. 결과 딕셔너리에서 각 메트릭 추출 4. 에러 발생 시 빈 딕셔너리 반환 (graceful degradation)
+samples = [SingleTurnSample(user_input=q, response=a, retrieved_contexts=ctx, reference=gt) for ...]
+dataset = EvaluationDataset(samples=samples)
+result = evaluate(dataset, metrics=[Faithfulness(), AnswerRelevancy(), ContextRecall(), ContextPrecision()])
+``` 3. 결과 딕셔너리에서 각 메트릭 추출 4. 에러 발생 시 빈 딕셔너리 반환 (graceful degradation)
 
 ### HybridPerformanceMonitor 통합
 
@@ -2458,7 +2462,7 @@ MIT License - 자유롭게 사용, 수정, 배포 가능합니다.
 
 * * *
 
-**최종 업데이트** : 2026-03-22
+**최종 업데이트** : 2026-03-23
 **버전** : Agent Evaluator v0.6.0
 **프로젝트** : Agent Evaluator - AI Agent Performance Evaluation System
 **문서** : Korean RAG Evaluation Guide

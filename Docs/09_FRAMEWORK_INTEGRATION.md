@@ -10,7 +10,7 @@ LangChain, LangGraph, CrewAI, AutoGen 통합 방법
 
 **현재 버전:** v0.6.0
 
-**최종 업데이트:** 2026-03-22
+**최종 업데이트:** 2026-03-23
 
 이 문서는 주요 AI Agent 프레임워크에 Agent Evaluator를 통합하는 방법을 상세히 설명합니다.
 
@@ -34,7 +34,7 @@ LangChain, LangGraph, CrewAI, AutoGen 통합 방법
 **선택 (프레임워크)** | CrewAI | 1.0.0+ | `pip install crewai`
 **선택 (프레임워크)** | LangChain | 1.0.0+ | `pip install langchain`
 **선택 (프레임워크)** | LangGraph | 1.0.0+ | `pip install langgraph`
-**선택 (프레임워크)** | AutoGen | 0.3.0+ (autogen-agentchat/core ≥0.4.0) | `pip install pyautogen autogen-agentchat autogen-core`
+**선택 (프레임워크)** | AutoGen | autogen-agentchat/core ≥0.4.0 | `pip install autogen-agentchat autogen-core`
 **선택 (고급 메트릭)** | DeepEval | 0.20.0+ | `pip install deepeval`
 **선택 (RAG 평가)** | Ragas | 0.4.0+ | `pip install ragas`  
   
@@ -62,7 +62,7 @@ LangChain, LangGraph, CrewAI, AutoGen 통합 방법
     [](<#cb3-5>)pip install langchain langchain-openai agent-evaluator
     [](<#cb3-6>)
     [](<#cb3-7>)# AutoGen + Agent Evaluator
-    [](<#cb3-8>)pip install pyautogen autogen-agentchat autogen-core agent-evaluator
+    [](<#cb3-8>)pip install autogen-agentchat autogen-core agent-evaluator
 ```
 
 ### 호환성 참고사항
@@ -815,7 +815,7 @@ CrewAI는 **Agent Coordination** 메트릭을 자동으로 추적할 수 있습�
 ### 4.2 설치
 
 ```bash
-    [](<#cb22-1>)pip install pyautogen autogen-agentchat autogen-core  # 0.3.0+ / 0.4.0+ 권장
+    [](<#cb22-1>)pip install autogen-agentchat autogen-core  # 0.4.0+ 권장
     [](<#cb22-2>)pip install agent-evaluator
 ```
 
@@ -1393,7 +1393,7 @@ Agent Evaluator는 프레임워크별로 **Layer 2 메트릭** 을 자동으로 
 
 단계 | 작업 | 코드 예시 | 확인 사항  
 ---|---|---|---  
-1\. 설치 | AutoGen 설치 | `pip install pyautogen` | -  
+1\. 설치 | AutoGen 설치 | `pip install autogen-agentchat autogen-core` | -
 2\. Agent 정의 | AssistantAgent, UserProxyAgent 생성 | `AssistantAgent(name="...")` | llm_config 설정  
 3\. Monitor 통합 | register_reply 오버라이드 | `agent.register_reply(...)` | 모든 메시지 추적  
 4\. 실행 | initiate_chat 실행 | `user_proxy.initiate_chat(assistant, message="...")` | -  

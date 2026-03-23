@@ -83,6 +83,7 @@ if _missing:
 
 from agent_evaluator import TaskResult
 from agent_evaluator import HybridPerformanceMonitor
+from agent_evaluator.reporting import generate_comprehensive_html_report
 
 # ─────────────────────────────────────────────────────────────────────────────
 # 테스트 데이터셋
@@ -423,6 +424,10 @@ def run_hybrid_evaluation():
     filename = f"[H]_hybrid_metrics_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
     monitor.save_to_file(filename)
     saved_path = project_root / "results" / filename
+    html_path = saved_path.with_suffix('.html')
+    with open(html_path, 'w', encoding='utf-8') as f:
+        f.write(generate_comprehensive_html_report(monitor))
+    print(f"📄 HTML 리포트 저장: {html_path}")
 
     # ─────────────────────────────────────────────────────────────────────────
     # 결과 출력

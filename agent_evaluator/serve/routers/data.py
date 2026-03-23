@@ -137,12 +137,24 @@ def get_result(file_id: str, request: Request) -> Dict[str, Any]:
             "alerts":          rf.insights.alerts,
             "recommendations": rf.insights.recommendations,
         },
-        # Capability flags
+        # Capability flags (aggregated)
         "has_security":  rf.has_security,
         "has_agentic":   rf.has_agentic,
         "has_advanced":  rf.has_advanced,
         "has_rag":       rf.has_rag,
         "has_quality":   rf.has_quality_detail,
+        # Quality sub-flags
+        "has_hallucination":   rf.has_hallucination,
+        # Agentic sub-flags
+        "has_tool_use":        rf.has_tool_use,
+        "has_coordination":    rf.has_coordination,
+        "has_workflow":        rf.has_workflow,
+        "has_retry":           rf.has_retry,
+        # Security sub-flags
+        "has_input_security":  rf.has_input_security,
+        "has_output_security": rf.has_output_security,
+        "has_tool_auth":       rf.has_tool_auth,
+        "has_attack_detect":   rf.has_attack_detect,
     }
 
 
