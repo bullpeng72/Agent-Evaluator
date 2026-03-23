@@ -2,7 +2,7 @@
 
 Agent Evaluator가 지원하는 4개 프레임워크별 지표 커버리지 현황
 
-CrewAI · LangChain · LangGraph · AutoGen | Version 0.6.0 | 2026-03-22
+CrewAI · LangChain · LangGraph · AutoGen | Version 0.6.1 | 2026-03-23
 
 ---
 

@@ -50,8 +50,9 @@ select{background:var(--bg3);color:var(--text);border:1px solid var(--border);bo
 /* cards */
 .kpi-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;margin-bottom:14px}
 .kpi-grid.dq-grid{grid-template-columns:repeat(auto-fill,minmax(180px,1fr))}
-.kpi{background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);padding:12px 14px;cursor:pointer;transition:border-color .15s}
+.kpi{background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);padding:12px 14px;cursor:pointer;transition:border-color .15s,background .15s}
 .kpi:hover{border-color:var(--accent)}
+.kpi.sel{border-color:var(--accent);background:var(--bg3)}
 .kpi-lbl{font-size:12px;color:var(--text2);text-transform:uppercase;letter-spacing:.04em}
 .kpi-val{font-size:28px;font-weight:800;margin:3px 0}
 .kpi-sub{font-size:13px}.kpi-sub.ok{color:var(--green)}.kpi-sub.warn{color:var(--yellow)}
@@ -1451,9 +1452,9 @@ textarea.gd-input{height:60px;resize:vertical;font-family:inherit}
 <div x-show="data && sec==='agentic'" x-cloak>
 
   <div class="tabs">
-    <div class="tab" :class="{on:tag==='basic'}"      @click="tag='basic';t2='retry'">🔵 기본</div>
-    <div class="tab" :class="{on:tag==='advanced'}"   @click="tag='advanced';t2='tsel'">🟡 심화</div>
-    <div class="tab" :class="{on:tag==='integrated'}" @click="tag='integrated'">🟣 통합</div>
+    <div class="tab" :class="{on:tag==='basic'}"      @click="tag='basic';t2='retry'">⚡ 실행·재시도</div>
+    <div class="tab" :class="{on:tag==='advanced'}"   @click="tag='advanced';t2='tsel'">🎯 도구·협업·흐름</div>
+    <div class="tab" :class="{on:tag==='integrated'}" @click="tag='integrated'">🔍 실행 트레이스</div>
     <span style="margin-left:auto;font-size:14px;color:var(--text2)">
       에이전틱 Score: <b x-text="perspScore('agentic',data)"></b>/100
     </span>
@@ -1470,7 +1471,76 @@ textarea.gd-input{height:60px;resize:vertical;font-family:inherit}
     <!-- 에이전틱 역량 레이더 차트 -->
     <div class="sec">
       <div class="sec-t">🕸️ 에이전틱 역량 레이더</div>
-      <div id="ag-radar" style="height:260px"></div>
+      <div style="display:flex;gap:16px;align-items:flex-start">
+
+        <!-- 레이더 차트 (왼쪽) -->
+        <div style="flex:1 1 0;min-width:0"><div id="ag-radar" style="height:420px"></div></div>
+
+        <!-- 지표 설명 (오른쪽 1열) -->
+        <div style="flex:0 0 310px;display:flex;flex-direction:column;gap:6px">
+
+          <div style="background:var(--bg3);border-radius:8px;padding:9px 12px">
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
+              <span style="font-size:12px;font-weight:700;color:var(--text1)">⚡ Tool 효율</span>
+              <span style="font-size:13px;font-weight:700;color:var(--accent);margin-left:auto"
+                    x-text="((data.agentic?.tool_efficiency?.avg_efficiency_score)||0).toFixed(1)"></span>
+            </div>
+            <div style="font-size:11px;color:var(--text2);line-height:1.5">
+              성공률·중복 없음·불필요 호출 없음을 종합한 도구 사용 효율<br>
+              <span style="font-family:monospace;color:var(--accent)">avg(efficiency_score per task)</span>
+            </div>
+          </div>
+
+          <div style="background:var(--bg3);border-radius:8px;padding:9px 12px">
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
+              <span style="font-size:12px;font-weight:700;color:var(--text1)">🎯 Tool 선택</span>
+              <span style="font-size:13px;font-weight:700;color:var(--accent);margin-left:auto"
+                    x-text="((data.agentic?.tool_selection_summary?.avg_f1_score)||0).toFixed(1)"></span>
+            </div>
+            <div style="font-size:11px;color:var(--text2);line-height:1.5">
+              expected_tools 대비 실제 선택 도구의 F1 Score 평균<br>
+              <span style="font-family:monospace;color:var(--accent)">avg(2·P·R / (P+R))</span>
+            </div>
+          </div>
+
+          <div style="background:var(--bg3);border-radius:8px;padding:9px 12px">
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
+              <span style="font-size:12px;font-weight:700;color:var(--text1)">🔁 재시도 정확도</span>
+              <span style="font-size:13px;font-weight:700;color:var(--accent);margin-left:auto"
+                    x-text="Math.max(0,100-((data.agentic?.retry_summary?.avg_attempts_per_task||1)-1)*30).toFixed(1)"></span>
+            </div>
+            <div style="font-size:11px;color:var(--text2);line-height:1.5">
+              평균 시도 횟수 역산 — 1회(100), 2회(70), 3회(40), 4회+(0)<br>
+              <span style="font-family:monospace;color:var(--accent)">max(0, 100 − (avg_attempts − 1) × 30)</span>
+            </div>
+          </div>
+
+          <div style="background:var(--bg3);border-radius:8px;padding:9px 12px">
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
+              <span style="font-size:12px;font-weight:700;color:var(--text1)">🔀 워크플로</span>
+              <span style="font-size:13px;font-weight:700;color:var(--accent);margin-left:auto"
+                    x-text="((data.agentic?.workflow_summary?.step_success_rate)||0).toFixed(1)"></span>
+            </div>
+            <div style="font-size:11px;color:var(--text2);line-height:1.5">
+              워크플로우 전체 스텝 중 성공한 스텝의 비율<br>
+              <span style="font-family:monospace;color:var(--accent)">성공 스텝 ÷ 전체 스텝 × 100</span>
+            </div>
+          </div>
+
+          <div style="background:var(--bg3);border-radius:8px;padding:9px 12px">
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
+              <span style="font-size:12px;font-weight:700;color:var(--text1)">🤝 멀티에이전트</span>
+              <span style="font-size:13px;font-weight:700;color:var(--accent);margin-left:auto"
+                    x-text="((data.agentic?.coordination_summary?.success_rate)||0).toFixed(1)"></span>
+            </div>
+            <div style="font-size:11px;color:var(--text2);line-height:1.5">
+              에이전트 간 상호작용(위임·통신·협업) 성공 비율<br>
+              <span style="font-family:monospace;color:var(--accent)">성공 상호작용 ÷ 전체 상호작용 × 100</span>
+            </div>
+          </div>
+
+        </div>
+      </div>
     </div>
 
     <div class="tabs">
@@ -1495,17 +1565,172 @@ textarea.gd-input{height:60px;resize:vertical;font-family:inherit}
     </div>
 
     <!-- Retry -->
-    <div x-show="t2==='retry'">
+    <div x-show="t2==='retry'" x-data="{
+      selK: null,
+      rm: {
+        '__total':               {label:'재시도 기록',         unit:'건', desc:'재시도 이벤트가 기록된 총 건수입니다.', hint:'재시도가 발생한 모든 시도를 기록한 절대 건수 — 태스크 수가 아닌 이벤트 수입니다.'},
+        total_tasks_with_retries:{label:'재시도 태스크 수',    unit:'건', desc:'재시도가 1회 이상 발생한 태스크 수입니다.', hint:'값이 클수록 에이전트가 많은 태스크에서 첫 시도에 실패했음을 나타냅니다.'},
+        retry_rate:              {label:'재시도율',            unit:'%',  desc:'전체 태스크 중 재시도가 발생한 비율입니다.', hint:'낮을수록 좋습니다. 20% 이하를 목표로 합니다. 높으면 에이전트 첫 응답 신뢰도를 점검하세요.'},
+        first_attempt_success_rate:{label:'첫 시도 성공률',   unit:'%',  desc:'재시도 없이 첫 번째 시도에서 성공한 비율입니다.', hint:'높을수록 좋습니다. 80% 이상이 이상적입니다. Eventual Success Rate와의 차이가 클수록 재시도 의존도가 높습니다.'},
+        eventual_success_rate:   {label:'최종 성공률',         unit:'%',  desc:'재시도를 포함한 최종 성공 비율입니다.', hint:'First Attempt Success Rate와의 차이가 재시도로 회복된 비율입니다. 두 값이 가까울수록 에이전트 신뢰도가 높습니다.'},
+        retry_success_count:     {label:'재시도 성공 건수',    unit:'건', desc:'재시도를 통해 최종 성공으로 전환된 태스크 수입니다.', hint:'자기 교정 능력을 나타내는 절대 건수입니다. Correction Success Rate와 함께 해석하세요.'},
+        correction_success_rate: {label:'수정 성공률',         unit:'%',  desc:'에러 발생 후 수정 재시도에서 성공한 비율입니다.', hint:'높을수록 에이전트의 자기 교정 능력이 우수합니다. 낮으면 프롬프트 개선 또는 에러 핸들링 로직 검토가 필요합니다.'},
+        avg_attempts_per_task:   {label:'태스크당 평균 시도',  unit:'회', desc:'태스크 하나를 완료하기까지 평균 시도 횟수입니다.', hint:'1.0이 이상적입니다. 2.0을 초과하면 재시도 비용·지연이 유의미하게 증가합니다.'},
+        total_retry_time:        {label:'총 재시도 소요시간',  unit:'s',  desc:'모든 재시도에 소요된 총 시간(초)입니다.', hint:'재시도로 인한 전체 지연 오버헤드를 파악합니다. Avg Retry Time과 함께 단위 비용을 계산하세요.'},
+        avg_retry_time:          {label:'평균 재시도 시간',    unit:'s',  desc:'재시도 1회당 평균 소요 시간(초)입니다.', hint:'낮을수록 좋습니다. 높으면 재시도 자체가 지연·비용을 크게 증가시킵니다.'},
+        overall_retry_rate:      {label:'전체 재시도율',       unit:'%',  desc:'전체 시도 횟수 기준 재시도 비율입니다.', hint:'Retry Rate(태스크 기준)와 달리 시도 횟수 기준으로 계산됩니다. 두 값의 차이로 태스크당 재시도 집중도를 파악할 수 있습니다.'},
+        avg_retries_per_task:    {label:'태스크당 평균 재시도', unit:'회', desc:'태스크 하나당 평균 재시도 횟수입니다.', hint:'0에 가까울수록 좋습니다. Avg Attempts Per Task − 1과 유사합니다.'},
+      },
+      calcFormula(k, ra) {
+        if (!ra || !ra.length) return '';
+        const total = ra.length;
+        const withRetry = ra.filter(a=>(a.total_attempts||1)>1).length;
+        const firstOk   = ra.filter(a=>a.first_attempt_success).length;
+        const finalOk   = ra.filter(a=>a.final_success).length;
+        const retryOk   = ra.filter(a=>!a.first_attempt_success && a.final_success).length;
+        const totalAtt  = ra.reduce((s,a)=>s+(a.total_attempts||1),0);
+        const totalTime = ra.reduce((s,a)=>s+(a.total_retry_time||0),0);
+        const retries   = totalAtt - total;
+        switch(k) {
+          case '__total':               return `기록된 이벤트 수 = ${total}건`;
+          case 'total_tasks_with_retries': return `total_attempts > 1인 태스크 수 = ${withRetry}건`;
+          case 'retry_rate':            return `재시도 발생(${withRetry}) ÷ 전체 태스크(${total}) × 100 = ${(withRetry/total*100).toFixed(1)}%`;
+          case 'first_attempt_success_rate': return `첫 시도 성공(${firstOk}) ÷ 전체 태스크(${total}) × 100 = ${(firstOk/total*100).toFixed(1)}%`;
+          case 'eventual_success_rate': return `최종 성공(${finalOk}) ÷ 전체 태스크(${total}) × 100 = ${(finalOk/total*100).toFixed(1)}%`;
+          case 'retry_success_count':   return `첫 시도 실패 & 최종 성공 태스크 = ${retryOk}건`;
+          case 'correction_success_rate': return `재시도 성공(${retryOk}) ÷ 재시도 발생(${withRetry}) × 100 = ${withRetry?((retryOk/withRetry)*100).toFixed(1):0}%`;
+          case 'avg_attempts_per_task': return `총 시도 횟수(${totalAtt}) ÷ 전체 태스크(${total}) = ${(totalAtt/total).toFixed(2)}회`;
+          case 'total_retry_time':      return `모든 재시도 소요 시간 합계 = ${totalTime.toFixed(1)}s`;
+          case 'avg_retry_time': {
+            const rtTasks = ra.filter(a=>(a.total_attempts||1)>1);
+            const rtSum = rtTasks.reduce((s,a)=>s+(a.total_retry_time||0),0);
+            return `재시도 발생 태스크 합계(${rtSum.toFixed(1)}s) ÷ 재시도 발생(${rtTasks.length}) = ${rtTasks.length?(rtSum/rtTasks.length).toFixed(2):0}s`;
+          }
+          case 'overall_retry_rate':    return `재시도 횟수(${retries}) ÷ 총 시도 횟수(${totalAtt}) × 100 = ${totalAtt?((retries/totalAtt)*100).toFixed(1):0}%`;
+          case 'avg_retries_per_task':  return `총 재시도 횟수(${retries}) ÷ 전체 태스크(${total}) = ${(retries/total).toFixed(2)}회`;
+          default: return '';
+        }
+      },
+      filterLabel(k) {
+        const m = {
+          '__total':'전체 태스크',
+          'total_tasks_with_retries':'재시도 발생 태스크만',
+          'retry_rate':'재시도 발생 태스크 — 시도 횟수 내림차순',
+          'first_attempt_success_rate':'첫 시도 결과 기준 정렬 (실패 우선)',
+          'eventual_success_rate':'최종 결과 기준 정렬 (실패 우선)',
+          'retry_success_count':'첫 시도 실패 태스크만 (최종 성공 우선)',
+          'correction_success_rate':'첫 시도 실패 태스크만 (최종 성공 우선)',
+          'avg_attempts_per_task':'시도 횟수 내림차순',
+          'total_retry_time':'재시도 소요시간 내림차순',
+          'avg_retry_time':'재시도 소요시간 내림차순',
+          'overall_retry_rate':'전체 태스크 — 시도 횟수 내림차순',
+          'avg_retries_per_task':'시도 횟수 내림차순',
+        };
+        return m[k]||'전체 태스크';
+      },
+      filteredTasks(k, ra) {
+        if (!ra||!ra.length) return [];
+        const s = [...ra];
+        if (['retry_success_count','correction_success_rate'].includes(k))
+          return s.filter(a=>!a.first_attempt_success).sort((a,b)=>(b.final_success?1:0)-(a.final_success?1:0));
+        if (['total_tasks_with_retries'].includes(k))
+          return s.filter(a=>(a.total_attempts||1)>1).sort((a,b)=>(b.total_attempts||1)-(a.total_attempts||1));
+        if (['first_attempt_success_rate'].includes(k))
+          return s.sort((a,b)=>(a.first_attempt_success?1:0)-(b.first_attempt_success?1:0));
+        if (['eventual_success_rate'].includes(k))
+          return s.sort((a,b)=>(a.final_success?1:0)-(b.final_success?1:0));
+        if (['total_retry_time','avg_retry_time'].includes(k))
+          return s.sort((a,b)=>(b.total_retry_time||0)-(a.total_retry_time||0));
+        return s.sort((a,b)=>(b.total_attempts||1)-(a.total_attempts||1));
+      },
+      hlCol(k) {
+        if (['first_attempt_success_rate'].includes(k)) return 'first';
+        if (['eventual_success_rate','retry_success_count','correction_success_rate'].includes(k)) return 'final';
+        if (['total_retry_time','avg_retry_time'].includes(k)) return 'time';
+        return 'attempts';
+      }
+    }">
       <div class="kpi-grid">
-        <div class="kpi"><div class="kpi-lbl">재시도 기록</div><div class="kpi-val" x-text="(data.agentic?.retry_attempts||[]).length"></div></div>
+        <div class="kpi" :class="{sel:selK==='__total'}" @click="selK=selK==='__total'?null:'__total'">
+          <div class="kpi-lbl">재시도 기록</div>
+          <div class="kpi-val" x-text="(data.agentic?.retry_attempts||[]).length"></div>
+          <div class="kpi-sub" style="color:var(--text2)">이벤트 총 건수</div>
+        </div>
         <template x-for="[k,v] in Object.entries(data.agentic?.retry_summary||{})" :key="k">
-          <div class="kpi"><div class="kpi-lbl" x-text="k.replace(/_/g,' ')"></div><div class="kpi-val" x-text="typeof v==='number'?v.toFixed(1):v"></div></div>
+          <div class="kpi" :class="{sel:selK===k}" @click="selK=selK===k?null:k">
+            <div class="kpi-lbl" x-text="rm[k]?.label || k.replace(/_/g,' ').toUpperCase()"></div>
+            <div class="kpi-val" x-text="typeof v==='number'?v.toFixed(1):v"></div>
+            <div class="kpi-sub" style="color:var(--text2)" x-text="rm[k]?.desc || ''"></div>
+          </div>
         </template>
       </div>
+
+      <!-- 상세 패널 -->
+      <div x-show="selK" x-transition:enter="transition ease-out duration-150" x-transition:enter-start="opacity-0 transform -translate-y-1" x-transition:enter-end="opacity-100 transform translate-y-0"
+           style="margin-top:10px;border-radius:8px;border:1px solid var(--border);overflow:hidden">
+        <!-- 헤더 -->
+        <div style="display:flex;align-items:center;gap:8px;padding:12px 16px;background:var(--bg2);border-bottom:1px solid var(--border)">
+          <span style="font-weight:700;font-size:14px" x-text="rm[selK]?.label || selK"></span>
+          <span style="font-size:11px;color:var(--text2);background:var(--bg3);padding:1px 7px;border-radius:99px" x-text="rm[selK]?.unit?'단위: '+rm[selK].unit:''"></span>
+          <span style="margin-left:auto;font-size:22px;font-weight:700;color:var(--accent)"
+            x-text="selK==='__total'?(data.agentic?.retry_attempts||[]).length:typeof (data.agentic?.retry_summary||{})[selK]==='number'?(data.agentic?.retry_summary||{})[selK].toFixed(1):((data.agentic?.retry_summary||{})[selK]??'—')">
+          </span>
+        </div>
+        <!-- 설명 + 산출 공식 -->
+        <div style="padding:12px 16px;background:var(--bg2);display:grid;grid-template-columns:1fr 1fr;gap:12px;border-bottom:1px solid var(--border)">
+          <div>
+            <div style="font-size:11px;font-weight:600;color:var(--text2);margin-bottom:4px;text-transform:uppercase;letter-spacing:.05em">설명</div>
+            <div style="font-size:13px;color:var(--text1);line-height:1.7" x-text="rm[selK]?.hint||rm[selK]?.desc||''"></div>
+          </div>
+          <div style="background:var(--bg3);border-radius:6px;padding:10px 12px">
+            <div style="font-size:11px;font-weight:600;color:var(--text2);margin-bottom:6px;text-transform:uppercase;letter-spacing:.05em">📐 산출 방식</div>
+            <div style="font-size:12px;font-family:monospace;color:var(--accent);line-height:1.8" x-text="calcFormula(selK, data.agentic?.retry_attempts||[])"></div>
+          </div>
+        </div>
+        <!-- 태스크 목록 -->
+        <template x-if="(data.agentic?.retry_attempts||[]).length>0">
+          <div style="padding:12px 16px;background:var(--bg)">
+            <div style="display:flex;align-items:center;gap:6px;margin-bottom:8px">
+              <span style="font-size:11px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.05em">관련 태스크</span>
+              <span style="font-size:11px;color:var(--text2);background:var(--bg3);padding:1px 7px;border-radius:99px" x-text="filterLabel(selK)"></span>
+              <span style="font-size:11px;color:var(--text2);margin-left:auto" x-text="filteredTasks(selK,data.agentic?.retry_attempts||[]).length+'건'"></span>
+            </div>
+            <div style="font-size:12px">
+              <!-- 헤더 행 -->
+              <div class="drow" style="justify-content:flex-start;border-bottom:2px solid var(--border);font-size:11px;font-weight:700;color:var(--text2)">
+                <span style="flex:1;min-width:0">Task ID</span>
+                <span :style="`width:90px;flex-shrink:0;text-align:center;${hlCol(selK)==='attempts'?'color:var(--accent)':''}`">시도 횟수</span>
+                <span :style="`width:100px;flex-shrink:0;text-align:center;${hlCol(selK)==='first'?'color:var(--accent)':''}`">첫 시도</span>
+                <span :style="`width:100px;flex-shrink:0;text-align:center;${hlCol(selK)==='final'?'color:var(--accent)':''}`">최종 결과</span>
+                <span :style="`width:90px;flex-shrink:0;text-align:right;${hlCol(selK)==='time'?'color:var(--accent)':''}`">재시도 시간</span>
+              </div>
+              <!-- 데이터 행 -->
+              <template x-for="a in filteredTasks(selK, data.agentic?.retry_attempts||[])" :key="a.task_id">
+                <div class="drow" style="justify-content:flex-start">
+                  <span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text2)" x-text="a.task_id"></span>
+                  <span style="width:90px;flex-shrink:0;text-align:center">
+                    <span :style="(a.total_attempts||1)>=3?'color:var(--red);font-weight:600':(a.total_attempts||1)===2?'color:var(--orange)':'color:var(--green)'"
+                          x-text="(a.total_attempts||1)+'회'"></span>
+                  </span>
+                  <span :style="`width:100px;flex-shrink:0;text-align:center;${hlCol(selK)==='first'?'font-weight:600':''}`">
+                    <span :style="a.first_attempt_success?'color:var(--green)':'color:var(--red)'" x-text="a.first_attempt_success?'✅ 성공':'❌ 실패'"></span>
+                  </span>
+                  <span :style="`width:100px;flex-shrink:0;text-align:center;${hlCol(selK)==='final'?'font-weight:600':''}`">
+                    <span :style="a.final_success?'color:var(--green)':'color:var(--red)'" x-text="a.final_success?'✅ 성공':'❌ 실패'"></span>
+                  </span>
+                  <span :style="`width:90px;flex-shrink:0;text-align:right;${hlCol(selK)==='time'?'color:var(--accent);font-weight:600':''}`"
+                        x-text="(a.total_retry_time||0).toFixed(1)+'s'"></span>
+                </div>
+              </template>
+            </div>
+          </div>
+        </template>
+      </div>
+
       <div class="sec" x-show="(data.agentic?.retry_attempts||[]).length===0">
         <div style="font-size:14px;color:var(--text2)">재시도 기록 없음 (재시도가 발생한 태스크가 없거나 TrackerRetry가 비활성화됨)</div>
       </div>
-      <div x-show="(data.agentic?.retry_attempts||[]).length>0" class="cg">
+      <div x-show="(data.agentic?.retry_attempts||[]).length>0" class="cg" style="margin-top:20px">
         <div class="cbox"><div class="ct">시도 횟수 분포</div><div id="l2-retry-dist" class="plt-chart"></div></div>
         <div class="cbox"><div class="ct">태스크 유형별 평균 시도 횟수</div><div id="l2-retry-type" class="plt-chart"></div></div>
       </div>
@@ -1521,24 +1746,193 @@ textarea.gd-input{height:60px;resize:vertical;font-family:inherit}
     </div>
 
     <!-- Tool Selection -->
-    <div x-show="t2==='tsel'">
+    <div x-show="t2==='tsel'"
+      x-data="{
+        selK: null,
+        tm: {
+          avg_precision: {label:'평균 PRECISION', unit:'%',
+            desc:'실제 선택한 도구 중 정답(expected)인 도구의 비율입니다.',
+            hint:'높을수록 불필요한 도구 호출이 적습니다. 90% 이상이 이상적입니다.',
+            formula_key:'precision'},
+          avg_recall: {label:'평균 RECALL', unit:'%',
+            desc:'필요한 도구(expected) 중 실제로 선택한 도구의 비율입니다.',
+            hint:'높을수록 필요한 도구를 빠짐없이 선택하고 있습니다. 90% 이상이 이상적입니다.',
+            formula_key:'recall'},
+          avg_f1_score: {label:'평균 F1', unit:'%',
+            desc:'Precision과 Recall의 조화평균입니다. 도구 선택의 종합 성능 지표입니다.',
+            hint:'두 지표를 균형 있게 반영합니다. 87% 이상이 양호한 수준입니다.',
+            formula_key:'f1_score'},
+          avg_accuracy: {label:'평균 ACCURACY', unit:'%',
+            desc:'각 태스크의 도구 선택 정확도(F1과 동일)의 평균입니다.',
+            hint:'현재 구현에서 Accuracy는 F1 Score와 동일하게 계산됩니다.',
+            formula_key:'accuracy'},
+          total_selections: {label:'평가 TASKS', unit:'건',
+            desc:'Tool Selection이 평가된 총 태스크 수입니다.',
+            hint:'',
+            formula_key:null}
+        },
+        calcFormula(k, ts) {
+          const sm = data.agentic?.tool_selection_summary||{};
+          const n = ts.length;
+          if (!n) return '데이터 없음';
+          switch(k) {
+            case 'avg_precision': {
+              const totalTP = ts.reduce((s,t)=>s+(t.true_positives||0),0);
+              const totalAct = ts.reduce((s,t)=>s+(t.actual_tools||[]).length,0);
+              return `태스크별 Precision 평균: Σ(TP/실제선택) ÷ N = ${sm.avg_precision}%\n예: TP합계(${totalTP}) / 실제선택합계(${totalAct}) ≈ ${totalAct?((totalTP/totalAct)*100).toFixed(1):0}%`;
+            }
+            case 'avg_recall': {
+              const totalTP = ts.reduce((s,t)=>s+(t.true_positives||0),0);
+              const totalExp = ts.reduce((s,t)=>s+(t.expected_tools||[]).length,0);
+              return `태스크별 Recall 평균: Σ(TP/기대도구) ÷ N = ${sm.avg_recall}%\n예: TP합계(${totalTP}) / 기대도구합계(${totalExp}) ≈ ${totalExp?((totalTP/totalExp)*100).toFixed(1):0}%`;
+            }
+            case 'avg_f1_score': {
+              const p = sm.avg_precision||0, r = sm.avg_recall||0;
+              const f1 = (p+r)>0 ? (2*p*r/(p+r)).toFixed(1) : 0;
+              return `2 × Precision(${p}%) × Recall(${r}%) ÷ (Precision + Recall) = ${f1}%`;
+            }
+            case 'avg_accuracy':
+              return `각 태스크의 F1 Score를 평균: Σ(F1_i) ÷ ${n} = ${sm.avg_accuracy}%\n(현재 구현에서 Accuracy = F1)`;
+            case 'total_selections':
+              return `Tool Selection 평가가 완료된 태스크 수: ${n}건`;
+            default: return '';
+          }
+        },
+        filteredTasks(k, ts) {
+          const s = [...ts];
+          const fk = this.tm[k]?.formula_key;
+          if (!fk || k==='total_selections') return s.sort((a,b)=>(b.f1_score||0)-(a.f1_score||0));
+          return s.sort((a,b)=>(a[fk]||0)-(b[fk]||0));
+        },
+        hlCol(k) {
+          const fk = this.tm[k]?.formula_key;
+          if (fk==='precision') return 'prec';
+          if (fk==='recall') return 'rec';
+          if (fk==='f1_score'||fk==='accuracy') return 'f1';
+          return '';
+        }
+      }">
       <div x-show="!data.agentic?.tool_selections?.length" class="empty"><p>Tool Selection 데이터 없음 — expected_tools를 설정하세요.</p></div>
       <div x-show="data.agentic?.tool_selections?.length>0">
+        <!-- KPI 카드 -->
         <div class="kpi-grid">
-          <div class="kpi"><div class="kpi-lbl">평균 Precision</div><div class="kpi-val" x-text="pct(data.agentic?.tool_selection_summary?.avg_precision)"></div></div>
-          <div class="kpi"><div class="kpi-lbl">평균 Recall</div><div class="kpi-val" x-text="pct(data.agentic?.tool_selection_summary?.avg_recall)"></div></div>
-          <div class="kpi"><div class="kpi-lbl">평균 F1</div><div class="kpi-val" x-text="pct(data.agentic?.tool_selection_summary?.avg_f1_score)"></div></div>
-          <div class="kpi"><div class="kpi-lbl">평균 Accuracy</div><div class="kpi-val" x-text="pct(data.agentic?.tool_selection_summary?.avg_accuracy)"></div></div>
-          <div class="kpi"><div class="kpi-lbl">평가 Tasks</div><div class="kpi-val" x-text="data.agentic?.tool_selection_summary?.total_selections??0"></div></div>
+          <template x-for="[k,m] in Object.entries(tm)" :key="k">
+            <div class="kpi" :class="{sel:selK===k}" @click="selK=selK===k?null:k" style="cursor:pointer">
+              <div class="kpi-lbl" x-text="m.label"></div>
+              <div class="kpi-val"
+                x-text="k==='total_selections'
+                  ?(data.agentic?.tool_selection_summary?.total_selections??0)
+                  :pct(data.agentic?.tool_selection_summary?.[k])">
+              </div>
+              <div style="font-size:10px;color:var(--text2);margin-top:4px;line-height:1.4" x-text="m.desc"></div>
+            </div>
+          </template>
         </div>
-        <div class="sec">
+
+        <!-- 상세 패널 (클릭 시 펼침) -->
+        <div x-show="selK" x-transition:enter="transition ease-out duration-150"
+             x-transition:enter-start="opacity-0 transform -translate-y-1"
+             x-transition:enter-end="opacity-100 transform translate-y-0"
+             class="sec" style="margin-top:8px;border:1px solid var(--accent);border-radius:8px;padding:14px 16px">
+          <template x-if="selK">
+            <div>
+              <!-- 헤더 -->
+              <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
+                <span style="font-weight:700;font-size:14px" x-text="tm[selK]?.label||selK"></span>
+                <span style="font-size:11px;color:var(--text2);background:var(--bg3);padding:1px 7px;border-radius:99px"
+                      x-text="tm[selK]?.unit?'단위: '+tm[selK].unit:''"></span>
+                <span style="font-size:18px;font-weight:700;color:var(--accent);margin-left:4px"
+                      x-text="selK==='total_selections'
+                        ?(data.agentic?.tool_selection_summary?.total_selections??0)+'건'
+                        :pct(data.agentic?.tool_selection_summary?.[selK])">
+                </span>
+              </div>
+              <!-- 설명 + 계산식 -->
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px">
+                <div style="background:var(--bg3);border-radius:6px;padding:10px 12px">
+                  <div style="font-size:11px;font-weight:600;color:var(--text2);margin-bottom:4px">📋 지표 설명</div>
+                  <div style="font-size:13px;color:var(--text1);line-height:1.7" x-text="tm[selK]?.hint||tm[selK]?.desc||''"></div>
+                </div>
+                <div style="background:var(--bg3);border-radius:6px;padding:10px 12px">
+                  <div style="font-size:11px;font-weight:600;color:var(--text2);margin-bottom:4px">🧮 계산식</div>
+                  <div style="font-size:12px;font-family:monospace;color:var(--accent);line-height:1.8;white-space:pre-line"
+                       x-text="calcFormula(selK, data.agentic?.tool_selections||[])"></div>
+                </div>
+              </div>
+              <!-- 태스크 목록 -->
+              <div style="display:flex;align-items:center;gap:6px;margin-bottom:8px">
+                <span style="font-size:12px;font-weight:600;color:var(--text1)">관련 태스크</span>
+                <span style="font-size:11px;color:var(--text2);background:var(--bg3);padding:1px 7px;border-radius:99px">
+                  낮은 점수 우선 정렬
+                </span>
+                <span style="font-size:11px;color:var(--text2);margin-left:auto"
+                      x-text="filteredTasks(selK,data.agentic?.tool_selections||[]).length+'건'"></span>
+              </div>
+              <div style="font-size:12px">
+                <!-- 헤더 행 -->
+                <div class="drow" style="justify-content:flex-start;border-bottom:2px solid var(--border);font-size:11px;font-weight:700;color:var(--text2)">
+                  <span style="flex:1;min-width:0">Task ID</span>
+                  <span style="width:160px;flex-shrink:0">기대 도구</span>
+                  <span style="width:160px;flex-shrink:0">실제 도구</span>
+                  <span :style="`width:72px;flex-shrink:0;text-align:center;${hlCol(selK)==='prec'?'color:var(--accent)':''}`">Precision</span>
+                  <span :style="`width:72px;flex-shrink:0;text-align:center;${hlCol(selK)==='rec'?'color:var(--accent)':''}`">Recall</span>
+                  <span :style="`width:68px;flex-shrink:0;text-align:right;${hlCol(selK)==='f1'?'color:var(--accent)':''}`">F1</span>
+                </div>
+                <!-- 데이터 행 -->
+                <template x-for="s in filteredTasks(selK, data.agentic?.tool_selections||[])" :key="s.task_id">
+                  <div class="drow" style="justify-content:flex-start">
+                    <span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text2)" x-text="s.task_id"></span>
+                    <span style="width:160px;flex-shrink:0;font-size:11px;color:var(--text2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap"
+                          x-text="(s.expected_tools||[]).join(', ')||'—'"></span>
+                    <span style="width:160px;flex-shrink:0;font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"
+                          x-text="(s.actual_tools||[]).join(', ')||'—'"></span>
+                    <span :style="`width:72px;flex-shrink:0;text-align:center;${hlCol(selK)==='prec'?'font-weight:600':''}`">
+                      <span :style="(s.precision||0)>=90?'color:var(--green)':(s.precision||0)>=70?'color:var(--yellow)':'color:var(--red)'"
+                            x-text="(s.precision||0).toFixed(0)+'%'"></span>
+                    </span>
+                    <span :style="`width:72px;flex-shrink:0;text-align:center;${hlCol(selK)==='rec'?'font-weight:600':''}`">
+                      <span :style="(s.recall||0)>=90?'color:var(--green)':(s.recall||0)>=70?'color:var(--yellow)':'color:var(--red)'"
+                            x-text="(s.recall||0).toFixed(0)+'%'"></span>
+                    </span>
+                    <span :style="`width:68px;flex-shrink:0;text-align:right;${hlCol(selK)==='f1'?'font-weight:600':''}`">
+                      <span :class="(s.f1_score||0)>=90?'pg':(s.f1_score||0)>=70?'py':'pr'" class="pill"
+                            x-text="'F1:'+(s.f1_score||0).toFixed(0)+'%'"></span>
+                    </span>
+                  </div>
+                </template>
+              </div>
+            </div>
+          </template>
+        </div>
+
+        <!-- 전체 태스크 목록 (상세 미선택 시) -->
+        <div class="sec" x-show="!selK">
           <div class="sec-t">태스크별 Tool Selection 상세</div>
-          <div class="slist">
+          <div style="font-size:12px">
+            <div class="drow" style="justify-content:flex-start;border-bottom:2px solid var(--border);font-size:11px;font-weight:700;color:var(--text2)">
+              <span style="flex:1;min-width:0">Task ID</span>
+              <span style="width:200px;flex-shrink:0">기대 도구</span>
+              <span style="width:72px;flex-shrink:0;text-align:center">Precision</span>
+              <span style="width:72px;flex-shrink:0;text-align:center">Recall</span>
+              <span style="width:68px;flex-shrink:0;text-align:right">F1</span>
+            </div>
             <template x-for="s in data.agentic?.tool_selections||[]" :key="s.task_id">
-              <div class="drow">
-                <span class="dk" x-text="s.task_id"></span>
-                <span style="color:var(--text2)" x-text="(s.expected_tools||[]).join(',')||'-'"></span>
-                <span :class="s.f1_score>=90?'pg':s.f1_score>=70?'py':'pr'" class="pill" x-text="`F1:${(s.f1_score||0).toFixed(0)}%`"></span>
+              <div class="drow" style="justify-content:flex-start">
+                <span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text2)" x-text="s.task_id"></span>
+                <span style="width:200px;flex-shrink:0;font-size:11px;color:var(--text2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap"
+                      x-text="(s.expected_tools||[]).join(', ')||'—'"></span>
+                <span style="width:72px;flex-shrink:0;text-align:center">
+                  <span :style="(s.precision||0)>=90?'color:var(--green)':(s.precision||0)>=70?'color:var(--yellow)':'color:var(--red)'"
+                        x-text="(s.precision||0).toFixed(0)+'%'"></span>
+                </span>
+                <span style="width:72px;flex-shrink:0;text-align:center">
+                  <span :style="(s.recall||0)>=90?'color:var(--green)':(s.recall||0)>=70?'color:var(--yellow)':'color:var(--red)'"
+                        x-text="(s.recall||0).toFixed(0)+'%'"></span>
+                </span>
+                <span style="width:68px;flex-shrink:0;text-align:right">
+                  <span :class="(s.f1_score||0)>=90?'pg':(s.f1_score||0)>=70?'py':'pr'" class="pill"
+                        x-text="'F1:'+(s.f1_score||0).toFixed(0)+'%'"></span>
+                </span>
               </div>
             </template>
           </div>
@@ -1547,37 +1941,175 @@ textarea.gd-input{height:60px;resize:vertical;font-family:inherit}
     </div>
 
     <!-- Multi-Agent Coordination -->
-    <div x-show="t2==='coord'">
+    <div x-show="t2==='coord'"
+      x-data="{
+        selK: null,
+        cm: {
+          total_interactions: {label:'총 상호작용', unit:'건',
+            desc:'에이전트 간 발생한 전체 상호작용(위임·통신·협업) 횟수입니다. 태스크 수가 아닌 이벤트 수이며, 태스크 1개에 여러 상호작용이 기록될 수 있습니다.',
+            hint:'상호작용 수가 많을수록 복잡한 멀티에이전트 협업이 이루어지고 있음을 나타냅니다.'},
+          successful_interactions: {label:'성공 상호작용', unit:'건',
+            desc:'성공으로 완료된 상호작용의 수입니다. 태스크 수가 아닌 이벤트 수입니다.',
+            hint:'성공 비율이 낮으면 에이전트 간 통신 오류나 위임 실패가 잦음을 의미합니다.'},
+          success_rate: {label:'성공률', unit:'%',
+            desc:'전체 상호작용 중 성공한 비율입니다.',
+            hint:'90% 이상이 이상적입니다. 낮은 성공률은 에이전트 협업 설계를 재검토해야 함을 의미합니다.'},
+          unique_agents: {label:'참여 에이전트', unit:'개',
+            desc:'상호작용에 참여한 고유 에이전트의 수입니다.',
+            hint:'에이전트 수가 많을수록 분산 처리 능력이 높지만 조율 복잡도도 증가합니다.'}
+        },
+        calcFormula(k, ia) {
+          const sm = data.agentic?.coordination_summary||{};
+          const total = ia.length;
+          if (!total) return '데이터 없음';
+          const succ = ia.filter(i=>i.success).length;
+          const agents = new Set();
+          ia.forEach(i=>{ if(i.from_agent) agents.add(i.from_agent); if(i.to_agent) agents.add(i.to_agent); });
+          switch(k) {
+            case 'total_interactions':
+              return `기록된 에이전트 간 상호작용 총 합계: ${total}건`;
+            case 'successful_interactions':
+              return `success=true 인 상호작용 합계: ${succ}건 / 전체 ${total}건`;
+            case 'success_rate':
+              return `성공(${succ}) ÷ 전체(${total}) × 100 = ${total?(succ/total*100).toFixed(1):0}%`;
+            case 'unique_agents':
+              return `from_agent + to_agent 합집합 고유값: ${agents.size}개\n[${[...agents].join(', ')}]`;
+            default: return '';
+          }
+        },
+        filteredIA(k, ia) {
+          const s = [...ia];
+          if (k==='successful_interactions') return s.filter(i=>i.success);
+          if (k==='success_rate') return s.filter(i=>!i.success);
+          return s;
+        },
+        filterLabel(k) {
+          if (k==='successful_interactions') return '성공 상호작용만 표시';
+          if (k==='success_rate') return '실패 상호작용 우선';
+          return '전체 상호작용';
+        },
+        hlCol(k) {
+          if (k==='successful_interactions'||k==='success_rate') return 'result';
+          if (k==='unique_agents') return 'agents';
+          return '';
+        }
+      }">
       <div x-show="!data.agentic?.agent_interactions?.length" class="empty"><p>Multi-Agent 데이터 없음</p></div>
       <div x-show="data.agentic?.agent_interactions?.length>0">
+        <!-- KPI 카드 -->
         <div class="kpi-grid">
-          <div class="kpi"><div class="kpi-lbl">총 상호작용</div><div class="kpi-val" x-text="data.agentic?.coordination_summary?.total_interactions||0"></div></div>
-          <div class="kpi"><div class="kpi-lbl">성공 상호작용</div><div class="kpi-val" x-text="data.agentic?.coordination_summary?.successful_interactions||0"></div></div>
-          <div class="kpi"><div class="kpi-lbl">성공률</div><div class="kpi-val" x-text="pct(data.agentic?.coordination_summary?.success_rate)"></div></div>
-          <div class="kpi"><div class="kpi-lbl">참여 에이전트</div><div class="kpi-val" x-text="data.agentic?.coordination_summary?.unique_agents||0"></div></div>
+          <template x-for="[k,m] in Object.entries(cm)" :key="k">
+            <div class="kpi" :class="{sel:selK===k}" @click="selK=selK===k?null:k" style="cursor:pointer">
+              <div class="kpi-lbl" x-text="m.label"></div>
+              <div class="kpi-val"
+                x-text="k==='success_rate'
+                  ?pct(data.agentic?.coordination_summary?.[k])
+                  :(data.agentic?.coordination_summary?.[k]??0)">
+              </div>
+              <div style="font-size:10px;color:var(--text2);margin-top:4px;line-height:1.4" x-text="m.desc"></div>
+            </div>
+          </template>
         </div>
-        <div class="sec">
-          <div class="sec-t">에이전트 목록</div>
+
+        <!-- 상세 패널 (클릭 시 펼침) -->
+        <div x-show="selK" x-transition:enter="transition ease-out duration-150"
+             x-transition:enter-start="opacity-0 transform -translate-y-1"
+             x-transition:enter-end="opacity-100 transform translate-y-0"
+             class="sec" style="margin-top:8px;border:1px solid var(--accent);border-radius:8px;padding:14px 16px">
+          <template x-if="selK">
+            <div>
+              <!-- 헤더 -->
+              <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
+                <span style="font-weight:700;font-size:14px" x-text="cm[selK]?.label||selK"></span>
+                <span style="font-size:11px;color:var(--text2);background:var(--bg3);padding:1px 7px;border-radius:99px"
+                      x-text="cm[selK]?.unit?'단위: '+cm[selK].unit:''"></span>
+                <span style="font-size:18px;font-weight:700;color:var(--accent);margin-left:4px"
+                      x-text="selK==='success_rate'
+                        ?pct(data.agentic?.coordination_summary?.[selK])
+                        :(data.agentic?.coordination_summary?.[selK]??0)+(cm[selK]?.unit||'')">
+                </span>
+              </div>
+              <!-- 설명 + 계산식 -->
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px">
+                <div style="background:var(--bg3);border-radius:6px;padding:10px 12px">
+                  <div style="font-size:11px;font-weight:600;color:var(--text2);margin-bottom:4px">📋 지표 설명</div>
+                  <div style="font-size:13px;color:var(--text1);line-height:1.7" x-text="cm[selK]?.hint||cm[selK]?.desc||''"></div>
+                </div>
+                <div style="background:var(--bg3);border-radius:6px;padding:10px 12px">
+                  <div style="font-size:11px;font-weight:600;color:var(--text2);margin-bottom:4px">🧮 계산식</div>
+                  <div style="font-size:12px;font-family:monospace;color:var(--accent);line-height:1.8;white-space:pre-line"
+                       x-text="calcFormula(selK, data.agentic?.agent_interactions||[])"></div>
+                </div>
+              </div>
+              <!-- 상호작용 로그 -->
+              <div style="display:flex;align-items:center;gap:6px;margin-bottom:8px">
+                <span style="font-size:12px;font-weight:600;color:var(--text1)">관련 상호작용</span>
+                <span style="font-size:11px;color:var(--text2);background:var(--bg3);padding:1px 7px;border-radius:99px"
+                      x-text="filterLabel(selK)"></span>
+                <span style="font-size:11px;color:var(--text2);margin-left:auto"
+                      x-text="filteredIA(selK,data.agentic?.agent_interactions||[]).length+'건'"></span>
+              </div>
+              <div style="font-size:12px">
+                <div class="drow" style="justify-content:flex-start;border-bottom:2px solid var(--border);font-size:11px;font-weight:700;color:var(--text2)">
+                  <span style="flex:1;min-width:0">Task ID</span>
+                  <span :style="`width:130px;flex-shrink:0;${hlCol(selK)==='agents'?'color:var(--accent)':''}`">From</span>
+                  <span :style="`width:130px;flex-shrink:0;${hlCol(selK)==='agents'?'color:var(--accent)':''}`">To</span>
+                  <span style="width:100px;flex-shrink:0">유형</span>
+                  <span :style="`width:72px;flex-shrink:0;text-align:center;${hlCol(selK)==='result'?'color:var(--accent)':''}`">결과</span>
+                </div>
+                <template x-for="(i,idx) in filteredIA(selK, data.agentic?.agent_interactions||[]).slice(0,50)" :key="idx">
+                  <div class="drow" style="justify-content:flex-start">
+                    <span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text2)" x-text="i.task_id||'—'"></span>
+                    <span :style="`width:130px;flex-shrink:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;${hlCol(selK)==='agents'?'color:var(--accent);font-weight:600':''}`"
+                          x-text="i.from_agent||'—'"></span>
+                    <span :style="`width:130px;flex-shrink:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;${hlCol(selK)==='agents'?'font-weight:600':''}`"
+                          x-text="i.to_agent||'—'"></span>
+                    <span style="width:100px;flex-shrink:0;font-size:11px;color:var(--text2)" x-text="i.interaction_type||'—'"></span>
+                    <span :style="`width:72px;flex-shrink:0;text-align:center;${hlCol(selK)==='result'?'font-weight:600':''}`">
+                      <span :class="i.success?'pg':'pr'" class="pill" x-text="i.success?'✅ 성공':'❌ 실패'"></span>
+                    </span>
+                  </div>
+                </template>
+              </div>
+            </div>
+          </template>
+        </div>
+
+        <!-- 에이전트 목록 태그 -->
+        <div class="sec" x-show="!selK">
+          <div class="sec-t">참여 에이전트 목록</div>
           <template x-for="a in data.agentic?.coordination_summary?.agent_list||[]" :key="a">
             <span class="tag" x-text="a"></span>
           </template>
         </div>
+
+        <!-- 네트워크 차트 -->
         <div class="sec" x-show="(data.agentic?.agent_interactions||[]).length>1">
           <div class="sec-t">🕸️ 에이전트 상호작용 네트워크</div>
           <p style="font-size:13px;color:var(--text2);margin-bottom:8px">노드: 에이전트 | 엣지 두께: 상호작용 횟수 | 색상: 성공률</p>
           <div class="cbox"><div id="agent-network" class="plt-chart" :style="`height:${Math.max(380, Math.min(560, (data.agentic?.agent_interactions?.length||0)*12+260)}px`"></div></div>
         </div>
-        <div class="sec">
+
+        <!-- 전체 상호작용 로그 (미선택 시) -->
+        <div class="sec" x-show="!selK">
           <div class="sec-t">상호작용 로그 <span class="badge" x-text="`${(data.agentic?.agent_interactions||[]).length}건`"></span></div>
-          <div class="slist">
+          <div style="font-size:12px">
+            <div class="drow" style="justify-content:flex-start;border-bottom:2px solid var(--border);font-size:11px;font-weight:700;color:var(--text2)">
+              <span style="flex:1;min-width:0">Task ID</span>
+              <span style="width:130px;flex-shrink:0">From</span>
+              <span style="width:130px;flex-shrink:0">To</span>
+              <span style="width:100px;flex-shrink:0">유형</span>
+              <span style="width:72px;flex-shrink:0;text-align:center">결과</span>
+            </div>
             <template x-for="(i,idx) in (data.agentic?.agent_interactions||[]).slice(0,50)" :key="idx">
-              <div class="irow">
-                <span :class="i.success?'pg':'pr'" class="pill" x-text="i.success?'✓':'✗'"></span>
-                <span x-text="i.from_agent" style="color:var(--accent)"></span>
-                <span style="color:var(--text2)">→</span>
-                <span x-text="i.to_agent"></span>
-                <span style="color:var(--text2)" x-text="i.interaction_type"></span>
-                <span style="color:var(--text2);margin-left:auto;font-size:14px" x-text="i.timestamp?.substring(0,16)||''"></span>
+              <div class="drow" style="justify-content:flex-start">
+                <span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text2)" x-text="i.task_id||'—'"></span>
+                <span style="width:130px;flex-shrink:0;color:var(--accent);overflow:hidden;text-overflow:ellipsis;white-space:nowrap" x-text="i.from_agent||'—'"></span>
+                <span style="width:130px;flex-shrink:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" x-text="i.to_agent||'—'"></span>
+                <span style="width:100px;flex-shrink:0;font-size:11px;color:var(--text2)" x-text="i.interaction_type||'—'"></span>
+                <span style="width:72px;flex-shrink:0;text-align:center">
+                  <span :class="i.success?'pg':'pr'" class="pill" x-text="i.success?'✅ 성공':'❌ 실패'"></span>
+                </span>
               </div>
             </template>
           </div>
@@ -1586,35 +2118,243 @@ textarea.gd-input{height:60px;resize:vertical;font-family:inherit}
     </div>
 
     <!-- Workflow -->
-    <div x-show="t2==='wf'">
+    <div x-show="t2==='wf'"
+      x-data="{
+        selK: null,
+        wm: {
+          total_steps: {label:'총 스텝', unit:'건',
+            desc:'워크플로우 전체에서 실행된 스텝(노드)의 합계입니다.',
+            hint:'스텝 수가 많을수록 복잡한 워크플로우입니다. 실패 스텝이 포함될 수 있습니다.',
+            filter:'all'},
+          successful_steps: {label:'성공 스텝', unit:'건',
+            desc:'성공적으로 완료된 스텝의 수입니다.',
+            hint:'성공 스텝 수가 총 스텝에 가까울수록 안정적인 워크플로우입니다.',
+            filter:'success'},
+          step_success_rate: {label:'스텝 성공률', unit:'%',
+            desc:'전체 스텝 중 성공한 스텝의 비율입니다.',
+            hint:'90% 이상이 이상적입니다. 낮은 성공률은 특정 스텝에서 반복 실패가 발생함을 의미합니다.',
+            filter:'failed'},
+          total_tasks: {label:'워크플로우 태스크', unit:'건',
+            desc:'chain_steps가 기록된 고유 태스크 수입니다. 전체 태스크 중 워크플로우가 실행된 태스크만 집계됩니다.',
+            hint:'전체 태스크 수와 다를 수 있습니다 — chain_steps 필드가 없는 태스크는 포함되지 않습니다.',
+            filter:'all'},
+          task_success_rate: {label:'워크플로우 완료율', unit:'%',
+            desc:'모든 스텝이 성공한 태스크의 비율입니다. 단 하나의 스텝이라도 실패하면 해당 태스크는 미완료로 처리됩니다.',
+            hint:'스텝 성공률보다 낮으면 단 하나의 실패 스텝으로 전체 태스크가 실패하는 구조임을 의미합니다.',
+            filter:'failed_task'}
+        },
+        calcFormula(k, we) {
+          const sm = data.agentic?.workflow_summary||{};
+          const total = we.length;
+          if (!total) return '데이터 없음';
+          const succ = we.filter(s=>s.success).length;
+          switch(k) {
+            case 'total_steps':
+              return `기록된 워크플로우 스텝 합계: ${total}건`;
+            case 'successful_steps':
+              return `success=true 인 스텝 합계: ${succ}건 / 전체 ${total}건`;
+            case 'step_success_rate':
+              return `성공 스텝(${succ}) ÷ 전체 스텝(${total}) × 100 = ${(succ/total*100).toFixed(1)}%`;
+            case 'total_tasks': {
+              const tasks = new Set(we.map(s=>s.task_id)).size;
+              return `task_id 기준 고유 태스크 수: ${tasks}건`;
+            }
+            case 'task_success_rate': {
+              const tg = {};
+              we.forEach(s=>{ const t=s.task_id||'_'; (tg[t]=tg[t]||[]).push(s); });
+              const tcount = Object.keys(tg).length;
+              const tfull = Object.values(tg).filter(steps=>steps.every(s=>s.success)).length;
+              return `전체 스텝 성공 태스크(${tfull}) ÷ 전체 태스크(${tcount}) × 100 = ${tcount?(tfull/tcount*100).toFixed(1):0}%`;
+            }
+            default: return '';
+          }
+        },
+        filteredSteps(k, we) {
+          const filter = this.wm[k]?.filter||'all';
+          if (filter==='success') return we.filter(s=>s.success);
+          if (filter==='failed') return we.filter(s=>!s.success);
+          if (filter==='failed_task') {
+            const tg = {};
+            we.forEach(s=>{ const t=s.task_id||'_'; (tg[t]=tg[t]||[]).push(s); });
+            const failedTasks = new Set(
+              Object.entries(tg).filter(([,steps])=>steps.some(s=>!s.success)).map(([t])=>t)
+            );
+            return we.filter(s=>failedTasks.has(s.task_id||'_'));
+          }
+          return we;
+        },
+        filterLabel(k) {
+          const f = this.wm[k]?.filter||'all';
+          if (f==='success') return '성공 스텝만 표시';
+          if (f==='failed') return '실패 스텝 우선';
+          if (f==='failed_task') return '실패 태스크 스텝만 표시';
+          return '전체 스텝';
+        },
+        hlCol(k) {
+          if (k==='successful_steps'||k==='step_success_rate') return 'result';
+          if (k==='task_success_rate'||k==='total_tasks') return 'task';
+          return '';
+        },
+        fmtVal(k) {
+          const sm = data.agentic?.workflow_summary||{};
+          if (k==='step_success_rate'||k==='task_success_rate') return pct(sm[k]);
+          return (sm[k]??0)+(this.wm[k]?.unit||'');
+        }
+      }">
       <div x-show="!data.agentic?.workflow_executions?.length" class="empty"><p>Workflow 데이터 없음</p></div>
       <div x-show="data.agentic?.workflow_executions?.length>0">
+        <!-- KPI 카드 -->
         <div class="kpi-grid">
-          <div class="kpi"><div class="kpi-lbl">총 스텝</div><div class="kpi-val" x-text="data.agentic?.workflow_summary?.total_steps||0"></div></div>
-          <div class="kpi"><div class="kpi-lbl">성공 스텝</div><div class="kpi-val" x-text="data.agentic?.workflow_summary?.successful_steps||0"></div></div>
-          <div class="kpi"><div class="kpi-lbl">스텝 성공률</div><div class="kpi-val" x-text="pct(data.agentic?.workflow_summary?.step_success_rate)"></div></div>
-        </div>
-        <div class="sec" x-show="(data.agentic?.workflow_summary?.frameworks||[]).length>0">
-          <div class="sec-t">사용 프레임워크</div>
-          <template x-for="fw in data.agentic?.workflow_summary?.frameworks||[]" :key="fw">
-            <span class="tag" x-text="fw"></span>
+          <template x-for="[k,m] in Object.entries(wm)" :key="k">
+            <div class="kpi" :class="{sel:selK===k}" @click="selK=selK===k?null:k" style="cursor:pointer">
+              <div class="kpi-lbl" x-text="m.label"></div>
+              <div class="kpi-val"
+                x-text="(k==='step_success_rate'||k==='task_success_rate')
+                  ?pct(data.agentic?.workflow_summary?.[k])
+                  :(data.agentic?.workflow_summary?.[k]??0)">
+              </div>
+              <div style="font-size:10px;color:var(--text2);margin-top:4px;line-height:1.4" x-text="m.desc"></div>
+            </div>
           </template>
         </div>
+
+        <!-- 상세 패널 (클릭 시 펼침) -->
+        <div x-show="selK" x-transition:enter="transition ease-out duration-150"
+             x-transition:enter-start="opacity-0 transform -translate-y-1"
+             x-transition:enter-end="opacity-100 transform translate-y-0"
+             class="sec" style="margin-top:8px;border:1px solid var(--accent);border-radius:8px;padding:14px 16px">
+          <template x-if="selK">
+            <div>
+              <!-- 헤더 -->
+              <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
+                <span style="font-weight:700;font-size:14px" x-text="wm[selK]?.label||selK"></span>
+                <span style="font-size:11px;color:var(--text2);background:var(--bg3);padding:1px 7px;border-radius:99px"
+                      x-text="wm[selK]?.unit?'단위: '+wm[selK].unit:''"></span>
+                <span style="font-size:18px;font-weight:700;color:var(--accent);margin-left:4px"
+                      x-text="fmtVal(selK)"></span>
+              </div>
+              <!-- 설명 + 계산식 -->
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px">
+                <div style="background:var(--bg3);border-radius:6px;padding:10px 12px">
+                  <div style="font-size:11px;font-weight:600;color:var(--text2);margin-bottom:4px">📋 지표 설명</div>
+                  <div style="font-size:13px;color:var(--text1);line-height:1.7" x-text="wm[selK]?.hint||wm[selK]?.desc||''"></div>
+                </div>
+                <div style="background:var(--bg3);border-radius:6px;padding:10px 12px">
+                  <div style="font-size:11px;font-weight:600;color:var(--text2);margin-bottom:4px">🧮 계산식</div>
+                  <div style="font-size:12px;font-family:monospace;color:var(--accent);line-height:1.8;white-space:pre-line"
+                       x-text="calcFormula(selK, data.agentic?.workflow_executions||[])"></div>
+                </div>
+              </div>
+              <!-- 스텝 목록 -->
+              <div style="display:flex;align-items:center;gap:6px;margin-bottom:8px">
+                <span style="font-size:12px;font-weight:600;color:var(--text1)">관련 스텝</span>
+                <span style="font-size:11px;color:var(--text2);background:var(--bg3);padding:1px 7px;border-radius:99px"
+                      x-text="filterLabel(selK)"></span>
+                <span style="font-size:11px;color:var(--text2);margin-left:auto"
+                      x-text="filteredSteps(selK,data.agentic?.workflow_executions||[]).length+'건'"></span>
+              </div>
+              <div style="font-size:12px">
+                <div class="drow" style="justify-content:flex-start;border-bottom:2px solid var(--border);font-size:11px;font-weight:700;color:var(--text2)">
+                  <span :style="`flex:1;min-width:0;${hlCol(selK)==='task'?'color:var(--accent)':''}`">Task ID</span>
+                  <span style="width:150px;flex-shrink:0">스텝 이름</span>
+                  <span style="width:90px;flex-shrink:0">유형</span>
+                  <span style="width:90px;flex-shrink:0">프레임워크</span>
+                  <span style="width:70px;flex-shrink:0;text-align:right">실행시간</span>
+                  <span :style="`width:72px;flex-shrink:0;text-align:center;${hlCol(selK)==='result'?'color:var(--accent)':''}`">결과</span>
+                </div>
+                <template x-for="(s,idx) in filteredSteps(selK, data.agentic?.workflow_executions||[]).slice(0,50)" :key="idx">
+                  <div class="drow" style="justify-content:flex-start">
+                    <span :style="`flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;${hlCol(selK)==='task'?'color:var(--accent);font-weight:600':'color:var(--text2)'}`"
+                          x-text="s.task_id||'—'"></span>
+                    <span style="width:150px;flex-shrink:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:500"
+                          x-text="s.step_name||s.task_id||'—'"></span>
+                    <span style="width:90px;flex-shrink:0;font-size:11px;color:var(--text2)" x-text="s.step_type||'—'"></span>
+                    <span style="width:90px;flex-shrink:0;font-size:11px;color:var(--text2)" x-text="s.framework||'—'"></span>
+                    <span style="width:70px;flex-shrink:0;text-align:right;color:var(--text2)"
+                          x-text="s.execution_time!=null?(+s.execution_time).toFixed(2)+'s':'—'"></span>
+                    <span :style="`width:72px;flex-shrink:0;text-align:center;${hlCol(selK)==='result'?'font-weight:600':''}`">
+                      <span :class="s.success?'pg':'pr'" class="pill" x-text="s.success?'✅ 성공':'❌ 실패'"></span>
+                    </span>
+                  </div>
+                </template>
+              </div>
+            </div>
+          </template>
+        </div>
+
+
+        <!-- 워크플로우 퍼널 차트 -->
         <div class="sec" x-show="data.agentic?.workflow_summary">
           <div class="sec-t">🔀 워크플로우 실행 퍼널</div>
           <div id="l2-wf-funnel" style="height:200px"></div>
         </div>
-        <div class="sec">
-          <div class="sec-t">워크플로우 실행 스텝</div>
-          <div class="slist">
-            <template x-for="(s,idx) in (data.agentic?.workflow_executions||[]).slice(0,30)" :key="idx">
-              <div class="step">
-                <div class="step-t"><span :class="s.success?'pg':'pr'" class="pill" x-text="s.success?'✓':'✗'"></span> <span x-text="s.step_name||s.task_id"></span></div>
-                <div style="color:var(--text2);font-size:14px" x-text="`${s.framework||''} | ${s.execution_time||0}s | ${s.step_type||''}`"></div>
+
+        <!-- 전체 스텝 목록 (미선택 시) -->
+        <div class="sec" x-show="!selK">
+          <div class="sec-t">워크플로우 실행 스텝 <span class="badge" x-text="`${(data.agentic?.workflow_executions||[]).length}건`"></span></div>
+          <div style="font-size:12px">
+            <div class="drow" style="justify-content:flex-start;border-bottom:2px solid var(--border);font-size:11px;font-weight:700;color:var(--text2)">
+              <span style="flex:1;min-width:0">Task ID</span>
+              <span style="width:150px;flex-shrink:0">스텝 이름</span>
+              <span style="width:90px;flex-shrink:0">유형</span>
+              <span style="width:90px;flex-shrink:0">프레임워크</span>
+              <span style="width:70px;flex-shrink:0;text-align:right">실행시간</span>
+              <span style="width:72px;flex-shrink:0;text-align:center">결과</span>
+            </div>
+            <template x-for="(s,idx) in (data.agentic?.workflow_executions||[]).slice(0,50)" :key="idx">
+              <div class="drow" style="justify-content:flex-start">
+                <span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text2)"
+                      x-text="s.task_id||'—'"></span>
+                <span style="width:150px;flex-shrink:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:500"
+                      x-text="s.step_name||s.task_id||'—'"></span>
+                <span style="width:90px;flex-shrink:0;font-size:11px;color:var(--text2)" x-text="s.step_type||'—'"></span>
+                <span style="width:90px;flex-shrink:0;font-size:11px;color:var(--text2)" x-text="s.framework||'—'"></span>
+                <span style="width:70px;flex-shrink:0;text-align:right;color:var(--text2)"
+                      x-text="s.execution_time!=null?(+s.execution_time).toFixed(2)+'s':'—'"></span>
+                <span style="width:72px;flex-shrink:0;text-align:center">
+                  <span :class="s.success?'pg':'pr'" class="pill" x-text="s.success?'✅ 성공':'❌ 실패'"></span>
+                </span>
               </div>
             </template>
           </div>
         </div>
+      </div>
+    </div>
+    <!-- 🏗️ 프레임워크 정보 (워크플로우 탭) -->
+    <div class="sec" x-show="tag==='advanced'&&t2==='wf'">
+      <div class="sec-t">🏗️ 프레임워크 정보</div>
+      <!-- 프레임워크 미설정 -->
+      <div x-show="frameworkDist().every(f=>f.name==='unknown')" class="empty" style="padding:16px 0">
+        <div style="font-size:24px;margin-bottom:6px">🔌</div>
+        <p style="font-weight:600;margin-bottom:4px">프레임워크 정보가 없습니다</p>
+        <p style="font-size:13px;color:var(--text2);margin-bottom:8px">TaskResult 또는 create_taskresult() 에 <code style="background:var(--bg3);padding:1px 5px;border-radius:3px">framework</code> 필드를 설정하면 여기에 표시됩니다.</p>
+        <code style="display:block;background:var(--bg3);padding:8px 12px;border-radius:6px;font-size:13px;text-align:left;max-width:400px;margin:0 auto">create_taskresult(..., framework="crewai")</code>
+      </div>
+      <!-- 프레임워크 있음 -->
+      <div x-show="frameworkDist().some(f=>f.name!=='unknown')">
+        <table class="dt-card">
+          <colgroup><col style="width:auto"><col style="width:72px"><col style="width:80px"><col style="width:80px"></colgroup>
+          <thead>
+            <tr>
+              <th>프레임워크</th>
+              <th>태스크</th>
+              <th>성공률</th>
+              <th>비율</th>
+            </tr>
+          </thead>
+          <tbody>
+            <template x-for="fw in frameworkDist().filter(f=>f.name!=='unknown')" :key="fw.name">
+              <tr>
+                <td style="font-weight:500" x-text="fw.name"></td>
+                <td x-text="fw.count"></td>
+                <td :style="fw.rate>=80?'color:var(--green)':fw.rate>=50?'color:var(--yellow)':'color:var(--red)'"
+                  x-text="fw.rate.toFixed(1)+'%'"></td>
+                <td style="color:var(--text2)"
+                  x-text="fw.pct.toFixed(1)+'%'"></td>
+              </tr>
+            </template>
+          </tbody>
+        </table>
       </div>
     </div>
   </div>
@@ -1666,42 +2406,6 @@ textarea.gd-input{height:60px;resize:vertical;font-family:inherit}
         </div>
       </div>
     </div>
-    <div class="sec">
-      <div class="sec-t">🏗️ 프레임워크 정보</div>
-      <!-- 프레임워크 미설정 -->
-      <div x-show="frameworkDist().every(f=>f.name==='unknown')" class="empty" style="padding:16px 0">
-        <div style="font-size:24px;margin-bottom:6px">🔌</div>
-        <p style="font-weight:600;margin-bottom:4px">프레임워크 정보가 없습니다</p>
-        <p style="font-size:13px;color:var(--text2);margin-bottom:8px">TaskResult 또는 create_taskresult() 에 <code style="background:var(--bg3);padding:1px 5px;border-radius:3px">framework</code> 필드를 설정하면 여기에 표시됩니다.</p>
-        <code style="display:block;background:var(--bg3);padding:8px 12px;border-radius:6px;font-size:13px;text-align:left;max-width:400px;margin:0 auto">create_taskresult(..., framework="crewai")</code>
-      </div>
-      <!-- 프레임워크 있음 -->
-      <div x-show="frameworkDist().some(f=>f.name!=='unknown')">
-        <table class="dt-card">
-          <colgroup><col style="width:auto"><col style="width:72px"><col style="width:80px"><col style="width:80px"></colgroup>
-          <thead>
-            <tr>
-              <th>프레임워크</th>
-              <th>태스크</th>
-              <th>성공률</th>
-              <th>비율</th>
-            </tr>
-          </thead>
-          <tbody>
-            <template x-for="fw in frameworkDist().filter(f=>f.name!=='unknown')" :key="fw.name">
-              <tr>
-                <td style="font-weight:500" x-text="fw.name"></td>
-                <td x-text="fw.count"></td>
-                <td :style="fw.rate>=80?'color:var(--green)':fw.rate>=50?'color:var(--yellow)':'color:var(--red)'"
-                  x-text="fw.rate.toFixed(1)+'%'"></td>
-                <td style="color:var(--text2)"
-                  x-text="((fw.count/(data.total_tasks||1))*100).toFixed(1)+'%'"></td>
-              </tr>
-            </template>
-          </tbody>
-        </table>
-      </div>
-    </div>
   </div>
   </div>
 </div>
@@ -1716,18 +2420,18 @@ textarea.gd-input{height:60px;resize:vertical;font-family:inherit}
 <div x-show="data && sec==='performance'" x-cloak>
 
   <div class="tabs">
-    <div class="tab" :class="{on:tperf==='basic'}"      @click="tperf='basic';tp='lat'">🔵 기본</div>
-    <div class="tab" :class="{on:tperf==='advanced'}"   @click="tperf='advanced';tp='tok'">🟡 심화</div>
-    <div class="tab" :class="{on:tperf==='integrated'}" @click="tperf='integrated'">🟣 통합</div>
+    <div class="tab" :class="{on:tperf==='basic'}"      @click="tperf='basic';tp='lat'">⏱️ 응답 지연 (Latency)</div>
+    <div class="tab" :class="{on:tperf==='advanced'}"   @click="tperf='advanced';tp='tok'">🪙 토큰 &amp; 비용 (Cost)</div>
+    <div class="tab" :class="{on:tperf==='integrated'}" @click="tperf='integrated'">🔗 프레임워크 &amp; APM</div>
     <span style="margin-left:auto;font-size:14px;color:var(--text2)">
       성능 Score: <b x-text="perspScore('performance',data)"></b>/100
     </span>
   </div>
 
   <div class="sec" style="padding:8px 12px;font-size:13px;color:var(--text2);border-left:3px solid var(--accent)">
-    <span x-show="tperf==='basic'">🔵 기본 — 응답 지연(Latency) 및 SLA 준수 현황.</span>
-    <span x-show="tperf==='advanced'">🟡 심화 — 토큰 비용, 예산 추적, 리소스 효율성 점수.</span>
-    <span x-show="tperf==='integrated'">🟣 통합 — 프레임워크 분석 및 외부 APM 연동 가이드.</span>
+    <span x-show="tperf==='basic'">⏱️ 응답 지연 — SLA 준수 현황(P95·P99), 백분위 분포, TaskType별 지연 비교.</span>
+    <span x-show="tperf==='advanced'">🪙 토큰 &amp; 비용 — 리소스 효율성 점수, 입출력 토큰 사용량, Task당 비용 및 월간 예산 추적.</span>
+    <span x-show="tperf==='integrated'">🔗 프레임워크 &amp; APM — 프레임워크별 Task 분포, Datadog·Grafana 등 외부 APM 연동 가이드.</span>
   </div>
 
   <!-- ── 기본 티어 ── -->
@@ -1752,13 +2456,19 @@ textarea.gd-input{height:60px;resize:vertical;font-family:inherit}
         </thead>
         <tbody>
           <tr>
-            <td>응답 시간 P95</td>
+            <td>
+              응답 시간 P95
+              <div style="font-size:11px;color:var(--text2);margin-top:2px">전체 요청의 95%가 이 시간 안에 응답 · SLA 경고선</div>
+            </td>
             <td style="text-align:right;color:var(--accent);font-weight:600" x-text="'≤ ' + thresholds.p95 + 's'"></td>
             <td style="text-align:right" x-text="(data.efficiency_metrics?.latency?.p95||0).toFixed(2)+'s'"></td>
             <td style="text-align:left" :style="(data.efficiency_metrics?.latency?.p95||0)<=thresholds.p95?'color:var(--green)':'color:var(--red)'" x-text="(data.efficiency_metrics?.latency?.p95||0)<=thresholds.p95?'✅ PASS':'❌ FAIL'"></td>
           </tr>
           <tr>
-            <td>응답 시간 P99</td>
+            <td>
+              응답 시간 P99
+              <div style="font-size:11px;color:var(--text2);margin-top:2px">전체 요청의 99%가 이 시간 안에 응답 · SLA 위험선</div>
+            </td>
             <td style="text-align:right;color:var(--accent);font-weight:600" x-text="'≤ ' + thresholds.p99 + 's'"></td>
             <td style="text-align:right" x-text="(data.efficiency_metrics?.latency?.p99||0).toFixed(2)+'s'"></td>
             <td style="text-align:left" :style="(data.efficiency_metrics?.latency?.p99||0)<=thresholds.p99?'color:var(--green)':'color:var(--red)'" x-text="(data.efficiency_metrics?.latency?.p99||0)<=thresholds.p99?'✅ PASS':'❌ FAIL'"></td>
@@ -1796,7 +2506,8 @@ textarea.gd-input{height:60px;resize:vertical;font-family:inherit}
         <div class="cbox"><div class="ct">TaskType별 Latency 비교</div><div id="lat-type-box" class="plt-chart"></div></div>
       </div>
       <div class="sec" style="margin-top:20px">
-        <div class="sec-t">⏱️ TaskType별 레이턴시 분포 (평균 ± 범위)</div>
+        <div class="sec-t">📋 TaskType별 P95 레이턴시 (SLA 기준선)</div>
+        <div style="font-size:12px;color:var(--text2);margin-bottom:8px">각 TaskType의 P95 응답시간과 SLA 목표(점선)를 비교합니다. 막대가 점선을 초과하면 해당 유형이 SLA 위반 위험입니다.</div>
         <div id="perf-scatter" style="height:220px"></div>
       </div>
     </div>
@@ -1812,12 +2523,14 @@ textarea.gd-input{height:60px;resize:vertical;font-family:inherit}
         <div class="cbox">
           <div class="ct">지연 효율</div>
           <div class="cv" :style="(data.efficiency_metrics?.latency?.p95||0)<=thresholds.p95?'color:var(--green)':'color:var(--orange)'" x-text="(data.efficiency_metrics?.latency?.p95||0)<=thresholds.p95?'100':Math.max(0,100-((data.efficiency_metrics?.latency?.p95||0)-thresholds.p95)*20).toFixed(0)"></div>
-          <div style="font-size:14px;color:var(--text2)">목표 P95 <span style="color:var(--accent);font-weight:600" x-text="thresholds.p95+'s'"></span></div>
+          <div style="font-size:13px;margin-top:4px">현재 P95 <span :style="(data.efficiency_metrics?.latency?.p95||0)<=thresholds.p95?'color:var(--green);font-weight:600':'color:var(--orange);font-weight:600'" x-text="(data.efficiency_metrics?.latency?.p95||0).toFixed(2)+'s'"></span></div>
+          <div style="font-size:12px;color:var(--text2)">목표 P95 <span style="color:var(--accent);font-weight:600" x-text="thresholds.p95+'s'"></span></div>
         </div>
         <div class="cbox">
           <div class="ct">비용 효율</div>
           <div class="cv" :style="(data.efficiency_metrics?.tokens?.avg_cost_per_task||0)<=thresholds.cost?'color:var(--green)':'color:var(--orange)'" x-text="(data.efficiency_metrics?.tokens?.avg_cost_per_task||0)<=thresholds.cost?'100':Math.max(0,100-((data.efficiency_metrics?.tokens?.avg_cost_per_task||0)-thresholds.cost)*(50/thresholds.cost)).toFixed(0)"></div>
-          <div style="font-size:14px;color:var(--text2)">목표 <span style="color:var(--accent);font-weight:600" x-text="'$'+thresholds.cost+'/task'"></span></div>
+          <div style="font-size:13px;margin-top:4px">현재 <span :style="(data.efficiency_metrics?.tokens?.avg_cost_per_task||0)<=thresholds.cost?'color:var(--green);font-weight:600':'color:var(--orange);font-weight:600'" x-text="'$'+(data.efficiency_metrics?.tokens?.avg_cost_per_task||0).toFixed(5)+'/task'"></span></div>
+          <div style="font-size:12px;color:var(--text2)">목표 <span style="color:var(--accent);font-weight:600" x-text="'$'+thresholds.cost+'/task'"></span></div>
         </div>
       </div>
     </div>
@@ -1949,27 +2662,27 @@ textarea.gd-input{height:60px;resize:vertical;font-family:inherit}
       <div class="sec-t">🛡️ 보안 종합</div>
       <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:8px">
         <div class="cbox">
-          <div class="ct">입력 위협</div>
+          <div class="ct">입력 위협 <span style="font-size:9px;opacity:.6;margin-left:3px">L1</span></div>
           <div class="cv" :style="(data.security_l1?.input_security?.threat_rate||0)<5?'color:var(--green)':'color:var(--red)'" x-text="(data.security_l1?.input_security?.threat_rate||0).toFixed(1)+'%'"></div>
           <div style="font-size:14px;color:var(--text2)">목표 &lt; 5%</div>
         </div>
         <div class="cbox">
-          <div class="ct">출력 유출</div>
+          <div class="ct">출력 유출 <span style="font-size:9px;opacity:.6;margin-left:3px">L1</span></div>
           <div class="cv" :style="(data.security_l1?.output_leakage?.outputs_with_leakage||0)===0?'color:var(--green)':'color:var(--red)'" x-text="(data.security_l1?.output_leakage?.outputs_with_leakage||0)+'건'"></div>
           <div style="font-size:14px;color:var(--text2)">목표 0건</div>
         </div>
         <div class="cbox">
-          <div class="ct">권한 준수</div>
+          <div class="ct">권한 준수 <span style="font-size:9px;opacity:.6;margin-left:3px">L1</span></div>
           <div class="cv" :style="(data.security_l1?.authorization?.compliance_rate||100)>=95?'color:var(--green)':'color:var(--red)'" x-text="(data.security_l1?.authorization?.compliance_rate||100).toFixed(1)+'%'"></div>
           <div style="font-size:14px;color:var(--text2)">목표 ≥95%</div>
         </div>
         <div class="cbox">
-          <div class="ct">권한 상승</div>
+          <div class="ct">권한 상승 <span style="font-size:9px;opacity:.6;margin-left:3px">L2</span></div>
           <div class="cv" :style="(data.security_l2?.privilege_escalation?.escalations_detected||0)===0?'color:var(--green)':'color:var(--red)'" x-text="(data.security_l2?.privilege_escalation?.escalations_detected||0)+'건'"></div>
           <div style="font-size:14px;color:var(--text2)">목표 0건</div>
         </div>
         <div class="cbox">
-          <div class="ct">공격 체인</div>
+          <div class="ct">공격 체인 <span style="font-size:9px;opacity:.6;margin-left:3px">L2</span></div>
           <div class="cv" :style="(data.security_l2?.attack_detection?.suspicious_chains||0)===0?'color:var(--green)':'color:var(--red)'" x-text="(data.security_l2?.attack_detection?.suspicious_chains||0)+'건'"></div>
           <div style="font-size:14px;color:var(--text2)">목표 0건</div>
         </div>
@@ -1990,11 +2703,25 @@ textarea.gd-input{height:60px;resize:vertical;font-family:inherit}
       <div x-show="data.security_l1?.input_security?.total_inputs_evaluated>0">
       <div class="kpi-grid">
         <div class="kpi"><div class="kpi-lbl">평가 입력</div><div class="kpi-val" x-text="data.security_l1?.input_security?.total_inputs_evaluated||0"></div></div>
-        <div class="kpi"><div class="kpi-lbl">위협 탐지</div><div class="kpi-val" style="color:var(--red)" x-text="data.security_l1?.input_security?.inputs_with_threats||0"></div></div>
+        <div class="kpi" title="위협이 1건 이상 탐지된 입력(태스크) 수 — 복수 위협 유형이 있어도 1건으로 집계">
+          <div class="kpi-lbl">위협 입력</div>
+          <div class="kpi-val" style="color:var(--red)" x-text="data.security_l1?.input_security?.inputs_with_threats||0"></div>
+          <div style="font-size:10px;color:var(--text2);margin-top:2px">입력 기준 (중복 제거)</div>
+        </div>
+        <div class="kpi" title="탐지된 위협 유형 건수 합계 — 입력 1개에 복수 유형이 탐지되면 각각 카운트">
+          <div class="kpi-lbl">위협 이벤트</div>
+          <div class="kpi-val" style="color:var(--red)"
+               x-text="(data.security_l1?.input_security?.sql_injection_attempts||0)
+                       +(data.security_l1?.input_security?.command_injection_attempts||0)
+                       +(data.security_l1?.input_security?.path_traversal_attempts||0)
+                       +(data.security_l1?.input_security?.xss_attempts||0)
+                       +(data.security_l1?.input_security?.prompt_injection_attempts||0)"></div>
+          <div style="font-size:10px;color:var(--text2);margin-top:2px">유형별 합산 (중복 허용)</div>
+        </div>
         <div class="kpi"><div class="kpi-lbl">위협률</div><div class="kpi-val" :style="`color:${(data.security_l1?.input_security?.threat_rate||0)>20?'var(--red)':'var(--green)'}`" x-text="pct(data.security_l1?.input_security?.threat_rate)"></div></div>
       </div>
       <div class="sec">
-        <div class="sec-t">위협 유형별</div>
+        <div class="sec-t">위협 유형별 <span style="font-size:11px;font-weight:400;color:var(--text2);margin-left:6px">입력 1개에 복수 유형 탐지 가능 → 유형 합계 ≥ 위협 입력 수</span></div>
         <div class="cg4">
           <div class="cbox"><div class="ct">SQL Injection</div><div style="font-size:20px;font-weight:800;color:var(--red)" x-text="data.security_l1?.input_security?.sql_injection_attempts||0"></div></div>
           <div class="cbox"><div class="ct">Command Injection</div><div style="font-size:20px;font-weight:800;color:var(--red)" x-text="data.security_l1?.input_security?.command_injection_attempts||0"></div></div>
@@ -2038,9 +2765,12 @@ textarea.gd-input{height:60px;resize:vertical;font-family:inherit}
         <div class="cg4">
           <div class="cbox"><div class="ct">API Key</div><div style="font-size:20px;font-weight:800;color:var(--red)" x-text="data.security_l1?.output_leakage?.api_key_leaks||0"></div></div>
           <div class="cbox"><div class="ct">Password</div><div style="font-size:20px;font-weight:800;color:var(--red)" x-text="data.security_l1?.output_leakage?.password_leaks||0"></div></div>
+          <div class="cbox"><div class="ct">Credit Card</div><div style="font-size:20px;font-weight:800;color:var(--red)" x-text="data.security_l1?.output_leakage?.credit_card_leaks||0"></div></div>
           <div class="cbox"><div class="ct">Email</div><div style="font-size:20px;font-weight:800;color:var(--orange)" x-text="data.security_l1?.output_leakage?.email_leaks||0"></div></div>
+          <div class="cbox"><div class="ct">SSN</div><div style="font-size:20px;font-weight:800;color:var(--orange)" x-text="data.security_l1?.output_leakage?.ssn_leaks||0"></div></div>
           <div class="cbox"><div class="ct">Phone</div><div style="font-size:20px;font-weight:800;color:var(--orange)" x-text="data.security_l1?.output_leakage?.phone_leaks||0"></div></div>
           <div class="cbox"><div class="ct">Private IP</div><div style="font-size:20px;font-weight:800;color:var(--yellow)" x-text="data.security_l1?.output_leakage?.private_ip_leaks||0"></div></div>
+          <div class="cbox"><div class="ct">File Path</div><div style="font-size:20px;font-weight:800;color:var(--yellow)" x-text="data.security_l1?.output_leakage?.file_path_leaks||0"></div></div>
         </div>
       </div>
       </div>
@@ -2248,7 +2978,15 @@ textarea.gd-input{height:60px;resize:vertical;font-family:inherit}
         </div>
         <div class="sec">
           <div class="sec-t">📤 유출 유형별</div>
-          <template x-for="[k,v] in [['API Key',data.security_l1?.output_leakage?.api_key_leaks||0],['Password',data.security_l1?.output_leakage?.password_leaks||0],['Email',data.security_l1?.output_leakage?.email_leaks||0],['Phone',data.security_l1?.output_leakage?.phone_leaks||0]]" :key="k">
+          <template x-for="[k,v] in [
+            ['API Key',     data.security_l1?.output_leakage?.api_key_leaks||0],
+            ['Password',    data.security_l1?.output_leakage?.password_leaks||0],
+            ['Credit Card', data.security_l1?.output_leakage?.credit_card_leaks||0],
+            ['Email',       data.security_l1?.output_leakage?.email_leaks||0],
+            ['SSN',         data.security_l1?.output_leakage?.ssn_leaks||0],
+            ['Phone',       data.security_l1?.output_leakage?.phone_leaks||0],
+            ['Private IP',  data.security_l1?.output_leakage?.private_ip_leaks||0]
+          ]" :key="k">
             <div class="drow"><span class="dk" x-text="k"></span><span :style="`color:${v>0?'var(--red)':'var(--green)'}`" x-text="v+'건'"></span></div>
           </template>
         </div>
@@ -3866,24 +4604,32 @@ function app() { return {
         {xaxis:scX, yaxis:{...scY,ticksuffix:'%',range:[0,100]}, ...noLeg});
     }
 
-    // ── Retry distribution ──
-    const atmCnt={};
-    (d.tasks||[]).forEach(t=>{ const a=t.attempts||1; atmCnt[a]=(atmCnt[a]||0)+1; });
-    const atmKeys=Object.keys(atmCnt).map(Number).sort((a,b)=>a-b);
-    this._plt('l2-retry-dist',[{type:'bar',x:atmKeys.map(k=>`${k}회`),y:atmKeys.map(k=>atmCnt[k]),
-      marker:{color:atmKeys.map(k=>k===1?'#4ade80':k<=2?'#facc15':'#f87171')}}],
-      {xaxis:{...scX},yaxis:{...scY,title:{text:'태스크 수',font:{color:TC,size:10}}},...noLeg});
+    // ── Retry distribution (retry_attempts 기준으로 통일) ──
+    const ra = d.agentic?.retry_attempts || [];
+    if (ra.length) {
+      const atmCnt={};
+      ra.forEach(a=>{ const n=a.total_attempts||1; atmCnt[n]=(atmCnt[n]||0)+1; });
+      const atmKeys=Object.keys(atmCnt).map(Number).sort((a,b)=>a-b);
+      this._plt('l2-retry-dist',[{type:'bar',x:atmKeys.map(k=>`${k}회`),y:atmKeys.map(k=>atmCnt[k]),
+        marker:{color:atmKeys.map(k=>k===1?'#4ade80':k<=2?'#facc15':'#f87171')},
+        hovertemplate:'%{x}: %{y}건<extra></extra>'}],
+        {xaxis:{...scX},yaxis:{...scY,title:{text:'태스크 수',font:{color:TC,size:10}},dtick:1},...noLeg});
+    }
 
-    // ── Retry by task type ──
+    // ── Retry by task type (task_id로 tasks와 join) ──
+    const taskTypeMap={};
+    (d.tasks||[]).forEach(t=>{ taskTypeMap[t.task_id]=t.task_type||'unknown'; });
     const typeAtm={};
-    (d.tasks||[]).forEach(t=>{
-      if(!typeAtm[t.task_type]) typeAtm[t.task_type]=[];
-      typeAtm[t.task_type].push(t.attempts||1);
+    ra.forEach(a=>{
+      const tp=taskTypeMap[a.task_id]||'unknown';
+      if(!typeAtm[tp]) typeAtm[tp]=[];
+      typeAtm[tp].push(a.total_attempts||1);
     });
     const taTypes=Object.keys(typeAtm);
     const taAvg=taTypes.map(tp=>+(typeAtm[tp].reduce((s,v)=>s+v,0)/typeAtm[tp].length).toFixed(2));
     this._plt('l2-retry-type',[{type:'bar',orientation:'h',y:taTypes,x:taAvg,
-      marker:{color:taAvg.map(v=>v<=1.2?'#4ade80':v<=1.5?'#facc15':'#f87171')}}],
+      marker:{color:taAvg.map(v=>v<=1.2?'#4ade80':v<=1.5?'#facc15':'#f87171')},
+      hovertemplate:'%{y}: 평균 %{x}회<extra></extra>'}],
       {xaxis:{...scX,title:{text:'평균 시도 횟수',font:{color:TC,size:10}}},yaxis:{...scY,automargin:true},...noLeg,margin:{t:10,b:30,l:120,r:16}});
 
     // ── Latency percentile bar ──
@@ -3932,37 +4678,42 @@ function app() { return {
     }
     // ── TaskType별 latency grouped box ──
     const typeMap={};
-    (d.tasks||[]).forEach(t=>{ const k=t.task_type||'unknown'; (typeMap[k]=typeMap[k]||[]).push(t.execution_time||0); });
+    (d.tasks||[]).filter(t=>t.execution_time>0).forEach(t=>{ const k=t.task_type||'unknown'; (typeMap[k]=typeMap[k]||[]).push(t.execution_time); });
     if (Object.keys(typeMap).length>0) {
       const boxTraces = Object.entries(typeMap).map(([name,vals])=>({
         type:'box', y:vals, name, boxmean:true,
+        boxpoints: vals.length < 10 ? 'all' : 'outliers',
+        jitter: 0.3, pointpos: 0,
         hovertemplate:`${name}<br>%{y:.3f}s<extra></extra>`,
       }));
       this._plt('lat-type-box', boxTraces, {yaxis:{...scY,ticksuffix:'s'}, showlegend:false, margin:{t:10,b:50,l:46,r:10}});
     }
 
-    // ── TaskType별 평균 레이턴시 bar (이전 scatter 대체) ──
-    // accuracy_score가 개별 태스크에서 0인 경우가 많아 scatter 대신
-    // TaskType별 평균·최대·최소 레이턴시를 bar+error bar로 표시
+    // ── TaskType별 P95 레이턴시 bar (SLA 기준선 포함) ──
     const scPts = (d.tasks||[]).filter(t=>t.execution_time>0);
     if(scPts.length>0){
       const byType={};
       scPts.forEach(t=>{byType[t.task_type]=byType[t.task_type]||[];byType[t.task_type].push(t.execution_time);});
+      const pct95=(arr)=>{const s=[...arr].sort((a,b)=>a-b);const idx=0.95*(s.length-1);const lo=Math.floor(idx),hi=Math.ceil(idx);return +(s[lo]+(s[hi]-s[lo])*(idx-lo)).toFixed(3);};
       const tpKeys=Object.keys(byType);
-      const means=tpKeys.map(tp=>{const vs=byType[tp];return +(vs.reduce((s,v)=>s+v,0)/vs.length).toFixed(3);});
-      const errHi=tpKeys.map((tp,i)=>+(Math.max(...byType[tp])-means[i]).toFixed(3));
-      const errLo=tpKeys.map((tp,i)=>+(means[i]-Math.min(...byType[tp])).toFixed(3));
+      const p95vals=tpKeys.map(tp=>pct95(byType[tp]));
+      const thr=this.thresholds.p95;
       const palette=['#6c8ef5','#4ade80','#facc15','#f87171','#a78bfa','#60a5fa','#fb923c','#34d399'];
+      const barColors=p95vals.map(v=>v>thr?'#f8717199':'#6c8ef599');
+      const barBorder=p95vals.map(v=>v>thr?'#f87171':'#6c8ef5');
       this._plt('perf-scatter',[{
-        type:'bar', x:tpKeys, y:means, name:'평균 레이턴시',
-        error_y:{type:'data',symmetric:false,array:errHi,arrayminus:errLo,color:TC,thickness:1.5,width:6},
-        marker:{color:tpKeys.map((_,i)=>palette[i%palette.length]+'99'),
-                line:{color:tpKeys.map((_,i)=>palette[i%palette.length]),width:1}},
-        hovertemplate:'%{x}<br>평균: %{y:.2f}s<extra></extra>',
+        type:'bar', x:tpKeys, y:p95vals, name:'P95 레이턴시',
+        marker:{color:barColors, line:{color:barBorder,width:1}},
+        hovertemplate:'%{x}<br>P95: %{y:.3f}s<extra></extra>',
       }],{
         xaxis:{...scX,tickangle:-20,automargin:true},
-        yaxis:{...scY,title:{text:'레이턴시 (s)',font:{color:TC,size:10}},tickformat:'.2f',ticksuffix:'s'},
-        ...noLeg, margin:{t:10,b:40,l:60,r:16}, height:220
+        yaxis:{...scY,title:{text:'P95 레이턴시 (s)',font:{color:TC,size:10}},tickformat:'.2f',ticksuffix:'s'},
+        ...noLeg, margin:{t:10,b:40,l:60,r:16}, height:220,
+        shapes:[{type:'line',x0:-0.5,x1:tpKeys.length-0.5,xref:'x',y0:thr,y1:thr,
+          line:{color:'#facc15',dash:'dash',width:1.5}}],
+        annotations:[{x:tpKeys.length-0.5,y:thr,xref:'x',yref:'y',
+          text:`SLA 목표: ${thr}s`,showarrow:false,
+          font:{color:'#facc15',size:10},xanchor:'right',yanchor:'bottom'}],
       });
     }
 
@@ -3975,11 +4726,25 @@ function app() { return {
       textinfo:'none'}],
       {height:200, showlegend:true, legend:{font:{color:TC,size:10}}, margin:{t:10,b:10,l:10,r:10}});
 
-    // ── Token histogram ──
-    const tkLst=(d.tasks||[]).map(t=>((t.tokens_used?.total)||(t.tokens_used?.input||0)+(t.tokens_used?.output||0))).filter(v=>v>0);
-    if (tkLst.length) {
-      this._plt('tok-hist', [{type:'histogram', x:tkLst, nbinsx:8, marker:{color:'#6c8ef580',line:{color:'#6c8ef5',width:1}}}],
-        {xaxis:scX, yaxis:scY, ...noLeg});
+    // ── Token bar (task별) ──
+    const tkTasks=(d.tasks||[]).map(t=>({id:t.task_id||'?', tok:(t.tokens_used?.total)||(t.tokens_used?.input||0)+(t.tokens_used?.output||0)||0})).filter(t=>t.tok>0);
+    if (tkTasks.length) {
+      const avg=tkTasks.reduce((s,t)=>s+t.tok,0)/tkTasks.length;
+      this._plt('tok-hist',[{
+        type:'bar', x:tkTasks.map(t=>t.id), y:tkTasks.map(t=>t.tok),
+        marker:{color:tkTasks.map(t=>t.tok>avg*1.5?'#f8717180':t.tok<avg*0.5?'#4ade8080':'#6c8ef580'),
+                line:{color:tkTasks.map(t=>t.tok>avg*1.5?'#f87171':t.tok<avg*0.5?'#4ade80':'#6c8ef5'),width:1}},
+        hovertemplate:'%{x}<br>%{y:,}토큰<extra></extra>',
+      },{
+        type:'scatter', mode:'lines', x:tkTasks.map(t=>t.id), y:tkTasks.map(()=>Math.round(avg)),
+        line:{color:'#facc15',dash:'dash',width:1.5}, name:'평균', hoverinfo:'skip',
+      }],{
+        xaxis:{...scX, tickangle: tkTasks.length>8?-40:0, automargin:true},
+        yaxis:{...scY, title:{text:'토큰 수',font:{color:TC,size:10}}},
+        showlegend:false, margin:{t:10,b:tkTasks.length>8?60:40,l:50,r:10},
+        annotations:[{x:tkTasks[tkTasks.length-1]?.id,y:Math.round(avg),xref:'x',yref:'y',
+          text:`평균 ${Math.round(avg)}`,showarrow:false,font:{color:'#facc15',size:10},xanchor:'right',yanchor:'bottom'}],
+      });
     }
 
     // ── Security radar ──
@@ -4141,17 +4906,18 @@ function app() { return {
       // Use percentage of steps/tasks so bars are always comparable
       const stepsTotal=totalSteps||1;
       const tasksTotal=wfTaskCount||1;
-      const funnelLabels=['태스크 수','단계 수','성공 단계','실패 단계','완료 태스크','미완료 태스크'];
-      const funnelVals=[wfTaskCount, totalSteps, successSteps, failSteps, wfSuccTasks, wfFailTasks];
-      const funnelText=funnelVals.map((v,i)=>{
-        if(i===0) return `${v}개`;
-        if(i===1) return `${v}개 (태스크당 ${totalSteps&&wfTaskCount?(totalSteps/wfTaskCount).toFixed(1):'-'}단계)`;
-        if(i===2) return `${v}개 (${totalSteps?(v/totalSteps*100).toFixed(1):0}%)`;
-        if(i===3) return `${v}개 (${totalSteps?(v/totalSteps*100).toFixed(1):0}%)`;
-        if(i===4) return `${v}개 (${wfTaskCount?(v/wfTaskCount*100).toFixed(1):0}%)`;
-        return `${v}개 (${wfTaskCount?(v/wfTaskCount*100).toFixed(1):0}%)`;
-      });
-      const funnelColors=['#6c8ef5','#818cf8','#4ade80','#f87171','#22c55e','#ef4444'];
+      // 순서: [태스크 그룹] 미완료→완료→태스크 수 / [단계 그룹] 실패→성공→단계 수
+      const funnelLabels=['미완료 태스크','완료 태스크','태스크 수','실패 단계','성공 단계','단계 수'];
+      const funnelVals=[wfFailTasks, wfSuccTasks, wfTaskCount, failSteps, successSteps, totalSteps];
+      const funnelText=[
+        `${wfFailTasks}개 (${wfTaskCount?(wfFailTasks/wfTaskCount*100).toFixed(1):0}%)`,
+        `${wfSuccTasks}개 (${wfTaskCount?(wfSuccTasks/wfTaskCount*100).toFixed(1):0}%)`,
+        `${wfTaskCount}개`,
+        `${failSteps}개 (${totalSteps?(failSteps/totalSteps*100).toFixed(1):0}%)`,
+        `${successSteps}개 (${totalSteps?(successSteps/totalSteps*100).toFixed(1):0}%)`,
+        `${totalSteps}개 (태스크당 ${totalSteps&&wfTaskCount?(totalSteps/wfTaskCount).toFixed(1):'-'}단계)`,
+      ];
+      const funnelColors=['#ef4444','#22c55e','#6c8ef5','#f87171','#4ade80','#818cf8'];
       this._plt('l2-wf-funnel',[{type:'bar',orientation:'h',
         y:funnelLabels,x:funnelVals,text:funnelText,textposition:'inside',insidetextanchor:'middle',
         textfont:{color:'#fff',size:11},
@@ -4489,7 +5255,7 @@ function app() { return {
       quality:     '📊 품질 종합 점수 (0-100)\nTCR + 정확도 + 환각 역점수 + 응답품질의 평균\n높을수록 좋음',
       performance: '⚡ 성능 종합 점수 (0-100)\nP95 레이턴시 기반 지수 감쇠 공식\n1s≈78점 · 2s≈61점 · 5s≈29점 · 데이터 없음=0',
       agentic:     '🤖 에이전틱 종합 점수 (0-100)\nTool F1 + 멀티에이전트 성공률 + 워크플로 성공률 + Tool 효율 평균\n에이전틱 트래커 비활성화 시 0',
-      security:    '🔒 보안 종합 점수 (0-100)\n입력 보안 + 출력 유출 + 권한 준수 점수의 가중 평균\n보안 트래커 비활성화 시 0',
+      security:    '🔒 보안 종합 점수 (0-100)\n입력 보안 + 출력 유출 + 권한 준수 점수의 단순 평균\n보안 트래커 비활성화 시 0',
       insights:    '💡 Insights 경보 건수\n임계값을 초과한 지표 수 (높을수록 주의 필요)',
     };
     return map[id] || '';
@@ -4556,7 +5322,7 @@ function app() { return {
       fill:'toself', fillcolor:'#6c8ef530', line:{color:'#6c8ef5'}, marker:{color:'#6c8ef5'},
     }], {
       polar:{radialaxis:{range:[0,100],tickfont:{color:TC},gridcolor:GC},angularaxis:{tickfont:{color:TC}},bgcolor:'transparent'},
-      paper_bgcolor:'transparent', showlegend:false, height:260, margin:{t:20,b:20,l:40,r:40},
+      paper_bgcolor:'transparent', showlegend:false, height:420, margin:{t:30,b:30,l:50,r:50},
     });
   },
 
@@ -4761,7 +5527,12 @@ function app() { return {
       cnt[fw]=(cnt[fw]||0)+1;
       if (t.success) suc[fw]=(suc[fw]||0)+1;
     });
-    return Object.entries(cnt).map(([name,count])=>({ name, count, rate:count?(suc[name]||0)/count*100:0 })).sort((a,b)=>b.count-a.count);
+    const total = tasks.length || 1;
+    return Object.entries(cnt).map(([name,count])=>({
+      name, count,
+      rate: count?(suc[name]||0)/count*100:0,
+      pct: count/total*100
+    })).sort((a,b)=>b.count-a.count);
   },
 
   // ── Statistical anomaly detection (Z-score) ───────────────────────────

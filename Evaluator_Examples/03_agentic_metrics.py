@@ -453,14 +453,14 @@ def run_agentic_evaluation():
     # record_task는 attempts>1이면 retry_tracker에 등록
     # 더 다양한 패턴을 위해 직접 등록도 추가
     extra_retry_cases = [
-        ("retry_ext_001", [{"success": False, "duration": 1.2}, {"success": False, "duration": 1.5}, {"success": True, "duration": 0.9}]),
-        ("retry_ext_002", [{"success": False, "duration": 2.0}, {"success": True, "duration": 1.1}]),
-        ("retry_ext_003", [{"success": True, "duration": 0.7}]),
-        ("retry_ext_004", [{"success": False, "duration": 3.0}, {"success": False, "duration": 2.5}, {"success": False, "duration": 2.0}]),
-        ("retry_ext_005", [{"success": False, "duration": 1.0}, {"success": True, "duration": 0.8}]),
+        ("retry_ext_001", [{"success": False, "duration": 1.2}, {"success": False, "duration": 1.5}, {"success": True, "duration": 0.9}], "qa"),
+        ("retry_ext_002", [{"success": False, "duration": 2.0}, {"success": True, "duration": 1.1}], "reasoning"),
+        ("retry_ext_003", [{"success": True, "duration": 0.7}], "qa"),
+        ("retry_ext_004", [{"success": False, "duration": 3.0}, {"success": False, "duration": 2.5}, {"success": False, "duration": 2.0}], "tool_use"),
+        ("retry_ext_005", [{"success": False, "duration": 1.0}, {"success": True, "duration": 0.8}], "reasoning"),
     ]
-    for tid, log in extra_retry_cases:
-        monitor.retry_tracker.track_attempts(tid, log)
+    for tid, log, ttype in extra_retry_cases:
+        monitor.retry_tracker.track_attempts(tid, log, task_type=ttype)
 
     # ─── 추가: ToolCallAnalyzer 직접 호출 — 효율성 점수 케이스별 검증 ──────────
     # record_task는 tool_calls 필드가 있으면 analyze_execution()을 자동 호출하지만

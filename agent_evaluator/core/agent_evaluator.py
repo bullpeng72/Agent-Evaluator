@@ -1375,13 +1375,19 @@ class RetryCorrectionTracker:
     def __init__(self):
         self.attempts: List[Dict[str, Any]] = []
     
-    def track_attempts(self, task_id: str, attempts_log: List[Dict[str, Any]]):
+    def track_attempts(
+        self,
+        task_id: str,
+        attempts_log: List[Dict[str, Any]],
+        task_type: str = "unknown",
+    ):
         """Track retry attempts for a task"""
         # DQ-135: 빈 attempts_log는 IndexError 발생 — 단일 성공 시도로 기록하고 조기 반환
         if not attempts_log:
             return
         analysis = {
             "task_id": task_id,
+            "task_type": task_type,
             "total_attempts": len(attempts_log),
             "first_attempt_success": attempts_log[0].get("success", False),
             "final_success": attempts_log[-1].get("success", False),
@@ -1421,9 +1427,13 @@ class RetryCorrectionTracker:
             "correction_success_rate": round(correction_success_rate, 2),
             "avg_attempts_per_task": round(df["total_attempts"].mean(), 2),
             "total_retry_time": round(df["total_retry_time"].sum(), 2),
-            "avg_retry_time": round(df["total_retry_time"].mean(), 2),
-            # Legacy keys for backward compatibility
-            "overall_retry_rate": round(retry_rate, 2),
+            "avg_retry_time": round(
+                df[df["total_attempts"] > 1]["total_retry_time"].mean(), 2
+            ) if tasks_with_retries > 0 else 0.0,
+            # overall_retry_rate: 재시도 횟수 / 총 시도 횟수 × 100
+            "overall_retry_rate": round(
+                (df["total_attempts"].sum() - len(df)) / df["total_attempts"].sum() * 100, 2
+            ) if df["total_attempts"].sum() > 0 else 0.0,
             "avg_retries_per_task": round(df["total_attempts"].mean() - 1, 2)
         }
     

@@ -21,7 +21,7 @@ Layer별 메트릭 상세 설명 및 사용법
 
 **이 가이드는 다음 버전을 기준으로 작성되었습니다:**
 
-  * Agent Evaluator: **v0.6.0**
+  * Agent Evaluator: **v0.6.1**
   * Python: 3.8+
   * DeepEval: 0.20.0+ (선택사항, Layer 3)
   * Ragas: 0.4.0+ (선택사항, Layer 3)
@@ -2412,7 +2412,7 @@ AutoGen | `AutoGenEvaluator` | Evaluator로 Agent 래핑
 
 * * *
 
-**Agent Evaluator v0.6.0**
+**Agent Evaluator v0.6.1**
 
 **최종 업데이트** : 2026-03-23
 

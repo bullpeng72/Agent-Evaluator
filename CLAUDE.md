@@ -5,7 +5,7 @@
 **Agent-Evaluator** is a production-ready Python SDK for evaluating AI agents.
 25개의 성능 지표를 세 개의 레이어(기본/에이전틱/하이브리드)로 측정한다.
 
-- **Version:** 0.6.0 (Beta)
+- **Version:** 0.6.1 (Beta)
 - **Python:** 3.8+
 - **License:** MIT
 - **Author:** Sungwoo Kim
@@ -354,12 +354,26 @@ pytest
 
 ## 📝 변경 이력
 
-### v0.6.0-post (2026-03-23) — 대시보드 품질·RAG·DeepEval 탭 전면 개선
+### v0.6.1 (2026-03-23) — 보안 탭 감사 수정 + 에이전틱/대시보드 개선 일괄 배포
+
+- 🐛 `loader.py` — `file_path_leaks` 누락 수정 (`OutputLeakageDetector.contains_file_path` → 8번째 유출 유형 집계)
+- ✨ 대시보드 보안 탭 — 출력 유출 유형 7개 → 8개 (File Path 카드 추가), L1/L2 레이어 레이블 추가
+- 🔧 보안 종합 점수 툴팁 — `"가중 평균"` → `"단순 평균"` (실제 구현과 일치)
+- 🔧 에이전틱 탭명 재설계: `기본` → `⚡ 실행·재시도`, `심화` → `🎯 도구·협업·흐름`, `통합` → `🔍 실행 트레이스`
+- ✨ 에이전틱 Tool 선택·멀티에이전트·워크플로우 탭 — KPI 클릭 시 계산식 + 상세 패널
+- 🐛 `avg_retry_time` 분모 버그 수정, `overall_retry_rate` 복붙 버그 수정
+- 🐛 `frameworkDist()` 분모 버그 수정 (`data.total_tasks` → `tasks.length`)
+- ✨ 에이전틱 역량 레이더 — 꼭지점 설명·공식 카드 우측 1열 배치
+
+### v0.6.0-post (2026-03-23) — 대시보드 전면 개선 (품질·RAG·DeepEval·에이전틱·보안 탭)
 
 #### 핵심 지표 파이프라인 수정
 - 🐛 `HallucinationDetector.detect_hallucination()` — `request` 파라미터 추가, detection dict에 `"question"` 저장 → 상세 화면에 질문 표시
 - 🐛 `HybridPerformanceMonitor.record_task()` — `request=input_text` 전파 누락 수정
 - 🐛 `PerformanceMonitor.record_task()` — `request=request` 를 `detect_hallucination()` 호출에 전달
+- 🐛 `avg_retry_time` — 전체 태스크로 나누던 버그 수정 → `df[df["total_attempts"]>1]` 필터 후 평균
+- 🐛 `overall_retry_rate` — `retry_rate` 복붙 버그 수정 → `(total_retries/total_attempts)*100` 올바른 공식
+- 🔧 `RetryCorrectionTracker.track_attempts()` — `task_type` 파라미터 추가 (태스크 유형 분포 차트)
 
 #### 대시보드 Quality 탭
 - 🔧 품질 점수 스케일 `/10` → `/5` 통일 (ResponseQualityEvaluator 실제 범위 반영)
@@ -381,6 +395,24 @@ pytest
 - 🔧 지표 요약 바에서 Ragas 지표 제거 (양쪽 티어 모두)
 - 🔧 수직 레이아웃으로 재구성: 📖 지표 설명 → G-Eval 분포 → 지표 요약
 - 🔧 DeepEval 미설치 배너 제거 → "지표 없음" 메시지로 통일
+
+#### 대시보드 에이전틱 탭 전면 개선
+- 🔧 탭 이름 재설계: `기본` → `⚡ 실행·재시도`, `심화` → `🎯 도구·협업·흐름`, `통합` → `🔍 실행 트레이스`
+- 🔧 재시도 탭 — 컬럼 정렬: `<table>` → flexbox `drow` 패턴으로 교체 (Alpine.js `:style` 오버라이드 버그 해결)
+- ✨ Tool 선택 탭 — KPI 클릭 시 계산식 + 태스크 상세 패널 (Alpine.js x-data 기반)
+- ✨ 멀티에이전트 탭 — KPI 클릭 시 계산식 + 인터랙션 상세 패널
+- ✨ 워크플로우 탭 — KPI 클릭 시 계산식 + 단계별 상세 패널 (5개 KPI: 단계수·성공단계·단계성공률·태스크수·태스크완료율)
+- 🔧 워크플로우 퍼널 차트 — 막대 순서 재정렬: 단계 그룹 / 태스크 그룹으로 묶기
+- 🔧 `🏗️ 프레임워크 정보` — 통합 탭 → 심화-워크플로우 탭으로 이동
+- 🐛 `frameworkDist()` 분모 버그 수정: `data.total_tasks` → `tasks.length` (직접 등록 태스크와의 불일치 해결)
+- ✨ 에이전틱 역량 레이더 — 각 꼭지점 설명·공식 카드 우측 1열 배치 (레이더 좌측 + 설명 우측 레이아웃)
+
+#### 대시보드 보안 탭 개선
+- 🐛 `loader.py` `_parse_security_l1()` — `file_path_leaks` 누락 수정 (`contains_file_path` 카운트 추가)
+- ✨ 출력 유출 유형 7개 → 8개 확장: File Path 카드 추가 (tracker 실제 탐지 유형과 일치)
+- ✨ 입력 위협 — `위협 이벤트` KPI 추가 (유형별 합산, 중복 허용) / `위협 입력` KPI 병행 표시 (태스크 기준 중복 제거)
+- 🔧 보안 종합 요약 카드 — L1/L2 레이어 레이블 추가 (입력위협·출력유출·권한준수=L1, 권한상승·공격체인=L2)
+- 🐛 보안 종합 점수 툴팁 — `"가중 평균"` → `"단순 평균"` (실제 구현과 일치)
 
 ### v0.6.0 (2026-03-21) — 4개 프레임워크 완전 지원 + ragas 0.4.x + 의존성 재설계
 

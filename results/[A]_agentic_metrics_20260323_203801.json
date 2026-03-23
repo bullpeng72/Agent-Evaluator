@@ -25,7 +25,7 @@
       ],
       "attempts": 1,
       "errors": [],
-      "timestamp": "2026-03-22T11:43:25.849567",
+      "timestamp": "2026-03-23T17:38:01.067957",
       "agent_interactions": null,
       "chain_steps": null,
       "graph_traversal": null,
@@ -34,7 +34,8 @@
         "web_search"
       ],
       "state_transitions": null,
-      "framework": "langchain"
+      "framework": "langchain",
+      "partial_reason": null
     },
     {
       "task_id": "agent_002_data_lookup",
@@ -72,7 +73,7 @@
       "errors": [
         "execution_error"
       ],
-      "timestamp": "2026-03-22T11:47:25.849567",
+      "timestamp": "2026-03-23T17:42:01.067957",
       "agent_interactions": null,
       "chain_steps": null,
       "graph_traversal": null,
@@ -82,7 +83,8 @@
         "data_query"
       ],
       "state_transitions": null,
-      "framework": "langchain"
+      "framework": "langchain",
+      "partial_reason": null
     },
     {
       "task_id": "agent_003_code_run",
@@ -109,7 +111,7 @@
       ],
       "attempts": 1,
       "errors": [],
-      "timestamp": "2026-03-22T11:51:25.849567",
+      "timestamp": "2026-03-23T17:46:01.067957",
       "agent_interactions": null,
       "chain_steps": null,
       "graph_traversal": null,
@@ -118,7 +120,8 @@
         "code_executor"
       ],
       "state_transitions": null,
-      "framework": "langchain"
+      "framework": "langchain",
+      "partial_reason": null
     },
     {
       "task_id": "agent_004_classify_task",
@@ -145,7 +148,7 @@
       ],
       "attempts": 1,
       "errors": [],
-      "timestamp": "2026-03-22T11:55:25.849567",
+      "timestamp": "2026-03-23T17:50:01.067957",
       "agent_interactions": null,
       "chain_steps": null,
       "graph_traversal": null,
@@ -154,7 +157,8 @@
         "classifier"
       ],
       "state_transitions": null,
-      "framework": "langchain"
+      "framework": "langchain",
+      "partial_reason": null
     },
     {
       "task_id": "agent_005_wrong_tool_1",
@@ -183,7 +187,7 @@
       "errors": [
         "tool_mismatch"
       ],
-      "timestamp": "2026-03-22T11:59:25.849567",
+      "timestamp": "2026-03-23T17:54:01.067957",
       "agent_interactions": null,
       "chain_steps": null,
       "graph_traversal": null,
@@ -192,7 +196,8 @@
         "web_search"
       ],
       "state_transitions": null,
-      "framework": "langchain"
+      "framework": "langchain",
+      "partial_reason": null
     },
     {
       "task_id": "agent_006_wrong_tool_2",
@@ -221,7 +226,7 @@
       "errors": [
         "tool_mismatch"
       ],
-      "timestamp": "2026-03-22T12:03:25.849567",
+      "timestamp": "2026-03-23T17:58:01.067957",
       "agent_interactions": null,
       "chain_steps": null,
       "graph_traversal": null,
@@ -231,7 +236,8 @@
         "chart_generator"
       ],
       "state_transitions": null,
-      "framework": "langchain"
+      "framework": "langchain",
+      "partial_reason": null
     },
     {
       "task_id": "agent_007_partial_match",
@@ -267,7 +273,7 @@
       ],
       "attempts": 1,
       "errors": [],
-      "timestamp": "2026-03-22T12:07:25.849567",
+      "timestamp": "2026-03-23T18:02:01.067957",
       "agent_interactions": null,
       "chain_steps": null,
       "graph_traversal": null,
@@ -277,7 +283,8 @@
         "summarizer"
       ],
       "state_transitions": null,
-      "framework": "langchain"
+      "framework": "langchain",
+      "partial_reason": null
     },
     {
       "task_id": "agent_008_research_hub",
@@ -313,7 +320,7 @@
       ],
       "attempts": 1,
       "errors": [],
-      "timestamp": "2026-03-22T12:11:25.849567",
+      "timestamp": "2026-03-23T18:06:01.067957",
       "agent_interactions": [
         {
           "from_agent": "writer",
@@ -398,7 +405,8 @@
         "summarizer"
       ],
       "state_transitions": null,
-      "framework": "crewai"
+      "framework": "crewai",
+      "partial_reason": null
     },
     {
       "task_id": "agent_009_analysis_hub",
@@ -434,7 +442,7 @@
       ],
       "attempts": 1,
       "errors": [],
-      "timestamp": "2026-03-22T12:15:25.849567",
+      "timestamp": "2026-03-23T18:10:01.067957",
       "agent_interactions": [
         {
           "from_agent": "analyst",
@@ -531,7 +539,8 @@
         "chart_generator"
       ],
       "state_transitions": null,
-      "framework": "crewai"
+      "framework": "crewai",
+      "partial_reason": null
     },
     {
       "task_id": "agent_010_document_hub",
@@ -576,7 +585,7 @@
       ],
       "attempts": 1,
       "errors": [],
-      "timestamp": "2026-03-22T12:19:25.849567",
+      "timestamp": "2026-03-23T18:14:01.067957",
       "agent_interactions": [
         {
           "from_agent": "writer",
@@ -671,7 +680,8 @@
         "report_writer"
       ],
       "state_transitions": null,
-      "framework": "crewai"
+      "framework": "crewai",
+      "partial_reason": null
     },
     {
       "task_id": "agent_011_chain_research",
@@ -716,7 +726,7 @@
       ],
       "attempts": 1,
       "errors": [],
-      "timestamp": "2026-03-22T12:23:25.849567",
+      "timestamp": "2026-03-23T18:18:01.067957",
       "agent_interactions": [
         {
           "from_agent": "writer",
@@ -797,7 +807,8 @@
         "report_writer"
       ],
       "state_transitions": null,
-      "framework": "crewai"
+      "framework": "crewai",
+      "partial_reason": null
     },
     {
       "task_id": "agent_012_chain_analysis",
@@ -852,7 +863,7 @@
       ],
       "attempts": 1,
       "errors": [],
-      "timestamp": "2026-03-22T12:27:25.849567",
+      "timestamp": "2026-03-23T18:22:01.067957",
       "agent_interactions": [
         {
           "from_agent": "writer",
@@ -938,7 +949,8 @@
         "chart_generator"
       ],
       "state_transitions": null,
-      "framework": "crewai"
+      "framework": "crewai",
+      "partial_reason": null
     },
     {
       "task_id": "agent_013_retry_on_fail_1",
@@ -965,7 +977,7 @@
       ],
       "attempts": 2,
       "errors": [],
-      "timestamp": "2026-03-22T12:31:25.849567",
+      "timestamp": "2026-03-23T18:26:01.067957",
       "agent_interactions": null,
       "chain_steps": null,
       "graph_traversal": null,
@@ -974,7 +986,8 @@
         "web_search"
       ],
       "state_transitions": null,
-      "framework": "langchain"
+      "framework": "langchain",
+      "partial_reason": null
     },
     {
       "task_id": "agent_014_retry_on_fail_2",
@@ -1012,7 +1025,7 @@
       "errors": [
         "execution_error"
       ],
-      "timestamp": "2026-03-22T12:35:25.849567",
+      "timestamp": "2026-03-23T18:30:01.067957",
       "agent_interactions": null,
       "chain_steps": null,
       "graph_traversal": null,
@@ -1022,7 +1035,8 @@
         "data_query"
       ],
       "state_transitions": null,
-      "framework": "langchain"
+      "framework": "langchain",
+      "partial_reason": null
     },
     {
       "task_id": "agent_015_retry_success",
@@ -1049,7 +1063,7 @@
       ],
       "attempts": 2,
       "errors": [],
-      "timestamp": "2026-03-22T12:39:25.849567",
+      "timestamp": "2026-03-23T18:34:01.067957",
       "agent_interactions": null,
       "chain_steps": [
         {
@@ -1104,7 +1118,8 @@
         "db_lookup"
       ],
       "state_transitions": null,
-      "framework": "langchain"
+      "framework": "langchain",
+      "partial_reason": null
     },
     {
       "task_id": "agent_016_redundant_calls_1",
@@ -1150,7 +1165,7 @@
       ],
       "attempts": 1,
       "errors": [],
-      "timestamp": "2026-03-22T12:43:25.849567",
+      "timestamp": "2026-03-23T18:38:01.067957",
       "agent_interactions": null,
       "chain_steps": null,
       "graph_traversal": null,
@@ -1160,7 +1175,8 @@
         "doc_reader"
       ],
       "state_transitions": null,
-      "framework": "langchain"
+      "framework": "langchain",
+      "partial_reason": null
     },
     {
       "task_id": "agent_017_redundant_calls_2",
@@ -1197,7 +1213,7 @@
       ],
       "attempts": 1,
       "errors": [],
-      "timestamp": "2026-03-22T12:47:25.849567",
+      "timestamp": "2026-03-23T18:42:01.067957",
       "agent_interactions": null,
       "chain_steps": null,
       "graph_traversal": null,
@@ -1206,7 +1222,8 @@
         "data_query"
       ],
       "state_transitions": null,
-      "framework": "langchain"
+      "framework": "langchain",
+      "partial_reason": null
     },
     {
       "task_id": "agent_018_complex_pipeline",
@@ -1260,7 +1277,7 @@
       ],
       "attempts": 1,
       "errors": [],
-      "timestamp": "2026-03-22T12:51:25.849567",
+      "timestamp": "2026-03-23T18:46:01.067957",
       "agent_interactions": [
         {
           "from_agent": "researcher",
@@ -1382,7 +1399,8 @@
         "report_writer"
       ],
       "state_transitions": null,
-      "framework": "crewai"
+      "framework": "crewai",
+      "partial_reason": null
     },
     {
       "task_id": "agent_019_ml_pipeline",
@@ -1446,7 +1464,7 @@
       ],
       "attempts": 1,
       "errors": [],
-      "timestamp": "2026-03-22T12:55:25.849567",
+      "timestamp": "2026-03-23T18:50:01.067957",
       "agent_interactions": [
         {
           "from_agent": "writer",
@@ -1533,7 +1551,8 @@
         "chart_generator"
       ],
       "state_transitions": null,
-      "framework": "crewai"
+      "framework": "crewai",
+      "partial_reason": null
     },
     {
       "task_id": "agent_020_translation_chain",
@@ -1578,7 +1597,7 @@
       ],
       "attempts": 1,
       "errors": [],
-      "timestamp": "2026-03-22T12:59:25.849567",
+      "timestamp": "2026-03-23T18:54:01.067957",
       "agent_interactions": [
         {
           "from_agent": "writer",
@@ -1657,7 +1676,8 @@
         "summarizer"
       ],
       "state_transitions": null,
-      "framework": "crewai"
+      "framework": "crewai",
+      "partial_reason": null
     },
     {
       "task_id": "agent_021_workflow_fail_1",
@@ -1684,7 +1704,7 @@
       ],
       "attempts": 1,
       "errors": [],
-      "timestamp": "2026-03-22T13:03:25.849567",
+      "timestamp": "2026-03-23T18:58:01.067957",
       "agent_interactions": null,
       "chain_steps": [
         {
@@ -1731,7 +1751,8 @@
         "analysis"
       ],
       "state_transitions": null,
-      "framework": "langchain"
+      "framework": "langchain",
+      "partial_reason": null
     },
     {
       "task_id": "agent_022_workflow_fail_2",
@@ -1758,7 +1779,7 @@
       ],
       "attempts": 2,
       "errors": [],
-      "timestamp": "2026-03-22T13:07:25.849567",
+      "timestamp": "2026-03-23T19:02:01.067957",
       "agent_interactions": null,
       "chain_steps": [
         {
@@ -1814,7 +1835,8 @@
         "summarizer"
       ],
       "state_transitions": null,
-      "framework": "langchain"
+      "framework": "langchain",
+      "partial_reason": null
     },
     {
       "task_id": "agent_023_notification_flow",
@@ -1850,7 +1872,7 @@
       ],
       "attempts": 1,
       "errors": [],
-      "timestamp": "2026-03-22T13:11:25.849567",
+      "timestamp": "2026-03-23T19:06:01.067957",
       "agent_interactions": [
         {
           "from_agent": "orchestrator",
@@ -1932,7 +1954,8 @@
         "email_sender"
       ],
       "state_transitions": null,
-      "framework": "crewai"
+      "framework": "crewai",
+      "partial_reason": null
     },
     {
       "task_id": "agent_024_image_analysis",
@@ -1968,7 +1991,7 @@
       ],
       "attempts": 1,
       "errors": [],
-      "timestamp": "2026-03-22T13:15:25.849567",
+      "timestamp": "2026-03-23T19:10:01.067957",
       "agent_interactions": null,
       "chain_steps": null,
       "graph_traversal": null,
@@ -1978,7 +2001,8 @@
         "classifier"
       ],
       "state_transitions": null,
-      "framework": "langchain"
+      "framework": "langchain",
+      "partial_reason": null
     },
     {
       "task_id": "agent_025_full_report",
@@ -2041,7 +2065,7 @@
       ],
       "attempts": 1,
       "errors": [],
-      "timestamp": "2026-03-22T13:19:25.849567",
+      "timestamp": "2026-03-23T19:14:01.067957",
       "agent_interactions": [
         {
           "from_agent": "researcher",
@@ -2147,14 +2171,15 @@
         "report_writer"
       ],
       "state_transitions": null,
-      "framework": "crewai"
+      "framework": "crewai",
+      "partial_reason": null
     }
   ],
   "pricing": {
     "input": 0.003,
     "output": 0.015
   },
-  "timestamp": "2026-03-22T14:43:25.897970",
+  "timestamp": "2026-03-23T20:38:01.101595",
   "evaluators": {
     "quality": {
       "evaluations": [
@@ -2169,7 +2194,7 @@
           },
           "total_score": 1.93,
           "grade": "F",
-          "timestamp": "2026-03-22 14:43:25.850008"
+          "timestamp": "2026-03-23 20:38:01.068328"
         },
         {
           "task_id": "agent_002_data_lookup",
@@ -2182,7 +2207,7 @@
           },
           "total_score": 1.62,
           "grade": "F",
-          "timestamp": "2026-03-22 14:43:25.850191"
+          "timestamp": "2026-03-23 20:38:01.068468"
         },
         {
           "task_id": "agent_003_code_run",
@@ -2195,7 +2220,7 @@
           },
           "total_score": 2.66,
           "grade": "F",
-          "timestamp": "2026-03-22 14:43:25.850397"
+          "timestamp": "2026-03-23 20:38:01.068605"
         },
         {
           "task_id": "agent_004_classify_task",
@@ -2208,7 +2233,7 @@
           },
           "total_score": 2.51,
           "grade": "F",
-          "timestamp": "2026-03-22 14:43:25.850620"
+          "timestamp": "2026-03-23 20:38:01.068917"
         },
         {
           "task_id": "agent_005_wrong_tool_1",
@@ -2221,7 +2246,7 @@
           },
           "total_score": 1.63,
           "grade": "F",
-          "timestamp": "2026-03-22 14:43:25.850775"
+          "timestamp": "2026-03-23 20:38:01.069023"
         },
         {
           "task_id": "agent_006_wrong_tool_2",
@@ -2234,7 +2259,7 @@
           },
           "total_score": 1.75,
           "grade": "F",
-          "timestamp": "2026-03-22 14:43:25.850924"
+          "timestamp": "2026-03-23 20:38:01.069134"
         },
         {
           "task_id": "agent_007_partial_match",
@@ -2247,7 +2272,7 @@
           },
           "total_score": 2.54,
           "grade": "F",
-          "timestamp": "2026-03-22 14:43:25.853703"
+          "timestamp": "2026-03-23 20:38:01.069258"
         },
         {
           "task_id": "agent_008_research_hub",
@@ -2260,7 +2285,7 @@
           },
           "total_score": 3.13,
           "grade": "D",
-          "timestamp": "2026-03-22 14:43:25.854117"
+          "timestamp": "2026-03-23 20:38:01.069516"
         },
         {
           "task_id": "agent_009_analysis_hub",
@@ -2273,7 +2298,7 @@
           },
           "total_score": 2.6,
           "grade": "F",
-          "timestamp": "2026-03-22 14:43:25.854404"
+          "timestamp": "2026-03-23 20:38:01.069715"
         },
         {
           "task_id": "agent_010_document_hub",
@@ -2286,7 +2311,7 @@
           },
           "total_score": 1.89,
           "grade": "F",
-          "timestamp": "2026-03-22 14:43:25.854658"
+          "timestamp": "2026-03-23 20:38:01.069880"
         },
         {
           "task_id": "agent_011_chain_research",
@@ -2299,7 +2324,7 @@
           },
           "total_score": 2.36,
           "grade": "F",
-          "timestamp": "2026-03-22 14:43:25.854896"
+          "timestamp": "2026-03-23 20:38:01.070040"
         },
         {
           "task_id": "agent_012_chain_analysis",
@@ -2312,7 +2337,7 @@
           },
           "total_score": 2.14,
           "grade": "F",
-          "timestamp": "2026-03-22 14:43:25.855147"
+          "timestamp": "2026-03-23 20:38:01.070218"
         },
         {
           "task_id": "agent_013_retry_on_fail_1",
@@ -2325,7 +2350,7 @@
           },
           "total_score": 2.96,
           "grade": "F",
-          "timestamp": "2026-03-22 14:43:25.855321"
+          "timestamp": "2026-03-23 20:38:01.070359"
         },
         {
           "task_id": "agent_014_retry_on_fail_2",
@@ -2338,7 +2363,7 @@
           },
           "total_score": 1.79,
           "grade": "F",
-          "timestamp": "2026-03-22 14:43:25.855452"
+          "timestamp": "2026-03-23 20:38:01.070453"
         },
         {
           "task_id": "agent_015_retry_success",
@@ -2351,7 +2376,7 @@
           },
           "total_score": 2.69,
           "grade": "F",
-          "timestamp": "2026-03-22 14:43:25.855644"
+          "timestamp": "2026-03-23 20:38:01.070587"
         },
         {
           "task_id": "agent_016_redundant_calls_1",
@@ -2364,7 +2389,7 @@
           },
           "total_score": 2.2,
           "grade": "F",
-          "timestamp": "2026-03-22 14:43:25.855842"
+          "timestamp": "2026-03-23 20:38:01.070716"
         },
         {
           "task_id": "agent_017_redundant_calls_2",
@@ -2377,7 +2402,7 @@
           },
           "total_score": 2.42,
           "grade": "F",
-          "timestamp": "2026-03-22 14:43:25.856059"
+          "timestamp": "2026-03-23 20:38:01.070830"
         },
         {
           "task_id": "agent_018_complex_pipeline",
@@ -2390,7 +2415,7 @@
           },
           "total_score": 2.37,
           "grade": "F",
-          "timestamp": "2026-03-22 14:43:25.856387"
+          "timestamp": "2026-03-23 20:38:01.071008"
         },
         {
           "task_id": "agent_019_ml_pipeline",
@@ -2403,7 +2428,7 @@
           },
           "total_score": 2.78,
           "grade": "F",
-          "timestamp": "2026-03-22 14:43:25.856743"
+          "timestamp": "2026-03-23 20:38:01.071187"
         },
         {
           "task_id": "agent_020_translation_chain",
@@ -2416,7 +2441,7 @@
           },
           "total_score": 2.46,
           "grade": "F",
-          "timestamp": "2026-03-22 14:43:25.857001"
+          "timestamp": "2026-03-23 20:38:01.071350"
         },
         {
           "task_id": "agent_021_workflow_fail_1",
@@ -2429,7 +2454,7 @@
           },
           "total_score": 2.2,
           "grade": "F",
-          "timestamp": "2026-03-22 14:43:25.857177"
+          "timestamp": "2026-03-23 20:38:01.071478"
         },
         {
           "task_id": "agent_022_workflow_fail_2",
@@ -2442,7 +2467,7 @@
           },
           "total_score": 1.68,
           "grade": "F",
-          "timestamp": "2026-03-22 14:43:25.857353"
+          "timestamp": "2026-03-23 20:38:01.071599"
         },
         {
           "task_id": "agent_023_notification_flow",
@@ -2455,7 +2480,7 @@
           },
           "total_score": 2.71,
           "grade": "F",
-          "timestamp": "2026-03-22 14:43:25.857539"
+          "timestamp": "2026-03-23 20:38:01.072975"
         },
         {
           "task_id": "agent_024_image_analysis",
@@ -2468,7 +2493,7 @@
           },
           "total_score": 2.15,
           "grade": "F",
-          "timestamp": "2026-03-22 14:43:25.857709"
+          "timestamp": "2026-03-23 20:38:01.073123"
         },
         {
           "task_id": "agent_025_full_report",
@@ -2481,7 +2506,7 @@
           },
           "total_score": 2.84,
           "grade": "F",
-          "timestamp": "2026-03-22 14:43:25.857989"
+          "timestamp": "2026-03-23 20:38:01.073330"
         }
       ]
     },
@@ -2502,19 +2527,25 @@
               "severity": "medium"
             }
           ],
-          "timestamp": "2026-03-22 14:43:25.849844"
+          "question": "\ucd5c\uc2e0 AI \uc5d0\uc774\uc804\ud2b8 \ud504\ub808\uc784\uc6cc\ud06c \ub3d9\ud5a5\uc744 \uc6f9\uc5d0\uc11c \uac80\uc0c9\ud574 \uc694\uc57d\ud558\uc138\uc694.",
+          "context": "LangGraph, CrewAI, AutoGen \ub3d9\ud5a5 \u2014 \uba40\ud2f0\uc5d0\uc774\uc804\ud2b8\u00b7\ud234 \ud1b5\ud569\u00b7\ud3c9\uac00 \ud30c\uc774\ud504\ub77c\uc778",
+          "timestamp": "2026-03-23 20:38:01.068183"
         },
         {
           "task_id": "agent_002_data_lookup",
           "hallucination_rate": 0.0,
           "indicators": [],
-          "timestamp": "2026-03-22 14:43:25.850139"
+          "question": "\ub370\uc774\ud130\ubca0\uc774\uc2a4\uc5d0\uc11c \uc0ac\uc6a9\uc790 ID 12345\uc758 \ucd5c\uadfc \uc8fc\ubb38 \ub0b4\uc5ed\uc744 \uc870\ud68c\ud558\uc138\uc694.",
+          "context": "\uc0ac\uc6a9\uc790 12345 \ucd5c\uadfc \uc8fc\ubb38 3\uac74, \ub0a0\uc9dc\u00b7\uc0c1\ud488\u00b7\uae08\uc561 \ud3ec\ud568",
+          "timestamp": "2026-03-23 20:38:01.068430"
         },
         {
           "task_id": "agent_003_code_run",
           "hallucination_rate": 0.0,
           "indicators": [],
-          "timestamp": "2026-03-22 14:43:25.850313"
+          "question": "Python \ucf54\ub4dc\ub97c \uc2e4\ud589\ud558\uace0 \uacb0\uacfc\ub97c \ubc18\ud658\ud558\uc138\uc694: sorted([3,1,4,1,5], reverse=True)",
+          "context": "[5, 4, 3, 1, 1] \u2014 \ub0b4\ub9bc\ucc28\uc21c \uc815\ub82c \uacb0\uacfc",
+          "timestamp": "2026-03-23 20:38:01.068548"
         },
         {
           "task_id": "agent_004_classify_task",
@@ -2531,19 +2562,25 @@
               "severity": "medium"
             }
           ],
-          "timestamp": "2026-03-22 14:43:25.850528"
+          "question": "\ud14d\uc2a4\ud2b8 \uac10\uc131\uc744 \ubd84\ub958\ud558\uc138\uc694: '\uc774 \uc81c\ud488\uc740 \uc815\ub9d0 \ub9cc\uc871\uc2a4\ub7fd\uace0 \ub2e4\uc2dc \uad6c\ub9e4\ud558\uace0 \uc2f6\uc2b5\ub2c8\ub2e4.'",
+          "context": "\uae0d\uc815(Positive), \uc2e0\ub8b0\ub3c4 0.97 \uc774\uc0c1",
+          "timestamp": "2026-03-23 20:38:01.068857"
         },
         {
           "task_id": "agent_005_wrong_tool_1",
           "hallucination_rate": 0.0,
           "indicators": [],
-          "timestamp": "2026-03-22 14:43:25.850728"
+          "question": "\ucd5c\uc2e0 AI \ub274\uc2a4\ub97c \uac80\uc0c9\ud574 \uc8fc\uc138\uc694.",
+          "context": "web_search\ub85c \ucd5c\uc2e0 AI \ub274\uc2a4 \uac80\uc0c9 \ud544\uc694",
+          "timestamp": "2026-03-23 20:38:01.068988"
         },
         {
           "task_id": "agent_006_wrong_tool_2",
           "hallucination_rate": 0.0,
           "indicators": [],
-          "timestamp": "2026-03-22 14:43:25.850878"
+          "question": "\uc81c\ud488\ubcc4 \uc6d4\uac04 \ud310\ub9e4\ub7c9 \ub370\uc774\ud130\ub97c \ubd84\uc11d\ud558\uace0 \ucc28\ud2b8\ub97c \uc0dd\uc131\ud558\uc138\uc694.",
+          "context": "data_query\ub85c \ub370\uc774\ud130 \uc870\ud68c \ud6c4 chart_generator\ub85c \uc2dc\uac01\ud654 \ud544\uc694",
+          "timestamp": "2026-03-23 20:38:01.069102"
         },
         {
           "task_id": "agent_007_partial_match",
@@ -2555,7 +2592,9 @@
               "severity": "medium"
             }
           ],
-          "timestamp": "2026-03-22 14:43:25.853569"
+          "question": "\uacbd\uc7c1\uc0ac \uc81c\ud488 \ub9ac\ubdf0\ub97c \uc218\uc9d1\ud558\uace0 \uc694\uc57d\ud558\uc138\uc694.",
+          "context": "web_search + summarizer \uc870\ud569\uc73c\ub85c \ub9ac\ubdf0 \uc218\uc9d1 \ubc0f \uc694\uc57d",
+          "timestamp": "2026-03-23 20:38:01.069206"
         },
         {
           "task_id": "agent_008_research_hub",
@@ -2567,7 +2606,9 @@
               "severity": "high"
             }
           ],
-          "timestamp": "2026-03-22 14:43:25.854009"
+          "question": "AI \uc5d0\uc774\uc804\ud2b8 \uc2dc\uc7a5 \ub3d9\ud5a5 \ubcf4\uace0\uc11c\ub97c \uc791\uc131\ud558\uc138\uc694.",
+          "context": "\uc2dc\uc7a5 \uaddc\ubaa8 $5.2B, \uc5f0\uac04 \uc131\uc7a5\ub960 43%, \uc8fc\uc694 \ud50c\ub808\uc774\uc5b4 \ud3ec\ud568",
+          "timestamp": "2026-03-23 20:38:01.069445"
         },
         {
           "task_id": "agent_009_analysis_hub",
@@ -2579,13 +2620,17 @@
               "severity": "high"
             }
           ],
-          "timestamp": "2026-03-22 14:43:25.854326"
+          "question": "Q4 \ud310\ub9e4 \ub370\uc774\ud130\ub97c \ubd84\uc11d\ud558\uace0 \uc2dc\uac01\ud654 \ubcf4\uace0\uc11c\ub97c \uc791\uc131\ud558\uc138\uc694.",
+          "context": "Q4 \ub9e4\ucd9c 2.1\uc5b5, \uc804\ubd84\uae30 17% \uc131\uc7a5, \uc2dc\uac01\ud654 \ucc28\ud2b8 \ud3ec\ud568",
+          "timestamp": "2026-03-23 20:38:01.069661"
         },
         {
           "task_id": "agent_010_document_hub",
           "hallucination_rate": 0.0,
           "indicators": [],
-          "timestamp": "2026-03-22 14:43:25.854576"
+          "question": "\uae30\uc220 \ubb38\uc11c\ub97c \uc694\uc57d\ud558\uace0 \ubcf4\uace0\uc11c\ub97c \uc0dd\uc131\ud558\uc138\uc694.",
+          "context": "doc_reader\u2192summarizer\u2192report_writer \ud30c\uc774\ud504\ub77c\uc778 \uc131\uacf5, 47\ud398\uc774\uc9c0",
+          "timestamp": "2026-03-23 20:38:01.069830"
         },
         {
           "task_id": "agent_011_chain_research",
@@ -2602,11 +2647,13 @@
               "severity": "high"
             }
           ],
-          "timestamp": "2026-03-22 14:43:25.854820"
+          "question": "\uc2e0\uae30\uc220 \ud2b8\ub80c\ub4dc\ub97c \uc870\uc0ac\ud558\uace0 \ubd84\uc11d \ubcf4\uace0\uc11c\ub97c \uc791\uc131\ud558\uc138\uc694.",
+          "context": "web_search\u2192summarizer\u2192report_writer \uccb4\uc778, 3\ub300 \uae30\uc220 \ud2b8\ub80c\ub4dc \ubcf4\uace0\uc11c",
+          "timestamp": "2026-03-23 20:38:01.069989"
         },
         {
           "task_id": "agent_012_chain_analysis",
-          "hallucination_rate": 1.3333333333333333,
+          "hallucination_rate": 1.0,
           "indicators": [
             {
               "type": "unsupported_claim",
@@ -2629,11 +2676,13 @@
               "severity": "high"
             }
           ],
-          "timestamp": "2026-03-22 14:43:25.855069"
+          "question": "\uace0\uac1d \ud589\ub3d9 \ub370\uc774\ud130\ub97c \ubd84\uc11d\ud558\uace0 \uc138\uadf8\uba3c\ud2b8\ubcc4 \ucc28\ud2b8\ub97c \uc0dd\uc131\ud558\uc138\uc694.",
+          "context": "data_query\u2192classifier\u2192chart_generator, 3\uac1c \uc138\uadf8\uba3c\ud2b8 \ubd84\ub958 \ucc28\ud2b8",
+          "timestamp": "2026-03-23 20:38:01.070164"
         },
         {
           "task_id": "agent_013_retry_on_fail_1",
-          "hallucination_rate": 1.5,
+          "hallucination_rate": 1.0,
           "indicators": [
             {
               "type": "unsupported_claim",
@@ -2651,17 +2700,21 @@
               "severity": "high"
             }
           ],
-          "timestamp": "2026-03-22 14:43:25.855244"
+          "question": "\ub0a0\uc528 API\uc5d0\uc11c \uc11c\uc6b8 \ud604\uc7ac \ub0a0\uc528\ub97c \uac80\uc0c9\ud558\uc138\uc694.",
+          "context": "\uc11c\uc6b8 \ub0a0\uc528 \ub9d1\uc74c 12\u00b0C, \uc7ac\uc2dc\ub3c4 \ud6c4 \uc131\uacf5",
+          "timestamp": "2026-03-23 20:38:01.070291"
         },
         {
           "task_id": "agent_014_retry_on_fail_2",
           "hallucination_rate": 0.0,
           "indicators": [],
-          "timestamp": "2026-03-22 14:43:25.855409"
+          "question": "\ubcf5\uc7a1\ud55c \ub370\uc774\ud130 \ucffc\ub9ac\ub97c \uc2e4\ud589\ud558\uace0 \uacb0\uacfc\ub97c \ubc18\ud658\ud558\uc138\uc694.",
+          "context": "3\ud68c \uc7ac\uc2dc\ub3c4 \ud6c4 \ucd5c\uc885 \uc131\uacf5, 12,847\uac74 \ubc18\ud658",
+          "timestamp": "2026-03-23 20:38:01.070425"
         },
         {
           "task_id": "agent_015_retry_success",
-          "hallucination_rate": 2.0,
+          "hallucination_rate": 1.0,
           "indicators": [
             {
               "type": "unsupported_claim",
@@ -2694,11 +2747,13 @@
               "severity": "high"
             }
           ],
-          "timestamp": "2026-03-22 14:43:25.855564"
+          "question": "\ub370\uc774\ud130\ubca0\uc774\uc2a4\uc5d0\uc11c \ubd80\uc11c\ubcc4 \uc778\uc6d0 \ud604\ud669\uc744 \uc870\ud68c\ud558\uc138\uc694.",
+          "context": "\ubd80\uc11c\ubcc4 \uc778\uc6d0 \uc870\ud68c, \ucd1d 98\uba85 \u2014 \uac1c\ubc1c\ud300 \ucd5c\ub2e4",
+          "timestamp": "2026-03-23 20:38:01.070537"
         },
         {
           "task_id": "agent_016_redundant_calls_1",
-          "hallucination_rate": 3.0,
+          "hallucination_rate": 1.0,
           "indicators": [
             {
               "type": "unsupported_claim",
@@ -2731,11 +2786,13 @@
               "severity": "high"
             }
           ],
-          "timestamp": "2026-03-22 14:43:25.855751"
+          "question": "AI \ucd5c\uc2e0 \ub17c\ubb38\uc744 \uac80\uc0c9\ud558\uace0 \uc8fc\uc694 \ub0b4\uc6a9\uc744 \uc815\ub9ac\ud558\uc138\uc694.",
+          "context": "web_search + doc_reader\ub85c \ub17c\ubb38 \uc218\uc9d1 (\uc911\ubcf5 \ud638\ucd9c \ucd5c\uc18c\ud654 \ud544\uc694)",
+          "timestamp": "2026-03-23 20:38:01.070662"
         },
         {
           "task_id": "agent_017_redundant_calls_2",
-          "hallucination_rate": 1.6666666666666667,
+          "hallucination_rate": 1.0,
           "indicators": [
             {
               "type": "unsupported_claim",
@@ -2763,7 +2820,9 @@
               "severity": "high"
             }
           ],
-          "timestamp": "2026-03-22 14:43:25.855976"
+          "question": "\ud604\uc7ac \uc2dc\uc2a4\ud15c \uc0c1\ud0dc\ub97c \uc810\uac80\ud558\uc138\uc694.",
+          "context": "\ub2e8\uc77c data_query\ub85c \uc2dc\uc2a4\ud15c \uc0c1\ud0dc \uc870\ud68c (CPU\u00b7\uba54\ubaa8\ub9ac\u00b7\ub514\uc2a4\ud06c)",
+          "timestamp": "2026-03-23 20:38:01.070787"
         },
         {
           "task_id": "agent_018_complex_pipeline",
@@ -2775,13 +2834,17 @@
               "severity": "medium"
             }
           ],
-          "timestamp": "2026-03-22 14:43:25.856300"
+          "question": "\uacbd\uc7c1\uc0ac \ube44\uad50 \ubd84\uc11d \uc885\ud569 \ubcf4\uace0\uc11c\ub97c \uc791\uc131\ud558\uc138\uc694.",
+          "context": "5\uc5d0\uc774\uc804\ud2b8 \ud30c\uc774\ud504\ub77c\uc778, \uacbd\uc7c1\uc0ac 3\uc0ac \ube44\uad50 \ubd84\uc11d \ubcf4\uace0\uc11c",
+          "timestamp": "2026-03-23 20:38:01.070960"
         },
         {
           "task_id": "agent_019_ml_pipeline",
           "hallucination_rate": 0.0,
           "indicators": [],
-          "timestamp": "2026-03-22 14:43:25.856643"
+          "question": "\uace0\uac1d \uc774\ud0c8 \uc608\uce21 \ubaa8\ub378\uc744 \ud559\uc2b5\ud558\uace0 \uacb0\uacfc\ub97c \uc2dc\uac01\ud654\ud558\uc138\uc694.",
+          "context": "AUC 0.87, \uc815\ubc00\ub3c4 0.83, \uc7ac\ud604\uc728 0.79, ROC \uace1\uc120 \ud3ec\ud568",
+          "timestamp": "2026-03-23 20:38:01.071131"
         },
         {
           "task_id": "agent_020_translation_chain",
@@ -2798,11 +2861,13 @@
               "severity": "high"
             }
           ],
-          "timestamp": "2026-03-22 14:43:25.856926"
+          "question": "\uc601\ubb38 \uae30\uc220 \ubb38\uc11c\ub97c \ud55c\uad6d\uc5b4\ub85c \ubc88\uc5ed\ud558\uace0 \uc694\uc57d\ud558\uc138\uc694.",
+          "context": "doc_reader\u2192translator\u2192summarizer \uccb4\uc778, 15\ud398\uc774\uc9c0 \ubc88\uc5ed \uc644\ub8cc",
+          "timestamp": "2026-03-23 20:38:01.071288"
         },
         {
           "task_id": "agent_021_workflow_fail_1",
-          "hallucination_rate": 1.5,
+          "hallucination_rate": 1.0,
           "indicators": [
             {
               "type": "unsupported_claim",
@@ -2820,7 +2885,9 @@
               "severity": "high"
             }
           ],
-          "timestamp": "2026-03-22 14:43:25.857112"
+          "question": "\ub9e4\ucd9c \ub370\uc774\ud130\ub97c \ubd84\uc11d\ud558\uace0 \ud575\uc2ec \uc778\uc0ac\uc774\ud2b8\ub97c \ub3c4\ucd9c\ud558\uc138\uc694.",
+          "context": "data_query + analyzer\ub85c \uc644\uc804\ud55c \uc778\uc0ac\uc774\ud2b8 \ub3c4\ucd9c \ud544\uc694",
+          "timestamp": "2026-03-23 20:38:01.071435"
         },
         {
           "task_id": "agent_022_workflow_fail_2",
@@ -2837,7 +2904,9 @@
               "severity": "high"
             }
           ],
-          "timestamp": "2026-03-22 14:43:25.857283"
+          "question": "\ucd5c\uc2e0 \uae30\uc0ac\ub97c \uac80\uc0c9\ud558\uace0 \uc778\uc0ac\uc774\ud2b8\ub97c \uc694\uc57d\ud558\uc138\uc694.",
+          "context": "web_search + summarizer \uc870\ud569 \ud544\uc694, \uc694\uc57d \ubbf8\uc644\uc131",
+          "timestamp": "2026-03-23 20:38:01.071553"
         },
         {
           "task_id": "agent_023_notification_flow",
@@ -2849,7 +2918,9 @@
               "severity": "medium"
             }
           ],
-          "timestamp": "2026-03-22 14:43:25.857476"
+          "question": "VIP \uace0\uac1d \ubaa9\ub85d\uc744 \uc870\ud68c\ud558\uace0 \uc774\uba54\uc77c \uc54c\ub9bc\uc744 \ubc1c\uc1a1\ud558\uc138\uc694.",
+          "context": "db_lookup + email_sender, VIP 127\uba85 \ubc1c\uc1a1 \uc131\uacf5\ub960 99.2%",
+          "timestamp": "2026-03-23 20:38:01.072913"
         },
         {
           "task_id": "agent_024_image_analysis",
@@ -2866,7 +2937,9 @@
               "severity": "medium"
             }
           ],
-          "timestamp": "2026-03-22 14:43:25.857643"
+          "question": "\uc5c5\ub85c\ub4dc\ub41c \uc81c\ud488 \uc774\ubbf8\uc9c0\ub97c \ubd84\uc11d\ud558\uace0 \uce74\ud14c\uace0\ub9ac\ub97c \ubd84\ub958\ud558\uc138\uc694.",
+          "context": "image_analyzer + classifier, \uc804\uc790\uc81c\ud488>\ub178\ud2b8\ubd81 \uc2e0\ub8b0\ub3c4 0.94",
+          "timestamp": "2026-03-23 20:38:01.073066"
         },
         {
           "task_id": "agent_025_full_report",
@@ -2878,7 +2951,9 @@
               "severity": "medium"
             }
           ],
-          "timestamp": "2026-03-22 14:43:25.857922"
+          "question": "\uc2dc\uc7a5 \uc870\uc0ac\ubd80\ud130 \ucd5c\uc885 \ubcf4\uace0\uc11c\uae4c\uc9c0 \uc804\uccb4 \ud30c\uc774\ud504\ub77c\uc778\uc744 \uc2e4\ud589\ud558\uc138\uc694.",
+          "context": "5\uc5d0\uc774\uc804\ud2b8 \ud480 \ud30c\uc774\ud504\ub77c\uc778, 52\ud398\uc774\uc9c0 \ucd5c\uc885 \ubcf4\uace0\uc11c",
+          "timestamp": "2026-03-23 20:38:01.073267"
         }
       ]
     },
@@ -2985,6 +3060,280 @@
             "unknown"
           ],
           "total_retry_time": 0.8
+        }
+      ]
+    },
+    "tool_calls": {
+      "executions": [
+        {
+          "task_id": "agent_001_simple_search",
+          "total_calls": 1,
+          "unique_tools": 1,
+          "redundant_calls": 0,
+          "failed_calls": 0,
+          "avg_call_duration": 0,
+          "efficiency_score": 100.0
+        },
+        {
+          "task_id": "agent_002_data_lookup",
+          "total_calls": 2,
+          "unique_tools": 2,
+          "redundant_calls": 0,
+          "failed_calls": 2,
+          "avg_call_duration": 0,
+          "efficiency_score": 0
+        },
+        {
+          "task_id": "agent_003_code_run",
+          "total_calls": 1,
+          "unique_tools": 1,
+          "redundant_calls": 0,
+          "failed_calls": 0,
+          "avg_call_duration": 0,
+          "efficiency_score": 100.0
+        },
+        {
+          "task_id": "agent_004_classify_task",
+          "total_calls": 1,
+          "unique_tools": 1,
+          "redundant_calls": 0,
+          "failed_calls": 0,
+          "avg_call_duration": 0,
+          "efficiency_score": 100.0
+        },
+        {
+          "task_id": "agent_005_wrong_tool_1",
+          "total_calls": 1,
+          "unique_tools": 1,
+          "redundant_calls": 0,
+          "failed_calls": 1,
+          "avg_call_duration": 0,
+          "efficiency_score": 0
+        },
+        {
+          "task_id": "agent_006_wrong_tool_2",
+          "total_calls": 1,
+          "unique_tools": 1,
+          "redundant_calls": 0,
+          "failed_calls": 0,
+          "avg_call_duration": 0,
+          "efficiency_score": 100.0
+        },
+        {
+          "task_id": "agent_007_partial_match",
+          "total_calls": 2,
+          "unique_tools": 2,
+          "redundant_calls": 0,
+          "failed_calls": 0,
+          "avg_call_duration": 0,
+          "efficiency_score": 100.0
+        },
+        {
+          "task_id": "agent_008_research_hub",
+          "total_calls": 2,
+          "unique_tools": 2,
+          "redundant_calls": 0,
+          "failed_calls": 0,
+          "avg_call_duration": 0,
+          "efficiency_score": 100.0
+        },
+        {
+          "task_id": "agent_009_analysis_hub",
+          "total_calls": 2,
+          "unique_tools": 2,
+          "redundant_calls": 0,
+          "failed_calls": 0,
+          "avg_call_duration": 0,
+          "efficiency_score": 100.0
+        },
+        {
+          "task_id": "agent_010_document_hub",
+          "total_calls": 3,
+          "unique_tools": 3,
+          "redundant_calls": 0,
+          "failed_calls": 0,
+          "avg_call_duration": 0,
+          "efficiency_score": 100.0
+        },
+        {
+          "task_id": "agent_011_chain_research",
+          "total_calls": 3,
+          "unique_tools": 3,
+          "redundant_calls": 0,
+          "failed_calls": 1,
+          "avg_call_duration": 0,
+          "efficiency_score": 66.67
+        },
+        {
+          "task_id": "agent_012_chain_analysis",
+          "total_calls": 4,
+          "unique_tools": 3,
+          "redundant_calls": 1,
+          "failed_calls": 0,
+          "avg_call_duration": 0,
+          "efficiency_score": 75.0
+        },
+        {
+          "task_id": "agent_013_retry_on_fail_1",
+          "total_calls": 1,
+          "unique_tools": 1,
+          "redundant_calls": 0,
+          "failed_calls": 0,
+          "avg_call_duration": 0,
+          "efficiency_score": 100.0
+        },
+        {
+          "task_id": "agent_014_retry_on_fail_2",
+          "total_calls": 2,
+          "unique_tools": 2,
+          "redundant_calls": 0,
+          "failed_calls": 0,
+          "avg_call_duration": 0,
+          "efficiency_score": 100.0
+        },
+        {
+          "task_id": "agent_015_retry_success",
+          "total_calls": 1,
+          "unique_tools": 1,
+          "redundant_calls": 0,
+          "failed_calls": 0,
+          "avg_call_duration": 0,
+          "efficiency_score": 100.0
+        },
+        {
+          "task_id": "agent_016_redundant_calls_1",
+          "total_calls": 3,
+          "unique_tools": 2,
+          "redundant_calls": 1,
+          "failed_calls": 1,
+          "avg_call_duration": 0,
+          "efficiency_score": 33.33
+        },
+        {
+          "task_id": "agent_017_redundant_calls_2",
+          "total_calls": 2,
+          "unique_tools": 1,
+          "redundant_calls": 1,
+          "failed_calls": 0,
+          "avg_call_duration": 0,
+          "efficiency_score": 50.0
+        },
+        {
+          "task_id": "agent_018_complex_pipeline",
+          "total_calls": 4,
+          "unique_tools": 4,
+          "redundant_calls": 0,
+          "failed_calls": 1,
+          "avg_call_duration": 0,
+          "efficiency_score": 75.0
+        },
+        {
+          "task_id": "agent_019_ml_pipeline",
+          "total_calls": 5,
+          "unique_tools": 4,
+          "redundant_calls": 1,
+          "failed_calls": 0,
+          "avg_call_duration": 0,
+          "efficiency_score": 80.0
+        },
+        {
+          "task_id": "agent_020_translation_chain",
+          "total_calls": 3,
+          "unique_tools": 3,
+          "redundant_calls": 0,
+          "failed_calls": 0,
+          "avg_call_duration": 0,
+          "efficiency_score": 100.0
+        },
+        {
+          "task_id": "agent_021_workflow_fail_1",
+          "total_calls": 1,
+          "unique_tools": 1,
+          "redundant_calls": 0,
+          "failed_calls": 0,
+          "avg_call_duration": 0,
+          "efficiency_score": 100.0
+        },
+        {
+          "task_id": "agent_022_workflow_fail_2",
+          "total_calls": 1,
+          "unique_tools": 1,
+          "redundant_calls": 0,
+          "failed_calls": 0,
+          "avg_call_duration": 0,
+          "efficiency_score": 100.0
+        },
+        {
+          "task_id": "agent_023_notification_flow",
+          "total_calls": 2,
+          "unique_tools": 2,
+          "redundant_calls": 0,
+          "failed_calls": 0,
+          "avg_call_duration": 0,
+          "efficiency_score": 100.0
+        },
+        {
+          "task_id": "agent_024_image_analysis",
+          "total_calls": 2,
+          "unique_tools": 2,
+          "redundant_calls": 0,
+          "failed_calls": 0,
+          "avg_call_duration": 0,
+          "efficiency_score": 100.0
+        },
+        {
+          "task_id": "agent_025_full_report",
+          "total_calls": 5,
+          "unique_tools": 5,
+          "redundant_calls": 0,
+          "failed_calls": 1,
+          "avg_call_duration": 0,
+          "efficiency_score": 80.0
+        },
+        {
+          "task_id": "tool_direct_001",
+          "total_calls": 1,
+          "unique_tools": 1,
+          "redundant_calls": 0,
+          "failed_calls": 0,
+          "avg_call_duration": 0.3,
+          "efficiency_score": 100.0
+        },
+        {
+          "task_id": "tool_direct_002",
+          "total_calls": 3,
+          "unique_tools": 3,
+          "redundant_calls": 0,
+          "failed_calls": 0,
+          "avg_call_duration": 0.5,
+          "efficiency_score": 100.0
+        },
+        {
+          "task_id": "tool_direct_003",
+          "total_calls": 3,
+          "unique_tools": 2,
+          "redundant_calls": 1,
+          "failed_calls": 0,
+          "avg_call_duration": 0.3333333333333333,
+          "efficiency_score": 66.67
+        },
+        {
+          "task_id": "tool_direct_004",
+          "total_calls": 3,
+          "unique_tools": 1,
+          "redundant_calls": 2,
+          "failed_calls": 2,
+          "avg_call_duration": 1.9,
+          "efficiency_score": 0
+        },
+        {
+          "task_id": "tool_direct_005",
+          "total_calls": 2,
+          "unique_tools": 2,
+          "redundant_calls": 0,
+          "failed_calls": 2,
+          "avg_call_duration": 1.25,
+          "efficiency_score": 0
         }
       ]
     },
@@ -3459,7 +3808,7 @@
           "to_agent": "researcher",
           "interaction_type": "delegation",
           "success": false,
-          "timestamp": "2026-03-22 14:43:25.853947",
+          "timestamp": "2026-03-23 20:38:01.069402",
           "context": "writer \u2192 researcher \ud611\uc5c5"
         },
         {
@@ -3468,7 +3817,7 @@
           "to_agent": "orchestrator",
           "interaction_type": "delegation",
           "success": true,
-          "timestamp": "2026-03-22 14:43:25.853951",
+          "timestamp": "2026-03-23 20:38:01.069405",
           "context": "writer \u2192 orchestrator \ud611\uc5c5"
         },
         {
@@ -3477,7 +3826,7 @@
           "to_agent": "orchestrator",
           "interaction_type": "delegation",
           "success": true,
-          "timestamp": "2026-03-22 14:43:25.853953",
+          "timestamp": "2026-03-23 20:38:01.069407",
           "context": "writer \u2192 orchestrator \ud611\uc5c5"
         },
         {
@@ -3486,7 +3835,7 @@
           "to_agent": "researcher",
           "interaction_type": "delegation",
           "success": true,
-          "timestamp": "2026-03-22 14:43:25.853955",
+          "timestamp": "2026-03-23 20:38:01.069411",
           "context": "writer \u2192 researcher \ud611\uc5c5"
         },
         {
@@ -3495,7 +3844,7 @@
           "to_agent": "orchestrator",
           "interaction_type": "delegation",
           "success": true,
-          "timestamp": "2026-03-22 14:43:25.854273",
+          "timestamp": "2026-03-23 20:38:01.069620",
           "context": "analyst \u2192 orchestrator \ud611\uc5c5"
         },
         {
@@ -3504,7 +3853,7 @@
           "to_agent": "orchestrator",
           "interaction_type": "delegation",
           "success": true,
-          "timestamp": "2026-03-22 14:43:25.854277",
+          "timestamp": "2026-03-23 20:38:01.069623",
           "context": "analyst \u2192 orchestrator \ud611\uc5c5"
         },
         {
@@ -3513,7 +3862,7 @@
           "to_agent": "analyst",
           "interaction_type": "delegation",
           "success": true,
-          "timestamp": "2026-03-22 14:43:25.854279",
+          "timestamp": "2026-03-23 20:38:01.069624",
           "context": "writer \u2192 analyst \ud611\uc5c5"
         },
         {
@@ -3522,7 +3871,7 @@
           "to_agent": "reviewer",
           "interaction_type": "delegation",
           "success": true,
-          "timestamp": "2026-03-22 14:43:25.854282",
+          "timestamp": "2026-03-23 20:38:01.069627",
           "context": "orchestrator \u2192 reviewer \ud611\uc5c5"
         },
         {
@@ -3531,7 +3880,7 @@
           "to_agent": "writer",
           "interaction_type": "delegation",
           "success": true,
-          "timestamp": "2026-03-22 14:43:25.854285",
+          "timestamp": "2026-03-23 20:38:01.069628",
           "context": "reviewer \u2192 writer \ud611\uc5c5"
         },
         {
@@ -3540,7 +3889,7 @@
           "to_agent": "analyst",
           "interaction_type": "delegation",
           "success": true,
-          "timestamp": "2026-03-22 14:43:25.854287",
+          "timestamp": "2026-03-23 20:38:01.069630",
           "context": "reviewer \u2192 analyst \ud611\uc5c5"
         },
         {
@@ -3549,7 +3898,7 @@
           "to_agent": "writer",
           "interaction_type": "delegation",
           "success": true,
-          "timestamp": "2026-03-22 14:43:25.854288",
+          "timestamp": "2026-03-23 20:38:01.069631",
           "context": "analyst \u2192 writer \ud611\uc5c5"
         },
         {
@@ -3558,7 +3907,7 @@
           "to_agent": "researcher",
           "interaction_type": "delegation",
           "success": true,
-          "timestamp": "2026-03-22 14:43:25.854539",
+          "timestamp": "2026-03-23 20:38:01.069801",
           "context": "writer \u2192 researcher \ud611\uc5c5"
         },
         {
@@ -3567,7 +3916,7 @@
           "to_agent": "writer",
           "interaction_type": "delegation",
           "success": true,
-          "timestamp": "2026-03-22 14:43:25.854542",
+          "timestamp": "2026-03-23 20:38:01.069803",
           "context": "researcher \u2192 writer \ud611\uc5c5"
         },
         {
@@ -3576,7 +3925,7 @@
           "to_agent": "researcher",
           "interaction_type": "delegation",
           "success": true,
-          "timestamp": "2026-03-22 14:43:25.854544",
+          "timestamp": "2026-03-23 20:38:01.069804",
           "context": "writer \u2192 researcher \ud611\uc5c5"
         },
         {
@@ -3585,7 +3934,7 @@
           "to_agent": "orchestrator",
           "interaction_type": "delegation",
           "success": true,
-          "timestamp": "2026-03-22 14:43:25.854546",
+          "timestamp": "2026-03-23 20:38:01.069805",
           "context": "writer \u2192 orchestrator \ud611\uc5c5"
         },
         {
@@ -3594,7 +3943,7 @@
           "to_agent": "analyst",
           "interaction_type": "delegation",
           "success": true,
-          "timestamp": "2026-03-22 14:43:25.854776",
+          "timestamp": "2026-03-23 20:38:01.069960",
           "context": "writer \u2192 analyst \ud611\uc5c5"
         },
         {
@@ -3603,7 +3952,7 @@
           "to_agent": "writer",
           "interaction_type": "delegation",
           "success": true,
-          "timestamp": "2026-03-22 14:43:25.854778",
+          "timestamp": "2026-03-23 20:38:01.069962",
           "context": "researcher \u2192 writer \ud611\uc5c5"
         },
         {
@@ -3612,7 +3961,7 @@
           "to_agent": "analyst",
           "interaction_type": "delegation",
           "success": true,
-          "timestamp": "2026-03-22 14:43:25.855028",
+          "timestamp": "2026-03-23 20:38:01.070132",
           "context": "writer \u2192 analyst \ud611\uc5c5"
         },
         {
@@ -3621,7 +3970,7 @@
           "to_agent": "reviewer",
           "interaction_type": "delegation",
           "success": true,
-          "timestamp": "2026-03-22 14:43:25.855031",
+          "timestamp": "2026-03-23 20:38:01.070134",
           "context": "analyst \u2192 reviewer \ud611\uc5c5"
         },
         {
@@ -3630,7 +3979,7 @@
           "to_agent": "writer",
           "interaction_type": "delegation",
           "success": true,
-          "timestamp": "2026-03-22 14:43:25.855033",
+          "timestamp": "2026-03-23 20:38:01.070136",
           "context": "analyst \u2192 writer \ud611\uc5c5"
         },
         {
@@ -3639,7 +3988,7 @@
           "to_agent": "analyst",
           "interaction_type": "delegation",
           "success": true,
-          "timestamp": "2026-03-22 14:43:25.855035",
+          "timestamp": "2026-03-23 20:38:01.070137",
           "context": "reviewer \u2192 analyst \ud611\uc5c5"
         },
         {
@@ -3648,7 +3997,7 @@
           "to_agent": "analyst",
           "interaction_type": "delegation",
           "success": true,
-          "timestamp": "2026-03-22 14:43:25.856239",
+          "timestamp": "2026-03-23 20:38:01.070921",
           "context": "researcher \u2192 analyst \ud611\uc5c5"
         },
         {
@@ -3657,7 +4006,7 @@
           "to_agent": "researcher",
           "interaction_type": "delegation",
           "success": true,
-          "timestamp": "2026-03-22 14:43:25.856244",
+          "timestamp": "2026-03-23 20:38:01.070923",
           "context": "writer \u2192 researcher \ud611\uc5c5"
         },
         {
@@ -3666,7 +4015,7 @@
           "to_agent": "researcher",
           "interaction_type": "delegation",
           "success": true,
-          "timestamp": "2026-03-22 14:43:25.856246",
+          "timestamp": "2026-03-23 20:38:01.070927",
           "context": "analyst \u2192 researcher \ud611\uc5c5"
         },
         {
@@ -3675,7 +4024,7 @@
           "to_agent": "writer",
           "interaction_type": "delegation",
           "success": true,
-          "timestamp": "2026-03-22 14:43:25.856248",
+          "timestamp": "2026-03-23 20:38:01.070928",
           "context": "orchestrator \u2192 writer \ud611\uc5c5"
         },
         {
@@ -3684,7 +4033,7 @@
           "to_agent": "analyst",
           "interaction_type": "delegation",
           "success": true,
-          "timestamp": "2026-03-22 14:43:25.856250",
+          "timestamp": "2026-03-23 20:38:01.070932",
           "context": "researcher \u2192 analyst \ud611\uc5c5"
         },
         {
@@ -3693,7 +4042,7 @@
           "to_agent": "reviewer",
           "interaction_type": "delegation",
           "success": true,
-          "timestamp": "2026-03-22 14:43:25.856252",
+          "timestamp": "2026-03-23 20:38:01.070933",
           "context": "writer \u2192 reviewer \ud611\uc5c5"
         },
         {
@@ -3702,7 +4051,7 @@
           "to_agent": "analyst",
           "interaction_type": "delegation",
           "success": true,
-          "timestamp": "2026-03-22 14:43:25.856253",
+          "timestamp": "2026-03-23 20:38:01.070934",
           "context": "researcher \u2192 analyst \ud611\uc5c5"
         },
         {
@@ -3711,7 +4060,7 @@
           "to_agent": "reviewer",
           "interaction_type": "delegation",
           "success": true,
-          "timestamp": "2026-03-22 14:43:25.856255",
+          "timestamp": "2026-03-23 20:38:01.070935",
           "context": "analyst \u2192 reviewer \ud611\uc5c5"
         },
         {
@@ -3720,7 +4069,7 @@
           "to_agent": "orchestrator",
           "interaction_type": "delegation",
           "success": true,
-          "timestamp": "2026-03-22 14:43:25.856256",
+          "timestamp": "2026-03-23 20:38:01.070936",
           "context": "reviewer \u2192 orchestrator \ud611\uc5c5"
         },
         {
@@ -3729,7 +4078,7 @@
           "to_agent": "orchestrator",
           "interaction_type": "delegation",
           "success": true,
-          "timestamp": "2026-03-22 14:43:25.856572",
+          "timestamp": "2026-03-23 20:38:01.071096",
           "context": "writer \u2192 orchestrator \ud611\uc5c5"
         },
         {
@@ -3738,7 +4087,7 @@
           "to_agent": "analyst",
           "interaction_type": "delegation",
           "success": true,
-          "timestamp": "2026-03-22 14:43:25.856575",
+          "timestamp": "2026-03-23 20:38:01.071097",
           "context": "writer \u2192 analyst \ud611\uc5c5"
         },
         {
@@ -3747,7 +4096,7 @@
           "to_agent": "orchestrator",
           "interaction_type": "delegation",
           "success": true,
-          "timestamp": "2026-03-22 14:43:25.856578",
+          "timestamp": "2026-03-23 20:38:01.071099",
           "context": "analyst \u2192 orchestrator \ud611\uc5c5"
         },
         {
@@ -3756,7 +4105,7 @@
           "to_agent": "analyst",
           "interaction_type": "delegation",
           "success": true,
-          "timestamp": "2026-03-22 14:43:25.856580",
+          "timestamp": "2026-03-23 20:38:01.071104",
           "context": "orchestrator \u2192 analyst \ud611\uc5c5"
         },
         {
@@ -3765,7 +4114,7 @@
           "to_agent": "researcher",
           "interaction_type": "delegation",
           "success": true,
-          "timestamp": "2026-03-22 14:43:25.856878",
+          "timestamp": "2026-03-23 20:38:01.071263",
           "context": "writer \u2192 researcher \ud611\uc5c5"
         },
         {
@@ -3774,7 +4123,7 @@
           "to_agent": "researcher",
           "interaction_type": "delegation",
           "success": true,
-          "timestamp": "2026-03-22 14:43:25.856881",
+          "timestamp": "2026-03-23 20:38:01.071265",
           "context": "writer \u2192 researcher \ud611\uc5c5"
         },
         {
@@ -3783,7 +4132,7 @@
           "to_agent": "researcher",
           "interaction_type": "delegation",
           "success": true,
-          "timestamp": "2026-03-22 14:43:25.856882",
+          "timestamp": "2026-03-23 20:38:01.071266",
           "context": "writer \u2192 researcher \ud611\uc5c5"
         },
         {
@@ -3792,7 +4141,7 @@
           "to_agent": "analyst",
           "interaction_type": "delegation",
           "success": true,
-          "timestamp": "2026-03-22 14:43:25.857441",
+          "timestamp": "2026-03-23 20:38:01.072872",
           "context": "orchestrator \u2192 analyst \ud611\uc5c5"
         },
         {
@@ -3801,7 +4150,7 @@
           "to_agent": "orchestrator",
           "interaction_type": "delegation",
           "success": true,
-          "timestamp": "2026-03-22 14:43:25.857876",
+          "timestamp": "2026-03-23 20:38:01.073231",
           "context": "researcher \u2192 orchestrator \ud611\uc5c5"
         },
         {
@@ -3810,7 +4159,7 @@
           "to_agent": "writer",
           "interaction_type": "delegation",
           "success": true,
-          "timestamp": "2026-03-22 14:43:25.857878",
+          "timestamp": "2026-03-23 20:38:01.073233",
           "context": "analyst \u2192 writer \ud611\uc5c5"
         },
         {
@@ -3819,7 +4168,7 @@
           "to_agent": "researcher",
           "interaction_type": "delegation",
           "success": true,
-          "timestamp": "2026-03-22 14:43:25.857880",
+          "timestamp": "2026-03-23 20:38:01.073234",
           "context": "orchestrator \u2192 researcher \ud611\uc5c5"
         },
         {
@@ -3828,7 +4177,7 @@
           "to_agent": "orchestrator",
           "interaction_type": "delegation",
           "success": true,
-          "timestamp": "2026-03-22 14:43:25.857882",
+          "timestamp": "2026-03-23 20:38:01.073239",
           "context": "writer \u2192 orchestrator \ud611\uc5c5"
         }
       ]
@@ -3842,7 +4191,7 @@
           "success": true,
           "execution_time": 2.08,
           "framework": "crewai",
-          "timestamp": "2026-03-22 14:43:25.853960",
+          "timestamp": "2026-03-23 20:38:01.069415",
           "metadata": {
             "bottleneck": false
           }
@@ -3854,7 +4203,7 @@
           "success": true,
           "execution_time": 8.688,
           "framework": "crewai",
-          "timestamp": "2026-03-22 14:43:25.853962",
+          "timestamp": "2026-03-23 20:38:01.069417",
           "metadata": {
             "bottleneck": true
           }
@@ -3866,7 +4215,7 @@
           "success": true,
           "execution_time": 1.775,
           "framework": "crewai",
-          "timestamp": "2026-03-22 14:43:25.853964",
+          "timestamp": "2026-03-23 20:38:01.069418",
           "metadata": {
             "bottleneck": false
           }
@@ -3878,7 +4227,7 @@
           "success": false,
           "execution_time": 4.754,
           "framework": "crewai",
-          "timestamp": "2026-03-22 14:43:25.853971",
+          "timestamp": "2026-03-23 20:38:01.069419",
           "metadata": {
             "bottleneck": true
           }
@@ -3890,7 +4239,7 @@
           "success": true,
           "execution_time": 2.873,
           "framework": "crewai",
-          "timestamp": "2026-03-22 14:43:25.853973",
+          "timestamp": "2026-03-23 20:38:01.069420",
           "metadata": {
             "bottleneck": false
           }
@@ -3902,7 +4251,7 @@
           "success": true,
           "execution_time": 2.347,
           "framework": "crewai",
-          "timestamp": "2026-03-22 14:43:25.854291",
+          "timestamp": "2026-03-23 20:38:01.069633",
           "metadata": {
             "bottleneck": false
           }
@@ -3914,7 +4263,7 @@
           "success": true,
           "execution_time": 2.871,
           "framework": "crewai",
-          "timestamp": "2026-03-22 14:43:25.854293",
+          "timestamp": "2026-03-23 20:38:01.069634",
           "metadata": {
             "bottleneck": true
           }
@@ -3926,7 +4275,7 @@
           "success": true,
           "execution_time": 0.682,
           "framework": "crewai",
-          "timestamp": "2026-03-22 14:43:25.854295",
+          "timestamp": "2026-03-23 20:38:01.069638",
           "metadata": {
             "bottleneck": false
           }
@@ -3938,7 +4287,7 @@
           "success": true,
           "execution_time": 4.129,
           "framework": "crewai",
-          "timestamp": "2026-03-22 14:43:25.854297",
+          "timestamp": "2026-03-23 20:38:01.069640",
           "metadata": {
             "bottleneck": true
           }
@@ -3950,7 +4299,7 @@
           "success": true,
           "execution_time": 2.854,
           "framework": "crewai",
-          "timestamp": "2026-03-22 14:43:25.854548",
+          "timestamp": "2026-03-23 20:38:01.069807",
           "metadata": {
             "bottleneck": false
           }
@@ -3962,7 +4311,7 @@
           "success": true,
           "execution_time": 7.35,
           "framework": "crewai",
-          "timestamp": "2026-03-22 14:43:25.854549",
+          "timestamp": "2026-03-23 20:38:01.069808",
           "metadata": {
             "bottleneck": true
           }
@@ -3974,7 +4323,7 @@
           "success": false,
           "execution_time": 0.75,
           "framework": "crewai",
-          "timestamp": "2026-03-22 14:43:25.854551",
+          "timestamp": "2026-03-23 20:38:01.069809",
           "metadata": {
             "bottleneck": false
           }
@@ -3986,7 +4335,7 @@
           "success": true,
           "execution_time": 5.436,
           "framework": "crewai",
-          "timestamp": "2026-03-22 14:43:25.854552",
+          "timestamp": "2026-03-23 20:38:01.069813",
           "metadata": {
             "bottleneck": true
           }
@@ -3998,7 +4347,7 @@
           "success": true,
           "execution_time": 1.425,
           "framework": "crewai",
-          "timestamp": "2026-03-22 14:43:25.854553",
+          "timestamp": "2026-03-23 20:38:01.069814",
           "metadata": {
             "bottleneck": false
           }
@@ -4010,7 +4359,7 @@
           "success": false,
           "execution_time": 0.786,
           "framework": "crewai",
-          "timestamp": "2026-03-22 14:43:25.854555",
+          "timestamp": "2026-03-23 20:38:01.069815",
           "metadata": {
             "bottleneck": false
           }
@@ -4022,7 +4371,7 @@
           "success": true,
           "execution_time": 2.118,
           "framework": "crewai",
-          "timestamp": "2026-03-22 14:43:25.854781",
+          "timestamp": "2026-03-23 20:38:01.069964",
           "metadata": {
             "bottleneck": false
           }
@@ -4034,7 +4383,7 @@
           "success": true,
           "execution_time": 2.648,
           "framework": "crewai",
-          "timestamp": "2026-03-22 14:43:25.854783",
+          "timestamp": "2026-03-23 20:38:01.069965",
           "metadata": {
             "bottleneck": true
           }
@@ -4046,7 +4395,7 @@
           "success": true,
           "execution_time": 1.163,
           "framework": "crewai",
-          "timestamp": "2026-03-22 14:43:25.854784",
+          "timestamp": "2026-03-23 20:38:01.069968",
           "metadata": {
             "bottleneck": false
           }
@@ -4058,7 +4407,7 @@
           "success": true,
           "execution_time": 8.142,
           "framework": "crewai",
-          "timestamp": "2026-03-22 14:43:25.854786",
+          "timestamp": "2026-03-23 20:38:01.069969",
           "metadata": {
             "bottleneck": true
           }
@@ -4070,7 +4419,7 @@
           "success": true,
           "execution_time": 0.962,
           "framework": "crewai",
-          "timestamp": "2026-03-22 14:43:25.854788",
+          "timestamp": "2026-03-23 20:38:01.069970",
           "metadata": {
             "bottleneck": false
           }
@@ -4082,7 +4431,7 @@
           "success": true,
           "execution_time": 2.476,
           "framework": "crewai",
-          "timestamp": "2026-03-22 14:43:25.854792",
+          "timestamp": "2026-03-23 20:38:01.069971",
           "metadata": {
             "bottleneck": false
           }
@@ -4094,7 +4443,7 @@
           "success": true,
           "execution_time": 0.848,
           "framework": "crewai",
-          "timestamp": "2026-03-22 14:43:25.855037",
+          "timestamp": "2026-03-23 20:38:01.070138",
           "metadata": {
             "bottleneck": false
           }
@@ -4106,7 +4455,7 @@
           "success": true,
           "execution_time": 7.208,
           "framework": "crewai",
-          "timestamp": "2026-03-22 14:43:25.855038",
+          "timestamp": "2026-03-23 20:38:01.070139",
           "metadata": {
             "bottleneck": true
           }
@@ -4118,7 +4467,7 @@
           "success": true,
           "execution_time": 2.85,
           "framework": "crewai",
-          "timestamp": "2026-03-22 14:43:25.855040",
+          "timestamp": "2026-03-23 20:38:01.070143",
           "metadata": {
             "bottleneck": false
           }
@@ -4130,7 +4479,7 @@
           "success": false,
           "execution_time": 1.887,
           "framework": "crewai",
-          "timestamp": "2026-03-22 14:43:25.855041",
+          "timestamp": "2026-03-23 20:38:01.070144",
           "metadata": {
             "bottleneck": true
           }
@@ -4142,7 +4491,7 @@
           "success": true,
           "execution_time": 2.942,
           "framework": "crewai",
-          "timestamp": "2026-03-22 14:43:25.855042",
+          "timestamp": "2026-03-23 20:38:01.070145",
           "metadata": {
             "bottleneck": false
           }
@@ -4154,7 +4503,7 @@
           "success": true,
           "execution_time": 1.535,
           "framework": "langchain",
-          "timestamp": "2026-03-22 14:43:25.855528",
+          "timestamp": "2026-03-23 20:38:01.070510",
           "metadata": {
             "bottleneck": false
           }
@@ -4166,7 +4515,7 @@
           "success": true,
           "execution_time": 6.254,
           "framework": "langchain",
-          "timestamp": "2026-03-22 14:43:25.855531",
+          "timestamp": "2026-03-23 20:38:01.070512",
           "metadata": {
             "bottleneck": true
           }
@@ -4178,7 +4527,7 @@
           "success": true,
           "execution_time": 2.561,
           "framework": "langchain",
-          "timestamp": "2026-03-22 14:43:25.855532",
+          "timestamp": "2026-03-23 20:38:01.070513",
           "metadata": {
             "bottleneck": false
           }
@@ -4190,7 +4539,7 @@
           "success": true,
           "execution_time": 7.642,
           "framework": "langchain",
-          "timestamp": "2026-03-22 14:43:25.855533",
+          "timestamp": "2026-03-23 20:38:01.070514",
           "metadata": {
             "bottleneck": true
           }
@@ -4202,7 +4551,7 @@
           "success": true,
           "execution_time": 2.784,
           "framework": "langchain",
-          "timestamp": "2026-03-22 14:43:25.855535",
+          "timestamp": "2026-03-23 20:38:01.070515",
           "metadata": {
             "bottleneck": false
           }
@@ -4214,7 +4563,7 @@
           "success": true,
           "execution_time": 1.217,
           "framework": "crewai",
-          "timestamp": "2026-03-22 14:43:25.856259",
+          "timestamp": "2026-03-23 20:38:01.070937",
           "metadata": {
             "bottleneck": false
           }
@@ -4226,7 +4575,7 @@
           "success": true,
           "execution_time": 8.136,
           "framework": "crewai",
-          "timestamp": "2026-03-22 14:43:25.856261",
+          "timestamp": "2026-03-23 20:38:01.070938",
           "metadata": {
             "bottleneck": true
           }
@@ -4238,7 +4587,7 @@
           "success": true,
           "execution_time": 2.49,
           "framework": "crewai",
-          "timestamp": "2026-03-22 14:43:25.856263",
+          "timestamp": "2026-03-23 20:38:01.070940",
           "metadata": {
             "bottleneck": false
           }
@@ -4250,7 +4599,7 @@
           "success": true,
           "execution_time": 2.996,
           "framework": "crewai",
-          "timestamp": "2026-03-22 14:43:25.856265",
+          "timestamp": "2026-03-23 20:38:01.070941",
           "metadata": {
             "bottleneck": true
           }
@@ -4262,7 +4611,7 @@
           "success": true,
           "execution_time": 1.202,
           "framework": "crewai",
-          "timestamp": "2026-03-22 14:43:25.856266",
+          "timestamp": "2026-03-23 20:38:01.070941",
           "metadata": {
             "bottleneck": false
           }
@@ -4274,7 +4623,7 @@
           "success": true,
           "execution_time": 1.48,
           "framework": "crewai",
-          "timestamp": "2026-03-22 14:43:25.856582",
+          "timestamp": "2026-03-23 20:38:01.071106",
           "metadata": {
             "bottleneck": false
           }
@@ -4286,7 +4635,7 @@
           "success": true,
           "execution_time": 8.579,
           "framework": "crewai",
-          "timestamp": "2026-03-22 14:43:25.856584",
+          "timestamp": "2026-03-23 20:38:01.071107",
           "metadata": {
             "bottleneck": true
           }
@@ -4298,7 +4647,7 @@
           "success": true,
           "execution_time": 1.441,
           "framework": "crewai",
-          "timestamp": "2026-03-22 14:43:25.856586",
+          "timestamp": "2026-03-23 20:38:01.071108",
           "metadata": {
             "bottleneck": false
           }
@@ -4310,7 +4659,7 @@
           "success": true,
           "execution_time": 6.048,
           "framework": "crewai",
-          "timestamp": "2026-03-22 14:43:25.856587",
+          "timestamp": "2026-03-23 20:38:01.071109",
           "metadata": {
             "bottleneck": true
           }
@@ -4322,7 +4671,7 @@
           "success": true,
           "execution_time": 2.816,
           "framework": "crewai",
-          "timestamp": "2026-03-22 14:43:25.856589",
+          "timestamp": "2026-03-23 20:38:01.071109",
           "metadata": {
             "bottleneck": false
           }
@@ -4334,7 +4683,7 @@
           "success": true,
           "execution_time": 1.734,
           "framework": "crewai",
-          "timestamp": "2026-03-22 14:43:25.856884",
+          "timestamp": "2026-03-23 20:38:01.071267",
           "metadata": {
             "bottleneck": false
           }
@@ -4346,7 +4695,7 @@
           "success": true,
           "execution_time": 8.88,
           "framework": "crewai",
-          "timestamp": "2026-03-22 14:43:25.856886",
+          "timestamp": "2026-03-23 20:38:01.071268",
           "metadata": {
             "bottleneck": true
           }
@@ -4358,7 +4707,7 @@
           "success": true,
           "execution_time": 2.397,
           "framework": "crewai",
-          "timestamp": "2026-03-22 14:43:25.856888",
+          "timestamp": "2026-03-23 20:38:01.071269",
           "metadata": {
             "bottleneck": false
           }
@@ -4370,7 +4719,7 @@
           "success": true,
           "execution_time": 4.363,
           "framework": "crewai",
-          "timestamp": "2026-03-22 14:43:25.856896",
+          "timestamp": "2026-03-23 20:38:01.071270",
           "metadata": {
             "bottleneck": true
           }
@@ -4382,7 +4731,7 @@
           "success": true,
           "execution_time": 1.555,
           "framework": "crewai",
-          "timestamp": "2026-03-22 14:43:25.856898",
+          "timestamp": "2026-03-23 20:38:01.071271",
           "metadata": {
             "bottleneck": false
           }
@@ -4394,7 +4743,7 @@
           "success": false,
           "execution_time": 1.282,
           "framework": "langchain",
-          "timestamp": "2026-03-22 14:43:25.857086",
+          "timestamp": "2026-03-23 20:38:01.071411",
           "metadata": {
             "bottleneck": false
           }
@@ -4406,7 +4755,7 @@
           "success": true,
           "execution_time": 5.888,
           "framework": "langchain",
-          "timestamp": "2026-03-22 14:43:25.857089",
+          "timestamp": "2026-03-23 20:38:01.071413",
           "metadata": {
             "bottleneck": true
           }
@@ -4418,7 +4767,7 @@
           "success": true,
           "execution_time": 2.734,
           "framework": "langchain",
-          "timestamp": "2026-03-22 14:43:25.857090",
+          "timestamp": "2026-03-23 20:38:01.071414",
           "metadata": {
             "bottleneck": false
           }
@@ -4430,7 +4779,7 @@
           "success": true,
           "execution_time": 4.008,
           "framework": "langchain",
-          "timestamp": "2026-03-22 14:43:25.857091",
+          "timestamp": "2026-03-23 20:38:01.071415",
           "metadata": {
             "bottleneck": true
           }
@@ -4442,7 +4791,7 @@
           "success": true,
           "execution_time": 1.102,
           "framework": "langchain",
-          "timestamp": "2026-03-22 14:43:25.857253",
+          "timestamp": "2026-03-23 20:38:01.071533",
           "metadata": {
             "bottleneck": false
           }
@@ -4454,7 +4803,7 @@
           "success": true,
           "execution_time": 6.601,
           "framework": "langchain",
-          "timestamp": "2026-03-22 14:43:25.857255",
+          "timestamp": "2026-03-23 20:38:01.071535",
           "metadata": {
             "bottleneck": true
           }
@@ -4466,7 +4815,7 @@
           "success": true,
           "execution_time": 0.69,
           "framework": "langchain",
-          "timestamp": "2026-03-22 14:43:25.857257",
+          "timestamp": "2026-03-23 20:38:01.071536",
           "metadata": {
             "bottleneck": false
           }
@@ -4478,7 +4827,7 @@
           "success": true,
           "execution_time": 5.06,
           "framework": "langchain",
-          "timestamp": "2026-03-22 14:43:25.857258",
+          "timestamp": "2026-03-23 20:38:01.071537",
           "metadata": {
             "bottleneck": true
           }
@@ -4490,7 +4839,7 @@
           "success": true,
           "execution_time": 2.41,
           "framework": "langchain",
-          "timestamp": "2026-03-22 14:43:25.857260",
+          "timestamp": "2026-03-23 20:38:01.071538",
           "metadata": {
             "bottleneck": false
           }
@@ -4502,7 +4851,7 @@
           "success": true,
           "execution_time": 0.955,
           "framework": "crewai",
-          "timestamp": "2026-03-22 14:43:25.857444",
+          "timestamp": "2026-03-23 20:38:01.072876",
           "metadata": {
             "bottleneck": false
           }
@@ -4514,7 +4863,7 @@
           "success": true,
           "execution_time": 1.866,
           "framework": "crewai",
-          "timestamp": "2026-03-22 14:43:25.857446",
+          "timestamp": "2026-03-23 20:38:01.072878",
           "metadata": {
             "bottleneck": true
           }
@@ -4526,7 +4875,7 @@
           "success": true,
           "execution_time": 1.718,
           "framework": "crewai",
-          "timestamp": "2026-03-22 14:43:25.857447",
+          "timestamp": "2026-03-23 20:38:01.072879",
           "metadata": {
             "bottleneck": false
           }
@@ -4538,7 +4887,7 @@
           "success": true,
           "execution_time": 1.681,
           "framework": "crewai",
-          "timestamp": "2026-03-22 14:43:25.857448",
+          "timestamp": "2026-03-23 20:38:01.072880",
           "metadata": {
             "bottleneck": true
           }
@@ -4550,7 +4899,7 @@
           "success": true,
           "execution_time": 2.507,
           "framework": "crewai",
-          "timestamp": "2026-03-22 14:43:25.857450",
+          "timestamp": "2026-03-23 20:38:01.072882",
           "metadata": {
             "bottleneck": false
           }
@@ -4562,7 +4911,7 @@
           "success": true,
           "execution_time": 1.589,
           "framework": "crewai",
-          "timestamp": "2026-03-22 14:43:25.857451",
+          "timestamp": "2026-03-23 20:38:01.072883",
           "metadata": {
             "bottleneck": false
           }
@@ -4574,7 +4923,7 @@
           "success": false,
           "execution_time": 2.805,
           "framework": "crewai",
-          "timestamp": "2026-03-22 14:43:25.857452",
+          "timestamp": "2026-03-23 20:38:01.072884",
           "metadata": {
             "bottleneck": false
           }
@@ -4586,7 +4935,7 @@
           "success": true,
           "execution_time": 2.066,
           "framework": "crewai",
-          "timestamp": "2026-03-22 14:43:25.857888",
+          "timestamp": "2026-03-23 20:38:01.073240",
           "metadata": {
             "bottleneck": false
           }
@@ -4598,7 +4947,7 @@
           "success": true,
           "execution_time": 2.073,
           "framework": "crewai",
-          "timestamp": "2026-03-22 14:43:25.857890",
+          "timestamp": "2026-03-23 20:38:01.073242",
           "metadata": {
             "bottleneck": true
           }
@@ -4610,7 +4959,7 @@
           "success": true,
           "execution_time": 1.665,
           "framework": "crewai",
-          "timestamp": "2026-03-22 14:43:25.857891",
+          "timestamp": "2026-03-23 20:38:01.073243",
           "metadata": {
             "bottleneck": false
           }
@@ -4622,7 +4971,7 @@
           "success": true,
           "execution_time": 7.226,
           "framework": "crewai",
-          "timestamp": "2026-03-22 14:43:25.857893",
+          "timestamp": "2026-03-23 20:38:01.073244",
           "metadata": {
             "bottleneck": true
           }
@@ -4634,7 +4983,7 @@
           "success": true,
           "execution_time": 0.59,
           "framework": "crewai",
-          "timestamp": "2026-03-22 14:43:25.857894",
+          "timestamp": "2026-03-23 20:38:01.073245",
           "metadata": {
             "bottleneck": false
           }
@@ -4646,7 +4995,7 @@
           "success": true,
           "execution_time": 2.319,
           "framework": "crewai",
-          "timestamp": "2026-03-22 14:43:25.857895",
+          "timestamp": "2026-03-23 20:38:01.073246",
           "metadata": {
             "bottleneck": false
           }
@@ -4658,7 +5007,7 @@
           "success": true,
           "execution_time": 2.164,
           "framework": "crewai",
-          "timestamp": "2026-03-22 14:43:25.857896",
+          "timestamp": "2026-03-23 20:38:01.073247",
           "metadata": {
             "bottleneck": false
           }
@@ -4728,6 +5077,7 @@
       0.691
     ]
   },
+  "advanced_metrics_summary": {},
   "total_tasks": 25,
   "accuracy_metrics": {
     "tcr": {
@@ -4743,12 +5093,14 @@
       "median_accuracy": 13.25,
       "min_accuracy": 0.0,
       "max_accuracy": 94.6,
-      "std_accuracy": 41.37
+      "std_accuracy": 41.37,
+      "high_accuracy_count": 6,
+      "low_accuracy_count": 29
     },
     "hallucination": {
-      "overall_rate": 74.0,
+      "overall_rate": 54.0,
       "median_rate": 50.0,
-      "max_rate": 300.0,
+      "max_rate": 100.0,
       "tasks_with_hallucinations": 18,
       "total_tasks_checked": 25,
       "total_evaluated": 25,
@@ -4758,6 +5110,7 @@
     },
     "quality": {
       "avg_total_score": 2.32,
+      "avg_grade": "F",
       "median_total_score": 2.37,
       "min_total_score": 1.62,
       "max_total_score": 3.13,
@@ -4783,8 +5136,8 @@
         "usefulness": 2.96
       },
       "quality_distribution": {
-        "0-6 (Very Poor)": 24,
-        "6-7 (Poor)": 1
+        "0-3.0 (Very Poor)": 24,
+        "3.0-3.5 (Poor)": 1
       }
     }
   },
@@ -4864,11 +5217,11 @@
     },
     {
       "area": "\uc751\ub2f5 \ud488\uc9c8 \uac1c\uc120",
-      "title": "\uc751\ub2f5 \ud488\uc9c8 \uc810\uc218\uac00 \ubaa9\ud45c\uce58 \ub300\ube44 3.4\uc810 \ub0ae\uc74c (10\uc810 \ub9cc\uc810)",
+      "title": "\uc751\ub2f5 \ud488\uc9c8 \uc810\uc218\uac00 \ubaa9\ud45c\uce58 \ub300\ube44 1.7\uc810 \ub0ae\uc74c (5\uc810 \ub9cc\uc810)",
       "priority": "medium",
-      "issue": "\ud604\uc7ac \ud488\uc9c8 \uc810\uc218 4.6/10 (\ubaa9\ud45c: 8.0 \uc774\uc0c1). \uc751\ub2f5\uc758 \uc644\uc131\ub3c4, \uad00\ub828\uc131, \uac00\ub3c5\uc131\uc774 \uc0ac\uc6a9\uc790 \uae30\ub300 \uc218\uc900\uc5d0 \ubbf8\uce58\uc9c0 \ubabb\ud558\uace0 \uc788\uc2b5\ub2c8\ub2e4.",
+      "issue": "\ud604\uc7ac \ud488\uc9c8 \uc810\uc218 2.3/5.0 (\ubaa9\ud45c: 4.0 \uc774\uc0c1). \uc751\ub2f5\uc758 \uc644\uc131\ub3c4, \uad00\ub828\uc131, \uac00\ub3c5\uc131\uc774 \uc0ac\uc6a9\uc790 \uae30\ub300 \uc218\uc900\uc5d0 \ubbf8\uce58\uc9c0 \ubabb\ud558\uace0 \uc788\uc2b5\ub2c8\ub2e4.",
       "suggestion": "**\uc989\uc2dc \uc2e4\ud589 \uac00\ub2a5\ud55c \uac1c\uc120 \ubc29\uc548:**\n1. **\uc751\ub2f5 \uad6c\uc870\ud654 \ud15c\ud50c\ub9bf \uc801\uc6a9**:\n   - \uc9c8\ubb38\ud615 \uc791\uc5c5: \uc9c1\uc811\uc801 \ub2f5\ubcc0 \u2192 \uadfc\uac70 \uc81c\uc2dc \u2192 \ucd94\uac00 \uc815\ubcf4 \uc21c\uc73c\ub85c \uad6c\uc870\ud654\n   - \ubd84\uc11d\ud615 \uc791\uc5c5: \uc694\uc57d \u2192 \uc0c1\uc138 \ubd84\uc11d \u2192 \uacb0\ub860 \ubc0f \uad8c\uc7a5\uc0ac\ud56d \uc21c\uc73c\ub85c \uad6c\uc131\n2. **\uc644\uc131\ub3c4 \uccb4\ud06c\ub9ac\uc2a4\ud2b8 \ub3c4\uc785**:\n   - \uc9c8\ubb38\uc758 \ubaa8\ub4e0 \ubd80\ubd84\uc5d0 \ub2f5\ubcc0\ud588\ub294\uac00?\n   - \uadfc\uac70\ub098 \uc608\uc2dc\uac00 \ucda9\ubd84\ud788 \uc81c\uacf5\ub418\uc5c8\ub294\uac00?\n   - \uacb0\ub860\uc774 \uba85\ud655\ud558\uac8c \uc81c\uc2dc\ub418\uc5c8\ub294\uac00?\n3. **\uad00\ub828\uc131 \uac15\ud654**:\n   - \uc81c\uacf5\ub41c \ucee8\ud14d\uc2a4\ud2b8\ub098 \uc9c8\ubb38\uc5d0\uc11c \ubc97\uc5b4\ub09c \ub0b4\uc6a9 \uc81c\uac70\n   - \ud575\uc2ec \ud0a4\uc6cc\ub4dc\ub97c \uc751\ub2f5\uc5d0 \uc790\uc5f0\uc2a4\ub7fd\uac8c \ud3ec\ud568\n4. **\uac00\ub3c5\uc131 \uac1c\uc120**:\n   - \uae34 \ubb38\uc7a5(50\uc790 \uc774\uc0c1) \ubd84\ud560\n   - \ubd88\ub9bf \ud3ec\uc778\ud2b8\ub098 \ubc88\ud638 \ub9e4\uae30\uae30 \ud65c\uc6a9\n   - \uc804\ubb38 \uc6a9\uc5b4 \uc0ac\uc6a9 \uc2dc \uac04\ub2e8\ud55c \uc124\uba85 \ucd94\uac00\n5. **\uc0ac\uc6a9\uc790 \ub9de\ucda4\ud654**: \uc751\ub2f5 \ud1a4\uacfc \ub514\ud14c\uc77c \uc218\uc900\uc744 \uc0ac\uc6a9\uc790 \ucee8\ud14d\uc2a4\ud2b8\uc5d0 \ub9de\uac8c \uc870\uc815",
-      "impact": "**\uc608\uc0c1 \uac1c\uc120 \ud6a8\uacfc:**\n\u2022 \ud488\uc9c8 \uc810\uc218 8.0 \ub2ec\uc131 \uc2dc \uc0ac\uc6a9\uc790 \uc7ac\uc9c8\ubb38\ub960 30-40% \uac10\uc18c\n\u2022 \uc751\ub2f5 \uc774\ud574\ub3c4 \ud5a5\uc0c1\uc73c\ub85c \uace0\uac1d \uc9c0\uc6d0 \ubb38\uc758 \uc8fc\ub2f9 20-30\uac74 \uac10\uc18c\n\u2022 \uc0ac\uc6a9\uc790 \uc138\uc158 \uc2dc\uac04 15-20% \uc99d\uac00 (\ub9cc\uc871\ub3c4 \ud5a5\uc0c1)\n\u2022 \uc751\ub2f5 \uc7ac\uc791\uc131 \ud544\uc694\uc131 42% \uac10\uc18c\ub85c \uc6b4\uc601 \ud6a8\uc728 \uc99d\ub300"
+      "impact": "**\uc608\uc0c1 \uac1c\uc120 \ud6a8\uacfc:**\n\u2022 \ud488\uc9c8 \uc810\uc218 4.0/5.0 \ub2ec\uc131 \uc2dc \uc0ac\uc6a9\uc790 \uc7ac\uc9c8\ubb38\ub960 30-40% \uac10\uc18c\n\u2022 \uc751\ub2f5 \uc774\ud574\ub3c4 \ud5a5\uc0c1\uc73c\ub85c \uace0\uac1d \uc9c0\uc6d0 \ubb38\uc758 \uc8fc\ub2f9 20-30\uac74 \uac10\uc18c\n\u2022 \uc0ac\uc6a9\uc790 \uc138\uc158 \uc2dc\uac04 15-20% \uc99d\uac00 (\ub9cc\uc871\ub3c4 \ud5a5\uc0c1)\n\u2022 \uc751\ub2f5 \uc7ac\uc791\uc131 \ud544\uc694\uc131 42% \uac10\uc18c\ub85c \uc6b4\uc601 \ud6a8\uc728 \uc99d\ub300"
     },
     {
       "area": "\uc751\ub2f5 \uc2dc\uac04 \ucd5c\uc801\ud654",
@@ -4911,7 +5264,7 @@
     {
       "severity": "critical",
       "metric": "\ud658\uac01 \ubc1c\uc0dd\ub960 (Hallucination)",
-      "message": "\ud658\uac01 \ubc1c\uc0dd\ub960\uc774 74.0%\uc785\ub2c8\ub2e4 (10.0% \uae30\uc900 \ucd08\uacfc)",
+      "message": "\ud658\uac01 \ubc1c\uc0dd\ub960\uc774 54.0%\uc785\ub2c8\ub2e4 (10.0% \uae30\uc900 \ucd08\uacfc)",
       "action": "\uac80\uc99d \ud504\ub85c\uc138\uc2a4\uc640 \uc0ac\uc2e4 \ud655\uc778 \uc808\ucc28\ub97c \uc989\uc2dc \uac15\ud654\ud558\uc138\uc694"
     },
     {
@@ -4959,7 +5312,9 @@
       "median_accuracy": 13.25,
       "min_accuracy": 0.0,
       "max_accuracy": 94.6,
-      "std_accuracy": 41.37
+      "std_accuracy": 41.37,
+      "high_accuracy_count": 6,
+      "low_accuracy_count": 29
     }
   }
 }

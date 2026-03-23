@@ -339,6 +339,7 @@ def _parse_security_l1(raw: dict) -> SecurityL1:
             "ssn_leaks":             sum(1 for e in output_dets if e.get("contains_ssn")),
             "phone_leaks":           sum(1 for e in output_dets if e.get("contains_phone")),
             "private_ip_leaks":      sum(1 for e in output_dets if e.get("contains_private_ip")),
+            "file_path_leaks":       sum(1 for e in output_dets if e.get("contains_file_path")),
             "critical_severity_count": sum(1 for e in output_dets if e.get("severity") == "critical"),
             "high_severity_count":     sum(1 for e in output_dets if e.get("severity") == "high"),
         }

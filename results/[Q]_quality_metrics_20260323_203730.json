@@ -15,14 +15,15 @@
       "tool_calls": [],
       "attempts": 1,
       "errors": [],
-      "timestamp": "2026-03-22T12:43:15.968065",
+      "timestamp": "2026-03-23T18:37:30.740317",
       "agent_interactions": null,
       "chain_steps": null,
       "graph_traversal": null,
       "conversation_turns": null,
       "expected_tools": null,
       "state_transitions": null,
-      "framework": "native"
+      "framework": "native",
+      "partial_reason": null
     },
     {
       "task_id": "quality_002",
@@ -39,14 +40,15 @@
       "tool_calls": [],
       "attempts": 1,
       "errors": [],
-      "timestamp": "2026-03-22T12:46:15.968065",
+      "timestamp": "2026-03-23T18:40:30.740317",
       "agent_interactions": null,
       "chain_steps": null,
       "graph_traversal": null,
       "conversation_turns": null,
       "expected_tools": null,
       "state_transitions": null,
-      "framework": "native"
+      "framework": "native",
+      "partial_reason": null
     },
     {
       "task_id": "quality_003",
@@ -63,14 +65,15 @@
       "tool_calls": [],
       "attempts": 1,
       "errors": [],
-      "timestamp": "2026-03-22T12:49:15.968065",
+      "timestamp": "2026-03-23T18:43:30.740317",
       "agent_interactions": null,
       "chain_steps": null,
       "graph_traversal": null,
       "conversation_turns": null,
       "expected_tools": null,
       "state_transitions": null,
-      "framework": "native"
+      "framework": "native",
+      "partial_reason": null
     },
     {
       "task_id": "quality_004",
@@ -87,14 +90,15 @@
       "tool_calls": [],
       "attempts": 1,
       "errors": [],
-      "timestamp": "2026-03-22T12:52:15.968065",
+      "timestamp": "2026-03-23T18:46:30.740317",
       "agent_interactions": null,
       "chain_steps": null,
       "graph_traversal": null,
       "conversation_turns": null,
       "expected_tools": null,
       "state_transitions": null,
-      "framework": "native"
+      "framework": "native",
+      "partial_reason": null
     },
     {
       "task_id": "quality_005",
@@ -111,14 +115,15 @@
       "tool_calls": [],
       "attempts": 1,
       "errors": [],
-      "timestamp": "2026-03-22T12:55:15.968065",
+      "timestamp": "2026-03-23T18:49:30.740317",
       "agent_interactions": null,
       "chain_steps": null,
       "graph_traversal": null,
       "conversation_turns": null,
       "expected_tools": null,
       "state_transitions": null,
-      "framework": "native"
+      "framework": "native",
+      "partial_reason": null
     },
     {
       "task_id": "quality_006",
@@ -135,14 +140,15 @@
       "tool_calls": [],
       "attempts": 1,
       "errors": [],
-      "timestamp": "2026-03-22T12:58:15.968065",
+      "timestamp": "2026-03-23T18:52:30.740317",
       "agent_interactions": null,
       "chain_steps": null,
       "graph_traversal": null,
       "conversation_turns": null,
       "expected_tools": null,
       "state_transitions": null,
-      "framework": "native"
+      "framework": "native",
+      "partial_reason": null
     },
     {
       "task_id": "quality_007",
@@ -159,14 +165,15 @@
       "tool_calls": [],
       "attempts": 1,
       "errors": [],
-      "timestamp": "2026-03-22T13:01:15.968065",
+      "timestamp": "2026-03-23T18:55:30.740317",
       "agent_interactions": null,
       "chain_steps": null,
       "graph_traversal": null,
       "conversation_turns": null,
       "expected_tools": null,
       "state_transitions": null,
-      "framework": "native"
+      "framework": "native",
+      "partial_reason": null
     },
     {
       "task_id": "quality_008",
@@ -183,14 +190,15 @@
       "tool_calls": [],
       "attempts": 1,
       "errors": [],
-      "timestamp": "2026-03-22T13:04:15.968065",
+      "timestamp": "2026-03-23T18:58:30.740317",
       "agent_interactions": null,
       "chain_steps": null,
       "graph_traversal": null,
       "conversation_turns": null,
       "expected_tools": null,
       "state_transitions": null,
-      "framework": "native"
+      "framework": "native",
+      "partial_reason": null
     },
     {
       "task_id": "quality_009",
@@ -207,14 +215,15 @@
       "tool_calls": [],
       "attempts": 1,
       "errors": [],
-      "timestamp": "2026-03-22T13:07:15.968065",
+      "timestamp": "2026-03-23T19:01:30.740317",
       "agent_interactions": null,
       "chain_steps": null,
       "graph_traversal": null,
       "conversation_turns": null,
       "expected_tools": null,
       "state_transitions": null,
-      "framework": "native"
+      "framework": "native",
+      "partial_reason": null
     },
     {
       "task_id": "quality_010",
@@ -231,14 +240,15 @@
       "tool_calls": [],
       "attempts": 1,
       "errors": [],
-      "timestamp": "2026-03-22T13:10:15.968065",
+      "timestamp": "2026-03-23T19:04:30.740317",
       "agent_interactions": null,
       "chain_steps": null,
       "graph_traversal": null,
       "conversation_turns": null,
       "expected_tools": null,
       "state_transitions": null,
-      "framework": "native"
+      "framework": "native",
+      "partial_reason": null
     },
     {
       "task_id": "quality_011",
@@ -255,14 +265,15 @@
       "tool_calls": [],
       "attempts": 1,
       "errors": [],
-      "timestamp": "2026-03-22T13:13:15.968065",
+      "timestamp": "2026-03-23T19:07:30.740317",
       "agent_interactions": null,
       "chain_steps": null,
       "graph_traversal": null,
       "conversation_turns": null,
       "expected_tools": null,
       "state_transitions": null,
-      "framework": "native"
+      "framework": "native",
+      "partial_reason": null
     },
     {
       "task_id": "quality_012",
@@ -279,14 +290,15 @@
       "tool_calls": [],
       "attempts": 1,
       "errors": [],
-      "timestamp": "2026-03-22T13:16:15.968065",
+      "timestamp": "2026-03-23T19:10:30.740317",
       "agent_interactions": null,
       "chain_steps": null,
       "graph_traversal": null,
       "conversation_turns": null,
       "expected_tools": null,
       "state_transitions": null,
-      "framework": "native"
+      "framework": "native",
+      "partial_reason": null
     },
     {
       "task_id": "quality_013",
@@ -303,14 +315,15 @@
       "tool_calls": [],
       "attempts": 1,
       "errors": [],
-      "timestamp": "2026-03-22T13:19:15.968065",
+      "timestamp": "2026-03-23T19:13:30.740317",
       "agent_interactions": null,
       "chain_steps": null,
       "graph_traversal": null,
       "conversation_turns": null,
       "expected_tools": null,
       "state_transitions": null,
-      "framework": "native"
+      "framework": "native",
+      "partial_reason": null
     },
     {
       "task_id": "quality_014",
@@ -329,14 +342,15 @@
       "errors": [
         "hallucination_quality_issue"
       ],
-      "timestamp": "2026-03-22T13:22:15.968065",
+      "timestamp": "2026-03-23T19:16:30.740317",
       "agent_interactions": null,
       "chain_steps": null,
       "graph_traversal": null,
       "conversation_turns": null,
       "expected_tools": null,
       "state_transitions": null,
-      "framework": "native"
+      "framework": "native",
+      "partial_reason": null
     },
     {
       "task_id": "quality_015",
@@ -355,14 +369,15 @@
       "errors": [
         "hallucination_quality_issue"
       ],
-      "timestamp": "2026-03-22T13:25:15.968065",
+      "timestamp": "2026-03-23T19:19:30.740317",
       "agent_interactions": null,
       "chain_steps": null,
       "graph_traversal": null,
       "conversation_turns": null,
       "expected_tools": null,
       "state_transitions": null,
-      "framework": "native"
+      "framework": "native",
+      "partial_reason": null
     },
     {
       "task_id": "quality_016",
@@ -381,14 +396,15 @@
       "errors": [
         "hallucination_quality_issue"
       ],
-      "timestamp": "2026-03-22T13:28:15.968065",
+      "timestamp": "2026-03-23T19:22:30.740317",
       "agent_interactions": null,
       "chain_steps": null,
       "graph_traversal": null,
       "conversation_turns": null,
       "expected_tools": null,
       "state_transitions": null,
-      "framework": "native"
+      "framework": "native",
+      "partial_reason": null
     },
     {
       "task_id": "quality_017",
@@ -407,14 +423,15 @@
       "errors": [
         "hallucination_quality_issue"
       ],
-      "timestamp": "2026-03-22T13:31:15.968065",
+      "timestamp": "2026-03-23T19:25:30.740317",
       "agent_interactions": null,
       "chain_steps": null,
       "graph_traversal": null,
       "conversation_turns": null,
       "expected_tools": null,
       "state_transitions": null,
-      "framework": "native"
+      "framework": "native",
+      "partial_reason": null
     },
     {
       "task_id": "quality_018",
@@ -433,14 +450,15 @@
       "errors": [
         "low_quality_quality_issue"
       ],
-      "timestamp": "2026-03-22T13:34:15.968065",
+      "timestamp": "2026-03-23T19:28:30.740317",
       "agent_interactions": null,
       "chain_steps": null,
       "graph_traversal": null,
       "conversation_turns": null,
       "expected_tools": null,
       "state_transitions": null,
-      "framework": "native"
+      "framework": "native",
+      "partial_reason": null
     },
     {
       "task_id": "quality_019",
@@ -459,14 +477,15 @@
       "errors": [
         "low_quality_quality_issue"
       ],
-      "timestamp": "2026-03-22T13:37:15.968065",
+      "timestamp": "2026-03-23T19:31:30.740317",
       "agent_interactions": null,
       "chain_steps": null,
       "graph_traversal": null,
       "conversation_turns": null,
       "expected_tools": null,
       "state_transitions": null,
-      "framework": "native"
+      "framework": "native",
+      "partial_reason": null
     },
     {
       "task_id": "quality_020",
@@ -485,14 +504,15 @@
       "errors": [
         "low_quality_quality_issue"
       ],
-      "timestamp": "2026-03-22T13:40:15.968065",
+      "timestamp": "2026-03-23T19:34:30.740317",
       "agent_interactions": null,
       "chain_steps": null,
       "graph_traversal": null,
       "conversation_turns": null,
       "expected_tools": null,
       "state_transitions": null,
-      "framework": "native"
+      "framework": "native",
+      "partial_reason": null
     },
     {
       "task_id": "quality_code_001",
@@ -509,14 +529,15 @@
       "tool_calls": [],
       "attempts": 1,
       "errors": [],
-      "timestamp": "2026-03-22T13:43:15.968065",
+      "timestamp": "2026-03-23T19:37:30.740317",
       "agent_interactions": null,
       "chain_steps": null,
       "graph_traversal": null,
       "conversation_turns": null,
       "expected_tools": null,
       "state_transitions": null,
-      "framework": "native"
+      "framework": "native",
+      "partial_reason": null
     },
     {
       "task_id": "quality_code_002",
@@ -533,14 +554,15 @@
       "tool_calls": [],
       "attempts": 1,
       "errors": [],
-      "timestamp": "2026-03-22T13:43:15.968065",
+      "timestamp": "2026-03-23T19:37:30.740317",
       "agent_interactions": null,
       "chain_steps": null,
       "graph_traversal": null,
       "conversation_turns": null,
       "expected_tools": null,
       "state_transitions": null,
-      "framework": "native"
+      "framework": "native",
+      "partial_reason": null
     },
     {
       "task_id": "quality_code_003",
@@ -559,14 +581,15 @@
       "errors": [
         "code_mismatch"
       ],
-      "timestamp": "2026-03-22T13:43:15.968065",
+      "timestamp": "2026-03-23T19:37:30.740317",
       "agent_interactions": null,
       "chain_steps": null,
       "graph_traversal": null,
       "conversation_turns": null,
       "expected_tools": null,
       "state_transitions": null,
-      "framework": "native"
+      "framework": "native",
+      "partial_reason": null
     },
     {
       "task_id": "quality_code_004",
@@ -583,14 +606,15 @@
       "tool_calls": [],
       "attempts": 1,
       "errors": [],
-      "timestamp": "2026-03-22T13:43:15.968065",
+      "timestamp": "2026-03-23T19:37:30.740317",
       "agent_interactions": null,
       "chain_steps": null,
       "graph_traversal": null,
       "conversation_turns": null,
       "expected_tools": null,
       "state_transitions": null,
-      "framework": "native"
+      "framework": "native",
+      "partial_reason": null
     },
     {
       "task_id": "quality_code_005",
@@ -609,21 +633,22 @@
       "errors": [
         "code_mismatch"
       ],
-      "timestamp": "2026-03-22T13:43:15.968065",
+      "timestamp": "2026-03-23T19:37:30.740317",
       "agent_interactions": null,
       "chain_steps": null,
       "graph_traversal": null,
       "conversation_turns": null,
       "expected_tools": null,
       "state_transitions": null,
-      "framework": "native"
+      "framework": "native",
+      "partial_reason": null
     }
   ],
   "pricing": {
     "input": 0.003,
     "output": 0.015
   },
-  "timestamp": "2026-03-22T14:43:16.013416",
+  "timestamp": "2026-03-23T20:37:30.804911",
   "evaluators": {
     "quality": {
       "evaluations": [
@@ -638,7 +663,7 @@
           },
           "total_score": 2.53,
           "grade": "F",
-          "timestamp": "2026-03-22 14:43:15.968514"
+          "timestamp": "2026-03-23 20:37:30.740661"
         },
         {
           "task_id": "quality_002",
@@ -651,7 +676,7 @@
           },
           "total_score": 1.49,
           "grade": "F",
-          "timestamp": "2026-03-22 14:43:15.969393"
+          "timestamp": "2026-03-23 20:37:30.742468"
         },
         {
           "task_id": "quality_003",
@@ -664,7 +689,7 @@
           },
           "total_score": 1.67,
           "grade": "F",
-          "timestamp": "2026-03-22 14:43:15.969557"
+          "timestamp": "2026-03-23 20:37:30.742592"
         },
         {
           "task_id": "quality_004",
@@ -677,7 +702,7 @@
           },
           "total_score": 1.56,
           "grade": "F",
-          "timestamp": "2026-03-22 14:43:15.970203"
+          "timestamp": "2026-03-23 20:37:30.743046"
         },
         {
           "task_id": "quality_005",
@@ -690,7 +715,7 @@
           },
           "total_score": 2.6,
           "grade": "F",
-          "timestamp": "2026-03-22 14:43:15.971216"
+          "timestamp": "2026-03-23 20:37:30.743788"
         },
         {
           "task_id": "quality_006",
@@ -703,7 +728,7 @@
           },
           "total_score": 2.42,
           "grade": "F",
-          "timestamp": "2026-03-22 14:43:15.971705"
+          "timestamp": "2026-03-23 20:37:30.744134"
         },
         {
           "task_id": "quality_007",
@@ -716,7 +741,7 @@
           },
           "total_score": 1.89,
           "grade": "F",
-          "timestamp": "2026-03-22 14:43:15.972249"
+          "timestamp": "2026-03-23 20:37:30.744538"
         },
         {
           "task_id": "quality_008",
@@ -729,7 +754,7 @@
           },
           "total_score": 2.23,
           "grade": "F",
-          "timestamp": "2026-03-22 14:43:15.972902"
+          "timestamp": "2026-03-23 20:37:30.745000"
         },
         {
           "task_id": "quality_009",
@@ -742,7 +767,7 @@
           },
           "total_score": 2.49,
           "grade": "F",
-          "timestamp": "2026-03-22 14:43:15.973042"
+          "timestamp": "2026-03-23 20:37:30.745097"
         },
         {
           "task_id": "quality_010",
@@ -755,7 +780,7 @@
           },
           "total_score": 0.67,
           "grade": "F",
-          "timestamp": "2026-03-22 14:43:15.973937"
+          "timestamp": "2026-03-23 20:37:30.745741"
         },
         {
           "task_id": "quality_011",
@@ -768,7 +793,7 @@
           },
           "total_score": 1.92,
           "grade": "F",
-          "timestamp": "2026-03-22 14:43:15.974654"
+          "timestamp": "2026-03-23 20:37:30.746243"
         },
         {
           "task_id": "quality_012",
@@ -781,7 +806,7 @@
           },
           "total_score": 1.85,
           "grade": "F",
-          "timestamp": "2026-03-22 14:43:15.975212"
+          "timestamp": "2026-03-23 20:37:30.746669"
         },
         {
           "task_id": "quality_013",
@@ -794,7 +819,7 @@
           },
           "total_score": 0.78,
           "grade": "F",
-          "timestamp": "2026-03-22 14:43:15.975917"
+          "timestamp": "2026-03-23 20:37:30.747169"
         },
         {
           "task_id": "quality_014",
@@ -807,7 +832,7 @@
           },
           "total_score": 2.66,
           "grade": "F",
-          "timestamp": "2026-03-22 14:43:15.976483"
+          "timestamp": "2026-03-23 20:37:30.747567"
         },
         {
           "task_id": "quality_015",
@@ -820,7 +845,7 @@
           },
           "total_score": 2.89,
           "grade": "F",
-          "timestamp": "2026-03-22 14:43:15.977073"
+          "timestamp": "2026-03-23 20:37:30.747990"
         },
         {
           "task_id": "quality_016",
@@ -833,7 +858,7 @@
           },
           "total_score": 2.2,
           "grade": "F",
-          "timestamp": "2026-03-22 14:43:15.977387"
+          "timestamp": "2026-03-23 20:37:30.748236"
         },
         {
           "task_id": "quality_017",
@@ -846,7 +871,7 @@
           },
           "total_score": 2.29,
           "grade": "F",
-          "timestamp": "2026-03-22 14:43:15.978053"
+          "timestamp": "2026-03-23 20:37:30.748604"
         },
         {
           "task_id": "quality_018",
@@ -859,7 +884,7 @@
           },
           "total_score": 1.87,
           "grade": "F",
-          "timestamp": "2026-03-22 14:43:15.978146"
+          "timestamp": "2026-03-23 20:37:30.748667"
         },
         {
           "task_id": "quality_019",
@@ -872,7 +897,7 @@
           },
           "total_score": 1.6,
           "grade": "F",
-          "timestamp": "2026-03-22 14:43:15.978229"
+          "timestamp": "2026-03-23 20:37:30.748724"
         },
         {
           "task_id": "quality_020",
@@ -885,7 +910,7 @@
           },
           "total_score": 1.6,
           "grade": "F",
-          "timestamp": "2026-03-22 14:43:15.978377"
+          "timestamp": "2026-03-23 20:37:30.748828"
         },
         {
           "task_id": "quality_code_001",
@@ -898,7 +923,7 @@
           },
           "total_score": 2.23,
           "grade": "F",
-          "timestamp": "2026-03-22 14:43:15.978890"
+          "timestamp": "2026-03-23 20:37:30.749218"
         },
         {
           "task_id": "quality_code_002",
@@ -911,7 +936,7 @@
           },
           "total_score": 2.6,
           "grade": "F",
-          "timestamp": "2026-03-22 14:43:15.978970"
+          "timestamp": "2026-03-23 20:37:30.749272"
         },
         {
           "task_id": "quality_code_003",
@@ -924,7 +949,7 @@
           },
           "total_score": 2.07,
           "grade": "F",
-          "timestamp": "2026-03-22 14:43:15.979238"
+          "timestamp": "2026-03-23 20:37:30.753259"
         },
         {
           "task_id": "quality_code_004",
@@ -937,7 +962,7 @@
           },
           "total_score": 2.71,
           "grade": "F",
-          "timestamp": "2026-03-22 14:43:15.979506"
+          "timestamp": "2026-03-23 20:37:30.753490"
         },
         {
           "task_id": "quality_code_005",
@@ -950,7 +975,7 @@
           },
           "total_score": 1.81,
           "grade": "F",
-          "timestamp": "2026-03-22 14:43:15.979695"
+          "timestamp": "2026-03-23 20:37:30.753625"
         }
       ]
     },
@@ -966,11 +991,13 @@
               "severity": "medium"
             }
           ],
-          "timestamp": "2026-03-22 14:43:15.968264"
+          "question": "\ub300\ud55c\ubbfc\uad6d\uc758 \uc218\ub3c4\ub294 \uc5b4\ub514\uc778\uac00\uc694?",
+          "context": "\ub300\ud55c\ubbfc\uad6d\uc740 \ub3d9\uc544\uc2dc\uc544\uc5d0 \uc704\uce58\ud55c \uad6d\uac00\uc785\ub2c8\ub2e4. \uc218\ub3c4\ub294 \uc11c\uc6b8\uc774\uba70 \uc778\uad6c\ub294 \uc57d 5,100\ub9cc \uba85\uc785\ub2c8\ub2e4.",
+          "timestamp": "2026-03-23 20:37:30.740498"
         },
         {
           "task_id": "quality_002",
-          "hallucination_rate": 3.0,
+          "hallucination_rate": 1.0,
           "indicators": [
             {
               "type": "unsupported_claim",
@@ -1003,7 +1030,9 @@
               "severity": "high"
             }
           ],
-          "timestamp": "2026-03-22 14:43:15.968603"
+          "question": "Python\uc5d0\uc11c \ub9ac\uc2a4\ud2b8 \ucef4\ud504\ub9ac\ud5e8\uc158\uc758 \ubb38\ubc95\uc740 \ubb34\uc5c7\uc778\uac00\uc694?",
+          "context": "Python\uc758 \ub9ac\uc2a4\ud2b8 \ucef4\ud504\ub9ac\ud5e8\uc158\uc740 \uac04\uacb0\ud558\uac8c \ub9ac\uc2a4\ud2b8\ub97c \uc0dd\uc131\ud558\ub294 \ubb38\ubc95\uc785\ub2c8\ub2e4.",
+          "timestamp": "2026-03-23 20:37:30.740712"
         },
         {
           "task_id": "quality_003",
@@ -1015,7 +1044,9 @@
               "severity": "medium"
             }
           ],
-          "timestamp": "2026-03-22 14:43:15.969455"
+          "question": "\uba38\uc2e0\ub7ec\ub2dd\uc5d0\uc11c \uacfc\uc801\ud569(overfitting)\uc774\ub780 \ubb34\uc5c7\uc778\uac00\uc694?",
+          "context": "\uba38\uc2e0\ub7ec\ub2dd\uc5d0\uc11c \ud6c8\ub828 \uc138\ud2b8\uc640 \ud14c\uc2a4\ud2b8 \uc138\ud2b8\uc758 \uc131\ub2a5 \ucc28\uc774\uac00 \ud06c\uba74 \uacfc\uc801\ud569\uc774\ub77c\uace0 \ud569\ub2c8\ub2e4.",
+          "timestamp": "2026-03-23 20:37:30.742517"
         },
         {
           "task_id": "quality_004",
@@ -1027,7 +1058,9 @@
               "severity": "medium"
             }
           ],
-          "timestamp": "2026-03-22 14:43:15.969620"
+          "question": "HTTP\uc640 HTTPS\uc758 \ucc28\uc774\uc810\uc744 \uc124\uba85\ud558\uc138\uc694.",
+          "context": "HTTP\ub294 HyperText Transfer Protocol, HTTPS\ub294 HTTP Secure\uc758 \uc57d\uc790\uc785\ub2c8\ub2e4.",
+          "timestamp": "2026-03-23 20:37:30.742629"
         },
         {
           "task_id": "quality_005",
@@ -1039,7 +1072,9 @@
               "severity": "medium"
             }
           ],
-          "timestamp": "2026-03-22 14:43:15.970253"
+          "question": "SQL\uc5d0\uc11c JOIN\uc758 \uc885\ub958\ub97c \ub098\uc5f4\ud558\uc138\uc694.",
+          "context": "SQL\uc758 JOIN\uc740 \ub450 \ud14c\uc774\ube14\uc744 \uc5f0\uacb0\ud558\ub294 \uc5f0\uc0b0\uc785\ub2c8\ub2e4.",
+          "timestamp": "2026-03-23 20:37:30.743083"
         },
         {
           "task_id": "quality_006",
@@ -1051,7 +1086,9 @@
               "severity": "medium"
             }
           ],
-          "timestamp": "2026-03-22 14:43:15.971262"
+          "question": "\ub3c4\ucee4(Docker)\uc758 \uc8fc\uc694 \uc7a5\uc810\uc740 \ubb34\uc5c7\uc778\uac00\uc694?",
+          "context": "Docker\ub294 \ucee8\ud14c\uc774\ub108 \uae30\ubc18 \uac00\uc0c1\ud654 \ud50c\ub7ab\ud3fc\uc785\ub2c8\ub2e4.",
+          "timestamp": "2026-03-23 20:37:30.743822"
         },
         {
           "task_id": "quality_007",
@@ -1063,7 +1100,9 @@
               "severity": "medium"
             }
           ],
-          "timestamp": "2026-03-22 14:43:15.971752"
+          "question": "RESTful API \uc124\uacc4 \uc6d0\uce59\uc744 \uc124\uba85\ud558\uc138\uc694.",
+          "context": "REST(Representational State Transfer)\ub294 \uc6f9 API \uc124\uacc4 \uc544\ud0a4\ud14d\ucc98 \uc2a4\ud0c0\uc77c\uc785\ub2c8\ub2e4.",
+          "timestamp": "2026-03-23 20:37:30.744168"
         },
         {
           "task_id": "quality_008",
@@ -1075,7 +1114,9 @@
               "severity": "medium"
             }
           ],
-          "timestamp": "2026-03-22 14:43:15.972315"
+          "question": "\ube44\ub3d9\uae30 \ud504\ub85c\uadf8\ub798\ubc0d\uc5d0\uc11c async/await\uc758 \uc5ed\ud560\uc740?",
+          "context": "Python\uc758 asyncio \ub77c\uc774\ube0c\ub7ec\ub9ac\ub294 \ube44\ub3d9\uae30 \ud504\ub85c\uadf8\ub798\ubc0d\uc744 \uc9c0\uc6d0\ud569\ub2c8\ub2e4.",
+          "timestamp": "2026-03-23 20:37:30.744585"
         },
         {
           "task_id": "quality_009",
@@ -1087,7 +1128,9 @@
               "severity": "medium"
             }
           ],
-          "timestamp": "2026-03-22 14:43:15.972948"
+          "question": "\ube45O \ud45c\uae30\ubc95\uc5d0\uc11c O(n log n)\uc758 \uc758\ubbf8\ub294?",
+          "context": "\uc54c\uace0\ub9ac\uc998\uc758 \uc2dc\uac04 \ubcf5\uc7a1\ub3c4\ub97c \ud45c\ud604\ud558\ub294 \ube45O \ud45c\uae30\ubc95\uc785\ub2c8\ub2e4.",
+          "timestamp": "2026-03-23 20:37:30.745033"
         },
         {
           "task_id": "quality_010",
@@ -1099,7 +1142,9 @@
               "severity": "medium"
             }
           ],
-          "timestamp": "2026-03-22 14:43:15.973081"
+          "question": "\ud30c\uc774\uc36c\uc758 GIL\uc774\ub780 \ubb34\uc5c7\uc778\uac00\uc694?",
+          "context": "CPython\uc5d0\ub294 GIL\uc774 \uc788\uc5b4 \uba40\ud2f0\uc2a4\ub808\ub529\uc758 CPU \uc131\ub2a5 \ud5a5\uc0c1\uc774 \uc81c\ud55c\ub429\ub2c8\ub2e4.",
+          "timestamp": "2026-03-23 20:37:30.745125"
         },
         {
           "task_id": "quality_011",
@@ -1111,7 +1156,9 @@
               "severity": "medium"
             }
           ],
-          "timestamp": "2026-03-22 14:43:15.973979"
+          "question": "Kubernetes\uc758 Pod\ub780 \ubb34\uc5c7\uc778\uac00\uc694?",
+          "context": "Kubernetes\ub294 \ucee8\ud14c\uc774\ub108 \uc624\ucf00\uc2a4\ud2b8\ub808\uc774\uc158 \ud50c\ub7ab\ud3fc\uc785\ub2c8\ub2e4.",
+          "timestamp": "2026-03-23 20:37:30.745772"
         },
         {
           "task_id": "quality_012",
@@ -1123,17 +1170,21 @@
               "severity": "medium"
             }
           ],
-          "timestamp": "2026-03-22 14:43:15.974697"
+          "question": "Git\uc758 rebase\uc640 merge\uc758 \ucc28\uc774\uc810\uc740?",
+          "context": "Git\uc758 \ube0c\ub79c\uce58 \ud1b5\ud569 \uc804\ub7b5\uc785\ub2c8\ub2e4.",
+          "timestamp": "2026-03-23 20:37:30.746270"
         },
         {
           "task_id": "quality_013",
           "hallucination_rate": 0.0,
           "indicators": [],
-          "timestamp": "2026-03-22 14:43:15.975256"
+          "question": "\ud2b8\ub79c\uc7ad\uc158 ACID \uc18d\uc131\uc744 \uc124\uba85\ud558\uc138\uc694.",
+          "context": "\ub370\uc774\ud130\ubca0\uc774\uc2a4 \ud2b8\ub79c\uc7ad\uc158\uc758 \uc2e0\ub8b0\uc131\uc744 \ubcf4\uc7a5\ud558\ub294 4\uac00\uc9c0 \uc18d\uc131\uc785\ub2c8\ub2e4.",
+          "timestamp": "2026-03-23 20:37:30.746703"
         },
         {
           "task_id": "quality_014",
-          "hallucination_rate": 2.0,
+          "hallucination_rate": 1.0,
           "indicators": [
             {
               "type": "unsupported_claim",
@@ -1146,7 +1197,9 @@
               "severity": "high"
             }
           ],
-          "timestamp": "2026-03-22 14:43:15.975961"
+          "question": "\uc591\uc790 \ucef4\ud4e8\ud130\ub294 \ud604\uc7ac \uba87 \ud050\ube44\ud2b8\uae4c\uc9c0 \uad6c\ud604\ub418\uc5c8\ub098\uc694?",
+          "context": "\uc591\uc790 \ucef4\ud4e8\ud130\ub294 \uc591\uc790\uc5ed\ud559\uc801 \ud604\uc0c1\uc744 \uc774\uc6a9\ud558\ub294 \ucef4\ud4e8\ud130\ub85c, 2024\ub144 \uae30\uc900 \uc218\ucc9c \ud050\ube44\ud2b8 \uc218\uc900\uc785\ub2c8\ub2e4.",
+          "timestamp": "2026-03-23 20:37:30.747201"
         },
         {
           "task_id": "quality_015",
@@ -1158,13 +1211,17 @@
               "severity": "medium"
             }
           ],
-          "timestamp": "2026-03-22 14:43:15.976527"
+          "question": "Python\uc740 \ucef4\ud30c\uc77c \uc5b8\uc5b4\uc778\uac00\uc694?",
+          "context": "Python\uc740 \uc778\ud130\ud504\ub9ac\ud130 \uae30\ubc18 \uc5b8\uc5b4\ub85c .pyc \ubc14\uc774\ud2b8\ucf54\ub4dc\ub97c \uc0ac\uc6a9\ud558\uc9c0\ub9cc JIT \ucef4\ud30c\uc77c\uc740 \uae30\ubcf8\uc774 \uc544\ub2d9\ub2c8\ub2e4.",
+          "timestamp": "2026-03-23 20:37:30.747598"
         },
         {
           "task_id": "quality_016",
           "hallucination_rate": 0.0,
           "indicators": [],
-          "timestamp": "2026-03-22 14:43:15.977114"
+          "question": "HTTP \uc0c1\ud0dc\ucf54\ub4dc 200\uc758 \uc758\ubbf8\ub294?",
+          "context": "HTTP \uc0c1\ud0dc\ucf54\ub4dc\uc5d0\uc11c 200 OK\ub294 \uc694\uccad\uc774 \uc131\uacf5\uc801\uc73c\ub85c \ucc98\ub9ac\ub410\uc74c\uc744 \uc758\ubbf8\ud569\ub2c8\ub2e4.",
+          "timestamp": "2026-03-23 20:37:30.748023"
         },
         {
           "task_id": "quality_017",
@@ -1176,25 +1233,33 @@
               "severity": "medium"
             }
           ],
-          "timestamp": "2026-03-22 14:43:15.977427"
+          "question": "TCP\uc640 UDP\uc758 \ucc28\uc774\uc810\uc740?",
+          "context": "TCP(\uc5f0\uacb0 \uc9c0\ud5a5, \uc2e0\ub8b0\uc131)\uc640 UDP(\ube44\uc5f0\uacb0, \ube60\ub978 \uc18d\ub3c4)\ub294 \uc11c\ub85c \ub2e4\ub978 \uc804\uc1a1 \uacc4\uce35 \ud504\ub85c\ud1a0\ucf5c\uc785\ub2c8\ub2e4.",
+          "timestamp": "2026-03-23 20:37:30.748268"
         },
         {
           "task_id": "quality_018",
           "hallucination_rate": 0.0,
           "indicators": [],
-          "timestamp": "2026-03-22 14:43:15.978093"
+          "question": "\ub525\ub7ec\ub2dd\uc5d0\uc11c \ubc30\uce58 \uc815\uaddc\ud654(Batch Normalization)\uc758 \ud6a8\uacfc\ub294?",
+          "context": "Batch Normalization\uc740 \uac01 \ub808\uc774\uc5b4\uc758 \uc785\ub825\uc744 \uc815\uaddc\ud654\ud558\uc5ec \ud559\uc2b5\uc744 \uc548\uc815\ud654\ud569\ub2c8\ub2e4.",
+          "timestamp": "2026-03-23 20:37:30.748630"
         },
         {
           "task_id": "quality_019",
           "hallucination_rate": 0.0,
           "indicators": [],
-          "timestamp": "2026-03-22 14:43:15.978178"
+          "question": "GraphQL\uacfc REST API\uc758 \uc8fc\uc694 \ucc28\uc774\uc810\uc740?",
+          "context": "GraphQL\uc740 Facebook\uc774 \uac1c\ubc1c\ud55c API \ucffc\ub9ac \uc5b8\uc5b4\uc785\ub2c8\ub2e4.",
+          "timestamp": "2026-03-23 20:37:30.748689"
         },
         {
           "task_id": "quality_020",
           "hallucination_rate": 0.0,
           "indicators": [],
-          "timestamp": "2026-03-22 14:43:15.978258"
+          "question": "CI/CD \ud30c\uc774\ud504\ub77c\uc778\uc758 \uad6c\uc131 \uc694\uc18c\ub97c \uc124\uba85\ud558\uc138\uc694.",
+          "context": "CI/CD\ub294 \uc18c\ud504\ud2b8\uc6e8\uc5b4 \uac1c\ubc1c \uc8fc\uae30\ub97c \uc790\ub3d9\ud654\ud558\ub294 \ubc29\ubc95\ub860\uc785\ub2c8\ub2e4.",
+          "timestamp": "2026-03-23 20:37:30.748745"
         }
       ]
     },
@@ -1221,6 +1286,9 @@
           "total_retry_time": 1.0
         }
       ]
+    },
+    "tool_calls": {
+      "executions": []
     },
     "tool_selection": {
       "selections": []
@@ -1302,6 +1370,7 @@
       0.256
     ]
   },
+  "advanced_metrics_summary": {},
   "total_tasks": 25,
   "accuracy_metrics": {
     "tcr": {
@@ -1317,12 +1386,14 @@
       "median_accuracy": 0.0,
       "min_accuracy": 0.0,
       "max_accuracy": 100.0,
-      "std_accuracy": 28.3
+      "std_accuracy": 28.3,
+      "high_accuracy_count": 2,
+      "low_accuracy_count": 46
     },
     "hallucination": {
-      "overall_rate": 80.0,
+      "overall_rate": 65.0,
       "median_rate": 100.0,
-      "max_rate": 300.0,
+      "max_rate": 100.0,
       "tasks_with_hallucinations": 15,
       "total_tasks_checked": 20,
       "total_evaluated": 20,
@@ -1332,6 +1403,7 @@
     },
     "quality": {
       "avg_total_score": 2.03,
+      "avg_grade": "F",
       "median_total_score": 2.07,
       "min_total_score": 0.67,
       "max_total_score": 2.89,
@@ -1356,7 +1428,7 @@
         "usefulness": 2.47
       },
       "quality_distribution": {
-        "0-6 (Very Poor)": 25
+        "0-3.0 (Very Poor)": 25
       }
     }
   },
@@ -1426,11 +1498,11 @@
     },
     {
       "area": "\uc751\ub2f5 \ud488\uc9c8 \uac1c\uc120",
-      "title": "\uc751\ub2f5 \ud488\uc9c8 \uc810\uc218\uac00 \ubaa9\ud45c\uce58 \ub300\ube44 3.9\uc810 \ub0ae\uc74c (10\uc810 \ub9cc\uc810)",
+      "title": "\uc751\ub2f5 \ud488\uc9c8 \uc810\uc218\uac00 \ubaa9\ud45c\uce58 \ub300\ube44 2.0\uc810 \ub0ae\uc74c (5\uc810 \ub9cc\uc810)",
       "priority": "medium",
-      "issue": "\ud604\uc7ac \ud488\uc9c8 \uc810\uc218 4.1/10 (\ubaa9\ud45c: 8.0 \uc774\uc0c1). \uc751\ub2f5\uc758 \uc644\uc131\ub3c4, \uad00\ub828\uc131, \uac00\ub3c5\uc131\uc774 \uc0ac\uc6a9\uc790 \uae30\ub300 \uc218\uc900\uc5d0 \ubbf8\uce58\uc9c0 \ubabb\ud558\uace0 \uc788\uc2b5\ub2c8\ub2e4.",
+      "issue": "\ud604\uc7ac \ud488\uc9c8 \uc810\uc218 2.0/5.0 (\ubaa9\ud45c: 4.0 \uc774\uc0c1). \uc751\ub2f5\uc758 \uc644\uc131\ub3c4, \uad00\ub828\uc131, \uac00\ub3c5\uc131\uc774 \uc0ac\uc6a9\uc790 \uae30\ub300 \uc218\uc900\uc5d0 \ubbf8\uce58\uc9c0 \ubabb\ud558\uace0 \uc788\uc2b5\ub2c8\ub2e4.",
       "suggestion": "**\uc989\uc2dc \uc2e4\ud589 \uac00\ub2a5\ud55c \uac1c\uc120 \ubc29\uc548:**\n1. **\uc751\ub2f5 \uad6c\uc870\ud654 \ud15c\ud50c\ub9bf \uc801\uc6a9**:\n   - \uc9c8\ubb38\ud615 \uc791\uc5c5: \uc9c1\uc811\uc801 \ub2f5\ubcc0 \u2192 \uadfc\uac70 \uc81c\uc2dc \u2192 \ucd94\uac00 \uc815\ubcf4 \uc21c\uc73c\ub85c \uad6c\uc870\ud654\n   - \ubd84\uc11d\ud615 \uc791\uc5c5: \uc694\uc57d \u2192 \uc0c1\uc138 \ubd84\uc11d \u2192 \uacb0\ub860 \ubc0f \uad8c\uc7a5\uc0ac\ud56d \uc21c\uc73c\ub85c \uad6c\uc131\n2. **\uc644\uc131\ub3c4 \uccb4\ud06c\ub9ac\uc2a4\ud2b8 \ub3c4\uc785**:\n   - \uc9c8\ubb38\uc758 \ubaa8\ub4e0 \ubd80\ubd84\uc5d0 \ub2f5\ubcc0\ud588\ub294\uac00?\n   - \uadfc\uac70\ub098 \uc608\uc2dc\uac00 \ucda9\ubd84\ud788 \uc81c\uacf5\ub418\uc5c8\ub294\uac00?\n   - \uacb0\ub860\uc774 \uba85\ud655\ud558\uac8c \uc81c\uc2dc\ub418\uc5c8\ub294\uac00?\n3. **\uad00\ub828\uc131 \uac15\ud654**:\n   - \uc81c\uacf5\ub41c \ucee8\ud14d\uc2a4\ud2b8\ub098 \uc9c8\ubb38\uc5d0\uc11c \ubc97\uc5b4\ub09c \ub0b4\uc6a9 \uc81c\uac70\n   - \ud575\uc2ec \ud0a4\uc6cc\ub4dc\ub97c \uc751\ub2f5\uc5d0 \uc790\uc5f0\uc2a4\ub7fd\uac8c \ud3ec\ud568\n4. **\uac00\ub3c5\uc131 \uac1c\uc120**:\n   - \uae34 \ubb38\uc7a5(50\uc790 \uc774\uc0c1) \ubd84\ud560\n   - \ubd88\ub9bf \ud3ec\uc778\ud2b8\ub098 \ubc88\ud638 \ub9e4\uae30\uae30 \ud65c\uc6a9\n   - \uc804\ubb38 \uc6a9\uc5b4 \uc0ac\uc6a9 \uc2dc \uac04\ub2e8\ud55c \uc124\uba85 \ucd94\uac00\n5. **\uc0ac\uc6a9\uc790 \ub9de\ucda4\ud654**: \uc751\ub2f5 \ud1a4\uacfc \ub514\ud14c\uc77c \uc218\uc900\uc744 \uc0ac\uc6a9\uc790 \ucee8\ud14d\uc2a4\ud2b8\uc5d0 \ub9de\uac8c \uc870\uc815",
-      "impact": "**\uc608\uc0c1 \uac1c\uc120 \ud6a8\uacfc:**\n\u2022 \ud488\uc9c8 \uc810\uc218 8.0 \ub2ec\uc131 \uc2dc \uc0ac\uc6a9\uc790 \uc7ac\uc9c8\ubb38\ub960 30-40% \uac10\uc18c\n\u2022 \uc751\ub2f5 \uc774\ud574\ub3c4 \ud5a5\uc0c1\uc73c\ub85c \uace0\uac1d \uc9c0\uc6d0 \ubb38\uc758 \uc8fc\ub2f9 20-30\uac74 \uac10\uc18c\n\u2022 \uc0ac\uc6a9\uc790 \uc138\uc158 \uc2dc\uac04 15-20% \uc99d\uac00 (\ub9cc\uc871\ub3c4 \ud5a5\uc0c1)\n\u2022 \uc751\ub2f5 \uc7ac\uc791\uc131 \ud544\uc694\uc131 49% \uac10\uc18c\ub85c \uc6b4\uc601 \ud6a8\uc728 \uc99d\ub300"
+      "impact": "**\uc608\uc0c1 \uac1c\uc120 \ud6a8\uacfc:**\n\u2022 \ud488\uc9c8 \uc810\uc218 4.0/5.0 \ub2ec\uc131 \uc2dc \uc0ac\uc6a9\uc790 \uc7ac\uc9c8\ubb38\ub960 30-40% \uac10\uc18c\n\u2022 \uc751\ub2f5 \uc774\ud574\ub3c4 \ud5a5\uc0c1\uc73c\ub85c \uace0\uac1d \uc9c0\uc6d0 \ubb38\uc758 \uc8fc\ub2f9 20-30\uac74 \uac10\uc18c\n\u2022 \uc0ac\uc6a9\uc790 \uc138\uc158 \uc2dc\uac04 15-20% \uc99d\uac00 (\ub9cc\uc871\ub3c4 \ud5a5\uc0c1)\n\u2022 \uc751\ub2f5 \uc7ac\uc791\uc131 \ud544\uc694\uc131 49% \uac10\uc18c\ub85c \uc6b4\uc601 \ud6a8\uc728 \uc99d\ub300"
     },
     {
       "area": "\uc5d0\ub7ec \ucc98\ub9ac \uac1c\uc120",
@@ -1457,7 +1529,7 @@
     {
       "severity": "critical",
       "metric": "\ud658\uac01 \ubc1c\uc0dd\ub960 (Hallucination)",
-      "message": "\ud658\uac01 \ubc1c\uc0dd\ub960\uc774 80.0%\uc785\ub2c8\ub2e4 (10.0% \uae30\uc900 \ucd08\uacfc)",
+      "message": "\ud658\uac01 \ubc1c\uc0dd\ub960\uc774 65.0%\uc785\ub2c8\ub2e4 (10.0% \uae30\uc900 \ucd08\uacfc)",
       "action": "\uac80\uc99d \ud504\ub85c\uc138\uc2a4\uc640 \uc0ac\uc2e4 \ud655\uc778 \uc808\ucc28\ub97c \uc989\uc2dc \uac15\ud654\ud558\uc138\uc694"
     },
     {
@@ -1477,12 +1549,12 @@
       "success_rate": 0.0
     },
     "completion_by_type": {
-      "reasoning": {
-        "tcr": 63.52,
-        "total_tasks": 4,
+      "qa": {
+        "tcr": 72.73,
+        "total_tasks": 16,
         "full_success": 0,
-        "partial_success": 2,
-        "failures": 2,
+        "partial_success": 11,
+        "failures": 5,
         "success_rate": 0.0
       },
       "code_generation": {
@@ -1493,12 +1565,12 @@
         "failures": 2,
         "success_rate": 0.0
       },
-      "qa": {
-        "tcr": 72.73,
-        "total_tasks": 16,
+      "reasoning": {
+        "tcr": 63.52,
+        "total_tasks": 4,
         "full_success": 0,
-        "partial_success": 11,
-        "failures": 5,
+        "partial_success": 2,
+        "failures": 2,
         "success_rate": 0.0
       }
     },
@@ -1507,7 +1579,9 @@
       "median_accuracy": 0.0,
       "min_accuracy": 0.0,
       "max_accuracy": 100.0,
-      "std_accuracy": 28.3
+      "std_accuracy": 28.3,
+      "high_accuracy_count": 2,
+      "low_accuracy_count": 46
     }
   }
 }
