@@ -715,6 +715,103 @@ def cmd_serve(args: argparse.Namespace) -> int:
 
 
 # ---------------------------------------------------------------------------
+# cmd_dashboard
+# ---------------------------------------------------------------------------
+
+
+def cmd_dashboard(args: argparse.Namespace) -> int:
+    """Start the FastAPI server and open /dashboard (developer/QM view)."""
+    try:
+        import uvicorn
+    except ImportError:
+        print(
+            f"{RD}❌  uvicorn 이 설치되지 않았습니다.{R}\n"
+            f"   pip install 'agent-evaluator[serve]' 로 설치하세요.",
+            file=sys.stderr,
+        )
+        return 1
+
+    try:
+        from agent_evaluator.serve.server import create_app
+    except ImportError as exc:
+        print(f"{RD}❌  서버 모듈 로드 실패: {exc}{R}", file=sys.stderr)
+        return 1
+
+    raw_dir      = getattr(args, "results_dir", None)
+    host         = getattr(args, "host",    "127.0.0.1")
+    port         = getattr(args, "port",    8765)
+    watch        = getattr(args, "watch",   False)
+    open_browser = getattr(args, "open",    True)
+    offline      = getattr(args, "offline", False)
+    title        = getattr(args, "title",   "Agent Evaluator — Dev Dashboard")
+
+    user_specified = raw_dir not in (None, "./results", "results")
+    if user_specified:
+        results_dir = Path(raw_dir).resolve()
+    else:
+        default_dir = Path("./results").resolve()
+        has_results = default_dir.exists() and any(default_dir.rglob("*.json"))
+        if has_results:
+            results_dir = default_dir
+        else:
+            try:
+                from agent_evaluator.utils.path_helpers import get_evaluation_results_dir
+                detected = get_evaluation_results_dir()
+                if detected.exists() and any(detected.rglob("*.json")):
+                    results_dir = detected
+                    print(f"  {_dim(f'ℹ  결과 디렉토리 자동 감지: {results_dir}')}")
+                else:
+                    results_dir = default_dir
+            except Exception:
+                results_dir = default_dir
+
+    if not results_dir.exists():
+        results_dir.mkdir(parents=True, exist_ok=True)
+
+    base_url = f"http://{'127.0.0.1' if host == '0.0.0.0' else host}:{port}"
+    json_files = list(results_dir.rglob("*.json"))
+    n_files = len([f for f in json_files
+                   if not any(p in str(f) for p in
+                              ("traces/", "audit_logs/", "annotations/",
+                               "transparent_reports/", "golden_datasets/"))])
+    print()
+    print(f"  {B}Agent Evaluator Dev Dashboard{R} v{__version__}")
+    print(f"  {'─' * 40}")
+    print(f"  📁  Results dir   : {results_dir}  ({n_files}개 파일 발견)")
+    print(f"  🗂️   Dev Dashboard : {base_url}/dashboard")
+    print(f"  🌐  원본 대시보드  : {base_url}")
+    print(f"  📊  Slides        : {base_url}/slides")
+    print(f"  📡  API docs      : {base_url}/api/docs")
+    print(f"  🔄  Watch mode    : {'ON' if watch else 'OFF'}")
+    print()
+    print(f"  {_dim('Ctrl+C 로 종료')}")
+    print()
+
+    app = create_app(
+        results_dir=results_dir,
+        title=title,
+        watch=watch,
+        version=__version__,
+        offline=offline,
+    )
+
+    if open_browser:
+        import threading
+        import webbrowser
+        url = f"{base_url}/dashboard"
+
+        def _open():
+            import time
+            time.sleep(1.2)
+            webbrowser.open(url)
+
+        threading.Thread(target=_open, daemon=True).start()
+
+    uvicorn.run(app, host=host, port=port, log_level="warning")
+    return 0
+
+
+# ---------------------------------------------------------------------------
 # 라이브러리 사용자용 헬퍼: config 모듈에서 재export
 # (cli/main.py 를 라이브러리 모드로 임포트하는 비용 없이 사용 가능)
 # ---------------------------------------------------------------------------
@@ -852,6 +949,38 @@ def main() -> None:
     serve_p.add_argument("--title", default="Agent Evaluator Dashboard", metavar="TITLE",
                          help="대시보드 제목 (기본: 'Agent Evaluator Dashboard')")
 
+    # dashboard subcommand
+    dash_p = sub.add_parser(
+        "dashboard",
+        help="개발자/QM 전용 대시보드 실행 (/dashboard)",
+        formatter_class=ColoredHelpFormatter,
+        epilog=(
+            f"{B}예시:{R}\n"
+            f"  {G}agent-eval dashboard{R}\n"
+            f"  {G}agent-eval dashboard ./results --port 8080{R}\n"
+            f"  {G}agent-eval dashboard ./results --watch{R}\n"
+            f"  {G}agent-eval dashboard ./results --no-open{R}\n"
+        ),
+    )
+    dash_p.add_argument(
+        "results_dir", nargs="?", default="./results",
+        help="평가 결과 JSON 파일 디렉토리 (기본: ./results)",
+    )
+    dash_p.add_argument("--host",  default="127.0.0.1", metavar="HOST",
+                        help="바인딩 호스트 (기본: 127.0.0.1)")
+    dash_p.add_argument("--port",  default=8765, type=int, metavar="PORT",
+                        help="포트 번호 (기본: 8765)")
+    dash_p.add_argument("--open",  action="store_true", default=True,
+                        help="서버 시작 후 /dashboard 브라우저 자동 오픈 (기본값)")
+    dash_p.add_argument("--no-open", dest="open", action="store_false",
+                        help="브라우저 자동 오픈 비활성화")
+    dash_p.add_argument("--watch", action="store_true",
+                        help="결과 파일 변경 감시 후 자동 갱신")
+    dash_p.add_argument("--offline", action="store_true",
+                        help="CDN 에셋을 로컬에 캐시해 오프라인 실행")
+    dash_p.add_argument("--title", default="Agent Evaluator — Dev Dashboard",
+                        metavar="TITLE", help="대시보드 제목")
+
     parser.add_argument(
         "--version", action="store_true",
         help="패키지 버전 출력",
@@ -863,9 +992,10 @@ def main() -> None:
         sys.exit(cmd_version(args))
 
     handlers = {
-        "init":    cmd_init,
-        "check":   cmd_check,
-        "serve":   cmd_serve,
+        "init":      cmd_init,
+        "check":     cmd_check,
+        "serve":     cmd_serve,
+        "dashboard": cmd_dashboard,
     }
 
     if args.command is None:

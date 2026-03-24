@@ -185,4 +185,17 @@ def create_app(
             },
         )
 
+    @app.get("/dashboard", response_class=HTMLResponse)
+    async def dashboard2(request: Request):
+        return templates.TemplateResponse(
+            "dashboard2.html.j2",
+            {
+                "request": request,
+                "title":   app.state.title,
+                "version": app.state.version,
+                "watch":   watch,
+                "offline": app.state.offline,
+            },
+        )
+
     return app

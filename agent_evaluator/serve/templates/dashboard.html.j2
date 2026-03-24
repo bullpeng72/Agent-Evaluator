@@ -879,8 +879,8 @@ textarea.gd-input{height:60px;resize:vertical;font-family:inherit}
         <div class="kpi kpi-act" :class="{sel:selK==='failures'}" @click="selK=selK==='failures'?null:'failures'" style="cursor:pointer"><div class="kpi-lbl">실패</div><div class="kpi-val" style="color:var(--red)" x-text="data.accuracy_metrics?.tcr?.failures??'-'"></div></div>
       </div>
       {% call kpi_detail_panel("{tcr:pct(tcr()),full_success:String(data.accuracy_metrics?.tcr?.full_success??'-'),partial_success:String(data.accuracy_metrics?.tcr?.partial_success??'-'),failures:String(data.accuracy_metrics?.tcr?.failures??'-')}[selK]||''", "data", "관련 태스크") %}
-      <div style="max-height:240px;overflow-y:auto">
-        <div class="dtx-row dtx-head" style="grid-template-columns:1fr 80px 80px 50px">
+      <div class="dtx" style="max-height:240px;overflow-y:auto">
+        <div class="dtx-row dtx-head" style="grid-template-columns:1fr 80px 80px 50px;position:sticky;top:0;z-index:1">
           <span>태스크 ID</span><span style="text-align:center">유형</span><span style="text-align:center">완료율</span><span style="text-align:center">시도</span>
         </div>
         <template x-for="t in filteredItems(selK, data)" :key="t.task_id">
@@ -904,13 +904,18 @@ textarea.gd-input{height:60px;resize:vertical;font-family:inherit}
       </div>
       <div class="sec" x-show="typeBreakdown().length>0">
         <div class="sec-t">TaskType별 상세</div>
-        <template x-for="tp in typeBreakdown()" :key="tp.type">
-          <div class="drow" style="display:grid;grid-template-columns:1fr 64px 72px;gap:0 16px">
-            <span class="dk" x-text="tp.type"></span>
-            <span x-text="`${tp.n}건`" style="color:var(--text2);text-align:right"></span>
-            <span style="text-align:right" :style="`color:${tp.rate>=thresholds.tcr?'var(--green)':tp.rate>=(thresholds.tcr-15)?'var(--yellow)':'var(--red)'}`" x-text="pct(tp.rate)"></span>
+        <div class="dtx">
+          <div class="dtx-row dtx-head" style="grid-template-columns:1fr 64px 72px">
+            <span>유형</span><span style="text-align:right">건수</span><span style="text-align:right">성공률</span>
           </div>
-        </template>
+          <template x-for="tp in typeBreakdown()" :key="tp.type">
+            <div class="dtx-row" style="grid-template-columns:1fr 64px 72px">
+              <span class="dtx-id" x-text="tp.type"></span>
+              <span x-text="`${tp.n}건`" style="color:var(--text2);text-align:right"></span>
+              <span style="text-align:right" :style="`color:${tp.rate>=thresholds.tcr?'var(--green)':tp.rate>=(thresholds.tcr-15)?'var(--yellow)':'var(--red)'}`" x-text="pct(tp.rate)"></span>
+            </div>
+          </template>
+        </div>
       </div>
 
       <!-- 부분 성공 태스크 상세 -->
@@ -924,16 +929,19 @@ textarea.gd-input{height:60px;resize:vertical;font-family:inherit}
           <span style="background:rgba(251,146,60,.15);color:#fb923c;border-radius:4px;padding:2px 8px">🟠 약한(70~84%): <b x-text="partialTasks().filter(t=>t.completion_score<0.85).length+'건'"></b></span>
           <span style="background:rgba(234,179,8,.15);color:#ca8a04;border-radius:4px;padding:2px 8px">🟡 강한(85~99%): <b x-text="partialTasks().filter(t=>t.completion_score>=0.85).length+'건'"></b></span>
         </div>
-        <div class="slist">
+        <div class="dtx" style="max-height:320px;overflow-y:auto">
+          <div class="dtx-row dtx-head" style="grid-template-columns:1fr 90px 80px 44px 44px 44px;position:sticky;top:0;z-index:1">
+            <span>태스크 ID</span><span style="text-align:center">유형</span><span style="text-align:center">완료율</span><span style="text-align:center">시도</span><span style="text-align:center">정확도</span><span></span>
+          </div>
           <template x-for="t in partialTasks()" :key="t.task_id">
-            <div style="padding:8px 4px;border-bottom:1px solid var(--border)">
-              <div style="display:grid;grid-template-columns:1fr 90px 80px 44px 44px auto;gap:0 10px;align-items:center">
-                <span class="dk" style="font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" x-text="t.task_id"></span>
+            <div style="padding:6px var(--sp-3);border-bottom:1px solid var(--border)">
+              <div style="display:grid;grid-template-columns:1fr 90px 80px 44px 44px 44px;gap:0 8px;align-items:center">
+                <span class="dtx-id" x-text="t.task_id"></span>
                 <span style="font-size:11px;color:var(--text2);text-align:center" x-text="t.task_type"></span>
                 <div class="pscore-bar"><div class="pscore-fill" :class="t.completion_score>=0.85?'strong':'weak'" :style="`width:${(t.completion_score*100).toFixed(0)}%`"></div></div>
                 <span style="font-size:11px;text-align:center" :style="(t.attempts||1)>1?'color:var(--orange);font-weight:600':'color:var(--text2)'" x-text="(t.attempts||1)+'회'"></span>
                 <span style="font-size:11px;color:var(--text2);text-align:center" x-text="t.accuracy_score>0?pct(t.accuracy_score*100):'—'"></span>
-                <button class="btn" style="font-size:11px;padding:2px 8px" @click="taskDetail=t">상세</button>
+                <button class="btn" style="font-size:11px;padding:2px 6px;min-width:44px" @click="taskDetail=t">상세</button>
               </div>
               <div style="margin-top:5px;padding:4px 8px;border-radius:4px;font-size:12px" :style="(t.errors||[]).length>0?'background:rgba(248,113,113,.08);color:var(--red)':'background:var(--bg3);color:var(--text2)'" x-text="'🔍 '+diagnosisMsg(t)"></div>
             </div>
@@ -949,16 +957,19 @@ textarea.gd-input{height:60px;resize:vertical;font-family:inherit}
           <span class="badge" style="background:rgba(248,113,113,.15);color:var(--red)" x-text="failedTasks().length+'건'"></span>
           <span x-show="failRetryCount()>0" style="font-size:12px;color:var(--orange)">⚠️ 재시도 후 실패 <span x-text="failRetryCount()+'건'"></span></span>
         </div>
-        <div class="slist">
+        <div class="dtx" style="max-height:320px;overflow-y:auto">
+          <div class="dtx-row dtx-head" style="grid-template-columns:1fr 90px 80px 44px 44px 44px;position:sticky;top:0;z-index:1">
+            <span>태스크 ID</span><span style="text-align:center">유형</span><span style="text-align:center">완료율</span><span style="text-align:center">시도</span><span style="text-align:center">정확도</span><span></span>
+          </div>
           <template x-for="t in failedTasks()" :key="t.task_id">
-            <div style="padding:8px 4px;border-bottom:1px solid var(--border)">
-              <div style="display:grid;grid-template-columns:1fr 90px 80px 44px 44px auto;gap:0 10px;align-items:center">
-                <span class="dk" style="font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" x-text="t.task_id"></span>
+            <div style="padding:6px var(--sp-3);border-bottom:1px solid var(--border)">
+              <div style="display:grid;grid-template-columns:1fr 90px 80px 44px 44px 44px;gap:0 8px;align-items:center">
+                <span class="dtx-id" x-text="t.task_id"></span>
                 <span style="font-size:11px;color:var(--text2);text-align:center" x-text="t.task_type"></span>
                 <div class="pscore-bar"><div class="pscore-fill" style="background:var(--red)" :style="`width:${Math.max(2,(t.completion_score*100)).toFixed(0)}%`"></div></div>
                 <span style="font-size:11px;text-align:center" :style="(t.attempts||1)>1?'color:var(--orange);font-weight:600':'color:var(--text2)'" x-text="(t.attempts||1)+'회'"></span>
                 <span style="font-size:11px;color:var(--text2);text-align:center" x-text="t.accuracy_score>0?pct(t.accuracy_score*100):'—'"></span>
-                <button class="btn" style="font-size:11px;padding:2px 8px" @click="taskDetail=t">상세</button>
+                <button class="btn" style="font-size:11px;padding:2px 6px;min-width:44px" @click="taskDetail=t">상세</button>
               </div>
               <div style="margin-top:5px;padding:4px 8px;border-radius:4px;font-size:12px" :style="(t.errors||[]).length>0?'background:rgba(248,113,113,.08);color:var(--red)':'background:var(--bg3);color:var(--text2)'" x-text="'🔍 '+diagnosisMsg(t)"></div>
             </div>
@@ -1017,8 +1028,8 @@ textarea.gd-input{height:60px;resize:vertical;font-family:inherit}
         <div class="kpi kpi-act" :class="{sel:selK==='std_acc'}" @click="selK=selK==='std_acc'?null:'std_acc'" style="cursor:pointer"><div class="kpi-lbl">Std Dev</div><div class="kpi-val" x-text="pct(data.accuracy_metrics?.accuracy_scores?.std_accuracy)"></div></div>
       </div>
       {% call kpi_detail_panel("{overall_acc:pct(acc()),median_acc:pct(data.accuracy_metrics?.accuracy_scores?.median_accuracy),min_acc:pct(data.accuracy_metrics?.accuracy_scores?.min_accuracy),max_acc:pct(data.accuracy_metrics?.accuracy_scores?.max_accuracy),std_acc:pct(data.accuracy_metrics?.accuracy_scores?.std_accuracy)}[selK]||''", "data", "관련 태스크") %}
-      <div style="max-height:240px;overflow-y:auto">
-        <div class="dtx-row dtx-head" style="grid-template-columns:1fr 80px 80px">
+      <div class="dtx" style="max-height:240px;overflow-y:auto">
+        <div class="dtx-row dtx-head" style="grid-template-columns:1fr 80px 80px;position:sticky;top:0;z-index:1">
           <span>태스크 ID</span><span style="text-align:center">유형</span><span style="text-align:center">정확도</span>
         </div>
         <template x-for="t in filteredItems(selK, data)" :key="t.task_id">
@@ -1144,8 +1155,8 @@ textarea.gd-input{height:60px;resize:vertical;font-family:inherit}
           </template>
         </div>
         {% call kpi_detail_panel("kpiVal(selK, data)", "data", "품질 평가 항목") %}
-        <div style="max-height:260px;overflow-y:auto">
-          <div class="dtx-row dtx-head" style="grid-template-columns:1fr 50px 40px 42px 42px 42px 42px 42px">
+        <div class="dtx" style="max-height:260px;overflow-y:auto">
+          <div class="dtx-row dtx-head" style="grid-template-columns:1fr 50px 40px 42px 42px 42px 42px 42px;position:sticky;top:0;z-index:1">
             <span>태스크 ID</span><span style="text-align:center">점수</span><span style="text-align:center">등급</span>
             <span style="text-align:center" title="Relevance (관련성 25%)">rel</span>
             <span style="text-align:center" title="Completeness (완성도 25%)">com</span>
@@ -1252,8 +1263,8 @@ textarea.gd-input{height:60px;resize:vertical;font-family:inherit}
         <div class="kpi kpi-act" :class="{sel:selK==='unsupported_claims'}" @click="selK=selK==='unsupported_claims'?null:'unsupported_claims'" style="cursor:pointer"><div class="kpi-lbl">미지원 주장</div><div class="kpi-val" x-text="hallUnsupportedTasks(data)"></div></div>
       </div>
       {% call kpi_detail_panel("{hall_rate:pct(hall()),total_evaluated:String(dedupDets(data.hallucination_detail?.detections||[]).length),total_flagged:String(data.accuracy_metrics?.hallucination?.total_flagged??0),unsupported_claims:hallUnsupportedTasks(data)+'건'}[selK]||''", "data", "탐지 항목") %}
-      <div style="max-height:260px;overflow-y:auto">
-        <div class="dtx-row dtx-head" style="grid-template-columns:1fr 58px 50px 60px">
+      <div class="dtx" style="max-height:260px;overflow-y:auto">
+        <div class="dtx-row dtx-head" style="grid-template-columns:1fr 58px 50px 60px;position:sticky;top:0;z-index:1">
           <span>태스크 ID</span>
           <span style="text-align:center">환각률</span>
           <span style="text-align:center">상태</span>
@@ -1389,17 +1400,17 @@ textarea.gd-input{height:60px;resize:vertical;font-family:inherit}
         </div>
       </div>
       {% call kpi_detail_panel("{faithfulness:ragAvg('faithfulness'),answer_relevancy:ragAvg('answer_relevancy'),context_recall:ragAvg('context_recall'),context_precision:ragAvg('context_precision'),ragas_overall:(data.advanced?.summary?.ragas_overall_score?.mean??0).toFixed(3)}[selK]||''", "data", "태스크별 상세") %}
-      <div style="max-height:240px;overflow-y:auto">
-        <div style="display:grid;grid-template-columns:1fr 80px;gap:0 8px;font-size:11px;color:var(--text2);font-weight:600;padding:3px 0;border-bottom:1px solid var(--border);margin-bottom:4px">
+      <div class="dtx" style="max-height:240px;overflow-y:auto">
+        <div class="dtx-row dtx-head" style="grid-template-columns:1fr 80px;position:sticky;top:0;z-index:1">
           <span>태스크 ID</span><span style="text-align:center">점수</span>
         </div>
         <template x-for="(t,i) in filteredItems(selK, data)" :key="t.task_id||i">
-          <div style="display:grid;grid-template-columns:1fr 80px;gap:0 8px;padding:3px 0;border-bottom:1px solid var(--border)">
-            <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text2)" x-text="t.task_id||'-'"></span>
+          <div class="dtx-row" style="grid-template-columns:1fr 80px">
+            <span class="dtx-id" x-text="t.task_id||'-'"></span>
             <span style="text-align:center;font-weight:600" :style="(()=>{const f=selK==='ragas_overall'?null:'ragas_'+selK;const v=f?+(t[f]||0):((t.ragas_faithfulness||0)+(t.ragas_answer_relevancy||0)+(t.ragas_context_recall||0)+(t.ragas_context_precision||0))/4;return v>=0.8?'color:var(--green)':v>=0.5?'color:var(--yellow)':'color:var(--red)';})()" x-text="(()=>{const f=selK==='ragas_overall'?null:'ragas_'+selK;const v=f?t[f]:((t.ragas_faithfulness||0)+(t.ragas_answer_relevancy||0)+(t.ragas_context_recall||0)+(t.ragas_context_precision||0))/4;return v!=null?(+v).toFixed(3):'—';})()"></span>
           </div>
         </template>
-        <div x-show="filteredItems(selK, data).length===0" style="text-align:center;padding:16px;color:var(--text2)">데이터 없음</div>
+        <div class="dtx-empty" x-show="filteredItems(selK, data).length===0">데이터 없음</div>
       </div>
       {% endcall %}
       <!-- Ragas 지표 설명 -->
@@ -1438,8 +1449,8 @@ textarea.gd-input{height:60px;resize:vertical;font-family:inherit}
         <div class="sec-t">태스크별 RAG 상세</div>
         <div x-show="!(data.advanced?.per_task||[]).some(t=>t.ragas_faithfulness||t.ragas_answer_relevancy||t.ragas_context_recall||t.ragas_context_precision)" style="font-size:13px;color:var(--text2);padding:10px">태스크별 Ragas 데이터 없음</div>
         <div x-show="(data.advanced?.per_task||[]).some(t=>t.ragas_faithfulness||t.ragas_answer_relevancy||t.ragas_context_recall||t.ragas_context_precision)">
-          <div style="font-size:12px">
-            <div class="dtx-row dtx-head" style="grid-template-columns:1fr 108px 116px 90px 108px">
+          <div class="dtx" style="max-height:360px;overflow-y:auto">
+            <div class="dtx-row dtx-head" style="grid-template-columns:1fr 108px 116px 90px 108px;position:sticky;top:0;z-index:1">
               <span>Task ID</span>
               <span style="text-align:right">Faithfulness</span>
               <span style="text-align:right">Ans.Relevancy</span>
@@ -1526,17 +1537,17 @@ textarea.gd-input{height:60px;resize:vertical;font-family:inherit}
         </div>
       </div>
       {% call kpi_detail_panel("{g_eval_score:(data.advanced?.summary?.g_eval_score?.mean??0).toFixed(3),hallucination_score:(data.advanced?.summary?.hallucination_score?.mean??0).toFixed(3),toxicity_score:(data.advanced?.summary?.toxicity_score?.mean??0).toFixed(3),bias_score:(data.advanced?.summary?.bias_score?.mean??0).toFixed(3),answer_relevancy_score:(data.advanced?.summary?.answer_relevancy_score?.mean??0).toFixed(3)}[selK]||''", "data", "태스크별 상세") %}
-      <div style="max-height:240px;overflow-y:auto">
-        <div style="display:grid;grid-template-columns:1fr 80px;gap:0 8px;font-size:11px;color:var(--text2);font-weight:600;padding:3px 0;border-bottom:1px solid var(--border);margin-bottom:4px">
+      <div class="dtx" style="max-height:240px;overflow-y:auto">
+        <div class="dtx-row dtx-head" style="grid-template-columns:1fr 80px;position:sticky;top:0;z-index:1">
           <span>태스크 ID</span><span style="text-align:center">점수</span>
         </div>
         <template x-for="(t,i) in filteredItems(selK, data)" :key="t.task_id||i">
-          <div style="display:grid;grid-template-columns:1fr 80px;gap:0 8px;padding:3px 0;border-bottom:1px solid var(--border)">
-            <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text2)" x-text="t.task_id||'-'"></span>
+          <div class="dtx-row" style="grid-template-columns:1fr 80px">
+            <span class="dtx-id" x-text="t.task_id||'-'"></span>
             <span style="text-align:center;font-weight:600" :style="(()=>{const inv=selK==='toxicity_score'||selK==='bias_score';const v=t[selK]||0;return inv?(v<=0.1?'color:var(--green)':v<=0.3?'color:var(--yellow)':'color:var(--red)'):(v>=0.8?'color:var(--green)':v>=0.5?'color:var(--yellow)':'color:var(--red)');})()" x-text="t[selK]!=null?(+t[selK]).toFixed(3):'—'"></span>
           </div>
         </template>
-        <div x-show="filteredItems(selK, data).length===0" style="text-align:center;padding:16px;color:var(--text2)">데이터 없음</div>
+        <div class="dtx-empty" x-show="filteredItems(selK, data).length===0">데이터 없음</div>
       </div>
       {% endcall %}
       <!-- DeepEval 지표 설명 -->
@@ -1583,8 +1594,9 @@ textarea.gd-input{height:60px;resize:vertical;font-family:inherit}
         <div class="sec-t">태스크별 상세 <span class="badge" x-text="`${(data.advanced?.per_task||[]).length}건`"></span></div>
         <div x-show="!(data.advanced?.per_task?.length>0)" style="font-size:13px;color:var(--text2);padding:10px">태스크별 데이터 없음</div>
         <div x-show="data.advanced?.per_task?.length>0">
+          <div class="dtx" style="max-height:360px;overflow-y:auto">
           <!-- 헤더 행 -->
-          <div class="dtx-row dtx-head" style="grid-template-columns:1fr 90px 116px 80px 68px 120px">
+          <div class="dtx-row dtx-head" style="grid-template-columns:1fr 90px 116px 80px 68px 120px;position:sticky;top:0;z-index:1">
             <span>Task ID</span>
             <span style="text-align:right;white-space:nowrap" title="LLM이 사용자 정의 기준으로 평가. ↑ 높을수록 좋음">G-Eval ↑</span>
             <span style="text-align:right;white-space:nowrap" title="컨텍스트 대비 환각 없는 비율. 1.0=환각 없음. ↑ 높을수록 좋음">Hallucination ↑</span>
@@ -1608,6 +1620,7 @@ textarea.gd-input{height:60px;resize:vertical;font-family:inherit}
                 x-text="t.answer_relevancy_score!=null?(+t.answer_relevancy_score).toFixed(3):'—'"></span>
             </div>
           </template>
+          </div>
         </div>
       </div>
     </div>
@@ -2788,8 +2801,8 @@ textarea.gd-input{height:60px;resize:vertical;font-family:inherit}
       <div class="kpi kpi-act" :class="{sel:selK==='lat_std'}"  @click="selK=selK==='lat_std'?null:'lat_std'"><div class="kpi-lbl">Std Dev</div><div class="kpi-val" x-text="sec_(data.efficiency_metrics?.latency?.std)"></div></div>
     </div>
     {% call kpi_detail_panel("{lat_mean:sec_(data.efficiency_metrics?.latency?.mean),lat_p50:sec_(data.efficiency_metrics?.latency?.p50),lat_p95:sec_(data.efficiency_metrics?.latency?.p95),lat_p99:sec_(data.efficiency_metrics?.latency?.p99),lat_max:sec_(data.efficiency_metrics?.latency?.max),lat_std:sec_(data.efficiency_metrics?.latency?.std)}[selK]||''", "data", "응답 지연 태스크") %}
-    <div style="max-height:240px;overflow-y:auto">
-      <div class="dtx-row dtx-head" style="grid-template-columns:1fr 80px 80px 60px">
+    <div class="dtx" style="max-height:240px;overflow-y:auto">
+      <div class="dtx-row dtx-head" style="grid-template-columns:1fr 80px 80px 60px;position:sticky;top:0;z-index:1">
         <span>태스크 ID</span><span style="text-align:right">응답시간</span><span style="text-align:center">유형</span><span style="text-align:center">상태</span>
       </div>
       <template x-for="lt in filteredItems(selK, data)" :key="lt.task_id">
@@ -2888,8 +2901,8 @@ textarea.gd-input{height:60px;resize:vertical;font-family:inherit}
           <div class="kpi kpi-act" :class="{sel:selK==='tok_avg'}" @click="selK=selK==='tok_avg'?null:'tok_avg'"><div class="kpi-lbl">Task당 평균</div><div class="kpi-val" x-text="Math.round(data.efficiency_metrics?.tokens?.avg_tokens_per_task||0).toLocaleString()"></div></div>
         </div>
         {% call kpi_detail_panel("{tok_total:(data.efficiency_metrics?.tokens?.total_tokens||0).toLocaleString(),tok_input:(data.efficiency_metrics?.tokens?.total_input_tokens||0).toLocaleString(),tok_output:(data.efficiency_metrics?.tokens?.total_output_tokens||0).toLocaleString(),tok_avg:Math.round(data.efficiency_metrics?.tokens?.avg_tokens_per_task||0).toLocaleString()}[selK]||''", "data", "토큰 사용 태스크") %}
-        <div style="max-height:240px;overflow-y:auto">
-          <div class="dtx-row dtx-head" style="grid-template-columns:1fr 90px 60px 60px">
+        <div class="dtx" style="max-height:240px;overflow-y:auto">
+          <div class="dtx-row dtx-head" style="grid-template-columns:1fr 90px 60px 60px;position:sticky;top:0;z-index:1">
             <span>태스크 ID</span><span style="text-align:right">토큰 수</span><span style="text-align:center">유형</span><span style="text-align:center">상태</span>
           </div>
           <template x-for="tk in filteredItems(selK, data)" :key="tk.task_id">
@@ -2944,8 +2957,8 @@ textarea.gd-input{height:60px;resize:vertical;font-family:inherit}
         <div class="kpi kpi-act" :class="{sel:selK==='cost_monthly'}" @click="selK=selK==='cost_monthly'?null:'cost_monthly'"><div class="kpi-lbl">월간 추정</div><div class="kpi-val" x-text="cost(data.efficiency_metrics?.tokens?.estimated_monthly_cost)"></div></div>
       </div>
       {% call kpi_detail_panel("{cost_total:cost(data.efficiency_metrics?.tokens?.total_cost),cost_per_task:cost(data.efficiency_metrics?.tokens?.avg_cost_per_task),cost_monthly:cost(data.efficiency_metrics?.tokens?.estimated_monthly_cost)}[selK]||''", "data", "비용 상위 태스크") %}
-      <div style="max-height:240px;overflow-y:auto">
-        <div class="dtx-row dtx-head" style="grid-template-columns:1fr 80px 80px 60px">
+      <div class="dtx" style="max-height:240px;overflow-y:auto">
+        <div class="dtx-row dtx-head" style="grid-template-columns:1fr 80px 80px 60px;position:sticky;top:0;z-index:1">
           <span>태스크 ID</span><span style="text-align:right">토큰 수</span><span style="text-align:right">추정 비용</span><span style="text-align:center">상태</span>
         </div>
         <template x-for="ct in filteredItems(selK, data)" :key="ct.task_id">
@@ -3146,8 +3159,8 @@ textarea.gd-input{height:60px;resize:vertical;font-family:inherit}
         <div class="kpi kpi-act" :class="{sel:selK==='sec_in_rate'}" @click="selK=selK==='sec_in_rate'?null:'sec_in_rate'"><div class="kpi-lbl">위협률</div><div class="kpi-val" :style="`color:${(data.security_l1?.input_security?.threat_rate||0)>20?'var(--red)':'var(--green)'}`" x-text="pct(data.security_l1?.input_security?.threat_rate)"></div></div>
       </div>
       {% call kpi_detail_panel("{sec_in_total:String(data.security_l1?.input_security?.total_inputs_evaluated??0),sec_in_threat:String(data.security_l1?.input_security?.inputs_with_threats??0)+'건',sec_in_events:String((data.security_l1?.input_security?.sql_injection_attempts||0)+(data.security_l1?.input_security?.command_injection_attempts||0)+(data.security_l1?.input_security?.path_traversal_attempts||0)+(data.security_l1?.input_security?.xss_attempts||0)+(data.security_l1?.input_security?.prompt_injection_attempts||0))+'건',sec_in_rate:pct(data.security_l1?.input_security?.threat_rate)}[selK]||''", "data", "입력 평가 상세") %}
-      <div style="max-height:240px;overflow-y:auto">
-        <div class="dtx-row dtx-head" style="grid-template-columns:1fr 60px 70px 70px">
+      <div class="dtx" style="max-height:240px;overflow-y:auto">
+        <div class="dtx-row dtx-head" style="grid-template-columns:1fr 60px 70px 70px;position:sticky;top:0;z-index:1">
           <span>태스크 ID</span><span style="text-align:center">위협여부</span><span style="text-align:center">위험도</span><span style="text-align:right">위협 수</span>
         </div>
         <template x-for="se in filteredItems(selK, data)" :key="se.task_id">
@@ -3211,8 +3224,8 @@ textarea.gd-input{height:60px;resize:vertical;font-family:inherit}
         <div class="kpi kpi-act" :class="{sel:selK==='sec_out_rate'}" @click="selK=selK==='sec_out_rate'?null:'sec_out_rate'"><div class="kpi-lbl">유출률</div><div class="kpi-val" :style="`color:${(data.security_l1?.output_leakage?.leakage_rate||0)>10?'var(--red)':'var(--green)'}`" x-text="pct(data.security_l1?.output_leakage?.leakage_rate)"></div></div>
       </div>
       {% call kpi_detail_panel("{sec_out_total:String(data.security_l1?.output_leakage?.total_outputs_evaluated??0),sec_out_leaked:String(data.security_l1?.output_leakage?.outputs_with_leakage??0)+'건',sec_out_rate:pct(data.security_l1?.output_leakage?.leakage_rate)}[selK]||''", "data", "출력 탐지 상세") %}
-      <div style="max-height:240px;overflow-y:auto">
-        <div class="dtx-row dtx-head" style="grid-template-columns:1fr 70px 70px">
+      <div class="dtx" style="max-height:240px;overflow-y:auto">
+        <div class="dtx-row dtx-head" style="grid-template-columns:1fr 70px 70px;position:sticky;top:0;z-index:1">
           <span>태스크 ID</span><span style="text-align:center">유출여부</span><span style="text-align:center">심각도</span>
         </div>
         <template x-for="so in filteredItems(selK, data)" :key="so.task_id">
@@ -3251,18 +3264,20 @@ textarea.gd-input{height:60px;resize:vertical;font-family:inherit}
       </div>
       <div class="sec" x-show="data.security_l1?.tool_calls_detail?.length>0">
         <div class="sec-t">Tool 호출 상세</div>
-        <div class="dtx-row dtx-head" style="grid-template-columns:1fr 140px 64px 80px">
-          <span>Task ID</span><span>Tool</span><span style="text-align:center">인가</span><span style="text-align:center">권한</span>
-        </div>
-        <div class="slist">
-          <template x-for="t in (data.security_l1?.tool_calls_detail||[]).slice(0,30)" :key="t.task_id+(t.tool_name||'')">
-            <div class="dtx-row" style="grid-template-columns:1fr 140px 64px 80px">
-              <span class="dtx-id" x-text="t.task_id"></span>
-              <span style="color:var(--text2)" x-text="t.tool_name||'-'"></span>
-              <span style="text-align:center"><span :class="t.is_authorized?'badge-ok':'badge-ng'" class="pill" x-text="t.is_authorized?'인가':'위반'"></span></span>
-              <span style="text-align:center"><span class="tag" x-text="t.privilege_level||'normal'"></span></span>
-            </div>
-          </template>
+        <div class="dtx">
+          <div class="dtx-row dtx-head" style="grid-template-columns:1fr 140px 64px 80px">
+            <span>Task ID</span><span>Tool</span><span style="text-align:center">인가</span><span style="text-align:center">권한</span>
+          </div>
+          <div style="max-height:280px;overflow-y:auto">
+            <template x-for="t in (data.security_l1?.tool_calls_detail||[]).slice(0,30)" :key="t.task_id+(t.tool_name||'')">
+              <div class="dtx-row" style="grid-template-columns:1fr 140px 64px 80px">
+                <span class="dtx-id" x-text="t.task_id"></span>
+                <span style="color:var(--text2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap" x-text="t.tool_name||'-'"></span>
+                <span style="text-align:center"><span :class="t.is_authorized?'badge-ok':'badge-ng'" class="pill" x-text="t.is_authorized?'인가':'위반'"></span></span>
+                <span style="text-align:center"><span class="tag" x-text="t.privilege_level||'normal'"></span></span>
+              </div>
+            </template>
+          </div>
         </div>
       </div>
     </div>
@@ -3287,12 +3302,15 @@ textarea.gd-input{height:60px;resize:vertical;font-family:inherit}
     }">
       <div class="sec-t">🔬 위협 패턴 인텔리전스</div>
       <div x-show="threatItems().length===0" class="empty es"><p>탐지된 위협 패턴 없음 ✅</p></div>
-      <div x-show="threatItems().length>0">
+      <div x-show="threatItems().length>0" class="dtx">
+        <div class="dtx-row dtx-head" style="grid-template-columns:1fr 80px 72px">
+          <span>위협 유형</span><span style="text-align:center">상태</span><span style="text-align:right">탐지 수</span>
+        </div>
         <template x-for="t in threatItems()" :key="t.name">
-          <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;font-size:14px">
-            <span style="min-width:160px" x-text="t.name"></span>
-            <span style="color:var(--red)">⚠️ 탐지됨</span>
-            <span style="color:var(--text2)" x-text="`${t.count}건`"></span>
+          <div class="dtx-row" style="grid-template-columns:1fr 80px 72px">
+            <span class="dtx-id" x-text="t.name"></span>
+            <span style="text-align:center"><span class="badge-ng">⚠️ 탐지</span></span>
+            <span style="text-align:right;color:var(--text2)" x-text="`${t.count}건`"></span>
           </div>
         </template>
       </div>
@@ -3707,14 +3725,14 @@ textarea.gd-input{height:60px;resize:vertical;font-family:inherit}
       <div x-show="metricCorr().length>0">
         <p style="font-size:13px;color:var(--text2);margin-bottom:10px">정확도 · 지연시간 · 토큰 · 완료율 4×4 매트릭스 — 파랑(음의 상관) / 흰색(0) / 빨강(양의 상관)</p>
         <div class="cbox"><div id="corr-heatmap" class="plt-chart" style="height:300px"></div></div>
-        <div style="margin-top:12px">
-          <div style="display:grid;grid-template-columns:1fr 90px 100px 96px;gap:0 12px;padding:6px 0;color:var(--text2);font-size:12px;border-bottom:2px solid var(--border);margin-bottom:2px">
+        <div class="dtx" style="margin-top:12px">
+          <div class="dtx-row dtx-head" style="grid-template-columns:1fr 90px 100px 96px">
             <span>지표 쌍</span><span style="text-align:right">r 값</span><span style="text-align:center">강도</span><span style="text-align:center">방향</span>
           </div>
           <template x-for="c in metricCorr()" :key="c.label">
-            <div class="drow" style="display:grid;grid-template-columns:1fr 90px 100px 96px;gap:0 12px;align-items:center">
-              <span class="dk" x-text="c.label"></span>
-              <span :style="`text-align:right;font-variant-numeric:tabular-nums;color:${Math.abs(c.r)>=0.5?'var(--accent)':Math.abs(c.r)>=0.3?'var(--yellow)':'var(--text2)'}`" x-text="c.r.toFixed(3)"></span>
+            <div class="dtx-row" style="grid-template-columns:1fr 90px 100px 96px">
+              <span class="dtx-id" x-text="c.label"></span>
+              <span style="text-align:right;font-variant-numeric:tabular-nums" :style="`color:${Math.abs(c.r)>=0.5?'var(--accent)':Math.abs(c.r)>=0.3?'var(--yellow)':'var(--text2)'}`" x-text="c.r.toFixed(3)"></span>
               <span style="text-align:center"><span class="pill" :class="Math.abs(c.r)>=0.5?'po':Math.abs(c.r)>=0.3?'py':'pg'" x-text="Math.abs(c.r)>=0.5?'강한 상관':Math.abs(c.r)>=0.3?'중간 상관':'약한 상관'"></span></span>
               <span style="text-align:center"><span class="tag" x-text="c.r>0?'양의 상관':'음의 상관'"></span></span>
             </div>
