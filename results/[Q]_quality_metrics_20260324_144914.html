@@ -1,0 +1,691 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Agent Evaluator - 종합 평가 리포트</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; line-height: 1.6; background: #f5f5f5; color: #333; }
+        .container { max-width: 1400px; margin: 0 auto; background: white; padding: 40px; }
+        .header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 40px; border-radius: 10px; margin-bottom: 40px; }
+        .header h1 { font-size: 36px; margin-bottom: 10px; }
+        .header .subtitle { font-size: 14px; opacity: 0.9; margin-top: 10px; }
+
+        .section { margin-bottom: 40px; padding: 30px; background: #f8f9fa; border-radius: 10px; border-left: 5px solid #667eea; }
+        .section h2 { color: #2c3e50; margin-bottom: 20px; font-size: 24px; display: flex; align-items: center; }
+        .section h2 .icon { margin-right: 10px; }
+        .section h3 { color: #34495e; margin: 25px 0 15px 0; font-size: 18px; padding-bottom: 10px; border-bottom: 2px solid #ecf0f1; }
+        .section h4 { color: #555; margin: 20px 0 10px 0; font-size: 16px; }
+
+        .metrics-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px; margin: 20px 0; }
+        .metric-card { background: white; padding: 25px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); border-left: 4px solid #3498db; transition: transform 0.2s; }
+        .metric-card:hover { transform: translateY(-2px); box-shadow: 0 4px 8px rgba(0,0,0,0.15); }
+        .metric-card h3 { margin: 0 0 10px 0; color: #7f8c8d; font-size: 13px; text-transform: uppercase; letter-spacing: 0.5px; }
+        .metric-card .value { font-size: 32px; font-weight: bold; color: #2c3e50; }
+        .metric-card .subtitle { font-size: 12px; color: #95a5a6; margin-top: 5px; }
+
+        .status-good { border-left-color: #27ae60; }
+        .status-warning { border-left-color: #f39c12; }
+        .status-critical { border-left-color: #e74c3c; }
+
+        table { width: 100%; border-collapse: collapse; margin: 20px 0; background: white; box-shadow: 0 2px 4px rgba(0,0,0,0.1); border-radius: 8px; overflow: hidden; }
+        th, td { padding: 15px; text-align: left; border-bottom: 1px solid #ddd; }
+        th { background: #667eea; color: white; font-weight: 600; text-transform: uppercase; font-size: 12px; letter-spacing: 0.5px; }
+        tr:nth-child(even) { background: #f8f9fa; }
+        tr:hover { background: #e9ecef; }
+
+        .insight-box { background: white; padding: 20px; margin: 15px 0; border-radius: 8px; border-left: 4px solid #3498db; }
+        .insight-box.warning { border-left-color: #f39c12; background: #fffbf0; }
+        .insight-box.critical { border-left-color: #e74c3c; background: #fff5f5; }
+        .insight-box.success { border-left-color: #27ae60; background: #f0fff4; }
+        .insight-box h4 { margin: 0 0 10px 0; color: #2c3e50; }
+        .insight-box p { margin: 5px 0; line-height: 1.8; }
+        .insight-box ul { margin: 10px 0 10px 20px; }
+        .insight-box li { margin: 5px 0; }
+
+        .recommendation { background: white; padding: 20px; margin: 15px 0; border-radius: 8px; border-left: 4px solid #3498db; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        .recommendation strong { color: #2980b9; display: block; margin-bottom: 8px; font-size: 16px; }
+        .recommendation p { line-height: 1.8; color: #555; }
+
+        .priority-high { border-left-color: #e74c3c; }
+        .priority-medium { border-left-color: #f39c12; }
+        .priority-low { border-left-color: #3498db; }
+
+        .badge { display: inline-block; padding: 4px 12px; border-radius: 12px; font-size: 11px; font-weight: 600; text-transform: uppercase; }
+        .badge-success { background: #d4edda; color: #155724; }
+        .badge-warning { background: #fff3cd; color: #856404; }
+        .badge-danger { background: #f8d7da; color: #721c24; }
+
+        .footer { margin-top: 60px; padding-top: 30px; border-top: 2px solid #ecf0f1; text-align: center; color: #95a5a6; font-size: 12px; }
+        .footer p { margin: 5px 0; }
+
+        .toc { background: white; padding: 20px; border-radius: 8px; margin-bottom: 30px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        .toc h3 { color: #2c3e50; margin-bottom: 15px; }
+        .toc ul { list-style: none; }
+        .toc li { padding: 8px 0; border-bottom: 1px solid #ecf0f1; }
+        .toc a { color: #3498db; text-decoration: none; }
+        .toc a:hover { text-decoration: underline; }
+
+        @media print {
+            .container { padding: 20px; }
+            .metric-card, .section { break-inside: avoid; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>📊 Agent Evaluator 종합 평가 리포트</h1>
+            <div class="subtitle">AI Agent 개발자 및 품질 관리자를 위한 상세 성능 분석 보고서</div>
+            <div style="margin-top: 15px;"><p><strong>생성일시:</strong> 2026년 03월 24일 14:49:14</p>
+                <p><strong>평가 대상:</strong> 36개 Task</p>
+                <p><strong>평가 버전:</strong> Agent Evaluator v0.5.0</p>
+            </div>
+        </div>
+
+        <!-- Table of Contents -->
+        <div class="toc">
+            <h3>📑 목차</h3>
+            <ul>
+                <li><a href="#summary">1. 핵심 요약 (Executive Summary)</a></li>
+                <li><a href="#core">2. 🎯 Core Metrics - 작업 완료도 및 정확성</a></li>
+                <li><a href="#performance">3. ⚡ Performance - 실행 효율성 및 리소스</a></li>
+                <li><a href="#agentic">4. 🤖 Agentic AI - 도구 사용 및 협업</a></li>
+                <li><a href="#advanced">5. 🔬 Advanced Metrics - 외부 라이브러리 평가</a></li>
+                <li><a href="#security">6. 🔒 Security - 보안 지표 (Layer 1 & 2)</a></li>
+                <li><a href="#insights">7. 💡 Insights - 주요 인사이트 및 알림</a></li>
+                <li><a href="#transparency">8. 🔍 Test 투명성 - 평가 프로세스 투명성</a></li>
+                <li><a href="#recommendations">9. 개선 권장사항 (Recommendations)</a></li>
+                <li><a href="#conclusion">10. 결론 및 다음 단계 (Conclusion)</a></li>
+            </ul>
+        </div>
+
+        <!-- Executive Summary -->
+        <div class="section" id="summary">
+            <h2><span class="icon">📋</span>핵심 요약 (Executive Summary)</h2>
+            <p style="margin-bottom: 20px; line-height: 1.8;">
+                본 리포트는 총 <strong>36개</strong>의 Task를 평가한 결과입니다.
+                전체 성공률은 <strong>0.0%</strong>이며, 작업 완료율(TCR)은 <strong>75.5%</strong>를 기록했습니다.
+            </p>
+            <div class="metrics-grid">
+                <div class="metric-card">
+                    <h3>성공률</h3>
+                    <div class="value">0.0%</div>
+                    <div class="subtitle"><span class="badge-danger">개선 필요</span></div>
+                </div>
+                <div class="metric-card">
+                    <h3>작업 완료율 (TCR)</h3>
+                    <div class="value">75.5%</div>
+                    <div class="subtitle"><span class="badge-warning">양호</span></div>
+                </div>
+                <div class="metric-card">
+                    <h3>정확도</h3>
+                    <div class="value">16.3%</div>
+                    <div class="subtitle"><span class="badge-danger">개선 필요</span></div>
+                </div>
+                <div class="metric-card">
+                    <h3>평균 응답 시간</h3>
+                    <div class="value">2.27s</div>
+                    <div class="subtitle"><span class="badge-success">빠름</span></div>
+                </div>
+            </div>
+        </div>
+        <!-- Core Metrics Section -->
+        <div class="section" id="core">
+            <h2><span class="icon">🎯</span>Core Metrics - 작업 완료도 및 정확성</h2>
+            <p style="margin-bottom: 20px; line-height: 1.8;">
+                Core Metrics는 <strong>"What was achieved"</strong> (무엇을 달성했는가)를 측정합니다.
+                작업 완료율, 정확도, 품질, 환각 탐지 등 AI Agent의 기본적인 성능을 평가합니다.
+            </p>
+
+            <h3>작업 완료율 (Task Completion Rate - TCR)</h3>
+            <div class="insight-box warning">
+                <h4>TCR 요약</h4>
+                <p><strong>작업 완료율:</strong> 75.5%</p>
+                <p><strong>성공률:</strong> 0.0%</p>
+                <p><strong>벤치마크 등급:</strong> C등급 (Fair)</p>
+            </div>
+
+            <h3>정확도 (Accuracy)</h3>
+            <div class="insight-box critical">
+                <h4>정확도 요약</h4>
+                <p><strong>전체 정확도:</strong> 16.3%</p>
+                <p><strong>높은 정확도 (≥90%):</strong> 2개</p>
+                <p><strong>낮은 정확도 (<70%):</strong> 68개</p>
+                <p><strong>평균 정확도:</strong> 16.3%</p>
+            </div>
+
+            <h3>응답 품질 분석 (Quality Analysis)</h3>
+            <div class="insight-box critical">
+                <h4>품질 평가 요약</h4>
+                <p><strong>평가 상태:</strong> 개선 필요</p>
+                <p><strong>평가된 응답:</strong> 36개</p>
+                <p><strong>평균 품질 점수:</strong> 1.92/5.0</p>
+                <p><strong>고품질 응답 (A/B등급):</strong> 0개 (0.0%)</p>
+            </div>
+
+            <h4>차원별 점수 상세</h4>
+            <table>
+                <thead>
+                    <tr>
+                        <th>평가 차원</th>
+                        <th>평균 점수</th>
+                        <th>가중치</th>
+                        <th>설명</th>
+                        <th>개발자 가이드</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><strong>Relevance (관련성)</strong></td>
+                        <td><span class="badge-danger">0.61/5.0</span></td>
+                        <td>25%</td>
+                        <td>질문과 답변의 연관성</td>
+                        <td style="font-size: 12px; color: #555;">프롬프트 엔지니어링으로 질문 의도 파악 강화</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Completeness (완전성)</strong></td>
+                        <td><span class="badge-danger">3.75/5.0</span></td>
+                        <td>25%</td>
+                        <td>필요한 정보의 포함 여부</td>
+                        <td style="font-size: 12px; color: #555;">필수 요소 체크리스트 추가 및 검증 로직 구현</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Accuracy (정확성)</strong></td>
+                        <td><span class="badge-danger">1.78/5.0</span></td>
+                        <td>20%</td>
+                        <td>사실적 정확도</td>
+                        <td style="font-size: 12px; color: #555;">RAG 컨텍스트 품질 개선 및 환각 탐지 강화</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Clarity (명확성)</strong></td>
+                        <td><span class="badge-danger">0.63/5.0</span></td>
+                        <td>15%</td>
+                        <td>이해하기 쉬운 정도</td>
+                        <td style="font-size: 12px; color: #555;">구조화된 응답 포맷 사용 및 단계별 설명 추가</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Usefulness (유용성)</strong></td>
+                        <td><span class="badge-danger">2.50/5.0</span></td>
+                        <td>15%</td>
+                        <td>실용적 가치</td>
+                        <td style="font-size: 12px; color: #555;">사용자 피드백 반영 및 실행 가능한 답변 생성</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <h4>등급 분포</h4>
+            <table>
+                <thead>
+                    <tr>
+                        <th>등급</th>
+                        <th>응답 수</th>
+                        <th>비율</th>
+                        <th>평가</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><strong>F</strong></td>
+                        <td>36개</td>
+                        <td>100.0%</td>
+                        <td>개선 필요</td>
+                    </tr></tbody></table><h3>환각 탐지 (Hallucination Detection)</h3>
+            <div class="insight-box critical">
+                <h4>환각 탐지 요약</h4>
+                <p><strong>탐지 상태:</strong> 위험</p>
+                <p><strong>전체 환각률:</strong> 75.8%</p>
+                <p><strong>검사된 응답:</strong> 31개</p>
+                <p><strong>환각 탐지:</strong> 26개</p>
+                <p><strong>정상 응답:</strong> 5개</p>
+            </div>
+
+            <h4>환각 유형별 분석</h4>
+            <table>
+                <thead>
+                    <tr>
+                        <th>환각 유형</th>
+                        <th>발생 횟수</th>
+                        <th>심각도</th>
+                        <th>설명</th>
+                        <th>개발자 조치사항</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><strong>지원되지 않는 주장</strong></td>
+                        <td>29개</td>
+                        <td><span class="badge-warning">중간</span></td>
+                        <td>제공된 컨텍스트에서 지원되지 않는 정보</td>
+                        <td style="font-size: 12px;">RAG 검색 품질 개선, 컨텍스트 윈도우 확장</td>
+                    </tr>
+                    <tr>
+                        <td><strong>숫자 불일치</strong></td>
+                        <td>5개</td>
+                        <td><span class="badge-danger">높음</span></td>
+                        <td>컨텍스트와 다른 숫자 정보</td>
+                        <td style="font-size: 12px;">숫자 추출 후 컨텍스트 대조 검증, 계산 로직 추가</td>
+                    </tr>
+                </tbody>
+            </table></div>
+        <div class="section" id="performance">
+            <h2><span class="icon">⚡</span>Performance - 실행 효율성 및 리소스</h2>
+            <p style="margin-bottom: 20px; line-height: 1.8;">
+                Performance Metrics는 <strong>"How efficiently"</strong> (얼마나 효율적으로)를 측정합니다.
+                응답 시간, 비용, 재시도 효율성 등 실행 효율성과 리소스 사용을 평가합니다.
+            </p>
+
+            <h3>응답 시간 분석 (Latency)</h3>
+            <div class="insight-box success">
+                <h4>응답 시간 요약</h4>
+                <p><strong>평균:</strong> 2.27초</p>
+                <p><strong>중앙값:</strong> 2.20초</p>
+                <p><strong>P95:</strong> 4.39초 (95%의 요청이 이 시간 내에 완료)</p>
+                <p><strong>최대:</strong> 4.89초</p>
+            </div>
+
+            <h4>개발자 최적화 가이드</h4>
+            <ul style="margin: 15px 0 15px 20px; line-height: 2.0;">
+                <li>✅ 응답 시간이 우수합니다. 현재 최적화 수준을 유지하세요.</li></ul>
+            <h3>토큰 & 비용 분석 (Token & Cost)</h3>
+            <div class="insight-box success">
+                <h4>비용 요약</h4>
+                <p><strong>총 비용:</strong> $0.1306</p>
+                <p><strong>Task당 평균 비용:</strong> $0.0036</p>
+                <p><strong>총 토큰 사용량:</strong> 15,380 tokens</p>
+                <p><strong>Task당 평균 토큰:</strong> 427 tokens</p>
+            </div>
+
+            <h4>토큰 사용 내역</h4>
+            <table>
+                <thead>
+                    <tr>
+                        <th>구분</th>
+                        <th>토큰 수</th>
+                        <th>비율</th>
+                        <th>최적화 포인트</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><strong>입력 토큰</strong></td>
+                        <td>8,344</td>
+                        <td>54.3%</td>
+                        <td>프롬프트 간소화, 컨텍스트 최적화</td>
+                    </tr>
+                    <tr>
+                        <td><strong>출력 토큰</strong></td>
+                        <td>7,036</td>
+                        <td>45.7%</td>
+                        <td>max_tokens 설정, 응답 길이 제한</td>
+                    </tr>
+                    <tr>
+                        <td><strong>총계</strong></td>
+                        <td><strong>15,380</strong></td>
+                        <td><strong>100.0%</strong></td>
+                        <td>전반적인 효율성 모니터링</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <h3>재시도 성공률 (Retry Success Rate)</h3>
+            <div class="insight-box warning">
+                <h4>재시도 요약</h4>
+                <p><strong>재시도율:</strong> 100.0%</p>
+                <p><strong>1차 시도 성공률:</strong> 0.0%</p>
+                <p><strong>최종 성공률:</strong> 100.0%</p>
+                <p><strong>개선도:</strong> +100.0%p (재시도로 구제한 Task: 2개)</p>
+                <p><strong>평균 시도 횟수:</strong> 2.00회</p>
+            </div>
+
+            <h4>재시도 효과 분석</h4>
+            <table>
+                <thead>
+                    <tr>
+                        <th>지표</th>
+                        <th>값</th>
+                        <th>목표</th>
+                        <th>상태</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><strong>재시도율</strong></td>
+                        <td>100.0%</td>
+                        <td>&lt; 30%</td>
+                        <td><span class="badge-warning">높음</span></td>
+                    </tr>
+                    <tr>
+                        <td><strong>최종 성공률</strong></td>
+                        <td>100.0%</td>
+                        <td>≥ 80%</td>
+                        <td><span class="badge-success">우수</span></td>
+                    </tr>
+                    <tr>
+                        <td><strong>평균 시도 횟수</strong></td>
+                        <td>2.00회</td>
+                        <td>&lt; 3회</td>
+                        <td><span class="badge-success">적정</span></td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <h4>재시도 최적화 가이드</h4>
+            <ul style="margin: 15px 0 15px 20px; line-height: 2.0;">
+                <li><strong>재시도율 감소:</strong> 1차 시도 성공률을 높이기 위해 입력 검증 강화 및 프롬프트 품질 개선</li></ul>
+        </div>
+        <!-- Agentic AI Section -->
+        <div class="section" id="agentic">
+            <h2><span class="icon">🤖</span>Agentic AI - 도구 사용 및 협업</h2>
+            <p style="margin-bottom: 20px; line-height: 1.8;">
+                Agentic AI Metrics는 AI Agent의 <strong>도구 사용 능력 및 협업 품질</strong>을 측정합니다.
+                도구 선택 정확도, 도구 실행 효율성, 다중 에이전트 협업, 워크플로우 실행을 평가합니다.
+            </p>
+
+            <h3>도구 선택 정확도 (Tool Selection Accuracy)</h3><h3>도구 실행 효율성 (Tool Efficiency)</h3>
+            <p>도구 효율성 데이터가 없습니다. AI Agent가 도구를 사용하면 여기에서 실행 효율성 지표를 확인할 수 있습니다.</p><h3>다중 에이전트 협업 (Multi-Agent Coordination)</h3><h3>워크플로우 실행 (Workflow Execution)</h3><h3>재시도 패턴 (Retry Patterns)</h3>
+            <div class="insight-box">
+                <h4>재시도 요약</h4>
+                <p><strong>재시도율:</strong> 100.0%</p>
+                <p><strong>재시도 후 최종 성공률:</strong> 100.0%</p>
+                <p><strong>재시도 발생 Task:</strong> 2개</p>
+                <p><strong>평균 재시도 횟수:</strong> 2.00회</p>
+            </div>
+
+            <h4>개발자 가이드</h4>
+            <ul style="margin: 15px 0 15px 20px; line-height: 2.0;">
+                <li><strong>재시도 로직 최적화:</strong> 실패 원인 분석 후 타겟 개선</li>
+                <li><strong>에러 핸들링:</strong> 명확한 에러 메시지와 복구 전략</li>
+                <li><strong>Fallback 전략:</strong> 재시도 실패 시 대안 제공</li>
+            </ul>
+        <h3 style="color: #e74c3c; margin-top: 30px;">🔒 보안 메트릭 (Security Metrics)</h3>
+        <p style="color: #555; margin-bottom: 20px;">
+            AI Agent의 보안 위험을 실시간으로 모니터링합니다.
+            <code>enable_security_metrics=True</code>로 활성화하면 입력 위협, 출력 유출, 권한 관리를 자동 검사합니다.
+        </p>
+            <h4 style="margin-top: 20px;">🛡️ 보안 권장사항</h4>
+            <div class="recommendation priority-high">
+                <strong>1. 입력 검증 강화</strong>
+                <p>모든 사용자 입력에 대해 화이트리스트 기반 검증을 적용하고,
+                특수문자 및 SQL 키워드를 필터링하세요.</p>
+            </div>
+            <div class="recommendation priority-high">
+                <strong>2. 민감정보 마스킹</strong>
+                <p>API 키, 비밀번호 등 민감정보가 로그나 응답에 포함되지 않도록
+                자동 마스킹 정책을 적용하세요.</p>
+            </div>
+            <div class="recommendation priority-medium">
+                <strong>3. 도구 권한 최소화</strong>
+                <p>각 Agent에 필요한 최소한의 도구만 허용하고,
+                위험한 도구(파일 삭제, 명령 실행 등)는 명시적으로 제한하세요.</p>
+            </div></div>
+        <div class="section" id="advanced">
+            <h2><span class="icon">🔬</span>Advanced Metrics - 외부 라이브러리 평가</h2>
+            <p style="margin-bottom: 20px; line-height: 1.8;">
+                Advanced Metrics는 <strong>외부 평가 라이브러리</strong>를 활용하여 AI Agent의 성능을 다각도로 분석합니다.
+                DeepEval과 Ragas 라이브러리를 통해 더 깊이 있는 품질 평가를 제공합니다.
+            </p>
+
+            <h3>DeepEval 평가 결과</h3>
+            <p>DeepEval 평가 데이터가 없습니다. external_library_mode="all" 또는 "deepeval"로 설정하여 DeepEval 메트릭을 활성화할 수 있습니다.</p><h3>Ragas 평가 결과</h3>
+            <p>Ragas 평가 데이터가 없습니다. external_library_mode="all" 또는 "ragas"로 설정하여 Ragas 메트릭을 활성화할 수 있습니다.</p>
+            <h3>Advanced Metrics 활용 가이드</h3>
+            <div class="insight-box">
+                <h4>외부 라이브러리 메트릭의 장점</h4>
+                <ul style="margin: 10px 0 10px 20px; line-height: 2.0;">
+                    <li><strong>다각적 평가:</strong> 여러 관점에서 AI Agent 성능을 평가하여 숨겨진 문제 발견</li>
+                    <li><strong>업계 표준:</strong> DeepEval과 Ragas는 널리 사용되는 평가 프레임워크로 벤치마킹 용이</li>
+                    <li><strong>RAG 최적화:</strong> 특히 RAG(Retrieval-Augmented Generation) 시스템의 검색 품질 개선에 유용</li>
+                    <li><strong>컨텍스트 품질:</strong> 검색된 컨텍스트의 정밀도와 재현율을 정량적으로 측정</li>
+                </ul>
+                <p style="margin-top: 15px;"><strong>활성화 방법:</strong> HybridPerformanceMonitor 초기화 시 <code>external_library_mode="all"</code> 파라미터를 설정하세요.</p>
+            </div>
+        </div>
+        <div class="section" id="transparency">
+            <h2><span class="icon">🔍</span>Test 투명성 - 평가 프로세스 투명성</h2>
+            <p style="margin-bottom: 20px; line-height: 1.8;">
+                Test 투명성은 <strong>평가 프로세스의 투명성과 추적 가능성</strong>을 보장합니다.
+                각 메트릭의 계산 과정, 주석, 감사 로그를 제공하여 평가 결과의 신뢰성을 높입니다.
+            </p>
+            <h3>투명성 요약</h3>
+            <div class="insight-box success">
+                <h4>평가 투명성 현황</h4>
+                <p><strong>생성된 상세 리포트:</strong> 0개</p>
+                <p><strong>추적 가능한 메트릭:</strong> 5개</p>
+                <p><strong>주석 처리된 항목:</strong> 0개</p>
+                <p><strong>감사 로그 이벤트:</strong> 3개</p>
+            </div>
+
+            <h3>투명성 구성 요소</h3>
+            <table>
+                <thead>
+                    <tr>
+                        <th>구성 요소</th>
+                        <th>설명</th>
+                        <th>활용 사례</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><strong>📋 상세 리포트</strong></td>
+                        <td>각 Task별 평가 결과의 상세 내역</td>
+                        <td>개별 Task 성능 분석, 문제 원인 추적</td>
+                    </tr>
+                    <tr>
+                        <td><strong>🔍 메트릭 추적</strong></td>
+                        <td>각 메트릭의 계산 과정 및 중간 값</td>
+                        <td>메트릭 검증, 계산 로직 이해</td>
+                    </tr>
+                    <tr>
+                        <td><strong>📝 주석 (Annotations)</strong></td>
+                        <td>평가자의 코멘트 및 특이사항 기록</td>
+                        <td>정성적 분석, 추가 컨텍스트 제공</td>
+                    </tr>
+                    <tr>
+                        <td><strong>📜 감사 로그</strong></td>
+                        <td>평가 과정의 모든 이벤트 기록</td>
+                        <td>평가 과정 재현, 변경 이력 추적</td>
+                    </tr>
+                </tbody>
+            </table>
+            <h3>투명성 활용 가이드</h3>
+            <div class="insight-box">
+                <h4>투명성 데이터 활용 방법</h4>
+                <ul style="margin: 10px 0 10px 20px; line-height: 2.0;">
+                    <li><strong>디버깅:</strong> 실패한 Task의 상세 리포트를 통해 정확한 실패 원인 파악</li>
+                    <li><strong>검증:</strong> 메트릭 추적 데이터로 계산 과정의 정확성 검증</li>
+                    <li><strong>개선:</strong> 주석과 감사 로그를 분석하여 반복적인 문제 패턴 발견</li>
+                    <li><strong>규정 준수:</strong> 감사 로그를 통해 평가 과정의 투명성 입증 (Compliance)</li>
+                    <li><strong>지식 공유:</strong> 상세 리포트를 팀과 공유하여 개선 방안 논의</li>
+                </ul>
+                <p style="margin-top: 15px;"><strong>접근 방법:</strong> <code>agent-eval serve</code> 대시보드의 투명성 섹션에서 각 리포트를 확인할 수 있습니다.</p>
+            </div></div>
+        <div class="section" id="insights">
+            <h2><span class="icon">💡</span>주요 인사이트 (Key Insights)</h2>
+            <h3>강점 (Strengths)</h3><ul style="margin: 15px 0 15px 20px; line-height: 2.0;"><li>✅ 빠른 응답 시간 (≤ 3초)</li></ul><h3>개선 영역 (Areas for Improvement)</h3><table><thead><tr><th>개선 영역</th><th>조치사항</th><th>우선순위</th></tr></thead><tbody><tr><td><strong>정확도 개선</strong></td><td>검증 로직 추가 및 품질 관리 강화</td><td><span class="badge-danger">높음</span></td></tr><tr><td><strong>환각 감소</strong></td><td>RAG 컨텍스트 품질 향상 및 사실 검증</td><td><span class="badge-danger">높음</span></td></tr><tr><td><strong>응답 품질 향상</strong></td><td>프롬프트 엔지니어링 및 출력 구조화</td><td><span class="badge-warning">중간</span></td></tr></tbody></table></div>
+        <div class="section" id="recommendations">
+            <h2><span class="icon">🎯</span>개선 권장사항 (Recommendations)</h2>
+            <div class="recommendation priority-high">
+                <strong>1. 작업 완료율(TCR)이 목표치 대비 14.5%p 낮음</strong>
+                <p style="margin: 10px 0; line-height: 1.8;"><strong>🔍 현재 문제점</strong><br/>현재 TCR 75.5% (목표: 90% 이상). 전체 성공 0건, 부분 성공 27건, 실패 9건으로 실패 작업의 원인 분석이 필요합니다.</p>
+<div style="margin: 10px 0;"><strong>💡 개선 제안</strong><p style="margin: 10px 0; line-height: 1.8;"><strong>즉시 실행 가능한 개선 방안:</strong></p>
+<ol style="margin: 10px 0 10px 20px; line-height: 2.0;">
+<li><strong>실패 작업 패턴 분석</strong> 실패한 9개 작업의 공통 오류 패턴 파악 (타임아웃, API 오류, 입력 검증 실패 등)
+</li>
+<li><strong>프롬프트 명확화</strong> 작업 지시사항에 구체적인 성공 기준과 출력 형식 명시
+</li>
+<li><strong>작업 분할 전략</strong> 복잡한 작업을 3-5개의 하위 작업으로 분할하여 단계별 검증 수행
+</li>
+<li><strong>재시도 메커니즘</strong> 일시적 오류(네트워크, API 제한)에 대한 지수 백오프 재시도 구현
+</li>
+<li><strong>입력 검증 강화</strong> 작업 실행 전 필수 파라미터와 컨텍스트 검증 로직 추가
+</li>
+</ol></div>
+<div style="margin: 10px 0;"><strong>📈 예상 효과</strong><p style="margin: 10px 0; line-height: 1.8;"><strong>예상 개선 효과:</strong></p>
+<ul style="margin: 10px 0 10px 20px; line-height: 2.0;">
+<li>TCR 목표 달성 시 연간 468건 실패 작업 감소 (주간 9건 기준)</li>
+<li>사용자 만족도 15-25% 향상 (90% TCR 달성 시)</li>
+<li>재작업 비용 절감: 실패 작업당 평균 5분 소요 시 주당 45분 절약</li>
+<li>시스템 신뢰도 향상으로 프로덕션 배포 리스크 감소</li>
+</ul></div>
+            </div>
+            <div class="recommendation priority-high">
+                <strong>2. 정답 정확도가 기준치 대비 68.7%p 부족</strong>
+                <p style="margin: 10px 0; line-height: 1.8;"><strong>🔍 현재 문제점</strong><br/>현재 정확도 16.3% (목표: 85% 이상). 응답의 사실 정확성이 부족하여 사용자에게 잘못된 정보를 제공할 위험이 있습니다.</p>
+<div style="margin: 10px 0;"><strong>💡 개선 제안</strong><p style="margin: 10px 0; line-height: 1.8;"><strong>즉시 실행 가능한 개선 방안:</strong></p>
+<ol style="margin: 10px 0 10px 20px; line-height: 2.0;">
+<li><strong>검증 단계 추가</strong>
+<ul style="margin: 5px 0 5px 20px; line-height: 1.8;">
+<li>RAG 기반 작업: 검색된 컨텍스트와 응답의 일치성을 자동 검증하는 후처리 단계 추가</li>
+<li>계산/추론 작업: 중간 단계 결과를 명시적으로 출력하고 검증</li>
+</ul>
+</li>
+<li><strong>Few-shot 예시 제공</strong> 작업 유형별로 3-5개의 고품질 예시를 프롬프트에 포함
+</li>
+<li><strong>프롬프트 구조화</strong>
+<ul style="margin: 5px 0 5px 20px; line-height: 1.8;">
+<li>단계별 사고 과정(Chain-of-Thought) 유도</li>
+<li>최종 답변 전 자기 검증(Self-verification) 단계 추가</li>
+</ul>
+</li>
+<li><strong>Golden Dataset 활용</strong> 현재 평가 데이터셋을 기반으로 오답 패턴 분석 및 학습 데이터 보강
+</li>
+<li><strong>모델 파라미터 조정</strong> Temperature 낮추기(0.3-0.5), Top-P 조정으로 일관성 향상
+</li>
+</ol></div>
+<div style="margin: 10px 0;"><strong>📈 예상 효과</strong><p style="margin: 10px 0; line-height: 1.8;"><strong>예상 개선 효과:</strong></p>
+<ul style="margin: 10px 0 10px 20px; line-height: 2.0;">
+<li>정확도 85% 달성 시 오답률 83.7% → 15%로 68.7%p 감소</li>
+<li>사용자 신뢰도 20-30% 향상</li>
+<li>잘못된 정보로 인한 비즈니스 리스크 84% 감소</li>
+<li>사실 확인 및 수정 작업 시간 주당 10-15시간 절감</li>
+</ul></div>
+            </div>
+            <div class="recommendation priority-high">
+                <strong>3. 응답 품질 점수가 목표치 대비 2.1점 낮음 (5점 만점)</strong>
+                <p style="margin: 10px 0; line-height: 1.8;"><strong>🔍 현재 문제점</strong><br/>현재 품질 점수 1.9/5.0 (목표: 4.0 이상). 응답의 완성도, 관련성, 가독성이 사용자 기대 수준에 미치지 못하고 있습니다.</p>
+<div style="margin: 10px 0;"><strong>💡 개선 제안</strong><p style="margin: 10px 0; line-height: 1.8;"><strong>즉시 실행 가능한 개선 방안:</strong></p>
+<ol style="margin: 10px 0 10px 20px; line-height: 2.0;">
+<li><strong>응답 구조화 템플릿 적용</strong>
+<ul style="margin: 5px 0 5px 20px; line-height: 1.8;">
+<li>질문형 작업: 직접적 답변 → 근거 제시 → 추가 정보 순으로 구조화</li>
+<li>분석형 작업: 요약 → 상세 분석 → 결론 및 권장사항 순으로 구성</li>
+</ul>
+</li>
+<li><strong>완성도 체크리스트 도입</strong>
+<ul style="margin: 5px 0 5px 20px; line-height: 1.8;">
+<li>질문의 모든 부분에 답변했는가?</li>
+<li>근거나 예시가 충분히 제공되었는가?</li>
+<li>결론이 명확하게 제시되었는가?</li>
+</ul>
+</li>
+<li><strong>관련성 강화</strong>
+<ul style="margin: 5px 0 5px 20px; line-height: 1.8;">
+<li>제공된 컨텍스트나 질문에서 벗어난 내용 제거</li>
+<li>핵심 키워드를 응답에 자연스럽게 포함</li>
+</ul>
+</li>
+<li><strong>가독성 개선</strong>
+<ul style="margin: 5px 0 5px 20px; line-height: 1.8;">
+<li>긴 문장(50자 이상) 분할</li>
+<li>불릿 포인트나 번호 매기기 활용</li>
+<li>전문 용어 사용 시 간단한 설명 추가</li>
+</ul>
+</li>
+<li><strong>사용자 맞춤화</strong> 응답 톤과 디테일 수준을 사용자 컨텍스트에 맞게 조정
+</li>
+</ol></div>
+<div style="margin: 10px 0;"><strong>📈 예상 효과</strong><p style="margin: 10px 0; line-height: 1.8;"><strong>예상 개선 효과:</strong></p>
+<ul style="margin: 10px 0 10px 20px; line-height: 2.0;">
+<li>품질 점수 4.0/5.0 달성 시 사용자 재질문률 30-40% 감소</li>
+<li>응답 이해도 향상으로 고객 지원 문의 주당 20-30건 감소</li>
+<li>사용자 세션 시간 15-20% 증가 (만족도 향상)</li>
+<li>응답 재작성 필요성 52% 감소로 운영 효율 증대</li>
+</ul></div>
+            </div>
+            <div class="recommendation priority-medium">
+                <strong>4. 재시도율이 50%로 과도하게 높음</strong>
+                <p style="margin: 10px 0; line-height: 1.8;"><strong>🔍 현재 문제점</strong><br/>전체 작업의 50.0%가 재시도 필요. 높은 재시도율은 근본 원인 해결 없이 임시방편으로 대응하고 있음을 의미하며, 사용자 경험과 시스템 효율을 저하시킵니다.</p>
+<div style="margin: 10px 0;"><strong>💡 개선 제안</strong><p style="margin: 10px 0; line-height: 1.8;"><strong>즉시 실행 가능한 개선 방안:</strong></p>
+<ol style="margin: 10px 0 10px 20px; line-height: 2.0;">
+<li><strong>실패 패턴 분석 대시보드 구축</strong>
+<ul style="margin: 5px 0 5px 20px; line-height: 1.8;">
+<li>재시도 원인별 통계 (API 타임아웃, 파싱 오류, 검증 실패 등)</li>
+<li>시간대별, 작업 유형별 실패율 추적</li>
+<li>주간 리포트 자동 생성</li>
+</ul>
+</li>
+<li><strong>첫 시도 성공률 개선</strong>
+<ul style="margin: 5px 0 5px 20px; line-height: 1.8;">
+<li><strong>API 타임아웃</strong> 타임아웃 설정 10초 → 15초로 증가, 중요 작업 우선순위 부여</li>
+<li><strong>파싱 오류</strong> 응답 형식을 JSON Schema로 명시, Pydantic 검증 추가</li>
+<li><strong>검증 실패</strong> 입력 전처리 단계에서 필수 필드 검증 강화</li>
+</ul>
+</li>
+<li><strong>지능형 재시도 전략</strong>
+<ul style="margin: 5px 0 5px 20px; line-height: 1.8;">
+<li>일시적 오류(네트워크): 지수 백오프 (1초 → 2초 → 4초)</li>
+<li>영구적 오류(잘못된 입력): 재시도 없이 즉시 실패 처리</li>
+<li>최대 재시도 횟수 3회로 제한 (무한 루프 방지)</li>
+</ul>
+</li>
+<li><strong>대체 전략 구현</strong>
+<ul style="margin: 5px 0 5px 20px; line-height: 1.8;">
+<li>Primary API 실패 시 Fallback API로 자동 전환</li>
+<li>복잡한 작업 실패 시 단순화된 버전으로 재시도</li>
+</ul>
+</li>
+<li><strong>알림 시스템</strong> 재시도율 30% 초과 시 개발팀에 자동 알림
+</li>
+</ol></div>
+<div style="margin: 10px 0;"><strong>📈 예상 효과</strong><p style="margin: 10px 0; line-height: 1.8;"><strong>예상 개선 효과:</strong></p>
+<ul style="margin: 10px 0 10px 20px; line-height: 2.0;">
+<li>재시도율 10% 이하로 감소 시 평균 작업 시간 25% 단축</li>
+<li>사용자 체감 속도 30-40% 향상</li>
+<li>시스템 리소스 효율 50% 개선 (중복 처리 감소)</li>
+<li>안정성 향상으로 프로덕션 신뢰도 증가</li>
+<li>장애 대응 시간 50% 단축 (명확한 실패 패턴 파악)</li>
+</ul></div>
+            </div></div>
+        <div class="section" id="conclusion">
+            <h2><span class="icon">📝</span>결론 및 다음 단계 (Conclusion)</h2>
+
+            <div class="insight-box critical">
+                <h4>전체 평가</h4>
+                <p><strong>종합 평가:</strong> 개선 필요</p>
+                <p>본 AI Agent는 36개의 Task를 평가한 결과, 전반적으로 <strong>개선 필요</strong> 수준의 성능을 보였습니다.</p>
+            </div>
+
+            <h3>다음 단계 (Next Steps)</h3>
+            <ol style="margin: 15px 0 15px 20px; line-height: 2.0;">
+                <li><strong>우선순위 개선 작업 착수:</strong> 위에 식별된 개선 영역 중 우선순위가 높은 항목부터 개선</li>
+                <li><strong>지속적인 모니터링:</strong> Agent Evaluator를 CI/CD 파이프라인에 통합하여 자동 평가</li>
+                <li><strong>A/B 테스팅:</strong> 변경사항의 영향을 측정하기 위한 비교 평가 실시</li>
+                <li><strong>정기 리뷰:</strong> 주간/월간 성능 리뷰 미팅으로 지속적인 품질 개선</li>
+            </ol>
+
+            <h3>문의 및 지원</h3>
+            <p>본 리포트에 대한 질문이나 Agent Evaluator 사용에 관한 지원이 필요하시면 GitHub 저장소를 방문하세요.</p>
+            <p>
+                <strong>GitHub:</strong>
+                <a href="https://github.com/bullpeng72/Agent-Evaluator" target="_blank">
+                    https://github.com/bullpeng72/Agent-Evaluator
+                </a>
+                &nbsp;·&nbsp;
+                <strong>Author:</strong> Sungwoo Kim
+                &nbsp;·&nbsp;
+                <strong>License:</strong> MIT
+            </p>
+        </div>
+
+        <!-- Footer -->
+        <div class="footer">
+            <p><strong>Agent Evaluator</strong> v0.6.0 - AI 에이전트 성능 평가 시스템</p>
+            <p>Designed for AI Agent Developers and Quality Managers</p>
+            <p>Generated at 2026년 03월 24일 14:49:14</p>
+            <p>© 2026 Sungwoo Kim. Agent Evaluator is released under the MIT License.</p>
+        </div>
+    </div>
+</body>
+</html>

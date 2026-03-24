@@ -1,0 +1,18 @@
+{
+  "log_id": "audit_fa124a93",
+  "event_type": "lifecycle",
+  "user": "system",
+  "action": "report_generated",
+  "target_type": "report",
+  "target_id": "evaluation_report",
+  "details": {
+    "total_tasks": 12,
+    "tcr": 80.83,
+    "overall_accuracy": 37.42,
+    "mean_latency_s": 7.995,
+    "total_tokens": 73408,
+    "total_cost_usd": 0.5546
+  },
+  "success": true,
+  "timestamp": "2026-03-24T14:49:28.408391"
+}

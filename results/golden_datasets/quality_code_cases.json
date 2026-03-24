@@ -1,0 +1,57 @@
+[
+  {
+    "qa_id": "code_001",
+    "task_id": "quality_code_001",
+    "question": "리스트 합계 함수를 작성하세요.",
+    "ground_truth": "def sum_list(lst):\n    return sum(lst)",
+    "response": "def sum_list(items):\n    total = 0\n    for x in items:\n        total += x\n    return total",
+    "task_type": "code_generation",
+    "tier": "high",
+    "category": "python",
+    "difficulty": "easy"
+  },
+  {
+    "qa_id": "code_002",
+    "task_id": "quality_code_002",
+    "question": "리스트를 점수 기준 내림차순 정렬하세요.",
+    "ground_truth": "sorted(lst, key=lambda x: x['score'], reverse=True)",
+    "response": "sorted(lst, key=lambda x: x['score'], reverse=True)",
+    "task_type": "code_generation",
+    "tier": "high",
+    "category": "python",
+    "difficulty": "easy"
+  },
+  {
+    "qa_id": "code_003",
+    "task_id": "quality_code_003",
+    "question": "range로 제곱 리스트를 생성하세요.",
+    "ground_truth": "for i in range(n): result.append(i**2)",
+    "response": "result = [x for x in range(n)]",
+    "task_type": "code_generation",
+    "tier": "low_quality",
+    "category": "python",
+    "difficulty": "easy"
+  },
+  {
+    "qa_id": "code_004",
+    "task_id": "quality_code_004",
+    "question": "파일을 읽어 내용을 반환하세요.",
+    "ground_truth": "with open('file.txt', 'r') as f: data = f.read()",
+    "response": "with open('file.txt', 'r') as f:\n    data = f.read()\nprint(data)",
+    "task_type": "code_generation",
+    "tier": "high",
+    "category": "python",
+    "difficulty": "easy"
+  },
+  {
+    "qa_id": "code_005",
+    "task_id": "quality_code_005",
+    "question": "pandas로 CSV를 읽으세요.",
+    "ground_truth": "import pandas as pd\ndf = pd.read_csv('data.csv')",
+    "response": "import numpy as np",
+    "task_type": "code_generation",
+    "tier": "low_quality",
+    "category": "python",
+    "difficulty": "easy"
+  }
+]
