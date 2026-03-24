@@ -15,7 +15,10 @@ def _rs(request: Request):
 
 
 def _to_meta(f) -> Dict[str, Any]:
-    hall_rate = f.accuracy_metrics.get("hallucination", {}).get("overall_rate", 0) or 0
+    hall_ev = f.accuracy_metrics.get("hallucination", {})
+    tot = hall_ev.get("total_evaluated", 0) or 0
+    flagged = hall_ev.get("total_flagged", 0) or 0
+    hall_rate = round(flagged / tot * 100, 2) if tot > 0 else 0.0
     return {
         "id":            f.file_id,
         "name":          f.name,
@@ -90,6 +93,7 @@ def get_result(file_id: str, request: Request) -> Dict[str, Any]:
         "tool_selections":        rf.agentic.tool_selections,
         "tool_selection_summary": rf.agentic.tool_selection_summary,
         "tool_efficiency":        rf.agentic.tool_efficiency,
+        "tool_call_executions":   rf.agentic.tool_call_executions,
         "agent_interactions":     rf.agentic.agent_interactions,
         "coordination_summary":   rf.agentic.coordination_summary,
         "workflow_executions":    rf.agentic.workflow_executions,

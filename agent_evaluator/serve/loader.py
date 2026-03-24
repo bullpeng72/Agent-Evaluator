@@ -64,6 +64,7 @@ class AgenticMetrics:
     tool_selection_summary: Dict[str, Any] = field(default_factory=dict)
     # Tool Efficiency
     tool_efficiency: Dict[str, Any] = field(default_factory=dict)
+    tool_call_executions: List[Dict[str, Any]] = field(default_factory=list)  # per-task call metrics
     # Multi-Agent Coordination
     agent_interactions: List[Dict[str, Any]] = field(default_factory=list)
     coordination_summary: Dict[str, Any] = field(default_factory=dict)
@@ -451,6 +452,9 @@ def _parse_agentic(raw: dict) -> AgenticMetrics:
     if not tool_eff:
         tool_eff = _safe_dict(raw.get("report", {}), "efficiency_metrics", "tool_efficiency")
 
+    # Tool Call Executions — per-task breakdown for detail table
+    tool_call_executions = _safe_list(ev, "tool_calls", "executions")
+
     # Agent Coordination
     interactions = _safe_list(ev, "agent_coordination", "interactions")
     coord_summary: Dict[str, Any] = {}
@@ -515,6 +519,7 @@ def _parse_agentic(raw: dict) -> AgenticMetrics:
         tool_selections=selections,
         tool_selection_summary=tool_sel_summary,
         tool_efficiency=tool_eff,
+        tool_call_executions=tool_call_executions,
         agent_interactions=interactions,
         coordination_summary=coord_summary,
         workflow_executions=wf_executions,
