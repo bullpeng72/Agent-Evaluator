@@ -1253,14 +1253,15 @@ input[type=text],input[type=number]{background:var(--bg3);color:var(--text);bord
       stddev:{label:'표준편차',unit:'s',desc:'응답 시간의 분산 정도입니다. 낮을수록 모든 태스크에서 일정한 응답 속도를 유지함을 의미하며, 사용자 경험의 예측 가능성을 나타냅니다. 높으면 일부 태스크에서만 성능이 크게 저하되고 있음을 나타냅니다.',hint:'std(execution_time)'},
     },
     formula(k,d){
-      const em=d.efficiency_metrics||{};
-      if(k==='mean')return `평균 지연 = ${_sec(em.avg_latency||em.latency?.mean||0)}\n전체 태스크 평균`;
-      if(k==='p50')return `P50 = ${_sec(em.p50_latency||em.latency?.p50||0)}\n50번째 백분위`;
-      if(k==='p90')return `P90 = ${_sec(em.p90_latency||em.latency?.p90||0)}\n90번째 백분위`;
-      if(k==='p95')return `P95 = ${_sec(em.p95_latency||em.latency?.p95||0)}\n95번째 백분위 (SLA 기준)`;
-      if(k==='p99')return `P99 = ${_sec(em.p99_latency||em.latency?.p99||0)}\n99번째 백분위`;
-      if(k==='maximum')return `최대 = ${_sec(em.max_latency||em.latency?.max||0)}`;
-      if(k==='stddev')return `표준편차 = ${_sec(em.std_latency||em.latency?.std||0)}`;
+      const lat=(d.efficiency_metrics||{}).latency||{};
+      const p90=_latPct((d.tasks||[]).map(t=>t.execution_time),90);
+      if(k==='mean')return `avg(execution_time)\n= ${_sec(lat.mean||0)}\n\n전체 ${d.total_tasks||0}건의 산술평균`;
+      if(k==='p50')return `median(execution_time)\n= ${_sec(lat.p50||0)}\n\n정렬된 배열의 50번째 백분위\nnp.percentile(times, 50, method='linear')`;
+      if(k==='p90')return `np.percentile(times, 90, method='linear')\n= ${_sec(p90)}\n\n※ LatencyTracker 미수집 항목\n  → tasks[].execution_time 에서 직접 계산`;
+      if(k==='p95')return `np.percentile(times, 95, method='linear')\n= ${_sec(lat.p95||0)}\n\nSLA 설계 기준으로 가장 널리 활용`;
+      if(k==='p99')return `np.percentile(times, 99, method='linear')\n= ${_sec(lat.p99||0)}\n\n거의 모든 사용자가 경험하는 최대 응답 시간`;
+      if(k==='maximum')return `max(execution_time)\n= ${_sec(lat.max||0)}\n\n기록된 가장 느린 단일 태스크`;
+      if(k==='stddev')return `std(execution_time)\n= ${_sec(lat.std||0)}\n\n응답 시간의 일관성 지표\n낮을수록 예측 가능한 응답 속도`;
       return '';
     },
     items(k,d){
@@ -1273,34 +1274,34 @@ input[type=text],input[type=number]{background:var(--bg3);color:var(--text);bord
     <div class="kpi-grid">
       <div class="kpi kpi-act" :class="{sel:selK==='mean'}" @click="selK=selK==='mean'?null:'mean'">
         <div class="kpi-lbl">평균</div>
-        <div class="kpi-val" x-text="_sec(data.efficiency_metrics?.avg_latency||data.efficiency_metrics?.latency?.mean||0)"></div>
+        <div class="kpi-val" x-text="_sec(data.efficiency_metrics?.latency?.mean||0)"></div>
       </div>
       <div class="kpi kpi-act" :class="{sel:selK==='p50'}" @click="selK=selK==='p50'?null:'p50'">
         <div class="kpi-lbl">P50</div>
-        <div class="kpi-val" x-text="_sec(data.efficiency_metrics?.p50_latency||data.efficiency_metrics?.latency?.p50||0)"></div>
+        <div class="kpi-val" x-text="_sec(data.efficiency_metrics?.latency?.p50||0)"></div>
       </div>
       <div class="kpi kpi-act" :class="{sel:selK==='p90'}" @click="selK=selK==='p90'?null:'p90'">
         <div class="kpi-lbl">P90</div>
-        <div class="kpi-val" :style="`color:${_bc2lat(data.efficiency_metrics?.p90_latency||data.efficiency_metrics?.latency?.p90||0)}`"
-             x-text="_sec(data.efficiency_metrics?.p90_latency||data.efficiency_metrics?.latency?.p90||0)"></div>
+        <div class="kpi-val" :style="`color:${_bc2lat(_latPct((data.tasks||[]).map(t=>t.execution_time),90))}`"
+             x-text="_sec(_latPct((data.tasks||[]).map(t=>t.execution_time),90))"></div>
       </div>
       <div class="kpi kpi-act" :class="{sel:selK==='p95'}" @click="selK=selK==='p95'?null:'p95'">
         <div class="kpi-lbl">P95</div>
-        <div class="kpi-val" :style="`color:${_bc2lat(data.efficiency_metrics?.p95_latency||data.efficiency_metrics?.latency?.p95||0)}`"
-             x-text="_sec(data.efficiency_metrics?.p95_latency||data.efficiency_metrics?.latency?.p95||0)"></div>
+        <div class="kpi-val" :style="`color:${_bc2lat(data.efficiency_metrics?.latency?.p95||0)}`"
+             x-text="_sec(data.efficiency_metrics?.latency?.p95||0)"></div>
       </div>
       <div class="kpi kpi-act" :class="{sel:selK==='p99'}" @click="selK=selK==='p99'?null:'p99'">
         <div class="kpi-lbl">P99</div>
-        <div class="kpi-val" :style="`color:${_bc2lat(data.efficiency_metrics?.p99_latency||data.efficiency_metrics?.latency?.p99||0)}`"
-             x-text="_sec(data.efficiency_metrics?.p99_latency||data.efficiency_metrics?.latency?.p99||0)"></div>
+        <div class="kpi-val" :style="`color:${_bc2lat(data.efficiency_metrics?.latency?.p99||0)}`"
+             x-text="_sec(data.efficiency_metrics?.latency?.p99||0)"></div>
       </div>
       <div class="kpi kpi-act" :class="{sel:selK==='maximum'}" @click="selK=selK==='maximum'?null:'maximum'">
         <div class="kpi-lbl">최대</div>
-        <div class="kpi-val" x-text="_sec(data.efficiency_metrics?.max_latency||data.efficiency_metrics?.latency?.max||0)"></div>
+        <div class="kpi-val" x-text="_sec(data.efficiency_metrics?.latency?.max||0)"></div>
       </div>
       <div class="kpi kpi-act" :class="{sel:selK==='stddev'}" @click="selK=selK==='stddev'?null:'stddev'">
         <div class="kpi-lbl">표준편차</div>
-        <div class="kpi-val" x-text="_sec(data.efficiency_metrics?.std_latency||data.efficiency_metrics?.latency?.std||0)"></div>
+        <div class="kpi-val" x-text="_sec(data.efficiency_metrics?.latency?.std||0)"></div>
       </div>
     </div>
     <div x-show="selK" style="margin:8px 0 14px;border:1px solid var(--accent);border-radius:8px;overflow:hidden" x-cloak>
@@ -1355,7 +1356,7 @@ input[type=text],input[type=number]{background:var(--bg3);color:var(--text);bord
         <div class="dtx-row dtx-head" style="grid-template-columns:170px minmax(0,1fr) 72px 56px;position:sticky;top:0;z-index:1">
           <span>태스크 ID</span><span>유형</span><span>지연(s)</span><span>완료</span>
         </div>
-        <template x-for="t in slowTasks(data)" :key="t.task_id">
+        <template x-for="t in slowTasks(10)" :key="t.task_id">
           <div class="dtx-row" style="grid-template-columns:170px minmax(0,1fr) 72px 56px">
             <span class="dtx-id" x-text="t.task_id"></span>
             <span style="font-size:11px;color:var(--text2)" x-text="t.task_type||'-'"></span>
@@ -1379,16 +1380,17 @@ input[type=text],input[type=number]{background:var(--bg3);color:var(--text);bord
       io_ratio:{label:'입출력 비율',unit:'%',desc:'입력 토큰 대비 출력 토큰의 비율입니다. 과도하게 높으면 불필요하게 장황한 응답일 가능성이 있고, 너무 낮으면 응답이 지나치게 간결할 수 있습니다. 최적 비율은 태스크 유형에 따라 다릅니다.',hint:'output_tokens / input_tokens × 100'},
     },
     formula(k,d){
-      const em=d.efficiency_metrics||{};
-      const tot=em.total_tokens||0;
-      const inp=em.total_input_tokens||0;
-      const out=em.total_output_tokens||0;
+      const tok=(d.efficiency_metrics||{}).tokens||{};
+      const tot=tok.total_tokens||0;
+      const inp=tok.total_input_tokens||0;
+      const out=tok.total_output_tokens||0;
       const n=d.total_tasks||1;
-      if(k==='total')return `총토큰 = ${_fmtNumG(tot)}\n입력: ${_fmtNumG(inp)} + 출력: ${_fmtNumG(out)}`;
-      if(k==='input')return `입력 토큰 = ${_fmtNumG(inp)}\n비율: ${tot?((inp/tot)*100).toFixed(1):0}%`;
-      if(k==='output')return `출력 토큰 = ${_fmtNumG(out)}\n비율: ${tot?((out/tot)*100).toFixed(1):0}%`;
-      if(k==='avg_per_task')return `태스크당 = ${_fmtNumG(Math.round(tot/n))}\n= ${_fmtNumG(tot)} / ${n}`;
-      if(k==='io_ratio')return `입출력비율 = output/input×100\n= ${_fmtNumG(out)}/${_fmtNumG(inp)} = ${inp?((out/inp)*100).toFixed(1):0}%`;
+      const avg=tok.avg_tokens_per_task||Math.round(tot/n)||0;
+      if(k==='total')return `Σ(input_tokens + output_tokens)\n= ${_fmtNumG(inp)} + ${_fmtNumG(out)}\n= ${_fmtNumG(tot)}`;
+      if(k==='input')return `Σ input_tokens = ${_fmtNumG(inp)}\n전체의 ${tot?((inp/tot)*100).toFixed(1):0}%\n(token_distribution.input_ratio)`;
+      if(k==='output')return `Σ output_tokens = ${_fmtNumG(out)}\n전체의 ${tot?((out/tot)*100).toFixed(1):0}%\n(token_distribution.output_ratio)`;
+      if(k==='avg_per_task')return `avg_tokens_per_task\n= ${_fmtNumG(tot)} / ${n}건\n= ${_fmtNumG(Math.round(avg))}`;
+      if(k==='io_ratio')return `output_tokens / input_tokens × 100\n= ${_fmtNumG(out)} / ${_fmtNumG(inp)}\n= ${inp?((out/inp)*100).toFixed(1):0}%`;
       return '';
     },
     items(k,d){
@@ -1403,23 +1405,23 @@ input[type=text],input[type=number]{background:var(--bg3);color:var(--text);bord
     <div class="kpi-grid">
       <div class="kpi kpi-act" :class="{sel:selK==='total'}" @click="selK=selK==='total'?null:'total'">
         <div class="kpi-lbl">총 토큰</div>
-        <div class="kpi-val" style="font-size:20px" x-text="_fmtNumG(data.efficiency_metrics?.total_tokens||0)"></div>
+        <div class="kpi-val" style="font-size:20px" x-text="_fmtNumG(data.efficiency_metrics?.tokens?.total_tokens||0)"></div>
       </div>
       <div class="kpi kpi-act" :class="{sel:selK==='input'}" @click="selK=selK==='input'?null:'input'">
         <div class="kpi-lbl">Input 토큰</div>
-        <div class="kpi-val" style="font-size:20px" x-text="_fmtNumG(data.efficiency_metrics?.total_input_tokens||0)"></div>
+        <div class="kpi-val" style="font-size:20px" x-text="_fmtNumG(data.efficiency_metrics?.tokens?.total_input_tokens||0)"></div>
       </div>
       <div class="kpi kpi-act" :class="{sel:selK==='output'}" @click="selK=selK==='output'?null:'output'">
         <div class="kpi-lbl">Output 토큰</div>
-        <div class="kpi-val" style="font-size:20px" x-text="_fmtNumG(data.efficiency_metrics?.total_output_tokens||0)"></div>
+        <div class="kpi-val" style="font-size:20px" x-text="_fmtNumG(data.efficiency_metrics?.tokens?.total_output_tokens||0)"></div>
       </div>
       <div class="kpi kpi-act" :class="{sel:selK==='avg_per_task'}" @click="selK=selK==='avg_per_task'?null:'avg_per_task'">
         <div class="kpi-lbl">태스크당 평균</div>
-        <div class="kpi-val" style="font-size:20px" x-text="_fmtNumG(Math.round((data.efficiency_metrics?.total_tokens||0)/(data.total_tasks||1)))"></div>
+        <div class="kpi-val" style="font-size:20px" x-text="_fmtNumG(Math.round(data.efficiency_metrics?.tokens?.avg_tokens_per_task||(data.efficiency_metrics?.tokens?.total_tokens||0)/(data.total_tasks||1)))"></div>
       </div>
       <div class="kpi kpi-act" :class="{sel:selK==='io_ratio'}" @click="selK=selK==='io_ratio'?null:'io_ratio'">
         <div class="kpi-lbl">입출력 비율</div>
-        <div class="kpi-val" style="font-size:20px" x-text="(data.efficiency_metrics?.total_input_tokens||0)>0?((data.efficiency_metrics?.total_output_tokens||0)/(data.efficiency_metrics?.total_input_tokens||1)*100).toFixed(0)+'%':'-'"></div>
+        <div class="kpi-val" style="font-size:20px" x-text="(data.efficiency_metrics?.tokens?.total_input_tokens||0)>0?((data.efficiency_metrics?.tokens?.total_output_tokens||0)/(data.efficiency_metrics?.tokens?.total_input_tokens||1)*100).toFixed(0)+'%':((data.efficiency_metrics?.tokens?.token_distribution?.output_ratio||0)*100).toFixed(0)+'%'||'-'"></div>
       </div>
     </div>
     <div x-show="selK" style="margin:8px 0 14px;border:1px solid var(--accent);border-radius:8px;overflow:hidden" x-cloak>
@@ -1445,13 +1447,15 @@ input[type=text],input[type=number]{background:var(--bg3);color:var(--text);bord
               <span style="font-size:11px;color:var(--text2);margin-left:auto" x-text="items(selK,data).length+'건'"></span>
             </div>
             <div class="dtx" style="max-height:200px;overflow-y:auto">
-              <div class="dtx-row dtx-head" style="grid-template-columns:170px minmax(0,1fr) 100px 68px;position:sticky;top:0;z-index:1">
-                <span>태스크 ID</span><span>총 토큰</span><span>유형</span><span>완료율</span>
+              <div class="dtx-row dtx-head" style="grid-template-columns:150px 72px 72px 72px minmax(0,1fr) 64px;position:sticky;top:0;z-index:1">
+                <span>태스크 ID</span><span>총</span><span style="color:#6366f1">입력</span><span style="color:#06b6d4">출력</span><span>유형</span><span>완료율</span>
               </div>
               <template x-for="t in items(selK,data)" :key="t.task_id">
-                <div class="dtx-row" style="grid-template-columns:170px minmax(0,1fr) 100px 68px">
+                <div class="dtx-row" style="grid-template-columns:150px 72px 72px 72px minmax(0,1fr) 64px">
                   <span class="dtx-id" x-text="t.task_id"></span>
-                  <span x-text="_fmtNumG(t.tokens_used?.total||t.tokens_used||0)"></span>
+                  <span x-text="_fmtNumG((typeof t.tokens_used==='object'&&t.tokens_used)?(t.tokens_used.total||(t.tokens_used.input||t.tokens_used.input_tokens||0)+(t.tokens_used.output||t.tokens_used.output_tokens||0)):t.tokens_used||0)"></span>
+                  <span style="color:#6366f1" x-text="_fmtNumG((typeof t.tokens_used==='object'&&t.tokens_used)?(t.tokens_used.input||t.tokens_used.input_tokens||0):0)"></span>
+                  <span style="color:#06b6d4" x-text="_fmtNumG((typeof t.tokens_used==='object'&&t.tokens_used)?(t.tokens_used.output||t.tokens_used.output_tokens||0):0)"></span>
                   <span style="font-size:11px;color:var(--text2)" x-text="t.task_type||'-'"></span>
                   <span :style="`color:${(t.completion_score||0)>=1?'var(--green)':(t.completion_score||0)>=0.7?'var(--yellow)':'var(--red)'}`"
                         x-text="((t.completion_score||0)*100).toFixed(0)+'%'"></span>
@@ -1475,20 +1479,22 @@ input[type=text],input[type=number]{background:var(--bg3);color:var(--text);bord
     selK:null,
     meta:{
       total_cost:{label:'총 비용',unit:'$',desc:'이번 평가에서 발생한 LLM API 사용 비용의 추정값입니다. 운영 예산 계획과 모델 선택 시 비용-성능 트레이드오프 분석에 활용됩니다. 실제 청구액과 다를 수 있습니다.',hint:'Σ(input_tokens × input_price + output_tokens × output_price)'},
-      input_cost:{label:'Input 비용',unit:'$',desc:'프롬프트·컨텍스트 입력 처리에 발생한 추정 비용입니다. 프롬프트 최적화나 RAG 컨텍스트 길이 조정을 통해 절감할 수 있는 비용 항목입니다.',hint:'Σ(input_tokens × input_price_per_token)'},
-      output_cost:{label:'Output 비용',unit:'$',desc:'에이전트의 응답 생성에 발생한 추정 비용입니다. 일반적으로 입력보다 단가가 높아 전체 비용에서 큰 비중을 차지합니다. 응답 길이 제한 전략으로 절감이 가능합니다.',hint:'Σ(output_tokens × output_price_per_token)'},
-      avg_cost:{label:'태스크당 평균',unit:'$',desc:'태스크 1건을 처리하는 평균 비용입니다. 서비스 규모 확장 시 비용 예측의 기준값으로, 모델 교체나 프롬프트 최적화 효과를 수치로 확인하는 핵심 단위입니다.',hint:'total_cost / total_tasks'},
-      monthly_est:{label:'월간 추정',unit:'$',desc:'현재 비용 구조로 1,000건을 처리할 경우의 추정 비용입니다. 실제 서비스 운영 시 API 비용을 가늠하는 기준으로 활용됩니다. 실제 청구액은 할인·캐싱·배치 처리 등에 따라 달라질 수 있습니다.',hint:'(total_cost / total_tasks) × 1000'},
+      p50_cost:{label:'P50 비용',unit:'$',desc:'태스크 비용 분포의 중앙값입니다. 절반의 태스크는 이 비용 이하로 처리됩니다. 평균보다 이상치 영향을 덜 받아 일반적인 태스크 비용을 더 잘 반영합니다.',hint:'50th percentile(task_cost)'},
+      p95_cost:{label:'P95 비용',unit:'$',desc:'전체 태스크의 95%가 이 비용 이하로 처리됩니다. 비용 이상치를 탐지하거나 SLA 비용 상한선을 설계할 때 기준값으로 활용합니다.',hint:'95th percentile(task_cost)'},
+      avg_cost:{label:'태스크당 평균',unit:'$',desc:'태스크 1건을 처리하는 평균 비용입니다. 서비스 규모 확장 시 비용 예측의 기준값으로, 모델 교체나 프롬프트 최적화 효과를 수치로 확인하는 핵심 단위입니다.',hint:'avg_cost_per_task (TokenEconomyTracker)'},
+      monthly_est:{label:'×1K 추정',unit:'$',desc:'현재 평균 태스크 비용으로 1,000건을 처리할 경우의 추정 비용입니다. 실제 서비스 운영 시 API 비용을 가늠하는 기준으로 활용됩니다. 할인·캐싱·배치 처리 등에 따라 실제 청구액은 달라질 수 있습니다.',hint:'avg_cost_per_task × 1000'},
     },
     formula(k,d){
       const em=d.efficiency_metrics||{};
       const tot=em.tokens?.total_cost||em.total_cost||0;
       const n=d.total_tasks||1;
-      if(k==='total_cost')return `총 비용 = $${tot.toFixed(4)}\n≈ ${_fmtNumG(Math.round(tot*1000000))} μ$`;
-      if(k==='input_cost')return `입력 비용 = $${(em.tokens?.input_cost||em.input_cost||0).toFixed(4)}`;
-      if(k==='output_cost')return `출력 비용 = $${(em.tokens?.output_cost||em.output_cost||0).toFixed(4)}`;
-      if(k==='avg_cost')return `태스크당 = $${(tot/n).toFixed(5)}\n= $${tot.toFixed(4)} / ${n}`;
-      if(k==='monthly_est')return `월간 추정 = (비용/태스크) × 1000\n= $${(tot/n).toFixed(5)} × 1000 = $${(tot/n*1000).toFixed(2)}`;
+      const avgC=em.tokens?.avg_cost_per_task||tot/n||0;
+      const cp=em.tokens?.cost_percentiles||{};
+      if(k==='total_cost')return `Σ(tokens × model_price)\n= $${tot.toFixed(4)}\n\n입력 ${_fmtNumG(em.tokens?.total_input_tokens||0)} + 출력 ${_fmtNumG(em.tokens?.total_output_tokens||0)} 토큰`;
+      if(k==='p50_cost')return `50th percentile(task_cost)\n= $${(cp.p50||0).toFixed(5)}\n\n절반의 태스크가 이 비용 이하`;
+      if(k==='p95_cost')return `95th percentile(task_cost)\n= $${(cp.p95||0).toFixed(5)}\n\nSLA 비용 상한 설계 기준`;
+      if(k==='avg_cost')return `avg_cost_per_task\n= $${tot.toFixed(4)} / ${n}건\n= $${avgC.toFixed(5)}`;
+      if(k==='monthly_est')return `avg_cost_per_task × 1,000건\n= $${avgC.toFixed(5)} × 1000\n= $${(avgC*1000).toFixed(2)}`;
       return '';
     },
     items(k,d){
@@ -1501,21 +1507,21 @@ input[type=text],input[type=number]{background:var(--bg3);color:var(--text);bord
         <div class="kpi-lbl">총 비용</div>
         <div class="kpi-val" x-text="_fmtCostG(data.efficiency_metrics?.tokens?.total_cost||data.efficiency_metrics?.total_cost||0)"></div>
       </div>
-      <div class="kpi kpi-act" :class="{sel:selK==='input_cost'}" @click="selK=selK==='input_cost'?null:'input_cost'">
-        <div class="kpi-lbl">Input 비용</div>
-        <div class="kpi-val" x-text="_fmtCostG(data.efficiency_metrics?.tokens?.input_cost||data.efficiency_metrics?.input_cost||0)"></div>
+      <div class="kpi kpi-act" :class="{sel:selK==='p50_cost'}" @click="selK=selK==='p50_cost'?null:'p50_cost'">
+        <div class="kpi-lbl">P50 비용</div>
+        <div class="kpi-val" x-text="_fmtCostG(data.efficiency_metrics?.tokens?.cost_percentiles?.p50||0)"></div>
       </div>
-      <div class="kpi kpi-act" :class="{sel:selK==='output_cost'}" @click="selK=selK==='output_cost'?null:'output_cost'">
-        <div class="kpi-lbl">Output 비용</div>
-        <div class="kpi-val" x-text="_fmtCostG(data.efficiency_metrics?.tokens?.output_cost||data.efficiency_metrics?.output_cost||0)"></div>
+      <div class="kpi kpi-act" :class="{sel:selK==='p95_cost'}" @click="selK=selK==='p95_cost'?null:'p95_cost'">
+        <div class="kpi-lbl">P95 비용</div>
+        <div class="kpi-val" x-text="_fmtCostG(data.efficiency_metrics?.tokens?.cost_percentiles?.p95||0)"></div>
       </div>
       <div class="kpi kpi-act" :class="{sel:selK==='avg_cost'}" @click="selK=selK==='avg_cost'?null:'avg_cost'">
         <div class="kpi-lbl">태스크당 평균</div>
-        <div class="kpi-val" x-text="_fmtCostG((data.efficiency_metrics?.tokens?.total_cost||data.efficiency_metrics?.total_cost||0)/(data.total_tasks||1))"></div>
+        <div class="kpi-val" x-text="_fmtCostG(data.efficiency_metrics?.tokens?.avg_cost_per_task||(data.efficiency_metrics?.tokens?.total_cost||0)/(data.total_tasks||1))"></div>
       </div>
       <div class="kpi kpi-act" :class="{sel:selK==='monthly_est'}" @click="selK=selK==='monthly_est'?null:'monthly_est'">
-        <div class="kpi-lbl">월간 추정 (×1K)</div>
-        <div class="kpi-val" x-text="_fmtCostG((data.efficiency_metrics?.tokens?.total_cost||data.efficiency_metrics?.total_cost||0)/(data.total_tasks||1)*1000)"></div>
+        <div class="kpi-lbl">×1K 추정</div>
+        <div class="kpi-val" x-text="_fmtCostG((data.efficiency_metrics?.tokens?.avg_cost_per_task||(data.efficiency_metrics?.tokens?.total_cost||0)/(data.total_tasks||1))*1000)"></div>
       </div>
     </div>
     <div x-show="selK" style="margin:8px 0 14px;border:1px solid var(--accent);border-radius:8px;overflow:hidden" x-cloak>
@@ -1542,20 +1548,59 @@ input[type=text],input[type=number]{background:var(--bg3);color:var(--text);bord
       <div class="ct">태스크별 비용 (토큰 비례 추정)</div>
       <div id="d2-p-cost-bar" class="plt-chart"></div>
     </div>
-    <div class="sec" style="margin-top:12px">
-      <div class="sec-t">모델별 가격 정보</div>
+    <div class="sec" style="margin-top:12px" x-data="{
+      pEd: false,
+      pRows: [
+        {model:'Claude Opus 4 / claude-opus-4',       inp:15.00, out:75.00},
+        {model:'Claude Sonnet 4.5 / claude-sonnet-4-5', inp:3.00,  out:15.00},
+        {model:'Claude Haiku 4.5 / claude-haiku-4-5',   inp:0.80,  out:4.00},
+        {model:'GPT-4o',                               inp:2.50,  out:10.00},
+        {model:'GPT-4o mini',                          inp:0.15,  out:0.60},
+        {model:'Gemini 2.0 Flash',                     inp:0.10,  out:0.40},
+        {model:'Gemini 1.5 Pro',                       inp:1.25,  out:5.00},
+        {model:'Gemini 1.5 Flash',                     inp:0.075, out:0.30},
+      ],
+      pAdd(){ this.pRows.push({model:'',inp:0,out:0}); },
+      pDel(i){ this.pRows.splice(i,1); }
+    }">
+      <div class="sec-t" style="display:flex;align-items:center;gap:8px">
+        <span>모델별 가격 정보</span>
+        <span style="font-size:11px;color:var(--text2);font-weight:400">($/1M 토큰 기준)</span>
+        <button @click="pEd=!pEd" style="margin-left:auto;padding:3px 10px;border-radius:5px;border:1px solid var(--accent);background:transparent;color:var(--accent);font-size:12px;cursor:pointer" x-text="pEd?'✓ 완료':'✏ 편집'"></button>
+        <button x-show="pEd" @click="pAdd()" style="padding:3px 10px;border-radius:5px;border:1px solid #10b981;background:transparent;color:#10b981;font-size:12px;cursor:pointer">+ 행 추가</button>
+      </div>
+
+      <!-- 평가 시 사용 가격 (data.pricing.input/output 있을 때만) -->
+      <div x-show="data?.pricing?.input != null || data?.pricing?.output != null"
+           style="margin-bottom:8px;padding:8px 12px;background:var(--bg2);border:1px solid var(--accent);border-radius:6px;font-size:12px;color:var(--text2)">
+        📊 이번 평가 사용 단가 (TokenEconomyTracker):
+        <span style="color:var(--text);font-weight:600">
+          입력 $<span x-text="((data?.pricing?.input||0)*1000).toFixed(4)"></span> /
+          출력 $<span x-text="((data?.pricing?.output||0)*1000).toFixed(4)"></span>
+          <span style="font-weight:400;color:var(--text2)"> per 1M tokens</span>
+        </span>
+      </div>
+
       <div class="dtx">
-        <div class="dtx-row dtx-head" style="grid-template-columns:1fr 90px 90px">
+        <!-- 헤더 -->
+        <div class="dtx-row dtx-head" :style="pEd?'grid-template-columns:1fr 100px 100px 36px':'grid-template-columns:1fr 100px 100px'">
           <span>모델</span><span>입력($/1M)</span><span>출력($/1M)</span>
+          <span x-show="pEd"></span>
         </div>
-        <template x-for="(v,k) in (data.pricing||{})" :key="k">
-          <div class="dtx-row" style="grid-template-columns:1fr 90px 90px">
-            <span class="dtx-id" x-text="k"></span>
-            <span x-text="v.input_cost_per_1m!=null?'$'+v.input_cost_per_1m.toFixed(2):'-'"></span>
-            <span x-text="v.output_cost_per_1m!=null?'$'+v.output_cost_per_1m.toFixed(2):'-'"></span>
+        <!-- 행 목록 -->
+        <template x-for="(row,idx) in pRows" :key="idx">
+          <div :class="'dtx-row'" :style="pEd?'grid-template-columns:1fr 100px 100px 36px;align-items:center':'grid-template-columns:1fr 100px 100px'">
+            <!-- 보기: 텍스트 -->
+            <span x-show="!pEd" class="dtx-id" x-text="row.model||'-'"></span>
+            <span x-show="!pEd" x-text="'$'+(row.inp??0).toFixed(3)"></span>
+            <span x-show="!pEd" x-text="'$'+(row.out??0).toFixed(3)"></span>
+            <!-- 편집: 인풋 -->
+            <input x-show="pEd" :value="row.model" @input="pRows[idx].model=$event.target.value" style="background:var(--bg3);border:1px solid var(--border);border-radius:4px;padding:2px 6px;color:var(--text);font-size:12px;width:100%;box-sizing:border-box">
+            <input x-show="pEd" type="number" :value="row.inp" @input="pRows[idx].inp=+$event.target.value" step="0.001" min="0" style="background:var(--bg3);border:1px solid var(--border);border-radius:4px;padding:2px 6px;color:var(--text);font-size:12px;width:90px">
+            <input x-show="pEd" type="number" :value="row.out" @input="pRows[idx].out=+$event.target.value" step="0.001" min="0" style="background:var(--bg3);border:1px solid var(--border);border-radius:4px;padding:2px 6px;color:var(--text);font-size:12px;width:90px">
+            <button x-show="pEd" @click="pDel(idx)" style="background:transparent;border:none;color:#f87171;font-size:16px;cursor:pointer;line-height:1">×</button>
           </div>
         </template>
-        <div class="dtx-empty" x-show="!data.pricing||Object.keys(data.pricing||{}).length===0">가격 정보 없음</div>
       </div>
     </div>
   </div>
@@ -1576,25 +1621,27 @@ input[type=text],input[type=number]{background:var(--bg3);color:var(--text);bord
   <div x-data="{
     selK:null,
     meta:{
-      total_calls:{label:'총 호출',unit:'건',desc:'이번 평가에서 에이전트가 실행한 전체 도구 호출 수입니다. 도구 사용 빈도와 에이전트의 도구 의존도를 파악하는 기본 지표이며, 태스크당 평균 호출 수와 함께 해석해야 합니다.',hint:'tool_call_executions.total_calls'},
-      success_rate:{label:'성공률',unit:'%',desc:'실행된 도구 호출 중 정상적으로 결과를 반환한 비율입니다. 낮으면 도구 설정 문제, 잘못된 파라미터 사용, 또는 에이전트의 도구 사용 오류가 많음을 시사합니다.',hint:'successful_calls / total_calls × 100'},
-      avg_efficiency:{label:'평균 효율성',unit:'',desc:'에이전트가 불필요한 중복·실패 없이 얼마나 효율적으로 도구를 사용하는지를 나타내는 종합 점수(0~1)입니다. 1에 가까울수록 최소한의 호출로 목적을 달성함을 의미합니다.',hint:'avg(tool_efficiency_score per task)'},
+      total_calls:{label:'총 호출',unit:'건',desc:'이번 평가에서 에이전트가 실행한 전체 도구 호출 수입니다. 도구 사용 빈도와 에이전트의 도구 의존도를 파악하는 기본 지표이며, 태스크당 평균 호출 수와 함께 해석해야 합니다.',hint:'tool_efficiency.total_calls'},
+      success_rate:{label:'성공률',unit:'%',desc:'실행된 도구 호출 중 정상적으로 결과를 반환한 비율입니다. 낮으면 도구 설정 문제, 잘못된 파라미터 사용, 또는 에이전트의 도구 사용 오류가 많음을 시사합니다.',hint:'(total_calls − failed_calls) / total_calls × 100'},
+      avg_efficiency:{label:'평균 효율성',unit:'/100',desc:'에이전트가 불필요한 중복·실패 없이 얼마나 효율적으로 도구를 사용하는지를 나타내는 종합 점수(0~100)입니다. 100에 가까울수록 최소한의 호출로 목적을 달성함을 의미합니다. 낭비율(중복+실패)이 높을수록 점수가 낮아집니다.',hint:'avg(100 − 낭비율×100) per task\n낭비율 = (redundant + failed) / total'},
       redundancy_rate:{label:'중복 호출률',unit:'%',desc:'동일하거나 불필요하게 반복된 도구 호출의 비율입니다. 높으면 에이전트가 결과를 확인하지 않고 같은 도구를 반복 호출하거나, 전략 없이 시행착오를 반복하고 있음을 시사합니다.',hint:'redundant_calls / total_calls × 100'},
       failure_rate:{label:'실패율',unit:'%',desc:'실행된 도구 호출 중 오류나 예외를 반환한 비율입니다. 높으면 도구 파라미터 생성 오류, 입력 유효성 문제, 또는 에이전트가 사용 불가능한 도구를 호출하고 있음을 나타냅니다.',hint:'failed_calls / total_calls × 100'},
-      avg_per_task:{label:'태스크당 평균',unit:'건',desc:'하나의 태스크를 완료하기 위해 평균적으로 호출하는 도구 수입니다. 지나치게 많으면 비효율적인 계획 수립이나 불필요한 탐색을, 적으면 단순한 태스크 또는 도구 미활용을 의미합니다.',hint:'total_calls / total_tasks'},
+      avg_per_task:{label:'태스크당 평균',unit:'건',desc:'하나의 태스크를 완료하기 위해 평균적으로 호출하는 도구 수입니다. 지나치게 많으면 비효율적인 계획 수립이나 불필요한 탐색을, 적으면 단순한 태스크 또는 도구 미활용을 의미합니다.',hint:'avg(total_calls per task)'},
     },
     formula(k,d){
       const te=d.agentic?.tool_efficiency||{};
-      const tce=d.agentic?.tool_call_executions||{};
-      if(k==='total_calls')return `총 호출 = ${tce.total_calls||0}건`;
-      if(k==='success_rate')return `성공률 = successful/total×100\n= ${(te.success_rate||0).toFixed(1)}%`;
-      if(k==='avg_efficiency')return `효율성 = avg(효율 점수)\n= ${(te.avg_efficiency_score||0).toFixed(3)}`;
-      if(k==='redundancy_rate')return `중복률 = redundant/total×100\n= ${(te.redundancy_rate||0).toFixed(1)}%`;
-      if(k==='failure_rate')return `실패율 = failed/total×100\n= ${(te.failure_rate||0).toFixed(1)}%`;
-      if(k==='avg_per_task')return `태스크당 = total/${d.total_tasks||1}\n= ${(te.avg_calls_per_task||0).toFixed(1)}건`;
+      const tc=te.total_calls||0;
+      const red=te.total_redundant_calls||0;
+      const fail=te.total_failed_calls||0;
+      if(k==='total_calls')return `총 호출 = ${tc}건\n성공: ${tc-(fail||0)}건 / 실패: ${fail}건 / 중복: ${red}건`;
+      if(k==='success_rate')return `성공률 = (total − failed) / total × 100\n= (${tc} − ${fail}) / ${tc} × 100\n= ${(te.success_rate||0).toFixed(1)}%`;
+      if(k==='avg_efficiency')return `효율 = 100 − 낭비율×100\n낭비율 = (redundant + failed) / total\n= (${red} + ${fail}) / ${tc}\n= ${(te.avg_efficiency_score||0).toFixed(1)} / 100`;
+      if(k==='redundancy_rate')return `중복률 = redundant / total × 100\n= ${red} / ${tc} × 100\n= ${(te.redundancy_rate||0).toFixed(1)}%`;
+      if(k==='failure_rate')return `실패율 = failed / total × 100\n= ${fail} / ${tc} × 100\n= ${(te.failure_rate||0).toFixed(1)}%`;
+      if(k==='avg_per_task')return `태스크당 = avg(per-task calls)\n= ${(te.avg_calls_per_task||0).toFixed(2)}건`;
       return '';
     },
-    items(k,d){ return d.agentic?.tool_call_executions?.per_task||d.tasks||[]; },
+    items(k,d){ return d.agentic?.tool_call_executions||d.tasks||[]; },
     filterLabel(k){return '태스크별 도구 호출 상세';}
   }">
     <div class="kpi-grid">
@@ -1609,7 +1656,8 @@ input[type=text],input[type=number]{background:var(--bg3);color:var(--text);bord
       </div>
       <div class="kpi kpi-act" :class="{sel:selK==='avg_efficiency'}" @click="selK=selK==='avg_efficiency'?null:'avg_efficiency'">
         <div class="kpi-lbl">평균 효율성</div>
-        <div class="kpi-val" x-text="(data.agentic?.tool_efficiency?.avg_efficiency_score||0).toFixed(3)"></div>
+        <div class="kpi-val" :style="`color:${_bc(data.agentic?.tool_efficiency?.avg_efficiency_score||0,90,70)}`"
+             x-text="(data.agentic?.tool_efficiency?.avg_efficiency_score||0).toFixed(1)+'/100'"></div>
       </div>
       <div class="kpi kpi-act" :class="{sel:selK==='redundancy_rate'}" @click="selK=selK==='redundancy_rate'?null:'redundancy_rate'">
         <div class="kpi-lbl">중복 호출률</div>
@@ -1655,19 +1703,20 @@ input[type=text],input[type=number]{background:var(--bg3);color:var(--text);bord
   <div x-data="{
     selK:null,
     meta:{
-      precision:{label:'Precision',unit:'',desc:'에이전트가 선택한 도구 중 실제로 필요했던 도구의 비율입니다. 낮으면 불필요한 도구를 자주 포함하는 경향이 있어 실행 비용과 오류 가능성이 증가합니다.',hint:'TP / (TP + FP)'},
-      recall:{label:'Recall',unit:'',desc:'태스크 수행에 필요한 도구 중 에이전트가 실제로 선택한 도구의 비율입니다. 낮으면 필요한 도구를 놓쳐 태스크를 불완전하게 수행할 가능성이 높아집니다.',hint:'TP / (TP + FN)'},
-      f1:{label:'F1 Score',unit:'',desc:'도구 선택의 Precision과 Recall을 균형 있게 종합한 지표입니다. 도구를 정확히 선택하면서도 필요한 것을 빠뜨리지 않는 능력을 단일 수치로 나타내며, 도구 사용 능력의 대표 지표입니다.',hint:'2 × Precision × Recall / (Precision + Recall)'},
-      accuracy:{label:'Accuracy',unit:'',desc:'예상 도구 집합과 실제 선택된 도구 집합이 얼마나 일치하는지를 나타내는 전반적 선택 정확도입니다. 태스크에 적합한 도구를 파악하는 에이전트의 도메인 이해 능력을 평가합니다.',hint:'correct_selections / total_selections'},
-      total:{label:'평가 태스크',unit:'건',desc:'도구 선택 정확도 평가가 수행된 태스크 수입니다. expected_tools(예상 도구 목록)가 제공된 태스크에서만 측정되므로, 전체 태스크 수와 다를 수 있습니다.',hint:'tool_selection_summary.total_selections'},
+      precision:{label:'Precision',unit:'%',desc:'에이전트가 선택한 도구 중 실제로 필요했던 도구의 비율입니다. 낮으면 불필요한 도구를 자주 포함하는 경향이 있어 실행 비용과 오류 가능성이 증가합니다. expected_tools가 설정된 태스크에서만 측정됩니다.',hint:'TP / (TP + FP) per task → 0~100% 평균'},
+      recall:{label:'Recall',unit:'%',desc:'태스크 수행에 필요한 도구 중 에이전트가 실제로 선택한 도구의 비율입니다. 낮으면 필요한 도구를 놓쳐 태스크를 불완전하게 수행할 가능성이 높아집니다. expected_tools가 설정된 태스크에서만 측정됩니다.',hint:'TP / (TP + FN) per task → 0~100% 평균'},
+      f1:{label:'F1 Score',unit:'%',desc:'도구 선택의 Precision과 Recall을 균형 있게 종합한 지표입니다. 도구를 정확히 선택하면서도 필요한 것을 빠뜨리지 않는 능력을 단일 수치로 나타내며, 도구 사용 능력의 대표 지표입니다. expected_tools가 설정된 태스크에서만 측정됩니다.',hint:'2 × P × R / (P + R) per task → 0~100% 평균'},
+      accuracy:{label:'Accuracy',unit:'%',desc:'예상 도구 집합과 실제 선택된 도구 집합이 얼마나 일치하는지를 나타내는 전반적 선택 정확도입니다. 태스크에 적합한 도구를 파악하는 에이전트의 도메인 이해 능력을 평가합니다.',hint:'correct_selections / total_selections per task → 0~100% 평균'},
+      total:{label:'평가 태스크',unit:'건',desc:'도구 선택 정확도 평가가 수행된 태스크 수입니다. TaskResult 생성 시 expected_tools(예상 도구 목록)가 제공된 태스크에서만 측정되므로, 전체 태스크 수와 다를 수 있습니다.',hint:'len(tool_selections) — expected_tools 있는 태스크'},
     },
     formula(k,d){
-      const ts=d.agentic?.tool_selection_summary||d.agentic?.tool_efficiency||{};
-      if(k==='precision')return `Precision = TP/(TP+FP)\n= ${(ts.avg_precision||ts.tool_selection_precision||0).toFixed(3)}`;
-      if(k==='recall')return `Recall = TP/(TP+FN)\n= ${(ts.avg_recall||ts.tool_selection_recall||0).toFixed(3)}`;
-      if(k==='f1')return `F1 = 2×P×R/(P+R)\n= ${(ts.avg_f1_score||ts.tool_selection_f1||0).toFixed(3)}`;
-      if(k==='accuracy')return `Accuracy = correct/total\n= ${(ts.avg_accuracy||0).toFixed(3)}`;
-      if(k==='total')return `평가 태스크 = ${ts.total_selections||(d.agentic?.tool_selections||[]).length}건`;
+      const ts=d.agentic?.tool_selection_summary||{};
+      const n=ts.total_selections||(d.agentic?.tool_selections||[]).length||0;
+      if(k==='precision'){const v=ts.avg_precision||0;return `Precision = TP/(TP+FP) per task → avg\n= ${v.toFixed(1)}%\n평가 태스크: ${n}건`;}
+      if(k==='recall'){const v=ts.avg_recall||0;return `Recall = TP/(TP+FN) per task → avg\n= ${v.toFixed(1)}%\n평가 태스크: ${n}건`;}
+      if(k==='f1'){const v=ts.avg_f1_score||0;return `F1 = 2×P×R/(P+R) per task → avg\n= ${v.toFixed(1)}%\n평가 태스크: ${n}건`;}
+      if(k==='accuracy'){const v=ts.avg_accuracy||0;return `Accuracy = correct/total per task → avg\n= ${v.toFixed(1)}%\n평가 태스크: ${n}건`;}
+      if(k==='total')return `평가 태스크 = ${n}건\n(expected_tools 제공된 태스크만)`;
       return '';
     },
     items(k,d){ return [...(d.agentic?.tool_selections||[])].sort((a,b)=>(b.f1_score||0)-(a.f1_score||0)); },
@@ -1676,16 +1725,16 @@ input[type=text],input[type=number]{background:var(--bg3);color:var(--text);bord
     <div class="kpi-grid">
       <div class="kpi kpi-act" :class="{sel:selK==='precision'}" @click="selK=selK==='precision'?null:'precision'">
         <div class="kpi-lbl">Precision</div>
-        <div class="kpi-val" x-text="(data.agentic?.tool_selection_summary?.avg_precision||data.agentic?.tool_efficiency?.tool_selection_precision||0).toFixed(1)+'%'"></div>
+        <div class="kpi-val" x-text="(data.agentic?.tool_selection_summary?.avg_precision||0).toFixed(1)+'%'"></div>
       </div>
       <div class="kpi kpi-act" :class="{sel:selK==='recall'}" @click="selK=selK==='recall'?null:'recall'">
         <div class="kpi-lbl">Recall</div>
-        <div class="kpi-val" x-text="(data.agentic?.tool_selection_summary?.avg_recall||data.agentic?.tool_efficiency?.tool_selection_recall||0).toFixed(1)+'%'"></div>
+        <div class="kpi-val" x-text="(data.agentic?.tool_selection_summary?.avg_recall||0).toFixed(1)+'%'"></div>
       </div>
       <div class="kpi kpi-act" :class="{sel:selK==='f1'}" @click="selK=selK==='f1'?null:'f1'">
         <div class="kpi-lbl">F1 Score</div>
-        <div class="kpi-val" :style="`color:${_bc(data.agentic?.tool_selection_summary?.avg_f1_score||data.agentic?.tool_efficiency?.tool_selection_f1||0,90,70)}`"
-             x-text="(data.agentic?.tool_selection_summary?.avg_f1_score||data.agentic?.tool_efficiency?.tool_selection_f1||0).toFixed(1)+'%'"></div>
+        <div class="kpi-val" :style="`color:${_bc(data.agentic?.tool_selection_summary?.avg_f1_score||0,90,70)}`"
+             x-text="(data.agentic?.tool_selection_summary?.avg_f1_score||0).toFixed(1)+'%'"></div>
       </div>
       <div class="kpi kpi-act" :class="{sel:selK==='accuracy'}" @click="selK=selK==='accuracy'?null:'accuracy'">
         <div class="kpi-lbl">Accuracy</div>
@@ -1722,9 +1771,9 @@ input[type=text],input[type=number]{background:var(--bg3);color:var(--text);bord
               <template x-for="s in items(selK,data)" :key="s.task_id">
                 <div class="dtx-row" style="grid-template-columns:minmax(120px,1fr) 68px 68px 68px">
                   <span class="dtx-id" x-text="s.task_id"></span>
-                  <span x-text="(s.precision||0).toFixed(2)"></span>
-                  <span x-text="(s.recall||0).toFixed(2)"></span>
-                  <span :style="`color:${_bc((s.f1_score||0)*100,80,60)}`" x-text="(s.f1_score||0).toFixed(2)"></span>
+                  <span x-text="(s.precision||0).toFixed(1)+'%'"></span>
+                  <span x-text="(s.recall||0).toFixed(1)+'%'"></span>
+                  <span :style="`color:${_bc(s.f1_score||0,80,60)}`" x-text="(s.f1_score||0).toFixed(1)+'%'"></span>
                 </div>
               </template>
             </div>
@@ -1752,12 +1801,14 @@ input[type=text],input[type=number]{background:var(--bg3);color:var(--text);bord
     },
     formula(k,d){
       const rs=d.agentic?.retry_summary||{};
-      if(k==='retry_rate'){const ta=rs.total_tasks_with_retries||0;return `재시도율 = (총시도 − 태스크) / 총시도 × 100\n= ${rs.overall_retry_rate||0}%\n재시도 발생 태스크: ${ta}건 (retry_rate=${rs.retry_rate||0}%)`;}
-      if(k==='first_success')return `첫 시도 성공 = ${rs.first_attempt_success_rate||0}%`;
-      if(k==='eventual_success')return `최종 성공 = ${rs.eventual_success_rate||0}%`;
-      if(k==='correction')return `보정 성공 = ${rs.correction_success_rate||0}%\n재시도 → 성공 전환 비율`;
-      if(k==='avg_attempts')return `평균 시도 = ${(rs.avg_attempts_per_task||rs.avg_attempts||0).toFixed(2)}회`;
-      if(k==='avg_retry_time')return `평균 재시도 시간 = ${(rs.avg_retry_time||0).toFixed(2)}s\n재시도 발생 태스크 한정`;
+      const tw=rs.total_tasks_with_retries||0;
+      const ta=rs.total_attempts||0;
+      if(k==='retry_rate')return `재시도율 = (총시도 − 태스크수) / 총시도 × 100\n= ${(rs.overall_retry_rate||0).toFixed(1)}%\n\n재시도 발생 태스크: ${tw}건\n태스크 기준 재시도율(retry_rate): ${(rs.retry_rate||0).toFixed(1)}%`;
+      if(k==='first_success')return `첫 시도 성공률 = 1회 시도 성공 / 전체 태스크 × 100\n= ${(rs.first_attempt_success_rate||0).toFixed(1)}%`;
+      if(k==='eventual_success')return `최종 성공률 = 재시도 포함 성공 / 전체 태스크 × 100\n= ${(rs.eventual_success_rate||0).toFixed(1)}%\n\n첫 시도 성공률과의 차이 = 재시도 효과`;
+      if(k==='correction')return `보정 성공률 = retry 후 성공 / retry 발생 태스크 × 100\n= ${(rs.correction_success_rate||0).toFixed(1)}%\n재시도 발생 태스크: ${tw}건`;
+      if(k==='avg_attempts')return `평균 시도 = avg(total_attempts per task)\n= ${(rs.avg_attempts_per_task||rs.avg_attempts||0).toFixed(2)}회\n1.0이면 모두 1회 성공`;
+      if(k==='avg_retry_time')return `평균 재시도 시간 = avg(retry_time) — 재시도 태스크 한정\n= ${(rs.avg_retry_time||0).toFixed(2)}s\n재시도 발생 태스크: ${tw}건`;
       return '';
     },
     items(k,d){
@@ -1856,10 +1907,12 @@ input[type=text],input[type=number]{background:var(--bg3);color:var(--text);bord
       },
       formula(k,d){
         const cs=d.agentic?.coordination_summary||{};
-        if(k==='total_interactions')return `총 인터랙션 = ${cs.total_interactions||0}건`;
-        if(k==='success_interactions')return `성공 = ${cs.successful_interactions||0}건`;
-        if(k==='success_rate')return `협업성공률 = successful/total×100\n= ${cs.success_rate||cs.collaboration_success_rate||0}%`;
-        if(k==='unique_agents')return `참여 에이전트 = ${cs.unique_agents||0}명`;
+        const tot=cs.total_interactions||0;
+        const suc=cs.successful_interactions||0;
+        if(k==='total_interactions')return `총 인터랙션 = ${tot}건\n성공: ${suc}건 / 실패: ${tot-suc}건\n참여 에이전트: ${cs.unique_agents||0}명`;
+        if(k==='success_interactions')return `성공 인터랙션 = ${suc}건\n= total(${tot}) − failed(${tot-suc})`;
+        if(k==='success_rate')return `협업 성공률 = successful / total × 100\n= ${suc} / ${tot} × 100\n= ${(cs.success_rate||0).toFixed(1)}%`;
+        if(k==='unique_agents'){const agents=(cs.agent_list||[]).join(', ');return `참여 에이전트 = ${cs.unique_agents||0}명${agents?'\n['+agents+']':''}`;}
         return '';
       },
       items(k,d){
@@ -1880,8 +1933,8 @@ input[type=text],input[type=number]{background:var(--bg3);color:var(--text);bord
         </div>
         <div class="kpi kpi-act" :class="{sel:selK==='success_rate'}" @click="selK=selK==='success_rate'?null:'success_rate'">
           <div class="kpi-lbl">협업 성공률</div>
-          <div class="kpi-val" :style="`color:${_bc(data.agentic?.coordination_summary?.success_rate||data.agentic?.coordination_summary?.collaboration_success_rate||0,90,70)}`"
-               x-text="_pct(data.agentic?.coordination_summary?.success_rate||data.agentic?.coordination_summary?.collaboration_success_rate||0)"></div>
+          <div class="kpi-val" :style="`color:${_bc(data.agentic?.coordination_summary?.success_rate||0,90,70)}`"
+               x-text="_pct(data.agentic?.coordination_summary?.success_rate||0)"></div>
         </div>
         <div class="kpi kpi-act" :class="{sel:selK==='unique_agents'}" @click="selK=selK==='unique_agents'?null:'unique_agents'">
           <div class="kpi-lbl">참여 에이전트</div>
@@ -1947,11 +2000,14 @@ input[type=text],input[type=number]{background:var(--bg3);color:var(--text);bord
       },
       formula(k,d){
         const ws=d.agentic?.workflow_summary||{};
-        if(k==='total_steps')return `총 스텝 = ${ws.total_steps||0}개`;
-        if(k==='success_steps')return `성공 스텝 = ${ws.successful_steps||0}개`;
-        if(k==='step_rate')return `스텝 성공률 = ${ws.step_success_rate||0}%`;
-        if(k==='wf_tasks')return `워크플로우 태스크 = ${(d.agentic?.workflow_executions||[]).length}건`;
-        if(k==='task_rate')return `태스크 완료율 = ${ws.task_success_rate||0}%`;
+        const tot=ws.total_steps||0;
+        const suc=ws.successful_steps||0;
+        const wfN=(d.agentic?.workflow_executions||[]).length;
+        if(k==='total_steps')return `총 스텝 = ${tot}개\n성공: ${suc}개 / 실패: ${tot-suc}개\n(workflow_executions 레코드 수)`;
+        if(k==='success_steps')return `성공 스텝 = ${suc}개\n= total(${tot}) − failed(${tot-suc})`;
+        if(k==='step_rate')return `스텝 성공률 = successful_steps / total_steps × 100\n= ${suc} / ${tot} × 100\n= ${(ws.step_success_rate||0).toFixed(1)}%`;
+        if(k==='wf_tasks')return `워크플로우 태스크 = ${wfN}건\n(workflow_executions 레코드 수)\n태스크 기준: ${ws.total_tasks||0}건`;
+        if(k==='task_rate')return `태스크 완료율 = fully_successful_tasks / total_tasks × 100\n= ${ws.fully_successful_tasks||0} / ${ws.total_tasks||0} × 100\n= ${(ws.task_success_rate||0).toFixed(1)}%\n(모든 스텝이 성공인 태스크만 계산)`;
         return '';
       },
       items(k,d){ return d.agentic?.workflow_executions||[]; },
@@ -2062,26 +2118,31 @@ input[type=text],input[type=number]{background:var(--bg3);color:var(--text);bord
       <div class="kpi-lbl" style="font-size:10px">입력 보안 (L1)</div>
       <div class="kpi-val" style="font-size:20px" :style="`color:${_bc((100-(data.security_l1?.input_security?.threat_rate||0)),90,70)}`"
            x-text="_pct((100-(data.security_l1?.input_security?.threat_rate||0)))"></div>
+      <div class="kpi-sub" x-text="`위협 ${data.security_l1?.input_security?.inputs_with_threats||0} / ${data.security_l1?.input_security?.total_inputs_evaluated||(data.security_l1?.input_evals||[]).length||0}건`"></div>
     </div>
     <div class="kpi">
       <div class="kpi-lbl" style="font-size:10px">출력 무결성 (L1)</div>
       <div class="kpi-val" style="font-size:20px" :style="`color:${_bc((100-(data.security_l1?.output_leakage?.leakage_rate||0)),90,70)}`"
            x-text="_pct((100-(data.security_l1?.output_leakage?.leakage_rate||0)))"></div>
+      <div class="kpi-sub" x-text="`유출 ${data.security_l1?.output_leakage?.outputs_with_leakage||0} / ${data.security_l1?.output_leakage?.total_outputs_evaluated||(data.security_l1?.output_detections||[]).length||0}건`"></div>
     </div>
     <div class="kpi">
       <div class="kpi-lbl" style="font-size:10px">권한 준수 (L1)</div>
       <div class="kpi-val" style="font-size:20px" :style="`color:${_bc((data.security_l1?.authorization?.compliance_rate??100),90,70)}`"
            x-text="_pct((data.security_l1?.authorization?.compliance_rate??100))"></div>
+      <div class="kpi-sub" x-text="`무단 ${data.security_l1?.authorization?.unauthorized_calls||0} / ${data.security_l1?.authorization?.total_tool_calls||0}건`"></div>
     </div>
     <div class="kpi">
       <div class="kpi-lbl" style="font-size:10px">권한상승 방어 (L2)</div>
       <div class="kpi-val" style="font-size:20px" :style="`color:${_bc((100-(data.security_l2?.privilege_escalation?.escalation_rate||0)),90,70)}`"
            x-text="_pct((100-(data.security_l2?.privilege_escalation?.escalation_rate||0)))"></div>
+      <div class="kpi-sub" x-text="`탐지 ${data.security_l2?.privilege_escalation?.escalations_detected||0} / ${data.security_l2?.privilege_escalation?.total_evaluations||0}건`"></div>
     </div>
     <div class="kpi">
       <div class="kpi-lbl" style="font-size:10px">공격 탐지율 (L2)</div>
       <div class="kpi-val" style="font-size:20px" :style="`color:${_bc((data.security_l2?.attack_detection?.detection_rate||0),90,70)}`"
            x-text="_pct((data.security_l2?.attack_detection?.detection_rate||0))"></div>
+      <div class="kpi-sub" x-text="`의심 ${data.security_l2?.attack_detection?.suspicious_chains||0} / ${data.security_l2?.attack_detection?.total_chains_analyzed||0}건`"></div>
     </div>
   </div>
   <div class="cbox" style="margin-bottom:12px">
@@ -2122,22 +2183,37 @@ input[type=text],input[type=number]{background:var(--bg3);color:var(--text);bord
       xss:{label:'XSS',unit:'건',desc:'Cross-Site Scripting(XSS) 공격 패턴이 탐지된 건수입니다. 악의적인 스크립트를 삽입해 사용자 브라우저에서 실행시키려는 시도로, 에이전트 출력이 웹에 표시되는 경우 위험합니다.',hint:'has_xss count'},
       prompt_injection:{label:'프롬프트 인젝션',unit:'건',desc:'프롬프트 인젝션 공격 시도가 탐지된 건수입니다. 시스템 프롬프트를 무력화하거나 에이전트 동작을 의도적으로 변조하려는 시도로, LLM 기반 에이전트에서 가장 흔하고 고유한 보안 위협입니다.',hint:'has_prompt_injection count'},
     },
-    formula(k,d){return k+': '+(d.security_l1?.input_evals||0)+'건 평가 기준';},
+    formula(k,d){
+      const is=d.security_l1?.input_security||{};
+      const n=is.total_inputs_evaluated||(d.security_l1?.input_evals||[]).length||0;
+      const total=(is.sql_injection_attempts||0)+(is.command_injection_attempts||0)+(is.path_traversal_attempts||0)+(is.xss_attempts||0)+(is.prompt_injection_attempts||0);
+      if(k==='input_evals')return `평가 입력 = ${n}건\n(InputSanitizationTracker 검사 대상 전체)\n위협 발견: ${is.inputs_with_threats||0}건 / 위협율: ${(is.threat_rate||0).toFixed(1)}%`;
+      if(k==='threat_inputs')return `위협 입력 = ${is.inputs_with_threats||0}건 (중복 제거)\n위협율 = ${is.inputs_with_threats||0} / ${n} × 100 = ${(is.threat_rate||0).toFixed(1)}%`;
+      if(k==='threat_events')return `위협 이벤트 = 유형별 건수 합산 (중복 허용)\nSQL ${is.sql_injection_attempts||0} + CMD ${is.command_injection_attempts||0} + PATH ${is.path_traversal_attempts||0} + XSS ${is.xss_attempts||0} + Prompt ${is.prompt_injection_attempts||0} = ${total}건`;
+      if(k==='sql_injection')return `SQL 인젝션 = ${is.sql_injection_attempts||0}건 / ${n}건 평가\n(has_sql_injection 플래그 집계)`;
+      if(k==='cmd_injection')return `커맨드 인젝션 = ${is.command_injection_attempts||0}건 / ${n}건 평가\n(has_command_injection 플래그 집계)`;
+      if(k==='path_traversal')return `경로 순회 = ${is.path_traversal_attempts||0}건 / ${n}건 평가\n(has_path_traversal 플래그 집계)`;
+      if(k==='xss')return `XSS = ${is.xss_attempts||0}건 / ${n}건 평가\n(has_xss 플래그 집계)`;
+      if(k==='prompt_injection')return `프롬프트 인젝션 = ${is.prompt_injection_attempts||0}건 / ${n}건 평가\n(has_prompt_injection 플래그 집계)`;
+      return '';},
     items(k,d){return [];},
     filterLabel(k){return '탐지 기록';}
   }">
     <div class="kpi-grid" style="grid-template-columns:repeat(auto-fill,minmax(120px,1fr))">
       <div class="kpi kpi-act" :class="{sel:selK==='input_evals'}" @click="selK=selK==='input_evals'?null:'input_evals'">
         <div class="kpi-lbl">평가 입력</div>
-        <div class="kpi-val" style="font-size:20px" x-text="typeof data.security_l1?.input_evals==='number'?data.security_l1.input_evals:(data.security_l1?.input_evals||[]).length||0"></div>
+        <div class="kpi-val" style="font-size:20px" x-text="data.security_l1?.input_security?.total_inputs_evaluated||(data.security_l1?.input_evals||[]).length||0"></div>
+        <div class="kpi-sub" x-text="`위협율 ${(data.security_l1?.input_security?.threat_rate||0).toFixed(1)}%`"></div>
       </div>
       <div class="kpi kpi-act" :class="{sel:selK==='threat_inputs'}" @click="selK=selK==='threat_inputs'?null:'threat_inputs'">
         <div class="kpi-lbl">위협 입력</div>
         <div class="kpi-val" style="font-size:20px;color:var(--red)" x-text="data.security_l1?.input_security?.inputs_with_threats||0"></div>
+        <div class="kpi-sub" x-text="(data.security_l1?.input_security?.inputs_with_threats||0)>0?'⚠ 위협 탐지':'✓ 이상 없음'"></div>
       </div>
       <div class="kpi kpi-act" :class="{sel:selK==='threat_events'}" @click="selK=selK==='threat_events'?null:'threat_events'">
         <div class="kpi-lbl">위협 이벤트</div>
         <div class="kpi-val" style="font-size:20px;color:var(--orange)" x-text="(()=>{const is=data.security_l1?.input_security||{};return (is.sql_injection_attempts||0)+(is.command_injection_attempts||0)+(is.path_traversal_attempts||0)+(is.xss_attempts||0)+(is.prompt_injection_attempts||0);})()"></div>
+        <div class="kpi-sub">유형별 중복 허용</div>
       </div>
       <div class="kpi kpi-act" :class="{sel:selK==='sql_injection'}" @click="selK=selK==='sql_injection'?null:'sql_injection'">
         <div class="kpi-lbl">SQL 인젝션</div>
@@ -2174,6 +2250,7 @@ input[type=text],input[type=number]{background:var(--bg3);color:var(--text);bord
           </div>
           <div style="padding:10px 14px;background:var(--bg2)">
             <div style="font-size:13px;line-height:1.7" x-text="meta[selK]?.desc||''"></div>
+            <div style="font-size:12px;font-family:monospace;color:var(--accent);margin-top:8px;white-space:pre-line" x-text="formula(selK,data)"></div>
           </div>
         </div>
       </template>
@@ -2207,11 +2284,13 @@ input[type=text],input[type=number]{background:var(--bg3);color:var(--text);bord
     <div class="kpi-grid" style="grid-template-columns:repeat(auto-fill,minmax(110px,1fr))">
       <div class="kpi kpi-act" :class="{sel:selK==='output_evals'}" @click="selK=selK==='output_evals'?null:'output_evals'">
         <div class="kpi-lbl">평가 출력</div>
-        <div class="kpi-val" style="font-size:20px" x-text="typeof data.security_l1?.output_detections==='number'?data.security_l1.output_detections:(data.security_l1?.output_detections||[]).length||0"></div>
+        <div class="kpi-val" style="font-size:20px" x-text="data.security_l1?.output_leakage?.total_outputs_evaluated||(data.security_l1?.output_detections||[]).length||0"></div>
+        <div class="kpi-sub" x-text="`유출율 ${(data.security_l1?.output_leakage?.leakage_rate||0).toFixed(1)}%`"></div>
       </div>
       <div class="kpi kpi-act" :class="{sel:selK==='leakage_detected'}" @click="selK=selK==='leakage_detected'?null:'leakage_detected'">
         <div class="kpi-lbl">유출 탐지</div>
         <div class="kpi-val" style="font-size:20px;color:var(--red)" x-text="data.security_l1?.output_leakage?.outputs_with_leakage||0"></div>
+        <div class="kpi-sub" x-text="(data.security_l1?.output_leakage?.outputs_with_leakage||0)>0?'⚠ 민감 정보 노출':'✓ 이상 없음'"></div>
       </div>
       <template x-for="(lbl,key) in {api_key:'API Key',password:'패스워드',credit_card:'신용카드',email:'이메일',ssn:'SSN',phone:'전화번호',private_ip:'개인 IP',file_path:'파일 경로'}" :key="key">
         <div class="kpi kpi-act" :class="{sel:selK===key}" @click="selK=selK===key?null:key">
@@ -2248,15 +2327,22 @@ input[type=text],input[type=number]{background:var(--bg3);color:var(--text);bord
       <div class="kpi-lbl">권한 준수율</div>
       <div class="kpi-val" :style="`color:${_bc((data.security_l1?.authorization?.compliance_rate??100),90,70)}`"
            x-text="_pct((data.security_l1?.authorization?.compliance_rate??100))"></div>
+      <div class="kpi-sub" x-text="`전체 ${data.security_l1?.authorization?.total_tool_calls||0}건 호출`"></div>
     </div>
     <div class="kpi">
       <div class="kpi-lbl">허가 도구 호출</div>
       <div class="kpi-val" style="color:var(--green)" x-text="data.security_l1?.authorization?.authorized_calls||0"></div>
+      <div class="kpi-sub ok" x-text="`제한 시도 ${data.security_l1?.authorization?.restricted_attempts||0}건`"></div>
     </div>
     <div class="kpi">
       <div class="kpi-lbl">무단 도구 호출</div>
       <div class="kpi-val" style="color:var(--red)" x-text="data.security_l1?.authorization?.unauthorized_calls||0"></div>
+      <div class="kpi-sub" :class="(data.security_l1?.authorization?.dangerous_params||0)>0?'warn':'ok'"
+           x-text="`위험 파라미터 ${data.security_l1?.authorization?.dangerous_params||0}건`"></div>
     </div>
+  </div>
+  <div style="font-size:12px;font-family:monospace;color:var(--accent);padding:6px 10px;background:var(--bg3);border-radius:6px;margin-bottom:12px">
+    📐 권한 준수율 = 허가 호출 / 전체 호출 × 100 = <span x-text="data.security_l1?.authorization?.authorized_calls||0"></span> / <span x-text="data.security_l1?.authorization?.total_tool_calls||0"></span> × 100
   </div>
 
   <!-- L2 Privilege Escalation -->
@@ -2269,31 +2355,48 @@ input[type=text],input[type=number]{background:var(--bg3);color:var(--text);bord
       attack_detections:{label:'공격 탐지',unit:'건',desc:'여러 도구 호출을 체계적으로 연결하는 공격 체인(Attack Chain) 패턴이 탐지된 수입니다. 단일 위협보다 정교한 복합 공격으로, 탐지 시 에이전트 아키텍처 전체에 대한 보안 점검이 필요합니다.',hint:'security_l2.attack_detections'},
     },
     formula(k,d){
-      if(k==='defense_rate')return `방어율 = 100 − 상승률
-= 100 − ${d.security_l2?.privilege_escalation?.escalation_rate||0}% = ${100-(d.security_l2?.privilege_escalation?.escalation_rate||0)}%
-탐지 건수: ${d.security_l2?.privilege_escalation?.escalations_detected||0}건 / ${d.security_l2?.privilege_escalation?.total_evaluations||0}건`;
-      if(k==='escalation_events')return `상승 이벤트 = ${(d.security_l2?.escalation_events||[]).length}건`;
-      if(k==='attack_detections')return `공격 탐지 = ${d.security_l2?.attack_detection?.suspicious_chains||(d.security_l2?.attack_detections||[]).length||0}건
-탐지율: ${d.security_l2?.attack_detection?.detection_rate||0}%`;
+      const pe=d.security_l2?.privilege_escalation||{};
+      const ad=d.security_l2?.attack_detection||{};
+      if(k==='defense_rate'){
+        const er=(pe.escalation_rate||0);
+        return `방어율 = 100 − 상승률\n= 100 − ${er.toFixed(1)}% = ${(100-er).toFixed(1)}%\n상승 탐지: ${pe.escalations_detected||0}건 / 평가: ${pe.total_evaluations||0}건`;
+      }
+      if(k==='escalation_events'){
+        const evts=d.security_l2?.escalation_events||[];
+        return `상승 이벤트 = ${evts.length}건\n(PrivilegeEscalationDetector 탐지 이벤트 목록)`;
+      }
+      if(k==='attack_detections'){
+        const n=ad.total_chains_analyzed||0;
+        const s=ad.suspicious_chains||(d.security_l2?.attack_detections||[]).length||0;
+        return `공격 탐지 = ${s}건\n탐지율 = ${s} / ${n} × 100 = ${(ad.detection_rate||0).toFixed(1)}%\n(ToolChainAttackDetector 의심 체인 분석)`;
+      }
       return '';
     },
-    items(k,d){return d.security_l2?.escalation_events_list||d.security_l2?.attack_detections_list||[];},
-    filterLabel(k){return '탐지 이벤트';}
+    items(k,d){
+      if(k==='attack_detections') return d.security_l2?.attack_detections||[];
+      return d.security_l2?.escalation_events||[];
+    },
+    filterLabel(k){return k==='attack_detections'?'공격 체인 탐지':'권한 상승 이벤트';}
   }">
     <div class="kpi-grid">
       <div class="kpi kpi-act" :class="{sel:selK==='defense_rate'}" @click="selK=selK==='defense_rate'?null:'defense_rate'">
         <div class="kpi-lbl">방어율</div>
         <div class="kpi-val" :style="`color:${_bc((100-(data.security_l2?.privilege_escalation?.escalation_rate||0)),90,70)}`"
              x-text="_pct((100-(data.security_l2?.privilege_escalation?.escalation_rate||0)))"></div>
+        <div class="kpi-sub" x-text="`평가 ${data.security_l2?.privilege_escalation?.total_evaluations||0}건`"></div>
       </div>
       <div class="kpi kpi-act" :class="{sel:selK==='escalation_events'}" @click="selK=selK==='escalation_events'?null:'escalation_events'">
         <div class="kpi-lbl">상승 이벤트</div>
         <div class="kpi-val" :style="`color:${(data.security_l2?.escalation_events||[]).length>0?'var(--red)':'var(--green)'}`"
              x-text="(data.security_l2?.escalation_events||[]).length"></div>
+        <div class="kpi-sub" :class="(data.security_l2?.escalation_events||[]).length>0?'warn':'ok'"
+             x-text="(data.security_l2?.escalation_events||[]).length>0?'상승 시도 감지됨':'이상 없음'"></div>
       </div>
       <div class="kpi kpi-act" :class="{sel:selK==='attack_detections'}" @click="selK=selK==='attack_detections'?null:'attack_detections'">
         <div class="kpi-lbl">공격 탐지</div>
-        <div class="kpi-val" x-text="data.security_l2?.attack_detection?.suspicious_chains||(data.security_l2?.attack_detections||[]).length||0"></div>
+        <div class="kpi-val" :style="`color:${(data.security_l2?.attack_detection?.suspicious_chains||(data.security_l2?.attack_detections||[]).length||0)>0?'var(--red)':'var(--green)'}`"
+             x-text="data.security_l2?.attack_detection?.suspicious_chains||(data.security_l2?.attack_detections||[]).length||0"></div>
+        <div class="kpi-sub" x-text="`분석 ${data.security_l2?.attack_detection?.total_chains_analyzed||0}건`"></div>
       </div>
     </div>
     <div x-show="selK" style="margin:8px 0 14px;border:1px solid var(--accent);border-radius:8px;overflow:hidden" x-cloak>
@@ -3099,22 +3202,108 @@ input[type=text],input[type=number]{background:var(--bg3);color:var(--text);bord
         <span style="flex:1;font-size:13px;font-weight:500" x-text="f.name"></span>
         <span class="badge-gray" x-text="(f.count??'?')+'건'"></span>
         <span class="badge-gray" x-text="f.size_bytes ? Math.round(f.size_bytes/1024)+'KB' : ''"></span>
+        <template x-if="goldenCurrent?.stem===f.stem && goldenDirty">
+          <button class="btn" style="background:var(--accent);color:#fff;border:none"
+                  :disabled="goldenSaving"
+                  @click="saveGoldenCurrent()"
+                  x-text="goldenSaving ? '저장 중…' : '저장'"></button>
+        </template>
         <button class="btn" @click="loadGoldenDetail(f.stem)"
                 x-text="goldenCurrent?.stem===f.stem ? '닫기' : '보기'"></button>
+        <button class="btn" style="color:var(--red)"
+                @click="if(confirm(f.name+' 파일을 삭제할까요?')) deleteGoldenFile(f.stem)">파일삭제</button>
       </div>
+
       <template x-if="goldenCurrent && goldenCurrent.stem === f.stem">
-        <div style="margin-top:12px;max-height:320px;overflow-y:auto">
-          <template x-for="(item, idx) in goldenCurrent.items.slice(0,50)" :key="idx">
-            <div class="dt-card" style="margin-bottom:6px">
-              <div style="display:flex;gap:6px;align-items:center">
-                <span class="badge-gray" x-text="item.id||(idx+1)"></span>
+        <div style="margin-top:12px">
+          <!-- 항목 목록 -->
+          <div style="max-height:480px;overflow-y:auto">
+            <template x-for="(item, idx) in goldenCurrent.items" :key="idx">
+              <div class="dt-card" style="margin-bottom:6px">
+                <!-- 보기 모드 -->
+                <template x-if="goldenEditIdx !== idx">
+                  <div>
+                    <div style="display:flex;gap:6px;align-items:center;margin-bottom:4px">
+                      <span class="badge-gray" x-text="item.id||(idx+1)"></span>
+                      <div style="flex:1"></div>
+                      <button class="btn" style="font-size:11px;padding:2px 8px"
+                              @click="goldenStartEdit(idx)">수정</button>
+                      <button class="btn" style="font-size:11px;padding:2px 8px;color:var(--red)"
+                              @click="goldenDeleteItem(idx)">삭제</button>
+                    </div>
+                    <div class="dk" style="font-size:12px" x-text="item.question||item.input||'(질문 없음)'"></div>
+                    <div style="font-size:11px;color:var(--text2);margin-top:3px"
+                         x-text="item.expected_answer||item.ground_truth||item.answer||''"></div>
+                  </div>
+                </template>
+                <!-- 수정 모드 -->
+                <template x-if="goldenEditIdx === idx">
+                  <div>
+                    <div style="font-size:12px;font-weight:600;margin-bottom:8px;color:var(--accent)">✏️ 항목 수정</div>
+                    <div style="margin-bottom:6px">
+                      <div style="font-size:11px;color:var(--text2);margin-bottom:3px">질문</div>
+                      <textarea x-model="goldenEditBuf.question" rows="2"
+                        style="width:100%;box-sizing:border-box;font-size:12px;padding:5px 8px;border:1px solid var(--accent);border-radius:4px;background:var(--bg2);color:var(--text);resize:vertical"></textarea>
+                    </div>
+                    <div style="margin-bottom:6px">
+                      <div style="font-size:11px;color:var(--text2);margin-bottom:3px">정답</div>
+                      <textarea x-model="goldenEditBuf.expected_answer" rows="2"
+                        style="width:100%;box-sizing:border-box;font-size:12px;padding:5px 8px;border:1px solid var(--border);border-radius:4px;background:var(--bg2);color:var(--text);resize:vertical"></textarea>
+                    </div>
+                    <template x-if="goldenEditBuf.context !== undefined">
+                      <div style="margin-bottom:6px">
+                        <div style="font-size:11px;color:var(--text2);margin-bottom:3px">컨텍스트</div>
+                        <textarea x-model="goldenEditBuf.context" rows="2"
+                          style="width:100%;box-sizing:border-box;font-size:12px;padding:5px 8px;border:1px solid var(--border);border-radius:4px;background:var(--bg2);color:var(--text);resize:vertical"></textarea>
+                      </div>
+                    </template>
+                    <div style="display:flex;gap:6px">
+                      <button class="btn" style="background:var(--accent);color:#fff;border:none"
+                              @click="goldenApplyEdit(idx)">적용</button>
+                      <button class="btn" @click="goldenEditIdx=-1">취소</button>
+                    </div>
+                  </div>
+                </template>
               </div>
-              <div class="dk" style="margin-top:4px;font-size:12px" x-text="item.question||item.input||'(질문 없음)'"></div>
-              <div style="font-size:11px;color:var(--text2);margin-top:3px" x-text="item.expected_answer||item.ground_truth||item.answer||''"></div>
+            </template>
+
+            <div x-show="goldenCurrent.items.length === 0"
+                 style="text-align:center;padding:16px;color:var(--text2);font-size:12px">
+              항목이 없습니다. 저장하면 파일이 삭제됩니다.
+            </div>
+          </div>
+
+          <!-- 새 항목 추가 폼 -->
+          <template x-if="goldenAddMode">
+            <div class="dt-card" style="margin-top:8px;border:1px dashed var(--accent)">
+              <div style="font-size:12px;font-weight:600;margin-bottom:8px;color:var(--accent)">➕ 새 항목 추가</div>
+              <div style="margin-bottom:6px">
+                <div style="font-size:11px;color:var(--text2);margin-bottom:3px">질문 <span style="color:var(--red)">*</span></div>
+                <textarea x-model="goldenAddBuf.question" rows="2" placeholder="질문을 입력하세요"
+                  style="width:100%;box-sizing:border-box;font-size:12px;padding:5px 8px;border:1px solid var(--accent);border-radius:4px;background:var(--bg2);color:var(--text);resize:vertical"></textarea>
+              </div>
+              <div style="margin-bottom:6px">
+                <div style="font-size:11px;color:var(--text2);margin-bottom:3px">정답</div>
+                <textarea x-model="goldenAddBuf.expected_answer" rows="2" placeholder="정답(ground truth)을 입력하세요"
+                  style="width:100%;box-sizing:border-box;font-size:12px;padding:5px 8px;border:1px solid var(--border);border-radius:4px;background:var(--bg2);color:var(--text);resize:vertical"></textarea>
+              </div>
+              <div style="margin-bottom:8px">
+                <div style="font-size:11px;color:var(--text2);margin-bottom:3px">컨텍스트 (선택)</div>
+                <textarea x-model="goldenAddBuf.context" rows="2" placeholder="RAG 컨텍스트 (선택사항)"
+                  style="width:100%;box-sizing:border-box;font-size:12px;padding:5px 8px;border:1px solid var(--border);border-radius:4px;background:var(--bg2);color:var(--text);resize:vertical"></textarea>
+              </div>
+              <div style="display:flex;gap:6px">
+                <button class="btn" style="background:var(--accent);color:#fff;border:none"
+                        @click="goldenAddItem()">추가</button>
+                <button class="btn"
+                        @click="goldenAddMode=false;goldenAddBuf={question:'',expected_answer:'',ground_truth:'',context:'',id:''}">취소</button>
+              </div>
             </div>
           </template>
-          <div x-show="goldenCurrent.items.length > 50" style="text-align:center;color:var(--text2);font-size:11px;padding:8px">
-            … 및 <span x-text="goldenCurrent.items.length - 50"></span>건 더
+
+          <!-- 하단 버튼 -->
+          <div x-show="!goldenAddMode" style="margin-top:8px">
+            <button class="btn" @click="goldenStartAdd()">➕ 항목 추가</button>
           </div>
         </div>
       </template>
@@ -3532,12 +3721,12 @@ input[type=text],input[type=number]{background:var(--bg3);color:var(--text);bord
 <!-- ═══════════════ METRICS GUIDE ═══════════════ -->
 <section id="s-metrics_guide" class="sec" x-show="sec==='metrics_guide'" x-cloak>
   <div style="font-weight:700;font-size:15px;margin-bottom:4px">📖 지표 설명</div>
-  <div style="font-size:12px;color:var(--text2);margin-bottom:14px">Agent-Evaluator가 측정하는 16개 지표의 목적·계산식·벤치마크를 계층별로 설명합니다.</div>
+  <div style="font-size:12px;color:var(--text2);margin-bottom:14px">Agent-Evaluator가 측정하는 20개 지표의 목적·계산식·벤치마크를 계층별로 설명합니다.</div>
 
   <div x-data="{mf:'all'}">
   <!-- 레이어 필터 -->
   <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:18px">
-    <template x-for="(b,i) in [{v:'all',l:'전체 (16개)'},{v:'l1',l:'L1 기반 (6개)'},{v:'l2a',l:'L2 에이전틱 (5개)'},{v:'l2s',l:'L2 보안 (5개)'},{v:'l3',l:'L3 하이브리드 (4개)'}]" :key="i">
+    <template x-for="(b,i) in [{v:'all',l:'전체 (20개)'},{v:'l1',l:'L1 기반 (6개)'},{v:'l2a',l:'L2 에이전틱 (5개)'},{v:'l2s',l:'L2 보안 (5개)'},{v:'l3',l:'L3 하이브리드 (4개)'}]" :key="i">
       <button @click="mf=b.v"
         :style="mf===b.v?'background:var(--accent);color:#fff;border:none':'background:var(--bg3);color:var(--text2);border:1px solid var(--border)'"
         style="padding:4px 13px;border-radius:20px;font-size:12px;cursor:pointer;transition:all .15s"
@@ -4185,6 +4374,14 @@ function _bc(v, hi, lo) { if(hi===undefined)hi=90; if(lo===undefined)lo=70; retu
 function _bc2lat(v) { return v==null?'var(--text2)':v<=2?'var(--green)':v<=5?'var(--yellow)':'var(--red)'; }
 function _pct(v) { return v==null?0:Math.min(100,Math.max(0,v)); }
 function _sec(v) { return v==null?'—':Number(v).toFixed(2)+'s'; }
+function _latPct(arr, p) {
+  const a = (arr||[]).filter(v=>v!=null).map(Number).sort((a,b)=>a-b);
+  if (!a.length) return 0;
+  if (a.length === 1) return a[0];
+  const idx = (p / 100) * (a.length - 1);
+  const lo = Math.floor(idx), hi = Math.ceil(idx);
+  return lo === hi ? a[lo] : a[lo] + (idx - lo) * (a[hi] - a[lo]);
+}
 function _fmtCostG(v) { return v==null?'—':'$'+Number(v).toFixed(4); }
 function _fmtNumG(v) { if(v==null)return '—'; if(v>=1e6)return (v/1e6).toFixed(1)+'M'; if(v>=1e3)return (v/1e3).toFixed(1)+'K'; return String(v); }
 function _tcrG(d) { if(!d)return 0; const t=d.tasks||[],n=t.length||1; const raw=d.accuracy_metrics?.tcr?.tcr??null; return raw!=null?raw:t.reduce((s,x)=>s+(x.completion_score||0),0)/n*100; }
@@ -4259,6 +4456,8 @@ function app2() {
     /* golden */
     goldenFiles: [], goldenCurrent: null, goldenLoading: false,
     goldenNewName: '', goldenPdfMode: 'simple', goldenPdfNum: 10, goldenPdfLoading: false, goldenPdfResult: null,
+    goldenDirty: false, goldenSaving: false, goldenEditIdx: -1, goldenEditBuf: {}, goldenAddMode: false,
+    goldenAddBuf: {question:'',expected_answer:'',ground_truth:'',context:'',id:''},
     /* transparency */
     transpTab: 'annotations', transpTraces: [], transpAudit: [], transpAuditItems: [], transpAnnotations: [],
     trDetail: {}, annDetail: {},
@@ -4696,24 +4895,68 @@ function app2() {
     },
     frameworkDist(data) {
       const tasks = (data||this.data)?.tasks || [];
-      const cnt = {};
+      const cnt = {}, suc = {};
       for (const t of tasks) {
         const fw = t.framework || t.agent_framework || 'unknown';
         cnt[fw] = (cnt[fw]||0) + 1;
+        if (t.success) suc[fw] = (suc[fw]||0) + 1;
       }
       const total = tasks.length || 1;
-      return Object.entries(cnt).map(([fw,c]) => ({ fw, c, pct: (c/total*100).toFixed(1) }))
-        .sort((a,b)=>b.c-a.c);
+      return Object.entries(cnt).map(([name, count]) => ({
+        name,
+        count,
+        rate: count > 0 ? (suc[name]||0) / count * 100 : 0,
+        pct: count / total * 100,
+      })).sort((a,b)=>b.count-a.count);
     },
     toolCallByTool(data) {
       const src = (data||this.data);
+      const counts = {};
+
+      // [1순위] tool_selections[].actual_tools — 실제 사용 도구 이름 배열 (JSON에 항상 존재)
+      for (const s of (src?.agentic?.tool_selections || [])) {
+        for (const name of (s.actual_tools || [])) {
+          if (name) counts[name] = (counts[name]||0) + 1;
+        }
+      }
+      if (Object.keys(counts).length > 0) {
+        return Object.entries(counts).map(([name,calls])=>({name,calls,success_rate:null}))
+          .sort((a,b)=>b.calls-a.calls);
+      }
+
+      // [2순위] tool_call_executions[].tool_call_counts (dict 또는 배열)
+      for (const t of (src?.agentic?.tool_call_executions || [])) {
+        const bt = t.tool_call_counts || {};
+        if (Array.isArray(bt)) {
+          for (const item of bt) {
+            const n = item.tool_name||item.name||'?';
+            counts[n] = (counts[n]||0) + (item.count||item.calls||1);
+          }
+        } else {
+          for (const [n, v] of Object.entries(bt)) {
+            counts[n] = (counts[n]||0) + (typeof v==='object'?(v.count||v.calls||0):Number(v)||0);
+          }
+        }
+        // tool_names 배열 fallback
+        if (!Object.keys(bt).length) {
+          for (const n of (t.tool_names||[])) {
+            counts[n] = (counts[n]||0) + 1;
+          }
+        }
+      }
+      if (Object.keys(counts).length > 0) {
+        return Object.entries(counts).map(([name,calls])=>({name,calls,success_rate:null}))
+          .sort((a,b)=>b.calls-a.calls);
+      }
+
+      // [3순위] data.advanced 경로 (legacy)
       const adv = src?.advanced || {};
       const tool = adv.tool_call || adv.tool_calls || {};
       const byTool = tool.by_tool || tool.tool_distribution || {};
-      return Object.entries(byTool).map(([name,v]) => ({
+      return Object.entries(byTool).map(([name,v])=>({
         name,
-        calls: typeof v === 'object' ? (v.calls||v.count||0) : v,
-        success_rate: typeof v === 'object' ? (v.success_rate??null) : null,
+        calls: typeof v==='object'?(v.calls||v.count||0):v,
+        success_rate: typeof v==='object'?(v.success_rate??null):null,
       })).sort((a,b)=>b.calls-a.calls);
     },
     /* ── compare ── */
@@ -4788,11 +5031,83 @@ function app2() {
       finally { this.goldenLoading = false; }
     },
     async loadGoldenDetail(stem) {
-      if (this.goldenCurrent?.stem === stem) { this.goldenCurrent = null; return; }
+      if (this.goldenCurrent?.stem === stem) {
+        this.goldenCurrent = null; this.goldenDirty = false; this.goldenEditIdx = -1; this.goldenAddMode = false;
+        return;
+      }
       try {
-        const data = await fetch(`/api/golden/${stem}`).then(r => r.json());
+        const data = await fetch(`/api/golden/${encodeURIComponent(stem)}`).then(r => r.json());
         this.goldenCurrent = { stem, items: Array.isArray(data) ? data : (data.items || []) };
+        this.goldenDirty = false; this.goldenEditIdx = -1; this.goldenAddMode = false;
       } catch(e) { console.warn('golden detail error', e); }
+    },
+    goldenStartEdit(idx) {
+      this.goldenEditIdx = idx;
+      const item = this.goldenCurrent.items[idx];
+      this.goldenEditBuf = {
+        ...item,
+        question: item.question || item.input || '',
+        expected_answer: item.expected_answer || item.ground_truth || item.answer || '',
+      };
+    },
+    goldenApplyEdit(idx) {
+      const buf = this.goldenEditBuf;
+      const item = this.goldenCurrent.items[idx];
+      this.goldenCurrent.items.splice(idx, 1, { ...item, ...buf, ground_truth: buf.expected_answer });
+      this.goldenEditIdx = -1;
+      this.goldenDirty = true;
+    },
+    goldenDeleteItem(idx) {
+      if (!confirm((this.goldenCurrent.items[idx].id || (idx+1)) + ' 항목을 삭제할까요?')) return;
+      this.goldenCurrent.items.splice(idx, 1);
+      if (this.goldenEditIdx === idx) this.goldenEditIdx = -1;
+      this.goldenDirty = true;
+    },
+    goldenStartAdd() {
+      this.goldenAddMode = true;
+      this.goldenAddBuf = { question:'', expected_answer:'', ground_truth:'', context:'', id:'' };
+    },
+    goldenAddItem() {
+      const q = (this.goldenAddBuf.question || '').trim();
+      if (!q) { alert('질문을 입력하세요'); return; }
+      const newItem = {
+        id: 'item_' + String(this.goldenCurrent.items.length + 1).padStart(3, '0'),
+        question: q,
+        expected_answer: (this.goldenAddBuf.expected_answer || '').trim(),
+        ground_truth: (this.goldenAddBuf.expected_answer || '').trim(),
+      };
+      const ctx = (this.goldenAddBuf.context || '').trim();
+      if (ctx) newItem.context = ctx;
+      this.goldenCurrent.items.push(newItem);
+      this.goldenAddMode = false;
+      this.goldenAddBuf = { question:'', expected_answer:'', ground_truth:'', context:'', id:'' };
+      this.goldenDirty = true;
+    },
+    async saveGoldenCurrent() {
+      if (!this.goldenCurrent || !this.goldenDirty) return;
+      this.goldenSaving = true;
+      try {
+        if (this.goldenCurrent.items.length === 0) {
+          const r = await fetch(`/api/golden/${encodeURIComponent(this.goldenCurrent.stem)}`, { method: 'DELETE' });
+          if (r.ok) { this.goldenCurrent = null; this.goldenDirty = false; }
+        } else {
+          await fetch(`/api/golden/${encodeURIComponent(this.goldenCurrent.stem)}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(this.goldenCurrent.items),
+          });
+          this.goldenDirty = false;
+        }
+        await this.loadGolden();
+      } catch(e) { console.warn('golden save error', e); }
+      finally { this.goldenSaving = false; }
+    },
+    async deleteGoldenFile(stem) {
+      try {
+        await fetch(`/api/golden/${encodeURIComponent(stem)}`, { method: 'DELETE' });
+        if (this.goldenCurrent?.stem === stem) { this.goldenCurrent = null; this.goldenDirty = false; }
+        await this.loadGolden();
+      } catch(e) { console.warn('golden delete error', e); }
     },
     async uploadGoldenPdf(event) {
       const file = event.target.files[0]; if (!file) return;
@@ -4800,7 +5115,15 @@ function app2() {
       this.goldenPdfLoading = true; this.goldenPdfResult = null;
       try {
         this.goldenPdfResult = await fetch('/api/golden/pdf', { method: 'POST', body: fd }).then(r => r.json());
-        if (this.goldenPdfResult.ok) await this.loadGolden();
+        if (this.goldenPdfResult.ok) {
+          const fname = (this.goldenPdfResult.filename || 'pdf_dataset').replace(/\.pdf$/i, '');
+          await fetch('/api/golden', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name: fname, items: this.goldenPdfResult.items }),
+          });
+          await this.loadGolden();
+        }
       } catch(e) { console.warn('pdf upload error', e); }
       finally { this.goldenPdfLoading = false; event.target.value = ''; }
     },
@@ -5175,12 +5498,26 @@ function app2() {
       });
 
       /* --- Performance: Latency --- */
-      const latKeys = ['p50_latency','p75_latency','p90_latency','p95_latency','p99_latency'];
-      const latVals = latKeys.map(k=>s[k]??null);
+      const lat = this.data.efficiency_metrics?.latency || {};
+      const latTimes = tasks.map(t=>t.execution_time).filter(v=>v!=null).sort((a,b)=>a-b);
+      function _lp(p){
+        if (!latTimes.length) return 0;
+        if (latTimes.length === 1) return latTimes[0];
+        const idx = (p/100)*(latTimes.length-1), lo=Math.floor(idx), hi=Math.ceil(idx);
+        return lo===hi ? latTimes[lo] : latTimes[lo]+(idx-lo)*(latTimes[hi]-latTimes[lo]);
+      }
+      const latVals = [
+        lat.p50  ?? _lp(50),   // P50
+        _lp(75),                // P75 (트래커 미수집 → tasks 직접 계산)
+        _lp(90),                // P90 (트래커 미수집 → tasks 직접 계산)
+        lat.p95  ?? _lp(95),   // P95
+        lat.p99  ?? _lp(99),   // P99
+      ];
       this._plt('d2-p-lat-bar', [{
-        x: ['P50','P75','P90','P95','P99'], y: latVals.map(v=>v??0), type:'bar',
-        marker:{color:'#f59e0b'}, hovertemplate:'%{x}: %{y:.2f}s<extra></extra>'
-      }], { yaxis:{title:'초(s)'} });
+        x: ['P50','P75','P90','P95','P99'], y: latVals, type:'bar',
+        marker:{color:['#6366f1','#8b5cf6','#f59e0b','#f59e0b','#ef4444']},
+        hovertemplate:'%{x}: %{y:.3f}s<extra></extra>'
+      }], { yaxis:{title:'초(s)'}, margin:{t:20,r:20,b:40,l:50} });
       const latScores = tasks.map(t=>t.execution_time).filter(v=>v!=null);
       this._plt('d2-p-lat-hist', [{
         x: latScores, type:'histogram', nbinsx:25,
@@ -5194,120 +5531,248 @@ function app2() {
       }], { margin:{l:120,t:20,r:20,b:40}, xaxis:{title:'초(s)'} });
 
       /* --- Performance: Token --- */
+      const em = this.data.efficiency_metrics || {};
+      const tokEm = em.tokens || em.token || {};
       const tok = adv.token_economy || adv.token || {};
+      // 실제 필드명: total_input_tokens / total_output_tokens (prompt/completion 아님)
+      const iTok = tok.total_input_tokens  || tokEm.total_input_tokens  || tok.total_prompt_tokens     || tokEm.total_prompt_tokens     || 0;
+      const oTok = tok.total_output_tokens || tokEm.total_output_tokens || tok.total_completion_tokens || tokEm.total_completion_tokens || 0;
+      const tTok = tok.total_tokens || tokEm.total_tokens || 0;
+      const aTok = tok.avg_tokens_per_task || tokEm.avg_tokens_per_task || 0;
       this._plt('d2-p-tok-bar', [{
-        x: ['총 토큰','프롬프트','완성','평균/태스크'],
-        y: [tok.total_tokens||s.total_tokens||0, tok.total_prompt_tokens||0, tok.total_completion_tokens||0, tok.avg_tokens_per_task||s.avg_tokens_per_task||0],
-        type:'bar', marker:{color:clr}, hovertemplate:'%{x}: %{y:,.0f}<extra></extra>'
-      }], {});
-      const pTok = tok.total_prompt_tokens||0, cTok = tok.total_completion_tokens||0;
-      this._plt('d2-p-tok-ratio', [{
-        values: [pTok, cTok], labels:['프롬프트','완성'], type:'pie', hole:0.5,
-        marker:{colors:['#6366f1','#06b6d4']}, textinfo:'percent',
-        hovertemplate:'%{label}: %{value:,.0f}<extra></extra>'
-      }], { showlegend:true, legend:{orientation:'h',y:-0.05,x:0.5,xanchor:'center'}, margin:{t:10,r:10,b:55,l:10} });
-      const tokScores = tasks.map(t=>t.tokens_used).filter(v=>v!=null);
-      this._plt('d2-p-tok-hist', [{
-        x: tokScores, type:'histogram', nbinsx:20,
-        marker:{color:'#6366f1'}, hovertemplate:'%{x:,.0f}: %{y}건<extra></extra>'
-      }], { xaxis:{title:'토큰'}, yaxis:{title:'건수'} });
+        x: ['총 토큰','입력 토큰','출력 토큰','평균/태스크'],
+        y: [tTok, iTok, oTok, aTok],
+        type:'bar',
+        marker:{color:['#6366f1','#8b5cf6','#06b6d4','#10b981']},
+        hovertemplate:'%{x}: %{y:,.0f}<extra></extra>'
+      }], { yaxis:{title:'토큰'}, margin:{t:20,r:20,b:40,l:60} });
+      // 파이: 두 값이 모두 0이면 빈 도넛 대신 안내 텍스트 처리
+      if (iTok > 0 || oTok > 0) {
+        this._plt('d2-p-tok-ratio', [{
+          values: [iTok, oTok], labels:['입력','출력'], type:'pie', hole:0.5,
+          marker:{colors:['#6366f1','#06b6d4']}, textinfo:'percent+label',
+          hovertemplate:'%{label}: %{value:,.0f}토큰<extra></extra>'
+        }], { showlegend:true, legend:{orientation:'h',y:-0.05,x:0.5,xanchor:'center'}, margin:{t:10,r:10,b:55,l:10} });
+      }
+      // 토큰 분포: tokens_used 추출 (object 또는 숫자 혼용 처리)
+      function _getTok(t) {
+        const v = t.tokens_used;
+        if (typeof v === 'object' && v !== null)
+          return v.total || (v.input||v.input_tokens||0) + (v.output||v.output_tokens||0) || 0;
+        return v || 0;
+      }
+      const tokScores = tasks.map(t => ({id: t.task_id||'?', val: _getTok(t)})).filter(d => d.val > 0);
+      if (tokScores.length > 0) {
+        if (tokScores.length <= 30) {
+          // 태스크 수 적으면 태스크별 바 차트 (정확한 실수치 표시)
+          const sorted = [...tokScores].sort((a,b) => b.val - a.val);
+          this._plt('d2-p-tok-hist', [{
+            x: sorted.map(d=>d.id), y: sorted.map(d=>d.val), type:'bar',
+            marker:{color:'#6366f1'}, hovertemplate:'%{x}: %{y:,.0f}토큰<extra></extra>'
+          }], { xaxis:{title:'태스크', tickangle:-30}, yaxis:{title:'토큰 수'}, margin:{t:20,r:20,b:70,l:60} });
+        } else {
+          // 태스크 많으면 히스토그램 (빈 크기를 정수 단위로 고정해 정확도 향상)
+          const vals = tokScores.map(d=>d.val);
+          const mn = Math.min(...vals), mx = Math.max(...vals);
+          const binSz = Math.max(1, Math.round((mx-mn)/Math.min(vals.length, 20)));
+          this._plt('d2-p-tok-hist', [{
+            x: vals, type:'histogram',
+            xbins:{start: mn - binSz/2, end: mx + binSz/2, size: binSz},
+            marker:{color:'#6366f1'}, hovertemplate:'%{x:,.0f}토큰: %{y}건<extra></extra>'
+          }], { xaxis:{title:'토큰 수'}, yaxis:{title:'건수'}, margin:{t:20,r:20,b:40,l:50} });
+        }
+      }
 
       /* --- Performance: Cost --- */
-      const cost = adv.cost || {};
-      const modelCostKeys = Object.keys(cost.by_model||{});
-      this._plt('d2-p-cost-bar', [{
-        x: modelCostKeys.length ? modelCostKeys : ['전체'],
-        y: modelCostKeys.length ? modelCostKeys.map(k=>(cost.by_model||{})[k]||0) : [s.total_cost||tok.total_cost||0],
-        type:'bar', marker:{color:'#10b981'}, hovertemplate:'%{x}: $%{y:.4f}<extra></extra>'
-      }], { yaxis:{title:'비용($)'} });
+      const totalCost = tokEm.total_cost || tok.total_cost || 0;
+      // 태스크별 토큰 합산 후 비례 배분으로 태스크별 비용 추정
+      const taskCostList = tasks.map(t => ({ id: t.task_id||'?', tok: _getTok(t) })).filter(d => d.tok > 0);
+      const sumTok = taskCostList.reduce((s, d) => s + d.tok, 0) || tTok || 1;
+      const taskCostSorted = taskCostList.map(d => ({
+        id: d.id,
+        cost: (d.tok / sumTok) * totalCost
+      })).sort((a, b) => b.cost - a.cost).slice(0, 25);
+      if (taskCostSorted.length > 0) {
+        this._plt('d2-p-cost-bar', [{
+          x: taskCostSorted.map(d => d.id),
+          y: taskCostSorted.map(d => d.cost),
+          type: 'bar', marker: { color: '#10b981' },
+          hovertemplate: '%{x}: $%{y:.5f}<extra></extra>'
+        }], { yaxis:{title:'비용($)'}, xaxis:{tickangle:-30}, margin:{t:20,r:20,b:90,l:70} });
+      } else {
+        this._plt('d2-p-cost-bar', [{
+          x: ['전체'], y: [totalCost], type: 'bar',
+          marker: { color: '#10b981' }, hovertemplate: '%{x}: $%{y:.4f}<extra></extra>'
+        }], { yaxis:{title:'비용($)'}, margin:{t:20,r:20,b:40,l:70} });
+      }
 
       /* --- Agentic: Tool Pie --- */
-      const tca = adv.tool_call || adv.tool_calls || {};
       const byTool = this.toolCallByTool();
-      this._plt('d2-ag-tool-pie', [{
-        values: byTool.map(t=>t.calls), labels: byTool.map(t=>t.name), type:'pie', hole:0.4,
-        marker:{colors:clr}, textinfo:'percent',
-        hovertemplate:'%{label}: %{value}회<extra></extra>'
-      }], { showlegend:true, legend:{orientation:'h',y:-0.05,x:0.5,xanchor:'center'}, margin:{t:10,r:10,b:55,l:10} });
-      this._plt('d2-ag-teff-bar', [{
-        x: byTool.map(t=>t.name), y: byTool.map(t=>t.success_rate??0),
-        type:'bar', marker:{color:byTool.map(t=>(t.success_rate??0)>=0.9?'#10b981':'#f59e0b')},
-        hovertemplate:'%{x}: %{y:.1%}<extra></extra>'
-      }], { yaxis:{tickformat:'.0%',range:[0,1]} });
+      if (byTool.length > 0) {
+        this._plt('d2-ag-tool-pie', [{
+          values: byTool.map(t=>t.calls), labels: byTool.map(t=>t.name), type:'pie', hole:0.4,
+          marker:{colors:clr}, textinfo:'percent+label',
+          hovertemplate:'%{label}: %{value}회<extra></extra>'
+        }], { showlegend:false, margin:{t:10,r:10,b:10,l:10} });
+      }
+      // 효율성 지표 요약: 도구별 호출 수 바 차트 (success_rate가 없으면 호출 빈도로 대체)
+      const teEff = this.data.agentic?.tool_efficiency || {};
+      const hasSR = byTool.some(t=>t.success_rate!=null);
+      if (hasSR) {
+        this._plt('d2-ag-teff-bar', [{
+          x: byTool.map(t=>t.name), y: byTool.map(t=>t.success_rate??0),
+          type:'bar', marker:{color:byTool.map(t=>(t.success_rate??0)>=90?'#10b981':'#f59e0b')},
+          hovertemplate:'%{x}: %{y:.1f}%<extra></extra>'
+        }], { yaxis:{title:'성공률(%)',range:[0,100]}, xaxis:{tickangle:-30}, margin:{t:20,r:20,b:80,l:55} });
+      } else if (byTool.length > 0) {
+        // 도구별 호출 수 바 차트
+        this._plt('d2-ag-teff-bar', [{
+          x: byTool.map(t=>t.name), y: byTool.map(t=>t.calls),
+          type:'bar', marker:{color:clr},
+          hovertemplate:'%{x}: %{y}회<extra></extra>'
+        }], { yaxis:{title:'호출 수(회)'}, xaxis:{tickangle:-30}, margin:{t:20,r:20,b:80,l:55} });
+      } else {
+        // 전체 효율 지표 요약 바
+        this._plt('d2-ag-teff-bar', [{
+          x:['성공률','중복 호출률','실패율'],
+          y:[teEff.success_rate||0, teEff.redundancy_rate||0, teEff.failure_rate||0],
+          type:'bar', marker:{color:['#10b981','#f59e0b','#ef4444']},
+          hovertemplate:'%{x}: %{y:.1f}%<extra></extra>'
+        }], { yaxis:{title:'(%)',range:[0,100]}, margin:{t:20,r:20,b:40,l:55} });
+      }
 
       /* --- Agentic: Tool Selection --- */
-      const ts = adv.tool_selection || {};
-      const tsKeys = Object.keys(ts.by_tool||{});
-      this._plt('d2-ag-sel-bar', [{
-        x: tsKeys, y: tsKeys.map(k=>(ts.by_tool||{})[k]?.f1??0),
-        type:'bar', marker:{color:'#8b5cf6'}, hovertemplate:'%{x}: F1=%{y:.2f}<extra></extra>'
-      }], { yaxis:{title:'F1 Score',range:[0,1]} });
+      // data.agentic.tool_selections: per-task array, precision/recall/f1_score stored as 0~100 scale
+      const tsSel = (this.data.agentic?.tool_selections || []).sort((a,b)=>(b.f1_score||0)-(a.f1_score||0));
+      if (tsSel.length > 0) {
+        this._plt('d2-ag-sel-bar', [{
+          name: 'F1', x: tsSel.map(s=>s.task_id||'?'), y: tsSel.map(s=>s.f1_score||0),
+          type:'bar', marker:{color:tsSel.map(s=>(s.f1_score||0)>=80?'#8b5cf6':'#f59e0b')},
+          hovertemplate:'%{x}<br>F1: %{y:.1f}%<extra></extra>'
+        },{
+          name: 'Precision', x: tsSel.map(s=>s.task_id||'?'), y: tsSel.map(s=>s.precision||0),
+          type:'scatter', mode:'markers', marker:{color:'#06b6d4',size:7},
+          hovertemplate:'%{x}<br>Precision: %{y:.1f}%<extra></extra>'
+        },{
+          name: 'Recall', x: tsSel.map(s=>s.task_id||'?'), y: tsSel.map(s=>s.recall||0),
+          type:'scatter', mode:'markers', marker:{color:'#10b981',size:7, symbol:'diamond'},
+          hovertemplate:'%{x}<br>Recall: %{y:.1f}%<extra></extra>'
+        }], { yaxis:{title:'(%)',range:[0,100]}, xaxis:{tickangle:-30},
+              showlegend:true, legend:{orientation:'h',y:-0.2,x:0.5,xanchor:'center'},
+              margin:{t:20,r:20,b:90,l:50} });
+      }
 
       /* --- Agentic: Retry --- */
-      const rt = adv.retry || adv.retry_correction || {};
-      const retryByType = rt.by_task_type || {};
-      this._plt('d2-ag-retry-hist', [{
-        x: tasks.map(t=>t.attempts||t.total_attempts||1).filter(v=>v>1),
-        type:'histogram', nbinsx:10, marker:{color:'#f59e0b'},
-        hovertemplate:'%{x}회: %{y}건<extra></extra>'
-      }], { xaxis:{title:'시도 횟수'}, yaxis:{title:'건수'} });
-      const rtTypes = Object.keys(retryByType);
-      this._plt('d2-ag-retry-type', [{
-        x: rtTypes, y: rtTypes.map(k=>retryByType[k]?.retry_rate??0),
-        type:'bar', marker:{color:'#f59e0b'}, hovertemplate:'%{x}: %{y:.1%}<extra></extra>'
-      }], { yaxis:{tickformat:'.0%'} });
+      // 시도 횟수 분포 히스토그램 — tasks[].attempts (정수)
+      const retryVals = tasks.map(t=>t.attempts||1).filter(v=>v>1);
+      if (retryVals.length > 0) {
+        const maxA = Math.max(...retryVals);
+        this._plt('d2-ag-retry-hist', [{
+          x: retryVals, type:'histogram',
+          xbins:{start:1.5, end:maxA+0.5, size:1},
+          marker:{color:'#f59e0b'}, hovertemplate:'%{x}회: %{y}건<extra></extra>'
+        }], { xaxis:{title:'시도 횟수', dtick:1, tick0:2}, yaxis:{title:'건수'}, margin:{t:20,r:20,b:40,l:50} });
+      } else {
+        this._plt('d2-ag-retry-hist', [{x:[],type:'histogram'}], { annotations:[{x:0.5,y:0.5,xref:'paper',yref:'paper',text:'재시도 없음',showarrow:false,font:{color:'#888',size:13}}] });
+      }
+      // 태스크 유형별 재시도율 — data.agentic.retry_attempts 집계
+      const retryAttempts = this.data.agentic?.retry_attempts || [];
+      const rtByType = {};
+      for (const r of retryAttempts) {
+        const tp = r.task_type || r.type || 'unknown';
+        if (!rtByType[tp]) rtByType[tp] = {total:0, retries:0};
+        rtByType[tp].total++;
+        if ((r.total_attempts||1) > 1) rtByType[tp].retries++;
+      }
+      const rtTypeKeys = Object.keys(rtByType);
+      if (rtTypeKeys.length > 0) {
+        this._plt('d2-ag-retry-type', [{
+          x: rtTypeKeys,
+          y: rtTypeKeys.map(k => rtByType[k].total > 0 ? rtByType[k].retries/rtByType[k].total*100 : 0),
+          type:'bar', marker:{color:'#f59e0b'}, hovertemplate:'%{x}: %{y:.1f}%<extra></extra>'
+        }], { yaxis:{title:'재시도율(%)',range:[0,100]}, xaxis:{tickangle:-30}, margin:{t:20,r:20,b:80,l:55} });
+      } else if (this.data.agentic?.retry_summary) {
+        // fallback: retry_summary.by_task_type
+        const rsByType = this.data.agentic.retry_summary.by_task_type || {};
+        const rsTKeys = Object.keys(rsByType);
+        if (rsTKeys.length > 0) {
+          this._plt('d2-ag-retry-type', [{
+            x: rsTKeys, y: rsTKeys.map(k => (rsByType[k]?.retry_rate||rsByType[k]?.avg_attempts||0)),
+            type:'bar', marker:{color:'#f59e0b'}, hovertemplate:'%{x}: %{y:.1f}<extra></extra>'
+          }], { yaxis:{title:'평균 시도'}, xaxis:{tickangle:-30}, margin:{t:20,r:20,b:80,l:55} });
+        }
+      }
 
       /* --- Agentic: Coordination --- */
-      const coord = adv.coordination || adv.agent_coordination || {};
-      const agents = Object.keys(coord.by_agent||{});
-      this._plt('d2-ag-coord-bar', [{
-        x: agents, y: agents.map(a=>(coord.by_agent||{})[a]?.interactions??0),
-        type:'bar', marker:{color:'#06b6d4'}, hovertemplate:'%{x}: %{y}회<extra></extra>'
-      }], { yaxis:{title:'인터랙션 수'} });
+      // data.agentic.agent_interactions 에서 에이전트별 집계
+      const agInteractions = this.data.agentic?.agent_interactions || [];
+      const agCounts = {};
+      for (const i of agInteractions) {
+        const from = i.from_agent || i.from || '?';
+        const to   = i.to_agent   || i.to   || '?';
+        if (from !== '?') agCounts[from] = (agCounts[from]||0) + 1;
+        if (to   !== '?') agCounts[to]   = (agCounts[to]  ||0) + 1;
+      }
+      const agKeys = Object.keys(agCounts).sort((a,b)=>agCounts[b]-agCounts[a]);
+      if (agKeys.length > 0) {
+        this._plt('d2-ag-coord-bar', [{
+          x: agKeys, y: agKeys.map(a=>agCounts[a]),
+          type:'bar', marker:{color:'#06b6d4'}, hovertemplate:'%{x}: %{y}회<extra></extra>'
+        }], { yaxis:{title:'인터랙션 수'}, xaxis:{tickangle:-30}, margin:{t:20,r:20,b:80,l:55} });
+      }
 
       /* --- Agentic: Workflow --- */
-      const wf = adv.workflow || adv.workflow_execution || {};
-      const wfSteps = wf.total_steps||0, wfSuccessSteps = wf.successful_steps||0;
-      const wfTasks = wf.total_workflow_tasks||tasks.length||0, wfSuccessTasks = wf.successful_workflow_tasks||succCount||0;
+      // data.agentic.workflow_summary (loader 집계 결과)
+      const wfSum = this.data.agentic?.workflow_summary || {};
+      const wfSteps        = wfSum.total_steps            || 0;
+      const wfSuccessSteps = wfSum.successful_steps       || 0;
+      const wfTasks        = wfSum.total_tasks            || 0;
+      const wfSuccessTasks = wfSum.fully_successful_tasks || 0;
       this._plt('d2-ag-wf-funnel', [{
         x: ['전체 단계','성공 단계','전체 태스크','성공 태스크'],
         y: [wfSteps, wfSuccessSteps, wfTasks, wfSuccessTasks],
-        type:'bar', marker:{color:['#6366f1','#10b981','#6366f1','#10b981']},
+        type:'bar', marker:{color:['#6366f1','#10b981','#8b5cf6','#06b6d4']},
         hovertemplate:'%{x}: %{y}<extra></extra>'
-      }], {});
+      }], { margin:{t:20,r:20,b:40,l:55} });
 
       /* --- Security: Summary --- */
-      const sec = adv.security || {};
-      const secScores = {
-        input: sec.input_security_score??sec.l1_input??null,
-        output: sec.output_leakage_score??sec.l1_output??null,
-        auth: sec.authorization_score??sec.l1_auth??null,
-        priv: sec.privilege_escalation_score??sec.l2_privilege??null,
-        attack: sec.attack_detection_score??sec.l2_attack??null,
-      };
+      // security_l1/l2 직접 참조 (adv.security 경로 없음, sl1은 위에서 선언됨)
+      const sl2 = this.data.security_l2 || {};
+      const secScores = [
+        sl1.input_security  != null ? (100-(sl1.input_security?.threat_rate||0))/100 : null,
+        sl1.output_leakage  != null ? (100-(sl1.output_leakage?.leakage_rate||0))/100 : null,
+        sl1.authorization   != null ? (sl1.authorization?.compliance_rate??100)/100   : null,
+        sl2.privilege_escalation != null ? (100-(sl2.privilege_escalation?.escalation_rate||0))/100 : null,
+        sl2.attack_detection     != null ? (sl2.attack_detection?.detection_rate||0)/100             : null,
+      ];
       this._plt('d2-sec-summary', [{
         x: ['입력 보안','출력 유출','인가 준수','권한 상승','공격 탐지'],
-        y: Object.values(secScores).map(v=>v??0),
+        y: secScores.map(v=>v??0),
         type:'bar',
-        marker:{color:Object.values(secScores).map(v=>v==null?'#9ca3af':v>=0.9?'#10b981':v>=0.7?'#f59e0b':'#ef4444')},
-        hovertemplate:'%{x}: %{y:.2f}<extra></extra>'
+        marker:{color:secScores.map(v=>v==null?'#9ca3af':v>=0.9?'#10b981':v>=0.7?'#f59e0b':'#ef4444')},
+        hovertemplate:'%{x}: %{y:.1%}<extra></extra>'
       }], { yaxis:{range:[0,1],tickformat:'.0%'} });
 
       /* --- Security: Input Bar --- */
-      const inp = sec.input_sanitization || sec.input || {};
-      const inpTypes = ['sql_injection','command_injection','path_traversal','xss','prompt_injection'];
+      // input_security 객체: sql_injection_attempts, command_injection_attempts 등
+      const inpSec = this.data.security_l1?.input_security || {};
       const inpLabels = ['SQL인젝션','커맨드인젝션','경로순회','XSS','프롬프트인젝션'];
+      const inpVals = [
+        inpSec.sql_injection_attempts||0, inpSec.command_injection_attempts||0,
+        inpSec.path_traversal_attempts||0, inpSec.xss_attempts||0, inpSec.prompt_injection_attempts||0
+      ];
       this._plt('d2-sec-in-bar', [{
-        x: inpLabels, y: inpTypes.map(k=>inp[k]??inp['count_'+k]??0),
+        x: inpLabels, y: inpVals,
         type:'bar', marker:{color:'#ef4444'}, hovertemplate:'%{x}: %{y}건<extra></extra>'
       }], { yaxis:{title:'탐지 건수'} });
 
       /* --- Security: Output Bar --- */
-      const out2 = sec.output_leakage || sec.output || {};
+      // output_leakage 객체: api_key_leaks, password_leaks 등 (필드명 올바름)
+      const outLeak = this.data.security_l1?.output_leakage || {};
       const outTypes = ['api_key_leaks','password_leaks','credit_card_leaks','email_leaks','ssn_leaks','phone_leaks','private_ip_leaks','file_path_leaks'];
       const outLabels = ['API Key','패스워드','신용카드','이메일','SSN','전화번호','개인 IP','파일경로'];
       this._plt('d2-sec-out-bar', [{
-        x: outLabels, y: outTypes.map(k=>out2[k]??0),
+        x: outLabels, y: outTypes.map(k=>outLeak[k]??0),
         type:'bar', marker:{color:'#ef4444'}, hovertemplate:'%{x}: %{y}건<extra></extra>'
       }], { xaxis:{tickangle:-30}, yaxis:{title:'탐지 건수'} });
 

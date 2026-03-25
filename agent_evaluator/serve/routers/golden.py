@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import io
 import json
+import logging
 import os
 import re
 import shutil
@@ -388,6 +389,16 @@ async def save_golden(name: str, request: Request) -> Dict[str, Any]:
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@router.delete("/{name}")
+def delete_golden(name: str, request: Request) -> Dict[str, Any]:
+    gdir = _golden_dir(request)
+    for p in [gdir / name, gdir / f"{name}.json"]:
+        if p.exists():
+            p.unlink()
+            return {"ok": True, "name": name}
+    raise HTTPException(status_code=404, detail="Golden dataset not found")
+
+
 @router.post("")
 async def create_golden(request: Request) -> Dict[str, Any]:
     gdir = _golden_dir(request)
@@ -426,8 +437,20 @@ async def extract_pdf(
     text = ""
     try:
         import pdfplumber
-        with pdfplumber.open(io.BytesIO(content)) as pdf:
-            text = "\n".join((page.extract_text() or "") for page in pdf.pages)
+        # pdfminer (pdfplumber 내부)의 폰트 디스크립터 경고는 무해하지만 터미널을 오염시키므로 억제
+        _pdfminer_loggers = [
+            logging.getLogger(n) for n in ("pdfminer", "pdfminer.pdffont", "pdfminer.pdfpage",
+                                           "pdfminer.converter", "pdfminer.cmapdb")
+        ]
+        _prev_levels = [lg.level for lg in _pdfminer_loggers]
+        for lg in _pdfminer_loggers:
+            lg.setLevel(logging.ERROR)
+        try:
+            with pdfplumber.open(io.BytesIO(content)) as pdf:
+                text = "\n".join((page.extract_text() or "") for page in pdf.pages)
+        finally:
+            for lg, lv in zip(_pdfminer_loggers, _prev_levels):
+                lg.setLevel(lv)
     except ImportError:
         pass
 
