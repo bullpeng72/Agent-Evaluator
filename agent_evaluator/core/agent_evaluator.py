@@ -515,6 +515,7 @@ class HallucinationDetector:
             "task_id": task_id,
             "hallucination_rate": hallucination_rate,
             "indicators": hallucination_indicators,
+            "response_sentences": len(response_sentences),   # 응답 문장 수
             "question": request[:200] if request else None,  # 원래 질문 (최대 200자)
             "context": context[:300] if context else None,   # 참조 컨텍스트 (최대 300자)
             "timestamp": datetime.now()
@@ -2209,6 +2210,7 @@ class OutputLeakageDetector(SecurityTrackerMixin):
             "ssn_leaks": int(df["contains_ssn"].sum()),
             "phone_leaks": int(df["contains_phone"].sum()) if "contains_phone" in df.columns else 0,
             "private_ip_leaks": int(df["contains_private_ip"].sum()) if "contains_private_ip" in df.columns else 0,
+            "file_path_leaks": int(df["contains_file_path"].sum()) if "contains_file_path" in df.columns else 0,
             "critical_severity_count": int((df["severity"] == "critical").sum()),
             "high_severity_count": int((df["severity"] == "high").sum())
         }
