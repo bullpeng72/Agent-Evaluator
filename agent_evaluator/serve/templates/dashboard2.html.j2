@@ -2887,37 +2887,85 @@ input[type=text],input[type=number]{background:var(--bg3);color:var(--text);bord
       <div style="overflow-x:auto">
         <table style="width:100%;border-collapse:collapse;font-size:12px">
           <thead>
-            <tr style="border-bottom:1px solid var(--border)">
-              <th style="text-align:left;padding:6px 10px;color:var(--text2);white-space:nowrap">지표</th>
+            <tr style="border-bottom:2px solid var(--border)">
+              <th style="text-align:left;padding:6px 10px;color:var(--text2);white-space:nowrap;min-width:130px">지표</th>
               <template x-for="d in compareData" :key="d.id">
-                <th style="text-align:center;padding:6px 10px;color:var(--text2);white-space:nowrap" x-text="d.name||d.id"></th>
+                <th style="text-align:center;padding:6px 10px;color:var(--text2);white-space:nowrap;min-width:140px" x-text="d.name||d.id"></th>
               </template>
             </tr>
           </thead>
           <tbody>
+            <!-- ── 레이더 6축 핵심 지표 ── -->
+            <tr style="background:var(--bg2)">
+              <td colspan="99" style="padding:4px 10px;font-size:10px;font-weight:700;color:var(--text2);letter-spacing:.05em">🎯 레이더 6축 핵심 지표 (0–100% · 높을수록 우수)</td>
+            </tr>
+            <!-- 완료율 -->
             <tr style="border-bottom:1px solid var(--border)">
-              <td style="padding:6px 10px;color:var(--text2)">TCR</td>
+              <td style="padding:6px 10px;color:var(--text2)">완료율 <span style="font-size:10px">(TCR)</span></td>
               <template x-for="d in compareData" :key="d.id">
                 <td style="text-align:center;padding:6px 10px;font-weight:600"
-                    :style="{color:bc(d.accuracy_metrics?.tcr?.tcr??d.accuracy_metrics?.tcr?.task_completion_rate??0)}"
-                    x-text="(d.accuracy_metrics?.tcr?.tcr??d.accuracy_metrics?.tcr?.task_completion_rate??0).toFixed(1)+'%'"></td>
+                    :style="{color:bc(_tcrG(d))}"
+                    x-text="_tcrG(d).toFixed(1)+'%'"></td>
               </template>
             </tr>
+            <!-- 정확도 -->
             <tr style="border-bottom:1px solid var(--border)">
               <td style="padding:6px 10px;color:var(--text2)">정확도</td>
               <template x-for="d in compareData" :key="d.id">
                 <td style="text-align:center;padding:6px 10px;font-weight:600"
-                    :style="{color:bc(d.accuracy_metrics?.accuracy_scores?.overall_accuracy??d.accuracy_metrics?.accuracy_scores?.accuracy_rate??0)}"
-                    x-text="(d.accuracy_metrics?.accuracy_scores?.overall_accuracy??d.accuracy_metrics?.accuracy_scores?.accuracy_rate??0).toFixed(1)+'%'"></td>
+                    :style="{color:bc(_accG(d))}"
+                    x-text="_accG(d).toFixed(1)+'%'"></td>
               </template>
             </tr>
+            <!-- 품질 -->
             <tr style="border-bottom:1px solid var(--border)">
-              <td style="padding:6px 10px;color:var(--text2)">품질점수</td>
+              <td style="padding:6px 10px;color:var(--text2)">품질 <span style="font-size:10px">(응답품질 /5→%)</span></td>
+              <template x-for="d in compareData" :key="d.id">
+                <td style="text-align:center;padding:6px 10px;font-weight:600"
+                    :style="{color:bc((d.quality_detail?.avg_score??0)*20, 80, 60)}"
+                    x-text="d.quality_detail?.avg_score!=null ? ((d.quality_detail.avg_score)*20).toFixed(1)+'%' : '—'"></td>
+              </template>
+            </tr>
+            <!-- 지연(역) -->
+            <tr style="border-bottom:1px solid var(--border)">
+              <td style="padding:6px 10px;color:var(--text2)">지연(역) <span style="font-size:10px">(p95, 10s 기준)</span></td>
+              <template x-for="d in compareData" :key="d.id">
+                <td style="text-align:center;padding:6px 10px;font-weight:600"
+                    :style="{color:_cmpLatNorm(d)!=null?bc(_cmpLatNorm(d),90,70):'var(--text2)'}"
+                    x-text="_cmpLatNorm(d)!=null ? _cmpLatNorm(d).toFixed(1)+'%' : '—'"></td>
+              </template>
+            </tr>
+            <!-- 비용(역) -->
+            <tr style="border-bottom:1px solid var(--border)">
+              <td style="padding:6px 10px;color:var(--text2)">비용(역) <span style="font-size:10px">(태스크당, $0.05 기준)</span></td>
+              <template x-for="d in compareData" :key="d.id">
+                <td style="text-align:center;padding:6px 10px;font-weight:600"
+                    :style="{color:_cmpCostNorm(d)!=null?bc(_cmpCostNorm(d),90,70):'var(--text2)'}"
+                    x-text="_cmpCostNorm(d)!=null ? _cmpCostNorm(d).toFixed(1)+'%' : '—'"></td>
+              </template>
+            </tr>
+            <!-- 보안 -->
+            <tr style="border-bottom:1px solid var(--border)">
+              <td style="padding:6px 10px;color:var(--text2)">보안 <span style="font-size:10px">(L1 평균)</span></td>
+              <template x-for="d in compareData" :key="d.id">
+                <td style="text-align:center;padding:6px 10px;font-weight:600"
+                    :style="{color:_cmpSecNorm(d)!=null?bc(_cmpSecNorm(d),90,70):'var(--text2)'}"
+                    x-text="_cmpSecNorm(d)!=null ? _cmpSecNorm(d).toFixed(1)+'%' : '—'"></td>
+              </template>
+            </tr>
+            <!-- ── 상세 지표 ── -->
+            <tr style="background:var(--bg2)">
+              <td colspan="99" style="padding:4px 10px;font-size:10px;font-weight:700;color:var(--text2);letter-spacing:.05em">📊 상세 지표</td>
+            </tr>
+            <!-- p95 지연 (raw) -->
+            <tr style="border-bottom:1px solid var(--border)">
+              <td style="padding:6px 10px;color:var(--text2)">p95 지연</td>
               <template x-for="d in compareData" :key="d.id">
                 <td style="text-align:center;padding:6px 10px"
-                    x-text="((d.quality_detail?.avg_score??0)*20).toFixed(1)+'%'"></td>
+                    x-text="d.efficiency_metrics?.latency?.p95!=null ? d.efficiency_metrics.latency.p95.toFixed(2)+'s' : '—'"></td>
               </template>
             </tr>
+            <!-- 평균 지연 (raw) -->
             <tr style="border-bottom:1px solid var(--border)">
               <td style="padding:6px 10px;color:var(--text2)">평균 지연</td>
               <template x-for="d in compareData" :key="d.id">
@@ -2925,6 +2973,15 @@ input[type=text],input[type=number]{background:var(--bg3);color:var(--text);bord
                     x-text="(d.efficiency_metrics?.latency?.avg_latency??d.efficiency_metrics?.avg_latency??0).toFixed(2)+'s'"></td>
               </template>
             </tr>
+            <!-- 태스크당 비용 (raw) -->
+            <tr style="border-bottom:1px solid var(--border)">
+              <td style="padding:6px 10px;color:var(--text2)">태스크당 비용</td>
+              <template x-for="d in compareData" :key="d.id">
+                <td style="text-align:center;padding:6px 10px"
+                    x-text="d.efficiency_metrics?.tokens?.avg_cost_per_task!=null ? '$'+(d.efficiency_metrics.tokens.avg_cost_per_task).toFixed(5) : '—'"></td>
+              </template>
+            </tr>
+            <!-- 총 비용 (raw) -->
             <tr style="border-bottom:1px solid var(--border)">
               <td style="padding:6px 10px;color:var(--text2)">총 비용</td>
               <template x-for="d in compareData" :key="d.id">
@@ -2932,10 +2989,50 @@ input[type=text],input[type=number]{background:var(--bg3);color:var(--text);bord
                     x-text="'$'+(d.efficiency_metrics?.tokens?.total_cost??d.pricing?.total_cost??0).toFixed(5)"></td>
               </template>
             </tr>
-            <tr>
+            <!-- 환각률 -->
+            <tr style="border-bottom:1px solid var(--border)">
+              <td style="padding:6px 10px;color:var(--text2)">환각률</td>
+              <template x-for="d in compareData" :key="d.id">
+                <td style="text-align:center;padding:6px 10px" x-data="{
+                  get hr() {
+                    const h=d.accuracy_metrics?.hallucination||{};
+                    const tot=h.total_evaluated||0, flag=h.total_flagged||0;
+                    return tot>0?(flag/tot*100):null;
+                  }
+                }">
+                  <span :style="{color: !d.has_hallucination?'var(--text2)':hr==null?'var(--text2)':hr>20?'var(--red)':hr>5?'var(--yellow)':'var(--green)'}"
+                        x-text="d.has_hallucination&&hr!=null ? hr.toFixed(1)+'%' : '—'"></span>
+                </td>
+              </template>
+            </tr>
+            <!-- ── 기본 정보 ── -->
+            <tr style="background:var(--bg2)">
+              <td colspan="99" style="padding:4px 10px;font-size:10px;font-weight:700;color:var(--text2);letter-spacing:.05em">ℹ️ 기본 정보</td>
+            </tr>
+            <!-- 총 태스크 -->
+            <tr style="border-bottom:1px solid var(--border)">
               <td style="padding:6px 10px;color:var(--text2)">총 태스크</td>
               <template x-for="d in compareData" :key="d.id">
-                <td style="text-align:center;padding:6px 10px" x-text="d.total_tasks??'—'"></td>
+                <td style="text-align:center;padding:6px 10px;font-weight:600" x-text="d.total_tasks??'—'"></td>
+              </template>
+            </tr>
+            <!-- 성공 / 실패 -->
+            <tr style="border-bottom:1px solid var(--border)">
+              <td style="padding:6px 10px;color:var(--text2)">성공 / 실패</td>
+              <template x-for="d in compareData" :key="d.id">
+                <td style="text-align:center;padding:6px 10px">
+                  <span :style="{color:'var(--green)'}" x-text="(d.tasks||[]).filter(t=>t.success).length"></span>
+                  <span style="color:var(--text2)"> / </span>
+                  <span :style="{color:'var(--red)'}" x-text="(d.tasks||[]).filter(t=>!t.success).length"></span>
+                </td>
+              </template>
+            </tr>
+            <!-- 평가 시각 -->
+            <tr>
+              <td style="padding:6px 10px;color:var(--text2)">평가 시각</td>
+              <template x-for="d in compareData" :key="d.id">
+                <td style="text-align:center;padding:6px 10px;font-size:11px;color:var(--text2)"
+                    x-text="d.timestamp ? d.timestamp.slice(0,16).replace('T',' ') : '—'"></td>
               </template>
             </tr>
           </tbody>
@@ -3433,11 +3530,23 @@ input[type=text],input[type=number]{background:var(--bg3);color:var(--text);bord
 <!-- ═══════════════ METRICS GUIDE ═══════════════ -->
 <section id="s-metrics_guide" class="sec" x-show="sec==='metrics_guide'" x-cloak>
   <div style="font-weight:700;font-size:15px;margin-bottom:4px">📖 지표 설명</div>
-  <div style="font-size:12px;color:var(--text2);margin-bottom:18px">Agent-Evaluator가 측정하는 지표의 목적·의미·측정 방법을 계층별로 설명합니다.</div>
+  <div style="font-size:12px;color:var(--text2);margin-bottom:14px">Agent-Evaluator가 측정하는 16개 지표의 목적·계산식·벤치마크를 계층별로 설명합니다.</div>
 
-  <!-- ── Layer 1: Foundation ── -->
-  <div class="sdiv"><div class="sdiv-lbl">Layer 1 — 기반 지표 (Foundation Metrics, 6개)</div><div class="sdiv-line"></div></div>
-  <div style="display:grid;grid-template-columns:1fr;gap:10px;margin-bottom:20px">
+  <div x-data="{mf:'all'}">
+  <!-- 레이어 필터 -->
+  <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:18px">
+    <template x-for="(b,i) in [{v:'all',l:'전체 (16개)'},{v:'l1',l:'L1 기반 (6개)'},{v:'l2a',l:'L2 에이전틱 (5개)'},{v:'l2s',l:'L2 보안 (5개)'},{v:'l3',l:'L3 하이브리드 (4개)'}]" :key="i">
+      <button @click="mf=b.v"
+        :style="mf===b.v?'background:var(--accent);color:#fff;border:none':'background:var(--bg3);color:var(--text2);border:1px solid var(--border)'"
+        style="padding:4px 13px;border-radius:20px;font-size:12px;cursor:pointer;transition:all .15s"
+        x-text="b.l"></button>
+    </template>
+  </div>
+
+  <!-- ── Layer 1 ── -->
+  <div x-show="mf==='all'||mf==='l1'">
+  <div class="sdiv" style="margin-bottom:12px"><div class="sdiv-lbl">Layer 1 — 기반 지표 (Foundation Metrics, 6개)</div><div class="sdiv-line"></div></div>
+  <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(360px,1fr));gap:12px;margin-bottom:24px">
 
     <div class="kpi" style="padding:14px 16px">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
@@ -3943,6 +4052,18 @@ function _fmtCostG(v) { return v==null?'—':'$'+Number(v).toFixed(4); }
 function _fmtNumG(v) { if(v==null)return '—'; if(v>=1e6)return (v/1e6).toFixed(1)+'M'; if(v>=1e3)return (v/1e3).toFixed(1)+'K'; return String(v); }
 function _tcrG(d) { if(!d)return 0; const t=d.tasks||[],n=t.length||1; const raw=d.accuracy_metrics?.tcr?.tcr??null; return raw!=null?raw:t.reduce((s,x)=>s+(x.completion_score||0),0)/n*100; }
 function _accG(d) { if(!d)return 0; const t=d.tasks||[],n=t.length||1; const raw=d.accuracy_metrics?.accuracy_scores?.overall_accuracy??null; return raw!=null?raw:t.reduce((s,x)=>s+(x.accuracy_score||0),0)/n*100; }
+// 레이더 6축 정규화 헬퍼 (drawCompareChart와 동일 로직)
+function _cmpLatNorm(d) { const p95=d?.efficiency_metrics?.latency?.p95??null; return p95!=null?Math.max(0,1-p95/10)*100:null; }
+function _cmpCostNorm(d) { const c=d?.efficiency_metrics?.tokens?.avg_cost_per_task??null; return c!=null?Math.max(0,1-c/0.05)*100:null; }
+function _cmpSecNorm(d) {
+  if(!d?.has_security) return null;
+  const sl1=d.security_l1||{};
+  const inp =sl1.input_security !=null?(100-(sl1.input_security?.threat_rate ||0))/100:null;
+  const leak=sl1.output_leakage !=null?(100-(sl1.output_leakage?.leakage_rate||0))/100:null;
+  const auth=sl1.authorization  !=null?(sl1.authorization?.compliance_rate??100)/100:null;
+  const sv=[inp,leak,auth].filter(v=>v!=null);
+  return sv.length?sv.reduce((s,v)=>s+v,0)/sv.length*100:0;
+}
 function _hallG(d) { if(!d)return 0; const am=d.accuracy_metrics?.hallucination||{}; const raw=am.overall_rate??null; if(raw!=null)return raw; const ev=am.total_evaluated||0,fl=am.total_flagged||0; return ev>0?(fl/ev)*100:0; }
 
 /* ── standalone helper (used by both app2 and badge pre-render) ── */
