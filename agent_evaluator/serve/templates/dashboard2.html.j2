@@ -3548,6 +3548,7 @@ input[type=text],input[type=number]{background:var(--bg3);color:var(--text);bord
   <!-- ── Layer 1 ── -->
   <div x-show="mf==='all'||mf==='l1'">
   <div class="sdiv" style="margin-bottom:12px"><div class="sdiv-lbl">Layer 1 — 기반 지표 (Foundation Metrics, 6개)</div><div class="sdiv-line"></div></div>
+  <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(360px,1fr));gap:12px;margin-bottom:24px">
     <!-- L1 cards -->
     <div class="kpi" style="padding:14px 16px;border-left:3px solid #10b981">
       <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:8px">
@@ -3698,7 +3699,7 @@ input[type=text],input[type=number]{background:var(--bg3);color:var(--text);bord
         <span style="font-size:10.5px;padding:2px 8px;border-radius:10px;background:rgba(239,68,68,.15);color:#ef4444;font-weight:600">🔴 &gt;$0.05 주의</span>
       </div>
     </div>
-  </div>
+  </div><!-- /l1 grid -->
   </div><!-- /l1 -->
 
   <!-- ── Layer 2 Agentic ── -->
@@ -4079,8 +4080,6 @@ input[type=text],input[type=number]{background:var(--bg3);color:var(--text);bord
   </div><!-- /l3 -->
 
   </div><!-- /x-data mf -->
-    </div>
-  </div>
 </section>
 
 <!-- ═══════════════ SETTINGS ═══════════════ -->
