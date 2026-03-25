@@ -142,7 +142,7 @@ input[type=text],input[type=number]{background:var(--bg3);color:var(--text);bord
     </template>
   </select>
   <button class="btn" @click="refresh()" title="새로고침">🔄</button>
-  <a class="btn" href="/" target="_blank">Main</a>
+  <button class="btn" @click="window.open('/slides'+(selId?'?id='+selId:''),'_blank')" title="프레젠테이션 슬라이드 열기">📊 Slide</button>
   <a class="btn" href="/api/docs" target="_blank">API</a>
   <a class="btn" href="/sdk-docs" target="_blank">SDK</a>
   <div class="sp"></div>

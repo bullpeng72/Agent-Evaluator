@@ -136,7 +136,7 @@ hr{border:none;border-top:1px solid var(--border);margin:20px 0}
   <input type="search" id="search" placeholder="클래스·메서드 검색…" oninput="doSearch(this.value)">
   <div class="sp"></div>
   <a class="btn" href="/api/docs" target="_blank">📡 REST API</a>
-  <a class="btn" href="/">← 대시보드</a>
+  <a class="btn" href="#" onclick="window.history.length>1?window.history.back():location.assign('/dashboard');return false;">← 대시보드</a>
   <button class="btn" onclick="toggleTheme()">🌓</button>
 </div>
 

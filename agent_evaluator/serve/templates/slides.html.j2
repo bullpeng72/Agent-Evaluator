@@ -389,7 +389,8 @@ body.light {
     <div style="height:1px;width:60px;background:var(--divider);margin:8px auto"></div>
     <canvas id="sl-qr" style="border-radius:8px;background:#fff;padding:6px;width:100px;height:100px"></canvas>
     <div style="font-size:11px;color:var(--tc2);margin-top:4px" id="sl-qr-url"></div>
-    <a href="/" style="color:var(--accent); font-size:13px; text-decoration:none; margin-top:8px">← 대시보드로 돌아가기</a>
+    <a href="#" onclick="window.history.length>1?window.history.back():location.assign('/dashboard');return false;"
+       style="color:var(--accent); font-size:13px; text-decoration:none; margin-top:8px">← 대시보드로 돌아가기</a>
   </div>
 </section>
 
@@ -620,7 +621,7 @@ async function populateSlides() {
   if (hall_v > 5)  steps.push(['🧠','환각 억제',           'RAG 기반 응답 검증 파이프라인 도입 검토']);
   if ((lat.p95||0) > 2) steps.push(['⚡','응답 속도 최적화', '캐싱, 청크 크기 조정, 모델 경량화 검토']);
   if (!steps.length) steps.push(['✅','모든 지표 정상',     '지속적인 모니터링 유지']);
-  steps.push(['📊','다음 평가 실행',    'agent-eval serve --watch 로 실시간 모니터링']);
+  steps.push(['📊','다음 평가 실행',    'agent-eval dashboard --watch 로 실시간 모니터링']);
   document.getElementById('sl-next-steps').innerHTML = steps.map(([ic,t,s]) =>
     `<div class="insight-card">
        <div class="insight-icon">${ic}</div>
@@ -726,7 +727,7 @@ function fmtCost(v) {
 Reveal.on('ready', () => {
   populateSlides();
   // Generate QR code pointing to the dashboard
-  const qrUrl = window.location.origin + '/';
+  const qrUrl = window.location.origin + '/dashboard';
   const qrEl = document.getElementById('sl-qr');
   const qrLbl = document.getElementById('sl-qr-url');
   if (qrEl && window.QRCode) {

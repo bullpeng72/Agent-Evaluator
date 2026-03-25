@@ -147,6 +147,11 @@ def create_app(
     # ------------------------------------------------------------------ #
     # HTML routes
     # ------------------------------------------------------------------ #
+    # serve 명령어 삭제 시 마이그레이션 가이드:
+    #   1. dashboard.html.j2 파일 삭제
+    #   2. 아래 "/" 라우트를 RedirectResponse("/dashboard") 로 교체
+    #   3. /slides, /sdk-docs, /api/* 라우트는 그대로 유지 (독립적)
+    # ------------------------------------------------------------------ #
 
     @app.get("/", response_class=HTMLResponse)
     async def dashboard(request: Request):
