@@ -2880,8 +2880,8 @@ input[type=text],input[type=number]{background:var(--bg3);color:var(--text);bord
 
   <template x-if="!compareLoading && compareData.length >= 2">
     <div>
-      <div class="sdiv"><div class="sdiv-lbl">종합 비교 레이더</div><div class="sdiv-line"></div></div>
-      <div id="d2-cmp-radar" style="height:340px;margin-bottom:20px"></div>
+      <div class="sdiv"><div class="sdiv-lbl">종합 비교 레이더 <span style="font-size:10px;color:var(--text2)">(6축 · 0–1 정규화 · 개요와 동일 관점)</span></div><div class="sdiv-line"></div></div>
+      <div id="d2-cmp-radar" style="height:360px;margin-bottom:20px"></div>
 
       <div class="sdiv"><div class="sdiv-lbl">지표 비교</div><div class="sdiv-line"></div></div>
       <div style="overflow-x:auto">
@@ -4476,24 +4476,50 @@ function app2() {
     },
     drawCompareChart() {
       if (this.compareData.length < 2) return;
-      const dims = ['TCR','정확도','품질','보안','에이전틱'];
-      const clr = ['#6366f1','#10b981','#f59e0b','#ef4444','#8b5cf6'];
+      // 개요 에이전트 역량 레이더와 동일한 6축 · 0–1 정규화
+      const dims = ['완료율','정확도','품질','지연(역)','비용(역)','보안'];
+      const clr  = ['#6366f1','#10b981','#f59e0b','#ef4444','#8b5cf6','#ec4899'];
       const traces = this.compareData.map((d, i) => {
-        const tcr = d.accuracy_metrics?.tcr?.tcr ?? d.accuracy_metrics?.tcr?.task_completion_rate ?? 0;
-        const acc = d.accuracy_metrics?.accuracy_scores?.overall_accuracy ?? d.accuracy_metrics?.accuracy_scores?.accuracy_rate ?? 0;
-        const qua = (d.quality_detail?.avg_score ?? 0) * 20;
-        const sec = d.has_security ? ((d.security_l1?.input_security ?? 0) + (100 - (d.security_l1?.output_leakage ?? 0)) + (d.security_l1?.authorization ?? 0)) / 3 : 0;
-        const agt = d.has_agentic ? (d.agentic?.tool_efficiency ?? 0) : 0;
+        // 완료율 (0–1)
+        const tcr  = _tcrG(d) / 100;
+        // 정확도 (0–1)
+        const acc  = _accG(d) / 100;
+        // 품질 (0–5 → 0–1)
+        const qual = d.quality_detail?.avg_score != null ? d.quality_detail.avg_score / 5 : 0;
+        // 지연(역): p95 latency, 10s 기준 — 개요와 동일
+        const p95lat  = d.efficiency_metrics?.latency?.p95 ?? null;
+        const latNorm = p95lat  != null ? Math.max(0, 1 - p95lat  / 10)   : 0;
+        // 비용(역): avg_cost_per_task, $0.05 기준 — 개요와 동일
+        const avgCost  = d.efficiency_metrics?.tokens?.avg_cost_per_task ?? null;
+        const costNorm = avgCost != null ? Math.max(0, 1 - avgCost / 0.05) : 0;
+        // 보안: L1 평균 (입력위협 역, 출력유출 역, 권한준수) — 개요와 동일
+        const sl1 = d.security_l1 || {};
+        let secNorm = 0;
+        if (d.has_security) {
+          const inp  = sl1.input_security  != null ? (100 - (sl1.input_security?.threat_rate  || 0)) / 100 : null;
+          const leak = sl1.output_leakage  != null ? (100 - (sl1.output_leakage?.leakage_rate || 0)) / 100 : null;
+          const auth = sl1.authorization   != null ? (sl1.authorization?.compliance_rate ?? 100) / 100      : null;
+          const sv   = [inp, leak, auth].filter(v => v != null);
+          secNorm = sv.length ? sv.reduce((s, v) => s + v, 0) / sv.length : 0;
+        }
+        const vals = [tcr, acc, qual, latNorm, costNorm, secNorm];
         return {
           type: 'scatterpolar', fill: 'toself',
-          r: [tcr, acc, qua, sec, agt, tcr], theta: [...dims, dims[0]],
+          r: [...vals, vals[0]], theta: [...dims, dims[0]],
           name: d.name || d.id,
-          line: { color: clr[i % clr.length] }, fillcolor: clr[i % clr.length] + '33',
+          line:      { color: clr[i % clr.length], width: 2 },
+          fillcolor:   clr[i % clr.length] + '33',
+          hovertemplate: '%{theta}: %{r:.2f}<extra></extra>',
         };
       });
       this._plt('d2-cmp-radar', traces, {
-        polar: { radialaxis: { range: [0, 100], tickfont: { size: 9 } } },
-        showlegend: true, legend: { orientation: 'h', y: -0.1 }, margin: { t: 20, r: 20, b: 60, l: 20 },
+        polar: {
+          radialaxis: { range: [0, 1], tickformat: '.0%', tickfont: { size: 9 }, gridcolor: 'rgba(128,128,128,0.2)' },
+          angularaxis: { tickfont: { size: 12 } },
+        },
+        showlegend: true, legend: { orientation: 'h', y: -0.08, x: 0.5, xanchor: 'center' },
+        margin: { t: 30, r: 80, b: 70, l: 80 },
+        autosize: true,
       });
     },
     /* ── golden dataset ── */
