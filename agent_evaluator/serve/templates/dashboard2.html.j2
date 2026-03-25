@@ -1212,7 +1212,7 @@ input[type=text],input[type=number]{background:var(--bg3);color:var(--text);bord
               <div class="dtx" style="max-height:220px;overflow-y:auto">
                 <div class="dtx-row dtx-head" style="grid-template-columns:minmax(120px,1fr) 110px 80px;position:sticky;top:0;z-index:1">
                   <span>태스크 ID</span>
-                  <span x-text="(meta[selK]?.label||'지표')+' 점수'"></span>
+                  <span x-text="meta[selK]?.label||'지표'"></span>
                   <span>Task 완료율</span>
                 </div>
                 <template x-for="t in items(selK,data)" :key="t.task_id">
