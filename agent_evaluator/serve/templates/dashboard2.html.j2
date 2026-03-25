@@ -1210,11 +1210,13 @@ input[type=text],input[type=number]{background:var(--bg3);color:var(--text);bord
             </div>
             <div style="padding:10px 14px;background:var(--bg)">
               <div class="dtx" style="max-height:220px;overflow-y:auto">
-                <div class="dtx-row dtx-head" style="grid-template-columns:minmax(120px,1fr) 90px 70px;position:sticky;top:0;z-index:1">
-                  <span>태스크 ID</span><span>점수</span><span>완료율</span>
+                <div class="dtx-row dtx-head" style="grid-template-columns:minmax(120px,1fr) 110px 80px;position:sticky;top:0;z-index:1">
+                  <span>태스크 ID</span>
+                  <span x-text="(meta[selK]?.label||'지표')+' 점수'"></span>
+                  <span>Task 완료율</span>
                 </div>
                 <template x-for="t in items(selK,data)" :key="t.task_id">
-                  <div class="dtx-row" style="grid-template-columns:minmax(120px,1fr) 90px 70px">
+                  <div class="dtx-row" style="grid-template-columns:minmax(120px,1fr) 110px 80px">
                     <span class="dtx-id" x-text="t.task_id"></span>
                     <span :style="`color:${_bc((t[selK]||0)*100,70,50)}`" x-text="(t[selK]||0).toFixed(3)"></span>
                     <span x-text="t.completion_score!=null?((t.completion_score||0)*100).toFixed(0)+'%':'-'"></span>
@@ -3546,401 +3548,537 @@ input[type=text],input[type=number]{background:var(--bg3);color:var(--text);bord
   <!-- ── Layer 1 ── -->
   <div x-show="mf==='all'||mf==='l1'">
   <div class="sdiv" style="margin-bottom:12px"><div class="sdiv-lbl">Layer 1 — 기반 지표 (Foundation Metrics, 6개)</div><div class="sdiv-line"></div></div>
+    <!-- L1 cards -->
+    <div class="kpi" style="padding:14px 16px;border-left:3px solid #10b981">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:8px">
+        <div style="display:flex;align-items:center;gap:8px"><span style="font-size:20px">📋</span>
+          <div><div style="font-weight:700;font-size:13.5px">TCR — Task Completion Rate</div>
+          <div style="font-size:11px;color:var(--text2)">태스크 완료율 · L1 핵심</div></div>
+        </div>
+        <span class="badge-ok" style="font-size:10px;flex-shrink:0;margin-top:2px">핵심</span>
+      </div>
+      <div style="font-size:12.5px;line-height:1.6;padding:7px 10px;background:rgba(16,185,129,.07);border-radius:5px;margin-bottom:8px">
+        <strong>AI 에이전트가 주어진 태스크를 얼마나 완료했는가</strong>를 측정하는 최우선 성과 지표.<br>
+        완전 완료(1.0)–부분 완료(0.0) 연속 점수 → 이진 성공/실패보다 세밀한 평가.
+      </div>
+      <details style="margin-bottom:8px"><summary style="font-size:11.5px;color:var(--text2);cursor:pointer;user-select:none">ℹ️ 활용 팁</summary>
+        <div style="font-size:11.5px;color:var(--text2);padding:5px 0 0 14px;line-height:1.6">프로덕션 배포 판단 1차 기준. 낮은 TCR은 에이전트가 태스크를 중단하거나 부분 완료하는 패턴을 시사.</div>
+      </details>
+      <div style="font-size:11px;background:var(--bg3);border-radius:4px;padding:5px 10px;margin-bottom:8px;font-family:monospace;color:var(--text2)">📐 avg(completion_score) × 100 &nbsp;|&nbsp; completion_score ∈ [0, 1]</div>
+      <div style="display:flex;gap:5px;flex-wrap:wrap">
+        <span style="font-size:10.5px;padding:2px 8px;border-radius:10px;background:rgba(16,185,129,.15);color:#10b981;font-weight:600">🟢 ≥90% 우수</span>
+        <span style="font-size:10.5px;padding:2px 8px;border-radius:10px;background:rgba(245,158,11,.15);color:#f59e0b;font-weight:600">🟡 70–89% 양호</span>
+        <span style="font-size:10.5px;padding:2px 8px;border-radius:10px;background:rgba(239,68,68,.15);color:#ef4444;font-weight:600">🔴 &lt;70% 개선</span>
+      </div>
+    </div>
+
+    <div class="kpi" style="padding:14px 16px;border-left:3px solid #10b981">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:8px">
+        <div style="display:flex;align-items:center;gap:8px"><span style="font-size:20px">🎯</span>
+          <div><div style="font-weight:700;font-size:13.5px">Accuracy — 정확도</div>
+          <div style="font-size:11px;color:var(--text2)">응답 정확도 · L1 품질</div></div>
+        </div>
+        <span class="badge-ok" style="font-size:10px;flex-shrink:0;margin-top:2px">품질</span>
+      </div>
+      <div style="font-size:12.5px;line-height:1.6;padding:7px 10px;background:rgba(16,185,129,.07);border-radius:5px;margin-bottom:8px">
+        <strong>AI 응답이 정답(Ground Truth)과 얼마나 일치하는가</strong>를 외부 LLM 없이 측정.<br>
+        QA·코드·정보검색 등 태스크 유형에 따라 평가 전략 자동 적용.
+      </div>
+      <details style="margin-bottom:8px"><summary style="font-size:11.5px;color:var(--text2);cursor:pointer;user-select:none">ℹ️ 활용 팁</summary>
+        <div style="font-size:11.5px;color:var(--text2);padding:5px 0 0 14px;line-height:1.6">LLM 비용 없이 즉시 측정 가능한 신뢰도 지표. 코드 태스크는 AST 비교 → 정규화 비교 순으로 fallback.</div>
+      </details>
+      <div style="font-size:11px;background:var(--bg3);border-radius:4px;padding:5px 10px;margin-bottom:8px;font-family:monospace;color:var(--text2)">📐 Token Overlap×0.4 + Jaccard×0.3 + LCS×0.2 + Char Sim.×0.1</div>
+      <div style="display:flex;gap:5px;flex-wrap:wrap">
+        <span style="font-size:10.5px;padding:2px 8px;border-radius:10px;background:rgba(16,185,129,.15);color:#10b981;font-weight:600">🟢 ≥80% 우수</span>
+        <span style="font-size:10.5px;padding:2px 8px;border-radius:10px;background:rgba(245,158,11,.15);color:#f59e0b;font-weight:600">🟡 60–79% 양호</span>
+        <span style="font-size:10.5px;padding:2px 8px;border-radius:10px;background:rgba(239,68,68,.15);color:#ef4444;font-weight:600">🔴 &lt;60% 개선</span>
+      </div>
+    </div>
+
+    <div class="kpi" style="padding:14px 16px;border-left:3px solid #f59e0b">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:8px">
+        <div style="display:flex;align-items:center;gap:8px"><span style="font-size:20px">🌀</span>
+          <div><div style="font-weight:700;font-size:13.5px">Hallucination Rate — 환각률</div>
+          <div style="font-size:11px;color:var(--text2)">사실 불일치 탐지 · L1 신뢰성</div></div>
+        </div>
+        <span class="badge-warn" style="font-size:10px;flex-shrink:0;margin-top:2px">신뢰성</span>
+      </div>
+      <div style="font-size:12.5px;line-height:1.6;padding:7px 10px;background:rgba(245,158,11,.07);border-radius:5px;margin-bottom:8px">
+        <strong>AI가 사실과 다른 내용을 생성하는 빈도</strong>를 탐지.<br>
+        RAG 품질 문제·프롬프트 설계 결함을 조기 발견.
+      </div>
+      <details style="margin-bottom:8px"><summary style="font-size:11.5px;color:var(--text2);cursor:pointer;user-select:none">ℹ️ 활성화 · 탐지 유형</summary>
+        <div style="font-size:11.5px;color:var(--text2);padding:5px 0 0 14px;line-height:1.6">
+          <code style="font-size:10.5px;background:var(--bg3);padding:1px 4px;border-radius:3px">enable_hallucination_detection=True</code> 로 활성화 (기본 비활성).<br>
+          탐지 6종: 사실 불일치·맥락 이탈·허구 참조·수치 오류·날짜 오류·출처 조작.
+        </div>
+      </details>
+      <div style="font-size:11px;background:var(--bg3);border-radius:4px;padding:5px 10px;margin-bottom:8px;font-family:monospace;color:var(--text2)">📐 탐지 건수 / 평가 건수 × 100</div>
+      <div style="display:flex;gap:5px;flex-wrap:wrap">
+        <span style="font-size:10.5px;padding:2px 8px;border-radius:10px;background:rgba(16,185,129,.15);color:#10b981;font-weight:600">🟢 ≤5% 우수</span>
+        <span style="font-size:10.5px;padding:2px 8px;border-radius:10px;background:rgba(245,158,11,.15);color:#f59e0b;font-weight:600">🟡 5–15% 주의</span>
+        <span style="font-size:10.5px;padding:2px 8px;border-radius:10px;background:rgba(239,68,68,.15);color:#ef4444;font-weight:600">🔴 &gt;15% 위험</span>
+      </div>
+    </div>
+
+    <div class="kpi" style="padding:14px 16px;border-left:3px solid #10b981">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:8px">
+        <div style="display:flex;align-items:center;gap:8px"><span style="font-size:20px">⭐</span>
+          <div><div style="font-weight:700;font-size:13.5px">Response Quality — 응답 품질</div>
+          <div style="font-size:11px;color:var(--text2)">5차원 구조적 평가 · L1 품질</div></div>
+        </div>
+        <span class="badge-ok" style="font-size:10px;flex-shrink:0;margin-top:2px">품질</span>
+      </div>
+      <div style="font-size:12.5px;line-height:1.6;padding:7px 10px;background:rgba(16,185,129,.07);border-radius:5px;margin-bottom:8px">
+        <strong>응답이 "좋은 답변"인지를 5개 차원으로 구조적 평가</strong>.<br>
+        단순 정확도와 달리 사람이 체감하는 품질(명확성·유용성)을 규칙 기반으로 측정.
+      </div>
+      <details style="margin-bottom:8px"><summary style="font-size:11.5px;color:var(--text2);cursor:pointer;user-select:none">ℹ️ 5개 차원</summary>
+        <div style="font-size:11.5px;color:var(--text2);padding:5px 0 0 14px;line-height:1.6">
+          관련성·완전성·명확성·정확성·유용성 독립 측정.<br>
+          → "정확하지만 불명확", "관련성 높지만 불완전" 등 세분화 진단 가능.
+        </div>
+      </details>
+      <div style="font-size:11px;background:var(--bg3);border-radius:4px;padding:5px 10px;margin-bottom:8px;font-family:monospace;color:var(--text2)">📐 Σ(5차원, 각 0–1) = 0–5점 → ×20 = 0–100%</div>
+      <div style="display:flex;gap:5px;flex-wrap:wrap">
+        <span style="font-size:10.5px;padding:2px 8px;border-radius:10px;background:rgba(16,185,129,.15);color:#10b981;font-weight:600">🟢 ≥80% 우수</span>
+        <span style="font-size:10.5px;padding:2px 8px;border-radius:10px;background:rgba(245,158,11,.15);color:#f59e0b;font-weight:600">🟡 50–79% 양호</span>
+        <span style="font-size:10.5px;padding:2px 8px;border-radius:10px;background:rgba(239,68,68,.15);color:#ef4444;font-weight:600">🔴 &lt;50% 개선</span>
+      </div>
+    </div>
+
+    <div class="kpi" style="padding:14px 16px;border-left:3px solid #10b981">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:8px">
+        <div style="display:flex;align-items:center;gap:8px"><span style="font-size:20px">⚡</span>
+          <div><div style="font-weight:700;font-size:13.5px">Latency — 지연 시간</div>
+          <div style="font-size:11px;color:var(--text2)">응답 속도 · L1 성능</div></div>
+        </div>
+        <span class="badge-ok" style="font-size:10px;flex-shrink:0;margin-top:2px">성능</span>
+      </div>
+      <div style="font-size:12.5px;line-height:1.6;padding:7px 10px;background:rgba(16,185,129,.07);border-radius:5px;margin-bottom:8px">
+        <strong>AI 에이전트의 응답 속도와 일관성</strong>을 백분위수 기반으로 측정.<br>
+        P95를 주요 기준으로 사용 (평균값은 outlier에 둔감).
+      </div>
+      <details style="margin-bottom:8px"><summary style="font-size:11.5px;color:var(--text2);cursor:pointer;user-select:none">ℹ️ 활용 팁</summary>
+        <div style="font-size:11.5px;color:var(--text2);padding:5px 0 0 14px;line-height:1.6">
+          <code style="font-size:10.5px;background:var(--bg3);padding:1px 4px;border-radius:3px">check_sla_compliance()</code> SLA 준수 판정,
+          <code style="font-size:10.5px;background:var(--bg3);padding:1px 4px;border-radius:3px">analyze_bottlenecks()</code> 컴포넌트별 병목 식별.
+        </div>
+      </details>
+      <div style="font-size:11px;background:var(--bg3);border-radius:4px;padding:5px 10px;margin-bottom:8px;font-family:monospace;color:var(--text2)">📐 execution_time(초) → avg / P50 / P95 / P99</div>
+      <div style="display:flex;gap:5px;flex-wrap:wrap">
+        <span style="font-size:10.5px;padding:2px 8px;border-radius:10px;background:rgba(16,185,129,.15);color:#10b981;font-weight:600">🟢 P95 ≤2s 우수</span>
+        <span style="font-size:10.5px;padding:2px 8px;border-radius:10px;background:rgba(245,158,11,.15);color:#f59e0b;font-weight:600">🟡 ≤5s 양호</span>
+        <span style="font-size:10.5px;padding:2px 8px;border-radius:10px;background:rgba(239,68,68,.15);color:#ef4444;font-weight:600">🔴 &gt;5s 주의</span>
+      </div>
+    </div>
+
+    <div class="kpi" style="padding:14px 16px;border-left:3px solid #10b981">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:8px">
+        <div style="display:flex;align-items:center;gap:8px"><span style="font-size:20px">💰</span>
+          <div><div style="font-weight:700;font-size:13.5px">Token Economy — 토큰 경제성</div>
+          <div style="font-size:11px;color:var(--text2)">비용 효율성 · L1 비용</div></div>
+        </div>
+        <span class="badge-ok" style="font-size:10px;flex-shrink:0;margin-top:2px">비용</span>
+      </div>
+      <div style="font-size:12.5px;line-height:1.6;padding:7px 10px;background:rgba(16,185,129,.07);border-radius:5px;margin-bottom:8px">
+        <strong>AI 에이전트의 비용 효율성과 토큰 사용 패턴</strong> 추적.<br>
+        스케일 아웃 시 비용 예측과 모델 선택 최적화의 근거 제공.
+      </div>
+      <details style="margin-bottom:8px"><summary style="font-size:11.5px;color:var(--text2);cursor:pointer;user-select:none">ℹ️ 활용 팁</summary>
+        <div style="font-size:11.5px;color:var(--text2);padding:5px 0 0 14px;line-height:1.6">
+          태스크당 비용은 배포 게이트 핵심 판단 기준. 입력/출력 비율 분석으로 프롬프트 효율화 여지 파악.<br>
+          <code style="font-size:10.5px;background:var(--bg3);padding:1px 4px;border-radius:3px">estimated_monthly_cost</code> — 현재 패턴 기반 월간 비용 추정.
+        </div>
+      </details>
+      <div style="font-size:11px;background:var(--bg3);border-radius:4px;padding:5px 10px;margin-bottom:8px;font-family:monospace;color:var(--text2)">📐 total_cost = Σ(tokens × 모델단가) &nbsp;|&nbsp; 입력·출력·총 토큰 분리 집계</div>
+      <div style="display:flex;gap:5px;flex-wrap:wrap">
+        <span style="font-size:10.5px;padding:2px 8px;border-radius:10px;background:rgba(16,185,129,.15);color:#10b981;font-weight:600">🟢 ≤$0.01/task 우수</span>
+        <span style="font-size:10.5px;padding:2px 8px;border-radius:10px;background:rgba(245,158,11,.15);color:#f59e0b;font-weight:600">🟡 ≤$0.05 양호</span>
+        <span style="font-size:10.5px;padding:2px 8px;border-radius:10px;background:rgba(239,68,68,.15);color:#ef4444;font-weight:600">🔴 &gt;$0.05 주의</span>
+      </div>
+    </div>
+  </div>
+  </div><!-- /l1 -->
+
+  <!-- ── Layer 2 Agentic ── -->
+  <div x-show="mf==='all'||mf==='l2a'">
+  <div class="sdiv" style="margin-bottom:12px"><div class="sdiv-lbl">Layer 2 — 에이전틱 지표 (Agentic Metrics, 5개)</div><div class="sdiv-line"></div></div>
   <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(360px,1fr));gap:12px;margin-bottom:24px">
 
-    <div class="kpi" style="padding:14px 16px">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
-        <div style="display:flex;align-items:center;gap:8px">
-          <span style="font-size:18px">📋</span>
-          <span style="font-weight:700;font-size:14px">TCR — Task Completion Rate · 태스크 완료율</span>
+    <div class="kpi" style="padding:14px 16px;border-left:3px solid #3b82f6">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:8px">
+        <div style="display:flex;align-items:center;gap:8px"><span style="font-size:20px">🔧</span>
+          <div><div style="font-weight:700;font-size:13.5px">Tool Call Efficiency — 도구 호출 효율</div>
+          <div style="font-size:11px;color:var(--text2)">도구 성공률 · L2 에이전틱</div></div>
         </div>
-        <span class="badge-ok" style="font-size:10px;flex-shrink:0">L1 · 핵심</span>
+        <span class="badge-info" style="font-size:10px;flex-shrink:0;margin-top:2px">에이전틱</span>
       </div>
-      <div style="font-size:13px;color:var(--text);line-height:1.6;margin-bottom:8px">
-        <strong>AI 에이전트가 주어진 태스크를 얼마나 완료했는가</strong>를 측정하는 최우선 성과 지표입니다.
-        완전 완료(1.0)부터 부분 완료(0.0–1.0)까지 연속 점수로 표현되어 이진 성공/실패보다 세밀한 평가가 가능합니다.
-        <span style="color:var(--text2)">프로덕션 배포 가능성을 판단하는 1차 기준으로, 낮은 TCR은 에이전트가 태스크를 중단하거나 부분 완료하는 패턴이 있음을 시사합니다.</span>
+      <div style="font-size:12.5px;line-height:1.6;padding:7px 10px;background:rgba(59,130,246,.07);border-radius:5px;margin-bottom:8px">
+        <strong>에이전트가 외부 도구를 얼마나 성공적으로 호출하는가</strong> 측정.<br>
+        도구 실패 → 태스크 실패의 주요 경로. 도구 인터페이스·프롬프트 개선 필요성을 조기 발견.
       </div>
-      <div style="font-size:11px;color:var(--text2);border-top:1px solid var(--border);padding-top:8px;display:flex;flex-wrap:wrap;gap:14px">
-        <span>📐 <strong>측정:</strong> completion_score(0–1) 평균 × 100</span>
-        <span>🟢 ≥90% 우수 &nbsp;|&nbsp; 🟡 70–89% 양호 &nbsp;|&nbsp; 🔴 &lt;70% 개선</span>
+      <details style="margin-bottom:8px"><summary style="font-size:11.5px;color:var(--text2);cursor:pointer;user-select:none">ℹ️ 활용 팁</summary>
+        <div style="font-size:11.5px;color:var(--text2);padding:5px 0 0 14px;line-height:1.6">
+          도구별 성공률 분포 분석으로 집중 문제 파악.<br>
+          <code style="font-size:10.5px;background:var(--bg3);padding:1px 4px;border-radius:3px">redundancy_rate</code> = 중복 호출 / 전체 호출 × 100.
+        </div>
+      </details>
+      <div style="font-size:11px;background:var(--bg3);border-radius:4px;padding:5px 10px;margin-bottom:8px;font-family:monospace;color:var(--text2)">📐 성공 호출 / 전체 호출 × 100</div>
+      <div style="display:flex;gap:5px;flex-wrap:wrap">
+        <span style="font-size:10.5px;padding:2px 8px;border-radius:10px;background:rgba(16,185,129,.15);color:#10b981;font-weight:600">🟢 ≥95% 우수</span>
+        <span style="font-size:10.5px;padding:2px 8px;border-radius:10px;background:rgba(245,158,11,.15);color:#f59e0b;font-weight:600">🟡 80–94% 양호</span>
+        <span style="font-size:10.5px;padding:2px 8px;border-radius:10px;background:rgba(239,68,68,.15);color:#ef4444;font-weight:600">🔴 &lt;80% 개선</span>
+        <span style="font-size:10.5px;padding:2px 8px;border-radius:10px;background:rgba(99,102,241,.12);color:#818cf8;font-weight:600">중복률 &lt;10% 정상</span>
       </div>
     </div>
 
-    <div class="kpi" style="padding:14px 16px">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
-        <div style="display:flex;align-items:center;gap:8px">
-          <span style="font-size:18px">🎯</span>
-          <span style="font-weight:700;font-size:14px">Accuracy — 정확도</span>
+    <div class="kpi" style="padding:14px 16px;border-left:3px solid #3b82f6">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:8px">
+        <div style="display:flex;align-items:center;gap:8px"><span style="font-size:20px">🎯</span>
+          <div><div style="font-weight:700;font-size:13.5px">Tool Selection F1 — 도구 선택 정확도</div>
+          <div style="font-size:11px;color:var(--text2)">선택 정합성 · L2 에이전틱</div></div>
         </div>
-        <span class="badge-ok" style="font-size:10px;flex-shrink:0">L1 · 품질</span>
+        <span class="badge-info" style="font-size:10px;flex-shrink:0;margin-top:2px">에이전틱</span>
       </div>
-      <div style="font-size:13px;color:var(--text);line-height:1.6;margin-bottom:8px">
-        <strong>AI 응답이 정답(Ground Truth)과 얼마나 일치하는가</strong>를 외부 LLM 없이 측정합니다.
-        QA·코드 생성·정보 검색 등 태스크 유형에 따라 다른 평가 전략을 자동 적용합니다.
-        <span style="color:var(--text2)">LLM 비용 없이 즉시 측정 가능한 신뢰도 지표입니다. 코드 태스크는 AST 비교 → 정규화 비교 순으로 fallback 처리합니다.</span>
+      <div style="font-size:12.5px;line-height:1.6;padding:7px 10px;background:rgba(59,130,246,.07);border-radius:5px;margin-bottom:8px">
+        <strong>태스크에 필요한 도구를 올바르게 선택하는가</strong>를 F1으로 평가.<br>
+        도구 호출 성공률과 달리 "올바른 도구를 썼는가?"를 측정.
       </div>
-      <div style="font-size:11px;color:var(--text2);border-top:1px solid var(--border);padding-top:8px;display:flex;flex-wrap:wrap;gap:14px">
-        <span>📐 <strong>측정:</strong> Token Overlap(40%) + Jaccard(30%) + LCS(20%) + Char Similarity(10%) 가중 평균</span>
-        <span>🟢 ≥80% 우수 &nbsp;|&nbsp; 🟡 60–79% 양호 &nbsp;|&nbsp; 🔴 &lt;60% 개선</span>
+      <details style="margin-bottom:8px"><summary style="font-size:11.5px;color:var(--text2);cursor:pointer;user-select:none">ℹ️ Precision vs Recall</summary>
+        <div style="font-size:11.5px;color:var(--text2);padding:5px 0 0 14px;line-height:1.6">
+          낮은 Precision → 불필요한 도구 과호출. 낮은 Recall → 필요한 도구 미사용.<br>
+          <code style="font-size:10.5px;background:var(--bg3);padding:1px 4px;border-radius:3px">expected_tools</code> 설정 필요.
+        </div>
+      </details>
+      <div style="font-size:11px;background:var(--bg3);border-radius:4px;padding:5px 10px;margin-bottom:8px;font-family:monospace;color:var(--text2)">📐 F1 = 2×(Precision×Recall) / (Precision+Recall)</div>
+      <div style="display:flex;gap:5px;flex-wrap:wrap">
+        <span style="font-size:10.5px;padding:2px 8px;border-radius:10px;background:rgba(16,185,129,.15);color:#10b981;font-weight:600">🟢 ≥0.9 우수</span>
+        <span style="font-size:10.5px;padding:2px 8px;border-radius:10px;background:rgba(245,158,11,.15);color:#f59e0b;font-weight:600">🟡 0.7–0.89 양호</span>
+        <span style="font-size:10.5px;padding:2px 8px;border-radius:10px;background:rgba(239,68,68,.15);color:#ef4444;font-weight:600">🔴 &lt;0.7 개선</span>
       </div>
     </div>
 
-    <div class="kpi" style="padding:14px 16px">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
-        <div style="display:flex;align-items:center;gap:8px">
-          <span style="font-size:18px">🌀</span>
-          <span style="font-weight:700;font-size:14px">Hallucination Rate — 환각률</span>
+    <div class="kpi" style="padding:14px 16px;border-left:3px solid #3b82f6">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:8px">
+        <div style="display:flex;align-items:center;gap:8px"><span style="font-size:20px">🔄</span>
+          <div><div style="font-weight:700;font-size:13.5px">Retry Rate — 재시도율</div>
+          <div style="font-size:11px;color:var(--text2)">자가 수정 능력 · L2 에이전틱</div></div>
         </div>
-        <span class="badge-warn" style="font-size:10px;flex-shrink:0">L1 · 신뢰성</span>
+        <span class="badge-info" style="font-size:10px;flex-shrink:0;margin-top:2px">에이전틱</span>
       </div>
-      <div style="font-size:13px;color:var(--text);line-height:1.6;margin-bottom:8px">
-        <strong>AI가 사실과 다른 내용을 생성하는 빈도</strong>를 탐지합니다.
-        RAG 파이프라인 품질 문제와 프롬프트 설계 결함을 조기에 발견하는 데 핵심적인 역할을 합니다.
-        <span style="color:var(--text2)">고환각률은 사용자 신뢰 저하와 직결됩니다. enable_hallucination_detection=True 로 활성화 필요 (기본 비활성).</span>
+      <div style="font-size:12.5px;line-height:1.6;padding:7px 10px;background:rgba(59,130,246,.07);border-radius:5px;margin-bottom:8px">
+        <strong>실패 후 스스로 수정하고 재시도하는 빈도와 효율성</strong> 측정.<br>
+        일정 수준의 재시도 = 회복력. 과도한 재시도 = 무한 루프·비용 폭증 위험.
       </div>
-      <div style="font-size:11px;color:var(--text2);border-top:1px solid var(--border);padding-top:8px;display:flex;flex-wrap:wrap;gap:14px">
-        <span>📐 <strong>측정:</strong> 탐지 건수 / 평가 건수 × 100. 사실 불일치·맥락 이탈·허구 참조·수치 오류·날짜 오류·출처 조작 6종 탐지</span>
-        <span>🟢 ≤5% 우수 &nbsp;|&nbsp; 🟡 5–15% 주의 &nbsp;|&nbsp; 🔴 &gt;15% 위험</span>
+      <details style="margin-bottom:8px"><summary style="font-size:11.5px;color:var(--text2);cursor:pointer;user-select:none">ℹ️ 세부 지표</summary>
+        <div style="font-size:11.5px;color:var(--text2);padding:5px 0 0 14px;line-height:1.6">
+          <code style="font-size:10.5px;background:var(--bg3);padding:1px 4px;border-radius:3px">first_attempt_success_rate</code> — 첫 시도 성공률 (핵심)<br>
+          <code style="font-size:10.5px;background:var(--bg3);padding:1px 4px;border-radius:3px">correction_success_rate</code> — 실패→성공 전환율
+        </div>
+      </details>
+      <div style="font-size:11px;background:var(--bg3);border-radius:4px;padding:5px 10px;margin-bottom:8px;font-family:monospace;color:var(--text2)">📐 overall_retry_rate = total_retries / total_attempts × 100</div>
+      <div style="display:flex;gap:5px;flex-wrap:wrap">
+        <span style="font-size:10.5px;padding:2px 8px;border-radius:10px;background:rgba(16,185,129,.15);color:#10b981;font-weight:600">🟢 ≤10% 우수</span>
+        <span style="font-size:10.5px;padding:2px 8px;border-radius:10px;background:rgba(245,158,11,.15);color:#f59e0b;font-weight:600">🟡 10–30% 주의</span>
+        <span style="font-size:10.5px;padding:2px 8px;border-radius:10px;background:rgba(239,68,68,.15);color:#ef4444;font-weight:600">🔴 &gt;30% 위험</span>
       </div>
     </div>
 
-    <div class="kpi" style="padding:14px 16px">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
-        <div style="display:flex;align-items:center;gap:8px">
-          <span style="font-size:18px">⭐</span>
-          <span style="font-weight:700;font-size:14px">Response Quality — 응답 품질</span>
+    <div class="kpi" style="padding:14px 16px;border-left:3px solid #3b82f6">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:8px">
+        <div style="display:flex;align-items:center;gap:8px"><span style="font-size:20px">🤝</span>
+          <div><div style="font-weight:700;font-size:13.5px">Coordination Score — 협업 점수</div>
+          <div style="font-size:11px;color:var(--text2)">멀티에이전트 협업 · L2 에이전틱</div></div>
         </div>
-        <span class="badge-ok" style="font-size:10px;flex-shrink:0">L1 · 품질</span>
+        <span class="badge-info" style="font-size:10px;flex-shrink:0;margin-top:2px">에이전틱</span>
       </div>
-      <div style="font-size:13px;color:var(--text);line-height:1.6;margin-bottom:8px">
-        <strong>응답이 "좋은 답변"인지를 5개 차원으로 구조적으로 평가</strong>합니다.
-        단순 정확도와 달리 사람이 체감하는 품질(명확성·유용성 등)을 규칙 기반으로 측정합니다.
-        <span style="color:var(--text2)">각 차원이 독립 측정되어 "정확하지만 불명확한 응답", "관련성은 높지만 불완전한 응답" 등의 세분화된 진단이 가능합니다.</span>
+      <div style="font-size:12.5px;line-height:1.6;padding:7px 10px;background:rgba(59,130,246,.07);border-radius:5px;margin-bottom:8px">
+        <strong>멀티 에이전트 시스템에서 에이전트 간 협업의 효율성</strong> 측정.<br>
+        CrewAI·LangGraph·AutoGen 구조에서 병목 에이전트·실패 구간을 특정.
       </div>
-      <div style="font-size:11px;color:var(--text2);border-top:1px solid var(--border);padding-top:8px;display:flex;flex-wrap:wrap;gap:14px">
-        <span>📐 <strong>측정:</strong> 관련성·완전성·명확성·정확성·유용성 각 0–1 합산(총 0–5점). 대시보드 표시: avg_score × 20 = 0–100%</span>
-        <span>🟢 ≥80% 우수 &nbsp;|&nbsp; 🟡 50–79% 양호 &nbsp;|&nbsp; 🔴 &lt;50% 개선</span>
+      <details style="margin-bottom:8px"><summary style="font-size:11.5px;color:var(--text2);cursor:pointer;user-select:none">ℹ️ 토폴로지 분석</summary>
+        <div style="font-size:11.5px;color:var(--text2);padding:5px 0 0 14px;line-height:1.6">
+          <code style="font-size:10.5px;background:var(--bg3);padding:1px 4px;border-radius:3px">get_interaction_patterns()</code>로 hub·chain·mesh 패턴 자동 분류.
+        </div>
+      </details>
+      <div style="font-size:11px;background:var(--bg3);border-radius:4px;padding:5px 10px;margin-bottom:8px;font-family:monospace;color:var(--text2)">📐 성공 인터랙션 / 전체 인터랙션 × 100</div>
+      <div style="display:flex;gap:5px;flex-wrap:wrap">
+        <span style="font-size:10.5px;padding:2px 8px;border-radius:10px;background:rgba(16,185,129,.15);color:#10b981;font-weight:600">🟢 ≥90% 우수</span>
+        <span style="font-size:10.5px;padding:2px 8px;border-radius:10px;background:rgba(245,158,11,.15);color:#f59e0b;font-weight:600">🟡 70–89% 양호</span>
+        <span style="font-size:10.5px;padding:2px 8px;border-radius:10px;background:rgba(239,68,68,.15);color:#ef4444;font-weight:600">🔴 &lt;70% 개선</span>
       </div>
     </div>
 
-    <div class="kpi" style="padding:14px 16px">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
-        <div style="display:flex;align-items:center;gap:8px">
-          <span style="font-size:18px">⚡</span>
-          <span style="font-weight:700;font-size:14px">Latency — 지연 시간</span>
+    <div class="kpi" style="padding:14px 16px;border-left:3px solid #3b82f6">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:8px">
+        <div style="display:flex;align-items:center;gap:8px"><span style="font-size:20px">🏗️</span>
+          <div><div style="font-weight:700;font-size:13.5px">Workflow Success Rate — 워크플로우 성공률</div>
+          <div style="font-size:11px;color:var(--text2)">다단계 흐름 · L2 에이전틱</div></div>
         </div>
-        <span class="badge-ok" style="font-size:10px;flex-shrink:0">L1 · 성능</span>
+        <span class="badge-info" style="font-size:10px;flex-shrink:0;margin-top:2px">에이전틱</span>
       </div>
-      <div style="font-size:13px;color:var(--text);line-height:1.6;margin-bottom:8px">
-        <strong>AI 에이전트의 응답 속도와 일관성</strong>을 백분위수 기반으로 측정합니다.
-        P95를 주요 기준으로 사용하는 이유는 평균값이 outlier에 둔감하기 때문입니다.
-        <span style="color:var(--text2)">고지연 태스크 패턴 파악과 SLA 준수 여부 판단에 활용합니다. 프로덕션 서비스에서는 P95가 사용자 경험의 실질적 척도입니다.</span>
+      <div style="font-size:12.5px;line-height:1.6;padding:7px 10px;background:rgba(59,130,246,.07);border-radius:5px;margin-bottom:8px">
+        <strong>복잡한 다단계 작업의 전체 흐름 성공률</strong>을 단계별로 측정.<br>
+        브랜치(조건 분기) 비율도 측정 → 파이프라인 설계 문제·병목 발견.
       </div>
-      <div style="font-size:11px;color:var(--text2);border-top:1px solid var(--border);padding-top:8px;display:flex;flex-wrap:wrap;gap:14px">
-        <span>📐 <strong>측정:</strong> execution_time(초) 기반 avg / p50 / p95 / p99 백분위수 산출. <code>check_sla_compliance()</code>로 SLA 임계값 준수 여부 자동 판정, <code>analyze_bottlenecks()</code>로 컴포넌트별 병목 구간 식별 지원</span>
-        <span>🟢 P95 ≤2s 우수 &nbsp;|&nbsp; 🟡 ≤5s 양호 &nbsp;|&nbsp; 🔴 &gt;5s 주의</span>
-      </div>
-    </div>
-
-    <div class="kpi" style="padding:14px 16px">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
-        <div style="display:flex;align-items:center;gap:8px">
-          <span style="font-size:18px">💰</span>
-          <span style="font-weight:700;font-size:14px">Token Economy — 토큰 경제성</span>
+      <details style="margin-bottom:8px"><summary style="font-size:11.5px;color:var(--text2);cursor:pointer;user-select:none">ℹ️ 퍼널 분석 · API</summary>
+        <div style="font-size:11.5px;color:var(--text2);padding:5px 0 0 14px;line-height:1.6">
+          단계 성공률 + 태스크 완료율 동시 분석으로 손실 발생 단계 퍼널 분석 가능.<br>
+          <code style="font-size:10.5px;background:var(--bg3);padding:1px 4px;border-radius:3px">get_critical_path_analysis()</code> — 병목 상위 3개 + 병렬화 가능 지점 제안.
         </div>
-        <span class="badge-ok" style="font-size:10px;flex-shrink:0">L1 · 비용</span>
-      </div>
-      <div style="font-size:13px;color:var(--text);line-height:1.6;margin-bottom:8px">
-        <strong>AI 에이전트의 비용 효율성과 토큰 사용 패턴</strong>을 추적합니다.
-        스케일 아웃 시 비용 예측과 모델 선택 최적화의 근거 데이터를 제공합니다.
-        <span style="color:var(--text2)">태스크당 비용은 배포 게이트의 핵심 판단 기준입니다. 입력/출력 비율 분석으로 프롬프트 효율화 여지도 파악할 수 있습니다.</span>
-      </div>
-      <div style="font-size:11px;color:var(--text2);border-top:1px solid var(--border);padding-top:8px;display:flex;flex-wrap:wrap;gap:14px">
-        <span>📐 <strong>측정:</strong> 입력·출력·총 토큰 수. total_cost = Σ(tokens × 모델 단가). 모델별 비용 분포 및 <code>estimated_monthly_cost</code>(현재 사용 패턴 기반 월간 비용 추정) 지원</span>
-        <span>🟢 ≤$0.01/task 우수 &nbsp;|&nbsp; 🟡 ≤$0.05 양호 &nbsp;|&nbsp; 🔴 &gt;$0.05 주의</span>
-      </div>
-    </div>
-  </div>
-
-  <!-- ── Layer 2: Agentic ── -->
-  <div class="sdiv"><div class="sdiv-lbl">Layer 2 — 에이전틱 지표 (Agentic Metrics, 5개)</div><div class="sdiv-line"></div></div>
-  <div style="display:grid;grid-template-columns:1fr;gap:10px;margin-bottom:20px">
-
-    <div class="kpi" style="padding:14px 16px">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
-        <div style="display:flex;align-items:center;gap:8px">
-          <span style="font-size:18px">🔧</span>
-          <span style="font-weight:700;font-size:14px">Tool Call Efficiency — 도구 호출 효율</span>
-        </div>
-        <span class="badge-info" style="font-size:10px;flex-shrink:0">L2 · 에이전틱</span>
-      </div>
-      <div style="font-size:13px;color:var(--text);line-height:1.6;margin-bottom:8px">
-        <strong>에이전트가 외부 도구를 얼마나 성공적으로 호출하는가</strong>를 측정합니다.
-        도구 실패는 태스크 실패로 연결되는 주요 경로로, 도구 인터페이스 설계나 프롬프트 개선 필요성을 조기에 발견합니다.
-        <span style="color:var(--text2)">도구별 성공률 분포를 분석하면 특정 도구에 집중된 문제를 파악할 수 있습니다.</span>
-      </div>
-      <div style="font-size:11px;color:var(--text2);border-top:1px solid var(--border);padding-top:8px;display:flex;flex-wrap:wrap;gap:14px">
-        <span>📐 <strong>측정:</strong> 성공 호출 수 / 전체 호출 수 × 100. 추가: <code>redundancy_rate</code>(중복 호출률) = 중복 호출 / 전체 호출 × 100 — 동일 도구를 불필요하게 반복 호출하는 비율도 독립 측정됨</span>
-        <span>🟢 ≥95% 우수 &nbsp;|&nbsp; 🟡 80–94% 양호 &nbsp;|&nbsp; 🔴 &lt;80% 개선 &nbsp;|&nbsp; 중복률 &lt;10% 정상</span>
-      </div>
-    </div>
-
-    <div class="kpi" style="padding:14px 16px">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
-        <div style="display:flex;align-items:center;gap:8px">
-          <span style="font-size:18px">🎯</span>
-          <span style="font-weight:700;font-size:14px">Tool Selection F1 — 도구 선택 정확도</span>
-        </div>
-        <span class="badge-info" style="font-size:10px;flex-shrink:0">L2 · 에이전틱</span>
-      </div>
-      <div style="font-size:13px;color:var(--text);line-height:1.6;margin-bottom:8px">
-        <strong>에이전트가 태스크에 필요한 도구를 올바르게 선택하는가</strong>를 F1으로 평가합니다.
-        도구 호출 성공률과 달리 "올바른 도구를 썼는가?"를 묻는 지표입니다.
-        <span style="color:var(--text2)">낮은 Precision은 불필요한 도구를 과호출하는 문제, 낮은 Recall은 필요한 도구를 사용하지 않는 문제를 각각 시사합니다. expected_tools 설정이 필요합니다.</span>
-      </div>
-      <div style="font-size:11px;color:var(--text2);border-top:1px solid var(--border);padding-top:8px;display:flex;flex-wrap:wrap;gap:14px">
-        <span>📐 <strong>측정:</strong> expected_tools 대비 실제 호출 도구의 Precision·Recall 조화 평균(F1), 0–1 범위</span>
-        <span>🟢 ≥0.9 우수 &nbsp;|&nbsp; 🟡 0.7–0.89 양호 &nbsp;|&nbsp; 🔴 &lt;0.7 개선</span>
-      </div>
-    </div>
-
-    <div class="kpi" style="padding:14px 16px">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
-        <div style="display:flex;align-items:center;gap:8px">
-          <span style="font-size:18px">🔄</span>
-          <span style="font-weight:700;font-size:14px">Retry Rate — 재시도율 · 자가 수정 능력</span>
-        </div>
-        <span class="badge-info" style="font-size:10px;flex-shrink:0">L2 · 에이전틱</span>
-      </div>
-      <div style="font-size:13px;color:var(--text);line-height:1.6;margin-bottom:8px">
-        <strong>에이전트가 실패 후 스스로 수정하고 재시도하는 빈도와 효율성</strong>을 측정합니다.
-        일정 수준의 재시도는 회복력의 신호이지만, 과도한 재시도는 무한 루프·비용 폭증의 위험 신호입니다.
-        <span style="color:var(--text2)">재시도 성공률과 평균 재시도 시간을 함께 분석하면 자가 수정 능력의 실질적 효과를 판단할 수 있습니다.</span>
-      </div>
-      <div style="font-size:11px;color:var(--text2);border-top:1px solid var(--border);padding-top:8px;display:flex;flex-wrap:wrap;gap:14px">
-        <span>📐 <strong>측정:</strong> overall_retry_rate = total_retries / total_attempts × 100. 세부 지표: <code>first_attempt_success_rate</code>(첫 시도 성공률), <code>eventual_success_rate</code>(재시도 포함 최종 성공률), <code>correction_success_rate</code>(실패→성공 전환율) 독립 제공 — 단순 재시도율과 구분하여 자가 수정 효과를 정밀 진단</span>
-        <span>🟢 ≤10% 우수 &nbsp;|&nbsp; 🟡 10–30% 주의 &nbsp;|&nbsp; 🔴 &gt;30% 위험 &nbsp;|&nbsp; 첫 시도 성공률이 핵심</span>
-      </div>
-    </div>
-
-    <div class="kpi" style="padding:14px 16px">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
-        <div style="display:flex;align-items:center;gap:8px">
-          <span style="font-size:18px">🤝</span>
-          <span style="font-weight:700;font-size:14px">Coordination Score — 멀티에이전트 협업 점수</span>
-        </div>
-        <span class="badge-info" style="font-size:10px;flex-shrink:0">L2 · 에이전틱</span>
-      </div>
-      <div style="font-size:13px;color:var(--text);line-height:1.6;margin-bottom:8px">
-        <strong>멀티 에이전트 시스템에서 에이전트 간 협업의 효율성</strong>을 측정합니다.
-        CrewAI·LangGraph·AutoGen 등의 멀티 에이전트 구조에서 병목 에이전트와 실패 구간을 특정하는 데 활용됩니다.
-        <span style="color:var(--text2)">에이전트별 인터랙션 성공률 분포를 통해 역할 분배 최적화와 재설계 우선순위를 도출할 수 있습니다.</span>
-      </div>
-      <div style="font-size:11px;color:var(--text2);border-top:1px solid var(--border);padding-top:8px;display:flex;flex-wrap:wrap;gap:14px">
-        <span>📐 <strong>측정:</strong> 에이전트 간 메시지 교환 성공 수 / 전체 인터랙션 수 × 100. 추가: <code>get_interaction_patterns()</code>로 네트워크 토폴로지 분석 — hub(중심 에이전트 집중)·chain(순차 연결)·mesh(전방위 통신) 패턴 자동 분류, 병목 에이전트 식별</span>
-        <span>🟢 ≥90% 우수 &nbsp;|&nbsp; 🟡 70–89% 양호 &nbsp;|&nbsp; 🔴 &lt;70% 개선</span>
-      </div>
-    </div>
-
-    <div class="kpi" style="padding:14px 16px">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
-        <div style="display:flex;align-items:center;gap:8px">
-          <span style="font-size:18px">🏗️</span>
-          <span style="font-weight:700;font-size:14px">Workflow Success Rate — 워크플로우 성공률</span>
-        </div>
-        <span class="badge-info" style="font-size:10px;flex-shrink:0">L2 · 에이전틱</span>
-      </div>
-      <div style="font-size:13px;color:var(--text);line-height:1.6;margin-bottom:8px">
-        <strong>복잡한 다단계 작업의 전체 흐름 성공률</strong>을 단계별로 측정합니다.
-        전체 성공률 외에 브랜치(조건 분기) 비율도 측정하여 파이프라인 설계 문제와 특정 단계의 병목을 발견합니다.
-        <span style="color:var(--text2)">단계 성공률과 태스크 완료율을 동시에 분석하면 어느 단계에서 손실이 발생하는지 퍼널 분석이 가능합니다.</span>
-      </div>
-      <div style="font-size:11px;color:var(--text2);border-top:1px solid var(--border);padding-top:8px;display:flex;flex-wrap:wrap;gap:14px">
-        <span>📐 <strong>측정:</strong> 성공 단계 / 전체 단계 × 100. 브랜치율 = 분기 단계 수 / 전체 단계 수. 추가: <code>get_critical_path_analysis()</code>로 단계별 병목(bottlenecks) 상위 3개 식별, 병렬화 가능 지점(parallelization_opportunities) 제안, 최적화 권고사항 자동 생성</span>
-        <span>🟢 ≥90% 우수 &nbsp;|&nbsp; 🟡 70–89% 양호 &nbsp;|&nbsp; 🔴 &lt;70% 개선</span>
+      </details>
+      <div style="font-size:11px;background:var(--bg3);border-radius:4px;padding:5px 10px;margin-bottom:8px;font-family:monospace;color:var(--text2)">📐 성공 단계 / 전체 단계 × 100 &nbsp;|&nbsp; 브랜치율 = 분기 단계 / 전체 단계</div>
+      <div style="display:flex;gap:5px;flex-wrap:wrap">
+        <span style="font-size:10.5px;padding:2px 8px;border-radius:10px;background:rgba(16,185,129,.15);color:#10b981;font-weight:600">🟢 ≥90% 우수</span>
+        <span style="font-size:10.5px;padding:2px 8px;border-radius:10px;background:rgba(245,158,11,.15);color:#f59e0b;font-weight:600">🟡 70–89% 양호</span>
+        <span style="font-size:10.5px;padding:2px 8px;border-radius:10px;background:rgba(239,68,68,.15);color:#ef4444;font-weight:600">🔴 &lt;70% 개선</span>
       </div>
     </div>
   </div>
+  </div><!-- /l2a -->
 
-  <!-- ── Layer 2: Security ── -->
-  <div class="sdiv"><div class="sdiv-lbl">Layer 2 — 보안 지표 (Security Metrics, 5개)</div><div class="sdiv-line"></div></div>
-  <div style="display:grid;grid-template-columns:1fr;gap:10px;margin-bottom:20px">
+  <!-- ── Layer 2 Security ── -->
+  <div x-show="mf==='all'||mf==='l2s'">
+  <div class="sdiv" style="margin-bottom:12px"><div class="sdiv-lbl">Layer 2 — 보안 지표 (Security Metrics, 5개)</div><div class="sdiv-line"></div></div>
+  <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(360px,1fr));gap:12px;margin-bottom:24px">
 
-    <div class="kpi" style="padding:14px 16px">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
-        <div style="display:flex;align-items:center;gap:8px">
-          <span style="font-size:18px">🛡️</span>
-          <span style="font-weight:700;font-size:14px">Input Security (L1) — 입력 위협 탐지</span>
+    <div class="kpi" style="padding:14px 16px;border-left:3px solid #ef4444">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:8px">
+        <div style="display:flex;align-items:center;gap:8px"><span style="font-size:20px">🛡️</span>
+          <div><div style="font-weight:700;font-size:13.5px">Input Security (L1) — 입력 위협 탐지</div>
+          <div style="font-size:11px;color:var(--text2)">악의적 입력 차단 · L2 보안</div></div>
         </div>
-        <span class="badge-ng" style="font-size:10px;flex-shrink:0">L2 · 보안</span>
+        <span class="badge-ng" style="font-size:10px;flex-shrink:0;margin-top:2px">보안</span>
       </div>
-      <div style="font-size:13px;color:var(--text);line-height:1.6;margin-bottom:8px">
-        <strong>악의적 입력 공격이 에이전트에 유입되는 빈도</strong>를 탐지합니다.
-        에이전트가 공격 벡터로 활용되는 것을 사전에 방지하며, 특히 공개 API나 사용자 입력을 처리하는 시스템에서 필수입니다.
-        <span style="color:var(--text2)">enable_security_metrics=True 로 활성화 필요. 탐지율이 높다는 것은 실제 공격 시도 빈도가 높다는 의미이므로 추가 방어 레이어 검토가 필요합니다.</span>
+      <div style="font-size:12.5px;line-height:1.6;padding:7px 10px;background:rgba(239,68,68,.07);border-radius:5px;margin-bottom:8px">
+        <strong>악의적 입력 공격이 에이전트에 유입되는 빈도</strong>를 탐지.<br>
+        공개 API·사용자 입력을 처리하는 시스템의 필수 1차 방어선.
       </div>
-      <div style="font-size:11px;color:var(--text2);border-top:1px solid var(--border);padding-top:8px;display:flex;flex-wrap:wrap;gap:14px">
-        <span>📐 <strong>측정:</strong> SQL Injection·XSS·Command Injection·Path Traversal·Prompt Injection 5종 패턴 매칭. 유형별 건수 집계</span>
-        <span>🟢 탐지 0건 안전 &nbsp;|&nbsp; 🟡 1–5건 주의 &nbsp;|&nbsp; 🔴 &gt;5건 위험</span>
+      <details style="margin-bottom:8px"><summary style="font-size:11.5px;color:var(--text2);cursor:pointer;user-select:none">ℹ️ 활성화 · 탐지 유형</summary>
+        <div style="font-size:11.5px;color:var(--text2);padding:5px 0 0 14px;line-height:1.6">
+          <code style="font-size:10.5px;background:var(--bg3);padding:1px 4px;border-radius:3px">enable_security_metrics=True</code> 로 활성화 필요.<br>
+          탐지 5종: SQL Injection · XSS · Command Injection · Path Traversal · Prompt Injection.
+        </div>
+      </details>
+      <div style="font-size:11px;background:var(--bg3);border-radius:4px;padding:5px 10px;margin-bottom:8px;font-family:monospace;color:var(--text2)">📐 5종 패턴 매칭 → 유형별 건수 집계</div>
+      <div style="display:flex;gap:5px;flex-wrap:wrap">
+        <span style="font-size:10.5px;padding:2px 8px;border-radius:10px;background:rgba(16,185,129,.15);color:#10b981;font-weight:600">🟢 0건 안전</span>
+        <span style="font-size:10.5px;padding:2px 8px;border-radius:10px;background:rgba(245,158,11,.15);color:#f59e0b;font-weight:600">🟡 1–5건 주의</span>
+        <span style="font-size:10.5px;padding:2px 8px;border-radius:10px;background:rgba(239,68,68,.15);color:#ef4444;font-weight:600">🔴 &gt;5건 위험</span>
       </div>
     </div>
 
-    <div class="kpi" style="padding:14px 16px">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
-        <div style="display:flex;align-items:center;gap:8px">
-          <span style="font-size:18px">🔓</span>
-          <span style="font-weight:700;font-size:14px">Output Leakage (L1) — 민감 정보 출력 유출</span>
+    <div class="kpi" style="padding:14px 16px;border-left:3px solid #ef4444">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:8px">
+        <div style="display:flex;align-items:center;gap:8px"><span style="font-size:20px">🔓</span>
+          <div><div style="font-weight:700;font-size:13.5px">Output Leakage (L1) — 민감 정보 유출</div>
+          <div style="font-size:11px;color:var(--text2)">출력 데이터 보호 · L2 보안</div></div>
         </div>
-        <span class="badge-ng" style="font-size:10px;flex-shrink:0">L2 · 보안</span>
+        <span class="badge-ng" style="font-size:10px;flex-shrink:0;margin-top:2px">보안</span>
       </div>
-      <div style="font-size:13px;color:var(--text);line-height:1.6;margin-bottom:8px">
-        <strong>AI 응답에 민감 정보가 포함되어 외부로 노출되는지</strong>를 탐지합니다.
-        GDPR·개인정보보호법 등 데이터 컴플라이언스의 핵심 요구사항으로, 코드 생성·RAG·문서 처리 에이전트에서 특히 중요합니다.
-        <span style="color:var(--text2)">유출 건수가 1건이라도 발생하면 즉시 프롬프트 수정 또는 출력 필터링 적용이 필요합니다.</span>
+      <div style="font-size:12.5px;line-height:1.6;padding:7px 10px;background:rgba(239,68,68,.07);border-radius:5px;margin-bottom:8px">
+        <strong>AI 응답에 민감 정보가 포함되어 외부로 노출되는지</strong>를 탐지.<br>
+        GDPR·개인정보보호법 준수의 핵심 요구사항.
       </div>
-      <div style="font-size:11px;color:var(--text2);border-top:1px solid var(--border);padding-top:8px;display:flex;flex-wrap:wrap;gap:14px">
-        <span>📐 <strong>측정:</strong> API키·패스워드·신용카드·이메일·SSN·전화번호·개인IP·파일경로 8종 정규식 패턴 매칭</span>
-        <span>🟢 유출 0건 안전 &nbsp;|&nbsp; 🔴 &gt;0건 즉시 조치</span>
+      <details style="margin-bottom:8px"><summary style="font-size:11.5px;color:var(--text2);cursor:pointer;user-select:none">ℹ️ 탐지 유형 8종</summary>
+        <div style="font-size:11.5px;color:var(--text2);padding:5px 0 0 14px;line-height:1.6">
+          API키 · 패스워드 · 신용카드 · 이메일 · SSN · 전화번호 · 개인IP · 파일경로<br>
+          유출 1건이라도 발생 시 즉시 프롬프트 수정 또는 출력 필터링 적용 필요.
+        </div>
+      </details>
+      <div style="font-size:11px;background:var(--bg3);border-radius:4px;padding:5px 10px;margin-bottom:8px;font-family:monospace;color:var(--text2)">📐 8종 정규식 패턴 매칭 → 유출 건수 집계</div>
+      <div style="display:flex;gap:5px;flex-wrap:wrap">
+        <span style="font-size:10.5px;padding:2px 8px;border-radius:10px;background:rgba(16,185,129,.15);color:#10b981;font-weight:600">🟢 0건 안전</span>
+        <span style="font-size:10.5px;padding:2px 8px;border-radius:10px;background:rgba(239,68,68,.15);color:#ef4444;font-weight:600">🔴 &gt;0건 즉시 조치</span>
       </div>
     </div>
 
-    <div class="kpi" style="padding:14px 16px">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
-        <div style="display:flex;align-items:center;gap:8px">
-          <span style="font-size:18px">🔑</span>
-          <span style="font-weight:700;font-size:14px">Tool Authorization (L1) — 도구 권한 준수</span>
+    <div class="kpi" style="padding:14px 16px;border-left:3px solid #ef4444">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:8px">
+        <div style="display:flex;align-items:center;gap:8px"><span style="font-size:20px">🔑</span>
+          <div><div style="font-weight:700;font-size:13.5px">Tool Authorization (L1) — 도구 권한 준수</div>
+          <div style="font-size:11px;color:var(--text2)">허가된 도구만 호출 · L2 보안</div></div>
         </div>
-        <span class="badge-ng" style="font-size:10px;flex-shrink:0">L2 · 보안</span>
+        <span class="badge-ng" style="font-size:10px;flex-shrink:0;margin-top:2px">보안</span>
       </div>
-      <div style="font-size:13px;color:var(--text);line-height:1.6;margin-bottom:8px">
-        <strong>에이전트가 사전에 허가된 도구만 호출하는가</strong>를 감시합니다.
-        에이전트가 의도된 권한 경계를 벗어나는 것을 방지하며, 파일 시스템·DB·외부 API의 무단 접근 탐지에 활용됩니다.
-        <span style="color:var(--text2)">allowed_tools 목록을 명시적으로 설정할수록 정밀한 탐지가 가능합니다. 미허가 호출은 시스템 설계 의도와 실제 동작의 불일치를 나타냅니다.</span>
+      <div style="font-size:12.5px;line-height:1.6;padding:7px 10px;background:rgba(239,68,68,.07);border-radius:5px;margin-bottom:8px">
+        <strong>에이전트가 사전에 허가된 도구만 호출하는가</strong>를 감시.<br>
+        파일 시스템·DB·외부 API의 무단 접근 탐지에 활용.
       </div>
-      <div style="font-size:11px;color:var(--text2);border-top:1px solid var(--border);padding-top:8px;display:flex;flex-wrap:wrap;gap:14px">
-        <span>📐 <strong>측정:</strong> (전체 호출 수 - 미허가 호출 수) / 전체 호출 수 × 100. 미허가 도구 목록 세부 기록</span>
-        <span>🟢 100% 준수 안전 &nbsp;|&nbsp; 🔴 &lt;100% 즉시 검토</span>
+      <details style="margin-bottom:8px"><summary style="font-size:11.5px;color:var(--text2);cursor:pointer;user-select:none">ℹ️ 설정 방법</summary>
+        <div style="font-size:11.5px;color:var(--text2);padding:5px 0 0 14px;line-height:1.6">
+          <code style="font-size:10.5px;background:var(--bg3);padding:1px 4px;border-radius:3px">allowed_tools</code> 목록을 명시적으로 설정할수록 정밀 탐지.<br>
+          미허가 호출 = 시스템 설계 의도와 실제 동작의 불일치.
+        </div>
+      </details>
+      <div style="font-size:11px;background:var(--bg3);border-radius:4px;padding:5px 10px;margin-bottom:8px;font-family:monospace;color:var(--text2)">📐 (전체 - 미허가 호출) / 전체 × 100 → 미허가 도구 목록 기록</div>
+      <div style="display:flex;gap:5px;flex-wrap:wrap">
+        <span style="font-size:10.5px;padding:2px 8px;border-radius:10px;background:rgba(16,185,129,.15);color:#10b981;font-weight:600">🟢 100% 준수</span>
+        <span style="font-size:10.5px;padding:2px 8px;border-radius:10px;background:rgba(239,68,68,.15);color:#ef4444;font-weight:600">🔴 &lt;100% 즉시 검토</span>
       </div>
     </div>
 
-    <div class="kpi" style="padding:14px 16px">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
-        <div style="display:flex;align-items:center;gap:8px">
-          <span style="font-size:18px">⬆️</span>
-          <span style="font-weight:700;font-size:14px">Privilege Escalation (L2) — 권한 상승 방어</span>
+    <div class="kpi" style="padding:14px 16px;border-left:3px solid #ef4444">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:8px">
+        <div style="display:flex;align-items:center;gap:8px"><span style="font-size:20px">⬆️</span>
+          <div><div style="font-weight:700;font-size:13.5px">Privilege Escalation (L2) — 권한 상승 방어</div>
+          <div style="font-size:11px;color:var(--text2)">상승 시도 차단 · L2 보안 심화</div></div>
         </div>
-        <span class="badge-ng" style="font-size:10px;flex-shrink:0">L2 · 보안 심화</span>
+        <span class="badge-ng" style="font-size:10px;flex-shrink:0;margin-top:2px">심화</span>
       </div>
-      <div style="font-size:13px;color:var(--text);line-height:1.6;margin-bottom:8px">
-        <strong>에이전트가 자신의 권한 수준 이상으로 상승을 시도하는 것</strong>을 탐지합니다.
-        멀티 에이전트 환경에서 한 에이전트가 다른 에이전트의 권한을 탈취하려는 시도나 시스템 수준 작업 시도를 방지합니다.
-        <span style="color:var(--text2)">상승 시도 자체보다 상승 성공 건수가 핵심 위험 지표입니다. 성공 건수가 0이어야 안전한 시스템입니다.</span>
+      <div style="font-size:12.5px;line-height:1.6;padding:7px 10px;background:rgba(239,68,68,.07);border-radius:5px;margin-bottom:8px">
+        <strong>에이전트가 자신의 권한 수준 이상으로 상승을 시도하는 것</strong>을 탐지.<br>
+        멀티에이전트 환경에서 권한 탈취·시스템 수준 작업 시도 방지.
       </div>
-      <div style="font-size:11px;color:var(--text2);border-top:1px solid var(--border);padding-top:8px;display:flex;flex-wrap:wrap;gap:14px">
-        <span>📐 <strong>측정:</strong> 차단율 = (1 - 상승 성공 수 / 상승 시도 수) × 100. 상승 시도·성공 건수 및 유형 기록</span>
-        <span>🟢 차단율 100% 안전 &nbsp;|&nbsp; 🔴 성공 &gt;0건 위험</span>
+      <details style="margin-bottom:8px"><summary style="font-size:11.5px;color:var(--text2);cursor:pointer;user-select:none">ℹ️ 핵심 판단 기준</summary>
+        <div style="font-size:11.5px;color:var(--text2);padding:5px 0 0 14px;line-height:1.6">
+          상승 시도보다 <strong>상승 성공 건수</strong>가 핵심 위험 지표. 성공 건수가 0이어야 안전.
+        </div>
+      </details>
+      <div style="font-size:11px;background:var(--bg3);border-radius:4px;padding:5px 10px;margin-bottom:8px;font-family:monospace;color:var(--text2)">📐 차단율 = (1 - 상승 성공 / 상승 시도) × 100</div>
+      <div style="display:flex;gap:5px;flex-wrap:wrap">
+        <span style="font-size:10.5px;padding:2px 8px;border-radius:10px;background:rgba(16,185,129,.15);color:#10b981;font-weight:600">🟢 차단율 100%</span>
+        <span style="font-size:10.5px;padding:2px 8px;border-radius:10px;background:rgba(239,68,68,.15);color:#ef4444;font-weight:600">🔴 성공 &gt;0건 위험</span>
       </div>
     </div>
 
-    <div class="kpi" style="padding:14px 16px">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
-        <div style="display:flex;align-items:center;gap:8px">
-          <span style="font-size:18px">🔗</span>
-          <span style="font-weight:700;font-size:14px">Tool Chain Attack Detection (L2) — 공격 체인 탐지</span>
+    <div class="kpi" style="padding:14px 16px;border-left:3px solid #ef4444">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:8px">
+        <div style="display:flex;align-items:center;gap:8px"><span style="font-size:20px">🔗</span>
+          <div><div style="font-weight:700;font-size:13.5px">Tool Chain Attack (L2) — 공격 체인 탐지</div>
+          <div style="font-size:11px;color:var(--text2)">연쇄 패턴 탐지 · L2 보안 심화</div></div>
         </div>
-        <span class="badge-ng" style="font-size:10px;flex-shrink:0">L2 · 보안 심화</span>
+        <span class="badge-ng" style="font-size:10px;flex-shrink:0;margin-top:2px">심화</span>
       </div>
-      <div style="font-size:13px;color:var(--text);line-height:1.6;margin-bottom:8px">
-        <strong>개별 도구 호출은 정상이지만 조합 시 공격이 되는 연쇄 패턴</strong>을 탐지합니다.
-        예를 들어 "DB 조회 → 데이터 변환 → 외부 서버 전송"과 같은 시퀀스는 개별적으로는 허용되지만 조합으로는 데이터 유출입니다.
-        <span style="color:var(--text2)">고급 위협 탐지 계층으로, 탐지 건수가 1건이라도 발생하면 도구 체인 설계와 허가 정책 전면 재검토가 필요합니다.</span>
+      <div style="font-size:12.5px;line-height:1.6;padding:7px 10px;background:rgba(239,68,68,.07);border-radius:5px;margin-bottom:8px">
+        <strong>개별적으로 정상이지만 조합 시 공격이 되는 연쇄 패턴</strong>을 탐지.<br>
+        예: "DB 조회 → 변환 → 외부 서버 전송" = 개별 허용, 조합 = 데이터 유출.
       </div>
-      <div style="font-size:11px;color:var(--text2);border-top:1px solid var(--border);padding-top:8px;display:flex;flex-wrap:wrap;gap:14px">
-        <span>📐 <strong>측정:</strong> 도구 호출 시퀀스 분석 기반 공격 체인 패턴 매칭. 탐지된 공격 체인 수 및 시퀀스 상세 기록</span>
-        <span>🟢 탐지 0건 안전 &nbsp;|&nbsp; 🔴 &gt;0건 즉시 포렌식</span>
+      <details style="margin-bottom:8px"><summary style="font-size:11.5px;color:var(--text2);cursor:pointer;user-select:none">ℹ️ 탐지 접근법</summary>
+        <div style="font-size:11.5px;color:var(--text2);padding:5px 0 0 14px;line-height:1.6">고급 위협 탐지 계층. 탐지 1건 발생 시 도구 체인 설계와 허가 정책 전면 재검토 필요.</div>
+      </details>
+      <div style="font-size:11px;background:var(--bg3);border-radius:4px;padding:5px 10px;margin-bottom:8px;font-family:monospace;color:var(--text2)">📐 도구 호출 시퀀스 → 공격 체인 패턴 매칭 → 건수·시퀀스 기록</div>
+      <div style="display:flex;gap:5px;flex-wrap:wrap">
+        <span style="font-size:10.5px;padding:2px 8px;border-radius:10px;background:rgba(16,185,129,.15);color:#10b981;font-weight:600">🟢 0건 안전</span>
+        <span style="font-size:10.5px;padding:2px 8px;border-radius:10px;background:rgba(239,68,68,.15);color:#ef4444;font-weight:600">🔴 &gt;0건 즉시 포렌식</span>
       </div>
     </div>
   </div>
+  </div><!-- /l2s -->
 
-  <!-- ── Layer 3: Hybrid / External ── -->
-  <div class="sdiv"><div class="sdiv-lbl">Layer 3 — 하이브리드 지표 (Hybrid / External, 4개)</div><div class="sdiv-line"></div></div>
-  <div style="display:grid;grid-template-columns:1fr;gap:10px">
+  <!-- ── Layer 3 Hybrid ── -->
+  <div x-show="mf==='all'||mf==='l3'">
+  <div class="sdiv" style="margin-bottom:12px"><div class="sdiv-lbl">Layer 3 — 하이브리드 지표 (Hybrid / External, 4개)</div><div class="sdiv-line"></div></div>
+  <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(360px,1fr));gap:12px">
 
-    <div class="kpi" style="padding:14px 16px">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
-        <div style="display:flex;align-items:center;gap:8px">
-          <span style="font-size:18px">📚</span>
-          <span style="font-weight:700;font-size:14px">Ragas — RAG 파이프라인 정밀 평가</span>
+    <div class="kpi" style="padding:14px 16px;border-left:3px solid #8b5cf6">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:8px">
+        <div style="display:flex;align-items:center;gap:8px"><span style="font-size:20px">📚</span>
+          <div><div style="font-weight:700;font-size:13.5px">Ragas — RAG 파이프라인 정밀 평가</div>
+          <div style="font-size:11px;color:var(--text2)">검색·생성 품질 · L3 외부 라이브러리</div></div>
         </div>
-        <span style="font-size:10px;flex-shrink:0;padding:2px 8px;border-radius:10px;background:rgba(99,102,241,.15);color:#818cf8;font-weight:600">L3 · 외부 라이브러리</span>
+        <span style="font-size:10px;flex-shrink:0;margin-top:2px;padding:2px 8px;border-radius:10px;background:rgba(139,92,246,.15);color:#8b5cf6;font-weight:600">L3</span>
       </div>
-      <div style="font-size:13px;color:var(--text);line-height:1.6;margin-bottom:8px">
-        <strong>RAG 파이프라인의 검색·생성 품질을 외부 라이브러리로 정밀 평가</strong>합니다.
-        일반 정확도 지표와 달리 "검색된 컨텍스트가 답변에 충실히 반영되었는가"와 "컨텍스트 자체가 질문에 적합했는가"를 분리 측정합니다.
-        <span style="color:var(--text2)">ragas&gt;=0.4.x 설치(pip install "agent-evaluator[eval]")와 LLM API 키가 필요합니다.</span>
+      <div style="font-size:12.5px;line-height:1.6;padding:7px 10px;background:rgba(139,92,246,.07);border-radius:5px;margin-bottom:8px">
+        <strong>RAG 파이프라인의 검색·생성 품질을 외부 라이브러리로 정밀 평가</strong>.<br>
+        "컨텍스트가 답변에 충실히 반영됐는가"와 "컨텍스트가 질문에 적합했는가"를 분리 측정.
       </div>
-      <div style="font-size:11px;color:var(--text2);border-top:1px solid var(--border);padding-top:8px;display:flex;flex-wrap:wrap;gap:14px">
-        <span>📐 <strong>4개 지표:</strong> Faithfulness(충실도) · Answer Relevancy(답변 관련성) · Context Recall(컨텍스트 재현율) · Context Precision(컨텍스트 정밀도), 각 0–1</span>
-        <span>🟢 전 지표 ≥0.8 우수 &nbsp;|&nbsp; 🟡 0.5–0.79 양호 &nbsp;|&nbsp; 🔴 &lt;0.5 개선</span>
+      <details style="margin-bottom:8px"><summary style="font-size:11.5px;color:var(--text2);cursor:pointer;user-select:none">ℹ️ 설치 · 요구사항</summary>
+        <div style="font-size:11.5px;color:var(--text2);padding:5px 0 0 14px;line-height:1.6">
+          <code style="font-size:10.5px;background:var(--bg3);padding:1px 4px;border-radius:3px">pip install "agent-evaluator[eval]"</code> + LLM API 키 필요.<br>
+          ragas ≥ 0.4.x 지원. OpenAI 키 없으면 AnswerRelevancy 자동 제외.
+        </div>
+      </details>
+      <div style="font-size:11px;background:var(--bg3);border-radius:4px;padding:5px 10px;margin-bottom:8px;font-family:monospace;color:var(--text2)">📐 Faithfulness · Answer Relevancy · Context Recall · Context Precision (각 0–1)</div>
+      <div style="display:flex;gap:5px;flex-wrap:wrap">
+        <span style="font-size:10.5px;padding:2px 8px;border-radius:10px;background:rgba(16,185,129,.15);color:#10b981;font-weight:600">🟢 전 지표 ≥0.8 우수</span>
+        <span style="font-size:10.5px;padding:2px 8px;border-radius:10px;background:rgba(245,158,11,.15);color:#f59e0b;font-weight:600">🟡 0.5–0.79 양호</span>
+        <span style="font-size:10.5px;padding:2px 8px;border-radius:10px;background:rgba(239,68,68,.15);color:#ef4444;font-weight:600">🔴 &lt;0.5 개선</span>
       </div>
     </div>
 
-    <div class="kpi" style="padding:14px 16px">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
-        <div style="display:flex;align-items:center;gap:8px">
-          <span style="font-size:18px">🔬</span>
-          <span style="font-weight:700;font-size:14px">DeepEval — G-Eval LLM 기반 품질 평가</span>
+    <div class="kpi" style="padding:14px 16px;border-left:3px solid #8b5cf6">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:8px">
+        <div style="display:flex;align-items:center;gap:8px"><span style="font-size:20px">🔬</span>
+          <div><div style="font-weight:700;font-size:13.5px">DeepEval — G-Eval LLM 기반 품질 평가</div>
+          <div style="font-size:11px;color:var(--text2)">LLM-as-Judge · L3 외부 라이브러리</div></div>
         </div>
-        <span style="font-size:10px;flex-shrink:0;padding:2px 8px;border-radius:10px;background:rgba(99,102,241,.15);color:#818cf8;font-weight:600">L3 · 외부 라이브러리</span>
+        <span style="font-size:10px;flex-shrink:0;margin-top:2px;padding:2px 8px;border-radius:10px;background:rgba(139,92,246,.15);color:#8b5cf6;font-weight:600">L3</span>
       </div>
-      <div style="font-size:13px;color:var(--text);line-height:1.6;margin-bottom:8px">
-        <strong>LLM 자체를 평가자로 활용하여 인간 판단에 가까운 품질 점수</strong>를 제공합니다.
-        규칙 기반인 ResponseQualityEvaluator와 상호 보완 관계로, 논리적 일관성·창의성 등 미묘한 품질 차이를 포착합니다.
-        <span style="color:var(--text2)">deepeval&gt;=0.20.x 설치와 LLM API 키가 필요합니다. 평가 기준을 사용자가 자유롭게 정의할 수 있어 도메인 특화 평가에 적합합니다.</span>
+      <div style="font-size:12.5px;line-height:1.6;padding:7px 10px;background:rgba(139,92,246,.07);border-radius:5px;margin-bottom:8px">
+        <strong>LLM 자체를 평가자로 활용하여 인간 판단에 가까운 품질 점수</strong> 제공.<br>
+        규칙 기반 ResponseQualityEvaluator와 상호 보완. 논리 일관성·창의성 등 미묘한 차이 포착.
       </div>
-      <div style="font-size:11px;color:var(--text2);border-top:1px solid var(--border);padding-top:8px;display:flex;flex-wrap:wrap;gap:14px">
-        <span>📐 <strong>측정:</strong> G-Eval 0–10점. 사용자 정의 기준으로 LLM이 단계별 추론 후 점수 부여. answer_relevancy·faithfulness·contextual_recall 등 지원</span>
-        <span>🟢 ≥8.0 우수 &nbsp;|&nbsp; 🟡 5.0–7.9 양호 &nbsp;|&nbsp; 🔴 &lt;5.0 개선</span>
+      <details style="margin-bottom:8px"><summary style="font-size:11.5px;color:var(--text2);cursor:pointer;user-select:none">ℹ️ 설치 · 활용</summary>
+        <div style="font-size:11.5px;color:var(--text2);padding:5px 0 0 14px;line-height:1.6">
+          <code style="font-size:10.5px;background:var(--bg3);padding:1px 4px;border-radius:3px">pip install "agent-evaluator[eval]"</code> + LLM API 키 필요.<br>
+          평가 기준을 사용자가 자유롭게 정의 → 도메인 특화 평가에 적합.
+        </div>
+      </details>
+      <div style="font-size:11px;background:var(--bg3);border-radius:4px;padding:5px 10px;margin-bottom:8px;font-family:monospace;color:var(--text2)">📐 G-Eval 0–10점 · LLM 단계별 추론 후 점수 부여</div>
+      <div style="display:flex;gap:5px;flex-wrap:wrap">
+        <span style="font-size:10.5px;padding:2px 8px;border-radius:10px;background:rgba(16,185,129,.15);color:#10b981;font-weight:600">🟢 ≥8.0 우수</span>
+        <span style="font-size:10.5px;padding:2px 8px;border-radius:10px;background:rgba(245,158,11,.15);color:#f59e0b;font-weight:600">🟡 5.0–7.9 양호</span>
+        <span style="font-size:10.5px;padding:2px 8px;border-radius:10px;background:rgba(239,68,68,.15);color:#ef4444;font-weight:600">🔴 &lt;5.0 개선</span>
       </div>
     </div>
 
-    <div class="kpi" style="padding:14px 16px">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
-        <div style="display:flex;align-items:center;gap:8px">
-          <span style="font-size:18px">🔭</span>
-          <span style="font-weight:700;font-size:14px">LangSmith Adapter — 트레이싱 데이터 연동</span>
+    <div class="kpi" style="padding:14px 16px;border-left:3px solid #8b5cf6">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:8px">
+        <div style="display:flex;align-items:center;gap:8px"><span style="font-size:20px">🔭</span>
+          <div><div style="font-weight:700;font-size:13.5px">LangSmith Adapter — 트레이싱 데이터 연동</div>
+          <div style="font-size:11px;color:var(--text2)">실서비스 추적 · L3 외부 연동</div></div>
         </div>
-        <span style="font-size:10px;flex-shrink:0;padding:2px 8px;border-radius:10px;background:rgba(99,102,241,.15);color:#818cf8;font-weight:600">L3 · 외부 연동</span>
+        <span style="font-size:10px;flex-shrink:0;margin-top:2px;padding:2px 8px;border-radius:10px;background:rgba(139,92,246,.15);color:#8b5cf6;font-weight:600">L3</span>
       </div>
-      <div style="font-size:13px;color:var(--text);line-height:1.6;margin-bottom:8px">
-        <strong>LangSmith에 기록된 실행 트레이스 데이터를 평가 파이프라인과 연동</strong>합니다.
-        테스트셋 기반 평가(오프라인)와 실서비스 트레이스 기반 평가(온라인)를 통합하여 프로덕션 실제 사용 데이터로 지속 평가가 가능합니다.
-        <span style="color:var(--text2)">LANGSMITH_API_KEY 환경변수 설정이 필요합니다. LangSmith 프로젝트의 run 데이터를 수집하여 내부 지표(TCR·Accuracy·Latency 등)와 자동 매핑합니다.</span>
+      <div style="font-size:12.5px;line-height:1.6;padding:7px 10px;background:rgba(139,92,246,.07);border-radius:5px;margin-bottom:8px">
+        <strong>LangSmith 실행 트레이스 데이터를 평가 파이프라인과 연동</strong>.<br>
+        오프라인 테스트셋 평가 + 실서비스 트레이스 평가를 통합.
       </div>
-      <div style="font-size:11px;color:var(--text2);border-top:1px solid var(--border);padding-top:8px;display:flex;flex-wrap:wrap;gap:14px">
-        <span>📐 <strong>측정:</strong> LangSmith API에서 run 데이터 수집 → 내부 지표 매핑. pip install "agent-evaluator[langchain]" 필요</span>
-        <span>ℹ️ 연동 성공 시 실서비스 트레이스 기반 평가 자동 활성화</span>
+      <details style="margin-bottom:8px"><summary style="font-size:11.5px;color:var(--text2);cursor:pointer;user-select:none">ℹ️ 설정 방법</summary>
+        <div style="font-size:11.5px;color:var(--text2);padding:5px 0 0 14px;line-height:1.6">
+          <code style="font-size:10.5px;background:var(--bg3);padding:1px 4px;border-radius:3px">LANGSMITH_API_KEY</code> 환경변수 설정 필요.<br>
+          <code style="font-size:10.5px;background:var(--bg3);padding:1px 4px;border-radius:3px">pip install "agent-evaluator[langchain]"</code><br>
+          LangSmith run 데이터 → 내부 지표(TCR·Accuracy·Latency 등) 자동 매핑.
+        </div>
+      </details>
+      <div style="font-size:11px;background:var(--bg3);border-radius:4px;padding:5px 10px;margin-bottom:8px;font-family:monospace;color:var(--text2)">📐 LangSmith API run 수집 → 내부 지표 매핑</div>
+      <div style="display:flex;gap:5px;flex-wrap:wrap">
+        <span style="font-size:10.5px;padding:2px 8px;border-radius:10px;background:rgba(99,102,241,.12);color:#818cf8;font-weight:600">ℹ️ 연동 성공 시 실서비스 평가 활성화</span>
       </div>
     </div>
 
-    <div class="kpi" style="padding:14px 16px">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
-        <div style="display:flex;align-items:center;gap:8px">
-          <span style="font-size:18px">🚦</span>
-          <span style="font-weight:700;font-size:14px">Deployment Gates — 배포 준비도 게이트</span>
+    <div class="kpi" style="padding:14px 16px;border-left:3px solid #8b5cf6">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:8px">
+        <div style="display:flex;align-items:center;gap:8px"><span style="font-size:20px">🚦</span>
+          <div><div style="font-weight:700;font-size:13.5px">Deployment Gates — 배포 준비도 게이트</div>
+          <div style="font-size:11px;color:var(--text2)">자동 배포 판정 · L3 종합</div></div>
         </div>
-        <span class="badge-ok" style="font-size:10px;flex-shrink:0">L3 · 종합 판정</span>
+        <span class="badge-ok" style="font-size:10px;flex-shrink:0;margin-top:2px">종합</span>
       </div>
-      <div style="font-size:13px;color:var(--text);line-height:1.6;margin-bottom:8px">
-        <strong>"지금 프로덕션에 배포해도 되는가?"를 여러 지표의 조합으로 자동 판정</strong>합니다.
-        개발·스테이징·프로덕션 3단계로 엄격도가 다른 임계값을 적용하며, CI/CD 파이프라인과 웹훅으로 연동하여 자동 배포 차단에 활용할 수 있습니다.
-        <span style="color:var(--text2)">임계값은 설정 메뉴에서 조정하거나 Preset(기본값·엄격·완화)을 적용할 수 있습니다.</span>
+      <div style="font-size:12.5px;line-height:1.6;padding:7px 10px;background:rgba(139,92,246,.07);border-radius:5px;margin-bottom:8px">
+        <strong>"지금 프로덕션에 배포해도 되는가?"를 여러 지표 조합으로 자동 판정</strong>.<br>
+        개발·스테이징·프로덕션 3단계, 엄격도가 다른 임계값 적용. CI/CD 웹훅 연동 지원.
       </div>
-      <div style="font-size:11px;color:var(--text2);border-top:1px solid var(--border);padding-top:8px;display:flex;flex-wrap:wrap;gap:14px">
-        <span>📐 <strong>기본 기준 — 개발:</strong> TCR≥70%·정확도≥60% &nbsp;|&nbsp; <strong>스테이징:</strong> +환각≤15% &nbsp;|&nbsp; <strong>프로덕션:</strong> TCR≥90%·정확도≥80%·환각≤5%·P95≤2s·비용≤$0.01</span>
-        <span>🟢 PASS / 🔴 FAIL 이진 판정. 웹훅으로 Slack·PagerDuty 연동 가능</span>
+      <details style="margin-bottom:8px"><summary style="font-size:11.5px;color:var(--text2);cursor:pointer;user-select:none">ℹ️ 임계값 기본값</summary>
+        <div style="font-size:11.5px;color:var(--text2);padding:5px 0 0 14px;line-height:1.6">
+          개발: TCR≥70%·정확도≥60% &nbsp;|&nbsp; 스테이징: +환각≤15%<br>
+          프로덕션: TCR≥90%·정확도≥80%·환각≤5%·P95≤2s·비용≤$0.01/task<br>
+          설정 메뉴에서 Preset(기본·엄격·완화) 또는 개별 조정 가능.
+        </div>
+      </details>
+      <div style="font-size:11px;background:var(--bg3);border-radius:4px;padding:5px 10px;margin-bottom:8px;font-family:monospace;color:var(--text2)">📐 다지표 임계값 조합 → PASS / FAIL 이진 판정</div>
+      <div style="display:flex;gap:5px;flex-wrap:wrap">
+        <span style="font-size:10.5px;padding:2px 8px;border-radius:10px;background:rgba(16,185,129,.15);color:#10b981;font-weight:600">🟢 PASS 배포 가능</span>
+        <span style="font-size:10.5px;padding:2px 8px;border-radius:10px;background:rgba(239,68,68,.15);color:#ef4444;font-weight:600">🔴 FAIL 배포 차단</span>
+        <span style="font-size:10.5px;padding:2px 8px;border-radius:10px;background:rgba(99,102,241,.12);color:#818cf8;font-weight:600">웹훅 Slack·PagerDuty 연동</span>
       </div>
+    </div>
+  </div>
+  </div><!-- /l3 -->
+
+  </div><!-- /x-data mf -->
     </div>
   </div>
 </section>
