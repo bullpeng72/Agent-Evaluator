@@ -133,7 +133,7 @@ class ResultFile:
     advanced: AdvancedMetrics
     insights: InsightsData
     rag_metrics: Dict[str, List[float]]
-    pricing: Dict[str, float]
+    pricing: Dict[str, Any]
     raw: Dict[str, Any]
 
     # ---- computed helpers ------------------------------------------------
@@ -370,6 +370,41 @@ def _parse_security_l1(raw: dict) -> SecurityL1:
         if "dangerous_params" not in authorization:
             authorization["dangerous_params"] = authorization.get("dangerous_param_attempts", 0)
 
+    # Detect tracking gap: tasks have tool_calls but ToolAuthorizationTracker recorded none
+    task_tool_calls_total = sum(
+        len(t.get("tool_calls", [])) if isinstance(t.get("tool_calls"), list)
+        else int(t.get("tool_calls") or 0)
+        for t in raw.get("tasks", [])
+    )
+    if authorization is None and task_tool_calls_total > 0:
+        # Tracker not active at all but tasks have tool calls → create stub with tracking_active=False
+        authorization = {
+            "total_tool_calls": 0,
+            "authorized_calls": 0,
+            "unauthorized_calls": 0,
+            "compliance_rate": 100,
+            "violation_rate": 0,
+            "violations": 0,
+            "restricted_attempts": 0,
+            "dangerous_params": 0,
+            "tracking_active": False,
+            "task_tool_calls_total": task_tool_calls_total,
+        }
+    elif authorization is not None:
+        tracked = authorization.get("total_tool_calls", 0)
+        authorization["task_tool_calls_total"] = task_tool_calls_total
+        # tracking_active:
+        #   False  — tracker recorded 0 calls but tasks show >0 (tracker not wired up)
+        #   "partial" — tracker recorded some calls but tasks have significantly more
+        #   True   — tracker recorded ≥tasks calls, or tasks have 0 calls
+        if tracked == 0 and task_tool_calls_total > 0:
+            authorization["tracking_active"] = False
+        elif tracked > 0 and task_tool_calls_total > 0 and task_tool_calls_total > tracked * 1.5:
+            authorization["tracking_active"] = "partial"
+            authorization["tracking_coverage"] = round(tracked / task_tool_calls_total * 100, 1)
+        else:
+            authorization["tracking_active"] = True
+
     return SecurityL1(
         input_security=input_security,
         output_leakage=output_leakage,
@@ -543,6 +578,9 @@ def _parse_quality_detail(raw: dict) -> QualityDetail:
         avg = q.get("avg_total_score", 0.0)
         return QualityDetail(evaluations=[], dimension_summary=dim, grade_distribution=grade, avg_score=avg)
 
+    # Layer 3(DeepEval) 기록은 외부 평가 탭으로 분리 — 품질 탭은 Layer 1(네이티브)만 표시
+    evals = [e for e in evals if e.get("source") != "deepeval"]
+
     # Aggregate dimension scores from evaluations
     dim_sums: Dict[str, float] = {}
     dim_counts: Dict[str, int] = {}
@@ -566,6 +604,8 @@ def _parse_quality_detail(raw: dict) -> QualityDetail:
 
 def _parse_hallucination_detail(raw: dict) -> HallucinationDetail:
     dets = _safe_list(raw, "evaluators", "hallucination", "detections")
+    # Layer 3(DeepEval) 기록은 외부 평가 탭으로 분리 — 품질 탭은 Layer 1(네이티브)만 표시
+    dets = [d for d in dets if d.get("source") != "deepeval"]
     ind_types: Dict[str, int] = {}
     for d in dets:
         for ind in d.get("indicators", []):

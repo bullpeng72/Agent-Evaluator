@@ -47,6 +47,10 @@ class TaskResult:
     state_transitions: Optional[List[Dict[str, Any]]] = None       # State transitions (LangGraph)
     framework: Optional[str] = None                                 # Framework used (crewai, langchain, langgraph, autogen)
     partial_reason: Optional[str] = None                            # 부분 성공/실패 원인 설명 (자동 추론 또는 사용자 직접 지정)
+    # Raw content fields — persisted to JSON for dashboard display
+    question: Optional[str] = None                                  # User question / input
+    response: Optional[str] = None                                  # Agent response / output
+    ground_truth: Optional[str] = None                              # Expected answer
 
 
 @dataclass
@@ -2550,6 +2554,7 @@ class PerformanceMonitor:
     def __init__(
         self,
         pricing: Dict[str, float] = None,
+        model_name: str = "",
         enable_transparency: bool = False,
         enable_hallucination_detection: bool = False,
         enable_security_metrics: bool = False,
@@ -2560,7 +2565,10 @@ class PerformanceMonitor:
         Initialize Performance Monitor
 
         Args:
-            pricing: Token pricing (default: GPT-4 pricing)
+            pricing: Token pricing (default: Claude Sonnet 4.5 pricing)
+            model_name: Model name used for this evaluation (e.g. "claude-sonnet-4-5").
+                Stored in the result JSON so the dashboard can highlight the correct
+                pricing row and display it in the cost banner.
             enable_transparency: Enable transparency logging (traces, annotations)
             enable_hallucination_detection: Enable Layer1 hallucination detection (opt-in)
                 - False (default): No hallucination detection, best performance
@@ -2572,7 +2580,9 @@ class PerformanceMonitor:
             output_dir: Output directory for results
         """
         if pricing is None:
-            pricing = {"input": 0.003, "output": 0.015}  # Default pricing
+            pricing = {"input": 0.003, "output": 0.015}  # Default: Claude Sonnet 4.5
+
+        self.model_name = model_name
 
         # Configuration
         self.enable_hallucination_detection = enable_hallucination_detection
@@ -3100,6 +3110,14 @@ class PerformanceMonitor:
             response: Agent's response/output for hallucination detection
             expected_elements: Expected elements in response
         """
+        # Persist raw content onto TaskResult so it is included in asdict() → JSON
+        if request is not None and task_result.question is None:
+            task_result.question = request
+        if response is not None and task_result.response is None:
+            task_result.response = response
+        if ground_truth is not None and task_result.ground_truth is None:
+            task_result.ground_truth = str(ground_truth) if not isinstance(ground_truth, str) else ground_truth
+
         # Task completion
         self.tcr_tracker.add_task(task_result)
         
@@ -4655,9 +4673,13 @@ class PerformanceMonitor:
         if not os.path.isabs(filename):
             filename = str(self.output_dir / filename)
 
+        pricing_data: Dict[str, Any] = dict(self.token_tracker.pricing)
+        if self.model_name:
+            pricing_data["model"] = self.model_name
+
         data = {
             "tasks": [asdict(task) for task in self.tcr_tracker.tasks],
-            "pricing": self.token_tracker.pricing,
+            "pricing": pricing_data,
             "timestamp": datetime.now().isoformat(),
             # Save evaluator data
             "evaluators": {

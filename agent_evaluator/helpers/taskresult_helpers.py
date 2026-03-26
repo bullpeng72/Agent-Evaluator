@@ -532,6 +532,9 @@ def create_taskresult_from_execution(
         errors=[error_message] if error_message else [],
         timestamp=datetime.now(),
         partial_reason=partial_reason,    # ✅ 자동 추론 또는 사용자 지정
+        question=question,                # ✅ raw content — 대시보드 표시용
+        response=response,               # ✅ raw content — 대시보드 표시용
+        ground_truth=str(ground_truth) if ground_truth is not None else None,  # ✅ raw content
     )
 
 

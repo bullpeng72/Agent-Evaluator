@@ -70,6 +70,11 @@ def get_result(file_id: str, request: Request) -> Dict[str, Any]:
         "expected_tools":   t.expected_tools,
         "framework":        t.framework,
         "advanced_metrics": t.advanced_metrics,
+        # Raw content fields — for failure cause analysis
+        "question":         t.raw.get("question") or t.raw.get("input"),
+        "response":         t.raw.get("response") or t.raw.get("output"),
+        "ground_truth":     t.raw.get("ground_truth") or t.raw.get("expected_output") or t.raw.get("expected"),
+        "accuracy_detail":  t.raw.get("accuracy_detail"),
     } for t in rf.tasks]
 
     # Security L1
