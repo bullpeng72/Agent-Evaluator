@@ -139,7 +139,7 @@ class PerformanceMonitor:
                 allowed_tools=self.security_config.get('allowed_tools'),
                 restricted_tools=self.security_config.get('restricted_tools')
             )
-            print("✅ Security metrics (Layer 1) 활성화됨")
+            logger.info("Security metrics (Layer 1) 활성화됨")
 
         # Layer 2: Agentic AI trackers
         self.tool_analyzer = ToolCallAnalyzer()  # Tool call efficiency
@@ -154,7 +154,7 @@ class PerformanceMonitor:
         if enable_security_metrics:
             self.privilege_escalation_detector = PrivilegeEscalationDetector()
             self.tool_chain_attack_detector = ToolChainAttackDetector()
-            print("✅ Security metrics (Layer 2) 활성화됨")
+            logger.info("Security metrics (Layer 2) 활성화됨")
 
         # RAG metrics tracker
         self.rag_metrics = {
@@ -173,7 +173,7 @@ class PerformanceMonitor:
                 # CRITICAL FIX: Use correct relative import path
                 from ...utils.transparency_manager import TestTransparencyManager
                 self.transparency_manager = TestTransparencyManager(output_dir=str(self.output_dir))
-                print("✅ Test 투명성 추적 활성화됨")
+                logger.info("Test 투명성 추적 활성화됨")
                 # Auto audit: evaluation session started
                 self.transparency_manager.log_event(
                     event_type="lifecycle",
@@ -189,8 +189,8 @@ class PerformanceMonitor:
                     success=True,
                 )
             except ImportError as e:
-                print(f"⚠️  transparency_manager를 찾을 수 없습니다: {e}")
-                print("   투명성 추적 비활성화됨")
+                logger.warning("transparency_manager를 찾을 수 없습니다: %s", e)
+                logger.warning("투명성 추적 비활성화됨")
                 self.enable_transparency = False
 
         # LLM Judge (Phase 1-A, opt-in)
@@ -204,7 +204,7 @@ class PerformanceMonitor:
                     sample_rate=judge_sample_rate,
                     budget_per_day=judge_budget_per_day,
                 )
-                print(f"✅ LLM Judge 활성화됨 (model={self.llm_judge.model}, sample_rate={judge_sample_rate})")
+                logger.info("LLM Judge 활성화됨 (model=%s, sample_rate=%s)", self.llm_judge.model, judge_sample_rate)
             except Exception as e:
                 warnings.warn(f"LLM Judge 초기화 실패: {e}", RuntimeWarning, stacklevel=2)
                 self.enable_llm_judge = False
@@ -252,7 +252,7 @@ class PerformanceMonitor:
             dataset_path = self.golden_dataset_path
 
         if dataset_path is None:
-            print("⚠️  Golden Dataset 경로가 지정되지 않았습니다")
+            logger.warning("Golden Dataset 경로가 지정되지 않았습니다")
             return []
 
         # golden_datasets 디렉토리에서 찾기
@@ -263,7 +263,7 @@ class PerformanceMonitor:
                 dataset_path = full_path
 
         if not os.path.exists(dataset_path):
-            print(f"⚠️  Golden Dataset 파일을 찾을 수 없습니다: {dataset_path}")
+            logger.warning("Golden Dataset 파일을 찾을 수 없습니다: %s", dataset_path)
             return []
 
         try:
@@ -276,15 +276,14 @@ class PerformanceMonitor:
             elif isinstance(data, dict) and 'qa_pairs' in data:
                 self.golden_datasets = data['qa_pairs']
             else:
-                print("⚠️  Unexpected Golden Dataset format")
+                logger.warning("Unexpected Golden Dataset format")
                 self.golden_datasets = []
                 return []
 
-            print(f"✅ Golden Dataset 로드: {len(self.golden_datasets)}개 항목")
+            logger.info("Golden Dataset 로드: %d개 항목", len(self.golden_datasets))
             return self.golden_datasets
         except Exception as e:
             logger.error("Golden Dataset 로드 실패: %s", e)
-            print(f"❌ Golden Dataset 로드 실패: {str(e)}")
             return []
 
     def evaluate_with_golden_dataset(
@@ -2388,10 +2387,23 @@ class PerformanceMonitor:
             if hasattr(tt, "value"):
                 task["task_type"] = tt.value
 
-        with open(filename, 'w', encoding='utf-8') as f:
-            json.dump(data, f, indent=2, default=str)
+        def _json_serializer(obj: Any) -> Any:
+            """Custom JSON serializer for non-standard types."""
+            from datetime import datetime as _dt
+            from enum import Enum
+            if isinstance(obj, _dt):
+                return obj.isoformat()
+            if isinstance(obj, Enum):
+                return obj.value
+            if isinstance(obj, bytes):
+                return obj.decode("utf-8", errors="replace")
+            logger.debug("JSON serialization fallback for type %s", type(obj).__name__)
+            return str(obj)
 
-        print(f"✅ Performance data saved to {filename}")
+        with open(filename, 'w', encoding='utf-8') as f:
+            json.dump(data, f, indent=2, default=_json_serializer)
+
+        logger.info("Performance data saved to %s", filename)
 
         # Auto transparency: generate metric traces + audit logs
         if self.transparency_manager:
@@ -2429,14 +2441,63 @@ class PerformanceMonitor:
             )
 
             if success:
-                print("📋 Dashboard 레지스트리에 자동 등록됨 (~/.agent_evaluator/registry.json)")
+                logger.debug("Dashboard 레지스트리에 자동 등록됨 (~/.agent_evaluator/registry.json)")
 
         except Exception as e:
             # 레지스트리 등록 실패해도 데이터 저장은 성공한 것으로 처리
             logger.warning("레지스트리 등록 실패 (데이터는 정상 저장됨): %s", e)
-            print(f"⚠️  레지스트리 등록 실패 (데이터는 정상 저장됨): {e}")
 
         return filename
+
+    def flush(self) -> Dict[str, Any]:
+        """지금까지 수집된 평가 데이터의 요약을 반환하고 내부 상태를 초기화한다.
+
+        장시간 운영되는 서비스에서 메모리를 관리하기 위해 사용한다.
+
+        Returns:
+            Dict[str, Any]: flush 전 수집된 평가 요약 통계
+
+        Example:
+            >>> monitor = PerformanceMonitor()
+            >>> # ... 1000개 태스크 처리 ...
+            >>> summary = monitor.flush()  # 요약 저장 후 메모리 정리
+            >>> print(summary["total_tasks"])  # 1000
+        """
+        import datetime as _dt_mod
+
+        # 현재 상태 요약 계산
+        report = self.generate_report()
+        tcr_data = report.accuracy_metrics.get("tcr") or {}
+        latency_data = (report.efficiency_metrics.get("latency") or {})
+        accuracy_data = report.accuracy_metrics.get("accuracy_scores") or {}
+
+        summary: Dict[str, Any] = {
+            "total_tasks": report.total_tasks,
+            "success_rate": tcr_data.get("success_rate", 0.0),
+            "avg_latency_ms": latency_data.get("mean", 0.0),
+            "avg_accuracy": accuracy_data.get("overall_accuracy", 0.0),
+            "flushed_at": _dt_mod.datetime.now().isoformat(),
+        }
+
+        # 각 트래커 초기화
+        self.tcr_tracker.tasks.clear()
+        self.accuracy_evaluator.evaluations.clear()
+        self.hallucination_detector.detections.clear()
+        self.latency_tracker.latencies.clear()
+        self.token_tracker.usage_log.clear()
+        self.retry_tracker.attempts.clear()
+        self.tool_analyzer.executions.clear()
+        self.tool_selection_tracker.selections.clear()
+        self.agent_coordination_tracker.interactions.clear()
+        self.workflow_tracker.executions.clear()
+        self.quality_evaluator.evaluations.clear()
+
+        # RAG 지표 초기화
+        for key in self.rag_metrics:
+            self.rag_metrics[key] = []
+
+        logger.info("PerformanceMonitor flushed: %d tasks cleared", summary["total_tasks"])
+        return summary
 
     def _auto_transparency_on_save(self, filename: str):
         """
@@ -2695,7 +2756,7 @@ class PerformanceMonitor:
         }
 
     @classmethod
-    def load_from_file(cls, filename: str = "performance_data.json"):
+    def load_from_file(cls, filename: str = "performance_data.json") -> "PerformanceMonitor":
         """Load performance data from a JSON file including evaluator data"""
         import os
 
@@ -2795,35 +2856,42 @@ class PerformanceMonitor:
                 if "tool_chain_attack_detector" in security_data:
                     monitor.tool_chain_attack_detector.detections = security_data["tool_chain_attack_detector"].get("detections", [])
 
-            print("   Restored evaluator data:")
-            print(f"     - Quality: {len(monitor.quality_evaluator.evaluations)} evaluations")
-            print(f"     - Hallucination: {len(monitor.hallucination_detector.detections)} detections")
-            print(f"     - Tool Calls: {len(monitor.tool_analyzer.executions)} executions")
-            print(f"     - Tool Selection: {len(monitor.tool_selection_tracker.selections)} selections")
-            print(f"     - Agent Coordination: {len(monitor.agent_coordination_tracker.interactions)} interactions")
-            print(f"     - Workflow: {len(monitor.workflow_tracker.executions)} executions")
+            logger.debug(
+                "Restored evaluator data: Quality=%d, Hallucination=%d, ToolCalls=%d, "
+                "ToolSelection=%d, AgentCoord=%d, Workflow=%d",
+                len(monitor.quality_evaluator.evaluations),
+                len(monitor.hallucination_detector.detections),
+                len(monitor.tool_analyzer.executions),
+                len(monitor.tool_selection_tracker.selections),
+                len(monitor.agent_coordination_tracker.interactions),
+                len(monitor.workflow_tracker.executions),
+            )
             if "security" in evaluators:
-                print(f"     - Security: {len(monitor.input_sanitizer.evaluations)} input evals, {len(monitor.output_leakage_detector.detections)} output detections, {len(monitor.tool_authorizer.tool_calls)} tool calls")
+                logger.debug(
+                    "Restored security data: InputEvals=%d, OutputDetections=%d, ToolCalls=%d",
+                    len(monitor.input_sanitizer.evaluations),
+                    len(monitor.output_leakage_detector.detections),
+                    len(monitor.tool_authorizer.tool_calls),
+                )
 
         # Restore advanced_metrics_summary (DeepEval, Ragas 등) — check both top-level and report.*
         _ams = data.get("advanced_metrics_summary") or data.get("report", {}).get("advanced_metrics_summary")
         if _ams:
             monitor._advanced_metrics_summary = _ams
-            print(f"   Restored advanced metrics summary with {len(_ams)} metrics")
+            logger.debug("Restored advanced metrics summary with %d metrics", len(_ams))
 
         # Restore RAG metrics
         if "rag_metrics" in data:
             monitor.rag_metrics = data["rag_metrics"]
             total_rag_values = sum(len(v) for v in monitor.rag_metrics.values() if v)
             if total_rag_values > 0:
-                print(f"   Restored RAG metrics with {total_rag_values} total values")
+                logger.debug("Restored RAG metrics with %d total values", total_rag_values)
 
         # Store evaluators data for Dashboard compatibility
         if "evaluators" in data:
             monitor.evaluators = data["evaluators"]
 
-        print(f"✅ Performance data loaded from {filename}")
-        print(f"   Loaded {len(data.get('tasks', []))} tasks")
+        logger.info("Performance data loaded from %s (%d tasks)", filename, len(data.get("tasks", [])))
         return monitor
 
 

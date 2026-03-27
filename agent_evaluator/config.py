@@ -192,6 +192,22 @@ class Settings:
             self.output_dir = Path(DEFAULTS["AGENT_EVALUATOR_OUTPUT_DIR"])
         self.output_dir = Path(self.output_dir)
 
+    def __repr__(self) -> str:
+        def mask(s: Optional[str]) -> str:
+            if not s:
+                return "(not set)"
+            return s[:6] + "..." + s[-4:] if len(s) > 10 else "***"
+
+        return (
+            f"Settings("
+            f"openai_api_key={mask(self.openai_api_key)}, "
+            f"anthropic_api_key={mask(self.anthropic_api_key)}, "
+            f"langsmith_api_key={mask(self.langsmith_api_key)}, "
+            f"openai_model={self.openai_model!r}, "
+            f"anthropic_model={self.anthropic_model!r}, "
+            f"output_dir={self.output_dir!r})"
+        )
+
     def has_openai(self) -> bool:
         return bool(self.openai_api_key)
 

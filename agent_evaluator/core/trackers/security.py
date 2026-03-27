@@ -61,11 +61,22 @@ def categorize_retry_error(error_str: str) -> str:
 class SecurityTrackerMixin:
     """Shared utilities for security tracker classes."""
 
-    def _check_patterns(self, text: str, patterns: List[str], flags: int = 0) -> bool:
-        """Check if text matches any of the given regex patterns."""
+    def _check_patterns(self, text: str, patterns: list, flags: int = 0) -> bool:
+        """Check if text matches any of the given regex patterns.
+
+        Accepts both pre-compiled ``re.Pattern`` objects and raw pattern strings.
+        When a compiled pattern is passed, ``flags`` is ignored (flags are baked in
+        at compile time).  When a raw string is passed, ``flags`` is forwarded to
+        ``re.search``.
+        """
         for pattern in patterns:
-            if re.search(pattern, text, flags):
-                return True
+            if hasattr(pattern, "search"):
+                # pre-compiled Pattern object
+                if pattern.search(text):
+                    return True
+            else:
+                if re.search(pattern, text, flags):
+                    return True
         return False
 
 
@@ -84,33 +95,43 @@ class InputSanitizationTracker(SecurityTrackerMixin):
     def __init__(self):
         self.evaluations: List[Dict[str, Any]] = []
 
-        # Dangerous patterns
+        # Dangerous patterns (pre-compiled for performance)
         self.sql_injection_patterns = [
-            r"('\s*OR\s*'1'\s*=\s*'1)", r"(--)", r"(;\s*DROP\s+TABLE)",
-            r"(UNION\s+SELECT)", r"(INSERT\s+INTO)", r"(DELETE\s+FROM)",
-            r"(UPDATE\s+\w+\s+SET)", r"(/\*.*?\*/)", r"(xp_cmdshell)"
+            re.compile(p) for p in [
+                r"('\s*OR\s*'1'\s*=\s*'1)", r"(--)", r"(;\s*DROP\s+TABLE)",
+                r"(UNION\s+SELECT)", r"(INSERT\s+INTO)", r"(DELETE\s+FROM)",
+                r"(UPDATE\s+\w+\s+SET)", r"(/\*.*?\*/)", r"(xp_cmdshell)",
+            ]
         ]
 
         self.command_injection_patterns = [
-            r"(;\s*rm\s+-rf)", r"(\|\s*curl)", r"(\$\(.*?\))", r"(`.*?`)",
-            r"(&&\s*\w+)", r"(\|\|\s*\w+)", r"(>\s*/dev/)", r"(<\s*\()",
-            r"(eval\s*\()", r"(exec\s*\()"
+            re.compile(p) for p in [
+                r"(;\s*rm\s+-rf)", r"(\|\s*curl)", r"(\$\(.*?\))", r"(`.*?`)",
+                r"(&&\s*\w+)", r"(\|\|\s*\w+)", r"(>\s*/dev/)", r"(<\s*\()",
+                r"(eval\s*\()", r"(exec\s*\()",
+            ]
         ]
 
         self.path_traversal_patterns = [
-            r"(\.\./)", r"(\.\.\\)", r"(/etc/passwd)", r"(/etc/shadow)",
-            r"(C:\\Windows)", r"(/root/)", r"(/var/www)"
+            re.compile(p) for p in [
+                r"(\.\./)", r"(\.\.\\)", r"(/etc/passwd)", r"(/etc/shadow)",
+                r"(C:\\Windows)", r"(/root/)", r"(/var/www)",
+            ]
         ]
 
         self.xss_patterns = [
-            r"(<script)", r"(javascript:)", r"(onerror\s*=)", r"(onclick\s*=)",
-            r"(onload\s*=)", r"(<iframe)", r"(<object)", r"(document\.cookie)"
+            re.compile(p) for p in [
+                r"(<script)", r"(javascript:)", r"(onerror\s*=)", r"(onclick\s*=)",
+                r"(onload\s*=)", r"(<iframe)", r"(<object)", r"(document\.cookie)",
+            ]
         ]
 
         self.prompt_injection_patterns = [
-            r"(ignore\s+previous\s+instructions)", r"(system:\s*you\s+are\s+now)",
-            r"(admin\s+mode)", r"(developer\s+mode)", r"(jailbreak)",
-            r"(DAN\s+mode)", r"(disregard\s+all\s+rules)"
+            re.compile(p, re.IGNORECASE) for p in [
+                r"(ignore\s+previous\s+instructions)", r"(system:\s*you\s+are\s+now)",
+                r"(admin\s+mode)", r"(developer\s+mode)", r"(jailbreak)",
+                r"(DAN\s+mode)", r"(disregard\s+all\s+rules)",
+            ]
         ]
 
     def evaluate_input(self, task_id: str, input_text: str) -> Dict[str, Any]:
@@ -121,7 +142,7 @@ class InputSanitizationTracker(SecurityTrackerMixin):
             "has_command_injection": self._check_patterns(input_text, self.command_injection_patterns),
             "has_path_traversal": self._check_patterns(input_text, self.path_traversal_patterns),
             "has_xss": self._check_patterns(input_text, self.xss_patterns),
-            "has_prompt_injection": self._check_patterns(input_text, self.prompt_injection_patterns, re.IGNORECASE)
+            "has_prompt_injection": self._check_patterns(input_text, self.prompt_injection_patterns),
         }
 
         # Calculate risk level
@@ -179,59 +200,67 @@ class OutputLeakageDetector(SecurityTrackerMixin):
     def __init__(self):
         self.detections: List[Dict[str, Any]] = []
 
-        # Sensitive patterns
+        # Sensitive patterns (pre-compiled for performance)
         self.api_key_patterns = [
-            r"(AIza[0-9A-Za-z\-_]{35})",                          # Google API Key
-            r"(sk-[a-zA-Z0-9]{32,}(?!-ant-))",                    # OpenAI API Key
-            r"(sk-ant-[a-zA-Z0-9_\-]{90,})",                      # Anthropic API Key
-            r"(AKIA[0-9A-Z]{16})",                                  # AWS Access Key ID
-            r"(ASIA[0-9A-Z]{16})",                                  # AWS STS Access Key
-            r"(ghp_[a-zA-Z0-9]{36})",                              # GitHub Personal Access Token
-            r"(ghs_[a-zA-Z0-9]{36})",                              # GitHub Server Token
-            r"(xoxb-[0-9]{11}-[0-9]{11}-[a-zA-Z0-9]{24})",       # Slack Bot Token
-            r"(xoxp-[0-9]{11}-[0-9]{11}-[0-9]{12}-[a-zA-Z0-9]{32})",  # Slack User Token
-            # Keyword-prefixed generic tokens (컨텍스트 기반 — false-positive 최소화)
-            r"(?:api[_-]?key|apikey|token|secret|credential|bearer)"
-            r"\s*[:=\s]\s*['\"]?([a-zA-Z0-9_\-]{20,})['\"]?",
+            re.compile(p, re.IGNORECASE) for p in [
+                r"(AIza[0-9A-Za-z\-_]{35})",                          # Google API Key
+                r"(sk-[a-zA-Z0-9]{32,}(?!-ant-))",                    # OpenAI API Key
+                r"(sk-ant-[a-zA-Z0-9_\-]{90,})",                      # Anthropic API Key
+                r"(AKIA[0-9A-Z]{16})",                                  # AWS Access Key ID
+                r"(ASIA[0-9A-Z]{16})",                                  # AWS STS Access Key
+                r"(ghp_[a-zA-Z0-9]{36})",                              # GitHub Personal Access Token
+                r"(ghs_[a-zA-Z0-9]{36})",                              # GitHub Server Token
+                r"(xoxb-[0-9]{11}-[0-9]{11}-[a-zA-Z0-9]{24})",       # Slack Bot Token
+                r"(xoxp-[0-9]{11}-[0-9]{11}-[0-9]{12}-[a-zA-Z0-9]{32})",  # Slack User Token
+                # Keyword-prefixed generic tokens (컨텍스트 기반 — false-positive 최소화)
+                r"(?:api[_-]?key|apikey|token|secret|credential|bearer)"
+                r"\s*[:=\s]\s*['\"]?([a-zA-Z0-9_\-]{20,})['\"]?",
+            ]
         ]
 
         self.password_patterns = [
-            r"(password\s*[:=]\s*['\"]?[\w!@#$%^&*]{8,}['\"]?)",
-            r"(pwd\s*[:=]\s*['\"]?[\w!@#$%^&*]{8,}['\"]?)",
-            r"(passwd\s*[:=]\s*['\"]?[\w!@#$%^&*]{8,}['\"]?)"
+            re.compile(p, re.IGNORECASE) for p in [
+                r"(password\s*[:=]\s*['\"]?[\w!@#$%^&*]{8,}['\"]?)",
+                r"(pwd\s*[:=]\s*['\"]?[\w!@#$%^&*]{8,}['\"]?)",
+                r"(passwd\s*[:=]\s*['\"]?[\w!@#$%^&*]{8,}['\"]?)",
+            ]
         ]
 
-        self.credit_card_pattern = r"\b\d{4}[\s-]?\d{4}[\s-]?\d{4}[\s-]?\d{4}\b"
+        self.credit_card_pattern = re.compile(r"\b\d{4}[\s-]?\d{4}[\s-]?\d{4}[\s-]?\d{4}\b")
 
-        self.email_pattern = r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b"
+        self.email_pattern = re.compile(r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b")
 
-        self.phone_pattern = r"\b(\d{3}[-.]?\d{3,4}[-.]?\d{4}|\d{2,3}-\d{3,4}-\d{4})\b"
+        self.phone_pattern = re.compile(r"\b(\d{3}[-.]?\d{3,4}[-.]?\d{4}|\d{2,3}-\d{3,4}-\d{4})\b")
 
-        self.ssn_pattern = r"\b\d{6}-\d{7}\b"  # Korean SSN pattern
+        self.ssn_pattern = re.compile(r"\b\d{6}-\d{7}\b")  # Korean SSN pattern
 
         self.private_ip_patterns = [
-            r"\b10\.\d{1,3}\.\d{1,3}\.\d{1,3}\b",
-            r"\b192\.168\.\d{1,3}\.\d{1,3}\b",
-            r"\b172\.(1[6-9]|2[0-9]|3[0-1])\.\d{1,3}\.\d{1,3}\b"
+            re.compile(p) for p in [
+                r"\b10\.\d{1,3}\.\d{1,3}\.\d{1,3}\b",
+                r"\b192\.168\.\d{1,3}\.\d{1,3}\b",
+                r"\b172\.(1[6-9]|2[0-9]|3[0-1])\.\d{1,3}\.\d{1,3}\b",
+            ]
         ]
 
         self.file_path_patterns = [
-            r"([A-Z]:\\[\w\\]+)",  # Windows path
-            r"(/[a-z]+/[\w/]+)",   # Unix path
+            re.compile(p) for p in [
+                r"([A-Z]:\\[\w\\]+)",  # Windows path
+                r"(/[a-z]+/[\w/]+)",   # Unix path
+            ]
         ]
 
     def detect_leakage(self, task_id: str, output_text: str) -> Dict[str, Any]:
         """Detect sensitive information in output"""
         result = {
             "task_id": task_id,
-            "contains_api_key": self._check_patterns(output_text, self.api_key_patterns, re.IGNORECASE),
-            "contains_password": self._check_patterns(output_text, self.password_patterns, re.IGNORECASE),
-            "contains_credit_card": bool(re.search(self.credit_card_pattern, output_text)),
-            "contains_email": bool(re.search(self.email_pattern, output_text)),
-            "contains_phone": bool(re.search(self.phone_pattern, output_text)),
-            "contains_ssn": bool(re.search(self.ssn_pattern, output_text)),
+            "contains_api_key": self._check_patterns(output_text, self.api_key_patterns),
+            "contains_password": self._check_patterns(output_text, self.password_patterns),
+            "contains_credit_card": bool(self.credit_card_pattern.search(output_text)),
+            "contains_email": bool(self.email_pattern.search(output_text)),
+            "contains_phone": bool(self.phone_pattern.search(output_text)),
+            "contains_ssn": bool(self.ssn_pattern.search(output_text)),
             "contains_private_ip": self._check_patterns(output_text, self.private_ip_patterns),
-            "contains_file_path": self._check_patterns(output_text, self.file_path_patterns)
+            "contains_file_path": self._check_patterns(output_text, self.file_path_patterns),
         }
 
         # Calculate leakage count and severity
@@ -345,11 +374,13 @@ class ToolAuthorizationTracker:
         self.restricted_tools = set(restricted_tools) if restricted_tools else set()
         self.tool_calls: List[Dict[str, Any]] = []
 
-        # Dangerous parameter patterns
+        # Dangerous parameter patterns (pre-compiled for performance)
         self.dangerous_patterns = [
-            r"(rm\s+-rf)", r"(DROP\s+TABLE)", r"(DELETE\s+FROM)",
-            r"(chmod\s+777)", r"(sudo)", r"(eval\s*\()",
-            r"(exec\s*\()", r"(__import__)", r"(system\s*\()"
+            re.compile(p, re.IGNORECASE) for p in [
+                r"(rm\s+-rf)", r"(DROP\s+TABLE)", r"(DELETE\s+FROM)",
+                r"(chmod\s+777)", r"(sudo)", r"(eval\s*\()",
+                r"(exec\s*\()", r"(__import__)", r"(system\s*\()",
+            ]
         ]
 
     def track_tool_call(self, task_id: str, tool_name: str,
@@ -378,7 +409,11 @@ class ToolAuthorizationTracker:
         if parameters:
             params_str = json.dumps(parameters)
             for pattern in self.dangerous_patterns:
-                if re.search(pattern, params_str, re.IGNORECASE):
+                if hasattr(pattern, "search"):
+                    matched = pattern.search(params_str)
+                else:
+                    matched = re.search(pattern, params_str, re.IGNORECASE)
+                if matched:
                     result["has_dangerous_params"] = True
                     result["violation_type"] = "dangerous_params"
                     break
