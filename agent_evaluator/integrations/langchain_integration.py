@@ -30,9 +30,13 @@ LangChain 1.2.x (LCEL Runnable 기반) 에이전트에 대한 완전한 평가 �
     langchain >= 1.0.0, langchain-core >= 1.0.0
 """
 
+import logging
+import re
 import time
 from typing import Any, Dict, List, Optional
 from datetime import datetime
+
+logger = logging.getLogger(__name__)
 
 from ..core.agent_evaluator import PerformanceMonitor, TaskResult, TaskType
 from .framework_integrations import (
@@ -75,8 +79,8 @@ def _parse_tool_input(tool_input: Any) -> Dict[str, Any]:
         parsed = json.loads(str(tool_input))
         if isinstance(parsed, dict):
             return parsed
-    except Exception:
-        pass
+    except Exception as e:
+        logger.debug("tool_input JSON 파싱 실패: %s", e)
     return {"input": str(tool_input)}
 
 
@@ -85,7 +89,6 @@ def _auto_extract_elements(text: str) -> List[str]:
     입력 텍스트에서 ResponseQuality expected_elements를 다단계 휴리스틱으로 추출합니다.
     영문/한국어 동사 패턴, 목적어 패턴, 콤마 분리 fallback 을 차례로 적용합니다.
     """
-    import re
     elements: List[str] = []
     seen: set = set()
 
@@ -396,8 +399,8 @@ if LANGCHAIN_AVAILABLE:
                     # DQ-001: 20자 미만 단편 컨텍스트 필터 — 노이즈·조사·단어 하나 제거
                     if content and len(content) >= 20 and content not in self.retrieved_contexts:
                         self.retrieved_contexts.append(content)
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug("retriever 문서 파싱 실패: %s", e)
             if self.enable_layer2:
                 self.workflow_steps.append(["retrieval", True, _elapsed])
 

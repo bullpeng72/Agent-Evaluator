@@ -32,9 +32,13 @@ LangGraph 1.1.x 워크플로우에 대한 완전한 평가 기능을 제공합�
     langgraph >= 1.0.0, langchain-core >= 1.0.0
 """
 
+import logging
+import re
 import time
 from typing import Any, Callable, Dict, List, Optional, TypedDict
 from datetime import datetime
+
+logger = logging.getLogger(__name__)
 
 from ..core.agent_evaluator import PerformanceMonitor, TaskResult, TaskType
 from .framework_integrations import (
@@ -82,7 +86,6 @@ def _auto_extract_elements(text: str) -> List[str]:
     입력 텍스트에서 ResponseQuality expected_elements를 다단계 휴리스틱으로 추출합니다.
     영문/한국어 동사 패턴, 목적어 패턴, 콤마 분리 fallback 을 차례로 적용합니다.
     """
-    import re
     elements: List[str] = []
     seen: set = set()
 
@@ -138,9 +141,8 @@ def _estimate_tokens_cjk(text: str) -> int:
         import tiktoken
         enc = tiktoken.get_encoding("cl100k_base")
         return max(1, len(enc.encode(text)))
-    except Exception:
-        pass
-    import re
+    except Exception as e:
+        logger.debug("tiktoken 토큰 추정 실패, 휴리스틱 사용: %s", e)
     cjk_count = len(re.findall(r"[\u1100-\u11ff\u3040-\u30ff\u3130-\u318f\uac00-\ud7a3\u4e00-\u9fff]", text))
     ratio = cjk_count / max(len(text), 1)
     divisor = 2 if ratio > 0.3 else 4
@@ -654,10 +656,11 @@ class LangGraphEvaluator:
                         step_info["prev_node"] = prev_node
                     prev_node = node_name
 
-        except Exception:
+        except Exception as e:
             # stream() 실패 시 invoke() 로 fallback
             # 부분 수집된 step_tracking 초기화 (불완전 데이터 방지)
             self._step_tracking = []
+            logger.warning("LangGraph stream() 실패 → invoke() fallback (Layer 2 지표 미수집): %s", e)
             if self.verbose:
                 print(f"⚠️  LangGraph stream() 실패 → invoke() fallback "
                       f"(Layer 2 지표 미수집, 실행 결과는 정상)")

@@ -12,12 +12,15 @@ Test Transparency Manager
 """
 
 import json
+import logging
 import statistics
 import uuid
 from datetime import datetime
 from enum import Enum
 from pathlib import Path
 from typing import Any, Dict, List, Optional
+
+logger = logging.getLogger(__name__)
 
 
 class AnnotationType(Enum):
@@ -666,8 +669,8 @@ class TestTransparencyManager:
                         "action": "현재 설정을 유지하고 다른 프로젝트에도 적용을 고려하세요."
                     })
 
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug("이상 탐지/인사이트 분석 실패: %s", e)
 
         return {
             "anomalies": anomalies,
@@ -1170,7 +1173,8 @@ class TestTransparencyManager:
                     "data_quality_score": report_data.get('quality_report', {}).get('overall_score', 0),
                     "has_comparison": bool(report_data.get('comparison', {}).get('metric_changes'))
                 })
-            except Exception:
+            except Exception as e:
+                logger.warning("리포트 파일 파싱 실패 (%s): %s", report_file, e)
                 continue
 
         # Sort by date (newest first)
@@ -1215,7 +1219,8 @@ class TestTransparencyManager:
         try:
             with open(report_file, encoding='utf-8') as f:
                 return json.load(f)
-        except Exception:
+        except Exception as e:
+            logger.warning("리포트 파일 로드 실패 (%s): %s", report_file, e)
             return None
 
     def compare_report_versions(
@@ -1316,7 +1321,8 @@ class TestTransparencyManager:
             try:
                 os.remove(report['file_path'])
                 deleted_count += 1
-            except Exception:
+            except Exception as e:
+                logger.warning("리포트 파일 삭제 실패 (%s): %s", report.get('file_path'), e)
                 continue
 
         return deleted_count

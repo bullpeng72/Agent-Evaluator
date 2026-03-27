@@ -12,11 +12,14 @@ agent_evaluator.core.trackers.conversation
 
 from __future__ import annotations
 
+import logging
 import re
 from collections import Counter
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any, Dict, List, Optional
+
+logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
 # Stopword sets
@@ -292,14 +295,14 @@ class ConversationSession:
         if self.turns:
             try:
                 self.compute_metrics()
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning("compute_metrics() 실패 (세션=%s): %s", self.session_id, e)
 
         if self._monitor is not None and self.metrics is not None:
             try:
                 self._monitor.conversation_sessions.append(self)
-            except AttributeError:
-                pass
+            except AttributeError as e:
+                logger.warning("monitor.conversation_sessions 접근 실패: %s", e)
 
     # ------------------------------------------------------------------
     # Internal metric computations

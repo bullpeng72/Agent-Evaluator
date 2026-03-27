@@ -235,7 +235,7 @@ class PerformanceMonitor:
         from .conversation import ConversationSession
         return ConversationSession(session_id=session_id, monitor=self)
 
-    def load_golden_dataset(self, dataset_path: Optional[str] = None):
+    def load_golden_dataset(self, dataset_path: Optional[str] = None) -> List[Dict[str, Any]]:
         """
         Golden Dataset 로드
 
@@ -684,7 +684,7 @@ class PerformanceMonitor:
                    context: Optional[str] = None,
                    request: Optional[str] = None,
                    response: Optional[str] = None,
-                   expected_elements: Optional[List[str]] = None):
+                   expected_elements: Optional[List[str]] = None) -> None:
         """
         Record a complete task execution
 
@@ -902,7 +902,7 @@ class PerformanceMonitor:
         answer_relevancy: Optional[float] = None,
         context_recall: Optional[float] = None,
         context_precision: Optional[float] = None
-    ):
+    ) -> None:
         """
         Record RAG evaluation metrics
 
@@ -953,7 +953,7 @@ class PerformanceMonitor:
 
         return summary
 
-    def generate_report(self) -> EvaluationReport:
+    def generate_report(self) -> "EvaluationReport":
         """Generate comprehensive evaluation report"""
 
         # Collect security metrics if enabled
@@ -1481,7 +1481,7 @@ class PerformanceMonitor:
 
         return recommendations
     
-    def print_report(self, report: EvaluationReport = None):
+    def print_report(self, report: EvaluationReport = None) -> None:
         """Print formatted report"""
         if report is None:
             report = self.generate_report()
@@ -1572,7 +1572,7 @@ class PerformanceMonitor:
 
         print("="*80 + "\n")
 
-    def print_summary(self, report: EvaluationReport = None):
+    def print_summary(self, report: EvaluationReport = None) -> None:
         """
         Print quick summary report (documented in user guides)
 
@@ -1639,7 +1639,7 @@ class PerformanceMonitor:
         print("=" * 80)
         print()
 
-    def print_detailed_report(self, report: EvaluationReport = None):
+    def print_detailed_report(self, report: EvaluationReport = None) -> None:
         """
         Print comprehensive detailed report (documented in user guides)
 
@@ -1819,7 +1819,7 @@ class PerformanceMonitor:
         print("=" * 80)
         print()
 
-    def print_metric_breakdown(self, task_id: str = None, verbose: bool = True):
+    def print_metric_breakdown(self, task_id: str = None, verbose: bool = True) -> None:
         """
         Print detailed calculation breakdown for transparency (NEW)
 
@@ -2022,7 +2022,7 @@ class PerformanceMonitor:
         print("   모든 계산 로직은 오픈소스로 공개되어 있으며, 필요 시 수정 가능합니다.")
         print()
 
-    def explain_metric(self, metric_name: str):
+    def explain_metric(self, metric_name: str) -> None:
         """
         Explain how a specific metric is calculated (NEW)
 
@@ -2212,7 +2212,7 @@ class PerformanceMonitor:
         print("=" * 80)
         print()
 
-    def export_report(self, filename: str, format: str = "json"):
+    def export_report(self, filename: str, format: str = "json") -> None:
         """Export report to file"""
         report = self.generate_report()
         
@@ -2307,7 +2307,7 @@ class PerformanceMonitor:
         
         print(f"Report exported to {filename}")
 
-    def save_to_file(self, filename: str = "performance_data.json"):
+    def save_to_file(self, filename: str = "performance_data.json") -> str:
         """
         Save all performance data to a JSON file
 

@@ -32,10 +32,13 @@ CrewAI 1.x Crew 객체를 래핑하여 평가 지표를 자동으로 추적합�
     crewai >= 1.0.0
 """
 
+import logging
 import re
 import time
 from typing import Any, Dict, List, Optional
 from datetime import datetime
+
+logger = logging.getLogger(__name__)
 
 from ..core.agent_evaluator import PerformanceMonitor, TaskResult, TaskType
 from .framework_integrations import (
@@ -155,11 +158,12 @@ class CrewAIEvaluator:
             try:
                 self.crew.task_callback = self._on_task_complete
                 self.crew.step_callback = self._on_step
-            except Exception:
+            except Exception as e:
+                logger.debug("crew 콜백 직접 설정 실패, object.__setattr__ 시도: %s", e)
                 object.__setattr__(self.crew, "task_callback", self._on_task_complete)
                 object.__setattr__(self.crew, "step_callback", self._on_step)
-        except Exception:
-            pass  # 콜백 주입 실패 시 post-execution 방식으로 fallback
+        except Exception as e:
+            logger.warning("crew 콜백 주입 실패, post-execution 방식으로 fallback: %s", e)
 
     def _on_task_complete(self, task_output: Any):
         """
@@ -643,17 +647,16 @@ class CrewAIEvaluator:
 
         # crew.agents 에서 도구 목록 추출 (step_callback 없을 때 fallback)
         if not self._tool_usage:
-            import re as _re
             # 1순위: tasks_output.raw 에서 ReAct 포맷("Action: X / Action Input: Y") 파싱
             _parsed_any = False
             for task_out in tasks_output:
                 raw_str = str(getattr(task_out, "raw", "") or "")
                 task_success = bool(raw_str)
                 # Action: 단일 라인, Action Input: Observation:/Action: 전까지 multi-line 허용
-                actions = _re.findall(r'Action:\s*([^\n]+)', raw_str)
-                inputs = _re.findall(
+                actions = re.findall(r'Action:\s*([^\n]+)', raw_str)
+                inputs = re.findall(
                     r'Action Input:\s*(.*?)(?=\nObservation:|\nAction:|\nThought:|\nFinal Answer:|$)',
-                    raw_str, _re.DOTALL
+                    raw_str, re.DOTALL
                 )
                 for j, action in enumerate(actions):
                     tool_name = action.strip()
@@ -666,7 +669,8 @@ class CrewAIEvaluator:
                             params = parsed
                         else:
                             params = {"input": raw_input} if raw_input else {}
-                    except Exception:
+                    except Exception as e:
+                        logger.debug("tool 파라미터 JSON 파싱 실패: %s", e)
                         params = {"input": raw_input} if raw_input else {}
                     self._tool_usage.append((tool_name, task_success, 0.0, params, ""))
                     _parsed_any = True

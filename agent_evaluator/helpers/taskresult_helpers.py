@@ -17,9 +17,12 @@ TaskResult 동적 데이터 생성 헬퍼 함수 라이브러리
 - validate_tool_authorization(): 도구 호출 권한 검증
 """
 
+import logging
 from typing import Dict, List, Any, Optional
 from datetime import datetime
 import re
+
+logger = logging.getLogger(__name__)
 
 
 # ============================================================================
@@ -304,8 +307,8 @@ def extract_tokens_from_langchain(langchain_result) -> Dict[str, int]:
                 "output": token_usage.get("completion_tokens", 0),
                 "total": token_usage.get("total_tokens", 0)
             }
-    except Exception:
-        pass
+    except Exception as e:
+        logger.debug("LangChain 토큰 추출 실패: %s", e)
 
     return {"input": 0, "output": 0, "total": 0}
 
@@ -371,8 +374,8 @@ def extract_tool_calls_from_langchain(langchain_result) -> List[Dict[str, Any]]:
                         "input": getattr(action, 'tool_input', {}),
                         "output": str(output)
                     })
-    except Exception:
-        pass
+    except Exception as e:
+        logger.debug("LangChain tool calls 추출 실패: %s", e)
 
     return tool_calls
 
@@ -398,8 +401,8 @@ def extract_tool_calls_from_openai_functions(openai_response) -> List[Dict[str, 
                     "tool": tool_call.function.name,
                     "arguments": tool_call.function.arguments
                 })
-    except Exception:
-        pass
+    except Exception as e:
+        logger.debug("OpenAI function calling tool calls 추출 실패: %s", e)
 
     return tool_calls
 

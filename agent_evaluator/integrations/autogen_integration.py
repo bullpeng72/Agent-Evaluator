@@ -42,9 +42,13 @@ autogen-agentchat 0.7.x (async-first API) 기반 평가 기능을 제공합니�
 """
 
 import asyncio
+import logging
+import re
 import time
 from typing import Any, Dict, List, Optional
 from datetime import datetime
+
+logger = logging.getLogger(__name__)
 
 from ..core.agent_evaluator import PerformanceMonitor, TaskResult, TaskType
 from .framework_integrations import (
@@ -408,8 +412,8 @@ class AutoGenEvaluator:
                             "input": getattr(usage, "prompt_tokens", 0) or 0,
                             "output": getattr(usage, "completion_tokens", 0) or 0,
                         }
-                    except Exception:
-                        pass
+                    except Exception as e:
+                        logger.debug("model_client.%s() 토큰 추출 실패: %s", method_name, e)
         return {"input": 0, "output": 0}
 
     def _extract_tokens(
@@ -462,7 +466,6 @@ class AutoGenEvaluator:
         Returns:
             최대 5개의 기대 요소 문자열 목록 (없으면 빈 리스트)
         """
-        import re
         elements: List[str] = []
 
         seen: set = set()
