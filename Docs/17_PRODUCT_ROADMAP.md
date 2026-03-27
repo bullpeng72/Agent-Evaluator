@@ -1,5 +1,5 @@
 # Agent-Evaluator 제품 로드맵
-> v0.6.2 기준 · 최종 업데이트 2026-03-27
+> v0.6.3 기준 · 최종 업데이트 2026-03-27
 
 ---
 
@@ -18,24 +18,24 @@
 
 ## 1. 현황 진단
 
-### 라이프사이클별 효용 평가 (v0.6.2 기준)
+### 라이프사이클별 효용 평가 (v0.6.3 기준)
 
 | 단계 | 평가 | 핵심 강점 | 핵심 공백 |
 |------|------|-----------|-----------|
-| **개발** | ★★★☆☆ | 지표 즉시 가시화, 실험 비교 | 멀티턴·스트리밍 미지원 |
-| **검증** | ★★★★☆ | 골든셋 회귀, 임계값 관리 | CI 자동 통과/실패 미지원 |
+| **개발** | ★★★★☆ | 지표 즉시 가시화, LLM Judge로 ground_truth 불필요 | 멀티턴·스트리밍 미지원 |
+| **검증** | ★★★★☆ | 골든셋 회귀, 임계값 관리, LLM Judge 자동 채점 | CI 자동 통과/실패 미지원 |
 | **운영** | ★★☆☆☆ | 배치 사후 분석, 보안 감사 | 실시간 모니터링·알림 전무 |
 
-### 현장 투입 가능 비율 (지표별)
+### 현장 투입 가능 비율 (지표별, v0.6.3 기준)
 
 ```
 TCR / Latency / TokenEconomy   ████████████████████  100%  (자동 수집)
 ToolCall / Security            ██████████████░░░░░░   70%  (enable 플래그)
-Accuracy / Quality             ████████░░░░░░░░░░░░   40%  (ground_truth 필요)
+Accuracy / Quality             ████████████████░░░░   80%  (LLM Judge로 ground_truth 불필요 — v0.6.3 개선)
 Hallucination (Layer 1)        ██████░░░░░░░░░░░░░░   30%  (RAG 컨텍스트 필요)
 AgentCoordination / Workflow   ████░░░░░░░░░░░░░░░░   20%  (프레임워크 래퍼 필요)
-멀티턴 대화 평가               ░░░░░░░░░░░░░░░░░░░░    0%  (미구현)
-실시간 운영 모니터링           ░░░░░░░░░░░░░░░░░░░░    0%  (미구현)
+멀티턴 대화 평가               ░░░░░░░░░░░░░░░░░░░░    0%  (미구현 — Phase 1-C)
+실시간 운영 모니터링           ░░░░░░░░░░░░░░░░░░░░    0%  (미구현 — Phase 2)
 ```
 
 ### 근본 원인 — 측정 시점의 구조적 한계
@@ -80,7 +80,7 @@ agent_evaluator/
 │   ├── builder.py          ← GoldenSetBuilder (신규)
 │   └── korean_rag_*.py     ← 기존 유지
 └── integrations/
-    └── llm_judge.py        ← Phase 1 신규
+    └── llm_judge.py        ← ✅ Phase 1-A 구현 완료 (v0.6.3)
 ```
 
 ---
@@ -91,13 +91,13 @@ agent_evaluator/
 
 ---
 
-### 1-A. LLM-as-Judge 평가 엔진
+### 1-A. LLM-as-Judge 평가 엔진 ✅ 구현 완료 (v0.6.3)
 
 **목표**: `ground_truth` 없이도 응답 품질을 자동 채점
 
 **배경**:
 현장 에이전트의 90%는 정해진 정답이 없는 개방형 질의를 처리한다.
-현재 SDK는 `ground_truth` 없으면 `accuracy = 0`, `quality` 점수도 신뢰 불가한 상태.
+기존 SDK는 `ground_truth` 없으면 `accuracy = 0`, `quality` 점수도 신뢰 불가한 상태.
 LLM Judge가 없으면 오픈도메인 에이전트에는 TCR/Latency/Token 3개 지표만 유효하다.
 
 **사용 패턴**:
@@ -110,11 +110,12 @@ monitor.accuracy_evaluator.add_evaluation(
     prediction=response,
 )
 
-# After — LLM이 judge 역할
+# After — LLM이 judge 역할 (v0.6.3)
 monitor = PerformanceMonitor(
     enable_llm_judge=True,
-    judge_model="claude-haiku-4-5-20251001",  # 저비용 모델
-    judge_sample_rate=0.1,                     # 10% 샘플링 (비용 제어)
+    # judge_model 생략 → agent-eval init 설정(OPENAI_MODEL/ANTHROPIC_MODEL) 자동 반영
+    judge_sample_rate=0.1,      # 10% 샘플링 (비용 제어)
+    judge_budget_per_day=5.0,   # 일 $5 한도
 )
 with monitor.task("t1", "qa", question=question) as t:
     t.response = agent.run(question)
@@ -122,22 +123,37 @@ with monitor.task("t1", "qa", question=question) as t:
     # → completeness(완결성), relevance(관련성), factual_consistency(사실 일관성)
 ```
 
-**구현 범위**:
+**구현 범위 (완료)**:
 
-| 항목 | 상세 |
-|------|------|
-| 신규 클래스 | `LLMJudge` (`integrations/llm_judge.py`) |
-| 평가 차원 | 완결성(0-5) · 관련성(0-5) · 사실 일관성(0-5) |
-| 지원 모델 | Claude (Haiku/Sonnet) · OpenAI (gpt-4o-mini/gpt-4o) |
-| 비용 제어 | `judge_sample_rate` · `budget_per_day` 한도 |
-| 기존 통합 | `LLMEvaluationHelper` 확장으로 구현 |
-| 대시보드 | Quality 탭에 "LLM Judge 점수" 섹션 추가 |
+| 항목 | 상세 | 상태 |
+|------|------|------|
+| 신규 클래스 | `LLMJudge` (`integrations/llm_judge.py`) | ✅ |
+| 평가 차원 | 완결성(0-5) · 관련성(0-5) · 사실 일관성(0-5) | ✅ |
+| 지원 모델 | Claude (Haiku/Sonnet) · OpenAI (gpt-4o-mini/gpt-4o) | ✅ |
+| 비용 제어 | `judge_sample_rate` · `budget_per_day` 한도 | ✅ |
+| init 연동 | `agent-eval init` 모델 설정 자동 반영 (`OPENAI_MODEL`/`ANTHROPIC_MODEL`) | ✅ |
+| PerformanceMonitor 통합 | `enable_llm_judge`, `judge_model`, `judge_sample_rate`, `judge_budget_per_day` 파라미터 | ✅ |
+| record_task() 자동 트리거 | question+response 있을 때 sample_rate 기반 자동 호출 | ✅ |
+| TaskResult 직렬화 | `TaskResult.llm_judge`, `TaskResult.context` 필드 추가 → JSON 자동 포함 | ✅ |
+| 대시보드 | Quality 탭 "LLM Judge 점수" 섹션 (KPI 4개 + 태스크별 테이블) | ✅ |
+| loader.py | `LLMJudgeData` 데이터클래스 + `_parse_llm_judge()` 파서 | ✅ |
+| Public API | `from agent_evaluator import LLMJudge` 직접 사용 가능 | ✅ |
 
-**기대 효과**: SDK 적용 가능 에이전트 범위 3배 이상 확대
+**실제 구현 시 변경사항 (계획 대비)**:
+
+| 항목 | 계획 | 실제 |
+|------|------|------|
+| 구현 위치 | `LLMEvaluationHelper` 확장 | 독립 클래스 `LLMJudge` — 더 나은 분리 |
+| 기본 모델 | `claude-haiku-4-5-20251001` 하드코딩 | `None` → `agent-eval init` 설정 자동 감지 |
+| 릴리스 버전 | v0.7.0 예정 | v0.6.3으로 조기 출시 |
+
+**효과**: Accuracy/Quality 지표 현장 투입 가능 비율 40% → 80% 향상
 
 ---
 
 ### 1-B. CI/CD 게이팅 CLI
+
+> 상태: **미구현** (다음 구현 대상)
 
 **목표**: 평가 결과가 자동으로 릴리스 차단 기준이 되도록
 
@@ -180,6 +196,8 @@ with monitor.task("t1", "qa", question=question) as t:
 ---
 
 ### 1-C. 멀티턴 대화 평가
+
+> 상태: **미구현**
 
 **목표**: 챗봇·대화형 에이전트의 핵심 품질 측정
 
@@ -230,6 +248,8 @@ with monitor.conversation("session_001") as conv:
 
 ### 2-A. 스트리밍 평가 엔진
 
+> 상태: **미구현**
+
 **목표**: 에이전트 실행 중 실시간 품질 측정
 
 **배경**:
@@ -276,6 +296,8 @@ app.add_middleware(
 ---
 
 ### 2-B. 알림 시스템
+
+> 상태: **미구현**
 
 **목표**: 품질 임계값 위반 시 즉시 알림
 
@@ -341,6 +363,8 @@ alert_engine.add_rule(
 
 ### 2-C. 운영 피드백 수집
 
+> 상태: **미구현**
+
 **목표**: 사용자 행동 신호를 품질 지표로 변환
 
 **배경**:
@@ -388,6 +412,8 @@ monitor.record_implicit_feedback(
 ---
 
 ### 3-A. 운영 데이터 기반 골든셋 자동 확장
+
+> 상태: **미구현**
 
 **목표**: 수동 골든셋 관리 → 운영 트래픽 기반 자동 확장
 
@@ -444,6 +470,8 @@ agent-eval dataset build \
 
 ### 3-B. 이상 탐지 (Anomaly Detection)
 
+> 상태: **미구현**
+
 **목표**: 임계값 기반 → 추세 기반 조기 이상 감지
 
 **배경**:
@@ -496,6 +524,8 @@ anomalies = detector.scan(monitor)
 
 ### 3-C. 평가 비용 최적화 엔진
 
+> 상태: **미구현**
+
 **목표**: LLM 기반 평가 비용을 예측·제어하며 적응형 샘플링 적용
 
 **배경**:
@@ -545,11 +575,11 @@ print(report.evaluation_cost)
 ## 6. 전체 타임라인
 
 ```
-현재         Phase 1                Phase 2               Phase 3
-v0.6.2       v0.7.x                 v0.8.x                v0.9.x
+완료           Phase 1                Phase 2               Phase 3
+v0.6.3         v0.7.x                 v0.8.x                v0.9.x
   │    4~6주    │       6~8주          │      8~12주          │
   │             │                      │                      │
-  ├─ LLM Judge ─┤                      │                      │
+  ✅ LLM Judge  │                      │                      │
   ├─ CI 게이팅 ─┤                      │                      │
   ├─ 멀티턴   ─┤                      │                      │
   │             ├─ 스트리밍 엔진 ──────┤                      │
@@ -559,48 +589,48 @@ v0.6.2       v0.7.x                 v0.8.x                v0.9.x
   │             │                      ├─ 이상 탐지     ──────┤
   │             │                      ├─ 비용 최적화   ──────┤
   │
-현재 효용
-  개발: ★★★☆☆
-  검증: ★★★★☆   Phase 1 후          Phase 2 후            Phase 3 후
-  운영: ★★☆☆☆   개발 ★★★★☆         개발 ★★★★☆           개발 ★★★★★
-                 검증 ★★★★★         검증 ★★★★★           검증 ★★★★★
-                 운영 ★★★☆☆         운영 ★★★★☆           운영 ★★★★★
+현재 효용 (v0.6.3)
+  개발: ★★★★☆   Phase 1 완료 후        Phase 2 완료 후       Phase 3 완료 후
+  검증: ★★★★☆   개발 ★★★★☆           개발 ★★★★☆           개발 ★★★★★
+  운영: ★★☆☆☆   검증 ★★★★★           검증 ★★★★★           검증 ★★★★★
+                 운영 ★★★☆☆           운영 ★★★★☆           운영 ★★★★★
 ```
 
 ### 버전 계획
 
-| 버전 | 포함 기능 | 비고 |
+| 버전 | 포함 기능 | 상태 |
 |------|-----------|------|
-| v0.7.0 | LLM Judge + CI 게이팅 | Phase 1-A, 1-B |
-| v0.7.1 | 멀티턴 대화 평가 | Phase 1-C |
-| v0.8.0 | 스트리밍 엔진 + 알림 시스템 | Phase 2-A, 2-B |
-| v0.8.1 | 운영 피드백 수집 | Phase 2-C |
-| v0.9.0 | 골든셋 자동화 + 이상 탐지 | Phase 3-A, 3-B |
-| v0.9.1 | 비용 최적화 엔진 | Phase 3-C |
-| v1.0.0 | 전체 통합 + API 안정화 | GA 릴리스 |
+| ~~v0.7.0~~ → **v0.6.3** | LLM Judge | ✅ 완료 (조기 출시) |
+| v0.7.0 | CI 게이팅 (`agent-eval gate`) | 🔲 미구현 |
+| v0.7.1 | 멀티턴 대화 평가 | 🔲 미구현 |
+| v0.8.0 | 스트리밍 엔진 + 알림 시스템 | 🔲 미구현 |
+| v0.8.1 | 운영 피드백 수집 | 🔲 미구현 |
+| v0.9.0 | 골든셋 자동화 + 이상 탐지 | 🔲 미구현 |
+| v0.9.1 | 비용 최적화 엔진 | 🔲 미구현 |
+| v1.0.0 | 전체 통합 + API 안정화 | 🔲 미구현 |
 
 ---
 
 ## 7. 우선순위 결정 근거
 
-### Phase 1-A (LLM Judge)를 최우선으로 하는 이유
+### Phase 1-A (LLM Judge)를 최우선으로 한 이유 ✅ 완료
 
 ```
-현재 SDK 투입 가능 범위 (ground_truth 기준):
+기존 SDK 투입 가능 범위 (ground_truth 기준):
   QA 챗봇 (고정 FAQ)         █████░░░░░  ~20%
   RAG 기반 문서 검색          ███████░░░  ~35%
   코드 생성 (테스트 케이스)   ████████░░  ~40%
   일반 대화형 에이전트        █░░░░░░░░░  ~5%
 
-LLM Judge 적용 후:
+LLM Judge 적용 후 (v0.6.3):
   모든 케이스                 ████████░░  ~80%
   (비용 샘플링 적용 시)
 ```
 
-단일 기능으로 SDK 적용 범위가 가장 크게 확대되며,
-오픈도메인 에이전트 팀의 진입 장벽을 낮춘다.
+단일 기능으로 SDK 적용 범위가 가장 크게 확대되었으며,
+오픈도메인 에이전트 팀의 진입 장벽을 낮췄다.
 
-### Phase 1-B (CI 게이팅)를 두 번째로 하는 이유
+### Phase 1-B (CI 게이팅)를 다음으로 하는 이유
 
 CI 파이프라인에 통합되면 개발팀이 **매 PR마다 자연스럽게 SDK를 사용**하게 된다.
 사용이 정착되어야 Phase 2, 3에서 필요한 운영 데이터가 축적된다.
@@ -625,11 +655,11 @@ Phase 1 완료 후 Phase 2:
 
 ### Phase 1 완료 기준
 
-| 지표 | 목표 |
-|------|------|
-| LLM Judge 적용 후 유효 지표 수 | 3개 → 8개 이상 |
-| CI 게이팅 통합 소요 시간 | 30분 이내 (가이드 문서 기준) |
-| 멀티턴 평가 지원 최대 턴 수 | 20턴 이상 |
+| 지표 | 목표 | 현재 (v0.6.3) |
+|------|------|--------------|
+| LLM Judge 적용 후 유효 지표 수 | 3개 → 8개 이상 | ✅ TCR/Latency/Token + completeness/relevance/factual_consistency/quality/accuracy = 8개 달성 |
+| CI 게이팅 통합 소요 시간 | 30분 이내 | 🔲 미구현 |
+| 멀티턴 평가 지원 최대 턴 수 | 20턴 이상 | 🔲 미구현 |
 
 ### Phase 2 완료 기준
 
@@ -649,14 +679,22 @@ Phase 1 완료 후 Phase 2:
 
 ### 전체 완성(v1.0.0) 기준
 
-| 라이프사이클 단계 | 목표 효용 |
+| 라이프사이클 단계 | 목표 |
 |-----------------|----------|
 | 개발 | ★★★★★ |
 | 검증 | ★★★★★ |
 | 운영 | ★★★★★ |
-| **투입 가능 에이전트 범위** | **현재 40% → 85% 이상** |
+| **투입 가능 에이전트 범위** | **현재 80% → 85% 이상** |
 
 ---
 
-*이 문서는 v0.6.2 현황 분석 및 현장 효용성 평가를 바탕으로 작성되었습니다.*
+## 부록 — 구현 이력
+
+| 날짜 | 버전 | 구현 내용 |
+|------|------|-----------|
+| 2026-03-27 | v0.6.3 | Phase 1-A 완료: `LLMJudge` 클래스, `PerformanceMonitor` 통합, 대시보드 Quality 탭 섹션, `agent-eval init` 모델 자동 연동 |
+| 2026-03-27 | v0.6.2 | `agent_evaluator.py` 5,762줄 → `core/trackers/` 서브패키지 분리, `infer_privilege_level()` 추출, LangChain/LangGraph 예제 Live 트랙 추가 |
+
+---
+
 *각 Phase의 일정과 범위는 구현 진행 중 조정될 수 있습니다.*
