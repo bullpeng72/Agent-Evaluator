@@ -103,6 +103,9 @@ from .integrations.llm_helpers import (
 # LLM Judge (Phase 1-A)
 from .integrations.llm_judge import LLMJudge
 
+# Conversation Evaluation (Phase 1-C)
+from .core.trackers.conversation import ConversationSession, ConversationMetrics, ConversationTurn
+
 # Framework Evaluator classes + EvaluatorProtocol (optional deps — graceful fallback)
 try:
     from .integrations.langchain_integration import LangChainEvaluator
@@ -212,6 +215,11 @@ __all__ = [
 
     # LLM Judge
     'LLMJudge',
+
+    # Conversation Evaluation (Phase 1-C)
+    'ConversationSession',
+    'ConversationMetrics',
+    'ConversationTurn',
 
     # Transparency
     'TestTransparencyManager',

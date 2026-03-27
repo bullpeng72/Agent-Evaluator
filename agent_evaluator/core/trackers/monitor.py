@@ -214,6 +214,27 @@ class PerformanceMonitor:
         self.golden_dataset_path = None
         self.golden_datasets = []
 
+        # Phase 1-C: 멀티턴 대화 세션 목록
+        self.conversation_sessions: List[Any] = []
+
+    def conversation(self, session_id: str) -> "ConversationSession":
+        """멀티턴 대화 평가 세션 시작.
+
+        Usage::
+
+            with monitor.conversation("session_001") as conv:
+                conv.turn(user="질문", agent="응답")
+            # 세션 종료 시 자동으로 지표 계산 및 monitor.conversation_sessions에 기록
+
+        Args:
+            session_id: 세션 고유 ID.
+
+        Returns:
+            ConversationSession 인스턴스.
+        """
+        from .conversation import ConversationSession
+        return ConversationSession(session_id=session_id, monitor=self)
+
     def load_golden_dataset(self, dataset_path: Optional[str] = None):
         """
         Golden Dataset 로드
