@@ -453,9 +453,15 @@ def run_langchain_live():
 
     rng = random.Random(99)
 
+    import os
+    _has_api = bool(os.getenv("OPENAI_API_KEY") or os.getenv("ANTHROPIC_API_KEY"))
+
     monitor = PerformanceMonitor(
         enable_hallucination_detection=True,
         enable_security_metrics=True,
+        # LLM Judge: API 키 있을 때 자동 활성화 (judge_model 생략 → init 설정 반영)
+        enable_llm_judge=_has_api,
+        judge_sample_rate=1.0,          # 데모: 전량 채점 (운영 시 0.1 권장)
         output_dir=str(project_root / "results"),
     )
 
@@ -477,8 +483,9 @@ def run_langchain_live():
          "과적합은 모델이 훈련 데이터의 노이즈까지 학습해 일반화 성능이 낮아지는 문제다."),
     ]
 
-    print(f"\n  {'task_id':<16} {'accuracy':>10} {'quality':>10} {'결과'}")
-    print(f"  {'─'*16} {'─'*10} {'─'*10} {'─'*8}")
+    judge_col = "judge/5" if _has_api else "judge"
+    print(f"\n  {'task_id':<16} {'accuracy':>10} {'quality':>10} {judge_col:>8} {'결과'}")
+    print(f"  {'─'*16} {'─'*10} {'─'*10} {'─'*8} {'─'*4}")
 
     for i, (question, ground_truth, task_type, tools, context) in enumerate(QA_PAIRS):
         task_id = f"live_lc_{i + 1:02d}"
@@ -497,12 +504,17 @@ def run_langchain_live():
             t.success      = result["success"]
 
         # 마지막 기록에서 지표 확인
-        acc_evals  = monitor.accuracy_evaluator.evaluations
-        qual_evals = monitor.quality_evaluator.evaluations
-        acc  = acc_evals[-1].get("accuracy_score", 0)  if acc_evals  else 0.0
-        qual = qual_evals[-1].get("total_score", 0)    if qual_evals else 0.0
+        acc_evals   = monitor.accuracy_evaluator.evaluations
+        qual_evals  = monitor.quality_evaluator.evaluations
+        acc   = acc_evals[-1].get("accuracy_score", 0)   if acc_evals   else 0.0
+        qual  = qual_evals[-1].get("total_score", 0)     if qual_evals  else 0.0
+        judge_overall = "—"
+        if monitor.llm_judge and monitor.llm_judge.results:
+            last_j = monitor.llm_judge.results[-1]
+            if last_j.get("scores"):
+                judge_overall = f"{last_j['scores']['overall']:.2f}"
         flag = "✅" if result["success"] else "❌"
-        print(f"  {flag} {task_id:<14} {acc:>10.3f} {qual:>10.2f}")
+        print(f"  {flag} {task_id:<14} {acc:>10.3f} {qual:>10.2f} {judge_overall:>8}")
 
     saved = monitor.save_to_file(
         f"[LC]_langchain_live_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
@@ -514,6 +526,12 @@ def run_langchain_live():
     print(f"           │ Accuracy  ← t.ground_truth 설정 시")
     print(f"           │ Hallucination ← t.context 설정 + enable_hallucination=True 시")
     print(f"  Layer 2 │ ToolCall  ← t.tool_calls 설정 시")
+    print(f"  LLM Judge│ completeness/relevance/factual ← enable_llm_judge=True + API 키")
+    if monitor.llm_judge:
+        js = monitor.llm_judge.get_summary()
+        if js["count"] > 0:
+            print(f"           │ 채점 {js['count']}건 · overall avg {js['avg_scores']['overall']:.2f}/5"
+                  f" · 비용 ${js['total_cost_usd']:.5f}")
     print(f"  ※ Security / ToolSelection / Retry 는 별도 tracker 호출 필요")
     print()
 

@@ -346,5 +346,105 @@ def run_quality_evaluation():
     return saved_path
 
 
+def run_llm_judge_demo():
+    """LLM-as-Judge 평가 패턴 시연 (v0.6.3 신규).
+
+    ground_truth 없이도 completeness · relevance · factual_consistency 3차원
+    자동 채점이 가능합니다.  OPENAI_API_KEY 또는 ANTHROPIC_API_KEY 가 필요합니다.
+
+    API 키 미설정 시 graceful skip 됩니다.
+    """
+    import os
+    api_key_set = bool(os.getenv("OPENAI_API_KEY") or os.getenv("ANTHROPIC_API_KEY"))
+
+    print("\n" + "=" * 70)
+    print("  LLM-as-Judge 평가 패턴 — Agent Evaluator v0.6.3")
+    print("  목표: ground_truth 없이 3차원 자동 채점 (completeness/relevance/factual)")
+    print("=" * 70)
+
+    if not api_key_set:
+        print("\n  ⚠️  API 키 미설정 — LLM Judge 데모를 건너뜁니다.")
+        print("     OPENAI_API_KEY 또는 ANTHROPIC_API_KEY 를 설정하세요.")
+        print("     (agent-eval init 으로 간편 설정 가능)")
+        return
+
+    from agent_evaluator import LLMJudge
+
+    # ── 오픈도메인 QA 케이스 (ground_truth 없음) ────────────────────────────
+    OPEN_QA = [
+        {
+            "question": "마이크로서비스 아키텍처의 장단점을 설명해줘",
+            "response": "마이크로서비스는 서비스별 독립 배포·확장이 가능하고 장애 격리에 유리합니다. "
+                        "단점으로는 서비스 간 통신 오버헤드, 분산 트랜잭션 복잡성이 있습니다.",
+            "tier": "good",
+        },
+        {
+            "question": "Python의 GIL이 무엇인지 설명해줘",
+            "response": "GIL은 Global Interpreter Lock으로, CPython에서 한 번에 하나의 스레드만 "
+                        "Python 바이트코드를 실행할 수 있도록 하는 뮤텍스입니다. "
+                        "멀티코어 CPU의 병렬 처리를 제한하지만 I/O 바운드 작업에는 영향이 적습니다.",
+            "tier": "good",
+        },
+        {
+            "question": "데이터베이스 인덱스란 무엇인가요?",
+            "response": "인덱스는 데이터를 더 빨리 찾기 위해 사용됩니다. "
+                        "모든 테이블에 인덱스를 걸면 조회 속도가 빨라집니다.",
+            "tier": "low",   # 불완전한 설명 — 단점·트레이드오프 누락
+        },
+    ]
+
+    # judge_model=None → agent-eval init 설정(OPENAI_MODEL/ANTHROPIC_MODEL) 자동 적용
+    judge = LLMJudge(sample_rate=1.0)  # 데모: 전량 채점
+    print(f"\n  Judge 모델: {judge.model}  (agent-eval init 설정 자동 반영)")
+
+    print(f"\n  {'task':<8} {'tier':<6} {'completeness':>13} {'relevance':>10} {'factual':>8} {'overall':>8}")
+    print(f"  {'─'*8} {'─'*6} {'─'*13} {'─'*10} {'─'*8} {'─'*8}")
+
+    for i, case in enumerate(OPEN_QA):
+        task_id = f"judge_{i+1:02d}"
+        result = judge.judge(
+            task_id=task_id,
+            question=case["question"],
+            response=case["response"],
+        )
+
+        if result.get("error"):
+            print(f"  {task_id:<8} {case['tier']:<6}  {'API 오류: ' + result['error'][:40]}")
+            continue
+        if result.get("skipped"):
+            print(f"  {task_id:<8} {case['tier']:<6}  (skipped)")
+            continue
+
+        s = result["scores"]
+        flag = "✅" if case["tier"] == "good" else "🔻"
+        print(
+            f"  {flag} {task_id:<6} {case['tier']:<6}"
+            f" {s['completeness']:>13}  {s['relevance']:>9}  {s['factual_consistency']:>7}  {s['overall']:>7.2f}"
+        )
+        if result.get("reasoning"):
+            print(f"     └ {result['reasoning'][:65]}")
+
+    summary = judge.get_summary()
+    if summary["count"] > 0:
+        avg = summary["avg_scores"]
+        print(f"\n  ─── Judge 집계 ({summary['count']}건, 비용 ${summary['total_cost_usd']:.5f}) ───")
+        print(f"  completeness       평균: {avg.get('completeness', 0):.2f}/5")
+        print(f"  relevance          평균: {avg.get('relevance', 0):.2f}/5")
+        print(f"  factual_consistency 평균: {avg.get('factual_consistency', 0):.2f}/5")
+        print(f"  overall            평균: {avg.get('overall', 0):.2f}/5")
+
+    # PerformanceMonitor 통합 패턴 — monitor.task() 와 enable_llm_judge 함께 사용
+    print(f"\n  ─── PerformanceMonitor 통합 패턴 ───")
+    print(f"  monitor = PerformanceMonitor(")
+    print(f"      enable_llm_judge=True,   # judge_model 생략 → init 설정 자동 반영")
+    print(f"      judge_sample_rate=0.1,   # 10% 샘플링 (비용 제어)")
+    print(f"      judge_budget_per_day=5.0 # 일 $5 한도")
+    print(f"  )")
+    print(f"  with monitor.task('t1', 'qa', question=question) as t:")
+    print(f"      t.response = agent.run(question)  # ground_truth 없어도 자동 채점")
+    print()
+
+
 if __name__ == "__main__":
     run_quality_evaluation()
+    run_llm_judge_demo()

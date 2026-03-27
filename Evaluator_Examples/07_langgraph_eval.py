@@ -497,11 +497,17 @@ def run_langgraph_live():
     print("  목표: 노드 파이프라인 + 자동 지표 수집 최소 코드 시연")
     print("=" * 70)
 
+    import os
+    _has_api = bool(os.getenv("OPENAI_API_KEY") or os.getenv("ANTHROPIC_API_KEY"))
+
     rng = random.Random(77)
 
     monitor = PerformanceMonitor(
         enable_hallucination_detection=True,
         enable_security_metrics=True,
+        # LLM Judge: API 키 있을 때 자동 활성화 (judge_model 생략 → init 설정 반영)
+        enable_llm_judge=_has_api,
+        judge_sample_rate=1.0,          # 데모: 전량 채점 (운영 시 0.1 권장)
         output_dir=str(project_root / "results"),
     )
 
@@ -532,8 +538,9 @@ def run_langgraph_live():
         },
     ]
 
-    print(f"\n  {'workflow_id':<16} {'accuracy':>10} {'quality':>10} {'노드수':>6} {'결과'}")
-    print(f"  {'─'*16} {'─'*10} {'─'*10} {'─'*6} {'─'*8}")
+    judge_col = "judge/5" if _has_api else "judge"
+    print(f"\n  {'workflow_id':<16} {'accuracy':>10} {'quality':>10} {'노드수':>6} {judge_col:>8} {'결과'}")
+    print(f"  {'─'*16} {'─'*10} {'─'*10} {'─'*6} {'─'*8} {'─'*4}")
 
     for wf in WORKFLOWS:
         wid      = wf["id"]
@@ -567,12 +574,17 @@ def run_langgraph_live():
                 success=result["success"],
             )
 
-        acc_evals  = monitor.accuracy_evaluator.evaluations
-        qual_evals = monitor.quality_evaluator.evaluations
-        acc  = acc_evals[-1].get("accuracy_score", 0)  if acc_evals  else 0.0
-        qual = qual_evals[-1].get("total_score", 0)    if qual_evals else 0.0
+        acc_evals   = monitor.accuracy_evaluator.evaluations
+        qual_evals  = monitor.quality_evaluator.evaluations
+        acc   = acc_evals[-1].get("accuracy_score", 0)   if acc_evals   else 0.0
+        qual  = qual_evals[-1].get("total_score", 0)     if qual_evals  else 0.0
+        judge_overall = "—"
+        if monitor.llm_judge and monitor.llm_judge.results:
+            last_j = monitor.llm_judge.results[-1]
+            if last_j.get("scores"):
+                judge_overall = f"{last_j['scores']['overall']:.2f}"
         flag = "✅" if result["success"] else "❌"
-        print(f"  {flag} {wid:<14} {acc:>10.3f} {qual:>10.2f} {len(nodes):>6}")
+        print(f"  {flag} {wid:<14} {acc:>10.3f} {qual:>10.2f} {len(nodes):>6} {judge_overall:>8}")
 
     coord_data = monitor.agent_coordination_tracker.calculate_coordination_score()
     if coord_data:
@@ -590,6 +602,12 @@ def run_langgraph_live():
     print(f"           │ Hallucination ← t.context 설정 + enable_hallucination=True 시")
     print(f"  Layer 2 │ ToolCall  ← t.tool_calls 설정 시 (노드 = 도구)")
     print(f"           │ AgentCoordination ← track_interaction() 별도 호출 (노드 전환)")
+    print(f"  LLM Judge│ completeness/relevance/factual ← enable_llm_judge=True + API 키")
+    if monitor.llm_judge:
+        js = monitor.llm_judge.get_summary()
+        if js["count"] > 0:
+            print(f"           │ 채점 {js['count']}건 · overall avg {js['avg_scores']['overall']:.2f}/5"
+                  f" · 비용 ${js['total_cost_usd']:.5f}")
     print(f"  ※ WorkflowExecution / ToolSelection / Retry 는 별도 tracker 호출 필요")
     print()
 
