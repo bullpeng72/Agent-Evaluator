@@ -1,12 +1,14 @@
 """
-Configuration API — threshold settings persistence.
+Configuration API — threshold settings persistence + env model config.
 
 GET  /api/thresholds   — load saved thresholds (returns defaults if not saved)
 POST /api/thresholds   — persist threshold settings to .thresholds.json
+GET  /api/config       — return configured model names from environment (.env)
 """
 from __future__ import annotations
 
 import json
+import os
 from typing import Any, Dict
 
 from fastapi import APIRouter, Request
@@ -40,6 +42,15 @@ def get_thresholds(request: Request) -> Dict[str, Any]:
         except Exception:
             pass
     return _DEFAULTS.copy()
+
+
+@router.get("/config")
+def get_config() -> Dict[str, Any]:
+    """Return configured model names from environment (.env)."""
+    return {
+        "openai_model": os.getenv("OPENAI_MODEL", ""),
+        "anthropic_model": os.getenv("ANTHROPIC_MODEL", ""),
+    }
 
 
 @router.post("/thresholds")

@@ -450,6 +450,35 @@ def _parse_security_l2(raw: dict) -> SecurityL2:
         # ensure dashboard key exists even when loaded from report-level data
         atk_summary["suspicious_chains"] = atk_summary.get("total_suspicious_chains", 0)
 
+    # Detect L2 tracking gaps (same pattern as L1 authorization)
+    task_count = len(raw.get("tasks", []))
+    task_tool_calls_total = sum(
+        len(t.get("tool_calls", [])) if isinstance(t.get("tool_calls"), list)
+        else int(t.get("tool_calls") or 0)
+        for t in raw.get("tasks", [])
+    )
+
+    # PrivilegeEscalationDetector tracking gap
+    priv_evals = (priv_esc or {}).get("total_evaluations", 0)
+    if priv_evals == 0 and task_count > 0:
+        if priv_esc is None:
+            priv_esc = {"total_evaluations": 0, "escalations_detected": 0, "escalation_rate": 0}
+        priv_esc["tracking_active"] = False
+        priv_esc["task_count"] = task_count
+        priv_esc["task_tool_calls_total"] = task_tool_calls_total
+    elif priv_esc is not None:
+        priv_esc["tracking_active"] = True
+
+    # ToolChainAttackDetector tracking gap
+    atk_chains = (atk_summary or {}).get("total_chains_analyzed", 0)
+    if atk_chains == 0 and task_tool_calls_total > 0:
+        if atk_summary is None:
+            atk_summary = {"total_chains_analyzed": 0, "suspicious_chains": 0, "detection_rate": 0}
+        atk_summary["tracking_active"] = False
+        atk_summary["task_tool_calls_total"] = task_tool_calls_total
+    elif atk_summary is not None:
+        atk_summary["tracking_active"] = True
+
     return SecurityL2(
         privilege_escalation=priv_esc,
         attack_detection=atk_summary,

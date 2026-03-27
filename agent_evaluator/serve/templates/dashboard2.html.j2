@@ -2661,7 +2661,7 @@ input[type=text],input[type=number]{background:var(--bg3);color:var(--text);bord
     items(k,d){
       if(k==='input_sec') return (d.security_l1?.input_evals||[]).filter(e=>e.sanitization_needed);
       if(k==='output_int') return (d.security_l1?.output_detections||[]).filter(e=>(e.leakage_count||0)>0);
-      if(k==='auth') return (d.security_l1?.tool_calls||[]).filter(t=>!t.is_authorized||t.is_restricted||t.has_dangerous_params);
+      if(k==='auth') return (d.security_l1?.tool_calls_detail||[]).filter(t=>!t.is_authorized||t.is_restricted||t.has_dangerous_params);
       if(k==='priv_esc') return (d.security_l2?.escalation_events||[]).filter(e=>e.escalation_detected);
       if(k==='atk_det') return (d.security_l2?.attack_detections||[]).filter(e=>e.is_suspicious_chain);
       return [];},
@@ -3124,24 +3124,46 @@ input[type=text],input[type=number]{background:var(--bg3);color:var(--text);bord
       if(k==='authorized') return `허가 호출 = ${au.authorized_calls||0}건\n전체 ${n}건 중 정상 호출 / 제한 시도: ${au.restricted_attempts||0}건`;
       if(k==='unauthorized') return `무단 호출 = ${au.unauthorized_calls||0}건\n위험 파라미터: ${au.dangerous_params||0}건 / 제한 시도: ${au.restricted_attempts||0}건\n무단율 = ${n>0?((au.unauthorized_calls||0)/n*100).toFixed(1):0}%`;
       return '';},
-    hasCalls(d){ return (d.security_l1?.tool_calls||[]).length>0; },
+    // security_l1.tool_calls_detail: ToolAuthorizationTracker 개별 기록 (is_authorized 포함)
+    hasCalls(d){ return (d.security_l1?.tool_calls_detail||[]).length>0; },
+    // flatTaskCalls: 태스크 내 tool_calls 배열을 플랫하게 펼쳐 개별 호출 목록 생성
+    flatTaskCalls(d){
+      const rows=[];
+      for(const t of (d.tasks||[])){
+        const tc=t.tool_calls;
+        if(!Array.isArray(tc)||!tc.length) continue;
+        for(const c of tc){
+          rows.push({
+            task_id:t.task_id||'—',
+            task_type:t.task_type||'—',
+            tool_name:c.tool_name||c.name||'—',
+            success:c.success,
+            duration:c.duration,
+            privilege_level:c.privilege_level||'—',
+            framework:c.framework||'—',
+            // 권한 검사 없음 — 태스크 레벨 기록에는 is_authorized 없음
+            is_authorized:null,
+            is_restricted:null,
+            has_dangerous_params:null,
+          });
+        }
+      }
+      return rows;
+    },
     items(k,d){
-      const calls=d.security_l1?.tool_calls||[];
+      // Case 1: ToolAuthorizationTracker 개별 기록 있음
+      const calls=d.security_l1?.tool_calls_detail||[];
       if(calls.length){
         if(k==='compliance') return calls;
-        if(k==='authorized') return calls.filter(c=>c.is_authorized&&!c.is_restricted&&!c.has_dangerous_params);
-        if(k==='unauthorized') return calls.filter(c=>!c.is_authorized||c.is_restricted||c.has_dangerous_params);
+        if(k==='authorized') return calls.filter(c=>c.is_authorized===true&&!c.is_restricted&&!c.has_dangerous_params);
+        if(k==='unauthorized') return calls.filter(c=>c.is_authorized===false||c.is_restricted||c.has_dangerous_params);
         return calls;
       }
-      // 개별 기록 없음 → tasks 기반 폴백: 도구 호출이 있는 태스크
-      const tasks=d.tasks||[];
-      const withTools=tasks.filter(t=>(Array.isArray(t.tool_calls)?t.tool_calls.length:(t.tool_calls||0))>0);
-      const au=d.security_l1?.authorization||{};
-      // authorized: 집계값 기준 — unauthorized_calls=0이면 전체 태스크=허가
-      if(k==='authorized') return (au.unauthorized_calls||0)===0 ? withTools : withTools.filter(t=>t.success!==false);
-      // unauthorized: 집계값 0이면 빈 배열 (실패!=무단), >0이면 실패 태스크 표시 (best-effort)
-      if(k==='unauthorized') return (au.unauthorized_calls||0)===0 ? [] : withTools.filter(t=>t.success===false);
-      return withTools;},
+      // Case 2: 태스크 내 tool_calls 배열 존재 → 플랫하게 전개
+      const flat=this.flatTaskCalls(d);
+      if(flat.length) return flat;
+      // Case 3: 집계 데이터만 존재 → aggregate 뷰로 처리 (items 빈 배열 반환)
+      return [];},
   }">
     <!-- 추적 미활성 경고 배너 -->
     <div x-show="!authTracking(data) && !authPartial(data)" x-cloak
@@ -3182,7 +3204,7 @@ input[type=text],input[type=number]{background:var(--bg3);color:var(--text);bord
         <template x-if="!authTracking(data)">
           <div class="kpi-val" style="color:var(--text2);font-size:13px;font-weight:500">추적 안됨</div>
         </template>
-        <div class="kpi-sub" x-text="authTracking(data)?`전체 ${data.security_l1?.authorization?.total_tool_calls||0}건 호출`:`태스크 기준 ${data.security_l1?.authorization?.task_tool_calls_total||0}건 감지`"></div>
+        <div class="kpi-sub" x-text="authTracking(data)?`전체 ${hasCalls(data)?data.security_l1?.authorization?.total_tool_calls||0:items('compliance',data).length}건 호출`:`태스크 기준 ${data.security_l1?.authorization?.task_tool_calls_total||0}건 감지`"></div>
       </div>
       <div class="kpi kpi-act" :class="{sel:selK==='authorized'}" @click="selK=selK==='authorized'?null:'authorized'"
            :style="!authTracking(data)?'opacity:0.55;border-style:dashed':''">
@@ -3221,11 +3243,12 @@ input[type=text],input[type=number]{background:var(--bg3);color:var(--text);bord
                     x-text="`부분 추적 ${data.security_l1?.authorization?.tracking_coverage||0}%`"></span>
             </template>
             <template x-if="authTracking(data) && hasCalls(data)">
-              <span style="font-size:11px;color:var(--text2);margin-left:4px" x-text="items(selK,data).length?`(${items(selK,data).length}건)`:''"  ></span>
+              <span style="font-size:11px;color:var(--text2);margin-left:4px"
+                    x-text="items(selK,data).length?`(${items(selK,data).length}건 호출)`:''"  ></span>
             </template>
             <template x-if="authTracking(data) && !hasCalls(data)">
               <span style="font-size:11px;color:var(--text2);margin-left:4px"
-                    x-text="items(selK,data).length?`(${items(selK,data).length}건 태스크 — 집계 기준 ${selK==='authorized'?data.security_l1?.authorization?.authorized_calls||0:selK==='unauthorized'?data.security_l1?.authorization?.unauthorized_calls||0:data.security_l1?.authorization?.total_tool_calls||0}건 호출)`:''"  ></span>
+                    x-text="items(selK,data).length?`(${items(selK,data).length}건 호출 · 권한검사 미수행)`:''"></span>
             </template>
             <button style="margin-left:auto;background:transparent;border:none;color:var(--text2);cursor:pointer;font-size:18px" @click="selK=null">×</button>
           </div>
@@ -3239,54 +3262,64 @@ input[type=text],input[type=number]{background:var(--bg3);color:var(--text);bord
               <div style="font-size:12px;font-family:monospace;color:var(--accent);line-height:1.9;white-space:pre-line" x-text="formula(selK,data)"></div>
             </div>
           </div>
-          <!-- 개별 기록 있을 때: 테이블 -->
-          <div x-show="hasCalls(data) && items(selK,data).length" style="padding:0 14px 12px;background:var(--bg2)">
-            <div class="dtx" style="font-size:11px;margin-top:10px">
-              <div class="dtx-row dtx-head" style="grid-template-columns:1fr minmax(80px,1fr) 60px 60px 80px">
-                <span>Task ID</span><span>도구명</span><span>허가</span><span>제한</span><span>위험파라미터</span>
-              </div>
-              <template x-for="(c,ci) in items(selK,data).slice(0,30)" :key="ci">
-                <div class="dtx-row" :style="`grid-template-columns:1fr minmax(80px,1fr) 60px 60px 80px;${!c.is_authorized||c.has_dangerous_params?'background:rgba(220,50,50,0.06)':c.is_restricted?'background:rgba(245,158,11,0.05)':''}`">
-                  <span style="font-size:10px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" x-text="c.task_id||'—'"></span>
-                  <span style="font-size:10px;color:var(--text2)" x-text="c.tool_name||'—'"></span>
-                  <span :class="c.is_authorized?'badge-ok':'badge-ng'" x-text="c.is_authorized?'허가':'무단'"></span>
-                  <span :class="c.is_restricted?'badge-warn':''" x-text="c.is_restricted?'제한':'—'"></span>
-                  <span :class="c.has_dangerous_params?'badge-ng':''" x-text="c.has_dangerous_params?'위험':'—'"></span>
+          <!-- 통합 도구 호출 상세 테이블: hasCalls(auth records) OR flatTaskCalls -->
+          <div x-show="items(selK,data).length" style="padding:0 14px 12px;background:var(--bg2)">
+            <!-- 컨텍스트 안내 -->
+            <div style="font-size:11px;color:var(--text2);padding:8px 0 5px;display:flex;align-items:center;gap:6px">
+              <template x-if="hasCalls(data)">
+                <span>🔒 <strong>ToolAuthorizationTracker</strong> 개별 호출 기록 — 권한 검사 결과 포함</span>
+              </template>
+              <template x-if="!hasCalls(data)">
+                <span>
+                  <template x-if="!authTracking(data)">
+                    <span style="color:#b45309;font-weight:600">⚠ 권한 추적 미활성 — </span>
+                  </template>
+                  📋 태스크 기록 기반 도구 호출 목록 (권한 검사 미수행 · 도구명/실행결과만 표시)
+                </span>
+              </template>
+            </div>
+            <!-- Case 1: auth records (is_authorized 있음) -->
+            <template x-if="hasCalls(data)">
+              <div class="dtx" style="font-size:11px">
+                <div class="dtx-row dtx-head" style="grid-template-columns:1.4fr 1fr 55px 55px 75px 65px">
+                  <span>Task ID</span><span>도구명</span><span>권한</span><span>제한</span><span>위험파라미터</span><span>권한레벨</span>
                 </div>
-              </template>
-              <div x-show="items(selK,data).length>30" style="padding:6px;text-align:center;color:var(--text2);font-size:11px"
-                   x-text="`... 외 ${items(selK,data).length-30}건`"></div>
-            </div>
-          </div>
-          <!-- 개별 기록 없고 tasks 폴백 있을 때: 태스크별 도구 호출 테이블 -->
-          <div x-show="!hasCalls(data) && items(selK,data).length"
-               style="padding:0 14px 12px;background:var(--bg2)">
-            <div style="font-size:11px;color:var(--text2);padding:8px 0 6px">
-              <template x-if="!authTracking(data)">
-                <span style="color:#b45309;font-weight:600">⚠ 권한 추적 미활성 — </span>
-              </template>
-              ℹ 개별 호출 기록 미저장 — 도구 호출이 있는 태스크 목록으로 표시합니다 (권한 정보 미수집)
-            </div>
-            <div class="dtx" style="font-size:11px">
-              <div class="dtx-row dtx-head" style="grid-template-columns:1fr 90px 60px 60px 50px 50px">
-                <span>Task ID</span><span>태스크 유형</span><span>도구 호출수</span><span>완료율</span><span>성공</span><span>권한</span>
+                <template x-for="(c,ci) in items(selK,data).slice(0,50)" :key="ci">
+                  <div class="dtx-row" :style="`grid-template-columns:1.4fr 1fr 55px 55px 75px 65px;${c.is_authorized===false||c.has_dangerous_params?'background:rgba(220,50,50,0.06)':c.is_restricted?'background:rgba(245,158,11,0.05)':''}` ">
+                    <span style="font-size:10px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" x-text="c.task_id||'—'"></span>
+                    <span style="font-size:11px;font-weight:500;color:var(--accent)" x-text="c.tool_name||'—'"></span>
+                    <span :class="c.is_authorized===true?'badge-ok':c.is_authorized===false?'badge-ng':''"
+                          x-text="c.is_authorized===true?'허가':c.is_authorized===false?'무단':'—'"></span>
+                    <span :class="c.is_restricted?'badge-warn':''" x-text="c.is_restricted?'제한':'—'"></span>
+                    <span :class="c.has_dangerous_params?'badge-ng':''" x-text="c.has_dangerous_params?'위험':'—'"></span>
+                    <span style="font-size:10px;color:var(--text2)" x-text="c.privilege_level||'—'"></span>
+                  </div>
+                </template>
+                <div x-show="items(selK,data).length>50" style="padding:6px;text-align:center;color:var(--text2);font-size:11px"
+                     x-text="`... 외 ${items(selK,data).length-50}건`"></div>
               </div>
-              <template x-for="(t,ti) in items(selK,data).slice(0,30)" :key="ti">
-                <div class="dtx-row" :style="`grid-template-columns:1fr 90px 60px 60px 50px 50px;${t.success===false?'background:rgba(220,50,50,0.06)':''}`">
-                  <span style="font-size:10px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" x-text="t.task_id||'—'"></span>
-                  <span style="font-size:10px;color:var(--text2)" x-text="t.task_type||'—'"></span>
-                  <span style="font-size:11px;font-weight:600"
-                        x-text="Array.isArray(t.tool_calls)?t.tool_calls.length:(t.tool_calls||0)"></span>
-                  <span style="font-size:11px" :style="`color:${_bc((t.completion_score||0)*100,85,70)}`"
-                        x-text="t.completion_score!=null?((t.completion_score||0)*100).toFixed(0)+'%':'—'"></span>
-                  <span :class="t.success?'badge-ok':'badge-ng'" x-text="t.success?'성공':'실패'"></span>
-                  <span :class="selK==='unauthorized'&&t.success===false?'badge-warn':(data.security_l1?.authorization?.unauthorized_calls||0)===0?'badge-ok':'badge-ok'"
-                        x-text="selK==='unauthorized'&&t.success===false?'의심':'허가'"></span>
+            </template>
+            <!-- Case 2: flatTaskCalls (is_authorized=null, 도구명+실행정보) -->
+            <template x-if="!hasCalls(data)">
+              <div class="dtx" style="font-size:11px">
+                <div class="dtx-row dtx-head" style="grid-template-columns:1.2fr 1fr 70px 55px 50px 60px">
+                  <span>Task ID</span><span>도구명</span><span>권한레벨</span><span>실행시간</span><span>성공</span><span>권한검사</span>
                 </div>
-              </template>
-              <div x-show="items(selK,data).length>30" style="padding:6px;text-align:center;color:var(--text2);font-size:11px"
-                   x-text="`... 외 ${items(selK,data).length-30}건`"></div>
-            </div>
+                <template x-for="(c,ci) in items(selK,data).slice(0,50)" :key="ci">
+                  <div class="dtx-row" :style="`grid-template-columns:1.2fr 1fr 70px 55px 50px 60px;${c.success===false?'background:rgba(220,50,50,0.04)':''}` ">
+                    <span style="font-size:10px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" x-text="c.task_id||'—'"></span>
+                    <span style="font-size:11px;font-weight:500;color:var(--accent)" x-text="c.tool_name||'—'"></span>
+                    <span style="font-size:10px;color:var(--text2)" x-text="c.privilege_level||'—'"></span>
+                    <span style="font-size:10px;color:var(--text2)" x-text="c.duration!=null?c.duration.toFixed(2)+'s':'—'"></span>
+                    <span :class="c.success===true?'badge-ok':c.success===false?'badge-ng':''"
+                          x-text="c.success===true?'성공':c.success===false?'실패':'—'"></span>
+                    <span style="font-size:10px;color:#b45309;font-weight:500">미수행</span>
+                  </div>
+                </template>
+                <div x-show="items(selK,data).length>50" style="padding:6px;text-align:center;color:var(--text2);font-size:11px"
+                     x-text="`... 외 ${items(selK,data).length-50}건`"></div>
+              </div>
+            </template>
           </div>
           <!-- 기록 없음 — 집계 데이터도 없음 -->
           <div x-show="!hasCalls(data) && !items(selK,data).length && !(data.security_l1?.authorization?.total_tool_calls||0)"
@@ -3299,52 +3332,74 @@ input[type=text],input[type=number]{background:var(--bg3);color:var(--text);bord
             </template>
           </div>
           <!-- 기록 없음 — 집계 데이터는 있음 (태스크 레벨 기록 미저장) -->
+          <!-- 집계 기반 상세 분류 테이블 (개별 기록 없음, 추적 활성) -->
           <div x-show="!hasCalls(data) && !items(selK,data).length && (data.security_l1?.authorization?.total_tool_calls||0)>0"
-               style="padding:12px 14px;background:var(--bg2)">
+               style="padding:12px 14px 4px;background:var(--bg2)">
             <div style="font-size:11px;color:var(--text2);margin-bottom:10px">
-              📊 개별 호출 기록 미저장 — 집계 통계 기준으로 표시합니다
+              📊 개별 호출 기록 미저장 — 집계 통계 기반 상세 분류
             </div>
-            <div style="display:flex;flex-wrap:wrap;gap:8px">
-              <template x-if="selK==='compliance'||selK==='authorized'">
-                <div style="display:contents">
-                  <div style="background:var(--bg3);border-radius:6px;padding:8px 14px;min-width:100px">
-                    <div style="font-size:10px;color:var(--text2);margin-bottom:2px">전체 호출</div>
-                    <div style="font-size:18px;font-weight:700" x-text="(data.security_l1?.authorization?.total_tool_calls||0)+'건'"></div>
-                  </div>
-                  <div style="background:var(--bg3);border-radius:6px;padding:8px 14px;min-width:100px">
-                    <div style="font-size:10px;color:var(--text2);margin-bottom:2px">허가 호출</div>
-                    <div style="font-size:18px;font-weight:700;color:var(--green)" x-text="(data.security_l1?.authorization?.authorized_calls||0)+'건'"></div>
-                  </div>
-                  <div style="background:var(--bg3);border-radius:6px;padding:8px 14px;min-width:100px">
-                    <div style="font-size:10px;color:var(--text2);margin-bottom:2px">제한 시도</div>
-                    <div style="font-size:18px;font-weight:700" :style="`color:${(data.security_l1?.authorization?.restricted_attempts||0)>0?'var(--orange)':'var(--text1)'}`"
-                         x-text="(data.security_l1?.authorization?.restricted_attempts||0)+'건'"></div>
-                  </div>
-                </div>
-              </template>
-              <template x-if="selK==='unauthorized'">
-                <div style="display:contents">
-                  <div style="background:rgba(220,50,50,0.07);border-radius:6px;padding:8px 14px;min-width:100px">
-                    <div style="font-size:10px;color:var(--text2);margin-bottom:2px">무단 호출</div>
-                    <div style="font-size:18px;font-weight:700;color:var(--red)" x-text="(data.security_l1?.authorization?.unauthorized_calls||0)+'건'"></div>
-                  </div>
-                  <div style="background:rgba(220,50,50,0.07);border-radius:6px;padding:8px 14px;min-width:100px">
-                    <div style="font-size:10px;color:var(--text2);margin-bottom:2px">위험 파라미터</div>
-                    <div style="font-size:18px;font-weight:700" :style="`color:${(data.security_l1?.authorization?.dangerous_params||0)>0?'var(--red)':'var(--text1)'}`"
-                         x-text="(data.security_l1?.authorization?.dangerous_params||0)+'건'"></div>
-                  </div>
-                  <div style="background:rgba(220,50,50,0.07);border-radius:6px;padding:8px 14px;min-width:100px">
-                    <div style="font-size:10px;color:var(--text2);margin-bottom:2px">제한 시도</div>
-                    <div style="font-size:18px;font-weight:700" :style="`color:${(data.security_l1?.authorization?.restricted_attempts||0)>0?'var(--orange)':'var(--text1)'}`"
-                         x-text="(data.security_l1?.authorization?.restricted_attempts||0)+'건'"></div>
-                  </div>
-                  <div style="background:var(--bg3);border-radius:6px;padding:8px 14px;min-width:100px">
-                    <div style="font-size:10px;color:var(--text2);margin-bottom:2px">무단율</div>
-                    <div style="font-size:18px;font-weight:700;color:var(--red)"
-                         x-text="(data.security_l1?.authorization?.total_tool_calls||0)>0?((data.security_l1?.authorization?.unauthorized_calls||0)/(data.security_l1?.authorization?.total_tool_calls)*100).toFixed(1)+'%':'—'"></div>
-                  </div>
-                </div>
-              </template>
+            <!-- 비율 바 -->
+            <div style="margin-bottom:12px">
+              <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--text2);margin-bottom:4px">
+                <span>허가 <span style="color:var(--green);font-weight:600" x-text="(data.security_l1?.authorization?.authorized_calls||0)+'건'"></span></span>
+                <span>전체 <strong x-text="(data.security_l1?.authorization?.total_tool_calls||0)+'건'"></strong></span>
+                <span>무단 <span style="color:var(--red);font-weight:600" x-text="(data.security_l1?.authorization?.unauthorized_calls||0)+'건'"></span></span>
+              </div>
+              <div style="height:8px;border-radius:4px;background:var(--border);overflow:hidden;display:flex">
+                <div :style="`width:${(data.security_l1?.authorization?.total_tool_calls||0)>0?((data.security_l1?.authorization?.authorized_calls||0)/(data.security_l1?.authorization?.total_tool_calls)*100).toFixed(1):0}%;background:var(--green);transition:width 0.3s`"></div>
+                <div :style="`width:${(data.security_l1?.authorization?.total_tool_calls||0)>0?((data.security_l1?.authorization?.unauthorized_calls||0)/(data.security_l1?.authorization?.total_tool_calls)*100).toFixed(1):0}%;background:var(--red);transition:width 0.3s`"></div>
+              </div>
+            </div>
+            <!-- 상세 분류 테이블 -->
+            <div class="dtx-row dtx-head" style="grid-template-columns:1fr 70px 70px 200px">
+              <span>항목</span><span>건수</span><span>비율</span><span>설명</span>
+            </div>
+            <!-- 허가 호출 행 -->
+            <div class="dtx-row" :style="`grid-template-columns:1fr 70px 70px 200px;${selK==='authorized'?'background:rgba(34,197,94,0.06)':''}`">
+              <span style="display:flex;align-items:center;gap:6px">
+                <span style="width:8px;height:8px;border-radius:50%;background:var(--green);flex-shrink:0"></span>
+                <span style="font-size:12px;font-weight:600">허가 호출</span>
+              </span>
+              <span class="badge-ok" x-text="(data.security_l1?.authorization?.authorized_calls||0)+'건'"></span>
+              <span style="font-size:12px;color:var(--green)"
+                    x-text="(data.security_l1?.authorization?.total_tool_calls||0)>0?((data.security_l1?.authorization?.authorized_calls||0)/(data.security_l1?.authorization?.total_tool_calls)*100).toFixed(1)+'%':'—'"></span>
+              <span style="font-size:11px;color:var(--text2)">허가 목록 내 정상 도구 호출</span>
+            </div>
+            <!-- 무단 호출 행 -->
+            <div class="dtx-row" :style="`grid-template-columns:1fr 70px 70px 200px;${selK==='unauthorized'?'background:rgba(220,50,50,0.06)':''}`">
+              <span style="display:flex;align-items:center;gap:6px">
+                <span style="width:8px;height:8px;border-radius:50%;background:var(--red);flex-shrink:0"></span>
+                <span style="font-size:12px;font-weight:600">무단 호출</span>
+              </span>
+              <span :class="(data.security_l1?.authorization?.unauthorized_calls||0)>0?'badge-warn':'badge-ok'"
+                    x-text="(data.security_l1?.authorization?.unauthorized_calls||0)+'건'"></span>
+              <span :style="`font-size:12px;color:${(data.security_l1?.authorization?.unauthorized_calls||0)>0?'var(--red)':'var(--text2)'}`"
+                    x-text="(data.security_l1?.authorization?.total_tool_calls||0)>0?((data.security_l1?.authorization?.unauthorized_calls||0)/(data.security_l1?.authorization?.total_tool_calls)*100).toFixed(1)+'%':'—'"></span>
+              <span style="font-size:11px;color:var(--text2)">허가 목록 외 도구 호출</span>
+            </div>
+            <!-- 제한 시도 행 -->
+            <div class="dtx-row" style="grid-template-columns:1fr 70px 70px 200px">
+              <span style="display:flex;align-items:center;gap:6px">
+                <span style="width:8px;height:8px;border-radius:50%;background:var(--orange);flex-shrink:0"></span>
+                <span style="font-size:12px">제한 시도</span>
+              </span>
+              <span :class="(data.security_l1?.authorization?.restricted_attempts||0)>0?'badge-warn':'badge-ok'"
+                    x-text="(data.security_l1?.authorization?.restricted_attempts||0)+'건'"></span>
+              <span :style="`font-size:12px;color:${(data.security_l1?.authorization?.restricted_attempts||0)>0?'var(--orange)':'var(--text2)'}`"
+                    x-text="(data.security_l1?.authorization?.total_tool_calls||0)>0?((data.security_l1?.authorization?.restricted_attempts||0)/(data.security_l1?.authorization?.total_tool_calls)*100).toFixed(1)+'%':'—'"></span>
+              <span style="font-size:11px;color:var(--text2)">금지된 도구 접근 시도</span>
+            </div>
+            <!-- 위험 파라미터 행 -->
+            <div class="dtx-row" style="grid-template-columns:1fr 70px 70px 200px;margin-bottom:10px">
+              <span style="display:flex;align-items:center;gap:6px">
+                <span style="width:8px;height:8px;border-radius:50%;background:var(--red);flex-shrink:0;opacity:0.6"></span>
+                <span style="font-size:12px">위험 파라미터</span>
+              </span>
+              <span :class="(data.security_l1?.authorization?.dangerous_params||0)>0?'badge-warn':'badge-ok'"
+                    x-text="(data.security_l1?.authorization?.dangerous_params||0)+'건'"></span>
+              <span :style="`font-size:12px;color:${(data.security_l1?.authorization?.dangerous_params||0)>0?'var(--red)':'var(--text2)'}`"
+                    x-text="(data.security_l1?.authorization?.total_tool_calls||0)>0?((data.security_l1?.authorization?.dangerous_params||0)/(data.security_l1?.authorization?.total_tool_calls)*100).toFixed(1)+'%':'—'"></span>
+              <span style="font-size:11px;color:var(--text2)">위험 파라미터 포함 호출</span>
             </div>
           </div>
         </div>
@@ -3356,6 +3411,8 @@ input[type=text],input[type=number]{background:var(--bg3);color:var(--text);bord
   <div class="sdiv"><div class="sdiv-line"></div><span class="sdiv-lbl">L2 · 권한 상승 탐지</span><div class="sdiv-line"></div></div>
   <div x-data="{
     selK:null,
+    privTracking(d){ return d.security_l2?.privilege_escalation?.tracking_active !== false; },
+    atkTracking(d){ return d.security_l2?.attack_detection?.tracking_active !== false; },
     meta:{
       defense_rate:{label:'방어율',unit:'%',desc:'권한 상승 시도 중 에이전트가 성공적으로 방어·거부한 비율입니다. 높을수록 에이전트가 권한 범위를 벗어난 작업 요청을 올바르게 거부함을 의미하며, 100%가 이상적입니다.',hint:'privilege_escalation score'},
       escalation_events:{label:'상승 이벤트',unit:'건',desc:'에이전트가 부여된 권한 범위를 초과하는 작업을 시도한 이벤트 수입니다. 의도치 않은 설계 결함이거나 악의적 입력에 의한 권한 남용 시도일 수 있으며, 0이 되도록 관리해야 합니다.',hint:'security_l2.escalation_events'},
@@ -3364,12 +3421,18 @@ input[type=text],input[type=number]{background:var(--bg3);color:var(--text);bord
     formula(k,d){
       const pe=d.security_l2?.privilege_escalation||{};
       const ad=d.security_l2?.attack_detection||{};
+      if((k==='defense_rate'||k==='escalation_events') && !this.privTracking(d)){
+        return `⚠ PrivilegeEscalationDetector 미활성\n태스크 ${pe.task_count||0}건 존재 — 권한 변화 추적 미수행\n→ track_privilege_change() 미호출로 측정값 없음`;
+      }
+      if(k==='attack_detections' && !this.atkTracking(d)){
+        const tc=ad.task_tool_calls_total||0;
+        return `⚠ ToolChainAttackDetector 미활성\n태스크 기준 ${tc}건 도구 호출 감지 — 체인 분석 미수행\n→ track_tool_chain() 미호출로 측정값 없음`;
+      }
       if(k==='defense_rate'){
         const er=(pe.escalation_rate||0);
         return `방어율 = 100 − 상승률\n= 100 − ${er.toFixed(1)}% = ${(100-er).toFixed(1)}%\n상승 탐지: ${pe.escalations_detected||0}건 / 평가: ${pe.total_evaluations||0}건`;
       }
       if(k==='escalation_events'){
-        const pe=d.security_l2?.privilege_escalation||{};
         return `상승 이벤트 = ${pe.escalations_detected||0}건 탐지\n전체 평가: ${pe.total_evaluations||0}건 / 상승률: ${(pe.escalation_rate||0).toFixed(1)}%\n(PrivilegeEscalationDetector — escalation_detected=True 건수)`;
       }
       if(k==='attack_detections'){
@@ -3385,27 +3448,77 @@ input[type=text],input[type=number]{background:var(--bg3);color:var(--text);bord
       // defense_rate: 전체 이벤트 (탐지+정상 모두 표시)
       return d.security_l2?.escalation_events||[];
     },
+    // 태스크 목록 (추적 미활성 시 폴백)
+    taskItems(d){ return (d.tasks||[]).filter(t=>(Array.isArray(t.tool_calls)?t.tool_calls.length:(t.tool_calls||0))>0||(d.tasks||[]).length>0).slice(0,50); },
     filterLabel(k){return k==='attack_detections'?'공격 체인 탐지':'권한 상승 이벤트';}
   }">
+    <!-- PrivilegeEscalationDetector 미활성 경고 배너 -->
+    <div x-show="!privTracking(data)" x-cloak
+         style="margin-bottom:8px;padding:9px 14px;border-radius:7px;background:rgba(234,179,8,0.1);border:1px solid rgba(234,179,8,0.35);display:flex;align-items:flex-start;gap:10px">
+      <span style="font-size:16px;flex-shrink:0">⚠️</span>
+      <div>
+        <div style="font-size:12px;font-weight:700;color:#b45309;margin-bottom:2px">권한 상승 추적 미활성</div>
+        <div style="font-size:11px;color:var(--text2);line-height:1.6">
+          <code style="font-size:10.5px;background:var(--bg3);padding:1px 5px;border-radius:3px">PrivilegeEscalationDetector.track_privilege_change()</code>이 호출되지 않았습니다.
+          <strong x-text="(data.security_l2?.privilege_escalation?.task_count||0)+'개'"></strong> 태스크가 존재하나 권한 변화 추적이 수행되지 않아
+          <strong>방어율 100%, 상승 이벤트 0건</strong>은 측정값이 아닌 기본값입니다.<br>
+          <span style="color:#92400e">→ <code style="font-size:10.5px">enable_security_metrics=True</code> 설정 후 프레임워크 통합 또는 수동 호출이 필요합니다.</span>
+        </div>
+      </div>
+    </div>
+    <!-- ToolChainAttackDetector 미활성 경고 배너 -->
+    <div x-show="!atkTracking(data)" x-cloak
+         style="margin-bottom:8px;padding:9px 14px;border-radius:7px;background:rgba(234,179,8,0.1);border:1px solid rgba(234,179,8,0.35);display:flex;align-items:flex-start;gap:10px">
+      <span style="font-size:16px;flex-shrink:0">⚠️</span>
+      <div>
+        <div style="font-size:12px;font-weight:700;color:#b45309;margin-bottom:2px">공격 체인 분석 미활성</div>
+        <div style="font-size:11px;color:var(--text2);line-height:1.6">
+          <code style="font-size:10.5px;background:var(--bg3);padding:1px 5px;border-radius:3px">ToolChainAttackDetector.track_tool_chain()</code>이 호출되지 않았습니다.
+          태스크 기준 <strong x-text="(data.security_l2?.attack_detection?.task_tool_calls_total||0)+'건'"></strong>의 도구 호출이 감지되었으나 체인 분석이 수행되지 않아
+          <strong>공격 탐지 0건</strong>은 측정값이 아닌 기본값입니다.
+        </div>
+      </div>
+    </div>
     <div class="kpi-grid">
-      <div class="kpi kpi-act" :class="{sel:selK==='defense_rate'}" @click="selK=selK==='defense_rate'?null:'defense_rate'">
+      <!-- 방어율 KPI -->
+      <div class="kpi kpi-act" :class="{sel:selK==='defense_rate'}" @click="selK=selK==='defense_rate'?null:'defense_rate'"
+           :style="!privTracking(data)?'opacity:0.55;border-style:dashed':''">
         <div class="kpi-lbl">방어율</div>
-        <div class="kpi-val" :style="`color:${_bc((100-(data.security_l2?.privilege_escalation?.escalation_rate||0)),90,70)}`"
-             x-text="_pct((100-(data.security_l2?.privilege_escalation?.escalation_rate||0)))"></div>
-        <div class="kpi-sub" x-text="`평가 ${data.security_l2?.privilege_escalation?.total_evaluations||0}건`"></div>
+        <template x-if="privTracking(data)">
+          <div class="kpi-val" :style="`color:${_bc((100-(data.security_l2?.privilege_escalation?.escalation_rate||0)),90,70)}`"
+               x-text="_pct((100-(data.security_l2?.privilege_escalation?.escalation_rate||0)))"></div>
+        </template>
+        <template x-if="!privTracking(data)">
+          <div class="kpi-val" style="color:var(--text2);font-size:13px;font-weight:500">추적 안됨</div>
+        </template>
+        <div class="kpi-sub" x-text="privTracking(data)?`평가 ${data.security_l2?.privilege_escalation?.total_evaluations||0}건`:`태스크 ${data.security_l2?.privilege_escalation?.task_count||0}건`"></div>
       </div>
-      <div class="kpi kpi-act" :class="{sel:selK==='escalation_events'}" @click="selK=selK==='escalation_events'?null:'escalation_events'">
+      <!-- 상승 이벤트 KPI -->
+      <div class="kpi kpi-act" :class="{sel:selK==='escalation_events'}" @click="selK=selK==='escalation_events'?null:'escalation_events'"
+           :style="!privTracking(data)?'opacity:0.55;border-style:dashed':''">
         <div class="kpi-lbl">상승 이벤트</div>
-        <div class="kpi-val" :style="`color:${(data.security_l2?.privilege_escalation?.escalations_detected||0)>0?'var(--red)':'var(--green)'}`"
-             x-text="data.security_l2?.privilege_escalation?.escalations_detected||0"></div>
-        <div class="kpi-sub" :class="(data.security_l2?.privilege_escalation?.escalations_detected||0)>0?'warn':'ok'"
-             x-text="`평가 ${data.security_l2?.privilege_escalation?.total_evaluations||0}건 중 탐지`"></div>
+        <template x-if="privTracking(data)">
+          <div class="kpi-val" :style="`color:${(data.security_l2?.privilege_escalation?.escalations_detected||0)>0?'var(--red)':'var(--green)'}`"
+               x-text="data.security_l2?.privilege_escalation?.escalations_detected||0"></div>
+        </template>
+        <template x-if="!privTracking(data)">
+          <div class="kpi-val" style="color:var(--text2);font-size:13px;font-weight:500">—</div>
+        </template>
+        <div class="kpi-sub" :class="privTracking(data)&&(data.security_l2?.privilege_escalation?.escalations_detected||0)>0?'warn':'ok'"
+             x-text="privTracking(data)?`평가 ${data.security_l2?.privilege_escalation?.total_evaluations||0}건 중 탐지`:'권한 추적 미수행'"></div>
       </div>
-      <div class="kpi kpi-act" :class="{sel:selK==='attack_detections'}" @click="selK=selK==='attack_detections'?null:'attack_detections'">
+      <!-- 공격 탐지 KPI -->
+      <div class="kpi kpi-act" :class="{sel:selK==='attack_detections'}" @click="selK=selK==='attack_detections'?null:'attack_detections'"
+           :style="!atkTracking(data)?'opacity:0.55;border-style:dashed':''">
         <div class="kpi-lbl">공격 탐지</div>
-        <div class="kpi-val" :style="`color:${(data.security_l2?.attack_detection?.suspicious_chains||0)>0?'var(--red)':'var(--green)'}`"
-             x-text="data.security_l2?.attack_detection?.suspicious_chains||0"></div>
-        <div class="kpi-sub" x-text="`분석 ${data.security_l2?.attack_detection?.total_chains_analyzed||0}건`"></div>
+        <template x-if="atkTracking(data)">
+          <div class="kpi-val" :style="`color:${(data.security_l2?.attack_detection?.suspicious_chains||0)>0?'var(--red)':'var(--green)'}`"
+               x-text="data.security_l2?.attack_detection?.suspicious_chains||0"></div>
+        </template>
+        <template x-if="!atkTracking(data)">
+          <div class="kpi-val" style="color:var(--text2);font-size:13px;font-weight:500">—</div>
+        </template>
+        <div class="kpi-sub" x-text="atkTracking(data)?`분석 ${data.security_l2?.attack_detection?.total_chains_analyzed||0}건`:'체인 분석 미수행'"></div>
       </div>
     </div>
     <div x-show="selK" style="margin:8px 0 14px;border:1px solid var(--accent);border-radius:8px;overflow:hidden" x-cloak>
@@ -3413,7 +3526,34 @@ input[type=text],input[type=number]{background:var(--bg3);color:var(--text);bord
         <div>
           <div style="display:flex;align-items:center;gap:8px;padding:10px 14px;background:var(--bg2);border-bottom:1px solid var(--border)">
             <span style="font-weight:700;font-size:14px" x-text="meta[selK]?.label||selK"></span>
-            <span style="font-size:11px;color:var(--text2);margin-left:4px" x-text="items(selK,data).length?`(${items(selK,data).length}건)`:''"  ></span>
+            <template x-if="selK==='attack_detections'">
+              <template x-if="!atkTracking(data)">
+                <span style="font-size:10px;background:rgba(234,179,8,0.15);color:#92400e;padding:1px 7px;border-radius:99px;margin-left:4px">추적 안됨</span>
+              </template>
+              <template x-if="atkTracking(data)">
+                <span style="font-size:11px;color:var(--text2);margin-left:4px"
+                      x-text="items(selK,data).length?`(${items(selK,data).length}건 분석 · ${data.security_l2?.attack_detection?.suspicious_chains||0}건 의심)`:'(기록 없음)'"></span>
+              </template>
+            </template>
+            <template x-if="selK==='escalation_events'">
+              <template x-if="!privTracking(data)">
+                <span style="font-size:10px;background:rgba(234,179,8,0.15);color:#92400e;padding:1px 7px;border-radius:99px;margin-left:4px">추적 안됨</span>
+              </template>
+              <template x-if="privTracking(data)">
+                <span style="font-size:11px;margin-left:4px"
+                      :style="`color:${items(selK,data).length?'var(--red)':'var(--text2)'}`"
+                      x-text="items(selK,data).length?`(${items(selK,data).length}건 탐지)`:'(탐지 없음)'"></span>
+              </template>
+            </template>
+            <template x-if="selK==='defense_rate'">
+              <template x-if="!privTracking(data)">
+                <span style="font-size:10px;background:rgba(234,179,8,0.15);color:#92400e;padding:1px 7px;border-radius:99px;margin-left:4px">추적 안됨</span>
+              </template>
+              <template x-if="privTracking(data)">
+                <span style="font-size:11px;color:var(--text2);margin-left:4px"
+                      x-text="items(selK,data).length?`(전체 ${items(selK,data).length}건 평가 · ${items(selK,data).filter(e=>e.escalation_detected).length}건 상승)`:'(기록 없음)'"></span>
+              </template>
+            </template>
             <button style="margin-left:auto;background:transparent;border:none;color:var(--text2);cursor:pointer;font-size:18px" @click="selK=null">×</button>
           </div>
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:0;border-bottom:1px solid var(--border)">
@@ -3426,48 +3566,213 @@ input[type=text],input[type=number]{background:var(--bg3);color:var(--text);bord
               <div style="font-size:12px;font-family:monospace;color:var(--accent);line-height:1.9;white-space:pre-line" x-text="formula(selK,data)"></div>
             </div>
           </div>
-          <!-- 공격 탐지: 의심 없음 안내 -->
+          <!-- 공격 탐지: 전체 정상 배너 -->
           <div x-show="selK==='attack_detections' && items(selK,data).length && !(data.security_l2?.attack_detection?.suspicious_chains||0)"
-               style="padding:6px 14px;background:rgba(16,185,129,0.07);font-size:11px;color:var(--green);display:flex;align-items:center;gap:6px">
+               style="padding:7px 14px;background:rgba(16,185,129,0.07);font-size:11px;color:var(--green);display:flex;align-items:center;gap:6px;border-bottom:1px solid var(--border)">
             ✓ 분석된 <span x-text="items(selK,data).length+'건'"></span> 체인 모두 정상 — 공격 패턴 미탐지
           </div>
-          <div x-show="items(selK,data).length" style="padding:0 14px 12px;background:var(--bg2)">
-            <div class="dtx" style="font-size:11px">
-              <template x-if="selK==='escalation_events'">
-                <div>
-                  <div class="dtx-row dtx-head" style="grid-template-columns:1fr 80px 80px 80px 1fr">
-                    <span>Task ID</span><span>초기권한</span><span>최종권한</span><span>탐지</span><span>도구 경로</span>
-                  </div>
-                  <template x-for="(e,ei) in items(selK,data).slice(0,20)" :key="ei">
-                    <div class="dtx-row" :style="`grid-template-columns:1fr 80px 80px 80px 1fr;${e.escalation_detected?'background:rgba(220,50,50,0.06)':''}` ">
-                      <span style="font-size:10px;word-break:break-all" x-text="e.task_id||'—'"></span>
-                      <span x-text="e.initial_privilege??e.initial_privilege_level??'—'"></span>
-                      <span x-text="e.final_privilege??e.final_privilege_level??'—'"></span>
-                      <span :class="e.escalation_detected?'badge-ng':'badge-ok'" x-text="e.escalation_detected?'탐지':'정상'"></span>
-                      <span style="font-size:10px;color:var(--text2)" x-text="(e.escalation_path||[]).join(' → ')||'—'"></span>
-                    </div>
-                  </template>
-                </div>
-              </template>
-              <template x-if="selK==='attack_detections'">
-                <div>
-                  <div class="dtx-row dtx-head" style="grid-template-columns:1fr 80px 80px 80px 1fr">
-                    <span>Task ID</span><span>체인길이</span><span>의심</span><span>신뢰도</span><span>패턴</span>
-                  </div>
-                  <template x-for="(e,ei) in items(selK,data).slice(0,20)" :key="ei">
-                    <div class="dtx-row" :style="`grid-template-columns:1fr 80px 80px 80px 1fr;${e.is_suspicious_chain?'background:rgba(220,50,50,0.06)':''}` ">
-                      <span style="font-size:10px;word-break:break-all" x-text="e.task_id||'—'"></span>
-                      <span x-text="e.chain_length??'—'"></span>
-                      <span :class="e.is_suspicious_chain?'badge-ng':'badge-ok'" x-text="e.is_suspicious_chain?'의심':'정상'"></span>
-                      <span x-text="(e.confidence_score??e.confidence)!=null?(e.confidence_score??e.confidence).toFixed(2):'—'"></span>
-                      <span style="font-size:10px;color:var(--text2)" x-text="(e.attack_patterns_detected||e.attack_patterns||[]).join(', ')||'—'"></span>
-                    </div>
-                  </template>
-                </div>
-              </template>
-              <div x-show="items(selK,data).length>20" style="padding:6px;text-align:center;color:var(--text2);font-size:11px"
-                   x-text="`... 외 ${items(selK,data).length-20}건`"></div>
+
+          <!-- 데이터 없음: 추적 미활성 → 태스크 폴백 테이블 -->
+          <div x-show="!items(selK,data).length && (selK==='defense_rate'||selK==='escalation_events') && !privTracking(data)"
+               style="padding:0 14px 12px;background:var(--bg2)">
+            <div style="font-size:11px;color:#b45309;font-weight:600;padding:8px 0 6px">
+              ⚠ PrivilegeEscalationDetector 미활성 — 태스크 목록으로 표시 (권한 정보 미수집)
             </div>
+            <div class="dtx" style="font-size:11px">
+              <div class="dtx-row dtx-head" style="grid-template-columns:1.2fr 90px 60px 60px 65px">
+                <span>Task ID</span><span>태스크 유형</span><span>도구 호출수</span><span>완료율</span><span>권한 추적</span>
+              </div>
+              <template x-for="(t,ti) in (data.tasks||[]).slice(0,30)" :key="ti">
+                <div class="dtx-row" :style="`grid-template-columns:1.2fr 90px 60px 60px 65px;${t.success===false?'background:rgba(220,50,50,0.04)':''}`">
+                  <span style="font-size:10px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" x-text="t.task_id||'—'"></span>
+                  <span style="font-size:10px;color:var(--text2)" x-text="t.task_type||'—'"></span>
+                  <span style="font-size:11px" x-text="Array.isArray(t.tool_calls)?t.tool_calls.length:(t.tool_calls||0)"></span>
+                  <span style="font-size:11px" :style="`color:${_bc((t.completion_score||0)*100,85,70)}`"
+                        x-text="t.completion_score!=null?((t.completion_score||0)*100).toFixed(0)+'%':'—'"></span>
+                  <span style="font-size:10px;color:#b45309;font-weight:500">미수행</span>
+                </div>
+              </template>
+              <div x-show="(data.tasks||[]).length>30" style="padding:6px;text-align:center;color:var(--text2);font-size:11px"
+                   x-text="`... 외 ${(data.tasks||[]).length-30}건`"></div>
+            </div>
+          </div>
+          <div x-show="!items(selK,data).length && selK==='attack_detections' && !atkTracking(data)"
+               style="padding:0 14px 12px;background:var(--bg2)">
+            <div style="font-size:11px;color:#b45309;font-weight:600;padding:8px 0 6px">
+              ⚠ ToolChainAttackDetector 미활성 — 도구 호출 목록으로 표시 (체인 분석 미수행)
+            </div>
+            <div class="dtx" style="font-size:11px">
+              <div class="dtx-row dtx-head" style="grid-template-columns:1.2fr 90px 60px 60px 65px">
+                <span>Task ID</span><span>태스크 유형</span><span>도구 호출수</span><span>완료율</span><span>체인 분석</span>
+              </div>
+              <template x-for="(t,ti) in (data.tasks||[]).filter(t=>(Array.isArray(t.tool_calls)?t.tool_calls.length:(t.tool_calls||0))>0).slice(0,30)" :key="ti">
+                <div class="dtx-row" style="grid-template-columns:1.2fr 90px 60px 60px 65px">
+                  <span style="font-size:10px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" x-text="t.task_id||'—'"></span>
+                  <span style="font-size:10px;color:var(--text2)" x-text="t.task_type||'—'"></span>
+                  <span style="font-size:11px" x-text="Array.isArray(t.tool_calls)?t.tool_calls.length:(t.tool_calls||0)"></span>
+                  <span style="font-size:11px" :style="`color:${_bc((t.completion_score||0)*100,85,70)}`"
+                        x-text="t.completion_score!=null?((t.completion_score||0)*100).toFixed(0)+'%':'—'"></span>
+                  <span style="font-size:10px;color:#b45309;font-weight:500">미수행</span>
+                </div>
+              </template>
+            </div>
+          </div>
+          <!-- 데이터 없음: 추적 활성이나 기록 없음 -->
+          <div x-show="!items(selK,data).length && (selK==='defense_rate'||selK==='escalation_events') && privTracking(data)"
+               style="padding:14px;text-align:center;font-size:12px;color:var(--text2);background:var(--bg2)">
+            <span>PrivilegeEscalationDetector 평가 기록 없음</span>
+          </div>
+          <div x-show="!items(selK,data).length && selK==='attack_detections' && atkTracking(data)"
+               style="padding:14px;text-align:center;font-size:12px;color:var(--text2);background:var(--bg2)">
+            <span>ToolChainAttackDetector 분석 기록 없음 — 공격 체인 평가가 수행되지 않았습니다</span>
+          </div>
+
+          <!-- 권한 상승 이벤트 / 방어율 테이블 (escalation_events & defense_rate) -->
+          <div x-show="(selK==='escalation_events'||selK==='defense_rate') && items(selK,data).length"
+               style="padding:0 14px 12px;background:var(--bg2)">
+            <div style="font-size:11px;color:var(--text2);padding:8px 0 5px">
+              <template x-if="selK==='defense_rate'">
+                <span>🛡 전체 평가 이벤트 (탐지 + 정상) — 권한 경로 추적</span>
+              </template>
+              <template x-if="selK==='escalation_events'">
+                <span>🚨 권한 상승 탐지 이벤트만 표시</span>
+              </template>
+            </div>
+            <div class="dtx" style="font-size:11px">
+              <div class="dtx-row dtx-head" style="grid-template-columns:1.2fr 70px 70px 55px 50px 2fr">
+                <span>Task ID</span><span>초기 권한</span><span>최대 권한</span><span>위험도</span><span>판정</span><span>상승 경로</span>
+              </div>
+              <template x-for="(e,ei) in items(selK,data).slice(0,30)" :key="ei">
+                <div class="dtx-row" :style="`grid-template-columns:1.2fr 70px 70px 55px 50px 2fr;${e.escalation_detected?'background:rgba(220,50,50,0.06)':''}` ">
+                  <span style="font-size:10px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" x-text="e.task_id||'—'"></span>
+                  <span style="font-size:11px;font-weight:500" x-text="e.initial_privilege||e.initial_privilege_level||'—'"></span>
+                  <span style="font-size:11px;font-weight:500"
+                        :style="`color:${e.escalation_detected?'var(--red)':'var(--text1)'}`"
+                        x-text="e.max_privilege||e.final_privilege||'—'"></span>
+                  <span style="font-size:11px"
+                        :style="`color:${(e.risk_score||0)>=7?'var(--red)':(e.risk_score||0)>=4?'var(--orange)':'var(--text2)'}`"
+                        x-text="e.risk_score!=null?e.risk_score+'점':'—'"></span>
+                  <span :class="e.escalation_detected?'badge-ng':'badge-ok'" x-text="e.escalation_detected?'상승':'정상'"></span>
+                  <span style="font-size:10px;color:var(--text2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis"
+                        :title="(e.escalation_path||[]).join(' → ')"
+                        x-text="(e.escalation_path||[]).length?(e.escalation_path||[]).join(' → '):'직접 상승 (경로 미기록)'"></span>
+                </div>
+              </template>
+              <div x-show="items(selK,data).length>30" style="padding:6px;text-align:center;color:var(--text2);font-size:11px"
+                   x-text="`... 외 ${items(selK,data).length-30}건`"></div>
+            </div>
+            <!-- 권한 상승 요약 통계 -->
+            <template x-if="selK==='escalation_events' && items(selK,data).length">
+              <div style="margin-top:10px;padding:8px 10px;background:var(--bg3);border-radius:6px;display:flex;flex-direction:row;flex-wrap:wrap;gap:6px 16px;align-items:flex-start">
+                <div style="flex:0 0 auto;min-width:80px">
+                  <div style="font-size:10px;color:var(--text2)">평균 위험도</div>
+                  <div style="font-size:15px;font-weight:700;color:var(--red)"
+                       x-text="items(selK,data).length?(items(selK,data).reduce((s,e)=>s+(e.risk_score||0),0)/items(selK,data).length).toFixed(1)+'점':'—'"></div>
+                </div>
+                <div style="flex:0 0 auto;min-width:80px">
+                  <div style="font-size:10px;color:var(--text2)">최고 위험도</div>
+                  <div style="font-size:15px;font-weight:700;color:var(--red)"
+                       x-text="items(selK,data).length?Math.max(...items(selK,data).map(e=>e.risk_score||0))+'점':'—'"></div>
+                </div>
+                <div style="flex:0 0 auto;min-width:100px">
+                  <div style="font-size:10px;color:var(--text2)">초기 권한 분포</div>
+                  <div style="font-size:11px;color:var(--text1)"
+                       x-text="[...new Set(items(selK,data).map(e=>e.initial_privilege||''))].filter(Boolean).join(', ')||'—'"></div>
+                </div>
+                <div style="flex:0 0 auto;min-width:100px">
+                  <div style="font-size:10px;color:var(--text2)">도달 최고 권한</div>
+                  <div style="font-size:11px;font-weight:600;color:var(--red)"
+                       x-text="[...new Set(items(selK,data).map(e=>e.max_privilege||''))].filter(Boolean).join(', ')||'—'"></div>
+                </div>
+              </div>
+            </template>
+          </div>
+
+          <!-- 공격 탐지 테이블 -->
+          <div x-show="selK==='attack_detections' && items(selK,data).length"
+               style="padding:0 14px 12px;background:var(--bg2)">
+            <div style="font-size:11px;color:var(--text2);padding:8px 0 5px">
+              🔗 공격 체인 분석 결과 — 의심 체인 강조 표시
+            </div>
+            <div class="dtx" style="font-size:11px">
+              <div class="dtx-row dtx-head" style="grid-template-columns:1.2fr 55px 50px 55px 2fr">
+                <span>Task ID</span><span>체인길이</span><span>판정</span><span>신뢰도</span><span>탐지 패턴 / 공격 유형</span>
+              </div>
+              <template x-for="(e,ei) in items(selK,data).slice(0,30)" :key="ei">
+                <div class="dtx-row" :style="`grid-template-columns:1.2fr 55px 50px 55px 2fr;${e.is_suspicious_chain?'background:rgba(220,50,50,0.06)':''}` ">
+                  <span style="font-size:10px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" x-text="e.task_id||'—'"></span>
+                  <span style="font-size:11px;font-weight:500" x-text="e.chain_length??'—'"></span>
+                  <span :class="e.is_suspicious_chain?'badge-ng':'badge-ok'" x-text="e.is_suspicious_chain?'의심':'정상'"></span>
+                  <span :style="`font-size:11px;color:${(e.confidence_score??e.confidence||0)>=0.7?'var(--red)':(e.confidence_score??e.confidence||0)>=0.4?'var(--orange)':'var(--text2)'}`"
+                        x-text="(e.confidence_score??e.confidence)!=null?((e.confidence_score??e.confidence)*100).toFixed(0)+'%':'—'"></span>
+                  <span style="display:flex;flex-wrap:wrap;gap:3px;align-items:center">
+                    <template x-for="pat in (e.attack_patterns_detected||e.attack_patterns||[])" :key="pat">
+                      <span style="font-size:10px;background:rgba(220,50,50,0.15);color:var(--red);padding:1px 5px;border-radius:3px" x-text="pat"></span>
+                    </template>
+                    <template x-if="e.attack_types">
+                      <span style="display:contents">
+                        <template x-if="e.attack_types.data_exfiltration">
+                          <span style="font-size:10px;background:rgba(220,50,50,0.12);color:#be123c;padding:1px 5px;border-radius:3px">데이터 유출</span>
+                        </template>
+                        <template x-if="e.attack_types.lateral_movement">
+                          <span style="font-size:10px;background:rgba(234,88,12,0.12);color:#c2410c;padding:1px 5px;border-radius:3px">측면 이동</span>
+                        </template>
+                        <template x-if="e.attack_types.persistence">
+                          <span style="font-size:10px;background:rgba(124,58,237,0.12);color:#7c3aed;padding:1px 5px;border-radius:3px">지속성</span>
+                        </template>
+                        <template x-if="e.attack_types.defense_evasion">
+                          <span style="font-size:10px;background:rgba(15,118,110,0.12);color:#0f766e;padding:1px 5px;border-radius:3px">탐지 우회</span>
+                        </template>
+                      </span>
+                    </template>
+                    <template x-if="!(e.attack_patterns_detected||e.attack_patterns||[]).length && !e.is_suspicious_chain">
+                      <span style="font-size:10px;color:var(--text2)">패턴 미탐지</span>
+                    </template>
+                  </span>
+                </div>
+              </template>
+              <div x-show="items(selK,data).length>30" style="padding:6px;text-align:center;color:var(--text2);font-size:11px"
+                   x-text="`... 외 ${items(selK,data).length-30}건`"></div>
+            </div>
+            <!-- 공격 유형 요약 -->
+            <template x-if="(data.security_l2?.attack_detection?.suspicious_chains||0)>0">
+              <div style="margin-top:10px;padding:8px 10px;background:var(--bg3);border-radius:6px;display:flex;flex-direction:row;flex-wrap:wrap;gap:6px 14px;align-items:flex-start">
+                <div style="flex:0 0 auto;min-width:72px">
+                  <div style="font-size:10px;color:var(--text2)">의심 체인</div>
+                  <div style="font-size:15px;font-weight:700;color:var(--red)"
+                       x-text="(data.security_l2?.attack_detection?.suspicious_chains||0)+'건'"></div>
+                </div>
+                <template x-if="(data.security_l2?.attack_detection?.data_exfiltration_detected||0)>0">
+                  <div style="flex:0 0 auto;min-width:72px">
+                    <div style="font-size:10px;color:var(--text2)">데이터 유출</div>
+                    <div style="font-size:15px;font-weight:700;color:#be123c" x-text="(data.security_l2?.attack_detection?.data_exfiltration_detected||0)+'건'"></div>
+                  </div>
+                </template>
+                <template x-if="(data.security_l2?.attack_detection?.lateral_movement_detected||0)>0">
+                  <div style="flex:0 0 auto;min-width:72px">
+                    <div style="font-size:10px;color:var(--text2)">측면 이동</div>
+                    <div style="font-size:15px;font-weight:700;color:#c2410c" x-text="(data.security_l2?.attack_detection?.lateral_movement_detected||0)+'건'"></div>
+                  </div>
+                </template>
+                <template x-if="(data.security_l2?.attack_detection?.persistence_detected||0)>0">
+                  <div style="flex:0 0 auto;min-width:60px">
+                    <div style="font-size:10px;color:var(--text2)">지속성</div>
+                    <div style="font-size:15px;font-weight:700;color:#7c3aed" x-text="(data.security_l2?.attack_detection?.persistence_detected||0)+'건'"></div>
+                  </div>
+                </template>
+                <template x-if="(data.security_l2?.attack_detection?.defense_evasion_detected||0)>0">
+                  <div style="flex:0 0 auto;min-width:72px">
+                    <div style="font-size:10px;color:var(--text2)">탐지 우회</div>
+                    <div style="font-size:15px;font-weight:700;color:#0f766e" x-text="(data.security_l2?.attack_detection?.defense_evasion_detected||0)+'건'"></div>
+                  </div>
+                </template>
+                <div style="flex:0 0 auto;min-width:72px">
+                  <div style="font-size:10px;color:var(--text2)">평균 신뢰도</div>
+                  <div style="font-size:15px;font-weight:700"
+                       x-text="(data.security_l2?.attack_detection?.avg_confidence??0)>=0?((data.security_l2?.attack_detection?.avg_confidence||0)*100).toFixed(0)+'%':'—'"></div>
+                </div>
+              </div>
+            </template>
           </div>
         </div>
       </template>
