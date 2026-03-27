@@ -1304,7 +1304,31 @@ input[type=text],input[type=number]{background:var(--bg3);color:var(--text);bord
 
   <!-- ── LLM Judge 섹션 (enable_llm_judge=True 일 때만 표시) ── -->
   <template x-if="data?.llm_judge?.judged_count > 0">
-    <div>
+    <div x-data="{
+      selK: null,
+      meta: {
+        overall:      {label:'종합 점수',      desc:'completeness · relevance · factual_consistency 3차원 점수를 동일 가중치로 평균한 종합 Judge 점수입니다. ground_truth 없이도 응답 품질을 자동으로 모니터링할 수 있습니다.',        hint:'overall = (completeness + relevance + factual_consistency) / 3'},
+        completeness: {label:'완결성',          desc:'질문이 제기한 모든 측면과 하위 질문을 응답이 빠짐없이 다루는지 평가합니다. 0=질문 완전 무시, 5=모든 측면 충분히 커버.',                                                             hint:'LLM Judge → integer 0–5\n(질문 범위 대비 응답 커버리지)'},
+        relevance:    {label:'관련성',          desc:'응답이 질문의 핵심 의도에 직접적으로 답하고 있는지 평가합니다. 0=완전히 off-topic, 5=완벽하게 핵심을 파악해 답변.',                                                                hint:'LLM Judge → integer 0–5\n(질문 의도 대비 응답 집중도)'},
+        factual:      {label:'사실 일관성',     desc:'응답 내부에 자기 모순이 없고 명백한 오류 없이 일관성 있는지 평가합니다. 외부 사실 검증이 아닌 응답 자체의 내적 정합성을 측정합니다. 0=자기 모순, 5=일관되고 신뢰 가능.',          hint:'LLM Judge → integer 0–5\n(내부 모순·오류 없음 여부)'},
+      },
+      formula(k) {
+        const jd = data.llm_judge;
+        if(k==='overall')     return `평균 = (완결성 + 관련성 + 사실 일관성) / 3\n= (${(jd.avg_completeness||0).toFixed(2)} + ${(jd.avg_relevance||0).toFixed(2)} + ${(jd.avg_factual_consistency||0).toFixed(2)}) / 3\n= ${(jd.avg_overall||0).toFixed(2)} / 5`;
+        if(k==='completeness')return `avg completeness = ${(jd.avg_completeness||0).toFixed(2)} / 5\nModel: ${jd.model||'—'}  |  샘플: ${jd.judged_count}건`;
+        if(k==='relevance')   return `avg relevance = ${(jd.avg_relevance||0).toFixed(2)} / 5\nModel: ${jd.model||'—'}  |  샘플: ${jd.judged_count}건`;
+        if(k==='factual')     return `avg factual_consistency = ${(jd.avg_factual_consistency||0).toFixed(2)} / 5\nModel: ${jd.model||'—'}  |  샘플: ${jd.judged_count}건`;
+        return '';
+      },
+      scoreKey(k) { return {overall:'overall',completeness:'completeness',relevance:'relevance',factual:'factual_consistency'}[k]||'overall'; },
+      items(k) {
+        const rs = data.llm_judge.results || [];
+        const sk = this.scoreKey(k);
+        return [...rs].sort((a,b)=>(b.scores?.[sk]??0)-(a.scores?.[sk]??0));
+      },
+      scoreCol(k) { return {overall:'종합',completeness:'완결성',relevance:'관련성',factual:'사실 일관성'}[k]||'점수'; },
+      _jc(v) { return v>=4?'var(--green)':v>=2.5?'var(--yellow)':'var(--red)'; }
+    }">
       <!-- 섹션 구분자 -->
       <div class="sdiv">
         <div class="sdiv-line"></div>
@@ -1313,36 +1337,82 @@ input[type=text],input[type=number]{background:var(--bg3);color:var(--text);bord
         <div class="sdiv-line"></div>
       </div>
 
-      <!-- KPI 4개 -->
+      <!-- KPI 4개 (클릭 가능) -->
       <div class="kpi-grid">
-        <div class="kpi" style="border-left:3px solid #8b5cf6">
+        <div class="kpi kpi-act" style="border-left:3px solid #8b5cf6" :class="{sel:selK==='overall'}" @click="selK=selK==='overall'?null:'overall'">
           <div class="kpi-lbl">종합 점수</div>
-          <div class="kpi-val"
-               :style="(data.llm_judge.avg_overall||0)>=4?'color:var(--green)':(data.llm_judge.avg_overall||0)>=2.5?'color:var(--yellow)':'color:var(--red)'"
+          <div class="kpi-val" :style="`color:${_jc(data.llm_judge.avg_overall||0)}`"
                x-text="(data.llm_judge.avg_overall||0).toFixed(2)+'/5'"></div>
           <div class="kpi-sub" x-text="data.llm_judge.judged_count+'건 채점'"></div>
         </div>
-        <div class="kpi">
+        <div class="kpi kpi-act" :class="{sel:selK==='completeness'}" @click="selK=selK==='completeness'?null:'completeness'">
           <div class="kpi-lbl">완결성</div>
-          <div class="kpi-val"
-               :style="(data.llm_judge.avg_completeness||0)>=4?'color:var(--green)':(data.llm_judge.avg_completeness||0)>=2.5?'color:var(--yellow)':'color:var(--red)'"
+          <div class="kpi-val" :style="`color:${_jc(data.llm_judge.avg_completeness||0)}`"
                x-text="(data.llm_judge.avg_completeness||0).toFixed(2)+'/5'"></div>
           <div class="kpi-sub">질문의 모든 측면 커버</div>
         </div>
-        <div class="kpi">
+        <div class="kpi kpi-act" :class="{sel:selK==='relevance'}" @click="selK=selK==='relevance'?null:'relevance'">
           <div class="kpi-lbl">관련성</div>
-          <div class="kpi-val"
-               :style="(data.llm_judge.avg_relevance||0)>=4?'color:var(--green)':(data.llm_judge.avg_relevance||0)>=2.5?'color:var(--yellow)':'color:var(--red)'"
+          <div class="kpi-val" :style="`color:${_jc(data.llm_judge.avg_relevance||0)}`"
                x-text="(data.llm_judge.avg_relevance||0).toFixed(2)+'/5'"></div>
           <div class="kpi-sub">질문 핵심 의도 부합</div>
         </div>
-        <div class="kpi">
+        <div class="kpi kpi-act" :class="{sel:selK==='factual'}" @click="selK=selK==='factual'?null:'factual'">
           <div class="kpi-lbl">사실 일관성</div>
-          <div class="kpi-val"
-               :style="(data.llm_judge.avg_factual_consistency||0)>=4?'color:var(--green)':(data.llm_judge.avg_factual_consistency||0)>=2.5?'color:var(--yellow)':'color:var(--red)'"
+          <div class="kpi-val" :style="`color:${_jc(data.llm_judge.avg_factual_consistency||0)}`"
                x-text="(data.llm_judge.avg_factual_consistency||0).toFixed(2)+'/5'"></div>
           <div class="kpi-sub">내적 모순·오류 없음</div>
         </div>
+      </div>
+
+      <!-- 클릭 상세 패널 -->
+      <div x-show="selK" style="margin:8px 0 14px;border:1px solid var(--accent);border-radius:8px;overflow:hidden" x-cloak>
+        <template x-if="selK">
+          <div>
+            <!-- 패널 헤더 -->
+            <div style="display:flex;align-items:center;gap:8px;padding:10px 14px;background:var(--bg2);border-bottom:1px solid var(--border)">
+              <span style="font-weight:700;font-size:14px" x-text="meta[selK]?.label||selK"></span>
+              <span style="font-size:11px;color:var(--text2);background:var(--bg3);padding:1px 7px;border-radius:99px">0–5점</span>
+              <span style="font-size:11px;color:var(--text2);background:var(--bg3);padding:1px 7px;border-radius:99px"
+                    x-text="data.llm_judge.model||'—'"></span>
+              <button style="margin-left:auto;background:transparent;border:none;color:var(--text2);cursor:pointer;font-size:18px" @click="selK=null">×</button>
+            </div>
+            <!-- 설명 | 산출 방식 -->
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:0;border-bottom:1px solid var(--border)">
+              <div style="padding:10px 14px;background:var(--bg2);border-right:1px solid var(--border)">
+                <div style="font-size:11px;font-weight:600;color:var(--text2);margin-bottom:4px;text-transform:uppercase">설명</div>
+                <div style="font-size:13px;line-height:1.7" x-text="meta[selK]?.desc||''"></div>
+              </div>
+              <div style="padding:10px 14px;background:var(--bg3)">
+                <div style="font-size:11px;font-weight:600;color:var(--text2);margin-bottom:4px;text-transform:uppercase">📐 산출 방식</div>
+                <div style="font-size:12px;font-family:monospace;color:var(--accent);line-height:1.8;white-space:pre-line" x-text="formula(selK)"></div>
+              </div>
+            </div>
+            <!-- 태스크 상세 -->
+            <div style="padding:10px 14px;background:var(--bg)">
+              <div style="display:flex;align-items:center;gap:6px;margin-bottom:8px">
+                <span style="font-size:11px;font-weight:600;color:var(--text2);text-transform:uppercase">관련 태스크</span>
+                <span style="font-size:11px;color:var(--text2);background:var(--bg3);padding:1px 7px;border-radius:99px">점수 내림차순</span>
+                <span style="font-size:11px;color:var(--text2);margin-left:auto" x-text="items(selK).length+'건'"></span>
+              </div>
+              <div class="dtx" style="max-height:220px;overflow-y:auto">
+                <div class="dtx-row dtx-head" style="grid-template-columns:minmax(140px,1fr) 60px 60px 60px 60px minmax(0,2fr);position:sticky;top:0;z-index:1">
+                  <span>Task ID</span><span style="text-align:center">완결성</span><span style="text-align:center">관련성</span><span style="text-align:center">사실</span><span style="text-align:center">종합</span><span>판단 근거</span>
+                </div>
+                <template x-for="r in items(selK)" :key="r.task_id">
+                  <div class="dtx-row" style="grid-template-columns:minmax(140px,1fr) 60px 60px 60px 60px minmax(0,2fr)">
+                    <span class="dtx-id" x-text="r.task_id"></span>
+                    <span style="text-align:center;font-size:12px" :style="`color:${_jc(r.scores?.completeness??0)}`" x-text="r.scores?.completeness??'—'"></span>
+                    <span style="text-align:center;font-size:12px" :style="`color:${_jc(r.scores?.relevance??0)}`" x-text="r.scores?.relevance??'—'"></span>
+                    <span style="text-align:center;font-size:12px" :style="`color:${_jc(r.scores?.factual_consistency??0)}`" x-text="r.scores?.factual_consistency??'—'"></span>
+                    <span style="text-align:center;font-size:12px;font-weight:700" :style="`color:${_jc(r.scores?.overall??0)}`" x-text="r.scores?.overall!=null?r.scores.overall.toFixed(2):'—'"></span>
+                    <span style="font-size:11px;color:var(--text2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap" x-text="r.reasoning||'—'"></span>
+                  </div>
+                </template>
+              </div>
+            </div>
+          </div>
+        </template>
       </div>
 
       <!-- 메타 정보 -->
@@ -1351,40 +1421,6 @@ input[type=text],input[type=number]{background:var(--bg3);color:var(--text);bord
         <div class="drow"><span style="color:var(--text2)">모델</span><span style="font-family:monospace;font-size:12px" x-text="data.llm_judge.model||'—'"></span></div>
         <div class="drow"><span style="color:var(--text2)">채점 건수</span><span x-text="data.llm_judge.judged_count+'건'"></span></div>
         <div class="drow"><span style="color:var(--text2)">누적 비용</span><span x-text="'$'+(data.llm_judge.total_cost_usd||0).toFixed(5)"></span></div>
-      </div>
-
-      <!-- 태스크별 Judge 상세 -->
-      <div class="cbox">
-        <div class="ct">태스크별 Judge 점수</div>
-        <div style="overflow-x:auto">
-          <table style="width:100%;border-collapse:collapse;font-size:12px">
-            <thead>
-              <tr style="border-bottom:1px solid var(--border);color:var(--text2)">
-                <th style="padding:6px 10px;text-align:left;font-weight:600">Task ID</th>
-                <th style="padding:6px 8px;text-align:center">완결성</th>
-                <th style="padding:6px 8px;text-align:center">관련성</th>
-                <th style="padding:6px 8px;text-align:center">사실 일관성</th>
-                <th style="padding:6px 8px;text-align:center">종합</th>
-                <th style="padding:6px 8px;text-align:left">판단 근거</th>
-              </tr>
-            </thead>
-            <tbody>
-              <template x-for="r in (data.llm_judge.results||[])" :key="r.task_id">
-                <tr style="border-bottom:1px solid var(--border)">
-                  <td style="padding:5px 10px;font-family:monospace;font-size:11px" x-text="r.task_id"></td>
-                  <td style="padding:5px 8px;text-align:center" x-text="r.scores?.completeness??'—'"></td>
-                  <td style="padding:5px 8px;text-align:center" x-text="r.scores?.relevance??'—'"></td>
-                  <td style="padding:5px 8px;text-align:center" x-text="r.scores?.factual_consistency??'—'"></td>
-                  <td style="padding:5px 8px;text-align:center;font-weight:600"
-                      :style="(r.scores?.overall??0)>=4?'color:var(--green)':(r.scores?.overall??0)>=2.5?'color:var(--yellow)':'color:var(--red)'"
-                      x-text="r.scores?.overall!=null?r.scores.overall.toFixed(2):'—'"></td>
-                  <td style="padding:5px 8px;color:var(--text2);max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"
-                      x-text="r.reasoning||'—'"></td>
-                </tr>
-              </template>
-            </tbody>
-          </table>
-        </div>
       </div>
     </div>
   </template>
