@@ -1,5 +1,5 @@
 # Agent-Evaluator 제품 로드맵
-> v0.6.3 기준 · 최종 업데이트 2026-03-27
+> v0.6.4 기준 · 최종 업데이트 2026-03-27
 
 ---
 
@@ -151,9 +151,9 @@ with monitor.task("t1", "qa", question=question) as t:
 
 ---
 
-### 1-B. CI/CD 게이팅 CLI
+### 1-B. CI/CD 게이팅 CLI ✅ 구현 완료 (v0.6.4)
 
-> 상태: **미구현** (다음 구현 대상)
+> 상태: **구현 완료**
 
 **목표**: 평가 결과가 자동으로 릴리스 차단 기준이 되도록
 
@@ -173,6 +173,7 @@ with monitor.task("t1", "qa", question=question) as t:
       --accuracy 70 \
       --p95-latency 3.0 \
       --hallucination 5 \
+      --llm-judge 3.5 \
       --fail-on-regression 10
 
 # 종료 코드
@@ -181,23 +182,25 @@ with monitor.task("t1", "qa", question=question) as t:
 # 2 — 이전 버전 대비 회귀 감지 (--fail-on-regression)
 ```
 
-**구현 범위**:
+**구현 범위 (완료)**:
 
-| 항목 | 상세 |
-|------|------|
-| 신규 CLI | `agent-eval gate <result_file> [--옵션]` |
-| 기준선 관리 | `results/baseline.json` 자동 저장 (브랜치별) |
-| 회귀 감지 | `(현재 - 기준선) / 기준선 > 임계값` |
-| 출력 형식 | 터미널 표 + JUnit XML (CI 시스템 호환) |
-| 설정 파일 | `.agent-eval-gate.yaml` (프로젝트 루트) |
+| 항목 | 상세 | 상태 |
+|------|------|------|
+| 신규 CLI | `agent-eval gate <result_file> [--옵션]` | ✅ |
+| 지원 지표 | TCR · 정확도 · P95 지연시간 · 환각 탐지율 · LLM Judge 종합 | ✅ |
+| 기준선 관리 | `--save-baseline` / `--baseline PATH` | ✅ |
+| 회귀 감지 | `--fail-on-regression N` — 허용 비율(%) 초과 시 종료 코드 2 | ✅ |
+| 출력 형식 | 터미널 컬러 표 (지표·현재값·기준값·결과) | ✅ |
+| JUnit XML | `--junit-xml PATH` — CI 시스템 연동 | ✅ |
+| 구현 파일 | `agent_evaluator/cli/gate.py` | ✅ |
 
 **기대 효과**: 개발팀이 매 PR마다 자연스럽게 SDK를 사용하게 되어 정착 가속
 
 ---
 
-### 1-C. 멀티턴 대화 평가
+### 1-C. 멀티턴 대화 평가 ✅ 구현 완료 (v0.6.4)
 
-> 상태: **미구현**
+> 상태: **구현 완료**
 
 **목표**: 챗봇·대화형 에이전트의 핵심 품질 측정
 
@@ -208,7 +211,7 @@ with monitor.task("t1", "qa", question=question) as t:
 **사용 패턴**:
 
 ```python
-from agent_evaluator import PerformanceMonitor
+from agent_evaluator import PerformanceMonitor, ConversationSession
 
 monitor = PerformanceMonitor()
 
@@ -221,22 +224,25 @@ with monitor.conversation("session_001") as conv:
 
     r3 = agent.chat("asyncio.gather 예시 코드 보여줘")
     conv.turn(user="asyncio.gather 예시 코드 보여줘", agent=r3)
+# 세션 종료 시 자동으로 지표 계산 및 monitor.conversation_sessions에 저장
 
-# 자동 측정 지표
-# - context_retention   : 이전 턴 내용을 후속 응답에 참조하는 비율
-# - topic_coherence     : 대화 주제 일관성 (벗어남 감지)
-# - progressive_depth   : 후속 질문이 이전 답변 위에 쌓이는지
-# - session_completion  : 사용자의 대화 목적 달성 추정
+# 직접 사용도 가능
+session = ConversationSession("s_001")
+session.add_turn(user="질문1", agent="응답1", metadata={"latency": 1.2})
+metrics = session.compute_metrics()
+print(f"overall_score: {metrics.overall_score:.3f}")
 ```
 
-**구현 범위**:
+**구현 범위 (완료)**:
 
-| 항목 | 상세 |
-|------|------|
-| 신규 클래스 | `ConversationSession` (`core/trackers/conversation.py`) |
-| 측정 지표 | 맥락 유지율 · 주제 일관성 · 점진적 심화 · 세션 완결성 |
-| 기존 통합 | `PerformanceMonitor.conversation()` 컨텍스트 매니저 |
-| 대시보드 | "대화 세션" 탭 신규 추가 |
+| 항목 | 상세 | 상태 |
+|------|------|------|
+| 신규 클래스 | `ConversationSession` (`core/trackers/conversation.py`) | ✅ |
+| 측정 지표 | 맥락 유지율 · 주제 일관성 · 점진적 심화 · 세션 완결성 · 평균 지연시간 | ✅ |
+| 알고리즘 | 외부 LLM 없이 순수 Python (Jaccard, top-N 토큰, 한국어 조사 정규화) | ✅ |
+| 기존 통합 | `PerformanceMonitor.conversation()` 컨텍스트 매니저 | ✅ |
+| Public API | `from agent_evaluator import ConversationSession, ConversationMetrics` | ✅ |
+| 대시보드 | 미구현 (Phase 2 이후 추가 예정) | 🔲 |
 
 ---
 
