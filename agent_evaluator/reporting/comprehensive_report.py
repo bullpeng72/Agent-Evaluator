@@ -1675,100 +1675,119 @@ def _build_llm_judge_section(monitor) -> str:
     judged_count = summary["count"]
     results = summary.get("results", [])
 
-    # Determine overall card color
     overall = avg.get("overall", 0)
-    overall_class = "status-good" if overall >= 4.0 else ("status-warning" if overall >= 2.5 else "status-critical")
+    completeness = avg.get("completeness", 0)
+    relevance = avg.get("relevance", 0)
+    factual = avg.get("factual_consistency", 0)
 
-    def score_color(v: float) -> str:
-        if v >= 4.0:
-            return "#27ae60"
-        if v >= 2.5:
-            return "#f39c12"
-        return "#e74c3c"
+    overall_box_class = "success" if overall >= 4.0 else ("warning" if overall >= 2.5 else "critical")
 
-    # Build task rows
-    rows_html = ""
+    def score_badge(v: float) -> str:
+        color = "#27ae60" if v >= 4.0 else ("#f39c12" if v >= 2.5 else "#e74c3c")
+        label = "우수" if v >= 4.0 else ("양호" if v >= 2.5 else "개선 필요")
+        return f'<span style="color:{color};font-weight:bold">{v:.2f}/5 ({label})</span>'
+
+    def row_overall_color(v: float) -> str:
+        return "#27ae60" if v >= 4.0 else ("#f39c12" if v >= 2.5 else "#e74c3c")
+
+    # ── 차원별 요약 테이블 ──
+    dim_table = f"""
+            <table>
+                <thead>
+                    <tr>
+                        <th>평가 차원</th>
+                        <th>평균 점수</th>
+                        <th>설명</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><strong>종합 (Overall)</strong></td>
+                        <td>{score_badge(overall)}</td>
+                        <td>completeness · relevance · factual_consistency 3차원 평균</td>
+                    </tr>
+                    <tr>
+                        <td><strong>완결성 (Completeness)</strong></td>
+                        <td>{score_badge(completeness)}</td>
+                        <td>질문의 모든 측면을 빠짐없이 다루는가</td>
+                    </tr>
+                    <tr>
+                        <td><strong>관련성 (Relevance)</strong></td>
+                        <td>{score_badge(relevance)}</td>
+                        <td>질문의 핵심 의도에 직접적으로 답하는가</td>
+                    </tr>
+                    <tr>
+                        <td><strong>사실 일관성 (Factual Consistency)</strong></td>
+                        <td>{score_badge(factual)}</td>
+                        <td>내적 모순 없이 일관되고 신뢰할 수 있는가</td>
+                    </tr>
+                </tbody>
+            </table>"""
+
+    # ── 태스크별 상세 테이블 ──
+    task_rows = ""
     for r in results:
         scores = r.get("scores") or {}
         c = scores.get("completeness", "—")
         rel = scores.get("relevance", "—")
-        fact = scores.get("factual_consistency", "—")
+        fact_s = scores.get("factual_consistency", "—")
         ov = scores.get("overall")
         ov_str = f"{ov:.2f}" if ov is not None else "—"
-        ov_color = score_color(ov) if ov is not None else "#aaa"
-        reasoning = (r.get("reasoning") or "—")[:120]
-        rows_html += f"""
-            <tr>
-              <td style="font-family:monospace;font-size:12px">{r.get('task_id','—')}</td>
-              <td style="text-align:center">{c}</td>
-              <td style="text-align:center">{rel}</td>
-              <td style="text-align:center">{fact}</td>
-              <td style="text-align:center;font-weight:bold;color:{ov_color}">{ov_str}</td>
-              <td style="color:#666;font-size:12px">{reasoning}</td>
-            </tr>"""
+        ov_color = row_overall_color(ov) if ov is not None else "#aaa"
+        reasoning = (r.get("reasoning") or "—")[:130]
+        task_rows += f"""
+                    <tr>
+                        <td style="font-family:monospace;font-size:12px">{r.get('task_id', '—')}</td>
+                        <td style="text-align:center">{c}</td>
+                        <td style="text-align:center">{rel}</td>
+                        <td style="text-align:center">{fact_s}</td>
+                        <td style="text-align:center;font-weight:bold;color:{ov_color}">{ov_str}</td>
+                        <td style="color:#666;font-size:12px">{reasoning}</td>
+                    </tr>"""
 
-    table_html = ""
-    if rows_html:
-        table_html = f"""
-        <h3>태스크별 Judge 점수</h3>
-        <table>
-          <thead>
-            <tr>
-              <th>Task ID</th>
-              <th style="text-align:center">완결성</th>
-              <th style="text-align:center">관련성</th>
-              <th style="text-align:center">사실 일관성</th>
-              <th style="text-align:center">종합</th>
-              <th>판단 근거</th>
-            </tr>
-          </thead>
-          <tbody>{rows_html}
-          </tbody>
-        </table>"""
+    task_table = ""
+    if task_rows:
+        task_table = f"""
+            <h3>태스크별 Judge 점수</h3>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Task ID</th>
+                        <th style="text-align:center">완결성</th>
+                        <th style="text-align:center">관련성</th>
+                        <th style="text-align:center">사실 일관성</th>
+                        <th style="text-align:center">종합</th>
+                        <th>판단 근거</th>
+                    </tr>
+                </thead>
+                <tbody>{task_rows}
+                </tbody>
+            </table>"""
 
-    return f"""
-    <div class="section" id="llm-judge" style="border-left-color:#8b5cf6">
-      <h2><span class="icon">🤖</span>LLM Judge 점수
-        <span style="font-size:13px;font-weight:400;color:#7f8c8d;margin-left:12px">
-          ground_truth 불필요 · 3차원 자동 채점 (Phase 1-A)
-        </span>
-      </h2>
+    return f'''
+        <!-- LLM Judge Section -->
+        <div class="section" id="llm-judge" style="border-left-color:#8b5cf6">
+            <h2><span class="icon">🤖</span>LLM Judge - 3차원 자동 채점</h2>
+            <p style="margin-bottom: 20px; line-height: 1.8;">
+                LLM-as-Judge는 <strong>"ground_truth 없이"</strong> AI 응답의 품질을 자동 평가합니다.
+                completeness · relevance · factual_consistency 3차원을 0–5 정수로 채점하며,
+                실제 운영 환경에서 레이블 없이도 응답 품질을 지속적으로 모니터링할 수 있습니다.
+            </p>
 
-      <div class="insight-box success" style="border-left-color:#8b5cf6;background:#faf5ff">
-        <h4>평가 개요</h4>
-        <p><strong>Judge 모델:</strong> {model_name}</p>
-        <p><strong>채점 건수:</strong> {judged_count}건</p>
-        <p><strong>누적 비용:</strong> ${total_cost:.5f} USD</p>
-        <p style="margin-top:8px;font-size:13px;color:#666">
-          completeness(완결성) · relevance(관련성) · factual_consistency(사실 일관성) 3차원을
-          0–5 정수로 채점하며, overall은 세 점수의 평균입니다.
-        </p>
-      </div>
+            <h3>종합 평가 결과</h3>
+            <div class="insight-box {overall_box_class}" style="{'border-left-color:#8b5cf6;background:#faf5ff' if overall_box_class == 'success' else ''}">
+                <h4>Judge 요약</h4>
+                <p><strong>종합 점수:</strong> {overall:.2f}/5.0</p>
+                <p><strong>채점 건수:</strong> {judged_count}건</p>
+                <p><strong>Judge 모델:</strong> {model_name}</p>
+                <p><strong>누적 비용:</strong> ${total_cost:.5f} USD</p>
+                <p><strong>벤치마크 등급:</strong> {'S등급 (Outstanding)' if overall >= 4.8 else 'A등급 (Excellent)' if overall >= 4.0 else 'B등급 (Good)' if overall >= 3.0 else 'C등급 (Fair)' if overall >= 2.0 else 'D등급 (Poor)'}</p>
+            </div>
 
-      <div class="metrics-grid" style="grid-template-columns:repeat(4,1fr)">
-        <div class="metric-card {overall_class}">
-          <h3>종합 점수</h3>
-          <div class="value">{overall:.2f}<span style="font-size:16px;color:#aaa">/5</span></div>
-          <div class="subtitle">{judged_count}건 채점</div>
-        </div>
-        <div class="metric-card">
-          <h3>완결성</h3>
-          <div class="value" style="color:{score_color(avg.get('completeness',0))}">{avg.get('completeness',0):.2f}<span style="font-size:16px;color:#aaa">/5</span></div>
-          <div class="subtitle">질문의 모든 측면 커버</div>
-        </div>
-        <div class="metric-card">
-          <h3>관련성</h3>
-          <div class="value" style="color:{score_color(avg.get('relevance',0))}">{avg.get('relevance',0):.2f}<span style="font-size:16px;color:#aaa">/5</span></div>
-          <div class="subtitle">질문 핵심 의도 부합</div>
-        </div>
-        <div class="metric-card">
-          <h3>사실 일관성</h3>
-          <div class="value" style="color:{score_color(avg.get('factual_consistency',0))}">{avg.get('factual_consistency',0):.2f}<span style="font-size:16px;color:#aaa">/5</span></div>
-          <div class="subtitle">내적 모순·오류 없음</div>
-        </div>
-      </div>
-      {table_html}
-    </div>"""
+            <h3>차원별 평균 점수</h3>
+            {dim_table}
+            {task_table}
+        </div>'''
 
 
 def generate_comprehensive_html_report(monitor) -> str:
