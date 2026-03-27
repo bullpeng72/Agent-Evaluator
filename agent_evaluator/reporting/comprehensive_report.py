@@ -213,14 +213,15 @@ def _build_header_toc(total_tasks, success_rate, tcr, acc, latency) -> str:
             <ul>
                 <li><a href="#summary">1. 핵심 요약 (Executive Summary)</a></li>
                 <li><a href="#core">2. 🎯 Core Metrics - 작업 완료도 및 정확성</a></li>
-                <li><a href="#performance">3. ⚡ Performance - 실행 효율성 및 리소스</a></li>
-                <li><a href="#agentic">4. 🤖 Agentic AI - 도구 사용 및 협업</a></li>
-                <li><a href="#advanced">5. 🔬 Advanced Metrics - 외부 라이브러리 평가</a></li>
-                <li><a href="#security">6. 🔒 Security - 보안 지표 (Layer 1 & 2)</a></li>
-                <li><a href="#insights">7. 💡 Insights - 주요 인사이트 및 알림</a></li>
-                <li><a href="#transparency">8. 🔍 Test 투명성 - 평가 프로세스 투명성</a></li>
-                <li><a href="#recommendations">9. 개선 권장사항 (Recommendations)</a></li>
-                <li><a href="#conclusion">10. 결론 및 다음 단계 (Conclusion)</a></li>
+                <li><a href="#llm-judge">3. 🤖 LLM Judge - 3차원 자동 채점</a></li>
+                <li><a href="#performance">4. ⚡ Performance - 실행 효율성 및 리소스</a></li>
+                <li><a href="#agentic">5. 🤖 Agentic AI - 도구 사용 및 협업</a></li>
+                <li><a href="#advanced">6. 🔬 Advanced Metrics - 외부 라이브러리 평가</a></li>
+                <li><a href="#security">7. 🔒 Security - 보안 지표 (Layer 1 & 2)</a></li>
+                <li><a href="#insights">8. 💡 Insights - 주요 인사이트 및 알림</a></li>
+                <li><a href="#transparency">9. 🔍 Test 투명성 - 평가 프로세스 투명성</a></li>
+                <li><a href="#recommendations">10. 개선 권장사항 (Recommendations)</a></li>
+                <li><a href="#conclusion">11. 결론 및 다음 단계 (Conclusion)</a></li>
             </ul>
         </div>
 
@@ -1658,6 +1659,118 @@ def _build_conclusion_section(total_tasks, tcr, acc, hall_rate) -> str:
     return ''.join(parts)
 
 
+def _build_llm_judge_section(monitor) -> str:
+    """Build the LLM-as-Judge section. Returns empty string if judge is not active."""
+    judge = getattr(monitor, "llm_judge", None)
+    if judge is None:
+        return ""
+
+    summary = judge.get_summary()
+    if summary["count"] == 0:
+        return ""
+
+    avg = summary["avg_scores"]
+    total_cost = summary["total_cost_usd"]
+    model_name = getattr(judge, "model", "—")
+    judged_count = summary["count"]
+    results = summary.get("results", [])
+
+    # Determine overall card color
+    overall = avg.get("overall", 0)
+    overall_class = "status-good" if overall >= 4.0 else ("status-warning" if overall >= 2.5 else "status-critical")
+
+    def score_color(v: float) -> str:
+        if v >= 4.0:
+            return "#27ae60"
+        if v >= 2.5:
+            return "#f39c12"
+        return "#e74c3c"
+
+    # Build task rows
+    rows_html = ""
+    for r in results:
+        scores = r.get("scores") or {}
+        c = scores.get("completeness", "—")
+        rel = scores.get("relevance", "—")
+        fact = scores.get("factual_consistency", "—")
+        ov = scores.get("overall")
+        ov_str = f"{ov:.2f}" if ov is not None else "—"
+        ov_color = score_color(ov) if ov is not None else "#aaa"
+        reasoning = (r.get("reasoning") or "—")[:120]
+        rows_html += f"""
+            <tr>
+              <td style="font-family:monospace;font-size:12px">{r.get('task_id','—')}</td>
+              <td style="text-align:center">{c}</td>
+              <td style="text-align:center">{rel}</td>
+              <td style="text-align:center">{fact}</td>
+              <td style="text-align:center;font-weight:bold;color:{ov_color}">{ov_str}</td>
+              <td style="color:#666;font-size:12px">{reasoning}</td>
+            </tr>"""
+
+    table_html = ""
+    if rows_html:
+        table_html = f"""
+        <h3>태스크별 Judge 점수</h3>
+        <table>
+          <thead>
+            <tr>
+              <th>Task ID</th>
+              <th style="text-align:center">완결성</th>
+              <th style="text-align:center">관련성</th>
+              <th style="text-align:center">사실 일관성</th>
+              <th style="text-align:center">종합</th>
+              <th>판단 근거</th>
+            </tr>
+          </thead>
+          <tbody>{rows_html}
+          </tbody>
+        </table>"""
+
+    return f"""
+    <div class="section" id="llm-judge" style="border-left-color:#8b5cf6">
+      <h2><span class="icon">🤖</span>LLM Judge 점수
+        <span style="font-size:13px;font-weight:400;color:#7f8c8d;margin-left:12px">
+          ground_truth 불필요 · 3차원 자동 채점 (Phase 1-A)
+        </span>
+      </h2>
+
+      <div class="insight-box success" style="border-left-color:#8b5cf6;background:#faf5ff">
+        <h4>평가 개요</h4>
+        <p><strong>Judge 모델:</strong> {model_name}</p>
+        <p><strong>채점 건수:</strong> {judged_count}건</p>
+        <p><strong>누적 비용:</strong> ${total_cost:.5f} USD</p>
+        <p style="margin-top:8px;font-size:13px;color:#666">
+          completeness(완결성) · relevance(관련성) · factual_consistency(사실 일관성) 3차원을
+          0–5 정수로 채점하며, overall은 세 점수의 평균입니다.
+        </p>
+      </div>
+
+      <div class="metrics-grid" style="grid-template-columns:repeat(4,1fr)">
+        <div class="metric-card {overall_class}">
+          <h3>종합 점수</h3>
+          <div class="value">{overall:.2f}<span style="font-size:16px;color:#aaa">/5</span></div>
+          <div class="subtitle">{judged_count}건 채점</div>
+        </div>
+        <div class="metric-card">
+          <h3>완결성</h3>
+          <div class="value" style="color:{score_color(avg.get('completeness',0))}">{avg.get('completeness',0):.2f}<span style="font-size:16px;color:#aaa">/5</span></div>
+          <div class="subtitle">질문의 모든 측면 커버</div>
+        </div>
+        <div class="metric-card">
+          <h3>관련성</h3>
+          <div class="value" style="color:{score_color(avg.get('relevance',0))}">{avg.get('relevance',0):.2f}<span style="font-size:16px;color:#aaa">/5</span></div>
+          <div class="subtitle">질문 핵심 의도 부합</div>
+        </div>
+        <div class="metric-card">
+          <h3>사실 일관성</h3>
+          <div class="value" style="color:{score_color(avg.get('factual_consistency',0))}">{avg.get('factual_consistency',0):.2f}<span style="font-size:16px;color:#aaa">/5</span></div>
+          <div class="subtitle">내적 모순·오류 없음</div>
+        </div>
+      </div>
+      {table_html}
+    </div>"""
+
+
 def generate_comprehensive_html_report(monitor) -> str:
     """Generate detailed comprehensive HTML report with all metrics and actionable insights"""
 
@@ -1699,6 +1812,7 @@ def generate_comprehensive_html_report(monitor) -> str:
         _build_css_and_head(),
         _build_header_toc(total_tasks, success_rate, tcr, acc, latency),
         _build_core_section(tcr, success_rate, acc, accuracy_metrics, quality_metrics, hallucination_data),
+        _build_llm_judge_section(monitor),
         _build_performance_section(latency, latency_stats, token_stats, retry_metrics),
         _build_agentic_section(monitor, tool_selection_stats, coordination_stats, workflow_stats, retry_metrics),
         _build_advanced_section(adv_metrics),
