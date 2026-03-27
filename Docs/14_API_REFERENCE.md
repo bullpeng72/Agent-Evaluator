@@ -3912,4 +3912,4 @@ AutoGenEvaluator는 에이전트 간의 메시지 교환을 자동으로 추적�
 
   * [메트릭 가이드](<METRICS_GUIDE.md>): 모든 평가 지표 상세 설명
   * [프레임워크 통합 가이드](<FRAMEWORK_INTEGRATION.md>): CrewAI, AutoGen 등 통합
-  * [배포 가이드](<13_DEPLOYMENT_GUIDE.md>): FastAPI 대시보드 배포 (`agent-eval serve`)
+  * [배포 가이드](<13_DEPLOYMENT_GUIDE.md>): FastAPI 대시보드 배포 (`agent-eval dashboard`)

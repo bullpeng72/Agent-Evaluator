@@ -48,7 +48,7 @@ Agent Evaluator는 PyPI에 배포되어 있어 pip로 간단히 설치할 수 �
 
 **포함 기능:**
 
-  * ✅ FastAPI 대시보드 (`agent-eval serve`, Port 8765, 브라우저 자동 오픈)
+  * ✅ FastAPI 대시보드 (`agent-eval dashboard`, Port 8765, 브라우저 자동 오픈)
   * ✅ Layer 1: Foundation 메트릭 (TCR, Accuracy, Latency, Token Usage)
   * ✅ Layer 2: Agentic + Security 메트릭 (Tool Selection, Agent Coordination, Workflow, Input Sanitization, Output Leakage, Authorization, Privilege Escalation, Attack Detection)
   * ✅ **LangChain 통합** (자동 추적)
@@ -535,7 +535,7 @@ Layer 2 보안 메트릭, Layer 3 고급 평가, 자동 추적 기능이 포함�
 #### CrewAI 통합
 
 ```python
-    from agent_evaluator.integrations.crewai_evaluator import CrewAIEvaluator
+    from agent_evaluator.integrations.crewai_integration import CrewAIEvaluator
     from crewai import Crew, Agent, Task
     
     # Crew 생성
@@ -552,7 +552,7 @@ Layer 2 보안 메트릭, Layer 3 고급 평가, 자동 추적 기능이 포함�
 #### LangChain 통합
 
 ```python
-    from agent_evaluator.integrations.langchain_evaluator import LangChainEvaluator
+    from agent_evaluator.integrations.langchain_integration import LangChainEvaluator
     
     # LangChain 에이전트 생성
     agent = initialize_agent(tools, llm)
@@ -603,7 +603,7 @@ Layer 2 보안 메트릭, Layer 3 고급 평가, 자동 추적 기능이 포함�
 
 ```bash
     pip install agent-evaluator[serve]
-    agent-eval serve
+    agent-eval dashboard
 ```
 
 #### 버전 충돌
@@ -726,7 +726,7 @@ Layer 2 보안 메트릭, Layer 3 고급 평가, 자동 추적 기능이 포함�
     └── requirements.txt
 
     참고: agent_evaluator는 pip로 설치하여 사용합니다.
-          대시보드는 pip install agent-evaluator[serve] 후 agent-eval serve 로 실행합니다.
+          대시보드는 pip install agent-evaluator[serve] 후 agent-eval dashboard 로 실행합니다.
 ```
 
 * * *

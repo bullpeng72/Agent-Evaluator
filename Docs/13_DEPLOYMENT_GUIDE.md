@@ -186,7 +186,7 @@ CI/CD 통합 및 프로덕션 배포 전략
     [](<#cb9-5>)python -c "import agent_evaluator; from agent_evaluator.serve import server; print('Installation successful!')"
     [](<#cb9-6>)
     [](<#cb9-7>)# 대시보드 실행 테스트
-    [](<#cb9-8>)agent-eval serve
+    [](<#cb9-8>)agent-eval dashboard
 ```
 
 ### Project Structure
@@ -247,10 +247,10 @@ v0.6.0 기준 프로젝트는 4개의 독립적인 컴포넌트로 구성됩니�
 **사용** : agent_evaluator 패키지 설치 후 예제 실행
 ```
     Evaluator_Examples/
-    ├── 01_quality_metrics.py     # 🎯 품질 지표 — Accuracy, Hallucination, Quality, RAG
-    ├── 02_performance_metrics.py # ⚡ 성능 지표 — TCR, Latency (p50/p95/p99), Token Economy
-    ├── 03_agentic_metrics.py     # 🤖 에이전틱 지표 — Tool Call, Coordination, Workflow, Retry
-    └── 04_security_metrics.py   # 🔒 보안 지표 — Input Sanitization, Leakage, Auth, Escalation, Attack
+    ├── 01_quality_eval.py     # 🎯 품질 지표 — Accuracy, Hallucination, Quality, RAG
+    ├── 02_performance_eval.py # ⚡ 성능 지표 — TCR, Latency (p50/p95/p99), Token Economy
+    ├── 03_agentic_eval.py     # 🤖 에이전틱 지표 — Tool Call, Coordination, Workflow, Retry
+    └── 04_security_eval.py   # 🔒 보안 지표 — Input Sanitization, Leakage, Auth, Escalation, Attack
 ```
 
 #### 3\. 🌐 FastAPI Dashboard (패키지 내장)
@@ -261,19 +261,18 @@ v0.6.0 기준 프로젝트는 4개의 독립적인 컴포넌트로 구성됩니�
 
 ```bash
     # 기본 실행 (포트 8765, 브라우저 자동 오픈)
-    agent-eval serve
+    agent-eval dashboard
 
     # 결과 디렉토리 지정
-    agent-eval serve results/
+    agent-eval dashboard results/
 
     # 옵션 지정
-    agent-eval serve --port 8080        # 포트 변경
-    agent-eval serve --watch            # 파일 변경 감시 (자동 갱신)
-    agent-eval serve --no-open          # 브라우저 자동 오픈 비활성화
-    agent-eval serve --share            # 외부 접근 허용 (host=0.0.0.0으로 바인딩)
-    agent-eval serve --offline          # 오프라인 모드
-    agent-eval serve --title "내 평가"  # 대시보드 제목 지정
-    agent-eval serve --slide            # 슬라이드 뷰로 시작
+    agent-eval dashboard --port 8080        # 포트 변경
+    agent-eval dashboard --watch            # 파일 변경 감시 (자동 갱신)
+    agent-eval dashboard --no-open          # 브라우저 자동 오픈 비활성화
+    agent-eval dashboard --host 0.0.0.0  # 외부 접근 허용
+    agent-eval dashboard --offline          # 오프라인 모드
+    agent-eval dashboard --title "내 평가"  # 대시보드 제목 지정
 ```
 
 데이터는 `results/` 디렉토리에서 자동으로 로드됩니다.
@@ -1020,7 +1019,7 @@ v0.6.0 기준 프로젝트는 4개의 독립적인 컴포넌트로 구성됩니�
     [](<#cb23-30>)EXPOSE 8765
     [](<#cb23-31>)
     [](<#cb23-32>)# Default command: Run dashboard
-    [](<#cb23-33>)CMD ["agent-eval", "serve", "--port", "8765", "--no-open"]
+    [](<#cb23-33>)CMD ["agent-eval", "dashboard", "--port", "8765", "--no-open"]
 ```
 
 ### docker-compose.yml
@@ -1046,7 +1045,7 @@ v0.6.0 기준 프로젝트는 4개의 독립적인 컴포넌트로 구성됩니�
     [](<#cb24-17>)      - ./evaluation_results:/app/evaluation_results
     [](<#cb24-18>)      - ./golden_datasets:/app/golden_datasets
     [](<#cb24-19>)      - ./.env:/app/.env
-    [](<#cb24-20>)    command: agent-eval serve --port 8765 --no-open
+    [](<#cb24-20>)    command: agent-eval dashboard --port 8765 --no-open
     [](<#cb24-21>)    restart: unless-stopped
     [](<#cb24-22>)    healthcheck:
     [](<#cb24-23>)      test: ["CMD", "curl", "-f", "http://localhost:8765/health"]
@@ -1575,7 +1574,7 @@ v0.6.0 기준 프로젝트는 4개의 독립적인 컴포넌트로 구성됩니�
 ### 주요 명령어
 ```bash
     [](<#cb49-1>)# Dashboard 실행
-    [](<#cb49-2>)agent-eval serve
+    [](<#cb49-2>)agent-eval dashboard
     [](<#cb49-3>)
     [](<#cb49-4>)# Quality Gate 실행 (예제 스크립트)
     [](<#cb49-5>)python scripts/quality_gate.py  # 사용자가 직접 작성 필요

@@ -1,0 +1,16 @@
+{
+  "log_id": "audit_e4c42083",
+  "event_type": "report_generated",
+  "user": "evaluator",
+  "action": "평가 리포트 생성",
+  "target_type": "report",
+  "target_id": "agentic_metrics_run",
+  "details": {
+    "total_tasks": 0,
+    "tool_selection_f1": 0,
+    "coord_score": 0,
+    "step_success_rate": 0
+  },
+  "success": true,
+  "timestamp": "2026-03-27T15:00:52.191701"
+}

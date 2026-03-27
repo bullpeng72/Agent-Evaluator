@@ -1,0 +1,67 @@
+{
+  "trace_id": "trace_response_quality_404314b3",
+  "metric_name": "response_quality",
+  "metric_type": "quality",
+  "task_id": null,
+  "start_time": "2026-03-27T15:01:02.192219",
+  "steps": [
+    {
+      "step_name": "collect_evaluations",
+      "description": "28개 응답 품질 평가 수집",
+      "input_data": {
+        "evaluations": 28
+      },
+      "output_data": {
+        "dimension_count": 5
+      },
+      "status": "success",
+      "timestamp": "2026-03-27T15:01:02.192222"
+    },
+    {
+      "step_name": "dimension_scoring",
+      "description": "5개 차원 채점 (relevance · completeness · accuracy · clarity · usefulness)",
+      "input_data": {
+        "dimensions": [
+          "relevance",
+          "completeness",
+          "accuracy",
+          "clarity",
+          "usefulness"
+        ]
+      },
+      "output_data": {
+        "avg_dimension_scores": {
+          "relevance": 0.36,
+          "completeness": 3.31,
+          "accuracy": 2.02,
+          "clarity": 1.18,
+          "usefulness": 3.14
+        }
+      },
+      "status": "success",
+      "timestamp": "2026-03-27T15:01:02.192231"
+    },
+    {
+      "step_name": "aggregate_quality",
+      "description": "종합 품질 점수 = 1.97",
+      "input_data": {
+        "method": "weighted_dimension_average"
+      },
+      "output_data": {
+        "avg_quality_score": 1.97
+      },
+      "status": "success",
+      "timestamp": "2026-03-27T15:01:02.192234"
+    }
+  ],
+  "status": "completed",
+  "final_value": 1.97,
+  "metadata": {
+    "scale": "0-5",
+    "grade_distribution": {
+      "F": 27,
+      "D": 1
+    }
+  },
+  "end_time": "2026-03-27T15:01:02.192235"
+}

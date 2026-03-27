@@ -1043,20 +1043,25 @@ Helper 함수를 사용하면 자동으로 계산됩니다.
 
 Agent Evaluator는 **카테고리별 5개의 실행 가능한 예제 파일** 을 제공합니다:
 
-  * `01_quality_metrics.py` \- 품질 지표 — Accuracy, Hallucination, Response Quality, RAG
-  * `02_performance_metrics.py` \- 성능 지표 — TCR, Latency (p50/p95/p99), Token Economy
-  * `03_agentic_metrics.py` \- 에이전틱 지표 — Tool Call, Coordination, Workflow, Retry
-  * `04_security_metrics.py` \- 보안 지표 — Input Sanitization, Leakage, Auth, Escalation, Attack
-  * `05_hybrid_metrics.py` \- 하이브리드 평가 — DeepEval, Ragas 통합 (OpenAI API 키 필요)
+  * `01_quality_eval.py` \- 품질 지표 — Accuracy, Hallucination, Response Quality, RAG
+  * `02_performance_eval.py` \- 성능 지표 — TCR, Latency (p50/p95/p99), Token Economy
+  * `03_agentic_eval.py` \- 에이전틱 지표 — Tool Call, Coordination, Workflow, Retry
+  * `04_security_eval.py` \- 보안 지표 — Input Sanitization, Leakage, Auth, Escalation, Attack
+  * `05_hybrid_eval.py` \- 하이브리드 평가 — DeepEval, Ragas 통합 (OpenAI API 키 필요)
+  * `06_langchain_eval.py` \- LangChain 프레임워크 통합 예제
+  * `07_langgraph_eval.py` \- LangGraph 프레임워크 통합 예제
+  * `08_crewai_eval.py` \- CrewAI 프레임워크 통합 예제
+  * `09_autogen_eval.py` \- AutoGen 프레임워크 통합 예제
+  * `10_cross_framework_eval.py` \- 멀티 프레임워크 비교 평가
 
 **실행 방법:**
 
 ```bash
     cd Evaluator_Examples
-    python 01_quality_metrics.py      # 품질 지표 (Accuracy, Hallucination, Quality, RAG)
-    python 02_performance_metrics.py  # 성능 지표 (TCR, Latency, Token Economy)
-    python 03_agentic_metrics.py      # 에이전틱 지표 (Tool, Coordination, Workflow)
-    python 04_security_metrics.py     # 보안 지표 (Sanitization, Leakage, Auth, Attack)
+    python 01_quality_eval.py      # 품질 지표 (Accuracy, Hallucination, Quality, RAG)
+    python 02_performance_eval.py  # 성능 지표 (TCR, Latency, Token Economy)
+    python 03_agentic_eval.py      # 에이전틱 지표 (Tool, Coordination, Workflow)
+    python 04_security_eval.py     # 보안 지표 (Sanitization, Leakage, Auth, Attack)
 ```
 
 ### 🎓 더 배우기

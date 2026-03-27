@@ -389,7 +389,7 @@ monitor.save_to_file("evaluation_results.json")
 
 ```bash
 pip install agent-evaluator[serve]
-agent-eval serve
+agent-eval dashboard
 # → http://localhost:8765 에서 자동으로 브라우저 열림
 ```
 
@@ -489,32 +489,37 @@ agent_evaluator/
 
 ### 2\. 📚 Evaluator_Examples/ - 예제 및 튜토리얼
 
-**목적:** 실행 가능한 예제 코드 (5개 플랫 파일)
+**목적:** 실행 가능한 예제 코드 (10개 플랫 파일)
 
-**특징:** 5개 파일로 25개 지표 전체 검증 (품질 / 성능 / 에이전틱 / 보안 / 하이브리드)
+**특징:** 10개 파일로 25개 지표 전체 검증 + 4개 프레임워크 통합 (품질 / 성능 / 에이전틱 / 보안 / 하이브리드 / 프레임워크)
 
 **디렉토리 구조:**
 
 ```
 Evaluator_Examples/
-    ├── 01_quality_metrics.py     # 품질 지표 — Accuracy, Hallucination, Response Quality, RAG
-    ├── 02_performance_metrics.py # 성능 지표 — TCR, Latency (p50/p95/p99), Token Economy
-    ├── 03_agentic_metrics.py     # 에이전틱 지표 — Tool Call, Coordination, Workflow, Retry
-    ├── 04_security_metrics.py    # 보안 지표 — Input Sanitization, Leakage, Auth, Escalation, Attack
-    └── 05_hybrid_advanced.py     # 하이브리드 평가 — DeepEval, Ragas, LangSmith 통합
+    ├── 01_quality_eval.py          # 품질 지표 — Accuracy, Hallucination, Response Quality, RAG
+    ├── 02_performance_eval.py      # 성능 지표 — TCR, Latency (p50/p95/p99), Token Economy
+    ├── 03_agentic_eval.py          # 에이전틱 지표 — Tool Call, Coordination, Workflow, Retry
+    ├── 04_security_eval.py         # 보안 지표 — Input Sanitization, Leakage, Auth, Escalation, Attack
+    ├── 05_hybrid_eval.py           # 하이브리드 평가 — DeepEval, Ragas, LangSmith 통합
+    ├── 06_langchain_eval.py        # LangChain 프레임워크 통합 예제
+    ├── 07_langgraph_eval.py        # LangGraph 프레임워크 통합 예제
+    ├── 08_crewai_eval.py           # CrewAI 프레임워크 통합 예제
+    ├── 09_autogen_eval.py          # AutoGen 프레임워크 통합 예제
+    └── 10_cross_framework_eval.py  # 멀티 프레임워크 비교 평가
 ```
 
 ### 3\. 🌐 Dashboard/ - 데이터 저장소
 
-**목적:** Zero Configuration 데이터 저장소 (FastAPI 대시보드는 `agent-eval serve`로 실행)
+**목적:** Zero Configuration 데이터 저장소 (FastAPI 대시보드는 `agent-eval dashboard`로 실행)
 
 **실행 방법:**
 
 ```bash
 pip install agent-evaluator[serve]
-agent-eval serve              # 기본 포트 8765, 브라우저 자동 오픈
-agent-eval serve --port 8080  # 포트 지정
-agent-eval serve --watch       # 파일 변경 자동 갱신
+agent-eval dashboard              # 기본 포트 8765, 브라우저 자동 오픈
+agent-eval dashboard --port 8080  # 포트 지정
+agent-eval dashboard --watch       # 파일 변경 자동 갱신
 ```
 
 **대시보드 서버 위치:** `agent_evaluator/serve/server.py`
@@ -778,7 +783,7 @@ monitor.save_to_file("results.json")
 
 ### 품질 관리자 측 (Dashboard)
 
-  1. Dashboard 실행: `agent-eval serve` (Port 8765)
+  1. Dashboard 실행: `agent-eval dashboard` (Port 8765)
   2. "데이터 편집" → "🔗 외부 데이터 소스" 탭
   3. 자동으로 검색된 프로젝트 선택
   4. "데이터 가져오기" 클릭
@@ -807,15 +812,20 @@ Agent Evaluator는 풍부한 문서를 제공합니다:
   
 ### 예제 카탈로그
 
-**총 5개 예제 파일 (플랫 구조)**
+**총 10개 예제 파일 (플랫 구조)**
 
 번호 | 예제 파일 | 설명 | Layer
 ---|---|---|---
-01 | `01_quality_metrics.py` | 품질 지표 — Accuracy, Hallucination, Response Quality, RAG | Layer 1
-02 | `02_performance_metrics.py` | 성능 지표 — TCR, Latency (p50/p95/p99), Token Economy | Layer 1
-03 | `03_agentic_metrics.py` | 에이전틱 지표 — Tool Call, Coordination, Workflow, Retry | Layer 2
-04 | `04_security_metrics.py` | 보안 지표 — Input Sanitization, Leakage, Auth, Escalation, Attack | Layer 2
-05 | `05_hybrid_metrics.py` | 하이브리드 평가 — DeepEval, Ragas, LangSmith 통합 | Layer 3  
+01 | `01_quality_eval.py` | 품질 지표 — Accuracy, Hallucination, Response Quality, RAG | Layer 1
+02 | `02_performance_eval.py` | 성능 지표 — TCR, Latency (p50/p95/p99), Token Economy | Layer 1
+03 | `03_agentic_eval.py` | 에이전틱 지표 — Tool Call, Coordination, Workflow, Retry | Layer 2
+04 | `04_security_eval.py` | 보안 지표 — Input Sanitization, Leakage, Auth, Escalation, Attack | Layer 2
+05 | `05_hybrid_eval.py` | 하이브리드 평가 — DeepEval, Ragas, LangSmith 통합 | Layer 3
+06 | `06_langchain_eval.py` | LangChain 프레임워크 통합 예제 | Layer 1+2
+07 | `07_langgraph_eval.py` | LangGraph 프레임워크 통합 예제 | Layer 1+2
+08 | `08_crewai_eval.py` | CrewAI 프레임워크 통합 예제 | Layer 1+2
+09 | `09_autogen_eval.py` | AutoGen 프레임워크 통합 예제 | Layer 1+2
+10 | `10_cross_framework_eval.py` | 멀티 프레임워크 비교 평가 | Layer 1+2
   
 * * *
 

@@ -2378,8 +2378,8 @@ result = evaluate(dataset, metrics=[Faithfulness(), AnswerRelevancy(), ContextRe
 
 ### 예제 코드
 
-  * [RAG 지표 평가 예제](<../Evaluator_Examples/01_quality_metrics.py>) (RAG Metrics 섹션)
-  * [성능 평가 예제](<../Evaluator_Examples/02_performance_metrics.py>)
+  * [RAG 지표 평가 예제](<../Evaluator_Examples/01_quality_eval.py>) (RAG Metrics 섹션)
+  * [성능 평가 예제](<../Evaluator_Examples/02_performance_eval.py>)
 
 ### 커뮤니티
 
@@ -2405,7 +2405,7 @@ result = evaluate(dataset, metrics=[Faithfulness(), AnswerRelevancy(), ContextRe
      * ✅ HybridPerformanceMonitor 통합
      * ✅ 데이터 클래스: RAGResponse, EvaluationResult, RAGEvaluationReport
      * ✅ SimpleRAGSystem 예제 구현
-  3. **`Evaluator_Examples/01_quality_metrics.py`** (RAG Metrics 섹션)
+  3. **`Evaluator_Examples/01_quality_eval.py`** (RAG Metrics 섹션)
      * ✅ OpenAIRAGSystem 구현 예제
      * ✅ Golden Dataset 생성 예제
      * ✅ 더미 데이터셋 생성

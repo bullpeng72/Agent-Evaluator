@@ -696,7 +696,7 @@ Agent Evaluator Dashboard는 **GUI 기반 Golden Dataset 생성 및 편집** 을
 
 **1) Dashboard 실행**
 ```bash
-    [](<#cb25-1>)agent-eval serve
+    [](<#cb25-1>)agent-eval dashboard
 ```
 
 **2) “Golden Dataset” 탭으로 이동**

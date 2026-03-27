@@ -24,16 +24,16 @@ Agent Evaluator 실시간 평가 대시보드 — 탭별 상세 사용법
 
 ```bash
 # 기본 실행 (포트 8765, 브라우저 자동 오픈)
-agent-eval serve
+agent-eval dashboard
 
 # 포트 지정 + 파일 변경 자동 갱신
-agent-eval serve --port 8080 --watch
+agent-eval dashboard --port 8080 --watch
 
 # 브라우저 자동 오픈 비활성화
-agent-eval serve --no-open
+agent-eval dashboard --no-open
 
 # 오프라인 모드 (CDN 에셋 로컬 캐시)
-agent-eval serve --offline
+agent-eval dashboard --offline
 ```
 
 대시보드는 `results/` 폴더의 JSON 파일을 자동으로 로드합니다.
@@ -264,7 +264,7 @@ Layer 3 DeepEval 평가 결과. `HybridPerformanceMonitor` + `enable_deepeval=Tr
 
 ### Webhook 알림 설정
 - 평가 결과 저장 시 외부 URL로 POST 전송
-- 설정: `agent-eval serve --webhook-url https://...`
+- 설정: 대시보드 설정 탭에서 Webhook URL 입력
 
 ### Test Transparency (감사 로그)
 - `enable_transparency=True` 설정 시 각 태스크의 단계별 실행 기록
@@ -281,7 +281,7 @@ ls results/*.json
 
 # 평가 실행 후 다시 시도
 python Evaluator_Examples/01_quality_eval.py
-agent-eval serve
+agent-eval dashboard
 ```
 
 ### 특정 탭이 비어 있는 경우
@@ -295,11 +295,11 @@ agent-eval serve
 
 ### 포트 충돌
 ```bash
-agent-eval serve --port 9000  # 다른 포트 사용
+agent-eval dashboard --port 9000  # 다른 포트 사용
 ```
 
 ### --watch 모드에서 자동 갱신 안 됨
 ```bash
 # 결과 파일이 results/ 하위에 있는지 확인
-agent-eval serve --watch --output-dir /path/to/results
+agent-eval dashboard /path/to/results --watch
 ```

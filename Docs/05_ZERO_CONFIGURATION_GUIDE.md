@@ -199,7 +199,7 @@ agent-evaluator는 다음 우선순위로 결과 저장 위치를 결정합니�
     # 4. Dashboard 유효성 검증
     is_valid = is_valid_dashboard(dashboard_dir)
     print(f"유효한 Dashboard: {is_valid}")
-    # → True (agent-eval serve 실행 가능 시)
+    # → True (agent-eval dashboard 실행 가능 시)
 ```
 
 ### 프로젝트 루트 감지 과정
@@ -213,7 +213,7 @@ agent-evaluator는 다음 우선순위로 결과 저장 위치를 결정합니�
         탐지 우선순위:
             1. 환경 변수 AGENT_EVALUATOR_ROOT
             2. Git 저장소 루트 (.git)
-            3. Dashboard 디렉토리 (agent-eval serve 실행 가능 여부 검증)
+            3. Dashboard 디렉토리 (agent-eval dashboard 실행 가능 여부 검증)
             4. 현재 작업 디렉토리 (폴백)
     
         Returns:
@@ -239,7 +239,7 @@ agent-evaluator는 다음 우선순위로 결과 저장 위치를 결정합니�
             dashboard = current / "Dashboard"
             if dashboard.exists() and dashboard.is_dir():
                 # ✓ 실제 agent_evaluator Dashboard인지 확인
-                # FastAPI 대시보드: agent-eval serve (agent_evaluator/serve/server.py)
+                # FastAPI 대시보드: agent-eval dashboard (agent_evaluator/serve/server.py)
                 if dashboard.exists():
                     return current.resolve()
             current = current.parent
@@ -366,16 +366,16 @@ Dashboard는 다음 방법으로 데이터를 자동 인식합니다:
 
 ### FastAPI 대시보드 시작 (v0.5.2+)
 
-별도 설치 없이 `agent-eval serve`로 대시보드를 바로 실행할 수 있습니다:
+별도 설치 없이 `agent-eval dashboard`로 대시보드를 바로 실행할 수 있습니다:
 ```bash
     # 기본 실행 (포트 8765, 브라우저 자동 오픈)
-    agent-eval serve
+    agent-eval dashboard
 
     # results/ 디렉토리 지정
-    agent-eval serve results/
+    agent-eval dashboard results/
 
     # 포트 및 옵션 지정
-    agent-eval serve --port 8080 --watch
+    agent-eval dashboard --port 8080 --watch
 ```
 
 대시보드가 자동으로 `results/` 디렉토리의 평가 결과를 인식합니다.
@@ -593,7 +593,7 @@ Dashboard는 다음 방법으로 데이터를 자동 인식합니다:
     
     # Dashboard 실행 (올바른 위치에서)
     cd /path/to/MyProject
-    agent-eval serve
+    agent-eval dashboard
 ```
 
 ### Q3: 레지스트리에 등록되지 않습니다
@@ -641,7 +641,7 @@ Dashboard는 다음 방법으로 데이터를 자동 인식합니다:
 **핵심 함수들** | `find_project_root()`, `get_evaluation_results_dir()`, `get_dashboard_dir()`, `is_valid_dashboard()`  
 **지원 클래스** | `PerformanceMonitor`, `HybridPerformanceMonitor`, `KoreanRAGEvaluator`, `TestTransparencyManager`  
 **프로젝트 루트 감지** | 환경변수 → Git 루트 → Dashboard 폴더 (검증) → 현재 디렉토리  
-**Dashboard 검증** | `agent-eval serve` 실행 가능 여부 확인
+**Dashboard 검증** | `agent-eval dashboard` 실행 가능 여부 확인
 **자동 저장 경로** | `{프로젝트_루트}/results/`  
 **Golden Datasets** | `{프로젝트_루트}/results/golden_datasets/`  
 **Transparency 데이터** | `{프로젝트_루트}/results/traces/`  
@@ -675,7 +675,7 @@ agent-evaluator v0.5.7 버전부터 모든 핵심 클래스가 Zero Configuratio
 
   * **통합 경로 헬퍼 모듈** : `agent_evaluator.utils.path_helpers` 제공
   * **코드 중복 제거** : 중복 경로 탐지 로직을 단일 모듈로 통합
-  * **Dashboard 검증 강화** : `agent-eval serve` 실행 가능 여부 자동 검증
+  * **Dashboard 검증 강화** : `agent-eval dashboard` 실행 가능 여부 자동 검증
   * **타입 일관성** : 모든 함수가 `Path` 객체 반환
   * **자동 디렉토리 생성** : `get_evaluation_results_dir()`가 필요한 경로 자동 생성
   * **클래스 메서드 제거** : `_find_project_root()` 메서드 제거, `path_helpers` 직접 사용 권장

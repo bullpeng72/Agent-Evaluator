@@ -66,7 +66,7 @@ Agent Evaluator는 AI Agent의 성능을 다각도로 평가하고 모니터링�
 
 graph TB subgraph UI["사용자 인터페이스 레이어"] Dashboard["🖥️ FastAPI Dashboard
 \- Single Dashboard (Port 8765)
-agent-eval serve
+agent-eval dashboard
 품질 / 성능 / 에이전틱 / 보안
 (관점 기반 네비게이션)"] PythonAPI["🐍 Python API
 \- PerformanceMonitor
@@ -1802,7 +1802,7 @@ Agent 상호작용 + Security 자동 추적
 
 **💡 FastAPI Dashboard:** Agent Evaluator는 단일 통합 Dashboard를 제공합니다.
 \- **FastAPI Dashboard (Port 8765):** 분석, 시각화, Test 투명성, 리포트 생성, Golden Dataset/Threshold 관리
-\- 실행 방법: `agent-eval serve`
+\- 실행 방법: `agent-eval dashboard`
 
 ### 9.1 FastAPI Dashboard (Port 8765)
 
@@ -2145,7 +2145,7 @@ Golden Dataset + Threshold를 포함하는 Test Config 생성 및 저장.
 
 **Dashboard 확인**
 
-FastAPI Dashboard로 결과 시각화 (agent-eval serve)
+FastAPI Dashboard로 결과 시각화 (agent-eval dashboard)
 
 2
 

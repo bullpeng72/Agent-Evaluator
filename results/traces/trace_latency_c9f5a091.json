@@ -1,0 +1,42 @@
+{
+  "trace_id": "trace_latency_c9f5a091",
+  "metric_name": "latency",
+  "metric_type": "performance",
+  "task_id": null,
+  "start_time": "2026-03-27T15:14:04.555464",
+  "steps": [
+    {
+      "step_name": "collect_times",
+      "description": "36개 실행 시간 수집",
+      "input_data": {
+        "task_count": 36
+      },
+      "output_data": {
+        "min_s": 0.809,
+        "max_s": 4.891
+      },
+      "status": "success",
+      "timestamp": "2026-03-27T15:14:04.555469"
+    },
+    {
+      "step_name": "percentiles",
+      "description": "평균·p50·p95·p99 백분위수 계산",
+      "input_data": {
+        "values_count": 36
+      },
+      "output_data": {
+        "mean_s": 2.275,
+        "p95_s": 4.386
+      },
+      "status": "success",
+      "timestamp": "2026-03-27T15:14:04.555471"
+    }
+  ],
+  "status": "completed",
+  "final_value": 2.275,
+  "metadata": {
+    "unit": "seconds",
+    "p95": 4.386
+  },
+  "end_time": "2026-03-27T15:14:04.555472"
+}
