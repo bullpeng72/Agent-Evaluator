@@ -29,6 +29,7 @@ from agent_evaluator.config import (
     key_source,
     load_env,
 )
+from agent_evaluator.cli.gate import cmd_gate
 
 
 # ---------------------------------------------------------------------------
@@ -592,6 +593,7 @@ def _print_welcome() -> None:
     print(f"  {Y}init{R}       API 키 대화형 설정 마법사")
     print(f"  {Y}check{R}      현재 설정 상태 출력")
     print(f"  {Y}dashboard{R}  웹 대시보드 실행  {D}(기본 포트 8765){R}")
+    print(f"  {Y}gate{R}       CI/CD 품질 게이팅  {D}(임계값 기준 통과/실패){R}")
     print(f"  {Y}--version{R}  버전 출력")
     print()
     print(f"  {D}전체 옵션 보기: {R}{C}agent-eval --help{R}")
@@ -713,7 +715,7 @@ def main() -> None:
             f"{B}{C}Agent Evaluator CLI{R} — AI 에이전트 평가 프레임워크\n"
             "\n"
             "평가 결과 수집·저장·시각화 전 구간을 단일 명령어로 관리합니다.\n"
-            "API 키 설정, 환경 상태 확인, 웹 대시보드 실행을 지원합니다."
+            "API 키 설정, 환경 상태 확인, 웹 대시보드 실행, CI/CD 게이팅을 지원합니다."
         ),
         formatter_class=ColoredHelpFormatter,
         epilog=(
@@ -721,6 +723,7 @@ def main() -> None:
             f"  {Y}init{R}         OpenAI·Anthropic·LangSmith 등 API 키를 대화형으로 설정\n"
             f"  {Y}check{R}        현재 환경의 API 키 및 설정값 상태를 출력\n"
             f"  {Y}dashboard{R}    평가 결과를 시각화하는 FastAPI 웹 대시보드 실행\n"
+            f"  {Y}gate{R}         CI/CD 품질 게이팅 — 임계값 기준 통과/실패 판정\n"
             f"  {Y}--version{R}    패키지 버전 출력\n"
             "\n"
             f"{B}예시:{R}\n"
@@ -729,6 +732,8 @@ def main() -> None:
             f"  {G}agent-eval dashboard{R}\n"
             f"  {G}agent-eval dashboard ./results --port 8080{R}\n"
             f"  {G}agent-eval dashboard ./results --watch --no-open{R}\n"
+            f"  {G}agent-eval gate results/ci_run.json --tcr 85 --accuracy 70{R}\n"
+            f"  {G}agent-eval gate results/ci_run.json --save-baseline{R}\n"
             f"  {G}agent-eval --version{R}\n"
             "\n"
             f"{B}더 자세한 도움말:{R}\n"
@@ -811,6 +816,57 @@ def main() -> None:
     dash_p.add_argument("--title", default="Agent Evaluator — Dev Dashboard",
                         metavar="TITLE", help="대시보드 제목")
 
+    # gate subcommand
+    gate_p = sub.add_parser(
+        "gate",
+        help="CI/CD 품질 게이팅 — 임계값 기준 통과/실패 판정",
+        formatter_class=ColoredHelpFormatter,
+        epilog=(
+            f"{B}종료 코드:{R}\n"
+            f"  {G}0{R}  모든 기준 통과\n"
+            f"  {RD}1{R}  임계값 기준 미달\n"
+            f"  {RD}2{R}  이전 버전 대비 회귀 감지 (--fail-on-regression 사용 시)\n"
+            "\n"
+            f"{B}예시:{R}\n"
+            f"  {G}agent-eval gate results/ci_run.json --tcr 85{R}\n"
+            f"  {G}agent-eval gate results/ci_run.json --tcr 85 --accuracy 70 --p95-latency 3.0{R}\n"
+            f"  {G}agent-eval gate results/ci_run.json --save-baseline{R}\n"
+            f"  {G}agent-eval gate results/ci_run.json --tcr 85 --fail-on-regression 10{R}\n"
+            f"  {G}agent-eval gate results/ci_run.json --tcr 85 --junit-xml test-results.xml{R}\n"
+        ),
+    )
+    gate_p.add_argument("result_file", help="평가 결과 JSON 파일 경로")
+    gate_p.add_argument("--tcr", type=float, metavar="PCT", help="최소 TCR (%%)")
+    gate_p.add_argument("--accuracy", type=float, metavar="PCT", help="최소 정확도 (%%)")
+    gate_p.add_argument(
+        "--p95-latency", type=float, metavar="SEC", dest="p95_latency",
+        help="최대 P95 지연시간 (초)",
+    )
+    gate_p.add_argument(
+        "--hallucination", type=float, metavar="PCT",
+        help="최대 환각 탐지율 (%%)",
+    )
+    gate_p.add_argument(
+        "--llm-judge", type=float, metavar="SCORE", dest="llm_judge",
+        help="최소 LLM Judge 종합 점수 (0–5)",
+    )
+    gate_p.add_argument(
+        "--fail-on-regression", type=float, metavar="PCT", dest="fail_on_regression",
+        help="기준선 대비 허용 회귀 비율 (%%) — 이보다 나빠지면 종료 코드 2 반환",
+    )
+    gate_p.add_argument(
+        "--baseline", metavar="PATH",
+        help="기준선 파일 경로 (기본: <result_dir>/baseline.json)",
+    )
+    gate_p.add_argument(
+        "--save-baseline", action="store_true", dest="save_baseline",
+        help="현재 결과를 기준선으로 저장",
+    )
+    gate_p.add_argument(
+        "--junit-xml", metavar="PATH", dest="junit_xml",
+        help="JUnit XML 출력 경로 (CI 시스템 연동)",
+    )
+
     parser.add_argument(
         "--version", action="store_true",
         help="패키지 버전 출력",
@@ -825,6 +881,7 @@ def main() -> None:
         "init":      cmd_init,
         "check":     cmd_check,
         "dashboard": cmd_dashboard,
+        "gate":      cmd_gate,
     }
 
     if args.command is None:
