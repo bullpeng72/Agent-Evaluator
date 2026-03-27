@@ -858,10 +858,9 @@ class AutoGenEvaluator:
         if self.verbose:
             print(f"   ✅ TCR: {(task.completion_score or 0.0) * 100:.1f}%  "
                   f"Latency: {execution_time:.2f}s  Tokens: {tokens}")
-            # M5: AutoGen model_client.total_usage()는 에이전트 수명 누적값이므로 태스크별 분해 불가
             if tokens.get("input", 0) > 0 or tokens.get("output", 0) > 0:
-                print(f"   ℹ️ TokenEconomy: model_client 누적값 사용 — "
-                      f"태스크별 토큰 분해 불가 (per-task breakdown unavailable)")
+                print(f"   ℹ️ TokenEconomy: model_client delta 계산 — "
+                      f"in={tokens.get('input', 0)} out={tokens.get('output', 0)}")
 
     def _record_layer2(
         self,
@@ -1028,9 +1027,14 @@ class AutoGenEvaluator:
                     tname = tc["tool_name"]
                     if tname not in _tool_seen:
                         _tool_seen[tname] = tc.get("success", True)
+                        _err_detail = tc.get("execution_result", "")
                         attempts_log.append({
                             "success": tc.get("success", True),
-                            "retry_reason": f"tool_error:{tname}" if not tc.get("success", True) else "",
+                            "retry_reason": (
+                                f"tool_error:{tname}"
+                                + (f": {str(_err_detail)[:120]}" if _err_detail else "")
+                                if not tc.get("success", True) else ""
+                            ),
                             "duration": tc.get("duration", 0.0),
                         })
                     else:
@@ -1089,6 +1093,7 @@ class AutoGenEvaluator:
             self.monitor.retry_tracker.track_attempts(
                 task_id=task_id,
                 attempts_log=attempts_log,
+                task_type=self.task_type,
             )
             if self.verbose:
                 if failed_tools:

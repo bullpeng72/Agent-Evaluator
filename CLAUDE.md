@@ -5,7 +5,7 @@
 **Agent-Evaluator** is a production-ready Python SDK for evaluating AI agents.
 25개의 성능 지표를 세 개의 레이어(기본/에이전틱/하이브리드)로 측정한다.
 
-- **Version:** 0.6.1 (Beta)
+- **Version:** 0.6.2 (Beta)
 - **Python:** 3.8+
 - **License:** MIT
 - **Author:** Sungwoo Kim
@@ -30,6 +30,7 @@ pip install -e ".[full]"              # 진짜 전체 (⚠️ 10분+ 소요)
 # --- CLI (pip install 후 바로 사용 가능) ---
 agent-eval init          # 대화형 API 키 설정 마법사
 agent-eval check         # 현재 설정 상태 출력
+agent-eval dashboard     # FastAPI 대시보드 실행 (기본 포트 8765)
 agent-eval --version     # 버전 출력
 
 # 테스트 실행
@@ -47,10 +48,10 @@ twine upload --repository testpypi dist/*   # 테스트
 twine upload dist/*                          # 실제 배포
 
 # 대시보드 실행 (FastAPI, v0.5.2+)
-agent-eval serve                        # 기본 포트 8765, 브라우저 자동 오픈
-agent-eval serve --port 8080 --watch    # 포트 지정 + 파일 변경 자동 갱신
-agent-eval serve --no-open              # 브라우저 자동 오픈 비활성화
-agent-eval serve --offline              # CDN 에셋 로컬 캐시 (인터넷 없이 실행)
+agent-eval dashboard                        # 기본 포트 8765, 브라우저 자동 오픈
+agent-eval dashboard --port 8080 --watch    # 포트 지정 + 파일 변경 자동 갱신
+agent-eval dashboard --no-open              # 브라우저 자동 오픈 비활성화
+agent-eval dashboard --offline              # CDN 에셋 로컬 캐시 (인터넷 없이 실행)
 ```
 
 ---
@@ -127,12 +128,17 @@ agent_evaluator/
 ├── config.py                # 환경변수 설정 로더 (load_env, get_settings)
 └── __init__.py              # Public API surface
 
-Evaluator_Examples/          # 실제 사용 예시 (패키지 외부, 5개 플랫 파일)
-├── 01_quality_metrics.py    # 품질 지표 — Accuracy, Hallucination, Quality, RAG
-├── 02_performance_metrics.py # 성능 지표 — TCR, Latency, Token Economy
-├── 03_agentic_metrics.py    # 에이전틱 지표 — Tool Call, Coordination, Workflow
-├── 04_security_metrics.py   # 보안 지표 — Input Sanitization, Leakage, Auth, Escalation
-└── 05_hybrid_metrics.py     # 하이브리드 평가 — DeepEval, Ragas, LangSmith 통합
+Evaluator_Examples/          # 실제 사용 예시 (패키지 외부, 10개 플랫 파일)
+├── 01_quality_eval.py       # 품질 지표 — Accuracy, Hallucination, Quality, RAG
+├── 02_performance_eval.py   # 성능 지표 — TCR, Latency, Token Economy
+├── 03_agentic_eval.py       # 에이전틱 지표 — Tool Call, Coordination, Workflow
+├── 04_security_eval.py      # 보안 지표 — Input Sanitization, Leakage, Auth, Escalation
+├── 05_hybrid_eval.py        # 하이브리드 평가 — DeepEval, Ragas, LangSmith 통합
+├── 06_langchain_eval.py     # LangChain 프레임워크 통합 예제
+├── 07_langgraph_eval.py     # LangGraph 프레임워크 통합 예제
+├── 08_crewai_eval.py        # CrewAI 프레임워크 통합 예제
+├── 09_autogen_eval.py       # AutoGen 프레임워크 통합 예제
+└── 10_cross_framework_eval.py # 멀티 프레임워크 비교 평가
 ```
 
 ---
@@ -353,6 +359,22 @@ pytest
 ---
 
 ## 📝 변경 이력
+
+### v0.6.2 (2026-03-27) — 대시보드 보안 L1/L2 상세 패널 + 에이전틱·품질 탭 개선
+
+- ✨ 대시보드 보안 L1 도구 권한 — `tracking_active` 플래그 도입: 추적 미활성 경고 배너·점선 KPI 카드·태스크별 폴백 테이블
+- ✨ 대시보드 보안 L1 도구 권한 — 상세 패널: 개별 auth 레코드 테이블(6열) ↔ 태스크별 도구 호출 테이블 분기 표시
+- ✨ 대시보드 보안 L2 권한상승·공격탐지 — L1과 동일한 미활성 패턴 적용 (경고 배너, 그레이 KPI, 태스크 폴백)
+- ✨ 대시보드 보안 L2 상세 패널 — 상승 이벤트(초기권한·최대권한·위험도·경로) + 공격 체인(체인길이·패턴·신뢰도) 테이블 재설계
+- 🐛 L2 요약 통계 카드 가로 레이아웃 — Alpine.js `x-show`+flex 충돌 → `<template x-if>`로 교체
+- 🐛 `loader.py` L1/L2 `tracking_active` 탐지 로직 추가 (`total_tool_calls=0` & 태스크 도구 호출 있음 → `False`)
+- 🐛 품질 탭 환각 탐지 Layer 1/3 분리 + `TaskResult` raw content 필드 추가
+- 🐛 보안·에이전틱 탭 차트 경로 오류 3건 수정 + KPI 산출식·설명 개선
+- 🔧 SDK 문서 탭 Layer 1 카드 grid 레이아웃 적용
+- 🔧 DeepEval 상세 테이블 헤더 명확화
+- ✨ `agent-eval dashboard` 명령어 추가 (Dev Dashboard)
+- ✨ 지표 비교 테이블 — 레이더 6축 전체 포함 + 3섹션 구조
+- 🔧 파일 비교 레이더를 에이전트 역량 레이더와 동일 관점(6축)으로 통일
 
 ### v0.6.1 (2026-03-23) — 보안 탭 감사 수정 + 에이전틱/대시보드 개선 일괄 배포
 

@@ -326,8 +326,10 @@ def run_cross_framework_evaluation():
             fail_stage = "s1" if not s1_ok else ("s2" if not s2_ok else "s3")
             monitor.retry_tracker.track_attempts(
                 f"{task_id}_retry",
-                [{"success": False, "duration": rng.uniform(1.0, 3.0)},
-                 {"success": False, "duration": rng.uniform(1.5, 4.0)}],
+                [
+                    {"success": False, "retry_reason": f"stage_{fail_stage}_failed: node error", "duration": rng.uniform(1.0, 3.0)},
+                    {"success": False, "retry_reason": f"stage_{fail_stage}_failed: retry timeout", "duration": rng.uniform(1.5, 4.0)},
+                ],
                 task_type="planning",
             )
 
@@ -377,10 +379,20 @@ def run_cross_framework_evaluation():
 
     # ── 추가 재시도 패턴 — 프레임워크 핸드오프 실패 재시도 ──────────────────────
     handoff_retries = [
-        ("hoff_lg_lc_001", [{"success": False, "duration": 0.5}, {"success": True, "duration": 0.3}], "planning"),
-        ("hoff_lc_cr_001", [{"success": False, "duration": 0.8}, {"success": False, "duration": 0.7}, {"success": True, "duration": 0.4}], "planning"),
-        ("hoff_ok_001",    [{"success": True, "duration": 0.2}], "planning"),
-        ("hoff_lg_lc_002", [{"success": False, "duration": 1.2}, {"success": True, "duration": 0.6}], "planning"),
+        ("hoff_lg_lc_001", [
+            {"success": False, "retry_reason": "handoff_error: LangGraph→LangChain state schema mismatch", "duration": 0.5},
+            {"success": True,  "retry_reason": "", "duration": 0.3},
+        ], "planning"),
+        ("hoff_lc_cr_001", [
+            {"success": False, "retry_reason": "handoff_error: LangChain→CrewAI context serialization failed", "duration": 0.8},
+            {"success": False, "retry_reason": "handoff_error: LangChain→CrewAI task delegation timeout", "duration": 0.7},
+            {"success": True,  "retry_reason": "", "duration": 0.4},
+        ], "planning"),
+        ("hoff_ok_001",    [{"success": True, "retry_reason": "", "duration": 0.2}], "planning"),
+        ("hoff_lg_lc_002", [
+            {"success": False, "retry_reason": "handoff_error: LangGraph node output type mismatch", "duration": 1.2},
+            {"success": True,  "retry_reason": "", "duration": 0.6},
+        ], "planning"),
     ]
     for tid, log, ttype in handoff_retries:
         monitor.retry_tracker.track_attempts(tid, log, task_type=ttype)

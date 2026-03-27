@@ -3,7 +3,7 @@
 [![PyPI version](https://img.shields.io/pypi/v/agent-evaluator.svg)](https://pypi.org/project/agent-evaluator/)
 [![Python Version](https://img.shields.io/badge/python-3.8%2B-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Version](https://img.shields.io/badge/version-0.6.1-green.svg)](https://github.com/bullpeng72/Agent-Evaluator)
+[![Version](https://img.shields.io/badge/version-0.6.2-green.svg)](https://github.com/bullpeng72/Agent-Evaluator)
 
 **AI 에이전트를 위한 프로덕션 레디 평가 프레임워크**
 
@@ -358,7 +358,7 @@ results/
 |--------|------|
 | `agent-eval init` | 대화형 API 키 설정 마법사 |
 | `agent-eval check` | 현재 설정 상태 및 API 키 확인 |
-| `agent-eval serve` | FastAPI 대시보드 웹 서버 실행 |
+| `agent-eval dashboard` | FastAPI 대시보드 웹 서버 실행 |
 | `agent-eval --version` | 패키지 버전 출력 |
 
 ### `agent-eval init`
@@ -387,7 +387,7 @@ agent-eval check
 
 출력 예시:
 ```
-  Agent Evaluator v0.6.1 — 설정 상태
+  Agent Evaluator v0.6.2 — 설정 상태
   ──────────────────────────────────────────────────
 ℹ  .env 로드: /home/user/project/.env
 
@@ -409,12 +409,12 @@ API 키 상태:
   'agent-eval init' 을 실행하면 누락된 키를 설정할 수 있습니다.
 ```
 
-### `agent-eval serve`
+### `agent-eval dashboard`
 
 평가 결과를 시각화하는 FastAPI 웹 대시보드를 실행합니다.
 
 ```bash
-agent-eval serve [results_dir] [옵션]
+agent-eval dashboard [results_dir] [옵션]
 ```
 
 | 옵션 | 기본값 | 설명 |
@@ -425,17 +425,14 @@ agent-eval serve [results_dir] [옵션]
 | `--open` | 기본 활성화 | 서버 시작 후 브라우저 자동 오픈 |
 | `--no-open` | — | 브라우저 자동 오픈 비활성화 |
 | `--watch` | — | 파일 변경 감시 (핫 리로드) |
-| `--slide` | — | 시작 화면을 슬라이드 뷰로 설정 |
-| `--share` | — | 외부 접근 허용 (`host=0.0.0.0`) |
 | `--offline` | — | CDN 에셋을 로컬 캐시해 인터넷 없이 실행 |
-| `--title TITLE` | `Agent Evaluator Dashboard` | 대시보드 제목 |
+| `--title TITLE` | `Agent Evaluator — Dev Dashboard` | 대시보드 제목 |
 
 ```bash
-agent-eval serve                                    # 기본 실행 (브라우저 자동 오픈)
-agent-eval serve ./results --port 8080              # 포트 지정
-agent-eval serve ./results --watch                  # 파일 변경 시 자동 갱신
-agent-eval serve ./results --no-open                # 브라우저 오픈 없이 서버만 시작
-agent-eval serve ./results --share                  # 외부 접근 허용 (팀 공유)
+agent-eval dashboard                                    # 기본 실행 (브라우저 자동 오픈)
+agent-eval dashboard ./results --port 8080              # 포트 지정
+agent-eval dashboard ./results --watch                  # 파일 변경 시 자동 갱신
+agent-eval dashboard ./results --no-open                # 브라우저 오픈 없이 서버만 시작
 ```
 
 > `results_dir`을 지정하지 않으면 `./results` → `path_helpers` 자동 탐지 순으로 결과 디렉토리를 찾습니다.
@@ -445,7 +442,7 @@ agent-eval serve ./results --share                  # 외부 접근 허용 (팀 
 ## 대시보드
 
 FastAPI + Alpine.js 기반 SPA 웹 대시보드로 평가 결과를 시각화합니다.
-`pip install "agent-evaluator[serve]"` 후 `agent-eval serve`로 실행합니다.
+`pip install "agent-evaluator[serve]"` 후 `agent-eval dashboard`로 실행합니다.
 
 실행 후 접근 가능한 URL:
 
@@ -543,12 +540,17 @@ agent-evaluator/
 │   │   └── transparency_manager.py       # TestTransparencyManager 프로덕션 클래스
 │   └── config.py                # 환경변수 설정 로더
 │
-├── Evaluator_Examples/           # 카테고리별 평가 예제 (5개)
-│   ├── 01_quality_metrics.py     # 품질 지표 — Accuracy, Hallucination, Quality, RAG
-│   ├── 02_performance_metrics.py # 성능 지표 — TCR, Latency, Token Economy
-│   ├── 03_agentic_metrics.py     # 에이전틱 지표 — Tool Call, Coordination, Workflow
-│   ├── 04_security_metrics.py    # 보안 지표 — Input Sanitization, Leakage, Auth, Escalation
-│   └── 05_hybrid_metrics.py      # 하이브리드 평가 — DeepEval, Ragas, LangSmith 통합
+├── Evaluator_Examples/              # 카테고리별 평가 예제 (10개)
+│   ├── 01_quality_eval.py           # 품질 지표 — Accuracy, Hallucination, Quality, RAG
+│   ├── 02_performance_eval.py       # 성능 지표 — TCR, Latency, Token Economy
+│   ├── 03_agentic_eval.py           # 에이전틱 지표 — Tool Call, Coordination, Workflow
+│   ├── 04_security_eval.py          # 보안 지표 — Input Sanitization, Leakage, Auth, Escalation
+│   ├── 05_hybrid_eval.py            # 하이브리드 평가 — DeepEval, Ragas, LangSmith 통합
+│   ├── 06_langchain_eval.py         # LangChain 프레임워크 통합 예제
+│   ├── 07_langgraph_eval.py         # LangGraph 프레임워크 통합 예제
+│   ├── 08_crewai_eval.py            # CrewAI 프레임워크 통합 예제
+│   ├── 09_autogen_eval.py           # AutoGen 프레임워크 통합 예제
+│   └── 10_cross_framework_eval.py   # 멀티 프레임워크 비교 평가
 │
 ├── tests/                        # 단위 테스트 (33개 테스트 함수, 4개 파일)
 │   ├── test_accuracy_evaluator.py
@@ -567,14 +569,19 @@ agent-evaluator/
 
 ```bash
 cd Evaluator_Examples
-python 01_quality_metrics.py      # 품질 지표 — Accuracy, Hallucination, Quality, RAG
-python 02_performance_metrics.py  # 성능 지표 — TCR, Latency (p50/p95/p99), Token Economy
-python 03_agentic_metrics.py      # 에이전틱 지표 — Tool Call, Coordination, Workflow, Retry
-python 04_security_metrics.py     # 보안 지표 — Input Sanitization, Leakage, Auth, Escalation, Attack
-python 05_hybrid_metrics.py       # 하이브리드 평가 — DeepEval, Ragas, LangSmith 통합 (API 키 필요)
+python 01_quality_eval.py          # 품질 지표 — Accuracy, Hallucination, Quality, RAG
+python 02_performance_eval.py      # 성능 지표 — TCR, Latency (p50/p95/p99), Token Economy
+python 03_agentic_eval.py          # 에이전틱 지표 — Tool Call, Coordination, Workflow, Retry
+python 04_security_eval.py         # 보안 지표 — Input Sanitization, Leakage, Auth, Escalation, Attack
+python 05_hybrid_eval.py           # 하이브리드 평가 — DeepEval, Ragas, LangSmith 통합 (API 키 필요)
+python 06_langchain_eval.py        # LangChain 통합 예제
+python 07_langgraph_eval.py        # LangGraph 통합 예제
+python 08_crewai_eval.py           # CrewAI 통합 예제
+python 09_autogen_eval.py          # AutoGen 통합 예제
+python 10_cross_framework_eval.py  # 멀티 프레임워크 비교
 
 # 대시보드 실행 (결과 자동 반영)
-agent-eval serve --watch
+agent-eval dashboard --watch
 ```
 
 ---
@@ -696,7 +703,7 @@ MIT License — 자세한 내용은 [LICENSE](LICENSE) 파일을 참고하세요
   title   = {Agent Evaluator: Production-ready evaluation framework for AI agents},
   author  = {Kim, Sungwoo},
   year    = {2026},
-  version = {0.6.1},
+  version = {0.6.2},
   url     = {https://github.com/bullpeng72/Agent-Evaluator},
   license = {MIT}
 }

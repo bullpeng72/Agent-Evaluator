@@ -288,11 +288,27 @@ def run_agentic_evaluation():
     # record_task는 attempts>1이면 retry_tracker에 등록
     # 더 다양한 패턴을 위해 직접 등록도 추가
     extra_retry_cases = [
-        ("retry_ext_001", [{"success": False, "duration": 1.2}, {"success": False, "duration": 1.5}, {"success": True, "duration": 0.9}], "qa"),
-        ("retry_ext_002", [{"success": False, "duration": 2.0}, {"success": True, "duration": 1.1}], "reasoning"),
-        ("retry_ext_003", [{"success": True, "duration": 0.7}], "qa"),
-        ("retry_ext_004", [{"success": False, "duration": 3.0}, {"success": False, "duration": 2.5}, {"success": False, "duration": 2.0}], "tool_use"),
-        ("retry_ext_005", [{"success": False, "duration": 1.0}, {"success": True, "duration": 0.8}], "reasoning"),
+        ("retry_ext_001", [
+            {"success": False, "retry_reason": "ValueError: answer format mismatch", "duration": 1.2},
+            {"success": False, "retry_reason": "ValueError: answer format mismatch", "duration": 1.5},
+            {"success": True,  "retry_reason": "", "duration": 0.9},
+        ], "qa"),
+        ("retry_ext_002", [
+            {"success": False, "retry_reason": "TimeoutError: LLM response exceeded 5s", "duration": 2.0},
+            {"success": True,  "retry_reason": "", "duration": 1.1},
+        ], "reasoning"),
+        ("retry_ext_003", [
+            {"success": True, "retry_reason": "", "duration": 0.7},
+        ], "qa"),
+        ("retry_ext_004", [
+            {"success": False, "retry_reason": "ToolError: web_search rate limit exceeded", "duration": 3.0},
+            {"success": False, "retry_reason": "ToolError: web_search rate limit exceeded", "duration": 2.5},
+            {"success": False, "retry_reason": "ToolError: connection reset by peer", "duration": 2.0},
+        ], "tool_use"),
+        ("retry_ext_005", [
+            {"success": False, "retry_reason": "ParseError: JSON decode failed", "duration": 1.0},
+            {"success": True,  "retry_reason": "", "duration": 0.8},
+        ], "reasoning"),
     ]
     for tid, log, ttype in extra_retry_cases:
         monitor.retry_tracker.track_attempts(tid, log, task_type=ttype)

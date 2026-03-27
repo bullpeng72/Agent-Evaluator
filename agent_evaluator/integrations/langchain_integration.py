@@ -719,6 +719,7 @@ if LANGCHAIN_AVAILABLE:
                 self.monitor.retry_tracker.track_attempts(
                     task_id=self.current_task_id,
                     attempts_log=attempts_log,
+                    task_type=self.task_type,
                 )
                 if self.verbose:
                     if self.retry_count > 0:

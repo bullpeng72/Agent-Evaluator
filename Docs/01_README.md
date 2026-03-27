@@ -2,7 +2,7 @@
 
 AI Agent를 위한 프로덕션급 평가 프레임워크
 
-![Python Version](https://img.shields.io/badge/python-3.8+-blue.svg) ![License](https://img.shields.io/badge/license-MIT-green.svg) ![Version](https://img.shields.io/badge/version-0.6.1-brightgreen.svg) ![Zero Configuration](https://img.shields.io/badge/Zero_Config-100%25-blue.svg) ![Security Metrics](https://img.shields.io/badge/Security_Metrics-5_Built--in-orange.svg)
+![Python Version](https://img.shields.io/badge/python-3.8+-blue.svg) ![License](https://img.shields.io/badge/license-MIT-green.svg) ![Version](https://img.shields.io/badge/version-0.6.2-brightgreen.svg) ![Zero Configuration](https://img.shields.io/badge/Zero_Config-100%25-blue.svg) ![Security Metrics](https://img.shields.io/badge/Security_Metrics-5_Built--in-orange.svg)
 
 ## 목차
 
@@ -823,11 +823,11 @@ Agent Evaluator는 풍부한 문서를 제공합니다:
 
 이 프로젝트는 MIT 라이센스를 따릅니다. 자세한 내용은 [LICENSE](<LICENSE>) 파일을 참조하세요.
 
-**Agent Evaluator v0.6.1**
+**Agent Evaluator v0.6.2**
 
 100% Zero Configuration | 3-Layer Metrics | Production-Ready
 
-**최종 업데이트** : 2026-03-23 | **버전** : Agent Evaluator v0.6.1
+**최종 업데이트** : 2026-03-27 | **버전** : Agent Evaluator v0.6.2
 
 Developed by **KIM SUNGWOO**
 

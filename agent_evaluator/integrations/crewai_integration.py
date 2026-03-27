@@ -996,10 +996,9 @@ class CrewAIEvaluator:
         if self.verbose:
             print(f"   ✅ TCR: {(task.completion_score or 0.0) * 100:.1f}%  "
                   f"Latency: {execution_time:.2f}s  Tokens: {tokens}")
-            # M5: CrewAI usage_metrics는 전체 합산값이므로 태스크별 분해 불가
             if tokens.get("input", 0) > 0 or tokens.get("output", 0) > 0:
-                print(f"   ℹ️ TokenEconomy: crew.usage_metrics 합산값 사용 — "
-                      f"태스크별 토큰 분해 불가 (per-task breakdown unavailable)")
+                print(f"   ℹ️ TokenEconomy: usage_metrics delta 계산 — "
+                      f"in={tokens.get('input', 0)} out={tokens.get('output', 0)}")
 
     def _record_layer2(
         self,
@@ -1148,6 +1147,7 @@ class CrewAIEvaluator:
             self.monitor.retry_tracker.track_attempts(
                 task_id=task_id,
                 attempts_log=attempts_log,
+                task_type=self.task_type,
             )
             failed_count = sum(1 for a in attempts_log if not a["success"])
             if self.verbose:

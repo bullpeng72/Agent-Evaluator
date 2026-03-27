@@ -525,7 +525,6 @@ def cmd_check(_args: argparse.Namespace) -> int:
         ("langsmith",  "frameworks", "LangSmithAdapter"),
         ("deepeval",   "eval",       "DeepEvalAdapter"),
         ("ragas",      "eval",       "RagasAdapter"),
-        ("fastapi",    "serve",      "웹 대시보드"),
     ]
     import importlib
     for pkg, extra, usage in _PKG_MAP:
@@ -590,128 +589,13 @@ def _print_welcome() -> None:
         print(line)
     print()
     print(f"  {B}명령어{R}")
-    print(f"  {Y}init{R}     API 키 대화형 설정 마법사")
-    print(f"  {Y}check{R}    현재 설정 상태 출력")
-    print(f"  {Y}serve{R}    웹 대시보드 실행  {D}(기본 포트 8765){R}")
+    print(f"  {Y}init{R}       API 키 대화형 설정 마법사")
+    print(f"  {Y}check{R}      현재 설정 상태 출력")
+    print(f"  {Y}dashboard{R}  웹 대시보드 실행  {D}(기본 포트 8765){R}")
     print(f"  {Y}--version{R}  버전 출력")
     print()
     print(f"  {D}전체 옵션 보기: {R}{C}agent-eval --help{R}")
     print()
-
-
-# ---------------------------------------------------------------------------
-# cmd_serve
-# ---------------------------------------------------------------------------
-
-def cmd_serve(args: argparse.Namespace) -> int:
-    """Start the FastAPI web dashboard (agent-eval serve)."""
-    try:
-        import uvicorn
-    except ImportError:
-        print(
-            f"{RD}❌  uvicorn 이 설치되지 않았습니다.{R}\n"
-            f"   pip install 'agent-evaluator[serve]' 로 설치하세요.",
-            file=sys.stderr,
-        )
-        return 1
-
-    try:
-        from agent_evaluator.serve.server import create_app
-    except ImportError as exc:
-        print(f"{RD}❌  서버 모듈 로드 실패: {exc}{R}", file=sys.stderr)
-        return 1
-
-    raw_dir     = getattr(args, "results_dir", None)
-    host        = getattr(args, "host",  "127.0.0.1")
-    port        = getattr(args, "port",  8765)
-    watch       = getattr(args, "watch",    False)
-    open_browser= getattr(args, "open",     False)
-    slide       = getattr(args, "slide",    False)
-    share       = getattr(args, "share",    False)
-    offline     = getattr(args, "offline",  False)
-    title       = getattr(args, "title", "Agent Evaluator Dashboard")
-
-    if share:
-        host = "0.0.0.0"
-
-    # ── 결과 디렉토리 탐지 ──────────────────────────────────────────────
-    # 우선순위:
-    #   1. CLI 인수로 명시된 경로 (사용자가 직접 지정)
-    #   2. CWD의 ./results (기본값) — JSON 파일이 존재하는 경우에만
-    #   3. path_helpers.get_evaluation_results_dir() 자동 탐지
-    #      (Dashboard/data/evaluation_results — 예제 스크립트가 저장하는 위치)
-
-    user_specified = raw_dir not in (None, "./results", "results")
-
-    if user_specified:
-        results_dir = Path(raw_dir).resolve()
-    else:
-        # 기본 ./results 에 파일이 있으면 그대로 사용
-        default_dir = Path("./results").resolve()
-        has_results = default_dir.exists() and any(default_dir.rglob("*.json"))
-        if has_results:
-            results_dir = default_dir
-        else:
-            # 자동 탐지: path_helpers 와 동일한 로직 사용
-            try:
-                from agent_evaluator.utils.path_helpers import get_evaluation_results_dir
-                detected = get_evaluation_results_dir()
-                if detected.exists() and any(detected.rglob("*.json")):
-                    results_dir = detected
-                    if not user_specified:
-                        print(
-                            f"  {_dim(f'ℹ  결과 디렉토리 자동 감지: {results_dir}')}"
-                        )
-                else:
-                    results_dir = default_dir
-            except Exception:
-                results_dir = default_dir
-
-    if not results_dir.exists():
-        results_dir.mkdir(parents=True, exist_ok=True)
-
-    # Banner
-    base_url = f"http://{'127.0.0.1' if host == '0.0.0.0' else host}:{port}"
-    json_files = list(results_dir.rglob("*.json"))
-    n_files = len([f for f in json_files
-                   if not any(p in str(f) for p in
-                              ("traces/","audit_logs/","annotations/","transparent_reports/","golden_datasets/"))])
-    print()
-    print(f"  {B}Agent Evaluator Dashboard{R} v{__version__}")
-    print(f"  {'─' * 40}")
-    print(f"  📁  Results dir : {results_dir}  ({n_files}개 파일 발견)")
-    print(f"  🌐  Dashboard   : {base_url}")
-    print(f"  📊  Slides      : {base_url}/slides")
-    print(f"  📡  API docs    : {base_url}/api/docs")
-    print(f"  🔄  Watch mode  : {'ON' if watch else 'OFF'}")
-    if share:
-        print(f"  🌍  외부 접근   : {host}:{port} (모든 인터페이스)")
-    print()
-    print(f"  {_dim('Ctrl+C 로 종료')}")
-    print()
-
-    app = create_app(
-        results_dir=results_dir,
-        title=title,
-        watch=watch,
-        version=__version__,
-        offline=offline,
-    )
-
-    if open_browser:
-        import threading
-        import webbrowser
-        url = f"{base_url}/slides" if slide else base_url
-
-        def _open():
-            import time
-            time.sleep(1.2)
-            webbrowser.open(url)
-
-        threading.Thread(target=_open, daemon=True).start()
-
-    uvicorn.run(app, host=host, port=port, log_level="warning")
-    return 0
 
 
 # ---------------------------------------------------------------------------
@@ -834,18 +718,17 @@ def main() -> None:
         formatter_class=ColoredHelpFormatter,
         epilog=(
             f"{B}명령어:{R}\n"
-            f"  {Y}init{R}       OpenAI·Anthropic·LangSmith 등 API 키를 대화형으로 설정\n"
-            f"  {Y}check{R}      현재 환경의 API 키 및 설정값 상태를 출력\n"
-            f"  {Y}serve{R}      평가 결과를 시각화하는 FastAPI 웹 대시보드 실행\n"
-            f"  {Y}--version{R}  패키지 버전 출력\n"
+            f"  {Y}init{R}         OpenAI·Anthropic·LangSmith 등 API 키를 대화형으로 설정\n"
+            f"  {Y}check{R}        현재 환경의 API 키 및 설정값 상태를 출력\n"
+            f"  {Y}dashboard{R}    평가 결과를 시각화하는 FastAPI 웹 대시보드 실행\n"
+            f"  {Y}--version{R}    패키지 버전 출력\n"
             "\n"
             f"{B}예시:{R}\n"
             f"  {G}agent-eval init{R}\n"
             f"  {G}agent-eval check{R}\n"
-            f"  {G}agent-eval serve{R}\n"
-            f"  {G}agent-eval serve ./results --port 8080{R}\n"
-            f"  {G}agent-eval serve ./results --watch --no-open{R}\n"
-            f"  {G}agent-eval serve ./results --share{R}\n"
+            f"  {G}agent-eval dashboard{R}\n"
+            f"  {G}agent-eval dashboard ./results --port 8080{R}\n"
+            f"  {G}agent-eval dashboard ./results --watch --no-open{R}\n"
             f"  {G}agent-eval --version{R}\n"
             "\n"
             f"{B}더 자세한 도움말:{R}\n"
@@ -896,59 +779,6 @@ def main() -> None:
         ),
         formatter_class=ColoredHelpFormatter,
     )
-    # serve subcommand
-    serve_p = sub.add_parser(
-        "serve",
-        help="평가 결과 웹 대시보드 실행",
-        description=(
-            "평가 결과 JSON 파일을 읽어 FastAPI 웹 대시보드를 실행합니다.\n"
-            "\n"
-            f"{B}결과 디렉토리 자동 탐지 순서:{R}\n"
-            f"  {Y}1.{R} 명시적으로 지정한 results_dir 인수\n"
-            f"  {Y}2.{R} ./results {D}(JSON 파일이 존재하는 경우){R}\n"
-            f"  {Y}3.{R} {C}AGENT_EVALUATOR_OUTPUT_DIR{R} 환경변수\n"
-            f"  {Y}4.{R} git/pyproject.toml 루트의 results/ 디렉토리\n"
-            "\n"
-            f"{B}접속 URL:{R}\n"
-            f"  {G}http://localhost:8765{R}           메인 대시보드\n"
-            f"  {G}http://localhost:8765/slides{R}    슬라이드 뷰\n"
-            f"  {G}http://localhost:8765/sdk-docs{R}  SDK 레퍼런스 문서\n"
-            f"  {G}http://localhost:8765/api/docs{R}  Swagger UI {D}(OAS 3.1){R}\n"
-        ),
-        formatter_class=ColoredHelpFormatter,
-        epilog=(
-            f"{B}예시:{R}\n"
-            f"  {G}agent-eval serve{R}\n"
-            f"  {G}agent-eval serve ./results --port 8080{R}\n"
-            f"  {G}agent-eval serve ./results --watch{R}\n"
-            f"  {G}agent-eval serve ./results --no-open{R}\n"
-            f"  {G}agent-eval serve ./results --share{R}\n"
-            f"  {G}agent-eval serve /path/to/results --title '프로젝트 평가'{R}"
-        ),
-    )
-    serve_p.add_argument(
-        "results_dir", nargs="?", default="./results",
-        help="평가 결과 JSON 파일 디렉토리 (기본: ./results, 자동 탐지 지원)",
-    )
-    serve_p.add_argument("--host",  default="127.0.0.1", metavar="HOST",
-                         help="바인딩 호스트 (기본: 127.0.0.1)")
-    serve_p.add_argument("--port",  default=8765, type=int, metavar="PORT",
-                         help="포트 번호 (기본: 8765)")
-    serve_p.add_argument("--open",  action="store_true", default=True,
-                         help="서버 시작 후 브라우저 자동 오픈 (기본값)")
-    serve_p.add_argument("--no-open", dest="open", action="store_false",
-                         help="브라우저 자동 오픈 비활성화")
-    serve_p.add_argument("--watch", action="store_true",
-                         help="결과 파일 변경 감시 후 대시보드 자동 갱신")
-    serve_p.add_argument("--slide", action="store_true",
-                         help="브라우저를 슬라이드 뷰(/slides)로 오픈")
-    serve_p.add_argument("--share", action="store_true",
-                         help="외부 접근 허용 — host를 0.0.0.0으로 변경 (팀 공유)")
-    serve_p.add_argument("--offline", action="store_true",
-                         help="CDN 에셋을 로컬에 캐시해 인터넷 없이 실행 (첫 실행 시 다운로드)")
-    serve_p.add_argument("--title", default="Agent Evaluator Dashboard", metavar="TITLE",
-                         help="대시보드 제목 (기본: 'Agent Evaluator Dashboard')")
-
     # dashboard subcommand
     dash_p = sub.add_parser(
         "dashboard",
@@ -994,7 +824,6 @@ def main() -> None:
     handlers = {
         "init":      cmd_init,
         "check":     cmd_check,
-        "serve":     cmd_serve,
         "dashboard": cmd_dashboard,
     }
 

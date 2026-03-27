@@ -407,5 +407,117 @@ def run_langchain_evaluation():
     return saved_path
 
 
+# ═══════════════════════════════════════════════════════════════════════════
+# Live 트랙 — monitor.task() 기반 최소 코드 패턴 (실제 API 연동 시 권장)
+# ═══════════════════════════════════════════════════════════════════════════
+
+def _mock_langchain_agent(question: str, tools: list, rng: random.Random) -> dict:
+    """실제 LangChain AgentExecutor 를 시뮬레이션하는 목업 함수.
+
+    실제 코드에서는 다음으로 교체하세요::
+
+        result = agent_executor.invoke({"input": question})
+        return {
+            "response": result["output"],
+            "tool_calls": [{"tool_name": t["tool"], "success": True}
+                           for t in result.get("intermediate_steps", [])],
+            "success": bool(result.get("output")),
+        }
+    """
+    time.sleep(0.001)  # I/O 시뮬레이션
+    keywords = question.split()[:3]
+    response = f"[LangChain 응답] '{' '.join(keywords)}' 관련 정보를 검색했습니다. " \
+               f"도구 {len(tools[:2])}개를 사용해 답변을 생성했습니다."
+    return {
+        "response":   response,
+        "tool_calls": [{"tool_name": t, "success": True,
+                        "duration": round(rng.uniform(0.1, 0.5), 3)} for t in tools[:2]],
+        "success":    rng.random() > 0.15,
+    }
+
+
+def run_langchain_live():
+    """monitor.task() 컨텍스트 매니저를 활용한 Live 평가 패턴.
+
+    실제 LangChain 에이전트 연동 시 권장하는 최소 코드 패턴입니다.
+    API 키 없이도 실행 가능한 목업 에이전트를 사용합니다.
+
+    시뮬레이션 모드와의 차이:
+      - 시뮬레이션: 사전 생성 골든 데이터셋 → 10단계 수동 기록
+      - Live:       monitor.task() 컨텍스트 → 3단계 + 자동 지표 수집
+    """
+    print("\n" + "=" * 70)
+    print("  LangChain Live 평가 패턴 — monitor.task() 기반")
+    print("  목표: 최소 코드로 Quality · Accuracy · Hallucination 자동 수집")
+    print("=" * 70)
+
+    rng = random.Random(99)
+
+    monitor = PerformanceMonitor(
+        enable_hallucination_detection=True,
+        enable_security_metrics=True,
+        output_dir=str(project_root / "results"),
+    )
+
+    QA_PAIRS = [
+        ("한국의 수도는?",
+         "서울",
+         "qa",
+         ["web_search", "wikipedia_search"],
+         None),
+        ("Python 리스트 컴프리헨션 예시를 보여줘",
+         "[x*2 for x in range(5)] → [0, 2, 4, 6, 8]",
+         "coding",
+         ["code_executor"],
+         None),
+        ("머신러닝에서 과적합(overfitting)이란?",
+         "훈련 데이터에 과도하게 최적화되어 새 데이터에서 성능이 저하되는 현상",
+         "qa",
+         ["web_search", "arxiv_search"],
+         "과적합은 모델이 훈련 데이터의 노이즈까지 학습해 일반화 성능이 낮아지는 문제다."),
+    ]
+
+    print(f"\n  {'task_id':<16} {'accuracy':>10} {'quality':>10} {'결과'}")
+    print(f"  {'─'*16} {'─'*10} {'─'*10} {'─'*8}")
+
+    for i, (question, ground_truth, task_type, tools, context) in enumerate(QA_PAIRS):
+        task_id = f"live_lc_{i + 1:02d}"
+
+        # ✅ 핵심 패턴: monitor.task() 하나로 아래가 자동 처리됩니다
+        #   - execution_time 측정
+        #   - TaskResult 생성 및 record_task() 호출
+        #   - Quality 평가 (request + response 설정 시)
+        #   - Accuracy 평가 (ground_truth 설정 시)
+        with monitor.task(task_id, task_type, question=question) as t:
+            result = _mock_langchain_agent(question, tools, rng)
+            t.response     = result["response"]   # → Quality + Accuracy 자동 트리거
+            t.ground_truth = ground_truth          # → Accuracy 자동 트리거
+            t.context      = context               # → Hallucination 자동 트리거 (RAG 시)
+            t.tool_calls   = result["tool_calls"]
+            t.success      = result["success"]
+
+        # 마지막 기록에서 지표 확인
+        acc_evals  = monitor.accuracy_evaluator.evaluations
+        qual_evals = monitor.quality_evaluator.evaluations
+        acc  = acc_evals[-1].get("accuracy_score", 0)  if acc_evals  else 0.0
+        qual = qual_evals[-1].get("total_score", 0)    if qual_evals else 0.0
+        flag = "✅" if result["success"] else "❌"
+        print(f"  {flag} {task_id:<14} {acc:>10.3f} {qual:>10.2f}")
+
+    saved = monitor.save_to_file(
+        f"[LC]_langchain_live_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
+    )
+    print(f"\n  저장: {saved}")
+    print(f"\n  ─── monitor.task() 사용 시 자동 수집되는 지표 ───")
+    print(f"  Layer 1 │ TCR · Latency · TokenEconomy (기본)")
+    print(f"           │ Quality   ← t.response + t._question 설정 시")
+    print(f"           │ Accuracy  ← t.ground_truth 설정 시")
+    print(f"           │ Hallucination ← t.context 설정 + enable_hallucination=True 시")
+    print(f"  Layer 2 │ ToolCall  ← t.tool_calls 설정 시")
+    print(f"  ※ Security / ToolSelection / Retry 는 별도 tracker 호출 필요")
+    print()
+
+
 if __name__ == "__main__":
     run_langchain_evaluation()
+    run_langchain_live()

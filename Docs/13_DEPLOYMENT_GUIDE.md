@@ -1430,7 +1430,7 @@ v0.6.0 기준 프로젝트는 4개의 독립적인 컴포넌트로 구성됩니�
     [](<#cb42-2>)pip install --upgrade agent-evaluator
     [](<#cb42-3>)
     [](<#cb42-4>)# 특정 버전으로 업데이트
-    [](<#cb42-5>)pip install agent-evaluator==0.6.1
+    [](<#cb42-5>)pip install agent-evaluator==0.6.2
 ```
 
 ### Golden Dataset Maintenance
@@ -2797,7 +2797,7 @@ DB 연결 실패 | 네트워크, 인증 오류 | `telnet db-host 5432` | DB 연�
 
 * * *
 
-**최종 업데이트** : 2026-03-23
-**버전** : v0.6.1
+**최종 업데이트** : 2026-03-27
+**버전** : v0.6.2
 **프로젝트** : Agent Evaluator - AI Agent Performance Evaluation System
 **문서 타입** : 배포 가이드 (Deployment Guide)

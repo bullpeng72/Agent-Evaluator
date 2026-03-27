@@ -305,12 +305,31 @@ def run_autogen_evaluation():
     # ── 추가: AutoGen 재시도 패턴 직접 등록 ──────────────────────────────────
     print(f"\n  [AutoGen 재시도 패턴 — ToolCallRequestEvent 실패 재시도]")
     autogen_retries = [
-        ("ag_retry_001", [{"success": False, "duration": 3.1}, {"success": True, "duration": 1.6}],    "code_generation"),
-        ("ag_retry_002", [{"success": False, "duration": 4.8}, {"success": False, "duration": 3.9}, {"success": True, "duration": 2.1}], "data_analysis"),
-        ("ag_retry_003", [{"success": True, "duration": 1.2}],                                          "qa"),
-        ("ag_retry_004", [{"success": False, "duration": 5.0}, {"success": False, "duration": 4.7}, {"success": False, "duration": 4.5}], "reasoning"),
-        ("ag_retry_005", [{"success": False, "duration": 2.3}, {"success": True, "duration": 0.9}],    "information_retrieval"),
-        ("ag_retry_006", [{"success": False, "duration": 1.8}, {"success": True, "duration": 1.1}],    "code_generation"),
+        ("ag_retry_001", [
+            {"success": False, "retry_reason": "tool_error:code_executor: SyntaxError: unexpected indent", "duration": 3.1},
+            {"success": True,  "retry_reason": "", "duration": 1.6},
+        ], "code_generation"),
+        ("ag_retry_002", [
+            {"success": False, "retry_reason": "tool_error:data_loader: FileNotFoundError: dataset.csv", "duration": 4.8},
+            {"success": False, "retry_reason": "tool_error:data_loader: PermissionError: access denied", "duration": 3.9},
+            {"success": True,  "retry_reason": "", "duration": 2.1},
+        ], "data_analysis"),
+        ("ag_retry_003", [
+            {"success": True, "retry_reason": "", "duration": 1.2},
+        ], "qa"),
+        ("ag_retry_004", [
+            {"success": False, "retry_reason": "llm_generation_retry: response validation failed", "duration": 5.0},
+            {"success": False, "retry_reason": "llm_generation_retry: context length exceeded", "duration": 4.7},
+            {"success": False, "retry_reason": "llm_generation_retry: output format mismatch", "duration": 4.5},
+        ], "reasoning"),
+        ("ag_retry_005", [
+            {"success": False, "retry_reason": "tool_error:web_search: RateLimitError: 429 Too Many Requests", "duration": 2.3},
+            {"success": True,  "retry_reason": "", "duration": 0.9},
+        ], "information_retrieval"),
+        ("ag_retry_006", [
+            {"success": False, "retry_reason": "tool_error:python_repl: RuntimeError: execution timeout (30s)", "duration": 1.8},
+            {"success": True,  "retry_reason": "", "duration": 1.1},
+        ], "code_generation"),
     ]
     for tid, log, ttype in autogen_retries:
         monitor.retry_tracker.track_attempts(tid, log, task_type=ttype)

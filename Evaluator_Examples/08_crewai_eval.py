@@ -268,11 +268,27 @@ def run_crewai_evaluation():
     # ── 추가: 재시도 패턴 직접 등록 ─────────────────────────────────────────
     print(f"\n  [CrewAI 재시도 패턴 — task_delegation 실패 재시도]")
     crew_retries = [
-        ("crew_retry_001", [{"success": False, "duration": 2.1}, {"success": True, "duration": 1.4}],   "document_creation"),
-        ("crew_retry_002", [{"success": False, "duration": 3.5}, {"success": False, "duration": 2.8}, {"success": True, "duration": 1.8}], "reasoning"),
-        ("crew_retry_003", [{"success": True, "duration": 0.9}],                                         "qa"),
-        ("crew_retry_004", [{"success": False, "duration": 4.0}, {"success": False, "duration": 3.5}, {"success": False, "duration": 3.2}], "data_analysis"),
-        ("crew_retry_005", [{"success": False, "duration": 1.5}, {"success": True, "duration": 0.8}],   "information_retrieval"),
+        ("crew_retry_001", [
+            {"success": False, "retry_reason": "task_failed: draft_document (empty output)", "duration": 2.1},
+            {"success": True,  "retry_reason": "", "duration": 1.4},
+        ], "document_creation"),
+        ("crew_retry_002", [
+            {"success": False, "retry_reason": "task_failed: analyze_requirements (agent: researcher)", "duration": 3.5},
+            {"success": False, "retry_reason": "task_failed: analyze_requirements (agent: analyst)", "duration": 2.8},
+            {"success": True,  "retry_reason": "", "duration": 1.8},
+        ], "reasoning"),
+        ("crew_retry_003", [
+            {"success": True, "retry_reason": "", "duration": 0.9},
+        ], "qa"),
+        ("crew_retry_004", [
+            {"success": False, "retry_reason": "task_failed: process_data (empty output)", "duration": 4.0},
+            {"success": False, "retry_reason": "task_failed: process_data (empty output)", "duration": 3.5},
+            {"success": False, "retry_reason": "task_failed: validate_results (agent: critic)", "duration": 3.2},
+        ], "data_analysis"),
+        ("crew_retry_005", [
+            {"success": False, "retry_reason": "task_failed: web_research (agent: researcher)", "duration": 1.5},
+            {"success": True,  "retry_reason": "", "duration": 0.8},
+        ], "information_retrieval"),
     ]
     for tid, log, ttype in crew_retries:
         monitor.retry_tracker.track_attempts(tid, log, task_type=ttype)

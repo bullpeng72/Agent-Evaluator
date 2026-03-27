@@ -34,6 +34,7 @@ from __future__ import annotations
 
 import json
 import sys
+import time
 import random
 from pathlib import Path
 from datetime import datetime, timedelta
@@ -444,5 +445,155 @@ def run_langgraph_evaluation():
     return saved_path
 
 
+# ═══════════════════════════════════════════════════════════════════════════
+# Live 트랙 — monitor.task() 기반 최소 코드 패턴 (실제 LangGraph 연동 시 권장)
+# ═══════════════════════════════════════════════════════════════════════════
+
+def _mock_langgraph_workflow(question: str, nodes: list, rng: random.Random) -> dict:
+    """실제 LangGraph compiled graph 를 시뮬레이션하는 목업 함수.
+
+    실제 코드에서는 다음으로 교체하세요::
+
+        final_state = None
+        for chunk in graph.stream({"messages": [HumanMessage(content=question)]}):
+            node_name = list(chunk.keys())[0]
+            state     = list(chunk.values())[0]
+            # 노드별 결과를 t.tool_calls 에 추가
+            final_state = state
+        return {
+            "response":    final_state["messages"][-1].content,
+            "node_outputs": [...],
+            "success":     True,
+        }
+    """
+    time.sleep(0.001)
+    response = (f"[LangGraph 응답] {' → '.join(nodes)} 파이프라인을 통해 "
+                f"'{question[:25]}...' 에 대한 답변을 생성했습니다.")
+    node_outputs = [
+        {"node": n, "success": rng.random() > 0.1,
+         "duration": round(rng.uniform(0.2, 1.5), 3)}
+        for n in nodes
+    ]
+    return {
+        "response":     response,
+        "node_outputs": node_outputs,
+        "success":      all(o["success"] for o in node_outputs),
+    }
+
+
+def run_langgraph_live():
+    """monitor.task() 컨텍스트 매니저를 활용한 LangGraph Live 평가 패턴.
+
+    실제 LangGraph DAG 연동 시 권장하는 최소 코드 패턴입니다.
+    API 키 없이도 실행 가능한 목업 워크플로우를 사용합니다.
+
+    시뮬레이션 모드와의 차이:
+      - 시뮬레이션: 사전 생성 골든 데이터셋 → 11단계 수동 기록
+      - Live:       monitor.task() 컨텍스트 → 4단계 + 자동 지표 수집
+                    AgentCoordination(노드 전환)은 track_interaction() 별도 호출
+    """
+    print("\n" + "=" * 70)
+    print("  LangGraph Live 평가 패턴 — monitor.task() 기반")
+    print("  목표: 노드 파이프라인 + 자동 지표 수집 최소 코드 시연")
+    print("=" * 70)
+
+    rng = random.Random(77)
+
+    monitor = PerformanceMonitor(
+        enable_hallucination_detection=True,
+        enable_security_metrics=True,
+        output_dir=str(project_root / "results"),
+    )
+
+    WORKFLOWS = [
+        {
+            "id":    "live_lg_01",
+            "type":  "information_retrieval",
+            "question": "RAG 파이프라인에서 컨텍스트 관련성을 높이는 방법은?",
+            "gt":    "청크 크기 조정, 재순위 모델(cross-encoder) 적용, 메타데이터 필터링이 효과적입니다.",
+            "context": "RAG 파이프라인의 검색 품질은 청크 전략, 임베딩 모델, 재순위 단계에 의해 결정된다.",
+            "nodes":  ["retrieval_node", "analyze_node", "generate_node"],
+        },
+        {
+            "id":    "live_lg_02",
+            "type":  "reasoning",
+            "question": "멀티-에이전트 시스템에서 supervisor 패턴의 장점은?",
+            "gt":    "중앙 집중식 라우팅으로 에이전트 간 역할이 명확하고 오류 전파를 차단하기 용이합니다.",
+            "context": None,
+            "nodes":  ["router_node", "supervisor_node", "generate_node"],
+        },
+        {
+            "id":    "live_lg_03",
+            "type":  "coding",
+            "question": "Python asyncio에서 gather()와 wait()의 차이는?",
+            "gt":    "gather()는 모든 코루틴을 완료까지 기다리고 결과를 반환, wait()는 조건(FIRST_COMPLETED 등)을 지정 가능합니다.",
+            "context": None,
+            "nodes":  ["web_search_node", "code_node", "validate_node", "generate_node"],
+        },
+    ]
+
+    print(f"\n  {'workflow_id':<16} {'accuracy':>10} {'quality':>10} {'노드수':>6} {'결과'}")
+    print(f"  {'─'*16} {'─'*10} {'─'*10} {'─'*6} {'─'*8}")
+
+    for wf in WORKFLOWS:
+        wid      = wf["id"]
+        nodes    = wf["nodes"]
+        question = wf["question"]
+        gt       = wf["gt"]
+        context  = wf["context"]
+
+        # ✅ 핵심 패턴: monitor.task() + 노드 전환 별도 기록
+        with monitor.task(wid, wf["type"], question=question) as t:
+            result = _mock_langgraph_workflow(question, nodes, rng)
+
+            t.response     = result["response"]
+            t.ground_truth = gt
+            t.context      = context
+            t.tool_calls   = [
+                {"tool_name": o["node"], "success": o["success"],
+                 "duration": o["duration"],
+                 "privilege_level": _TOOL_PRIVILEGES.get(o["node"], "read")}
+                for o in result["node_outputs"]
+            ]
+            t.success      = result["success"]
+
+        # 노드 전환(AgentCoordination) — 실제 LangGraph: stream() 이벤트에서 자동 기록 가능
+        for from_node, to_node in zip(nodes[:-1], nodes[1:]):
+            monitor.agent_coordination_tracker.track_interaction(
+                task_id=wid,
+                from_agent=from_node,
+                to_agent=to_node,
+                interaction_type="delegation",
+                success=result["success"],
+            )
+
+        acc_evals  = monitor.accuracy_evaluator.evaluations
+        qual_evals = monitor.quality_evaluator.evaluations
+        acc  = acc_evals[-1].get("accuracy_score", 0)  if acc_evals  else 0.0
+        qual = qual_evals[-1].get("total_score", 0)    if qual_evals else 0.0
+        flag = "✅" if result["success"] else "❌"
+        print(f"  {flag} {wid:<14} {acc:>10.3f} {qual:>10.2f} {len(nodes):>6}")
+
+    coord_data = monitor.agent_coordination_tracker.calculate_coordination_score()
+    if coord_data:
+        print(f"\n  에이전트 협업 점수: {coord_data.get('score', 0):.1f}/10.0  "
+              f"(노드 전환 성공률: {coord_data.get('success_rate', 0):.1f}%)")
+
+    saved = monitor.save_to_file(
+        f"[LG]_langgraph_live_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
+    )
+    print(f"\n  저장: {saved}")
+    print(f"\n  ─── monitor.task() 사용 시 자동 수집되는 지표 ───")
+    print(f"  Layer 1 │ TCR · Latency · TokenEconomy (기본)")
+    print(f"           │ Quality   ← t.response + question 설정 시")
+    print(f"           │ Accuracy  ← t.ground_truth 설정 시")
+    print(f"           │ Hallucination ← t.context 설정 + enable_hallucination=True 시")
+    print(f"  Layer 2 │ ToolCall  ← t.tool_calls 설정 시 (노드 = 도구)")
+    print(f"           │ AgentCoordination ← track_interaction() 별도 호출 (노드 전환)")
+    print(f"  ※ WorkflowExecution / ToolSelection / Retry 는 별도 tracker 호출 필요")
+    print()
+
+
 if __name__ == "__main__":
     run_langgraph_evaluation()
+    run_langgraph_live()

@@ -1121,6 +1121,7 @@ class LangGraphEvaluator:
                 self.monitor.retry_tracker.track_attempts(
                     task_id=self._current_task_id,
                     attempts_log=attempts_log,
+                    task_type=self.task_type,
                 )
                 if self.verbose:
                     if _retried_nodes:

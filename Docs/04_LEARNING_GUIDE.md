@@ -2,7 +2,7 @@
 
 개발자 & 품질관리자를 위한 완벽 학습서
 
-v0.6.1 — 25개 메트릭 · 3-Layer · 4개 프레임워크
+v0.6.2 — 25개 메트릭 · 3-Layer · 4개 프레임워크
 
 ## 📊 1. Agent Evaluator 개요
 
@@ -14,13 +14,13 @@ Agent Evaluator는 AI Agent의 성능을 다각도로 평가하고 모니터링�
 
 #### 🆓 Layer 1: Foundation Metrics
 
-**완전 무료, API 키 불필요 (v0.6.1)**
+**완전 무료, API 키 불필요 (v0.6.2)**
 
   * **Foundation (6개):** TCR, Accuracy, Hallucination Detection, Quality, Latency, Token Economy
 
 #### 🤖 Layer 2: Agentic + Security Metrics
 
-**Multi-Agent & 보안 통합 평가 (v0.6.1)**
+**Multi-Agent & 보안 통합 평가 (v0.6.2)**
 
   * **Agentic (5개):** Tool Call Analysis, Retry/Correction, Tool Selection Accuracy, Agent Coordination, Workflow Execution
   * **Security (5개):** Input Sanitization, Output Leakage, Tool Authorization, Privilege Escalation, Tool Chain Attack Detection
@@ -2588,4 +2588,4 @@ Dashboard 로딩 느림 | 대용량 데이터 (1000+ tasks) | 샘플링 사용 �
 
 © 2025 Agent Evaluator. All rights reserved.
 
-**최종 업데이트** : 2026-03-23 | **버전** : Agent Evaluator v0.6.1 | **문서** : 종합 학습 가이드
+**최종 업데이트** : 2026-03-27 | **버전** : Agent Evaluator v0.6.2 | **문서** : 종합 학습 가이드

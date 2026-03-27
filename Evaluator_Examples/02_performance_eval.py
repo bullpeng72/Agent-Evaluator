@@ -342,36 +342,51 @@ def run_performance_evaluation():
     # record_task는 attempts 수만 전달 (성공/실패 구분 없는 단순 로그)
     # 직접 호출로 실제 시도별 성공/실패·소요 시간을 정밀하게 기록
     named_retry_patterns = [
-        # (task_id, attempts_log)  ← 첫 시도 실패 후 즉시 성공
-        ("retry_pat_001_immediate_fix",
-         [{"success": False, "duration": 1.2}, {"success": True, "duration": 0.8}]),
-        # 3회 재시도 후 성공
-        ("retry_pat_002_triple_fail",
-         [{"success": False, "duration": 2.5}, {"success": False, "duration": 2.1},
-          {"success": False, "duration": 1.8}, {"success": True, "duration": 1.0}]),
+        # (task_id, attempts_log, task_type)
+        # 첫 시도 실패 후 즉시 성공 — 응답 형식 오류 교정
+        ("retry_pat_001_immediate_fix", [
+            {"success": False, "retry_reason": "ValueError: response format mismatch (expected JSON)", "duration": 1.2},
+            {"success": True,  "retry_reason": "", "duration": 0.8},
+        ], "qa"),
+        # 3회 재시도 후 성공 — API 불안정
+        ("retry_pat_002_triple_fail", [
+            {"success": False, "retry_reason": "TimeoutError: LLM API response exceeded 10s", "duration": 2.5},
+            {"success": False, "retry_reason": "TimeoutError: LLM API response exceeded 10s", "duration": 2.1},
+            {"success": False, "retry_reason": "RateLimitError: 429 Too Many Requests", "duration": 1.8},
+            {"success": True,  "retry_reason": "", "duration": 1.0},
+        ], "reasoning"),
         # 첫 시도 성공 (재시도 없음)
-        ("retry_pat_003_first_success",
-         [{"success": True, "duration": 0.5}]),
-        # 2회 실패 → 성공
-        ("retry_pat_004_two_fails",
-         [{"success": False, "duration": 3.0}, {"success": False, "duration": 2.8},
-          {"success": True, "duration": 1.5}]),
+        ("retry_pat_003_first_success", [
+            {"success": True, "retry_reason": "", "duration": 0.5},
+        ], "qa"),
+        # 2회 실패 → 성공 — 도구 오류 후 재시도
+        ("retry_pat_004_two_fails", [
+            {"success": False, "retry_reason": "ToolError: web_search connection reset", "duration": 3.0},
+            {"success": False, "retry_reason": "ToolError: web_search timeout (5s)", "duration": 2.8},
+            {"success": True,  "retry_reason": "", "duration": 1.5},
+        ], "information_retrieval"),
         # 첫 시도 성공 (고속)
-        ("retry_pat_005_fast_success",
-         [{"success": True, "duration": 0.2}]),
-        # 전체 실패 (eventual_success=False)
-        ("retry_pat_006_all_fail",
-         [{"success": False, "duration": 5.0}, {"success": False, "duration": 4.5},
-          {"success": False, "duration": 4.0}]),
-        # 첫 시도 실패 → 성공 (느린 재시도)
-        ("retry_pat_007_slow_retry",
-         [{"success": False, "duration": 8.0}, {"success": True, "duration": 5.0}]),
+        ("retry_pat_005_fast_success", [
+            {"success": True, "retry_reason": "", "duration": 0.2},
+        ], "qa"),
+        # 전체 실패 (eventual_success=False) — 외부 서비스 장애
+        ("retry_pat_006_all_fail", [
+            {"success": False, "retry_reason": "ServiceUnavailableError: database connection failed", "duration": 5.0},
+            {"success": False, "retry_reason": "ServiceUnavailableError: database connection failed", "duration": 4.5},
+            {"success": False, "retry_reason": "ServiceUnavailableError: database connection refused", "duration": 4.0},
+        ], "data_analysis"),
+        # 첫 시도 실패 → 성공 (느린 재시도) — 컨텍스트 초과 후 요약 재시도
+        ("retry_pat_007_slow_retry", [
+            {"success": False, "retry_reason": "ContextLengthError: input exceeds 128k token limit", "duration": 8.0},
+            {"success": True,  "retry_reason": "", "duration": 5.0},
+        ], "document_creation"),
         # 단번 성공 (중간 속도)
-        ("retry_pat_008_normal",
-         [{"success": True, "duration": 1.5}]),
+        ("retry_pat_008_normal", [
+            {"success": True, "retry_reason": "", "duration": 1.5},
+        ], "reasoning"),
     ]
-    for tid, log in named_retry_patterns:
-        monitor.retry_tracker.track_attempts(tid, log)
+    for tid, log, ttype in named_retry_patterns:
+        monitor.retry_tracker.track_attempts(tid, log, task_type=ttype)
 
     # 리포트 저장
     report = monitor.generate_report()

@@ -1,5 +1,5 @@
 """
-Agent Evaluator SDK v0.6.0
+Agent Evaluator SDK v0.6.2
 ===========================
 
 Production-ready evaluation framework for AI agents.
@@ -35,7 +35,7 @@ Quick Start (LLM Integration):
     >>> # Auto-recorded in monitor!
 """
 
-__version__ = "0.6.0"
+__version__ = "0.6.2"
 __author__ = "Sungwoo Kim"
 
 # Import from core module
@@ -60,6 +60,7 @@ from .core.agent_evaluator import (
     EvaluationReport,
     HallucinationDetector,
     # Security Metrics (Layer 1 & 2)
+    infer_privilege_level,
     InputSanitizationTracker,
     LatencyTracker,
     OutputLeakageDetector,
@@ -199,6 +200,7 @@ __all__ = [
     'WorkflowExecutionTracker',
 
     # Security Metrics
+    'infer_privilege_level',
     'InputSanitizationTracker',
     'OutputLeakageDetector',
     'ToolAuthorizationTracker',
