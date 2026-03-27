@@ -82,10 +82,16 @@ def run_quality_evaluation():
 
     rng = random.Random(42)
 
+    import os
+    _has_api = bool(os.getenv("OPENAI_API_KEY") or os.getenv("ANTHROPIC_API_KEY"))
+
     monitor = PerformanceMonitor(
         enable_hallucination_detection=True,
         enable_transparency=True,
         output_dir=str(project_root / "results"),
+        enable_llm_judge=_has_api,   # API 키 있으면 자동 활성화
+        judge_sample_rate=1.0,       # 전량 채점 (데모용)
+        # judge_model 생략 → agent-eval init 설정 자동 반영
     )
 
     base_time = datetime.now() - timedelta(hours=2)
@@ -289,6 +295,18 @@ def run_quality_evaluation():
     for metric in ["faithfulness", "answer_relevancy", "context_precision", "context_recall"]:
         val = rag_data.get(metric, {}).get("mean", 0)
         print(f"    {metric:<22}: {val:.3f}")
+
+    if _has_api and monitor.llm_judge:
+        judge_summary = monitor.llm_judge.get_summary()
+        if judge_summary["count"] > 0:
+            avg = judge_summary["avg_scores"]
+            print(f"\n  [LLM Judge — 3차원 자동 채점 (0–5)]")
+            print(f"    채점 건수:             {judge_summary['count']}건  (비용 ${judge_summary['total_cost_usd']:.5f})")
+            print(f"    completeness        평균: {avg.get('completeness', 0):.2f}/5")
+            print(f"    relevance           평균: {avg.get('relevance', 0):.2f}/5")
+            print(f"    factual_consistency 평균: {avg.get('factual_consistency', 0):.2f}/5")
+            print(f"    overall             평균: {avg.get('overall', 0):.2f}/5")
+            print(f"    → 대시보드 Quality 탭 하단 '🤖 LLM Judge 점수' 섹션에서 확인 가능")
 
     # ─── 검증 테이블 ──────────────────────────────────────────────────────────
     print(f"\n  {'━'*70}")
