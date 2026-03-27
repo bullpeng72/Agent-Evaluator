@@ -76,6 +76,27 @@ Return ONLY valid JSON with this exact structure:
 }
 """
 
+def _resolve_default_model() -> str:
+    """
+    Settings에서 사용 가능한 API 키와 모델명을 읽어 기본 judge 모델을 결정한다.
+
+    우선순위:
+      1. OPENAI_API_KEY 설정됨  → OPENAI_MODEL (기본: gpt-4o-mini)
+      2. ANTHROPIC_API_KEY 설정됨 → ANTHROPIC_MODEL (기본: claude-haiku-4-5-20251001)
+      3. 둘 다 없으면 → "gpt-4o-mini" (사용 시 오류 메시지로 안내)
+    """
+    try:
+        from ..config import get_settings
+        s = get_settings()
+        if s.has_openai():
+            return s.openai_model
+        if s.has_anthropic():
+            return s.anthropic_model
+    except Exception:
+        pass
+    return "gpt-4o-mini"
+
+
 def _build_user_message(question: str, response: str, context: Optional[str] = None) -> str:
     parts = [f"QUESTION:\n{question}", f"\nAGENT RESPONSE:\n{response}"]
     if context:
@@ -91,9 +112,12 @@ class LLMJudge:
     LLM-as-Judge scoring engine.
 
     Args:
-        model: LLM model ID.  Supported families:
-               - Claude: ``claude-haiku-4-5-20251001`` (default, cheapest)
-               - OpenAI: ``gpt-4o-mini``, ``gpt-4o``
+        model: LLM model ID.  ``None`` (default) → ``agent-eval init``으로 설정한
+               API 키와 모델명(OPENAI_MODEL / ANTHROPIC_MODEL)에서 자동 결정.
+               명시적으로 지정할 경우 해당 모델을 사용.
+               지원 모델 예시:
+               - OpenAI : ``gpt-4o-mini``, ``gpt-4o``
+               - Claude : ``claude-haiku-4-5-20251001``, ``claude-sonnet-4-6``
         sample_rate: Fraction of tasks to actually judge (0.0–1.0).
                      1.0 = judge every task, 0.1 = judge ~10 % of tasks.
         budget_per_day: Optional USD hard cap per calendar day.  When the
@@ -104,7 +128,7 @@ class LLMJudge:
 
     def __init__(
         self,
-        model: str = "claude-haiku-4-5-20251001",
+        model: Optional[str] = None,
         sample_rate: float = 0.1,
         budget_per_day: Optional[float] = None,
         seed: Optional[int] = None,
@@ -112,12 +136,13 @@ class LLMJudge:
         if not 0.0 <= sample_rate <= 1.0:
             raise ValueError(f"sample_rate must be in [0, 1]; got {sample_rate}")
 
-        self.model = model
+        # model=None → agent-eval init 설정(OPENAI_MODEL / ANTHROPIC_MODEL)에서 자동 결정
+        self.model = model if model is not None else _resolve_default_model()
         self.sample_rate = sample_rate
         self.budget_per_day = budget_per_day
 
         self._rng = random.Random(seed)
-        self._pricing = _MODEL_PRICING.get(model, _DEFAULT_PRICING)
+        self._pricing = _MODEL_PRICING.get(self.model, _DEFAULT_PRICING)
 
         # In-memory daily budget tracking (resets on a new calendar day)
         self._budget_day: Optional[date] = None

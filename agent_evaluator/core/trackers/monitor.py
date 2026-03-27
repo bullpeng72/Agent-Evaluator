@@ -64,7 +64,7 @@ class PerformanceMonitor:
         output_dir: Optional[str] = None,
         # LLM Judge (Phase 1-A)
         enable_llm_judge: bool = False,
-        judge_model: str = "claude-haiku-4-5-20251001",
+        judge_model: Optional[str] = None,
         judge_sample_rate: float = 0.1,
         judge_budget_per_day: Optional[float] = None,
     ):
@@ -89,8 +89,10 @@ class PerformanceMonitor:
                 When True, each recorded task with a question+response is evaluated
                 by the judge model on 3 dimensions (completeness, relevance,
                 factual_consistency). Requires ANTHROPIC_API_KEY or OPENAI_API_KEY.
-            judge_model: Model used for judging.  Defaults to claude-haiku-4-5-20251001
-                (lowest cost).  Supports any Claude or OpenAI chat model.
+            judge_model: Model used for judging.  ``None`` (default) → ``agent-eval init``
+                으로 설정한 API 키·모델명(OPENAI_MODEL / ANTHROPIC_MODEL)에서 자동 결정.
+                OPENAI_API_KEY가 있으면 openai_model, ANTHROPIC_API_KEY가 있으면
+                anthropic_model 사용. Supports any Claude or OpenAI chat model.
             judge_sample_rate: Fraction of tasks to judge (0.0–1.0).  Use < 1.0 to
                 control API costs in high-volume evaluations.
             judge_budget_per_day: Optional USD hard cap per calendar day.  When
@@ -202,7 +204,7 @@ class PerformanceMonitor:
                     sample_rate=judge_sample_rate,
                     budget_per_day=judge_budget_per_day,
                 )
-                print(f"✅ LLM Judge 활성화됨 (model={judge_model}, sample_rate={judge_sample_rate})")
+                print(f"✅ LLM Judge 활성화됨 (model={self.llm_judge.model}, sample_rate={judge_sample_rate})")
             except Exception as e:
                 warnings.warn(f"LLM Judge 초기화 실패: {e}", RuntimeWarning, stacklevel=2)
                 self.enable_llm_judge = False
