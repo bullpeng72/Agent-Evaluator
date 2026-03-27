@@ -5,7 +5,7 @@
 **Agent-Evaluator** is a production-ready Python SDK for evaluating AI agents.
 25개의 성능 지표를 세 개의 레이어(기본/에이전틱/하이브리드)로 측정한다.
 
-- **Version:** 0.6.2 (Beta)
+- **Version:** 0.6.5 (Beta)
 - **Python:** 3.8+
 - **License:** MIT
 - **Author:** Sungwoo Kim
@@ -359,6 +359,18 @@ pytest
 ---
 
 ## 📝 변경 이력
+
+### v0.6.5 (2026-03-27) — 프레임워크 래퍼 성숙도 개선 + 자동 수집 확대
+
+- ✨ `framework_integrations.py` — `ensure_security_trackers()` 통합 함수 추가 (4개 통합 파일 중복 제거)
+- ✨ `framework_integrations.py` — `extract_tools_from_framework_object()` 추가: LangChain/LangGraph/CrewAI/AutoGen 객체에서 도구 목록 자동 추출
+- ✨ 4개 프레임워크 래퍼 — `authorized_tools` 미입력 시 프레임워크 객체에서 자동 추출 (보안 트래커 초기화 자동화)
+- ✨ `LangGraphEvaluator` — `node_type_hints` API 추가: `from_compiled(node_type_hints={...})` / `add_node(node_type="retrieval")` 명시적 노드 타입 지정
+- ✨ `layer2.py` — `_TOOL_ALIASES` + `_normalize_tool_name()` 추가: Tool Selection F1 시맨틱 별칭 매칭 (search_web ↔ web_search 등)
+- ✨ `security.py` — `RETRY_ERROR_CATEGORY_MAP` + `categorize_retry_error()` 추가: 재시도 에러 8개 카테고리 자동 분류
+- ✨ `security.py` — API 키 패턴 4개 → 10개 확장 (Anthropic, AWS STS, GitHub PAT/Server, Slack Bot/User 추가)
+- 🔧 `monitor.py` — `enable_hallucination_detection` 기본값 `False` → `True` (RAG 에이전트 자동 환각 감지)
+- 🔧 4개 통합 파일 — `_ensure_security_trackers()` / `_infer_privilege_level()` 중복 구현 제거 → `framework_integrations.py` 단일 구현으로 통합
 
 ### v0.6.2 (2026-03-27) — 대시보드 보안 L1/L2 상세 패널 + 에이전틱·품질 탭 개선
 

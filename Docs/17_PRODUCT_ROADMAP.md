@@ -1,5 +1,5 @@
 # Agent-Evaluator 제품 로드맵
-> v0.6.4 기준 · 최종 업데이트 2026-03-27
+> v0.6.5 기준 · 최종 업데이트 2026-03-27
 
 ---
 
@@ -67,7 +67,7 @@ AgentCoordination / Workflow   ████░░░░░░░░░░░░�
 
 ```
 agent_evaluator/
-├── core/trackers/          ← 기존 (v0.6.2에서 분리 완료)
+├── core/trackers/          ← 기존 (v0.6.5에서 분리 완료)
 ├── streaming/              ← Phase 2 신규
 │   ├── evaluator.py        ← StreamingEvaluator
 │   └── middleware.py       ← FastAPI/ASGI 미들웨어
@@ -698,6 +698,8 @@ Phase 1 완료 후 Phase 2:
 
 | 날짜 | 버전 | 구현 내용 |
 |------|------|-----------|
+| 2026-03-27 | v0.6.5 | 프레임워크 래퍼 성숙도: `ensure_security_trackers()` 통합, `extract_tools_from_framework_object()` 자동 추출, `_TOOL_ALIASES` F1 시맨틱 매칭, `categorize_retry_error()`, API 키 패턴 10종, LangGraph `node_type_hints` API |
+| 2026-03-27 | v0.6.4 | Phase 1-B/1-C 완료: `agent-eval gate` CI/CD 게이팅 CLI, `ConversationSession` 멀티턴 대화 평가 |
 | 2026-03-27 | v0.6.3 | Phase 1-A 완료: `LLMJudge` 클래스, `PerformanceMonitor` 통합, 대시보드 Quality 탭 섹션, `agent-eval init` 모델 자동 연동 |
 | 2026-03-27 | v0.6.2 | `agent_evaluator.py` 5,762줄 → `core/trackers/` 서브패키지 분리, `infer_privilege_level()` 추출, LangChain/LangGraph 예제 Live 트랙 추가 |
 

@@ -29,6 +29,8 @@ from .security import (
     infer_privilege_level,
     PrivilegeEscalationDetector,
     ToolChainAttackDetector,
+    RETRY_ERROR_CATEGORY_MAP,
+    categorize_retry_error,
 )
 from .monitor import PerformanceMonitor
 
@@ -59,6 +61,8 @@ __all__ = [
     "infer_privilege_level",
     "PrivilegeEscalationDetector",
     "ToolChainAttackDetector",
+    "RETRY_ERROR_CATEGORY_MAP",
+    "categorize_retry_error",
     # monitor
     "PerformanceMonitor",
 ]

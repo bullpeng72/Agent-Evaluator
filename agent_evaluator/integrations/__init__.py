@@ -64,8 +64,16 @@ try:
         check_framework_availability,
         get_installation_instructions,
         print_framework_status,
+        ensure_security_trackers,
+        extract_tools_from_framework_object,
     )
-    _UTILITY_EXPORTS = ['check_framework_availability', 'get_installation_instructions', 'print_framework_status']
+    _UTILITY_EXPORTS = [
+        'check_framework_availability',
+        'get_installation_instructions',
+        'print_framework_status',
+        'ensure_security_trackers',
+        'extract_tools_from_framework_object',
+    ]
 except ImportError:
     _UTILITY_EXPORTS = []
 

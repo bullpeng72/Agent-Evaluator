@@ -283,7 +283,7 @@ v0.5.7부터 Dashboard 디렉토리를 찾을 때 **실제 agent_evaluator Dashb
 저장된 파일은 자동으로 `~/.agent_evaluator/registry.json`에 등록됩니다:
 ```json
     {
-      "version": "0.6.2",
+      "version": "0.6.5",
       "created_at": "2026-03-20T10:00:00",
       "data_files": {
         "/path/to/results/my_evaluation.json": {
@@ -682,7 +682,7 @@ agent-evaluator v0.5.7 버전부터 모든 핵심 클래스가 Zero Configuratio
 
 * * *
 
-**문서 버전** : 0.6.2
+**문서 버전** : 0.6.5
 **최종 업데이트** : 2026-03-27
 **변경사항** :  
 \- Evaluator_Examples 경로 탐지 로직 제거  

@@ -370,6 +370,143 @@ class EvaluatorProtocol(Protocol):
 
 
 # ==============================================================================
+# Shared Security Tracker Initializer — 4개 framework adapter 공통 로직
+# ==============================================================================
+
+def ensure_security_trackers(
+    monitor: Any,
+    privilege_registry: Optional[Dict[str, Any]] = None,
+) -> None:
+    """monitor에 보안 트래커가 없으면 자동 초기화합니다.
+
+    4개 framework integration(LangChain/LangGraph/CrewAI/AutoGen) 공통 로직.
+    각 파일의 중복 구현을 제거하고 이 단일 함수를 사용합니다.
+
+    Args:
+        monitor: PerformanceMonitor 인스턴스
+        privilege_registry: tool_name → privilege_level 매핑 dict.
+            제공 시 키워드 휴리스틱보다 우선 적용됩니다.
+    """
+    import warnings as _w
+    from agent_evaluator.core.trackers.security import (
+        InputSanitizationTracker, OutputLeakageDetector, ToolAuthorizationTracker,
+        PrivilegeEscalationDetector, ToolChainAttackDetector,
+    )
+    if getattr(monitor, "input_sanitizer", None) is None:
+        monitor.input_sanitizer = InputSanitizationTracker()
+    if getattr(monitor, "output_leakage_detector", None) is None:
+        monitor.output_leakage_detector = OutputLeakageDetector()
+    if getattr(monitor, "tool_authorizer", None) is None:
+        _allowed = getattr(monitor, "_authorized_tools", None) or None
+        monitor.tool_authorizer = ToolAuthorizationTracker(
+            allowed_tools=_allowed if _allowed else None
+        )
+    if getattr(monitor, "privilege_escalation_detector", None) is None:
+        monitor.privilege_escalation_detector = PrivilegeEscalationDetector()
+    if getattr(monitor, "tool_chain_attack_detector", None) is None:
+        monitor.tool_chain_attack_detector = ToolChainAttackDetector()
+    monitor.enable_security_metrics = True
+    if privilege_registry and not getattr(monitor, "privilege_registry", None):
+        monitor.privilege_registry = privilege_registry
+    elif not getattr(monitor, "privilege_registry", None):
+        monitor.privilege_registry = {}
+    if (not getattr(monitor, "_authorized_tools", None)
+            and not getattr(monitor, "__auth_warned__", False)):
+        monitor.__auth_warned__ = True
+        _w.warn(
+            "ToolAuthorizationTracker: authorized_tools not set — "
+            "all tool calls will pass authorization. "
+            "Pass authorized_tools=['tool_a', 'tool_b'] to the evaluator "
+            "for meaningful security metrics.",
+            UserWarning,
+            stacklevel=3,
+        )
+    if not privilege_registry and not getattr(monitor, "privilege_registry", {}).get("__configured__"):
+        monitor.privilege_registry["__configured__"] = True
+        _w.warn(
+            "PrivilegeEscalationDetector: privilege_registry not configured — "
+            "using keyword heuristic only. "
+            "Pass privilege_registry={'tool_name': 'admin|write|read'} for accurate detection.",
+            UserWarning,
+            stacklevel=3,
+        )
+
+
+def extract_tools_from_framework_object(obj: Any) -> List[str]:
+    """프레임워크 객체에서 등록된 도구 이름 목록을 자동 추출합니다.
+
+    4개 framework 공통 헬퍼. 각 wrapper의 __init__에서 authorized_tools 미제공 시
+    호출해 ToolAuthorizationTracker whitelist를 자동 구성합니다.
+
+    지원 경로:
+    - LangChain AgentExecutor: .tools 리스트
+    - LangChain LCEL Runnable: .runnable.tools / .bound.tools
+    - LangGraph compiled graph: .nodes 내 바인딩 도구
+    - CrewAI Crew: .agents[i].tools
+    - AutoGen AssistantAgent: ._tools / .registered_tools / ._tool_definitions
+    - AutoGen Team: ._participants[i] 재귀 탐색
+
+    Args:
+        obj: 프레임워크 에이전트/팀/그래프 객체
+
+    Returns:
+        도구 이름 문자열 리스트 (중복 제거, 빈 이름 제외)
+    """
+    tool_names: List[str] = []
+    seen: set = set()
+
+    def _add(name: str) -> None:
+        n = (name or "").strip()
+        if n and n not in seen:
+            seen.add(n)
+            tool_names.append(n)
+
+    def _extract_from_tool(tool: Any) -> None:
+        name = (
+            getattr(tool, "name", None)
+            or getattr(tool, "tool_name", None)
+            or (tool if isinstance(tool, str) else None)
+        )
+        if name:
+            _add(str(name))
+
+    def _extract_tools_list(tools_list: Any) -> None:
+        if not tools_list:
+            return
+        for t in tools_list:
+            _extract_from_tool(t)
+
+    # ── LangChain AgentExecutor / LCEL ────────────────────────────────
+    _extract_tools_list(getattr(obj, "tools", None))
+    _extract_tools_list(getattr(getattr(obj, "runnable", None), "tools", None))
+    _extract_tools_list(getattr(getattr(obj, "bound", None), "tools", None))
+
+    # ── LangGraph CompiledGraph: node 내 bound tools ──────────────────
+    nodes = getattr(obj, "nodes", None)
+    if isinstance(nodes, dict):
+        for node_val in nodes.values():
+            _extract_tools_list(getattr(node_val, "tools", None))
+            bound = getattr(node_val, "bound", None)
+            if bound:
+                _extract_tools_list(getattr(bound, "tools", None))
+
+    # ── CrewAI Crew: agents[i].tools ─────────────────────────────────
+    for agent in getattr(obj, "agents", []) or []:
+        _extract_tools_list(getattr(agent, "tools", None))
+
+    # ── AutoGen single agent ──────────────────────────────────────────
+    for attr in ("_tools", "registered_tools", "_tool_definitions", "tools"):
+        _extract_tools_list(getattr(obj, attr, None))
+
+    # ── AutoGen team: _participants 재귀 ─────────────────────────────
+    for participant in getattr(obj, "_participants", []) or []:
+        for attr in ("_tools", "registered_tools", "tools"):
+            _extract_tools_list(getattr(participant, attr, None))
+
+    return tool_names
+
+
+# ==============================================================================
 # Security helpers — shared across all framework adapters
 # ==============================================================================
 
@@ -413,4 +550,6 @@ __all__ = [
     'print_framework_status',
     # Security helpers
     'infer_privilege_level',
+    'ensure_security_trackers',
+    'extract_tools_from_framework_object',
 ]

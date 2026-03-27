@@ -16,6 +16,44 @@ from typing import Any, Dict, List, Optional
 import pandas as pd
 
 
+# 재시도 에러 자동 분류 매핑 — RetryCorrectionTracker retry_reason 고도화
+RETRY_ERROR_CATEGORY_MAP: Dict[str, str] = {
+    "RateLimitError": "rate_limit",
+    "APIStatusError": "api_error",
+    "TimeoutError": "timeout",
+    "ConnectTimeout": "timeout",
+    "ReadTimeout": "timeout",
+    "ToolException": "tool_failure",
+    "ToolExecutionError": "tool_failure",
+    "OutputParserException": "parsing_error",
+    "OutputParserError": "parsing_error",
+    "ValidationError": "validation",
+    "ValueError": "validation",
+    "ConnectionError": "network",
+    "HTTPError": "network",
+    "AuthenticationError": "auth",
+    "PermissionDeniedError": "auth",
+    "ContextWindowExceededError": "context_limit",
+    "InvalidRequestError": "invalid_request",
+}
+
+
+def categorize_retry_error(error_str: str) -> str:
+    """에러 문자열에서 재시도 원인 카테고리를 자동 분류합니다.
+
+    Args:
+        error_str: 에러 타입명 또는 메시지 문자열
+
+    Returns:
+        카테고리 문자열 (rate_limit|timeout|tool_failure|parsing_error|
+        validation|network|auth|context_limit|invalid_request|unknown)
+    """
+    for err_type, category in RETRY_ERROR_CATEGORY_MAP.items():
+        if err_type.lower() in error_str.lower():
+            return category
+    return "unknown"
+
+
 # ============================================================================
 # Security Tracker Mixin
 # ============================================================================
@@ -143,12 +181,18 @@ class OutputLeakageDetector(SecurityTrackerMixin):
 
         # Sensitive patterns
         self.api_key_patterns = [
-            r"(AIza[0-9A-Za-z\-_]{35})",  # Google API Key
-            r"(sk-[a-zA-Z0-9]{32,})",     # OpenAI API Key
-            r"(AKIA[0-9A-Z]{16})",        # AWS Access Key
-            # Generic long strings only when prefixed by key/token/secret keyword
-            # Separator may be :, =, or a single space (e.g. "Bearer <token>")
-            r"(?:api[_-]?key|apikey|token|secret|credential|bearer)\s*[:=\s]\s*['\"]?([a-zA-Z0-9_\-]{20,})['\"]?",
+            r"(AIza[0-9A-Za-z\-_]{35})",                          # Google API Key
+            r"(sk-[a-zA-Z0-9]{32,}(?!-ant-))",                    # OpenAI API Key
+            r"(sk-ant-[a-zA-Z0-9_\-]{90,})",                      # Anthropic API Key
+            r"(AKIA[0-9A-Z]{16})",                                  # AWS Access Key ID
+            r"(ASIA[0-9A-Z]{16})",                                  # AWS STS Access Key
+            r"(ghp_[a-zA-Z0-9]{36})",                              # GitHub Personal Access Token
+            r"(ghs_[a-zA-Z0-9]{36})",                              # GitHub Server Token
+            r"(xoxb-[0-9]{11}-[0-9]{11}-[a-zA-Z0-9]{24})",       # Slack Bot Token
+            r"(xoxp-[0-9]{11}-[0-9]{11}-[0-9]{12}-[a-zA-Z0-9]{32})",  # Slack User Token
+            # Keyword-prefixed generic tokens (컨텍스트 기반 — false-positive 최소화)
+            r"(?:api[_-]?key|apikey|token|secret|credential|bearer)"
+            r"\s*[:=\s]\s*['\"]?([a-zA-Z0-9_\-]{20,})['\"]?",
         ]
 
         self.password_patterns = [

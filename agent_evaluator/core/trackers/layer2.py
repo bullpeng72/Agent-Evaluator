@@ -289,6 +289,33 @@ class RetryCorrectionTracker:
 # 9. Tool Selection Tracker (Agentic AI)
 # ============================================================================
 
+# 도구명 정규화 별칭 맵 — 프레임워크별 명명 차이로 인한 F1 왜곡 방지
+# 형식: canonical_name → [alias_list]
+_TOOL_ALIASES: Dict[str, List[str]] = {
+    "web_search": ["search_web", "internet_search", "google_search", "search", "web_search_tool"],
+    "python_repl": ["python_executor", "code_runner", "execute_python", "python_tool", "repl"],
+    "calculator": ["compute", "math_tool", "calculate", "arithmetic", "math"],
+    "file_read": ["read_file", "open_file", "load_file", "file_loader"],
+    "file_write": ["write_file", "save_file", "create_file", "file_writer"],
+    "sql_query": ["run_sql", "execute_sql", "db_query", "query_database"],
+    "http_request": ["call_api", "api_request", "fetch_url", "requests"],
+    "retriever": ["retrieve", "vector_search", "semantic_search", "rag_retrieve", "similarity_search"],
+}
+
+# 역방향 맵: alias → canonical
+_TOOL_ALIAS_REVERSE: Dict[str, str] = {
+    alias: canonical
+    for canonical, aliases in _TOOL_ALIASES.items()
+    for alias in aliases
+}
+
+
+def _normalize_tool_name(name: str) -> str:
+    """도구 이름을 정규화합니다. 알려진 별칭은 canonical 이름으로 변환합니다."""
+    n = (name or "").lower().strip()
+    return _TOOL_ALIAS_REVERSE.get(n, n)
+
+
 class ToolSelectionTracker:
     """Track tool selection accuracy for Agentic AI"""
 
@@ -309,8 +336,8 @@ class ToolSelectionTracker:
                 "note": "No expected tools defined"
             }
 
-        expected_set = set(t.lower() for t in expected_tools)
-        actual_set = set(t.lower() for t in actual_tools)
+        expected_set = set(_normalize_tool_name(t) for t in expected_tools)
+        actual_set = set(_normalize_tool_name(t) for t in actual_tools)
 
         # Calculate precision, recall, F1
         true_positives = len(expected_set & actual_set)

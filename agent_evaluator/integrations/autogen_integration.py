@@ -47,6 +47,10 @@ from typing import Any, Dict, List, Optional
 from datetime import datetime
 
 from ..core.agent_evaluator import PerformanceMonitor, TaskResult, TaskType
+from .framework_integrations import (
+    ensure_security_trackers as _ensure_security_trackers,
+    extract_tools_from_framework_object as _extract_tools_from_agent,
+)
 
 try:
     from ..helpers.taskresult_helpers import (
@@ -78,86 +82,17 @@ except ImportError:
     CancellationToken = None
 
 
-def _ensure_security_trackers(
-    monitor: PerformanceMonitor,
-    privilege_registry: Optional[Dict[str, str]] = None,
-) -> None:
-    """
-    monitor에 보안 트래커가 없으면 자동으로 초기화합니다.
-    Layer 1 (InputSanitization, OutputLeakage, ToolAuthorization) +
-    Layer 2 (PrivilegeEscalation, ToolChainAttack) 모두 포함.
-
-    Args:
-        privilege_registry: tool_name → privilege_level 매핑 dict.
-            제공 시 _infer_privilege_level() 휴리스틱보다 우선 적용됩니다.
-    """
-    from ..core.agent_evaluator import (
-        InputSanitizationTracker, OutputLeakageDetector, ToolAuthorizationTracker,
-        PrivilegeEscalationDetector, ToolChainAttackDetector,
-    )
-    if getattr(monitor, "input_sanitizer", None) is None:
-        monitor.input_sanitizer = InputSanitizationTracker()
-    if getattr(monitor, "output_leakage_detector", None) is None:
-        monitor.output_leakage_detector = OutputLeakageDetector()
-    if getattr(monitor, "tool_authorizer", None) is None:
-        _allowed = getattr(monitor, "_authorized_tools", None) or None
-        monitor.tool_authorizer = ToolAuthorizationTracker(
-            allowed_tools=_allowed if _allowed else None
-        )
-    if getattr(monitor, "privilege_escalation_detector", None) is None:
-        monitor.privilege_escalation_detector = PrivilegeEscalationDetector()
-    if getattr(monitor, "tool_chain_attack_detector", None) is None:
-        monitor.tool_chain_attack_detector = ToolChainAttackDetector()
-    # 보안 트래커가 초기화된 이상 generate_report() / _generate_alerts() 가 포함하도록 플래그 동기화
-    monitor.enable_security_metrics = True
-    if privilege_registry and not getattr(monitor, "privilege_registry", None):
-        monitor.privilege_registry = privilege_registry
-    elif not getattr(monitor, "privilege_registry", None):
-        monitor.privilege_registry = {}
-    # authorized_tools 미설정 경고 — DQ-011: __auth_warned__ 마크로 중복 경고 방지
-    if (not getattr(monitor, "_authorized_tools", None)
-            and not getattr(monitor, "__auth_warned__", False)):
-        monitor.__auth_warned__ = True  # type: ignore[attr-defined]
-        import warnings as _w
-        _w.warn(
-            "ToolAuthorizationTracker: authorized_tools not set — all tool calls will pass authorization. "
-            "Pass authorized_tools=['tool_a', 'tool_b'] to the evaluator for meaningful security metrics.",
-            UserWarning,
-            stacklevel=3,
-        )
-    # M6: privilege_registry 미설정 경고 — FA2 fix: __configured__ 마크로 중복 경고 방지
-    if not privilege_registry and not getattr(monitor, "privilege_registry", {}).get("__configured__"):
-        monitor.privilege_registry["__configured__"] = True
-        import warnings as _w
-        _w.warn(
-            "PrivilegeEscalationDetector: privilege_registry not configured — using keyword heuristic only. "
-            "Generic tool names (e.g., 'call_api', 'query_data') may be misclassified as 'read'. "
-            "Pass privilege_registry={'tool_name': 'admin|write|read'} for accurate escalation detection.",
-            UserWarning,
-            stacklevel=3,
-        )
-
-
 def _resolve_privilege_level(tool_name: str, monitor: Optional[Any] = None) -> str:
     """
     도구 권한 수준 결정:
     1순위: monitor.privilege_registry[tool_name] (실제 설정)
     2순위: _infer_privilege_level() 휴리스틱 (키워드 기반)
     """
+    from .framework_integrations import infer_privilege_level as _infer_privilege_level
     registry: Dict[str, str] = getattr(monitor, "privilege_registry", {}) or {}
     if tool_name in registry:
         return registry[tool_name]
     return _infer_privilege_level(tool_name)
-
-
-def _infer_privilege_level(tool_name: str) -> str:
-    """도구 이름 기반 권한 수준 추론 (PrivilegeEscalationDetector용 fallback)"""
-    _tn = (tool_name or "").lower()
-    if any(k in _tn for k in ("delete", "drop", "remove", "exec", "system", "admin", "root", "sudo", "kill", "purge", "destroy", "truncate", "revoke", "chmod", "export")):
-        return "admin"
-    if any(k in _tn for k in ("write", "update", "create", "modify", "insert", "post", "put", "patch", "upload", "save", "backup", "sync", "push", "migrate")):
-        return "write"
-    return "read"
 
 
 class AutoGenEvaluator:
@@ -203,6 +138,11 @@ class AutoGenEvaluator:
         self.enable_security = enable_security
         self.task_type = task_type
         self.verbose = verbose
+        # authorized_tools 자동 추출: 미제공 시 agent 객체에서 _tools / registered_tools 탐색
+        if not authorized_tools:
+            authorized_tools = _extract_tools_from_agent(agent_or_team)
+            if authorized_tools and verbose:
+                print(f"   ℹ️  authorized_tools 자동 추출: {authorized_tools}")
         self.authorized_tools: List[str] = list(authorized_tools or [])
         if self.authorized_tools:
             self.monitor._authorized_tools = self.authorized_tools

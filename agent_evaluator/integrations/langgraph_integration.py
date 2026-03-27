@@ -37,6 +37,11 @@ from typing import Any, Callable, Dict, List, Optional, TypedDict
 from datetime import datetime
 
 from ..core.agent_evaluator import PerformanceMonitor, TaskResult, TaskType
+from .framework_integrations import (
+    ensure_security_trackers as _ensure_security_trackers,
+    extract_tools_from_framework_object as _extract_tools_from_graph,
+    infer_privilege_level as _infer_privilege_level,
+)
 
 try:
     from ..helpers.taskresult_helpers import (
@@ -142,64 +147,6 @@ def _estimate_tokens_cjk(text: str) -> int:
     return max(1, len(text) // divisor)
 
 
-def _ensure_security_trackers(
-    monitor: PerformanceMonitor,
-    privilege_registry: Optional[Dict[str, str]] = None,
-) -> None:
-    """
-    monitor에 보안 트래커가 없으면 자동으로 초기화합니다.
-    Layer 1 (InputSanitization, OutputLeakage, ToolAuthorization) +
-    Layer 2 (PrivilegeEscalation, ToolChainAttack) 모두 포함.
-
-    Args:
-        privilege_registry: tool_name → privilege_level 매핑 dict.
-            제공 시 _infer_privilege_level() 휴리스틱보다 우선 적용됩니다.
-    """
-    from ..core.agent_evaluator import (
-        InputSanitizationTracker, OutputLeakageDetector, ToolAuthorizationTracker,
-        PrivilegeEscalationDetector, ToolChainAttackDetector,
-    )
-    if getattr(monitor, "input_sanitizer", None) is None:
-        monitor.input_sanitizer = InputSanitizationTracker()
-    if getattr(monitor, "output_leakage_detector", None) is None:
-        monitor.output_leakage_detector = OutputLeakageDetector()
-    if getattr(monitor, "tool_authorizer", None) is None:
-        _allowed = getattr(monitor, "_authorized_tools", None) or None
-        monitor.tool_authorizer = ToolAuthorizationTracker(
-            allowed_tools=_allowed if _allowed else None
-        )
-    if getattr(monitor, "privilege_escalation_detector", None) is None:
-        monitor.privilege_escalation_detector = PrivilegeEscalationDetector()
-    if getattr(monitor, "tool_chain_attack_detector", None) is None:
-        monitor.tool_chain_attack_detector = ToolChainAttackDetector()
-    # 보안 트래커가 초기화된 이상 generate_report() / _generate_alerts() 가 포함하도록 플래그 동기화
-    monitor.enable_security_metrics = True
-    if privilege_registry and not getattr(monitor, "privilege_registry", None):
-        monitor.privilege_registry = privilege_registry
-    elif not getattr(monitor, "privilege_registry", None):
-        monitor.privilege_registry = {}
-    # authorized_tools 미설정 경고
-    if not getattr(monitor, "_authorized_tools", None):
-        import warnings as _w
-        _w.warn(
-            "ToolAuthorizationTracker: authorized_tools not set — all tool calls will pass authorization. "
-            "Pass authorized_tools=['tool_a', 'tool_b'] to the evaluator for meaningful security metrics.",
-            UserWarning,
-            stacklevel=3,
-        )
-    # M6: privilege_registry 미설정 경고 — FA2 fix: __configured__ 마크로 중복 경고 방지
-    if not privilege_registry and not getattr(monitor, "privilege_registry", {}).get("__configured__"):
-        monitor.privilege_registry["__configured__"] = True
-        import warnings as _w
-        _w.warn(
-            "PrivilegeEscalationDetector: privilege_registry not configured — using keyword heuristic only. "
-            "Generic tool names (e.g., 'call_api', 'query_data') may be misclassified as 'read'. "
-            "Pass privilege_registry={'tool_name': 'admin|write|read'} for accurate escalation detection.",
-            UserWarning,
-            stacklevel=3,
-        )
-
-
 def _resolve_privilege_level(tool_name: str, monitor: Optional[Any] = None) -> str:
     """
     도구 권한 수준 결정:
@@ -210,16 +157,6 @@ def _resolve_privilege_level(tool_name: str, monitor: Optional[Any] = None) -> s
     if tool_name in registry:
         return registry[tool_name]
     return _infer_privilege_level(tool_name)
-
-
-def _infer_privilege_level(tool_name: str) -> str:
-    """도구 이름 기반 권한 수준 추론 (PrivilegeEscalationDetector용 fallback)"""
-    _tn = (tool_name or "").lower()
-    if any(k in _tn for k in ("delete", "drop", "remove", "exec", "system", "admin", "root", "sudo", "kill", "purge", "destroy", "truncate", "revoke", "chmod", "export")):
-        return "admin"
-    if any(k in _tn for k in ("write", "update", "create", "modify", "insert", "post", "put", "patch", "upload", "save", "backup", "sync", "push", "migrate")):
-        return "write"
-    return "read"
 
 
 class AgentState(TypedDict):
@@ -269,6 +206,13 @@ class LangGraphEvaluator:
         self.enable_security = enable_security
         self.task_type = task_type
         self.verbose = verbose
+        # authorized_tools 자동 추출: 미제공 시 graph에서 바인딩된 도구 탐색
+        if not authorized_tools:
+            authorized_tools = _extract_tools_from_graph(
+                self._workflow if self._workflow is not None else {}
+            )
+            if authorized_tools and verbose:
+                print(f"   ℹ️  authorized_tools 자동 추출: {authorized_tools}")
         self.authorized_tools: List[str] = list(authorized_tools or [])
         self._compiled_graph = None  # from_compiled 모드에서 사용
 
@@ -282,6 +226,7 @@ class LangGraphEvaluator:
         self._retrieved_contexts: List[str] = []        # RAG 컨텍스트 (검색 노드 출력)
         self._current_model_name: str = ""              # AIMessage.response_metadata에서 추출
         self._global_ai_tool_map: Dict[str, Any] = {}  # 그래프 전역 tool_name→args 매핑
+        self._node_type_hints: Dict[str, str] = {}  # 명시적 노드 타입 힌트 맵
 
         if self.authorized_tools:
             self.monitor._authorized_tools = self.authorized_tools
@@ -306,6 +251,7 @@ class LangGraphEvaluator:
         verbose: bool = True,
         privilege_registry: Optional[Dict[str, str]] = None,
         authorized_tools: Optional[List[str]] = None,
+        node_type_hints=None,  # ← 추가: {"node_name": "retrieval"|"generation"|"tool"|"auto"}
     ) -> "LangGraphEvaluator":
         """
         기존 컴파일된 LangGraph를 래핑합니다.
@@ -325,7 +271,7 @@ class LangGraphEvaluator:
         evaluator.enable_security = enable_security
         evaluator.task_type = task_type
         evaluator.verbose = verbose
-        evaluator.authorized_tools = list(authorized_tools or [])
+        evaluator._node_type_hints = dict(node_type_hints or {})  # 노드 타입 힌트 맵
         evaluator._compiled_graph = compiled_graph
         evaluator._workflow = None
         evaluator._custom_nodes = {}
@@ -337,6 +283,13 @@ class LangGraphEvaluator:
         evaluator._current_model_name = ""
         evaluator._global_ai_tool_map = {}
         evaluator._tasks_with_ground_truth = 0
+
+        # authorized_tools 자동 추출
+        if not authorized_tools:
+            authorized_tools = _extract_tools_from_graph(compiled_graph)
+            if authorized_tools and verbose:
+                print(f"   ℹ️  authorized_tools 자동 추출: {authorized_tools}")
+        evaluator.authorized_tools = list(authorized_tools or [])
 
         if evaluator.authorized_tools:
             evaluator.monitor._authorized_tools = evaluator.authorized_tools
@@ -361,19 +314,28 @@ class LangGraphEvaluator:
 
     # ── 그래프 빌드 API (직접 빌드 모드) ─────────────────────────────────
 
-    def add_node(self, name: str, func: Callable):
+    def add_node(self, name: str, func: Callable,
+                 node_type: str = "auto"):
         """
         노드를 추가합니다. enable_layer2=True 이면 자동으로 추적 래퍼를 씌웁니다.
 
         Args:
             name: 노드 이름
             func: 노드 함수 (state → state)
+            node_type: 노드 타입 힌트. "retrieval"|"generation"|"tool"|"auto" (기본값).
+                       "auto" 이면 노드명 키워드로 자동 감지합니다.
+                       "retrieval" 이면 RAG 컨텍스트 수집 대상으로 강제 지정합니다.
         """
         if self._workflow is None:
             raise RuntimeError("from_compiled 모드에서는 add_node를 사용할 수 없습니다.")
         self._custom_nodes[name] = func
         node_fn = self._wrap_node(name, func) if self.enable_layer2 else func
         self._workflow.add_node(name, node_fn)
+        # 명시적 타입 힌트 저장 — _wrap_node 및 _run_with_stream 에서 참조
+        if not hasattr(self, "_node_type_hints"):
+            self._node_type_hints = {}
+        if node_type != "auto":
+            self._node_type_hints[name] = node_type
 
     def add_edge(self, from_node: str, to_node: str):
         """고정 엣지 추가"""
@@ -457,10 +419,17 @@ class LangGraphEvaluator:
 
             # 검색 노드: ToolMessage 내용과 Document 객체를 RAG 컨텍스트로 수집
             # 생성 노드 키워드가 있으면 RAG 노드로 오분류 방지
-            _is_retrieval = (
-                any(kw in node_name.lower() for kw in _RETRIEVAL_NODE_KEYWORDS)
-                and not any(kw in node_name.lower() for kw in _GENERATION_NODE_KEYWORDS)
-            )
+            _hints = getattr(self, "_node_type_hints", {})
+            _explicit_type = _hints.get(node_name, "auto")
+            if _explicit_type == "retrieval":
+                _is_retrieval = True
+            elif _explicit_type in ("generation", "tool"):
+                _is_retrieval = False
+            else:
+                _is_retrieval = (
+                    any(kw in node_name.lower() for kw in _RETRIEVAL_NODE_KEYWORDS)
+                    and not any(kw in node_name.lower() for kw in _GENERATION_NODE_KEYWORDS)
+                )
             if _is_retrieval:
                 if isinstance(result, dict):
                     for msg in result.get("messages", []):

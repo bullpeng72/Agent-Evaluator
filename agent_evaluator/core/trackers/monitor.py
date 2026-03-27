@@ -58,7 +58,7 @@ class PerformanceMonitor:
         pricing: Dict[str, float] = None,
         model_name: str = "",
         enable_transparency: bool = False,
-        enable_hallucination_detection: bool = False,
+        enable_hallucination_detection: bool = True,
         enable_security_metrics: bool = False,
         security_config: Optional[Dict[str, Any]] = None,
         output_dir: Optional[str] = None,
@@ -78,8 +78,8 @@ class PerformanceMonitor:
                 pricing row and display it in the cost banner.
             enable_transparency: Enable transparency logging (traces, annotations)
             enable_hallucination_detection: Enable Layer1 hallucination detection (opt-in)
-                - False (default): No hallucination detection, best performance
-                - True: Automatic hallucination detection when context/response provided
+                - True (default): Automatic rule-based hallucination detection (no external deps)
+                - False: Disable hallucination detection for maximum performance
             enable_security_metrics: Enable security metrics tracking (opt-in)
                 - False (default): No security tracking, best performance
                 - True: Track input/output security and authorization compliance
