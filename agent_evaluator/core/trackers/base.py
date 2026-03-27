@@ -44,6 +44,9 @@ class TaskResult:
     question: Optional[str] = None                                  # User question / input
     response: Optional[str] = None                                  # Agent response / output
     ground_truth: Optional[str] = None                              # Expected answer
+    context: Optional[str] = None                                   # RAG context (for judge / hallucination)
+    # LLM Judge result (Phase 1-A) — set by PerformanceMonitor when enable_llm_judge=True
+    llm_judge: Optional[Dict[str, Any]] = None                      # {scores, reasoning, model, cost_usd}
 
 
 @dataclass
@@ -153,6 +156,7 @@ class _TaskContext:
             question=self._question,
             response=self.response,
             ground_truth=self.ground_truth,
+            context=self.context,
         )
         try:
             self._monitor.record_task(

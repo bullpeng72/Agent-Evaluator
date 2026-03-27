@@ -164,6 +164,17 @@ def get_result(file_id: str, request: Request) -> Dict[str, Any]:
         "has_output_security": rf.has_output_security,
         "has_tool_auth":       rf.has_tool_auth,
         "has_attack_detect":   rf.has_attack_detect,
+        # LLM Judge (Phase 1-A)
+        "llm_judge": {
+            "judged_count":           rf.llm_judge.judged_count,
+            "avg_overall":            rf.llm_judge.avg_overall,
+            "avg_completeness":       rf.llm_judge.avg_completeness,
+            "avg_relevance":          rf.llm_judge.avg_relevance,
+            "avg_factual_consistency":rf.llm_judge.avg_factual_consistency,
+            "total_cost_usd":         rf.llm_judge.total_cost_usd,
+            "model":                  rf.llm_judge.model,
+            "results":                rf.llm_judge.results,
+        },
     }
 
 

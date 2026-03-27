@@ -35,7 +35,7 @@ Quick Start (LLM Integration):
     >>> # Auto-recorded in monitor!
 """
 
-__version__ = "0.6.2"
+__version__ = "0.6.3"
 __author__ = "Sungwoo Kim"
 
 # Import from core module
@@ -99,6 +99,9 @@ from .integrations.llm_helpers import (
 from .integrations.llm_helpers import (
     LLMEvaluationHelper as LLMHelper,
 )
+
+# LLM Judge (Phase 1-A)
+from .integrations.llm_judge import LLMJudge
 
 # Framework Evaluator classes + EvaluatorProtocol (optional deps — graceful fallback)
 try:
@@ -206,6 +209,9 @@ __all__ = [
     'ToolAuthorizationTracker',
     'PrivilegeEscalationDetector',
     'ToolChainAttackDetector',
+
+    # LLM Judge
+    'LLMJudge',
 
     # Transparency
     'TestTransparencyManager',

@@ -98,6 +98,19 @@ class AdvancedMetrics:
 
 
 @dataclass
+class LLMJudgeData:
+    """Aggregated LLM Judge results from tasks[*].llm_judge"""
+    results: List[Dict[str, Any]] = field(default_factory=list)   # per-task judge results
+    avg_completeness: float = 0.0
+    avg_relevance: float = 0.0
+    avg_factual_consistency: float = 0.0
+    avg_overall: float = 0.0
+    total_cost_usd: float = 0.0
+    judged_count: int = 0
+    model: str = ""
+
+
+@dataclass
 class InsightsData:
     alerts: List[Dict[str, Any]] = field(default_factory=list)
     recommendations: List[Dict[str, Any]] = field(default_factory=list)
@@ -135,6 +148,7 @@ class ResultFile:
     rag_metrics: Dict[str, List[float]]
     pricing: Dict[str, Any]
     raw: Dict[str, Any]
+    llm_judge: "LLMJudgeData" = field(default_factory=LLMJudgeData)
 
     # ---- computed helpers ------------------------------------------------
     @property
@@ -233,6 +247,10 @@ class ResultFile:
     @property
     def has_attack_detect(self) -> bool:
         return bool(self.security_l2.escalation_events or self.security_l2.attack_detections)
+
+    @property
+    def has_llm_judge(self) -> bool:
+        return self.llm_judge.judged_count > 0
 
 
 @dataclass
@@ -693,6 +711,45 @@ def _parse_advanced(raw: dict) -> AdvancedMetrics:
 # Task parsing
 # ---------------------------------------------------------------------------
 
+def _parse_llm_judge(raw_tasks: List[Dict[str, Any]]) -> "LLMJudgeData":
+    """Collect llm_judge entries from task list and compute aggregates."""
+    results = []
+    model = ""
+    total_cost = 0.0
+
+    for t in raw_tasks:
+        jd = t.get("llm_judge")
+        if not jd or not isinstance(jd, dict) or jd.get("skipped") or not jd.get("scores"):
+            continue
+        results.append({
+            "task_id": t.get("task_id", ""),
+            **jd,
+        })
+        if not model and jd.get("model"):
+            model = jd["model"]
+        total_cost += jd.get("cost_usd", 0.0)
+
+    if not results:
+        return LLMJudgeData()
+
+    dims = ["completeness", "relevance", "factual_consistency", "overall"]
+    avgs = {}
+    for dim in dims:
+        vals = [r["scores"][dim] for r in results if r.get("scores") and dim in r["scores"]]
+        avgs[dim] = round(sum(vals) / len(vals), 3) if vals else 0.0
+
+    return LLMJudgeData(
+        results=results,
+        avg_completeness=avgs.get("completeness", 0.0),
+        avg_relevance=avgs.get("relevance", 0.0),
+        avg_factual_consistency=avgs.get("factual_consistency", 0.0),
+        avg_overall=avgs.get("overall", 0.0),
+        total_cost_usd=round(total_cost, 6),
+        judged_count=len(results),
+        model=model,
+    )
+
+
 def _parse_tasks(raw_tasks: List[Dict[str, Any]]) -> List[TaskRecord]:
     result = []
     for t in raw_tasks:
@@ -735,6 +792,7 @@ def parse_file(path: Path) -> ResultFile:
         else advanced.rag_metrics
     )
 
+    raw_tasks = raw.get("tasks", [])
     return ResultFile(
         path=path,
         file_id=_file_id(path),
@@ -742,8 +800,8 @@ def parse_file(path: Path) -> ResultFile:
         timestamp=raw.get("timestamp", raw.get("metadata", {}).get("created_at", "")),
         total_tasks=int(raw.get("total_tasks",
                         raw.get("metadata", {}).get("total_tasks",
-                        len(raw.get("tasks", []))))),
-        tasks=_parse_tasks(raw.get("tasks", [])),
+                        len(raw_tasks)))),
+        tasks=_parse_tasks(raw_tasks),
         accuracy_metrics=raw.get("accuracy_metrics",
                                  raw.get("report", {}).get("accuracy_metrics", {})),
         efficiency_metrics=raw.get("efficiency_metrics",
@@ -763,6 +821,7 @@ def parse_file(path: Path) -> ResultFile:
         rag_metrics=rag_for_file,
         pricing=raw.get("pricing", {}),
         raw=raw,
+        llm_judge=_parse_llm_judge(raw_tasks),
     )
 
 

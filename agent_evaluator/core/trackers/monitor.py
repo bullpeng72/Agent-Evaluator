@@ -61,7 +61,12 @@ class PerformanceMonitor:
         enable_hallucination_detection: bool = False,
         enable_security_metrics: bool = False,
         security_config: Optional[Dict[str, Any]] = None,
-        output_dir: Optional[str] = None
+        output_dir: Optional[str] = None,
+        # LLM Judge (Phase 1-A)
+        enable_llm_judge: bool = False,
+        judge_model: str = "claude-haiku-4-5-20251001",
+        judge_sample_rate: float = 0.1,
+        judge_budget_per_day: Optional[float] = None,
     ):
         """
         Initialize Performance Monitor
@@ -80,6 +85,17 @@ class PerformanceMonitor:
                 - True: Track input/output security and authorization compliance
             security_config: Security configuration (allowed_tools, restricted_tools)
             output_dir: Output directory for results
+            enable_llm_judge: Enable LLM-as-Judge automatic scoring (opt-in).
+                When True, each recorded task with a question+response is evaluated
+                by the judge model on 3 dimensions (completeness, relevance,
+                factual_consistency). Requires ANTHROPIC_API_KEY or OPENAI_API_KEY.
+            judge_model: Model used for judging.  Defaults to claude-haiku-4-5-20251001
+                (lowest cost).  Supports any Claude or OpenAI chat model.
+            judge_sample_rate: Fraction of tasks to judge (0.0–1.0).  Use < 1.0 to
+                control API costs in high-volume evaluations.
+            judge_budget_per_day: Optional USD hard cap per calendar day.  When
+                cumulative judge cost exceeds this value, further judge calls are
+                skipped with a RuntimeWarning.
         """
         if pricing is None:
             pricing = {"input": 0.003, "output": 0.015}  # Default: Claude Sonnet 4.5
@@ -174,6 +190,22 @@ class PerformanceMonitor:
                 print(f"⚠️  transparency_manager를 찾을 수 없습니다: {e}")
                 print("   투명성 추적 비활성화됨")
                 self.enable_transparency = False
+
+        # LLM Judge (Phase 1-A, opt-in)
+        self.enable_llm_judge = enable_llm_judge
+        self.llm_judge = None
+        if enable_llm_judge:
+            try:
+                from ...integrations.llm_judge import LLMJudge
+                self.llm_judge = LLMJudge(
+                    model=judge_model,
+                    sample_rate=judge_sample_rate,
+                    budget_per_day=judge_budget_per_day,
+                )
+                print(f"✅ LLM Judge 활성화됨 (model={judge_model}, sample_rate={judge_sample_rate})")
+            except Exception as e:
+                warnings.warn(f"LLM Judge 초기화 실패: {e}", RuntimeWarning, stacklevel=2)
+                self.enable_llm_judge = False
 
         # 임계값 설정 (DataEditorManager에서 로드 가능)
         self.thresholds = None
@@ -820,6 +852,26 @@ class PerformanceMonitor:
                         RuntimeWarning,
                         stacklevel=2,
                     )
+
+        # Auto-trigger: LLM Judge (opt-in, Phase 1-A)
+        if self.enable_llm_judge and self.llm_judge and _eff_request and _eff_response:
+            try:
+                judge_result = self.llm_judge.judge(
+                    task_id=task_result.task_id,
+                    question=_eff_request,
+                    response=_eff_response,
+                    context=context or task_result.context,
+                )
+                # Attach judge scores directly onto the TaskResult so they are
+                # serialised into the JSON output without needing schema changes.
+                if not judge_result.get("skipped") and judge_result.get("scores"):
+                    task_result.llm_judge = judge_result
+            except Exception as _je:
+                warnings.warn(
+                    f"LLM Judge failed for {task_result.task_id}: {_je}",
+                    RuntimeWarning,
+                    stacklevel=2,
+                )
 
     def record_rag_metrics(
         self,

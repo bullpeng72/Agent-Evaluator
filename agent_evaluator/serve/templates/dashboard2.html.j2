@@ -1302,6 +1302,75 @@ input[type=text],input[type=number]{background:var(--bg3);color:var(--text);bord
     </div>
   </div>
 
+  <!-- ── LLM Judge 섹션 (enable_llm_judge=True 일 때만 표시) ── -->
+  <template x-if="data?.llm_judge?.judged_count > 0">
+    <div>
+      <div class="section-title" style="margin-top:22px">🤖 LLM Judge 점수 <span style="font-size:11px;color:var(--text2);font-weight:400">(Phase 1-A · ground_truth 불필요)</span></div>
+      <!-- KPI 카드 4개 -->
+      <div class="kpi-row" style="grid-template-columns:repeat(4,1fr)">
+        <div class="kpi-card" style="border-left:3px solid #8b5cf6">
+          <div class="kpi-label">종합 점수</div>
+          <div class="kpi-val" x-text="(data.llm_judge.avg_overall||0).toFixed(2)+'/5'"></div>
+          <div class="kpi-sub" x-text="data.llm_judge.judged_count+'건 채점'"></div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-label">완결성</div>
+          <div class="kpi-val" x-text="(data.llm_judge.avg_completeness||0).toFixed(2)+'/5'"></div>
+          <div class="kpi-sub">질문의 모든 측면을 커버</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-label">관련성</div>
+          <div class="kpi-val" x-text="(data.llm_judge.avg_relevance||0).toFixed(2)+'/5'"></div>
+          <div class="kpi-sub">질문 핵심 의도 부합</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-label">사실 일관성</div>
+          <div class="kpi-val" x-text="(data.llm_judge.avg_factual_consistency||0).toFixed(2)+'/5'"></div>
+          <div class="kpi-sub">내적 모순·오류 없음</div>
+        </div>
+      </div>
+      <!-- 메타 정보 -->
+      <div style="font-size:11px;color:var(--text2);margin:6px 0 12px;display:flex;gap:16px">
+        <span>모델: <b x-text="data.llm_judge.model||'—'"></b></span>
+        <span>비용: <b x-text="'$'+(data.llm_judge.total_cost_usd||0).toFixed(4)"></b></span>
+        <span>샘플: <b x-text="data.llm_judge.judged_count+'건'"></b></span>
+      </div>
+      <!-- 태스크별 Judge 상세 -->
+      <div class="cbox">
+        <div class="ct">태스크별 Judge 점수</div>
+        <div style="overflow-x:auto">
+          <table style="width:100%;border-collapse:collapse;font-size:12px">
+            <thead>
+              <tr style="border-bottom:1px solid var(--border);color:var(--text2)">
+                <th style="padding:6px 10px;text-align:left;font-weight:600">Task ID</th>
+                <th style="padding:6px 8px;text-align:center">완결성</th>
+                <th style="padding:6px 8px;text-align:center">관련성</th>
+                <th style="padding:6px 8px;text-align:center">사실 일관성</th>
+                <th style="padding:6px 8px;text-align:center">종합</th>
+                <th style="padding:6px 8px;text-align:left">판단 근거</th>
+              </tr>
+            </thead>
+            <tbody>
+              <template x-for="r in (data.llm_judge.results||[])" :key="r.task_id">
+                <tr style="border-bottom:1px solid var(--border)">
+                  <td style="padding:5px 10px;font-family:monospace;font-size:11px" x-text="r.task_id"></td>
+                  <td style="padding:5px 8px;text-align:center" x-text="r.scores?.completeness??'—'"></td>
+                  <td style="padding:5px 8px;text-align:center" x-text="r.scores?.relevance??'—'"></td>
+                  <td style="padding:5px 8px;text-align:center" x-text="r.scores?.factual_consistency??'—'"></td>
+                  <td style="padding:5px 8px;text-align:center;font-weight:600"
+                      :style="(r.scores?.overall??0)>=4?'color:var(--green)':(r.scores?.overall??0)>=2.5?'color:var(--orange)':'color:var(--red)'"
+                      x-text="r.scores?.overall!=null?r.scores.overall.toFixed(2):'—'"></td>
+                  <td style="padding:5px 8px;color:var(--text2);max-width:280px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"
+                      x-text="r.reasoning||'—'"></td>
+                </tr>
+              </template>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </template>
+
 </div><!-- /quality -->
 
 <!-- ══ SECTION 3: EXTERNAL (RAG + DeepEval) ══ -->
