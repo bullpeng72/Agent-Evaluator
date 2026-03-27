@@ -12,6 +12,8 @@ from datetime import datetime
 from enum import Enum
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
+from agent_evaluator.exceptions import ValidationError
+
 if TYPE_CHECKING:
     from .monitor import PerformanceMonitor
 
@@ -29,7 +31,7 @@ class TaskResult:
     tool_calls: List[Dict[str, Any]]
     attempts: int
     errors: List[str]
-    timestamp: datetime
+    timestamp: datetime = field(default_factory=datetime.now)
 
     # Agentic AI specific fields
     agent_interactions: Optional[List[Dict[str, Any]]] = None      # Multi-agent interactions (CrewAI)
@@ -47,6 +49,26 @@ class TaskResult:
     context: Optional[str] = None                                   # RAG context (for judge / hallucination)
     # LLM Judge result (Phase 1-A) — set by PerformanceMonitor when enable_llm_judge=True
     llm_judge: Optional[Dict[str, Any]] = None                      # {scores, reasoning, model, cost_usd}
+
+    def __post_init__(self) -> None:
+        """입력값 유효성 검증."""
+        if not (0.0 <= self.completion_score <= 1.0):
+            raise ValidationError(
+                f"completion_score must be in [0.0, 1.0], got {self.completion_score}. "
+                "Use create_taskresult() for automatic score calculation."
+            )
+        if not (0.0 <= self.accuracy_score <= 1.0):
+            raise ValidationError(
+                f"accuracy_score must be in [0.0, 1.0], got {self.accuracy_score}."
+            )
+        if self.execution_time < 0.0:
+            raise ValidationError(
+                f"execution_time must be >= 0.0, got {self.execution_time}."
+            )
+        if self.attempts < 1:
+            raise ValidationError(
+                f"attempts must be >= 1, got {self.attempts}."
+            )
 
 
 @dataclass

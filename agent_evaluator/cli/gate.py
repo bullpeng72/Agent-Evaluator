@@ -335,12 +335,33 @@ def _fmt_threshold(threshold: Optional[float], direction: str, unit: str) -> str
     return f"{sym} {threshold:.2f}"
 
 
+def _fmt_delta(current: float, threshold: float, direction: str, unit: str) -> str:
+    """임계값 대비 현재값의 차이(델타)를 사람이 읽기 좋은 형태로 포맷한다."""
+    if direction == "min":
+        delta = current - threshold  # 양수면 초과(좋음), 음수면 미달(나쁨)
+    else:
+        delta = threshold - current  # 양수면 임계값 내(좋음), 음수면 초과(나쁨)
+    sign = "+" if delta >= 0 else ""
+    if unit == "%":
+        return f"{sign}{delta:.1f}%"
+    if unit == "s":
+        return f"{sign}{delta:.2f}s"
+    if unit == "/5":
+        return f"{sign}{delta:.2f}"
+    return f"{sign}{delta:.2f}"
+
+
 def _print_table(
     gate_results: List[Dict[str, Any]],
     result_path: str,
     regressions: Optional[List[Dict[str, Any]]] = None,
 ) -> None:
     """게이팅 결과 테이블을 터미널에 출력한다."""
+    active = [g for g in gate_results if g["active"]]
+    fail_count = sum(1 for g in active if not g["passed"] and g["current"] is not None)
+    skip_count = sum(1 for g in active if g["current"] is None)
+    active_count = len(active)
+
     print()
     print(f"  {_SEP}")
     print(f"  {B}Agent Evaluator — Quality Gate{R}")
@@ -348,34 +369,30 @@ def _print_table(
     print(f"  {_SEP}")
     print()
 
-    # 헤더
-    print(f"  {'지표':<20}  {'현재값':<12}  {'기준값':<12}  {'결과'}")
-    print(f"  {'─' * 20}  {'─' * 11}  {'─' * 11}  {'─' * 6}")
+    if active_count > 0:
+        # 헤더 (5열: 지표 / 현재값 / 기준값 / 차이 / 결과)
+        print(f"  {'지표':<22}  {'현재값':<11}  {'기준값':<12}  {'차이':<10}  {'결과'}")
+        print(f"  {'─' * 22}  {'─' * 11}  {'─' * 12}  {'─' * 10}  {'─' * 6}")
 
-    active_count = 0
-    fail_count = 0
+        for g in active:
+            label_str = g["label"]
+            cur_str = _fmt_value(g["current"], g["unit"])
+            thr_str = _fmt_threshold(g["threshold"], g["direction"], g["unit"])
 
-    for g in gate_results:
-        if not g["active"]:
-            continue
-        active_count += 1
+            if g["current"] is None:
+                result_str = f"{RD}❌ SKIP{R}"
+                delta_str = f"{D}N/A{R}"
+            elif g["passed"]:
+                result_str = f"{G}✅ PASS{R}"
+                delta_str = f"{G}{_fmt_delta(g['current'], g['threshold'], g['direction'], g['unit'])}{R}"
+            else:
+                result_str = f"{RD}❌ FAIL{R}"
+                delta_str = f"{RD}{_fmt_delta(g['current'], g['threshold'], g['direction'], g['unit'])}{R}"
 
-        label_str = g["label"]
-        cur_str = _fmt_value(g["current"], g["unit"])
-        thr_str = _fmt_threshold(g["threshold"], g["direction"], g["unit"])
+            print(f"  {label_str:<22}  {cur_str:<11}  {thr_str:<12}  {delta_str:<10}  {result_str}")
 
-        if g["current"] is None:
-            result_str = f"{RD}❌ SKIP{R}"
-        elif g["passed"]:
-            result_str = f"{G}✅ PASS{R}"
-        else:
-            result_str = f"{RD}❌ FAIL{R}"
-            fail_count += 1
+        print()
 
-        # 색상 제거 후 패딩 계산 (ANSI 코드가 없는 문자열 길이 기준)
-        print(f"  {label_str:<20}  {cur_str:<12}  {thr_str:<12}  {result_str}")
-
-    print()
     print(f"  {_SEP}")
 
     # 회귀 결과
@@ -398,12 +415,13 @@ def _print_table(
     if active_count == 0:
         print(f"  {D}임계값 기준이 지정되지 않았습니다. --tcr, --accuracy 등 옵션을 사용하세요.{R}")
     elif fail_count == 0 and not regressions:
-        print(f"  {G}{B}✅ 모든 기준 통과 ({active_count}/{active_count}){R}")
+        passed = active_count - skip_count
+        print(f"  {G}{B}✅ 모든 기준 통과 ({passed}/{active_count}){R}")
     elif regressions and fail_count == 0:
         print(f"  {Y}{B}⚠  임계값은 통과했으나 회귀 감지 ({len(regressions)}건){R}")
     else:
-        passed = active_count - fail_count
-        print(f"  {RD}{B}❌ 품질 기준 미달 ({fail_count}/{active_count} 실패){R}")
+        passed = active_count - fail_count - skip_count
+        print(f"  {RD}{B}❌ 품질 기준 미달 ({passed}/{active_count} 통과){R}")
         print(f"  {D}→ CI 파이프라인에서 이 단계를 실패 처리하세요{R}")
 
     print(f"  {_SEP}")

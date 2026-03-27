@@ -38,9 +38,20 @@ Quick Start (LLM Integration):
 __version__ = "0.6.5"
 __author__ = "Sungwoo Kim"
 
-# Import from core module
+# Exception hierarchy (경량 — 외부 의존성 없음)
+from .exceptions import (
+    AgentEvaluatorError,
+    ValidationError,
+    FrameworkNotInstalledError,
+    MetricComputationError,
+    ConfigurationError,
+    StorageError,
+)
+
 # Config & init helpers (cli.main 임포트 없이 제공 — import-time side-effect 없음)
 from .config import get_settings, init_from_app, load_env
+
+# Framework-agnostic utilities (경량)
 from .integrations.framework_integrations import (
     EvaluatorProtocol,
     to_graph_state,
@@ -54,6 +65,8 @@ from .utils.transparency_manager import (
     TestStepStatus,
     TestTransparencyManager,
 )
+
+# Core (numpy/pandas를 사용하지만 SDK의 핵심이므로 즉시 로드)
 from .core.agent_evaluator import (
     AccuracyEvaluator,
     AgentCoordinationTracker,
@@ -79,91 +92,118 @@ from .core.agent_evaluator import (
     WorkflowExecutionTracker,
 )
 
-# Import Hybrid Monitor (with external library integration)
-from .core.hybrid_monitor import (
-    ExtendedTaskResult,
-    HybridEvaluationReport,
-    HybridPerformanceMonitor,
-)
-
 # Import context managers
 from .core.monitor_context import evaluation_session, hybrid_evaluation_session
 
 # Import helpers with simplified names
 from .helpers.taskresult_helpers import create_taskresult_from_execution as create_taskresult
-from .integrations.llm_helpers import (
-    AnthropicEvaluationHelper as ClaudeHelper,
-)
-
-# Import LLM helpers
-from .integrations.llm_helpers import (
-    LLMEvaluationHelper as LLMHelper,
-)
-
-# LLM Judge (Phase 1-A)
-from .integrations.llm_judge import LLMJudge
 
 # Conversation Evaluation (Phase 1-C)
 from .core.trackers.conversation import ConversationSession, ConversationMetrics, ConversationTurn
 
-# Framework Evaluator classes + EvaluatorProtocol (optional deps — graceful fallback)
-try:
-    from .integrations.langchain_integration import LangChainEvaluator
-except ImportError:
-    LangChainEvaluator = None  # type: ignore[assignment]
+# ---------------------------------------------------------------------------
+# Lazy imports — 무거운 패키지(litellm, crewai, autogen, langchain, etc.)는
+# 실제로 접근할 때만 로드한다. `from agent_evaluator import X` 도 동작한다.
+# ---------------------------------------------------------------------------
 
-try:
-    from .integrations.langgraph_integration import LangGraphEvaluator
-except ImportError:
-    LangGraphEvaluator = None  # type: ignore[assignment]
+_LAZY_IMPORTS = {
+    # Hybrid Monitor
+    "HybridPerformanceMonitor": ("agent_evaluator.core.hybrid_monitor", "HybridPerformanceMonitor"),
+    "ExtendedTaskResult": ("agent_evaluator.core.hybrid_monitor", "ExtendedTaskResult"),
+    "HybridEvaluationReport": ("agent_evaluator.core.hybrid_monitor", "HybridEvaluationReport"),
+    # LLM Helpers
+    "LLMHelper": ("agent_evaluator.integrations.llm_helpers", "LLMEvaluationHelper"),
+    "ClaudeHelper": ("agent_evaluator.integrations.llm_helpers", "AnthropicEvaluationHelper"),
+    # LLM Judge
+    "LLMJudge": ("agent_evaluator.integrations.llm_judge", "LLMJudge"),
+    # Framework Evaluator classes
+    "LangChainEvaluator": ("agent_evaluator.integrations.langchain_integration", "LangChainEvaluator"),
+    "LangGraphEvaluator": ("agent_evaluator.integrations.langgraph_integration", "LangGraphEvaluator"),
+    "CrewAIEvaluator": ("agent_evaluator.integrations.crewai_integration", "CrewAIEvaluator"),
+    "AutoGenEvaluator": ("agent_evaluator.integrations.autogen_integration", "AutoGenEvaluator"),
+    # Framework factory functions
+    "create_evaluated_langchain_agent": (
+        "agent_evaluator.integrations.langchain_integration",
+        "create_evaluated_langchain_agent",
+    ),
+    "create_evaluated_langgraph": (
+        "agent_evaluator.integrations.langgraph_integration",
+        "create_evaluated_langgraph",
+    ),
+    "create_evaluated_langgraph_agent": (
+        "agent_evaluator.integrations.langgraph_integration",
+        "create_evaluated_langgraph_agent",
+    ),
+    "create_evaluated_crew": (
+        "agent_evaluator.integrations.crewai_integration",
+        "create_evaluated_crew",
+    ),
+    "create_evaluated_crewai_agent": (
+        "agent_evaluator.integrations.crewai_integration",
+        "create_evaluated_crewai_agent",
+    ),
+    "create_evaluated_autogen_agent": (
+        "agent_evaluator.integrations.autogen_integration",
+        "create_evaluated_autogen_agent",
+    ),
+}
 
-try:
-    from .integrations.crewai_integration import CrewAIEvaluator
-except ImportError:
-    CrewAIEvaluator = None  # type: ignore[assignment]
+# 프레임워크 이름 → extras 이름 매핑 (FrameworkNotInstalledError 메시지용)
+_FRAMEWORK_EXTRA_MAP = {
+    "LangChainEvaluator": "langchain",
+    "LangGraphEvaluator": "langchain",
+    "CrewAIEvaluator": "crewai",
+    "AutoGenEvaluator": "autogen",
+    "create_evaluated_langchain_agent": "langchain",
+    "create_evaluated_langgraph": "langchain",
+    "create_evaluated_langgraph_agent": "langchain",
+    "create_evaluated_crew": "crewai",
+    "create_evaluated_crewai_agent": "crewai",
+    "create_evaluated_autogen_agent": "autogen",
+    "LLMHelper": "llm",
+    "ClaudeHelper": "llm",
+    "LLMJudge": "llm",
+    "HybridPerformanceMonitor": "eval",
+    "ExtendedTaskResult": "eval",
+    "HybridEvaluationReport": "eval",
+}
 
-try:
-    from .integrations.autogen_integration import AutoGenEvaluator
-except ImportError:
-    AutoGenEvaluator = None  # type: ignore[assignment]
 
-# Framework factory functions (optional deps — graceful fallback on ImportError)
-try:
-    from .integrations.langchain_integration import create_evaluated_langchain_agent
-except ImportError:
-    create_evaluated_langchain_agent = None  # type: ignore[assignment]
+def __getattr__(name: str):  # noqa: N807
+    """Lazy-load heavy modules on first attribute access."""
+    if name in _LAZY_IMPORTS:
+        import importlib
 
-try:
-    from .integrations.langgraph_integration import (
-        create_evaluated_langgraph,
-        create_evaluated_langgraph_agent,
-    )
-except ImportError:
-    create_evaluated_langgraph = None  # type: ignore[assignment]
-    create_evaluated_langgraph_agent = None  # type: ignore[assignment]
+        module_path, attr = _LAZY_IMPORTS[name]
+        try:
+            module = importlib.import_module(module_path)
+            value = getattr(module, attr)
+            # 모듈 네임스페이스에 캐시하여 이후 접근은 즉시 반환
+            globals()[name] = value
+            return value
+        except ImportError:
+            # optional dep 미설치 → None 반환 (기존 동작과 동일)
+            globals()[name] = None
+            return None
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
-try:
-    from .integrations.crewai_integration import (
-        create_evaluated_crew,
-        create_evaluated_crewai_agent,
-    )
-except ImportError:
-    create_evaluated_crew = None  # type: ignore[assignment]
-    create_evaluated_crewai_agent = None  # type: ignore[assignment]
-
-try:
-    from .integrations.autogen_integration import create_evaluated_autogen_agent
-except ImportError:
-    create_evaluated_autogen_agent = None  # type: ignore[assignment]
 
 __all__ = [
+    # Exceptions
+    'AgentEvaluatorError',
+    'ValidationError',
+    'FrameworkNotInstalledError',
+    'MetricComputationError',
+    'ConfigurationError',
+    'StorageError',
+
     # Core
     'PerformanceMonitor',
     'TaskResult',
     'TaskType',
     'EvaluationReport',
 
-    # Hybrid Monitor
+    # Hybrid Monitor (lazy)
     'HybridPerformanceMonitor',
     'ExtendedTaskResult',
     'HybridEvaluationReport',
@@ -172,10 +212,10 @@ __all__ = [
     'create_taskresult',  # Simplified name
     'evaluation_session',  # Context manager
     'hybrid_evaluation_session',  # Context manager
-    'LLMHelper',  # Simplified name
-    'ClaudeHelper',  # Simplified name
+    'LLMHelper',  # Simplified name (lazy)
+    'ClaudeHelper',  # Simplified name (lazy)
 
-    # Framework Evaluator classes (None if optional dep not installed)
+    # Framework Evaluator classes (lazy — None if optional dep not installed)
     'LangChainEvaluator',
     'LangGraphEvaluator',
     'CrewAIEvaluator',
@@ -213,7 +253,7 @@ __all__ = [
     'PrivilegeEscalationDetector',
     'ToolChainAttackDetector',
 
-    # LLM Judge
+    # LLM Judge (lazy)
     'LLMJudge',
 
     # Conversation Evaluation (Phase 1-C)
@@ -226,7 +266,7 @@ __all__ = [
     'AnnotationType',
     'TestStepStatus',
 
-    # Framework Factory Functions (None if optional dep not installed)
+    # Framework Factory Functions (lazy — None if optional dep not installed)
     'create_evaluated_langchain_agent',
     'create_evaluated_langgraph',
     'create_evaluated_langgraph_agent',   # from_compiled 모드 (compiled_graph 첫 인자)

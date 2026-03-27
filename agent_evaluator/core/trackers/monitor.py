@@ -7,6 +7,7 @@ Also contains create_demo_data() and run_demo() helper functions.
 
 from __future__ import annotations
 
+import dataclasses
 import json
 import logging
 import os
@@ -681,8 +682,8 @@ class PerformanceMonitor:
     def record_task(self, task_result: TaskResult,
                    ground_truth: Optional[Any] = None,
                    context: Optional[str] = None,
-                   request: Optional[str] = None,
-                   response: Optional[str] = None,
+                   request: Optional[str] = None,       # deprecated: use task_result.question
+                   response: Optional[str] = None,      # deprecated: use task_result.response
                    expected_elements: Optional[List[str]] = None) -> None:
         """
         Record a complete task execution
@@ -694,7 +695,27 @@ class PerformanceMonitor:
             request: User request/query
             response: Agent's response/output for hallucination detection
             expected_elements: Expected elements in response
+
+        .. deprecated::
+            ``request``, ``response``, ``ground_truth``, ``context`` 파라미터는
+            deprecated입니다. TaskResult 필드를 직접 설정하세요.
         """
+        # Deprecation warnings for parameters that duplicate TaskResult fields
+        if request is not None and task_result.question is None:
+            warnings.warn(
+                "record_task(request=...) is deprecated. "
+                "Use TaskResult(question=...) instead.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+        if ground_truth is not None and task_result.ground_truth is None:
+            warnings.warn(
+                "record_task(ground_truth=...) is deprecated. "
+                "Use TaskResult(ground_truth=...) instead.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+
         # Persist raw content onto TaskResult so it is included in asdict() → JSON
         if request is not None and task_result.question is None:
             task_result.question = request
@@ -952,41 +973,72 @@ class PerformanceMonitor:
 
         return summary
 
+    def _collect_layer1_metrics(self) -> Dict[str, Any]:
+        """Layer 1 지표 수집: TCR, Accuracy, Hallucination, Quality, Latency, Token.
+
+        Returns:
+            accuracy_metrics dict (tcr, accuracy_scores, hallucination, quality)
+            and efficiency_metrics dict (latency, tokens).
+        """
+        accuracy_metrics: Dict[str, Any] = {
+            "tcr": self.tcr_tracker.calculate_tcr(),
+            "accuracy_scores": self.accuracy_evaluator.get_accuracy_scores(),
+            "hallucination": self.hallucination_detector.get_hallucination_rate(),
+            "quality": self.quality_evaluator.get_quality_metrics(),
+        }
+        efficiency_metrics: Dict[str, Any] = {
+            "latency": self.latency_tracker.get_latency_stats(),
+            "tokens": self.token_tracker.get_usage_stats(),
+        }
+        return {"accuracy": accuracy_metrics, "efficiency": efficiency_metrics}
+
+    def _collect_layer2_metrics(self) -> Dict[str, Any]:
+        """Layer 2 지표 수집: ToolCall, Retry, ToolSelection, Coordination, Workflow.
+
+        Returns:
+            efficiency_metrics 에 병합될 dict (tool_efficiency, retries).
+        """
+        return {
+            "tool_efficiency": self.tool_analyzer.get_efficiency_stats(),
+            "retries": self.retry_tracker.get_retry_metrics(),
+        }
+
+    def _collect_security_metrics(self) -> Dict[str, Any]:
+        """보안 지표 수집 (enable_security_metrics=True 일 때만 의미 있음).
+
+        Returns:
+            security_metrics dict (layer1_security, layer2_security).
+        """
+        if not self.enable_security_metrics:
+            return {}
+        return {
+            "layer1_security": {
+                "input_security": self.input_sanitizer.get_security_stats() if self.input_sanitizer else {},
+                "output_leakage": self.output_leakage_detector.get_leakage_stats() if self.output_leakage_detector else {},
+                "authorization": self.tool_authorizer.get_compliance_stats() if self.tool_authorizer else {},
+            },
+            "layer2_security": {
+                "privilege_escalation": self.privilege_escalation_detector.get_escalation_stats() if self.privilege_escalation_detector else {},
+                "attack_detection": self.tool_chain_attack_detector.get_attack_stats() if self.tool_chain_attack_detector else {},
+            },
+        }
+
     def generate_report(self) -> "EvaluationReport":
         """Generate comprehensive evaluation report"""
+        layer1 = self._collect_layer1_metrics()
+        layer2 = self._collect_layer2_metrics()
+        security_metrics = self._collect_security_metrics()
 
-        # Collect security metrics if enabled
-        security_metrics = {}
-        if self.enable_security_metrics:
-            security_metrics = {
-                "layer1_security": {
-                    "input_security": self.input_sanitizer.get_security_stats() if self.input_sanitizer else {},
-                    "output_leakage": self.output_leakage_detector.get_leakage_stats() if self.output_leakage_detector else {},
-                    "authorization": self.tool_authorizer.get_compliance_stats() if self.tool_authorizer else {}
-                },
-                "layer2_security": {
-                    "privilege_escalation": self.privilege_escalation_detector.get_escalation_stats() if self.privilege_escalation_detector else {},
-                    "attack_detection": self.tool_chain_attack_detector.get_attack_stats() if self.tool_chain_attack_detector else {}
-                }
-            }
+        accuracy_metrics = layer1["accuracy"]
+        efficiency_metrics = {**layer1["efficiency"], **layer2}
 
         report = EvaluationReport(
             period="current_session",
             total_tasks=len(self.tcr_tracker.tasks),
-            accuracy_metrics={
-                "tcr": self.tcr_tracker.calculate_tcr(),
-                "accuracy_scores": self.accuracy_evaluator.get_accuracy_scores(),
-                "hallucination": self.hallucination_detector.get_hallucination_rate(),
-                "quality": self.quality_evaluator.get_quality_metrics()
-            },
-            efficiency_metrics={
-                "latency": self.latency_tracker.get_latency_stats(),
-                "tokens": self.token_tracker.get_usage_stats(),
-                "tool_efficiency": self.tool_analyzer.get_efficiency_stats(),
-                "retries": self.retry_tracker.get_retry_metrics()
-            },
+            accuracy_metrics=accuracy_metrics,
+            efficiency_metrics=efficiency_metrics,
             quality_metrics={},
-            security_metrics=security_metrics,  # Add security metrics
+            security_metrics=security_metrics,
             alerts=self._generate_alerts(),
             recommendations=self._generate_recommendations(),
             timestamp=datetime.now()
