@@ -423,6 +423,7 @@ def create_taskresult_from_execution(
     error_message: str = None,
     task_type: str = "qa",
     partial_reason: str = None,
+    context: Optional[str] = None,
 ):
     """
     Agent 실행 결과로부터 TaskResult 생성 (모든 필드 동적 계산)
@@ -438,6 +439,8 @@ def create_taskresult_from_execution(
         has_error: 에러 발생 여부
         error_message: 에러 메시지
         task_type: Task 유형 (기본: "qa")
+        context: RAG 시스템에서 검색된 컨텍스트 (할루시네이션 감지에 사용).
+            제공하면 HallucinationDetector가 응답의 사실 일관성을 검증한다.
 
     Returns:
         TaskResult: 동적 계산된 TaskResult 객체
@@ -538,6 +541,7 @@ def create_taskresult_from_execution(
         question=question,                # ✅ raw content — 대시보드 표시용
         response=response,               # ✅ raw content — 대시보드 표시용
         ground_truth=str(ground_truth) if ground_truth is not None else None,  # ✅ raw content
+        context=context,                  # ✅ RAG 컨텍스트 — 할루시네이션 감지용
     )
 
 

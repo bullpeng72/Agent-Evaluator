@@ -687,6 +687,7 @@ class PerformanceMonitor:
         task_id: Optional[str] = None,
         execution_time: float = 0.0,
         task_type: str = "qa",
+        context: Optional[str] = None,
     ) -> Dict[str, Any]:
         """단일 QA 태스크를 즉시 평가하고 결과를 반환한다.
 
@@ -723,6 +724,7 @@ class PerformanceMonitor:
             ground_truth=ground_truth,
             execution_time=execution_time,
             task_type=task_type,
+            context=context,
         )
         self.record_task(task)
         return {
@@ -796,14 +798,14 @@ class PerformanceMonitor:
             deprecated입니다. TaskResult 필드를 직접 설정하세요.
         """
         # Deprecation warnings for parameters that duplicate TaskResult fields
-        if request is not None and task_result.question is None:
+        if request is not None:
             warnings.warn(
                 "record_task(request=...) is deprecated. "
                 "Use TaskResult(question=...) instead.",
                 DeprecationWarning,
                 stacklevel=2,
             )
-        if ground_truth is not None and task_result.ground_truth is None:
+        if ground_truth is not None:
             warnings.warn(
                 "record_task(ground_truth=...) is deprecated. "
                 "Use TaskResult(ground_truth=...) instead.",
@@ -812,6 +814,7 @@ class PerformanceMonitor:
             )
 
         # Persist raw content onto TaskResult so it is included in asdict() → JSON
+        # 경고는 항상, 덮어쓰기는 None일 때만
         if request is not None and task_result.question is None:
             task_result.question = request
         if response is not None and task_result.response is None:
@@ -1127,12 +1130,14 @@ class PerformanceMonitor:
         accuracy_metrics = layer1["accuracy"]
         efficiency_metrics = {**layer1["efficiency"], **layer2}
 
+        quality_metrics = self.quality_evaluator.get_quality_metrics()
+
         report = EvaluationReport(
             period="current_session",
             total_tasks=len(self.tcr_tracker.tasks),
             accuracy_metrics=accuracy_metrics,
             efficiency_metrics=efficiency_metrics,
-            quality_metrics={},
+            quality_metrics=quality_metrics if quality_metrics else {},
             security_metrics=security_metrics,
             alerts=self._generate_alerts(),
             recommendations=self._generate_recommendations(),
@@ -2551,6 +2556,19 @@ class PerformanceMonitor:
             json.dump(data, f, indent=2, default=_json_serializer)
 
         logger.info("Performance data saved to %s", filename)
+
+        # HTML 보고서 자동 생성 (실패해도 JSON 저장은 완료된 것으로 처리)
+        try:
+            from ...reporting.comprehensive_report import generate_comprehensive_html_report
+            html_path = filename if filename.endswith(".html") else filename.rsplit(".json", 1)[0] + ".html"
+            if not html_path.endswith(".html"):
+                html_path = filename + ".html"
+            html_content = generate_comprehensive_html_report(self)
+            with open(html_path, "w", encoding="utf-8") as f:
+                f.write(html_content)
+            logger.info("HTML report saved to %s", html_path)
+        except Exception as e:
+            logger.warning("HTML report generation failed (JSON saved): %s", e)
 
         # Auto transparency: generate metric traces + audit logs
         if self.transparency_manager:

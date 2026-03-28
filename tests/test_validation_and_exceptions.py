@@ -246,8 +246,8 @@ class TestRecordTaskDeprecationWarning:
             assert len(dep_warnings) >= 1
             assert any("ground_truth" in str(x.message).lower() for x in dep_warnings)
 
-    def test_no_warning_when_question_already_set(self):
-        """task_result.question already populated → no DeprecationWarning."""
+    def test_warning_fires_even_when_question_already_set(self):
+        """task_result.question already populated → DeprecationWarning still fires (warn always, overwrite only when None)."""
         from agent_evaluator import PerformanceMonitor
 
         monitor = PerformanceMonitor(enable_hallucination_detection=False)
@@ -256,8 +256,8 @@ class TestRecordTaskDeprecationWarning:
             warnings.simplefilter("always")
             monitor.record_task(task, request="test question")
             dep_warnings = [x for x in w if issubclass(x.category, DeprecationWarning)]
-            # question was already set so no warning should fire for request
-            assert len(dep_warnings) == 0
+            # request= was passed so warning must always fire
+            assert len(dep_warnings) >= 1
 
 
 # ---------------------------------------------------------------------------
