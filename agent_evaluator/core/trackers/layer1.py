@@ -19,8 +19,22 @@ import numpy as np
 import pandas as pd
 
 from .base import TaskResult, TaskType
+from ...exceptions import ValidationError
 
 logger = logging.getLogger(__name__)
+
+# ---------------------------------------------------------------------------
+# Module-level threshold constants — change here if defaults need adjustment
+# ---------------------------------------------------------------------------
+_TCR_PARTIAL_THRESHOLD: float = 0.7      # completion_score: full vs partial boundary
+_TCR_EXCELLENT: float = 95.0             # benchmark level: Industry Leading
+_TCR_GOOD: float = 85.0                  # benchmark level: Good Performance
+_TCR_ACCEPTABLE: float = 70.0            # benchmark level: Acceptable
+
+_HALLUCINATION_OVERLAP_THRESHOLD: float = 0.3   # min fraction of words supported by context
+_HALLUCINATION_SENTENCE_MIN_WORDS: int = 5       # skip short sentences (noise reduction)
+
+_QUALITY_SCORE_MAX: float = 5.0          # all quality dimension scores scaled to [0, 5]
 
 
 # ============================================================================
@@ -60,8 +74,10 @@ class TaskCompletionTracker:
 
         # Count based on completion_score, not success flag
         full_success_count = sum(1 for t in tasks if t.completion_score >= 1.0)
-        partial_count = sum(1 for t in tasks if 0.7 <= t.completion_score < 1.0)
-        failure_count = sum(1 for t in tasks if t.completion_score < 0.7)
+        partial_count = sum(
+            1 for t in tasks if _TCR_PARTIAL_THRESHOLD <= t.completion_score < 1.0
+        )
+        failure_count = sum(1 for t in tasks if t.completion_score < _TCR_PARTIAL_THRESHOLD)
 
         return {
             "tcr": round(tcr, 2),
@@ -82,14 +98,17 @@ class TaskCompletionTracker:
 
     def get_benchmark_status(self, tcr: float) -> str:
         """Determine benchmark status"""
-        if tcr >= 95:
+        if tcr >= _TCR_EXCELLENT:
             return "Industry Leading"
-        elif tcr >= 85:
+        elif tcr >= _TCR_GOOD:
             return "Good Performance"
-        elif tcr >= 70:
+        elif tcr >= _TCR_ACCEPTABLE:
             return "Acceptable"
         else:
             return "Needs Improvement"
+
+    def __repr__(self) -> str:
+        return f"TaskCompletionTracker(tasks={len(self.tasks)})"
 
 
 # ============================================================================
@@ -364,6 +383,13 @@ class AccuracyEvaluator:
             "median_accuracy": round(statistics.median(scores) * 100, 2) if scores else 0.0,
         }
 
+    def __repr__(self) -> str:
+        avg = (
+            round(sum(e.get("accuracy", 0) for e in self.evaluations) / len(self.evaluations) * 100, 1)
+            if self.evaluations else 0.0
+        )
+        return f"AccuracyEvaluator(evaluations={len(self.evaluations)}, avg={avg}%)"
+
 
 # ============================================================================
 # 3. Hallucination Detector
@@ -439,8 +465,9 @@ class HallucinationDetector:
 
             overlap = len(sentence_words & context_words)
 
-            # If less than 30% overlap with context, flag as potential hallucination
-            if len(sentence_words) > 5 and overlap / len(sentence_words) < 0.3:
+            # If overlap ratio below threshold, flag as potential hallucination
+            if (len(sentence_words) > _HALLUCINATION_SENTENCE_MIN_WORDS
+                    and overlap / len(sentence_words) < _HALLUCINATION_OVERLAP_THRESHOLD):
                 hallucination_indicators.append({
                     "type": "unsupported_claim",
                     "sentence": sentence.strip(),
@@ -584,6 +611,16 @@ class HallucinationDetector:
             "avg_per_detection": round(total_indicators / len(self.detections), 2) if self.detections else 0.0
         }
 
+    def __repr__(self) -> str:
+        rate = (
+            round(
+                sum(len(d.get("indicators", [])) for d in self.detections)
+                / len(self.detections) * 100, 1
+            )
+            if self.detections else 0.0
+        )
+        return f"HallucinationDetector(detections={len(self.detections)}, rate={rate}%)"
+
 
 # ============================================================================
 # 4. Response Quality Evaluator
@@ -592,15 +629,41 @@ class HallucinationDetector:
 class ResponseQualityEvaluator:
     """Evaluate response quality across multiple dimensions"""
 
-    def __init__(self):
+    #: Default dimension weights (must sum to 1.0). Override via constructor.
+    DEFAULT_DIMENSIONS: Dict[str, float] = {
+        "relevance": 0.25,
+        "completeness": 0.25,
+        "accuracy": 0.20,
+        "clarity": 0.15,
+        "usefulness": 0.15,
+    }
+
+    def __init__(self, dimensions: Optional[Dict[str, float]] = None):
+        """
+        Args:
+            dimensions: Custom dimension weights dict. Must sum to 1.0 (±0.01 tolerance).
+                If None, uses ``DEFAULT_DIMENSIONS``.
+
+        Raises:
+            ValidationError: If provided weights do not sum to 1.0.
+
+        Example:
+            >>> evaluator = ResponseQualityEvaluator(
+            ...     dimensions={"relevance": 0.5, "completeness": 0.3,
+            ...                 "accuracy": 0.1, "clarity": 0.05, "usefulness": 0.05}
+            ... )
+        """
+        if dimensions is not None:
+            weight_sum = sum(dimensions.values())
+            if not (0.99 <= weight_sum <= 1.01):
+                raise ValidationError(
+                    f"Dimension weights must sum to 1.0, got {weight_sum:.4f}. "
+                    f"Weights: {dimensions}"
+                )
+            self.dimensions = dict(dimensions)
+        else:
+            self.dimensions = dict(self.DEFAULT_DIMENSIONS)
         self.evaluations: List[Dict[str, Any]] = []
-        self.dimensions = {
-            "relevance": 0.25,
-            "completeness": 0.25,
-            "accuracy": 0.20,
-            "clarity": 0.15,
-            "usefulness": 0.15
-        }
 
     def evaluate_response(self, task_id: str, response: str,
                          request: str, expected_elements: List[str],
@@ -629,7 +692,7 @@ class ResponseQualityEvaluator:
             relevance = 0.0
         else:
             relevance = len(request_words & response_words) / len(request_words)
-        scores["relevance"] = min(relevance * 5, 5.0)
+        scores["relevance"] = min(relevance * _QUALITY_SCORE_MAX, _QUALITY_SCORE_MAX)
 
         # Completeness (check for expected elements)
         found_elements = sum(1 for elem in expected_elements if elem.lower() in response.lower())
@@ -640,22 +703,22 @@ class ResponseQualityEvaluator:
         else:
             # No requirements means 100% complete
             completeness = 1.0
-        scores["completeness"] = completeness * 5
+        scores["completeness"] = completeness * _QUALITY_SCORE_MAX
 
         # Clarity (based on response length and structure)
         word_count = len(response.split())
         has_structure = '\n' in response or '.' in response
         clarity = min(word_count / 100, 1.0) * (1.2 if has_structure else 1.0)
-        scores["clarity"] = min(clarity * 5, 5.0)
+        scores["clarity"] = min(clarity * _QUALITY_SCORE_MAX, _QUALITY_SCORE_MAX)
 
         # Accuracy score (use ground truth if available)
         if ground_truth:
             # Calculate similarity with ground truth
             similarity = self._calculate_similarity(response, ground_truth)
-            scores["accuracy"] = similarity * 5  # Scale to 5-point
+            scores["accuracy"] = similarity * _QUALITY_SCORE_MAX
         else:
             # Heuristic: longer, more complete responses tend to be more accurate
-            scores["accuracy"] = min(completeness * 4.5, 5.0)
+            scores["accuracy"] = min(completeness * 4.5, _QUALITY_SCORE_MAX)
 
         # Usefulness score (heuristic based on response characteristics)
         # Good indicators: length, structure, specific examples
@@ -669,7 +732,7 @@ class ResponseQualityEvaluator:
             0.2 * (1.0 if has_examples else 0.5) +  # Has examples
             0.1 * (1.0 if has_numbers else 0.5)     # Has specific data
         )
-        scores["usefulness"] = usefulness * 5  # Scale to 5-point
+        scores["usefulness"] = usefulness * _QUALITY_SCORE_MAX
 
         # Calculate weighted total
         total_score = sum(
@@ -884,6 +947,15 @@ class ResponseQualityEvaluator:
 
         return distribution
 
+    def __repr__(self) -> str:
+        avg = (
+            round(
+                sum(e.get("total_score", 0) for e in self.evaluations) / len(self.evaluations), 2
+            )
+            if self.evaluations else 0.0
+        )
+        return f"ResponseQualityEvaluator(evaluations={len(self.evaluations)}, avg_score={avg})"
+
 
 # ============================================================================
 # 5. Latency Tracker
@@ -1021,6 +1093,13 @@ class LatencyTracker:
 
         return results
 
+    def __repr__(self) -> str:
+        mean = (
+            round(statistics.mean(l["total_time"] for l in self.latencies), 3)
+            if self.latencies else 0.0
+        )
+        return f"LatencyTracker(records={len(self.latencies)}, mean={mean}s)"
+
 
 # ============================================================================
 # 6. Token Economy Tracker
@@ -1033,7 +1112,15 @@ class TokenEconomyTracker:
         """
         Args:
             pricing: {"input": cost_per_1k_tokens, "output": cost_per_1k_tokens}
+
+        Raises:
+            ValidationError: If any price value is negative.
         """
+        for key, price in (pricing or {}).items():
+            if price < 0:
+                raise ValidationError(
+                    f"pricing['{key}'] = {price} is invalid: token prices must be >= 0"
+                )
         self.pricing = pricing
         self.usage_log: List[Dict[str, Any]] = []
 
@@ -1150,3 +1237,10 @@ class TokenEconomyTracker:
             }
 
         return breakdown
+
+    def __repr__(self) -> str:
+        total_cost = sum(r.get("cost", 0) for r in self.usage_log)
+        return (
+            f"TokenEconomyTracker(records={len(self.usage_log)}, "
+            f"total_cost=${total_cost:.4f})"
+        )

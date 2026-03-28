@@ -79,10 +79,10 @@ class EvaluationReport:
     accuracy_metrics: Dict[str, float]
     efficiency_metrics: Dict[str, Any]
     quality_metrics: Dict[str, float]
-    security_metrics: Dict[str, Any] = None  # Optional security metrics (Layer 1 & 2)
-    alerts: List[Dict[str, str]] = None
-    recommendations: List[Dict[str, str]] = None
-    timestamp: datetime = None
+    security_metrics: Optional[Dict[str, Any]] = None  # Optional security metrics (Layer 1 & 2)
+    alerts: Optional[List[Dict[str, str]]] = None
+    recommendations: Optional[List[Dict[str, str]]] = None
+    timestamp: Optional[datetime] = None
 
     def to_dict(self) -> Dict[str, Any]:
         """EvaluationReport를 dict로 변환한다.
@@ -148,7 +148,23 @@ class EvaluationReport:
 
 
 class TaskType(Enum):
-    """Task type enumeration"""
+    """Task type enumeration for agent evaluation metrics.
+
+    Use these values in ``TaskResult.task_type`` or ``create_taskresult()`` to
+    enable per-type accuracy breakdowns and benchmark comparisons.
+
+    Values:
+        QA: Question-answering / factual retrieval tasks.
+        DATA_ANALYSIS: Data processing, aggregation, or transformation.
+        CODE_GENERATION: Code synthesis, completion, or debugging.
+        DOCUMENT_CREATION: Long-form writing, summarisation, report generation.
+        INFORMATION_RETRIEVAL: Search, RAG, knowledge-base lookup.
+        REASONING: Multi-step reasoning, chain-of-thought, logic problems.
+        CREATIVE: Open-ended creative writing or ideation.
+        CODING: Alias for CODE_GENERATION (kept for backward compatibility).
+        PLANNING: Task decomposition, scheduling, or goal planning.
+        TOOL_USE: Tasks requiring external tool / API calls.
+    """
     QA = "qa"
     DATA_ANALYSIS = "data_analysis"
     CODE_GENERATION = "code_generation"

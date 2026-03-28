@@ -257,7 +257,7 @@ def _calculate_simple_similarity(text1: str, text2: str) -> float:
 # 3. Token 추출 및 추정
 # ============================================================================
 
-def extract_tokens_from_openai(openai_response) -> Dict[str, int]:
+def extract_tokens_from_openai(openai_response: Any) -> Dict[str, int]:
     """
     OpenAI API 응답에서 토큰 사용량 추출
 
@@ -283,7 +283,7 @@ def extract_tokens_from_openai(openai_response) -> Dict[str, int]:
         return {"input": 0, "output": 0, "total": 0}
 
 
-def extract_tokens_from_langchain(langchain_result) -> Dict[str, int]:
+def extract_tokens_from_langchain(langchain_result: Any) -> Dict[str, int]:
     """
     LangChain 실행 결과에서 토큰 사용량 추출
 

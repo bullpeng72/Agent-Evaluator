@@ -187,8 +187,8 @@ class Settings:
 
     # ------------------------------------------------------------------ #
     def __post_init__(self) -> None:
-        # 빈 문자열 → 기본값으로 교정
-        if not str(self.output_dir).strip():
+        # None 또는 빈 문자열 → 기본값으로 교정
+        if self.output_dir is None or not str(self.output_dir).strip():
             self.output_dir = Path(DEFAULTS["AGENT_EVALUATOR_OUTPUT_DIR"])
         self.output_dir = Path(self.output_dir)
 

@@ -218,6 +218,12 @@ class ConversationSession:
         self.turns.append(turn)
         return self
 
+    def __repr__(self) -> str:
+        return (
+            f"ConversationSession(session_id={self.session_id!r}, "
+            f"turns={len(self.turns)})"
+        )
+
     # alias for context-manager style: conv.turn(...)
     def turn(
         self,
