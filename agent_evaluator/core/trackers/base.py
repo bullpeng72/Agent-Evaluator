@@ -243,13 +243,9 @@ class _TaskContext:
             context=self.context,
         )
         try:
-            self._monitor.record_task(
-                task_result,
-                ground_truth=self.ground_truth,
-                context=self.context,
-                request=self._question,
-                response=self.response,
-            )
+            # All fields already set on task_result; pass without deprecated kwargs
+            # to avoid triggering DeprecationWarnings in user code.
+            self._monitor.record_task(task_result)
         except Exception as _e:
             warnings.warn(
                 f"record_task failed in task context {self._task_id}: {_e}",

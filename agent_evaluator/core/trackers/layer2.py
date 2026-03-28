@@ -206,7 +206,28 @@ class RetryCorrectionTracker:
         attempts_log: List[Dict[str, Any]],
         task_type: str = "unknown",
     ):
-        """Track retry attempts for a task"""
+        """태스크의 재시도 이력을 기록한다.
+
+        Args:
+            task_id: 태스크 고유 ID.
+            attempts_log: 각 시도를 나타내는 dict 목록. 각 dict는 다음 키를 포함할 수 있다:
+                - success (bool): 해당 시도 성공 여부
+                - retry_reason (str, 선택): 재시도 사유
+                - duration (float, 선택): 해당 시도 소요 시간(초)
+            task_type: 태스크 유형 (기본값: "unknown"). 유형별 집계에 사용.
+
+        Note:
+            빈 attempts_log는 무시된다.
+
+        Example:
+            >>> tracker.track_attempts(
+            ...     task_id="t1",
+            ...     attempts_log=[
+            ...         {"success": False, "retry_reason": "timeout", "duration": 1.2},
+            ...         {"success": True, "duration": 0.8},
+            ...     ],
+            ... )
+        """
         # DQ-135: 빈 attempts_log는 IndexError 발생 — 단일 성공 시도로 기록하고 조기 반환
         if not attempts_log:
             return
@@ -328,7 +349,33 @@ class ToolSelectionTracker:
         expected_tools: List[str],
         actual_tools: List[str]
     ) -> Dict[str, Any]:
-        """Evaluate if correct tools were selected"""
+        """에이전트가 올바른 도구를 선택했는지 평가한다 (Precision/Recall/F1 기반).
+
+        도구 이름은 시맨틱 별칭 정규화(`_normalize_tool_name`)를 거쳐 비교하므로
+        ``web_search``와 ``search_web`` 같은 동의어는 동일하게 처리된다.
+
+        Args:
+            task_id: 태스크 고유 ID.
+            expected_tools: 기대되는 도구 이름 목록.
+            actual_tools: 에이전트가 실제로 사용한 도구 이름 목록.
+
+        Returns:
+            Dict containing:
+                - task_id (str)
+                - expected_tools, actual_tools (List[str])
+                - true_positives, false_positives, false_negatives (int)
+                - precision, recall, f1_score (float, 0-100 scale)
+                - accuracy (float): f1_score와 동일 (전체 정확도 대표값)
+
+        Example:
+            >>> result = tracker.evaluate_selection(
+            ...     task_id="t1",
+            ...     expected_tools=["search", "calculator"],
+            ...     actual_tools=["web_search", "calculator"],
+            ... )
+            >>> result["f1_score"]  # search ↔ web_search 시맨틱 매칭으로 100.0 반환
+            100.0
+        """
         if not expected_tools:
             return {
                 "task_id": task_id,
@@ -402,7 +449,30 @@ class AgentCoordinationTracker:
         success: bool,
         context: Optional[Dict[str, Any]] = None
     ) -> Dict[str, Any]:
-        """Track agent-to-agent interaction"""
+        """에이전트 간 인터랙션(위임·통신·협업)을 기록한다.
+
+        Args:
+            task_id: 인터랙션이 발생한 태스크 ID.
+            from_agent: 인터랙션을 시작한 에이전트 이름. 빈 문자열은 ``"unknown_agent"``로 정규화.
+            to_agent: 인터랙션을 받은 에이전트 이름. 빈 문자열은 ``"unknown_agent"``로 정규화.
+            interaction_type: 인터랙션 종류. 허용값: ``"delegation"``, ``"communication"``,
+                ``"collaboration"``. 허용값 외 입력은 ``"delegation"``으로 정규화.
+            success: 인터랙션 성공 여부.
+            context: 추가 메타데이터 dict (선택).
+
+        Returns:
+            기록된 인터랙션 dict (task_id, from_agent, to_agent, interaction_type, success,
+            timestamp, context).
+
+        Example:
+            >>> tracker.track_interaction(
+            ...     task_id="t1",
+            ...     from_agent="orchestrator",
+            ...     to_agent="retriever",
+            ...     interaction_type="delegation",
+            ...     success=True,
+            ... )
+        """
         # DQ-166: 빈 에이전트 이름은 집계를 오염시킴 — placeholder로 대체
         from_agent = from_agent or "unknown_agent"
         to_agent = to_agent or "unknown_agent"
@@ -647,7 +717,31 @@ class WorkflowExecutionTracker:
         framework: str = "langchain",  # langchain or langgraph
         metadata: Optional[Dict[str, Any]] = None
     ) -> Dict[str, Any]:
-        """Track individual workflow step execution"""
+        """워크플로우의 개별 단계(체인 스텝·노드·엣지·분기) 실행을 기록한다.
+
+        Args:
+            task_id: 이 단계가 속한 태스크 ID.
+            step_name: 단계 이름 (예: ``"retrieval"``, ``"llm_call"``).
+            step_type: 단계 유형. 권장값: ``"chain_step"``, ``"node"``, ``"edge"``, ``"branch"``.
+            success: 단계 성공 여부.
+            execution_time: 단계 소요 시간(초).
+            framework: 프레임워크 식별자 (기본값: ``"langchain"``). ``"langgraph"``도 지원.
+            metadata: 추가 메타데이터 dict (선택).
+
+        Returns:
+            기록된 단계 dict (task_id, step_name, step_type, success, execution_time,
+            framework, timestamp, metadata).
+
+        Example:
+            >>> tracker.track_step(
+            ...     task_id="t1",
+            ...     step_name="retrieval",
+            ...     step_type="node",
+            ...     success=True,
+            ...     execution_time=0.45,
+            ...     framework="langgraph",
+            ... )
+        """
         step = {
             "task_id": task_id,
             "step_name": step_name,
@@ -667,7 +761,26 @@ class WorkflowExecutionTracker:
         task_id: Optional[str] = None,
         framework: Optional[str] = None
     ) -> Dict[str, Any]:
-        """Calculate workflow execution success rate"""
+        """워크플로우 단계별·태스크별 실행 성공률을 계산한다.
+
+        Args:
+            task_id: 특정 태스크만 집계할 경우 지정. ``None``이면 전체 집계.
+            framework: 특정 프레임워크만 집계할 경우 지정 (예: ``"langgraph"``).
+                ``None``이면 전체 집계.
+
+        Returns:
+            Dict containing:
+                - step_success_rate (float): 개별 단계 성공률 (0-100, %)
+                - total_steps (int)
+                - successful_steps, failed_steps (int)
+                - total_tasks (int): 고유 태스크 수
+                - fully_successful_tasks (int): 모든 단계가 성공한 태스크 수
+
+        Example:
+            >>> stats = tracker.calculate_execution_success_rate(framework="langgraph")
+            >>> stats["step_success_rate"]
+            95.0
+        """
         executions = self.executions
 
         if task_id:

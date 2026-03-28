@@ -300,7 +300,12 @@ class ConversationSession:
 
         if self._monitor is not None and self.metrics is not None:
             try:
-                self._monitor.conversation_sessions.append(self)
+                _lock = getattr(self._monitor, "_lock", None)
+                if _lock is not None:
+                    with _lock:
+                        self._monitor.conversation_sessions.append(self)
+                else:
+                    self._monitor.conversation_sessions.append(self)
             except AttributeError as e:
                 logger.warning("monitor.conversation_sessions 접근 실패: %s", e)
 

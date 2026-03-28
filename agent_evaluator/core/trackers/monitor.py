@@ -13,6 +13,7 @@ import logging
 import os
 import re
 import statistics
+import threading
 import warnings
 from collections import defaultdict
 from dataclasses import asdict
@@ -24,6 +25,7 @@ import numpy as np
 import pandas as pd
 
 from .base import TaskResult, EvaluationReport, TaskType, _TaskContext
+from ...exceptions import ValidationError, StorageError
 from .layer1 import (
     TaskCompletionTracker,
     AccuracyEvaluator,
@@ -218,6 +220,9 @@ class PerformanceMonitor:
         # Phase 1-C: 멀티턴 대화 세션 목록
         self.conversation_sessions: List[Any] = []
 
+        # Thread safety: golden_datasets/conversation_sessions 동시 접근 보호
+        self._lock = threading.Lock()
+
     def conversation(self, session_id: str) -> "ConversationSession":
         """멀티턴 대화 평가 세션 시작.
 
@@ -264,8 +269,11 @@ class PerformanceMonitor:
                 dataset_path = full_path
 
         if not os.path.exists(dataset_path):
-            logger.warning("Golden Dataset 파일을 찾을 수 없습니다: %s", dataset_path)
-            return []
+            abs_path = os.path.abspath(dataset_path)
+            raise StorageError(
+                f"Golden Dataset 파일을 찾을 수 없습니다: '{dataset_path}'\n"
+                f"절대 경로: {abs_path}"
+            )
 
         try:
             with open(dataset_path, encoding='utf-8') as f:
@@ -273,19 +281,25 @@ class PerformanceMonitor:
 
             # Handle both formats: direct array or object with qa_pairs key
             if isinstance(data, list):
-                self.golden_datasets = data
+                loaded = data
             elif isinstance(data, dict) and 'qa_pairs' in data:
-                self.golden_datasets = data['qa_pairs']
+                loaded = data['qa_pairs']
             else:
-                logger.warning("Unexpected Golden Dataset format")
-                self.golden_datasets = []
-                return []
+                raise StorageError(
+                    f"Golden Dataset 포맷이 올바르지 않습니다: '{dataset_path}'\n"
+                    "지원 포맷: JSON 배열 또는 {{\"qa_pairs\": [...]}}"
+                )
 
+            with self._lock:
+                self.golden_datasets = loaded
             logger.info("Golden Dataset 로드: %d개 항목", len(self.golden_datasets))
             return self.golden_datasets
-        except Exception as e:
-            logger.error("Golden Dataset 로드 실패: %s", e)
-            return []
+        except StorageError:
+            raise
+        except json.JSONDecodeError as e:
+            raise StorageError(f"Golden Dataset JSON 파싱 오류: {e}") from e
+        except OSError as e:
+            raise StorageError(f"Golden Dataset 파일 읽기 실패: {e}") from e
 
     def evaluate_with_golden_dataset(
         self,
@@ -333,10 +347,7 @@ class PerformanceMonitor:
         """
         # Golden Dataset 로드
         if not self.golden_datasets or dataset_path:
-            self.load_golden_dataset(dataset_path)
-
-        if not self.golden_datasets:
-            return {"error": "Golden Dataset을 로드할 수 없습니다"}
+            self.load_golden_dataset(dataset_path)  # raises StorageError on failure
 
         total = len(self.golden_datasets)
         if verbose:
@@ -762,6 +773,20 @@ class PerformanceMonitor:
             ... ])
             >>> avg = sum(r["accuracy_score"] for r in results) / len(results)
         """
+        # 필수 키 사전 검증
+        required_keys = {"question", "response", "ground_truth"}
+        invalid = [
+            (i, required_keys - set(item.keys()))
+            for i, item in enumerate(items)
+            if not required_keys.issubset(item.keys())
+        ]
+        if invalid:
+            detail = "; ".join(f"item[{i}] missing={missing}" for i, missing in invalid)
+            raise ValidationError(
+                f"evaluate_batch() items에 필수 키가 없습니다: {detail}\n"
+                "필수 키: question, response, ground_truth"
+            )
+
         results = []
         for i, item in enumerate(items):
             _task_id = item.get("task_id", f"{task_id_prefix}_{i:04d}")
@@ -937,9 +962,9 @@ class PerformanceMonitor:
                     ground_truth=ground_truth_str,
                     request=_eff_request_hall
                 )
-            except Exception as e:
+            except Exception:
                 # Silent fail - don't break the entire evaluation
-                warnings.warn(f"Hallucination detection failed for {task_result.task_id}: {e}")
+                logger.debug("Hallucination detection failed for %s", task_result.task_id, exc_info=True)
 
         # Auto-trigger: Quality Evaluation (response + request 있을 때 자동 평가)
         _eff_request = request or task_result.question
@@ -967,11 +992,9 @@ class PerformanceMonitor:
                         expected_elements=_ee,
                         ground_truth=_gt_str,
                     )
-                except Exception as _qe:
-                    warnings.warn(
-                        f"Auto quality evaluation failed for {task_result.task_id}: {_qe}",
-                        RuntimeWarning,
-                        stacklevel=2,
+                except Exception:
+                    logger.debug(
+                        "Auto quality evaluation failed for %s", task_result.task_id, exc_info=True
                     )
 
         # Auto-trigger: Accuracy Evaluation (response + ground_truth 있고, accuracy_score==0일 때)
@@ -987,11 +1010,9 @@ class PerformanceMonitor:
                         prediction=_eff_response,
                         task_type=task_result.task_type,
                     )
-                except Exception as _ae:
-                    warnings.warn(
-                        f"Auto accuracy evaluation failed for {task_result.task_id}: {_ae}",
-                        RuntimeWarning,
-                        stacklevel=2,
+                except Exception:
+                    logger.debug(
+                        "Auto accuracy evaluation failed for %s", task_result.task_id, exc_info=True
                     )
 
         # Auto-trigger: LLM Judge (opt-in, Phase 1-A)
@@ -1007,12 +1028,8 @@ class PerformanceMonitor:
                 # serialised into the JSON output without needing schema changes.
                 if not judge_result.get("skipped") and judge_result.get("scores"):
                     task_result.llm_judge = judge_result
-            except Exception as _je:
-                warnings.warn(
-                    f"LLM Judge failed for {task_result.task_id}: {_je}",
-                    RuntimeWarning,
-                    stacklevel=2,
-                )
+            except Exception:
+                logger.debug("LLM Judge failed for %s", task_result.task_id, exc_info=True)
 
     def record_rag_metrics(
         self,
