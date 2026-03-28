@@ -239,7 +239,7 @@ class _TaskContext:
             self.success = self.response is not None and bool(str(self.response).strip())
 
         completion = 1.0 if self.success else 0.0
-        tokens = self.tokens_used or {"input": 0, "output": 0, "total": 0}
+        tokens = self.tokens_used or {"input": 0, "output": 0, "total": 0, "model": "unknown"}
 
         task_result = TaskResult(
             task_id=self._task_id,

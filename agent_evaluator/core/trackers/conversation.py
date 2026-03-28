@@ -13,6 +13,7 @@ agent_evaluator.core.trackers.conversation
 from __future__ import annotations
 
 import logging
+import math
 import re
 from collections import Counter
 from dataclasses import dataclass, field
@@ -135,6 +136,7 @@ class ConversationMetrics:
     session_completion: float
     avg_turn_latency: Optional[float]
     overall_score: float
+    score_stddev: float  # std-dev of the 4 component scores — variance indicator
     computed_at: str  # ISO-8601 datetime string
 
     def to_dict(self) -> Dict[str, Any]:
@@ -148,6 +150,7 @@ class ConversationMetrics:
             "session_completion": self.session_completion,
             "avg_turn_latency": self.avg_turn_latency,
             "overall_score": self.overall_score,
+            "score_stddev": self.score_stddev,
             "computed_at": self.computed_at,
         }
 
@@ -255,9 +258,11 @@ class ConversationSession:
         avg_turn_latency = self._compute_avg_turn_latency()
 
         # overall_score: 4개 지표의 단순 평균
-        overall_score = (
-            context_retention + topic_coherence + progressive_depth + session_completion
-        ) / 4.0
+        component_scores = [context_retention, topic_coherence, progressive_depth, session_completion]
+        overall_score = sum(component_scores) / 4.0
+        # score_stddev: 4개 지표 간 분산을 나타내는 표준편차 (0에 가까울수록 균형 잡힌 성능)
+        mean_sq_diff = sum((s - overall_score) ** 2 for s in component_scores) / 4.0
+        score_stddev = math.sqrt(mean_sq_diff)
 
         self.metrics = ConversationMetrics(
             session_id=self.session_id,
@@ -268,6 +273,7 @@ class ConversationSession:
             session_completion=round(session_completion, 6),
             avg_turn_latency=avg_turn_latency,
             overall_score=round(overall_score, 6),
+            score_stddev=round(score_stddev, 6),
             computed_at=datetime.utcnow().isoformat(),
         )
         return self.metrics

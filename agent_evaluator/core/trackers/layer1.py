@@ -66,6 +66,30 @@ _RE_CODE_WHITESPACE = re.compile(r'\s+')
 _RE_NUMBER = re.compile(r'\d+\.?\d*')
 
 
+def _assign_grade(score: float) -> str:
+    """Convert a 0–5 quality score to a letter grade.
+
+    Used by :class:`ResponseQualityEvaluator` for both individual evaluations
+    and the aggregate ``avg_grade`` in :meth:`get_quality_metrics`.
+
+    Args:
+        score: Numeric quality score in the range [0, 5].
+
+    Returns:
+        Letter grade string: ``"A"`` (≥4.5), ``"B"`` (≥4.0), ``"C"`` (≥3.5),
+        ``"D"`` (≥3.0), or ``"F"`` (<3.0).
+    """
+    if score >= 4.5:
+        return "A"
+    elif score >= 4.0:
+        return "B"
+    elif score >= 3.5:
+        return "C"
+    elif score >= 3.0:
+        return "D"
+    return "F"
+
+
 # ============================================================================
 # 1. Task Completion Rate Tracker
 # ============================================================================
@@ -798,17 +822,8 @@ class ResponseQualityEvaluator:
         return evaluation
 
     def _assign_grade(self, score: float) -> str:
-        """Assign letter grade"""
-        if score >= 4.5:
-            return "A"
-        elif score >= 4.0:
-            return "B"
-        elif score >= 3.5:
-            return "C"
-        elif score >= 3.0:
-            return "D"
-        else:
-            return "F"
+        """Assign letter grade.  Delegates to module-level :func:`_assign_grade`."""
+        return _assign_grade(score)
 
     def _calculate_similarity(self, response: str, ground_truth: str) -> float:
         """

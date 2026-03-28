@@ -329,6 +329,16 @@ class PerformanceMonitor:
         """
         Golden Dataset 기반 자동 평가 파이프라인
 
+        **API 선택 가이드**
+
+        * ``evaluate_with_golden_dataset()`` — JSON 파일에 저장된 Golden Dataset을
+          기반으로 에이전트 함수를 라이브 실행하고 Layer 1/2 지표를 자동 수집할 때 사용.
+          ``agent_fn`` 이 있는 경우에 적합.
+        * ``evaluate_batch()`` — 이미 수집된 (질문, 응답, 정답) 삼중쌍을 오프라인으로
+          평가할 때 사용. 에이전트를 직접 실행하지 않음.
+        * ``record_task()`` — 자체 에이전트 하네스에서 이미 :class:`TaskResult` 를
+          생성한 경우 직접 호출.
+
         Args:
             agent_fn: 평가할 에이전트 함수 (question을 입력받아 결과 반환).
                       반환값: ``str`` 또는 ``Dict`` with optional keys:
@@ -800,6 +810,15 @@ class PerformanceMonitor:
     ) -> List[Dict[str, Any]]:
         """여러 QA 태스크를 일괄 평가하고 결과 목록을 반환한다.
 
+        **API 선택 가이드**
+
+        * ``evaluate_batch()`` — 이미 수집된 (질문, 응답, 정답) 삼중쌍을 오프라인으로
+          평가할 때 사용. 에이전트를 직접 실행하지 않음.
+        * ``evaluate_with_golden_dataset()`` — JSON 파일에 저장된 Golden Dataset을
+          기반으로 에이전트 함수를 라이브 실행하고 Layer 1/2 지표를 자동 수집할 때 사용.
+        * ``record_task()`` — 자체 에이전트 하네스에서 이미 :class:`TaskResult` 를
+          생성한 경우 직접 호출.
+
         Args:
             items: 평가할 항목 목록. 각 항목은 다음 키를 포함:
                 - question (str): 질문
@@ -865,6 +884,18 @@ class PerformanceMonitor:
             response: Agent's response/output for hallucination detection
             expected_elements: Expected elements in response
 
+        Returns:
+            None.  All metrics are accumulated in-place on the monitor's
+            internal trackers.  Call ``generate_report()`` or
+            ``save_to_file()`` after recording all tasks to retrieve
+            aggregated results.
+
+            Prefer ``evaluate_batch()`` for a list of offline QA pairs, or
+            ``evaluate_with_golden_dataset()`` when running a live agent
+            against a pre-built JSON dataset.  Use ``record_task()`` directly
+            when you already have a :class:`TaskResult` (e.g. from your own
+            agent harness).
+
         .. deprecated::
             ``request``, ``response``, ``ground_truth``, ``context`` 파라미터는
             deprecated입니다. TaskResult 필드를 직접 설정하세요.
@@ -893,14 +924,15 @@ class PerformanceMonitor:
             )
 
         # Persist raw content onto TaskResult so it is included in asdict() → JSON.
-        # Rule: deprecated param wins only when the TaskResult field is None
-        # (explicit TaskResult value always takes priority).
-        # str() normalisation is applied consistently to all three fields.
-        if request is not None and task_result.question is None:
+        # Rule: deprecated param wins only when the TaskResult field is None or "".
+        # An empty-string field is treated the same as "not set" so that callers
+        # who pass TaskResult() without a question/response still benefit from the
+        # deprecated params.  str() normalisation is applied consistently.
+        if request is not None and not task_result.question:
             task_result.question = str(request) if not isinstance(request, str) else request
-        if response is not None and task_result.response is None:
+        if response is not None and not task_result.response:
             task_result.response = str(response) if not isinstance(response, str) else response
-        if ground_truth is not None and task_result.ground_truth is None:
+        if ground_truth is not None and not task_result.ground_truth:
             task_result.ground_truth = str(ground_truth) if not isinstance(ground_truth, str) else ground_truth
 
         # Task completion
@@ -1023,8 +1055,8 @@ class PerformanceMonitor:
                     "Hallucination detection failed for %s: %s",
                     task_result.task_id, _hall_exc, exc_info=True,
                 )
-            except Exception:
-                logger.debug("Hallucination detection unexpected error for %s", task_result.task_id, exc_info=True)
+            except Exception as _hall_exc:
+                logger.debug("Hallucination detection unexpected error for %s: %s", task_result.task_id, _hall_exc, exc_info=True)
 
         # Auto-trigger: Quality Evaluation (response + request 있을 때 자동 평가)
         _eff_request = request or task_result.question
@@ -1057,8 +1089,8 @@ class PerformanceMonitor:
                         "Auto quality evaluation failed for %s: %s",
                         task_result.task_id, _q_exc, exc_info=True,
                     )
-                except Exception:
-                    logger.debug("Auto quality evaluation unexpected error for %s", task_result.task_id, exc_info=True)
+                except Exception as _q_exc:
+                    logger.debug("Auto quality evaluation unexpected error for %s: %s", task_result.task_id, _q_exc, exc_info=True)
 
         # Auto-trigger: Accuracy Evaluation (response + ground_truth 있고, accuracy_score==0일 때)
         _eff_gt = ground_truth if ground_truth is not None else task_result.ground_truth
@@ -1078,8 +1110,8 @@ class PerformanceMonitor:
                         "Auto accuracy evaluation failed for %s: %s",
                         task_result.task_id, _acc_exc, exc_info=True,
                     )
-                except Exception:
-                    logger.debug("Auto accuracy evaluation unexpected error for %s", task_result.task_id, exc_info=True)
+                except Exception as _acc_exc:
+                    logger.debug("Auto accuracy evaluation unexpected error for %s: %s", task_result.task_id, _acc_exc, exc_info=True)
 
         # Auto-trigger: LLM Judge (opt-in, Phase 1-A)
         if self.enable_llm_judge and self.llm_judge and _eff_request and _eff_response:
@@ -1098,8 +1130,8 @@ class PerformanceMonitor:
                 logger.warning(
                     "LLM Judge failed for %s: %s", task_result.task_id, _judge_exc, exc_info=True
                 )
-            except Exception:
-                logger.debug("LLM Judge unexpected error for %s", task_result.task_id, exc_info=True)
+            except Exception as _judge_exc:
+                logger.debug("LLM Judge unexpected error for %s: %s", task_result.task_id, _judge_exc, exc_info=True)
 
     def record_rag_metrics(
         self,
@@ -1197,13 +1229,23 @@ class PerformanceMonitor:
         if not self.enable_security_metrics:
             return {}
         # When enable_security_metrics=True the __init__ block always initialises
-        # all five security trackers — None-checks here are redundant.  Use
-        # assertions to make the invariant explicit and help type-checkers.
-        assert self.input_sanitizer is not None
-        assert self.output_leakage_detector is not None
-        assert self.tool_authorizer is not None
-        assert self.privilege_escalation_detector is not None
-        assert self.tool_chain_attack_detector is not None
+        # all five security trackers.  Guard against accidental None to give a
+        # clear RuntimeError rather than an AttributeError deep inside a tracker.
+        missing = [
+            name for name, obj in (
+                ("input_sanitizer", self.input_sanitizer),
+                ("output_leakage_detector", self.output_leakage_detector),
+                ("tool_authorizer", self.tool_authorizer),
+                ("privilege_escalation_detector", self.privilege_escalation_detector),
+                ("tool_chain_attack_detector", self.tool_chain_attack_detector),
+            )
+            if obj is None
+        ]
+        if missing:
+            raise RuntimeError(
+                f"enable_security_metrics=True but trackers not initialised: {missing}. "
+                "This is an internal SDK bug — please report it."
+            )
         return {
             "layer1_security": {
                 "input_security": self.input_sanitizer.get_security_stats(),
@@ -1255,23 +1297,24 @@ class PerformanceMonitor:
             'cost_per_task': 0.05,
         }
 
-        # Check TCR
+        # Check TCR — skip when no tasks have been recorded yet
         tcr_data = self.tcr_tracker.calculate_tcr()
-        tcr_threshold = thresholds.get('tcr', 80.0)
-        if tcr_data.get("tcr", 0) < tcr_threshold:
-            alerts.append({
-                "severity": "high",
-                "metric": "작업 완료율 (TCR)",
-                "message": f"TCR이 {tcr_data.get('tcr', 0):.1f}%입니다 ({tcr_threshold:.1f}% 기준 미달)",
-                "action": "프롬프트와 도구 설정을 검토하세요"
-            })
-        elif tcr_data.get("tcr", 0) < 90:
-            alerts.append({
-                "severity": "medium",
-                "metric": "작업 완료율 (TCR)",
-                "message": f"TCR이 {tcr_data.get('tcr', 0):.1f}%입니다 (90% 기준 미달)",
-                "action": "작업 완료율 개선을 고려하세요"
-            })
+        if tcr_data.get("total_tasks", 0) > 0:
+            tcr_threshold = thresholds.get('tcr', 80.0)
+            if tcr_data.get("tcr", 0) < tcr_threshold:
+                alerts.append({
+                    "severity": "high",
+                    "metric": "작업 완료율 (TCR)",
+                    "message": f"TCR이 {tcr_data.get('tcr', 0):.1f}%입니다 ({tcr_threshold:.1f}% 기준 미달)",
+                    "action": "프롬프트와 도구 설정을 검토하세요"
+                })
+            elif tcr_data.get("tcr", 0) < 90:
+                alerts.append({
+                    "severity": "medium",
+                    "metric": "작업 완료율 (TCR)",
+                    "message": f"TCR이 {tcr_data.get('tcr', 0):.1f}%입니다 (90% 기준 미달)",
+                    "action": "작업 완료율 개선을 고려하세요"
+                })
 
         # Check accuracy
         accuracy_data = self.accuracy_evaluator.get_accuracy_scores()
@@ -2640,7 +2683,7 @@ class PerformanceMonitor:
             from datetime import datetime as _dt
             from enum import Enum
             if isinstance(obj, float) and (math.isnan(obj) or math.isinf(obj)):
-                return None  # NaN / ±Infinity → null (valid JSON)
+                return 0.0  # NaN / ±Infinity → 0.0 (dashboard-safe numeric sentinel)
             if isinstance(obj, _dt):
                 return obj.isoformat()
             if isinstance(obj, Enum):
