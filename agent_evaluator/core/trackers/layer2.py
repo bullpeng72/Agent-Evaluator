@@ -34,6 +34,9 @@ class ToolCallAnalyzer:
     def __init__(self):
         self.executions: List[Dict[str, Any]] = []
 
+    def __repr__(self) -> str:
+        return f"ToolCallAnalyzer(executions={len(self.executions)})"
+
     def analyze_execution(self, task_id: str, tool_calls: List[Dict[str, Any]]) -> Dict[str, Any]:
         """Analyze tool calls for a task"""
         if not tool_calls:
@@ -205,6 +208,9 @@ class RetryCorrectionTracker:
     def __init__(self):
         self.attempts: List[Dict[str, Any]] = []
 
+    def __repr__(self) -> str:
+        return f"RetryCorrectionTracker(attempts={len(self.attempts)})"
+
     def track_attempts(
         self,
         task_id: str,
@@ -251,7 +257,19 @@ class RetryCorrectionTracker:
     def get_retry_metrics(self) -> Dict[str, Any]:
         """Get retry statistics"""
         if not self.attempts:
-            return {}
+            return {
+                "total_tasks_with_retries": 0,
+                "retry_rate": 0.0,
+                "first_attempt_success_rate": 0.0,
+                "eventual_success_rate": 0.0,
+                "retry_success_count": 0,
+                "correction_success_rate": 0.0,
+                "avg_attempts_per_task": 0.0,
+                "total_retry_time": 0.0,
+                "avg_retry_time": 0.0,
+                "overall_retry_rate": 0.0,
+                "avg_retries_per_task": 0.0,
+            }
 
         df = pd.DataFrame(self.attempts)
 
@@ -348,6 +366,9 @@ class ToolSelectionTracker:
     def __init__(self):
         self.selections: List[Dict[str, Any]] = []
 
+    def __repr__(self) -> str:
+        return f"ToolSelectionTracker(selections={len(self.selections)})"
+
     def evaluate_selection(
         self,
         task_id: str,
@@ -419,7 +440,16 @@ class ToolSelectionTracker:
     def get_accuracy_stats(self) -> Dict[str, Any]:
         """Get tool selection accuracy statistics"""
         if not self.selections:
-            return {}
+            return {
+                "total_evaluations": 0,
+                "avg_accuracy": 0.0,
+                "avg_precision": 0.0,
+                "avg_recall": 0.0,
+                "avg_f1_score": 0.0,
+                "total_true_positives": 0,
+                "total_false_positives": 0,
+                "total_false_negatives": 0,
+            }
 
         df = pd.DataFrame(self.selections)
 
@@ -444,6 +474,9 @@ class AgentCoordinationTracker:
 
     def __init__(self):
         self.interactions: List[Dict[str, Any]] = []
+
+    def __repr__(self) -> str:
+        return f"AgentCoordinationTracker(interactions={len(self.interactions)})"
 
     def track_interaction(
         self,
@@ -505,7 +538,13 @@ class AgentCoordinationTracker:
             interactions = [i for i in interactions if i["task_id"] == task_id]
 
         if not interactions:
-            return {"score": 0, "total_interactions": 0}
+            return {
+                "score": 0.0,
+                "success_rate": 0.0,
+                "total_interactions": 0,
+                "unique_agents": 0,
+                "interaction_types": {},
+            }
 
         # Success rate
         success_rate = sum(1 for i in interactions if i["success"]) / len(interactions) * 100
@@ -712,6 +751,9 @@ class WorkflowExecutionTracker:
     def __init__(self):
         self.executions: List[Dict[str, Any]] = []
 
+    def __repr__(self) -> str:
+        return f"WorkflowExecutionTracker(steps={len(self.executions)})"
+
     def track_step(
         self,
         task_id: str,
@@ -794,7 +836,16 @@ class WorkflowExecutionTracker:
             executions = [e for e in executions if e["framework"] == framework]
 
         if not executions:
-            return {"success_rate": 0, "total_steps": 0}
+            return {
+                "step_success_rate": 0.0,
+                "total_steps": 0,
+                "successful_steps": 0,
+                "failed_steps": 0,
+                "total_tasks": 0,
+                "fully_successful_tasks": 0,
+                "task_success_rate": 0.0,
+                "avg_steps_per_task": 0.0,
+            }
 
         success_count = sum(1 for e in executions if e["success"])
         success_rate = (success_count / len(executions)) * 100

@@ -53,6 +53,11 @@ from .security import (
 
 logger = logging.getLogger(__name__)
 
+# ResponseQualityEvaluator의 total_score는 0-5 척도.
+# compare_with_thresholds()에서 사용자 친화적인 0-10 척도로 변환할 때 이 인수를 곱한다.
+_QUALITY_SCORE_TO_10_SCALE: float = 2.0
+
+
 class PerformanceMonitor:
     """Main performance monitoring and reporting system"""
 
@@ -482,11 +487,18 @@ class PerformanceMonitor:
             - ``name`` (str): 메트릭 표시 이름 (예: "작업 완료율 (TCR)")
             - ``value`` (float): 현재 측정값
             - ``threshold`` (float): 목표 임계값
-            - ``status`` (str): ``"pass"`` 또는 ``"fail"``
+            - ``status`` (str): ``"pass"`` / ``"fail"`` / ``"pending"``.
+              ``"pending"``은 RAG 지표(faithfulness 등)에서 아직 측정값이 없을 때 반환된다.
             - ``direction`` (str): ``"higher"`` (높을수록 좋음) 또는 ``"lower"`` (낮을수록 좋음)
             - ``unit`` (str): 표시 단위 (예: ``"%"``, ``"s"``, ``"$"``)
+            - ``layer`` (str, 선택): Layer 2 에이전틱 지표에만 존재. 항상 ``"Layer 2"``.
 
             임계값이 설정되지 않은 경우 빈 dict ``{}`` 반환.
+
+            Note:
+                ``quality`` 임계값은 0-10 척도로 설정한다.
+                내부적으로 ResponseQualityEvaluator의 0-5 점수에 ``_QUALITY_SCORE_TO_10_SCALE``
+                (= 2.0)를 곱해 변환한다.
 
         Example:
             >>> monitor.thresholds = {"tcr": 80.0, "hallucination_rate": 10.0}
@@ -538,7 +550,7 @@ class PerformanceMonitor:
         # Quality
         quality_data = self.quality_evaluator.get_quality_metrics()
         if quality_data and 'quality' in self.thresholds:
-            avg_quality = quality_data.get('avg_total_score', 0) * 2  # Convert to 10-point scale
+            avg_quality = quality_data.get('avg_total_score', 0) * _QUALITY_SCORE_TO_10_SCALE
             comparison['quality'] = {
                 'name': '응답 품질 (Quality)',
                 'value': avg_quality,
@@ -2575,8 +2587,11 @@ class PerformanceMonitor:
 
         def _json_serializer(obj: Any) -> Any:
             """Custom JSON serializer for non-standard types."""
+            import math
             from datetime import datetime as _dt
             from enum import Enum
+            if isinstance(obj, float) and (math.isnan(obj) or math.isinf(obj)):
+                return None  # NaN / ±Infinity → null (valid JSON)
             if isinstance(obj, _dt):
                 return obj.isoformat()
             if isinstance(obj, Enum):
@@ -3034,23 +3049,23 @@ class PerformanceMonitor:
                 security_data = evaluators["security"]
 
                 # Input Sanitizer
-                if "input_sanitizer" in security_data:
+                if "input_sanitizer" in security_data and monitor.input_sanitizer is not None:
                     monitor.input_sanitizer.evaluations = security_data["input_sanitizer"].get("evaluations", [])
 
                 # Output Leakage Detector
-                if "output_leakage_detector" in security_data:
+                if "output_leakage_detector" in security_data and monitor.output_leakage_detector is not None:
                     monitor.output_leakage_detector.detections = security_data["output_leakage_detector"].get("detections", [])
 
                 # Tool Authorizer
-                if "tool_authorizer" in security_data:
+                if "tool_authorizer" in security_data and monitor.tool_authorizer is not None:
                     monitor.tool_authorizer.tool_calls = security_data["tool_authorizer"].get("tool_calls", [])
 
                 # Privilege Escalation Detector
-                if "privilege_escalation_detector" in security_data:
+                if "privilege_escalation_detector" in security_data and monitor.privilege_escalation_detector is not None:
                     monitor.privilege_escalation_detector.escalation_events = security_data["privilege_escalation_detector"].get("escalation_events", [])
 
                 # Tool Chain Attack Detector
-                if "tool_chain_attack_detector" in security_data:
+                if "tool_chain_attack_detector" in security_data and monitor.tool_chain_attack_detector is not None:
                     monitor.tool_chain_attack_detector.detections = security_data["tool_chain_attack_detector"].get("detections", [])
 
             logger.debug(

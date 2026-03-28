@@ -146,9 +146,12 @@ def test_get_accuracy_stats_aggregation(tracker):
     assert stats["avg_f1_score"] == 100.0
 
 
-def test_get_accuracy_stats_empty_returns_empty_dict():
+def test_get_accuracy_stats_empty_returns_structured_zeros():
     t = ToolSelectionTracker()
-    assert t.get_accuracy_stats() == {}
+    stats = t.get_accuracy_stats()
+    assert stats["total_evaluations"] == 0
+    assert stats["avg_accuracy"] == 0.0
+    assert stats["avg_f1_score"] == 0.0
 
 
 # ---------------------------------------------------------------------------

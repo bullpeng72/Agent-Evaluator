@@ -77,6 +77,9 @@ def evaluation_session(
                 "evaluation_session: FAILED to save results to '%s': %s",
                 output_filename, save_error,
             )
+            if exception_occurred is None:
+                # Only save failed — surface that error to the caller
+                raise save_error
 
         # Now raise the original exception if it occurred
         if exception_occurred:
@@ -150,6 +153,8 @@ def hybrid_evaluation_session(
                 "hybrid_evaluation_session: FAILED to save results to '%s': %s",
                 output_filename, save_error,
             )
+            if exception_occurred is None:
+                raise save_error
 
         if exception_occurred:
             raise exception_occurred
@@ -204,5 +209,7 @@ async def async_evaluation_session(
                 "async_evaluation_session: failed to save '%s': %s",
                 output_filename, save_exc,
             )
+            if exception_occurred is None:
+                raise save_exc
         if exception_occurred is not None:
             raise exception_occurred
