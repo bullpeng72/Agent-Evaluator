@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import json
 import re
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union
 
 import pandas as pd
 
@@ -38,16 +38,19 @@ RETRY_ERROR_CATEGORY_MAP: Dict[str, str] = {
 }
 
 
-def categorize_retry_error(error_str: str) -> str:
+def categorize_retry_error(error_str: Optional[str]) -> str:
     """에러 문자열에서 재시도 원인 카테고리를 자동 분류합니다.
 
     Args:
-        error_str: 에러 타입명 또는 메시지 문자열
+        error_str: 에러 타입명 또는 메시지 문자열.  ``None`` 또는 빈 문자열이면
+            ``"unknown"`` 을 반환합니다.
 
     Returns:
         카테고리 문자열 (rate_limit|timeout|tool_failure|parsing_error|
         validation|network|auth|context_limit|invalid_request|unknown)
     """
+    if not error_str:
+        return "unknown"
     for err_type, category in RETRY_ERROR_CATEGORY_MAP.items():
         if err_type.lower() in error_str.lower():
             return category
@@ -149,9 +152,13 @@ class InputSanitizationTracker(SecurityTrackerMixin):
                 - has_path_traversal (bool)
                 - has_xss (bool)
                 - has_prompt_injection (bool)
-                - risk_level (str): ``"critical"`` | ``"high"`` | ``"medium"`` | ``"low"``
+                - risk_level (str): threat severity —
+                  ``"critical"`` (threat_count ≥ 3) |
+                  ``"high"`` (threat_count == 2) |
+                  ``"medium"`` (threat_count == 1) |
+                  ``"low"`` (threat_count == 0)
                 - sanitization_needed (bool): True if any threat was detected
-                - threat_count (int): number of distinct threat types found
+                - threat_count (int): number of distinct threat types found (0-5)
         """
         result = {
             "task_id": task_id,
@@ -410,10 +417,17 @@ class ToolAuthorizationTracker:
     and detects dangerous parameters.
     """
 
-    def __init__(self, allowed_tools: Optional[List[str]] = None,
-                 restricted_tools: Optional[List[str]] = None):
-        self.allowed_tools = set(allowed_tools) if allowed_tools else None
-        self.restricted_tools = set(restricted_tools) if restricted_tools else set()
+    def __init__(
+        self,
+        allowed_tools: Optional[List[str]] = None,
+        restricted_tools: Optional[List[str]] = None,
+    ) -> None:
+        # Both attributes are always sets for type consistency.
+        # An empty allowed_tools set means "no whitelist applied" (checked via
+        # the sentinel: len == 0 → skip whitelist check).
+        # Pass allowed_tools=[] to explicitly block all tools.
+        self.allowed_tools: Optional[set] = set(allowed_tools) if allowed_tools is not None else None
+        self.restricted_tools: set = set(restricted_tools) if restricted_tools else set()
         self.tool_calls: List[Dict[str, Any]] = []
 
         # Dangerous parameter patterns (pre-compiled for performance)
@@ -425,9 +439,43 @@ class ToolAuthorizationTracker:
             ]
         ]
 
-    def track_tool_call(self, task_id: str, tool_name: str,
-                       parameters: Optional[Dict] = None) -> Dict[str, Any]:
-        """Track and evaluate tool call authorization"""
+    def track_tool_call(
+        self,
+        task_id: str,
+        tool_name: str,
+        parameters: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        """Track and evaluate tool call authorization.
+
+        Checks *tool_name* against the whitelist (``allowed_tools``) and
+        blacklist (``restricted_tools``) configured at init time, then scans
+        *parameters* for dangerous shell/SQL patterns.
+
+        Args:
+            task_id: Unique task identifier.
+            tool_name: Name of the tool being invoked.
+            parameters: Optional dict of call parameters to scan for
+                dangerous patterns.  Non-JSON-serializable values are
+                safely coerced to ``str`` for scanning.
+
+        Returns:
+            Dict with keys:
+
+            - ``task_id`` (str)
+            - ``tool_name`` (str)
+            - ``is_authorized`` (bool): False when *tool_name* is absent
+              from a non-empty whitelist.
+            - ``is_restricted`` (bool): True when *tool_name* is in the
+              blacklist.
+            - ``has_dangerous_params`` (bool): True when any parameter
+              value matches a dangerous pattern (e.g. ``rm -rf``,
+              ``DROP TABLE``).
+            - ``violation_type`` (Optional[str]): ``"unauthorized_tool"`` |
+              ``"restricted_tool"`` | ``"dangerous_params"`` | ``None``.
+              The last violation encountered wins when multiple apply.
+            - ``privilege_level`` (str): inferred privilege level of the
+              tool (``"read"`` | ``"write"`` | ``"execute"`` | ``"admin"``).
+        """
         result = {
             "task_id": task_id,
             "tool_name": tool_name,
@@ -449,7 +497,12 @@ class ToolAuthorizationTracker:
 
         # Check for dangerous parameters
         if parameters:
-            params_str = json.dumps(parameters)
+            try:
+                params_str = json.dumps(parameters)
+            except (TypeError, ValueError):
+                # Non-serializable objects (custom classes, bytes, circular refs) —
+                # fall back to str() so the safety scan still runs.
+                params_str = str(parameters)
             for pattern in self.dangerous_patterns:
                 if hasattr(pattern, "search"):
                     matched = pattern.search(params_str)
@@ -522,10 +575,49 @@ class PrivilegeEscalationDetector:
             ["query_database", "modify_schema", "drop_table"]
         ]
 
-    def analyze_privilege_chain(self, task_id: str, tool_calls: List) -> Dict[str, Any]:
-        """Analyze tool call chain for privilege escalation (supports both dict and string formats)"""
+    def analyze_privilege_chain(
+        self, task_id: str, tool_calls: List[Union[str, Dict[str, Any]]]
+    ) -> Dict[str, Any]:
+        """Analyze tool call chain for privilege escalation.
+
+        Supports both string and dict elements in *tool_calls*:
+
+        * ``str`` — treated as tool name; privilege level is inferred.
+        * ``dict`` — must contain ``"tool_name"`` or ``"tool"`` key.
+          Optional ``"privilege_level"`` key (str) overrides inference;
+          supply ``None`` explicitly to force inference.
+
+        Args:
+            task_id: Unique identifier for the task being analysed.
+            tool_calls: Sequence of tool invocations (str or dict).
+                An empty list returns a zero-value result without recording.
+
+        Returns:
+            Dict with keys:
+
+            - ``task_id`` (str)
+            - ``initial_privilege`` (str): privilege level of the first call
+            - ``final_privilege`` (str): privilege level of the last call
+            - ``max_privilege`` (str): highest privilege reached
+            - ``escalation_detected`` (bool): True when execution escalated
+              to execute/admin from a lower level, or jumped ≥2 levels
+            - ``suspicious_sequences`` (List[str]): matched suspicious
+              tool-name sequences
+            - ``escalation_path`` (List[str]): tool names when escalation
+              detected, empty list otherwise
+            - ``risk_score`` (int): 0-10 composite risk score
+        """
         if not tool_calls:
-            return {"escalation_detected": False}
+            return {
+                "task_id": task_id,
+                "initial_privilege": "read",
+                "final_privilege": "read",
+                "max_privilege": "read",
+                "escalation_detected": False,
+                "suspicious_sequences": [],
+                "escalation_path": [],
+                "risk_score": 0,
+            }
 
         # Extract tool names and privilege levels (handle both dict and string)
         tools = []
@@ -537,10 +629,10 @@ class PrivilegeEscalationDetector:
             elif isinstance(call, dict):
                 tool_nm = call.get("tool_name", call.get("tool", "unknown"))
                 tools.append(tool_nm)
-                # Use caller-provided level if present, else infer from name
-                privileges.append(
-                    call.get("privilege_level") or infer_privilege_level(tool_nm)
-                )
+                # Use caller-provided level if explicitly set (even falsy str allowed),
+                # fall back to inference only when the key is absent or None.
+                _pl = call.get("privilege_level")
+                privileges.append(_pl if _pl is not None else infer_privilege_level(tool_nm))
             else:
                 tools.append("unknown")
                 privileges.append("read")
@@ -677,9 +769,34 @@ class ToolChainAttackDetector:
         self.attack_patterns[attack_type].append(pattern)
 
     def analyze_tool_chain(self, task_id: str, tool_sequence: List[str]) -> Dict[str, Any]:
-        """Analyze tool sequence for attack patterns"""
+        """Analyze tool sequence for attack patterns.
+
+        Args:
+            task_id: Unique identifier for the task being analysed.
+            tool_sequence: Ordered list of tool names to inspect.
+                An empty list returns a zero-value result without recording.
+
+        Returns:
+            Dict with keys:
+
+            - ``task_id`` (str)
+            - ``chain_length`` (int): number of tools in the sequence
+            - ``is_suspicious_chain`` (bool): True when any attack pattern matched
+            - ``attack_patterns_detected`` (List[str]): human-readable pattern
+              descriptions, e.g. ``"data_exfiltration: database -> encode -> post"``
+            - ``confidence`` (float): 0.0–1.0 confidence score
+              (increases with the number of matched patterns)
+            - ``attack_types`` (Dict[str, bool]): per-category match flags
+        """
         if not tool_sequence:
-            return {"is_suspicious_chain": False}
+            return {
+                "task_id": task_id,
+                "chain_length": 0,
+                "is_suspicious_chain": False,
+                "attack_patterns_detected": [],
+                "confidence": 0.0,
+                "attack_types": {k: False for k in self.attack_patterns},
+            }
 
         attack_types_detected = {}
         patterns_detected = []
