@@ -84,6 +84,68 @@ class EvaluationReport:
     recommendations: List[Dict[str, str]] = None
     timestamp: datetime = None
 
+    def to_dict(self) -> Dict[str, Any]:
+        """EvaluationReport를 dict로 변환한다.
+
+        Returns:
+            Dict[str, Any]: 모든 필드를 포함한 dict
+
+        Example:
+            >>> report = monitor.generate_report()
+            >>> d = report.to_dict()
+            >>> print(d["total_tasks"])
+        """
+        import dataclasses
+        return dataclasses.asdict(self)
+
+    def to_json(self, indent: int = 2) -> str:
+        """EvaluationReport를 JSON 문자열로 변환한다.
+
+        Args:
+            indent: JSON 들여쓰기 (기본값 2)
+
+        Returns:
+            str: JSON 문자열
+
+        Example:
+            >>> report = monitor.generate_report()
+            >>> print(report.to_json())
+        """
+        import json
+        from datetime import datetime as _datetime
+
+        def _serialize(obj: Any) -> Any:
+            if isinstance(obj, _datetime):
+                return obj.isoformat()
+            if hasattr(obj, "value"):  # Enum
+                return obj.value
+            return str(obj)
+
+        return json.dumps(self.to_dict(), indent=indent, default=_serialize)
+
+    def summary(self) -> Dict[str, Any]:
+        """핵심 지표만 담은 요약 dict를 반환한다.
+
+        Returns:
+            Dict[str, Any]: 총 태스크 수, 성공률, 평균 정확도, 평균 지연시간 등 핵심 수치
+
+        Example:
+            >>> report = monitor.generate_report()
+            >>> s = report.summary()
+            >>> print(s["success_rate"])  # 0.95
+        """
+        tcr_data = self.accuracy_metrics.get("tcr") or {}
+        accuracy_data = self.accuracy_metrics.get("accuracy_scores") or {}
+        latency_data = (self.efficiency_metrics or {}).get("latency") or {}
+        return {
+            "total_tasks": self.total_tasks,
+            "success_rate": tcr_data.get("success_rate", 0.0),
+            "avg_accuracy": accuracy_data.get("overall_accuracy", 0.0),
+            "avg_latency_ms": latency_data.get("mean", 0.0),
+            "period": self.period,
+            "timestamp": self.timestamp.isoformat() if hasattr(self.timestamp, "isoformat") else str(self.timestamp),
+        }
+
 
 class TaskType(Enum):
     """Task type enumeration"""

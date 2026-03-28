@@ -679,6 +679,101 @@ class PerformanceMonitor:
         """
         return _TaskContext(self, task_id, task_type, question, **kwargs)
 
+    def evaluate_qa(
+        self,
+        question: str,
+        response: str,
+        ground_truth: str,
+        task_id: Optional[str] = None,
+        execution_time: float = 0.0,
+        task_type: str = "qa",
+    ) -> Dict[str, Any]:
+        """단일 QA 태스크를 즉시 평가하고 결과를 반환한다.
+
+        create_taskresult_from_execution() + record_task() + 점수 반환을 한 번에 처리하는
+        편의 메서드다.
+
+        Args:
+            question: 평가할 질문
+            response: 에이전트 응답
+            ground_truth: 정답
+            task_id: 태스크 ID (기본값: 자동 생성)
+            execution_time: 실행 시간 초 (기본값: 0.0)
+            task_type: 태스크 유형 (기본값: "qa")
+
+        Returns:
+            Dict[str, Any]: {"task_id": ..., "accuracy_score": ..., "completion_score": ..., "success": ...}
+
+        Example:
+            >>> result = monitor.evaluate_qa(
+            ...     question="한국의 수도는?",
+            ...     response="서울입니다.",
+            ...     ground_truth="서울",
+            ... )
+            >>> print(result["accuracy_score"])  # 0.95
+        """
+        import uuid
+        from agent_evaluator.helpers.taskresult_helpers import create_taskresult_from_execution
+
+        _task_id = task_id or f"qa_{uuid.uuid4().hex[:8]}"
+        task = create_taskresult_from_execution(
+            task_id=_task_id,
+            question=question,
+            response=response,
+            ground_truth=ground_truth,
+            execution_time=execution_time,
+            task_type=task_type,
+        )
+        self.record_task(task)
+        return {
+            "task_id": _task_id,
+            "accuracy_score": task.accuracy_score,
+            "completion_score": task.completion_score,
+            "success": task.success,
+        }
+
+    def evaluate_batch(
+        self,
+        items: List[Dict[str, Any]],
+        task_type: str = "qa",
+        task_id_prefix: str = "batch",
+    ) -> List[Dict[str, Any]]:
+        """여러 QA 태스크를 일괄 평가하고 결과 목록을 반환한다.
+
+        Args:
+            items: 평가할 항목 목록. 각 항목은 다음 키를 포함:
+                - question (str): 질문
+                - response (str): 에이전트 응답
+                - ground_truth (str): 정답
+                - task_id (str, 선택): 태스크 ID
+                - execution_time (float, 선택): 실행 시간
+            task_type: 태스크 유형 (기본값: "qa")
+            task_id_prefix: 자동 생성 task_id 접두사 (기본값: "batch")
+
+        Returns:
+            List[Dict[str, Any]]: 각 태스크의 평가 결과 목록
+
+        Example:
+            >>> results = monitor.evaluate_batch([
+            ...     {"question": "Q1", "response": "A1", "ground_truth": "G1"},
+            ...     {"question": "Q2", "response": "A2", "ground_truth": "G2"},
+            ... ])
+            >>> avg = sum(r["accuracy_score"] for r in results) / len(results)
+        """
+        results = []
+        for i, item in enumerate(items):
+            _task_id = item.get("task_id", f"{task_id_prefix}_{i:04d}")
+            result = self.evaluate_qa(
+                question=item["question"],
+                response=item["response"],
+                ground_truth=item["ground_truth"],
+                task_id=_task_id,
+                execution_time=item.get("execution_time", 0.0),
+                task_type=item.get("task_type", task_type),
+            )
+            results.append(result)
+        return results
+
     def record_task(self, task_result: TaskResult,
                    ground_truth: Optional[Any] = None,
                    context: Optional[str] = None,

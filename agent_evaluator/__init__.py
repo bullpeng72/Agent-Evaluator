@@ -93,7 +93,7 @@ from .core.agent_evaluator import (
 )
 
 # Import context managers
-from .core.monitor_context import evaluation_session, hybrid_evaluation_session
+from .core.monitor_context import evaluation_session, hybrid_evaluation_session, async_evaluation_session
 
 # Import helpers with simplified names
 from .helpers.taskresult_helpers import create_taskresult_from_execution as create_taskresult
@@ -181,10 +181,10 @@ def __getattr__(name: str):  # noqa: N807
             # 모듈 네임스페이스에 캐시하여 이후 접근은 즉시 반환
             globals()[name] = value
             return value
-        except ImportError:
-            # optional dep 미설치 → None 반환 (기존 동작과 동일)
-            globals()[name] = None
-            return None
+        except ImportError as exc:
+            extra = _FRAMEWORK_EXTRA_MAP.get(name, "all")
+            # optional dep 미설치 → FrameworkNotInstalledError (None 반환 제거)
+            raise FrameworkNotInstalledError(name, extra) from exc
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 
@@ -212,6 +212,7 @@ __all__ = [
     'create_taskresult',  # Simplified name
     'evaluation_session',  # Context manager
     'hybrid_evaluation_session',  # Context manager
+    'async_evaluation_session',  # Async context manager
     'LLMHelper',  # Simplified name (lazy)
     'ClaudeHelper',  # Simplified name (lazy)
 

@@ -4,7 +4,8 @@ Provides automatic resource management and result saving
 """
 
 import logging
-from contextlib import contextmanager
+from contextlib import asynccontextmanager, contextmanager
+from typing import Optional
 
 logger = logging.getLogger(__name__)
 
@@ -141,4 +142,57 @@ def hybrid_evaluation_session(
             print(f"❌ 저장 중 오류 발생: {save_error}")
 
         if exception_occurred:
+            raise exception_occurred
+
+
+@asynccontextmanager
+async def async_evaluation_session(
+    output_filename: str = "evaluation",
+    output_dir: Optional[str] = None,
+    monitor=None,
+    **monitor_kwargs,
+):
+    """비동기 평가 세션 context manager.
+
+    async with 문과 함께 사용하여 비동기 에이전트를 평가할 때 사용한다.
+    세션 종료 시 자동으로 결과를 저장한다 (예외 발생 시에도).
+
+    Args:
+        output_filename: 저장할 파일명 (확장자 제외)
+        output_dir: 저장 디렉토리 (기본값: None → 현재 디렉토리)
+        monitor: 기존 PerformanceMonitor 인스턴스 (기본값: 새로 생성)
+        **monitor_kwargs: PerformanceMonitor 초기화 파라미터
+
+    Yields:
+        PerformanceMonitor: 평가 모니터 인스턴스
+
+    Example:
+        >>> async with async_evaluation_session("results") as monitor:
+        ...     result = await agent.ainvoke(question)
+        ...     monitor.record_task(create_taskresult(...))
+    """
+    from .agent_evaluator import PerformanceMonitor
+
+    _monitor = monitor or PerformanceMonitor(
+        output_dir=output_dir, **monitor_kwargs
+    )
+    exception_occurred = None
+
+    try:
+        yield _monitor
+    except Exception as exc:
+        exception_occurred = exc
+        logger.error("async_evaluation_session: exception in body: %s", exc)
+    finally:
+        try:
+            _monitor.save_to_file(output_filename)
+            logger.info(
+                "async_evaluation_session: saved to '%s'", output_filename
+            )
+        except Exception as save_exc:
+            logger.error(
+                "async_evaluation_session: failed to save '%s': %s",
+                output_filename, save_exc,
+            )
+        if exception_occurred is not None:
             raise exception_occurred
