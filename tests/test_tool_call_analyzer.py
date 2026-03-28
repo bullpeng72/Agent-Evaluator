@@ -88,8 +88,11 @@ def test_get_efficiency_stats_structure(analyzer):
 def test_get_efficiency_stats_empty_no_division_by_zero():
     a = ToolCallAnalyzer()
     result = a.get_efficiency_stats()
-    # Should return empty dict when no executions recorded
-    assert result == {}
+    # Should return structured zeros when no executions recorded (no division by zero)
+    assert result["total_calls"] == 0
+    assert result["success_rate"] == 0.0
+    assert result["redundancy_rate"] == 0.0
+    assert result["failure_rate"] == 0.0
 
 
 # ---------------------------------------------------------------------------

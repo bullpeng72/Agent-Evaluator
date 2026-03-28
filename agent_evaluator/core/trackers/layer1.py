@@ -36,6 +36,12 @@ _HALLUCINATION_SENTENCE_MIN_WORDS: int = 5       # skip short sentences (noise r
 
 _QUALITY_SCORE_MAX: float = 5.0          # all quality dimension scores scaled to [0, 5]
 
+# QA accuracy weighted-combination weights (must sum to 1.0)
+_QA_WEIGHT_TOKEN_OVERLAP: float = 0.4   # token-level F1 overlap (most important for QA)
+_QA_WEIGHT_JACCARD: float = 0.3         # set-based Jaccard similarity
+_QA_WEIGHT_LCS: float = 0.2             # longest-common-subsequence ratio
+_QA_WEIGHT_CHAR: float = 0.1            # character-level similarity
+
 
 # ============================================================================
 # 1. Task Completion Rate Tracker
@@ -213,12 +219,12 @@ class AccuracyEvaluator:
 
         lcs_sim = lcs_ratio(gt_norm, pred_norm)
 
-        # Weighted combination (emphasize token overlap and LCS)
+        # Weighted combination (weights defined as module constants above)
         final_score = (
-            0.4 * overlap_ratio +  # Token overlap (most important for QA)
-            0.3 * jaccard +         # Jaccard similarity
-            0.2 * lcs_sim +         # Sequence similarity
-            0.1 * char_sim          # Character-level similarity
+            _QA_WEIGHT_TOKEN_OVERLAP * overlap_ratio +
+            _QA_WEIGHT_JACCARD * jaccard +
+            _QA_WEIGHT_LCS * lcs_sim +
+            _QA_WEIGHT_CHAR * char_sim
         )
 
         return min(final_score, 1.0)  # Cap at 1.0
@@ -809,7 +815,14 @@ class ResponseQualityEvaluator:
     def get_quality_metrics(self) -> Dict[str, Any]:
         """Get aggregated quality metrics"""
         if not self.evaluations:
-            return {}
+            return {
+                "avg_total_score": 0.0, "avg_grade": "N/A",
+                "median_total_score": 0.0, "min_total_score": 0.0,
+                "max_total_score": 0.0, "std_total_score": 0.0,
+                "grade_distribution": {}, "high_quality_count": 0,
+                "total_evaluated": 0, "dimension_averages": {},
+                "dimension_scores": {}, "quality_distribution": {},
+            }
 
         df = pd.DataFrame(self.evaluations)
 
@@ -985,7 +998,8 @@ class LatencyTracker:
             latencies = [l for l in latencies if l["task_type"] == task_type]
 
         if not latencies:
-            return {}
+            return {"mean": 0.0, "median": 0.0, "p50": 0.0, "p95": 0.0, "p99": 0.0,
+                    "min": 0.0, "max": 0.0, "std": 0.0}
 
         times = [l["total_time"] for l in latencies]
 
@@ -1150,7 +1164,14 @@ class TokenEconomyTracker:
     def get_usage_stats(self) -> Dict[str, Any]:
         """Get token usage statistics"""
         if not self.usage_log:
-            return {}
+            return {
+                "total_tasks": 0, "total_tokens": 0,
+                "total_input_tokens": 0, "total_output_tokens": 0,
+                "total_cost": 0.0, "avg_tokens_per_task": 0.0,
+                "avg_cost_per_task": 0.0, "estimated_monthly_cost": 0.0,
+                "token_distribution": {"input_ratio": 0.0, "output_ratio": 0.0},
+                "cost_percentiles": {"p50": 0.0, "p90": 0.0, "p95": 0.0},
+            }
 
         df = pd.DataFrame(self.usage_log)
 

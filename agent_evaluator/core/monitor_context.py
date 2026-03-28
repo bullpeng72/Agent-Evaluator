@@ -66,12 +66,17 @@ def evaluation_session(
         try:
             monitor.save_to_file(output_filename)
             if exception_occurred:
-                print(f"⚠️ 오류 발생했지만 결과는 저장되었습니다: {output_filename}")
+                logger.warning(
+                    "evaluation_session: exception occurred but results saved to '%s'",
+                    output_filename,
+                )
             else:
-                print(f"✅ 자동 저장 완료: {output_filename}")
+                logger.info("evaluation_session: auto-saved to '%s'", output_filename)
         except Exception as save_error:
-            logger.error("evaluation_session: 저장 중 오류 발생: %s", save_error)
-            print(f"❌ 저장 중 오류 발생: {save_error}")
+            logger.error(
+                "evaluation_session: FAILED to save results to '%s': %s",
+                output_filename, save_error,
+            )
 
         # Now raise the original exception if it occurred
         if exception_occurred:
@@ -134,12 +139,17 @@ def hybrid_evaluation_session(
         try:
             monitor.save_to_file(output_filename)
             if exception_occurred:
-                print(f"⚠️ 오류 발생했지만 결과는 저장되었습니다: {output_filename}")
+                logger.warning(
+                    "hybrid_evaluation_session: exception occurred but results saved to '%s'",
+                    output_filename,
+                )
             else:
-                print(f"✅ 자동 저장 완료: {output_filename}")
+                logger.info("hybrid_evaluation_session: auto-saved to '%s'", output_filename)
         except Exception as save_error:
-            logger.error("hybrid_evaluation_session: 저장 중 오류 발생: %s", save_error)
-            print(f"❌ 저장 중 오류 발생: {save_error}")
+            logger.error(
+                "hybrid_evaluation_session: FAILED to save results to '%s': %s",
+                output_filename, save_error,
+            )
 
         if exception_occurred:
             raise exception_occurred

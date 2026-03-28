@@ -50,7 +50,9 @@ class TestResponseQualityEvaluator:
 
     def test_get_quality_metrics_empty(self):
         ev = ResponseQualityEvaluator()
-        assert ev.get_quality_metrics() == {}
+        metrics = ev.get_quality_metrics()
+        assert metrics["total_evaluated"] == 0
+        assert metrics["avg_total_score"] == 0.0
 
     def test_get_quality_metrics_after_eval(self):
         ev = ResponseQualityEvaluator()
@@ -113,7 +115,9 @@ class TestLatencyTracker:
 
     def test_get_latency_stats_empty(self):
         lt = LatencyTracker()
-        assert lt.get_latency_stats() == {}
+        stats = lt.get_latency_stats()
+        assert stats["mean"] == 0.0
+        assert stats["p95"] == 0.0
 
     def test_get_latency_stats_by_type(self):
         lt = LatencyTracker()
@@ -183,7 +187,9 @@ class TestTokenEconomyTracker:
 
     def test_get_usage_stats_empty(self):
         tt = TokenEconomyTracker(self._PRICING)
-        assert tt.get_usage_stats() == {}
+        stats = tt.get_usage_stats()
+        assert stats["total_tasks"] == 0
+        assert stats["total_cost"] == 0.0
 
     def test_cost_calculation(self):
         tt = TokenEconomyTracker({"input": 1.0, "output": 2.0})

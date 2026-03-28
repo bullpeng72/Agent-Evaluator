@@ -250,6 +250,14 @@ class PerformanceMonitor:
 
         Returns:
             List[Dict]: Golden Dataset 항목 리스트
+
+        Raises:
+            StorageError: 파일이 존재하지 않거나, JSON 포맷이 올바르지 않거나,
+                파일 읽기 권한이 없는 경우.
+
+        Example:
+            >>> items = monitor.load_golden_dataset("datasets/qa_pairs.json")
+            >>> print(len(items))
         """
         import json
         import os
@@ -463,19 +471,28 @@ class PerformanceMonitor:
         return results
 
     def compare_with_thresholds(self) -> Dict[str, Any]:
-        """
-        현재 메트릭 값을 임계값과 비교
+        """현재 메트릭 값을 설정된 임계값과 비교한다.
+
+        ``monitor.thresholds``가 설정되어 있어야 하며, 설정되지 않은 경우 빈 dict를 반환한다.
+        임계값은 ``agent-eval gate`` CLI 또는 ``monitor.thresholds = {...}``으로 설정한다.
 
         Returns:
-            Dict: 각 메트릭별 비교 결과
-            {
-                'metric_name': {
-                    'value': 실제 값,
-                    'threshold': 임계값,
-                    'status': 'pass' | 'fail',
-                    'direction': 'higher' | 'lower'  # 높을수록 좋은지, 낮을수록 좋은지
-                }
-            }
+            각 메트릭 이름을 키로 하는 비교 결과 dict. 각 항목은 다음 키를 포함한다:
+
+            - ``name`` (str): 메트릭 표시 이름 (예: "작업 완료율 (TCR)")
+            - ``value`` (float): 현재 측정값
+            - ``threshold`` (float): 목표 임계값
+            - ``status`` (str): ``"pass"`` 또는 ``"fail"``
+            - ``direction`` (str): ``"higher"`` (높을수록 좋음) 또는 ``"lower"`` (낮을수록 좋음)
+            - ``unit`` (str): 표시 단위 (예: ``"%"``, ``"s"``, ``"$"``)
+
+            임계값이 설정되지 않은 경우 빈 dict ``{}`` 반환.
+
+        Example:
+            >>> monitor.thresholds = {"tcr": 80.0, "hallucination_rate": 10.0}
+            >>> results = monitor.compare_with_thresholds()
+            >>> results["tcr"]["status"]   # "pass" 또는 "fail"
+            >>> results["tcr"]["value"]    # 실제 TCR 값 (%)
         """
         if not self.thresholds:
             return {}
@@ -1987,7 +2004,7 @@ class PerformanceMonitor:
         print("=" * 80)
         print()
 
-    def print_metric_breakdown(self, task_id: str = None, verbose: bool = True) -> None:
+    def print_metric_breakdown(self, task_id: Optional[str] = None, verbose: bool = True) -> None:
         """
         Print detailed calculation breakdown for transparency (NEW)
 
@@ -2645,8 +2662,6 @@ class PerformanceMonitor:
             >>> summary = monitor.flush()  # 요약 저장 후 메모리 정리
             >>> print(summary["total_tasks"])  # 1000
         """
-        import datetime as _dt_mod
-
         # 현재 상태 요약 계산
         report = self.generate_report()
         tcr_data = report.accuracy_metrics.get("tcr") or {}
@@ -2658,7 +2673,7 @@ class PerformanceMonitor:
             "success_rate": tcr_data.get("success_rate", 0.0),
             "avg_latency_ms": latency_data.get("mean", 0.0),
             "avg_accuracy": accuracy_data.get("overall_accuracy", 0.0),
-            "flushed_at": _dt_mod.datetime.now().isoformat(),
+            "flushed_at": datetime.now().isoformat(),
         }
 
         # 각 트래커 초기화

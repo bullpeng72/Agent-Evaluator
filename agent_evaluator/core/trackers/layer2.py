@@ -106,7 +106,12 @@ class ToolCallAnalyzer:
     def get_efficiency_stats(self) -> Dict[str, Any]:
         """Get tool call efficiency statistics"""
         if not self.executions:
-            return {}
+            return {
+                "total_calls": 0, "success_rate": 0.0,
+                "avg_duration": 0.0, "avg_calls_per_task": 0.0,
+                "avg_efficiency_score": 100.0, "total_redundant_calls": 0,
+                "total_failed_calls": 0, "redundancy_rate": 0.0, "failure_rate": 0.0,
+            }
 
         df = pd.DataFrame(self.executions)
 
