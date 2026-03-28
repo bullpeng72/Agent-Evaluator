@@ -330,9 +330,20 @@ class PerformanceMonitor:
         Golden Dataset 기반 자동 평가 파이프라인
 
         Args:
-            agent_fn: 평가할 에이전트 함수 (question을 입력받아 결과 반환)
-                      반환값: Dict with keys: answer, tools_used (optional)
-            dataset_path: Golden Dataset 파일 경로
+            agent_fn: 평가할 에이전트 함수 (question을 입력받아 결과 반환).
+                      반환값: ``str`` 또는 ``Dict`` with optional keys:
+                      ``answer`` (str), ``tools_used`` (List[str]),
+                      ``latency`` (float), ``token_usage`` (Dict),
+                      ``tool_calls`` (List), ``retry_count`` (int).
+            dataset_path: Golden Dataset 파일 경로 (JSON). 각 항목은 다음
+                      키를 포함해야 합니다:
+
+                      - ``question`` (**필수**): 에이전트에 전달할 질문 문자열.
+                      - ``ground_truth`` (선택): 정답 문자열. 제공 시 accuracy 자동 계산.
+                      - ``expected_tools`` (선택): 예상 도구 목록.
+                        ``enable_layer2_metrics=True`` 일 때 Tool Selection F1 계산에 사용.
+                      - ``qa_id`` (선택): 항목 고유 ID. 없으면 ``"qa_{idx}"`` 자동 생성.
+
             enable_layer2_metrics: Layer 2 메트릭 자동 평가 (Tool Selection 등)
             enable_advanced_metrics: Layer 3 고급 메트릭 (DeepEval, Ragas)
             verbose: 진행 상황 출력
@@ -866,6 +877,13 @@ class PerformanceMonitor:
                 DeprecationWarning,
                 stacklevel=2,
             )
+        if response is not None:
+            warnings.warn(
+                "record_task(response=...) is deprecated. "
+                "Use TaskResult(response=...) instead.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
         if ground_truth is not None:
             warnings.warn(
                 "record_task(ground_truth=...) is deprecated. "
@@ -874,12 +892,14 @@ class PerformanceMonitor:
                 stacklevel=2,
             )
 
-        # Persist raw content onto TaskResult so it is included in asdict() → JSON
-        # 경고는 항상, 덮어쓰기는 None일 때만
+        # Persist raw content onto TaskResult so it is included in asdict() → JSON.
+        # Rule: deprecated param wins only when the TaskResult field is None
+        # (explicit TaskResult value always takes priority).
+        # str() normalisation is applied consistently to all three fields.
         if request is not None and task_result.question is None:
-            task_result.question = request
+            task_result.question = str(request) if not isinstance(request, str) else request
         if response is not None and task_result.response is None:
-            task_result.response = response
+            task_result.response = str(response) if not isinstance(response, str) else response
         if ground_truth is not None and task_result.ground_truth is None:
             task_result.ground_truth = str(ground_truth) if not isinstance(ground_truth, str) else ground_truth
 
@@ -1176,15 +1196,23 @@ class PerformanceMonitor:
         """
         if not self.enable_security_metrics:
             return {}
+        # When enable_security_metrics=True the __init__ block always initialises
+        # all five security trackers — None-checks here are redundant.  Use
+        # assertions to make the invariant explicit and help type-checkers.
+        assert self.input_sanitizer is not None
+        assert self.output_leakage_detector is not None
+        assert self.tool_authorizer is not None
+        assert self.privilege_escalation_detector is not None
+        assert self.tool_chain_attack_detector is not None
         return {
             "layer1_security": {
-                "input_security": self.input_sanitizer.get_security_stats() if self.input_sanitizer else {},
-                "output_leakage": self.output_leakage_detector.get_leakage_stats() if self.output_leakage_detector else {},
-                "authorization": self.tool_authorizer.get_compliance_stats() if self.tool_authorizer else {},
+                "input_security": self.input_sanitizer.get_security_stats(),
+                "output_leakage": self.output_leakage_detector.get_leakage_stats(),
+                "authorization": self.tool_authorizer.get_compliance_stats(),
             },
             "layer2_security": {
-                "privilege_escalation": self.privilege_escalation_detector.get_escalation_stats() if self.privilege_escalation_detector else {},
-                "attack_detection": self.tool_chain_attack_detector.get_attack_stats() if self.tool_chain_attack_detector else {},
+                "privilege_escalation": self.privilege_escalation_detector.get_escalation_stats(),
+                "attack_detection": self.tool_chain_attack_detector.get_attack_stats(),
             },
         }
 

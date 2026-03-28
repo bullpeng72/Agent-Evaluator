@@ -743,11 +743,9 @@ class ResponseQualityEvaluator:
         # Completeness (check for expected elements)
         found_elements = sum(1 for elem in expected_elements if elem.lower() in response.lower())
 
-        # CRITICAL FIX: Handle empty expected_elements properly
-        if expected_elements and len(expected_elements) > 0:
+        if expected_elements:
             completeness = found_elements / len(expected_elements)
         else:
-            # No requirements means 100% complete
             completeness = 1.0
         scores["completeness"] = completeness * _QUALITY_SCORE_MAX
 
@@ -818,11 +816,11 @@ class ResponseQualityEvaluator:
 
         Uses token-based similarity with normalization
         """
-        # Normalize text
+        # Normalize text (use pre-compiled module patterns for performance)
         def normalize(text):
             text = text.lower()
-            text = re.sub(r'\s+', ' ', text).strip()
-            text = re.sub(r'[^\w\s]', '', text)
+            text = _RE_QA_WHITESPACE.sub(' ', text).strip()
+            text = _RE_QA_PUNCTUATION.sub('', text)
             return text
 
         response_norm = normalize(response)

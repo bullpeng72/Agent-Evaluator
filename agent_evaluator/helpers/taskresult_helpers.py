@@ -18,9 +18,13 @@ TaskResult 동적 데이터 생성 헬퍼 함수 라이브러리
 """
 
 import logging
-from typing import Dict, List, Any, Optional
-from datetime import datetime
 import re
+from datetime import datetime
+from typing import Any, Dict, List, Optional
+
+# Pre-compiled patterns for estimate_tokens() heuristic fallback
+_RE_KOREAN_CHARS = re.compile(r'[가-힣]')
+_RE_ENGLISH_CHARS = re.compile(r'[a-zA-Z]')
 
 logger = logging.getLogger(__name__)
 
@@ -338,8 +342,9 @@ def estimate_tokens(text: str, model: str = "gpt-3.5-turbo") -> int:
         pass
 
     # Fallback: 언어별 휴리스틱 (영문 4자 ≈ 1토큰, 한글 1.5자 ≈ 1토큰)
-    korean_chars = len(re.findall(r'[가-힣]', text))
-    english_chars = len(re.findall(r'[a-zA-Z]', text))
+    # Use pre-compiled patterns (avoid per-call recompilation)
+    korean_chars = len(_RE_KOREAN_CHARS.findall(text))
+    english_chars = len(_RE_ENGLISH_CHARS.findall(text))
     other_chars = len(text) - korean_chars - english_chars
     estimated = (korean_chars / 1.5) + (english_chars / 4) + (other_chars / 3)
     return max(1, int(estimated))

@@ -135,7 +135,24 @@ class InputSanitizationTracker(SecurityTrackerMixin):
         ]
 
     def evaluate_input(self, task_id: str, input_text: str) -> Dict[str, Any]:
-        """Evaluate input for security threats"""
+        """Evaluate input text for security threats.
+
+        Args:
+            task_id: Unique task identifier.
+            input_text: Raw input text to inspect.
+
+        Returns:
+            Dict with keys:
+                - task_id (str)
+                - has_sql_injection (bool)
+                - has_command_injection (bool)
+                - has_path_traversal (bool)
+                - has_xss (bool)
+                - has_prompt_injection (bool)
+                - risk_level (str): ``"critical"`` | ``"high"`` | ``"medium"`` | ``"low"``
+                - sanitization_needed (bool): True if any threat was detected
+                - threat_count (int): number of distinct threat types found
+        """
         result = {
             "task_id": task_id,
             "has_sql_injection": self._check_patterns(input_text, self.sql_injection_patterns),
@@ -250,7 +267,22 @@ class OutputLeakageDetector(SecurityTrackerMixin):
         ]
 
     def detect_leakage(self, task_id: str, output_text: str) -> Dict[str, Any]:
-        """Detect sensitive information in output"""
+        """Detect sensitive information leakage in an output string.
+
+        Args:
+            task_id: Unique task identifier.
+            output_text: Agent output text to inspect.
+
+        Returns:
+            Dict with keys:
+                - task_id (str)
+                - contains_api_key, contains_password, contains_credit_card,
+                  contains_email, contains_phone, contains_ssn,
+                  contains_private_ip, contains_file_path (bool each)
+                - leakage_count (int): number of leakage types detected
+                - severity (str): ``"critical"`` | ``"high"`` | ``"medium"``
+                  | ``"low"`` | ``"none"``
+        """
         result = {
             "task_id": task_id,
             "contains_api_key": self._check_patterns(output_text, self.api_key_patterns),
@@ -283,7 +315,15 @@ class OutputLeakageDetector(SecurityTrackerMixin):
         return result
 
     def get_leakage_stats(self) -> Dict[str, Any]:
-        """Get output leakage statistics"""
+        """Get output leakage statistics.
+
+        Returns:
+            Dict with keys: total_outputs_evaluated, outputs_with_leakage,
+            leakage_rate, api_key_leaks, password_leaks, credit_card_leaks,
+            email_leaks, ssn_leaks, phone_leaks, private_ip_leaks,
+            file_path_leaks, critical_severity_count, high_severity_count.
+            Returns ``{}`` when no outputs have been evaluated.
+        """
         if not self.detections:
             return {}
 
@@ -292,6 +332,8 @@ class OutputLeakageDetector(SecurityTrackerMixin):
         total = len(self.detections)
         outputs_with_leakage = int((df["leakage_count"] > 0).sum())
 
+        # detect_leakage() always populates all 8 contains_* columns, so no
+        # column-existence guard is needed here.
         return {
             "total_outputs_evaluated": total,
             "outputs_with_leakage": outputs_with_leakage,
@@ -301,11 +343,11 @@ class OutputLeakageDetector(SecurityTrackerMixin):
             "credit_card_leaks": int(df["contains_credit_card"].sum()),
             "email_leaks": int(df["contains_email"].sum()),
             "ssn_leaks": int(df["contains_ssn"].sum()),
-            "phone_leaks": int(df["contains_phone"].sum()) if "contains_phone" in df.columns else 0,
-            "private_ip_leaks": int(df["contains_private_ip"].sum()) if "contains_private_ip" in df.columns else 0,
-            "file_path_leaks": int(df["contains_file_path"].sum()) if "contains_file_path" in df.columns else 0,
+            "phone_leaks": int(df["contains_phone"].sum()),
+            "private_ip_leaks": int(df["contains_private_ip"].sum()),
+            "file_path_leaks": int(df["contains_file_path"].sum()),
             "critical_severity_count": int((df["severity"] == "critical").sum()),
-            "high_severity_count": int((df["severity"] == "high").sum())
+            "high_severity_count": int((df["severity"] == "high").sum()),
         }
 
 
@@ -668,7 +710,17 @@ class ToolChainAttackDetector:
         return result
 
     def _is_fuzzy_subsequence(self, subseq: List[str], seq: List[str]) -> bool:
-        """Check if subseq is a subsequence of seq (with fuzzy matching)"""
+        """Check if ``subseq`` appears as an **ordered** subsequence of ``seq``
+        using case-insensitive substring matching for each element.
+
+        The shared ``it`` iterator is intentional: each ``sub_item`` consumes
+        ``seq`` elements until a fuzzy match is found, then the *next*
+        ``sub_item`` continues from that position forward.  This guarantees
+        that the pattern keywords appear in the correct order within the tool
+        sequence (e.g. ``["database","encode","post"]`` matches
+        ``["query_database","base64_encode","http_post"]`` but NOT
+        ``["http_post","query_database","base64_encode"]``).
+        """
         it = iter(seq)
         return all(any(sub_item.lower() in item.lower() for item in it) for sub_item in subseq)
 
