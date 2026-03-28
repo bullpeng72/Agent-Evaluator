@@ -20,7 +20,21 @@ if TYPE_CHECKING:
 
 @dataclass
 class TaskResult:
-    """Individual task execution result with Agentic AI support"""
+    """Individual task execution result with Agentic AI support.
+
+    .. note:: **Subclassing**
+
+        ``TaskResult`` is a Python dataclass where all required fields
+        (``task_id`` … ``errors``) precede optional fields.  If you subclass
+        and add a *required* field (no default), Python raises ``TypeError``
+        because a non-default field follows fields that have defaults.
+
+        To extend ``TaskResult``, add *optional* fields only::
+
+            @dataclass
+            class MyTaskResult(TaskResult):
+                my_extra: Optional[str] = None  # ✓ optional, safe
+    """
     task_id: str
     task_type: str
     success: bool
@@ -51,7 +65,14 @@ class TaskResult:
     llm_judge: Optional[Dict[str, Any]] = None                      # {scores, reasoning, model, cost_usd}
 
     def __post_init__(self) -> None:
-        """입력값 유효성 검증."""
+        """입력값 유효성 검증 및 task_type 정규화."""
+        # Normalise task_type to lowercase-stripped string so "QA", "qa ", "Qa"
+        # all map to the same bucket in aggregation methods.
+        # Also accept TaskType enum values for ergonomics.
+        if isinstance(self.task_type, Enum):
+            self.task_type = self.task_type.value
+        self.task_type = str(self.task_type).lower().strip()
+
         if not (0.0 <= self.completion_score <= 1.0):
             raise ValidationError(
                 f"completion_score must be in [0.0, 1.0], got {self.completion_score}. "

@@ -9,10 +9,13 @@ Layer 2 — Agentic Metrics (native, no external deps):
 from __future__ import annotations
 
 import json
+import logging
 import statistics
 from collections import defaultdict
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Union
+
+logger = logging.getLogger(__name__)
 
 import pandas as pd
 
@@ -74,6 +77,10 @@ class ToolCallAnalyzer:
     def __repr__(self) -> str:
         return f"ToolCallAnalyzer(executions={len(self.executions)})"
 
+    def reset(self) -> None:
+        """Clear all execution records."""
+        self.executions.clear()
+
     def analyze_execution(
         self,
         task_id: str,
@@ -100,13 +107,22 @@ class ToolCallAnalyzer:
         Returns:
             Dict with keys: task_id, total_calls, unique_tools,
             redundant_calls, failed_calls (int), avg_call_duration (float),
-            efficiency_score (float, 0–100).
+            efficiency_score (float 0–100, or None when no calls were made).
+
+            ``efficiency_score`` is ``None`` — not 100 — when *tool_calls* is
+            empty, because "no tool calls" is an unmeasured state, not a
+            perfect result.  Callers and aggregators must handle ``None``.
         """
         if not tool_calls:
             return {
                 "task_id": task_id,
                 "total_calls": 0,
-                "efficiency_score": 100.0
+                "unique_tools": 0,
+                "redundant_calls": 0,
+                "failed_calls": 0,
+                "avg_call_duration": 0.0,
+                "efficiency_score": None,  # unmeasured — not 100%
+                "note": "No tool calls recorded for this task",
             }
 
         # Extract tool names (support both "tool" and "tool_name" keys, as well as plain strings)
@@ -134,7 +150,7 @@ class ToolCallAnalyzer:
             "unique_tools": len(set(tool_names)),
             "redundant_calls": self._count_redundant_calls(tool_calls),
             "failed_calls": sum(1 for call in tool_calls if isinstance(call, dict) and not call.get("success", True)),
-            "avg_call_duration": statistics.mean(durations) if durations else 0
+            "avg_call_duration": round(statistics.mean(durations), 2) if durations else 0.0
         }
 
         # CRITICAL FIX: Calculate efficiency score with zero division check
@@ -215,7 +231,10 @@ class ToolCallAnalyzer:
 
         for exec_data in self.executions:
             tool_call_counts.append(exec_data.get("total_calls", 0))
-            efficiency_scores.append(exec_data.get("efficiency_score", 0))
+            # efficiency_score is None when no tool calls were made — exclude from average
+            es = exec_data.get("efficiency_score")
+            if es is not None:
+                efficiency_scores.append(es)
 
         # Calculate pattern analysis
         pattern_analysis = {
@@ -273,6 +292,10 @@ class RetryCorrectionTracker:
 
     def __repr__(self) -> str:
         return f"RetryCorrectionTracker(attempts={len(self.attempts)})"
+
+    def reset(self) -> None:
+        """Clear all retry attempt records."""
+        self.attempts.clear()
 
     def track_attempts(
         self,
@@ -365,6 +388,8 @@ class RetryCorrectionTracker:
                 ) if tasks_with_retries > 0 else 0.0
             ),
             # overall_retry_rate: 재시도 횟수 / 총 시도 횟수 × 100
+            # Guard: track_attempts() always stores total_attempts>=1, but
+            # defend against any external direct-list mutation here.
             "overall_retry_rate": round(
                 (df["total_attempts"].sum() - len(df)) / df["total_attempts"].sum() * 100, 2
             ) if df["total_attempts"].sum() > 0 else 0.0,
@@ -433,6 +458,10 @@ class ToolSelectionTracker:
 
     def __repr__(self) -> str:
         return f"ToolSelectionTracker(selections={len(self.selections)})"
+
+    def reset(self) -> None:
+        """Clear all selection records."""
+        self.selections.clear()
 
     def evaluate_selection(
         self,
@@ -554,6 +583,10 @@ class AgentCoordinationTracker:
     def __repr__(self) -> str:
         return f"AgentCoordinationTracker(interactions={len(self.interactions)})"
 
+    def reset(self) -> None:
+        """Clear all interaction records."""
+        self.interactions.clear()
+
     def track_interaction(
         self,
         task_id: str,
@@ -593,6 +626,12 @@ class AgentCoordinationTracker:
         # DQ-167: allowed interaction_type 외 값은 "delegation"으로 정규화
         _ALLOWED_TYPES = {"delegation", "communication", "collaboration"}
         if interaction_type not in _ALLOWED_TYPES:
+            logger.warning(
+                "track_interaction() received unknown interaction_type=%r for task %r. "
+                "Expected one of %s. Normalising to 'delegation'. "
+                "This may indicate a bug in the caller.",
+                interaction_type, task_id, sorted(_ALLOWED_TYPES),
+            )
             interaction_type = "delegation"
         interaction = {
             "task_id": task_id,
@@ -622,8 +661,9 @@ class AgentCoordinationTracker:
                 "interaction_types": {},
             }
 
-        # Success rate
-        success_rate = sum(1 for i in interactions if i["success"]) / len(interactions) * 100
+        # Success rate — len(interactions) > 0 is guaranteed by the early-return guard above
+        n_interactions = len(interactions)
+        success_rate = sum(1 for i in interactions if i["success"]) / n_interactions * 100
 
         # Interaction diversity (more agents = better collaboration)
         agents = set()
@@ -829,6 +869,10 @@ class WorkflowExecutionTracker:
 
     def __repr__(self) -> str:
         return f"WorkflowExecutionTracker(steps={len(self.executions)})"
+
+    def reset(self) -> None:
+        """Clear all workflow execution records."""
+        self.executions.clear()
 
     def track_step(
         self,

@@ -109,6 +109,10 @@ class TaskCompletionTracker:
         """Add a task result"""
         self.tasks.append(task)
 
+    def reset(self) -> None:
+        """Clear all accumulated tasks.  Useful for reusing the tracker across sessions."""
+        self.tasks.clear()
+
     def calculate_tcr(self, task_type: Optional[str] = None) -> Dict[str, float]:
         """Calculate Task Completion Rate"""
         tasks = self.tasks
@@ -141,6 +145,9 @@ class TaskCompletionTracker:
             "success_rate": round((full_success_count / len(tasks)) * 100, 2)
         }
 
+    # Alias for naming consistency with other trackers' get_*_metrics() pattern
+    get_completion_metrics = calculate_tcr
+
     def get_tcr_by_type(self) -> Dict[str, Dict[str, float]]:
         """Get TCR breakdown by task type"""
         task_types = set(t.task_type for t in self.tasks)
@@ -172,8 +179,23 @@ class AccuracyEvaluator:
     """Evaluate accuracy across different dimensions"""
 
     def __init__(self):
-        self.evaluations: List[Dict[str, Any]] = []
+        self._evaluations: List[Dict[str, Any]] = []
         self._cached_avg: Optional[float] = None  # invalidated on each add_evaluation()
+
+    @property
+    def evaluations(self) -> List[Dict[str, Any]]:
+        """Read-only view of accumulated evaluations.
+
+        Direct mutation (e.g. ``.evaluations.append(...)``) bypasses cache
+        invalidation and will leave ``_cached_avg`` stale.  Use
+        :meth:`add_evaluation` to add records.
+        """
+        return self._evaluations
+
+    def reset(self) -> None:
+        """Clear all evaluations and invalidate the repr cache."""
+        self._evaluations.clear()
+        self._cached_avg = None
 
     def add_evaluation(self, task_id: str, ground_truth: Any,
                       prediction: Any, task_type: str):
@@ -181,7 +203,7 @@ class AccuracyEvaluator:
         self._cached_avg = None  # invalidate repr cache
         accuracy = self._calculate_accuracy(ground_truth, prediction, task_type)
 
-        self.evaluations.append({
+        self._evaluations.append({
             "task_id": task_id,
             "task_type": task_type,
             "accuracy": accuracy,
@@ -273,7 +295,13 @@ class AccuracyEvaluator:
             _QA_WEIGHT_CHAR * char_sim
         )
 
-        return min(final_score, 1.0)  # Cap at 1.0
+        if final_score > 1.0:
+            logger.debug(
+                "_qa_accuracy: weighted score %.4f exceeded 1.0 (clamped). "
+                "This is normal when all similarity signals are high.",
+                final_score,
+            )
+        return min(final_score, 1.0)
 
     def _code_accuracy(self, expected_output: Any, actual_output: Any) -> float:
         """
@@ -499,6 +527,10 @@ class HallucinationDetector:
 
     def __init__(self):
         self.detections: List[Dict[str, Any]] = []
+
+    def reset(self) -> None:
+        """Clear all hallucination detections."""
+        self.detections.clear()
 
     def detect_hallucination(self, task_id: str, response: str,
                             context: str, ground_truth: Optional[str] = None,
@@ -734,6 +766,10 @@ class ResponseQualityEvaluator:
         else:
             self.dimensions = dict(self.DEFAULT_DIMENSIONS)
         self.evaluations: List[Dict[str, Any]] = []
+
+    def reset(self) -> None:
+        """Clear all quality evaluations."""
+        self.evaluations.clear()
 
     def evaluate_response(self, task_id: str, response: str,
                          request: str, expected_elements: List[str],
@@ -1033,6 +1069,10 @@ class LatencyTracker:
     def __init__(self):
         self.latencies: List[Dict[str, Any]] = []
 
+    def reset(self) -> None:
+        """Clear all latency records."""
+        self.latencies.clear()
+
     def record_latency(self, task_id: str, task_type: str,
                        total_time: float, breakdown: Dict[str, float]):
         """Record latency for a task"""
@@ -1191,6 +1231,10 @@ class TokenEconomyTracker:
         self.pricing = pricing
         self.usage_log: List[Dict[str, Any]] = []
 
+    def reset(self) -> None:
+        """Clear all token usage records."""
+        self.usage_log.clear()
+
     def track_usage(self, task_id: str, input_tokens: int,
                    output_tokens: int, task_type: str, model: str = "default"):
         """Track token usage for a task"""
@@ -1245,11 +1289,25 @@ class TokenEconomyTracker:
                 "input_ratio": round(total_input / total_tokens, 3) if total_tokens > 0 else 0,
                 "output_ratio": round(total_output / total_tokens, 3) if total_tokens > 0 else 0
             },
-            "cost_percentiles": {
-                "p50": round(df["cost"].quantile(0.5), 4),
-                "p90": round(df["cost"].quantile(0.9), 4),
-                "p95": round(df["cost"].quantile(0.95), 4)
-            }
+            "cost_percentiles": self._compute_cost_percentiles(df)
+        }
+
+    def _compute_cost_percentiles(self, df: "pd.DataFrame") -> Dict[str, float]:
+        """p50/p90/p95 비용 백분위 계산.
+
+        소표본(n<5)에서는 선형 보간 결과가 불안정할 수 있으므로 경고를 발생시킨다.
+        """
+        n = len(df)
+        if n < 5:
+            logger.warning(
+                "Cost percentile calculation may be unreliable with only %d sample(s). "
+                "Collect more tasks for stable percentile estimates (recommended: ≥20).",
+                n,
+            )
+        return {
+            "p50": round(df["cost"].quantile(0.5), 4),
+            "p90": round(df["cost"].quantile(0.9), 4),
+            "p95": round(df["cost"].quantile(0.95), 4),
         }
 
     def get_usage_by_type(self) -> Dict[str, Dict[str, float]]:

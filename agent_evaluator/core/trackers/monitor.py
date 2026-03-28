@@ -718,6 +718,28 @@ class PerformanceMonitor:
 
         return comparison
 
+    def reset(self) -> None:
+        """Clear all accumulated data across every tracker.
+
+        Use this when reusing a ``PerformanceMonitor`` instance across
+        multiple evaluation sessions (e.g., in a CI loop) to prevent
+        data from one session leaking into the next.
+        """
+        self.tcr_tracker.reset()
+        self.accuracy_evaluator.reset()
+        self.hallucination_detector.reset()
+        self.quality_evaluator.reset()
+        self.latency_tracker.reset()
+        self.token_tracker.reset()
+        self.tool_analyzer.reset()
+        self.retry_tracker.reset()
+        self.tool_selection_tracker.reset()
+        self.agent_coordination_tracker.reset()
+        self.workflow_tracker.reset()
+        self.golden_datasets.clear()
+        for key in self.rag_metrics:
+            self.rag_metrics[key].clear()
+
     def task(
         self,
         task_id: str,

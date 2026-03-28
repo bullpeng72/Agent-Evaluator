@@ -117,4 +117,7 @@ def test_redundant_call_detection(analyzer):
 def test_empty_tool_calls(analyzer):
     result = analyzer.analyze_execution("t8", [])
     assert result["total_calls"] == 0
-    assert result["efficiency_score"] == 100.0
+    # efficiency_score is None (not 100%) when no tool calls were made —
+    # "no tools used" is an unmeasured state, not a perfect result.
+    assert result["efficiency_score"] is None
+    assert "note" in result
