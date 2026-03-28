@@ -49,6 +49,22 @@ _CODE_AST_HIGH_CONFIDENCE_THRESHOLD: float = 0.95
 # 1.0이 아닌 이유: 주석이나 독스트링이 다를 수 있어 "사실상 같은 코드"지만 완전 동일은 아님
 _CODE_NORMALIZED_MATCH_CONFIDENCE: float = 0.95
 
+# ---------------------------------------------------------------------------
+# Pre-compiled regex patterns — avoids per-call recompilation overhead
+# ---------------------------------------------------------------------------
+# QA accuracy text normalization
+_RE_QA_WHITESPACE = re.compile(r'\s+')
+_RE_QA_PUNCTUATION = re.compile(r'[^\w\s]')
+
+# Code normalization (for _normalized_code_comparison)
+_RE_CODE_SINGLE_COMMENT = re.compile(r'#.*?$', re.MULTILINE)
+_RE_CODE_DOUBLE_DOCSTRING = re.compile(r'""".*?"""', re.DOTALL)
+_RE_CODE_SINGLE_DOCSTRING = re.compile(r"'''.*?'''", re.DOTALL)
+_RE_CODE_WHITESPACE = re.compile(r'\s+')
+
+# Hallucination number extraction
+_RE_NUMBER = re.compile(r'\d+\.?\d*')
+
 
 # ============================================================================
 # 1. Task Completion Rate Tracker
@@ -133,10 +149,12 @@ class AccuracyEvaluator:
 
     def __init__(self):
         self.evaluations: List[Dict[str, Any]] = []
+        self._cached_avg: Optional[float] = None  # invalidated on each add_evaluation()
 
     def add_evaluation(self, task_id: str, ground_truth: Any,
                       prediction: Any, task_type: str):
         """Add an evaluation"""
+        self._cached_avg = None  # invalidate repr cache
         accuracy = self._calculate_accuracy(ground_truth, prediction, task_type)
 
         self.evaluations.append({
@@ -165,14 +183,11 @@ class AccuracyEvaluator:
         - Longest common subsequence ratio
         - Character-level similarity
         """
-        # Normalize text
+        # Normalize text (use pre-compiled patterns for performance)
         def normalize(text):
-            # Convert to lowercase
             text = text.lower()
-            # Remove extra whitespace
-            text = re.sub(r'\s+', ' ', text).strip()
-            # Remove punctuation for better matching
-            text = re.sub(r'[^\w\s]', '', text)
+            text = _RE_QA_WHITESPACE.sub(' ', text).strip()
+            text = _RE_QA_PUNCTUATION.sub('', text)
             return text
 
         gt_norm = normalize(ground_truth)
@@ -327,17 +342,11 @@ class AccuracyEvaluator:
             Similarity score (0.0 - 1.0)
         """
         def normalize_code(code: str) -> str:
-            # Remove comments
-            code = re.sub(r'#.*?$', '', code, flags=re.MULTILINE)
-            code = re.sub(r'""".*?"""', '', code, flags=re.DOTALL)
-            code = re.sub(r"'''.*?'''", '', code, flags=re.DOTALL)
-
-            # Remove extra whitespace
-            code = re.sub(r'\s+', ' ', code)
-
-            # Remove leading/trailing whitespace
-            code = code.strip()
-
+            # Remove comments and docstrings (pre-compiled for performance)
+            code = _RE_CODE_SINGLE_COMMENT.sub('', code)
+            code = _RE_CODE_DOUBLE_DOCSTRING.sub('', code)
+            code = _RE_CODE_SINGLE_DOCSTRING.sub('', code)
+            code = _RE_CODE_WHITESPACE.sub(' ', code).strip()
             return code
 
         norm1 = normalize_code(code1)
@@ -389,22 +398,45 @@ class AccuracyEvaluator:
         return df.groupby("task_type")["accuracy"].mean().mul(100).round(2).to_dict()
 
     def get_accuracy_metrics(self) -> Dict[str, Any]:
-        """Alias for print_metric_breakdown compatibility"""
+        """Get aggregated accuracy metrics — consistent superset of get_accuracy_scores().
+
+        Returns the same keys as :meth:`get_accuracy_scores` so callers can use either
+        method interchangeably.  Returns structured zeros (not ``{}``) when no
+        evaluations have been recorded, allowing safe key access without guards.
+
+        Returns:
+            Dict with keys: total_evaluated, overall_accuracy, median_accuracy,
+            min_accuracy, max_accuracy, std_accuracy,
+            high_accuracy_count, low_accuracy_count  (all float/int).
+        """
         if not self.evaluations:
-            return {}
-        scores = [e.get("accuracy", 0) for e in self.evaluations]
+            return {
+                "total_evaluated": 0,
+                "overall_accuracy": 0.0,
+                "median_accuracy": 0.0,
+                "min_accuracy": 0.0,
+                "max_accuracy": 0.0,
+                "std_accuracy": 0.0,
+                "high_accuracy_count": 0,
+                "low_accuracy_count": 0,
+            }
+        scores = self.get_accuracy_scores()
         return {
-            "scores": scores,
-            "overall_accuracy": round(sum(scores) / len(scores) * 100, 2) if scores else 0.0,
-            "median_accuracy": round(statistics.median(scores) * 100, 2) if scores else 0.0,
+            "total_evaluated": len(self.evaluations),
+            **scores,
         }
 
     def __repr__(self) -> str:
-        avg = (
-            round(sum(e.get("accuracy", 0) for e in self.evaluations) / len(self.evaluations) * 100, 1)
-            if self.evaluations else 0.0
-        )
-        return f"AccuracyEvaluator(evaluations={len(self.evaluations)}, avg={avg}%)"
+        if self._cached_avg is None:
+            self._cached_avg = (
+                round(
+                    sum(e.get("accuracy", 0) for e in self.evaluations)
+                    / len(self.evaluations) * 100,
+                    1,
+                )
+                if self.evaluations else 0.0
+            )
+        return f"AccuracyEvaluator(evaluations={len(self.evaluations)}, avg={self._cached_avg}%)"
 
 
 # ============================================================================
@@ -490,12 +522,10 @@ class HallucinationDetector:
                     "severity": "medium"
                 })
 
-        # 2. Check for numerical inconsistencies
-        response_numbers = re.findall(r'\d+\.?\d*', response)
-        context_numbers = re.findall(r'\d+\.?\d*', context)
-
-        # CRITICAL FIX: Handle ground_truth None properly
-        ground_truth_numbers = re.findall(r'\d+\.?\d*', ground_truth) if ground_truth else []
+        # 2. Check for numerical inconsistencies (pre-compiled pattern for performance)
+        response_numbers = _RE_NUMBER.findall(response)
+        context_numbers = _RE_NUMBER.findall(context)
+        ground_truth_numbers = _RE_NUMBER.findall(ground_truth) if ground_truth else []
 
         for num in response_numbers:
             if num not in context_numbers and num not in ground_truth_numbers:

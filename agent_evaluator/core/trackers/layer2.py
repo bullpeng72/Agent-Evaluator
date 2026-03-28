@@ -12,11 +12,17 @@ import json
 import statistics
 from collections import defaultdict
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union
 
 import pandas as pd
 
 from .base import TaskResult
+
+
+def _safe_mean(series: "pd.Series") -> float:
+    """Return the mean of a pandas Series, or 0.0 if empty / all-NaN."""
+    val = series.mean()
+    return float(val) if not pd.isna(val) else 0.0
 
 
 # ---------------------------------------------------------------------------
@@ -68,8 +74,34 @@ class ToolCallAnalyzer:
     def __repr__(self) -> str:
         return f"ToolCallAnalyzer(executions={len(self.executions)})"
 
-    def analyze_execution(self, task_id: str, tool_calls: List[Dict[str, Any]]) -> Dict[str, Any]:
-        """Analyze tool calls for a task"""
+    def analyze_execution(
+        self,
+        task_id: str,
+        tool_calls: List[Union[str, Dict[str, Any]]],
+    ) -> Dict[str, Any]:
+        """Analyze tool call efficiency for a single task.
+
+        Args:
+            task_id: Unique task identifier.
+            tool_calls: List of tool call records. Each element can be:
+
+                - ``str`` — simple tool name (e.g., ``"web_search"``).
+                - ``dict`` — structured call record with optional keys:
+
+                  * ``tool_name`` / ``tool`` / ``name`` (str): Tool identifier
+                    (checked in this order; defaults to ``"unknown"``).
+                  * ``duration`` (float, opt): Execution time in seconds.
+                    Values ``<= 0`` are excluded from ``avg_call_duration``.
+                  * ``success`` (bool, opt): Whether the call succeeded.
+                    Defaults to ``True`` when absent.
+                  * ``parameters`` (dict, opt): Tool arguments used for
+                    redundancy detection (same tool + same parameters = redundant).
+
+        Returns:
+            Dict with keys: task_id, total_calls, unique_tools,
+            redundant_calls, failed_calls (int), avg_call_duration (float),
+            efficiency_score (float, 0–100).
+        """
         if not tool_calls:
             return {
                 "task_id": task_id,
@@ -327,9 +359,11 @@ class RetryCorrectionTracker:
             "correction_success_rate": round(correction_success_rate, 2),
             "avg_attempts_per_task": round(df["total_attempts"].mean(), 2),
             "total_retry_time": round(df["total_retry_time"].sum(), 2),
-            "avg_retry_time": round(
-                df[df["total_attempts"] > 1]["total_retry_time"].mean(), 2
-            ) if tasks_with_retries > 0 else 0.0,
+            "avg_retry_time": (
+                round(
+                    _safe_mean(df[df["total_attempts"] > 1]["total_retry_time"]), 2
+                ) if tasks_with_retries > 0 else 0.0
+            ),
             # overall_retry_rate: 재시도 횟수 / 총 시도 횟수 × 100
             "overall_retry_rate": round(
                 (df["total_attempts"].sum() - len(df)) / df["total_attempts"].sum() * 100, 2
@@ -434,10 +468,21 @@ class ToolSelectionTracker:
             100.0
         """
         if not expected_tools:
+            # No ground truth to compare against — return consistent key structure
+            # with accuracy=0.0 so aggregation pipelines can safely sum/average.
+            # The "note" key signals callers that this evaluation was skipped.
             return {
                 "task_id": task_id,
-                "accuracy": 100.0,
-                "note": "No expected tools defined"
+                "expected_tools": expected_tools,
+                "actual_tools": actual_tools,
+                "true_positives": 0,
+                "false_positives": len(actual_tools),
+                "false_negatives": 0,
+                "precision": 0.0,
+                "recall": 0.0,
+                "f1_score": 0.0,
+                "accuracy": 0.0,
+                "note": "No expected tools defined — evaluation skipped",
             }
 
         expected_set = set(_normalize_tool_name(t) for t in expected_tools)
