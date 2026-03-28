@@ -42,6 +42,13 @@ _QA_WEIGHT_JACCARD: float = 0.3         # set-based Jaccard similarity
 _QA_WEIGHT_LCS: float = 0.2             # longest-common-subsequence ratio
 _QA_WEIGHT_CHAR: float = 0.1            # character-level similarity
 
+# Code accuracy constants
+# AST 비교 점수가 이 값 이상이면 정규화 비교를 건너뜀 (고신뢰 AST 일치)
+_CODE_AST_HIGH_CONFIDENCE_THRESHOLD: float = 0.95
+# 정규화 비교(공백·주석 제거)에서 완전 일치 시 반환 값.
+# 1.0이 아닌 이유: 주석이나 독스트링이 다를 수 있어 "사실상 같은 코드"지만 완전 동일은 아님
+_CODE_NORMALIZED_MATCH_CONFIDENCE: float = 0.95
+
 
 # ============================================================================
 # 1. Task Completion Rate Tracker
@@ -251,7 +258,7 @@ class AccuracyEvaluator:
 
         # Strategy 2: AST comparison (handles formatting, comments, variable names)
         ast_score = self._ast_comparison(expected_output, actual_output)
-        if ast_score >= 0.95:
+        if ast_score >= _CODE_AST_HIGH_CONFIDENCE_THRESHOLD:
             return ast_score
 
         # Strategy 3: Normalized comparison (whitespace-insensitive)
@@ -305,8 +312,11 @@ class AccuracyEvaluator:
         except SyntaxError:
             # If either code has syntax errors, AST comparison fails
             return 0.0
+        except (ValueError, RecursionError) as e:
+            logger.warning("AST comparison error for code snippet: %s", e)
+            return 0.0
         except Exception as e:
-            logger.debug("taskresult calculation error: %s", e)
+            logger.debug("AST comparison unexpected error: %s", e)
             return 0.0
 
     def _normalized_code_comparison(self, code1: str, code2: str) -> float:
@@ -334,7 +344,7 @@ class AccuracyEvaluator:
         norm2 = normalize_code(code2)
 
         if norm1 == norm2:
-            return 0.95  # High confidence but not perfect (comments differ)
+            return _CODE_NORMALIZED_MATCH_CONFIDENCE  # High confidence but not perfect (comments differ)
 
         # Character-level similarity
         if not norm1:

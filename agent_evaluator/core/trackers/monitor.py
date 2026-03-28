@@ -213,7 +213,11 @@ class PerformanceMonitor:
                     budget_per_day=judge_budget_per_day,
                 )
                 logger.info("LLM Judge 활성화됨 (model=%s, sample_rate=%s)", self.llm_judge.model, judge_sample_rate)
+            except ImportError as e:
+                warnings.warn(f"LLM Judge 초기화 실패 (의존성 없음): {e}", RuntimeWarning, stacklevel=2)
+                self.enable_llm_judge = False
             except Exception as e:
+                logger.warning("LLM Judge 초기화 중 예기치 않은 오류: %s", e, exc_info=True)
                 warnings.warn(f"LLM Judge 초기화 실패: {e}", RuntimeWarning, stacklevel=2)
                 self.enable_llm_judge = False
 
@@ -362,12 +366,15 @@ class PerformanceMonitor:
         if not self.golden_datasets or dataset_path:
             self.load_golden_dataset(dataset_path)  # raises StorageError on failure
 
-        total = len(self.golden_datasets)
+        with self._lock:
+            golden_items = list(self.golden_datasets)  # 스냅샷: 읽는 동안 외부 수정 방지
+
+        total = len(golden_items)
         if verbose:
             print(f"🚀 Golden Dataset 기반 자동 평가 시작 ({total}개 항목)")
 
         # 각 QA 쌍 평가
-        for idx, qa_pair in enumerate(self.golden_datasets, 1):
+        for idx, qa_pair in enumerate(golden_items, 1):
             if verbose:
                 print(f"\n[{idx}/{total}] 평가 중: {qa_pair.get('question', '')[:50]}...")
 
@@ -549,7 +556,7 @@ class PerformanceMonitor:
 
         # Quality
         quality_data = self.quality_evaluator.get_quality_metrics()
-        if quality_data and 'quality' in self.thresholds:
+        if quality_data.get('total_evaluated', 0) > 0 and 'quality' in self.thresholds:
             avg_quality = quality_data.get('avg_total_score', 0) * _QUALITY_SCORE_TO_10_SCALE
             comparison['quality'] = {
                 'name': '응답 품질 (Quality)',
@@ -991,9 +998,13 @@ class PerformanceMonitor:
                     ground_truth=ground_truth_str,
                     request=_eff_request_hall
                 )
+            except (AttributeError, KeyError, TypeError) as _hall_exc:
+                logger.warning(
+                    "Hallucination detection failed for %s: %s",
+                    task_result.task_id, _hall_exc, exc_info=True,
+                )
             except Exception:
-                # Silent fail - don't break the entire evaluation
-                logger.debug("Hallucination detection failed for %s", task_result.task_id, exc_info=True)
+                logger.debug("Hallucination detection unexpected error for %s", task_result.task_id, exc_info=True)
 
         # Auto-trigger: Quality Evaluation (response + request 있을 때 자동 평가)
         _eff_request = request or task_result.question
@@ -1021,10 +1032,13 @@ class PerformanceMonitor:
                         expected_elements=_ee,
                         ground_truth=_gt_str,
                     )
-                except Exception:
-                    logger.debug(
-                        "Auto quality evaluation failed for %s", task_result.task_id, exc_info=True
+                except (AttributeError, KeyError, TypeError) as _q_exc:
+                    logger.warning(
+                        "Auto quality evaluation failed for %s: %s",
+                        task_result.task_id, _q_exc, exc_info=True,
                     )
+                except Exception:
+                    logger.debug("Auto quality evaluation unexpected error for %s", task_result.task_id, exc_info=True)
 
         # Auto-trigger: Accuracy Evaluation (response + ground_truth 있고, accuracy_score==0일 때)
         _eff_gt = ground_truth if ground_truth is not None else task_result.ground_truth
@@ -1039,10 +1053,13 @@ class PerformanceMonitor:
                         prediction=_eff_response,
                         task_type=task_result.task_type,
                     )
-                except Exception:
-                    logger.debug(
-                        "Auto accuracy evaluation failed for %s", task_result.task_id, exc_info=True
+                except (AttributeError, KeyError, TypeError) as _acc_exc:
+                    logger.warning(
+                        "Auto accuracy evaluation failed for %s: %s",
+                        task_result.task_id, _acc_exc, exc_info=True,
                     )
+                except Exception:
+                    logger.debug("Auto accuracy evaluation unexpected error for %s", task_result.task_id, exc_info=True)
 
         # Auto-trigger: LLM Judge (opt-in, Phase 1-A)
         if self.enable_llm_judge and self.llm_judge and _eff_request and _eff_response:
@@ -1057,8 +1074,12 @@ class PerformanceMonitor:
                 # serialised into the JSON output without needing schema changes.
                 if not judge_result.get("skipped") and judge_result.get("scores"):
                     task_result.llm_judge = judge_result
+            except (AttributeError, KeyError, TypeError) as _judge_exc:
+                logger.warning(
+                    "LLM Judge failed for %s: %s", task_result.task_id, _judge_exc, exc_info=True
+                )
             except Exception:
-                logger.debug("LLM Judge failed for %s", task_result.task_id, exc_info=True)
+                logger.debug("LLM Judge unexpected error for %s", task_result.task_id, exc_info=True)
 
     def record_rag_metrics(
         self,

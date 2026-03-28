@@ -19,7 +19,38 @@ import pandas as pd
 from .base import TaskResult
 
 
-# ============================================================================
+# ---------------------------------------------------------------------------
+# AgentCoordinationTracker 스코어링 상수
+# ---------------------------------------------------------------------------
+
+# 협업 점수 가중치 (success 50% + diversity 30% + balance 20% = 1.0)
+_COORD_WEIGHT_SUCCESS: float = 0.5
+_COORD_WEIGHT_DIVERSITY: float = 0.3
+_COORD_WEIGHT_BALANCE: float = 0.2
+
+# 다양성 정규화 기준: 5개 이상 에이전트를 "이상적" 다양성으로 정의
+_COORD_IDEAL_AGENT_COUNT: int = 5
+# 균형 정규화 기준: 3가지 인터랙션 유형(delegation/communication/collaboration)이 이상적
+_COORD_IDEAL_INTERACTION_TYPES: int = 3
+# 점수 척도: 협업 점수는 0-10 범위
+_COORD_SCORE_SCALE: float = 10.0
+
+# 패턴 탐지 임계값
+# Hub: 단일 에이전트가 전체 인터랙션의 50% 이상 처리
+_COORD_HUB_THRESHOLD: float = 0.5
+# Chain: 에이전트의 70% 이상이 송수신 ≤2 조건 충족
+_COORD_CHAIN_RATIO: float = 0.7
+# Mesh: 가능한 연결 쌍의 50% 이상이 실제로 연결됨
+_COORD_MESH_DENSITY_THRESHOLD: float = 0.5
+
+# 에이전트 역할 분류 경계값
+# 전체 인터랙션 중 70% 이상 송신 → producer
+_COORD_PRODUCER_RATIO: float = 0.7
+# 전체 인터랙션 중 30% 이하 송신 → consumer (그 외는 coordinator)
+_COORD_CONSUMER_RATIO: float = 0.3
+
+
+# ===========================================================================
 # 7. Tool Call Efficiency Analyzer (Agentic AI - Layer 2)
 # ============================================================================
 
@@ -561,14 +592,14 @@ class AgentCoordinationTracker:
             type_counts[i["interaction_type"]] += 1
 
         # Score calculation (0-10 scale)
-        # 50% success rate, 30% diversity, 20% balance
-        diversity_score = min(len(agents) / 5, 1.0) * 10  # Assume 5+ agents is ideal
-        balance_score = (len(type_counts) / 3) * 10  # Assume 3 types is ideal
+        # success_rate(0-100) → /10 → (0-10), then weight by _COORD_WEIGHT_SUCCESS
+        diversity_score = min(len(agents) / _COORD_IDEAL_AGENT_COUNT, 1.0) * _COORD_SCORE_SCALE
+        balance_score = (len(type_counts) / _COORD_IDEAL_INTERACTION_TYPES) * _COORD_SCORE_SCALE
 
         coordination_score = (
-            success_rate * 0.5 / 10 +
-            diversity_score * 0.3 +
-            balance_score * 0.2
+            success_rate * _COORD_WEIGHT_SUCCESS / _COORD_SCORE_SCALE +
+            diversity_score * _COORD_WEIGHT_DIVERSITY +
+            balance_score * _COORD_WEIGHT_BALANCE
         )
 
         return {
@@ -620,8 +651,8 @@ class AgentCoordinationTracker:
             max_receives = max(agent_receive_counts.values()) if agent_receive_counts else 0
             total_interactions = len(self.interactions)
 
-            # Hub: Central agent handles > 50% of interactions
-            hub_threshold = total_interactions * 0.5
+            # Hub: Central agent handles > _COORD_HUB_THRESHOLD of interactions
+            hub_threshold = total_interactions * _COORD_HUB_THRESHOLD
             if max_sends >= hub_threshold or max_receives >= hub_threshold:
                 pattern_type = "hub"
                 pattern_confidence = min((max(max_sends, max_receives) / total_interactions) * 100, 100)
@@ -633,7 +664,7 @@ class AgentCoordinationTracker:
                                if agent_send_counts.get(agent, 0) <= 2
                                and agent_receive_counts.get(agent, 0) <= 2)
 
-                if chain_like / total_agents >= 0.7:  # 70% of agents fit chain pattern
+                if chain_like / total_agents >= _COORD_CHAIN_RATIO:
                     pattern_type = "chain"
                     pattern_confidence = (chain_like / total_agents) * 100
 
@@ -644,7 +675,7 @@ class AgentCoordinationTracker:
 
             if max_possible_pairs > 0:
                 connection_density = unique_pairs / max_possible_pairs
-                if connection_density >= 0.5:  # 50% of possible connections exist
+                if connection_density >= _COORD_MESH_DENSITY_THRESHOLD:
                     pattern_type = "mesh"
                     pattern_confidence = connection_density * 100
 
@@ -676,9 +707,9 @@ class AgentCoordinationTracker:
 
             if total > 0:
                 send_ratio = sends / total
-                if send_ratio > 0.7:
+                if send_ratio > _COORD_PRODUCER_RATIO:
                     role = "producer"
-                elif send_ratio < 0.3:
+                elif send_ratio < _COORD_CONSUMER_RATIO:
                     role = "consumer"
                 else:
                     role = "coordinator"
