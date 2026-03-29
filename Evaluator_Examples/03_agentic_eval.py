@@ -452,7 +452,7 @@ def run_agentic_evaluation():
     eff_score    = eff_data.get("avg_efficiency_score", 0) if eff_data else 0
     redundancy   = eff_data.get("redundancy_rate", 0) if eff_data else 0
     tool_f1      = tool_sel.get("avg_f1_score", tool_sel.get("avg_accuracy", 0)) if tool_sel else 0
-    coord_score  = coord.get("score", 0) if coord else 0
+    coord_score  = coord.get("overall_score", 0) if coord else 0
     coord_suc    = coord.get("success_rate", 0) if coord else 0
     wf_step_suc  = workflow.get("step_success_rate", 0) if workflow else 0
     wf_task_suc  = workflow.get("task_success_rate", 0) if workflow else 0
@@ -670,7 +670,7 @@ def run_transparency_demo(monitor: PerformanceMonitor, saved_path: str):
     )
 
     # (1b) Agent Coordination 트레이스
-    coord_score = coord.get("score", 0) if coord else 0
+    coord_score = coord.get("overall_score", 0) if coord else 0
     trace_id2 = tm.start_metric_calculation(
         metric_name="agent_coordination_score",
         metric_type="agentic",

@@ -13,17 +13,20 @@ import logging
 import statistics
 from collections import defaultdict
 from datetime import datetime
-from typing import Any, Dict, List, Optional, Union
-
-logger = logging.getLogger(__name__)
+from typing import Any, Dict, List, Optional, Set, Union
 
 import pandas as pd
 
-from .base import TaskResult
+from .base import BaseTracker, TaskResult
+from ...exceptions import ValidationError
+
+logger = logging.getLogger(__name__)
 
 
 def _safe_mean(series: "pd.Series") -> float:
     """Return the mean of a pandas Series, or 0.0 if empty / all-NaN."""
+    if len(series) == 0:
+        return 0.0
     val = series.mean()
     return float(val) if not pd.isna(val) else 0.0
 
@@ -58,12 +61,15 @@ _COORD_PRODUCER_RATIO: float = 0.7
 # 전체 인터랙션 중 30% 이하 송신 → consumer (그 외는 coordinator)
 _COORD_CONSUMER_RATIO: float = 0.3
 
+# track_interaction()에서 허용되는 인터랙션 유형 집합
+_COORD_ALLOWED_INTERACTION_TYPES: frozenset = frozenset({"delegation", "communication", "collaboration"})
+
 
 # ===========================================================================
 # 7. Tool Call Efficiency Analyzer (Agentic AI - Layer 2)
 # ============================================================================
 
-class ToolCallAnalyzer:
+class ToolCallAnalyzer(BaseTracker):
     """
     Analyze tool call efficiency for Agentic AI systems
 
@@ -72,14 +78,24 @@ class ToolCallAnalyzer:
     """
 
     def __init__(self):
-        self.executions: List[Dict[str, Any]] = []
+        self._executions: List[Dict[str, Any]] = []
+
+    @property
+    def executions(self) -> List[Dict[str, Any]]:
+        """Shallow copy of accumulated execution records."""
+        return list(self._executions)
+
+    @executions.setter
+    def executions(self, value: List[Dict[str, Any]]) -> None:
+        """Restore internal state (used by load_from_file)."""
+        self._executions = list(value)
 
     def __repr__(self) -> str:
-        return f"ToolCallAnalyzer(executions={len(self.executions)})"
+        return f"ToolCallAnalyzer(executions={len(self._executions)})"
 
     def reset(self) -> None:
         """Clear all execution records."""
-        self.executions.clear()
+        self._executions.clear()
 
     def analyze_execution(
         self,
@@ -153,14 +169,12 @@ class ToolCallAnalyzer:
             "avg_call_duration": round(statistics.mean(durations), 2) if durations else 0.0
         }
 
-        # CRITICAL FIX: Calculate efficiency score with zero division check
-        if metrics["total_calls"] > 0:
-            waste_rate = (metrics["redundant_calls"] + metrics["failed_calls"]) / metrics["total_calls"]
-            metrics["efficiency_score"] = round(max(0, 100 - (waste_rate * 100)), 2)
-        else:
-            metrics["efficiency_score"] = 100.0
+        # Calculate efficiency score (only reachable when total_calls > 0;
+        # empty tool_calls returns early above with efficiency_score=None).
+        waste_rate = (metrics["redundant_calls"] + metrics["failed_calls"]) / metrics["total_calls"]
+        metrics["efficiency_score"] = round(max(0, 100 - (waste_rate * 100)), 2)
 
-        self.executions.append(metrics)
+        self._executions.append(metrics)
         return metrics
 
     def _count_redundant_calls(self, tool_calls: List) -> int:
@@ -187,24 +201,27 @@ class ToolCallAnalyzer:
 
     def get_efficiency_stats(self) -> Dict[str, Any]:
         """Get tool call efficiency statistics"""
-        if not self.executions:
+        if not self._executions:
             return {
                 "total_calls": 0, "success_rate": 0.0,
                 "avg_duration": 0.0, "avg_calls_per_task": 0.0,
-                "avg_efficiency_score": 100.0, "total_redundant_calls": 0,
+                "avg_efficiency_score": 0.0,  # 0 = no data, not 100 (unmeasured ≠ perfect)
+                "total_redundant_calls": 0,
                 "total_failed_calls": 0, "redundancy_rate": 0.0, "failure_rate": 0.0,
             }
 
-        df = pd.DataFrame(self.executions)
+        df = pd.DataFrame(self._executions)
 
         total_calls = int(df["total_calls"].sum())
 
         return {
             "total_calls": total_calls,  # Added for dashboard
             "success_rate": round((1 - df["failed_calls"].sum() / total_calls) * 100, 2) if total_calls > 0 else 0,  # Added
-            "avg_duration": round(df["avg_call_duration"].mean(), 3) if "avg_call_duration" in df.columns else 0,  # Added
+            "avg_duration": round(df["avg_call_duration"].dropna().mean(), 3)
+            if "avg_call_duration" in df.columns and df["avg_call_duration"].notna().any() else 0.0,
             "avg_calls_per_task": round(df["total_calls"].mean(), 2),
-            "avg_efficiency_score": round(df["efficiency_score"].mean(), 2),
+            "avg_efficiency_score": round(df["efficiency_score"].dropna().mean(), 2)
+            if df["efficiency_score"].notna().any() else 0.0,
             "total_redundant_calls": int(df["redundant_calls"].sum()),
             "total_failed_calls": int(df["failed_calls"].sum()),
             "redundancy_rate": round(
@@ -217,66 +234,97 @@ class ToolCallAnalyzer:
 
     def get_tool_usage_patterns(self) -> Dict[str, Any]:
         """Get detailed tool usage patterns and statistics"""
-        if not self.executions:
+        if not self._executions:
             return {
                 "total_tasks": 0,
                 "tool_frequency": {},
                 "pattern_analysis": {}
             }
 
-        # Collect all tool usage data
-        all_tools = []
+        # Single-pass: collect all per-task values to avoid O(N) × num_metrics overhead
         tool_call_counts = []
         efficiency_scores = []
+        redundant_counts = []
+        failed_counts = []
+        tasks_with_redundancy = 0
+        tasks_with_failures = 0
 
-        for exec_data in self.executions:
-            tool_call_counts.append(exec_data.get("total_calls", 0))
+        ud_1_2 = ud_3_5 = ud_6_10 = ud_11p = 0
+        ed_exc = ed_good = ed_fair = ed_poor = 0
+
+        for exec_data in self._executions:
+            tc = exec_data.get("total_calls", 0)
+            tool_call_counts.append(tc)
+            rc = exec_data.get("redundant_calls", 0)
+            fc = exec_data.get("failed_calls", 0)
+            redundant_counts.append(rc)
+            failed_counts.append(fc)
+            if rc > 0:
+                tasks_with_redundancy += 1
+            if fc > 0:
+                tasks_with_failures += 1
+
             # efficiency_score is None when no tool calls were made — exclude from average
             es = exec_data.get("efficiency_score")
             if es is not None:
                 efficiency_scores.append(es)
+                if es >= 90:
+                    ed_exc += 1
+                elif es >= 75:
+                    ed_good += 1
+                elif es >= 50:
+                    ed_fair += 1
+                else:
+                    ed_poor += 1
 
-        # Calculate pattern analysis
+            # usage distribution buckets
+            if 1 <= tc <= 2:
+                ud_1_2 += 1
+            elif 3 <= tc <= 5:
+                ud_3_5 += 1
+            elif 6 <= tc <= 10:
+                ud_6_10 += 1
+            elif tc > 10:
+                ud_11p += 1
+
+        total_redundant = sum(redundant_counts)
+        total_failed = sum(failed_counts)
+        n = len(self._executions)
+
         pattern_analysis = {
             "avg_tools_per_task": round(statistics.mean(tool_call_counts), 2) if tool_call_counts else 0,
             "median_tools_per_task": round(statistics.median(tool_call_counts), 2) if tool_call_counts else 0,
             "max_tools_in_single_task": max(tool_call_counts) if tool_call_counts else 0,
             "min_tools_in_single_task": min(tool_call_counts) if tool_call_counts else 0,
             "avg_efficiency": round(statistics.mean(efficiency_scores), 2) if efficiency_scores else 0,
-            "tasks_with_redundancy": sum(1 for e in self.executions if e.get("redundant_calls", 0) > 0),
-            "tasks_with_failures": sum(1 for e in self.executions if e.get("failed_calls", 0) > 0)
-        }
-
-        # Calculate usage distribution
-        usage_distribution = {
-            "1-2_calls": sum(1 for c in tool_call_counts if 1 <= c <= 2),
-            "3-5_calls": sum(1 for c in tool_call_counts if 3 <= c <= 5),
-            "6-10_calls": sum(1 for c in tool_call_counts if 6 <= c <= 10),
-            "11+_calls": sum(1 for c in tool_call_counts if c > 10)
-        }
-
-        # Calculate efficiency distribution
-        efficiency_distribution = {
-            "excellent_90-100": sum(1 for e in efficiency_scores if e >= 90),
-            "good_75-89": sum(1 for e in efficiency_scores if 75 <= e < 90),
-            "fair_50-74": sum(1 for e in efficiency_scores if 50 <= e < 75),
-            "poor_0-49": sum(1 for e in efficiency_scores if e < 50)
+            "tasks_with_redundancy": tasks_with_redundancy,
+            "tasks_with_failures": tasks_with_failures,
         }
 
         return {
-            "total_tasks": len(self.executions),
+            "total_tasks": n,
             "total_tool_calls": sum(tool_call_counts),
             "pattern_analysis": pattern_analysis,
-            "usage_distribution": usage_distribution,
-            "efficiency_distribution": efficiency_distribution,
+            "usage_distribution": {
+                "1-2_calls": ud_1_2,
+                "3-5_calls": ud_3_5,
+                "6-10_calls": ud_6_10,
+                "11+_calls": ud_11p,
+            },
+            "efficiency_distribution": {
+                "excellent_90-100": ed_exc,
+                "good_75-89": ed_good,
+                "fair_50-74": ed_fair,
+                "poor_0-49": ed_poor,
+            },
             "redundancy_impact": {
-                "total_redundant": sum(e.get("redundant_calls", 0) for e in self.executions),
-                "avg_redundant_per_task": round(statistics.mean([e.get("redundant_calls", 0) for e in self.executions]), 2)
+                "total_redundant": total_redundant,
+                "avg_redundant_per_task": round(total_redundant / n, 2) if n > 0 else 0,
             },
             "failure_impact": {
-                "total_failed": sum(e.get("failed_calls", 0) for e in self.executions),
-                "avg_failed_per_task": round(statistics.mean([e.get("failed_calls", 0) for e in self.executions]), 2)
-            }
+                "total_failed": total_failed,
+                "avg_failed_per_task": round(total_failed / n, 2) if n > 0 else 0,
+            },
         }
 
 
@@ -284,25 +332,38 @@ class ToolCallAnalyzer:
 # 8. Retry/Correction Tracker
 # ============================================================================
 
-class RetryCorrectionTracker:
+class RetryCorrectionTracker(BaseTracker):
     """Track retry and correction attempts"""
 
     def __init__(self):
-        self.attempts: List[Dict[str, Any]] = []
+        self._attempts: List[Dict[str, Any]] = []
+        self._task_ids: Set[str] = set()
+
+    @property
+    def attempts(self) -> List[Dict[str, Any]]:
+        """Shallow copy of accumulated retry attempt records."""
+        return list(self._attempts)
+
+    @attempts.setter
+    def attempts(self, value: List[Dict[str, Any]]) -> None:
+        """Restore internal state (used by load_from_file)."""
+        self._attempts = list(value)
+        self._task_ids = {a.get("task_id") for a in value if a.get("task_id") is not None}
 
     def __repr__(self) -> str:
-        return f"RetryCorrectionTracker(attempts={len(self.attempts)})"
+        return f"RetryCorrectionTracker(attempts={len(self._attempts)})"
 
     def reset(self) -> None:
         """Clear all retry attempt records."""
-        self.attempts.clear()
+        self._attempts.clear()
+        self._task_ids.clear()
 
     def track_attempts(
         self,
         task_id: str,
         attempts_log: List[Dict[str, Any]],
         task_type: str = "unknown",
-    ):
+    ) -> None:
         """태스크의 재시도 이력을 기록한다.
 
         Args:
@@ -338,11 +399,12 @@ class RetryCorrectionTracker:
             "total_retry_time": sum(a.get("duration", 0) for a in attempts_log[1:])
         }
 
-        self.attempts.append(analysis)
+        self._attempts.append(analysis)
+        self._task_ids.add(task_id)
 
     def get_retry_metrics(self) -> Dict[str, Any]:
         """Get retry statistics"""
-        if not self.attempts:
+        if not self._attempts:
             return {
                 "total_tasks_with_retries": 0,
                 "retry_rate": 0.0,
@@ -357,7 +419,7 @@ class RetryCorrectionTracker:
                 "avg_retries_per_task": 0.0,
             }
 
-        df = pd.DataFrame(self.attempts)
+        df = pd.DataFrame(self._attempts)
 
         # Calculate metrics
         tasks_with_retries = (df["total_attempts"] > 1).sum()
@@ -399,7 +461,7 @@ class RetryCorrectionTracker:
     def analyze_failure_patterns(self) -> Dict[str, Any]:
         """Analyze common failure patterns"""
         all_reasons = []
-        for attempt in self.attempts:
+        for attempt in self._attempts:
             all_reasons.extend(attempt["retry_reasons"])
 
         if not all_reasons:
@@ -450,18 +512,31 @@ def _normalize_tool_name(name: str) -> str:
     return _TOOL_ALIAS_REVERSE.get(n, n)
 
 
-class ToolSelectionTracker:
+class ToolSelectionTracker(BaseTracker):
     """Track tool selection accuracy for Agentic AI"""
 
     def __init__(self):
-        self.selections: List[Dict[str, Any]] = []
+        self._selections: List[Dict[str, Any]] = []
+        self._task_ids: Set[str] = set()
+
+    @property
+    def selections(self) -> List[Dict[str, Any]]:
+        """Shallow copy of accumulated tool selection records."""
+        return list(self._selections)
+
+    @selections.setter
+    def selections(self, value: List[Dict[str, Any]]) -> None:
+        """Restore internal state (used by load_from_file)."""
+        self._selections = list(value)
+        self._task_ids = {s.get("task_id") for s in value if s.get("task_id") is not None}
 
     def __repr__(self) -> str:
-        return f"ToolSelectionTracker(selections={len(self.selections)})"
+        return f"ToolSelectionTracker(selections={len(self._selections)})"
 
     def reset(self) -> None:
         """Clear all selection records."""
-        self.selections.clear()
+        self._selections.clear()
+        self._task_ids.clear()
 
     def evaluate_selection(
         self,
@@ -536,15 +611,18 @@ class ToolSelectionTracker:
             "precision": round(precision * 100, 2),
             "recall": round(recall * 100, 2),
             "f1_score": round(f1_score * 100, 2),
-            "accuracy": round(f1_score * 100, 2)  # Use F1 as overall accuracy
+            # "accuracy" is an alias for f1_score kept for backward compatibility.
+            # Callers needing the true F1 score should use the "f1_score" key.
+            "accuracy": round(f1_score * 100, 2)
         }
 
-        self.selections.append(result)
+        self._selections.append(result)
+        self._task_ids.add(task_id)
         return result
 
     def get_accuracy_stats(self) -> Dict[str, Any]:
         """Get tool selection accuracy statistics"""
-        if not self.selections:
+        if not self._selections:
             return {
                 "total_evaluations": 0,
                 "avg_accuracy": 0.0,
@@ -556,10 +634,10 @@ class ToolSelectionTracker:
                 "total_false_negatives": 0,
             }
 
-        df = pd.DataFrame(self.selections)
+        df = pd.DataFrame(self._selections)
 
         return {
-            "total_evaluations": len(self.selections),
+            "total_evaluations": len(self._selections),
             "avg_accuracy": round(df["accuracy"].mean(), 2),
             "avg_precision": round(df["precision"].mean(), 2),
             "avg_recall": round(df["recall"].mean(), 2),
@@ -574,18 +652,28 @@ class ToolSelectionTracker:
 # 10. Agent Coordination Tracker (CrewAI)
 # ============================================================================
 
-class AgentCoordinationTracker:
+class AgentCoordinationTracker(BaseTracker):
     """Track multi-agent coordination quality for CrewAI"""
 
     def __init__(self):
-        self.interactions: List[Dict[str, Any]] = []
+        self._interactions: List[Dict[str, Any]] = []
+
+    @property
+    def interactions(self) -> List[Dict[str, Any]]:
+        """Shallow copy of accumulated agent interaction records."""
+        return list(self._interactions)
+
+    @interactions.setter
+    def interactions(self, value: List[Dict[str, Any]]) -> None:
+        """Restore internal state (used by load_from_file)."""
+        self._interactions = list(value)
 
     def __repr__(self) -> str:
-        return f"AgentCoordinationTracker(interactions={len(self.interactions)})"
+        return f"AgentCoordinationTracker(interactions={len(self._interactions)})"
 
     def reset(self) -> None:
         """Clear all interaction records."""
-        self.interactions.clear()
+        self._interactions.clear()
 
     def track_interaction(
         self,
@@ -624,13 +712,12 @@ class AgentCoordinationTracker:
         from_agent = from_agent or "unknown_agent"
         to_agent = to_agent or "unknown_agent"
         # DQ-167: allowed interaction_type 외 값은 "delegation"으로 정규화
-        _ALLOWED_TYPES = {"delegation", "communication", "collaboration"}
-        if interaction_type not in _ALLOWED_TYPES:
+        if interaction_type not in _COORD_ALLOWED_INTERACTION_TYPES:
             logger.warning(
                 "track_interaction() received unknown interaction_type=%r for task %r. "
                 "Expected one of %s. Normalising to 'delegation'. "
                 "This may indicate a bug in the caller.",
-                interaction_type, task_id, sorted(_ALLOWED_TYPES),
+                interaction_type, task_id, sorted(_COORD_ALLOWED_INTERACTION_TYPES),
             )
             interaction_type = "delegation"
         interaction = {
@@ -643,18 +730,18 @@ class AgentCoordinationTracker:
             "context": context or {}
         }
 
-        self.interactions.append(interaction)
+        self._interactions.append(interaction)
         return interaction
 
     def calculate_coordination_score(self, task_id: Optional[str] = None) -> Dict[str, Any]:
         """Calculate agent coordination quality score"""
-        interactions = self.interactions
+        interactions = self._interactions
         if task_id:
             interactions = [i for i in interactions if i["task_id"] == task_id]
 
         if not interactions:
             return {
-                "score": 0.0,
+                "overall_score": 0.0,
                 "success_rate": 0.0,
                 "total_interactions": 0,
                 "unique_agents": 0,
@@ -688,7 +775,7 @@ class AgentCoordinationTracker:
         )
 
         return {
-            "score": round(coordination_score, 2),
+            "overall_score": round(coordination_score, 2),
             "success_rate": round(success_rate, 2),
             "total_interactions": len(interactions),
             "unique_agents": len(agents),
@@ -697,14 +784,14 @@ class AgentCoordinationTracker:
 
     def get_delegation_success_rate(self) -> float:
         """Calculate task delegation success rate"""
-        delegations = [i for i in self.interactions if i["interaction_type"] == "delegation"]
+        delegations = [i for i in self._interactions if i["interaction_type"] == "delegation"]
         if not delegations:
             return 0.0
-        return sum(1 for d in delegations if d["success"]) / len(delegations) * 100
+        return sum(1 for d in delegations if d.get("success", False)) / len(delegations) * 100
 
     def get_interaction_patterns(self) -> Dict[str, Any]:
         """Analyze agent interaction patterns (Hub, Chain, Mesh)"""
-        if not self.interactions:
+        if not self._interactions:
             return {
                 "total_interactions": 0,
                 "pattern_type": "none",
@@ -716,14 +803,14 @@ class AgentCoordinationTracker:
         agent_receive_counts = defaultdict(int)  # How many messages each agent receives
         agent_pairs = defaultdict(int)  # Count interactions between specific pairs
 
-        for interaction in self.interactions:
+        for interaction in self._interactions:
             from_agent = interaction["from_agent"]
             to_agent = interaction["to_agent"]
             agent_send_counts[from_agent] += 1
             agent_receive_counts[to_agent] += 1
             agent_pairs[f"{from_agent}->{to_agent}"] += 1
 
-        all_agents = set(list(agent_send_counts.keys()) + list(agent_receive_counts.keys()))
+        all_agents = set(agent_send_counts) | set(agent_receive_counts)
         total_agents = len(all_agents)
 
         # Detect pattern type
@@ -734,7 +821,7 @@ class AgentCoordinationTracker:
         if agent_send_counts or agent_receive_counts:
             max_sends = max(agent_send_counts.values()) if agent_send_counts else 0
             max_receives = max(agent_receive_counts.values()) if agent_receive_counts else 0
-            total_interactions = len(self.interactions)
+            total_interactions = len(self._interactions)
 
             # Hub: Central agent handles > _COORD_HUB_THRESHOLD of interactions
             hub_threshold = total_interactions * _COORD_HUB_THRESHOLD
@@ -776,12 +863,12 @@ class AgentCoordinationTracker:
 
         # Calculate interaction type distribution
         interaction_types = defaultdict(int)
-        for interaction in self.interactions:
+        for interaction in self._interactions:
             interaction_types[interaction["interaction_type"]] += 1
 
         # Calculate success rate by pattern
-        successful_interactions = sum(1 for i in self.interactions if i["success"])
-        success_rate = (successful_interactions / len(self.interactions)) * 100
+        successful_interactions = sum(1 for i in self._interactions if i["success"])
+        success_rate = (successful_interactions / len(self._interactions)) * 100
 
         # Analyze agent roles
         agent_roles = {}
@@ -809,7 +896,7 @@ class AgentCoordinationTracker:
             }
 
         return {
-            "total_interactions": len(self.interactions),
+            "total_interactions": len(self._interactions),
             "total_agents": total_agents,
             "pattern_type": pattern_type,
             "pattern_confidence": round(pattern_confidence, 2),
@@ -861,18 +948,28 @@ class AgentCoordinationTracker:
 # 11. Workflow Execution Tracker (LangChain/LangGraph)
 # ============================================================================
 
-class WorkflowExecutionTracker:
+class WorkflowExecutionTracker(BaseTracker):
     """Track workflow/chain execution for LangChain and LangGraph"""
 
     def __init__(self):
-        self.executions: List[Dict[str, Any]] = []
+        self._executions: List[Dict[str, Any]] = []
+
+    @property
+    def executions(self) -> List[Dict[str, Any]]:
+        """Shallow copy of accumulated workflow execution records."""
+        return list(self._executions)
+
+    @executions.setter
+    def executions(self, value: List[Dict[str, Any]]) -> None:
+        """Restore internal state (used by load_from_file)."""
+        self._executions = list(value)
 
     def __repr__(self) -> str:
-        return f"WorkflowExecutionTracker(steps={len(self.executions)})"
+        return f"WorkflowExecutionTracker(steps={len(self._executions)})"
 
     def reset(self) -> None:
         """Clear all workflow execution records."""
-        self.executions.clear()
+        self._executions.clear()
 
     def track_step(
         self,
@@ -909,6 +1006,11 @@ class WorkflowExecutionTracker:
             ...     framework="langgraph",
             ... )
         """
+        if execution_time < 0.0:
+            raise ValidationError(
+                f"execution_time must be >= 0.0, got {execution_time} "
+                f"(task_id={task_id!r}, step={step_name!r})"
+            )
         step = {
             "task_id": task_id,
             "step_name": step_name,
@@ -920,7 +1022,7 @@ class WorkflowExecutionTracker:
             "metadata": metadata or {}
         }
 
-        self.executions.append(step)
+        self._executions.append(step)
         return step
 
     def calculate_execution_success_rate(
@@ -948,7 +1050,7 @@ class WorkflowExecutionTracker:
             >>> stats["step_success_rate"]
             95.0
         """
-        executions = self.executions
+        executions = self._executions
 
         if task_id:
             executions = [e for e in executions if e["task_id"] == task_id]
@@ -993,7 +1095,7 @@ class WorkflowExecutionTracker:
 
     def get_graph_traversal_efficiency(self, task_id: str) -> Dict[str, Any]:
         """Calculate graph traversal efficiency (LangGraph specific)"""
-        steps = [e for e in self.executions if e["task_id"] == task_id and e["framework"] == "langgraph"]
+        steps = [e for e in self._executions if e["task_id"] == task_id and e["framework"] == "langgraph"]
 
         if not steps:
             return {"efficiency": 0, "note": "No LangGraph data"}
@@ -1020,7 +1122,7 @@ class WorkflowExecutionTracker:
 
     def get_critical_path_analysis(self) -> Dict[str, Any]:
         """Analyze critical path and bottlenecks in workflow execution"""
-        if not self.executions:
+        if not self._executions:
             return {
                 "total_workflows": 0,
                 "critical_path": [],
@@ -1029,7 +1131,7 @@ class WorkflowExecutionTracker:
 
         # Group executions by task
         task_groups = defaultdict(list)
-        for execution in self.executions:
+        for execution in self._executions:
             task_groups[execution["task_id"]].append(execution)
 
         # Analyze step performance across all tasks
@@ -1086,7 +1188,7 @@ class WorkflowExecutionTracker:
         # Steps that appear in the same position across multiple workflows
         parallel_opportunities = []
         step_types = defaultdict(int)
-        for execution in self.executions:
+        for execution in self._executions:
             step_types[execution["step_type"]] += 1
 
         if step_types.get("branch", 0) > 0:
@@ -1098,7 +1200,7 @@ class WorkflowExecutionTracker:
 
         return {
             "total_workflows": len(task_groups),
-            "total_steps": len(self.executions),
+            "total_steps": len(self._executions),
             "critical_path": step_analysis,
             "bottlenecks": bottlenecks,
             "workflow_statistics": {

@@ -3,9 +3,9 @@ LLM Integration Helpers
 Simplify real LLM API calls with automatic evaluation and recording
 """
 
+import time
 from datetime import datetime
 from typing import Optional, Dict, Any, List
-import time
 
 
 class LLMEvaluationHelper:
@@ -118,8 +118,7 @@ class LLMEvaluationHelper:
                 response=answer,
                 ground_truth=ground_truth or "",
                 execution_time=execution_time,
-                tokens_used=tokens,
-                provider=model,
+                openai_response=response,
                 context=context
             )
 
@@ -291,8 +290,6 @@ class AnthropicEvaluationHelper:
                 response=answer,
                 ground_truth=ground_truth or "",
                 execution_time=execution_time,
-                tokens_used=tokens,
-                provider=model
             )
 
             # Auto-record

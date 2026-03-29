@@ -404,7 +404,7 @@ def run_langgraph_evaluation():
     total_tokens = token_data.get("total_tokens", 0)
     wf_rate_val  = wf_rate
     f1_val       = tool_sel_data.get("f1", 0) if tool_sel_data else 0
-    coord_score  = coord_data.get("score", 0) if coord_data else 0
+    coord_score  = coord_data.get("overall_score", 0) if coord_data else 0
     retry_rate   = retry_data.get("retry_rate", 0) if retry_data else 0
     trans_total  = sum(len(wf["transitions"]) for wf in WORKFLOWS)
 

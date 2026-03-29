@@ -73,7 +73,7 @@ class TestCalculateCoordinationScoreEmpty:
     def test_empty_returns_structured_zeros(self):
         t = AgentCoordinationTracker()
         result = t.calculate_coordination_score()
-        assert result["score"] == 0.0
+        assert result["overall_score"] == 0.0
         assert result["total_interactions"] == 0
         assert result["unique_agents"] == 0
         assert result["interaction_types"] == {}
@@ -81,7 +81,7 @@ class TestCalculateCoordinationScoreEmpty:
     def test_empty_has_required_keys(self):
         t = AgentCoordinationTracker()
         result = t.calculate_coordination_score()
-        for key in ("score", "success_rate", "total_interactions", "unique_agents", "interaction_types"):
+        for key in ("overall_score", "success_rate", "total_interactions", "unique_agents", "interaction_types"):
             assert key in result, f"missing key: {key}"
 
     def test_task_filter_no_match_returns_zeros(self):
@@ -101,7 +101,7 @@ class TestCalculateCoordinationScorePopulated:
         _add_interactions(t, 5, success=True)
         result = t.calculate_coordination_score()
         assert result["success_rate"] == pytest.approx(100.0)
-        assert result["score"] > 0
+        assert result["overall_score"] > 0
 
     def test_all_fail_zero_success_rate(self):
         t = AgentCoordinationTracker()

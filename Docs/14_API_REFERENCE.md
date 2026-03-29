@@ -10,7 +10,7 @@
 
 ## 버전 정보
 
-**현재 버전:** v0.6.5
+**현재 버전:** v0.6.3
 
 **최종 업데이트:** 2026-03-27
 
@@ -52,7 +52,7 @@
     * [**5.5 Context Managers**](<#context-managers>)
     * [**5.6 LLM 통합 헬퍼**](<#llm-helpers>)
     * [**5.7 ExampleRunner**](<#example-runner>)
-  * [**🔌 6. 프레임워크 통합 (v0.6.5)**](<#프레임워크-통합>)
+  * [**🔌 6. 프레임워크 통합 (v0.6.3)**](<#프레임워크-통합>)
     * [6.1 CrewAIEvaluator](<#crewai-evaluator>)
     * [6.2 LangChainEvaluator](<#langchain-evaluator>)
     * [6.3 LangGraphEvaluator](<#langgraph-evaluator>)
@@ -282,7 +282,7 @@ PerformanceMonitor는 내부적으로 **16개의 Tracker** 를 사용하여 메�
     [](<#cb1-8>))
 ```
 
-**파라미터** \- `pricing` (dict, optional): 토큰 가격 설정 - `input` (float): 입력 토큰 가격 ($/1K tokens) \- `output` (float): 출력 토큰 가격 ($/1K tokens) - 기본값: `{"input": 0.003, "output": 0.015}` (GPT-4o-mini)
+**파라미터** \- `pricing` (dict, optional): 토큰 가격 설정 - `input` (float): 입력 토큰 가격 ($/1K tokens) \- `output` (float): 출력 토큰 가격 ($/1K tokens) - 기본값: `{"input": 0.003, "output": 0.015}` (Claude Sonnet 4.5)
 
   * `enable_transparency` (bool, optional): Test 투명성 추적 활성화 여부 (기본값: False)
     * True일 경우 TestTransparencyManager를 초기화하여 평가 과정을 추적합니다
@@ -3249,7 +3249,7 @@ Agent Evaluator의 투명성 메서드는 "블랙박스" 평가를 "화이트박
 
 * * *
 
-## 🔌 6. 프레임워크 통합 (v0.6.5)
+## 🔌 6. 프레임워크 통합 (v0.6.3)
 
 #### 5.4 보안 헬퍼 함수
 
@@ -3365,7 +3365,7 @@ Agent Evaluator의 투명성 메서드는 "블랙박스" 평가를 "화이트박
 
 * * *
 
-Agent Evaluator v0.6.5은 CrewAI, LangChain, LangGraph, AutoGen 등 주요 AI 프레임워크에 대한 고급 통합 기능을 제공합니다. 모든 통합은 **Layer 1/2/3 메트릭을 완전히 지원** 하며, 동적 계산 및 자동 추적 기능을 갖추고 있습니다.
+Agent Evaluator v0.6.3은 CrewAI, LangChain, LangGraph, AutoGen 등 주요 AI 프레임워크에 대한 고급 통합 기능을 제공합니다. 모든 통합은 **Layer 1/2/3 메트릭을 완전히 지원** 하며, 동적 계산 및 자동 추적 기능을 갖추고 있습니다.
 
 ### 주요 특징
 

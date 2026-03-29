@@ -1142,8 +1142,6 @@ class TestTransparencyManager:
         Returns:
             List of report metadata sorted by date (newest first)
         """
-        import json
-
         reports_dir = self.output_dir / "transparent_reports"
 
         if not reports_dir.exists():
@@ -1204,8 +1202,6 @@ class TestTransparencyManager:
         Returns:
             Report dictionary or None if not found
         """
-        import json
-
         reports_dir = self.output_dir / "transparent_reports"
 
         if not reports_dir.exists():

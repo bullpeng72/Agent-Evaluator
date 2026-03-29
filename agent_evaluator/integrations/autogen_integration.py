@@ -1213,7 +1213,7 @@ class AutoGenEvaluator:
                 print(f"   Tool Selection Accuracy: {_tool_acc_str}")
                 print(f"   Workflow Execution Score: {wf.get('success_rate', 0):.1f}%")
                 if coord:
-                    print(f"   Agent Coordination Rate: {coord.get('score', 0):.1f}%")
+                    print(f"   Agent Coordination Rate: {coord.get('overall_score', 0):.1f}%")
                 if tool_eff:
                     print(f"   Tool Call Success Rate: {tool_eff.get('success_rate', 0):.1f}%")
                 if retry:

@@ -3,7 +3,7 @@
 [![PyPI version](https://img.shields.io/pypi/v/agent-evaluator.svg)](https://pypi.org/project/agent-evaluator/)
 [![Python Version](https://img.shields.io/badge/python-3.8%2B-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Version](https://img.shields.io/badge/version-0.6.5-green.svg)](https://github.com/bullpeng72/Agent-Evaluator)
+[![Version](https://img.shields.io/badge/version-0.6.3-green.svg)](https://github.com/bullpeng72/Agent-Evaluator)
 
 **AI 에이전트를 위한 프로덕션 레디 평가 프레임워크**
 
@@ -387,7 +387,7 @@ agent-eval check
 
 출력 예시:
 ```
-  Agent Evaluator v0.6.5 — 설정 상태
+  Agent Evaluator v0.6.3 — 설정 상태
   ──────────────────────────────────────────────────
 ℹ  .env 로드: /home/user/project/.env
 
@@ -552,7 +552,7 @@ agent-evaluator/
 │   ├── 09_autogen_eval.py           # AutoGen 프레임워크 통합 예제
 │   └── 10_cross_framework_eval.py   # 멀티 프레임워크 비교 평가
 │
-├── tests/                        # 단위 테스트 (33개 테스트 함수, 4개 파일)
+├── tests/                        # 단위 테스트 (410개 테스트 함수, 23개 파일)
 │   ├── test_accuracy_evaluator.py
 │   ├── test_hallucination_detector.py
 │   ├── test_input_sanitization.py
@@ -703,7 +703,7 @@ MIT License — 자세한 내용은 [LICENSE](LICENSE) 파일을 참고하세요
   title   = {Agent Evaluator: Production-ready evaluation framework for AI agents},
   author  = {Kim, Sungwoo},
   year    = {2026},
-  version = {0.6.5},
+  version = {0.6.3},
   url     = {https://github.com/bullpeng72/Agent-Evaluator},
   license = {MIT}
 }

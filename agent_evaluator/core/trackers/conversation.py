@@ -12,13 +12,16 @@ agent_evaluator.core.trackers.conversation
 
 from __future__ import annotations
 
+import dataclasses
 import logging
 import math
 import re
 from collections import Counter
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
+
+from ...exceptions import InvalidOperationError
 
 logger = logging.getLogger(__name__)
 
@@ -44,6 +47,9 @@ _STOPWORDS = _KO_STOPWORDS | _EN_STOPWORDS
 
 # 한국어 어절 말미에 붙는 조사/어미 패턴 (접미 제거용)
 # 긴 패턴을 먼저 나열해서 최장 일치로 제거
+_RE_TOKENIZE = re.compile(r"[가-힣a-zA-Z0-9]+")
+_RE_KO_CHAR = re.compile(r"[가-힣]")
+
 _KO_SUFFIX_PATTERN = re.compile(
     r"(에서|으로|이라|이고|이며|하고|하며|에게|한테|부터|까지|처럼|만큼|보다"
     r"|이다|있다|하다|합니다|입니다|습니다|됩니다|않다|못하다|않다는|못합니다"
@@ -79,11 +85,11 @@ def _tokenize(text: str) -> List[str]:
     한국어 어절에서 조사/어미를 제거하여 어근 기반 비교가 가능하도록 정규화합니다.
     영어 토큰은 소문자화만 수행합니다.
     """
-    raw_tokens = re.findall(r"[가-힣a-zA-Z0-9]+", text.lower())
+    raw_tokens = _RE_TOKENIZE.findall(text.lower())
     result = []
     for tok in raw_tokens:
         # 한국어 포함 어절은 조사 제거 시도
-        if re.search(r"[가-힣]", tok):
+        if _RE_KO_CHAR.search(tok):
             tok = _strip_ko_suffix(tok)
         if len(tok) >= 2 and tok not in _STOPWORDS:
             result.append(tok)
@@ -123,6 +129,14 @@ class ConversationTurn:
     timestamp: datetime
     metadata: Dict[str, Any] = field(default_factory=dict)
 
+    def __repr__(self) -> str:
+        user_preview = self.user[:40] + "…" if len(self.user) > 40 else self.user
+        agent_preview = self.agent[:40] + "…" if len(self.agent) > 40 else self.agent
+        return (
+            f"ConversationTurn(index={self.turn_index}, "
+            f"user={user_preview!r}, agent={agent_preview!r})"
+        )
+
 
 @dataclass
 class ConversationMetrics:
@@ -136,8 +150,34 @@ class ConversationMetrics:
     session_completion: float
     avg_turn_latency: Optional[float]
     overall_score: float
-    score_stddev: float  # std-dev of the 4 component scores — variance indicator
+    score_stddev: float  # 4개 구성 점수의 표준편차. **낮을수록 균형 잡힌 대화**를 의미.
+    #   0.0 = 모든 차원 점수 동일(완벽한 균형), 0.5 = 보통, ≥0.3 = 특정 차원 편중 주의.
     computed_at: str  # ISO-8601 datetime string
+
+    def __repr__(self) -> str:
+        return (
+            f"ConversationMetrics(session_id={self.session_id!r}, "
+            f"turns={self.turn_count}, "
+            f"overall={self.overall_score:.3f}, "
+            f"context={self.context_retention:.3f}, "
+            f"coherence={self.topic_coherence:.3f})"
+        )
+
+    def __str__(self) -> str:
+        lines = [
+            f"ConversationMetrics — {self.session_id}",
+            f"  Turns             : {self.turn_count}",
+            f"  Overall Score     : {self.overall_score:.3f}",
+            f"  Context Retention : {self.context_retention:.3f}",
+            f"  Topic Coherence   : {self.topic_coherence:.3f}",
+            f"  Progressive Depth : {self.progressive_depth:.3f}",
+            f"  Session Completion: {self.session_completion:.3f}",
+            f"  Score Stddev      : {self.score_stddev:.3f}",
+        ]
+        if self.avg_turn_latency is not None:
+            lines.append(f"  Avg Turn Latency  : {self.avg_turn_latency:.3f}s")
+        lines.append(f"  Computed At       : {self.computed_at}")
+        return "\n".join(lines)
 
     def to_dict(self) -> Dict[str, Any]:
         """JSON 직렬화용 dict 반환."""
@@ -153,6 +193,29 @@ class ConversationMetrics:
             "score_stddev": self.score_stddev,
             "computed_at": self.computed_at,
         }
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "ConversationMetrics":
+        """Reconstruct ConversationMetrics from a dict (e.g. loaded from JSON).
+
+        Extra keys in *data* are silently ignored so that saved JSON files
+        with additional fields round-trip correctly.
+
+        Args:
+            data: Mapping produced by :meth:`to_dict`.
+
+        Returns:
+            A new ``ConversationMetrics`` instance.
+
+        Example::
+
+            import json
+            metrics = session.compute_metrics()
+            restored = ConversationMetrics.from_dict(metrics.to_dict())
+            assert restored.session_id == metrics.session_id
+        """
+        valid_fields = {f.name for f in dataclasses.fields(cls)}
+        return cls(**{k: v for k, v in data.items() if k in valid_fields})
 
 
 # ---------------------------------------------------------------------------
@@ -188,8 +251,18 @@ class ConversationSession:
     ) -> None:
         self.session_id = session_id
         self._monitor = monitor
-        self.turns: List[ConversationTurn] = []
+        self._turns: List[ConversationTurn] = []
         self.metrics: Optional[ConversationMetrics] = None
+
+    @property
+    def turns(self) -> "List[ConversationTurn]":
+        """Shallow copy of accumulated conversation turns."""
+        return list(self._turns)
+
+    @turns.setter
+    def turns(self, value: "List[ConversationTurn]") -> None:
+        """Restore internal state."""
+        self._turns = list(value)
 
     # ------------------------------------------------------------------
     # Public API
@@ -212,19 +285,19 @@ class ConversationSession:
             self — 메서드 체이닝 지원.
         """
         turn = ConversationTurn(
-            turn_index=len(self.turns),
+            turn_index=len(self._turns),
             user=user,
             agent=agent,
-            timestamp=datetime.utcnow(),
+            timestamp=datetime.now(timezone.utc),
             metadata=metadata or {},
         )
-        self.turns.append(turn)
+        self._turns.append(turn)
         return self
 
     def __repr__(self) -> str:
         return (
             f"ConversationSession(session_id={self.session_id!r}, "
-            f"turns={len(self.turns)})"
+            f"turns={len(self._turns)})"
         )
 
     # alias for context-manager style: conv.turn(...)
@@ -244,12 +317,12 @@ class ConversationSession:
             ConversationMetrics — 계산된 지표.
 
         Raises:
-            ValueError: 턴이 하나도 없을 경우.
+            InvalidOperationError: 턴이 하나도 없을 경우.
         """
-        if not self.turns:
-            raise ValueError("compute_metrics()를 호출하려면 최소 1턴이 필요합니다.")
+        if not self._turns:
+            raise InvalidOperationError("compute_metrics()를 호출하려면 최소 1턴이 필요합니다.")
 
-        n = len(self.turns)
+        n = len(self._turns)
 
         context_retention = self._compute_context_retention()
         topic_coherence = self._compute_topic_coherence()
@@ -257,11 +330,12 @@ class ConversationSession:
         session_completion = self._compute_session_completion()
         avg_turn_latency = self._compute_avg_turn_latency()
 
-        # overall_score: 4개 지표의 단순 평균
+        # overall_score: 구성 지표의 단순 평균
         component_scores = [context_retention, topic_coherence, progressive_depth, session_completion]
-        overall_score = sum(component_scores) / 4.0
-        # score_stddev: 4개 지표 간 분산을 나타내는 표준편차 (0에 가까울수록 균형 잡힌 성능)
-        mean_sq_diff = sum((s - overall_score) ** 2 for s in component_scores) / 4.0
+        _n = len(component_scores)
+        overall_score = sum(component_scores) / _n
+        # score_stddev: 구성 지표 간 분산을 나타내는 표준편차 (0에 가까울수록 균형 잡힌 성능)
+        mean_sq_diff = sum((s - overall_score) ** 2 for s in component_scores) / _n
         score_stddev = math.sqrt(mean_sq_diff)
 
         self.metrics = ConversationMetrics(
@@ -274,7 +348,7 @@ class ConversationSession:
             avg_turn_latency=avg_turn_latency,
             overall_score=round(overall_score, 6),
             score_stddev=round(score_stddev, 6),
-            computed_at=datetime.utcnow().isoformat(),
+            computed_at=datetime.now(timezone.utc).isoformat(),
         )
         return self.metrics
 
@@ -290,7 +364,7 @@ class ConversationSession:
                     "timestamp": t.timestamp.isoformat(),
                     "metadata": t.metadata,
                 }
-                for t in self.turns
+                for t in self._turns
             ],
             "metrics": self.metrics.to_dict() if self.metrics is not None else None,
         }
@@ -302,9 +376,9 @@ class ConversationSession:
     def __enter__(self) -> "ConversationSession":
         return self
 
-    def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
+    def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> bool:
         """세션 종료 시 자동으로 compute_metrics() 호출 및 monitor에 기록."""
-        if self.turns:
+        if exc_type is None and self._turns:
             try:
                 self.compute_metrics()
             except Exception as e:
@@ -320,6 +394,7 @@ class ConversationSession:
                     self._monitor.conversation_sessions.append(self)
             except AttributeError as e:
                 logger.warning("monitor.conversation_sessions 접근 실패: %s", e)
+        return False  # 예외 전파 (suppress하지 않음)
 
     # ------------------------------------------------------------------
     # Internal metric computations
@@ -329,36 +404,39 @@ class ConversationSession:
         """이전 응답의 top-N 단어가 현재 응답에 등장하는 비율 평균.
 
         1턴이면 비교 불가하므로 1.0 반환.
+        이전 응답이 불용어만 포함해 top-N 단어 추출 불가한 턴은 평균에서 제외한다
+        (측정 불가 ≠ 완벽한 유지).
         """
-        n = len(self.turns)
+        n = len(self._turns)
         if n <= 1:
             return 1.0
 
         scores: List[float] = []
         for i in range(1, n):
-            prev_top = _top_tokens(self.turns[i - 1].agent, n=10)
-            curr_tokens = set(_tokenize(self.turns[i].agent))
+            prev_top = _top_tokens(self._turns[i - 1].agent, n=10)
+            curr_tokens = set(_tokenize(self._turns[i].agent))
             if not prev_top:
-                scores.append(1.0)
+                # 비교 기준이 없으므로 이 턴은 측정에서 제외
                 continue
             overlap = len(prev_top & curr_tokens) / len(prev_top)
             scores.append(overlap)
 
-        return sum(scores) / len(scores) if scores else 1.0
+        # 측정 가능한 턴이 하나도 없으면 0.5(중립)를 반환 — 1.0(완벽)으로 오해 방지
+        return sum(scores) / len(scores) if scores else 0.5
 
     def _compute_topic_coherence(self) -> float:
         """인접 턴 간 질문+응답 단어 집합의 Jaccard 유사도 평균.
 
         1턴이면 1.0 반환.
         """
-        n = len(self.turns)
+        n = len(self._turns)
         if n <= 1:
             return 1.0
 
         scores: List[float] = []
         for i in range(1, n):
-            prev_set = set(_tokenize(self.turns[i - 1].user + " " + self.turns[i - 1].agent))
-            curr_set = set(_tokenize(self.turns[i].user + " " + self.turns[i].agent))
+            prev_set = set(_tokenize(self._turns[i - 1].user + " " + self._turns[i - 1].agent))
+            curr_set = set(_tokenize(self._turns[i].user + " " + self._turns[i].agent))
             scores.append(_jaccard(prev_set, curr_set))
 
         return sum(scores) / len(scores) if scores else 1.0
@@ -368,14 +446,14 @@ class ConversationSession:
 
         첫 턴은 제외. 2턴 미만이면 0.0 반환.
         """
-        n = len(self.turns)
+        n = len(self._turns)
         if n <= 1:
             return 0.0
 
         scores: List[float] = []
         for i in range(1, n):
-            prev_top = _top_tokens(self.turns[i - 1].agent, n=10)
-            user_tokens = set(_tokenize(self.turns[i].user))
+            prev_top = _top_tokens(self._turns[i - 1].agent, n=10)
+            user_tokens = set(_tokenize(self._turns[i].user))
             if not prev_top:
                 scores.append(0.0)
                 continue
@@ -390,10 +468,10 @@ class ConversationSession:
         단독으로는 약하지만 overall_score 구성 요소로 사용.
         응답이 없으면 0.0 반환.
         """
-        if not self.turns:
+        if not self._turns:
             return 0.0
 
-        lengths = [len(t.agent) for t in self.turns]
+        lengths = [len(t.agent) for t in self._turns]
         avg_len = sum(lengths) / len(lengths)
         if avg_len == 0:
             return 0.0
@@ -405,7 +483,7 @@ class ConversationSession:
         """metadata의 'latency' 값 평균. 없으면 None."""
         latencies = [
             t.metadata["latency"]
-            for t in self.turns
+            for t in self._turns
             if "latency" in t.metadata and isinstance(t.metadata["latency"], (int, float))
         ]
         if not latencies:

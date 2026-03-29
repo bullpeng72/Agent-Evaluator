@@ -14,11 +14,14 @@ Data Registry Module
 """
 
 import json
+import logging
 import sys
 import time
 from pathlib import Path
 from datetime import datetime
 from typing import Optional, Dict, List, Any
+
+logger = logging.getLogger(__name__)
 
 # Platform-specific file locking
 if sys.platform == 'win32':
@@ -100,7 +103,7 @@ class DataRegistry:
             return True
 
         except Exception as e:
-            print(f"Warning: 레지스트리 등록 실패: {e}")
+            logger.warning("레지스트리 등록 실패: %s", e, exc_info=True)
             return False
 
     @classmethod
@@ -166,7 +169,7 @@ class DataRegistry:
         return False
 
     @classmethod
-    def _release_lock(cls, file_handle):
+    def _release_lock(cls, file_handle) -> None:
         """
         파일 락 해제 (플랫폼 독립적)
 
@@ -213,7 +216,7 @@ class DataRegistry:
                 return data
 
         except Exception as e:
-            print(f"Warning: 레지스트리 로드 실패, 새로 생성: {e}")
+            logger.warning("레지스트리 로드 실패, 빈 레지스트리로 시작: %s", e, exc_info=True)
             return {
                 "version": "0.5.0",
                 "created_at": datetime.now().isoformat(),
@@ -238,7 +241,7 @@ class DataRegistry:
             with open(cls.REGISTRY_FILE, 'w', encoding='utf-8') as f:
                 # Acquire exclusive lock with timeout
                 if not cls._acquire_lock(f, timeout=5.0):
-                    print("Warning: 레지스트리 락 획득 실패 (다른 프로세스가 사용 중)")
+                    logger.warning("레지스트리 락 획득 실패 (다른 프로세스가 사용 중)")
                     return False
 
                 try:
@@ -250,7 +253,7 @@ class DataRegistry:
             return True
 
         except Exception as e:
-            print(f"Warning: 레지스트리 저장 실패: {e}")
+            logger.warning("레지스트리 저장 실패: %s", e, exc_info=True)
             return False
 
     @classmethod
@@ -324,9 +327,12 @@ class DataRegistry:
             projects_dict[project]["files"].append(entry)
 
             # 최신 업데이트 시간 추적
-            if projects_dict[project]["latest_update"] is None or \
-               entry["registered_at"] > projects_dict[project]["latest_update"]:
-                projects_dict[project]["latest_update"] = entry["registered_at"]
+            registered_at = entry.get("registered_at")
+            if registered_at is not None and (
+                projects_dict[project]["latest_update"] is None
+                or registered_at > projects_dict[project]["latest_update"]
+            ):
+                projects_dict[project]["latest_update"] = registered_at
 
         # 리스트로 변환 및 정렬
         projects = list(projects_dict.values())
@@ -415,7 +421,7 @@ class DataRegistry:
             return False
 
         except Exception as e:
-            print(f"Warning: 파일 제거 실패: {e}")
+            logger.warning("파일 제거 실패: %s", e, exc_info=True)
             return False
 
     @classmethod
@@ -436,5 +442,5 @@ class DataRegistry:
             return cls._save_registry(registry)
 
         except Exception as e:
-            print(f"Warning: 레지스트리 초기화 실패: {e}")
+            logger.warning("레지스트리 초기화 실패: %s", e, exc_info=True)
             return False

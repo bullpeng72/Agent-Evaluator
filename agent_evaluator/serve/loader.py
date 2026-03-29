@@ -9,6 +9,7 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
+from collections import defaultdict
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -562,8 +563,7 @@ def _parse_agentic(raw: dict) -> AgenticMetrics:
         successful_steps = sum(1 for s in wf_executions if s.get("success"))
         frameworks = list({s.get("framework", "") for s in wf_executions} - {""})
         # Group by task_id to compute task-level success rate
-        from collections import defaultdict as _dd
-        task_groups: dict = _dd(list)
+        task_groups: dict = defaultdict(list)
         for s in wf_executions:
             task_groups[s.get("task_id", "_")].append(s)
         fully_successful = sum(

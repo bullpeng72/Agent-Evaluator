@@ -10,14 +10,21 @@ Korean RAG Dataset Generator
 - Golden data 저장/로드 (JSON, CSV)
 """
 
+import hashlib
 import json
 import os
 import re
-from typing import List, Dict, Any, Optional, Tuple
 from dataclasses import dataclass, asdict
 from datetime import datetime
 from pathlib import Path
-import hashlib
+from typing import List, Dict, Any, Optional, Tuple
+
+# Pre-compiled patterns for clean_text() and _parse_qa_pairs()
+_RE_MULTI_SPACE = re.compile(r'\s+')
+_RE_MULTI_NEWLINE = re.compile(r'\n{3,}')
+_RE_QA_QUESTION = re.compile(r'질문:\s*(.+?)(?=\n|답변:|$)', re.DOTALL)
+_RE_QA_ANSWER = re.compile(r'답변:\s*(.+?)(?=\n|ground_truth:|$)', re.DOTALL)
+_RE_QA_GT = re.compile(r'ground_truth:\s*(.+?)(?=\n|---|\Z)', re.DOTALL)
 
 # PDF 처리
 try:
@@ -138,10 +145,10 @@ class KoreanPDFExtractor:
     def clean_text(self, text: str) -> str:
         """텍스트 정제"""
         # 여러 개의 연속된 공백을 하나로
-        text = re.sub(r'\s+', ' ', text)
+        text = _RE_MULTI_SPACE.sub(' ', text)
 
         # 여러 개의 연속된 줄바꿈을 최대 2개로
-        text = re.sub(r'\n{3,}', '\n\n', text)
+        text = _RE_MULTI_NEWLINE.sub('\n\n', text)
 
         # 앞뒤 공백 제거
         text = text.strip()
@@ -350,9 +357,9 @@ ground_truth: [평가를 위한 핵심 정답 (1-2문장, 간결하게)]
                 continue
 
             # 질문, 답변, ground_truth 추출
-            question_match = re.search(r'질문:\s*(.+?)(?=\n|답변:|$)', block, re.DOTALL)
-            answer_match = re.search(r'답변:\s*(.+?)(?=\n|ground_truth:|$)', block, re.DOTALL)
-            gt_match = re.search(r'ground_truth:\s*(.+?)(?=\n|---|\Z)', block, re.DOTALL)
+            question_match = _RE_QA_QUESTION.search(block)
+            answer_match = _RE_QA_ANSWER.search(block)
+            gt_match = _RE_QA_GT.search(block)
 
             if question_match and answer_match and gt_match:
                 question = question_match.group(1).strip()

@@ -7,11 +7,15 @@ Extends native Agent Evaluator with external library metrics
 
 import atexit
 import json
+import logging
 import os
+import tempfile
 import warnings
 from dataclasses import asdict, dataclass, field
 from datetime import datetime
 from typing import Any, Dict, List, Optional
+
+logger = logging.getLogger(__name__)
 
 # Import metric adapters
 from ..integrations.metric_adapters import (
@@ -36,7 +40,7 @@ warnings.filterwarnings('ignore', message='.*coroutine.*was never awaited.*')
 # Extended Data Classes
 # ============================================================================
 
-@dataclass
+@dataclass(frozen=True)
 class ExtendedTaskResult(TaskResult):
     """TaskResult with advanced metrics from external libraries"""
     advanced_metrics: Dict[str, Any] = field(default_factory=dict)
@@ -78,7 +82,8 @@ class HybridPerformanceMonitor(PerformanceMonitor):
         enable_security_metrics: bool = False,
         security_config: Optional[Dict[str, Any]] = None,
         enable_transparency: bool = False,
-        output_dir: Optional[str] = None
+        output_dir: Optional[str] = None,
+        **parent_kwargs: Any,
     ):
         """
         Initialize Hybrid Performance Monitor
@@ -95,6 +100,10 @@ class HybridPerformanceMonitor(PerformanceMonitor):
             security_config: Security configuration (allowed_tools, restricted_tools, etc.)
             enable_transparency: Enable transparency logging (traces, audit logs)
             output_dir: Output directory (None이면 자동 감지)
+            **parent_kwargs: Additional keyword arguments forwarded to
+                :class:`PerformanceMonitor` (e.g. ``pricing``, ``model_name``,
+                ``enable_llm_judge``, ``judge_model``, ``judge_sample_rate``,
+                ``judge_budget_per_day``).
         """
         # Initialize native monitor with Zero Configuration and hallucination detection enabled
         super().__init__(
@@ -103,15 +112,14 @@ class HybridPerformanceMonitor(PerformanceMonitor):
             security_config=security_config,
             enable_hallucination_detection=enable_hallucination_detection,
             enable_transparency=enable_transparency,
+            **parent_kwargs,
         )
 
         # Initialize metric adapters
         self.metric_adapters: Dict[MetricProvider, MetricAdapter] = {}
         self.enabled_providers: List[str] = ["native"]
 
-        print("\n" + "="*60)
-        print("Initializing Hybrid Performance Monitor")
-        print("="*60)
+        logger.info("Initializing HybridPerformanceMonitor")
 
         # DeepEval adapter
         if use_deepeval:
@@ -119,9 +127,9 @@ class HybridPerformanceMonitor(PerformanceMonitor):
             if adapter.is_available():
                 self.metric_adapters[MetricProvider.DEEPEVAL] = adapter
                 self.enabled_providers.append("deepeval")
-                print(f"✅ DeepEval enabled (model: {deepeval_model})")
+                logger.info("DeepEval enabled (model: %s)", deepeval_model)
             else:
-                print("⚠️  DeepEval not available - install with: pip install deepeval")
+                logger.warning("DeepEval not available — install with: pip install deepeval")
 
         # Ragas adapter
         if use_ragas:
@@ -129,9 +137,9 @@ class HybridPerformanceMonitor(PerformanceMonitor):
             if adapter.is_available():
                 self.metric_adapters[MetricProvider.RAGAS] = adapter
                 self.enabled_providers.append("ragas")
-                print(f"✅ Ragas enabled (model: {ragas_model})")
+                logger.info("Ragas enabled (model: %s)", ragas_model)
             else:
-                print("⚠️  Ragas not available - install with: pip install ragas langchain-openai")
+                logger.warning("Ragas not available — install with: pip install ragas langchain-openai")
 
         # LangSmith adapter
         if use_langsmith:
@@ -139,12 +147,11 @@ class HybridPerformanceMonitor(PerformanceMonitor):
             if adapter.is_available():
                 self.metric_adapters[MetricProvider.LANGSMITH] = adapter
                 self.enabled_providers.append("langsmith")
-                print("✅ LangSmith enabled")
+                logger.info("LangSmith enabled")
             else:
-                print("⚠️  LangSmith not available - set LANGSMITH_API_KEY")
+                logger.warning("LangSmith not available — set LANGSMITH_API_KEY environment variable")
 
-        print(f"\n📊 Active providers: {', '.join(self.enabled_providers)}")
-        print("="*60 + "\n")
+        logger.info("HybridPerformanceMonitor ready. Active providers: %s", ", ".join(self.enabled_providers))
 
         # Storage for extended results
         self.extended_tasks: List[ExtendedTaskResult] = []
@@ -154,19 +161,19 @@ class HybridPerformanceMonitor(PerformanceMonitor):
 
     def record_task(
         self,
-        task: TaskResult,
+        task_result: TaskResult,
         enable_advanced_metrics: bool = True,
         input_text: str = "",
         output_text: str = "",
         expected_output: Optional[str] = None,
         retrieved_context: Optional[List[str]] = None,
         quality_criteria: Optional[str] = None
-    ):
+    ) -> "HybridPerformanceMonitor":
         """
         Record task with both native and advanced metrics
 
         Args:
-            task: TaskResult from agent execution
+            task_result: TaskResult from agent execution
             enable_advanced_metrics: Enable external library metrics (slower)
             input_text: Input text for evaluation
             output_text: Output text for evaluation
@@ -185,7 +192,7 @@ class HybridPerformanceMonitor(PerformanceMonitor):
             context_for_hallucination = input_text
 
         super().record_task(
-            task,
+            task_result,
             context=context_for_hallucination,
             response=output_text if output_text else None,
             ground_truth=expected_output,
@@ -203,7 +210,7 @@ class HybridPerformanceMonitor(PerformanceMonitor):
                 expected_output=expected_output,
                 retrieved_context=retrieved_context,
                 quality_criteria=quality_criteria,
-                task_type=task.task_type
+                task_type=task_result.task_type
             )
 
             # DeepEval metrics
@@ -213,7 +220,7 @@ class HybridPerformanceMonitor(PerformanceMonitor):
                     advanced_metrics.update(deepeval_metrics)
                     providers_used.append("deepeval")
                 except Exception as e:
-                    print(f"⚠️  DeepEval evaluation error: {e}")
+                    logger.warning("DeepEval evaluation error: %s", e)
 
             # Ragas metrics (only for RAG tasks)
             if MetricProvider.RAGAS in self.metric_adapters and retrieved_context:
@@ -222,7 +229,7 @@ class HybridPerformanceMonitor(PerformanceMonitor):
                     advanced_metrics.update(ragas_metrics)
                     providers_used.append("ragas")
                 except Exception as e:
-                    print(f"⚠️  Ragas evaluation error: {e}")
+                    logger.warning("Ragas evaluation error: %s", e)
 
             # LangSmith metrics
             if MetricProvider.LANGSMITH in self.metric_adapters:
@@ -231,22 +238,22 @@ class HybridPerformanceMonitor(PerformanceMonitor):
                     advanced_metrics.update(langsmith_metrics)
                     providers_used.append("langsmith")
                 except Exception as e:
-                    print(f"⚠️  LangSmith evaluation error: {e}")
+                    logger.warning("LangSmith evaluation error: %s", e)
 
         # Create extended task result
         extended_task = ExtendedTaskResult(
-            task_id=task.task_id,
-            task_type=task.task_type,
-            success=task.success,
-            completion_score=task.completion_score,
-            accuracy_score=task.accuracy_score,
-            execution_time=task.execution_time,
-            tokens_used=task.tokens_used,
-            tool_calls=task.tool_calls,
-            attempts=task.attempts,
-            errors=task.errors,
-            timestamp=task.timestamp,
-            framework=getattr(task, 'framework', None),
+            task_id=task_result.task_id,
+            task_type=task_result.task_type,
+            success=task_result.success,
+            completion_score=task_result.completion_score,
+            accuracy_score=task_result.accuracy_score,
+            execution_time=task_result.execution_time,
+            tokens_used=task_result.tokens_used,
+            tool_calls=task_result.tool_calls,
+            attempts=task_result.attempts,
+            errors=task_result.errors,
+            timestamp=task_result.timestamp,
+            framework=getattr(task_result, 'framework', None),
             advanced_metrics=advanced_metrics,
             evaluation_context={
                 'input_text': input_text,
@@ -260,7 +267,10 @@ class HybridPerformanceMonitor(PerformanceMonitor):
 
         self.extended_tasks.append(extended_task)
 
-        # Auto-populate quality_evaluator and hallucination_detector from DeepEval results
+        # Auto-populate quality_evaluator and hallucination_detector from DeepEval results.
+        # Mutations happen under self._lock to match the thread-safety contract of the parent
+        # class, and _task_ids sets are updated alongside _evaluations/_detections to keep
+        # the Round-62 duplicate-detection invariant intact.
         if advanced_metrics:
             # 1. Populate quality_evaluator from G-Eval results
             if 'g_eval_score' in advanced_metrics and advanced_metrics.get('g_eval_score') is not None:
@@ -269,7 +279,7 @@ class HybridPerformanceMonitor(PerformanceMonitor):
 
                 # Create quality evaluation entry compatible with quality_evaluator
                 quality_evaluation = {
-                    "task_id": task.task_id,
+                    "task_id": task_result.task_id,
                     "dimension_scores": {
                         "completeness": g_eval_score_5pt,
                         "relevance": g_eval_score_5pt,
@@ -279,9 +289,11 @@ class HybridPerformanceMonitor(PerformanceMonitor):
                     },
                     "total_score": g_eval_score_5pt,
                     "grade": self.quality_evaluator._assign_grade(g_eval_score_5pt),
-                    "timestamp": task.timestamp or datetime.now()
+                    "timestamp": task_result.timestamp or datetime.now()
                 }
-                self.quality_evaluator.evaluations.append(quality_evaluation)
+                with self._lock:
+                    self.quality_evaluator._evaluations.append(quality_evaluation)
+                    self.quality_evaluator._task_ids.add(task_result.task_id)
 
             # 2. Populate hallucination_detector from DeepEval hallucination results
             if 'hallucination_score' in advanced_metrics and advanced_metrics.get('hallucination_score') is not None:
@@ -291,17 +303,20 @@ class HybridPerformanceMonitor(PerformanceMonitor):
 
                 # Create hallucination detection entry
                 hallucination_detection = {
-                    "task_id": task.task_id,
+                    "task_id": task_result.task_id,
                     "hallucination_rate": hallucination_rate,
                     "indicators": [],  # DeepEval doesn't provide detailed indicators
-                    "timestamp": task.timestamp or datetime.now(),
+                    "timestamp": task_result.timestamp or datetime.now(),
                     "source": "deepeval",  # Mark as coming from DeepEval
                     "score": advanced_metrics['hallucination_score'],  # Keep original score for reference
                     "detected": advanced_metrics.get('hallucination_detected', hallucination_rate > 0.5)
                 }
-                self.hallucination_detector.detections.append(hallucination_detection)
+                with self._lock:
+                    self.hallucination_detector._detections.append(hallucination_detection)
 
-    def _cleanup(self):
+        return self
+
+    def _cleanup(self) -> None:
         """
         Cleanup async resources before program exit
 
@@ -368,7 +383,7 @@ class HybridPerformanceMonitor(PerformanceMonitor):
 
         for task in self.extended_tasks:
             if debug:
-                print(f"  Task {task.task_id} metrics: {list(task.advanced_metrics.keys())}")
+                logger.debug("Task %s metrics: %s", task.task_id, list(task.advanced_metrics.keys()))
 
             for metric_name, value in task.advanced_metrics.items():
                 # Skip error entries
@@ -385,9 +400,8 @@ class HybridPerformanceMonitor(PerformanceMonitor):
                     metric_values[metric_name].append(float(value))
 
         if debug:
-            print("\n📊 Metrics collected:")
             for metric_name, count in sorted(metric_counts.items()):
-                print(f"  • {metric_name}: {count} tasks")
+                logger.debug("Metric collected — %s: %d tasks", metric_name, count)
 
         # Calculate statistics for numeric metrics
         for metric_name, values in metric_values.items():
@@ -410,10 +424,13 @@ class HybridPerformanceMonitor(PerformanceMonitor):
                 }
 
                 if debug:
-                    print(f"\n  {metric_name} statistics:")
-                    print(f"    Mean: {summary[metric_name]['mean']:.3f}")
-                    print(f"    Min: {summary[metric_name]['min']:.3f}")
-                    print(f"    Max: {summary[metric_name]['max']:.3f}")
+                    logger.debug(
+                        "%s statistics — mean=%.3f, min=%.3f, max=%.3f",
+                        metric_name,
+                        summary[metric_name]['mean'],
+                        summary[metric_name]['min'],
+                        summary[metric_name]['max'],
+                    )
 
         # Add categorical summaries for detection metrics
         summary['hallucination_detection'] = self._summarize_detections('hallucination_detected')
@@ -541,10 +558,21 @@ class HybridPerformanceMonitor(PerformanceMonitor):
             if security_data:
                 data['evaluators']['security'] = security_data
 
-        with open(filename, 'w', encoding='utf-8') as f:
-            json.dump(data, f, indent=2, ensure_ascii=False, default=str)
+        _dir = os.path.dirname(os.path.abspath(filename)) or "."
+        _fd, _tmp = tempfile.mkstemp(dir=_dir, suffix=".tmp")
+        try:
+            with os.fdopen(_fd, 'w', encoding='utf-8') as _f:
+                json.dump(data, _f, indent=2, ensure_ascii=False, default=str)
+            os.replace(_tmp, filename)
+        except Exception as e:
+            logger.error("save_results JSON 저장 실패: %s", e, exc_info=True)
+            try:
+                os.unlink(_tmp)
+            except OSError:
+                pass
+            raise
 
-        print(f"✅ Hybrid evaluation results saved to: {filename}")
+        logger.info("Hybrid evaluation results saved to: %s", filename)
 
     @classmethod
     def load_from_file(cls, filename: str) -> 'HybridPerformanceMonitor':
@@ -664,29 +692,32 @@ class HybridPerformanceMonitor(PerformanceMonitor):
                 if "tool_chain_attack_detector" in security_data:
                     monitor.tool_chain_attack_detector.detections = security_data["tool_chain_attack_detector"].get("detections", [])
 
-                print("   🔒 Restored security evaluators:")
-                print(f"      - Input Sanitizer: {len(monitor.input_sanitizer.evaluations)} evaluations")
-                print(f"      - Output Leakage: {len(monitor.output_leakage_detector.detections)} detections")
-                print(f"      - Tool Authorizer: {len(monitor.tool_authorizer.tool_calls)} calls")
-                print(f"      - Privilege Escalation: {len(monitor.privilege_escalation_detector.escalation_events)} events")
-                print(f"      - Attack Detector: {len(monitor.tool_chain_attack_detector.detections)} detections")
+                logger.debug(
+                    "Restored security evaluators: InputSanitizer=%d, OutputLeakage=%d, "
+                    "ToolAuthorizer=%d, PrivilegeEscalation=%d, AttackDetector=%d",
+                    len(monitor.input_sanitizer.evaluations),
+                    len(monitor.output_leakage_detector.detections),
+                    len(monitor.tool_authorizer.tool_calls),
+                    len(monitor.privilege_escalation_detector.escalation_events),
+                    len(monitor.tool_chain_attack_detector.detections),
+                )
 
         # Restore advanced_metrics_summary (DeepEval, Ragas 등)
         # Saved at top-level by save_to_file() and also inside report dict
         _ams = data.get("advanced_metrics_summary") or data.get("report", {}).get("advanced_metrics_summary")
         if _ams:
             monitor._advanced_metrics_summary = _ams
-            print(f"   📊 Restored advanced metrics summary with {len(_ams)} metrics")
+            logger.debug("Restored advanced metrics summary with %d metrics", len(_ams))
 
-        # Restore rag_metrics
+        # Restore rag_metrics — _rag_metrics is a private attr; rag_metrics property is read-only
         if "rag_metrics" in data:
-            monitor.rag_metrics = data["rag_metrics"]
+            monitor._rag_metrics = data["rag_metrics"]
 
         # Store evaluators data for Dashboard compatibility
         if "evaluators" in data:
             monitor.evaluators = data["evaluators"]
 
-        print(f"✅ Loaded {len(monitor.extended_tasks)} tasks from {filename}")
+        logger.info("Loaded %d tasks from %s", len(monitor.extended_tasks), filename)
         return monitor
 
     def print_summary(self):

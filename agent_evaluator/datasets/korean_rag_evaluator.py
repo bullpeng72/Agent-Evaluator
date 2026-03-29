@@ -522,7 +522,8 @@ class KoreanRAGEvaluator:
         print(f"총 QA 쌍: {report.total_qa_pairs}개")
         print(f"성공: {report.successful_evaluations}개")
         print(f"실패: {report.failed_evaluations}개")
-        print(f"성공률: {report.successful_evaluations / report.total_qa_pairs * 100:.1f}%\n")
+        success_rate = report.successful_evaluations / report.total_qa_pairs * 100 if report.total_qa_pairs > 0 else 0.0
+        print(f"성공률: {success_rate:.1f}%\n")
 
         if report.successful_evaluations > 0:
             print(f"{'='*80}")

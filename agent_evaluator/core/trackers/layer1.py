@@ -8,17 +8,18 @@ Layer 1 — Foundation Metrics (native, no external deps):
 
 from __future__ import annotations
 
+import ast
 import logging
 import re
 import statistics
 from collections import defaultdict
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Set
 
 import numpy as np
 import pandas as pd
 
-from .base import TaskResult, TaskType
+from .base import BaseTracker, TaskResult, TaskType
 from ...exceptions import ValidationError
 
 logger = logging.getLogger(__name__)
@@ -66,6 +67,51 @@ _RE_CODE_WHITESPACE = re.compile(r'\s+')
 _RE_NUMBER = re.compile(r'\d+\.?\d*')
 
 
+def _normalize_qa_text(text: str) -> str:
+    """Lowercase, collapse whitespace, strip punctuation — shared by QA accuracy helpers."""
+    text = text.lower()
+    text = _RE_QA_WHITESPACE.sub(' ', text).strip()
+    text = _RE_QA_PUNCTUATION.sub('', text)
+    return text
+
+
+def _qa_char_similarity(s1: str, s2: str) -> float:
+    """Character-set overlap ratio relative to s1 (ground-truth side)."""
+    s1_chars = set(s1)
+    if not s1_chars:
+        return 0.0
+    return len(s1_chars & set(s2)) / len(s1_chars)
+
+
+def _qa_lcs_ratio(s1: str, s2: str) -> float:
+    """LCS length / max(len(s1), len(s2)) using rolling 2-row DP — O(n) space."""
+    m, n = len(s1), len(s2)
+    if m == 0:
+        return 0.0
+    if m < n:
+        s1, s2 = s2, s1
+        m, n = n, m
+    prev = [0] * (n + 1)
+    for i in range(1, m + 1):
+        curr = [0] * (n + 1)
+        for j in range(1, n + 1):
+            if s1[i - 1] == s2[j - 1]:
+                curr[j] = prev[j - 1] + 1
+            else:
+                curr[j] = max(prev[j], curr[j - 1])
+        prev = curr
+    return prev[n] / m
+
+
+def _normalize_code(code: str) -> str:
+    """Remove comments, docstrings, and collapse whitespace for normalized code comparison."""
+    code = _RE_CODE_SINGLE_COMMENT.sub('', code)
+    code = _RE_CODE_DOUBLE_DOCSTRING.sub('', code)
+    code = _RE_CODE_SINGLE_DOCSTRING.sub('', code)
+    code = _RE_CODE_WHITESPACE.sub(' ', code).strip()
+    return code
+
+
 def _assign_grade(score: float) -> str:
     """Convert a 0–5 quality score to a letter grade.
 
@@ -90,34 +136,52 @@ def _assign_grade(score: float) -> str:
     return "F"
 
 
+# TaskType alias mapping: canonical form used for bucketing in get_tcr_by_type().
+# TaskType.CODING ("coding") is a legacy alias for CODE_GENERATION ("code_generation").
+_TASK_TYPE_ALIASES: Dict[str, str] = {
+    "coding": "code_generation",
+}
+
+
 # ============================================================================
 # 1. Task Completion Rate Tracker
 # ============================================================================
 
-class TaskCompletionTracker:
+class TaskCompletionTracker(BaseTracker):
     """Track and analyze task completion rates"""
 
     def __init__(self):
-        self.tasks: List[TaskResult] = []
+        self._tasks: List[TaskResult] = []
         self.completion_criteria = {
             "full_success": 1.0,
             "partial_success": 0.7,
             "failure": 0.0
         }
 
+    @property
+    def tasks(self) -> List[TaskResult]:
+        """Shallow copy of accumulated tasks — prevents external mutation of internal state."""
+        return list(self._tasks)
+
+    @tasks.setter
+    def tasks(self, value: List[TaskResult]) -> None:
+        """Restore internal state (used by load_from_file)."""
+        self._tasks = list(value)
+
     def add_task(self, task: TaskResult):
         """Add a task result"""
-        self.tasks.append(task)
+        self._tasks.append(task)
 
     def reset(self) -> None:
         """Clear all accumulated tasks.  Useful for reusing the tracker across sessions."""
-        self.tasks.clear()
+        self._tasks.clear()
 
     def calculate_tcr(self, task_type: Optional[str] = None) -> Dict[str, float]:
         """Calculate Task Completion Rate"""
-        tasks = self.tasks
+        tasks = self._tasks
         if task_type:
-            tasks = [t for t in tasks if t.task_type == task_type]
+            _canonical = _TASK_TYPE_ALIASES.get(task_type, task_type)
+            tasks = [t for t in tasks if _TASK_TYPE_ALIASES.get(t.task_type, t.task_type) == _canonical]
 
         if not tasks:
             return {"tcr": 0.0, "total_tasks": 0}
@@ -149,12 +213,15 @@ class TaskCompletionTracker:
     get_completion_metrics = calculate_tcr
 
     def get_tcr_by_type(self) -> Dict[str, Dict[str, float]]:
-        """Get TCR breakdown by task type"""
-        task_types = set(t.task_type for t in self.tasks)
-        return {
-            (task_type.value if hasattr(task_type, 'value') else str(task_type)): self.calculate_tcr(task_type)
-            for task_type in task_types
-        }
+        """Get TCR breakdown by task type.
+
+        ``TaskType.CODING`` ("coding") is merged into the
+        ``"code_generation"`` bucket to avoid split reporting.
+        """
+        canonical_types = set(
+            _TASK_TYPE_ALIASES.get(t.task_type, t.task_type) for t in self._tasks
+        )
+        return {ct: self.calculate_tcr(ct) for ct in canonical_types}
 
     def get_benchmark_status(self, tcr: float) -> str:
         """Determine benchmark status"""
@@ -168,34 +235,69 @@ class TaskCompletionTracker:
             return "Needs Improvement"
 
     def __repr__(self) -> str:
-        return f"TaskCompletionTracker(tasks={len(self.tasks)})"
+        return f"TaskCompletionTracker(tasks={len(self._tasks)})"
 
 
 # ============================================================================
 # 2. Accuracy Evaluator
 # ============================================================================
 
-class AccuracyEvaluator:
+class AccuracyEvaluator(BaseTracker):
     """Evaluate accuracy across different dimensions"""
 
     def __init__(self):
         self._evaluations: List[Dict[str, Any]] = []
         self._cached_avg: Optional[float] = None  # invalidated on each add_evaluation()
+        self._task_ids: Set[str] = set()
 
     @property
     def evaluations(self) -> List[Dict[str, Any]]:
-        """Read-only view of accumulated evaluations.
+        """Shallow copy of accumulated evaluations.
 
-        Direct mutation (e.g. ``.evaluations.append(...)``) bypasses cache
-        invalidation and will leave ``_cached_avg`` stale.  Use
-        :meth:`add_evaluation` to add records.
+        Returns a new list each time so callers cannot accidentally mutate
+        the internal state or bypass ``_cached_avg`` invalidation.  Use
+        :meth:`add_evaluation` or :meth:`record_score` to add records.
         """
-        return self._evaluations
+        return list(self._evaluations)
+
+    @evaluations.setter
+    def evaluations(self, value: List[Dict[str, Any]]) -> None:
+        """Restore internal state (used by load_from_file).  Invalidates repr cache."""
+        self._cached_avg = None
+        self._evaluations = list(value)
+        self._task_ids = {e.get("task_id") for e in value if e.get("task_id") is not None}
 
     def reset(self) -> None:
         """Clear all evaluations and invalidate the repr cache."""
+        self._cached_avg = None  # invalidate before clearing so __repr__ never sees stale avg
         self._evaluations.clear()
-        self._cached_avg = None
+        self._task_ids.clear()
+
+    def record_score(
+        self, task_id: str, task_type: str, accuracy: Optional[float]
+    ) -> None:
+        """Record a pre-computed accuracy score (cache-safe).
+
+        Use this when the caller has already computed the accuracy value and
+        wants to store it without re-running the similarity pipeline.
+        Unlike appending to ``evaluations`` directly, this method invalidates
+        ``_cached_avg`` so ``__repr__`` and ``get_accuracy_scores()`` remain
+        consistent.
+
+        Args:
+            task_id: Unique task identifier.
+            task_type: Normalised task type string (e.g. ``"qa"``).
+            accuracy: Pre-computed score in [0.0, 1.0], or ``None`` when
+                the score was not measured for this task.
+        """
+        self._cached_avg = None  # invalidate repr cache
+        self._evaluations.append({
+            "task_id": task_id,
+            "task_type": task_type,
+            "accuracy": accuracy,
+            "timestamp": datetime.now(),
+        })
+        self._task_ids.add(task_id)
 
     def add_evaluation(self, task_id: str, ground_truth: Any,
                       prediction: Any, task_type: str):
@@ -209,6 +311,7 @@ class AccuracyEvaluator:
             "accuracy": accuracy,
             "timestamp": datetime.now()
         })
+        self._task_ids.add(task_id)
 
     def _calculate_accuracy(self, ground_truth: Any, prediction: Any,
                            task_type: str) -> float:
@@ -229,15 +332,8 @@ class AccuracyEvaluator:
         - Longest common subsequence ratio
         - Character-level similarity
         """
-        # Normalize text (use pre-compiled patterns for performance)
-        def normalize(text):
-            text = text.lower()
-            text = _RE_QA_WHITESPACE.sub(' ', text).strip()
-            text = _RE_QA_PUNCTUATION.sub('', text)
-            return text
-
-        gt_norm = normalize(ground_truth)
-        pred_norm = normalize(prediction)
+        gt_norm = _normalize_qa_text(ground_truth)
+        pred_norm = _normalize_qa_text(prediction)
 
         if not gt_norm:
             return 0.0
@@ -251,41 +347,18 @@ class AccuracyEvaluator:
 
         intersection = len(gt_tokens & pred_tokens)
         union = len(gt_tokens | pred_tokens)
+        # Jaccard: coverage relative to *union* (penalises extra tokens in prediction)
         jaccard = intersection / union if union > 0 else 0.0
 
-        # 2. Token overlap ratio (original approach, improved)
+        # Token overlap ratio: coverage relative to *ground-truth only* (recall-oriented).
+        # Intentionally different from Jaccard — extra predicted tokens do not reduce this score.
         overlap_ratio = intersection / len(gt_tokens)
 
         # 3. Character-level similarity (handles typos better)
-        def char_similarity(s1, s2):
-            s1_chars = set(s1)
-            s2_chars = set(s2)
-            if not s1_chars:
-                return 0.0
-            char_overlap = len(s1_chars & s2_chars) / len(s1_chars)
-            return char_overlap
+        char_sim = _qa_char_similarity(gt_norm, pred_norm)
 
-        char_sim = char_similarity(gt_norm, pred_norm)
-
-        # 4. Longest common subsequence ratio
-        def lcs_ratio(s1, s2):
-            m, n = len(s1), len(s2)
-            if m == 0:
-                return 0.0
-
-            # Dynamic programming for LCS
-            dp = [[0] * (n + 1) for _ in range(m + 1)]
-            for i in range(1, m + 1):
-                for j in range(1, n + 1):
-                    if s1[i-1] == s2[j-1]:
-                        dp[i][j] = dp[i-1][j-1] + 1
-                    else:
-                        dp[i][j] = max(dp[i-1][j], dp[i][j-1])
-
-            lcs_length = dp[m][n]
-            return lcs_length / m
-
-        lcs_sim = lcs_ratio(gt_norm, pred_norm)
+        # 4. Longest common subsequence ratio — rolling 2-row DP: O(n) space
+        lcs_sim = _qa_lcs_ratio(gt_norm, pred_norm)
 
         # Weighted combination (weights defined as module constants above)
         final_score = (
@@ -346,8 +419,6 @@ class AccuracyEvaluator:
         Returns:
             Similarity score (0.0 - 1.0)
         """
-        import ast
-
         try:
             # Parse both code snippets
             tree1 = ast.parse(code1)
@@ -393,16 +464,8 @@ class AccuracyEvaluator:
         Returns:
             Similarity score (0.0 - 1.0)
         """
-        def normalize_code(code: str) -> str:
-            # Remove comments and docstrings (pre-compiled for performance)
-            code = _RE_CODE_SINGLE_COMMENT.sub('', code)
-            code = _RE_CODE_DOUBLE_DOCSTRING.sub('', code)
-            code = _RE_CODE_SINGLE_DOCSTRING.sub('', code)
-            code = _RE_CODE_WHITESPACE.sub(' ', code).strip()
-            return code
-
-        norm1 = normalize_code(code1)
-        norm2 = normalize_code(code2)
+        norm1 = _normalize_code(code1)
+        norm2 = _normalize_code(code2)
 
         if norm1 == norm2:
             return _CODE_NORMALIZED_MATCH_CONFIDENCE  # High confidence but not perfect (comments differ)
@@ -423,30 +486,49 @@ class AccuracyEvaluator:
 
     def get_accuracy_scores(self) -> Dict[str, float]:
         """Get aggregated accuracy scores"""
-        if not self.evaluations:
-            return {"overall_accuracy": 0.0}
+        if not self._evaluations:
+            return {
+                "overall_accuracy": 0.0,
+                "median_accuracy": 0.0,
+                "min_accuracy": 0.0,
+                "max_accuracy": 0.0,
+                "std_accuracy": 0.0,
+                "high_accuracy_count": 0,
+                "low_accuracy_count": 0,
+            }
 
-        df = pd.DataFrame(self.evaluations)
+        df = pd.DataFrame(self._evaluations)
+        measured = df["accuracy"].dropna()
 
-        # HIGH PRIORITY FIX: Handle NaN from std() when single value
-        std_val = df["accuracy"].std()
+        if measured.empty:
+            return {
+                "overall_accuracy": 0.0,
+                "median_accuracy": 0.0,
+                "min_accuracy": 0.0,
+                "max_accuracy": 0.0,
+                "std_accuracy": 0.0,
+                "high_accuracy_count": 0,
+                "low_accuracy_count": 0,
+            }
+
+        std_val = measured.std()
 
         return {
-            "overall_accuracy": round(df["accuracy"].mean() * 100, 2),
-            "median_accuracy": round(df["accuracy"].median() * 100, 2),
-            "min_accuracy": round(df["accuracy"].min() * 100, 2),
-            "max_accuracy": round(df["accuracy"].max() * 100, 2),
+            "overall_accuracy": round(measured.mean() * 100, 2),
+            "median_accuracy": round(measured.median() * 100, 2),
+            "min_accuracy": round(measured.min() * 100, 2),
+            "max_accuracy": round(measured.max() * 100, 2),
             "std_accuracy": round(std_val * 100, 2) if not pd.isna(std_val) else 0.0,
-            "high_accuracy_count": int((df["accuracy"] >= 0.9).sum()),
-            "low_accuracy_count": int((df["accuracy"] < 0.7).sum()),
+            "high_accuracy_count": int((measured >= 0.9).sum()),
+            "low_accuracy_count": int((measured < 0.7).sum()),
         }
 
     def get_accuracy_by_type(self) -> Dict[str, float]:
         """Get accuracy breakdown by task type"""
-        if not self.evaluations:
+        if not self._evaluations:
             return {}
 
-        df = pd.DataFrame(self.evaluations)
+        df = pd.DataFrame(self._evaluations)
         return df.groupby("task_type")["accuracy"].mean().mul(100).round(2).to_dict()
 
     def get_accuracy_metrics(self) -> Dict[str, Any]:
@@ -461,7 +543,7 @@ class AccuracyEvaluator:
             min_accuracy, max_accuracy, std_accuracy,
             high_accuracy_count, low_accuracy_count  (all float/int).
         """
-        if not self.evaluations:
+        if not self._evaluations:
             return {
                 "total_evaluated": 0,
                 "overall_accuracy": 0.0,
@@ -474,28 +556,28 @@ class AccuracyEvaluator:
             }
         scores = self.get_accuracy_scores()
         return {
-            "total_evaluated": len(self.evaluations),
+            "total_evaluated": len(self._evaluations),
             **scores,
         }
 
     def __repr__(self) -> str:
+        # _cached_avg is None when invalidated.  We only write a numeric value when
+        # at least one accuracy measurement exists; otherwise leave it None so that
+        # callers see "<no-data>" instead of a misleading "0.0%".
         if self._cached_avg is None:
-            self._cached_avg = (
-                round(
-                    sum(e.get("accuracy", 0) for e in self.evaluations)
-                    / len(self.evaluations) * 100,
-                    1,
-                )
-                if self.evaluations else 0.0
-            )
-        return f"AccuracyEvaluator(evaluations={len(self.evaluations)}, avg={self._cached_avg}%)"
+            measured = [e.get("accuracy") for e in self._evaluations if e.get("accuracy") is not None]
+            if measured:
+                self._cached_avg = round(sum(measured) / len(measured) * 100, 1)
+        n = len(self._evaluations)
+        avg_str = f"{self._cached_avg}%" if self._cached_avg is not None else "<no-data>"
+        return f"AccuracyEvaluator(evaluations={n}, avg={avg_str})"
 
 
 # ============================================================================
 # 3. Hallucination Detector
 # ============================================================================
 
-class HallucinationDetector:
+class HallucinationDetector(BaseTracker):
     """
     Rule-based hallucination detector (Layer 1 Native Metric)
 
@@ -526,11 +608,25 @@ class HallucinationDetector:
     """
 
     def __init__(self):
-        self.detections: List[Dict[str, Any]] = []
+        self._detections: List[Dict[str, Any]] = []
+
+    @property
+    def detections(self) -> List[Dict[str, Any]]:
+        """Read-only snapshot of accumulated detection records.
+
+        Returns a shallow copy so callers cannot mutate internal state.
+        Use :meth:`detect_hallucination` to add records.
+        """
+        return list(self._detections)
+
+    @detections.setter
+    def detections(self, value: List[Dict[str, Any]]) -> None:
+        """Restore internal state (used by load_from_file)."""
+        self._detections = list(value)
 
     def reset(self) -> None:
         """Clear all hallucination detections."""
-        self.detections.clear()
+        self._detections.clear()
 
     def detect_hallucination(self, task_id: str, response: str,
                             context: str, ground_truth: Optional[str] = None,
@@ -607,28 +703,32 @@ class HallucinationDetector:
             "timestamp": datetime.now()
         }
 
-        self.detections.append(detection)
+        self._detections.append(detection)
         return detection
 
     def get_hallucination_rate(self) -> Dict[str, float]:
         """Get overall hallucination statistics"""
-        if not self.detections:
+        if not self._detections:
             return {
                 "overall_rate": 0.0,
-                "total_evaluated": 0,  # Added for dashboard
-                "total_flagged": 0,  # Added for dashboard
-                "unsupported_claims_count": 0,  # Added for dashboard
-                "numerical_inconsistencies_count": 0  # Added for dashboard
+                "median_rate": 0.0,
+                "max_rate": 0.0,
+                "tasks_with_hallucinations": 0,
+                "total_tasks_checked": 0,
+                "total_evaluated": 0,
+                "total_flagged": 0,
+                "unsupported_claims_count": 0,
+                "numerical_inconsistencies_count": 0,
             }
 
-        rates = [d["hallucination_rate"] for d in self.detections]
+        rates = [d["hallucination_rate"] for d in self._detections]
         flagged_count = sum(1 for r in rates if r > 0)
 
         # Count hallucination types
         unsupported_claims_count = 0
         numerical_inconsistencies_count = 0
 
-        for detection in self.detections:
+        for detection in self._detections:
             for indicator in detection.get("indicators", []):
                 if indicator.get("type") == "unsupported_claim":
                     unsupported_claims_count += 1
@@ -653,7 +753,7 @@ class HallucinationDetector:
         Returns:
             Dictionary with counts and rates for each hallucination type
         """
-        if not self.detections:
+        if not self._detections:
             return {
                 "unsupported_claims": 0,
                 "numerical_errors": 0,
@@ -685,7 +785,7 @@ class HallucinationDetector:
 
         total_indicators = 0
 
-        for detection in self.detections:
+        for detection in self._detections:
             for indicator in detection.get("indicators", []):
                 total_indicators += 1
 
@@ -707,28 +807,28 @@ class HallucinationDetector:
             "temporal_errors": type_counts["temporal_inconsistency"],
             "other_errors": type_counts["other"],
             "total_hallucinations": total_indicators,
-            "total_detections": len(self.detections),
-            "hallucination_rate": round((total_indicators / len(self.detections)) * 100, 2) if self.detections else 0.0,
+            "total_detections": len(self._detections),
+            "hallucination_rate": round((total_indicators / len(self._detections)) * 100, 2) if self._detections else 0.0,
             "by_severity": severity_counts,
-            "avg_per_detection": round(total_indicators / len(self.detections), 2) if self.detections else 0.0
+            "avg_per_detection": round(total_indicators / len(self._detections), 2) if self._detections else 0.0
         }
 
     def __repr__(self) -> str:
         rate = (
             round(
-                sum(len(d.get("indicators", [])) for d in self.detections)
-                / len(self.detections) * 100, 1
+                sum(d.get("hallucination_rate", 0.0) for d in self._detections)
+                / len(self._detections) * 100, 1
             )
-            if self.detections else 0.0
+            if self._detections else 0.0
         )
-        return f"HallucinationDetector(detections={len(self.detections)}, rate={rate}%)"
+        return f"HallucinationDetector(detections={len(self._detections)}, rate={rate}%)"
 
 
 # ============================================================================
 # 4. Response Quality Evaluator
 # ============================================================================
 
-class ResponseQualityEvaluator:
+class ResponseQualityEvaluator(BaseTracker):
     """Evaluate response quality across multiple dimensions"""
 
     #: Default dimension weights (must sum to 1.0). Override via constructor.
@@ -765,14 +865,27 @@ class ResponseQualityEvaluator:
             self.dimensions = dict(dimensions)
         else:
             self.dimensions = dict(self.DEFAULT_DIMENSIONS)
-        self.evaluations: List[Dict[str, Any]] = []
+        self._evaluations: List[Dict[str, Any]] = []
+        self._task_ids: Set[str] = set()
+
+    @property
+    def evaluations(self) -> List[Dict[str, Any]]:
+        """Shallow copy of accumulated quality evaluations."""
+        return list(self._evaluations)
+
+    @evaluations.setter
+    def evaluations(self, value: List[Dict[str, Any]]) -> None:
+        """Restore internal state (used by load_from_file)."""
+        self._evaluations = list(value)
+        self._task_ids = {e.get("task_id") for e in value if e.get("task_id") is not None}
 
     def reset(self) -> None:
         """Clear all quality evaluations."""
-        self.evaluations.clear()
+        self._evaluations.clear()
+        self._task_ids.clear()
 
     def evaluate_response(self, task_id: str, response: str,
-                         request: str, expected_elements: List[str],
+                         request: str, expected_elements: Optional[List[str]] = None,
                          ground_truth: Optional[str] = None) -> Dict[str, Any]:
         """
         Evaluate response quality
@@ -785,9 +898,20 @@ class ResponseQualityEvaluator:
             ground_truth: Optional ground truth for accuracy calculation
 
         Returns:
-            Dict containing evaluation results
+            Dict[str, Any]: 평가 결과 딕셔너리.  각 차원 점수는 **[0, 5]** 범위.
+
+            키 목록: ``task_id``, ``relevance``, ``completeness``, ``clarity``,
+            ``accuracy``, ``usefulness``, ``total_score`` (5개 차원 평균, [0, 5]),
+            ``grade`` (A–F).
         """
+        # H1: expected_elements=None guard — None passed at runtime bypasses List[str] hint
+        if expected_elements is None:
+            expected_elements = []
+
         scores = {}
+
+        # Pre-compute word_count once — reused for completeness, clarity, usefulness
+        word_count = len(response.split())
 
         # Relevance (keyword overlap)
         request_words = set(request.lower().split())
@@ -806,12 +930,14 @@ class ResponseQualityEvaluator:
         if expected_elements:
             completeness = found_elements / len(expected_elements)
         else:
-            completeness = 1.0
+            # 검증할 요소가 없으면 응답 길이 기반 휴리스틱 (clarity와 동일 방식)
+            completeness = min(word_count / 150, 1.0)
         scores["completeness"] = completeness * _QUALITY_SCORE_MAX
 
         # Clarity (based on response length and structure)
-        word_count = len(response.split())
         has_structure = '\n' in response or '.' in response
+        # 1.2 boost: 구조화된 응답(줄바꿈·마침표 포함)은 가독성이 높으므로 20% 보정
+        # min()으로 _QUALITY_SCORE_MAX(5) 초과 방지
         clarity = min(word_count / 100, 1.0) * (1.2 if has_structure else 1.0)
         scores["clarity"] = min(clarity * _QUALITY_SCORE_MAX, _QUALITY_SCORE_MAX)
 
@@ -828,7 +954,6 @@ class ResponseQualityEvaluator:
         # Good indicators: length, structure, specific examples
         has_examples = any(word in response.lower() for word in ['예를 들어', 'example', ':', '•', '-'])
         has_numbers = any(char.isdigit() for char in response)
-        word_count = len(response.split())
 
         usefulness = (
             0.4 * min(word_count / 150, 1.0) +  # Adequate length
@@ -854,7 +979,8 @@ class ResponseQualityEvaluator:
             "timestamp": datetime.now()
         }
 
-        self.evaluations.append(evaluation)
+        self._evaluations.append(evaluation)
+        self._task_ids.add(task_id)
         return evaluation
 
     def _assign_grade(self, score: float) -> str:
@@ -867,15 +993,8 @@ class ResponseQualityEvaluator:
 
         Uses token-based similarity with normalization
         """
-        # Normalize text (use pre-compiled module patterns for performance)
-        def normalize(text):
-            text = text.lower()
-            text = _RE_QA_WHITESPACE.sub(' ', text).strip()
-            text = _RE_QA_PUNCTUATION.sub('', text)
-            return text
-
-        response_norm = normalize(response)
-        gt_norm = normalize(ground_truth)
+        response_norm = _normalize_qa_text(response)
+        gt_norm = _normalize_qa_text(ground_truth)
 
         if not gt_norm:
             return 0.0
@@ -903,7 +1022,7 @@ class ResponseQualityEvaluator:
 
     def get_quality_metrics(self) -> Dict[str, Any]:
         """Get aggregated quality metrics"""
-        if not self.evaluations:
+        if not self._evaluations:
             return {
                 "avg_total_score": 0.0, "avg_grade": "N/A",
                 "median_total_score": 0.0, "min_total_score": 0.0,
@@ -913,7 +1032,7 @@ class ResponseQualityEvaluator:
                 "dimension_scores": {}, "quality_distribution": {},
             }
 
-        df = pd.DataFrame(self.evaluations)
+        df = pd.DataFrame(self._evaluations)
 
         grade_dist = df["grade"].value_counts().to_dict()
 
@@ -949,7 +1068,8 @@ class ResponseQualityEvaluator:
 
             quality_distribution[range_key] = quality_distribution.get(range_key, 0) + 1
 
-        avg_score = round(df["total_score"].mean(), 2)
+        _mean_val = df["total_score"].dropna().mean()
+        avg_score = round(_mean_val, 2) if not pd.isna(_mean_val) else 0.0
         return {
             "avg_total_score": avg_score,
             "avg_grade": self._assign_grade(avg_score),
@@ -959,7 +1079,7 @@ class ResponseQualityEvaluator:
             "std_total_score": round(std_val, 2) if not pd.isna(std_val) else 0.0,
             "grade_distribution": grade_dist,
             "high_quality_count": high_quality_count,
-            "total_evaluated": len(self.evaluations),  # Add for dashboard compatibility
+            "total_evaluated": len(self._evaluations),  # Add for dashboard compatibility
             "dimension_averages": dimension_averages,
             "dimension_scores": dimension_averages,  # Alias for dashboard compatibility
             "quality_distribution": quality_distribution  # Add quality distribution for dashboard
@@ -971,7 +1091,7 @@ class ResponseQualityEvaluator:
         Returns:
             Dictionary with detailed statistics for each quality dimension
         """
-        if not self.evaluations:
+        if not self._evaluations:
             return {
                 "relevance": 0.0,
                 "completeness": 0.0,
@@ -984,7 +1104,7 @@ class ResponseQualityEvaluator:
         # Collect all dimension scores
         dimension_scores = {dim: [] for dim in self.dimensions.keys()}
 
-        for eval_data in self.evaluations:
+        for eval_data in self._evaluations:
             scores = eval_data.get("dimension_scores", {})
             for dim in self.dimensions.keys():
                 if dim in scores:
@@ -1022,7 +1142,7 @@ class ResponseQualityEvaluator:
             "clarity": dimension_stats["clarity"]["average"],
             "usefulness": dimension_stats["usefulness"]["average"],
             "by_dimension_detailed": dimension_stats,
-            "total_evaluations": len(self.evaluations)
+            "total_evaluations": len(self._evaluations)
         }
 
     def _get_score_distribution(self, scores: List[float]) -> Dict[str, int]:
@@ -1052,31 +1172,45 @@ class ResponseQualityEvaluator:
     def __repr__(self) -> str:
         avg = (
             round(
-                sum(e.get("total_score", 0) for e in self.evaluations) / len(self.evaluations), 2
+                sum(e.get("total_score", 0) for e in self._evaluations) / len(self._evaluations), 2
             )
-            if self.evaluations else 0.0
+            if self._evaluations else 0.0
         )
-        return f"ResponseQualityEvaluator(evaluations={len(self.evaluations)}, avg_score={avg})"
+        return f"ResponseQualityEvaluator(evaluations={len(self._evaluations)}, avg_score={avg})"
 
 
 # ============================================================================
 # 5. Latency Tracker
 # ============================================================================
 
-class LatencyTracker:
+class LatencyTracker(BaseTracker):
     """Track and analyze response latency"""
 
     def __init__(self):
-        self.latencies: List[Dict[str, Any]] = []
+        self._latencies: List[Dict[str, Any]] = []
+        self._cached_stats: Optional[Dict[str, float]] = None  # invalidated on each record
+
+    @property
+    def latencies(self) -> List[Dict[str, Any]]:
+        """Shallow copy of accumulated latency records."""
+        return list(self._latencies)
+
+    @latencies.setter
+    def latencies(self, value: List[Dict[str, Any]]) -> None:
+        """Restore internal state (used by load_from_file)."""
+        self._latencies = list(value)
+        self._cached_stats = None
 
     def reset(self) -> None:
         """Clear all latency records."""
-        self.latencies.clear()
+        self._latencies.clear()
+        self._cached_stats = None
 
     def record_latency(self, task_id: str, task_type: str,
                        total_time: float, breakdown: Dict[str, float]):
         """Record latency for a task"""
-        self.latencies.append({
+        self._cached_stats = None  # invalidate cache on new record
+        self._latencies.append({
             "task_id": task_id,
             "task_type": task_type,
             "total_time": total_time,
@@ -1085,16 +1219,31 @@ class LatencyTracker:
         })
 
     def get_latency_stats(self, task_type: Optional[str] = None) -> Dict[str, float]:
-        """Get latency statistics"""
-        latencies = self.latencies
-        if task_type:
-            latencies = [l for l in latencies if l["task_type"] == task_type]
+        """Get latency statistics.
 
+        Results for the full dataset (``task_type=None``) are cached and
+        reused until the next :meth:`record_latency` / :meth:`reset` call.
+        Per-type queries bypass the cache (uncommon, low-volume path).
+        """
+        if task_type:
+            # Per-type query: filter then compute without touching the cache
+            filtered = [lat for lat in self._latencies if lat["task_type"] == task_type]
+            return self._compute_stats(filtered)
+
+        # Full-dataset query: use cache
+        if self._cached_stats is not None:
+            return self._cached_stats
+
+        self._cached_stats = self._compute_stats(self._latencies)
+        return self._cached_stats
+
+    def _compute_stats(self, latencies: List[Dict[str, Any]]) -> Dict[str, float]:
+        """Compute latency statistics from a list of latency records."""
         if not latencies:
             return {"mean": 0.0, "median": 0.0, "p50": 0.0, "p95": 0.0, "p99": 0.0,
                     "min": 0.0, "max": 0.0, "std": 0.0}
 
-        times = [l["total_time"] for l in latencies]
+        times = [lat["total_time"] for lat in latencies]
 
         return {
             "mean": round(statistics.mean(times), 3),
@@ -1104,19 +1253,19 @@ class LatencyTracker:
             "p99": round(np.percentile(times, 99), 3),
             "min": round(min(times), 3),
             "max": round(max(times), 3),
-            "std": round(statistics.stdev(times) if len(times) > 1 else 0, 3)
+            "std": round(statistics.stdev(times) if len(times) > 1 else 0, 3),
         }
 
     def analyze_bottlenecks(self) -> Dict[str, Any]:
         """Identify performance bottlenecks"""
-        if not self.latencies:
+        if not self._latencies:
             return {}
 
         # Aggregate breakdown times
         breakdown_totals = defaultdict(float)
         breakdown_counts = defaultdict(int)
 
-        for latency in self.latencies:
+        for latency in self._latencies:
             # Skip if breakdown is empty or None
             if not latency.get("breakdown"):
                 continue
@@ -1147,12 +1296,12 @@ class LatencyTracker:
         Returns:
             Dictionary mapping task_type to its latency statistics
         """
-        if not self.latencies:
+        if not self._latencies:
             return {}
 
         # Group latencies by task type
         latencies_by_type = defaultdict(list)
-        for latency in self.latencies:
+        for latency in self._latencies:
             task_type = latency.get("task_type", "unknown")
             latencies_by_type[task_type].append(latency["total_time"])
 
@@ -1180,7 +1329,7 @@ class LatencyTracker:
 
         for task_type, target in sla_targets.items():
             type_latencies = [
-                l["total_time"] for l in self.latencies
+                l["total_time"] for l in self._latencies
                 if l["task_type"] == task_type
             ]
 
@@ -1202,17 +1351,17 @@ class LatencyTracker:
 
     def __repr__(self) -> str:
         mean = (
-            round(statistics.mean(l["total_time"] for l in self.latencies), 3)
-            if self.latencies else 0.0
+            round(statistics.mean(l["total_time"] for l in self._latencies), 3)
+            if self._latencies else 0.0
         )
-        return f"LatencyTracker(records={len(self.latencies)}, mean={mean}s)"
+        return f"LatencyTracker(records={len(self._latencies)}, mean={mean}s)"
 
 
 # ============================================================================
 # 6. Token Economy Tracker
 # ============================================================================
 
-class TokenEconomyTracker:
+class TokenEconomyTracker(BaseTracker):
     """Track token usage and costs"""
 
     def __init__(self, pricing: Dict[str, float]):
@@ -1221,19 +1370,75 @@ class TokenEconomyTracker:
             pricing: {"input": cost_per_1k_tokens, "output": cost_per_1k_tokens}
 
         Raises:
-            ValidationError: If any price value is negative.
+            ValidationError: If required keys are missing or any price value is negative.
         """
+        # L1/H2: validate required keys before iterating values
+        for required_key in ("input", "output"):
+            if required_key not in (pricing or {}):
+                raise ValidationError(
+                    f"pricing must contain '{required_key}' key. "
+                    f"Expected: {{\"input\": float, \"output\": float}}, got: {list((pricing or {}).keys())}"
+                )
         for key, price in (pricing or {}).items():
+            if not isinstance(price, (int, float)):
+                raise ValidationError(
+                    f"pricing['{key}'] = {price!r} is invalid: expected a numeric value (int or float)"
+                )
             if price < 0:
                 raise ValidationError(
                     f"pricing['{key}'] = {price} is invalid: token prices must be >= 0"
                 )
         self.pricing = pricing
-        self.usage_log: List[Dict[str, Any]] = []
+        self._usage_log: List[Dict[str, Any]] = []
+
+    @property
+    def usage_log(self) -> List[Dict[str, Any]]:
+        """Shallow copy of accumulated usage records."""
+        return list(self._usage_log)
+
+    @usage_log.setter
+    def usage_log(self, value: List[Dict[str, Any]]) -> None:
+        """Restore internal state (used by load_from_file)."""
+        self._usage_log = list(value)
 
     def reset(self) -> None:
         """Clear all token usage records."""
-        self.usage_log.clear()
+        self._usage_log.clear()
+
+    def update_pricing(self, pricing: Dict[str, float]) -> None:
+        """Update token pricing after construction.
+
+        Useful when switching models during a long evaluation session without
+        creating a new ``PerformanceMonitor`` instance.  Applies the same
+        validation as ``__init__``.
+
+        Args:
+            pricing: ``{"input": cost_per_1k_tokens, "output": cost_per_1k_tokens}``
+
+        Raises:
+            ValidationError: If required keys are missing or any price is invalid.
+
+        Example::
+
+            monitor.token_tracker.update_pricing({"input": 0.003, "output": 0.015})
+        """
+        for required_key in ("input", "output"):
+            if required_key not in (pricing or {}):
+                raise ValidationError(
+                    f"pricing must contain '{required_key}' key. "
+                    f"Expected: {{\"input\": float, \"output\": float}}, "
+                    f"got: {list((pricing or {}).keys())}"
+                )
+        for key, price in (pricing or {}).items():
+            if not isinstance(price, (int, float)):
+                raise ValidationError(
+                    f"pricing['{key}'] = {price!r} is invalid: expected a numeric value (int or float)"
+                )
+            if price < 0:
+                raise ValidationError(
+                    f"pricing['{key}'] = {price} is invalid: token prices must be >= 0"
+                )
+        self.pricing = pricing
 
     def track_usage(self, task_id: str, input_tokens: int,
                    output_tokens: int, task_type: str, model: str = "default"):
@@ -1241,7 +1446,7 @@ class TokenEconomyTracker:
         total_tokens = input_tokens + output_tokens
         cost = self._calculate_cost(input_tokens, output_tokens)
 
-        self.usage_log.append({
+        self._usage_log.append({
             "task_id": task_id,
             "task_type": task_type,
             "model": model,
@@ -1260,7 +1465,7 @@ class TokenEconomyTracker:
 
     def get_usage_stats(self) -> Dict[str, Any]:
         """Get token usage statistics"""
-        if not self.usage_log:
+        if not self._usage_log:
             return {
                 "total_tasks": 0, "total_tokens": 0,
                 "total_input_tokens": 0, "total_output_tokens": 0,
@@ -1270,7 +1475,7 @@ class TokenEconomyTracker:
                 "cost_percentiles": {"p50": 0.0, "p90": 0.0, "p95": 0.0},
             }
 
-        df = pd.DataFrame(self.usage_log)
+        df = pd.DataFrame(self._usage_log)
 
         total_input = int(df["input_tokens"].sum())
         total_output = int(df["output_tokens"].sum())
@@ -1312,20 +1517,23 @@ class TokenEconomyTracker:
 
     def get_usage_by_type(self) -> Dict[str, Dict[str, float]]:
         """Get usage breakdown by task type"""
-        if not self.usage_log:
+        if not self._usage_log:
             return {}
 
-        df = pd.DataFrame(self.usage_log)
+        df = pd.DataFrame(self._usage_log)
         grouped = df.groupby("task_type").agg({
             "total_tokens": ["sum", "mean"],
             "cost": ["sum", "mean"]
         }).round(2)
 
-        return grouped.to_dict()
+        # Flatten multi-level columns to strings (e.g. ("total_tokens", "sum") → "total_tokens_sum")
+        # then return {task_type: {stat_name: value}} via orient='index'.
+        grouped.columns = ["_".join(col) for col in grouped.columns]
+        return grouped.to_dict("index")
 
     def get_cost_breakdown_by_model(self) -> Dict[str, Dict[str, Any]]:
         """Get detailed cost breakdown by model"""
-        if not self.usage_log:
+        if not self._usage_log:
             return {}
 
         # Group by model
@@ -1337,7 +1545,7 @@ class TokenEconomyTracker:
             "task_count": 0
         })
 
-        for entry in self.usage_log:
+        for entry in self._usage_log:
             model = entry.get("model", "default")
             model_data[model]["input_tokens"].append(entry["input_tokens"])
             model_data[model]["output_tokens"].append(entry["output_tokens"])
@@ -1371,8 +1579,8 @@ class TokenEconomyTracker:
         return breakdown
 
     def __repr__(self) -> str:
-        total_cost = sum(r.get("cost", 0) for r in self.usage_log)
+        total_cost = sum(r.get("cost", 0) for r in self._usage_log)
         return (
-            f"TokenEconomyTracker(records={len(self.usage_log)}, "
+            f"TokenEconomyTracker(records={len(self._usage_log)}, "
             f"total_cost=${total_cost:.4f})"
         )

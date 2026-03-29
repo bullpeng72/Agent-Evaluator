@@ -5,8 +5,13 @@ Integrates external evaluation libraries (DeepEval, Ragas, LangSmith)
 with Agent Evaluator's native metrics system.
 """
 
+import logging
+import math
 import os
+import traceback
 import warnings
+
+logger = logging.getLogger(__name__)
 from abc import ABC, abstractmethod
 from typing import Dict, Any, List, Optional
 from enum import Enum
@@ -193,7 +198,6 @@ class DeepEvalAdapter(MetricAdapter):
             results['deepeval_error'] = f"Parameter error: {str(e)}"
         except Exception as e:
             # Unexpected errors (API, network, etc.)
-            import traceback
             print(f"⚠️  DeepEval unexpected error: {e}")
             print(f"Traceback: {traceback.format_exc()}")
             results['deepeval_error'] = f"Unexpected error: {str(e)}"
@@ -244,7 +248,6 @@ class DeepEvalAdapter(MetricAdapter):
             print(f"⚠️  G-Eval parameter error: {e}")
             return {'g_eval_error': f"Parameter error: {str(e)}"}
         except Exception as e:
-            import traceback
             error_trace = traceback.format_exc()
             print(f"⚠️  G-Eval unexpected error:\n{error_trace}")
             return {'g_eval_error': f"Unexpected error: {str(e)}"}
@@ -456,8 +459,6 @@ class RagasAdapter(MetricAdapter):
         results = {}
 
         try:
-            import math
-
             # ragas 0.4.x: SingleTurnSample replaces the old dict-based Dataset
             # Field mapping: question→user_input, answer→response,
             #                contexts→retrieved_contexts, ground_truth→reference
@@ -530,7 +531,6 @@ class RagasAdapter(MetricAdapter):
             print(f"⚠️  Ragas parameter error: {e}")
             results['ragas_error'] = f"Parameter error: {str(e)}"
         except Exception as e:
-            import traceback
             print(f"⚠️  Ragas unexpected error: {e}")
             print(f"Traceback: {traceback.format_exc()}")
             results['ragas_error'] = f"Unexpected error: {str(e)}"
@@ -607,21 +607,25 @@ class LangSmithAdapter(MetricAdapter):
             # Fetch run data
             run = self.client.read_run(run_id)
 
-            results = {
-                'langsmith_latency': run.total_time if hasattr(run, 'total_time') else None,
-                'langsmith_tokens': run.total_tokens if hasattr(run, 'total_tokens') else None,
-                'langsmith_cost': run.cost if hasattr(run, 'cost') else None,
-                'langsmith_feedback_scores': run.feedback_stats if hasattr(run, 'feedback_stats') else None
-            }
+            # Only include keys whose values are actually present — None values
+            # would propagate into advanced_metrics and pollute downstream reports.
+            if hasattr(run, 'total_time') and run.total_time is not None:
+                results['langsmith_latency'] = run.total_time
+            if hasattr(run, 'total_tokens') and run.total_tokens is not None:
+                results['langsmith_tokens'] = run.total_tokens
+            if hasattr(run, 'cost') and run.cost is not None:
+                results['langsmith_cost'] = run.cost
+            if hasattr(run, 'feedback_stats') and run.feedback_stats is not None:
+                results['langsmith_feedback_scores'] = run.feedback_stats
 
         except (ImportError, AttributeError) as e:
-            print(f"⚠️  LangSmith module error: {e}")
+            logger.warning("LangSmith 모듈 오류: %s", e, exc_info=True)
             results['langsmith_error'] = f"Module error: {str(e)}"
         except (ValueError, TypeError) as e:
-            print(f"⚠️  LangSmith parameter error: {e}")
+            logger.warning("LangSmith 파라미터 오류: %s", e, exc_info=True)
             results['langsmith_error'] = f"Parameter error: {str(e)}"
         except Exception as e:
-            print(f"⚠️  LangSmith API error: {e}")
+            logger.warning("LangSmith API 오류: %s", e, exc_info=True)
             results['langsmith_error'] = f"API error: {str(e)}"
 
         return results

@@ -40,6 +40,9 @@ from datetime import datetime
 
 logger = logging.getLogger(__name__)
 
+# Pre-compiled CJK character pattern for _estimate_tokens_cjk()
+_RE_CJK = re.compile(r"[\u1100-\u11ff\u3040-\u30ff\u3130-\u318f\uac00-\ud7a3\u4e00-\u9fff]")
+
 from ..core.agent_evaluator import PerformanceMonitor, TaskResult, TaskType
 from .framework_integrations import (
     ensure_security_trackers as _ensure_security_trackers,
@@ -143,7 +146,7 @@ def _estimate_tokens_cjk(text: str) -> int:
         return max(1, len(enc.encode(text)))
     except Exception as e:
         logger.debug("tiktoken 토큰 추정 실패, 휴리스틱 사용: %s", e)
-    cjk_count = len(re.findall(r"[\u1100-\u11ff\u3040-\u30ff\u3130-\u318f\uac00-\ud7a3\u4e00-\u9fff]", text))
+    cjk_count = len(_RE_CJK.findall(text))
     ratio = cjk_count / max(len(text), 1)
     divisor = 2 if ratio > 0.3 else 4
     return max(1, len(text) // divisor)
@@ -1326,7 +1329,7 @@ class LangGraphEvaluator:
                 print(f"   Tool Selection Accuracy: {_tool_acc_str}")
                 print(f"   Workflow Execution Score: {wf.get('success_rate', 0):.1f}%")
                 if coord:
-                    print(f"   Agent Coordination Rate: {coord.get('score', 0):.1f}%")
+                    print(f"   Agent Coordination Rate: {coord.get('overall_score', 0):.1f}%")
                 if tool_eff:
                     print(f"   Tool Call Success Rate: {tool_eff.get('success_rate', 0):.1f}%")
                 if retry:

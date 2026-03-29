@@ -30,6 +30,7 @@ LangChain 1.2.x (LCEL Runnable 기반) 에이전트에 대한 완전한 평가 �
     langchain >= 1.0.0, langchain-core >= 1.0.0
 """
 
+import json
 import logging
 import re
 import time
@@ -72,7 +73,6 @@ def _parse_tool_input(tool_input: Any) -> Dict[str, Any]:
     tool_input을 dict로 정규화합니다.
     JSON 문자열이면 파싱, 이미 dict면 그대로, 기타 타입은 {"input": str()} 로 감쌉니다.
     """
-    import json
     if isinstance(tool_input, dict):
         return tool_input
     try:
@@ -975,7 +975,7 @@ class LangChainEvaluator:
                 print(f"   Tool Selection Accuracy: {_tool_acc_str}")
                 print(f"   Workflow Execution Score: {wf.get('success_rate', 0):.1f}%")
                 if coord:
-                    print(f"   Agent Coordination Rate: {coord.get('score', 0):.1f}%")
+                    print(f"   Agent Coordination Rate: {coord.get('overall_score', 0):.1f}%")
                 if tool_eff:
                     print(f"   Tool Call Success Rate: {tool_eff.get('success_rate', 0):.1f}%")
                 if retry:

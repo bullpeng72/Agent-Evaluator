@@ -121,3 +121,15 @@ def test_empty_tool_calls(analyzer):
     # "no tools used" is an unmeasured state, not a perfect result.
     assert result["efficiency_score"] is None
     assert "note" in result
+
+
+# ---------------------------------------------------------------------------
+# 9. Empty state — avg_efficiency_score is 0.0 (not 100.0 — unmeasured ≠ perfect)
+# ---------------------------------------------------------------------------
+
+def test_get_efficiency_stats_empty_avg_is_zero():
+    a = ToolCallAnalyzer()
+    result = a.get_efficiency_stats()
+    # Round 16 fix: avg_efficiency_score was incorrectly 100.0 when no tasks recorded.
+    # 0.0 = no data (unmeasured state), not a perfect score.
+    assert result["avg_efficiency_score"] == 0.0

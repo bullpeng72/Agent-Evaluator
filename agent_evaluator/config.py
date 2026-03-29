@@ -17,6 +17,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Dict, List, Optional
 
+from agent_evaluator.exceptions import ConfigurationError
+
 # config 모듈 임포트 시점의 시스템 환경 변수 키 스냅샷.
 # load_env() 호출 후 os.environ 에 추가된 키는 .env 출처로 판별한다.
 _PRE_LOAD_KEYS: frozenset = frozenset(os.environ.keys())
@@ -298,7 +300,7 @@ def init_from_app(
                 f"  'agent-eval init' 을 실행하거나 .env 파일을 확인하세요."
             )
             if raise_on_missing:
-                raise OSError(msg)
+                raise ConfigurationError(msg)
             print(f"\033[33m⚠️  {msg}\033[0m", file=sys.stderr)
 
     return status

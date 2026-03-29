@@ -2,7 +2,7 @@
 
 **시간:** 3시간
 **참조 코드:** `Evaluator_Examples/05_hybrid_metrics.py`
-**핵심 Docs:** `10_KOREAN_RAG_GUIDE.md`, `06_METRICS_GUIDE.md`, `16_KNOWN_ISSUES_AND_QUIRKS.md`
+**핵심 Docs:** `10_KOREAN_RAG_GUIDE.md`, `06_METRICS_GUIDE.md`
 **사전 요구사항:** `OPENAI_API_KEY` 설정 필수
 
 ---

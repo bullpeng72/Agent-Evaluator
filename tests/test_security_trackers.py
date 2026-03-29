@@ -94,9 +94,13 @@ class TestToolAuthorizationTracker:
 
     # --- get_compliance_stats ---
 
-    def test_compliance_stats_empty_returns_empty_dict(self):
+    def test_compliance_stats_empty_returns_structured_zeros(self):
         t = ToolAuthorizationTracker()
-        assert t.get_compliance_stats() == {}
+        stats = t.get_compliance_stats()
+        assert stats["total_tool_calls"] == 0
+        assert stats["authorized_calls"] == 0
+        assert stats["unauthorized_calls"] == 0
+        assert "compliance_rate" in stats
 
     def test_compliance_rate_all_authorized(self):
         t = ToolAuthorizationTracker(allowed_tools=["search"])
@@ -215,9 +219,12 @@ class TestPrivilegeEscalationDetector:
 
     # --- get_escalation_stats ---
 
-    def test_escalation_stats_empty_returns_empty_dict(self):
+    def test_escalation_stats_empty_returns_structured_zeros(self):
         d = PrivilegeEscalationDetector()
-        assert d.get_escalation_stats() == {}
+        stats = d.get_escalation_stats()
+        assert stats["total_evaluations"] == 0
+        assert stats["escalations_detected"] == 0
+        assert "escalation_rate" in stats
 
     def test_escalation_rate_calculation(self):
         d = PrivilegeEscalationDetector()
@@ -357,9 +364,12 @@ class TestToolChainAttackDetector:
 
     # --- get_attack_stats ---
 
-    def test_attack_stats_empty_returns_empty_dict(self):
+    def test_attack_stats_empty_returns_structured_zeros(self):
         d = ToolChainAttackDetector()
-        assert d.get_attack_stats() == {}
+        stats = d.get_attack_stats()
+        assert stats["total_chains_analyzed"] == 0
+        assert stats["suspicious_chains"] == 0
+        assert "detection_rate" in stats
 
     def test_attack_stats_detection_rate(self):
         d = ToolChainAttackDetector()

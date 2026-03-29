@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 def evaluation_session(
     output_filename: str,
     enable_security: bool = False,
-    enable_hallucination: bool = True,
+    enable_hallucination: bool = False,
     **monitor_kwargs
 ):
     """
@@ -23,7 +23,7 @@ def evaluation_session(
 
     Example:
         ```python
-        from agent_evaluator.core.monitor_context import evaluation_session
+        from agent_evaluator import evaluation_session
 
         with evaluation_session("my_results.json", enable_security=True) as monitor:
             # Your evaluation code
@@ -100,7 +100,7 @@ def hybrid_evaluation_session(
 
     Example:
         ```python
-        from agent_evaluator.core.monitor_context import hybrid_evaluation_session
+        from agent_evaluator import hybrid_evaluation_session
 
         with hybrid_evaluation_session(
             "rag_results.json",

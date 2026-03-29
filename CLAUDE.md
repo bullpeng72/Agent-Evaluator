@@ -5,7 +5,7 @@
 **Agent-Evaluator** is a production-ready Python SDK for evaluating AI agents.
 25개의 성능 지표를 세 개의 레이어(기본/에이전틱/하이브리드)로 측정한다.
 
-- **Version:** 0.6.5 (Beta)
+- **Version:** 0.6.3 (Beta)
 - **Python:** 3.8+
 - **License:** MIT
 - **Author:** Sungwoo Kim
@@ -93,7 +93,7 @@ Layer 3 — Hybrid Evaluation (requires optional deps)
 ```
 agent_evaluator/
 ├── core/
-│   ├── agent_evaluator.py   # 모든 16개 트래커 + PerformanceMonitor (5,501줄 — 분리 예정)
+│   ├── agent_evaluator.py   # re-export facade (34줄) — trackers/ 분리 완료
 │   ├── hybrid_monitor.py    # HybridPerformanceMonitor
 │   └── monitor_context.py   # Context managers
 ├── integrations/
@@ -154,13 +154,17 @@ monitor = PerformanceMonitor(
     enable_hallucination_detection=False,  # 기본값 False (성능 영향)
     enable_security_metrics=False,         # 기본값 False
 )
-monitor.record_task(task_result)
+monitor.record_task(task_result)           # PerformanceMonitor 반환 — 메서드 체이닝 가능
 report = monitor.generate_report()
 monitor.save_to_file("evaluation")  # JSON + HTML 자동 생성
+
+# 팩토리 classmethods (용도별 최적 설정 자동 적용)
+monitor_rag = PerformanceMonitor.for_rag_evaluation(output_dir="results/")   # hallucination 기본 활성
+monitor_sec = PerformanceMonitor.for_secure_agents(output_dir="results/")    # security 기본 활성
 ```
 
 ### `TaskResult`
-단일 태스크 실행 결과를 담는 dataclass (18개 필드).
+단일 태스크 실행 결과를 담는 `@dataclass(frozen=True)` (필수 11개 + 선택 13개 = 24개 필드).
 
 ```python
 from agent_evaluator import create_taskresult
@@ -178,18 +182,50 @@ result = create_taskresult(
 # 직접 생성 시 필수 필드 (11개):
 # task_id, task_type, success, completion_score, accuracy_score,
 # execution_time, tokens_used, tool_calls, attempts, errors, timestamp
+
+# 직렬화 / 역직렬화
+d = result.to_dict()
+result2 = TaskResult.from_dict(d)      # ISO-8601 timestamp 자동 변환
+result3 = TaskResult.from_json(json_str)
+```
+
+### `EvaluationReport`
+`generate_report()`가 반환하는 불변 보고서 객체. `to_dict()` / `from_dict()` 왕복 지원.
+
+```python
+report = monitor.generate_report()
+d = report.to_dict()
+report2 = EvaluationReport.from_dict(d)  # timestamp 제외 의미론적 비교 (__eq__)
+report3 = EvaluationReport.from_json(json_str)
 ```
 
 ### `TaskType` (Enum)
 `QA`, `DATA_ANALYSIS`, `CODE_GENERATION`, `DOCUMENT_CREATION`, `INFORMATION_RETRIEVAL`,
 `REASONING`, `CREATIVE`, `CODING`, `PLANNING`, `TOOL_USE`
 
-### `evaluation_session` (Context Manager)
+### `evaluation_session` / `async_evaluation_session` (Context Managers)
 ```python
+# 동기 (일반 사용)
 with evaluation_session("output_filename") as monitor:
     result = agent.run(task)
     monitor.record_task(result)
 # 세션 종료 시 자동 저장 (예외 발생 시에도 안전)
+
+# 비동기 (async 에이전트 사용 시)
+async with async_evaluation_session("output_filename") as monitor:
+    result = await agent.run(task)
+    monitor.record_task(result)
+```
+
+### `ConversationSession` (멀티턴 대화 평가)
+```python
+from agent_evaluator import ConversationSession, ConversationMetrics, ConversationTurn
+
+session = ConversationSession(session_id="conv_001")
+session.add_turn(user_input="안녕하세요", agent_response="안녕하세요!")
+session.add_turn(user_input="오늘 날씨는?", agent_response="맑습니다.")
+metrics: ConversationMetrics = session.compute_metrics()
+# metrics.coherence_score, .context_retention_score, .avg_response_quality, ...
 ```
 
 ### Framework Factory Functions
@@ -213,7 +249,11 @@ from agent_evaluator import (
     HybridPerformanceMonitor, ExtendedTaskResult, HybridEvaluationReport,
 
     # Helpers
-    create_taskresult, evaluation_session, hybrid_evaluation_session,
+    create_taskresult, evaluation_session, async_evaluation_session,
+    hybrid_evaluation_session,
+
+    # Multi-turn Conversation Evaluation (Phase 1-C)
+    ConversationSession, ConversationMetrics, ConversationTurn,
 
     # LLM Helpers
     LLMHelper, ClaudeHelper,  # aliases for LLMEvaluationHelper, AnthropicEvaluationHelper
@@ -223,6 +263,12 @@ from agent_evaluator import (
 
     # Config Helpers
     load_env, get_settings, init_from_app,
+
+    # Advanced / Custom Tracker Base
+    BaseTracker,
+
+    # Security Helper
+    infer_privilege_level,
 
     # Individual Trackers (고급 사용자용)
     TaskCompletionTracker, AccuracyEvaluator, HallucinationDetector,
@@ -273,12 +319,12 @@ from agent_evaluator import (
 
 | 우선순위 | 항목 | 위치 |
 |---------|------|------|
-| 🔴 High | `agent_evaluator.py` 5,501줄 단일 파일 — trackers/ 분리 필요 | `core/agent_evaluator.py` |
-| ✅ Fixed | 테스트 없음 — `tests/` 4개 파일, 33개 테스트 함수 작성 완료 | `tests/` |
-| 🔴 High | `import re` 9회 함수 내부에서 임포트 → 모듈 상단으로 이동 필요 | `core/agent_evaluator.py` |
-| 🔴 High | `os.chdir()` 라이브러리 코드 내 사용 → `importlib` 방식으로 교체 필요 | `utils/dashboard_integration.py:44,82` |
-| 🟡 Medium | ~14곳에서 bare `except Exception:` 로 에러 무시 | 여러 파일 |
-| 🟡 Medium | `_check_patterns()`, `_is_subsequence()` 중복 구현 | `core/agent_evaluator.py` |
+| ✅ Fixed | `agent_evaluator.py` 5,501줄 단일 파일 — `core/trackers/` 서브패키지 분리 완료 | `core/agent_evaluator.py` |
+| ✅ Fixed | 테스트 없음 — `tests/` 31개 파일, 756개 테스트 함수 작성 완료 (커버리지 10%) | `tests/` |
+| ✅ Fixed | `import re` 9회 함수 내부에서 임포트 → 모듈 상단으로 이동 완료 | `core/trackers/monitor.py` |
+| ✅ Fixed | `os.chdir()` 라이브러리 코드 내 사용 → 제거 완료 | `utils/dashboard_integration.py` |
+| 🟡 Medium | ~9곳에서 bare `except Exception:` 로 에러 무시 | `core/trackers/monitor.py` |
+| 🟡 Medium | `_check_patterns()`, `_is_subsequence()` 중복 구현 가능성 확인 필요 | `core/trackers/` |
 | ✅ Fixed | `pandas>=1.3.0` 상한선 없음 → `<3.0.0` 추가 완료 | `pyproject.toml` |
 | ✅ Fixed | `PyPDF2` deprecated → `pypdf>=3.0.0,<7.0.0` 으로 교체 완료 (`pdfplumber` 유지) | `pyproject.toml` |
 | ✅ Fixed | `warnings.filterwarnings('ignore')` 전역 적용 → 카테고리/모듈 타겟 필터로 교체 완료 | `integrations/metric_adapters.py` |
@@ -287,7 +333,7 @@ from agent_evaluator import (
 
 ## Testing
 
-`tests/` 디렉토리에 4개 파일, 33개 테스트 함수 존재.
+`tests/` 디렉토리에 31개 파일, 756개 테스트 함수 존재.
 
 ```bash
 # pytest.ini_options in pyproject.toml already configured:
@@ -296,16 +342,19 @@ from agent_evaluator import (
 pytest
 ```
 
-현재 테스트 파일:
-- `tests/test_accuracy_evaluator.py`
-- `tests/test_hallucination_detector.py`
-- `tests/test_input_sanitization.py`
-- `tests/test_performance_monitor.py`
+주요 테스트 파일 (29개):
+- `tests/test_accuracy_evaluator.py`, `test_hallucination_detector.py`, `test_input_sanitization.py`, `test_performance_monitor.py` (기존)
+- `tests/test_task_ids_dedup.py` — Round 62: _task_ids 중복 방지 (36개)
+- `tests/test_latency_cache_and_tool_patterns.py` — Round 62: LatencyTracker 캐시 + ToolCallAnalyzer (20개)
+- `tests/test_api_fixes_r63_r65.py` — Round 63–65: API 수정 검증 (22개)
+- `tests/test_monitor_coverage_r68.py` — Round 68: PerformanceMonitor 커버리지 (52개)
+- `tests/test_hybrid_monitor_coverage_r68.py` — Round 68: HybridPerformanceMonitor 커버리지 (33개)
+- `tests/test_base_and_layer1_coverage_r68.py` — Round 68: base.py/layer1.py 커버리지 (78개)
+- `tests/test_taskresult_helpers_r69.py` — Round 69: taskresult_helpers.py 커버리지 (109개)
 
-추가 테스트 필요 항목:
-1. `OutputLeakageDetector.detect_leakage()`
-2. `ToolCallAnalyzer` / `AgentCoordinationTracker`
-3. `PerformanceMonitor.generate_report()` — 집계 파이프라인 end-to-end
+커버리지 현황 (Round 69 기준):
+- `base.py`: 92% | `layer1.py`: 84% | `layer2.py`: 95%
+- `hybrid_monitor.py`: 61% | `monitor.py`: 41% | `taskresult_helpers.py`: 89% | 전체: 10%
 
 주의: `agent_evaluator/utils/test_transparency_manager.py`는 테스트 파일이 **아님** — `TestTransparencyManager`라는 프로덕션 클래스임.
 
@@ -354,23 +403,159 @@ pytest
 `InputSanitizationTracker`가 탐지하는 패턴:
 - SQL Injection, Command Injection, Path Traversal, XSS, Prompt Injection
 
-⚠️ `OutputLeakageDetector`의 generic 패턴 `[a-zA-Z0-9]{32,}`은 false-positive 높음 — 개선 필요.
+✅ `OutputLeakageDetector` 파일 경로 패턴 — 시스템 경로(`/usr/`, `/bin/`, `/lib/` 등) 제외 처리로 false-positive 개선 완료 (v0.6.3).
 
 ---
 
 ## 📝 변경 이력
 
-### v0.6.5 (2026-03-27) — 프레임워크 래퍼 성숙도 개선 + 자동 수집 확대
+### v0.6.3 (2026-03-29) — SDK 안정화 — Security Tracker 캡슐화 · rag_metrics 스레드 안전성 · golden_datasets 보호 (Round 35)
 
-- ✨ `framework_integrations.py` — `ensure_security_trackers()` 통합 함수 추가 (4개 통합 파일 중복 제거)
-- ✨ `framework_integrations.py` — `extract_tools_from_framework_object()` 추가: LangChain/LangGraph/CrewAI/AutoGen 객체에서 도구 목록 자동 추출
-- ✨ 4개 프레임워크 래퍼 — `authorized_tools` 미입력 시 프레임워크 객체에서 자동 추출 (보안 트래커 초기화 자동화)
-- ✨ `LangGraphEvaluator` — `node_type_hints` API 추가: `from_compiled(node_type_hints={...})` / `add_node(node_type="retrieval")` 명시적 노드 타입 지정
-- ✨ `layer2.py` — `_TOOL_ALIASES` + `_normalize_tool_name()` 추가: Tool Selection F1 시맨틱 별칭 매칭 (search_web ↔ web_search 등)
-- ✨ `security.py` — `RETRY_ERROR_CATEGORY_MAP` + `categorize_retry_error()` 추가: 재시도 에러 8개 카테고리 자동 분류
-- ✨ `security.py` — API 키 패턴 4개 → 10개 확장 (Anthropic, AWS STS, GitHub PAT/Server, Slack Bot/User 추가)
-- 🔧 `monitor.py` — `enable_hallucination_detection` 기본값 `False` → `True` (RAG 에이전트 자동 환각 감지)
-- 🔧 4개 통합 파일 — `_ensure_security_trackers()` / `_infer_privilege_level()` 중복 구현 제거 → `framework_integrations.py` 단일 구현으로 통합
+#### 🔒 Security Tracker 캡슐화 (5개 — Round 34 패턴 완전 적용)
+- `security.py` — `InputSanitizationTracker.evaluations`, `OutputLeakageDetector.detections`, `ToolAuthorizationTracker.tool_calls`, `PrivilegeEscalationDetector.escalation_events`, `ToolChainAttackDetector.detections` → private `_xxx` + `@property` (shallow copy) + setter (load_from_file 호환)
+
+#### 🐛 `rag_metrics` property — thread-safety 수정 (Round 35)
+- `monitor.py` — `rag_metrics` property: `return self._rag_metrics` (직접 참조) → `return {k: list(v) for k, v in self._rag_metrics.items()}` (shallow copy)
+- 이전: `monitor.rag_metrics['key'].append(...)` 로 `_lock` 우회 가능 → 이후: 복사본 반환으로 내부 상태 보호
+
+#### 🔒 `golden_datasets` 캡슐화 (Round 35)
+- `monitor.py` — `self.golden_datasets` → `self._golden_datasets` (private) + `@property` + setter
+- `load_golden_dataset()` 반환값도 `list(self._golden_datasets)` 복사본으로 변경
+
+#### 📝 `record_task()` docstring 수정 (Round 35)
+- `monitor.py` — `Returns: None.` → `Returns: PerformanceMonitor: self, enabling method chaining` (Round 34 변경 후 docstring 불일치 수정)
+
+### v0.6.3 (2026-03-29) — SDK 안정화 — Tracker 캡슐화 전면 강화 · 메서드 체이닝 · thresholds 타입 검증 (Round 34)
+
+#### 🔒 Tracker 내부 상태 캡슐화 (9개 Tracker + ConversationSession)
+- `layer1.py` — `TaskCompletionTracker.tasks`, `ResponseQualityEvaluator.evaluations`, `LatencyTracker.latencies`, `TokenEconomyTracker.usage_log` → private `_xxx` + `@property` (shallow copy) + setter (load_from_file 호환)
+- `layer1.py` — `HallucinationDetector.detections` setter 추가 (load_from_file 회귀 수정 — 기존 세터 없어 직접 할당 실패하던 버그)
+- `layer2.py` — `ToolCallAnalyzer.executions`, `RetryCorrectionTracker.attempts`, `ToolSelectionTracker.selections`, `AgentCoordinationTracker.interactions`, `WorkflowExecutionTracker.executions` → 동일 패턴 적용
+- `conversation.py` — `ConversationSession.turns` → private `_turns` + `@property` + setter
+
+#### ✨ `PerformanceMonitor.record_task()` 메서드 체이닝 지원 (Round 34)
+- `monitor.py` — `record_task()` 반환 타입 `None` → `PerformanceMonitor`; `return self` 추가
+- 이제 `monitor.record_task(t1).record_task(t2).generate_report()` 체이닝 가능
+
+#### 🐛 `thresholds` 타입 안전성 (Round 34)
+- `monitor.py` — `self.thresholds` → `self._thresholds` (private) + `@property` + `@thresholds.setter` 추가
+- setter에서 dict 타입 검증 + 값이 숫자인지 검증 → `ValidationError` (기존: 잘못된 타입 조용히 수락)
+
+### v0.6.3 (2026-03-29) — SDK 안정화 — hash 버그 수정 · 원자적 쓰기 · EvaluationReport 의미론 · update_pricing (Round 33)
+
+#### 🐛 `TaskResult.__hash__` TypeError 수정 (CRITICAL)
+- `base.py` — `frozen=True` 자동 생성 `__hash__`가 `tokens_used: Dict`·`tool_calls: List` unhashable 필드로 항상 `TypeError` 발생 → `__hash__` 명시 override: `return hash(self.task_id)`
+- `base.py` — `__hash__` 추가 시 `__post_init__` 검증 코드가 unreachable에 위치하는 회귀 버그 동시 수정 (validation 복원)
+
+#### 🐛 `save_to_file()` 원자적 쓰기 (Round 33)
+- `monitor.py` — `import tempfile` 추가
+- `monitor.py` — JSON 저장: `open(filename, 'w')` → `tempfile.mkstemp()` + `os.replace()` (프로세스 종료 시 파일 손상 방지)
+- `monitor.py` — HTML 저장: 동일 원자적 쓰기 패턴 적용
+
+#### ✨ `EvaluationReport.__eq__` 의미론적 비교 (Round 33)
+- `base.py` — `EvaluationReport.__eq__()` 추가: `timestamp` 제외 데이터 필드만 비교 (JSON 왕복 후 `==` 일관성 보장)
+
+#### ✨ `TokenEconomyTracker.update_pricing()` 추가 (Round 33)
+- `layer1.py` — `update_pricing(pricing)` 메서드 추가: 생성 후 가격 변경 가능, `__init__`과 동일한 검증 적용
+
+#### 🐛 `AccuracyEvaluator.reset()` 캐시 무효화 순서 수정 (Round 33)
+- `layer1.py` — `reset()` 내 `_cached_avg = None`을 `_evaluations.clear()` 이전으로 이동 (스레드 경쟁 조건 차단)
+
+### v0.6.3 (2026-03-29) — SDK 안정화 — flush 버그 수정 · 직렬화 완전성 · 타입 안전성
+
+#### 🐛 flush() 다중 버그 수정 + 스레드 안전성 (Round 32 — SDK 관점 평가 3차)
+- `monitor.py` — `flush()` `hallucination_detector.detections.clear()` no-op 버그 수정 → `reset()` 사용
+- `monitor.py` — `flush()` 전체 트래커 클리어를 직접 속성 접근 → `reset()` 메서드로 통일 (일관성·유지보수성)
+- `monitor.py` — `reset()` 내 트래커 초기화를 `with self._lock:` 보호 영역으로 이동 (스레드 안전성)
+- `monitor.py` — `_iter_trackers()` 반환 타입 `-> Iterator[BaseTracker]` 추가 (mypy/pyright 지원)
+- `monitor.py` — `compare_with_thresholds()` 임계값 타입 검증 추가: 숫자가 아닌 값 → `ValidationError` (런타임 에러 위치 명확화)
+- `monitor.py` — typing import에 `Iterator` 추가
+
+#### ✨ 직렬화 완전성 (Round 32)
+- `base.py` — `EvaluationReport.from_dict()` / `from_json()` classmethods 추가 (to_dict/to_json 역방향 지원)
+- `conversation.py` — `ConversationMetrics.from_dict()` classmethod 추가 (to_dict 역방향 지원)
+- `conversation.py` — `import dataclasses` 추가
+
+#### 🐛 타입 힌트 수정 (Round 32)
+- `helpers/taskresult_helpers.py` — `calculate_completion_score()` `ground_truth: str = None` → `ground_truth: Optional[str] = None` (mypy 에러 수정)
+
+### v0.6.3 (2026-03-29) — SDK 안정화 — 불변성 · 팩토리 API · 직렬화 · 스레드 안전성
+
+#### ✨ SDK API 강화 (Round 31 — SDK 관점 평가 2차)
+- `base.py` — `TaskResult` → `@dataclass(frozen=True)`: 기록된 태스크 불변성 보장, `__post_init__` 내 `object.__setattr__` 사용
+- `base.py` — `TaskResult.from_dict()` / `from_json()` classmethods 추가: JSON 직렬화 → 역직렬화 완전 지원, ISO-8601 timestamp 자동 변환
+- `monitor.py` — `PerformanceMonitor.for_rag_evaluation()` 팩토리 classmethod 추가 (hallucination 기본 활성화)
+- `monitor.py` — `PerformanceMonitor.for_secure_agents()` 팩토리 classmethod 추가 (security 기본 활성화)
+- `hybrid_monitor.py` — `HybridPerformanceMonitor.__init__()` `**parent_kwargs` 추가: `pricing`, `model_name`, `enable_llm_judge` 등 부모 인자 전달 가능 (LSP 준수)
+- `hybrid_monitor.py` — `ExtendedTaskResult` → `@dataclass(frozen=True)`: 부모와 일관성
+- `conversation.py` — `ConversationTurn.__repr__()` 추가 (40자 미리보기)
+- `conversation.py` — `ConversationMetrics.__repr__()` / `__str__()` 추가 (디버깅·로깅 친화적 출력)
+
+#### 🐛 불변성 관련 버그 수정 (Round 31)
+- `monitor.py` — `record_task()` deprecated params 처리: 직접 필드 대입 → `dataclasses.replace()` (frozen 호환)
+- `monitor.py` — LLM Judge 블록을 `with self._lock:` 이전으로 이동: judge 결과를 `dataclasses.replace()`로 적용 후 tcr_tracker에 저장
+- `monitor.py` — `flush()` `self.accuracy_evaluator.evaluations.clear()` → `self.accuracy_evaluator.reset()` (property 복사본 clear 버그 수정)
+- `layer1.py` — `AccuracyEvaluator.evaluations` property: `return self._evaluations` → `return list(self._evaluations)` (외부 변경으로부터 내부 상태 보호)
+- `monitor.py` — `generate_report()` 0-태스크 호출 시 `logger.warning()` 추가
+- `monitor.py` — `record_task()` docstring에 deprecated params 마이그레이션 가이드 추가
+
+### v0.6.3 (2026-03-29) — SDK 안정화 — 스레드 안전성 · API 일관성 · 보안 tracker 완전성
+
+#### 🐛 보안 tracker API 완전성 (Round 22–23)
+- `security.py` — `InputSanitizationTracker.get_security_stats()` 빈 상태 완전한 10-키 구조 반환 (Round 22)
+- `security.py` — `OutputLeakageDetector.get_leakage_stats()` 빈 상태 완전한 13-키 구조 반환 (Round 23)
+- `security.py` — `ToolAuthorizationTracker.get_compliance_stats()` 빈 상태 완전한 9-키 구조 반환 (Round 23)
+- `security.py` — `PrivilegeEscalationDetector.get_escalation_stats()` 빈 상태 완전한 6-키 구조 반환 (Round 23)
+- `security.py` — `ToolChainAttackDetector.get_attack_stats()` 빈 상태 완전한 8-키 구조 반환 (Round 23)
+
+#### 🐛 계산 정확도 (Round 22–23)
+- `monitor.py` — `_has_score` 조건에서 `!= 0.0` 제거: `accuracy_score=0.0`을 재평가 트리거로 오인하던 버그 수정 (Round 22)
+- `monitor.py` — retry 합성 로그 `"duration": 1.0` 하드코딩 → `execution_time / attempts` 실제 비율로 교체 (Round 23)
+- `layer1.py` — `HallucinationDetector.__repr__()` indicator 개수 기반 오계산 → `hallucination_score` 평균으로 수정 (Round 23)
+
+#### 🐛 타입 안전성 (Round 22–23)
+- `monitor.py` — `compare_with_thresholds()` 품질 점수 키 존재 여부 명시적 검증 추가 (Round 22)
+- `monitor.py` — `response or` falsy 패턴 → `response if response is not None else` 명시적 None 검사 (Round 22)
+- `layer1.py` — `evaluate_response()` 시그니처 `expected_elements: List[str]` → `Optional[List[str]] = None` (Round 23)
+
+#### 🔒 스레드 안전성
+- `monitor.py` — `record_task()` 전체 트래커 뮤테이션 블록 `with self._lock:` 보호 (동시 write race 방지)
+- `monitor.py` — `record_rag_metrics()` / `rag_metrics` → `_rag_metrics` private + 읽기 전용 property
+- `monitor.py` — `reset()` 내 `_rag_metrics.clear()` / `golden_datasets.clear()` lock 보호
+- `monitor.py` — `compare_with_thresholds()` RAG 메트릭 읽기 lock 스냅샷으로 보호
+
+#### 🐛 기타 버그 수정
+- `monitor.py` — `reset()` 내 `conversation_sessions.clear()` 누락 수정 (CI 루프 세션 데이터 오염)
+- `monitor.py` — `compare_with_thresholds()` RAG status: `threshold=0.0` + 데이터 없음 → 'pass' 오류 → 'pending' 우선 반환
+- `monitor.py` — retry 중복 방지 set에서 `task_id=None` 항목 필터링
+- `layer1.py` — `evaluate_response()` `expected_elements=None` 전달 시 TypeError 수정 (`or []` guard)
+- `layer1.py` — `TokenEconomyTracker.__init__()` 필수 키 존재 + `isinstance` 숫자 타입 검증 (KeyError / TypeError → ValidationError)
+- `layer1.py` — `AccuracyEvaluator.record_score()` 추가: `_cached_avg` 캐시 무효화 보장
+- `layer1.py` — `AccuracyEvaluator.get_accuracy_scores()` 빈 상태 7개 키 완전 일치 + `dropna()` NaN 필터링
+- `layer1.py` — `AccuracyEvaluator.__repr__()` accuracy=None 항목 분모 제외
+- `layer1.py` — `HallucinationDetector.get_hallucination_rate()` 빈 상태 키 구조 완전 일치
+- `layer1.py` — `HallucinationDetector.detections` → `_detections` private; 읽기 전용 property + 얕은 복사 반환
+- `layer2.py` — `ToolCallAnalyzer.get_efficiency_stats()` 빈 상태 `avg_efficiency_score: 100.0` → `0.0` (미측정 ≠ 완벽) + all-None NaN 방지
+- `layer2.py` — `analyze_execution()` 도달 불가 `else: efficiency_score = 100.0` dead code 제거
+
+#### 🐛 지표 계산 정확도 (Round 24–25)
+- `layer1.py` — `ResponseQualityEvaluator.evaluate_response()` `completeness`: 예상 요소 없을 때 `1.0` 고정 → 응답 길이 기반 휴리스틱 `min(word_count/150, 1.0)` (Round 24)
+- `layer1.py` — `get_quality_metrics()` `total_score` NaN guard: `dropna().mean()` + `pd.isna()` 체크 (Round 25)
+- `layer1.py` — `TokenEconomyTracker.get_usage_by_type()` multi-level DataFrame 컬럼 → `"_".join(col)` flatten 후 `to_dict("index")` (Round 25)
+- `layer2.py` — `ToolCallAnalyzer.get_tool_usage_patterns()` `avg_call_duration` dropna + `notna().any()` guard (Round 24)
+
+#### 🐛 직렬화·repr 수정 (Round 26–27)
+- `base.py` — `EvaluationReport.to_dict()` `dataclasses.asdict()` datetime 미변환 → 재귀 `_convert()` 헬퍼로 ISO-8601 직렬화 (Round 26)
+- `layer1.py` — `HallucinationDetector.__repr__()` 잘못된 키 `"hallucination_score"` → `"hallucination_rate"` 수정 (repr 항상 0.0 표시 버그) (Round 27)
+- `layer2.py` — `get_tool_usage_patterns()` 미사용 변수 `all_tools = []` dead code 제거 (Round 27)
+
+#### 🐛 sentinel 값·API 일관성 (Round 28–30)
+- `conversation.py` — `_compute_context_retention()` 이전 턴 top 토큰 없을 때 `1.0` 추가 → 해당 턴 제외(skip), fallback `else 1.0` → `else 0.5` (미측정 중립) (Round 28)
+- `layer2.py` — `get_delegation_success_rate()` `d["success"]` → `d.get("success", False)` KeyError 방어 (Round 29)
+- `layer1.py` — `AccuracyEvaluator.__repr__()` `e["accuracy"]` → `e.get("accuracy")` 키 접근 일관성 (Round 29)
+- `conversation.py` — `ConversationSession.__exit__()` 반환 타입 `None` → `bool`, 명시적 `return False` 추가 (Round 29)
+- `conversation.py` — `compute_metrics()` `ValueError` → `InvalidOperationError` (SDK 예외 계층 사용) (Round 29)
+- `conversation.py` — `compute_metrics()` 내 stddev 계산 `/ 4.0` 하드코딩 → `/ len(component_scores)` (Round 29)
 
 ### v0.6.2 (2026-03-27) — 대시보드 보안 L1/L2 상세 패널 + 에이전틱·품질 탭 개선
 

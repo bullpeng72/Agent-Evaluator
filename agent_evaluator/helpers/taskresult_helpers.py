@@ -26,6 +26,73 @@ from typing import Any, Dict, List, Optional
 _RE_KOREAN_CHARS = re.compile(r'[가-힣]')
 _RE_ENGLISH_CHARS = re.compile(r'[a-zA-Z]')
 
+# Pre-compiled patterns for normalize_text()
+_RE_NORM_SPECIAL = re.compile(r'[^\w\s]')   # 특수문자 제거 (\w covers Korean in Python 3)
+_RE_NORM_WHITESPACE = re.compile(r'\s+')
+
+# ---------------------------------------------------------------------------
+# Pre-compiled patterns for validate_input_security()
+# ---------------------------------------------------------------------------
+_SEC_SQL_PATTERNS = [
+    re.compile(r"(?i)(OR\s+['\"]?1['\"]?\s*=\s*['\"]?1)"),
+    re.compile(r"(?i)(DROP\s+TABLE)"),
+    re.compile(r"(?i)(UNION\s+SELECT)"),
+    re.compile(r"(?i)(--\s*$)"),
+    re.compile(r"(?i)(;\s*DROP)"),
+]
+_SEC_CMD_PATTERNS = [
+    re.compile(r'rm\s+-rf'),
+    re.compile(r'\|\s*bash'),
+    re.compile(r';\s*rm'),
+    re.compile(r'`[^`]+`'),
+    re.compile(r'\$\([^)]+\)'),
+]
+_SEC_PATH_PATTERNS = [
+    re.compile(r'\.\./\.\.', re.IGNORECASE),
+    re.compile(r'\.\.\\', re.IGNORECASE),
+    re.compile(r'/etc/passwd', re.IGNORECASE),
+    re.compile(r'\\windows\\system32', re.IGNORECASE),
+]
+_SEC_XSS_PATTERNS = [
+    re.compile(r'<script[^>]*>', re.IGNORECASE),
+    re.compile(r'javascript:', re.IGNORECASE),
+    re.compile(r'onerror\s*=', re.IGNORECASE),
+    re.compile(r'onclick\s*=', re.IGNORECASE),
+]
+_SEC_PROMPT_PATTERNS = [
+    re.compile(r'(?i)ignore\s+(all\s+)?previous\s+instructions'),
+    re.compile(r'(?i)disregard\s+(all\s+)?above'),
+    re.compile(r'(?i)forget\s+everything'),
+    re.compile(r'(?i)you\s+are\s+now'),
+]
+
+# ---------------------------------------------------------------------------
+# Pre-compiled patterns for check_output_leakage()
+# ---------------------------------------------------------------------------
+_LEAK_API_PATTERNS = {
+    'openai_api_key': re.compile(r'sk-[A-Za-z0-9]{48}', re.IGNORECASE),
+    'aws_access_key': re.compile(r'AKIA[0-9A-Z]{16}', re.IGNORECASE),
+    'google_api_key': re.compile(r'AIza[0-9A-Za-z_-]{35}', re.IGNORECASE),
+    'generic_api_key': re.compile(r'api[_-]?key["\']?\s*[:=]\s*["\']?[A-Za-z0-9_-]{20,}', re.IGNORECASE),
+}
+_LEAK_PASSWORD_PATTERNS = [
+    re.compile(r'password["\']?\s*[:=]\s*["\']?[^\s"\']{8,}', re.IGNORECASE),
+    re.compile(r'passwd["\']?\s*[:=]\s*["\']?[^\s"\']{8,}', re.IGNORECASE),
+    re.compile(r'pwd["\']?\s*[:=]\s*["\']?[^\s"\']{8,}', re.IGNORECASE),
+]
+_LEAK_CC_PATTERN = re.compile(r'\b\d{4}[\s-]?\d{4}[\s-]?\d{4}[\s-]?\d{4}\b')
+_LEAK_EMAIL_PATTERN = re.compile(r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b')
+_LEAK_PRIVATE_IP_PATTERNS = [
+    re.compile(r'\b10\.\d{1,3}\.\d{1,3}\.\d{1,3}\b'),
+    re.compile(r'\b192\.168\.\d{1,3}\.\d{1,3}\b'),
+    re.compile(r'\b172\.(1[6-9]|2[0-9]|3[0-1])\.\d{1,3}\.\d{1,3}\b'),
+]
+_LEAK_FILE_PATH_PATTERNS = [
+    re.compile(r'[A-Z]:\\[^\s]+'),  # Windows paths
+    re.compile(r'/home/[^\s]+'),    # Unix home paths
+    re.compile(r'/root/[^\s]+'),    # Root paths
+]
+
 logger = logging.getLogger(__name__)
 
 
@@ -37,7 +104,7 @@ def calculate_completion_score(
     response: str,
     expected_min_length: int = 10,
     has_error: bool = False,
-    ground_truth: str = None
+    ground_truth: Optional[str] = None
 ) -> float:
     """
     작업 완료도 점수 계산 (0.0 ~ 1.0)
@@ -162,8 +229,8 @@ def calculate_accuracy_score(
 def normalize_text(text: str) -> str:
     """텍스트 정규화 (소문자, 공백 정리, 특수문자 제거)"""
     text = text.lower().strip()
-    text = re.sub(r'[^\w\s가-힣]', '', text)  # 특수문자 제거 (한글 유지)
-    text = re.sub(r'\s+', ' ', text)  # 다중 공백 → 단일 공백
+    text = _RE_NORM_SPECIAL.sub('', text)       # 특수문자 제거 (\w covers Korean)
+    text = _RE_NORM_WHITESPACE.sub(' ', text)   # 다중 공백 → 단일 공백
     return text
 
 
@@ -197,26 +264,33 @@ def _jaccard_similarity(text1: str, text2: str) -> float:
 
 
 def _lcs_similarity(text1: str, text2: str) -> float:
-    """Longest Common Subsequence Similarity"""
+    """Longest Common Subsequence Similarity.
+
+    롤링 2행 DP: O(n) 공간 (전체 m×n 테이블 대신 이전 행 하나만 보관).
+    """
     m, n = len(text1), len(text2)
 
     if m == 0 or n == 0:
         return 0.0
 
-    # DP 테이블
-    dp = [[0] * (n + 1) for _ in range(m + 1)]
+    # 짧은 쪽을 열(n)로 사용해 배열 크기 최소화
+    if m < n:
+        text1, text2 = text2, text1
+        m, n = n, m
+
+    prev = [0] * (n + 1)
 
     for i in range(1, m + 1):
+        curr = [0] * (n + 1)
         for j in range(1, n + 1):
-            if text1[i-1] == text2[j-1]:
-                dp[i][j] = dp[i-1][j-1] + 1
+            if text1[i - 1] == text2[j - 1]:
+                curr[j] = prev[j - 1] + 1
             else:
-                dp[i][j] = max(dp[i-1][j], dp[i][j-1])
+                curr[j] = max(prev[j], curr[j - 1])
+        prev = curr
 
-    lcs_length = dp[m][n]
-    max_length = max(m, n)
-
-    return lcs_length / max_length
+    lcs_length = prev[n]
+    return lcs_length / m  # m = max(len(text1), len(text2)) after swap
 
 
 def _char_similarity(text1: str, text2: str) -> float:
@@ -312,7 +386,7 @@ def extract_tokens_from_langchain(langchain_result: Any) -> Dict[str, int]:
                 "total": token_usage.get("total_tokens", 0)
             }
     except Exception as e:
-        logger.debug("LangChain 토큰 추출 실패: %s", e)
+        logger.warning("LangChain 토큰 추출 실패 (tokens_used=0으로 기록됨): %s", e)
 
     return {"input": 0, "output": 0, "total": 0}
 
@@ -380,7 +454,7 @@ def extract_tool_calls_from_langchain(langchain_result) -> List[Dict[str, Any]]:
                         "output": str(output)
                     })
     except Exception as e:
-        logger.debug("LangChain tool calls 추출 실패: %s", e)
+        logger.warning("LangChain tool calls 추출 실패 (tool_calls=[]로 기록됨): %s", e)
 
     return tool_calls
 
@@ -407,7 +481,7 @@ def extract_tool_calls_from_openai_functions(openai_response) -> List[Dict[str, 
                     "arguments": tool_call.function.arguments
                 })
     except Exception as e:
-        logger.debug("OpenAI function calling tool calls 추출 실패: %s", e)
+        logger.warning("OpenAI function calling tool calls 추출 실패 (tool_calls=[]로 기록됨): %s", e)
 
     return tool_calls
 
@@ -420,14 +494,14 @@ def create_taskresult_from_execution(
     task_id: str,
     question: str,
     response: str,
-    ground_truth: str,
-    execution_time: float,
-    openai_response = None,
-    langchain_result = None,
+    ground_truth: str = "",
+    execution_time: float = 0.0,
+    openai_response: Optional[Any] = None,
+    langchain_result: Optional[Any] = None,
     has_error: bool = False,
-    error_message: str = None,
+    error_message: Optional[str] = None,
     task_type: str = "qa",
-    partial_reason: str = None,
+    partial_reason: Optional[str] = None,
     context: Optional[str] = None,
 ):
     """
@@ -439,11 +513,15 @@ def create_taskresult_from_execution(
         response: 에이전트의 응답
         ground_truth: 정답
         execution_time: 실행 시간 (초)
-        openai_response: OpenAI API 응답 (선택)
-        langchain_result: LangChain 실행 결과 (선택)
+        openai_response: OpenAI API 응답 객체 (선택). 토큰 사용량 자동 추출에 사용.
+        langchain_result: LangChain 실행 결과 딕셔너리 (선택). 토큰 사용량 자동 추출에 사용.
         has_error: 에러 발생 여부
         error_message: 에러 메시지
-        task_type: Task 유형 (기본: "qa")
+        task_type: Task 유형 (기본: ``"qa"``). 허용값:
+            ``"qa"``, ``"coding"``, ``"code_generation"``, ``"data_analysis"``,
+            ``"document_creation"``, ``"information_retrieval"``, ``"reasoning"``,
+            ``"creative"``, ``"planning"``, ``"tool_use"``.
+            :class:`~agent_evaluator.TaskType` enum의 소문자 값과 동일.
         context: RAG 시스템에서 검색된 컨텍스트 (할루시네이션 감지에 사용).
             제공하면 HallucinationDetector가 응답의 사실 일관성을 검증한다.
 
@@ -452,6 +530,8 @@ def create_taskresult_from_execution(
 
     Examples:
         >>> from agent_evaluator import TaskResult, TaskType
+        >>>
+        >>> # Public alias: ``from agent_evaluator import create_taskresult``
         >>>
         >>> # OpenAI 사용 시
         >>> task = create_taskresult_from_execution(
@@ -496,11 +576,13 @@ def create_taskresult_from_execution(
     elif langchain_result:
         tokens = extract_tokens_from_langchain(langchain_result)
     else:
-        # 추정
+        # 추정 — 로컬 변수로 캐시해 estimate_tokens(question) 중복 호출 방지
+        _input_tokens = estimate_tokens(question)
+        _output_tokens = estimate_tokens(response)
         tokens = {
-            "input": estimate_tokens(question),
-            "output": estimate_tokens(response),
-            "total": estimate_tokens(question) + estimate_tokens(response)
+            "input": _input_tokens,
+            "output": _output_tokens,
+            "total": _input_tokens + _output_tokens,
         }
 
     # 4. tool_calls 동적 추출
@@ -658,59 +740,36 @@ def validate_input_security(input_text: str) -> Dict[str, Any]:
     risk_level = 'safe'
 
     # SQL Injection patterns
-    sql_patterns = [
-        r"(?i)(OR\s+['\"]?1['\"]?\s*=\s*['\"]?1)",
-        r"(?i)(DROP\s+TABLE)",
-        r"(?i)(UNION\s+SELECT)",
-        r"(?i)(--\s*$)",
-        r"(?i)(;\s*DROP)",
-    ]
-
-    for pattern in sql_patterns:
-        if re.search(pattern, input_text):
+    for pat in _SEC_SQL_PATTERNS:
+        if pat.search(input_text):
             threats_detected.append('sql_injection')
             threat_details.append({
                 'type': 'sql_injection',
-                'pattern': pattern,
+                'pattern': pat.pattern,
                 'severity': 'high'
             })
             risk_level = 'high'
             break
 
     # Command Injection patterns
-    cmd_patterns = [
-        r'rm\s+-rf',
-        r'\|\s*bash',
-        r';\s*rm',
-        r'`[^`]+`',
-        r'\$\([^)]+\)',
-    ]
-
-    for pattern in cmd_patterns:
-        if re.search(pattern, input_text):
+    for pat in _SEC_CMD_PATTERNS:
+        if pat.search(input_text):
             threats_detected.append('command_injection')
             threat_details.append({
                 'type': 'command_injection',
-                'pattern': pattern,
+                'pattern': pat.pattern,
                 'severity': 'critical'
             })
             risk_level = 'critical'
             break
 
     # Path Traversal patterns
-    path_patterns = [
-        r'\.\./\.\.',
-        r'\.\.\\',
-        r'/etc/passwd',
-        r'\\windows\\system32',
-    ]
-
-    for pattern in path_patterns:
-        if re.search(pattern, input_text, re.IGNORECASE):
+    for pat in _SEC_PATH_PATTERNS:
+        if pat.search(input_text):
             threats_detected.append('path_traversal')
             threat_details.append({
                 'type': 'path_traversal',
-                'pattern': pattern,
+                'pattern': pat.pattern,
                 'severity': 'high'
             })
             if risk_level not in ['critical', 'high']:
@@ -718,19 +777,12 @@ def validate_input_security(input_text: str) -> Dict[str, Any]:
             break
 
     # XSS patterns
-    xss_patterns = [
-        r'<script[^>]*>',
-        r'javascript:',
-        r'onerror\s*=',
-        r'onclick\s*=',
-    ]
-
-    for pattern in xss_patterns:
-        if re.search(pattern, input_text, re.IGNORECASE):
+    for pat in _SEC_XSS_PATTERNS:
+        if pat.search(input_text):
             threats_detected.append('xss')
             threat_details.append({
                 'type': 'xss',
-                'pattern': pattern,
+                'pattern': pat.pattern,
                 'severity': 'medium'
             })
             if risk_level not in ['critical', 'high']:
@@ -738,19 +790,12 @@ def validate_input_security(input_text: str) -> Dict[str, Any]:
             break
 
     # Prompt Injection patterns
-    prompt_patterns = [
-        r'(?i)ignore\s+(all\s+)?previous\s+instructions',
-        r'(?i)disregard\s+(all\s+)?above',
-        r'(?i)forget\s+everything',
-        r'(?i)you\s+are\s+now',
-    ]
-
-    for pattern in prompt_patterns:
-        if re.search(pattern, input_text):
+    for pat in _SEC_PROMPT_PATTERNS:
+        if pat.search(input_text):
             threats_detected.append('prompt_injection')
             threat_details.append({
                 'type': 'prompt_injection',
-                'pattern': pattern,
+                'pattern': pat.pattern,
                 'severity': 'medium'
             })
             if risk_level == 'safe':
@@ -797,15 +842,8 @@ def check_output_leakage(output_text: str) -> Dict[str, Any]:
     severity = 'none'
 
     # API Keys patterns
-    api_patterns = {
-        'openai_api_key': r'sk-[A-Za-z0-9]{48}',
-        'aws_access_key': r'AKIA[0-9A-Z]{16}',
-        'google_api_key': r'AIza[0-9A-Za-z_-]{35}',
-        'generic_api_key': r'api[_-]?key["\']?\s*[:=]\s*["\']?[A-Za-z0-9_-]{20,}',
-    }
-
-    for key_type, pattern in api_patterns.items():
-        matches = re.findall(pattern, output_text, re.IGNORECASE)
+    for key_type, pat in _LEAK_API_PATTERNS.items():
+        matches = pat.findall(output_text)
         if matches:
             leakage_found.append('api_key')
             details.append({
@@ -817,14 +855,8 @@ def check_output_leakage(output_text: str) -> Dict[str, Any]:
             severity = 'critical'
 
     # Password patterns
-    password_patterns = [
-        r'password["\']?\s*[:=]\s*["\']?[^\s"\']{8,}',
-        r'passwd["\']?\s*[:=]\s*["\']?[^\s"\']{8,}',
-        r'pwd["\']?\s*[:=]\s*["\']?[^\s"\']{8,}',
-    ]
-
-    for pattern in password_patterns:
-        matches = re.findall(pattern, output_text, re.IGNORECASE)
+    for pat in _LEAK_PASSWORD_PATTERNS:
+        matches = pat.findall(output_text)
         if matches:
             leakage_found.append('password')
             details.append({
@@ -836,8 +868,7 @@ def check_output_leakage(output_text: str) -> Dict[str, Any]:
             break
 
     # Credit card numbers
-    cc_pattern = r'\b\d{4}[\s-]?\d{4}[\s-]?\d{4}[\s-]?\d{4}\b'
-    cc_matches = re.findall(cc_pattern, output_text)
+    cc_matches = _LEAK_CC_PATTERN.findall(output_text)
     if cc_matches:
         leakage_found.append('credit_card')
         details.append({
@@ -848,8 +879,7 @@ def check_output_leakage(output_text: str) -> Dict[str, Any]:
         severity = 'critical'
 
     # Email addresses (lower severity)
-    email_pattern = r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b'
-    email_matches = re.findall(email_pattern, output_text)
+    email_matches = _LEAK_EMAIL_PATTERN.findall(output_text)
     if email_matches:
         leakage_found.append('email')
         details.append({
@@ -861,14 +891,8 @@ def check_output_leakage(output_text: str) -> Dict[str, Any]:
             severity = 'low'
 
     # IP addresses (internal networks)
-    private_ip_patterns = [
-        r'\b10\.\d{1,3}\.\d{1,3}\.\d{1,3}\b',
-        r'\b192\.168\.\d{1,3}\.\d{1,3}\b',
-        r'\b172\.(1[6-9]|2[0-9]|3[0-1])\.\d{1,3}\.\d{1,3}\b',
-    ]
-
-    for pattern in private_ip_patterns:
-        ip_matches = re.findall(pattern, output_text)
+    for pat in _LEAK_PRIVATE_IP_PATTERNS:
+        ip_matches = pat.findall(output_text)
         if ip_matches:
             leakage_found.append('private_ip')
             details.append({
@@ -881,14 +905,8 @@ def check_output_leakage(output_text: str) -> Dict[str, Any]:
             break
 
     # File paths (potential info leak)
-    path_patterns = [
-        r'[A-Z]:\\[^\s]+',  # Windows paths
-        r'/home/[^\s]+',    # Unix home paths
-        r'/root/[^\s]+',    # Root paths
-    ]
-
-    for pattern in path_patterns:
-        path_matches = re.findall(pattern, output_text)
+    for pat in _LEAK_FILE_PATH_PATTERNS:
+        path_matches = pat.findall(output_text)
         if path_matches:
             leakage_found.append('file_path')
             details.append({

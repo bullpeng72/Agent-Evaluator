@@ -11,7 +11,9 @@ from __future__ import annotations
 
 import argparse
 import getpass
+import importlib
 import os
+import re
 import sys
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
@@ -20,7 +22,10 @@ try:
     from importlib.metadata import PackageNotFoundError, version as _pkg_version
     __version__ = _pkg_version("agent-evaluator")
 except PackageNotFoundError:
-    __version__ = "0.6.0"
+    try:
+        from agent_evaluator import __version__
+    except ImportError:
+        __version__ = "unknown"
 
 from agent_evaluator.config import (
     DEFAULTS,
@@ -87,17 +92,15 @@ class ColoredHelpFormatter(argparse.RawDescriptionHelpFormatter):
             prefix = f"{B}사용법{R}: " if _COLOR else "사용법: "
         result = super()._format_usage(usage, actions, groups, prefix)
         if _COLOR:
-            import re as _re
-            result = _re.sub(r"\bagent-eval\b", f"{C}agent-eval{R}", result, count=1)
+            result = re.sub(r"\bagent-eval\b", f"{C}agent-eval{R}", result, count=1)
         return result
 
     def _format_action(self, action):  # type: ignore[override]
         result = super()._format_action(action)
         if not _COLOR:
             return result
-        import re as _re
         # --option 플래그 → 노란색
-        result = _re.sub(r"(--?[\w-]+)", f"{Y}\\1{R}", result)
+        result = re.sub(r"(--?[\w-]+)", f"{Y}\\1{R}", result)
         return result
 
 
@@ -527,7 +530,6 @@ def cmd_check(_args: argparse.Namespace) -> int:
         ("deepeval",   "eval",       "DeepEvalAdapter"),
         ("ragas",      "eval",       "RagasAdapter"),
     ]
-    import importlib
     for pkg, extra, usage in _PKG_MAP:
         try:
             importlib.import_module(pkg)

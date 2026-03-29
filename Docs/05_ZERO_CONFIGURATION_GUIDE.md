@@ -283,7 +283,7 @@ v0.5.7부터 Dashboard 디렉토리를 찾을 때 **실제 agent_evaluator Dashb
 저장된 파일은 자동으로 `~/.agent_evaluator/registry.json`에 등록됩니다:
 ```json
     {
-      "version": "0.6.5",
+      "version": "0.6.3",
       "created_at": "2026-03-20T10:00:00",
       "data_files": {
         "/path/to/results/my_evaluation.json": {
@@ -444,13 +444,13 @@ Dashboard는 다음 방법으로 데이터를 자동 인식합니다:
         json.dump(data, f)
 ```
 
-#### Before (클래스 메서드 사용)
+#### Before (구버전 클래스 메서드 — 제거됨)
 ```python
     from agent_evaluator import PerformanceMonitor
-    
-    # ✓ 동작하지만 권장하지 않음
-    project_root = PerformanceMonitor._find_project_root()
-    results_dir = project_root / "results"
+
+    # ❌ 제거됨 — AttributeError 발생 (v0.5.7+ 기준)
+    # project_root = PerformanceMonitor._find_project_root()
+    # results_dir = project_root / "results"
 ```
 
 #### After (직접 import)
@@ -462,12 +462,12 @@ Dashboard는 다음 방법으로 데이터를 자동 인식합니다:
     results_dir = get_evaluation_results_dir()
 ```
 
-#### 💡 하위 호환성 보장
+#### 💡 마이그레이션 필수
 
-기존 클래스 메서드(`PerformanceMonitor._find_project_root()` 등)는 **계속 지원** 됩니다. 내부적으로 `path_helpers` 모듈을 호출하므로 동작은 동일합니다.
+`PerformanceMonitor._find_project_root()` 클래스 메서드는 **제거되었습니다**. `path_helpers` 모듈을 직접 사용해야 합니다.
 
-  * ✅ 기존 코드: 수정 없이 계속 사용 가능
-  * ✅ 새 코드: `path_helpers` 직접 사용 권장
+  * ❌ 구버전 코드: `monitor._find_project_root()` → `AttributeError`
+  * ✅ 현재 코드: `from agent_evaluator.utils.path_helpers import find_project_root`
 
 ### 고급 사용 예시
 
@@ -569,10 +569,9 @@ Dashboard는 다음 방법으로 데이터를 자동 인식합니다:
 **해결방법:**
 ```python
     # 프로젝트 루트 확인
-    from agent_evaluator import PerformanceMonitor
-    monitor = PerformanceMonitor()
-    print("감지된 프로젝트 루트:", monitor._find_project_root())
-    
+    from agent_evaluator.utils.path_helpers import find_project_root
+    print("감지된 프로젝트 루트:", find_project_root())
+
     # 명시적 지정
     import os
     os.environ['AGENT_EVALUATOR_ROOT'] = '/correct/path'
@@ -682,7 +681,7 @@ agent-evaluator v0.5.7 버전부터 모든 핵심 클래스가 Zero Configuratio
 
 * * *
 
-**문서 버전** : 0.6.5
+**문서 버전** : 0.6.3
 **최종 업데이트** : 2026-03-27
 **변경사항** :  
 \- Evaluator_Examples 경로 탐지 로직 제거  

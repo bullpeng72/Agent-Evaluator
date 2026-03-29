@@ -15,6 +15,8 @@ from typing import Any, Dict, List, Optional, Union
 
 import pandas as pd
 
+from .base import BaseTracker
+
 
 # 재시도 에러 자동 분류 매핑 — RetryCorrectionTracker retry_reason 고도화
 RETRY_ERROR_CATEGORY_MAP: Dict[str, str] = {
@@ -61,8 +63,12 @@ def categorize_retry_error(error_str: Optional[str]) -> str:
 # Security Tracker Mixin
 # ============================================================================
 
-class SecurityTrackerMixin:
-    """Shared utilities for security tracker classes."""
+class SecurityTrackerMixin(BaseTracker):
+    """Shared utilities for security tracker classes.
+
+    Inherits from ``BaseTracker`` so all security trackers automatically
+    satisfy the ``reset()`` contract required by ``PerformanceMonitor``.
+    """
 
     def _check_patterns(self, text: str, patterns: list, flags: int = 0) -> bool:
         """Check if text matches any of the given regex patterns.
@@ -96,7 +102,7 @@ class InputSanitizationTracker(SecurityTrackerMixin):
     """
 
     def __init__(self):
-        self.evaluations: List[Dict[str, Any]] = []
+        self._evaluations: List[Dict[str, Any]] = []
 
         # Dangerous patterns (pre-compiled for performance)
         self.sql_injection_patterns = [
@@ -136,6 +142,20 @@ class InputSanitizationTracker(SecurityTrackerMixin):
                 r"(DAN\s+mode)", r"(disregard\s+all\s+rules)",
             ]
         ]
+
+    @property
+    def evaluations(self) -> List[Dict[str, Any]]:
+        """Shallow copy of accumulated input evaluation records."""
+        return list(self._evaluations)
+
+    @evaluations.setter
+    def evaluations(self, value: List[Dict[str, Any]]) -> None:
+        """Restore internal state (used by load_from_file)."""
+        self._evaluations = list(value)
+
+    def reset(self) -> None:
+        """Clear all accumulated evaluation records."""
+        self._evaluations.clear()
 
     def evaluate_input(self, task_id: str, input_text: str) -> Dict[str, Any]:
         """Evaluate input text for security threats.
@@ -183,17 +203,28 @@ class InputSanitizationTracker(SecurityTrackerMixin):
         result["sanitization_needed"] = threat_count > 0
         result["threat_count"] = threat_count
 
-        self.evaluations.append(result)
+        self._evaluations.append(result)
         return result
 
     def get_security_stats(self) -> Dict[str, Any]:
         """Get input security statistics"""
-        if not self.evaluations:
-            return {}
+        if not self._evaluations:
+            return {
+                "total_inputs_evaluated": 0,
+                "inputs_with_threats": 0,
+                "threat_rate": 0.0,
+                "sql_injection_attempts": 0,
+                "command_injection_attempts": 0,
+                "path_traversal_attempts": 0,
+                "xss_attempts": 0,
+                "prompt_injection_attempts": 0,
+                "critical_risk_inputs": 0,
+                "high_risk_inputs": 0,
+            }
 
-        df = pd.DataFrame(self.evaluations)
+        df = pd.DataFrame(self._evaluations)
 
-        total = len(self.evaluations)
+        total = len(self._evaluations)
 
         return {
             "total_inputs_evaluated": total,
@@ -222,7 +253,7 @@ class OutputLeakageDetector(SecurityTrackerMixin):
     """
 
     def __init__(self):
-        self.detections: List[Dict[str, Any]] = []
+        self._detections: List[Dict[str, Any]] = []
 
         # Sensitive patterns (pre-compiled for performance)
         self.api_key_patterns = [
@@ -268,10 +299,25 @@ class OutputLeakageDetector(SecurityTrackerMixin):
 
         self.file_path_patterns = [
             re.compile(p) for p in [
-                r"([A-Z]:\\[\w\\]+)",  # Windows path
-                r"(/[a-z]+/[\w/]+)",   # Unix path
+                r"([A-Z]:\\(?!Windows\\|Program Files)[\w\\]+)",  # Windows path (excludes common system dirs)
+                # Unix path: exclude common non-sensitive system prefixes to reduce false positives
+                r"(/(?!usr/|bin/|sbin/|lib(?:64)?/|proc/|sys/|dev/)[a-z][a-zA-Z0-9_-]*/[\w/.-]+)",
             ]
         ]
+
+    @property
+    def detections(self) -> List[Dict[str, Any]]:
+        """Shallow copy of accumulated leakage detection records."""
+        return list(self._detections)
+
+    @detections.setter
+    def detections(self, value: List[Dict[str, Any]]) -> None:
+        """Restore internal state (used by load_from_file)."""
+        self._detections = list(value)
+
+    def reset(self) -> None:
+        """Clear all accumulated detection records."""
+        self._detections.clear()
 
     def detect_leakage(self, task_id: str, output_text: str) -> Dict[str, Any]:
         """Detect sensitive information leakage in an output string.
@@ -318,7 +364,7 @@ class OutputLeakageDetector(SecurityTrackerMixin):
         else:
             result["severity"] = "none"
 
-        self.detections.append(result)
+        self._detections.append(result)
         return result
 
     def get_leakage_stats(self) -> Dict[str, Any]:
@@ -329,14 +375,28 @@ class OutputLeakageDetector(SecurityTrackerMixin):
             leakage_rate, api_key_leaks, password_leaks, credit_card_leaks,
             email_leaks, ssn_leaks, phone_leaks, private_ip_leaks,
             file_path_leaks, critical_severity_count, high_severity_count.
-            Returns ``{}`` when no outputs have been evaluated.
+            Returns a zero-value dict when no outputs have been evaluated.
         """
-        if not self.detections:
-            return {}
+        if not self._detections:
+            return {
+                "total_outputs_evaluated": 0,
+                "outputs_with_leakage": 0,
+                "leakage_rate": 0.0,
+                "api_key_leaks": 0,
+                "password_leaks": 0,
+                "credit_card_leaks": 0,
+                "email_leaks": 0,
+                "ssn_leaks": 0,
+                "phone_leaks": 0,
+                "private_ip_leaks": 0,
+                "file_path_leaks": 0,
+                "critical_severity_count": 0,
+                "high_severity_count": 0,
+            }
 
-        df = pd.DataFrame(self.detections)
+        df = pd.DataFrame(self._detections)
 
-        total = len(self.detections)
+        total = len(self._detections)
         outputs_with_leakage = int((df["leakage_count"] > 0).sum())
 
         # detect_leakage() always populates all 8 contains_* columns, so no
@@ -409,7 +469,7 @@ def infer_privilege_level(tool_name: str) -> str:
 # Layer 1 Security: Tool Authorization
 # ============================================================================
 
-class ToolAuthorizationTracker:
+class ToolAuthorizationTracker(BaseTracker):
     """
     Track tool authorization compliance
 
@@ -428,7 +488,7 @@ class ToolAuthorizationTracker:
         # Pass allowed_tools=[] to explicitly block all tools.
         self.allowed_tools: Optional[set] = set(allowed_tools) if allowed_tools is not None else None
         self.restricted_tools: set = set(restricted_tools) if restricted_tools else set()
-        self.tool_calls: List[Dict[str, Any]] = []
+        self._tool_calls: List[Dict[str, Any]] = []
 
         # Dangerous parameter patterns (pre-compiled for performance)
         self.dangerous_patterns = [
@@ -438,6 +498,20 @@ class ToolAuthorizationTracker:
                 r"(exec\s*\()", r"(__import__)", r"(system\s*\()",
             ]
         ]
+
+    @property
+    def tool_calls(self) -> List[Dict[str, Any]]:
+        """Shallow copy of accumulated tool authorization records."""
+        return list(self._tool_calls)
+
+    @tool_calls.setter
+    def tool_calls(self, value: List[Dict[str, Any]]) -> None:
+        """Restore internal state (used by load_from_file)."""
+        self._tool_calls = list(value)
+
+    def reset(self) -> None:
+        """Clear all accumulated tool call records. Preserves allowed/restricted tool config."""
+        self._tool_calls.clear()
 
     def track_tool_call(
         self,
@@ -516,17 +590,27 @@ class ToolAuthorizationTracker:
         # Determine privilege level using shared inference function
         result["privilege_level"] = infer_privilege_level(tool_name)
 
-        self.tool_calls.append(result)
+        self._tool_calls.append(result)
         return result
 
     def get_compliance_stats(self) -> Dict[str, Any]:
         """Get tool authorization compliance statistics"""
-        if not self.tool_calls:
-            return {}
+        if not self._tool_calls:
+            return {
+                "total_tool_calls": 0,
+                "authorized_calls": 0,
+                "unauthorized_calls": 0,
+                "restricted_tool_attempts": 0,
+                "dangerous_param_attempts": 0,
+                "compliance_rate": 100.0,
+                "violation_rate": 0.0,
+                "admin_privilege_calls": 0,
+                "execute_privilege_calls": 0,
+            }
 
-        df = pd.DataFrame(self.tool_calls)
+        df = pd.DataFrame(self._tool_calls)
 
-        total = len(self.tool_calls)
+        total = len(self._tool_calls)
         authorized = int(df["is_authorized"].sum())
 
         return {
@@ -546,7 +630,7 @@ class ToolAuthorizationTracker:
 # Layer 2 Security: Privilege Escalation Detection
 # ============================================================================
 
-class PrivilegeEscalationDetector:
+class PrivilegeEscalationDetector(BaseTracker):
     """
     Detect privilege escalation attempts
 
@@ -555,7 +639,7 @@ class PrivilegeEscalationDetector:
     """
 
     def __init__(self):
-        self.escalation_events: List[Dict[str, Any]] = []
+        self._escalation_events: List[Dict[str, Any]] = []
 
         # Privilege levels (0 = lowest, 4 = highest)
         # write and execute are separated: read→write is normal, read→execute is suspicious
@@ -574,6 +658,20 @@ class PrivilegeEscalationDetector:
             ["list_files", "read_credentials", "ssh_connect"],
             ["query_database", "modify_schema", "drop_table"]
         ]
+
+    @property
+    def escalation_events(self) -> List[Dict[str, Any]]:
+        """Shallow copy of accumulated privilege escalation event records."""
+        return list(self._escalation_events)
+
+    @escalation_events.setter
+    def escalation_events(self, value: List[Dict[str, Any]]) -> None:
+        """Restore internal state (used by load_from_file)."""
+        self._escalation_events = list(value)
+
+    def reset(self) -> None:
+        """Clear all accumulated escalation event records."""
+        self._escalation_events.clear()
 
     def analyze_privilege_chain(
         self, task_id: str, tool_calls: List[Union[str, Dict[str, Any]]]
@@ -662,18 +760,19 @@ class PrivilegeEscalationDetector:
             risk_score += 3
         risk_score = min(risk_score, 10)
 
+        _rev_levels = {v: k for k, v in self.privilege_levels.items()}
         result = {
             "task_id": task_id,
-            "initial_privilege": {v: k for k, v in self.privilege_levels.items()}.get(initial_privilege, "unknown"),
-            "final_privilege": {v: k for k, v in self.privilege_levels.items()}.get(final_privilege, "unknown"),
-            "max_privilege": {v: k for k, v in self.privilege_levels.items()}.get(max_privilege, "unknown"),
+            "initial_privilege": _rev_levels.get(initial_privilege, "unknown"),
+            "final_privilege": _rev_levels.get(final_privilege, "unknown"),
+            "max_privilege": _rev_levels.get(max_privilege, "unknown"),
             "escalation_detected": escalation_detected,
             "suspicious_sequences": suspicious,
             "escalation_path": tools if escalation_detected else [],
             "risk_score": risk_score
         }
 
-        self.escalation_events.append(result)
+        self._escalation_events.append(result)
         return result
 
     def _check_suspicious_sequences(self, tools: List[str]) -> List[str]:
@@ -691,15 +790,22 @@ class PrivilegeEscalationDetector:
 
     def get_escalation_stats(self) -> Dict[str, Any]:
         """Get privilege escalation statistics"""
-        if not self.escalation_events:
-            return {}
+        if not self._escalation_events:
+            return {
+                "total_evaluations": 0,
+                "escalations_detected": 0,
+                "escalation_rate": 0.0,
+                "avg_risk_score": 0.0,
+                "high_risk_events": 0,
+                "suspicious_sequence_count": 0,
+            }
 
-        df = pd.DataFrame(self.escalation_events)
+        df = pd.DataFrame(self._escalation_events)
 
         return {
-            "total_evaluations": len(self.escalation_events),
+            "total_evaluations": len(self._escalation_events),
             "escalations_detected": int(df["escalation_detected"].sum()),
-            "escalation_rate": round((df["escalation_detected"].sum() / len(self.escalation_events)) * 100, 2),
+            "escalation_rate": round((df["escalation_detected"].sum() / len(self._escalation_events)) * 100, 2),
             "avg_risk_score": round(df["risk_score"].mean(), 2),
             "high_risk_events": int((df["risk_score"] >= 7).sum()),
             "suspicious_sequence_count": sum(len(s) for s in df["suspicious_sequences"])
@@ -710,7 +816,7 @@ class PrivilegeEscalationDetector:
 # Layer 2 Security: Tool Chain Attack Detection
 # ============================================================================
 
-class ToolChainAttackDetector:
+class ToolChainAttackDetector(BaseTracker):
     """
     Detect tool chain attack patterns
 
@@ -719,7 +825,7 @@ class ToolChainAttackDetector:
     """
 
     def __init__(self):
-        self.detections: List[Dict[str, Any]] = []
+        self._detections: List[Dict[str, Any]] = []
 
         # Attack patterns — 짧은 키워드 조각으로 정의하여 실제 도구 이름과 매칭 가능
         # _is_fuzzy_subsequence() 가 substring 매칭이므로 "database" 는 "query_database" 에 매칭됨
@@ -750,6 +856,20 @@ class ToolChainAttackDetector:
                 ["history", "clear", "wipe"],          # 히스토리 삭제
             ]
         }
+
+    @property
+    def detections(self) -> List[Dict[str, Any]]:
+        """Shallow copy of accumulated tool chain attack detection records."""
+        return list(self._detections)
+
+    @detections.setter
+    def detections(self, value: List[Dict[str, Any]]) -> None:
+        """Restore internal state (used by load_from_file)."""
+        self._detections = list(value)
+
+    def reset(self) -> None:
+        """Clear all accumulated attack detection records. Preserves registered patterns."""
+        self._detections.clear()
 
     def register_pattern(self, attack_type: str, pattern: List[str]) -> None:
         """사용자 정의 공격 패턴 등록.
@@ -823,7 +943,7 @@ class ToolChainAttackDetector:
             "attack_types": attack_types_detected
         }
 
-        self.detections.append(result)
+        self._detections.append(result)
         return result
 
     def _is_fuzzy_subsequence(self, subseq: List[str], seq: List[str]) -> bool:
@@ -843,18 +963,27 @@ class ToolChainAttackDetector:
 
     def get_attack_stats(self) -> Dict[str, Any]:
         """Get tool chain attack statistics"""
-        if not self.detections:
-            return {}
+        if not self._detections:
+            return {
+                "total_chains_analyzed": 0,
+                "suspicious_chains": 0,
+                "detection_rate": 0.0,
+                "avg_confidence": 0.0,
+                "data_exfiltration_detected": 0,
+                "lateral_movement_detected": 0,
+                "persistence_detected": 0,
+                "defense_evasion_detected": 0,
+            }
 
-        df = pd.DataFrame(self.detections)
+        df = pd.DataFrame(self._detections)
 
         return {
-            "total_chains_analyzed": len(self.detections),
+            "total_chains_analyzed": len(self._detections),
             "suspicious_chains": int(df["is_suspicious_chain"].sum()),
-            "detection_rate": round((df["is_suspicious_chain"].sum() / len(self.detections)) * 100, 2),
+            "detection_rate": round((df["is_suspicious_chain"].sum() / len(self._detections)) * 100, 2),
             "avg_confidence": round(df["confidence"].mean(), 2),
-            "data_exfiltration_detected": sum(d["attack_types"].get("data_exfiltration", False) for d in self.detections),
-            "lateral_movement_detected": sum(d["attack_types"].get("lateral_movement", False) for d in self.detections),
-            "persistence_detected": sum(d["attack_types"].get("persistence", False) for d in self.detections),
-            "defense_evasion_detected": sum(d["attack_types"].get("defense_evasion", False) for d in self.detections)
+            "data_exfiltration_detected": sum(d["attack_types"].get("data_exfiltration", False) for d in self._detections),
+            "lateral_movement_detected": sum(d["attack_types"].get("lateral_movement", False) for d in self._detections),
+            "persistence_detected": sum(d["attack_types"].get("persistence", False) for d in self._detections),
+            "defense_evasion_detected": sum(d["attack_types"].get("defense_evasion", False) for d in self._detections)
         }

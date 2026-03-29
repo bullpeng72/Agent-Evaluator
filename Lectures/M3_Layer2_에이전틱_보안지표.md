@@ -2,7 +2,7 @@
 
 **시간:** 4시간
 **참조 코드:** `Evaluator_Examples/03_agentic_metrics.py`, `04_security_metrics.py`
-**핵심 Docs:** `07_AGENTIC_AI_METRICS_GUIDE.md`, `08_SECURITY_METRICS_GUIDE.md`, `16_KNOWN_ISSUES_AND_QUIRKS.md`
+**핵심 Docs:** `07_AGENTIC_AI_METRICS_GUIDE.md`, `08_SECURITY_METRICS_GUIDE.md`
 
 ---
 

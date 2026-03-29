@@ -165,6 +165,7 @@ def get_result(file_id: str, request: Request) -> Dict[str, Any]:
         "has_tool_auth":       rf.has_tool_auth,
         "has_attack_detect":   rf.has_attack_detect,
         # LLM Judge (Phase 1-A)
+        "has_llm_judge": rf.llm_judge.judged_count > 0,
         "llm_judge": {
             "judged_count":           rf.llm_judge.judged_count,
             "avg_overall":            rf.llm_judge.avg_overall,

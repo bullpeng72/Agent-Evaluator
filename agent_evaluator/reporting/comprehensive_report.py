@@ -747,8 +747,7 @@ def _build_agentic_section(monitor, tool_selection_stats, coordination_stats, wo
     # Multi-Agent Coordination
     parts.append('<h3>다중 에이전트 협업 (Multi-Agent Coordination)</h3>')
     if coordination_stats and coordination_stats.get('total_interactions', 0) > 0:
-        # CRITICAL FIX: Use 'score' not 'overall_score', and score is 0-10 scale (multiply by 10 for percentage, not 100)
-        coord_score = coordination_stats.get('score', 0) * 10
+        coord_score = coordination_stats.get('overall_score', 0) * 10
         coord_class = 'success' if coord_score >= 85 else 'warning' if coord_score >= 70 else 'critical'
 
         parts.append(f'''

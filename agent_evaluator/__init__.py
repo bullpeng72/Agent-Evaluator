@@ -1,5 +1,5 @@
 """
-Agent Evaluator SDK v0.6.5
+Agent Evaluator SDK v0.6.3
 ===========================
 
 Production-ready evaluation framework for AI agents.
@@ -35,7 +35,7 @@ Quick Start (LLM Integration):
     >>> # Auto-recorded in monitor!
 """
 
-__version__ = "0.6.5"
+__version__ = "0.6.3"
 __author__ = "Sungwoo Kim"
 
 # Exception hierarchy (경량 — 외부 의존성 없음)
@@ -46,6 +46,7 @@ from .exceptions import (
     MetricComputationError,
     ConfigurationError,
     StorageError,
+    InvalidOperationError,
 )
 
 # Config & init helpers (cli.main 임포트 없이 제공 — import-time side-effect 없음)
@@ -65,6 +66,9 @@ from .utils.transparency_manager import (
     TestStepStatus,
     TestTransparencyManager,
 )
+
+# BaseTracker ABC — 커스텀 트래커 구현 시 상속
+from .core.trackers.base import BaseTracker
 
 # Core (numpy/pandas를 사용하지만 SDK의 핵심이므로 즉시 로드)
 from .core.agent_evaluator import (
@@ -196,6 +200,7 @@ __all__ = [
     'MetricComputationError',
     'ConfigurationError',
     'StorageError',
+    'InvalidOperationError',
 
     # Core
     'PerformanceMonitor',
@@ -232,6 +237,9 @@ __all__ = [
     'load_env',       # Smart .env loader (priority: system > CWD .env > global)
     'get_settings',   # Settings singleton
     'init_from_app',  # Programmatic init for library callers
+
+    # BaseTracker ABC (for custom tracker implementation)
+    'BaseTracker',
 
     # Trackers (for advanced users)
     'TaskCompletionTracker',

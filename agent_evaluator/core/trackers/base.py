@@ -6,7 +6,10 @@ Core data classes: TaskResult, EvaluationReport, TaskType, _TaskContext.
 
 from __future__ import annotations
 
+import json as _json
 import warnings
+import dataclasses
+from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
@@ -18,7 +21,7 @@ if TYPE_CHECKING:
     from .monitor import PerformanceMonitor
 
 
-@dataclass
+@dataclass(frozen=True)
 class TaskResult:
     """Individual task execution result with Agentic AI support.
 
@@ -69,9 +72,16 @@ class TaskResult:
         # Normalise task_type to lowercase-stripped string so "QA", "qa ", "Qa"
         # all map to the same bucket in aggregation methods.
         # Also accept TaskType enum values for ergonomics.
+        # frozen=True requires object.__setattr__ for any field mutation in __post_init__.
         if isinstance(self.task_type, Enum):
-            self.task_type = self.task_type.value
-        self.task_type = str(self.task_type).lower().strip()
+            object.__setattr__(self, 'task_type', self.task_type.value)
+        object.__setattr__(self, 'task_type', str(self.task_type).lower().strip())
+
+        if not self.task_id or not self.task_id.strip():
+            raise ValidationError(
+                f"task_id must be a non-empty string, got {self.task_id!r}. "
+                "Each task needs a unique identifier (e.g. 'task_001')."
+            )
 
         if not (0.0 <= self.completion_score <= 1.0):
             raise ValidationError(
@@ -91,22 +101,174 @@ class TaskResult:
                 f"attempts must be >= 1, got {self.attempts}."
             )
 
+    def __hash__(self) -> int:
+        """Hash by task_id (natural primary key).
+
+        ``frozen=True`` auto-generates ``__hash__`` from *all* fields, but
+        ``tokens_used: Dict`` and ``tool_calls: List`` are unhashable, making the
+        default ``hash()`` always raise ``TypeError``.  Using only ``task_id``
+        (a string, always hashable) restores the expected behavior and lets
+        ``TaskResult`` objects be stored in sets or used as dict keys.
+        """
+        return hash(self.task_id)
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "TaskResult":
+        """Create a TaskResult from a plain dict (e.g. loaded from JSON).
+
+        Extra keys in *data* are silently ignored so that dicts produced by
+        ``dataclasses.asdict()`` on a subclass (e.g. ``ExtendedTaskResult``)
+        round-trip correctly when passed to the base class.
+
+        The ``timestamp`` field is accepted as either a :class:`datetime`
+        object or an ISO-8601 string; other types fall back to
+        ``datetime.now()``.
+
+        Args:
+            data: Mapping of field names to values.
+
+        Returns:
+            A new ``TaskResult`` (or subclass) instance.
+
+        Raises:
+            ValidationError: If required fields are missing or out of range.
+            TypeError: If *data* is not a mapping.
+
+        Example::
+
+            import json, dataclasses
+            task = create_taskresult(task_id="t1", ...)
+            serialized = json.dumps(dataclasses.asdict(task))
+            restored = TaskResult.from_json(serialized)
+        """
+        valid_fields = {f.name for f in dataclasses.fields(cls)}
+        kwargs: Dict[str, Any] = {k: v for k, v in data.items() if k in valid_fields}
+
+        # Convert timestamp from ISO-8601 string to datetime if needed
+        ts = kwargs.get("timestamp")
+        if isinstance(ts, str):
+            try:
+                kwargs["timestamp"] = datetime.fromisoformat(ts)
+            except (ValueError, TypeError):
+                kwargs["timestamp"] = datetime.now()
+
+        return cls(**kwargs)
+
+    @classmethod
+    def from_json(cls, json_str: str) -> "TaskResult":
+        """Create a TaskResult from a JSON string.
+
+        Convenience wrapper around :meth:`from_dict` for JSON strings
+        produced by ``json.dumps(dataclasses.asdict(task_result))``.
+
+        Args:
+            json_str: JSON-encoded string with TaskResult fields.
+
+        Returns:
+            A new ``TaskResult`` (or subclass) instance.
+
+        Example::
+
+            import json, dataclasses
+            task = create_taskresult(task_id="t1", ...)
+            json_str = json.dumps(dataclasses.asdict(task))
+            restored = TaskResult.from_json(json_str)
+        """
+        return cls.from_dict(_json.loads(json_str))
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert this TaskResult to a plain dict.
+
+        ``datetime`` fields are serialized to ISO-8601 strings so the
+        result can be passed to ``json.dumps()`` without a custom encoder.
+        Mirrors :meth:`EvaluationReport.to_dict` for API consistency.
+
+        Returns:
+            Dict[str, Any]: All fields including optional ones.
+
+        Example::
+
+            import dataclasses
+            task = create_taskresult(task_id="t1", ...)
+            d = task.to_dict()
+            restored = TaskResult.from_dict(d)  # full round-trip
+        """
+        def _convert(obj: Any) -> Any:
+            if isinstance(obj, datetime):
+                return obj.isoformat()
+            if isinstance(obj, dict):
+                return {k: _convert(v) for k, v in obj.items()}
+            if isinstance(obj, list):
+                return [_convert(item) for item in obj]
+            return obj
+
+        return _convert(dataclasses.asdict(self))
+
+    def to_json(self, indent: int = 2) -> str:
+        """Convert this TaskResult to a JSON string.
+
+        Args:
+            indent: JSON indentation level (default 2).
+
+        Returns:
+            str: JSON string with ISO-8601 timestamps.
+
+        Example::
+
+            task = create_taskresult(task_id="t1", ...)
+            json_str = task.to_json()
+            restored = TaskResult.from_json(json_str)  # full round-trip
+        """
+        def _serialize(obj: Any) -> Any:
+            if isinstance(obj, datetime):
+                return obj.isoformat()
+            if hasattr(obj, "value"):  # Enum
+                return obj.value
+            return str(obj)
+
+        return _json.dumps(self.to_dict(), indent=indent, default=_serialize)
+
 
 @dataclass
 class EvaluationReport:
     """Comprehensive evaluation report"""
     period: str
     total_tasks: int
-    accuracy_metrics: Dict[str, float]
+    accuracy_metrics: Dict[str, Any]   # {"tcr": {...}, "accuracy_scores": {...}, ...}
     efficiency_metrics: Dict[str, Any]
-    quality_metrics: Dict[str, float]
+    quality_metrics: Dict[str, Any]    # {"avg_total_score": float, "grade_distribution": {...}, ...}
     security_metrics: Optional[Dict[str, Any]] = None  # Optional security metrics (Layer 1 & 2)
     alerts: Optional[List[Dict[str, str]]] = None
     recommendations: Optional[List[Dict[str, str]]] = None
     timestamp: Optional[datetime] = None
 
+    def __eq__(self, other: object) -> bool:
+        """Semantic equality — compares evaluation data fields, excludes ``timestamp``.
+
+        The default dataclass ``__eq__`` includes ``timestamp``, so two reports
+        produced from the same data at different moments (or after a JSON
+        round-trip that re-parses the timestamp) would incorrectly compare as
+        unequal.  This override makes equality reflect whether the *evaluation
+        results* are the same, not when the report object was created.
+        """
+        if not isinstance(other, EvaluationReport):
+            return NotImplemented
+        return (
+            self.period == other.period
+            and self.total_tasks == other.total_tasks
+            and self.accuracy_metrics == other.accuracy_metrics
+            and self.efficiency_metrics == other.efficiency_metrics
+            and self.quality_metrics == other.quality_metrics
+            and self.security_metrics == other.security_metrics
+            and self.alerts == other.alerts
+            and self.recommendations == other.recommendations
+        )
+
     def to_dict(self) -> Dict[str, Any]:
         """EvaluationReport를 dict로 변환한다.
+
+        datetime 필드는 ISO-8601 문자열로 변환되므로 반환값은
+        ``json.dumps()`` 없이 바로 직렬화 가능합니다.
 
         Returns:
             Dict[str, Any]: 모든 필드를 포함한 dict
@@ -116,8 +278,16 @@ class EvaluationReport:
             >>> d = report.to_dict()
             >>> print(d["total_tasks"])
         """
-        import dataclasses
-        return dataclasses.asdict(self)
+        def _convert(obj: Any) -> Any:
+            if isinstance(obj, datetime):
+                return obj.isoformat()
+            if isinstance(obj, dict):
+                return {k: _convert(v) for k, v in obj.items()}
+            if isinstance(obj, list):
+                return [_convert(item) for item in obj]
+            return obj
+
+        return _convert(dataclasses.asdict(self))
 
     def to_json(self, indent: int = 2) -> str:
         """EvaluationReport를 JSON 문자열로 변환한다.
@@ -132,17 +302,63 @@ class EvaluationReport:
             >>> report = monitor.generate_report()
             >>> print(report.to_json())
         """
-        import json
-        from datetime import datetime as _datetime
-
         def _serialize(obj: Any) -> Any:
-            if isinstance(obj, _datetime):
+            if isinstance(obj, datetime):
                 return obj.isoformat()
             if hasattr(obj, "value"):  # Enum
                 return obj.value
             return str(obj)
 
-        return json.dumps(self.to_dict(), indent=indent, default=_serialize)
+        return _json.dumps(self.to_dict(), indent=indent, default=_serialize)
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "EvaluationReport":
+        """Reconstruct an EvaluationReport from a dict (e.g. loaded from JSON).
+
+        Extra keys in *data* are silently ignored.  The ``timestamp`` field
+        is accepted as either a :class:`datetime` object or an ISO-8601
+        string; other types are stored as-is (``None`` if missing).
+
+        Args:
+            data: Mapping produced by :meth:`to_dict` or ``json.loads(to_json())``.
+
+        Returns:
+            A new ``EvaluationReport`` instance.
+
+        Example::
+
+            import json
+            report = monitor.generate_report()
+            json_str = report.to_json()
+            restored = EvaluationReport.from_json(json_str)
+            assert restored.total_tasks == report.total_tasks
+        """
+        valid_fields = {f.name for f in dataclasses.fields(cls)}
+        kwargs: Dict[str, Any] = {k: v for k, v in data.items() if k in valid_fields}
+
+        ts = kwargs.get("timestamp")
+        if isinstance(ts, str):
+            try:
+                kwargs["timestamp"] = datetime.fromisoformat(ts)
+            except (ValueError, TypeError):
+                kwargs["timestamp"] = None
+
+        return cls(**kwargs)
+
+    @classmethod
+    def from_json(cls, json_str: str) -> "EvaluationReport":
+        """Reconstruct an EvaluationReport from a JSON string.
+
+        Convenience wrapper around :meth:`from_dict` for JSON strings
+        produced by :meth:`to_json`.
+
+        Args:
+            json_str: JSON-encoded string.
+
+        Returns:
+            A new ``EvaluationReport`` instance.
+        """
+        return cls.from_dict(_json.loads(json_str))
 
     def summary(self) -> Dict[str, Any]:
         """핵심 지표만 담은 요약 dict를 반환한다.
@@ -162,10 +378,39 @@ class EvaluationReport:
             "total_tasks": self.total_tasks,
             "success_rate": tcr_data.get("success_rate", 0.0),
             "avg_accuracy": accuracy_data.get("overall_accuracy", 0.0),
-            "avg_latency_ms": latency_data.get("mean", 0.0),
+            "avg_latency_s": latency_data.get("mean", 0.0),
             "period": self.period,
             "timestamp": self.timestamp.isoformat() if hasattr(self.timestamp, "isoformat") else str(self.timestamp),
         }
+
+
+class BaseTracker(ABC):
+    """Abstract base class for all evaluation trackers.
+
+    All Layer 1, Layer 2, and Security trackers inherit from this class.
+    Guarantees a ``reset()`` contract, which lets ``PerformanceMonitor``
+    iterate over all trackers uniformly without hard-coding each name.
+
+    To implement a custom tracker, subclass ``BaseTracker`` and override
+    ``reset()``::
+
+        from agent_evaluator import BaseTracker
+
+        class MyTracker(BaseTracker):
+            def __init__(self):
+                self.records = []
+
+            def reset(self) -> None:
+                self.records.clear()
+    """
+
+    @abstractmethod
+    def reset(self) -> None:
+        """Clear all accumulated data.
+
+        Called by ``PerformanceMonitor.reset()`` to wipe state between
+        evaluation sessions (e.g., in CI loops).
+        """
 
 
 class TaskType(Enum):

@@ -10,22 +10,26 @@ from __future__ import annotations
 import dataclasses
 import json
 import logging
+import math
 import os
 import re
 import statistics
+import tempfile
 import threading
+import uuid
+from enum import Enum
 import warnings
 from collections import defaultdict
 from dataclasses import asdict
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, Iterator, List, Optional, Union
 
 import numpy as np
 import pandas as pd
 
-from .base import TaskResult, EvaluationReport, TaskType, _TaskContext
-from ...exceptions import ValidationError, StorageError
+from .base import TaskResult, EvaluationReport, TaskType, _TaskContext, BaseTracker
+from ...exceptions import ValidationError, StorageError, MetricComputationError
 from .layer1 import (
     TaskCompletionTracker,
     AccuracyEvaluator,
@@ -50,12 +54,36 @@ from .security import (
     PrivilegeEscalationDetector,
     ToolChainAttackDetector,
 )
+from .conversation import ConversationSession
 
 logger = logging.getLogger(__name__)
+
+
+def _json_serializer(obj: Any) -> Any:
+    """Custom JSON serializer for non-standard types used by save_to_file()."""
+    if isinstance(obj, float) and (math.isnan(obj) or math.isinf(obj)):
+        return 0.0  # NaN / ±Infinity → 0.0 (dashboard-safe numeric sentinel)
+    if isinstance(obj, datetime):
+        return obj.isoformat()
+    if isinstance(obj, Enum):
+        return obj.value
+    if isinstance(obj, bytes):
+        return obj.decode("utf-8", errors="replace")
+    logger.debug("JSON serialization fallback for type %s", type(obj).__name__)
+    return str(obj)
+
 
 # ResponseQualityEvaluator의 total_score는 0-5 척도.
 # compare_with_thresholds()에서 사용자 친화적인 0-10 척도로 변환할 때 이 인수를 곱한다.
 _QUALITY_SCORE_TO_10_SCALE: float = 2.0
+
+# Pre-compiled regex and stopword set used inside record_task() hot path.
+# Defined at module level to avoid re-creating identical objects on every call.
+_RE_NON_WORD = re.compile(r'[^\w\s]')
+_QUALITY_EVAL_STOPWORDS: frozenset = frozenset({
+    "이", "가", "은", "는", "을", "를", "의", "에", "도", "로",
+    "the", "a", "an", "is", "are", "was", "were", "in", "on", "at",
+})
 
 
 class PerformanceMonitor:
@@ -66,7 +94,7 @@ class PerformanceMonitor:
         pricing: Dict[str, float] = None,
         model_name: str = "",
         enable_transparency: bool = False,
-        enable_hallucination_detection: bool = True,
+        enable_hallucination_detection: bool = False,
         enable_security_metrics: bool = False,
         security_config: Optional[Dict[str, Any]] = None,
         output_dir: Optional[str] = None,
@@ -86,8 +114,8 @@ class PerformanceMonitor:
                 pricing row and display it in the cost banner.
             enable_transparency: Enable transparency logging (traces, annotations)
             enable_hallucination_detection: Enable Layer1 hallucination detection (opt-in)
-                - True (default): Automatic rule-based hallucination detection (no external deps)
-                - False: Disable hallucination detection for maximum performance
+                - False (default): Disable hallucination detection for maximum performance
+                - True: Automatic rule-based hallucination detection (no external deps)
             enable_security_metrics: Enable security metrics tracking (opt-in)
                 - False (default): No security tracking, best performance
                 - True: Track input/output security and authorization compliance
@@ -165,7 +193,7 @@ class PerformanceMonitor:
             logger.info("Security metrics (Layer 2) 활성화됨")
 
         # RAG metrics tracker
-        self.rag_metrics = {
+        self._rag_metrics = {
             'faithfulness': [],
             'answer_relevancy': [],
             'context_recall': [],
@@ -222,15 +250,66 @@ class PerformanceMonitor:
                 self.enable_llm_judge = False
 
         # 임계값 설정 (DataEditorManager에서 로드 가능)
-        self.thresholds = None
+        self._thresholds: Optional[Dict[str, float]] = None
         self.golden_dataset_path = None
-        self.golden_datasets = []
+        self._golden_datasets: List[Any] = []
 
         # Phase 1-C: 멀티턴 대화 세션 목록
         self.conversation_sessions: List[Any] = []
 
         # Thread safety: golden_datasets/conversation_sessions 동시 접근 보호
         self._lock = threading.Lock()
+
+    @property
+    def golden_datasets(self) -> List[Any]:
+        """Shallow copy of loaded golden datasets."""
+        return list(self._golden_datasets)
+
+    @golden_datasets.setter
+    def golden_datasets(self, value: List[Any]) -> None:
+        """Set golden datasets (used by load_golden_dataset)."""
+        self._golden_datasets = list(value)
+
+    @property
+    def thresholds(self) -> Optional[Dict[str, float]]:
+        """Evaluation threshold dict, or ``None`` if unset."""
+        return self._thresholds
+
+    @thresholds.setter
+    def thresholds(self, value: Optional[Dict[str, float]]) -> None:
+        """Set evaluation thresholds with type validation.
+
+        Args:
+            value: ``{"tcr": 85.0, "accuracy": 0.8, ...}`` or ``None``.
+
+        Raises:
+            ValidationError: If *value* is not a dict (or ``None``), or if any
+                threshold value is non-numeric.
+        """
+        if value is None:
+            self._thresholds = None
+            return
+        if not isinstance(value, dict):
+            raise ValidationError(
+                f"thresholds must be a dict or None, got {type(value).__name__!r}"
+            )
+        invalid = {k: v for k, v in value.items() if not isinstance(v, (int, float))}
+        if invalid:
+            raise ValidationError(
+                f"threshold values must be numeric (int or float). "
+                f"Invalid entries: {invalid}"
+            )
+        self._thresholds = dict(value)
+
+    @property
+    def rag_metrics(self) -> Dict[str, List]:
+        """RAG 지표 딕셔너리의 얕은 복사본.
+
+        각 키의 리스트도 복사되므로 반환값을 변경해도 내부 상태에
+        영향을 주지 않습니다.  RAG 지표를 추가하려면 반드시
+        :meth:`record_rag_metrics` 를 사용하세요.
+        """
+        return {k: list(v) for k, v in self._rag_metrics.items()}
 
     def conversation(self, session_id: str) -> "ConversationSession":
         """멀티턴 대화 평가 세션 시작.
@@ -247,7 +326,6 @@ class PerformanceMonitor:
         Returns:
             ConversationSession 인스턴스.
         """
-        from .conversation import ConversationSession
         return ConversationSession(session_id=session_id, monitor=self)
 
     def load_golden_dataset(self, dataset_path: Optional[str] = None) -> List[Dict[str, Any]]:
@@ -268,9 +346,6 @@ class PerformanceMonitor:
             >>> items = monitor.load_golden_dataset("datasets/qa_pairs.json")
             >>> print(len(items))
         """
-        import json
-        import os
-
         if dataset_path is None and self.golden_dataset_path:
             dataset_path = self.golden_dataset_path
 
@@ -308,9 +383,9 @@ class PerformanceMonitor:
                 )
 
             with self._lock:
-                self.golden_datasets = loaded
-            logger.info("Golden Dataset 로드: %d개 항목", len(self.golden_datasets))
-            return self.golden_datasets
+                self._golden_datasets = loaded
+            logger.info("Golden Dataset 로드: %d개 항목", len(self._golden_datasets))
+            return list(self._golden_datasets)
         except StorageError:
             raise
         except json.JSONDecodeError as e:
@@ -384,11 +459,11 @@ class PerformanceMonitor:
             )
         """
         # Golden Dataset 로드
-        if not self.golden_datasets or dataset_path:
+        if not self._golden_datasets or dataset_path:
             self.load_golden_dataset(dataset_path)  # raises StorageError on failure
 
         with self._lock:
-            golden_items = list(self.golden_datasets)  # 스냅샷: 읽는 동안 외부 수정 방지
+            golden_items = list(self._golden_datasets)  # 스냅샷: 읽는 동안 외부 수정 방지
 
         total = len(golden_items)
         if verbose:
@@ -440,7 +515,7 @@ class PerformanceMonitor:
                     execution_time=result.get('latency', 0) if isinstance(result, dict) else 0,
                     tokens_used=result.get('token_usage', {"input": 0, "output": 0}) if isinstance(result, dict) else {"input": 0, "output": 0},
                     tool_calls=result.get('tool_calls', []) if isinstance(result, dict) else [],
-                    attempts=result.get('retry_count', 0) if isinstance(result, dict) else 0,
+                    attempts=max(1, result.get('retry_count', 1)) if isinstance(result, dict) else 1,
                     errors=[],
                     expected_tools=qa_pair.get('expected_tools', []) if enable_layer2_metrics else None
                 )
@@ -478,7 +553,7 @@ class PerformanceMonitor:
         tool_selection_stats = self.tool_selection_tracker.get_accuracy_stats() if enable_layer2_metrics else {}
 
         # 임계값 비교
-        comparison = self.compare_with_thresholds() if self.thresholds else {}
+        comparison = self.compare_with_thresholds() if self._thresholds else {}
 
         results = {
             "total_evaluated": total,
@@ -529,138 +604,171 @@ class PerformanceMonitor:
                 (= 2.0)를 곱해 변환한다.
 
         Example:
-            >>> monitor.thresholds = {"tcr": 80.0, "hallucination_rate": 10.0}
+            >>> monitor.thresholds = {"tcr": 80.0, "hallucination": 10.0}
             >>> results = monitor.compare_with_thresholds()
             >>> results["tcr"]["status"]   # "pass" 또는 "fail"
             >>> results["tcr"]["value"]    # 실제 TCR 값 (%)
         """
-        if not self.thresholds:
+        if not self._thresholds:
             return {}
+
+        # Validate threshold values up-front so errors surface at configuration
+        # time rather than deep inside statistics.mean() calls.
+        invalid = {
+            k: v for k, v in self._thresholds.items()
+            if not isinstance(v, (int, float))
+        }
+        if invalid:
+            raise ValidationError(
+                f"compare_with_thresholds(): threshold values must be numeric. "
+                f"Non-numeric entries: { {k: type(v).__name__ for k, v in invalid.items()} }. "
+                "Example: monitor.thresholds = {'tcr': 80.0, 'accuracy': 70.0}"
+            )
 
         comparison = {}
 
         # TCR
         tcr_data = self.tcr_tracker.calculate_tcr()
-        if 'tcr' in self.thresholds:
+        if 'tcr' in self._thresholds:
             comparison['tcr'] = {
                 'name': '작업 완료율 (TCR)',
                 'value': tcr_data.get('tcr', 0),
-                'threshold': self.thresholds['tcr'],
-                'status': 'pass' if tcr_data.get('tcr', 0) >= self.thresholds['tcr'] else 'fail',
+                'threshold': self._thresholds['tcr'],
+                'status': 'pass' if tcr_data.get('tcr', 0) >= self._thresholds['tcr'] else 'fail',
                 'direction': 'higher',
                 'unit': '%'
             }
 
-        # Accuracy
-        accuracy_data = self.accuracy_evaluator.get_accuracy_scores()
-        if accuracy_data and 'accuracy' in self.thresholds:
+        # Accuracy — use get_accuracy_metrics() for total_evaluated guard (RAG-style pending)
+        accuracy_metrics = self.accuracy_evaluator.get_accuracy_metrics()
+        if 'accuracy' in self._thresholds:
+            _acc_val = accuracy_metrics.get('overall_accuracy', 0)
+            _acc_evaluated = accuracy_metrics.get('total_evaluated', 0)
             comparison['accuracy'] = {
                 'name': '정확도 (Accuracy)',
-                'value': accuracy_data.get('overall_accuracy', 0),
-                'threshold': self.thresholds['accuracy'],
-                'status': 'pass' if accuracy_data.get('overall_accuracy', 0) >= self.thresholds['accuracy'] else 'fail',
+                'value': _acc_val,
+                'threshold': self._thresholds['accuracy'],
+                'status': (
+                    'pending' if _acc_evaluated == 0
+                    else 'pass' if _acc_val >= self._thresholds['accuracy']
+                    else 'fail'
+                ),
                 'direction': 'higher',
                 'unit': '%'
             }
 
         # Hallucination
         hall_data = self.hallucination_detector.get_hallucination_rate()
-        if 'hallucination' in self.thresholds:
+        if 'hallucination' in self._thresholds:
             comparison['hallucination'] = {
                 'name': '환각 발생률 (Hallucination)',
                 'value': hall_data.get('overall_rate', 0),
-                'threshold': self.thresholds['hallucination'],
-                'status': 'pass' if hall_data.get('overall_rate', 0) <= self.thresholds['hallucination'] else 'fail',
+                'threshold': self._thresholds['hallucination'],
+                'status': 'pass' if hall_data.get('overall_rate', 0) <= self._thresholds['hallucination'] else 'fail',
                 'direction': 'lower',
                 'unit': '%'
             }
 
         # Quality
         quality_data = self.quality_evaluator.get_quality_metrics()
-        if quality_data.get('total_evaluated', 0) > 0 and 'quality' in self.thresholds:
-            avg_quality = quality_data.get('avg_total_score', 0) * _QUALITY_SCORE_TO_10_SCALE
+        if (quality_data.get('total_evaluated', 0) > 0
+                and 'avg_total_score' in quality_data
+                and 'quality' in self._thresholds):
+            avg_quality = quality_data['avg_total_score'] * _QUALITY_SCORE_TO_10_SCALE
             comparison['quality'] = {
                 'name': '응답 품질 (Quality)',
                 'value': avg_quality,
-                'threshold': self.thresholds['quality'],
-                'status': 'pass' if avg_quality >= self.thresholds['quality'] else 'fail',
+                'threshold': self._thresholds['quality'],
+                'status': 'pass' if avg_quality >= self._thresholds['quality'] else 'fail',
                 'direction': 'higher',
                 'unit': '/10'
             }
 
         # Latency
         latency_data = self.latency_tracker.get_latency_stats()
-        if latency_data and 'latency' in self.thresholds:
+        if latency_data and 'latency' in self._thresholds:
             comparison['latency'] = {
                 'name': '응답 시간 (Latency)',
                 'value': latency_data.get('p95', 0),
-                'threshold': self.thresholds['latency'],
-                'status': 'pass' if latency_data.get('p95', 0) <= self.thresholds['latency'] else 'fail',
+                'threshold': self._thresholds['latency'],
+                'status': 'pass' if latency_data.get('p95', 0) <= self._thresholds['latency'] else 'fail',
                 'direction': 'lower',
                 'unit': 's'
             }
 
         # Cost per Task
         token_data = self.token_tracker.get_usage_stats()
-        if 'cost_per_task' in self.thresholds:
+        if 'cost_per_task' in self._thresholds:
             comparison['cost_per_task'] = {
                 'name': '작업당 비용 (Cost per Task)',
                 'value': token_data.get('avg_cost_per_task', 0),
-                'threshold': self.thresholds['cost_per_task'],
-                'status': 'pass' if token_data.get('avg_cost_per_task', 0) <= self.thresholds['cost_per_task'] else 'fail',
+                'threshold': self._thresholds['cost_per_task'],
+                'status': 'pass' if token_data.get('avg_cost_per_task', 0) <= self._thresholds['cost_per_task'] else 'fail',
                 'direction': 'lower',
                 'unit': '$'
             }
 
         # RAG Metrics
+        # Helper: no data → 'pending'; above threshold → 'pass'; below → 'fail'
+        def _rag_status(avg: float, threshold: float, values: list) -> str:
+            if not values:
+                return 'pending'
+            elif avg >= threshold:
+                return 'pass'
+            else:
+                return 'fail'
+
+        # Snapshot RAG metric lists under lock to avoid race with record_rag_metrics()
+        with self._lock:
+            faithfulness_values = list(self._rag_metrics.get('faithfulness', []))
+            relevancy_values = list(self._rag_metrics.get('answer_relevancy', []))
+            recall_values = list(self._rag_metrics.get('context_recall', []))
+            precision_values = list(self._rag_metrics.get('context_precision', []))
+
         # Faithfulness
-        if 'faithfulness' in self.thresholds:
-            faithfulness_values = self.rag_metrics.get('faithfulness', [])
+        if 'faithfulness' in self._thresholds:
             avg_faithfulness = statistics.mean(faithfulness_values) if faithfulness_values else 0.0
             comparison['faithfulness'] = {
                 'name': 'Faithfulness',
                 'value': avg_faithfulness,
-                'threshold': self.thresholds['faithfulness'],
-                'status': 'pass' if avg_faithfulness >= self.thresholds['faithfulness'] else 'fail' if faithfulness_values else 'pending',
+                'threshold': self._thresholds['faithfulness'],
+                'status': _rag_status(avg_faithfulness, self._thresholds['faithfulness'], faithfulness_values),
                 'direction': 'higher',
                 'unit': ''
             }
 
         # Answer Relevancy
-        if 'answer_relevancy' in self.thresholds:
-            relevancy_values = self.rag_metrics.get('answer_relevancy', [])
+        if 'answer_relevancy' in self._thresholds:
             avg_relevancy = statistics.mean(relevancy_values) if relevancy_values else 0.0
             comparison['answer_relevancy'] = {
                 'name': 'Answer Relevancy',
                 'value': avg_relevancy,
-                'threshold': self.thresholds['answer_relevancy'],
-                'status': 'pass' if avg_relevancy >= self.thresholds['answer_relevancy'] else 'fail' if relevancy_values else 'pending',
+                'threshold': self._thresholds['answer_relevancy'],
+                'status': _rag_status(avg_relevancy, self._thresholds['answer_relevancy'], relevancy_values),
                 'direction': 'higher',
                 'unit': ''
             }
 
         # Context Recall
-        if 'context_recall' in self.thresholds:
-            recall_values = self.rag_metrics.get('context_recall', [])
+        if 'context_recall' in self._thresholds:
             avg_recall = statistics.mean(recall_values) if recall_values else 0.0
             comparison['context_recall'] = {
                 'name': 'Context Recall',
                 'value': avg_recall,
-                'threshold': self.thresholds['context_recall'],
-                'status': 'pass' if avg_recall >= self.thresholds['context_recall'] else 'fail' if recall_values else 'pending',
+                'threshold': self._thresholds['context_recall'],
+                'status': _rag_status(avg_recall, self._thresholds['context_recall'], recall_values),
                 'direction': 'higher',
                 'unit': ''
             }
 
         # Context Precision
-        if 'context_precision' in self.thresholds:
-            precision_values = self.rag_metrics.get('context_precision', [])
+        if 'context_precision' in self._thresholds:
             avg_precision = statistics.mean(precision_values) if precision_values else 0.0
             comparison['context_precision'] = {
                 'name': 'Context Precision',
                 'value': avg_precision,
-                'threshold': self.thresholds['context_precision'],
-                'status': 'pass' if avg_precision >= self.thresholds['context_precision'] else 'fail' if precision_values else 'pending',
+                'threshold': self._thresholds['context_precision'],
+                'status': _rag_status(avg_precision, self._thresholds['context_precision'], precision_values),
                 'direction': 'higher',
                 'unit': ''
             }
@@ -668,12 +776,12 @@ class PerformanceMonitor:
         # Layer 2: Agentic AI Metrics
         # Tool Selection Accuracy
         tool_stats = self.tool_selection_tracker.get_accuracy_stats()
-        if tool_stats and 'tool_selection_accuracy' in self.thresholds:
+        if tool_stats and 'tool_selection_accuracy' in self._thresholds:
             comparison['tool_selection_accuracy'] = {
                 'name': '도구 선택 정확도 (Tool Selection Accuracy)',
                 'value': tool_stats.get('avg_accuracy', 0),
-                'threshold': self.thresholds['tool_selection_accuracy'],
-                'status': 'pass' if tool_stats.get('avg_accuracy', 0) >= self.thresholds['tool_selection_accuracy'] else 'fail',
+                'threshold': self._thresholds['tool_selection_accuracy'],
+                'status': 'pass' if tool_stats.get('avg_accuracy', 0) >= self._thresholds['tool_selection_accuracy'] else 'fail',
                 'direction': 'higher',
                 'unit': '%',
                 'layer': 'Layer 2'
@@ -681,13 +789,13 @@ class PerformanceMonitor:
 
         # Agent Coordination Score
         coord_data = self.agent_coordination_tracker.calculate_coordination_score()
-        if coord_data and 'agent_coordination' in self.thresholds:
+        if coord_data and 'agent_coordination' in self._thresholds:
             # coordination_score는 0-10 척도, threshold도 0-10으로 설정
             comparison['agent_coordination'] = {
                 'name': '에이전트 협업 점수 (Agent Coordination)',
-                'value': coord_data.get('score', 0),
-                'threshold': self.thresholds['agent_coordination'],
-                'status': 'pass' if coord_data.get('score', 0) >= self.thresholds['agent_coordination'] else 'fail',
+                'value': coord_data.get('overall_score', 0),
+                'threshold': self._thresholds['agent_coordination'],
+                'status': 'pass' if coord_data.get('overall_score', 0) >= self._thresholds['agent_coordination'] else 'fail',
                 'direction': 'higher',
                 'unit': '/10',
                 'layer': 'Layer 2',
@@ -700,12 +808,12 @@ class PerformanceMonitor:
 
         # Workflow Execution Success Rate
         workflow_stats = self.workflow_tracker.calculate_execution_success_rate()
-        if workflow_stats and 'workflow_execution' in self.thresholds:
+        if workflow_stats and 'workflow_execution' in self._thresholds:
             comparison['workflow_execution'] = {
                 'name': '워크플로우 실행 성공률 (Workflow Execution)',
                 'value': workflow_stats.get('step_success_rate', 0),
-                'threshold': self.thresholds['workflow_execution'],
-                'status': 'pass' if workflow_stats.get('step_success_rate', 0) >= self.thresholds['workflow_execution'] else 'fail',
+                'threshold': self._thresholds['workflow_execution'],
+                'status': 'pass' if workflow_stats.get('step_success_rate', 0) >= self._thresholds['workflow_execution'] else 'fail',
                 'direction': 'higher',
                 'unit': '%',
                 'layer': 'Layer 2',
@@ -719,26 +827,34 @@ class PerformanceMonitor:
         return comparison
 
     def reset(self) -> None:
-        """Clear all accumulated data across every tracker.
+        """Clear all accumulated data across every tracker (thread-safe).
 
         Use this when reusing a ``PerformanceMonitor`` instance across
         multiple evaluation sessions (e.g., in a CI loop) to prevent
         data from one session leaking into the next.
+
+        All mutations are performed under the monitor lock so no concurrent
+        ``record_task()`` call can interleave partial state.
         """
-        self.tcr_tracker.reset()
-        self.accuracy_evaluator.reset()
-        self.hallucination_detector.reset()
-        self.quality_evaluator.reset()
-        self.latency_tracker.reset()
-        self.token_tracker.reset()
-        self.tool_analyzer.reset()
-        self.retry_tracker.reset()
-        self.tool_selection_tracker.reset()
-        self.agent_coordination_tracker.reset()
-        self.workflow_tracker.reset()
-        self.golden_datasets.clear()
-        for key in self.rag_metrics:
-            self.rag_metrics[key].clear()
+        with self._lock:
+            for tracker in self._iter_trackers():
+                tracker.reset()
+            self.conversation_sessions.clear()
+            self._golden_datasets.clear()
+            for key in self._rag_metrics:
+                self._rag_metrics[key].clear()
+
+    def _iter_trackers(self) -> Iterator[BaseTracker]:
+        """Yield all initialized BaseTracker instances owned by this monitor.
+
+        Discovers trackers by inspecting instance attributes — any attribute
+        that is a ``BaseTracker`` (including optional security trackers when
+        they are not ``None``) is yielded.  New trackers added in future
+        subclasses are automatically included without modifying this method.
+        """
+        for attr_val in vars(self).values():
+            if isinstance(attr_val, BaseTracker):
+                yield attr_val
 
     def task(
         self,
@@ -803,7 +919,6 @@ class PerformanceMonitor:
             ... )
             >>> print(result["accuracy_score"])  # 0.95
         """
-        import uuid
         from agent_evaluator.helpers.taskresult_helpers import create_taskresult_from_execution
 
         _task_id = task_id or f"qa_{uuid.uuid4().hex[:8]}"
@@ -848,8 +963,10 @@ class PerformanceMonitor:
                 - ground_truth (str): 정답
                 - task_id (str, 선택): 태스크 ID
                 - execution_time (float, 선택): 실행 시간
-            task_type: 태스크 유형 (기본값: "qa")
-            task_id_prefix: 자동 생성 task_id 접두사 (기본값: "batch")
+            task_type: 기본 태스크 유형 (기본값: ``"qa"``).
+                각 항목에 ``"task_type"`` 키가 있으면 그 값이 우선하며,
+                없는 경우에만 이 파라미터 값이 사용됩니다.
+            task_id_prefix: 자동 생성 task_id 접두사 (기본값: ``"batch"``)
 
         Returns:
             List[Dict[str, Any]]: 각 태스크의 평가 결과 목록
@@ -889,57 +1006,151 @@ class PerformanceMonitor:
             results.append(result)
         return results
 
+    def __repr__(self) -> str:
+        tasks = len(self.tcr_tracker._tasks)
+        tcr_data = self.tcr_tracker.calculate_tcr()
+        tcr = tcr_data.get("tcr", 0.0)
+        sec = " security=on" if self.enable_security_metrics else ""
+        hall = " hallucination=on" if self.enable_hallucination_detection else ""
+        return f"PerformanceMonitor(tasks={tasks}, tcr={tcr:.1f}%{hall}{sec})"
+
+    # ------------------------------------------------------------------
+    # Factory classmethods — common pre-configured monitor variants
+    # ------------------------------------------------------------------
+
+    @classmethod
+    def for_rag_evaluation(
+        cls,
+        output_dir: Optional[str] = None,
+        enable_hallucination_detection: bool = True,
+        **kwargs: Any,
+    ) -> "PerformanceMonitor":
+        """Create a monitor pre-configured for RAG pipeline evaluation.
+
+        Enables hallucination detection by default, which compares generated
+        answers against the retrieved context passed to :meth:`record_task`.
+
+        Args:
+            output_dir: Optional output directory for saved results.
+            enable_hallucination_detection: Whether to enable hallucination
+                detection (default ``True``).
+            **kwargs: Additional keyword arguments forwarded to
+                :class:`PerformanceMonitor`.
+
+        Example::
+
+            monitor = PerformanceMonitor.for_rag_evaluation()
+            result = create_taskresult(task_id="q1", question="...", response="...")
+            monitor.record_task(result, context=retrieved_docs)
+            report = monitor.generate_report()
+        """
+        return cls(
+            output_dir=output_dir,
+            enable_hallucination_detection=enable_hallucination_detection,
+            **kwargs,
+        )
+
+    @classmethod
+    def for_secure_agents(
+        cls,
+        security_config: Optional[Dict[str, Any]] = None,
+        output_dir: Optional[str] = None,
+        **kwargs: Any,
+    ) -> "PerformanceMonitor":
+        """Create a monitor pre-configured for security-sensitive agent evaluation.
+
+        Enables all Layer-1 and Layer-2 security trackers:
+        ``InputSanitizationTracker``, ``OutputLeakageDetector``,
+        ``ToolAuthorizationTracker``, ``PrivilegeEscalationDetector``, and
+        ``ToolChainAttackDetector``.
+
+        Args:
+            security_config: Optional dict forwarded to security tracker
+                constructors.  Supported keys:
+                ``allowed_tools`` (list[str]) — tool whitelist;
+                ``restricted_tools`` (list[str]) — tool blacklist.
+            output_dir: Optional output directory for saved results.
+            **kwargs: Additional keyword arguments forwarded to
+                :class:`PerformanceMonitor`.
+
+        Example::
+
+            monitor = PerformanceMonitor.for_secure_agents(
+                security_config={"allowed_tools": ["web_search", "calculator"]}
+            )
+        """
+        return cls(
+            output_dir=output_dir,
+            enable_security_metrics=True,
+            security_config=security_config,
+            **kwargs,
+        )
+
+    # ------------------------------------------------------------------
+    # Core recording API
+    # ------------------------------------------------------------------
+
     def record_task(self, task_result: TaskResult,
                    ground_truth: Optional[Any] = None,
                    context: Optional[str] = None,
                    request: Optional[str] = None,       # deprecated: use task_result.question
                    response: Optional[str] = None,      # deprecated: use task_result.response
-                   expected_elements: Optional[List[str]] = None) -> None:
-        """
-        Record a complete task execution
+                   expected_elements: Optional[List[str]] = None) -> "PerformanceMonitor":
+        """Record a complete task execution.
 
         Args:
-            task_result: TaskResult from agent execution
-            ground_truth: Expected/correct output
-            context: Context or retrieved documents for hallucination detection
-            request: User request/query
-            response: Agent's response/output for hallucination detection
-            expected_elements: Expected elements in response
+            task_result: TaskResult from agent execution.
+            ground_truth: Expected/correct output.  Prefer setting
+                ``task_result.ground_truth`` directly.
+            context: Retrieved documents for hallucination detection.
+            request: *Deprecated* — use ``TaskResult(question=...)`` instead.
+                Overrides ``task_result.question`` when that field is empty.
+                Will be removed in v0.8.0.
+            response: *Deprecated* — use ``TaskResult(response=...)`` instead.
+                Overrides ``task_result.response`` when that field is empty.
+                Will be removed in v0.8.0.
+            expected_elements: Expected elements in response for quality scoring.
 
         Returns:
-            None.  All metrics are accumulated in-place on the monitor's
-            internal trackers.  Call ``generate_report()`` or
-            ``save_to_file()`` after recording all tasks to retrieve
-            aggregated results.
+            PerformanceMonitor: ``self``, enabling method chaining::
 
-            Prefer ``evaluate_batch()`` for a list of offline QA pairs, or
-            ``evaluate_with_golden_dataset()`` when running a live agent
-            against a pre-built JSON dataset.  Use ``record_task()`` directly
-            when you already have a :class:`TaskResult` (e.g. from your own
-            agent harness).
+                monitor.record_task(t1).record_task(t2).generate_report()
 
-        .. deprecated::
-            ``request``, ``response``, ``ground_truth``, ``context`` 파라미터는
-            deprecated입니다. TaskResult 필드를 직접 설정하세요.
+            All metrics are accumulated in-place on the monitor's internal
+            trackers.  Call :meth:`generate_report` or :meth:`save_to_file`
+            after recording all tasks to retrieve aggregated results.
+
+        Migration guide for deprecated params::
+
+            # Before (deprecated)
+            monitor.record_task(task, request="What is AI?", response="AI is...")
+
+            # After (recommended)
+            from agent_evaluator import create_taskresult
+            task = create_taskresult(
+                task_id="t1", question="What is AI?", response="AI is ...", ...
+            )
+            monitor.record_task(task)
         """
         # Deprecation warnings for parameters that duplicate TaskResult fields
+        # These params will be removed in v0.8.0 — migrate to TaskResult fields.
         if request is not None:
             warnings.warn(
-                "record_task(request=...) is deprecated. "
+                "record_task(request=...) is deprecated and will be removed in v0.8.0. "
                 "Use TaskResult(question=...) instead.",
                 DeprecationWarning,
                 stacklevel=2,
             )
         if response is not None:
             warnings.warn(
-                "record_task(response=...) is deprecated. "
+                "record_task(response=...) is deprecated and will be removed in v0.8.0. "
                 "Use TaskResult(response=...) instead.",
                 DeprecationWarning,
                 stacklevel=2,
             )
         if ground_truth is not None:
             warnings.warn(
-                "record_task(ground_truth=...) is deprecated. "
+                "record_task(ground_truth=...) is deprecated and will be removed in v0.8.0. "
                 "Use TaskResult(ground_truth=...) instead.",
                 DeprecationWarning,
                 stacklevel=2,
@@ -949,193 +1160,26 @@ class PerformanceMonitor:
         # Rule: deprecated param wins only when the TaskResult field is None or "".
         # An empty-string field is treated the same as "not set" so that callers
         # who pass TaskResult() without a question/response still benefit from the
-        # deprecated params.  str() normalisation is applied consistently.
+        # deprecated params.  TaskResult is frozen → use dataclasses.replace().
+        _replacements: Dict[str, Any] = {}
         if request is not None and not task_result.question:
-            task_result.question = str(request) if not isinstance(request, str) else request
+            _replacements["question"] = str(request) if not isinstance(request, str) else request
         if response is not None and not task_result.response:
-            task_result.response = str(response) if not isinstance(response, str) else response
+            _replacements["response"] = str(response) if not isinstance(response, str) else response
         if ground_truth is not None and not task_result.ground_truth:
-            task_result.ground_truth = str(ground_truth) if not isinstance(ground_truth, str) else ground_truth
-
-        # Task completion
-        self.tcr_tracker.add_task(task_result)
-        
-        # Accuracy - use TaskResult's accuracy_score
-        # Normalize to 0-1 scale: users may pass 0-100 scale values
-        _accuracy = task_result.accuracy_score
-        if _accuracy is not None and _accuracy > 1.0:
-            _accuracy = _accuracy / 100.0
-        self.accuracy_evaluator.evaluations.append({
-            "task_id": task_result.task_id,
-            "task_type": task_result.task_type,
-            "accuracy": _accuracy,
-            "timestamp": datetime.now()
-        })
-        
-        # Latency
-        self.latency_tracker.record_latency(
-            task_result.task_id,
-            task_result.task_type,
-            task_result.execution_time,
-            {"total": task_result.execution_time}  # Simplified breakdown
-        )
-        
-        # Token usage
-        if task_result.tokens_used:
-            self.token_tracker.track_usage(
-                task_result.task_id,
-                task_result.tokens_used.get("input", 0),
-                task_result.tokens_used.get("output", 0),
-                task_result.task_type,
-                model=task_result.tokens_used.get("model", "default"),  # DQ-150
+            _replacements["ground_truth"] = (
+                str(ground_truth) if not isinstance(ground_truth, str) else ground_truth
             )
-        
-        # Tool calls
-        if task_result.tool_calls:
-            self.tool_analyzer.analyze_execution(
-                task_result.task_id,
-                task_result.tool_calls
-            )
-        
-        # Retries — integration(_record_layer2)이 이미 기록했으면 합성 데이터로 중복 기록하지 않음
-        if task_result.attempts > 1:
-            existing_retry_ids = {a.get('task_id') for a in self.retry_tracker.attempts}
-            if task_result.task_id not in existing_retry_ids:
-                attempts_log = [
-                    {"success": i == task_result.attempts - 1, "duration": 1.0}
-                    for i in range(task_result.attempts)
-                ]
-                self.retry_tracker.track_attempts(task_result.task_id, attempts_log)
+        if _replacements:
+            task_result = dataclasses.replace(task_result, **_replacements)
 
-        # Agentic AI: Tool Selection Accuracy
-        # integration(_record_layer2)이 이미 기록했으면 중복 기록하지 않음
-        if task_result.expected_tools and task_result.tool_calls:
-            existing_selection_ids = {s.get('task_id') for s in self.tool_selection_tracker.selections}
-            if task_result.task_id not in existing_selection_ids:
-                actual_tools = []
-                for call in task_result.tool_calls:
-                    if isinstance(call, str):
-                        actual_tools.append(call)
-                    elif isinstance(call, dict):
-                        tool_name = call.get("tool_name") or call.get("tool") or call.get("name", "unknown")
-                        actual_tools.append(tool_name)
-                    else:
-                        actual_tools.append("unknown")
-                self.tool_selection_tracker.evaluate_selection(
-                    task_result.task_id,
-                    task_result.expected_tools,
-                    actual_tools
-                )
+        # Pre-compute effective values (used by LLM judge below and auto-triggers inside lock)
+        _eff_request = request if request is not None else task_result.question
+        _eff_response = response if response is not None else task_result.response
 
-        # Agentic AI: Agent Coordination (CrewAI)
-        if task_result.agent_interactions:
-            for interaction in task_result.agent_interactions:
-                self.agent_coordination_tracker.track_interaction(
-                    task_result.task_id,
-                    interaction.get("from_agent", "unknown"),
-                    interaction.get("to_agent", "unknown"),
-                    interaction.get("type", "communication"),
-                    interaction.get("success", True),
-                    interaction.get("context")
-                )
-
-        # Agentic AI: Workflow Execution (LangChain/LangGraph)
-        if task_result.chain_steps:
-            for step in task_result.chain_steps:
-                self.workflow_tracker.track_step(
-                    task_result.task_id,
-                    step.get("name", "unknown"),
-                    step.get("type", "chain_step"),
-                    step.get("success", True),
-                    step.get("execution_time", 0.0),
-                    task_result.framework or "langchain",
-                    step.get("metadata")
-                )
-
-        # Layer1: Hallucination Detection (opt-in, rule-based, free)
-        _eff_response_hall = response or task_result.response
-        _eff_request_hall = request or task_result.question
-        if self.enable_hallucination_detection and context and _eff_response_hall:
-            try:
-                # Convert ground_truth to string if needed
-                ground_truth_str = None
-                if ground_truth is not None:
-                    if isinstance(ground_truth, str):
-                        ground_truth_str = ground_truth
-                    else:
-                        ground_truth_str = str(ground_truth)
-
-                self.hallucination_detector.detect_hallucination(
-                    task_id=task_result.task_id,
-                    response=_eff_response_hall,
-                    context=context,
-                    ground_truth=ground_truth_str,
-                    request=_eff_request_hall
-                )
-            except (AttributeError, KeyError, TypeError) as _hall_exc:
-                logger.warning(
-                    "Hallucination detection failed for %s: %s",
-                    task_result.task_id, _hall_exc, exc_info=True,
-                )
-            except Exception as _hall_exc:
-                logger.debug("Hallucination detection unexpected error for %s: %s", task_result.task_id, _hall_exc, exc_info=True)
-
-        # Auto-trigger: Quality Evaluation (response + request 있을 때 자동 평가)
-        _eff_request = request or task_result.question
-        _eff_response = response or task_result.response
-        if _eff_request and _eff_response:
-            _existing_quality_ids = {e.get("task_id") for e in self.quality_evaluator.evaluations}
-            if task_result.task_id not in _existing_quality_ids:
-                try:
-                    _gt_str = str(ground_truth) if ground_truth is not None else task_result.ground_truth
-                    _ee = expected_elements or []
-                    # expected_elements 없으면 ground_truth에서 자동 추출
-                    if not _ee and _gt_str:
-                        _STOPWORDS = {
-                            "이", "가", "은", "는", "을", "를", "의", "에", "도", "로",
-                            "the", "a", "an", "is", "are", "was", "were", "in", "on", "at"
-                        }
-                        _ee = [
-                            w for w in re.sub(r'[^\w\s]', '', _gt_str).split()
-                            if len(w) >= 2 and w.lower() not in _STOPWORDS
-                        ][:10]
-                    self.quality_evaluator.evaluate_response(
-                        task_id=task_result.task_id,
-                        response=_eff_response,
-                        request=_eff_request,
-                        expected_elements=_ee,
-                        ground_truth=_gt_str,
-                    )
-                except (AttributeError, KeyError, TypeError) as _q_exc:
-                    logger.warning(
-                        "Auto quality evaluation failed for %s: %s",
-                        task_result.task_id, _q_exc, exc_info=True,
-                    )
-                except Exception as _q_exc:
-                    logger.debug("Auto quality evaluation unexpected error for %s: %s", task_result.task_id, _q_exc, exc_info=True)
-
-        # Auto-trigger: Accuracy Evaluation (response + ground_truth 있고, accuracy_score==0일 때)
-        _eff_gt = ground_truth if ground_truth is not None else task_result.ground_truth
-        if _eff_response and _eff_gt:
-            _has_score = task_result.accuracy_score is not None and task_result.accuracy_score != 0.0
-            _existing_acc_ids = {e.get("task_id") for e in self.accuracy_evaluator.evaluations}
-            if not _has_score and task_result.task_id not in _existing_acc_ids:
-                try:
-                    self.accuracy_evaluator.add_evaluation(
-                        task_id=task_result.task_id,
-                        ground_truth=str(_eff_gt),
-                        prediction=_eff_response,
-                        task_type=task_result.task_type,
-                    )
-                except (AttributeError, KeyError, TypeError) as _acc_exc:
-                    logger.warning(
-                        "Auto accuracy evaluation failed for %s: %s",
-                        task_result.task_id, _acc_exc, exc_info=True,
-                    )
-                except Exception as _acc_exc:
-                    logger.debug("Auto accuracy evaluation unexpected error for %s: %s", task_result.task_id, _acc_exc, exc_info=True)
-
-        # Auto-trigger: LLM Judge (opt-in, Phase 1-A)
+        # Auto-trigger: LLM Judge (opt-in, Phase 1-A) — run BEFORE the lock so
+        # the result can be embedded in task_result via dataclasses.replace()
+        # before the task is stored in tcr_tracker.tasks.
         if self.enable_llm_judge and self.llm_judge and _eff_request and _eff_response:
             try:
                 judge_result = self.llm_judge.judge(
@@ -1144,16 +1188,189 @@ class PerformanceMonitor:
                     response=_eff_response,
                     context=context or task_result.context,
                 )
-                # Attach judge scores directly onto the TaskResult so they are
-                # serialised into the JSON output without needing schema changes.
+                # Attach judge scores so they are serialised into JSON output.
                 if not judge_result.get("skipped") and judge_result.get("scores"):
-                    task_result.llm_judge = judge_result
+                    task_result = dataclasses.replace(task_result, llm_judge=judge_result)
             except (AttributeError, KeyError, TypeError) as _judge_exc:
                 logger.warning(
                     "LLM Judge failed for %s: %s", task_result.task_id, _judge_exc, exc_info=True
                 )
             except Exception as _judge_exc:
-                logger.debug("LLM Judge unexpected error for %s: %s", task_result.task_id, _judge_exc, exc_info=True)
+                logger.debug(
+                    "LLM Judge unexpected error for %s: %s",
+                    task_result.task_id, _judge_exc, exc_info=True,
+                )
+
+        with self._lock:  # guard all tracker mutations for thread safety
+            # Task completion
+            self.tcr_tracker.add_task(task_result)
+            
+            # Accuracy — store via record_score() to keep _cached_avg consistent.
+            # TaskResult validates accuracy_score ∈ [0.0, 1.0] in __post_init__,
+            # so no further normalisation is needed here.
+            self.accuracy_evaluator.record_score(
+                task_id=task_result.task_id,
+                task_type=task_result.task_type,
+                accuracy=task_result.accuracy_score,
+            )
+            
+            # Latency
+            self.latency_tracker.record_latency(
+                task_result.task_id,
+                task_result.task_type,
+                task_result.execution_time,
+                {"total": task_result.execution_time}  # Simplified breakdown
+            )
+            
+            # Token usage
+            if task_result.tokens_used:
+                self.token_tracker.track_usage(
+                    task_result.task_id,
+                    task_result.tokens_used.get("input", 0),
+                    task_result.tokens_used.get("output", 0),
+                    task_result.task_type,
+                    model=task_result.tokens_used.get("model", "default"),  # DQ-150
+                )
+            
+            # Tool calls
+            if task_result.tool_calls:
+                self.tool_analyzer.analyze_execution(
+                    task_result.task_id,
+                    task_result.tool_calls
+                )
+            
+            # Retries — integration(_record_layer2)이 이미 기록했으면 합성 데이터로 중복 기록하지 않음
+            if task_result.attempts > 1:
+                if task_result.task_id not in self.retry_tracker._task_ids:
+                    _avg_attempt_dur = task_result.execution_time / task_result.attempts
+                    attempts_log = [
+                        {"success": i == task_result.attempts - 1, "duration": _avg_attempt_dur}
+                        for i in range(task_result.attempts)
+                    ]
+                    self.retry_tracker.track_attempts(task_result.task_id, attempts_log)
+    
+            # Agentic AI: Tool Selection Accuracy
+            # integration(_record_layer2)이 이미 기록했으면 중복 기록하지 않음
+            if task_result.expected_tools and task_result.tool_calls:
+                if task_result.task_id not in self.tool_selection_tracker._task_ids:
+                    actual_tools = []
+                    for call in task_result.tool_calls:
+                        if isinstance(call, str):
+                            actual_tools.append(call)
+                        elif isinstance(call, dict):
+                            tool_name = call.get("tool_name") or call.get("tool") or call.get("name", "unknown")
+                            actual_tools.append(tool_name)
+                        else:
+                            actual_tools.append("unknown")
+                    self.tool_selection_tracker.evaluate_selection(
+                        task_result.task_id,
+                        task_result.expected_tools,
+                        actual_tools
+                    )
+    
+            # Agentic AI: Agent Coordination (CrewAI)
+            if task_result.agent_interactions:
+                for interaction in task_result.agent_interactions:
+                    self.agent_coordination_tracker.track_interaction(
+                        task_result.task_id,
+                        interaction.get("from_agent", "unknown"),
+                        interaction.get("to_agent", "unknown"),
+                        interaction.get("type", "communication"),
+                        interaction.get("success", True),
+                        interaction.get("context")
+                    )
+    
+            # Agentic AI: Workflow Execution (LangChain/LangGraph)
+            if task_result.chain_steps:
+                for step in task_result.chain_steps:
+                    self.workflow_tracker.track_step(
+                        task_result.task_id,
+                        step.get("name", "unknown"),
+                        step.get("type", "chain_step"),
+                        step.get("success", True),
+                        step.get("execution_time", 0.0),
+                        task_result.framework or "langchain",
+                        step.get("metadata")
+                    )
+    
+            # Layer1: Hallucination Detection (opt-in, rule-based, free)
+            _eff_response_hall = response if response is not None else task_result.response
+            _eff_request_hall = request or task_result.question
+            if self.enable_hallucination_detection and context and _eff_response_hall:
+                try:
+                    # Convert ground_truth to string if needed
+                    ground_truth_str = None
+                    if ground_truth is not None:
+                        if isinstance(ground_truth, str):
+                            ground_truth_str = ground_truth
+                        else:
+                            ground_truth_str = str(ground_truth)
+    
+                    self.hallucination_detector.detect_hallucination(
+                        task_id=task_result.task_id,
+                        response=_eff_response_hall,
+                        context=context,
+                        ground_truth=ground_truth_str,
+                        request=_eff_request_hall
+                    )
+                except (AttributeError, KeyError, TypeError) as _hall_exc:
+                    logger.warning(
+                        "Hallucination detection failed for %s: %s",
+                        task_result.task_id, _hall_exc, exc_info=True,
+                    )
+                except Exception as _hall_exc:
+                    logger.debug("Hallucination detection unexpected error for %s: %s", task_result.task_id, _hall_exc, exc_info=True)
+    
+            # Auto-trigger: Quality Evaluation (response + request 있을 때 자동 평가)
+            # _eff_request / _eff_response are pre-computed before the lock (L1152-1153)
+            if _eff_request and _eff_response:
+                if task_result.task_id not in self.quality_evaluator._task_ids:
+                    try:
+                        _gt_str = str(ground_truth) if ground_truth is not None else task_result.ground_truth
+                        _ee = expected_elements or []
+                        # expected_elements 없으면 ground_truth에서 자동 추출
+                        if not _ee and _gt_str:
+                            _ee = [
+                                w for w in _RE_NON_WORD.sub('', _gt_str).split()
+                                if len(w) >= 2 and w.lower() not in _QUALITY_EVAL_STOPWORDS
+                            ][:10]
+                        self.quality_evaluator.evaluate_response(
+                            task_id=task_result.task_id,
+                            response=_eff_response,
+                            request=_eff_request,
+                            expected_elements=_ee,
+                            ground_truth=_gt_str,
+                        )
+                    except (AttributeError, KeyError, TypeError) as _q_exc:
+                        logger.warning(
+                            "Auto quality evaluation failed for %s: %s",
+                            task_result.task_id, _q_exc, exc_info=True,
+                        )
+                    except Exception as _q_exc:
+                        logger.debug("Auto quality evaluation unexpected error for %s: %s", task_result.task_id, _q_exc, exc_info=True)
+    
+            # Auto-trigger: Accuracy Evaluation (response + ground_truth 있고, accuracy_score 미지정일 때)
+            # Note: accuracy_score=0.0 은 유효한 점수(완전히 틀림)이므로 재계산하지 않는다.
+            _eff_gt = ground_truth if ground_truth is not None else task_result.ground_truth
+            if _eff_response and _eff_gt:
+                _has_score = task_result.accuracy_score is not None
+                if not _has_score and task_result.task_id not in self.accuracy_evaluator._task_ids:
+                    try:
+                        self.accuracy_evaluator.add_evaluation(
+                            task_id=task_result.task_id,
+                            ground_truth=str(_eff_gt),
+                            prediction=_eff_response,
+                            task_type=task_result.task_type,
+                        )
+                    except (AttributeError, KeyError, TypeError) as _acc_exc:
+                        logger.warning(
+                            "Auto accuracy evaluation failed for %s: %s",
+                            task_result.task_id, _acc_exc, exc_info=True,
+                        )
+                    except Exception as _acc_exc:
+                        logger.debug("Auto accuracy evaluation unexpected error for %s: %s", task_result.task_id, _acc_exc, exc_info=True)
+
+        return self
 
     def record_rag_metrics(
         self,
@@ -1171,14 +1388,15 @@ class PerformanceMonitor:
             context_recall: Context recall score (0-1)
             context_precision: Context precision score (0-1)
         """
-        if faithfulness is not None:
-            self.rag_metrics['faithfulness'].append(faithfulness)
-        if answer_relevancy is not None:
-            self.rag_metrics['answer_relevancy'].append(answer_relevancy)
-        if context_recall is not None:
-            self.rag_metrics['context_recall'].append(context_recall)
-        if context_precision is not None:
-            self.rag_metrics['context_precision'].append(context_precision)
+        with self._lock:
+            if faithfulness is not None:
+                self._rag_metrics['faithfulness'].append(faithfulness)
+            if answer_relevancy is not None:
+                self._rag_metrics['answer_relevancy'].append(answer_relevancy)
+            if context_recall is not None:
+                self._rag_metrics['context_recall'].append(context_recall)
+            if context_precision is not None:
+                self._rag_metrics['context_precision'].append(context_precision)
 
     def get_rag_metrics_summary(self) -> Dict[str, Any]:
         """
@@ -1189,12 +1407,12 @@ class PerformanceMonitor:
         """
         summary = {}
 
-        for metric_name, values in self.rag_metrics.items():
+        for metric_name, values in self._rag_metrics.items():
             if values:
                 mean_val = statistics.mean(values)
                 summary[metric_name] = {
-                    'mean': mean_val,  # Use 'mean' for consistency with dashboard
-                    'average': mean_val,  # Alias for compatibility
+                    'mean': mean_val,      # primary key — use this
+                    'average': mean_val,   # deprecated alias; use 'mean' instead
                     'min': min(values),
                     'max': max(values),
                     'std': statistics.stdev(values) if len(values) > 1 else 0.0,
@@ -1203,7 +1421,7 @@ class PerformanceMonitor:
             else:
                 summary[metric_name] = {
                     'mean': 0.0,
-                    'average': 0.0,
+                    'average': 0.0,  # deprecated alias
                     'min': 0.0,
                     'max': 0.0,
                     'std': 0.0,
@@ -1219,6 +1437,11 @@ class PerformanceMonitor:
             accuracy_metrics dict (tcr, accuracy_scores, hallucination, quality)
             and efficiency_metrics dict (latency, tokens).
         """
+        logger.debug("_collect_layer1_metrics: tcr_tasks=%d, accuracy_evals=%d, hall_detections=%d, quality_evals=%d",
+                     len(self.tcr_tracker._tasks),
+                     len(self.accuracy_evaluator._evaluations),
+                     len(self.hallucination_detector._detections),
+                     len(self.quality_evaluator._evaluations))
         accuracy_metrics: Dict[str, Any] = {
             "tcr": self.tcr_tracker.calculate_tcr(),
             "accuracy_scores": self.accuracy_evaluator.get_accuracy_scores(),
@@ -1237,6 +1460,20 @@ class PerformanceMonitor:
         Returns:
             efficiency_metrics 에 병합될 dict (tool_efficiency, retries).
         """
+        logger.debug(
+            "_collect_layer2_metrics: tool_executions=%d, retry_attempts=%d, "
+            "selections=%d, interactions=%d, workflow_steps=%d, "
+            "escalations=%d, attack_chains=%d",
+            len(self.tool_analyzer._executions),
+            len(self.retry_tracker._attempts),
+            len(self.tool_selection_tracker._selections),
+            len(self.agent_coordination_tracker._interactions),
+            len(self.workflow_tracker._executions),
+            len(self.privilege_escalation_detector._escalation_events)
+            if self.privilege_escalation_detector else 0,
+            len(self.tool_chain_attack_detector._detections)
+            if self.tool_chain_attack_detector else 0,
+        )
         return {
             "tool_efficiency": self.tool_analyzer.get_efficiency_stats(),
             "retries": self.retry_tracker.get_retry_metrics(),
@@ -1264,7 +1501,7 @@ class PerformanceMonitor:
             if obj is None
         ]
         if missing:
-            raise RuntimeError(
+            raise MetricComputationError(
                 f"enable_security_metrics=True but trackers not initialised: {missing}. "
                 "This is an internal SDK bug — please report it."
             )
@@ -1282,6 +1519,11 @@ class PerformanceMonitor:
 
     def generate_report(self) -> "EvaluationReport":
         """Generate comprehensive evaluation report"""
+        if len(self.tcr_tracker.tasks) == 0:
+            logger.warning(
+                "generate_report() called with no recorded tasks. "
+                "Call record_task() before generate_report() to include task metrics."
+            )
         layer1 = self._collect_layer1_metrics()
         layer2 = self._collect_layer2_metrics()
         security_metrics = self._collect_security_metrics()
@@ -1310,7 +1552,7 @@ class PerformanceMonitor:
         alerts = []
 
         # 임계값 설정 (로드된 임계값 또는 기본값)
-        thresholds = self.thresholds if self.thresholds else {
+        thresholds = self.thresholds if self._thresholds else {
             'tcr': 80.0,
             'accuracy': 70.0,
             'hallucination': 10.0,
@@ -1338,9 +1580,9 @@ class PerformanceMonitor:
                     "action": "작업 완료율 개선을 고려하세요"
                 })
 
-        # Check accuracy
-        accuracy_data = self.accuracy_evaluator.get_accuracy_scores()
-        if accuracy_data:
+        # Check accuracy — guard against 0-evaluation state (dict is always truthy)
+        accuracy_data = self.accuracy_evaluator.get_accuracy_metrics()
+        if accuracy_data.get("total_evaluated", 0) > 0:
             overall_acc = accuracy_data.get("overall_accuracy", 100)
             accuracy_threshold = thresholds.get('accuracy', 70.0)
             if overall_acc < accuracy_threshold:
@@ -1376,10 +1618,9 @@ class PerformanceMonitor:
                 "action": "검증 및 사실 확인 프로세스를 강화하세요"
             })
 
-        # Check quality
+        # Check quality — guard against 0-evaluation state (same as compare_with_thresholds)
         quality_data = self.quality_evaluator.get_quality_metrics()
-        if quality_data and "avg_total_score" in quality_data:
-            # MEDIUM PRIORITY FIX: Only generate alerts when data actually exists
+        if quality_data.get("total_evaluated", 0) > 0 and "avg_total_score" in quality_data:
             avg_quality = quality_data["avg_total_score"] * 2  # Convert to 10-point scale
             quality_threshold = thresholds.get('quality', 6.0)
             if avg_quality < quality_threshold:
@@ -1592,9 +1833,9 @@ class PerformanceMonitor:
 • 시스템 신뢰도 향상으로 프로덕션 배포 리스크 감소"""
             })
 
-        # Accuracy improvement
-        accuracy_data = self.accuracy_evaluator.get_accuracy_scores()
-        if accuracy_data:
+        # Accuracy improvement — guard against 0-evaluation state (same as _generate_alerts)
+        accuracy_data = self.accuracy_evaluator.get_accuracy_metrics()
+        if accuracy_data.get("total_evaluated", 0) > 0:
             overall_acc = accuracy_data.get("overall_accuracy", 100)
             if overall_acc < 85:
                 gap = 85 - overall_acc
@@ -1620,9 +1861,9 @@ class PerformanceMonitor:
 • 사실 확인 및 수정 작업 시간 주당 10-15시간 절감"""
                 })
 
-        # Quality improvement
+        # Quality improvement — guard against 0-evaluation state (same as _generate_alerts)
         quality_data = self.quality_evaluator.get_quality_metrics()
-        if quality_data and "avg_total_score" in quality_data:
+        if quality_data.get("total_evaluated", 0) > 0 and "avg_total_score" in quality_data:
             # 품질 점수는 0~5 범위 (v0.5.x 이후). 목표: 4.0/5
             avg_quality = quality_data["avg_total_score"]  # 0~5 그대로 사용
             quality_target = 4.0
@@ -2070,7 +2311,7 @@ class PerformanceMonitor:
         coord_stats = self.agent_coordination_tracker.calculate_coordination_score()
         if coord_stats and coord_stats.get('total_interactions', 0) > 0:
             print("  [에이전트 협업]")
-            print(f"    - Agent Coordination Score   : {coord_stats.get('score', 0):.2f}")
+            print(f"    - Agent Coordination Score   : {coord_stats.get('overall_score', 0):.2f}")
             print(f"    - 협업 성공률                : {coord_stats.get('success_rate', 0):.1f}%")
             print(f"    - 고유 에이전트 수           : {coord_stats.get('unique_agents', 0)}")
             print(f"    - 총 상호작용 수             : {coord_stats.get('total_interactions', 0)}")
@@ -2528,8 +2769,19 @@ class PerformanceMonitor:
         report = self.generate_report()
         
         if format == "json":
-            with open(filename, 'w', encoding='utf-8') as f:
-                json.dump(asdict(report), f, indent=2, default=str)
+            _dir = os.path.dirname(os.path.abspath(filename)) or "."
+            _fd, _tmp = tempfile.mkstemp(dir=_dir, suffix=".tmp")
+            try:
+                with os.fdopen(_fd, 'w', encoding='utf-8') as _f:
+                    json.dump(asdict(report), _f, indent=2, default=str)
+                os.replace(_tmp, filename)
+            except Exception as e:
+                logger.error("export_report JSON 저장 실패: %s", e, exc_info=True)
+                try:
+                    os.unlink(_tmp)
+                except OSError:
+                    pass
+                raise
         elif format == "csv":
             # Export comprehensive metrics to CSV
             data = {
@@ -2635,8 +2887,6 @@ class PerformanceMonitor:
         Note:
             Always includes full report data for Dashboard compatibility.
         """
-        import os
-
         # ⚡ Lazy initialization: 디렉토리를 실제 저장 시점에 생성
         self.output_dir.mkdir(parents=True, exist_ok=True)
 
@@ -2654,6 +2904,9 @@ class PerformanceMonitor:
             "timestamp": datetime.now().isoformat(),
             # Save evaluator data
             "evaluators": {
+                "accuracy": {
+                    "evaluations": self.accuracy_evaluator.evaluations
+                },
                 "quality": {
                     "evaluations": self.quality_evaluator.evaluations
                 },
@@ -2677,7 +2930,7 @@ class PerformanceMonitor:
                 }
             },
             # Save RAG metrics
-            "rag_metrics": self.rag_metrics,
+            "rag_metrics": self._rag_metrics,
             # Save advanced metrics summary (DeepEval, Ragas 등)
             "advanced_metrics_summary": getattr(self, '_advanced_metrics_summary', {})
         }
@@ -2699,24 +2952,21 @@ class PerformanceMonitor:
             if hasattr(tt, "value"):
                 task["task_type"] = tt.value
 
-        def _json_serializer(obj: Any) -> Any:
-            """Custom JSON serializer for non-standard types."""
-            import math
-            from datetime import datetime as _dt
-            from enum import Enum
-            if isinstance(obj, float) and (math.isnan(obj) or math.isinf(obj)):
-                return 0.0  # NaN / ±Infinity → 0.0 (dashboard-safe numeric sentinel)
-            if isinstance(obj, _dt):
-                return obj.isoformat()
-            if isinstance(obj, Enum):
-                return obj.value
-            if isinstance(obj, bytes):
-                return obj.decode("utf-8", errors="replace")
-            logger.debug("JSON serialization fallback for type %s", type(obj).__name__)
-            return str(obj)
-
-        with open(filename, 'w', encoding='utf-8') as f:
-            json.dump(data, f, indent=2, default=_json_serializer)
+        # Atomic write: write to a temp file in the same directory, then rename.
+        # Prevents partial-write corruption if the process is killed mid-write.
+        _dir = os.path.dirname(os.path.abspath(filename))
+        _fd, _tmp_path = tempfile.mkstemp(dir=_dir, suffix=".tmp")
+        try:
+            with os.fdopen(_fd, 'w', encoding='utf-8') as _f:
+                json.dump(data, _f, indent=2, default=_json_serializer)
+            os.replace(_tmp_path, filename)
+        except Exception as e:
+            logger.error("save_to_file JSON 저장 실패: %s", e, exc_info=True)
+            try:
+                os.unlink(_tmp_path)
+            except OSError:
+                pass
+            raise
 
         logger.info("Performance data saved to %s", filename)
 
@@ -2727,8 +2977,19 @@ class PerformanceMonitor:
             if not html_path.endswith(".html"):
                 html_path = filename + ".html"
             html_content = generate_comprehensive_html_report(self)
-            with open(html_path, "w", encoding="utf-8") as f:
-                f.write(html_content)
+            _html_dir = os.path.dirname(os.path.abspath(html_path))
+            _hfd, _h_tmp = tempfile.mkstemp(dir=_html_dir, suffix=".tmp")
+            try:
+                with os.fdopen(_hfd, 'w', encoding='utf-8') as _hf:
+                    _hf.write(html_content)
+                os.replace(_h_tmp, html_path)
+            except Exception as e:
+                logger.error("save_to_file HTML 저장 실패: %s", e, exc_info=True)
+                try:
+                    os.unlink(_h_tmp)
+                except OSError:
+                    pass
+                raise
             logger.info("HTML report saved to %s", html_path)
         except Exception as e:
             logger.warning("HTML report generation failed (JSON saved): %s", e)
@@ -2780,16 +3041,30 @@ class PerformanceMonitor:
     def flush(self) -> Dict[str, Any]:
         """지금까지 수집된 평가 데이터의 요약을 반환하고 내부 상태를 초기화한다.
 
-        장시간 운영되는 서비스에서 메모리를 관리하기 위해 사용한다.
+        장시간 운영되는 서비스에서 주기적으로 호출해 메모리를 관리한다.
+
+        ``reset()``과의 차이:
+
+        * ``flush()`` — 현재 통계 요약(Dict)을 **반환한 뒤** 내부 상태를 초기화한다.
+          롤링 윈도우·주기적 집계처럼 "이번 배치 결과를 저장하고 다음 배치를 준비"하는
+          시나리오에 적합하다.
+        * ``reset()`` — 요약 없이 내부 상태만 초기화한다. 설정값(thresholds,
+          output_dir, pricing 등)과 골든 데이터셋은 유지된다.
 
         Returns:
             Dict[str, Any]: flush 전 수집된 평가 요약 통계
+                - ``total_tasks`` (int): 처리된 태스크 수
+                - ``success_rate`` (float): 성공률 (0.0–1.0)
+                - ``avg_latency_s`` (float): 평균 지연시간 (초, seconds)
+                - ``avg_accuracy`` (float): 평균 정확도 (0.0–1.0)
+                - ``flushed_at`` (str): ISO-8601 타임스탬프
 
         Example:
             >>> monitor = PerformanceMonitor()
             >>> # ... 1000개 태스크 처리 ...
             >>> summary = monitor.flush()  # 요약 저장 후 메모리 정리
             >>> print(summary["total_tasks"])  # 1000
+            >>> # 이후 monitor는 빈 상태로 재사용 가능
         """
         # 현재 상태 요약 계산
         report = self.generate_report()
@@ -2800,27 +3075,20 @@ class PerformanceMonitor:
         summary: Dict[str, Any] = {
             "total_tasks": report.total_tasks,
             "success_rate": tcr_data.get("success_rate", 0.0),
-            "avg_latency_ms": latency_data.get("mean", 0.0),
+            "avg_latency_s": latency_data.get("mean", 0.0),
             "avg_accuracy": accuracy_data.get("overall_accuracy", 0.0),
             "flushed_at": datetime.now().isoformat(),
         }
 
-        # 각 트래커 초기화
-        self.tcr_tracker.tasks.clear()
-        self.accuracy_evaluator.evaluations.clear()
-        self.hallucination_detector.detections.clear()
-        self.latency_tracker.latencies.clear()
-        self.token_tracker.usage_log.clear()
-        self.retry_tracker.attempts.clear()
-        self.tool_analyzer.executions.clear()
-        self.tool_selection_tracker.selections.clear()
-        self.agent_coordination_tracker.interactions.clear()
-        self.workflow_tracker.executions.clear()
-        self.quality_evaluator.evaluations.clear()
+        # 각 트래커 초기화 — _iter_trackers()로 동적 발견해 일관되게 처리.
+        # reset()과 동일한 경로를 사용하므로, 보안 트래커 등 옵셔널 트래커도
+        # enable_security_metrics=True 일 때 빠짐없이 초기화된다.
+        for _tracker in self._iter_trackers():
+            _tracker.reset()
 
         # RAG 지표 초기화
-        for key in self.rag_metrics:
-            self.rag_metrics[key] = []
+        for key in self._rag_metrics:
+            self._rag_metrics[key] = []
 
         logger.info("PerformanceMonitor flushed: %d tasks cleared", summary["total_tasks"])
         return summary
@@ -2998,13 +3266,12 @@ class PerformanceMonitor:
         )
 
         # ── Audit: file_saved ───────────────────────────────────────────────
-        import os as _os
         tm.log_event(
             event_type="lifecycle",
             user="system",
             action="file_saved",
             target_type="file",
-            target_id=_os.path.basename(filename),
+            target_id=os.path.basename(filename),
             details={
                 "filepath": filename,
                 "total_tasks": n,
@@ -3084,8 +3351,6 @@ class PerformanceMonitor:
     @classmethod
     def load_from_file(cls, filename: str = "performance_data.json") -> "PerformanceMonitor":
         """Load performance data from a JSON file including evaluator data"""
-        import os
-
         # Dashboard/data/evaluation_results 디렉토리에서 찾기 (절대 경로가 아닌 경우)
         if not os.path.isabs(filename) and not os.path.exists(filename):
             from ...utils.path_helpers import get_evaluation_results_dir
@@ -3105,6 +3370,9 @@ class PerformanceMonitor:
         )
 
         # Restore tasks
+        # Compute TaskResult field set once — dataclasses.fields() is cheap but
+        # calling it on every iteration of a potentially large task list is wasteful.
+        _tr_fields = {f.name for f in dataclasses.fields(TaskResult)}
         for task_dict in data.get("tasks", []):
             # Convert timestamp string back to datetime
             if isinstance(task_dict.get("timestamp"), str):
@@ -3121,8 +3389,6 @@ class PerformanceMonitor:
                 task_dict["execution_time"] = float(task_dict["execution_time"])
 
             # Create TaskResult object — filter extra keys for cross-monitor compatibility
-            import dataclasses as _dc
-            _tr_fields = {f.name for f in _dc.fields(TaskResult)}
             task = TaskResult(**{k: v for k, v in task_dict.items() if k in _tr_fields})
             monitor.record_task(task)
 
@@ -3130,6 +3396,10 @@ class PerformanceMonitor:
         evaluators = data.get("evaluators", {})
 
         if evaluators:
+            # Accuracy evaluations
+            if "accuracy" in evaluators:
+                monitor.accuracy_evaluator.evaluations = evaluators["accuracy"].get("evaluations", [])
+
             # Quality evaluations
             if "quality" in evaluators:
                 monitor.quality_evaluator.evaluations = evaluators["quality"].get("evaluations", [])
@@ -3185,19 +3455,19 @@ class PerformanceMonitor:
             logger.debug(
                 "Restored evaluator data: Quality=%d, Hallucination=%d, ToolCalls=%d, "
                 "ToolSelection=%d, AgentCoord=%d, Workflow=%d",
-                len(monitor.quality_evaluator.evaluations),
-                len(monitor.hallucination_detector.detections),
-                len(monitor.tool_analyzer.executions),
-                len(monitor.tool_selection_tracker.selections),
-                len(monitor.agent_coordination_tracker.interactions),
-                len(monitor.workflow_tracker.executions),
+                len(monitor.quality_evaluator._evaluations),
+                len(monitor.hallucination_detector._detections),
+                len(monitor.tool_analyzer._executions),
+                len(monitor.tool_selection_tracker._selections),
+                len(monitor.agent_coordination_tracker._interactions),
+                len(monitor.workflow_tracker._executions),
             )
             if "security" in evaluators:
                 logger.debug(
                     "Restored security data: InputEvals=%d, OutputDetections=%d, ToolCalls=%d",
-                    len(monitor.input_sanitizer.evaluations),
-                    len(monitor.output_leakage_detector.detections),
-                    len(monitor.tool_authorizer.tool_calls),
+                    len(monitor.input_sanitizer._evaluations),
+                    len(monitor.output_leakage_detector._detections),
+                    len(monitor.tool_authorizer._tool_calls),
                 )
 
         # Restore advanced_metrics_summary (DeepEval, Ragas 등) — check both top-level and report.*
@@ -3208,8 +3478,8 @@ class PerformanceMonitor:
 
         # Restore RAG metrics
         if "rag_metrics" in data:
-            monitor.rag_metrics = data["rag_metrics"]
-            total_rag_values = sum(len(v) for v in monitor.rag_metrics.values() if v)
+            monitor._rag_metrics = data["rag_metrics"]
+            total_rag_values = sum(len(v) for v in monitor._rag_metrics.values() if v)
             if total_rag_values > 0:
                 logger.debug("Restored RAG metrics with %d total values", total_rag_values)
 

@@ -32,6 +32,7 @@ CrewAI 1.x Crew 객체를 래핑하여 평가 지표를 자동으로 추적합�
     crewai >= 1.0.0
 """
 
+import json
 import logging
 import re
 import time
@@ -221,8 +222,7 @@ class CrewAIEvaluator:
             params = raw_params
         elif isinstance(raw_params, str) and raw_params.strip():
             try:
-                import json as _json
-                _parsed = _json.loads(raw_params)
+                _parsed = json.loads(raw_params)
                 if isinstance(_parsed, dict):
                     params = _parsed
             except Exception:
@@ -663,8 +663,7 @@ class CrewAIEvaluator:
                     raw_input = inputs[j].strip() if j < len(inputs) else ""
                     params: Dict[str, Any] = {}
                     try:
-                        import json as _json
-                        parsed = _json.loads(raw_input)
+                        parsed = json.loads(raw_input)
                         if isinstance(parsed, dict):
                             params = parsed
                         else:
@@ -691,7 +690,6 @@ class CrewAIEvaluator:
         마지막 태스크(최종 출력)의 expected_output 을 우선하고, 없으면 전체 태스크를 수집합니다.
         task 정보가 없으면 kickoff inputs 텍스트에서 휴리스틱으로 추출합니다.
         """
-        import re
         elements: List[str] = []
         seen: set = set()
 
@@ -1340,7 +1338,7 @@ class CrewAIEvaluator:
                 print(f"   Tool Selection Accuracy: {_tool_acc_str}")
                 print(f"   Workflow Execution Score: {wf.get('success_rate', 0):.1f}%")
                 if coord:
-                    print(f"   Agent Coordination Rate: {coord.get('score', 0):.1f}%")
+                    print(f"   Agent Coordination Rate: {coord.get('overall_score', 0):.1f}%")
                 if tool_eff:
                     print(f"   Tool Call Success Rate: {tool_eff.get('success_rate', 0):.1f}%")
                 if retry:

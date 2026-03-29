@@ -1,6 +1,7 @@
 """ConversationSession, ConversationMetrics, ConversationTurn 테스트."""
 import pytest
 from agent_evaluator import ConversationSession, ConversationMetrics, ConversationTurn
+from agent_evaluator.exceptions import InvalidOperationError
 
 
 class TestConversationSessionCreation:
@@ -69,9 +70,9 @@ class TestConversationMetricsComputation:
     """compute_metrics() 테스트."""
 
     def test_compute_metrics_raises_on_empty(self):
-        """턴이 없으면 ValueError 발생."""
+        """턴이 없으면 InvalidOperationError 발생."""
         session = ConversationSession("empty")
-        with pytest.raises(ValueError):
+        with pytest.raises(InvalidOperationError):
             session.compute_metrics()
 
     def test_compute_metrics_returns_conversation_metrics(self):

@@ -150,6 +150,12 @@ def test_get_leakage_stats_aggregation():
     assert stats["email_leaks"] == 1
 
 
-def test_get_leakage_stats_empty_returns_empty_dict():
+def test_get_leakage_stats_empty_returns_structured_zeros():
     d = OutputLeakageDetector()
-    assert d.get_leakage_stats() == {}
+    stats = d.get_leakage_stats()
+    assert stats["total_outputs_evaluated"] == 0
+    assert stats["outputs_with_leakage"] == 0
+    assert stats["leakage_rate"] == 0.0
+    for key in ("api_key_leaks", "password_leaks", "credit_card_leaks",
+                "email_leaks", "ssn_leaks", "phone_leaks", "private_ip_leaks", "file_path_leaks"):
+        assert stats[key] == 0

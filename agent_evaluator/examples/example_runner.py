@@ -3,6 +3,7 @@ ExampleRunner - Base class for running agent evaluation examples
 Handles common patterns: environment check, file prefix, dashboard instructions
 """
 
+import traceback
 from typing import Optional, List, Callable
 import os
 from dotenv import load_dotenv
@@ -104,7 +105,7 @@ class ExampleRunner:
         print("\n✅ 모든 종속성 확인 완료!")
         return True
 
-    def print_header(self):
+    def print_header(self) -> None:
         """Print example header"""
         print("=" * 70)
         print(f"🎯 Level {self.level} - {self.title}")
@@ -115,7 +116,7 @@ class ExampleRunner:
         monitor,
         filename_suffix: str,
         dashboard_tabs: Optional[List[str]] = None
-    ):
+    ) -> None:
         """
         Save results and print dashboard instructions
 
@@ -145,7 +146,7 @@ class ExampleRunner:
         print(f"   {filename} 선택")
         print("")
 
-    def run(self, main_func: Callable):
+    def run(self, main_func: Callable) -> None:
         """
         Run example with error handling
 
@@ -162,5 +163,4 @@ class ExampleRunner:
             main_func()
         except Exception as e:
             print(f"\n❌ Error: {e}")
-            import traceback
             traceback.print_exc()
