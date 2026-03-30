@@ -1476,7 +1476,7 @@ v0.6.0 기준 프로젝트는 4개의 독립적인 컴포넌트로 구성됩니�
     [](<#cb44-7>)# ✓ Golden Dataset 로드 테스트
     [](<#cb44-8>)python -c "
     [](<#cb44-9>)import json
-    [](<#cb44-10>)with open('results/golden_datasets/sample_dataset.json', 'r', encoding='utf-8') as f:
+    [](<#cb44-10>)with open('data/golden_datasets/sample_dataset.json', 'r', encoding='utf-8') as f:
     [](<#cb44-11>)    data = json.load(f)
     [](<#cb44-12>)print(f'Golden Dataset loaded: {len(data)} QA pairs')
     [](<#cb44-13>)"
@@ -2797,6 +2797,6 @@ DB 연결 실패 | 네트워크, 인증 오류 | `telnet db-host 5432` | DB 연�
 * * *
 
 **최종 업데이트** : 2026-03-27
-**버전** : v0.6.3
+**버전** : v0.6.5
 **프로젝트** : Agent Evaluator - AI Agent Performance Evaluation System
 **문서 타입** : 배포 가이드 (Deployment Guide)

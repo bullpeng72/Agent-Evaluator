@@ -1,6 +1,6 @@
 # 📚 Golden Dataset 가이드
 
-테스트 데이터셋 생성 및 관리 (Agent Evaluator v0.6.3)
+테스트 데이터셋 생성 및 관리 (Agent Evaluator v0.6.5)
 
 # Golden Dataset 가이드
 
@@ -719,7 +719,7 @@ Agent Evaluator Dashboard는 **GUI 기반 Golden Dataset 생성 및 편집** 을
 ```python
     [](<#cb26-1>)import json
     [](<#cb26-2>)
-    [](<#cb26-3>)with open("results/golden_datasets/my_dataset.json") as f:
+    [](<#cb26-3>)with open("data/golden_datasets/my_dataset.json") as f:
     [](<#cb26-4>)    dataset = json.load(f)
     [](<#cb26-5>)
     [](<#cb26-6>)# 로드된 데이터 확인
@@ -1860,6 +1860,6 @@ Golden Dataset 작성을 완료했다면:
 * * *
 
 **최종 업데이트** : 2026-03-27
-**버전** : Agent Evaluator v0.6.3
+**버전** : Agent Evaluator v0.6.5
 **프로젝트** : Agent Evaluator - AI Agent Performance Evaluation System
 **문서** : Golden Dataset Guide

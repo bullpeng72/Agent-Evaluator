@@ -1,0 +1,18 @@
+{
+  "log_id": "audit_fd67355f",
+  "event_type": "lifecycle",
+  "user": "system",
+  "action": "report_generated",
+  "target_type": "report",
+  "target_id": "evaluation_report",
+  "details": {
+    "total_tasks": 5,
+    "tcr": 80.0,
+    "overall_accuracy": 81.58,
+    "mean_latency_s": 10.455,
+    "total_tokens": 17046,
+    "total_cost_usd": 0.1468
+  },
+  "success": true,
+  "timestamp": "2026-03-30T17:34:44.433322"
+}

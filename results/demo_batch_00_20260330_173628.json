@@ -1,0 +1,425 @@
+{
+  "tasks": [
+    {
+      "task_id": "batch0_000_python_173628",
+      "task_type": "qa",
+      "success": true,
+      "completion_score": 0.5,
+      "accuracy_score": 0.257,
+      "execution_time": 1.3199111583689433,
+      "tokens_used": {
+        "input": 13,
+        "output": 30,
+        "total": 43
+      },
+      "tool_calls": [],
+      "attempts": 1,
+      "errors": [],
+      "timestamp": "2026-03-30T17:36:28.425680",
+      "agent_interactions": null,
+      "chain_steps": null,
+      "graph_traversal": null,
+      "conversation_turns": null,
+      "expected_tools": null,
+      "state_transitions": null,
+      "framework": null,
+      "partial_reason": "ground_truth \uc720\uc0ac\ub3c4 \ub0ae\uc74c (\uc720\uc0ac\ub3c4 11%)",
+      "question": "Python \ub9ac\uc2a4\ud2b8\uc640 \ud29c\ud50c \ucc28\uc774?",
+      "response": "\ub9ac\uc2a4\ud2b8\ub294 mutable, \ud29c\ud50c\uc740 immutable\uc785\ub2c8\ub2e4. \ub9ac\uc2a4\ud2b8\ub294 [], \ud29c\ud50c\uc740 ()\ub97c \uc0ac\uc6a9\ud569\ub2c8\ub2e4.",
+      "ground_truth": "\ub9ac\uc2a4\ud2b8 mutable, \ud29c\ud50c immutable",
+      "context": null,
+      "llm_judge": null
+    },
+    {
+      "task_id": "batch0_001_api_173628",
+      "task_type": "qa",
+      "success": false,
+      "completion_score": 0.0,
+      "accuracy_score": 0.148,
+      "execution_time": 0.909891305165019,
+      "tokens_used": {
+        "input": 10,
+        "output": 15,
+        "total": 25
+      },
+      "tool_calls": [],
+      "attempts": 1,
+      "errors": [],
+      "timestamp": "2026-03-30T17:36:28.425911",
+      "agent_interactions": null,
+      "chain_steps": null,
+      "graph_traversal": null,
+      "conversation_turns": null,
+      "expected_tools": null,
+      "state_transitions": null,
+      "framework": null,
+      "partial_reason": "ground_truth \ubd88\uc77c\uce58 (\uc720\uc0ac\ub3c4 0% \u2014 \uc784\uacc4\uac12 \ubbf8\ub2ec)",
+      "question": "REST API\uc640 GraphQL \ucc28\uc774\uc810?",
+      "response": "REST\ub294 \uc624\ub798\ub41c \ubc29\uc2dd\uc774\uace0 GraphQL\uc774 \ucd5c\uc2e0\uc785\ub2c8\ub2e4.",
+      "ground_truth": "REST: \uace0\uc815 \uc5d4\ub4dc\ud3ec\uc778\ud2b8, GraphQL: \uc720\uc5f0\ud55c \ucffc\ub9ac",
+      "context": null,
+      "llm_judge": null
+    },
+    {
+      "task_id": "batch0_002_devops_173628",
+      "task_type": "qa",
+      "success": false,
+      "completion_score": 0.0,
+      "accuracy_score": 0.289,
+      "execution_time": 1.3651348636339302,
+      "tokens_used": {
+        "input": 16,
+        "output": 4,
+        "total": 20
+      },
+      "tool_calls": [],
+      "attempts": 1,
+      "errors": [],
+      "timestamp": "2026-03-30T17:36:28.426007",
+      "agent_interactions": null,
+      "chain_steps": null,
+      "graph_traversal": null,
+      "conversation_turns": null,
+      "expected_tools": null,
+      "state_transitions": null,
+      "framework": null,
+      "partial_reason": "ground_truth \ubd88\uc77c\uce58 (\uc720\uc0ac\ub3c4 17% \u2014 \uc784\uacc4\uac12 \ubbf8\ub2ec)",
+      "question": "Docker \ucee8\ud14c\uc774\ub108 \uc0dd\uc131 \uba85\ub839\uc5b4?",
+      "response": "docker start myapp",
+      "ground_truth": "docker run \uba85\ub839\uc5b4 \uc0ac\uc6a9",
+      "context": null,
+      "llm_judge": null
+    }
+  ],
+  "pricing": {
+    "input": 0.003,
+    "output": 0.015
+  },
+  "timestamp": "2026-03-30T17:36:28.426191",
+  "evaluators": {
+    "accuracy": {
+      "evaluations": [
+        {
+          "task_id": "batch0_000_python_173628",
+          "task_type": "qa",
+          "accuracy": 0.257,
+          "timestamp": "2026-03-30T17:36:28.425694"
+        },
+        {
+          "task_id": "batch0_001_api_173628",
+          "task_type": "qa",
+          "accuracy": 0.148,
+          "timestamp": "2026-03-30T17:36:28.425915"
+        },
+        {
+          "task_id": "batch0_002_devops_173628",
+          "task_type": "qa",
+          "accuracy": 0.289,
+          "timestamp": "2026-03-30T17:36:28.426011"
+        }
+      ]
+    },
+    "quality": {
+      "evaluations": [
+        {
+          "task_id": "batch0_000_python_173628",
+          "dimension_scores": {
+            "relevance": 0.0,
+            "completeness": 5.0,
+            "clarity": 0.54,
+            "accuracy": 0.9722222222222222,
+            "usefulness": 2.37
+          },
+          "total_score": 1.88,
+          "grade": "F",
+          "timestamp": "2026-03-30T17:36:28.425725"
+        },
+        {
+          "task_id": "batch0_001_api_173628",
+          "dimension_scores": {
+            "relevance": 0.0,
+            "completeness": 1.6666666666666665,
+            "clarity": 0.3,
+            "accuracy": 0.0,
+            "usefulness": 2.3166666666666664
+          },
+          "total_score": 0.81,
+          "grade": "F",
+          "timestamp": "2026-03-30T17:36:28.425930"
+        },
+        {
+          "task_id": "batch0_002_devops_173628",
+          "dimension_scores": {
+            "relevance": 1.25,
+            "completeness": 1.25,
+            "clarity": 0.15,
+            "accuracy": 1.0833333333333335,
+            "usefulness": 1.54
+          },
+          "total_score": 1.1,
+          "grade": "F",
+          "timestamp": "2026-03-30T17:36:28.426021"
+        }
+      ]
+    },
+    "hallucination": {
+      "detections": []
+    },
+    "retry": {
+      "attempts": []
+    },
+    "tool_calls": {
+      "executions": []
+    },
+    "tool_selection": {
+      "selections": []
+    },
+    "agent_coordination": {
+      "interactions": []
+    },
+    "workflow": {
+      "executions": []
+    }
+  },
+  "rag_metrics": {
+    "faithfulness": [],
+    "answer_relevancy": [],
+    "context_recall": [],
+    "context_precision": []
+  },
+  "advanced_metrics_summary": {},
+  "conversation_sessions": [],
+  "feedback": {
+    "total": 0,
+    "positive_count": 0,
+    "negative_count": 0,
+    "positive_rate": 0.0,
+    "negative_rate": 0.0,
+    "regenerate_rate": 0.0,
+    "abandon_rate": 0.0,
+    "type_distribution": {},
+    "records": []
+  },
+  "total_tasks": 3,
+  "accuracy_metrics": {
+    "tcr": {
+      "tcr": 16.67,
+      "total_tasks": 3,
+      "full_success": 0,
+      "partial_success": 0,
+      "failures": 3,
+      "success_rate": 0.0
+    },
+    "accuracy_scores": {
+      "overall_accuracy": 23.13,
+      "median_accuracy": 25.7,
+      "min_accuracy": 14.8,
+      "max_accuracy": 28.9,
+      "std_accuracy": 7.39,
+      "high_accuracy_count": 0,
+      "low_accuracy_count": 3
+    },
+    "hallucination": {
+      "overall_rate": 0.0,
+      "median_rate": 0.0,
+      "max_rate": 0.0,
+      "tasks_with_hallucinations": 0,
+      "total_tasks_checked": 0,
+      "total_evaluated": 0,
+      "total_flagged": 0,
+      "unsupported_claims_count": 0,
+      "numerical_inconsistencies_count": 0
+    },
+    "quality": {
+      "avg_total_score": 1.26,
+      "avg_grade": "F",
+      "median_total_score": 1.1,
+      "min_total_score": 0.81,
+      "max_total_score": 1.88,
+      "std_total_score": 0.55,
+      "grade_distribution": {
+        "F": 3
+      },
+      "high_quality_count": 0,
+      "total_evaluated": 3,
+      "dimension_averages": {
+        "relevance": 0.42,
+        "completeness": 2.64,
+        "accuracy": 0.69,
+        "clarity": 0.33,
+        "usefulness": 2.08
+      },
+      "dimension_scores": {
+        "relevance": 0.42,
+        "completeness": 2.64,
+        "accuracy": 0.69,
+        "clarity": 0.33,
+        "usefulness": 2.08
+      },
+      "quality_distribution": {
+        "0-3.0 (Very Poor)": 3
+      }
+    }
+  },
+  "efficiency_metrics": {
+    "latency": {
+      "mean": 1.198,
+      "median": 1.32,
+      "p50": 1.32,
+      "p95": 1.361,
+      "p99": 1.364,
+      "min": 0.91,
+      "max": 1.365,
+      "std": 0.251
+    },
+    "tokens": {
+      "total_tasks": 3,
+      "total_tokens": 88,
+      "total_input_tokens": 39,
+      "total_output_tokens": 49,
+      "total_cost": 0.0009,
+      "avg_tokens_per_task": 29.33,
+      "avg_cost_per_task": 0.0003,
+      "estimated_monthly_cost": 0.03,
+      "token_distribution": {
+        "input_ratio": 0.443,
+        "output_ratio": 0.557
+      },
+      "cost_percentiles": {
+        "p50": 0.0003,
+        "p90": 0.0004,
+        "p95": 0.0005
+      }
+    },
+    "tool_efficiency": {
+      "total_calls": 0,
+      "success_rate": 0.0,
+      "avg_duration": 0.0,
+      "avg_calls_per_task": 0.0,
+      "avg_efficiency_score": 0.0,
+      "total_redundant_calls": 0,
+      "total_failed_calls": 0,
+      "redundancy_rate": 0.0,
+      "failure_rate": 0.0
+    },
+    "retries": {
+      "total_tasks_with_retries": 0,
+      "retry_rate": 0.0,
+      "first_attempt_success_rate": 0.0,
+      "eventual_success_rate": 0.0,
+      "retry_success_count": 0,
+      "correction_success_rate": 0.0,
+      "avg_attempts_per_task": 0.0,
+      "total_retry_time": 0.0,
+      "avg_retry_time": 0.0,
+      "overall_retry_rate": 0.0,
+      "avg_retries_per_task": 0.0
+    }
+  },
+  "quality_metrics": {
+    "avg_total_score": 1.26,
+    "avg_grade": "F",
+    "median_total_score": 1.1,
+    "min_total_score": 0.81,
+    "max_total_score": 1.88,
+    "std_total_score": 0.55,
+    "grade_distribution": {
+      "F": 3
+    },
+    "high_quality_count": 0,
+    "total_evaluated": 3,
+    "dimension_averages": {
+      "relevance": 0.42,
+      "completeness": 2.64,
+      "accuracy": 0.69,
+      "clarity": 0.33,
+      "usefulness": 2.08
+    },
+    "dimension_scores": {
+      "relevance": 0.42,
+      "completeness": 2.64,
+      "accuracy": 0.69,
+      "clarity": 0.33,
+      "usefulness": 2.08
+    },
+    "quality_distribution": {
+      "0-3.0 (Very Poor)": 3
+    }
+  },
+  "security_metrics": {},
+  "recommendations": [
+    {
+      "area": "\uc791\uc5c5 \uc644\ub8cc\uc728 \uac1c\uc120",
+      "title": "\uc791\uc5c5 \uc644\ub8cc\uc728(TCR)\uc774 \ubaa9\ud45c\uce58 \ub300\ube44 73.3%p \ub0ae\uc74c",
+      "priority": "high",
+      "issue": "\ud604\uc7ac TCR 16.7% (\ubaa9\ud45c: 90% \uc774\uc0c1). \uc804\uccb4 \uc131\uacf5 0\uac74, \ubd80\ubd84 \uc131\uacf5 0\uac74, \uc2e4\ud328 3\uac74\uc73c\ub85c \uc2e4\ud328 \uc791\uc5c5\uc758 \uc6d0\uc778 \ubd84\uc11d\uc774 \ud544\uc694\ud569\ub2c8\ub2e4.",
+      "suggestion": "**\uc989\uc2dc \uc2e4\ud589 \uac00\ub2a5\ud55c \uac1c\uc120 \ubc29\uc548:**\n1. **\uc2e4\ud328 \uc791\uc5c5 \ud328\ud134 \ubd84\uc11d**: \uc2e4\ud328\ud55c 3\uac1c \uc791\uc5c5\uc758 \uacf5\ud1b5 \uc624\ub958 \ud328\ud134 \ud30c\uc545 (\ud0c0\uc784\uc544\uc6c3, API \uc624\ub958, \uc785\ub825 \uac80\uc99d \uc2e4\ud328 \ub4f1)\n2. **\ud504\ub86c\ud504\ud2b8 \uba85\ud655\ud654**: \uc791\uc5c5 \uc9c0\uc2dc\uc0ac\ud56d\uc5d0 \uad6c\uccb4\uc801\uc778 \uc131\uacf5 \uae30\uc900\uacfc \ucd9c\ub825 \ud615\uc2dd \uba85\uc2dc\n3. **\uc791\uc5c5 \ubd84\ud560 \uc804\ub7b5**: \ubcf5\uc7a1\ud55c \uc791\uc5c5\uc744 3-5\uac1c\uc758 \ud558\uc704 \uc791\uc5c5\uc73c\ub85c \ubd84\ud560\ud558\uc5ec \ub2e8\uacc4\ubcc4 \uac80\uc99d \uc218\ud589\n4. **\uc7ac\uc2dc\ub3c4 \uba54\ucee4\ub2c8\uc998**: \uc77c\uc2dc\uc801 \uc624\ub958(\ub124\ud2b8\uc6cc\ud06c, API \uc81c\ud55c)\uc5d0 \ub300\ud55c \uc9c0\uc218 \ubc31\uc624\ud504 \uc7ac\uc2dc\ub3c4 \uad6c\ud604\n5. **\uc785\ub825 \uac80\uc99d \uac15\ud654**: \uc791\uc5c5 \uc2e4\ud589 \uc804 \ud544\uc218 \ud30c\ub77c\ubbf8\ud130\uc640 \ucee8\ud14d\uc2a4\ud2b8 \uac80\uc99d \ub85c\uc9c1 \ucd94\uac00",
+      "impact": "**\uc608\uc0c1 \uac1c\uc120 \ud6a8\uacfc:**\n\u2022 TCR \ubaa9\ud45c \ub2ec\uc131 \uc2dc \uc5f0\uac04 156\uac74 \uc2e4\ud328 \uc791\uc5c5 \uac10\uc18c (\uc8fc\uac04 3\uac74 \uae30\uc900)\n\u2022 \uc0ac\uc6a9\uc790 \ub9cc\uc871\ub3c4 15-25% \ud5a5\uc0c1 (90% TCR \ub2ec\uc131 \uc2dc)\n\u2022 \uc7ac\uc791\uc5c5 \ube44\uc6a9 \uc808\uac10: \uc2e4\ud328 \uc791\uc5c5\ub2f9 \ud3c9\uade0 5\ubd84 \uc18c\uc694 \uc2dc \uc8fc\ub2f9 15\ubd84 \uc808\uc57d\n\u2022 \uc2dc\uc2a4\ud15c \uc2e0\ub8b0\ub3c4 \ud5a5\uc0c1\uc73c\ub85c \ud504\ub85c\ub355\uc158 \ubc30\ud3ec \ub9ac\uc2a4\ud06c \uac10\uc18c"
+    },
+    {
+      "area": "\uc815\ud655\ub3c4 \uac1c\uc120",
+      "title": "\uc815\ub2f5 \uc815\ud655\ub3c4\uac00 \uae30\uc900\uce58 \ub300\ube44 61.9%p \ubd80\uc871",
+      "priority": "high",
+      "issue": "\ud604\uc7ac \uc815\ud655\ub3c4 23.1% (\ubaa9\ud45c: 85% \uc774\uc0c1). \uc751\ub2f5\uc758 \uc0ac\uc2e4 \uc815\ud655\uc131\uc774 \ubd80\uc871\ud558\uc5ec \uc0ac\uc6a9\uc790\uc5d0\uac8c \uc798\ubabb\ub41c \uc815\ubcf4\ub97c \uc81c\uacf5\ud560 \uc704\ud5d8\uc774 \uc788\uc2b5\ub2c8\ub2e4.",
+      "suggestion": "**\uc989\uc2dc \uc2e4\ud589 \uac00\ub2a5\ud55c \uac1c\uc120 \ubc29\uc548:**\n1. **\uac80\uc99d \ub2e8\uacc4 \ucd94\uac00**:\n   - RAG \uae30\ubc18 \uc791\uc5c5: \uac80\uc0c9\ub41c \ucee8\ud14d\uc2a4\ud2b8\uc640 \uc751\ub2f5\uc758 \uc77c\uce58\uc131\uc744 \uc790\ub3d9 \uac80\uc99d\ud558\ub294 \ud6c4\ucc98\ub9ac \ub2e8\uacc4 \ucd94\uac00\n   - \uacc4\uc0b0/\ucd94\ub860 \uc791\uc5c5: \uc911\uac04 \ub2e8\uacc4 \uacb0\uacfc\ub97c \uba85\uc2dc\uc801\uc73c\ub85c \ucd9c\ub825\ud558\uace0 \uac80\uc99d\n2. **Few-shot \uc608\uc2dc \uc81c\uacf5**: \uc791\uc5c5 \uc720\ud615\ubcc4\ub85c 3-5\uac1c\uc758 \uace0\ud488\uc9c8 \uc608\uc2dc\ub97c \ud504\ub86c\ud504\ud2b8\uc5d0 \ud3ec\ud568\n3. **\ud504\ub86c\ud504\ud2b8 \uad6c\uc870\ud654**:\n   - \ub2e8\uacc4\ubcc4 \uc0ac\uace0 \uacfc\uc815(Chain-of-Thought) \uc720\ub3c4\n   - \ucd5c\uc885 \ub2f5\ubcc0 \uc804 \uc790\uae30 \uac80\uc99d(Self-verification) \ub2e8\uacc4 \ucd94\uac00\n4. **Golden Dataset \ud65c\uc6a9**: \ud604\uc7ac \ud3c9\uac00 \ub370\uc774\ud130\uc14b\uc744 \uae30\ubc18\uc73c\ub85c \uc624\ub2f5 \ud328\ud134 \ubd84\uc11d \ubc0f \ud559\uc2b5 \ub370\uc774\ud130 \ubcf4\uac15\n5. **\ubaa8\ub378 \ud30c\ub77c\ubbf8\ud130 \uc870\uc815**: Temperature \ub0ae\ucd94\uae30(0.3-0.5), Top-P \uc870\uc815\uc73c\ub85c \uc77c\uad00\uc131 \ud5a5\uc0c1",
+      "impact": "**\uc608\uc0c1 \uac1c\uc120 \ud6a8\uacfc:**\n\u2022 \uc815\ud655\ub3c4 85% \ub2ec\uc131 \uc2dc \uc624\ub2f5\ub960 76.9% \u2192 15%\ub85c 61.9%p \uac10\uc18c\n\u2022 \uc0ac\uc6a9\uc790 \uc2e0\ub8b0\ub3c4 20-30% \ud5a5\uc0c1\n\u2022 \uc798\ubabb\ub41c \uc815\ubcf4\ub85c \uc778\ud55c \ube44\uc988\ub2c8\uc2a4 \ub9ac\uc2a4\ud06c 77% \uac10\uc18c\n\u2022 \uc0ac\uc2e4 \ud655\uc778 \ubc0f \uc218\uc815 \uc791\uc5c5 \uc2dc\uac04 \uc8fc\ub2f9 10-15\uc2dc\uac04 \uc808\uac10"
+    },
+    {
+      "area": "\uc751\ub2f5 \ud488\uc9c8 \uac1c\uc120",
+      "title": "\uc751\ub2f5 \ud488\uc9c8 \uc810\uc218\uac00 \ubaa9\ud45c\uce58 \ub300\ube44 2.7\uc810 \ub0ae\uc74c (5\uc810 \ub9cc\uc810)",
+      "priority": "medium",
+      "issue": "\ud604\uc7ac \ud488\uc9c8 \uc810\uc218 1.3/5.0 (\ubaa9\ud45c: 4.0 \uc774\uc0c1). \uc751\ub2f5\uc758 \uc644\uc131\ub3c4, \uad00\ub828\uc131, \uac00\ub3c5\uc131\uc774 \uc0ac\uc6a9\uc790 \uae30\ub300 \uc218\uc900\uc5d0 \ubbf8\uce58\uc9c0 \ubabb\ud558\uace0 \uc788\uc2b5\ub2c8\ub2e4.",
+      "suggestion": "**\uc989\uc2dc \uc2e4\ud589 \uac00\ub2a5\ud55c \uac1c\uc120 \ubc29\uc548:**\n1. **\uc751\ub2f5 \uad6c\uc870\ud654 \ud15c\ud50c\ub9bf \uc801\uc6a9**:\n   - \uc9c8\ubb38\ud615 \uc791\uc5c5: \uc9c1\uc811\uc801 \ub2f5\ubcc0 \u2192 \uadfc\uac70 \uc81c\uc2dc \u2192 \ucd94\uac00 \uc815\ubcf4 \uc21c\uc73c\ub85c \uad6c\uc870\ud654\n   - \ubd84\uc11d\ud615 \uc791\uc5c5: \uc694\uc57d \u2192 \uc0c1\uc138 \ubd84\uc11d \u2192 \uacb0\ub860 \ubc0f \uad8c\uc7a5\uc0ac\ud56d \uc21c\uc73c\ub85c \uad6c\uc131\n2. **\uc644\uc131\ub3c4 \uccb4\ud06c\ub9ac\uc2a4\ud2b8 \ub3c4\uc785**:\n   - \uc9c8\ubb38\uc758 \ubaa8\ub4e0 \ubd80\ubd84\uc5d0 \ub2f5\ubcc0\ud588\ub294\uac00?\n   - \uadfc\uac70\ub098 \uc608\uc2dc\uac00 \ucda9\ubd84\ud788 \uc81c\uacf5\ub418\uc5c8\ub294\uac00?\n   - \uacb0\ub860\uc774 \uba85\ud655\ud558\uac8c \uc81c\uc2dc\ub418\uc5c8\ub294\uac00?\n3. **\uad00\ub828\uc131 \uac15\ud654**:\n   - \uc81c\uacf5\ub41c \ucee8\ud14d\uc2a4\ud2b8\ub098 \uc9c8\ubb38\uc5d0\uc11c \ubc97\uc5b4\ub09c \ub0b4\uc6a9 \uc81c\uac70\n   - \ud575\uc2ec \ud0a4\uc6cc\ub4dc\ub97c \uc751\ub2f5\uc5d0 \uc790\uc5f0\uc2a4\ub7fd\uac8c \ud3ec\ud568\n4. **\uac00\ub3c5\uc131 \uac1c\uc120**:\n   - \uae34 \ubb38\uc7a5(50\uc790 \uc774\uc0c1) \ubd84\ud560\n   - \ubd88\ub9bf \ud3ec\uc778\ud2b8\ub098 \ubc88\ud638 \ub9e4\uae30\uae30 \ud65c\uc6a9\n   - \uc804\ubb38 \uc6a9\uc5b4 \uc0ac\uc6a9 \uc2dc \uac04\ub2e8\ud55c \uc124\uba85 \ucd94\uac00\n5. **\uc0ac\uc6a9\uc790 \ub9de\ucda4\ud654**: \uc751\ub2f5 \ud1a4\uacfc \ub514\ud14c\uc77c \uc218\uc900\uc744 \uc0ac\uc6a9\uc790 \ucee8\ud14d\uc2a4\ud2b8\uc5d0 \ub9de\uac8c \uc870\uc815",
+      "impact": "**\uc608\uc0c1 \uac1c\uc120 \ud6a8\uacfc:**\n\u2022 \ud488\uc9c8 \uc810\uc218 4.0/5.0 \ub2ec\uc131 \uc2dc \uc0ac\uc6a9\uc790 \uc7ac\uc9c8\ubb38\ub960 30-40% \uac10\uc18c\n\u2022 \uc751\ub2f5 \uc774\ud574\ub3c4 \ud5a5\uc0c1\uc73c\ub85c \uace0\uac1d \uc9c0\uc6d0 \ubb38\uc758 \uc8fc\ub2f9 20-30\uac74 \uac10\uc18c\n\u2022 \uc0ac\uc6a9\uc790 \uc138\uc158 \uc2dc\uac04 15-20% \uc99d\uac00 (\ub9cc\uc871\ub3c4 \ud5a5\uc0c1)\n\u2022 \uc751\ub2f5 \uc7ac\uc791\uc131 \ud544\uc694\uc131 68% \uac10\uc18c\ub85c \uc6b4\uc601 \ud6a8\uc728 \uc99d\ub300"
+    }
+  ],
+  "alerts": [
+    {
+      "severity": "high",
+      "metric": "\uc791\uc5c5 \uc644\ub8cc\uc728 (TCR)",
+      "message": "TCR\uc774 16.7%\uc785\ub2c8\ub2e4 (80.0% \uae30\uc900 \ubbf8\ub2ec)",
+      "action": "\ud504\ub86c\ud504\ud2b8\uc640 \ub3c4\uad6c \uc124\uc815\uc744 \uac80\ud1a0\ud558\uc138\uc694"
+    },
+    {
+      "severity": "critical",
+      "metric": "\uc815\ud655\ub3c4 (Accuracy)",
+      "message": "\uc815\ud655\ub3c4\uac00 23.1%\uc785\ub2c8\ub2e4 (70.0% \uae30\uc900 \ubbf8\ub2ec)",
+      "action": "\uc989\uc2dc \uac80\uc99d \ub85c\uc9c1\uc744 \uac15\ud654\ud558\uace0 \ud504\ub86c\ud504\ud2b8\ub97c \uac1c\uc120\ud558\uc138\uc694"
+    },
+    {
+      "severity": "high",
+      "metric": "\uc751\ub2f5 \ud488\uc9c8 (Quality)",
+      "message": "\ud3c9\uade0 \ud488\uc9c8\uc774 2.5/10\uc785\ub2c8\ub2e4 (6.0 \uae30\uc900 \ubbf8\ub2ec)",
+      "action": "\uc751\ub2f5 \uc644\uc131\ub3c4, \uad00\ub828\uc131, \uba85\ud655\uc131\uc744 \uac1c\uc120\ud558\uc138\uc694"
+    }
+  ],
+  "completion_tracker": {
+    "tcr": {
+      "tcr": 16.67,
+      "total_tasks": 3,
+      "full_success": 0,
+      "partial_success": 0,
+      "failures": 3,
+      "success_rate": 0.0
+    },
+    "completion_by_type": {
+      "qa": {
+        "tcr": 16.67,
+        "total_tasks": 3,
+        "full_success": 0,
+        "partial_success": 0,
+        "failures": 3,
+        "success_rate": 0.0
+      }
+    },
+    "accuracy_stats": {
+      "overall_accuracy": 23.13,
+      "median_accuracy": 25.7,
+      "min_accuracy": 14.8,
+      "max_accuracy": 28.9,
+      "std_accuracy": 7.39,
+      "high_accuracy_count": 0,
+      "low_accuracy_count": 3
+    }
+  }
+}

@@ -1,5 +1,5 @@
 """
-LangChain 에이전트 평가 예제 — Agent Evaluator v0.6.1
+LangChain 에이전트 평가 예제 — Agent Evaluator v0.6.3
 ======================================================
 
 LangChainEvaluator 를 사용해 LangChain 에이전트의 모든 레이어 지표를 수집합니다.
@@ -25,6 +25,7 @@ LangChainEvaluator 를 사용해 LangChain 에이전트의 모든 레이어 지�
 
 from __future__ import annotations
 
+import dataclasses
 import json
 import sys
 import time
@@ -38,12 +39,17 @@ sys.path.insert(0, str(project_root))
 from dotenv import load_dotenv
 load_dotenv(Path(__file__).parent / ".env")
 
-from agent_evaluator import PerformanceMonitor, TaskResult
+from agent_evaluator import PerformanceMonitor, TaskResult, create_taskresult
 from agent_evaluator.reporting import generate_comprehensive_html_report
+from agent_evaluator.integrations.framework_integrations import (
+    check_framework_availability,
+    get_installation_instructions,
+    print_framework_status,
+)
 
 
 def _load_golden(filename: str) -> list:
-    path = project_root / "results" / "golden_datasets" / filename
+    path = project_root / "data" / "golden_datasets" / filename
     with open(path, "r", encoding="utf-8") as f:
         return json.load(f)
 
@@ -161,18 +167,28 @@ def _make_attempts_log(retry_count: int, success: bool, rng: random.Random) -> l
 
 def run_langchain_evaluation():
     print("\n" + "=" * 70)
-    print("  LangChain 에이전트 평가 — Agent Evaluator v0.6.1")
+    print("  LangChain 에이전트 평가 — Agent Evaluator v0.6.3")
     print("  Layer 1/2 지표 + 보안 메트릭 전체 커버")
     print("=" * 70)
 
+    # ── 프레임워크 가용성 확인 ─────────────────────────────────────────────
+    # 실제 LangChain 통합 시 설치 여부 확인
+    # 이 예제는 시뮬레이션이므로 설치 없이도 실행됩니다
+    avail = check_framework_availability("langchain")
+    if avail.get("langchain"):
+        print("  ✅ LangChain 설치됨 — 실제 에이전트 연동 가능")
+    else:
+        print("  ℹ️  LangChain 미설치 — 시뮬레이션 모드로 실행")
+        print(f"     설치 방법: {get_installation_instructions('langchain')}")
+
     rng = random.Random(42)
 
-    # ── PerformanceMonitor 초기화 ──────────────────────────────────────────
-    monitor = PerformanceMonitor(
-        enable_hallucination_detection=True,
+    # ── PerformanceMonitor 초기화 (for_rag_evaluation 팩토리 사용) ─────────
+    # for_rag_evaluation(): hallucination_detection 기본 활성화 (RAG 최적화)
+    monitor = PerformanceMonitor.for_rag_evaluation(
+        output_dir=str(project_root / "results"),
         enable_transparency=True,
         enable_security_metrics=True,
-        output_dir=str(project_root / "results"),
     )
 
     base_time = datetime.now() - timedelta(hours=1)
@@ -193,18 +209,25 @@ def run_langchain_evaluation():
         context    = sc["context_text"]
         request    = sc["request"]
 
-        # ① TaskResult 생성
+        # ① TaskResult 생성 — create_taskresult() 헬퍼로 점수 자동 계산
         exec_time = rng.uniform(1.0, 8.0) + retry_cnt * 1.5
         in_tokens  = rng.randint(150, 600)
         out_tokens = rng.randint(100, 500)
 
-        task = TaskResult(
+        # create_taskresult(): completion_score·accuracy_score 자동 계산
+        task = create_taskresult(
             task_id=task_id,
-            task_type=task_type,
-            success=success,
-            completion_score=round(rng.uniform(0.80, 1.0) if success else rng.uniform(0.10, 0.45), 3),
-            accuracy_score=0.0,
+            question=request,
+            response=response,
+            ground_truth=gt,
             execution_time=round(exec_time, 3),
+            task_type=task_type,
+            has_error=not success,
+            error_message="external_api_connection_failed" if not success else None,
+        )
+        # 프레임워크 특화 필드 추가 (frozen dataclass → dataclasses.replace 사용)
+        task = dataclasses.replace(
+            task,
             tokens_used={
                 "input":  in_tokens,
                 "output": out_tokens,
@@ -213,7 +236,6 @@ def run_langchain_evaluation():
             },
             tool_calls=_make_tool_calls(tools_used, rng, success_rate=0.85 if success else 0.4),
             attempts=1 + retry_cnt,
-            errors=[] if success else ["external_api_connection_failed"],
             timestamp=base_time + timedelta(minutes=idx * 5),
             framework="langchain",
         )
@@ -226,8 +248,8 @@ def run_langchain_evaluation():
             task_type=task_type,
         )
 
-        # ③ record_task — TCR·Latency·Token 기록
-        monitor.record_task(task, ground_truth=gt, request=request, response=response)
+        # ③ record_task — TCR·Latency·Token 기록 (question/response/ground_truth는 task에 포함)
+        monitor.record_task(task)
 
         # ④ ResponseQualityEvaluator
         monitor.quality_evaluator.evaluate_response(

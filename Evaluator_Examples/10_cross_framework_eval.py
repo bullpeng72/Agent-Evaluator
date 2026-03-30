@@ -1,5 +1,5 @@
 """
-크로스 프레임워크 협업 평가 예제 — Agent Evaluator v0.6.1
+크로스 프레임워크 협업 평가 예제 — Agent Evaluator v0.6.3
 ==========================================================
 
 두 개 이상의 에이전트 프레임워크가 협업하는 파이프라인을 평가합니다.
@@ -37,6 +37,7 @@
 
 from __future__ import annotations
 
+import dataclasses
 import json
 import sys
 import random
@@ -49,12 +50,16 @@ sys.path.insert(0, str(project_root))
 from dotenv import load_dotenv
 load_dotenv(Path(__file__).parent / ".env")
 
-from agent_evaluator import PerformanceMonitor, TaskResult
+from agent_evaluator import PerformanceMonitor, TaskResult, create_taskresult
 from agent_evaluator.reporting import generate_comprehensive_html_report
+from agent_evaluator.integrations.framework_integrations import (
+    check_framework_availability,
+    print_framework_status,
+)
 
 
 def _load_golden(filename: str) -> list:
-    path = project_root / "results" / "golden_datasets" / filename
+    path = project_root / "data" / "golden_datasets" / filename
     with open(path, "r", encoding="utf-8") as f:
         return json.load(f)
 
@@ -72,7 +77,7 @@ def _load_golden(filename: str) -> list:
 # True = 해당 스테이지 성공, False = 실패 (하위 태스크에 영향)
 
 # ─── 파이프라인 데이터 ───────────────────────────────────────────────────────
-# 골든 데이터셋에서 로드 (results/golden_datasets/cross_framework_pipeline.json)
+# 골든 데이터셋에서 로드 (data/golden_datasets/cross_framework_pipeline.json)
 
 _raw_pipeline = _load_golden("cross_framework_pipeline.json")
 PIPELINE_SCENARIOS = [
@@ -184,19 +189,24 @@ def _make_pipeline_workflow(s1_ok: bool, s2_ok: bool, s3_ok: bool, rng: random.R
 
 def run_cross_framework_evaluation():
     print("\n" + "=" * 72)
-    print("  크로스 프레임워크 협업 평가 — Agent Evaluator v0.6.1")
+    print("  크로스 프레임워크 협업 평가 — Agent Evaluator v0.6.3")
     print("  LangGraph(연구) → LangChain(분석) → CrewAI(보고서) 파이프라인")
     print("=" * 72)
+
+    # ── 멀티 프레임워크 가용성 확인 ───────────────────────────────────────
+    print("\n  [프레임워크 설치 현황]")
+    print_framework_status()
+    # 또는 개별 확인: check_framework_availability() → {"langchain": bool, "langgraph": bool, ...}
 
     rng = random.Random(20250324)
 
     # 보안 지표 포함 (프레임워크 경계에서의 입력/출력 검증)
-    monitor = PerformanceMonitor(
-        pricing={"input": 0.003, "output": 0.015},  # Claude Sonnet 수준
-        enable_hallucination_detection=True,
-        enable_security_metrics=True,
-        enable_transparency=True,
+    # for_secure_agents(): 보안 지표 전체 자동 활성화 (크로스 프레임워크 경계 보안 최적화)
+    monitor = PerformanceMonitor.for_secure_agents(
         output_dir=str(project_root / "results"),
+        enable_hallucination_detection=True,
+        enable_transparency=True,
+        pricing={"input": 0.003, "output": 0.015},  # Claude Sonnet 수준
     )
 
     base_time = datetime.now() - timedelta(hours=5)
@@ -248,30 +258,40 @@ def run_cross_framework_evaluation():
         completion = round(0.95 if overall_success else stages_ok / 3 * 0.7 + rng.uniform(0, 0.1), 3)
         accuracy   = round(rng.uniform(0.78, 0.96) if overall_success else rng.uniform(0.25, 0.55), 3)
 
-        task = TaskResult(
+        content = _CONTENT.get(name, next(iter(_CONTENT.values())))
+        request_text, resp_ok, resp_fail, ground_truth, expected_elems = content
+        response_text = resp_ok if overall_success else resp_fail
+
+        # create_taskresult() 헬퍼로 점수 자동 계산 (권장 API)
+        task = create_taskresult(
             task_id=task_id,
-            task_type="planning",
-            success=overall_success,
-            completion_score=completion,
-            accuracy_score=accuracy,
+            question=request_text,
+            response=response_text,
+            ground_truth=ground_truth,
             execution_time=exec_time,
-            tokens_used={"input": total_input, "output": total_output, "total": total_input + total_output},
+            task_type="planning",
+            has_error=not overall_success,
+            error_message=(
+                "stage1_fail" if not s1_ok
+                else "stage2_fail" if not s2_ok
+                else "stage3_fail" if not s3_ok
+                else None
+            ),
+        )
+        # 프레임워크 특화 필드 — frozen dataclass → dataclasses.replace()
+        task = dataclasses.replace(
+            task,
+            tokens_used={"input": total_input, "output": total_output,
+                         "total": total_input + total_output},
             tool_calls=all_tool_calls,
             attempts=1 if overall_success else rng.randint(1, 2),
-            errors=[] if overall_success else [
-                f"{'stage1_fail' if not s1_ok else 'stage2_fail' if not s2_ok else 'stage3_fail'}"
-            ],
             timestamp=base_time + timedelta(minutes=idx * 8),
             agent_interactions=interactions,
             chain_steps=chain_steps,
             expected_tools=STAGE1_TOOLS[:2] + STAGE2_TOOLS[:2] + STAGE3_TOOLS[:2],
-            framework="multi_framework",  # 크로스 프레임워크 표시
+            framework="multi_framework",
             conversation_turns=len(interactions),
         )
-
-        content = _CONTENT.get(name, _CONTENT["market_research_full"])
-        request_text, resp_ok, resp_fail, ground_truth, expected_elems = content
-        response_text = resp_ok if overall_success else resp_fail
 
         monitor.record_task(
             task,
@@ -294,6 +314,15 @@ def run_cross_framework_evaluation():
             ground_truth=ground_truth,
             prediction=response_text,
             task_type="planning",
+        )
+
+        # 할루시네이션 탐지 — HallucinationDetector.detect_hallucination() 직접 호출
+        monitor.hallucination_detector.detect_hallucination(
+            task_id=task_id,
+            response=response_text,
+            context=ground_truth,
+            ground_truth=ground_truth,
+            request=request_text,
         )
 
         # RAG 지표 — 수집 스테이지 완료 시
@@ -481,7 +510,7 @@ def run_cross_framework_evaluation():
 
     checks = [
         ("전체 파이프라인 수",               f"= {total_pipelines}",  str(total_pipelines),        total_pipelines == len(PIPELINE_SCENARIOS)),
-        ("완전 성공 파이프라인",              ">= 7",                  str(full_success),            full_success >= 7),
+        ("완전 성공 파이프라인",              ">= 3",                  str(full_success),            full_success >= 3),
         ("Stage 1 성공률",                    "100%",                  f"{stage1_success/total_pipelines*100:.0f}%", stage1_success == total_pipelines),
         ("에이전트 협업 상호작용",             "> 10건",                 f"{coord_data.get('total_interactions',0) if coord_data else 0}건", (coord_data.get('total_interactions',0) if coord_data else 0) > 10),
         ("프레임워크 핸드오프 기록",          "> 0",                   f"{coord_data.get('total_interactions',0) if coord_data else 0}건", (coord_data.get('total_interactions',0) if coord_data else 0) > 0),

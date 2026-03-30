@@ -29,6 +29,11 @@ from .routers import transparency as transparency_router
 from .routers import golden as golden_router
 from .routers import config as config_router
 from .routers import webhook as webhook_router
+from .routers import conversation as conversation_router
+from .routers import alerts as alerts_router
+from .routers import feedback as feedback_router
+from .routers import anomaly as anomaly_router
+from .routers import cost as cost_router
 
 _TEMPLATES_DIR = Path(__file__).parent / "templates"
 # CDN 에셋 캐시는 사용자 홈 디렉토리에 저장 — pip 설치 경로(site-packages)는 읽기 전용일 수 있음
@@ -140,6 +145,11 @@ def create_app(
     app.include_router(golden_router.router)
     app.include_router(config_router.router)
     app.include_router(webhook_router.router)
+    app.include_router(conversation_router.router)
+    app.include_router(alerts_router.router)
+    app.include_router(feedback_router.router)
+    app.include_router(anomaly_router.router)
+    app.include_router(cost_router.router)
 
     # Templates
     templates = Jinja2Templates(directory=str(_TEMPLATES_DIR))

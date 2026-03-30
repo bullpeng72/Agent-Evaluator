@@ -1,0 +1,55 @@
+{
+  "trace_id": "trace_tcr_5569a8b3",
+  "metric_name": "tcr",
+  "metric_type": "basic",
+  "task_id": null,
+  "start_time": "2026-03-30T17:34:53.257438",
+  "steps": [
+    {
+      "step_name": "collect_tasks",
+      "description": "5개 태스크 수집",
+      "input_data": {
+        "total_tasks": 5
+      },
+      "output_data": {
+        "tasks_collected": 5
+      },
+      "status": "success",
+      "timestamp": "2026-03-30T17:34:53.257443"
+    },
+    {
+      "step_name": "count_successes",
+      "description": "성공 3 / 전체 5",
+      "input_data": {
+        "total": 5,
+        "success": 3
+      },
+      "output_data": {
+        "success_count": 3,
+        "fail_count": 2
+      },
+      "status": "success",
+      "timestamp": "2026-03-30T17:34:53.257445"
+    },
+    {
+      "step_name": "calculate_tcr",
+      "description": "TCR = Σ(completion_score)/5 × 100 = 3.0/5 × 100 = 60.0%",
+      "input_data": {
+        "weighted_completions": 3.0,
+        "total": 5
+      },
+      "output_data": {
+        "tcr": 60.0
+      },
+      "status": "success",
+      "timestamp": "2026-03-30T17:34:53.257448"
+    }
+  ],
+  "status": "completed",
+  "final_value": 60.0,
+  "metadata": {
+    "formula": "Σ(completion_score) / total_tasks × 100",
+    "task_count": 5
+  },
+  "end_time": "2026-03-30T17:34:53.257449"
+}

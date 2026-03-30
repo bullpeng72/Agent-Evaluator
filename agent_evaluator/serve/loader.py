@@ -150,6 +150,10 @@ class ResultFile:
     pricing: Dict[str, Any]
     raw: Dict[str, Any]
     llm_judge: "LLMJudgeData" = field(default_factory=LLMJudgeData)
+    conversation_sessions: List[Dict[str, Any]] = field(default_factory=list)
+    feedback_data: Dict[str, Any] = field(default_factory=dict)
+    anomaly_data: List[Dict[str, Any]] = field(default_factory=list)
+    cost_data: Dict[str, Any] = field(default_factory=dict)
 
     # ---- computed helpers ------------------------------------------------
     @property
@@ -252,6 +256,10 @@ class ResultFile:
     @property
     def has_llm_judge(self) -> bool:
         return self.llm_judge.judged_count > 0
+
+    @property
+    def has_conversations(self) -> bool:
+        return len(self.conversation_sessions) > 0
 
 
 @dataclass
@@ -507,6 +515,110 @@ def _parse_security_l2(raw: dict) -> SecurityL2:
 
 
 # ---------------------------------------------------------------------------
+# Conversation / Feedback / Cost parsing
+# ---------------------------------------------------------------------------
+
+def _parse_conversation_sessions(raw: dict) -> List[Dict[str, Any]]:
+    """conversation_sessions 파싱."""
+    sessions_raw = raw.get("conversation_sessions", [])
+    if not isinstance(sessions_raw, list):
+        return []
+    result = []
+    for s in sessions_raw:
+        if not isinstance(s, dict):
+            continue
+        metrics = s.get("metrics", {})
+        result.append({
+            "session_id": s.get("session_id", ""),
+            "turn_count": s.get("turn_count", 0),
+            "turns": s.get("turns", []),
+            "metrics": {
+                "overall_score": metrics.get("overall_score", 0.0) if isinstance(metrics, dict) else 0.0,
+                "context_retention": metrics.get("context_retention", 0.0) if isinstance(metrics, dict) else 0.0,
+                "topic_coherence": metrics.get("topic_coherence", 0.0) if isinstance(metrics, dict) else 0.0,
+                "progressive_depth": metrics.get("progressive_depth", 0.0) if isinstance(metrics, dict) else 0.0,
+                "session_completion": metrics.get("session_completion", 0.0) if isinstance(metrics, dict) else 0.0,
+                "avg_response_latency": metrics.get("avg_response_latency", 0.0) if isinstance(metrics, dict) else 0.0,
+            },
+        })
+    return result
+
+
+def _parse_feedback_data(raw: dict) -> Dict[str, Any]:
+    """피드백 데이터 파싱."""
+    fb = raw.get("feedback", {})
+    if not fb:
+        return {}
+    return {
+        "total": fb.get("total", 0),
+        "positive_count": fb.get("positive_count", 0),
+        "negative_count": fb.get("negative_count", 0),
+        "positive_rate": fb.get("positive_rate", 0.0),
+        "negative_rate": fb.get("negative_rate", 0.0),
+        "regenerate_rate": fb.get("regenerate_rate", 0.0),
+        "abandon_rate": fb.get("abandon_rate", 0.0),
+        "type_distribution": fb.get("type_distribution", {}),
+        "records": fb.get("records", []),
+    }
+
+
+def _parse_cost_data(raw: dict) -> Dict[str, Any]:
+    """비용 데이터 파싱 — budget/sampling 필드 포함."""
+    cost = raw.get("evaluation_cost", {})
+    pricing = raw.get("pricing", {})
+    if not cost and not pricing:
+        return {}
+
+    llm_judge_cost = cost.get("llm_judge_usd", 0.0)
+    total = cost.get("total_usd", llm_judge_cost)
+    budget_remaining = cost.get("budget_remaining_usd")
+    budget_per_day = cost.get("budget_per_day")
+    sample_rate = cost.get("sample_rate_current", 0.0)
+    projected = cost.get("projected_daily_usd", total)
+
+    return {
+        "total_usd": round(float(total), 6),
+        "llm_judge_usd": round(float(llm_judge_cost), 6),
+        "by_provider": cost.get("by_provider", {}),
+        "call_count": cost.get("call_count", 0),
+        "model": pricing.get("model", cost.get("model", "")),
+        "budget_per_day": budget_per_day,
+        "budget_remaining_usd": round(float(budget_remaining), 6) if budget_remaining is not None else None,
+        "sample_rate_current": float(sample_rate),
+        "projected_daily_usd": round(float(projected), 6),
+    }
+
+
+def _parse_anomaly_data(raw: dict) -> List[Dict[str, Any]]:
+    """이상 탐지 데이터 파싱.
+
+    save_to_file()은 ``anomaly_data.anomalies`` 구조로 저장한다.
+    하위 호환을 위해 최상위 ``anomalies`` 키도 지원한다.
+    """
+    nested = raw.get("anomaly_data")
+    if isinstance(nested, dict):
+        anomalies_raw = nested.get("anomalies", [])
+    else:
+        anomalies_raw = raw.get("anomalies", [])
+    if not isinstance(anomalies_raw, list):
+        return []
+    result = []
+    for a in anomalies_raw:
+        if not isinstance(a, dict):
+            continue
+        result.append({
+            "type": a.get("type", "unknown"),
+            "severity": a.get("severity", "warning"),
+            "detail": a.get("detail", a.get("message", a.get("description", ""))),
+            "detected_at": a.get("detected_at", a.get("timestamp", "")),
+            "metric": a.get("metric", ""),
+            "value": a.get("value"),
+            "threshold": a.get("threshold"),
+        })
+    return result
+
+
+# ---------------------------------------------------------------------------
 # Agentic parsing
 # ---------------------------------------------------------------------------
 
@@ -627,6 +739,16 @@ def _parse_quality_detail(raw: dict) -> QualityDetail:
 
     # Layer 3(DeepEval) 기록은 외부 평가 탭으로 분리 — 품질 탭은 Layer 1(네이티브)만 표시
     evals = [e for e in evals if e.get("source") != "deepeval"]
+
+    # Deduplicate by task_id — keep the latest evaluation per task (same task may be
+    # evaluated multiple times when record_task() auto-eval + explicit evaluate_response()
+    # are both called; duplicate keys break x-for rendering in the frontend).
+    seen: Dict[str, int] = {}  # task_id → last index
+    for i, ev in enumerate(evals):
+        tid = ev.get("task_id")
+        if tid is not None:
+            seen[tid] = i
+    evals = [evals[i] for i in sorted(seen.values())]
 
     # Aggregate dimension scores from evaluations
     dim_sums: Dict[str, float] = {}
@@ -822,6 +944,10 @@ def parse_file(path: Path) -> ResultFile:
         pricing=raw.get("pricing", {}),
         raw=raw,
         llm_judge=_parse_llm_judge(raw_tasks),
+        conversation_sessions=_parse_conversation_sessions(raw),
+        feedback_data=_parse_feedback_data(raw),
+        anomaly_data=_parse_anomaly_data(raw),
+        cost_data=_parse_cost_data(raw),
     )
 
 

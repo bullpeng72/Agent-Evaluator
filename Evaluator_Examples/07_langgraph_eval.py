@@ -1,5 +1,5 @@
 """
-LangGraph 워크플로우 평가 예제 — Agent Evaluator v0.6.1
+LangGraph 워크플로우 평가 예제 — Agent Evaluator v0.6.3
 ========================================================
 
 LangGraphEvaluator 를 사용해 LangGraph DAG 워크플로우의 모든 레이어 지표를 수집합니다.
@@ -32,6 +32,7 @@ LangGraphEvaluator 를 사용해 LangGraph DAG 워크플로우의 모든 레이�
 
 from __future__ import annotations
 
+import dataclasses
 import json
 import sys
 import time
@@ -45,12 +46,17 @@ sys.path.insert(0, str(project_root))
 from dotenv import load_dotenv
 load_dotenv(Path(__file__).parent / ".env")
 
-from agent_evaluator import PerformanceMonitor, TaskResult
+from agent_evaluator import PerformanceMonitor, TaskResult, create_taskresult
 from agent_evaluator.reporting import generate_comprehensive_html_report
+from agent_evaluator.integrations.framework_integrations import (
+    check_framework_availability,
+    get_installation_instructions,
+    print_framework_status,
+)
 
 
 def _load_golden(filename: str) -> list:
-    path = project_root / "results" / "golden_datasets" / filename
+    path = project_root / "data" / "golden_datasets" / filename
     with open(path, "r", encoding="utf-8") as f:
         return json.load(f)
 
@@ -97,7 +103,7 @@ _NODE_RESULTS: dict[str, str] = {
 }
 
 # ─── 워크플로우 템플릿 정의 ──────────────────────────────────────────────────
-# 골든 데이터셋에서 로드 (results/golden_datasets/langgraph_eval_scenarios.json)
+# 골든 데이터셋에서 로드 (data/golden_datasets/langgraph_eval_scenarios.json)
 
 WORKFLOWS = _load_golden("langgraph_eval_scenarios.json")
 
@@ -150,18 +156,26 @@ def _make_retry_log(nodes: list[dict], overall_success: bool,
 
 def run_langgraph_evaluation():
     print("\n" + "=" * 70)
-    print("  LangGraph 워크플로우 평가 — Agent Evaluator v0.6.1")
+    print("  LangGraph 워크플로우 평가 — Agent Evaluator v0.6.3")
     print("  Layer 1/2 지표 + 노드 전환 추적 + 보안 메트릭")
     print("=" * 70)
 
+    # ── 프레임워크 가용성 확인 ─────────────────────────────────────────────
+    avail = check_framework_availability("langgraph")
+    if avail.get("langgraph"):
+        print("  ✅ LangGraph 설치됨 — 실제 그래프 연동 가능")
+    else:
+        print("  ℹ️  LangGraph 미설치 — 시뮬레이션 모드로 실행")
+        print(f"     설치 방법: {get_installation_instructions('langgraph')}")
+
     rng = random.Random(7)
 
-    # ── PerformanceMonitor 초기화 ──────────────────────────────────────────
-    monitor = PerformanceMonitor(
-        enable_hallucination_detection=True,
+    # ── PerformanceMonitor 초기화 (for_rag_evaluation 팩토리 사용) ─────────
+    # for_rag_evaluation(): RAG 파이프라인 최적 설정 (hallucination 기본 활성)
+    monitor = PerformanceMonitor.for_rag_evaluation(
+        output_dir=str(project_root / "results"),
         enable_transparency=True,
         enable_security_metrics=True,
-        output_dir=str(project_root / "results"),
     )
 
     base_time = datetime.now() - timedelta(hours=1, minutes=30)
@@ -195,17 +209,21 @@ def run_langgraph_evaluation():
 
         tool_calls = _make_tool_calls_from_nodes(nodes, rng)
 
-        # ① TaskResult 생성
-        task = TaskResult(
+        # ① TaskResult 생성 — create_taskresult() 헬퍼로 점수 자동 계산
+        # create_taskresult(): completion_score·accuracy_score 자동 계산
+        task = create_taskresult(
             task_id=workflow_id,
-            task_type=task_type,
-            success=overall_success,
-            completion_score=round(
-                rng.uniform(0.78, 1.0) if overall_success else rng.uniform(0.10, 0.40),
-                3,
-            ),
-            accuracy_score=0.0,
+            question=request,
+            response=response,
+            ground_truth=gt,
             execution_time=round(exec_time, 3),
+            task_type=task_type,
+            has_error=not overall_success,
+            error_message="workflow_step_failed" if not overall_success else None,
+        )
+        # 프레임워크 특화 필드 추가 (frozen dataclass → dataclasses.replace 사용)
+        task = dataclasses.replace(
+            task,
             tokens_used={
                 "input":  in_tok,
                 "output": out_tok,
@@ -214,7 +232,6 @@ def run_langgraph_evaluation():
             },
             tool_calls=tool_calls,
             attempts=2 if has_retry else 1,
-            errors=[] if overall_success else ["workflow_step_failed"],
             timestamp=base_time + timedelta(minutes=idx * 7),
             framework="langgraph",
         )
@@ -227,8 +244,8 @@ def run_langgraph_evaluation():
             task_type=task_type,
         )
 
-        # ③ record_task
-        monitor.record_task(task, ground_truth=gt, request=request, response=response)
+        # ③ record_task (question/response/ground_truth는 task에 포함)
+        monitor.record_task(task)
 
         # ④ ResponseQualityEvaluator
         monitor.quality_evaluator.evaluate_response(

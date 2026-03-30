@@ -2220,6 +2220,6 @@ Layer 2 메트릭에 대한 질문이나 피드백이 있으시면 프로젝트 
 * * *
 
 **최종 업데이트** : 2026-03-27
-**버전** : Agent Evaluator v0.6.3
+**버전** : Agent Evaluator v0.6.5
 **프로젝트** : Agent Evaluator - AI Agent Performance Evaluation System  
 **문서** : Agentic AI Metrics Guide (Layer 2)

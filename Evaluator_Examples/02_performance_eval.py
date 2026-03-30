@@ -11,6 +11,7 @@
     python 02_performance_eval.py
 """
 
+import dataclasses
 import sys
 import random
 from pathlib import Path
@@ -22,7 +23,7 @@ sys.path.insert(0, str(project_root))
 from dotenv import load_dotenv
 load_dotenv(Path(__file__).parent / ".env")
 
-from agent_evaluator import PerformanceMonitor, TaskResult
+from agent_evaluator import PerformanceMonitor, TaskResult, create_taskresult
 from agent_evaluator.reporting import generate_comprehensive_html_report
 
 # ────────────────────────────────────────────────────────────────────────────────
@@ -212,12 +213,11 @@ def run_performance_evaluation():
 
     rng = random.Random(1234)
 
-    # GPT-4o-mini 수준 pricing
-    monitor = PerformanceMonitor(
-        pricing={"input": 0.00015, "output": 0.0006},  # per 1K tokens
-        enable_hallucination_detection=True,
-        enable_transparency=True,
+    # for_rag_evaluation(): hallucination_detection 기본 활성 (성능 + 품질 동시 측정)
+    monitor = PerformanceMonitor.for_rag_evaluation(
         output_dir=str(project_root / "results"),
+        pricing={"input": 0.00015, "output": 0.0006},  # GPT-4o-mini 수준 per 1K tokens
+        enable_transparency=True,
     )
 
     base_time = datetime.now() - timedelta(hours=4)
@@ -232,44 +232,47 @@ def run_performance_evaluation():
         exec_time = _gen_latency(lat_prof, rng)
         tokens = _gen_tokens(tok_prof, rng)
 
-        errors = []
+        error_msg = None
         if not success and not partial:
-            errors = [f"{task_type}_execution_failed"]
+            error_msg = f"{task_type}_execution_failed"
         elif lat_prof == "timeout":
-            errors = ["timeout_exceeded"]
+            error_msg = "timeout_exceeded"
 
         attempts = 1
         if comp_prof in ("low", "medium") and rng.random() < 0.4:
             attempts = rng.randint(2, 3)
 
-        task = TaskResult(
-            task_id=task_id,
-            task_type=task_type,
-            success=success,
-            completion_score=completion,
-            accuracy_score=accuracy,
-            execution_time=exec_time,
-            tokens_used=tokens,
-            tool_calls=[],
-            attempts=attempts,
-            errors=errors,
-            timestamp=base_time + timedelta(minutes=idx * 5),
-            framework="native",
-        )
-
+        # 콘텐츠 먼저 로드 (create_taskresult에 question/response/ground_truth 전달)
         req, resp_ok, resp_fail, ground_truth_text, expected_elems = _TASK_CONTENT.get(
             task_type, _TASK_CONTENT["qa"]
         )
         request_text  = req
         response_text = resp_ok if success else resp_fail
 
-        monitor.record_task(
-            task,
-            ground_truth=ground_truth_text,
-            context=ground_truth_text,
-            request=request_text,
+        # create_taskresult(): completion_score·accuracy_score 자동 계산
+        task = create_taskresult(
+            task_id=task_id,
+            question=request_text,
             response=response_text,
+            ground_truth=ground_truth_text,
+            execution_time=exec_time,
+            task_type=task_type,
+            has_error=not success and not partial,
+            error_message=error_msg,
         )
+        # 시뮬레이션 프로파일 기반 성공/점수 값으로 override
+        task = dataclasses.replace(
+            task,
+            success=success,
+            completion_score=completion,
+            accuracy_score=accuracy,
+            tokens_used=tokens,
+            attempts=attempts,
+            timestamp=base_time + timedelta(minutes=idx * 5),
+            framework="native",
+        )
+
+        monitor.record_task(task)
 
         # Response Quality — 성공 시 expected_elements 기반 5차원 품질 평가
         monitor.quality_evaluator.evaluate_response(

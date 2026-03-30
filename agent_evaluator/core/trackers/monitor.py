@@ -55,6 +55,7 @@ from .security import (
     ToolChainAttackDetector,
 )
 from .conversation import ConversationSession
+from .feedback import ImplicitFeedbackTracker
 
 logger = logging.getLogger(__name__)
 
@@ -103,6 +104,10 @@ class PerformanceMonitor:
         judge_model: Optional[str] = None,
         judge_sample_rate: float = 0.1,
         judge_budget_per_day: Optional[float] = None,
+        # Anomaly Detection (Phase 3-B)
+        enable_anomaly_detection: bool = False,
+        anomaly_baseline_window: int = 100,
+        anomaly_detection_window: int = 20,
     ):
         """
         Initialize Performance Monitor
@@ -134,6 +139,12 @@ class PerformanceMonitor:
             judge_budget_per_day: Optional USD hard cap per calendar day.  When
                 cumulative judge cost exceeds this value, further judge calls are
                 skipped with a RuntimeWarning.
+            enable_anomaly_detection: Enable automatic anomaly detection at save_to_file() time.
+                When True, AnomalyDetector.scan() is called and results are stored under
+                ``anomaly_data`` in the JSON output, making the dashboard 이상 감지 tab
+                show real data. Requires no external dependencies.
+            anomaly_baseline_window: Number of tasks used as the baseline for anomaly detection.
+            anomaly_detection_window: Number of recent tasks used for current-state comparison.
         """
         if pricing is None:
             pricing = {"input": 0.003, "output": 0.015}  # Default: Claude Sonnet 4.5
@@ -249,6 +260,11 @@ class PerformanceMonitor:
                 warnings.warn(f"LLM Judge 초기화 실패: {e}", RuntimeWarning, stacklevel=2)
                 self.enable_llm_judge = False
 
+        # Phase 3-B: 이상 감지 (opt-in)
+        self.enable_anomaly_detection = enable_anomaly_detection
+        self._anomaly_baseline_window = anomaly_baseline_window
+        self._anomaly_detection_window = anomaly_detection_window
+
         # 임계값 설정 (DataEditorManager에서 로드 가능)
         self._thresholds: Optional[Dict[str, float]] = None
         self.golden_dataset_path = None
@@ -256,6 +272,9 @@ class PerformanceMonitor:
 
         # Phase 1-C: 멀티턴 대화 세션 목록
         self.conversation_sessions: List[Any] = []
+
+        # Phase 2-C: 암묵적 피드백 트래커
+        self.feedback_tracker = ImplicitFeedbackTracker()
 
         # Thread safety: golden_datasets/conversation_sessions 동시 접근 보호
         self._lock = threading.Lock()
@@ -843,6 +862,7 @@ class PerformanceMonitor:
             self._golden_datasets.clear()
             for key in self._rag_metrics:
                 self._rag_metrics[key].clear()
+            self.feedback_tracker.reset()
 
     def _iter_trackers(self) -> Iterator[BaseTracker]:
         """Yield all initialized BaseTracker instances owned by this monitor.
@@ -1397,6 +1417,29 @@ class PerformanceMonitor:
                 self._rag_metrics['context_recall'].append(context_recall)
             if context_precision is not None:
                 self._rag_metrics['context_precision'].append(context_precision)
+
+    def record_implicit_feedback(
+        self,
+        task_id: str,
+        feedback_type: str,
+        metadata: Optional[Dict[str, Any]] = None,
+    ) -> "PerformanceMonitor":
+        """사용자 암묵적 피드백 기록.
+
+        Args:
+            task_id: 피드백 대상 태스크 ID.
+            feedback_type: 피드백 유형 ("copy", "thumbs_up", "regenerate", "thumbs_down" 등).
+            metadata: 추가 메타데이터 (선택).
+
+        Returns:
+            self (메서드 체이닝 지원).
+
+        Example::
+            monitor.record_implicit_feedback("t_001", "thumbs_up")
+            monitor.record_implicit_feedback("t_002", "regenerate")
+        """
+        self.feedback_tracker.record(task_id=task_id, feedback_type=feedback_type, metadata=metadata)
+        return self
 
     def get_rag_metrics_summary(self) -> Dict[str, Any]:
         """
@@ -2932,14 +2975,67 @@ class PerformanceMonitor:
             # Save RAG metrics
             "rag_metrics": self._rag_metrics,
             # Save advanced metrics summary (DeepEval, Ragas 등)
-            "advanced_metrics_summary": getattr(self, '_advanced_metrics_summary', {})
+            "advanced_metrics_summary": getattr(self, '_advanced_metrics_summary', {}),
+            # Phase 1-C: 멀티턴 대화 세션
+            "conversation_sessions": [
+                s.to_dict() if hasattr(s, "to_dict") else s
+                for s in self.conversation_sessions
+            ],
+            # Phase 2-C: 암묵적 피드백
+            "feedback": {
+                **self.feedback_tracker.get_stats(),
+                "records": self.feedback_tracker.feedbacks,
+            },
         }
+
+        # Phase 3-C: LLM Judge 비용 정보
+        if self.llm_judge is not None:
+            judge_summary = self.llm_judge.get_summary()
+            judge_cost = judge_summary.get("total_cost_usd", 0.0)
+            budget = self.llm_judge.budget_per_day
+            data["evaluation_cost"] = {
+                "total_usd": judge_cost,
+                "llm_judge_usd": judge_cost,
+                "call_count": judge_summary.get("count", 0),
+                "sample_rate_current": self.llm_judge.sample_rate,
+                "budget_per_day": budget,
+                "budget_remaining_usd": (
+                    round(max(0.0, budget - judge_cost), 6)
+                    if budget is not None else None
+                ),
+                "projected_daily_usd": judge_cost,
+                "by_provider": {},
+            }
 
         # Auto-add security evaluators if enabled
         if hasattr(self, 'input_sanitizer') and self.input_sanitizer is not None:
             security_data = self._get_security_evaluator_data()
             if security_data:  # Only add if there's actually security data
                 data["evaluators"]["security"] = security_data
+
+        # Phase 3-B: 이상 감지 자동 통합 (opt-in)
+        if self.enable_anomaly_detection:
+            try:
+                from ...anomaly import AnomalyDetector
+                _detector = AnomalyDetector(
+                    baseline_window=self._anomaly_baseline_window,
+                    detection_window=self._anomaly_detection_window,
+                )
+                _anomalies = _detector.scan(self)
+                data["anomaly_data"] = {
+                    "anomalies": [a.to_dict() for a in _anomalies],
+                    "scanned_at": datetime.now().isoformat(),
+                    "baseline_window": self._anomaly_baseline_window,
+                    "detection_window": self._anomaly_detection_window,
+                }
+                logger.info(
+                    "이상 감지 완료: %d개 이상 탐지 (baseline=%d, detection=%d)",
+                    len(_anomalies),
+                    self._anomaly_baseline_window,
+                    self._anomaly_detection_window,
+                )
+            except Exception as e:
+                logger.warning("이상 감지 실패 (JSON 저장은 정상): %s", e)
 
         # Always add full report data (for Dashboard compatibility)
         self._append_report_data(data)
@@ -3275,7 +3371,7 @@ class PerformanceMonitor:
             details={
                 "filepath": filename,
                 "total_tasks": n,
-                "file_size_bytes": _os.path.getsize(filename) if _os.path.exists(filename) else 0,
+                "file_size_bytes": os.path.getsize(filename) if os.path.exists(filename) else 0,
             },
             success=True,
         )

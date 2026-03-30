@@ -10,6 +10,7 @@ from __future__ import annotations
            │ Tool Selection         (F1 기반 Precision · Recall · 선택 정확도)
            │ Agent Coordination     (협업 점수(0-10) · Hub/Chain/Mesh 패턴)
            │ Workflow Execution     (단계별 성공률 · 병목 탐지 · 병렬화 기회)
+           │ ConversationSession    (맥락 유지율 · 주제 일관성 · 점진적 심화 · 세션 완결성) ← v0.6.3
 
 실행:
     python 03_agentic_eval.py
@@ -33,12 +34,14 @@ from agent_evaluator import (
     TestTransparencyManager,
     AnnotationType,
     TestStepStatus,
+    ConversationSession,
+    ConversationMetrics,
 )
 from agent_evaluator.reporting import generate_comprehensive_html_report
 
 
 def _load_golden(filename: str) -> list:
-    path = project_root / "results" / "golden_datasets" / filename
+    path = project_root / "data" / "golden_datasets" / filename
     with open(path, "r", encoding="utf-8") as f:
         return json.load(f)
 
@@ -167,7 +170,7 @@ def _make_chain_steps(steps: list[dict], rng: random.Random, fail_step: str | No
 # 시나리오 정의
 # ────────────────────────────────────────────────────────────────────────────────
 # 시나리오 데이터 — 골든 데이터셋에서 로드
-# (results/golden_datasets/agentic_tool_selection.json)
+# (data/golden_datasets/agentic_tool_selection.json)
 # ────────────────────────────────────────────────────────────────────────────────
 
 _raw_agentic = _load_golden("agentic_tool_selection.json")
@@ -238,7 +241,7 @@ def run_agentic_evaluation():
             execution_time=exec_time,
             tokens_used={"input": input_tokens, "output": output_tokens, "total": input_tokens + output_tokens},
             tool_calls=tool_calls,
-            attempts=attempts,
+            attempts=max(1, attempts),
             errors=[] if success else ["tool_mismatch" if not tool_match else "execution_error"],
             timestamp=base_time + timedelta(minutes=idx * 4),
             agent_interactions=agent_interactions,
@@ -247,7 +250,8 @@ def run_agentic_evaluation():
             framework="crewai" if len(agents) > 1 else "langchain",
         )
 
-        _content = _SCENARIO_CONTENT.get(name, _SCENARIO_CONTENT["simple_search"])
+        _fallback = next(iter(_SCENARIO_CONTENT.values()))
+        _content = _SCENARIO_CONTENT.get(name, _fallback)
         request_text, resp_ok, resp_fail, ground_truth_text, expected_elems = _content
         response_text = resp_ok if success else resp_fail
 
@@ -378,7 +382,7 @@ def run_agentic_evaluation():
     print(f"\n  [직접 ToolCallAnalyzer 호출 — 케이스별 효율성 점수]")
     for tid, calls, desc in direct_tool_cases:
         result = monitor.tool_analyzer.analyze_execution(tid, calls)
-        score       = result.get("efficiency_score", 0)
+        score       = result.get("efficiency_score") or 0
         total_calls = result.get("total_calls", 0)
         redundant   = result.get("redundant_calls", 0)
         failed      = result.get("failed_calls", 0)
@@ -499,7 +503,7 @@ def run_tool_selection_golden_demo():
     """
     Golden Dataset 파일 기반 Tool Selection 정확도 평가 데모
     ─────────────────────────────────────────────────────────
-    results/golden_datasets/agentic_tool_selection.json 을 로드하고
+    data/golden_datasets/agentic_tool_selection.json 을 로드하고
     ToolSelectionTracker 로 F1 기반 정확도를 측정합니다.
 
     각 항목의 expected_tools 와 시뮬레이션 agent 가 반환하는
@@ -509,10 +513,10 @@ def run_tool_selection_golden_demo():
 
     print("\n" + "=" * 70)
     print("  Tool Selection Golden Dataset 평가 데모")
-    print("  파일: results/golden_datasets/agentic_tool_selection.json")
+    print("  파일: data/golden_datasets/agentic_tool_selection.json")
     print("=" * 70)
 
-    golden_path = project_root / "results" / "golden_datasets" / "agentic_tool_selection.json"
+    golden_path = project_root / "data" / "golden_datasets" / "agentic_tool_selection.json"
     if not golden_path.exists():
         print(f"\n⚠️  Golden Dataset 파일이 없습니다: {golden_path}")
         return
@@ -830,6 +834,104 @@ def run_transparency_demo(monitor: PerformanceMonitor, saved_path: str):
     print(f"{'─'*70}\n")
 
 
+# ════════════════════════════════════════════════════════════════════════════════
+# 멀티턴 대화 평가 — ConversationSession (v0.6.3)
+# ════════════════════════════════════════════════════════════════════════════════
+
+def run_conversation_session_demo() -> None:
+    """ConversationSession을 이용한 멀티턴 대화 품질 측정 데모.
+
+    측정 지표:
+      - context_retention_score  : 맥락 유지율 (이전 턴 토픽을 얼마나 참조하는가)
+      - topic_coherence_score    : 주제 일관성 (세션 전체에서 주제가 흔들리지 않는가)
+      - progressive_depth_score  : 점진적 심화 (응답이 갈수록 구체적/심화되는가)
+      - session_completion_score : 세션 완결성 (마지막 응답이 주제를 마무리하는가)
+      - overall_score            : 4개 차원 가중 평균
+    """
+    print("\n" + "═" * 70)
+    print("  멀티턴 대화 평가 — ConversationSession (v0.6.3)")
+    print("═" * 70)
+
+    # ── 시나리오 1: 좋은 대화 (맥락 유지, 심화) ──────────────────────────────
+    good_session = ConversationSession(session_id="conv_good_001")
+    good_session.add_turn(
+        user="파이썬에서 비동기 처리를 어떻게 하나요?",
+        agent=(
+            "파이썬 비동기 처리는 asyncio 라이브러리를 사용합니다. "
+            "async/await 키워드로 코루틴을 정의하고 이벤트 루프에서 실행합니다."
+        ),
+    )
+    good_session.add_turn(
+        user="방금 말한 asyncio의 주요 함수들을 알려주세요.",
+        agent=(
+            "asyncio의 핵심 함수들입니다: asyncio.run()은 코루틴을 실행하는 진입점, "
+            "asyncio.gather()는 여러 코루틴을 동시 실행, asyncio.sleep()은 비동기 대기, "
+            "asyncio.create_task()는 백그라운드 태스크를 생성합니다."
+        ),
+    )
+    good_session.add_turn(
+        user="asyncio.gather와 asyncio.wait의 차이점은 무엇인가요?",
+        agent=(
+            "asyncio.gather()는 모든 코루틴을 동시 실행하고 결과를 리스트로 반환합니다. "
+            "asyncio.wait()는 완료 조건(ALL_COMPLETED, FIRST_COMPLETED 등)을 지정할 수 있어 "
+            "더 세밀한 제어가 가능합니다. 단순 병렬 실행엔 gather, 조건부 대기엔 wait를 권장합니다."
+        ),
+    )
+    good_session.add_turn(
+        user="실제 코드 예시를 보여주세요.",
+        agent=(
+            "import asyncio\n\n"
+            "async def fetch(url):\n    await asyncio.sleep(0.1)  # 네트워크 요청 시뮬레이션\n    return f'결과: {url}'\n\n"
+            "async def main():\n    urls = ['url1', 'url2', 'url3']\n"
+            "    results = await asyncio.gather(*[fetch(u) for u in urls])\n    print(results)\n\n"
+            "asyncio.run(main())"
+        ),
+    )
+
+    good_metrics: ConversationMetrics = good_session.compute_metrics()
+
+    print(f"\n  [좋은 대화 — 4턴 파이썬 asyncio 심화 세션]")
+    print(f"    맥락 유지율   : {good_metrics.context_retention:.3f}")
+    print(f"    주제 일관성   : {good_metrics.topic_coherence:.3f}")
+    print(f"    점진적 심화   : {good_metrics.progressive_depth:.3f}")
+    print(f"    세션 완결성   : {good_metrics.session_completion:.3f}")
+    print(f"    종합 점수     : {good_metrics.overall_score:.3f}  ← 높을수록 좋음")
+    print(f"    총 턴 수      : {good_metrics.turn_count}")
+
+    # ── 시나리오 2: 맥락 단절 대화 ────────────────────────────────────────────
+    poor_session = ConversationSession(session_id="conv_poor_001")
+    poor_session.add_turn(
+        user="파이썬 비동기 처리 방법은?",
+        agent="asyncio를 사용합니다.",
+    )
+    poor_session.add_turn(
+        user="자세히 알려줘.",
+        agent="네.",  # 극단적으로 짧은 응답 → 점진적 심화 낮음
+    )
+    poor_session.add_turn(
+        user="예시 코드 보여줘.",
+        agent="오늘 날씨가 좋네요.",  # 완전히 다른 주제 → 일관성 낮음
+    )
+
+    poor_metrics: ConversationMetrics = poor_session.compute_metrics()
+
+    print(f"\n  [나쁜 대화 — 맥락 단절 세션]")
+    print(f"    맥락 유지율   : {poor_metrics.context_retention:.3f}")
+    print(f"    주제 일관성   : {poor_metrics.topic_coherence:.3f}")
+    print(f"    점진적 심화   : {poor_metrics.progressive_depth:.3f}")
+    print(f"    세션 완결성   : {poor_metrics.session_completion:.3f}")
+    print(f"    종합 점수     : {poor_metrics.overall_score:.3f}  ← 좋은 세션과 비교")
+
+    # ── 비교 요약 ─────────────────────────────────────────────────────────────
+    delta = good_metrics.overall_score - poor_metrics.overall_score
+    print(f"\n  [비교 요약]")
+    print(f"    종합 점수 차이 (좋음 - 나쁨): +{delta:.3f}")
+    print(f"    → 맥락 유지·주제 일관성이 핵심 개선 포인트")
+    print(f"\n  ✅ ConversationSession: 외부 LLM 없이 순수 Python으로 대화 품질 측정")
+    print(f"     (Jaccard 유사도·top-N 토큰·한국어 조사 정규화 기반)")
+    print(f"{'─' * 70}\n")
+
+
 if __name__ == "__main__":
     # enable_transparency=True → save_to_file() 시 Traces·Audit Log 자동 생성
     saved_path = run_agentic_evaluation()
@@ -837,3 +939,5 @@ if __name__ == "__main__":
     # Annotations 데모 (수동 입력 예시 — dashboard UI로도 작성 가능)
     _demo_monitor = PerformanceMonitor(output_dir=str(project_root / "results"))
     run_transparency_demo(_demo_monitor, saved_path)
+    # 멀티턴 대화 평가 데모 (v0.6.3)
+    run_conversation_session_demo()

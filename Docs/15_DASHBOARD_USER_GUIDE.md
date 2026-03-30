@@ -2,7 +2,7 @@
 
 Agent Evaluator 실시간 평가 대시보드 — 탭별 상세 사용법
 
-**버전:** v0.6.3
+**버전:** v0.6.5
 **최종 업데이트:** 2026-03-27
 
 ---
@@ -257,7 +257,7 @@ Layer 3 DeepEval 평가 결과. `HybridPerformanceMonitor` + `enable_deepeval=Tr
 - **HTML 리포트**: 독립 실행형 리포트 파일
 
 ### Golden Dataset 관리
-- **Golden 탭**: `results/golden_datasets/` 폴더의 JSON 데이터셋 편집
+- **Golden 탭**: `data/golden_datasets/` 폴더의 JSON 데이터셋 편집
 - 질문·정답·컨텍스트 직접 편집 및 저장
 - 한국어 어미 필터링 적용 (v0.6.0에서 개선)
 

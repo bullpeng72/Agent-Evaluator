@@ -1,0 +1,46 @@
+{
+  "trace_id": "trace_accuracy_c71812be",
+  "metric_name": "accuracy",
+  "metric_type": "quality",
+  "task_id": null,
+  "start_time": "2026-03-30T17:20:43.013728",
+  "steps": [
+    {
+      "step_name": "collect_scores",
+      "description": "94개 태스크 정확도 점수 수집",
+      "input_data": {
+        "evaluations": 94
+      },
+      "output_data": {
+        "score_min": 0.0,
+        "score_max": 0.969
+      },
+      "status": "success",
+      "timestamp": "2026-03-30T17:20:43.013732"
+    },
+    {
+      "step_name": "weighted_aggregate",
+      "description": "Token Overlap 40% + Jaccard 30% + LCS 20% + Char 10% 가중 평균",
+      "input_data": {
+        "weights": {
+          "token_overlap": 0.4,
+          "jaccard": 0.3,
+          "lcs": 0.2,
+          "char": 0.1
+        }
+      },
+      "output_data": {
+        "overall_accuracy": 41.29
+      },
+      "status": "success",
+      "timestamp": "2026-03-30T17:20:43.013734"
+    }
+  ],
+  "status": "completed",
+  "final_value": 41.29,
+  "metadata": {
+    "method": "weighted_average",
+    "task_count": 94
+  },
+  "end_time": "2026-03-30T17:20:43.013735"
+}

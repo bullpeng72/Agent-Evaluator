@@ -103,7 +103,7 @@ agent-evaluator는 다음 우선순위로 결과 저장 위치를 결정합니�
     # Zero Configuration - 경로 지정 안 함!
     evaluator = KoreanRAGEvaluator()
     # → 자동으로 results/에 저장
-    # → 자동으로 results/golden_datasets/ 사용
+    # → 자동으로 data/golden_datasets/ 사용
     
     # 평가 수행
     results = evaluator.evaluate_dataset(dataset)
@@ -642,7 +642,7 @@ Dashboard는 다음 방법으로 데이터를 자동 인식합니다:
 **프로젝트 루트 감지** | 환경변수 → Git 루트 → Dashboard 폴더 (검증) → 현재 디렉토리  
 **Dashboard 검증** | `agent-eval dashboard` 실행 가능 여부 확인
 **자동 저장 경로** | `{프로젝트_루트}/results/`  
-**Golden Datasets** | `{프로젝트_루트}/results/golden_datasets/`  
+**Golden Datasets** | `{프로젝트_루트}/data/golden_datasets/`  
 **Transparency 데이터** | `{프로젝트_루트}/results/traces/`  
 **자동 레지스트리 등록** | `~/.agent_evaluator/registry.json`에 자동 등록  
 **Dashboard 통합** | Dashboard가 자동으로 데이터 인식  

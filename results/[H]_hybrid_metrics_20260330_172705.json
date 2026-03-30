@@ -1,0 +1,970 @@
+{
+  "total_tasks": 6,
+  "timestamp": "2026-03-30T17:27:05.973759",
+  "metadata": {
+    "created_at": "2026-03-30T17:27:05.973759",
+    "total_tasks": 6,
+    "providers_used": [
+      "native",
+      "deepeval",
+      "ragas"
+    ]
+  },
+  "pricing": {
+    "input": 0.003,
+    "output": 0.015
+  },
+  "tasks": [
+    {
+      "task_id": "de_qa_001",
+      "task_type": "qa",
+      "success": true,
+      "completion_score": 0.5,
+      "accuracy_score": 0.012,
+      "execution_time": 0.49,
+      "tokens_used": {
+        "input": 50,
+        "output": 40,
+        "total": 90
+      },
+      "tool_calls": [],
+      "attempts": 1,
+      "errors": [],
+      "timestamp": "2026-03-30T17:24:03.564559",
+      "advanced_metrics": {
+        "g_eval_score": 0.640316488710502,
+        "g_eval_reason": "The Actual Output correctly identifies the capital of South Korea as Seoul, which directly addresses the question posed. However, it includes additional information about Seoul that, while relevant, makes the response less concise than the Expected Output, which simply states '서울'. This additional detail detracts from the clarity and conciseness expected in the response.",
+        "g_eval_passed": true,
+        "toxicity_score": 0,
+        "toxicity_detected": false,
+        "toxicity_passed": true,
+        "bias_score": 0,
+        "bias_detected": false,
+        "bias_passed": true,
+        "answer_relevancy_score": 1.0,
+        "answer_relevancy_passed": true
+      },
+      "providers_used": [
+        "native",
+        "deepeval"
+      ],
+      "framework": "langchain",
+      "expected_tools": null,
+      "agent_interactions": null,
+      "chain_steps": null,
+      "graph_traversal": null,
+      "conversation_turns": null
+    },
+    {
+      "task_id": "de_qa_002",
+      "task_type": "qa",
+      "success": true,
+      "completion_score": 0.5,
+      "accuracy_score": 0.212,
+      "execution_time": 0.55,
+      "tokens_used": {
+        "input": 50,
+        "output": 40,
+        "total": 90
+      },
+      "tool_calls": [],
+      "attempts": 1,
+      "errors": [],
+      "timestamp": "2026-03-30T17:24:16.825455",
+      "advanced_metrics": {
+        "g_eval_score": 0.7705785034025538,
+        "g_eval_reason": "The response accurately identifies the key differences between lists and tuples, specifically their mutability and declaration syntax. It also adds relevant information about memory efficiency, which, while not in the expected output, enhances the understanding of the topic. However, it could be more concise by omitting the additional detail about memory efficiency, which is not required by the expected output.",
+        "g_eval_passed": true,
+        "toxicity_score": 0.0,
+        "toxicity_detected": false,
+        "toxicity_passed": true,
+        "bias_score": 0.0,
+        "bias_detected": false,
+        "bias_passed": true,
+        "answer_relevancy_score": 1.0,
+        "answer_relevancy_passed": true
+      },
+      "providers_used": [
+        "native",
+        "deepeval"
+      ],
+      "framework": "langchain",
+      "expected_tools": null,
+      "agent_interactions": null,
+      "chain_steps": null,
+      "graph_traversal": null,
+      "conversation_turns": null
+    },
+    {
+      "task_id": "de_reasoning_003",
+      "task_type": "reasoning",
+      "success": true,
+      "completion_score": 0.5,
+      "accuracy_score": 0.089,
+      "execution_time": 0.57,
+      "tokens_used": {
+        "input": 50,
+        "output": 40,
+        "total": 90
+      },
+      "tool_calls": [],
+      "attempts": 1,
+      "errors": [],
+      "timestamp": "2026-03-30T17:24:38.339992",
+      "advanced_metrics": {
+        "g_eval_score": 0.9043740265140725,
+        "g_eval_reason": "The Actual Output presents a balanced perspective by discussing both the positive impacts of AI, such as improved medical diagnostics and personalized education, as well as the negative aspects like job displacement and privacy concerns. It aligns well with the Expected Output's call for a balanced analysis. However, while it effectively addresses the topic, it could benefit from more specific examples to further support its claims.",
+        "g_eval_passed": true,
+        "toxicity_score": 0.0,
+        "toxicity_detected": false,
+        "toxicity_passed": true,
+        "bias_score": 0.0,
+        "bias_detected": false,
+        "bias_passed": true
+      },
+      "providers_used": [
+        "native",
+        "deepeval"
+      ],
+      "framework": "langchain",
+      "expected_tools": null,
+      "agent_interactions": null,
+      "chain_steps": null,
+      "graph_traversal": null,
+      "conversation_turns": null
+    },
+    {
+      "task_id": "rag_001_good",
+      "task_type": "qa",
+      "success": true,
+      "completion_score": 0.5,
+      "accuracy_score": 0.108,
+      "execution_time": 1.38,
+      "tokens_used": {
+        "input": 100,
+        "output": 80,
+        "total": 180
+      },
+      "tool_calls": [],
+      "attempts": 1,
+      "errors": [],
+      "timestamp": "2026-03-30T17:24:50.333607",
+      "advanced_metrics": {
+        "g_eval_score": 0.7512249846408376,
+        "g_eval_reason": "The actual output accurately identifies the three layers of the Agent Evaluator SDK and provides detailed descriptions of each layer's characteristics. However, while it aligns well with the context, it lacks mention of some specific metrics from the context, such as '도구 호출 분석' and '재시도 추적' in Layer 2, which could enhance clarity and completeness.",
+        "g_eval_passed": true,
+        "hallucination_score": 0.25,
+        "hallucination_detected": true,
+        "hallucination_passed": false,
+        "toxicity_score": 0,
+        "toxicity_detected": false,
+        "toxicity_passed": true,
+        "bias_score": 0,
+        "bias_detected": false,
+        "bias_passed": true,
+        "answer_relevancy_score": 1.0,
+        "answer_relevancy_passed": true,
+        "ragas_faithfulness": 1.0,
+        "ragas_context_precision": 0.9999999999,
+        "ragas_answer_relevancy": 0.8718392650243348,
+        "ragas_context_recall": 1.0,
+        "ragas_overall_score": 0.9679598162310837,
+        "ragas_quality": "excellent"
+      },
+      "providers_used": [
+        "native",
+        "deepeval",
+        "ragas"
+      ],
+      "framework": "langchain",
+      "expected_tools": null,
+      "agent_interactions": null,
+      "chain_steps": null,
+      "graph_traversal": null,
+      "conversation_turns": null
+    },
+    {
+      "task_id": "rag_002_good",
+      "task_type": "qa",
+      "success": true,
+      "completion_score": 0.5,
+      "accuracy_score": 0.248,
+      "execution_time": 1.19,
+      "tokens_used": {
+        "input": 100,
+        "output": 80,
+        "total": 180
+      },
+      "tool_calls": [],
+      "attempts": 1,
+      "errors": [],
+      "timestamp": "2026-03-30T17:25:34.001672",
+      "advanced_metrics": {
+        "g_eval_score": 0.8918605021856676,
+        "g_eval_reason": "The response effectively defines GIL and its relevance to CPU/I/O bound tasks, accurately explaining that GIL limits parallel execution in CPU-bound tasks while allowing thread switching in I/O-bound tasks. The context provides sufficient background information that supports this explanation. The structure is coherent, linking the input, actual output, expected output, and context well, though a slight elaboration on the implications of using the multiprocessing module could enhance clarity.",
+        "g_eval_passed": true,
+        "hallucination_score": 0.0,
+        "hallucination_detected": true,
+        "hallucination_passed": false,
+        "toxicity_score": 0.0,
+        "toxicity_detected": false,
+        "toxicity_passed": true,
+        "bias_score": 0.0,
+        "bias_detected": false,
+        "bias_passed": true,
+        "answer_relevancy_score": 1.0,
+        "answer_relevancy_passed": true,
+        "ragas_faithfulness": 1.0,
+        "ragas_context_precision": 0.9999999999666667,
+        "ragas_answer_relevancy": 0.8664364675777579,
+        "ragas_context_recall": 1.0,
+        "ragas_overall_score": 0.9666091168861062,
+        "ragas_quality": "excellent"
+      },
+      "providers_used": [
+        "native",
+        "deepeval",
+        "ragas"
+      ],
+      "framework": "langchain",
+      "expected_tools": null,
+      "agent_interactions": null,
+      "chain_steps": null,
+      "graph_traversal": null,
+      "conversation_turns": null
+    },
+    {
+      "task_id": "rag_003_hallucination",
+      "task_type": "qa",
+      "success": false,
+      "completion_score": 0.0,
+      "accuracy_score": 0.048,
+      "execution_time": 1.0,
+      "tokens_used": {
+        "input": 100,
+        "output": 80,
+        "total": 180
+      },
+      "tool_calls": [],
+      "attempts": 1,
+      "errors": [
+        "hallucination_detected"
+      ],
+      "timestamp": "2026-03-30T17:26:14.216881",
+      "advanced_metrics": {
+        "g_eval_score": 0.14802759928423223,
+        "g_eval_reason": "The actual output contains significant inaccuracies, stating that Docker containers and virtual machines are the same technology and that Docker was developed by Microsoft in 2005, which contradicts the context that specifies Docker was released in 2013 by dotCloud. The output fails to address the key differences outlined in the expected output, such as the resource usage and performance characteristics of containers versus VMs.",
+        "g_eval_passed": false,
+        "hallucination_score": 1.0,
+        "hallucination_detected": false,
+        "hallucination_passed": true,
+        "toxicity_score": 0.0,
+        "toxicity_detected": false,
+        "toxicity_passed": true,
+        "bias_score": 0.0,
+        "bias_detected": false,
+        "bias_passed": true,
+        "answer_relevancy_score": 0.0,
+        "answer_relevancy_passed": false,
+        "ragas_faithfulness": 0.0,
+        "ragas_context_precision": 0.9166666666361111,
+        "ragas_answer_relevancy": 0.8543392358029952,
+        "ragas_context_recall": 1.0,
+        "ragas_overall_score": 0.6927514756097766,
+        "ragas_quality": "good"
+      },
+      "providers_used": [
+        "native",
+        "deepeval",
+        "ragas"
+      ],
+      "framework": "langchain",
+      "expected_tools": null,
+      "agent_interactions": null,
+      "chain_steps": null,
+      "graph_traversal": null,
+      "conversation_turns": null
+    }
+  ],
+  "report": {
+    "period": "current_session",
+    "total_tasks": 6,
+    "accuracy_metrics": {
+      "tcr": {
+        "tcr": 41.67,
+        "total_tasks": 6,
+        "full_success": 0,
+        "partial_success": 0,
+        "failures": 6,
+        "success_rate": 0.0
+      },
+      "accuracy_scores": {
+        "overall_accuracy": 11.95,
+        "median_accuracy": 9.85,
+        "min_accuracy": 1.2,
+        "max_accuracy": 24.8,
+        "std_accuracy": 9.25,
+        "high_accuracy_count": 0,
+        "low_accuracy_count": 6
+      },
+      "hallucination": {
+        "overall_rate": 54.63,
+        "median_rate": 66.67,
+        "max_rate": 100.0,
+        "tasks_with_hallucinations": 6,
+        "total_tasks_checked": 9,
+        "total_evaluated": 9,
+        "total_flagged": 6,
+        "unsupported_claims_count": 8,
+        "numerical_inconsistencies_count": 1
+      },
+      "quality": {
+        "avg_total_score": 2.78,
+        "avg_grade": "F",
+        "median_total_score": 2.66,
+        "min_total_score": 0.74,
+        "max_total_score": 4.52,
+        "std_total_score": 1.21,
+        "grade_distribution": {
+          "F": 7,
+          "C": 2,
+          "D": 1,
+          "A": 1,
+          "B": 1
+        },
+        "high_quality_count": 2,
+        "total_evaluated": 12,
+        "dimension_averages": {
+          "relevance": 2.64,
+          "completeness": 3.42,
+          "accuracy": 2.21,
+          "clarity": 2.45,
+          "usefulness": 3.04
+        },
+        "dimension_scores": {
+          "relevance": 2.64,
+          "completeness": 3.42,
+          "accuracy": 2.21,
+          "clarity": 2.45,
+          "usefulness": 3.04
+        },
+        "quality_distribution": {
+          "0-3.0 (Very Poor)": 7,
+          "3.0-3.5 (Poor)": 1,
+          "3.5-4.0 (Fair)": 2,
+          "4.5-5.0 (Excellent)": 1,
+          "4.0-4.5 (Good)": 1
+        }
+      }
+    },
+    "efficiency_metrics": {
+      "latency": {
+        "mean": 0.863,
+        "median": 0.785,
+        "p50": 0.785,
+        "p95": 1.332,
+        "p99": 1.37,
+        "min": 0.49,
+        "max": 1.38,
+        "std": 0.378
+      },
+      "tokens": {
+        "total_tasks": 6,
+        "total_tokens": 810,
+        "total_input_tokens": 450,
+        "total_output_tokens": 360,
+        "total_cost": 0.0068,
+        "avg_tokens_per_task": 135.0,
+        "avg_cost_per_task": 0.0011,
+        "estimated_monthly_cost": 0.2,
+        "token_distribution": {
+          "input_ratio": 0.556,
+          "output_ratio": 0.444
+        },
+        "cost_percentiles": {
+          "p50": 0.0011,
+          "p90": 0.0015,
+          "p95": 0.0015
+        }
+      },
+      "tool_efficiency": {
+        "total_calls": 0,
+        "success_rate": 0.0,
+        "avg_duration": 0.0,
+        "avg_calls_per_task": 0.0,
+        "avg_efficiency_score": 0.0,
+        "total_redundant_calls": 0,
+        "total_failed_calls": 0,
+        "redundancy_rate": 0.0,
+        "failure_rate": 0.0
+      },
+      "retries": {
+        "total_tasks_with_retries": 0,
+        "retry_rate": 0.0,
+        "first_attempt_success_rate": 0.0,
+        "eventual_success_rate": 0.0,
+        "retry_success_count": 0,
+        "correction_success_rate": 0.0,
+        "avg_attempts_per_task": 0.0,
+        "total_retry_time": 0.0,
+        "avg_retry_time": 0.0,
+        "overall_retry_rate": 0.0,
+        "avg_retries_per_task": 0.0
+      }
+    },
+    "quality_metrics": {
+      "avg_total_score": 2.78,
+      "avg_grade": "F",
+      "median_total_score": 2.66,
+      "min_total_score": 0.74,
+      "max_total_score": 4.52,
+      "std_total_score": 1.21,
+      "grade_distribution": {
+        "F": 7,
+        "C": 2,
+        "D": 1,
+        "A": 1,
+        "B": 1
+      },
+      "high_quality_count": 2,
+      "total_evaluated": 12,
+      "dimension_averages": {
+        "relevance": 2.64,
+        "completeness": 3.42,
+        "accuracy": 2.21,
+        "clarity": 2.45,
+        "usefulness": 3.04
+      },
+      "dimension_scores": {
+        "relevance": 2.64,
+        "completeness": 3.42,
+        "accuracy": 2.21,
+        "clarity": 2.45,
+        "usefulness": 3.04
+      },
+      "quality_distribution": {
+        "0-3.0 (Very Poor)": 7,
+        "3.0-3.5 (Poor)": 1,
+        "3.5-4.0 (Fair)": 2,
+        "4.5-5.0 (Excellent)": 1,
+        "4.0-4.5 (Good)": 1
+      }
+    },
+    "security_metrics": {},
+    "alerts": [
+      {
+        "severity": "high",
+        "metric": "작업 완료율 (TCR)",
+        "message": "TCR이 41.7%입니다 (80.0% 기준 미달)",
+        "action": "프롬프트와 도구 설정을 검토하세요"
+      },
+      {
+        "severity": "critical",
+        "metric": "정확도 (Accuracy)",
+        "message": "정확도가 11.9%입니다 (70.0% 기준 미달)",
+        "action": "즉시 검증 로직을 강화하고 프롬프트를 개선하세요"
+      },
+      {
+        "severity": "critical",
+        "metric": "환각 발생률 (Hallucination)",
+        "message": "환각 발생률이 54.6%입니다 (10.0% 기준 초과)",
+        "action": "검증 프로세스와 사실 확인 절차를 즉시 강화하세요"
+      },
+      {
+        "severity": "high",
+        "metric": "응답 품질 (Quality)",
+        "message": "평균 품질이 5.6/10입니다 (6.0 기준 미달)",
+        "action": "응답 완성도, 관련성, 명확성을 개선하세요"
+      }
+    ],
+    "recommendations": [
+      {
+        "area": "작업 완료율 개선",
+        "title": "작업 완료율(TCR)이 목표치 대비 48.3%p 낮음",
+        "priority": "high",
+        "issue": "현재 TCR 41.7% (목표: 90% 이상). 전체 성공 0건, 부분 성공 0건, 실패 6건으로 실패 작업의 원인 분석이 필요합니다.",
+        "suggestion": "**즉시 실행 가능한 개선 방안:**\n1. **실패 작업 패턴 분석**: 실패한 6개 작업의 공통 오류 패턴 파악 (타임아웃, API 오류, 입력 검증 실패 등)\n2. **프롬프트 명확화**: 작업 지시사항에 구체적인 성공 기준과 출력 형식 명시\n3. **작업 분할 전략**: 복잡한 작업을 3-5개의 하위 작업으로 분할하여 단계별 검증 수행\n4. **재시도 메커니즘**: 일시적 오류(네트워크, API 제한)에 대한 지수 백오프 재시도 구현\n5. **입력 검증 강화**: 작업 실행 전 필수 파라미터와 컨텍스트 검증 로직 추가",
+        "impact": "**예상 개선 효과:**\n• TCR 목표 달성 시 연간 312건 실패 작업 감소 (주간 6건 기준)\n• 사용자 만족도 15-25% 향상 (90% TCR 달성 시)\n• 재작업 비용 절감: 실패 작업당 평균 5분 소요 시 주당 30분 절약\n• 시스템 신뢰도 향상으로 프로덕션 배포 리스크 감소"
+      },
+      {
+        "area": "정확도 개선",
+        "title": "정답 정확도가 기준치 대비 73.0%p 부족",
+        "priority": "high",
+        "issue": "현재 정확도 11.9% (목표: 85% 이상). 응답의 사실 정확성이 부족하여 사용자에게 잘못된 정보를 제공할 위험이 있습니다.",
+        "suggestion": "**즉시 실행 가능한 개선 방안:**\n1. **검증 단계 추가**:\n   - RAG 기반 작업: 검색된 컨텍스트와 응답의 일치성을 자동 검증하는 후처리 단계 추가\n   - 계산/추론 작업: 중간 단계 결과를 명시적으로 출력하고 검증\n2. **Few-shot 예시 제공**: 작업 유형별로 3-5개의 고품질 예시를 프롬프트에 포함\n3. **프롬프트 구조화**:\n   - 단계별 사고 과정(Chain-of-Thought) 유도\n   - 최종 답변 전 자기 검증(Self-verification) 단계 추가\n4. **Golden Dataset 활용**: 현재 평가 데이터셋을 기반으로 오답 패턴 분석 및 학습 데이터 보강\n5. **모델 파라미터 조정**: Temperature 낮추기(0.3-0.5), Top-P 조정으로 일관성 향상",
+        "impact": "**예상 개선 효과:**\n• 정확도 85% 달성 시 오답률 88.0% → 15%로 73.0%p 감소\n• 사용자 신뢰도 20-30% 향상\n• 잘못된 정보로 인한 비즈니스 리스크 88% 감소\n• 사실 확인 및 수정 작업 시간 주당 10-15시간 절감"
+      },
+      {
+        "area": "응답 품질 개선",
+        "title": "응답 품질 점수가 목표치 대비 1.2점 낮음 (5점 만점)",
+        "priority": "medium",
+        "issue": "현재 품질 점수 2.8/5.0 (목표: 4.0 이상). 응답의 완성도, 관련성, 가독성이 사용자 기대 수준에 미치지 못하고 있습니다.",
+        "suggestion": "**즉시 실행 가능한 개선 방안:**\n1. **응답 구조화 템플릿 적용**:\n   - 질문형 작업: 직접적 답변 → 근거 제시 → 추가 정보 순으로 구조화\n   - 분석형 작업: 요약 → 상세 분석 → 결론 및 권장사항 순으로 구성\n2. **완성도 체크리스트 도입**:\n   - 질문의 모든 부분에 답변했는가?\n   - 근거나 예시가 충분히 제공되었는가?\n   - 결론이 명확하게 제시되었는가?\n3. **관련성 강화**:\n   - 제공된 컨텍스트나 질문에서 벗어난 내용 제거\n   - 핵심 키워드를 응답에 자연스럽게 포함\n4. **가독성 개선**:\n   - 긴 문장(50자 이상) 분할\n   - 불릿 포인트나 번호 매기기 활용\n   - 전문 용어 사용 시 간단한 설명 추가\n5. **사용자 맞춤화**: 응답 톤과 디테일 수준을 사용자 컨텍스트에 맞게 조정",
+        "impact": "**예상 개선 효과:**\n• 품질 점수 4.0/5.0 달성 시 사용자 재질문률 30-40% 감소\n• 응답 이해도 향상으로 고객 지원 문의 주당 20-30건 감소\n• 사용자 세션 시간 15-20% 증가 (만족도 향상)\n• 응답 재작성 필요성 31% 감소로 운영 효율 증대"
+      },
+      {
+        "area": "G-Eval 품질 개선",
+        "issue": "G-Eval 평균 점수: 0.68 (권장: 0.7 이상)",
+        "suggestion": "품질 기준 명확화, 프롬프트 개선, 출력 구조화",
+        "impact": "전반적인 응답 품질 향상"
+      },
+      {
+        "area": "환각 감소 (컨텍스트 일치도 향상)",
+        "issue": "평균 환각 없음 점수: 0.42 (권장: 0.7 이상)",
+        "suggestion": "Temperature 낮추기, 컨텍스트 강화, 사실 확인 단계 추가, RAG 검색 품질 개선",
+        "impact": "컨텍스트에 충실한 응답으로 신뢰도 향상"
+      },
+      {
+        "area": "RAG 충실도 개선",
+        "issue": "평균 충실도: 0.67 (권장: 0.7 이상)",
+        "suggestion": "검색된 컨텍스트만 사용하도록 강제, 인용 추가, 주장 검증",
+        "impact": "컨텍스트 기반의 정확한 RAG 응답"
+      }
+    ],
+    "timestamp": "2026-03-30 17:27:05.993853",
+    "advanced_metrics_summary": {
+      "g_eval_score": {
+        "mean": 0.684397017456311,
+        "median": 0.7609017440216957,
+        "min": 0.14802759928423223,
+        "max": 0.9043740265140725,
+        "count": 6,
+        "std": 0.28034245254428714
+      },
+      "toxicity_score": {
+        "mean": 0.0,
+        "median": 0.0,
+        "min": 0.0,
+        "max": 0.0,
+        "count": 6,
+        "std": 0.0
+      },
+      "bias_score": {
+        "mean": 0.0,
+        "median": 0.0,
+        "min": 0.0,
+        "max": 0.0,
+        "count": 6,
+        "std": 0.0
+      },
+      "answer_relevancy_score": {
+        "mean": 0.8,
+        "median": 1.0,
+        "min": 0.0,
+        "max": 1.0,
+        "count": 5,
+        "std": 0.4472135954999579
+      },
+      "hallucination_score": {
+        "mean": 0.4166666666666667,
+        "median": 0.25,
+        "min": 0.0,
+        "max": 1.0,
+        "count": 3,
+        "std": 0.5204164998665332
+      },
+      "ragas_faithfulness": {
+        "mean": 0.6666666666666666,
+        "median": 1.0,
+        "min": 0.0,
+        "max": 1.0,
+        "count": 3,
+        "std": 0.5773502691896257
+      },
+      "ragas_context_precision": {
+        "mean": 0.9722222221675926,
+        "median": 0.9999999999,
+        "min": 0.9166666666361111,
+        "max": 0.9999999999666667,
+        "count": 3,
+        "std": 0.048112522411620076
+      },
+      "ragas_answer_relevancy": {
+        "mean": 0.8642049894683627,
+        "median": 0.8664364675777579,
+        "min": 0.8543392358029952,
+        "max": 0.8718392650243348,
+        "count": 3,
+        "std": 0.008960880347458506
+      },
+      "ragas_context_recall": {
+        "mean": 1.0,
+        "median": 1.0,
+        "min": 1.0,
+        "max": 1.0,
+        "count": 3,
+        "std": 0.0
+      },
+      "ragas_overall_score": {
+        "mean": 0.8757734695756555,
+        "median": 0.9666091168861062,
+        "min": 0.6927514756097766,
+        "max": 0.9679598162310837,
+        "count": 3,
+        "std": 0.15850313499617222
+      },
+      "hallucination_detection": {
+        "detected": 2,
+        "total": 3,
+        "rate": 0.6666666666666666
+      },
+      "toxicity_detection": {
+        "detected": 0,
+        "total": 6,
+        "rate": 0.0
+      },
+      "bias_detection": {
+        "detected": 0,
+        "total": 6,
+        "rate": 0.0
+      },
+      "g_eval_pass_rate": {
+        "passed": 5,
+        "total": 6,
+        "rate": 0.8333333333333334
+      },
+      "hallucination_pass_rate": {
+        "passed": 1,
+        "total": 3,
+        "rate": 0.3333333333333333
+      },
+      "toxicity_pass_rate": {
+        "passed": 6,
+        "total": 6,
+        "rate": 1.0
+      },
+      "bias_pass_rate": {
+        "passed": 6,
+        "total": 6,
+        "rate": 1.0
+      },
+      "answer_relevancy_pass_rate": {
+        "passed": 4,
+        "total": 5,
+        "rate": 0.8
+      }
+    },
+    "providers_used": [
+      "native",
+      "deepeval",
+      "ragas"
+    ]
+  },
+  "evaluators": {
+    "quality": {
+      "evaluations": [
+        {
+          "task_id": "de_qa_001",
+          "dimension_scores": {
+            "relevance": 3.333333333333333,
+            "completeness": 5.0,
+            "clarity": 0.66,
+            "accuracy": 0.0,
+            "usefulness": 2.3966666666666665
+          },
+          "total_score": 2.54,
+          "grade": "F",
+          "timestamp": "2026-03-30 17:24:03.564667"
+        },
+        {
+          "task_id": "de_qa_001",
+          "dimension_scores": {
+            "completeness": 3.2015824435525095,
+            "relevance": 3.2015824435525095,
+            "clarity": 3.2015824435525095,
+            "accuracy": 3.2015824435525095,
+            "usefulness": 3.2015824435525095
+          },
+          "total_score": 3.2015824435525095,
+          "grade": "D",
+          "timestamp": "2026-03-30 17:24:03.564559"
+        },
+        {
+          "task_id": "de_qa_002",
+          "dimension_scores": {
+            "relevance": 0.0,
+            "completeness": 5.0,
+            "clarity": 1.02,
+            "accuracy": 1.7857142857142858,
+            "usefulness": 2.4766666666666666
+          },
+          "total_score": 2.13,
+          "grade": "F",
+          "timestamp": "2026-03-30 17:24:16.825721"
+        },
+        {
+          "task_id": "de_qa_002",
+          "dimension_scores": {
+            "completeness": 3.8528925170127692,
+            "relevance": 3.8528925170127692,
+            "clarity": 3.8528925170127692,
+            "accuracy": 3.8528925170127692,
+            "usefulness": 3.8528925170127692
+          },
+          "total_score": 3.8528925170127692,
+          "grade": "C",
+          "timestamp": "2026-03-30 17:24:16.825455"
+        },
+        {
+          "task_id": "de_reasoning_003",
+          "dimension_scores": {
+            "relevance": 0.8333333333333333,
+            "completeness": 2.142857142857143,
+            "clarity": 1.6800000000000002,
+            "accuracy": 0.9783549783549783,
+            "usefulness": 2.6233333333333335
+          },
+          "total_score": 1.59,
+          "grade": "F",
+          "timestamp": "2026-03-30 17:24:38.340338"
+        },
+        {
+          "task_id": "de_reasoning_003",
+          "dimension_scores": {
+            "completeness": 4.5218701325703625,
+            "relevance": 4.5218701325703625,
+            "clarity": 4.5218701325703625,
+            "accuracy": 4.5218701325703625,
+            "usefulness": 4.5218701325703625
+          },
+          "total_score": 4.5218701325703625,
+          "grade": "A",
+          "timestamp": "2026-03-30 17:24:38.339992"
+        },
+        {
+          "task_id": "rag_001_good",
+          "dimension_scores": {
+            "relevance": 2.5,
+            "completeness": 2.8571428571428568,
+            "clarity": 2.22,
+            "accuracy": 1.1081081081081081,
+            "usefulness": 2.993333333333333
+          },
+          "total_score": 2.34,
+          "grade": "F",
+          "timestamp": "2026-03-30 17:24:50.333938"
+        },
+        {
+          "task_id": "rag_001_good",
+          "dimension_scores": {
+            "completeness": 3.7561249232041884,
+            "relevance": 3.7561249232041884,
+            "clarity": 3.7561249232041884,
+            "accuracy": 3.7561249232041884,
+            "usefulness": 3.7561249232041884
+          },
+          "total_score": 3.7561249232041884,
+          "grade": "C",
+          "timestamp": "2026-03-30 17:24:50.333607"
+        },
+        {
+          "task_id": "rag_002_good",
+          "dimension_scores": {
+            "relevance": 2.0,
+            "completeness": 4.5,
+            "clarity": 2.1,
+            "accuracy": 2.1467181467181464,
+            "usefulness": 2.716666666666667
+          },
+          "total_score": 2.78,
+          "grade": "F",
+          "timestamp": "2026-03-30 17:25:34.002002"
+        },
+        {
+          "task_id": "rag_002_good",
+          "dimension_scores": {
+            "completeness": 4.459302510928338,
+            "relevance": 4.459302510928338,
+            "clarity": 4.459302510928338,
+            "accuracy": 4.459302510928338,
+            "usefulness": 4.459302510928338
+          },
+          "total_score": 4.459302510928338,
+          "grade": "B",
+          "timestamp": "2026-03-30 17:25:34.001672"
+        },
+        {
+          "task_id": "rag_003_hallucination",
+          "dimension_scores": {
+            "relevance": 2.5,
+            "completeness": 1.0,
+            "clarity": 1.14,
+            "accuracy": 0.0,
+            "usefulness": 2.753333333333333
+          },
+          "total_score": 1.46,
+          "grade": "F",
+          "timestamp": "2026-03-30 17:26:14.217306"
+        },
+        {
+          "task_id": "rag_003_hallucination",
+          "dimension_scores": {
+            "completeness": 0.7401379964211612,
+            "relevance": 0.7401379964211612,
+            "clarity": 0.7401379964211612,
+            "accuracy": 0.7401379964211612,
+            "usefulness": 0.7401379964211612
+          },
+          "total_score": 0.7401379964211612,
+          "grade": "F",
+          "timestamp": "2026-03-30 17:26:14.216881"
+        }
+      ]
+    },
+    "hallucination": {
+      "detections": [
+        {
+          "task_id": "de_qa_001",
+          "hallucination_rate": 0.5,
+          "indicators": [
+            {
+              "type": "unsupported_claim",
+              "sentence": "서울은 약 천만 명이 거주하는 대도시로 경제·문화·정치의 중심지입니다",
+              "severity": "medium"
+            }
+          ],
+          "response_sentences": 2,
+          "question": "대한민국의 수도는 어디인가요?",
+          "context": "대한민국의 수도는 어디인가요?",
+          "timestamp": "2026-03-30 17:24:03.564637"
+        },
+        {
+          "task_id": "de_qa_002",
+          "hallucination_rate": 0.6666666666666666,
+          "indicators": [
+            {
+              "type": "unsupported_claim",
+              "sentence": "리스트는 변경 가능(mutable)하고 [] 로 선언합니다",
+              "severity": "medium"
+            },
+            {
+              "type": "unsupported_claim",
+              "sentence": "튜플은 변경 불가능(immutable)하며 () 로 선언합니다",
+              "severity": "medium"
+            }
+          ],
+          "response_sentences": 3,
+          "question": "Python 리스트와 튜플의 주요 차이점은 무엇인가요?",
+          "context": "Python 리스트와 튜플의 주요 차이점은 무엇인가요?",
+          "timestamp": "2026-03-30 17:24:16.825637"
+        },
+        {
+          "task_id": "de_reasoning_003",
+          "hallucination_rate": 1.0,
+          "indicators": [
+            {
+              "type": "unsupported_claim",
+              "sentence": "AI는 의료 진단 정확도 향상, 교육 개인화, 업무 자동화 등 긍정적 영향을 줍니다",
+              "severity": "medium"
+            },
+            {
+              "type": "unsupported_claim",
+              "sentence": "반면 일자리 대체, 알고리즘 편향, 프라이버시 침해 위험도 존재합니다",
+              "severity": "medium"
+            },
+            {
+              "type": "unsupported_claim",
+              "sentence": "균형 잡힌 규제와 윤리 가이드라인이 필요합니다",
+              "severity": "medium"
+            }
+          ],
+          "response_sentences": 3,
+          "question": "AI 기술이 사회에 미치는 영향을 설명하세요.",
+          "context": "AI 기술이 사회에 미치는 영향을 설명하세요.",
+          "timestamp": "2026-03-30 17:24:38.340214"
+        },
+        {
+          "task_id": "rag_001_good",
+          "hallucination_rate": 0.0,
+          "indicators": [],
+          "response_sentences": 4,
+          "question": "Agent Evaluator SDK의 세 가지 평가 레이어는 무엇인가요?",
+          "context": "Agent Evaluator SDK는 25개의 성능 지표를 세 개의 레이어로 측정합니다.\n\nLayer 1(Foundation Metrics)은 외부 의존성 없이 알고리즘 기반으로 태스크 완료율, 정확도, 할루시네이션, 응답 품질, 지연 시간, 토큰 비용을 측정합니다.\n\nLayer 2(Agentic Metrics)는 도구 호출 분석, 재시도 추적, 도구 선택 정확도, 멀티에이전트 협조, 워크플로우 실행, 보안 메트릭을 포함합니다.\n\nLayer 3(Hybrid Evaluation)는 HybridPerformanceMonitor를 통해 ",
+          "timestamp": "2026-03-30 17:24:50.333819"
+        },
+        {
+          "task_id": "rag_001_good",
+          "hallucination_rate": 0.75,
+          "indicators": [],
+          "timestamp": "2026-03-30 17:24:50.333607",
+          "source": "deepeval",
+          "score": 0.25,
+          "detected": true
+        },
+        {
+          "task_id": "rag_002_good",
+          "hallucination_rate": 0.0,
+          "indicators": [],
+          "response_sentences": 4,
+          "question": "Python GIL이 멀티스레딩에 미치는 영향은?",
+          "context": "GIL(Global Interpreter Lock)은 CPython 인터프리터에서 여러 스레드가 동시에 Python 객체에 접근하지 못하도록 하는 뮤텍스입니다.\n\nCPU 바운드 작업에서 멀티스레딩을 사용해도 GIL 때문에 실제 병렬 실행이 제한됩니다.\n\nI/O 바운드 작업(파일 읽기, 네트워크 요청 등)에서는 GIL이 해제되어 스레드 간 전환이 발생합니다.\n\nCPU 병렬 처리가 필요한 경우 multiprocessing 모듈을 사용하는 것이 권장됩니다.",
+          "timestamp": "2026-03-30 17:25:34.001885"
+        },
+        {
+          "task_id": "rag_002_good",
+          "hallucination_rate": 1.0,
+          "indicators": [],
+          "timestamp": "2026-03-30 17:25:34.001672",
+          "source": "deepeval",
+          "score": 0.0,
+          "detected": true
+        },
+        {
+          "task_id": "rag_003_hallucination",
+          "hallucination_rate": 1.0,
+          "indicators": [
+            {
+              "type": "unsupported_claim",
+              "sentence": "둘 다 하드웨어를 완전히 에뮬레이션하며 성능 차이가 없습니다",
+              "severity": "medium"
+            },
+            {
+              "type": "unsupported_claim",
+              "sentence": "Docker는 2005년 Microsoft가 개발했으며 Windows 전용입니다",
+              "severity": "medium"
+            },
+            {
+              "type": "numerical_inconsistency",
+              "value": "2005",
+              "severity": "high"
+            }
+          ],
+          "response_sentences": 3,
+          "question": "Docker 컨테이너와 가상머신(VM)의 차이점은?",
+          "context": "Docker 컨테이너는 호스트 OS의 커널을 공유하며 가볍고 시작이 빠릅니다.\n\n가상머신(VM)은 전체 운영체제를 포함하여 더 많은 리소스를 사용합니다.\n\nDocker는 2013년 dotCloud(현 Docker Inc.)가 오픈소스로 공개한 컨테이너 플랫폼입니다.\n\n컨테이너는 격리 수준이 VM보다 낮지만 오버헤드가 적어 배포 속도가 빠릅니다.",
+          "timestamp": "2026-03-30 17:26:14.217161"
+        },
+        {
+          "task_id": "rag_003_hallucination",
+          "hallucination_rate": 0.0,
+          "indicators": [],
+          "timestamp": "2026-03-30 17:26:14.216881",
+          "source": "deepeval",
+          "score": 1.0,
+          "detected": false
+        }
+      ]
+    },
+    "retry": {
+      "attempts": []
+    },
+    "tool_selection": {
+      "selections": []
+    },
+    "agent_coordination": {
+      "interactions": []
+    },
+    "workflow": {
+      "executions": []
+    },
+    "tool_calls": {
+      "executions": []
+    }
+  },
+  "rag_metrics": {
+    "faithfulness": [],
+    "answer_relevancy": [],
+    "context_recall": [],
+    "context_precision": []
+  }
+}

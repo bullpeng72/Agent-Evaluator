@@ -8,7 +8,7 @@ LangChain, LangGraph, CrewAI, AutoGen 통합 방법
 
 ## 버전 정보
 
-**현재 버전:** v0.6.3
+**현재 버전:** v0.6.5
 
 **최종 업데이트:** 2026-03-27
 
@@ -25,12 +25,12 @@ LangChain, LangGraph, CrewAI, AutoGen 통합 방법
 
 ### 필수 및 권장 버전
 
-**Agent Evaluator v0.6.3** 호환성 정보:
+**Agent Evaluator v0.6.5** 호환성 정보:
 
 구분 | 패키지 | 버전 요구사항 | 설치 명령
 ---|---|---|---
 **필수** | Python | 3.8+ | -
-**필수** | Agent Evaluator | 0.6.3 | `pip install agent-evaluator`
+**필수** | Agent Evaluator | 0.6.5 | `pip install agent-evaluator`
 **선택 (프레임워크)** | CrewAI | 1.0.0+ | `pip install crewai`
 **선택 (프레임워크)** | LangChain | 1.0.0+ | `pip install langchain`
 **선택 (프레임워크)** | LangGraph | 1.0.0+ | `pip install langgraph`

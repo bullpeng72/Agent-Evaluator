@@ -10,9 +10,9 @@
 
 ## 버전 정보
 
-**현재 버전:** v0.6.3
+**현재 버전:** v0.6.5
 
-**최종 업데이트:** 2026-03-27
+**최종 업데이트:** 2026-03-30
 
 **테스트된 환경:**
 
@@ -52,6 +52,10 @@
     * [**5.5 Context Managers**](<#context-managers>)
     * [**5.6 LLM 통합 헬퍼**](<#llm-helpers>)
     * [**5.7 ExampleRunner**](<#example-runner>)
+  * [**✨ Phase 1 신규 API (v0.6.3)**](<#phase1-api>)
+    * [P1.1 LLMJudge](<#llmjudge>)
+    * [P1.2 ConversationSession](<#conversationsession>)
+    * [P1.3 agent-eval gate CLI](<#agent-eval-gate>)
   * [**🔌 6. 프레임워크 통합 (v0.6.3)**](<#프레임워크-통합>)
     * [6.1 CrewAIEvaluator](<#crewai-evaluator>)
     * [6.2 LangChainEvaluator](<#langchain-evaluator>)
@@ -3249,6 +3253,184 @@ Agent Evaluator의 투명성 메서드는 "블랙박스" 평가를 "화이트박
 
 * * *
 
+## ✨ Phase 1 신규 API (v0.6.3)
+
+> LLM Judge · 멀티턴 대화 평가 · CI/CD 게이팅 — 모두 v0.6.3에서 추가되었습니다.
+
+---
+
+### P1.1 LLMJudge
+
+`ground_truth` 없이 에이전트 응답을 자동으로 채점하는 LLM-as-Judge 엔진입니다.
+
+**import:**
+```python
+from agent_evaluator import LLMJudge
+# 또는 PerformanceMonitor 파라미터로 자동 활성화:
+# PerformanceMonitor(enable_llm_judge=True, ...)
+```
+
+**생성자 파라미터:**
+
+| 파라미터 | 타입 | 기본값 | 설명 |
+|---------|------|--------|------|
+| `model` | `str \| None` | `None` | 사용할 모델 (`claude-haiku-4-5-20251001`, `gpt-4o-mini` 등). `None`이면 `agent-eval init` 설정 자동 감지 |
+| `sample_rate` | `float` | `1.0` | 평가할 태스크 비율 (0.0–1.0). 비용 제어용 |
+| `budget_per_day` | `float \| None` | `None` | 일일 예산 한도 (USD). 초과 시 judge 건너뜀 |
+
+**주요 메서드:**
+
+| 메서드 | 반환 타입 | 설명 |
+|--------|----------|------|
+| `judge(question, response, context=None)` | `dict` | 단일 응답 채점. 키: `completeness`, `relevance`, `factual_consistency` (모두 0–5), `overall` |
+| `get_summary()` | `dict` | 누적 채점 통계 (총 호출 수, 평균 점수, 총 비용 등) |
+
+**평가 차원:**
+
+| 차원 | 범위 | 설명 |
+|------|------|------|
+| `completeness` | 0–5 | 응답이 질문을 완전히 답변했는가 |
+| `relevance` | 0–5 | 응답이 질문에 관련 있는가 |
+| `factual_consistency` | 0–5 | 제공된 컨텍스트와 사실적으로 일관되는가 |
+
+**사용 예시:**
+```python
+from agent_evaluator import LLMJudge
+
+judge = LLMJudge(model="gpt-4o-mini", sample_rate=0.1, budget_per_day=5.0)
+
+score = judge.judge(
+    question="머신러닝과 딥러닝의 차이를 설명해주세요.",
+    response="머신러닝은 데이터에서 패턴을 학습하는 AI 기법이고, 딥러닝은 신경망을 활용하는 머신러닝의 하위 분야입니다.",
+)
+# → {"completeness": 4.5, "relevance": 5.0, "factual_consistency": 4.8, "overall": 4.77}
+
+# PerformanceMonitor 통합 (자동 트리거)
+monitor = PerformanceMonitor(
+    enable_llm_judge=True,
+    judge_model="gpt-4o-mini",
+    judge_sample_rate=0.1,
+    judge_budget_per_day=5.0,
+)
+# record_task() 시 question+response가 있으면 자동으로 judge 호출
+```
+
+---
+
+### P1.2 ConversationSession
+
+멀티턴 대화형 에이전트의 품질을 측정하는 평가 세션입니다. 외부 LLM 없이 순수 Python (Jaccard·top-N 토큰·한국어 조사 정규화)으로 동작합니다.
+
+**import:**
+```python
+from agent_evaluator import ConversationSession, ConversationMetrics, ConversationTurn
+```
+
+#### ConversationSession
+
+| 메서드 | 파라미터 | 설명 |
+|--------|---------|------|
+| `__init__(session_id)` | `session_id: str` | 세션 초기화 |
+| `add_turn(user_input, agent_response, metadata=None)` | `str, str, dict\|None` | 대화 턴 추가 |
+| `compute_metrics()` | — | `ConversationMetrics` 반환. 2턴 미만이면 `InvalidOperationError` |
+| `turns` | `list[ConversationTurn]` | (읽기 전용 property) 전체 턴 목록 |
+
+**컨텍스트 매니저 (PerformanceMonitor 통합):**
+```python
+with monitor.conversation("session_001") as conv:
+    r1 = agent.chat("질문1")
+    conv.turn(user="질문1", agent=r1)
+    r2 = agent.chat("질문2")
+    conv.turn(user="질문2", agent=r2)
+# 세션 종료 시 metrics 자동 계산 및 monitor.conversation_sessions에 저장
+```
+
+#### ConversationMetrics
+
+`compute_metrics()` 반환값. `to_dict()` / `from_dict()` 직렬화 지원.
+
+| 필드 | 타입 | 설명 |
+|------|------|------|
+| `context_retention_score` | `float` | 맥락 유지율 (0–1). 이전 턴 핵심 토큰을 얼마나 참조하는가 |
+| `topic_coherence_score` | `float` | 주제 일관성 (0–1). 세션 전체에서 주제가 흔들리지 않는가 |
+| `progressive_depth_score` | `float` | 점진적 심화 (0–1). 응답이 갈수록 구체적/심화되는가 |
+| `session_completion_score` | `float` | 세션 완결성 (0–1). 마지막 응답이 주제를 마무리하는가 |
+| `avg_response_quality` | `float` | 평균 응답 품질 (0–1). 응답 길이·복잡도 기반 |
+| `overall_score` | `float` | 4개 차원 가중 평균 (0–1) |
+| `total_turns` | `int` | 총 턴 수 |
+| `avg_latency_ms` | `float` | 턴별 평균 지연시간 (ms). metadata에 latency 있을 때만 |
+
+**사용 예시:**
+```python
+from agent_evaluator import ConversationSession
+
+session = ConversationSession("conv_001")
+session.add_turn("파이썬 비동기 처리 방법은?", "asyncio를 사용합니다...")
+session.add_turn("asyncio.gather 사용 예시를 보여주세요.", "import asyncio...")
+session.add_turn("asyncio.wait와의 차이점은?", "gather는 결과 리스트 반환, wait는 완료 조건 지정 가능합니다.")
+
+metrics = session.compute_metrics()
+print(f"맥락 유지율: {metrics.context_retention_score:.3f}")
+print(f"종합 점수:   {metrics.overall_score:.3f}")
+```
+
+---
+
+### P1.3 agent-eval gate CLI
+
+CI/CD 파이프라인에서 평가 결과 파일을 읽어 품질 임계값 기준으로 합격/실패를 판정합니다.
+
+**기본 사용:**
+```bash
+agent-eval gate results/eval_result.json [옵션]
+```
+
+**주요 옵션:**
+
+| 옵션 | 타입 | 설명 |
+|------|------|------|
+| `--tcr N` | float | Task Completion Rate 최솟값 (%) |
+| `--accuracy N` | float | 정확도 최솟값 (%) |
+| `--p95-latency N` | float | P95 지연시간 최댓값 (초) |
+| `--hallucination N` | float | 환각 탐지율 최댓값 (%) |
+| `--llm-judge N` | float | LLM Judge 종합 점수 최솟값 (0–5) |
+| `--fail-on-regression N` | float | 기준선 대비 허용 하락 비율 (%) 초과 시 종료 코드 2 |
+| `--save-baseline PATH` | path | 현재 결과를 기준선으로 저장 |
+| `--baseline PATH` | path | 비교 기준선 파일 경로 |
+| `--junit-xml PATH` | path | JUnit XML 리포트 출력 |
+
+**종료 코드:**
+
+| 코드 | 의미 |
+|------|------|
+| `0` | 모든 기준 통과 |
+| `1` | 임계값 기준 미달 |
+| `2` | 이전 기준선 대비 회귀 감지 |
+
+**GitHub Actions 통합 예시:**
+```yaml
+- name: Run Agent Evaluation
+  run: python run_eval.py --output results/ci_run.json
+
+- name: Quality Gate
+  run: |
+    agent-eval gate results/ci_run.json \
+      --tcr 85 \
+      --accuracy 70 \
+      --p95-latency 3.0 \
+      --hallucination 5 \
+      --fail-on-regression 10 \
+      --junit-xml results/gate_report.xml
+
+- name: Publish Gate Results
+  uses: mikepenz/action-junit-report@v4
+  if: always()
+  with:
+    report_paths: results/gate_report.xml
+```
+
+* * *
+
 ## 🔌 6. 프레임워크 통합 (v0.6.3)
 
 #### 5.4 보안 헬퍼 함수
@@ -3365,7 +3547,7 @@ Agent Evaluator의 투명성 메서드는 "블랙박스" 평가를 "화이트박
 
 * * *
 
-Agent Evaluator v0.6.3은 CrewAI, LangChain, LangGraph, AutoGen 등 주요 AI 프레임워크에 대한 고급 통합 기능을 제공합니다. 모든 통합은 **Layer 1/2/3 메트릭을 완전히 지원** 하며, 동적 계산 및 자동 추적 기능을 갖추고 있습니다.
+Agent Evaluator v0.6.5은 CrewAI, LangChain, LangGraph, AutoGen 등 주요 AI 프레임워크에 대한 고급 통합 기능을 제공합니다. 모든 통합은 **Layer 1/2/3 메트릭을 완전히 지원** 하며, 동적 계산 및 자동 추적 기능을 갖추고 있습니다.
 
 ### 주요 특징
 

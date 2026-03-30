@@ -3,7 +3,7 @@
 [![PyPI version](https://img.shields.io/pypi/v/agent-evaluator.svg)](https://pypi.org/project/agent-evaluator/)
 [![Python Version](https://img.shields.io/badge/python-3.8%2B-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Version](https://img.shields.io/badge/version-0.6.3-green.svg)](https://github.com/bullpeng72/Agent-Evaluator)
+[![Version](https://img.shields.io/badge/version-0.6.5-green.svg)](https://github.com/bullpeng72/Agent-Evaluator)
 
 **AI 에이전트를 위한 프로덕션 레디 평가 프레임워크**
 
@@ -249,7 +249,44 @@ task = claude.evaluate_claude_call(
 )
 ```
 
-### 4. 보안 지표 활성화
+### 4. LLM-as-Judge (ground_truth 없이 자동 채점)
+
+```python
+from agent_evaluator import PerformanceMonitor
+
+monitor = PerformanceMonitor(
+    enable_llm_judge=True,
+    judge_sample_rate=0.1,    # 10% 샘플링 (비용 제어)
+    judge_budget_per_day=5.0, # 일 $5 한도
+)
+
+task = create_taskresult(
+    task_id="open_q_001",
+    question="머신러닝과 딥러닝의 차이를 설명해주세요.",
+    response="머신러닝은...",   # ground_truth 없어도 Judge가 3차원 채점
+    execution_time=1.5
+)
+monitor.record_task(task)
+# → completeness / relevance / factual_consistency 자동 측정
+```
+
+### 5. 멀티턴 대화 평가
+
+```python
+from agent_evaluator import ConversationSession
+
+session = ConversationSession(session_id="chat_001")
+session.add_turn(user_input="파이썬 비동기 처리 방법 알려줘", agent_response="asyncio를 사용합니다...")
+session.add_turn(user_input="방금 설명한 방법의 단점은?", agent_response="복잡성이 증가합니다...")
+session.add_turn(user_input="asyncio.gather 예시 코드 보여줘", agent_response="import asyncio...")
+
+metrics = session.compute_metrics()
+print(f"맥락 유지율: {metrics.context_retention_score:.2f}")
+print(f"주제 일관성: {metrics.topic_coherence_score:.2f}")
+print(f"종합 점수:   {metrics.overall_score:.2f}")
+```
+
+### 6. 보안 지표 활성화
 
 ```python
 monitor = PerformanceMonitor(
@@ -359,6 +396,7 @@ results/
 | `agent-eval init` | 대화형 API 키 설정 마법사 |
 | `agent-eval check` | 현재 설정 상태 및 API 키 확인 |
 | `agent-eval dashboard` | FastAPI 대시보드 웹 서버 실행 |
+| `agent-eval gate <result.json>` | CI/CD 품질 게이트 — 임계값 미달 시 exit code 1 반환 |
 | `agent-eval --version` | 패키지 버전 출력 |
 
 ### `agent-eval init`
@@ -387,7 +425,7 @@ agent-eval check
 
 출력 예시:
 ```
-  Agent Evaluator v0.6.3 — 설정 상태
+  Agent Evaluator v0.6.5 — 설정 상태
   ──────────────────────────────────────────────────
 ℹ  .env 로드: /home/user/project/.env
 
@@ -407,6 +445,42 @@ API 키 상태:
   LANGCHAIN_PROJECT                    agent-evaluator
 
   'agent-eval init' 을 실행하면 누락된 키를 설정할 수 있습니다.
+```
+
+### `agent-eval gate`
+
+평가 결과 파일을 읽고 품질 임계값 기준으로 합격/실패를 판정합니다. CI/CD 파이프라인에서 릴리스 게이팅에 사용합니다.
+
+```bash
+agent-eval gate results/ci_run.json \
+  --tcr 85 \
+  --accuracy 70 \
+  --p95-latency 3.0 \
+  --hallucination 5 \
+  --llm-judge 3.5 \
+  --fail-on-regression 10
+```
+
+| 옵션 | 설명 |
+|------|------|
+| `--tcr N` | Task Completion Rate 최소값 (%) |
+| `--accuracy N` | 정확도 최소값 (%) |
+| `--p95-latency N` | P95 지연시간 최대값 (초) |
+| `--hallucination N` | 환각 탐지율 최대값 (%) |
+| `--llm-judge N` | LLM Judge 종합 점수 최소값 (0–5) |
+| `--fail-on-regression N` | 이전 기준선 대비 허용 하락 비율 (%) |
+| `--save-baseline PATH` | 현재 결과를 기준선으로 저장 |
+| `--baseline PATH` | 비교 기준선 파일 경로 |
+| `--junit-xml PATH` | JUnit XML 리포트 출력 (CI 시스템 연동) |
+
+**종료 코드:** `0` = 전체 통과 / `1` = 임계값 미달 / `2` = 회귀 감지
+
+```yaml
+# GitHub Actions 예시
+- name: Agent Quality Gate
+  run: |
+    python run_eval.py --output results/ci.json
+    agent-eval gate results/ci.json --tcr 85 --accuracy 70 --p95-latency 3.0
 ```
 
 ### `agent-eval dashboard`
@@ -496,9 +570,13 @@ FastAPI + Alpine.js 기반 SPA 웹 대시보드로 평가 결과를 시각화합
 | 25 | Toxicity Score (DeepEval) | 📊 품질 · 🟣 통합 | DeepEval 탭 |
 | 26 | Bias Score (DeepEval) | 📊 품질 · 🟣 통합 | DeepEval 탭 |
 | 27 | Hallucination Score (DeepEval) | 📊 품질 · 🟣 통합 | DeepEval 탭 |
+| 28 | LLM Judge — Completeness | 📊 품질 · 🔵 기본 | Quality 탭 > LLM Judge 섹션 |
+| 29 | LLM Judge — Relevance | 📊 품질 · 🔵 기본 | Quality 탭 > LLM Judge 섹션 |
+| 30 | LLM Judge — Factual Consistency | 📊 품질 · 🔵 기본 | Quality 탭 > LLM Judge 섹션 |
 
 > **참고:** 1-4번(TCR·Accuracy·Hallucination)은 **Overview** KPI 카드에도 요약 표시됩니다.
 > Ragas 4종(19-22번)은 🟡 심화와 🟣 통합 > Ragas 탭 양쪽에서 확인 가능합니다.
+> LLM Judge 3종(28-30번)은 `enable_llm_judge=True` 설정 시 Quality 탭에 표시됩니다.
 
 ---
 
@@ -508,7 +586,14 @@ FastAPI + Alpine.js 기반 SPA 웹 대시보드로 평가 결과를 시각화합
 agent-evaluator/
 ├── agent_evaluator/              # 메인 패키지
 │   ├── core/
-│   │   ├── agent_evaluator.py   # 16개 트래커 + PerformanceMonitor
+│   │   ├── trackers/            # 트래커 서브패키지 (v0.6.3에서 분리)
+│   │   │   ├── base.py          # TaskResult, EvaluationReport, TaskType
+│   │   │   ├── layer1.py        # Foundation 지표 6종
+│   │   │   ├── layer2.py        # Agentic 지표 5종
+│   │   │   ├── security.py      # 보안 지표 5종
+│   │   │   ├── monitor.py       # PerformanceMonitor (중앙 오케스트레이터)
+│   │   │   ├── conversation.py  # ConversationSession·ConversationMetrics
+│   │   │   └── feedback.py      # ImplicitFeedbackTracker
 │   │   ├── hybrid_monitor.py    # HybridPerformanceMonitor
 │   │   └── monitor_context.py   # Context managers
 │   ├── integrations/
@@ -517,6 +602,7 @@ agent-evaluator/
 │   │   ├── langgraph_integration.py
 │   │   ├── autogen_integration.py
 │   │   ├── llm_helpers.py       # LLMHelper (OpenAI), ClaudeHelper (Anthropic)
+│   │   ├── llm_judge.py         # LLMJudge — LLM-as-Judge 평가 엔진 (v0.6.3)
 │   │   ├── metric_adapters.py   # DeepEval / Ragas / LangSmith 어댑터
 │   │   └── framework_integrations.py
 │   ├── helpers/
@@ -524,23 +610,36 @@ agent-evaluator/
 │   ├── reporting/
 │   │   └── comprehensive_report.py  # HTML/텍스트 리포트 생성기
 │   ├── datasets/
+│   │   ├── builder.py                       # GoldenSetBuilder — 골든 데이터셋 빌더
 │   │   ├── korean_rag_dataset_generator.py  # 한국어 RAG 데이터셋 생성
 │   │   └── korean_rag_evaluator.py          # 한국어 RAG 평가
+│   ├── anomaly/                 # 이상 탐지 (Phase 3-B)
+│   │   └── detector.py          # AnomalyDetector, AnomalyEvent
+│   ├── streaming/               # 스트리밍 평가 (Phase 2-A, serve extras 필요)
+│   │   ├── evaluator.py         # StreamingEvaluator
+│   │   └── middleware.py        # AgentEvalMiddleware
+│   ├── alerts/                  # 알림 시스템 (Phase 2-B, serve extras 필요)
+│   │   ├── engine.py            # AlertEngine, AlertRule, AlertEvent
+│   │   └── handlers.py          # SlackHandler, WebhookHandler, EmailHandler
+│   ├── cost/                    # 비용 최적화 (Phase 3-C)
+│   │   └── tracker.py           # CostTracker, AdaptivePolicy, SamplingStage
 │   ├── serve/                   # FastAPI 대시보드 서버
 │   │   ├── server.py            # FastAPI app 진입점
 │   │   ├── loader.py            # 평가 결과 로더
 │   │   ├── watcher.py           # 파일 변경 감시
 │   │   └── routers/             # API 라우터 (data, export, golden, stream, transparency, config, webhook)
 │   ├── cli/
-│   │   └── main.py              # agent-eval CLI 진입점
+│   │   ├── main.py              # agent-eval CLI 진입점
+│   │   └── gate.py              # agent-eval gate — CI/CD 품질 게이팅
 │   ├── utils/
 │   │   ├── dashboard_integration.py
 │   │   ├── data_registry.py
 │   │   ├── path_helpers.py
 │   │   └── transparency_manager.py       # TestTransparencyManager 프로덕션 클래스
+│   ├── exceptions.py            # 예외 계층 (AgentEvaluatorError 외 6종)
 │   └── config.py                # 환경변수 설정 로더
 │
-├── Evaluator_Examples/              # 카테고리별 평가 예제 (10개)
+├── Evaluator_Examples/              # 카테고리별 평가 예제 (15개)
 │   ├── 01_quality_eval.py           # 품질 지표 — Accuracy, Hallucination, Quality, RAG
 │   ├── 02_performance_eval.py       # 성능 지표 — TCR, Latency, Token Economy
 │   ├── 03_agentic_eval.py           # 에이전틱 지표 — Tool Call, Coordination, Workflow
@@ -550,9 +649,14 @@ agent-evaluator/
 │   ├── 07_langgraph_eval.py         # LangGraph 프레임워크 통합 예제
 │   ├── 08_crewai_eval.py            # CrewAI 프레임워크 통합 예제
 │   ├── 09_autogen_eval.py           # AutoGen 프레임워크 통합 예제
-│   └── 10_cross_framework_eval.py   # 멀티 프레임워크 비교 평가
+│   ├── 10_cross_framework_eval.py   # 멀티 프레임워크 비교 평가
+│   ├── 11_streaming_eval.py         # 스트리밍 평가 예제
+│   ├── 12_alerting_eval.py          # 알림 시스템 예제
+│   ├── 13_golden_set_build.py       # 골든 데이터셋 빌더 예제
+│   ├── 14_anomaly_cost_eval.py      # 이상 탐지 + 비용 최적화 예제
+│   └── 15_conversation_eval.py      # 멀티턴 대화 평가 예제
 │
-├── tests/                        # 단위 테스트 (410개 테스트 함수, 23개 파일)
+├── tests/                        # 단위 테스트 (920개 테스트 함수, 36개 파일)
 │   ├── test_accuracy_evaluator.py
 │   ├── test_hallucination_detector.py
 │   ├── test_input_sanitization.py
@@ -565,20 +669,31 @@ agent-evaluator/
 
 ## 예제 가이드
 
-5개의 예제 파일로 Layer 1/2/3 전체 지표를 검증할 수 있습니다.
+15개의 예제 파일로 Layer 1/2/3 전체 지표를 검증할 수 있습니다.
 
 ```bash
 cd Evaluator_Examples
+
+# Layer 1/2/3 기본 평가
 python 01_quality_eval.py          # 품질 지표 — Accuracy, Hallucination, Quality, RAG
 python 02_performance_eval.py      # 성능 지표 — TCR, Latency (p50/p95/p99), Token Economy
 python 03_agentic_eval.py          # 에이전틱 지표 — Tool Call, Coordination, Workflow, Retry
 python 04_security_eval.py         # 보안 지표 — Input Sanitization, Leakage, Auth, Escalation, Attack
 python 05_hybrid_eval.py           # 하이브리드 평가 — DeepEval, Ragas, LangSmith 통합 (API 키 필요)
+
+# 프레임워크 통합
 python 06_langchain_eval.py        # LangChain 통합 예제
 python 07_langgraph_eval.py        # LangGraph 통합 예제
 python 08_crewai_eval.py           # CrewAI 통합 예제
 python 09_autogen_eval.py          # AutoGen 통합 예제
 python 10_cross_framework_eval.py  # 멀티 프레임워크 비교
+
+# 고급 기능 (Phase 2/3)
+python 11_streaming_eval.py        # 스트리밍 평가 (serve extras 필요)
+python 12_alerting_eval.py         # 알림 시스템 예제 (serve extras 필요)
+python 13_golden_set_build.py      # 골든 데이터셋 빌더
+python 14_anomaly_cost_eval.py     # 이상 탐지 + 비용 최적화
+python 15_conversation_eval.py     # 멀티턴 대화 평가
 
 # 대시보드 실행 (결과 자동 반영)
 agent-eval dashboard --watch
@@ -592,7 +707,7 @@ agent-eval dashboard --watch
 from agent_evaluator import (
     # 핵심 클래스
     PerformanceMonitor,      # 중앙 오케스트레이터
-    TaskResult,              # 태스크 실행 결과 (18개 필드)
+    TaskResult,              # 태스크 실행 결과 (24개 필드)
     TaskType,                # QA / CODE_GENERATION / REASONING 등 10종
     EvaluationReport,        # 집계 평가 리포트
 
@@ -605,6 +720,12 @@ from agent_evaluator import (
     create_taskresult,       # TaskResult 간편 생성 함수
     evaluation_session,      # 컨텍스트 매니저 (기본)
     hybrid_evaluation_session,
+
+    # LLM Judge + 대화 평가
+    LLMJudge,                # LLM-as-Judge 평가 엔진 (ground_truth 없이 자동 채점)
+    ConversationSession,     # 멀티턴 대화 평가
+    ConversationMetrics,     # 대화 평가 지표 (맥락유지·일관성·심화도 등)
+    ConversationTurn,        # 단일 대화 턴
 
     # LLM 헬퍼
     LLMHelper,               # OpenAI 평가 헬퍼
@@ -703,7 +824,7 @@ MIT License — 자세한 내용은 [LICENSE](LICENSE) 파일을 참고하세요
   title   = {Agent Evaluator: Production-ready evaluation framework for AI agents},
   author  = {Kim, Sungwoo},
   year    = {2026},
-  version = {0.6.3},
+  version = {0.6.5},
   url     = {https://github.com/bullpeng72/Agent-Evaluator},
   license = {MIT}
 }

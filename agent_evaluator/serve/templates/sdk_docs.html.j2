@@ -125,6 +125,10 @@ hr{border:none;border-top:1px solid var(--border);margin:20px 0}
   <div class="nav-group">Layer 3 — Hybrid</div>
   <a class="nav-item" href="#hybrid">HybridPerformanceMonitor</a>
   <a class="nav-item" href="#adapters">외부 어댑터 (3종)</a>
+  <div class="nav-group">✨ Phase 1 신규 (v0.6.3)</div>
+  <a class="nav-item" href="#llm-judge">LLMJudge <span class="tag">new</span></a>
+  <a class="nav-item" href="#conversation">ConversationSession <span class="tag">new</span></a>
+  <a class="nav-item" href="#gate-cli">agent-eval gate <span class="tag">CLI</span></a>
   <div class="nav-group">프레임워크 통합</div>
   <a class="nav-item" href="#frameworks">CrewAI / LangChain / LangGraph / AutoGen</a>
   <a class="nav-item" href="#llm-helpers">LLMHelper / ClaudeHelper</a>
@@ -978,6 +982,110 @@ monitor.<span class="fn">save_to_file</span>(<span class="st">"hybrid_eval"</spa
     </tbody>
   </table>
   <div class="note warn" style="margin-top:12px">💰 Layer 3 어댑터는 OpenAI API를 호출하므로 비용이 발생합니다. 대량 평가 시 <code>gpt-4o-mini</code> 등 저비용 모델 사용을 권장합니다.</div>
+</section>
+
+<!-- ── Phase 1 신규 API ── -->
+<section class="sec" id="llm-judge">
+  <div class="sec-title">✨ LLMJudge <span style="font-size:13px;font-weight:400;color:var(--text2);margin-left:8px">v0.6.3 신규</span></div>
+  <div class="sec-sub"><code>ground_truth</code> 없이 LLM이 직접 응답 품질을 3차원(완결성·관련성·사실 일관성) 채점합니다. OpenAI / Anthropic Claude 모두 지원.</div>
+  <div class="cls-card">
+    <div class="cls-head"><span class="cls-name">LLMJudge</span><span class="kind cls">class</span><span class="cls-src">integrations/llm_judge.py</span></div>
+    <div class="cls-desc">비용 제어 샘플링(<code>sample_rate</code>)과 일일 예산 한도(<code>budget_per_day</code>)를 내장한 LLM-as-Judge 엔진.</div>
+    <div class="cls-body">
+      <table class="mtable"><thead><tr><th>파라미터</th><th>타입</th><th>기본값</th><th>설명</th></tr></thead><tbody>
+        <tr><td><span class="p">model</span></td><td><span class="t">str|None</span></td><td><span class="r">None</span></td><td><code>agent-eval init</code> 설정 자동 감지. 명시 시 해당 모델 사용</td></tr>
+        <tr><td><span class="p">sample_rate</span></td><td><span class="t">float</span></td><td><span class="r">1.0</span></td><td>평가 비율 (0–1). 비용 제어용</td></tr>
+        <tr><td><span class="p">budget_per_day</span></td><td><span class="t">float|None</span></td><td><span class="r">None</span></td><td>일일 예산 한도 (USD). 초과 시 judge 건너뜀</td></tr>
+      </tbody></table>
+      <table class="mtable" style="margin-top:12px"><thead><tr><th>메서드</th><th>반환 타입</th><th>설명</th></tr></thead><tbody>
+        <tr><td><span class="p">judge(question, response, context=None)</span></td><td><span class="t">dict</span></td><td>단일 채점. 키: <code>completeness</code>·<code>relevance</code>·<code>factual_consistency</code>·<code>overall</code> (0–5)</td></tr>
+        <tr><td><span class="p">get_summary()</span></td><td><span class="t">dict</span></td><td>누적 통계 (호출 수, 평균 점수, 총 비용)</td></tr>
+      </tbody></table>
+      <pre>from agent_evaluator import LLMJudge
+
+judge = LLMJudge(model="gpt-4o-mini", sample_rate=0.1, budget_per_day=5.0)
+score = judge.judge(
+    question="머신러닝과 딥러닝의 차이는?",
+    response="머신러닝은 패턴 학습, 딥러닝은 신경망 기반 하위 분야입니다.",
+)
+# {"completeness": 4.5, "relevance": 5.0, "factual_consistency": 4.8, "overall": 4.77}
+
+# PerformanceMonitor 통합 (record_task()에서 자동 트리거)
+monitor = PerformanceMonitor(
+    enable_llm_judge=True,
+    judge_model="gpt-4o-mini",
+    judge_sample_rate=0.1,
+    judge_budget_per_day=5.0,
+)</pre>
+    </div>
+  </div>
+</section>
+
+<section class="sec" id="conversation">
+  <div class="sec-title">✨ ConversationSession <span style="font-size:13px;font-weight:400;color:var(--text2);margin-left:8px">v0.6.3 신규</span></div>
+  <div class="sec-sub">멀티턴 대화형 에이전트의 품질을 측정합니다. 외부 LLM 없이 순수 Python(Jaccard·top-N 토큰·한국어 조사 정규화)으로 동작합니다.</div>
+  <div class="cls-card">
+    <div class="cls-head"><span class="cls-name">ConversationSession</span><span class="kind cls">class</span><span class="cls-src">core/trackers/conversation.py</span></div>
+    <div class="cls-body">
+      <table class="mtable"><thead><tr><th>메서드</th><th>파라미터</th><th>설명</th></tr></thead><tbody>
+        <tr><td><span class="p">__init__(session_id)</span></td><td><span class="t">str</span></td><td>세션 초기화</td></tr>
+        <tr><td><span class="p">add_turn(user_input, agent_response, metadata=None)</span></td><td><span class="t">str, str, dict|None</span></td><td>대화 턴 추가</td></tr>
+        <tr><td><span class="p">compute_metrics()</span></td><td>—</td><td><code>ConversationMetrics</code> 반환. 2턴 미만 시 <code>InvalidOperationError</code></td></tr>
+        <tr><td><span class="p">turns</span> (property)</td><td>—</td><td>전체 턴 목록 (읽기 전용)</td></tr>
+      </tbody></table>
+    </div>
+  </div>
+  <div class="cls-card" style="margin-top:12px">
+    <div class="cls-head"><span class="cls-name">ConversationMetrics</span><span class="kind cls">dataclass</span></div>
+    <div class="cls-body">
+      <table class="mtable"><thead><tr><th>필드</th><th>범위</th><th>설명</th></tr></thead><tbody>
+        <tr><td><span class="p">context_retention_score</span></td><td><span class="r">0–1</span></td><td>맥락 유지율</td></tr>
+        <tr><td><span class="p">topic_coherence_score</span></td><td><span class="r">0–1</span></td><td>주제 일관성</td></tr>
+        <tr><td><span class="p">progressive_depth_score</span></td><td><span class="r">0–1</span></td><td>점진적 심화도</td></tr>
+        <tr><td><span class="p">session_completion_score</span></td><td><span class="r">0–1</span></td><td>세션 완결성</td></tr>
+        <tr><td><span class="p">overall_score</span></td><td><span class="r">0–1</span></td><td>4차원 가중 평균</td></tr>
+        <tr><td><span class="p">total_turns</span></td><td><span class="r">int</span></td><td>총 턴 수</td></tr>
+        <tr><td><span class="p">avg_latency_ms</span></td><td><span class="r">float</span></td><td>턴별 평균 지연시간 (ms)</td></tr>
+      </tbody></table>
+      <pre>from agent_evaluator import ConversationSession
+
+session = ConversationSession("conv_001")
+session.add_turn("파이썬 비동기 방법은?", "asyncio를 사용합니다...")
+session.add_turn("asyncio.gather 예시 보여줘.", "import asyncio...")
+session.add_turn("asyncio.wait와 차이점은?", "gather는 결과 반환, wait는 조건 지정 가능합니다.")
+
+metrics = session.compute_metrics()
+print(f"맥락 유지율: {metrics.context_retention_score:.3f}")
+print(f"종합 점수:   {metrics.overall_score:.3f}")</pre>
+    </div>
+  </div>
+</section>
+
+<section class="sec" id="gate-cli">
+  <div class="sec-title">✨ agent-eval gate <span style="font-size:13px;font-weight:400;color:var(--text2);margin-left:8px">v0.6.3 신규 CLI</span></div>
+  <div class="sec-sub">평가 결과 파일을 읽어 품질 임계값 기준으로 합격/실패를 판정합니다. CI/CD 파이프라인에서 릴리스 게이팅에 사용합니다.</div>
+  <div class="cls-card">
+    <div class="cls-head"><span class="cls-name">agent-eval gate</span><span class="kind fn">CLI</span><span class="cls-src">cli/gate.py</span></div>
+    <div class="cls-body">
+      <table class="mtable"><thead><tr><th>옵션</th><th>설명</th><th>종료 코드</th></tr></thead><tbody>
+        <tr><td><span class="p">--tcr N</span></td><td>Task Completion Rate 최솟값 (%)</td><td rowspan="5"><code>0</code> 통과<br><code>1</code> 기준 미달<br><code>2</code> 회귀 감지</td></tr>
+        <tr><td><span class="p">--accuracy N</span></td><td>정확도 최솟값 (%)</td></tr>
+        <tr><td><span class="p">--p95-latency N</span></td><td>P95 지연시간 최댓값 (초)</td></tr>
+        <tr><td><span class="p">--hallucination N</span></td><td>환각 탐지율 최댓값 (%)</td></tr>
+        <tr><td><span class="p">--llm-judge N</span></td><td>LLM Judge 점수 최솟값 (0–5)</td></tr>
+        <tr><td><span class="p">--fail-on-regression N</span></td><td>기준선 대비 허용 하락 비율 (%)</td><td></td></tr>
+        <tr><td><span class="p">--save-baseline / --baseline</span></td><td>기준선 저장 / 비교 경로</td><td></td></tr>
+        <tr><td><span class="p">--junit-xml PATH</span></td><td>JUnit XML 리포트 출력 (CI 연동)</td><td></td></tr>
+      </tbody></table>
+      <pre># GitHub Actions 통합
+- name: Quality Gate
+  run: |
+    agent-eval gate results/ci_run.json \
+      --tcr 85 --accuracy 70 --p95-latency 3.0 \
+      --fail-on-regression 10 \
+      --junit-xml results/gate.xml</pre>
+    </div>
+  </div>
 </section>
 
 <!-- ── 프레임워크 통합 ── -->

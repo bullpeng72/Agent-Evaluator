@@ -1,0 +1,29 @@
+{
+  "annotation_id": "annotation_4ca7db39",
+  "target_type": "metric",
+  "target_id": "tool_selection_f1",
+  "annotation_type": "warning",
+  "priority": "high",
+  "title": "Tool Selection F1 낮음 (0.0%)",
+  "content": "Tool Selection F1이 0.0%로 임계값(70%) 미달입니다. wrong_tool_* 시나리오에서 도구 미스매치가 빈번하게 발생했습니다. 에이전트 도구 선택 로직 개선이 필요합니다.",
+  "author": "evaluator",
+  "timestamp": "2026-03-30T17:21:07.212498",
+  "created_at": "2026-03-30T17:21:07.212498",
+  "status": "open",
+  "replies": [
+    {
+      "reply_id": "reply_69588526",
+      "author": "reviewer",
+      "content": "wrong_tool_1, wrong_tool_2 시나리오 우선 검토 권장.",
+      "timestamp": "2026-03-30T17:21:07.212565",
+      "created_at": "2026-03-30T17:21:07.212565"
+    }
+  ],
+  "tags": [],
+  "related_metric": null,
+  "related_value": null,
+  "metadata": {
+    "threshold": 70.0,
+    "actual": 0.0
+  }
+}

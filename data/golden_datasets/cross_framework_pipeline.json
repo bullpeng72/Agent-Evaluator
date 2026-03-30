@@ -1,0 +1,52 @@
+[
+  {
+    "pipeline_name": "research_analysis_report",
+    "stage1_ok": true, "stage2_ok": true, "stage3_ok": true,
+    "description": "연구→분석→보고서 완전 성공 파이프라인",
+    "request": "AI 반도체 시장 동향을 조사·분석·보고서로 작성하라.",
+    "response_ok":   "AI 반도체 시장 보고서 완성: NVIDIA 62% 점유율, 2024년 시장 1,200억 달러, 3년 CAGR 38%. 12페이지 보고서.",
+    "response_fail": "파이프라인 실패.",
+    "ground_truth":  "AI 반도체 시장 보고서 완성: NVIDIA 62% 점유율, 2024년 시장 1,200억 달러, 3년 CAGR 38%. 12페이지 보고서.",
+    "expected_elements": ["NVIDIA", "반도체", "시장", "보고서", "CAGR"]
+  },
+  {
+    "pipeline_name": "sentiment_trend_insight",
+    "stage1_ok": true, "stage2_ok": true, "stage3_ok": false,
+    "description": "연구→분석 성공, 보고서 생성 실패",
+    "request": "소셜 미디어 감성 분석 후 트렌드 인사이트를 보고서로 작성하라.",
+    "response_ok":   "감성 분석 완료: 긍정 58%, 부정 22%, 중립 20%. 보고서 생성 실패.",
+    "response_fail": "보고서 생성 실패: 저장소 연결 오류.",
+    "ground_truth":  "소셜 미디어 감성 비율 및 트렌드",
+    "expected_elements": ["감성", "긍정", "트렌드"]
+  },
+  {
+    "pipeline_name": "competitive_intelligence",
+    "stage1_ok": true, "stage2_ok": false, "stage3_ok": false,
+    "description": "연구 성공, 분석 단계 실패",
+    "request": "경쟁사 제품 분석 후 포지셔닝 전략을 수립하라.",
+    "response_ok":   "경쟁사 데이터 수집 완료. 분석 실패로 전략 수립 불가.",
+    "response_fail": "데이터 분석 모델 오류.",
+    "ground_truth":  "경쟁사 포지셔닝 분석 및 전략",
+    "expected_elements": ["경쟁사", "포지셔닝", "전략"]
+  },
+  {
+    "pipeline_name": "financial_forecast",
+    "stage1_ok": true, "stage2_ok": true, "stage3_ok": true,
+    "description": "재무 예측 완전 성공",
+    "request": "재무 데이터를 분석하고 내년도 수익 예측 모델을 구축하라.",
+    "response_ok":   "재무 분석 완료: 예측 수익 전년 대비 +15.3%, 95% 신뢰구간 포함. ARIMA 모델 적용.",
+    "response_fail": "예측 모델 학습 실패.",
+    "ground_truth":  "재무 분석 완료: 예측 수익 전년 대비 +15.3%, 95% 신뢰구간 포함. ARIMA 모델 적용.",
+    "expected_elements": ["수익", "예측", "ARIMA", "신뢰구간"]
+  },
+  {
+    "pipeline_name": "tech_due_diligence",
+    "stage1_ok": true, "stage2_ok": true, "stage3_ok": true,
+    "description": "기술 실사 보고서 완성",
+    "request": "스타트업 기술 스택과 코드 품질을 평가하고 실사 보고서를 작성하라.",
+    "response_ok":   "기술 실사 완료: 기술 부채 낮음, 확장성 우수, 보안 취약점 2건 발견. 종합 평점 B+.",
+    "response_fail": "코드베이스 접근 실패.",
+    "ground_truth":  "기술 실사 완료: 기술 부채 낮음, 확장성 우수, 보안 취약점 2건 발견. 종합 평점 B+.",
+    "expected_elements": ["기술", "부채", "보안", "실사", "취약점"]
+  }
+]

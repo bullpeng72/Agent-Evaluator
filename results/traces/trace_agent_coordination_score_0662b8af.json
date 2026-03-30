@@ -1,0 +1,47 @@
+{
+  "trace_id": "trace_agent_coordination_score_0662b8af",
+  "metric_name": "agent_coordination_score",
+  "metric_type": "agentic",
+  "task_id": null,
+  "start_time": "2026-03-30T17:21:07.212307",
+  "steps": [
+    {
+      "step_name": "collect_interactions",
+      "description": "멀티 에이전트 상호작용 목록 수집",
+      "input_data": {
+        "agents": [
+          "orchestrator",
+          "researcher",
+          "analyst",
+          "writer",
+          "reviewer"
+        ]
+      },
+      "output_data": {
+        "total_interactions": 0,
+        "unique_agents": 0
+      },
+      "status": "success",
+      "timestamp": "2026-03-30T17:21:07.212310"
+    },
+    {
+      "step_name": "score_coordination",
+      "description": "성공률·다양성·패턴 기반 0-10 점수 산출",
+      "input_data": {
+        "success_rate": 0.0
+      },
+      "output_data": {
+        "score": 0.0
+      },
+      "status": "success",
+      "timestamp": "2026-03-30T17:21:07.212312"
+    }
+  ],
+  "status": "completed",
+  "final_value": 0.0,
+  "metadata": {
+    "unit": "/10",
+    "threshold": 7.0
+  },
+  "end_time": "2026-03-30T17:21:07.212313"
+}

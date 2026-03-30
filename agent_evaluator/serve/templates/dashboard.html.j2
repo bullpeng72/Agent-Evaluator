@@ -4522,6 +4522,408 @@ textarea.gd-input{height:60px;resize:vertical;font-family:inherit}
   </div>
 </div>
 
+<!-- ══ 케이스 검토 (Phase 3-A) ══ -->
+<div x-show="sec==='golden'" x-cloak
+     x-data="{ candidateFiles:[], candidateCases:[], reviewFile:null, reviewLoading:false,
+                versions:[],
+                async loadCandidates(){ this.reviewLoading=true; try{ const r=await fetch('/api/golden/candidates'); this.candidateFiles=r.ok?await r.json():[]; }catch(e){} finally{this.reviewLoading=false;} },
+                async loadCandidateFile(n){ this.reviewFile=n; this.reviewLoading=true; try{ const r=await fetch('/api/golden/candidates/'+encodeURIComponent(n)); this.candidateCases=r.ok?await r.json():[]; }catch(e){} finally{this.reviewLoading=false;} },
+                async approveCase(n,i){ const r=await fetch('/api/golden/candidates/'+encodeURIComponent(n)+'/approve/'+i,{method:'POST'}); if(r&&r.ok) await this.loadCandidateFile(n); },
+                async rejectCase(n,i){ const r=await fetch('/api/golden/candidates/'+encodeURIComponent(n)+'/reject/'+i,{method:'POST'}); if(r&&r.ok) await this.loadCandidateFile(n); },
+                async mergeApproved(n){ const r=await fetch('/api/golden/candidates/'+encodeURIComponent(n)+'/merge',{method:'POST'}); if(r&&r.ok){ const d=await r.json(); alert('✅ '+d.merged+'건이 '+d.filename+'으로 병합됐습니다.'); this.loadCandidates(); } },
+                async loadVersions(){ try{ const r=await fetch('/api/golden/versions'); this.versions=r.ok?await r.json():[]; }catch(e){} } }"
+     x-init="loadCandidates(); loadVersions()">
+  <div class="sec" style="margin-top:16px">
+    <div class="sec-t">🗂️ 케이스 검토 — 후보 케이스 승인/거부</div>
+    <div style="font-size:var(--fs-sm);color:var(--text2);margin-bottom:12px"><code>agent-eval dataset build</code>로 추출한 후보 케이스를 검토하고 골든셋으로 병합합니다.</div>
+
+    <template x-if="reviewLoading"><div style="color:var(--text2);padding:16px">⏳ 로딩 중…</div></template>
+
+    <template x-if="!reviewLoading && !reviewFile">
+      <div>
+        <template x-if="!candidateFiles.length">
+          <div class="es"><div class="es-icon">🗂️</div><div class="es-title">후보 케이스 파일 없음</div>
+          <div class="es-desc"><code>agent-eval dataset build --source results/</code>를 실행하면 이 화면에 파일이 표시됩니다.</div></div>
+        </template>
+        <template x-for="f in candidateFiles" :key="f.name">
+          <div style="display:flex;align-items:center;gap:10px;padding:10px 14px;border:1px solid var(--border);border-radius:var(--r);margin-bottom:8px;cursor:pointer;background:var(--bg2)" @click="loadCandidateFile(f.name)">
+            <div style="flex:1">
+              <div style="font-weight:600;font-size:var(--fs-sm)" x-text="f.name"></div>
+              <div style="font-size:var(--fs-xs);color:var(--text2);margin-top:2px">
+                총 <span x-text="f.total"></span>건 | 대기 <span style="color:#f59e0b;font-weight:700" x-text="f.pending"></span> | 승인 <span style="color:#10b981;font-weight:700" x-text="f.approved"></span> | 거부 <span style="color:#ef4444;font-weight:700" x-text="f.rejected"></span>
+              </div>
+            </div>
+            <button class="btn" style="color:var(--accent);border-color:var(--accent);font-size:var(--fs-xs)">검토 →</button>
+          </div>
+        </template>
+        <!-- 버전 히스토리 -->
+        <template x-if="versions.length > 0">
+          <div style="margin-top:16px">
+            <div style="font-weight:600;font-size:var(--fs-sm);margin-bottom:8px">골든셋 버전 히스토리</div>
+            <template x-for="v in versions" :key="v.name">
+              <div style="display:flex;justify-content:space-between;padding:6px 10px;border-bottom:1px solid var(--border);font-size:var(--fs-xs)">
+                <span style="font-weight:600" x-text="v.name"></span>
+                <span style="color:var(--text2)" x-text="v.count+'건'"></span>
+              </div>
+            </template>
+          </div>
+        </template>
+      </div>
+    </template>
+
+    <template x-if="!reviewLoading && reviewFile">
+      <div>
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
+          <button class="btn" @click="reviewFile=null;candidateCases=[]">← 목록</button>
+          <span style="font-weight:600;font-size:var(--fs-sm)" x-text="reviewFile"></span>
+          <div style="flex:1"></div>
+          <button class="btn" style="background:var(--green,#10b981);color:#fff;font-size:var(--fs-xs)"
+                  x-show="candidateCases.some(c=>c._approved)"
+                  @click="mergeApproved(reviewFile)">승인된 케이스 병합</button>
+        </div>
+        <template x-for="c in candidateCases" :key="c._idx">
+          <div style="padding:12px;border:1px solid var(--border);border-left-width:3px;border-radius:var(--r);margin-bottom:8px;background:var(--bg2)"
+               :style="c._approved?'border-left-color:#10b981':c._rejected?'border-left-color:#ef4444':'border-left-color:var(--border)'">
+            <div style="display:flex;align-items:flex-start;gap:8px">
+              <div style="flex:1">
+                <div style="display:flex;gap:4px;margin-bottom:6px;flex-wrap:wrap">
+                  <span style="font-size:var(--fs-xs);padding:2px 6px;border-radius:4px;background:var(--bg3);color:var(--text2)" x-text="c._strategy||c.strategy||'unknown'"></span>
+                  <span x-show="c._approved" style="font-size:var(--fs-xs);padding:2px 6px;border-radius:4px;background:#10b98122;color:#10b981">✅ 승인됨</span>
+                  <span x-show="c._rejected" style="font-size:var(--fs-xs);padding:2px 6px;border-radius:4px;background:#ef444422;color:#ef4444">❌ 거부됨</span>
+                </div>
+                <div style="font-size:var(--fs-sm);margin-bottom:4px">Q: <span x-text="c.question||c.task_id||'(질문 없음)'"></span></div>
+                <template x-if="c.response||c.answer">
+                  <div style="font-size:var(--fs-xs);color:var(--text2)">A: <span x-text="(c.response||c.answer||'').substring(0,100)+'…'"></span></div>
+                </template>
+              </div>
+              <div style="display:flex;flex-direction:column;gap:4px;flex-shrink:0">
+                <button class="btn" style="font-size:var(--fs-xs);background:#10b981;color:#fff;padding:3px 8px" x-show="!c._approved" @click="approveCase(reviewFile,c._idx)">승인</button>
+                <button class="btn" style="font-size:var(--fs-xs);background:#ef4444;color:#fff;padding:3px 8px" x-show="!c._rejected" @click="rejectCase(reviewFile,c._idx)">거부</button>
+              </div>
+            </div>
+          </div>
+        </template>
+      </div>
+    </template>
+  </div>
+</div>
+
+<!-- ══ 멀티턴 대화 (Phase 1-C) ══ -->
+<div x-show="data && sec==='conversation'" x-cloak>
+  <div style="margin-bottom:14px">
+    <div style="font-size:var(--fs-xl);font-weight:700;margin-bottom:4px">💬 멀티턴 대화 평가</div>
+    <div style="color:var(--text2);font-size:var(--fs-sm)">ConversationSession 기반 맥락 유지율 · 주제 일관성 · 점진적 심화 · 세션 완결성 측정</div>
+  </div>
+
+  <template x-if="!convData || !convData.session_count">
+    <div class="es"><div class="es-icon">💬</div><div class="es-title">멀티턴 대화 데이터 없음</div>
+    <div class="es-desc">SDK에서 <code>monitor.conversation("session_id")</code> 컨텍스트 매니저로 대화를 기록하세요.</div></div>
+  </template>
+
+  <template x-if="convData && convData.session_count > 0">
+    <div>
+      <!-- KPI -->
+      <div class="kpi-grid" style="grid-template-columns:repeat(auto-fill,minmax(160px,1fr))">
+        <div class="kpi">
+          <div style="font-size:var(--fs-sm);color:var(--text2)">세션 수</div>
+          <div style="font-size:var(--fs-xl);font-weight:700" x-text="convData.session_count"></div>
+        </div>
+        <div class="kpi">
+          <div style="font-size:var(--fs-sm);color:var(--text2)">평균 종합점수</div>
+          <div style="font-size:var(--fs-xl);font-weight:700;color:var(--accent)" x-text="(convData.summary?.avg_overall_score*100||0).toFixed(1)+'%'"></div>
+        </div>
+        <div class="kpi">
+          <div style="font-size:var(--fs-sm);color:var(--text2)">평균 턴 수</div>
+          <div style="font-size:var(--fs-xl);font-weight:700" x-text="(convData.summary?.avg_turns||0).toFixed(1)"></div>
+        </div>
+        <div class="kpi">
+          <div style="font-size:var(--fs-sm);color:var(--text2)">맥락 유지율</div>
+          <div style="font-size:var(--fs-xl);font-weight:700" x-text="(convData.summary?.avg_context_retention*100||0).toFixed(1)+'%'"></div>
+        </div>
+        <div class="kpi">
+          <div style="font-size:var(--fs-sm);color:var(--text2)">주제 일관성</div>
+          <div style="font-size:var(--fs-xl);font-weight:700" x-text="(convData.summary?.avg_topic_coherence*100||0).toFixed(1)+'%'"></div>
+        </div>
+        <div class="kpi">
+          <div style="font-size:var(--fs-sm);color:var(--text2)">점진적 심화</div>
+          <div style="font-size:var(--fs-xl);font-weight:700" x-text="(convData.summary?.avg_progressive_depth*100||0).toFixed(1)+'%'"></div>
+        </div>
+        <div class="kpi">
+          <div style="font-size:var(--fs-sm);color:var(--text2)">세션 완결성</div>
+          <div style="font-size:var(--fs-xl);font-weight:700" x-text="(convData.summary?.avg_session_completion*100||0).toFixed(1)+'%'"></div>
+        </div>
+        <div class="kpi">
+          <div style="font-size:var(--fs-sm);color:var(--text2)">평균 응답 지연</div>
+          <div style="font-size:var(--fs-xl);font-weight:700" x-text="(convData.summary?.avg_response_latency||0).toFixed(2)+'s'"></div>
+        </div>
+      </div>
+
+      <!-- 세션 목록 -->
+      <div style="background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);overflow:hidden">
+        <div style="padding:10px 14px;font-weight:600;border-bottom:1px solid var(--border)">세션 목록</div>
+        <table style="width:100%;border-collapse:collapse;font-size:var(--fs-sm)">
+          <thead><tr style="background:var(--bg3);color:var(--text2)">
+            <th style="padding:8px 12px;text-align:left">세션 ID</th>
+            <th style="padding:8px 12px;text-align:center">턴 수</th>
+            <th style="padding:8px 12px;text-align:center">종합점수</th>
+            <th style="padding:8px 12px;text-align:center">맥락 유지</th>
+            <th style="padding:8px 12px;text-align:center">주제 일관성</th>
+            <th style="padding:8px 12px;text-align:center">심화</th>
+            <th style="padding:8px 12px;text-align:center">완결성</th>
+          </tr></thead>
+          <tbody>
+            <template x-for="s in (convData.sessions||[])" :key="s.session_id">
+              <tr style="border-top:1px solid var(--border);cursor:pointer" @click="convSelected=(convSelected===s.session_id?null:s.session_id)" :style="convSelected===s.session_id?'background:var(--bg3)':''">
+                <td style="padding:8px 12px;font-weight:600;color:var(--accent)" x-text="s.session_id"></td>
+                <td style="padding:8px 12px;text-align:center" x-text="s.turn_count"></td>
+                <td style="padding:8px 12px;text-align:center;font-weight:700" x-text="(s.metrics?.overall_score*100||0).toFixed(1)+'%'"></td>
+                <td style="padding:8px 12px;text-align:center" x-text="(s.metrics?.context_retention*100||0).toFixed(1)+'%'"></td>
+                <td style="padding:8px 12px;text-align:center" x-text="(s.metrics?.topic_coherence*100||0).toFixed(1)+'%'"></td>
+                <td style="padding:8px 12px;text-align:center" x-text="(s.metrics?.progressive_depth*100||0).toFixed(1)+'%'"></td>
+                <td style="padding:8px 12px;text-align:center" x-text="(s.metrics?.session_completion*100||0).toFixed(1)+'%'"></td>
+              </tr>
+              <!-- 턴 상세 -->
+              <template x-if="convSelected===s.session_id">
+                <tr><td colspan="7" style="padding:0;background:var(--bg3)">
+                  <div style="padding:12px 16px">
+                    <div style="font-weight:600;margin-bottom:8px;color:var(--accent)">턴별 상세</div>
+                    <template x-for="(turn, ti) in (s.turns||[])" :key="ti">
+                      <div style="background:var(--bg2);border:1px solid var(--border);border-radius:6px;padding:10px;margin-bottom:8px">
+                        <div style="font-size:var(--fs-xs);color:var(--text2);margin-bottom:4px" x-text="'턴 '+(ti+1)"></div>
+                        <div style="margin-bottom:6px"><span style="color:var(--text2);font-size:var(--fs-xs)">USER: </span><span style="font-size:var(--fs-sm)" x-text="turn.user"></span></div>
+                        <div><span style="color:var(--accent);font-size:var(--fs-xs)">AGENT: </span><span style="font-size:var(--fs-sm)" x-text="turn.agent"></span></div>
+                      </div>
+                    </template>
+                  </div>
+                </td></tr>
+              </template>
+            </template>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </template>
+</div>
+
+<!-- ══ 실시간 모니터링 (Phase 2-A) ══ -->
+<div x-show="sec==='realtime'" x-cloak x-init="if(sec==='realtime'){loadRealtime();realtimePolling=setInterval(()=>loadRealtime(),15000)}" @sec-changed.window="if($event.detail!=='realtime'&&realtimePolling){clearInterval(realtimePolling);realtimePolling=null;}">
+  <div style="margin-bottom:14px">
+    <div style="font-size:var(--fs-xl);font-weight:700;margin-bottom:4px">📡 실시간 모니터링</div>
+    <div style="color:var(--text2);font-size:var(--fs-sm)">StreamingEvaluator 슬라이딩 윈도우 기반 실시간 지표 — 15초 자동 갱신</div>
+  </div>
+
+  <!-- 윈도우 선택 -->
+  <div style="display:flex;gap:8px;margin-bottom:14px">
+    <template x-for="w in ['1m','5m','1h']" :key="w">
+      <button class="btn" :class="{active:realtimeWindow===w}" @click="realtimeWindow=w" x-text="w==='1m'?'1분':w==='5m'?'5분':'1시간'"></button>
+    </template>
+    <button class="btn" @click="loadRealtime()">🔄 새로고침</button>
+  </div>
+
+  <template x-if="!realtimeStats[realtimeWindow]?.count">
+    <div class="es"><div class="es-icon">📡</div><div class="es-title">실시간 데이터 없음</div>
+    <div class="es-desc"><code>StreamingEvaluator</code>를 실행하고 <code>app.add_middleware(AgentEvalMiddleware, ...)</code>를 추가하세요.</div></div>
+  </template>
+
+  <template x-if="realtimeStats[realtimeWindow]?.count > 0">
+    <div>
+      <div class="kpi-grid">
+        <div class="kpi"><div style="font-size:var(--fs-sm);color:var(--text2)">요청 수</div>
+          <div style="font-size:var(--fs-xl);font-weight:700" x-text="realtimeStats[realtimeWindow]?.count??0"></div></div>
+        <div class="kpi"><div style="font-size:var(--fs-sm);color:var(--text2)">TCR</div>
+          <div style="font-size:var(--fs-xl);font-weight:700;color:var(--green)" x-text="(realtimeStats[realtimeWindow]?.tcr??0).toFixed(1)+'%'"></div></div>
+        <div class="kpi"><div style="font-size:var(--fs-sm);color:var(--text2)">평균 지연</div>
+          <div style="font-size:var(--fs-xl);font-weight:700" x-text="(realtimeStats[realtimeWindow]?.avg_latency??0).toFixed(2)+'s'"></div></div>
+        <div class="kpi"><div style="font-size:var(--fs-sm);color:var(--text2)">P95 지연</div>
+          <div style="font-size:var(--fs-xl);font-weight:700" x-text="(realtimeStats[realtimeWindow]?.p95_latency??0).toFixed(2)+'s'"></div></div>
+        <div class="kpi"><div style="font-size:var(--fs-sm);color:var(--text2)">오류율</div>
+          <div style="font-size:var(--fs-xl);font-weight:700;color:var(--red)" x-text="(realtimeStats[realtimeWindow]?.error_rate??0).toFixed(1)+'%'"></div></div>
+        <div class="kpi"><div style="font-size:var(--fs-sm);color:var(--text2)">평균 토큰</div>
+          <div style="font-size:var(--fs-xl);font-weight:700" x-text="(realtimeStats[realtimeWindow]?.avg_tokens??0).toFixed(0)"></div></div>
+      </div>
+    </div>
+  </template>
+</div>
+
+<!-- ══ 알림 (Phase 2-B) ══ -->
+<div x-show="sec==='alerts'" x-cloak x-init="if(sec==='alerts')loadAlerts()">
+  <div style="margin-bottom:14px">
+    <div style="font-size:var(--fs-xl);font-weight:700;margin-bottom:4px">🔔 알림 히스토리</div>
+    <div style="color:var(--text2);font-size:var(--fs-sm)">AlertEngine 규칙 발화 이력 — results/alerts/*.jsonl 파일 기반</div>
+  </div>
+  <button class="btn" @click="loadAlerts()" style="margin-bottom:12px">🔄 새로고침</button>
+
+  <div class="kpi-grid" style="margin-bottom:14px">
+    <div class="kpi"><div style="font-size:var(--fs-sm);color:var(--text2)">오늘 알림</div>
+      <div style="font-size:var(--fs-xl);font-weight:700" x-text="alertData?.today?.total??0"></div></div>
+    <div class="kpi"><div style="font-size:var(--fs-sm);color:var(--text2)">Critical</div>
+      <div style="font-size:var(--fs-xl);font-weight:700;color:var(--red)" x-text="alertData?.today?.critical??0"></div></div>
+    <div class="kpi"><div style="font-size:var(--fs-sm);color:var(--text2)">Warning</div>
+      <div style="font-size:var(--fs-xl);font-weight:700;color:var(--yellow)" x-text="alertData?.today?.warning??0"></div></div>
+    <div class="kpi"><div style="font-size:var(--fs-sm);color:var(--text2)">7일 합계</div>
+      <div style="font-size:var(--fs-xl);font-weight:700" x-text="alertData?.summary?.total_7d??0"></div></div>
+  </div>
+
+  <template x-if="!alertData?.today?.total">
+    <div class="es"><div class="es-icon">🔔</div><div class="es-title">알림 없음</div>
+    <div class="es-desc"><code>AlertEngine</code>을 설정하고 <code>StreamingEvaluator</code>와 연결하세요.</div></div>
+  </template>
+
+  <template x-if="alertData?.today?.events?.length > 0">
+    <div style="background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);overflow:hidden">
+      <div style="padding:10px 14px;font-weight:600;border-bottom:1px solid var(--border)">오늘 알림 목록</div>
+      <template x-for="ev in (alertData.today.events||[])" :key="ev.triggered_at">
+        <div style="padding:10px 14px;border-top:1px solid var(--border);display:flex;gap:10px;align-items:flex-start">
+          <span style="font-size:18px" x-text="ev.severity==='critical'?'🚨':'⚠️'"></span>
+          <div style="flex:1">
+            <div style="display:flex;gap:8px;align-items:center;margin-bottom:4px">
+              <span style="font-weight:600" x-text="ev.rule_name"></span>
+              <span class="badge-gray" :style="ev.severity==='critical'?'background:rgba(248,113,113,.15);color:var(--red)':'background:rgba(250,204,21,.12);color:var(--yellow)'" x-text="ev.severity"></span>
+            </div>
+            <div style="font-size:var(--fs-sm);color:var(--text2)" x-text="ev.message?.substring(0,200)"></div>
+            <div style="font-size:var(--fs-xs);color:var(--text2);margin-top:4px" x-text="ev.triggered_at"></div>
+          </div>
+        </div>
+      </template>
+    </div>
+  </template>
+</div>
+
+<!-- ══ 사용자 반응 (Phase 2-C) ══ -->
+<div x-show="data && sec==='feedback'" x-cloak>
+  <div style="margin-bottom:14px">
+    <div style="font-size:var(--fs-xl);font-weight:700;margin-bottom:4px">👍 사용자 반응</div>
+    <div style="color:var(--text2);font-size:var(--fs-sm)">ImplicitFeedbackTracker — 암묵적 사용자 행동 신호 기반 품질 지표</div>
+  </div>
+
+  <template x-if="!feedbackData?.total">
+    <div class="es"><div class="es-icon">👍</div><div class="es-title">피드백 데이터 없음</div>
+    <div class="es-desc"><code>monitor.record_implicit_feedback(task_id, "thumbs_up")</code>로 피드백을 기록하세요.</div></div>
+  </template>
+
+  <template x-if="feedbackData?.total > 0">
+    <div>
+      <div class="kpi-grid">
+        <div class="kpi"><div style="font-size:var(--fs-sm);color:var(--text2)">총 피드백</div>
+          <div style="font-size:var(--fs-xl);font-weight:700" x-text="feedbackData.total"></div></div>
+        <div class="kpi"><div style="font-size:var(--fs-sm);color:var(--text2)">긍정 비율</div>
+          <div style="font-size:var(--fs-xl);font-weight:700;color:var(--green)" x-text="(feedbackData.positive_rate||0).toFixed(1)+'%'"></div></div>
+        <div class="kpi"><div style="font-size:var(--fs-sm);color:var(--text2)">부정 비율</div>
+          <div style="font-size:var(--fs-xl);font-weight:700;color:var(--red)" x-text="(feedbackData.negative_rate||0).toFixed(1)+'%'"></div></div>
+        <div class="kpi"><div style="font-size:var(--fs-sm);color:var(--text2)">재생성율</div>
+          <div style="font-size:var(--fs-xl);font-weight:700;color:var(--yellow)" x-text="(feedbackData.regenerate_rate||0).toFixed(1)+'%'"></div></div>
+        <div class="kpi"><div style="font-size:var(--fs-sm);color:var(--text2)">이탈율</div>
+          <div style="font-size:var(--fs-xl);font-weight:700" x-text="(feedbackData.abandon_rate||0).toFixed(1)+'%'"></div></div>
+      </div>
+
+      <!-- 유형 분포 -->
+      <div style="background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);padding:14px;margin-top:14px">
+        <div style="font-weight:600;margin-bottom:10px">피드백 유형 분포</div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:8px">
+          <template x-for="[type, count] in Object.entries(feedbackData.type_distribution||{})" :key="type">
+            <div style="background:var(--bg3);border-radius:6px;padding:8px 10px">
+              <div style="font-size:var(--fs-xs);color:var(--text2)" x-text="type"></div>
+              <div style="font-size:var(--fs-lg);font-weight:700" x-text="count"></div>
+            </div>
+          </template>
+        </div>
+      </div>
+    </div>
+  </template>
+</div>
+
+<!-- ══ 이상 감지 (Phase 3-B) ══ -->
+<div x-show="data && sec==='anomaly'" x-cloak>
+  <div style="margin-bottom:14px">
+    <div style="font-size:var(--fs-xl);font-weight:700;margin-bottom:4px">🚨 이상 감지</div>
+    <div style="color:var(--text2);font-size:var(--fs-sm)">AnomalyDetector — Z-score · IQR · 선형회귀 기반 이상 패턴 탐지</div>
+  </div>
+
+  <template x-if="!anomalyData?.count">
+    <div class="es"><div class="es-icon">✅</div><div class="es-title">이상 없음</div>
+    <div class="es-desc">탐지된 이상이 없거나 <code>AnomalyDetector</code>가 아직 실행되지 않았습니다.</div></div>
+  </template>
+
+  <template x-if="anomalyData?.count > 0">
+    <div>
+      <div class="kpi-grid" style="margin-bottom:14px">
+        <div class="kpi"><div style="font-size:var(--fs-sm);color:var(--text2)">탐지된 이상</div>
+          <div style="font-size:var(--fs-xl);font-weight:700" x-text="anomalyData.count"></div></div>
+        <div class="kpi"><div style="font-size:var(--fs-sm);color:var(--text2)">Critical</div>
+          <div style="font-size:var(--fs-xl);font-weight:700;color:var(--red)" x-text="anomalyData.critical"></div></div>
+        <div class="kpi"><div style="font-size:var(--fs-sm);color:var(--text2)">Warning</div>
+          <div style="font-size:var(--fs-xl);font-weight:700;color:var(--yellow)" x-text="anomalyData.warning"></div></div>
+      </div>
+
+      <template x-for="a in (anomalyData.anomalies||[])" :key="a.type+a.detected_at">
+        <div style="background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);padding:14px;margin-bottom:10px;border-left:3px solid" :style="a.severity==='critical'?'border-left-color:var(--red)':'border-left-color:var(--yellow)'">
+          <div style="display:flex;gap:10px;align-items:center;margin-bottom:6px">
+            <span style="font-size:18px" x-text="a.severity==='critical'?'🚨':'⚠️'"></span>
+            <span style="font-weight:700" x-text="a.type.replaceAll('_',' ').toUpperCase()"></span>
+            <span class="badge-gray" :style="a.severity==='critical'?'background:rgba(248,113,113,.15);color:var(--red)':'background:rgba(250,204,21,.12);color:var(--yellow)'" x-text="a.severity"></span>
+            <span style="margin-left:auto;font-size:var(--fs-xs);color:var(--text2)" x-text="'알고리즘: '+a.algorithm"></span>
+          </div>
+          <div style="font-size:var(--fs-sm)" x-text="a.detail"></div>
+          <div style="display:flex;gap:16px;margin-top:8px;font-size:var(--fs-xs);color:var(--text2)">
+            <span>현재값: <b x-text="a.value"></b></span>
+            <span>임계값: <b x-text="a.threshold"></b></span>
+            <span x-text="a.detected_at?.substring(0,19)"></span>
+          </div>
+        </div>
+      </template>
+    </div>
+  </template>
+</div>
+
+<!-- ══ 평가 비용 (Phase 3-C) ══ -->
+<div x-show="data && sec==='cost'" x-cloak>
+  <div style="margin-bottom:14px">
+    <div style="font-size:var(--fs-xl);font-weight:700;margin-bottom:4px">💰 평가 비용</div>
+    <div style="color:var(--text2);font-size:var(--fs-sm)">LLM Judge · DeepEval · Ragas 등 외부 평가 호출 비용 추적</div>
+  </div>
+
+  <template x-if="!costData?.total_usd">
+    <div class="es"><div class="es-icon">💰</div><div class="es-title">비용 데이터 없음</div>
+    <div class="es-desc"><code>enable_llm_judge=True</code>로 평가를 실행하거나 <code>CostTracker</code>를 사용하세요.</div></div>
+  </template>
+
+  <template x-if="costData?.total_usd > 0">
+    <div>
+      <div class="kpi-grid">
+        <div class="kpi"><div style="font-size:var(--fs-sm);color:var(--text2)">오늘 총 비용</div>
+          <div style="font-size:var(--fs-xl);font-weight:700;color:var(--accent)" x-text="'$'+(costData.total_usd||0).toFixed(4)"></div></div>
+        <div class="kpi"><div style="font-size:var(--fs-sm);color:var(--text2)">예산 잔여</div>
+          <div style="font-size:var(--fs-xl);font-weight:700"
+               x-text="costData.budget_remaining_usd!=null ? '$'+costData.budget_remaining_usd.toFixed(4) : '한도 없음'"
+               :style="costData.budget_remaining_usd!=null && costData.budget_remaining_usd < (costData.budget_per_day||0)*0.2 ? 'color:var(--danger,#ef4444)' : ''"></div></div>
+        <div class="kpi"><div style="font-size:var(--fs-sm);color:var(--text2)">예상 일 비용</div>
+          <div style="font-size:var(--fs-xl);font-weight:700" x-text="'$'+(costData.projected_daily_usd||0).toFixed(4)"></div></div>
+        <div class="kpi"><div style="font-size:var(--fs-sm);color:var(--text2)">현재 샘플링률</div>
+          <div style="font-size:var(--fs-xl);font-weight:700" x-text="((costData.sample_rate_current||0)*100).toFixed(0)+'%'"></div></div>
+      </div>
+      <div class="kpi-grid" style="grid-template-columns:repeat(2,1fr);margin-top:8px">
+        <div class="kpi"><div style="font-size:var(--fs-sm);color:var(--text2)">호출 수</div>
+          <div style="font-size:var(--fs-xl);font-weight:700" x-text="costData.call_count||0"></div></div>
+        <div class="kpi"><div style="font-size:var(--fs-sm);color:var(--text2)">모델</div>
+          <div style="font-size:var(--fs-md);font-weight:600;margin-top:4px" x-text="costData.model||'—'"></div></div>
+      </div>
+
+      <!-- 공급자별 분포 -->
+      <template x-if="Object.keys(costData.by_provider||{}).length > 0">
+        <div style="background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);padding:14px;margin-top:14px">
+          <div style="font-weight:600;margin-bottom:10px">공급자별 비용</div>
+          <template x-for="[provider, usd] in Object.entries(costData.by_provider||{})" :key="provider">
+            <div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border)">
+              <span style="font-weight:500" x-text="provider"></span>
+              <span style="color:var(--accent);font-weight:700" x-text="'$'+parseFloat(usd).toFixed(4)"></span>
+            </div>
+          </template>
+        </div>
+      </template>
+    </div>
+  </template>
+</div>
+
 </main>
 </div>
 
@@ -4547,6 +4949,11 @@ function app() { return {
   tq: 'basic', tperf: 'basic', tag: 'basic', tsec2: 'basic',
   files: [], selId: '', data: null, loading: false,
   connected: false, lastUpd: '—',
+  // Phase 2-A 실시간
+  realtimeWindow: '5m', realtimeStats: {}, realtimePolling: null,
+  // Phase 1-C 멀티턴 / Phase 2-B 알림 / Phase 2-C 피드백 / Phase 3-B 이상 / Phase 3-C 비용
+  convData: null, alertData: null, feedbackData: null, anomalyData: null, costData: null,
+  convSelected: null,
   trData: { traces:[], annotations:[], audit:[], auditItems:[] },
   trDetail: {}, annDetail: {},
   annForm: { show: false, title: '', content: '', annotation_type: 'note', priority: 'medium', author: '', target_type: 'evaluation', target_id: '', saving: false, error: '' },
@@ -4567,16 +4974,22 @@ function app() { return {
 
   nav: [
     { id:'overview',      icon:'📊', label:'Overview',           group: '평가 현황' },
-    { id:'quality',       icon:'📊', label:'품질',     group: '평가 관점' },
-    { id:'performance',   icon:'⚡', label:'성능',     group: '평가 관점' },
-    { id:'agentic',       icon:'🤖', label:'에이전틱', group: '평가 관점' },
-    { id:'security',      icon:'🔒', label:'보안',     group: '평가 관점' },
+    { id:'quality',       icon:'📊', label:'품질',               group: '평가 관점' },
+    { id:'performance',   icon:'⚡', label:'성능',               group: '평가 관점' },
+    { id:'agentic',       icon:'🤖', label:'에이전틱',           group: '평가 관점' },
+    { id:'security',      icon:'🔒', label:'보안',               group: '평가 관점' },
+    { id:'conversation',  icon:'💬', label:'멀티턴 대화',         group: '평가 관점' },
     { id:'insights',      icon:'💡', label:'Insights',           group: '분석 & 도구', badge: d=>(d.insights?.alerts?.length||0)||'' },
     { id:'transparency',  icon:'🔍', label:'투명성',             group: '분석 & 도구' },
+    { id:'anomaly',       icon:'🚨', label:'이상 감지',           group: '분석 & 도구' },
     { id:'compare',       icon:'⚖️', label:'파일 비교',           group: '분석 & 도구' },
     { id:'tasks',         icon:'📋', label:'Tasks',              group: '분석 & 도구' },
+    { id:'realtime',      icon:'📡', label:'실시간',             group: '운영 모니터링' },
+    { id:'alerts',        icon:'🔔', label:'알림',               group: '운영 모니터링' },
+    { id:'feedback',      icon:'👍', label:'사용자 반응',         group: '운영 모니터링' },
     { id:'golden',        icon:'📝', label:'Golden Dataset',     group: '운영' },
     { id:'export',        icon:'📦', label:'Export',             group: '운영' },
+    { id:'cost',          icon:'💰', label:'평가 비용',           group: '운영' },
     { id:'settings',      icon:'⚙️', label:'Settings',           group: '운영' },
     { id:'glossary',      icon:'📚', label:'지표 설명',           group: '운영' },
   ],
@@ -4738,14 +5151,44 @@ function app() { return {
     this.trDetail = {};
     this.annDetail = {};
     try {
-      const r = await fetch(`/api/results/${id}`);
+      const [r, rConv, rFb, rAnomaly, rCost] = await Promise.all([
+        fetch(`/api/results/${id}`),
+        fetch(`/api/conversation/${id}`).catch(()=>null),
+        fetch(`/api/feedback/${id}`).catch(()=>null),
+        fetch(`/api/anomalies/${id}`).catch(()=>null),
+        fetch(`/api/cost/${id}`).catch(()=>null),
+      ]);
       this.data = await r.json();
+      this.convData    = (rConv    && rConv.ok)    ? await rConv.json()    : null;
+      this.feedbackData= (rFb      && rFb.ok)      ? await rFb.json()      : null;
+      this.anomalyData = (rAnomaly && rAnomaly.ok) ? await rAnomaly.json() : null;
+      this.costData    = (rCost    && rCost.ok)    ? await rCost.json()    : null;
+      this.convSelected = null;
       this.lastUpd = new Date().toLocaleTimeString('ko-KR');
       await this.$nextTick();
       this.renderAll();
       this.renderTable();
     } catch(e) { console.error(e); }
     finally { this.loading = false; }
+  },
+
+  async loadAlerts() {
+    try {
+      const [rToday, rSummary] = await Promise.all([
+        fetch('/api/alerts/today').catch(()=>null),
+        fetch('/api/alerts/summary').catch(()=>null),
+      ]);
+      const today   = (rToday   && rToday.ok)   ? await rToday.json()   : {};
+      const summary = (rSummary && rSummary.ok) ? await rSummary.json() : {};
+      this.alertData = { today, summary };
+    } catch(e) { console.error(e); }
+  },
+
+  async loadRealtime() {
+    try {
+      const r = await fetch('/api/stream/live-stats').catch(()=>null);
+      if (r && r.ok) this.realtimeStats = await r.json();
+    } catch(e) {}
   },
 
   // ── Phase 1: Deployment Gate & Trend ──

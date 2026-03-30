@@ -1,5 +1,5 @@
 """
-Agent Evaluator SDK v0.6.3
+Agent Evaluator SDK v0.6.5
 ===========================
 
 Production-ready evaluation framework for AI agents.
@@ -35,7 +35,7 @@ Quick Start (LLM Integration):
     >>> # Auto-recorded in monitor!
 """
 
-__version__ = "0.6.3"
+__version__ = "0.6.5"
 __author__ = "Sungwoo Kim"
 
 # Exception hierarchy (경량 — 외부 의존성 없음)
@@ -105,12 +105,33 @@ from .helpers.taskresult_helpers import create_taskresult_from_execution as crea
 # Conversation Evaluation (Phase 1-C)
 from .core.trackers.conversation import ConversationSession, ConversationMetrics, ConversationTurn
 
+# Feedback Tracker (Phase 2-C)
+from .core.trackers.feedback import ImplicitFeedbackTracker
+
+# Anomaly Detection (Phase 3-B)
+from .anomaly import AnomalyDetector, AnomalyEvent
+
+# Cost Optimization (Phase 3-C)
+from .cost import CostTracker, AdaptivePolicy, SamplingStage
+
 # ---------------------------------------------------------------------------
 # Lazy imports — 무거운 패키지(litellm, crewai, autogen, langchain, etc.)는
 # 실제로 접근할 때만 로드한다. `from agent_evaluator import X` 도 동작한다.
 # ---------------------------------------------------------------------------
 
 _LAZY_IMPORTS = {
+    # Streaming Evaluator (Phase 2-A) — requires serve extras (fastapi/starlette)
+    "StreamingEvaluator": ("agent_evaluator.streaming.evaluator", "StreamingEvaluator"),
+    "AgentEvalMiddleware": ("agent_evaluator.streaming.middleware", "AgentEvalMiddleware"),
+    # Alert System (Phase 2-B)
+    "AlertEngine": ("agent_evaluator.alerts.engine", "AlertEngine"),
+    "AlertRule": ("agent_evaluator.alerts.engine", "AlertRule"),
+    "AlertEvent": ("agent_evaluator.alerts.engine", "AlertEvent"),
+    "SlackHandler": ("agent_evaluator.alerts.handlers", "SlackHandler"),
+    "WebhookHandler": ("agent_evaluator.alerts.handlers", "WebhookHandler"),
+    "EmailHandler": ("agent_evaluator.alerts.handlers", "EmailHandler"),
+    # Golden Set Builder (Phase 3-A)
+    "GoldenSetBuilder": ("agent_evaluator.datasets.builder", "GoldenSetBuilder"),
     # Hybrid Monitor
     "HybridPerformanceMonitor": ("agent_evaluator.core.hybrid_monitor", "HybridPerformanceMonitor"),
     "ExtendedTaskResult": ("agent_evaluator.core.hybrid_monitor", "ExtendedTaskResult"),
@@ -152,8 +173,17 @@ _LAZY_IMPORTS = {
     ),
 }
 
-# 프레임워크 이름 → extras 이름 매핑 (FrameworkNotInstalledError 메시지용)
+# 모듈 이름 → extras 이름 매핑 (FrameworkNotInstalledError 메시지용)
 _FRAMEWORK_EXTRA_MAP = {
+    "StreamingEvaluator": "serve",
+    "AgentEvalMiddleware": "serve",
+    "AlertEngine": "serve",
+    "AlertRule": "serve",
+    "AlertEvent": "serve",
+    "SlackHandler": "serve",
+    "WebhookHandler": "serve",
+    "EmailHandler": "serve",
+    "GoldenSetBuilder": "all",
     "LangChainEvaluator": "langchain",
     "LangGraphEvaluator": "langchain",
     "CrewAIEvaluator": "crewai",
@@ -269,6 +299,33 @@ __all__ = [
     'ConversationSession',
     'ConversationMetrics',
     'ConversationTurn',
+
+    # Feedback Tracker (Phase 2-C)
+    'ImplicitFeedbackTracker',
+
+    # Streaming Evaluator (Phase 2-A — lazy)
+    'StreamingEvaluator',
+    'AgentEvalMiddleware',
+
+    # Alert System (Phase 2-B — lazy)
+    'AlertEngine',
+    'AlertRule',
+    'AlertEvent',
+    'SlackHandler',
+    'WebhookHandler',
+    'EmailHandler',
+
+    # Anomaly Detection (Phase 3-B)
+    'AnomalyDetector',
+    'AnomalyEvent',
+
+    # Cost Optimization (Phase 3-C)
+    'CostTracker',
+    'AdaptivePolicy',
+    'SamplingStage',
+
+    # Golden Set Builder (Phase 3-A — lazy)
+    'GoldenSetBuilder',
 
     # Transparency
     'TestTransparencyManager',

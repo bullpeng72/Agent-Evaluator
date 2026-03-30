@@ -25,6 +25,7 @@
       OPENAI_API_KEY 가 설정되어 있어야 합니다.
 """
 
+import dataclasses
 import os
 import sys
 from pathlib import Path
@@ -81,8 +82,8 @@ if _missing:
     print("   pip install agent-evaluator[eval] langchain-openai datasets")
     sys.exit(1)
 
-from agent_evaluator import TaskResult
-from agent_evaluator import HybridPerformanceMonitor
+from agent_evaluator import TaskResult, create_taskresult
+from agent_evaluator import HybridPerformanceMonitor, PerformanceMonitor
 from agent_evaluator.reporting import generate_comprehensive_html_report
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -223,7 +224,7 @@ RAG_CASES = [
 
 def load_hybrid_golden_dataset() -> tuple:
     """
-    results/golden_datasets/hybrid_rag_evaluation.json 에서
+    data/golden_datasets/hybrid_rag_evaluation.json 에서
     DEEPEVAL_ONLY_CASES 와 RAG_CASES 를 동적으로 로드합니다.
 
     JSON 파일이 없으면 모듈 상단의 인라인 데이터로 폴백합니다.
@@ -233,7 +234,7 @@ def load_hybrid_golden_dataset() -> tuple:
     """
     import json
 
-    golden_path = project_root / "results" / "golden_datasets" / "hybrid_rag_evaluation.json"
+    golden_path = project_root / "data" / "golden_datasets" / "hybrid_rag_evaluation.json"
     if not golden_path.exists():
         return DEEPEVAL_ONLY_CASES, RAG_CASES
 
@@ -314,10 +315,17 @@ def run_hybrid_evaluation():
     # Golden Dataset 파일 로드 (없으면 인라인 케이스 폴백)
     deepeval_cases, rag_cases = load_hybrid_golden_dataset()
 
+    # LangSmith 트레이싱 — LANGSMITH_API_KEY 있을 때만 활성화
+    use_langsmith = bool(os.getenv("LANGSMITH_API_KEY"))
+    if use_langsmith:
+        print("  ✅ LANGSMITH_API_KEY 감지 — LangSmith 트레이싱 활성화")
+    else:
+        print("  ℹ️  LANGSMITH_API_KEY 없음 — LangSmith 비활성화")
+
     monitor = HybridPerformanceMonitor(
         use_deepeval=True,
         use_ragas=True,
-        use_langsmith=False,
+        use_langsmith=use_langsmith,
         deepeval_model="gpt-4o-mini",
         ragas_model="gpt-4o-mini",
         enable_hallucination_detection=True,
@@ -345,18 +353,19 @@ def run_hybrid_evaluation():
             "total":  max(50, _q_len // 4) + max(40, _a_len // 4),
         }
 
-        task = TaskResult(
+        # create_taskresult() 헬퍼로 점수 자동 계산
+        task = create_taskresult(
             task_id=case["task_id"],
-            task_type=case["task_type"],
-            success=case["success"],
-            completion_score=case["accuracy_score"],
-            accuracy_score=case["accuracy_score"],
+            question=case["question"],
+            response=case["answer"],
+            ground_truth=case["expected"],
             execution_time=_exec_time,
+            task_type=case["task_type"],
+            has_error=not case["success"],
+        )
+        task = dataclasses.replace(
+            task,
             tokens_used=_tokens,
-            tool_calls=[],
-            attempts=1,
-            errors=[],
-            timestamp=datetime.now(),
             framework="langchain",
         )
 
@@ -392,18 +401,20 @@ def run_hybrid_evaluation():
             "total":  max(100, (_q_len + _ctx_len) // 4) + max(80, _a_len // 4),
         }
 
-        task = TaskResult(
+        # create_taskresult() 헬퍼로 점수 자동 계산
+        task = create_taskresult(
             task_id=case["task_id"],
-            task_type=case["task_type"],
-            success=case["success"],
-            completion_score=case["accuracy_score"],
-            accuracy_score=case["accuracy_score"],
+            question=case["question"],
+            response=case["answer"],
+            ground_truth=case["expected"],
             execution_time=_exec_time,
+            task_type=case["task_type"],
+            has_error=case["is_hallucination_test"],
+            error_message="hallucination_detected" if case["is_hallucination_test"] else None,
+        )
+        task = dataclasses.replace(
+            task,
             tokens_used=_tokens,
-            tool_calls=[],
-            attempts=1,
-            errors=["hallucination_detected"] if case["is_hallucination_test"] else [],
-            timestamp=datetime.now(),
             framework="langchain",
         )
 
@@ -493,6 +504,64 @@ def run_hybrid_evaluation():
             break
 
     print(f"{'─'*70}\n")
+
+    # ─────────────────────────────────────────────────────────────────────────
+    # [Part 3] Layer 1 직접 트래커 비교 — HybridPerformanceMonitor와 차이점 시연
+    # ─────────────────────────────────────────────────────────────────────────
+    print("─" * 70)
+    print("  [Part 3] Layer 1 직접 트래커 비교")
+    print("  HybridPerformanceMonitor(Layer 3) vs PerformanceMonitor(Layer 1)")
+    print("─" * 70)
+
+    # Layer 1 전용 모니터 — 외부 의존성 없이 알고리즘 기반 평가
+    layer1_monitor = PerformanceMonitor(
+        enable_hallucination_detection=True,
+        output_dir=str(project_root / "results"),
+    )
+
+    # 동일한 케이스를 Layer 1으로 평가
+    for case in deepeval_cases + rag_cases:
+        l1_task = create_taskresult(
+            task_id=f"l1_{case['task_id']}",
+            question=case["question"],
+            response=case["answer"],
+            ground_truth=case["expected"],
+            execution_time=0.5,
+            task_type=case["task_type"],
+            has_error=case.get("is_hallucination_test", not case["success"]),
+        )
+        layer1_monitor.record_task(l1_task)
+
+        # Layer 1 hallucination: 알고리즘 기반 패턴 매칭
+        ctx = case.get("contexts", [case["expected"]])
+        ctx_str = " ".join(ctx) if isinstance(ctx, list) else ctx
+        layer1_monitor.hallucination_detector.detect_hallucination(
+            task_id=f"l1_{case['task_id']}",
+            response=case["answer"],
+            context=ctx_str,
+            ground_truth=case["expected"],
+            request=case["question"],
+        )
+
+    l1_report = layer1_monitor.generate_report()
+    l1_acc = l1_report.accuracy_metrics.get("accuracy", {})
+    l3_de_scores = metrics_by_key.get("g_eval_score", [])
+
+    print(f"\n  Layer 1 (알고리즘 기반):")
+    print(f"    정확도 (토큰 F1·Jaccard·LCS): "
+          f"{l1_acc.get('avg_accuracy', 0.0):.3f}")
+    print(f"    TCR: {l1_report.accuracy_metrics.get('tcr', {}).get('tcr', 0):.1f}%")
+
+    if l3_de_scores:
+        print(f"\n  Layer 3 (DeepEval G-Eval, GPT 기반):")
+        avg_geval = sum(l3_de_scores) / len(l3_de_scores)
+        print(f"    G-Eval 평균 점수: {avg_geval:.3f}  (n={len(l3_de_scores)})")
+
+    print(f"\n  비교 포인트:")
+    print(f"    Layer 1 — 즉시 실행, API 비용 없음, 표면 어휘 유사도 기반")
+    print(f"    Layer 3 — LLM 의미 이해, API 비용 발생, 뉘앙스·편향·독성 탐지 가능")
+    print(f"{'─'*70}\n")
+
     return saved_path
 
 

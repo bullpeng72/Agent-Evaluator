@@ -64,6 +64,16 @@ _COORD_CONSUMER_RATIO: float = 0.3
 # track_interaction()에서 허용되는 인터랙션 유형 집합
 _COORD_ALLOWED_INTERACTION_TYPES: frozenset = frozenset({"delegation", "communication", "collaboration"})
 
+# 흔히 사용되는 별칭 → canonical 유형 매핑 (경고 없이 자동 정규화)
+_COORD_INTERACTION_TYPE_ALIASES: dict = {
+    "task_delegation": "delegation",
+    "result_sharing":  "communication",
+    "feedback":        "communication",
+    "coordination":    "collaboration",
+    "handoff":         "delegation",
+    "broadcast":       "communication",
+}
+
 
 # ===========================================================================
 # 7. Tool Call Efficiency Analyzer (Agentic AI - Layer 2)
@@ -711,15 +721,19 @@ class AgentCoordinationTracker(BaseTracker):
         # DQ-166: 빈 에이전트 이름은 집계를 오염시킴 — placeholder로 대체
         from_agent = from_agent or "unknown_agent"
         to_agent = to_agent or "unknown_agent"
-        # DQ-167: allowed interaction_type 외 값은 "delegation"으로 정규화
+        # DQ-167: allowed interaction_type 외 값은 별칭 매핑 후 canonical 유형으로 정규화
         if interaction_type not in _COORD_ALLOWED_INTERACTION_TYPES:
-            logger.warning(
-                "track_interaction() received unknown interaction_type=%r for task %r. "
-                "Expected one of %s. Normalising to 'delegation'. "
-                "This may indicate a bug in the caller.",
-                interaction_type, task_id, sorted(_COORD_ALLOWED_INTERACTION_TYPES),
-            )
-            interaction_type = "delegation"
+            canonical = _COORD_INTERACTION_TYPE_ALIASES.get(interaction_type)
+            if canonical is not None:
+                interaction_type = canonical
+            else:
+                logger.warning(
+                    "track_interaction() received unknown interaction_type=%r for task %r. "
+                    "Expected one of %s. Normalising to 'delegation'. "
+                    "This may indicate a bug in the caller.",
+                    interaction_type, task_id, sorted(_COORD_ALLOWED_INTERACTION_TYPES),
+                )
+                interaction_type = "delegation"
         interaction = {
             "task_id": task_id,
             "from_agent": from_agent,

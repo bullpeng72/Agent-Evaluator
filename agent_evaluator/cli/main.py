@@ -35,6 +35,7 @@ from agent_evaluator.config import (
     load_env,
 )
 from agent_evaluator.cli.gate import cmd_gate
+from agent_evaluator.cli.dataset import cmd_dataset
 
 
 # ---------------------------------------------------------------------------
@@ -869,6 +870,57 @@ def main() -> None:
         help="JUnit XML 출력 경로 (CI 시스템 연동)",
     )
 
+    # dataset subcommand
+    ds_p = sub.add_parser(
+        "dataset",
+        help="골든 데이터셋 관리 (build — 운영 결과에서 자동 추출)",
+        formatter_class=ColoredHelpFormatter,
+        epilog=(
+            f"{B}예시:{R}\n"
+            f"  {G}agent-eval dataset build --source results/ --strategy failure_cases edge_cases{R}\n"
+            f"  {G}agent-eval dataset build --source results/daily/ --max-cases 30 --output golden/{R}\n"
+        ),
+    )
+    ds_sub = ds_p.add_subparsers(dest="dataset_command")
+
+    build_p = ds_sub.add_parser(
+        "build",
+        help="운영 결과 파일에서 골든셋 후보 자동 추출",
+        formatter_class=ColoredHelpFormatter,
+    )
+    build_p.add_argument(
+        "--source", default="./results", metavar="DIR",
+        help="결과 JSON 파일 디렉토리 (기본: ./results)",
+    )
+    build_p.add_argument(
+        "--output", default=None, metavar="DIR",
+        help="골든셋 출력 디렉토리 (기본: <source>/golden_datasets/)",
+    )
+    build_p.add_argument(
+        "--strategy", nargs="+",
+        default=["failure_cases", "edge_cases"],
+        metavar="STRATEGY",
+        help=(
+            "추출 전략 — 복수 지정 가능 (기본: failure_cases edge_cases)\n"
+            "  failure_cases  실패 태스크 → 회귀 테스트 소재\n"
+            "  edge_cases     이상치 (비정상 길이·특수문자 등)\n"
+            "  high_value     긍정 피드백 높은 케이스\n"
+            "  coverage_gap   기존 골든셋 미커버 유형"
+        ),
+    )
+    build_p.add_argument(
+        "--max-cases", type=int, default=50, dest="max_cases", metavar="N",
+        help="추출할 최대 케이스 수 (기본: 50)",
+    )
+    build_p.add_argument(
+        "--no-review", action="store_true", dest="no_review",
+        help="사람 검토 없이 바로 저장 (기본: 검토 필요 플래그 포함)",
+    )
+    build_p.add_argument(
+        "--name", default=None, metavar="FILENAME",
+        help="저장 파일 이름 (기본: candidates_YYYYMMDD_HHMMSS.json)",
+    )
+
     parser.add_argument(
         "--version", action="store_true",
         help="패키지 버전 출력",
@@ -884,6 +936,7 @@ def main() -> None:
         "check":     cmd_check,
         "dashboard": cmd_dashboard,
         "gate":      cmd_gate,
+        "dataset":   cmd_dataset,
     }
 
     if args.command is None:

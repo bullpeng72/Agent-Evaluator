@@ -321,25 +321,18 @@ def _make_question(answer: str) -> str:
     key = " ".join(words[:2]) if len(words) >= 2 else answer[:20]
     return f"'{key}'와 관련된 핵심 내용은 무엇인가요?"
 
-_GOLDEN_CANDIDATES = [
-    "golden_datasets",
-    "data/golden_datasets",
-]
-
-
 def _golden_dir(request: Request) -> Path:
     results_dir: Path = request.app.state.results_dir
-    # 1. results_dir 안에 golden_datasets 서브디렉토리 (정규 위치)
+    # 1. 정규 위치: {project_root}/data/golden_datasets/
+    p = results_dir.parent / "data" / "golden_datasets"
+    if p.exists():
+        return p
+    # 2. 레거시 위치: results_dir 안의 golden_datasets 서브디렉토리
     p = results_dir / "golden_datasets"
     if p.exists():
         return p
-    # 2. results_dir 의 형제 디렉토리로 탐색 (레거시 위치 호환)
-    for cand in _GOLDEN_CANDIDATES:
-        p = results_dir.parent / cand
-        if p.exists():
-            return p
-    # 3. 폴백: results_dir/golden_datasets 생성 (루트가 아닌 results 아래에)
-    d = results_dir / "golden_datasets"
+    # 3. 폴백: data/golden_datasets 신규 생성
+    d = results_dir.parent / "data" / "golden_datasets"
     d.mkdir(parents=True, exist_ok=True)
     return d
 
@@ -412,6 +405,144 @@ async def create_golden(request: Request) -> Dict[str, Any]:
         return {"ok": True, "name": fname, "count": len(items)}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+# ---------------------------------------------------------------------------
+# 케이스 검토 API — GoldenSetBuilder 후보 파일 관리
+# ---------------------------------------------------------------------------
+
+@router.get("/candidates")
+def list_candidates(request: Request) -> List[Dict[str, Any]]:
+    """candidates_*.json 파일 목록 반환."""
+    gdir = _golden_dir(request)
+    result = []
+    for p in sorted(gdir.glob("candidates_*.json"), reverse=True):
+        try:
+            data = _read_json(p)
+            cases = data if isinstance(data, list) else []
+            pending = sum(1 for c in cases if c.get("_requires_review") and not c.get("_approved") and not c.get("_rejected"))
+            approved = sum(1 for c in cases if c.get("_approved"))
+            rejected = sum(1 for c in cases if c.get("_rejected"))
+        except Exception:
+            cases = []
+            pending = approved = rejected = 0
+        result.append({
+            "name": p.name,
+            "stem": p.stem,
+            "total": len(cases),
+            "pending": pending,
+            "approved": approved,
+            "rejected": rejected,
+            "mtime": p.stat().st_mtime,
+        })
+    return result
+
+
+@router.get("/candidates/{name}")
+def get_candidate_file(name: str, request: Request) -> List[Dict[str, Any]]:
+    """후보 파일의 케이스 목록 반환 (인덱스 포함)."""
+    gdir = _golden_dir(request)
+    for p in [gdir / name, gdir / f"{name}.json"]:
+        if p.exists():
+            try:
+                data = _read_json(p)
+                cases = data if isinstance(data, list) else []
+                return [{"_idx": i, **c} for i, c in enumerate(cases)]
+            except Exception as e:
+                raise HTTPException(status_code=500, detail=str(e))
+    raise HTTPException(status_code=404, detail="Candidate file not found")
+
+
+@router.post("/candidates/{name}/approve/{idx}")
+def approve_case(name: str, idx: int, request: Request) -> Dict[str, Any]:
+    """단일 케이스 승인 — _approved=True 플래그 설정."""
+    gdir = _golden_dir(request)
+    for p in [gdir / name, gdir / f"{name}.json"]:
+        if p.exists():
+            try:
+                data = _read_json(p)
+                cases = data if isinstance(data, list) else []
+                if idx < 0 or idx >= len(cases):
+                    raise HTTPException(status_code=400, detail=f"Index {idx} out of range")
+                cases[idx]["_approved"] = True
+                cases[idx]["_rejected"] = False
+                p.write_text(json.dumps(cases, ensure_ascii=False, indent=2), encoding="utf-8")
+                return {"ok": True, "idx": idx, "action": "approved"}
+            except HTTPException:
+                raise
+            except Exception as e:
+                raise HTTPException(status_code=500, detail=str(e))
+    raise HTTPException(status_code=404, detail="Candidate file not found")
+
+
+@router.post("/candidates/{name}/reject/{idx}")
+def reject_case(name: str, idx: int, request: Request) -> Dict[str, Any]:
+    """단일 케이스 거부 — _rejected=True 플래그 설정."""
+    gdir = _golden_dir(request)
+    for p in [gdir / name, gdir / f"{name}.json"]:
+        if p.exists():
+            try:
+                data = _read_json(p)
+                cases = data if isinstance(data, list) else []
+                if idx < 0 or idx >= len(cases):
+                    raise HTTPException(status_code=400, detail=f"Index {idx} out of range")
+                cases[idx]["_rejected"] = True
+                cases[idx]["_approved"] = False
+                p.write_text(json.dumps(cases, ensure_ascii=False, indent=2), encoding="utf-8")
+                return {"ok": True, "idx": idx, "action": "rejected"}
+            except HTTPException:
+                raise
+            except Exception as e:
+                raise HTTPException(status_code=500, detail=str(e))
+    raise HTTPException(status_code=404, detail="Candidate file not found")
+
+
+@router.post("/candidates/{name}/merge")
+def merge_approved(name: str, request: Request) -> Dict[str, Any]:
+    """승인된 케이스를 골든셋에 병합 — 새 golden_*.json 파일 생성."""
+    gdir = _golden_dir(request)
+    for p in [gdir / name, gdir / f"{name}.json"]:
+        if p.exists():
+            try:
+                data = _read_json(p)
+                cases = data if isinstance(data, list) else []
+                approved = [c for c in cases if c.get("_approved")]
+                if not approved:
+                    raise HTTPException(status_code=400, detail="No approved cases to merge")
+                from datetime import datetime
+                ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+                out_name = f"golden_{ts}.json"
+                out_path = gdir / out_name
+                # 내부 메타 플래그 제거 후 저장
+                clean = [{k: v for k, v in c.items() if not k.startswith("_")} for c in approved]
+                out_path.write_text(json.dumps(clean, ensure_ascii=False, indent=2), encoding="utf-8")
+                return {"ok": True, "merged": len(clean), "filename": out_name}
+            except HTTPException:
+                raise
+            except Exception as e:
+                raise HTTPException(status_code=500, detail=str(e))
+    raise HTTPException(status_code=404, detail="Candidate file not found")
+
+
+@router.get("/versions")
+def list_versions(request: Request) -> List[Dict[str, Any]]:
+    """golden_*.json 파일 버전 목록 (candidates 제외)."""
+    gdir = _golden_dir(request)
+    result = []
+    for p in sorted(gdir.glob("golden_*.json"), reverse=True):
+        try:
+            data = _read_json(p)
+            count = len(data) if isinstance(data, list) else 0
+        except Exception:
+            count = 0
+        result.append({
+            "name": p.name,
+            "stem": p.stem,
+            "count": count,
+            "mtime": p.stat().st_mtime,
+            "size_bytes": p.stat().st_size,
+        })
+    return result
 
 
 @router.post("/pdf")
