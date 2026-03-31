@@ -166,9 +166,9 @@ def create_app(
     @app.get("/", response_class=HTMLResponse)
     async def dashboard(request: Request):
         return templates.TemplateResponse(
+            request,
             "dashboard.html.j2",
             {
-                "request": request,
                 "title":   app.state.title,
                 "version": app.state.version,
                 "watch":   watch,
@@ -179,9 +179,9 @@ def create_app(
     @app.get("/slides", response_class=HTMLResponse)
     async def slides(request: Request):
         return templates.TemplateResponse(
+            request,
             "slides.html.j2",
             {
-                "request": request,
                 "title":   app.state.title,
                 "version": app.state.version,
                 "offline": app.state.offline,
@@ -191,9 +191,9 @@ def create_app(
     @app.get("/sdk-docs", response_class=HTMLResponse)
     async def sdk_docs(request: Request):
         return templates.TemplateResponse(
+            request,
             "sdk_docs.html.j2",
             {
-                "request": request,
                 "title":   app.state.title,
                 "version": app.state.version,
                 "offline": app.state.offline,
@@ -203,9 +203,9 @@ def create_app(
     @app.get("/dashboard", response_class=HTMLResponse)
     async def dashboard2(request: Request):
         return templates.TemplateResponse(
+            request,
             "dashboard2.html.j2",
             {
-                "request": request,
                 "title":   app.state.title,
                 "version": app.state.version,
                 "watch":   watch,
