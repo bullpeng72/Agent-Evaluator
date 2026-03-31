@@ -176,6 +176,19 @@ pip install "agent-evaluator[all]"         # crewai/autogen 제외 전체 (권�
 pip install "agent-evaluator[full]"        # 진짜 전체 (⚠️ 설치 10분+ 소요)
 ```
 
+### pipx로 설치하는 경우
+
+pipx는 기본적으로 pip 인덱스 캐시를 사용하므로, 최신 버전이 반영되지 않을 수 있습니다.
+캐시 문제가 발생하면 아래 두 가지 방법 중 하나를 사용하세요:
+
+```bash
+# 방법 1: 버전 명시 (권장)
+pipx install "agent-evaluator[all]==0.6.7"
+
+# 방법 2: 캐시 무시
+pipx install --pip-args="--no-cache-dir" "agent-evaluator[all]"
+```
+
 ### 소스에서 개발 설치
 
 ```bash
