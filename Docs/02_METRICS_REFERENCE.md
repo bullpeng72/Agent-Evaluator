@@ -2,7 +2,7 @@
 
 Agent Evaluator 25개 지표의 공식·출력키·임계값 참조 문서
 
-**v0.6.6 | Layer 1: 6개 (무료) · Layer 2: 10개 (무료) · Layer 3: 9개 (API 필요)**
+**v0.6.7 | Layer 1: 6개 (무료) · Layer 2: 10개 (무료) · Layer 3: 9개 (API 필요)**
 
 > 개념 설명과 학습 내용은 `Lectures/M2`, `M3`, `M4`를 참조하세요.
 > 개별 트래커 API 시그니처는 [07_API_REFERENCE.md](07_API_REFERENCE.md)를 참조하세요.

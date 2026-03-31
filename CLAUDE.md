@@ -5,7 +5,7 @@
 **Agent-Evaluator** is a production-ready Python SDK for evaluating AI agents.
 25개의 성능 지표를 세 개의 레이어(기본/에이전틱/하이브리드)로 측정한다.
 
-- **Version:** 0.6.6 (Beta)
+- **Version:** 0.6.7 (Beta)
 - **Python:** 3.8+
 - **License:** MIT
 - **Author:** Sungwoo Kim
@@ -369,7 +369,7 @@ from agent_evaluator import (
 pytest
 ```
 
-커버리지 현황 (v0.6.6 기준):
+커버리지 현황 (v0.6.7 기준):
 - `base.py`: 92% | `layer1.py`: 84% | `layer2.py`: 95%
 - `hybrid_monitor.py`: 61% | `monitor.py`: 41% | `taskresult_helpers.py`: 89% | 전체: 33%
 
@@ -380,8 +380,8 @@ pytest
 ## Dependencies
 
 ### Core (항상 설치됨)
-- `numpy>=1.20.0,<2.0.0`
-- `pandas>=1.3.0,<3.0.0`
+- `numpy>=1.20.0,<3.0.0`
+- `pandas>=1.3.0,<4.0.0`
 - `python-dotenv>=0.19.0,<2.0.0`
 
 ### Optional (단위 extras)
@@ -428,6 +428,16 @@ pytest
 ---
 
 ## 📝 변경 이력
+
+### v0.6.7 (2026-04-01) — Python 3.13 지원 · 의존성 상한 완화
+
+#### 🔧 Python 3.13 호환성 (의존성 제약 갱신)
+- `numpy>=1.20.0,<2.0.0` → `<3.0.0` — numpy 2.x Python 3.13 wheel 지원
+- `pandas>=1.3.0,<3.0.0` → `<4.0.0` — pandas 3.x Python 3.13 wheel 지원
+- `pyproject.toml` classifier에 `Programming Language :: Python :: 3.13` 추가
+- pipx(Python 3.13 기본) 환경에서 소스 빌드 실패 문제 해결
+
+---
 
 ### v0.6.6 (2026-03-31) — Docs 체계 재조정 · 내보내기 버그 수정 · SDK HTML 리포트 개선
 

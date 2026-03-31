@@ -681,7 +681,7 @@ agent-evaluator v0.5.7 버전부터 모든 핵심 클래스가 Zero Configuratio
 
 * * *
 
-**문서 버전** : 0.6.3
+**문서 버전** : 0.6.7
 **최종 업데이트** : 2026-03-27
 **변경사항** :  
 \- Evaluator_Examples 경로 탐지 로직 제거  
