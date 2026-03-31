@@ -4963,6 +4963,12 @@ input[type=text],input[type=number]{background:var(--bg3);color:var(--text);bord
         <span x-show="data?.has_security" style="font-size:11px;padding:2px 9px;border-radius:99px;background:#ef444433;color:#f87171">보안 (L1 입력/출력·L2 권한상승)</span>
         <span x-show="data?.has_rag" style="font-size:11px;padding:2px 9px;border-radius:99px;background:#10b98133;color:#34d399">RAG (Faithfulness·Relevancy·Recall·Precision)</span>
         <span x-show="data?.has_advanced" style="font-size:11px;padding:2px 9px;border-radius:99px;background:#f59e0b33;color:#fbbf24">외부평가 (DeepEval·G-Eval·Toxicity·Bias)</span>
+        <span x-show="data?.has_conversation" style="font-size:11px;padding:2px 9px;border-radius:99px;background:#ec489933;color:#f472b6">멀티턴 (문맥유지·주제일관성·깊이)</span>
+        <span x-show="data?.has_llm_judge" style="font-size:11px;padding:2px 9px;border-radius:99px;background:#0ea5e933;color:#38bdf8">LLM Judge (점수·근거·판단)</span>
+        <span x-show="data?.has_feedback" style="font-size:11px;padding:2px 9px;border-radius:99px;background:#65a30d33;color:#a3e635">사용자 반응 (암묵적 피드백)</span>
+        <span x-show="data?.has_anomaly" style="font-size:11px;padding:2px 9px;border-radius:99px;background:#ea580c33;color:#fb923c">이상 감지 (Z-score·IQR·급격한 변화)</span>
+        <span x-show="data?.has_cost" style="font-size:11px;padding:2px 9px;border-radius:99px;background:#64748b33;color:#94a3b8">평가 비용 (토큰·샘플링 정책)</span>
+        <span x-show="data?.has_streaming" style="font-size:11px;padding:2px 9px;border-radius:99px;background:#7c3aed33;color:#c4b5fd">실시간 (슬라이딩 윈도우·1m/5m/1h)</span>
       </div>
 
       <!-- 3개 형식 카드 -->
@@ -4995,7 +5001,19 @@ input[type=text],input[type=number]{background:var(--bg3);color:var(--text);bord
               <span>security_l1 · security_l2<br></span>
             </template>
             <template x-if="data?.has_rag || data?.has_advanced">
-              <span>advanced (RAG · DeepEval)</span>
+              <span>advanced (RAG · DeepEval)<br></span>
+            </template>
+            <template x-if="data?.has_conversation">
+              <span>conversation_sessions<br></span>
+            </template>
+            <template x-if="data?.has_feedback">
+              <span>implicit_feedback<br></span>
+            </template>
+            <template x-if="data?.has_anomaly">
+              <span>anomaly_data<br></span>
+            </template>
+            <template x-if="data?.has_streaming">
+              <span>streaming_data (1m/5m/1h)</span>
             </template>
           </div>
           <a class="btn" :href="'/api/export/json/'+selId" download style="text-decoration:none;margin-top:auto">다운로드</a>
@@ -5017,13 +5035,18 @@ input[type=text],input[type=number]{background:var(--bg3);color:var(--text);bord
           <div style="font-size:10px;color:var(--text2);background:var(--bg2);border-radius:6px;padding:6px 8px;font-family:monospace;line-height:1.8">
             task_id · task_type · success<br>
             completion_score · accuracy_score<br>
-            execution_time · tokens_total<br>
-            attempts · errors · framework<br>
-            <template x-if="data?.has_agentic">
-              <span>tool_calls_count<br></span>
-            </template>
+            execution_time · timestamp<br>
+            tokens_input · tokens_output · tokens_total<br>
+            tool_calls_count · attempts · errors<br>
+            framework
             <template x-if="data?.has_rag || data?.has_advanced">
-              <span>ragas_* · g_eval_score · …</span>
+              <span><br>ragas_* · g_eval_score · …</span>
+            </template>
+            <template x-if="data?.has_conversation">
+              <span>conv_session_id · turn_count<br></span>
+            </template>
+            <template x-if="data?.has_cost">
+              <span>cost_total · sampling_stage</span>
             </template>
           </div>
           <a class="btn" :href="'/api/export/csv/'+selId" download style="text-decoration:none;margin-top:auto">다운로드</a>
@@ -5045,15 +5068,27 @@ input[type=text],input[type=number]{background:var(--bg3);color:var(--text);bord
           </div>
           <div style="font-size:10px;color:var(--text2);background:var(--bg2);border-radius:6px;padding:6px 8px;font-family:monospace;line-height:1.8">
             KPI 요약 · 성공/실패 차트<br>
-            태스크 상세 테이블<br>
+            태스크 테이블 (framework · tool_calls 포함)<br>
             <template x-if="data?.has_quality">
               <span>품질·환각 지표<br></span>
+            </template>
+            <template x-if="data?.has_agentic">
+              <span>에이전틱 지표 (tool/retry/workflow)<br></span>
             </template>
             <template x-if="data?.has_security">
               <span>보안 L1/L2 요약<br></span>
             </template>
+            <template x-if="data?.has_llm_judge">
+              <span>LLM Judge (완전성·관련성·사실성)<br></span>
+            </template>
             <template x-if="data?.has_rag || data?.has_advanced">
-              <span>RAG · DeepEval 지표</span>
+              <span>RAG · DeepEval 지표<br></span>
+            </template>
+            <template x-if="data?.has_conversation">
+              <span>멀티턴 대화 요약<br></span>
+            </template>
+            <template x-if="data?.has_anomaly">
+              <span>이상 감지 타임라인</span>
             </template>
           </div>
           <a class="btn" :href="'/api/export/html/'+selId" download style="text-decoration:none;margin-top:auto">다운로드</a>
@@ -5073,6 +5108,12 @@ input[type=text],input[type=number]{background:var(--bg3);color:var(--text);bord
                 <span x-show="f.has_security" style="padding:1px 5px;border-radius:99px;background:#ef444422;color:#f87171">보안</span>
                 <span x-show="f.has_rag" style="padding:1px 5px;border-radius:99px;background:#10b98122;color:#34d399">RAG</span>
                 <span x-show="f.has_advanced" style="padding:1px 5px;border-radius:99px;background:#f59e0b22;color:#fbbf24">외부평가</span>
+                <span x-show="f.has_conversation" style="padding:1px 5px;border-radius:99px;background:#ec489922;color:#f472b6">멀티턴</span>
+                <span x-show="f.has_llm_judge" style="padding:1px 5px;border-radius:99px;background:#0ea5e922;color:#38bdf8">LLM Judge</span>
+                <span x-show="f.has_feedback" style="padding:1px 5px;border-radius:99px;background:#65a30d22;color:#a3e635">사용자 반응</span>
+                <span x-show="f.has_anomaly" style="padding:1px 5px;border-radius:99px;background:#ea580c22;color:#fb923c">이상 감지</span>
+                <span x-show="f.has_cost" style="padding:1px 5px;border-radius:99px;background:#64748b22;color:#94a3b8">평가 비용</span>
+                <span x-show="f.has_streaming" style="padding:1px 5px;border-radius:99px;background:#7c3aed22;color:#c4b5fd">실시간</span>
                 <span style="color:var(--text2)" x-text="f.total_tasks+'개 태스크'"></span>
               </div>
             </div>
@@ -5351,12 +5392,12 @@ input[type=text],input[type=number]{background:var(--bg3);color:var(--text);bord
 <!-- ═══════════════ METRICS GUIDE ═══════════════ -->
 <section id="s-metrics_guide" class="sec" x-show="sec==='metrics_guide'" x-cloak>
   <div style="font-weight:700;font-size:15px;margin-bottom:4px">📖 지표 설명</div>
-  <div style="font-size:12px;color:var(--text2);margin-bottom:14px">Agent-Evaluator가 측정하는 20개 지표의 목적·계산식·벤치마크를 계층별로 설명합니다.</div>
+  <div style="font-size:12px;color:var(--text2);margin-bottom:14px">Agent-Evaluator가 측정하는 25개 지표·기능의 목적·계산식·벤치마크를 계층별로 설명합니다.</div>
 
   <div x-data="{mf:'all'}">
   <!-- 레이어 필터 -->
   <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:18px">
-    <template x-for="(b,i) in [{v:'all',l:'전체 (20개)'},{v:'l1',l:'L1 기반 (6개)'},{v:'l2a',l:'L2 에이전틱 (5개)'},{v:'l2s',l:'L2 보안 (5개)'},{v:'l3',l:'L3 하이브리드 (4개)'}]" :key="i">
+    <template x-for="(b,i) in [{v:'all',l:'전체 (25개)'},{v:'l1',l:'L1 기반 (6개)'},{v:'l2a',l:'L2 에이전틱 (5개)'},{v:'l2s',l:'L2 보안 (5개)'},{v:'l3',l:'L3 하이브리드 (4개)'},{v:'ext',l:'부가 기능 (5개)'}]" :key="i">
       <button @click="mf=b.v"
         :style="mf===b.v?'background:var(--accent);color:#fff;border:none':'background:var(--bg3);color:var(--text2);border:1px solid var(--border)'"
         style="padding:4px 13px;border-radius:20px;font-size:12px;cursor:pointer;transition:all .15s"
@@ -5666,7 +5707,7 @@ input[type=text],input[type=number]{background:var(--bg3);color:var(--text);bord
     <div class="kpi" style="padding:14px 16px;border-left:3px solid #ef4444">
       <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:8px">
         <div style="display:flex;align-items:center;gap:8px"><span style="font-size:20px">🛡️</span>
-          <div><div style="font-weight:700;font-size:13.5px">Input Security (L1) — 입력 위협 탐지</div>
+          <div><div style="font-weight:700;font-size:13.5px">Input Security — 입력 위협 탐지</div>
           <div style="font-size:11px;color:var(--text2)">악의적 입력 차단 · L2 보안</div></div>
         </div>
         <span class="badge-ng" style="font-size:10px;flex-shrink:0;margin-top:2px">보안</span>
@@ -5692,7 +5733,7 @@ input[type=text],input[type=number]{background:var(--bg3);color:var(--text);bord
     <div class="kpi" style="padding:14px 16px;border-left:3px solid #ef4444">
       <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:8px">
         <div style="display:flex;align-items:center;gap:8px"><span style="font-size:20px">🔓</span>
-          <div><div style="font-weight:700;font-size:13.5px">Output Leakage (L1) — 민감 정보 유출</div>
+          <div><div style="font-weight:700;font-size:13.5px">Output Leakage — 민감 정보 유출</div>
           <div style="font-size:11px;color:var(--text2)">출력 데이터 보호 · L2 보안</div></div>
         </div>
         <span class="badge-ng" style="font-size:10px;flex-shrink:0;margin-top:2px">보안</span>
@@ -5717,7 +5758,7 @@ input[type=text],input[type=number]{background:var(--bg3);color:var(--text);bord
     <div class="kpi" style="padding:14px 16px;border-left:3px solid #ef4444">
       <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:8px">
         <div style="display:flex;align-items:center;gap:8px"><span style="font-size:20px">🔑</span>
-          <div><div style="font-weight:700;font-size:13.5px">Tool Authorization (L1) — 도구 권한 준수</div>
+          <div><div style="font-weight:700;font-size:13.5px">Tool Authorization — 도구 권한 준수</div>
           <div style="font-size:11px;color:var(--text2)">허가된 도구만 호출 · L2 보안</div></div>
         </div>
         <span class="badge-ng" style="font-size:10px;flex-shrink:0;margin-top:2px">보안</span>
@@ -5742,7 +5783,7 @@ input[type=text],input[type=number]{background:var(--bg3);color:var(--text);bord
     <div class="kpi" style="padding:14px 16px;border-left:3px solid #ef4444">
       <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:8px">
         <div style="display:flex;align-items:center;gap:8px"><span style="font-size:20px">⬆️</span>
-          <div><div style="font-weight:700;font-size:13.5px">Privilege Escalation (L2) — 권한 상승 방어</div>
+          <div><div style="font-weight:700;font-size:13.5px">Privilege Escalation — 권한 상승 방어</div>
           <div style="font-size:11px;color:var(--text2)">상승 시도 차단 · L2 보안 심화</div></div>
         </div>
         <span class="badge-ng" style="font-size:10px;flex-shrink:0;margin-top:2px">심화</span>
@@ -5766,7 +5807,7 @@ input[type=text],input[type=number]{background:var(--bg3);color:var(--text);bord
     <div class="kpi" style="padding:14px 16px;border-left:3px solid #ef4444">
       <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:8px">
         <div style="display:flex;align-items:center;gap:8px"><span style="font-size:20px">🔗</span>
-          <div><div style="font-weight:700;font-size:13.5px">Tool Chain Attack (L2) — 공격 체인 탐지</div>
+          <div><div style="font-weight:700;font-size:13.5px">Tool Chain Attack — 공격 체인 탐지</div>
           <div style="font-size:11px;color:var(--text2)">연쇄 패턴 탐지 · L2 보안 심화</div></div>
         </div>
         <span class="badge-ng" style="font-size:10px;flex-shrink:0;margin-top:2px">심화</span>
@@ -5898,6 +5939,153 @@ input[type=text],input[type=number]{background:var(--bg3);color:var(--text);bord
   </div>
   </div><!-- /l3 -->
 
+  <!-- ── 부가 기능 ── -->
+  <div x-show="mf==='all'||mf==='ext'">
+  <div class="sdiv" style="margin-bottom:12px"><div class="sdiv-lbl">부가 기능 (Extended Features, 5개)</div><div class="sdiv-line"></div></div>
+  <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(360px,1fr));gap:12px;margin-bottom:24px">
+
+    <div class="kpi" style="padding:14px 16px;border-left:3px solid #06b6d4">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:8px">
+        <div style="display:flex;align-items:center;gap:8px"><span style="font-size:20px">💬</span>
+          <div><div style="font-weight:700;font-size:13.5px">ConversationSession — 멀티턴 대화 평가</div>
+          <div style="font-size:11px;color:var(--text2)">대화 품질 · 멀티턴 흐름 분석</div></div>
+        </div>
+        <span style="font-size:10px;flex-shrink:0;margin-top:2px;padding:2px 8px;border-radius:10px;background:rgba(6,182,212,.15);color:#06b6d4;font-weight:600">대화</span>
+      </div>
+      <div style="font-size:12.5px;line-height:1.6;padding:7px 10px;background:rgba(6,182,212,.07);border-radius:5px;margin-bottom:8px">
+        <strong>멀티턴 대화 세션 전체의 품질을 6개 차원으로 평가</strong>.<br>
+        단순 정확도가 아닌 맥락 유지·주제 일관성·심화도·진행 완결성을 구조적으로 측정.
+      </div>
+      <details style="margin-bottom:8px"><summary style="font-size:11.5px;color:var(--text2);cursor:pointer;user-select:none">ℹ️ 6개 측정 차원</summary>
+        <div style="font-size:11.5px;color:var(--text2);padding:5px 0 0 14px;line-height:1.6">
+          <strong>맥락 유지</strong> — 이전 발화 정보 보존율<br>
+          <strong>주제 일관성</strong> — 대화 주제 유지도<br>
+          <strong>점진적 심화</strong> — 대화 깊이 증가 추세<br>
+          <strong>완결성</strong> — 마지막 응답 길이 / 평균 응답 길이 (구조적 지표, 품질 직결 아님)<br>
+          <strong>평균 지연</strong> — 턴당 응답 시간<br>
+          <strong>전반 점수</strong> — 위 차원의 종합 가중 평균
+        </div>
+      </details>
+      <div style="font-size:11px;background:var(--bg3);border-radius:4px;padding:5px 10px;margin-bottom:8px;font-family:monospace;color:var(--text2)">📐 overall_score = avg(context_retention, topic_coherence, progressive_depth, session_completion)</div>
+      <div style="display:flex;gap:5px;flex-wrap:wrap">
+        <span style="font-size:10.5px;padding:2px 8px;border-radius:10px;background:rgba(16,185,129,.15);color:#10b981;font-weight:600">🟢 ≥0.7 우수</span>
+        <span style="font-size:10.5px;padding:2px 8px;border-radius:10px;background:rgba(245,158,11,.15);color:#f59e0b;font-weight:600">🟡 0.4–0.69 양호</span>
+        <span style="font-size:10.5px;padding:2px 8px;border-radius:10px;background:rgba(239,68,68,.15);color:#ef4444;font-weight:600">🔴 &lt;0.4 개선</span>
+      </div>
+    </div>
+
+    <div class="kpi" style="padding:14px 16px;border-left:3px solid #06b6d4">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:8px">
+        <div style="display:flex;align-items:center;gap:8px"><span style="font-size:20px">📡</span>
+          <div><div style="font-weight:700;font-size:13.5px">AnomalyDetector — 이상 감지</div>
+          <div style="font-size:11px;color:var(--text2)">통계 기반 이상 패턴 자동 탐지</div></div>
+        </div>
+        <span style="font-size:10px;flex-shrink:0;margin-top:2px;padding:2px 8px;border-radius:10px;background:rgba(6,182,212,.15);color:#06b6d4;font-weight:600">이상감지</span>
+      </div>
+      <div style="font-size:12.5px;line-height:1.6;padding:7px 10px;background:rgba(6,182,212,.07);border-radius:5px;margin-bottom:8px">
+        <strong>평가 지표의 급격한 변화(이상치)를 Z-score·IQR·선형회귀·비율 분석으로 자동 탐지</strong>.<br>
+        4가지 이상 유형(정확도 드리프트·토큰 급증·오류 급증·보안 패턴)을 모니터링.
+      </div>
+      <details style="margin-bottom:8px"><summary style="font-size:11.5px;color:var(--text2);cursor:pointer;user-select:none">ℹ️ 탐지 유형 · 알고리즘</summary>
+        <div style="font-size:11.5px;color:var(--text2);padding:5px 0 0 14px;line-height:1.6">
+          <strong>accuracy_drift</strong> — Z-score: 정확도 기준선 이탈<br>
+          <strong>token_spike</strong> — IQR: 토큰 사용량 급증<br>
+          <strong>error_surge</strong> — ratio: 오류율 급증<br>
+          <strong>security_pattern</strong> — frequency: 보안 위협 탐지율 급증<br>
+          <code style="font-size:10.5px;background:var(--bg3);padding:1px 4px;border-radius:3px">enable_anomaly_detection=True</code> 로 활성화 필요.
+        </div>
+      </details>
+      <div style="font-size:11px;background:var(--bg3);border-radius:4px;padding:5px 10px;margin-bottom:8px;font-family:monospace;color:var(--text2)">📐 |현재값 - 기준선| / σ &gt; threshold → 이상 탐지 (알고리즘별 상이)</div>
+      <div style="display:flex;gap:5px;flex-wrap:wrap">
+        <span style="font-size:10.5px;padding:2px 8px;border-radius:10px;background:rgba(16,185,129,.15);color:#10b981;font-weight:600">🟢 0건 정상</span>
+        <span style="font-size:10.5px;padding:2px 8px;border-radius:10px;background:rgba(245,158,11,.15);color:#f59e0b;font-weight:600">🟡 warning 주의 관찰</span>
+        <span style="font-size:10.5px;padding:2px 8px;border-radius:10px;background:rgba(239,68,68,.15);color:#ef4444;font-weight:600">🔴 critical 즉시 조사</span>
+      </div>
+    </div>
+
+    <div class="kpi" style="padding:14px 16px;border-left:3px solid #06b6d4">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:8px">
+        <div style="display:flex;align-items:center;gap:8px"><span style="font-size:20px">🔔</span>
+          <div><div style="font-weight:700;font-size:13.5px">AlertEngine — 알림 엔진</div>
+          <div style="font-size:11px;color:var(--text2)">임계값 초과 시 자동 알림</div></div>
+        </div>
+        <span style="font-size:10px;flex-shrink:0;margin-top:2px;padding:2px 8px;border-radius:10px;background:rgba(6,182,212,.15);color:#06b6d4;font-weight:600">알림</span>
+      </div>
+      <div style="font-size:12.5px;line-height:1.6;padding:7px 10px;background:rgba(6,182,212,.07);border-radius:5px;margin-bottom:8px">
+        <strong>지표가 사전 설정 임계값을 초과할 때 실시간으로 알림을 발송</strong>.<br>
+        AlertRule 기반으로 조건·심각도·핸들러를 유연하게 설정. Slack·이메일·웹훅 등 다중 채널 지원.
+      </div>
+      <details style="margin-bottom:8px"><summary style="font-size:11.5px;color:var(--text2);cursor:pointer;user-select:none">ℹ️ 알림 규칙 설정</summary>
+        <div style="font-size:11.5px;color:var(--text2);padding:5px 0 0 14px;line-height:1.6">
+          <code style="font-size:10.5px;background:var(--bg3);padding:1px 4px;border-radius:3px">AlertRule(metric, threshold, severity)</code> — 규칙 단위 정의<br>
+          <code style="font-size:10.5px;background:var(--bg3);padding:1px 4px;border-radius:3px">AlertEngine.add_rule()</code> — 다수 규칙 누적 등록<br>
+          쿨다운(cooldown) 설정으로 알림 폭주 방지. 히스토리 자동 저장.
+        </div>
+      </details>
+      <div style="font-size:11px;background:var(--bg3);border-radius:4px;padding:5px 10px;margin-bottom:8px;font-family:monospace;color:var(--text2)">📐 지표값 OP 임계값 → PASS/FAIL → 핸들러 호출 (쿨다운 적용)</div>
+      <div style="display:flex;gap:5px;flex-wrap:wrap">
+        <span style="font-size:10.5px;padding:2px 8px;border-radius:10px;background:rgba(16,185,129,.15);color:#10b981;font-weight:600">🟢 발동 0건 정상</span>
+        <span style="font-size:10.5px;padding:2px 8px;border-radius:10px;background:rgba(245,158,11,.15);color:#f59e0b;font-weight:600">🟡 warning 확인 필요</span>
+        <span style="font-size:10.5px;padding:2px 8px;border-radius:10px;background:rgba(239,68,68,.15);color:#ef4444;font-weight:600">🔴 critical 즉시 대응</span>
+      </div>
+    </div>
+
+    <div class="kpi" style="padding:14px 16px;border-left:3px solid #06b6d4">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:8px">
+        <div style="display:flex;align-items:center;gap:8px"><span style="font-size:20px">🌊</span>
+          <div><div style="font-weight:700;font-size:13.5px">StreamingEvaluator — 실시간 스트리밍 평가</div>
+          <div style="font-size:11px;color:var(--text2)">슬라이딩 윈도우 · 온라인 평가</div></div>
+        </div>
+        <span style="font-size:10px;flex-shrink:0;margin-top:2px;padding:2px 8px;border-radius:10px;background:rgba(6,182,212,.15);color:#06b6d4;font-weight:600">스트리밍</span>
+      </div>
+      <div style="font-size:12.5px;line-height:1.6;padding:7px 10px;background:rgba(6,182,212,.07);border-radius:5px;margin-bottom:8px">
+        <strong>슬라이딩 윈도우 기반으로 스트리밍 태스크를 실시간 평가</strong>.<br>
+        배치 저장 없이 최근 N개 결과를 기준으로 지표를 즉시 산출. 장기 운영 시스템의 실시간 모니터링에 적합.
+      </div>
+      <details style="margin-bottom:8px"><summary style="font-size:11.5px;color:var(--text2);cursor:pointer;user-select:none">ℹ️ 구성 · API</summary>
+        <div style="font-size:11.5px;color:var(--text2);padding:5px 0 0 14px;line-height:1.6">
+          <code style="font-size:10.5px;background:var(--bg3);padding:1px 4px;border-radius:3px">StreamingEvaluator(window_size=50)</code> — 윈도우 크기 설정<br>
+          <code style="font-size:10.5px;background:var(--bg3);padding:1px 4px;border-radius:3px">evaluate_stream(task_result)</code> — 태스크 추가 + 즉시 지표 반환<br>
+          ImplicitFeedbackTracker 연동으로 사용자 반응 신호(좋아요·복사·재시도)도 실시간 집계.
+        </div>
+      </details>
+      <div style="font-size:11px;background:var(--bg3);border-radius:4px;padding:5px 10px;margin-bottom:8px;font-family:monospace;color:var(--text2)">📐 슬라이딩 윈도우(최근 N건) → avg(TCR·정확도·품질·지연) 실시간 갱신</div>
+      <div style="display:flex;gap:5px;flex-wrap:wrap">
+        <span style="font-size:10.5px;padding:2px 8px;border-radius:10px;background:rgba(99,102,241,.12);color:#818cf8;font-weight:600">윈도우 크기 조정으로 민감도 제어</span>
+        <span style="font-size:10.5px;padding:2px 8px;border-radius:10px;background:rgba(99,102,241,.12);color:#818cf8;font-weight:600">배치 평가 대비 저지연</span>
+      </div>
+    </div>
+
+    <div class="kpi" style="padding:14px 16px;border-left:3px solid #06b6d4">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:8px">
+        <div style="display:flex;align-items:center;gap:8px"><span style="font-size:20px">💸</span>
+          <div><div style="font-weight:700;font-size:13.5px">CostTracker / AdaptivePolicy — 비용 추적 & 적응형 정책</div>
+          <div style="font-size:11px;color:var(--text2)">평가 비용 제어 · 샘플링 자동 조정</div></div>
+        </div>
+        <span style="font-size:10px;flex-shrink:0;margin-top:2px;padding:2px 8px;border-radius:10px;background:rgba(6,182,212,.15);color:#06b6d4;font-weight:600">비용</span>
+      </div>
+      <div style="font-size:12.5px;line-height:1.6;padding:7px 10px;background:rgba(6,182,212,.07);border-radius:5px;margin-bottom:8px">
+        <strong>외부 평가 API 호출 비용을 추적하고 예산 초과 시 샘플링률을 자동 하향 조정</strong>.<br>
+        DeepEval·Ragas·LangSmith·LLM Judge 등 유료 외부 평가의 비용 폭주를 방지.
+      </div>
+      <details style="margin-bottom:8px"><summary style="font-size:11.5px;color:var(--text2);cursor:pointer;user-select:none">ℹ️ AdaptivePolicy 동작 방식</summary>
+        <div style="font-size:11.5px;color:var(--text2);padding:5px 0 0 14px;line-height:1.6">
+          3단계 샘플링 조정: Full(100%) → Reduced → Minimal<br>
+          일일 예산 도달률 70% → Reduced(50%), 90% → Minimal(10%) 자동 전환.<br>
+          <code style="font-size:10.5px;background:var(--bg3);padding:1px 4px;border-radius:3px">CostTracker.get_daily_stats()</code> — 오늘 비용·호출수·공급자별 내역 조회.
+        </div>
+      </details>
+      <div style="font-size:11px;background:var(--bg3);border-radius:4px;padding:5px 10px;margin-bottom:8px;font-family:monospace;color:var(--text2)">📐 total_cost = Σ(call × price_per_call) &nbsp;|&nbsp; sampling_rate ← f(budget_usage%)</div>
+      <div style="display:flex;gap:5px;flex-wrap:wrap">
+        <span style="font-size:10.5px;padding:2px 8px;border-radius:10px;background:rgba(16,185,129,.15);color:#10b981;font-weight:600">🟢 예산 70% 미만 Full 샘플링</span>
+        <span style="font-size:10.5px;padding:2px 8px;border-radius:10px;background:rgba(245,158,11,.15);color:#f59e0b;font-weight:600">🟡 70–89% 자동 축소</span>
+        <span style="font-size:10.5px;padding:2px 8px;border-radius:10px;background:rgba(239,68,68,.15);color:#ef4444;font-weight:600">🔴 ≥90% 최소 샘플링</span>
+      </div>
+    </div>
+
+  </div>
+  </div><!-- /ext -->
+
   </div><!-- /x-data mf -->
 </section>
 
@@ -5992,29 +6180,163 @@ input[type=text],input[type=number]{background:var(--bg3);color:var(--text);bord
   </template>
 
   <template x-if="convData && convData.session_count > 0">
-    <div>
+    <div x-data="{
+      convSelK: null,
+      convMeta: {
+        session_count:          {label:'세션 수',       unit:'건', desc:'이번 평가에 포함된 ConversationSession 수입니다. 각 세션은 독립된 멀티턴 대화로 구성됩니다.'},
+        avg_overall_score:      {label:'평균 종합점수', unit:'%',  desc:'맥락 유지율·주제 일관성·점진적 심화·세션 완결성 4개 지표의 단순 평균입니다. 세션 완결성은 구조적 지표(응답 길이 비율)이므로, 맥락·일관성이 낮아도 완결성이 높으면 종합점수가 부분 상승할 수 있습니다. 대화 품질은 맥락·일관성·심화 3개 지표를 함께 확인하세요.'},
+        avg_turns:              {label:'평균 턴 수',    unit:'회', desc:'세션당 평균 대화 턴(사용자 발화 + 에이전트 응답 1쌍 = 1턴) 수입니다. 턴이 많을수록 대화 깊이가 깊습니다.'},
+        avg_context_retention:  {label:'맥락 유지율',  unit:'%',  desc:'이전 대화 맥락을 얼마나 유지하는지 측정합니다. 높을수록 에이전트가 대화 흐름과 이전 내용을 잘 기억하고 활용합니다.'},
+        avg_topic_coherence:    {label:'주제 일관성',  unit:'%',  desc:'대화 전반에 걸쳐 주제가 일관되게 유지되는 정도입니다. 급격한 주제 전환이나 관련 없는 응답이 없을수록 높습니다.'},
+        avg_progressive_depth:  {label:'점진적 심화',  unit:'%',  desc:'대화가 진행될수록 주제에 대한 이해와 응답이 깊어지는 정도입니다. 반복·얕은 응답 없이 심화 발전할수록 높습니다.'},
+        avg_session_completion: {label:'세션 완결성',  unit:'%',  desc:'마지막 응답 길이 / 평균 응답 길이 비율로 측정하는 구조적 완결성 지표입니다. 응답이 갑자기 잘리지 않았는지(비정상 종료 여부)를 나타내며, 대화 품질(맥락 유지·주제 일관성)과는 무관합니다. 높은 완결성이 좋은 대화 품질을 의미하지 않습니다.'},
+        avg_response_latency:   {label:'평균 응답 지연',unit:'s', desc:'에이전트가 각 턴에서 응답을 생성하는 데 걸리는 평균 시간입니다. 낮을수록 빠른 응답성을 의미합니다.'},
+      },
+      convFormula(k, d) {
+        const ss = d.sessions || [], n = ss.length || 1;
+        const sm = d.summary || {};
+        if (k === 'session_count')         return `세션 수 = ${d.session_count}\n총 턴 = ${ss.reduce((a,s)=>a+(s.turn_count||0),0)}회`;
+        if (k === 'avg_overall_score')     return `avg_overall_score = avg(overall_score)\n= ${(sm.avg_overall_score*100||0).toFixed(1)}%\n\n가중 합산:\n  맥락 유지율    × 0.30\n  주제 일관성    × 0.30\n  점진적 심화    × 0.20\n  세션 완결성    × 0.20`;
+        if (k === 'avg_turns')             return `avg_turns = avg(turn_count)\n= ${(sm.avg_turns||0).toFixed(1)}회`;
+        if (k === 'avg_context_retention') return `avg_context_retention = avg(context_retention)\n= ${(sm.avg_context_retention*100||0).toFixed(1)}%`;
+        if (k === 'avg_topic_coherence')   return `avg_topic_coherence = avg(topic_coherence)\n= ${(sm.avg_topic_coherence*100||0).toFixed(1)}%`;
+        if (k === 'avg_progressive_depth') return `avg_progressive_depth = avg(progressive_depth)\n= ${(sm.avg_progressive_depth*100||0).toFixed(1)}%`;
+        if (k === 'avg_session_completion')return `avg_session_completion = avg(session_completion)\n= ${(sm.avg_session_completion*100||0).toFixed(1)}%\n\n⚠ 구조적 완결성만 측정\n  min(1.0, 마지막_응답_길이 / 평균_응답_길이)\n\n대화 품질(맥락·일관성)과 무관:\n  맥락·일관성이 0이어도 1.0 가능`;
+        if (k === 'avg_response_latency')  return `avg_response_latency = avg(avg_turn_latency)\n= ${(sm.avg_response_latency||0).toFixed(3)}s`;
+        return '';
+      },
+      convItems(k, d) {
+        const ss = d.sessions || [];
+        if (k === 'session_count')          return [...ss].sort((a,b)=>(b.turn_count||0)-(a.turn_count||0));
+        if (k === 'avg_overall_score')      return [...ss].sort((a,b)=>(a.metrics?.overall_score||0)-(b.metrics?.overall_score||0));
+        if (k === 'avg_turns')              return [...ss].sort((a,b)=>(b.turn_count||0)-(a.turn_count||0));
+        if (k === 'avg_context_retention')  return [...ss].sort((a,b)=>(a.metrics?.context_retention||0)-(b.metrics?.context_retention||0));
+        if (k === 'avg_topic_coherence')    return [...ss].sort((a,b)=>(a.metrics?.topic_coherence||0)-(b.metrics?.topic_coherence||0));
+        if (k === 'avg_progressive_depth')  return [...ss].sort((a,b)=>(a.metrics?.progressive_depth||0)-(b.metrics?.progressive_depth||0));
+        if (k === 'avg_session_completion') return [...ss].sort((a,b)=>(a.metrics?.session_completion||0)-(b.metrics?.session_completion||0));
+        if (k === 'avg_response_latency')   return [...ss].sort((a,b)=>(b.metrics?.avg_turn_latency||0)-(a.metrics?.avg_turn_latency||0));
+        return ss;
+      },
+      convCol3Label(k) {
+        return {
+          session_count:'턴 수', avg_overall_score:'종합점수', avg_turns:'턴 수',
+          avg_context_retention:'맥락 유지율', avg_topic_coherence:'주제 일관성',
+          avg_progressive_depth:'점진적 심화', avg_session_completion:'완결성',
+          avg_response_latency:'응답 지연'
+        }[k] || '종합점수';
+      },
+      convCol3Val(k, s) {
+        if (k === 'session_count' || k === 'avg_turns') return (s.turn_count||0)+'회';
+        if (k === 'avg_overall_score')      return ((s.metrics?.overall_score||0)*100).toFixed(1)+'%';
+        if (k === 'avg_context_retention')  return ((s.metrics?.context_retention||0)*100).toFixed(1)+'%';
+        if (k === 'avg_topic_coherence')    return ((s.metrics?.topic_coherence||0)*100).toFixed(1)+'%';
+        if (k === 'avg_progressive_depth')  return ((s.metrics?.progressive_depth||0)*100).toFixed(1)+'%';
+        if (k === 'avg_session_completion') return ((s.metrics?.session_completion||0)*100).toFixed(1)+'%';
+        if (k === 'avg_response_latency')   return (s.metrics?.avg_turn_latency||0).toFixed(3)+'s';
+        return ((s.metrics?.overall_score||0)*100).toFixed(1)+'%';
+      },
+      convCol3Color(k, s) {
+        if (k === 'session_count' || k === 'avg_turns') return 'var(--text2)';
+        if (k === 'avg_response_latency') {
+          const v = s.metrics?.avg_turn_latency||0;
+          return v>5?'var(--red)':v>2?'var(--yellow)':'var(--green)';
+        }
+        const pct = k==='avg_overall_score'?(s.metrics?.overall_score||0)*100
+                  : k==='avg_context_retention'?(s.metrics?.context_retention||0)*100
+                  : k==='avg_topic_coherence'?(s.metrics?.topic_coherence||0)*100
+                  : k==='avg_progressive_depth'?(s.metrics?.progressive_depth||0)*100
+                  : (s.metrics?.session_completion||0)*100;
+        return pct>=70?'var(--green)':pct>=40?'var(--yellow)':'var(--red)';
+      }
+    }">
       <!-- KPI 카드 -->
-      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px;margin-bottom:16px">
-        <div class="kpi"><div style="font-size:11px;color:var(--text2)">세션 수</div>
-          <div style="font-size:22px;font-weight:700" x-text="convData.session_count"></div></div>
-        <div class="kpi"><div style="font-size:11px;color:var(--text2)">평균 종합점수</div>
-          <div style="font-size:22px;font-weight:700;color:var(--accent)" x-text="(convData.summary?.avg_overall_score*100||0).toFixed(1)+'%'"></div></div>
-        <div class="kpi"><div style="font-size:11px;color:var(--text2)">평균 턴 수</div>
-          <div style="font-size:22px;font-weight:700" x-text="(convData.summary?.avg_turns||0).toFixed(1)"></div></div>
-        <div class="kpi"><div style="font-size:11px;color:var(--text2)">맥락 유지율</div>
-          <div style="font-size:22px;font-weight:700" x-text="(convData.summary?.avg_context_retention*100||0).toFixed(1)+'%'"></div></div>
-        <div class="kpi"><div style="font-size:11px;color:var(--text2)">주제 일관성</div>
-          <div style="font-size:22px;font-weight:700" x-text="(convData.summary?.avg_topic_coherence*100||0).toFixed(1)+'%'"></div></div>
-        <div class="kpi"><div style="font-size:11px;color:var(--text2)">점진적 심화</div>
-          <div style="font-size:22px;font-weight:700" x-text="(convData.summary?.avg_progressive_depth*100||0).toFixed(1)+'%'"></div></div>
-        <div class="kpi"><div style="font-size:11px;color:var(--text2)">세션 완결성</div>
-          <div style="font-size:22px;font-weight:700" x-text="(convData.summary?.avg_session_completion*100||0).toFixed(1)+'%'"></div></div>
-        <div class="kpi"><div style="font-size:11px;color:var(--text2)">평균 응답 지연</div>
-          <div style="font-size:22px;font-weight:700" x-text="(convData.summary?.avg_response_latency||0).toFixed(2)+'s'"></div></div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px;margin-bottom:8px">
+        <div class="kpi kpi-act" :class="{sel:convSelK==='session_count'}" @click="convSelK=convSelK==='session_count'?null:'session_count'">
+          <div style="font-size:11px;color:var(--text2)">세션 수</div>
+          <div style="font-size:22px;font-weight:700" x-text="convData.session_count"></div>
+        </div>
+        <div class="kpi kpi-act" :class="{sel:convSelK==='avg_overall_score'}" @click="convSelK=convSelK==='avg_overall_score'?null:'avg_overall_score'">
+          <div style="font-size:11px;color:var(--text2)">평균 종합점수</div>
+          <div style="font-size:22px;font-weight:700;color:var(--accent)" x-text="(convData.summary?.avg_overall_score*100||0).toFixed(1)+'%'"></div>
+        </div>
+        <div class="kpi kpi-act" :class="{sel:convSelK==='avg_turns'}" @click="convSelK=convSelK==='avg_turns'?null:'avg_turns'">
+          <div style="font-size:11px;color:var(--text2)">평균 턴 수</div>
+          <div style="font-size:22px;font-weight:700" x-text="(convData.summary?.avg_turns||0).toFixed(1)"></div>
+        </div>
+        <div class="kpi kpi-act" :class="{sel:convSelK==='avg_context_retention'}" @click="convSelK=convSelK==='avg_context_retention'?null:'avg_context_retention'">
+          <div style="font-size:11px;color:var(--text2)">맥락 유지율</div>
+          <div style="font-size:22px;font-weight:700" x-text="(convData.summary?.avg_context_retention*100||0).toFixed(1)+'%'"></div>
+        </div>
+        <div class="kpi kpi-act" :class="{sel:convSelK==='avg_topic_coherence'}" @click="convSelK=convSelK==='avg_topic_coherence'?null:'avg_topic_coherence'">
+          <div style="font-size:11px;color:var(--text2)">주제 일관성</div>
+          <div style="font-size:22px;font-weight:700" x-text="(convData.summary?.avg_topic_coherence*100||0).toFixed(1)+'%'"></div>
+        </div>
+        <div class="kpi kpi-act" :class="{sel:convSelK==='avg_progressive_depth'}" @click="convSelK=convSelK==='avg_progressive_depth'?null:'avg_progressive_depth'">
+          <div style="font-size:11px;color:var(--text2)">점진적 심화</div>
+          <div style="font-size:22px;font-weight:700" x-text="(convData.summary?.avg_progressive_depth*100||0).toFixed(1)+'%'"></div>
+        </div>
+        <div class="kpi kpi-act" :class="{sel:convSelK==='avg_session_completion'}" @click="convSelK=convSelK==='avg_session_completion'?null:'avg_session_completion'">
+          <div style="display:flex;align-items:center;gap:4px">
+            <span style="font-size:11px;color:var(--text2)">세션 완결성</span>
+            <span title="구조적 완결성만 측정 — 대화 품질과 무관" style="font-size:10px;color:var(--text2);background:var(--bg3);border-radius:99px;padding:0 5px;cursor:help;flex-shrink:0">구조적</span>
+          </div>
+          <div style="font-size:22px;font-weight:700" x-text="(convData.summary?.avg_session_completion*100||0).toFixed(1)+'%'"></div>
+        </div>
+        <div class="kpi kpi-act" :class="{sel:convSelK==='avg_response_latency'}" @click="convSelK=convSelK==='avg_response_latency'?null:'avg_response_latency'">
+          <div style="font-size:11px;color:var(--text2)">평균 응답 지연</div>
+          <div style="font-size:22px;font-weight:700" x-text="(convData.summary?.avg_response_latency||0).toFixed(2)+'s'"></div>
+        </div>
       </div>
 
-      <!-- 세션 목록 -->
-      <div class="kpi" style="padding:0;overflow:hidden">
+      <!-- KPI 상세 패널 -->
+      <div x-show="convSelK" style="margin:0 0 14px;border:1px solid var(--accent);border-radius:8px;overflow:hidden" x-cloak>
+        <template x-if="convSelK">
+          <div>
+            <div style="display:flex;align-items:center;gap:8px;padding:10px 14px;background:var(--bg2);border-bottom:1px solid var(--border)">
+              <span style="font-weight:700;font-size:14px" x-text="convMeta[convSelK]?.label||convSelK"></span>
+              <span style="font-size:11px;color:var(--text2);background:var(--bg3);padding:1px 7px;border-radius:99px" x-text="convMeta[convSelK]?.unit?'단위: '+convMeta[convSelK].unit:''"></span>
+              <button style="margin-left:auto;background:transparent;border:none;color:var(--text2);cursor:pointer;font-size:18px" @click="convSelK=null">×</button>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:0;border-bottom:1px solid var(--border)">
+              <div style="padding:10px 14px;background:var(--bg2);border-right:1px solid var(--border)">
+                <div style="font-size:11px;font-weight:600;color:var(--text2);margin-bottom:4px;text-transform:uppercase">설명</div>
+                <div style="font-size:13px;line-height:1.7" x-text="convMeta[convSelK]?.desc||''"></div>
+              </div>
+              <div style="padding:10px 14px;background:var(--bg3)">
+                <div style="font-size:11px;font-weight:600;color:var(--text2);margin-bottom:4px;text-transform:uppercase">📐 산출 방식</div>
+                <div style="font-size:12px;font-family:monospace;color:var(--accent);line-height:1.8;white-space:pre-line" x-text="convFormula(convSelK, convData)"></div>
+              </div>
+            </div>
+            <div style="padding:10px 14px;background:var(--bg)">
+              <div style="display:flex;align-items:center;gap:6px;margin-bottom:8px">
+                <span style="font-size:11px;font-weight:600;color:var(--text2);text-transform:uppercase">관련 세션</span>
+                <span style="font-size:11px;color:var(--text2);margin-left:auto" x-text="convItems(convSelK, convData).length+'건'"></span>
+              </div>
+              <div class="dtx" style="max-height:220px;overflow-y:auto">
+                <div class="dtx-row dtx-head" style="grid-template-columns:minmax(140px,1fr) 80px 72px 72px;position:sticky;top:0;z-index:1">
+                  <span>세션 ID</span>
+                  <span x-text="convCol3Label(convSelK)"></span>
+                  <span>완결성</span>
+                  <span>맥락 유지</span>
+                </div>
+                <template x-for="s in convItems(convSelK, convData)" :key="s.session_id">
+                  <div class="dtx-row" style="grid-template-columns:minmax(140px,1fr) 80px 72px 72px">
+                    <span class="dtx-id" x-text="s.session_id"></span>
+                    <span :style="`color:${convCol3Color(convSelK, s)}`" x-text="convCol3Val(convSelK, s)"></span>
+                    <span :style="`color:${(s.metrics?.session_completion||0)>=0.9?'var(--green)':(s.metrics?.session_completion||0)>=0.6?'var(--yellow)':'var(--red)'}`"
+                          x-text="((s.metrics?.session_completion||0)*100).toFixed(0)+'%'"></span>
+                    <span :style="`color:${(s.metrics?.context_retention||0)>=0.7?'var(--green)':(s.metrics?.context_retention||0)>=0.4?'var(--yellow)':'var(--red)'}`"
+                          x-text="((s.metrics?.context_retention||0)*100).toFixed(0)+'%'"></span>
+                  </div>
+                </template>
+              </div>
+            </div>
+          </div>
+        </template>
+      </div>
+
+      <!-- 세션 목록 (KPI 카드 미선택 시에만 표시) -->
+      <div x-show="!convSelK" class="kpi" style="padding:0;overflow:hidden">
         <div style="padding:10px 14px;font-weight:600;border-bottom:1px solid var(--border)">세션 목록</div>
         <table style="width:100%;border-collapse:collapse;font-size:12px">
           <thead><tr style="background:var(--bg3);color:var(--text2)">
@@ -6065,8 +6387,26 @@ input[type=text],input[type=number]{background:var(--bg3);color:var(--text);bord
      Phase 2-A  실시간 모니터링
 ═══════════════════════════════════════════════════════════════ -->
 <section id="s-realtime" class="sec" x-show="sec==='realtime'" x-cloak>
-  <div style="font-weight:700;font-size:15px;margin-bottom:4px">📡 실시간 모니터링</div>
-  <div style="color:var(--text2);font-size:12px;margin-bottom:16px">StreamingEvaluator 슬라이딩 윈도우 기반 실시간 지표 — 15초 자동 갱신</div>
+  <div style="font-weight:700;font-size:15px;margin-bottom:4px">📡 세션 실시간 미리보기</div>
+  <div style="color:var(--text2);font-size:12px;margin-bottom:10px">현재 개발 세션의 슬라이딩 윈도우 지표 — 15초 자동 갱신 · 개발·검증 단계 전용</div>
+
+  <!-- 포지셔닝 안내 배너 (항상 표시) -->
+  <div style="background:var(--bg3);border:1px solid var(--border);border-left:3px solid #6366f1;border-radius:6px;padding:10px 14px;font-size:12px;color:var(--text2);margin-bottom:12px;line-height:1.7">
+    <div style="font-weight:600;color:var(--text1);margin-bottom:4px">🔍 이 탭의 용도</div>
+    <div>개발·검증 단계에서 <strong>현재 실행 세션</strong>의 TCR·레이턴시·오류율을 슬라이딩 윈도우(1분/5분/1시간)로 빠르게 확인합니다.</div>
+    <div style="margin-top:6px;padding-top:6px;border-top:1px solid var(--border)">
+      🚀 <strong>프로덕션 실시간 모니터링</strong>이 필요하다면 Phoenix 기반 운영 대시보드를 사용하세요.
+      <code style="background:var(--bg2);padding:1px 6px;border-radius:3px;font-size:11px">agent-eval monitor</code>
+      — 스팬 트레이싱·분산 추적·실시간 오류 감지 지원
+    </div>
+  </div>
+
+  <!-- 히스토리 모드 배너 -->
+  <template x-if="realtimeStats[realtimeWindow]?.source === 'file_snapshot'">
+    <div style="background:#fef3c7;border:1px solid #f59e0b;border-radius:6px;padding:6px 12px;font-size:11px;color:#92400e;margin-bottom:10px">
+      📂 히스토리 모드 — 선택된 파일의 저장된 스냅샷 표시 중. 현재 세션 라이브 데이터는 <code>StreamingEvaluator</code>를 서버와 함께 실행하세요.
+    </div>
+  </template>
 
   <!-- 윈도우 선택 -->
   <div style="display:flex;gap:8px;margin-bottom:14px">
@@ -6081,7 +6421,8 @@ input[type=text],input[type=number]{background:var(--bg3);color:var(--text);bord
     <div style="text-align:center;padding:48px;color:var(--text2)">
       <div style="font-size:32px;margin-bottom:8px">📡</div>
       <div style="font-weight:600;margin-bottom:6px">실시간 데이터 없음</div>
-      <div style="font-size:12px"><code>StreamingEvaluator</code>를 실행하고 <code>app.add_middleware(AgentEvalMiddleware, ...)</code>를 추가하세요.</div>
+      <div style="font-size:12px;margin-bottom:8px">파일을 선택하면 저장된 스냅샷을 히스토리 모드로 표시합니다.</div>
+      <div style="font-size:12px;color:var(--text3)">라이브 데이터: <code>StreamingEvaluator</code> + <code>app.add_middleware(AgentEvalMiddleware)</code></div>
     </div>
   </template>
 
@@ -6107,54 +6448,157 @@ input[type=text],input[type=number]{background:var(--bg3);color:var(--text);bord
      Phase 2-B  알림 히스토리
 ═══════════════════════════════════════════════════════════════ -->
 <section id="s-alerts" class="sec" x-show="sec==='alerts'" x-cloak>
-  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
     <div>
       <div style="font-weight:700;font-size:15px;margin-bottom:4px">🔔 알림 히스토리</div>
-      <div style="color:var(--text2);font-size:12px">AlertEngine 규칙 발화 이력 — results/alerts/*.jsonl 파일 기반</div>
+      <div style="color:var(--text2);font-size:12px">
+        AlertEngine 규칙 발화 이력 — results/alerts/*.jsonl 파일 기반
+        <template x-if="alertData?.today?.date && selId">
+          <span style="margin-left:6px;background:var(--bg3);padding:1px 7px;border-radius:99px;font-size:11px"
+                x-text="'📂 ' + (alertData.today.date || '오늘')"></span>
+        </template>
+      </div>
     </div>
     <button class="btn" @click="loadAlerts()">🔄 새로고침</button>
   </div>
 
-  <!-- KPI -->
-  <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px;margin-bottom:16px">
-    <div class="kpi"><div style="font-size:11px;color:var(--text2)">오늘 알림</div>
-      <div style="font-size:22px;font-weight:700" x-text="alertData?.today?.total??0"></div></div>
-    <div class="kpi"><div style="font-size:11px;color:var(--text2)">Critical</div>
-      <div style="font-size:22px;font-weight:700;color:#ef4444" x-text="alertData?.today?.critical??0"></div></div>
-    <div class="kpi"><div style="font-size:11px;color:var(--text2)">Warning</div>
-      <div style="font-size:22px;font-weight:700;color:#f59e0b" x-text="alertData?.today?.warning??0"></div></div>
-    <div class="kpi"><div style="font-size:11px;color:var(--text2)">7일 합계</div>
-      <div style="font-size:22px;font-weight:700" x-text="alertData?.summary?.total_7d??0"></div></div>
+  <!-- 용도 안내 배너 -->
+  <div style="background:var(--bg3);border:1px solid var(--border);border-left:3px solid #6366f1;border-radius:6px;padding:10px 14px;font-size:12px;color:var(--text2);margin-bottom:16px;line-height:1.7">
+    <div style="font-weight:600;color:var(--text1);margin-bottom:4px">🔍 이 탭의 용도</div>
+    <div><strong>AlertEngine</strong>이 사전 설정된 임계값(TCR, 오류율, 레이턴시 등)을 초과할 때 발화한 알림 이력을 확인합니다. Critical / Warning 심각도별 분류, 쿨다운 중복 방지, 오늘/7일 추세를 제공합니다.</div>
+    <div style="margin-top:6px;padding-top:6px;border-top:1px solid var(--border)">
+      🛠️ <strong>활성화 방법</strong>:
+      <code style="background:var(--bg2);padding:1px 6px;border-radius:3px;font-size:11px">AlertEngine</code> 인스턴스를 생성하고 규칙을 등록한 뒤
+      <code style="background:var(--bg2);padding:1px 6px;border-radius:3px;font-size:11px">monitor.record_task()</code> 이후 호출하세요.
+      알림은 <code style="background:var(--bg2);padding:1px 6px;border-radius:3px;font-size:11px">results/alerts/</code>에 자동 저장됩니다.
+    </div>
   </div>
 
-  <template x-if="!alertData?.today?.total">
-    <div style="text-align:center;padding:48px;color:var(--text2)">
-      <div style="font-size:32px;margin-bottom:8px">🔔</div>
-      <div style="font-weight:600;margin-bottom:6px">알림 없음</div>
-      <div style="font-size:12px"><code>AlertEngine</code>을 설정하고 <code>StreamingEvaluator</code>와 연결하세요.</div>
+  <div x-data="{
+    alertSelK: null,
+    alertMeta: {
+      today_total:  {label:'오늘 알림',  unit:'건', desc:'오늘 발화된 AlertEngine 규칙의 총 건수입니다. Critical + Warning의 합계이며, 규칙 발화 이력 파일(results/alerts/*.jsonl)에서 집계합니다.'},
+      today_critical:{label:'Critical', unit:'건', desc:'즉각 대응이 필요한 심각한 수준의 알림입니다. 오류율 급증, SLA 위반, 예산 초과 등 서비스에 직접 영향을 미치는 상황에서 발화됩니다.'},
+      today_warning: {label:'Warning',  unit:'건', desc:'주의가 필요하지만 즉각 대응이 필수는 아닌 알림입니다. 성능 저하, 임계값 근접 등 사전 예방적 모니터링 신호입니다.'},
+      total_7d:      {label:'7일 합계', unit:'건', desc:'최근 7일간 발화된 전체 알림의 합계입니다. 알림 빈도 추세를 파악하고 반복 패턴을 식별하는 데 활용합니다.'},
+    },
+    alertFormula(k, d) {
+      const t = d.today || {}, sm = d.summary || {};
+      if (k === 'today_total')   return `오늘 알림 = Critical + Warning\n= ${t.critical??0} + ${t.warning??0} = ${t.total??0}건`;
+      if (k === 'today_critical')return `Critical 알림 = ${t.critical??0}건\n전체 대비: ${t.total>0?((t.critical/t.total)*100).toFixed(1):0}%\n규칙: severity=critical 조건 충족 시 발화`;
+      if (k === 'today_warning') return `Warning 알림 = ${t.warning??0}건\n전체 대비: ${t.total>0?((t.warning/t.total)*100).toFixed(1):0}%\n규칙: severity=warning 조건 충족 시 발화`;
+      if (k === 'total_7d')      return `7일 합계 = ${sm.total_7d??0}건\n일평균: ${sm.total_7d>0?((sm.total_7d)/7).toFixed(1):0}건/일`;
+      return '';
+    },
+    alertItems(k, d) {
+      const evs = d.today?.events || [];
+      if (k === 'today_critical') return evs.filter(e=>e.severity==='critical');
+      if (k === 'today_warning')  return evs.filter(e=>e.severity==='warning');
+      if (k === 'total_7d')       return evs;
+      return evs;
+    }
+  }">
+    <!-- KPI 카드 -->
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px;margin-bottom:8px">
+      <div class="kpi kpi-act" :class="{sel:alertSelK==='today_total'}" @click="alertSelK=alertSelK==='today_total'?null:'today_total'">
+        <div style="font-size:11px;color:var(--text2)">오늘 알림</div>
+        <div style="font-size:22px;font-weight:700" x-text="alertData?.today?.total??0"></div>
+      </div>
+      <div class="kpi kpi-act" :class="{sel:alertSelK==='today_critical'}" @click="alertSelK=alertSelK==='today_critical'?null:'today_critical'">
+        <div style="font-size:11px;color:var(--text2)">Critical</div>
+        <div style="font-size:22px;font-weight:700;color:#ef4444" x-text="alertData?.today?.critical??0"></div>
+      </div>
+      <div class="kpi kpi-act" :class="{sel:alertSelK==='today_warning'}" @click="alertSelK=alertSelK==='today_warning'?null:'today_warning'">
+        <div style="font-size:11px;color:var(--text2)">Warning</div>
+        <div style="font-size:22px;font-weight:700;color:#f59e0b" x-text="alertData?.today?.warning??0"></div>
+      </div>
+      <div class="kpi kpi-act" :class="{sel:alertSelK==='total_7d'}" @click="alertSelK=alertSelK==='total_7d'?null:'total_7d'">
+        <div style="font-size:11px;color:var(--text2)">7일 합계</div>
+        <div style="font-size:22px;font-weight:700" x-text="alertData?.summary?.total_7d??0"></div>
+      </div>
     </div>
-  </template>
 
-  <template x-if="alertData?.today?.events?.length > 0">
-    <div class="kpi" style="padding:0;overflow:hidden">
-      <div style="padding:10px 14px;font-weight:600;border-bottom:1px solid var(--border)">오늘 알림 목록</div>
-      <template x-for="ev in (alertData.today.events||[])" :key="ev.triggered_at">
-        <div style="padding:10px 14px;border-top:1px solid var(--border);display:flex;gap:10px;align-items:flex-start">
-          <span style="font-size:18px" x-text="ev.severity==='critical'?'🚨':'⚠️'"></span>
-          <div style="flex:1">
-            <div style="display:flex;gap:8px;align-items:center;margin-bottom:4px">
-              <span style="font-weight:600;font-size:13px" x-text="ev.rule_name"></span>
-              <span style="font-size:11px;padding:1px 6px;border-radius:10px"
-                    :style="ev.severity==='critical'?'background:rgba(239,68,68,.15);color:#ef4444':'background:rgba(245,158,11,.15);color:#f59e0b'"
-                    x-text="ev.severity"></span>
+    <!-- KPI 상세 패널 -->
+    <div x-show="alertSelK" style="margin:0 0 14px;border:1px solid var(--accent);border-radius:8px;overflow:hidden" x-cloak>
+      <template x-if="alertSelK && alertData">
+        <div>
+          <div style="display:flex;align-items:center;gap:8px;padding:10px 14px;background:var(--bg2);border-bottom:1px solid var(--border)">
+            <span style="font-weight:700;font-size:14px" x-text="alertMeta[alertSelK]?.label||alertSelK"></span>
+            <span style="font-size:11px;color:var(--text2);background:var(--bg3);padding:1px 7px;border-radius:99px" x-text="alertMeta[alertSelK]?.unit?'단위: '+alertMeta[alertSelK].unit:''"></span>
+            <button style="margin-left:auto;background:transparent;border:none;color:var(--text2);cursor:pointer;font-size:18px" @click="alertSelK=null">×</button>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:0;border-bottom:1px solid var(--border)">
+            <div style="padding:10px 14px;background:var(--bg2);border-right:1px solid var(--border)">
+              <div style="font-size:11px;font-weight:600;color:var(--text2);margin-bottom:4px;text-transform:uppercase">설명</div>
+              <div style="font-size:13px;line-height:1.7" x-text="alertMeta[alertSelK]?.desc||''"></div>
             </div>
-            <div style="font-size:12px;color:var(--text2)" x-text="ev.message?.substring(0,200)"></div>
-            <div style="font-size:11px;color:var(--text2);margin-top:4px" x-text="ev.triggered_at"></div>
+            <div style="padding:10px 14px;background:var(--bg3)">
+              <div style="font-size:11px;font-weight:600;color:var(--text2);margin-bottom:4px;text-transform:uppercase">📐 산출 방식</div>
+              <div style="font-size:12px;font-family:monospace;color:var(--accent);line-height:1.8;white-space:pre-line" x-text="alertFormula(alertSelK, alertData)"></div>
+            </div>
+          </div>
+          <div style="padding:10px 14px;background:var(--bg)">
+            <div style="display:flex;align-items:center;gap:6px;margin-bottom:8px">
+              <span style="font-size:11px;font-weight:600;color:var(--text2);text-transform:uppercase">관련 알림</span>
+              <span style="font-size:11px;color:var(--text2);margin-left:auto" x-text="alertItems(alertSelK, alertData).length+'건'"></span>
+            </div>
+            <template x-if="alertItems(alertSelK, alertData).length === 0">
+              <div style="font-size:12px;color:var(--text2);padding:8px 0">해당 조건의 알림 없음</div>
+            </template>
+            <div class="dtx" style="max-height:220px;overflow-y:auto">
+              <template x-if="alertItems(alertSelK, alertData).length > 0">
+                <div>
+                  <div class="dtx-row dtx-head" style="grid-template-columns:minmax(120px,1fr) 72px minmax(0,2fr) 160px;position:sticky;top:0;z-index:1">
+                    <span>규칙명</span><span>심각도</span><span>메시지</span><span>발화 시각</span>
+                  </div>
+                  <template x-for="ev in alertItems(alertSelK, alertData)" :key="ev.triggered_at">
+                    <div class="dtx-row" style="grid-template-columns:minmax(120px,1fr) 72px minmax(0,2fr) 160px">
+                      <span class="dtx-id" x-text="ev.rule_name"></span>
+                      <span style="font-size:11px;padding:1px 6px;border-radius:10px;white-space:nowrap"
+                            :style="ev.severity==='critical'?'background:rgba(239,68,68,.15);color:#ef4444':'background:rgba(245,158,11,.15);color:#f59e0b'"
+                            x-text="ev.severity"></span>
+                      <span style="font-size:11px;color:var(--text2)" x-text="ev.message?.substring(0,80)"></span>
+                      <span style="font-size:11px;color:var(--text2)" x-text="ev.triggered_at?.substring(0,19).replace('T',' ')"></span>
+                    </div>
+                  </template>
+                </div>
+              </template>
+            </div>
           </div>
         </div>
       </template>
     </div>
-  </template>
+
+    <!-- 오늘 알림 목록 (KPI 카드 미선택 시에만 표시) -->
+    <template x-if="!alertData?.today?.total">
+      <div style="text-align:center;padding:48px;color:var(--text2)">
+        <div style="font-size:32px;margin-bottom:8px">🔔</div>
+        <div style="font-weight:600;margin-bottom:6px">알림 없음</div>
+        <div style="font-size:12px"><code>AlertEngine</code>을 설정하고 <code>StreamingEvaluator</code>와 연결하세요.</div>
+      </div>
+    </template>
+
+    <template x-if="alertData?.today?.events?.length > 0 && !alertSelK">
+      <div class="kpi" style="padding:0;overflow:hidden">
+        <div style="padding:10px 14px;font-weight:600;border-bottom:1px solid var(--border)">오늘 알림 목록</div>
+        <template x-for="ev in (alertData.today.events||[])" :key="ev.triggered_at">
+          <div style="padding:10px 14px;border-top:1px solid var(--border);display:flex;gap:10px;align-items:flex-start">
+            <span style="font-size:18px" x-text="ev.severity==='critical'?'🚨':'⚠️'"></span>
+            <div style="flex:1">
+              <div style="display:flex;gap:8px;align-items:center;margin-bottom:4px">
+                <span style="font-weight:600;font-size:13px" x-text="ev.rule_name"></span>
+                <span style="font-size:11px;padding:1px 6px;border-radius:10px"
+                      :style="ev.severity==='critical'?'background:rgba(239,68,68,.15);color:#ef4444':'background:rgba(245,158,11,.15);color:#f59e0b'"
+                      x-text="ev.severity"></span>
+              </div>
+              <div style="font-size:12px;color:var(--text2)" x-text="ev.message?.substring(0,200)"></div>
+              <div style="font-size:11px;color:var(--text2);margin-top:4px" x-text="ev.triggered_at"></div>
+            </div>
+          </div>
+        </template>
+      </div>
+    </template>
+  </div>
 </section>
 
 <!-- ══════════════════════════════════════════════════════════════
@@ -6162,7 +6606,18 @@ input[type=text],input[type=number]{background:var(--bg3);color:var(--text);bord
 ═══════════════════════════════════════════════════════════════ -->
 <section id="s-feedback" class="sec" x-show="sec==='feedback'" x-cloak>
   <div style="font-weight:700;font-size:15px;margin-bottom:4px">👍 사용자 반응</div>
-  <div style="color:var(--text2);font-size:12px;margin-bottom:16px">ImplicitFeedbackTracker — 암묵적 사용자 행동 신호 기반 품질 지표</div>
+  <div style="color:var(--text2);font-size:12px;margin-bottom:10px">ImplicitFeedbackTracker — 암묵적 사용자 행동 신호 기반 품질 지표</div>
+
+  <!-- 용도 안내 배너 -->
+  <div style="background:var(--bg3);border:1px solid var(--border);border-left:3px solid #6366f1;border-radius:6px;padding:10px 14px;font-size:12px;color:var(--text2);margin-bottom:16px;line-height:1.7">
+    <div style="font-weight:600;color:var(--text1);margin-bottom:4px">🔍 이 탭의 용도</div>
+    <div>에이전트 응답에 대한 <strong>암묵적 사용자 행동</strong>(좋아요·싫어요·복사·재생성·이탈·공유·교정)을 집계해 응답 품질의 사용자 수용도를 측정합니다. 자동화된 지표로 측정하기 어려운 <em>체감 만족도</em>를 보완합니다.</div>
+    <div style="margin-top:6px;padding-top:6px;border-top:1px solid var(--border)">
+      🛠️ <strong>활성화 방법</strong>:
+      <code style="background:var(--bg2);padding:1px 6px;border-radius:3px;font-size:11px">monitor.record_implicit_feedback(task_id, "thumbs_up")</code>
+      — 신호 유형: <code style="background:var(--bg2);padding:1px 6px;border-radius:3px;font-size:11px">thumbs_up · thumbs_down · copy · regenerate · abandon · share · correction</code>
+    </div>
+  </div>
 
   <template x-if="!feedbackData?.total">
     <div style="text-align:center;padding:48px;color:var(--text2)">
@@ -6173,30 +6628,117 @@ input[type=text],input[type=number]{background:var(--bg3);color:var(--text);bord
   </template>
 
   <template x-if="feedbackData?.total > 0">
-    <div>
-      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px;margin-bottom:16px">
-        <div class="kpi"><div style="font-size:11px;color:var(--text2)">총 피드백</div>
-          <div style="font-size:22px;font-weight:700" x-text="feedbackData.total"></div></div>
-        <div class="kpi"><div style="font-size:11px;color:var(--text2)">긍정 비율</div>
-          <div style="font-size:22px;font-weight:700;color:#10b981" x-text="(feedbackData.positive_rate||0).toFixed(1)+'%'"></div></div>
-        <div class="kpi"><div style="font-size:11px;color:var(--text2)">부정 비율</div>
-          <div style="font-size:22px;font-weight:700;color:#ef4444" x-text="(feedbackData.negative_rate||0).toFixed(1)+'%'"></div></div>
-        <div class="kpi"><div style="font-size:11px;color:var(--text2)">재생성율</div>
-          <div style="font-size:22px;font-weight:700;color:#f59e0b" x-text="(feedbackData.regenerate_rate||0).toFixed(1)+'%'"></div></div>
-        <div class="kpi"><div style="font-size:11px;color:var(--text2)">이탈율</div>
-          <div style="font-size:22px;font-weight:700" x-text="(feedbackData.abandon_rate||0).toFixed(1)+'%'"></div></div>
-      </div>
-      <div class="kpi" style="padding:14px">
-        <div style="font-weight:600;margin-bottom:10px">피드백 유형 분포</div>
-        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:8px">
-          <template x-for="[type, count] in Object.entries(feedbackData.type_distribution||{})" :key="type">
-            <div style="background:var(--bg3);border-radius:6px;padding:8px 10px">
-              <div style="font-size:11px;color:var(--text2)" x-text="type"></div>
-              <div style="font-size:18px;font-weight:700" x-text="count"></div>
-            </div>
-          </template>
+    <div x-data="{
+      fbSelK: null,
+      fbMeta: {
+        total:         {label:'총 피드백',  unit:'건',  desc:'ImplicitFeedbackTracker가 기록한 전체 사용자 반응 이벤트 수입니다. thumbs_up·thumbs_down·copy·regenerate·abandon·share·correction 등 모든 유형의 합계입니다.'},
+        positive_rate: {label:'긍정 비율',  unit:'%',   desc:'전체 피드백 중 긍정 신호(thumbs_up·copy·share·follow_up_depth)가 차지하는 비율입니다. 높을수록 응답 품질에 대한 사용자 만족도가 높음을 의미합니다.'},
+        negative_rate: {label:'부정 비율',  unit:'%',   desc:'전체 피드백 중 부정 신호(thumbs_down·correction)가 차지하는 비율입니다. 높으면 응답 정확도나 유용성 개선이 필요한 신호입니다.'},
+        regenerate_rate:{label:'재생성율', unit:'%',   desc:'사용자가 에이전트 응답을 마음에 들지 않아 재생성을 요청한 비율입니다. 높은 재생성율은 응답 품질 저하 또는 프롬프트 설계 개선 필요성을 시사합니다.'},
+        abandon_rate:  {label:'이탈율',     unit:'%',   desc:'에이전트 응답 후 사용자가 대화를 중단한 비율입니다. 높은 이탈율은 응답이 사용자 의도에 충분히 부응하지 못했음을 나타낼 수 있습니다.'},
+      },
+      fbFormula(k, d) {
+        if (k==='total')          return '= thumbs_up + thumbs_down + copy + regenerate + abandon + share + correction + ...\n전체 이벤트 유형 합계';
+        if (k==='positive_rate')  return '= (thumbs_up + copy + share + follow_up_depth) / total × 100';
+        if (k==='negative_rate')  return '= (thumbs_down + correction) / total × 100';
+        if (k==='regenerate_rate')return '= regenerate / total × 100';
+        if (k==='abandon_rate')   return '= abandon / total × 100';
+        return '';
+      },
+      fbItems(k, d) {
+        const dist = d.type_distribution || {};
+        if (k==='positive_rate')  return Object.entries(dist).filter(([t])=>['thumbs_up','copy','share','follow_up_depth'].includes(t));
+        if (k==='negative_rate')  return Object.entries(dist).filter(([t])=>['thumbs_down','correction'].includes(t));
+        if (k==='regenerate_rate')return Object.entries(dist).filter(([t])=>t==='regenerate');
+        if (k==='abandon_rate')   return Object.entries(dist).filter(([t])=>t==='abandon');
+        return Object.entries(dist);
+      }
+    }">
+      <!-- KPI 카드 5개 -->
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px;margin-bottom:14px">
+        <div class="kpi kpi-act" :class="{sel:fbSelK==='total'}" @click="fbSelK=fbSelK==='total'?null:'total'">
+          <div style="font-size:11px;color:var(--text2)">총 피드백</div>
+          <div style="font-size:22px;font-weight:700" x-text="feedbackData.total"></div>
+          <div style="font-size:10px;color:var(--accent);margin-top:4px">▸ 상세</div>
+        </div>
+        <div class="kpi kpi-act" :class="{sel:fbSelK==='positive_rate'}" @click="fbSelK=fbSelK==='positive_rate'?null:'positive_rate'">
+          <div style="font-size:11px;color:var(--text2)">긍정 비율</div>
+          <div style="font-size:22px;font-weight:700;color:#10b981" x-text="(feedbackData.positive_rate||0).toFixed(1)+'%'"></div>
+          <div style="font-size:10px;color:var(--accent);margin-top:4px">▸ 상세</div>
+        </div>
+        <div class="kpi kpi-act" :class="{sel:fbSelK==='negative_rate'}" @click="fbSelK=fbSelK==='negative_rate'?null:'negative_rate'">
+          <div style="font-size:11px;color:var(--text2)">부정 비율</div>
+          <div style="font-size:22px;font-weight:700;color:#ef4444" x-text="(feedbackData.negative_rate||0).toFixed(1)+'%'"></div>
+          <div style="font-size:10px;color:var(--accent);margin-top:4px">▸ 상세</div>
+        </div>
+        <div class="kpi kpi-act" :class="{sel:fbSelK==='regenerate_rate'}" @click="fbSelK=fbSelK==='regenerate_rate'?null:'regenerate_rate'">
+          <div style="font-size:11px;color:var(--text2)">재생성율</div>
+          <div style="font-size:22px;font-weight:700;color:#f59e0b" x-text="(feedbackData.regenerate_rate||0).toFixed(1)+'%'"></div>
+          <div style="font-size:10px;color:var(--accent);margin-top:4px">▸ 상세</div>
+        </div>
+        <div class="kpi kpi-act" :class="{sel:fbSelK==='abandon_rate'}" @click="fbSelK=fbSelK==='abandon_rate'?null:'abandon_rate'">
+          <div style="font-size:11px;color:var(--text2)">이탈율</div>
+          <div style="font-size:22px;font-weight:700" x-text="(feedbackData.abandon_rate||0).toFixed(1)+'%'"></div>
+          <div style="font-size:10px;color:var(--accent);margin-top:4px">▸ 상세</div>
         </div>
       </div>
+
+      <!-- 상세 패널 -->
+      <div x-show="fbSelK" style="margin:0 0 14px;border:1px solid var(--accent);border-radius:8px;overflow:hidden" x-cloak>
+        <template x-if="fbSelK">
+          <div>
+            <div style="padding:10px 14px;background:var(--bg3);display:flex;align-items:center;gap:8px;border-bottom:1px solid var(--border)">
+              <span style="font-weight:700;font-size:14px" x-text="fbMeta[fbSelK]?.label||fbSelK"></span>
+              <span style="font-size:11px;color:var(--text2);background:var(--bg2);padding:1px 7px;border-radius:99px" x-text="fbMeta[fbSelK]?.unit?'단위: '+fbMeta[fbSelK].unit:''"></span>
+              <button style="margin-left:auto;background:transparent;border:none;color:var(--text2);cursor:pointer;font-size:18px" @click="fbSelK=null">×</button>
+            </div>
+            <div style="padding:12px 16px;display:grid;grid-template-columns:1fr 1fr;gap:16px">
+              <div>
+                <div style="font-size:11px;color:var(--text2);text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">설명</div>
+                <div style="font-size:13px;line-height:1.7" x-text="fbMeta[fbSelK]?.desc||''"></div>
+              </div>
+              <div>
+                <div style="font-size:11px;color:var(--text2);text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">산출식</div>
+                <div style="font-size:12px;font-family:monospace;color:var(--accent);line-height:1.8;white-space:pre-line" x-text="fbFormula(fbSelK, feedbackData)"></div>
+              </div>
+            </div>
+            <div style="padding:0 16px 14px">
+              <div style="font-size:11px;color:var(--text2);text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px;display:flex;align-items:center;gap:8px">
+                <span>관련 유형 분포</span>
+                <span style="font-size:11px;color:var(--text2);background:var(--bg3);padding:1px 7px;border-radius:99px" x-text="fbItems(fbSelK, feedbackData).length+'종'"></span>
+              </div>
+              <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:6px">
+                <template x-for="[type, count] in fbItems(fbSelK, feedbackData)" :key="type">
+                  <div style="background:var(--bg3);border-radius:6px;padding:8px 10px;border:1px solid var(--border)">
+                    <div style="font-size:11px;color:var(--text2)" x-text="type"></div>
+                    <div style="font-size:18px;font-weight:700" x-text="count"></div>
+                    <div style="font-size:10px;color:var(--text2)" x-text="feedbackData.total>0?((count/feedbackData.total*100).toFixed(1)+'%'):''"></div>
+                  </div>
+                </template>
+              </div>
+            </div>
+          </div>
+        </template>
+      </div>
+
+      <!-- 전체 유형 분포 (카드 미선택 시) -->
+      <template x-if="!fbSelK">
+        <div class="kpi" style="padding:0;overflow:hidden">
+          <div style="padding:10px 14px;font-weight:600;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px">
+            <span>피드백 유형 분포</span>
+            <span style="font-size:11px;color:var(--text2);background:var(--bg3);padding:1px 7px;border-radius:99px" x-text="Object.keys(feedbackData.type_distribution||{}).length+'종'"></span>
+          </div>
+          <div style="padding:12px 14px;display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:8px">
+            <template x-for="[type, count] in Object.entries(feedbackData.type_distribution||{})" :key="type">
+              <div style="background:var(--bg3);border-radius:6px;padding:8px 10px">
+                <div style="font-size:11px;color:var(--text2)" x-text="type"></div>
+                <div style="font-size:18px;font-weight:700" x-text="count"></div>
+                <div style="font-size:10px;color:var(--text2)" x-text="feedbackData.total>0?((count/feedbackData.total*100).toFixed(1)+'%'):''"></div>
+              </div>
+            </template>
+          </div>
+        </div>
+      </template>
     </div>
   </template>
 </section>
@@ -6206,7 +6748,43 @@ input[type=text],input[type=number]{background:var(--bg3);color:var(--text);bord
 ═══════════════════════════════════════════════════════════════ -->
 <section id="s-anomaly" class="sec" x-show="sec==='anomaly'" x-cloak>
   <div style="font-weight:700;font-size:15px;margin-bottom:4px">🚨 이상 감지</div>
-  <div style="color:var(--text2);font-size:12px;margin-bottom:16px">AnomalyDetector — Z-score · IQR · 선형회귀 기반 이상 패턴 탐지</div>
+  <div style="color:var(--text2);font-size:12px;margin-bottom:10px">AnomalyDetector — Z-score · IQR · 선형회귀 기반 이상 패턴 탐지</div>
+
+  <!-- 용도 안내 배너 -->
+  <div style="background:var(--bg3);border:1px solid var(--border);border-left:3px solid #6366f1;border-radius:6px;padding:10px 14px;font-size:12px;color:var(--text2);margin-bottom:12px;line-height:1.7">
+    <div style="font-weight:600;color:var(--text1);margin-bottom:4px">🔍 이 탭의 용도</div>
+    <div>개별 태스크 결과를 <strong>시계열로 분석</strong>해 통계적으로 비정상적인 패턴을 자동 탐지합니다. 인사이트 탭의 임계값 비교와 달리, 이 탭은 <em>데이터 흐름의 급격한 변화</em> 자체를 포착합니다.</div>
+    <div style="margin-top:6px;padding-top:6px;border-top:1px solid var(--border)">
+      🛠️ <strong>활성화 방법</strong>:
+      <code style="background:var(--bg2);padding:1px 6px;border-radius:3px;font-size:11px">PerformanceMonitor(enable_anomaly_detection=True)</code>
+      — 최소 30개 이상의 태스크 결과가 필요합니다.
+    </div>
+  </div>
+
+  <!-- 인사이트 탭과의 차이 안내 -->
+  <div style="display:flex;gap:10px;margin-bottom:16px;font-size:12px">
+    <div style="flex:1;padding:10px 12px;border-radius:8px;border:1px solid rgba(99,102,241,.25);background:rgba(99,102,241,.06)">
+      <div style="font-weight:700;color:var(--text1);margin-bottom:4px">🚨 이상 감지 <span style="font-weight:400;color:var(--text2)">(이 탭)</span></div>
+      <div style="color:var(--text2);line-height:1.6">
+        개별 태스크 결과를 <strong>시계열로 분석</strong>해 통계적으로 튀는 패턴을 탐지합니다.<br>
+        · <strong>Z-score</strong> — 평균 대비 표준편차 이상 이탈<br>
+        · <strong>IQR</strong> — 사분위 범위 밖 급증<br>
+        · <strong>선형회귀</strong> — 추세 이탈 감지<br>
+        · 탐지 유형: ACCURACY_DRIFT · TOKEN_SPIKE · ERROR_SURGE · SECURITY_PATTERN<br>
+        · <code style="font-size:10.5px;background:var(--bg3);padding:1px 4px;border-radius:3px">enable_anomaly_detection=True</code> 필요
+      </div>
+    </div>
+    <div style="flex:1;padding:10px 12px;border-radius:8px;border:1px solid rgba(234,179,8,.25);background:rgba(234,179,8,.06)">
+      <div style="font-weight:700;color:var(--text1);margin-bottom:4px">🔍 인사이트 탭 이상 탐지 <span style="font-weight:400;color:var(--text2);cursor:pointer" @click="sec='insights'">→ 이동</span></div>
+      <div style="color:var(--text2);line-height:1.6">
+        최종 집계 지표를 <strong>사전 설정 임계값</strong>과 비교해 기준 초과 여부를 확인합니다.<br>
+        · <strong>임계치 기반</strong> — TCR · 정확도 · 환각률 · P95 지연 · 비용<br>
+        · <strong>Z-score 요약</strong> — 지표 편차 경보 (2σ 초과)<br>
+        · 결과 파일 로드 시 자동 계산 (별도 설정 불필요)<br>
+        · 권고사항·알림·병목 분석 포함
+      </div>
+    </div>
+  </div>
 
   <template x-if="!anomalyData?.count">
     <div style="text-align:center;padding:48px;color:var(--text2)">
@@ -6217,32 +6795,139 @@ input[type=text],input[type=number]{background:var(--bg3);color:var(--text);bord
   </template>
 
   <template x-if="anomalyData?.count > 0">
-    <div>
-      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px;margin-bottom:16px">
-        <div class="kpi"><div style="font-size:11px;color:var(--text2)">탐지된 이상</div>
-          <div style="font-size:22px;font-weight:700" x-text="anomalyData.count"></div></div>
-        <div class="kpi"><div style="font-size:11px;color:var(--text2)">Critical</div>
-          <div style="font-size:22px;font-weight:700;color:#ef4444" x-text="anomalyData.critical"></div></div>
-        <div class="kpi"><div style="font-size:11px;color:var(--text2)">Warning</div>
-          <div style="font-size:22px;font-weight:700;color:#f59e0b" x-text="anomalyData.warning"></div></div>
+    <div x-data="{
+      anomalySelK: null,
+      anomalyMeta: {
+        count:    {label:'탐지된 이상', unit:'건', desc:'AnomalyDetector가 탐지한 전체 이상 패턴 수입니다. Z-score · IQR · 선형회귀 세 가지 알고리즘으로 정확도 급락, 토큰 급증, 오류 급증, 보안 위협 등을 탐지합니다.'},
+        critical: {label:'Critical',   unit:'건', desc:'즉각 대응이 필요한 심각한 이상입니다. 현재값이 임계값을 크게 벗어나거나 서비스에 직접 영향을 주는 패턴 (정확도 급락, 오류 폭증, 보안 공격 의심 등)에 해당합니다.'},
+        warning:  {label:'Warning',    unit:'건', desc:'주의 관찰이 필요한 이상입니다. 임계값을 소폭 초과하거나 추세 악화가 감지된 경우로, 즉각 장애는 아니지만 방치 시 Critical로 전환될 수 있습니다.'},
+      },
+      anomalyFormula(k, d) {
+        const anomalies = d.anomalies || [];
+        const crit = anomalies.filter(a=>a.severity==='critical').length;
+        const warn = anomalies.filter(a=>a.severity==='warning').length;
+        const algos = [...new Set(anomalies.map(a=>a.algorithm).filter(Boolean))];
+        if (k === 'count')    return `탐지 이상 = Critical + Warning\n= ${crit} + ${warn} = ${d.count}건\n\n사용 알고리즘:\n${algos.length?algos.map(a=>  a).join(', '):'(정보 없음)'}`;
+        if (k === 'critical') return `Critical = ${crit}건\n전체 대비: ${d.count>0?(crit/d.count*100).toFixed(1):0}%\n\n유형별:\n${anomalies.filter(a=>a.severity==='critical').map(a=> a.type.replaceAll('_',' ')).join('\n')||'없음'}`;
+        if (k === 'warning')  return `Warning = ${warn}건\n전체 대비: ${d.count>0?(warn/d.count*100).toFixed(1):0}%\n\n유형별:\n${anomalies.filter(a=>a.severity==='warning').map(a=> a.type.replaceAll('_',' ')).join('\n')||'없음'}`;
+        return '';
+      },
+      anomalyItems(k, d) {
+        const anomalies = d.anomalies || [];
+        if (k === 'critical') return anomalies.filter(a=>a.severity==='critical');
+        if (k === 'warning')  return anomalies.filter(a=>a.severity==='warning');
+        return anomalies;
+      }
+    }">
+      <!-- KPI 카드 -->
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px;margin-bottom:8px">
+        <div class="kpi kpi-act" :class="{sel:anomalySelK==='count'}" @click="anomalySelK=anomalySelK==='count'?null:'count'">
+          <div style="font-size:11px;color:var(--text2)">탐지된 이상</div>
+          <div style="font-size:22px;font-weight:700" x-text="anomalyData.count"></div>
+        </div>
+        <div class="kpi kpi-act" :class="{sel:anomalySelK==='critical'}" @click="anomalySelK=anomalySelK==='critical'?null:'critical'">
+          <div style="font-size:11px;color:var(--text2)">Critical</div>
+          <div style="font-size:22px;font-weight:700;color:#ef4444" x-text="anomalyData.critical"></div>
+        </div>
+        <div class="kpi kpi-act" :class="{sel:anomalySelK==='warning'}" @click="anomalySelK=anomalySelK==='warning'?null:'warning'">
+          <div style="font-size:11px;color:var(--text2)">Warning</div>
+          <div style="font-size:22px;font-weight:700;color:#f59e0b" x-text="anomalyData.warning"></div>
+        </div>
       </div>
-      <template x-for="a in (anomalyData.anomalies||[])" :key="a.type+a.detected_at">
-        <div style="background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:14px;margin-bottom:10px;border-left:3px solid"
-             :style="a.severity==='critical'?'border-left-color:#ef4444':'border-left-color:#f59e0b'">
-          <div style="display:flex;gap:10px;align-items:center;margin-bottom:6px">
-            <span style="font-size:18px" x-text="a.severity==='critical'?'🚨':'⚠️'"></span>
-            <span style="font-weight:700;font-size:13px" x-text="a.type.replaceAll('_',' ').toUpperCase()"></span>
-            <span style="font-size:11px;padding:1px 6px;border-radius:10px"
-                  :style="a.severity==='critical'?'background:rgba(239,68,68,.15);color:#ef4444':'background:rgba(245,158,11,.15);color:#f59e0b'"
-                  x-text="a.severity"></span>
-            <span style="margin-left:auto;font-size:11px;color:var(--text2)" x-text="'알고리즘: '+a.algorithm"></span>
+
+      <!-- KPI 상세 패널 -->
+      <div x-show="anomalySelK" style="margin:0 0 14px;border:1px solid var(--accent);border-radius:8px;overflow:hidden" x-cloak>
+        <template x-if="anomalySelK">
+          <div>
+            <div style="display:flex;align-items:center;gap:8px;padding:10px 14px;background:var(--bg2);border-bottom:1px solid var(--border)">
+              <span style="font-weight:700;font-size:14px" x-text="anomalyMeta[anomalySelK]?.label||anomalySelK"></span>
+              <span style="font-size:11px;color:var(--text2);background:var(--bg3);padding:1px 7px;border-radius:99px" x-text="anomalyMeta[anomalySelK]?.unit?'단위: '+anomalyMeta[anomalySelK].unit:''"></span>
+              <button style="margin-left:auto;background:transparent;border:none;color:var(--text2);cursor:pointer;font-size:18px" @click="anomalySelK=null">×</button>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:0;border-bottom:1px solid var(--border)">
+              <div style="padding:10px 14px;background:var(--bg2);border-right:1px solid var(--border)">
+                <div style="font-size:11px;font-weight:600;color:var(--text2);margin-bottom:4px;text-transform:uppercase">설명</div>
+                <div style="font-size:13px;line-height:1.7" x-text="anomalyMeta[anomalySelK]?.desc||''"></div>
+              </div>
+              <div style="padding:10px 14px;background:var(--bg3)">
+                <div style="font-size:11px;font-weight:600;color:var(--text2);margin-bottom:4px;text-transform:uppercase">📐 산출 방식</div>
+                <div style="font-size:12px;font-family:monospace;color:var(--accent);line-height:1.8;white-space:pre-line" x-text="anomalyFormula(anomalySelK, anomalyData)"></div>
+              </div>
+            </div>
+            <div style="padding:10px 14px;background:var(--bg)">
+              <div style="display:flex;align-items:center;gap:6px;margin-bottom:8px">
+                <span style="font-size:11px;font-weight:600;color:var(--text2);text-transform:uppercase">관련 이상</span>
+                <span style="font-size:11px;color:var(--text2);margin-left:auto" x-text="anomalyItems(anomalySelK, anomalyData).length+'건'"></span>
+              </div>
+              <div class="dtx" style="max-height:240px;overflow-y:auto">
+                <div class="dtx-row dtx-head" style="grid-template-columns:minmax(130px,1fr) 72px 80px 80px 150px;position:sticky;top:0;z-index:1">
+                  <span>유형</span><span>심각도</span><span>현재값</span><span>임계값</span><span>탐지 시각</span>
+                </div>
+                <template x-for="a in anomalyItems(anomalySelK, anomalyData)" :key="a.type+a.detected_at">
+                  <div class="dtx-row" style="grid-template-columns:minmax(130px,1fr) 72px 80px 80px 150px"
+                       :title="a.detail">
+                    <span class="dtx-id" x-text="a.type.replaceAll('_',' ').toUpperCase()"></span>
+                    <span style="font-size:11px;padding:1px 6px;border-radius:10px;white-space:nowrap"
+                          :style="a.severity==='critical'?'background:rgba(239,68,68,.15);color:#ef4444':'background:rgba(245,158,11,.15);color:#f59e0b'"
+                          x-text="a.severity"></span>
+                    <span :style="a.severity==='critical'?'color:#ef4444':'color:#f59e0b';font-weight:700"
+                          x-text="typeof a.value==='number'?a.value.toFixed(4):a.value"></span>
+                    <span style="color:var(--text2)" x-text="typeof a.threshold==='number'?a.threshold.toFixed(4):a.threshold"></span>
+                    <span style="color:var(--text2)" x-text="a.detected_at?.substring(0,19).replace('T',' ')"></span>
+                  </div>
+                </template>
+              </div>
+            </div>
           </div>
-          <div style="font-size:12px;margin-bottom:8px" x-text="a.detail"></div>
-          <div style="display:flex;gap:16px;font-size:11px;color:var(--text2)">
-            <span>현재값: <b x-text="typeof a.value==='number'?a.value.toFixed(4):a.value"></b></span>
-            <span>임계값: <b x-text="typeof a.threshold==='number'?a.threshold.toFixed(4):a.threshold"></b></span>
-            <span x-text="a.detected_at?.substring(0,19)"></span>
+        </template>
+      </div>
+
+      <!-- 이상 카드 목록 (KPI 카드 미선택 시에만 표시) -->
+      <template x-if="!anomalySelK">
+        <div class="kpi" style="padding:0;overflow:hidden">
+          <div style="padding:10px 14px;font-weight:600;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px">
+            <span>탐지된 이상 목록</span>
+            <span style="font-size:11px;color:var(--text2);background:var(--bg3);padding:1px 7px;border-radius:99px" x-text="(anomalyData.anomalies||[]).length+'건'"></span>
           </div>
+          <table style="width:100%;border-collapse:collapse;font-size:12px">
+            <thead>
+              <tr style="background:var(--bg3);color:var(--text2)">
+                <th style="padding:7px 12px;text-align:left">유형</th>
+                <th style="padding:7px 12px;text-align:center">심각도</th>
+                <th style="padding:7px 12px;text-align:left;max-width:320px">상세</th>
+                <th style="padding:7px 12px;text-align:center">현재값</th>
+                <th style="padding:7px 12px;text-align:center">임계값</th>
+                <th style="padding:7px 12px;text-align:center">알고리즘</th>
+                <th style="padding:7px 12px;text-align:center">탐지 시각</th>
+              </tr>
+            </thead>
+            <tbody>
+              <template x-for="a in (anomalyData.anomalies||[])" :key="a.type+a.detected_at">
+                <tr style="border-top:1px solid var(--border)"
+                    :style="a.severity==='critical'?'border-left:3px solid #ef4444':'border-left:3px solid #f59e0b'">
+                  <td style="padding:8px 12px;font-weight:700">
+                    <span style="font-size:14px;margin-right:6px" x-text="a.severity==='critical'?'🚨':'⚠️'"></span>
+                    <span x-text="a.type.replaceAll('_',' ').toUpperCase()"></span>
+                  </td>
+                  <td style="padding:8px 12px;text-align:center">
+                    <span style="font-size:11px;padding:2px 8px;border-radius:10px"
+                          :style="a.severity==='critical'?'background:rgba(239,68,68,.15);color:#ef4444':'background:rgba(245,158,11,.15);color:#f59e0b'"
+                          x-text="a.severity"></span>
+                  </td>
+                  <td style="padding:8px 12px;color:var(--text2);max-width:320px" x-text="a.detail"></td>
+                  <td style="padding:8px 12px;text-align:center;font-weight:700"
+                      :style="a.severity==='critical'?'color:#ef4444':'color:#f59e0b'"
+                      x-text="typeof a.value==='number'?a.value.toFixed(4):a.value"></td>
+                  <td style="padding:8px 12px;text-align:center;color:var(--text2)"
+                      x-text="typeof a.threshold==='number'?a.threshold.toFixed(4):a.threshold"></td>
+                  <td style="padding:8px 12px;text-align:center;color:var(--text2);font-family:monospace;font-size:11px"
+                      x-text="a.algorithm||'—'"></td>
+                  <td style="padding:8px 12px;text-align:center;color:var(--text2);white-space:nowrap"
+                      x-text="a.detected_at?.substring(0,19).replace('T',' ')"></td>
+                </tr>
+              </template>
+            </tbody>
+          </table>
         </div>
       </template>
     </div>
@@ -6254,7 +6939,18 @@ input[type=text],input[type=number]{background:var(--bg3);color:var(--text);bord
 ═══════════════════════════════════════════════════════════════ -->
 <section id="s-cost" class="sec" x-show="sec==='cost'" x-cloak>
   <div style="font-weight:700;font-size:15px;margin-bottom:4px">💰 평가 비용</div>
-  <div style="color:var(--text2);font-size:12px;margin-bottom:16px">LLM Judge · DeepEval · Ragas 등 외부 평가 호출 비용 추적</div>
+  <div style="color:var(--text2);font-size:12px;margin-bottom:10px">LLM Judge · DeepEval · Ragas 등 외부 평가 호출 비용 추적</div>
+
+  <!-- 용도 안내 배너 -->
+  <div style="background:var(--bg3);border:1px solid var(--border);border-left:3px solid #6366f1;border-radius:6px;padding:10px 14px;font-size:12px;color:var(--text2);margin-bottom:16px;line-height:1.7">
+    <div style="font-weight:600;color:var(--text1);margin-bottom:4px">🔍 이 탭의 용도</div>
+    <div><strong>LLM Judge · DeepEval · Ragas</strong> 등 외부 평가 API 호출 비용을 공급자별로 추적하고, 일일 예산 대비 소진율과 예상 비용을 시각화합니다. <strong>AdaptivePolicy</strong>가 예산 초과를 감지하면 샘플링률을 자동으로 낮춰 과금을 방지합니다.</div>
+    <div style="margin-top:6px;padding-top:6px;border-top:1px solid var(--border)">
+      🛠️ <strong>활성화 방법</strong>:
+      <code style="background:var(--bg2);padding:1px 6px;border-radius:3px;font-size:11px">CostTracker</code> + <code style="background:var(--bg2);padding:1px 6px;border-radius:3px;font-size:11px">AdaptivePolicy</code>를 사용하거나,
+      <code style="background:var(--bg2);padding:1px 6px;border-radius:3px;font-size:11px">HybridPerformanceMonitor(enable_llm_judge=True)</code>로 자동 추적하세요.
+    </div>
+  </div>
 
   <template x-if="!costData?.total_usd">
     <div style="text-align:center;padding:48px;color:var(--text2)">
@@ -6265,37 +6961,117 @@ input[type=text],input[type=number]{background:var(--bg3);color:var(--text);bord
   </template>
 
   <template x-if="costData?.total_usd > 0">
-    <div>
-      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px;margin-bottom:16px">
-        <div class="kpi"><div style="font-size:11px;color:var(--text2)">오늘 총 비용</div>
-          <div style="font-size:22px;font-weight:700;color:var(--accent)" x-text="'$'+(costData.total_usd||0).toFixed(4)"></div></div>
-        <div class="kpi"><div style="font-size:11px;color:var(--text2)">예산 잔여</div>
+    <div x-data="{
+      costSelK: null,
+      costMeta: {
+        total_usd:       {label:'오늘 총 비용',   unit:'$',  desc:'오늘 발생한 LLM Judge · DeepEval · Ragas 등 외부 평가 API 호출의 누적 비용입니다. CostTracker가 기록한 모든 공급자의 합산값입니다.'},
+        budget_remaining:{label:'예산 잔여',       unit:'$',  desc:'일일 예산 한도에서 현재까지 사용한 비용을 뺀 잔여 예산입니다. 한도 미설정 시 한도 없음으로 표시됩니다. 잔여 예산이 20% 미만이면 경고 색상으로 표시됩니다.'},
+        projected_daily: {label:'예상 일 비용',   unit:'$',  desc:'현재까지의 호출 빈도를 기준으로 하루 전체 비용을 추정한 값입니다. 샘플링률이 낮을수록 실제 비용은 이보다 높을 수 있습니다.'},
+        sample_rate:     {label:'현재 샘플링률',  unit:'%',  desc:'AdaptivePolicy가 설정한 현재 평가 샘플링 비율입니다. 비용 초과 우려 시 자동으로 낮아집니다. 100%면 모든 태스크를 평가하고 있습니다.'},
+        call_count:      {label:'호출 수',         unit:'건', desc:'오늘 외부 평가 API를 호출한 총 횟수입니다. 호출당 비용 = 총 비용 / 호출 수로 효율성을 측정할 수 있습니다.'},
+      },
+      costFormula(k, d) {
+        const providers = Object.entries(d.by_provider||{});
+        if (k === 'total_usd') {
+          const perCall = d.call_count > 0 ? (d.total_usd / d.call_count) : 0;
+          const prov = providers.length > 0 ? providers.map(([p,v])=>`  ${p}: $${parseFloat(v).toFixed(4)}`).join('\n') : '  (공급자 데이터 없음)';
+          return `총 비용 = Σ(공급자별 비용)\n= $${(d.total_usd||0).toFixed(4)}\n\n공급자별:\n${prov}\n\n호출당 평균: $${perCall.toFixed(5)}`;
+        }
+        if (k === 'budget_remaining') {
+          const budget = d.budget_per_day;
+          if (budget == null) return '일일 예산 한도 미설정\nCostTracker(budget_per_day=0.10) 형태로 설정하세요.';
+          const used = budget - (d.budget_remaining_usd||0);
+          const pct = budget > 0 ? (used/budget*100).toFixed(1) : 0;
+          return `예산 잔여 = 일일 한도 − 사용액\n= $${budget.toFixed(4)} − $${used.toFixed(4)}\n= $${(d.budget_remaining_usd||0).toFixed(4)}\n\n사용률: ${pct}%`;
+        }
+        if (k === 'projected_daily') {
+          return `예상 일 비용 = 현재 비용 × (24h / 경과 시간)\n= $${(d.projected_daily_usd||0).toFixed(4)}\n\n※ 샘플링률 ${((d.sample_rate_current||0)*100).toFixed(0)}% 기준`;
+        }
+        if (k === 'sample_rate') {
+          return `현재 샘플링률 = ${((d.sample_rate_current||0)*100).toFixed(0)}%\n\nAdaptivePolicy 단계:\n  FULL(100%) → 예산 50% 소진 시 50%로\n  REDUCED(50%) → 예산 80% 소진 시 10%로\n  MINIMAL(10%) → 예산 90% 소진 시 이하`;
+        }
+        if (k === 'call_count') {
+          const perCall = d.call_count > 0 ? (d.total_usd / d.call_count) : 0;
+          return `호출 수 = ${d.call_count||0}건\n호출당 평균 비용: $${perCall.toFixed(5)}\n총 비용: $${(d.total_usd||0).toFixed(4)}`;
+        }
+        return '';
+      }
+    }">
+      <!-- KPI 카드 -->
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px;margin-bottom:8px">
+        <div class="kpi kpi-act" :class="{sel:costSelK==='total_usd'}" @click="costSelK=costSelK==='total_usd'?null:'total_usd'">
+          <div style="font-size:11px;color:var(--text2)">오늘 총 비용</div>
+          <div style="font-size:22px;font-weight:700;color:var(--accent)" x-text="'$'+(costData.total_usd||0).toFixed(4)"></div>
+        </div>
+        <div class="kpi kpi-act" :class="{sel:costSelK==='budget_remaining'}" @click="costSelK=costSelK==='budget_remaining'?null:'budget_remaining'">
+          <div style="font-size:11px;color:var(--text2)">예산 잔여</div>
           <div style="font-size:22px;font-weight:700"
                x-text="costData.budget_remaining_usd!=null ? '$'+costData.budget_remaining_usd.toFixed(4) : '한도 없음'"
-               :style="costData.budget_remaining_usd!=null && costData.budget_remaining_usd < costData.budget_per_day*0.2 ? 'color:var(--danger)' : ''"></div></div>
-        <div class="kpi"><div style="font-size:11px;color:var(--text2)">예상 일 비용</div>
-          <div style="font-size:22px;font-weight:700" x-text="'$'+(costData.projected_daily_usd||0).toFixed(4)"></div></div>
-        <div class="kpi"><div style="font-size:11px;color:var(--text2)">현재 샘플링률</div>
-          <div style="font-size:22px;font-weight:700" x-text="((costData.sample_rate_current||0)*100).toFixed(0)+'%'"></div></div>
-      </div>
-      <!-- 호출 수 / 모델 보조 정보 -->
-      <div style="display:flex;gap:12px;margin-bottom:12px">
-        <div class="kpi" style="flex:1"><div style="font-size:11px;color:var(--text2)">호출 수</div>
-          <div style="font-size:18px;font-weight:700" x-text="costData.call_count||0"></div></div>
-        <div class="kpi" style="flex:2"><div style="font-size:11px;color:var(--text2)">모델</div>
-          <div style="font-size:12px;font-weight:600;margin-top:4px" x-text="costData.model||'—'"></div></div>
-      </div>
-      <template x-if="Object.keys(costData.by_provider||{}).length > 0">
-        <div class="kpi" style="padding:14px">
-          <div style="font-weight:600;margin-bottom:10px">공급자별 비용</div>
-          <template x-for="[provider, usd] in Object.entries(costData.by_provider||{})" :key="provider">
-            <div style="display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px solid var(--border)">
-              <span style="font-weight:500;font-size:13px" x-text="provider"></span>
-              <span style="color:var(--accent);font-weight:700" x-text="'$'+parseFloat(usd).toFixed(4)"></span>
-            </div>
-          </template>
+               :style="costData.budget_remaining_usd!=null && costData.budget_remaining_usd < costData.budget_per_day*0.2 ? 'color:var(--red)' : ''"></div>
         </div>
-      </template>
+        <div class="kpi kpi-act" :class="{sel:costSelK==='projected_daily'}" @click="costSelK=costSelK==='projected_daily'?null:'projected_daily'">
+          <div style="font-size:11px;color:var(--text2)">예상 일 비용</div>
+          <div style="font-size:22px;font-weight:700" x-text="'$'+(costData.projected_daily_usd||0).toFixed(4)"></div>
+        </div>
+        <div class="kpi kpi-act" :class="{sel:costSelK==='sample_rate'}" @click="costSelK=costSelK==='sample_rate'?null:'sample_rate'">
+          <div style="font-size:11px;color:var(--text2)">현재 샘플링률</div>
+          <div style="font-size:22px;font-weight:700" x-text="((costData.sample_rate_current||0)*100).toFixed(0)+'%'"></div>
+        </div>
+        <div class="kpi kpi-act" :class="{sel:costSelK==='call_count'}" @click="costSelK=costSelK==='call_count'?null:'call_count'">
+          <div style="font-size:11px;color:var(--text2)">호출 수</div>
+          <div style="font-size:22px;font-weight:700" x-text="costData.call_count||0"></div>
+        </div>
+        <div class="kpi">
+          <div style="font-size:11px;color:var(--text2)">모델</div>
+          <div style="font-size:13px;font-weight:600;margin-top:4px;word-break:break-all" x-text="costData.model||'—'"></div>
+        </div>
+      </div>
+
+      <!-- KPI 상세 패널 -->
+      <div x-show="costSelK" style="margin:0 0 14px;border:1px solid var(--accent);border-radius:8px;overflow:hidden" x-cloak>
+        <template x-if="costSelK">
+          <div>
+            <div style="display:flex;align-items:center;gap:8px;padding:10px 14px;background:var(--bg2);border-bottom:1px solid var(--border)">
+              <span style="font-weight:700;font-size:14px" x-text="costMeta[costSelK]?.label||costSelK"></span>
+              <span style="font-size:11px;color:var(--text2);background:var(--bg3);padding:1px 7px;border-radius:99px" x-text="costMeta[costSelK]?.unit?'단위: '+costMeta[costSelK].unit:''"></span>
+              <button style="margin-left:auto;background:transparent;border:none;color:var(--text2);cursor:pointer;font-size:18px" @click="costSelK=null">×</button>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:0;border-bottom:1px solid var(--border)">
+              <div style="padding:10px 14px;background:var(--bg2);border-right:1px solid var(--border)">
+                <div style="font-size:11px;font-weight:600;color:var(--text2);margin-bottom:4px;text-transform:uppercase">설명</div>
+                <div style="font-size:13px;line-height:1.7" x-text="costMeta[costSelK]?.desc||''"></div>
+              </div>
+              <div style="padding:10px 14px;background:var(--bg3)">
+                <div style="font-size:11px;font-weight:600;color:var(--text2);margin-bottom:4px;text-transform:uppercase">📐 산출 방식</div>
+                <div style="font-size:12px;font-family:monospace;color:var(--accent);line-height:1.8;white-space:pre-line" x-text="costFormula(costSelK, costData)"></div>
+              </div>
+            </div>
+            <!-- 공급자별 비용 테이블 -->
+            <template x-if="Object.keys(costData.by_provider||{}).length > 0">
+              <div style="padding:10px 14px;background:var(--bg)">
+                <div style="font-size:11px;font-weight:600;color:var(--text2);text-transform:uppercase;margin-bottom:8px">공급자별 비용</div>
+                <div class="dtx">
+                  <div class="dtx-row dtx-head" style="grid-template-columns:1fr 100px 80px">
+                    <span>공급자</span><span>비용</span><span>비율</span>
+                  </div>
+                  <template x-for="[provider, usd] in Object.entries(costData.by_provider||{})" :key="provider">
+                    <div class="dtx-row" style="grid-template-columns:1fr 100px 80px">
+                      <span class="dtx-id" x-text="provider"></span>
+                      <span style="color:var(--accent);font-weight:700" x-text="'$'+parseFloat(usd).toFixed(4)"></span>
+                      <span style="color:var(--text2)" x-text="costData.total_usd>0?(parseFloat(usd)/costData.total_usd*100).toFixed(1)+'%':'—'"></span>
+                    </div>
+                  </template>
+                </div>
+              </div>
+            </template>
+            <template x-if="!Object.keys(costData.by_provider||{}).length">
+              <div style="padding:10px 14px;background:var(--bg);color:var(--text2);font-size:12px">
+                공급자별 상세 데이터 없음
+              </div>
+            </template>
+          </div>
+        </template>
+      </div>
     </div>
   </template>
 </section>
@@ -6794,18 +7570,26 @@ function app2() {
       this.selId = id;
       this.loading = true;
       try {
-        const [res, rConv, rFb, rAnomaly, rCost] = await Promise.all([
+        const [res, rConv, rFb, rAnomaly, rCost, rAlertFile] = await Promise.all([
           fetch(`/api/results/${id}`),
           fetch(`/api/conversation/${id}`).catch(()=>null),
           fetch(`/api/feedback/${id}`).catch(()=>null),
           fetch(`/api/anomalies/${id}`).catch(()=>null),
           fetch(`/api/cost/${id}`).catch(()=>null),
+          fetch(`/api/alerts/file/${encodeURIComponent(id)}`).catch(()=>null),
         ]);
         this.data         = await res.json();
-        this.convData     = (rConv    && rConv.ok)    ? await rConv.json()    : null;
-        this.feedbackData = (rFb      && rFb.ok)      ? await rFb.json()      : null;
-        this.anomalyData  = (rAnomaly && rAnomaly.ok) ? await rAnomaly.json() : null;
-        this.costData     = (rCost    && rCost.ok)    ? await rCost.json()    : null;
+        this.convData     = (rConv      && rConv.ok)      ? await rConv.json()      : null;
+        this.feedbackData = (rFb        && rFb.ok)        ? await rFb.json()        : null;
+        this.anomalyData  = (rAnomaly   && rAnomaly.ok)   ? await rAnomaly.json()   : null;
+        this.costData     = (rCost      && rCost.ok)      ? await rCost.json()      : null;
+        // 파일별 알림 히스토리 — today와 summary 구조로 통합하여 alertData를 덮어씀
+        if (rAlertFile && rAlertFile.ok) {
+          const fd = await rAlertFile.json();
+          if (fd.total > 0) {
+            this.alertData = { today: fd, summary: fd.summary || {} };
+          }
+        }
         this.convSelected = null;
         // Double rAF: wait for Alpine DOM update + browser layout before Plotly measures containers
         this.$nextTick(() => requestAnimationFrame(() => requestAnimationFrame(() => this.drawCharts())));
@@ -6821,7 +7605,10 @@ function app2() {
         ]);
         const today   = (rToday   && rToday.ok)   ? await rToday.json()   : {};
         const summary = (rSummary && rSummary.ok) ? await rSummary.json() : {};
-        this.alertData = { today, summary };
+        // 파일이 선택되어 있고 해당 파일의 알림이 이미 로드됐으면 덮어쓰지 않음
+        if (!this.selId || !(this.alertData?.today?.total > 0)) {
+          this.alertData = { today, summary };
+        }
       } catch(e) { console.warn('loadAlerts error', e); }
     },
 
@@ -6861,10 +7648,30 @@ function app2() {
 
     async loadRealtime() {
       try {
+        // 1순위: 라이브 StreamingEvaluator
         const r = await fetch(`/api/stream/live-stats?window=${this.realtimeWindow}`).catch(()=>null);
         if (r && r.ok) {
           const stats = await r.json();
-          this.realtimeStats = { ...this.realtimeStats, [this.realtimeWindow]: stats };
+          if (stats.available) {
+            this.realtimeStats = { ...this.realtimeStats, [this.realtimeWindow]: stats };
+            return;
+          }
+        }
+        // 2순위: 선택된 파일의 저장된 스냅샷 (오프라인 히스토리)
+        if (this.selId) {
+          const r2 = await fetch(`/api/stream/snapshot/${encodeURIComponent(this.selId)}?window=${this.realtimeWindow}`).catch(()=>null);
+          if (r2 && r2.ok) {
+            const snap = await r2.json();
+            if (snap.available) {
+              // 모든 윈도우 데이터를 한 번에 채움
+              const all = snap.all_windows || {};
+              const merged = { ...this.realtimeStats };
+              for (const [w, v] of Object.entries(all)) {
+                merged[w] = { ...v, available: true, source: 'file_snapshot' };
+              }
+              this.realtimeStats = merged;
+            }
+          }
         }
       } catch(e) {}
     },

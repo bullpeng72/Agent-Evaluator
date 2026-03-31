@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Any, Dict, List
 from fastapi import APIRouter, Request
 
-router = APIRouter(prefix="/api/alerts")
+router = APIRouter(prefix="/api/alerts", tags=["alerts"])
 
 def _alert_dir(request: Request) -> Path:
     results_dir = request.app.state.results_dir
@@ -62,6 +62,51 @@ def today_alerts(request: Request) -> Dict[str, Any]:
         "by_rule": by_rule,
         "events": records,
     }
+
+@router.get("/file/{file_id}")
+def file_alerts(file_id: str, request: Request) -> Dict[str, Any]:
+    """선택된 결과 파일 날짜에 해당하는 알림 히스토리 반환.
+
+    파일의 timestamp에서 날짜(YYYY-MM-DD)를 추출하여 해당 날짜의
+    alerts/*.jsonl 파일을 읽는다. 대시보드에서 특정 결과 파일을 선택하면
+    그 파일이 생성된 날의 알림 이력을 표시하는 데 사용된다.
+    """
+    rs = getattr(request.app.state, "result_set", None)
+    if rs is None:
+        return {"date": "", "total": 0, "critical": 0, "warning": 0, "by_rule": {}, "events": {},
+                "summary": {"total_7d": 0, "critical_7d": 0, "warning_7d": 0}}
+
+    rf = rs.by_id(file_id)
+    if rf is None:
+        return {"date": "", "total": 0, "critical": 0, "warning": 0, "by_rule": {}, "events": {},
+                "summary": {"total_7d": 0, "critical_7d": 0, "warning_7d": 0}}
+
+    # 파일 timestamp에서 날짜 추출 (ISO-8601: "2026-03-30T14:23:11" or "2026-03-30")
+    date_str = (rf.timestamp or date.today().isoformat())[:10]
+
+    alert_dir = _alert_dir(request)
+    records = _read_jsonl(alert_dir / f"{date_str}.jsonl")
+
+    by_severity: Dict[str, int] = {}
+    by_rule: Dict[str, int] = {}
+    for r in records:
+        sev = r.get("severity", "unknown")
+        rule = r.get("rule_name", "unknown")
+        by_severity[sev] = by_severity.get(sev, 0) + 1
+        by_rule[rule] = by_rule.get(rule, 0) + 1
+
+    critical = by_severity.get("critical", 0)
+    warning = by_severity.get("warning", 0)
+    return {
+        "date": date_str,
+        "total": len(records),
+        "critical": critical,
+        "warning": warning,
+        "by_rule": by_rule,
+        "events": records,
+        "summary": {"total_7d": len(records), "critical_7d": critical, "warning_7d": warning},
+    }
+
 
 @router.get("/summary")
 def alert_summary(request: Request) -> Dict[str, Any]:

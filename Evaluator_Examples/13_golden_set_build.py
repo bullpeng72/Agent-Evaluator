@@ -349,6 +349,23 @@ def run_golden_set_build():
     print(f"  {'═'*65}")
     print(f"  합계: {pass_cnt}/{len(checks)} 통과\n")
 
+    # ─── 대시보드 케이스 검토 탭 안내 ─────────────────────────────────────────
+    cand_files = sorted(golden_dir.glob("*candidates*.json"))
+    print(f"\n  {'─'*65}")
+    print(f"  📋 대시보드 '🗂️ 케이스 검토' 탭 사용 방법")
+    print(f"  {'─'*65}")
+    print(f"  1. 대시보드 실행:")
+    print(f"       agent-eval dashboard --port 8765")
+    print(f"  2. 브라우저에서 http://localhost:8765 접속")
+    print(f"  3. 좌측 메뉴 → '🗂️ 케이스 검토' 탭 선택")
+    print(f"  4. 후보 파일 로드 — 아래 파일들이 자동으로 표시됩니다:")
+    for cf in cand_files[-3:]:
+        print(f"       · {cf.name}  ({cf.stat().st_size:,} bytes)")
+    print(f"  5. 각 케이스를 검토하고 ✅ 승인 / ❌ 거부")
+    print(f"  6. '병합' 버튼으로 승인된 케이스를 골든 셋에 통합")
+    print(f"  ※ 골든 셋 저장 위치: data/golden_datasets/")
+    print(f"  {'─'*65}\n")
+
     return str(golden_path) if golden_path else None
 
 

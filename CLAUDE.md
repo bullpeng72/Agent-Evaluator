@@ -5,7 +5,7 @@
 **Agent-Evaluator** is a production-ready Python SDK for evaluating AI agents.
 25개의 성능 지표를 세 개의 레이어(기본/에이전틱/하이브리드)로 측정한다.
 
-- **Version:** 0.6.5 (Beta)
+- **Version:** 0.6.6 (Beta)
 - **Python:** 3.8+
 - **License:** MIT
 - **Author:** Sungwoo Kim
@@ -30,8 +30,11 @@ pip install -e ".[full]"              # 진짜 전체 (⚠️ 10분+ 소요)
 # --- CLI (pip install 후 바로 사용 가능) ---
 agent-eval init          # 대화형 API 키 설정 마법사
 agent-eval check         # 현재 설정 상태 출력
-agent-eval dashboard     # FastAPI 대시보드 실행 (기본 포트 8765)
+agent-eval dashboard     # FastAPI 대시보드 실행 (기본 포트 8765)  [개발·검증 단계]
 agent-eval gate result.json --tcr 85 --accuracy 70   # CI/CD 품질 게이팅
+agent-eval dataset build results/ --min-score 0.8    # 골든 데이터셋 자동 추출
+agent-eval monitor                                   # 운영 실시간 모니터링 Phoenix + OTEL (v0.7.x 예정)
+agent-eval monitor --check                           # OTEL 설치 상태 및 포트 점유 확인
 agent-eval --version     # 버전 출력
 
 # 테스트 실행
@@ -47,12 +50,6 @@ pip install hatchling build twine
 python -m build
 twine upload --repository testpypi dist/*   # 테스트
 twine upload dist/*                          # 실제 배포
-
-# 대시보드 실행 (FastAPI, v0.5.2+)
-agent-eval dashboard                        # 기본 포트 8765, 브라우저 자동 오픈
-agent-eval dashboard --port 8080 --watch    # 포트 지정 + 파일 변경 자동 갱신
-agent-eval dashboard --no-open              # 브라우저 자동 오픈 비활성화
-agent-eval dashboard --offline              # CDN 에셋 로컬 캐시 (인터넷 없이 실행)
 ```
 
 ---
@@ -135,9 +132,10 @@ agent_evaluator/
 │   ├── server.py            # FastAPI app 진입점
 │   ├── loader.py            # 평가 결과 로더
 │   ├── watcher.py           # 파일 변경 감시 (--watch)
-│   └── routers/             # API 라우터 (data, export, golden, stream, transparency, config, webhook)
+│   └── routers/             # API 라우터 11개 (alerts, anomaly, config, conversation, cost, data, export, feedback, golden, stream, transparency, webhook)
 ├── cli/
-│   └── main.py              # agent-eval CLI 진입점 (init/check/dashboard/gate)
+│   ├── main.py              # agent-eval CLI 진입점 (init/check/dashboard/gate/dataset)
+│   └── dataset.py           # dataset 서브커맨드 (build)
 ├── utils/
 │   ├── dashboard_integration.py  # Dashboard storage path helper
 │   ├── data_registry.py     # 평가 결과 데이터 레지스트리
@@ -161,7 +159,7 @@ Evaluator_Examples/          # 실제 사용 예시 (패키지 외부, 15개 플
 ├── 09_autogen_eval.py       # AutoGen 프레임워크 통합 예제
 ├── 10_cross_framework_eval.py # 멀티 프레임워크 비교 평가
 ├── 11_streaming_eval.py     # 실시간 스트리밍 평가 + 사용자 반응(ImplicitFeedback)
-├── 12_alerts_eval.py        # 알림 엔진 예제
+├── 12_alerting_eval.py      # 알림 엔진 예제
 ├── 13_golden_set_build.py   # GoldenSetBuilder — 케이스 추출·저장·병합
 ├── 14_anomaly_cost_eval.py  # 이상 감지 + 비용 추적 + AdaptivePolicy
 └── 15_conversation_eval.py  # 멀티턴 대화 평가 — ConversationSession
@@ -301,6 +299,11 @@ from agent_evaluator import (
     # Security Helper
     infer_privilege_level,
 
+    # Phase 2/3 — Streaming, Feedback, Anomaly, Cost
+    ImplicitFeedbackTracker,
+    AnomalyDetector, AnomalyEvent,
+    CostTracker, AdaptivePolicy, SamplingStage,
+
     # Individual Trackers (고급 사용자용)
     TaskCompletionTracker, AccuracyEvaluator, HallucinationDetector,
     ResponseQualityEvaluator, LatencyTracker, TokenEconomyTracker,
@@ -350,15 +353,8 @@ from agent_evaluator import (
 
 | 우선순위 | 항목 | 위치 |
 |---------|------|------|
-| ✅ Fixed | `agent_evaluator.py` 5,501줄 단일 파일 — `core/trackers/` 서브패키지 분리 완료 | `core/agent_evaluator.py` |
-| ✅ Fixed | 테스트 없음 — `tests/` 36개 파일, 920개 테스트 함수 작성 완료 (커버리지 33%) | `tests/` |
-| ✅ Fixed | `import re` 9회 함수 내부에서 임포트 → 모듈 상단으로 이동 완료 | `core/trackers/monitor.py` |
-| ✅ Fixed | `os.chdir()` 라이브러리 코드 내 사용 → 제거 완료 | `utils/dashboard_integration.py` |
 | 🟡 Medium | ~9곳에서 bare `except Exception:` 로 에러 무시 | `core/trackers/monitor.py` |
 | 🟡 Medium | `_check_patterns()`, `_is_subsequence()` 중복 구현 가능성 확인 필요 | `core/trackers/` |
-| ✅ Fixed | `pandas>=1.3.0` 상한선 없음 → `<3.0.0` 추가 완료 | `pyproject.toml` |
-| ✅ Fixed | `PyPDF2` deprecated → `pypdf>=3.0.0,<7.0.0` 으로 교체 완료 (`pdfplumber` 유지) | `pyproject.toml` |
-| ✅ Fixed | `warnings.filterwarnings('ignore')` 전역 적용 → 카테고리/모듈 타겟 필터로 교체 완료 | `integrations/metric_adapters.py` |
 
 ---
 
@@ -373,22 +369,11 @@ from agent_evaluator import (
 pytest
 ```
 
-주요 테스트 파일 (36개):
-- `tests/test_accuracy_evaluator.py`, `test_hallucination_detector.py`, `test_input_sanitization.py`, `test_performance_monitor.py` (기존)
-- `tests/test_task_ids_dedup.py` — Round 62: _task_ids 중복 방지 (36개)
-- `tests/test_latency_cache_and_tool_patterns.py` — Round 62: LatencyTracker 캐시 + ToolCallAnalyzer (20개)
-- `tests/test_api_fixes_r63_r65.py` — Round 63–65: API 수정 검증 (22개)
-- `tests/test_monitor_coverage_r68.py` — Round 68: PerformanceMonitor 커버리지 (52개)
-- `tests/test_hybrid_monitor_coverage_r68.py` — Round 68: HybridPerformanceMonitor 커버리지 (33개)
-- `tests/test_base_and_layer1_coverage_r68.py` — Round 68: base.py/layer1.py 커버리지 (78개)
-- `tests/test_taskresult_helpers_r69.py` — Round 69: taskresult_helpers.py 커버리지 (109개)
-- `tests/test_implicit_feedback.py` (20개) · `test_anomaly_detector.py` (36개) · `test_streaming_evaluator.py` (34개) · `test_alerts_engine.py` (21개) · `test_cost_policy.py` (30개) · `test_golden_set_builder.py` (23개)
-
-커버리지 현황 (v0.6.5 기준):
+커버리지 현황 (v0.6.6 기준):
 - `base.py`: 92% | `layer1.py`: 84% | `layer2.py`: 95%
 - `hybrid_monitor.py`: 61% | `monitor.py`: 41% | `taskresult_helpers.py`: 89% | 전체: 33%
 
-주의: `agent_evaluator/utils/test_transparency_manager.py`는 테스트 파일이 **아님** — `TestTransparencyManager`라는 프로덕션 클래스임.
+주의: `agent_evaluator/utils/transparency_manager.py`는 테스트 파일이 **아님** — `TestTransparencyManager`라는 프로덕션 클래스임.
 
 ---
 
@@ -412,6 +397,9 @@ pytest
 - `[frameworks]` — `langchain` + `crewai` + `autogen` 한 번에 (기존 호환, 무거움)
 - `[all]` — crewai/autogen **제외** 전체 (권장, 합리적 설치 시간) — `pip install agent-evaluator[all]`
 - `[full]` — crewai/autogen 포함 진짜 전체 (⚠️ 10분+ 소요) — `pip install agent-evaluator[full]`
+
+### Dev (개발 환경)
+- `[dev]` — `pytest` + `pytest-cov` + `pytest-asyncio` + `ruff` + `mypy` + `build` + `twine` + `pre-commit`
 
 ---
 
@@ -441,6 +429,45 @@ pytest
 
 ## 📝 변경 이력
 
+### v0.6.6 (2026-03-31) — Docs 체계 재조정 · 내보내기 버그 수정 · SDK HTML 리포트 개선
+
+#### 📝 Docs 체계 재조정 (Lectures 중복 제거)
+- `06_METRICS_GUIDE` + `07_AGENTIC_AI_METRICS_GUIDE` + `08_SECURITY_METRICS_GUIDE` → `02_METRICS_REFERENCE.md` 통합 (교육 서술 제거, 표·수식·출력키 중심 참조 문서)
+- `09_FRAMEWORK_INTEGRATION` + `16_FRAMEWORK_METRICS_MAP` → `03_FRAMEWORK_GUIDE.md` 통합
+- `01_QUICK_START.md` 신규 생성 — 5분 진입점 문서
+- `17_PRODUCT_ROADMAP.md` → 루트 `ROADMAP.md`로 이동
+- 나머지 문서 번호 재정렬 (04–10), 크로스 링크 갱신
+
+#### 🐛 대시보드 내보내기 버그 수정 (`serve/routers/export.py`)
+- HTML 내보내기 TypeError 수정: `SecurityL1/L2` 딕셔너리 필드를 숫자로 잘못 처리 → `threat_rate`/`leakage_rate`/`compliance_rate` 키 추출로 변경
+- HTML 태스크 테이블 컬럼명 누락 수정 (`✓` → 한국어 컬럼명 10개)
+- Hallucination KPI 백분율 오류 수정: `overall_rate` (0–1) × 100 적용
+- CSV 컬럼 9개 → 23개로 확장 (`tokens_input/output`, `tool_calls_count`, `timestamp`, 프레임워크, 확장 지표)
+
+#### 🐛 SDK HTML 리포트 개선 (`reporting/comprehensive_report.py`)
+- `success_rate` 표시 버그: 0–1 소수 → 백분율 변환 누락 수정
+- 에이전틱 섹션 H3 태그 빈 상태 노출 수정 (데이터 없을 때 placeholder 추가)
+- 보안 지표 에이전틱 섹션 중복 제거
+- LLM Judge ToC 링크 조건부 렌더링 추가
+- 버전 표기 하드코딩 → `agent_evaluator.__version__` 동적 참조
+
+#### 🗂 골든 데이터셋 정리
+- `data/golden_datasets/` 런타임 생성 파일 17개 삭제, 시나리오 파일 8개 유지
+- `Evaluator_Examples/FRAMEWORK_METRICS_MAP.md` → `Docs/16_FRAMEWORK_METRICS_MAP.md` 이동 (이후 03으로 통합)
+
+#### 📋 예제 파일 정비
+- `.env.example` 예제별 환경변수 의존성 표로 재작성
+- `requirements.txt` 버전 하한 및 extras 명칭 교정
+
+#### 📚 Lectures 오류 수정 및 현행화 (Docs 재조정 반영)
+- `slides.html.j2` JavaScript SyntaxError 수정: 라인 817 `${active?c:'var(--tc2)';};` → `${active?c:'var(--tc2)'};` (세미콜론 제거) — 빈 슬라이드 렌더링 버그 완전 해결
+- Lectures 전체 6개 파일 — `agent-eval serve` → `agent-eval dashboard` 명령어 정정
+- `M1`: TaskResult 필드 수 18개→24개 수정, 실제 13개 optional 필드 목록으로 정정
+- `M3`: 트래커 속성명·메서드명 전면 정정 (`retry_correction_tracker`→`retry_tracker`, `analyze_input`→`evaluate_input` 등), `create_taskresult` 미지원 파라미터 제거, "Known Issue: overall_score=0.0" 절 삭제 (v0.6.3 수정 완료)
+- `M4/M5`: `results/golden_datasets/` → `data/golden_datasets/`, `monitor.load_latest_report()` → `agent-eval gate` CLI
+- `M5`: `coord_tracker.record_interaction()` → `track_interaction(task_id, ..., interaction_type="delegation", context=)` 시그니처 정정
+- Docs 파일명 재조정 반영: 모든 Lectures 파일의 구 Docs 참조 (`06_METRICS_GUIDE.md`, `07_AGENTIC_AI_METRICS_GUIDE.md`, `08_SECURITY_METRICS_GUIDE.md`, `09_FRAMEWORK_INTEGRATION.md`, `14_API_REFERENCE.md` 등) → 현재 파일명으로 갱신, `00_강의계획서.md` "Docs 문서 활용 가이드" 표 전면 재작성
+
 ### v0.6.5 (2026-03-30) — golden_datasets 위치 재설계 · 이상 감지 파이프라인 완성 · 예제 파일 정비
 
 #### 🔧 golden_datasets 위치 재설계 (`results/` → `data/`)
@@ -468,55 +495,23 @@ pytest
 
 ---
 
-### v0.6.3 (2026-03-29) — SDK 안정화 종합 (Round 22–35)
+### v0.6.3 (2026-03-29) — SDK 안정화 종합
 
-- 🔒 **캡슐화 전면 강화** — Layer1/2 트래커 14개 + 5개 보안 트래커: `_xxx` private + `@property` shallow copy + setter (load_from_file 호환)
-- ✨ **`record_task()` 메서드 체이닝** — 반환 타입 `None` → `PerformanceMonitor`; `monitor.record_task(t1).record_task(t2).generate_report()` 가능
-- 🔒 **스레드 안전성** — `record_task()` / `reset()` 전체 뮤테이션 `with self._lock:` 보호; `rag_metrics` / `golden_datasets` shallow copy 반환
-- 🐛 **`TaskResult.__hash__` CRITICAL 수정** — `frozen=True` unhashable 필드(Dict/List)로 항상 TypeError → `hash(self.task_id)` override
-- 🐛 **`save_to_file()` 원자적 쓰기** — `tempfile.mkstemp()` + `os.replace()` (프로세스 종료 시 파일 손상 방지)
-- ✨ **직렬화 완전성** — `TaskResult.from_dict/from_json`, `EvaluationReport.from_dict/from_json`, `ConversationMetrics.from_dict` classmethods 추가
-- ✨ **팩토리 classmethod** — `PerformanceMonitor.for_rag_evaluation()`, `for_secure_agents()` 추가
-- 🐛 **보안 tracker 빈 상태 완전 구조** — 5개 tracker `get_*_stats()` 키 완전 일치 (10/13/9/6/8-키)
-- 🐛 **계산 정확도** — `accuracy_score=0.0` 재평가 오인 수정, retry duration 실제 비율, NaN guard 전면 적용
-- ✨ **`TokenEconomyTracker.update_pricing()`**, **`EvaluationReport.__eq__`** (timestamp 제외 의미론적 비교) 추가
-- 🐛 **`thresholds` 타입 검증** — setter에서 숫자 검증 → `ValidationError`
+- 🔒 캡슐화 전면 강화 — 트래커 19개 `_xxx` private + `@property` shallow copy + setter
+- ✨ `record_task()` 메서드 체이닝 지원 (`PerformanceMonitor` 반환)
+- 🔒 스레드 안전성 — `record_task()` / `reset()` 전체 `with self._lock:` 보호
+- 🐛 `TaskResult.__hash__` CRITICAL 수정 → `hash(self.task_id)` override
+- 🐛 `save_to_file()` 원자적 쓰기 — `tempfile.mkstemp()` + `os.replace()`
+- ✨ `TaskResult/EvaluationReport.from_dict/from_json` 역직렬화 classmethods 추가
+- ✨ `PerformanceMonitor.for_rag_evaluation()`, `for_secure_agents()` 팩토리 추가
 
-### v0.6.2 (2026-03-27) — 대시보드 보안 L1/L2 상세 패널 + 에이전틱·품질 탭 개선
+### v0.6.0 – v0.6.2 (2026-03-21 ~ 27) — 프레임워크 통합 + 대시보드 초기 안정화
 
-- ✨ 보안 L1/L2 `tracking_active` 플래그 — 미활성 경고 배너·점선 KPI·태스크 폴백 테이블
-- ✨ 보안 상세 패널 — auth 레코드 6열 테이블, 권한상승 이벤트·공격 체인 테이블 재설계
-- 🐛 Alpine.js `x-show`+flex 충돌 → `<template x-if>` 교체, 대시보드 차트 경로 오류 3건 수정
-- ✨ `agent-eval dashboard` CLI 명령어 추가, 지표 비교 레이더 6축 통일
+- ✨ LangChain / LangGraph / CrewAI / AutoGen 4개 프레임워크 완전 지원
+- ✨ `RagasAdapter` ragas 0.4.x API 완전 지원, 의존성 extras 단위 재설계
+- ✨ FastAPI 대시보드 + `agent-eval dashboard` CLI, 오프라인 모드
+- ✨ 대시보드 보안 L1/L2 상세 패널, 에이전틱 탭 KPI 체계 완성
 
-### v0.6.1 (2026-03-23) — 보안·에이전틱 탭 감사 수정
+### v0.2.x – v0.5.x — 초기 구현
 
-- 🐛 `file_path_leaks` 누락 수정 → 출력 유출 유형 7개 → 8개
-- 🔧 에이전틱 탭명 재설계, KPI 클릭 시 계산식 + 상세 패널 (Tool선택·멀티에이전트·워크플로우)
-- 🐛 `avg_retry_time` / `overall_retry_rate` / `frameworkDist()` 분모 버그 3건 수정
-
-### v0.6.0 (2026-03-21) — 4개 프레임워크 완전 지원 + ragas 0.4.x + 의존성 재설계
-
-- ✨ LangChain 1.2.x / LangGraph 1.1.x / CrewAI 1.11.x / AutoGen 0.7.x 최신 버전 완전 지원
-- ✨ 4개 프레임워크 공통 — Hallucination RAG 컨텍스트 자동 수집, Retry 감지, ToolCall/ToolSelection 연결, 보안 트래커 opt-in
-- ✨ `RagasAdapter` — ragas 0.4.x API 완전 지원 (`EvaluationDataset` / `SingleTurnSample`)
-- 🔧 의존성 재설계 — `[langchain]`/`[crewai]`/`[autogen]`/`[pdf]`/`[full]` 단위 extras; `ragas>=0.4.0`, `datasets>=4.0.0` 상한 조정
-- 🔧 `server.py` deprecated `on_event` → `asynccontextmanager` lifespan
-
-### v0.5.x (2026-03-20) — FastAPI 대시보드 초기 구현 · 초기 안정화
-
-- ✨ FastAPI 대시보드 서버(`agent-eval dashboard`) — 포트 지정·파일 변경 감시·오프라인 모드
-- ✨ `agent-eval init` / `check` CLI 명령어, `py.typed` (PEP 561) 추가
-- 🔧 `ResponseQualityEvaluator` 6차원 → 5차원, `total_score` 범위 `(0–10)` → `(0–5)`
-- 🔧 Public API 확장 — `TestTransparencyManager`, `load_env`, `get_settings` 등 추가
-- 🐛 `datasets` 의존성 상한 추가, `verify_installation.py` 삭제, 문서 통합
-
-### v0.2.x – v0.4.x — 초기 개발 단계
-
-- Layer 1 기본 지표 구현 (TCR, Accuracy, Hallucination, Quality, Latency, TokenEconomy)
-- Layer 2 에이전틱 지표 구현 (ToolCall, Retry, ToolSelection, Coordination, Workflow)
-- Layer 2 보안 지표 구현 (InputSanitization, OutputLeakage, ToolAuthorization, PrivilegeEscalation, ToolChainAttack)
-- Layer 3 하이브리드 평가 구현 (HybridPerformanceMonitor, DeepEvalAdapter, RagasAdapter, LangSmithAdapter)
-- `ConversationSession` 멀티턴 대화 평가 구현
-- `evaluation_session` / `async_evaluation_session` 컨텍스트 매니저 추가
-- `TestTransparencyManager` 투명성 서브시스템 초기 구현
+- Layer 1/2/3 트래커 25개, `ConversationSession`, `evaluation_session`, `TestTransparencyManager` 초기 구현

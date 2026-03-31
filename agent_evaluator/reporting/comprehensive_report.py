@@ -194,8 +194,27 @@ def _build_css_and_head() -> str:
     return ''.join(parts)
 
 
-def _build_header_toc(total_tasks, success_rate, tcr, acc, latency) -> str:
+def _build_header_toc(total_tasks, success_rate, tcr, acc, latency, has_llm_judge: bool = False) -> str:
     """Build the header div and table of contents."""
+    try:
+        from agent_evaluator import __version__ as _ver
+    except Exception:
+        _ver = "0.6.6"
+
+    # success_rate is already 0-100 (from TaskCompletionTracker)
+    success_pct = float(success_rate or 0)
+
+    llm_judge_toc = '<li><a href="#llm-judge">3. ⚖️ LLM Judge - 자동 채점</a></li>' if has_llm_judge else ''
+    # Adjust numbering based on whether LLM Judge is present
+    perf_num   = 4 if has_llm_judge else 3
+    agent_num  = 5 if has_llm_judge else 4
+    adv_num    = 6 if has_llm_judge else 5
+    sec_num    = 7 if has_llm_judge else 6
+    ins_num    = 8 if has_llm_judge else 7
+    trans_num  = 9 if has_llm_judge else 8
+    rec_num    = 10 if has_llm_judge else 9
+    conc_num   = 11 if has_llm_judge else 10
+
     parts = []
     parts.append(f'''
         <div class="header">
@@ -203,7 +222,7 @@ def _build_header_toc(total_tasks, success_rate, tcr, acc, latency) -> str:
             <div class="subtitle">AI Agent 개발자 및 품질 관리자를 위한 상세 성능 분석 보고서</div>
             <div style="margin-top: 15px;"><p><strong>생성일시:</strong> {datetime.now().strftime('%Y년 %m월 %d일 %H:%M:%S')}</p>
                 <p><strong>평가 대상:</strong> {total_tasks}개 Task</p>
-                <p><strong>평가 버전:</strong> Agent Evaluator v0.5.0</p>
+                <p><strong>평가 버전:</strong> Agent Evaluator v{_ver}</p>
             </div>
         </div>
 
@@ -213,15 +232,15 @@ def _build_header_toc(total_tasks, success_rate, tcr, acc, latency) -> str:
             <ul>
                 <li><a href="#summary">1. 핵심 요약 (Executive Summary)</a></li>
                 <li><a href="#core">2. 🎯 Core Metrics - 작업 완료도 및 정확성</a></li>
-                <li><a href="#llm-judge">3. 🤖 LLM Judge - 3차원 자동 채점</a></li>
-                <li><a href="#performance">4. ⚡ Performance - 실행 효율성 및 리소스</a></li>
-                <li><a href="#agentic">5. 🤖 Agentic AI - 도구 사용 및 협업</a></li>
-                <li><a href="#advanced">6. 🔬 Advanced Metrics - 외부 라이브러리 평가</a></li>
-                <li><a href="#security">7. 🔒 Security - 보안 지표 (Layer 1 & 2)</a></li>
-                <li><a href="#insights">8. 💡 Insights - 주요 인사이트 및 알림</a></li>
-                <li><a href="#transparency">9. 🔍 Test 투명성 - 평가 프로세스 투명성</a></li>
-                <li><a href="#recommendations">10. 개선 권장사항 (Recommendations)</a></li>
-                <li><a href="#conclusion">11. 결론 및 다음 단계 (Conclusion)</a></li>
+                {llm_judge_toc}
+                <li><a href="#performance">{perf_num}. ⚡ Performance - 실행 효율성 및 리소스</a></li>
+                <li><a href="#agentic">{agent_num}. 🤖 Agentic AI - 도구 사용 및 협업</a></li>
+                <li><a href="#advanced">{adv_num}. 🔬 Advanced Metrics - 외부 라이브러리 평가</a></li>
+                <li><a href="#security">{sec_num}. 🔒 Security - 보안 지표 (Layer 1 &amp; 2)</a></li>
+                <li><a href="#insights">{ins_num}. 💡 Insights - 주요 인사이트 및 알림</a></li>
+                <li><a href="#transparency">{trans_num}. 🔍 Test 투명성 - 평가 프로세스 투명성</a></li>
+                <li><a href="#recommendations">{rec_num}. 개선 권장사항 (Recommendations)</a></li>
+                <li><a href="#conclusion">{conc_num}. 결론 및 다음 단계 (Conclusion)</a></li>
             </ul>
         </div>
 
@@ -230,21 +249,21 @@ def _build_header_toc(total_tasks, success_rate, tcr, acc, latency) -> str:
             <h2><span class="icon">📋</span>핵심 요약 (Executive Summary)</h2>
             <p style="margin-bottom: 20px; line-height: 1.8;">
                 본 리포트는 총 <strong>{total_tasks}개</strong>의 Task를 평가한 결과입니다.
-                전체 성공률은 <strong>{success_rate:.1f}%</strong>이며, 작업 완료율(TCR)은 <strong>{tcr:.1f}%</strong>를 기록했습니다.
+                전체 완전 성공률은 <strong>{success_pct:.1f}%</strong>이며, 작업 완료율(TCR)은 <strong>{tcr:.1f}%</strong>를 기록했습니다.
             </p>
             <div class="metrics-grid">''')
 
     # Status badges for KPIs
-    success_badge = 'badge-success' if success_rate >= 90 else 'badge-warning' if success_rate >= 75 else 'badge-danger'
+    success_badge = 'badge-success' if success_pct >= 90 else 'badge-warning' if success_pct >= 75 else 'badge-danger'
     tcr_badge = 'badge-success' if tcr >= 90 else 'badge-warning' if tcr >= 75 else 'badge-danger'
     acc_badge = 'badge-success' if acc >= 85 else 'badge-warning' if acc >= 70 else 'badge-danger'
     latency_badge = 'badge-success' if latency <= 3.0 else 'badge-warning' if latency <= 5.0 else 'badge-danger'
 
     parts.append(f'''
                 <div class="metric-card">
-                    <h3>성공률</h3>
-                    <div class="value">{success_rate:.1f}%</div>
-                    <div class="subtitle"><span class="{success_badge}">{'우수' if success_rate >= 90 else '양호' if success_rate >= 75 else '개선 필요'}</span></div>
+                    <h3>완전 성공률</h3>
+                    <div class="value">{success_pct:.1f}%</div>
+                    <div class="subtitle"><span class="{success_badge}">{'우수' if success_pct >= 90 else '양호' if success_pct >= 75 else '개선 필요'}</span></div>
                 </div>
                 <div class="metric-card">
                     <h3>작업 완료율 (TCR)</h3>
@@ -269,6 +288,8 @@ def _build_header_toc(total_tasks, success_rate, tcr, acc, latency) -> str:
 
 def _build_core_section(tcr, success_rate, acc, accuracy_metrics, quality_metrics, hallucination_data) -> str:
     """Build the Core Metrics section (TCR, accuracy, quality, hallucination)."""
+    # success_rate is already 0-100 (from TaskCompletionTracker)
+    success_pct = float(success_rate or 0)
     parts = []
 
     parts.append(f'''
@@ -286,7 +307,7 @@ def _build_core_section(tcr, success_rate, acc, accuracy_metrics, quality_metric
             <div class="insight-box {'success' if tcr >= 90 else 'warning' if tcr >= 75 else 'critical'}">
                 <h4>TCR 요약</h4>
                 <p><strong>작업 완료율:</strong> {tcr:.1f}%</p>
-                <p><strong>성공률:</strong> {success_rate:.1f}%</p>
+                <p><strong>완전 성공률:</strong> {success_pct:.1f}%</p>
                 <p><strong>벤치마크 등급:</strong> {'S등급 (Outstanding)' if tcr >= 95 else 'A등급 (Excellent)' if tcr >= 90 else 'B등급 (Good)' if tcr >= 80 else 'C등급 (Fair)' if tcr >= 70 else 'D등급 (Poor)'}</p>
             </div>
 
@@ -629,9 +650,10 @@ def _build_agentic_section(monitor, tool_selection_stats, coordination_stats, wo
                 도구 선택 정확도, 도구 실행 효율성, 다중 에이전트 협업, 워크플로우 실행을 평가합니다.
             </p>
 
-            <h3>도구 선택 정확도 (Tool Selection Accuracy)</h3>''')
+''')
 
     if tool_selection_stats and tool_selection_stats.get('total_evaluations', 0) > 0:
+        parts.append('<h3>도구 선택 정확도 (Tool Selection Accuracy)</h3>')
         tool_acc = tool_selection_stats.get('avg_f1_score', 0)  # already 0-100 scale
         tool_class = 'success' if tool_acc >= 85 else 'warning' if tool_acc >= 70 else 'critical'
 
@@ -644,10 +666,10 @@ def _build_agentic_section(monitor, tool_selection_stats, coordination_stats, wo
             </div>''')
 
     # Tool Efficiency
-    parts.append('<h3>도구 실행 효율성 (Tool Efficiency)</h3>')
     tool_efficiency_stats = monitor.tool_analyzer.get_efficiency_stats()
 
     if tool_efficiency_stats and tool_efficiency_stats.get('total_calls', 0) > 0:
+        parts.append('<h3>도구 실행 효율성 (Tool Efficiency)</h3>')
         efficiency_score = tool_efficiency_stats.get('avg_efficiency_score', 0)
         success_rate = tool_efficiency_stats.get('success_rate', 0)
         redundancy_rate = tool_efficiency_stats.get('redundancy_rate', 0)
@@ -745,8 +767,8 @@ def _build_agentic_section(monitor, tool_selection_stats, coordination_stats, wo
             <p>도구 효율성 데이터가 없습니다. AI Agent가 도구를 사용하면 여기에서 실행 효율성 지표를 확인할 수 있습니다.</p>''')
 
     # Multi-Agent Coordination
-    parts.append('<h3>다중 에이전트 협업 (Multi-Agent Coordination)</h3>')
     if coordination_stats and coordination_stats.get('total_interactions', 0) > 0:
+        parts.append('<h3>다중 에이전트 협업 (Multi-Agent Coordination)</h3>')
         coord_score = coordination_stats.get('overall_score', 0) * 10
         coord_class = 'success' if coord_score >= 85 else 'warning' if coord_score >= 70 else 'critical'
 
@@ -759,8 +781,8 @@ def _build_agentic_section(monitor, tool_selection_stats, coordination_stats, wo
             </div>''')
 
     # Workflow Execution
-    parts.append('<h3>워크플로우 실행 (Workflow Execution)</h3>')
     if workflow_stats and workflow_stats.get('total_tasks', 0) > 0:
+        parts.append('<h3>워크플로우 실행 (Workflow Execution)</h3>')
         # CRITICAL FIX: Use 'step_success_rate' not 'success_rate', and it's already a percentage (don't multiply by 100)
         workflow_rate = workflow_stats.get('step_success_rate', 0)
         workflow_class = 'success' if workflow_rate >= 85 else 'warning' if workflow_rate >= 70 else 'critical'
@@ -774,8 +796,8 @@ def _build_agentic_section(monitor, tool_selection_stats, coordination_stats, wo
             </div>''')
 
     # Retry Patterns
-    parts.append('<h3>재시도 패턴 (Retry Patterns)</h3>')
     if retry_metrics and retry_metrics.get('total_tasks_with_retries', 0) > 0:
+        parts.append('<h3>재시도 패턴 (Retry Patterns)</h3>')
         retry_rate = retry_metrics.get('retry_rate', 0)
         # CRITICAL FIX: Use 'eventual_success_rate' not 'final_success_rate'
         final_success = retry_metrics.get('eventual_success_rate', 0)
@@ -796,165 +818,20 @@ def _build_agentic_section(monitor, tool_selection_stats, coordination_stats, wo
                 <li><strong>Fallback 전략:</strong> 재시도 실패 시 대안 제공</li>
             </ul>''')
 
-    # 🔒 Security Metrics Section
-    parts.append('''
-        <h3 style="color: #e74c3c; margin-top: 30px;">🔒 보안 메트릭 (Security Metrics)</h3>
-        <p style="color: #555; margin-bottom: 20px;">
-            AI Agent의 보안 위험을 실시간으로 모니터링합니다.
-            <code>enable_security_metrics=True</code>로 활성화하면 입력 위협, 출력 유출, 권한 관리를 자동 검사합니다.
-        </p>''')
-
-    # Check if security metrics are available
-    has_security_metrics = (
-        hasattr(monitor, 'input_sanitizer') and
-        hasattr(monitor, 'output_leakage_detector') and
-        hasattr(monitor, 'tool_authorizer')
+    # 데이터가 하나도 없는 경우 안내 메시지
+    has_agentic_data = (
+        (tool_selection_stats and tool_selection_stats.get('total_evaluations', 0) > 0) or
+        (tool_efficiency_stats and tool_efficiency_stats.get('total_calls', 0) > 0) or
+        (coordination_stats and coordination_stats.get('total_interactions', 0) > 0) or
+        (workflow_stats and workflow_stats.get('total_tasks', 0) > 0) or
+        (retry_metrics and retry_metrics.get('total_tasks_with_retries', 0) > 0)
     )
-
-    if has_security_metrics:
-        # Input Sanitization Stats
-        try:
-            input_stats = monitor.input_sanitizer.get_security_stats()
-            if input_stats.get('total_inputs_evaluated', 0) > 0:
-                threat_rate = input_stats.get('threat_rate', 0)
-                critical_count = input_stats.get('critical_risk_inputs', 0)
-                high_count = input_stats.get('high_risk_inputs', 0)
-
-                threat_class = 'critical' if threat_rate > 10 else 'warning' if threat_rate > 5 else 'success'
-
-                parts.append(f'''
-            <div class="insight-box {threat_class}">
-                <h4>🛡️ 입력 살균 (Input Sanitization)</h4>
-                <p><strong>위협 탐지율:</strong> {threat_rate:.1f}%</p>
-                <p><strong>검사한 입력:</strong> {input_stats.get('total_inputs_evaluated', 0)}개</p>
-                <p><strong>위협 유형:</strong></p>
-                <ul style="margin: 5px 0 0 20px;">
-                    <li>SQL Injection: {input_stats.get('sql_injection_attempts', 0)}건</li>
-                    <li>Command Injection: {input_stats.get('command_injection_attempts', 0)}건</li>
-                    <li>XSS: {input_stats.get('xss_attempts', 0)}건</li>
-                    <li>Path Traversal: {input_stats.get('path_traversal_attempts', 0)}건</li>
-                    <li>Prompt Injection: {input_stats.get('prompt_injection_attempts', 0)}건</li>
-                </ul>
-                <p style="margin-top: 10px;"><strong>위험 수준:</strong></p>
-                <ul style="margin: 5px 0 0 20px;">
-                    <li>🔴 Critical: {critical_count}건</li>
-                    <li>🟠 High: {high_count}건</li>
-                </ul>
-            </div>''')
-        except Exception:
-            pass
-
-        # Output Leakage Stats
-        try:
-            leakage_stats = monitor.output_leakage_detector.get_leakage_stats()
-            if leakage_stats.get('total_outputs_evaluated', 0) > 0:
-                leakage_rate = leakage_stats.get('leakage_rate', 0)
-                critical_leaks = leakage_stats.get('critical_severity_count', 0)
-
-                leakage_class = 'critical' if leakage_rate > 5 else 'warning' if leakage_rate > 1 else 'success'
-
-                parts.append(f'''
-            <div class="insight-box {leakage_class}">
-                <h4>🔐 출력 유출 탐지 (Output Leakage Detection)</h4>
-                <p><strong>유출률:</strong> {leakage_rate:.1f}%</p>
-                <p><strong>검사한 출력:</strong> {leakage_stats.get('total_outputs_evaluated', 0)}개</p>
-                <p><strong>유출 유형:</strong></p>
-                <ul style="margin: 5px 0 0 20px;">
-                    <li>🔑 API Keys: {leakage_stats.get('api_key_leaks', 0)}건</li>
-                    <li>🔒 Passwords: {leakage_stats.get('password_leaks', 0)}건</li>
-                    <li>💳 Credit Cards: {leakage_stats.get('credit_card_leaks', 0)}건</li>
-                    <li>📧 Emails: {leakage_stats.get('email_leaks', 0)}건</li>
-                    <li>🆔 SSN: {leakage_stats.get('ssn_leaks', 0)}건</li>
-                </ul>
-                <p style="margin-top: 10px;"><strong>심각도:</strong> Critical {critical_leaks}건, High {leakage_stats.get('high_severity_count', 0)}건</p>
-            </div>''')
-        except Exception:
-            pass
-
-        # Tool Authorization Stats
-        try:
-            auth_stats = monitor.tool_authorizer.get_compliance_stats()
-            if auth_stats.get('total_tool_calls', 0) > 0:
-                compliance_rate = auth_stats.get('compliance_rate', 0)
-                violation_rate = auth_stats.get('violation_rate', 0)
-
-                auth_class = 'critical' if violation_rate > 10 else 'warning' if violation_rate > 5 else 'success'
-
-                parts.append(f'''
-            <div class="insight-box {auth_class}">
-                <h4>✅ 도구 권한 관리 (Tool Authorization)</h4>
-                <p><strong>권한 준수율:</strong> {compliance_rate:.1f}%</p>
-                <p><strong>총 도구 호출:</strong> {auth_stats.get('total_tool_calls', 0)}회</p>
-                <p><strong>권한 통계:</strong></p>
-                <ul style="margin: 5px 0 0 20px;">
-                    <li>✅ 인가됨: {auth_stats.get('authorized_calls', 0)}회</li>
-                    <li>❌ 미인가: {auth_stats.get('unauthorized_calls', 0)}회</li>
-                    <li>🚫 제한된 도구 시도: {auth_stats.get('restricted_tool_attempts', 0)}회</li>
-                    <li>⚠️ 위험 파라미터: {auth_stats.get('dangerous_param_attempts', 0)}회</li>
-                </ul>
-                <p style="margin-top: 10px;"><strong>권한 수준:</strong></p>
-                <ul style="margin: 5px 0 0 20px;">
-                    <li>Admin: {auth_stats.get('admin_privilege_calls', 0)}회</li>
-                    <li>Execute: {auth_stats.get('execute_privilege_calls', 0)}회</li>
-                </ul>
-            </div>''')
-        except Exception:
-            pass
-
-        # Security Recommendations
-        parts.append('''
-            <h4 style="margin-top: 20px;">🛡️ 보안 권장사항</h4>
-            <div class="recommendation priority-high">
-                <strong>1. 입력 검증 강화</strong>
-                <p>모든 사용자 입력에 대해 화이트리스트 기반 검증을 적용하고,
-                특수문자 및 SQL 키워드를 필터링하세요.</p>
-            </div>
-            <div class="recommendation priority-high">
-                <strong>2. 민감정보 마스킹</strong>
-                <p>API 키, 비밀번호 등 민감정보가 로그나 응답에 포함되지 않도록
-                자동 마스킹 정책을 적용하세요.</p>
-            </div>
-            <div class="recommendation priority-medium">
-                <strong>3. 도구 권한 최소화</strong>
-                <p>각 Agent에 필요한 최소한의 도구만 허용하고,
-                위험한 도구(파일 삭제, 명령 실행 등)는 명시적으로 제한하세요.</p>
-            </div>''')
-    else:
-        # Security metrics disabled message
+    if not has_agentic_data:
         parts.append('''
             <div class="insight-box warning">
-                <h4>⚠️ 보안 메트릭 비활성화됨</h4>
-                <p>보안 메트릭이 활성화되지 않았습니다. 다음과 같이 활성화할 수 있습니다:</p>
-                <pre style="background: #2c3e50; color: #ecf0f1; padding: 15px; border-radius: 5px; margin: 10px 0; overflow-x: auto;">
-<code># PerformanceMonitor에서 활성화
-monitor = PerformanceMonitor(
-    enable_security_metrics=True,
-    security_config={
-        'allowed_tools': ['search', 'read', 'query'],
-        'restricted_tools': ['delete', 'execute_command']
-    }
-)
-
-# HybridPerformanceMonitor에서 활성화
-from agent_evaluator.core.hybrid_monitor import create_monitor
-monitor = create_monitor(
-    profile='balanced',
-    enable_security_metrics=True
-)</code></pre>
-                <p><strong>보안 메트릭 기능:</strong></p>
-                <ul style="margin: 10px 0 0 20px; line-height: 2.0;">
-                    <li>🛡️ <strong>입력 살균</strong>: SQL Injection, XSS, Command Injection 자동 탐지</li>
-                    <li>🔐 <strong>출력 유출 탐지</strong>: API 키, 비밀번호, 신용카드 정보 감지</li>
-                    <li>✅ <strong>도구 권한 관리</strong>: 화이트리스트/블랙리스트 기반 권한 검증</li>
-                    <li>🚨 <strong>권한 상승 탐지</strong>: 의심스러운 권한 상승 패턴 감지</li>
-                    <li>⛓️ <strong>도구 체인 공격</strong>: 악의적 도구 호출 시퀀스 탐지</li>
-                </ul>
-                <p style="margin-top: 15px;">
-                    <a href="https://github.com/your-repo/agent-evaluator/blob/main/Docs/SECURITY_METRICS_GUIDE.html"
-                       target="_blank" style="color: #3498db; text-decoration: none;">
-                        📚 보안 메트릭 가이드 보기 →
-                    </a>
-                </p>
+                <h4>ℹ️ 에이전틱 데이터 없음</h4>
+                <p>이 평가에는 도구 호출·협업·워크플로우 데이터가 없습니다.
+                Tool Use 태스크를 기록하면 이 섹션에 지표가 표시됩니다.</p>
             </div>''')
 
     parts.append('</div>')
@@ -1607,6 +1484,10 @@ def _build_recommendations_section(report, hall_rate, latency, quality_metrics) 
 
 def _build_conclusion_section(total_tasks, tcr, acc, hall_rate) -> str:
     """Build the Conclusion section and footer."""
+    try:
+        from agent_evaluator import __version__ as _ver
+    except Exception:
+        _ver = "0.6.5"
     parts = []
 
     overall_status = '우수' if (tcr >= 90 and acc >= 85 and hall_rate < 5) else '양호' if (tcr >= 75 and acc >= 70 and hall_rate < 10) else '개선 필요'
@@ -1646,7 +1527,7 @@ def _build_conclusion_section(total_tasks, tcr, acc, hall_rate) -> str:
 
         <!-- Footer -->
         <div class="footer">
-            <p><strong>Agent Evaluator</strong> v0.6.0 - AI 에이전트 성능 평가 시스템</p>
+            <p><strong>Agent Evaluator</strong> v{_ver} - AI 에이전트 성능 평가 시스템</p>
             <p>Designed for AI Agent Developers and Quality Managers</p>
             <p>Generated at {datetime.now().strftime('%Y년 %m월 %d일 %H:%M:%S')}</p>
             <p>© 2026 Sungwoo Kim. Agent Evaluator is released under the MIT License.</p>
@@ -1825,10 +1706,14 @@ def generate_comprehensive_html_report(monitor) -> str:
     avg_cost_per_task = token_stats.get('avg_cost_per_task', 0)
     hall_rate = hallucination_data.get('overall_rate', 0)
 
+    # Detect LLM Judge availability
+    _judge = getattr(monitor, 'llm_judge', None)
+    has_llm_judge = bool(_judge and _judge.get_summary().get('count', 0) > 0)
+
     # Build from sections
     parts = [
         _build_css_and_head(),
-        _build_header_toc(total_tasks, success_rate, tcr, acc, latency),
+        _build_header_toc(total_tasks, success_rate, tcr, acc, latency, has_llm_judge=has_llm_judge),
         _build_core_section(tcr, success_rate, acc, accuracy_metrics, quality_metrics, hallucination_data),
         _build_llm_judge_section(monitor),
         _build_performance_section(latency, latency_stats, token_stats, retry_metrics),

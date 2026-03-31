@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Any, Dict, List
 from fastapi import APIRouter, HTTPException, Request
 
-router = APIRouter(prefix="/api/anomalies")
+router = APIRouter(prefix="/api/anomalies", tags=["anomaly"])
 
 def _rs(request: Request):
     return request.app.state.result_set

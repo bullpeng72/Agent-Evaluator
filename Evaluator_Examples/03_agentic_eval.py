@@ -390,6 +390,24 @@ def run_agentic_evaluation():
         print(f"    {flag} {tid}: score={score:.1f}/100  calls={total_calls}  "
               f"dup={redundant}  fail={failed}  ({desc})")
 
+    # Phase 2-C: 암묵적 사용자 피드백 시뮬레이션 — 대시보드 '사용자 반응' 탭 데이터 생성
+    _fb_rng = random.Random(99)
+    _fb_map = {
+        True:  {"thumbs_up": 0.40, "copy": 0.20, "share": 0.10, "follow_up_depth": 0.10, "regenerate": 0.08, "thumbs_down": 0.05, "abandon": 0.03, "correction": 0.04},
+        False: {"thumbs_up": 0.05, "regenerate": 0.38, "thumbs_down": 0.28, "abandon": 0.18, "correction": 0.11},
+    }
+    for idx, (name, expected_tools, *_) in enumerate(SCENARIOS):
+        task_id = f"agent_{idx+1:03d}_{name}"
+        success_flag = (idx % 5 != 4)  # 5번 중 1번 실패 패턴
+        dist = _fb_map[success_flag]
+        for fb_type, prob in dist.items():
+            if _fb_rng.random() < prob:
+                monitor.record_implicit_feedback(
+                    task_id=task_id,
+                    feedback_type=fb_type,
+                    metadata={"scenario": name, "tool_count": len(expected_tools)},
+                )
+
     # 리포트 저장
     report = monitor.generate_report()
     filename = f"[A]_agentic_metrics_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"

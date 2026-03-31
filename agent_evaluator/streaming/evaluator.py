@@ -185,4 +185,14 @@ class StreamingEvaluator:
                 pass
 
     def _flush(self) -> None:
-        pass  # 향후 확장: 집계된 지표를 파일/DB에 저장
+        """슬라이딩 윈도우 현재 스냅샷을 PerformanceMonitor에 저장.
+
+        monitor.save_to_file() 호출 시 ``streaming_data`` 키에 포함되어
+        결과 JSON 파일에 기록된다. 대시보드 '📡 실시간' 탭의 오프라인
+        히스토리 소스로 활용된다.
+        """
+        all_stats = self.get_all_stats()
+        # count=0 인 빈 윈도우는 제외하여 파일 크기 절약
+        snapshot = {w: stats for w, stats in all_stats.items() if stats.get("count", 0) > 0}
+        if snapshot and hasattr(self.monitor, "_streaming_snapshot"):
+            self.monitor._streaming_snapshot = snapshot

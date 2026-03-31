@@ -391,6 +391,24 @@ def run_performance_evaluation():
     for tid, log, ttype in named_retry_patterns:
         monitor.retry_tracker.track_attempts(tid, log, task_type=ttype)
 
+    # Phase 2-C: 암묵적 사용자 피드백 시뮬레이션 — 대시보드 '사용자 반응' 탭 데이터 생성
+    _fb_rng = random.Random(42)
+    _fb_map = {
+        "high":   {"thumbs_up": 0.45, "copy": 0.25, "share": 0.10, "follow_up_depth": 0.10, "regenerate": 0.05, "thumbs_down": 0.03, "abandon": 0.02},
+        "medium": {"thumbs_up": 0.20, "copy": 0.15, "share": 0.05, "follow_up_depth": 0.05, "regenerate": 0.25, "thumbs_down": 0.15, "abandon": 0.10, "correction": 0.05},
+        "low":    {"thumbs_up": 0.05, "regenerate": 0.40, "thumbs_down": 0.25, "abandon": 0.20, "correction": 0.10},
+    }
+    for idx, (task_type, comp_prof, *_) in enumerate(TASK_SCENARIOS):
+        task_id = f"perf_{task_type[:4]}_{idx+1:03d}"
+        dist = _fb_map.get(comp_prof, _fb_map["medium"])
+        for fb_type, prob in dist.items():
+            if _fb_rng.random() < prob:
+                monitor.record_implicit_feedback(
+                    task_id=task_id,
+                    feedback_type=fb_type,
+                    metadata={"task_type": task_type, "profile": comp_prof},
+                )
+
     # 리포트 저장
     report = monitor.generate_report()
     filename = f"[P]_performance_metrics_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"

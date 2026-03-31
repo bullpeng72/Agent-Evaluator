@@ -1,0 +1,42 @@
+{
+  "trace_id": "trace_token_economy_630da1a9",
+  "metric_name": "token_economy",
+  "metric_type": "performance",
+  "task_id": null,
+  "start_time": "2026-03-31T18:08:35.128775",
+  "steps": [
+    {
+      "step_name": "sum_tokens",
+      "description": "태스크별 input/output 토큰 합산",
+      "input_data": {
+        "task_count": 5
+      },
+      "output_data": {
+        "total_input": 10888,
+        "total_output": 6158,
+        "total_tokens": 17046
+      },
+      "status": "success",
+      "timestamp": "2026-03-31T18:08:35.128778"
+    },
+    {
+      "step_name": "calculate_cost",
+      "description": "총 비용 = Σ(토큰 × 단가)",
+      "input_data": {
+        "total_tokens": 17046
+      },
+      "output_data": {
+        "total_cost_usd": 0.1468,
+        "avg_cost_per_task": 0.02936
+      },
+      "status": "success",
+      "timestamp": "2026-03-31T18:08:35.128782"
+    }
+  ],
+  "status": "completed",
+  "final_value": 17046,
+  "metadata": {
+    "total_cost_usd": 0.1468
+  },
+  "end_time": "2026-03-31T18:08:35.128783"
+}

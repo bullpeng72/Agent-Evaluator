@@ -1,8 +1,8 @@
 # Module 4 — Layer 3: 하이브리드 평가 (DeepEval + Ragas)
 
 **시간:** 3시간
-**참조 코드:** `Evaluator_Examples/05_hybrid_metrics.py`
-**핵심 Docs:** `10_KOREAN_RAG_GUIDE.md`, `06_METRICS_GUIDE.md`
+**참조 코드:** `Evaluator_Examples/05_hybrid_eval.py`
+**핵심 Docs:** `10_KOREAN_RAG_GUIDE.md`, `02_METRICS_REFERENCE.md`
 **사전 요구사항:** `OPENAI_API_KEY` 설정 필수
 
 ---
@@ -200,7 +200,7 @@ monitor.record_task(result)
 
 ```python
 # 대시보드 DeepEval 탭에서 확인
-# agent-eval serve --port 8765
+# agent-eval dashboard --port 8765
 
 # 코드로 직접 확인
 report = monitor.generate_report()
@@ -374,10 +374,10 @@ generator = KoreanRAGDatasetGenerator(
 
 # 골든 데이터셋 생성
 dataset = generator.generate()
-dataset.save_to_file("results/golden_datasets/korean_rag.json")
+dataset.save_to_file("data/golden_datasets/korean_rag.json")
 
 # 대시보드 Golden 탭에서 확인 및 편집
-# agent-eval serve → Golden 탭
+# agent-eval dashboard → Golden 탭
 ```
 
 ---
@@ -387,7 +387,7 @@ dataset.save_to_file("results/golden_datasets/korean_rag.json")
 ### RAG 탭
 
 ```bash
-agent-eval serve --port 8765
+agent-eval dashboard --port 8765
 # → 브라우저에서 RAG 탭 열기
 ```
 
@@ -511,13 +511,13 @@ config = choose_evaluation_layer(
 
 ---
 
-## 모듈 4 실습: 05_hybrid_metrics.py 실행
+## 모듈 4 실습: 05_hybrid_eval.py 실행
 
 ```bash
 # OPENAI_API_KEY가 .env에 설정되어 있어야 함
 cd Evaluator_Examples
-python 05_hybrid_metrics.py
-agent-eval serve --port 8765
+python 05_hybrid_eval.py
+agent-eval dashboard --port 8765
 ```
 
 ### 확인 항목
@@ -566,3 +566,5 @@ export OPENAI_API_KEY=sk-...
 ---
 
 *Module 4 완료 — 다음: M5 프레임워크 통합 + 실무 파이프라인*
+
+*Agent-Evaluator SDK 강의 자료 — v0.6.6 기준 | 2026-03-31*

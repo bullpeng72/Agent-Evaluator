@@ -180,6 +180,10 @@ def run_streaming_evaluation():
 
         streamer.stop()
 
+        # Phase 2-A: 슬라이딩 윈도우 스냅샷을 monitor에 주입 → save_to_file에 자동 포함
+        # → 결과 JSON의 "streaming_data" 키 → 대시보드 '📡 실시간' 탭 히스토리 데이터
+        monitor._streaming_snapshot = streamer.get_all_stats()
+
         # ── 슬라이딩 윈도우 통계 출력 ────────────────────────────────────
         print(f"\n  {'─'*70}")
         print(f"  [Phase 2-A] 슬라이딩 윈도우 실시간 통계")
@@ -261,13 +265,15 @@ def run_streaming_evaluation():
     one_h_stats = streamer.get_stats("1h")
     final_tcr   = one_h_stats.get("tcr", 0)  # 이미 % 단위
 
-    # 결과 파일에 feedback 데이터 포함 여부 확인
+    # 결과 파일에 feedback / streaming_data 포함 여부 확인
     import json as _json
     feedback_in_file = False
+    streaming_in_file = False
     if saved_json.exists():
         with open(saved_json, encoding="utf-8") as _f:
             _d = _json.load(_f)
         feedback_in_file = _d.get("feedback", {}).get("total", 0) > 0
+        streaming_in_file = bool(_d.get("streaming_data"))
 
     checks = [
         ("StreamingEvaluator 기록",        f"{n_tasks}건",       n_tasks > 0),
@@ -277,6 +283,7 @@ def run_streaming_evaluation():
         ("부정 피드백 존재",                f"{neg_count}건",      neg_count > 0),
         ("자동 저장 완료",                  "JSON 파일",           saved_json.exists()),
         ("결과 파일에 feedback 포함",       str(feedback_in_file), feedback_in_file),
+        ("결과 파일에 streaming_data 포함", str(streaming_in_file), streaming_in_file),
     ]
 
     print(f"\n  {'═'*60}")

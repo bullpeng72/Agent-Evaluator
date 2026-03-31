@@ -9,11 +9,21 @@ from __future__ import annotations
 
 import json
 import os
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 from fastapi import APIRouter, Request
+from pydantic import BaseModel
 
-router = APIRouter(prefix="/api")
+router = APIRouter(prefix="/api", tags=["config"])
+
+
+class ThresholdBody(BaseModel):
+    tcr: Optional[float] = None
+    acc: Optional[float] = None
+    hall: Optional[float] = None
+    p95: Optional[float] = None
+    p99: Optional[float] = None
+    cost: Optional[float] = None
 
 _DEFAULTS: Dict[str, float] = {
     "tcr": 90.0,
@@ -54,14 +64,14 @@ def get_config() -> Dict[str, Any]:
 
 
 @router.post("/thresholds")
-async def save_thresholds(request: Request) -> Dict[str, Any]:
-    """Persist threshold settings; unknown keys are ignored."""
-    body = await request.json()
+async def save_thresholds(request: Request, body: ThresholdBody) -> Dict[str, Any]:
+    """Persist threshold settings; unset fields keep their default values."""
     merged = _DEFAULTS.copy()
     for k in _DEFAULTS:
-        if k in body:
+        v = getattr(body, k, None)
+        if v is not None:
             try:
-                merged[k] = float(body[k])
+                merged[k] = float(v)
             except (TypeError, ValueError):
                 pass
     p = _threshold_path(request)

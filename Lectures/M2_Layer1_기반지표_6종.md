@@ -514,7 +514,7 @@ with evaluation_session("stage2_generation") as m_generation:
 
 # 대시보드에서 두 파일을 드롭다운으로 전환하며 단계별 비교 가능
 print("대시보드에서 stage1_retrieval과 stage2_generation을 비교하세요")
-print("agent-eval serve --watch")
+print("agent-eval dashboard --watch")
 ```
 
 ### 실습 과제
@@ -522,7 +522,7 @@ print("agent-eval serve --watch")
 > **🔧 실습:**
 >
 > 1. `01_quality_eval.py`를 실행하여 `results/` 폴더에 JSON 파일 생성
-> 2. `agent-eval serve --watch` 로 대시보드 실행
+> 2. `agent-eval dashboard --watch` 로 대시보드 실행
 > 3. Quality 탭에서 확인:
 >    - "high" tier 태스크와 "hallucination" tier 태스크의 hallucination_rate 비교
 >    - 5차원 레이더에서 가장 낮은 차원 확인
@@ -553,4 +553,4 @@ print("agent-eval serve --watch")
 
 ---
 
-*Agent-Evaluator SDK 강의 자료 — v0.6.1 기준 | 2026-03-24*
+*Agent-Evaluator SDK 강의 자료 — v0.6.6 기준 | 2026-03-31*

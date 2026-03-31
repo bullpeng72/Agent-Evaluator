@@ -276,6 +276,9 @@ class PerformanceMonitor:
         # Phase 2-C: 암묵적 피드백 트래커
         self.feedback_tracker = ImplicitFeedbackTracker()
 
+        # Phase 2-A: StreamingEvaluator 스냅샷 (외부에서 set → save_to_file에 자동 포함)
+        self._streaming_snapshot: Optional[Dict[str, Any]] = None
+
         # Thread safety: golden_datasets/conversation_sessions 동시 접근 보호
         self._lock = threading.Lock()
 
@@ -2988,15 +2991,23 @@ class PerformanceMonitor:
             },
         }
 
+        # Phase 2-A: StreamingEvaluator 슬라이딩 윈도우 스냅샷 (opt-in)
+        if self._streaming_snapshot:
+            data["streaming_data"] = self._streaming_snapshot
+
         # Phase 3-C: LLM Judge 비용 정보
         if self.llm_judge is not None:
             judge_summary = self.llm_judge.get_summary()
             judge_cost = judge_summary.get("total_cost_usd", 0.0)
             budget = self.llm_judge.budget_per_day
+            # by_provider: llm_judge는 단일 모델을 사용하므로 해당 모델명으로 집계
+            _judge_model = getattr(self.llm_judge, "model", "")
+            _by_provider = {_judge_model: round(judge_cost, 6)} if judge_cost > 0 and _judge_model else {}
             data["evaluation_cost"] = {
                 "total_usd": judge_cost,
                 "llm_judge_usd": judge_cost,
                 "call_count": judge_summary.get("count", 0),
+                "model": _judge_model,
                 "sample_rate_current": self.llm_judge.sample_rate,
                 "budget_per_day": budget,
                 "budget_remaining_usd": (
@@ -3004,7 +3015,7 @@ class PerformanceMonitor:
                     if budget is not None else None
                 ),
                 "projected_daily_usd": judge_cost,
-                "by_provider": {},
+                "by_provider": _by_provider,
             }
 
         # Auto-add security evaluators if enabled

@@ -20,10 +20,16 @@ import tempfile
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from fastapi import APIRouter, File, Form, HTTPException, Request, UploadFile
+from fastapi import APIRouter, Body, File, Form, HTTPException, Request, UploadFile
 from fastapi.concurrency import run_in_threadpool
+from pydantic import BaseModel
 
-router = APIRouter(prefix="/api/golden")
+router = APIRouter(prefix="/api/golden", tags=["golden datasets"])
+
+
+class GoldenCreateBody(BaseModel):
+    name: str = "golden_dataset"
+    items: List[Any] = []
 
 # ---------------------------------------------------------------------------
 # PDF helpers (used by both /pdf and /pdf-advanced)
@@ -357,66 +363,17 @@ def list_golden(request: Request) -> List[Dict[str, Any]]:
     return result
 
 
-@router.get("/{name}")
-def get_golden(name: str, request: Request) -> Any:
-    gdir = _golden_dir(request)
-    for p in [gdir / name, gdir / f"{name}.json"]:
-        if p.exists():
-            try:
-                return _read_json(p)
-            except Exception as e:
-                raise HTTPException(status_code=500, detail=str(e))
-    raise HTTPException(status_code=404, detail="Golden dataset not found")
-
-
-@router.put("/{name}")
-async def save_golden(name: str, request: Request) -> Dict[str, Any]:
-    gdir = _golden_dir(request)
-    fname = name if name.endswith(".json") else f"{name}.json"
-    path = gdir / fname
-    try:
-        body = await request.json()
-        path.write_text(json.dumps(body, ensure_ascii=False, indent=2), encoding="utf-8")
-        return {"ok": True, "path": str(path), "name": fname}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@router.delete("/{name}")
-def delete_golden(name: str, request: Request) -> Dict[str, Any]:
-    gdir = _golden_dir(request)
-    for p in [gdir / name, gdir / f"{name}.json"]:
-        if p.exists():
-            p.unlink()
-            return {"ok": True, "name": name}
-    raise HTTPException(status_code=404, detail="Golden dataset not found")
-
-
-@router.post("")
-async def create_golden(request: Request) -> Dict[str, Any]:
-    gdir = _golden_dir(request)
-    try:
-        body = await request.json()
-        name = body.get("name", "golden_dataset")
-        fname = name if name.endswith(".json") else f"{name}.json"
-        items = body.get("items", [])
-        path = gdir / fname
-        path.write_text(json.dumps(items, ensure_ascii=False, indent=2), encoding="utf-8")
-        return {"ok": True, "name": fname, "count": len(items)}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-
 # ---------------------------------------------------------------------------
 # 케이스 검토 API — GoldenSetBuilder 후보 파일 관리
+# NOTE: /{name} 파라미터 라우트보다 반드시 먼저 등록해야 함 (FastAPI 순서 매칭)
 # ---------------------------------------------------------------------------
 
 @router.get("/candidates")
 def list_candidates(request: Request) -> List[Dict[str, Any]]:
-    """candidates_*.json 파일 목록 반환."""
+    """*candidates*.json 파일 목록 반환 (prefix 무관하게 탐색)."""
     gdir = _golden_dir(request)
     result = []
-    for p in sorted(gdir.glob("candidates_*.json"), reverse=True):
+    for p in sorted(gdir.glob("*candidates*.json"), reverse=True):
         try:
             data = _read_json(p)
             cases = data if isinstance(data, list) else []
@@ -524,6 +481,10 @@ def merge_approved(name: str, request: Request) -> Dict[str, Any]:
     raise HTTPException(status_code=404, detail="Candidate file not found")
 
 
+# ---------------------------------------------------------------------------
+# 골든 데이터셋 CRUD — /{name} 파라미터 라우트는 고정 경로보다 반드시 뒤에 등록
+# ---------------------------------------------------------------------------
+
 @router.get("/versions")
 def list_versions(request: Request) -> List[Dict[str, Any]]:
     """golden_*.json 파일 버전 목록 (candidates 제외)."""
@@ -543,6 +504,56 @@ def list_versions(request: Request) -> List[Dict[str, Any]]:
             "size_bytes": p.stat().st_size,
         })
     return result
+
+
+@router.post("")
+async def create_golden(request: Request, body: GoldenCreateBody) -> Dict[str, Any]:
+    gdir = _golden_dir(request)
+    try:
+        fname = body.name if body.name.endswith(".json") else f"{body.name}.json"
+        path = gdir / fname
+        path.write_text(json.dumps(body.items, ensure_ascii=False, indent=2), encoding="utf-8")
+        return {"ok": True, "name": fname, "count": len(body.items)}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/{name}")
+def get_golden(name: str, request: Request) -> Any:
+    gdir = _golden_dir(request)
+    for p in [gdir / name, gdir / f"{name}.json"]:
+        if p.exists():
+            try:
+                return _read_json(p)
+            except Exception as e:
+                raise HTTPException(status_code=500, detail=str(e))
+    raise HTTPException(status_code=404, detail="Golden dataset not found")
+
+
+@router.put("/{name}")
+async def save_golden(
+    name: str,
+    request: Request,
+    body: Any = Body(..., description="골든 데이터셋 전체 내용 (list 또는 dict)"),
+) -> Dict[str, Any]:
+    gdir = _golden_dir(request)
+    fname = name if name.endswith(".json") else f"{name}.json"
+    path = gdir / fname
+    try:
+        path.write_text(json.dumps(body, ensure_ascii=False, indent=2), encoding="utf-8")
+        return {"ok": True, "path": str(path), "name": fname}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.delete("/{name}")
+def delete_golden(name: str, request: Request) -> Dict[str, Any]:
+    gdir = _golden_dir(request)
+    for p in [gdir / name, gdir / f"{name}.json"]:
+        if p.exists():
+            p.unlink()
+            return {"ok": True, "name": name}
+    raise HTTPException(status_code=404, detail="Golden dataset not found")
 
 
 @router.post("/pdf")

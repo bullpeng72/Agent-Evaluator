@@ -154,6 +154,7 @@ class ResultFile:
     feedback_data: Dict[str, Any] = field(default_factory=dict)
     anomaly_data: List[Dict[str, Any]] = field(default_factory=list)
     cost_data: Dict[str, Any] = field(default_factory=dict)
+    streaming_data: Dict[str, Any] = field(default_factory=dict)
 
     # ---- computed helpers ------------------------------------------------
     @property
@@ -235,6 +236,31 @@ class ResultFile:
     @property
     def has_retry(self) -> bool:
         return bool(self.agentic.retry_attempts)
+
+    # --- Phase 1-A / 1-C / 2-C / 3-B / 3-C ---
+    @property
+    def has_llm_judge(self) -> bool:
+        return self.llm_judge.judged_count > 0
+
+    @property
+    def has_conversation(self) -> bool:
+        return len(self.conversation_sessions) > 0
+
+    @property
+    def has_feedback(self) -> bool:
+        return bool(self.feedback_data and self.feedback_data.get("total", 0) > 0)
+
+    @property
+    def has_streaming(self) -> bool:
+        return bool(self.streaming_data)
+
+    @property
+    def has_anomaly(self) -> bool:
+        return len(self.anomaly_data) > 0
+
+    @property
+    def has_cost(self) -> bool:
+        return bool(self.cost_data and self.cost_data.get("call_count", 0) > 0)
 
     # --- Security sub-flags ---
     @property
@@ -528,17 +554,29 @@ def _parse_conversation_sessions(raw: dict) -> List[Dict[str, Any]]:
         if not isinstance(s, dict):
             continue
         metrics = s.get("metrics", {})
+        is_dict = isinstance(metrics, dict)
+        # turn_count: 최상위 우선, 없으면 metrics 내부, 없으면 turns 리스트 길이로 fallback
+        turn_count = (
+            s.get("turn_count")
+            or (metrics.get("turn_count") if is_dict else None)
+            or len(s.get("turns", []))
+        )
+        # avg_turn_latency: SDK가 "avg_turn_latency"로 저장, 구버전 호환 "avg_response_latency" fallback
+        avg_latency = (
+            (metrics.get("avg_turn_latency") or metrics.get("avg_response_latency") or 0.0)
+            if is_dict else 0.0
+        )
         result.append({
             "session_id": s.get("session_id", ""),
-            "turn_count": s.get("turn_count", 0),
+            "turn_count": turn_count,
             "turns": s.get("turns", []),
             "metrics": {
-                "overall_score": metrics.get("overall_score", 0.0) if isinstance(metrics, dict) else 0.0,
-                "context_retention": metrics.get("context_retention", 0.0) if isinstance(metrics, dict) else 0.0,
-                "topic_coherence": metrics.get("topic_coherence", 0.0) if isinstance(metrics, dict) else 0.0,
-                "progressive_depth": metrics.get("progressive_depth", 0.0) if isinstance(metrics, dict) else 0.0,
-                "session_completion": metrics.get("session_completion", 0.0) if isinstance(metrics, dict) else 0.0,
-                "avg_response_latency": metrics.get("avg_response_latency", 0.0) if isinstance(metrics, dict) else 0.0,
+                "overall_score": metrics.get("overall_score", 0.0) if is_dict else 0.0,
+                "context_retention": metrics.get("context_retention", 0.0) if is_dict else 0.0,
+                "topic_coherence": metrics.get("topic_coherence", 0.0) if is_dict else 0.0,
+                "progressive_depth": metrics.get("progressive_depth", 0.0) if is_dict else 0.0,
+                "session_completion": metrics.get("session_completion", 0.0) if is_dict else 0.0,
+                "avg_response_latency": avg_latency,
             },
         })
     return result
@@ -589,6 +627,18 @@ def _parse_cost_data(raw: dict) -> Dict[str, Any]:
     }
 
 
+def _parse_streaming_data(raw: dict) -> Dict[str, Any]:
+    """StreamingEvaluator 슬라이딩 윈도우 스냅샷 파싱.
+
+    save_to_file()에서 ``streaming_data`` 키로 저장된 dict를 그대로 반환한다.
+    형식: {"1m": {count, tcr, avg_latency, ...}, "5m": {...}, "1h": {...}}
+    """
+    sd = raw.get("streaming_data", {})
+    if not sd or not isinstance(sd, dict):
+        return {}
+    return sd
+
+
 def _parse_anomaly_data(raw: dict) -> List[Dict[str, Any]]:
     """이상 탐지 데이터 파싱.
 
@@ -614,6 +664,7 @@ def _parse_anomaly_data(raw: dict) -> List[Dict[str, Any]]:
             "metric": a.get("metric", ""),
             "value": a.get("value"),
             "threshold": a.get("threshold"),
+            "algorithm": a.get("algorithm", ""),
         })
     return result
 
@@ -948,6 +999,7 @@ def parse_file(path: Path) -> ResultFile:
         feedback_data=_parse_feedback_data(raw),
         anomaly_data=_parse_anomaly_data(raw),
         cost_data=_parse_cost_data(raw),
+        streaming_data=_parse_streaming_data(raw),
     )
 
 

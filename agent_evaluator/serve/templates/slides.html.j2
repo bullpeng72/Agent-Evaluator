@@ -4,741 +4,1293 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>{{ title }} — Slides</title>
-
 {% if offline %}
-<!-- reveal.js (offline) -->
 <link rel="stylesheet" href="/static/reveal-reset.css">
 <link rel="stylesheet" href="/static/reveal.css">
 <link id="reveal-theme" rel="stylesheet" href="/static/reveal-night.css">
-<!-- Chart.js (offline) -->
 <script src="/static/chart.min.js"></script>
-<!-- QR Code (offline) -->
 <script src="/static/qrcode.min.js"></script>
 {% else %}
-<!-- reveal.js -->
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/reset.css">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/reveal.css">
 <link id="reveal-theme" rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/theme/night.css">
-<!-- Chart.js -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
-<!-- QR Code -->
 <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.1/build/qrcode.min.js"></script>
 {% endif %}
-
 <style>
-/* ── CSS variables (dark default) ── */
 :root {
-  --accent:#6c8ef5; --green:#4ade80; --red:#f87171; --yellow:#facc15; --orange:#fb923c;
-  --tc:#d0d4e8; --tc2:#8890b0; --gc:rgba(255,255,255,.07);
-  --kpi-bg:rgba(255,255,255,.06); --kpi-bd:rgba(255,255,255,.12);
-  --bar-bg:rgba(255,255,255,.1); --card-bg:rgba(255,255,255,.05);
+  --accent:#6c8ef5;--green:#4ade80;--red:#f87171;--yellow:#facc15;--orange:#fb923c;
+  --tc:#d0d4e8;--tc2:#8890b0;--gc:rgba(255,255,255,.07);
+  --kpi-bg:rgba(255,255,255,.06);--kpi-bd:rgba(255,255,255,.12);
+  --bar-bg:rgba(255,255,255,.1);--card-bg:rgba(255,255,255,.05);
   --divider:rgba(255,255,255,.12);
 }
 body.light {
-  --tc:#1e2030; --tc2:#5a6080; --gc:rgba(0,0,0,.08);
-  --kpi-bg:rgba(0,0,0,.04); --kpi-bd:rgba(0,0,0,.1);
-  --bar-bg:rgba(0,0,0,.08); --card-bg:rgba(0,0,0,.03);
+  --tc:#1e2030;--tc2:#5a6080;--gc:rgba(0,0,0,.08);
+  --kpi-bg:rgba(0,0,0,.04);--kpi-bd:rgba(0,0,0,.1);
+  --bar-bg:rgba(0,0,0,.08);--card-bg:rgba(0,0,0,.03);
   --divider:rgba(0,0,0,.1);
 }
-
-/* ── Reset reveal.js theme overrides — all px to avoid em cascade ── */
-.reveal,
-.reveal h1,
-.reveal h2,
-.reveal h3,
-.reveal p,
-.reveal ul,
-.reveal li { font-family: 'Segoe UI', system-ui, sans-serif !important; }
-
-/* Force slide base font so px sizes are absolute */
-.reveal { font-size: 16px !important; }
-
-.reveal .slides section {
-  text-align: left !important;
-  padding: 28px 44px 20px !important;
-  box-sizing: border-box !important;
-  display: flex !important;
-  flex-direction: column !important;
-  overflow: hidden !important;
-  top: 0 !important;
+.reveal,.reveal h1,.reveal h2,.reveal h3,.reveal p,.reveal ul,.reveal li{
+  font-family:'Segoe UI',system-ui,sans-serif!important;
 }
-
-/* h2 — 24px fixed, never affected by theme */
-.reveal .slides section h2 {
-  font-size: 24px !important;
-  font-weight: 700 !important;
-  text-transform: none !important;
-  letter-spacing: 0 !important;
-  margin: 0 0 12px !important;
-  padding-bottom: 10px !important;
-  border-bottom: 1px solid var(--divider) !important;
-  color: var(--tc) !important;
-  line-height: 1.2 !important;
-  flex-shrink: 0 !important;
+.reveal{font-size:16px!important;}
+.reveal .slides section{
+  text-align:left!important;padding:26px 42px 18px!important;
+  box-sizing:border-box!important;display:flex!important;flex-direction:column!important;
+  overflow:hidden!important;top:0!important;
 }
-/* h1 on title/thank-you slides */
-.reveal .slides section h1 {
-  font-size: 52px !important;
-  font-weight: 800 !important;
-  letter-spacing: -1px !important;
-  margin: 0 !important;
-  color: var(--tc) !important;
-  line-height: 1.1 !important;
+.reveal .slides section h2{
+  font-size:21px!important;font-weight:700!important;text-transform:none!important;
+  letter-spacing:0!important;margin:0 0 10px!important;padding-bottom:9px!important;
+  border-bottom:1px solid var(--divider)!important;color:var(--tc)!important;
+  line-height:1.2!important;flex-shrink:0!important;
 }
-
-/* ── Theme toggle ── */
-#theme-toggle {
-  position: fixed; top: 8px; right: 8px; z-index: 9999;
-  background: rgba(108,142,245,.15); color: var(--tc);
-  border: 1px solid rgba(108,142,245,.3); border-radius: 16px;
-  padding: 5px 12px; font-size: 13px; cursor: pointer;
-  backdrop-filter: blur(6px);
+.reveal .slides section h1{
+  font-size:50px!important;font-weight:800!important;letter-spacing:-1px!important;
+  margin:0!important;color:var(--tc)!important;line-height:1.1!important;
 }
-#theme-toggle:hover { background: rgba(108,142,245,.3); }
-
-/* ── KPI grid ── */
-.kpi-row {
-  display: grid;
-  gap: 10px;
-  margin-bottom: 12px;
-  flex-shrink: 0;
+/* ── Top bar ── */
+#ctrl-bar{
+  position:fixed;top:8px;left:50%;transform:translateX(-50%);z-index:9999;
+  display:flex;align-items:center;gap:8px;
+  background:rgba(20,22,40,.88);border:1px solid rgba(108,142,245,.25);
+  border-radius:20px;padding:4px 14px;backdrop-filter:blur(8px);
 }
-/* Default: 3-col */
-.kpi-row { grid-template-columns: repeat(3, 1fr); }
-/* 6-item: 2 rows × 3 cols — use .kpi-row-6 */
-.kpi-row-6 { grid-template-columns: repeat(3, 1fr); }
-
-.kpi-box {
-  background: var(--kpi-bg);
-  border: 1px solid var(--kpi-bd);
-  border-radius: 10px;
-  padding: 12px 16px;
-  overflow: hidden;
+#file-select{
+  background:transparent;border:none;color:var(--tc);
+  font-size:12px;cursor:pointer;outline:none;max-width:240px;
 }
-.kpi-lbl {
-  font-size: 11px !important;
-  color: var(--tc2) !important;
-  text-transform: uppercase !important;
-  letter-spacing: .06em !important;
-  margin-bottom: 5px !important;
-  white-space: nowrap !important;
-}
-.kpi-val {
-  font-size: 30px !important;
-  font-weight: 800 !important;
-  color: var(--tc) !important;
-  line-height: 1.1 !important;
-  margin: 0 !important;
-  white-space: nowrap !important;
-  overflow: hidden !important;
-  text-overflow: ellipsis !important;
-}
-.kpi-sub { font-size: 12px !important; color: var(--tc2) !important; margin-top: 3px !important; }
-
+#file-select option{background:#1a1d30;color:#d0d4e8;}
+body.light #ctrl-bar{background:rgba(240,242,255,.92);}
+body.light #file-select{color:#1e2030;}
+body.light #file-select option{background:#f0f2ff;}
+#theme-toggle{background:transparent;border:none;color:var(--tc2);font-size:12px;cursor:pointer;padding:0 4px;}
+#theme-toggle:hover{color:var(--accent);}
+/* ── KPI ── */
+.kpi-row{display:grid;gap:9px;margin-bottom:10px;flex-shrink:0;}
+.kpi-row   {grid-template-columns:repeat(3,1fr);}
+.kpi-row-2 {grid-template-columns:repeat(2,1fr);}
+.kpi-row-4 {grid-template-columns:repeat(4,1fr);}
+.kpi-row-5 {grid-template-columns:repeat(5,1fr);}
+.kpi-box{background:var(--kpi-bg);border:1px solid var(--kpi-bd);border-radius:10px;padding:10px 14px;overflow:hidden;}
+.kpi-lbl{font-size:10px!important;color:var(--tc2)!important;text-transform:uppercase!important;
+  letter-spacing:.06em!important;margin-bottom:3px!important;white-space:nowrap!important;}
+.kpi-val{font-size:26px!important;font-weight:800!important;color:var(--tc)!important;
+  line-height:1.1!important;margin:0!important;white-space:nowrap!important;
+  overflow:hidden!important;text-overflow:ellipsis!important;}
+.kpi-sub{font-size:10px!important;color:var(--tc2)!important;margin-top:2px!important;}
 /* ── Colors ── */
-.c-green  { color: var(--green)  !important; }
-.c-red    { color: var(--red)    !important; }
-.c-yellow { color: var(--yellow) !important; }
-.c-accent { color: var(--accent) !important; }
-
-/* ── Two-col layout ── */
-.two-col {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 24px;
-  align-items: start;
-  flex: 1;
-  min-height: 0;
-}
-
-/* ── Chart containers ── */
-.chart-wrap {
-  position: relative;
-  height: 220px;
-  flex-shrink: 0;
-}
-.chart-label {
-  font-size: 13px !important;
-  color: var(--tc2) !important;
-  margin-top: 6px !important;
-  text-align: center !important;
-}
-
+.c-green{color:var(--green)!important;} .c-red{color:var(--red)!important;}
+.c-yellow{color:var(--yellow)!important;} .c-accent{color:var(--accent)!important;}
+/* ── Two-col ── */
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:22px;align-items:start;flex:1;min-height:0;}
+/* ── Charts ── */
+.chart-wrap{position:relative;height:210px;flex-shrink:0;}
+.chart-label{font-size:11px!important;color:var(--tc2)!important;margin-top:4px!important;text-align:center!important;}
 /* ── Bars ── */
-.bar-list  { flex: 1; overflow: hidden; }
-.bar-row   { margin-bottom: 10px; }
-.bar-lbl   { display: flex; justify-content: space-between; font-size: 14px !important; color: var(--tc2) !important; margin-bottom: 4px !important; }
-.bar-lbl span:last-child { font-weight: 700 !important; }
-.bar-track { background: var(--bar-bg); border-radius: 99px; height: 8px; overflow: hidden; }
-.bar-fill  { height: 100%; border-radius: 99px; }
-.bar-title { font-size: 15px !important; font-weight: 600 !important; color: var(--tc) !important; margin-bottom: 10px !important; }
-
+.bar-row{margin-bottom:9px;}
+.bar-lbl{display:flex;justify-content:space-between;font-size:12px!important;color:var(--tc2)!important;margin-bottom:3px!important;}
+.bar-lbl span:last-child{font-weight:700!important;}
+.bar-track{background:var(--bar-bg);border-radius:99px;height:8px;overflow:hidden;}
+.bar-fill{height:100%;border-radius:99px;}
+.bar-title{font-size:13px!important;font-weight:600!important;color:var(--tc)!important;margin-bottom:8px!important;}
 /* ── Pills ── */
-.pill   { display: inline-flex; align-items: center; gap: 4px; border-radius: 99px; padding: 4px 12px; font-size: 13px !important; font-weight: 600; }
-.p-ok   { background: rgba(74,222,128,.15); color: var(--green); }
-.p-warn { background: rgba(250,204,21,.15);  color: var(--yellow); }
-.p-fail { background: rgba(248,113,113,.15); color: var(--red); }
-
-/* ── Insight / step cards ── */
-.insight-card {
-  background: var(--card-bg);
-  border: 1px solid var(--kpi-bd);
-  border-radius: 8px;
-  padding: 12px 16px;
-  margin-bottom: 10px;
-  display: flex;
-  align-items: flex-start;
-  gap: 12px;
-  flex-shrink: 0;
+.pill{display:inline-flex;align-items:center;gap:4px;border-radius:99px;padding:4px 12px;font-size:12px!important;font-weight:600;}
+.p-ok{background:rgba(74,222,128,.15);color:var(--green);}
+.p-warn{background:rgba(250,204,21,.15);color:var(--yellow);}
+.p-fail{background:rgba(248,113,113,.15);color:var(--red);}
+/* ── Cards ── */
+.card{background:var(--card-bg);border:1px solid var(--kpi-bd);border-radius:8px;padding:10px 14px;margin-bottom:7px;flex-shrink:0;}
+.card-row{display:flex;align-items:flex-start;gap:11px;}
+.card-icon{font-size:17px;flex-shrink:0;margin-top:1px;}
+.card-body{flex:1;min-width:0;}
+.card-title{font-size:13px!important;font-weight:700!important;color:var(--tc)!important;margin-bottom:2px!important;}
+.card-sub{font-size:11px!important;color:var(--tc2)!important;line-height:1.5!important;}
+/* ── Verdict banner ── */
+.verdict-banner{
+  border-radius:10px;padding:12px 18px;
+  display:flex;align-items:center;gap:12px;flex-shrink:0;margin-top:10px;
 }
-.insight-icon  { font-size: 20px; flex-shrink: 0; margin-top: 1px; }
-.insight-body  { flex: 1; min-width: 0; }
-.insight-title { font-size: 15px !important; font-weight: 700 !important; color: var(--tc) !important; margin-bottom: 3px !important; }
-.insight-sub   { font-size: 13px !important; color: var(--tc2) !important; line-height: 1.5 !important; }
-
-/* ── Gauge bar ── */
-.gauge-track { background: var(--bar-bg); border-radius: 99px; height: 14px; overflow: hidden; }
-.gauge-fill  { height: 100%; border-radius: 99px; transition: width .4s; }
-.gauge-lbls  { display: flex; justify-content: space-between; font-size: 13px !important; color: var(--tc2) !important; margin-top: 6px !important; }
-
-/* ── Verdict row ── */
-.verdict { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; flex-shrink: 0; }
-
-/* ── Health score big number ── */
-.health-big { font-size: 96px !important; font-weight: 800 !important; line-height: 1 !important; margin: 0 !important; }
-.health-lbl { font-size: 16px !important; color: var(--tc2) !important; margin-top: 6px !important; }
-
-/* ── Slide content flex area ── */
-.slide-content { flex: 1; display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
-
-/* ── Slide number ── */
-.reveal .slide-number { font-size: 10px; }
-
-/* ── Title slide specific ── */
-.title-slide-inner { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; text-align: center; gap: 12px; }
-.title-sub { font-size: 13px !important; color: var(--tc2) !important; }
-.title-name { font-size: 14px !important; color: var(--accent) !important; font-weight: 600; }
-.title-meta { font-size: 12px !important; color: var(--tc2) !important; }
-.title-hint { font-size: 11px !important; color: var(--tc2) !important; margin-top: 8px; }
-.title-hint kbd {
-  background: var(--kpi-bg);
-  border: 1px solid var(--kpi-bd);
-  border-radius: 4px;
-  padding: 1px 6px;
-  font-family: monospace;
-  font-size: 11px;
-  color: var(--tc);
+.vb-pass  {background:rgba(74,222,128,.12);border:1px solid rgba(74,222,128,.3);}
+.vb-cond  {background:rgba(250,204,21,.12); border:1px solid rgba(250,204,21,.3);}
+.vb-fail  {background:rgba(248,113,113,.12);border:1px solid rgba(248,113,113,.3);}
+.vb-icon  {font-size:28px;flex-shrink:0;}
+.vb-label {font-size:22px!important;font-weight:800!important;}
+.vb-sub   {font-size:12px!important;color:var(--tc2)!important;margin-top:2px!important;}
+/* ── Gauge ── */
+.gauge-track{background:var(--bar-bg);border-radius:99px;height:13px;overflow:hidden;}
+.gauge-fill{height:100%;border-radius:99px;transition:width .4s;}
+.gauge-lbls{display:flex;justify-content:space-between;font-size:11px!important;color:var(--tc2)!important;margin-top:4px!important;}
+/* ── Health ── */
+.health-big{font-size:80px!important;font-weight:800!important;line-height:1!important;margin:0!important;}
+.grade-badge{
+  display:inline-block;width:56px;height:56px;line-height:56px;text-align:center;
+  border-radius:12px;font-size:32px!important;font-weight:900!important;flex-shrink:0;
 }
-
-/* ── Flex content area ── */
-.slide-content { flex: 1; display: flex; flex-direction: column; min-height: 0; }
+/* ── Agenda items ── */
+.agenda-item{
+  display:flex;align-items:center;gap:14px;
+  padding:10px 14px;border-radius:8px;margin-bottom:6px;
+  background:var(--kpi-bg);border:1px solid var(--kpi-bd);
+}
+.agenda-num{
+  width:28px;height:28px;border-radius:50%;background:rgba(108,142,245,.2);
+  color:var(--accent);font-size:13px!important;font-weight:700!important;
+  display:flex;align-items:center;justify-content:center;flex-shrink:0;
+}
+.agenda-text{font-size:13px!important;color:var(--tc)!important;font-weight:600!important;}
+.agenda-sub {font-size:11px!important;color:var(--tc2)!important;}
+/* ── Priority tags ── */
+.tag-p1{display:inline-block;background:rgba(248,113,113,.2);color:#f87171;border-radius:4px;padding:1px 7px;font-size:10px!important;font-weight:700!important;}
+.tag-p2{display:inline-block;background:rgba(250,204,21,.2);color:#facc15;border-radius:4px;padding:1px 7px;font-size:10px!important;font-weight:700!important;}
+.tag-p3{display:inline-block;background:rgba(108,142,245,.2);color:#818cf8;border-radius:4px;padding:1px 7px;font-size:10px!important;font-weight:700!important;}
+/* ── Title slide ── */
+.title-inner{display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;text-align:center;gap:11px;}
+.title-sub{font-size:13px!important;color:var(--tc2)!important;}
+.title-name{font-size:14px!important;color:var(--accent)!important;font-weight:600;}
+.title-meta{font-size:12px!important;color:var(--tc2)!important;}
+.title-hint{font-size:11px!important;color:var(--tc2)!important;margin-top:6px;}
+.title-hint kbd{background:var(--kpi-bg);border:1px solid var(--kpi-bd);border-radius:4px;padding:1px 6px;font-family:monospace;font-size:11px;color:var(--tc);}
+/* ── Misc ── */
+.slide-content{flex:1;display:flex;flex-direction:column;min-height:0;overflow:hidden;}
+.no-data{display:flex;flex-direction:column;align-items:center;justify-content:center;flex:1;gap:7px;color:var(--tc2);font-size:12px;opacity:.7;}
+.no-data-icon{font-size:30px;opacity:.4;}
+.bottom-line{
+  margin-top:auto;padding:7px 12px;border-radius:7px;
+  background:rgba(108,142,245,.08);border-left:3px solid var(--accent);
+  font-size:11px!important;color:var(--tc2)!important;flex-shrink:0;
+}
+.bottom-line strong{color:var(--tc)!important;}
+.reveal .slide-number{font-size:10px;}
+.qdim-row{display:flex;align-items:center;gap:9px;margin-bottom:9px;}
+.qdim-lbl{font-size:11px;color:var(--tc2);width:70px;flex-shrink:0;}
+.qdim-track{flex:1;background:var(--bar-bg);border-radius:99px;height:9px;overflow:hidden;}
+.qdim-fill{height:100%;border-radius:99px;}
+.qdim-val{font-size:12px;font-weight:700;color:var(--tc);width:32px;text-align:right;flex-shrink:0;}
+/* ── Finding cards ── */
+.finding-card{
+  display:flex;gap:14px;align-items:flex-start;
+  background:var(--kpi-bg);border:1px solid var(--kpi-bd);
+  border-radius:10px;padding:12px 16px;margin-bottom:8px;flex-shrink:0;
+}
+.finding-num{
+  width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;
+  font-size:14px!important;font-weight:800!important;flex-shrink:0;
+}
+.finding-body{flex:1;min-width:0;}
+.finding-title{font-size:14px!important;font-weight:700!important;color:var(--tc)!important;margin-bottom:3px!important;}
+.finding-detail{font-size:12px!important;color:var(--tc2)!important;line-height:1.5!important;}
+.finding-badge{float:right;padding:2px 10px;border-radius:99px;font-size:11px!important;font-weight:700!important;}
 </style>
 </head>
 <body>
-<button id="theme-toggle" onclick="toggleTheme()" title="테마 전환">☀️ Light</button>
-<div class="reveal">
-<div class="slides">
+<div id="ctrl-bar">
+  <span style="font-size:11px;color:var(--tc2)">📊</span>
+  <select id="file-select" onchange="switchFile(this.value)" title="평가 파일 선택"></select>
+  <span style="width:1px;height:14px;background:var(--divider);flex-shrink:0"></span>
+  <button id="theme-toggle" onclick="toggleTheme()">☀️</button>
+</div>
 
-<!-- 1. Title -->
-<section style="padding:0 !important">
-  <div class="title-slide-inner">
-    <div style="font-size:2.8em">🤖</div>
+<div class="reveal"><div class="slides">
+
+<!-- ═══ 1. TITLE ═══ -->
+<section style="padding:0!important">
+  <div class="title-inner">
+    <div style="font-size:2.5em">🤖</div>
     <h1>Agent Evaluator</h1>
-    <div class="title-sub">평가 결과 리포트</div>
-    <div style="height:1px;width:60px;background:var(--divider)"></div>
+    <div class="title-sub">AI 에이전트 성능 평가 리포트</div>
+    <div style="height:1px;width:56px;background:var(--divider)"></div>
     <div class="title-name" id="slide-title">—</div>
     <div class="title-meta" id="slide-meta">—</div>
-    <div class="title-hint">Press <kbd>→</kbd> to advance &nbsp;|&nbsp; <kbd>F</kbd> fullscreen</div>
+    <div class="title-hint">Press <kbd>→</kbd> advance &nbsp;|&nbsp; <kbd>F</kbd> fullscreen &nbsp;|&nbsp; <kbd>Esc</kbd> overview</div>
   </div>
 </section>
 
-<!-- 2. Executive Summary -->
+<!-- ═══ 2. AGENDA ═══ -->
 <section>
-  <h2>📊 Executive Summary</h2>
-  <!-- Row 1: accuracy metrics -->
-  <div class="kpi-row kpi-row-6" style="margin-bottom:10px">
-    <div class="kpi-box"><div class="kpi-lbl">Task Completion</div><div class="kpi-val c-green" id="s-tcr">—</div></div>
-    <div class="kpi-box"><div class="kpi-lbl">Accuracy</div><div class="kpi-val" id="s-acc">—</div></div>
-    <div class="kpi-box"><div class="kpi-lbl">Hallucination Rate</div><div class="kpi-val" id="s-hallu">—</div></div>
+  <h2>📋 발표 순서</h2>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:9px;flex:1;align-content:start">
+    <div class="agenda-item"><div class="agenda-num">1</div><div><div class="agenda-text">평가 개요</div><div class="agenda-sub">대상 · 방법 · 데이터셋</div></div></div>
+    <div class="agenda-item"><div class="agenda-num">2</div><div><div class="agenda-text">핵심 발견 (Key Findings)</div><div class="agenda-sub">3가지 주요 결과 요약</div></div></div>
+    <div class="agenda-item"><div class="agenda-num">3</div><div><div class="agenda-text">태스크 완료율 (TCR)</div><div class="agenda-sub">성공 · 부분성공 · 실패 분석</div></div></div>
+    <div class="agenda-item"><div class="agenda-num">4</div><div><div class="agenda-text">실패 원인 분석</div><div class="agenda-sub">에러 패턴 · 취약 구간 파악</div></div></div>
+    <div class="agenda-item"><div class="agenda-num">5</div><div><div class="agenda-text">정확도 · 응답품질</div><div class="agenda-sub">Accuracy · 5차원 Quality</div></div></div>
+    <div class="agenda-item"><div class="agenda-num">6</div><div><div class="agenda-text">성능 · 비용 효율</div><div class="agenda-sub">Latency · Token · Cost</div></div></div>
+    <div class="agenda-item"><div class="agenda-num">7</div><div><div class="agenda-text">보안 · 에이전틱 지표</div><div class="agenda-sub">Security L1/L2 · Tool · Workflow</div></div></div>
+    <div class="agenda-item"><div class="agenda-num">8</div><div><div class="agenda-text">종합 점수 · 액션 플랜</div><div class="agenda-sub">Health Score · 우선순위 개선과제</div></div></div>
   </div>
-  <!-- Row 2: efficiency metrics -->
-  <div class="kpi-row kpi-row-6">
-    <div class="kpi-box"><div class="kpi-lbl">Avg Latency</div><div class="kpi-val" id="s-lat">—</div></div>
-    <div class="kpi-box"><div class="kpi-lbl">Total Cost</div><div class="kpi-val" id="s-cost">—</div></div>
-    <div class="kpi-box"><div class="kpi-lbl">Total Tasks</div><div class="kpi-val" id="s-tasks">—</div></div>
-  </div>
-  <div class="verdict" id="summary-verdict"></div>
 </section>
 
-<!-- 3. Task Completion Rate -->
+<!-- ═══ 3. 평가 개요 ═══ -->
 <section>
-  <h2>📋 Task Completion Rate</h2>
-  <div class="two-col" style="flex:1; align-items:start">
+  <h2>🔬 평가 개요</h2>
+  <div class="two-col" style="flex:1;align-items:start">
     <div>
-      <div class="chart-wrap" style="height:260px"><canvas id="sl-donut"></canvas></div>
-      <div class="chart-label">성공 / 부분성공 / 실패 비율</div>
-    </div>
-    <div style="padding-top:8px">
-      <div class="bar-title">TaskType별 성공률</div>
-      <div id="sl-type-bars"></div>
-    </div>
-  </div>
-</section>
-
-<!-- 4. Accuracy Analysis -->
-<section>
-  <h2>🎯 Accuracy Analysis</h2>
-  <div class="kpi-row">
-    <div class="kpi-box"><div class="kpi-lbl">Overall Accuracy</div><div class="kpi-val" id="sl-acc-overall">—</div></div>
-    <div class="kpi-box"><div class="kpi-lbl">Median</div><div class="kpi-val" id="sl-acc-med">—</div></div>
-    <div class="kpi-box"><div class="kpi-lbl">Std Dev</div><div class="kpi-val" id="sl-acc-std">—</div></div>
-  </div>
-  <div class="chart-wrap" style="flex:1; height:auto"><canvas id="sl-acc-hist"></canvas></div>
-  <div class="chart-label">정확도 분포 (10% 구간)</div>
-</section>
-
-<!-- 5. Latency & Token Economy -->
-<section>
-  <h2>⚡ Latency &amp; Token Economy</h2>
-  <div class="two-col" style="flex:1; align-items:start">
-    <div>
-      <div class="chart-wrap" style="height:270px"><canvas id="sl-lat-bar"></canvas></div>
-      <div class="chart-label">Latency 백분위 (초)</div>
+      <div class="bar-title" style="margin-bottom:10px">평가 구성</div>
+      <div class="kpi-row kpi-row-2" style="margin-bottom:10px">
+        <div class="kpi-box"><div class="kpi-lbl">총 태스크</div><div class="kpi-val c-accent" id="ov-tasks">—</div></div>
+        <div class="kpi-box"><div class="kpi-lbl">Task Type 수</div><div class="kpi-val" id="ov-types">—</div></div>
+      </div>
+      <div class="kpi-row kpi-row-2">
+        <div class="kpi-box"><div class="kpi-lbl">평균 실행시간</div><div class="kpi-val" id="ov-avgtime">—</div></div>
+        <div class="kpi-box"><div class="kpi-lbl">총 토큰</div><div class="kpi-val" id="ov-tokens">—</div></div>
+      </div>
+      <div style="margin-top:12px">
+        <div class="bar-title">활성화된 평가 레이어</div>
+        <div id="ov-layers"></div>
+      </div>
     </div>
     <div>
-      <div class="chart-wrap" style="height:270px"><canvas id="sl-tok-pie"></canvas></div>
+      <div class="bar-title" style="margin-bottom:10px">Task Type 분포</div>
+      <div class="chart-wrap" style="height:240px"><canvas id="ov-type-pie"></canvas></div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══ 4. KEY FINDINGS ═══ -->
+<section>
+  <h2>🔑 핵심 발견 (Key Findings)</h2>
+  <div id="kf-cards" class="slide-content" style="gap:0"></div>
+  <div id="kf-verdict" class="verdict-banner" style="margin-top:8px"></div>
+</section>
+
+<!-- ═══ 5. TASK COMPLETION RATE ═══ -->
+<section>
+  <h2>📋 태스크 완료율 (TCR)</h2>
+  <div class="two-col" style="flex:1;align-items:start">
+    <div>
+      <div class="chart-wrap" style="height:230px"><canvas id="sl-donut"></canvas></div>
+      <div class="chart-label">완전성공 · 부분성공 · 실패 비율</div>
+      <div class="kpi-row kpi-row-4" style="margin-top:10px">
+        <div class="kpi-box"><div class="kpi-lbl">TCR</div><div class="kpi-val" id="tcr-val">—</div></div>
+        <div class="kpi-box"><div class="kpi-lbl">완전성공</div><div class="kpi-val c-green" id="tcr-full">—</div></div>
+        <div class="kpi-box"><div class="kpi-lbl">부분성공</div><div class="kpi-val c-yellow" id="tcr-partial">—</div></div>
+        <div class="kpi-box"><div class="kpi-lbl">실패</div><div class="kpi-val c-red" id="tcr-fail">—</div></div>
+      </div>
+    </div>
+    <div>
+      <div class="bar-title">Task Type별 완료율</div>
+      <div id="sl-type-bars" style="flex:1;overflow:hidden"></div>
+    </div>
+  </div>
+  <div class="bottom-line" id="tcr-bottom"></div>
+</section>
+
+<!-- ═══ 6. FAILURE ANALYSIS ═══ -->
+<section>
+  <h2>🔍 실패 원인 분석</h2>
+  <div id="fa-nodata" class="no-data" style="display:none;flex:1">
+    <div class="no-data-icon">✅</div>
+    <div>실패한 태스크가 없습니다</div>
+  </div>
+  <div id="fa-content" class="two-col" style="flex:1;align-items:start">
+    <div>
+      <div class="bar-title">실패 집중 Task Type (성공률 낮은 순)</div>
+      <div id="fa-type-bars"></div>
+      <div style="margin-top:12px">
+        <div class="bar-title">완전실패 vs 부분성공</div>
+        <div id="fa-ratio"></div>
+      </div>
+    </div>
+    <div>
+      <div class="bar-title">에러 유형 분포</div>
+      <div id="fa-error-bars"></div>
+      <div style="margin-top:12px">
+        <div class="bar-title">실패 태스크 정확도 분포</div>
+        <div class="chart-wrap" style="height:130px"><canvas id="fa-fail-hist"></canvas></div>
+      </div>
+    </div>
+  </div>
+  <div class="bottom-line" id="fa-bottom"></div>
+</section>
+
+<!-- ═══ 7. ACCURACY & QUALITY ═══ -->
+<section>
+  <h2>🎯 정확도 &amp; 응답품질</h2>
+  <div class="two-col" style="flex:1;align-items:start">
+    <div>
+      <div class="kpi-row kpi-row-2" style="margin-bottom:10px">
+        <div class="kpi-box"><div class="kpi-lbl">Overall Accuracy</div><div class="kpi-val" id="sl-acc-overall">—</div></div>
+        <div class="kpi-box"><div class="kpi-lbl">중앙값</div><div class="kpi-val" id="sl-acc-med">—</div><div class="kpi-sub" id="sl-acc-std"></div></div>
+      </div>
+      <div class="bar-title">Task Type별 정확도</div>
+      <div id="acc-type-bars"></div>
+    </div>
+    <div>
+      <div class="bar-title">응답품질 5차원</div>
+      <div id="sl-quality-dims"></div>
+      <div id="sl-quality-avg-wrap" style="display:none;margin-top:10px">
+        <div style="font-size:11px;color:var(--tc2);margin-bottom:6px;font-weight:600">종합 품질 점수 (/ 5.0)</div>
+        <div class="gauge-track"><div class="gauge-fill" id="sl-quality-gauge-fill" style="width:0%;background:#6c8ef5"></div></div>
+        <div class="gauge-lbls"><span>0</span><span id="sl-quality-avg-val" style="color:var(--accent);font-weight:700"></span><span>5.0</span></div>
+      </div>
+      <div id="sl-quality-nodata" class="no-data" style="display:none">
+        <div class="no-data-icon">📊</div>
+        <div style="font-size:11px">ResponseQualityEvaluator 미활성</div>
+      </div>
+    </div>
+  </div>
+  <div class="bottom-line" id="acc-bottom"></div>
+</section>
+
+<!-- ═══ 8. HALLUCINATION ═══ -->
+<section>
+  <h2>🧠 환각 감지 (Hallucination Detection)</h2>
+  <div id="sl-hallu-active" class="slide-content">
+    <div class="kpi-row kpi-row-4" style="margin-bottom:10px">
+      <div class="kpi-box"><div class="kpi-lbl">환각 발생률</div><div class="kpi-val" id="sl-hallu-rate">—</div><div class="kpi-sub" id="sl-hallu-rate-sub"></div></div>
+      <div class="kpi-box"><div class="kpi-lbl">평가 건수</div><div class="kpi-val" id="sl-hallu-total">—</div></div>
+      <div class="kpi-box"><div class="kpi-lbl">감지 건수</div><div class="kpi-val c-red" id="sl-hallu-flagged">—</div></div>
+      <div class="kpi-box"><div class="kpi-lbl">안전 건수</div><div class="kpi-val c-green" id="sl-hallu-safe">—</div></div>
+    </div>
+    <div style="margin-bottom:12px">
+      <div style="font-size:11px;color:var(--tc2);margin-bottom:6px;font-weight:600">위험 수준 게이지 (0% 안전 → 30% 위험)</div>
+      <div id="sl-hallu-gauge"></div>
+    </div>
+    <div class="two-col" style="flex:1;align-items:start">
+      <div>
+        <div class="bar-title">유형별 발생 건수</div>
+        <div id="sl-hallu-types"></div>
+      </div>
+      <div>
+        <div class="bar-title">위험 수준 해석</div>
+        <div id="sl-hallu-interpret"></div>
+      </div>
+    </div>
+  </div>
+  <div id="sl-hallu-inactive" class="no-data" style="display:none;flex:1">
+    <div class="no-data-icon">🧠</div>
+    <div>환각 감지 트래커 비활성</div>
+    <div style="font-size:11px">PerformanceMonitor(enable_hallucination_detection=True)</div>
+  </div>
+</section>
+
+<!-- ═══ 9. LATENCY ═══ -->
+<section>
+  <h2>⚡ 응답 지연 (Latency)</h2>
+  <div class="two-col" style="flex:1;align-items:start">
+    <div>
+      <div class="kpi-row kpi-row-2" style="margin-bottom:10px">
+        <div class="kpi-box"><div class="kpi-lbl">평균 (Mean)</div><div class="kpi-val" id="lat-mean">—</div></div>
+        <div class="kpi-box"><div class="kpi-lbl">P95 (기준: ≤2s)</div><div class="kpi-val" id="lat-p95">—</div></div>
+      </div>
+      <div class="chart-wrap" style="height:210px"><canvas id="sl-lat-bar"></canvas></div>
+      <div class="chart-label">백분위별 응답시간 (초)</div>
+    </div>
+    <div>
+      <div class="bar-title">SLA 달성 여부</div>
+      <div id="lat-sla"></div>
+      <div style="margin-top:12px">
+        <div class="bar-title">Task Type별 평균 지연</div>
+        <div id="sl-lat-type-bars"></div>
+      </div>
+    </div>
+  </div>
+  <div class="bottom-line" id="lat-bottom"></div>
+</section>
+
+<!-- ═══ 10. COST EFFICIENCY ═══ -->
+<section>
+  <h2>💰 비용 효율 (Cost Efficiency)</h2>
+  <div class="two-col" style="flex:1;align-items:start">
+    <div>
+      <div class="kpi-row kpi-row-2" style="margin-bottom:9px">
+        <div class="kpi-box"><div class="kpi-lbl">총 비용</div><div class="kpi-val c-green" id="sl-cost-total">—</div></div>
+        <div class="kpi-box"><div class="kpi-lbl">Task당 비용</div><div class="kpi-val" id="sl-cost-task">—</div></div>
+      </div>
+      <div class="kpi-row kpi-row-2" style="margin-bottom:9px">
+        <div class="kpi-box"><div class="kpi-lbl">성공 Task당 비용</div><div class="kpi-val" id="sl-cost-success">—</div><div class="kpi-sub">비용 효율 핵심 지표</div></div>
+        <div class="kpi-box"><div class="kpi-lbl">월간 추정 비용</div><div class="kpi-val c-yellow" id="sl-cost-monthly">—</div><div class="kpi-sub">동일 부하 기준</div></div>
+      </div>
+      <div class="kpi-box">
+        <div class="kpi-lbl">비용 효율 등급</div>
+        <div style="display:flex;align-items:center;gap:12px;margin-top:4px">
+          <div class="grade-badge" id="cost-grade-badge">—</div>
+          <div id="cost-grade-desc" style="font-size:12px;color:var(--tc2)"></div>
+        </div>
+      </div>
+    </div>
+    <div>
+      <div class="chart-wrap" style="height:160px"><canvas id="sl-tok-pie"></canvas></div>
       <div class="chart-label" id="sl-tok-info"></div>
+      <div style="margin-top:12px">
+        <div class="bar-title">Input / Output 토큰</div>
+        <div id="sl-cost-tok-bars"></div>
+      </div>
     </div>
   </div>
+  <div class="bottom-line" id="cost-bottom"></div>
 </section>
 
-<!-- 6. Cost Analysis -->
+<!-- ═══ 11. SECURITY ═══ -->
 <section>
-  <h2>💰 Cost Analysis</h2>
-  <div class="kpi-row" style="grid-template-columns:repeat(3,1fr)">
-    <div class="kpi-box"><div class="kpi-lbl">총 비용</div><div class="kpi-val c-green" id="sl-cost-total">—</div></div>
-    <div class="kpi-box"><div class="kpi-lbl">Task당 비용</div><div class="kpi-val" id="sl-cost-task">—</div></div>
-    <div class="kpi-box"><div class="kpi-lbl">월간 추정</div><div class="kpi-val c-yellow" id="sl-cost-monthly">—</div></div>
-  </div>
-  <div id="sl-cost-detail" style="font-size:12px; color:var(--tc2); margin-top:10px"></div>
-  <div style="margin-top:14px">
-    <div class="bar-title">토큰 사용량</div>
-    <div id="sl-cost-tok-bars"></div>
-  </div>
-</section>
-
-<!-- 7. Hallucination Detection -->
-<section>
-  <h2>🧠 Hallucination Detection</h2>
-  <div class="kpi-row" style="grid-template-columns:repeat(3,1fr)">
-    <div class="kpi-box"><div class="kpi-lbl">발생률</div><div class="kpi-val" id="sl-hallu-rate">—</div></div>
-    <div class="kpi-box"><div class="kpi-lbl">평가 건수</div><div class="kpi-val" id="sl-hallu-total">—</div></div>
-    <div class="kpi-box"><div class="kpi-lbl">감지 건수</div><div class="kpi-val c-red" id="sl-hallu-flagged">—</div></div>
-  </div>
-  <div class="gauge-wrap" style="margin-top:14px">
-    <div style="font-size:11px; color:var(--tc2); margin-bottom:6px">환각 위험 수준</div>
-    <div id="sl-hallu-gauge"></div>
-  </div>
-</section>
-
-<!-- 8. Security Overview -->
-<section>
-  <h2>🛡️ Security Overview</h2>
+  <h2>🛡️ 보안 지표 (Security)</h2>
   <div id="sl-security-content" class="slide-content">
-    <p style="font-size:13px; color:var(--tc2); margin-top:20px">보안 트래커가 활성화된 경우 여기에 보안 지표가 표시됩니다.</p>
-  </div>
-</section>
-
-<!-- 9. Agentic (conditional) -->
-<section id="sl-agentic-section" style="display:none">
-  <h2>🤖 Agentic Metrics</h2>
-  <div id="sl-agentic-content" class="slide-content"></div>
-</section>
-
-<!-- 10. Insights & Recommendations -->
-<section>
-  <h2>💡 Insights &amp; Recommendations</h2>
-  <div id="sl-insights" class="slide-content"></div>
-</section>
-
-<!-- 11. Overall Health Score -->
-<section>
-  <h2>🏥 Overall Health Score</h2>
-  <div class="two-col" style="align-items:center; flex:1">
-    <div style="text-align:center; padding:20px 0">
-      <div class="health-big" id="sl-health-score">—</div>
-      <div class="health-lbl" id="sl-health-label"></div>
-      <div style="font-size:14px; color:var(--tc2); margin-top:8px">/ 100</div>
+    <div class="no-data" style="flex:1">
+      <div class="no-data-icon">🛡️</div>
+      <div>보안 트래커 비활성</div>
+      <div style="font-size:11px">PerformanceMonitor(enable_security_metrics=True)</div>
     </div>
-    <div id="sl-health-bars" style="width:100%"></div>
   </div>
 </section>
 
-<!-- 12. Next Steps -->
-<section>
-  <h2>🚀 Next Steps</h2>
-  <div id="sl-next-steps" class="slide-content"></div>
+<!-- ═══ 12. AGENTIC (conditional) ═══ -->
+<section id="sl-agentic-section" data-visibility="hidden">
+  <h2>🤖 에이전틱 지표 (Agentic Metrics)</h2>
+  <div id="sl-agentic-content" class="slide-content">
+    <div class="no-data" style="flex:1">
+      <div class="no-data-icon">🤖</div>
+      <div>에이전틱 트래커 비활성</div>
+    </div>
+  </div>
 </section>
 
-<!-- 13. Thank you -->
-<section style="padding:0 !important">
-  <div class="title-slide-inner">
+<!-- ═══ 13. HEALTH SCORE ═══ -->
+<section>
+  <h2>🏥 종합 건강 점수 (Health Score)</h2>
+  <div class="two-col" style="flex:1;align-items:center">
+    <div style="text-align:center;padding:10px 0">
+      <div class="health-big" id="sl-health-score">—</div>
+      <div style="font-size:13px;color:var(--tc2);margin-top:4px">/ 100</div>
+      <div style="display:flex;align-items:center;justify-content:center;gap:14px;margin-top:14px">
+        <div class="grade-badge" id="health-grade-badge">—</div>
+        <div>
+          <div style="font-size:18px;font-weight:800;color:var(--tc)" id="sl-health-label"></div>
+          <div style="font-size:11px;color:var(--tc2);margin-top:3px" id="sl-health-desc"></div>
+        </div>
+      </div>
+    </div>
+    <div>
+      <div class="bar-title" style="margin-bottom:10px">차원별 점수</div>
+      <div id="sl-health-bars"></div>
+      <div style="margin-top:10px">
+        <div class="bar-title">점수 계산 기준</div>
+        <div style="font-size:11px;color:var(--tc2);line-height:1.8">
+          • 기초 (Layer 1): TCR + 정확도 + 환각 페널티 평균<br>
+          • 성능: P95 지연 기반 지수 감소 (목표 2s)<br>
+          • 보안: L1/L2 안전율 4개 평균 <span style="opacity:.5">(측정 시)</span><br>
+          • 에이전틱: Tool F1 · Coordination · Workflow 평균 <span style="opacity:.5">(측정 시)</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══ 14. ACTION PLAN ═══ -->
+<section>
+  <h2>🚀 액션 플랜 (Action Plan)</h2>
+  <div id="ap-content" class="slide-content"></div>
+</section>
+
+<!-- ═══ 15. THANK YOU ═══ -->
+<section style="padding:0!important">
+  <div class="title-inner">
     <div style="font-size:2em">🎉</div>
     <h1>감사합니다</h1>
     <div class="title-sub">Agent Evaluator v{{ version }}</div>
-    <div style="height:1px;width:60px;background:var(--divider);margin:8px auto"></div>
-    <canvas id="sl-qr" style="border-radius:8px;background:#fff;padding:6px;width:100px;height:100px"></canvas>
-    <div style="font-size:11px;color:var(--tc2);margin-top:4px" id="sl-qr-url"></div>
+    <div style="height:1px;width:56px;background:var(--divider);margin:8px auto"></div>
+    <canvas id="sl-qr" style="border-radius:8px;background:#fff;padding:6px;width:96px;height:96px"></canvas>
+    <div style="font-size:11px;color:var(--tc2);margin-top:3px" id="sl-qr-url"></div>
     <a href="#" onclick="window.history.length>1?window.history.back():location.assign('/dashboard');return false;"
-       style="color:var(--accent); font-size:13px; text-decoration:none; margin-top:8px">← 대시보드로 돌아가기</a>
+       style="color:var(--accent);font-size:13px;text-decoration:none;margin-top:6px">← 대시보드로 돌아가기</a>
   </div>
 </section>
 
-</div><!-- /slides -->
-</div><!-- /reveal -->
+</div></div><!-- /slides /reveal -->
 
 {% if offline %}<script src="/static/reveal.js"></script>{% else %}<script src="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/reveal.js"></script>{% endif %}
 <script>
-Reveal.initialize({
-  hash: true,
-  center: false,
-  slideNumber: true,
-  transition: 'fade',
-  transitionSpeed: 'fast',
-  width: 1280,
-  height: 720,
-  margin: 0,
-  plugins: [],
-});
-
-// ── Theme toggle ──────────────────────────────────────────────────────────────
+/* ── Theme ── */
 {% if offline %}
-const DARK_THEME  = '/static/reveal-night.css';
-const LIGHT_THEME = '/static/reveal-white.css';
+const DARK_THEME='/static/reveal-night.css', LIGHT_THEME='/static/reveal-white.css';
 {% else %}
-const DARK_THEME  = 'https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/theme/night.css';
-const LIGHT_THEME = 'https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/theme/white.css';
+const DARK_THEME='https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/theme/night.css';
+const LIGHT_THEME='https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/theme/white.css';
 {% endif %}
-
-function applyTheme(light) {
+function applyTheme(light){
   document.getElementById('reveal-theme').href = light ? LIGHT_THEME : DARK_THEME;
   document.body.classList.toggle('light', light);
-  document.getElementById('theme-toggle').textContent = light ? '🌙 Dark' : '☀️ Light';
+  document.getElementById('theme-toggle').textContent = light ? '🌙' : '☀️';
   localStorage.setItem('sl-theme', light ? 'light' : 'dark');
   if (window._slideData) renderCharts(window._slideData);
 }
-
-function toggleTheme() { applyTheme(!document.body.classList.contains('light')); }
-
-(function() {
-  const saved = localStorage.getItem('sl-theme');
-  const dashDark = localStorage.getItem('ae-dark');
-  const preferLight = saved ? saved === 'light' : dashDark === 'false';
-  if (preferLight) applyTheme(true);
+function toggleTheme(){ applyTheme(!document.body.classList.contains('light')); }
+(function(){
+  const s = localStorage.getItem('sl-theme'), d = localStorage.getItem('ae-dark');
+  if ((s ? s==='light' : d==='false')) applyTheme(true);
 })();
 
-// ── Data populate ─────────────────────────────────────────────────────────────
-async function populateSlides() {
-  let files, data;
-  try { files = await (await fetch('/api/results')).json(); } catch(e) { return; }
-  if (!files?.length) return;
+/* ── Init: Reveal.on MUST be registered before Reveal.initialize ── */
+Reveal.on('ready', function(){
+  initFileSelect();
+  const qrUrl = window.location.origin + '/dashboard';
+  const qrEl  = document.getElementById('sl-qr');
+  const qrLbl = document.getElementById('sl-qr-url');
+  if (qrEl && window.QRCode) {
+    QRCode.toCanvas(qrEl, qrUrl, { width:96, margin:1, color:{ dark:'#000', light:'#fff' } });
+    if (qrLbl) qrLbl.textContent = qrUrl;
+  }
+});
 
-  // URL 파라미터 ?id=xxx 가 있으면 해당 파일 사용, 없으면 첫 번째(최신) 파일 사용
-  const paramId = new URLSearchParams(window.location.search).get('id');
-  const targetId = (paramId && files.some(f => f.id === paramId)) ? paramId : files[0].id;
+Reveal.initialize({
+  hash:true, center:false, slideNumber:'c/t',
+  transition:'fade', transitionSpeed:'fast',
+  width:1280, height:720, margin:0, plugins:[],
+});
 
-  try { data = await (await fetch(`/api/results/${targetId}`)).json(); } catch(e) { return; }
+/* ── File switcher ── */
+let _allFiles = [];
+async function initFileSelect(){
+  try { _allFiles = await (await fetch('/api/results')).json(); } catch(e){ return; }
+  if (!_allFiles?.length) return;
+  const sel = document.getElementById('file-select');
+  sel.innerHTML = _allFiles.map(f =>
+    `<option value="${f.id}">${f.name||f.id} (${(f.timestamp||'').substring(0,10)})</option>`
+  ).join('');
+  const pid = new URLSearchParams(window.location.search).get('id');
+  const tid = (pid && _allFiles.some(f=>f.id===pid)) ? pid : _allFiles[0].id;
+  sel.value = tid;
+  loadFile(tid);
+}
+function switchFile(id){
+  if (!id) return;
+  const u = new URL(window.location);
+  u.searchParams.set('id', id);
+  window.history.replaceState({}, '', u);
+  loadFile(id);
+}
+async function loadFile(id){
+  let data;
+  try { data = await (await fetch(`/api/results/${id}`)).json(); } catch(e){ return; }
+  window._slideData = data;
+  populateSlides(data);
+  renderCharts(data);
+}
 
+/* ═══════════════════════════════════════════════════
+   POPULATE SLIDES
+═══════════════════════════════════════════════════ */
+function populateSlides(data){
+  try { _populateSlides(data); } catch(e){ console.error('[slides] populateSlides error:', e); }
+}
+function _populateSlides(data){
   const tcr   = data.accuracy_metrics?.tcr || {};
   const acc   = data.accuracy_metrics?.accuracy_scores || {};
   const hallu = data.accuracy_metrics?.hallucination || {};
   const lat   = data.efficiency_metrics?.latency || {};
   const tok   = data.efficiency_metrics?.tokens || {};
+  const qual  = data.quality_detail || {};
+  const tasks = data.tasks || [];
 
-  // Slide 1 — title
-  document.getElementById('slide-title').textContent = data.name || '';
-  document.getElementById('slide-meta').textContent  = `${(data.timestamp||'').substring(0,10)} · ${data.total_tasks} tasks`;
+  const tcr_v  = tcr.tcr || 0;
+  const acc_v  = acc.overall_accuracy || 0;
+  const hall_v = hallu.overall_rate || 0;
+  const p95_v  = lat.p95 || 0;
+  const halluHas = (hallu.total_evaluated||0) > 0;
 
-  // Slide 2 — executive summary KPIs
-  const tcr_v = tcr.tcr||0, acc_v = acc.overall_accuracy||0, hall_v = hallu.overall_rate||0;
-  document.getElementById('s-tcr').textContent   = fmtPct(tcr_v);
-  document.getElementById('s-acc').textContent   = fmtPct(acc_v);
-  document.getElementById('s-hallu').textContent = fmtPct(hall_v);
-  document.getElementById('s-lat').textContent   = fmtSec(lat.mean);
-  document.getElementById('s-cost').textContent  = fmtCost(tok.total_cost);
-  document.getElementById('s-tasks').textContent = data.total_tasks;
-  // Color corrections
-  document.getElementById('s-acc').className   = `kpi-val ${acc_v>=70?'c-green':acc_v>=50?'c-yellow':'c-red'}`;
-  document.getElementById('s-hallu').className = `kpi-val ${hall_v<=5?'c-green':hall_v<=15?'c-yellow':'c-red'}`;
-
-  const issues = [];
-  if (tcr_v  < 90) issues.push(`TCR ${fmtPct(tcr_v)} < 90%`);
-  if (acc_v  < 70) issues.push(`Accuracy ${fmtPct(acc_v)} < 70%`);
-  if (hall_v > 5)  issues.push(`Hallucination ${fmtPct(hall_v)} > 5%`);
-  if ((lat.p95||0) > 2) issues.push(`P95 ${fmtSec(lat.p95)} > 2s`);
-  document.getElementById('summary-verdict').innerHTML = issues.length === 0
-    ? '<span class="pill p-ok">✅ 모든 핵심 지표 정상</span>'
-    : issues.map(i=>`<span class="pill p-warn">⚠️ ${i}</span>`).join('');
-
-  // Slide 3 — TCR type bars (rendered once, no theme dependency)
-  const typeSuc={}, typeTot={};
-  (data.tasks||[]).forEach(t => {
-    typeTot[t.task_type]=(typeTot[t.task_type]||0)+1;
-    if(t.success) typeSuc[t.task_type]=(typeSuc[t.task_type]||0)+1;
+  // ── per-task-type stats ──────────────────────────────────────────────────────
+  const typeStats = {};
+  tasks.forEach(t => {
+    const tp = t.task_type || 'unknown';
+    if (!typeStats[tp]) typeStats[tp] = { n:0, ok:0, acc:[], lat:[], errors:[] };
+    typeStats[tp].n++;
+    if (t.success) typeStats[tp].ok++;
+    typeStats[tp].acc.push((t.accuracy_score||0)*100);
+    typeStats[tp].lat.push(t.execution_time||0);
+    if (Array.isArray(t.errors)) typeStats[tp].errors.push(...t.errors);
+    else if (t.errors) typeStats[tp].errors.push(t.errors);
   });
-  document.getElementById('sl-type-bars').innerHTML = Object.entries(typeTot)
-    .sort((a,b)=>b[1]-a[1])
-    .map(([tp,n]) => {
-      const rate = Math.round((typeSuc[tp]||0)/n*100);
-      const col  = rate>=90?'#4ade80':rate>=70?'#facc15':'#f87171';
+
+  // error type frequency across all tasks
+  const errorFreq = {};
+  tasks.forEach(t => {
+    (Array.isArray(t.errors) ? t.errors : t.errors ? [t.errors] : []).forEach(e => {
+      const key = String(e).substring(0,40);
+      errorFreq[key] = (errorFreq[key]||0) + 1;
+    });
+  });
+
+  const health = calcHealth(tcr, acc, hallu, lat, data);
+  const { l1sc, perfSc, secSc, agSc } = calcHealthParts(tcr, acc, hallu, lat, data);
+
+  /* ── Slide 1: Title ── */
+  document.getElementById('slide-title').textContent = data.name || '';
+  document.getElementById('slide-meta').textContent =
+    `${(data.timestamp||'').substring(0,10)} · ${data.total_tasks||0} tasks`;
+
+  /* ── Slide 3: 평가 개요 ── */
+  const typeKeys = Object.keys(typeStats);
+  set('ov-tasks', data.total_tasks||0);
+  set('ov-types', typeKeys.length);
+  set('ov-avgtime', fmtSec(lat.mean));
+  set('ov-tokens', ((tok.total_tokens||0) > 0) ? (tok.total_tokens).toLocaleString() : '—');
+
+  const layerFlags = [
+    ['Layer 1 기초', true, '#6c8ef5'],
+    ['Layer 2 에이전틱', !!data.has_agentic, '#22d3ee'],
+    ['보안 (L1/L2)', !!data.has_security, '#f87171'],
+    ['RAG / 하이브리드', !!data.has_rag || !!data.has_advanced, '#34d399'],
+    ['환각 감지', halluHas, '#facc15'],
+    ['응답품질', Object.values(qual).some(v=>v>0), '#a78bfa'],
+  ];
+  document.getElementById('ov-layers').innerHTML = layerFlags.map(([lbl, on, c]) =>
+    `<div style="display:flex;align-items:center;gap:8px;margin-bottom:5px">
+       <div style="width:8px;height:8px;border-radius:50%;background:${on?c:'var(--bar-bg)'}"></div>
+       <span style="font-size:12px;color:${on?'var(--tc)':'var(--tc2)'}${on?'':';opacity:.5'}">${lbl}${on?'':' — 비활성'}</span>
+     </div>`
+  ).join('');
+
+  /* ── Slide 4: Key Findings ── */
+  const findings = buildFindings(tcr_v, acc_v, hall_v, p95_v, halluHas, lat, tok, tasks, data);
+  document.getElementById('kf-cards').innerHTML = findings.cards;
+  document.getElementById('kf-verdict').className = 'verdict-banner ' + findings.verdictCls;
+  document.getElementById('kf-verdict').innerHTML =
+    `<div class="vb-icon">${findings.verdictIcon}</div>
+     <div>
+       <div class="vb-label" style="color:${findings.verdictColor}">${findings.verdictLabel}</div>
+       <div class="vb-sub">${findings.verdictSub}</div>
+     </div>`;
+
+  /* ── Slide 5: TCR ── */
+  setKpi('tcr-val', fmtPct(tcr_v), tcr_v>=90?'c-green':tcr_v>=70?'c-yellow':'c-red');
+  set('tcr-full',    tcr.full_success||0);
+  set('tcr-partial', tcr.partial_success||0);
+  set('tcr-fail',    tcr.failures||0);
+  document.getElementById('sl-type-bars').innerHTML = Object.entries(typeStats)
+    .sort((a,b) => (a[1].ok/a[1].n) - (b[1].ok/b[1].n)) // 낮은 순
+    .slice(0, 8)
+    .map(([tp, s]) => {
+      const rate = Math.round(s.ok/s.n*100);
+      const col = rate>=90?'#4ade80':rate>=70?'#facc15':'#f87171';
       return `<div class="bar-row">
-        <div class="bar-lbl"><span>${tp}</span><span style="color:${col};font-weight:600">${rate}%</span></div>
+        <div class="bar-lbl"><span>${tp}</span><span style="color:${col}">${rate}% <span style="font-weight:400;font-size:10px;opacity:.7">(${s.n}건)</span></span></div>
         <div class="bar-track"><div class="bar-fill" style="width:${rate}%;background:${col}"></div></div>
       </div>`;
     }).join('');
+  const worstType = Object.entries(typeStats).sort((a,b) => (a[1].ok/a[1].n)-(b[1].ok/b[1].n))[0];
+  document.getElementById('tcr-bottom').innerHTML =
+    `<strong>Bottom Line:</strong> ${tasks.length}개 태스크 중 완전성공 ${tcr.full_success||0}건(${fmtPct(tcr_v)})` +
+    (worstType ? ` · 가장 낮은 타입: <strong>${worstType[0]}</strong> (${Math.round(worstType[1].ok/worstType[1].n*100)}%)` : '');
 
-  // Slide 4 — accuracy KPIs
-  document.getElementById('sl-acc-overall').textContent = fmtPct(acc_v);
-  document.getElementById('sl-acc-med').textContent     = fmtPct(acc.median_accuracy);
-  document.getElementById('sl-acc-std').textContent     = (acc.std_accuracy||0).toFixed(2);
-  document.getElementById('sl-acc-overall').className   = `kpi-val ${acc_v>=70?'c-green':acc_v>=50?'c-yellow':'c-red'}`;
+  /* ── Slide 6: Failure Analysis ── */
+  const failTasks = tasks.filter(t => !t.success);
+  if (failTasks.length === 0) {
+    document.getElementById('fa-nodata').style.display = 'flex';
+    document.getElementById('fa-content').style.display = 'none';
+  } else {
+    document.getElementById('fa-nodata').style.display = 'none';
+    document.getElementById('fa-content').style.display = 'grid';
 
-  // Slide 5 — tok info
-  document.getElementById('sl-tok-info').textContent =
-    `총 ${(tok.total_tokens||0).toLocaleString()} 토큰 · Task당 평균 ${Math.round(tok.avg_tokens_per_task||0)}`;
+    // worst types
+    const worstTypes = Object.entries(typeStats)
+      .filter(([,s]) => s.n > 0)
+      .map(([tp,s]) => [tp, Math.round(s.ok/s.n*100), s.n])
+      .sort((a,b) => a[1]-b[1]).slice(0,6);
+    const maxWN = Math.max(...worstTypes.map(x=>x[2]));
+    document.getElementById('fa-type-bars').innerHTML = worstTypes.map(([tp,rate,n]) => {
+      const col = rate>=90?'#4ade80':rate>=70?'#facc15':'#f87171';
+      return `<div class="bar-row">
+        <div class="bar-lbl"><span>${tp}</span><span style="color:${col}">${rate}% 성공 (${n}건)</span></div>
+        <div class="bar-track"><div class="bar-fill" style="width:${100-rate}%;background:${col}40"></div></div>
+      </div>`;
+    }).join('');
 
-  // Slide 6 — cost
-  document.getElementById('sl-cost-total').textContent   = fmtCost(tok.total_cost);
-  document.getElementById('sl-cost-task').textContent    = fmtCost(tok.avg_cost_per_task);
-  document.getElementById('sl-cost-monthly').textContent = fmtCost(tok.estimated_monthly_cost);
-  document.getElementById('sl-cost-detail').textContent  =
-    `Input: ${(tok.total_input_tokens||0).toLocaleString()} tokens   ·   Output: ${(tok.total_output_tokens||0).toLocaleString()} tokens`;
-  const maxTok = Math.max(tok.total_input_tokens||0, tok.total_output_tokens||1);
+    // complete fail vs partial
+    const completeFail = tasks.filter(t => !t.success && (t.completion_score||0) < 0.3).length;
+    const partialFail  = failTasks.length - completeFail;
+    document.getElementById('fa-ratio').innerHTML =
+      `<div class="bar-row">
+         <div class="bar-lbl"><span>완전 실패</span><span style="color:#f87171">${completeFail}건 (${Math.round(completeFail/failTasks.length*100)}%)</span></div>
+         <div class="bar-track"><div class="bar-fill" style="width:${Math.round(completeFail/failTasks.length*100)}%;background:#f87171"></div></div>
+       </div>
+       <div class="bar-row">
+         <div class="bar-lbl"><span>부분 실패 (점수 낮음)</span><span style="color:#facc15">${partialFail}건 (${Math.round(partialFail/failTasks.length*100)}%)</span></div>
+         <div class="bar-track"><div class="bar-fill" style="width:${Math.round(partialFail/failTasks.length*100)}%;background:#facc15"></div></div>
+       </div>`;
+
+    // error types
+    const errEntries = Object.entries(errorFreq).sort((a,b)=>b[1]-a[1]).slice(0,6);
+    if (errEntries.length > 0) {
+      const maxE = errEntries[0][1];
+      document.getElementById('fa-error-bars').innerHTML = errEntries.map(([e,n]) =>
+        `<div class="bar-row">
+           <div class="bar-lbl"><span style="font-size:11px">${e}</span><span style="color:#f87171">${n}건</span></div>
+           <div class="bar-track"><div class="bar-fill" style="width:${Math.round(n/maxE*100)}%;background:#f87171"></div></div>
+         </div>`).join('');
+    } else {
+      document.getElementById('fa-error-bars').innerHTML =
+        '<div style="font-size:11px;color:var(--tc2);margin-top:4px">errors 필드 데이터 없음</div>';
+    }
+
+    document.getElementById('fa-bottom').innerHTML =
+      `<strong>Bottom Line:</strong> 실패 ${failTasks.length}건 중 완전실패 ${completeFail}건` +
+      (errEntries.length ? ` · 주요 에러: <strong>${errEntries[0][0]}</strong> (${errEntries[0][1]}건)` : '');
+  }
+
+  /* ── Slide 7: Accuracy & Quality ── */
+  setKpi('sl-acc-overall', fmtPct(acc_v), acc_v>=70?'c-green':acc_v>=50?'c-yellow':'c-red');
+  set('sl-acc-med', fmtPct(acc.median_accuracy));
+  set('sl-acc-std', `표준편차 ${(acc.std_accuracy||0).toFixed(2)}`);
+
+  // per-type accuracy bars
+  const typeAccList = Object.entries(typeStats)
+    .map(([tp,s]) => [tp, s.acc.length ? s.acc.reduce((a,b)=>a+b,0)/s.acc.length : 0, s.n])
+    .sort((a,b) => b[1]-a[1]).slice(0, 7);
+  document.getElementById('acc-type-bars').innerHTML = typeAccList.map(([tp,avg,n]) => {
+    const col = avg>=70?'#4ade80':avg>=50?'#facc15':'#f87171';
+    return `<div class="bar-row">
+      <div class="bar-lbl"><span>${tp}</span><span style="color:${col}">${avg.toFixed(1)}%</span></div>
+      <div class="bar-track"><div class="bar-fill" style="width:${Math.round(avg)}%;background:${col}"></div></div>
+    </div>`;
+  }).join('');
+
+  // quality dims
+  const dims = [
+    ['정확성 (Accuracy)',  qual.accuracy_score],
+    ['완결성 (Completeness)', qual.completeness_score],
+    ['명확성 (Clarity)',   qual.clarity_score],
+    ['관련성 (Relevance)', qual.relevance_score],
+    ['창의성 (Creativity)',qual.creativity_score],
+  ];
+  const hasQual = dims.some(([,v]) => v != null && v > 0);
+  if (hasQual) {
+    document.getElementById('sl-quality-dims').innerHTML = dims.map(([lbl,v]) => {
+      const pct = v != null ? Math.round(v/5*100) : 0;
+      const col = pct>=70?'#4ade80':pct>=50?'#6c8ef5':'#f87171';
+      return `<div class="qdim-row">
+        <div class="qdim-lbl">${lbl.split(' ')[0]}</div>
+        <div class="qdim-track"><div class="qdim-fill" style="width:${pct}%;background:${col}"></div></div>
+        <div class="qdim-val">${v!=null?v.toFixed(1):'—'}</div>
+      </div>`;
+    }).join('');
+    const avgScore = qual.avg_score || 0;
+    document.getElementById('sl-quality-avg-wrap').style.display = '';
+    document.getElementById('sl-quality-gauge-fill').style.width = `${Math.round(avgScore/5*100)}%`;
+    document.getElementById('sl-quality-avg-val').textContent = `${avgScore.toFixed(2)} / 5.0`;
+  } else {
+    document.getElementById('sl-quality-nodata').style.display = 'flex';
+  }
+  document.getElementById('acc-bottom').innerHTML =
+    `<strong>Bottom Line:</strong> 전체 정확도 ${fmtPct(acc_v)}` +
+    (typeAccList.length ? ` · 최고 타입: <strong>${typeAccList[0][0]}</strong> ${typeAccList[0][1].toFixed(1)}%` +
+      (typeAccList.length>1 ? ` · 최저: <strong>${typeAccList[typeAccList.length-1][0]}</strong> ${typeAccList[typeAccList.length-1][1].toFixed(1)}%` : '') : '');
+
+  /* ── Slide 8: Hallucination ── */
+  if (halluHas) {
+    document.getElementById('sl-hallu-active').style.display = '';
+    document.getElementById('sl-hallu-inactive').style.display = 'none';
+    const hr_v = hallu.overall_rate||0;
+    const flagged = hallu.total_flagged||0;
+    const hTotal  = hallu.total_evaluated||0;
+    setKpi('sl-hallu-rate', fmtPct(hr_v), hr_v<=5?'c-green':hr_v<=15?'c-yellow':'c-red');
+    set('sl-hallu-rate-sub', hr_v<=5?'✅ 안전':hr_v<=15?'⚠️ 주의':'❌ 위험');
+    set('sl-hallu-total', hTotal);
+    set('sl-hallu-flagged', flagged);
+    set('sl-hallu-safe', hTotal-flagged);
+    const hpct = Math.min(100, hr_v/30*100);
+    const hcol = hr_v<=5?'#4ade80':hr_v<=15?'#facc15':'#f87171';
+    document.getElementById('sl-hallu-gauge').innerHTML =
+      `<div class="gauge-track"><div class="gauge-fill" style="width:${hpct}%;background:${hcol}"></div></div>
+       <div class="gauge-lbls"><span>0% 안전</span><span style="color:${hcol};font-weight:700">${fmtPct(hr_v)} 현재</span><span>30% 위험</span></div>`;
+    const types = hallu.by_type || {};
+    if (Object.keys(types).length) {
+      const maxT = Math.max(...Object.values(types));
+      document.getElementById('sl-hallu-types').innerHTML = Object.entries(types)
+        .sort((a,b)=>b[1]-a[1])
+        .map(([tp,n]) => `<div class="bar-row">
+          <div class="bar-lbl"><span>${tp}</span><span style="color:#f87171">${n}건</span></div>
+          <div class="bar-track"><div class="bar-fill" style="width:${Math.round(n/maxT*100)}%;background:#f87171"></div></div>
+        </div>`).join('');
+    } else {
+      document.getElementById('sl-hallu-types').innerHTML = '<div style="font-size:11px;color:var(--tc2)">유형 분류 데이터 없음</div>';
+    }
+    document.getElementById('sl-hallu-interpret').innerHTML = [
+      ['0 – 5%',   '안전 (Green)', '#4ade80', hr_v<=5],
+      ['5 – 15%',  '주의 (Yellow)', '#facc15', hr_v>5 && hr_v<=15],
+      ['15 – 30%', '위험 (Orange)', '#fb923c', hr_v>15 && hr_v<=30],
+      ['>30%',     '심각 (Red)', '#f87171', hr_v>30],
+    ].map(([range, label, c, active]) =>
+      `<div class="bar-row" style="${active?'background:'+c+'18;border-radius:6px;padding:3px 6px;':''};margin-bottom:6px">
+         <div class="bar-lbl" style="margin-bottom:0">
+           <span style="color:${c};font-weight:${active?700:400}">${range}</span>
+           <span style="color:${active?c:'var(--tc2)'};font-weight:${active?700:400}">${label}${active?' ← 현재':''}</span>
+         </div>
+       </div>`
+    ).join('');
+  } else {
+    document.getElementById('sl-hallu-active').style.display = 'none';
+    document.getElementById('sl-hallu-inactive').style.display = 'flex';
+  }
+
+  /* ── Slide 9: Latency ── */
+  setKpi('lat-mean', fmtSec(lat.mean), '');
+  setKpi('lat-p95', fmtSec(p95_v), p95_v<=2?'c-green':p95_v<=5?'c-yellow':'c-red');
+  document.getElementById('lat-sla').innerHTML = [
+    ['P50 (중앙값)', lat.p50, 1.0, '쾌적한 경험의 절반 이상'],
+    ['P95',         lat.p95, 2.0, '95%의 사용자 경험'],
+    ['P99',         lat.p99, 3.0, '99%의 사용자 경험'],
+  ].map(([lbl,v,thr,desc]) => {
+    const ok = v != null && v <= thr;
+    const unk = v == null;
+    const col = unk?'var(--tc2)':ok?'#4ade80':'#f87171';
+    return `<div class="card" style="margin-bottom:6px;padding:8px 12px">
+      <div class="card-row">
+        <div class="card-icon" style="font-size:14px">${unk?'—':ok?'✅':'❌'}</div>
+        <div class="card-body">
+          <div style="display:flex;justify-content:space-between;align-items:center">
+            <span style="font-size:13px;font-weight:700;color:var(--tc)">${lbl}</span>
+            <span style="font-size:15px;font-weight:800;color:${col}">${fmtSec(v)}</span>
+          </div>
+          <div style="font-size:10px;color:var(--tc2)">기준 ${thr}s · ${desc}</div>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+
+  // Task type latency
+  const typeLatList = Object.entries(typeStats)
+    .map(([tp,s]) => [tp, s.lat.length ? s.lat.reduce((a,b)=>a+b,0)/s.lat.length : 0])
+    .sort((a,b)=>b[1]-a[1]).slice(0,6);
+  const maxLat = Math.max(...typeLatList.map(x=>x[1]), 0.01);
+  document.getElementById('sl-lat-type-bars').innerHTML = typeLatList.map(([tp,v]) => {
+    const col = v<=1?'#4ade80':v<=2?'#facc15':'#f87171';
+    return `<div class="bar-row">
+      <div class="bar-lbl"><span>${tp}</span><span style="color:${col}">${v.toFixed(2)}s</span></div>
+      <div class="bar-track"><div class="bar-fill" style="width:${Math.round(v/maxLat*100)}%;background:${col}"></div></div>
+    </div>`;
+  }).join('');
+  document.getElementById('lat-bottom').innerHTML =
+    `<strong>Bottom Line:</strong> P95 ${fmtSec(p95_v)} (목표 2s ${p95_v<=2?'✅ 달성':'❌ 초과'})` +
+    (typeLatList.length ? ` · 가장 느린 타입: <strong>${typeLatList[0][0]}</strong> (${typeLatList[0][1].toFixed(2)}s)` : '');
+
+  /* ── Slide 10: Cost ── */
+  const totalCost = tok.total_cost || 0;
+  const taskCount = data.total_tasks || 1;
+  const successCount = (tcr.full_success||0) + (tcr.partial_success||0);
+  const costPerSuccess = successCount > 0 ? totalCost / successCount : 0;
+  const costPerTask    = tok.avg_cost_per_task || (taskCount ? totalCost/taskCount : 0);
+
+  set('sl-cost-total',   fmtCost(totalCost));
+  set('sl-cost-task',    fmtCost(costPerTask));
+  set('sl-cost-success', fmtCost(costPerSuccess));
+  set('sl-cost-monthly', fmtCost(tok.estimated_monthly_cost));
+
+  // Cost efficiency grade
+  const { grade, gradeColor, gradeBg, gradeDesc } = costGrade(costPerTask);
+  const gb = document.getElementById('cost-grade-badge');
+  gb.textContent = grade;
+  gb.style.background = gradeBg;
+  gb.style.color = gradeColor;
+  set('cost-grade-desc', gradeDesc);
+  document.getElementById('cost-bottom').innerHTML =
+    `<strong>Bottom Line:</strong> Task당 ${fmtCost(costPerTask)} · 성공건당 ${fmtCost(costPerSuccess)} · 효율 등급 <strong>${grade}</strong> — ${gradeDesc}`;
+
+  const totalIn  = tok.total_input_tokens  || 0;
+  const totalOut = tok.total_output_tokens || 0;
+  const totalTok = totalIn + totalOut;
+  set('sl-tok-info', `총 ${totalTok.toLocaleString()} 토큰 · Task당 ${Math.round(tok.avg_tokens_per_task||0)}`);
+  const maxT = Math.max(totalIn, totalOut, 1);
   document.getElementById('sl-cost-tok-bars').innerHTML =
-    [['Input',  tok.total_input_tokens||0,  '#6c8ef5'],
-     ['Output', tok.total_output_tokens||0, '#4ade80']].map(([lbl,v,c]) =>
+    [['Input', totalIn, '#6c8ef5'], ['Output', totalOut, '#4ade80']].map(([lbl,v,c]) =>
     `<div class="bar-row">
-       <div class="bar-lbl"><span>${lbl}</span><span style="color:${c}">${(v||0).toLocaleString()}</span></div>
-       <div class="bar-track"><div class="bar-fill" style="width:${Math.round((v/maxTok)*100)}%;background:${c}"></div></div>
+       <div class="bar-lbl"><span>${lbl}</span><span style="color:${c}">${v.toLocaleString()}</span></div>
+       <div class="bar-track"><div class="bar-fill" style="width:${Math.round(v/maxT*100)}%;background:${c}"></div></div>
      </div>`).join('');
 
-  // Slide 7 — hallucination
-  const hr_v = hallu.overall_rate||0;
-  document.getElementById('sl-hallu-rate').textContent    = fmtPct(hr_v);
-  document.getElementById('sl-hallu-rate').className      = `kpi-val ${hr_v<=5?'c-green':hr_v<=15?'c-yellow':'c-red'}`;
-  document.getElementById('sl-hallu-total').textContent   = hallu.total_evaluated||0;
-  document.getElementById('sl-hallu-flagged').textContent = hallu.total_flagged||0;
-  const hpct = Math.min(100,(hr_v/30)*100);
-  const hcol = hr_v<=5?'#4ade80':hr_v<=15?'#facc15':'#f87171';
-  document.getElementById('sl-hallu-gauge').innerHTML =
-    `<div class="gauge-track"><div class="gauge-fill" style="width:${hpct}%;background:${hcol}"></div></div>
-     <div class="gauge-lbls"><span>0% SAFE</span><span style="color:${hcol};font-weight:600">${fmtPct(hr_v)} 현재</span><span>30% CRITICAL</span></div>`;
-
-  // Slide 8 — security
+  /* ── Slide 11: Security ── */
   if (data.has_security) {
     const s1 = data.security_l1||{}, s2 = data.security_l2||{};
     const thr  = s1.input_security?.threat_rate||0;
     const leak = s1.output_leakage?.leakage_rate||0;
-    const auth = s1.authorization?.compliance_rate||100;
+    const auth = s1.authorization?.compliance_rate??100;
     const esc  = s2.privilege_escalation?.escalation_rate||0;
     const atk  = s2.attack_detection?.detection_rate||0;
     const sc   = v => v<=5?'#4ade80':v<=20?'#facc15':'#f87171';
     document.getElementById('sl-security-content').innerHTML =
-      `<div class="kpi-row" style="grid-template-columns:repeat(3,1fr);margin-top:4px">
-        <div class="kpi-box"><div class="kpi-lbl">입력 위협률</div><div class="kpi-val" style="color:${sc(thr)}">${fmtPct(thr)}</div></div>
-        <div class="kpi-box"><div class="kpi-lbl">출력 유출률</div><div class="kpi-val" style="color:${sc(leak)}">${fmtPct(leak)}</div></div>
-        <div class="kpi-box"><div class="kpi-lbl">권한 준수율</div><div class="kpi-val" style="color:${auth>=90?'#4ade80':'#facc15'}">${fmtPct(auth)}</div></div>
-        <div class="kpi-box"><div class="kpi-lbl">권한 상승률 (L2)</div><div class="kpi-val" style="color:${sc(esc)}">${fmtPct(esc)}</div></div>
-        <div class="kpi-box"><div class="kpi-lbl">공격 탐지율 (L2)</div><div class="kpi-val c-accent">${fmtPct(atk)}</div></div>
+      `<div class="kpi-row kpi-row-5" style="margin-top:4px">
+        <div class="kpi-box"><div class="kpi-lbl">입력 위협률</div><div class="kpi-val" style="color:${sc(thr)}">${fmtPct(thr)}</div><div class="kpi-sub">L1 입력 검증</div></div>
+        <div class="kpi-box"><div class="kpi-lbl">출력 유출률</div><div class="kpi-val" style="color:${sc(leak)}">${fmtPct(leak)}</div><div class="kpi-sub">L1 출력 검사</div></div>
+        <div class="kpi-box"><div class="kpi-lbl">권한 준수율</div><div class="kpi-val" style="color:${auth>=90?'#4ade80':'#facc15'}">${fmtPct(auth)}</div><div class="kpi-sub">L1 도구 인가</div></div>
+        <div class="kpi-box"><div class="kpi-lbl">권한 상승률</div><div class="kpi-val" style="color:${sc(esc)}">${fmtPct(esc)}</div><div class="kpi-sub">L2 권한 탐지</div></div>
+        <div class="kpi-box"><div class="kpi-lbl">공격 체인 탐지</div><div class="kpi-val c-accent">${fmtPct(atk)}</div><div class="kpi-sub">L2 체인 공격</div></div>
+      </div>
+      <div style="margin-top:12px">
+        <div class="bar-title">보안 안전율 (100%에 가까울수록 양호)</div>
+        ${buildBars([
+          ['입력 안전율 (L1)',  100-thr,  '#4ade80'],
+          ['출력 안전율 (L1)',  100-leak, '#4ade80'],
+          ['권한 준수율 (L1)',  auth,      '#6c8ef5'],
+          ['권한 상승 안전율 (L2)', 100-esc, '#facc15'],
+        ])}
       </div>`;
   }
 
-  // Slide 9 — agentic
+  /* ── Slide 12: Agentic ── */
   if (data.has_agentic) {
-    document.getElementById('sl-agentic-section').style.display = '';
+    document.getElementById('sl-agentic-section').removeAttribute('data-visibility');
     const ag = data.agentic||{};
+    const toolF1  = ag.tool_selection_summary?.avg_f1_score||0;
+    const coordSR = ag.coordination_summary?.success_rate||0;
+    const wfSR    = ag.workflow_summary?.step_success_rate||0;
+    const retryN  = ag.retry_summary?.total_tasks_with_retries||ag.retry_summary?.total_attempts||0;
+    const retrySR = ag.retry_summary?.eventual_success_rate||0;
     document.getElementById('sl-agentic-content').innerHTML =
-      `<div class="kpi-row" style="grid-template-columns:repeat(3,1fr);margin-top:4px">
-        <div class="kpi-box"><div class="kpi-lbl">Tool F1 Score</div><div class="kpi-val c-accent">${(ag.tool_selection_summary?.avg_f1_score||0).toFixed(1)}%</div></div>
-        <div class="kpi-box"><div class="kpi-lbl">멀티에이전트 성공률</div><div class="kpi-val">${fmtPct(ag.coordination_summary?.success_rate)}</div></div>
-        <div class="kpi-box"><div class="kpi-lbl">워크플로우 단계 성공</div><div class="kpi-val">${fmtPct(ag.workflow_summary?.step_success_rate)}</div></div>
-        <div class="kpi-box"><div class="kpi-lbl">재시도 횟수</div><div class="kpi-val">${ag.retry_summary?.total_tasks_with_retries||ag.retry_summary?.total_attempts||0}</div></div>
-        <div class="kpi-box"><div class="kpi-lbl">재시도 성공률</div><div class="kpi-val">${fmtPct(ag.retry_summary?.eventual_success_rate)}</div></div>
+      `<div class="kpi-row kpi-row-5" style="margin-top:4px">
+        <div class="kpi-box"><div class="kpi-lbl">Tool F1</div><div class="kpi-val c-accent">${toolF1.toFixed(1)}%</div><div class="kpi-sub">도구 선택 정확도</div></div>
+        <div class="kpi-box"><div class="kpi-lbl">멀티에이전트</div><div class="kpi-val ${coordSR>=80?'c-green':coordSR>=60?'c-yellow':'c-red'}">${fmtPct(coordSR)}</div><div class="kpi-sub">협력 성공률</div></div>
+        <div class="kpi-box"><div class="kpi-lbl">워크플로우</div><div class="kpi-val ${wfSR>=80?'c-green':wfSR>=60?'c-yellow':'c-red'}">${fmtPct(wfSR)}</div><div class="kpi-sub">단계 성공률</div></div>
+        <div class="kpi-box"><div class="kpi-lbl">재시도 발생</div><div class="kpi-val">${retryN}</div><div class="kpi-sub">건</div></div>
+        <div class="kpi-box"><div class="kpi-lbl">재시도 성공</div><div class="kpi-val ${retrySR>=80?'c-green':retrySR>=50?'c-yellow':'c-red'}">${fmtPct(retrySR)}</div></div>
+      </div>
+      <div style="margin-top:12px;display:grid;grid-template-columns:1fr 1fr;gap:22px">
+        <div>
+          <div class="bar-title">에이전틱 지표 레이더</div>
+          ${buildBars([
+            ['Tool F1',         toolF1,   '#6c8ef5'],
+            ['멀티에이전트 성공',coordSR,  '#4ade80'],
+            ['워크플로우 단계',  wfSR,     '#22d3ee'],
+            ['재시도 후 성공',   retrySR,  '#facc15'],
+          ])}
+        </div>
+        <div>
+          <div class="bar-title">해석 기준</div>
+          <div class="card" style="padding:10px 12px">
+            <div style="font-size:11px;color:var(--tc2);line-height:2">
+              • Tool F1 ≥ 80%: 도구 선택 우수<br>
+              • 멀티에이전트 ≥ 80%: 협력 안정<br>
+              • 워크플로우 ≥ 80%: 프로세스 안정<br>
+              • 재시도 성공 ≥ 60%: 자기수정 가능
+            </div>
+          </div>
+        </div>
       </div>`;
   }
 
-  // Slide 10 — insights (card style)
-  const inItems = [
-    { ok: tcr_v>=90,  title:'Task Completion Rate', ok_t:'정상 (≥90%)',   fail_t:`개선 필요: ${fmtPct(tcr_v)} → 목표 90%` },
-    { ok: acc_v>=70,  title:'Accuracy',             ok_t:'목표 달성 (≥70%)', fail_t:`개선 필요: ${fmtPct(acc_v)} → 목표 70%` },
-    { ok: hall_v<=5,  title:'Hallucination',         ok_t:'안전 수준 (≤5%)', fail_t:`주의: ${fmtPct(hall_v)} → 목표 ≤5%` },
-    { ok: (lat.p95||0)<=2, title:'P95 Latency',     ok_t:`달성 (${fmtSec(lat.p95)})`, fail_t:`개선 필요: ${fmtSec(lat.p95)} → 목표 2s` },
-  ];
-  document.getElementById('sl-insights').innerHTML = inItems.map(i =>
-    `<div class="insight-card">
-       <div class="insight-icon">${i.ok?'✅':'⚠️'}</div>
-       <div class="insight-body">
-         <div class="insight-title">${i.title}</div>
-         <div class="insight-sub">${i.ok?i.ok_t:i.fail_t}</div>
-       </div>
-     </div>`).join('');
-
-  // Slide 11 — health
-  const l1 = calcL1(tcr, acc, hallu);
-  const p95v = lat.p95;
-  const perf = (p95v==null||(p95v===0&&!data.total_tasks)) ? 0 : p95v===0 ? 100 : Math.max(5, Math.round(100 * Math.exp(-0.25 * p95v)));
-  const sl1 = data.security_l1||{};
-  const secSc = data.has_security
-    ? Math.round(((100-(sl1.input_security?.threat_rate||0))+(100-(sl1.output_leakage?.leakage_rate||0))+(sl1.authorization?.compliance_rate||100))/3)
-    : 0;
-  const agVals = data.has_agentic
-    ? [data.agentic?.tool_selection_summary?.avg_f1_score||0, data.agentic?.coordination_summary?.success_rate||0, data.agentic?.workflow_summary?.step_success_rate||0, data.agentic?.tool_efficiency?.success_rate||0].filter(v=>v>0)
-    : [];
-  const agSc = agVals.length ? Math.round(agVals.reduce((a,b)=>a+b,0)/agVals.length) : 0;
-  // 측정된 차원만 평균 — 미측정(0) 차원은 제외해 과소평가 방지
-  const healthVals = [l1, agSc, perf, secSc].filter(v=>v>0);
-  const health = healthVals.length ? Math.round(healthVals.reduce((a,b)=>a+b,0)/healthVals.length) : 0;
+  /* ── Slide 13: Health Score ── */
   const hEl = document.getElementById('sl-health-score');
-  hEl.textContent   = health;
-  hEl.style.color   = health>=80?'#4ade80':health>=60?'#facc15':'#f87171';
-  document.getElementById('sl-health-label').textContent =
-    health>=90?'EXCELLENT':health>=80?'GOOD':health>=70?'FAIR':'NEEDS WORK';
+  hEl.textContent = health;
+  hEl.style.color = health>=80?'#4ade80':health>=60?'#facc15':'#f87171';
+
+  const hGrade = healthGrade(health);
+  const hgb = document.getElementById('health-grade-badge');
+  hgb.textContent = hGrade.letter;
+  hgb.style.background = hGrade.bg;
+  hgb.style.color = hGrade.color;
+  set('sl-health-label', hGrade.label);
+  set('sl-health-desc', hGrade.desc);
+
+  const healthRows = [
+    ['기초 (TCR·Accuracy·Hallucination)', l1sc, `TCR ${fmtPct(tcr_v)} · Acc ${fmtPct(acc_v)}`],
+    ['성능 (P95 Latency)',                perfSc, `P95 ${fmtSec(p95_v)}`],
+    ...(data.has_security ? [['보안 (Security L1/L2)', secSc, '입력/출력/권한/에스컬레이션']] : []),
+    ...(data.has_agentic  ? [['에이전틱 (Tool·Coord·Workflow)', agSc, 'Tool F1 · 멀티에이전트 · 워크플로우']] : []),
+  ];
   const bc = v => v>=80?'#4ade80':v>=60?'#facc15':'#f87171';
-  document.getElementById('sl-health-bars').innerHTML =
-    [['Layer 1 기초 (TCR·Accuracy·Hallucination)', l1],
-     ['에이전틱 (Tool·Coordination·Workflow)', agSc],
-     ['성능 (P95 Latency 기반)', perf],
-     ['보안 (Security L1)', secSc]].map(([lbl,v]) =>
+  document.getElementById('sl-health-bars').innerHTML = healthRows.map(([lbl,v,hint]) =>
     `<div class="bar-row">
-       <div class="bar-lbl"><span>${lbl}</span><span style="color:${bc(v)};font-weight:600">${v}%</span></div>
+       <div class="bar-lbl">
+         <span>${lbl}</span>
+         <span style="color:${bc(v)};font-weight:700">${v}%</span>
+       </div>
        <div class="bar-track"><div class="bar-fill" style="width:${v}%;background:${bc(v)}"></div></div>
+       <div style="font-size:10px;color:var(--tc2);margin-top:2px">${hint}</div>
      </div>`).join('');
 
-  // Slide 12 — next steps (card style)
-  const steps = [];
-  if (tcr_v  < 90) steps.push(['🔧','TCR 향상',           '실패 태스크 원인 분석 및 프롬프트 개선']);
-  if (acc_v  < 70) steps.push(['📚','정확도 개선',         'Golden Dataset 확장 및 Fine-tuning 검토']);
-  if (hall_v > 5)  steps.push(['🧠','환각 억제',           'RAG 기반 응답 검증 파이프라인 도입 검토']);
-  if ((lat.p95||0) > 2) steps.push(['⚡','응답 속도 최적화', '캐싱, 청크 크기 조정, 모델 경량화 검토']);
-  if (!steps.length) steps.push(['✅','모든 지표 정상',     '지속적인 모니터링 유지']);
-  steps.push(['📊','다음 평가 실행',    'agent-eval dashboard --watch 로 실시간 모니터링']);
-  document.getElementById('sl-next-steps').innerHTML = steps.map(([ic,t,s]) =>
-    `<div class="insight-card">
-       <div class="insight-icon">${ic}</div>
-       <div class="insight-body">
-         <div class="insight-title">${t}</div>
-         <div class="insight-sub">${s}</div>
+  /* ── Slide 14: Action Plan ── */
+  const actions = buildActionPlan(tcr_v, acc_v, hall_v, p95_v, halluHas, costPerTask, data);
+  document.getElementById('ap-content').innerHTML = actions;
+}
+
+/* ═══════════════════════════════════════════════════
+   HELPER BUILDERS
+═══════════════════════════════════════════════════ */
+function buildFindings(tcr_v, acc_v, hall_v, p95_v, halluHas, lat, tok, tasks, data){
+  // Identify top 3 findings (most impactful)
+  const items = [];
+
+  // TCR finding
+  if (tcr_v < 90) {
+    items.push({ ok:false, title:`TCR ${fmtPct(tcr_v)} — 목표(90%) 미달`,
+      detail:`${tcr_v>=70?'부분적':'전체적'} 개선 필요. 실패 태스크 패턴 분석이 우선과제입니다.`,
+      badge:tcr_v>=70?'⚠️ 개선필요':'❌ 긴급개선', badgeCls:tcr_v>=70?'#facc15':'#f87171' });
+  } else {
+    items.push({ ok:true, title:`TCR ${fmtPct(tcr_v)} — 목표(90%) 달성`,
+      detail:`태스크 완료율이 우수합니다. 부분성공 태스크의 완전성공 전환이 다음 목표입니다.`,
+      badge:'✅ 달성', badgeCls:'#4ade80' });
+  }
+
+  // Accuracy finding
+  if (acc_v < 70) {
+    items.push({ ok:false, title:`정확도 ${fmtPct(acc_v)} — 목표(70%) 미달`,
+      detail:`Golden Dataset 품질 점검 및 프롬프트 개선이 필요합니다. 타입별 격차 확인 필수.`,
+      badge:'⚠️ 개선필요', badgeCls:'#facc15' });
+  } else {
+    items.push({ ok:true, title:`정확도 ${fmtPct(acc_v)} — 목표(70%) 달성`,
+      detail:`정확도 수준이 양호합니다. 중앙값과 분포 확인으로 일관성을 검증하세요.`,
+      badge:'✅ 달성', badgeCls:'#4ade80' });
+  }
+
+  // Latency finding
+  if (p95_v > 2 && p95_v > 0) {
+    items.push({ ok:false, title:`P95 지연 ${fmtSec(p95_v)} — SLA(2s) 초과`,
+      detail:`응답 속도가 목표를 초과합니다. 캐싱·모델 경량화·청크 조정을 검토하세요.`,
+      badge:'⚠️ SLA 위반', badgeCls:'#f87171' });
+  } else if (halluHas && hall_v > 5) {
+    items.push({ ok:false, title:`환각 발생률 ${fmtPct(hall_v)} — 기준(5%) 초과`,
+      detail:`환각이 허용 수준을 초과합니다. RAG 검증 파이프라인 도입을 검토하세요.`,
+      badge:'⚠️ 주의', badgeCls:'#facc15' });
+  } else {
+    items.push({ ok:true, title:`응답 지연 ${fmtSec(p95_v)} — SLA(2s) 달성`,
+      detail:`P95 지연이 목표 이내입니다. 현재 성능을 유지하면서 비용 최적화를 검토하세요.`,
+      badge:'✅ 달성', badgeCls:'#4ade80' });
+  }
+
+  const passCount = items.filter(i=>i.ok).length;
+  const verdictCls = passCount===3?'vb-pass':passCount>=1?'vb-cond':'vb-fail';
+  const verdictIcon = passCount===3?'🏆':passCount>=1?'⚠️':'❌';
+  const verdictColor = passCount===3?'#4ade80':passCount>=1?'#facc15':'#f87171';
+  const verdictLabel = passCount===3?'PASS — 모든 핵심 지표 달성':passCount>=1?'CONDITIONAL — 일부 지표 미달':'FAIL — 핵심 지표 미달성';
+  const verdictSub = `${passCount}/3개 핵심 지표 달성 · ${items.filter(i=>!i.ok).map(i=>i.title.split('—')[0].trim()).join(', ')||'없음'} 개선 필요`;
+
+  const cards = items.map((item, i) =>
+    `<div class="finding-card">
+       <div class="finding-num" style="background:${item.ok?'rgba(74,222,128,.15)':'rgba(248,113,113,.15)'};color:${item.ok?'#4ade80':'#f87171'}">${i+1}</div>
+       <div class="finding-body">
+         <div class="finding-title">
+           ${item.title}
+           <span class="finding-badge" style="background:${item.badgeCls}22;color:${item.badgeCls}">${item.badge}</span>
+         </div>
+         <div class="finding-detail">${item.detail}</div>
        </div>
      </div>`).join('');
 
-  window._slideData = data;
-  renderCharts(data);
+  return { cards, verdictCls, verdictIcon, verdictColor, verdictLabel, verdictSub };
 }
 
-// ── Theme-aware charts ────────────────────────────────────────────────────────
-window._charts = {};
+function buildActionPlan(tcr_v, acc_v, hall_v, p95_v, halluHas, costPerTask, data){
+  const actions = [];
+  if (!data || tcr_v < 90)
+    actions.push({ p:'P1', icon:'🔧', title:'TCR 향상 (현재 '+fmtPct(tcr_v)+'→목표 90%)',
+      steps:['실패 태스크 에러 로그 분석 (슬라이드 6 참조)', '실패 집중 Task Type 프롬프트 개선', '부분성공 태스크 재실행 조건 완화'],
+      impact:'TCR +5~10%p 예상', file:'02_performance_eval.py' });
+  if (acc_v < 70)
+    actions.push({ p:'P1', icon:'📚', title:'정확도 개선 (현재 '+fmtPct(acc_v)+'→목표 70%)',
+      steps:['타입별 정확도 격차 분석 (슬라이드 7 참조)', '낮은 타입 대상 Few-shot 예시 추가', 'Golden Dataset 품질 검수 및 확장'],
+      impact:'Accuracy +5~15%p 예상', file:'13_golden_set_build.py' });
+  if (halluHas && hall_v > 5)
+    actions.push({ p:'P1', icon:'🧠', title:'환각 억제 (현재 '+fmtPct(hall_v)+'→목표 5%↓)',
+      steps:['환각 다발 유형 집중 분석', 'RAG 기반 Fact 검증 레이어 도입', '응답 생성 온도(temperature) 조정'],
+      impact:'Hallucination -3~8%p 예상', file:'01_quality_eval.py' });
+  if (p95_v > 2)
+    actions.push({ p:'P2', icon:'⚡', title:'응답속도 최적화 (P95 '+fmtSec(p95_v)+'→목표 2s↓)',
+      steps:['느린 Task Type 식별 (슬라이드 9 참조)', '결과 캐싱 / 병렬 처리 도입', '경량 모델 또는 청크 크기 조정 검토'],
+      impact:'P95 -30~50% 예상', file:'02_performance_eval.py' });
+  if (costPerTask > 0.05)
+    actions.push({ p:'P2', icon:'💰', title:'비용 최적화 (Task당 '+fmtCost(costPerTask)+')',
+      steps:['불필요한 Output 토큰 단축 (프롬프트 간결화)', 'AdaptivePolicy 샘플링 도입 (14_anomaly_cost_eval.py)', '고비용 타입 식별 및 모델 티어 분리'],
+      impact:'비용 20~40% 절감 예상', file:'14_anomaly_cost_eval.py' });
+  if (actions.length === 0)
+    actions.push({ p:'P3', icon:'✅', title:'모든 핵심 지표 달성 — 지속 모니터링',
+      steps:['실시간 대시보드 모니터링 유지 (--watch 모드)', 'Golden Dataset 주기적 확장', 'Anomaly Detection 임계값 점검'],
+      impact:'현재 품질 유지', file:'agent-eval dashboard --watch' });
+  actions.push({ p:'P3', icon:'📊', title:'지속적 평가 파이프라인 구축',
+    steps:['CI/CD agent-eval gate 품질 게이팅 도입', 'GoldenSetBuilder 자동 케이스 추출 주간 실행', '이상 감지 알림 규칙 설정 (12_alerts_eval.py)'],
+    impact:'품질 회귀 사전 방지', file:'agent-eval gate result.json --tcr 85' });
 
-function _mk(id, cfg) {
-  if (window._charts[id]) window._charts[id].destroy();
-  const el = document.getElementById(id);
-  if (!el) return;
-  window._charts[id] = new Chart(el, cfg);
+  return `<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;flex:1;align-content:start">
+    ${actions.slice(0,4).map(a =>
+    `<div class="card">
+       <div class="card-row">
+         <div class="card-icon">${a.icon}</div>
+         <div class="card-body">
+           <div class="card-title">
+             <span class="tag-${a.p.toLowerCase()}">${a.p}</span> ${a.title}
+           </div>
+           <div style="margin:5px 0 3px">
+             ${a.steps.map(s=>`<div style="font-size:10px;color:var(--tc2);margin-bottom:2px">• ${s}</div>`).join('')}
+           </div>
+           <div style="font-size:10px;color:var(--accent);margin-top:4px">📈 ${a.impact}</div>
+           <div style="font-size:10px;color:var(--tc2);margin-top:2px;font-family:monospace;opacity:.7">${a.file}</div>
+         </div>
+       </div>
+     </div>`).join('')}
+  </div>`;
 }
 
-function renderCharts(data) {
-  if (!data) return;
-  const isLight = document.body.classList.contains('light');
-  const TC  = isLight ? '#333' : '#ccc';
-  const GC  = isLight ? 'rgba(0,0,0,.1)' : 'rgba(255,255,255,.07)';
-  const noLeg = { plugins:{ legend:{ display:false } } };
-  const FONT = { size:13, family:"'Segoe UI',system-ui,sans-serif" };
-  const scX = { ticks:{ color:TC, font:FONT } };
-  const scY = { ticks:{ color:TC, font:FONT }, grid:{ color:GC } };
-  const MAR = false; // maintainAspectRatio
+function buildBars(rows){
+  return rows.map(([lbl,v,c]) =>
+    `<div class="bar-row">
+       <div class="bar-lbl"><span>${lbl}</span><span style="color:${c};font-weight:700">${(+v||0).toFixed(1)}%</span></div>
+       <div class="bar-track"><div class="bar-fill" style="width:${Math.min(+v||0,100)}%;background:${c}"></div></div>
+     </div>`).join('');
+}
 
-  const tcr = data.accuracy_metrics?.tcr || {};
-  const acc = data.accuracy_metrics?.accuracy_scores || {};
-  const lat = data.efficiency_metrics?.latency || {};
-  const tok = data.efficiency_metrics?.tokens || {};
+/* ── Health calculation ── */
+function calcHealthParts(tcr, acc, hallu, lat, data){
+  const tcr_v  = tcr.tcr||0, acc_v = acc.overall_accuracy||0;
+  const hall_v = hallu.overall_rate||0, hasHallu = (hallu.total_evaluated||0)>0;
+  const l1vals = [tcr_v, acc_v];
+  if (hasHallu) l1vals.push(Math.max(0, 100 - hall_v*5));
+  const l1sc = Math.round(l1vals.reduce((a,b)=>a+b,0)/l1vals.length);
 
-  // Donut
-  const full=tcr.full_success||0, partial=tcr.partial_success||0;
-  const fail=tcr.failures||(data.total_tasks-(full+partial));
-  _mk('sl-donut', { type:'doughnut',
-    data:{ labels:['완전성공','부분성공','실패'],
-           datasets:[{ data:[full,partial,fail],
-             backgroundColor:['#4ade80','#facc15','#f87171'], borderWidth:0 }] },
-    options:{ maintainAspectRatio:MAR, cutout:'60%',
-              plugins:{ legend:{ position:'bottom', labels:{ color:TC, font:FONT, padding:14 } } } }
+  const p95_v = lat.p95;
+  const perfSc = (p95_v==null||(p95_v===0&&!data.total_tasks)) ? 0
+    : p95_v===0 ? 100
+    : Math.max(5, Math.round(100*Math.exp(-0.2*p95_v)));
+
+  const sl1 = data.security_l1||{}, sl2 = data.security_l2||{};
+  const secSc = data.has_security
+    ? Math.round(((100-(sl1.input_security?.threat_rate||0))+(100-(sl1.output_leakage?.leakage_rate||0))+(sl1.authorization?.compliance_rate??100)+(100-(sl2.privilege_escalation?.escalation_rate||0)))/4)
+    : null;
+
+  const ag = data.agentic||{};
+  const agVals = [ag.tool_selection_summary?.avg_f1_score, ag.coordination_summary?.success_rate, ag.workflow_summary?.step_success_rate].filter(v=>v!=null&&v>0);
+  const agSc = (data.has_agentic&&agVals.length) ? Math.round(agVals.reduce((a,b)=>a+b,0)/agVals.length) : null;
+
+  return { l1sc, perfSc, secSc:secSc??0, agSc:agSc??0 };
+}
+function calcHealth(tcr, acc, hallu, lat, data){
+  const { l1sc, perfSc, secSc, agSc } = calcHealthParts(tcr, acc, hallu, lat, data);
+  const vals = [l1sc, perfSc];
+  if (data.has_security) vals.push(secSc);
+  if (data.has_agentic)  vals.push(agSc);
+  const active = vals.filter(v=>v>0);
+  return active.length ? Math.round(active.reduce((a,b)=>a+b,0)/active.length) : 0;
+}
+
+function healthGrade(h){
+  if (h>=90) return { letter:'A+', color:'#4ade80', bg:'rgba(74,222,128,.18)', label:'EXCELLENT', desc:'최고 수준의 에이전트 성능' };
+  if (h>=80) return { letter:'A',  color:'#4ade80', bg:'rgba(74,222,128,.15)', label:'GOOD',      desc:'안정적인 프로덕션 수준' };
+  if (h>=70) return { letter:'B',  color:'#facc15', bg:'rgba(250,204,21,.15)', label:'FAIR',      desc:'일부 지표 개선 필요' };
+  if (h>=60) return { letter:'C',  color:'#fb923c', bg:'rgba(251,146,60,.15)', label:'POOR',      desc:'주요 지표 개선 시급' };
+  return             { letter:'F',  color:'#f87171', bg:'rgba(248,113,113,.15)',label:'CRITICAL',  desc:'즉각적인 품질 개선 필요' };
+}
+
+function costGrade(perTask){
+  if (perTask <= 0)     return { grade:'N/A', gradeColor:'#8890b0', gradeBg:'rgba(136,144,176,.15)', gradeDesc:'비용 데이터 없음' };
+  if (perTask < 0.001)  return { grade:'A+',  gradeColor:'#4ade80', gradeBg:'rgba(74,222,128,.18)',  gradeDesc:'$0.001/task 미만 — 매우 경제적' };
+  if (perTask < 0.005)  return { grade:'A',   gradeColor:'#4ade80', gradeBg:'rgba(74,222,128,.15)',  gradeDesc:'$0.001~0.005/task — 경제적' };
+  if (perTask < 0.02)   return { grade:'B',   gradeColor:'#facc15', gradeBg:'rgba(250,204,21,.15)',  gradeDesc:'$0.005~0.02/task — 적정 수준' };
+  if (perTask < 0.05)   return { grade:'C',   gradeColor:'#fb923c', gradeBg:'rgba(251,146,60,.15)',  gradeDesc:'$0.02~0.05/task — 최적화 검토' };
+  return                       { grade:'D',   gradeColor:'#f87171', gradeBg:'rgba(248,113,113,.15)', gradeDesc:'$0.05/task 초과 — 비용 절감 필요' };
+}
+
+/* ── Misc helpers ── */
+function set(id, val){ const el=document.getElementById(id); if(el) el.textContent=val; }
+function setKpi(id, val, cls){
+  const el=document.getElementById(id);
+  if(!el) return;
+  el.textContent=val;
+  if(cls) el.className=`kpi-val ${cls}`;
+}
+function fmtPct(v){ return v==null?'—':(+v).toFixed(1)+'%'; }
+function fmtSec(v){ return v==null?'—':(+v).toFixed(2)+'s'; }
+function fmtCost(v){
+  if(v==null) return '—';
+  const n=+v;
+  if(n===0) return '$0';
+  const s=n<0.001?n.toFixed(6):n<0.01?n.toFixed(4):n<1?n.toFixed(4):n.toFixed(2);
+  return '$'+s.replace(/(\.\d*?)0+$/,'$1').replace(/\.$/,'');
+}
+
+/* ── Charts ── */
+window._charts={};
+function _mk(id,cfg){
+  if(window._charts[id]) window._charts[id].destroy();
+  const el=document.getElementById(id);
+  if(!el) return;
+  window._charts[id]=new Chart(el,cfg);
+}
+function renderCharts(data){
+  if(!data) return;
+  const isLight=document.body.classList.contains('light');
+  const TC=isLight?'#333':'#ccc', GC=isLight?'rgba(0,0,0,.1)':'rgba(255,255,255,.07)';
+  const FONT={size:12,family:"'Segoe UI',system-ui,sans-serif"};
+  const scX={ticks:{color:TC,font:FONT}};
+  const scY={ticks:{color:TC,font:FONT},grid:{color:GC}};
+  const noLeg={plugins:{legend:{display:false}}};
+
+  const tcr=data.accuracy_metrics?.tcr||{};
+  const lat=data.efficiency_metrics?.latency||{};
+  const tok=data.efficiency_metrics?.tokens||{};
+
+  // Task type pie (slide 3)
+  const typeStats={};
+  (data.tasks||[]).forEach(t=>{
+    const tp=t.task_type||'unknown';
+    typeStats[tp]=(typeStats[tp]||0)+1;
+  });
+  const typeEntries=Object.entries(typeStats).sort((a,b)=>b[1]-a[1]);
+  const PIE_COLORS=['#6c8ef5','#4ade80','#facc15','#f87171','#fb923c','#22d3ee','#a78bfa','#34d399'];
+  _mk('ov-type-pie',{
+    type:'doughnut',
+    data:{labels:typeEntries.map(x=>x[0]),datasets:[{data:typeEntries.map(x=>x[1]),
+      backgroundColor:PIE_COLORS.slice(0,typeEntries.length).map(c=>c+'cc'),
+      borderColor:PIE_COLORS.slice(0,typeEntries.length),borderWidth:1}]},
+    options:{maintainAspectRatio:false,cutout:'50%',
+      plugins:{legend:{position:'right',labels:{color:TC,font:{size:11,family:FONT.family},padding:10}}}},
   });
 
-  // Accuracy histogram
-  const scores = (data.tasks||[]).map(t=>t.accuracy_score*100).filter(v=>v>0);
-  if (scores.length) {
+  // TCR donut
+  const full=tcr.full_success||0, partial=tcr.partial_success||0;
+  const fail=tcr.failures||Math.max(0,(data.total_tasks||0)-full-partial);
+  _mk('sl-donut',{type:'doughnut',
+    data:{labels:['완전성공','부분성공','실패'],
+      datasets:[{data:[full,partial,fail],backgroundColor:['#4ade80','#facc15','#f87171'],borderWidth:0}]},
+    options:{maintainAspectRatio:false,cutout:'60%',
+      plugins:{legend:{position:'bottom',labels:{color:TC,font:FONT,padding:12}}}},
+  });
+
+  // Failure score hist
+  const failTasks=(data.tasks||[]).filter(t=>!t.success);
+  if(failTasks.length>0){
     const bk=Array(10).fill(0);
-    scores.forEach(s=>{ bk[Math.min(Math.floor(s/10),9)]++; });
-    _mk('sl-acc-hist', { type:'bar',
-      data:{ labels:['0','10','20','30','40','50','60','70','80','90'],
-             datasets:[{ data:bk, backgroundColor:'#6c8ef560', borderColor:'#6c8ef5', borderWidth:1 }] },
-      options:{ maintainAspectRatio:MAR, ...noLeg,
-                scales:{ x:{ ...scX, title:{ display:true, text:'Accuracy %', color:TC, font:{size:9} } }, y:scY } }
+    failTasks.forEach(t=>{ bk[Math.min(Math.floor((t.accuracy_score||0)*10),9)]++; });
+    _mk('fa-fail-hist',{type:'bar',
+      data:{labels:['0','10','20','30','40','50','60','70','80','90'],
+        datasets:[{data:bk,backgroundColor:'#f8717155',borderColor:'#f87171',borderWidth:1}]},
+      options:{maintainAspectRatio:false,...noLeg,
+        scales:{x:{...scX,ticks:{...scX.ticks,font:{size:9,family:FONT.family}}},y:{...scY,ticks:{...scY.ticks,stepSize:1}}}},
     });
   }
 
   // Latency bar
-  _mk('sl-lat-bar', { type:'bar',
-    data:{ labels:['P50','P95','P99','Max'],
-           datasets:[{ data:[lat.p50,lat.p95,lat.p99,lat.max].map(v=>+(v||0).toFixed(2)),
-             backgroundColor:['#4ade8070','#facc1570','#f8717170','#f8717150'],
-             borderColor:   ['#4ade80',  '#facc15',  '#f87171',  '#f87171'],
-             borderWidth:1 }] },
-    options:{ maintainAspectRatio:MAR, ...noLeg,
-              scales:{ x:scX, y:{ ...scY, ticks:{ ...scY.ticks, callback:v=>v+'s' } } } }
-  });
+  const latVals=[
+    {lbl:'P50',v:lat.p50||0,c:'#4ade80'},{lbl:'P95',v:lat.p95||0,c:'#facc15'},
+    {lbl:'P99',v:lat.p99||0,c:'#f87171'},{lbl:'Max',v:lat.max||0,c:'#f87171'},
+  ].filter(x=>x.v>0);
+  if(latVals.length>0){
+    _mk('sl-lat-bar',{type:'bar',
+      data:{labels:latVals.map(x=>x.lbl),
+        datasets:[{data:latVals.map(x=>+x.v.toFixed(3)),
+          backgroundColor:latVals.map(x=>x.c+'70'),borderColor:latVals.map(x=>x.c),borderWidth:1}]},
+      options:{maintainAspectRatio:false,...noLeg,
+        scales:{x:scX,y:{...scY,ticks:{...scY.ticks,callback:v=>v+'s'}}},
+      },
+    });
+  }
 
   // Token pie
-  _mk('sl-tok-pie', { type:'doughnut',
-    data:{ labels:['Input','Output'],
-           datasets:[{ data:[tok.total_input_tokens||0,tok.total_output_tokens||0],
-             backgroundColor:['#6c8ef560','#4ade8060'],
-             borderColor:['#6c8ef5','#4ade80'], borderWidth:1 }] },
-    options:{ maintainAspectRatio:MAR, cutout:'60%',
-              plugins:{ legend:{ position:'bottom', labels:{ color:TC, font:FONT, padding:14 } } } }
-  });
-}
-
-// ── Helpers ───────────────────────────────────────────────────────────────────
-function calcL1(tcr, acc, hallu) {
-  const vals = [tcr.tcr||0, acc.overall_accuracy||0];
-  if ((hallu.total_evaluated||0) > 0)
-    vals.push(Math.max(0, 100 - (hallu.overall_rate||0)*10));
-  return vals.length ? Math.round(vals.reduce((a,b)=>a+b,0)/vals.length) : 0;
-}
-function fmtPct(v)  { return v==null ? '—' : (+v).toFixed(1)+'%'; }
-function fmtSec(v)  { return v==null ? '—' : (+v).toFixed(2)+'s'; }
-function fmtCost(v) {
-  if(v==null) return '—';
-  const n=+v;
-  if(n===0) return '$0';
-  const s = n<0.001 ? n.toFixed(6) : n<0.01 ? n.toFixed(4) : n<1 ? n.toFixed(4) : n.toFixed(2);
-  return '$'+s.replace(/(\.\d*?)0+$/, '$1').replace(/\.$/, '');
-}
-
-Reveal.on('ready', () => {
-  populateSlides();
-  // Generate QR code pointing to the dashboard
-  const qrUrl = window.location.origin + '/dashboard';
-  const qrEl = document.getElementById('sl-qr');
-  const qrLbl = document.getElementById('sl-qr-url');
-  if (qrEl && window.QRCode) {
-    QRCode.toCanvas(qrEl, qrUrl, { width: 100, margin: 1, color: { dark: '#000', light: '#fff' } });
-    if (qrLbl) qrLbl.textContent = qrUrl;
+  const totalIn=tok.total_input_tokens||0, totalOut=tok.total_output_tokens||0;
+  if(totalIn+totalOut>0){
+    _mk('sl-tok-pie',{type:'doughnut',
+      data:{labels:['Input','Output'],
+        datasets:[{data:[totalIn,totalOut],
+          backgroundColor:['#6c8ef560','#4ade8060'],
+          borderColor:['#6c8ef5','#4ade80'],borderWidth:1}]},
+      options:{maintainAspectRatio:false,cutout:'60%',
+        plugins:{legend:{position:'bottom',labels:{color:TC,font:{size:11,family:FONT.family},padding:12}}}},
+    });
   }
-});
+}
 
-// Re-fetch when tab regains focus (stale _slideData after --watch updates)
-document.addEventListener('visibilitychange', () => {
-  if (document.visibilityState === 'visible' && window._slideData) populateSlides();
+/* ── duplicate Reveal.on removed — registered above before Reveal.initialize ── */
+document.addEventListener('visibilitychange',()=>{
+  if(document.visibilityState==='visible'){
+    const sel=document.getElementById('file-select');
+    if(sel?.value) loadFile(sel.value);
+  }
 });
 </script>
 </body>

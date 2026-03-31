@@ -11,29 +11,26 @@ import json
 import urllib.request
 from typing import Any, Dict
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, HTTPException
+from pydantic import BaseModel
 
-router = APIRouter(prefix="/api/webhook")
+router = APIRouter(prefix="/api/webhook", tags=["webhook"])
+
+
+class WebhookTestBody(BaseModel):
+    url: str
+    payload: Dict[str, Any] = {}
 
 
 @router.post("/test")
-async def test_webhook(request: Request) -> Dict[str, Any]:
+async def test_webhook(body: WebhookTestBody) -> Dict[str, Any]:
     """Proxy a test POST to the provided webhook URL.
-
-    Body (JSON):
-        url     (str)  — target webhook URL
-        payload (dict) — JSON payload to forward
 
     Returns:
         {"ok": True, "status": <http-status-code>}
     """
-    try:
-        body = await request.json()
-    except Exception:
-        raise HTTPException(status_code=400, detail="Invalid JSON body")
-
-    url: str = body.get("url", "")
-    payload: Any = body.get("payload", {})
+    url = body.url
+    payload: Any = body.payload
 
     if not url or not url.startswith("https://"):
         raise HTTPException(status_code=400, detail="유효한 https:// Webhook URL이 필요합니다.")

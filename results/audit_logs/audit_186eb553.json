@@ -1,0 +1,15 @@
+{
+  "log_id": "audit_186eb553",
+  "event_type": "lifecycle",
+  "user": "system",
+  "action": "evaluation_started",
+  "target_type": "monitor",
+  "target_id": "performance_monitor",
+  "details": {
+    "enable_hallucination_detection": true,
+    "enable_security_metrics": true,
+    "output_dir": "/Users/fomalhaut/Projects/Agent-Evaluator/results"
+  },
+  "success": true,
+  "timestamp": "2026-03-31T18:06:20.588824"
+}

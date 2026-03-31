@@ -21,7 +21,7 @@ from typing import Any, Dict, List
 from fastapi import APIRouter, HTTPException, Query, Request
 from pydantic import BaseModel
 
-router = APIRouter(prefix="/api/transparency")
+router = APIRouter(prefix="/api/transparency", tags=["transparency"])
 
 
 class AnnotationCreate(BaseModel):

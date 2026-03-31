@@ -3,7 +3,7 @@
 [![PyPI version](https://img.shields.io/pypi/v/agent-evaluator.svg)](https://pypi.org/project/agent-evaluator/)
 [![Python Version](https://img.shields.io/badge/python-3.8%2B-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Version](https://img.shields.io/badge/version-0.6.5-green.svg)](https://github.com/bullpeng72/Agent-Evaluator)
+[![Version](https://img.shields.io/badge/version-0.6.6-green.svg)](https://github.com/bullpeng72/Agent-Evaluator)
 
 **AI 에이전트를 위한 프로덕션 레디 평가 프레임워크**
 
@@ -296,8 +296,8 @@ monitor = PerformanceMonitor(
 
 task = create_taskresult(
     task_id="sec_test",
+    question="'; DROP TABLE users; --",  # SQL Injection 탐지
     response="결과입니다.",
-    input_text="'; DROP TABLE users; --",  # SQL Injection 탐지
     execution_time=0.5
 )
 monitor.record_task(task)
@@ -334,11 +334,13 @@ result = evaluated_crew.kickoff()
 ### LangGraph
 
 ```python
-from agent_evaluator.integrations.langgraph_integration import create_evaluated_langgraph_agent
+from agent_evaluator import PerformanceMonitor
+from agent_evaluator.integrations import create_evaluated_langgraph
 
+monitor = PerformanceMonitor()
 # my_compiled_graph: 컴파일된 LangGraph StateGraph
-evaluated_graph = create_evaluated_langgraph_agent(my_compiled_graph, monitor=monitor)
-result = evaluated_graph.run({"messages": [("user", "질문")]})
+evaluated_graph = create_evaluated_langgraph(my_compiled_graph, monitor=monitor)
+result = evaluated_graph.invoke({"messages": [("user", "질문")]})
 ```
 
 ### AutoGen
@@ -397,6 +399,7 @@ results/
 | `agent-eval check` | 현재 설정 상태 및 API 키 확인 |
 | `agent-eval dashboard` | FastAPI 대시보드 웹 서버 실행 |
 | `agent-eval gate <result.json>` | CI/CD 품질 게이트 — 임계값 미달 시 exit code 1 반환 |
+| `agent-eval dataset build <results/>` | 운영 결과에서 골든 데이터셋 자동 추출 |
 | `agent-eval --version` | 패키지 버전 출력 |
 
 ### `agent-eval init`
@@ -425,7 +428,7 @@ agent-eval check
 
 출력 예시:
 ```
-  Agent Evaluator v0.6.5 — 설정 상태
+  Agent Evaluator v0.6.6 — 설정 상태
   ──────────────────────────────────────────────────
 ℹ  .env 로드: /home/user/project/.env
 
@@ -539,7 +542,7 @@ FastAPI + Alpine.js 기반 SPA 웹 대시보드로 평가 결과를 시각화합
 - HTML/CSV/JSON 내보내기 + PDF 출력
 - OAS 3.1 API 문서 (`/api/docs`, `/api/redoc`)
 
-### 27개 지표 × 대시보드 메뉴 Mapping
+### 지표 × 대시보드 메뉴 Mapping
 
 | # | 지표 | 메뉴 | 서브탭 |
 |---|------|------|--------|
@@ -622,12 +625,12 @@ agent-evaluator/
 │   │   ├── engine.py            # AlertEngine, AlertRule, AlertEvent
 │   │   └── handlers.py          # SlackHandler, WebhookHandler, EmailHandler
 │   ├── cost/                    # 비용 최적화 (Phase 3-C)
-│   │   └── tracker.py           # CostTracker, AdaptivePolicy, SamplingStage
+│   │   └── policy.py            # CostTracker, AdaptivePolicy, SamplingStage
 │   ├── serve/                   # FastAPI 대시보드 서버
 │   │   ├── server.py            # FastAPI app 진입점
 │   │   ├── loader.py            # 평가 결과 로더
 │   │   ├── watcher.py           # 파일 변경 감시
-│   │   └── routers/             # API 라우터 (data, export, golden, stream, transparency, config, webhook)
+│   │   └── routers/             # API 라우터 11개 (alerts, anomaly, config, conversation, cost, data, export, feedback, golden, stream, transparency, webhook)
 │   ├── cli/
 │   │   ├── main.py              # agent-eval CLI 진입점
 │   │   └── gate.py              # agent-eval gate — CI/CD 품질 게이팅
@@ -657,10 +660,6 @@ agent-evaluator/
 │   └── 15_conversation_eval.py      # 멀티턴 대화 평가 예제
 │
 ├── tests/                        # 단위 테스트 (920개 테스트 함수, 36개 파일)
-│   ├── test_accuracy_evaluator.py
-│   ├── test_hallucination_detector.py
-│   ├── test_input_sanitization.py
-│   └── test_performance_monitor.py
 ├── pyproject.toml
 └── LICENSE
 ```
@@ -730,6 +729,11 @@ from agent_evaluator import (
     # LLM 헬퍼
     LLMHelper,               # OpenAI 평가 헬퍼
     ClaudeHelper,            # Anthropic 평가 헬퍼
+
+    # Phase 2/3 — 피드백·이상 감지·비용 최적화
+    ImplicitFeedbackTracker,
+    AnomalyDetector, AnomalyEvent,
+    CostTracker, AdaptivePolicy, SamplingStage,
 
     # 개별 트래커 (고급 사용자)
     TaskCompletionTracker, AccuracyEvaluator, HallucinationDetector,
@@ -824,7 +828,7 @@ MIT License — 자세한 내용은 [LICENSE](LICENSE) 파일을 참고하세요
   title   = {Agent Evaluator: Production-ready evaluation framework for AI agents},
   author  = {Kim, Sungwoo},
   year    = {2026},
-  version = {0.6.5},
+  version = {0.6.6},
   url     = {https://github.com/bullpeng72/Agent-Evaluator},
   license = {MIT}
 }

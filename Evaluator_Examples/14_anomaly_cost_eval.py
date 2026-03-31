@@ -369,10 +369,39 @@ def run_anomaly_cost_evaluation():
     saved = monitor.save_to_file(fname)
     print(f"\n  📄 리포트 저장: {saved}")
 
-    # 결과 파일에 anomaly_data 포함 여부 확인
-    import json as _json
+    # Phase 3-C 비용 데이터를 결과 JSON에 통합 (standalone CostTracker → evaluation_cost)
+    import json as _json, tempfile as _tempfile, os as _os
     with open(saved, encoding="utf-8") as _f:
         _saved_data = _json.load(_f)
+
+    _daily = cost_tracker.get_daily_stats()
+    # 공급자별 기록에서 비용 기준 대표 모델 추출
+    _by_model: dict = {}
+    for _r in cost_tracker.get_all_records():
+        _m = _r.get("model", "unknown")
+        _by_model[_m] = _by_model.get(_m, 0.0) + _r.get("cost_usd", 0.0)
+    _primary_model = max(_by_model, key=_by_model.get) if _by_model else ""
+
+    _saved_data["evaluation_cost"] = {
+        "total_usd": _daily["today_total_usd"],
+        "call_count": _daily["today_call_count"],
+        "model": _primary_model,
+        "by_provider": _daily["by_provider"],
+        "by_evaluation_type": _daily.get("by_evaluation_type", {}),
+        "budget_per_day": _daily["budget_per_day"],
+        "budget_remaining_usd": _daily["budget_remaining_usd"],
+        "sample_rate_current": policy.current_sample_rate,
+        "projected_daily_usd": _daily["today_total_usd"],
+    }
+    _tmp_fd, _tmp_path = _tempfile.mkstemp(suffix=".json")
+    try:
+        with _os.fdopen(_tmp_fd, "w", encoding="utf-8") as _ftmp:
+            _json.dump(_saved_data, _ftmp, ensure_ascii=False, indent=2)
+        _os.replace(_tmp_path, saved)
+    except Exception:
+        _os.unlink(_tmp_path)
+        raise
+    print(f"  💰 evaluation_cost 주입 완료: ${_daily['today_total_usd']:.4f} / {len(_daily['by_provider'])}개 공급자")
     _ad = _saved_data.get("anomaly_data", {})
     _saved_anomalies = _ad.get("anomalies", [])
     print(f"  📊 결과 파일 anomaly_data: {len(_saved_anomalies)}개 이상 기록됨")

@@ -152,7 +152,7 @@ monitor.output_leakage_detector      # OutputLeakageDetector
 monitor.privilege_tracker            # PrivilegeEscalationDetector
 ```
 
-### TaskResult — 18개 필드 완전 분석
+### TaskResult — 24개 필드 완전 분석
 
 ```python
 from agent_evaluator import TaskResult
@@ -178,14 +178,20 @@ task = TaskResult(
     errors=[],                     # list[str]: 오류 메시지
     timestamp=datetime.now(),      # datetime: 실행 시각
 
-    # 선택 7개 필드
-    framework="native",            # str: 프레임워크 이름
-    request="질문 텍스트",          # str: 입력 텍스트 (환각 탐지에 사용)
+    # 선택 13개 필드
+    framework="native",            # str: 프레임워크 이름 (crewai/langchain/langgraph/autogen)
+    question="질문 텍스트",         # str: 입력 텍스트 (환각 탐지에 사용)
     response="답변 텍스트",         # str: 에이전트 출력
     ground_truth="정답 텍스트",     # str: 기대 답변
-    context="RAG 컨텍스트",        # str: 검색된 문서
-    expected_elements=["키워드1"], # list[str]: 품질 평가 기준 요소
-    metadata={"custom": "data"},   # dict: 커스텀 필드
+    context="RAG 컨텍스트",        # str: 검색된 문서 (할루시네이션 탐지)
+    expected_tools=["tool1"],      # list[str]: 기대 도구 목록 (ToolSelectionTracker)
+    partial_reason="원인 텍스트",   # str: 부분 성공/실패 원인
+    agent_interactions=[],         # list[dict]: 멀티에이전트 상호작용 (CrewAI)
+    chain_steps=[],                # list[dict]: 체인 실행 단계 (LangChain)
+    graph_traversal={},            # dict: 그래프 탐색 경로 (LangGraph)
+    conversation_turns=[],         # list[dict]: 대화 턴 (AutoGen)
+    state_transitions=[],          # list[dict]: 상태 전환 (LangGraph)
+    llm_judge={},                  # dict: LLM Judge 결과 {scores, reasoning, model, cost_usd}
 )
 ```
 
@@ -330,10 +336,10 @@ agent-eval check
 agent-eval --version
 
 # 대시보드 실행 (기본값: 포트 8765, 브라우저 자동 오픈)
-agent-eval serve
+agent-eval dashboard
 
 # 포트 지정 + 파일 변경 자동 갱신
-agent-eval serve --port 8080 --watch
+agent-eval dashboard --port 8080 --watch
 ```
 
 ### 대시보드 6개 탭 첫 탐색
@@ -359,7 +365,7 @@ agent-eval serve --port 8080 --watch
 >
 > ```bash
 > python Evaluator_Examples/01_quality_eval.py
-> agent-eval serve --watch
+> agent-eval dashboard --watch
 > ```
 
 ### 결과 파일 명명 규칙
@@ -368,11 +374,12 @@ agent-eval serve --port 8080 --watch
 results/
 ├── [tag]_name_YYYYMMDD_HHMMSS.json   ← 평가 데이터
 ├── [tag]_name_YYYYMMDD_HHMMSS.html   ← 독립 실행형 HTML 리포트
-├── golden_datasets/                   ← 골든 데이터셋 JSON
-│   ├── quality_tech_qa.json
-│   └── ...
 ├── annotations/                       ← 투명성 어노테이션
 └── audit_logs/                        ← 감사 로그
+
+data/golden_datasets/                  ← 골든 데이터셋 JSON (영구 자산)
+├── quality_tech_qa.json
+└── ...
 ```
 
 ---
@@ -385,10 +392,10 @@ results/
 | 실패 유형 4가지 | 품질 / 성능 / 에이전틱 / 보안 |
 | 3-Layer 구조 | L1(무료·즉시) → L2(에이전틱+보안) → L3(LLM 기반) |
 | PerformanceMonitor | 중앙 오케스트레이터, 16개 트래커 내장 |
-| TaskResult | 18개 필드, 필수 11개, `task_type`이 알고리즘 분기 결정 |
+| TaskResult | 24개 필드, 필수 11개, `task_type`이 알고리즘 분기 결정 |
 | create_taskresult() | accuracy_score + completion_score + timestamp 자동 계산 |
 | evaluation_session | 컨텍스트 매니저, 예외 시에도 자동 저장 |
-| 대시보드 | `agent-eval serve` → 6개 탭, `--watch`로 실시간 갱신 |
+| 대시보드 | `agent-eval dashboard` → 6개 탭, `--watch`로 실시간 갱신 |
 
 ---
 
@@ -400,4 +407,4 @@ TCR의 공식부터 Token Economy의 월간 비용 예측까지, 6개 지표의 
 
 ---
 
-*Agent-Evaluator SDK 강의 자료 — v0.6.1 기준 | 2026-03-24*
+*Agent-Evaluator SDK 강의 자료 — v0.6.6 기준 | 2026-03-31*

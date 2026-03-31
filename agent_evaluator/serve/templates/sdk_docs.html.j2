@@ -29,7 +29,7 @@ html.light{--bg:#f4f6fc;--bg2:#fff;--bg3:#eef0f8;--border:#d1d5e8;--text:#1a1d2e
 body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(--text);font-size:15px;line-height:1.7}
 .layout{display:grid;grid-template-columns:260px 1fr;height:100vh}
 .side{background:var(--bg2);border-right:1px solid var(--border);overflow-y:auto;position:sticky;top:0;height:100vh;padding:0 0 28px}
-.main{overflow-y:auto;padding:36px 48px;max-width:980px}
+.main{overflow-y:auto;padding:36px 48px;width:100%}
 .side-hdr{padding:18px 16px 12px;border-bottom:1px solid var(--border);margin-bottom:8px}
 .side-hdr .logo{font-weight:700;font-size:14px}.side-hdr .logo span{color:var(--accent)}
 .side-hdr .ver{font-size:11px;color:var(--text2);background:var(--bg3);border:1px solid var(--border);border-radius:99px;padding:2px 8px;margin-left:6px}
@@ -125,10 +125,14 @@ hr{border:none;border-top:1px solid var(--border);margin:20px 0}
   <div class="nav-group">Layer 3 — Hybrid</div>
   <a class="nav-item" href="#hybrid">HybridPerformanceMonitor</a>
   <a class="nav-item" href="#adapters">외부 어댑터 (3종)</a>
-  <div class="nav-group">✨ Phase 1 신규 (v0.6.3)</div>
-  <a class="nav-item" href="#llm-judge">LLMJudge <span class="tag">new</span></a>
-  <a class="nav-item" href="#conversation">ConversationSession <span class="tag">new</span></a>
+  <div class="nav-group">✨ 부가 기능 (v0.6.3+)</div>
+  <a class="nav-item" href="#llm-judge">LLMJudge</a>
+  <a class="nav-item" href="#conversation">ConversationSession</a>
   <a class="nav-item" href="#gate-cli">agent-eval gate <span class="tag">CLI</span></a>
+  <a class="nav-item" href="#anomaly">AnomalyDetector</a>
+  <a class="nav-item" href="#alerts">AlertEngine / AlertRule</a>
+  <a class="nav-item" href="#streaming">StreamingEvaluator</a>
+  <a class="nav-item" href="#cost">CostTracker / AdaptivePolicy</a>
   <div class="nav-group">프레임워크 통합</div>
   <a class="nav-item" href="#frameworks">CrewAI / LangChain / LangGraph / AutoGen</a>
   <a class="nav-item" href="#llm-helpers">LLMHelper / ClaudeHelper</a>
@@ -184,8 +188,9 @@ monitor.<span class="fn">save_to_file</span>(<span class="st">"eval_run"</span>)
     <div class="cls-head"><span class="cls-name">대시보드 실행</span></div>
     <div class="cls-body">
 <pre><span class="cm"># pip install "agent-evaluator[serve]" 필요</span>
-agent-eval serve                        <span class="cm"># 기본: ./results, 포트 8765</span>
-agent-eval serve ./results --port <span class="nm">8080</span> --watch</pre>
+agent-eval dashboard                    <span class="cm"># 기본: ./results, 포트 8765, 브라우저 자동 오픈</span>
+agent-eval dashboard --port <span class="nm">8080</span> --watch  <span class="cm"># 포트 지정 + 파일 변경 자동 갱신</span>
+agent-eval dashboard --no-open --offline  <span class="cm"># 브라우저 비활성화 + CDN 에셋 로컬 캐시</span></pre>
     </div>
   </div>
 </section>
@@ -244,7 +249,7 @@ agent-eval serve ./results --port <span class="nm">8080</span> --watch</pre>
       <tr>
         <td><code class="t">serve</code></td>
         <td><code>pip install "agent-evaluator[serve]"</code></td>
-        <td>FastAPI 웹 대시보드 (<code>agent-eval serve</code>)</td>
+        <td>FastAPI 웹 대시보드 (<code>agent-eval dashboard</code>)</td>
         <td>fastapi ≥0.110,&lt;1.0 · uvicorn[standard] ≥0.29,&lt;1.0 · jinja2 ≥3.1,&lt;4.0 · python-multipart ≥0.0.9,&lt;1.0</td>
         <td>⚡ 빠름 (~8개)</td>
       </tr>
@@ -318,6 +323,13 @@ agent-eval serve ./results --port <span class="nm">8080</span> --watch</pre>
           <tr><td><span class="p">enable_hallucination_detection</span><span class="opt">opt</span></td><td><span class="t">bool</span></td><td><code>False</code></td><td>HallucinationDetector 활성화 (LLM 호출 비용 발생)</td></tr>
           <tr><td><span class="p">enable_security_metrics</span><span class="opt">opt</span></td><td><span class="t">bool</span></td><td><code>False</code></td><td>Layer 2 보안 트래커 5종 활성화</td></tr>
           <tr><td><span class="p">security_config</span><span class="opt">opt</span></td><td><span class="t">Dict</span></td><td><code>None</code></td><td>ToolAuthorizationTracker 설정 (allowed_tools, restricted_tools 등)</td></tr>
+          <tr><td><span class="p">enable_llm_judge</span><span class="opt">opt</span></td><td><span class="t">bool</span></td><td><code>False</code></td><td>LLM-as-Judge 자동 채점 활성화. record_task() 호출 시 자동 트리거.</td></tr>
+          <tr><td><span class="p">judge_model</span><span class="opt">opt</span></td><td><span class="t">str|None</span></td><td><code>None</code></td><td>Judge 모델. None → <code>agent-eval init</code> 설정 자동 감지.</td></tr>
+          <tr><td><span class="p">judge_sample_rate</span><span class="opt">opt</span></td><td><span class="t">float</span></td><td><code>0.1</code></td><td>Judge 평가 비율 (0.0–1.0). 비용 제어용.</td></tr>
+          <tr><td><span class="p">judge_budget_per_day</span><span class="opt">opt</span></td><td><span class="t">float|None</span></td><td><code>None</code></td><td>일일 Judge 예산 한도 (USD). 초과 시 judge 건너뜀.</td></tr>
+          <tr><td><span class="p">enable_anomaly_detection</span><span class="opt">opt</span></td><td><span class="t">bool</span></td><td><code>False</code></td><td>save_to_file() 시 AnomalyDetector.scan() 자동 실행. 결과가 anomaly_data에 저장됨.</td></tr>
+          <tr><td><span class="p">anomaly_baseline_window</span><span class="opt">opt</span></td><td><span class="t">int</span></td><td><code>100</code></td><td>기준선 계산에 사용할 최대 태스크 수.</td></tr>
+          <tr><td><span class="p">anomaly_detection_window</span><span class="opt">opt</span></td><td><span class="t">int</span></td><td><code>20</code></td><td>현재 상태 비교에 사용할 최근 태스크 수.</td></tr>
           <tr><td><span class="p">enable_transparency</span><span class="opt">opt</span></td><td><span class="t">bool</span></td><td><code>False</code></td><td>TestTransparencyManager 활성화</td></tr>
       {% endcall %}
       <div class="slbl">주요 메서드</div>
@@ -326,10 +338,14 @@ agent-eval serve ./results --port <span class="nm">8080</span> --watch</pre>
         <tbody>
           <tr><td><span class="p">record_task(result, ground_truth=None, context=None, request=None, response=None, expected_elements=None)</span></td><td><span class="r">PerformanceMonitor</span></td><td>TaskResult를 모든 활성 트래커에 기록. <code>self</code> 반환으로 메서드 체이닝 가능. 선택 파라미터로 정확도·품질 평가 정밀도 향상.</td></tr>
           <tr><td><span class="p">generate_report()</span></td><td><span class="r">EvaluationReport</span></td><td>수집 데이터를 집계해 EvaluationReport 객체 반환</td></tr>
-          <tr><td><span class="p">save_to_file(filename)</span></td><td><span class="r">None</span></td><td><code>{output_dir}/{filename}.json</code> + <code>.html</code> 저장</td></tr>
+          <tr><td><span class="p">save_to_file(filename)</span></td><td><span class="r">None</span></td><td><code>{output_dir}/{filename}.json</code> + <code>.html</code> 저장. <code>enable_anomaly_detection=True</code> 시 anomaly_data 자동 포함.</td></tr>
+          <tr><td><span class="p">conversation(session_id)</span></td><td><span class="r">ConversationContextManager</span></td><td>멀티턴 대화 평가 컨텍스트 매니저. <code>with monitor.conversation("id") as conv: conv.turn(user=..., agent=...)</code></td></tr>
+          <tr><td><span class="p">record_implicit_feedback(task_id, event_type, value=None)</span></td><td><span class="r">None</span></td><td>사용자 반응 신호(like/copy/retry/share) 기록 → feedback_data에 저장</td></tr>
           <tr><td><span class="p">evaluate_with_golden_dataset(agent_fn, dataset_path=None, ...)</span></td><td><span class="r">Dict</span></td><td>골든 데이터셋으로 에이전트 자동 평가</td></tr>
           <tr><td><span class="p">compare_with_thresholds()</span></td><td><span class="r">Dict</span></td><td>업계 임계값과 현재 지표 비교</td></tr>
           <tr><td><span class="p">reset()</span></td><td><span class="r">None</span></td><td>모든 트래커 상태 초기화</td></tr>
+          <tr><td><span class="p">for_rag_evaluation(**kwargs)</span></td><td><span class="r">PerformanceMonitor</span></td><td>classmethod. RAG 평가 최적 설정 (<code>enable_hallucination_detection=True</code>) 자동 적용.</td></tr>
+          <tr><td><span class="p">for_secure_agents(**kwargs)</span></td><td><span class="r">PerformanceMonitor</span></td><td>classmethod. 보안 평가 최적 설정 (<code>enable_security_metrics=True</code>) 자동 적용.</td></tr>
         </tbody>
       </table>
       <div class="note tip" style="margin-top:12px">💡 <strong>record_task 팁</strong>: <code>request</code>(질문), <code>ground_truth</code>(정답), <code>expected_elements</code>(체크리스트)를 함께 전달하면 정확도·품질 평가 정밀도가 높아집니다.</div>
@@ -986,10 +1002,10 @@ monitor.<span class="fn">save_to_file</span>(<span class="st">"hybrid_eval"</spa
 
 <!-- ── Phase 1 신규 API ── -->
 <section class="sec" id="llm-judge">
-  <div class="sec-title">✨ LLMJudge <span style="font-size:13px;font-weight:400;color:var(--text2);margin-left:8px">v0.6.3 신규</span></div>
+  <div class="sec-title">✨ LLMJudge <span style="font-size:13px;font-weight:400;color:var(--text2);margin-left:8px">v0.6.3+</span></div>
   <div class="sec-sub"><code>ground_truth</code> 없이 LLM이 직접 응답 품질을 3차원(완결성·관련성·사실 일관성) 채점합니다. OpenAI / Anthropic Claude 모두 지원.</div>
   <div class="cls-card">
-    <div class="cls-head"><span class="cls-name">LLMJudge</span><span class="kind cls">class</span><span class="cls-src">integrations/llm_judge.py</span></div>
+    <div class="cls-head"><span class="cls-name">LLMJudge</span><span class="kind cls">class</span><span class="cls-src">agent_evaluator.integrations.llm_judge</span></div>
     <div class="cls-desc">비용 제어 샘플링(<code>sample_rate</code>)과 일일 예산 한도(<code>budget_per_day</code>)를 내장한 LLM-as-Judge 엔진.</div>
     <div class="cls-body">
       <table class="mtable"><thead><tr><th>파라미터</th><th>타입</th><th>기본값</th><th>설명</th></tr></thead><tbody>
@@ -1022,7 +1038,7 @@ monitor = PerformanceMonitor(
 </section>
 
 <section class="sec" id="conversation">
-  <div class="sec-title">✨ ConversationSession <span style="font-size:13px;font-weight:400;color:var(--text2);margin-left:8px">v0.6.3 신규</span></div>
+  <div class="sec-title">✨ ConversationSession <span style="font-size:13px;font-weight:400;color:var(--text2);margin-left:8px">v0.6.3+</span></div>
   <div class="sec-sub">멀티턴 대화형 에이전트의 품질을 측정합니다. 외부 LLM 없이 순수 Python(Jaccard·top-N 토큰·한국어 조사 정규화)으로 동작합니다.</div>
   <div class="cls-card">
     <div class="cls-head"><span class="cls-name">ConversationSession</span><span class="kind cls">class</span><span class="cls-src">core/trackers/conversation.py</span></div>
@@ -1039,13 +1055,13 @@ monitor = PerformanceMonitor(
     <div class="cls-head"><span class="cls-name">ConversationMetrics</span><span class="kind cls">dataclass</span></div>
     <div class="cls-body">
       <table class="mtable"><thead><tr><th>필드</th><th>범위</th><th>설명</th></tr></thead><tbody>
-        <tr><td><span class="p">context_retention_score</span></td><td><span class="r">0–1</span></td><td>맥락 유지율</td></tr>
-        <tr><td><span class="p">topic_coherence_score</span></td><td><span class="r">0–1</span></td><td>주제 일관성</td></tr>
-        <tr><td><span class="p">progressive_depth_score</span></td><td><span class="r">0–1</span></td><td>점진적 심화도</td></tr>
-        <tr><td><span class="p">session_completion_score</span></td><td><span class="r">0–1</span></td><td>세션 완결성</td></tr>
+        <tr><td><span class="p">context_retention_score</span></td><td><span class="r">0–1</span></td><td>맥락 유지율 — 이전 발화 정보 보존도</td></tr>
+        <tr><td><span class="p">topic_coherence_score</span></td><td><span class="r">0–1</span></td><td>주제 일관성 — 대화 주제 유지 정도</td></tr>
+        <tr><td><span class="p">progressive_depth_score</span></td><td><span class="r">0–1</span></td><td>점진적 심화도 — 대화 깊이 증가 추세</td></tr>
+        <tr><td><span class="p">session_completion_score</span></td><td><span class="r">0–1</span></td><td>세션 완결성 — 마지막 응답 길이 / 평균 응답 길이 (구조적 지표, 대화 품질 직결 아님)</td></tr>
         <tr><td><span class="p">overall_score</span></td><td><span class="r">0–1</span></td><td>4차원 가중 평균</td></tr>
-        <tr><td><span class="p">total_turns</span></td><td><span class="r">int</span></td><td>총 턴 수</td></tr>
-        <tr><td><span class="p">avg_latency_ms</span></td><td><span class="r">float</span></td><td>턴별 평균 지연시간 (ms)</td></tr>
+        <tr><td><span class="p">turn_count</span></td><td><span class="r">int</span></td><td>총 턴 수 (= len(turns))</td></tr>
+        <tr><td><span class="p">avg_turn_latency</span></td><td><span class="r">float|None</span></td><td>턴별 평균 지연시간 (초). metadata에 latency 키 없으면 None.</td></tr>
       </tbody></table>
       <pre>from agent_evaluator import ConversationSession
 
@@ -1062,7 +1078,7 @@ print(f"종합 점수:   {metrics.overall_score:.3f}")</pre>
 </section>
 
 <section class="sec" id="gate-cli">
-  <div class="sec-title">✨ agent-eval gate <span style="font-size:13px;font-weight:400;color:var(--text2);margin-left:8px">v0.6.3 신규 CLI</span></div>
+  <div class="sec-title">✨ agent-eval gate <span style="font-size:13px;font-weight:400;color:var(--text2);margin-left:8px">CLI · v0.6.3+</span></div>
   <div class="sec-sub">평가 결과 파일을 읽어 품질 임계값 기준으로 합격/실패를 판정합니다. CI/CD 파이프라인에서 릴리스 게이팅에 사용합니다.</div>
   <div class="cls-card">
     <div class="cls-head"><span class="cls-name">agent-eval gate</span><span class="kind fn">CLI</span><span class="cls-src">cli/gate.py</span></div>
@@ -1084,6 +1100,192 @@ print(f"종합 점수:   {metrics.overall_score:.3f}")</pre>
       --tcr 85 --accuracy 70 --p95-latency 3.0 \
       --fail-on-regression 10 \
       --junit-xml results/gate.xml</pre>
+    </div>
+  </div>
+</section>
+
+<!-- ── AnomalyDetector ── -->
+<section class="sec" id="anomaly">
+  <div class="sec-title">📡 AnomalyDetector</div>
+  <div class="sec-sub">Z-score·IQR·선형회귀·비율 알고리즘으로 평가 지표의 이상 패턴을 탐지합니다. <code>PerformanceMonitor(enable_anomaly_detection=True)</code>로 save_to_file() 시 자동 실행.</div>
+  <div class="cls-card">
+    <div class="cls-head"><span class="cls-name">AnomalyDetector</span><span class="kind cls">class</span><span class="cls-src">agent_evaluator.anomaly.detector</span></div>
+    <div class="cls-body">
+      {% call param_table() %}
+          <tr><td><span class="p">baseline_window</span><span class="opt">opt</span></td><td><span class="t">int</span></td><td><code>100</code></td><td>기준선 계산에 사용할 최대 태스크 수</td></tr>
+          <tr><td><span class="p">detection_window</span><span class="opt">opt</span></td><td><span class="t">int</span></td><td><code>20</code></td><td>현재 상태 비교에 사용할 최근 태스크 수</td></tr>
+      {% endcall %}
+      <table class="mtable" style="margin-top:12px">
+        <thead><tr><th>메서드</th><th>반환</th><th>설명</th></tr></thead>
+        <tbody>
+          <tr><td><span class="p">scan(monitor)</span></td><td><span class="r">List[AnomalyEvent]</span></td><td>PerformanceMonitor에서 지표를 읽어 이상 탐지 후 AnomalyEvent 목록 반환</td></tr>
+        </tbody>
+      </table>
+      <div class="slbl">AnomalyEvent 필드</div>
+      <div class="ret-box">
+        <span class="rk">type</span><span class="rv">: str — "accuracy_drift" | "token_spike" | "error_surge" | "security_pattern"</span><br>
+        <span class="rk">severity</span><span class="rv">: str — "critical" | "warning"</span><br>
+        <span class="rk">detail</span><span class="rv">: str — 상세 설명 (e.g. "정확도 기준선 대비 -96.4% 이탈 (z-score=4.57)")</span><br>
+        <span class="rk">value</span><span class="rv">: float — 현재 측정값</span><br>
+        <span class="rk">threshold</span><span class="rv">: float — 기준 임계값</span><br>
+        <span class="rk">algorithm</span><span class="rv">: str — "z-score" | "iqr" | "linear_regression" | "ratio" | "frequency"</span><br>
+        <span class="rk">detected_at</span><span class="rv">: str — ISO-8601 탐지 시각</span>
+      </div>
+<pre style="margin-top:12px"><span class="kw">from</span> <span class="cn">agent_evaluator</span> <span class="kw">import</span> PerformanceMonitor
+
+<span class="cm"># 방법 1: PerformanceMonitor 내장 — save_to_file() 시 자동 탐지</span>
+monitor = <span class="fn">PerformanceMonitor</span>(
+    output_dir=<span class="st">"results/"</span>,
+    enable_anomaly_detection=<span class="kw">True</span>,
+    anomaly_baseline_window=<span class="nm">100</span>,
+    anomaly_detection_window=<span class="nm">20</span>,
+)
+monitor.<span class="fn">record_task</span>(task)
+monitor.<span class="fn">save_to_file</span>(<span class="st">"run"</span>)  <span class="cm"># → JSON에 anomaly_data 자동 포함</span>
+
+<span class="cm"># 방법 2: 독립 사용</span>
+<span class="kw">from</span> <span class="cn">agent_evaluator.anomaly.detector</span> <span class="kw">import</span> AnomalyDetector
+detector = <span class="fn">AnomalyDetector</span>(baseline_window=<span class="nm">50</span>, detection_window=<span class="nm">10</span>)
+anomalies = detector.<span class="fn">scan</span>(monitor)
+<span class="kw">for</span> a <span class="kw">in</span> anomalies:
+    <span class="fn">print</span>(f<span class="st">"{a.type} [{a.severity}] {a.detail} (algo={a.algorithm})"</span>)</pre>
+    </div>
+  </div>
+</section>
+
+<!-- ── AlertEngine ── -->
+<section class="sec" id="alerts">
+  <div class="sec-title">🔔 AlertEngine / AlertRule</div>
+  <div class="sec-sub">지표 임계값 초과 시 실시간 알림을 발송합니다. <code>StreamingEvaluator</code>와 연결하여 실시간 모니터링에 사용합니다.</div>
+  <div class="cls-card">
+    <div class="cls-head"><span class="cls-name">AlertRule</span><span class="kind cls">dataclass</span><span class="cls-src">agent_evaluator.alerts.engine</span></div>
+    <div class="cls-body">
+      {% call field_table(col3='설명') %}
+          <tr><td><span class="p">name</span></td><td><span class="t">str</span></td><td>규칙 이름</td></tr>
+          <tr><td><span class="p">metric</span></td><td><span class="t">str</span></td><td>감시 지표 키 (e.g. <code>"tcr"</code>, <code>"error_rate"</code>, <code>"avg_latency"</code>)</td></tr>
+          <tr><td><span class="p">operator</span></td><td><span class="t">str</span></td><td><code>"lt"</code> | <code>"gt"</code> | <code>"lte"</code> | <code>"gte"</code></td></tr>
+          <tr><td><span class="p">threshold</span></td><td><span class="t">float</span></td><td>임계값</td></tr>
+          <tr><td><span class="p">severity</span></td><td><span class="t">str</span></td><td><code>"critical"</code> | <code>"warning"</code> | <code>"info"</code></td></tr>
+          <tr><td><span class="p">cooldown_seconds</span></td><td><span class="t">int</span></td><td>동일 규칙 재발화 최소 간격 (초). 기본 300.</td></tr>
+          <tr><td><span class="p">window</span></td><td><span class="t">str</span></td><td><code>"1m"</code> | <code>"5m"</code> | <code>"1h"</code>. 기본 <code>"5m"</code>.</td></tr>
+      {% endcall %}
+    </div>
+  </div>
+  <div class="cls-card" style="margin-top:12px">
+    <div class="cls-head"><span class="cls-name">AlertEngine</span><span class="kind cls">class</span><span class="cls-src">agent_evaluator.alerts.engine</span></div>
+    <div class="cls-body">
+      <table class="mtable">
+        <thead><tr><th>메서드</th><th>반환</th><th>설명</th></tr></thead>
+        <tbody>
+          <tr><td><span class="p">add_rule(rule)</span></td><td><span class="r">AlertEngine</span></td><td>AlertRule 추가. 메서드 체이닝 가능.</td></tr>
+          <tr><td><span class="p">evaluate(evaluator)</span></td><td><span class="r">List[AlertEvent]</span></td><td>StreamingEvaluator 지표를 읽어 규칙 평가 후 발화된 알림 반환</td></tr>
+          <tr><td><span class="p">get_rules()</span></td><td><span class="r">List[Dict]</span></td><td>등록된 규칙 목록</td></tr>
+        </tbody>
+      </table>
+<pre style="margin-top:10px"><span class="kw">from</span> <span class="cn">agent_evaluator.alerts.engine</span> <span class="kw">import</span> AlertEngine, AlertRule
+<span class="kw">from</span> <span class="cn">agent_evaluator.streaming.evaluator</span> <span class="kw">import</span> StreamingEvaluator
+<span class="kw">from</span> <span class="cn">agent_evaluator</span> <span class="kw">import</span> PerformanceMonitor
+
+monitor = <span class="fn">PerformanceMonitor</span>()
+engine = <span class="fn">AlertEngine</span>()
+engine.<span class="fn">add_rule</span>(<span class="fn">AlertRule</span>(
+    name=<span class="st">"TCR 저하"</span>, metric=<span class="st">"tcr"</span>, operator=<span class="st">"lt"</span>,
+    threshold=<span class="nm">0.7</span>, severity=<span class="st">"critical"</span>, cooldown_seconds=<span class="nm">300</span>
+))
+streamer = <span class="fn">StreamingEvaluator</span>(monitor=monitor, alert_handler=engine)
+streamer.<span class="fn">start</span>()
+streamer.<span class="fn">record</span>(<span class="st">"t1"</span>, success=<span class="kw">True</span>, execution_time=<span class="nm">1.2</span>, tokens_used=<span class="nm">300</span>)</pre>
+    </div>
+  </div>
+</section>
+
+<!-- ── StreamingEvaluator ── -->
+<section class="sec" id="streaming">
+  <div class="sec-title">🌊 StreamingEvaluator</div>
+  <div class="sec-sub">슬라이딩 윈도우(1m·5m·1h) 기반 실시간 평가. 배치 저장 없이 최근 지표를 즉시 산출합니다.</div>
+  <div class="cls-card">
+    <div class="cls-head"><span class="cls-name">StreamingEvaluator</span><span class="kind cls">class</span><span class="cls-src">agent_evaluator.streaming.evaluator</span></div>
+    <div class="cls-body">
+      {% call param_table() %}
+          <tr><td><span class="p">monitor</span><span class="req">✦</span></td><td><span class="t">PerformanceMonitor</span></td><td>—</td><td>연결할 PerformanceMonitor 인스턴스</td></tr>
+          <tr><td><span class="p">flush_interval</span><span class="opt">opt</span></td><td><span class="t">int</span></td><td><code>60</code></td><td>백그라운드 flush 간격 (초)</td></tr>
+          <tr><td><span class="p">alert_handler</span><span class="opt">opt</span></td><td><span class="t">AlertEngine|None</span></td><td><code>None</code></td><td>알림 엔진. 연결 시 record() 호출마다 규칙 자동 평가.</td></tr>
+      {% endcall %}
+      <table class="mtable" style="margin-top:12px">
+        <thead><tr><th>메서드</th><th>반환</th><th>설명</th></tr></thead>
+        <tbody>
+          <tr><td><span class="p">record(task_id, success, execution_time, tokens_used=0, accuracy_score=0.0, has_error=False)</span></td><td><span class="r">None</span></td><td>태스크 결과를 슬라이딩 윈도우에 기록. alert_handler 연결 시 규칙 자동 평가.</td></tr>
+          <tr><td><span class="p">get_stats(window="5m")</span></td><td><span class="r">Dict</span></td><td>윈도우 통계 반환. 키: <code>count</code>, <code>tcr</code>, <code>avg_latency</code>, <code>p95_latency</code>, <code>error_rate</code>, <code>avg_tokens</code></td></tr>
+          <tr><td><span class="p">start()</span></td><td><span class="r">None</span></td><td>백그라운드 flush 스레드 시작</td></tr>
+          <tr><td><span class="p">stop()</span></td><td><span class="r">None</span></td><td>백그라운드 flush 스레드 중지</td></tr>
+        </tbody>
+      </table>
+      <div class="note" style="margin-top:8px">📊 <code>window</code>: <code>"1m"</code>(60초) · <code>"5m"</code>(300초) · <code>"1h"</code>(3600초) 세 가지 윈도우를 동시 관리합니다.</div>
+<pre style="margin-top:10px"><span class="kw">from</span> <span class="cn">agent_evaluator</span> <span class="kw">import</span> PerformanceMonitor
+<span class="kw">from</span> <span class="cn">agent_evaluator.streaming.evaluator</span> <span class="kw">import</span> StreamingEvaluator
+
+monitor = <span class="fn">PerformanceMonitor</span>()
+streamer = <span class="fn">StreamingEvaluator</span>(monitor=monitor, flush_interval=<span class="nm">60</span>)
+streamer.<span class="fn">start</span>()
+
+<span class="cm"># 태스크 결과 실시간 기록</span>
+streamer.<span class="fn">record</span>(<span class="st">"t1"</span>, success=<span class="kw">True</span>, execution_time=<span class="nm">1.2</span>, tokens_used=<span class="nm">350</span>, accuracy_score=<span class="nm">0.9</span>)
+
+<span class="cm"># 슬라이딩 윈도우 통계 조회</span>
+stats = streamer.<span class="fn">get_stats</span>(<span class="st">"5m"</span>)
+<span class="cm"># → {'count': 12, 'tcr': 0.92, 'avg_latency': 1.1, 'p95_latency': 2.3, 'error_rate': 0.08}</span>
+streamer.<span class="fn">stop</span>()</pre>
+    </div>
+  </div>
+</section>
+
+<!-- ── CostTracker / AdaptivePolicy ── -->
+<section class="sec" id="cost">
+  <div class="sec-title">💸 CostTracker / AdaptivePolicy</div>
+  <div class="sec-sub">외부 평가 API 호출 비용을 추적하고 예산 초과 시 샘플링률을 자동 조정합니다.</div>
+  <div class="cls-card">
+    <div class="cls-head"><span class="cls-name">CostTracker</span><span class="kind cls">class</span><span class="cls-src">agent_evaluator.cost.policy</span></div>
+    <div class="cls-body">
+      {% call param_table() %}
+          <tr><td><span class="p">budget_per_day</span><span class="opt">opt</span></td><td><span class="t">float|None</span></td><td><code>None</code></td><td>일일 예산 한도 (USD). None이면 한도 없음.</td></tr>
+          <tr><td><span class="p">alert_at</span><span class="opt">opt</span></td><td><span class="t">float</span></td><td><code>0.8</code></td><td>예산 경고 비율 (0.0–1.0). 기본 80% 도달 시 경고.</td></tr>
+      {% endcall %}
+      <table class="mtable" style="margin-top:10px">
+        <thead><tr><th>메서드</th><th>반환</th><th>설명</th></tr></thead>
+        <tbody>
+          <tr><td><span class="p">record(provider, model, cost_usd, input_tokens=0, output_tokens=0, evaluation_type="llm_judge")</span></td><td><span class="r">None</span></td><td>비용 기록. <code>evaluation_type</code>: <code>"llm_judge"</code> | <code>"deepeval"</code> | <code>"ragas"</code></td></tr>
+          <tr><td><span class="p">get_daily_stats()</span></td><td><span class="r">Dict</span></td><td>오늘 집계: <code>today_total_usd</code>, <code>today_call_count</code>, <code>by_provider</code>, <code>by_evaluation_type</code>, <code>daily_history</code>, <code>budget_remaining_usd</code></td></tr>
+          <tr><td><span class="p">get_all_records()</span></td><td><span class="r">List[Dict]</span></td><td>전체 비용 기록 목록</td></tr>
+          <tr><td><span class="p">is_budget_exceeded()</span></td><td><span class="r">bool</span></td><td>일일 예산 초과 여부</td></tr>
+          <tr><td><span class="p">is_budget_alert()</span></td><td><span class="r">bool</span></td><td>alert_at 비율 도달 여부</td></tr>
+          <tr><td><span class="p">reset()</span></td><td><span class="r">None</span></td><td>기록 초기화</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+  <div class="cls-card" style="margin-top:12px">
+    <div class="cls-head"><span class="cls-name">AdaptivePolicy</span><span class="kind cls">class</span><span class="cls-src">agent_evaluator.cost.policy</span></div>
+    <div class="cls-desc">이상 감지 상태에 따라 샘플링률을 자동 조정. 정상 시 <code>default_sample_rate</code>, 이상 감지 시 <code>anomaly_sample_rate</code>로 전환.</div>
+    <div class="cls-body">
+      {% call param_table() %}
+          <tr><td><span class="p">default_sample_rate</span><span class="opt">opt</span></td><td><span class="t">float</span></td><td><code>0.1</code></td><td>기본 샘플링률 (0.0–1.0)</td></tr>
+          <tr><td><span class="p">anomaly_sample_rate</span><span class="opt">opt</span></td><td><span class="t">float</span></td><td><code>1.0</code></td><td>이상 감지 시 샘플링률. 높게 설정해 이상 구간을 집중 평가.</td></tr>
+          <tr><td><span class="p">budget_per_day</span><span class="opt">opt</span></td><td><span class="t">float|None</span></td><td><code>None</code></td><td>일일 예산 한도 USD</td></tr>
+          <tr><td><span class="p">alert_at</span><span class="opt">opt</span></td><td><span class="t">float</span></td><td><code>0.8</code></td><td>예산 경고 비율</td></tr>
+      {% endcall %}
+<pre style="margin-top:10px"><span class="kw">from</span> <span class="cn">agent_evaluator.cost.policy</span> <span class="kw">import</span> CostTracker, AdaptivePolicy
+
+tracker = <span class="fn">CostTracker</span>(budget_per_day=<span class="nm">5.0</span>, alert_at=<span class="nm">0.8</span>)
+tracker.<span class="fn">record</span>(provider=<span class="st">"anthropic"</span>, model=<span class="st">"claude-haiku-4-5-20251001"</span>, cost_usd=<span class="nm">0.001</span>,
+               input_tokens=<span class="nm">200</span>, output_tokens=<span class="nm">80</span>, evaluation_type=<span class="st">"llm_judge"</span>)
+
+stats = tracker.<span class="fn">get_daily_stats</span>()
+<span class="cm"># → {'today_total_usd': 0.001, 'today_call_count': 1, 'by_provider': {'anthropic': 0.001}, ...}</span>
+
+policy = <span class="fn">AdaptivePolicy</span>(default_sample_rate=<span class="nm">0.1</span>, anomaly_sample_rate=<span class="nm">1.0</span>, budget_per_day=<span class="nm">5.0</span>)
+<span class="cm"># 이상 감지 플래그 설정 → 샘플링률 자동 전환</span>
+policy.<span class="fn">set_anomaly_detected</span>(<span class="kw">True</span>)
+rate = policy.<span class="fn">get_sample_rate</span>()  <span class="cm"># → 1.0</span></pre>
     </div>
   </div>
 </section>

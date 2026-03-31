@@ -7,7 +7,7 @@ from typing import Any, Dict, List
 
 from fastapi import APIRouter, HTTPException, Request
 
-router = APIRouter(prefix="/api")
+router = APIRouter(prefix="/api", tags=["results"])
 
 
 def _rs(request: Request):
@@ -30,11 +30,17 @@ def _to_meta(f) -> Dict[str, Any]:
         "avg_latency":   round(f.avg_latency, 3),
         "total_cost":    round(f.total_cost, 6),
         "quality_avg":   round(f.quality_detail.avg_score * 20, 1),
-        "has_security":  f.has_security,
-        "has_agentic":   f.has_agentic,
-        "has_advanced":  f.has_advanced,
-        "has_rag":       f.has_rag,
-        "has_quality":   f.has_quality_detail,
+        "has_security":     f.has_security,
+        "has_agentic":      f.has_agentic,
+        "has_advanced":     f.has_advanced,
+        "has_rag":          f.has_rag,
+        "has_quality":      f.has_quality_detail,
+        "has_conversation": f.has_conversation,
+        "has_feedback":     f.has_feedback,
+        "has_streaming":    f.has_streaming,
+        "has_anomaly":      f.has_anomaly,
+        "has_cost":         f.has_cost,
+        "has_llm_judge":    f.has_llm_judge,
     }
 
 
@@ -146,6 +152,20 @@ def get_result(file_id: str, request: Request) -> Dict[str, Any]:
             "alerts":          rf.insights.alerts,
             "recommendations": rf.insights.recommendations,
         },
+        # Phase 1-C: 멀티턴 대화 세션
+        "conversation_sessions": rf.conversation_sessions,
+        "has_conversation": len(rf.conversation_sessions) > 0,
+        # Phase 2-C: 사용자 반응 (ImplicitFeedback)
+        "feedback_data": rf.feedback_data,
+        "has_feedback": bool(rf.feedback_data and rf.feedback_data.get("total", 0) > 0),
+        # Phase 2-A: 실시간 스트리밍 스냅샷
+        "streaming_data": rf.streaming_data,
+        "has_streaming": bool(rf.streaming_data),
+        # Phase 3-B: 이상 감지
+        "anomaly_data": rf.anomaly_data,
+        "has_anomaly": len(rf.anomaly_data) > 0,
+        # 비용 추적
+        "cost_data": rf.cost_data,
         # Capability flags (aggregated)
         "has_security":  rf.has_security,
         "has_agentic":   rf.has_agentic,

@@ -356,6 +356,7 @@ class ConversationSession:
         """JSON 직렬화용 dict 반환."""
         return {
             "session_id": self.session_id,
+            "turn_count": len(self._turns),
             "turns": [
                 {
                     "turn_index": t.turn_index,

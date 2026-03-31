@@ -14,7 +14,7 @@ import json
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import HTMLResponse, Response
 
-router = APIRouter(prefix="/api/export")
+router = APIRouter(prefix="/api/export", tags=["export"])
 
 
 def _result_set(request: Request):
@@ -43,25 +43,58 @@ def export_csv(file_id: str, request: Request):
         raise HTTPException(status_code=404, detail="File not found")
 
     buf = io.StringIO()
+    # Detect optional columns from data
+    has_framework   = any(getattr(t, "framework", None) for t in rf.tasks)
+    has_agentic     = rf.has_agentic
+    has_adv         = rf.has_advanced or rf.has_rag
+
+    # Collect per-task advanced metric keys (ragas_*, g_eval_score, etc.)
+    adv_keys: list = []
+    if has_adv:
+        key_set: set = set()
+        for t in rf.tasks:
+            am = t.advanced_metrics or {}
+            key_set.update(am.keys())
+        adv_keys = sorted(key_set)
+
     fieldnames = [
-        "task_id", "task_type", "success", "completion_score",
-        "accuracy_score", "execution_time", "tokens_total", "attempts", "errors",
-    ]
-    writer = csv.DictWriter(buf, fieldnames=fieldnames)
+        "task_id", "task_type", "success",
+        "completion_score", "accuracy_score",
+        "execution_time",
+        "tokens_input", "tokens_output", "tokens_total",
+        "tool_calls_count", "attempts", "errors",
+        "timestamp", "framework",
+    ] + adv_keys
+
+    writer = csv.DictWriter(buf, fieldnames=fieldnames, extrasaction="ignore")
     writer.writeheader()
     for t in rf.tasks:
-        writer.writerow({
+        tu = t.tokens_used or {}
+        tok_in  = tu.get("input", 0)
+        tok_out = tu.get("output", 0)
+        tok_tot = tu.get("total", tok_in + tok_out)
+        row = {
             "task_id":          t.task_id,
             "task_type":        t.task_type,
             "success":          t.success,
-            "completion_score": t.completion_score,
+            "completion_score": round(t.completion_score, 4),
             "accuracy_score":   round(t.accuracy_score, 4),
             "execution_time":   t.execution_time,
-            "tokens_total":     t.tokens_used.get("total",
-                                    t.tokens_used.get("input", 0) + t.tokens_used.get("output", 0)),
+            "tokens_input":     tok_in,
+            "tokens_output":    tok_out,
+            "tokens_total":     tok_tot,
+            "tool_calls_count": len(t.tool_calls) if t.tool_calls else 0,
             "attempts":         t.attempts,
             "errors":           "; ".join(str(e) for e in t.errors),
-        })
+            "timestamp":        t.timestamp.isoformat() if hasattr(t.timestamp, "isoformat") else str(t.timestamp),
+            "framework":        getattr(t, "framework", "") or "",
+        }
+        # Per-task advanced metrics
+        am = t.advanced_metrics or {}
+        for k in adv_keys:
+            v = am.get(k)
+            row[k] = round(float(v), 4) if isinstance(v, (int, float)) else (v or "")
+        writer.writerow(row)
 
     content = buf.getvalue()
     return Response(
@@ -111,14 +144,25 @@ def export_html(file_id: str, request: Request):
 
     tasks_rows = ""
     for t in rf.tasks:
-        ok = "✅" if t.success else "❌"
+        ok_color = "#10b981" if t.success else "#ef4444"
+        ok_text  = "성공" if t.success else "실패"
+        tu = t.tokens_used or {}
+        tok_tot = tu.get("total", tu.get("input", 0) + tu.get("output", 0))
+        fw = getattr(t, "framework", "") or "—"
+        tc = len(t.tool_calls) if t.tool_calls else 0
         tasks_rows += (
-            f"<tr><td>{t.task_id}</td><td>{t.task_type}</td><td>{ok}</td>"
+            f"<tr>"
+            f"<td>{t.task_id}</td>"
+            f"<td>{t.task_type}</td>"
+            f"<td style='color:{ok_color};font-weight:600'>{ok_text}</td>"
             f"<td>{pct(t.completion_score * 100)}</td>"
             f"<td>{pct(t.accuracy_score * 100)}</td>"
             f"<td>{sec_(t.execution_time)}</td>"
-            f"<td>{t.tokens_used.get('total', t.tokens_used.get('input', 0) + t.tokens_used.get('output', 0))}</td>"
-            f"<td>{t.attempts}</td></tr>\n"
+            f"<td style='text-align:right'>{tok_tot:,}</td>"
+            f"<td style='text-align:right'>{tc}</td>"
+            f"<td style='text-align:right'>{t.attempts}</td>"
+            f"<td>{fw}</td>"
+            f"</tr>\n"
         )
 
     # Quality section
@@ -151,14 +195,41 @@ def export_html(file_id: str, request: Request):
     if rf.has_security:
         sl1 = rf.security_l1
         sl2 = rf.security_l2
+        # Extract numeric values from Dict fields
+        inp  = sl1.input_security or {}
+        out  = sl1.output_leakage or {}
+        auth = sl1.authorization  or {}
+        priv = sl2.privilege_escalation or {}
+        atk  = sl2.attack_detection     or {}
+
+        inp_evals    = inp.get("total_inputs_evaluated", len(sl1.input_evals))
+        inp_threat   = inp.get("threat_rate", 0)             # 0-100 (위협 비율)
+        inp_safe     = 100 - float(inp_threat)               # 안전 비율
+
+        out_evals    = out.get("total_outputs_evaluated", len(sl1.output_detections))
+        out_leak     = float(out.get("leakage_rate", 0))     # 0-100 (유출 비율)
+        out_safe     = 100 - out_leak                        # 무유출 비율
+
+        auth_total   = auth.get("total_tool_calls", 0)
+        auth_comply  = float(auth.get("compliance_rate", 100 if not auth_total else 0))
+
+        priv_total   = priv.get("total_evaluations", len(sl2.escalation_events))
+        priv_rate    = float(priv.get("escalation_rate", 0)) # 0-100
+        priv_safe    = 100 - priv_rate
+
+        atk_total    = atk.get("total_chains_analyzed", len(sl2.attack_detections))
+        atk_rate     = float(atk.get("detection_rate", 0))  # 탐지율 (높을수록 위험)
+        atk_safe     = 100 - atk_rate
+
+        sec_rows = f"""
+  <div class="kpi"><div class="kpi-lbl">입력 보안 (L1)</div><div class="kpi-val" style="color:{score_color(inp_safe)}">{inp_safe:.1f}%</div><div style="font-size:11px;color:#5a6080">{inp_evals}건 평가 · 위협 {float(inp_threat):.1f}%</div></div>
+  <div class="kpi"><div class="kpi-lbl">출력 유출 방지 (L1)</div><div class="kpi-val" style="color:{score_color(out_safe)}">{out_safe:.1f}%</div><div style="font-size:11px;color:#5a6080">{out_evals}건 평가 · 유출 {out_leak:.1f}%</div></div>
+  <div class="kpi"><div class="kpi-lbl">도구 권한 준수 (L1)</div><div class="kpi-val" style="color:{score_color(auth_comply)}">{auth_comply:.1f}%</div><div style="font-size:11px;color:#5a6080">{auth_total}건 호출</div></div>
+  <div class="kpi"><div class="kpi-lbl">권한 상승 방어 (L2)</div><div class="kpi-val" style="color:{score_color(priv_safe)}">{priv_safe:.1f}%</div><div style="font-size:11px;color:#5a6080">{priv_total}건 평가 · 탐지 {priv_rate:.1f}%</div></div>
+  <div class="kpi"><div class="kpi-lbl">공격 체인 탐지 (L2)</div><div class="kpi-val" style="color:{score_color(atk_safe)}">{atk_safe:.1f}%</div><div style="font-size:11px;color:#5a6080">{atk_total}건 분석 · 의심 {atk_rate:.1f}%</div></div>"""
         security_section = f"""
 <h2>🛡️ 보안 지표</h2>
-<div class="kpis">
-  <div class="kpi"><div class="kpi-lbl">입력 보안 (L1)</div><div class="kpi-val" style="color:{score_color(sl1.input_security)}">{sl1.input_security:.1f}%</div><div style="font-size:11px;color:#5a6080">{sl1.input_evals}건 평가</div></div>
-  <div class="kpi"><div class="kpi-lbl">출력 유출 방지 (L1)</div><div class="kpi-val" style="color:{score_color(100-sl1.output_leakage)}">{sl1.output_leakage:.1f}%</div><div style="font-size:11px;color:#5a6080">{sl1.output_detections}건 탐지</div></div>
-  <div class="kpi"><div class="kpi-lbl">도구 권한 준수 (L1)</div><div class="kpi-val" style="color:{score_color(sl1.authorization)}">{sl1.authorization:.1f}%</div></div>
-  <div class="kpi"><div class="kpi-lbl">권한 상승 방어 (L2)</div><div class="kpi-val" style="color:{score_color(sl2.privilege_escalation)}">{sl2.privilege_escalation:.1f}%</div><div style="font-size:11px;color:#5a6080">{sl2.escalation_events}건 이벤트</div></div>
-  <div class="kpi"><div class="kpi-lbl">공격 체인 탐지 (L2)</div><div class="kpi-val" style="color:{score_color(sl2.attack_detection)}">{sl2.attack_detection:.1f}%</div><div style="font-size:11px;color:#5a6080">{sl2.attack_detections}건 탐지</div></div>
+<div class="kpis">{sec_rows}
 </div>"""
 
     # RAG section
@@ -184,6 +255,60 @@ def export_html(file_id: str, request: Request):
 <thead><tr><th>지표</th><th>평균</th><th>최솟값</th><th>최댓값</th><th>건수</th></tr></thead>
 <tbody>{rag_rows}</tbody>
 </table>"""
+
+    # Agentic section
+    agentic_section = ""
+    if rf.has_agentic:
+        ag = rf.agentic
+        tool_eff = ag.get("tool_efficiency") if isinstance(ag, dict) else getattr(ag, "tool_efficiency", None)
+        tool_sel = ag.get("tool_selection_summary") if isinstance(ag, dict) else getattr(ag, "tool_selection_summary", None)
+        retry    = ag.get("retry_summary") if isinstance(ag, dict) else getattr(ag, "retry_summary", None)
+        coord    = ag.get("coordination_summary") if isinstance(ag, dict) else getattr(ag, "coordination_summary", None)
+        workflow = ag.get("workflow_summary") if isinstance(ag, dict) else getattr(ag, "workflow_summary", None)
+        def _ag_row(label, d, key, fmt=lambda v: f"{float(v):.1f}%"):
+            if not d or not isinstance(d, dict):
+                return ""
+            v = d.get(key)
+            return f"<tr><td>{label}</td><td>{fmt(v) if v is not None else '—'}</td></tr>\n"
+        ag_rows = ""
+        if isinstance(tool_eff, dict):
+            ag_rows += _ag_row("평균 도구 효율성", tool_eff, "avg_efficiency")
+            ag_rows += _ag_row("도구 중복 호출률", tool_eff, "redundancy_rate")
+            ag_rows += _ag_row("도구 실패율", tool_eff, "failure_rate")
+        if isinstance(tool_sel, dict):
+            f1 = tool_sel.get("avg_f1")
+            ag_rows += f"<tr><td>Tool Selection F1</td><td>{'—' if f1 is None else f'{float(f1):.3f}'}</td></tr>\n"
+        if isinstance(retry, dict):
+            ag_rows += _ag_row("전체 재시도율", retry, "overall_retry_rate")
+            ag_rows += _ag_row("수정 성공률", retry, "correction_success_rate")
+        if isinstance(coord, dict):
+            ag_rows += _ag_row("협업 점수", coord, "avg_coordination_score")
+        if isinstance(workflow, dict):
+            ag_rows += _ag_row("워크플로우 성공률", workflow, "success_rate")
+            ag_rows += _ag_row("단계 성공률", workflow, "step_success_rate")
+        if ag_rows:
+            agentic_section = f"""
+<h2>🤖 에이전틱 지표</h2>
+<table>
+<thead><tr><th>지표</th><th>값</th></tr></thead>
+<tbody>{ag_rows}</tbody>
+</table>"""
+
+    # LLM Judge section
+    llm_judge_section = ""
+    if getattr(rf, "llm_judge", None) and rf.llm_judge.judged_count > 0:
+        lj = rf.llm_judge
+        llm_judge_section = f"""
+<h2>⚖️ LLM Judge</h2>
+<div class="kpis">
+  <div class="kpi"><div class="kpi-lbl">평가 건수</div><div class="kpi-val">{lj.judged_count}</div></div>
+  <div class="kpi"><div class="kpi-lbl">종합 점수</div><div class="kpi-val" style="color:{score_color(float(lj.avg_overall or 0)*10)}">{float(lj.avg_overall or 0):.2f}/10</div></div>
+  <div class="kpi"><div class="kpi-lbl">완전성</div><div class="kpi-val">{float(lj.avg_completeness or 0):.2f}/10</div></div>
+  <div class="kpi"><div class="kpi-lbl">관련성</div><div class="kpi-val">{float(lj.avg_relevance or 0):.2f}/10</div></div>
+  <div class="kpi"><div class="kpi-lbl">사실 일관성</div><div class="kpi-val">{float(lj.avg_factual_consistency or 0):.2f}/10</div></div>
+  <div class="kpi"><div class="kpi-lbl">평가 모델</div><div class="kpi-val" style="font-size:11px">{lj.model or '—'}</div></div>
+  <div class="kpi"><div class="kpi-lbl">평가 비용</div><div class="kpi-val" style="font-size:16px">{cost(lj.total_cost_usd)}</div></div>
+</div>"""
 
     # Advanced / DeepEval section
     advanced_section = ""
@@ -265,7 +390,7 @@ canvas{{max-height:180px}}
 <div class="kpis">
   <div class="kpi"><div class="kpi-lbl">TCR</div><div class="kpi-val" style="color:{score_color(float(tcr.get('tcr') or 0))}">{pct(tcr.get('tcr'))}</div></div>
   <div class="kpi"><div class="kpi-lbl">Accuracy</div><div class="kpi-val" style="color:{score_color(float(acc.get('overall_accuracy') or 0))}">{pct(acc.get('overall_accuracy'))}</div></div>
-  <div class="kpi"><div class="kpi-lbl">Hallucination</div><div class="kpi-val" style="color:{score_color(100 - float(hall.get('overall_rate') or 0) * 100)}">{pct(hall.get('overall_rate'))}</div></div>
+  <div class="kpi"><div class="kpi-lbl">Hallucination</div><div class="kpi-val" style="color:{score_color(100 - float(hall.get('overall_rate') or 0) * 100)}">{pct(float(hall.get('overall_rate') or 0) * 100)}</div></div>
   <div class="kpi"><div class="kpi-lbl">Avg Latency</div><div class="kpi-val">{sec_(lat.get('mean'))}</div></div>
   <div class="kpi"><div class="kpi-lbl">P95 Latency</div><div class="kpi-val">{sec_(lat.get('p95'))}</div></div>
   <div class="kpi"><div class="kpi-lbl">Total Cost</div><div class="kpi-val">{cost(tok.get('total_cost'))}</div></div>
@@ -279,13 +404,15 @@ canvas{{max-height:180px}}
 </div>
 
 {quality_section}
+{agentic_section}
 {security_section}
+{llm_judge_section}
 {rag_section}
 {advanced_section}
 
 <h2>📋 태스크 목록</h2>
 <table>
-<thead><tr><th>Task ID</th><th>Type</th><th>✓</th><th>Completion</th><th>Accuracy</th><th>Latency</th><th>Tokens</th><th>Attempts</th></tr></thead>
+<thead><tr><th>Task ID</th><th>유형</th><th>성공</th><th>완료율</th><th>정확도</th><th>지연(s)</th><th>토큰</th><th>도구호출</th><th>시도횟수</th><th>프레임워크</th></tr></thead>
 <tbody>{tasks_rows}</tbody>
 </table>
 
