@@ -35,6 +35,7 @@ from __future__ import annotations
 import dataclasses
 import json
 import sys
+import os
 import time
 import random
 from pathlib import Path
@@ -246,7 +247,7 @@ def run_langgraph_evaluation():
                 "input":  in_tok,
                 "output": out_tok,
                 "total":  in_tok + out_tok,
-                "model":  "gpt-4o",
+                "model":  os.getenv("OPENAI_MODEL", "gpt-4o-mini"),
             },
             tool_calls=tool_calls,
             attempts=2 if has_retry else 1,
@@ -484,23 +485,36 @@ def run_langgraph_evaluation():
 # Live 트랙 — monitor.task() 기반 최소 코드 패턴 (실제 LangGraph 연동 시 권장)
 # ═══════════════════════════════════════════════════════════════════════════
 
-def _mock_langgraph_workflow(question: str, nodes: list, rng: random.Random) -> dict:
-    """실제 LangGraph compiled graph 를 시뮬레이션하는 목업 함수.
+def _real_langgraph_workflow(question: str, nodes: list) -> dict:
+    """실제 ChatOpenAI 직접 호출 (OPENAI_API_KEY 설정 시 사용).
 
-    실제 코드에서는 다음으로 교체하세요::
+    실제 LangGraph compiled graph 연동이 필요한 경우::
 
+        from langgraph.graph import StateGraph, END
+        # graph 정의 후 compiled = graph.compile()
         final_state = None
-        for chunk in graph.stream({"messages": [HumanMessage(content=question)]}):
+        for chunk in compiled.stream({"messages": [HumanMessage(content=question)]}):
             node_name = list(chunk.keys())[0]
-            state     = list(chunk.values())[0]
-            # 노드별 결과를 t.tool_calls 에 추가
-            final_state = state
-        return {
-            "response":    final_state["messages"][-1].content,
-            "node_outputs": [...],
-            "success":     True,
-        }
+            final_state = list(chunk.values())[0]
+        return {"response": final_state["messages"][-1].content, ...}
     """
+    import os
+    from langchain_openai import ChatOpenAI
+    from langchain_core.messages import HumanMessage
+
+    model = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
+    llm = ChatOpenAI(model=model, temperature=0)
+    msg = llm.invoke([HumanMessage(content=question)])
+    node_outputs = [{"node": n, "success": True, "duration": 0.1} for n in nodes]
+    return {
+        "response":     msg.content,
+        "node_outputs": node_outputs,
+        "success":      True,
+    }
+
+
+def _mock_langgraph_workflow(question: str, nodes: list, rng: random.Random) -> dict:
+    """실제 LangGraph compiled graph 를 시뮬레이션하는 목업 함수 (API 키 없을 때 사용)."""
     time.sleep(0.001)
     response = (f"[LangGraph 응답] {' → '.join(nodes)} 파이프라인을 통해 "
                 f"'{question[:25]}...' 에 대한 답변을 생성했습니다.")
@@ -586,7 +600,13 @@ def run_langgraph_live():
 
         # ✅ 핵심 패턴: monitor.task() + 노드 전환 별도 기록
         with monitor.task(wid, wf["type"], question=question) as t:
-            result = _mock_langgraph_workflow(question, nodes, rng)
+            if _has_api:
+                try:
+                    result = _real_langgraph_workflow(question, nodes)
+                except Exception:
+                    result = _mock_langgraph_workflow(question, nodes, rng)
+            else:
+                result = _mock_langgraph_workflow(question, nodes, rng)
 
             t.response     = result["response"]
             t.ground_truth = gt

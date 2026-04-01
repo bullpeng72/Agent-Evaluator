@@ -79,7 +79,7 @@ autogen = [
 # 외부 평가 라이브러리 — DeepEval / Ragas (무거움, langchain 필요)
 # ragas 0.4.x API: EvaluationDataset + SingleTurnSample, datasets>=4.0.0 필요
 eval = [
-    "deepeval>=0.20.0,<4.0.0",
+    "deepeval>=3.0.0,<4.0.0",
     "ragas>=0.4.0,<2.0.0",
     "datasets>=4.0.0,<6.0.0",
     "langchain>=0.2.0,<3.0.0",
@@ -102,7 +102,6 @@ pdf = [
 otel = [
     "opentelemetry-sdk>=1.20.0,<2.0.0",
     "opentelemetry-exporter-otlp-proto-http>=1.20.0,<2.0.0",
-    "opentelemetry-semantic-conventions>=0.41b0",
     "arize-phoenix>=0.11.0",
 ]
 
@@ -153,7 +152,7 @@ full = [
     "pyautogen>=0.3.0,<1.0.0",
     "autogen-agentchat>=0.4.0,<1.0.0",
     "autogen-core>=0.4.0,<1.0.0",
-    "deepeval>=0.20.0,<4.0.0",
+    "deepeval>=3.0.0,<4.0.0",
     "ragas>=0.4.0,<2.0.0",
     "datasets>=4.0.0,<6.0.0",
     "pypdf>=3.0.0,<7.0.0",
@@ -164,7 +163,6 @@ full = [
     "python-multipart>=0.0.9,<1.0.0",
     "opentelemetry-sdk>=1.20.0,<2.0.0",
     "opentelemetry-exporter-otlp-proto-http>=1.20.0,<2.0.0",
-    "opentelemetry-semantic-conventions>=0.41b0",
     "arize-phoenix>=0.11.0",
 ]
 dev = [

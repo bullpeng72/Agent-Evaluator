@@ -251,6 +251,11 @@ def run_agentic_evaluation():
         input_tokens = rng.randint(200, 2000)
         output_tokens = rng.randint(100, 1500)
 
+        _fallback = next(iter(_SCENARIO_CONTENT.values()))
+        _content = _SCENARIO_CONTENT.get(name, _fallback)
+        request_text, resp_ok, resp_fail, ground_truth_text, expected_elems = _content
+        response_text = resp_ok if success else resp_fail
+
         task = TaskResult(
             task_id=task_id,
             task_type="tool_use" if not has_wf else "planning",
@@ -267,20 +272,13 @@ def run_agentic_evaluation():
             chain_steps=chain_steps,
             expected_tools=expected_tools,
             framework="crewai" if len(agents) > 1 else "langchain",
-        )
-
-        _fallback = next(iter(_SCENARIO_CONTENT.values()))
-        _content = _SCENARIO_CONTENT.get(name, _fallback)
-        request_text, resp_ok, resp_fail, ground_truth_text, expected_elems = _content
-        response_text = resp_ok if success else resp_fail
-
-        monitor.record_task(
-            task,
+            question=request_text,
+            response=response_text,
             ground_truth=ground_truth_text,
             context=ground_truth_text,
-            request=request_text,
-            response=response_text,
         )
+
+        monitor.record_task(task)
 
         # Response Quality — 5차원 품질 평가 (성공 시 expected_elements 기반)
         monitor.quality_evaluator.evaluate_response(
@@ -598,6 +596,8 @@ def run_tool_selection_golden_demo():
             for t in actual
         ]
 
+        _ti = rng.randint(100, 500)
+        _to = rng.randint(50, 300)
         task = TaskResult(
             task_id=task_id,
             task_type=item.get("task_type", "tool_use"),
@@ -605,22 +605,19 @@ def run_tool_selection_golden_demo():
             completion_score=round(completion, 3),
             accuracy_score=round(completion, 3),
             execution_time=round(rng.uniform(0.5, 5.0), 3),
-            tokens_used={"input": (_ti := rng.randint(100, 500)), "output": (_to := rng.randint(50, 300)), "total": _ti + _to},
+            tokens_used={"input": _ti, "output": _to, "total": _ti + _to},
             tool_calls=tool_calls,
             attempts=1,
             errors=[] if success else ["wrong_tool_selected"],
             timestamp=datetime.now(),
             expected_tools=expected,
             framework="crewai",
-        )
-        task.tokens_used["total"] = task.tokens_used["input"] + task.tokens_used["output"]
-
-        monitor.record_task(
-            task,
-            ground_truth=item["ground_truth"],
-            request=item["request"],
+            question=item["request"],
             response="작업 완료" if success else "도구 선택 오류",
+            ground_truth=item["ground_truth"],
         )
+
+        monitor.record_task(task)
 
         # Tool Selection Tracker 에 직접 등록
         monitor.tool_selection_tracker.evaluate_selection(

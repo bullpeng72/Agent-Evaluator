@@ -39,6 +39,7 @@ from __future__ import annotations
 
 import dataclasses
 import json
+import os
 import sys
 import random
 from pathlib import Path
@@ -309,15 +310,10 @@ def run_cross_framework_evaluation():
             expected_tools=STAGE1_TOOLS[:2] + STAGE2_TOOLS[:2] + STAGE3_TOOLS[:2],
             framework="multi_framework",
             conversation_turns=len(interactions),
+            context=ground_truth,
         )
 
-        monitor.record_task(
-            task,
-            ground_truth=ground_truth,
-            context=ground_truth,
-            request=request_text,
-            response=response_text,
-        )
+        monitor.record_task(task)
 
         # ── 개별 트래커 직접 호출 ─────────────────────────────────────────────
         monitor.quality_evaluator.evaluate_response(
@@ -360,7 +356,7 @@ def run_cross_framework_evaluation():
         if s1_ok:
             monitor.token_tracker.track_usage(
                 f"{task_id}_s2", s2_tokens["input"], s2_tokens["output"],
-                "reasoning", model="gpt-4o"
+                "reasoning", model=os.getenv("OPENAI_MODEL", "gpt-4o-mini")
             )
         if s1_ok and s2_ok:
             monitor.token_tracker.track_usage(

@@ -176,7 +176,7 @@ def _current_value(env_var: str) -> Tuple[Optional[str], str]:
         source_label: "system env" | "loaded .env" | "not set"
     """
     val = os.environ.get(env_var, "")
-    if not val:
+    if not _is_real_key(val):
         return None, "not set"
     return val, key_source(env_var)
 
@@ -558,6 +558,16 @@ def cmd_version(_args: argparse.Namespace) -> int:
 # _print_welcome — `agent-eval` (인수 없음) 전용 웰컴 화면
 # ---------------------------------------------------------------------------
 
+_PLACEHOLDER_PREFIXES = ("your-", "your_", "<", "REPLACE", "CHANGE", "TODO", "FIXME", "example")
+
+def _is_real_key(value: str) -> bool:
+    """플레이스홀더나 빈 값을 실제 키로 오인하지 않도록 검증한다."""
+    if not value:
+        return False
+    low = value.lower()
+    return not any(low.startswith(p.lower()) for p in _PLACEHOLDER_PREFIXES)
+
+
 def _print_welcome() -> None:
     """agent-eval 을 인수 없이 실행했을 때의 간결한 시작 화면."""
 
@@ -568,12 +578,12 @@ def _print_welcome() -> None:
         ("ANTHROPIC_API_KEY", "Anthropic", False),
         ("LANGSMITH_API_KEY", "LangSmith", False),
     ]
-    set_count = sum(1 for k, _, _ in _key_vars if os.environ.get(k, ""))
+    set_count = sum(1 for k, _, _ in _key_vars if _is_real_key(os.environ.get(k, "")))
     total     = len(_key_vars)
 
     key_lines = []
     for env_var, label, required in _key_vars:
-        if os.environ.get(env_var, ""):
+        if _is_real_key(os.environ.get(env_var, "")):
             key_lines.append(f"  {G}✔{R}  {label}")
         elif required:
             key_lines.append(f"  {RD}✘{R}  {label} {RD}(필수 — agent-eval init 으로 설정){R}")

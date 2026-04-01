@@ -80,6 +80,9 @@ def _try_setup_otel(service_name: str) -> None:
 
 _try_setup_otel("09-autogen-eval")
 
+import os as _os
+_has_api = bool(_os.getenv("OPENAI_API_KEY") or _os.getenv("ANTHROPIC_API_KEY"))
+
 
 def _load_golden(filename: str) -> list:
     path = project_root / "data" / "golden_datasets" / filename
@@ -547,5 +550,87 @@ def run_autogen_evaluation():
     return saved
 
 
+def run_autogen_live() -> None:
+    """OPENAI_API_KEY 또는 ANTHROPIC_API_KEY 설정 시 실제 LLM 호출로 AutoGen 대화 실행."""
+    print("\n" + "=" * 60)
+    print("  AutoGen Live 실행 (실제 LLM 호출)")
+    print("=" * 60)
+
+    if not _has_api:
+        print("  ⚠️  API 키 없음 — Live 섹션을 건너뜁니다.")
+        print("     OPENAI_API_KEY 또는 ANTHROPIC_API_KEY를 설정하면 실제 호출이 실행됩니다.\n")
+        return
+
+    try:
+        from langchain_openai import ChatOpenAI
+        from langchain_core.messages import HumanMessage
+    except ImportError:
+        print("  ⚠️  langchain-openai 미설치 — Live 섹션을 건너뜁니다.")
+        print("     pip install langchain-openai\n")
+        return
+
+    model = _os.getenv("OPENAI_MODEL", "gpt-4o-mini")
+    llm = ChatOpenAI(model=model, temperature=0)
+
+    # AutoGen 멀티에이전트 대화 시뮬레이션: UserProxy → AssistantAgent 왕복
+    conversations = [
+        {
+            "user_msg": "파이썬으로 피보나치 수열을 구현해주세요.",
+            "agent": "AssistantAgent",
+        },
+        {
+            "user_msg": "AI 에이전트 시스템의 장단점을 설명해주세요.",
+            "agent": "ResearchAgent",
+        },
+        {
+            "user_msg": "멀티에이전트 협업에서 발생하는 주요 문제점은 무엇인가요?",
+            "agent": "AnalystAgent",
+        },
+    ]
+
+    monitor = PerformanceMonitor(output_dir="results/autogen_live/")
+    print(f"  모델: {model}\n")
+
+    for i, conv in enumerate(conversations, 1):
+        print(f"  [{i}/{len(conversations)}] {conv['agent']}: {conv['user_msg'][:40]}...")
+        try:
+            import time
+            t0 = time.perf_counter()
+            msg = llm.invoke([HumanMessage(content=conv["user_msg"])])
+            elapsed = time.perf_counter() - t0
+            response = msg.content
+            tokens = getattr(msg, "usage_metadata", {}) or {}
+            tokens_used = tokens.get("total_tokens", len(response.split()) * 2)
+            # AutoGen 패턴: conversation_turns 포함
+            tool_calls = [{"tool_name": "llm_call", "success": True, "duration": elapsed,
+                           "call_id": str(uuid.uuid4())}]
+            success = True
+        except Exception as exc:
+            print(f"     ⚠️  LLM 호출 실패: {exc}")
+            response = ""
+            elapsed = 0.0
+            tokens_used = 0
+            tool_calls = []
+            success = False
+
+        task = create_taskresult(
+            task_id=f"autogen_live_{i:02d}",
+            question=conv["user_msg"],
+            response=response,
+            execution_time=elapsed,
+            task_type="qa",
+            has_error=not success,
+            model_name=model,
+        )
+        monitor.record_task(task)
+        status = "✅" if success else "❌"
+        print(f"     {status}  {elapsed:.2f}s | {tokens_used} tokens")
+
+    report = monitor.generate_report()
+    print(f"\n  TCR: {report.task_completion_rate:.1%}  "
+          f"| 평균 지연: {report.avg_latency:.2f}s\n")
+
+
 if __name__ == "__main__":
     run_autogen_evaluation()
+    run_autogen_live()

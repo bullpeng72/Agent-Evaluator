@@ -33,6 +33,7 @@
 from __future__ import annotations
 
 import dataclasses
+import os
 import random
 import sys
 from pathlib import Path
@@ -246,12 +247,12 @@ def run_anomaly_cost_evaluation():
         ("anthropic", "claude-3-haiku",    0.0080, 400,  100, "llm_judge"),
         ("openai",    "gpt-4o-mini",       0.0150, 900,  200, "deepeval"),
         ("anthropic", "claude-3-5-sonnet", 0.0520, 1800, 350, "llm_judge"),
-        ("openai",    "gpt-4o",            0.1200, 2000, 500, "deepeval"),
+        ("openai",    os.getenv("OPENAI_MODEL", "gpt-4o-mini"), 0.1200, 2000, 500, "deepeval"),
         ("anthropic", "claude-3-5-sonnet", 0.0410, 1400, 280, "llm_judge"),
         ("openai",    "gpt-4o-mini",       0.0100, 700,  180, "ragas"),
         # 추가 기록 — 예산 $0.40 경보 임계 초과를 위해
         ("anthropic", "claude-3-5-sonnet", 0.0450, 2000, 400, "llm_judge"),
-        ("openai",    "gpt-4o",            0.0500, 1500, 300, "deepeval"),
+        ("openai",    os.getenv("OPENAI_MODEL", "gpt-4o-mini"), 0.0500, 1500, 300, "deepeval"),
     ]
 
     print(f"\n  비용 기록 ({len(cost_records)}건):")
@@ -411,13 +412,17 @@ def run_anomaly_cost_evaluation():
         "sample_rate_current": policy.current_sample_rate,
         "projected_daily_usd": _daily["today_total_usd"],
     }
-    _tmp_fd, _tmp_path = _tempfile.mkstemp(suffix=".json")
+    _save_dir = _os.path.dirname(_os.path.abspath(saved))
+    _tmp_fd, _tmp_path = _tempfile.mkstemp(dir=_save_dir, suffix=".json")
     try:
         with _os.fdopen(_tmp_fd, "w", encoding="utf-8") as _ftmp:
             _json.dump(_saved_data, _ftmp, ensure_ascii=False, indent=2)
         _os.replace(_tmp_path, saved)
     except Exception:
-        _os.unlink(_tmp_path)
+        try:
+            _os.unlink(_tmp_path)
+        except OSError:
+            pass
         raise
     print(f"  💰 evaluation_cost 주입 완료: ${_daily['today_total_usd']:.4f} / {len(_daily['by_provider'])}개 공급자")
     _ad = _saved_data.get("anomaly_data", {})

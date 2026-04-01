@@ -61,9 +61,15 @@ class OTELProvider:
             return
 
         try:
-            resource = Resource(attributes={"service.name": service_name})
+            resource = Resource(attributes={
+                "service.name": service_name,
+                "openinference.project.name": service_name,
+            })
             provider = TracerProvider(resource=resource)
-            exporter = OTLPSpanExporter(endpoint=f"{endpoint}/v1/traces")
+            exporter = OTLPSpanExporter(
+                endpoint=f"{endpoint}/v1/traces",
+                headers={"x-phoenix-project-name": service_name},
+            )
             provider.add_span_processor(BatchSpanProcessor(exporter))
             trace.set_tracer_provider(provider)
             self._tracer = trace.get_tracer(service_name)

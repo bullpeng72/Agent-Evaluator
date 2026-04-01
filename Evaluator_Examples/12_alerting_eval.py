@@ -59,6 +59,27 @@ def _try_setup_otel(service_name: str) -> None:
 
 _try_setup_otel("12-alerting-eval")
 
+import os as _os
+
+
+def _build_slack_handler() -> "SlackHandler":
+    """SLACK_WEBHOOK_URL 설정 시 실제 SlackHandler, 아닌 경우 Mock 반환."""
+    url = _os.getenv("SLACK_WEBHOOK_URL", "")
+    if url:
+        channel = _os.getenv("SLACK_CHANNEL", "#agent-alerts")
+        print(f"  📨  Slack 실제 발송 활성화 — channel: {channel}")
+        return SlackHandler(webhook_url=url, channel=channel)
+    return _MockSlackHandler()
+
+
+def _build_webhook_handler() -> "WebhookHandler":
+    """ALERT_WEBHOOK_URL 설정 시 실제 WebhookHandler, 아닌 경우 Mock 반환."""
+    url = _os.getenv("ALERT_WEBHOOK_URL", "")
+    if url:
+        print(f"  📨  Webhook 실제 발송 활성화 — {url}")
+        return WebhookHandler(url=url)
+    return _MockWebhookHandler()
+
 
 # ─── 모의(Mock) 핸들러 — 실제 HTTP 호출 없이 동작 기록 ───────────────────────
 class _MockSlackHandler(SlackHandler):
@@ -109,9 +130,9 @@ def run_alerting_evaluation():
     results_dir = project_root / "results"
     results_dir.mkdir(exist_ok=True)
 
-    # ── 핸들러 초기화 ─────────────────────────────────────────────────────
-    slack_handler   = _MockSlackHandler()
-    webhook_handler = _MockWebhookHandler()
+    # ── 핸들러 초기화 (SLACK_WEBHOOK_URL / ALERT_WEBHOOK_URL 설정 시 실제 발송) ──
+    slack_handler   = _build_slack_handler()
+    webhook_handler = _build_webhook_handler()
 
     # ── AlertEngine 구성 ─────────────────────────────────────────────────
     alert_engine = AlertEngine(history_dir=str(results_dir / "alerts"))

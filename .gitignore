@@ -73,8 +73,19 @@ docs/_build/
 *.csv
 *.json.bak
 
-# Generated evaluation results (agent-eval serve reads from here)
-# results/  ← tracked in git as example data
+# Generated evaluation results
+results/
+
+# Golden datasets — 생성 파일만 무시, 정적 시나리오 파일은 추적
+data/golden_datasets/*
+!data/golden_datasets/agentic_tool_selection.json
+!data/golden_datasets/autogen_eval_scenarios.json
+!data/golden_datasets/crewai_eval_scenarios.json
+!data/golden_datasets/cross_framework_pipeline.json
+!data/golden_datasets/langchain_eval_scenarios.json
+!data/golden_datasets/langgraph_eval_scenarios.json
+!data/golden_datasets/quality_code_cases.json
+!data/golden_datasets/quality_tech_qa.json
 
 # Evaluator_Examples generated HTML reports
 Evaluator_Examples/**/*.html

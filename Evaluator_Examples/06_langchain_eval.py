@@ -451,19 +451,34 @@ def run_langchain_evaluation():
 # Live 트랙 — monitor.task() 기반 최소 코드 패턴 (실제 API 연동 시 권장)
 # ═══════════════════════════════════════════════════════════════════════════
 
-def _mock_langchain_agent(question: str, tools: list, rng: random.Random) -> dict:
-    """실제 LangChain AgentExecutor 를 시뮬레이션하는 목업 함수.
+def _real_langchain_agent(question: str, tool_names: list) -> dict:
+    """실제 ChatOpenAI 직접 호출 (OPENAI_API_KEY 설정 시 사용).
 
-    실제 코드에서는 다음으로 교체하세요::
+    AgentExecutor 없이 ChatOpenAI.invoke() 로 간단하게 연동합니다.
+    실제 tool-use 에이전트가 필요한 경우::
 
-        result = agent_executor.invoke({"input": question})
-        return {
-            "response": result["output"],
-            "tool_calls": [{"tool_name": t["tool"], "success": True}
-                           for t in result.get("intermediate_steps", [])],
-            "success": bool(result.get("output")),
-        }
+        from langchain.agents import create_react_agent, AgentExecutor
+        agent = create_react_agent(llm, tools, prompt)
+        executor = AgentExecutor(agent=agent, tools=tools)
+        result = executor.invoke({"input": question})
     """
+    import os
+    from langchain_openai import ChatOpenAI
+    from langchain_core.messages import HumanMessage
+
+    model = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
+    llm = ChatOpenAI(model=model, temperature=0)
+    msg = llm.invoke([HumanMessage(content=question)])
+    return {
+        "response":   msg.content,
+        "tool_calls": [{"tool_name": t, "success": True, "duration": 0.1}
+                       for t in tool_names[:2]],
+        "success":    True,
+    }
+
+
+def _mock_langchain_agent(question: str, tools: list, rng: random.Random) -> dict:
+    """실제 LangChain AgentExecutor 를 시뮬레이션하는 목업 함수 (API 키 없을 때 사용)."""
     time.sleep(0.001)  # I/O 시뮬레이션
     keywords = question.split()[:3]
     response = f"[LangChain 응답] '{' '.join(keywords)}' 관련 정보를 검색했습니다. " \
@@ -536,7 +551,13 @@ def run_langchain_live():
         #   - Quality 평가 (request + response 설정 시)
         #   - Accuracy 평가 (ground_truth 설정 시)
         with monitor.task(task_id, task_type, question=question) as t:
-            result = _mock_langchain_agent(question, tools, rng)
+            if _has_api:
+                try:
+                    result = _real_langchain_agent(question, tools)
+                except Exception:
+                    result = _mock_langchain_agent(question, tools, rng)
+            else:
+                result = _mock_langchain_agent(question, tools, rng)
             t.response     = result["response"]   # → Quality + Accuracy 자동 트리거
             t.ground_truth = ground_truth          # → Accuracy 자동 트리거
             t.context      = context               # → Hallucination 자동 트리거 (RAG 시)

@@ -75,6 +75,9 @@ def _try_setup_otel(service_name: str) -> None:
 
 _try_setup_otel("08-crewai-eval")
 
+import os as _os
+_has_api = bool(_os.getenv("OPENAI_API_KEY") or _os.getenv("ANTHROPIC_API_KEY"))
+
 
 def _load_golden(filename: str) -> list:
     path = project_root / "data" / "golden_datasets" / filename
@@ -450,5 +453,73 @@ def run_crewai_evaluation():
     return saved
 
 
+def run_crewai_live() -> None:
+    """OPENAI_API_KEY 또는 ANTHROPIC_API_KEY 설정 시 실제 LLM 호출로 CrewAI 태스크 실행."""
+    print("\n" + "=" * 60)
+    print("  CrewAI Live 실행 (실제 LLM 호출)")
+    print("=" * 60)
+
+    if not _has_api:
+        print("  ⚠️  API 키 없음 — Live 섹션을 건너뜁니다.")
+        print("     OPENAI_API_KEY 또는 ANTHROPIC_API_KEY를 설정하면 실제 호출이 실행됩니다.\n")
+        return
+
+    try:
+        from langchain_openai import ChatOpenAI
+        from langchain_core.messages import HumanMessage
+    except ImportError:
+        print("  ⚠️  langchain-openai 미설치 — Live 섹션을 건너뜁니다.")
+        print("     pip install langchain-openai\n")
+        return
+
+    model = _os.getenv("OPENAI_MODEL", "gpt-4o-mini")
+    llm = ChatOpenAI(model=model, temperature=0)
+
+    crew_tasks = [
+        {"role": "Researcher", "question": "AI 에이전트 평가의 핵심 지표 3가지를 설명해주세요."},
+        {"role": "Analyst",    "question": "멀티에이전트 시스템에서 협업 효율성을 측정하는 방법은?"},
+        {"role": "Writer",     "question": "LLM 기반 에이전트의 비용 최적화 전략을 요약해주세요."},
+    ]
+
+    monitor = PerformanceMonitor(output_dir="results/crewai_live/")
+    print(f"  모델: {model}\n")
+
+    for i, ct in enumerate(crew_tasks, 1):
+        print(f"  [{i}/{len(crew_tasks)}] {ct['role']}: {ct['question'][:40]}...")
+        try:
+            import time
+            t0 = time.perf_counter()
+            msg = llm.invoke([HumanMessage(content=ct["question"])])
+            elapsed = time.perf_counter() - t0
+            response = msg.content
+            tokens = getattr(msg, "usage_metadata", {}) or {}
+            tokens_used = tokens.get("total_tokens", len(response.split()) * 2)
+            success = True
+        except Exception as exc:
+            print(f"     ⚠️  LLM 호출 실패: {exc}")
+            response = ""
+            elapsed = 0.0
+            tokens_used = 0
+            success = False
+
+        task = create_taskresult(
+            task_id=f"crewai_live_{i:02d}",
+            question=ct["question"],
+            response=response,
+            execution_time=elapsed,
+            task_type="qa",
+            has_error=not success,
+            model_name=model,
+        )
+        monitor.record_task(task)
+        status = "✅" if success else "❌"
+        print(f"     {status}  {elapsed:.2f}s | {tokens_used} tokens")
+
+    report = monitor.generate_report()
+    print(f"\n  TCR: {report.task_completion_rate:.1%}  "
+          f"| 평균 지연: {report.avg_latency:.2f}s\n")
+
+
 if __name__ == "__main__":
     run_crewai_evaluation()
+    run_crewai_live()

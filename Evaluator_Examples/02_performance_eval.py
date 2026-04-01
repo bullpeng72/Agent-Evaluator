@@ -12,6 +12,7 @@
 """
 
 import dataclasses
+import os
 import sys
 import random
 from pathlib import Path
@@ -348,8 +349,8 @@ def run_performance_evaluation():
         ("tok_claude_001", 850,  420, "reasoning",       "claude-3-5-sonnet"),
         ("tok_claude_002", 1200, 680, "code_generation", "claude-3-5-sonnet"),
         ("tok_claude_003", 320,  180, "qa",              "claude-3-5-sonnet"),
-        ("tok_gpt4o_001",  850,  410, "reasoning",       "gpt-4o"),
-        ("tok_gpt4o_002",  1190, 670, "code_generation", "gpt-4o"),
+        ("tok_gpt4o_001",  850,  410, "reasoning",       os.getenv("OPENAI_MODEL", "gpt-4o-mini")),
+        ("tok_gpt4o_002",  1190, 670, "code_generation", os.getenv("OPENAI_MODEL", "gpt-4o-mini")),
         ("tok_mini_001",   820,  390, "reasoning",       "gpt-4o-mini"),
         ("tok_mini_002",   1150, 650, "code_generation", "gpt-4o-mini"),
         ("tok_mini_003",   3800, 1800, "data_analysis",  "gpt-4o-mini"),
