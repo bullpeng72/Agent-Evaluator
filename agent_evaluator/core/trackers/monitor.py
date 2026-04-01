@@ -1411,7 +1411,15 @@ class PerformanceMonitor:
             if provider is None or not provider.enabled:
                 return
 
+            # OpenInference 표준 속성 — Phoenix UI 컬럼 표시에 필요
+            input_val = getattr(result, "question", None) or result.task_id
+            output_val = getattr(result, "response", None) or str(result.completion_score)
             attributes = {
+                # Phoenix UI: kind / input / output 컬럼
+                "openinference.span.kind": "CHAIN",
+                "input.value": str(input_val),
+                "output.value": str(output_val),
+                # Agent Evaluator 고유 지표
                 "ae.task_id": result.task_id,
                 "ae.task_type": str(result.task_type),
                 "ae.success": result.success,
