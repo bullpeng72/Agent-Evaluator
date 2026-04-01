@@ -893,10 +893,17 @@ def main() -> None:
         "dataset",
         help="골든 데이터셋 관리 (build — 운영 결과에서 자동 추출)",
         formatter_class=ColoredHelpFormatter,
+        description=(
+            "골든 데이터셋을 관리합니다.\n"
+            "\n"
+            f"{B}서브명령어:{R}\n"
+            f"  {Y}build{R}  운영 평가 결과에서 골든셋 후보를 자동 추출·저장\n"
+        ),
         epilog=(
             f"{B}예시:{R}\n"
+            f"  {G}agent-eval dataset build{R}\n"
             f"  {G}agent-eval dataset build --source results/ --strategy failure_cases edge_cases{R}\n"
-            f"  {G}agent-eval dataset build --source results/daily/ --max-cases 30 --output golden/{R}\n"
+            f"  {G}agent-eval dataset build --source results/daily/ --max-cases 30 --output data/golden_datasets/{R}\n"
         ),
     )
     ds_sub = ds_p.add_subparsers(dest="dataset_command")
@@ -905,6 +912,22 @@ def main() -> None:
         "build",
         help="운영 결과 파일에서 골든셋 후보 자동 추출",
         formatter_class=ColoredHelpFormatter,
+        description=(
+            "운영 평가 결과 JSON 파일에서 골든 데이터셋 후보를 자동으로 추출합니다.\n"
+            "\n"
+            f"{B}추출 전략 (--strategy){R}\n"
+            f"  {Y}failure_cases{R}  실패 태스크 → 회귀 테스트 소재 {D}(기본){R}\n"
+            f"  {Y}edge_cases{R}     이상치 (비정상 길이·특수문자 등) {D}(기본){R}\n"
+            f"  {Y}high_value{R}     긍정 피드백 높은 케이스\n"
+            f"  {Y}coverage_gap{R}   기존 골든셋 미커버 유형\n"
+        ),
+        epilog=(
+            f"{B}예시:{R}\n"
+            f"  {G}agent-eval dataset build{R}\n"
+            f"  {G}agent-eval dataset build --source results/ --strategy failure_cases high_value{R}\n"
+            f"  {G}agent-eval dataset build --max-cases 30 --output data/golden_datasets/{R}\n"
+            f"  {G}agent-eval dataset build --no-review --name my_golden.json{R}\n"
+        ),
     )
     build_p.add_argument(
         "--source", default="./results", metavar="DIR",
@@ -918,13 +941,7 @@ def main() -> None:
         "--strategy", nargs="+",
         default=["failure_cases", "edge_cases"],
         metavar="STRATEGY",
-        help=(
-            "추출 전략 — 복수 지정 가능 (기본: failure_cases edge_cases)\n"
-            "  failure_cases  실패 태스크 → 회귀 테스트 소재\n"
-            "  edge_cases     이상치 (비정상 길이·특수문자 등)\n"
-            "  high_value     긍정 피드백 높은 케이스\n"
-            "  coverage_gap   기존 골든셋 미커버 유형"
-        ),
+        help="추출 전략 — 복수 지정 가능 (기본: failure_cases edge_cases). 위 설명 참조",
     )
     build_p.add_argument(
         "--max-cases", type=int, default=50, dest="max_cases", metavar="N",
