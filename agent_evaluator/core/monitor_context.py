@@ -3,6 +3,7 @@ Context manager for evaluation sessions
 Provides automatic resource management and result saving
 """
 
+import contextlib
 import logging
 from contextlib import asynccontextmanager, contextmanager
 from typing import Optional
@@ -53,33 +54,47 @@ def evaluation_session(
         **monitor_kwargs
     )
 
+    # OTEL 루트 span (opt-in, no-op if not configured)
+    def _otel_ctx():
+        try:
+            from agent_evaluator.core.otel import get_provider
+
+            provider = get_provider()
+            if provider and provider.enabled:
+                return provider.span("ae.session", {"ae.session_file": output_filename})
+        except Exception:
+            pass
+        return contextlib.nullcontext()
+
     exception_occurred = None
 
-    try:
-        yield monitor
-    except Exception as e:
-        # Capture exception but don't raise yet (save first)
-        exception_occurred = e
-    finally:
-        # Auto-save on exit (even if exception occurred)
-        # Note: save_to_file() automatically includes full report
+    with _otel_ctx():
         try:
-            monitor.save_to_file(output_filename)
-            if exception_occurred:
-                logger.warning(
-                    "evaluation_session: exception occurred but results saved to '%s'",
+            yield monitor
+        except Exception as e:
+            # Capture exception but don't raise yet (save first)
+            exception_occurred = e
+        finally:
+            # Auto-save on exit (even if exception occurred)
+            # Note: save_to_file() automatically includes full report
+            try:
+                monitor.save_to_file(output_filename)
+                if exception_occurred:
+                    logger.warning(
+                        "evaluation_session: exception occurred but results saved to '%s'",
+                        output_filename,
+                    )
+                else:
+                    logger.info("evaluation_session: auto-saved to '%s'", output_filename)
+            except Exception as save_error:
+                logger.error(
+                    "evaluation_session: FAILED to save results to '%s': %s",
                     output_filename,
+                    save_error,
                 )
-            else:
-                logger.info("evaluation_session: auto-saved to '%s'", output_filename)
-        except Exception as save_error:
-            logger.error(
-                "evaluation_session: FAILED to save results to '%s': %s",
-                output_filename, save_error,
-            )
-            if exception_occurred is None:
-                # Only save failed — surface that error to the caller
-                raise save_error
+                if exception_occurred is None:
+                    # Only save failed — surface that error to the caller
+                    raise save_error
 
         # Now raise the original exception if it occurred
         if exception_occurred:

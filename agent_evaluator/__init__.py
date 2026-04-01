@@ -132,6 +132,9 @@ _LAZY_IMPORTS = {
     "EmailHandler": ("agent_evaluator.alerts.handlers", "EmailHandler"),
     # Golden Set Builder (Phase 3-A)
     "GoldenSetBuilder": ("agent_evaluator.datasets.builder", "GoldenSetBuilder"),
+    # OTEL / 운영 모니터링 (Phase 4 / v0.7.x)
+    "setup_otel": ("agent_evaluator.core.otel", "setup_otel"),
+    "OTELProvider": ("agent_evaluator.core.otel.provider", "OTELProvider"),
     # Hybrid Monitor
     "HybridPerformanceMonitor": ("agent_evaluator.core.hybrid_monitor", "HybridPerformanceMonitor"),
     "ExtendedTaskResult": ("agent_evaluator.core.hybrid_monitor", "ExtendedTaskResult"),
@@ -200,6 +203,8 @@ _FRAMEWORK_EXTRA_MAP = {
     "HybridPerformanceMonitor": "eval",
     "ExtendedTaskResult": "eval",
     "HybridEvaluationReport": "eval",
+    "setup_otel": "otel",
+    "OTELProvider": "otel",
 }
 
 

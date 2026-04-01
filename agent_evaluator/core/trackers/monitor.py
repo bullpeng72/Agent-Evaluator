@@ -1393,7 +1393,42 @@ class PerformanceMonitor:
                     except Exception as _acc_exc:
                         logger.debug("Auto accuracy evaluation unexpected error for %s: %s", task_result.task_id, _acc_exc, exc_info=True)
 
+        # OTEL 스팬 발행 (opt-in, no-op if not configured)
+        self._emit_otel_span(task_result)
+
         return self
+
+    def _emit_otel_span(self, result: "TaskResult") -> None:
+        """OTEL 스팬 발행. OTELProvider 미활성화 시 즉시 반환.
+
+        기존 JSON 저장 경로에 영향을 주지 않는다.
+        opentelemetry-sdk 미설치 또는 setup_otel() 미호출 시 no-op.
+        """
+        try:
+            from agent_evaluator.core.otel import get_provider
+
+            provider = get_provider()
+            if provider is None or not provider.enabled:
+                return
+
+            attributes = {
+                "ae.task_id": result.task_id,
+                "ae.task_type": str(result.task_type),
+                "ae.success": result.success,
+                "ae.completion_score": float(result.completion_score),
+                "ae.accuracy_score": float(result.accuracy_score),
+                "ae.execution_time": float(result.execution_time),
+                "ae.tokens_used": result.tokens_used.get("total", 0)
+                if isinstance(result.tokens_used, dict)
+                else int(result.tokens_used or 0),
+                "ae.tool_calls_count": len(result.tool_calls) if result.tool_calls else 0,
+                "ae.attempts": result.attempts,
+                "ae.framework": getattr(result, "framework", "native"),
+            }
+            with provider.span("ae.task", attributes):
+                pass  # 스팬 기록만, 평가 로직은 이미 완료
+        except Exception as _otel_exc:
+            logger.debug("_emit_otel_span: 스팬 발행 실패: %s", _otel_exc)
 
     def record_rag_metrics(
         self,

@@ -97,6 +97,14 @@ pdf = [
     "pypdf>=3.0.0,<7.0.0",
     "pdfplumber>=0.10.0,<1.0.0",
 ]
+# 운영 실시간 모니터링 — Phoenix + OTEL (중간, ~20개 패키지)
+# agent-eval monitor 명령어 전용. [all]에 미포함 (Phoenix가 무거우므로 별도 유지)
+otel = [
+    "opentelemetry-sdk>=1.20.0,<2.0.0",
+    "opentelemetry-exporter-otlp-proto-http>=1.20.0,<2.0.0",
+    "opentelemetry-semantic-conventions>=0.41b0",
+    "arize-phoenix>=0.11.0",
+]
 
 # ── 조합 편의 extras ─────────────────────────────────────────────────────────
 

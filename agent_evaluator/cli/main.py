@@ -36,6 +36,7 @@ from agent_evaluator.config import (
 )
 from agent_evaluator.cli.gate import cmd_gate
 from agent_evaluator.cli.dataset import cmd_dataset
+from agent_evaluator.cli.monitor import build_monitor_subparser, cmd_monitor
 
 
 # ---------------------------------------------------------------------------
@@ -596,6 +597,7 @@ def _print_welcome() -> None:
     print(f"  {Y}init{R}       API 키 대화형 설정 마법사")
     print(f"  {Y}check{R}      현재 설정 상태 출력")
     print(f"  {Y}dashboard{R}  웹 대시보드 실행  {D}(기본 포트 8765){R}")
+    print(f"  {Y}monitor{R}    운영 실시간 모니터링  {D}(Phoenix + OTEL){R}")
     print(f"  {Y}gate{R}       CI/CD 품질 게이팅  {D}(임계값 기준 통과/실패){R}")
     print(f"  {Y}--version{R}  버전 출력")
     print()
@@ -921,6 +923,9 @@ def main() -> None:
         help="저장 파일 이름 (기본: candidates_YYYYMMDD_HHMMSS.json)",
     )
 
+    # monitor subcommand
+    build_monitor_subparser(sub)
+
     parser.add_argument(
         "--version", action="store_true",
         help="패키지 버전 출력",
@@ -935,6 +940,7 @@ def main() -> None:
         "init":      cmd_init,
         "check":     cmd_check,
         "dashboard": cmd_dashboard,
+        "monitor":   cmd_monitor,
         "gate":      cmd_gate,
         "dataset":   cmd_dataset,
     }
