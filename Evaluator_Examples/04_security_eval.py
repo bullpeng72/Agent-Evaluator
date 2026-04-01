@@ -24,9 +24,11 @@ sys.path.insert(0, str(project_root))
 from dotenv import load_dotenv
 load_dotenv(Path(__file__).parent / ".env")
 
-from agent_evaluator import PerformanceMonitor, TaskResult, create_taskresult
+from agent_evaluator import (
+    PerformanceMonitor, TaskResult, create_taskresult,
+    InputSanitizationTracker, OutputLeakageDetector,
+)
 from agent_evaluator.reporting import generate_comprehensive_html_report
-# validate_input_security / check_output_leakage 는 이 파일 하단(line 715/816)에 직접 정의됨
 
 # ────────────────────────────────────────────────────────────────────────────────
 # 보안 시나리오 데이터셋
@@ -544,6 +546,28 @@ def run_standalone_security_helpers_demo():
         print(f"    {icon:<30} {label}")
 
     print()
+
+
+def validate_input_security(input_text: str) -> dict:
+    """PerformanceMonitor 없이 입력 보안 위협을 단독 검사하는 헬퍼."""
+    tracker = InputSanitizationTracker()
+    result  = tracker.evaluate_input("_standalone", input_text)
+    threats = [
+        k.replace("has_", "").replace("_", " ")
+        for k in result if k.startswith("has_") and result[k]
+    ]
+    return {"threats_detected": threats, "risk_level": result["risk_level"]}
+
+
+def check_output_leakage(output_text: str) -> dict:
+    """PerformanceMonitor 없이 출력 민감정보 유출을 단독 검사하는 헬퍼."""
+    detector = OutputLeakageDetector()
+    result   = detector.detect_leakage("_standalone", output_text)
+    leak_types = [
+        k.replace("contains_", "").replace("_", " ")
+        for k in result if k.startswith("contains_") and result[k]
+    ]
+    return {"leakage_detected": result["leakage_count"] > 0, "leak_types": leak_types}
 
 
 if __name__ == "__main__":
