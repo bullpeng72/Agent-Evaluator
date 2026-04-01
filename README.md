@@ -500,6 +500,28 @@ agent-eval gate results/ci_run.json \
     agent-eval gate results/ci.json --tcr 85 --accuracy 70 --p95-latency 3.0
 ```
 
+### `agent-eval monitor`
+
+Arize Phoenix 서버를 기동하고 OpenTelemetry(OTLP) 스팬 수신을 설정하는 실시간 운영 모니터링 명령어입니다.
+`pip install "agent-evaluator[otel]"` 또는 `"agent-evaluator[full]"` 설치가 필요합니다.
+
+```bash
+agent-eval monitor                # Phoenix 서버 기동 (기본 포트 6006)
+agent-eval monitor --port 6007    # 포트 지정
+agent-eval monitor --check        # OTEL 패키지 설치 여부 및 포트 점유 상태 확인
+```
+
+실행 후 브라우저에서 `http://localhost:6006`에 접속하면 Phoenix UI를 확인할 수 있습니다.
+
+예제(01~17)를 실행하면 각 예제가 자동으로 OTLP 스팬을 전송하며, Phoenix UI의 **Tracing** 탭에서 태스크별 지표가 표시됩니다. 예제마다 별도 프로젝트로 분리됩니다 (`openinference.project.name` 속성).
+
+| Phoenix UI 메뉴 | 내용 |
+|----------------|------|
+| **Tracing** | 예제 실행별 스팬·지속시간·상태·속성 조회 |
+| **Evaluators** | ae.accuracy_score 등 평가 점수 자동 기록 |
+| **Datasets** | 태스크 데이터셋 저장 및 재사용 |
+| **Prompts** | 프롬프트 버전 관리 |
+
 ### `agent-eval dashboard`
 
 평가 결과를 시각화하는 FastAPI 웹 대시보드를 실행합니다.
@@ -661,7 +683,7 @@ agent-evaluator/
 │   ├── exceptions.py            # 예외 계층 (AgentEvaluatorError 외 6종)
 │   └── config.py                # 환경변수 설정 로더
 │
-├── Evaluator_Examples/              # 카테고리별 평가 예제 (16개)
+├── Evaluator_Examples/              # 카테고리별 평가 예제 (17개)
 │   ├── 01_quality_eval.py           # 품질 지표 — Accuracy, Hallucination, Quality, RAG
 │   ├── 02_performance_eval.py       # 성능 지표 — TCR, Latency, Token Economy
 │   ├── 03_agentic_eval.py           # 에이전틱 지표 — Tool Call, Coordination, Workflow
@@ -677,7 +699,8 @@ agent-evaluator/
 │   ├── 13_golden_set_build.py       # 골든 데이터셋 빌더 예제
 │   ├── 14_anomaly_cost_eval.py      # 이상 탐지 + 비용 최적화 예제
 │   ├── 15_conversation_eval.py      # 멀티턴 대화 평가 예제
-│   └── 16_dashboard_demo.py         # FastAPI 대시보드 통합 데모 — save_to_file + Phoenix OTEL
+│   ├── 16_dashboard_demo.py         # FastAPI 대시보드 통합 데모 — save_to_file + Phoenix OTEL
+│   └── 17_phoenix_verification.py   # Phoenix 4개 메뉴 통합 데모 — Tracing·Evaluators·Datasets·Prompts
 │
 ├── tests/                        # 단위 테스트 (920개 테스트 함수, 37개 파일)
 ├── pyproject.toml
@@ -688,7 +711,7 @@ agent-evaluator/
 
 ## 예제 가이드
 
-16개의 예제 파일로 Layer 1/2/3 전체 지표를 검증할 수 있습니다.
+17개의 예제 파일로 Layer 1/2/3 전체 지표를 검증할 수 있습니다.
 
 ```bash
 cd Evaluator_Examples
@@ -701,19 +724,23 @@ python 04_security_eval.py         # 보안 지표 — Input Sanitization, Leaka
 python 05_hybrid_eval.py           # 하이브리드 평가 — DeepEval, Ragas, LangSmith 통합 (API 키 필요)
 
 # 프레임워크 통합
-python 06_langchain_eval.py        # LangChain 통합 예제
-python 07_langgraph_eval.py        # LangGraph 통합 예제
-python 08_crewai_eval.py           # CrewAI 통합 예제
-python 09_autogen_eval.py          # AutoGen 통합 예제
+python 06_langchain_eval.py        # LangChain 통합 예제 (OPENAI_API_KEY 설정 시 실제 LLM 호출)
+python 07_langgraph_eval.py        # LangGraph 통합 예제 (OPENAI_API_KEY 설정 시 실제 LLM 호출)
+python 08_crewai_eval.py           # CrewAI 통합 예제 (OPENAI_API_KEY 설정 시 실제 LLM 호출)
+python 09_autogen_eval.py          # AutoGen 통합 예제 (OPENAI_API_KEY 설정 시 실제 LLM 호출)
 python 10_cross_framework_eval.py  # 멀티 프레임워크 비교
 
 # 고급 기능 (Phase 2/3)
 python 11_streaming_eval.py        # 스트리밍 평가 (serve extras 필요)
-python 12_alerting_eval.py         # 알림 시스템 예제 (serve extras 필요)
+python 12_alerting_eval.py         # 알림 시스템 예제 (SLACK_WEBHOOK_URL/ALERT_WEBHOOK_URL 설정 시 실제 발송)
 python 13_golden_set_build.py      # 골든 데이터셋 빌더
 python 14_anomaly_cost_eval.py     # 이상 탐지 + 비용 최적화
 python 15_conversation_eval.py     # 멀티턴 대화 평가
 python 16_dashboard_demo.py        # 대시보드 통합 데모 (serve extras 필요)
+python 17_phoenix_verification.py  # Phoenix 4개 메뉴 통합 데모 — otel extras 필요
+
+# Phoenix 실시간 모니터링 (별도 터미널에서 먼저 실행)
+agent-eval monitor                 # Arize Phoenix 서버 기동 (http://localhost:6006)
 
 # 대시보드 실행 (결과 자동 반영)
 agent-eval dashboard --watch
@@ -821,7 +848,11 @@ mypy agent_evaluator/
 - **`agent-eval monitor`** — Arize Phoenix 서버를 기동하고 OpenTelemetry 스팬 수신을 설정하는 CLI 명령어 추가
 - **`setup_otel()`** 공개 API — `record_task()` 호출 시 OTLP 스팬 자동 발행 (`[otel]` extras 필요)
 - **`[otel]` extras** — `opentelemetry-sdk` + `opentelemetry-exporter-otlp-proto-http` + `arize-phoenix` 패키지 그룹 신규 추가
-- **예제 OTEL 통합** — 16개 예제 파일 모두 Phoenix 자동 연결 지원 (`_try_setup_otel()`)
+- **`17_phoenix_verification.py`** 신규 — Phoenix 4개 메뉴(Tracing·Evaluators·Datasets·Prompts) 통합 데모 (총 17개 예제)
+- **예제 OTEL 통합** — 17개 예제 파일 모두 Phoenix 자동 연결 지원 (`_try_setup_otel()`)
+- **Phoenix 프로젝트 분리** — `OTELProvider`가 `openinference.project.name` 속성으로 프로젝트 라우팅 → 예제별 독립 프로젝트 생성
+- **실제 LLM 경로 추가** (06~09) — `OPENAI_API_KEY` 설정 시 `gpt-4o-mini`로 실제 API 호출, 미설정 시 Mock 자동 전환
+- **알림 핸들러 env-var gating** (12) — `SLACK_WEBHOOK_URL`/`ALERT_WEBHOOK_URL` 설정 시 실제 Slack/Webhook 발송
 - **`setup_otel(enable_metrics=False)`** — Phoenix가 `/v1/metrics`를 지원하지 않는 문제 해결 (metrics 기본 비활성화)
 - **버그 수정**: OTEL 스팬 속성 `ae.framework` 등 None 값 방어 처리
 

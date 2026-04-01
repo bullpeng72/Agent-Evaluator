@@ -33,8 +33,11 @@ agent-eval check         # 현재 설정 상태 출력
 agent-eval dashboard     # FastAPI 대시보드 실행 (기본 포트 8765)  [개발·검증 단계]
 agent-eval gate result.json --tcr 85 --accuracy 70   # CI/CD 품질 게이팅
 agent-eval dataset build results/ --min-score 0.8    # 골든 데이터셋 자동 추출
-agent-eval monitor                                   # 운영 실시간 모니터링 Phoenix + OTEL
-agent-eval monitor --check                           # OTEL 설치 상태 및 포트 점유 확인
+agent-eval monitor                                   # Arize Phoenix 서버 기동 + OTLP 스팬 수신 설정 (운영 실시간 모니터링)
+agent-eval monitor --port 6006                       # Phoenix 포트 지정 (기본: 6006)
+agent-eval monitor --check                           # OTEL 패키지 설치 여부 및 포트 점유 상태 확인
+# 예제 실행 시 자동으로 Phoenix에 연결 → 프로젝트별 Tracing·Evaluators·Datasets·Prompts 확인 가능
+# (pip install "agent-evaluator[otel]" 또는 "[full]" 필요)
 agent-eval --version     # 버전 출력
 
 # 테스트 실행
@@ -399,7 +402,7 @@ pytest
 - `[langchain]` — `langchain>=1.0.0,<3.0.0` + `langchain-core/openai/anthropic>=1.0.0` + `langgraph>=1.0.0` — 중간
 - `[crewai]` — `crewai>=1.0.0,<2.0.0` — 무거움 (전이 의존성 100개+), 단독 격리
 - `[autogen]` — `pyautogen>=0.3.0,<1.0.0` + `autogen-agentchat/core>=0.4.0` — 무거움, 단독 격리
-- `[eval]` — `deepeval>=0.20.0,<4.0.0` + `ragas>=0.4.0,<2.0.0` + `datasets>=4.0.0,<6.0.0` + `langchain>=0.2.0`
+- `[eval]` — `deepeval>=3.0.0,<4.0.0` + `ragas>=0.4.0,<2.0.0` + `datasets>=4.0.0,<6.0.0` + `langchain>=0.2.0`
 - `[serve]` — `fastapi>=0.110.0` + `uvicorn[standard]>=0.29.0` + `jinja2>=3.1.0` + `python-multipart>=0.0.9` — 빠름
 - `[pdf]` — `pypdf>=3.0.0,<7.0.0` + `pdfplumber>=0.10.0,<1.0.0` — 빠름
 
@@ -446,7 +449,11 @@ pytest
 - **`[otel]` extras** — `opentelemetry-sdk`, `opentelemetry-exporter-otlp-proto-http`, `arize-phoenix` 패키지 그룹 신규
 - **`[full]` extras** — otel 패키지 포함으로 업데이트
 - **`_emit_otel_span()`** — `PerformanceMonitor.record_task()` 시 OTLP 스팬 자동 발행
-- **예제 OTEL 통합** — 16개 예제 파일 모두 Phoenix 자동 연결 (`_try_setup_otel()`)
+- **예제 OTEL 통합** — 17개 예제 파일 모두 Phoenix 자동 연결 (`_try_setup_otel()`)
+- **`17_phoenix_verification.py`** 신규 — Phoenix 4개 메뉴(Tracing·Evaluators·Datasets·Prompts) 통합 데모
+- **Phoenix 프로젝트 분리** — `OTELProvider` Resource 속성을 `openinference.project.name`으로 수정 → 예제별 독립 프로젝트 생성 (기존 `project.name` 오기 수정)
+- **실제 LLM 경로 추가** (06~09) — `OPENAI_API_KEY` / `ANTHROPIC_API_KEY` 환경변수 감지 시 실제 API 호출 (`gpt-4o-mini` 기본)
+- **알림 핸들러 env-var gating** (12) — `SLACK_WEBHOOK_URL`, `ALERT_WEBHOOK_URL` 설정 시 실제 핸들러, 미설정 시 Mock 자동 사용
 - **버그 수정**: OTEL 스팬 속성 None 방어 (`ae.framework` 등), metrics 기본 비활성화 (Phoenix `/v1/metrics` 미지원)
 
 ### v0.6.7 (2026-04-01) — Python 3.13 지원 · 의존성 상한 완화 · 대시보드 버그 수정
