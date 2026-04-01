@@ -655,6 +655,10 @@ class HallucinationDetector(BaseTracker):
         # Split and filter empty sentences
         response_sentences = [s.strip() for s in response.split('.') if s.strip()]
         context_words = set(context.lower().split())
+        # ground_truth words are also valid support — if a claim appears in the
+        # expected answer it should not be flagged as hallucination
+        gt_words = set(ground_truth.lower().split()) if ground_truth else set()
+        supported_words = context_words | gt_words
 
         for sentence in response_sentences:
             sentence_words = set(sentence.lower().split())
@@ -663,7 +667,7 @@ class HallucinationDetector(BaseTracker):
             if len(sentence_words) == 0:
                 continue
 
-            overlap = len(sentence_words & context_words)
+            overlap = len(sentence_words & supported_words)
 
             # If overlap ratio below threshold, flag as potential hallucination
             if (len(sentence_words) > _HALLUCINATION_SENTENCE_MIN_WORDS
