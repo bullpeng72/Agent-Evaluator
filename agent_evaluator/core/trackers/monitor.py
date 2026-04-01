@@ -1414,6 +1414,11 @@ class PerformanceMonitor:
             # OpenInference 표준 속성 — Phoenix UI 컬럼 표시에 필요
             input_val = getattr(result, "question", None) or result.task_id
             output_val = getattr(result, "response", None) or str(result.completion_score)
+            # task_type 에서 간결한 레이블 추출 (예: TaskType.QA → "qa")
+            raw_type = str(result.task_type)
+            type_label = raw_type.split(".")[-1].lower()  # "TaskType.QA" → "qa"
+            # 스팬 이름: "ae.task/{task_type}/{task_id}" — Phoenix name 컬럼으로 구분 가능
+            span_name = f"ae.task/{type_label}/{result.task_id}"
             attributes = {
                 # Phoenix UI: kind / input / output 컬럼
                 "openinference.span.kind": "CHAIN",
@@ -1433,7 +1438,7 @@ class PerformanceMonitor:
                 "ae.attempts": result.attempts,
                 "ae.framework": getattr(result, "framework", "native"),
             }
-            with provider.span("ae.task", attributes):
+            with provider.span(span_name, attributes):
                 pass  # 스팬 기록만, 평가 로직은 이미 완료
         except Exception as _otel_exc:
             logger.debug("_emit_otel_span: 스팬 발행 실패: %s", _otel_exc)
