@@ -124,21 +124,35 @@ def cmd_check_monitor() -> int:
 
 
 def _print_connect_info(ui_url: str, otlp_url: str) -> None:
-    # setup_otel endpoint 줄 길이를 맞추기 위해 padding 계산
-    endpoint_line = f'  setup_otel(endpoint="{otlp_url}")'
-    print(f"""
-  ┌─────────────────────────────────────────────────────────┐
-  │  Agent Evaluator — 운영 모니터링                        │
-  ├─────────────────────────────────────────────────────────┤
-  │  Phoenix UI      {ui_url:<40} │
-  │  OTLP HTTP       {otlp_url:<40} │
-  ├─────────────────────────────────────────────────────────┤
-  │  에이전트 코드에 아래를 추가하세요:                      │
-  │                                                         │
-  │  from agent_evaluator import setup_otel                 │
-  │  {endpoint_line:<56} │
-  └─────────────────────────────────────────────────────────┘
-""")
+    import unicodedata
+
+    INNER = 57  # ─ 개수 = 박스 내부 표시 너비 (열 단위)
+
+    def _dw(text: str) -> int:
+        """터미널 표시 폭 계산 (한글·전각문자 = 2열)."""
+        return sum(2 if unicodedata.east_asian_width(c) in ("W", "F") else 1 for c in text)
+
+    def _row(content: str) -> str:
+        pad = INNER - _dw(content)
+        return f"  │{content}{' ' * max(pad, 0)}│"
+
+    top = f"  ┌{'─' * INNER}┐"
+    sep = f"  ├{'─' * INNER}┤"
+    bot = f"  └{'─' * INNER}┘"
+
+    print()
+    print(top)
+    print(_row("  Agent Evaluator — 운영 모니터링"))
+    print(sep)
+    print(_row(f"  Phoenix UI      {ui_url}"))
+    print(_row(f"  OTLP HTTP       {otlp_url}"))
+    print(sep)
+    print(_row("  에이전트 코드에 아래를 추가하세요:"))
+    print(_row(""))
+    print(_row("  from agent_evaluator import setup_otel"))
+    print(_row(f'  setup_otel(endpoint="{otlp_url}")'))
+    print(bot)
+    print()
 
 
 # ---------------------------------------------------------------------------
