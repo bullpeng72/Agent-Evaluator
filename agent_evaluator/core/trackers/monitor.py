@@ -1436,6 +1436,12 @@ class PerformanceMonitor:
                 "reasoning": "CHAIN",
             }
             span_kind = _SPAN_KIND_MAP.get(type_label, "CHAIN")
+            # 토큰 분류 (Phoenix Cost/Token usage 차트용)
+            tokens = result.tokens_used if isinstance(result.tokens_used, dict) else {}
+            prompt_tokens = tokens.get("input", 0)
+            completion_tokens = tokens.get("output", 0)
+            model_name = tokens.get("model", "") or self.model_name or "unknown"
+
             attributes = {
                 # Phoenix UI: kind / input / output 컬럼
                 "openinference.span.kind": span_kind,
@@ -1443,6 +1449,11 @@ class PerformanceMonitor:
                 "output.value": str(output_val),
                 # Phoenix Sessions 탭 그룹핑
                 "session.id": self._otel_session_id,
+                # OpenInference LLM 속성 — Cost/Token usage 차트용
+                "llm.token_count.prompt": prompt_tokens,
+                "llm.token_count.completion": completion_tokens,
+                "llm.token_count.total": prompt_tokens + completion_tokens,
+                "llm.model_name": str(model_name),
                 # Agent Evaluator 고유 지표
                 "ae.task_id": result.task_id,
                 "ae.task_type": str(result.task_type),
@@ -1450,15 +1461,19 @@ class PerformanceMonitor:
                 "ae.completion_score": float(result.completion_score),
                 "ae.accuracy_score": float(result.accuracy_score),
                 "ae.execution_time": float(result.execution_time),
-                "ae.tokens_used": result.tokens_used.get("total", 0)
-                if isinstance(result.tokens_used, dict)
-                else int(result.tokens_used or 0),
+                "ae.tokens_used": prompt_tokens + completion_tokens,
                 "ae.tool_calls_count": len(result.tool_calls) if result.tool_calls else 0,
                 "ae.attempts": result.attempts,
                 "ae.framework": getattr(result, "framework", "native"),
             }
-            with provider.span(span_name, attributes):
-                pass  # 스팬 기록만, 평가 로직은 이미 완료
+            with provider.span(span_name, attributes) as span:
+                # 실패 태스크 → SpanStatus ERROR 설정 (Traces with errors 차트용)
+                if not result.success and span is not None:
+                    try:
+                        from opentelemetry.trace import StatusCode
+                        span.set_status(StatusCode.ERROR, "task failed")
+                    except Exception:
+                        pass
 
             # Phoenix Metrics 탭 — 집계 지표 전송
             try:
