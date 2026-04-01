@@ -456,43 +456,18 @@ pytest
 - **알림 핸들러 env-var gating** (12) — `SLACK_WEBHOOK_URL`, `ALERT_WEBHOOK_URL` 설정 시 실제 핸들러, 미설정 시 Mock 자동 사용
 - **버그 수정**: OTEL 스팬 속성 None 방어 (`ae.framework` 등), metrics 기본 비활성화 (Phoenix `/v1/metrics` 미지원)
 
-### v0.6.7 (2026-04-01) — Python 3.13 지원 · 의존성 상한 완화 · 대시보드 버그 수정
+### v0.6.x (2026-03-21 ~ 04-01) — SDK 안정화 · 프레임워크 통합 · 대시보드
 
-- `numpy<3.0.0`, `pandas<4.0.0` 상한 완화 — Python 3.13 wheel 지원
-- `pyproject.toml` classifier `Python :: 3.13` 추가, pipx 소스 빌드 실패 해결
-- `serve/server.py` Starlette 1.0 `TemplateResponse` API 시그니처 변경 대응 (`name, context` → `request, name, context`) — `agent-eval dashboard` 접속 시 `TypeError: unhashable type: 'dict'` 수정
-
----
-
-### v0.6.6 (2026-03-31) — Docs 체계 재조정 · 내보내기 버그 수정 · SDK HTML 리포트 개선
-
-- Docs 통합: 8개 → 3개 (`02_METRICS_REFERENCE.md`, `03_FRAMEWORK_GUIDE.md`, `01_QUICK_START.md` 신규)
-- `serve/routers/export.py`: HTML 내보내기 TypeError 수정, 태스크 테이블 컬럼명, Hallucination 백분율, CSV 컬럼 9→23개 확장
-- `reporting/comprehensive_report.py`: `success_rate` 백분율 변환, 에이전틱 빈 상태, 버전 동적 참조 수정
-- `slides.html.j2` JavaScript SyntaxError 수정 — 빈 슬라이드 렌더링 버그 완전 해결
-- Lectures 6개 파일 — 명령어·메서드명·필드명 전면 정정
-
----
-
-### v0.6.5 (2026-03-30) — golden_datasets 위치 재설계 · 이상 감지 파이프라인 완성
-
-- `results/golden_datasets/` → `data/golden_datasets/` 이동 (평가 산출물↔영구 자산 분리)
-- `save_to_file()`: `AnomalyDetector.scan()` 결과를 `anomaly_data` 키로 저장 — 대시보드 이상 감지 탭 데이터 연결
-- `serve/loader.py` `_parse_anomaly_data()` 중첩 구조 읽기 수정
-- `15_conversation_eval.py` 예제 신규 추가 — `ConversationSession` 멀티턴 대화 평가
-- 테스트 920개, 37개 파일 (Phase 2/3 신규 6개 파일 추가)
-
----
-
-### v0.6.0 – v0.6.3 (2026-03-21 ~ 29) — SDK 안정화 + 프레임워크 통합 + 대시보드 초기 안정화
-
-- LangChain / LangGraph / CrewAI / AutoGen 4개 프레임워크 완전 지원
-- `RagasAdapter` ragas 0.4.x API 완전 지원, extras 단위 재설계
-- FastAPI 대시보드 + `agent-eval dashboard` CLI + 오프라인 모드
-- 트래커 캡슐화 강화 (`_xxx` private + `@property`), `record_task()` 메서드 체이닝, 스레드 안전성
-- `TaskResult.__hash__` 수정, `save_to_file()` 원자적 쓰기, `from_dict/from_json` 역직렬화 추가
-- `PerformanceMonitor.for_rag_evaluation()`, `for_secure_agents()` 팩토리 추가
-- `LLMJudge` — LLM-as-Judge 평가 엔진 (ground_truth 없이 3차원 자동 채점)
+- **프레임워크 통합** — LangChain / LangGraph / CrewAI / AutoGen 4개 완전 지원
+- **FastAPI 대시보드** — `agent-eval dashboard` CLI, HTML/CSV 내보내기, 슬라이드 뷰, 오프라인 모드
+- **LLMJudge** — ground_truth 없이 completeness · relevance · factual_consistency 3차원 자동 채점
+- **멀티턴 대화 평가** — `ConversationSession` 추가 (`15_conversation_eval.py`)
+- **골든 데이터셋 재설계** — 경로 `results/golden_datasets/` → `data/golden_datasets/`
+- **이상 감지 파이프라인** — `save_to_file()` → `anomaly_data` → 대시보드 연결
+- **Ragas 0.4.x** — `EvaluationDataset` / `SingleTurnSample` API 완전 지원
+- **Python 3.13 지원** — `numpy<3.0.0`, `pandas<4.0.0` 상한 완화
+- **SDK 안정화** — `record_task()` 메서드 체이닝, `TaskResult` 직렬화/역직렬화, 스레드 안전성
+- **테스트** — 920개 테스트 함수, 37개 파일
 
 ### v0.2.x – v0.5.x — 초기 구현
 

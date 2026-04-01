@@ -856,29 +856,16 @@ mypy agent_evaluator/
 - **`setup_otel(enable_metrics=False)`** — Phoenix가 `/v1/metrics`를 지원하지 않는 문제 해결 (metrics 기본 비활성화)
 - **버그 수정**: OTEL 스팬 속성 `ae.framework` 등 None 값 방어 처리
 
-### v0.6.7 (2026-04-01) — Python 3.13 지원 · 대시보드 버그 수정
+### v0.6.x (2026-03-21 ~ 04-01) — SDK 안정화 · 프레임워크 통합 · 대시보드
 
-- **Python 3.13 호환성**: `numpy<3.0.0`, `pandas<4.0.0` 상한 완화
-- **버그 수정**: Starlette 1.0 `TemplateResponse` API 변경 대응 — `agent-eval dashboard` 접속 시 `TypeError: unhashable type: 'dict'` 수정
-
-### v0.6.6 (2026-03-31) — Docs 체계 재조정 · 내보내기 버그 수정
-
-- Docs 통합 정리 (`02_METRICS_REFERENCE.md`, `03_FRAMEWORK_GUIDE.md`, `01_QUICK_START.md` 신규)
-- 대시보드 HTML/CSV 내보내기 오류 수정 (SecurityL1/L2 필드 처리, CSV 컬럼 9→23개 확장)
-- SDK HTML 리포트 `success_rate` 백분율 버그, `slides.html.j2` JavaScript SyntaxError 수정
-
-### v0.6.5 (2026-03-30) — golden_datasets 위치 재설계 · 이상 감지 파이프라인
-
-- 골든 데이터셋 경로 `results/golden_datasets/` → `data/golden_datasets/`
-- 이상 감지 탭 데이터 파이프라인 완성 (`save_to_file()` → `anomaly_data` 연결)
-- 테스트 920개 달성 (Phase 2/3 신규 6개 파일 추가)
-
-### v0.6.0 – v0.6.3 (2026-03-21 ~ 29) — SDK 안정화 + 프레임워크 통합
-
-- LangChain / LangGraph / CrewAI / AutoGen 4개 프레임워크 완전 지원
-- FastAPI 대시보드 + `agent-eval dashboard` CLI (오프라인 모드 포함)
-- `LLMJudge` — ground_truth 없이 3차원 자동 채점 (completeness · relevance · factual_consistency)
-- 트래커 캡슐화·스레드 안전성 강화, `TaskResult` 직렬화/역직렬화 완성
+- **프레임워크 통합** — LangChain / LangGraph / CrewAI / AutoGen 4개 완전 지원
+- **FastAPI 대시보드** — `agent-eval dashboard` CLI, HTML/CSV 내보내기, 슬라이드 뷰
+- **LLMJudge** — ground_truth 없이 completeness · relevance · factual_consistency 3차원 자동 채점
+- **멀티턴 대화 평가** — `ConversationSession` 추가 (`15_conversation_eval.py`)
+- **골든 데이터셋 재설계** — 경로 `results/golden_datasets/` → `data/golden_datasets/`
+- **이상 감지 파이프라인** — `save_to_file()` → `anomaly_data` → 대시보드 연결
+- **Python 3.13 지원** — `numpy<3.0.0`, `pandas<4.0.0` 상한 완화
+- **테스트** — 920개 테스트 함수, 37개 파일
 
 ---
 
