@@ -50,6 +50,7 @@ class OTELProvider:
     ) -> None:
         self._enabled = enabled and _HAS_OTEL
         self._tracer: Optional[Any] = None
+        self._base_endpoint: Optional[str] = endpoint if (enabled and _HAS_OTEL) else None
 
         if not self._enabled:
             if enabled and not _HAS_OTEL:
@@ -107,3 +108,20 @@ class OTELProvider:
     def enabled(self) -> bool:
         """OTEL이 활성화되어 있으면 True."""
         return self._enabled
+
+    @property
+    def base_endpoint(self) -> Optional[str]:
+        """OTLP 수신 서버 기본 URL (예: http://localhost:6006). 비활성화 시 None."""
+        return self._base_endpoint
+
+    def force_flush(self, timeout_ms: int = 5000) -> None:
+        """BatchSpanProcessor 큐를 즉시 플러시한다."""
+        if not self._enabled:
+            return
+        try:
+            from opentelemetry import trace as _trace
+            provider = _trace.get_tracer_provider()
+            if hasattr(provider, "force_flush"):
+                provider.force_flush(timeout_millis=timeout_ms)
+        except Exception as exc:
+            logger.debug("OTELProvider.force_flush: %s", exc)

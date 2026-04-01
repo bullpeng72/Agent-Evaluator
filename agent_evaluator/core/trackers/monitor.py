@@ -285,6 +285,9 @@ class PerformanceMonitor:
         # OTEL 세션 식별자 — Phoenix Sessions 탭 그룹핑용
         self._otel_session_id: str = str(uuid.uuid4())
 
+        # Phoenix Annotation API 전송 대기열 — save_to_file() 시 일괄 POST
+        self._pending_annotations: List[Dict[str, Any]] = []
+
     @property
     def golden_datasets(self) -> List[Any]:
         """Shallow copy of loaded golden datasets."""
@@ -1474,6 +1477,19 @@ class PerformanceMonitor:
                         span.set_status(StatusCode.ERROR, "task failed")
                     except Exception:
                         pass
+                # span_id 캡처 → Phoenix Annotation API 대기열에 추가
+                if span is not None:
+                    try:
+                        ctx = span.get_span_context()
+                        if ctx and ctx.is_valid:
+                            self._pending_annotations.append({
+                                "span_id": format(ctx.span_id, "016x"),
+                                "accuracy": float(result.accuracy_score),
+                                "completion": float(result.completion_score),
+                                "success": 1.0 if result.success else 0.0,
+                            })
+                    except Exception:
+                        pass
 
             # Phoenix Metrics 탭 — 집계 지표 전송
             try:
@@ -1494,6 +1510,69 @@ class PerformanceMonitor:
                 logger.debug("_emit_otel_span: metrics 전송 실패: %s", _m_exc)
         except Exception as _otel_exc:
             logger.debug("_emit_otel_span: 스팬 발행 실패: %s", _otel_exc)
+
+    def _flush_phoenix_annotations(self) -> None:
+        """누적된 평가 점수를 Phoenix Annotation API로 일괄 전송한다.
+
+        save_to_file() 끝에서 호출된다. Phoenix가 실행 중이지 않거나
+        OTEL 미설정 시 no-op.
+
+        전송 지표 (annotator_kind="CODE"):
+            - accuracy   : ae.accuracy_score  (0–1)
+            - completion : ae.completion_score (0–1)
+            - success    : 1.0 성공 / 0.0 실패
+        """
+        if not self._pending_annotations:
+            return
+        try:
+            from agent_evaluator.core.otel import get_provider
+            provider = get_provider()
+            if provider is None or not provider.enabled or not provider.base_endpoint:
+                return
+
+            # BatchSpanProcessor 플러시 → span_id가 Phoenix에 도착한 후 어노테이션 전송
+            provider.force_flush(timeout_ms=3000)
+
+            import json
+            import urllib.request
+
+            data: List[Dict[str, Any]] = []
+            for ann in self._pending_annotations:
+                span_id = ann["span_id"]
+                for metric, score in [
+                    ("accuracy", ann["accuracy"]),
+                    ("completion", ann["completion"]),
+                    ("success", ann["success"]),
+                ]:
+                    label = "pass" if score >= 0.5 else "fail"
+                    data.append({
+                        "span_id": span_id,
+                        "name": metric,
+                        "annotator_kind": "CODE",
+                        "result": {
+                            "score": round(score, 4),
+                            "label": label,
+                            "explanation": f"Agent Evaluator {metric} (CODE evaluator)",
+                        },
+                        "metadata": {},
+                    })
+
+            payload = json.dumps({"data": data}).encode()
+            req = urllib.request.Request(
+                f"{provider.base_endpoint}/v1/span_annotations",
+                data=payload,
+                headers={"Content-Type": "application/json"},
+                method="POST",
+            )
+            with urllib.request.urlopen(req, timeout=10) as resp:
+                logger.info(
+                    "Phoenix annotations 전송 완료: %d건, HTTP %d",
+                    len(data),
+                    resp.status,
+                )
+            self._pending_annotations.clear()
+        except Exception as exc:
+            logger.debug("_flush_phoenix_annotations: 전송 실패 (Phoenix 미실행 시 정상): %s", exc)
 
     def record_rag_metrics(
         self,
@@ -3242,6 +3321,9 @@ class PerformanceMonitor:
         except Exception as e:
             # 레지스트리 등록 실패해도 데이터 저장은 성공한 것으로 처리
             logger.warning("레지스트리 등록 실패 (데이터는 정상 저장됨): %s", e)
+
+        # Phoenix Annotation API — accuracy / completion / success 점수 전송
+        self._flush_phoenix_annotations()
 
         return filename
 
