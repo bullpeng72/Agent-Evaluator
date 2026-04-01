@@ -1,10 +1,14 @@
 """
 agent-eval monitor — 운영 실시간 모니터링 (Phoenix + OTEL)
 
+Phoenix 13.x 기준:
+  - UI + OTLP HTTP 수신: 동일 포트 (기본 6006)
+  - OTLP gRPC 수신: 기본 4317
+  - 포트 설정: PHOENIX_PORT 환경변수 (--port CLI 인수 없음)
+
 사용법:
     agent-eval monitor                      # Phoenix 기동 + 브라우저 오픈
     agent-eval monitor --port 6006          # 포트 지정
-    agent-eval monitor --otlp-port 4318     # OTLP receiver 포트 지정
     agent-eval monitor --no-open            # 브라우저 자동 오픈 비활성화
     agent-eval monitor --attach <url>       # 기존 Phoenix 서버에 연결
     agent-eval monitor --check              # 설치 상태 및 포트 점유 확인
@@ -14,11 +18,13 @@ from __future__ import annotations
 
 import argparse
 import importlib.util
+import os
+import shutil
 import socket
 import sys
 import time
 import webbrowser
-from typing import Dict
+from typing import Dict, List, Optional
 
 
 # ---------------------------------------------------------------------------
@@ -29,6 +35,16 @@ from typing import Dict
 def _pkg_installed(import_name: str) -> bool:
     """패키지가 import 가능한지 확인 (실제 import 없이)."""
     return importlib.util.find_spec(import_name) is not None
+
+
+def _phoenix_version() -> Optional[str]:
+    """설치된 arize-phoenix 버전 반환. 미설치 시 None."""
+    try:
+        from importlib.metadata import version
+
+        return version("arize-phoenix")
+    except Exception:
+        return None
 
 
 def _check_deps() -> Dict[str, bool]:
@@ -49,6 +65,17 @@ def _port_in_use(port: int, host: str = "localhost") -> bool:
         return s.connect_ex((host, port)) == 0
 
 
+def _phoenix_cmd() -> List[str]:
+    """Phoenix 기동 명령 반환.
+
+    `phoenix` CLI 바이너리가 있으면 우선 사용,
+    없으면 python -m phoenix.server.main serve 로 fallback.
+    """
+    if shutil.which("phoenix"):
+        return ["phoenix", "serve"]
+    return [sys.executable, "-m", "phoenix.server.main", "serve"]
+
+
 # ---------------------------------------------------------------------------
 # --check 모드
 # ---------------------------------------------------------------------------
@@ -61,18 +88,19 @@ def cmd_check_monitor() -> int:
 
     print()
     print("  패키지 상태")
-    print("  " + "─" * 50)
+    print("  " + "─" * 54)
     for pkg, installed in deps.items():
         if installed:
-            print(f"  ✅  {pkg:<50} 설치됨")
+            suffix = f"  ({_phoenix_version()})" if pkg == "arize-phoenix" else ""
+            print(f"  ✅  {pkg:<50} 설치됨{suffix}")
         else:
             print(f"  ❌  {pkg:<50} 미설치")
             all_ok = False
 
     print()
-    print("  포트 상태")
-    print("  " + "─" * 50)
-    for port, label in [(6006, "Phoenix UI"), (4318, "OTLP Receiver")]:
+    print("  포트 상태  (Phoenix 13.x: UI + OTLP HTTP 동일 포트)")
+    print("  " + "─" * 54)
+    for port, label in [(6006, "Phoenix UI / OTLP HTTP"), (4317, "OTLP gRPC")]:
         in_use = _port_in_use(port)
         if in_use:
             print(f"  ⚠️   포트 {port:<6} ({label}) — 사용 중 (다른 프로세스)")
@@ -96,17 +124,19 @@ def cmd_check_monitor() -> int:
 
 
 def _print_connect_info(ui_url: str, otlp_url: str) -> None:
+    # setup_otel endpoint 줄 길이를 맞추기 위해 padding 계산
+    endpoint_line = f'  setup_otel(endpoint="{otlp_url}")'
     print(f"""
   ┌─────────────────────────────────────────────────────────┐
   │  Agent Evaluator — 운영 모니터링                        │
   ├─────────────────────────────────────────────────────────┤
   │  Phoenix UI      {ui_url:<40} │
-  │  OTLP Receiver   {otlp_url:<40} │
+  │  OTLP HTTP       {otlp_url:<40} │
   ├─────────────────────────────────────────────────────────┤
   │  에이전트 코드에 아래를 추가하세요:                      │
   │                                                         │
   │  from agent_evaluator import setup_otel                 │
-  │  setup_otel(endpoint="{otlp_url}")        │
+  │  {endpoint_line:<56} │
   └─────────────────────────────────────────────────────────┘
 """)
 
@@ -134,14 +164,15 @@ def cmd_monitor(args: argparse.Namespace) -> int:
         return 1
 
     port: int = args.port
-    otlp_port: int = args.otlp_port
     host: str = args.host
     ui_url = f"http://{host}:{port}"
-    otlp_url = f"http://{host}:{otlp_port}"
+    # Phoenix 13.x: OTLP HTTP는 UI와 동일 포트
+    otlp_url = ui_url
 
     # --attach 모드: 자체 기동 없이 기존 서버에 연결
     if args.attach:
         ui_url = args.attach.rstrip("/")
+        otlp_url = ui_url
         _print_connect_info(ui_url, otlp_url)
         if not args.no_open:
             webbrowser.open(ui_url)
@@ -156,12 +187,18 @@ def cmd_monitor(args: argparse.Namespace) -> int:
         return 1
 
     # Phoenix 서버 기동
+    # Phoenix 13.x: 포트는 PHOENIX_PORT 환경변수로 지정
     print(f"\n  Agent Evaluator — 운영 모니터링 기동 중...\n")
     try:
         import subprocess
 
+        env = os.environ.copy()
+        env["PHOENIX_PORT"] = str(port)
+
+        cmd = _phoenix_cmd()
         proc = subprocess.Popen(
-            [sys.executable, "-m", "phoenix.server.main", "--port", str(port)],
+            cmd,
+            env=env,
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
         )
@@ -169,13 +206,14 @@ def cmd_monitor(args: argparse.Namespace) -> int:
         print(f"  ❌  Phoenix 서버 기동 실패: {exc}")
         return 1
 
-    # 서버 준비 대기 (최대 10초)
-    for _ in range(20):
+    # 서버 준비 대기 (최대 30초 — Phoenix 13.x는 DB 초기화로 시간이 걸릴 수 있음)
+    for _ in range(60):
         if _port_in_use(port, host):
             break
         time.sleep(0.5)
     else:
-        print("  ❌  Phoenix 서버 기동 시간 초과.")
+        print("  ❌  Phoenix 서버 기동 시간 초과 (30초).")
+        print(f"     직접 실행해보세요: PHOENIX_PORT={port} phoenix serve")
         proc.terminate()
         return 1
 
@@ -208,12 +246,14 @@ def build_monitor_subparser(sub: argparse._SubParsersAction) -> None:  # type: i
             "Arize Phoenix 서버를 기동하고 OpenTelemetry 스팬 수신을 설정합니다.\n"
             "프로덕션 환경의 실시간 트레이싱·스팬 분석·오류 감지에 활용합니다.\n"
             "\n"
+            "Phoenix 13.x: UI + OTLP HTTP가 동일 포트(기본 6006) 사용\n"
+            "\n"
             "필요 패키지:\n"
             '  pip install "agent-evaluator[otel]"\n'
             "\n"
             "예시:\n"
             "  agent-eval monitor\n"
-            "  agent-eval monitor --port 6006 --otlp-port 4318\n"
+            "  agent-eval monitor --port 6006\n"
             "  agent-eval monitor --attach http://localhost:6006\n"
             "  agent-eval monitor --check"
         ),
@@ -222,14 +262,7 @@ def build_monitor_subparser(sub: argparse._SubParsersAction) -> None:  # type: i
         "--port",
         type=int,
         default=6006,
-        help="Phoenix 웹 UI 포트 (기본: 6006)",
-    )
-    p.add_argument(
-        "--otlp-port",
-        type=int,
-        default=4318,
-        dest="otlp_port",
-        help="OTLP HTTP receiver 포트 (기본: 4318)",
+        help="Phoenix UI 포트 (기본: 6006) — OTLP HTTP도 동일 포트 수신",
     )
     p.add_argument(
         "--host",
