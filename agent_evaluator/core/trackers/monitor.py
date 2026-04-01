@@ -1445,30 +1445,48 @@ class PerformanceMonitor:
             completion_tokens = tokens.get("output", 0)
             model_name = tokens.get("model", "") or self.model_name or "unknown"
 
-            attributes = {
+            # metadata: 스팬 상세 탭 커스텀 정보 (JSON 문자열)
+            import json as _json
+            metadata_dict: Dict[str, Any] = {"task_type": type_label}
+            if result.framework:
+                metadata_dict["framework"] = result.framework
+            if getattr(result, "partial_reason", None):
+                metadata_dict["partial_reason"] = result.partial_reason
+
+            attributes: Dict[str, Any] = {
                 # Phoenix UI: kind / input / output 컬럼
                 "openinference.span.kind": span_kind,
                 "input.value": str(input_val),
                 "output.value": str(output_val),
                 # Phoenix Sessions 탭 그룹핑
                 "session.id": self._otel_session_id,
+                # OpenInference 메타데이터
+                "metadata": _json.dumps(metadata_dict, ensure_ascii=False),
                 # OpenInference LLM 속성 — Cost/Token usage 차트용
                 "llm.token_count.prompt": prompt_tokens,
                 "llm.token_count.completion": completion_tokens,
                 "llm.token_count.total": prompt_tokens + completion_tokens,
                 "llm.model_name": str(model_name),
-                # Agent Evaluator 고유 지표
-                "ae.task_id": result.task_id,
+                # Agent Evaluator 고유 지표 (None → 기본값으로 대체)
+                "ae.task_id": result.task_id or "",
                 "ae.task_type": str(result.task_type),
-                "ae.success": result.success,
-                "ae.completion_score": float(result.completion_score),
-                "ae.accuracy_score": float(result.accuracy_score),
-                "ae.execution_time": float(result.execution_time),
+                "ae.success": bool(result.success),
+                "ae.completion_score": float(result.completion_score or 0.0),
+                "ae.accuracy_score": float(result.accuracy_score or 0.0),
+                "ae.execution_time": float(result.execution_time or 0.0),
                 "ae.tokens_used": prompt_tokens + completion_tokens,
                 "ae.tool_calls_count": len(result.tool_calls) if result.tool_calls else 0,
-                "ae.attempts": result.attempts,
-                "ae.framework": getattr(result, "framework", "native"),
+                "ae.attempts": int(result.attempts or 0),
+                "ae.framework": getattr(result, "framework", None) or "native",
             }
+
+            # retrieval.documents — INFORMATION_RETRIEVAL 스팬에 RAG 컨텍스트 첨부
+            if type_label == "information_retrieval" and getattr(result, "context", None):
+                try:
+                    docs = [{"document.id": "0", "document.content": str(result.context)}]
+                    attributes["retrieval.documents"] = _json.dumps(docs, ensure_ascii=False)
+                except Exception:
+                    pass
             with provider.span(span_name, attributes) as span:
                 # 실패 태스크 → SpanStatus ERROR 설정 (Traces with errors 차트용)
                 if not result.success and span is not None:
@@ -1497,6 +1515,7 @@ class PerformanceMonitor:
                 m = get_metrics()
                 if m and m.enabled:
                     task_attrs = {"task_type": type_label, "framework": attributes["ae.framework"]}
+                    m.record("ae.tcr", float(result.completion_score * 100), task_attrs)
                     m.record("ae.latency_seconds", float(result.execution_time), task_attrs)
                     m.record("ae.accuracy", float(result.accuracy_score), task_attrs)
                     tokens_total = (
