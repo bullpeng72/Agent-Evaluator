@@ -14,6 +14,7 @@ from __future__ import annotations
 from typing import Optional
 
 _provider: Optional["OTELProvider"] = None  # type: ignore[name-defined]  # noqa: F821
+_metrics: Optional["OTELMetrics"] = None   # type: ignore[name-defined]  # noqa: F821
 
 
 def setup_otel(
@@ -21,13 +22,13 @@ def setup_otel(
     service_name: str = "agent-evaluator",
     enabled: bool = True,
 ) -> "OTELProvider":  # type: ignore[name-defined]  # noqa: F821
-    """OTELProvider를 초기화하고 전역 등록한다.
+    """OTELProvider / OTELMetrics를 초기화하고 전역 등록한다.
 
     PerformanceMonitor는 이 전역 provider를 자동으로 감지해
-    record_task() 시 스팬을 발행한다.
+    record_task() 시 스팬과 지표를 발행한다.
 
     Args:
-        endpoint: OTLP HTTP receiver 주소 (Phoenix 기본: http://localhost:4318)
+        endpoint: OTLP HTTP receiver 주소 (Phoenix 기본: http://localhost:6006)
         service_name: Phoenix UI에 표시될 서비스 이름
         enabled: False 시 no-op (테스트/개발 환경 비활성화 용도)
 
@@ -36,20 +37,27 @@ def setup_otel(
 
     Example:
         >>> from agent_evaluator import setup_otel
-        >>> setup_otel(endpoint="http://localhost:4318")
-        >>> # 이후 monitor.record_task()가 자동으로 스팬 발행
+        >>> setup_otel(endpoint="http://localhost:6006")
+        >>> # 이후 monitor.record_task()가 자동으로 스팬 + 지표 발행
     """
     from agent_evaluator.core.otel.provider import OTELProvider
+    from agent_evaluator.core.otel.metrics import OTELMetrics
 
-    global _provider
+    global _provider, _metrics
     _provider = OTELProvider(
         endpoint=endpoint,
         service_name=service_name,
         enabled=enabled,
     )
+    _metrics = OTELMetrics(endpoint=endpoint, enabled=enabled)
     return _provider
 
 
 def get_provider() -> Optional["OTELProvider"]:  # type: ignore[name-defined]  # noqa: F821
     """현재 활성화된 OTELProvider를 반환. 미설정 시 None."""
     return _provider
+
+
+def get_metrics() -> Optional["OTELMetrics"]:  # type: ignore[name-defined]  # noqa: F821
+    """현재 활성화된 OTELMetrics를 반환. 미설정 시 None."""
+    return _metrics

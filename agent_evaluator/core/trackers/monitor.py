@@ -282,6 +282,9 @@ class PerformanceMonitor:
         # Thread safety: golden_datasets/conversation_sessions 동시 접근 보호
         self._lock = threading.Lock()
 
+        # OTEL 세션 식별자 — Phoenix Sessions 탭 그룹핑용
+        self._otel_session_id: str = str(uuid.uuid4())
+
     @property
     def golden_datasets(self) -> List[Any]:
         """Shallow copy of loaded golden datasets."""
@@ -1438,6 +1441,8 @@ class PerformanceMonitor:
                 "openinference.span.kind": span_kind,
                 "input.value": str(input_val),
                 "output.value": str(output_val),
+                # Phoenix Sessions 탭 그룹핑
+                "session.id": self._otel_session_id,
                 # Agent Evaluator 고유 지표
                 "ae.task_id": result.task_id,
                 "ae.task_type": str(result.task_type),
@@ -1454,6 +1459,24 @@ class PerformanceMonitor:
             }
             with provider.span(span_name, attributes):
                 pass  # 스팬 기록만, 평가 로직은 이미 완료
+
+            # Phoenix Metrics 탭 — 집계 지표 전송
+            try:
+                from agent_evaluator.core.otel import get_metrics
+                m = get_metrics()
+                if m and m.enabled:
+                    task_attrs = {"task_type": type_label, "framework": attributes["ae.framework"]}
+                    m.record("ae.latency_seconds", float(result.execution_time), task_attrs)
+                    m.record("ae.accuracy", float(result.accuracy_score), task_attrs)
+                    tokens_total = (
+                        result.tokens_used.get("total", 0)
+                        if isinstance(result.tokens_used, dict)
+                        else int(result.tokens_used or 0)
+                    )
+                    m.record("ae.tokens_total", float(tokens_total), task_attrs)
+                    m.record("ae.error_rate", 0.0 if result.success else 100.0, task_attrs)
+            except Exception as _m_exc:
+                logger.debug("_emit_otel_span: metrics 전송 실패: %s", _m_exc)
         except Exception as _otel_exc:
             logger.debug("_emit_otel_span: 스팬 발행 실패: %s", _otel_exc)
 
