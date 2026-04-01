@@ -1419,9 +1419,23 @@ class PerformanceMonitor:
             type_label = raw_type.split(".")[-1].lower()  # "TaskType.QA" → "qa"
             # 스팬 이름: "ae.task/{task_type}/{task_id}" — Phoenix name 컬럼으로 구분 가능
             span_name = f"ae.task/{type_label}/{result.task_id}"
+            # TaskType → OpenInference span kind 매핑
+            _SPAN_KIND_MAP = {
+                "qa": "LLM",
+                "code_generation": "LLM",
+                "coding": "LLM",
+                "creative": "LLM",
+                "information_retrieval": "RETRIEVER",
+                "tool_use": "TOOL",
+                "planning": "AGENT",
+                "data_analysis": "CHAIN",
+                "document_creation": "CHAIN",
+                "reasoning": "CHAIN",
+            }
+            span_kind = _SPAN_KIND_MAP.get(type_label, "CHAIN")
             attributes = {
                 # Phoenix UI: kind / input / output 컬럼
-                "openinference.span.kind": "CHAIN",
+                "openinference.span.kind": span_kind,
                 "input.value": str(input_val),
                 "output.value": str(output_val),
                 # Agent Evaluator 고유 지표
