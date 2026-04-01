@@ -229,6 +229,102 @@ class LLMJudge:
             "results": judged,
         }
 
+    def register_prompt_to_phoenix(
+        self,
+        prompt_name: str = "agent-eval-judge",
+        phoenix_endpoint: str = "http://localhost:6006",
+    ) -> Optional[str]:
+        """현재 LLMJudge 채점 프롬프트를 Phoenix Prompts에 등록한다.
+
+        Phoenix UI → Prompts 탭에서 버전 이력 확인 및 Playground 연동이 가능해진다.
+        프롬프트 변경 시 재호출하면 Phoenix에서 버전 diff를 추적한다.
+
+        Args:
+            prompt_name: Phoenix Prompts 탭에 표시될 이름.
+            phoenix_endpoint: Phoenix 서버 주소 (기본: http://localhost:6006).
+
+        Returns:
+            생성된 prompt_id 문자열. 실패 시 None.
+
+        Example::
+            judge = LLMJudge(model="gpt-4o-mini", sample_rate=0.1)
+            prompt_id = judge.register_prompt_to_phoenix("qa-judge-v1")
+        """
+        import urllib.error
+        import urllib.request
+
+        # Phoenix v1/prompts API 스키마:
+        # prompt: {name, description}
+        # version: {model_provider, model_name, template, template_type,
+        #           template_format, invocation_parameters, description}
+        model_provider = "OPENAI" if self.model.startswith("gpt") else "ANTHROPIC"
+        inv_type = "openai" if model_provider == "OPENAI" else "anthropic"
+        inv_content: Dict[str, Any] = {"temperature": 0.0, "max_tokens": 512}
+        payload = json.dumps({
+            "prompt": {
+                "name": prompt_name,
+                "description": (
+                    f"Agent Evaluator LLMJudge — model: {self.model}. "
+                    "Scores completeness / relevance / factual_consistency (0–5 each)."
+                ),
+            },
+            "version": {
+                "model_provider": model_provider,
+                "model_name": self.model,
+                "template": {
+                    "type": "chat",
+                    "messages": [
+                        {"role": "system", "content": _SYSTEM_PROMPT},
+                        {
+                            "role": "user",
+                            "content": (
+                                "QUESTION:\n{{question}}\n\n"
+                                "AGENT RESPONSE:\n{{response}}\n\n"
+                                "{{#if context}}CONTEXT:\n{{context}}{{/if}}"
+                            ),
+                        },
+                    ],
+                },
+                "template_type": "CHAT",
+                "template_format": "MUSTACHE",
+                "invocation_parameters": {
+                    "type": inv_type,
+                    inv_type: inv_content,
+                },
+                "description": f"v1 — completeness/relevance/factual_consistency | model={self.model}",
+            },
+        }).encode()
+
+        url = f"{phoenix_endpoint.rstrip('/')}/v1/prompts"
+        try:
+            req = urllib.request.Request(
+                url,
+                data=payload,
+                headers={"Content-Type": "application/json"},
+                method="POST",
+            )
+            with urllib.request.urlopen(req, timeout=5) as resp:
+                result = json.loads(resp.read().decode())
+                prompt_id: Optional[str] = (
+                    result.get("data", {}).get("id")
+                    or result.get("id")
+                )
+                logger.info(
+                    "Phoenix Prompts 등록 완료: %s (id=%s)", prompt_name, prompt_id
+                )
+                return prompt_id
+        except urllib.error.HTTPError as e:
+            body = ""
+            try:
+                body = e.read().decode("utf-8", errors="replace")[:200]
+            except Exception:
+                pass
+            logger.warning("Phoenix Prompts API 오류 (HTTP %d): %s", e.code, body)
+            return None
+        except Exception as exc:
+            logger.debug("register_prompt_to_phoenix: 연결 실패: %s", exc)
+            return None
+
     # ------------------------------------------------------------------
     # Internal helpers
     # ------------------------------------------------------------------

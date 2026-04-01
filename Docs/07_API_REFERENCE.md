@@ -10,9 +10,9 @@
 
 ## 버전 정보
 
-**현재 버전:** v0.6.7
+**현재 버전:** v0.7.0
 
-**최종 업데이트:** 2026-03-31
+**최종 업데이트:** 2026-04-01
 
 **테스트된 환경:**
 
@@ -3431,6 +3431,90 @@ agent-eval gate results/eval_result.json [옵션]
 
 * * *
 
+## 📡 5.5 실시간 모니터링 API (v0.7.0)
+
+Phoenix + OpenTelemetry를 통한 프로덕션 스팬 추적 기능입니다.
+
+**설치:**
+```bash
+pip install "agent-evaluator[otel]"
+```
+
+**Import:**
+```python
+from agent_evaluator import setup_otel
+from agent_evaluator.core.otel import get_provider, get_metrics
+```
+
+---
+
+### `setup_otel()`
+
+OTELProvider를 초기화하고 전역 등록합니다. 이후 `PerformanceMonitor.record_task()` 호출 시 자동으로 OTLP 스팬이 발행됩니다.
+
+**시그니처:**
+```python
+def setup_otel(
+    endpoint: str = "http://localhost:6006",
+    service_name: str = "agent-evaluator",
+    enabled: bool = True,
+    enable_metrics: bool = False,
+) -> OTELProvider:
+```
+
+**파라미터:**
+
+| 파라미터 | 타입 | 기본값 | 설명 |
+|---------|------|--------|------|
+| `endpoint` | `str` | `"http://localhost:6006"` | OTLP HTTP receiver 주소 (Phoenix 13.x 기본 포트) |
+| `service_name` | `str` | `"agent-evaluator"` | Phoenix UI에 표시될 서비스 이름 |
+| `enabled` | `bool` | `True` | `False` 시 no-op (테스트/개발 환경 비활성화 용도) |
+| `enable_metrics` | `bool` | `False` | OTLP 메트릭 발행 활성화. Phoenix 13.x는 `/v1/metrics` 미지원 — Grafana 등 별도 수신기 필요 시 `True` |
+
+**반환값:** `OTELProvider` 인스턴스
+
+**사용 예시:**
+```python
+from agent_evaluator import setup_otel, PerformanceMonitor
+
+# Phoenix 서버 연결 설정
+setup_otel(endpoint="http://localhost:6006", service_name="my-agent")
+
+monitor = PerformanceMonitor(output_dir="results/")
+monitor.record_task(result)  # 자동으로 OTLP 스팬 발행
+```
+
+---
+
+### `get_provider()` / `get_metrics()`
+
+현재 활성화된 OTEL 인스턴스를 반환합니다.
+
+```python
+from agent_evaluator.core.otel import get_provider, get_metrics
+
+provider = get_provider()   # OTELProvider | None
+metrics  = get_metrics()    # OTELMetrics | None (enable_metrics=True 시만 존재)
+```
+
+---
+
+### CLI: `agent-eval monitor`
+
+Phoenix 서버 기동 및 OTLP 수신 설정을 한 번에 처리합니다.
+
+```bash
+# Phoenix 서버 기동 + OTLP 수신 설정
+agent-eval monitor
+
+# 설치 상태 및 포트 점유 확인
+agent-eval monitor --check
+```
+
+> 자세한 내용: [12_MONITOR_GUIDE.md](12_MONITOR_GUIDE.md)
+
+* * *
+
 ## 🔌 6. 프레임워크 통합 (v0.6.3)
 
 #### 5.4 보안 헬퍼 함수
@@ -3547,7 +3631,7 @@ agent-eval gate results/eval_result.json [옵션]
 
 * * *
 
-Agent Evaluator v0.6.7은 CrewAI, LangChain, LangGraph, AutoGen 등 주요 AI 프레임워크에 대한 고급 통합 기능을 제공합니다. 모든 통합은 **Layer 1/2/3 메트릭을 완전히 지원** 하며, 동적 계산 및 자동 추적 기능을 갖추고 있습니다.
+Agent Evaluator v0.7.0은 CrewAI, LangChain, LangGraph, AutoGen 등 주요 AI 프레임워크에 대한 고급 통합 기능을 제공합니다. 모든 통합은 **Layer 1/2/3 메트릭을 완전히 지원** 하며, 동적 계산 및 자동 추적 기능을 갖추고 있습니다.
 
 ### 주요 특징
 

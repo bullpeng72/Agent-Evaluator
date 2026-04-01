@@ -16,6 +16,8 @@ import re
 import statistics
 import tempfile
 import threading
+import urllib.error
+import urllib.request
 import uuid
 from enum import Enum
 import warnings
@@ -87,17 +89,40 @@ _QUALITY_EVAL_STOPWORDS: frozenset = frozenset({
 })
 
 # TaskType → OpenInference span kind 매핑 (모듈 상수 — 매 호출마다 재생성 방지)
+# 의미론적으로 올바른 kind 사용:
+#   LLM       — 직접적인 LLM 출력 평가 (qa, 코드생성, 창작, 문서, 추론)
+#   RETRIEVER — RAG/검색 파이프라인 (information_retrieval)
+#   TOOL      — 에이전트 도구 호출 (tool_use)
+#   AGENT     — 에이전트 계획/오케스트레이션 (planning)
+#   CHAIN     — 멀티스텝 파이프라인 (data_analysis)
+# 참고: Phoenix "Top models by cost/tokens" 차트는 LLM kind 스팬만 집계하므로
+#       RETRIEVER/TOOL/AGENT/CHAIN 태스크는 Traces 탭에서 직접 확인.
 _OTEL_SPAN_KIND_MAP: Dict[str, str] = {
     "qa": "LLM",
     "code_generation": "LLM",
     "coding": "LLM",
     "creative": "LLM",
+    "document_creation": "LLM",
+    "reasoning": "LLM",
     "information_retrieval": "RETRIEVER",
     "tool_use": "TOOL",
     "planning": "AGENT",
     "data_analysis": "CHAIN",
-    "document_creation": "CHAIN",
-    "reasoning": "CHAIN",
+}
+
+# 신규 Claude/OpenAI 모델명 → Phoenix(LiteLLM) 가격 테이블 등록명 매핑
+# Phoenix는 LiteLLM 가격 DB를 사용하므로 미등록 모델은 "Top models by cost"에 표시 안 됨.
+# 신규 모델은 nearest 등록 모델로 매핑해 비용 추정이 가능하게 한다.
+_PHOENIX_MODEL_ALIAS: Dict[str, str] = {
+    # Claude 4.x / 4.5 / 4.6 → 가장 가까운 등록 모델
+    "claude-opus-4-6":              "claude-3-opus-20240229",
+    "claude-sonnet-4-6":            "claude-3-5-sonnet-20241022",
+    "claude-haiku-4-5":             "claude-3-5-haiku-20241022",
+    "claude-haiku-4-5-20251001":    "claude-3-5-haiku-20241022",
+    # GPT-4o 계열
+    "gpt-4o-mini-2024-07-18":       "gpt-4o-mini",
+    "gpt-4o-2024-11-20":            "gpt-4o",
+    "gpt-4o-2024-08-06":            "gpt-4o",
 }
 
 # OTEL 속성 크기 제한 — Phoenix OTLP HTTP 기본 4MB이나 속성값 개별 권장치
@@ -111,6 +136,7 @@ class PerformanceMonitor:
         self,
         pricing: Dict[str, float] = None,
         model_name: str = "",
+        session_label: str = "",
         enable_transparency: bool = False,
         enable_hallucination_detection: bool = False,
         enable_security_metrics: bool = False,
@@ -166,6 +192,24 @@ class PerformanceMonitor:
         if pricing is None:
             pricing = {"input": 0.003, "output": 0.015}  # Default: Claude Sonnet 4.5
 
+        # model_name 미지정 시 .env 설정에서 자동 읽기
+        # 규칙: 실제 API 키가 설정된 모델 우선. "your-..." 형태의 placeholder 키는 무시.
+        if not model_name:
+            try:
+                from agent_evaluator.config import get_settings
+                s = get_settings()
+                _ak = s.anthropic_api_key or ""
+                _ok = s.openai_api_key or ""
+                # placeholder 키("your-"로 시작하는 템플릿 값) 무시
+                _has_real_anthropic = bool(_ak) and not _ak.startswith("your-")
+                _has_real_openai = bool(_ok) and not _ok.startswith("your-")
+                if _has_real_anthropic:
+                    model_name = s.anthropic_model or ""
+                elif _has_real_openai:
+                    model_name = s.openai_model or ""
+                # 둘 다 없으면 model_name="" 유지 (ae/unspecified fallback)
+            except Exception:
+                pass
         self.model_name = model_name
 
         # Configuration
@@ -300,10 +344,18 @@ class PerformanceMonitor:
         self._lock = threading.Lock()
 
         # OTEL 세션 식별자 — Phoenix Sessions 탭 그룹핑용
-        self._otel_session_id: str = str(uuid.uuid4())
+        # session_label이 있으면 사람이 읽기 쉬운 형태로 구성 (예: "01_quality_eval_a3f2")
+        _uid = str(uuid.uuid4())[:8]
+        self._session_label: str = session_label
+        self._otel_session_id: str = f"{session_label}_{_uid}" if session_label else _uid
 
         # Phoenix Annotation API 전송 대기열 — save_to_file() 시 일괄 POST
         self._pending_annotations: List[Dict[str, Any]] = []
+
+        # Phoenix Experiments — begin_experiment() / end_experiment() 로 관리
+        self._phoenix_experiment_id: Optional[str] = None
+        self._phoenix_experiment_name: Optional[str] = None
+        self._phoenix_dataset_id: Optional[str] = None
 
     @property
     def golden_datasets(self) -> List[Any]:
@@ -1435,19 +1487,32 @@ class PerformanceMonitor:
                 return
 
             # OpenInference 표준 속성 — Phoenix UI 컬럼 표시에 필요
+            # question/response는 Playground 재현과 Evaluators 탭 표시에 필수
             input_val = getattr(result, "question", None) or result.task_id
             output_val = getattr(result, "response", None) or str(result.completion_score)
+            ground_truth_val = getattr(result, "ground_truth", None) or ""
             # task_type 에서 간결한 레이블 추출 (예: TaskType.QA → "qa")
             # TaskResult.__post_init__ 에서 이미 소문자 정규화됨
             type_label = str(result.task_type).split(".")[-1].lower()
             # 스팬 이름: "ae.task/{task_type}/{task_id}" — Phoenix name 컬럼으로 구분 가능
             span_name = f"ae.task/{type_label}/{result.task_id}"
-            span_kind = _OTEL_SPAN_KIND_MAP.get(type_label, "CHAIN")
+            span_kind = _OTEL_SPAN_KIND_MAP.get(type_label, "LLM")
             # 토큰 분류 (Phoenix Cost/Token usage 차트용)
+            # tokens_used가 dict이면 input/output 분리, 정수이면 total로 처리
             tokens = result.tokens_used if isinstance(result.tokens_used, dict) else {}
             prompt_tokens = tokens.get("input", 0)
             completion_tokens = tokens.get("output", 0)
-            model_name = tokens.get("model", "") or self.model_name or "unknown"
+            # 정수형 tokens_used는 total에 반영 (prompt/completion 분리 불가)
+            if not isinstance(result.tokens_used, dict) and result.tokens_used:
+                int_total = int(result.tokens_used)
+                # prompt 80% / completion 20% 근사 분할 (Phoenix Cost 차트 표시용)
+                prompt_tokens = int(int_total * 0.8)
+                completion_tokens = int_total - prompt_tokens
+            # llm.model_name: Phoenix Cost/Top-models 차트 그룹핑 키
+            # tokens_used dict의 "model" 키 → PerformanceMonitor.model_name → "ae/unspecified" 순으로 fallback
+            # 신규 모델은 _PHOENIX_MODEL_ALIAS 로 Phoenix 가격 테이블 등록명으로 변환
+            raw_model = tokens.get("model", "") or self.model_name or "ae/unspecified"
+            model_name = _PHOENIX_MODEL_ALIAS.get(raw_model, raw_model)
 
             # metadata: 스팬 상세 탭 커스텀 정보 (JSON 문자열)
             metadata_dict: Dict[str, Any] = {"task_type": type_label}
@@ -1463,6 +1528,8 @@ class PerformanceMonitor:
                 "output.value": str(output_val),
                 # Phoenix Sessions 탭 그룹핑
                 "session.id": self._otel_session_id,
+                # 출처 레이블 — 어느 평가 스크립트/세션에서 발생한 스팬인지 식별
+                **({"ae.source": self._session_label} if self._session_label else {}),
                 # OpenInference 메타데이터
                 "metadata": json.dumps(metadata_dict, ensure_ascii=False),
                 # OpenInference LLM 속성 — Cost/Token usage 차트용
@@ -1481,6 +1548,13 @@ class PerformanceMonitor:
                 "ae.tool_calls_count": len(result.tool_calls) if result.tool_calls else 0,
                 "ae.attempts": int(result.attempts or 0),
                 "ae.framework": getattr(result, "framework", None) or "native",
+                # Playground 재현용 — question/response/ground_truth 전문 기록
+                "ae.question": str(input_val)[:_OTEL_ATTR_MAX_LEN],
+                "ae.response": str(output_val)[:_OTEL_ATTR_MAX_LEN],
+                "ae.ground_truth": str(ground_truth_val)[:_OTEL_ATTR_MAX_LEN],
+                # Experiments 탭 그룹핑 — begin_experiment() 호출 시 자동 설정
+                **({"ae.experiment_id": self._phoenix_experiment_id} if self._phoenix_experiment_id else {}),
+                **({"ae.experiment_name": self._phoenix_experiment_name} if self._phoenix_experiment_name else {}),
             }
 
             # retrieval.documents — INFORMATION_RETRIEVAL 스팬에 RAG 컨텍스트 첨부
@@ -1492,7 +1566,21 @@ class PerformanceMonitor:
                     attributes["retrieval.documents"] = json.dumps(docs, ensure_ascii=False)
                 except Exception:
                     pass
-            with provider.span(span_name, attributes) as span:
+
+            # span start_time 계산 — Phoenix latency 차트는 span duration을 사용한다.
+            # _emit_otel_span()은 실행 완료 후 호출되므로 start_time을 역산해야 한다.
+            # start_time = result.timestamp - execution_time (나노초 단위)
+            start_time_ns: Optional[int] = None
+            try:
+                ts = result.timestamp
+                if ts is not None and hasattr(ts, "timestamp"):
+                    exec_ns = int((result.execution_time or 0.0) * 1_000_000_000)
+                    end_ns = int(ts.timestamp() * 1_000_000_000)
+                    start_time_ns = max(0, end_ns - exec_ns)
+            except Exception:
+                pass  # 계산 실패 시 SDK 기본값(현재 시각) 사용
+
+            with provider.span(span_name, attributes, start_time_ns=start_time_ns) as span:
                 # 실패 태스크 → SpanStatus ERROR 설정 (Traces with errors 차트용)
                 if not result.success and span is not None:
                     try:
@@ -1505,11 +1593,35 @@ class PerformanceMonitor:
                     try:
                         ctx = span.get_span_context()
                         if ctx and ctx.is_valid:
+                            # hallucination: HallucinationDetector.get_hallucination_rate()
+                            # overall_rate (0–1): 낮을수록 좋음 → annotation score = rate
+                            hal_score: Optional[float] = None
+                            try:
+                                hal_data = self.hallucination_detector.get_hallucination_rate()
+                                if hal_data.get("total_evaluated", 0) > 0:
+                                    hal_score = float(hal_data.get("overall_rate", 0.0))
+                            except Exception:
+                                pass
+                            # quality: ResponseQualityEvaluator.get_quality_metrics()
+                            # avg_total_score (0–10) → 0–1 정규화
+                            qual_score: Optional[float] = None
+                            try:
+                                qual_data = self.quality_evaluator.get_quality_metrics()
+                                if qual_data.get("total_evaluated", 0) > 0:
+                                    raw_q = float(qual_data.get("avg_total_score", 0.0))
+                                    qual_score = round(min(raw_q / 10.0, 1.0), 4)
+                            except Exception:
+                                pass
                             self._pending_annotations.append({
                                 "span_id": format(ctx.span_id, "016x"),
-                                "accuracy": float(result.accuracy_score),
-                                "completion": float(result.completion_score),
+                                "accuracy": float(result.accuracy_score or 0.0),
+                                "completion": float(result.completion_score or 0.0),
                                 "success": 1.0 if result.success else 0.0,
+                                "hallucination": hal_score,
+                                "quality": qual_score,
+                                "latency": float(result.execution_time or 0.0),
+                                "tool_calls": float(len(result.tool_calls) if result.tool_calls else 0),
+                                "attempts": float(result.attempts or 1),
                             })
                     except Exception:
                         pass
@@ -1542,10 +1654,21 @@ class PerformanceMonitor:
         OTEL 미설정 시 no-op.
 
         전송 지표 (annotator_kind="CODE"):
-            - accuracy   : ae.accuracy_score  (0–1)
-            - completion : ae.completion_score (0–1)
-            - success    : 1.0 성공 / 0.0 실패
+            - accuracy      : ae.accuracy_score  (0–1)
+            - completion    : ae.completion_score (0–1)
+            - success       : 1.0 성공 / 0.0 실패
+            - hallucination : hallucination_score (0–1, None이면 생략)
+            - quality       : quality_score       (0–1, None이면 생략)
+            - latency       : execution_time (초)
+            - tool_calls    : tool_calls count (정수)
+            - attempts      : retry 횟수
+
+        타이밍 처리:
+            force_flush() 이후에도 Phoenix가 span을 내부 DB에 인덱싱하는 데
+            추가 시간이 필요할 수 있다 (비동기 처리). 이를 위해 재시도 로직을 적용한다.
         """
+        import time
+
         if not self._pending_annotations:
             return
         try:
@@ -1554,49 +1677,219 @@ class PerformanceMonitor:
             if provider is None or not provider.enabled or not provider.base_endpoint:
                 return
 
-            # BatchSpanProcessor 플러시 → span_id가 Phoenix에 도착한 후 어노테이션 전송
+            # BatchSpanProcessor 플러시 — Phoenix /v1/traces로 전송 완료 대기
             provider.force_flush(timeout_ms=3000)
-
-            import json
-            import urllib.request
 
             data: List[Dict[str, Any]] = []
             for ann in self._pending_annotations:
                 span_id = ann["span_id"]
-                for metric, score in [
-                    ("accuracy", ann["accuracy"]),
-                    ("completion", ann["completion"]),
-                    ("success", ann["success"]),
-                ]:
-                    label = "pass" if score >= 0.5 else "fail"
+                # 전송 대상 지표: None이면 해당 스팬에서 생략
+                metrics_to_send = [
+                    ("accuracy",      ann.get("accuracy"),      "ae.accuracy_score (0–1)"),
+                    ("completion",    ann.get("completion"),    "ae.completion_score (0–1)"),
+                    ("success",       ann.get("success"),       "1.0=pass / 0.0=fail"),
+                    ("hallucination", ann.get("hallucination"), "hallucination_score (0–1, 낮을수록 좋음)"),
+                    ("quality",       ann.get("quality"),       "response quality overall score (0–1)"),
+                    ("latency_s",     ann.get("latency"),       "execution_time in seconds"),
+                    ("tool_calls",    ann.get("tool_calls"),    "number of tool calls"),
+                    ("attempts",      ann.get("attempts"),      "retry attempt count"),
+                ]
+                for metric, score, explanation in metrics_to_send:
+                    if score is None:
+                        continue
+                    # hallucination: 낮을수록 good → label 반전
+                    if metric == "hallucination":
+                        label = "pass" if score <= 0.3 else "fail"
+                    elif metric in ("latency_s", "tool_calls", "attempts"):
+                        label = "ok"  # 방향성이 없는 수치형 지표
+                    else:
+                        label = "pass" if score >= 0.5 else "fail"
                     data.append({
                         "span_id": span_id,
                         "name": metric,
                         "annotator_kind": "CODE",
                         "result": {
-                            "score": round(score, 4),
+                            "score": round(float(score), 4),
                             "label": label,
-                            "explanation": f"Agent Evaluator {metric} (CODE evaluator)",
+                            "explanation": f"Agent Evaluator: {explanation}",
                         },
                         "metadata": {},
                     })
 
             payload = json.dumps({"data": data}).encode()
+            url = f"{provider.base_endpoint}/v1/span_annotations"
+
+            # 재시도 로직: Phoenix가 span을 비동기로 인덱싱하므로
+            # force_flush 직후 POST하면 404가 반환될 수 있다.
+            # 0.5s 간격으로 최대 3회 재시도한다.
+            _MAX_RETRIES = 3
+            _RETRY_DELAY = 0.5  # seconds
+            last_exc: Optional[Exception] = None
+
+            for attempt in range(_MAX_RETRIES):
+                if attempt > 0:
+                    time.sleep(_RETRY_DELAY)
+                try:
+                    req = urllib.request.Request(
+                        url,
+                        data=payload,
+                        headers={"Content-Type": "application/json"},
+                        method="POST",
+                    )
+                    with urllib.request.urlopen(req, timeout=5) as resp:
+                        logger.info(
+                            "Phoenix annotations 전송 완료: %d건, HTTP %d (시도 %d/%d)",
+                            len(data),
+                            resp.status,
+                            attempt + 1,
+                            _MAX_RETRIES,
+                        )
+                    self._pending_annotations.clear()
+                    return  # 성공
+                except urllib.error.HTTPError as http_exc:
+                    body = ""
+                    try:
+                        body = http_exc.read().decode("utf-8", errors="replace")[:200]
+                    except Exception:
+                        pass
+                    last_exc = http_exc
+                    logger.warning(
+                        "Phoenix annotations HTTP %d (시도 %d/%d): %s",
+                        http_exc.code,
+                        attempt + 1,
+                        _MAX_RETRIES,
+                        body,
+                    )
+                except Exception as exc:
+                    last_exc = exc
+                    logger.debug(
+                        "_flush_phoenix_annotations: 연결 실패 (시도 %d/%d): %s",
+                        attempt + 1,
+                        _MAX_RETRIES,
+                        exc,
+                    )
+                    break  # 연결 오류는 재시도해도 소용없음 (Phoenix 미실행)
+
+            if last_exc is not None:
+                logger.warning(
+                    "Phoenix annotations 전송 최종 실패 (%d건): %s",
+                    len(data),
+                    last_exc,
+                )
+        except Exception as exc:
+            logger.debug("_flush_phoenix_annotations: 초기화 실패: %s", exc)
+
+    # ---------------------------------------------------------------------------
+    # Phoenix Experiments — begin / end
+    # ---------------------------------------------------------------------------
+
+    def begin_experiment(
+        self,
+        name: str,
+        dataset_id: Optional[str] = None,
+        description: str = "",
+        phoenix_endpoint: str = "http://localhost:6006",
+    ) -> Optional[str]:
+        """Phoenix에 Experiment를 등록하고 experiment_id를 반환한다.
+
+        이후 record_task() 가 발행하는 모든 OTEL 스팬에 ``ae.experiment_id`` /
+        ``ae.experiment_name`` attribute가 자동으로 추가되어 Phoenix Experiments
+        탭에서 run 단위 성능 비교가 가능해진다.
+
+        Args:
+            name: Phoenix UI에 표시될 실험 이름 (예: "v1.2-accuracy-test").
+            dataset_id: 연결할 Phoenix dataset_id. GoldenSetBuilder.upload_to_phoenix()
+                반환값을 사용. None이면 데이터셋 연결 없이 실험만 생성.
+            description: 실험 설명 (옵션).
+            phoenix_endpoint: Phoenix 서버 주소 (기본: http://localhost:6006).
+
+        Returns:
+            생성된 experiment_id 문자열. Phoenix 미실행 또는 실패 시 None.
+
+        Example::
+            exp_id = monitor.begin_experiment("qa-eval-run-v2", dataset_id=ds_id)
+            with evaluation_session("run_v2") as m:
+                ...
+            monitor.end_experiment(report)
+        """
+        payload: Dict[str, Any] = {"name": name, "description": description}
+        if dataset_id:
+            payload["dataset_id"] = dataset_id
+
+        url = f"{phoenix_endpoint.rstrip('/')}/v1/experiments"
+        try:
             req = urllib.request.Request(
-                f"{provider.base_endpoint}/v1/span_annotations",
-                data=payload,
+                url,
+                data=json.dumps(payload).encode(),
                 headers={"Content-Type": "application/json"},
                 method="POST",
             )
-            with urllib.request.urlopen(req, timeout=10) as resp:
-                logger.info(
-                    "Phoenix annotations 전송 완료: %d건, HTTP %d",
-                    len(data),
-                    resp.status,
+            with urllib.request.urlopen(req, timeout=5) as resp:
+                result = json.loads(resp.read().decode())
+                exp_id: Optional[str] = (
+                    result.get("data", {}).get("id")
+                    or result.get("id")
                 )
-            self._pending_annotations.clear()
+                if exp_id:
+                    self._phoenix_experiment_id = exp_id
+                    self._phoenix_experiment_name = name
+                    self._phoenix_dataset_id = dataset_id
+                    logger.info("Phoenix Experiment 시작: %s (id=%s)", name, exp_id)
+                return exp_id
         except Exception as exc:
-            logger.debug("_flush_phoenix_annotations: 전송 실패 (Phoenix 미실행 시 정상): %s", exc)
+            logger.debug("begin_experiment: Phoenix 연결 실패: %s", exc)
+            return None
+
+    def end_experiment(
+        self,
+        report: Optional[Any] = None,
+        phoenix_endpoint: str = "http://localhost:6006",
+    ) -> None:
+        """현재 Experiment에 최종 집계 지표를 Annotation으로 전송하고 세션을 닫는다.
+
+        Args:
+            report: monitor.generate_report() 결과 (EvaluationReport). None이면
+                    지표 전송 없이 실험 ID만 초기화한다.
+            phoenix_endpoint: Phoenix 서버 주소.
+        """
+        if not self._phoenix_experiment_id:
+            return
+
+        if report is not None:
+            try:
+                # Experiment run 단위 요약 지표를 별도 annotation으로 전송
+                summary = {
+                    "experiment_id": self._phoenix_experiment_id,
+                    "experiment_name": self._phoenix_experiment_name or "",
+                    "tcr": getattr(report, "task_completion_rate", None),
+                    "accuracy": getattr(report, "overall_accuracy", None),
+                    "avg_latency": getattr(report, "average_latency", None),
+                    "total_tasks": getattr(report, "total_tasks", None),
+                }
+                url = (
+                    f"{phoenix_endpoint.rstrip('/')}/v1/experiments"
+                    f"/{self._phoenix_experiment_id}/runs"
+                )
+                req = urllib.request.Request(
+                    url,
+                    data=json.dumps({"metadata": summary}).encode(),
+                    headers={"Content-Type": "application/json"},
+                    method="POST",
+                )
+                with urllib.request.urlopen(req, timeout=5):
+                    pass
+                logger.info(
+                    "Phoenix Experiment 종료: %s — TCR=%.1f%% Accuracy=%.1f%%",
+                    self._phoenix_experiment_name,
+                    summary.get("tcr") or 0.0,
+                    summary.get("accuracy") or 0.0,
+                )
+            except Exception as exc:
+                logger.debug("end_experiment: 지표 전송 실패: %s", exc)
+
+        self._phoenix_experiment_id = None
+        self._phoenix_experiment_name = None
+        self._phoenix_dataset_id = None
 
     def record_rag_metrics(
         self,
@@ -3144,12 +3437,11 @@ class PerformanceMonitor:
             filename = str(self.output_dir / filename)
 
         pricing_data: Dict[str, Any] = dict(self.token_tracker.pricing)
-        if self.model_name:
-            pricing_data["model"] = self.model_name
 
         data = {
             "tasks": [asdict(task) for task in self.tcr_tracker.tasks],
             "pricing": pricing_data,
+            "model_name": self.model_name,
             "timestamp": datetime.now().isoformat(),
             # Save evaluator data
             "evaluators": {

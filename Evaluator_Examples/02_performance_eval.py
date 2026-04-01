@@ -26,6 +26,24 @@ load_dotenv(Path(__file__).parent / ".env")
 from agent_evaluator import PerformanceMonitor, TaskResult, create_taskresult
 from agent_evaluator.reporting import generate_comprehensive_html_report
 
+
+def _try_setup_otel(service_name: str) -> None:
+    """Phoenix가 실행 중이면 OTEL 활성화 (선택적). 미실행 시 무시."""
+    import socket
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as _s:
+        _s.settimeout(1)
+        if _s.connect_ex(("localhost", 6006)) != 0:
+            return
+    try:
+        from agent_evaluator import setup_otel
+        setup_otel(endpoint="http://localhost:6006", service_name=service_name)
+        print(f"  📡  Phoenix 모니터링 활성화 — http://localhost:6006  (service: {service_name})")
+    except Exception as _e:
+        import logging as _log
+        _log.getLogger(__name__).debug("setup_otel 실패: %s", _e)
+
+_try_setup_otel("02-performance-eval")
+
 # ────────────────────────────────────────────────────────────────────────────────
 # 태스크 시나리오 정의
 # ────────────────────────────────────────────────────────────────────────────────
@@ -215,7 +233,7 @@ def run_performance_evaluation():
 
     # for_rag_evaluation(): hallucination_detection 기본 활성 (성능 + 품질 동시 측정)
     monitor = PerformanceMonitor.for_rag_evaluation(
-        output_dir=str(project_root / "results"),
+        output_dir=str(project_root / "results"),  # Phoenix Top-models / Cost 차트 그룹핑용
         pricing={"input": 0.00015, "output": 0.0006},  # GPT-4o-mini 수준 per 1K tokens
         enable_transparency=True,
     )

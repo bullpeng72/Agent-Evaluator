@@ -5,7 +5,7 @@
 **Agent-Evaluator** is a production-ready Python SDK for evaluating AI agents.
 25개의 성능 지표를 세 개의 레이어(기본/에이전틱/하이브리드)로 측정한다.
 
-- **Version:** 0.6.7 (Beta)
+- **Version:** 0.7.0 (Beta)
 - **Python:** 3.8+
 - **License:** MIT
 - **Author:** Sungwoo Kim
@@ -33,7 +33,7 @@ agent-eval check         # 현재 설정 상태 출력
 agent-eval dashboard     # FastAPI 대시보드 실행 (기본 포트 8765)  [개발·검증 단계]
 agent-eval gate result.json --tcr 85 --accuracy 70   # CI/CD 품질 게이팅
 agent-eval dataset build results/ --min-score 0.8    # 골든 데이터셋 자동 추출
-agent-eval monitor                                   # 운영 실시간 모니터링 Phoenix + OTEL (v0.7.x 예정)
+agent-eval monitor                                   # 운영 실시간 모니터링 Phoenix + OTEL
 agent-eval monitor --check                           # OTEL 설치 상태 및 포트 점유 확인
 agent-eval --version     # 버전 출력
 
@@ -133,7 +133,7 @@ agent_evaluator/
 │   ├── server.py            # FastAPI app 진입점
 │   ├── loader.py            # 평가 결과 로더
 │   ├── watcher.py           # 파일 변경 감시 (--watch)
-│   └── routers/             # API 라우터 11개 (alerts, anomaly, config, conversation, cost, data, export, feedback, golden, stream, transparency, webhook)
+│   └── routers/             # API 라우터 12개 (alerts, anomaly, config, conversation, cost, data, export, feedback, golden, stream, transparency, webhook)
 ├── cli/
 │   ├── main.py              # agent-eval CLI 진입점 (init/check/dashboard/gate/dataset)
 │   ├── gate.py              # agent-eval gate — CI/CD 품질 게이팅
@@ -149,7 +149,7 @@ agent_evaluator/
 ├── config.py                # 환경변수 설정 로더 (load_env, get_settings)
 └── __init__.py              # Public API surface
 
-Evaluator_Examples/          # 실제 사용 예시 (패키지 외부, 15개 플랫 파일)
+Evaluator_Examples/          # 실제 사용 예시 (패키지 외부, 17개 플랫 파일)
 ├── 01_quality_eval.py       # 품질 지표 — Accuracy, Hallucination, Quality, RAG
 ├── 02_performance_eval.py   # 성능 지표 — TCR, Latency, Token Economy
 ├── 03_agentic_eval.py       # 에이전틱 지표 — Tool Call, Coordination, Workflow
@@ -164,7 +164,12 @@ Evaluator_Examples/          # 실제 사용 예시 (패키지 외부, 15개 플
 ├── 12_alerting_eval.py      # 알림 엔진 예제
 ├── 13_golden_set_build.py   # GoldenSetBuilder — 케이스 추출·저장·병합
 ├── 14_anomaly_cost_eval.py  # 이상 감지 + 비용 추적 + AdaptivePolicy
-└── 15_conversation_eval.py  # 멀티턴 대화 평가 — ConversationSession
+├── 15_conversation_eval.py  # 멀티턴 대화 평가 — ConversationSession
+├── 16_dashboard_demo.py     # FastAPI 대시보드 통합 데모 — save_to_file + Phoenix OTEL
+└── 17_phoenix_verification.py # Phoenix 4개 메뉴 통합 데모 — Tracing·Evaluators·Datasets·Prompts
+
+scripts/                     # 운영 도구 (live 인프라 필요, pytest 대상 아님)
+└── phoenix_check.py         # Phoenix 통합 자동 점검 — GraphQL 역조회로 pass/fail 판정 (CI 헬스체크용)
 ```
 
 ---
@@ -365,7 +370,7 @@ from agent_evaluator import (
 
 ## Testing
 
-`tests/` 디렉토리에 36개 파일, 920개 테스트 함수 존재.
+`tests/` 디렉토리에 37개 파일, 920개 테스트 함수 존재.
 
 ```bash
 # pytest.ini_options in pyproject.toml already configured:
@@ -374,7 +379,7 @@ from agent_evaluator import (
 pytest
 ```
 
-커버리지 현황 (v0.6.7 기준):
+커버리지 현황 (v0.7.0 기준):
 - `base.py`: 92% | `layer1.py`: 84% | `layer2.py`: 95%
 - `hybrid_monitor.py`: 61% | `monitor.py`: 41% | `taskresult_helpers.py`: 89% | 전체: 33%
 
@@ -434,6 +439,16 @@ pytest
 
 ## 📝 변경 이력
 
+### v0.7.0 (2026-04-01) — 운영 실시간 모니터링 (Phoenix + OTEL)
+
+- **`agent-eval monitor`** CLI — Arize Phoenix 서버 기동 + OTLP 스팬 수신 설정
+- **`setup_otel(endpoint, service_name, enable_metrics=False)`** 공개 API
+- **`[otel]` extras** — `opentelemetry-sdk`, `opentelemetry-exporter-otlp-proto-http`, `arize-phoenix` 패키지 그룹 신규
+- **`[full]` extras** — otel 패키지 포함으로 업데이트
+- **`_emit_otel_span()`** — `PerformanceMonitor.record_task()` 시 OTLP 스팬 자동 발행
+- **예제 OTEL 통합** — 16개 예제 파일 모두 Phoenix 자동 연결 (`_try_setup_otel()`)
+- **버그 수정**: OTEL 스팬 속성 None 방어 (`ae.framework` 등), metrics 기본 비활성화 (Phoenix `/v1/metrics` 미지원)
+
 ### v0.6.7 (2026-04-01) — Python 3.13 지원 · 의존성 상한 완화 · 대시보드 버그 수정
 
 - `numpy<3.0.0`, `pandas<4.0.0` 상한 완화 — Python 3.13 wheel 지원
@@ -458,7 +473,7 @@ pytest
 - `save_to_file()`: `AnomalyDetector.scan()` 결과를 `anomaly_data` 키로 저장 — 대시보드 이상 감지 탭 데이터 연결
 - `serve/loader.py` `_parse_anomaly_data()` 중첩 구조 읽기 수정
 - `15_conversation_eval.py` 예제 신규 추가 — `ConversationSession` 멀티턴 대화 평가
-- 테스트 920개, 36개 파일 (Phase 2/3 신규 6개 파일 추가)
+- 테스트 920개, 37개 파일 (Phase 2/3 신규 6개 파일 추가)
 
 ---
 

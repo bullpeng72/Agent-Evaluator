@@ -2,7 +2,7 @@
 
 LangChain · LangGraph · CrewAI · AutoGen 연동 참조 문서
 
-**v0.6.7 | Python 3.8+**
+**v0.7.0 | Python 3.8+**
 
 > 프레임워크별 개념과 통합 전략은 `Lectures/M5`를 참조하세요.
 
@@ -29,7 +29,7 @@ LangChain · LangGraph · CrewAI · AutoGen 연동 참조 문서
 | 패키지 | 최소 버전 | 설치 |
 |--------|----------|------|
 | Python | 3.8+ | — |
-| agent-evaluator | 0.6.7 | `pip install agent-evaluator` |
+| agent-evaluator | 0.7.0 | `pip install agent-evaluator` |
 | LangChain | 1.0.0+ | `pip install agent-evaluator[langchain]` |
 | LangGraph | 1.0.0+ | `pip install agent-evaluator[langchain]` |
 | CrewAI | 1.0.0+ | `pip install agent-evaluator[crewai]` |
@@ -407,4 +407,4 @@ v0.6.3+에서 자동 정규화:
 
 ---
 
-*Updated: 2026-04-01 (v0.6.7) | MIT License*
+*Updated: 2026-04-01 (v0.7.0) | MIT License*

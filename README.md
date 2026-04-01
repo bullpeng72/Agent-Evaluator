@@ -3,7 +3,7 @@
 [![PyPI version](https://img.shields.io/pypi/v/agent-evaluator.svg)](https://pypi.org/project/agent-evaluator/)
 [![Python Version](https://img.shields.io/badge/python-3.8%2B-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Version](https://img.shields.io/badge/version-0.6.7-green.svg)](https://github.com/bullpeng72/Agent-Evaluator)
+[![Version](https://img.shields.io/badge/version-0.7.0-green.svg)](https://github.com/bullpeng72/Agent-Evaluator)
 
 **AI 에이전트를 위한 프로덕션 레디 평가 프레임워크**
 
@@ -183,7 +183,7 @@ pipx는 기본적으로 pip 인덱스 캐시를 사용하므로, 최신 버전�
 
 ```bash
 # 방법 1: 버전 명시 (권장)
-pipx install "agent-evaluator[all]==0.6.7"
+pipx install "agent-evaluator[all]==0.7.0"
 
 # 방법 2: 캐시 무시
 pipx install --pip-args="--no-cache-dir" "agent-evaluator[all]"
@@ -413,6 +413,7 @@ results/
 | `agent-eval dashboard` | FastAPI 대시보드 웹 서버 실행 |
 | `agent-eval gate <result.json>` | CI/CD 품질 게이트 — 임계값 미달 시 exit code 1 반환 |
 | `agent-eval dataset build <results/>` | 운영 결과에서 골든 데이터셋 자동 추출 |
+| `agent-eval monitor` | Phoenix + OTEL 실시간 운영 모니터링 |
 | `agent-eval --version` | 패키지 버전 출력 |
 
 ### `agent-eval init`
@@ -441,7 +442,7 @@ agent-eval check
 
 출력 예시:
 ```
-  Agent Evaluator v0.6.7 — 설정 상태
+  Agent Evaluator v0.7.0 — 설정 상태
   ──────────────────────────────────────────────────
 ℹ  .env 로드: /home/user/project/.env
 
@@ -610,6 +611,9 @@ agent-evaluator/
 │   │   │   ├── monitor.py       # PerformanceMonitor (중앙 오케스트레이터)
 │   │   │   ├── conversation.py  # ConversationSession·ConversationMetrics
 │   │   │   └── feedback.py      # ImplicitFeedbackTracker
+│   │   ├── otel/                # OpenTelemetry 통합 (v0.7.0, [otel] extras 필요)
+│   │   │   ├── provider.py      # OTELProvider — TracerProvider 설정
+│   │   │   └── metrics.py       # OTELMetrics — 메트릭 익스포터 (opt-in)
 │   │   ├── hybrid_monitor.py    # HybridPerformanceMonitor
 │   │   └── monitor_context.py   # Context managers
 │   ├── integrations/
@@ -643,10 +647,12 @@ agent-evaluator/
 │   │   ├── server.py            # FastAPI app 진입점
 │   │   ├── loader.py            # 평가 결과 로더
 │   │   ├── watcher.py           # 파일 변경 감시
-│   │   └── routers/             # API 라우터 11개 (alerts, anomaly, config, conversation, cost, data, export, feedback, golden, stream, transparency, webhook)
+│   │   └── routers/             # API 라우터 12개 (alerts, anomaly, config, conversation, cost, data, export, feedback, golden, stream, transparency, webhook)
 │   ├── cli/
 │   │   ├── main.py              # agent-eval CLI 진입점
-│   │   └── gate.py              # agent-eval gate — CI/CD 품질 게이팅
+│   │   ├── gate.py              # agent-eval gate — CI/CD 품질 게이팅
+│   │   ├── dataset.py           # agent-eval dataset build — 골든 데이터셋 추출
+│   │   └── monitor.py           # agent-eval monitor — Phoenix + OTEL 실시간 모니터링
 │   ├── utils/
 │   │   ├── dashboard_integration.py
 │   │   ├── data_registry.py
@@ -655,7 +661,7 @@ agent-evaluator/
 │   ├── exceptions.py            # 예외 계층 (AgentEvaluatorError 외 6종)
 │   └── config.py                # 환경변수 설정 로더
 │
-├── Evaluator_Examples/              # 카테고리별 평가 예제 (15개)
+├── Evaluator_Examples/              # 카테고리별 평가 예제 (16개)
 │   ├── 01_quality_eval.py           # 품질 지표 — Accuracy, Hallucination, Quality, RAG
 │   ├── 02_performance_eval.py       # 성능 지표 — TCR, Latency, Token Economy
 │   ├── 03_agentic_eval.py           # 에이전틱 지표 — Tool Call, Coordination, Workflow
@@ -670,9 +676,10 @@ agent-evaluator/
 │   ├── 12_alerting_eval.py          # 알림 시스템 예제
 │   ├── 13_golden_set_build.py       # 골든 데이터셋 빌더 예제
 │   ├── 14_anomaly_cost_eval.py      # 이상 탐지 + 비용 최적화 예제
-│   └── 15_conversation_eval.py      # 멀티턴 대화 평가 예제
+│   ├── 15_conversation_eval.py      # 멀티턴 대화 평가 예제
+│   └── 16_dashboard_demo.py         # FastAPI 대시보드 통합 데모 — save_to_file + Phoenix OTEL
 │
-├── tests/                        # 단위 테스트 (920개 테스트 함수, 36개 파일)
+├── tests/                        # 단위 테스트 (920개 테스트 함수, 37개 파일)
 ├── pyproject.toml
 └── LICENSE
 ```
@@ -681,7 +688,7 @@ agent-evaluator/
 
 ## 예제 가이드
 
-15개의 예제 파일로 Layer 1/2/3 전체 지표를 검증할 수 있습니다.
+16개의 예제 파일로 Layer 1/2/3 전체 지표를 검증할 수 있습니다.
 
 ```bash
 cd Evaluator_Examples
@@ -706,6 +713,7 @@ python 12_alerting_eval.py         # 알림 시스템 예제 (serve extras 필�
 python 13_golden_set_build.py      # 골든 데이터셋 빌더
 python 14_anomaly_cost_eval.py     # 이상 탐지 + 비용 최적화
 python 15_conversation_eval.py     # 멀티턴 대화 평가
+python 16_dashboard_demo.py        # 대시보드 통합 데모 (serve extras 필요)
 
 # 대시보드 실행 (결과 자동 반영)
 agent-eval dashboard --watch
@@ -799,13 +807,23 @@ mypy agent_evaluator/
 | `[eval]` | deepeval, ragas ≥0.4, datasets ≥4.0, langchain | Layer 3 하이브리드 평가 | 무거움 |
 | `[serve]` | fastapi, uvicorn, jinja2 | FastAPI 대시보드 서버 | 빠름 |
 | `[pdf]` | pypdf, pdfplumber | PDF 데이터셋 처리 | 빠름 |
+| `[otel]` | opentelemetry-sdk, opentelemetry-exporter-otlp-proto-http, arize-phoenix | Phoenix + OTEL 실시간 운영 모니터링 | 중간 |
 | `[frameworks]` | langchain + crewai + autogen | 기존 호환 (전체 프레임워크) | 무거움 |
-| `[all]` | llm + langchain + eval + serve + pdf | **권장** — crewai/autogen 제외 | 중간 |
-| `[full]` | all + crewai + autogen | 진짜 전체 ⚠️ 10분+ | 매우 무거움 |
+| `[all]` | llm + langchain + eval + serve + pdf | **권장** — crewai/autogen/otel 제외 | 중간 |
+| `[full]` | all + crewai + autogen + otel | 진짜 전체 ⚠️ 10분+ | 매우 무거움 |
 
 ---
 
 ## 변경 이력
+
+### v0.7.0 (2026-04-01) — 운영 실시간 모니터링 (Phoenix + OTEL)
+
+- **`agent-eval monitor`** — Arize Phoenix 서버를 기동하고 OpenTelemetry 스팬 수신을 설정하는 CLI 명령어 추가
+- **`setup_otel()`** 공개 API — `record_task()` 호출 시 OTLP 스팬 자동 발행 (`[otel]` extras 필요)
+- **`[otel]` extras** — `opentelemetry-sdk` + `opentelemetry-exporter-otlp-proto-http` + `arize-phoenix` 패키지 그룹 신규 추가
+- **예제 OTEL 통합** — 16개 예제 파일 모두 Phoenix 자동 연결 지원 (`_try_setup_otel()`)
+- **`setup_otel(enable_metrics=False)`** — Phoenix가 `/v1/metrics`를 지원하지 않는 문제 해결 (metrics 기본 비활성화)
+- **버그 수정**: OTEL 스팬 속성 `ae.framework` 등 None 값 방어 처리
 
 ### v0.6.7 (2026-04-01) — Python 3.13 지원 · 대시보드 버그 수정
 
@@ -869,7 +887,7 @@ MIT License — 자세한 내용은 [LICENSE](LICENSE) 파일을 참고하세요
   title   = {Agent Evaluator: Production-ready evaluation framework for AI agents},
   author  = {Kim, Sungwoo},
   year    = {2026},
-  version = {0.6.7},
+  version = {0.7.0},
   url     = {https://github.com/bullpeng72/Agent-Evaluator},
   license = {MIT}
 }

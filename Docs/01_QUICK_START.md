@@ -2,7 +2,7 @@
 
 Agent Evaluator를 5분 안에 첫 평가까지 완성하는 최단 경로
 
-**v0.6.7 | Python 3.8+**
+**v0.7.0 | Python 3.8+**
 
 ---
 
@@ -31,9 +31,12 @@ pip install agent-evaluator[serve]
 
 # 프레임워크 통합 포함 (LangChain/LangGraph)
 pip install agent-evaluator[langchain,serve]
+
+# 실시간 운영 모니터링 (Phoenix + OTEL) — v0.7.0
+pip install agent-evaluator[otel]
 ```
 
-> **Python 3.8–3.12** 지원. numpy, pandas는 자동 설치됩니다.
+> **Python 3.8–3.13** 지원. numpy, pandas는 자동 설치됩니다.
 
 ---
 
@@ -181,6 +184,32 @@ agent-eval gate results/eval.json --tcr 85 --accuracy 70
 
 ---
 
+## 실시간 운영 모니터링 (v0.7.0)
+
+Phoenix + OpenTelemetry로 프로덕션 스팬을 실시간 추적합니다.
+
+```bash
+# Phoenix 서버 기동 + OTLP 수신 설정
+agent-eval monitor
+
+# 설치 상태 확인
+agent-eval monitor --check
+```
+
+코드에서 직접 활성화:
+
+```python
+from agent_evaluator import setup_otel, PerformanceMonitor
+
+setup_otel(endpoint="http://localhost:6006", service_name="my-agent")
+monitor = PerformanceMonitor()
+# record_task() 호출 시 OTLP 스팬 자동 발행
+```
+
+> 자세한 내용: [12_MONITOR_GUIDE.md](12_MONITOR_GUIDE.md)
+
+---
+
 ## 다음 단계
 
 | 목적 | 문서 |
@@ -191,4 +220,5 @@ agent-eval gate results/eval.json --tcr 85 --accuracy 70
 | 품질 임계값 설정 | [05_THRESHOLD_GUIDE.md](05_THRESHOLD_GUIDE.md) |
 | 전체 API 레퍼런스 | [07_API_REFERENCE.md](07_API_REFERENCE.md) |
 | 대시보드 UI 상세 | [08_DASHBOARD_GUIDE.md](08_DASHBOARD_GUIDE.md) |
+| 실시간 모니터링 (Phoenix + OTEL) | [12_MONITOR_GUIDE.md](12_MONITOR_GUIDE.md) |
 | 사용 예제 파일 | [Evaluator_Examples/](../Evaluator_Examples/) |

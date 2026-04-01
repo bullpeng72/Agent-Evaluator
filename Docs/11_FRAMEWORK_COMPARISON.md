@@ -1,7 +1,7 @@
 # AI Agent 평가 프레임워크 비교 분석
 
-**Version**: 0.6.7
-**Last Updated**: 2026-03-31
+**Version**: 0.7.0
+**Last Updated**: 2026-04-01
 **기준 버전**: 각 프레임워크 2025–2026년 최신 릴리스 기준
 **분석 목적**: 개발자가 서비스 코드 외에 작성해야 하는 코드량 / 자동화 수준 비교
 
@@ -19,7 +19,7 @@
 | **Braintrust** | SaaS + OSS SDK | v0.5.2 (2025) | LLM 실험 + 에이전트 관측 |
 | **Helicone** | SaaS + OSS | 시맨틱 버전 없음 (활발 유지) | LLM 프록시 + 비용 관측 |
 | **W&B Weave** | SaaS + OSS SDK | v0.72+ (2025) | 에이전트 평가 + 실험 관리 |
-| **Agent Evaluator** | OSS SDK | v0.6.7 (2026.04) | Agentic AI 전문 평가 |
+| **Agent Evaluator** | OSS SDK | v0.7.0 (2026.04) | Agentic AI 전문 평가 |
 
 ---
 
@@ -37,7 +37,7 @@
 | **Braintrust** | ✅ 호환 모드 | OTLP 수신 | `BRAINTRUST_OTEL_COMPAT=true` 환경변수 설정 |
 | **Helicone** | ⚠️ 부분 지원 | Consumer (OpenLLMetry 경유) | 프록시가 주력; OTEL은 보조 경로 |
 | **W&B Weave** | ✅ 완전 인제스트 | Collector | 언어 무관 OTLP 데이터 직접 수신 |
-| **Agent Evaluator** | ❌ 미지원 | 해당 없음 | 알고리즘 기반 SDK — OTEL 트레이서 아님 |
+| **Agent Evaluator** | ✅ OTLP Exporter (v0.7.0) | Span Exporter | `setup_otel()` + `record_task()` 시 자동 스팬 발행. Phoenix 연동 |
 
 ### OTEL 통합 코드 예시
 
@@ -538,7 +538,7 @@ Ragas           ███████░░░  (데이터셋 전체 수동 구�
 | W&B Weave | ✅ | ✅ | ✅ | ❌ | ✅ | ❌ | ✅ | ✅ |
 | **Agent Evaluator** | ✅ factory | ✅ factory | ✅ factory | ✅ factory | ❌ | ❌ | ❌ | ❌ |
 
-> **v0.6.7 기준**: LangChain ≥1.0 / LangGraph ≥1.0 / CrewAI ≥1.0 / AutoGen 0.4+ (async-first) 최신 API 완전 지원. 4개 프레임워크 모두 16개 네이티브 지표 + 9개 Layer3 하이브리드 = 25개 지표 체계 적용 (프레임워크별 커버리지: LangChain ~82%, LangGraph ~82%, AutoGen ~80%, CrewAI ~78%).
+> **v0.7.0 기준**: LangChain ≥1.0 / LangGraph ≥1.0 / CrewAI ≥1.0 / AutoGen 0.4+ (async-first) 최신 API 완전 지원. 4개 프레임워크 모두 16개 네이티브 지표 + 9개 Layer3 하이브리드 = 25개 지표 체계 적용 (프레임워크별 커버리지: LangChain ~82%, LangGraph ~82%, AutoGen ~80%, CrewAI ~78%).
 
 ---
 

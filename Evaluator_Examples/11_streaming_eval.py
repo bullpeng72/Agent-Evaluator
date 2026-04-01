@@ -46,6 +46,24 @@ from agent_evaluator import (
 from agent_evaluator.streaming.evaluator import StreamingEvaluator
 
 
+def _try_setup_otel(service_name: str) -> None:
+    """Phoenix가 실행 중이면 OTEL 활성화 (선택적). 미실행 시 무시."""
+    import socket
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as _s:
+        _s.settimeout(1)
+        if _s.connect_ex(("localhost", 6006)) != 0:
+            return
+    try:
+        from agent_evaluator import setup_otel
+        setup_otel(endpoint="http://localhost:6006", service_name=service_name)
+        print(f"  📡  Phoenix 모니터링 활성화 — http://localhost:6006  (service: {service_name})")
+    except Exception as _e:
+        import logging as _log
+        _log.getLogger(__name__).debug("setup_otel 실패: %s", _e)
+
+_try_setup_otel("11-streaming-eval")
+
+
 # ─── 시뮬레이션 태스크 데이터 ─────────────────────────────────────────────────
 TASK_TEMPLATES = [
     # (question, response, ground_truth, task_type, quality: high/med/low)

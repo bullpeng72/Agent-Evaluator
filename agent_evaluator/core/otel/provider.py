@@ -32,19 +32,19 @@ class OTELProvider:
     기존 JSON 저장 경로에 일절 영향을 주지 않는다.
 
     Args:
-        endpoint: OTLP HTTP receiver 주소 (기본: http://localhost:4318)
+        endpoint: OTLP HTTP receiver 주소 (Phoenix 13.x 기본: http://localhost:6006)
         service_name: Phoenix UI에 표시될 서비스 이름
         enabled: False 시 즉시 no-op 모드
 
     Example:
-        >>> provider = OTELProvider(endpoint="http://localhost:4318")
+        >>> provider = OTELProvider(endpoint="http://localhost:6006")
         >>> with provider.span("ae.task", {"ae.task_id": "t1"}):
         ...     pass  # 평가 로직
     """
 
     def __init__(
         self,
-        endpoint: str = "http://localhost:4318",
+        endpoint: str = "http://localhost:6006",
         service_name: str = "agent-evaluator",
         enabled: bool = True,
     ) -> None:
@@ -77,12 +77,20 @@ class OTELProvider:
             self._enabled = False
 
     @contextlib.contextmanager
-    def span(self, name: str, attributes: Dict[str, Any]) -> Iterator[Any]:
+    def span(
+        self,
+        name: str,
+        attributes: Dict[str, Any],
+        start_time_ns: Optional[int] = None,
+    ) -> Iterator[Any]:
         """컨텍스트 매니저형 스팬. 미활성화 시 no-op.
 
         Args:
             name: 스팬 이름 (예: "ae.task", "ae.session")
             attributes: 스팬에 기록할 속성 dict
+            start_time_ns: 스팬 시작 시각 (나노초, Unix epoch).
+                지정하면 span duration = (exit 시각) - start_time_ns 로 계산된다.
+                태스크 실행 시작 시각을 지정하면 Phoenix latency 차트가 실제 레이턴시를 표시한다.
 
         Example:
             >>> with provider.span("ae.task", {"ae.task_id": "t1"}) as s:
@@ -94,7 +102,10 @@ class OTELProvider:
 
         # 스팬 시작 (setup) 단계 — 실패 시 no-op으로 폴백
         try:
-            span_ctx = self._tracer.start_as_current_span(name)
+            span_ctx = self._tracer.start_as_current_span(
+                name,
+                start_time=start_time_ns,  # None이면 SDK가 현재 시각 사용
+            )
             s = span_ctx.__enter__()
         except Exception as exc:
             logger.debug("OTELProvider.span: 스팬 시작 실패 (%s): %s", name, exc)

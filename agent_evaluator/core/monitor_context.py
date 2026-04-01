@@ -47,23 +47,33 @@ def evaluation_session(
     """
     from .agent_evaluator import PerformanceMonitor
 
-    # Create monitor
+    # output_filename에서 사람이 읽기 쉬운 레이블 추출
+    # 예: "results/01_quality_eval.json" → "01_quality_eval"
+    import os as _os
+    _label = _os.path.splitext(_os.path.basename(output_filename))[0]
+
+    # Create monitor (session_label → Phoenix Sessions 탭 그룹핑 & ae.source 속성)
     monitor = PerformanceMonitor(
         enable_security_metrics=enable_security,
         enable_hallucination_detection=enable_hallucination,
+        session_label=_label,
         **monitor_kwargs
     )
 
     # OTEL 루트 span (opt-in, no-op if not configured)
+    # 세션 스팬 이름에 레이블 포함 → Phoenix에서 어느 평가 스크립트인지 바로 식별 가능
     def _otel_ctx():
         try:
             from agent_evaluator.core.otel import get_provider
 
             provider = get_provider()
             if provider and provider.enabled:
-                return provider.span("ae.session", {
+                session_span_name = f"ae.session/{_label}" if _label else "ae.session"
+                return provider.span(session_span_name, {
                     "openinference.span.kind": "CHAIN",
                     "ae.session_file": output_filename,
+                    "ae.source": _label,
+                    "session.id": monitor._otel_session_id,
                 })
         except Exception:
             pass
@@ -205,9 +215,11 @@ async def async_evaluation_session(
         ...     monitor.record_task(create_taskresult(...))
     """
     from .agent_evaluator import PerformanceMonitor
+    import os as _os
+    _label = _os.path.splitext(_os.path.basename(output_filename))[0]
 
     _monitor = monitor or PerformanceMonitor(
-        output_dir=output_dir, **monitor_kwargs
+        output_dir=output_dir, session_label=_label, **monitor_kwargs
     )
     exception_occurred = None
 

@@ -42,6 +42,24 @@ from agent_evaluator.alerts.engine import AlertEngine, AlertRule, AlertEvent
 from agent_evaluator.alerts.handlers import SlackHandler, WebhookHandler
 
 
+def _try_setup_otel(service_name: str) -> None:
+    """Phoenix가 실행 중이면 OTEL 활성화 (선택적). 미실행 시 무시."""
+    import socket
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as _s:
+        _s.settimeout(1)
+        if _s.connect_ex(("localhost", 6006)) != 0:
+            return
+    try:
+        from agent_evaluator import setup_otel
+        setup_otel(endpoint="http://localhost:6006", service_name=service_name)
+        print(f"  📡  Phoenix 모니터링 활성화 — http://localhost:6006  (service: {service_name})")
+    except Exception as _e:
+        import logging as _log
+        _log.getLogger(__name__).debug("setup_otel 실패: %s", _e)
+
+_try_setup_otel("12-alerting-eval")
+
+
 # ─── 모의(Mock) 핸들러 — 실제 HTTP 호출 없이 동작 기록 ───────────────────────
 class _MockSlackHandler(SlackHandler):
     """테스트용 Slack 핸들러 — 실제 발송 없이 수신 기록."""
@@ -312,6 +330,10 @@ def run_alerting_evaluation():
         print(f"  {chk:<30} {actual:<14} {mark}")
     print(f"  {'═'*62}")
     print(f"  합계: {pass_cnt}/{len(checks)} 통과\n")
+
+    # Phoenix Annotation API 전송 (accuracy / completion / success 점수)
+    saved = monitor.save_to_file("12_alerting_eval")
+    print(f"  결과 저장: {saved}")
 
 
 if __name__ == "__main__":

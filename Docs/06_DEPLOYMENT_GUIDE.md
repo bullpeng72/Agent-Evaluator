@@ -2796,7 +2796,7 @@ DB 연결 실패 | 네트워크, 인증 오류 | `telnet db-host 5432` | DB 연�
 
 * * *
 
-**최종 업데이트** : 2026-03-31
-**버전** : v0.6.7
+**최종 업데이트** : 2026-04-01
+**버전** : v0.7.0
 **프로젝트** : Agent Evaluator - AI Agent Performance Evaluation System
 **문서 타입** : 배포 가이드 (Deployment Guide)

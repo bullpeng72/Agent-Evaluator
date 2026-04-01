@@ -1,5 +1,5 @@
 """
-Agent Evaluator SDK v0.6.7
+Agent Evaluator SDK v0.7.0
 ===========================
 
 Production-ready evaluation framework for AI agents.
@@ -35,7 +35,7 @@ Quick Start (LLM Integration):
     >>> # Auto-recorded in monitor!
 """
 
-__version__ = "0.6.7"
+__version__ = "0.7.0"
 __author__ = "Sungwoo Kim"
 
 # Exception hierarchy (경량 — 외부 의존성 없음)

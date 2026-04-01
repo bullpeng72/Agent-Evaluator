@@ -160,10 +160,51 @@ def _print_connect_info(ui_url: str, otlp_url: str) -> None:
 # ---------------------------------------------------------------------------
 
 
+def cmd_sync_datasets(args: argparse.Namespace) -> int:
+    """--sync-datasets: 골든셋 JSON 파일을 Phoenix Datasets API로 업로드."""
+    import glob as _glob
+
+    from agent_evaluator.datasets.builder import GoldenSetBuilder
+
+    pattern = args.sync_datasets
+    files = _glob.glob(pattern)
+    if not files:
+        print(f"\n  ❌  파일을 찾을 수 없습니다: {pattern}\n")
+        return 1
+
+    phoenix_endpoint = f"http://{args.host}:{args.port}"
+    builder = GoldenSetBuilder(source_dir=".", output_dir=".")
+    success_count = 0
+
+    print(f"\n  Phoenix Datasets 업로드 — {phoenix_endpoint}\n")
+    for filepath in sorted(files):
+        import pathlib
+        name = pathlib.Path(filepath).stem
+        try:
+            dataset_id = builder.upload_to_phoenix(
+                dataset_path=filepath,
+                dataset_name=name,
+                phoenix_endpoint=phoenix_endpoint,
+            )
+            if dataset_id:
+                print(f"  ✅  {filepath}  →  dataset_id: {dataset_id}")
+            else:
+                print(f"  ⚠️   {filepath}  →  업로드 완료 (id 미반환)")
+            success_count += 1
+        except Exception as exc:
+            print(f"  ❌  {filepath}  →  실패: {exc}")
+
+    print(f"\n  완료: {success_count}/{len(files)}개 업로드\n")
+    return 0 if success_count > 0 else 1
+
+
 def cmd_monitor(args: argparse.Namespace) -> int:
     """Phoenix 서버 기동 후 OTEL 연결 정보 출력."""
     if args.check:
         return cmd_check_monitor()
+
+    if args.sync_datasets:
+        return cmd_sync_datasets(args)
 
     # 의존성 확인
     deps = _check_deps()
@@ -308,5 +349,16 @@ def build_monitor_subparser(sub: argparse._SubParsersAction) -> None:  # type: i
         default="./",
         dest="working_dir",
         help="Phoenix DB 저장 디렉토리 (기본: ./)",
+    )
+    p.add_argument(
+        "--sync-datasets",
+        type=str,
+        metavar="GLOB",
+        default=None,
+        dest="sync_datasets",
+        help=(
+            "골든셋 JSON 파일을 Phoenix Datasets로 업로드 (glob 패턴 지원).\n"
+            "예: --sync-datasets 'data/golden_datasets/*.json'"
+        ),
     )
     p.set_defaults(func=cmd_monitor)

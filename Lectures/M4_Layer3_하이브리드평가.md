@@ -567,4 +567,4 @@ export OPENAI_API_KEY=sk-...
 
 *Module 4 완료 — 다음: M5 프레임워크 통합 + 실무 파이프라인*
 
-*Agent-Evaluator SDK 강의 자료 — v0.6.6 기준 | 2026-03-31*
+*Agent-Evaluator SDK 강의 자료 — v0.7.0 기준 | 2026-04-01*

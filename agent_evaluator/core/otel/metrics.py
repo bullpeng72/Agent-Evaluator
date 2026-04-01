@@ -37,7 +37,7 @@ class OTELMetrics:
         METRIC_DEFS: 발행 지표 정의 — (kind, description) 매핑
 
     Example:
-        >>> m = OTELMetrics(endpoint="http://localhost:4318")
+        >>> m = OTELMetrics(endpoint="http://localhost:6006")
         >>> m.record("ae.tcr", 92.5, {"task_type": "qa"})
     """
 

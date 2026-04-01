@@ -548,9 +548,9 @@ print("agent-eval dashboard --watch")
 **Module 3 — Layer 2 에이전틱 지표 + 보안 지표**
 
 도구 선택의 F1 점수, 재시도 패턴, 멀티에이전트 협업 분석부터 5가지 보안 위협 탐지까지.
-특히 `analyze_privilege_chain()` API 변경, `overall_score=0` 알려진 이슈,
-출력 유출 8번째 유형(file_path)까지 실무에서 반드시 알아야 할 내용을 다룹니다.
+특히 Tool Selection F1 계산, 보안 5종 API 정확한 메서드명,
+출력 유출 8가지 유형(file_path 포함)까지 실무에서 반드시 알아야 할 내용을 다룹니다.
 
 ---
 
-*Agent-Evaluator SDK 강의 자료 — v0.6.6 기준 | 2026-03-31*
+*Agent-Evaluator SDK 강의 자료 — v0.7.0 기준 | 2026-04-01*

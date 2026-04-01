@@ -144,7 +144,7 @@ monitor.latency_tracker              # LatencyTracker
 monitor.token_tracker                # TokenEconomyTracker
 monitor.retry_tracker                # RetryCorrectionTracker
 monitor.tool_selection_tracker       # ToolSelectionTracker
-monitor.coordination_tracker         # AgentCoordinationTracker (= agent_coordination_tracker)
+monitor.agent_coordination_tracker   # AgentCoordinationTracker
 monitor.workflow_tracker             # WorkflowExecutionTracker
 # 보안 트래커 (enable_security_metrics=True 시)
 monitor.input_sanitizer              # InputSanitizationTracker
@@ -407,4 +407,4 @@ TCR의 공식부터 Token Economy의 월간 비용 예측까지, 6개 지표의 
 
 ---
 
-*Agent-Evaluator SDK 강의 자료 — v0.6.6 기준 | 2026-03-31*
+*Agent-Evaluator SDK 강의 자료 — v0.7.0 기준 | 2026-04-01*

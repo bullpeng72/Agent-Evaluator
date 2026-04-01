@@ -503,6 +503,7 @@ def create_taskresult_from_execution(
     task_type: str = "qa",
     partial_reason: Optional[str] = None,
     context: Optional[str] = None,
+    model_name: str = "",
 ):
     """
     Agent 실행 결과로부터 TaskResult 생성 (모든 필드 동적 계산)
@@ -524,6 +525,10 @@ def create_taskresult_from_execution(
             :class:`~agent_evaluator.TaskType` enum의 소문자 값과 동일.
         context: RAG 시스템에서 검색된 컨텍스트 (할루시네이션 감지에 사용).
             제공하면 HallucinationDetector가 응답의 사실 일관성을 검증한다.
+        model_name: 이 태스크에서 사용한 LLM 모델명 (예: "claude-sonnet-4-6").
+            지정하면 tokens dict에 "model" 키로 추가되어 Phoenix "Top models" 차트에서
+            태스크별 모델 구분이 가능하다 (멀티 모델 평가 시 유용).
+            미지정 시 PerformanceMonitor.model_name (전역 설정)이 사용된다.
 
     Returns:
         TaskResult: 동적 계산된 TaskResult 객체
@@ -584,6 +589,9 @@ def create_taskresult_from_execution(
             "output": _output_tokens,
             "total": _input_tokens + _output_tokens,
         }
+    # model_name 지정 시 tokens dict에 포함 — Phoenix Top models 차트에서 태스크별 모델 구분
+    if model_name:
+        tokens["model"] = model_name
 
     # 4. tool_calls 동적 추출
     tool_calls = []

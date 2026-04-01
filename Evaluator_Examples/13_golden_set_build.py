@@ -45,6 +45,24 @@ from agent_evaluator import (
 from agent_evaluator.datasets.builder import GoldenSetBuilder
 
 
+def _try_setup_otel(service_name: str) -> None:
+    """Phoenix가 실행 중이면 OTEL 활성화 (선택적). 미실행 시 무시."""
+    import socket
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as _s:
+        _s.settimeout(1)
+        if _s.connect_ex(("localhost", 6006)) != 0:
+            return
+    try:
+        from agent_evaluator import setup_otel
+        setup_otel(endpoint="http://localhost:6006", service_name=service_name)
+        print(f"  📡  Phoenix 모니터링 활성화 — http://localhost:6006  (service: {service_name})")
+    except Exception as _e:
+        import logging as _log
+        _log.getLogger(__name__).debug("setup_otel 실패: %s", _e)
+
+_try_setup_otel("13-golden-set-build")
+
+
 # ─── 평가 결과 생성 (GoldenSetBuilder의 입력 소스) ───────────────────────────
 _QA_PAIRS = [
     # (question, response_ok, response_fail, ground_truth, task_type, category)

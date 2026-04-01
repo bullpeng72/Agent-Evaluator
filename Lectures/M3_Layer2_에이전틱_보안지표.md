@@ -840,4 +840,4 @@ leak_stats["outputs_with_leakage"]                          # NOT "leak_count"
 
 *Module 3 완료 — 다음: M4 Layer 3 하이브리드 평가 (DeepEval + Ragas)*
 
-*Agent-Evaluator SDK 강의 자료 — v0.6.6 기준 | 2026-03-31*
+*Agent-Evaluator SDK 강의 자료 — v0.7.0 기준 | 2026-04-01*

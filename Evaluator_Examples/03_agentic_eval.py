@@ -40,6 +40,24 @@ from agent_evaluator import (
 from agent_evaluator.reporting import generate_comprehensive_html_report
 
 
+def _try_setup_otel(service_name: str) -> None:
+    """Phoenix가 실행 중이면 OTEL 활성화 (선택적). 미실행 시 무시."""
+    import socket
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as _s:
+        _s.settimeout(1)
+        if _s.connect_ex(("localhost", 6006)) != 0:
+            return
+    try:
+        from agent_evaluator import setup_otel
+        setup_otel(endpoint="http://localhost:6006", service_name=service_name)
+        print(f"  📡  Phoenix 모니터링 활성화 — http://localhost:6006  (service: {service_name})")
+    except Exception as _e:
+        import logging as _log
+        _log.getLogger(__name__).debug("setup_otel 실패: %s", _e)
+
+_try_setup_otel("03-agentic-eval")
+
+
 def _load_golden(filename: str) -> list:
     path = project_root / "data" / "golden_datasets" / filename
     with open(path, "r", encoding="utf-8") as f:
@@ -194,6 +212,7 @@ def run_agentic_evaluation():
     rng = random.Random(2025)
 
     monitor = PerformanceMonitor(
+        model_name="claude-sonnet-4-6",  # Phoenix Top-models / Cost 차트 그룹핑용
         enable_hallucination_detection=True,
         enable_transparency=True,
         output_dir=str(project_root / "results"),
@@ -543,7 +562,9 @@ def run_tool_selection_golden_demo():
         golden_items = json.load(f)
 
     rng = random.Random(7777)
-    monitor = PerformanceMonitor(output_dir=str(project_root / "results"))
+    monitor = PerformanceMonitor(
+        output_dir=str(project_root / "results"),
+    )
 
     print(f"\n  총 {len(golden_items)}개 시나리오 평가 중...\n")
 
@@ -584,7 +605,7 @@ def run_tool_selection_golden_demo():
             completion_score=round(completion, 3),
             accuracy_score=round(completion, 3),
             execution_time=round(rng.uniform(0.5, 5.0), 3),
-            tokens_used={"input": rng.randint(100, 500), "output": rng.randint(50, 300), "total": 0},
+            tokens_used={"input": (_ti := rng.randint(100, 500)), "output": (_to := rng.randint(50, 300)), "total": _ti + _to},
             tool_calls=tool_calls,
             attempts=1,
             errors=[] if success else ["wrong_tool_selected"],
@@ -955,7 +976,7 @@ if __name__ == "__main__":
     saved_path = run_agentic_evaluation()
     run_tool_selection_golden_demo()
     # Annotations 데모 (수동 입력 예시 — dashboard UI로도 작성 가능)
-    _demo_monitor = PerformanceMonitor(output_dir=str(project_root / "results"))
+    _demo_monitor = PerformanceMonitor(model_name="claude-sonnet-4-6", output_dir=str(project_root / "results"))
     run_transparency_demo(_demo_monitor, saved_path)
     # 멀티턴 대화 평가 데모 (v0.6.3)
     run_conversation_session_demo()

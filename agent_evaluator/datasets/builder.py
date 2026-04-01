@@ -2,10 +2,13 @@
 GoldenSetBuilder — Phase 3-A 운영 데이터 기반 골든셋 자동 확장.
 
 운영 결과 파일에서 케이스를 자동 추출하여 골든 데이터셋으로 확장한다.
+Phoenix Datasets API 연동: upload_to_phoenix()로 골든셋을 Phoenix에 업로드.
 """
 from __future__ import annotations
 
 import json
+import urllib.error
+import urllib.request
 from collections import Counter
 from datetime import datetime
 from pathlib import Path
@@ -156,6 +159,136 @@ class GoldenSetBuilder:
         with open(path, "w", encoding="utf-8") as f:
             json.dump(candidates, f, ensure_ascii=False, indent=2, default=str)
         return path
+
+    def upload_to_phoenix(
+        self,
+        dataset_path: str,
+        dataset_name: Optional[str] = None,
+        phoenix_endpoint: str = "http://localhost:6006",
+    ) -> Optional[str]:
+        """골든셋 JSON 파일을 Phoenix Datasets API로 업로드한다.
+
+        Phoenix UI → Datasets & Experiments 탭에서 확인 가능.
+
+        Args:
+            dataset_path: 업로드할 골든셋 JSON 파일 경로 (save_candidates / merge_to_golden 결과물).
+            dataset_name: Phoenix에 표시될 데이터셋 이름. None이면 파일명에서 자동 추출.
+            phoenix_endpoint: Phoenix 서버 주소 (기본: http://localhost:6006).
+
+        Returns:
+            생성된 Phoenix dataset_id 문자열. 실패 시 None.
+
+        Example::
+            builder = GoldenSetBuilder("results/", "data/golden_datasets/")
+            path = builder.save_candidates(candidates)
+            dataset_id = builder.upload_to_phoenix(str(path), dataset_name="qa-golden-v1")
+        """
+        path = Path(dataset_path)
+        if not path.exists():
+            raise FileNotFoundError(f"골든셋 파일을 찾을 수 없습니다: {dataset_path}")
+
+        with open(path, encoding="utf-8") as f:
+            raw = json.load(f)
+
+        # 파일 포맷 통일: list 또는 {"items": [...]} 모두 지원
+        if isinstance(raw, list):
+            items = raw
+        elif isinstance(raw, dict):
+            items = raw.get("items", raw.get("candidates", []))
+        else:
+            items = []
+
+        if not items:
+            return None
+
+        if dataset_name is None:
+            dataset_name = path.stem  # 파일명에서 확장자 제거
+
+        # Phoenix REST API: POST /v1/datasets
+        # 각 row: {"input": {...}, "output": {...}, "metadata": {...}}
+        # Phoenix REST POST /v1/datasets 는 미지원 (405) — GraphQL mutation 사용
+        examples = []
+        for item in items:
+            examples.append({
+                "input": {
+                    "task_id": item.get("task_id", ""),
+                    "question": item.get("question", item.get("task_id", "")),
+                    "task_type": item.get("task_type", ""),
+                },
+                "output": {
+                    "ground_truth": item.get("ground_truth", item.get("answer", "")),
+                },
+                "metadata": {
+                    k: item[k] for k in ("accuracy_score", "completion_score",
+                                         "_strategy", "_source_file", "_extracted_at")
+                    if item.get(k) is not None
+                },
+            })
+
+        gql_endpoint = f"{phoenix_endpoint.rstrip('/')}/graphql"
+
+        def _graphql(query: str, variables: dict) -> dict:
+            payload = json.dumps({"query": query, "variables": variables}).encode()
+            req = urllib.request.Request(
+                gql_endpoint,
+                data=payload,
+                headers={"Content-Type": "application/json"},
+                method="POST",
+            )
+            with urllib.request.urlopen(req, timeout=10) as resp:
+                return json.loads(resp.read().decode())
+
+        try:
+            # 1단계: 데이터셋 생성
+            r_create = _graphql(
+                """
+                mutation CreateDataset($input: CreateDatasetInput!) {
+                  createDataset(input: $input) {
+                    dataset { id name }
+                  }
+                }
+                """,
+                {"input": {"name": dataset_name,
+                           "description": f"Agent Evaluator golden dataset — {len(examples)}개 케이스"}},
+            )
+            if r_create.get("errors"):
+                raise RuntimeError(f"createDataset 오류: {r_create['errors']}")
+            dataset_id: Optional[str] = (
+                r_create.get("data", {})
+                .get("createDataset", {})
+                .get("dataset", {})
+                .get("id")
+            )
+            if not dataset_id:
+                raise RuntimeError("dataset_id 미반환")
+
+            # 2단계: examples 추가
+            r_add = _graphql(
+                """
+                mutation AddExamples($input: AddExamplesToDatasetInput!) {
+                  addExamplesToDataset(input: $input) {
+                    dataset { id name exampleCount }
+                  }
+                }
+                """,
+                {"input": {"datasetId": dataset_id, "examples": examples}},
+            )
+            if r_add.get("errors"):
+                raise RuntimeError(f"addExamplesToDataset 오류: {r_add['errors']}")
+
+            return dataset_id
+
+        except urllib.error.HTTPError as e:
+            body = ""
+            try:
+                body = e.read().decode("utf-8", errors="replace")[:300]
+            except Exception:
+                pass
+            raise RuntimeError(f"Phoenix GraphQL API 오류 (HTTP {e.code}): {body}") from e
+        except RuntimeError:
+            raise
+        except Exception as e:
+            raise RuntimeError(f"Phoenix 연결 실패: {e}") from e
 
     def merge_to_golden(
         self,
