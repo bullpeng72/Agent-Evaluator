@@ -28,6 +28,24 @@ from typing import Dict, List, Optional
 
 
 # ---------------------------------------------------------------------------
+# 도움말 포맷터 — RawDescriptionHelpFormatter + 한국어 "사용법:" 접두사
+# ---------------------------------------------------------------------------
+
+
+class _MonitorHelpFormatter(argparse.RawDescriptionHelpFormatter):
+    """monitor 서브파서용 HelpFormatter.
+
+    RawDescriptionHelpFormatter를 상속해 description/epilog 줄바꿈을 보존하면서
+    사용법 접두사를 한국어로 출력한다.
+    """
+
+    def _format_usage(self, usage, actions, groups, prefix):  # type: ignore[override]
+        if prefix is None:
+            prefix = "사용법: "
+        return super()._format_usage(usage, actions, groups, prefix)
+
+
+# ---------------------------------------------------------------------------
 # 의존성 / 포트 유틸리티
 # ---------------------------------------------------------------------------
 
@@ -296,7 +314,7 @@ def build_monitor_subparser(sub: argparse._SubParsersAction) -> None:  # type: i
     """main.py에서 호출 — monitor 서브파서 등록."""
     p = sub.add_parser(
         "monitor",
-        help="운영 실시간 모니터링 (Phoenix + OTEL) — pip install agent-evaluator[otel]",
+        help="Arize Phoenix 기동 + OTLP 스팬 수신 — 실시간 운영 모니터링",
         description=(
             "Arize Phoenix 서버를 기동하고 OpenTelemetry 스팬 수신을 설정합니다.\n"
             "프로덕션 환경의 실시간 트레이싱·스팬 분석·오류 감지에 활용합니다.\n"
@@ -315,7 +333,7 @@ def build_monitor_subparser(sub: argparse._SubParsersAction) -> None:  # type: i
             "  agent-eval monitor --check\n"
             "  agent-eval monitor --sync-datasets 'data/golden_datasets/*.json'"
         ),
-        formatter_class=argparse.RawDescriptionHelpFormatter,
+        formatter_class=_MonitorHelpFormatter,
     )
     p.add_argument(
         "--port",
@@ -352,6 +370,7 @@ def build_monitor_subparser(sub: argparse._SubParsersAction) -> None:  # type: i
         type=str,
         default="./",
         dest="working_dir",
+        metavar="DIR",
         help="Phoenix DB 저장 디렉토리 (기본: ./)",
     )
     p.add_argument(

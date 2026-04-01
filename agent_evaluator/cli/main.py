@@ -798,7 +798,9 @@ def main() -> None:
             f"  {Y}API 키 상태{R}    {C}OPENAI_API_KEY{R}, {C}ANTHROPIC_API_KEY{R},\n"
             f"               {C}LANGSMITH_API_KEY{R}\n"
             f"  {Y}기타 설정{R}      {C}AGENT_EVALUATOR_OUTPUT_DIR{R}, {C}OPENAI_MODEL{R},\n"
-            f"               {C}ANTHROPIC_MODEL{R}, {C}LANGCHAIN_TRACING_V2{R}\n"
+            f"               {C}ANTHROPIC_MODEL{R}, {C}LANGCHAIN_TRACING_V2{R},\n"
+            f"               {C}LANGCHAIN_PROJECT{R}\n"
+            f"  {Y}패키지 상태{R}    openai, anthropic, langsmith, deepeval, ragas 설치 여부\n"
             f"  {Y}.env 위치{R}      로드된 .env 파일 경로\n"
             "\n"
             f"{D}API 키는 앞 8자만 표시되며 나머지는 마스킹됩니다.{R}"
@@ -810,12 +812,22 @@ def main() -> None:
         "dashboard",
         help="평가 결과 시각화 웹 대시보드 실행 (기본 포트 8765)",
         formatter_class=ColoredHelpFormatter,
+        description=(
+            "평가 결과를 시각화하는 FastAPI 웹 대시보드를 실행합니다.\n"
+            f"{D}pip install 'agent-evaluator[serve]' 필요{R}\n"
+            "\n"
+            f"{B}접속 URL:{R}\n"
+            f"  {C}http://localhost:8765{R}           메인 대시보드\n"
+            f"  {C}http://localhost:8765/slides{R}    슬라이드 뷰\n"
+            f"  {C}http://localhost:8765/api/docs{R}  Swagger UI\n"
+        ),
         epilog=(
             f"{B}예시:{R}\n"
             f"  {G}agent-eval dashboard{R}\n"
             f"  {G}agent-eval dashboard ./results --port 8080{R}\n"
             f"  {G}agent-eval dashboard ./results --watch{R}\n"
             f"  {G}agent-eval dashboard ./results --no-open{R}\n"
+            f"  {G}agent-eval dashboard ./results --offline{R}\n"
         ),
     )
     dash_p.add_argument(
@@ -827,15 +839,16 @@ def main() -> None:
     dash_p.add_argument("--port",  default=8765, type=int, metavar="PORT",
                         help="포트 번호 (기본: 8765)")
     dash_p.add_argument("--open",  action="store_true", default=True,
-                        help="서버 시작 후 /dashboard 브라우저 자동 오픈 (기본값)")
+                        help="서버 시작 후 브라우저 자동 오픈 (기본값)")
     dash_p.add_argument("--no-open", dest="open", action="store_false",
                         help="브라우저 자동 오픈 비활성화")
     dash_p.add_argument("--watch", action="store_true",
                         help="결과 파일 변경 감시 후 자동 갱신")
     dash_p.add_argument("--offline", action="store_true",
-                        help="CDN 에셋을 로컬에 캐시해 오프라인 실행")
+                        help="CDN 에셋을 로컬에 캐시해 인터넷 없이 실행")
     dash_p.add_argument("--title", default="Agent Evaluator — Dev Dashboard",
-                        metavar="TITLE", help="대시보드 제목")
+                        metavar="TITLE",
+                        help="대시보드 제목 (기본: 'Agent Evaluator — Dev Dashboard')")
 
     # gate subcommand
     gate_p = sub.add_parser(
@@ -895,15 +908,13 @@ def main() -> None:
         formatter_class=ColoredHelpFormatter,
         description=(
             "골든 데이터셋을 관리합니다.\n"
-            "\n"
-            f"{B}서브명령어:{R}\n"
-            f"  {Y}build{R}  운영 평가 결과에서 골든셋 후보를 자동 추출·저장\n"
+            "운영 평가 결과에서 케이스를 자동 추출하거나 Phoenix에 업로드할 수 있습니다.\n"
         ),
         epilog=(
             f"{B}예시:{R}\n"
             f"  {G}agent-eval dataset build{R}\n"
             f"  {G}agent-eval dataset build --source results/ --strategy failure_cases edge_cases{R}\n"
-            f"  {G}agent-eval dataset build --source results/daily/ --max-cases 30 --output data/golden_datasets/{R}\n"
+            f"  {G}agent-eval dataset build --max-cases 30 --output data/golden_datasets/{R}\n"
         ),
     )
     ds_sub = ds_p.add_subparsers(dest="dataset_command")
