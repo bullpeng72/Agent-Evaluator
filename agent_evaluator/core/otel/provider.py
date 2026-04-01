@@ -92,17 +92,35 @@ class OTELProvider:
             yield None
             return
 
+        # 스팬 시작 (setup) 단계 — 실패 시 no-op으로 폴백
         try:
-            with self._tracer.start_as_current_span(name) as s:
-                for k, v in attributes.items():
-                    try:
-                        s.set_attribute(k, v)
-                    except Exception:
-                        pass  # 개별 속성 실패는 무시
-                yield s
+            span_ctx = self._tracer.start_as_current_span(name)
+            s = span_ctx.__enter__()
         except Exception as exc:
-            logger.debug("OTELProvider.span: 스팬 발행 실패 (%s): %s", name, exc)
+            logger.debug("OTELProvider.span: 스팬 시작 실패 (%s): %s", name, exc)
             yield None
+            return
+
+        # 속성 설정
+        for k, v in attributes.items():
+            try:
+                s.set_attribute(k, v)
+            except Exception:
+                pass  # 개별 속성 실패는 무시
+
+        # yield — caller body 실행; 예외가 오더라도 span_ctx.__exit__ 를 보장
+        exc_info = (None, None, None)
+        try:
+            yield s
+        except BaseException:
+            import sys
+            exc_info = sys.exc_info()
+            raise
+        finally:
+            try:
+                span_ctx.__exit__(*exc_info)
+            except Exception as close_exc:
+                logger.debug("OTELProvider.span: 스팬 종료 실패 (%s): %s", name, close_exc)
 
     @property
     def enabled(self) -> bool:

@@ -86,6 +86,23 @@ _QUALITY_EVAL_STOPWORDS: frozenset = frozenset({
     "the", "a", "an", "is", "are", "was", "were", "in", "on", "at",
 })
 
+# TaskType → OpenInference span kind 매핑 (모듈 상수 — 매 호출마다 재생성 방지)
+_OTEL_SPAN_KIND_MAP: Dict[str, str] = {
+    "qa": "LLM",
+    "code_generation": "LLM",
+    "coding": "LLM",
+    "creative": "LLM",
+    "information_retrieval": "RETRIEVER",
+    "tool_use": "TOOL",
+    "planning": "AGENT",
+    "data_analysis": "CHAIN",
+    "document_creation": "CHAIN",
+    "reasoning": "CHAIN",
+}
+
+# OTEL 속성 크기 제한 — Phoenix OTLP HTTP 기본 4MB이나 속성값 개별 권장치
+_OTEL_ATTR_MAX_LEN: int = 4096
+
 
 class PerformanceMonitor:
     """Main performance monitoring and reporting system"""
@@ -1421,24 +1438,11 @@ class PerformanceMonitor:
             input_val = getattr(result, "question", None) or result.task_id
             output_val = getattr(result, "response", None) or str(result.completion_score)
             # task_type 에서 간결한 레이블 추출 (예: TaskType.QA → "qa")
-            raw_type = str(result.task_type)
-            type_label = raw_type.split(".")[-1].lower()  # "TaskType.QA" → "qa"
+            # TaskResult.__post_init__ 에서 이미 소문자 정규화됨
+            type_label = str(result.task_type).split(".")[-1].lower()
             # 스팬 이름: "ae.task/{task_type}/{task_id}" — Phoenix name 컬럼으로 구분 가능
             span_name = f"ae.task/{type_label}/{result.task_id}"
-            # TaskType → OpenInference span kind 매핑
-            _SPAN_KIND_MAP = {
-                "qa": "LLM",
-                "code_generation": "LLM",
-                "coding": "LLM",
-                "creative": "LLM",
-                "information_retrieval": "RETRIEVER",
-                "tool_use": "TOOL",
-                "planning": "AGENT",
-                "data_analysis": "CHAIN",
-                "document_creation": "CHAIN",
-                "reasoning": "CHAIN",
-            }
-            span_kind = _SPAN_KIND_MAP.get(type_label, "CHAIN")
+            span_kind = _OTEL_SPAN_KIND_MAP.get(type_label, "CHAIN")
             # 토큰 분류 (Phoenix Cost/Token usage 차트용)
             tokens = result.tokens_used if isinstance(result.tokens_used, dict) else {}
             prompt_tokens = tokens.get("input", 0)
@@ -1446,7 +1450,6 @@ class PerformanceMonitor:
             model_name = tokens.get("model", "") or self.model_name or "unknown"
 
             # metadata: 스팬 상세 탭 커스텀 정보 (JSON 문자열)
-            import json as _json
             metadata_dict: Dict[str, Any] = {"task_type": type_label}
             if result.framework:
                 metadata_dict["framework"] = result.framework
@@ -1461,7 +1464,7 @@ class PerformanceMonitor:
                 # Phoenix Sessions 탭 그룹핑
                 "session.id": self._otel_session_id,
                 # OpenInference 메타데이터
-                "metadata": _json.dumps(metadata_dict, ensure_ascii=False),
+                "metadata": json.dumps(metadata_dict, ensure_ascii=False),
                 # OpenInference LLM 속성 — Cost/Token usage 차트용
                 "llm.token_count.prompt": prompt_tokens,
                 "llm.token_count.completion": completion_tokens,
@@ -1483,8 +1486,10 @@ class PerformanceMonitor:
             # retrieval.documents — INFORMATION_RETRIEVAL 스팬에 RAG 컨텍스트 첨부
             if type_label == "information_retrieval" and getattr(result, "context", None):
                 try:
-                    docs = [{"document.id": "0", "document.content": str(result.context)}]
-                    attributes["retrieval.documents"] = _json.dumps(docs, ensure_ascii=False)
+                    # OTEL 속성 크기 제한 준수 — 긴 컨텍스트 앞부분만 전송
+                    ctx_text = str(result.context)[:_OTEL_ATTR_MAX_LEN]
+                    docs = [{"document.id": "0", "document.content": ctx_text}]
+                    attributes["retrieval.documents"] = json.dumps(docs, ensure_ascii=False)
                 except Exception:
                     pass
             with provider.span(span_name, attributes) as span:
@@ -1515,7 +1520,7 @@ class PerformanceMonitor:
                 m = get_metrics()
                 if m and m.enabled:
                     task_attrs = {"task_type": type_label, "framework": attributes["ae.framework"]}
-                    m.record("ae.tcr", float(result.completion_score * 100), task_attrs)
+                    # ae.tcr는 세션 단위 지표 — save_to_file()에서 별도 전송, per-task 전송 제외
                     m.record("ae.latency_seconds", float(result.execution_time), task_attrs)
                     m.record("ae.accuracy", float(result.accuracy_score), task_attrs)
                     tokens_total = (
@@ -3343,6 +3348,16 @@ class PerformanceMonitor:
 
         # Phoenix Annotation API — accuracy / completion / success 점수 전송
         self._flush_phoenix_annotations()
+
+        # OTEL Metrics — 세션 단위 ae.tcr 전송 (per-task 합산 오류 방지)
+        try:
+            from agent_evaluator.core.otel import get_metrics
+            m = get_metrics()
+            if m and m.enabled:
+                session_tcr = float(self.tcr_tracker.calculate_tcr() * 100)
+                m.record("ae.tcr", session_tcr, {})
+        except Exception:
+            pass
 
         return filename
 

@@ -61,7 +61,10 @@ def evaluation_session(
 
             provider = get_provider()
             if provider and provider.enabled:
-                return provider.span("ae.session", {"ae.session_file": output_filename})
+                return provider.span("ae.session", {
+                    "openinference.span.kind": "CHAIN",
+                    "ae.session_file": output_filename,
+                })
         except Exception:
             pass
         return contextlib.nullcontext()
