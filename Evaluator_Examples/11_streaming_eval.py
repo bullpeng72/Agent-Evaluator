@@ -1,5 +1,5 @@
 """
-스트리밍 실시간 평가 예제 — Agent Evaluator v1.0.0 Phase 2-A/2-C
+스트리밍 실시간 평가 예제 — Agent Evaluator v0.6.7 Phase 2-A/2-C
 =================================================================
 
 실시간 에이전트 스트림을 슬라이딩 윈도우로 연속 평가하고
@@ -96,7 +96,7 @@ def _simulate_feedback(
 
 def run_streaming_evaluation():
     print("\n" + "=" * 70)
-    print("  스트리밍 실시간 평가 — Agent Evaluator v1.0.0")
+    print("  스트리밍 실시간 평가 — Agent Evaluator v0.6.7")
     print("  Phase 2-A: StreamingEvaluator · Phase 2-C: ImplicitFeedbackTracker")
     print("=" * 70)
 

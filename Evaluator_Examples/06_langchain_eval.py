@@ -1,5 +1,5 @@
 """
-LangChain 에이전트 평가 예제 — Agent Evaluator v0.6.3
+LangChain 에이전트 평가 예제 — Agent Evaluator v0.6.7
 ======================================================
 
 LangChainEvaluator 를 사용해 LangChain 에이전트의 모든 레이어 지표를 수집합니다.
@@ -167,7 +167,7 @@ def _make_attempts_log(retry_count: int, success: bool, rng: random.Random) -> l
 
 def run_langchain_evaluation():
     print("\n" + "=" * 70)
-    print("  LangChain 에이전트 평가 — Agent Evaluator v0.6.3")
+    print("  LangChain 에이전트 평가 — Agent Evaluator v0.6.7")
     print("  Layer 1/2 지표 + 보안 메트릭 전체 커버")
     print("=" * 70)
 

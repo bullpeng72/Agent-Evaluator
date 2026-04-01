@@ -26,7 +26,7 @@ load_dotenv(Path(__file__).parent / ".env")
 
 from agent_evaluator import PerformanceMonitor, TaskResult, create_taskresult
 from agent_evaluator.reporting import generate_comprehensive_html_report
-from agent_evaluator.helpers.taskresult_helpers import validate_input_security, check_output_leakage
+# validate_input_security / check_output_leakage 는 이 파일 하단(line 715/816)에 직접 정의됨
 
 # ────────────────────────────────────────────────────────────────────────────────
 # 보안 시나리오 데이터셋
@@ -210,7 +210,7 @@ AUTHORIZATION_SCENARIOS = [
 
 def run_security_evaluation():
     print("\n" + "=" * 70)
-    print("  보안 지표 평가 — Agent Evaluator v0.6.3")
+    print("  보안 지표 평가 — Agent Evaluator v0.6.7")
     print("  Coverage: Input Sanitization · Output Leakage · Tool Authorization")
     print("           Privilege Escalation · Tool Chain Attack Detection")
     print("=" * 70)

@@ -1,5 +1,5 @@
 """
-품질 지표 검증 예제 — Agent Evaluator v0.6.3
+품질 지표 검증 예제 — Agent Evaluator v0.6.7
 ============================================
 
 검증 지표 (Layer 1 — 품질):
@@ -76,7 +76,7 @@ CODE_CASES = [
 
 def run_quality_evaluation():
     print("\n" + "=" * 70)
-    print("  품질 지표 검증 — Agent Evaluator v0.6.3")
+    print("  품질 지표 검증 — Agent Evaluator v0.6.7")
     print("  Accuracy · Hallucination · ResponseQuality · RAG Metrics")
     print("=" * 70)
 
@@ -347,7 +347,7 @@ def run_llm_judge_demo():
     api_key_set = bool(os.getenv("OPENAI_API_KEY") or os.getenv("ANTHROPIC_API_KEY"))
 
     print("\n" + "=" * 70)
-    print("  LLM-as-Judge 평가 패턴 — Agent Evaluator v0.6.3")
+    print("  LLM-as-Judge 평가 패턴 — Agent Evaluator v0.6.7")
     print("  목표: ground_truth 없이 3차원 자동 채점 (completeness/relevance/factual)")
     print("=" * 70)
 

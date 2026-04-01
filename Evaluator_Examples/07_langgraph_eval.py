@@ -1,5 +1,5 @@
 """
-LangGraph 워크플로우 평가 예제 — Agent Evaluator v0.6.3
+LangGraph 워크플로우 평가 예제 — Agent Evaluator v0.6.7
 ========================================================
 
 LangGraphEvaluator 를 사용해 LangGraph DAG 워크플로우의 모든 레이어 지표를 수집합니다.
@@ -156,7 +156,7 @@ def _make_retry_log(nodes: list[dict], overall_success: bool,
 
 def run_langgraph_evaluation():
     print("\n" + "=" * 70)
-    print("  LangGraph 워크플로우 평가 — Agent Evaluator v0.6.3")
+    print("  LangGraph 워크플로우 평가 — Agent Evaluator v0.6.7")
     print("  Layer 1/2 지표 + 노드 전환 추적 + 보안 메트릭")
     print("=" * 70)
 

@@ -1,5 +1,5 @@
 """
-골든 데이터셋 구축 예제 — Agent Evaluator v0.6.4 Phase 3-A
+골든 데이터셋 구축 예제 — Agent Evaluator v0.6.7 Phase 3-A
 ===========================================================
 
 운영 평가 결과에서 가치 높은 케이스를 자동 추출하여
@@ -144,7 +144,7 @@ def _generate_evaluation_files(results_dir: Path, rng: random.Random) -> list[Pa
 
 def run_golden_set_build():
     print("\n" + "=" * 70)
-    print("  골든 데이터셋 구축 — Agent Evaluator v0.6.4")
+    print("  골든 데이터셋 구축 — Agent Evaluator v0.6.7")
     print("  Phase 3-A: GoldenSetBuilder — 케이스 추출 · 후보 저장 · 골든 병합")
     print("=" * 70)
 

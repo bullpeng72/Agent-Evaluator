@@ -1,5 +1,5 @@
 """
-크로스 프레임워크 협업 평가 예제 — Agent Evaluator v0.6.3
+크로스 프레임워크 협업 평가 예제 — Agent Evaluator v0.6.7
 ==========================================================
 
 두 개 이상의 에이전트 프레임워크가 협업하는 파이프라인을 평가합니다.
@@ -189,7 +189,7 @@ def _make_pipeline_workflow(s1_ok: bool, s2_ok: bool, s3_ok: bool, rng: random.R
 
 def run_cross_framework_evaluation():
     print("\n" + "=" * 72)
-    print("  크로스 프레임워크 협업 평가 — Agent Evaluator v0.6.3")
+    print("  크로스 프레임워크 협업 평가 — Agent Evaluator v0.6.7")
     print("  LangGraph(연구) → LangChain(분석) → CrewAI(보고서) 파이프라인")
     print("=" * 72)
 

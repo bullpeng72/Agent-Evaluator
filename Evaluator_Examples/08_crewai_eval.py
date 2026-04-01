@@ -1,5 +1,5 @@
 """
-CrewAI 프레임워크 평가 예제 — Agent Evaluator v0.6.3
+CrewAI 프레임워크 평가 예제 — Agent Evaluator v0.6.7
 =====================================================
 
 역할 기반 멀티에이전트 크루(Crew)의 평가 지표를 최대 커버리지로 시연합니다.
@@ -165,7 +165,7 @@ def _make_crew_workflow(pipeline: list[dict], success: bool, rng: random.Random)
 
 def run_crewai_evaluation():
     print("\n" + "=" * 72)
-    print("  CrewAI 프레임워크 평가 — Agent Evaluator v0.6.3")
+    print("  CrewAI 프레임워크 평가 — Agent Evaluator v0.6.7")
     print("  Coverage: 역할 기반 멀티에이전트 크루 · 전체 Layer 1/2 · 보안")
     print("=" * 72)
 

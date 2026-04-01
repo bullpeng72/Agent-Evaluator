@@ -1,5 +1,5 @@
 """
-대시보드 3개 탭 통합 데모 — Agent Evaluator v0.6.5
+대시보드 3개 탭 통합 데모 — Agent Evaluator v0.6.7
 ===========================================================
 
 이 예제 하나를 실행하면 대시보드의 세 가지 탭 데이터가 모두 채워집니다:
@@ -85,7 +85,7 @@ def _feedback(monitor: PerformanceMonitor, task_id: str, quality: str, rng: rand
 
 def run_dashboard_demo():
     print("\n" + "=" * 70)
-    print("  대시보드 3개 탭 통합 데모 — Agent Evaluator v0.6.5")
+    print("  대시보드 3개 탭 통합 데모 — Agent Evaluator v0.6.7")
     print("  📡 실시간  ·  👍 사용자 반응  ·  🗂️ 케이스 검토")
     print("=" * 70)
 

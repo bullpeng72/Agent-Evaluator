@@ -1,5 +1,5 @@
 """
-이상 탐지 · 비용 제어 · LLM 보조 평가 예제 — Agent Evaluator v1.0.0 Phase 3-B/3-C
+이상 탐지 · 비용 제어 · LLM 보조 평가 예제 — Agent Evaluator v0.6.7 Phase 3-B/3-C
 ===================================================================================
 
 운영 에이전트의 지표 이상(이상 탐지)을 감지하고,
@@ -89,7 +89,7 @@ def _record_tasks(
 
 def run_anomaly_cost_evaluation():
     print("\n" + "=" * 72)
-    print("  이상 탐지 · 비용 제어 — Agent Evaluator v1.0.0")
+    print("  이상 탐지 · 비용 제어 — Agent Evaluator v0.6.7")
     print("  Phase 3-B: AnomalyDetector  ·  Phase 3-C: CostTracker + AdaptivePolicy")
     print("=" * 72)
 

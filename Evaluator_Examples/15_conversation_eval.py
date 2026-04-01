@@ -1,5 +1,5 @@
 """
-멀티턴 대화 평가 예제 — Agent Evaluator v1.0.0 Phase 1-C
+멀티턴 대화 평가 예제 — Agent Evaluator v0.6.7 Phase 1-C
 ==========================================================
 
 ConversationSession API를 사용하여 챗봇·대화형 에이전트의 품질을 측정합니다.
@@ -10,12 +10,12 @@ ConversationSession API를 사용하여 챗봇·대화형 에이전트의 품질
   ConversationSession    │ session.add_turn(user, agent, metadata)
                          │ session.compute_metrics() → ConversationMetrics
   monitor.conversation() │ 컨텍스트 매니저 — 세션 종료 시 자동 저장
-  지표                   │ context_retention  — 맥락 유지율
-                         │ coherence_score           — 주제 일관성
-                         │ progression_score         — 점진적 심화
-                         │ completion_score          — 세션 완결성
-                         │ overall_score             — 종합 점수
-                         │ avg_response_latency      — 평균 응답 지연
+  지표                   │ context_retention   — 맥락 유지율
+                         │ topic_coherence     — 주제 일관성
+                         │ progressive_depth   — 점진적 심화
+                         │ session_completion  — 세션 완결성
+                         │ overall_score       — 종합 점수
+                         │ avg_turn_latency    — 평균 응답 지연
 
 핵심 시나리오:
   1. Python 학습 세션 — 기초 → 심화 (맥락 유지 우수, 4턴)
@@ -171,7 +171,7 @@ SESSION_CONTEXT_BREAK = [
 
 def run_conversation_evaluation() -> str:
     print("\n" + "=" * 70)
-    print("  멀티턴 대화 평가 — Agent Evaluator v1.0.0")
+    print("  멀티턴 대화 평가 — Agent Evaluator v0.6.7")
     print("  Phase 1-C: ConversationSession · monitor.conversation()")
     print("=" * 70)
 

@@ -1,5 +1,5 @@
 """
-실시간 알림 엔진 예제 — Agent Evaluator v0.6.4 Phase 2-B
+실시간 알림 엔진 예제 — Agent Evaluator v0.6.7 Phase 2-B
 =========================================================
 
 StreamingEvaluator 지표를 기반으로 AlertEngine이 임계값 초과를
@@ -83,7 +83,7 @@ class _MockWebhookHandler(WebhookHandler):
 
 def run_alerting_evaluation():
     print("\n" + "=" * 70)
-    print("  실시간 알림 엔진 평가 — Agent Evaluator v0.6.4")
+    print("  실시간 알림 엔진 평가 — Agent Evaluator v0.6.7")
     print("  Phase 2-B: AlertEngine · AlertRule · SlackHandler · WebhookHandler")
     print("=" * 70)
 

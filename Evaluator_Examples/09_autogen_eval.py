@@ -1,5 +1,5 @@
 """
-AutoGen 프레임워크 평가 예제 — Agent Evaluator v0.6.3
+AutoGen 프레임워크 평가 예제 — Agent Evaluator v0.6.7
 =====================================================
 
 대화형 멀티에이전트 시스템(AutoGen)의 평가 지표를 최대 커버리지로 시연합니다.
@@ -192,7 +192,7 @@ def _make_autogen_workflow(workflow: list[dict], success: bool, rng: random.Rand
 
 def run_autogen_evaluation():
     print("\n" + "=" * 72)
-    print("  AutoGen 프레임워크 평가 — Agent Evaluator v0.6.3")
+    print("  AutoGen 프레임워크 평가 — Agent Evaluator v0.6.7")
     print("  Coverage: 대화형 멀티에이전트 · 전체 Layer 1/2 · 보안 5종")
     print("=" * 72)
 
