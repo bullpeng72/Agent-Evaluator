@@ -730,7 +730,8 @@ def main() -> None:
             f"{B}{C}Agent Evaluator CLI{R} — AI 에이전트 평가 프레임워크\n"
             "\n"
             "평가 결과 수집·저장·시각화 전 구간을 단일 명령어로 관리합니다.\n"
-            "API 키 설정, 환경 상태 확인, 웹 대시보드 실행, CI/CD 게이팅을 지원합니다."
+            "API 키 설정, 환경 상태 확인, 웹 대시보드 실행, CI/CD 게이팅,\n"
+            "골든 데이터셋 관리, Phoenix 실시간 모니터링을 지원합니다."
         ),
         formatter_class=ColoredHelpFormatter,
         epilog=(
@@ -739,7 +740,8 @@ def main() -> None:
             f"  {Y}check{R}        현재 환경의 API 키 및 설정값 상태를 출력\n"
             f"  {Y}dashboard{R}    평가 결과를 시각화하는 FastAPI 웹 대시보드 실행\n"
             f"  {Y}gate{R}         CI/CD 품질 게이팅 — 임계값 기준 통과/실패 판정\n"
-            f"  {Y}--version{R}    패키지 버전 출력\n"
+            f"  {Y}dataset{R}      운영 결과에서 골든 데이터셋 자동 추출\n"
+            f"  {Y}monitor{R}      Arize Phoenix 기동 + OTLP 스팬 수신 설정 (실시간 모니터링)\n"
             "\n"
             f"{B}예시:{R}\n"
             f"  {G}agent-eval init{R}\n"
@@ -749,6 +751,10 @@ def main() -> None:
             f"  {G}agent-eval dashboard ./results --watch --no-open{R}\n"
             f"  {G}agent-eval gate results/ci_run.json --tcr 85 --accuracy 70{R}\n"
             f"  {G}agent-eval gate results/ci_run.json --save-baseline{R}\n"
+            f"  {G}agent-eval dataset build --source results/ --max-cases 30{R}\n"
+            f"  {G}agent-eval monitor{R}\n"
+            f"  {G}agent-eval monitor --port 6007{R}\n"
+            f"  {G}agent-eval monitor --check{R}\n"
             f"  {G}agent-eval --version{R}\n"
             "\n"
             f"{B}더 자세한 도움말:{R}\n"
@@ -802,7 +808,7 @@ def main() -> None:
     # dashboard subcommand
     dash_p = sub.add_parser(
         "dashboard",
-        help="개발자/QM 전용 대시보드 실행 (/dashboard)",
+        help="평가 결과 시각화 웹 대시보드 실행 (기본 포트 8765)",
         formatter_class=ColoredHelpFormatter,
         epilog=(
             f"{B}예시:{R}\n"

@@ -301,17 +301,21 @@ def build_monitor_subparser(sub: argparse._SubParsersAction) -> None:  # type: i
             "Arize Phoenix 서버를 기동하고 OpenTelemetry 스팬 수신을 설정합니다.\n"
             "프로덕션 환경의 실시간 트레이싱·스팬 분석·오류 감지에 활용합니다.\n"
             "\n"
-            "Phoenix 13.x: UI + OTLP HTTP가 동일 포트(기본 6006) 사용\n"
+            "Phoenix 13.x: UI + OTLP HTTP가 동일 포트(기본 6006) 사용.\n"
+            "예제(01~17) 실행 시 자동으로 OTLP 스팬을 전송하며,\n"
+            "Phoenix UI의 Tracing 탭에서 예제별 독립 프로젝트로 확인할 수 있습니다.\n"
             "\n"
             "필요 패키지:\n"
             '  pip install "agent-evaluator[otel]"\n'
             "\n"
             "예시:\n"
             "  agent-eval monitor\n"
-            "  agent-eval monitor --port 6006\n"
+            "  agent-eval monitor --port 6007\n"
             "  agent-eval monitor --attach http://localhost:6006\n"
-            "  agent-eval monitor --check"
+            "  agent-eval monitor --check\n"
+            "  agent-eval monitor --sync-datasets 'data/golden_datasets/*.json'"
         ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     p.add_argument(
         "--port",
