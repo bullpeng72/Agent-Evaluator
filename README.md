@@ -294,8 +294,8 @@ session.add_turn(user_input="방금 설명한 방법의 단점은?", agent_respo
 session.add_turn(user_input="asyncio.gather 예시 코드 보여줘", agent_response="import asyncio...")
 
 metrics = session.compute_metrics()
-print(f"맥락 유지율: {metrics.context_retention_score:.2f}")
-print(f"주제 일관성: {metrics.topic_coherence_score:.2f}")
+print(f"맥락 유지율: {metrics.context_retention:.2f}")
+print(f"주제 일관성: {metrics.topic_coherence:.2f}")
 print(f"종합 점수:   {metrics.overall_score:.2f}")
 ```
 
@@ -784,8 +784,8 @@ mypy agent_evaluator/
 
 | 패키지 | 버전 | 용도 |
 |--------|------|------|
-| `numpy` | >=1.20.0, <2.0.0 | 수치 연산 |
-| `pandas` | >=1.3.0, <3.0.0 | 지표 집계 |
+| `numpy` | >=1.20.0, <3.0.0 | 수치 연산 |
+| `pandas` | >=1.3.0, <4.0.0 | 지표 집계 |
 | `python-dotenv` | >=0.19.0, <2.0.0 | 환경변수 관리 |
 
 ### 선택적 의존성
@@ -802,6 +802,34 @@ mypy agent_evaluator/
 | `[frameworks]` | langchain + crewai + autogen | 기존 호환 (전체 프레임워크) | 무거움 |
 | `[all]` | llm + langchain + eval + serve + pdf | **권장** — crewai/autogen 제외 | 중간 |
 | `[full]` | all + crewai + autogen | 진짜 전체 ⚠️ 10분+ | 매우 무거움 |
+
+---
+
+## 변경 이력
+
+### v0.6.7 (2026-04-01) — Python 3.13 지원 · 대시보드 버그 수정
+
+- **Python 3.13 호환성**: `numpy<3.0.0`, `pandas<4.0.0` 상한 완화
+- **버그 수정**: Starlette 1.0 `TemplateResponse` API 변경 대응 — `agent-eval dashboard` 접속 시 `TypeError: unhashable type: 'dict'` 수정
+
+### v0.6.6 (2026-03-31) — Docs 체계 재조정 · 내보내기 버그 수정
+
+- Docs 통합 정리 (`02_METRICS_REFERENCE.md`, `03_FRAMEWORK_GUIDE.md`, `01_QUICK_START.md` 신규)
+- 대시보드 HTML/CSV 내보내기 오류 수정 (SecurityL1/L2 필드 처리, CSV 컬럼 9→23개 확장)
+- SDK HTML 리포트 `success_rate` 백분율 버그, `slides.html.j2` JavaScript SyntaxError 수정
+
+### v0.6.5 (2026-03-30) — golden_datasets 위치 재설계 · 이상 감지 파이프라인
+
+- 골든 데이터셋 경로 `results/golden_datasets/` → `data/golden_datasets/`
+- 이상 감지 탭 데이터 파이프라인 완성 (`save_to_file()` → `anomaly_data` 연결)
+- 테스트 920개 달성 (Phase 2/3 신규 6개 파일 추가)
+
+### v0.6.0 – v0.6.3 (2026-03-21 ~ 29) — SDK 안정화 + 프레임워크 통합
+
+- LangChain / LangGraph / CrewAI / AutoGen 4개 프레임워크 완전 지원
+- FastAPI 대시보드 + `agent-eval dashboard` CLI (오프라인 모드 포함)
+- `LLMJudge` — ground_truth 없이 3차원 자동 채점 (completeness · relevance · factual_consistency)
+- 트래커 캡슐화·스레드 안전성 강화, `TaskResult` 직렬화/역직렬화 완성
 
 ---
 

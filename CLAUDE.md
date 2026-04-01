@@ -118,6 +118,7 @@ agent_evaluator/
 │   ├── langgraph_integration.py
 │   ├── autogen_integration.py
 │   ├── llm_helpers.py       # LLMEvaluationHelper, AnthropicEvaluationHelper
+│   ├── llm_judge.py         # LLMJudge — LLM-as-Judge 평가 엔진 (opt-in, [llm] extra)
 │   ├── metric_adapters.py   # DeepEval/Ragas/LangSmith adapters
 │   └── framework_integrations.py
 ├── helpers/
@@ -135,6 +136,7 @@ agent_evaluator/
 │   └── routers/             # API 라우터 11개 (alerts, anomaly, config, conversation, cost, data, export, feedback, golden, stream, transparency, webhook)
 ├── cli/
 │   ├── main.py              # agent-eval CLI 진입점 (init/check/dashboard/gate/dataset)
+│   ├── gate.py              # agent-eval gate — CI/CD 품질 게이팅
 │   └── dataset.py           # dataset 서브커맨드 (build)
 ├── utils/
 │   ├── dashboard_integration.py  # Dashboard storage path helper
@@ -284,6 +286,9 @@ from agent_evaluator import (
     # Multi-turn Conversation Evaluation (Phase 1-C)
     ConversationSession, ConversationMetrics, ConversationTurn,
 
+    # LLM Judge (opt-in, requires [llm] extra)
+    LLMJudge,
+
     # LLM Helpers
     LLMHelper, ClaudeHelper,  # aliases for LLMEvaluationHelper, AnthropicEvaluationHelper
 
@@ -429,98 +434,43 @@ pytest
 
 ## 📝 변경 이력
 
-### v0.6.7 (2026-04-01) — Python 3.13 지원 · 의존성 상한 완화
+### v0.6.7 (2026-04-01) — Python 3.13 지원 · 의존성 상한 완화 · 대시보드 버그 수정
 
-#### 🔧 Python 3.13 호환성 (의존성 제약 갱신)
-- `numpy>=1.20.0,<2.0.0` → `<3.0.0` — numpy 2.x Python 3.13 wheel 지원
-- `pandas>=1.3.0,<3.0.0` → `<4.0.0` — pandas 3.x Python 3.13 wheel 지원
-- `pyproject.toml` classifier에 `Programming Language :: Python :: 3.13` 추가
-- pipx(Python 3.13 기본) 환경에서 소스 빌드 실패 문제 해결
+- `numpy<3.0.0`, `pandas<4.0.0` 상한 완화 — Python 3.13 wheel 지원
+- `pyproject.toml` classifier `Python :: 3.13` 추가, pipx 소스 빌드 실패 해결
+- `serve/server.py` Starlette 1.0 `TemplateResponse` API 시그니처 변경 대응 (`name, context` → `request, name, context`) — `agent-eval dashboard` 접속 시 `TypeError: unhashable type: 'dict'` 수정
 
 ---
 
 ### v0.6.6 (2026-03-31) — Docs 체계 재조정 · 내보내기 버그 수정 · SDK HTML 리포트 개선
 
-#### 📝 Docs 체계 재조정 (Lectures 중복 제거)
-- `06_METRICS_GUIDE` + `07_AGENTIC_AI_METRICS_GUIDE` + `08_SECURITY_METRICS_GUIDE` → `02_METRICS_REFERENCE.md` 통합 (교육 서술 제거, 표·수식·출력키 중심 참조 문서)
-- `09_FRAMEWORK_INTEGRATION` + `16_FRAMEWORK_METRICS_MAP` → `03_FRAMEWORK_GUIDE.md` 통합
-- `01_QUICK_START.md` 신규 생성 — 5분 진입점 문서
-- `17_PRODUCT_ROADMAP.md` → 루트 `ROADMAP.md`로 이동
-- 나머지 문서 번호 재정렬 (04–10), 크로스 링크 갱신
-
-#### 🐛 대시보드 내보내기 버그 수정 (`serve/routers/export.py`)
-- HTML 내보내기 TypeError 수정: `SecurityL1/L2` 딕셔너리 필드를 숫자로 잘못 처리 → `threat_rate`/`leakage_rate`/`compliance_rate` 키 추출로 변경
-- HTML 태스크 테이블 컬럼명 누락 수정 (`✓` → 한국어 컬럼명 10개)
-- Hallucination KPI 백분율 오류 수정: `overall_rate` (0–1) × 100 적용
-- CSV 컬럼 9개 → 23개로 확장 (`tokens_input/output`, `tool_calls_count`, `timestamp`, 프레임워크, 확장 지표)
-
-#### 🐛 SDK HTML 리포트 개선 (`reporting/comprehensive_report.py`)
-- `success_rate` 표시 버그: 0–1 소수 → 백분율 변환 누락 수정
-- 에이전틱 섹션 H3 태그 빈 상태 노출 수정 (데이터 없을 때 placeholder 추가)
-- 보안 지표 에이전틱 섹션 중복 제거
-- LLM Judge ToC 링크 조건부 렌더링 추가
-- 버전 표기 하드코딩 → `agent_evaluator.__version__` 동적 참조
-
-#### 🗂 골든 데이터셋 정리
-- `data/golden_datasets/` 런타임 생성 파일 17개 삭제, 시나리오 파일 8개 유지
-- `Evaluator_Examples/FRAMEWORK_METRICS_MAP.md` → `Docs/16_FRAMEWORK_METRICS_MAP.md` 이동 (이후 03으로 통합)
-
-#### 📋 예제 파일 정비
-- `.env.example` 예제별 환경변수 의존성 표로 재작성
-- `requirements.txt` 버전 하한 및 extras 명칭 교정
-
-#### 📚 Lectures 오류 수정 및 현행화 (Docs 재조정 반영)
-- `slides.html.j2` JavaScript SyntaxError 수정: 라인 817 `${active?c:'var(--tc2)';};` → `${active?c:'var(--tc2)'};` (세미콜론 제거) — 빈 슬라이드 렌더링 버그 완전 해결
-- Lectures 전체 6개 파일 — `agent-eval serve` → `agent-eval dashboard` 명령어 정정
-- `M1`: TaskResult 필드 수 18개→24개 수정, 실제 13개 optional 필드 목록으로 정정
-- `M3`: 트래커 속성명·메서드명 전면 정정 (`retry_correction_tracker`→`retry_tracker`, `analyze_input`→`evaluate_input` 등), `create_taskresult` 미지원 파라미터 제거, "Known Issue: overall_score=0.0" 절 삭제 (v0.6.3 수정 완료)
-- `M4/M5`: `results/golden_datasets/` → `data/golden_datasets/`, `monitor.load_latest_report()` → `agent-eval gate` CLI
-- `M5`: `coord_tracker.record_interaction()` → `track_interaction(task_id, ..., interaction_type="delegation", context=)` 시그니처 정정
-- Docs 파일명 재조정 반영: 모든 Lectures 파일의 구 Docs 참조 (`06_METRICS_GUIDE.md`, `07_AGENTIC_AI_METRICS_GUIDE.md`, `08_SECURITY_METRICS_GUIDE.md`, `09_FRAMEWORK_INTEGRATION.md`, `14_API_REFERENCE.md` 등) → 현재 파일명으로 갱신, `00_강의계획서.md` "Docs 문서 활용 가이드" 표 전면 재작성
-
-### v0.6.5 (2026-03-30) — golden_datasets 위치 재설계 · 이상 감지 파이프라인 완성 · 예제 파일 정비
-
-#### 🔧 golden_datasets 위치 재설계 (`results/` → `data/`)
-- `results/golden_datasets/` → `data/golden_datasets/` 이동: 평가 산출물(휘발)과 골든셋(영구 자산) 디렉토리 분리
-- `serve/routers/golden.py` — `_golden_dir()` 탐색 우선순위 재정렬: `data/golden_datasets` 1순위, `results/golden_datasets` 레거시 fallback
-- `datasets/builder.py` — `output_dir` 기본값 `"results/golden_datasets/"` → `"data/golden_datasets/"`
-- `Evaluator_Examples/` 8개 파일 — `"results" / "golden_datasets"` → `"data" / "golden_datasets"` 일괄 갱신
-
-#### ✨ 이상 감지 데이터 파이프라인 완성 (4-A)
-- `core/trackers/monitor.py` — `enable_anomaly_detection` / `anomaly_baseline_window` / `anomaly_detection_window` 파라미터 추가
-- `save_to_file()` — `AnomalyDetector.scan()` 호출 후 결과를 `data["anomaly_data"]`에 저장 (이전: 대시보드 이상 감지 탭 항상 비어 있음)
-- `serve/loader.py` — `_parse_anomaly_data()` 중첩 구조(`anomaly_data.anomalies`) 읽기 수정 (flat fallback 포함)
-
-#### 🐛 대시보드 환각 차트 빈 상태 개선
-- `dashboard2.html.j2` — 환각 유형별 분포: 데이터 없을 때 기본 타입명+0값 차트 대신 "환각 지표 탐지 데이터 없음" 메시지 표시
-- 차트 컨테이너 높이 고정(`200px`) → 동적(`min-height:80px`) 변경
-
-#### 📝 예제 파일 정비
-- `11_streaming_eval.py` — 독립 `ImplicitFeedbackTracker()` → `monitor.record_implicit_feedback()` 연결 (feedback 데이터 결과 JSON에 저장)
-- `14_anomaly_cost_eval.py` — `enable_anomaly_detection=True` 추가, 결과 파일 anomaly_data 검증 코드 추가
-- `15_conversation_eval.py` (신규) — `ConversationSession` API 예제: 5개 멀티턴 대화 세션, 대시보드 `💬 멀티턴 대화` 탭 데이터 생성
-
-#### 🧪 테스트 커버리지 확대 (4-B) — 920개 테스트, 전체 커버리지 33%
-- Phase 2/3 신규 6개 파일: `test_implicit_feedback.py`(20) · `test_anomaly_detector.py`(36) · `test_streaming_evaluator.py`(34) · `test_alerts_engine.py`(21) · `test_cost_policy.py`(30) · `test_golden_set_builder.py`(23)
+- Docs 통합: 8개 → 3개 (`02_METRICS_REFERENCE.md`, `03_FRAMEWORK_GUIDE.md`, `01_QUICK_START.md` 신규)
+- `serve/routers/export.py`: HTML 내보내기 TypeError 수정, 태스크 테이블 컬럼명, Hallucination 백분율, CSV 컬럼 9→23개 확장
+- `reporting/comprehensive_report.py`: `success_rate` 백분율 변환, 에이전틱 빈 상태, 버전 동적 참조 수정
+- `slides.html.j2` JavaScript SyntaxError 수정 — 빈 슬라이드 렌더링 버그 완전 해결
+- Lectures 6개 파일 — 명령어·메서드명·필드명 전면 정정
 
 ---
 
-### v0.6.3 (2026-03-29) — SDK 안정화 종합
+### v0.6.5 (2026-03-30) — golden_datasets 위치 재설계 · 이상 감지 파이프라인 완성
 
-- 🔒 캡슐화 전면 강화 — 트래커 19개 `_xxx` private + `@property` shallow copy + setter
-- ✨ `record_task()` 메서드 체이닝 지원 (`PerformanceMonitor` 반환)
-- 🔒 스레드 안전성 — `record_task()` / `reset()` 전체 `with self._lock:` 보호
-- 🐛 `TaskResult.__hash__` CRITICAL 수정 → `hash(self.task_id)` override
-- 🐛 `save_to_file()` 원자적 쓰기 — `tempfile.mkstemp()` + `os.replace()`
-- ✨ `TaskResult/EvaluationReport.from_dict/from_json` 역직렬화 classmethods 추가
-- ✨ `PerformanceMonitor.for_rag_evaluation()`, `for_secure_agents()` 팩토리 추가
+- `results/golden_datasets/` → `data/golden_datasets/` 이동 (평가 산출물↔영구 자산 분리)
+- `save_to_file()`: `AnomalyDetector.scan()` 결과를 `anomaly_data` 키로 저장 — 대시보드 이상 감지 탭 데이터 연결
+- `serve/loader.py` `_parse_anomaly_data()` 중첩 구조 읽기 수정
+- `15_conversation_eval.py` 예제 신규 추가 — `ConversationSession` 멀티턴 대화 평가
+- 테스트 920개, 36개 파일 (Phase 2/3 신규 6개 파일 추가)
 
-### v0.6.0 – v0.6.2 (2026-03-21 ~ 27) — 프레임워크 통합 + 대시보드 초기 안정화
+---
 
-- ✨ LangChain / LangGraph / CrewAI / AutoGen 4개 프레임워크 완전 지원
-- ✨ `RagasAdapter` ragas 0.4.x API 완전 지원, 의존성 extras 단위 재설계
-- ✨ FastAPI 대시보드 + `agent-eval dashboard` CLI, 오프라인 모드
-- ✨ 대시보드 보안 L1/L2 상세 패널, 에이전틱 탭 KPI 체계 완성
+### v0.6.0 – v0.6.3 (2026-03-21 ~ 29) — SDK 안정화 + 프레임워크 통합 + 대시보드 초기 안정화
+
+- LangChain / LangGraph / CrewAI / AutoGen 4개 프레임워크 완전 지원
+- `RagasAdapter` ragas 0.4.x API 완전 지원, extras 단위 재설계
+- FastAPI 대시보드 + `agent-eval dashboard` CLI + 오프라인 모드
+- 트래커 캡슐화 강화 (`_xxx` private + `@property`), `record_task()` 메서드 체이닝, 스레드 안전성
+- `TaskResult.__hash__` 수정, `save_to_file()` 원자적 쓰기, `from_dict/from_json` 역직렬화 추가
+- `PerformanceMonitor.for_rag_evaluation()`, `for_secure_agents()` 팩토리 추가
+- `LLMJudge` — LLM-as-Judge 평가 엔진 (ground_truth 없이 3차원 자동 채점)
 
 ### v0.2.x – v0.5.x — 초기 구현
 
