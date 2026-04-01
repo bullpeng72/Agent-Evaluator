@@ -400,8 +400,8 @@ pytest
 
 ### Optional (조합 편의 extras)
 - `[frameworks]` — `langchain` + `crewai` + `autogen` 한 번에 (기존 호환, 무거움)
-- `[all]` — crewai/autogen **제외** 전체 (권장, 합리적 설치 시간) — `pip install agent-evaluator[all]`
-- `[full]` — crewai/autogen 포함 진짜 전체 (⚠️ 10분+ 소요) — `pip install agent-evaluator[full]`
+- `[all]` — crewai/autogen/otel **제외** 전체 (권장, 합리적 설치 시간) — `pip install agent-evaluator[all]`
+- `[full]` — crewai/autogen/otel 포함 진짜 전체 (⚠️ 10분+ 소요) — `pip install agent-evaluator[full]`
 
 ### Dev (개발 환경)
 - `[dev]` — `pytest` + `pytest-cov` + `pytest-asyncio` + `ruff` + `mypy` + `build` + `twine` + `pre-commit`
