@@ -6,11 +6,14 @@ PerformanceMonitor를 래핑하여 실시간 슬라이딩 윈도우 지표를 �
 """
 from __future__ import annotations
 
+import logging
 import threading
 import time
 from collections import deque
 from dataclasses import dataclass, field
 from datetime import datetime
+
+logger = logging.getLogger(__name__)
 from typing import Any, Callable, Deque, Dict, List, Optional, TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -155,8 +158,8 @@ class StreamingEvaluator:
         if self.alert_handler is not None:
             try:
                 self.alert_handler.evaluate(self)
-            except Exception:
-                pass
+            except Exception as _e:
+                logger.debug("알림 핸들러 평가 실패 (무시): %s", _e)
 
     def get_stats(self, window: str = "5m") -> Dict[str, Any]:
         """슬라이딩 윈도우 통계 반환.
@@ -181,8 +184,8 @@ class StreamingEvaluator:
             time.sleep(self.flush_interval)
             try:
                 self._flush()
-            except Exception:
-                pass
+            except Exception as _e:
+                logger.debug("스트리밍 플러시 실패 (무시): %s", _e)
 
     def _flush(self) -> None:
         """슬라이딩 윈도우 현재 스냅샷을 PerformanceMonitor에 저장.

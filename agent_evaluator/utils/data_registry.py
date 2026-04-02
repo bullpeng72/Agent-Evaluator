@@ -181,8 +181,8 @@ class DataRegistry:
                 msvcrt.locking(file_handle.fileno(), msvcrt.LK_UNLCK, 1)
             else:
                 fcntl.flock(file_handle.fileno(), fcntl.LOCK_UN)
-        except Exception:
-            pass  # Best effort unlock
+        except Exception as _e:
+            logger.debug("파일 락 해제 실패 (무시): %s", _e)
 
     @classmethod
     def _load_registry(cls) -> Dict[str, Any]:

@@ -702,7 +702,7 @@ agent-evaluator/
 │   ├── 16_dashboard_demo.py         # FastAPI 대시보드 통합 데모 — save_to_file + Phoenix OTEL
 │   └── 17_phoenix_verification.py   # Phoenix 4개 메뉴 통합 데모 — Tracing·Evaluators·Datasets·Prompts
 │
-├── tests/                        # 단위 테스트 (920개 테스트 함수, 37개 파일)
+├── tests/                        # 단위 테스트 (962개 테스트 함수, 37개 파일)
 ├── pyproject.toml
 └── LICENSE
 ```
@@ -865,7 +865,7 @@ mypy agent_evaluator/
 - **골든 데이터셋 재설계** — 경로 `results/golden_datasets/` → `data/golden_datasets/`
 - **이상 감지 파이프라인** — `save_to_file()` → `anomaly_data` → 대시보드 연결
 - **Python 3.13 지원** — `numpy<3.0.0`, `pandas<4.0.0` 상한 완화
-- **테스트** — 920개 테스트 함수, 37개 파일
+- **테스트** — 962개 테스트 함수, 37개 파일
 
 ---
 

@@ -8,8 +8,11 @@ GET  /api/config       — return configured model names from environment (.env)
 from __future__ import annotations
 
 import json
+import logging
 import os
 from typing import Any, Dict, Optional
+
+logger = logging.getLogger(__name__)
 
 from fastapi import APIRouter, Request
 from pydantic import BaseModel
@@ -49,8 +52,8 @@ def get_thresholds(request: Request) -> Dict[str, Any]:
             merged = _DEFAULTS.copy()
             merged.update({k: float(v) for k, v in saved.items() if k in _DEFAULTS})
             return merged
-        except Exception:
-            pass
+        except Exception as _e:
+            logger.debug("임계값 설정 파일 로드 실패, 기본값 사용 (무시): %s", _e)
     return _DEFAULTS.copy()
 
 
