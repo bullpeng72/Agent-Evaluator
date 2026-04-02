@@ -933,7 +933,7 @@ def _parse_tasks(raw_tasks: List[Dict[str, Any]]) -> List[TaskRecord]:
             completion_score=float(t.get("completion_score", 0)),
             accuracy_score=float(t.get("accuracy_score", 0)),
             execution_time=float(t.get("execution_time", 0)),
-            tokens_used=t.get("tokens_used") or {},
+            tokens_used=t.get("tokens_used") if isinstance(t.get("tokens_used"), dict) else {},
             tool_calls=t.get("tool_calls") or [],
             attempts=int(t.get("attempts", 1)),
             errors=t.get("errors") or [],

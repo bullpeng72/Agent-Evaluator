@@ -208,8 +208,8 @@ class PerformanceMonitor:
                 elif _has_real_openai:
                     model_name = s.openai_model or ""
                 # 둘 다 없으면 model_name="" 유지 (ae/unspecified fallback)
-            except Exception:
-                pass
+            except Exception as _e:
+                logger.debug("model_name 설정 실패 (무시): %s", _e)
         self.model_name = model_name
 
         # Configuration
@@ -1394,7 +1394,9 @@ class PerformanceMonitor:
             # Layer1: Hallucination Detection (opt-in, rule-based, free)
             _eff_response_hall = response if response is not None else task_result.response
             _eff_request_hall = request or task_result.question
-            if self.enable_hallucination_detection and context and _eff_response_hall:
+            # context 파라미터가 없으면 task_result.context 로 fallback
+            _eff_context_hall = context or task_result.context
+            if self.enable_hallucination_detection and _eff_context_hall and _eff_response_hall:
                 try:
                     # Convert ground_truth to string if needed
                     ground_truth_str = None
@@ -1403,11 +1405,13 @@ class PerformanceMonitor:
                             ground_truth_str = ground_truth
                         else:
                             ground_truth_str = str(ground_truth)
-    
+                    elif task_result.ground_truth is not None:
+                        ground_truth_str = task_result.ground_truth
+
                     self.hallucination_detector.detect_hallucination(
                         task_id=task_result.task_id,
                         response=_eff_response_hall,
-                        context=context,
+                        context=_eff_context_hall,
                         ground_truth=ground_truth_str,
                         request=_eff_request_hall
                     )
@@ -1564,8 +1568,8 @@ class PerformanceMonitor:
                     ctx_text = str(result.context)[:_OTEL_ATTR_MAX_LEN]
                     docs = [{"document.id": "0", "document.content": ctx_text}]
                     attributes["retrieval.documents"] = json.dumps(docs, ensure_ascii=False)
-                except Exception:
-                    pass
+                except Exception as _e:
+                    logger.debug("retrieval.documents 속성 직렬화 실패 (무시): %s", _e)
 
             # span start_time 계산 — Phoenix latency 차트는 span duration을 사용한다.
             # _emit_otel_span()은 실행 완료 후 호출되므로 start_time을 역산해야 한다.
@@ -1577,8 +1581,8 @@ class PerformanceMonitor:
                     exec_ns = int((result.execution_time or 0.0) * 1_000_000_000)
                     end_ns = int(ts.timestamp() * 1_000_000_000)
                     start_time_ns = max(0, end_ns - exec_ns)
-            except Exception:
-                pass  # 계산 실패 시 SDK 기본값(현재 시각) 사용
+            except Exception as _e:
+                logger.debug("start_time_ns 역산 실패, SDK 기본값 사용: %s", _e)
 
             with provider.span(span_name, attributes, start_time_ns=start_time_ns) as span:
                 # 실패 태스크 → SpanStatus ERROR 설정 (Traces with errors 차트용)
@@ -1586,8 +1590,8 @@ class PerformanceMonitor:
                     try:
                         from opentelemetry.trace import StatusCode
                         span.set_status(StatusCode.ERROR, "task failed")
-                    except Exception:
-                        pass
+                    except Exception as _e:
+                        logger.debug("span StatusCode.ERROR 설정 실패 (무시): %s", _e)
                 # span_id 캡처 → Phoenix Annotation API 대기열에 추가
                 if span is not None:
                     try:
@@ -1600,8 +1604,8 @@ class PerformanceMonitor:
                                 hal_data = self.hallucination_detector.get_hallucination_rate()
                                 if hal_data.get("total_evaluated", 0) > 0:
                                     hal_score = float(hal_data.get("overall_rate", 0.0))
-                            except Exception:
-                                pass
+                            except Exception as _e:
+                                logger.debug("hallucination score 추출 실패 (무시): %s", _e)
                             # quality: ResponseQualityEvaluator.get_quality_metrics()
                             # avg_total_score (0–10) → 0–1 정규화
                             qual_score: Optional[float] = None
@@ -1610,8 +1614,8 @@ class PerformanceMonitor:
                                 if qual_data.get("total_evaluated", 0) > 0:
                                     raw_q = float(qual_data.get("avg_total_score", 0.0))
                                     qual_score = round(min(raw_q / 10.0, 1.0), 4)
-                            except Exception:
-                                pass
+                            except Exception as _e:
+                                logger.debug("quality score 추출 실패 (무시): %s", _e)
                             self._pending_annotations.append({
                                 "span_id": format(ctx.span_id, "016x"),
                                 "accuracy": float(result.accuracy_score or 0.0),
@@ -1623,8 +1627,8 @@ class PerformanceMonitor:
                                 "tool_calls": float(len(result.tool_calls) if result.tool_calls else 0),
                                 "attempts": float(result.attempts or 1),
                             })
-                    except Exception:
-                        pass
+                    except Exception as _e:
+                        logger.debug("span_id 캡처 / annotation 추가 실패 (무시): %s", _e)
 
             # Phoenix Metrics 탭 — 집계 지표 전송
             try:
@@ -1750,8 +1754,8 @@ class PerformanceMonitor:
                     body = ""
                     try:
                         body = http_exc.read().decode("utf-8", errors="replace")[:200]
-                    except Exception:
-                        pass
+                    except Exception as _e:
+                        logger.debug("HTTP 에러 바디 읽기 실패 (무시): %s", _e)
                     last_exc = http_exc
                     logger.warning(
                         "Phoenix annotations HTTP %d (시도 %d/%d): %s",
@@ -3648,8 +3652,8 @@ class PerformanceMonitor:
             if m and m.enabled:
                 session_tcr = float(self.tcr_tracker.calculate_tcr() * 100)
                 m.record("ae.tcr", session_tcr, {})
-        except Exception:
-            pass
+        except Exception as _e:
+            logger.debug("OTEL metrics ae.tcr 전송 실패 (무시): %s", _e)
 
         return filename
 

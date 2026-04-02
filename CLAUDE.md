@@ -373,7 +373,7 @@ from agent_evaluator import (
 
 ## Testing
 
-`tests/` 디렉토리에 37개 파일, 920개 테스트 함수 존재.
+`tests/` 디렉토리에 36개 파일, 920개 테스트 함수 존재.
 
 ```bash
 # pytest.ini_options in pyproject.toml already configured:
@@ -467,7 +467,7 @@ pytest
 - **Ragas 0.4.x** — `EvaluationDataset` / `SingleTurnSample` API 완전 지원
 - **Python 3.13 지원** — `numpy<3.0.0`, `pandas<4.0.0` 상한 완화
 - **SDK 안정화** — `record_task()` 메서드 체이닝, `TaskResult` 직렬화/역직렬화, 스레드 안전성
-- **테스트** — 920개 테스트 함수, 37개 파일
+- **테스트** — 920개 테스트 함수, 36개 파일
 
 ### v0.2.x – v0.5.x — 초기 구현
 

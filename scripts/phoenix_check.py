@@ -173,12 +173,32 @@ def check_tracing_and_evaluators() -> Optional[str]:
     print(f"  │  스팬 {len(task_ids)}개 발행 + save_to_file() 완료")
 
     # Phoenix GraphQL로 스팬 역조회 — 인덱싱 대기 (최대 15초 재시도)
-    resp_proj = _graphql("{ projects { edges { node { id name } } } }")
-    proj_edges = resp_proj.get("data", {}).get("projects", {}).get("edges", [])
-    project_id = proj_edges[0]["node"]["id"] if proj_edges else None
+    # setup_otel(service_name=...) 이 Phoenix 프로젝트 이름이 되므로 이름으로 매칭.
+    # OTLP BatchSpanProcessor가 비동기로 전송하므로 프로젝트 생성 자체도 지연될 수 있음.
+    # → 프로젝트 조회도 retry 루프 안에서 수행.
+    service_name = f"ae-check-{TS}"
+    project_id: Optional[str] = None
 
-    q_span = (
-        f"""{{
+    spans_found: Dict[str, Any] = {}
+    for attempt in range(5):  # 최대 15초 대기 (3s × 5회)
+        print(f"  │  Phoenix 인덱싱 대기 중... (시도 {attempt+1}/5, {3*(attempt+1)}초 경과)\r", end="")
+        time.sleep(3)
+
+        # 프로젝트 목록 갱신 — 아직 생성 전일 수 있으므로 매 시도마다 재조회
+        if project_id is None:
+            resp_proj = _graphql("{ projects { edges { node { id name } } } }")
+            proj_edges = resp_proj.get("data", {}).get("projects", {}).get("edges", [])
+            project_id = next(
+                (e["node"]["id"] for e in proj_edges if e["node"]["name"] == service_name),
+                None,
+            )
+            if project_id:
+                print(f"  │  Phoenix 프로젝트 확인: '{service_name}' (id={project_id})" + " " * 20)
+
+        if not project_id:
+            continue  # 아직 프로젝트 미생성 — 다음 시도
+
+        q_span = f"""{{
           node(id: "{project_id}") {{
             ... on Project {{
               spans(first: 500, sort: {{col: startTime, dir: desc}}) {{
@@ -192,15 +212,6 @@ def check_tracing_and_evaluators() -> Optional[str]:
             }}
           }}
         }}"""
-        if project_id else ""
-    )
-
-    spans_found: Dict[str, Any] = {}
-    for attempt in range(5):  # 최대 15초 대기 (3s × 5회)
-        print(f"  │  Phoenix 인덱싱 대기 중... (시도 {attempt+1}/5, {3*(attempt+1)}초 경과)\r", end="")
-        time.sleep(3)
-        if not q_span:
-            break
         r_spans = _graphql(q_span)
         edges = (
             r_spans.get("data", {})

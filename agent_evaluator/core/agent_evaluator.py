@@ -6,7 +6,6 @@ This module preserves backwards-compatibility for
 ``from agent_evaluator.core.agent_evaluator import X`` imports.
 """
 
-from .trackers import *  # noqa: F401,F403
 from .trackers import (
     TaskResult,
     EvaluationReport,

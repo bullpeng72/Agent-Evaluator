@@ -22,6 +22,8 @@ import re
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
+from agent_evaluator.utils.text_similarity import lcs_ratio as _lcs_ratio_util
+
 # Pre-compiled patterns for estimate_tokens() heuristic fallback
 _RE_KOREAN_CHARS = re.compile(r'[가-힣]')
 _RE_ENGLISH_CHARS = re.compile(r'[a-zA-Z]')
@@ -264,33 +266,10 @@ def _jaccard_similarity(text1: str, text2: str) -> float:
 
 
 def _lcs_similarity(text1: str, text2: str) -> float:
-    """Longest Common Subsequence Similarity.
-
-    롤링 2행 DP: O(n) 공간 (전체 m×n 테이블 대신 이전 행 하나만 보관).
-    """
-    m, n = len(text1), len(text2)
-
-    if m == 0 or n == 0:
+    """Longest Common Subsequence Similarity — delegates to utils.text_similarity."""
+    if not text1 or not text2:
         return 0.0
-
-    # 짧은 쪽을 열(n)로 사용해 배열 크기 최소화
-    if m < n:
-        text1, text2 = text2, text1
-        m, n = n, m
-
-    prev = [0] * (n + 1)
-
-    for i in range(1, m + 1):
-        curr = [0] * (n + 1)
-        for j in range(1, n + 1):
-            if text1[i - 1] == text2[j - 1]:
-                curr[j] = prev[j - 1] + 1
-            else:
-                curr[j] = max(prev[j], curr[j - 1])
-        prev = curr
-
-    lcs_length = prev[n]
-    return lcs_length / m  # m = max(len(text1), len(text2)) after swap
+    return _lcs_ratio_util(text1, text2)
 
 
 def _char_similarity(text1: str, text2: str) -> float:

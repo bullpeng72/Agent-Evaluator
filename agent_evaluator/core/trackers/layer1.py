@@ -21,6 +21,7 @@ import pandas as pd
 
 from .base import BaseTracker, TaskResult, TaskType
 from ...exceptions import ValidationError
+from ...utils.text_similarity import lcs_ratio as _lcs_ratio
 
 logger = logging.getLogger(__name__)
 
@@ -84,23 +85,8 @@ def _qa_char_similarity(s1: str, s2: str) -> float:
 
 
 def _qa_lcs_ratio(s1: str, s2: str) -> float:
-    """LCS length / max(len(s1), len(s2)) using rolling 2-row DP — O(n) space."""
-    m, n = len(s1), len(s2)
-    if m == 0:
-        return 0.0
-    if m < n:
-        s1, s2 = s2, s1
-        m, n = n, m
-    prev = [0] * (n + 1)
-    for i in range(1, m + 1):
-        curr = [0] * (n + 1)
-        for j in range(1, n + 1):
-            if s1[i - 1] == s2[j - 1]:
-                curr[j] = prev[j - 1] + 1
-            else:
-                curr[j] = max(prev[j], curr[j - 1])
-        prev = curr
-    return prev[n] / m
+    """LCS length / max(len(s1), len(s2)) — delegates to utils.text_similarity."""
+    return _lcs_ratio(s1, s2)
 
 
 def _normalize_code(code: str) -> str:
