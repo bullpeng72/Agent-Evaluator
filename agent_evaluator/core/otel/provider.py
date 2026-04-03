@@ -122,8 +122,8 @@ class OTELProvider:
         for k, v in attributes.items():
             try:
                 s.set_attribute(k, v)
-            except Exception:
-                pass  # 개별 속성 실패는 무시
+            except Exception as _e:
+                logger.debug("스팬 속성 설정 실패 (무시): %s", _e)
 
         # yield — caller body 실행; 예외가 오더라도 span_ctx.__exit__ 를 보장
         exc_info = (None, None, None)

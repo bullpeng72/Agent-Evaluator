@@ -99,6 +99,22 @@ from .core.agent_evaluator import (
 # Import context managers
 from .core.monitor_context import evaluation_session, hybrid_evaluation_session, async_evaluation_session
 
+# Decorator-based evaluation (Opik @track 스타일)
+from .decorators import (
+    agent_eval,
+    agent_eval_async,
+    agent_eval_with_retry,
+    batch_eval,
+    conversation_eval,
+    flush_conversation,
+    flush_all_conversations,
+    eval_context,
+    EvalDecorator,
+    EvalMetadata,
+    TurnMetadata,
+    get_eval_ctx,
+)
+
 # Import helpers with simplified names
 from .helpers.taskresult_helpers import create_taskresult_from_execution as create_taskresult
 
@@ -253,6 +269,18 @@ __all__ = [
     'evaluation_session',  # Context manager
     'hybrid_evaluation_session',  # Context manager
     'async_evaluation_session',  # Async context manager
+    'agent_eval',               # Decorator (sync)
+    'agent_eval_async',         # Decorator (async)
+    'agent_eval_with_retry',    # Decorator with retry (sync+async)
+    'batch_eval',               # Decorator for List[str] batch functions
+    'conversation_eval',        # Decorator for multi-turn conversation
+    'flush_conversation',       # Flush conversation session
+    'flush_all_conversations',  # Flush all active conversation sessions
+    'eval_context',             # Context manager for non-decoratable code (sync+async)
+    'EvalDecorator',            # Factory for shared monitor/defaults (Gap N)
+    'EvalMetadata',             # Metadata injection via tuple return
+    'TurnMetadata',             # Turn-level metadata for conversation_eval
+    'get_eval_ctx',             # ContextVar context accessor (async-safe)
     'LLMHelper',  # Simplified name (lazy)
     'ClaudeHelper',  # Simplified name (lazy)
 

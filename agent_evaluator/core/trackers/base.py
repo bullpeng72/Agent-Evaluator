@@ -66,6 +66,8 @@ class TaskResult:
     context: Optional[str] = None                                   # RAG context (for judge / hallucination)
     # LLM Judge result (Phase 1-A) — set by PerformanceMonitor when enable_llm_judge=True
     llm_judge: Optional[Dict[str, Any]] = None                      # {scores, reasoning, model, cost_usd}
+    # Free-form user-defined metadata — attached via EvalMetadata.extra or get_eval_ctx().extra
+    extra: Optional[Dict[str, Any]] = None                          # {"intent": "search", "source": "api", ...}
 
     def __post_init__(self) -> None:
         """입력값 유효성 검증 및 task_type 정규화."""

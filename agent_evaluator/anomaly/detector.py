@@ -11,10 +11,13 @@ AnomalyDetector — Phase 3-B 이상 탐지
   security_pattern 보안 위협 패턴 급증
 """
 from __future__ import annotations
+import logging
 import math
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any, Dict, List, Optional, TYPE_CHECKING
+
+logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from agent_evaluator.core.trackers.monitor import PerformanceMonitor
@@ -262,6 +265,6 @@ class AnomalyDetector:
                     threshold=_SECURITY_SURGE_THRESHOLD,
                     algorithm="frequency",
                 )]
-        except Exception:
-            pass
+        except Exception as _e:
+            logger.debug("보안 이상 탐지 실패 (무시): %s", _e)
         return []

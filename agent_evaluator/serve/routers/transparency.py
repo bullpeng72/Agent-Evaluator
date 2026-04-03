@@ -13,10 +13,13 @@ POST /api/transparency/annotations/{name}/reply  add reply to annotation
 from __future__ import annotations
 
 import json
+import logging
 import uuid
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List
+
+logger = logging.getLogger(__name__)
 
 from fastapi import APIRouter, HTTPException, Query, Request
 from pydantic import BaseModel
@@ -125,8 +128,8 @@ def list_annotations(request: Request, file_id: str = Query("")):
             sfid = ann.get("source_file_id", "")
             if sfid and sfid != file_id:
                 continue  # tagged to a different file — skip
-        except Exception:
-            pass  # unreadable → include (safe default)
+        except Exception as _e:
+            logger.debug("어노테이션 파일 읽기 실패, 포함 처리 (무시): %s", _e)
         result.append({"name": p.name, "stem": p.stem, "size_bytes": size})
     return result
 

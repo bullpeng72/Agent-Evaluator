@@ -92,8 +92,8 @@ def _resolve_default_model() -> str:
             return s.openai_model
         if s.has_anthropic():
             return s.anthropic_model
-    except Exception:
-        pass
+    except Exception as _e:
+        logger.debug("설정에서 모델 이름 조회 실패 (무시): %s", _e)
     return "gpt-4o-mini"
 
 
@@ -317,8 +317,8 @@ class LLMJudge:
             body = ""
             try:
                 body = e.read().decode("utf-8", errors="replace")[:200]
-            except Exception:
-                pass
+            except Exception as _e:
+                logger.debug("HTTP 오류 body 읽기 실패 (무시): %s", _e)
             logger.warning("Phoenix Prompts API 오류 (HTTP %d): %s", e.code, body)
             return None
         except Exception as exc:

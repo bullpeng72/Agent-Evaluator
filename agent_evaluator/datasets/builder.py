@@ -7,12 +7,15 @@ Phoenix Datasets API 연동: upload_to_phoenix()로 골든셋을 Phoenix에 업�
 from __future__ import annotations
 
 import json
+import logging
 import urllib.error
 import urllib.request
 from collections import Counter
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
+
+logger = logging.getLogger(__name__)
 
 _SUPPORTED_STRATEGIES = frozenset({
     "failure_cases", "edge_cases", "high_value", "coverage_gap"
@@ -282,8 +285,8 @@ class GoldenSetBuilder:
             body = ""
             try:
                 body = e.read().decode("utf-8", errors="replace")[:300]
-            except Exception:
-                pass
+            except Exception as _e:
+                logger.debug("HTTP 오류 body 읽기 실패 (무시): %s", _e)
             raise RuntimeError(f"Phoenix GraphQL API 오류 (HTTP {e.code}): {body}") from e
         except RuntimeError:
             raise
