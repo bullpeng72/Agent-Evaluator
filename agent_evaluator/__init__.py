@@ -95,6 +95,8 @@ from .core.agent_evaluator import (
     ToolSelectionTracker,
     WorkflowExecutionTracker,
 )
+# F3: MultimodalMetricsTracker
+from .core.trackers.layer1 import MultimodalMetricsTracker
 
 # Import context managers
 from .core.monitor_context import evaluation_session, hybrid_evaluation_session, async_evaluation_session
@@ -113,6 +115,53 @@ from .decorators import (
     EvalMetadata,
     TurnMetadata,
     get_eval_ctx,
+    # Task 5: SimpleTaskAlertRule + E6: AlertRuleBuilder
+    SimpleTaskAlertRule,
+    AlertRuleBuilder,
+    # Task 1: 프레임워크 어댑터 레지스트리 (고급 사용자용)
+    _FRAMEWORK_ADAPTERS,
+    # C6: 어댑터 메타데이터 레지스트리
+    _FRAMEWORK_ADAPTER_META,
+    get_framework_info,
+    # H1: 사전 정의된 파라미터 묶음
+    AGENT_EVAL_PRESETS,
+    # 항목 W: preset 런타임 등록
+    register_preset,
+    # M1: 프레임워크 타입 힌트 (IDE 자동완성 지원)
+    FrameworkLiteral,
+)
+
+# Task 6: QuickEval — 원스톱 평가 Facade
+from .quick_eval import QuickEval
+
+# Task 3: 프레임워크 전용 데코레이터 (D8: LLM SDK 데코레이터 포함)
+from .integrations import (
+    langchain_eval,
+    langgraph_eval,
+    crewai_eval,
+    autogen_eval,
+    autogen_eval_async,  # C4: AutoGen 0.4+ async API 전용
+    dspy_eval,
+    pydanticai_eval,
+    # LLM SDK 전용 데코레이터 (v0.7.2+)
+    anthropic_eval,
+    openai_eval,
+    gemini_eval,
+    llamaindex_eval,
+    haystack_eval,
+    # Cloud / Local LLM 전용 데코레이터 (v0.7.6+)
+    vertexai_eval,
+    ollama_eval,
+    # 추가 프레임워크 전용 데코레이터 (v0.7.7+)
+    cohere_eval,
+    groq_eval,
+    mistral_eval,
+    bedrock_eval,
+    smolagents_eval,
+    semantic_kernel_eval,
+    # F4: 신규 어댑터
+    vllm_eval,
+    huggingface_eval,
 )
 
 # Import helpers with simplified names
@@ -190,6 +239,12 @@ _LAZY_IMPORTS = {
         "agent_evaluator.integrations.autogen_integration",
         "create_evaluated_autogen_agent",
     ),
+    # Task 7: DSPy 통합
+    "DSPyEvaluator": ("agent_evaluator.integrations.dspy_integration", "DSPyEvaluator"),
+    "DSPyMetricAdapter": ("agent_evaluator.integrations.dspy_integration", "DSPyMetricAdapter"),
+    # Task 7: PydanticAI 통합
+    "PydanticAIEvaluator": ("agent_evaluator.integrations.pydanticai_integration", "PydanticAIEvaluator"),
+    "PydanticAITokenExtractor": ("agent_evaluator.integrations.pydanticai_integration", "PydanticAITokenExtractor"),
 }
 
 # 모듈 이름 → extras 이름 매핑 (FrameworkNotInstalledError 메시지용)
@@ -281,6 +336,7 @@ __all__ = [
     'EvalMetadata',             # Metadata injection via tuple return
     'TurnMetadata',             # Turn-level metadata for conversation_eval
     'get_eval_ctx',             # ContextVar context accessor (async-safe)
+    'get_framework_info',       # C6: 어댑터 메타데이터 조회
     'LLMHelper',  # Simplified name (lazy)
     'ClaudeHelper',  # Simplified name (lazy)
 

@@ -117,22 +117,29 @@ class TestDataRouter:
         r = client_empty.get("/api/results")
         assert r.status_code == 200
         data = r.json()
-        assert isinstance(data, list)
+        # B12: 응답이 페이지네이션 dict 형태로 변경됨
+        assert isinstance(data, dict)
+        assert "files" in data
+        assert isinstance(data["files"], list)
+        assert "total" in data
 
     def test_results_list_with_data(self, client: TestClient):
         r = client.get("/api/results")
         assert r.status_code == 200
         data = r.json()
-        assert isinstance(data, list)
-        assert len(data) >= 1
+        # B12: 페이지네이션 dict 형태
+        assert isinstance(data, dict)
+        assert "files" in data
+        assert len(data["files"]) >= 1
 
     def test_results_detail_not_found(self, client_empty: TestClient):
         r = client_empty.get("/api/results/nonexistent_id")
         assert r.status_code == 404
 
     def test_results_detail_found(self, client: TestClient):
-        # Get the first file_id from the list
-        files = client.get("/api/results").json()
+        # Get the first file_id from the list (B12: files is nested under 'files' key)
+        resp = client.get("/api/results").json()
+        files = resp.get("files", resp) if isinstance(resp, dict) else resp
         if not files:
             pytest.skip("no result files loaded")
         file_id = files[0]["id"]
@@ -261,7 +268,9 @@ class TestStreamRouter:
 
 class TestExportRouter:
     def _first_file_id(self, client: TestClient) -> str:
-        files = client.get("/api/results").json()
+        resp = client.get("/api/results").json()
+        # B12: 응답이 페이지네이션 dict 형태로 변경됨
+        files = resp.get("files", resp) if isinstance(resp, dict) else resp
         if not files:
             pytest.skip("no result files loaded")
         return files[0]["id"]

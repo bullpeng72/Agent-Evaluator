@@ -20,7 +20,7 @@ import tempfile
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from fastapi import APIRouter, Body, File, Form, HTTPException, Request, UploadFile
+from fastapi import APIRouter, Body, File, Form, HTTPException, Query, Request, UploadFile
 from fastapi.concurrency import run_in_threadpool
 from pydantic import BaseModel
 
@@ -447,6 +447,57 @@ def reject_case(name: str, idx: int, request: Request) -> Dict[str, Any]:
                 cases[idx]["_approved"] = False
                 p.write_text(json.dumps(cases, ensure_ascii=False, indent=2), encoding="utf-8")
                 return {"ok": True, "idx": idx, "action": "rejected"}
+            except HTTPException:
+                raise
+            except Exception as e:
+                raise HTTPException(status_code=500, detail=str(e))
+    raise HTTPException(status_code=404, detail="Candidate file not found")
+
+
+@router.post("/candidates/{name}/bulk-approve")
+def bulk_approve_cases(
+    name: str,
+    request: Request,
+    min_accuracy: float = Query(default=0.0, ge=0.0, le=1.0),
+    indices: Optional[List[int]] = Query(default=None),
+) -> Dict[str, Any]:
+    """조건 기반 일괄 승인 (B11).
+
+    - min_accuracy > 0이면 해당 점수 이상인 케이스만 승인.
+    - indices가 있으면 해당 인덱스만 승인.
+    - 둘 다 없으면 모두 승인.
+
+    Returns:
+        ok, approved_count, total, approved_indices
+    """
+    gdir = _golden_dir(request)
+    for p in [gdir / name, gdir / f"{name}.json"]:
+        if p.exists():
+            try:
+                data = _read_json(p)
+                cases = data if isinstance(data, list) else []
+                approved_indices: List[int] = []
+
+                for i, case in enumerate(cases):
+                    # 인덱스 필터
+                    if indices is not None and i not in indices:
+                        continue
+                    # 정확도 필터
+                    if min_accuracy > 0.0:
+                        acc = float(case.get("accuracy_score", case.get("score", 1.0)) or 1.0)
+                        if acc < min_accuracy:
+                            continue
+                    cases[i]["_approved"] = True
+                    cases[i]["_rejected"] = False
+                    approved_indices.append(i)
+
+                p.write_text(json.dumps(cases, ensure_ascii=False, indent=2), encoding="utf-8")
+                return {
+                    "ok": True,
+                    "approved_count": len(approved_indices),
+                    "total": len(cases),
+                    "approved_indices": approved_indices,
+                }
             except HTTPException:
                 raise
             except Exception as e:

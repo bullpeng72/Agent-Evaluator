@@ -3,10 +3,57 @@ from __future__ import annotations
 import json
 from datetime import datetime, timedelta, date
 from pathlib import Path
-from typing import Any, Dict, List
-from fastapi import APIRouter, Request
+from typing import Any, Dict, List, Optional
+from fastapi import APIRouter, HTTPException, Request
+from pydantic import BaseModel
 
 router = APIRouter(prefix="/api/alerts", tags=["alerts"])
+
+# ---------------------------------------------------------------------------
+# B8: 알림 규칙 CRUD — 인메모리 저장소 (프로세스 재시작 시 초기화)
+# ---------------------------------------------------------------------------
+
+class AlertRuleCreate(BaseModel):
+    name: str
+    condition_expr: str = ""   # 예: "accuracy_score < 0.7"
+    severity: str = "warning"
+    cooldown: float = 60.0
+    enabled: bool = True
+    description: Optional[str] = None
+    compound_conditions: Optional[List[Dict[str, Any]]] = None  # B8: 복합 조건
+
+# ---------------------------------------------------------------------------
+# B7: 알림 규칙 저장소 — 메모리 캐시 + 파일 동기화
+# ---------------------------------------------------------------------------
+_ALERT_RULES_STORE: Dict[str, Dict[str, Any]] = {}
+
+
+def _get_rules_file(request: Request) -> Path:
+    """알림 규칙 파일 경로 반환."""
+    results_dir = getattr(request.app.state, "results_dir", None)
+    if results_dir is None:
+        return Path("/tmp") / "agent_eval_alerts" / "rules.json"
+    return Path(results_dir) / "alerts" / "rules.json"
+
+
+def _load_rules(path: Path) -> Dict[str, Any]:
+    """파일에서 알림 규칙 로드. 파일이 없으면 {} 반환."""
+    if not path.exists():
+        return {}
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except Exception:
+        return {}
+
+
+def _save_rules(path: Path, rules: Dict[str, Any]) -> None:
+    """알림 규칙을 파일에 저장."""
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(rules, ensure_ascii=False, indent=2), encoding="utf-8")
+    except Exception:
+        pass
+
 
 def _alert_dir(request: Request) -> Path:
     results_dir = request.app.state.results_dir
@@ -106,6 +153,132 @@ def file_alerts(file_id: str, request: Request) -> Dict[str, Any]:
         "events": records,
         "summary": {"total_7d": len(records), "critical_7d": critical, "warning_7d": warning},
     }
+
+
+@router.get("/patterns")
+def alert_patterns(request: Request, days: int = 7) -> Dict[str, Any]:
+    """최근 N일 알림의 시간대·요일·규칙별 반복 패턴 탐지."""
+    alert_dir = _alert_dir(request)
+    all_records: List[Dict[str, Any]] = []
+    for i in range(days):
+        d = (datetime.now() - timedelta(days=i)).date().isoformat()
+        all_records.extend(_read_jsonl(alert_dir / f"{d}.jsonl"))
+
+    hourly: Dict[int, int] = {h: 0 for h in range(24)}
+    dow: Dict[str, int] = {"Mon": 0, "Tue": 0, "Wed": 0, "Thu": 0, "Fri": 0, "Sat": 0, "Sun": 0}
+    _DOW = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+    rule_counts: Dict[str, int] = {}
+    severity_counts: Dict[str, int] = {}
+
+    for r in all_records:
+        ts = r.get("triggered_at", "")
+        try:
+            dt = datetime.fromisoformat(ts)
+            hourly[dt.hour] = hourly.get(dt.hour, 0) + 1
+            dow[_DOW[dt.weekday()]] = dow.get(_DOW[dt.weekday()], 0) + 1
+        except Exception:
+            pass
+        rule = r.get("rule_name", "unknown")
+        rule_counts[rule] = rule_counts.get(rule, 0) + 1
+        sev = r.get("severity", "unknown")
+        severity_counts[sev] = severity_counts.get(sev, 0) + 1
+
+    # 피크 시간대
+    peak_hour = max(hourly, key=hourly.get) if hourly else 0
+    top_rules = sorted(rule_counts.items(), key=lambda x: x[1], reverse=True)[:5]
+
+    return {
+        "period_days": days,
+        "total_alerts": len(all_records),
+        "hourly_distribution": hourly,
+        "dow_distribution": dow,
+        "severity_distribution": severity_counts,
+        "rule_counts": rule_counts,
+        "top_rules": [{"rule": r, "count": c} for r, c in top_rules],
+        "peak_hour": peak_hour,
+        "peak_dow": max(dow, key=dow.get) if any(dow.values()) else None,
+    }
+
+
+@router.get("/rules")
+def list_alert_rules(request: Request) -> Dict[str, Any]:
+    """알림 규칙 목록 조회 (B7/B8) — 파일 기반 영구 저장."""
+    rules_file = _get_rules_file(request)
+    rules = _load_rules(rules_file)
+    # 메모리 캐시 동기화
+    _ALERT_RULES_STORE.clear()
+    _ALERT_RULES_STORE.update(rules)
+    return {"total": len(rules), "rules": list(rules.values())}
+
+
+@router.post("/rules")
+def create_alert_rule(body: AlertRuleCreate, request: Request) -> Dict[str, Any]:
+    """알림 규칙 생성 (B7/B8) — 파일 영구 저장 + compound_conditions 지원.
+
+    Example body::
+
+        {
+            "name": "slow_response",
+            "condition_expr": "execution_time > 5.0",
+            "severity": "warning",
+            "cooldown": 60.0,
+            "compound_conditions": [
+                {"field": "accuracy_score", "op": "lt", "value": 0.7},
+                {"field": "execution_time", "op": "gt", "value": 5.0}
+            ]
+        }
+    """
+    import uuid as _uuid
+    rules_file = _get_rules_file(request)
+    rules = _load_rules(rules_file)
+    _ALERT_RULES_STORE.update(rules)
+
+    rule_id = _uuid.uuid4().hex[:8]
+    rule: Dict[str, Any] = {
+        "rule_id":        rule_id,
+        "name":           body.name,
+        "condition_expr": body.condition_expr,
+        "severity":       body.severity,
+        "cooldown":       body.cooldown,
+        "enabled":        body.enabled,
+        "description":    body.description,
+        "created_at":     datetime.now().isoformat(),
+    }
+    # B8: compound 조건
+    if body.compound_conditions is not None:
+        rule["compound_conditions"] = body.compound_conditions
+
+    rules[rule_id] = rule
+    _ALERT_RULES_STORE[rule_id] = rule
+    _save_rules(rules_file, rules)
+    return rule
+
+
+@router.get("/rules/{rule_id}")
+def get_alert_rule(rule_id: str, request: Request) -> Dict[str, Any]:
+    """알림 규칙 단일 조회 (B7/B8) — 파일에서 조회."""
+    rules_file = _get_rules_file(request)
+    rules = _load_rules(rules_file)
+    rule = rules.get(rule_id) or _ALERT_RULES_STORE.get(rule_id)
+    if rule is None:
+        raise HTTPException(status_code=404, detail=f"Rule '{rule_id}' not found")
+    return rule
+
+
+@router.delete("/rules/{rule_id}")
+def delete_alert_rule(rule_id: str, request: Request) -> Dict[str, Any]:
+    """알림 규칙 삭제 (B7/B8) — 파일에서도 삭제."""
+    rules_file = _get_rules_file(request)
+    rules = _load_rules(rules_file)
+    rule = rules.pop(rule_id, None) or _ALERT_RULES_STORE.pop(rule_id, None)
+    if rule is None:
+        raise HTTPException(status_code=404, detail=f"Rule '{rule_id}' not found")
+    # 파일 업데이트
+    if rule_id in rules:
+        rules.pop(rule_id, None)
+    _save_rules(rules_file, rules)
+    _ALERT_RULES_STORE.pop(rule_id, None)
+    return {"deleted": True, "rule_id": rule_id, "name": rule.get("name")}
 
 
 @router.get("/summary")

@@ -10,7 +10,7 @@
 
 ## 버전 정보
 
-**현재 버전:** v0.7.0
+**현재 버전:** v0.7.2
 
 **최종 업데이트:** 2026-04-01
 
@@ -3431,7 +3431,7 @@ agent-eval gate results/eval_result.json [옵션]
 
 * * *
 
-## 📡 5.5 실시간 모니터링 API (v0.7.0)
+## 📡 5.5 실시간 모니터링 API (v0.7.2)
 
 Phoenix + OpenTelemetry를 통한 프로덕션 스팬 추적 기능입니다.
 
@@ -3631,7 +3631,7 @@ agent-eval monitor --check
 
 * * *
 
-Agent Evaluator v0.7.0은 CrewAI, LangChain, LangGraph, AutoGen 등 주요 AI 프레임워크에 대한 고급 통합 기능을 제공합니다. 모든 통합은 **Layer 1/2/3 메트릭을 완전히 지원** 하며, 동적 계산 및 자동 추적 기능을 갖추고 있습니다.
+Agent Evaluator v0.7.2은 CrewAI, LangChain, LangGraph, AutoGen 등 주요 AI 프레임워크에 대한 고급 통합 기능을 제공합니다. 모든 통합은 **Layer 1/2/3 메트릭을 완전히 지원** 하며, 동적 계산 및 자동 추적 기능을 갖추고 있습니다.
 
 ### 주요 특징
 

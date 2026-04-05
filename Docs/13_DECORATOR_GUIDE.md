@@ -2,8 +2,8 @@
 
 Opik `@track` 스타일로 agent-evaluator를 적용하는 방법, 커버 가능한 지표·프레임워크·UI 범위 종합 정리
 
-**Version**: 0.7.0  
-**최종 업데이트**: 2026-04-03 (Gap AJ~AY 구현 반영 — on_retry/on_error 콜백, EvalMetadata errors/execution_time, batch on_batch_complete, TurnMetadata ground_truth, task_id_arg, jitter, eval_context task_id_fn, EvalDecorator update_defaults/for_llm_judge, 스트리밍 EvalMetadata, conversation turn_score_fn/max_session_seconds)
+**Version**: 0.7.2  
+**최종 업데이트**: 2026-04-05
 
 ---
 
@@ -64,6 +64,11 @@ Opik `@track` 스타일로 agent-evaluator를 적용하는 방법, 커버 가능
    - 3-50. **스트리밍 generator `EvalMetadata` yield 지원** _(Gap AV)_
    - 3-51. **`conversation_eval` `turn_score_fn`** _(Gap AX)_
    - 3-52. **`conversation_eval` `max_session_seconds`** _(Gap AY)_
+   - 3-53. **`QuickEval` — 원스톱 평가 퍼사드** _(v0.7.2+)_
+   - 3-54. **`SimpleTaskAlertRule` — 경량 알림 규칙** _(v0.7.2+)_
+   - 3-55. **프레임워크 SDK 전용 데코레이터** _(v0.7.2+)_
+   - 3-56. **`AGENT_EVAL_PRESETS` — 환경별 파라미터 묶음** _(v0.7.2+)_
+   - 3-57. **v0.7.2 신규 기능** — `enable_hallucination`, `ttft_seconds`, `EvalDecorator` 단축 속성, `push_to_phoenix`, `enable_otel_child_spans` _(v0.7.2+)_
 4. [메타데이터 병합 우선순위](#4-메타데이터-병합-우선순위)
 5. [커버 가능한 지표 범위](#5-커버-가능한-지표-범위)
 6. [프레임워크별 지원 범위](#6-프레임워크별-지원-범위)
@@ -151,6 +156,36 @@ from agent_evaluator import (
     eval_context,         # 데코레이터 없이 with/async with 블록으로 평가 (Gap IV)
     EvalDecorator,        # 팩토리: 공통 monitor/설정 한 번만 지정 (Gap N)
     flush_all_conversations,  # 모든 활성 대화 세션 일괄 flush (Gap S)
+    QuickEval,            # 원스톱 평가 퍼사드 — PerformanceMonitor + EvalDecorator 1줄로 시작
+    SimpleTaskAlertRule,  # TaskResult 기반 경량 알림 규칙 (StreamingEvaluator 불필요)
+)
+
+# 프레임워크 SDK 전용 데코레이터 (v0.7.2+, pip install "agent-evaluator[llm]")
+from agent_evaluator.integrations import (
+    # Agent 프레임워크
+    langchain_eval,       # LangChain: intermediate_steps → tool_calls/chain_steps
+    langgraph_eval,       # LangGraph: messages → state_transitions/graph_traversal
+    crewai_eval,          # CrewAI: tasks_output → agent_interactions
+    autogen_eval,         # AutoGen: messages/chat_history → conversation_turns
+    autogen_eval_async,   # AutoGen 0.4+ async API 전용 (v0.7.2+)
+    dspy_eval,            # DSPy: _completions → chain_steps + token usage
+    pydanticai_eval,      # PydanticAI: RunResult.usage() → tokens_used
+    # LLM SDK 직접 호출
+    anthropic_eval,       # Anthropic SDK: content[].tool_use + usage tokens + cache tokens
+    openai_eval,          # OpenAI SDK: choices[0].message.tool_calls + usage.total_tokens
+    gemini_eval,          # Gemini SDK: candidates[0].content.parts[].function_call
+    llamaindex_eval,      # LlamaIndex: source_nodes → chain_steps + metadata tokens
+    haystack_eval,        # Haystack: pipeline component outputs → chain_steps
+    cohere_eval,          # Cohere SDK: finish_reason + meta.tokens (v0.7.2+)
+    groq_eval,            # Groq SDK: OpenAI 호환 + cache tokens (v0.7.2+)
+    mistral_eval,         # Mistral AI SDK: tool_calls + function_call fallback (v0.7.2+)
+    bedrock_eval,         # AWS Bedrock Converse API: multi-model parser (v0.7.2+)
+    smolagents_eval,      # HuggingFace smolagents: ToolCall steps (v0.7.2+)
+    semantic_kernel_eval, # Semantic Kernel: inner_content token 추출 (v0.7.2+)
+    vertexai_eval,        # Vertex AI: function_call + usage_metadata (v0.7.2+)
+    ollama_eval,          # Ollama: chat()/generate() tool_calls + token counts (v0.7.2+)
+    # 메타데이터 레지스트리 (v0.7.2+)
+    get_framework_info,   # framework 이름 → _FRAMEWORK_ADAPTER_META 조회
 )
 ```
 
@@ -275,7 +310,7 @@ def gemini_agent(question: str, ground_truth: str = "") -> str:
 | 반환 타입 | response 추출 | 토큰 추출 |
 |-----------|--------------|-----------|
 | `openai.ChatCompletion` | `choices[0].message.content` | `usage` 자동 파싱 ✅ |
-| `anthropic.types.Message` | `content[0].text` | `usage.input_tokens + output_tokens` ✅ 정확 |
+| `anthropic.types.Message` | `content[0].text` | `usage.input_tokens + output_tokens` ✅ 정확<br>SDK ≥0.29: `cache_creation_input_tokens` / `cache_read_input_tokens` → `tokens_used["cache_creation"]` / `tokens_used["cache_read"]` 자동 포함 |
 | `google.GenerateContentResponse` | `candidates[0].content.parts[0].text` | `usage_metadata` ✅ 정확 |
 | `(raw, EvalMetadata)` | EvalMetadata 분리 후 raw 처리 | raw 기준 ✅ |
 | LangChain `AIMessage` | `.content` 속성 | 휴리스틱 |
@@ -462,6 +497,12 @@ def complex_agent(question: str, ground_truth: str = "") -> tuple:
 | `retry_on` | `(Exception,)` | 재시도 트리거 예외 타입 튜플 |
 | `delay` | `0.0` | 첫 재시도 전 대기 시간 (초) |
 | `backoff` | `1.0` | 지수 백오프 계수 (`1.0` = 고정 딜레이) |
+| `jitter` | `False` | `True` 이면 딜레이 무작위화 (thundering herd 방지) |
+| `jitter_type` | `"full"` | `"full"` (uniform 0~wait) / `"decorrelated"` / `"none"` (v0.7.2+) |
+| `max_delay` | `None` | 재시도 딜레이 상한 (초). `None` = 무제한 (v0.7.2+) |
+| `should_retry` | `None` | `Callable[[Exception], bool]` — `False` 반환 시 즉시 중단 (v0.7.2+) |
+| `alert_rules` | `[]` | `List[SimpleTaskAlertRule]` — 태스크 기록 후 조건 검사 |
+| `flush_every` | `None` | N호출마다 `save_to_file()` 자동 실행 |
 
 나머지 파라미터(`question_arg`, `framework`, `score_fn`, `task_id_fn` 등)는 `@agent_eval` 과 동일합니다.
 
@@ -527,9 +568,22 @@ def chat_agent(question: str, sid: str = "default") -> str:
 |----------|--------|------|
 | `session_id_arg` | `"session_id"` | 세션 ID 파라미터 이름 |
 | `user_arg` | `"question"` | 사용자 메시지 파라미터 이름 |
+| `ground_truth_arg` | `"ground_truth"` | 정답 파라미터 이름 |
 | `max_turns` | `None` | 이 턴 수 도달 시 자동 flush |
 | `flush_on_error` | `True` | 예외 발생 시 세션 자동 flush |
+| `flush_every` | `None` | N세션마다 `save_to_file()` 자동 실행 |
+| `flush_filename` | `None` | 자동 저장 파일명 |
 | `sample_rate` | `1.0` | 세션 기록 비율 `[0.0, 1.0]`. 세션 생성 시 결정, 이후 모든 턴에 일괄 적용 |
+| `session_score_fn` | `None` | `Callable[[ConversationMetrics], float]` — 세션 flush 후 커스텀 점수 계산 |
+| `turn_score_fn` | `None` | `Callable[[str, str], float]` — 매 턴 품질 점수화 (v0.7.x Gap AX) |
+| `max_session_seconds` | `None` | 비활성 세션 자동 flush 타임아웃 (초, v0.7.x Gap AY) |
+| `on_turn` | `None` | `Callable[[TurnMetadata], None]` — 매 턴 기록 후 콜백 |
+| `on_flush` | `None` | `Callable[[str, ConversationMetrics], None]` — flush 시 콜백 |
+| `on_session_timeout` | `None` | `Callable[[str], None]` — 타임아웃 flush 직전 콜백 (v0.7.2+) |
+| `load_previous_session` | `False` | `True` 이면 `flush_filename` JSON에서 이전 턴 로드 (v0.7.2+) |
+| `participant_id_arg` | `None` | 멀티에이전트 참여자 ID 파라미터 이름 (v0.7.2+) |
+| `max_turns_exceeded_action` | `"flush"` | `"flush"` / `"warn"` / `"error"` — max_turns 초과 시 동작 (v0.7.2+) |
+| `on_error` | `None` | `Callable[[TaskResult], None]` — 에러 태스크 기록 후 콜백 |
 | `enabled` | `True` | `False` 시 원본 함수만 실행 |
 
 ---
@@ -570,12 +624,33 @@ async def async_batch(questions: List[str]) -> List[str]:
 |----------|--------|------|
 | `questions_arg` | `"questions"` | 질문 리스트 파라미터 이름. 없으면 첫 번째 positional 사용 |
 | `ground_truths_arg` | `"ground_truths"` | 정답 리스트 파라미터 이름 |
+| `contexts_arg` | `None` | 항목별 RAG context 리스트 파라미터 이름 |
+| `expected_tools_arg` | `None` | 항목별 expected_tools 리스트 파라미터 이름 |
 | `task_id_prefix` | `"batch"` | 접두어 (`{prefix}_{uuid8}_{i:03d}` 형식) |
+| `task_id_fn` | `None` | `(i, question, gt) → str` 항목별 커스텀 task_id |
 | `framework` | `"native"` | 프레임워크 식별자 |
 | `model_name` | `""` | LLM 모델명 |
 | `score_fn` | `None` | `(response, gt) → float` 커스텀 accuracy |
 | `completion_fn` | `None` | `(response, gt) → float` 커스텀 completion |
 | `sample_rate` | `1.0` | 호출 단위 샘플링 비율. 배치 전체가 평가되거나 건너뜁니다 |
+| `sample_condition` | `None` | `(args, kwargs) → bool` 조건부 샘플링. `False` 이면 평가 생략 (v0.7.2+) |
+| `concurrent` | `False` | `True` 이면 ThreadPoolExecutor / asyncio.gather 병렬 실행 (v0.7.2+) |
+| `max_concurrent` | `4` | 동시 실행 최대 수 (`concurrent=True` 시 유효) |
+| `shuffle` | `False` | `True` 이면 항목 순서 무작위화 (v0.7.2+) |
+| `shuffle_seed` | `None` | 셔플 시드. `None` = 비재현적 |
+| `return_format` | `"list"` | `"list"` / `"tuple"` (responses, results) / `"dataframe"` (v0.7.2+) |
+| `item_timeout` | `None` | 항목별 실행 최대 시간 (초, v0.7.9+) |
+| `streaming_mode` | `False` | 메모리 효율 스트리밍 모드 (v0.7.2+) |
+| `strict_types` | `False` | `True` 이면 questions 가 `List[str]` 인지 검증 (v0.7.2+) |
+| `allow_duplicate_task_ids` | `True` | `False` 이면 중복 task_id 시 UserWarning (v0.7.2+) |
+| `timeout` | `None` | 배치 전체 실행 최대 시간 (초) |
+| `on_record` | `None` | `(task_result: TaskResult) → None` 콜백 |
+| `on_error` | `None` | `(task_result: TaskResult) → None` 에러 태스크 콜백 |
+| `on_item_error` | `None` | `(i, exc) → None` 항목별 에러 콜백 (v0.7.2+) |
+| `on_batch_complete` | `None` | `(List[TaskResult]) → None` 배치 완료 후 1회 콜백 |
+| `on_batch_progress` | `None` | `(completed: int, total: int) → None` 항목별 진행 콜백 (v0.7.2+) |
+| `alert_rules` | `[]` | `List[SimpleTaskAlertRule]` — 태스크 기록 후 조건 검사 |
+| `flush_every` | `None` | N호출마다 `save_to_file()` 자동 실행 |
 | `enabled` | `True` | `False` 시 원본 함수만 실행 |
 
 ---
@@ -693,9 +768,33 @@ agent.answer("한국의 수도는?", ground_truth="서울")
 
     # 실행 제어
     sample_rate=1.0,                 # 평가 실행 비율 [0.0, 1.0]. 0.1 = 10%만 평가
+    sample_condition=None,           # (args, kwargs) → bool 조건부 샘플링 (v0.7.2+)
     on_record=None,                  # (task_result: TaskResult) → None 콜백. 예외 무시
+    on_error=None,                   # (task_result: TaskResult) → None 에러 태스크 콜백
     timeout=None,                    # 함수 최대 실행 시간(초). 초과 시 TimeoutError 발생 후 기록
     enabled=True,                    # False 시 평가 완전 우회
+
+    # 자동 재시도 (v0.7.2+)
+    auto_retry=False,                # True 이면 agent_eval_with_retry 로 자동 위임
+    auto_retry_max=3,                # 최대 재시도 횟수
+    auto_retry_delay=0.0,            # 첫 재시도 전 대기 (초)
+    auto_retry_backoff=1.0,          # 지수 백오프 계수
+    auto_retry_on=(Exception,),      # 재시도 트리거 예외 타입 튜플
+
+    # 알림 / 주기 저장 (v0.7.2+)
+    alert_rules=[],                  # List[SimpleTaskAlertRule] — 태스크 기록 후 조건 검사
+    flush_every=None,                # N호출마다 save_to_file() 자동 실행
+    flush_filename=None,             # 자동 저장 파일명
+
+    # 중복 방지 (v0.7.2+)
+    allow_duplicate_task_ids=True,   # False 이면 중복 task_id 시 UserWarning
+
+    # 프레임워크 자동 감지 (v0.8.1+: 기본값 True)
+    auto_detect_framework=True,      # True 이면 반환값에서 프레임워크 자동 감지 (기본 활성)
+    custom_parser=None,              # Callable[[Any], Optional[EvalMetadata]] — 어댑터보다 먼저 적용
+
+    # 할루시네이션 감지 (v0.7.2+)
+    enable_hallucination=False,      # True 이면 이 데코레이터에서만 임시 활성화 (모니터 전역 설정 보존)
 )
 def my_agent(question, ground_truth=""):
     ...
@@ -767,6 +866,15 @@ with eval_context(
     on_record=lambda tr: log.info(f"recorded {tr.task_id}"),
 ) as ctx:
     ctx.response = run_external_pipeline(q)
+
+# E4: ttft_seconds — 스트리밍 없이도 TTFT를 LatencyTracker에 기록 (v0.7.2+)
+import time
+_t0 = time.perf_counter()
+first_token = streaming_llm.get_first_token(q)
+_ttft = time.perf_counter() - _t0
+with eval_context(monitor, "qa", question=q, ttft_seconds=_ttft) as ctx:
+    ctx.response = first_token + streaming_llm.get_rest(q)
+# monitor.latency_tracker.get_ttft_stats() 에 자동 반영됨
 ```
 
 **예외 처리**: `with` 블록 내부에서 예외가 발생해도 `success=False`, `errors=[str(exc)]` 로 기록하고 예외를 다시 전파합니다. `ctx.response` 에 설정된 partial content 도 보존됩니다.
@@ -785,9 +893,17 @@ with eval_context(
 | `model_name` | `""` | LLM 모델명 |
 | `task_id` | 자동 생성 | 명시적 task_id (지정 시 uuid 생성 생략) |
 | `task_id_prefix` | `"eval"` | `task_id` 가 None 일 때 자동 생성 접두어 |
+| `task_id_fn` | `None` | `() → str` 커스텀 task_id 생성 함수 (Gap AS) |
+| `auto_task_id` | `False` | `True` 이면 `"auto_{uuid8}"` prefix 자동 생성 (v0.7.2+) |
 | `score_fn` | `None` | `(response, gt) → float` 커스텀 accuracy |
 | `completion_fn` | `None` | `(response, gt) → float` 커스텀 completion |
 | `on_record` | `None` | `(task_result: TaskResult) → None` 콜백 |
+| `on_error` | `None` | `(task_result: TaskResult) → None` 에러 태스크 콜백 |
+| `timeout` | `None` | 최대 실행 시간(초). `__exit__` 시 elapsed > timeout 이면 `has_error=True` (v0.7.2+) |
+| `allow_duplicate_task_ids` | `True` | `False` 이면 중복 task_id 시 UserWarning (v0.7.2+) |
+| `sample_rate` | `1.0` | 평가 실행 비율 `[0.0, 1.0]` |
+| `enabled` | `True` | `False` 시 평가 완전 우회 |
+| `ttft_seconds` | `None` | 외부에서 측정한 TTFT(초) 직접 주입. `chunk_step()` 없이 `LatencyTracker` 연동 (v0.7.2+) |
 
 ---
 
@@ -1619,11 +1735,12 @@ agent("질문", task_id="my_explicit_id_001")
 
 ---
 
-### 3-47. `agent_eval_with_retry` `jitter`
+### 3-47. `agent_eval_with_retry` `jitter` / `jitter_type`
 
 재시도 딜레이에 무작위 편차를 추가합니다 (Gap AR). 다수의 인스턴스가 동시에 재시도할 때 thundering herd 문제를 방지합니다.
 
 ```python
+# jitter=True (기본 알고리즘: "full" — random.uniform(0, wait))
 @agent_eval_with_retry(
     monitor,
     task_type="qa",
@@ -1631,13 +1748,33 @@ agent("질문", task_id="my_explicit_id_001")
     retry_on=(ConnectionError,),
     delay=2.0,
     backoff=2.0,
-    jitter=True,    # 실제 딜레이 = random.uniform(0, delay * backoff^n)
+    jitter=True,
 )
 def prod_agent(question: str, ground_truth: str = "") -> str:
     return llm.predict(question)
+
+# jitter_type 명시 지정 (v0.7.2+)
+@agent_eval_with_retry(
+    monitor,
+    task_type="qa",
+    max_retries=5,
+    delay=1.0,
+    backoff=2.0,
+    jitter_type="decorrelated",  # "full" | "decorrelated" | "none"
+    max_delay=30.0,              # 딜레이 상한 (초)
+    should_retry=lambda exc: not isinstance(exc, ValueError),  # 조건부 재시도
+)
+def complex_agent(question: str, ground_truth: str = "") -> str:
+    return llm.predict(question)
 ```
 
-`jitter=True` 이면 각 재시도 딜레이가 `random.uniform(0.0, wait)` 로 무작위화됩니다. `jitter=False` (기본)이면 기존 동작(고정 딜레이 × backoff)을 유지합니다.
+| `jitter_type` 값 | 동작 |
+|-----------------|------|
+| `"full"` (기본) | `random.uniform(0.0, wait)` |
+| `"decorrelated"` | AWS 권장 알고리즘: `random.uniform(delay, prev_wait * 3)` |
+| `"none"` | 지터 없음 (고정 딜레이 × backoff) |
+
+`jitter=True` 이면 `jitter_type="full"` 이 적용됩니다. `jitter=False` (기본) + `jitter_type` 미지정이면 지터 없음 (기존 동작 유지).
 
 ---
 
@@ -1774,6 +1911,323 @@ def chat_server(question: str, sid: str = "default") -> str:
 내부적으로 `threading.Timer` 를 사용하며, 각 새 턴이 추가될 때마다 타이머가 재설정됩니다(슬라이딩 윈도우). `flush_conversation()` 또는 `max_turns` 도달 시 타이머가 자동으로 취소됩니다.
 
 > **주의**: `max_session_seconds` 는 마지막 **턴** 이후의 비활성 시간을 기준으로 합니다. 세션 생성 시점이 아닙니다.
+
+---
+
+### 3-53. `QuickEval` — 원스톱 평가 퍼사드 _(v0.7.2+)_
+
+`PerformanceMonitor` + `EvalDecorator` 를 1~2줄로 시작하는 최상위 퍼사드입니다.
+
+```python
+from agent_evaluator import QuickEval
+
+# 기본 사용
+qe = QuickEval("results/")
+
+@qe.qa
+def agent(question: str, ground_truth: str = "") -> str:
+    return llm.predict(question)
+
+@qe.tool_use
+def tool_agent(question: str, ground_truth: str = "") -> str:
+    return tool_executor.run(question)
+
+@qe.rag
+def rag_agent(question: str, context: str = "", ground_truth: str = "") -> str:
+    return llm.predict(question, context=context)
+
+qe.save()               # quickeval.json + quickeval.html
+qe.gate(tcr=85, accuracy=70)  # CI/CD 게이팅 — 실패 시 sys.exit(1)
+
+# 용도별 팩토리
+qe = QuickEval.for_rag("results/")              # hallucination_detection=True
+qe = QuickEval.for_security("results/")          # enable_security_metrics=True
+qe = QuickEval.for_llm_judge("results/", model="claude-sonnet-4-6")
+qe = QuickEval.for_regression_eval("results/")  # auto_save 기본 활성
+
+# YAML/JSON 설정 파일에서 초기화 (v0.7.2+)
+qe = QuickEval.from_config("eval_config.yaml")
+
+# 단축 데코레이터 전체 목록
+@qe.qa          # task_type="qa"
+@qe.tool_use    # task_type="tool_use"
+@qe.rag         # task_type="information_retrieval" + context_arg="context"
+@qe.code        # task_type="code_generation"
+@qe.reasoning   # task_type="reasoning"
+@qe.planning    # task_type="planning"
+@qe.data_analysis  # task_type="data_analysis"
+@qe.creative    # task_type="creative"
+@qe.chat        # task_type="chat" + conversation_eval 내부 사용
+@qe.streaming   # sync/async generator 전용 (v0.7.2+)
+@qe.multi_agent # task_type="tool_use" + enable_security (v0.7.2+)
+@qe.security    # task_type="tool_use" + enable_security_metrics=True (v0.7.2+)
+
+# 직접 호출
+@qe(task_type="qa", score_fn=my_fn)
+def custom_agent(question: str, ground_truth: str = "") -> str: ...
+
+# 재시도
+@qe.with_retry(task_type="qa", max_retries=3)
+def retry_agent(question: str, ground_truth: str = "") -> str: ...
+```
+
+**`QuickEval` 주요 메서드**
+
+| 메서드 | 설명 |
+|-------|------|
+| `save(filename="quickeval")` | JSON + HTML 리포트 저장 |
+| `gate(tcr=None, accuracy=None, quality=None, hallucination=None, config_file=None)` | 임계값 미달 시 `sys.exit(1)` |
+| `summary()` | 현재 지표 dict 반환 (`p95_latency`, `total_cost_usd` 등 포함) |
+| `compare(other: QuickEval)` | 두 인스턴스 지표 비교 (`{"self", "other", "delta"}`) (v0.7.2+) |
+| `ab_test(other: QuickEval)` | t-검정 기반 정확도 통계 비교 (v0.7.2+) |
+| `export_to_dataframe(include_fields=None)` | pandas DataFrame 변환 (v0.7.2+) |
+| `replay(results_file)` | 저장된 JSON 결과 파일 재로드 (v0.7.2+) |
+| `watch(directory, callback, max_watched_files)` | 디렉토리 감시 + 신규 JSON 자동 replay (v0.7.2+) |
+| `cached(ttl=3600, cache_key_fn=None)` | TTL 기반 응답 캐싱 데코레이터. async 함수 지원 (v0.7.9+/v0.8.0) |
+| `generate_gate_config(filepath="gate_config.json")` | 현재 지표 기반 95% 임계값 자동 제안 후 JSON 저장. `gate(config_file=...)` 연계 (v0.7.2+) |
+
+**`gate()` 비활성 경고 (v0.7.2+)**
+
+`quality=` 또는 `hallucination=` 임계값 지정 시, 해당 트래커가 비활성화 상태이면 `UserWarning` 발동:
+
+```python
+qe = QuickEval("results/")  # hallucination_detection=False (기본)
+qe.gate(hallucination=10.0)  # → UserWarning: hallucination 탐지가 비활성화 상태
+```
+
+**monitor_kwargs 검증 (v0.7.2+)**
+
+알 수 없는 파라미터 이름은 `UserWarning` 후 자동 제거 (오타로 인한 무음 실패 방지):
+
+```python
+qe = QuickEval("results/", typo_param=True)  # → UserWarning: typo_param (무시됨)
+```
+
+**`generate_gate_config()` — 임계값 자동 제안 (v0.7.2+)**
+
+현재 누적 지표의 95% 를 임계값으로 제안하는 JSON 파일을 생성합니다. `gate(config_file=...)` 와 바로 연계됩니다.
+
+```python
+@qe.qa
+def agent(question, ground_truth=""): ...
+
+# 충분한 태스크 수집 후
+qe.generate_gate_config(filepath="gate_config.json")
+# → {"tcr": 85.5, "accuracy": 0.81, "quality": null, "hallucination": null}
+
+# 다음 실행 시 자동 적용
+qe.gate(config_file="gate_config.json")
+```
+
+---
+
+### 3-54. `SimpleTaskAlertRule` — 경량 알림 규칙 _(v0.7.2+)_
+
+`StreamingEvaluator` 없이 `TaskResult` 기반으로 조건 검사 + 핸들러 호출하는 경량 알림 규칙입니다. `agent_eval`, `batch_eval`, `eval_context`, `EvalDecorator` 의 `alert_rules=` 파라미터에 리스트로 전달합니다.
+
+```python
+from agent_evaluator import SimpleTaskAlertRule, agent_eval
+
+# 기본 사용
+slow_rule = SimpleTaskAlertRule(
+    name="slow_response",
+    condition=lambda tr: tr.execution_time > 5.0,
+    handler=lambda msg, tr: print(f"[ALERT] {msg}"),
+    severity="warning",
+    cooldown=60,  # 60초 쿨다운
+)
+
+@agent_eval(monitor, task_type="qa", alert_rules=[slow_rule])
+def agent(question: str, ground_truth: str = "") -> str:
+    return llm.predict(question)
+
+# dry_run — 핸들러 미실행 조건 검증 (v0.7.2+)
+result = slow_rule.dry_run(some_task_result)
+# → {"would_fire": True, "message": "...", "error": None}
+
+# 복합 조건 (v0.7.2+)
+compound_rule = SimpleTaskAlertRule(
+    name="quality_and_slow",
+    compound_conditions=[
+        {"field": "accuracy_score", "op": "lt", "value": 0.5},
+        {"field": "execution_time", "op": "gt", "value": 3.0},
+    ],
+    handler=lambda msg, tr: slack.send(msg),
+)
+
+# 클래스 수준 쿨다운 공유 (v0.7.2+)
+# — 동일 name 인스턴스 여러 개가 쿨다운을 공유
+rule_a = SimpleTaskAlertRule(name="my_rule", ..., class_level_cooldown=True)
+rule_b = SimpleTaskAlertRule(name="my_rule", ..., class_level_cooldown=True)
+```
+
+**파라미터**
+
+| 파라미터 | 기본값 | 설명 |
+|----------|--------|------|
+| `name` | (필수) | 규칙 이름 |
+| `condition` | `None` | `(TaskResult) → bool` 알림 조건 |
+| `compound_conditions` | `None` | `[{"field", "op", "value"}]` 복합 조건 |
+| `handler` | (필수) | `(message: str, task_result: TaskResult) → None` |
+| `severity` | `"warning"` | `"info"` / `"warning"` / `"error"` / `"critical"` |
+| `cooldown` | `0` | 동일 규칙 재발동 최소 간격 (초) |
+| `class_level_cooldown` | `False` | 동일 이름 인스턴스 간 쿨다운 공유 (v0.7.2+) |
+
+---
+
+### 3-55. 프레임워크 SDK 전용 데코레이터 _(v0.7.2+)_
+
+각 프레임워크의 응답 객체에서 메타데이터를 자동 추출하는 전용 데코레이터입니다. 내부적으로 `agent_eval(framework=...)` 에 커스텀 어댑터를 연결합니다.
+
+```python
+from agent_evaluator.integrations import (
+    langchain_eval, crewai_eval, autogen_eval, anthropic_eval, openai_eval,
+    gemini_eval, cohere_eval, groq_eval, mistral_eval, bedrock_eval,
+    smolagents_eval, semantic_kernel_eval, vertexai_eval, ollama_eval,
+    dspy_eval, pydanticai_eval, autogen_eval_async,
+)
+
+# LangChain AgentExecutor — intermediate_steps 자동 추출
+@langchain_eval(monitor, task_type="tool_use")
+def lc_agent(question: str, ground_truth: str = "") -> str:
+    return agent_executor.invoke({"input": question})
+
+# Anthropic SDK — cache_creation/cache_read 토큰 자동 포함 (SDK ≥0.29, v0.8.0)
+@anthropic_eval(monitor, task_type="qa")
+def claude_agent(question: str, ground_truth: str = "") -> str:
+    return anthropic_client.messages.create(
+        model="claude-sonnet-4-6", max_tokens=1024,
+        messages=[{"role": "user", "content": question}],
+    )
+# tokens_used: {"input": 100, "output": 50, "cache_creation": 30, "cache_read": 20, "total": 200}
+
+# AutoGen 0.4+ async API (v0.7.2+)
+@autogen_eval_async(monitor, task_type="tool_use")
+async def autogen_agent(question: str, ground_truth: str = "") -> str:
+    result = await agent.run(task=question)
+    return result.messages[-1].content
+
+# PydanticAI — all_messages() 우선 → messages fallback (v0.8.0 문서 수정)
+@pydanticai_eval(monitor, task_type="qa")
+async def pydantic_agent(question: str, ground_truth: str = "") -> str:
+    result = await agent.run(question)
+    return result.data
+```
+
+**프레임워크 메타데이터 레지스트리 조회 (v0.7.2+)**
+
+```python
+from agent_evaluator.integrations import get_framework_info
+
+info = get_framework_info("anthropic")
+# → {"name": "anthropic", "extras": ["llm"], "extracts": ["tool_calls", "tokens"],
+#    "async_supported": True, "description": "..."}
+
+info = get_framework_info("unknown_framework")
+# → None
+```
+
+---
+
+### 3-56. `AGENT_EVAL_PRESETS` — 환경별 파라미터 묶음 _(v0.7.2+)_
+
+`production` / `development` / `testing` / `canary` 환경별로 최적화된 파라미터 묶음입니다.
+
+```python
+from agent_evaluator import agent_eval, AGENT_EVAL_PRESETS
+
+# preset 이름으로 파라미터 묶음 적용
+@agent_eval(monitor, task_type="qa", preset="production")
+def prod_agent(question: str, ground_truth: str = "") -> str:
+    return llm.predict(question)
+
+# 직접 확인
+print(AGENT_EVAL_PRESETS["production"])
+# → {"sample_rate": 0.1, "timeout": 30.0, "auto_retry": True, "auto_retry_max": 3, ...}
+print(AGENT_EVAL_PRESETS["testing"])
+# → {"sample_rate": 1.0, "timeout": 60.0, ...}
+```
+
+---
+
+### 3-57. v0.7.2 신규 기능 _(v0.7.2+)_
+
+#### `enable_hallucination` — 데코레이터별 할루시네이션 감지
+
+`PerformanceMonitor(enable_hallucination_detection=False)` 상태에서도 특정 데코레이터에서만 임시 활성화합니다. 호출 완료 후 모니터 전역 플래그를 원래 상태로 복원합니다.
+
+```python
+monitor = PerformanceMonitor()  # hallucination_detection=False (기본)
+
+# RAG 에이전트에서만 할루시네이션 감지 활성화
+@agent_eval(monitor, task_type="information_retrieval",
+            context_arg="context", enable_hallucination=True)
+def rag_agent(question: str, context: str = "", ground_truth: str = "") -> str:
+    return llm.predict(question, context=context)
+
+# 호출 후에도 monitor.enable_hallucination_detection == False 유지
+rag_agent("질문", context="컨텍스트", ground_truth="정답")
+assert monitor.enable_hallucination_detection is False  # 전역 설정 보존
+```
+
+> **context 없으면 감지 미실행**: `context_arg` 에서 값을 추출하지 못하면 `HallucinationDetector.detect_hallucination()` 자체가 생략됩니다 (기존 동작과 동일).
+
+#### `EvalDecorator` 단축 속성
+
+`QuickEval` 과 동일한 단축 데코레이터 속성을 `EvalDecorator` 에서도 직접 사용할 수 있습니다.
+
+```python
+from agent_evaluator.decorators import EvalDecorator
+
+ed = EvalDecorator(monitor, task_type="qa")
+
+# QuickEval API와 동일한 단축 속성
+@ed.qa          # task_type="qa"
+@ed.tool_use    # task_type="tool_use"
+@ed.rag         # task_type="information_retrieval"
+@ed.code        # task_type="code_generation"
+@ed.reasoning   # task_type="reasoning"
+@ed.planning    # task_type="planning"
+@ed.data_analysis  # task_type="data_analysis"
+@ed.creative    # task_type="creative"
+@ed.multi_agent # task_type="tool_use"
+def my_fn(question, ground_truth=""): ...
+```
+
+#### `PerformanceMonitor(enable_otel_child_spans=True)` — OTEL 자식 스팬
+
+OTEL 활성화 상태에서 각 `chain_step` 을 별도 자식 스팬으로 발행합니다. Phoenix Traces 뷰에서 스텝별 계층 확인이 가능합니다.
+
+```python
+from agent_evaluator import PerformanceMonitor
+from agent_evaluator.core.otel import setup_otel
+
+setup_otel(endpoint="http://localhost:4318", service_name="my-agent")
+monitor = PerformanceMonitor(enable_otel_child_spans=True)
+
+@agent_eval(monitor, task_type="tool_use", framework="langchain")
+def agent(question, ground_truth=""): ...
+# TaskResult.chain_steps 의 각 항목이 "ae.step/{task_id}/{step_name}" 자식 스팬으로 발행됨
+```
+
+#### `GoldenSetBuilder.push_to_phoenix()` — 1-call 업로드
+
+`merge_to_golden()` + `upload_to_phoenix()` 를 한 번에 실행하는 편의 메서드입니다.
+
+```python
+from agent_evaluator.datasets.builder import GoldenSetBuilder
+
+builder = GoldenSetBuilder("results/", "data/golden_datasets/")
+candidates = builder.extract(strategies=["failure_cases", "high_value"], max_cases=100)
+
+# 저장 + Phoenix 업로드 1-call
+dataset_id = builder.push_to_phoenix(
+    candidates,
+    dataset_name="qa-golden-v2",
+    phoenix_endpoint="http://localhost:6006",
+)
+# data/golden_datasets/qa-golden-v2.json 생성 후 Phoenix Datasets 탭에 업로드
+```
 
 ---
 
@@ -1953,13 +2407,38 @@ EvalMetadata.execution_time  ✅ 완전 (외부 측정값으로 perf_counter 대
 batch on_batch_complete      ✅ 완전 (배치 전체 완료 후 List[TaskResult] 1회 콜백)
 TurnMetadata.ground_truth    ✅ 완전 (턴별 정답 명시, ground_truth_arg 보다 높은 우선순위)
 task_id_arg                  ✅ 완전 (함수 파라미터에서 task_id 자동 탐지)
-jitter                       ✅ 완전 (agent_eval_with_retry, thundering herd 방지)
+jitter / jitter_type         ✅ 완전 (agent_eval_with_retry, "full"/"decorrelated"/"none" 알고리즘 선택, thundering herd 방지)
 eval_context task_id_fn      ✅ 완전 (agent_eval 기능 동등성)
 EvalDecorator.update_defaults ✅ 완전 (생성 후 기본값 부분 변경, 체이닝 지원)
 EvalDecorator.for_llm_judge  ✅ 완전 (LLM Judge 최적화 팩토리, graceful fallback)
 스트리밍 EvalMetadata yield   ✅ 완전 (generator에서 EvalMetadata yield → 메타데이터 주입)
 conversation turn_score_fn   ✅ 완전 (매 턴 품질 점수화, metadata["turn_score"] 저장)
 conversation max_session_seconds ✅ 완전 (비활성 세션 자동 flush, threading.Timer 슬라이딩 윈도우)
+QuickEval 퍼사드             ✅ 완전 (PerformanceMonitor + EvalDecorator 1줄 시작, 10개+ 단축 데코레이터)
+SimpleTaskAlertRule          ✅ 완전 (TaskResult 기반 경량 알림, compound_conditions, dry_run)
+alert_rules / flush_every    ✅ 완전 (agent_eval/batch/conversation/eval_context/EvalDecorator 전역 적용)
+batch concurrent 실행        ✅ 완전 (ThreadPoolExecutor/asyncio.gather, max_concurrent 제어)
+batch shuffle / return_format ✅ 완전 (셔플 재현성, list/tuple/dataframe 반환)
+conversation load_previous_session ✅ 완전 (이전 세션 JSON 로드 재개)
+conversation participant_id_arg ✅ 완전 (멀티에이전트 참여자 ID 추적)
+eval_context auto_task_id / chunk_step ✅ 완전 (스트리밍 청크별 기록, 자동 task_id)
+Anthropic cache 토큰 자동 추출 ✅ 완전 (SDK ≥0.29: cache_creation/cache_read → tokens_used 포함)
+프레임워크 SDK 데코레이터 14종 ✅ 완전 (anthropic/openai/gemini/langchain/crewai/autogen/groq/mistral/cohere/bedrock/smolagents/semantic_kernel/vertexai/ollama)
+autogen_eval_async           ✅ 완전 (AutoGen 0.4+ async API 전용)
+AGENT_EVAL_PRESETS           ✅ 완전 (production/development/testing/canary 파라미터 묶음)
+get_framework_info           ✅ 완전 (_FRAMEWORK_ADAPTER_META 조회, 미지원 시 None)
+agent_eval enable_hallucination ✅ 완전 (v0.8.1: 데코레이터별 임시 활성, 전역 플래그 보존)
+eval_context ttft_seconds    ✅ 완전 (v0.8.1: 외부 측정 TTFT 직접 주입, chunk_step 불필요)
+GoldenSetBuilder.push_to_phoenix ✅ 완전 (v0.8.1: merge_to_golden + upload_to_phoenix 1-call)
+PerformanceMonitor enable_otel_child_spans ✅ 완전 (v0.8.1: chain_steps → 자식 OTEL 스팬)
+EvalDecorator 단축 속성      ✅ 완전 (v0.8.1: .qa/.tool_use/.rag/.code/.reasoning/.planning/.data_analysis/.creative/.multi_agent)
+QuickEval.generate_gate_config ✅ 완전 (v0.8.1: 95% 임계값 자동 제안 → JSON 저장)
+auto_detect_framework 기본값  ✅ 완전 (v0.8.1: True로 변경 — 프레임워크 자동 감지 기본 활성)
+eval_context chunk_step TTFT  ✅ 완전 (v0.8.1: 첫 청크 호출 시 LatencyTracker.track_ttft() 자동 연동)
+MultimodalMetricsTracker      ✅ 완전 (v0.8.1: extra.image_count 등 감지 시 record_task()에서 자동 트리거)
+partial_reason 자동 생성      ✅ 완전 (v0.8.1: 예외→"execution_error", 빈 응답→"empty_response" 자동 설정)
+LangGraph chain_step 실행시간 ✅ 완전 (v0.8.1: ISO-8601 타임스탬프 기반 인접 메시지 경과 시간 계산)
+framework_distribution        ✅ 완전 (v0.8.1: /api/results 응답에 프레임워크별 태스크 수 Counter 추가)
 ```
 
 ---
@@ -2052,28 +2531,43 @@ flush_conversation("conv_001")
 
 | 프레임워크 / 패턴 | 지원 수준 | 방법 |
 |------------------|-----------|------|
-| 직접 LLM 호출 (OpenAI/Anthropic/Gemini) | ✅ 완전 | `@agent_eval` |
-| LangChain LCEL / invoke | ✅ 완전 | `@agent_eval` + EvalMetadata |
-| LangChain AgentExecutor | ✅ 완전 | `@agent_eval` + EvalMetadata (chain_steps) |
-| LangGraph | ✅ 완전 | `@agent_eval` + `get_eval_ctx()` (graph_traversal) |
-| CrewAI | ✅ 지원 | `@agent_eval` + EvalMetadata (agent_interactions) |
-| AutoGen | ⚠️ 부분 | `create_evaluated_autogen_agent()` 권장 |
+| 직접 LLM 호출 (OpenAI/Anthropic/Gemini) | ✅ 완전 | `@agent_eval` / `@anthropic_eval` / `@openai_eval` / `@gemini_eval` |
+| Anthropic cache 토큰 | ✅ 완전 (v0.7.2+) | `@anthropic_eval` — SDK ≥0.29 자동 추출 |
+| LangChain LCEL / invoke | ✅ 완전 | `@agent_eval` + EvalMetadata / `@langchain_eval` |
+| LangChain AgentExecutor | ✅ 완전 | `@langchain_eval` (intermediate_steps 자동 추출) |
+| LangGraph | ✅ 완전 | `@langgraph_eval` (messages → state_transitions/graph_traversal) |
+| CrewAI | ✅ 완전 | `@crewai_eval` (tasks_output → agent_interactions, output_pydantic 지원) |
+| AutoGen (0.3) | ✅ 지원 | `@autogen_eval` (messages → conversation_turns) |
+| AutoGen (0.4+ async) | ✅ 완전 (v0.7.2+) | `@autogen_eval_async` |
+| DSPy | ✅ 완전 | `@dspy_eval` (`[dspy]` extra 필요) |
+| PydanticAI | ✅ 완전 | `@pydanticai_eval` (`[pydanticai]` extra 필요) |
+| Groq | ✅ 완전 (v0.7.2+) | `@groq_eval` (OpenAI 호환 + cache tokens) |
+| Mistral AI | ✅ 완전 (v0.7.2+) | `@mistral_eval` (tool_calls + function_call fallback) |
+| Cohere | ✅ 완전 (v0.7.2+) | `@cohere_eval` (meta.tokens 자동 파싱) |
+| AWS Bedrock | ✅ 완전 (v0.7.2+) | `@bedrock_eval` (multi-model parser: Titan/Mistral/Claude) |
+| HuggingFace smolagents | ✅ 완전 (v0.7.2+) | `@smolagents_eval` (ToolCall 스텝 성공/실패) |
+| Semantic Kernel | ✅ 완전 (v0.7.2+) | `@semantic_kernel_eval` (inner_content token 추출) |
+| Vertex AI | ✅ 완전 (v0.7.2+) | `@vertexai_eval` (function_call + usage_metadata) |
+| Ollama | ✅ 완전 (v0.7.2+) | `@ollama_eval` (chat()/generate() + prompt_eval_count) |
+| LlamaIndex | ✅ 완전 | `@llamaindex_eval` (source_nodes → chain_steps) |
+| Haystack | ✅ 완전 | `@haystack_eval` (pipeline component outputs → chain_steps) |
 | 스트리밍 generator (sync/async) | ✅ 완전 | `@agent_eval` (자동 감지) |
-| 배치 처리 (List→List) | ✅ 완전 | `@batch_eval` |
+| 배치 처리 (List→List) | ✅ 완전 | `@batch_eval` (concurrent/shuffle/return_format 지원) |
 | 클래스 메서드 | ✅ 완전 | `@agent_eval` (self/cls 자동 skip) |
 | 멀티턴 대화 | ✅ 완전 | `@conversation_eval` |
-| 데코레이터 불가 블록 | ✅ 완전 | `eval_context` (with/async with, 동적 필드 재설정) |
+| 데코레이터 불가 블록 | ✅ 완전 | `eval_context` (with/async with, chunk_step, auto_task_id) |
 | 타임아웃 제어 | ✅ 완전 | `@agent_eval(timeout=N)` |
 | 공통 설정 재사용 | ✅ 완전 | `EvalDecorator(monitor, framework=..., model_name=...)` |
+| 원스톱 퍼사드 | ✅ 완전 | `QuickEval("results/")` |
+| 경량 알림 규칙 | ✅ 완전 | `SimpleTaskAlertRule(name, condition, handler)` |
 | 비표준 LLM 토큰 주입 | ✅ 완전 | `EvalMetadata.tokens_used` + `model_name` |
-| Cohere SDK | ✅ 완전 | `@agent_eval` (자동 감지, cohere>=5.0) |
 | batch RAG context 항목별 전달 | ✅ 완전 | `@batch_eval(contexts_arg=...)` |
 | batch 항목별 커스텀 task_id | ✅ 완전 | `@batch_eval(task_id_fn=fn)` |
 | batch 항목별 Tool Selection F1 | ✅ 완전 | `@batch_eval(expected_tools_arg=...)` |
-| batch 타임아웃 | ✅ 완전 | `@batch_eval(timeout=N)` |
+| batch 병렬 실행 | ✅ 완전 | `@batch_eval(concurrent=True, max_concurrent=N)` |
 | 다중 monitor 동시 기록 | ✅ 완전 | `monitor=[m1, m2]` |
-| conversation 매 턴 콜백 | ✅ 완전 | `@conversation_eval(on_turn=fn)` |
-| conversation ground_truth 파라미터 이름 | ✅ 완전 | `@conversation_eval(ground_truth_arg=...)` |
+| conversation 이전 세션 재개 | ✅ 완전 | `@conversation_eval(load_previous_session=True)` |
+| conversation 참여자 ID 추적 | ✅ 완전 | `@conversation_eval(participant_id_arg=...)` |
 | HybridMonitor (DeepEval/Ragas) | ❌ 불가 | `HybridPerformanceMonitor` 기존 방식 |
 
 ---

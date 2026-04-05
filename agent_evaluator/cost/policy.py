@@ -128,6 +128,44 @@ class CostTracker:
             self._records.clear()
 
 
+    def learn_cost_model(self, tasks: list) -> "Dict[str, float]":
+        """태스크 결과에서 모델별 비용을 학습한다 (F2)."""
+        from typing import Dict
+        _model_costs: Dict[str, list] = {}
+        _model_tokens: Dict[str, int] = {}
+        for t in tasks:
+            _tu = getattr(t, "tokens_used", {}) or {}
+            if not isinstance(_tu, dict):
+                continue
+            _model = str(_tu.get("model", "unknown"))
+            _total_tok = int(_tu.get("total", 0) or 0)
+            _extra = getattr(t, "extra", {}) or {}
+            _cost = float(_extra.get("cost_usd", 0) or _tu.get("cost_usd", 0) or 0)
+            if _total_tok > 0 and _cost > 0:
+                _model_costs.setdefault(_model, []).append(_cost)
+                _model_tokens[_model] = _model_tokens.get(_model, 0) + _total_tok
+        _learned: Dict[str, float] = {}
+        for _m, _costs in _model_costs.items():
+            _total_cost = sum(_costs)
+            _total_tok = _model_tokens.get(_m, 1)
+            _learned[_m] = round(_total_cost / (_total_tok / 1000), 8)
+        self._learned_prices = _learned
+        return _learned
+
+    @property
+    def auto_price_map(self) -> "Dict[str, float]":
+        """학습된 가격과 기본 가격을 병합해 반환한다 (F2)."""
+        _base = {
+            "claude-opus-4-6": 0.015,
+            "claude-sonnet-4-6": 0.003,
+            "claude-haiku-4-5": 0.00025,
+            "gpt-4o": 0.005,
+            "gpt-4o-mini": 0.00015,
+        }
+        _base.update(getattr(self, "_learned_prices", {}))
+        return _base
+
+
 class AdaptivePolicy:
     """이상 감지 상태에 따라 샘플링률을 자동 조정하는 정책.
 
@@ -220,3 +258,60 @@ class AdaptivePolicy:
             "cost": self.cost_tracker.get_daily_stats(),
             "stage_history": list(self._stage_history[-10:]),  # 최근 10개
         }
+
+
+    def learn_cost_model(self, tasks: list) -> Dict[str, float]:
+        """태스크 결과에서 모델별 비용을 학습한다 (F2).
+
+        각 태스크의 ``tokens_used["model"]`` 과 ``extra["cost_usd"]`` 또는
+        ``tokens_used["cost_usd"]`` 에서 실제 비용을 추출하고, 1k 토큰당 비용을 계산한다.
+
+        Args:
+            tasks: TaskResult 리스트.
+
+        Returns:
+            ``{model_name: cost_per_1k_tokens}`` 딕셔너리.
+        """
+        _model_costs: Dict[str, list] = {}
+        _model_tokens: Dict[str, int] = {}
+
+        for t in tasks:
+            _tu = getattr(t, "tokens_used", {}) or {}
+            if not isinstance(_tu, dict):
+                continue
+            _model = str(_tu.get("model", "unknown"))
+            _total_tok = int(_tu.get("total", 0) or 0)
+            # cost_usd 추출: extra > tokens_used 순서
+            _extra = getattr(t, "extra", {}) or {}
+            _cost = float(_extra.get("cost_usd", 0) or _tu.get("cost_usd", 0) or 0)
+            if _total_tok > 0 and _cost > 0:
+                _model_costs.setdefault(_model, []).append(_cost)
+                _model_tokens[_model] = _model_tokens.get(_model, 0) + _total_tok
+
+        _learned: Dict[str, float] = {}
+        for _m, _costs in _model_costs.items():
+            _total_cost = sum(_costs)
+            _total_tok = _model_tokens.get(_m, 1)
+            _learned[_m] = round(_total_cost / (_total_tok / 1000), 8)
+
+        self._learned_prices = _learned
+        return _learned
+
+    @property
+    def auto_price_map(self) -> Dict[str, float]:
+        """학습된 가격과 설정된 가격을 병합해 반환한다 (F2).
+
+        학습된 가격이 설정된 가격보다 우선한다.
+
+        Returns:
+            ``{model_name: cost_per_1k_tokens}`` 딕셔너리.
+        """
+        _base = {
+            "claude-opus-4-6": 0.015,
+            "claude-sonnet-4-6": 0.003,
+            "claude-haiku-4-5": 0.00025,
+            "gpt-4o": 0.005,
+            "gpt-4o-mini": 0.00015,
+        }
+        _base.update(getattr(self, "_learned_prices", {}))
+        return _base

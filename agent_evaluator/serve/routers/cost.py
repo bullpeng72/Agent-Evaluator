@@ -1,7 +1,8 @@
 """평가 비용 API — Phase 3-C."""
 from __future__ import annotations
+from datetime import datetime, timedelta
 from typing import Any, Dict, List
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, HTTPException, Query, Request
 
 router = APIRouter(prefix="/api/cost", tags=["cost"])
 
@@ -32,6 +33,138 @@ def cost_summary(request: Request) -> Dict[str, Any]:
         "file_count": len(rs.files),
         "by_file": by_file,
     }
+
+@router.get("/trend")
+def cost_trend(
+    request: Request,
+    days: int = Query(default=30, ge=1, le=365),
+) -> Dict[str, Any]:
+    """날짜별 비용 추세 (B9) — 최근 N일간 파일별 비용을 날짜 버킷으로 집계.
+
+    Returns:
+        period_days, buckets (날짜 리스트), values (날짜별 총 비용 USD),
+        cumulative (누적 비용), by_file (파일별 상세)
+    """
+    rs = _rs(request)
+    since = datetime.now() - timedelta(days=days)
+
+    # 날짜 버킷 초기화
+    bucket_costs: Dict[str, float] = {}
+    by_file: List[Dict[str, Any]] = []
+
+    for f in rs.files:
+        ts_raw = getattr(f, "timestamp", None) or ""
+        try:
+            ts = datetime.fromisoformat(str(ts_raw)[:19])
+        except Exception:
+            ts = None
+
+        if ts is not None and ts < since:
+            continue
+
+        cost_data = getattr(f, "cost_data", {}) or {}
+        file_cost = float(cost_data.get("total_usd", 0.0) or 0.0)
+        date_key = ts.strftime("%Y-%m-%d") if ts else "unknown"
+        bucket_costs[date_key] = bucket_costs.get(date_key, 0.0) + file_cost
+        by_file.append({
+            "file_id": f.file_id,
+            "name": f.name,
+            "date": date_key,
+            "cost_usd": round(file_cost, 6),
+        })
+
+    # Sort by date
+    buckets = sorted(bucket_costs.keys())
+    values = [round(bucket_costs[b], 6) for b in buckets]
+    cumulative: List[float] = []
+    running = 0.0
+    for v in values:
+        running += v
+        cumulative.append(round(running, 6))
+
+    return {
+        "period_days": days,
+        "total_usd": round(sum(values), 6),
+        "buckets": buckets,
+        "values": values,
+        "cumulative": cumulative,
+        "by_file": sorted(by_file, key=lambda x: x["date"]),
+    }
+
+
+@router.get("/breakdown")
+def cost_breakdown(
+    request: Request,
+    by: str = Query(default="model", description="그룹화 기준: model|task_type|file"),
+) -> Dict[str, Any]:
+    """비용 세부 분석 (B9) — by 기준 그룹화.
+
+    Returns:
+        by, groups (key → total_usd/task_count/avg_cost_per_task/total_tokens)
+    """
+    rs = _rs(request)
+    groups: dict = {}
+
+    for f in rs.files:
+        cost_data = getattr(f, "cost_data", {}) or {}
+        file_total = float(cost_data.get("total_usd", 0.0) or 0.0)
+
+        if by == "file":
+            key = f.name or f.file_id
+            if key not in groups:
+                groups[key] = {"total_usd": 0.0, "task_count": 0, "total_tokens": 0}
+            groups[key]["total_usd"] += file_total
+            groups[key]["task_count"] += f.total_tasks
+            # tokens from efficiency_metrics
+            tok = (f.efficiency_metrics or {}).get("tokens", {})
+            groups[key]["total_tokens"] += int(tok.get("total_tokens", 0) or 0)
+        else:
+            # task-level grouping
+            tasks = getattr(f, "tasks", []) or []
+            for t in tasks:
+                if by == "model":
+                    tok_info = getattr(t, "tokens_used", {}) or {}
+                    key = str(tok_info.get("model", "unknown") or "unknown")
+                elif by == "task_type":
+                    key = str(getattr(t, "task_type", "unknown") or "unknown")
+                else:
+                    key = str(getattr(t, by, "unknown") or "unknown")
+
+                if key not in groups:
+                    groups[key] = {"total_usd": 0.0, "task_count": 0, "total_tokens": 0}
+                # Per-task cost estimation: divide file_total evenly if no per-task cost
+                task_cost = 0.0
+                adv = getattr(t, "advanced_metrics", {}) or {}
+                if "cost_usd" in adv:
+                    task_cost = float(adv["cost_usd"] or 0.0)
+                elif f.total_tasks > 0:
+                    task_cost = file_total / f.total_tasks
+
+                tok_info = getattr(t, "tokens_used", {}) or {}
+                total_tok = int(
+                    tok_info.get("total", tok_info.get("input", 0) + tok_info.get("output", 0))
+                )
+                groups[key]["total_usd"] += task_cost
+                groups[key]["task_count"] += 1
+                groups[key]["total_tokens"] += total_tok
+
+    # 최종 포맷: avg_cost_per_task 계산 + 반올림
+    result_groups = {}
+    for key, g in groups.items():
+        count = g["task_count"]
+        result_groups[key] = {
+            "total_usd": round(g["total_usd"], 6),
+            "task_count": count,
+            "avg_cost_per_task": round(g["total_usd"] / count, 8) if count else 0.0,
+            "total_tokens": g["total_tokens"],
+        }
+
+    return {
+        "by": by,
+        "total_usd": round(sum(g["total_usd"] for g in result_groups.values()), 6),
+        "groups": result_groups,
+    }
+
 
 @router.get("/{file_id}")
 def get_file_cost(file_id: str, request: Request) -> Dict[str, Any]:

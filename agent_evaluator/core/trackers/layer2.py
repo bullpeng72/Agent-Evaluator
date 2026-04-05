@@ -657,6 +657,56 @@ class ToolSelectionTracker(BaseTracker):
             "total_false_negatives": int(df["false_negatives"].sum())
         }
 
+    def get_f1_by_tool(self) -> Dict[str, Dict[str, float]]:
+        """도구별 F1/Precision/Recall 세부 분류를 반환한다 (C3).
+
+        각 expected_tool에 대해 실제 선택 여부를 기준으로 per-tool 지표를 계산한다.
+
+        Returns:
+            Dict mapping tool_name → {precision, recall, f1, tp, fp, fn, appearances}.
+
+        Example::
+
+            stats = tracker.get_f1_by_tool()
+            # {"search": {"f1": 85.0, "precision": 90.0, "recall": 80.0, ...},
+            #  "calculator": {"f1": 100.0, "appearances": 3, ...}}
+        """
+        if not self._selections:
+            return {}
+
+        tool_stats: Dict[str, Dict[str, int]] = {}
+        for sel in self._selections:
+            expected = set(_normalize_tool_name(t) for t in sel.get("expected_tools", []))
+            actual = set(_normalize_tool_name(t) for t in sel.get("actual_tools", []))
+            for tool in expected | actual:
+                if tool not in tool_stats:
+                    tool_stats[tool] = {"tp": 0, "fp": 0, "fn": 0, "appearances": 0}
+                if tool in expected:
+                    tool_stats[tool]["appearances"] += 1
+                if tool in expected and tool in actual:
+                    tool_stats[tool]["tp"] += 1
+                elif tool in actual and tool not in expected:
+                    tool_stats[tool]["fp"] += 1
+                elif tool in expected and tool not in actual:
+                    tool_stats[tool]["fn"] += 1
+
+        result: Dict[str, Dict[str, float]] = {}
+        for tool, s in tool_stats.items():
+            tp, fp, fn = s["tp"], s["fp"], s["fn"]
+            precision = tp / (tp + fp) if (tp + fp) > 0 else 0.0
+            recall = tp / (tp + fn) if (tp + fn) > 0 else 0.0
+            f1 = (2 * precision * recall) / (precision + recall) if (precision + recall) > 0 else 0.0
+            result[tool] = {
+                "precision": round(precision * 100, 2),
+                "recall": round(recall * 100, 2),
+                "f1": round(f1 * 100, 2),
+                "tp": tp,
+                "fp": fp,
+                "fn": fn,
+                "appearances": s["appearances"],
+            }
+        return result
+
 
 # ============================================================================
 # 10. Agent Coordination Tracker (CrewAI)
@@ -956,6 +1006,59 @@ class AgentCoordinationTracker(BaseTracker):
                 "weaknesses": ["May indicate inefficient coordination"],
                 "recommendation": "Analyze agent interactions to establish clearer patterns"
             }
+
+    def get_network_topology(self) -> Dict[str, Any]:
+        """에이전트 네트워크 토폴로지 요약을 반환한다 (C4).
+
+        ``analyze_interaction_patterns()`` 를 호출해 패턴을 감지하고
+        핵심 지표만 추출한 compact 뷰를 반환한다.
+
+        Returns:
+            Dict with keys:
+                - ``pattern``: ``"hub"`` | ``"chain"`` | ``"mesh"`` | ``"unknown"`` | ``"none"``
+                - ``density``: 연결 밀도 (0.0–1.0)
+                - ``hub_node``: hub 패턴일 때 중심 에이전트 이름, 아니면 ``None``
+                - ``agent_count``: 고유 에이전트 수
+                - ``total_interactions``: 총 상호작용 수
+
+        Example::
+
+            topo = tracker.get_network_topology()
+            # {"pattern": "hub", "density": 0.4, "hub_node": "orchestrator",
+            #  "agent_count": 4, "total_interactions": 10}
+        """
+        if not self._interactions:
+            return {
+                "pattern": "none",
+                "density": 0.0,
+                "hub_node": None,
+                "agent_count": 0,
+                "total_interactions": 0,
+            }
+
+        patterns = self.get_interaction_patterns()
+
+        all_agents: set = set()
+        for itx in self._interactions:
+            if itx.get("from_agent"):
+                all_agents.add(itx["from_agent"])
+            if itx.get("to_agent"):
+                all_agents.add(itx["to_agent"])
+        n = len(all_agents)
+        max_pairs = n * (n - 1) if n > 1 else 1
+        unique_pairs = len({
+            tuple(sorted([str(itx.get("from_agent", "")), str(itx.get("to_agent", ""))]))
+            for itx in self._interactions
+        })
+        density = round(unique_pairs / max_pairs, 3) if max_pairs > 0 else 0.0
+
+        return {
+            "pattern": patterns.get("pattern_type", "unknown"),
+            "density": density,
+            "hub_node": patterns.get("hub_agent"),
+            "agent_count": n,
+            "total_interactions": len(self._interactions),
+        }
 
 
 # ============================================================================

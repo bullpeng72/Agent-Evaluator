@@ -13,6 +13,7 @@ import json
 
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import HTMLResponse, Response
+from typing import Optional
 
 router = APIRouter(prefix="/api/export", tags=["export"])
 
@@ -101,6 +102,142 @@ def export_csv(file_id: str, request: Request):
         content=content.encode("utf-8"),
         media_type="text/csv",
         headers={"Content-Disposition": f'attachment; filename="{rf.name}.csv"'},
+    )
+
+
+@router.get("/parquet/{file_id}")
+def export_parquet(file_id: str, request: Request):
+    """TaskResult 리스트를 Apache Parquet 형식으로 다운로드.
+
+    requires: ``pip install pyarrow`` (선택 의존성)
+    """
+    try:
+        import pyarrow as pa
+        import pyarrow.parquet as pq
+    except ImportError:
+        raise HTTPException(
+            status_code=409,
+            detail="pyarrow 미설치: pip install pyarrow",
+        )
+    rs = _result_set(request)
+    rf = rs.by_id(file_id)
+    if rf is None:
+        raise HTTPException(status_code=404, detail="File not found")
+
+    rows = []
+    for t in rf.tasks:
+        ts = t.timestamp.isoformat() if hasattr(t.timestamp, "isoformat") else str(t.timestamp)
+        tok = t.tokens_used or {}
+        rows.append({
+            "task_id":        t.task_id,
+            "task_type":      str(t.task_type),
+            "success":        t.success,
+            "completion_score": float(t.completion_score),
+            "accuracy_score": float(t.accuracy_score),
+            "execution_time": float(t.execution_time),
+            "attempts":       int(t.attempts),
+            "framework":      str(getattr(t, "framework", "") or ""),
+            "tokens_input":   int(tok.get("input", 0)),
+            "tokens_output":  int(tok.get("output", 0)),
+            "tokens_total":   int(tok.get("total", 0)),
+            "has_error":      bool(t.errors),
+            "timestamp":      ts,
+        })
+
+    if not rows:
+        raise HTTPException(status_code=404, detail="No tasks found")
+
+    table = pa.Table.from_pylist(rows)
+    buf = io.BytesIO()
+    pq.write_table(table, buf)
+    buf.seek(0)
+    return Response(
+        content=buf.read(),
+        media_type="application/octet-stream",
+        headers={"Content-Disposition": f'attachment; filename="{rf.name}.parquet"'},
+    )
+
+
+@router.get("/excel/{file_id}")
+def export_excel(file_id: str, request: Request):
+    """Excel (.xlsx) 형식으로 내보내기 (B10).
+
+    openpyxl이 없으면 501 오류 반환.
+    """
+    try:
+        import openpyxl
+    except ImportError:
+        raise HTTPException(
+            status_code=501,
+            detail="openpyxl 미설치: pip install openpyxl",
+        )
+
+    rs = _result_set(request)
+    rf = rs.by_id(file_id)
+    if rf is None:
+        raise HTTPException(status_code=404, detail="File not found")
+
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "Tasks"
+
+    # Detect advanced metric keys
+    adv_keys: list = []
+    if rf.has_advanced or rf.has_rag:
+        key_set: set = set()
+        for t in rf.tasks:
+            am = t.advanced_metrics or {}
+            key_set.update(am.keys())
+        adv_keys = sorted(key_set)
+
+    headers = [
+        "task_id", "task_type", "success",
+        "completion_score", "accuracy_score",
+        "execution_time",
+        "tokens_input", "tokens_output", "tokens_total",
+        "tool_calls_count", "attempts", "errors",
+        "timestamp", "framework",
+    ] + adv_keys
+
+    ws.append(headers)
+
+    for t in rf.tasks:
+        tu = t.tokens_used or {}
+        tok_in = tu.get("input", 0)
+        tok_out = tu.get("output", 0)
+        tok_tot = tu.get("total", tok_in + tok_out)
+        ts_str = t.timestamp.isoformat() if hasattr(t.timestamp, "isoformat") else str(t.timestamp)
+        row = [
+            t.task_id,
+            str(t.task_type),
+            t.success,
+            round(t.completion_score, 4),
+            round(t.accuracy_score, 4),
+            t.execution_time,
+            tok_in,
+            tok_out,
+            tok_tot,
+            len(t.tool_calls) if t.tool_calls else 0,
+            t.attempts,
+            "; ".join(str(e) for e in t.errors),
+            ts_str,
+            getattr(t, "framework", "") or "",
+        ]
+        # Per-task advanced metrics
+        am = t.advanced_metrics or {}
+        for k in adv_keys:
+            v = am.get(k)
+            row.append(round(float(v), 4) if isinstance(v, (int, float)) else (v or ""))
+        ws.append(row)
+
+    buf = io.BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+
+    return Response(
+        content=buf.getvalue(),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="{rf.name}.xlsx"'},
     )
 
 

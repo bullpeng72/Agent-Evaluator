@@ -17,6 +17,7 @@ TaskResult 동적 데이터 생성 헬퍼 함수 라이브러리
 - validate_tool_authorization(): 도구 호출 권한 검증
 """
 
+import dataclasses
 import logging
 import re
 from datetime import datetime
@@ -483,6 +484,9 @@ def create_taskresult_from_execution(
     partial_reason: Optional[str] = None,
     context: Optional[str] = None,
     model_name: str = "",
+    metadata: Optional[Dict[str, Any]] = None,
+    extra: Optional[Dict[str, Any]] = None,
+    **extra_fields: Any,
 ):
     """
     Agent 실행 결과로부터 TaskResult 생성 (모든 필드 동적 계산)
@@ -508,6 +512,13 @@ def create_taskresult_from_execution(
             지정하면 tokens dict에 "model" 키로 추가되어 Phoenix "Top models" 차트에서
             태스크별 모델 구분이 가능하다 (멀티 모델 평가 시 유용).
             미지정 시 PerformanceMonitor.model_name (전역 설정)이 사용된다.
+        metadata: 추가 메타데이터 dict (D6). ``TaskResult.extra`` 필드에 병합된다.
+            ``extra`` 와 동시에 지정 시 ``metadata`` 가 ``extra`` 를 덮어쓴다.
+        extra: ``TaskResult.extra`` 기본값. ``metadata`` 보다 낮은 우선순위.
+        **extra_fields: ``TaskResult`` 의 선택적 필드를 직접 주입한다 (Item T).
+            예: ``framework="langchain"``, ``tokens_used={"input": 10, "output": 20, "total": 30}``,
+            ``errors=["some error"]``, ``tool_calls=[...]``.
+            ``TaskResult`` 필드로 등록되지 않은 키는 무시된다. 기존 자동 계산값보다 우선 적용된다.
 
     Returns:
         TaskResult: 동적 계산된 TaskResult 객체
@@ -598,8 +609,17 @@ def create_taskresult_from_execution(
         # completion_score를 사용자가 직접 지정한 경우 — 추론 불가
         # partial_reason은 None으로 유지
 
-    # 6. TaskResult 생성
-    return TaskResult(
+    # 6. D6: metadata → extra 병합
+    # metadata가 있으면 extra에 병합 (metadata가 우선)
+    if metadata:
+        if extra:
+            merged_extra: Optional[Dict[str, Any]] = {**extra, **metadata}
+        else:
+            merged_extra = dict(metadata)
+        extra = merged_extra
+
+    # 7. TaskResult 생성 (기본값 dict 먼저 구성)
+    _base_kwargs: Dict[str, Any] = dict(
         task_id=task_id,
         task_type=getattr(TaskType, task_type.upper(), TaskType.QA).value,
         success=not has_error,
@@ -616,7 +636,16 @@ def create_taskresult_from_execution(
         response=response,               # ✅ raw content — 대시보드 표시용
         ground_truth=str(ground_truth) if ground_truth is not None else None,  # ✅ raw content
         context=context,                  # ✅ RAG 컨텍스트 — 할루시네이션 감지용
+        extra=extra,                      # ✅ D6: metadata 포함 사용자 정의 메타데이터
     )
+
+    # Item T: extra_fields — TaskResult 필드로 등록된 키만 허용, 기존 값 override
+    if extra_fields:
+        _valid_keys = {f.name for f in dataclasses.fields(TaskResult)}
+        _filtered = {k: v for k, v in extra_fields.items() if k in _valid_keys}
+        _base_kwargs.update(_filtered)
+
+    return TaskResult(**_base_kwargs)
 
 
 # ============================================================================

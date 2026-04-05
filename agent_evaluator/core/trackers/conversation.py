@@ -153,6 +153,8 @@ class ConversationMetrics:
     score_stddev: float  # 4개 구성 점수의 표준편차. **낮을수록 균형 잡힌 대화**를 의미.
     #   0.0 = 모든 차원 점수 동일(완벽한 균형), 0.5 = 보통, ≥0.3 = 특정 차원 편중 주의.
     computed_at: str  # ISO-8601 datetime string
+    # F1: 턴별 품질 점수 (선택 항목 — turn_score_fn 지정 시 채워짐)
+    turn_scores: Optional[Dict[int, float]] = None
 
     def __repr__(self) -> str:
         return (

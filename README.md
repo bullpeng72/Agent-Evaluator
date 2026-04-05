@@ -3,7 +3,7 @@
 [![PyPI version](https://img.shields.io/pypi/v/agent-evaluator.svg)](https://pypi.org/project/agent-evaluator/)
 [![Python Version](https://img.shields.io/badge/python-3.8%2B-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Version](https://img.shields.io/badge/version-0.7.0-green.svg)](https://github.com/bullpeng72/Agent-Evaluator)
+[![Version](https://img.shields.io/badge/version-0.7.2-green.svg)](https://github.com/bullpeng72/Agent-Evaluator)
 
 **AI 에이전트를 위한 프로덕션 레디 평가 프레임워크**
 
@@ -183,7 +183,7 @@ pipx는 기본적으로 pip 인덱스 캐시를 사용하므로, 최신 버전�
 
 ```bash
 # 방법 1: 버전 명시 (권장)
-pipx install "agent-evaluator[all]==0.7.0"
+pipx install "agent-evaluator[all]==0.7.2"
 
 # 방법 2: 캐시 무시
 pipx install --pip-args="--no-cache-dir" "agent-evaluator[all]"
@@ -442,7 +442,7 @@ agent-eval check
 
 출력 예시:
 ```
-  Agent Evaluator v0.7.0 — 설정 상태
+  Agent Evaluator v0.7.2 — 설정 상태
   ──────────────────────────────────────────────────
 ℹ  .env 로드: /home/user/project/.env
 
@@ -702,7 +702,7 @@ agent-evaluator/
 │   ├── 16_dashboard_demo.py         # FastAPI 대시보드 통합 데모 — save_to_file + Phoenix OTEL
 │   └── 17_phoenix_verification.py   # Phoenix 4개 메뉴 통합 데모 — Tracing·Evaluators·Datasets·Prompts
 │
-├── tests/                        # 단위 테스트 (962개 테스트 함수, 37개 파일)
+├── tests/                        # 단위 테스트 (1,769개 테스트 함수, 59개 파일)
 ├── pyproject.toml
 └── LICENSE
 ```
@@ -843,6 +843,27 @@ mypy agent_evaluator/
 
 ## 변경 이력
 
+### v0.7.2 (2026-04-05) — 데코레이터 API 완성 · 25개 개선 · 대시보드 API 확장
+
+- **데코레이터 API 완성** — `agent_eval`/`batch_eval`/`conversation_eval`/`EvalDecorator` 파라미터 일관성 확보; `timeout` → `_COMMON_PARAMS` 전파; `on_record` → `conversation_eval` + `_CONV_PARAMS`
+- **`framework="auto"`** — `_auto_detect_framework()` 자동 호출; chain_steps 정규화(None→[], tool_calls→변환)
+- **대시보드 API 확장** — `/latency-percentiles` (p50/p75/p95/p99); `/token-analytics` (by_task_type/framework); tasks[]에 `model_name`·`adapter_error` 필드; `/tasks/search` `search_fields` 파라미터
+- **PerformanceMonitor 신규 메서드** — `get_report_by_framework()`, `filter_tasks()`, `export_by_framework()`, `get_live_stats()` 확장 (error_count/error_rate/task_type_distribution)
+- **QuickEval 편의성** — `gate(dry_run=True)` 시뮬레이션 모드; `list_presets()` / `from_preset()` 클래스 메서드; `_QuickEvalDecorator` overload 타입힌트
+- **`get_framework_info()`** — `is_installed` 필드 추가 (`importlib.util.find_spec`)
+- **`"native": None` sentinel** — `_FRAMEWORK_ADAPTERS`에 추가; adapter None guard 적용
+- **테스트** — 1,769개 테스트 함수, 59개 파일
+
+### v0.7.1 (2026-04-03) — 데코레이터 커버리지 확대 · 편의성 개선
+
+- **`QuickEval`** — 원스톱 Facade; `for_rag()`, `for_security()`, `for_llm_judge()` 팩토리; `gate()`, `summary()`, `save()`
+- **`SimpleTaskAlertRule`** — `StreamingEvaluator` 불필요 경량 알림; `alert_rules=` 파라미터 통합
+- **`flush_every`** — N호출마다 `save_to_file()` 자동 실행
+- **DSPy / PydanticAI 통합** — `DSPyEvaluator`, `PydanticAIEvaluator` 신규; `[dspy]`, `[pydanticai]` extras
+- **`_ShortcutCallable`** — `@eval.qa` / `@eval.qa(score_fn=...)` 두 패턴 모두 지원
+- **`AGENT_EVAL_PRESETS`** — "performance", "security" 프리셋 추가; `preset=` 파라미터 batch_eval/conversation_eval에 적용
+- **테스트** — 4개 파일 신규 추가
+
 ### v0.7.0 (2026-04-01) — 운영 실시간 모니터링 (Phoenix + OTEL)
 
 - **`agent-eval monitor`** — Arize Phoenix 서버를 기동하고 OpenTelemetry 스팬 수신을 설정하는 CLI 명령어 추가
@@ -865,7 +886,7 @@ mypy agent_evaluator/
 - **골든 데이터셋 재설계** — 경로 `results/golden_datasets/` → `data/golden_datasets/`
 - **이상 감지 파이프라인** — `save_to_file()` → `anomaly_data` → 대시보드 연결
 - **Python 3.13 지원** — `numpy<3.0.0`, `pandas<4.0.0` 상한 완화
-- **테스트** — 962개 테스트 함수, 37개 파일
+- **테스트** — 1,769개 테스트 함수, 59개 파일
 
 ---
 
@@ -905,7 +926,7 @@ MIT License — 자세한 내용은 [LICENSE](LICENSE) 파일을 참고하세요
   title   = {Agent Evaluator: Production-ready evaluation framework for AI agents},
   author  = {Kim, Sungwoo},
   year    = {2026},
-  version = {0.7.0},
+  version = {0.7.2},
   url     = {https://github.com/bullpeng72/Agent-Evaluator},
   license = {MIT}
 }

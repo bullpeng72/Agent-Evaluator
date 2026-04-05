@@ -324,3 +324,39 @@ class GoldenSetBuilder:
         with open(path, "w", encoding="utf-8") as f:
             json.dump(dataset, f, ensure_ascii=False, indent=2, default=str)
         return path
+
+    def push_to_phoenix(
+        self,
+        cases: List[Dict[str, Any]],
+        dataset_name: str,
+        phoenix_endpoint: str = "http://localhost:6006",
+        version: str = "latest",
+    ) -> Optional[str]:
+        """골든셋 케이스를 저장한 뒤 Phoenix Datasets API로 한 번에 업로드한다.
+
+        ``merge_to_golden()`` + ``upload_to_phoenix()`` 를 순서대로 실행하는
+        편의 메서드. Phoenix UI → Datasets & Experiments 탭에서 확인 가능.
+
+        Args:
+            cases: 골든셋에 추가할 케이스 목록 (``extract()`` 또는 직접 생성).
+            dataset_name: Phoenix에 표시될 데이터셋 이름.
+            phoenix_endpoint: Phoenix 서버 주소 (기본: ``http://localhost:6006``).
+            version: 저장 파일에 붙는 버전 태그 (기본: ``"latest"``).
+
+        Returns:
+            생성된 Phoenix dataset_id 문자열. 실패 시 None.
+
+        Example::
+
+            builder = GoldenSetBuilder("results/", "data/golden_datasets/")
+            candidates = builder.extract(strategies=["failure_cases", "high_value"])
+            dataset_id = builder.push_to_phoenix(candidates, dataset_name="qa-golden-v1")
+        """
+        if not cases:
+            return None
+        saved_path = self.merge_to_golden(cases, version=version, output_name=f"{dataset_name}.json")
+        return self.upload_to_phoenix(
+            str(saved_path),
+            dataset_name=dataset_name,
+            phoenix_endpoint=phoenix_endpoint,
+        )

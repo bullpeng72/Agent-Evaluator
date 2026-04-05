@@ -5,7 +5,7 @@
 **Agent-Evaluator** is a production-ready Python SDK for evaluating AI agents.
 25개의 성능 지표를 세 개의 레이어(기본/에이전틱/하이브리드)로 측정한다.
 
-- **Version:** 0.7.0 (Beta)
+- **Version:** 0.7.2 (Beta)
 - **Python:** 3.8+
 - **License:** MIT
 - **Author:** Sungwoo Kim
@@ -24,6 +24,8 @@ pip install -e ".[langchain,serve]"    # LangChain/LangGraph 포함
 pip install -e ".[eval]"               # DeepEval/Ragas 평가
 pip install -e ".[crewai]"            # CrewAI 단독 (무거움)
 pip install -e ".[autogen]"           # AutoGen 단독 (무거움)
+pip install -e ".[dspy]"              # DSPy 통합 (dspy-ai)
+pip install -e ".[pydanticai]"        # PydanticAI 통합 (pydantic-ai)
 pip install -e ".[all]"               # crewai/autogen 제외 전체 (권장)
 pip install -e ".[full]"              # 진짜 전체 (⚠️ 10분+ 소요)
 
@@ -179,6 +181,40 @@ scripts/                     # 운영 도구 (live 인프라 필요, pytest 대�
 
 ## Key Classes
 
+### `QuickEval`
+원스톱 평가 Facade — `PerformanceMonitor` + `EvalDecorator` 를 1~2줄로 시작.
+
+```python
+from agent_evaluator import QuickEval
+
+# 기본 사용 — 결과 디렉토리만 지정
+eval = QuickEval("results/")
+
+@eval.qa                          # task_type="qa"
+def agent(question, ground_truth=""): ...
+
+@eval.tool_use                    # task_type="tool_use"
+def tool_agent(question, ground_truth=""): ...
+
+@eval.rag                         # task_type="information_retrieval" + context_arg="context"
+def rag_agent(question, context="", ground_truth=""): ...
+
+eval.save()                       # quickeval.json + quickeval.html
+eval.gate(tcr=85, accuracy=70)    # CI/CD 게이팅 — 실패 시 sys.exit(1)
+
+# 용도별 팩토리
+eval = QuickEval.for_rag("results/")              # hallucination_detection=True
+eval = QuickEval.for_security("results/")         # enable_security_metrics=True
+eval = QuickEval.for_llm_judge("results/", model="claude-sonnet-4-6")
+
+# 자동 저장 — 10건마다 save_to_file() 자동 호출
+eval = QuickEval("results/", auto_save=True, auto_save_interval=10)
+
+# 단축 데코레이터: qa, tool_use, rag, code, reasoning, planning, data_analysis, creative, chat, batch
+# 직접 호출: @eval(task_type="qa", score_fn=my_fn)
+# 재시도: @eval.with_retry(task_type="qa", max_retries=3)
+```
+
 ### `PerformanceMonitor`
 중앙 오케스트레이터. 모든 트래커를 내부에서 구성.
 
@@ -187,6 +223,10 @@ monitor = PerformanceMonitor(
     output_dir="results/",
     enable_hallucination_detection=False,  # 기본값 False (성능 영향)
     enable_security_metrics=False,         # 기본값 False
+    # 자동 저장 (Task 2)
+    auto_save=False,                       # True 이면 N건마다 save_to_file() 자동 호출
+    auto_save_interval=10,                 # 저장 주기 (기본: 10)
+    auto_save_filename="auto_save",        # 저장 파일명
 )
 monitor.record_task(task_result)           # PerformanceMonitor 반환 — 메서드 체이닝 가능
 report = monitor.generate_report()
@@ -273,6 +313,71 @@ crew = create_evaluated_crew(tasks, agents, monitor=monitor)
 agent = create_evaluated_langchain_agent(llm, tools, monitor=monitor)
 graph = create_evaluated_langgraph(graph, monitor=monitor)
 agent = create_evaluated_autogen_agent(config, monitor=monitor)
+```
+
+### Framework-Specific Decorators
+각 프레임워크에 최적화된 `@agent_eval` 별칭. 프레임워크 응답에서 메타데이터를 자동 추출한다.
+
+```python
+from agent_evaluator.integrations import (
+    # Agent 프레임워크
+    langchain_eval,   # intermediate_steps → tool_calls/chain_steps
+    langgraph_eval,   # messages → state_transitions/graph_traversal/tool_calls
+    crewai_eval,      # tasks_output → agent_interactions
+    autogen_eval,     # messages/chat_history → conversation_turns
+    dspy_eval,        # _completions → chain_steps + token usage
+    pydanticai_eval,  # RunResult.usage() → tokens_used
+    # LLM SDK (v0.7.2+)
+    anthropic_eval,   # content[].tool_use → tool_calls + usage tokens
+    openai_eval,      # choices[0].message.tool_calls + usage.total_tokens
+    gemini_eval,      # candidates[0].content.parts[].function_call + usage_metadata
+    llamaindex_eval,  # source_nodes → chain_steps + metadata tokens
+    haystack_eval,    # pipeline component outputs → chain_steps
+)
+
+@langchain_eval(monitor)
+def my_agent(question: str, ground_truth: str = "") -> str:
+    return agent_executor.invoke({"input": question})
+
+# 또는 QuickEval 에서 framework= 파라미터로 직접 지정
+@eval(task_type="tool_use", framework="langchain")
+def my_agent(question: str, ground_truth: str = "") -> str: ...
+```
+
+### `SimpleTaskAlertRule`
+`StreamingEvaluator` 없이 `TaskResult` 기반으로 동작하는 경량 알림 규칙.
+
+```python
+from agent_evaluator import SimpleTaskAlertRule, agent_eval
+
+rule = SimpleTaskAlertRule(
+    name="slow_response",
+    condition=lambda tr: tr.execution_time > 5.0,
+    handler=lambda msg, tr: print(f"[ALERT] {msg}"),
+    severity="warning",
+    cooldown=60,  # 60초 쿨다운
+)
+
+@agent_eval(monitor, task_type="qa", alert_rules=[rule])
+def agent(question, ground_truth=""): ...
+
+# batch_eval / eval_context / EvalDecorator 에도 동일하게 적용 가능
+@batch_eval(monitor, alert_rules=[rule])
+def batch_agent(questions, ground_truths=None): ...
+
+with eval_context(monitor, "qa", alert_rules=[rule]) as ctx:
+    ctx.response = external_fn(question)
+```
+
+### `flush_every` (자동 주기 저장)
+N번 호출마다 `save_to_file()` 을 자동 실행한다.
+
+```python
+@agent_eval(monitor, task_type="qa", flush_every=10, flush_filename="periodic")
+def agent(question, ground_truth=""): ...
+
+@batch_eval(monitor, flush_every=5, flush_filename="batch_periodic")
+def batch_agent(questions, ground_truths=None): ...
 ```
 
 ---
@@ -373,7 +478,7 @@ from agent_evaluator import (
 
 ## Testing
 
-`tests/` 디렉토리에 37개 파일, 962개 테스트 함수 존재.
+`tests/` 디렉토리에 59개 파일, 1,769개+ 테스트 함수 존재.
 
 ```bash
 # pytest.ini_options in pyproject.toml already configured:
@@ -403,6 +508,8 @@ pytest
 - `[crewai]` — `crewai>=1.0.0,<2.0.0` — 무거움 (전이 의존성 100개+), 단독 격리
 - `[autogen]` — `pyautogen>=0.3.0,<1.0.0` + `autogen-agentchat/core>=0.4.0` — 무거움, 단독 격리
 - `[eval]` — `deepeval>=3.0.0,<4.0.0` + `ragas>=0.4.0,<2.0.0` + `datasets>=4.0.0,<6.0.0` + `langchain>=0.2.0`
+- `[dspy]` — `dspy-ai>=2.0.0` — DSPy 프로그램 평가 (`DSPyEvaluator`, `dspy_eval`)
+- `[pydanticai]` — `pydantic-ai>=0.0.13` — PydanticAI Agent 평가 (`PydanticAIEvaluator`, `pydanticai_eval`)
 - `[serve]` — `fastapi>=0.110.0` + `uvicorn[standard]>=0.29.0` + `jinja2>=3.1.0` + `python-multipart>=0.0.9` — 빠름
 - `[pdf]` — `pypdf>=3.0.0,<7.0.0` + `pdfplumber>=0.10.0,<1.0.0` — 빠름
 
@@ -441,6 +548,127 @@ pytest
 ---
 
 ## 📝 변경 이력
+
+### v0.7.2 (2026-04-05) — 데코레이터 종합 개선 · 21개 프레임워크 어댑터 · QuickEval Facade · 대시보드 API 확장
+
+**데코레이터 API 완성 (agent_eval · batch_eval · eval_context · conversation_eval · EvalDecorator)**
+
+- **`agent_eval` 단축 파라미터** — `rag_mode=True` (context_arg + hallucination + IR 자동), `security_mode=True` (보안 메트릭 임시 활성), `enable_llm_judge` / `judge_model` (LLM Judge 임시), `enable_anomaly_detection` (이상 감지 임시), `enable_hallucination` (hallucination 임시) — 모두 temp-override 패턴으로 finally에서 복원
+- **`EvalDecorator` 인스턴스 모드 파라미터** — `__init__`에 위 5개 파라미터 추가; `_defaults`에 저장 → `.batch()`/`.context()`/`.__call__()` 자동 전파
+- **`EvalDecorator` 단축 속성** — `.qa` / `.tool_use` / `.rag` / `.code` / `.reasoning` / `.planning` / `.data_analysis` / `.creative` / `.multi_agent` / `.secure` 10개 `@property`; `QuickEval`과 API 일관성
+- **`batch_eval` 심화** — `concurrent=True`/`max_concurrent`, `shuffle`, `item_timeout`, `strict_types`, `on_item_error`, `return_format`("list"/"tuple"/"dataframe"), `streaming_mode`, `allow_duplicate_task_ids`; DataFrame에 tokens_total/input/output, framework, tool_call_count, has_error, attempts, timestamp 추가
+- **`eval_context` 심화** — `timeout`, `ttft_seconds`, `chunk_step()` (스트리밍 청크 기록 + 첫 청크 TTFT 자동), `auto_task_id`, `depth` property (중첩 깊이 ContextVar), `MAX_NESTING_DEPTH` 상한
+- **`conversation_eval` 심화** — `participant_id_arg`, `max_turns_exceeded_action`, `load_previous_session`, `flush_every`/`flush_filename`, `on_session_timeout`, `on_turn`, `session_score_fn`, `turn_score_fn`; async generator 지원
+- **`agent_eval_with_retry` 심화** — `jitter_type`("full"/"decorrelated"/"none"), `max_delay`, `should_retry` callable, `alert_rules`, `flush_every`
+- **Generator TTFT 자동 기록** — `gen_wrapper`/`agen_wrapper`에서 첫 비-EvalMetadata 청크 yield 시점 → `latency_tracker.track_ttft()` 자동 연동
+- **`on_record` 교체** — `on_record` 가 `TaskResult` 반환 시 원본 교체; completion/accuracy score [0,1] clamp
+- **`sample_condition`** — `(args, kwargs) → bool` 조건부 샘플링; `sample_rate`와 독립
+
+**QuickEval Facade**
+
+- **원스톱 시작** — `QuickEval("results/")` 1줄로 PerformanceMonitor + EvalDecorator 구성; `for_rag()` / `for_security()` / `for_llm_judge()` / `for_regression_eval()` 팩토리
+- **`gate()`** — tcr/accuracy/quality/hallucination 임계값; config_file JSON 로드; 비활성 트래커 UserWarning
+- **`summary()`** — p95_latency, total_cost_usd, quality_avg, hallucination_rate 포함
+- **`compare(other)` / `ab_test(other)`** — 두 인스턴스 지표 비교; t-검정 p-value (scipy 있을 때)
+- **`from_config(yaml_file)` / `replay(results_file)` / `export_to_dataframe()`**
+- **`@eval.cached(ttl=3600)`** — TTL 기반 응답 캐싱; async 함수 자동 감지
+- **`watch(directory, callback)`** — 디렉토리 감시 + 신규 JSON 자동 replay; `max_watched_files` 상한
+- **`generate_gate_config(filepath)`** — 현재 지표 기반 95% 임계값 자동 제안
+- **단축 데코레이터** — `.qa` / `.tool_use` / `.rag` / `.code` / `.reasoning` / `.planning` / `.data_analysis` / `.creative` / `.streaming` / `.multi_agent` / `.security`; `alert_rules`/`flush_every`/`flush_filename` 전역 설정 → 모든 단축 데코레이터 자동 적용
+- **`__repr__` 버그 수정** — `tcr_tracker` 없을 때 `AttributeError` → `tasks=0` 안전 반환
+
+**21개 프레임워크 어댑터**
+
+- **LangChain/LangGraph** — `usage_metadata` + `response_metadata.token_usage` 다중 메시지 누산; `ToolMessage`/`AIMessage` chain_steps + 타임스탬프 기반 실행 시간
+- **CrewAI** — `token_usage`/`usage_metrics`/`usage` 딕셔너리 토큰 집계; `output_pydantic` / `output_format` (v2.x) 지원
+- **AutoGen** — `timestamp`/`created_at` 기반 턴별 실행 시간; `autogen_eval_async` 비동기 전용 데코레이터 (0.4+ async API)
+- **DSPy** — `_completions`/`completions` 속성 기반 자동 감지; LM history multi-step chain_steps; `tool_calls`/`actions` 추출
+- **PydanticAI** — `all_messages()` 우선 / `.messages` fallback; `ToolCallPart`/`ToolReturnPart`/`TextPart` 세분화; 속성 기반 자동 감지
+- **Anthropic** — `content[].tool_use` + `usage.input_tokens/output_tokens`; 캐시 토큰(cache_creation/cache_read, SDK ≥0.29) 추출
+- **OpenAI** — `choices[0].message.tool_calls` + `usage.total_tokens`; Assistants API `required_action`; 스트리밍 `choice.delta` fallback
+- **Gemini/VertexAI** — `candidates[0].content.parts[].function_call` + `usage_metadata`
+- **LlamaIndex/Haystack** — `source_nodes` → chain_steps; 파이프라인 컴포넌트 출력 dict → chain_steps
+- **Cohere/Groq/Mistral/Bedrock/smolagents/SemanticKernel/Ollama/vLLM/HuggingFace** — 각 SDK 전용 metadata 추출 + 캐시 토큰/function_call 구버전 호환
+- **`_auto_detect_framework()`** — 12개 속성 기반 자동 감지 (anthropic/openai/gemini/cohere/groq/mistral/bedrock/smolagents/vllm/huggingface/dspy/pydanticai); `auto_detect_framework=True` 기본 활성
+- **`FrameworkLiteral`** — 21개 프레임워크 Literal 타입 힌트; `agent_eval()` + `EvalDecorator.__init__()` 적용; 최상위 export; IDE 자동완성 지원
+- **`_safe_adapter_call()`** — 중앙 어댑터 에러 핸들러; 실패 시 logger.debug + None 반환
+- **`_FRAMEWORK_ADAPTER_META`** — 21개 어댑터 메타데이터 레지스트리; `get_framework_info(framework)` 조회 함수 최상위 export
+
+**PerformanceMonitor 심화**
+
+- **`reset(keep_config=True)`** / **`snapshot()`** / **`compare_with_snapshot(snap)`** / **`restore_from_snapshot()`** — 초기화·스냅샷·비교·복원 사이클
+- **`clone()`** / **`merge(other)`** — 설정 복제 / 두 모니터 태스크 병합
+- **`filter_tasks()`** / **`aggregate_metrics(since, until, by)`** / **`get_timeseries_metrics(metric, granularity)`** — 필터링·집계·시계열
+- **`export_to_dataframe(include_fields=None)`** / **`export_to_wandb()`** / **`export_to_mlflow()`** — DataFrame·W&B·MLflow 내보내기
+- **`compare(other)`** / **`compare_models()`** / **`analyze()`** — 모니터 비교·모델별 비용·병목 분석·최적화 권고
+- **`register_aggregator()` / `run_aggregator()` / `list_aggregators()`** — 사용자 정의 집계 함수 레지스트리
+- **`enabled_security_trackers`** — 선택적 보안 트래커 활성화 리스트
+- **`MultimodalMetricsTracker` 자동 연동** — `extra.image_count`/`audio_duration_seconds`/`video_frames` 자동 트리거
+- **`enable_otel_child_spans=True`** — chain_steps 각 항목을 별도 OTEL 자식 스팬으로 발행
+- **`enable_compression(algorithm)`** — save_to_file 시 gzip/bz2 추가 압축
+
+**새 지표 · 트래커**
+
+- **`LatencyTracker.track_ttft()` / `get_ttft_stats()`** — TTFT(Time-To-First-Token) 기록·통계; task_type 필터
+- **`TokenEconomyTracker.get_cost_breakdown_by_framework()`** — 프레임워크별 비용 집계
+- **`ToolSelectionTracker.get_f1_by_tool()`** — 도구별 F1/Precision/Recall
+- **`AgentCoordinationTracker.get_network_topology()`** — hub/chain/mesh 패턴 + 밀도 + 허브 노드
+- **`AnomalyDetector.explain_event()` / `scan_with_explain()`** — 이상 원인 설명 + 권고사항
+- **`CostTracker.learn_cost_model(tasks)` / `auto_price_map`** — 태스크 데이터 기반 비용 자동 학습
+- **`LLM Judge back-propagation`** — `_build_and_record()` 완료 후 monitor.tasks에서 enriched TaskResult 재조회 → decorator 반환값에 llm_judge(completeness/relevance/factual_consistency) 포함
+- **`ConversationMetrics.turn_scores`** — 턴별 품질 점수 Optional[Dict[int, float]]
+- **`partial_reason` 자동 생성** — 예외 발생 시 "execution_error", 빈 응답 시 "empty_response" 자동 설정
+- **`GoldenSetBuilder.push_to_phoenix(cases, dataset_name)`** — merge_to_golden() + upload_to_phoenix() 1-call 래퍼
+
+**AlertRuleBuilder · 알림 심화**
+
+- **`AlertRuleBuilder`** — `SimpleTaskAlertRule` 팩토리; `when_accuracy_below()` / `when_latency_above()` / `when_completion_below()` / `when_error()` / `when_tool_calls_exceed()` 5개 정적 메서드
+- **`SimpleTaskAlertRule.dry_run(task_result)`** — 핸들러 미실행 조건 검증
+- **`SimpleTaskAlertRule.class_level_cooldown`** — 동일 name 인스턴스 공유 쿨다운
+- **`compound_conditions`** — `[{"field", "op", "value"}]` 형식 복합 조건
+- **`agent_eval`에 `alert_rules=[]` 통합** — `batch_eval`/`eval_context`/`EvalDecorator`/`agent_eval_with_retry` 동일 API
+
+**AGENT_EVAL_PRESETS**
+
+- **`"production"`** — `flush_every: 50` + `enable_anomaly_detection: True`
+- **`"development"`** — `enable_llm_judge: True` + `auto_detect_framework: True`
+- **`"testing"` / `"canary"`** — 경량 평가 / 카나리 배포 최적 설정
+- **유효성 검사 경고 개선** — 알 수 없는 preset 입력 시 유효 목록 + 예시 코드 포함 경고; stacklevel=2
+
+**대시보드 API 확장 (50+ 엔드포인트)**
+
+- **태스크** — `/tasks/{id}` (llm_judge/streaming_steps/chunk_count 추가), `/tasks/search`, `/tasks/filter` (eq/ne/gt/gte/lt/lte/contains/in + AND/OR), `/tasks/bulk-tag`
+- **집계·분석** — `/frameworks` (프레임워크별 집계), `/distributions`, `/timeline`, `/aggregate`, `/aggregate/extra`, `/heatmap/{metric}`, `/metrics/{metric_name}`
+- **LLM Judge** — `/llm_judge` (min/max_score 필터 + skip/limit + 집계 평균)
+- **비교·랭킹** — `/api/compare` (detailed task diff), `/api/leaderboard`, `/api/results` sort_by/sort_desc
+- **세션** — `/sessions` (include_turns=True → metadata.tool_calls/model_name/tokens_used 최상위 노출), `/conversation/{session_id}`
+- **비용·이상** — `/cost/breakdown`, `/cost/trend`, `/anomaly`, `/anomaly/explain/{event_id}`
+- **내보내기·기타** — `/export/excel`, `/api/compare`, WebSocket `/api/ws/events`, SSE `/stream/tasks/{id}` + `/stream/filtered/{id}`, `/cache/stats`, `/rate-limit/status`, `/version`
+- **CRUD** — `DELETE /results/{id}` (soft/hard), `POST /golden/candidates/{name}/bulk-approve`, 알림 규칙 파일 영구 저장
+- **`/api/health`** OTEL 동적 감지; `/api/stats` 전체 통계
+
+**기타**
+
+- **`ResponseCache`** — TTL 기반 in-memory LRU 캐시; hits/misses/hit_rate 통계
+- **`format_error_context()`** — 오류 메시지 컨텍스트 포맷터
+- **`ValidationError(context=...)` / `InvalidOperationError(context=...)`** — context Dict 필드 추가
+- **`monitor.configure_suspicious_patterns()` / `evaluate_suspicious_patterns()`** — 의심 패턴 탐지
+- **테스트** — 55개 파일, 1,634개+ 테스트 함수
+
+### v0.7.1 (2026-04-03) — 데코레이터 커버리지 확대 · 편의성 개선
+
+- **`QuickEval`** 원스톱 Facade — `PerformanceMonitor` + `EvalDecorator` 를 1줄로 시작; `for_rag()`, `for_security()`, `for_llm_judge()` 팩토리 메서드; `gate()`, `summary()`, `save()` 제공
+- **`QuickEval.__repr__` 버그 수정** — `tcr_tracker` 없을 때 `AttributeError` → `tasks=0` 안전 반환
+- **프레임워크 전용 데코레이터** — `langchain_eval`, `langgraph_eval`, `crewai_eval`, `autogen_eval`, `dspy_eval`, `pydanticai_eval` (`agent_evaluator.integrations`)
+- **`_FRAMEWORK_ADAPTERS`** 레지스트리 — `framework=` 파라미터에 따라 응답에서 `tool_calls`/`chain_steps`/`state_transitions` 자동 추출
+- **`SimpleTaskAlertRule`** — `StreamingEvaluator` 불필요한 경량 `TaskResult` 기반 알림 규칙; `agent_eval`, `batch_eval`, `eval_context`, `EvalDecorator` 에 `alert_rules=` 파라미터로 통합
+- **`flush_every`** — `agent_eval`, `batch_eval` 에 N호출마다 `save_to_file()` 자동 실행 파라미터 추가
+- **`auto_save`** — `PerformanceMonitor` 에 N건마다 자동 저장 기능 추가 (`auto_save=True`, `auto_save_interval=10`)
+- **`_normalize_task_type()`** — `TaskType.QA` Enum과 `"qa"` 문자열 혼용 지원
+- **DSPy / PydanticAI 통합** — `DSPyEvaluator`, `DSPyMetricAdapter`, `PydanticAIEvaluator`, `PydanticAITokenExtractor` 신규; `[dspy]`, `[pydanticai]` extras 추가
+- **`batch_eval` / `conversation_eval` / `eval_context` / `EvalDecorator`** — `alert_rules`, `flush_every` 파라미터 API 일관성 적용
+- **`Evaluator_Examples/20_quickeval_demo.py`** — 신규 예제 (7섹션)
+- **테스트** — 4개 파일 신규 추가 (QuickEval, SimpleTaskAlertRule, framework adapters, auto_save/flush_every)
 
 ### v0.7.0 (2026-04-01) — 운영 실시간 모니터링 (Phoenix + OTEL)
 

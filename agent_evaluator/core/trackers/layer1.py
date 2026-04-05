@@ -1179,6 +1179,7 @@ class LatencyTracker(BaseTracker):
     def __init__(self):
         self._latencies: List[Dict[str, Any]] = []
         self._cached_stats: Optional[Dict[str, float]] = None  # invalidated on each record
+        self._ttft_records: List[Dict[str, Any]] = []  # C1: TTFT records
 
     @property
     def latencies(self) -> List[Dict[str, Any]]:
@@ -1195,6 +1196,7 @@ class LatencyTracker(BaseTracker):
         """Clear all latency records."""
         self._latencies.clear()
         self._cached_stats = None
+        self._ttft_records.clear()  # C1
 
     def record_latency(self, task_id: str, task_type: str,
                        total_time: float, breakdown: Dict[str, float]):
@@ -1312,6 +1314,59 @@ class LatencyTracker(BaseTracker):
                 }
 
         return type_stats
+
+    @property
+    def ttft_records(self) -> List[Dict[str, Any]]:
+        """Shallow copy of TTFT records."""
+        return list(self._ttft_records)
+
+    def track_ttft(self, task_id: str, ttft_seconds: float, task_type: str = "unknown") -> None:
+        """스트리밍 응답의 첫 번째 토큰까지의 시간(TTFT)을 기록한다 (C1).
+
+        Args:
+            task_id: 태스크 ID.
+            ttft_seconds: 첫 번째 토큰까지 걸린 시간(초).
+            task_type: 태스크 유형.
+
+        Example::
+
+            tracker.track_ttft("task_001", 0.35, task_type="qa")
+            stats = tracker.get_ttft_stats()
+            # {"mean": 0.35, "p95": 0.35, ...}
+        """
+        self._ttft_records.append({
+            "task_id": task_id,
+            "ttft": ttft_seconds,
+            "task_type": task_type,
+            "timestamp": datetime.now(),
+        })
+
+    def get_ttft_stats(self, task_type: Optional[str] = None) -> Dict[str, Any]:
+        """TTFT(Time-To-First-Token) 통계를 반환한다 (C1).
+
+        Args:
+            task_type: 특정 task_type 필터. ``None`` 이면 전체.
+
+        Returns:
+            mean, p50, p95, p99, min, max, count 통계 dict.
+            기록이 없으면 모두 0.0 반환.
+        """
+        records = self._ttft_records
+        if task_type:
+            records = [r for r in records if r["task_type"] == task_type]
+        if not records:
+            return {"mean": 0.0, "p50": 0.0, "p95": 0.0, "p99": 0.0,
+                    "min": 0.0, "max": 0.0, "count": 0}
+        times = [r["ttft"] for r in records]
+        return {
+            "mean": round(statistics.mean(times), 3),
+            "p50": round(float(np.percentile(times, 50)), 3),
+            "p95": round(float(np.percentile(times, 95)), 3),
+            "p99": round(float(np.percentile(times, 99)), 3),
+            "min": round(min(times), 3),
+            "max": round(max(times), 3),
+            "count": len(times),
+        }
 
     def check_sla_compliance(self, sla_targets: Dict[str, float]) -> Dict[str, Any]:
         """Check SLA compliance"""
@@ -1431,7 +1486,8 @@ class TokenEconomyTracker(BaseTracker):
         self.pricing = pricing
 
     def track_usage(self, task_id: str, input_tokens: int,
-                   output_tokens: int, task_type: str, model: str = "default"):
+                   output_tokens: int, task_type: str, model: str = "default",
+                   framework: str = "native"):
         """Track token usage for a task"""
         total_tokens = input_tokens + output_tokens
         cost = self._calculate_cost(input_tokens, output_tokens)
@@ -1440,6 +1496,7 @@ class TokenEconomyTracker(BaseTracker):
             "task_id": task_id,
             "task_type": task_type,
             "model": model,
+            "framework": framework,
             "input_tokens": input_tokens,
             "output_tokens": output_tokens,
             "total_tokens": total_tokens,
@@ -1568,9 +1625,119 @@ class TokenEconomyTracker(BaseTracker):
 
         return breakdown
 
+    def get_cost_breakdown_by_framework(self) -> Dict[str, Dict[str, Any]]:
+        """프레임워크별 비용 분류를 반환한다 (C2).
+
+        ``_usage_log`` 의 ``framework`` 필드 기준으로 집계한다.
+        framework 정보가 없으면 ``"unknown"`` 으로 분류한다.
+
+        Returns:
+            Dict mapping framework → {total_cost, avg_cost_per_task, task_count,
+            total_tokens, avg_tokens_per_task}.
+
+        Example::
+
+            breakdown = tracker.get_cost_breakdown_by_framework()
+            # {"anthropic": {"total_cost": 0.05, "task_count": 10, ...},
+            #  "openai":    {"total_cost": 0.03, "task_count": 5,  ...}}
+        """
+        if not self._usage_log:
+            return {}
+
+        framework_data: Dict[str, Dict[str, Any]] = {}
+        for entry in self._usage_log:
+            fw = str(entry.get("framework", "unknown") or "unknown")
+            if fw not in framework_data:
+                framework_data[fw] = {"costs": [], "tokens": [], "task_count": 0}
+            framework_data[fw]["costs"].append(float(entry.get("cost", 0.0)))
+            framework_data[fw]["tokens"].append(int(entry.get("total_tokens", 0)))
+            framework_data[fw]["task_count"] += 1
+
+        result: Dict[str, Dict[str, Any]] = {}
+        for fw, data in framework_data.items():
+            costs = data["costs"]
+            tokens = data["tokens"]
+            result[fw] = {
+                "total_cost": round(sum(costs), 4),
+                "avg_cost_per_task": round(statistics.mean(costs), 4) if costs else 0.0,
+                "task_count": data["task_count"],
+                "total_tokens": sum(tokens),
+                "avg_tokens_per_task": round(statistics.mean(tokens), 2) if tokens else 0.0,
+            }
+        return result
+
     def __repr__(self) -> str:
         total_cost = sum(r.get("cost", 0) for r in self._usage_log)
         return (
             f"TokenEconomyTracker(records={len(self._usage_log)}, "
             f"total_cost=${total_cost:.4f})"
         )
+
+
+class MultimodalMetricsTracker(BaseTracker):
+    """멀티모달 입출력 지표 추적기 (F3).
+
+    태스크의 ``extra`` 딕셔너리에서 이미지/오디오/비디오 메타데이터를 추출해
+    모달리티별 사용 현황을 집계한다.
+
+    Example::
+        tracker = MultimodalMetricsTracker()
+        tracker.track_multimodal(task_result)
+        summary = tracker.get_multimodal_summary()
+    """
+
+    def __init__(self) -> None:
+        self._image_count: int = 0
+        self._audio_seconds: float = 0.0
+        self._video_frames: int = 0
+        self._modality_mix: dict = {}
+        self._tracked: int = 0
+
+    def reset(self) -> None:
+        self.__init__()
+
+    def track_multimodal(self, task: TaskResult) -> None:
+        """태스크에서 멀티모달 지표를 추출해 누적한다.
+
+        Args:
+            task: 분석할 TaskResult 인스턴스.
+                  ``extra["image_count"]``, ``extra["audio_duration_seconds"]``,
+                  ``extra["video_frames"]`` 키를 읽는다.
+        """
+        extra = getattr(task, "extra", {}) or {}
+        imgs = int(extra.get("image_count", 0) or 0)
+        audio = float(extra.get("audio_duration_seconds", 0) or 0)
+        frames = int(extra.get("video_frames", 0) or 0)
+
+        self._image_count += imgs
+        self._audio_seconds += audio
+        self._video_frames += frames
+        self._tracked += 1
+
+        modalities = []
+        if imgs > 0:
+            modalities.append("image")
+        if audio > 0:
+            modalities.append("audio")
+        if frames > 0:
+            modalities.append("video")
+        if not modalities:
+            modalities.append("text")
+
+        for m in modalities:
+            self._modality_mix[m] = self._modality_mix.get(m, 0) + 1
+
+    def get_multimodal_summary(self) -> dict:
+        """누적된 멀티모달 지표 요약을 반환한다.
+
+        Returns:
+            ``{"total_tracked", "image_count", "audio_duration_seconds",
+               "video_frames", "modality_mix"}`` 딕셔너리.
+        """
+        return {
+            "total_tracked": self._tracked,
+            "image_count": self._image_count,
+            "audio_duration_seconds": round(self._audio_seconds, 3),
+            "video_frames": self._video_frames,
+            "modality_mix": dict(self._modality_mix),
+        }

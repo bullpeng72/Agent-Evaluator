@@ -214,7 +214,7 @@ class LLMJudge:
         if not judged:
             return {"count": 0, "avg_scores": {}, "total_cost_usd": 0.0}
 
-        dims = ["completeness", "relevance", "factual_consistency", "overall"]
+        dims = ["completeness", "relevance", "factual_consistency", "overall", "confidence"]
         avg_scores = {}
         for dim in dims:
             vals = [r["scores"][dim] for r in judged if r.get("scores") and dim in r["scores"]]
@@ -384,6 +384,12 @@ class LLMJudge:
             factual = max(0, min(5, int(data.get("factual_consistency", 0))))
             overall = round((completeness + relevance + factual) / 3, 3)
 
+            import math as _math
+            _scores_3 = [completeness, relevance, factual]
+            _variance = sum((_s - overall) ** 2 for _s in _scores_3) / 3.0
+            _std = _math.sqrt(_variance)
+            confidence = round(max(0.0, min(1.0, 1.0 - _std / 2.5)), 3)
+
             return {
                 "task_id": task_id,
                 "skipped": False,
@@ -392,6 +398,7 @@ class LLMJudge:
                     "relevance": relevance,
                     "factual_consistency": factual,
                     "overall": overall,
+                    "confidence": confidence,
                 },
                 "reasoning": data.get("reasoning", ""),
                 "model": self.model,

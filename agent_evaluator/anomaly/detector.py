@@ -268,3 +268,50 @@ class AnomalyDetector:
         except Exception as _e:
             logger.debug("보안 이상 탐지 실패 (무시): %s", _e)
         return []
+
+    def explain_event(self, event: "AnomalyEvent") -> Dict[str, Any]:
+        """이상 이벤트의 원인과 권고사항을 반환한다 (F1).
+
+        Args:
+            event: AnomalyEvent 인스턴스.
+
+        Returns:
+            ``{"metric", "value", "threshold", "deviation_pct", "severity",
+               "explanation", "suggested_action"}``
+        """
+        deviation_pct = abs(event.value - event.threshold) / max(abs(event.threshold), 1e-9) * 100
+        severity = "critical" if deviation_pct > 30 else ("warning" if deviation_pct > 10 else "info")
+
+        _suggestions = {
+            "latency_trend": "응답 시간이 증가 추세입니다. 캐싱, 병렬 처리, 또는 모델 경량화를 고려하세요.",
+            "accuracy_drift": "정확도가 하락했습니다. 프롬프트 개선이나 파인튜닝을 검토하세요.",
+            "token_spike": "토큰 사용량이 급증했습니다. 컨텍스트 길이를 줄이거나 요약 단계를 추가하세요.",
+            "error_surge": "오류율이 급증했습니다. 에이전트 안정성과 외부 서비스 연결을 점검하세요.",
+            "security_pattern": "보안 패턴이 탐지됐습니다. 입력 검증 강화와 감사 로그를 확인하세요.",
+        }
+
+        return {
+            "metric": event.type,
+            "value": event.value,
+            "threshold": event.threshold,
+            "deviation_pct": round(deviation_pct, 2),
+            "severity": severity,
+            "explanation": (
+                f"{event.type} 값 {event.value:.4f}이 기준값 {event.threshold:.4f}에서 "
+                f"{deviation_pct:.1f}% 벗어났습니다. ({event.detail})"
+            ),
+            "suggested_action": _suggestions.get(event.type, "해당 지표를 상세 분석하세요."),
+            "detected_at": event.detected_at,
+        }
+
+    def scan_with_explain(self, monitor: "PerformanceMonitor") -> List[Dict[str, Any]]:
+        """scan()을 실행하고 각 이벤트에 explain()을 자동 적용한다 (F1).
+
+        Returns:
+            ``[{...event_dict, "explanation": {...}}]`` 리스트.
+        """
+        events = self.scan(monitor)
+        return [
+            {**e.to_dict(), "explanation": self.explain_event(e)}
+            for e in events
+        ]
