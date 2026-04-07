@@ -95,10 +95,15 @@ Layer 3 — Hybrid Evaluation (requires optional deps)
 
 ```
 agent_evaluator/
+├── decorators.py            # agent_eval · batch_eval · conversation_eval · EvalDecorator · EvalMetadata
+├── quick_eval.py            # QuickEval — 원스톱 평가 Facade (v0.7.1+)
 ├── core/
 │   ├── agent_evaluator.py   # re-export facade — trackers/ 분리 완료
 │   ├── hybrid_monitor.py    # HybridPerformanceMonitor
 │   ├── monitor_context.py   # Context managers
+│   ├── otel/                # OpenTelemetry 통합 (v0.7.0+, [otel] extras 필요)
+│   │   ├── provider.py      # OTELProvider — TracerProvider 설정
+│   │   └── metrics.py       # OTELMetrics — 메트릭 익스포터 (opt-in)
 │   └── trackers/            # 트래커 서브패키지
 │       ├── base.py          # BaseTracker, TaskResult, EvaluationReport, TaskType
 │       ├── layer1.py        # Layer 1: TaskCompletion·Accuracy·Hallucination·Quality·Latency·TokenEconomy
@@ -214,7 +219,8 @@ eval = QuickEval.for_llm_judge("results/", model="claude-sonnet-4-6")
 # 자동 저장 — 10건마다 save_to_file() 자동 호출
 eval = QuickEval("results/", auto_save=True, auto_save_interval=10)
 
-# 단축 데코레이터: qa, tool_use, rag, code, reasoning, planning, data_analysis, creative, chat, batch
+# 단축 데코레이터: qa, tool_use, rag, code, reasoning, planning, data_analysis, creative, multi_agent, secure, streaming
+# 배치: @eval.batch(task_type="qa")
 # 직접 호출: @eval(task_type="qa", score_fn=my_fn)
 # 재시도: @eval.with_retry(task_type="qa", max_retries=3)
 ```
@@ -492,7 +498,7 @@ from agent_evaluator import (
 pytest
 ```
 
-커버리지 현황 (v0.7.0 기준):
+커버리지 현황 (v0.7.3 기준):
 - `base.py`: 92% | `layer1.py`: 84% | `layer2.py`: 95%
 - `hybrid_monitor.py`: 61% | `monitor.py`: 41% | `taskresult_helpers.py`: 89% | 전체: 33%
 

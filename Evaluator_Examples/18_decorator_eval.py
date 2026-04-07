@@ -17,7 +17,7 @@ import os
 from pathlib import Path
 
 from agent_evaluator import PerformanceMonitor
-from agent_evaluator.decorators import agent_eval, agent_eval_async
+from agent_evaluator.decorators import agent_eval
 
 _project_root = Path(__file__).parent.parent
 
@@ -118,7 +118,7 @@ if os.getenv("OPENAI_API_KEY"):
 # ---------------------------------------------------------------------------
 # 예제 6: 비동기 에이전트
 # ---------------------------------------------------------------------------
-@agent_eval_async(monitor, task_type="qa", task_id_prefix="async")
+@agent_eval(monitor, task_type="qa", task_id_prefix="async")
 async def async_agent(question: str, ground_truth: str = "") -> str:
     """비동기 에이전트 예시."""
     await asyncio.sleep(0.05)  # 네트워크 지연 시뮬레이션

@@ -15,8 +15,6 @@ from pathlib import Path
 from agent_evaluator import PerformanceMonitor
 from agent_evaluator.decorators import (
     agent_eval,
-    agent_eval_async,
-    agent_eval_with_retry,
     batch_eval,
     conversation_eval,
     flush_conversation,
@@ -227,13 +225,13 @@ print(f"  concurrent=True → 항목별 병렬 처리 + EvalMetadata 추출")
 print(f"  반환 건수: {len(tool_results) if tool_results else 0}건")
 
 # ---------------------------------------------------------------------------
-# Phase 3-A: agent_eval_with_retry — 재시도 정확한 카운트
+# Phase 3-A: agent_eval + max_retries — 재시도 정확한 카운트
 # ---------------------------------------------------------------------------
-print("\n=== Phase 3-A: agent_eval_with_retry ===")
+print("\n=== Phase 3-A: agent_eval (max_retries) ===")
 
 _attempt_counter = {"count": 0}
 
-@agent_eval_with_retry(
+@agent_eval(
     monitor,
     task_type="qa",
     max_retries=3,
@@ -255,13 +253,13 @@ except Exception as e:
     print(f"  예외: {e}")
 
 # ---------------------------------------------------------------------------
-# Phase 3-A-2: agent_eval_with_retry — 비동기 버전
+# Phase 3-A-2: agent_eval + max_retries — 비동기 버전
 # ---------------------------------------------------------------------------
-print("\n=== Phase 3-A-2: agent_eval_with_retry (async) ===")
+print("\n=== Phase 3-A-2: agent_eval (max_retries, async) ===")
 
 _async_counter = {"count": 0}
 
-@agent_eval_with_retry(
+@agent_eval(
     monitor,
     task_type="qa",
     max_retries=3,

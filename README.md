@@ -683,7 +683,7 @@ agent-evaluator/
 │   ├── exceptions.py            # 예외 계층 (AgentEvaluatorError 외 6종)
 │   └── config.py                # 환경변수 설정 로더
 │
-├── Evaluator_Examples/              # 카테고리별 평가 예제 (17개)
+├── Evaluator_Examples/              # 카테고리별 평가 예제 (21개)
 │   ├── 01_quality_eval.py           # 품질 지표 — Accuracy, Hallucination, Quality, RAG
 │   ├── 02_performance_eval.py       # 성능 지표 — TCR, Latency, Token Economy
 │   ├── 03_agentic_eval.py           # 에이전틱 지표 — Tool Call, Coordination, Workflow
@@ -743,6 +743,12 @@ python 15_conversation_eval.py     # 멀티턴 대화 평가
 python 16_dashboard_demo.py        # 대시보드 통합 데모 (serve extras 필요)
 python 17_phoenix_verification.py  # Phoenix 4개 메뉴 통합 데모 — otel extras 필요
 
+# 데코레이터 방식 (v0.7.1+)
+python 18_decorator_eval.py                 # @agent_eval 데코레이터 기본 예제
+python 19_decorator_coverage_expanded.py    # agent_eval·batch_eval·conversation_eval 커버리지 검증
+python 20_quickeval_demo.py                 # QuickEval 원스톱 Facade — 7섹션 통합 데모
+python 21_layer2_agentic_eval.py            # Layer 2 Agentic Metrics 활성화 가이드 (3가지 방식)
+
 # Phoenix 실시간 모니터링 (별도 터미널에서 먼저 실행)
 agent-eval monitor                 # Arize Phoenix 서버 기동 (http://localhost:6006)
 
@@ -762,6 +768,9 @@ from agent_evaluator import (
     TaskType,                # QA / CODE_GENERATION / REASONING 등 10종
     EvaluationReport,        # 집계 평가 리포트
 
+    # 원스톱 평가 Facade (v0.7.1+)
+    QuickEval,               # PerformanceMonitor + EvalDecorator 1줄 시작
+
     # 하이브리드
     HybridPerformanceMonitor,
     ExtendedTaskResult,
@@ -769,7 +778,8 @@ from agent_evaluator import (
 
     # 헬퍼
     create_taskresult,       # TaskResult 간편 생성 함수
-    evaluation_session,      # 컨텍스트 매니저 (기본)
+    evaluation_session,      # 컨텍스트 매니저 (동기)
+    async_evaluation_session,  # 컨텍스트 매니저 (비동기)
     hybrid_evaluation_session,
 
     # LLM Judge + 대화 평가
@@ -781,6 +791,10 @@ from agent_evaluator import (
     # LLM 헬퍼
     LLMHelper,               # OpenAI 평가 헬퍼
     ClaudeHelper,            # Anthropic 평가 헬퍼
+
+    # 알림 (v0.7.1+)
+    SimpleTaskAlertRule,     # TaskResult 기반 경량 알림 규칙
+    AlertRuleBuilder,        # 알림 규칙 팩토리
 
     # Phase 2/3 — 피드백·이상 감지·비용 최적화
     ImplicitFeedbackTracker,
@@ -794,6 +808,18 @@ from agent_evaluator import (
     AgentCoordinationTracker, WorkflowExecutionTracker,
     InputSanitizationTracker, OutputLeakageDetector,
     ToolAuthorizationTracker, PrivilegeEscalationDetector, ToolChainAttackDetector,
+)
+
+# 데코레이터 (agent_evaluator.decorators)
+from agent_evaluator.decorators import (
+    agent_eval,         # 1:1 단일 태스크 평가 (sync/async/retry 통합)
+    batch_eval,         # 1:N 배치 평가
+    conversation_eval,  # N:1 멀티턴 대화 평가
+    EvalDecorator,      # 인스턴스 방식 데코레이터 래퍼
+    EvalMetadata,       # 튜플 반환용 메타데이터 컨테이너
+    get_eval_ctx,       # 스레드 로컬 평가 컨텍스트 접근
+    FrameworkLiteral,   # 21개 프레임워크 Literal 타입 힌트
+    get_framework_info, # 프레임워크 어댑터 메타데이터 조회
 )
 ```
 

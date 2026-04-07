@@ -5,7 +5,7 @@
 이 예제는 v0.7.x에서 추가된 모든 개선 사항을 실증한다:
 
   1. QuickEval Facade         — 원스톱 설정 없이 바로 시작
-  2. 프레임워크 전용 데코레이터   — langchain_eval / langgraph_eval / dspy_eval 등
+  2. 프레임워크 어댑터 통합       — agent_eval(framework="langchain") 등
   3. TaskType Enum 직접 지원   — 문자열 대신 enum 사용 가능
   4. 프레임워크 어댑터 자동 추출  — tool_calls / state_transitions 자동
   5. SimpleTaskAlertRule      — TaskResult 기반 경량 알림
@@ -146,12 +146,10 @@ print("\n" + "=" * 60)
 print("섹션 3: 프레임워크 어댑터 자동 추출")
 print("=" * 60)
 
-from agent_evaluator.integrations import langchain_eval, langgraph_eval
-
 monitor3 = PerformanceMonitor(output_dir=_results_dir)
 
 # LangChain 시뮬레이션 — intermediate_steps 포함 dict 반환
-@langchain_eval(monitor3, task_type="tool_use")
+@agent_eval(monitor3, task_type="tool_use", framework="langchain")
 def simulated_langchain_agent(question: str, ground_truth: str = "") -> dict:
     """LangChain AgentExecutor 응답 형식 시뮬레이션."""
 
@@ -175,7 +173,7 @@ print(f"  응답: {result}")
 print("  ✅ intermediate_steps → tool_calls 자동 변환")
 
 # LangGraph 시뮬레이션 — messages 리스트 반환
-@langgraph_eval(monitor3, task_type="reasoning")
+@agent_eval(monitor3, task_type="reasoning", framework="langgraph")
 def simulated_langgraph_agent(question: str, ground_truth: str = "") -> dict:
     """LangGraph invoke() 응답 형식 시뮬레이션."""
 
@@ -387,7 +385,7 @@ print("""
   1. QuickEval(_results_dir)          — 원스톱 시작
   2. @eval.qa / @eval.rag / ...      — 단축 데코레이터
   3. TaskType.QA (Enum)             — IDE 자동완성 지원
-  4. langchain_eval / langgraph_eval — 프레임워크 전용 데코레이터
+  4. agent_eval(framework=...)       — 프레임워크 어댑터 자동 추출
   5. intermediate_steps 자동 추출   — tool_calls/chain_steps 자동
   6. SimpleTaskAlertRule            — TaskResult 기반 경량 알림
   7. auto_save=True / flush_every=N — 대시보드 실시간 반영

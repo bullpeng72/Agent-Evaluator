@@ -4586,9 +4586,20 @@ def _do_flush(entry: Dict[str, Any]) -> None:
             except Exception as _orec_exc:
                 logger.debug("conversation_eval on_record 콜백 실패 (무시): %s", _orec_exc)
         # Gap M: on_flush 콜백 — 예외 무시
+        # 시그니처: (metrics, session_id) 우선; 구버전 (session_id,) 호환 fallback
         if on_flush_cb is not None:
             try:
-                on_flush_cb(session_id)
+                _flush_sessions = getattr(stored_monitor, "conversation_sessions", [])
+                _flush_metrics = _flush_sessions[-1].metrics if _flush_sessions else None
+            except Exception:
+                _flush_metrics = None
+            try:
+                on_flush_cb(_flush_metrics, session_id)
+            except TypeError:
+                try:
+                    on_flush_cb(session_id)
+                except Exception as cb_exc:
+                    logger.debug("on_flush 콜백 실패 (무시): %s", cb_exc)
             except Exception as cb_exc:
                 logger.debug("on_flush 콜백 실패 (무시): %s", cb_exc)
         # alert_rules — 세션 flush 후 마지막 기록된 TaskResult 에 적용
@@ -4616,7 +4627,7 @@ def conversation_eval(
     max_turns: Optional[int] = None,
     flush_on_error: bool = True,
     sample_rate: float = 1.0,
-    on_flush: Optional[Callable] = None,              # Gap M: (session_id: str) → None
+    on_flush: Optional[Callable] = None,              # Gap M: (metrics, session_id: str) → None
     on_turn: Optional[Callable] = None,               # Gap Z: (session_id, user, response, metadata) → None
     on_record: Optional[Callable[["TaskResult"], Optional["TaskResult"]]] = None,  # C: (TaskResult) → Optional[TaskResult]
     session_score_fn: Optional[Callable] = None,      # Gap T: (ConversationMetrics) → float

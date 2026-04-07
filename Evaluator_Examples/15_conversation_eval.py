@@ -331,7 +331,7 @@ def run_conversation_evaluation() -> str:
 
     # ── 최종 저장 ─────────────────────────────────────────────────────────────
     saved_path = monitor.save_to_file(filename)
-    saved_json = results_dir / f"{filename}.json"
+    saved_json = Path(saved_path)
 
     # ── 종합 분석 출력 ────────────────────────────────────────────────────────
     print(f"\n  {'═'*70}")
