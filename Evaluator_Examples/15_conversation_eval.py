@@ -1,21 +1,23 @@
 """
-멀티턴 대화 평가 예제 — Agent Evaluator v0.6.7 Phase 1-C
-==========================================================
+멀티턴 대화 평가 예제 — Agent Evaluator v0.7.3
+=================================================
 
-ConversationSession API를 사용하여 챗봇·대화형 에이전트의 품질을 측정합니다.
-결과 파일에 conversation_sessions 키가 포함되어
-대시보드 "멀티턴 대화" 탭에서 세션별 지표를 확인할 수 있습니다.
+@conversation_eval 데코레이터로 ConversationSession API를 대체합니다.
+함수에 decorator를 붙이면 session_id 기반으로 턴이 자동 누적되고,
+max_turns 도달 또는 flush_conversation() 호출 시 지표가 자동 계산됩니다.
 
-커버 기능 (Phase 1-C):
-  ConversationSession    │ session.add_turn(user, agent, metadata)
-                         │ session.compute_metrics() → ConversationMetrics
-  monitor.conversation() │ 컨텍스트 매니저 — 세션 종료 시 자동 저장
-  지표                   │ context_retention   — 맥락 유지율
-                         │ topic_coherence     — 주제 일관성
-                         │ progressive_depth   — 점진적 심화
-                         │ session_completion  — 세션 완결성
-                         │ overall_score       — 종합 점수
-                         │ avg_turn_latency    — 평균 응답 지연
+【변경 이력】
+  v0.7.3: ConversationSession + monitor.conversation() 수동 패턴
+          → @conversation_eval 데코레이터로 전면 교체
+  v0.6.7: Phase 1-C 초기 구현
+
+커버 지표:
+  context_retention   — 맥락 유지율
+  topic_coherence     — 주제 일관성
+  progressive_depth   — 점진적 심화
+  session_completion  — 세션 완결성
+  overall_score       — 종합 점수
+  avg_turn_latency    — 평균 응답 지연
 
 핵심 시나리오:
   1. Python 학습 세션 — 기초 → 심화 (맥락 유지 우수, 4턴)
@@ -23,6 +25,7 @@ ConversationSession API를 사용하여 챗봇·대화형 에이전트의 품질
   3. 요리 레시피 세션 — 단계별 질문 (5턴)
   4. 기술 지원 세션  — 문제 해결 흐름 (3턴)
   5. 맥락 단절 세션  — 갑작스러운 주제 전환 (낮은 맥락 유지율, 4턴)
+  6. ML/DL 비교 세션 — 기술 심층 질문 (3턴)
 
 실행:
     python 15_conversation_eval.py    # API 키 불필요 — 순수 시뮬레이션
@@ -36,8 +39,8 @@ from __future__ import annotations
 
 import random
 import sys
-from pathlib import Path
 from datetime import datetime
+from pathlib import Path
 
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
@@ -45,12 +48,7 @@ sys.path.insert(0, str(project_root))
 from dotenv import load_dotenv
 load_dotenv(Path(__file__).parent / ".env")
 
-from agent_evaluator import (
-    PerformanceMonitor,
-    ConversationSession,
-    ConversationMetrics,
-    evaluation_session,
-)
+from agent_evaluator import PerformanceMonitor, conversation_eval, flush_conversation
 
 
 def _try_setup_otel(service_name: str) -> None:
@@ -72,8 +70,8 @@ _try_setup_otel("15-conversation-eval")
 
 
 # ─── 시뮬레이션 세션 데이터 ───────────────────────────────────────────────────
+# (user_message, agent_response, latency_factor)
 
-# 세션 1: Python 학습 — 기초에서 심화로 자연스럽게 진행 (맥락 유지 우수)
 SESSION_PYTHON = [
     ("Python 리스트와 튜플의 차이가 뭔가요?",
      "리스트는 변경 가능(mutable)하고 튜플은 불변(immutable)입니다. "
@@ -95,7 +93,6 @@ SESSION_PYTHON = [
      0.61),
 ]
 
-# 세션 2: 여행 계획 — 주제 일관성 높음 (서울 여행)
 SESSION_TRAVEL = [
     ("서울 여행 3박 4일 일정을 짜주세요.",
      "1일차: 경복궁·북촌한옥마을 / 2일차: 홍대·신촌 문화 체험 / "
@@ -123,7 +120,6 @@ SESSION_TRAVEL = [
      0.65),
 ]
 
-# 세션 3: 요리 레시피 — 단계별 심화 (된장찌개)
 SESSION_COOKING = [
     ("된장찌개 만드는 법 알려주세요.",
      "기본 재료: 된장 2큰술, 두부, 애호박, 양파, 버섯, 다시마 육수 3컵. "
@@ -147,7 +143,6 @@ SESSION_COOKING = [
      0.70),
 ]
 
-# 세션 4: 기술 지원 — 문제 해결 (짧지만 완결성 높음)
 SESSION_SUPPORT = [
     ("파이썬 패키지 설치가 안 됩니다. pip install 하면 오류가 나요.",
      "어떤 오류 메시지가 나오나요? 주요 원인은 ① 네트워크 문제 ② 권한 문제 "
@@ -164,7 +159,6 @@ SESSION_SUPPORT = [
      0.82),
 ]
 
-# 세션 5: 맥락 단절 — 갑자기 주제가 바뀌는 패턴 (낮은 점수 예상)
 SESSION_CONTEXT_BREAK = [
     ("오늘 날씨 어때요?",
      "죄송합니다만 저는 실시간 날씨 정보에 접근할 수 없습니다. "
@@ -186,136 +180,190 @@ SESSION_CONTEXT_BREAK = [
      0.42),
 ]
 
+SESSION_ML_DL = [
+    ("머신러닝과 딥러닝의 차이점이 뭔가요?",
+     "머신러닝은 데이터에서 패턴을 학습하는 포괄적 방법론이며, "
+     "딥러닝은 머신러닝의 하위 분야로 다층 신경망을 사용합니다.",
+     0.42),
+    ("딥러닝이 더 좋은 건가요?",
+     "딥러닝은 이미지·음성 등 비정형 데이터에서 강점을 보이지만 "
+     "대량의 데이터와 연산이 필요합니다. 전통 머신러닝은 소규모 데이터나 "
+     "해석 가능성이 중요한 경우에 여전히 유효합니다.",
+     0.55),
+    ("어떤 경우에 어떤 걸 선택해야 하나요?",
+     "이미지 분류·자연어 처리 → 딥러닝, "
+     "의료 진단·금융 모델(해석 필요) → 전통 ML(랜덤포레스트, XGBoost), "
+     "데이터 1000건 이하 → 전통 ML이 대체로 더 좋은 성능을 냅니다.",
+     0.61),
+]
+
+
+# ─── 세션 응답 테이블 ─────────────────────────────────────────────────────────
+# session_id → {질문: (응답, latency_factor)} 매핑
+_SESSION_RESPONSES: dict[str, dict[str, tuple]] = {}
+_rng = random.Random(20250405)
+
+def _build_response_table() -> None:
+    """세션별 응답 조회 테이블 구성."""
+    mapping = {
+        "python_tutorial_001":  SESSION_PYTHON,
+        "travel_seoul_002":     SESSION_TRAVEL,
+        "cooking_doenjang_003": SESSION_COOKING,
+        "tech_support_004":     SESSION_SUPPORT,
+        "context_break_005":    SESSION_CONTEXT_BREAK,
+        "ml_dl_compare_006":    SESSION_ML_DL,
+    }
+    for sid, turns in mapping.items():
+        _SESSION_RESPONSES[sid] = {
+            user_msg: (agent_msg, lat) for user_msg, agent_msg, lat in turns
+        }
+
+_build_response_table()
+
+
+# ─── 모니터 및 결과 경로 설정 ─────────────────────────────────────────────────
+results_dir = project_root / "results"
+results_dir.mkdir(exist_ok=True)
+
+monitor = PerformanceMonitor(output_dir=str(results_dir))
+
+# 세션 완료 통계 수집용
+_session_summaries: list[tuple] = []   # (session_id, label, expected, metrics)
+
+
+# ─── @conversation_eval 데코레이터 적용 ───────────────────────────────────────
+#
+# 【Before — 수동 패턴】
+#   with monitor.conversation(session_id) as conv:
+#       for user, agent, lat in turns:
+#           conv.turn(user=user, agent=agent, metadata={"latency": lat})
+#
+# 【After — 데코레이터 패턴】
+#   @conversation_eval(monitor, session_id_arg="session_id", max_turns=8, ...)
+#   def chat(question, session_id="default"): return response
+#   → 동일 session_id로 반복 호출하면 턴이 자동 누적됨
+#   → max_turns 도달 또는 flush_conversation() 호출 시 지표 자동 계산·기록
+
+def _on_flush(metrics, sid: str) -> None:
+    """세션 완료 시 콜백: 통계 수집 + 콘솔 출력."""
+    label_map = {
+        "python_tutorial_001":  ("Python 학습",    "medium"),
+        "travel_seoul_002":     ("서울 여행 계획",  "high"),
+        "cooking_doenjang_003": ("된장찌개 레시피", "high"),
+        "tech_support_004":     ("기술 지원",       "high"),
+        "context_break_005":    ("맥락 단절 패턴",  "low"),
+        "ml_dl_compare_006":    ("ML vs DL 비교",   "high"),
+    }
+    label, expected = label_map.get(sid, (sid, "unknown"))
+    _session_summaries.append((sid, label, expected, metrics))
+    print(f"  📝 [{label}]  session_id={sid}")
+    print(f"     turns={metrics.turn_count}  "
+          f"overall={metrics.overall_score:.3f}  "
+          f"context={metrics.context_retention:.3f}  "
+          f"coherence={metrics.topic_coherence:.3f}  "
+          f"progression={metrics.progressive_depth:.3f}  "
+          f"completion={metrics.session_completion:.3f}")
+    if metrics.avg_turn_latency and metrics.avg_turn_latency > 0:
+        print(f"     avg_latency={metrics.avg_turn_latency:.3f}s")
+    print()
+
+
+def _on_turn(sid: str, user: str, response: str, metadata: dict) -> None:
+    """매 턴 직후 콜백: 실시간 진행 확인용."""
+    turn_n = metadata.get("turn_index", "?")
+    # 필요 시 실시간 알림·로깅에 활용
+    _ = (sid, user[:20], turn_n)
+
+
+@conversation_eval(
+    monitor,
+    session_id_arg="session_id",
+    max_turns=8,                     # 최대 턴 수 초과 시 자동 flush
+    flush_every=6,                   # 6세션마다 save_to_file() 자동 실행
+    flush_filename="15_conversation_eval",
+    on_flush=_on_flush,              # 세션 종료 시 지표 출력 콜백
+    on_turn=_on_turn,                # 매 턴 직후 콜백
+)
+def chat_agent(question: str, session_id: str = "default") -> str:
+    """시뮬레이션 챗봇 에이전트.
+
+    실제 프로젝트에서는 이 함수 안에 LLM 호출 코드를 작성합니다.
+    이 예제는 미리 정의된 응답 테이블에서 값을 반환합니다.
+    """
+    session_data = _SESSION_RESPONSES.get(session_id, {})
+    if question in session_data:
+        agent_msg, lat_factor = session_data[question]
+        return agent_msg
+    return f"[{session_id}] '{question[:30]}...' 에 대한 답변입니다."
+
+
+# ─── 메인 평가 실행 ───────────────────────────────────────────────────────────
 
 def run_conversation_evaluation() -> str:
     print("\n" + "=" * 70)
-    print("  멀티턴 대화 평가 — Agent Evaluator v0.6.7")
-    print("  Phase 1-C: ConversationSession · monitor.conversation()")
+    print("  멀티턴 대화 평가 — Agent Evaluator v0.7.3")
+    print("  @conversation_eval 데코레이터 패턴")
     print("=" * 70)
 
-    rng = random.Random(20250405)
-    results_dir = project_root / "results"
-    results_dir.mkdir(exist_ok=True)
     ts = datetime.now().strftime('%Y%m%d_%H%M%S')
-    filename = f"[CV]_conversation_eval_{ts}.json"
-
-    print(f"\n  저장 경로: results/{filename}")
+    filename = f"[CV]_conversation_eval_{ts}"
+    print(f"\n  저장 경로: results/{filename}.json")
     print(f"  대시보드 '💬 멀티턴 대화' 탭에서 결과를 확인하세요.\n")
 
-    all_sessions_data = []
+    # ── 세션 정의: (session_id, turns_data) ──────────────────────────────────
+    sessions = [
+        ("python_tutorial_001",  SESSION_PYTHON),
+        ("travel_seoul_002",     SESSION_TRAVEL),
+        ("cooking_doenjang_003", SESSION_COOKING),
+        ("tech_support_004",     SESSION_SUPPORT),
+        ("context_break_005",    SESSION_CONTEXT_BREAK),
+        ("ml_dl_compare_006",    SESSION_ML_DL),
+    ]
 
-    with evaluation_session(filename, output_dir=str(results_dir)) as monitor:
+    # ── 세션별 턴 호출 ────────────────────────────────────────────────────────
+    # @conversation_eval 이 session_id 별로 턴을 자동 누적한다.
+    # max_turns 도달 전에는 flush_conversation(session_id) 로 수동 종료한다.
+    for session_id, turns_data in sessions:
+        for user_msg, _agent_msg, _lat in turns_data:
+            chat_agent(user_msg, session_id=session_id)
+        # max_turns 미도달 세션 → 수동 종료 (metrics 자동 계산 + _on_flush 호출)
+        flush_conversation(session_id)
 
-        # ──────────────────────────────────────────────────────────────────
-        # 방법 1: monitor.conversation() 컨텍스트 매니저 (권장)
-        #         세션 종료 시 자동으로 monitor.conversation_sessions에 저장
-        # ──────────────────────────────────────────────────────────────────
-        print("  [방법 1] monitor.conversation() 컨텍스트 매니저")
-        print(f"  {'─'*68}\n")
+    # ── 최종 저장 ─────────────────────────────────────────────────────────────
+    saved_path = monitor.save_to_file(filename)
+    saved_json = results_dir / f"{filename}.json"
 
-        sessions_config = [
-            ("python_tutorial_001",  "Python 학습",  SESSION_PYTHON,        "medium"),
-            ("travel_seoul_002",     "서울 여행 계획", SESSION_TRAVEL,        "high"),
-            ("cooking_doenjang_003", "된장찌개 레시피", SESSION_COOKING,      "high"),
-            ("tech_support_004",     "기술 지원",     SESSION_SUPPORT,       "high"),
-            ("context_break_005",    "맥락 단절 패턴", SESSION_CONTEXT_BREAK, "low"),
-        ]
-
-        for session_id, label, turns_data, expected_quality in sessions_config:
-            with monitor.conversation(session_id) as conv:
-                for user_msg, agent_msg, latency_factor in turns_data:
-                    latency = rng.uniform(0.3, 0.8) * latency_factor + 0.1
-                    conv.turn(
-                        user=user_msg,
-                        agent=agent_msg,
-                        metadata={
-                            "latency": round(latency, 3),
-                            "simulated": True,
-                            "topic": label,
-                        },
-                    )
-
-            # 세션 종료 → monitor.conversation_sessions에 자동 추가됨
-            # 마지막으로 추가된 세션의 metrics 출력
-            if monitor.conversation_sessions:
-                last = monitor.conversation_sessions[-1]
-                if hasattr(last, "compute_metrics"):
-                    metrics = last.compute_metrics()
-                    all_sessions_data.append((session_id, label, expected_quality, metrics))
-                    _print_session_summary(session_id, label, metrics)
-
-        # ──────────────────────────────────────────────────────────────────
-        # 방법 2: ConversationSession 직접 사용 후 수동 추가
-        # ──────────────────────────────────────────────────────────────────
-        print(f"\n  [방법 2] ConversationSession 직접 생성 (고급 제어)")
-        print(f"  {'─'*68}\n")
-
-        direct_session = ConversationSession(session_id="direct_session_006")
-        direct_session.add_turn(
-            user="머신러닝과 딥러닝의 차이점이 뭔가요?",
-            agent="머신러닝은 데이터에서 패턴을 학습하는 포괄적 방법론이며, "
-                  "딥러닝은 머신러닝의 하위 분야로 다층 신경망을 사용합니다.",
-            metadata={"latency": 0.42},
-        )
-        direct_session.add_turn(
-            user="딥러닝이 더 좋은 건가요?",
-            agent="딥러닝은 이미지·음성 등 비정형 데이터에서 강점을 보이지만 "
-                  "대량의 데이터와 연산이 필요합니다. 전통 머신러닝은 소규모 데이터나 "
-                  "해석 가능성이 중요한 경우에 여전히 유효합니다.",
-            metadata={"latency": 0.55},
-        )
-        direct_session.add_turn(
-            user="어떤 경우에 어떤 걸 선택해야 하나요?",
-            agent="이미지 분류·자연어 처리 → 딥러닝, "
-                  "의료 진단·금융 모델 (해석 필요) → 전통 ML (랜덤포레스트, XGBoost), "
-                  "데이터 1000건 이하 → 전통 ML이 대체로 더 좋은 성능을 냅니다.",
-            metadata={"latency": 0.61},
-        )
-
-        direct_metrics = direct_session.compute_metrics()
-        all_sessions_data.append(("direct_session_006", "ML vs DL 비교", "high", direct_metrics))
-        _print_session_summary("direct_session_006", "ML vs DL 비교", direct_metrics)
-
-        # ConversationSession을 monitor에 수동 추가
-        monitor.conversation_sessions.append(direct_session)
-
-    # ── evaluation_session 블록 종료 → save_to_file() 자동 호출 ──────────
-    # conversation_sessions가 결과 JSON에 포함됨
-
-    # ── 종합 분석 출력 ────────────────────────────────────────────────────
+    # ── 종합 분석 출력 ────────────────────────────────────────────────────────
     print(f"\n  {'═'*70}")
     print(f"  📊 세션 종합 분석")
     print(f"  {'═'*70}")
     print(f"  {'세션':<28} {'품질':<8} {'종합':>6} {'맥락':>6} {'일관':>6} {'심화':>6} {'완결':>6}")
     print(f"  {'─'*70}")
 
-    for sid, label, expected, metrics in all_sessions_data:
-        o = metrics.overall_score
-        c = metrics.context_retention
+    avg_overall = 0.0
+    for sid, label, expected, metrics in _session_summaries:
+        o  = metrics.overall_score
+        c  = metrics.context_retention
         co = metrics.topic_coherence
-        p = metrics.progressive_depth
+        p  = metrics.progressive_depth
         cp = metrics.session_completion
         grade = "✅" if o >= 0.65 else ("🟡" if o >= 0.45 else "❌")
         print(f"  {grade} {label:<26} {expected:<8} {o:>5.3f} {c:>6.3f} {co:>6.3f} {p:>6.3f} {cp:>6.3f}")
+        avg_overall += o
 
+    if _session_summaries:
+        avg_overall /= len(_session_summaries)
     print(f"  {'─'*70}")
-    avg_overall = sum(m.overall_score for _, _, _, m in all_sessions_data) / len(all_sessions_data)
     print(f"  {'평균':>36} {avg_overall:>6.3f}")
 
-    # ── 품질 해석 ─────────────────────────────────────────────────────────
-    print(f"\n  💡 분석 결과:")
-    python_data = next((m for s, _, _, m in all_sessions_data if "python" in s), None)
-    break_data  = next((m for s, _, _, m in all_sessions_data if "break" in s), None)
+    python_data = next((m for s, _, _, m in _session_summaries if "python" in s), None)
+    break_data  = next((m for s, _, _, m in _session_summaries if "break" in s), None)
+    if python_data and break_data and python_data.context_retention > break_data.context_retention:
+        diff = python_data.context_retention - break_data.context_retention
+        print(f"\n  💡 맥락 유지율: 학습 세션({python_data.context_retention:.3f}) > "
+              f"단절 세션({break_data.context_retention:.3f}) 차이: +{diff:.3f} ✅")
 
-    if python_data and break_data:
-        if python_data.context_retention > break_data.context_retention:
-            diff = python_data.context_retention - break_data.context_retention
-            print(f"  맥락 유지율: 학습 세션({python_data.context_retention:.3f}) > "
-                  f"단절 세션({break_data.context_retention:.3f}) "
-                  f"차이: +{diff:.3f} ✅")
-
-    # ── 결과 파일 확인 ────────────────────────────────────────────────────
-    saved_json = results_dir / filename
+    # ── 결과 파일 확인 ────────────────────────────────────────────────────────
     import json as _json
     n_conv = 0
     if saved_json.exists():
@@ -324,12 +372,12 @@ def run_conversation_evaluation() -> str:
         n_conv = len(_d.get("conversation_sessions", []))
 
     checks = [
-        ("전체 세션 수",                     f"{len(all_sessions_data)}개",  len(all_sessions_data) >= 6),
-        ("overall_score 계산",               f"{avg_overall:.3f}",           avg_overall > 0),
-        ("맥락 단절 세션 점수 낮음",          str(break_data.overall_score < 0.55 if break_data else False),
+        ("전체 세션 수",                    f"{len(_session_summaries)}개",  len(_session_summaries) >= 6),
+        ("overall_score 계산",              f"{avg_overall:.3f}",           avg_overall > 0),
+        ("맥락 단절 세션 점수 낮음",         str(break_data.overall_score < 0.55 if break_data else False),
          break_data is not None and break_data.overall_score < 0.55),
-        ("자동 저장 완료",                   "JSON 파일",                    saved_json.exists()),
-        ("결과 파일 conversation_sessions",  f"{n_conv}개",                  n_conv >= 5),
+        ("자동 저장 완료",                  "JSON 파일",                    saved_json.exists()),
+        ("결과 파일 conversation_sessions", f"{n_conv}개",                  n_conv >= 5),
     ]
 
     print(f"\n  {'═'*60}")
@@ -345,22 +393,7 @@ def run_conversation_evaluation() -> str:
     print(f"  합계: {pass_cnt}/{len(checks)} 통과")
     print(f"\n  📄 결과 파일: {saved_json.name}")
     print(f"  → 대시보드 '💬 멀티턴 대화' 탭에서 {n_conv}개 세션을 확인하세요.\n")
-
     return str(saved_json)
-
-
-def _print_session_summary(session_id: str, label: str, metrics: "ConversationMetrics") -> None:
-    """세션 지표를 콘솔에 출력."""
-    print(f"  📝 [{label}]  session_id={session_id}")
-    print(f"     turns={metrics.turn_count}  "
-          f"overall={metrics.overall_score:.3f}  "
-          f"context={metrics.context_retention:.3f}  "
-          f"coherence={metrics.topic_coherence:.3f}  "
-          f"progression={metrics.progressive_depth:.3f}  "
-          f"completion={metrics.session_completion:.3f}")
-    if metrics.avg_turn_latency and metrics.avg_turn_latency > 0:
-        print(f"     avg_latency={metrics.avg_turn_latency:.3f}s")
-    print()
 
 
 if __name__ == "__main__":

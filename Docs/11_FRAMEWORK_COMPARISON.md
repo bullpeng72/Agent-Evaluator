@@ -1,7 +1,7 @@
 # AI Agent 평가 프레임워크 비교 분석
 
-**Version**: 0.7.2
-**Last Updated**: 2026-04-05
+**Version**: 0.7.3
+**Last Updated**: 2026-04-07
 **기준 버전**: 각 프레임워크 2025–2026년 최신 릴리스 기준
 **분석 목적**: 개발자가 서비스 코드 외에 작성해야 하는 코드량 / 자동화 수준 비교
 
@@ -101,7 +101,7 @@ def my_agent_call(question: str) -> str:
 | **Braintrust** | ✅ | 온라인 스코어러 — 프로덕션 트레이스 자동 채점 | SaaS 전송 필요 |
 | **Helicone** | ✅ | 프록시 경유 즉시 로깅 | LLM 호출만 (에이전트 로직 별도) |
 | **W&B Weave** | ✅ | Online Evaluations — 라이브 트레이스 자동 채점 | SaaS 전송 필요 |
-| **Agent Evaluator** | ❌ | `--watch` 파일 감시 (저장 후 반영) | 실행 중 스트리밍 없음 |
+| **Agent Evaluator** | ✅ | OTLP 스팬 (`setup_otel()` 활성 시 실시간) / `--watch` 파일 감시 (기본 모드) | `[otel]` extras 필요 |
 
 ---
 
@@ -304,40 +304,38 @@ weave.init("mcp-project")
 
 | 방법 | 코드량 | 대상 |
 |------|--------|------|
-| `TaskResult` 직접 구성 | ~10줄/태스크 | 모든 에이전트 |
-| `create_taskresult()` 헬퍼 | ~5줄 | LLM 응답에서 자동 추출 |
+| `@agent_eval` 데코레이터 | 함수당 1줄 | 모든 에이전트 함수 (권장) |
+| `QuickEval` Facade | 1~2줄 | 빠른 시작, 다수 에이전트 |
+| Framework 전용 데코레이터 | 함수당 1줄 | 21개 프레임워크 자동 추출 |
+| `create_taskresult()` 헬퍼 | ~5줄 | 수동 기록 |
 | Framework factory | 1줄 | CrewAI, LangChain, LangGraph, AutoGen |
-| `evaluation_session` 컨텍스트 매니저 | ~5줄 | 세션 단위 자동 저장 |
 
 ```python
-from agent_evaluator import PerformanceMonitor, create_taskresult, create_evaluated_crew
+# 방법 1: @agent_eval 데코레이터 — 한 줄로 평가 적용 (권장)
+from agent_evaluator import PerformanceMonitor
+from agent_evaluator.decorators import agent_eval
 
-# 방법 1: create_taskresult() 헬퍼 사용 (권장)
-# TaskResult 필수 필드(11개)를 자동 계산해 생성
-monitor = PerformanceMonitor(
-    output_dir="results/",
-    enable_security_metrics=True,    # 보안 지표 활성화
-    enable_hallucination_detection=True,
-)
-result = create_taskresult(
-    task_id="task_001",
-    question="가장 가까운 약국 찾아줘",
-    response=agent_output,
-    ground_truth="CVS 약국, 0.3km 거리",
-    execution_time=1.23,
-    task_type="qa",
-)
-monitor.record_task(result)  # 메서드 체이닝 가능: .record_task(t1).record_task(t2)
+monitor = PerformanceMonitor(output_dir="results/", enable_security_metrics=True)
 
-# Tool 선택 정확도 (ToolSelectionTracker 직접 호출)
-monitor.tool_selection_tracker.evaluate_selection(
-    task_id="task_001",
-    expected_tools=["search"],
-    actual_tools=["search"],  # 실제 에이전트가 호출한 도구 목록
-)
+@agent_eval(monitor, task_type="qa", framework="langchain")
+def my_agent(question: str, ground_truth: str = "") -> str:
+    return chain.invoke({"input": question})  # LangChain 응답 → token 자동 추출
 
-# 방법 2: CrewAI factory (crew 객체 래핑 — 1줄 계측)
-evaluator = create_evaluated_crew(my_crew, monitor=monitor)
+# 방법 2: QuickEval — 원스톱 Facade
+from agent_evaluator import QuickEval
+
+eval = QuickEval.for_rag("results/")
+
+@eval.rag  # hallucination 탐지 자동 활성
+def rag_agent(question: str, context: str = "", ground_truth: str = "") -> str:
+    return retriever.query(question, context)
+
+# 방법 3: 프레임워크 전용 데코레이터 (21개)
+from agent_evaluator.integrations import langchain_eval, crewai_eval
+
+@langchain_eval(monitor, task_type="qa")
+def lc_agent(question: str, ground_truth: str = "") -> str:
+    return chain.invoke({"input": question})
 ```
 
 ---

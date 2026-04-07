@@ -64,6 +64,17 @@ def _to_meta(f) -> Dict[str, Any]:
         "has_llm_judge":    f.has_llm_judge,
         # D2: LLM Judge 요약 — list_results 에서도 avg_overall 제공
         "llm_judge_avg":    round(f.llm_judge.avg_overall, 4) if f.has_llm_judge else None,
+        # 보안 위협 건수 — 목록에서 보안 인시던트 정렬·필터 지원
+        "security_incidents_count": (
+            int(f.security_l1.input_security.get("inputs_with_threats", 0) or 0)
+            + int(f.security_l1.output_leakage.get("outputs_with_leakage", 0) or 0)
+            + int(f.security_l1.authorization.get("unauthorized_calls", 0) or 0)
+            + len(f.security_l2.escalation_events)
+            + len(f.security_l2.attack_detections)
+        ) if f.has_security else 0,
+        # 멀티모달 태스크 현황
+        "has_multimodal":        f.has_multimodal if hasattr(f, "has_multimodal") else False,
+        "multimodal_task_count": f.multimodal_task_count if hasattr(f, "multimodal_task_count") else 0,
     }
 
 
@@ -2536,4 +2547,173 @@ def get_token_analytics(file_id: str, request: Request) -> Dict[str, Any]:
         "avg_tokens_per_task": avg_total,
         "by_task_type": by_task_type,
         "by_framework": by_framework,
+    }
+
+
+@router.get("/security/events")
+def get_security_events(
+    request: Request,
+    file_id: Optional[str] = Query(default=None, description="특정 결과 파일 ID로 필터"),
+    category: Optional[str] = Query(default=None, description="input_sanitization|output_leakage|tool_authorization|privilege_escalation|chain_attack"),
+    threats_only: bool = Query(default=False, description="위협이 탐지된 항목만 반환"),
+    skip: int = Query(default=0, ge=0),
+    limit: int = Query(default=100, ge=1, le=500),
+) -> Dict[str, Any]:
+    """보안 이벤트 상세 목록 반환.
+
+    ``enable_security_metrics=True`` 또는 ``security_mode=True`` 로 기록된 데이터를
+    카테고리별로 조회한다.
+
+    Args:
+        file_id: 특정 결과 파일만 조회 (생략 시 전체 파일 집계).
+        category: 조회할 보안 카테고리. 생략 시 모든 카테고리 포함.
+        threats_only: True 시 위협 탐지 이벤트만 반환.
+        skip / limit: 페이지네이션.
+
+    Returns:
+        summary (카테고리별 집계), events (이벤트 목록), total.
+    """
+    rs = _rs(request)
+    files = [rs.by_id(file_id)] if file_id else getattr(rs, "files", [])
+    files = [f for f in files if f is not None]
+
+    if not files:
+        raise HTTPException(status_code=404, detail="No result files found")
+
+    # 카테고리별 집계 및 이벤트 목록 수집
+    summary: Dict[str, Any] = {
+        "input_sanitization": {"total": 0, "threats": 0, "threat_rate": 0.0, "by_type": {}},
+        "output_leakage":     {"total": 0, "leakages": 0, "leakage_rate": 0.0, "by_type": {}},
+        "tool_authorization": {"total_calls": 0, "violations": 0, "violation_rate": 0.0},
+        "privilege_escalation": {"total": 0, "escalations": 0},
+        "chain_attack":       {"total": 0, "attacks": 0},
+    }
+    events: List[Dict[str, Any]] = []
+
+    for rf in files:
+        fid = rf.file_id
+
+        # --- input_sanitization ---
+        if not category or category == "input_sanitization":
+            sec = rf.security_l1.input_security
+            summary["input_sanitization"]["total"] += int(sec.get("total_inputs_evaluated", 0) or 0)
+            summary["input_sanitization"]["threats"] += int(sec.get("inputs_with_threats", 0) or 0)
+            for attack_type in ("sql_injection", "command_injection", "path_traversal", "xss", "prompt_injection"):
+                key = f"{attack_type}_attempts"
+                cnt = int(sec.get(key, 0) or 0)
+                bt = summary["input_sanitization"]["by_type"]
+                bt[attack_type] = bt.get(attack_type, 0) + cnt
+            for ev in rf.security_l1.input_evals:
+                if threats_only and not ev.get("sanitization_needed"):
+                    continue
+                events.append({
+                    "file_id": fid,
+                    "category": "input_sanitization",
+                    "has_threat": bool(ev.get("sanitization_needed")),
+                    "sql_injection": bool(ev.get("has_sql_injection")),
+                    "command_injection": bool(ev.get("has_command_injection")),
+                    "path_traversal": bool(ev.get("has_path_traversal")),
+                    "xss": bool(ev.get("has_xss")),
+                    "prompt_injection": bool(ev.get("has_prompt_injection")),
+                    "task_id": ev.get("task_id"),
+                    "input_preview": str(ev.get("input", ""))[:200],
+                })
+
+        # --- output_leakage ---
+        if not category or category == "output_leakage":
+            sec = rf.security_l1.output_leakage
+            summary["output_leakage"]["total"] += int(sec.get("total_outputs_evaluated", 0) or 0)
+            summary["output_leakage"]["leakages"] += int(sec.get("outputs_with_leakage", 0) or 0)
+            for leak_type in ("api_key", "password", "credit_card", "email", "ssn", "phone", "private_ip", "file_path"):
+                key = f"{leak_type}_leaks"
+                cnt = int(sec.get(key, 0) or 0)
+                bt = summary["output_leakage"]["by_type"]
+                bt[leak_type] = bt.get(leak_type, 0) + cnt
+            for ev in rf.security_l1.output_detections:
+                if threats_only and ev.get("leakage_count", 0) == 0:
+                    continue
+                events.append({
+                    "file_id": fid,
+                    "category": "output_leakage",
+                    "leakage_count": int(ev.get("leakage_count", 0) or 0),
+                    "severity": ev.get("severity", "none"),
+                    "contains_api_key": bool(ev.get("contains_api_key")),
+                    "contains_password": bool(ev.get("contains_password")),
+                    "contains_credit_card": bool(ev.get("contains_credit_card")),
+                    "contains_email": bool(ev.get("contains_email")),
+                    "task_id": ev.get("task_id"),
+                    "output_preview": str(ev.get("output", ""))[:200],
+                })
+
+        # --- tool_authorization ---
+        if not category or category == "tool_authorization":
+            sec = rf.security_l1.authorization
+            summary["tool_authorization"]["total_calls"] += int(sec.get("total_tool_calls", 0) or 0)
+            summary["tool_authorization"]["violations"] += int(sec.get("violations", 0) or sec.get("unauthorized_calls", 0) or 0)
+            for ev in rf.security_l1.tool_calls:
+                is_auth = ev.get("is_authorized", True)
+                if threats_only and is_auth:
+                    continue
+                events.append({
+                    "file_id": fid,
+                    "category": "tool_authorization",
+                    "tool_name": ev.get("tool_name", ""),
+                    "is_authorized": bool(is_auth),
+                    "is_restricted": bool(ev.get("is_restricted")),
+                    "has_dangerous_params": bool(ev.get("has_dangerous_params")),
+                    "task_id": ev.get("task_id"),
+                })
+
+        # --- privilege_escalation ---
+        if not category or category == "privilege_escalation":
+            summary["privilege_escalation"]["total"] += len(rf.security_l2.escalation_events)
+            escalations = [e for e in rf.security_l2.escalation_events if e.get("escalation_detected")]
+            summary["privilege_escalation"]["escalations"] += len(escalations)
+            for ev in rf.security_l2.escalation_events:
+                if threats_only and not ev.get("escalation_detected"):
+                    continue
+                events.append({
+                    "file_id": fid,
+                    "category": "privilege_escalation",
+                    "escalation_detected": bool(ev.get("escalation_detected")),
+                    "privilege_level": ev.get("privilege_level", ""),
+                    "task_id": ev.get("task_id"),
+                })
+
+        # --- chain_attack ---
+        if not category or category == "chain_attack":
+            summary["chain_attack"]["total"] += len(rf.security_l2.attack_detections)
+            attacks = [e for e in rf.security_l2.attack_detections if e.get("attack_detected")]
+            summary["chain_attack"]["attacks"] += len(attacks)
+            for ev in rf.security_l2.attack_detections:
+                if threats_only and not ev.get("attack_detected"):
+                    continue
+                events.append({
+                    "file_id": fid,
+                    "category": "chain_attack",
+                    "attack_detected": bool(ev.get("attack_detected")),
+                    "attack_type": ev.get("attack_type", ""),
+                    "task_id": ev.get("task_id"),
+                })
+
+    # 비율 계산
+    _si = summary["input_sanitization"]
+    if _si["total"] > 0:
+        _si["threat_rate"] = round(_si["threats"] / _si["total"] * 100, 2)
+    _ol = summary["output_leakage"]
+    if _ol["total"] > 0:
+        _ol["leakage_rate"] = round(_ol["leakages"] / _ol["total"] * 100, 2)
+    _ta = summary["tool_authorization"]
+    if _ta["total_calls"] > 0:
+        _ta["violation_rate"] = round(_ta["violations"] / _ta["total_calls"] * 100, 2)
+
+    total = len(events)
+    paged = events[skip: skip + limit]
+    return {
+        "summary": summary,
+        "events": paged,
+        "total": total,
+        "skip": skip,
+        "limit": limit,
+        "file_ids": [f.file_id for f in files],
     }

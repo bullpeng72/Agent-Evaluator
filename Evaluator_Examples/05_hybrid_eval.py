@@ -84,6 +84,7 @@ if _missing:
 
 from agent_evaluator import TaskResult, create_taskresult
 from agent_evaluator import HybridPerformanceMonitor, PerformanceMonitor
+from agent_evaluator.decorators import batch_eval
 from agent_evaluator.reporting import generate_comprehensive_html_report
 
 
@@ -528,7 +529,7 @@ def run_hybrid_evaluation():
     # [Part 3] Layer 1 직접 트래커 비교 — HybridPerformanceMonitor와 차이점 시연
     # ─────────────────────────────────────────────────────────────────────────
     print("─" * 70)
-    print("  [Part 3] Layer 1 직접 트래커 비교")
+    print("  [Part 3] Layer 1 직접 트래커 비교 (@batch_eval 방식)")
     print("  HybridPerformanceMonitor(Layer 3) vs PerformanceMonitor(Layer 1)")
     print("─" * 70)
 
@@ -538,35 +539,47 @@ def run_hybrid_evaluation():
         output_dir=str(project_root / "results"),
     )
 
-    # 동일한 케이스를 Layer 1으로 평가
-    for case in deepeval_cases + rag_cases:
-        l1_task = create_taskresult(
-            task_id=f"l1_{case['task_id']}",
-            question=case["question"],
-            response=case["answer"],
-            ground_truth=case["expected"],
-            execution_time=0.5,
-            task_type=case["task_type"],
-            has_error=case.get("is_hallucination_test", not case["success"]),
-        )
-        layer1_monitor.record_task(l1_task)
+    # 케이스별 답변 조회 맵 (question → answer / context / error flag)
+    _all_cases = deepeval_cases + rag_cases
+    _l1_answer_map = {c["question"]: c for c in _all_cases}
 
-        # Layer 1 hallucination: 알고리즘 기반 패턴 매칭
-        ctx = case.get("contexts", [case["expected"]])
-        ctx_str = " ".join(ctx) if isinstance(ctx, list) else ctx
-        layer1_monitor.hallucination_detector.detect_hallucination(
-            task_id=f"l1_{case['task_id']}",
-            response=case["answer"],
-            context=ctx_str,
-            ground_truth=case["expected"],
-            request=case["question"],
-        )
+    # ── @batch_eval 로 Layer 1 배치 평가 ──────────────────────────────────────
+    # contexts_arg="contexts" → 할루시네이션 감지에 컨텍스트 자동 적용
+    @batch_eval(
+        layer1_monitor,
+        task_type="qa",
+        task_id_prefix="l1",
+        return_format="dataframe",
+        contexts_arg="contexts",
+        flush_every=6,
+        flush_filename="05_hybrid_l1_batch",
+        on_batch_complete=lambda rs: print(f"  Layer 1 배치 완료: {len(rs)}건 기록"),
+    )
+    def layer1_batch(questions: list, ground_truths: list = None,
+                     contexts: list = None) -> list:
+        """Layer 1 알고리즘 기반 배치 평가 — 실제 케이스 답변을 그대로 반환."""
+        return [_l1_answer_map[q]["answer"] if q in _l1_answer_map else "" for q in questions]
+
+    _ctx_list = [
+        " ".join(c.get("contexts", [c["expected"]])) if isinstance(c.get("contexts"), list)
+        else c.get("expected", "")
+        for c in _all_cases
+    ]
+    df_l1 = layer1_batch(
+        questions=[c["question"] for c in _all_cases],
+        ground_truths=[c["expected"] for c in _all_cases],
+        contexts=_ctx_list,
+    )
+
+    if hasattr(df_l1, "shape"):
+        print(f"  @batch_eval DataFrame: {df_l1.shape}  "
+              f"성공: {int(df_l1['success'].sum()) if 'success' in df_l1.columns else '?'}건")
 
     l1_report = layer1_monitor.generate_report()
     l1_acc = l1_report.accuracy_metrics.get("accuracy", {})
     l3_de_scores = metrics_by_key.get("g_eval_score", [])
 
-    print(f"\n  Layer 1 (알고리즘 기반):")
+    print(f"\n  Layer 1 (알고리즘 기반, @batch_eval):")
     print(f"    정확도 (토큰 F1·Jaccard·LCS): "
           f"{l1_acc.get('avg_accuracy', 0.0):.3f}")
     print(f"    TCR: {l1_report.accuracy_metrics.get('tcr', {}).get('tcr', 0):.1f}%")

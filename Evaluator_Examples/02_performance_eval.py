@@ -25,7 +25,10 @@ from dotenv import load_dotenv
 load_dotenv(Path(__file__).parent / ".env")
 
 from agent_evaluator import PerformanceMonitor, TaskResult, create_taskresult
+from agent_evaluator.decorators import agent_eval, EvalMetadata
 from agent_evaluator.reporting import generate_comprehensive_html_report
+
+_sc_02: dict = {}  # 루프별 시나리오 공유 컨텍스트
 
 
 def _try_setup_otel(service_name: str) -> None:
@@ -241,6 +244,26 @@ def run_performance_evaluation():
 
     base_time = datetime.now() - timedelta(hours=4)
 
+    @agent_eval(
+        monitor,
+        task_type="qa",
+        task_id_fn=lambda args, kw: _sc_02.get("task_id", "perf_qa_000"),
+        flush_every=26,
+        flush_filename="02_performance_eval",
+    )
+    def _perf_agent(question: str, ground_truth: str = "") -> tuple:
+        sc = _sc_02
+        response_text = sc["resp_ok"] if sc["success"] else sc["resp_fail"]
+        if not sc["success"] and not sc["partial"]:
+            raise RuntimeError(sc.get("error_msg", "execution_failed"))
+        return response_text, EvalMetadata(
+            accuracy_score=sc["accuracy"],
+            completion_score=sc["completion"],
+            tokens_used=sc["tokens"],
+            attempts=sc["attempts"],
+            framework="native",
+        )
+
     type_counts: dict = {}
     for idx, (task_type, comp_prof, lat_prof, tok_prof) in enumerate(TASK_SCENARIOS):
         n = type_counts.get(task_type, 0) + 1
@@ -261,37 +284,29 @@ def run_performance_evaluation():
         if comp_prof in ("low", "medium") and rng.random() < 0.4:
             attempts = rng.randint(2, 3)
 
-        # 콘텐츠 먼저 로드 (create_taskresult에 question/response/ground_truth 전달)
         req, resp_ok, resp_fail, ground_truth_text, expected_elems = _TASK_CONTENT.get(
             task_type, _TASK_CONTENT["qa"]
         )
         request_text  = req
         response_text = resp_ok if success else resp_fail
 
-        # create_taskresult(): completion_score·accuracy_score 자동 계산
-        task = create_taskresult(
-            task_id=task_id,
-            question=request_text,
-            response=response_text,
-            ground_truth=ground_truth_text,
-            execution_time=exec_time,
-            task_type=task_type,
-            has_error=not success and not partial,
-            error_message=error_msg,
-        )
-        # 시뮬레이션 프로파일 기반 성공/점수 값으로 override
-        task = dataclasses.replace(
-            task,
-            success=success,
-            completion_score=completion,
-            accuracy_score=accuracy,
-            tokens_used=tokens,
-            attempts=attempts,
-            timestamp=base_time + timedelta(minutes=idx * 5),
-            framework="native",
-        )
+        _sc_02.update({
+            "task_id": task_id,
+            "success": success,
+            "partial": partial,
+            "completion": completion,
+            "accuracy": accuracy,
+            "tokens": tokens,
+            "attempts": attempts,
+            "error_msg": error_msg,
+            "resp_ok": resp_ok,
+            "resp_fail": resp_fail,
+        })
 
-        monitor.record_task(task)
+        try:
+            _perf_agent(question=request_text, ground_truth=ground_truth_text)
+        except RuntimeError:
+            pass
 
         # Response Quality — 성공 시 expected_elements 기반 5차원 품질 평가
         monitor.quality_evaluator.evaluate_response(

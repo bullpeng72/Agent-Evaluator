@@ -107,17 +107,31 @@ def run_tracing_and_evaluators(phoenix_ok: bool) -> str:
     )
 
     rng = random.Random(42)
+
+    from agent_evaluator.decorators import agent_eval, EvalMetadata
+
+    _task_by_q: dict = {q: (resp, ttype, success) for q, resp, gt, ttype, success in _TASKS}
+
+    @agent_eval(
+        monitor,
+        task_type="qa",
+        task_id_prefix="verify",
+        flush_every=8,
+        flush_filename="17_phoenix_verify",
+    )
+    def _verify_agent(question: str, ground_truth: str = "") -> tuple:
+        _resp, _ttype, _success = _task_by_q[question]
+        exec_time = round(rng.uniform(0.3, 2.1), 3)
+        meta = EvalMetadata(completion_score=1.0 if _success else 0.0)
+        if not _success:
+            raise RuntimeError("verification_failure")
+        return _resp, meta
+
     for i, (q, resp, gt, ttype, success) in enumerate(_TASKS):
-        task = create_taskresult(
-            task_id=f"verify_{i+1:03d}",
-            question=q,
-            response=resp,
-            ground_truth=gt,
-            execution_time=round(rng.uniform(0.3, 2.1), 3),
-            task_type=ttype,
-            has_error=not success,
-        )
-        monitor.record_task(task)
+        try:
+            _verify_agent(question=q, ground_truth=gt)
+        except RuntimeError:
+            pass
         icon = "✅" if success else "❌"
         print(f"    {icon}  verify_{i+1:03d}  {q[:30]}")
 
@@ -252,7 +266,8 @@ def run_datasets_and_experiments(phoenix_ok: bool, base_filename: str) -> tuple[
 
     if phoenix_ok and exp_id:
         monitor2.end_experiment(report=report2, phoenix_endpoint=PHOENIX_ENDPOINT)
-        _check("Experiment 종료 (end_experiment)", f"TCR={report2.task_completion_rate:.0f}%", True)
+        tcr2 = report2.accuracy_metrics.get("tcr", {}).get("tcr", 0)
+        _check("Experiment 종료 (end_experiment)", f"TCR={tcr2:.0f}%", True)
         print()
         print("  📌  Phoenix에서 확인할 위치:")
         print("      [Datasets & Experiments 탭]")

@@ -3,7 +3,7 @@
 [![PyPI version](https://img.shields.io/pypi/v/agent-evaluator.svg)](https://pypi.org/project/agent-evaluator/)
 [![Python Version](https://img.shields.io/badge/python-3.8%2B-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Version](https://img.shields.io/badge/version-0.7.2-green.svg)](https://github.com/bullpeng72/Agent-Evaluator)
+[![Version](https://img.shields.io/badge/version-0.7.3-green.svg)](https://github.com/bullpeng72/Agent-Evaluator)
 
 **AI 에이전트를 위한 프로덕션 레디 평가 프레임워크**
 
@@ -183,7 +183,7 @@ pipx는 기본적으로 pip 인덱스 캐시를 사용하므로, 최신 버전�
 
 ```bash
 # 방법 1: 버전 명시 (권장)
-pipx install "agent-evaluator[all]==0.7.2"
+pipx install "agent-evaluator[all]==0.7.3"
 
 # 방법 2: 캐시 무시
 pipx install --pip-args="--no-cache-dir" "agent-evaluator[all]"
@@ -442,7 +442,7 @@ agent-eval check
 
 출력 예시:
 ```
-  Agent Evaluator v0.7.2 — 설정 상태
+  Agent Evaluator v0.7.3 — 설정 상태
   ──────────────────────────────────────────────────
 ℹ  .env 로드: /home/user/project/.env
 
@@ -700,9 +700,13 @@ agent-evaluator/
 │   ├── 14_anomaly_cost_eval.py      # 이상 탐지 + 비용 최적화 예제
 │   ├── 15_conversation_eval.py      # 멀티턴 대화 평가 예제
 │   ├── 16_dashboard_demo.py         # FastAPI 대시보드 통합 데모 — save_to_file + Phoenix OTEL
-│   └── 17_phoenix_verification.py   # Phoenix 4개 메뉴 통합 데모 — Tracing·Evaluators·Datasets·Prompts
+│   ├── 17_phoenix_verification.py   # Phoenix 4개 메뉴 통합 데모 — Tracing·Evaluators·Datasets·Prompts
+│   ├── 18_decorator_eval.py         # @agent_eval 데코레이터 방식 평가
+│   ├── 19_decorator_coverage_expanded.py # 커버리지 확대 데코레이터 검증
+│   ├── 20_quickeval_demo.py         # QuickEval + 신규 기능 통합 데모 (7섹션)
+│   └── 21_layer2_agentic_eval.py    # Layer 2 Agentic Metrics 활성화 가이드 (3가지 방식)
 │
-├── tests/                        # 단위 테스트 (1,769개 테스트 함수, 59개 파일)
+├── tests/                        # 단위 테스트 (1,823개 테스트 함수, 60개 파일)
 ├── pyproject.toml
 └── LICENSE
 ```
@@ -711,7 +715,7 @@ agent-evaluator/
 
 ## 예제 가이드
 
-17개의 예제 파일로 Layer 1/2/3 전체 지표를 검증할 수 있습니다.
+21개의 예제 파일로 Layer 1/2/3 전체 지표를 검증할 수 있습니다.
 
 ```bash
 cd Evaluator_Examples
@@ -843,6 +847,13 @@ mypy agent_evaluator/
 
 ## 변경 이력
 
+### v0.7.3 (2026-04-07) — 보안 트래커 실동작 · 커버리지 전면 확대 · Phoenix 통합 완성
+
+- **보안 메트릭 실동작** — `record_task()`에서 5개 보안 트래커 누락 호출 버그 수정 (CRITICAL)
+- **프레임워크 어댑터 확대** — AutoGen `agent_interactions`/`state_transitions`; Haystack/SK `tool_calls`; PydanticAI/LlamaIndex `tool_calls`; CrewAI `state_transitions`
+- **Phoenix 통합 완성** — Prompts 탭(`llm.prompts`) + Datasets 탭(`dataset.id`) + `ae.tool_names` span 속성 추가
+- **대시보드 API** — `security_incidents_count`, `has_multimodal`, `multimodal_task_count` 목록뷰 노출
+
 ### v0.7.2 (2026-04-05) — 데코레이터 API 완성 · 25개 개선 · 대시보드 API 확장
 
 - **데코레이터 API 완성** — `agent_eval`/`batch_eval`/`conversation_eval`/`EvalDecorator` 파라미터 일관성 확보; `timeout` → `_COMMON_PARAMS` 전파; `on_record` → `conversation_eval` + `_CONV_PARAMS`
@@ -926,7 +937,7 @@ MIT License — 자세한 내용은 [LICENSE](LICENSE) 파일을 참고하세요
   title   = {Agent Evaluator: Production-ready evaluation framework for AI agents},
   author  = {Kim, Sungwoo},
   year    = {2026},
-  version = {0.7.2},
+  version = {0.7.3},
   url     = {https://github.com/bullpeng72/Agent-Evaluator},
   license = {MIT}
 }

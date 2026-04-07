@@ -12,7 +12,7 @@
 2. `add_evaluation()`, `detect_hallucination()` 등 직접 API를 호출할 수 있다
 3. Layer 1 Rule-based vs Layer 3 LLM 환각 탐지 차이를 선택 기준과 함께 설명할 수 있다
 4. 토큰 입출력 비율로 프롬프트 효율 문제를 진단할 수 있다
-5. `evaluation_session`과 복수 모니터 패턴을 활용할 수 있다
+5. `@agent_eval`로 각 지표가 자동 수집되는 방식을 설명하고 적용할 수 있다
 
 ---
 
@@ -38,34 +38,30 @@ completion_score 해석:
 ### completion_score가 TCR에 직접 사용되는 방식
 
 ```python
-from agent_evaluator import PerformanceMonitor, TaskResult
-from datetime import datetime
+from agent_evaluator import PerformanceMonitor, create_taskresult
 
 monitor = PerformanceMonitor(output_dir="results/")
 
-# completion_score 0.95 → 완전 완료로 집계
-task_high = TaskResult(
+# create_taskresult() 사용 — completion_score, accuracy_score, timestamp 자동 계산
+task_high = create_taskresult(
     task_id="tcr_001",
-    task_type="qa",
-    success=True,
-    completion_score=0.95,    # ← 이 값이 TCR 계산에 직접 사용
-    accuracy_score=0.88,
+    question="질문",
+    response="답변",
+    ground_truth="정답",
     execution_time=1.2,
-    tokens_used={"input": 100, "output": 50, "total": 150},
-    tool_calls=[], attempts=1, errors=[], timestamp=datetime.now(),
+    task_type="qa",
 )
+# completion_score는 accuracy_score 기반으로 자동 설정됨
 monitor.record_task(task_high)
 
-# completion_score 0.5 → 부분 완료
-task_partial = TaskResult(
+# 부분 완료 케이스 — completion_score를 직접 지정하고 싶을 때
+task_partial = create_taskresult(
     task_id="tcr_002",
-    task_type="qa",
-    success=False,
-    completion_score=0.5,    # ← 부분 완료
-    accuracy_score=0.40,
+    question="질문",
+    response="불완전한 답변",
+    ground_truth="완전한 정답",
     execution_time=3.5,
-    tokens_used={"input": 200, "output": 100, "total": 300},
-    tool_calls=[], attempts=2, errors=["timeout"], timestamp=datetime.now(),
+    task_type="qa",
 )
 monitor.record_task(task_partial)
 
@@ -73,9 +69,25 @@ report = monitor.generate_report()
 print(f"TCR: {report.task_completion_rate:.1%}")
 ```
 
+### @agent_eval 사용 시 TCR 자동 수집
+
+```python
+# @agent_eval 사용 시 TCR 자동 수집
+from agent_evaluator import PerformanceMonitor
+from agent_evaluator.decorators import agent_eval
+
+monitor = PerformanceMonitor(output_dir="results/")
+
+@agent_eval(monitor, task_type="qa")
+def my_agent(question: str, ground_truth: str = "") -> str:
+    return llm.invoke(question)
+# → 함수가 성공적으로 반환 → completion_score=1.0 자동
+# → 예외 발생 → completion_score=0.0 자동 + has_error=True
+```
+
 ### QA 관점 포인트
 
-> **⚠️ TCR 단독 사용 금지**
+> **TCR 단독 사용 금지**
 >
 > 에이전트가 "완료"했다고 해서 정확한 것은 아닙니다.
 > "완료했지만 틀린" 케이스를 TCR 단독으로는 잡을 수 없습니다.
@@ -139,7 +151,7 @@ LCS Ratio = 5/17 ≈ 0.294
 ≈ 0.246 + 0.133 + 0.059 + char
 ```
 
-> **💡 포인트:** 이 예시에서 "대한민국" vs "한국"이 다른 토큰이라 점수가 낮아집니다.
+> **포인트:** 이 예시에서 "대한민국" vs "한국"이 다른 토큰이라 점수가 낮아집니다.
 > 의미상 동일한 표현의 점수 차이가 발생하는 것은 Rule-based의 한계입니다.
 > 이런 케이스에 Layer 3 G-Eval이 필요한 이유입니다.
 
@@ -163,6 +175,17 @@ monitor.accuracy_evaluator.add_evaluation(
 )
 ```
 
+### @agent_eval 사용 시 Accuracy 자동 수집
+
+```python
+# ground_truth를 인자로 전달하면 accuracy_score 자동 계산
+@agent_eval(monitor, task_type="qa")
+def my_agent(question: str, ground_truth: str = "") -> str:
+    return llm.invoke(question)
+# → 반환값과 ground_truth를 AccuracyEvaluator로 자동 평가
+# → accuracy_score가 TaskResult에 자동 기록됨
+```
+
 ### 직접 호출 vs `create_taskresult()` — 언제 어느 쪽을 쓰나
 
 ```python
@@ -178,7 +201,8 @@ task = create_taskresult(
 # accuracy_score가 내부에서 자동 계산됨
 
 # 방법 2: add_evaluation() 직접 호출 — 정밀 평가
-task = TaskResult(task_id="t001", ..., accuracy_score=0.0)  # 초기값 0
+task = create_taskresult(task_id="t001", question="질문", response="답변",
+                         ground_truth="정답", task_type="qa", execution_time=1.0)
 monitor.record_task(task)
 
 # 이후 직접 평가 추가 (동일 태스크에 복수 GT 비교 가능)
@@ -201,7 +225,7 @@ monitor.accuracy_evaluator.add_evaluation(
 > - 배치 평가 후 외부 점수와 비교할 때
 > - AST 비교 결과를 명시적으로 확인할 때
 
-> **🔧 실습:** `01_quality_eval.py`를 실행하고, high/hallucination/low_quality tier별 평균 accuracy_score를 비교해보세요.
+> **실습:** `01_quality_eval.py`를 실행하고, high/hallucination/low_quality tier별 평균 accuracy_score를 비교해보세요.
 
 ---
 
@@ -255,6 +279,17 @@ detected = result.get("hallucination_detected", False)
 indicators = result.get("indicators", [])  # 탐지된 구체적 지표들
 ```
 
+### @agent_eval 사용 시 Hallucination 자동 수집
+
+```python
+# rag_mode=True 로 hallucination 탐지 자동 활성화
+@agent_eval(monitor, task_type="information_retrieval", rag_mode=True)
+def rag_agent(question: str, context: str = "", ground_truth: str = "") -> str:
+    return llm.invoke_with_context(question, context)
+# → context 인자를 자동 감지하여 HallucinationDetector에 전달
+# → hallucination_rate가 TaskResult에 자동 기록됨
+```
+
 ### 🆕 Layer 1 Rule-based vs Layer 3 LLM 환각 탐지 비교
 
 이 비교표는 기존 Docs에 없는 내용입니다. 두 방식의 특성을 이해하고 적절히 조합하세요.
@@ -277,7 +312,7 @@ indicators = result.get("indicators", [])  # 탐지된 구체적 지표들
         ↓ 원인 파악 후 컨텍스트/프롬프트 개선
 ```
 
-> **⚠️ 성능 주의:** `enable_hallucination_detection=False`가 기본값입니다.
+> **성능 주의:** `enable_hallucination_detection=False`가 기본값입니다.
 > True로 설정하면 각 태스크마다 추가 계산이 발생합니다.
 > 프로덕션 전수 평가 시 성능 영향을 고려하세요.
 
@@ -295,7 +330,7 @@ indicators = result.get("indicators", [])  # 탐지된 구체적 지표들
 | Clarity | 표현 명확성 | 이해하기 어려운 표현 | 누구나 이해 가능 |
 | Usefulness | 실용적 유용성 | 읽어도 도움 안 됨 | 즉시 적용 가능 |
 
-> **⚠️ 스케일 주의:** 총점은 0–5.0입니다. 0–10이 아닙니다.
+> **스케일 주의:** 총점은 0–5.0입니다. 0–10이 아닙니다.
 > 대시보드 Quality 탭도 `/5.0` 스케일로 표시합니다.
 
 ### `expected_elements`로 점수 향상
@@ -320,6 +355,28 @@ score2 = monitor.quality_evaluator.evaluate_response(
 )
 print(f"기본 평가: {score1.get('total_score', 0):.2f}/5.0")
 print(f"특화 평가: {score2.get('total_score', 0):.2f}/5.0")
+```
+
+### @agent_eval 사용 시 Quality 자동 수집
+
+```python
+# @agent_eval은 응답 품질(5차원)을 자동 평가하지는 않음
+# Quality 지표는 evaluate_response()를 명시적으로 호출해야 함
+# 단, create_taskresult() + record_task()로 기록 후 별도 호출 가능
+
+@agent_eval(monitor, task_type="qa")
+def my_agent(question: str, ground_truth: str = "") -> str:
+    return llm.invoke(question)
+
+# 또는 on_record 콜백으로 품질 평가 추가
+@agent_eval(monitor, task_type="qa",
+            on_record=lambda tr: monitor.quality_evaluator.evaluate_response(
+                task_id=tr.task_id,
+                request=tr.question or "",
+                response=tr.response or "",
+            ))
+def my_agent(question: str, ground_truth: str = "") -> str:
+    return llm.invoke(question)
 ```
 
 ### 결과 접근 패턴
@@ -385,6 +442,17 @@ if p99 > SLA_P99:
     print(f"🔴 P99 SLA 위반: {p99:.2f}s > {SLA_P99}s")
 ```
 
+### @agent_eval 사용 시 Latency 자동 수집
+
+```python
+# Latency는 실행 시간을 자동 측정
+@agent_eval(monitor, task_type="qa")
+def my_agent(question: str, ground_truth: str = "") -> str:
+    return llm.invoke(question)  # 시작~종료 시간 자동 계측
+# → execution_time이 TaskResult에 자동 기록됨
+# → LatencyTracker에 P50/P95/P99 통계 자동 누산
+```
+
 ### Token Economy Tracker
 
 ```python
@@ -401,6 +469,22 @@ token_stats = monitor.token_tracker.get_stats()
 print(f"총 토큰: {token_stats.get('total_tokens', 0):,}")
 print(f"총 비용: ${token_stats.get('estimated_cost_usd', 0):.4f}")
 print(f"월간 예측 (1만 태스크): ${token_stats.get('monthly_projection', 0):.2f}")
+```
+
+### @agent_eval 사용 시 Token 자동 수집
+
+```python
+# OpenAI/Anthropic 응답 객체 반환 시 토큰 자동 추출
+@agent_eval(monitor, task_type="qa", framework="openai")
+def my_agent(question: str, ground_truth: str = "") -> str:
+    return client.chat.completions.create(...)  # usage.total_tokens 자동 추출
+# → framework="openai" 어댑터가 usage.input_tokens/output_tokens 자동 파싱
+# → TokenEconomyTracker에 자동 기록됨
+
+# Anthropic 사용 시
+@agent_eval(monitor, task_type="qa", framework="anthropic")
+def my_agent(question: str, ground_truth: str = "") -> str:
+    return anthropic_client.messages.create(...)  # usage.input_tokens 자동 추출
 ```
 
 ### 🆕 입출력 토큰 비율로 프롬프트 효율 진단
@@ -484,16 +568,13 @@ from agent_evaluator import evaluation_session, PerformanceMonitor
 # Stage 1: 검색(Retrieval) 품질만 평가
 with evaluation_session("stage1_retrieval") as m_retrieval:
     for query, retrieved_docs, relevant_docs in retrieval_results:
-        task = TaskResult(
+        task = create_taskresult(
             task_id=f"ret_{query[:10]}",
-            task_type="information_retrieval",
-            success=len(retrieved_docs) > 0,
-            completion_score=recall_at_k(retrieved_docs, relevant_docs),
-            accuracy_score=precision_at_k(retrieved_docs, relevant_docs),
+            question=query,
+            response=" ".join(retrieved_docs),
+            ground_truth=" ".join(relevant_docs),
             execution_time=retrieval_time,
-            tokens_used={"input": 0, "output": 0, "total": 0},
-            tool_calls=[], attempts=1, errors=[], timestamp=datetime.now(),
-            request=query,
+            task_type="information_retrieval",
         )
         m_retrieval.record_task(task)
 # → results/stage1_retrieval_*.json
@@ -519,7 +600,7 @@ print("agent-eval dashboard --watch")
 
 ### 실습 과제
 
-> **🔧 실습:**
+> **실습:**
 >
 > 1. `01_quality_eval.py`를 실행하여 `results/` 폴더에 JSON 파일 생성
 > 2. `agent-eval dashboard --watch` 로 대시보드 실행
@@ -532,14 +613,14 @@ print("agent-eval dashboard --watch")
 
 ## 모듈 2 요약 체크리스트
 
-| 지표 | 공식 핵심 | 주요 임계값 | 직접 API |
-|------|----------|-----------|---------|
-| TCR | Σ(completion_score) / N | > 90% Excellent | `record_task()` |
-| Accuracy | TokenF1(40%)+Jaccard(30%)+LCS(20%)+Char(10%) | > 75% 권장 | `add_evaluation()` |
-| Hallucination | hallucination_rate (1.0=정상) | > 0.8 권장 | `detect_hallucination()` |
-| Quality | 5차원 합산 (0–5.0) | > 3.5/5.0 권장 | `evaluate_response()` |
-| Latency | P50/P95/P99 퍼센타일 | P95 < 5초 | `record_latency()` |
-| Token | input+output 토큰, 비용 추정 | 비율 0.05–2.0 | `track_usage()` |
+| 지표 | 공식 핵심 | 주요 임계값 | 직접 API | 데코레이터 자동화 |
+|------|----------|-----------|---------|-----------------|
+| TCR | Σ(completion_score) / N | > 90% Excellent | `record_task()` | 성공/예외 자동 감지 |
+| Accuracy | TokenF1(40%)+Jaccard(30%)+LCS(20%)+Char(10%) | > 75% 권장 | `add_evaluation()` | ground_truth 인자 자동 |
+| Hallucination | hallucination_rate (1.0=정상) | > 0.8 권장 | `detect_hallucination()` | `rag_mode=True` |
+| Quality | 5차원 합산 (0–5.0) | > 3.5/5.0 권장 | `evaluate_response()` | on_record 콜백 |
+| Latency | P50/P95/P99 퍼센타일 | P95 < 5초 | `record_latency()` | 실행 시간 자동 계측 |
+| Token | input+output 토큰, 비용 추정 | 비율 0.05–2.0 | `track_usage()` | `framework=` 자동 추출 |
 
 ---
 
@@ -553,4 +634,4 @@ print("agent-eval dashboard --watch")
 
 ---
 
-*Agent-Evaluator SDK 강의 자료 — v0.7.0 기준 | 2026-04-01*
+*Agent-Evaluator SDK 강의 자료 — v0.7.3 기준 | 2026-04-07*

@@ -5,7 +5,7 @@
 **Agent-Evaluator** is a production-ready Python SDK for evaluating AI agents.
 25개의 성능 지표를 세 개의 레이어(기본/에이전틱/하이브리드)로 측정한다.
 
-- **Version:** 0.7.2 (Beta)
+- **Version:** 0.7.3 (Beta)
 - **Python:** 3.8+
 - **License:** MIT
 - **Author:** Sungwoo Kim
@@ -154,7 +154,7 @@ agent_evaluator/
 ├── config.py                # 환경변수 설정 로더 (load_env, get_settings)
 └── __init__.py              # Public API surface
 
-Evaluator_Examples/          # 실제 사용 예시 (패키지 외부, 17개 플랫 파일)
+Evaluator_Examples/          # 실제 사용 예시 (패키지 외부, 21개 플랫 파일)
 ├── 01_quality_eval.py       # 품질 지표 — Accuracy, Hallucination, Quality, RAG
 ├── 02_performance_eval.py   # 성능 지표 — TCR, Latency, Token Economy
 ├── 03_agentic_eval.py       # 에이전틱 지표 — Tool Call, Coordination, Workflow
@@ -171,7 +171,11 @@ Evaluator_Examples/          # 실제 사용 예시 (패키지 외부, 17개 플
 ├── 14_anomaly_cost_eval.py  # 이상 감지 + 비용 추적 + AdaptivePolicy
 ├── 15_conversation_eval.py  # 멀티턴 대화 평가 — ConversationSession
 ├── 16_dashboard_demo.py     # FastAPI 대시보드 통합 데모 — save_to_file + Phoenix OTEL
-└── 17_phoenix_verification.py # Phoenix 4개 메뉴 통합 데모 — Tracing·Evaluators·Datasets·Prompts
+├── 17_phoenix_verification.py # Phoenix 4개 메뉴 통합 데모 — Tracing·Evaluators·Datasets·Prompts
+├── 18_decorator_eval.py     # @agent_eval 데코레이터 방식 평가
+├── 19_decorator_coverage_expanded.py # 커버리지 확대 데코레이터 검증
+├── 20_quickeval_demo.py     # QuickEval + 신규 기능 통합 데모 (7섹션)
+└── 21_layer2_agentic_eval.py # Layer 2 Agentic Metrics 활성화 가이드 (3가지 방식)
 
 scripts/                     # 운영 도구 (live 인프라 필요, pytest 대상 아님)
 └── phoenix_check.py         # Phoenix 통합 자동 점검 — GraphQL 역조회로 pass/fail 판정 (CI 헬스체크용)
@@ -316,32 +320,33 @@ agent = create_evaluated_autogen_agent(config, monitor=monitor)
 ```
 
 ### Framework-Specific Decorators
-각 프레임워크에 최적화된 `@agent_eval` 별칭. 프레임워크 응답에서 메타데이터를 자동 추출한다.
+`agent_eval(framework=...)` 파라미터로 21개 프레임워크의 응답에서 메타데이터를 자동 추출한다.
 
 ```python
-from agent_evaluator.integrations import (
-    # Agent 프레임워크
-    langchain_eval,   # intermediate_steps → tool_calls/chain_steps
-    langgraph_eval,   # messages → state_transitions/graph_traversal/tool_calls
-    crewai_eval,      # tasks_output → agent_interactions
-    autogen_eval,     # messages/chat_history → conversation_turns
-    dspy_eval,        # _completions → chain_steps + token usage
-    pydanticai_eval,  # RunResult.usage() → tokens_used
-    # LLM SDK (v0.7.2+)
-    anthropic_eval,   # content[].tool_use → tool_calls + usage tokens
-    openai_eval,      # choices[0].message.tool_calls + usage.total_tokens
-    gemini_eval,      # candidates[0].content.parts[].function_call + usage_metadata
-    llamaindex_eval,  # source_nodes → chain_steps + metadata tokens
-    haystack_eval,    # pipeline component outputs → chain_steps
-)
+from agent_evaluator import agent_eval
 
-@langchain_eval(monitor)
+# framework= 파라미터로 직접 지정 — 응답에서 tool_calls/chain_steps/tokens_used 자동 추출
+@agent_eval(monitor, task_type="tool_use", framework="langchain")
 def my_agent(question: str, ground_truth: str = "") -> str:
     return agent_executor.invoke({"input": question})
 
-# 또는 QuickEval 에서 framework= 파라미터로 직접 지정
+# 지원 프레임워크 (21개): langchain, langgraph, crewai, autogen, dspy, pydanticai,
+# anthropic, openai, gemini, llamaindex, haystack, vertexai, ollama, cohere,
+# groq, mistral, bedrock, smolagents, semantic_kernel, vllm, huggingface
+@agent_eval(monitor, task_type="qa", framework="openai")
+def openai_agent(question: str, ground_truth: str = "") -> str:
+    return client.chat.completions.create(...)
+
+# 또는 QuickEval 에서 framework= 파라미터로 지정
+from agent_evaluator import QuickEval
+eval = QuickEval("results/")
+
 @eval(task_type="tool_use", framework="langchain")
 def my_agent(question: str, ground_truth: str = "") -> str: ...
+
+# 프레임워크 어댑터 메타데이터 조회
+from agent_evaluator.decorators import get_framework_info
+info = get_framework_info("langchain")  # {"extracts": [...], "description": "..."}
 ```
 
 ### `SimpleTaskAlertRule`
@@ -478,7 +483,7 @@ from agent_evaluator import (
 
 ## Testing
 
-`tests/` 디렉토리에 59개 파일, 1,769개+ 테스트 함수 존재.
+`tests/` 디렉토리에 60개 파일, 1,823개+ 테스트 함수 존재.
 
 ```bash
 # pytest.ini_options in pyproject.toml already configured:
@@ -548,6 +553,34 @@ pytest
 ---
 
 ## 📝 변경 이력
+
+### v0.7.3 (2026-04-07) — 보안 트래커 실동작 · 커버리지 전면 확대 · Phoenix 통합 완성
+
+**보안 메트릭 실동작 (CRITICAL 수정)**
+
+- **`record_task()` 보안 트래커 연결** — `enable_security_metrics=True` 설정 시 5개 보안 트래커(InputSanitization, OutputLeakage, ToolAuthorization, PrivilegeEscalation, ToolChainAttack)가 실제로 호출됨. 이전 버전에서는 초기화만 되고 호출이 누락되어 보안 지표가 0% 수집되던 버그 수정
+
+**프레임워크 어댑터 커버리지 확대**
+
+- **AutoGen `agent_interactions`** — 다중 에이전트 메시지에서 에이전트 간 교환 추출 (conversation_turns → agent_interactions 변환)
+- **AutoGen/CrewAI `state_transitions`** — 대화 흐름·태스크 완료 순서를 상태 전이 시퀀스로 변환 (LangGraph 전용 → 3개 프레임워크로 확대)
+- **Haystack `tool_calls`** — retriever/generator/reader/embedder/ranker 컴포넌트를 tool_calls로 자동 변환
+- **Semantic Kernel `tool_calls`** — `function_name` + `plugin_name` → "Plugin.function" 형식 도구 호출 추출
+- **PydanticAI `tool_calls`** — ToolCallPart chain_steps에서 tool_calls 재구성
+- **LlamaIndex `tool_calls`** — AgentChatResponse.sources ToolOutput에서 도구 호출 추출
+
+**Phoenix UI 통합 완성**
+
+- **Prompts 탭** — `llm.prompts` (질문/정답 JSON 배열), `input.mime_type`, `output.mime_type` OpenInference 속성 추가 → Playground 재현 지원
+- **Datasets 탭** — `dataset.id`, `dataset.version`, `dataset.record_count` 속성 추가 → 골든 데이터셋 컨텍스트 연동
+- **`ae.tool_names`** — 사용된 도구 이름 목록을 JSON 배열로 span 속성에 포함
+- **`ae.anomaly_detection_enabled`** — 이상 감지 활성화 여부 플래그 속성 추가
+
+**대시보드 API 개선**
+
+- **`security_incidents_count`** — 목록뷰에 보안 위협 건수(5종 합산) 추가 → 목록에서 정렬·필터 가능
+- **`has_multimodal` / `multimodal_task_count`** — 멀티모달 태스크 집계 목록뷰 노출
+- **테스트** — 60개 파일, 1,823개 테스트 함수
 
 ### v0.7.2 (2026-04-05) — 데코레이터 종합 개선 · 21개 프레임워크 어댑터 · QuickEval Facade · 대시보드 API 확장
 

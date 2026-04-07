@@ -198,6 +198,30 @@ class ResultFile:
                     self.security_l2.attack_detections)
 
     @property
+    def has_multimodal(self) -> bool:
+        """멀티모달 태스크(이미지/오디오/비디오) 포함 여부."""
+        return any(
+            t.raw.get("extra", {}) and (
+                t.raw["extra"].get("image_count") or
+                t.raw["extra"].get("audio_duration_seconds") or
+                t.raw["extra"].get("video_frames")
+            )
+            for t in self.tasks
+        )
+
+    @property
+    def multimodal_task_count(self) -> int:
+        """멀티모달 입력을 포함한 태스크 수."""
+        return sum(
+            1 for t in self.tasks
+            if t.raw.get("extra", {}) and (
+                t.raw["extra"].get("image_count") or
+                t.raw["extra"].get("audio_duration_seconds") or
+                t.raw["extra"].get("video_frames")
+            )
+        )
+
+    @property
     def has_agentic(self) -> bool:
         return bool(self.agentic.tool_selections or
                     self.agentic.agent_interactions or

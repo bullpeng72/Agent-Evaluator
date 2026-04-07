@@ -295,20 +295,21 @@ class TestEvalDecoratorConvParams:
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# A5: agent_eval_with_retry + alert_rules / flush_every
+# A5: agent_eval retry + alert_rules / flush_every (통합 후 agent_eval 사용)
 # ─────────────────────────────────────────────────────────────────────────────
 
-class TestAgentEvalWithRetryAlertRules:
+class TestAgentEvalRetryAlertRules:
     def test_alert_rules_param(self):
-        from agent_evaluator.decorators import agent_eval_with_retry, SimpleTaskAlertRule
+        """agent_eval에 alert_rules, flush_every, flush_filename 파라미터 존재."""
         import inspect
-        sig = inspect.signature(agent_eval_with_retry)
+        from agent_evaluator.decorators import agent_eval
+        sig = inspect.signature(agent_eval)
         assert "alert_rules" in sig.parameters
         assert "flush_every" in sig.parameters
         assert "flush_filename" in sig.parameters
 
     def test_alert_rules_fired(self):
-        from agent_evaluator.decorators import agent_eval_with_retry, SimpleTaskAlertRule
+        from agent_evaluator.decorators import agent_eval, SimpleTaskAlertRule
         m = _make_monitor()
         fired = []
         rule = SimpleTaskAlertRule(
@@ -317,7 +318,7 @@ class TestAgentEvalWithRetryAlertRules:
             cooldown=0.0,
         )
 
-        @agent_eval_with_retry(m, max_retries=1, alert_rules=[rule])
+        @agent_eval(m, max_retries=1, alert_rules=[rule])
         def agent(question, ground_truth=""):
             return "ans"
 
@@ -325,11 +326,11 @@ class TestAgentEvalWithRetryAlertRules:
         assert len(fired) == 1
 
     def test_flush_every_triggers(self, tmp_path):
-        from agent_evaluator.decorators import agent_eval_with_retry
+        from agent_evaluator.decorators import agent_eval
         m = _make_monitor(str(tmp_path))
 
-        @agent_eval_with_retry(m, max_retries=1, flush_every=1,
-                                flush_filename="retry_flush")
+        @agent_eval(m, max_retries=1, flush_every=1,
+                    flush_filename="retry_flush")
         def agent(question, ground_truth=""):
             return "ans"
 
@@ -455,92 +456,35 @@ class TestNewFrameworkAdapters:
         from agent_evaluator.decorators import _extract_semantic_kernel_metadata
         assert _extract_semantic_kernel_metadata("string") is None
 
-    def test_cohere_eval_import(self):
-        from agent_evaluator import cohere_eval
-        assert callable(cohere_eval)
-
-    def test_groq_eval_import(self):
-        from agent_evaluator import groq_eval
-        assert callable(groq_eval)
-
-    def test_mistral_eval_import(self):
-        from agent_evaluator import mistral_eval
-        assert callable(mistral_eval)
-
-    def test_bedrock_eval_import(self):
-        from agent_evaluator import bedrock_eval
-        assert callable(bedrock_eval)
-
-    def test_smolagents_eval_import(self):
-        from agent_evaluator import smolagents_eval
-        assert callable(smolagents_eval)
-
-    def test_semantic_kernel_eval_import(self):
-        from agent_evaluator import semantic_kernel_eval
-        assert callable(semantic_kernel_eval)
-
     def test_framework_adapters_registered(self):
         from agent_evaluator.decorators import _FRAMEWORK_ADAPTERS
         for fw in ("cohere", "groq", "mistral", "bedrock", "smolagents", "semantic_kernel"):
             assert fw in _FRAMEWORK_ADAPTERS, f"Missing adapter: {fw}"
 
+    def test_agent_eval_framework_param(self):
+        """agent_eval에 framework 파라미터가 있다 — *_eval 함수 대신 사용."""
+        import inspect
+        from agent_evaluator.decorators import agent_eval
+        sig = inspect.signature(agent_eval)
+        assert "framework" in sig.parameters
+
 
 # ─────────────────────────────────────────────────────────────────────────────
-# D8: top-level LLM SDK decorator imports
+# D8: LLM SDK 어댑터 등록 확인 (agent_eval(framework=name) 방식)
 # ─────────────────────────────────────────────────────────────────────────────
 
-class TestTopLevelLLMImports:
-    def test_anthropic_eval(self):
-        from agent_evaluator import anthropic_eval
-        assert callable(anthropic_eval)
+class TestLLMSDKAdapters:
+    """*_eval 함수 대신 agent_eval(framework=name) + _FRAMEWORK_ADAPTERS 확인."""
 
-    def test_openai_eval(self):
-        from agent_evaluator import openai_eval
-        assert callable(openai_eval)
+    def test_llm_adapters_registered(self):
+        from agent_evaluator.decorators import _FRAMEWORK_ADAPTERS
+        for fw in ("anthropic", "openai", "gemini", "llamaindex",
+                   "haystack", "vertexai", "ollama"):
+            assert fw in _FRAMEWORK_ADAPTERS, f"Missing adapter: {fw}"
 
-    def test_gemini_eval(self):
-        from agent_evaluator import gemini_eval
-        assert callable(gemini_eval)
-
-    def test_llamaindex_eval(self):
-        from agent_evaluator import llamaindex_eval
-        assert callable(llamaindex_eval)
-
-    def test_haystack_eval(self):
-        from agent_evaluator import haystack_eval
-        assert callable(haystack_eval)
-
-    def test_vertexai_eval(self):
-        from agent_evaluator import vertexai_eval
-        assert callable(vertexai_eval)
-
-    def test_ollama_eval(self):
-        from agent_evaluator import ollama_eval
-        assert callable(ollama_eval)
-
-    def test_cohere_eval_top_level(self):
-        from agent_evaluator import cohere_eval
-        assert callable(cohere_eval)
-
-    def test_groq_eval_top_level(self):
-        from agent_evaluator import groq_eval
-        assert callable(groq_eval)
-
-    def test_mistral_eval_top_level(self):
-        from agent_evaluator import mistral_eval
-        assert callable(mistral_eval)
-
-    def test_bedrock_eval_top_level(self):
-        from agent_evaluator import bedrock_eval
-        assert callable(bedrock_eval)
-
-    def test_smolagents_eval_top_level(self):
-        from agent_evaluator import smolagents_eval
-        assert callable(smolagents_eval)
-
-    def test_semantic_kernel_eval_top_level(self):
-        from agent_evaluator import semantic_kernel_eval
-        assert callable(semantic_kernel_eval)
+    def test_agent_eval_callable(self):
+        from agent_evaluator import agent_eval
+        assert callable(agent_eval)
 
 
 # ─────────────────────────────────────────────────────────────────────────────

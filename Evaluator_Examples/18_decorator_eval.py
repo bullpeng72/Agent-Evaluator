@@ -14,20 +14,25 @@ agent-evaluator 평가가 적용됩니다.
 
 import asyncio
 import os
+from pathlib import Path
 
 from agent_evaluator import PerformanceMonitor
 from agent_evaluator.decorators import agent_eval, agent_eval_async
 
+_project_root = Path(__file__).parent.parent
+
 # ---------------------------------------------------------------------------
 # 모니터 설정
 # ---------------------------------------------------------------------------
-monitor = PerformanceMonitor(output_dir="results/")
+monitor = PerformanceMonitor(output_dir=str(_project_root / "results"))
 
 # Phoenix OTEL 연결 (선택 — pip install "agent-evaluator[otel]" 필요)
 try:
-    from agent_evaluator import setup_otel
-    setup_otel()
-    print("[OTEL] Phoenix 연결됨 → http://localhost:6006")
+    import socket as _s
+    if _s.socket().connect_ex(("localhost", 6006)) == 0:
+        from agent_evaluator import setup_otel
+        setup_otel(endpoint="http://localhost:6006", service_name="18-decorator-eval")
+        print("[OTEL] Phoenix 연결됨 → http://localhost:6006")
 except Exception:
     pass
 
@@ -197,7 +202,7 @@ async def main():
     # 결과 저장
     print("--- 결과 저장 ---")
     monitor.save_to_file("18_decorator_eval")
-    print("  results/18_decorator_eval.json 저장 완료")
+    print(f"  {_project_root / 'results' / '18_decorator_eval.json'} 저장 완료")
     print("\n=== 완료 ===")
 
 

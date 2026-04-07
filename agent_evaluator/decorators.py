@@ -1,17 +1,15 @@
 """
-@agent_eval / @agent_eval_async / @agent_eval_with_retry / @conversation_eval
-=============================================================================
+@agent_eval / @batch_eval / @conversation_eval / eval_context
+=============================================================
 Opik ``@track`` 스타일로 agent-evaluator를 적용할 수 있는 데코레이터 모음.
 
 데코레이터 목록
 ---------------
 ``agent_eval``
-    동기 에이전트 함수에 Layer 1+2 평가를 자동 적용.
-``agent_eval_async``
-    비동기 에이전트 함수용.
-``agent_eval_with_retry``
-    재시도 로직 내장 + 실제 ``attempts`` 카운트를 정확히 기록.
-    동기·비동기 함수를 모두 지원한다.
+    동기·비동기 에이전트 함수에 Layer 1+2 평가를 자동 적용.
+    retry(``max_retries``), 프레임워크 어댑터(``framework``), async 자동 감지 내장.
+``batch_eval``
+    List 입력 → List 처리 배치 함수용 (실행 모델이 다름, 별도 유지).
 ``conversation_eval``
     멀티턴 대화 함수에 ``ConversationSession`` 기반 세션 평가를 자동 적용.
 
@@ -856,8 +854,53 @@ def _extract_crewai_metadata(raw: Any) -> Optional[EvalMetadata]:
     except Exception:
         pass
 
+    # CrewAI tool_calls — tasks_output 의 used_tools / tool_usage 필드에서 추출
+    tool_calls: List[Dict[str, Any]] = []
+    for _task_out in tasks_output:
+        # CrewAI TaskOutput.used_tools (list of tool names or dicts)
+        _used = getattr(_task_out, "used_tools", None) or []
+        for _ut in _used:
+            if isinstance(_ut, str):
+                tool_calls.append({"tool_name": _ut, "success": True})
+            elif isinstance(_ut, dict):
+                tool_calls.append({
+                    "tool_name": str(_ut.get("name", "unknown")),
+                    "input": _ut.get("input", {}),
+                    "success": not bool(_ut.get("error")),
+                })
+            elif hasattr(_ut, "name"):
+                tool_calls.append({"tool_name": str(getattr(_ut, "name", "unknown")), "success": True})
+        # CrewAI 2.x: tool_usage 필드
+        _tool_usage = getattr(_task_out, "tool_usage", None)
+        if isinstance(_tool_usage, list):
+            for _tu in _tool_usage:
+                if isinstance(_tu, str):
+                    tool_calls.append({"tool_name": _tu, "success": True})
+                elif hasattr(_tu, "tool_name") or hasattr(_tu, "name"):
+                    tool_calls.append({
+                        "tool_name": str(getattr(_tu, "tool_name", getattr(_tu, "name", "unknown"))),
+                        "success": True,
+                    })
+
+    # CrewAI state_transitions — 태스크 실행 순서를 상태 전이 시퀀스로 변환
+    state_transitions: List[Dict[str, Any]] = []
+    for i, _task_out in enumerate(tasks_output):
+        _agent = str(getattr(_task_out, "agent", "unknown"))
+        _desc = str(getattr(_task_out, "description", ""))[:200]
+        _raw = str(getattr(_task_out, "raw", "") or "")[:100]
+        state_transitions.append({
+            "step": i,
+            "node": _agent,
+            "type": "task_completion",
+            "description": _desc,
+            "output_summary": _raw,
+            "success": True,
+        })
+
     return EvalMetadata(
         agent_interactions=agent_interactions,
+        tool_calls=tool_calls if tool_calls else None,
+        state_transitions=state_transitions if state_transitions else None,
         tokens_used=tokens_used,
         framework="crewai",
     )
@@ -959,8 +1002,43 @@ def _extract_autogen_metadata(raw: Any) -> Optional[EvalMetadata]:
     except Exception:
         pass
 
+    # Multi-agent: 서로 다른 에이전트 간 메시지 교환을 agent_interactions 로 변환
+    agent_interactions: List[Dict[str, Any]] = []
+    for i, turn in enumerate(conversation_turns):
+        _agent_name = turn.get("name", "").strip()
+        _agent_role = turn.get("role", "")
+        # 이름이 있고 user/system이 아닌 경우 = 에이전트 발화
+        if _agent_name and _agent_name.lower() not in ("user", "system", ""):
+            if i > 0:
+                _prev = conversation_turns[i - 1]
+                _prev_name = (_prev.get("name") or _prev.get("role") or "user").strip()
+                if _prev_name != _agent_name:
+                    agent_interactions.append({
+                        "from_agent": str(_prev_name),
+                        "to_agent": str(_agent_name),
+                        "type": "message",
+                        "success": True,
+                        "context": str(turn.get("content", ""))[:200],
+                        "execution_time": turn.get("execution_time", 0.0),
+                    })
+
+    # AutoGen state_transitions — 메시지 순서를 상태 전이 시퀀스로 변환
+    state_transitions: List[Dict[str, Any]] = []
+    for i, turn in enumerate(conversation_turns):
+        _role = turn.get("role", "unknown")
+        _name = turn.get("name", "") or _role
+        state_transitions.append({
+            "step": i,
+            "node": str(_name),
+            "role": _role,
+            "content": str(turn.get("content", ""))[:200],
+            "execution_time": turn.get("execution_time", 0.0),
+        })
+
     return EvalMetadata(
         conversation_turns=conversation_turns,
+        agent_interactions=agent_interactions if agent_interactions else None,
+        state_transitions=state_transitions if state_transitions else None,
         tokens_used=tokens_used,
         framework="autogen",
     )
@@ -1146,9 +1224,22 @@ def _extract_pydanticai_metadata(raw: Any) -> Optional[EvalMetadata]:
                 })
     except Exception:
         pass
+    # PydanticAI tool_calls — ToolCallPart chain_steps 에서 tool_calls 재구성
+    tool_calls: List[Dict[str, Any]] = []
+    for _cs in chain_steps:
+        if _cs.get("type") == "tool_call":
+            _tc_name = _cs.get("name", "unknown")
+            _tc_input = _cs.get("content", "")
+            tool_calls.append({
+                "tool_name": str(_tc_name),
+                "input": _tc_input if isinstance(_tc_input, dict) else str(_tc_input),
+                "success": _cs.get("success", True),
+            })
+
     return EvalMetadata(
         tokens_used=tokens_used,
         chain_steps=chain_steps if chain_steps else None,
+        tool_calls=tool_calls if tool_calls else None,
         framework="pydanticai",
     )
 
@@ -1352,10 +1443,27 @@ def _extract_llamaindex_metadata(raw: Any) -> Optional[EvalMetadata]:
                 tokens_used = {"input": int(inp), "output": int(out), "total": int(inp + out)}
     except Exception:
         pass
-    if not chain_steps and not tokens_used:
+    # LlamaIndex tool_calls — AgentChatResponse.sources 또는 step tool_calls에서 추출
+    tool_calls: List[Dict[str, Any]] = []
+    try:
+        # AgentChatResponse: .sources 는 ToolOutput 리스트
+        sources = getattr(raw, "sources", None) or []
+        for src in sources:
+            _tool_name = getattr(src, "tool_name", getattr(src, "tool", None))
+            if _tool_name:
+                tool_calls.append({
+                    "tool_name": str(_tool_name),
+                    "input": str(getattr(src, "raw_input", getattr(src, "input", "")))[:200],
+                    "success": not bool(getattr(src, "is_error", False)),
+                    "output": str(getattr(src, "raw_output", getattr(src, "content", "")))[:200],
+                })
+    except Exception:
+        pass
+    if not chain_steps and not tokens_used and not tool_calls:
         return None
     return EvalMetadata(
         chain_steps=chain_steps if chain_steps else None,
+        tool_calls=tool_calls if tool_calls else None,
         tokens_used=tokens_used,
         framework="llamaindex",
     )
@@ -1437,10 +1545,22 @@ def _extract_haystack_metadata(raw: Any) -> Optional[EvalMetadata]:
             "success": True,
             "execution_time": 0.0,
         })
+    # Haystack tool_calls — retriever/generator/reader 컴포넌트를 tool_calls 로 변환
+    tool_calls: List[Dict[str, Any]] = []
+    _TOOL_COMPONENT_TYPES = {"retriever", "generator", "reader", "embedder", "ranker"}
+    for _step in chain_steps:
+        if _step.get("type") in _TOOL_COMPONENT_TYPES:
+            tool_calls.append({
+                "tool_name": str(_step.get("name", "unknown")),
+                "input": {},
+                "success": _step.get("success", True),
+                "output": str(_step.get("output", ""))[:200] if isinstance(_step.get("output"), str) else str(_step.get("output", ""))[:200],
+            })
     if not chain_steps:
         return None
     return EvalMetadata(
         chain_steps=chain_steps,
+        tool_calls=tool_calls if tool_calls else None,
         framework="haystack",
         tokens_used=tokens_used,
     )
@@ -1935,8 +2055,37 @@ def _extract_semantic_kernel_metadata(raw: Any) -> Optional[EvalMetadata]:
         pass
     if chain_steps is None and tokens_used is None:
         return None
+    # Semantic Kernel tool_calls — plugin/function 호출을 tool_calls 로 추출
+    tool_calls: List[Dict[str, Any]] = []
+    try:
+        # FunctionResult: function_name + plugin_name
+        _fn_name = getattr(raw, "function_name", None)
+        _plugin_name = getattr(raw, "plugin_name", None)
+        _tool_name = f"{_plugin_name}.{_fn_name}" if _plugin_name and _fn_name else (_fn_name or _plugin_name)
+        if _tool_name:
+            _inner_val = getattr(raw, "value", None) or getattr(raw, "inner_content", None)
+            tool_calls.append({
+                "tool_name": str(_tool_name),
+                "input": {},
+                "success": True,
+                "output": str(_inner_val)[:300] if _inner_val is not None else "",
+            })
+        # kernel.invoke_stream() or multi-step: check for list of FunctionResult
+        if not tool_calls and hasattr(raw, "function_results"):
+            for _fr in (getattr(raw, "function_results", []) or []):
+                _fn = getattr(_fr, "function_name", None) or getattr(_fr, "name", None)
+                if _fn:
+                    tool_calls.append({
+                        "tool_name": str(_fn),
+                        "input": {},
+                        "success": True,
+                        "output": str(getattr(_fr, "value", ""))[:200],
+                    })
+    except Exception:
+        pass
     return EvalMetadata(
         chain_steps=chain_steps,
+        tool_calls=tool_calls if tool_calls else None,
         tokens_used=tokens_used,
         framework="semantic_kernel",
     )
@@ -3469,6 +3618,62 @@ def register_preset(name: str, config: Dict[str, Any]) -> None:
 # 동기 데코레이터
 # ---------------------------------------------------------------------------
 
+
+class _AgentEvalHandle:
+    """agent_eval() 반환 객체 — 데코레이터와 컨텍스트 매니저 모두 지원.
+
+    데코레이터 모드::
+
+        @agent_eval(monitor, task_type="qa")
+        def fn(question, ground_truth=""): ...
+
+    컨텍스트 매니저 모드 (eval_context 대체)::
+
+        with agent_eval(monitor, task_type="qa",
+                        question="Q", ground_truth="A") as ctx:
+            ctx.response = external_lib.call("Q")
+
+        async with agent_eval(monitor, task_type="qa", question="Q") as ctx:
+            ctx.response = await async_llm.call("Q")
+    """
+
+    def __init__(
+        self,
+        _decorator_fn: "Callable",   # agent_eval 내부 decorator 함수
+        _ctx_factory: "Callable",    # eval_context 생성용 팩토리 (callable)
+    ) -> None:
+        self._decorator_fn = _decorator_fn
+        self._ctx_factory = _ctx_factory
+        # context manager 모드에서 활성화되는 eval_context 인스턴스
+        self._ctx_instance: "Optional[eval_context]" = None
+
+    # ── 데코레이터 모드 ──────────────────────────────────────────────────
+
+    def __call__(self, func: "Callable") -> "Callable":
+        """데코레이터로 사용: @agent_eval(monitor, ...)"""
+        return self._decorator_fn(func)
+
+    # ── 컨텍스트 매니저 모드 ─────────────────────────────────────────────
+
+    def __enter__(self) -> "eval_context":
+        self._ctx_instance = self._ctx_factory()
+        return self._ctx_instance.__enter__()
+
+    def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> bool:
+        if self._ctx_instance is not None:
+            return self._ctx_instance.__exit__(exc_type, exc_val, exc_tb)
+        return False
+
+    async def __aenter__(self) -> "eval_context":
+        self._ctx_instance = self._ctx_factory()
+        return self._ctx_instance.__enter__()
+
+    async def __aexit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> bool:
+        if self._ctx_instance is not None:
+            return self._ctx_instance.__exit__(exc_type, exc_val, exc_tb)
+        return False
+
+
 def agent_eval(
     monitor: "PerformanceMonitor",
     task_type: "Union[str, Any]" = "qa",
@@ -3494,12 +3699,16 @@ def agent_eval(
     alert_error_mode: str = "log",        # 항목 S: alert_rules 예외 처리 방식 ("log"|"strict"|"ignore")
     flush_every: Optional[int] = None,    # Task 2: N건마다 save_to_file 자동 호출
     flush_filename: str = "auto_save",    # Task 2: flush 시 파일명
-    # B1: auto_retry — 내부적으로 agent_eval_with_retry 로 위임
-    auto_retry: bool = False,
-    auto_retry_max: int = 3,
-    auto_retry_on: Optional[Tuple] = None,   # None → (Exception,)
-    auto_retry_delay: float = 0.0,
-    auto_retry_backoff: float = 1.0,
+    # 재시도 파라미터 — max_retries > 1 이면 활성화 (기본: 1 = 재시도 없음)
+    max_retries: int = 1,
+    retry_on: Tuple[type, ...] = (Exception,),
+    delay: float = 0.0,
+    backoff: float = 1.0,
+    jitter: bool = False,
+    jitter_type: str = "full",
+    max_delay: float = 60.0,
+    should_retry: Optional[Callable[[Exception], bool]] = None,
+    on_retry: Optional[Callable[[int, str], None]] = None,
     # A9: custom_parser — framework adapter보다 낮은 우선순위로 EvalMetadata 생성
     custom_parser: Optional[Callable[[Any], Optional[EvalMetadata]]] = None,
     # C7: auto_detect_framework — True 이면 응답 객체 타입으로 프레임워크 자동 감지
@@ -3524,7 +3733,16 @@ def agent_eval(
     enable_quality_evaluation: bool = False,
     # D5: dry_run — True이면 설정 검증만 하고 실제 평가 기록 안 함
     dry_run: bool = False,
-) -> Callable:
+    # ── 컨텍스트 매니저 모드 전용 (with agent_eval(...) as ctx:) ──────────
+    question: str = "",
+    ground_truth: str = "",
+    context: Optional[str] = None,
+    expected_tools: Optional[List[str]] = None,
+    task_id: Optional[str] = None,
+    task_id_prefix_cm: str = "eval",
+    auto_task_id: bool = False,
+    ttft_seconds: Optional[float] = None,
+) -> "_AgentEvalHandle":
     """동기·비동기 에이전트 함수에 평가를 자동 적용하는 데코레이터 (sync/async 자동 감지).
 
     **Quick Start — 90% 사용 사례를 커버하는 핵심 5개 파라미터**::
@@ -3545,6 +3763,10 @@ def agent_eval(
         # 프리셋 — production 환경 권장 설정 일괄 적용
         @agent_eval(monitor, preset="production")
         def agent(question, ground_truth=""): ...
+
+        # 재시도 내장 — max_retries=3, 지수 백오프
+        @agent_eval(monitor, task_type="qa", max_retries=3, delay=1.0, backoff=2.0)
+        def fragile_agent(question, ground_truth=""): ...
 
     Args:
         monitor: 결과를 기록할 :class:`~agent_evaluator.PerformanceMonitor` 인스턴스.
@@ -3667,33 +3889,8 @@ def agent_eval(
     _effective_judge_model = judge_model or _preset_vals.get("judge_model", None)
     _effective_enable_anomaly = enable_anomaly_detection or _preset_vals.get("enable_anomaly_detection", False)
 
-    # B1: auto_retry — agent_eval_with_retry 로 위임
-    if auto_retry:
-        def _auto_retry_decorator(func: Callable) -> Callable:
-            return agent_eval_with_retry(
-                monitor,
-                task_type,
-                max_retries=auto_retry_max,
-                retry_on=auto_retry_on if auto_retry_on is not None else (Exception,),
-                delay=auto_retry_delay,
-                backoff=auto_retry_backoff,
-                question_arg=question_arg,
-                ground_truth_arg=ground_truth_arg,
-                task_id_prefix=task_id_prefix,
-                context_arg=context_arg,
-                expected_tools_arg=expected_tools_arg,
-                framework=framework,
-                model_name=model_name,
-                score_fn=score_fn,
-                completion_fn=completion_fn,
-                task_id_fn=task_id_fn,
-                sample_rate=sample_rate,
-                on_record=on_record,
-                on_error=on_error,
-                timeout=timeout,
-                enabled=enabled,
-            )(func)
-        return _auto_retry_decorator
+    # 재시도 횟수 정규화 (0 이하는 1회 시도로 처리)
+    _n_tries = max(1, max_retries)
 
     def decorator(func: Callable) -> Callable:
         if not enabled:
@@ -3791,26 +3988,74 @@ def agent_eval(
             raw: Any = None          # 함수 반환값 전체 (EvalMetadata 포함 가능)
             caller_result: Any = None  # 호출자에게 반환할 값 (EvalMetadata 제거)
             eval_ctx, _ctx_token = _push_ctx()
+            _attempt = 0
+            _errors: List[str] = []
+            _wait = delay
 
             try:
-                if timeout is not None:
-                    with concurrent.futures.ThreadPoolExecutor(max_workers=1) as _ex:
-                        try:
-                            raw = _ex.submit(func, *args, **kwargs).result(timeout=timeout)
-                        except concurrent.futures.TimeoutError:
-                            raise TimeoutError(f"exceeded {timeout}s")
-                else:
-                    raw = func(*args, **kwargs)
+                while _attempt < _n_tries:
+                    _attempt += 1
+                    try:
+                        if timeout is not None:
+                            with concurrent.futures.ThreadPoolExecutor(max_workers=1) as _ex:
+                                try:
+                                    raw = _ex.submit(func, *args, **kwargs).result(timeout=timeout)
+                                except concurrent.futures.TimeoutError:
+                                    raise TimeoutError(f"exceeded {timeout}s")
+                        else:
+                            raw = func(*args, **kwargs)
+                        break  # 성공 — retry 루프 탈출
+                    except Exception as _exc:
+                        # 재시도 없는 경우 또는 retry_on에 해당하지 않으면 즉시 전파
+                        if _n_tries == 1 or not isinstance(_exc, retry_on):
+                            has_error = True
+                            error_msg = str(_exc)
+                            raise
+                        _errors.append(str(_exc))
+                        # should_retry 콜백 — False 반환 시 즉시 중단
+                        if should_retry is not None:
+                            try:
+                                if not should_retry(_exc):
+                                    has_error = True
+                                    error_msg = str(_exc)
+                                    raise
+                            except Exception as _sre:
+                                if not isinstance(_sre, retry_on):
+                                    pass
+                        if on_retry is not None:
+                            try:
+                                on_retry(_attempt, str(_exc))
+                            except Exception:
+                                pass
+                        if _attempt >= _n_tries:
+                            has_error = True
+                            error_msg = _errors[-1]
+                            raise
+                        # 지수 백오프 + jitter
+                        if _wait > 0 or jitter_type in ("full", "decorrelated"):
+                            _base = delay * (backoff ** (_attempt - 1))
+                            if jitter_type == "decorrelated":
+                                _actual = min(max_delay, random.uniform(delay, max(delay, _wait * 3)))
+                            elif jitter_type == "none":
+                                _actual = _wait
+                            else:  # "full" 또는 legacy jitter=True
+                                _actual = random.uniform(0.0, _base) if (jitter_type == "full" or jitter) else _wait
+                            if _actual > 0:
+                                time.sleep(_actual)
+                        _wait = _wait * backoff
                 caller_result, _ = _split_raw(raw)  # EvalMetadata 분리
                 return caller_result
-            except Exception as exc:
-                has_error = True
-                error_msg = str(exc)
+            except Exception:
                 raise
             finally:
                 elapsed = time.perf_counter() - start
                 _pop_ctx(_ctx_token)
                 _eval_active.reset(_eval_active_token)  # 항목 F: 이중 감지 토큰 복원
+                # 재시도 데이터를 eval_ctx에 주입 (attempts, errors)
+                if eval_ctx is not None and _n_tries > 1:
+                    eval_ctx.attempts = _attempt
+                    if _errors:
+                        eval_ctx.errors = _errors
                 if dry_run:
                     logger.debug("dry_run=True: 실제 평가 기록 건너뜀 (task_id=%s)", task_id)
                 else:
@@ -3883,21 +4128,65 @@ def agent_eval(
             error_msg: Optional[str] = None
             raw: Any = None
             eval_ctx, _ctx_token = _push_ctx()
+            _attempt = 0
+            _errors: List[str] = []
+            _wait = delay
 
             try:
-                if timeout is not None:
-                    raw = await asyncio.wait_for(func(*args, **kwargs), timeout=timeout)
-                else:
-                    raw = await func(*args, **kwargs)
+                while _attempt < _n_tries:
+                    _attempt += 1
+                    try:
+                        if timeout is not None:
+                            raw = await asyncio.wait_for(func(*args, **kwargs), timeout=timeout)
+                        else:
+                            raw = await func(*args, **kwargs)
+                        break  # 성공
+                    except Exception as _exc:
+                        if _n_tries == 1 or not isinstance(_exc, retry_on):
+                            has_error = True
+                            error_msg = str(_exc)
+                            raise
+                        _errors.append(str(_exc))
+                        if should_retry is not None:
+                            try:
+                                if not should_retry(_exc):
+                                    has_error = True
+                                    error_msg = str(_exc)
+                                    raise
+                            except Exception as _sre:
+                                if not isinstance(_sre, retry_on):
+                                    pass
+                        if on_retry is not None:
+                            try:
+                                on_retry(_attempt, str(_exc))
+                            except Exception:
+                                pass
+                        if _attempt >= _n_tries:
+                            has_error = True
+                            error_msg = _errors[-1]
+                            raise
+                        if _wait > 0 or jitter_type in ("full", "decorrelated"):
+                            _base = delay * (backoff ** (_attempt - 1))
+                            if jitter_type == "decorrelated":
+                                _actual = min(max_delay, random.uniform(delay, max(delay, _wait * 3)))
+                            elif jitter_type == "none":
+                                _actual = _wait
+                            else:
+                                _actual = random.uniform(0.0, _base) if (jitter_type == "full" or jitter) else _wait
+                            if _actual > 0:
+                                await asyncio.sleep(_actual)
+                        _wait = _wait * backoff
                 caller_result, _ = _split_raw(raw)
                 return caller_result
-            except Exception as exc:
-                has_error = True
-                error_msg = str(exc)
+            except Exception:
                 raise
             finally:
                 elapsed = time.perf_counter() - start
                 _pop_ctx(_ctx_token)
+                if eval_ctx is not None and _n_tries > 1:
+                    eval_ctx.attempts = _attempt
+                    if _errors:
+                        eval_ctx.errors = _errors
                 if dry_run:
                     logger.debug("dry_run=True: 실제 평가 기록 건너뜀 (task_id=%s)", task_id)
                 else:
@@ -4149,524 +4438,32 @@ def agent_eval(
         if inspect.isgeneratorfunction(func):
             return gen_wrapper
         return wrapper
-    return decorator
 
-
-# ---------------------------------------------------------------------------
-# 비동기 데코레이터 — agent_eval 의 별칭 (하위 호환)
-# ---------------------------------------------------------------------------
-
-def agent_eval_async(
-    monitor: "PerformanceMonitor",
-    task_type: str = "qa",
-    *,
-    question_arg: str = "question",
-    ground_truth_arg: str = "ground_truth",
-    task_id_prefix: str = "task",
-    context_arg: Optional[str] = None,
-    expected_tools_arg: Optional[str] = None,
-    framework: str = "native",
-    model_name: str = "",
-    score_fn: Optional[Callable] = None,
-    completion_fn: Optional[Callable] = None,
-    task_id_fn: Optional[Callable] = None,
-    task_id_arg: Optional[str] = None,    # Gap AQ
-    sample_rate: float = 1.0,
-    on_record: Optional[Callable] = None,
-    on_error: Optional[Callable] = None,  # Gap AK
-    timeout: Optional[float] = None,
-    enabled: bool = True,
-) -> Callable:
-    """비동기 에이전트 함수용 데코레이터.
-
-    ``agent_eval`` 이 sync/async 를 자동 감지하므로, 이 함수는
-    ``agent_eval`` 의 하위 호환 별칭으로 유지된다. 동작이 완전히 동일하다.
-
-    Example::
-
-        @agent_eval_async(monitor, task_type="qa")
-        async def async_agent(question: str, ground_truth: str = "") -> str:
-            return await llm.apredict(question)
-    """
-    return agent_eval(
-        monitor,
-        task_type,
-        question_arg=question_arg,
-        ground_truth_arg=ground_truth_arg,
-        task_id_prefix=task_id_prefix,
-        context_arg=context_arg,
-        expected_tools_arg=expected_tools_arg,
-        framework=framework,
-        model_name=model_name,
-        score_fn=score_fn,
-        completion_fn=completion_fn,
-        task_id_fn=task_id_fn,
-        task_id_arg=task_id_arg,
-        sample_rate=sample_rate,
-        on_record=on_record,
-        on_error=on_error,
-        timeout=timeout,
-        enabled=enabled,
-    )
-
-
-# ---------------------------------------------------------------------------
-# @agent_eval_with_retry — 재시도 로직 내장
-# ---------------------------------------------------------------------------
-
-def agent_eval_with_retry(
-    monitor: "PerformanceMonitor",
-    task_type: str = "qa",
-    *,
-    max_retries: int = 3,
-    retry_on: Tuple[type, ...] = (Exception,),
-    delay: float = 0.0,
-    backoff: float = 1.0,
-    jitter: bool = False,         # Gap AR
-    question_arg: str = "question",
-    ground_truth_arg: str = "ground_truth",
-    task_id_prefix: str = "task",
-    context_arg: Optional[str] = None,
-    expected_tools_arg: Optional[str] = None,
-    framework: str = "native",
-    model_name: str = "",
-    score_fn: Optional[Callable] = None,
-    completion_fn: Optional[Callable] = None,
-    task_id_fn: Optional[Callable] = None,
-    task_id_arg: Optional[str] = None,    # Gap AQ
-    sample_rate: float = 1.0,
-    on_record: Optional[Callable] = None,
-    on_error: Optional[Callable] = None,  # Gap AK
-    on_retry: Optional[Callable] = None,  # Gap AJ
-    timeout: Optional[float] = None,
-    enabled: bool = True,
-    alert_rules: Optional[List[Any]] = None,   # A5: SimpleTaskAlertRule 리스트
-    flush_every: int = 0,                       # A5: N 호출마다 save_to_file() 자동 실행
-    flush_filename: str = "retry_eval_auto",    # A5: flush_every 저장 파일명
-    should_retry: Optional[Callable[[Exception], bool]] = None,  # A6: 예외별 재시도 여부 결정
-                                                                  # 시그니처: (exc: Exception) -> bool
-                                                                  # False 반환 시 즉시 중단 (더 이상 재시도 안 함)
-    jitter_type: str = "full",    # A6: jitter 알고리즘 — "full" | "decorrelated" | "none"
-                                   # "full": sleep = random.uniform(0, base * backoff^attempt)
-                                   # "decorrelated": sleep = min(max_delay, random.uniform(base, prev*3))
-                                   # "none": sleep = base * backoff^attempt (고정)
-    max_delay: float = 60.0,      # A6: 최대 슬립 시간(초) — decorrelated jitter에서 상한으로 사용
-) -> Callable:
-    """재시도 로직 내장 + 실제 ``attempts`` 카운트를 정확히 기록하는 데코레이터.
-
-    동기·비동기 함수를 모두 지원한다. 함수 타입은 자동 감지한다.
-
-    Args:
-        monitor: :class:`~agent_evaluator.PerformanceMonitor` 인스턴스.
-        task_type: Task 유형.
-        max_retries: 최대 재시도 횟수 (첫 시도 포함, 기본 3).
-        retry_on: 재시도를 트리거할 예외 타입 튜플 (기본: ``(Exception,)``).
-        delay: 첫 재시도 전 대기 시간 (초, 기본 0).
-        backoff: 지수 백오프 계수 (기본 1.0 = 고정 딜레이).
-            ``delay=1.0, backoff=2.0`` 이면 1s → 2s → 4s 로 증가한다.
-        question_arg: 질문 파라미터 이름 (기본: ``"question"``).
-        ground_truth_arg: 정답 파라미터 이름 (기본: ``"ground_truth"``).
-        task_id_prefix: task_id 접두어 (기본: ``"task"``).
-        context_arg: RAG context 파라미터 이름.
-        expected_tools_arg: expected_tools 파라미터 이름.
-        framework: 프레임워크 식별자 (기본: ``"native"``).
-        model_name: LLM 모델명.
-        score_fn: 커스텀 accuracy 계산 함수.
-        completion_fn: 커스텀 completion 계산 함수.
-        task_id_fn: task_id 생성 함수 ``(args: tuple, kwargs: dict) -> str``.
-            ``None`` 이면 ``{prefix}_{uuid8}`` 로 자동 생성한다.
-        sample_rate: 평가 실행 비율 ``[0.0, 1.0]`` (기본: ``1.0`` = 항상 평가).
-            샘플링 제외 시 재시도 없이 원본 함수만 1회 실행한다.
-        enabled: ``False`` 이면 재시도 없이 원본 함수만 실행한다.
-
-    Example::
-
-        @agent_eval_with_retry(
+    def _ctx_factory() -> "eval_context":
+        return eval_context(
             monitor,
-            task_type="qa",
-            max_retries=3,
-            retry_on=(ConnectionError, TimeoutError),
-            delay=1.0,
-            backoff=2.0,
+            task_type,
+            question=question,
+            ground_truth=ground_truth,
+            context=context,
+            expected_tools=expected_tools,
+            framework=framework,
+            model_name=model_name,
+            task_id=task_id,
+            task_id_prefix=task_id_prefix_cm,
+            auto_task_id=auto_task_id,
+            score_fn=score_fn,
+            completion_fn=completion_fn,
+            on_record=on_record,
+            on_error=on_error,
+            alert_rules=alert_rules,
+            sample_rate=sample_rate,
+            enabled=enabled,
+            timeout=timeout,
+            ttft_seconds=ttft_seconds,
         )
-        def fragile_agent(question: str, ground_truth: str = "") -> str:
-            return llm.predict(question)   # 실패 시 최대 3회까지 재시도
-        # attempts=실제시도횟수, errors=[오류1, 오류2, ...] 로 기록
-    """
-    def decorator(func: Callable) -> Callable:
-        if not enabled:
-            return func
 
-        is_async = asyncio.iscoroutinefunction(func)
-        sig = inspect.signature(func)
-
-        # A5: alert_rules → on_record 통합
-        _effective_on_record = on_record
-        if alert_rules:
-            _effective_on_record = _make_alert_on_record(alert_rules, on_record)
-        # A5: flush_every 카운터 (thread-safe)
-        _flush_counter: List[int] = [0]
-        _flush_lock = threading.Lock()
-
-        def _maybe_flush() -> None:
-            if not flush_every or flush_every <= 0:
-                return
-            with _flush_lock:
-                _flush_counter[0] += 1
-                _should = (_flush_counter[0] % flush_every == 0)
-            if _should:
-                _mon = monitor if not isinstance(monitor, list) else monitor[0]
-                try:
-                    _mon.save_to_file(flush_filename)
-                except Exception as _fe:
-                    logger.debug("agent_eval_with_retry flush_every 저장 실패 (무시): %s", _fe)
-
-        def _run_sync(*args, **kwargs):
-            if sample_rate < 1.0 and random.random() > sample_rate:
-                return func(*args, **kwargs)
-
-            question, ground_truth, context, expected_tools = _resolve_args(
-                sig, args, kwargs,
-                question_arg, ground_truth_arg, context_arg, expected_tools_arg,
-            )
-            # Gap AQ: task_id_arg > task_id_fn > auto
-            task_id: Optional[str] = None
-            if task_id_arg:
-                try:
-                    _bound = sig.bind(*args, **kwargs)
-                    _bound.apply_defaults()
-                    _tid = _bound.arguments.get(task_id_arg)
-                    if _tid:
-                        task_id = str(_tid)
-                except Exception:
-                    pass
-            if task_id is None:
-                task_id = (
-                    task_id_fn(args, kwargs)
-                    if task_id_fn is not None
-                    else f"{task_id_prefix}_{uuid.uuid4().hex[:8]}"
-                )
-            start = time.perf_counter()
-            errors: List[str] = []
-            raw: Any = None
-            attempt = 0
-            wait = delay
-            eval_ctx, _ctx_token = _push_ctx()
-
-            try:
-                while attempt < max_retries:
-                    attempt += 1
-                    try:
-                        if timeout is not None:
-                            with concurrent.futures.ThreadPoolExecutor(max_workers=1) as _ex:
-                                try:
-                                    raw = _ex.submit(func, *args, **kwargs).result(timeout=timeout)
-                                except concurrent.futures.TimeoutError:
-                                    raise TimeoutError(f"exceeded {timeout}s")
-                        else:
-                            raw = func(*args, **kwargs)
-                        break
-                    except retry_on as exc:
-                        errors.append(str(exc))
-                        # A6: should_retry — False 반환 시 즉시 중단
-                        if should_retry is not None:
-                            try:
-                                if not should_retry(exc):
-                                    raise
-                            except Exception as _sre:
-                                if not isinstance(_sre, retry_on):
-                                    pass  # should_retry 자체 예외는 무시
-                        # Gap AJ: on_retry 콜백 — 예외 무시
-                        if on_retry is not None:
-                            try:
-                                on_retry(attempt, str(exc))
-                            except Exception as e:
-                                logger.debug("on_retry 콜백 실패: %s", e)
-                        if attempt < max_retries:
-                            if wait > 0 or jitter_type in ("full", "decorrelated"):
-                                # A6: jitter_type 알고리즘 선택
-                                _base_wait = delay * (backoff ** (attempt - 1))
-                                if jitter_type == "full" or (jitter_type == "full" and jitter):
-                                    actual_wait = random.uniform(0.0, _base_wait)
-                                elif jitter_type == "decorrelated":
-                                    # decorrelated: sleep = min(max_delay, random.uniform(delay, prev*3))
-                                    actual_wait = min(max_delay, random.uniform(delay, max(delay, wait * 3)))
-                                elif jitter_type == "none":
-                                    actual_wait = wait
-                                elif jitter:  # Gap AR: 레거시 jitter=True 지원
-                                    actual_wait = random.uniform(0.0, wait)
-                                else:
-                                    actual_wait = wait
-                                if actual_wait > 0:
-                                    time.sleep(actual_wait)
-                            wait = wait * backoff
-                        elif attempt >= max_retries:
-                            raise
-                caller_result, _ = _split_raw(raw)
-                return caller_result
-            except Exception:
-                raise
-            finally:
-                elapsed = time.perf_counter() - start
-                _pop_ctx(_ctx_token)
-                has_error = len(errors) >= max_retries
-                error_msg = errors[-1] if errors else None
-                try:
-                    from agent_evaluator.helpers.taskresult_helpers import (
-                        create_taskresult_from_execution,
-                    )
-                    raw_result, eval_meta = _split_raw(raw)
-                    response = _extract_response(raw_result) if raw is not None else ""
-                    openai_resp = raw_result if _is_openai_response(raw_result) else None
-                    anthropic_resp = raw_result if _is_anthropic_response(raw_result) else None
-                    lc_resp = raw_result if _is_langchain_response(raw_result) else None
-                    gemini_resp = raw_result if _is_gemini_response(raw_result) else None
-                    cohere_resp = raw_result if _is_cohere_response(raw_result) else None  # Gap O
-                    # Gap J: model_name — EvalMetadata > eval_ctx > decorator
-                    effective_model = model_name
-                    if eval_ctx is not None and getattr(eval_ctx, "model_name", None):
-                        effective_model = eval_ctx.model_name
-                    if eval_meta is not None and getattr(eval_meta, "model_name", None):
-                        effective_model = eval_meta.model_name
-
-                    # G5: partial_reason 자동 생성
-                    _partial_reason_retry: Optional[str] = None
-                    if has_error:
-                        _partial_reason_retry = "execution_error"
-                    elif not raw_result and not isinstance(raw_result, (int, float, bool)):
-                        _partial_reason_retry = "empty_response"
-
-                    task_result = create_taskresult_from_execution(
-                        task_id=task_id,
-                        question=question,
-                        response=response,
-                        ground_truth=ground_truth,
-                        execution_time=elapsed,
-                        openai_response=openai_resp,
-                        langchain_result=lc_resp,
-                        has_error=has_error,
-                        error_message=error_msg,
-                        task_type=task_type,
-                        context=context,
-                        model_name=effective_model,
-                        partial_reason=_partial_reason_retry,
-                    )
-                    # Anthropic 응답 토큰 주입 (exact > heuristic)
-                    if anthropic_resp is not None:
-                        ant_tokens = _extract_anthropic_tokens(anthropic_resp)
-                        if ant_tokens is not None:
-                            task_result = dataclasses.replace(task_result, tokens_used=ant_tokens)
-                    if gemini_resp is not None:
-                        gem_tokens = _extract_gemini_tokens(gemini_resp)
-                        if gem_tokens is not None:
-                            task_result = dataclasses.replace(task_result, tokens_used=gem_tokens)
-                    if cohere_resp is not None:  # Gap O
-                        coh_tokens = _extract_cohere_tokens(cohere_resp)
-                        if coh_tokens is not None:
-                            task_result = dataclasses.replace(task_result, tokens_used=coh_tokens)
-                    # attempts + errors 주입 (retry 핵심 데이터)
-                    task_result = dataclasses.replace(
-                        task_result,
-                        attempts=attempt,
-                        errors=errors if errors else task_result.errors,
-                    )
-                    if expected_tools is not None and task_result.expected_tools is None:
-                        task_result = dataclasses.replace(
-                            task_result, expected_tools=expected_tools
-                        )
-                    task_result = _apply_overrides(
-                        task_result,
-                        decorator_framework=framework,
-                        eval_ctx=eval_ctx,
-                        eval_meta=eval_meta,
-                        score_fn=score_fn,
-                        completion_fn=completion_fn,
-                        response=response,
-                        ground_truth=ground_truth,
-                    )
-                    _record_to_monitors(monitor, task_result)  # Gap U
-                    if _effective_on_record is not None:
-                        try:
-                            _effective_on_record(task_result)
-                        except Exception as cb_exc:
-                            logger.debug("on_record 콜백 실패 (무시): %s", cb_exc)
-                    # Gap AK: on_error 콜백
-                    if on_error is not None and has_error:
-                        try:
-                            on_error(task_result)
-                        except Exception as e:
-                            logger.debug("on_error 콜백 실패: %s", e)
-                    _maybe_flush()  # A5
-                except Exception as rec_exc:
-                    logger.debug("agent_eval_with_retry: record 실패: %s", rec_exc)
-
-        async def _run_async(*args, **kwargs):
-            if sample_rate < 1.0 and random.random() > sample_rate:
-                return await func(*args, **kwargs)
-
-            question, ground_truth, context, expected_tools = _resolve_args(
-                sig, args, kwargs,
-                question_arg, ground_truth_arg, context_arg, expected_tools_arg,
-            )
-            # Gap AQ: task_id_arg > task_id_fn > auto
-            task_id: Optional[str] = None
-            if task_id_arg:
-                try:
-                    _bound = sig.bind(*args, **kwargs)
-                    _bound.apply_defaults()
-                    _tid = _bound.arguments.get(task_id_arg)
-                    if _tid:
-                        task_id = str(_tid)
-                except Exception:
-                    pass
-            if task_id is None:
-                task_id = (
-                    task_id_fn(args, kwargs)
-                    if task_id_fn is not None
-                    else f"{task_id_prefix}_{uuid.uuid4().hex[:8]}"
-                )
-            start = time.perf_counter()
-            errors: List[str] = []
-            raw: Any = None
-            attempt = 0
-            wait = delay
-            eval_ctx, _ctx_token = _push_ctx()
-
-            try:
-                while attempt < max_retries:
-                    attempt += 1
-                    try:
-                        if timeout is not None:
-                            raw = await asyncio.wait_for(func(*args, **kwargs), timeout=timeout)
-                        else:
-                            raw = await func(*args, **kwargs)
-                        break
-                    except retry_on as exc:
-                        errors.append(str(exc))
-                        # A6: should_retry — False 반환 시 즉시 중단
-                        if should_retry is not None:
-                            try:
-                                if not should_retry(exc):
-                                    raise
-                            except Exception as _sre:
-                                if not isinstance(_sre, retry_on):
-                                    pass  # should_retry 자체 예외는 무시
-                        # Gap AJ: on_retry 콜백
-                        if on_retry is not None:
-                            try:
-                                on_retry(attempt, str(exc))
-                            except Exception as e:
-                                logger.debug("on_retry 콜백 실패: %s", e)
-                        if attempt < max_retries:
-                            if wait > 0:
-                                # Gap AR: jitter
-                                actual_wait = random.uniform(0.0, wait) if jitter else wait
-                                await asyncio.sleep(actual_wait)
-                            wait = wait * backoff
-                        elif attempt >= max_retries:
-                            raise
-                caller_result, _ = _split_raw(raw)
-                return caller_result
-            except Exception:
-                raise
-            finally:
-                elapsed = time.perf_counter() - start
-                _pop_ctx(_ctx_token)
-                has_error = len(errors) >= max_retries
-                error_msg = errors[-1] if errors else None
-                try:
-                    from agent_evaluator.helpers.taskresult_helpers import (
-                        create_taskresult_from_execution,
-                    )
-                    raw_result, eval_meta = _split_raw(raw)
-                    response = _extract_response(raw_result) if raw is not None else ""
-                    openai_resp = raw_result if _is_openai_response(raw_result) else None
-                    anthropic_resp = raw_result if _is_anthropic_response(raw_result) else None
-                    lc_resp = raw_result if _is_langchain_response(raw_result) else None
-                    gemini_resp = raw_result if _is_gemini_response(raw_result) else None
-                    cohere_resp = raw_result if _is_cohere_response(raw_result) else None  # Gap O
-                    # Gap J: model_name — EvalMetadata > eval_ctx > decorator
-                    effective_model = model_name
-                    if eval_ctx is not None and getattr(eval_ctx, "model_name", None):
-                        effective_model = eval_ctx.model_name
-                    if eval_meta is not None and getattr(eval_meta, "model_name", None):
-                        effective_model = eval_meta.model_name
-
-                    # G5: partial_reason 자동 생성
-                    _partial_reason_retry: Optional[str] = None
-                    if has_error:
-                        _partial_reason_retry = "execution_error"
-                    elif not raw_result and not isinstance(raw_result, (int, float, bool)):
-                        _partial_reason_retry = "empty_response"
-
-                    task_result = create_taskresult_from_execution(
-                        task_id=task_id,
-                        question=question,
-                        response=response,
-                        ground_truth=ground_truth,
-                        execution_time=elapsed,
-                        openai_response=openai_resp,
-                        langchain_result=lc_resp,
-                        has_error=has_error,
-                        error_message=error_msg,
-                        task_type=task_type,
-                        context=context,
-                        model_name=effective_model,
-                        partial_reason=_partial_reason_retry,
-                    )
-                    # Anthropic 응답 토큰 주입 (exact > heuristic)
-                    if anthropic_resp is not None:
-                        ant_tokens = _extract_anthropic_tokens(anthropic_resp)
-                        if ant_tokens is not None:
-                            task_result = dataclasses.replace(task_result, tokens_used=ant_tokens)
-                    if gemini_resp is not None:
-                        gem_tokens = _extract_gemini_tokens(gemini_resp)
-                        if gem_tokens is not None:
-                            task_result = dataclasses.replace(task_result, tokens_used=gem_tokens)
-                    if cohere_resp is not None:  # Gap O
-                        coh_tokens = _extract_cohere_tokens(cohere_resp)
-                        if coh_tokens is not None:
-                            task_result = dataclasses.replace(task_result, tokens_used=coh_tokens)
-                    task_result = dataclasses.replace(
-                        task_result,
-                        attempts=attempt,
-                        errors=errors if errors else task_result.errors,
-                    )
-                    if expected_tools is not None and task_result.expected_tools is None:
-                        task_result = dataclasses.replace(
-                            task_result, expected_tools=expected_tools
-                        )
-                    task_result = _apply_overrides(
-                        task_result,
-                        decorator_framework=framework,
-                        eval_ctx=eval_ctx,
-                        eval_meta=eval_meta,
-                        score_fn=score_fn,
-                        completion_fn=completion_fn,
-                        response=response,
-                        ground_truth=ground_truth,
-                    )
-                    _record_to_monitors(monitor, task_result)  # Gap U
-                    if _effective_on_record is not None:
-                        try:
-                            _effective_on_record(task_result)
-                        except Exception as cb_exc:
-                            logger.debug("on_record 콜백 실패 (무시): %s", cb_exc)
-                    # Gap AK: on_error 콜백
-                    if on_error is not None and has_error:
-                        try:
-                            on_error(task_result)
-                        except Exception as e:
-                            logger.debug("on_error 콜백 실패: %s", e)
-                    _maybe_flush()  # A5
-                except Exception as rec_exc:
-                    logger.debug("agent_eval_with_retry (async): record 실패: %s", rec_exc)
-
-        if is_async:
-            return functools.wraps(func)(_run_async)
-        return functools.wraps(func)(_run_sync)
-
-    return decorator
+    return _AgentEvalHandle(decorator, _ctx_factory)
 
 
 # ---------------------------------------------------------------------------
@@ -5751,6 +5548,9 @@ def batch_eval(
 
 
 # ---------------------------------------------------------------------------
+# eval_context — agent_eval 컨텍스트 매니저 모드 전용 클래스
+# agent_eval(monitor, question="Q") as ctx: 패턴으로도 동일하게 사용 가능.
+# ---------------------------------------------------------------------------
 # eval_context — 컨텍스트 매니저 방식 평가 (데코레이터 불가 코드용)
 # ---------------------------------------------------------------------------
 
@@ -6641,3 +6441,15 @@ class EvalDecorator:
             logger.debug("LLMJudge 생성 실패 (llm extras 필요) — enable_llm_judge=False 로 fallback")
             monitor = _PM(output_dir=output_dir)
         return cls(monitor, **kwargs)
+
+
+# ---------------------------------------------------------------------------
+# agent_eval_async — agent_eval 의 alias (sync/async 자동 감지하므로 동일)
+# ---------------------------------------------------------------------------
+
+agent_eval_async = agent_eval
+"""agent_eval 의 별칭. async 함수에 사용하지만 agent_eval 이 이미 자동 감지하므로 동일하다."""
+
+agent_eval_with_retry = agent_eval
+"""agent_eval 의 별칭. max_retries/retry_on/delay/backoff 등 재시도 파라미터를 강조하기 위한 alias."""
+

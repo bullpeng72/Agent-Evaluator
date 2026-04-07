@@ -2,9 +2,9 @@
 
 OpenTelemetry + Arize Phoenix 기반 프로덕션 실시간 모니터링
 
-**Version**: 0.7.2
-**Last Updated**: 2026-04-05
-**Status**: ✅ 구현 완료 (v0.7.2)
+**Version**: 0.7.3
+**Last Updated**: 2026-04-07
+**Status**: ✅ 구현 완료 (v0.7.3)
 
 ---
 
@@ -337,35 +337,38 @@ python my_agent.py
 
 ```python
 # my_agent.py
-from agent_evaluator import PerformanceMonitor, TaskResult, TaskType, setup_otel
-import datetime
+from agent_evaluator import PerformanceMonitor, create_taskresult, setup_otel
+from agent_evaluator.decorators import agent_eval
 
 # OTEL 활성화 (agent-eval monitor 실행 후)
 setup_otel(endpoint="http://localhost:6006", service_name="my-agent")
 
-monitor = PerformanceMonitor()
+monitor = PerformanceMonitor(output_dir="results/")
 
-result = TaskResult(
-    task_id="task_001",
-    task_type=TaskType.QA,
-    success=True,
-    completion_score=0.9,
-    accuracy_score=0.85,
-    execution_time=1.2,
-    tokens_used={"input": 200, "output": 50, "model": "claude-sonnet-4-6"},
-    tool_calls=[],
-    attempts=1,
-    errors=[],
-    timestamp=datetime.datetime.now(),
-)
+# 데코레이터 방식 (권장) — record_task + OTEL 스팬 자동 발행
+@agent_eval(monitor, task_type="qa")
+def my_agent(question: str, ground_truth: str = "") -> str:
+    return llm.invoke(question)
 
-monitor.record_task(result)
-# → JSON 집계 유지 (기존 동작)
-# → ae.task/qa/task_001 스팬 Phoenix에 전송 (신규)
+my_agent("대한민국의 수도는?", ground_truth="서울")
+# → ae.task/qa/{task_id} 스팬 Phoenix에 전송
 
-monitor.save_to_file("results/run")
-# → JSON/HTML 저장
+monitor.save_to_file("run")
+# → results/run.json + .html 저장
 # → Phoenix Annotation API로 accuracy/completion/success 전송
+
+# 수동 기록 방식 (저수준)
+result = create_taskresult(
+    task_id="task_001",
+    question="대한민국의 수도는?",
+    response="서울입니다.",
+    ground_truth="서울",
+    execution_time=1.2,
+    task_type="qa",
+    tokens_used={"input": 200, "output": 50, "total": 250},
+)
+monitor.record_task(result)
+# → ae.task/qa/task_001 스팬 Phoenix에 전송
 ```
 
 ### `evaluation_session`과 함께

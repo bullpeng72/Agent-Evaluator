@@ -7558,7 +7558,9 @@ function app2() {
       this.loading = true;
       try {
         const res = await fetch('/api/results');
-        const list = await res.json();
+        const rd = await res.json();
+        // /api/results returns { total, page, files: [...] } — extract the array
+        const list = Array.isArray(rd) ? rd : (rd.files ?? []);
         this.files = list;
         if (list.length && !this.selId) this.selId = list[0].id;
         if (this.selId) await this.loadFile(this.selId);

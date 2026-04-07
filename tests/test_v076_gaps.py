@@ -187,10 +187,11 @@ class TestHeatmapEndpoint:
 
 class TestAgentEvalAutoRetry:
     def test_auto_retry_succeeds(self):
+        """max_retries=2 — 첫 시도 성공 시 1회만 실행."""
         from agent_evaluator.decorators import agent_eval
         m = _make_monitor()
 
-        @agent_eval(m, task_type="qa", auto_retry=True, auto_retry_max=2)
+        @agent_eval(m, task_type="qa", max_retries=2)
         def fn(question, ground_truth=""):
             return "answer"
 
@@ -199,11 +200,12 @@ class TestAgentEvalAutoRetry:
         assert len(m.tcr_tracker.tasks) == 1
 
     def test_auto_retry_retries_on_failure(self):
+        """max_retries=3 — 3회 시도 후 성공."""
         from agent_evaluator.decorators import agent_eval
         m = _make_monitor()
         call_count = [0]
 
-        @agent_eval(m, task_type="qa", auto_retry=True, auto_retry_max=3)
+        @agent_eval(m, task_type="qa", max_retries=3, retry_on=(ValueError,))
         def fn(question, ground_truth=""):
             call_count[0] += 1
             if call_count[0] < 3:
@@ -213,9 +215,10 @@ class TestAgentEvalAutoRetry:
         result = fn("q?")
         assert result == "ok"
         assert call_count[0] == 3
+        assert m.tasks[-1].attempts == 3
 
     def test_no_auto_retry_by_default(self):
-        """auto_retry 기본값 False — 원래 agent_eval 동작 유지."""
+        """max_retries 기본값 1 — 재시도 없음."""
         from agent_evaluator.decorators import agent_eval
         m = _make_monitor()
 
@@ -491,9 +494,9 @@ class TestCrewAIOutputPydantic:
 # ---------------------------------------------------------------------------
 
 class TestVertexAIAdapter:
-    def test_vertexai_eval_importable(self):
-        from agent_evaluator.integrations import vertexai_eval
-        assert callable(vertexai_eval)
+    def test_vertexai_adapter_registered(self):
+        from agent_evaluator.decorators import _FRAMEWORK_ADAPTERS
+        assert "vertexai" in _FRAMEWORK_ADAPTERS
 
     def test_vertexai_extract_tool_calls(self):
         from agent_evaluator.decorators import _extract_vertexai_metadata
@@ -527,11 +530,11 @@ class TestVertexAIAdapter:
         assert meta.tokens_used["input"] == 100
         assert meta.framework == "vertexai"
 
-    def test_vertexai_eval_creates_decorator(self):
-        from agent_evaluator.integrations import vertexai_eval
+    def test_vertexai_eval_via_agent_eval(self):
+        from agent_evaluator import agent_eval
         m = _make_monitor()
 
-        @vertexai_eval(m, task_type="qa")
+        @agent_eval(m, task_type="qa", framework="vertexai")
         def fn(question, ground_truth=""):
             return "answer"
 
@@ -545,9 +548,9 @@ class TestVertexAIAdapter:
 # ---------------------------------------------------------------------------
 
 class TestOllamaAdapter:
-    def test_ollama_eval_importable(self):
-        from agent_evaluator.integrations import ollama_eval
-        assert callable(ollama_eval)
+    def test_ollama_adapter_registered(self):
+        from agent_evaluator.decorators import _FRAMEWORK_ADAPTERS
+        assert "ollama" in _FRAMEWORK_ADAPTERS
 
     def test_ollama_extract_tokens_from_dict(self):
         from agent_evaluator.decorators import _extract_ollama_metadata
@@ -582,11 +585,11 @@ class TestOllamaAdapter:
         assert len(meta.tool_calls) == 1
         assert meta.tool_calls[0]["name"] == "get_time"
 
-    def test_ollama_eval_creates_decorator(self):
-        from agent_evaluator.integrations import ollama_eval
+    def test_ollama_eval_via_agent_eval(self):
+        from agent_evaluator import agent_eval
         m = _make_monitor()
 
-        @ollama_eval(m, task_type="qa")
+        @agent_eval(m, task_type="qa", framework="ollama")
         def fn(question, ground_truth=""):
             return "answer"
 

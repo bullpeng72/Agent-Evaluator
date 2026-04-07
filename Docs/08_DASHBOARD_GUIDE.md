@@ -2,8 +2,8 @@
 
 Agent Evaluator 실시간 평가 대시보드 — 탭별 상세 사용법
 
-**버전:** v0.7.2
-**최종 업데이트:** 2026-04-01
+**버전:** v0.7.3
+**최종 업데이트:** 2026-04-07
 
 ---
 
@@ -39,6 +39,25 @@ agent-eval dashboard --offline
 대시보드는 `results/` 폴더의 JSON 파일을 자동으로 로드합니다.
 `--watch` 플래그 사용 시 새 결과 파일 생성/변경을 감지하여 실시간 갱신됩니다.
 
+### 데이터 생성 (데코레이터 방식)
+
+```python
+from agent_evaluator import QuickEval
+
+eval = QuickEval("results/")  # 대시보드가 읽는 results/ 디렉토리
+
+@eval.qa
+def my_agent(question: str, ground_truth: str = "") -> str:
+    return llm.invoke(question)
+
+for q, gt in dataset:
+    my_agent(q, ground_truth=gt)
+
+eval.save()  # results/quickeval.json + .html 자동 생성 → 대시보드에서 바로 확인
+```
+
+> `save_to_file(name)` 또는 `eval.save()` 호출 후 대시보드를 열면 결과를 즉시 확인할 수 있습니다.
+
 ---
 
 ## Overview 탭 {#overview}
@@ -52,7 +71,7 @@ agent-eval dashboard --offline
 
 ### 프레임워크 분포 차트
 - 도넛 차트: 각 프레임워크(LangChain/LangGraph/CrewAI/AutoGen/native)별 태스크 비율
-- **주의**: 분모는 `tasks.length` (직접 등록 태스크 수) 기반 — v0.6.1에서 수정됨
+- **주의**: 분모는 `tasks.length` (직접 등록 태스크 수) 기반
 
 ### 태스크 유형 분포
 - 바 차트: qa / code_generation / data_analysis 등 task_type별 카운트
@@ -73,7 +92,7 @@ agent-eval dashboard --offline
 | Hallucination | 환각 발생 건수 | 0에 가까울수록 좋음 |
 | Ragas Overall | RAG 종합 점수 | >0.7 권장 |
 
-> **⚠️ 주의**: Quality Score는 `/5.0` 스케일입니다. `/10`이 아님 (v0.5.x에서 변경).
+> **⚠️ 주의**: Quality Score는 `/5.0` 스케일입니다. `/10`이 아님.
 
 ### 정확도 차트
 - **태스크 유형별 정확도** (바 차트): QA / Code / 기타 유형별 분리
@@ -109,7 +128,7 @@ Agentic 탭은 3개 서브탭으로 구성됩니다.
 | 첫 시도 성공률 | first_attempt_success_rate % | 계산식 패널 |
 | 평균 재시도 시간 | avg_retry_time (초) | 계산식 패널 |
 
-> **💡 avg_retry_time 해석**: 재시도가 발생한 태스크만의 평균 — v0.6.0에서 분모 버그 수정됨.
+> **💡 avg_retry_time 해석**: 재시도가 발생한 태스크만의 평균.
 
 **차트**
 - 태스크 유형별 재시도 분포 (바 차트)
@@ -167,7 +186,7 @@ Agentic 탭은 3개 서브탭으로 구성됩니다.
 - 위협 유형 분포: SQL/Command/XSS/Path/Prompt Injection 파이 차트
 
 ### 출력 유출 패널
-- **8가지 유출 유형 카드** (v0.6.1):
+- **8가지 유출 유형 카드**:
   1. API Key — `sk-...`, `sk-ant-...`
   2. Password — `password=`, `P@ssword`
   3. Credit Card — Luhn 검증
@@ -175,7 +194,7 @@ Agentic 탭은 3개 서브탭으로 구성됩니다.
   5. Phone — `010-xxxx-xxxx`
   6. SSN — 주민등록번호 패턴
   7. Internal IP — `192.168.x.x`, `10.x.x.x`
-  8. File Path — `/etc/secrets/`, `C:\Windows\` (v0.6.1 추가)
+  8. File Path — `/etc/secrets/`, `C:\Windows\`
 
 > **💡 custom_pattern 주의**: `[a-zA-Z0-9]{32,}` 패턴은 false positive 높음 — 긴 해시값, UUID 등도 탐지될 수 있음
 
@@ -220,7 +239,7 @@ Layer 3 Ragas 평가 결과가 표시됩니다. `HybridPerformanceMonitor` + `en
 
 Layer 3 DeepEval 평가 결과. `HybridPerformanceMonitor` + `enable_deepeval=True` 필요.
 
-> **주의**: DeepEval 탭에는 DeepEval 전용 지표만 표시됩니다. Ragas 지표는 RAG 탭에서 별도 표시 (v0.6.0에서 분리).
+> **주의**: DeepEval 탭에는 DeepEval 전용 지표만 표시됩니다. Ragas 지표는 RAG 탭에서 별도 표시.
 
 ### KPI 카드
 - G-Eval Score (커스텀 채점 기준)
@@ -259,7 +278,7 @@ Layer 3 DeepEval 평가 결과. `HybridPerformanceMonitor` + `enable_deepeval=Tr
 ### Golden Dataset 관리
 - **Golden 탭**: `data/golden_datasets/` 폴더의 JSON 데이터셋 편집
 - 질문·정답·컨텍스트 직접 편집 및 저장
-- 한국어 어미 필터링 적용 (v0.6.0에서 개선)
+- 한국어 어미 필터링 적용
 
 ### Webhook 알림 설정
 - 평가 결과 저장 시 외부 URL로 POST 전송

@@ -104,8 +104,6 @@ from .core.monitor_context import evaluation_session, hybrid_evaluation_session,
 # Decorator-based evaluation (Opik @track 스타일)
 from .decorators import (
     agent_eval,
-    agent_eval_async,
-    agent_eval_with_retry,
     batch_eval,
     conversation_eval,
     flush_conversation,
@@ -133,36 +131,6 @@ from .decorators import (
 
 # Task 6: QuickEval — 원스톱 평가 Facade
 from .quick_eval import QuickEval
-
-# Task 3: 프레임워크 전용 데코레이터 (D8: LLM SDK 데코레이터 포함)
-from .integrations import (
-    langchain_eval,
-    langgraph_eval,
-    crewai_eval,
-    autogen_eval,
-    autogen_eval_async,  # C4: AutoGen 0.4+ async API 전용
-    dspy_eval,
-    pydanticai_eval,
-    # LLM SDK 전용 데코레이터 (v0.7.2+)
-    anthropic_eval,
-    openai_eval,
-    gemini_eval,
-    llamaindex_eval,
-    haystack_eval,
-    # Cloud / Local LLM 전용 데코레이터 (v0.7.6+)
-    vertexai_eval,
-    ollama_eval,
-    # 추가 프레임워크 전용 데코레이터 (v0.7.7+)
-    cohere_eval,
-    groq_eval,
-    mistral_eval,
-    bedrock_eval,
-    smolagents_eval,
-    semantic_kernel_eval,
-    # F4: 신규 어댑터
-    vllm_eval,
-    huggingface_eval,
-)
 
 # Import helpers with simplified names
 from .helpers.taskresult_helpers import create_taskresult_from_execution as create_taskresult
@@ -324,9 +292,7 @@ __all__ = [
     'evaluation_session',  # Context manager
     'hybrid_evaluation_session',  # Context manager
     'async_evaluation_session',  # Async context manager
-    'agent_eval',               # Decorator (sync)
-    'agent_eval_async',         # Decorator (async)
-    'agent_eval_with_retry',    # Decorator with retry (sync+async)
+    'agent_eval',               # Decorator (sync+async+retry+framework 통합)
     'batch_eval',               # Decorator for List[str] batch functions
     'conversation_eval',        # Decorator for multi-turn conversation
     'flush_conversation',       # Flush conversation session

@@ -1593,6 +1593,56 @@ class PerformanceMonitor:
                         step.get("metadata")
                     )
     
+            # Security Metrics (opt-in, enable_security_metrics=True 일 때만 실행)
+            if self.enable_security_metrics:
+                _sec_q = _eff_request or task_result.question
+                _sec_r = _eff_response or task_result.response
+                # Layer 1: Input Sanitization — 입력 텍스트 위협 스캔
+                if self.input_sanitizer is not None and _sec_q:
+                    try:
+                        self.input_sanitizer.evaluate_input(task_result.task_id, _sec_q)
+                    except Exception as _sec_exc:
+                        logger.debug("InputSanitizationTracker 실패 (무시): %s", _sec_exc)
+                # Layer 1: Output Leakage Detection — 출력 내 민감정보 탐지
+                if self.output_leakage_detector is not None and _sec_r:
+                    try:
+                        self.output_leakage_detector.detect_leakage(task_result.task_id, _sec_r)
+                    except Exception as _sec_exc:
+                        logger.debug("OutputLeakageDetector 실패 (무시): %s", _sec_exc)
+                # Layer 1: Tool Authorization — 각 도구 호출 권한 검사
+                if self.tool_authorizer is not None and task_result.tool_calls:
+                    for _stc in task_result.tool_calls:
+                        try:
+                            if isinstance(_stc, dict):
+                                _stc_name = _stc.get("tool_name") or _stc.get("tool") or _stc.get("name", "unknown")
+                                _stc_params = _stc.get("input") or _stc.get("parameters") or {}
+                            else:
+                                _stc_name = str(_stc)
+                                _stc_params = {}
+                            self.tool_authorizer.track_tool_call(task_result.task_id, _stc_name, _stc_params or None)
+                        except Exception as _sec_exc:
+                            logger.debug("ToolAuthorizationTracker 실패 (무시): %s", _sec_exc)
+                # Layer 2: Privilege Escalation — 도구 체인의 권한 상승 패턴 감지
+                if self.privilege_escalation_detector is not None and task_result.tool_calls:
+                    try:
+                        self.privilege_escalation_detector.analyze_privilege_chain(
+                            task_result.task_id, task_result.tool_calls
+                        )
+                    except Exception as _sec_exc:
+                        logger.debug("PrivilegeEscalationDetector 실패 (무시): %s", _sec_exc)
+                # Layer 2: Tool Chain Attack — 연속 도구 호출 공격 패턴 감지
+                if self.tool_chain_attack_detector is not None and task_result.tool_calls:
+                    try:
+                        _sec_tool_seq: List[str] = []
+                        for _stc in task_result.tool_calls:
+                            if isinstance(_stc, dict):
+                                _sec_tool_seq.append(_stc.get("tool_name") or _stc.get("tool") or _stc.get("name", "unknown"))
+                            else:
+                                _sec_tool_seq.append(str(_stc))
+                        self.tool_chain_attack_detector.analyze_tool_chain(task_result.task_id, _sec_tool_seq)
+                    except Exception as _sec_exc:
+                        logger.debug("ToolChainAttackDetector 실패 (무시): %s", _sec_exc)
+
             # Layer1: Hallucination Detection (opt-in, rule-based, free)
             _eff_response_hall = response if response is not None else task_result.response
             _eff_request_hall = request or task_result.question
@@ -1799,6 +1849,7 @@ class PerformanceMonitor:
                 "ae.tool_calls_count": len(result.tool_calls) if result.tool_calls else 0,
                 "ae.attempts": int(result.attempts or 0),
                 "ae.framework": getattr(result, "framework", None) or "native",
+                "ae.anomaly_detection_enabled": bool(getattr(self, "enable_anomaly_detection", False)),
             }
 
             # D1: 할루시네이션 점수 + 품질 점수를 스팬 속성으로 직접 포함
@@ -1817,6 +1868,69 @@ class PerformanceMonitor:
             except Exception:
                 pass
 
+            # LLM Judge 종합 점수 — Phoenix Evaluators 탭 필터링 지원
+            try:
+                _lj = getattr(result, "llm_judge", None)
+                if isinstance(_lj, dict) and _lj:
+                    _lj_overall = _lj.get("overall") or _lj.get("score") or _lj.get("avg_score")
+                    if _lj_overall is not None:
+                        attributes["ae.llm_judge_score"] = round(float(_lj_overall), 4)
+                    _lj_completeness = _lj.get("completeness")
+                    if _lj_completeness is not None:
+                        attributes["ae.llm_judge_completeness"] = round(float(_lj_completeness), 4)
+                    _lj_relevance = _lj.get("relevance")
+                    if _lj_relevance is not None:
+                        attributes["ae.llm_judge_relevance"] = round(float(_lj_relevance), 4)
+                    _lj_factual = _lj.get("factual_consistency")
+                    if _lj_factual is not None:
+                        attributes["ae.llm_judge_factual"] = round(float(_lj_factual), 4)
+            except Exception:
+                pass
+
+            # Phoenix Prompts 탭 — llm.prompts / input.mime_type 속성으로 프롬프트 추적 활성화
+            # Playground 재현 및 Prompts 메뉴 연동에 필요한 OpenInference 표준 속성
+            try:
+                if input_val:
+                    _prompt_msgs = [{"role": "user", "content": str(input_val)}]
+                    if ground_truth_val:
+                        _prompt_msgs.append({"role": "assistant", "content": str(ground_truth_val)})
+                    attributes["llm.prompts"] = json.dumps(_prompt_msgs, ensure_ascii=False)
+                    attributes["input.mime_type"] = "text/plain"
+                    attributes["output.mime_type"] = "text/plain"
+            except Exception:
+                pass
+
+            # 보안 이벤트 수 — security_mode=True 시 탐지된 위협 총계
+            try:
+                _sec = getattr(result, "security_metrics", None)
+                if isinstance(_sec, dict) and _sec:
+                    _sec_input = _sec.get("input_security", {}) or {}
+                    _sec_output = _sec.get("output_leakage", {}) or {}
+                    _sec_auth = _sec.get("authorization", {}) or {}
+                    _sec_count = (
+                        int(_sec_input.get("inputs_with_threats", 0) or 0)
+                        + int(_sec_output.get("outputs_with_leakage", 0) or 0)
+                        + int(_sec_auth.get("unauthorized_calls", 0) or 0)
+                    )
+                    attributes["ae.security_events_count"] = _sec_count
+            except Exception:
+                pass
+
+            # ae.tool_names — 사용된 도구 이름 목록 (Phoenix 도구별 필터링 지원)
+            try:
+                if result.tool_calls:
+                    _tool_name_list = []
+                    for _tc in result.tool_calls:
+                        if isinstance(_tc, dict):
+                            _tn = _tc.get("tool_name") or _tc.get("tool") or _tc.get("name", "unknown")
+                        else:
+                            _tn = str(_tc)
+                        _tool_name_list.append(str(_tn))
+                    if _tool_name_list:
+                        attributes["ae.tool_names"] = json.dumps(_tool_name_list, ensure_ascii=False)
+            except Exception:
+                pass
+
             attributes.update({
                 # Playground 재현용 — question/response/ground_truth 전문 기록
                 "ae.question": str(input_val)[:_OTEL_ATTR_MAX_LEN],
@@ -1826,6 +1940,19 @@ class PerformanceMonitor:
                 **({"ae.experiment_id": self._phoenix_experiment_id} if self._phoenix_experiment_id else {}),
                 **({"ae.experiment_name": self._phoenix_experiment_name} if self._phoenix_experiment_name else {}),
             })
+
+            # Phoenix Datasets 탭 — 골든 데이터셋에서 실행된 태스크에 dataset 컨텍스트 첨부
+            try:
+                if self._phoenix_dataset_id:
+                    attributes["dataset.id"] = str(self._phoenix_dataset_id)
+                if self._golden_datasets:
+                    # 가장 최근 로드된 골든 데이터셋 이름을 dataset.version 으로 노출
+                    _ds_name = getattr(self._golden_datasets[0], "name", None) if hasattr(self._golden_datasets[0], "name") else None
+                    if _ds_name:
+                        attributes["dataset.version"] = str(_ds_name)
+                    attributes["dataset.record_count"] = len(self._golden_datasets)
+            except Exception:
+                pass
 
             # retrieval.documents — INFORMATION_RETRIEVAL 스팬에 RAG 컨텍스트 첨부
             if type_label == "information_retrieval" and getattr(result, "context", None):
@@ -1838,15 +1965,15 @@ class PerformanceMonitor:
                     logger.debug("retrieval.documents 속성 직렬화 실패 (무시): %s", _e)
 
             # span start_time 계산 — Phoenix latency 차트는 span duration을 사용한다.
-            # _emit_otel_span()은 실행 완료 후 호출되므로 start_time을 역산해야 한다.
-            # start_time = result.timestamp - execution_time (나노초 단위)
+            # 현재 시각 기준으로 역산 → Phoenix "Last 15 Min" 등 시간 필터에 항상 표시됨.
+            # (result.timestamp가 시뮬레이션 과거 시간이어도 Phoenix UI에 정상 노출)
+            # start_time = now - execution_time (나노초 단위)
             start_time_ns: Optional[int] = None
             try:
-                ts = result.timestamp
-                if ts is not None and hasattr(ts, "timestamp"):
-                    exec_ns = int((result.execution_time or 0.0) * 1_000_000_000)
-                    end_ns = int(ts.timestamp() * 1_000_000_000)
-                    start_time_ns = max(0, end_ns - exec_ns)
+                import time as _time_mod
+                exec_ns = int((result.execution_time or 0.0) * 1_000_000_000)
+                end_ns = int(_time_mod.time() * 1_000_000_000)  # 현재 시각 기준
+                start_time_ns = max(0, end_ns - exec_ns)
             except Exception as _e:
                 logger.debug("start_time_ns 역산 실패, SDK 기본값 사용: %s", _e)
 
@@ -1896,39 +2023,86 @@ class PerformanceMonitor:
                     except Exception as _e:
                         logger.debug("span_id 캡처 / annotation 추가 실패 (무시): %s", _e)
 
-            # D2: 자식 스팬 — chain_steps 각 항목을 별도 OTEL 자식 스팬으로 발행
-            if self.enable_otel_child_spans:
-                try:
-                    _extra = getattr(result, "extra", {}) or {}
-                    _chain_steps = result.chain_steps or _extra.get("streaming_steps", [])
-                    if _chain_steps:
-                        _task_end_ns = start_time_ns + int((result.execution_time or 0.0) * 1_000_000_000) if start_time_ns else None
-                        _step_offset = (start_time_ns or 0)
-                        for _idx, _step in enumerate(_chain_steps):
-                            _step_name = _step.get("name") or _step.get("type") or f"step_{_idx}"
-                            _step_time_val = float(_step.get("execution_time") or _step.get("timestamp") or 0.0)
-                            _child_start_ns = _step_offset + int(_step.get("timestamp", 0) * 1_000_000_000) if start_time_ns else None
-                            _child_attrs: Dict[str, Any] = {
-                                "openinference.span.kind": "CHAIN",
+                # Tool call 자식 스팬 — Phoenix "Tool spans" 차트용
+                # tool_calls 가 있으면 항상 발행 (enable_otel_child_spans 불필요)
+                if result.tool_calls:
+                    try:
+                        _tool_base_ns = start_time_ns or int(_time_mod.time() * 1_000_000_000)
+                        _exec_ns = int((result.execution_time or 0.0) * 1_000_000_000)
+                        _n_tools = len(result.tool_calls)
+                        # 도구 호출을 실행 시간 안에 균등 배치 (순서 보존)
+                        _tool_slot_ns = max(1, _exec_ns // max(_n_tools, 1))
+                        for _idx, _tc in enumerate(result.tool_calls):
+                            if not isinstance(_tc, dict):
+                                continue
+                            _tool_name = (
+                                _tc.get("tool_name") or _tc.get("tool")
+                                or _tc.get("name") or f"tool_{_idx}"
+                            )
+                            _tool_args = _tc.get("arguments") or _tc.get("args") or {}
+                            _tool_result_val = _tc.get("result") or _tc.get("output") or ""
+                            _tool_success = bool(_tc.get("success", True))
+                            _tool_attrs: Dict[str, Any] = {
+                                "openinference.span.kind": "TOOL",
+                                "tool.name": str(_tool_name),
+                                "input.value": (
+                                    json.dumps(_tool_args, ensure_ascii=False)
+                                    if isinstance(_tool_args, dict)
+                                    else str(_tool_args)
+                                )[:_OTEL_ATTR_MAX_LEN],
+                                "output.value": str(_tool_result_val)[:_OTEL_ATTR_MAX_LEN],
                                 "ae.task_id": result.task_id or "",
-                                "ae.step_index": _idx,
-                                "ae.step_name": str(_step_name),
-                                "ae.step_type": str(_step.get("type", "step")),
-                                "ae.step_success": bool(_step.get("success", True)),
-                                "ae.execution_time": float(_step_time_val),
+                                "ae.tool_index": _idx,
+                                "session.id": self._otel_session_id,
                             }
-                            if _step.get("input"):
-                                _child_attrs["input.value"] = str(_step["input"])[:_OTEL_ATTR_MAX_LEN]
-                            if _step.get("output"):
-                                _child_attrs["output.value"] = str(_step["output"])[:_OTEL_ATTR_MAX_LEN]
-                            _child_span_name = f"ae.step/{result.task_id}/{_step_name}"
+                            _tool_span_name = f"ae.tool/{result.task_id}/{_tool_name}"
+                            _tool_start_ns = _tool_base_ns + _idx * _tool_slot_ns
                             try:
-                                with provider.span(_child_span_name, _child_attrs, start_time_ns=_child_start_ns):
-                                    pass
-                            except Exception as _cs_exc:
-                                logger.debug("자식 스팬 발행 실패 (무시): %s", _cs_exc)
-                except Exception as _child_exc:
-                    logger.debug("enable_otel_child_spans 처리 실패 (무시): %s", _child_exc)
+                                with provider.span(_tool_span_name, _tool_attrs, start_time_ns=_tool_start_ns) as _ts:
+                                    if not _tool_success and _ts is not None:
+                                        try:
+                                            from opentelemetry.trace import StatusCode as _SC
+                                            _ts.set_status(_SC.ERROR, "tool call failed")
+                                        except Exception:
+                                            pass
+                            except Exception as _tse:
+                                logger.debug("tool call 자식 스팬 발행 실패 (무시): %s", _tse)
+                    except Exception as _te:
+                        logger.debug("tool_calls 자식 스팬 처리 실패 (무시): %s", _te)
+
+                # D2: 자식 스팬 — chain_steps 각 항목을 별도 OTEL 자식 스팬으로 발행
+                # 부모 span context 안에서 생성해야 parent-child 관계가 성립함
+                if self.enable_otel_child_spans:
+                    try:
+                        _extra = getattr(result, "extra", {}) or {}
+                        _chain_steps = result.chain_steps or _extra.get("streaming_steps", [])
+                        if _chain_steps:
+                            _step_offset = (start_time_ns or int(_time_mod.time() * 1_000_000_000))
+                            for _idx, _step in enumerate(_chain_steps):
+                                _step_name = _step.get("name") or _step.get("type") or f"step_{_idx}"
+                                _step_time_val = float(_step.get("execution_time") or _step.get("timestamp") or 0.0)
+                                _child_start_ns = _step_offset + int(_step.get("timestamp", 0) * 1_000_000_000) if start_time_ns else None
+                                _child_attrs: Dict[str, Any] = {
+                                    "openinference.span.kind": "CHAIN",
+                                    "ae.task_id": result.task_id or "",
+                                    "ae.step_index": _idx,
+                                    "ae.step_name": str(_step_name),
+                                    "ae.step_type": str(_step.get("type", "step")),
+                                    "ae.step_success": bool(_step.get("success", True)),
+                                    "ae.execution_time": float(_step_time_val),
+                                }
+                                if _step.get("input"):
+                                    _child_attrs["input.value"] = str(_step["input"])[:_OTEL_ATTR_MAX_LEN]
+                                if _step.get("output"):
+                                    _child_attrs["output.value"] = str(_step["output"])[:_OTEL_ATTR_MAX_LEN]
+                                _child_span_name = f"ae.step/{result.task_id}/{_step_name}"
+                                try:
+                                    with provider.span(_child_span_name, _child_attrs, start_time_ns=_child_start_ns):
+                                        pass
+                                except Exception as _cs_exc:
+                                    logger.debug("자식 스팬 발행 실패 (무시): %s", _cs_exc)
+                    except Exception as _child_exc:
+                        logger.debug("enable_otel_child_spans 처리 실패 (무시): %s", _child_exc)
 
             # Phoenix Metrics 탭 — 집계 지표 전송
             try:
@@ -1957,7 +2131,7 @@ class PerformanceMonitor:
         save_to_file() 끝에서 호출된다. Phoenix가 실행 중이지 않거나
         OTEL 미설정 시 no-op.
 
-        전송 지표 (annotator_kind="CODE"):
+        전송 지표 (annotator_kind="LLM"):
             - accuracy      : ae.accuracy_score  (0–1)
             - completion    : ae.completion_score (0–1)
             - success       : 1.0 성공 / 0.0 실패
@@ -2011,7 +2185,7 @@ class PerformanceMonitor:
                     data.append({
                         "span_id": span_id,
                         "name": metric,
-                        "annotator_kind": "CODE",
+                        "annotator_kind": "LLM",
                         "result": {
                             "score": round(float(score), 4),
                             "label": label,

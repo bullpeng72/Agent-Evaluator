@@ -52,6 +52,7 @@ from dotenv import load_dotenv
 load_dotenv(Path(__file__).parent / ".env")
 
 from agent_evaluator import PerformanceMonitor, TaskResult, create_taskresult
+from agent_evaluator.decorators import batch_eval, EvalMetadata
 from agent_evaluator.reporting import generate_comprehensive_html_report
 from agent_evaluator.integrations.framework_integrations import (
     check_framework_availability,
@@ -548,5 +549,114 @@ def run_cross_framework_evaluation():
     return saved_path
 
 
+# ── @batch_eval 시나리오 조회용 모듈 변수 ──────────────────────────────────────
+# PIPELINE_SCENARIOS / _CONTENT 로드 후 채워짐 (run_batch_cross_framework_eval에서 사용)
+_XF_SCENARIO_MAP: dict[str, tuple] = {}   # request_text → (name, s1_ok, s2_ok, s3_ok)
+
+
+def run_batch_cross_framework_eval() -> PerformanceMonitor:
+    """@batch_eval 데코레이터를 사용한 크로스 프레임워크 파이프라인 배치 평가.
+
+    run_cross_framework_evaluation() 의 핵심 루프를 @batch_eval로 재구현한다.
+    - concurrent=True → 시나리오별 독립 병렬 처리
+    - RuntimeError 발생 → has_error=True 자동 기록 (실패 스테이지 메시지 포함)
+    - EvalMetadata → tool_calls / agent_interactions / chain_steps / tokens_used 자동 주입
+    - return_format="dataframe" → 결과를 pandas DataFrame으로 반환
+    """
+    global _XF_SCENARIO_MAP
+
+    # 시나리오 조회 맵 구성 (question → scenario 정보)
+    _XF_SCENARIO_MAP = {
+        _CONTENT[name][0]: (name, s1_ok, s2_ok, s3_ok)
+        for name, s1_ok, s2_ok, s3_ok, _desc in PIPELINE_SCENARIOS
+        if name in _CONTENT
+    }
+
+    monitor_b = PerformanceMonitor.for_secure_agents(
+        output_dir=str(project_root / "results"),
+        enable_hallucination_detection=True,
+        pricing={"input": 0.003, "output": 0.015},
+    )
+
+    print(f"\n  [Batch Eval] @batch_eval 파이프라인 평가 — {len(_XF_SCENARIO_MAP)}건")
+    print(f"  concurrent=True, max_concurrent=4, return_format='dataframe'")
+
+    @batch_eval(
+        monitor_b,
+        task_type="planning",
+        framework="multi_framework",
+        task_id_fn=lambda i, q, gt: f"xf_b_{i+1:03d}",
+        flush_every=6,
+        flush_filename="10_cross_framework_batch",
+        return_format="dataframe",
+        concurrent=True,
+        max_concurrent=4,
+        on_item_error=lambda i, q, e: None,
+    )
+    def pipeline_batch_agent(questions: list, ground_truths: list = None) -> list:
+        """단일 파이프라인 시나리오 처리 (concurrent=True → 1항목씩 호출됨)."""
+        local_rng = random.Random()  # 스레드 안전 로컬 RNG
+        q = questions[0]
+        sc = _XF_SCENARIO_MAP.get(q)
+        if sc is None:
+            raise RuntimeError("unknown_scenario")
+
+        name, s1_ok, s2_ok, s3_ok = sc
+        overall_success = s1_ok and s2_ok and s3_ok
+
+        # 스테이지별 tool_calls
+        tc_s1 = _make_stage_tool_calls(
+            local_rng.sample(STAGE1_TOOLS, k=3), s1_ok, local_rng, "langgraph"
+        )
+        tc_s2 = _make_stage_tool_calls(
+            local_rng.sample(STAGE2_TOOLS, k=2), s2_ok, local_rng, "langchain"
+        ) if s1_ok else []
+        tc_s3 = _make_stage_tool_calls(
+            local_rng.sample(STAGE3_TOOLS, k=3), s3_ok, local_rng, "crewai"
+        ) if (s1_ok and s2_ok) else []
+
+        interactions = _make_cross_framework_interactions(name, s1_ok, s2_ok, s3_ok, local_rng)
+        chain_steps = _make_pipeline_workflow(s1_ok, s2_ok, s3_ok, local_rng)
+
+        tok_in = local_rng.randint(500, 2000)
+        tok_out = local_rng.randint(200, 800)
+
+        content = _CONTENT[name]
+        resp_ok, resp_fail = content[1], content[2]
+
+        if not overall_success:
+            raise RuntimeError(
+                "stage1_fail" if not s1_ok else
+                "stage2_fail" if not s2_ok else
+                "stage3_fail"
+            )
+
+        return [(resp_ok, EvalMetadata(
+            tool_calls=tc_s1 + tc_s2 + tc_s3,
+            agent_interactions=interactions,
+            chain_steps=chain_steps,
+            tokens_used={"input": tok_in, "output": tok_out, "total": tok_in + tok_out},
+            attempts=1,
+        ))]
+
+    # ── 배치 실행 ─────────────────────────────────────────────────────────────
+    questions = list(_XF_SCENARIO_MAP.keys())
+    ground_truths = [_CONTENT[name][3] for name, *_ in _XF_SCENARIO_MAP.values()]
+    df = pipeline_batch_agent(questions=questions, ground_truths=ground_truths)
+
+    monitor_b.save_to_file("10_cross_framework_batch")
+
+    # ── 결과 요약 ─────────────────────────────────────────────────────────────
+    if hasattr(df, "shape") and "success" in df.columns:
+        n_ok = int(df["success"].sum())
+        n_total = len(df)
+        print(f"\n  DataFrame: {df.shape}  성공: {n_ok}/{n_total}건")
+        if "tool_call_count" in df.columns:
+            print(f"  평균 도구 호출: {df['tool_call_count'].mean():.1f}건/태스크")
+    print(f"  저장 완료: results/10_cross_framework_batch")
+    return monitor_b
+
+
 if __name__ == "__main__":
     run_cross_framework_evaluation()
+    run_batch_cross_framework_eval()

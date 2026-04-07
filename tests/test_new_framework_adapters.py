@@ -258,38 +258,25 @@ class TestHaystackAdapter:
 
 
 # ---------------------------------------------------------------------------
-# integrations 편의 데코레이터
+# LLM SDK 어댑터 등록 확인 (agent_eval(framework=name) 방식)
 # ---------------------------------------------------------------------------
 
 class TestIntegrationDecorators:
-    def test_anthropic_eval_importable(self):
-        from agent_evaluator.integrations import anthropic_eval
-        assert callable(anthropic_eval)
+    def test_llm_adapters_in_framework_adapters(self):
+        """LLM SDK 어댑터가 _FRAMEWORK_ADAPTERS에 등록되어 있다."""
+        from agent_evaluator.decorators import _FRAMEWORK_ADAPTERS
+        for fw in ("anthropic", "openai", "gemini", "llamaindex", "haystack"):
+            assert fw in _FRAMEWORK_ADAPTERS, f"Missing adapter: {fw}"
 
-    def test_openai_eval_importable(self):
-        from agent_evaluator.integrations import openai_eval
-        assert callable(openai_eval)
-
-    def test_gemini_eval_importable(self):
-        from agent_evaluator.integrations import gemini_eval
-        assert callable(gemini_eval)
-
-    def test_llamaindex_eval_importable(self):
-        from agent_evaluator.integrations import llamaindex_eval
-        assert callable(llamaindex_eval)
-
-    def test_haystack_eval_importable(self):
-        from agent_evaluator.integrations import haystack_eval
-        assert callable(haystack_eval)
-
-    def test_openai_eval_sets_framework(self, tmp_path):
+    def test_agent_eval_framework_param_supports_llm_sdks(self, tmp_path):
+        """agent_eval(framework='openai')로 직접 지정 가능."""
         from agent_evaluator.core.trackers.monitor import PerformanceMonitor
-        from agent_evaluator.integrations import openai_eval
+        from agent_evaluator import agent_eval
 
         monitor = PerformanceMonitor(output_dir=str(tmp_path) + "/")
         called = []
 
-        @openai_eval(monitor, task_type="qa")
+        @agent_eval(monitor, task_type="qa", framework="openai")
         def agent(question: str, ground_truth: str = "") -> str:
             called.append(True)
             return "answer"

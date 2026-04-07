@@ -9,19 +9,32 @@ Phase 1~3 구현 내용을 모두 검증한다.
 
 import asyncio
 import os
+import socket as _sock
+from pathlib import Path
 
 from agent_evaluator import PerformanceMonitor
 from agent_evaluator.decorators import (
     agent_eval,
     agent_eval_async,
     agent_eval_with_retry,
+    batch_eval,
     conversation_eval,
     flush_conversation,
     EvalMetadata,
     get_eval_ctx,
 )
 
-monitor = PerformanceMonitor(output_dir="results/")
+_project_root = Path(__file__).parent.parent
+
+monitor = PerformanceMonitor(output_dir=str(_project_root / "results"))
+
+# Phoenix OTEL 연결
+try:
+    if _sock.socket().connect_ex(("localhost", 6006)) == 0:
+        from agent_evaluator import setup_otel
+        setup_otel(endpoint="http://localhost:6006", service_name="19-decorator-coverage")
+except Exception:
+    pass
 
 # ---------------------------------------------------------------------------
 # Phase 1-A: expected_tools_arg + framework 파라미터 확장
@@ -150,6 +163,70 @@ priority_agent("우선순위 테스트", ground_truth="정답")
 print("  priority_agent — EvalMetadata(0.95) > score_fn(0.1) 우선순위 확인")
 
 # ---------------------------------------------------------------------------
+# Phase 3-A-0: batch_eval — 배치 평가 + DataFrame 반환
+# ---------------------------------------------------------------------------
+print("\n=== Phase 3-A-0: batch_eval — 배치 평가 (return_format='dataframe') ===")
+
+_BATCH_QA_PAIRS = [
+    ("Python 리스트와 튜플 차이?",   "리스트 mutable, 튜플 immutable"),
+    ("REST API와 GraphQL 차이점?",   "REST: 고정 엔드포인트, GraphQL: 유연한 쿼리"),
+    ("Docker 컨테이너 생성 명령어?", "docker run 명령어 사용"),
+    ("JWT 토큰 구조?",               "Header.Payload.Signature"),
+    ("CI/CD 파이프라인이란?",         "자동화 빌드·테스트·배포"),
+]
+
+@batch_eval(
+    monitor,
+    task_type="qa",
+    task_id_prefix="p3a0_basic",
+    return_format="dataframe",
+    shuffle=True,
+    shuffle_seed=42,
+    flush_every=5,
+    flush_filename="19_batch_basic",
+    on_batch_complete=lambda results: print(f"  on_batch_complete: {len(results)}건 기록됨"),
+)
+def qa_batch_basic(questions: list, ground_truths: list = None) -> list:
+    return [f"{q}에 대한 배치 응답" for q in questions]
+
+df = qa_batch_basic(
+    questions=[q for q, _ in _BATCH_QA_PAIRS],
+    ground_truths=[gt for _, gt in _BATCH_QA_PAIRS],
+)
+if hasattr(df, "shape"):
+    print(f"  DataFrame: {df.shape}  컬럼: {list(df.columns[:6])}")
+print("  shuffle=True, shuffle_seed=42, return_format='dataframe' 확인")
+
+# ---------------------------------------------------------------------------
+# Phase 3-A-0-2: batch_eval + concurrent=True + EvalMetadata per item
+# ---------------------------------------------------------------------------
+print("\n=== Phase 3-A-0-2: batch_eval + concurrent + EvalMetadata ===")
+
+@batch_eval(
+    monitor,
+    task_type="tool_use",
+    task_id_prefix="p3a0_conc",
+    return_format="list",
+    concurrent=True,
+    max_concurrent=3,
+    on_item_error=lambda i, q, e: print(f"  항목 {i} 실패: {type(e).__name__}"),
+)
+def tool_batch_concurrent(questions: list, ground_truths: list = None) -> list:
+    # concurrent=True → 1항목씩 호출됨 (len(questions)==1)
+    return [(
+        f"도구 검색 결과: {questions[0]}",
+        EvalMetadata(
+            tool_calls=[{"tool_name": "web_search", "success": True, "duration": 0.3}],
+            chain_steps=[{"name": "search", "success": True, "execution_time": 0.3}],
+            attempts=1,
+        ),
+    )]
+
+tool_results = tool_batch_concurrent(questions=["검색 A", "검색 B", "검색 C"])
+print(f"  concurrent=True → 항목별 병렬 처리 + EvalMetadata 추출")
+print(f"  반환 건수: {len(tool_results) if tool_results else 0}건")
+
+# ---------------------------------------------------------------------------
 # Phase 3-A: agent_eval_with_retry — 재시도 정확한 카운트
 # ---------------------------------------------------------------------------
 print("\n=== Phase 3-A: agent_eval_with_retry ===")
@@ -248,7 +325,7 @@ async def main():
 
     print("\n--- 결과 저장 ---")
     monitor.save_to_file("19_decorator_coverage_expanded")
-    print("  results/19_decorator_coverage_expanded 저장 완료")
+    print(f"  {_project_root / 'results' / '19_decorator_coverage_expanded'} 저장 완료")
 
 
 asyncio.run(main())
@@ -257,7 +334,7 @@ asyncio.run(main())
 # 결과 확인
 # ---------------------------------------------------------------------------
 import json
-result_path = "results/19_decorator_coverage_expanded"
+result_path = str(_project_root / "results" / "19_decorator_coverage_expanded")
 try:
     with open(result_path) as f:
         data = json.load(f)

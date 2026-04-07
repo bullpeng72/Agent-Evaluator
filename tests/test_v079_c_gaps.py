@@ -498,40 +498,29 @@ class TestC1PydanticAIAllMessages:
 
 
 # ---------------------------------------------------------------------------
-# C4: autogen_eval_async
+# C4: autogen async — agent_eval(framework="autogen") 방식 확인
 # ---------------------------------------------------------------------------
 
 class TestC4AutogenEvalAsync:
 
-    def test_autogen_eval_async_importable(self):
-        """autogen_eval_async top-level import"""
-        from agent_evaluator import autogen_eval_async  # noqa: F401
-        assert callable(autogen_eval_async)
+    def test_agent_eval_supports_autogen_framework(self):
+        """agent_eval에 framework='autogen' 지정 가능."""
+        from agent_evaluator.decorators import _FRAMEWORK_ADAPTERS
+        assert "autogen" in _FRAMEWORK_ADAPTERS
 
-    def test_autogen_eval_async_from_integrations(self):
-        """autogen_eval_async integrations import"""
-        from agent_evaluator.integrations import autogen_eval_async  # noqa: F401
-        assert callable(autogen_eval_async)
-
-    def test_autogen_eval_async_sets_framework(self):
-        """autogen_eval_async 는 framework='autogen' 자동 설정"""
-        monitor = _make_monitor()
+    def test_agent_eval_async_function_with_autogen(self):
+        """async 함수에 agent_eval(framework='autogen') 적용 가능."""
         import asyncio
+        from agent_evaluator import agent_eval
+        monitor = _make_monitor()
 
-        from agent_evaluator.integrations import autogen_eval_async
-
-        @autogen_eval_async(monitor, task_type="coordination")
+        @agent_eval(monitor, task_type="coordination", framework="autogen")
         async def my_agent(question: str, ground_truth: str = "") -> str:
             return "agent response"
 
         result = asyncio.get_event_loop().run_until_complete(my_agent("test?"))
         assert result == "agent response"
         assert monitor.task_count == 1
-
-    def test_autogen_eval_async_in_all_list(self):
-        """autogen_eval_async가 integrations __all__에 포함됨"""
-        from agent_evaluator import integrations
-        assert "autogen_eval_async" in integrations.__all__
 
 
 # ---------------------------------------------------------------------------

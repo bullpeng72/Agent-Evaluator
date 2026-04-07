@@ -443,13 +443,9 @@ class TestDspyToolCallsF3:
 # F4: vLLM / HuggingFace adapters
 # ─────────────────────────────────────────────────────────────────────────────
 class TestVllmAdapterF4:
-    def test_vllm_eval_importable(self):
-        from agent_evaluator import vllm_eval
-        assert callable(vllm_eval)
-
-    def test_vllm_eval_from_integrations(self):
-        from agent_evaluator.integrations import vllm_eval
-        assert callable(vllm_eval)
+    def test_vllm_adapter_registered(self):
+        from agent_evaluator.decorators import _FRAMEWORK_ADAPTERS
+        assert "vllm" in _FRAMEWORK_ADAPTERS
 
     def test_vllm_openai_compatible_response_extracted(self):
         from agent_evaluator.decorators import _extract_vllm_metadata
@@ -494,9 +490,9 @@ class TestVllmAdapterF4:
 
 
 class TestHuggingFaceAdapterF4:
-    def test_huggingface_eval_importable(self):
-        from agent_evaluator import huggingface_eval
-        assert callable(huggingface_eval)
+    def test_huggingface_adapter_registered(self):
+        from agent_evaluator.decorators import _FRAMEWORK_ADAPTERS
+        assert "huggingface" in _FRAMEWORK_ADAPTERS
 
     def test_huggingface_pipeline_response_extracted(self):
         from agent_evaluator.decorators import _extract_huggingface_metadata

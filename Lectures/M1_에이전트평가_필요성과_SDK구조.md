@@ -11,7 +11,7 @@
 이 모듈을 마치면 다음을 할 수 있다:
 1. 전통 소프트웨어 테스트와 AI 에이전트 평가의 차이를 구체적 사례로 설명할 수 있다
 2. 3-Layer 구조와 16개 트래커의 역할을 파악할 수 있다
-3. `PerformanceMonitor` + `TaskResult` + `evaluation_session`을 코딩할 수 있다
+3. 3가지 데코레이터 방식(`@agent_eval`, `QuickEval`, `evaluation_session`)을 선택 기준에 따라 사용할 수 있다
 4. 대시보드를 실행하고 6개 탭의 목적을 파악할 수 있다
 
 ---
@@ -94,7 +94,7 @@
 | TruLens | RAG 평가 | 프레임워크 독립성 제한 |
 | **Agent-Evaluator** | **16개 트래커, 4개 프레임워크, 보안 포함** | **Layer 3은 OpenAI 필요** |
 
-> **💡 핵심 포지션:** "Layer 1/2는 무료·즉시, Layer 3는 선택적으로 추가하는 3단계 구조"
+> **핵심 포지션:** "Layer 1/2는 무료·즉시, Layer 3는 선택적으로 추가하는 3단계 구조"
 
 ---
 
@@ -154,6 +154,9 @@ monitor.privilege_tracker            # PrivilegeEscalationDetector
 
 ### TaskResult — 24개 필드 완전 분석
 
+> **실무에서는 `create_taskresult()` 헬퍼나 데코레이터 방식을 사용하세요.
+> 아래 직접 생성 예시는 필드 구조 이해용입니다.**
+
 ```python
 from agent_evaluator import TaskResult
 from datetime import datetime
@@ -195,7 +198,7 @@ task = TaskResult(
 )
 ```
 
-> **⚠️ 주의:** `task_type`이 중요한 이유 — `AccuracyEvaluator`가 `code_generation` 타입이면 AST 비교를 시도하고, `qa`면 토큰 F1 방식을 쓴다. 잘못된 타입은 정확도 점수를 왜곡시킨다.
+> **주의:** `task_type`이 중요한 이유 — `AccuracyEvaluator`가 `code_generation` 타입이면 AST 비교를 시도하고, `qa`면 토큰 F1 방식을 쓴다. 잘못된 타입은 정확도 점수를 왜곡시킨다.
 
 ### `create_taskresult()` 헬퍼가 자동으로 하는 것
 
@@ -233,15 +236,151 @@ print(task.timestamp)         # 자동 설정
 
 ---
 
-### 코드 실습 #1 — 첫 번째 평가
+### 3가지 평가 적용 방식
+
+Agent-Evaluator에는 에이전트 코드에 평가를 추가하는 3가지 방식이 있다.
+
+- 방식 1 — `@agent_eval` 데코레이터 (단일 에이전트 함수, 가장 범용)
+- 방식 2 — `QuickEval` Facade (빠른 시작, 다수 에이전트)
+- 방식 3 — `evaluation_session` 컨텍스트 매니저 (외부 실행 결과 수집)
 
 ```python
-from agent_evaluator import PerformanceMonitor, create_taskresult
+# ── 방식 1: @agent_eval ─────────────────────────────────────────
+from agent_evaluator import PerformanceMonitor
+from agent_evaluator.decorators import agent_eval
 
-# 1. 모니터 초기화
 monitor = PerformanceMonitor(output_dir="results/")
 
-# 2. 태스크 5개 생성 및 등록
+@agent_eval(monitor, task_type="qa")
+def my_agent(question: str, ground_truth: str = "") -> str:
+    return "답변"   # 실제 LLM 호출 코드
+
+my_agent("한국의 수도는?", ground_truth="서울")  # 자동으로 평가 기록
+monitor.save_to_file("eval")
+
+# ── 방식 2: QuickEval ──────────────────────────────────────────
+from agent_evaluator import QuickEval
+
+eval = QuickEval("results/")
+
+@eval.qa   # task_type="qa" 자동 설정
+def my_agent(question: str, ground_truth: str = "") -> str:
+    return "답변"
+
+my_agent("한국의 수도는?", ground_truth="서울")
+eval.save()
+eval.gate(tcr=85, accuracy=70)   # CI/CD 품질 게이팅
+
+# ── 방식 3: evaluation_session ────────────────────────────────
+from agent_evaluator import evaluation_session, create_taskresult
+
+with evaluation_session("session_name") as monitor:
+    for q, gt in dataset:
+        response = external_agent(q)
+        task = create_taskresult(
+            task_id="t1", question=q, response=response,
+            ground_truth=gt, execution_time=1.0, task_type="qa",
+        )
+        monitor.record_task(task)
+# 블록 종료 시 자동 저장
+```
+
+**방식 선택 기준:**
+
+| 방식 | 언제 | 코드 변경 |
+|------|------|----------|
+| `@agent_eval` | 에이전트가 Python 함수 | 데코레이터 1줄 |
+| `QuickEval` | 다수 에이전트, 빠른 시작 | 2-3줄 |
+| `eval_session` | 외부 실행 결과 수집 | with 블록 |
+
+---
+
+### 코드 실습 #1 — 첫 번째 평가
+
+**방식 2 — QuickEval (가장 빠른 시작)**
+
+```python
+from agent_evaluator import QuickEval
+
+eval = QuickEval("results/")
+
+@eval.qa
+def qa_agent(question: str, ground_truth: str = "") -> str:
+    # 실제 에이전트 코드 위치
+    ANSWERS = {
+        "한국의 수도는?": "서울입니다.",
+        "Python 창시자는?": "귀도 반 로섬입니다.",
+        "1+1은?": "3입니다.",       # 오답
+        "딥러닝의 기본 단위는?": "뉴런(neuron)입니다.",
+        "HTTP 상태 코드 404는?": "요청한 자원을 찾을 수 없음.",
+    }
+    return ANSWERS.get(question, "모르겠습니다.")
+
+dataset = [
+    ("한국의 수도는?",        "서울"),
+    ("Python 창시자는?",      "귀도 반 로섬"),
+    ("1+1은?",               "2"),
+    ("딥러닝의 기본 단위는?", "뉴런"),
+    ("HTTP 상태 코드 404는?", "Not Found"),
+]
+
+for question, answer in dataset:
+    qa_agent(question, ground_truth=answer)
+
+# 결과 확인
+report = eval.monitor.generate_report()
+print(f"TCR: {report.task_completion_rate:.1%}")
+print(f"평균 정확도: {report.overall_accuracy:.1%}")
+
+eval.save()   # results/quickeval.json + .html
+```
+
+**방식 1 — @agent_eval (세밀한 제어가 필요할 때)**
+
+```python
+from agent_evaluator import PerformanceMonitor
+from agent_evaluator.decorators import agent_eval
+
+monitor = PerformanceMonitor(output_dir="results/")
+
+@agent_eval(monitor, task_type="qa")
+def qa_agent(question: str, ground_truth: str = "") -> str:
+    ANSWERS = {
+        "한국의 수도는?": "서울입니다.",
+        "Python 창시자는?": "귀도 반 로섬입니다.",
+        "1+1은?": "3입니다.",       # 오답
+        "딥러닝의 기본 단위는?": "뉴런(neuron)입니다.",
+        "HTTP 상태 코드 404는?": "요청한 자원을 찾을 수 없음.",
+    }
+    return ANSWERS.get(question, "모르겠습니다.")
+
+dataset = [
+    ("한국의 수도는?",        "서울"),
+    ("Python 창시자는?",      "귀도 반 로섬"),
+    ("1+1은?",               "2"),
+    ("딥러닝의 기본 단위는?", "뉴런"),
+    ("HTTP 상태 코드 404는?", "Not Found"),
+]
+
+for question, answer in dataset:
+    qa_agent(question, ground_truth=answer)
+
+report = monitor.generate_report()
+print(f"TCR: {report.task_completion_rate:.1%}")
+print(f"평균 정확도: {report.accuracy_rate:.1%}")
+
+monitor.save_to_file("demo_first_eval")
+# → results/demo_first_eval_YYYYMMDD_HHMMSS.json
+# → results/demo_first_eval_YYYYMMDD_HHMMSS.html
+```
+
+### 코드 실습 #2 — evaluation_session 컨텍스트 매니저 (외부 실행 결과 수집)
+
+`evaluation_session`은 에이전트 함수를 직접 래핑하기 어렵거나, 외부 시스템·API에서 실행 결과를 수집해야 할 때 적합한 방식이다.
+
+```python
+from agent_evaluator import evaluation_session, create_taskresult
+
 qa_pairs = [
     ("한국의 수도는?",           "서울입니다.",              "서울"),
     ("Python 창시자는?",         "귀도 반 로섬입니다.",       "귀도 반 로섬"),
@@ -249,33 +388,6 @@ qa_pairs = [
     ("딥러닝의 기본 단위는?",    "뉴런(neuron)입니다.",       "뉴런"),
     ("HTTP 상태 코드 404는?",    "요청한 자원을 찾을 수 없음.","Not Found"),
 ]
-
-for i, (q, a, truth) in enumerate(qa_pairs):
-    task = create_taskresult(
-        task_id=f"demo_{i+1:03d}",
-        question=q,
-        response=a,
-        ground_truth=truth,
-        execution_time=0.5 + i * 0.2,
-        task_type="qa",
-    )
-    monitor.record_task(task)
-
-# 3. 결과 확인
-report = monitor.generate_report()
-print(f"TCR: {report.task_completion_rate:.1%}")
-print(f"평균 정확도: {report.accuracy_rate:.1%}")
-
-# 4. 파일 저장
-monitor.save_to_file("demo_first_eval")
-# → results/demo_first_eval_YYYYMMDD_HHMMSS.json
-# → results/demo_first_eval_YYYYMMDD_HHMMSS.html
-```
-
-### 코드 실습 #2 — evaluation_session 컨텍스트 매니저
-
-```python
-from agent_evaluator import evaluation_session, create_taskresult
 
 # evaluation_session: 예외 발생 시에도 자동 저장 보장
 with evaluation_session("my_first_session") as monitor:
@@ -293,7 +405,7 @@ with evaluation_session("my_first_session") as monitor:
 # 블록 내에서 예외가 발생해도 그 시점까지의 결과는 저장됨
 ```
 
-> **💡 포인트:** `evaluation_session`을 쓰면 `monitor.save_to_file()` 호출을 잊어도 됩니다. 프로덕션 코드에서는 `evaluation_session`을 기본으로 사용하세요.
+> **포인트:** `evaluation_session`을 쓰면 `monitor.save_to_file()` 호출을 잊어도 됩니다. 외부 실행 결과를 수집하는 파이프라인에서는 `evaluation_session`을 기본으로 사용하세요.
 
 ---
 
@@ -361,7 +473,7 @@ agent-eval dashboard --port 8080 --watch
 └─────────────────────────────────────────────────────────┘
 ```
 
-> **🔧 실습:** `01_quality_eval.py`를 실행한 후 대시보드에서 Quality 탭을 열어보세요.
+> **실습:** `01_quality_eval.py`를 실행한 후 대시보드에서 Quality 탭을 열어보세요.
 >
 > ```bash
 > python Evaluator_Examples/01_quality_eval.py
@@ -394,6 +506,7 @@ data/golden_datasets/                  ← 골든 데이터셋 JSON (영구 자�
 | PerformanceMonitor | 중앙 오케스트레이터, 16개 트래커 내장 |
 | TaskResult | 24개 필드, 필수 11개, `task_type`이 알고리즘 분기 결정 |
 | create_taskresult() | accuracy_score + completion_score + timestamp 자동 계산 |
+| 3가지 평가 방식 | `@agent_eval` (단일 함수), `QuickEval` (다수 에이전트), `eval_session` (외부 결과) |
 | evaluation_session | 컨텍스트 매니저, 예외 시에도 자동 저장 |
 | 대시보드 | `agent-eval dashboard` → 6개 탭, `--watch`로 실시간 갱신 |
 
@@ -407,4 +520,4 @@ TCR의 공식부터 Token Economy의 월간 비용 예측까지, 6개 지표의 
 
 ---
 
-*Agent-Evaluator SDK 강의 자료 — v0.7.0 기준 | 2026-04-01*
+*Agent-Evaluator SDK 강의 자료 — v0.7.3 기준 | 2026-04-07*

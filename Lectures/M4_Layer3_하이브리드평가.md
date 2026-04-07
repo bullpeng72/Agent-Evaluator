@@ -77,6 +77,28 @@ monitor = HybridPerformanceMonitor(
 )
 ```
 
+### 가장 간단한 방법: QuickEval.for_rag()
+
+```python
+# 가장 간단한 방법: QuickEval.for_rag()
+from agent_evaluator import QuickEval
+
+eval = QuickEval.for_rag("results/")   # hallucination 기본 활성, RAG 최적화
+
+@eval.rag   # task_type="information_retrieval" + context_arg 자동
+def rag_agent(question: str, context: str = "", ground_truth: str = "") -> str:
+    return retriever.query(question, context)
+
+eval.gate(tcr=85, accuracy=70)
+
+# LLM Judge 전용:
+eval = QuickEval.for_llm_judge("results/", model="claude-sonnet-4-6")
+
+@eval.qa
+def agent(question: str, ground_truth: str = "") -> str:
+    return llm.invoke(question)
+```
+
 ---
 
 ### DeepEval 5개 지표
@@ -192,6 +214,48 @@ monitor.record_task(result)
 ```python
 # ⚠️ OpenAI API 키가 있을 때만 자동 설정
 # Anthropic-only 환경: AnswerRelevancy 지표 제외됨
+```
+
+---
+
+### @agent_eval 데코레이터로 RAG 평가
+
+```python
+from agent_evaluator.decorators import agent_eval
+
+# rag_mode=True: context_arg 자동 감지 + hallucination 탐지 자동 활성
+@agent_eval(monitor, task_type="information_retrieval", rag_mode=True)
+def rag_fn(question: str, context: str = "", ground_truth: str = "") -> str:
+    return retriever.query(question, context)
+```
+
+### LLM Judge 통합
+
+```python
+# LLM Judge: ground_truth 없이도 completeness/relevance/factual_consistency 채점
+@agent_eval(
+    monitor,
+    task_type="qa",
+    enable_llm_judge=True,
+    judge_model="claude-sonnet-4-6",   # or "gpt-4o-mini"
+)
+def agent(question: str, ground_truth: str = "") -> str:
+    return llm.invoke(question)
+```
+
+### LLMJudge 독립 사용
+
+```python
+from agent_evaluator import LLMJudge   # requires [llm] extra
+
+judge = LLMJudge(model="claude-sonnet-4-6")
+result = judge.evaluate(
+    question="파이썬의 GIL이란?",
+    response="GIL은 Global Interpreter Lock으로...",
+)
+print(f"완전성: {result.completeness:.2f}")
+print(f"관련성: {result.relevance:.2f}")
+print(f"사실성: {result.factual_consistency:.2f}")
 ```
 
 ---
@@ -415,7 +479,7 @@ N건 | min 0.45 / max 0.97  ← 분포 (min/max 격차 크면 일관성 문제)
 
 ### DeepEval 탭
 
-> **주의:** DeepEval 탭에는 DeepEval 전용 지표만. Ragas 지표는 RAG 탭에서 별도 표시됨 (v0.6.0에서 분리).
+> **주의:** DeepEval 탭에는 DeepEval 전용 지표만. Ragas 지표는 RAG 탭에서 별도 표시됨.
 
 **KPI 카드:**
 - G-Eval Score — 커스텀 기준 점수 (0–1.0)
@@ -549,6 +613,16 @@ agent-eval dashboard --port 8765
 | Faithfulness | Ragas | $0.002/태스크 | 0.5–2초 | RAG 컨텍스트 충실도 |
 | Context Precision/Recall | Ragas | $0.002/태스크 | 0.5–2초 | 검색 품질 |
 
+### 모듈 4 목표 체크리스트
+
+- [ ] Rule-based vs LLM 기반 평가의 한계와 강점 이해
+- [ ] G-Eval criteria 직접 작성 (구체적 차원 + 가중치)
+- [ ] Ragas 4지표 진단 매트릭스 활용
+- [ ] **QuickEval.for_rag() 사용** — 1줄로 RAG 평가 시작
+- [ ] `rag_mode=True` / `enable_llm_judge=True` 데코레이터 파라미터 적용
+- [ ] LLMJudge 독립 사용으로 ground_truth 없이 채점
+- [ ] 레이어 선택 매트릭스로 비용/정밀도 최적 조합 결정
+
 ### API 키 요구사항 정리
 
 ```bash
@@ -561,10 +635,13 @@ export OPENAI_API_KEY=sk-...
 # Layer 3 Ragas: OpenAI 필요 (Answer Relevancy)
 export OPENAI_API_KEY=sk-...
 # ANTHROPIC_API_KEY만 있으면 AnswerRelevancy 지표 제외됨
+
+# LLM Judge: OpenAI 또는 Anthropic
+export ANTHROPIC_API_KEY=sk-ant-...   # claude-sonnet-4-6 사용 시
 ```
 
 ---
 
 *Module 4 완료 — 다음: M5 프레임워크 통합 + 실무 파이프라인*
 
-*Agent-Evaluator SDK 강의 자료 — v0.7.0 기준 | 2026-04-01*
+*Agent-Evaluator SDK 강의 자료 — v0.7.3 기준 | 2026-04-07*

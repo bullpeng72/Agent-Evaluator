@@ -1,26 +1,26 @@
 """
-실시간 알림 엔진 예제 — Agent Evaluator v0.6.7 Phase 2-B
-=========================================================
+12_alerting_eval.py — 실시간 알림 엔진 예제
+=============================================
 
-StreamingEvaluator 지표를 기반으로 AlertEngine이 임계값 초과를
-감지하면 SlackHandler · WebhookHandler로 알림을 발송합니다.
+두 가지 알림 패턴을 시연합니다:
 
-커버 지표 (Phase 2-B):
-  Phase 2-B  │ AlertEngine  — 규칙 기반 알림 엔진
-             │ AlertRule    — 조건부 알림 규칙 (냉각 시간 포함)
-             │ AlertEvent   — 알림 이벤트 (severity, triggered_at)
-             │ AlertHistory — 날짜별 JSONL 이력 저장
-             │ SlackHandler — Slack Webhook 발송 (모의)
-             │ WebhookHandler — 범용 HTTP Webhook 발송 (모의)
+패턴 A — StreamingEvaluator + AlertEngine (시간 윈도우 기반 통계 알림):
+  AlertEngine · AlertRule · AlertEvent · AlertHistory
+  SlackHandler · WebhookHandler
+
+패턴 B — @agent_eval + SimpleTaskAlertRule (TaskResult 기반 경량 알림):
+  StreamingEvaluator 없이 개별 TaskResult 조건으로 즉시 알림
+  alert_rules=[SimpleTaskAlertRule(...)] 파라미터로 통합
 
 핵심 시나리오:
-  1. 정상 구간 (10개 태스크) — 알림 없음 예상
-  2. 이상 구간 (고지연 + 오류 급등, 20개 태스크) — warning/critical 발생
-  3. 쿨다운 동작 확인 — 같은 규칙이 연속 발동되지 않음
-  4. AlertHistory 이력 조회 (오늘/최근 7일)
+  [A] 1. 정상 구간 (10개 태스크) — 알림 없음 예상
+  [A] 2. 이상 구간 (고지연 + 오류 급등, 20개 태스크) — warning/critical 발생
+  [A] 3. 쿨다운 동작 확인 — 같은 규칙이 연속 발동되지 않음
+  [A] 4. AlertHistory 이력 조회
+  [B] 5. @agent_eval(alert_rules=[...]) 패턴 시연
 
 실행:
-    python 12_alerting_eval.py    # API 키 불필요 — 순수 시뮬레이션
+    python Evaluator_Examples/12_alerting_eval.py    # API 키 불필요 — 순수 시뮬레이션
 """
 
 from __future__ import annotations
@@ -36,7 +36,10 @@ sys.path.insert(0, str(project_root))
 from dotenv import load_dotenv
 load_dotenv(Path(__file__).parent / ".env")
 
-from agent_evaluator import PerformanceMonitor, create_taskresult
+import time
+
+from agent_evaluator import PerformanceMonitor, create_taskresult, SimpleTaskAlertRule
+from agent_evaluator.decorators import agent_eval
 from agent_evaluator.streaming.evaluator import StreamingEvaluator
 from agent_evaluator.alerts.engine import AlertEngine, AlertRule, AlertEvent
 from agent_evaluator.alerts.handlers import SlackHandler, WebhookHandler
@@ -357,5 +360,119 @@ def run_alerting_evaluation():
     print(f"  결과 저장: {saved}")
 
 
+# ═══════════════════════════════════════════════════════════════════════════
+# 패턴 B — @agent_eval + SimpleTaskAlertRule (TaskResult 기반 경량 알림)
+# ═══════════════════════════════════════════════════════════════════════════
+
+def run_simple_task_alerting():
+    """@agent_eval(alert_rules=[...]) 패턴 — StreamingEvaluator 불필요.
+
+    SimpleTaskAlertRule은 개별 TaskResult를 평가해 조건 충족 시 즉시 handler를
+    호출합니다. 시간 윈도우 통계가 아닌 개별 태스크 수준의 경량 알림입니다.
+
+    사용 예:
+        from agent_evaluator import SimpleTaskAlertRule, AlertRuleBuilder
+
+        rule = SimpleTaskAlertRule(
+            name="slow_response",
+            condition=lambda tr: tr.execution_time > 3.0,
+            handler=lambda msg, tr: print(f"[ALERT] {msg}"),
+            severity="warning",
+            cooldown=10,
+        )
+
+        # 또는 AlertRuleBuilder 팩토리 사용
+        rule = AlertRuleBuilder.when_latency_above(
+            threshold=3.0,
+            handler=lambda msg, tr: print(msg),
+            severity="warning",
+        )
+    """
+    print("\n" + "=" * 70)
+    print("  패턴 B — @agent_eval + SimpleTaskAlertRule")
+    print("  TaskResult 조건 기반 경량 알림 (StreamingEvaluator 불필요)")
+    print("=" * 70)
+
+    fired_alerts: list[str] = []
+
+    def _on_slow(msg: str, tr):
+        fired_alerts.append(f"[warning/slow] {msg}")
+        print(f"    [ALERT/warning] {msg[:60]}")
+
+    def _on_error(msg: str, tr):
+        fired_alerts.append(f"[critical/error] {msg}")
+        print(f"    [ALERT/critical] {msg[:60]}")
+
+    alert_rules = [
+        SimpleTaskAlertRule(
+            name="slow_response",
+            condition=lambda tr: tr.execution_time > 0.08,   # 80ms 이상 (시뮬레이션)
+            handler=_on_slow,
+            severity="warning",
+            cooldown=2,
+        ),
+        SimpleTaskAlertRule(
+            name="task_error",
+            condition=lambda tr: tr.has_error,
+            handler=_on_error,
+            severity="critical",
+            cooldown=1,
+        ),
+    ]
+
+    monitor_b = PerformanceMonitor(output_dir=str(project_root / "results"))
+    rng = random.Random(2025)
+    _phase = {"current": "normal"}
+
+    @agent_eval(
+        monitor_b,
+        task_type="qa",
+        alert_rules=alert_rules,
+        task_id_prefix="alert_b",
+    )
+    def alert_demo_agent(question: str, ground_truth: str = "") -> str:
+        """정상/이상 응답을 시뮬레이션하는 데모 에이전트."""
+        if _phase["current"] == "anomaly":
+            time.sleep(0.1)   # 고지연 시뮬레이션 (100ms)
+            if rng.random() > 0.4:
+                raise RuntimeError("simulated_error")
+        return "정상 응답"
+
+    print(f"\n  [정상 구간 — 5개 태스크]")
+    _phase["current"] = "normal"
+    for i in range(5):
+        alert_demo_agent("정상 질문", ground_truth="정상 응답")
+    print(f"  알림 발생: {len(fired_alerts)}건 (예상: 0건)")
+
+    normal_alerts = len(fired_alerts)
+    print(f"\n  [이상 구간 — 8개 태스크 (고지연 + 오류)]")
+    _phase["current"] = "anomaly"
+    for i in range(8):
+        try:
+            alert_demo_agent("이상 질문", ground_truth="이상 응답")
+        except RuntimeError:
+            pass
+    anomaly_alerts = len(fired_alerts) - normal_alerts
+    print(f"  알림 발생: {anomaly_alerts}건")
+
+    report = monitor_b.generate_report()
+    saved = monitor_b.save_to_file("12_simple_task_alerting")
+    print(f"\n  총 태스크: {report.total_tasks}개  |  저장: {saved}")
+
+    # 검증
+    checks = [
+        ("정상 구간 알림 없음",   f"{normal_alerts}건",   normal_alerts == 0),
+        ("이상 구간 알림 발생",   f"{anomaly_alerts}건",  anomaly_alerts > 0),
+        ("fired_alerts 기록",    f"{len(fired_alerts)}건", len(fired_alerts) > 0),
+    ]
+    print(f"\n  {'─'*50}")
+    for chk, actual, ok in checks:
+        mark = "PASS" if ok else "FAIL"
+        print(f"  {chk:<30} {actual:<10} {mark}")
+    print(f"  {'─'*50}")
+    print()
+
+
 if __name__ == "__main__":
     run_alerting_evaluation()
+    run_simple_task_alerting()

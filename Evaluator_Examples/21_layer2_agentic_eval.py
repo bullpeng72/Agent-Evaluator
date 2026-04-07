@@ -27,17 +27,29 @@ Layer 2 트래커별 활성화 필드:
 """
 from __future__ import annotations
 
+import socket as _sock
 import time
+from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from agent_evaluator import PerformanceMonitor, create_taskresult
 from agent_evaluator.decorators import agent_eval, get_eval_ctx, EvalMetadata
 
+_project_root = Path(__file__).parent.parent
+
 # ---------------------------------------------------------------------------
 # 공통 모니터 설정
 # ---------------------------------------------------------------------------
 
-monitor = PerformanceMonitor(output_dir="results/layer2/")
+monitor = PerformanceMonitor(output_dir=str(_project_root / "results" / "layer2"))
+
+# Phoenix OTEL 연결
+try:
+    if _sock.socket().connect_ex(("localhost", 6006)) == 0:
+        from agent_evaluator import setup_otel
+        setup_otel(endpoint="http://localhost:6006", service_name="21-layer2-agentic")
+except Exception:
+    pass
 
 
 # ===========================================================================
@@ -57,22 +69,29 @@ def tool_agent_with_ctx(question: str, ground_truth: str = "") -> str:
     """tool_calls, chain_steps 를 get_eval_ctx() 로 주입."""
     ctx = get_eval_ctx()
 
-    # 도구 호출 시뮬레이션
-    ctx.add_tool_call("web_search", {"query": question}, "검색 결과 반환")
-    ctx.add_tool_call("calculator", {"expr": "42+1"}, "43")
+    # 도구 호출 시뮬레이션 (ctx.tool_calls 직접 설정)
+    ctx.tool_calls = [
+        {"tool_name": "web_search", "arguments": {"query": question}, "result": "검색 결과 반환", "success": True},
+        {"tool_name": "calculator", "arguments": {"expr": "42+1"}, "result": "43", "success": True},
+    ]
 
     # 추론 단계 (chain_steps → WorkflowExecutionTracker 활성)
-    ctx.add_chain_step("질문 파싱", "입력에서 핵심 쿼리 추출 완료")
-    ctx.add_chain_step("검색 실행", "상위 3개 문서 검색")
-    ctx.add_chain_step("답변 합성", "검색 결과 기반 최종 답변 생성")
+    ctx.chain_steps = [
+        {"step": "질문 파싱", "description": "입력에서 핵심 쿼리 추출 완료", "success": True},
+        {"step": "검색 실행", "description": "상위 3개 문서 검색", "success": True},
+        {"step": "답변 합성", "description": "검색 결과 기반 최종 답변 생성", "success": True},
+    ]
 
     # 에이전트 간 상호작용 (agent_interactions → AgentCoordinationTracker 활성)
-    ctx.add_agent_interaction(
-        from_agent="orchestrator",
-        to_agent="search_agent",
-        message_type="task_delegation",
-        content={"task": question},
-    )
+    ctx.agent_interactions = [
+        {
+            "from_agent": "orchestrator",
+            "to_agent": "search_agent",
+            "message_type": "task_delegation",
+            "content": {"task": question},
+            "success": True,
+        }
+    ]
 
     time.sleep(0.05)
     return "43"
@@ -160,9 +179,11 @@ def tool_selector(
     """expected_tools 를 받아 ToolSelectionTracker F1 계산을 활성화."""
     ctx = get_eval_ctx()
 
-    # 실제로 사용한 도구 기록
-    ctx.add_tool_call("web_search", {"q": question}, "OK")
-    ctx.add_tool_call("calculator", {}, "OK")
+    # 실제로 사용한 도구 기록 (ctx.tool_calls 직접 설정)
+    ctx.tool_calls = [
+        {"tool_name": "web_search", "arguments": {"q": question}, "result": "OK", "success": True},
+        {"tool_name": "calculator", "arguments": {}, "result": "OK", "success": True},
+    ]
     # "summarizer" 는 expected 에 있지만 사용하지 않음 → recall 감소
     # "calculator" 는 expected 에 없지만 사용함 → precision 감소
 
@@ -277,30 +298,34 @@ print("=" * 60)
 report = monitor.generate_report()
 print(f"  전체 태스크 수: {report.total_tasks}")
 
-agentic = report.agentic_metrics or {}
-if agentic:
-    tool_call_data = agentic.get("tool_call_analysis", {})
-    if tool_call_data:
-        print(f"  도구 호출 분석:")
-        print(f"    총 도구 호출: {tool_call_data.get('total_calls', 0)}")
-        print(f"    평균 호출/태스크: {tool_call_data.get('avg_calls_per_task', 0):.1f}")
+acc = report.accuracy_metrics or {}
+eff = report.efficiency_metrics or {}
 
-    workflow_data = agentic.get("workflow_execution", {})
-    if workflow_data:
-        print(f"  워크플로우 실행:")
-        print(f"    총 단계: {workflow_data.get('total_steps', 0)}")
+tool_call_data = acc.get("tool_call_analysis", {})
+if tool_call_data:
+    print(f"  도구 호출 분석:")
+    print(f"    총 도구 호출: {tool_call_data.get('total_calls', 0)}")
+    print(f"    평균 호출/태스크: {tool_call_data.get('avg_calls_per_task', 0):.1f}")
 
-    retry_data = agentic.get("retry_correction", {})
-    if retry_data:
-        total = retry_data.get("total_attempts", 0)
-        print(f"  재시도 분석: 총 시도 횟수 = {total}")
-else:
-    print("  (agentic 지표가 없으면 모니터에 Layer2 활성화 태스크가 부족할 수 있습니다)")
+workflow_data = acc.get("workflow_execution", {})
+if workflow_data:
+    print(f"  워크플로우 실행:")
+    print(f"    총 단계: {workflow_data.get('total_steps', 0)}")
+
+retry_data = acc.get("retry_correction", {})
+if retry_data:
+    total = retry_data.get("total_attempts", 0)
+    print(f"  재시도 분석: 총 시도 횟수 = {total}")
+
+if not (tool_call_data or workflow_data or retry_data):
+    tcr = acc.get("tcr", {})
+    print(f"  TCR: {tcr.get('tcr', 0):.1f}%  전체 태스크: {report.total_tasks}")
+    print("  (Layer 2 세부 지표는 accuracy_metrics 에 병합됩니다)")
 
 print()
 print("Layer 2 트래커 활성화 요약:")
-print("  ToolCallAnalyzer        → get_eval_ctx().add_tool_call() 또는 EvalMetadata(tool_calls=[...])")
-print("  ToolSelectionTracker    → expected_tools_arg + add_tool_call()")
+print("  ToolCallAnalyzer        → ctx.tool_calls=[...] 또는 EvalMetadata(tool_calls=[...])")
+print("  ToolSelectionTracker    → expected_tools_arg + ctx.tool_calls=[...]")
 print("  RetryCorrectionTracker  → TaskResult(attempts > 1)")
-print("  WorkflowExecutionTracker→ get_eval_ctx().add_chain_step() 또는 EvalMetadata(chain_steps=[...])")
-print("  AgentCoordinationTracker→ get_eval_ctx().add_agent_interaction() 또는 EvalMetadata(agent_interactions=[...])")
+print("  WorkflowExecutionTracker→ ctx.chain_steps=[...] 또는 EvalMetadata(chain_steps=[...])")
+print("  AgentCoordinationTracker→ ctx.agent_interactions=[...] 또는 EvalMetadata(agent_interactions=[...])")

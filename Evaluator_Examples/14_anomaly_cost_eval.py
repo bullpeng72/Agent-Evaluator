@@ -1,6 +1,6 @@
 """
-이상 탐지 · 비용 제어 · LLM 보조 평가 예제 — Agent Evaluator v0.6.7 Phase 3-B/3-C
-===================================================================================
+14_anomaly_cost_eval.py — 이상 탐지 · 비용 제어 · @agent_eval 통합
+===================================================================
 
 운영 에이전트의 지표 이상(이상 탐지)을 감지하고,
 비용 예산과 샘플링 전략을 동적으로 조정합니다.
@@ -54,6 +54,7 @@ from agent_evaluator import (
     LLMHelper,       # alias for LLMEvaluationHelper
     ClaudeHelper,    # alias for AnthropicEvaluationHelper
 )
+from agent_evaluator.decorators import agent_eval, EvalMetadata
 from agent_evaluator.cost.policy import SamplingStage
 
 
@@ -76,6 +77,52 @@ _try_setup_otel("14-anomaly-cost-eval")
 
 
 # ─── 태스크 시뮬레이션 헬퍼 ──────────────────────────────────────────────────
+# @agent_eval 데코레이터 방식 — flush_every=10으로 10건마다 자동 중간 저장
+# enable_anomaly_detection=True(모니터에 설정)와 연동해 이상 감지 자동 활성화
+#
+# 아래 _make_eval_agent() 팩토리로 각 구간별 전용 에이전트를 생성합니다.
+# 실제 프로젝트에서는 단일 @agent_eval 함수를 재사용하면 됩니다.
+
+def _make_eval_agent(
+    monitor: PerformanceMonitor,
+    rng: random.Random,
+    *,
+    success_rate: float = 0.90,
+    latency_range: tuple = (0.3, 1.0),
+    token_range: tuple = (100, 400),
+    phase: str = "normal",
+    flush_every: int = 10,
+):
+    """구간별 @agent_eval 데코레이터 에이전트 팩토리."""
+
+    @agent_eval(
+        monitor,
+        task_type="qa",
+        task_id_prefix=phase,
+        flush_every=flush_every,
+        flush_filename=f"14_anomaly_{phase}_auto",
+    )
+    def _agent(question: str, ground_truth: str = "") -> EvalMetadata | str:
+        success = rng.random() < success_rate
+        tokens_in  = rng.randint(*token_range)
+        tokens_out = rng.randint(token_range[0] // 2, token_range[1] // 2)
+        if not success:
+            raise RuntimeError(f"{phase}_error")
+        return "응답 예시", EvalMetadata(
+            tokens_used={"input": tokens_in, "output": tokens_out,
+                         "total": tokens_in + tokens_out},
+        )
+
+    def _run(n: int) -> None:
+        for _ in range(n):
+            try:
+                _agent("평가 질문 예시", ground_truth="응답 예시")
+            except RuntimeError:
+                pass
+
+    return _run
+
+
 def _record_tasks(
     monitor: PerformanceMonitor,
     rng: random.Random,
@@ -87,21 +134,24 @@ def _record_tasks(
     token_range: tuple = (100, 400),
     phase: str = "normal",
 ) -> None:
-    """지정된 파라미터로 태스크 배치를 기록."""
+    """지정된 파라미터로 태스크 배치를 기록 (레거시 — _make_eval_agent 권장)."""
     for i in range(n):
         success = rng.random() < success_rate
         exec_t  = rng.uniform(*latency_range)
         tokens  = rng.randint(*token_range)
-        acc     = rng.uniform(*accuracy_range) if success else rng.uniform(0.1, 0.35)
         task_id = f"{phase}_{i+1:04d}"
         task = create_taskresult(
             task_id=task_id,
             question="평가 질문 예시",
             response="응답 예시" if success else "오류",
-            ground_truth="정답 예시",
+            ground_truth="응답 예시",
             execution_time=exec_t,
             task_type="qa",
             has_error=not success,
+        )
+        task = dataclasses.replace(
+            task,
+            tokens_used={"input": tokens, "output": tokens // 2, "total": tokens + tokens // 2},
         )
         monitor.record_task(task)
 
@@ -128,13 +178,25 @@ def run_anomaly_cost_evaluation():
 
     # enable_anomaly_detection=True: save_to_file() 시 AnomalyDetector 자동 실행
     # → 결과 JSON "anomaly_data" 키에 저장 → 대시보드 "이상 감지" 탭 표시
+    # auto_save=True + auto_save_interval=10: 10건마다 자동 중간 저장
+    #   (@agent_eval 사용 시에는 flush_every=10 파라미터로 동일 효과)
     monitor = PerformanceMonitor(
         output_dir=str(results_dir),
         enable_security_metrics=True,
         enable_anomaly_detection=True,
         anomaly_baseline_window=30,
         anomaly_detection_window=10,
+        auto_save=True,
+        auto_save_interval=10,
+        auto_save_filename="14_anomaly_cost_auto",
     )
+
+    # @agent_eval 방식 데모 — _make_eval_agent() 팩토리 사용
+    # 실제 프로젝트에서는 이 방식을 권장합니다 (타이밍 자동 측정, flush_every 지원)
+    print(f"\n  [@agent_eval 데모] flush_every=10 으로 10건마다 자동 저장")
+    demo_run = _make_eval_agent(monitor, rng, phase="demo", flush_every=10)
+    demo_run(5)
+    print(f"  @agent_eval 데모 완료 (5건 기록)\n")
 
     # ── 구간 1: 정상 기준선 (50개) ──────────────────────────────────────
     # baseline_window(30) + detection_window(10) + 여유 = 50개 기록

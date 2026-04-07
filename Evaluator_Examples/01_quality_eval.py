@@ -38,6 +38,7 @@ from dotenv import load_dotenv
 load_dotenv(Path(__file__).parent / ".env")
 
 from agent_evaluator import PerformanceMonitor, TaskResult, create_taskresult
+from agent_evaluator.decorators import agent_eval, EvalMetadata
 from agent_evaluator.reporting import generate_comprehensive_html_report
 
 
@@ -57,6 +58,10 @@ def _try_setup_otel(service_name: str) -> None:
         _log.getLogger(__name__).debug("setup_otel 실패: %s", _e)
 
 _try_setup_otel("01-quality-eval")
+
+# ── 모듈 레벨 공유 상태 (@agent_eval 데코레이터 함수용) ──────────────────────────
+_sc_01: dict = {}                                                   # 루프 이터레이션별 시나리오 데이터
+_hl_scores_by_tier_01: dict = {"high": [], "hallucination": [], "low_quality": []}  # tier별 hl_score 수집
 
 
 def _load_golden(filename: str) -> list:
@@ -115,71 +120,55 @@ def run_quality_evaluation():
     base_time = datetime.now() - timedelta(hours=2)
 
     # 검증 추적
-    hl_scores_by_tier: dict = {"high": [], "hallucination": [], "low_quality": []}
     task_tier_map: dict = {}  # task_id → tier (정확도 분리 검증용)
 
-    print("\n  [1/3] QA 데이터셋 평가 (Accuracy · Hallucination · Quality)")
-    print(f"  {'task_id':<20} {'tier':<15} {'hl_score':>10}  {'메모'}")
-    print(f"  {'─'*20} {'─'*15} {'─'*10}  {'─'*20}")
-
-    for i, item in enumerate(QA_DATASET):
-        task_id = f"quality_{i+1:03d}"
+    # ── QA 평가 @agent_eval 데코레이터 함수 ──────────────────────────────────────
+    @agent_eval(
+        monitor,
+        task_type="qa",
+        task_id_prefix="quality",
+        task_id_fn=lambda args, kw: f"quality_{_sc_01.get('idx', 0)+1:03d}",
+        flush_every=10,
+        flush_filename="01_quality_eval",
+    )
+    def _qa_eval_agent(question: str, context: str = "", ground_truth: str = "") -> str:
+        sc = _sc_01
+        item = sc["item"]
         tier = item["tier"]
-        task_type = item["type"]
-        context_text = item.get("context", "")
+        i = sc["idx"]
+        task_id = f"quality_{i+1:03d}"
 
-        success = tier == "high"
-
-        # create_taskresult(): completion_score·accuracy_score 자동 계산
-        task = create_taskresult(
-            task_id=task_id,
-            question=item["q"],
-            response=item["a"],
-            ground_truth=item["truth"],
-            execution_time=round(rng.uniform(0.8, 3.5), 3),
-            task_type=task_type,
-            has_error=not success,
-            error_message=f"{tier}_quality_issue" if not success else None,
-            context=context_text if context_text else None,
-        )
-
-        # ① HallucinationDetector 직접 호출 — 케이스별 점수 캡처
-        task_tier_map[task_id] = tier
-
-        hl_score = 0.0
-        if context_text:
+        # ① HallucinationDetector — tier별 hl_score 수집 (검증 테이블용)
+        if context:
             hl_result = monitor.hallucination_detector.detect_hallucination(
                 task_id=task_id,
                 response=item["a"],
-                context=context_text,
+                context=context,
                 ground_truth=item["truth"],
-                request=item["q"],
+                request=question,
             )
             hl_score = hl_result.get("hallucination_rate", 0.0)
-            hl_scores_by_tier[tier].append(hl_score)
+            _hl_scores_by_tier_01[tier].append(hl_score)
 
-        # ② record_task — TCR · Latency · Token 측정 (question/response/ground_truth는 task에 포함)
-        monitor.record_task(task)
-
-        # ③ AccuracyEvaluator 직접 호출 — 텍스트 유사도 정확도 계산
+        # ③ AccuracyEvaluator
         monitor.accuracy_evaluator.add_evaluation(
             task_id=task_id,
             ground_truth=item["truth"],
             prediction=item["a"],
-            task_type=task_type,
+            task_type=item["type"],
         )
 
-        # ④ ResponseQualityEvaluator — 5차원 품질 평가
+        # ④ ResponseQualityEvaluator
         monitor.quality_evaluator.evaluate_response(
             task_id=task_id,
             response=item["a"],
-            request=item["q"],
+            request=question,
             expected_elements=item["truth"].split() if tier == "high" else [],
             ground_truth=item["truth"],
         )
 
-        # ⑤ RAG 지표 — tier별 예상 범위 반영
-        if task_type in ("qa", "information_retrieval"):
+        # ⑤ RAG 지표
+        if item["type"] in ("qa", "information_retrieval"):
             if tier == "high":
                 monitor.record_rag_metrics(
                     faithfulness=round(rng.uniform(0.72, 0.95), 3),
@@ -195,7 +184,64 @@ def run_quality_evaluation():
                     context_recall=round(rng.uniform(0.05, 0.22), 3),
                 )
 
-        # 케이스별 출력 (할루시네이션 / 저품질 강조)
+        if tier != "high":
+            raise RuntimeError(f"{tier}_quality_issue")
+        return item["a"]
+
+    # ── 코드 평가 @agent_eval 데코레이터 함수 ────────────────────────────────────
+    @agent_eval(
+        monitor,
+        task_type="code_generation",
+        task_id_prefix="code",
+        task_id_fn=lambda args, kw: _sc_01.get("code_task_id", "code_000"),
+        flush_every=5,
+        flush_filename="01_quality_code",
+    )
+    def _code_eval_agent(question: str, ground_truth: str = "") -> str:
+        sc = _sc_01
+        cc = sc["cc"]
+        tier = cc["tier"]
+        task_id = sc["code_task_id"]
+
+        monitor.accuracy_evaluator.add_evaluation(
+            task_id=task_id,
+            ground_truth=cc["expected"],
+            prediction=cc["actual"],
+            task_type="code_generation",
+        )
+        monitor.quality_evaluator.evaluate_response(
+            task_id=task_id,
+            response=cc["actual"],
+            request=question,
+            expected_elements=[],
+            ground_truth=cc["expected"],
+        )
+
+        if tier != "high":
+            raise RuntimeError("code_mismatch")
+        return cc["actual"]
+
+    print("\n  [1/3] QA 데이터셋 평가 (Accuracy · Hallucination · Quality)")
+    print(f"  {'task_id':<20} {'tier':<15} {'hl_score':>10}  {'메모'}")
+    print(f"  {'─'*20} {'─'*15} {'─'*10}  {'─'*20}")
+
+    global _sc_01, _hl_scores_by_tier_01
+    _hl_scores_by_tier_01 = {"high": [], "hallucination": [], "low_quality": []}  # reset
+
+    for i, item in enumerate(QA_DATASET):
+        _sc_01 = {"idx": i, "item": item}
+        task_id = f"quality_{i+1:03d}"
+        tier = item["tier"]
+        task_tier_map[task_id] = tier  # keep for verification table
+        try:
+            _qa_eval_agent(
+                question=item["q"],
+                context=item.get("context", ""),
+                ground_truth=item["truth"],
+            )
+        except RuntimeError:
+            pass
+        hl_score = _hl_scores_by_tier_01[tier][-1] if _hl_scores_by_tier_01[tier] else 0.0
         flag = "⚠️ " if tier == "hallucination" else ("🔻 " if tier == "low_quality" else "   ")
         print(f"  {flag}{task_id:<18} {tier:<15} {hl_score:>10.3f}  {item['q'][:30]}...")
 
@@ -205,39 +251,13 @@ def run_quality_evaluation():
     print(f"  {'─'*20} {'─'*15} {'─'*30}")
 
     for cc in CODE_CASES:
-        tier = cc["tier"]
-        # create_taskresult(): 코드 정확도 자동 계산 (AST/정규화 비교)
-        code_task = create_taskresult(
-            task_id=cc["task_id"],
-            question=cc["q"],
-            response=cc["actual"],
-            ground_truth=cc["expected"],
-            execution_time=round(rng.uniform(1.5, 5.0), 3),
-            task_type="code_generation",
-            has_error=tier != "high",
-            error_message="code_mismatch" if tier != "high" else None,
-        )
-
-        monitor.record_task(code_task)  # question/response/ground_truth는 task에 포함
-
-        # AccuracyEvaluator — code_generation: AST → 정규화 비교 순 fallback
-        monitor.accuracy_evaluator.add_evaluation(
-            task_id=cc["task_id"],
-            ground_truth=cc["expected"],
-            prediction=cc["actual"],
-            task_type="code_generation",
-        )
-
-        monitor.quality_evaluator.evaluate_response(
-            task_id=cc["task_id"],
-            response=cc["actual"],
-            request=cc["q"],
-            expected_elements=[],
-            ground_truth=cc["expected"],
-        )
-
-        flag = "   " if tier == "high" else "🔻 "
-        print(f"  {flag}{cc['task_id']:<18} {tier:<15} {cc['q'][:35]}...")
+        _sc_01 = {"cc": cc, "code_task_id": cc["task_id"]}
+        try:
+            _code_eval_agent(question=cc["q"], ground_truth=cc["expected"])
+        except RuntimeError:
+            pass
+        flag = "   " if cc["tier"] == "high" else "🔻 "
+        print(f"  {flag}{cc['task_id']:<18} {cc['tier']:<15} {cc['q'][:35]}...")
 
     # ─── 리포트 저장 ──────────────────────────────────────────────────────────
     report = monitor.generate_report()
@@ -274,9 +294,9 @@ def run_quality_evaluation():
     print(f"\n  [HallucinationDetector — 컨텍스트 기반]")
     print(f"    전체 탐지율:  {hallucination_data.get('overall_rate', 0):.1f}%")
     print(f"    무근거 주장:  {hallucination_data.get('unsupported_claims_count', 0)}건")
-    if hl_scores_by_tier["hallucination"]:
-        avg_hl = sum(hl_scores_by_tier["hallucination"]) / len(hl_scores_by_tier["hallucination"])
-        avg_nm = sum(hl_scores_by_tier["high"]) / len(hl_scores_by_tier["high"]) if hl_scores_by_tier["high"] else 0
+    if _hl_scores_by_tier_01["hallucination"]:
+        avg_hl = sum(_hl_scores_by_tier_01["hallucination"]) / len(_hl_scores_by_tier_01["hallucination"])
+        avg_nm = sum(_hl_scores_by_tier_01["high"]) / len(_hl_scores_by_tier_01["high"]) if _hl_scores_by_tier_01["high"] else 0
         print(f"    할루시네이션 케이스 평균 점수: {avg_hl:.3f}")
         print(f"    정상 케이스 평균 점수:         {avg_nm:.3f}")
 

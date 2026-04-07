@@ -2,18 +2,21 @@
 
 Agent Evaluator를 5분 안에 첫 평가까지 완성하는 최단 경로
 
-**v0.7.2 | Python 3.8+**
+**v0.7.3 | Python 3.8+**
 
 ---
 
 ## 목차
 
 1. [설치](#설치)
-2. [첫 번째 평가](#첫-번째-평가)
+2. [데코레이터 방식 — 권장](#데코레이터-방식--권장)
 3. [헬퍼로 간편하게](#헬퍼로-간편하게)
 4. [컨텍스트 매니저 패턴](#컨텍스트-매니저-패턴)
 5. [대시보드 실행](#대시보드-실행)
-6. [다음 단계](#다음-단계)
+6. [보안·에이전틱 지표 활성화](#보안에이전틱-지표-활성화)
+7. [CI/CD 품질 게이팅](#cicd-품질-게이팅)
+8. [실시간 운영 모니터링](#실시간-운영-모니터링-v073)
+9. [다음 단계](#다음-단계)
 
 ---
 
@@ -32,7 +35,7 @@ pip install agent-evaluator[serve]
 # 프레임워크 통합 포함 (LangChain/LangGraph)
 pip install agent-evaluator[langchain,serve]
 
-# 실시간 운영 모니터링 (Phoenix + OTEL) — v0.7.2
+# 실시간 운영 모니터링 (Phoenix + OTEL) — v0.7.3
 pip install agent-evaluator[otel]
 ```
 
@@ -40,37 +43,60 @@ pip install agent-evaluator[otel]
 
 ---
 
-## 첫 번째 평가
+## 데코레이터 방식 — 권장
+
+에이전트 함수에 데코레이터 한 줄만 추가하면 자동으로 평가가 적용됩니다.
+
+### QuickEval (가장 간단)
 
 ```python
-from datetime import datetime
-from agent_evaluator import PerformanceMonitor, TaskResult, TaskType
+from agent_evaluator import QuickEval
 
-# 1. 모니터 생성
+eval = QuickEval("results/")
+
+@eval.qa                          # task_type="qa" 자동 설정
+def my_agent(question: str, ground_truth: str = "") -> str:
+    return llm.invoke(question)   # 실제 에이전트 코드
+
+# 데이터셋 실행
+dataset = [("한국의 수도는?", "서울"), ("파이썬 창시자는?", "귀도 반 로섬")]
+for question, answer in dataset:
+    my_agent(question, ground_truth=answer)
+
+eval.save()                        # results/quickeval.json + .html
+eval.gate(tcr=85, accuracy=70)     # CI/CD 게이팅 — 실패 시 sys.exit(1)
+```
+
+### agent_eval 데코레이터 (세밀한 제어)
+
+```python
+from agent_evaluator import PerformanceMonitor
+from agent_evaluator.decorators import agent_eval
+
 monitor = PerformanceMonitor(output_dir="results/")
 
-# 2. 에이전트 실행 결과 기록
-monitor.record_task(TaskResult(
-    task_id="task_001",
-    task_type=TaskType.QA.value,
-    success=True,
-    completion_score=1.0,
-    accuracy_score=0.92,
-    execution_time=1.23,
-    tokens_used={"input": 120, "output": 60, "total": 180},
-    tool_calls=[],
-    attempts=1,
-    errors=[],
-    timestamp=datetime.now(),
-))
+@agent_eval(monitor, task_type="qa")
+def my_agent(question: str, ground_truth: str = "") -> str:
+    return llm.invoke(question)
 
-# 3. 리포트 생성 & 저장
+for question, answer in dataset:
+    my_agent(question, ground_truth=answer)
+
+monitor.save_to_file("my_first_eval")  # results/my_first_eval.json + .html
 report = monitor.generate_report()
-monitor.save_to_file("my_first_eval")  # results/my_first_eval.json + .html 생성
-
 print(f"TCR: {report.task_completion_rate:.1f}%")
-print(f"Accuracy: {report.overall_accuracy:.1f}%")
-print(f"Avg Latency: {report.average_latency:.2f}s")
+```
+
+### 용도별 단축 데코레이터
+
+```python
+eval = QuickEval("results/")
+
+@eval.qa           # QA 평가
+@eval.rag          # RAG — context_arg 자동, hallucination 탐지 활성
+@eval.tool_use     # 도구 사용 에이전트
+@eval.code         # 코드 생성
+@eval.reasoning    # 추론 태스크
 ```
 
 ---
@@ -104,6 +130,8 @@ monitor.save_to_file("eval")
 monitor.record_task(r1).record_task(r2).record_task(r3)
 report = monitor.generate_report()
 ```
+
+> 저수준 직접 생성이 필요한 경우에만 사용하세요. 일반적인 에이전트 평가는 데코레이터 방식을 권장합니다.
 
 ---
 
@@ -184,7 +212,7 @@ agent-eval gate results/eval.json --tcr 85 --accuracy 70
 
 ---
 
-## 실시간 운영 모니터링 (v0.7.2)
+## 실시간 운영 모니터링 (v0.7.3)
 
 Phoenix + OpenTelemetry로 프로덕션 스팬을 실시간 추적합니다.
 

@@ -141,45 +141,43 @@ def allow_duplicate_task_ids_warning_flag_exists():
 
 
 # ---------------------------------------------------------------------------
-# A6: jitter_type in agent_eval_with_retry
+# A6: jitter_type in agent_eval (통합 후 agent_eval 사용)
 # ---------------------------------------------------------------------------
 class TestJitterType:
     def test_jitter_type_none_no_sleep(self, monkeypatch):
-        from agent_evaluator import agent_eval_with_retry
+        from agent_evaluator import agent_eval
         sleep_calls = []
         monkeypatch.setattr("time.sleep", lambda t: sleep_calls.append(t))
         m = PerformanceMonitor()
         attempts = [0]
 
-        @agent_eval_with_retry(m, "qa", max_retries=2, delay=0.01,
-                               jitter_type="none")
-        def fn(question, ground_truth=""): 
+        @agent_eval(m, "qa", max_retries=2, delay=0.01,
+                    jitter_type="none", retry_on=(ValueError,))
+        def fn(question, ground_truth=""):
             attempts[0] += 1
             if attempts[0] < 2:
                 raise ValueError("retry")
             return "ok"
 
         fn("q")
-        # With jitter_type="none" and delay=0.01, sleep should be called
-        # (just checking it doesn't crash)
         assert attempts[0] >= 1
 
     def test_jitter_type_full_produces_float(self):
         """jitter_type parameter accepted without error."""
-        from agent_evaluator import agent_eval_with_retry
+        from agent_evaluator import agent_eval
         m = PerformanceMonitor()
 
-        @agent_eval_with_retry(m, "qa", max_retries=1, jitter_type="full", max_delay=30.0)
+        @agent_eval(m, "qa", max_retries=1, jitter_type="full", max_delay=30.0)
         def fn(question, ground_truth=""): return "ok"
 
         result = fn("q")
         assert result == "ok"
 
     def test_jitter_type_decorrelated(self):
-        from agent_evaluator import agent_eval_with_retry
+        from agent_evaluator import agent_eval
         m = PerformanceMonitor()
 
-        @agent_eval_with_retry(m, "qa", max_retries=1, jitter_type="decorrelated", delay=0.001)
+        @agent_eval(m, "qa", max_retries=1, jitter_type="decorrelated", delay=0.001)
         def fn(question, ground_truth=""): return "ok"
 
         result = fn("q")

@@ -279,24 +279,24 @@ class TestEvalDecoratorAutoCommonParams:
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# A6: agent_eval_with_retry — should_retry
+# A6: agent_eval should_retry (통합 후 agent_eval 사용)
 # ─────────────────────────────────────────────────────────────────────────────
 
-class TestAgentEvalWithRetryShould:
+class TestAgentEvalShould:
     def test_should_retry_param_exists(self):
-        """agent_eval_with_retry에 should_retry 파라미터가 있다."""
-        from agent_evaluator.decorators import agent_eval_with_retry
-        sig = inspect.signature(agent_eval_with_retry)
+        """agent_eval에 should_retry 파라미터가 있다."""
+        from agent_evaluator.decorators import agent_eval
+        sig = inspect.signature(agent_eval)
         assert "should_retry" in sig.parameters
 
     def test_should_retry_false_raises_eventually(self):
         """should_retry=lambda e: False 지정 시에도 최종적으로 예외가 발생한다."""
-        from agent_evaluator.decorators import agent_eval_with_retry
+        from agent_evaluator.decorators import agent_eval
 
         m = _make_monitor()
         call_count = [0]
 
-        @agent_eval_with_retry(
+        @agent_eval(
             m,
             task_type="qa",
             max_retries=3,
@@ -316,12 +316,12 @@ class TestAgentEvalWithRetryShould:
 
     def test_should_retry_conditional(self):
         """특정 메시지의 예외만 재시도한다."""
-        from agent_evaluator.decorators import agent_eval_with_retry
+        from agent_evaluator.decorators import agent_eval
 
         m = _make_monitor()
         call_count = [0]
 
-        @agent_eval_with_retry(
+        @agent_eval(
             m,
             task_type="qa",
             max_retries=3,

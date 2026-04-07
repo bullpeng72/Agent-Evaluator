@@ -2,9 +2,7 @@
 
 LangChain · LangGraph · CrewAI · AutoGen 연동 참조 문서
 
-**v0.7.2 | Python 3.8+**
-
-> 프레임워크별 개념과 통합 전략은 `Lectures/M5`를 참조하세요.
+**v0.7.3 | Python 3.8+**
 
 ---
 
@@ -29,7 +27,7 @@ LangChain · LangGraph · CrewAI · AutoGen 연동 참조 문서
 | 패키지 | 최소 버전 | 설치 |
 |--------|----------|------|
 | Python | 3.8+ | — |
-| agent-evaluator | 0.7.2 | `pip install agent-evaluator` |
+| agent-evaluator | 0.7.3 | `pip install agent-evaluator` |
 | LangChain | 1.0.0+ | `pip install agent-evaluator[langchain]` |
 | LangGraph | 1.0.0+ | `pip install agent-evaluator[langchain]` |
 | CrewAI | 1.0.0+ | `pip install agent-evaluator[crewai]` |
@@ -76,165 +74,161 @@ print(get_installation_instructions("crewai"))     # 설치 안내
 
 ## 프레임워크별 빠른 시작
 
-> **v0.6.3+ 권장 패턴**
-> - `create_taskresult()` 헬퍼로 TaskResult 생성 (자동 점수 계산)
-> - frozen dataclass 필드 추가: `dataclasses.replace(task, framework="langchain")`
-> - 팩토리 메서드 활용: `PerformanceMonitor.for_rag_evaluation()` / `for_secure_agents()`
+> **권장 패턴 (v0.7.2+)**
+> - `@agent_eval(monitor, framework=...)` 데코레이터 — 응답에서 token/tool 자동 추출
+> - `create_taskresult()` 헬퍼 — 수동 기록 시 점수 자동 계산
+> - 팩토리 메서드: `PerformanceMonitor.for_rag_evaluation()` / `for_secure_agents()`
 
 ---
 
 ### 🟢 LangChain
 
-```python
-import dataclasses
-from agent_evaluator import PerformanceMonitor, create_taskresult
-from agent_evaluator.integrations.langchain_integration import (
-    LangChainEvaluator,
-    AdvancedLangChainCallback,
-    create_evaluated_langchain_agent,
-)
+**방법 1 — 데코레이터 (권장)**
 
-# RAG 평가용 (Hallucination 탐지 기본 활성)
+```python
+from agent_evaluator import PerformanceMonitor
+from agent_evaluator.decorators import agent_eval
+
 monitor = PerformanceMonitor.for_rag_evaluation(output_dir="results/")
 
-# --- 방법 1: 콜백 방식 (실시간 토큰·도구 추적) ---
-callback = AdvancedLangChainCallback(monitor=monitor, task_id="task_001")
-response = agent_executor.invoke(
-    {"input": query},
-    config={"callbacks": [callback]},
-)
+@agent_eval(monitor, task_type="qa", framework="langchain")
+def lc_agent(question: str, ground_truth: str = "") -> str:
+    # LangChain 응답 객체를 그대로 반환 — token_usage 자동 추출
+    return agent_executor.invoke({"input": question})
+```
 
-# --- 방법 2: 수동 방식 ---
-task = create_taskresult(
-    task_id="lc_001",
-    question=query,
-    response=response["output"],
-    ground_truth=expected,
-    execution_time=elapsed,
-    task_type="qa",
-)
-task = dataclasses.replace(task, framework="langchain")
-monitor.record_task(task)
+또는 프레임워크 전용 데코레이터:
 
-# --- 방법 3: 팩토리 ---
-agent = create_evaluated_langchain_agent(llm, tools, monitor=monitor)
+```python
+from agent_evaluator.integrations import langchain_eval
 
-# Tool Selection 자동 평가 (Layer 2)
+@langchain_eval(monitor, task_type="qa")
+def lc_agent(question: str, ground_truth: str = "") -> str:
+    return agent_executor.invoke({"input": question})
+```
+
+**방법 2 — 콜백 방식 (실시간 토큰·도구 추적)**
+
+```python
+from agent_evaluator.integrations.langchain_integration import AdvancedLangChainCallback
+
 callback = AdvancedLangChainCallback(
     monitor=monitor,
     task_id="task_001",
-    expected_tools=["search", "calculator"],   # Golden Dataset의 expected_tools
+    expected_tools=["search", "calculator"],  # Tool Selection F1 자동 계산
 )
+response = agent_executor.invoke({"input": query}, config={"callbacks": [callback]})
 ```
 
-**자동 추적 항목**: 실제 토큰 수 (`llm_output.token_usage`), 도구 호출 (`AgentAction`), 재시도 (`on_retry`), 실행 시간
+**방법 3 — 수동 기록**
+
+```python
+import dataclasses
+from agent_evaluator import create_taskresult
+
+task = create_taskresult(
+    task_id="lc_001", question=query, response=response["output"],
+    ground_truth=expected, execution_time=elapsed, task_type="qa",
+)
+monitor.record_task(dataclasses.replace(task, framework="langchain"))
+```
+
+**자동 추출**: 실제 토큰 수 (`llm_output.token_usage`), 도구 호출 (`AgentAction`), 재시도 (`on_retry`), 실행 시간
 
 ---
 
 ### 🟠 LangGraph
 
+**방법 1 — 데코레이터 (권장)**
+
 ```python
-import dataclasses
-from agent_evaluator import PerformanceMonitor, create_taskresult
-from agent_evaluator.integrations.langgraph_integration import (
-    LangGraphEvaluator,
-    create_evaluated_langgraph,
-)
-from langchain_core.messages import HumanMessage
+from agent_evaluator.integrations import langgraph_eval
 
 monitor = PerformanceMonitor.for_rag_evaluation(output_dir="results/")
 
-# 컴파일된 그래프 래핑 (v0.6.0+)
-graph = create_evaluated_langgraph(
-    my_compiled_graph,    # 이미 .compile() 된 그래프
-    monitor=monitor,
-    enable_layer2=True,   # 노드 래핑 활성화 → Workflow Execution 자동 추적
-)
+@langgraph_eval(monitor, task_type="qa")
+def lg_agent(question: str, ground_truth: str = "") -> str:
+    # LangGraph AIMessage 응답 반환 — usage_metadata 자동 추출
+    result = compiled_graph.invoke({"messages": [HumanMessage(content=question)]})
+    return result["messages"][-1].content
+```
 
+**방법 2 — 그래프 래핑 팩토리**
+
+```python
+from agent_evaluator.integrations.langgraph_integration import create_evaluated_langgraph
+
+graph = create_evaluated_langgraph(
+    my_compiled_graph,
+    monitor=monitor,
+    enable_layer2=True,   # 노드 래핑 → Workflow Execution 자동 추적
+)
 result = graph.run(
     initial_state={"messages": [HumanMessage(content=query)]},
     ground_truth=expected_answer,
 )
-
-# LangChain 통합 LLM 미사용 시: 토큰 수동 설정
-task = dataclasses.replace(
-    result_task,
-    tokens_used={"input": N, "output": M, "total": N + M},
-)
 ```
 
-**자동 추적 항목**: 노드별 실측 타이밍, 노드 전환 (`AgentCoordination`), Workflow Execution, 토큰 (`AIMessage.usage_metadata`, LC LLM 사용 시)
+**자동 추출**: 노드별 실측 타이밍, 노드 전환 (AgentCoordination), Workflow Execution, 토큰 (`AIMessage.usage_metadata`)
 
 ---
 
 ### 🔵 CrewAI
 
+**방법 1 — 데코레이터 (권장)**
+
 ```python
-import dataclasses
-from agent_evaluator import PerformanceMonitor, create_taskresult
-from agent_evaluator.integrations.crewai_integration import (
-    CrewAIEvaluator,
-    create_evaluated_crew,
-)
+from agent_evaluator.integrations import crewai_eval
 
-monitor = PerformanceMonitor.for_secure_agents(
-    output_dir="results/",
-    enable_hallucination_detection=True,
-)
+monitor = PerformanceMonitor.for_secure_agents(output_dir="results/")
 
-# --- 방법 1: 팩토리 ---
-crew = create_evaluated_crew(
-    tasks=my_tasks,
-    agents=my_agents,
-    monitor=monitor,
-)
-result = crew.kickoff()
-
-# --- 방법 2: 수동 (토큰 직접 설정) ---
-task = create_taskresult(
-    task_id="crew_001",
-    question=input_text,
-    response=result.raw,
-    ground_truth=expected,
-    execution_time=elapsed,
-    task_type="qa",
-)
-# CrewAI는 토큰 미노출 → 수동 설정 필수
-task = dataclasses.replace(
-    task,
-    tokens_used={"input": N, "output": M, "total": N + M},
-    framework="crewai",
-)
-monitor.record_task(task)
+@crewai_eval(monitor, task_type="qa")
+def run_crew(question: str, ground_truth: str = "") -> str:
+    result = crew.kickoff(inputs={"topic": question})
+    return result.raw  # CrewAI CrewOutput → 자동 파싱
 ```
 
-**자동 추적 항목**: Agent Coordination (역할 기반 순차 추론), Tool Selection (agents 속성 추론)
-**주의**: 토큰 수 0 고정 (CrewAI SDK 미노출)
+**방법 2 — 팩토리 함수**
+
+```python
+from agent_evaluator.integrations.crewai_integration import create_evaluated_crew
+
+crew = create_evaluated_crew(tasks=my_tasks, agents=my_agents, monitor=monitor)
+result = crew.kickoff()
+```
+
+**자동 추출**: Agent Coordination, Tool Selection
+**주의**: 토큰 수 0 고정 (CrewAI SDK 미노출) — `dataclasses.replace(task, tokens_used={...})`로 수동 설정
 
 ---
 
 ### 🟣 AutoGen
 
+**방법 1 — 데코레이터 (권장, 0.4+ async)**
+
 ```python
-import dataclasses
-from agent_evaluator import PerformanceMonitor, create_taskresult
-from agent_evaluator.integrations.autogen_integration import (
-    AutoGenEvaluator,
-    create_evaluated_autogen_agent,
-)
+from agent_evaluator.integrations import autogen_eval
 
 monitor = PerformanceMonitor.for_secure_agents(output_dir="results/")
 
-# async-first 재설계 (0.4+): on_messages() / team.run() 통합
+@autogen_eval(monitor, task_type="qa")
+async def run_autogen(question: str, ground_truth: str = "") -> str:
+    result = await team.run(task=question)
+    return result.messages[-1].content
+```
+
+**방법 2 — 동기 래퍼 (0.4+)**
+
+```python
+from agent_evaluator.integrations.autogen_integration import AutoGenEvaluator
+
 evaluator = AutoGenEvaluator(agent=assistant, monitor=monitor)
 evaluator.set_ground_truth(expected_answer)
-
-# 동기 실행 래퍼
 result = evaluator.run_sync(task_input)
 ```
 
-**자동 추적 항목**: 에이전트 메시지 교환 (`AgentCoordination`), 도구 호출 (`ToolCallRequestEvent/ToolCallExecutionEvent`), 토큰 (tiktoken 우선)
-**주의**: AutoGen 0.3.x `generate_reply` 래핑 불가 → UserWarning + 수동 `record_task()` 권고
+**자동 추출**: 에이전트 메시지 교환 (AgentCoordination), 도구 호출 (ToolCallEvent), 토큰 (tiktoken)
+**주의**: AutoGen 0.3.x `generate_reply` 래핑 불가 → UserWarning + 수동 `record_task()` 사용
 
 ---
 
@@ -312,26 +306,23 @@ result = evaluator.run_sync(task_input)
 ## 보안 지표 추가 (공통)
 
 ```python
-# 방법 1: 팩토리 메서드 (권장)
+# 방법 1: 데코레이터 security_mode (임시 활성, 권장)
+from agent_evaluator.decorators import agent_eval
+
+@agent_eval(monitor, task_type="qa", security_mode=True)
+def secure_agent(question: str, ground_truth: str = "") -> str:
+    return llm.invoke(question)
+
+# 방법 2: 팩토리 메서드 (영구 활성)
 monitor = PerformanceMonitor.for_secure_agents(
     security_config={
         "allowed_tools": ["web_search", "db_lookup"],
-        "blocked_tools":  ["rm_rf", "system_exec"],
+        "restricted_tools": ["rm_rf", "system_exec"],
     },
     output_dir="results/",
 )
 
-# 방법 2: 직접 초기화
-monitor = PerformanceMonitor(enable_security_metrics=True, output_dir="results/")
-
-# 프레임워크 통합 실행 후 트래커 수동 호출
-monitor.input_sanitizer.evaluate_input(task_id, user_input)
-monitor.output_leakage_detector.detect_leakage(task_id, agent_output)
-monitor.tool_authorizer.track_tool_call(task_id, tool_name, tool_args)
-monitor.privilege_escalation_detector.analyze_privilege_chain(task_id, tool_calls)
-monitor.tool_chain_attack_detector.analyze_tool_chain(task_id, tool_sequence)
-
-# 방법 3: 모니터 없이 단독 사용 (v0.6.3+)
+# 방법 3: 독립 헬퍼 함수 (monitor 없이)
 from agent_evaluator.helpers.taskresult_helpers import (
     validate_input_security,
     check_output_leakage,
@@ -381,7 +372,7 @@ with monitor.conversation("session_id") as conv:
 
 허용 canonical 값: `delegation`, `communication`, `collaboration`
 
-v0.6.3+에서 자동 정규화:
+자동 정규화 규칙 (v0.6.3+):
 
 | 입력값 | 정규화 결과 |
 |--------|------------|
@@ -407,4 +398,4 @@ v0.6.3+에서 자동 정규화:
 
 ---
 
-*Updated: 2026-04-04 (v0.7.2) | MIT License*
+*Updated: 2026-04-07 (v0.7.3) | MIT License*

@@ -37,7 +37,10 @@ from agent_evaluator import (
     ConversationSession,
     ConversationMetrics,
 )
+from agent_evaluator.decorators import agent_eval, EvalMetadata
 from agent_evaluator.reporting import generate_comprehensive_html_report
+
+_sc_03: dict = {}  # 루프별 시나리오 공유 컨텍스트
 
 
 def _try_setup_otel(service_name: str) -> None:
@@ -220,6 +223,30 @@ def run_agentic_evaluation():
 
     base_time = datetime.now() - timedelta(hours=3)
 
+    @agent_eval(
+        monitor,
+        task_type="tool_use",
+        task_id_fn=lambda args, kw: _sc_03.get("task_id", "agent_000"),
+        flush_every=len(SCENARIOS),
+        flush_filename="03_agentic_eval",
+    )
+    def _agentic_agent(question: str, ground_truth: str = "") -> tuple:
+        sc = _sc_03
+        response_text = sc["resp_ok"] if sc["success"] else sc["resp_fail"]
+        if not sc["success"]:
+            raise RuntimeError("tool_mismatch" if not sc["tool_match"] else "execution_error")
+        return response_text, EvalMetadata(
+            accuracy_score=sc["accuracy"],
+            completion_score=sc["completion"],
+            tokens_used=sc["tokens"],
+            attempts=max(1, sc["attempts"]),
+            framework="crewai" if sc["multi_agent"] else "langchain",
+            tool_calls=sc["tool_calls"],
+            agent_interactions=sc["agent_interactions"],
+            chain_steps=sc["chain_steps"],
+            expected_tools=sc["expected_tools"],
+        )
+
     for idx, (name, expected_tools, actual_tools, agents, has_wf, attempts, redundancy) in enumerate(SCENARIOS):
         task_id = f"agent_{idx+1:03d}_{name}"
 
@@ -256,29 +283,27 @@ def run_agentic_evaluation():
         request_text, resp_ok, resp_fail, ground_truth_text, expected_elems = _content
         response_text = resp_ok if success else resp_fail
 
-        task = TaskResult(
-            task_id=task_id,
-            task_type="tool_use" if not has_wf else "planning",
-            success=success,
-            completion_score=completion,
-            accuracy_score=accuracy,
-            execution_time=exec_time,
-            tokens_used={"input": input_tokens, "output": output_tokens, "total": input_tokens + output_tokens},
-            tool_calls=tool_calls,
-            attempts=max(1, attempts),
-            errors=[] if success else ["tool_mismatch" if not tool_match else "execution_error"],
-            timestamp=base_time + timedelta(minutes=idx * 4),
-            agent_interactions=agent_interactions,
-            chain_steps=chain_steps,
-            expected_tools=expected_tools,
-            framework="crewai" if len(agents) > 1 else "langchain",
-            question=request_text,
-            response=response_text,
-            ground_truth=ground_truth_text,
-            context=ground_truth_text,
-        )
+        _sc_03.update({
+            "task_id": task_id,
+            "success": success,
+            "tool_match": tool_match,
+            "completion": completion,
+            "accuracy": accuracy,
+            "tokens": {"input": input_tokens, "output": output_tokens, "total": input_tokens + output_tokens},
+            "attempts": attempts,
+            "multi_agent": len(agents) > 1,
+            "tool_calls": tool_calls,
+            "agent_interactions": agent_interactions,
+            "chain_steps": chain_steps,
+            "expected_tools": expected_tools,
+            "resp_ok": resp_ok,
+            "resp_fail": resp_fail,
+        })
 
-        monitor.record_task(task)
+        try:
+            _agentic_agent(question=request_text, ground_truth=ground_truth_text)
+        except RuntimeError:
+            pass
 
         # Response Quality — 5차원 품질 평가 (성공 시 expected_elements 기반)
         monitor.quality_evaluator.evaluate_response(
@@ -290,11 +315,12 @@ def run_agentic_evaluation():
         )
 
         # Accuracy — ground_truth 대비 정확도 명시적 평가
+        task_type_for_acc = "tool_use" if not has_wf else "planning"
         monitor.accuracy_evaluator.add_evaluation(
             task_id=task_id,
             ground_truth=ground_truth_text,
             prediction=response_text,
-            task_type=task.task_type,
+            task_type=task_type_for_acc,
         )
 
         if has_wf:

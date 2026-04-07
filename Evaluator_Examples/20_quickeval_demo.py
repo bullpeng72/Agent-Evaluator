@@ -16,7 +16,20 @@
 """
 
 import random
+import socket as _sock
 import time
+from pathlib import Path
+
+_project_root = Path(__file__).parent.parent
+_results_dir = str(_project_root / "results")
+
+# Phoenix OTEL 연결
+try:
+    if _sock.socket().connect_ex(("localhost", 6006)) == 0:
+        from agent_evaluator import setup_otel
+        setup_otel(endpoint="http://localhost:6006", service_name="20-quickeval-demo")
+except Exception:
+    pass
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -29,7 +42,7 @@ print("=" * 60)
 from agent_evaluator import QuickEval
 
 # 1줄로 시작 (PerformanceMonitor 생성 불필요)
-eval = QuickEval("results/")
+eval = QuickEval(_results_dir)
 
 # @eval.qa — 괄호 없이 사용 가능
 @eval.qa
@@ -104,7 +117,7 @@ print("=" * 60)
 
 from agent_evaluator import PerformanceMonitor, TaskType, agent_eval
 
-monitor2 = PerformanceMonitor(output_dir="results/")
+monitor2 = PerformanceMonitor(output_dir=_results_dir)
 
 # TaskType.QA → "qa" 자동 변환 (IDE 자동완성 + 런타임 안전)
 @agent_eval(monitor2, TaskType.QA)
@@ -135,7 +148,7 @@ print("=" * 60)
 
 from agent_evaluator.integrations import langchain_eval, langgraph_eval
 
-monitor3 = PerformanceMonitor(output_dir="results/")
+monitor3 = PerformanceMonitor(output_dir=_results_dir)
 
 # LangChain 시뮬레이션 — intermediate_steps 포함 dict 반환
 @langchain_eval(monitor3, task_type="tool_use")
@@ -204,7 +217,7 @@ print("=" * 60)
 
 from agent_evaluator import SimpleTaskAlertRule
 
-monitor4 = PerformanceMonitor(output_dir="results/")
+monitor4 = PerformanceMonitor(output_dir=_results_dir)
 
 # 알림 로그 수집 (테스트용)
 alert_log = []
@@ -261,7 +274,7 @@ print("=" * 60)
 
 # PerformanceMonitor.auto_save — N건마다 자동 저장
 monitor5 = PerformanceMonitor(
-    output_dir="results/",
+    output_dir=_results_dir,
     auto_save=True,
     auto_save_interval=3,          # 3건마다 자동 저장
     auto_save_filename="demo_autosave",
@@ -281,7 +294,7 @@ for i, (q, gt) in enumerate(dataset * 2):  # 6번 실행
         print()
 
 # @agent_eval flush_every — 데코레이터 레벨 자동 저장
-monitor6 = PerformanceMonitor(output_dir="results/")
+monitor6 = PerformanceMonitor(output_dir=_results_dir)
 
 @agent_eval(
     monitor6,
@@ -311,7 +324,7 @@ print("섹션 6: QuickEval 팩토리 메서드")
 print("=" * 60)
 
 # RAG 특화 — hallucination_detection 자동 활성화
-eval_rag = QuickEval.for_rag("results/")
+eval_rag = QuickEval.for_rag(_results_dir)
 
 @eval_rag.rag
 def rag_with_hallucination(question: str, context: str = "", ground_truth: str = "") -> str:
@@ -326,7 +339,7 @@ rag_with_hallucination(
 print("  ✅ hallucination_detection 자동 활성화됨")
 
 # 보안 특화 — security_metrics 자동 활성화
-eval_sec = QuickEval.for_security("results/")
+eval_sec = QuickEval.for_security(_results_dir)
 
 @eval_sec.tool_use
 def secure_agent(question: str, ground_truth: str = "") -> str:
@@ -371,7 +384,7 @@ print(f"  📄 저장 완료: {saved_path}")
 print("\n✅ 모든 섹션 완료!")
 print("""
 신규 기능 요약:
-  1. QuickEval("results/")          — 원스톱 시작
+  1. QuickEval(_results_dir)          — 원스톱 시작
   2. @eval.qa / @eval.rag / ...      — 단축 데코레이터
   3. TaskType.QA (Enum)             — IDE 자동완성 지원
   4. langchain_eval / langgraph_eval — 프레임워크 전용 데코레이터

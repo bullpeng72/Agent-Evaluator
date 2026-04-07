@@ -44,7 +44,85 @@ monitor = PerformanceMonitor(
 )
 ```
 
-> **💡 설계 원칙:** Layer 2A(에이전틱)는 항상 활성화. 보안 트래커는 성능 영향이 있으므로 opt-in.
+> **설계 원칙:** Layer 2A(에이전틱)는 항상 활성화. 보안 트래커는 성능 영향이 있으므로 opt-in.
+
+### 데코레이터로 Layer 2 활성화하기
+
+Layer 2 에이전틱 지표는 `TaskResult`의 특정 필드가 채워지면 자동 활성화된다.
+데코레이터 방식에서는 3가지 방법으로 이 필드를 채울 수 있다.
+
+**방법 A — `get_eval_ctx()` 직접 주입**
+
+```python
+from agent_evaluator import PerformanceMonitor
+from agent_evaluator.decorators import agent_eval, get_eval_ctx
+
+monitor = PerformanceMonitor(output_dir="results/")
+
+@agent_eval(monitor, task_type="tool_use")
+def tool_agent(question: str, ground_truth: str = "") -> str:
+    ctx = get_eval_ctx()
+
+    # ToolCallAnalyzer + WorkflowExecutionTracker 활성화
+    ctx.tool_calls = [
+        {"tool_name": "web_search", "success": True},
+        {"tool_name": "calculator", "success": True},
+    ]
+    ctx.chain_steps = [
+        {"step": "검색", "success": True},
+        {"step": "계산", "success": True},
+    ]
+    # AgentCoordinationTracker 활성화
+    ctx.agent_interactions = [
+        {"from_agent": "planner", "to_agent": "executor", "message_type": "delegation"}
+    ]
+    return "답변"
+```
+
+**방법 B — EvalMetadata 튜플 반환**
+
+```python
+from agent_evaluator.decorators import EvalMetadata
+
+@agent_eval(monitor, task_type="planning")
+def planner_agent(question: str, ground_truth: str = "") -> Any:
+    meta = EvalMetadata(
+        tool_calls=[{"tool_name": "web_search"}, {"tool_name": "summarizer"}],
+        chain_steps=[{"step": "계획"}, {"step": "실행"}, {"step": "검증"}],
+        tokens_used={"input": 200, "output": 80, "total": 280},
+    )
+    return "계획 완료", meta   # (answer, meta) 튜플 반환
+```
+
+**방법 C — `expected_tools_arg`로 ToolSelectionTracker 활성화**
+
+```python
+@agent_eval(
+    monitor,
+    task_type="tool_use",
+    expected_tools_arg="expected_tools",   # ← 함수 파라미터 이름
+)
+def tool_selector(
+    question: str,
+    expected_tools: list = None,
+    ground_truth: str = "",
+) -> str:
+    ctx = get_eval_ctx()
+    ctx.tool_calls = [{"tool_name": "web_search"}, {"tool_name": "calculator"}]
+    return "answered"
+
+# 호출 시 expected_tools 전달 → F1 자동 계산
+tool_selector("검색해줘", expected_tools=["web_search", "summarizer"])
+```
+
+Layer 2 트래커 활성화 조건 표:
+| 트래커 | 활성화 조건 |
+|--------|-----------|
+| ToolCallAnalyzer | `ctx.tool_calls` 또는 `EvalMetadata.tool_calls` (len > 0) |
+| ToolSelectionTracker | 위 + `expected_tools_arg` 파라미터 지정 |
+| RetryCorrectionTracker | `TaskResult.attempts > 1` |
+| WorkflowExecutionTracker | `ctx.chain_steps` 또는 `EvalMetadata.chain_steps` |
+| AgentCoordinationTracker | `ctx.agent_interactions` 또는 `EvalMetadata.agent_interactions` |
 
 ---
 
@@ -55,55 +133,39 @@ monitor = PerformanceMonitor(
 에이전트가 어떤 도구를 얼마나 자주 쓰는지 분석한다.
 
 ```python
-from agent_evaluator import PerformanceMonitor, create_taskresult
+from agent_evaluator import PerformanceMonitor
+from agent_evaluator.decorators import agent_eval, get_eval_ctx
 
 monitor = PerformanceMonitor(output_dir="results/")
 
-# tool_calls 필드에 사용한 도구 목록 기록
-from datetime import datetime
-from agent_evaluator import TaskResult
-
-result = TaskResult(
-    task_id="task_001",
-    task_type="qa",
-    success=True,
-    completion_score=0.9,
-    accuracy_score=0.85,
-    execution_time=2.5,
-    tokens_used={"input": 600, "output": 250, "total": 850},
-    tool_calls=[
+@agent_eval(monitor, task_type="tool_use")
+def search_agent(question: str, ground_truth: str = "") -> str:
+    ctx = get_eval_ctx()
+    ctx.tool_calls = [
         {"tool_name": "web_search", "success": True, "duration": 1.2},
         {"tool_name": "text_summarizer", "success": True, "duration": 0.8},
-    ],
-    attempts=1,
-    errors=[],
-    timestamp=datetime.now(),
-    question="최근 뉴스 검색 후 요약해줘",
-    response="최근 주요 뉴스: ...",
-    ground_truth="최근 주요 뉴스 요약",
-)
-monitor.record_task(result)
+    ]
+    return f"'{question}'에 대한 검색 결과"
 
-report = monitor.generate_report()
-tool_stats = report.get("tool_call_stats", {})
-print(tool_stats)
-# {
-#   "total_tool_calls": 2,
-#   "unique_tools_used": ["web_search", "text_summarizer"],
-#   "avg_tools_per_task": 2.0,
-#   "tool_distribution": {"web_search": 1, "text_summarizer": 1}
-# }
+search_agent("최신 AI 뉴스", ground_truth="AI 기사 요약")
+
+# ToolCallAnalyzer 결과 조회
+stats = monitor.tool_call_analyzer.get_efficiency_stats()
+print(f"총 도구 호출: {stats['total_calls']}")
+print(f"평균 효율성: {stats['avg_efficiency_score']:.1%}")
 ```
 
 #### 분석 포인트
 
 ```python
 # 도구 과다 사용 탐지 패턴
+report = monitor.generate_report()
+tool_stats = report.get("tool_call_stats", {})
 avg_tools = tool_stats.get("avg_tools_per_task", 0)
 if avg_tools > 5:
-    print("⚠️ 에이전트가 도구를 과다하게 사용하고 있음 — 프롬프트 최적화 필요")
+    print("에이전트가 도구를 과다하게 사용하고 있음 — 프롬프트 최적화 필요")
 elif avg_tools < 1 and task_type == "tool_use":
-    print("⚠️ 도구 사용 태스크인데 도구를 거의 사용하지 않음 — 에이전트 설정 점검")
+    print("도구 사용 태스크인데 도구를 거의 사용하지 않음 — 에이전트 설정 점검")
 ```
 
 ---
@@ -136,33 +198,34 @@ F1        = 0.667
 #### 코드
 
 ```python
-from agent_evaluator import PerformanceMonitor, create_taskresult
+from agent_evaluator import PerformanceMonitor
+from agent_evaluator.decorators import agent_eval, get_eval_ctx
 
 monitor = PerformanceMonitor(output_dir="results/")
 
-# expected_tools = 태스크에서 사용해야 할 도구 목록
-# tool_calls     = 실제로 사용한 도구 목록
-result = TaskResult(
-    task_id="task_002",
+# 수동 방식 — evaluate_selection() 직접 호출
+monitor.tool_selection_tracker.evaluate_selection(
+    task_id="task_001",
+    expected_tools=["search", "calculator"],
+    actual_tools=["search"],
+)
+
+# 데코레이터 방식 — expected_tools_arg 지정 시 F1 자동 계산
+@agent_eval(
+    monitor,
     task_type="tool_use",
-    success=True,
-    completion_score=1.0,
-    accuracy_score=0.95,
-    execution_time=1.8,
-    tokens_used={"input": 200, "output": 120, "total": 320},
-    tool_calls=[
+    expected_tools_arg="expected_tools",
+)
+def tool_agent(question: str, expected_tools: list = None, ground_truth: str = "") -> str:
+    ctx = get_eval_ctx()
+    ctx.tool_calls = [
         {"tool_name": "database_query", "success": True, "duration": 0.9},
         {"tool_name": "calculator", "success": True, "duration": 0.3},
-    ],
-    attempts=1,
-    errors=[],
-    timestamp=datetime.now(),
-    question="데이터베이스에서 가격 조회 후 계산해줘",
-    response="계산 결과: 15,000원",
-    ground_truth="15,000원",
-    expected_tools=["database_query", "calculator"],  # 기대값
-)
-monitor.record_task(result)
+    ]
+    return "answered"
+
+tool_agent("검색해줘", expected_tools=["search", "calculator"])
+# → precision, recall, F1 자동 계산
 
 # Tool Selection F1 조회
 tracker = monitor.tool_selection_tracker
@@ -204,24 +267,25 @@ print(f"Recall: {f1_result['avg_recall']:.3f}")
 ```python
 from agent_evaluator import create_taskresult
 
-# 재시도가 발생한 태스크
-result = TaskResult(
-    task_id="task_003",
-    task_type="data_analysis",
-    success=True,
-    completion_score=0.9,
-    accuracy_score=0.80,
-    execution_time=8.5,
-    tokens_used={"input": 1800, "output": 600, "total": 2400},
-    tool_calls=[],
-    attempts=3,           # 3번 시도 (재시도 2회)
-    errors=["API timeout", "parsing error"],  # 발생한 에러
-    timestamp=datetime.now(),
+# 방법 1: create_taskresult에 attempts 직접 지정
+task = create_taskresult(
+    task_id="retry_001",
     question="복잡한 분석 태스크",
     response="최종 분석 결과: ...",
     ground_truth="분석 결과",
+    execution_time=8.5,
+    task_type="data_analysis",
+    attempts=3,         # ← 3회 시도 → RetryCorrectionTracker 자동 활성
+    errors=["API timeout", "parsing error"],
 )
-monitor.record_task(result)
+monitor.record_task(task)
+
+# 방법 2: @agent_eval + max_retries (자동 재시도)
+from agent_evaluator.decorators import agent_eval
+
+@agent_eval(monitor, task_type="qa", max_retries=3, retry_on=[ValueError, TimeoutError])
+def flaky_agent(question: str, ground_truth: str = "") -> str:
+    return llm.invoke(question)  # 실패 시 자동 재시도, attempts 자동 증가
 ```
 
 ### 핵심 지표 3종
@@ -244,21 +308,21 @@ print(f"최종 성공률: {eventual:.1f}%")
 # 진단: 첫 시도 성공률과 최종 성공률의 격차
 gap = eventual - first_success
 if gap > 30:
-    print("⚠️ 재시도 의존도 높음 — 초기 실패 원인 분석 필요")
+    print("재시도 의존도 높음 — 초기 실패 원인 분석 필요")
 ```
 
-### 🚨 Known Issue: avg_retry_time 분모 버그 (v0.6.0 이전)
+### avg_retry_time 해석 주의사항
 
 ```python
-# ❌ v0.6.0 이전 (버그)
+# ❌ 잘못된 해석
 # avg_retry_time = total_retry_duration / 전체_태스크_수
 # → 재시도 없는 태스크까지 포함해 평균이 희석됨
 
-# ✅ v0.6.0 이후 (수정)
+# ✅ 올바른 해석
 # avg_retry_time = total_retry_duration / 재시도_있는_태스크_수
 # → 실제 재시도가 발생한 케이스만의 평균
 avg_retry_time = retry_stats["avg_retry_time"]
-# v0.6.0+: 재시도가 없는 태스크는 이 평균에서 제외됨
+# 재시도가 없는 태스크는 이 평균에서 제외됨
 print(f"평균 재시도 소요 시간: {avg_retry_time:.2f}초")
 ```
 
@@ -351,7 +415,7 @@ print(f"참여 에이전트:  {coord_data['unique_agents']}명")
 
 #### 대시보드 활용
 
-대시보드 Agentic 탭 → "🎯 도구·협업·흐름" 서브탭에서 협업 점수와 상호작용 건수를 확인할 수 있다.
+대시보드 Agentic 탭 → "도구·협업·흐름" 서브탭에서 협업 점수와 상호작용 건수를 확인할 수 있다.
 
 ---
 
@@ -454,6 +518,7 @@ for step, stats in step_breakdown.items():
 ```python
 from agent_evaluator import PerformanceMonitor
 
+# 영구 활성 방법 (모든 record_task에 적용)
 monitor = PerformanceMonitor(
     output_dir="results/",
     enable_security_metrics=True,
@@ -470,7 +535,29 @@ monitor = PerformanceMonitor(
         ]
     }
 )
+
+# 또는 팩토리 메서드 사용
+monitor = PerformanceMonitor.for_secure_agents(output_dir="results/")
 ```
+
+#### 데코레이터로 일시적 보안 활성화
+
+```python
+from agent_evaluator.decorators import agent_eval
+
+# security_mode=True: 해당 함수 호출 시에만 보안 트래커 임시 활성화
+@agent_eval(monitor, task_type="qa", security_mode=True)
+def user_facing_agent(question: str, ground_truth: str = "") -> str:
+    """외부 사용자 입력을 받는 에이전트 — 보안 자동 검사"""
+    return llm.invoke(question)
+
+user_facing_agent("일반 질문입니다", ground_truth="답변")
+# → InputSanitizationTracker 자동 실행 (프롬프트 인젝션 검사)
+# → OutputLeakageDetector 자동 실행 (민감정보 유출 검사)
+# → 함수 호출 완료 후 보안 설정 원복
+```
+
+> **security_mode vs enable_security_metrics:** `security_mode=True`는 해당 데코레이터 호출 동안만 임시 활성화되고 자동 원복된다. `enable_security_metrics=True`는 모니터 생애 전체에 적용된다.
 
 ---
 
@@ -497,7 +584,7 @@ for input_text in test_inputs:
 
     if result.get("threats_detected"):
         threats = result.get("threat_types", [])
-        print(f"🚨 위협 탐지: {threats}")
+        print(f"위협 탐지: {threats}")
         print(f"   입력: {input_text[:50]}")
 ```
 
@@ -558,7 +645,7 @@ test_outputs = [
     "연락처: user@company.com",                          # Email
     "전화번호: 010-1234-5678",                           # Phone
     "내부 서버: 192.168.1.100",                          # Internal IP
-    "설정 파일: /etc/secrets/api_keys.env"               # File Path (v0.6.1)
+    "설정 파일: /etc/secrets/api_keys.env"
 ]
 
 for output_text in test_outputs:
@@ -568,10 +655,10 @@ for output_text in test_outputs:
     )
     if result.get("contains_sensitive_data"):
         leakage_types = result.get("leakage_types", [])
-        print(f"🔒 유출 탐지: {leakage_types}")
+        print(f"유출 탐지: {leakage_types}")
 ```
 
-#### 8가지 유출 유형 (v0.6.1)
+#### 8가지 유출 유형
 
 | # | 유형 | 패턴 예시 | 버전 |
 |---|------|----------|------|
@@ -582,7 +669,7 @@ for output_text in test_outputs:
 | 5 | Phone | `010-xxxx-xxxx` | 초기 |
 | 6 | SSN | 주민등록번호 패턴 | 초기 |
 | 7 | Internal IP | `192.168.x.x`, `10.x.x.x` | 초기 |
-| 8 | File Path | `/etc/secrets/`, `C:\Windows\` | **v0.6.1** |
+| 8 | File Path | `/etc/secrets/`, `C:\Windows\` |
 
 ```python
 # 유출 통계 조회
@@ -595,13 +682,13 @@ outputs_with_leak = leak_stats["outputs_with_leakage"]
 # leak_stats["leak_count"]                               # KeyError
 ```
 
-#### ⚠️ False Positive 주의
+#### False Positive 주의
 
 ```python
 # 이 패턴은 false positive 높음
 custom_config = {
     "custom_patterns": [
-        r"[a-zA-Z0-9]{32,}"  # ⚠️ 위험! 긴 문자열 모두 탐지
+        r"[a-zA-Z0-9]{32,}"  # 위험! 긴 문자열 모두 탐지
     ]
 }
 # 영향: SHA256 해시, JWT 토큰, UUID, base64 인코딩 문자열 모두 탐지됨
@@ -629,7 +716,7 @@ result = auth_tracker.track_tool_call(
 )
 
 if result.get("is_restricted") or not result.get("is_authorized"):
-    print(f"🚫 미허가 도구 사용: {result.get('tool_name')}")
+    print(f"미허가 도구 사용: {result.get('tool_name')}")
     print(f"   위반 유형: {result.get('violation_type')}")    # unauthorized_tool / restricted_tool
     print(f"   권한 수준: {result.get('privilege_level')}")   # read/write/execute/admin
 ```
@@ -665,7 +752,7 @@ priv_tracker.analyze_privilege_chain(
 # priv_tracker.detect_escalation(task_id=tid, tool_calls=tc_list)
 ```
 
-> **API 변경:** `detect_escalation()` → `analyze_privilege_chain()` (v0.6.0에서 확정)
+> `analyze_privilege_chain()` API를 사용하세요.
 
 ```python
 # 권한 상승 통계
@@ -769,11 +856,11 @@ Security 탭 구성:
 │ └── 위협 입력 (태스크 기준 중복 제거)                │
 ├─────────────────────────────────────────────────────┤
 │ 출력 유출 패널 (8가지 유형 카드)                     │
-│ └── v0.6.1: File Path 카드 추가됨                   │
+│ └── File Path 유출 탐지 지원                          │
 └─────────────────────────────────────────────────────┘
 ```
 
-**⚠️ 주의:** 보안 종합 점수는 **단순 평균** (가중 평균 아님). 대시보드 툴팁에 명시됨.
+**주의:** 보안 종합 점수는 **단순 평균** (가중 평균 아님). 대시보드 툴팁에 명시됨.
 
 ---
 
@@ -787,7 +874,7 @@ agent-eval dashboard --port 8765
 
 ### 확인 항목
 
-1. **Agentic 탭** → "🎯 도구·협업·흐름" 서브탭
+1. **Agentic 탭** → "도구·협업·흐름" 서브탭
    - Tool Selection F1 KPI 확인
    - 협업 패턴 분포 확인
    - `overall_score = 0.0` 확인 (Known Issue)
@@ -798,8 +885,8 @@ agent-eval dashboard --port 8765
    - 위협 유형별 파이 차트
    - 8가지 유출 유형 카드
 
-3. **Agentic 탭** → "⚡ 실행·재시도" 서브탭
-   - `avg_retry_time` 해석 (v0.6.0 수정됨 — 재시도 있는 태스크만)
+3. **Agentic 탭** → "실행·재시도" 서브탭
+   - `avg_retry_time` 해석 — 재시도 있는 태스크만 집계
 
 ---
 
@@ -840,4 +927,4 @@ leak_stats["outputs_with_leakage"]                          # NOT "leak_count"
 
 *Module 3 완료 — 다음: M4 Layer 3 하이브리드 평가 (DeepEval + Ragas)*
 
-*Agent-Evaluator SDK 강의 자료 — v0.7.0 기준 | 2026-04-01*
+*Agent-Evaluator SDK 강의 자료 — v0.7.3 기준 | 2026-04-07*

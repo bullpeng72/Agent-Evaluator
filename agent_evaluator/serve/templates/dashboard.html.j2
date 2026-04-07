@@ -5130,7 +5130,9 @@ function app() { return {
   async refresh() {
     try {
       const r = await fetch('/api/results');
-      this.files = await r.json();
+      const rd = await r.json();
+      // /api/results returns { total, page, files: [...] } — extract the array
+      this.files = Array.isArray(rd) ? rd : (rd.files ?? []);
       this.lastUpd = new Date().toLocaleTimeString('ko-KR');
       // Invalidate transparency list cache so new files are picked up
       this.trData = { traces:[], annotations:[], audit:[], auditItems:[] };

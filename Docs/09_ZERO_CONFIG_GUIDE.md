@@ -1,692 +1,529 @@
-# ⚙️ Zero Configuration 가이드
-
-별도 설정 없이 자동으로 올바른 위치에 데이터 저장하기
-
 # Zero Configuration 가이드
 
-Agent Evaluator의 Zero Configuration 기능을 활용하여 별도 설정 없이 자동으로 올바른 위치에 데이터를 저장하는 방법을 안내합니다.
+별도 설정 없이 자동으로 올바른 위치에 데이터를 저장하는 방법 — Agent Evaluator v0.7.3
 
 ## 목차
 
-  1. [개요](<#개요>)
-  2. [핵심 개념](<#핵심-개념>)
-  3. [사용 방법](<#사용-방법>)
-  4. [작동 원리](<#작동-원리>)
-  5. [Dashboard 통합](<#dashboard-통합>)
-  6. [실전 예시](<#실전-예시>)
-  7. [Dashboard 설치](<#dashboard-설치>)
-  8. [Path Helpers 모듈 직접 사용](<#path-helpers-사용>)
-  9. [고급 설정](<#고급-설정>)
-  10. [문제 해결](<#문제-해결>)
-  11. [베스트 프랙티스](<#베스트-프랙티스>)
-  12. [요약](<#요약>)
-  13. [추가 정보](<#추가-정보>)
+1. [개요](#개요)
+2. [프로젝트 구조](#프로젝트-구조)
+3. [자동 경로 감지 원리](#자동-경로-감지-원리)
+4. [기본 사용법](#기본-사용법)
+5. [Path Helpers 모듈](#path-helpers-모듈)
+6. [환경 변수 설정](#환경-변수-설정)
+7. [Dashboard 통합](#dashboard-통합)
+8. [실전 예시](#실전-예시)
+9. [고급 설정](#고급-설정)
+10. [문제 해결](#문제-해결)
+11. [베스트 프랙티스](#베스트-프랙티스)
 
-* * *
+---
 
 ## 개요
 
 agent-evaluator는 **Zero Configuration** 철학을 따릅니다. 별도의 설정 파일이나 환경 변수 없이도 자동으로 올바른 위치에 데이터를 저장합니다.
 
-* * *
+v0.7.3 기준 모든 핵심 클래스가 Zero Configuration을 완벽하게 지원합니다:
 
-## 핵심 개념
+- `PerformanceMonitor` / `HybridPerformanceMonitor`
+- `KoreanRAGEvaluator`
+- `TestTransparencyManager`
+- `QuickEval`
 
-### 프로젝트 구조
+---
+
+## 프로젝트 구조
 
 agent-evaluator는 다음과 같은 표준 프로젝트 구조를 권장합니다:
+
 ```
-    MyProject/                    # 프로젝트 루트
-    ├── .git/                     # Git 저장소 (선택사항)
-    ├── results/                  # ✓ 자동 저장 위치 (기본값)
-    │   ├── *_evaluation.json     # 평가 결과
-    │   ├── *_report.html         # HTML 리포트
-    │   └── golden_datasets/      # Golden Datasets
-    ├── my_agent.py               # Agent 코드
-    └── requirements.txt
+MyProject/                    # 프로젝트 루트
+├── .git/                     # Git 저장소 (선택사항)
+├── results/                  # 자동 저장 위치 (기본값)
+│   ├── *_evaluation.json     # 평가 결과
+│   ├── *_report.html         # HTML 리포트
+│   └── golden_datasets/      # Golden Datasets
+├── data/
+│   └── golden_datasets/      # GoldenSetBuilder 기본 경로
+├── my_agent.py
+└── requirements.txt
 ```
 
-### 자동 경로 감지
+---
+
+## 자동 경로 감지 원리
 
 agent-evaluator는 다음 우선순위로 결과 저장 위치를 결정합니다:
 
-  1. **환경 변수** `AGENT_EVALUATOR_OUTPUT_DIR` (명시적 지정)
-  2. **Git 저장소 루트** 아래 `results/` 디렉토리
-  3. **현재 작업 디렉토리** 아래 `results/` (폴백)
+1. **환경 변수** `AGENT_EVALUATOR_OUTPUT_DIR` (명시적 지정, 최우선)
+2. **환경 변수** `AGENT_EVALUATOR_ROOT` (프로젝트 루트 지정)
+3. **Git 저장소 루트** 아래 `results/` 디렉토리
+4. **현재 작업 디렉토리** 아래 `results/` (폴백)
 
-감지된 위치에 자동으로 `results/`를 생성하고 저장합니다.
+감지된 위치에 자동으로 `results/` 디렉토리를 생성하고 저장합니다.
 
-* * *
+### 탐지 로직 (내부 구현)
 
-## 사용 방법
-
-### 1\. 기본 사용 (Zero Configuration)
 ```python
-    from agent_evaluator import PerformanceMonitor, TaskResult, TaskType
-    from datetime import datetime
-    
-    # 1. PerformanceMonitor 생성 (설정 불필요)
-    monitor = PerformanceMonitor()
-    
-    # 2. Task 기록
-    task = TaskResult(
-        task_id="task_001",
-        task_type=TaskType.QA.value,
-        success=True,
-        completion_score=1.0,
-        accuracy_score=0.95,
-        execution_time=1.2,
-        tokens_used={"input": 100, "output": 50, "total": 150},
-        tool_calls=[],
-        attempts=1,
-        errors=[],
-        timestamp=datetime.now()
-    )
-    
-    monitor.record_task(task)
-    
-    # 3. 저장 (자동으로 올바른 위치에 저장)
-    monitor.save_to_file("my_evaluation.json")
-    # → {프로젝트_루트}/results/my_evaluation.json
+from pathlib import Path
+import os
+
+def find_project_root() -> Path:
+    # 1. 환경 변수 확인
+    if 'AGENT_EVALUATOR_ROOT' in os.environ:
+        root = Path(os.environ['AGENT_EVALUATOR_ROOT'])
+        if root.exists():
+            return root.resolve()
+
+    # 2. Git 저장소 루트 찾기 (상위 디렉토리 순회)
+    current = Path.cwd()
+    while current != current.parent:
+        if (current / ".git").exists():
+            return current.resolve()
+        current = current.parent
+
+    # 3. 폴백: 현재 작업 디렉토리
+    return Path.cwd().resolve()
 ```
 
-#### 💡 저장되는 위치
+---
 
-  * Git 프로젝트인 경우: `{Git_Root}/results/`
-  * Dashboard 폴더가 있는 경우: `{Dashboard_Parent}/results/`
-  * 그 외: `{Current_Dir}/results/`
+## 기본 사용법
 
-### 2\. KoreanRAGEvaluator (Zero Configuration)
+### 권장 방식: QuickEval 데코레이터
+
 ```python
-    from agent_evaluator.datasets.korean_rag_evaluator import KoreanRAGEvaluator
-    
-    # Zero Configuration - 경로 지정 안 함!
-    evaluator = KoreanRAGEvaluator()
-    # → 자동으로 results/에 저장
-    # → 자동으로 data/golden_datasets/ 사용
-    
-    # 평가 수행
-    results = evaluator.evaluate_dataset(dataset)
-    # → {프로젝트_루트}/results/에 자동 저장
+from agent_evaluator import QuickEval
+
+# output_dir 생략 → 자동 경로 감지
+eval = QuickEval()
+
+@eval.qa
+def my_agent(question: str, ground_truth: str = "") -> str:
+    return llm.invoke(question)
+
+@eval.rag
+def rag_agent(question: str, context: str = "", ground_truth: str = "") -> str:
+    return retriever.query(question, context)
+
+# 평가 실행
+my_agent("한국의 수도는?", ground_truth="서울")
+
+# 저장 (자동으로 {프로젝트_루트}/results/ 에 저장)
+eval.save()
 ```
 
-### 3\. TestTransparencyManager (Zero Configuration)
+### 저장 위치 확인
+
 ```python
-    from agent_evaluator.utils.transparency_manager import TestTransparencyManager
-    
-    # Zero Configuration - 경로 지정 안 함!
-    transparency_mgr = TestTransparencyManager()
-    # → 자동으로 results/에 저장
-    # → traces/, annotations/, audit_logs/ 서브디렉토리 자동 생성
-    
-    # Trace 기록
-    trace_id = transparency_mgr.start_metric_calculation("accuracy", "quality")
-    transparency_mgr.complete_metric_calculation(trace_id, 0.95)
-    # → {프로젝트_루트}/results/traces/에 자동 저장
+from agent_evaluator.utils.path_helpers import find_project_root, get_evaluation_results_dir
+
+print("프로젝트 루트:", find_project_root())
+# → /home/user/Projects/MyProject
+
+print("결과 저장 경로:", get_evaluation_results_dir())
+# → /home/user/Projects/MyProject/results
 ```
 
-### 4\. 환경 변수로 명시적 지정
+### PerformanceMonitor 직접 사용
 
-프로젝트 루트를 명시적으로 지정하고 싶은 경우:
-```bash
-    # Linux/Mac
-    export AGENT_EVALUATOR_ROOT=/path/to/my/project
-    
-    # Windows
-    set AGENT_EVALUATOR_ROOT=C:\path\to\my\project
-    
-    # Python 코드에서
-    import os
-    os.environ['AGENT_EVALUATOR_ROOT'] = '/path/to/my/project'
-```
-
-### 5\. 절대 경로 사용 (옵션)
-
-특정 위치에 저장하고 싶은 경우:
 ```python
-    # 절대 경로 사용 시 자동 경로 감지를 우회
-    monitor.save_to_file("/custom/path/my_evaluation.json")
-    
-    # KoreanRAGEvaluator에서 커스텀 경로 지정
-    evaluator = KoreanRAGEvaluator(
-        output_dir="/custom/evaluation_results",
-        golden_datasets_dir="/custom/golden_datasets"
-    )
-    
-    # TestTransparencyManager에서 커스텀 경로 지정
-    transparency_mgr = TestTransparencyManager(output_dir="/custom/evaluation_results")
+from agent_evaluator import PerformanceMonitor, create_taskresult
+
+# output_dir 생략 → 자동 경로 감지
+monitor = PerformanceMonitor()
+
+result = create_taskresult(
+    task_id="task_001",
+    question="한국의 수도는?",
+    response="서울입니다.",
+    ground_truth="서울",
+    execution_time=1.2,
+    task_type="qa",
+)
+
+monitor.record_task(result)
+
+# 저장 — 자동으로 {프로젝트_루트}/results/ 에 저장
+monitor.save_to_file("my_evaluation")
+# → MyProject/results/my_evaluation_evaluation.json
+# → MyProject/results/my_evaluation_report.html
 ```
 
-* * *
+### KoreanRAGEvaluator
 
-## 작동 원리
-
-### 통합 경로 헬퍼 모듈
-
-모든 Zero Configuration 로직이 `agent_evaluator.utils.path_helpers` 모듈로 통합되었습니다.
-
-#### ✨ 주요 개선사항
-
-  * **코드 통합** : 113줄의 중복 코드를 단일 모듈로 통합
-  * **타입 일관성** : 모든 함수가 `Path` 객체 반환 (하위 호환성 유지)
-  * **Dashboard 검증 강화** : `agent_evaluator/serve/server.py` 존재 확인
-  * **자동 디렉토리 생성** : 필요한 경로 자동 생성
-
-#### 핵심 함수들
 ```python
-    from agent_evaluator.utils.path_helpers import (
-        find_project_root,           # 프로젝트 루트 자동 탐지
-        get_evaluation_results_dir,  # 평가 결과 디렉토리 경로
-        get_dashboard_dir,           # Dashboard 디렉토리 경로
-        is_valid_dashboard           # Dashboard 유효성 검증
-    )
-    
-    # 1. 프로젝트 루트 자동 탐지
-    project_root = find_project_root()
-    print(f"프로젝트 루트: {project_root}")
-    # → /home/user/Projects/MyProject
-    
-    # 2. 평가 결과 디렉토리 (자동 생성)
-    results_dir = get_evaluation_results_dir()
-    print(f"결과 저장 경로: {results_dir}")
-    # → /home/user/Projects/MyProject/results
-    
-    # 3. Dashboard 디렉토리
-    dashboard_dir = get_dashboard_dir()
-    print(f"Dashboard 경로: {dashboard_dir}")
-    # → /home/user/Projects/MyProject/Dashboard
-    
-    # 4. Dashboard 유효성 검증
-    is_valid = is_valid_dashboard(dashboard_dir)
-    print(f"유효한 Dashboard: {is_valid}")
-    # → True (agent-eval dashboard 실행 가능 시)
+from agent_evaluator.datasets.korean_rag_evaluator import KoreanRAGEvaluator
+
+# output_dir 생략 → 자동으로 results/에 저장
+evaluator = KoreanRAGEvaluator()
+
+results = evaluator.evaluate_dataset(dataset)
+# → {프로젝트_루트}/results/에 자동 저장
 ```
 
-### 프로젝트 루트 감지 과정
+### TestTransparencyManager
+
 ```python
-    from pathlib import Path
-    import os
-    
-    def find_project_root() -> Path:
-        """프로젝트 루트 디렉토리 자동 탐지 (Zero Configuration)
-    
-        탐지 우선순위:
-            1. 환경 변수 AGENT_EVALUATOR_ROOT
-            2. Git 저장소 루트 (.git)
-            3. Dashboard 디렉토리 (agent-eval dashboard 실행 가능 여부 검증)
-            4. 현재 작업 디렉토리 (폴백)
-    
-        Returns:
-            Path: 프로젝트 루트 절대 경로
-        """
-    
-        # 1. 환경 변수 확인
-        if 'AGENT_EVALUATOR_ROOT' in os.environ:
-            root = Path(os.environ['AGENT_EVALUATOR_ROOT'])
-            if root.exists():
-                return root.resolve()
-    
-        # 2. Git 저장소 루트 찾기
-        current = Path.cwd()
-        while current != current.parent:
-            if (current / ".git").exists():
-                return current.resolve()
-            current = current.parent
-    
-        # 3. Dashboard 디렉토리 찾기 (실제 agent_evaluator Dashboard 검증)
-        current = Path.cwd()
-        while current != current.parent:
-            dashboard = current / "Dashboard"
-            if dashboard.exists() and dashboard.is_dir():
-                # ✓ 실제 agent_evaluator Dashboard인지 확인
-                # FastAPI 대시보드: agent-eval dashboard (agent_evaluator/serve/server.py)
-                if dashboard.exists():
-                    return current.resolve()
-            current = current.parent
-    
-        # 4. 폴백: 현재 작업 디렉토리
-        return Path.cwd().resolve()
+from agent_evaluator.utils.transparency_manager import TestTransparencyManager
+
+# 경로 지정 없이 사용
+transparency_mgr = TestTransparencyManager()
+
+trace_id = transparency_mgr.start_metric_calculation("accuracy", "quality")
+transparency_mgr.complete_metric_calculation(trace_id, 0.95)
+# → {프로젝트_루트}/results/traces/에 자동 저장
 ```
 
-#### 💡 Dashboard 검증 로직
+---
 
-v0.5.7부터 Dashboard 디렉토리를 찾을 때 **실제 agent_evaluator Dashboard인지 검증** 합니다:
+## Path Helpers 모듈
 
-  * `server.py` 존재 확인 (FastAPI 앱)
-  * `~/.agent_evaluator/registry.json` 레지스트리 확인
-  * 둘 중 하나라도 존재하면 유효한 Dashboard로 인정
-  * 이를 통해 우연히 같은 이름을 가진 다른 폴더와 구분
+모든 Zero Configuration 로직은 `agent_evaluator.utils.path_helpers` 모듈로 통합되어 있습니다.
 
-### 자동 저장 로직
+### 주요 함수
+
 ```python
-    def save_to_file(self, filename: str = "performance_data.json"):
-        """자동으로 올바른 위치에 저장"""
-    
-        # 상대 경로인 경우 자동 경로 해석
-        if not os.path.isabs(filename):
-            project_root = self._find_project_root()
-            results_dir = os.path.join(project_root, 'results')
-            os.makedirs(results_dir, exist_ok=True)  # 디렉토리 자동 생성
-            filename = os.path.join(results_dir, filename)
-    
-        # 파일 저장
-        with open(filename, 'w', encoding='utf-8') as f:
-            json.dump(data, f, indent=2, ensure_ascii=False)
+from agent_evaluator.utils.path_helpers import (
+    find_project_root,           # 프로젝트 루트 자동 탐지
+    get_evaluation_results_dir,  # 평가 결과 디렉토리 경로 (자동 생성)
+    get_dashboard_dir,           # Dashboard 디렉토리 경로
+    is_valid_dashboard           # Dashboard 유효성 검증
+)
+
+# 프로젝트 루트 탐지
+project_root = find_project_root()
+print(f"프로젝트 루트: {project_root}")
+
+# 평가 결과 디렉토리 (없으면 자동 생성됨)
+results_dir = get_evaluation_results_dir()
+print(f"결과 저장 경로: {results_dir}")
 ```
 
-* * *
+### 커스텀 프로젝트 루트 지정
 
-## Dashboard 통합
-
-### 자동 레지스트리 등록
-
-저장된 파일은 자동으로 `~/.agent_evaluator/registry.json`에 등록됩니다:
-```json
-    {
-      "version": "0.6.3",
-      "created_at": "2026-03-20T10:00:00",
-      "data_files": {
-        "/path/to/results/my_evaluation.json": {
-          "filepath": "/path/to/results/my_evaluation.json",
-          "project_name": "MyProject",
-          "registered_at": "2026-03-17T10:00:00",
-          "last_modified": "2026-03-17T10:00:00",
-          "file_size": 1234,
-          "metadata": {
-            "total_tasks": 10,
-            "framework": "langchain"
-          }
-        }
-      }
-    }
-```
-
-### Dashboard에서 자동 인식
-
-Dashboard는 다음 방법으로 데이터를 자동 인식합니다:
-
-  1. **로컬 데이터** : `results/` 폴더 스캔
-  2. **레지스트리** : `~/.agent_evaluator/registry.json` 읽기
-  3. **외부 프로젝트** : "🔗 외부 데이터 소스" 탭에서 확인
-
-* * *
-
-## 실전 예시
-
-### 예시 1: Git 프로젝트
-```
-    MyProject/
-    ├── .git/                    # ← Git 루트 감지
-    ├── results/                 # ← 여기에 자동 저장
-    │   ├── my_eval.json
-    │   └── golden_datasets/
-    ├── my_agent.py
-    └── run_evaluation.py
-```
 ```python
-    # run_evaluation.py
-    from agent_evaluator import PerformanceMonitor
+from pathlib import Path
+from agent_evaluator.utils.path_helpers import get_evaluation_results_dir
 
-    monitor = PerformanceMonitor()
-    # ... task 기록 ...
-    monitor.save_to_file("my_eval")
-    # → MyProject/results/my_eval_evaluation.json
+custom_root = Path("/path/to/custom/project")
+results_dir = get_evaluation_results_dir(project_root=custom_root)
+# → /path/to/custom/project/results
 ```
 
-### 예시 2: 일반 프로젝트 (.git 없음)
-```
-    AgentApp/
-    ├── results/                 # ← 여기에 자동 생성/저장
-    └── src/
-        └── agent.py
-```
+### 여러 프로젝트 동시 관리
+
 ```python
-    # src/agent.py
-    from agent_evaluator import PerformanceMonitor
+from pathlib import Path
+from agent_evaluator.utils.path_helpers import get_evaluation_results_dir
 
-    monitor = PerformanceMonitor()
-    monitor.save_to_file("agent_results")
-    # → AgentApp/results/agent_results_evaluation.json
-```
+project_a = Path("/projects/ProjectA")
+project_b = Path("/projects/ProjectB")
 
-### 예시 3: 환경 변수 사용
-```bash
-    # 프로젝트 루트 명시적 지정
-    export AGENT_EVALUATOR_ROOT=/home/user/projects/MyAgent
-    
-    # 어디서든 실행 가능
-    cd /tmp
-    python /home/user/projects/MyAgent/src/agent.py
-    # → /home/user/projects/MyAgent/results/에 저장
-```
+results_a = get_evaluation_results_dir(project_a)
+results_b = get_evaluation_results_dir(project_b)
 
-* * *
-
-## Dashboard 실행
-
-### FastAPI 대시보드 시작 (v0.5.2+)
-
-별도 설치 없이 `agent-eval dashboard`로 대시보드를 바로 실행할 수 있습니다:
-```bash
-    # 기본 실행 (포트 8765, 브라우저 자동 오픈)
-    agent-eval dashboard
-
-    # results/ 디렉토리 지정
-    agent-eval dashboard results/
-
-    # 포트 및 옵션 지정
-    agent-eval dashboard --port 8080 --watch
-```
-
-대시보드가 자동으로 `results/` 디렉토리의 평가 결과를 인식합니다.
-관점 기반 UI(품질/성능/에이전틱/보안)로 데이터를 시각화합니다.
-
-* * *
-
-## Path Helpers 모듈 직접 사용
-
-### 기본 사용법
-
-기존 클래스 메서드 대신 `path_helpers` 모듈을 직접 사용할 수 있습니다:
-```python
-    from agent_evaluator.utils.path_helpers import (
-        find_project_root,
-        get_evaluation_results_dir,
-        get_dashboard_dir,
-        is_valid_dashboard
-    )
-    
-    # 프로젝트 루트 탐지
-    project_root = find_project_root()
-    print(f"📁 프로젝트 루트: {project_root}")
-    
-    # 평가 결과 디렉토리 (자동 생성됨)
-    results_dir = get_evaluation_results_dir()
-    print(f"💾 결과 저장 경로: {results_dir}")
-    
-    # Dashboard 디렉토리
-    dashboard_dir = get_dashboard_dir()
-    print(f"📊 Dashboard 경로: {dashboard_dir}")
-    
-    # Dashboard 유효성 검증
-    if is_valid_dashboard(dashboard_dir):
-        print("✅ 유효한 Dashboard입니다!")
-    else:
-        print("⚠️ Dashboard가 존재하지 않거나 유효하지 않습니다.")
+print(f"Project A: {results_a}")
+print(f"Project B: {results_b}")
 ```
 
 ### 마이그레이션 가이드
 
-기존 코드를 새로운 `path_helpers` 모듈로 마이그레이션하는 방법:
+하드코딩된 경로를 Zero Configuration으로 전환하는 방법:
 
-#### Before (하드코딩된 경로)
+**Before (하드코딩)**
 ```python
-    from pathlib import Path
-    
-    # ❌ 문제: 상위 디렉토리를 하드코딩하면 잘못된 위치에 저장될 수 있음
-    PROJECT_ROOT = Path(__file__).parent.parent
-    EVALUATION_RESULTS_DIR = PROJECT_ROOT / "results"
-    
-    # 결과 저장
-    with open(EVALUATION_RESULTS_DIR / "results.json", 'w') as f:
-        json.dump(data, f)
+from pathlib import Path
+
+PROJECT_ROOT = Path(__file__).parent.parent  # 잘못된 위치에 저장될 수 있음
+EVALUATION_RESULTS_DIR = PROJECT_ROOT / "results"
+
+with open(EVALUATION_RESULTS_DIR / "results.json", 'w') as f:
+    json.dump(data, f)
 ```
 
-#### After (Zero Configuration)
+**After (Zero Configuration)**
 ```python
-    from agent_evaluator.utils.path_helpers import get_evaluation_results_dir
-    
-    # ✅ 해결: 자동으로 올바른 위치 탐지
-    results_dir = get_evaluation_results_dir()
-    
-    # 결과 저장 (디렉토리 자동 생성됨)
-    with open(results_dir / "results.json", 'w') as f:
-        json.dump(data, f)
+from agent_evaluator.utils.path_helpers import get_evaluation_results_dir
+
+results_dir = get_evaluation_results_dir()  # 자동으로 올바른 위치 탐지
+
+with open(results_dir / "results.json", 'w') as f:
+    json.dump(data, f)
 ```
 
-#### Before (구버전 클래스 메서드 — 제거됨)
-```python
-    from agent_evaluator import PerformanceMonitor
+> `PerformanceMonitor._find_project_root()` 클래스 메서드는 제거되었습니다.
+> `from agent_evaluator.utils.path_helpers import find_project_root`를 직접 사용하세요.
 
-    # ❌ 제거됨 — AttributeError 발생 (v0.5.7+ 기준)
-    # project_root = PerformanceMonitor._find_project_root()
-    # results_dir = project_root / "results"
+---
+
+## 환경 변수 설정
+
+명시적으로 경로를 지정하고 싶은 경우 환경 변수를 사용합니다:
+
+```bash
+# 결과 저장 디렉토리 직접 지정 (최우선)
+export AGENT_EVALUATOR_OUTPUT_DIR=/path/to/results
+
+# 프로젝트 루트 지정
+export AGENT_EVALUATOR_ROOT=/path/to/my/project
 ```
 
-#### After (직접 import)
 ```python
-    from agent_evaluator.utils.path_helpers import find_project_root, get_evaluation_results_dir
-    
-    # ✅ 권장: 직접 path_helpers 모듈 사용
-    project_root = find_project_root()
-    results_dir = get_evaluation_results_dir()
+# Python 코드에서 설정
+import os
+os.environ['AGENT_EVALUATOR_ROOT'] = '/path/to/my/project'
+
+# 이후 모든 save_to_file() 호출은 지정된 루트 사용
+monitor.save_to_file("my_evaluation")
+# → /path/to/my/project/results/my_evaluation_evaluation.json
 ```
 
-#### 💡 마이그레이션 필수
+### 특정 위치에 직접 저장
 
-`PerformanceMonitor._find_project_root()` 클래스 메서드는 **제거되었습니다**. `path_helpers` 모듈을 직접 사용해야 합니다.
-
-  * ❌ 구버전 코드: `monitor._find_project_root()` → `AttributeError`
-  * ✅ 현재 코드: `from agent_evaluator.utils.path_helpers import find_project_root`
-
-### 고급 사용 예시
-
-#### 커스텀 프로젝트 루트 지정
 ```python
-    from pathlib import Path
-    from agent_evaluator.utils.path_helpers import get_evaluation_results_dir
-    
-    # 특정 프로젝트 루트 지정
-    custom_root = Path("/path/to/custom/project")
-    results_dir = get_evaluation_results_dir(project_root=custom_root)
-    # → /path/to/custom/project/results
-    
-    # 환경 변수로 전역 설정
-    import os
-    os.environ['AGENT_EVALUATOR_ROOT'] = '/path/to/custom/project'
-    
-    # 이후 모든 호출은 지정된 루트 사용
-    results_dir = get_evaluation_results_dir()
-    # → /path/to/custom/project/results
+# 절대 경로 사용 시 자동 경로 감지를 우회
+monitor.save_to_file("/custom/path/results/results.json")
+
+evaluator = KoreanRAGEvaluator(
+    output_dir="/custom/evaluation_results",
+    golden_datasets_dir="/custom/golden_datasets"
+)
 ```
 
-#### 여러 프로젝트 동시 관리
-```python
-    from pathlib import Path
-    from agent_evaluator.utils.path_helpers import get_evaluation_results_dir, is_valid_dashboard
-    
-    # 프로젝트 A
-    project_a = Path("/projects/ProjectA")
-    results_a = get_evaluation_results_dir(project_a)
-    print(f"Project A 결과: {results_a}")
-    
-    # 프로젝트 B
-    project_b = Path("/projects/ProjectB")
-    results_b = get_evaluation_results_dir(project_b)
-    print(f"Project B 결과: {results_b}")
-    
-    # Dashboard 유효성 개별 검증
-    for project in [project_a, project_b]:
-        dashboard = project / "Dashboard"
-        status = "✅ 유효" if is_valid_dashboard(dashboard) else "❌ 무효"
-        print(f"{project.name}: {status}")
+---
+
+## Dashboard 통합
+
+### FastAPI 대시보드 시작
+
+```bash
+# 기본 실행 (포트 8765)
+agent-eval dashboard
+
+# results/ 디렉토리 지정
+agent-eval dashboard results/
+
+# 포트 및 파일 감시 옵션
+agent-eval dashboard --port 8080 --watch
 ```
 
-### path_helpers 모듈 사용의 이점
+대시보드는 `results/` 디렉토리의 평가 결과를 자동으로 인식합니다.
+품질 / 성능 / 에이전틱 / 보안 관점의 UI로 데이터를 시각화합니다.
 
-이점 | 설명  
----|---  
-**코드 중복 제거** | 113줄의 중복 코드를 단일 모듈로 통합  
-**타입 안전성** | 일관된 `Path` 객체 반환으로 타입 에러 방지  
-**Dashboard 검증** | 실제 agent_evaluator Dashboard인지 자동 확인  
-**자동 생성** | 필요한 디렉토리를 자동으로 생성  
-**명시적 API** | 용도에 맞는 전용 함수 제공 (`get_evaluation_results_dir` 등)  
-**하위 호환성** | 기존 코드를 수정하지 않아도 됨  
-**테스트 용이성** | 경로 로직을 독립적으로 테스트 가능  
-  
-* * *
+### 자동 레지스트리 등록
+
+`save_to_file()` 호출 시 결과 파일이 `~/.agent_evaluator/registry.json`에 자동 등록됩니다:
+
+```json
+{
+  "version": "0.7.3",
+  "created_at": "2026-04-07T10:00:00",
+  "data_files": {
+    "/path/to/results/my_evaluation.json": {
+      "filepath": "/path/to/results/my_evaluation.json",
+      "project_name": "MyProject",
+      "registered_at": "2026-04-07T10:00:00",
+      "last_modified": "2026-04-07T10:00:00",
+      "file_size": 1234,
+      "metadata": {
+        "total_tasks": 10,
+        "framework": "langchain"
+      }
+    }
+  }
+}
+```
+
+---
+
+## 실전 예시
+
+### 예시 1: Git 프로젝트
+
+```
+MyProject/
+├── .git/                    # Git 루트 자동 감지
+├── results/                 # 여기에 자동 저장
+│   ├── my_eval_evaluation.json
+│   └── my_eval_report.html
+├── my_agent.py
+└── run_evaluation.py
+```
+
+```python
+# run_evaluation.py
+from agent_evaluator import QuickEval
+
+eval = QuickEval()  # Git 루트 자동 감지
+
+@eval.qa
+def my_agent(question: str, ground_truth: str = "") -> str:
+    return llm.invoke(question)
+
+my_agent("테스트 질문", ground_truth="예상 답변")
+eval.save()  # → MyProject/results/quickeval.json
+```
+
+### 예시 2: 일반 프로젝트 (.git 없음)
+
+```
+AgentApp/
+├── results/                 # 자동 생성/저장
+└── src/
+    └── agent.py
+```
+
+```python
+# src/agent.py
+from agent_evaluator import PerformanceMonitor
+
+monitor = PerformanceMonitor()
+monitor.save_to_file("agent_results")
+# → AgentApp/results/agent_results_evaluation.json
+```
+
+### 예시 3: 환경 변수로 루트 명시
+
+```bash
+export AGENT_EVALUATOR_ROOT=/home/user/projects/MyAgent
+
+# 어느 디렉토리에서 실행해도 동일한 위치에 저장
+cd /tmp
+python /home/user/projects/MyAgent/src/agent.py
+# → /home/user/projects/MyAgent/results/ 에 저장
+```
+
+### 예시 4: CI/CD 품질 게이트
+
+```python
+from agent_evaluator import QuickEval
+
+eval = QuickEval("results/")
+
+@eval.qa
+def my_agent(question: str, ground_truth: str = "") -> str:
+    return llm.invoke(question)
+
+# 평가 실행
+for q, gt in test_cases:
+    my_agent(q, ground_truth=gt)
+
+eval.save()
+
+# CI/CD 게이트 — 실패 시 sys.exit(1)
+eval.gate(tcr=85, accuracy=70)
+```
+
+---
 
 ## 고급 설정
 
-### 커스텀 데이터 경로
-
-특정 경로를 사용하고 싶은 경우:
-```python
-    # 방법 1: 환경 변수
-    import os
-    os.environ['AGENT_EVALUATOR_ROOT'] = '/custom/path'
-    
-    # 방법 2: 절대 경로
-    monitor.save_to_file("/custom/path/results/results.json")
-```
-
 ### 멀티 프로젝트 환경
 
-여러 프로젝트를 운영하는 경우:
 ```
-    Projects/
-    ├── ProjectA/
-    │   └── results/  # ProjectA 데이터
-    ├── ProjectB/
-    │   └── results/  # ProjectB 데이터
-    └── Shared_Dashboard/
-        └── data/
-            └── evaluation_results/              # 통합 대시보드용 (레지스트리에서 가져오기)
+Projects/
+├── ProjectA/
+│   └── results/    # ProjectA 전용 데이터
+├── ProjectB/
+│   └── results/    # ProjectB 전용 데이터
 ```
 
-* * *
+각 프로젝트 디렉토리에서 실행하면 해당 프로젝트의 `results/`에 자동 저장됩니다.
+
+### 자동 저장 (auto_save)
+
+```python
+monitor = PerformanceMonitor(
+    output_dir="results/",
+    auto_save=True,
+    auto_save_interval=10,      # 10건마다 자동 저장
+    auto_save_filename="auto_checkpoint",
+)
+```
+
+### QuickEval 자동 저장
+
+```python
+eval = QuickEval("results/", auto_save=True, auto_save_interval=10)
+```
+
+---
 
 ## 문제 해결
 
 ### Q1: 데이터가 잘못된 위치에 저장됩니다
 
-#### ⚠️ 확인사항
+현재 감지된 경로를 확인하세요:
 
-  1. 현재 작업 디렉토리 확인: `pwd` (Linux/Mac) 또는 `cd` (Windows)
-  2. Git 저장소 확인: `.git` 폴더 위치
-  3. Dashboard 폴더 확인: `Dashboard/` 디렉토리 존재 여부
-
-**해결방법:**
 ```python
-    # 프로젝트 루트 확인
-    from agent_evaluator.utils.path_helpers import find_project_root
-    print("감지된 프로젝트 루트:", find_project_root())
+from agent_evaluator.utils.path_helpers import find_project_root, get_evaluation_results_dir
 
-    # 명시적 지정
-    import os
-    os.environ['AGENT_EVALUATOR_ROOT'] = '/correct/path'
+print("감지된 프로젝트 루트:", find_project_root())
+print("결과 저장 경로:", get_evaluation_results_dir())
+```
+
+올바르지 않다면 환경 변수로 명시 지정:
+
+```python
+import os
+os.environ['AGENT_EVALUATOR_ROOT'] = '/correct/path'
 ```
 
 ### Q2: Dashboard에서 데이터가 보이지 않습니다
 
-**확인사항:**
+1. `results/` 폴더에 JSON 파일 존재 확인: `ls -la results/`
+2. Dashboard를 프로젝트 루트에서 실행했는지 확인
+3. 파일 권한 확인
 
-  1. Dashboard 실행 위치가 올바른지 확인
-  2. `results/` 폴더에 JSON 파일 존재 확인
-  3. 파일 권한 확인
-
-**해결방법:**
-```python
-    # 데이터 파일 확인
-    ls -la results/
-    
-    # Dashboard 실행 (올바른 위치에서)
-    cd /path/to/MyProject
-    agent-eval dashboard
+```bash
+cd /path/to/MyProject
+agent-eval dashboard
 ```
 
 ### Q3: 레지스트리에 등록되지 않습니다
 
-**확인사항:**
+```bash
+# 레지스트리 파일 확인
+cat ~/.agent_evaluator/registry.json
 
-  * `~/.agent_evaluator/registry.json` 파일 존재 및 권한 확인
-
-**해결방법:**
-```
-    # 레지스트리 파일 확인
-    cat ~/.agent_evaluator/registry.json
-    
-    # 레지스트리 디렉토리 재생성
-    mkdir -p ~/.agent_evaluator
-    chmod 755 ~/.agent_evaluator
+# 레지스트리 디렉토리 재생성
+mkdir -p ~/.agent_evaluator
+chmod 755 ~/.agent_evaluator
 ```
 
-* * *
+---
 
 ## 베스트 프랙티스
 
-### ✅ 권장 사항
+**권장 사항:**
 
-  1. **Git 프로젝트 사용** : Git 저장소로 관리하면 자동 감지가 더 정확합니다
-  2. **Dashboard 폴더 생성** : 프로젝트 루트에 `Dashboard/` 폴더를 미리 생성
-  3. **상대 경로 사용** : `save_to_file("results.json")` \- 자동 경로 감지 활용
-  4. **일관된 구조 유지** : 표준 프로젝트 구조 유지
+- **Git 프로젝트 사용** — Git 저장소로 관리하면 자동 감지가 가장 정확합니다
+- **상대 경로 사용** — `save_to_file("results.json")` 형태로 자동 경로 감지 활용
+- **QuickEval 사용** — 데코레이터 방식이 가장 간결하고 권장됩니다
+- **일관된 구조 유지** — 표준 `results/` 폴더 구조 유지
 
-### ❌ 피해야 할 사항
+**피해야 할 사항:**
 
-  1. **절대 경로 남용** : 가능한 상대 경로 사용
-  2. **임의 위치에서 실행** : 프로젝트 루트 또는 하위 디렉토리에서 실행
-  3. **Dashboard 폴더 이름 변경** : `Dashboard` 이름 유지
-  4. **환경 변수 불필요한 설정** : Zero Configuration의 장점 활용
+- 소스 코드에 절대 경로 하드코딩
+- 프로젝트 루트 외부에서 스크립트 실행
+- `AGENT_EVALUATOR_ROOT` 환경 변수를 불필요하게 남용 (Zero Configuration의 장점 활용)
 
-* * *
+---
 
 ## 요약
 
-항목 | 설명  
----|---  
-**Zero Configuration** | 별도 설정 없이 자동으로 올바른 위치에 저장  
-**통합 모듈** | `agent_evaluator.utils.path_helpers`  
-**핵심 함수들** | `find_project_root()`, `get_evaluation_results_dir()`, `get_dashboard_dir()`, `is_valid_dashboard()`  
-**지원 클래스** | `PerformanceMonitor`, `HybridPerformanceMonitor`, `KoreanRAGEvaluator`, `TestTransparencyManager`  
-**프로젝트 루트 감지** | 환경변수 → Git 루트 → Dashboard 폴더 (검증) → 현재 디렉토리  
-**Dashboard 검증** | `agent-eval dashboard` 실행 가능 여부 확인
-**자동 저장 경로** | `{프로젝트_루트}/results/`  
-**Golden Datasets** | `{프로젝트_루트}/data/golden_datasets/`  
-**Transparency 데이터** | `{프로젝트_루트}/results/traces/`  
-**자동 레지스트리 등록** | `~/.agent_evaluator/registry.json`에 자동 등록  
-**Dashboard 통합** | Dashboard가 자동으로 데이터 인식  
-**환경 변수** | `AGENT_EVALUATOR_ROOT`로 명시적 지정 가능  
-**하위 호환성** | 기존 클래스 메서드 계속 지원 (내부적으로 통합 모듈 사용)  
-**100% 준수율** | 모든 핵심 클래스가 Zero Configuration 지원 ✅  
-  
-* * *
+| 항목 | 설명 |
+|------|------|
+| **Zero Configuration** | 별도 설정 없이 자동으로 올바른 위치에 저장 |
+| **통합 모듈** | `agent_evaluator.utils.path_helpers` |
+| **핵심 함수** | `find_project_root()`, `get_evaluation_results_dir()` |
+| **경로 감지 순서** | 환경변수 → Git 루트 → 현재 디렉토리 |
+| **자동 저장 경로** | `{프로젝트_루트}/results/` |
+| **Golden Datasets** | `{프로젝트_루트}/data/golden_datasets/` |
+| **환경 변수** | `AGENT_EVALUATOR_OUTPUT_DIR` (직접), `AGENT_EVALUATOR_ROOT` (루트) |
+| **레지스트리** | `~/.agent_evaluator/registry.json`에 자동 등록 |
 
-## 추가 정보
+---
 
-  * **Dashboard 가이드** : [DASHBOARD.html](<DASHBOARD.html>)
-  * **시작 가이드** : [GETTING_STARTED.html](<GETTING_STARTED.html>)
-  * **배포 가이드** : [06_DEPLOYMENT_GUIDE.md](<06_DEPLOYMENT_GUIDE.md>)
-  * **API 참조** : [07_API_REFERENCE.md](<07_API_REFERENCE.md>)
-
-* * *
-
-#### 🎉 100% Zero Configuration 달성!
-
-agent-evaluator v0.5.7 버전부터 모든 핵심 클래스가 Zero Configuration을 완벽하게 지원합니다!
-
-  * ✅ `PerformanceMonitor` \- 자동 경로 감지
-  * ✅ `HybridPerformanceMonitor` \- 상속으로 자동 적용
-  * ✅ `KoreanRAGEvaluator` \- 스크립트 위치 기반 자동 감지
-  * ✅ `TestTransparencyManager` \- 자동 경로 감지
-
-#### 주요 특징
-
-  * **통합 경로 헬퍼 모듈** : `agent_evaluator.utils.path_helpers` 제공
-  * **코드 중복 제거** : 중복 경로 탐지 로직을 단일 모듈로 통합
-  * **Dashboard 검증 강화** : `agent-eval dashboard` 실행 가능 여부 자동 검증
-  * **타입 일관성** : 모든 함수가 `Path` 객체 반환
-  * **자동 디렉토리 생성** : `get_evaluation_results_dir()`가 필요한 경로 자동 생성
-  * **클래스 메서드 제거** : `_find_project_root()` 메서드 제거, `path_helpers` 직접 사용 권장
-
-* * *
-
-**문서 버전** : 0.7.2
-**최종 업데이트** : 2026-04-05
-**변경사항** :  
-\- Evaluator_Examples 경로 탐지 로직 제거  
-\- 클래스 메서드 _find_project_root() 제거, path_helpers 직접 사용 권장  
-\- 통합 경로 헬퍼 모듈(`path_helpers`) 추가  
-\- Dashboard 검증 로직 강화  
-\- 마이그레이션 가이드 추가  
-\- 고급 사용 예시 추가
+**문서 버전**: v0.7.3  
+**최종 업데이트**: 2026-04-07

@@ -42,6 +42,7 @@ from agent_evaluator import (
     create_taskresult,
     evaluation_session,
 )
+from agent_evaluator.decorators import batch_eval, EvalMetadata
 from agent_evaluator.datasets.builder import GoldenSetBuilder
 
 
@@ -115,47 +116,88 @@ _FAIL_QA = [
 ]
 
 
+def _make_batch_evaluator(
+    batch_monitor: PerformanceMonitor,
+    cases: list,
+    rng: random.Random,
+    batch_idx: int,
+) -> callable:
+    """@batch_eval 데코레이터가 적용된 배치 QA 평가 에이전트 팩토리.
+
+    concurrent=True로 실행해 항목별 실패를 RuntimeError로 시뮬레이션한다.
+    성공 항목: (r_ok, EvalMetadata) 반환 / 실패 항목: RuntimeError 발생.
+    """
+    _case_map = {c[0]: c for c in cases}
+
+    @batch_eval(
+        batch_monitor,
+        task_type="qa",
+        task_id_prefix=f"gsb{batch_idx}",
+        return_format="dataframe",
+        concurrent=True,
+        max_concurrent=4,
+        shuffle=False,
+        flush_every=6,
+        flush_filename=f"13_golden_b{batch_idx:02d}",
+        on_item_error=lambda i, q, e: None,  # 실패 항목 조용히 기록
+    )
+    def _batch_agent(questions: list, ground_truths: list = None) -> list:
+        # concurrent=True → 1항목씩 호출됨 (len(questions)==1)
+        q = questions[0]
+        case = _case_map.get(q)
+        if case is None:
+            raise RuntimeError("unknown_question")
+        _, r_ok, r_fail, gt, ttype, category = case
+        if rng.random() < 0.35:        # 35% 실패 시뮬레이션
+            raise RuntimeError(f"{category}_failure")
+        return [(r_ok, EvalMetadata(attempts=1))]
+
+    def _run(questions: list, ground_truths: list) -> object:
+        return _batch_agent(questions=questions, ground_truths=ground_truths)
+
+    return _run
+
+
 def _generate_evaluation_files(results_dir: Path, rng: random.Random) -> list[Path]:
-    """여러 평가 결과 JSON 파일을 생성 (GoldenSetBuilder의 source_dir 입력)."""
+    """여러 평가 결과 JSON 파일을 생성 (GoldenSetBuilder의 source_dir 입력).
+
+    @batch_eval 데코레이터로 태스크를 배치 처리한다.
+    각 배치별로 PerformanceMonitor를 새로 생성해 독립적인 평가 파일을 저장한다.
+    """
+    import shutil
+
     source_dir = results_dir / "golden_source_demo"
     source_dir.mkdir(exist_ok=True)
 
     saved_files = []
     for batch_idx in range(3):
-        monitor = PerformanceMonitor(
+        batch_monitor = PerformanceMonitor(
             output_dir=str(results_dir),
             enable_hallucination_detection=True,
         )
 
         # 일반 케이스 + 실패 케이스 혼합
-        cases = _QA_PAIRS[batch_idx*3:(batch_idx+1)*3]
+        cases = _QA_PAIRS[batch_idx * 3:(batch_idx + 1) * 3]
         if batch_idx == 2:
             cases = cases + _FAIL_QA
 
-        for i, item in enumerate(cases):
-            q, r_ok, r_fail, gt, ttype, category = item
-            is_fail = rng.random() < 0.35  # 35% 실패
-            task_id = f"batch{batch_idx}_{i:03d}_{category}_{datetime.now().strftime('%H%M%S')}"
-            task = create_taskresult(
-                task_id=task_id,
-                question=q,
-                response=r_fail if is_fail else r_ok,
-                ground_truth=gt,
-                execution_time=rng.uniform(0.3, 1.8),
-                task_type=ttype,
-                has_error=is_fail,
-            )
-            monitor.record_task(task)
+        # ── @batch_eval 배치 평가 ────────────────────────────────────────────
+        batch_run = _make_batch_evaluator(batch_monitor, cases, rng, batch_idx)
+        df = batch_run(
+            questions=[c[0] for c in cases],
+            ground_truths=[c[3] for c in cases],
+        )
+        n_ok = int(df["success"].sum()) if hasattr(df, "columns") and "success" in df.columns else "?"
+        n_total = len(cases)
 
         fname = f"demo_batch_{batch_idx:02d}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
-        saved = monitor.save_to_file(fname)
+        saved = batch_monitor.save_to_file(fname)
         dest = source_dir / fname
 
         # source_dir로 복사 (GoldenSetBuilder가 이 디렉토리를 스캔)
-        import shutil
         shutil.copy2(saved, dest)
         saved_files.append(dest)
-        print(f"    배치 {batch_idx}: {len(cases)}개 태스크 → {dest.name}")
+        print(f"    배치 {batch_idx}: {n_total}개 태스크 ({n_ok}성공) → {dest.name}")
 
     return saved_files
 

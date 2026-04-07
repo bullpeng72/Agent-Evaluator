@@ -2,10 +2,10 @@
 
 Agent Evaluator 25개 지표의 공식·출력키·임계값 참조 문서
 
-**v0.7.2 | Layer 1: 6개 (무료) · Layer 2: 10개 (무료) · Layer 3: 9개 (API 필요)**
+**v0.7.3 | Layer 1: 6개 (무료) · Layer 2: 10개 (무료) · Layer 3: 9개 (API 필요)**
 
-> 개념 설명과 학습 내용은 `Lectures/M2`, `M3`, `M4`를 참조하세요.
 > 개별 트래커 API 시그니처는 [07_API_REFERENCE.md](07_API_REFERENCE.md)를 참조하세요.
+> 데코레이터 방식 적용은 [13_DECORATOR_GUIDE.md](13_DECORATOR_GUIDE.md)를 참조하세요.
 
 ---
 
@@ -201,7 +201,14 @@ stats = monitor.quality_evaluator.get_quality_metrics()
 ```python
 stats = monitor.latency_tracker.get_latency_stats()
 # {"p50": float, "p95": float, "p99": float, "mean": float, "sla_compliance_rate": float}
+
+# TTFT (Time-To-First-Token) — 스트리밍 에이전트 전용 (v0.7.2+)
+monitor.latency_tracker.track_ttft(task_id, ttft_seconds=0.3)
+ttft_stats = monitor.latency_tracker.get_ttft_stats()
+# {"mean_ttft": float, "p50_ttft": float, "p95_ttft": float}
 ```
+
+> 데코레이터 방식에서 제너레이터 함수의 첫 청크 yield 시점에 TTFT가 자동 기록됩니다.
 
 ---
 
@@ -363,7 +370,7 @@ balance_score   = 상호작용 유형 수 / 3 × 10
 ```
 
 허용 interaction_type: `delegation`, `communication`, `collaboration`
-(v0.6.3+: `task_delegation`→`delegation`, `result_sharing`→`communication` 등 자동 정규화)
+(`task_delegation`→`delegation`, `result_sharing`→`communication` 등 자동 정규화)
 
 **등급 기준 (0–10점)**
 
