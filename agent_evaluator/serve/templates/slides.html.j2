@@ -49,6 +49,7 @@ body.light {
 .reveal .slides section h1{
   font-size:50px!important;font-weight:800!important;letter-spacing:-1px!important;
   margin:0!important;color:var(--tc)!important;line-height:1.1!important;
+  text-transform:none!important;
 }
 /* ── Top bar ── */
 #ctrl-bar{
@@ -542,7 +543,7 @@ Reveal.initialize({
 /* ── File switcher ── */
 let _allFiles = [];
 async function initFileSelect(){
-  try { _allFiles = await (await fetch('/api/results')).json(); } catch(e){ return; }
+  try { const _r = await (await fetch('/api/results')).json(); _allFiles = Array.isArray(_r) ? _r : (_r.files||[]); } catch(e){ return; }
   if (!_allFiles?.length) return;
   const sel = document.getElementById('file-select');
   sel.innerHTML = _allFiles.map(f =>
@@ -1185,7 +1186,7 @@ function setKpi(id, val, cls){
   if(cls) el.className=`kpi-val ${cls}`;
 }
 function fmtPct(v){ return v==null?'—':(+v).toFixed(1)+'%'; }
-function fmtSec(v){ return v==null?'—':(+v).toFixed(2)+'s'; }
+function fmtSec(v){ if(v==null)return'—'; const n=+v; if(n===0)return'0ms'; if(n<0.001)return'<1ms'; if(n<1)return Math.round(n*1000)+'ms'; return n.toFixed(2)+'s'; }
 function fmtCost(v){
   if(v==null) return '—';
   const n=+v;

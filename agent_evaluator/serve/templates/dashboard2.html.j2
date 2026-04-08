@@ -1737,8 +1737,8 @@ input[type=text],input[type=number]{background:var(--bg3);color:var(--text);bord
       </div>
       <div class="kpi kpi-act" :class="{sel:selK==='p90'}" @click="selK=selK==='p90'?null:'p90'">
         <div class="kpi-lbl">P90</div>
-        <div class="kpi-val" :style="`color:${_bc2lat(_latPct((data.tasks||[]).map(t=>t.execution_time),90))}`"
-             x-text="_sec(_latPct((data.tasks||[]).map(t=>t.execution_time),90))"></div>
+        <div class="kpi-val" :style="`color:${_bc2lat(data.efficiency_metrics?.latency?.p90||_latPct((data.tasks||[]).map(t=>t.execution_time),90))}`"
+             x-text="_sec(data.efficiency_metrics?.latency?.p90||_latPct((data.tasks||[]).map(t=>t.execution_time),90))"></div>
       </div>
       <div class="kpi kpi-act" :class="{sel:selK==='p95'}" @click="selK=selK==='p95'?null:'p95'">
         <div class="kpi-lbl">P95</div>
@@ -7231,7 +7231,7 @@ input[type=text],input[type=number]{background:var(--bg3);color:var(--text);bord
 function _bc(v, hi, lo) { if(hi===undefined)hi=90; if(lo===undefined)lo=70; return v==null?'var(--text2)':v>=hi?'var(--green)':v>=lo?'var(--yellow)':'var(--red)'; }
 function _bc2lat(v) { return v==null?'var(--text2)':v<=2?'var(--green)':v<=5?'var(--yellow)':'var(--red)'; }
 function _pct(v) { return v==null?'0%':Math.min(100,Math.max(0,v)).toFixed(1)+'%'; }
-function _sec(v) { return v==null?'—':Number(v).toFixed(2)+'s'; }
+function _sec(v) { if(v==null)return '—'; const n=Number(v); if(n===0)return '0ms'; if(n<0.001)return '<1ms'; if(n<1)return Math.round(n*1000)+'ms'; return n.toFixed(2)+'s'; }
 function _latPct(arr, p) {
   const a = (arr||[]).filter(v=>v!=null).map(Number).sort((a,b)=>a-b);
   if (!a.length) return 0;

@@ -1232,20 +1232,21 @@ class LatencyTracker(BaseTracker):
     def _compute_stats(self, latencies: List[Dict[str, Any]]) -> Dict[str, float]:
         """Compute latency statistics from a list of latency records."""
         if not latencies:
-            return {"mean": 0.0, "median": 0.0, "p50": 0.0, "p95": 0.0, "p99": 0.0,
+            return {"mean": 0.0, "median": 0.0, "p50": 0.0, "p90": 0.0, "p95": 0.0, "p99": 0.0,
                     "min": 0.0, "max": 0.0, "std": 0.0}
 
         times = [lat["total_time"] for lat in latencies]
 
         return {
-            "mean": round(statistics.mean(times), 3),
-            "median": round(statistics.median(times), 3),
-            "p50": round(np.percentile(times, 50), 3),
-            "p95": round(np.percentile(times, 95), 3),
-            "p99": round(np.percentile(times, 99), 3),
-            "min": round(min(times), 3),
-            "max": round(max(times), 3),
-            "std": round(statistics.stdev(times) if len(times) > 1 else 0, 3),
+            "mean": round(statistics.mean(times), 4),
+            "median": round(statistics.median(times), 4),
+            "p50": round(np.percentile(times, 50), 4),
+            "p90": round(np.percentile(times, 90), 4),
+            "p95": round(np.percentile(times, 95), 4),
+            "p99": round(np.percentile(times, 99), 4),
+            "min": round(min(times), 4),
+            "max": round(max(times), 4),
+            "std": round(statistics.stdev(times) if len(times) > 1 else 0, 4),
         }
 
     def analyze_bottlenecks(self) -> Dict[str, Any]:
