@@ -1,6 +1,6 @@
 # Zero Configuration 가이드
 
-별도 설정 없이 자동으로 올바른 위치에 데이터를 저장하는 방법 — Agent Evaluator v0.7.3
+별도 설정 없이 자동으로 올바른 위치에 데이터를 저장하는 방법 — Agent Evaluator v0.7.4
 
 ## 목차
 
@@ -22,7 +22,7 @@
 
 agent-evaluator는 **Zero Configuration** 철학을 따릅니다. 별도의 설정 파일이나 환경 변수 없이도 자동으로 올바른 위치에 데이터를 저장합니다.
 
-v0.7.3 기준 모든 핵심 클래스가 Zero Configuration을 완벽하게 지원합니다:
+v0.7.4 기준 모든 핵심 클래스가 Zero Configuration을 완벽하게 지원합니다:
 
 - `PerformanceMonitor` / `HybridPerformanceMonitor`
 - `KoreanRAGEvaluator`
@@ -124,7 +124,30 @@ print("결과 저장 경로:", get_evaluation_results_dir())
 # → /home/user/Projects/MyProject/results
 ```
 
-### PerformanceMonitor 직접 사용
+### 데코레이터 방식 (권장)
+
+`output_dir` 생략 시 프로젝트 루트의 `results/` 에 자동 저장됩니다.
+
+```python
+from agent_evaluator import QuickEval
+
+# output_dir 생략 → 자동 경로 감지
+eval = QuickEval()
+
+@eval.qa
+def my_agent(question: str, ground_truth: str = "") -> str:
+    return llm.invoke(question)
+
+for question, answer in dataset:
+    my_agent(question, ground_truth=answer)
+
+eval.save("my_evaluation")
+# → {프로젝트_루트}/results/my_evaluation.json + .html 자동 저장
+```
+
+### PerformanceMonitor 직접 사용 (탈출구)
+
+> 데코레이터를 사용할 수 없는 경우에만 사용하세요.
 
 ```python
 from agent_evaluator import PerformanceMonitor, create_taskresult
@@ -316,7 +339,7 @@ agent-eval dashboard --port 8080 --watch
 
 ```json
 {
-  "version": "0.7.3",
+  "version": "0.7.4",
   "created_at": "2026-04-07T10:00:00",
   "data_files": {
     "/path/to/results/my_evaluation.json": {
@@ -525,5 +548,5 @@ chmod 755 ~/.agent_evaluator
 
 ---
 
-**문서 버전**: v0.7.3  
-**최종 업데이트**: 2026-04-07
+**문서 버전**: v0.7.4  
+**최종 업데이트**: 2026-04-08

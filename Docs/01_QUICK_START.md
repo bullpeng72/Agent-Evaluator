@@ -2,7 +2,7 @@
 
 Agent Evaluator를 5분 안에 첫 평가까지 완성하는 최단 경로
 
-**v0.7.3 | Python 3.8+**
+**v0.7.4 | Python 3.8+**
 
 ---
 
@@ -35,7 +35,7 @@ pip install agent-evaluator[serve]
 # 프레임워크 통합 포함 (LangChain/LangGraph)
 pip install agent-evaluator[langchain,serve]
 
-# 실시간 운영 모니터링 (Phoenix + OTEL) — v0.7.3
+# 실시간 운영 모니터링 (Phoenix + OTEL) — v0.7.4
 pip install agent-evaluator[otel]
 ```
 
@@ -45,33 +45,14 @@ pip install agent-evaluator[otel]
 
 ## 데코레이터 방식 — 권장
 
-에이전트 함수에 데코레이터 한 줄만 추가하면 자동으로 평가가 적용됩니다.
+에이전트 함수에 데코레이터 한 줄만 추가하면 자동으로 평가가 적용됩니다. 용도에 따라 **3개의 핵심 데코레이터**가 제공됩니다.
 
-### QuickEval (가장 간단)
+### 1. @agent_eval (단일 호출)
 
-```python
-from agent_evaluator import QuickEval
-
-eval = QuickEval("results/")
-
-@eval.qa                          # task_type="qa" 자동 설정
-def my_agent(question: str, ground_truth: str = "") -> str:
-    return llm.invoke(question)   # 실제 에이전트 코드
-
-# 데이터셋 실행
-dataset = [("한국의 수도는?", "서울"), ("파이썬 창시자는?", "귀도 반 로섬")]
-for question, answer in dataset:
-    my_agent(question, ground_truth=answer)
-
-eval.save()                        # results/quickeval.json + .html
-eval.gate(tcr=85, accuracy=70)     # CI/CD 게이팅 — 실패 시 sys.exit(1)
-```
-
-### agent_eval 데코레이터 (세밀한 제어)
+가장 일반적인 에이전트 호출 평가에 사용합니다.
 
 ```python
-from agent_evaluator import PerformanceMonitor
-from agent_evaluator.decorators import agent_eval
+from agent_evaluator import agent_eval, PerformanceMonitor
 
 monitor = PerformanceMonitor(output_dir="results/")
 
@@ -79,29 +60,48 @@ monitor = PerformanceMonitor(output_dir="results/")
 def my_agent(question: str, ground_truth: str = "") -> str:
     return llm.invoke(question)
 
-for question, answer in dataset:
-    my_agent(question, ground_truth=answer)
-
-monitor.save_to_file("my_first_eval")  # results/my_first_eval.json + .html
-report = monitor.generate_report()
-print(f"TCR: {report.task_completion_rate:.1f}%")
+# 실행 시 자동으로 TaskResult 1개가 기록됨
+my_agent("한국의 수도는?", ground_truth="서울")
 ```
 
-### 용도별 단축 데코레이터
+### 2. @batch_eval (대량 처리)
+
+리스트 형태의 입력을 받아 일괄 평가할 때 사용합니다.
 
 ```python
-eval = QuickEval("results/")
+from agent_evaluator import batch_eval
 
-@eval.qa           # QA 평가
-@eval.rag          # RAG — context_arg 자동, hallucination 탐지 활성
-@eval.tool_use     # 도구 사용 에이전트
-@eval.code         # 코드 생성
-@eval.reasoning    # 추론 태스크
+@batch_eval(monitor, task_type="qa")
+def batch_agent(questions: list, ground_truths: list = None) -> list:
+    return [llm.invoke(q) for q in questions]
 ```
+
+### 3. @conversation_eval (멀티턴 대화)
+
+연속적인 대화 세션의 맥락 유지율 등을 평가합니다.
+
+```python
+from agent_evaluator import conversation_eval, flush_conversation
+
+@conversation_eval(monitor, session_id_arg="sid", max_turns=10)
+def chat_agent(question: str, sid: str = "default") -> str:
+    return chatbot.chat(question)
+
+# 동일 sid 호출 시 턴 자동 누적
+chat_agent("안녕", sid="user_1")
+chat_agent("날씨 알려줘", sid="user_1")
+
+# 세션 명시적 종료 및 지표 기록
+flush_conversation("user_1")
+```
+
+> **QuickEval**: 위 데코레이터들을 더 짧게 설정하고 싶다면 `eval = QuickEval("results/")` 팩토리를 사용하세요. (`@eval.qa`, `@eval.rag` 등 지원)
 
 ---
 
-## 헬퍼로 간편하게
+## 저수준 직접 기록 (탈출구)
+
+> **데코레이터를 붙일 수 없는 경우에만 사용하세요.** 외부 라이브러리 함수, lambda, 동적 호출 등 일반적인 에이전트 평가는 앞 섹션의 데코레이터 방식을 권장합니다.
 
 `create_taskresult()`는 question/response/ground_truth로 점수를 자동 계산합니다.
 
@@ -131,40 +131,49 @@ monitor.record_task(r1).record_task(r2).record_task(r3)
 report = monitor.generate_report()
 ```
 
-> 저수준 직접 생성이 필요한 경우에만 사용하세요. 일반적인 에이전트 평가는 데코레이터 방식을 권장합니다.
-
 ---
 
-## 컨텍스트 매니저 패턴
+## 컨텍스트 매니저 패턴 (탈출구)
 
-세션 종료 시 자동 저장됩니다 (예외 발생 시에도 안전).
+> **데코레이터를 붙일 수 없는 외부 코드**에서 사용합니다. 일반적인 에이전트 함수는 `@agent_eval` 데코레이터를 사용하세요.
+
+`eval_context`는 `@agent_eval`과 동일한 평가를 with 블록으로 제공합니다.
 
 ```python
-from agent_evaluator import evaluation_session, create_taskresult
+from agent_evaluator import PerformanceMonitor
+from agent_evaluator.decorators import eval_context
+
+monitor = PerformanceMonitor(output_dir="results/")
+
+# eval_context — 외부 함수 / 데코레이터 불가 시 1건씩 기록
+with eval_context(monitor, task_type="qa",
+                  question="한국의 수도는?", ground_truth="서울") as ctx:
+    ctx.response = external_lib.call("한국의 수도는?")
+
+monitor.save_to_file("eval")
+# 자동으로 results/eval.json + .html 저장
+```
+
+비동기 에이전트도 지원합니다.
+
+```python
+async with eval_context(monitor, task_type="qa", question=q) as ctx:
+    ctx.response = await async_external.call(q)
+```
+
+`evaluation_session`은 세션 단위 자동 저장이 필요할 때 사용합니다. 내부에서 `eval_context`와 함께 사용하면 각 태스크가 자동으로 기록됩니다.
+
+```python
+from agent_evaluator import evaluation_session
+from agent_evaluator.decorators import eval_context
 
 with evaluation_session("output_filename") as monitor:
     for item in dataset:
-        response = my_agent.run(item["question"])
-        result = create_taskresult(
-            task_id=item["id"],
-            question=item["question"],
-            response=response,
-            ground_truth=item["answer"],
-            execution_time=0.5,
-            task_type="qa",
-        )
-        monitor.record_task(result)
-# 자동으로 results/output_filename.json + .html 저장
-```
-
-비동기 에이전트의 경우 `async_evaluation_session`을 사용합니다.
-
-```python
-from agent_evaluator import async_evaluation_session
-
-async with async_evaluation_session("async_eval") as monitor:
-    result = await my_async_agent.run(task)
-    monitor.record_task(result)
+        with eval_context(monitor, task_type="qa",
+                          question=item["question"],
+                          ground_truth=item["answer"]) as ctx:
+            ctx.response = external_agent.run(item["question"])
+# 블록 종료 시 results/output_filename.json + .html 자동 저장 (예외 발생 시에도 안전)
 ```
 
 ---
@@ -212,7 +221,7 @@ agent-eval gate results/eval.json --tcr 85 --accuracy 70
 
 ---
 
-## 실시간 운영 모니터링 (v0.7.3)
+## 실시간 운영 모니터링 (v0.7.4)
 
 Phoenix + OpenTelemetry로 프로덕션 스팬을 실시간 추적합니다.
 

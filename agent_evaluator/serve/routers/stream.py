@@ -21,7 +21,7 @@ _WS_CONNECTIONS: Set[WebSocket] = set()
 _ws_lock = asyncio.Lock()
 
 
-@router.get("/stream")
+@router.get("/stream", summary="평가 이벤트 스트림 (SSE)")
 async def sse_stream(request: Request):
     """
     Server-Sent Events endpoint.
@@ -137,7 +137,7 @@ async def file_snapshot(request: Request, file_id: str, window: str = "5m") -> J
     })
 
 
-@router.get("/stream/tasks/{file_id}")
+@router.get("/stream/tasks/{file_id}", summary="태스크 실시간 스트림 (SSE)")
 async def task_stream(request: Request, file_id: str, poll_interval: float = 1.0):
     """
     Server-Sent Events: real-time task_added stream for a result file.
@@ -238,7 +238,7 @@ async def task_stream(request: Request, file_id: str, poll_interval: float = 1.0
     )
 
 
-@router.get("/stream/filtered/{file_id}")
+@router.get("/stream/filtered/{file_id}", summary="조건 필터 태스크 스트림 (SSE)")
 async def stream_filtered_tasks(
     file_id: str,
     request: Request,
@@ -375,7 +375,7 @@ async def stream_filtered_tasks(
     )
 
 
-@router.websocket("/ws/events")
+@router.websocket("/ws/events", name="WebSocket 실시간 이벤트 스트림")
 async def websocket_events(websocket: WebSocket):
     """WebSocket 실시간 이벤트 스트림 (B7).
 

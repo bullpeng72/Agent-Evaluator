@@ -2,7 +2,7 @@
 
 LangChain · LangGraph · CrewAI · AutoGen 연동 참조 문서
 
-**v0.7.3 | Python 3.8+**
+**v0.7.4 | Python 3.8+**
 
 ---
 
@@ -27,7 +27,7 @@ LangChain · LangGraph · CrewAI · AutoGen 연동 참조 문서
 | 패키지 | 최소 버전 | 설치 |
 |--------|----------|------|
 | Python | 3.8+ | — |
-| agent-evaluator | 0.7.3 | `pip install agent-evaluator` |
+| agent-evaluator | 0.7.4 | `pip install agent-evaluator` |
 | LangChain | 1.0.0+ | `pip install agent-evaluator[langchain]` |
 | LangGraph | 1.0.0+ | `pip install agent-evaluator[langchain]` |
 | CrewAI | 1.0.0+ | `pip install agent-evaluator[crewai]` |
@@ -107,25 +107,18 @@ def lc_agent(question: str, ground_truth: str = "") -> str:
     return agent_executor.invoke({"input": question})
 ```
 
-**방법 2 — 콜백 방식 (실시간 토큰·도구 추적)**
-
-```python
-from agent_evaluator.integrations.langchain_integration import AdvancedLangChainCallback
-
-callback = AdvancedLangChainCallback(
-    monitor=monitor,
-    task_id="task_001",
-    expected_tools=["search", "calculator"],  # Tool Selection F1 자동 계산
-)
-response = agent_executor.invoke({"input": query}, config={"callbacks": [callback]})
-```
-
-**방법 3 — 수동 기록**
+**수동 기록 (저수준 — 데코레이터 불가 시 탈출구)**
 
 ```python
 import dataclasses
 from agent_evaluator import create_taskresult
+from agent_evaluator.decorators import eval_context
 
+# eval_context — 외부 함수 / 복잡한 흐름에 적합
+with eval_context(monitor, task_type="qa", question=query, ground_truth=expected) as ctx:
+    ctx.response = agent_executor.invoke({"input": query})["output"]
+
+# 또는 create_taskresult() + record_task() 직접 사용
 task = create_taskresult(
     task_id="lc_001", question=query, response=response["output"],
     ground_truth=expected, execution_time=elapsed, task_type="qa",
@@ -153,22 +146,6 @@ def lg_agent(question: str, ground_truth: str = "") -> str:
     return result["messages"][-1].content
 ```
 
-**방법 2 — 그래프 래핑 팩토리**
-
-```python
-from agent_evaluator.integrations.langgraph_integration import create_evaluated_langgraph
-
-graph = create_evaluated_langgraph(
-    my_compiled_graph,
-    monitor=monitor,
-    enable_layer2=True,   # 노드 래핑 → Workflow Execution 자동 추적
-)
-result = graph.run(
-    initial_state={"messages": [HumanMessage(content=query)]},
-    ground_truth=expected_answer,
-)
-```
-
 **자동 추출**: 노드별 실측 타이밍, 노드 전환 (AgentCoordination), Workflow Execution, 토큰 (`AIMessage.usage_metadata`)
 
 ---
@@ -186,15 +163,6 @@ monitor = PerformanceMonitor.for_secure_agents(output_dir="results/")
 def run_crew(question: str, ground_truth: str = "") -> str:
     result = crew.kickoff(inputs={"topic": question})
     return result.raw  # CrewAI CrewOutput → 자동 파싱
-```
-
-**방법 2 — 팩토리 함수**
-
-```python
-from agent_evaluator.integrations.crewai_integration import create_evaluated_crew
-
-crew = create_evaluated_crew(tasks=my_tasks, agents=my_agents, monitor=monitor)
-result = crew.kickoff()
 ```
 
 **자동 추출**: Agent Coordination, Tool Selection
@@ -217,18 +185,7 @@ async def run_autogen(question: str, ground_truth: str = "") -> str:
     return result.messages[-1].content
 ```
 
-**방법 2 — 동기 래퍼 (0.4+)**
-
-```python
-from agent_evaluator.integrations.autogen_integration import AutoGenEvaluator
-
-evaluator = AutoGenEvaluator(agent=assistant, monitor=monitor)
-evaluator.set_ground_truth(expected_answer)
-result = evaluator.run_sync(task_input)
-```
-
 **자동 추출**: 에이전트 메시지 교환 (AgentCoordination), 도구 호출 (ToolCallEvent), 토큰 (tiktoken)
-**주의**: AutoGen 0.3.x `generate_reply` 래핑 불가 → UserWarning + 수동 `record_task()` 사용
 
 ---
 
@@ -335,24 +292,39 @@ output_result = check_output_leakage(agent_response)  # {"has_leakage": bool, "l
 
 ## 멀티턴 대화 평가 (공통)
 
+v0.7.3부터 수동으로 세션을 관리하는 패턴 대신 데코레이터를 사용하는 것이 권장됩니다. `PerformanceMonitor`와 연동하여 자동으로 턴을 누적하고 지표를 계산합니다.
+
 ```python
-from agent_evaluator import ConversationSession, ConversationMetrics
+from agent_evaluator import PerformanceMonitor, conversation_eval, flush_conversation
 
-session = ConversationSession(session_id="conv_001")
-session.add_turn(user="파이썬 비동기 처리 방법은?", agent="asyncio를 사용합니다.")
-session.add_turn(user="gather와 wait의 차이는?", agent="gather는 결과를 리스트로 반환...")
+monitor = PerformanceMonitor("results/")
 
-metrics: ConversationMetrics = session.compute_metrics()
-# metrics.context_retention   — 맥락 유지율 (0–1)
-# metrics.topic_coherence     — 주제 일관성 (0–1)
-# metrics.progressive_depth   — 점진적 심화 (0–1)
-# metrics.session_completion  — 세션 완결성 (0–1)
-# metrics.overall_score       — 종합 점수 (0–1)
-# metrics.turn_count          — 총 턴 수
+@conversation_eval(
+    monitor,
+    session_id_arg="sid",        # 세션 ID 파라미터 이름
+    max_turns=10,                # 10턴 초과 시 자동 종료
+    on_flush=lambda metrics, sid: print(f"세션 {sid} 종료: {metrics.overall_score:.2f}")
+)
+def chatbot_agent(user_message, sid="default"):
+    # 실제 에이전트 호출 로직
+    return response
 
-# PerformanceMonitor와 통합 (권장)
-with monitor.conversation("session_id") as conv:
-    conv.turn(user="안녕하세요", agent="안녕하세요!", metadata={"latency": 0.3})
+# 1. 턴 호출 (자동 누적)
+chatbot_agent("안녕하세요", sid="user_123")
+chatbot_agent("서울 날씨 알려줘", sid="user_123")
+
+# 2. 세션 명시적 종료 및 기록
+flush_conversation("user_123")
+```
+
+데코레이터를 사용할 수 없는 복잡한 스크립트 환경에서는 컨텍스트 매니저 패턴을 사용합니다.
+
+```python
+# 컨텍스트 매니저 방식 (v0.6.3+)
+with monitor.conversation("session_002") as conv:
+    for user_msg in ["안녕", "누구니?"]:
+        response = chatbot.respond(user_msg, history=conv.history)
+        conv.turn(user=user_msg, agent=response, metadata={"latency": 0.5})
 ```
 
 ---
@@ -398,4 +370,4 @@ with monitor.conversation("session_id") as conv:
 
 ---
 
-*Updated: 2026-04-07 (v0.7.3) | MIT License*
+*Updated: 2026-04-08 (v0.7.4) | MIT License*

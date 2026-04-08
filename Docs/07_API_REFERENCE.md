@@ -1,14 +1,14 @@
 # API 레퍼런스
 
-Agent Evaluator v0.7.3 전체 API 문서
+Agent Evaluator v0.7.4 전체 API 문서
 
 ---
 
 ## 버전 정보
 
-- **버전:** v0.7.3
+- **버전:** v0.7.4
 - **Python:** 3.8+
-- **최종 업데이트:** 2026-04-07
+- **최종 업데이트:** 2026-04-08
 
 ---
 
@@ -33,59 +33,49 @@ Agent Evaluator v0.7.3 전체 API 문서
 
 ## 1. 빠른 시작
 
-### 패턴 1 — QuickEval (가장 간단)
+### 패턴 1 — @agent_eval 데코레이터 (권장)
+
+가장 유연하고 세밀한 제어가 가능한 표준 방식입니다.
+
+```python
+from agent_evaluator import PerformanceMonitor, agent_eval
+
+monitor = PerformanceMonitor(output_dir="results/")
+
+@agent_eval(monitor, task_type="qa", framework="openai")
+def agent(question: str, ground_truth: str = "") -> str:
+    return llm.invoke(question)
+
+# 호출 시 자동 기록
+agent("대한민국의 수도는?", ground_truth="서울")
+```
+
+### 패턴 2 — @conversation_eval (멀티턴)
+
+멀티턴 대화의 맥락 유지율을 자동으로 평가합니다.
+
+```python
+from agent_evaluator import conversation_eval, flush_conversation
+
+@conversation_eval(monitor, session_id_arg="sid")
+def chat(msg: str, sid: str):
+    return chatbot.chat(msg)
+
+chat("안녕", sid="u1")
+chat("오늘 날씨는?", sid="u1")
+flush_conversation("u1")
+```
+
+### 패턴 3 — QuickEval (편의용 팩토리)
+
+설정을 한 줄로 끝내고 싶을 때 사용합니다.
 
 ```python
 from agent_evaluator import QuickEval
-
 eval = QuickEval("results/")
 
 @eval.qa
-def agent(question: str, ground_truth: str = "") -> str:
-    return llm.invoke(question)
-
-for q, gt in dataset:
-    agent(q, ground_truth=gt)
-
-eval.save()
-eval.gate(tcr=85, accuracy=70)
-```
-
-### 패턴 2 — agent_eval 데코레이터
-
-```python
-from agent_evaluator import PerformanceMonitor
-from agent_evaluator.decorators import agent_eval
-
-monitor = PerformanceMonitor(output_dir="results/")
-
-@agent_eval(monitor, task_type="qa")
-def agent(question: str, ground_truth: str = "") -> str:
-    return llm.invoke(question)
-
-for q, gt in dataset:
-    agent(q, ground_truth=gt)
-
-monitor.save_to_file("eval")
-```
-
-### 패턴 3 — 수동 기록 (저수준)
-
-```python
-from agent_evaluator import PerformanceMonitor, create_taskresult
-
-monitor = PerformanceMonitor(output_dir="results/")
-
-result = create_taskresult(
-    task_id="t1",
-    question="한국의 수도는?",
-    response="서울입니다.",
-    ground_truth="서울",
-    execution_time=1.0,
-    task_type="qa",
-)
-monitor.record_task(result)
-monitor.save_to_file("eval")
+def agent(q): ...
 ```
 
 ---
@@ -550,7 +540,41 @@ def agent(question: str, ground_truth: str = "") -> tuple:
 
 ## 5. 컨텍스트 매니저
 
-### evaluation_session (동기)
+`evaluation_session` / `async_evaluation_session`은 세션 단위 자동 저장을 제공합니다.
+세션 블록 종료 시 (예외 발생 시에도) `results/*.json + .html`을 자동 저장합니다.
+
+### 권장 — @agent_eval 데코레이터와 함께
+
+```python
+from agent_evaluator import PerformanceMonitor, evaluation_session
+from agent_evaluator.decorators import agent_eval
+
+with evaluation_session("output_filename") as monitor:
+
+    @agent_eval(monitor, task_type="qa")
+    def my_agent(question: str, ground_truth: str = "") -> str:
+        return llm.invoke(question)
+
+    for q, gt in dataset:
+        my_agent(q, ground_truth=gt)
+# 세션 종료 시 results/output_filename.json + .html 자동 저장
+# 예외 발생 시에도 안전하게 저장됨
+```
+
+### 탈출구 — eval_context (데코레이터 불가 시)
+
+```python
+from agent_evaluator import evaluation_session
+from agent_evaluator.decorators import eval_context
+
+with evaluation_session("output_filename") as monitor:
+    for q, gt in dataset:
+        with eval_context(monitor, task_type="qa",
+                          question=q, ground_truth=gt) as ctx:
+            ctx.response = external_agent.run(q)
+```
+
+### 저수준 — create_taskresult() 직접 사용
 
 ```python
 from agent_evaluator import evaluation_session, create_taskresult
@@ -566,24 +590,20 @@ with evaluation_session("output_filename") as monitor:
             task_type="qa",
         )
         monitor.record_task(result)
-# 세션 종료 시 results/output_filename.json + .html 자동 저장
-# 예외 발생 시에도 안전하게 저장됨
 ```
 
 ### async_evaluation_session (비동기)
 
 ```python
-from agent_evaluator import async_evaluation_session, create_taskresult
+from agent_evaluator import async_evaluation_session
+from agent_evaluator.decorators import eval_context
 
 async def run():
     async with async_evaluation_session("async_eval") as monitor:
         for q, gt in dataset:
-            response = await async_agent.run(q)
-            result = create_taskresult(
-                task_id=f"t{i}", question=q, response=response,
-                ground_truth=gt, execution_time=0.8, task_type="qa",
-            )
-            monitor.record_task(result)
+            async with eval_context(monitor, task_type="qa",
+                                    question=q, ground_truth=gt) as ctx:
+                ctx.response = await async_agent.run(q)
 ```
 
 ### hybrid_evaluation_session
@@ -1015,6 +1035,7 @@ stats = tracker.get_stats()
 
 ```python
 from agent_evaluator import HybridPerformanceMonitor, ExtendedTaskResult, HybridEvaluationReport
+from agent_evaluator.decorators import agent_eval
 
 monitor = HybridPerformanceMonitor(
     output_dir="results/",
@@ -1022,11 +1043,16 @@ monitor = HybridPerformanceMonitor(
     enable_ragas=True,
 )
 
-# hybrid_evaluation_session
+# 권장: 데코레이터 방식 (rag_mode=True → hallucination + IR 자동 활성)
+@agent_eval(monitor, task_type="information_retrieval", rag_mode=True, context_arg="context")
+def rag_agent(question: str, context: str = "", ground_truth: str = "") -> str:
+    return rag_chain.invoke({"question": question, "context": context})
+
+# 저수준: hybrid_evaluation_session + ExtendedTaskResult 직접 주입
+# (retrieved_contexts 등 하이브리드 전용 필드가 필요한 경우)
 from agent_evaluator import hybrid_evaluation_session
 
 async with hybrid_evaluation_session("hybrid_eval") as monitor:
-    # create_taskresult()로 기본 필드 생성 후 하이브리드 필드 추가
     from agent_evaluator import create_taskresult
     import dataclasses
 
@@ -1132,9 +1158,6 @@ ConversationSession, ConversationMetrics, ConversationTurn,
 # LLM Judge (requires [llm])
 LLMJudge,
 
-# LLM 헬퍼
-LLMHelper, ClaudeHelper,
-
 # 투명성
 TestTransparencyManager, AnnotationType, TestStepStatus,
 
@@ -1166,4 +1189,4 @@ FrameworkLiteral,   # 21개 프레임워크 Literal 타입
 
 ---
 
-*Agent Evaluator v0.7.3 — [GitHub](https://github.com/bullpeng72/Agent-Evaluator) | [예제 디렉토리](../Evaluator_Examples/)*
+*Agent Evaluator v0.7.4 — [GitHub](https://github.com/bullpeng72/Agent-Evaluator) | [예제 디렉토리](../Evaluator_Examples/)*

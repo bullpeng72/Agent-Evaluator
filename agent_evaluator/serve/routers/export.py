@@ -22,7 +22,7 @@ def _result_set(request: Request):
     return request.app.state.result_set
 
 
-@router.get("/json/{file_id}")
+@router.get("/json/{file_id}", summary="JSON 내보내기")
 def export_json(file_id: str, request: Request):
     rs = _result_set(request)
     rf = rs.by_id(file_id)
@@ -36,7 +36,7 @@ def export_json(file_id: str, request: Request):
     )
 
 
-@router.get("/csv/{file_id}")
+@router.get("/csv/{file_id}", summary="CSV 내보내기")
 def export_csv(file_id: str, request: Request):
     rs = _result_set(request)
     rf = rs.by_id(file_id)
@@ -241,7 +241,7 @@ def export_excel(file_id: str, request: Request):
     )
 
 
-@router.get("/html/{file_id}", response_class=HTMLResponse)
+@router.get("/html/{file_id}", response_class=HTMLResponse, summary="HTML 리포트 내보내기")
 def export_html(file_id: str, request: Request):
     rs = _result_set(request)
     rf = rs.by_id(file_id)

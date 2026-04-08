@@ -18,12 +18,16 @@ CrewAI 특화 패턴:
   - usage_metrics 기반 토큰 비용 추적
 
 실제 CrewAI 통합 방법:
-    from agent_evaluator.integrations import create_evaluated_crew
+    from agent_evaluator import PerformanceMonitor
+    from agent_evaluator.decorators import agent_eval
     from crewai import Crew, Agent, Task
 
     monitor = PerformanceMonitor(enable_security_metrics=True)
-    evaluated_crew = create_evaluated_crew(tasks=tasks, agents=agents, monitor=monitor)
-    result = evaluated_crew.kickoff()
+
+    @agent_eval(monitor, task_type="tool_use", framework="crewai")
+    def run_crew(question, ground_truth=""):
+        crew = Crew(agents=agents, tasks=tasks)
+        return crew.kickoff(inputs={"question": question})
 
 사전 요구사항 (실제 통합):
     pip install agent-evaluator[crewai]
@@ -283,7 +287,7 @@ def run_crewai_evaluation():
 
     avail = check_framework_availability("crewai")
     if avail.get("crewai"):
-        print("  CrewAI 설치됨 — create_evaluated_crew() 사용 가능")
+        print("  CrewAI 설치됨 — @crewai_eval() 또는 @agent_eval(framework='crewai') 사용 가능")
     else:
         print("  CrewAI 미설치 — 시뮬레이션 모드로 실행")
         print(f"     설치 방법: {get_installation_instructions('crewai')}")

@@ -83,13 +83,19 @@ def _load_golden(filename: str) -> list:
     with open(path, "r", encoding="utf-8") as f:
         return json.load(f)
 
-# ─── 실제 크로스 프레임워크 통합 사용법 (참고) ──────────────────────────────────
-# from agent_evaluator.integrations import (
-#     create_evaluated_langgraph,     # Stage 1 — LangGraph 래핑
-#     create_evaluated_langchain_agent,  # Stage 2 — LangChain 래핑
-#     create_evaluated_crew,          # Stage 3 — CrewAI 래핑
-# )
-# 각 스테이지별 모니터를 공유하거나 별도 생성 후 리포트를 통합합니다.
+# ─── 크로스 프레임워크 통합 사용법 (데코레이터 방식) ─────────────────────────────
+# from agent_evaluator.decorators import agent_eval
+#
+# @agent_eval(monitor, task_type="information_retrieval", framework="langgraph")
+# def stage1_langgraph(question, ground_truth=""): ...   # Stage 1 — LangGraph
+#
+# @agent_eval(monitor, task_type="qa", framework="langchain")
+# def stage2_langchain(question, ground_truth=""): ...   # Stage 2 — LangChain
+#
+# @agent_eval(monitor, task_type="tool_use", framework="crewai")
+# def stage3_crewai(question, ground_truth=""): ...      # Stage 3 — CrewAI
+#
+# 각 스테이지 함수가 동일한 monitor를 공유하므로 통합 리포트가 자동 생성됩니다.
 # ────────────────────────────────────────────────────────────────────────────────
 
 # ─── 파이프라인 시나리오 정의 ────────────────────────────────────────────────────

@@ -1,6 +1,6 @@
 # 배포 가이드
 
-**Agent-Evaluator v0.7.3** — CI/CD 통합 및 프로덕션 배포 전략
+**Agent-Evaluator v0.7.4** — CI/CD 통합 및 프로덕션 배포 전략
 
 ---
 
@@ -172,15 +172,22 @@ monitor = PerformanceMonitor.for_secure_agents(output_dir="results/")
 
 ### Context Manager — 세션 단위 평가
 
+데코레이터를 적용할 수 없는 외부 코드나 복잡한 흐름에서는 `eval_context`를 사용합니다.
+
 ```python
 from agent_evaluator import evaluation_session
+from agent_evaluator.decorators import eval_context
 
 with evaluation_session("evaluation") as monitor:
     for task in tasks:
-        result = agent.run(task)
-        monitor.record_task(result)
-# 세션 종료 시 results/evaluation.json + .html 자동 저장
+        with eval_context(monitor, task_type="qa",
+                          question=task["question"],
+                          ground_truth=task.get("answer", "")) as ctx:
+            ctx.response = agent.run(task["question"])
+# 세션 종료 시 results/evaluation.json + .html 자동 저장 (예외 발생 시에도 안전)
 ```
+
+> **권장**: 에이전트 함수에 `@agent_eval` 데코레이터를 붙이는 방식이 더 간결합니다. `eval_context`는 데코레이터를 붙일 수 없는 경우의 탈출구입니다.
 
 ---
 
@@ -673,7 +680,7 @@ monitor = PerformanceMonitor(
     output_dir="results/",
     enable_security_metrics=True,  # 반드시 명시
 )
-# v0.7.3부터 record_task() 시 5개 보안 트래커 자동 호출
+# v0.7.4부터 record_task() 시 5개 보안 트래커 자동 호출
 ```
 
 ### 프로덕션 배포 전 체크리스트

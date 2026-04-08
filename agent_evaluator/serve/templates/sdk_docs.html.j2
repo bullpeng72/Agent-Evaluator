@@ -59,7 +59,7 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(
 .req{color:var(--red);font-size:10px;margin-left:3px}.opt{color:var(--text2);font-size:10px;margin-left:3px}
 pre{background:var(--bg3);border:1px solid var(--border);border-radius:var(--r);padding:15px 18px;overflow-x:auto;font-size:13px;font-family:'Cascadia Code','Fira Code',monospace;margin:12px 0;line-height:1.65}
 code{font-family:'Cascadia Code','Fira Code',monospace;font-size:13px}
-.kw{color:#c792ea}.cn{color:var(--accent)}.fn{color:var(--green)}.st{color:#c3e88d}.cm{color:var(--text2);font-style:italic}.nm{color:var(--yellow)}
+.kw{color:#c792ea}.cn{color:var(--accent)}.fn{color:var(--green)}.st{color:#c3e88d}.cm{color:var(--text2);font-style:italic}.nm{color:var(--yellow)}.de{color:#ff9d48;font-weight:600}
 .badge{display:inline-block;font-size:11px;padding:2px 8px;border-radius:99px;font-weight:600}
 .l1{background:#6c8ef522;color:var(--accent)}.l2{background:#4ade8022;color:var(--green)}.l3{background:#fb923c22;color:var(--orange)}
 .req-b{background:#f8717122;color:var(--red)}.opt-b{background:#22263a;color:var(--text2);border:1px solid var(--border)}
@@ -93,49 +93,54 @@ hr{border:none;border-top:1px solid var(--border);margin:20px 0}
     <div class="logo">🤖 <span>Agent</span> Evaluator <span class="ver">v{{ version }}</span></div>
     <div style="font-size:11px;color:var(--text2);margin-top:4px">📖 SDK 레퍼런스</div>
   </div>
+
   <div class="nav-group">시작하기</div>
   <a class="nav-item" href="#quickstart">⚡ Quick Start</a>
   <a class="nav-item" href="#install">📦 설치 &amp; 의존성</a>
   <a class="nav-item" href="#architecture">🏗️ 아키텍처 개요</a>
+
+  <div class="nav-group">🎯 데코레이터 — 권장 진입점</div>
+  <a class="nav-item" href="#quickeval">QuickEval <span class="tag">facade</span></a>
+  <a class="nav-item" href="#decorators">@agent_eval <span class="tag">decorator</span></a>
+  <a class="nav-item" href="#batch-eval">@batch_eval <span class="tag">decorator</span></a>
+  <a class="nav-item" href="#conversation-eval">@conversation_eval <span class="tag">decorator</span></a>
+  <a class="nav-item" href="#eval-context">eval_context <span class="tag">ctx</span></a>
+  <a class="nav-item" href="#frameworks">21개 프레임워크 어댑터</a>
+
   <div class="nav-group">핵심 클래스</div>
   <a class="nav-item" href="#performance-monitor">PerformanceMonitor <span class="tag">core</span></a>
   <a class="nav-item" href="#task-result">TaskResult <span class="tag">dataclass</span></a>
   <a class="nav-item" href="#task-type">TaskType <span class="tag">enum</span></a>
-  <a class="nav-item" href="#helpers">create_taskresult() <span class="tag">helper</span></a>
-  <a class="nav-item" href="#context-mgr">evaluation_session() <span class="tag">ctx</span></a>
-  <div class="nav-group">Layer 1 — Foundation</div>
+
+  <div class="nav-group">Layer 1 — Foundation (항상 활성)</div>
   <a class="nav-item" href="#tcr">TaskCompletionTracker</a>
   <a class="nav-item" href="#accuracy">AccuracyEvaluator</a>
-  <a class="nav-item" href="#hallucination">HallucinationDetector</a>
   <a class="nav-item" href="#quality">ResponseQualityEvaluator</a>
   <a class="nav-item" href="#latency">LatencyTracker</a>
   <a class="nav-item" href="#token">TokenEconomyTracker</a>
-  <div class="nav-group">Layer 2 — Agentic</div>
+  <a class="nav-item" href="#hallucination">HallucinationDetector <span class="tag">opt-in</span></a>
+
+  <div class="nav-group">Layer 2 — Agentic (데이터 공급 시 자동)</div>
   <a class="nav-item" href="#toolcall">ToolCallAnalyzer</a>
   <a class="nav-item" href="#toolsel">ToolSelectionTracker</a>
   <a class="nav-item" href="#retry">RetryCorrectionTracker</a>
   <a class="nav-item" href="#coord">AgentCoordinationTracker</a>
   <a class="nav-item" href="#workflow">WorkflowExecutionTracker</a>
-  <div class="nav-group">Layer 2 — Security</div>
+
+  <div class="nav-group">Layer 2 — Security (opt-in)</div>
   <a class="nav-item" href="#sanitize">InputSanitizationTracker</a>
   <a class="nav-item" href="#leakage">OutputLeakageDetector</a>
   <a class="nav-item" href="#authz">ToolAuthorizationTracker</a>
   <a class="nav-item" href="#privesc">PrivilegeEscalationDetector</a>
   <a class="nav-item" href="#chainatk">ToolChainAttackDetector</a>
-  <div class="nav-group">Layer 3 — Hybrid</div>
-  <a class="nav-item" href="#hybrid">HybridPerformanceMonitor</a>
-  <a class="nav-item" href="#adapters">외부 어댑터 (3종)</a>
-  <div class="nav-group">✨ 부가 기능 (v0.6.3+)</div>
-  <a class="nav-item" href="#llm-judge">LLMJudge</a>
-  <a class="nav-item" href="#conversation">ConversationSession</a>
+
+  <div class="nav-group">부가 기능</div>
+  <a class="nav-item" href="#llm-judge">LLMJudge <span class="tag">opt-in</span></a>
   <a class="nav-item" href="#gate-cli">agent-eval gate <span class="tag">CLI</span></a>
   <a class="nav-item" href="#anomaly">AnomalyDetector</a>
-  <a class="nav-item" href="#alerts">AlertEngine / AlertRule</a>
+  <a class="nav-item" href="#alerts">AlertEngine · SimpleTaskAlertRule</a>
   <a class="nav-item" href="#streaming">StreamingEvaluator</a>
-  <a class="nav-item" href="#cost">CostTracker / AdaptivePolicy</a>
-  <div class="nav-group">프레임워크 통합</div>
-  <a class="nav-item" href="#frameworks">CrewAI / LangChain / LangGraph / AutoGen</a>
-  <a class="nav-item" href="#llm-helpers">LLMHelper / ClaudeHelper</a>
+  <a class="nav-item" href="#cost">CostTracker · AdaptivePolicy</a>
 </nav>
 
 <div style="display:flex;flex-direction:column;overflow:hidden">
@@ -153,44 +158,96 @@ hr{border:none;border-top:1px solid var(--border);margin:20px 0}
 <!-- ── Quick Start ── -->
 <section class="sec" id="quickstart">
   <div class="sec-title">⚡ Quick Start</div>
-  <div class="sec-sub">핵심 패턴: <code>create_taskresult()</code> + <code>PerformanceMonitor</code>. 점수 필드는 자동으로 계산됩니다.</div>
+  <div class="sec-sub">데코레이터 한 줄로 시작. 실행 시간·토큰·정확도가 자동 측정됩니다. 아래 패턴 중 하나를 선택하세요.</div>
+
+  <!-- 1. QuickEval — 가장 간단한 시작 -->
   <div class="cls-card">
-    <div class="cls-head"><span class="cls-name">기본 사용 패턴</span></div>
+    <div class="cls-head"><span class="cls-name">① QuickEval — 가장 빠른 시작</span><span class="kind cls">facade</span></div>
     <div class="cls-body">
-<pre><span class="kw">from</span> <span class="cn">agent_evaluator</span> <span class="kw">import</span> PerformanceMonitor, create_taskresult
+      <div class="note tip" style="margin-bottom:10px">🚀 설정 최소화. <code>QuickEval</code> 1줄로 <code>PerformanceMonitor</code> + 데코레이터를 한번에 구성합니다.</div>
+<pre><span class="kw">from</span> <span class="cn">agent_evaluator</span> <span class="kw">import</span> QuickEval
+
+eval = <span class="fn">QuickEval</span>(<span class="st">"results/"</span>)
+
+<span class="de">@eval.qa</span>                  <span class="cm"># QA 에이전트</span>
+<span class="kw">def</span> <span class="fn">qa_agent</span>(question, ground_truth=<span class="st">""</span>): <span class="kw">return</span> llm.<span class="fn">invoke</span>(question)
+
+<span class="de">@eval.rag</span>                 <span class="cm"># RAG — hallucination 자동 활성</span>
+<span class="kw">def</span> <span class="fn">rag_agent</span>(question, context=<span class="st">""</span>, ground_truth=<span class="st">""</span>): <span class="kw">return</span> rag.<span class="fn">run</span>(question)
+
+<span class="de">@eval.tool_use</span>            <span class="cm"># 도구 호출 에이전트</span>
+<span class="kw">def</span> <span class="fn">tool_agent</span>(question, ground_truth=<span class="st">""</span>): <span class="kw">return</span> agent.<span class="fn">run</span>(question)
+
+qa_agent(<span class="st">"한국의 수도는?"</span>, ground_truth=<span class="st">"서울"</span>)
+eval.<span class="fn">save</span>()               <span class="cm"># results/*.json + *.html</span>
+eval.<span class="fn">gate</span>(tcr=<span class="nm">85</span>, accuracy=<span class="nm">70</span>)  <span class="cm"># CI/CD 게이팅</span></pre>
+    </div>
+  </div>
+
+  <!-- 2. @agent_eval — 단일 태스크 -->
+  <div class="cls-card">
+    <div class="cls-head"><span class="cls-name">② @agent_eval — 단일 태스크 / 프레임워크 통합</span><span class="kind fn">decorator</span></div>
+    <div class="cls-body">
+      <div class="note" style="margin-bottom:10px">🔌 <code>framework=</code>으로 응답 객체에서 <strong>tool_calls · tokens · chain_steps</strong>를 자동 추출. 21개 프레임워크 지원.</div>
+<pre><span class="kw">from</span> <span class="cn">agent_evaluator</span> <span class="kw">import</span> PerformanceMonitor
+<span class="kw">from</span> <span class="cn">agent_evaluator.decorators</span> <span class="kw">import</span> agent_eval
 
 monitor = <span class="fn">PerformanceMonitor</span>(output_dir=<span class="st">"results/"</span>)
 
-task = <span class="fn">create_taskresult</span>(
-    task_id=<span class="st">"task_001"</span>,
-    question=<span class="st">"한국의 수도는?"</span>,
-    response=<span class="st">"서울입니다."</span>,
-    ground_truth=<span class="st">"서울"</span>,
-    execution_time=<span class="nm">1.23</span>,
-)
-monitor.<span class="fn">record_task</span>(task)
+<span class="de">@agent_eval</span>(monitor, task_type=<span class="st">"qa"</span>)             <span class="cm"># 기본</span>
+<span class="kw">def</span> <span class="fn">my_agent</span>(question: str, ground_truth: str = <span class="st">""</span>) -> str:
+    <span class="kw">return</span> llm.<span class="fn">invoke</span>(question)
+
+<span class="de">@agent_eval</span>(monitor, task_type=<span class="st">"tool_use"</span>, framework=<span class="st">"langchain"</span>)
+<span class="kw">def</span> <span class="fn">lc_agent</span>(question: str, ground_truth: str = <span class="st">""</span>) -> str:
+    <span class="kw">return</span> agent_executor.<span class="fn">invoke</span>({<span class="st">"input"</span>: question})
+
+<span class="de">@agent_eval</span>(monitor, task_type=<span class="st">"qa"</span>, framework=<span class="st">"openai"</span>)
+<span class="kw">def</span> <span class="fn">oai_agent</span>(question: str, ground_truth: str = <span class="st">""</span>) -> str:
+    <span class="kw">return</span> client.chat.completions.<span class="fn">create</span>(model=<span class="st">"gpt-4o-mini"</span>, messages=[{<span class="st">"role"</span>:<span class="st">"user"</span>,<span class="st">"content"</span>:question}])
+
 monitor.<span class="fn">save_to_file</span>(<span class="st">"eval_run"</span>)  <span class="cm"># → results/eval_run.json + .html</span></pre>
     </div>
   </div>
-  <div class="cls-card">
-    <div class="cls-head"><span class="cls-name">컨텍스트 매니저 패턴</span></div>
-    <div class="cls-body">
-<pre><span class="kw">from</span> <span class="cn">agent_evaluator</span> <span class="kw">import</span> evaluation_session, create_taskresult
 
-<span class="kw">with</span> <span class="fn">evaluation_session</span>(<span class="st">"session_01"</span>, output_dir=<span class="st">"results/"</span>) <span class="kw">as</span> monitor:
-    <span class="kw">for</span> q, expected <span class="kw">in</span> test_cases:
-        task = <span class="fn">create_taskresult</span>(task_id=<span class="st">f"t_{i}"</span>, question=q, response=agent.<span class="fn">run</span>(q), ground_truth=expected, execution_time=<span class="nm">1.0</span>)
-        monitor.<span class="fn">record_task</span>(task)
-<span class="cm"># 세션 종료 시 자동 저장</span></pre>
+  <!-- 3. @batch_eval — 배치 -->
+  <div class="cls-card">
+    <div class="cls-head"><span class="cls-name">③ @batch_eval — 배치 평가</span><span class="kind fn">decorator</span></div>
+    <div class="cls-body">
+<pre><span class="kw">from</span> <span class="cn">agent_evaluator.decorators</span> <span class="kw">import</span> batch_eval
+
+<span class="de">@batch_eval</span>(monitor, task_type=<span class="st">"qa"</span>, flush_every=<span class="nm">20</span>, flush_filename=<span class="st">"batch"</span>)
+<span class="kw">def</span> <span class="fn">batch_agent</span>(questions: list, ground_truths: list = <span class="kw">None</span>) -> list:
+    <span class="kw">return</span> [llm.<span class="fn">invoke</span>(q) <span class="kw">for</span> q <span class="kw">in</span> questions]
+
+batch_agent(questions=[<span class="st">"Q1"</span>, <span class="st">"Q2"</span>, <span class="st">"Q3"</span>], ground_truths=[<span class="st">"A1"</span>, <span class="st">"A2"</span>, <span class="st">"A3"</span>])</pre>
     </div>
   </div>
+
+  <!-- 4. @conversation_eval — 멀티턴 -->
   <div class="cls-card">
-    <div class="cls-head"><span class="cls-name">대시보드 실행</span></div>
+    <div class="cls-head"><span class="cls-name">④ @conversation_eval — 멀티턴 대화 평가</span><span class="kind fn">decorator</span></div>
+    <div class="cls-body">
+<pre><span class="kw">from</span> <span class="cn">agent_evaluator.decorators</span> <span class="kw">import</span> conversation_eval
+
+<span class="de">@conversation_eval</span>(monitor)
+<span class="kw">def</span> <span class="fn">chat_agent</span>(user_input: str, session_id: str = <span class="st">""</span>) -> str:
+    <span class="kw">return</span> llm.<span class="fn">invoke</span>(user_input)
+
+<span class="cm"># 동일 session_id → 자동 멀티턴 누산 → 세션 종료 시 ConversationMetrics 기록</span>
+chat_agent(<span class="st">"안녕하세요!"</span>, session_id=<span class="st">"user_001"</span>)
+chat_agent(<span class="st">"오늘 날씨 어때요?"</span>, session_id=<span class="st">"user_001"</span>)
+chat_agent(<span class="st">"주말 계획 추천해줘"</span>, session_id=<span class="st">"user_001"</span>)</pre>
+    </div>
+  </div>
+
+  <!-- 5. 대시보드 -->
+  <div class="cls-card">
+    <div class="cls-head"><span class="cls-name">⑤ 대시보드 실행</span></div>
     <div class="cls-body">
 <pre><span class="cm"># pip install "agent-evaluator[serve]" 필요</span>
-agent-eval dashboard                    <span class="cm"># 기본: ./results, 포트 8765, 브라우저 자동 오픈</span>
-agent-eval dashboard --port <span class="nm">8080</span> --watch  <span class="cm"># 포트 지정 + 파일 변경 자동 갱신</span>
-agent-eval dashboard --no-open --offline  <span class="cm"># 브라우저 비활성화 + CDN 에셋 로컬 캐시</span></pre>
+agent-eval dashboard                      <span class="cm"># 기본: ./results, 포트 8765</span>
+agent-eval dashboard --port <span class="nm">8080</span> --watch  <span class="cm"># 포트 지정 + 파일 변경 자동 갱신</span></pre>
     </div>
   </div>
 </section>
@@ -214,7 +271,7 @@ agent-eval dashboard --no-open --offline  <span class="cm"># 브라우저 비활
       <tr>
         <td><code class="t">llm</code></td>
         <td><code>pip install "agent-evaluator[llm]"</code></td>
-        <td>LLMHelper (OpenAI), ClaudeHelper (Anthropic)</td>
+        <td>LLMJudge · @agent_eval(framework='openai'|'anthropic')</td>
         <td>openai ≥1.0,&lt;3.0 · anthropic ≥0.20,&lt;1.0</td>
         <td>⚡ 빠름 (~5개)</td>
       </tr>
@@ -243,8 +300,29 @@ agent-eval dashboard --no-open --offline  <span class="cm"># 브라우저 비활
         <td><code class="t">eval</code></td>
         <td><code>pip install "agent-evaluator[eval]"</code></td>
         <td>DeepEvalAdapter (5종) + RagasAdapter (4종 RAG)</td>
-        <td>deepeval ≥0.20,&lt;4.0 · ragas ≥0.4,&lt;2.0 · datasets ≥4.0,&lt;6.0 · langchain ≥0.2</td>
+        <td>deepeval ≥3.0.0,&lt;4.0 · ragas ≥0.4,&lt;2.0 · datasets ≥4.0,&lt;6.0 · langchain ≥0.2</td>
         <td>🔴 무거움</td>
+      </tr>
+      <tr>
+        <td><code class="t">dspy</code></td>
+        <td><code>pip install "agent-evaluator[dspy]"</code></td>
+        <td>DSPy 프로그램 평가 (<code>DSPyEvaluator</code>, <code>@dspy_eval</code>)</td>
+        <td>dspy-ai ≥2.0.0</td>
+        <td>⚡ 빠름</td>
+      </tr>
+      <tr>
+        <td><code class="t">pydanticai</code></td>
+        <td><code>pip install "agent-evaluator[pydanticai]"</code></td>
+        <td>PydanticAI Agent 평가 (<code>PydanticAIEvaluator</code>, <code>@pydanticai_eval</code>)</td>
+        <td>pydantic-ai ≥0.0.13</td>
+        <td>⚡ 빠름</td>
+      </tr>
+      <tr>
+        <td><code class="t">otel</code></td>
+        <td><code>pip install "agent-evaluator[otel]"</code></td>
+        <td>Arize Phoenix 실시간 모니터링 (<code>agent-eval monitor</code>)</td>
+        <td>opentelemetry-sdk ≥1.20,&lt;2.0 · opentelemetry-exporter-otlp-proto-http ≥1.20,&lt;2.0 · arize-phoenix</td>
+        <td>🔶 중간 (~20개)</td>
       </tr>
       <tr>
         <td><code class="t">serve</code></td>
@@ -270,7 +348,7 @@ agent-eval dashboard --no-open --offline  <span class="cm"># 브라우저 비활
       <tr>
         <td><code class="t">all</code></td>
         <td><code>pip install "agent-evaluator[all]"</code></td>
-        <td>llm + langchain + eval + serve + pdf <strong>(crewai·autogen 제외)</strong></td>
+        <td>llm + langchain + eval + serve + pdf + dspy + pydanticai <strong>(crewai·autogen·otel 제외)</strong></td>
         <td>✅ 권장 — 합리적 설치 시간</td>
       </tr>
       <tr>
@@ -282,7 +360,7 @@ agent-eval dashboard --no-open --offline  <span class="cm"># 브라우저 비활
       <tr>
         <td><code class="t">full</code></td>
         <td><code>pip install "agent-evaluator[full]"</code></td>
-        <td>all + crewai + autogen 포함 진짜 전체</td>
+        <td>all + crewai + autogen + otel 포함 진짜 전체</td>
         <td>⚠️ 설치 10분+ 소요, pydantic 충돌 가능</td>
       </tr>
     </tbody>
@@ -293,23 +371,433 @@ agent-eval dashboard --no-open --offline  <span class="cm"># 브라우저 비활
 <!-- ── 아키텍처 ── -->
 <section class="sec" id="architecture">
   <div class="sec-title">🏗️ 아키텍처 개요</div>
-  <div class="sec-sub">3개 레이어, 25개 지표. Layer 1+2 (16종)는 외부 API 없이 동작.</div>
-  <table class="mtable">
-    <thead><tr><th>레이어</th><th>분류</th><th>트래커 수</th><th>의존성</th><th>핵심 지표</th></tr></thead>
-    <tbody>
-      <tr><td><span class="badge l1">L1</span></td><td>Foundation</td><td>6종</td><td>없음</td><td>TCR, Accuracy, Hallucination, Quality, Latency, Token Cost</td></tr>
-      <tr><td><span class="badge l2">L2</span></td><td>Agentic</td><td>5종</td><td>없음</td><td>Tool Efficiency, Selection F1, Retry, Coordination, Workflow</td></tr>
-      <tr><td><span class="badge l2">L2</span></td><td>Security <span class="badge req-b">opt-in</span></td><td>5종</td><td>없음</td><td>Injection, Leakage, AuthZ, PrivEsc, ChainAttack</td></tr>
-      <tr><td><span class="badge l3">L3</span></td><td>DeepEval</td><td>5종</td><td>deepeval + OpenAI</td><td>G-Eval, Hallucination, Toxicity, Bias, Answer Relevancy</td></tr>
-      <tr><td><span class="badge l3">L3</span></td><td>Ragas</td><td>4종</td><td>ragas + OpenAI</td><td>faithfulness, answer_relevancy, context_recall, context_precision</td></tr>
-    </tbody>
-  </table>
+  <div class="sec-sub">데코레이터가 <strong>생산자</strong>, 트래커가 <strong>소비자</strong>. 계약 지점은 <code>PerformanceMonitor.record_task()</code>.</div>
+
+  <!-- 데이터 흐름 다이어그램 -->
+  <div class="cls-card">
+    <div class="cls-head"><span class="cls-name">전체 데이터 흐름</span></div>
+    <div class="cls-body">
+      <div style="display:flex;flex-direction:column;align-items:center;gap:0;font-size:13px;padding:8px 0">
+        <!-- 데코레이터 레이어 박스 -->
+        <div style="border:1.5px solid var(--accent);border-radius:8px;padding:12px 24px;background:var(--bg2);width:100%;max-width:540px;box-sizing:border-box">
+          <div style="text-align:center;font-weight:700;color:var(--accent);margin-bottom:8px">데코레이터 레이어 <span style="color:var(--text2);font-weight:400">(생산자)</span></div>
+          <div style="display:flex;flex-wrap:wrap;justify-content:center;gap:6px">
+            <code style="background:var(--bg3);padding:2px 7px;border-radius:4px">@agent_eval</code>
+            <code style="background:var(--bg3);padding:2px 7px;border-radius:4px">@batch_eval</code>
+            <code style="background:var(--bg3);padding:2px 7px;border-radius:4px">@conversation_eval</code>
+            <code style="background:var(--bg3);padding:2px 7px;border-radius:4px">eval_context</code>
+          </div>
+          <div style="text-align:center;color:var(--text2);margin-top:6px;font-size:12px">QuickEval · EvalDecorator (팩토리)</div>
+        </div>
+        <!-- 화살표 + 단계 설명 -->
+        <div style="display:flex;align-items:flex-start;gap:12px;padding:8px 0">
+          <div style="display:flex;flex-direction:column;align-items:center;padding-top:2px">
+            <div style="width:2px;height:12px;background:var(--text2)"></div>
+            <div style="width:0;height:0;border-left:6px solid transparent;border-right:6px solid transparent;border-top:8px solid var(--text2)"></div>
+          </div>
+          <div style="font-size:12px;color:var(--text2);line-height:1.8">
+            <div>① 함수 실행 + <code>execution_time</code> 자동 측정</div>
+            <div>② <code>framework=</code> 어댑터로 tokens / tool_calls 추출</div>
+            <div>③ EvalMetadata 병합</div>
+            <div>④ TaskResult 자동 생성</div>
+          </div>
+        </div>
+        <!-- 계약 지점 박스 -->
+        <div style="border:1.5px solid #f59e0b;border-radius:8px;padding:12px 24px;background:var(--bg2);width:100%;max-width:540px;box-sizing:border-box;text-align:center">
+          <code style="font-size:14px;color:#f59e0b">PerformanceMonitor.record_task(task)</code>
+          <span style="margin-left:8px;background:#f59e0b;color:#000;font-size:11px;font-weight:700;padding:1px 6px;border-radius:4px">계약 지점</span>
+          <div style="font-size:12px;color:var(--text2);margin-top:4px">모든 활성 트래커에 TaskResult 분배</div>
+        </div>
+        <!-- 화살표 -->
+        <div style="display:flex;flex-direction:column;align-items:center;padding:4px 0">
+          <div style="width:2px;height:10px;background:var(--text2)"></div>
+          <div style="width:0;height:0;border-left:6px solid transparent;border-right:6px solid transparent;border-top:8px solid var(--text2)"></div>
+        </div>
+        <!-- 트래커 그리드 -->
+        <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:6px;width:100%;max-width:540px">
+          <div style="border:1px solid #22c55e;border-radius:6px;padding:8px 6px;text-align:center;background:var(--bg2)">
+            <div style="font-size:10px;color:#22c55e;font-weight:700;margin-bottom:4px">L1 항상</div>
+            <div style="font-size:11px;line-height:1.6;color:var(--text)">TCR<br>Latency<br>Token</div>
+          </div>
+          <div style="border:1px solid #22c55e;border-radius:6px;padding:8px 6px;text-align:center;background:var(--bg2)">
+            <div style="font-size:10px;color:#22c55e;font-weight:700;margin-bottom:4px">L1 항상</div>
+            <div style="font-size:11px;line-height:1.6;color:var(--text)">Accuracy<br>Quality<br>Halluc.*</div>
+          </div>
+          <div style="border:1px solid #3b82f6;border-radius:6px;padding:8px 6px;text-align:center;background:var(--bg2)">
+            <div style="font-size:10px;color:#3b82f6;font-weight:700;margin-bottom:4px">L2 자동</div>
+            <div style="font-size:11px;line-height:1.6;color:var(--text)">ToolCall<br>Retry<br>Selection</div>
+          </div>
+          <div style="border:1px solid #a78bfa;border-radius:6px;padding:8px 6px;text-align:center;background:var(--bg2)">
+            <div style="font-size:10px;color:#a78bfa;font-weight:700;margin-bottom:4px">L2 opt-in</div>
+            <div style="font-size:11px;line-height:1.6;color:var(--text)">Security<br>(5종)</div>
+          </div>
+          <div style="border:1px solid #3b82f6;border-radius:6px;padding:8px 6px;text-align:center;background:var(--bg2)">
+            <div style="font-size:10px;color:#3b82f6;font-weight:700;margin-bottom:4px">L2 자동</div>
+            <div style="font-size:11px;line-height:1.6;color:var(--text)">Workflow<br>Coord.</div>
+          </div>
+        </div>
+      </div>
+      <div class="note" style="margin-top:8px;font-size:12px">* Hallucination은 <code>enable_hallucination_detection=True</code> 또는 <code>rag_mode=True</code> 필요. L2 Agentic은 <code>tool_calls</code>·<code>agent_interactions</code> 데이터가 있을 때 자동 활성.</div>
+    </div>
+  </div>
+
+  <!-- TaskResult 필드 → 트래커 매핑 -->
+  <div class="cls-card" style="margin-top:12px">
+    <div class="cls-head"><span class="cls-name">TaskResult 필드 → 트래커 매핑</span><span style="font-size:12px;color:var(--text2);margin-left:8px">데코레이터가 자동으로 채우는 필드와 각 트래커의 소비 관계</span></div>
+    <div class="cls-body">
+      <table class="mtable">
+        <thead><tr><th>TaskResult 필드</th><th>데코레이터 자동 공급 방법</th><th>소비 트래커</th></tr></thead>
+        <tbody>
+          <tr><td><span class="p">execution_time</span></td><td><code>time.perf_counter()</code> 자동 측정</td><td>LatencyTracker (P50/P95/P99, TTFT)</td></tr>
+          <tr><td><span class="p">success / completion_score</span></td><td>예외 없으면 <code>1.0</code>, 예외 발생 시 <code>0.0</code></td><td>TaskCompletionTracker (TCR)</td></tr>
+          <tr><td><span class="p">accuracy_score</span></td><td><code>ground_truth</code> 파라미터 vs 반환값 자동 계산 (4-way)</td><td>AccuracyEvaluator</td></tr>
+          <tr><td><span class="p">tokens_used</span></td><td><code>framework=</code> 어댑터로 응답 객체에서 자동 추출 또는 <code>EvalMetadata.tokens_used</code></td><td>TokenEconomyTracker (비용 추정)</td></tr>
+          <tr><td><span class="p">tool_calls</span></td><td><code>framework=</code> 어댑터 자동 추출 또는 <code>EvalMetadata.tool_calls</code></td><td>ToolCallAnalyzer, ToolSelectionTracker</td></tr>
+          <tr><td><span class="p">extra.chain_steps</span></td><td><code>framework=</code> 어댑터 자동 추출</td><td>WorkflowExecutionTracker</td></tr>
+          <tr><td><span class="p">extra.agent_interactions</span></td><td><code>EvalMetadata.agent_interactions</code> 수동 주입</td><td>AgentCoordinationTracker</td></tr>
+          <tr><td><span class="p">attempts / errors</span></td><td><code>EvalMetadata.attempts</code> 또는 자동 카운트</td><td>RetryCorrectionTracker</td></tr>
+          <tr><td><span class="p">question / response</span></td><td>함수 파라미터 <code>question=</code> 자동 매핑</td><td>ResponseQualityEvaluator, HallucinationDetector</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- 레이어 요약 테이블 -->
+  <div class="cls-card" style="margin-top:12px">
+    <div class="cls-head"><span class="cls-name">레이어별 트래커 목록</span></div>
+    <div class="cls-body">
+      <table class="mtable">
+        <thead><tr><th>레이어</th><th>분류</th><th>트래커 수</th><th>활성화 조건</th><th>핵심 지표</th></tr></thead>
+        <tbody>
+          <tr><td><span class="badge l1">L1</span></td><td>Foundation</td><td>6종</td><td>항상 (Hallucination만 opt-in)</td><td>TCR, Accuracy, Quality, Latency, Token, Hallucination</td></tr>
+          <tr><td><span class="badge l2">L2</span></td><td>Agentic</td><td>5종</td><td><code>tool_calls</code> · <code>chain_steps</code> · <code>agent_interactions</code> 데이터 공급 시 자동</td><td>Tool Efficiency, Selection F1, Retry, Coordination, Workflow</td></tr>
+          <tr><td><span class="badge l2">L2</span></td><td>Security <span class="badge req-b">opt-in</span></td><td>5종</td><td><code>security_mode=True</code> 또는 <code>enable_security_metrics=True</code></td><td>Injection, Leakage, AuthZ, PrivEsc, ChainAttack</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<!-- ── QuickEval ── -->
+<section class="sec" id="quickeval">
+  <div class="sec-title">⚡ QuickEval <span style="font-size:13px;font-weight:400;color:var(--text2);margin-left:8px">v0.7.1+ · 원스톱 Facade</span></div>
+  <div class="sec-sub">PerformanceMonitor + EvalDecorator를 1줄로 시작하는 고수준 Facade. 단축 데코레이터 11개 + 팩토리 메서드 4개 제공.</div>
+  <div class="cls-card">
+    <div class="cls-head"><span class="cls-name">QuickEval</span><span class="kind cls">class</span><span class="cls-src">agent_evaluator.quick_eval</span></div>
+    <div class="cls-body">
+      <div class="slbl">생성자 파라미터</div>
+      {% call param_table() %}
+          <tr><td><span class="p">output_dir</span><span class="req">✦</span></td><td><span class="t">str</span></td><td>—</td><td>JSON/HTML 리포트 저장 디렉토리</td></tr>
+          <tr><td><span class="p">auto_save</span><span class="opt">opt</span></td><td><span class="t">bool</span></td><td><code>False</code></td><td>N건마다 save_to_file() 자동 호출</td></tr>
+          <tr><td><span class="p">auto_save_interval</span><span class="opt">opt</span></td><td><span class="t">int</span></td><td><code>10</code></td><td>자동 저장 주기</td></tr>
+      {% endcall %}
+      <div class="slbl">단축 데코레이터 (11개)</div>
+      <div class="note tip" style="margin-bottom:8px">💡 모두 <code>@eval.단축키</code> 형식이며 내부적으로 <code>@agent_eval</code>을 사용합니다.</div>
+      <table class="mtable">
+        <thead><tr><th>단축키</th><th>task_type</th><th>비고</th></tr></thead>
+        <tbody>
+          <tr><td><span class="p">@eval.qa</span></td><td><code>"qa"</code></td><td>질의응답</td></tr>
+          <tr><td><span class="p">@eval.tool_use</span></td><td><code>"tool_use"</code></td><td>도구 호출</td></tr>
+          <tr><td><span class="p">@eval.rag</span></td><td><code>"information_retrieval"</code></td><td>hallucination_detection 자동 활성</td></tr>
+          <tr><td><span class="p">@eval.code</span></td><td><code>"code_generation"</code></td><td>AST 비교 정확도</td></tr>
+          <tr><td><span class="p">@eval.reasoning</span></td><td><code>"reasoning"</code></td><td></td></tr>
+          <tr><td><span class="p">@eval.planning</span></td><td><code>"planning"</code></td><td></td></tr>
+          <tr><td><span class="p">@eval.data_analysis</span></td><td><code>"data_analysis"</code></td><td></td></tr>
+          <tr><td><span class="p">@eval.creative</span></td><td><code>"creative"</code></td><td></td></tr>
+          <tr><td><span class="p">@eval.multi_agent</span></td><td><code>"tool_use"</code></td><td>AgentCoordination 활성</td></tr>
+          <tr><td><span class="p">@eval.secure</span></td><td><code>"qa"</code></td><td>security_metrics 임시 활성</td></tr>
+          <tr><td><span class="p">@eval.streaming</span></td><td><code>"qa"</code></td><td>TTFT 자동 기록</td></tr>
+        </tbody>
+      </table>
+      <div class="slbl">주요 메서드</div>
+      <table class="mtable">
+        <thead><tr><th>메서드</th><th>반환</th><th>설명</th></tr></thead>
+        <tbody>
+          <tr><td><span class="p">save(filename=None)</span></td><td><span class="r">None</span></td><td>JSON + HTML 저장</td></tr>
+          <tr><td><span class="p">gate(tcr=None, accuracy=None, quality=None, hallucination=None)</span></td><td><span class="r">None</span></td><td>임계값 미달 시 sys.exit(1). CI/CD 게이팅.</td></tr>
+          <tr><td><span class="p">summary()</span></td><td><span class="r">Dict</span></td><td>tcr·accuracy·p95_latency·total_cost_usd 등 핵심 지표 요약</td></tr>
+          <tr><td><span class="p">compare(other)</span></td><td><span class="r">Dict</span></td><td>두 QuickEval 인스턴스 지표 비교</td></tr>
+          <tr><td><span class="p">for_rag(output_dir, **kw)</span></td><td><span class="r">QuickEval</span></td><td>classmethod. hallucination_detection=True 자동 적용</td></tr>
+          <tr><td><span class="p">for_security(output_dir, **kw)</span></td><td><span class="r">QuickEval</span></td><td>classmethod. enable_security_metrics=True 자동 적용</td></tr>
+          <tr><td><span class="p">for_llm_judge(output_dir, model, **kw)</span></td><td><span class="r">QuickEval</span></td><td>classmethod. LLMJudge 자동 설정</td></tr>
+        </tbody>
+      </table>
+<pre style="margin-top:10px"><span class="kw">from</span> <span class="cn">agent_evaluator</span> <span class="kw">import</span> QuickEval
+
+eval = <span class="fn">QuickEval</span>(<span class="st">"results/"</span>)
+
+<span class="de">@eval.qa</span>
+<span class="kw">def</span> <span class="fn">my_agent</span>(question: str, ground_truth: str = <span class="st">""</span>) -> str:
+    <span class="kw">return</span> llm_call(question)
+
+<span class="fn">my_agent</span>(<span class="st">"한국의 수도는?"</span>, ground_truth=<span class="st">"서울"</span>)
+eval.<span class="fn">save</span>()                          <span class="cm"># → results/*.json + *.html</span>
+eval.<span class="fn">gate</span>(tcr=<span class="nm">85</span>, accuracy=<span class="nm">70</span>)       <span class="cm"># CI/CD — 미달 시 exit(1)</span>
+
+<span class="cm"># RAG 전용 (환각 탐지 자동 활성)</span>
+eval = <span class="fn">QuickEval.for_rag</span>(<span class="st">"results/"</span>)
+<span class="de">@eval.rag</span>
+<span class="kw">def</span> <span class="fn">rag_agent</span>(question: str, context: str = <span class="st">""</span>, ground_truth: str = <span class="st">""</span>) -> str: ...
+
+<span class="cm"># 자동 저장 + 배치</span>
+eval = <span class="fn">QuickEval</span>(<span class="st">"results/"</span>, auto_save=<span class="kw">True</span>, auto_save_interval=<span class="nm">10</span>)
+<span class="de">@eval.batch</span>(task_type=<span class="st">"qa"</span>)
+<span class="kw">def</span> <span class="fn">batch_agent</span>(questions: list, ground_truths: list = <span class="kw">None</span>) -> list: ...</pre>
+    </div>
+  </div>
+</section>
+
+<!-- ── @agent_eval 데코레이터 ── -->
+<section class="sec" id="decorators">
+  <div class="sec-title">🎯 @agent_eval <span style="font-size:13px;font-weight:400;color:var(--text2);margin-left:8px">v0.7.1+ · 단일 태스크</span></div>
+  <div class="sec-sub">함수 위에 한 줄로 평가를 삽입. 실행 시간·토큰·도구 호출을 자동 측정하고 TaskResult를 PerformanceMonitor에 기록합니다.</div>
+  <div class="cls-card">
+    <div class="cls-head"><span class="cls-name">agent_eval</span><span class="kind fn">decorator</span><span class="cls-src">agent_evaluator.decorators</span></div>
+    <div class="cls-body">
+      <div class="slbl">파라미터</div>
+      {% call param_table() %}
+          <tr><td><span class="p">monitor</span><span class="req">✦</span></td><td><span class="t">PerformanceMonitor</span></td><td>—</td><td>결과를 기록할 모니터 인스턴스</td></tr>
+          <tr><td><span class="p">task_type</span><span class="req">✦</span></td><td><span class="t">str</span></td><td>—</td><td>TaskType 소문자 문자열 (e.g. <code>"qa"</code>, <code>"tool_use"</code>, <code>"information_retrieval"</code>)</td></tr>
+          <tr><td><span class="p">framework</span><span class="opt">opt</span></td><td><span class="t">FrameworkLiteral</span></td><td><code>None</code></td><td>응답 객체에서 토큰/도구/chain_steps 자동 추출 (21개 지원)</td></tr>
+          <tr><td><span class="p">task_id_prefix</span><span class="opt">opt</span></td><td><span class="t">str</span></td><td><code>"task"</code></td><td>자동 생성 task_id 접두사</td></tr>
+          <tr><td><span class="p">task_id_fn</span><span class="opt">opt</span></td><td><span class="t">Callable</span></td><td><code>None</code></td><td><code>(args, kwargs) → str</code> 동적 task_id 생성</td></tr>
+          <tr><td><span class="p">flush_every</span><span class="opt">opt</span></td><td><span class="t">int</span></td><td><code>0</code></td><td>N 호출마다 save_to_file() 자동 실행 (0=비활성)</td></tr>
+          <tr><td><span class="p">flush_filename</span><span class="opt">opt</span></td><td><span class="t">str</span></td><td><code>None</code></td><td>flush_every 저장 파일명</td></tr>
+          <tr><td><span class="p">alert_rules</span><span class="opt">opt</span></td><td><span class="t">List[SimpleTaskAlertRule]</span></td><td><code>[]</code></td><td>태스크 완료 시 실행할 알림 규칙 목록</td></tr>
+          <tr><td><span class="p">rag_mode</span><span class="opt">opt</span></td><td><span class="t">bool</span></td><td><code>False</code></td><td>hallucination_detection + <code>information_retrieval</code> task_type 자동 적용</td></tr>
+          <tr><td><span class="p">security_mode</span><span class="opt">opt</span></td><td><span class="t">bool</span></td><td><code>False</code></td><td>보안 5종 지표 임시 활성</td></tr>
+          <tr><td><span class="p">enable_llm_judge</span><span class="opt">opt</span></td><td><span class="t">bool</span></td><td><code>False</code></td><td>LLM Judge 임시 활성 (requires [llm])</td></tr>
+          <tr><td><span class="p">judge_model</span><span class="opt">opt</span></td><td><span class="t">str</span></td><td><code>None</code></td><td>LLM Judge 사용 모델</td></tr>
+          <tr><td><span class="p">sample_rate</span><span class="opt">opt</span></td><td><span class="t">float</span></td><td><code>1.0</code></td><td>샘플링 비율 (0–1). 비용 제어용</td></tr>
+          <tr><td><span class="p">sample_condition</span><span class="opt">opt</span></td><td><span class="t">Callable</span></td><td><code>None</code></td><td><code>(args, kwargs) → bool</code> 조건부 샘플링</td></tr>
+          <tr><td><span class="p">on_record</span><span class="opt">opt</span></td><td><span class="t">Callable</span></td><td><code>None</code></td><td><code>(TaskResult) → TaskResult|None</code> 기록 후 후처리 훅</td></tr>
+      {% endcall %}
+      <div class="slbl">함수 시그니처 규칙</div>
+      <div class="note tip">💡 파라미터명 <code>question</code>·<code>ground_truth</code>·<code>context</code>가 있으면 자동 인식합니다. 다른 이름을 쓸 경우 <code>question_arg</code>·<code>ground_truth_arg</code>·<code>context_arg</code> 파라미터로 매핑하세요.</div>
+<pre style="margin-top:10px"><span class="kw">from</span> <span class="cn">agent_evaluator</span> <span class="kw">import</span> PerformanceMonitor
+<span class="kw">from</span> <span class="cn">agent_evaluator.decorators</span> <span class="kw">import</span> agent_eval, EvalMetadata
+
+monitor = <span class="fn">PerformanceMonitor</span>(output_dir=<span class="st">"results/"</span>)
+
+<span class="cm"># 기본 — 실행시간·정확도 자동 측정</span>
+<span class="de">@agent_eval</span>(monitor, task_type=<span class="st">"qa"</span>)
+<span class="kw">def</span> <span class="fn">my_agent</span>(question: str, ground_truth: str = <span class="st">""</span>) -> str:
+    <span class="kw">return</span> llm.<span class="fn">invoke</span>(question)
+
+<span class="cm"># 프레임워크 자동 추출 (tool_calls, tokens_used, chain_steps)</span>
+<span class="de">@agent_eval</span>(monitor, task_type=<span class="st">"tool_use"</span>, framework=<span class="st">"openai"</span>)
+<span class="kw">def</span> <span class="fn">openai_agent</span>(question: str, ground_truth: str = <span class="st">""</span>):
+    <span class="kw">return</span> client.chat.completions.<span class="fn">create</span>(model=<span class="st">"gpt-4o-mini"</span>, messages=[{<span class="st">"role"</span>:<span class="st">"user"</span>,<span class="st">"content"</span>:question}])
+
+<span class="cm"># EvalMetadata 튜플 반환 — 점수·도구·토큰 수동 주입</span>
+<span class="de">@agent_eval</span>(monitor, task_type=<span class="st">"tool_use"</span>)
+<span class="kw">def</span> <span class="fn">tool_agent</span>(question: str, ground_truth: str = <span class="st">""</span>) -> tuple:
+    resp = my_tool.<span class="fn">run</span>(question)
+    <span class="kw">return</span> resp, <span class="fn">EvalMetadata</span>(
+        tokens_used={<span class="st">"input"</span>: <span class="nm">200</span>, <span class="st">"output"</span>: <span class="nm">150</span>},
+        tool_calls=[{<span class="st">"tool"</span>: <span class="st">"search"</span>, <span class="st">"query"</span>: question}],
+        expected_tools=[<span class="st">"search"</span>, <span class="st">"calculator"</span>],   <span class="cm"># F1 계산용</span>
+        accuracy_score=<span class="nm">0.95</span>,
+    )
+
+<span class="cm"># RAG 모드 — hallucination_detection 자동 활성</span>
+<span class="de">@agent_eval</span>(monitor, task_type=<span class="st">"information_retrieval"</span>, rag_mode=<span class="kw">True</span>)
+<span class="kw">def</span> <span class="fn">rag_agent</span>(question: str, context: str = <span class="st">""</span>, ground_truth: str = <span class="st">""</span>) -> str:
+    <span class="kw">return</span> rag.<span class="fn">run</span>(question, context)
+
+<span class="cm"># 보안 모드 — InputSanitization·OutputLeakage 등 5종 임시 활성</span>
+<span class="de">@agent_eval</span>(monitor, task_type=<span class="st">"qa"</span>, security_mode=<span class="kw">True</span>)
+<span class="kw">def</span> <span class="fn">secure_agent</span>(question: str, ground_truth: str = <span class="st">""</span>) -> str:
+    <span class="kw">return</span> agent.<span class="fn">run</span>(question)
+
+<span class="cm"># LLM Judge + 주기 저장 조합</span>
+<span class="de">@agent_eval</span>(monitor, task_type=<span class="st">"qa"</span>,
+             enable_llm_judge=<span class="kw">True</span>, judge_model=<span class="st">"claude-sonnet-4-6"</span>,
+             flush_every=<span class="nm">50</span>, flush_filename=<span class="st">"production_run"</span>)
+<span class="kw">def</span> <span class="fn">prod_agent</span>(question: str, ground_truth: str = <span class="st">""</span>) -> str:
+    <span class="kw">return</span> llm.<span class="fn">invoke</span>(question)
+
+<span class="cm"># 비동기 함수 그대로 지원</span>
+<span class="de">@agent_eval</span>(monitor, task_type=<span class="st">"qa"</span>)
+<span class="kw">async def</span> <span class="fn">async_agent</span>(question: str, ground_truth: str = <span class="st">""</span>) -> str:
+    <span class="kw">return await</span> llm.<span class="fn">ainvoke</span>(question)</pre>
+    </div>
+  </div>
+</section>
+
+<!-- ── @batch_eval ── -->
+<section class="sec" id="batch-eval">
+  <div class="sec-title">📦 @batch_eval <span style="font-size:13px;font-weight:400;color:var(--text2);margin-left:8px">v0.7.1+ · 배치 평가</span></div>
+  <div class="sec-sub">리스트 입력을 받아 한 번에 여러 태스크를 평가합니다. 각 항목이 독립적인 TaskResult로 기록됩니다.</div>
+  <div class="cls-card">
+    <div class="cls-head"><span class="cls-name">batch_eval</span><span class="kind fn">decorator</span><span class="cls-src">agent_evaluator.decorators</span></div>
+    <div class="cls-body">
+      <div class="slbl">파라미터</div>
+      {% call param_table() %}
+          <tr><td><span class="p">monitor</span><span class="req">✦</span></td><td><span class="t">PerformanceMonitor</span></td><td>—</td><td>결과를 기록할 모니터 인스턴스</td></tr>
+          <tr><td><span class="p">task_type</span><span class="opt">opt</span></td><td><span class="t">str</span></td><td><code>"qa"</code></td><td>TaskType 소문자 문자열</td></tr>
+          <tr><td><span class="p">framework</span><span class="opt">opt</span></td><td><span class="t">FrameworkLiteral</span></td><td><code>None</code></td><td>21개 프레임워크 메타데이터 자동 추출</td></tr>
+          <tr><td><span class="p">concurrent</span><span class="opt">opt</span></td><td><span class="t">bool</span></td><td><code>False</code></td><td>ThreadPoolExecutor 병렬 처리 활성</td></tr>
+          <tr><td><span class="p">max_concurrent</span><span class="opt">opt</span></td><td><span class="t">int</span></td><td><code>5</code></td><td>최대 병렬 스레드 수</td></tr>
+          <tr><td><span class="p">shuffle</span><span class="opt">opt</span></td><td><span class="t">bool</span></td><td><code>False</code></td><td>입력 순서 셔플</td></tr>
+          <tr><td><span class="p">item_timeout</span><span class="opt">opt</span></td><td><span class="t">float</span></td><td><code>None</code></td><td>항목별 타임아웃 (초)</td></tr>
+          <tr><td><span class="p">on_item_error</span><span class="opt">opt</span></td><td><span class="t">str</span></td><td><code>"skip"</code></td><td><code>"skip"</code> | <code>"raise"</code> | <code>"record"</code> — 개별 항목 오류 처리</td></tr>
+          <tr><td><span class="p">return_format</span><span class="opt">opt</span></td><td><span class="t">str</span></td><td><code>"list"</code></td><td><code>"list"</code> | <code>"tuple"</code> | <code>"dataframe"</code></td></tr>
+          <tr><td><span class="p">flush_every</span><span class="opt">opt</span></td><td><span class="t">int</span></td><td><code>0</code></td><td>N건마다 save_to_file() 자동 실행</td></tr>
+          <tr><td><span class="p">flush_filename</span><span class="opt">opt</span></td><td><span class="t">str</span></td><td><code>None</code></td><td>flush 저장 파일명</td></tr>
+          <tr><td><span class="p">alert_rules</span><span class="opt">opt</span></td><td><span class="t">List[SimpleTaskAlertRule]</span></td><td><code>[]</code></td><td>알림 규칙 목록</td></tr>
+          <tr><td><span class="p">allow_duplicate_task_ids</span><span class="opt">opt</span></td><td><span class="t">bool</span></td><td><code>False</code></td><td>중복 task_id 허용</td></tr>
+      {% endcall %}
+      <div class="note tip" style="margin-top:8px">💡 함수 시그니처: <code>(questions: list, ground_truths: list = None) → list</code>. 반환 리스트와 입력 리스트의 인덱스가 1:1 매핑됩니다.</div>
+<pre style="margin-top:10px"><span class="kw">from</span> <span class="cn">agent_evaluator.decorators</span> <span class="kw">import</span> batch_eval
+
+<span class="cm"># 기본 배치 평가</span>
+<span class="de">@batch_eval</span>(monitor, task_type=<span class="st">"qa"</span>, flush_every=<span class="nm">20</span>, flush_filename=<span class="st">"batch_run"</span>)
+<span class="kw">def</span> <span class="fn">batch_agent</span>(questions: list, ground_truths: list = <span class="kw">None</span>) -> list:
+    <span class="kw">return</span> [llm.<span class="fn">invoke</span>(q) <span class="kw">for</span> q <span class="kw">in</span> questions]
+
+batch_agent(
+    questions=[<span class="st">"Q1"</span>, <span class="st">"Q2"</span>, <span class="st">"Q3"</span>],
+    ground_truths=[<span class="st">"A1"</span>, <span class="st">"A2"</span>, <span class="st">"A3"</span>],
+)
+
+<span class="cm"># 병렬 처리 — 응답 시간 단축</span>
+<span class="de">@batch_eval</span>(monitor, task_type=<span class="st">"qa"</span>, concurrent=<span class="kw">True</span>, max_concurrent=<span class="nm">8</span>)
+<span class="kw">def</span> <span class="fn">parallel_agent</span>(questions: list, ground_truths: list = <span class="kw">None</span>) -> list:
+    <span class="kw">return</span> [llm.<span class="fn">invoke</span>(q) <span class="kw">for</span> q <span class="kw">in</span> questions]
+
+<span class="cm"># DataFrame 반환 (tokens_total, framework, tool_call_count, has_error, timestamp 포함)</span>
+<span class="de">@batch_eval</span>(monitor, task_type=<span class="st">"tool_use"</span>, return_format=<span class="st">"dataframe"</span>)
+<span class="kw">def</span> <span class="fn">df_agent</span>(questions: list, ground_truths: list = <span class="kw">None</span>) -> list:
+    <span class="kw">return</span> [agent.<span class="fn">run</span>(q) <span class="kw">for</span> q <span class="kw">in</span> questions]
+
+df = <span class="fn">df_agent</span>(questions=[...], ground_truths=[...])
+<span class="cm"># df.columns → ['task_id', 'question', 'response', 'accuracy', 'tokens_total', ...]</span>
+
+<span class="cm"># 오류 허용 — 일부 항목 실패해도 나머지 계속 평가</span>
+<span class="de">@batch_eval</span>(monitor, task_type=<span class="st">"qa"</span>, on_item_error=<span class="st">"record"</span>, item_timeout=<span class="nm">30.0</span>)
+<span class="kw">def</span> <span class="fn">robust_agent</span>(questions: list, ground_truths: list = <span class="kw">None</span>) -> list:
+    <span class="kw">return</span> [risky_call(q) <span class="kw">for</span> q <span class="kw">in</span> questions]</pre>
+    </div>
+  </div>
+</section>
+
+<!-- ── @conversation_eval ── -->
+<section class="sec" id="conversation-eval">
+  <div class="sec-title">💬 @conversation_eval <span style="font-size:13px;font-weight:400;color:var(--text2);margin-left:8px">v0.7.1+ · 멀티턴 대화</span></div>
+  <div class="sec-sub">멀티턴 대화를 세션 단위로 평가합니다. 동일 <code>session_id</code>로 호출하면 자동으로 턴이 누산되고 세션 종료 시 <code>ConversationMetrics</code>를 기록합니다.</div>
+  <div class="cls-card">
+    <div class="cls-head"><span class="cls-name">conversation_eval</span><span class="kind fn">decorator</span><span class="cls-src">agent_evaluator.decorators</span></div>
+    <div class="cls-body">
+      <div class="slbl">파라미터</div>
+      {% call param_table() %}
+          <tr><td><span class="p">monitor</span><span class="req">✦</span></td><td><span class="t">PerformanceMonitor</span></td><td>—</td><td>결과를 기록할 모니터 인스턴스</td></tr>
+          <tr><td><span class="p">session_id</span><span class="opt">opt</span></td><td><span class="t">str</span></td><td><code>None</code></td><td>고정 session_id (None이면 <code>session_id</code> 파라미터에서 자동 추출)</td></tr>
+          <tr><td><span class="p">participant_id_arg</span><span class="opt">opt</span></td><td><span class="t">str</span></td><td><code>"session_id"</code></td><td>세션 ID를 담는 함수 파라미터명</td></tr>
+          <tr><td><span class="p">max_turns</span><span class="opt">opt</span></td><td><span class="t">int</span></td><td><code>None</code></td><td>세션당 최대 턴 수 제한</td></tr>
+          <tr><td><span class="p">max_turns_exceeded_action</span><span class="opt">opt</span></td><td><span class="t">str</span></td><td><code>"warn"</code></td><td><code>"warn"</code> | <code>"stop"</code> | <code>"reset"</code></td></tr>
+          <tr><td><span class="p">session_timeout</span><span class="opt">opt</span></td><td><span class="t">float</span></td><td><code>None</code></td><td>세션 비활성 타임아웃 (초)</td></tr>
+          <tr><td><span class="p">flush_every</span><span class="opt">opt</span></td><td><span class="t">int</span></td><td><code>0</code></td><td>N세션마다 save_to_file() 자동 실행</td></tr>
+          <tr><td><span class="p">flush_filename</span><span class="opt">opt</span></td><td><span class="t">str</span></td><td><code>None</code></td><td>flush 저장 파일명</td></tr>
+          <tr><td><span class="p">on_turn</span><span class="opt">opt</span></td><td><span class="t">Callable</span></td><td><code>None</code></td><td><code>(session_id, turn_idx, user, response) → None</code> 턴 완료 훅</td></tr>
+          <tr><td><span class="p">session_score_fn</span><span class="opt">opt</span></td><td><span class="t">Callable</span></td><td><code>None</code></td><td><code>(ConversationMetrics) → float</code> 커스텀 세션 점수</td></tr>
+      {% endcall %}
+      <div class="slbl">ConversationMetrics — 자동 산출되는 지표</div>
+      <table class="mtable" style="margin-bottom:10px">
+        <thead><tr><th>필드</th><th>범위</th><th>설명</th></tr></thead>
+        <tbody>
+          <tr><td><span class="p">turn_count</span></td><td><span class="r">int</span></td><td>총 대화 턴 수</td></tr>
+          <tr><td><span class="p">context_retention_score</span></td><td><span class="r">0–1</span></td><td>이전 발화 정보 보존율</td></tr>
+          <tr><td><span class="p">topic_coherence_score</span></td><td><span class="r">0–1</span></td><td>대화 주제 일관성</td></tr>
+          <tr><td><span class="p">progressive_depth_score</span></td><td><span class="r">0–1</span></td><td>대화 심화 진행도</td></tr>
+          <tr><td><span class="p">session_completion_score</span></td><td><span class="r">0–1</span></td><td>세션 완결성 (응답 길이 기반)</td></tr>
+          <tr><td><span class="p">overall_score</span></td><td><span class="r">0–1</span></td><td>4차원 가중 평균</td></tr>
+          <tr><td><span class="p">avg_turn_latency</span></td><td><span class="r">float</span></td><td>턴당 평균 응답 시간 (초)</td></tr>
+        </tbody>
+      </table>
+<pre><span class="kw">from</span> <span class="cn">agent_evaluator.decorators</span> <span class="kw">import</span> conversation_eval
+
+<span class="cm"># 기본 — session_id 파라미터로 자동 세션 분리</span>
+<span class="de">@conversation_eval</span>(monitor, flush_every=<span class="nm">10</span>)
+<span class="kw">def</span> <span class="fn">chat_agent</span>(user_input: str, session_id: str = <span class="st">""</span>) -> str:
+    <span class="kw">return</span> llm.<span class="fn">invoke</span>(user_input)
+
+<span class="cm"># 동일 session_id로 호출 → 자동으로 멀티턴 누산</span>
+chat_agent(<span class="st">"안녕하세요!"</span>, session_id=<span class="st">"user_001"</span>)
+chat_agent(<span class="st">"오늘 날씨 어때요?"</span>, session_id=<span class="st">"user_001"</span>)
+chat_agent(<span class="st">"그럼 주말 계획 추천해줘"</span>, session_id=<span class="st">"user_001"</span>)
+<span class="cm"># → context_retention, topic_coherence, progressive_depth 자동 집계</span>
+
+<span class="cm"># 다른 user → 별도 세션</span>
+chat_agent(<span class="st">"파이썬 배우고 싶어요"</span>, session_id=<span class="st">"user_002"</span>)
+chat_agent(<span class="st">"어떻게 시작하면 돼요?"</span>, session_id=<span class="st">"user_002"</span>)
+
+<span class="cm"># 커스텀 점수 함수 + 턴 완료 훅</span>
+<span class="de">@conversation_eval</span>(
+    monitor,
+    session_score_fn=<span class="kw">lambda</span> m: (m.context_retention_score + m.topic_coherence_score) / <span class="nm">2</span>,
+    on_turn=<span class="kw">lambda</span> sid, idx, u, r: <span class="fn">print</span>(<span class="st">f"[Turn {idx}] {sid}: {r[:50]}"</span>),
+    max_turns=<span class="nm">20</span>, max_turns_exceeded_action=<span class="st">"warn"</span>,
+)
+<span class="kw">def</span> <span class="fn">monitored_chat</span>(user_input: str, session_id: str = <span class="st">""</span>) -> str:
+    <span class="kw">return</span> llm.<span class="fn">invoke</span>(user_input)
+
+<span class="cm"># 비동기 지원</span>
+<span class="de">@conversation_eval</span>(monitor)
+<span class="kw">async def</span> <span class="fn">async_chat</span>(user_input: str, session_id: str = <span class="st">""</span>) -> str:
+    <span class="kw">return await</span> llm.<span class="fn">ainvoke</span>(user_input)</pre>
+    </div>
+  </div>
+</section>
+
+<!-- ── eval_context ── -->
+<section class="sec" id="eval-context">
+  <div class="sec-title">🔄 eval_context <span style="font-size:13px;font-weight:400;color:var(--text2);margin-left:8px">v0.7.2+ · 인라인 평가</span></div>
+  <div class="sec-sub"><code>with</code> 블록으로 외부 함수 호출을 평가합니다. 데코레이터 적용이 어려운 서드파티 코드나 인터랙티브 테스트에 적합합니다.</div>
+  <div class="cls-card">
+    <div class="cls-head"><span class="cls-name">eval_context</span><span class="kind ctx">@contextmanager</span><span class="cls-src">agent_evaluator.decorators</span></div>
+    <div class="cls-body">
+      <div class="slbl">파라미터</div>
+      {% call param_table() %}
+          <tr><td><span class="p">monitor</span><span class="req">✦</span></td><td><span class="t">PerformanceMonitor</span></td><td>—</td><td>결과를 기록할 모니터 인스턴스</td></tr>
+          <tr><td><span class="p">task_type</span><span class="req">✦</span></td><td><span class="t">str</span></td><td>—</td><td>TaskType 소문자 문자열</td></tr>
+          <tr><td><span class="p">question</span><span class="opt">opt</span></td><td><span class="t">str</span></td><td><code>""</code></td><td>평가 대상 질문</td></tr>
+          <tr><td><span class="p">ground_truth</span><span class="opt">opt</span></td><td><span class="t">str</span></td><td><code>""</code></td><td>정답</td></tr>
+          <tr><td><span class="p">task_id</span><span class="opt">opt</span></td><td><span class="t">str</span></td><td>auto</td><td>태스크 ID (미지정 시 UUID 자동 생성)</td></tr>
+          <tr><td><span class="p">timeout</span><span class="opt">opt</span></td><td><span class="t">float</span></td><td><code>None</code></td><td>블록 타임아웃 (초)</td></tr>
+          <tr><td><span class="p">alert_rules</span><span class="opt">opt</span></td><td><span class="t">List[SimpleTaskAlertRule]</span></td><td><code>[]</code></td><td>알림 규칙 목록</td></tr>
+      {% endcall %}
+      <div class="note" style="margin-top:8px">🔧 <code>ctx.response</code>에 응답을 할당하면 블록 종료 시 자동으로 TaskResult가 기록됩니다. 스트리밍 청크는 <code>ctx.chunk_step(chunk)</code>으로 기록합니다.</div>
+<pre style="margin-top:10px"><span class="kw">from</span> <span class="cn">agent_evaluator.decorators</span> <span class="kw">import</span> eval_context
+
+<span class="cm"># 기본 사용 — 외부 함수 결과를 ctx.response에 할당</span>
+<span class="kw">with</span> <span class="fn">eval_context</span>(monitor, <span class="st">"qa"</span>,
+                  question=<span class="st">"한국의 수도는?"</span>,
+                  ground_truth=<span class="st">"서울"</span>) <span class="kw">as</span> ctx:
+    ctx.response = third_party_llm.<span class="fn">ask</span>(<span class="st">"한국의 수도는?"</span>)
+<span class="cm"># 블록 종료 → 실행시간·정확도 자동 기록</span>
+
+<span class="cm"># 스트리밍 — chunk_step()으로 TTFT 자동 기록</span>
+<span class="kw">with</span> <span class="fn">eval_context</span>(monitor, <span class="st">"qa"</span>, question=<span class="st">"설명해줘"</span>) <span class="kw">as</span> ctx:
+    chunks = []
+    <span class="kw">for</span> chunk <span class="kw">in</span> streaming_llm.<span class="fn">stream</span>(<span class="st">"설명해줘"</span>):
+        chunks.<span class="fn">append</span>(chunk)
+        ctx.<span class="fn">chunk_step</span>(chunk)   <span class="cm"># 첫 청크 → TTFT 자동 기록</span>
+    ctx.response = <span class="st">""</span>.<span class="fn">join</span>(chunks)
+
+<span class="cm"># 중첩 컨텍스트 (ctx.depth 로 깊이 추적)</span>
+<span class="kw">with</span> <span class="fn">eval_context</span>(monitor, <span class="st">"tool_use"</span>, question=<span class="st">"복합 태스크"</span>) <span class="kw">as</span> outer:
+    <span class="kw">with</span> <span class="fn">eval_context</span>(monitor, <span class="st">"qa"</span>, question=<span class="st">"하위 태스크"</span>) <span class="kw">as</span> inner:
+        inner.response = sub_agent.<span class="fn">run</span>(<span class="st">"하위 태스크"</span>)
+    outer.response = main_agent.<span class="fn">run</span>(<span class="st">"복합 태스크"</span>)</pre>
+    </div>
+  </div>
 </section>
 
 <!-- ── PerformanceMonitor ── -->
 <section class="sec" id="performance-monitor">
   <div class="sec-title">🎛️ PerformanceMonitor</div>
-  <div class="sec-sub">Layer 1+2 트래커 16종을 내부에서 조율하는 중앙 오케스트레이터. 대부분의 사용 사례에서 이 클래스만으로 충분합니다.</div>
+  <div class="sec-sub">Layer 1+2 트래커 16종을 내부에서 조율하는 중앙 오케스트레이터. 데코레이터가 내부적으로 호출하는 핵심 클래스입니다.</div>
   <div class="cls-card">
     <div class="cls-head">
       <span class="cls-name">PerformanceMonitor</span><span class="kind cls">class</span>
@@ -336,7 +824,7 @@ agent-eval dashboard --no-open --offline  <span class="cm"># 브라우저 비활
       <table class="mtable">
         <thead><tr><th>메서드 시그니처</th><th>반환</th><th>설명</th></tr></thead>
         <tbody>
-          <tr><td><span class="p">record_task(result, ground_truth=None, context=None, request=None, response=None, expected_elements=None)</span></td><td><span class="r">PerformanceMonitor</span></td><td>TaskResult를 모든 활성 트래커에 기록. <code>self</code> 반환으로 메서드 체이닝 가능. 선택 파라미터로 정확도·품질 평가 정밀도 향상.</td></tr>
+          <tr><td><span class="p">record_task(result, ground_truth=None, context=None, request=None, response=None, expected_elements=None)</span></td><td><span class="r">PerformanceMonitor</span></td><td>TaskResult를 모든 활성 트래커에 기록. <code>self</code> 반환으로 메서드 체이닝 가능.</td></tr>
           <tr><td><span class="p">generate_report()</span></td><td><span class="r">EvaluationReport</span></td><td>수집 데이터를 집계해 EvaluationReport 객체 반환</td></tr>
           <tr><td><span class="p">save_to_file(filename)</span></td><td><span class="r">None</span></td><td><code>{output_dir}/{filename}.json</code> + <code>.html</code> 저장. <code>enable_anomaly_detection=True</code> 시 anomaly_data 자동 포함.</td></tr>
           <tr><td><span class="p">conversation(session_id)</span></td><td><span class="r">ConversationContextManager</span></td><td>멀티턴 대화 평가 컨텍스트 매니저. <code>with monitor.conversation("id") as conv: conv.turn(user=..., agent=...)</code></td></tr>
@@ -348,7 +836,7 @@ agent-eval dashboard --no-open --offline  <span class="cm"># 브라우저 비활
           <tr><td><span class="p">for_secure_agents(**kwargs)</span></td><td><span class="r">PerformanceMonitor</span></td><td>classmethod. 보안 평가 최적 설정 (<code>enable_security_metrics=True</code>) 자동 적용.</td></tr>
         </tbody>
       </table>
-      <div class="note tip" style="margin-top:12px">💡 <strong>record_task 팁</strong>: <code>request</code>(질문), <code>ground_truth</code>(정답), <code>expected_elements</code>(체크리스트)를 함께 전달하면 정확도·품질 평가 정밀도가 높아집니다.</div>
+      <div class="note tip" style="margin-top:12px">💡 <strong>데코레이터와의 관계</strong>: <code>@agent_eval</code>, <code>@batch_eval</code>, <code>eval_context</code>는 모두 내부에서 <code>monitor.record_task()</code>를 호출합니다. 직접 호출은 고급 사용 시에만 필요합니다.</div>
     </div>
   </div>
 </section>
@@ -356,7 +844,7 @@ agent-eval dashboard --no-open --offline  <span class="cm"># 브라우저 비활
 <!-- ── TaskResult ── -->
 <section class="sec" id="task-result">
   <div class="sec-title">📋 TaskResult</div>
-  <div class="sec-sub">단일 태스크 실행 결과를 담는 dataclass. <strong>직접 생성보다 <code>create_taskresult()</code> 사용을 권장합니다</strong> — 점수 필드를 자동 계산합니다.</div>
+  <div class="sec-sub">단일 태스크 실행 결과를 담는 <code>dataclass</code>. 데코레이터가 자동 생성하므로 직접 생성할 필요가 없습니다. 내부 구조 이해가 필요한 경우 참고하세요.</div>
   <div class="cls-card">
     <div class="cls-head"><span class="cls-name">TaskResult</span><span class="kind cls">dataclass</span><span class="cls-src">agent_evaluator.core.trackers.base</span></div>
     <div class="cls-body">
@@ -365,9 +853,9 @@ agent-eval dashboard --no-open --offline  <span class="cm"># 브라우저 비활
           <tr><td><span class="p">task_id</span></td><td><span class="t">str</span></td><td>태스크 고유 식별자</td></tr>
           <tr><td><span class="p">task_type</span></td><td><span class="t">str</span></td><td>TaskType.value 문자열 (e.g. <code>"qa"</code>)</td></tr>
           <tr><td><span class="p">success</span></td><td><span class="t">bool</span></td><td>태스크 성공 여부</td></tr>
-          <tr><td><span class="p">completion_score</span></td><td><span class="t">float</span></td><td>완료도 점수 (0.0–1.0). create_taskresult()가 자동 계산.</td></tr>
+          <tr><td><span class="p">completion_score</span></td><td><span class="t">float</span></td><td>완료도 점수 (0.0–1.0). 데코레이터가 자동 계산.</td></tr>
           <tr><td><span class="p">accuracy_score</span></td><td><span class="t">float</span></td><td>정확도 점수 (0.0–1.0). Token F1+Jaccard+LCS+Char 가중 조합.</td></tr>
-          <tr><td><span class="p">execution_time</span></td><td><span class="t">float</span></td><td>실행 시간 (초)</td></tr>
+          <tr><td><span class="p">execution_time</span></td><td><span class="t">float</span></td><td>실행 시간 (초). 데코레이터가 <code>time.perf_counter()</code>로 자동 측정.</td></tr>
           <tr><td><span class="p">tokens_used</span></td><td><span class="t">Dict[str,int]</span></td><td><code>{"input": N, "output": N, "total": N}</code></td></tr>
           <tr><td><span class="p">tool_calls</span></td><td><span class="t">List[Dict]</span></td><td><code>[{"tool": "name", "input": {...}, "output": "..."}]</code></td></tr>
           <tr><td><span class="p">attempts</span></td><td><span class="t">int</span></td><td>시도 횟수 (1 = 재시도 없음)</td></tr>
@@ -377,18 +865,18 @@ agent-eval dashboard --no-open --offline  <span class="cm"># 브라우저 비활
       <div class="slbl">선택 필드 (13개)</div>
       {% call field_table(col3='용도') %}
           <tr><td><span class="p">expected_tools</span></td><td><span class="t">Optional[List[str]]</span></td><td>기대 도구 목록 — ToolSelectionTracker F1 계산</td></tr>
-          <tr><td><span class="p">agent_interactions</span></td><td><span class="t">Optional[List[Dict]]</span></td><td>멀티에이전트 상호작용 (CrewAI)</td></tr>
-          <tr><td><span class="p">chain_steps</span></td><td><span class="t">Optional[List[Dict]]</span></td><td>체인 실행 단계 (LangChain)</td></tr>
+          <tr><td><span class="p">agent_interactions</span></td><td><span class="t">Optional[List[Dict]]</span></td><td>멀티에이전트 상호작용 (EvalMetadata로 수동 주입)</td></tr>
+          <tr><td><span class="p">chain_steps</span></td><td><span class="t">Optional[List[Dict]]</span></td><td>체인 실행 단계 (framework= 어댑터 자동 추출)</td></tr>
           <tr><td><span class="p">graph_traversal</span></td><td><span class="t">Optional[Dict]</span></td><td>그래프 순회 경로 (LangGraph)</td></tr>
           <tr><td><span class="p">conversation_turns</span></td><td><span class="t">Optional[List[Dict]]</span></td><td>대화 턴 기록 (AutoGen)</td></tr>
-          <tr><td><span class="p">state_transitions</span></td><td><span class="t">Optional[List[Dict]]</span></td><td>상태 전이 이력 (LangGraph)</td></tr>
+          <tr><td><span class="p">state_transitions</span></td><td><span class="t">Optional[List[Dict]]</span></td><td>상태 전이 이력 (LangGraph/AutoGen)</td></tr>
           <tr><td><span class="p">framework</span></td><td><span class="t">Optional[str]</span></td><td>프레임워크 식별자 (<code>"crewai"</code>, <code>"langchain"</code> 등)</td></tr>
-          <tr><td><span class="p">partial_reason</span></td><td><span class="t">Optional[str]</span></td><td>부분 성공/실패 원인. <code>create_taskresult()</code>가 자동 추론하거나 직접 지정 가능.</td></tr>
-          <tr><td><span class="p">question</span></td><td><span class="t">Optional[str]</span></td><td>사용자 질문 / 입력 텍스트 — 대시보드 표시용 raw content</td></tr>
-          <tr><td><span class="p">response</span></td><td><span class="t">Optional[str]</span></td><td>에이전트 응답 텍스트 — 대시보드 표시용 raw content</td></tr>
-          <tr><td><span class="p">ground_truth</span></td><td><span class="t">Optional[str]</span></td><td>기대 정답 — 대시보드 표시용 raw content</td></tr>
+          <tr><td><span class="p">partial_reason</span></td><td><span class="t">Optional[str]</span></td><td>부분 성공/실패 원인. 예외 시 <code>"execution_error"</code> 자동 설정.</td></tr>
+          <tr><td><span class="p">question</span></td><td><span class="t">Optional[str]</span></td><td>사용자 질문 / 입력 텍스트</td></tr>
+          <tr><td><span class="p">response</span></td><td><span class="t">Optional[str]</span></td><td>에이전트 응답 텍스트</td></tr>
+          <tr><td><span class="p">ground_truth</span></td><td><span class="t">Optional[str]</span></td><td>기대 정답</td></tr>
           <tr><td><span class="p">context</span></td><td><span class="t">Optional[str]</span></td><td>RAG 검색 컨텍스트 — HallucinationDetector 사실 일관성 검증에 사용</td></tr>
-          <tr><td><span class="p">llm_judge</span></td><td><span class="t">Optional[Dict]</span></td><td>LLM Judge 결과 (Phase 1-A). <code>enable_llm_judge=True</code> 시 PerformanceMonitor가 자동 설정.</td></tr>
+          <tr><td><span class="p">llm_judge</span></td><td><span class="t">Optional[Dict]</span></td><td>LLM Judge 결과. <code>enable_llm_judge=True</code> 시 자동 설정.</td></tr>
       {% endcall %}
     </div>
   </div>
@@ -397,7 +885,7 @@ agent-eval dashboard --no-open --offline  <span class="cm"># 브라우저 비활
 <!-- ── TaskType ── -->
 <section class="sec" id="task-type">
   <div class="sec-title">🏷️ TaskType</div>
-  <div class="sec-sub">태스크 유형 Enum. 유형별로 정확도 계산 전략이 달라집니다. <code>create_taskresult()</code>에서는 소문자 문자열로도 전달 가능합니다.</div>
+  <div class="sec-sub">태스크 유형 Enum. <code>task_type=</code> 파라미터에 소문자 문자열로 전달합니다. 유형에 따라 정확도 계산 전략이 달라집니다.</div>
   <div class="cls-card">
     <div class="cls-head"><span class="cls-name">TaskType</span><span class="kind en">enum</span><span class="cls-src">agent_evaluator.core.agent_evaluator</span></div>
     <div class="cls-body">
@@ -413,66 +901,9 @@ agent-eval dashboard --no-open --offline  <span class="cm"># 브라우저 비활
           <tr><td><span class="p">TaskType.CREATIVE</span></td><td><code>"creative"</code></td><td>다양성 지표 (유사도 역산)</td><td>창작, 글쓰기</td></tr>
           <tr><td><span class="p">TaskType.CODING</span></td><td><code>"coding"</code></td><td>AST 비교 → 정규화 비교</td><td>코딩 태스크</td></tr>
           <tr><td><span class="p">TaskType.PLANNING</span></td><td><code>"planning"</code></td><td>단계 커버리지 + 순서 매칭</td><td>계획 수립</td></tr>
-          <tr><td><span class="p">TaskType.TOOL_USE</span></td><td><code>"tool_use"</code></td><td>도구 선택 F1 + 결과 품질</td><td>도구 호출</td></tr>
+          <tr><td><span class="p">TaskType.TOOL_USE</span></td><td><code>"tool_use"</code></td><td>도구 선택 F1 + 결과 품질</td><td>도구 호출, 멀티에이전트</td></tr>
         </tbody>
       </table>
-    </div>
-  </div>
-</section>
-
-<!-- ── create_taskresult ── -->
-<section class="sec" id="helpers">
-  <div class="sec-title">🔧 create_taskresult()</div>
-  <div class="sec-sub">Agent 실행 결과에서 TaskResult를 생성하는 권장 방법. completion_score, accuracy_score, tokens_used, tool_calls, timestamp를 자동 계산합니다.</div>
-  <div class="cls-card">
-    <div class="cls-head"><span class="cls-name">create_taskresult</span><span class="kind fn">function</span><span class="cls-src">agent_evaluator.helpers.taskresult_helpers</span></div>
-    <div class="cls-body">
-      {% call param_table() %}
-          <tr><td><span class="p">task_id</span><span class="req">✦</span></td><td><span class="t">str</span></td><td>—</td><td>태스크 고유 식별자</td></tr>
-          <tr><td><span class="p">question</span><span class="req">✦</span></td><td><span class="t">str</span></td><td>—</td><td>에이전트에 전달한 질문/입력</td></tr>
-          <tr><td><span class="p">response</span><span class="req">✦</span></td><td><span class="t">str</span></td><td>—</td><td>에이전트 응답 텍스트</td></tr>
-          <tr><td><span class="p">ground_truth</span><span class="req">✦</span></td><td><span class="t">str</span></td><td>—</td><td>정답/기대 출력 — accuracy_score 계산 기준</td></tr>
-          <tr><td><span class="p">execution_time</span><span class="req">✦</span></td><td><span class="t">float</span></td><td>—</td><td>실행 시간 (초)</td></tr>
-          <tr><td><span class="p">task_type</span><span class="opt">opt</span></td><td><span class="t">str</span></td><td><code>"qa"</code></td><td>TaskType 소문자 문자열</td></tr>
-          <tr><td><span class="p">openai_response</span><span class="opt">opt</span></td><td><span class="t">Any</span></td><td><code>None</code></td><td>OpenAI 응답 객체 — 토큰/도구 자동 추출</td></tr>
-          <tr><td><span class="p">langchain_result</span><span class="opt">opt</span></td><td><span class="t">Any</span></td><td><code>None</code></td><td>LangChain 결과 dict — 토큰/도구 자동 추출</td></tr>
-          <tr><td><span class="p">has_error</span><span class="opt">opt</span></td><td><span class="t">bool</span></td><td><code>False</code></td><td>에러 발생 시 completion_score = 0</td></tr>
-          <tr><td><span class="p">error_message</span><span class="opt">opt</span></td><td><span class="t">str</span></td><td><code>None</code></td><td>에러 메시지</td></tr>
-      {% endcall %}
-<pre style="margin-top:12px"><span class="kw">from</span> <span class="cn">agent_evaluator</span> <span class="kw">import</span> create_taskresult
-
-task = <span class="fn">create_taskresult</span>(
-    task_id=<span class="st">"qa_001"</span>, question=<span class="st">"수도는?"</span>,
-    response=<span class="st">"서울입니다."</span>, ground_truth=<span class="st">"서울"</span>,
-    execution_time=<span class="nm">1.23</span>, task_type=<span class="st">"qa"</span>,
-)
-<span class="cm"># OpenAI 응답 자동 추출</span>
-task = <span class="fn">create_taskresult</span>(task_id=<span class="st">"qa_002"</span>, question=q, response=resp.choices[<span class="nm">0</span>].message.content,
-    ground_truth=expected, execution_time=elapsed, openai_response=resp)</pre>
-    </div>
-  </div>
-</section>
-
-<!-- ── evaluation_session ── -->
-<section class="sec" id="context-mgr">
-  <div class="sec-title">🔄 evaluation_session()</div>
-  <div class="sec-sub">평가 세션을 자동으로 열고 닫는 <strong>동기 컨텍스트 매니저</strong>. 세션 종료 또는 예외 발생 시에도 자동으로 결과를 저장합니다.</div>
-  <div class="cls-card">
-    <div class="cls-head"><span class="cls-name">evaluation_session</span><span class="kind ctx">@contextmanager</span><span class="cls-src">agent_evaluator.core.monitor_context</span></div>
-    <div class="cls-body">
-      {% call param_table() %}
-          <tr><td><span class="p">output_filename</span><span class="req">✦</span></td><td><span class="t">str</span></td><td>—</td><td>저장 파일명 stem (확장자 제외)</td></tr>
-          <tr><td><span class="p">enable_security</span><span class="opt">opt</span></td><td><span class="t">bool</span></td><td><code>False</code></td><td>보안 지표 활성화</td></tr>
-          <tr><td><span class="p">enable_hallucination</span><span class="opt">opt</span></td><td><span class="t">bool</span></td><td><code>True</code></td><td>환각 탐지 활성화</td></tr>
-          <tr><td><span class="p">**monitor_kwargs</span><span class="opt">opt</span></td><td><span class="t">Any</span></td><td>—</td><td>PerformanceMonitor 생성자 추가 인수</td></tr>
-      {% endcall %}
-<pre style="margin-top:10px"><span class="kw">with</span> <span class="fn">evaluation_session</span>(<span class="st">"run_01"</span>, output_dir=<span class="st">"results/"</span>, enable_security=<span class="kw">True</span>) <span class="kw">as</span> m:
-    m.<span class="fn">record_task</span>(<span class="fn">create_taskresult</span>(...))
-
-<span class="cm"># 하이브리드 버전 (Layer 3 포함)</span>
-<span class="kw">from</span> <span class="cn">agent_evaluator</span> <span class="kw">import</span> hybrid_evaluation_session
-<span class="kw">with</span> <span class="fn">hybrid_evaluation_session</span>(<span class="st">"rag_run"</span>, use_ragas=<span class="kw">True</span>, output_dir=<span class="st">"results/"</span>) <span class="kw">as</span> m:
-    m.<span class="fn">record_task</span>(<span class="fn">create_taskresult</span>(...))</pre>
     </div>
   </div>
 </section>
@@ -943,64 +1374,7 @@ r = detector.<span class="fn">analyze_tool_chain</span>(<span class="st">"t1"</s
   </div>
 </section>
 
-<hr>
-<div style="font-size:18px;font-weight:700;margin-bottom:28px;color:var(--orange)">🔬 Layer 3 — Hybrid Evaluation</div>
-
-<!-- ── HybridPerformanceMonitor ── -->
-<section class="sec" id="hybrid">
-  <div class="sec-title"><span class="badge l3">L3</span> HybridPerformanceMonitor</div>
-  <div class="sec-sub">PerformanceMonitor를 상속하고 DeepEval·Ragas·LangSmith 어댑터를 추가합니다. <strong>추가 설치 및 OpenAI API 키 필요.</strong></div>
-  <div class="cls-card">
-    <div class="cls-head"><span class="cls-name">HybridPerformanceMonitor</span><span class="kind cls">class</span><span class="cls-src">core.hybrid_monitor</span></div>
-    <div class="cls-body">
-<pre><span class="kw">from</span> <span class="cn">agent_evaluator</span> <span class="kw">import</span> HybridPerformanceMonitor
-<span class="kw">from</span> <span class="cn">agent_evaluator.integrations.metric_adapters</span> <span class="kw">import</span> DeepEvalAdapter, RagasAdapter
-
-monitor = <span class="fn">HybridPerformanceMonitor</span>(
-    output_dir=<span class="st">"results/"</span>,
-    use_deepeval=<span class="kw">True</span>, deepeval_model=<span class="st">"gpt-4o-mini"</span>,
-    use_ragas=<span class="kw">True</span>,
-)
-monitor.<span class="fn">record_task</span>(task)
-monitor.<span class="fn">save_to_file</span>(<span class="st">"hybrid_eval"</span>)</pre>
-    </div>
-  </div>
-</section>
-
-<!-- ── 어댑터 ── -->
-<section class="sec" id="adapters">
-  <div class="sec-title"><span class="badge l3">L3</span> 외부 어댑터 (3종)</div>
-  <div class="sec-sub">DeepEval, Ragas, LangSmith와 연동. 각 extra 설치 + 환경변수 필요.</div>
-  <table class="mtable">
-    <thead><tr><th>어댑터</th><th>제공 지표</th><th>생성자 파라미터</th><th>필요 Extra</th><th>환경변수</th></tr></thead>
-    <tbody>
-      <tr>
-        <td><span class="p">DeepEvalAdapter</span></td>
-        <td>G-Eval, Hallucination, Toxicity, Bias, Answer Relevancy</td>
-        <td><code>model="gpt-4o-mini"</code>, <code>threshold=0.5</code>, <code>timeout=60</code></td>
-        <td><code>agent-evaluator[eval]</code></td>
-        <td><code>OPENAI_API_KEY</code></td>
-      </tr>
-      <tr>
-        <td><span class="p">RagasAdapter</span></td>
-        <td>faithfulness, answer_relevancy, context_recall, context_precision</td>
-        <td>—</td>
-        <td><code>agent-evaluator[eval]</code></td>
-        <td><code>OPENAI_API_KEY</code></td>
-      </tr>
-      <tr>
-        <td><span class="p">LangSmithAdapter</span></td>
-        <td>트레이스 수집, run 메타데이터</td>
-        <td>—</td>
-        <td><code>agent-evaluator[langchain]</code></td>
-        <td><code>LANGSMITH_API_KEY</code>, <code>LANGCHAIN_TRACING_V2=true</code></td>
-      </tr>
-    </tbody>
-  </table>
-  <div class="note warn" style="margin-top:12px">💰 Layer 3 어댑터는 OpenAI API를 호출하므로 비용이 발생합니다. 대량 평가 시 <code>gpt-4o-mini</code> 등 저비용 모델 사용을 권장합니다.</div>
-</section>
-
-<!-- ── Phase 1 신규 API ── -->
+<!-- ── LLMJudge ── -->
 <section class="sec" id="llm-judge">
   <div class="sec-title">✨ LLMJudge <span style="font-size:13px;font-weight:400;color:var(--text2);margin-left:8px">v0.6.3+</span></div>
   <div class="sec-sub"><code>ground_truth</code> 없이 LLM이 직접 응답 품질을 3차원(완결성·관련성·사실 일관성) 채점합니다. OpenAI / Anthropic Claude 모두 지원.</div>
@@ -1017,22 +1391,32 @@ monitor.<span class="fn">save_to_file</span>(<span class="st">"hybrid_eval"</spa
         <tr><td><span class="p">judge(question, response, context=None)</span></td><td><span class="t">dict</span></td><td>단일 채점. 키: <code>completeness</code>·<code>relevance</code>·<code>factual_consistency</code>·<code>overall</code> (0–5)</td></tr>
         <tr><td><span class="p">get_summary()</span></td><td><span class="t">dict</span></td><td>누적 통계 (호출 수, 평균 점수, 총 비용)</td></tr>
       </tbody></table>
-      <pre>from agent_evaluator import LLMJudge
+<pre><span class="cm"># 권장: @agent_eval(enable_llm_judge=True) — 데코레이터에서 자동 통합</span>
+<span class="kw">from</span> <span class="cn">agent_evaluator.decorators</span> <span class="kw">import</span> agent_eval
 
-judge = LLMJudge(model="gpt-4o-mini", sample_rate=0.1, budget_per_day=5.0)
-score = judge.judge(
-    question="머신러닝과 딥러닝의 차이는?",
-    response="머신러닝은 패턴 학습, 딥러닝은 신경망 기반 하위 분야입니다.",
+<span class="de">@agent_eval</span>(monitor, task_type=<span class="st">"qa"</span>,
+             enable_llm_judge=<span class="kw">True</span>, judge_model=<span class="st">"claude-sonnet-4-6"</span>,
+             judge_sample_rate=<span class="nm">0.1</span>, judge_budget_per_day=<span class="nm">5.0</span>)
+<span class="kw">def</span> <span class="fn">my_agent</span>(question: str, ground_truth: str = <span class="st">""</span>) -> str:
+    <span class="kw">return</span> llm.<span class="fn">invoke</span>(question)
+<span class="cm"># → TaskResult.extra 에 llm_judge: {completeness, relevance, factual_consistency, overall} 포함</span>
+
+<span class="cm"># 또는 PerformanceMonitor 레벨에서 전역 활성</span>
+monitor = <span class="fn">PerformanceMonitor</span>(
+    output_dir=<span class="st">"results/"</span>,
+    enable_llm_judge=<span class="kw">True</span>,
+    judge_model=<span class="st">"claude-sonnet-4-6"</span>,
+    judge_sample_rate=<span class="nm">0.1</span>,
+    judge_budget_per_day=<span class="nm">5.0</span>,
 )
-# {"completeness": 4.5, "relevance": 5.0, "factual_consistency": 4.8, "overall": 4.77}
 
-# PerformanceMonitor 통합 (record_task()에서 자동 트리거)
-monitor = PerformanceMonitor(
-    enable_llm_judge=True,
-    judge_model="gpt-4o-mini",
-    judge_sample_rate=0.1,
-    judge_budget_per_day=5.0,
-)</pre>
+<span class="cm"># QuickEval 팩토리로 최소 설정</span>
+<span class="kw">from</span> <span class="cn">agent_evaluator</span> <span class="kw">import</span> QuickEval
+eval = <span class="fn">QuickEval.for_llm_judge</span>(<span class="st">"results/"</span>, model=<span class="st">"claude-sonnet-4-6"</span>)
+
+<span class="de">@eval.qa</span>
+<span class="kw">def</span> <span class="fn">my_agent</span>(question: str, ground_truth: str = <span class="st">""</span>) -> str:
+    <span class="kw">return</span> llm.<span class="fn">invoke</span>(question)</pre>
     </div>
   </div>
 </section>
@@ -1063,16 +1447,23 @@ monitor = PerformanceMonitor(
         <tr><td><span class="p">turn_count</span></td><td><span class="r">int</span></td><td>총 턴 수 (= len(turns))</td></tr>
         <tr><td><span class="p">avg_turn_latency</span></td><td><span class="r">float|None</span></td><td>턴별 평균 지연시간 (초). metadata에 latency 키 없으면 None.</td></tr>
       </tbody></table>
-      <pre>from agent_evaluator import ConversationSession
+<pre><span class="cm"># 권장: @conversation_eval 데코레이터 — 세션 자동 관리</span>
+<span class="kw">from</span> <span class="cn">agent_evaluator.decorators</span> <span class="kw">import</span> conversation_eval
 
-session = ConversationSession("conv_001")
-session.add_turn("파이썬 비동기 방법은?", "asyncio를 사용합니다...")
-session.add_turn("asyncio.gather 예시 보여줘.", "import asyncio...")
-session.add_turn("asyncio.wait와 차이점은?", "gather는 결과 반환, wait는 조건 지정 가능합니다.")
+<span class="de">@conversation_eval</span>(monitor, flush_every=<span class="nm">5</span>)
+<span class="kw">def</span> <span class="fn">chat_agent</span>(user_input: str, session_id: str = <span class="st">""</span>) -> str:
+    <span class="kw">return</span> llm.<span class="fn">invoke</span>(user_input)
 
-metrics = session.compute_metrics()
-print(f"맥락 유지율: {metrics.context_retention_score:.3f}")
-print(f"종합 점수:   {metrics.overall_score:.3f}")</pre>
+<span class="cm"># 동일 session_id 호출 → 자동 턴 누산 → 세션 종료 시 ConversationMetrics 기록</span>
+chat_agent(<span class="st">"파이썬 비동기 방법은?"</span>, session_id=<span class="st">"conv_001"</span>)
+chat_agent(<span class="st">"asyncio.gather 예시 보여줘."</span>, session_id=<span class="st">"conv_001"</span>)
+chat_agent(<span class="st">"asyncio.wait와 차이점은?"</span>, session_id=<span class="st">"conv_001"</span>)
+
+<span class="cm"># 또는 PerformanceMonitor.conversation() 컨텍스트 매니저</span>
+<span class="kw">with</span> monitor.<span class="fn">conversation</span>(<span class="st">"conv_001"</span>) <span class="kw">as</span> conv:
+    conv.<span class="fn">turn</span>(user=<span class="st">"파이썬 비동기 방법은?"</span>, agent=<span class="st">"asyncio를 사용합니다..."</span>)
+    conv.<span class="fn">turn</span>(user=<span class="st">"gather 예시 보여줘."</span>, agent=<span class="st">"import asyncio..."</span>)
+<span class="cm"># → context_retention, topic_coherence, progressive_depth 자동 집계</span></pre>
     </div>
   </div>
 </section>
@@ -1155,8 +1546,8 @@ anomalies = detector.<span class="fn">scan</span>(monitor)
 
 <!-- ── AlertEngine ── -->
 <section class="sec" id="alerts">
-  <div class="sec-title">🔔 AlertEngine / AlertRule</div>
-  <div class="sec-sub">지표 임계값 초과 시 실시간 알림을 발송합니다. <code>StreamingEvaluator</code>와 연결하여 실시간 모니터링에 사용합니다.</div>
+  <div class="sec-title">🔔 AlertEngine / SimpleTaskAlertRule</div>
+  <div class="sec-sub">지표 임계값 초과 시 실시간 알림을 발송합니다. <code>AlertEngine</code>은 <code>StreamingEvaluator</code>와 연결하는 스트리밍 방식, <code>SimpleTaskAlertRule</code>은 <code>@agent_eval</code> 데코레이터에 직접 연결하는 경량 방식입니다.</div>
   <div class="cls-card">
     <div class="cls-head"><span class="cls-name">AlertRule</span><span class="kind cls">dataclass</span><span class="cls-src">agent_evaluator.alerts.engine</span></div>
     <div class="cls-body">
@@ -1195,6 +1586,31 @@ engine.<span class="fn">add_rule</span>(<span class="fn">AlertRule</span>(
 streamer = <span class="fn">StreamingEvaluator</span>(monitor=monitor, alert_handler=engine)
 streamer.<span class="fn">start</span>()
 streamer.<span class="fn">record</span>(<span class="st">"t1"</span>, success=<span class="kw">True</span>, execution_time=<span class="nm">1.2</span>, tokens_used=<span class="nm">300</span>)</pre>
+    </div>
+  </div>
+  <div class="cls-card" style="margin-top:12px">
+    <div class="cls-head"><span class="cls-name">SimpleTaskAlertRule</span><span class="kind cls">class</span><span class="cls-src">agent_evaluator.alerts.engine</span></div>
+    <div class="cls-desc"><code>StreamingEvaluator</code> 불필요. <code>@agent_eval</code>, <code>@batch_eval</code>, <code>EvalDecorator</code>에 <code>alert_rules=[rule]</code> 파라미터로 직접 연결하는 경량 알림 규칙.</div>
+    <div class="cls-body">
+      {% call param_table() %}
+          <tr><td><span class="p">name</span><span class="req">✦</span></td><td><span class="t">str</span></td><td>—</td><td>규칙 이름</td></tr>
+          <tr><td><span class="p">condition</span><span class="req">✦</span></td><td><span class="t">Callable[[TaskResult], bool]</span></td><td>—</td><td>알림 발동 조건</td></tr>
+          <tr><td><span class="p">handler</span><span class="req">✦</span></td><td><span class="t">Callable[[str, TaskResult], None]</span></td><td>—</td><td>알림 핸들러 (메시지, TaskResult)</td></tr>
+          <tr><td><span class="p">severity</span><span class="opt">opt</span></td><td><span class="t">str</span></td><td><code>"warning"</code></td><td><code>"critical"</code> | <code>"warning"</code> | <code>"info"</code></td></tr>
+          <tr><td><span class="p">cooldown</span><span class="opt">opt</span></td><td><span class="t">int</span></td><td><code>0</code></td><td>재발화 최소 간격 (초)</td></tr>
+      {% endcall %}
+<pre style="margin-top:10px"><span class="kw">from</span> <span class="cn">agent_evaluator</span> <span class="kw">import</span> SimpleTaskAlertRule
+<span class="kw">from</span> <span class="cn">agent_evaluator.decorators</span> <span class="kw">import</span> agent_eval
+
+rule = <span class="fn">SimpleTaskAlertRule</span>(
+    name=<span class="st">"slow_response"</span>,
+    condition=<span class="kw">lambda</span> tr: tr.execution_time > <span class="nm">5.0</span>,
+    handler=<span class="kw">lambda</span> msg, tr: <span class="fn">print</span>(f<span class="st">"[ALERT] {msg}"</span>),
+    severity=<span class="st">"warning"</span>, cooldown=<span class="nm">60</span>,
+)
+
+<span class="de">@agent_eval</span>(monitor, task_type=<span class="st">"qa"</span>, alert_rules=[rule])
+<span class="kw">def</span> <span class="fn">my_agent</span>(question: str, ground_truth: str = <span class="st">""</span>) -> str: ...</pre>
     </div>
   </div>
 </section>
@@ -1292,332 +1708,371 @@ rate = policy.<span class="fn">get_sample_rate</span>()  <span class="cm"># → 
 
 <!-- ── 프레임워크 통합 ── -->
 <section class="sec" id="frameworks">
-  <div class="sec-title">🔗 프레임워크 통합</div>
-  <div class="sec-sub">팩토리 함수로 기존 프레임워크에 평가 레이어를 투명하게 삽입합니다. 25개 지표 전체 커버리지 매트릭스 포함.</div>
+  <div class="sec-title">🔗 21개 프레임워크 어댑터</div>
+  <div class="sec-sub"><code>@agent_eval(monitor, framework="...")</code> 한 줄로 연결. 어댑터가 응답 객체에서 <strong>tokens_used · tool_calls · chain_steps · agent_interactions</strong>를 자동 추출해 TaskResult에 채웁니다.</div>
 
-  <!-- 프레임워크 프로필 카드 -->
-  <div class="tgrid" style="grid-template-columns:repeat(4,1fr);margin-bottom:16px">
-    <div class="tc">
-      <div class="tn">🔵 CrewAI</div>
-      <div class="tm">~78% · ~20/25개</div>
-      <div class="td" style="margin-top:4px">버전: <code>crewai ≥1.0,&lt;2.0</code><br>설치: <code>agent-evaluator[crewai]</code><br>역할 기반 멀티에이전트<br>Pre/Post 실행 래핑</div>
-    </div>
-    <div class="tc">
-      <div class="tn">🟢 LangChain</div>
-      <div class="tm">~82% · ~21/25개</div>
-      <div class="td" style="margin-top:4px">버전: <code>langchain ≥1.0,&lt;3.0</code><br>설치: <code>agent-evaluator[langchain]</code><br>Chain + Agent 기반<br>콜백 핸들러 실시간 추적</div>
-    </div>
-    <div class="tc">
-      <div class="tn">🟠 LangGraph</div>
-      <div class="tm">~82% · ~21/25개</div>
-      <div class="td" style="margin-top:4px">버전: <code>langgraph ≥1.0,&lt;3.0</code><br>설치: <code>agent-evaluator[langchain]</code><br>상태 머신 / 그래프<br>stream() 기반 노드 실측 타이밍</div>
-    </div>
-    <div class="tc">
-      <div class="tn">🟣 AutoGen</div>
-      <div class="tm">~80% · ~20/25개</div>
-      <div class="td" style="margin-top:4px">버전: <code>autogen-agentchat ≥0.4,&lt;1.0</code><br>설치: <code>agent-evaluator[autogen]</code><br>대화형 멀티에이전트<br>async-first (0.4+) on_messages()</div>
-    </div>
-  </div>
-
-  <!-- 범례 -->
-  <div class="note" style="margin-bottom:14px;font-size:12px;padding:8px 14px">
-    ✅ 자동 수집 &nbsp;|&nbsp; 🔶 부분 지원 (추정값 또는 조건부) &nbsp;|&nbsp; 🔧 수동 호출 (<code>enable_security_metrics=True</code> 필요) &nbsp;|&nbsp; ✗ 미지원
-  </div>
-
-  <!-- Layer 1 매트릭스 -->
-  <div style="font-size:13px;font-weight:700;color:var(--accent);margin:16px 0 6px">📊 Layer 1 — Foundation 지표 (6개)</div>
-  <table class="mtable" style="margin-bottom:16px;font-size:12px">
-    <thead><tr><th>#</th><th>지표</th><th>🔵 CrewAI</th><th>🟢 LangChain</th><th>🟠 LangGraph</th><th>🟣 AutoGen</th></tr></thead>
-    <tbody>
-      <tr>
-        <td>1</td>
-        <td><span class="p">Task Completion Rate</span><br><span style="color:var(--text2)">success 필드 기반 완전/부분/실패</span></td>
-        <td>✅ 예외 기반 자동</td>
-        <td>✅ 콜백 기반 자동</td>
-        <td>✅ 노드 오류 기반</td>
-        <td>✅ 예외 기반 자동</td>
-      </tr>
-      <tr>
-        <td>2</td>
-        <td><span class="p">Accuracy</span><br><span style="color:var(--text2)">Token F1·Jaccard·LCS·Char 가중 조합</span></td>
-        <td>✅ ground_truth 제공 시</td>
-        <td>✅ ground_truth 제공 시</td>
-        <td>✅ run(ground_truth=…) 자동</td>
-        <td>✅ set_ground_truth() 후 자동</td>
-      </tr>
-      <tr>
-        <td>3</td>
-        <td><span class="p">Hallucination Detection</span><br><span style="color:var(--text2)">규칙 기반 사실 일관성 검사</span></td>
-        <td>✅ tasks_output 자동 수집<br><span style="color:var(--text2)">(유일하게 컨텍스트 보장)</span></td>
-        <td>🔶 on_retriever_end 콜백 시<br><span style="color:var(--text2)">Retriever 미사용 시 수집 불가</span></td>
-        <td>🔶 ToolMessage 컨텍스트<br><span style="color:var(--text2)">LangChain LLM 사용 시</span></td>
-        <td>🔶 도구 결과 컨텍스트<br><span style="color:var(--text2)">자동 수집 (부분)</span></td>
-      </tr>
-      <tr>
-        <td>4</td>
-        <td><span class="p">Response Quality (5-dim)</span><br><span style="color:var(--text2)">relevance·completeness·accuracy·clarity·usefulness</span></td>
-        <td>✅ question/response 자동 연결</td>
-        <td>✅ question/response 자동 연결</td>
-        <td>✅ question/response 자동 연결</td>
-        <td>✅ question/response 자동 연결</td>
-      </tr>
-      <tr>
-        <td>5</td>
-        <td><span class="p">Latency</span><br><span style="color:var(--text2)">p50·p95·p99·mean·SLA 준수율</span></td>
-        <td>🔶 전체 시간 ÷ 태스크 수<br><span style="color:var(--text2)">균등 분배 추정 (duration_estimated=True)</span></td>
-        <td>✅ on_chain_end 실측</td>
-        <td>✅ 노드별 stream() 실측 타이밍</td>
-        <td>🔶 team.run() 총 시간<br><span style="color:var(--text2)">도구 레벨 타이밍 추정</span></td>
-      </tr>
-      <tr>
-        <td>6</td>
-        <td><span class="p">Token Economy</span><br><span style="color:var(--text2)">입출력 비율·비용 추정·월간 예측</span></td>
-        <td>✗ SDK 미노출 (항상 0)<br><span style="color:var(--text2)">수동 TaskResult 설정 필요</span></td>
-        <td>✅ LLM 실제 응답 token_usage</td>
-        <td>🔶 AIMessage.usage_metadata<br><span style="color:var(--text2)">LangChain LLM 사용 시만 수집</span></td>
-        <td>🔶 tiktoken 우선<br><span style="color:var(--text2)">한/영 휴리스틱 fallback</span></td>
-      </tr>
-    </tbody>
-  </table>
-
-  <!-- Layer 2 Agentic 매트릭스 -->
-  <div style="font-size:13px;font-weight:700;color:var(--green);margin:16px 0 6px">🤖 Layer 2 — Agentic 지표 (5개)</div>
-  <table class="mtable" style="margin-bottom:16px;font-size:12px">
-    <thead><tr><th>#</th><th>지표</th><th>🔵 CrewAI</th><th>🟢 LangChain</th><th>🟠 LangGraph</th><th>🟣 AutoGen</th></tr></thead>
-    <tbody>
-      <tr>
-        <td>7</td>
-        <td><span class="p">Tool Call Efficiency</span><br><span style="color:var(--text2)">효율성 점수·중복 호출·실패율</span></td>
-        <td>🔶 agents 속성에서 도구 추론</td>
-        <td>✅ on_agent_action/tool_end/<br>tool_error 실측</td>
-        <td>🔶 ToolMessage 파싱<br><span style="color:var(--text2)">LangChain LLM 사용 시</span></td>
-        <td>✅ ToolCallRequestEvent/<br>ToolCallExecutionEvent 기반</td>
-      </tr>
-      <tr>
-        <td>8</td>
-        <td><span class="p">Retry &amp; Error Recovery</span><br><span style="color:var(--text2)">재시도율·첫 시도 성공률·수정 성공률</span></td>
-        <td>🔶 attempts=1 고정<br><span style="color:var(--text2)">재시도 카운트 프레임워크 내부 은닉</span></td>
-        <td>✅ on_retry 콜백 자동<br><span style="color:var(--text2)">attempts 실측</span></td>
-        <td>🔶 실패 노드 감지<br><span style="color:var(--text2)">attempts=1 고정</span></td>
-        <td>🔶 is_error=True 도구 실패 감지<br><span style="color:var(--text2)">attempts=1 고정</span></td>
-      </tr>
-      <tr>
-        <td>9</td>
-        <td><span class="p">Tool Selection Accuracy</span><br><span style="color:var(--text2)">Precision·Recall·F1 (기대 vs 실제 도구)</span></td>
-        <td>✅ expected_tools vs 실행 도구 F1</td>
-        <td>✅ expected_tools vs AgentAction F1</td>
-        <td>✅ expected_tools 제공 시 자동<br><span style="color:var(--text2)">ToolMessage 기반</span></td>
-        <td>✅ ToolCallEvent 기반 자동 추적</td>
-      </tr>
-      <tr>
-        <td>10</td>
-        <td><span class="p">Agent Coordination</span><br><span style="color:var(--text2)">협업 점수·패턴(Hub/Chain/Mesh)·성공률</span></td>
-        <td>✅ Hierarchical/Sequential 패턴 추론</td>
-        <td>✗ 단일 에이전트 — 미지원</td>
-        <td>✅ 노드 전환 감지<br><span style="color:var(--text2)">from/to 쌍 자동 기록</span></td>
-        <td>✅ on_messages() sender 추적</td>
-      </tr>
-      <tr>
-        <td>11</td>
-        <td><span class="p">Workflow Execution</span><br><span style="color:var(--text2)">단계 성공률·태스크 성공률·총 단계 수</span></td>
-        <td>🔶 태스크명 키워드 추론<br><span style="color:var(--text2)">"search"→tool_call, "write"→llm_gen</span></td>
-        <td>🔶 도구 호출 = 스텝<br><span style="color:var(--text2)">실측 타이밍</span></td>
-        <td>✅ 노드 실행 = 스텝<br><span style="color:var(--text2)">실측 타이밍</span></td>
-        <td>🔶 메시지 히스토리 기반 자동 추적</td>
-      </tr>
-    </tbody>
-  </table>
-
-  <!-- Layer 2 Security 매트릭스 -->
-  <div style="font-size:13px;font-weight:700;color:var(--red);margin:16px 0 6px">🛡️ Layer 2 — Security 지표 (5개) <span class="badge req-b">enable_security_metrics=True 필요</span></div>
-  <table class="mtable" style="margin-bottom:16px;font-size:12px">
-    <thead><tr><th>#</th><th>지표</th><th colspan="4" style="text-align:center">4개 프레임워크 공통 — 모두 🔧 수동 호출</th></tr></thead>
-    <tbody>
-      <tr>
-        <td>12</td>
-        <td><span class="p">Input Sanitization</span><br><span style="color:var(--text2)">SQL·Command·Path·XSS·Prompt Injection</span></td>
-        <td colspan="4"><code>monitor.input_sanitizer.evaluate_input(task_id, user_input)</code></td>
-      </tr>
-      <tr>
-        <td>13</td>
-        <td><span class="p">Output Leakage</span><br><span style="color:var(--text2)">API Key·Password·Email·SSN 유출 탐지</span></td>
-        <td colspan="4"><code>monitor.output_leakage_detector.detect_leakage(task_id, agent_output)</code></td>
-      </tr>
-      <tr>
-        <td>14</td>
-        <td><span class="p">Tool Authorization</span><br><span style="color:var(--text2)">Whitelist/Blacklist · Privilege Level 검증</span></td>
-        <td colspan="4"><code>monitor.tool_authorizer.track_tool_call(task_id, tool_name, parameters)</code></td>
-      </tr>
-      <tr>
-        <td>15</td>
-        <td><span class="p">Privilege Escalation</span><br><span style="color:var(--text2)">guest→read→write→execute→admin 상승 탐지</span></td>
-        <td colspan="4"><code>monitor.privilege_escalation_detector.analyze_privilege_chain(task_id, tool_calls)</code></td>
-      </tr>
-      <tr>
-        <td>16</td>
-        <td><span class="p">Tool Chain Attack</span><br><span style="color:var(--text2)">data_exfil · lateral_move · persistence · evasion</span></td>
-        <td colspan="4"><code>monitor.tool_chain_attack_detector.analyze_tool_chain(task_id, tool_sequence)</code></td>
-      </tr>
-    </tbody>
-  </table>
-
-  <!-- Layer 3 Hybrid 매트릭스 -->
-  <div style="font-size:13px;font-weight:700;color:var(--orange);margin:16px 0 6px">🔬 Layer 3 — Hybrid 지표 (9개) <span class="badge opt-b">pip install "agent-evaluator[eval]" + OPENAI_API_KEY</span></div>
-  <table class="mtable" style="margin-bottom:20px;font-size:12px">
-    <thead><tr><th>#</th><th>지표</th><th>어댑터</th><th>🔵 CrewAI</th><th>🟢 LangChain</th><th>🟠 LangGraph</th><th>🟣 AutoGen</th></tr></thead>
-    <tbody>
-      <tr><td>17</td><td><span class="p">G-Eval</span><br><span style="color:var(--text2)">LLM 기반 사용자 정의 품질 평가</span></td><td><span class="badge l3">DeepEval</span></td><td>✅</td><td>✅</td><td>✅</td><td>✅</td></tr>
-      <tr><td>18</td><td><span class="p">Hallucination (DeepEval)</span><br><span style="color:var(--text2)">의미론적 환각 탐지 — LLM 비교 판단</span></td><td><span class="badge l3">DeepEval</span></td><td>✅</td><td>✅</td><td>✅</td><td>✅</td></tr>
-      <tr><td>19</td><td><span class="p">Toxicity</span><br><span style="color:var(--text2)">독성 콘텐츠 탐지 · 0=무독성</span></td><td><span class="badge l3">DeepEval</span></td><td>✅</td><td>✅</td><td>✅</td><td>✅</td></tr>
-      <tr><td>20</td><td><span class="p">Bias</span><br><span style="color:var(--text2)">편향 탐지 · 0=무편향</span></td><td><span class="badge l3">DeepEval</span></td><td>✅</td><td>✅</td><td>✅</td><td>✅</td></tr>
-      <tr><td>21</td><td><span class="p">Answer Relevancy (DeepEval)</span><br><span style="color:var(--text2)">질문-답변 관련성 · LLM 판단</span></td><td><span class="badge l3">DeepEval</span></td><td>✅</td><td>✅</td><td>✅</td><td>✅</td></tr>
-      <tr><td>22</td><td><span class="p">Faithfulness (Ragas)</span><br><span style="color:var(--text2)">검색 문서 충실도 — RAG Generation 품질</span></td><td><span class="badge l3">Ragas</span></td><td>✅ retrieved_context 필요</td><td>✅</td><td>✅</td><td>✅</td></tr>
-      <tr><td>23</td><td><span class="p">Answer Relevancy (Ragas)</span><br><span style="color:var(--text2)">RAG 답변 관련성</span></td><td><span class="badge l3">Ragas</span></td><td>✅</td><td>✅</td><td>✅</td><td>✅</td></tr>
-      <tr><td>24</td><td><span class="p">Context Precision (Ragas)</span><br><span style="color:var(--text2)">검색 정밀도</span></td><td><span class="badge l3">Ragas</span></td><td>✅</td><td>✅</td><td>✅</td><td>✅</td></tr>
-      <tr><td>25</td><td><span class="p">Context Recall (Ragas)</span><br><span style="color:var(--text2)">검색 재현율</span></td><td><span class="badge l3">Ragas</span></td><td>✅</td><td>✅</td><td>✅</td><td>✅</td></tr>
-    </tbody>
-  </table>
-
-  <!-- Factory 함수 목록 -->
+  <!-- 패턴 설명 -->
   <div class="cls-card">
-    <div class="cls-head"><span class="cls-name">Factory 함수 목록</span><span class="kind fn">functions</span></div>
+    <div class="cls-head"><span class="cls-name">공통 패턴</span><span class="kind fn">decorator</span></div>
     <div class="cls-body">
-      <table class="mtable">
-        <thead><tr><th>함수</th><th>프레임워크</th><th>import 경로</th></tr></thead>
+<pre><span class="kw">from</span> <span class="cn">agent_evaluator</span> <span class="kw">import</span> PerformanceMonitor
+<span class="kw">from</span> <span class="cn">agent_evaluator.decorators</span> <span class="kw">import</span> agent_eval
+
+monitor = <span class="fn">PerformanceMonitor</span>(output_dir=<span class="st">"results/"</span>)
+
+<span class="cm"># framework= 파라미터만 바꾸면 21개 프레임워크 전부 동일한 패턴</span>
+<span class="de">@agent_eval</span>(monitor, task_type=<span class="st">"qa"</span>, framework=<span class="st">"openai"</span>)
+<span class="kw">def</span> <span class="fn">my_agent</span>(question: str, ground_truth: str = <span class="st">""</span>) -> str:
+    <span class="kw">return</span> client.chat.completions.<span class="fn">create</span>(...)  <span class="cm"># 응답 객체를 그대로 반환</span>
+
+<span class="cm"># framework= 생략 시 응답 속성으로 자동 감지 (auto_detect_framework=True 기본)</span>
+<span class="de">@agent_eval</span>(monitor, task_type=<span class="st">"qa"</span>)           <span class="cm"># anthropic/openai/gemini 등 12종 자동 감지</span>
+<span class="kw">def</span> <span class="fn">auto_agent</span>(question: str, ground_truth: str = <span class="st">""</span>) -> str: ...</pre>
+    </div>
+  </div>
+
+  <!-- 21개 프레임워크 전체 표 -->
+  <div class="cls-card" style="margin-top:12px">
+    <div class="cls-head"><span class="cls-name">21개 프레임워크 — framework= 값 · 설치 · 자동 추출 항목</span></div>
+    <div class="cls-body">
+      <table class="mtable" style="font-size:12px">
+        <thead><tr><th>framework=</th><th>Extra / 설치</th><th>tokens</th><th>tool_calls</th><th>chain_steps</th><th>agent_interactions</th><th>비고</th></tr></thead>
         <tbody>
-          <tr><td><span class="p">create_evaluated_crew(crew, monitor)</span></td><td>CrewAI</td><td><code>agent_evaluator.integrations.crewai_integration</code></td></tr>
-          <tr><td><span class="p">create_evaluated_langchain_agent(agent, monitor)</span></td><td>LangChain</td><td><code>agent_evaluator.integrations.langchain_integration</code></td></tr>
-          <tr><td><span class="p">create_evaluated_langgraph_agent(compiled_graph, monitor)</span></td><td>LangGraph</td><td><code>agent_evaluator.integrations.langgraph_integration</code></td></tr>
-          <tr><td><span class="p">create_evaluated_autogen_agent(agent_or_team, monitor)</span></td><td>AutoGen</td><td><code>agent_evaluator.integrations.autogen_integration</code></td></tr>
+          <tr style="background:var(--bg3)"><td colspan="7" style="font-weight:700;color:var(--accent);padding:6px 10px">🤖 에이전트 프레임워크</td></tr>
+          <tr>
+            <td><code>"langchain"</code></td>
+            <td><code>[langchain]</code></td>
+            <td>✅ usage_metadata<br><span style="color:var(--text2)">실측 (가장 정확)</span></td>
+            <td>✅ AgentAction/<br>tool_end 콜백</td>
+            <td>✅ 타임스탬프<br>기반 실측</td>
+            <td>✗</td>
+            <td>토큰 실측 유일</td>
+          </tr>
+          <tr>
+            <td><code>"langgraph"</code></td>
+            <td><code>[langchain]</code></td>
+            <td>🔶 AIMessage<br>.usage_metadata</td>
+            <td>✅ ToolMessage<br>파싱</td>
+            <td>✅ 노드 실측<br>타이밍</td>
+            <td>✗</td>
+            <td>state_transitions 추출</td>
+          </tr>
+          <tr>
+            <td><code>"crewai"</code></td>
+            <td><code>[crewai]</code></td>
+            <td>✗ SDK 미노출<br><span style="color:var(--text2)">항상 0</span></td>
+            <td>🔶 agents 속성<br>추론</td>
+            <td>✅ 태스크 완료<br>순서 기반</td>
+            <td>✅ Hierarchical/<br>Sequential 패턴</td>
+            <td>토큰 EvalMetadata 보완 필요</td>
+          </tr>
+          <tr>
+            <td><code>"autogen"</code></td>
+            <td><code>[autogen]</code></td>
+            <td>🔶 tiktoken<br>휴리스틱 fallback</td>
+            <td>✅ ToolCallRequest/<br>Execution Event</td>
+            <td>🔶 메시지 히스토리</td>
+            <td>✅ sender 자동<br>추적</td>
+            <td>async-first (0.4+)</td>
+          </tr>
+          <tr>
+            <td><code>"dspy"</code></td>
+            <td><code>[dspy]</code></td>
+            <td>✅ _completions<br>속성</td>
+            <td>✅ actions/<br>tool_calls</td>
+            <td>✅ LM history<br>multi-step</td>
+            <td>✗</td>
+            <td>자동 감지 지원</td>
+          </tr>
+          <tr>
+            <td><code>"pydanticai"</code></td>
+            <td><code>[pydanticai]</code></td>
+            <td>✅ all_messages()<br>기반</td>
+            <td>✅ ToolCallPart<br>chain</td>
+            <td>✅ ToolReturnPart/<br>TextPart</td>
+            <td>✗</td>
+            <td>자동 감지 지원</td>
+          </tr>
+          <tr>
+            <td><code>"llamaindex"</code></td>
+            <td>llama-index</td>
+            <td>✅ LLMResponse<br>.raw["usage"]</td>
+            <td>✅ sources<br>ToolOutput</td>
+            <td>✅ source_nodes</td>
+            <td>✗</td>
+            <td></td>
+          </tr>
+          <tr>
+            <td><code>"haystack"</code></td>
+            <td>haystack-ai</td>
+            <td>🔶 컴포넌트별<br>추정</td>
+            <td>✅ retriever/<br>reader 컴포넌트</td>
+            <td>✅ pipeline<br>output dict</td>
+            <td>✗</td>
+            <td>컴포넌트→tool 변환</td>
+          </tr>
+          <tr>
+            <td><code>"smolagents"</code></td>
+            <td>smolagents</td>
+            <td>🔶 model_output<br>추정</td>
+            <td>✅ function_calls</td>
+            <td>✗</td>
+            <td>✗</td>
+            <td>자동 감지 지원</td>
+          </tr>
+          <tr>
+            <td><code>"semantic_kernel"</code></td>
+            <td>semantic-kernel</td>
+            <td>🔶 usage<br>메타데이터</td>
+            <td>✅ Plugin.function<br>형식</td>
+            <td>✗</td>
+            <td>✗</td>
+            <td>function_name+plugin_name</td>
+          </tr>
+          <tr style="background:var(--bg3)"><td colspan="7" style="font-weight:700;color:var(--green);padding:6px 10px">🔌 LLM API 직접 연동</td></tr>
+          <tr>
+            <td><code>"anthropic"</code></td>
+            <td><code>[llm]</code></td>
+            <td>✅ input/output/<br>cache tokens</td>
+            <td>✅ content[]<br>.tool_use</td>
+            <td>✗</td>
+            <td>✗</td>
+            <td>캐시 토큰(≥0.29) 지원</td>
+          </tr>
+          <tr>
+            <td><code>"openai"</code></td>
+            <td><code>[llm]</code></td>
+            <td>✅ usage<br>.total_tokens</td>
+            <td>✅ message<br>.tool_calls</td>
+            <td>✗</td>
+            <td>✗</td>
+            <td>Assistants API 지원, 자동 감지</td>
+          </tr>
+          <tr>
+            <td><code>"gemini"</code></td>
+            <td>google-generativeai</td>
+            <td>✅ usage_metadata</td>
+            <td>✅ parts[]<br>.function_call</td>
+            <td>✗</td>
+            <td>✗</td>
+            <td>자동 감지 지원</td>
+          </tr>
+          <tr>
+            <td><code>"vertexai"</code></td>
+            <td>google-cloud-aiplatform</td>
+            <td>✅ usage_metadata</td>
+            <td>✅ parts[]<br>.function_call</td>
+            <td>✗</td>
+            <td>✗</td>
+            <td></td>
+          </tr>
+          <tr>
+            <td><code>"cohere"</code></td>
+            <td>cohere</td>
+            <td>✅ meta<br>.tokens</td>
+            <td>✅ tool_calls</td>
+            <td>✗</td>
+            <td>✗</td>
+            <td>자동 감지 지원</td>
+          </tr>
+          <tr>
+            <td><code>"groq"</code></td>
+            <td>groq</td>
+            <td>✅ usage<br>.total_tokens</td>
+            <td>✅ message<br>.tool_calls</td>
+            <td>✗</td>
+            <td>✗</td>
+            <td>자동 감지 지원</td>
+          </tr>
+          <tr>
+            <td><code>"mistral"</code></td>
+            <td>mistralai</td>
+            <td>✅ usage<br>.total_tokens</td>
+            <td>✅ choices[0]<br>.message.tool_calls</td>
+            <td>✗</td>
+            <td>✗</td>
+            <td></td>
+          </tr>
+          <tr>
+            <td><code>"bedrock"</code></td>
+            <td>boto3</td>
+            <td>✅ ResponseMetadata<br>.usage</td>
+            <td>✅ content[]<br>.toolUse</td>
+            <td>✗</td>
+            <td>✗</td>
+            <td>자동 감지 지원</td>
+          </tr>
+          <tr>
+            <td><code>"ollama"</code></td>
+            <td>ollama</td>
+            <td>✅ eval_count +<br>prompt_eval_count</td>
+            <td>✅ message<br>.tool_calls</td>
+            <td>✗</td>
+            <td>✗</td>
+            <td></td>
+          </tr>
+          <tr>
+            <td><code>"vllm"</code></td>
+            <td>openai (compatible)</td>
+            <td>✅ usage<br>.total_tokens</td>
+            <td>✅ choices[0]<br>.message.tool_calls</td>
+            <td>✗</td>
+            <td>✗</td>
+            <td>OpenAI 호환 API, 자동 감지</td>
+          </tr>
+          <tr>
+            <td><code>"huggingface"</code></td>
+            <td>transformers</td>
+            <td>🔶 generated_token<br>_ids 길이 추정</td>
+            <td>✗</td>
+            <td>✗</td>
+            <td>✗</td>
+            <td>자동 감지 지원</td>
+          </tr>
         </tbody>
       </table>
+      <div class="note" style="margin-top:8px;font-size:12px">✅ 자동 추출 &nbsp;|&nbsp; 🔶 부분 지원 (추정값 또는 조건부) &nbsp;|&nbsp; ✗ 미지원 — <strong>EvalMetadata로 보완 가능</strong></div>
     </div>
   </div>
 
-  <!-- CrewAI 빠른 시작 -->
-  <div class="cls-card" style="margin-top:14px">
-    <div class="cls-head"><span class="cls-name">🔵 CrewAI 빠른 시작</span><span class="kind fn">crewai ≥1.0 · agent-evaluator[crewai]</span></div>
+  <!-- EvalMetadata 보완 패턴 -->
+  <div class="cls-card" style="margin-top:12px">
+    <div class="cls-head"><span class="cls-name">어댑터 미추출 필드 — EvalMetadata로 보완</span><span class="kind fn">decorator</span></div>
     <div class="cls-body">
-      <div class="note" style="margin-bottom:8px">⚠️ CrewAI는 토큰 수를 SDK로 노출하지 않아 Token Economy가 항상 0입니다. 정확한 비용 추적이 필요하면 <code>task_result.tokens_used</code>를 직접 설정하세요. Latency는 전체 시간 ÷ 태스크 수 균등 분배 추정값입니다.</div>
-<pre><span class="kw">from</span> <span class="cn">agent_evaluator</span> <span class="kw">import</span> PerformanceMonitor
-<span class="kw">from</span> <span class="cn">agent_evaluator.integrations.crewai_integration</span> <span class="kw">import</span> CrewAIEvaluator, create_evaluated_crew
+<pre><span class="kw">from</span> <span class="cn">agent_evaluator.decorators</span> <span class="kw">import</span> agent_eval, EvalMetadata
 
-monitor = <span class="fn">PerformanceMonitor</span>(output_dir=<span class="st">"results/"</span>)
+<span class="cm"># 예: CrewAI 토큰 수동 주입, expected_tools로 ToolSelection F1 활성화</span>
+<span class="de">@agent_eval</span>(monitor, task_type=<span class="st">"tool_use"</span>, framework=<span class="st">"crewai"</span>)
+<span class="kw">def</span> <span class="fn">run_crew</span>(question: str, ground_truth: str = <span class="st">""</span>) -> tuple:
+    result = crew.<span class="fn">kickoff</span>(inputs={<span class="st">"question"</span>: question})
+    <span class="kw">return</span> result.raw, <span class="fn">EvalMetadata</span>(
+        tokens_used={<span class="st">"input"</span>: <span class="nm">500</span>, <span class="st">"output"</span>: <span class="nm">200</span>},   <span class="cm"># CrewAI 미노출 → 직접 주입</span>
+        expected_tools=[<span class="st">"search"</span>, <span class="st">"write"</span>],          <span class="cm"># ToolSelection F1 계산용</span>
+        agent_interactions=[                           <span class="cm"># AgentCoordination 세밀화</span>
+            {<span class="st">"from"</span>: <span class="st">"researcher"</span>, <span class="st">"to"</span>: <span class="st">"writer"</span>, <span class="st">"type"</span>: <span class="st">"delegation"</span>, <span class="st">"success"</span>: <span class="kw">True</span>}
+        ],
+    )
 
-<span class="cm"># 팩토리 방식: 기존 Crew 래핑</span>
-evaluated_crew = <span class="fn">create_evaluated_crew</span>(my_crew, monitor=monitor)
-result = evaluated_crew.<span class="fn">kickoff</span>()
-
-<span class="cm"># 직접 래핑 방식: ground_truth + inputs 제공</span>
-evaluator = <span class="fn">CrewAIEvaluator</span>(monitor=monitor)
-result, task_result = evaluator.<span class="fn">evaluate_crew_execution</span>(
-    crew=my_crew,
-    inputs={<span class="st">"topic"</span>: <span class="st">"AI 트렌드"</span>},
-    ground_truth=<span class="st">"예상 답변"</span>,
-)
-monitor.<span class="fn">save_to_file</span>(<span class="st">"crewai_eval"</span>)</pre>
+<span class="cm"># 예: Anthropic tool_use — 어댑터 자동 추출 + EvalMetadata 정확도 오버라이드</span>
+<span class="de">@agent_eval</span>(monitor, task_type=<span class="st">"tool_use"</span>, framework=<span class="st">"anthropic"</span>)
+<span class="kw">def</span> <span class="fn">claude_agent</span>(question: str, ground_truth: str = <span class="st">""</span>) -> tuple:
+    resp = client.messages.<span class="fn">create</span>(model=<span class="st">"claude-sonnet-4-6"</span>, ...)
+    <span class="kw">return</span> resp, <span class="fn">EvalMetadata</span>(accuracy_score=<span class="nm">0.95</span>)  <span class="cm"># 외부 평가 점수 주입</span></pre>
     </div>
   </div>
 
-  <!-- LangChain 빠른 시작 -->
-  <div class="cls-card" style="margin-top:14px">
-    <div class="cls-head"><span class="cls-name">🟢 LangChain 빠른 시작</span><span class="kind fn">langchain ≥1.0 · agent-evaluator[langchain]</span></div>
+  <!-- 주요 프레임워크 빠른 시작 -->
+  <div style="font-size:14px;font-weight:700;color:var(--text2);margin:20px 0 10px;text-transform:uppercase;letter-spacing:.05em">주요 프레임워크 빠른 시작</div>
+
+  <!-- LangChain -->
+  <div class="cls-card">
+    <div class="cls-head"><span class="cls-name">🟢 LangChain</span><span class="kind fn">langchain ≥1.0 · agent-evaluator[langchain]</span></div>
     <div class="cls-body">
-      <div class="note tip" style="margin-bottom:8px">💡 LangChain은 실제 LLM 토큰 수를 자동 수집하는 유일한 프레임워크입니다. 정확한 비용 추적이 필요하면 LangChain을 우선 고려하세요.</div>
-<pre><span class="kw">from</span> <span class="cn">agent_evaluator</span> <span class="kw">import</span> PerformanceMonitor
-<span class="kw">from</span> <span class="cn">agent_evaluator.integrations.langchain_integration</span> <span class="kw">import</span> (
-    create_evaluated_langchain_agent, AdvancedLangChainCallback
-)
+      <div class="note tip" style="margin-bottom:8px">💡 <code>usage_metadata</code>로 LLM 토큰 수를 실측 수집하는 유일한 프레임워크. 정확한 비용 추적이 필요하면 LangChain을 우선 고려하세요.</div>
+<pre><span class="de">@agent_eval</span>(monitor, task_type=<span class="st">"qa"</span>, framework=<span class="st">"langchain"</span>)
+<span class="kw">def</span> <span class="fn">lc_agent</span>(question: str, ground_truth: str = <span class="st">""</span>) -> str:
+    result = agent_executor.<span class="fn">invoke</span>({<span class="st">"input"</span>: question})
+    <span class="kw">return</span> result[<span class="st">"output"</span>]
+    <span class="cm"># 자동 추출: tokens_used (usage_metadata), tool_calls (on_agent_action), chain_steps</span>
 
-monitor = <span class="fn">PerformanceMonitor</span>(output_dir=<span class="st">"results/"</span>)
-
-<span class="cm"># 팩토리 방식: AgentExecutor 등 기존 에이전트 래핑</span>
-evaluated_agent = <span class="fn">create_evaluated_langchain_agent</span>(my_agent, monitor=monitor)
-result = evaluated_agent.<span class="fn">run</span>(<span class="st">"질문"</span>)
-
-<span class="cm"># 콜백 방식: 실시간 토큰/도구 추적 (LangChain LLM 직접 사용 시)</span>
-callback = <span class="fn">AdvancedLangChainCallback</span>(monitor=monitor, task_id=<span class="st">"task_001"</span>)
-response = chain.<span class="fn">invoke</span>({<span class="st">"input"</span>: <span class="st">"질문"</span>}, config={<span class="st">"callbacks"</span>: [callback]})
+<span class="fn">lc_agent</span>(<span class="st">"한국의 수도는?"</span>, ground_truth=<span class="st">"서울"</span>)
 monitor.<span class="fn">save_to_file</span>(<span class="st">"langchain_eval"</span>)</pre>
     </div>
   </div>
 
-  <!-- LangGraph 빠른 시작 -->
-  <div class="cls-card" style="margin-top:14px">
-    <div class="cls-head"><span class="cls-name">🟠 LangGraph 빠른 시작</span><span class="kind fn">langgraph ≥1.0 · agent-evaluator[langchain]</span></div>
+  <!-- LangGraph -->
+  <div class="cls-card" style="margin-top:12px">
+    <div class="cls-head"><span class="cls-name">🟠 LangGraph</span><span class="kind fn">langgraph ≥1.0 · agent-evaluator[langchain]</span></div>
     <div class="cls-body">
-      <div class="note" style="margin-bottom:8px">⚡ 토큰 카운트는 <code>ChatOpenAI</code> 등 LangChain 통합 LLM을 사용하는 노드에서만 <code>AIMessage.usage_metadata</code>로 자동 수집됩니다. 커스텀 LLM 사용 시 <code>task_result.tokens_used</code>를 수동으로 채워주세요.</div>
-<pre><span class="kw">from</span> <span class="cn">agent_evaluator</span> <span class="kw">import</span> PerformanceMonitor
-<span class="kw">from</span> <span class="cn">agent_evaluator.integrations.langgraph_integration</span> <span class="kw">import</span> create_evaluated_langgraph_agent
-<span class="kw">from</span> <span class="cn">langchain_core.messages</span> <span class="kw">import</span> HumanMessage
+      <div class="note" style="margin-bottom:8px">⚡ 토큰은 ChatOpenAI 등 LangChain LLM 노드에서만 수집됩니다. <code>state_transitions</code>·<code>chain_steps</code>는 노드 실행 순서로 자동 구성됩니다.</div>
+<pre><span class="kw">from</span> <span class="cn">langchain_core.messages</span> <span class="kw">import</span> HumanMessage
 
-monitor = <span class="fn">PerformanceMonitor</span>(output_dir=<span class="st">"results/"</span>)
-<span class="cm"># 컴파일된 그래프를 첫 번째 인자로 전달 (from_compiled 방식)</span>
-evaluated_graph = <span class="fn">create_evaluated_langgraph_agent</span>(my_compiled_graph, monitor=monitor)
+<span class="de">@agent_eval</span>(monitor, task_type=<span class="st">"information_retrieval"</span>, framework=<span class="st">"langgraph"</span>)
+<span class="kw">def</span> <span class="fn">run_graph</span>(question: str, ground_truth: str = <span class="st">""</span>) -> str:
+    result = compiled_graph.<span class="fn">invoke</span>({<span class="st">"messages"</span>: [<span class="fn">HumanMessage</span>(content=question)]})
+    <span class="kw">return</span> result[<span class="st">"messages"</span>][-1].content
+    <span class="cm"># 자동 추출: tool_calls (ToolMessage), chain_steps (노드 타이밍), state_transitions</span>
 
-<span class="cm"># stream() 기반 노드별 실측 타이밍 자동 수집</span>
-result = evaluated_graph.<span class="fn">run</span>({<span class="st">"messages"</span>: [<span class="fn">HumanMessage</span>(content=<span class="st">"질문"</span>)]})
-
-<span class="cm"># ground_truth 제공 시 Accuracy 자동 평가</span>
-result = evaluated_graph.<span class="fn">run</span>(
-    initial_state={<span class="st">"messages"</span>: [<span class="fn">HumanMessage</span>(content=<span class="st">"질문"</span>)]},
-    ground_truth=<span class="st">"예상 답변"</span>,
-)
+<span class="fn">run_graph</span>(<span class="st">"질문"</span>, ground_truth=<span class="st">"예상 답변"</span>)
 monitor.<span class="fn">save_to_file</span>(<span class="st">"langgraph_eval"</span>)</pre>
     </div>
   </div>
 
-  <!-- AutoGen 빠른 시작 -->
-  <div class="cls-card" style="margin-top:14px">
-    <div class="cls-head"><span class="cls-name">🟣 AutoGen 빠른 시작</span><span class="kind fn">autogen-agentchat ≥0.4 · agent-evaluator[autogen]</span></div>
+  <!-- CrewAI -->
+  <div class="cls-card" style="margin-top:12px">
+    <div class="cls-head"><span class="cls-name">🔵 CrewAI</span><span class="kind fn">crewai ≥1.0 · agent-evaluator[crewai]</span></div>
     <div class="cls-body">
-      <div class="note" style="margin-bottom:8px">⚡ 토큰 추정은 <strong>tiktoken</strong> 설치 시 cl100k_base 인코딩을 사용하고, 없으면 한국어·영어 혼합 휴리스틱(한글 1.5자/토큰, 영어 4자/토큰)으로 fallback합니다. pyautogen 0.3.x는 async API 전환으로 generate_reply 래핑 불가 — UserWarning 후 수동 <code>monitor.record_task()</code> 권고.</div>
-<pre><span class="kw">from</span> <span class="cn">agent_evaluator</span> <span class="kw">import</span> PerformanceMonitor
-<span class="kw">from</span> <span class="cn">agent_evaluator.integrations.autogen_integration</span> <span class="kw">import</span> create_evaluated_autogen_agent
+      <div class="note warn" style="margin-bottom:8px">⚠️ 토큰 수를 SDK로 노출하지 않습니다. 비용 추적이 필요하면 <code>EvalMetadata(tokens_used=...)</code>로 직접 주입하세요.</div>
+<pre><span class="de">@agent_eval</span>(monitor, task_type=<span class="st">"tool_use"</span>, framework=<span class="st">"crewai"</span>)
+<span class="kw">def</span> <span class="fn">run_crew</span>(question: str, ground_truth: str = <span class="st">""</span>) -> str:
+    crew = <span class="fn">Crew</span>(agents=agents, tasks=tasks)
+    result = crew.<span class="fn">kickoff</span>(inputs={<span class="st">"question"</span>: question})
+    <span class="kw">return</span> result.raw
+    <span class="cm"># 자동 추출: agent_interactions (Hierarchical/Sequential 패턴), chain_steps (태스크 순서)</span>
 
-monitor = <span class="fn">PerformanceMonitor</span>(output_dir=<span class="st">"results/"</span>)
-<span class="cm"># agent_or_team: AssistantAgent, RoundRobinGroupChat 등</span>
-evaluated_agent = <span class="fn">create_evaluated_autogen_agent</span>(my_agent_or_team, monitor=monitor)
+<span class="fn">run_crew</span>(<span class="st">"AI 트렌드 조사"</span>, ground_truth=<span class="st">"예상 답변"</span>)
+monitor.<span class="fn">save_to_file</span>(<span class="st">"crewai_eval"</span>)</pre>
+    </div>
+  </div>
 
-<span class="cm"># ground_truth 설정 (선택) → Accuracy 지표 활성화</span>
-evaluated_agent.<span class="fn">set_ground_truth</span>(<span class="st">"task_001"</span>, <span class="st">"기대 정답"</span>)
+  <!-- AutoGen -->
+  <div class="cls-card" style="margin-top:12px">
+    <div class="cls-head"><span class="cls-name">🟣 AutoGen</span><span class="kind fn">autogen-agentchat ≥0.4 · agent-evaluator[autogen]</span></div>
+    <div class="cls-body">
+      <div class="note" style="margin-bottom:8px">⚡ async-first API 권장. 토큰 추정은 <strong>tiktoken</strong> 설치 시 cl100k_base 인코딩, 없으면 한/영 휴리스틱 fallback.</div>
+<pre><span class="de">@agent_eval</span>(monitor, task_type=<span class="st">"tool_use"</span>, framework=<span class="st">"autogen"</span>)
+<span class="kw">async def</span> <span class="fn">run_autogen</span>(question: str, ground_truth: str = <span class="st">""</span>) -> str:
+    result = <span class="kw">await</span> team.<span class="fn">run</span>(task=question)
+    <span class="kw">return</span> result.messages[-1].content
+    <span class="cm"># 자동 추출: agent_interactions (sender 추적), tool_calls (ToolCallEvent), tokens (tiktoken)</span>
 
-<span class="cm"># run_sync() 동기 래퍼 제공 (async 환경 외 사용 시)</span>
-result = evaluated_agent.<span class="fn">run_sync</span>(<span class="st">"task_001"</span>, <span class="st">"질문"</span>)
-<span class="cm"># tiktoken 설치 권장: pip install tiktoken</span>
+<span class="kw">import</span> asyncio
+asyncio.<span class="fn">run</span>(<span class="fn">run_autogen</span>(<span class="st">"질문"</span>, ground_truth=<span class="st">"예상 답변"</span>))
 monitor.<span class="fn">save_to_file</span>(<span class="st">"autogen_eval"</span>)</pre>
     </div>
   </div>
-</section>
 
-<!-- ── LLM Helpers ── -->
-<section class="sec" id="llm-helpers">
-  <div class="sec-title">🤖 LLMHelper / ClaudeHelper</div>
-  <div class="sec-sub">LLM-as-judge 방식으로 응답 품질을 평가하는 보조 클래스입니다.</div>
-  <div class="cls-card">
-    <div class="cls-head"><span class="cls-name">LLMHelper</span><span class="kind cls">class</span><span style="font-size:12px;color:var(--text2);margin-left:8px">alias: LLMEvaluationHelper</span></div>
-    <div class="cls-desc">OpenAI 모델 사용. <code>OPENAI_API_KEY</code> 필요. 생성자: <code>LLMHelper(monitor)</code> — PerformanceMonitor 인스턴스 필수.</div>
+  <!-- DSPy / PydanticAI -->
+  <div class="cls-card" style="margin-top:12px">
+    <div class="cls-head"><span class="cls-name">🟤 DSPy / PydanticAI</span><span class="kind fn">agent-evaluator[dspy] 또는 [pydanticai]</span></div>
     <div class="cls-body">
-<pre><span class="kw">from</span> <span class="cn">agent_evaluator</span> <span class="kw">import</span> LLMHelper, PerformanceMonitor
-monitor = <span class="fn">PerformanceMonitor</span>(output_dir=<span class="st">"results/"</span>)
-helper = <span class="fn">LLMHelper</span>(monitor)
-task = helper.<span class="fn">evaluate_openai_call</span>(
-    task_id=<span class="st">"qa_001"</span>, prompt=<span class="st">"수도는?"</span>,
-    ground_truth=<span class="st">"서울"</span>, model=<span class="st">"gpt-4o-mini"</span>,
-)  <span class="cm"># TaskResult 반환 + monitor에 자동 기록</span></pre>
+<pre><span class="cm"># DSPy — _completions 속성으로 토큰·체인 스텝 자동 추출</span>
+<span class="de">@agent_eval</span>(monitor, task_type=<span class="st">"reasoning"</span>, framework=<span class="st">"dspy"</span>)
+<span class="kw">def</span> <span class="fn">dspy_agent</span>(question: str, ground_truth: str = <span class="st">""</span>) -> str:
+    <span class="kw">return</span> dspy_program(question=question).answer
+
+<span class="cm"># PydanticAI — ToolCallPart/ToolReturnPart 체인 자동 추출</span>
+<span class="de">@agent_eval</span>(monitor, task_type=<span class="st">"tool_use"</span>, framework=<span class="st">"pydanticai"</span>)
+<span class="kw">async def</span> <span class="fn">pydantic_agent</span>(question: str, ground_truth: str = <span class="st">""</span>) -> str:
+    result = <span class="kw">await</span> agent.<span class="fn">run</span>(question)
+    <span class="kw">return</span> result.data</pre>
     </div>
   </div>
-  <div class="cls-card">
-    <div class="cls-head"><span class="cls-name">ClaudeHelper</span><span class="kind cls">class</span><span style="font-size:12px;color:var(--text2);margin-left:8px">alias: AnthropicEvaluationHelper</span></div>
-    <div class="cls-desc">Anthropic Claude 모델 사용. <code>ANTHROPIC_API_KEY</code> 필요. 생성자: <code>ClaudeHelper(monitor)</code> — PerformanceMonitor 인스턴스 필수.</div>
+
+  <!-- LLM API 직접 연동 -->
+  <div class="cls-card" style="margin-top:12px">
+    <div class="cls-head"><span class="cls-name">🔌 LLM API 직접 연동 (openai · anthropic · gemini · 기타)</span><span class="kind fn">agent-evaluator[llm] 또는 해당 SDK</span></div>
     <div class="cls-body">
-<pre><span class="kw">from</span> <span class="cn">agent_evaluator</span> <span class="kw">import</span> ClaudeHelper, PerformanceMonitor
-monitor = <span class="fn">PerformanceMonitor</span>(output_dir=<span class="st">"results/"</span>)
-helper = <span class="fn">ClaudeHelper</span>(monitor)
-task = helper.<span class="fn">evaluate_claude_call</span>(
-    task_id=<span class="st">"qa_001"</span>, prompt=<span class="st">"질문"</span>,
-    ground_truth=<span class="st">"기대 정답"</span>, model=<span class="st">"claude-haiku-4-5-20251001"</span>,
-)  <span class="cm"># TaskResult 반환 + monitor에 자동 기록</span></pre>
+<pre><span class="cm"># OpenAI — usage.total_tokens + message.tool_calls 자동 추출</span>
+<span class="de">@agent_eval</span>(monitor, task_type=<span class="st">"tool_use"</span>, framework=<span class="st">"openai"</span>)
+<span class="kw">def</span> <span class="fn">openai_agent</span>(question: str, ground_truth: str = <span class="st">""</span>) -> str:
+    <span class="kw">return</span> openai_client.chat.completions.<span class="fn">create</span>(
+        model=<span class="st">"gpt-4o-mini"</span>, messages=[{<span class="st">"role"</span>:<span class="st">"user"</span>,<span class="st">"content"</span>:question}]
+    )
+
+<span class="cm"># Anthropic — input/output/cache 토큰 + content[].tool_use 자동 추출</span>
+<span class="de">@agent_eval</span>(monitor, task_type=<span class="st">"qa"</span>, framework=<span class="st">"anthropic"</span>)
+<span class="kw">def</span> <span class="fn">claude_agent</span>(question: str, ground_truth: str = <span class="st">""</span>) -> str:
+    <span class="kw">return</span> anthropic_client.messages.<span class="fn">create</span>(
+        model=<span class="st">"claude-sonnet-4-6"</span>, max_tokens=<span class="nm">1024</span>,
+        messages=[{<span class="st">"role"</span>:<span class="st">"user"</span>,<span class="st">"content"</span>:question}]
+    )
+
+<span class="cm"># 기타 SDK (cohere, groq, mistral, bedrock, ollama, vllm 등) — 동일 패턴</span>
+<span class="de">@agent_eval</span>(monitor, task_type=<span class="st">"qa"</span>, framework=<span class="st">"groq"</span>)
+<span class="kw">def</span> <span class="fn">groq_agent</span>(question: str, ground_truth: str = <span class="st">""</span>) -> str:
+    <span class="kw">return</span> groq_client.chat.completions.<span class="fn">create</span>(model=<span class="st">"llama-3.1-8b-instant"</span>, ...)</pre>
+      <div class="note tip" style="margin-top:8px">💡 <strong>응답 객체를 그대로 반환</strong>하면 어댑터가 SDK별 구조에서 tokens/tool_calls를 자동 추출합니다. 문자열로 변환할 필요가 없습니다.</div>
     </div>
   </div>
 </section>

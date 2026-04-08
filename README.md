@@ -3,7 +3,7 @@
 [![PyPI version](https://img.shields.io/pypi/v/agent-evaluator.svg)](https://pypi.org/project/agent-evaluator/)
 [![Python Version](https://img.shields.io/badge/python-3.8%2B-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Version](https://img.shields.io/badge/version-0.7.3-green.svg)](https://github.com/bullpeng72/Agent-Evaluator)
+[![Version](https://img.shields.io/badge/version-0.7.4-green.svg)](https://github.com/bullpeng72/Agent-Evaluator)
 
 **AI 에이전트를 위한 프로덕션 레디 평가 프레임워크**
 
@@ -423,7 +423,7 @@ def chat(question: str, session_id: str = "s1") -> str:
     response = llm.invoke(question)
     return response, TurnMetadata(
         model="gpt-4o-mini",
-        tokens_used={"input": 50, "output": 30},
+        tokens={"input": 50, "output": 30},
         tool_calls=["search"],
     )
 ```
@@ -432,34 +432,492 @@ def chat(question: str, session_id: str = "s1") -> str:
 
 ## 21개 프레임워크 자동 인식
 
-`framework=` 파라미터 하나로 응답 객체에서 `tool_calls`, `chain_steps`, `tokens_used`를 자동 추출합니다.
+`framework=` 파라미터 하나로 응답 객체에서 `tool_calls`, `chain_steps`, `tokens_used` 등을 자동 추출합니다.
+3종 데코레이터 모두 동일한 `framework=` 파라미터를 지원합니다.
 
 ```python
-# 명시적 지정
+# 명시적 지정 — IDE 자동완성 지원 (FrameworkLiteral 타입 힌트)
 @agent_eval(monitor, task_type="tool_use", framework="langchain")
 def lc_agent(question, ground_truth=""): ...
 
-@agent_eval(monitor, task_type="tool_use", framework="langgraph")
-def lg_agent(question, ground_truth=""): ...
-
-@agent_eval(monitor, task_type="qa", framework="openai")
-def gpt_agent(question, ground_truth=""): ...
-
-@agent_eval(monitor, task_type="qa", framework="anthropic")
-def claude_agent(question, ground_truth=""): ...
-
-# 자동 감지 (기본 활성)
-@agent_eval(monitor, task_type="qa", auto_detect_framework=True)
+# 자동 감지 (기본 활성 — auto_detect_framework=True)
+@agent_eval(monitor, task_type="qa")
 def auto_agent(question, ground_truth=""): ...
+
+# batch_eval · conversation_eval에도 동일하게 적용
+@batch_eval(monitor, task_type="qa", framework="openai")
+def batch_agent(questions, ground_truths=None): ...
+
+@conversation_eval(monitor, max_turns=5, framework="anthropic")
+def chat(question, session_id="s1"): ...
+
+# 프레임워크 어댑터 정보 조회
+from agent_evaluator.decorators import get_framework_info
+info = get_framework_info("langchain")
+# → {"name": "LangChain", "extras": "langchain",
+#    "extracts": ["tool_calls", "chain_steps"], "async_supported": True, ...}
 ```
 
-지원 프레임워크 21개:
+### 어댑터 전체 목록
 
-| 카테고리 | 프레임워크 식별자 |
-|---------|----------------|
-| 오케스트레이션 | `langchain` · `langgraph` · `crewai` · `autogen` |
-| LLM 공급자 | `openai` · `anthropic` · `gemini` · `vertexai` · `ollama` · `groq` · `mistral` · `cohere` · `bedrock` |
-| AI 프레임워크 | `dspy` · `pydanticai` · `llamaindex` · `haystack` · `semantic_kernel` · `smolagents` · `vllm` · `huggingface` |
+| 식별자 | 이름 | 필요 extras | 자동 추출 필드 | async |
+|--------|------|------------|--------------|-------|
+| `langchain` | LangChain | `[langchain]` | `tool_calls` · `chain_steps` | ✅ |
+| `langgraph` | LangGraph | `[langchain]` | `state_transitions` · `graph_traversal` · `tool_calls` · `chain_steps` | ✅ |
+| `crewai` | CrewAI | `[crewai]` | `agent_interactions` | ❌ |
+| `autogen` | AutoGen | `[autogen]` | `conversation_turns` · `tokens_used` | ✅ |
+| `dspy` | DSPy | `[dspy]` | `chain_steps` · `tokens_used` | ❌ |
+| `pydanticai` | PydanticAI | `[pydanticai]` | `chain_steps` · `tokens_used` | ✅ |
+| `anthropic` | Anthropic | `[llm]` | `tool_calls` · `tokens_used` | ✅ |
+| `openai` | OpenAI | `[llm]` | `tool_calls` · `tokens_used` | ✅ |
+| `gemini` | Google Gemini | `[llm]` | `tool_calls` · `tokens_used` | ✅ |
+| `vertexai` | Vertex AI | `[llm]` | `tool_calls` · `tokens_used` | ✅ |
+| `cohere` | Cohere | `[llm]` | `tool_calls` · `tokens_used` | ✅ |
+| `groq` | Groq | `[llm]` | `tool_calls` · `tokens_used` | ✅ |
+| `mistral` | Mistral AI | `[llm]` | `tool_calls` · `tokens_used` | ✅ |
+| `bedrock` | AWS Bedrock | `[llm]` | `tool_calls` · `tokens_used` | ✅ |
+| `ollama` | Ollama | `[llm]` | `tool_calls` · `tokens_used` | ❌ |
+| `llamaindex` | LlamaIndex | `[llm]` | `chain_steps` | ✅ |
+| `haystack` | Haystack | `[llm]` | `chain_steps` | ✅ |
+| `semantic_kernel` | Semantic Kernel | `[llm]` | `chain_steps` · `tokens_used` | ✅ |
+| `smolagents` | HuggingFace smolagents | `[llm]` | `tool_calls` · `chain_steps` | ❌ |
+| `vllm` | vLLM | `[llm]` | `tool_calls` · `tokens_used` | ✅ |
+| `huggingface` | HuggingFace | `[llm]` | `chain_steps` · `tool_calls` | ❌ |
+
+---
+
+### 오케스트레이션 프레임워크
+
+#### LangChain
+
+`AgentExecutor.invoke()` 결과의 `intermediate_steps`에서 툴 호출과 체인 단계를 자동 추출합니다.
+
+```python
+from langchain.agents import AgentExecutor
+from agent_evaluator.decorators import agent_eval
+
+# intermediate_steps → tool_calls + chain_steps 자동 변환
+# usage_metadata / response_metadata.token_usage → tokens_used 자동 추출
+@agent_eval(monitor, task_type="tool_use", framework="langchain")
+def lc_agent(question: str, ground_truth: str = "") -> str:
+    result = agent_executor.invoke({"input": question})
+    return result  # dict 그대로 반환 — "output" 키에서 텍스트 자동 추출
+
+# 프레임워크 전용 별칭 (agent_evaluator.integrations)
+from agent_evaluator.integrations import langchain_eval
+
+@langchain_eval(monitor, task_type="tool_use")
+def lc_agent2(question: str, ground_truth: str = "") -> str:
+    return agent_executor.invoke({"input": question})
+```
+
+#### LangGraph
+
+그래프 실행 결과의 `messages` 배열에서 상태 전이·그래프 경로·툴 호출을 추출합니다.
+`__metadata__` 키가 있으면 그래프 메타데이터도 자동 수집합니다.
+
+```python
+from langgraph.graph import StateGraph
+from agent_evaluator.decorators import agent_eval
+
+# messages → state_transitions + graph_traversal
+# ToolMessage / AIMessage → chain_steps + 타임스탬프 기반 실행 시간
+@agent_eval(monitor, task_type="tool_use", framework="langgraph")
+def lg_agent(question: str, ground_truth: str = "") -> str:
+    result = graph.invoke({"messages": [("user", question)]})
+    return result  # "messages"[-1].content 자동 추출
+
+from agent_evaluator.integrations import langgraph_eval
+
+@langgraph_eval(monitor, task_type="tool_use")
+def lg_agent2(question: str, ground_truth: str = "") -> str:
+    return graph.invoke({"messages": [("user", question)]})
+```
+
+#### CrewAI
+
+`Crew.kickoff()` 결과의 `tasks_output`에서 에이전트 간 상호작용을 추출합니다.
+`output_pydantic` / `output_format` (v2.x) 필드를 지원합니다.
+
+```python
+from crewai import Crew, Agent, Task
+from agent_evaluator.decorators import agent_eval
+
+# tasks_output → agent_interactions 자동 변환
+# 주의: CrewAI는 async 미지원 — 동기 함수로만 사용
+@agent_eval(monitor, task_type="tool_use", framework="crewai")
+def crew_agent(question: str, ground_truth: str = "") -> str:
+    result = crew.kickoff(inputs={"topic": question})
+    return str(result)
+
+from agent_evaluator.integrations import crewai_eval
+
+@crewai_eval(monitor, task_type="tool_use")
+def crew_agent2(question: str, ground_truth: str = "") -> str:
+    return str(crew.kickoff(inputs={"topic": question}))
+```
+
+#### AutoGen
+
+`chat_result.messages` / `chat_history`에서 대화 턴과 비용 정보를 추출합니다.
+AutoGen 0.4+ async API는 `autogen_eval_async` 전용 데코레이터를 사용합니다.
+
+```python
+from autogen import ConversableAgent
+from agent_evaluator.decorators import agent_eval
+from agent_evaluator.integrations import autogen_eval, autogen_eval_async
+
+# messages/chat_history → conversation_turns
+# cost/usage_summary → tokens_used
+@agent_eval(monitor, task_type="qa", framework="autogen")
+def autogen_agent(question: str, ground_truth: str = "") -> str:
+    result = assistant.initiate_chat(user_proxy, message=question, max_turns=3)
+    return result.summary
+
+# AutoGen 0.4+ async API 전용
+@autogen_eval_async(monitor, task_type="qa")
+async def autogen_agent_async(question: str, ground_truth: str = "") -> str:
+    result = await team.run(task=question)
+    return result.messages[-1].content
+```
+
+---
+
+### LLM 공급자
+
+#### OpenAI
+
+`ChatCompletion` 응답의 `choices[0].message.tool_calls`와 `usage.total_tokens`를 자동 추출합니다.
+Assistants API의 `required_action`도 지원합니다.
+
+```python
+import openai
+from agent_evaluator.decorators import agent_eval
+
+client = openai.OpenAI()
+
+@agent_eval(monitor, task_type="tool_use", framework="openai")
+def gpt_agent(question: str, ground_truth: str = "") -> str:
+    return client.chat.completions.create(
+        model="gpt-4o-mini",
+        messages=[{"role": "user", "content": question}],
+        tools=[...],
+    )  # ChatCompletion 객체 그대로 반환 — choices[0].message.content 자동 추출
+```
+
+#### Anthropic
+
+`Message` 응답의 `content[].tool_use`와 `usage.input_tokens/output_tokens`를 추출합니다.
+캐시 토큰(`cache_creation_input_tokens`, `cache_read_input_tokens`, SDK ≥0.29)도 지원합니다.
+
+```python
+import anthropic
+from agent_evaluator.decorators import agent_eval
+
+client = anthropic.Anthropic()
+
+@agent_eval(monitor, task_type="tool_use", framework="anthropic")
+def claude_agent(question: str, ground_truth: str = "") -> str:
+    return client.messages.create(
+        model="claude-sonnet-4-6",
+        max_tokens=1024,
+        messages=[{"role": "user", "content": question}],
+        tools=[...],
+    )  # Message 객체 그대로 반환 — content[0].text 자동 추출
+```
+
+#### Google Gemini / Vertex AI
+
+`GenerateContentResponse`의 `candidates[0].content.parts[].function_call`과 `usage_metadata`를 추출합니다.
+
+```python
+import google.generativeai as genai
+from agent_evaluator.decorators import agent_eval
+
+model = genai.GenerativeModel("gemini-1.5-flash")
+
+@agent_eval(monitor, task_type="tool_use", framework="gemini")
+def gemini_agent(question: str, ground_truth: str = "") -> str:
+    return model.generate_content(question)  # GenerateContentResponse 그대로 반환
+
+# Vertex AI는 동일한 응답 구조 — framework="vertexai"
+@agent_eval(monitor, task_type="tool_use", framework="vertexai")
+def vertex_agent(question: str, ground_truth: str = "") -> str:
+    return vertex_model.generate_content(question)
+```
+
+#### Cohere
+
+`NonStreamedChatResponse`의 `tool_calls`와 `meta.tokens`를 추출합니다.
+스트리밍 응답(`finish_reason` 속성)도 자동 감지합니다.
+
+```python
+import cohere
+from agent_evaluator.decorators import agent_eval
+
+co = cohere.Client()
+
+@agent_eval(monitor, task_type="tool_use", framework="cohere")
+def cohere_agent(question: str, ground_truth: str = "") -> str:
+    return co.chat(message=question, tools=[...])
+```
+
+#### Groq
+
+OpenAI 호환 API 구조 — `tool_calls`와 `usage`를 추출합니다.
+캐시 토큰(`cache_creation_input_tokens`, `cache_read_input_tokens`, v0.9+)도 지원합니다.
+
+```python
+from groq import Groq
+from agent_evaluator.decorators import agent_eval
+
+client = Groq()
+
+@agent_eval(monitor, task_type="tool_use", framework="groq")
+def groq_agent(question: str, ground_truth: str = "") -> str:
+    return client.chat.completions.create(
+        model="llama-3.3-70b-versatile",
+        messages=[{"role": "user", "content": question}],
+    )
+```
+
+#### Mistral AI
+
+`ChatCompletionResponse`의 `tool_calls`와 `usage`를 추출합니다.
+구버전 `function_call` 필드도 지원합니다.
+
+```python
+from mistralai import Mistral
+from agent_evaluator.decorators import agent_eval
+
+client = Mistral()
+
+@agent_eval(monitor, task_type="tool_use", framework="mistral")
+def mistral_agent(question: str, ground_truth: str = "") -> str:
+    return client.chat.complete(
+        model="mistral-large-latest",
+        messages=[{"role": "user", "content": question}],
+    )
+```
+
+#### AWS Bedrock
+
+Bedrock Converse API 응답에서 `model_id` 기반으로 Titan / Mistral on Bedrock / Claude 응답을 분기 처리합니다.
+
+```python
+import boto3
+from agent_evaluator.decorators import agent_eval
+
+client = boto3.client("bedrock-runtime", region_name="us-east-1")
+
+@agent_eval(monitor, task_type="tool_use", framework="bedrock")
+def bedrock_agent(question: str, ground_truth: str = "") -> str:
+    return client.converse(
+        modelId="anthropic.claude-3-5-sonnet-20241022-v2:0",
+        messages=[{"role": "user", "content": [{"text": question}]}],
+    )
+```
+
+#### Ollama
+
+`ollama.chat()` / `ollama.generate()` 응답의 `tool_calls`와 `prompt_eval_count` / `eval_count`를 추출합니다.
+주의: Ollama는 async 미지원입니다.
+
+```python
+import ollama
+from agent_evaluator.decorators import agent_eval
+
+@agent_eval(monitor, task_type="qa", framework="ollama")
+def ollama_agent(question: str, ground_truth: str = "") -> str:
+    return ollama.chat(
+        model="llama3.2",
+        messages=[{"role": "user", "content": question}],
+    )
+```
+
+---
+
+### AI 프레임워크
+
+#### DSPy
+
+`dspy.Prediction`의 `_completions` 속성에서 체인 단계를 추출합니다.
+LM history 전체 multi-step도 지원합니다. 주의: DSPy는 async 미지원입니다.
+
+```python
+import dspy
+from agent_evaluator.decorators import agent_eval
+from agent_evaluator.integrations import dspy_eval
+
+lm = dspy.LM("openai/gpt-4o-mini")
+dspy.configure(lm=lm)
+
+@agent_eval(monitor, task_type="qa", framework="dspy")
+def dspy_agent(question: str, ground_truth: str = "") -> str:
+    predictor = dspy.Predict("question -> answer")
+    return predictor(question=question)  # Prediction 객체 → .answer 자동 추출
+
+@dspy_eval(monitor, task_type="qa")
+def dspy_agent2(question: str, ground_truth: str = "") -> str:
+    return dspy.ChainOfThought("question -> answer")(question=question)
+```
+
+#### PydanticAI
+
+`RunResult.all_messages()` (우선) 또는 `.messages` (fallback)에서 체인 단계를 추출합니다.
+`ToolCallPart` / `ToolReturnPart` / `TextPart`를 세분화해 추출합니다.
+
+```python
+from pydantic_ai import Agent
+from agent_evaluator.decorators import agent_eval
+from agent_evaluator.integrations import pydanticai_eval
+
+agent = Agent("openai:gpt-4o-mini", system_prompt="...")
+
+@agent_eval(monitor, task_type="qa", framework="pydanticai")
+async def pydantic_agent(question: str, ground_truth: str = "") -> str:
+    result = await agent.run(question)
+    return result  # RunResult 객체 → .data 자동 추출
+
+@pydanticai_eval(monitor, task_type="qa")
+async def pydantic_agent2(question: str, ground_truth: str = "") -> str:
+    return await agent.run(question)
+```
+
+#### LlamaIndex
+
+`Response.source_nodes`에서 체인 단계를 추출합니다.
+`AgentChatResponse.sources`의 `ToolOutput`도 지원합니다.
+
+```python
+from llama_index.core import VectorStoreIndex
+from agent_evaluator.decorators import agent_eval
+
+index = VectorStoreIndex.from_documents([...])
+query_engine = index.as_query_engine()
+
+# source_nodes → chain_steps (score + metadata 포함)
+@agent_eval(monitor, task_type="information_retrieval", framework="llamaindex", rag_mode=True)
+def llamaindex_agent(question: str, ground_truth: str = "") -> str:
+    return query_engine.query(question)
+```
+
+#### Haystack
+
+파이프라인 컴포넌트 출력 dict에서 retriever / generator / reader / embedder / ranker를 `chain_steps`로 추출합니다.
+
+```python
+from haystack import Pipeline
+from agent_evaluator.decorators import agent_eval
+
+pipeline = Pipeline()
+# ... 컴포넌트 추가 ...
+
+# 컴포넌트 출력 dict → chain_steps
+@agent_eval(monitor, task_type="information_retrieval", framework="haystack", rag_mode=True)
+def haystack_agent(question: str, ground_truth: str = "") -> str:
+    return pipeline.run({"query": question})
+```
+
+#### Semantic Kernel
+
+`inner_content`에서 OpenAI / Anthropic 백엔드 토큰을 자동 추출합니다.
+`function_name` + `plugin_name` → `"Plugin.function"` 형식 툴 호출도 지원합니다.
+
+```python
+import semantic_kernel as sk
+from agent_evaluator.decorators import agent_eval
+
+kernel = sk.Kernel()
+
+# inner_content → tokens_used (OpenAI/Anthropic 백엔드 자동 감지)
+@agent_eval(monitor, task_type="tool_use", framework="semantic_kernel")
+async def sk_agent(question: str, ground_truth: str = "") -> str:
+    result = await kernel.invoke(plugin_name, function_name, input=question)
+    return str(result)
+```
+
+#### HuggingFace smolagents
+
+`ToolCall` 스텝 목록에서 성공/실패 여부와 입력값을 정규화해 `tool_calls` + `chain_steps`로 추출합니다.
+주의: smolagents는 async 미지원입니다.
+
+```python
+from smolagents import CodeAgent, HfApiModel
+from agent_evaluator.decorators import agent_eval
+
+model = HfApiModel()
+agent = CodeAgent(tools=[...], model=model)
+
+@agent_eval(monitor, task_type="tool_use", framework="smolagents")
+def smol_agent(question: str, ground_truth: str = "") -> str:
+    return agent.run(question)
+```
+
+#### vLLM
+
+OpenAI 호환 API — `choices[0].message.tool_calls`와 `usage.total_tokens`를 추출합니다.
+
+```python
+from openai import OpenAI  # vLLM은 OpenAI 호환 클라이언트 사용
+from agent_evaluator.decorators import agent_eval
+
+client = OpenAI(base_url="http://localhost:8000/v1", api_key="vllm")
+
+@agent_eval(monitor, task_type="qa", framework="vllm")
+def vllm_agent(question: str, ground_truth: str = "") -> str:
+    return client.chat.completions.create(
+        model="meta-llama/Llama-3.2-3B-Instruct",
+        messages=[{"role": "user", "content": question}],
+    )
+```
+
+#### HuggingFace
+
+`pipeline()` 결과의 `generated_text`에서 체인 단계를, `actions` / `tool_calls` 필드에서 툴 호출을 추출합니다.
+주의: HuggingFace는 async 미지원입니다.
+
+```python
+from transformers import pipeline
+from agent_evaluator.decorators import agent_eval
+
+pipe = pipeline("text-generation", model="Qwen/Qwen2.5-1.5B-Instruct")
+
+@agent_eval(monitor, task_type="qa", framework="huggingface")
+def hf_agent(question: str, ground_truth: str = "") -> str:
+    return pipe(question, max_new_tokens=200)
+```
+
+---
+
+### 자동 감지 (`auto_detect_framework=True`)
+
+`auto_detect_framework=True`(기본값)이면 반환 객체의 속성을 검사해 프레임워크를 자동 판별합니다.
+
+| 감지 조건 | 판별 프레임워크 |
+|---------|--------------|
+| `stop_reason` 속성 존재 (choices 없음) | `anthropic` |
+| `choices` + `usage` 속성 존재 | `openai` |
+| `candidates` + `usage_metadata` 속성 존재 | `gemini` |
+| `meta.tokens` 속성 존재 (choices 없음) | `cohere` |
+| `x_groq` 속성 존재 | `groq` |
+| `choices[0].finish_reason` == `"stop"` + mistral 힌트 | `mistral` |
+| `ResponseMetadata` + `bedrock` 힌트 | `bedrock` |
+| `step_results` 속성 존재 | `smolagents` |
+| `completions` 속성 + DSPy 타입명 | `dspy` |
+| `all_messages` callable 존재 | `pydanticai` |
+
+```python
+# framework= 생략 → 자동 감지 (기본값)
+@agent_eval(monitor, task_type="qa")
+def auto_agent(question: str, ground_truth: str = "") -> str:
+    return client.chat.completions.create(...)  # OpenAI → 자동 "openai" 판별
+
+# 자동 감지 명시적 비활성화 (framework= 고정 우선)
+@agent_eval(monitor, task_type="qa", framework="openai", auto_detect_framework=False)
+def fixed_agent(question: str, ground_truth: str = "") -> str:
+    return client.chat.completions.create(...)
+```
 
 ---
 
@@ -688,7 +1146,6 @@ from agent_evaluator import (
     evaluation_session, async_evaluation_session,
     ConversationSession, ConversationMetrics, ConversationTurn,
     LLMJudge,
-    LLMHelper, ClaudeHelper,
     SimpleTaskAlertRule, AlertRuleBuilder,
 )
 
@@ -732,7 +1189,7 @@ python 01_quality_eval.py          # @agent_eval — Accuracy · Hallucination �
 python 02_performance_eval.py      # @agent_eval — TCR · Latency · Token Economy
 python 03_agentic_eval.py          # @agent_eval — Tool · Coordination · Workflow
 python 04_security_eval.py         # @agent_eval — 보안 5종
-python 05_hybrid_eval.py           # @batch_eval + 직접 API — DeepEval · Ragas
+python 05_hybrid_eval.py           # @batch_eval + HybridPerformanceMonitor — DeepEval · Ragas
 
 # ── 프레임워크별 어댑터 ──────────────────────────────────────
 python 06_langchain_eval.py        # @agent_eval(framework="langchain")
@@ -742,13 +1199,13 @@ python 09_autogen_eval.py          # @agent_eval(framework="autogen")
 python 10_cross_framework_eval.py  # @batch_eval + 멀티 프레임워크 비교
 
 # ── 고급 기능 ────────────────────────────────────────────────
-python 11_streaming_eval.py        # 직접 API — 스트리밍 미들웨어
-python 12_alerting_eval.py         # @agent_eval(alert_rules=[...]) + 직접 API 대조
+python 11_streaming_eval.py        # StreamingEvaluator — 실시간 슬라이딩 윈도우 + ImplicitFeedback
+python 12_alerting_eval.py         # @agent_eval(alert_rules=[...]) + AlertEngine 패턴 비교
 python 13_golden_set_build.py      # @batch_eval — 골든 데이터셋 빌더
-python 14_anomaly_cost_eval.py     # @agent_eval(flush_every=10) + 직접 API
+python 14_anomaly_cost_eval.py     # @agent_eval(flush_every=10) — 이상 감지 + 비용 추적
 python 15_conversation_eval.py     # @conversation_eval
-python 16_dashboard_demo.py        # 직접 API — 대시보드 연동
-python 17_phoenix_verification.py  # @agent_eval + 직접 API — Phoenix 검증
+python 16_dashboard_demo.py        # save_to_file + Phoenix OTEL 대시보드 연동
+python 17_phoenix_verification.py  # @agent_eval + Phoenix 4개 메뉴 통합 검증
 
 # ── 인프라 ───────────────────────────────────────────────────
 agent-eval monitor                 # Phoenix 서버 기동 (http://localhost:6006)
@@ -779,8 +1236,7 @@ agent-evaluator/
 │   │   └── monitor_context.py   # evaluation_session · async_evaluation_session
 │   ├── integrations/
 │   │   ├── llm_judge.py         # LLMJudge
-│   │   ├── metric_adapters.py   # DeepEval · Ragas · LangSmith 어댑터
-│   │   └── llm_helpers.py       # LLMHelper · ClaudeHelper
+│   │   └── metric_adapters.py   # DeepEval · Ragas · LangSmith 어댑터
 │   ├── serve/                   # FastAPI 대시보드 ([serve] extras)
 │   ├── cli/                     # agent-eval CLI
 │   ├── alerts/                  # AlertEngine · SimpleTaskAlertRule
@@ -789,7 +1245,7 @@ agent-evaluator/
 │   └── datasets/                # GoldenSetBuilder
 │
 ├── Evaluator_Examples/          # 예제 21개
-├── tests/                       # 1,823개 테스트 함수, 60개 파일
+├── tests/                       # 1,823개 테스트 함수, 59개 파일
 └── pyproject.toml
 ```
 
@@ -833,6 +1289,14 @@ mypy agent_evaluator/          # 타입 검사
 ---
 
 ## 변경 이력
+
+### v0.7.4 (2026-04-08) — 전체 예제 데코레이터 적용 완료 · layer1 버그 수정 · 문서 현행화
+
+- ✨ 예제 19/21 `@agent_eval` / `@batch_eval` / `@conversation_eval` 전면 적용 (02, 03, 17 추가 완성)
+- 🐛 `layer1.py` 성능 지표 계산 버그 수정
+- 🔧 대시보드 템플릿(`dashboard.html.j2` 등) 마이너 개선
+- 📝 테스트 파일 수 60→59 반영, Docs/ 버전·날짜 갱신
+- ✅ 21개 예제 전수 실행 검증 완료
 
 ### v0.7.3 (2026-04-07) — 보안 트래커 실동작 · 커버리지 전면 확대 · Phoenix 통합 완성
 

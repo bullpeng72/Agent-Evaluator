@@ -3,12 +3,13 @@ Framework Integration Utility Functions
 ========================================
 Provides utility functions for checking framework availability and installation instructions.
 
-v0.5.0: Deprecated legacy classes have been removed.
-All evaluation classes have been moved to dedicated integration modules:
-- crewai_integration.py: CrewAIEvaluator
-- langchain_integration.py: LangChainEvaluator, AdvancedLangChainCallback
-- langgraph_integration.py: LangGraphEvaluator
-- autogen_integration.py: AutoGenEvaluator
+v0.8.0: Direct-API wrapper classes (LangChainEvaluator, CrewAIEvaluator 등) 완전 제거.
+모든 프레임워크 통합은 @agent_eval(framework=...) 데코레이터로 수행:
+
+    from agent_evaluator.decorators import agent_eval
+
+    @agent_eval(monitor, task_type="qa", framework="langchain")
+    def my_agent(question, ground_truth=""): ...
 """
 
 from typing import Any, Dict, List, Optional, Union
@@ -207,52 +208,56 @@ def get_installation_instructions(framework: str) -> str:
     """
     instructions = {
         'langchain': """Install LangChain with:
-    pip install langchain langchain-core langchain-community
+    pip install agent-evaluator[langchain]
 
 Documentation: https://python.langchain.com/docs/get_started/installation
 
-For Agent Evaluator integration:
-    from agent_evaluator.integrations import LangChainEvaluator, AdvancedLangChainCallback
+For Agent Evaluator integration (decorator):
+    from agent_evaluator.decorators import agent_eval
 
-    evaluator = LangChainEvaluator(agent, enable_layer2=True)
-    result = evaluator.run(query="...", ground_truth="...")""",
+    @agent_eval(monitor, task_type="qa", framework="langchain")
+    def my_agent(question, ground_truth=""):
+        return agent_executor.invoke({"input": question})""",
 
         'langgraph': """Install LangGraph with:
-    pip install langgraph
+    pip install agent-evaluator[langchain]
 
 Documentation: https://python.langchain.com/docs/langgraph
 
-For Agent Evaluator integration:
-    from agent_evaluator.integrations import LangGraphEvaluator
+For Agent Evaluator integration (decorator):
+    from agent_evaluator.decorators import agent_eval
 
-    evaluator = LangGraphEvaluator(graph, enable_layer2=True)
-    result = evaluator.run(inputs={...}, ground_truth="...")""",
+    @agent_eval(monitor, task_type="information_retrieval", framework="langgraph")
+    def my_workflow(question, ground_truth=""):
+        return compiled_graph.invoke({"messages": [("user", question)]})""",
 
         'crewai': """Install CrewAI with:
-    pip install crewai crewai-tools
+    pip install agent-evaluator[crewai]
 
 Documentation: https://docs.crewai.com/
 
-For Agent Evaluator integration:
-    from agent_evaluator.integrations import CrewAIEvaluator
+For Agent Evaluator integration (decorator):
+    from agent_evaluator.decorators import agent_eval
 
-    evaluator = CrewAIEvaluator(crew, enable_layer2=True)
-    result = evaluator.kickoff(inputs={...}, ground_truth="...")""",
+    @agent_eval(monitor, task_type="tool_use", framework="crewai")
+    def run_crew(question, ground_truth=""):
+        crew = Crew(agents=agents, tasks=tasks)
+        return crew.kickoff(inputs={"question": question})""",
 
         'autogen': """Install AutoGen with:
-    pip install autogen-agentchat autogen-core autogen-ext
+    pip install agent-evaluator[autogen]
 
 Documentation: https://microsoft.github.io/autogen/
 
-For Agent Evaluator integration:
-    from agent_evaluator.integrations import AutoGenEvaluator
+For Agent Evaluator integration (decorator):
+    from agent_evaluator.decorators import agent_eval
 
-    evaluator = AutoGenEvaluator(agent, enable_layer2=True)
-    result = evaluator.run_sync("질문", ground_truth="...")
+    @agent_eval(monitor, task_type="multi_agent", framework="autogen")
+    async def run_autogen(question, ground_truth=""):
+        result = await team.run(task=question)
+        return result.messages[-1].content
 
-Note: autogen-agentchat >= 0.4.0 (async-first API) 필요.
-      레거시 pyautogen (0.2.x/0.3.x) 은 동기 API라 run_sync() 없이도 사용 가능하나
-      ToolCallRequestEvent 기반 도구 추적은 0.4+ 에서만 동작합니다."""
+Note: autogen-agentchat >= 0.4.0 (async-first API) 권장."""
     }
 
     return instructions.get(framework.lower(), f"Unknown framework: {framework}")

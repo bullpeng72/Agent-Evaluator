@@ -26,16 +26,19 @@ Quick Start (Context Manager):
     ...     monitor.record_task(task)
     >>> # Auto-saved!
 
-Quick Start (LLM Integration):
-    >>> from agent_evaluator import PerformanceMonitor, LLMHelper
+Quick Start (Decorator):
+    >>> from agent_evaluator import PerformanceMonitor
+    >>> from agent_evaluator.decorators import agent_eval
     >>>
     >>> monitor = PerformanceMonitor()
-    >>> llm = LLMHelper(monitor)
-    >>> task = llm.evaluate_openai("qa_001", "What is AI?", ground_truth="...")
-    >>> # Auto-recorded in monitor!
+    >>>
+    >>> @agent_eval(monitor, task_type="qa", framework="openai")
+    ... def my_agent(question, ground_truth=""):
+    ...     return client.chat.completions.create(...)
+    >>> # Metrics auto-recorded on every call!
 """
 
-__version__ = "0.7.3"
+__version__ = "0.7.4"
 __author__ = "Sungwoo Kim"
 
 # Exception hierarchy (경량 — 외부 의존성 없음)
@@ -172,41 +175,8 @@ _LAZY_IMPORTS = {
     "HybridPerformanceMonitor": ("agent_evaluator.core.hybrid_monitor", "HybridPerformanceMonitor"),
     "ExtendedTaskResult": ("agent_evaluator.core.hybrid_monitor", "ExtendedTaskResult"),
     "HybridEvaluationReport": ("agent_evaluator.core.hybrid_monitor", "HybridEvaluationReport"),
-    # LLM Helpers
-    "LLMHelper": ("agent_evaluator.integrations.llm_helpers", "LLMEvaluationHelper"),
-    "ClaudeHelper": ("agent_evaluator.integrations.llm_helpers", "AnthropicEvaluationHelper"),
     # LLM Judge
     "LLMJudge": ("agent_evaluator.integrations.llm_judge", "LLMJudge"),
-    # Framework Evaluator classes
-    "LangChainEvaluator": ("agent_evaluator.integrations.langchain_integration", "LangChainEvaluator"),
-    "LangGraphEvaluator": ("agent_evaluator.integrations.langgraph_integration", "LangGraphEvaluator"),
-    "CrewAIEvaluator": ("agent_evaluator.integrations.crewai_integration", "CrewAIEvaluator"),
-    "AutoGenEvaluator": ("agent_evaluator.integrations.autogen_integration", "AutoGenEvaluator"),
-    # Framework factory functions
-    "create_evaluated_langchain_agent": (
-        "agent_evaluator.integrations.langchain_integration",
-        "create_evaluated_langchain_agent",
-    ),
-    "create_evaluated_langgraph": (
-        "agent_evaluator.integrations.langgraph_integration",
-        "create_evaluated_langgraph",
-    ),
-    "create_evaluated_langgraph_agent": (
-        "agent_evaluator.integrations.langgraph_integration",
-        "create_evaluated_langgraph_agent",
-    ),
-    "create_evaluated_crew": (
-        "agent_evaluator.integrations.crewai_integration",
-        "create_evaluated_crew",
-    ),
-    "create_evaluated_crewai_agent": (
-        "agent_evaluator.integrations.crewai_integration",
-        "create_evaluated_crewai_agent",
-    ),
-    "create_evaluated_autogen_agent": (
-        "agent_evaluator.integrations.autogen_integration",
-        "create_evaluated_autogen_agent",
-    ),
     # Task 7: DSPy 통합
     "DSPyEvaluator": ("agent_evaluator.integrations.dspy_integration", "DSPyEvaluator"),
     "DSPyMetricAdapter": ("agent_evaluator.integrations.dspy_integration", "DSPyMetricAdapter"),
@@ -226,18 +196,6 @@ _FRAMEWORK_EXTRA_MAP = {
     "WebhookHandler": "serve",
     "EmailHandler": "serve",
     "GoldenSetBuilder": "all",
-    "LangChainEvaluator": "langchain",
-    "LangGraphEvaluator": "langchain",
-    "CrewAIEvaluator": "crewai",
-    "AutoGenEvaluator": "autogen",
-    "create_evaluated_langchain_agent": "langchain",
-    "create_evaluated_langgraph": "langchain",
-    "create_evaluated_langgraph_agent": "langchain",
-    "create_evaluated_crew": "crewai",
-    "create_evaluated_crewai_agent": "crewai",
-    "create_evaluated_autogen_agent": "autogen",
-    "LLMHelper": "llm",
-    "ClaudeHelper": "llm",
     "LLMJudge": "llm",
     "HybridPerformanceMonitor": "eval",
     "ExtendedTaskResult": "eval",
@@ -303,14 +261,6 @@ __all__ = [
     'TurnMetadata',             # Turn-level metadata for conversation_eval
     'get_eval_ctx',             # ContextVar context accessor (async-safe)
     'get_framework_info',       # C6: 어댑터 메타데이터 조회
-    'LLMHelper',  # Simplified name (lazy)
-    'ClaudeHelper',  # Simplified name (lazy)
-
-    # Framework Evaluator classes (lazy — None if optional dep not installed)
-    'LangChainEvaluator',
-    'LangGraphEvaluator',
-    'CrewAIEvaluator',
-    'AutoGenEvaluator',
 
     # Framework-agnostic protocol & input adapters
     'EvaluatorProtocol',
@@ -387,11 +337,4 @@ __all__ = [
     'AnnotationType',
     'TestStepStatus',
 
-    # Framework Factory Functions (lazy — None if optional dep not installed)
-    'create_evaluated_langchain_agent',
-    'create_evaluated_langgraph',
-    'create_evaluated_langgraph_agent',   # from_compiled 모드 (compiled_graph 첫 인자)
-    'create_evaluated_crew',
-    'create_evaluated_crewai_agent',       # create_evaluated_crew 네이밍 통일 별칭
-    'create_evaluated_autogen_agent',
 ]

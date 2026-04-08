@@ -95,7 +95,7 @@ def health(request: Request) -> Dict[str, Any]:
     try:
         from agent_evaluator import __version__ as _ver
     except Exception:
-        _ver = "0.7.1"
+        _ver = "0.7.4"
 
     # I1: OTEL 활성화 여부를 동적으로 감지
     try:
@@ -294,7 +294,7 @@ def list_results(
 # ---------------------------------------------------------------------------
 # L: SSE 실시간 통계 엔드포인트
 # ---------------------------------------------------------------------------
-@router.get("/live-stats")
+@router.get("/live-stats", summary="실시간 통계 스트림 (SSE)")
 async def live_stats_sse(
     request: Request,
     file_id: Optional[str] = Query(None, description="L: 특정 파일 ID (없으면 전체 통계)"),
@@ -1742,7 +1742,7 @@ def get_framework_breakdown(file_id: str, request: Request) -> Dict[str, Any]:
 # B4: LLM Judge 상세 집계 API
 # ---------------------------------------------------------------------------
 
-@router.get("/results/{file_id}/llm_judge")
+@router.get("/results/{file_id}/llm_judge", summary="LLM Judge 상세 결과")
 def get_llm_judge_details(
     file_id: str,
     request: Request,
@@ -1999,7 +1999,7 @@ async def import_results(
 # ---------------------------------------------------------------------------
 # B7: API version info
 # ---------------------------------------------------------------------------
-@router.get("/version")
+@router.get("/version", summary="API 버전 정보")
 def api_version() -> Dict[str, Any]:
     """B7: API 버전 정보 반환."""
     return {

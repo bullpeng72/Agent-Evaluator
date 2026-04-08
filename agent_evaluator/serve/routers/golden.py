@@ -607,7 +607,7 @@ def delete_golden(name: str, request: Request) -> Dict[str, Any]:
     raise HTTPException(status_code=404, detail="Golden dataset not found")
 
 
-@router.post("/pdf")
+@router.post("/pdf", summary="PDF → QA 데이터셋 추출")
 async def extract_pdf(
     file: UploadFile = File(...),
     num_items: int = Form(default=10),
@@ -726,7 +726,7 @@ async def extract_pdf(
     }
 
 
-@router.post("/pdf-advanced")
+@router.post("/pdf-advanced", summary="PDF → QA 데이터셋 생성 (AI 고품질 모드)")
 async def generate_pdf_qa_advanced(
     file: UploadFile = File(...),
     openai_api_key: str = Form(default=""),

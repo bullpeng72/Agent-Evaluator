@@ -116,7 +116,7 @@ KEY_DEFS: List[Dict] = [
         "label":    "OpenAI API Key",
         "required": False,
         "extra":    "llm",
-        "used_for": "LLMHelper · DeepEval · Ragas — Layer 3 평가 (pip install 'agent-evaluator[llm]')",
+        "used_for": "@agent_eval(framework='openai') · LLMJudge · DeepEval · Ragas (pip install 'agent-evaluator[llm]')",
         "url":      "https://platform.openai.com/api-keys",
         "prefix":   "sk-",
         "companion": [
@@ -128,7 +128,7 @@ KEY_DEFS: List[Dict] = [
         "label":    "Anthropic API Key",
         "required": False,
         "extra":    "llm",
-        "used_for": "ClaudeHelper — Layer 3 Claude 평가 (pip install 'agent-evaluator[llm]')",
+        "used_for": "@agent_eval(framework='anthropic') · Claude 평가 (pip install 'agent-evaluator[llm]')",
         "url":      "https://console.anthropic.com/settings/keys",
         "prefix":   "sk-ant-",
         "companion": [
@@ -526,8 +526,8 @@ def cmd_check(_args: argparse.Namespace) -> int:
     print()
     print(f"{B}패키지 상태:{R}")
     _PKG_MAP = [
-        ("openai",     "llm",        "LLMHelper · DeepEval · Ragas"),
-        ("anthropic",  "llm",        "ClaudeHelper"),
+        ("openai",     "llm",        "@agent_eval(framework='openai') · LLMJudge · DeepEval · Ragas"),
+        ("anthropic",  "llm",        "@agent_eval(framework='anthropic') · LLMJudge"),
         ("langsmith",  "frameworks", "LangSmithAdapter"),
         ("deepeval",   "eval",       "DeepEvalAdapter"),
         ("ragas",      "eval",       "RagasAdapter"),
@@ -609,6 +609,7 @@ def _print_welcome() -> None:
     print(f"  {Y}dashboard{R}  웹 대시보드 실행  {D}(기본 포트 8765){R}")
     print(f"  {Y}monitor{R}    운영 실시간 모니터링  {D}(Phoenix + OTEL){R}")
     print(f"  {Y}gate{R}       CI/CD 품질 게이팅  {D}(임계값 기준 통과/실패){R}")
+    print(f"  {Y}dataset{R}    골든 데이터셋 관리  {D}(운영 결과 자동 추출){R}")
     print(f"  {Y}--version{R}  버전 출력")
     print()
     print(f"  {D}전체 옵션 보기: {R}{C}agent-eval --help{R}")
@@ -772,8 +773,8 @@ def main() -> None:
             "대화형으로 입력하고 .env 파일에 저장합니다.\n"
             "\n"
             f"{B}설정 항목:{R}\n"
-            f"  {C}OPENAI_API_KEY{R}              {D}(선택){R} LLMHelper·DeepEval·Ragas — Layer 3 평가\n"
-            f"  {C}ANTHROPIC_API_KEY{R}           {D}(선택){R} ClaudeHelper — Layer 3 Claude 평가\n"
+            f"  {C}OPENAI_API_KEY{R}              {D}(선택){R} @agent_eval(framework='openai') · LLMJudge · DeepEval · Ragas\n"
+            f"  {C}ANTHROPIC_API_KEY{R}           {D}(선택){R} @agent_eval(framework='anthropic') · Claude 평가\n"
             f"  {C}LANGSMITH_API_KEY{R}           {D}(선택){R} LangSmithAdapter 트레이싱 연동\n"
             f"  {C}AGENT_EVALUATOR_OUTPUT_DIR{R}  평가 결과 저장 디렉토리 {D}(기본: ./results){R}\n"
             "\n"

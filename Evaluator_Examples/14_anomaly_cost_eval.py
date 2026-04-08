@@ -14,7 +14,7 @@
   Phase 3-C  │ CostTracker      — 공급자별 · 평가 유형별 비용 추적
              │ AdaptivePolicy   — 예산 기반 동적 샘플링 전략
              │   DEFAULT → ANOMALY → BUDGET_EXCEEDED 단계 전환
-  LLM Helper │ LLMHelper(별칭)  — LLMEvaluationHelper — LLM 보조 평가 래퍼
+  LLM 평가   │ @agent_eval(framework='openai'|'anthropic') — 데코레이터 방식 LLM 평가
 
 핵심 시나리오:
   1. PerformanceMonitor(enable_anomaly_detection=True) 로 자동 탐지 활성화
@@ -51,8 +51,6 @@ from agent_evaluator import (
     AnomalyDetector,
     CostTracker,
     AdaptivePolicy,
-    LLMHelper,       # alias for LLMEvaluationHelper
-    ClaudeHelper,    # alias for AnthropicEvaluationHelper
 )
 from agent_evaluator.decorators import agent_eval, EvalMetadata
 from agent_evaluator.cost.policy import SamplingStage
@@ -414,31 +412,23 @@ def run_anomaly_cost_evaluation():
         print(f"    → {h.get('stage', '?')}  사유: {h.get('reason', '')[:50]}")
 
     # ─────────────────────────────────────────────────────────────────────
-    # LLMHelper / ClaudeHelper API 구조 시연
+    # 데코레이터 방식 LLM 평가 패턴 (v0.7.4+)
     # ─────────────────────────────────────────────────────────────────────
     print(f"\n  {'─'*72}")
-    print(f"  [LLMHelper / ClaudeHelper] API 구조 시연")
-    print(f"  (실제 LLM 호출 없음 — 클래스 구조 확인용)")
+    print(f"  [데코레이터 방식 LLM 평가] — @agent_eval(framework='openai'|'anthropic')")
     print(f"  {'─'*72}")
-
-    new_monitor = PerformanceMonitor(output_dir=str(results_dir))
-
-    # LLMHelper = LLMEvaluationHelper alias
-    llm_helper = LLMHelper(monitor=new_monitor)
-    print(f"\n  LLMHelper(monitor=monitor)")
-    print(f"    타입   : {type(llm_helper).__name__}")
-    print(f"    monitor: {type(llm_helper.monitor).__name__}")
-
-    # ClaudeHelper = AnthropicEvaluationHelper alias
-    claude_helper = ClaudeHelper(monitor=new_monitor)
-    print(f"\n  ClaudeHelper(monitor=monitor)")
-    print(f"    타입   : {type(claude_helper).__name__}")
-
-    # 실제 사용 패턴 (API 키 있을 때)
-    print(f"\n  실제 사용 패턴:")
-    print(f"    from agent_evaluator import LLMHelper, ClaudeHelper")
-    print(f"    helper = ClaudeHelper(monitor=monitor)")
-    print(f"    # API 키 설정 후: helper.evaluate_with_llm(task_result=task)")
+    print(f"\n  # OpenAI 평가 패턴:")
+    print(f"    from agent_evaluator import PerformanceMonitor")
+    print(f"    from agent_evaluator.decorators import agent_eval")
+    print(f"    monitor = PerformanceMonitor()")
+    print(f"    @agent_eval(monitor, task_type='qa', framework='openai')")
+    print(f"    def call_openai(question, ground_truth=''):")
+    print(f"        return client.chat.completions.create(...)")
+    print(f"\n  # Anthropic(Claude) 평가 패턴:")
+    print(f"    @agent_eval(monitor, task_type='qa', framework='anthropic')")
+    print(f"    def call_claude(question, ground_truth=''):")
+    print(f"        return anthropic_client.messages.create(...)")
+    print(f"\n  → tokens_used, tool_calls, 비용 등 자동 추출 (framework 어댑터)")
 
     # ─────────────────────────────────────────────────────────────────────
     # 통합 요약 리포트 저장
@@ -510,7 +500,6 @@ def run_anomaly_cost_evaluation():
         ("ANOMALY 단계 전환 확인",        "성공",                        True),
         ("BUDGET_EXCEEDED 전환 확인",     str(policy.current_stage),
          policy.current_stage == SamplingStage.BUDGET_EXCEEDED),
-        ("LLMHelper 초기화",              type(llm_helper).__name__,     llm_helper is not None),
     ]
 
     print(f"\n  {'═'*68}")

@@ -2,9 +2,9 @@
 
 OpenTelemetry + Arize Phoenix 기반 프로덕션 실시간 모니터링
 
-**Version**: 0.7.3
-**Last Updated**: 2026-04-07
-**Status**: ✅ 구현 완료 (v0.7.3)
+**Version**: 0.7.4
+**Last Updated**: 2026-04-08
+**Status**: ✅ 구현 완료 (v0.7.4)
 
 ---
 
@@ -373,16 +373,38 @@ monitor.record_task(result)
 
 ### `evaluation_session`과 함께
 
+데코레이터를 적용한 에이전트는 `evaluation_session` 내부에서 그대로 사용할 수 있습니다.
+
 ```python
-from agent_evaluator import evaluation_session, setup_otel
+from agent_evaluator import PerformanceMonitor, evaluation_session, setup_otel
+from agent_evaluator.decorators import agent_eval
 
 setup_otel(endpoint="http://localhost:6006")
 
 with evaluation_session("run_2026_04_01") as monitor:
     # ae.session 루트 스팬 시작 (openinference.span.kind="CHAIN")
+
+    @agent_eval(monitor, task_type="qa")
+    def my_agent(question: str, ground_truth: str = "") -> str:
+        return llm.invoke(question)
+
     for task in tasks:
-        result = agent.run(task)
-        monitor.record_task(result)
+        my_agent(task["question"], ground_truth=task.get("answer", ""))
+        # 각 호출 → ae.task/{type}/{id} 자식 스팬 자동 발행
+# 세션 종료: JSON 저장 + Phoenix Annotation API 전송
+```
+
+데코레이터를 붙일 수 없는 외부 함수는 `eval_context`를 탈출구로 사용합니다.
+
+```python
+from agent_evaluator.decorators import eval_context
+
+with evaluation_session("run_2026_04_01") as monitor:
+    for task in tasks:
+        with eval_context(monitor, task_type="qa",
+                          question=task["question"],
+                          ground_truth=task.get("answer", "")) as ctx:
+            ctx.response = external_agent.run(task["question"])
         # 각 task → ae.task/{type}/{id} 자식 스팬
 # 세션 종료: JSON 저장 + Phoenix Annotation API 전송
 ```

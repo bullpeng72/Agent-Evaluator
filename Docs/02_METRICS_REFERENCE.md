@@ -2,7 +2,7 @@
 
 Agent Evaluator 25개 지표의 공식·출력키·임계값 참조 문서
 
-**v0.7.3 | Layer 1: 6개 (무료) · Layer 2: 10개 (무료) · Layer 3: 9개 (API 필요)**
+**v0.7.4 | Layer 1: 6개 (무료) · Layer 2: 10개 (무료) · Layer 3: 9개 (API 필요)**
 
 > 개별 트래커 API 시그니처는 [07_API_REFERENCE.md](07_API_REFERENCE.md)를 참조하세요.
 > 데코레이터 방식 적용은 [13_DECORATOR_GUIDE.md](13_DECORATOR_GUIDE.md)를 참조하세요.
@@ -577,9 +577,17 @@ stats = monitor.tool_chain_attack_detector.get_attack_stats()
 사용: `HybridPerformanceMonitor`
 
 ```python
-from agent_evaluator.core.hybrid_monitor import HybridPerformanceMonitor
+from agent_evaluator import HybridPerformanceMonitor
+from agent_evaluator.decorators import agent_eval
 
 monitor = HybridPerformanceMonitor(output_dir="results/")
+
+# 권장: 데코레이터 방식
+@agent_eval(monitor, task_type="information_retrieval", rag_mode=True, context_arg="context")
+def rag_agent(question: str, context: str = "", ground_truth: str = "") -> str:
+    return rag_chain.invoke({"question": question, "context": context})
+
+# 저수준: record_task() 직접 호출 (advanced_metrics 파라미터 전달 필요 시)
 monitor.record_task(
     task,
     enable_advanced_metrics=True,

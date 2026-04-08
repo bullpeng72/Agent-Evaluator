@@ -1,24 +1,22 @@
 """
 Framework integrations and metric adapters
 
-v0.5.0: Removed deprecated legacy classes (EvaluatedCrew, LangChainEvaluationCallback, etc.)
-All users should migrate to the new Evaluator classes:
-- CrewAIEvaluator (instead of EvaluatedCrew)
-- LangChainEvaluator + AdvancedLangChainCallback (instead of LangChainEvaluationCallback)
-- LangGraphEvaluator (instead of LangGraphEvaluatedWorkflow)
-- AutoGenEvaluator (instead of EvaluatedAutoGenAgent)
+v0.8.0: Direct-API wrapper classes (LangChainEvaluator, LangGraphEvaluator, CrewAIEvaluator,
+AutoGenEvaluator, create_evaluated_*, LLMHelper, ClaudeHelper) 제거.
+모든 프레임워크 통합은 데코레이터 방식으로 수행:
+    @agent_eval(monitor, framework="langchain"|"langgraph"|"crewai"|"autogen"|...)
 
-v0.6.5: Framework integration imports are now lazy to avoid loading heavy packages
-(crewai, autogen, langchain, langgraph) at import time.
+프레임워크별 편의 데코레이터 별칭:
+    langchain_eval, langgraph_eval, crewai_eval, autogen_eval,
+    dspy_eval, pydanticai_eval, anthropic_eval, openai_eval, ...
 
 새 프레임워크 어댑터 추가 방법
 -----------------------------
 1. ``agent_evaluator/decorators.py`` 에 ``_extract_{framework}_metadata(raw)`` 함수 추가
    - ``EvalMetadata`` 또는 ``None`` 반환
 2. ``_FRAMEWORK_ADAPTERS`` dict에 ``"{framework}": _extract_{framework}_metadata`` 추가
-3. ``agent_evaluator/integrations/__init__.py`` 에 ``{framework}_eval`` 함수 추가 및 ``__all__`` 포함
-4. ``agent_evaluator/__init__.py`` 에 ``{framework}_eval`` import 추가
-5. 테스트: ``tests/`` 에 어댑터 단위 테스트 추가
+3. ``agent_evaluator/integrations/__init__.py`` 에 ``{framework}_eval`` 추가 및 ``__all__`` 포함
+4. 테스트: ``tests/`` 에 어댑터 단위 테스트 추가
 """
 
 # ============================================================================
@@ -51,19 +49,7 @@ from .metric_adapters import (
 # ============================================================================
 
 _LAZY = {
-    "CrewAIEvaluator": (".crewai_integration", "CrewAIEvaluator"),
-    "create_evaluated_crew": (".crewai_integration", "create_evaluated_crew"),
-    "create_evaluated_crewai_agent": (".crewai_integration", "create_evaluated_crewai_agent"),
-    "LangChainEvaluator": (".langchain_integration", "LangChainEvaluator"),
-    "AdvancedLangChainCallback": (".langchain_integration", "AdvancedLangChainCallback"),
-    "create_evaluated_langchain_agent": (".langchain_integration", "create_evaluated_langchain_agent"),
-    "LangGraphEvaluator": (".langgraph_integration", "LangGraphEvaluator"),
-    "create_evaluated_langgraph": (".langgraph_integration", "create_evaluated_langgraph"),
-    "create_evaluated_langgraph_agent": (".langgraph_integration", "create_evaluated_langgraph_agent"),
-    "AutoGenEvaluator": (".autogen_integration", "AutoGenEvaluator"),
-    "create_evaluated_autogen_agent": (".autogen_integration", "create_evaluated_autogen_agent"),
-    "LLMEvaluationHelper": (".llm_helpers", "LLMEvaluationHelper"),
-    "AnthropicEvaluationHelper": (".llm_helpers", "AnthropicEvaluationHelper"),
+    # LLM Judge
     "LLMJudge": (".llm_judge", "LLMJudge"),
     # DSPy
     "DSPyEvaluator": (".dspy_integration", "DSPyEvaluator"),
@@ -141,23 +127,8 @@ __all__ = [
     'RagasAdapter',
     'MetricAdapter',
 
-    # Framework Integrations (lazy)
-    'CrewAIEvaluator',
-    'create_evaluated_crew',
-    'create_evaluated_crewai_agent',
-    'LangChainEvaluator',
-    'AdvancedLangChainCallback',
-    'create_evaluated_langchain_agent',
-    'LangGraphEvaluator',
-    'create_evaluated_langgraph',
-    'create_evaluated_langgraph_agent',
-    'AutoGenEvaluator',
-    'create_evaluated_autogen_agent',
-    'LLMEvaluationHelper',
-    'AnthropicEvaluationHelper',
+    # LLM Judge / DSPy / PydanticAI (lazy)
     'LLMJudge',
-
-    # DSPy / PydanticAI (lazy)
     'DSPyEvaluator',
     'DSPyMetricAdapter',
     'PydanticAIEvaluator',

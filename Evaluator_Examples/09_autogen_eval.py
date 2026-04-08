@@ -19,12 +19,17 @@ AutoGen 특화 패턴:
            │ ToolChainAttackDetector
 
 실제 AutoGen 통합 방법:
-    from agent_evaluator.integrations import create_evaluated_autogen_agent
+    from agent_evaluator import PerformanceMonitor
+    from agent_evaluator.decorators import agent_eval
     import asyncio
 
     monitor = PerformanceMonitor(enable_security_metrics=True)
-    agent = create_evaluated_autogen_agent(config, monitor=monitor)
-    result = asyncio.run(agent.on_messages([...], CancellationToken()))
+
+    @agent_eval(monitor, task_type="multi_agent", framework="autogen")
+    async def run_autogen(question, ground_truth=""):
+        runtime = SingleThreadedAgentRuntime()
+        result = await team.run(task=question)
+        return result.messages[-1].content
 
 사전 요구사항 (실제 통합):
     pip install agent-evaluator[autogen]
@@ -308,7 +313,7 @@ def run_autogen_evaluation():
 
     avail = check_framework_availability("autogen")
     if avail.get("autogen"):
-        print("  AutoGen 설치됨 — AutoGenEvaluator 사용 가능")
+        print("  AutoGen 설치됨 — @autogen_eval() 또는 @agent_eval(framework='autogen') 사용 가능")
     else:
         print("  AutoGen 미설치 — 시뮬레이션 모드로 실행")
         print(f"     설치 방법: {get_installation_instructions('autogen')}")

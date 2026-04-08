@@ -1,0 +1,574 @@
+# M4 — Layer 3, FastAPI 대시보드, 알림 · 이상탐지 · 비용 제어 심층 분석
+
+> **대상**: 운영 환경에서 AI 에이전트를 안정적으로 모니터링하려는 ML 엔지니어 / DevOps 엔지니어  
+> **전제 조건**: M1(데코레이터), M2(Layer 1), M3(Layer 2) 수강 완료  
+> **핵심 메시지**: Layer 1/2만으로 부족할 때, 운영 인프라와 어떻게 통합하는가
+
+---
+
+## 1. Layer 1/2 이후 — 외부 연동 기능 확장
+
+### 1.1 Layer 1/2로 커버하지 못하는 상황과 데코레이터 기반 대안
+
+Layer 1/2는 외부 의존성 없이 동작하며 대부분의 기본 지표를 커버한다. 특수한 평가가 필요한 경우 **데코레이터 파라미터 하나로** 확장할 수 있다:
+
+| 상황 | Layer 1/2 한계 | 데코레이터 기반 해결책 |
+|------|----------------|----------------------|
+| RAG — 환각 정밀 탐지 | Hallucination은 단순 패턴 매칭 | `@agent_eval(..., rag_mode=True)` |
+| Ground Truth 없는 평가 | Accuracy는 정답이 있어야 계산 가능 | `@agent_eval(..., enable_llm_judge=True, judge_model="claude-sonnet-4-6")` |
+| 보안 위협 탐지 | 기본은 보안 지표 비활성 | `@agent_eval(..., security_mode=True)` |
+| 모든 설정 최소화 | 각 파라미터 직접 설정 필요 | `QuickEval.for_rag()` · `QuickEval.for_security()` · `QuickEval.for_llm_judge()` |
+
+### 1.2 상황별 데코레이터 설정 패턴
+
+```python
+from agent_evaluator.decorators import agent_eval
+from agent_evaluator import PerformanceMonitor, QuickEval
+
+# ① RAG 에이전트 — hallucination 자동 활성
+monitor = PerformanceMonitor.for_rag_evaluation("results/")
+
+@agent_eval(monitor, task_type="information_retrieval", rag_mode=True)
+def rag_agent(question: str, context: str = "", ground_truth: str = "") -> str:
+    return rag_pipeline.run(question, context)
+
+# ② LLM Judge — ground_truth 없이 자동 채점 (completeness·relevance·factual_consistency)
+@agent_eval(monitor, task_type="qa",
+            enable_llm_judge=True, judge_model="claude-sonnet-4-6",
+            judge_sample_rate=0.1, judge_budget_per_day=5.0)
+def general_agent(question: str, ground_truth: str = "") -> str:
+    return llm.invoke(question)
+
+# ③ 보안 강화 에이전트 — 5종 보안 지표 임시 활성
+@agent_eval(monitor, task_type="qa", security_mode=True)
+def secure_agent(question: str, ground_truth: str = "") -> str:
+    return agent.run(question)
+
+# ④ QuickEval 팩토리 — 최소 설정
+eval_rag  = QuickEval.for_rag("results/")           # hallucination 기본 활성
+eval_sec  = QuickEval.for_security("results/")       # security 기본 활성
+eval_llm  = QuickEval.for_llm_judge("results/", model="claude-sonnet-4-6")
+```
+
+### 1.3 LLM Judge — ground_truth 없는 자동 채점
+
+`LLMJudge`는 정답이 없는 상황에서 LLM이 직접 3차원으로 채점한다. `@agent_eval(enable_llm_judge=True)` 한 줄로 통합된다.
+
+```python
+# 채점 결과는 TaskResult.extra["llm_judge"]에 자동 기록
+# {"completeness": 4.5, "relevance": 5.0, "factual_consistency": 4.8, "overall": 4.77}
+```
+
+**비용 제어 옵션:**
+- `judge_sample_rate=0.1` — 10%만 LLM Judge로 채점
+- `judge_budget_per_day=5.0` — 일일 $5 예산 초과 시 자동 스킵
+
+### 1.4 설치
+
+```bash
+# LLM Judge (OpenAI/Anthropic 클라이언트)
+pip install "agent-evaluator[llm]"
+
+# 권장 실용 구성 (llm + serve + eval)
+pip install "agent-evaluator[all]"
+```
+
+---
+
+## 2. DeepEval 통합 — 심층 품질 평가
+
+### 2.1 DeepEval이 제공하는 지표
+
+| 지표 | 의미 | 사용 시점 |
+|------|------|---------|
+| G-Eval | LLM이 사용자 정의 기준으로 채점 | 커스텀 평가 기준이 있을 때 |
+| Hallucination | 컨텍스트와 모순되는 내용 탐지 | RAG 시스템, 사실 기반 응답 |
+| Toxicity | 혐오/욕설/해악 콘텐츠 탐지 | 퍼블릭 서비스, 콘텐츠 모더레이션 |
+| Bias | 성별/인종/종교 편향 탐지 | 공정성이 중요한 서비스 |
+| Answer Relevancy | 질문과 답변의 관련성 | 범용 QA, 검색 시스템 |
+
+### 2.2 기본 사용법
+
+```python
+from agent_evaluator import HybridPerformanceMonitor, agent_eval
+
+monitor = HybridPerformanceMonitor(
+    output_dir="results/",
+    use_deepeval=True,
+)
+
+@agent_eval(monitor, task_type="qa")
+def content_agent(question, ground_truth=""):
+    return llm.invoke(question)
+
+# 테스트 실행
+content_agent("AI의 미래는 어떻게 될까요?", ground_truth="AI는 다양한 분야에서 발전할 것입니다.")
+
+report = monitor.generate_report()
+deepeval_metrics = report.deepeval_metrics
+
+print(f"Hallucination 점수: {deepeval_metrics.get('hallucination_score', 'N/A')}")
+print(f"Answer Relevancy:   {deepeval_metrics.get('answer_relevancy', 'N/A')}")
+print(f"Toxicity 점수:      {deepeval_metrics.get('toxicity_score', 'N/A')}")
+```
+
+### 2.3 G-Eval — 커스텀 평가 기준
+
+G-Eval의 핵심 가치는 "내가 정의한 기준"으로 LLM이 평가하도록 한다는 것이다. 정량적 정답이 없는 창의성, 전문성, 어조 적합성 등을 평가할 때 유용하다.
+
+```python
+from deepeval.metrics import GEval
+from deepeval.test_case import LLMTestCaseParams
+
+# 커스텀 평가 기준 정의
+professionalism_metric = GEval(
+    name="전문성",
+    criteria="응답이 전문적이고 명확한가? 전문 용어를 적절히 사용하는가?",
+    evaluation_params=[
+        LLMTestCaseParams.INPUT,
+        LLMTestCaseParams.ACTUAL_OUTPUT,
+    ],
+    threshold=0.7,
+)
+
+empathy_metric = GEval(
+    name="공감성",
+    criteria="고객 서비스 응답으로서 공감적이고 도움이 되는가?",
+    evaluation_params=[
+        LLMTestCaseParams.INPUT,
+        LLMTestCaseParams.ACTUAL_OUTPUT,
+    ],
+    threshold=0.6,
+)
+
+# HybridPerformanceMonitor에 커스텀 지표 추가
+monitor = HybridPerformanceMonitor(
+    output_dir="results/",
+    use_deepeval=True,
+    deepeval_metrics=[professionalism_metric, empathy_metric],
+)
+```
+
+### 2.4 실무 활용 — 콘텐츠 모더레이션 파이프라인
+
+```python
+from agent_evaluator import HybridPerformanceMonitor, agent_eval, AlertRuleBuilder
+
+monitor = HybridPerformanceMonitor("results/", use_deepeval=True)
+
+# 독성 점수가 임계값 초과 시 즉시 알림
+toxicity_alert = AlertRuleBuilder.when_accuracy_below(
+    threshold=0.0,  # toxicity_score > 0이면 알림
+    handler=lambda msg, tr: slack_webhook.send(f"독성 콘텐츠 탐지: {msg}"),
+    severity="critical",
+)
+
+@agent_eval(monitor, task_type="qa", alert_rules=[toxicity_alert])
+def public_chatbot(question, ground_truth=""):
+    return chatbot.respond(question)
+```
+
+---
+
+## 3. Ragas 통합 — RAG 파이프라인 정밀 평가
+
+### 3.1 Ragas 4가지 핵심 지표
+
+Ragas는 RAG(Retrieval-Augmented Generation) 파이프라인을 위한 업계 표준 평가 프레임워크다.
+
+```
+입력: 질문(Q) + 검색된 컨텍스트(C) + 에이전트 응답(A) + 정답(G)
+
+Faithfulness:         A가 C에 충실한가? (A의 주장이 C에서 뒷받침되는가)
+Answer Relevancy:     A가 Q에 관련 있는가? (답변이 질문에 답하는가)
+Context Precision:    C가 정확한가? (검색된 것 중 실제로 필요한 비율)
+Context Recall:       C가 충분한가? (필요한 정보를 모두 검색했는가)
+```
+
+**왜 4가지가 모두 필요한가**:
+
+```
+Faithfulness 낮음 → LLM이 검색 결과를 무시하고 환각 생성
+                   해결: 프롬프트에 "주어진 컨텍스트만 사용하라" 강화
+
+Answer Relevancy 낮음 → 검색은 잘 됐지만 답변이 엉뚱한 곳으로 감
+                        해결: 답변 생성 프롬프트 개선
+
+Context Precision 낮음 → 관련 없는 문서가 검색됨
+                         해결: 임베딩 모델 교체, 청킹 전략 개선
+
+Context Recall 낮음 → 필요한 문서가 누락됨
+                       해결: k(검색 개수) 증가, 재순위화(reranking) 도입
+```
+
+### 3.2 기본 사용법
+
+```python
+from agent_evaluator import HybridPerformanceMonitor, agent_eval, create_taskresult
+import os
+
+os.environ["OPENAI_API_KEY"] = "sk-..."  # Ragas는 임베딩에 OpenAI 사용
+
+monitor = HybridPerformanceMonitor(
+    output_dir="results/",
+    use_ragas=True,
+)
+
+@agent_eval(monitor, task_type="information_retrieval")
+def rag_agent(question, context="", ground_truth=""):
+    # 1단계: 검색
+    retrieved_docs = vector_db.search(question, k=5)
+    context_text = "\n".join(doc.page_content for doc in retrieved_docs)
+
+    # 2단계: 생성
+    answer = llm.invoke(
+        f"Context:\n{context_text}\n\nQuestion: {question}\n\nAnswer:"
+    )
+    return answer
+
+# 테스트 케이스 — context 필드가 핵심
+test_cases = [
+    {
+        "question": "한국의 GDP는 얼마인가?",
+        "context": "2023년 한국의 GDP는 약 1조 7천억 달러로 세계 13위이다.",
+        "ground_truth": "약 1조 7천억 달러",
+    },
+    {
+        "question": "서울의 인구는?",
+        "context": "서울특별시의 인구는 2023년 기준 약 940만 명이다.",
+        "ground_truth": "약 940만 명",
+    },
+]
+
+for case in test_cases:
+    rag_agent(
+        case["question"],
+        context=case["context"],
+        ground_truth=case["ground_truth"],
+    )
+
+report = monitor.generate_report()
+ragas_metrics = report.ragas_metrics
+
+print(f"Faithfulness:      {ragas_metrics.get('faithfulness', 0):.2%}")
+print(f"Answer Relevancy:  {ragas_metrics.get('answer_relevancy', 0):.2%}")
+print(f"Context Precision: {ragas_metrics.get('context_precision', 0):.2%}")
+print(f"Context Recall:    {ragas_metrics.get('context_recall', 0):.2%}")
+```
+
+### 3.3 QuickEval로 RAG 평가
+
+```python
+from agent_evaluator import QuickEval
+
+# RAG 전용 설정: hallucination_detection=True 자동 활성
+eval = QuickEval.for_rag("results/")
+
+@agent_eval(monitor, task_type="information_retrieval", rag_mode=True)  # task_type="information_retrieval" + context_arg="context" 자동 설정
+def rag_pipeline(question, context="", ground_truth=""):
+    docs = retriever.get_relevant_documents(question)
+    return chain.invoke({"question": question, "context": docs})
+
+eval.save()
+eval.gate(accuracy=0.75)  # 75% 미만이면 CI/CD 실패
+```
+
+### 3.4 실무 팁 — RAG 개선 사이클
+
+```python
+# 1. 현재 성능 측정
+eval_v1 = QuickEval.for_rag("results/v1/")
+# ... 테스트 실행 ...
+report_v1 = eval_v1.summary()
+
+# 2. 임베딩 모델 변경 후 재측정
+eval_v2 = QuickEval.for_rag("results/v2/")
+# ... 테스트 실행 ...
+report_v2 = eval_v2.summary()
+
+# 3. 비교
+comparison = eval_v1.compare(eval_v2)
+print(f"Faithfulness 변화: {comparison['faithfulness_delta']:+.2%}")
+print(f"Context Precision 변화: {comparison['context_precision_delta']:+.2%}")
+```
+
+---
+
+## 4. LLM Judge — 내장 LLM-as-Judge 평가
+
+### 4.1 LLM Judge vs Ragas/DeepEval
+
+| 특징 | LLM Judge | Ragas | DeepEval |
+|------|-----------|-------|---------|
+| 외부 라이브러리 | 불필요 ([llm] extra만) | 필요 | 필요 |
+| Ground Truth 필요 | 불필요 | 부분 필요 | 부분 필요 |
+| 평가 차원 | 3가지 고정 | RAG 전문 | 다양한 NLP 지표 |
+| 비용 | LLM API 호출 비용 | LLM API 호출 비용 | LLM API 호출 비용 |
+| 커스터마이즈 | 제한적 | 불가 | G-Eval로 가능 |
+
+LLM Judge는 **정답이 없는 상황**에서 가장 빛난다. 창의적 글쓰기, 고객 서비스 응답, 요약 등 정량적 정답을 정의하기 어려운 경우에 사용한다.
+
+### 4.2 3가지 평가 차원
+
+LLM Judge는 모든 응답을 3가지 차원으로 채점한다 (0.0–1.0):
+
+```
+completeness:        응답이 질문의 모든 측면을 다루는가?
+relevance:           응답이 질문에 직접적으로 관련 있는가?
+factual_consistency: 응답이 사실적으로 일관성 있는가? (ground_truth 있을 때)
+```
+
+### 4.3 기본 사용법
+
+```python
+from agent_evaluator import LLMJudge, PerformanceMonitor, agent_eval
+import os
+
+os.environ["ANTHROPIC_API_KEY"] = "sk-ant-..."
+
+# LLM Judge 초기화
+judge = LLMJudge(model="claude-sonnet-4-6")
+
+monitor = PerformanceMonitor("results/")
+
+# 방법 1: enable_llm_judge 파라미터 (해당 호출만 활성)
+@agent_eval(
+    monitor,
+    task_type="qa",
+    enable_llm_judge=True,
+    judge_model="claude-sonnet-4-6",
+)
+def creative_agent(question, ground_truth=""):
+    return llm.invoke(question)
+
+# 방법 2: QuickEval.for_llm_judge()
+from agent_evaluator import QuickEval
+
+eval = QuickEval.for_llm_judge("results/", model="claude-sonnet-4-6")
+
+@agent_eval(monitor, task_type="qa", enable_llm_judge=True, judge_model="claude-sonnet-4-6")
+def customer_service_agent(question, ground_truth=""):
+    return chatbot.respond(question)
+
+# 결과 확인 — back-propagation으로 TaskResult에 자동 반영
+report = monitor.generate_report()
+for task in monitor.tasks:
+    judge_scores = task.extra.get("llm_judge", {})
+    print(f"질문: {task.extra.get('question', 'N/A')[:40]}")
+    print(f"  완결성: {judge_scores.get('completeness', 0):.2f}")
+    print(f"  관련성: {judge_scores.get('relevance', 0):.2f}")
+    print(f"  사실성: {judge_scores.get('factual_consistency', 0):.2f}")
+```
+
+---
+
+## 5. FastAPI 대시보드 — 운영 시각화
+
+### 5.1 대시보드 실행
+
+```bash
+# 기본 실행 — results/ 디렉토리의 평가 파일 로드
+agent-eval dashboard results/
+
+# 파일 변경 감시 모드 (실시간 갱신)
+agent-eval dashboard results/ --watch
+
+# 포트 지정
+agent-eval dashboard results/ --port 8080
+
+# 브라우저에서 접속
+# http://localhost:8765
+```
+
+### 5.2 50+ API 엔드포인트 카테고리
+
+**태스크 조회 및 필터링**:
+
+```bash
+# 특정 태스크 상세 조회
+GET /tasks/{id}
+# 응답: llm_judge, streaming_steps, chunk_count 포함
+
+# 텍스트 검색
+GET /tasks/search?q=오류+메시지
+
+# 복합 조건 필터
+POST /tasks/filter
+Content-Type: application/json
+{
+  "filters": [
+    {"field": "accuracy_score", "op": "lt", "value": 0.5},
+    {"field": "execution_time", "op": "gt", "value": 3.0}
+  ],
+  "logic": "AND"
+}
+```
+
+---
+
+## 6. 알림 시스템 — AlertRuleBuilder & SimpleTaskAlertRule
+
+### 6.1 AlertRuleBuilder 팩토리 (권장)
+
+`AlertRuleBuilder`는 자주 쓰이는 알림 조건을 정적 메서드로 제공한다:
+
+```python
+from agent_evaluator import AlertRuleBuilder, agent_eval, PerformanceMonitor
+
+monitor = PerformanceMonitor("results/")
+
+# 정확도 저하 알림
+accuracy_alert = AlertRuleBuilder.when_accuracy_below(
+    threshold=0.70,
+    handler=lambda msg, tr: print(f"[WARNING] 정확도 저하: {msg}"),
+    severity="warning",
+    cooldown=300,
+)
+
+@agent_eval(
+    monitor,
+    task_type="qa",
+    alert_rules=[accuracy_alert],
+)
+def production_agent(question, ground_truth=""):
+    return llm.invoke(question)
+```
+
+---
+
+## 7. 이상 탐지 — AnomalyDetector
+
+### 7.1 동작 원리
+
+`AnomalyDetector`는 Z-Score 기반 통계적 이상 탐지를 사용한다.
+
+```python
+from agent_evaluator import AnomalyDetector, PerformanceMonitor
+
+monitor = PerformanceMonitor("results/")
+detector = AnomalyDetector(z_score_threshold=2.5)
+
+# save_to_file()이 자동으로 anomaly 데이터 포함
+monitor.save_to_file("evaluation")
+```
+
+---
+
+## 8. 비용 제어 — CostTracker & AdaptivePolicy
+
+### 8.1 AdaptivePolicy — 예산 초과 시 자동 다운그레이드
+
+```python
+from agent_evaluator import AdaptivePolicy, SamplingStage, agent_eval
+
+policy = AdaptivePolicy(
+    daily_budget_usd=100.0,
+    stages=[
+        SamplingStage(name="normal", sample_rate=1.0, model="gpt-4o"),
+        SamplingStage(name="reduced", sample_rate=0.5, model="gpt-4o-mini"),
+    ]
+)
+
+current = policy.get_current_stage()
+
+@agent_eval(monitor, task_type="qa", sample_rate=current.sample_rate)
+def cost_aware_agent(question):
+    return llm.invoke(question, model=current.model)
+```
+
+---
+
+## 9. 골든 데이터셋 — GoldenSetBuilder
+
+### 9.1 프로덕션 마이닝
+
+```python
+from agent_evaluator.datasets.builder import GoldenSetBuilder
+
+builder = GoldenSetBuilder(min_score=0.85)
+cases = builder.extract_cases(monitor.tasks)
+builder.push_to_phoenix(cases, dataset_name="prod_golden")
+```
+
+---
+
+## 10. 멀티턴 대화 평가 — ConversationSession
+
+### 10.1 6가지 대화 지표
+
+| 지표 | 설명 | 좋은 값 |
+|------|------|---------|
+| `context_retention` | 이전 대화 맥락 유지 능력 | > 0.8 |
+| `topic_coherence` | 주제의 일관성 | > 0.7 |
+| `progressive_depth` | 대화의 심화도 | > 0.6 |
+| `session_completion` | 목표 달성 여부 | > 0.8 |
+
+### 10.2 @conversation_eval 데코레이터 (권장 방법)
+
+v0.7.3부터 수동으로 세션을 관리하는 패턴 대신 데코레이터를 사용하는 것이 권장됩니다. `PerformanceMonitor`와 연동하여 자동으로 턴을 누적하고 지표를 계산합니다.
+
+```python
+from agent_evaluator import PerformanceMonitor, conversation_eval, flush_conversation
+
+monitor = PerformanceMonitor("results/")
+
+@conversation_eval(
+    monitor,
+    session_id_arg="session_id",        # 세션 ID를 파라미터에서 읽음
+    max_turns=10,                       # 10턴 초과 시 자동 종료
+    on_turn=lambda turn: print(f"턴 {turn.turn_number} 완료"),
+    on_flush=lambda metrics, sid: print(f"세션 {sid} 종료: {metrics.overall_score:.2f}")
+)
+def chatbot_agent(user_message, session_id="default", history=None):
+    # 실제 에이전트 호출 (history는 데코레이터가 자동 주입)
+    response = llm.invoke(user_message, history=history or [])
+    return response
+
+# 1. 턴 호출 (자동 누적)
+chatbot_agent("안녕하세요", session_id="sess_001")
+chatbot_agent("서울 여행 계획 알려줘", session_id="sess_001")
+
+# 2. 세션 명시적 종료 및 기록
+flush_conversation("sess_001")
+
+# 세션 결과는 monitor.generate_report()에 자동 포함
+report = monitor.generate_report()
+print(report.conversation_metrics)
+```
+
+### 10.3 monitor.conversation() — 컨텍스트 매니저 패턴 (v0.6.3+)
+
+데코레이터를 사용할 수 없는 복잡한 루프나 스크립트 환경에서는 컨텍스트 매니저 패턴을 사용합니다.
+
+```python
+# 컨텍스트 매니저 방식
+with monitor.conversation("session_002") as conv:
+    for user_msg in ["안녕", "누구니?"]:
+        response = chatbot.respond(user_msg, history=conv.history)
+        conv.turn(
+            user=user_msg,
+            agent=response,
+            metadata={"latency": 0.5}
+        )
+```
+
+---
+
+## 마무리 — M4 핵심 요약
+
+```
+Layer 3: "네이티브 지표로 부족할 때"
+  ├── DeepEval    → Toxicity, Bias, G-Eval (커스텀 기준)
+  ├── Ragas       → RAG 파이프라인 전문 평가 (4종)
+  └── LLM Judge   → Ground Truth 없는 평가 (3차원)
+
+운영 인프라:
+  ├── FastAPI 대시보드 → 50+ 엔드포인트, 실시간 WebSocket
+  ├── AlertRuleBuilder → 계층적 알림 (Warning/Error/Critical)
+  ├── AnomalyDetector  → Z-Score 이상 탐지 + 원인 설명
+  ├── CostTracker      → 비용 추적 + AdaptivePolicy 자동 절감
+  └── GoldenSetBuilder → 프로덕션 트래픽 → 회귀 테스트셋 자동화
+
+멀티턴:
+  └── @conversation_eval → 세션 기반 대화 품질 측정 (권장)
+```

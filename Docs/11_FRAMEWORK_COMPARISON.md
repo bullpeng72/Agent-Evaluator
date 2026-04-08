@@ -1,7 +1,7 @@
 # AI Agent 평가 프레임워크 비교 분석
 
-**Version**: 0.7.3
-**Last Updated**: 2026-04-07
+**Version**: 0.7.4
+**Last Updated**: 2026-04-08
 **기준 버전**: 각 프레임워크 2025–2026년 최신 릴리스 기준
 **분석 목적**: 개발자가 서비스 코드 외에 작성해야 하는 코드량 / 자동화 수준 비교
 
@@ -19,7 +19,7 @@
 | **Braintrust** | SaaS + OSS SDK | v0.5.2 (2025) | LLM 실험 + 에이전트 관측 |
 | **Helicone** | SaaS + OSS | 시맨틱 버전 없음 (활발 유지) | LLM 프록시 + 비용 관측 |
 | **W&B Weave** | SaaS + OSS SDK | v0.72+ (2025) | 에이전트 평가 + 실험 관리 |
-| **Agent Evaluator** | OSS SDK | v0.7.2 (2026.04) | Agentic AI 전문 평가 |
+| **Agent Evaluator** | OSS SDK | v0.7.4 (2026.04) | Agentic AI 전문 평가 |
 
 ---
 
@@ -307,8 +307,7 @@ weave.init("mcp-project")
 | `@agent_eval` 데코레이터 | 함수당 1줄 | 모든 에이전트 함수 (권장) |
 | `QuickEval` Facade | 1~2줄 | 빠른 시작, 다수 에이전트 |
 | Framework 전용 데코레이터 | 함수당 1줄 | 21개 프레임워크 자동 추출 |
-| `create_taskresult()` 헬퍼 | ~5줄 | 수동 기록 |
-| Framework factory | 1줄 | CrewAI, LangChain, LangGraph, AutoGen |
+| `create_taskresult()` 헬퍼 | ~5줄 | 수동 기록 (고급) |
 
 ```python
 # 방법 1: @agent_eval 데코레이터 — 한 줄로 평가 적용 (권장)
@@ -474,7 +473,7 @@ Agent Evaluator ✅ 16개 네이티브 지표 전부 LLM 없이 계산
 | Braintrust | `auto_instrument()` 또는 `@traced` | 1–5줄 |
 | Helicone | base_url 변경 1줄 | **1줄** |
 | W&B Weave | `weave.init()` + `@weave.op()` | 1줄 + 함수당 1줄 |
-| **Agent Evaluator** | `TaskResult` 구성 또는 factory 함수 | 5–15줄 |
+| **Agent Evaluator** | `@agent_eval` / `QuickEval` 데코레이터 | **1줄** |
 
 **C. 지표 계산** — 실제 계산 실행 코드
 
@@ -515,7 +514,7 @@ LangSmith       ██░░░░░░░░  (LangChain 사용 시; 커스텀
 DeepEval        ███░░░░░░░  (TestCase 구성 필요; 에이전트 지표 추가됨)
 Braintrust      ███░░░░░░░  (auto_instrument 우수; Scorer 직접 구현)
 W&B Weave       ████░░░░░░  (weave.op 간결; Scorer 구현 필요)
-Agent Evaluator ████░░░░░░  (TaskResult 구성 필요; 이후 자동)
+Agent Evaluator ██░░░░░░░░  (데코레이터 1줄; 이후 자동 — 데이터 수집 최소)
 Evidently AI    █████░░░░░  (DataFrame 준비 + Descriptor 정의)
 Ragas           ███████░░░  (데이터셋 전체 수동 구성 — 가장 많음)
 ────────────────────────────────────────────────────
@@ -534,9 +533,9 @@ Ragas           ███████░░░  (데이터셋 전체 수동 구�
 | Phoenix | ✅ 자동 | ✅ 자동 | ✅ 자동 | ❌ | ✅ | ✅ | ❌ | ✅ |
 | Braintrust | ✅ 콜백 | ✅ 콜백 | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | W&B Weave | ✅ | ✅ | ✅ | ❌ | ✅ | ❌ | ✅ | ✅ |
-| **Agent Evaluator** | ✅ factory | ✅ factory | ✅ factory | ✅ factory | ❌ | ❌ | ❌ | ❌ |
+| **Agent Evaluator** | ✅ 데코레이터 | ✅ 데코레이터 | ✅ 데코레이터 | ✅ 데코레이터 | ❌ | ❌ | ✅ 데코레이터 | ✅ 데코레이터 |
 
-> **v0.7.0 기준**: LangChain ≥1.0 / LangGraph ≥1.0 / CrewAI ≥1.0 / AutoGen 0.4+ (async-first) 최신 API 완전 지원. 4개 프레임워크 모두 16개 네이티브 지표 + 9개 Layer3 하이브리드 = 25개 지표 체계 적용 (프레임워크별 커버리지: LangChain ~82%, LangGraph ~82%, AutoGen ~80%, CrewAI ~78%).
+> **v0.7.4 기준**: LangChain ≥1.0 / LangGraph ≥1.0 / CrewAI ≥1.0 / AutoGen 0.4+ (async-first) 최신 API 완전 지원. `@agent_eval(framework="langchain")` 형태로 21개 프레임워크 메타데이터 자동 추출. 4개 프레임워크 모두 16개 네이티브 지표 + 9개 Layer3 하이브리드 = 25개 지표 체계 적용 (프레임워크별 커버리지: LangChain ~82%, LangGraph ~82%, AutoGen ~80%, CrewAI ~78%).
 
 ---
 
@@ -586,16 +585,14 @@ Ragas           ███████░░░  (데이터셋 전체 수동 구�
 1. **Agentic 보안 지표 5종** — 업계 어디에도 없는 지표 (프롬프트 인젝션, 출력 유출, 권한 상승, Tool 체인 공격, 비인가 Tool 사용)
 2. **Retry/자기수정 분석** — 에이전트가 얼마나 스스로 오류를 수정하는지 (LangChain `on_retry`, AutoGen `is_error=True`, LangGraph/CrewAI 실패 노드·태스크 감지)
 3. **Tool Selection F1** — Tool 선택 정밀도/재현율 기반 정량 평가 (DeepEval과 달리 LLM 불필요)
-4. **LLM 없이 16개 네이티브 지표 계산** — $0 추가 비용 (Layer 3 하이브리드 9개는 선택적); LangChain/LangGraph/CrewAI/AutoGen 4개 프레임워크 전체 지원 (커버리지: LangChain ~82%, LangGraph ~82%, AutoGen ~80%, CrewAI ~78%)
+4. **LLM 없이 16개 네이티브 지표 계산** — $0 추가 비용 (Layer 3 하이브리드 9개는 선택적); `@agent_eval(framework=...)` 파라미터로 21개 프레임워크 메타데이터 자동 추출 (커버리지: LangChain ~82%, LangGraph ~82%, AutoGen ~80%, CrewAI ~78%)
 5. **완전 로컬 대시보드** — 평가 데이터가 외부로 나가지 않음
 6. **RAG 컨텍스트 자동 수집** — `HallucinationDetector`가 LangChain retriever, LangGraph ToolMessage, CrewAI 중간 태스크, AutoGen 도구 결과에서 컨텍스트를 자동 연결해 faithfulness 측정
 
 ### 현재 없는 것 (개선 기회)
-1. **실시간 span 트레이싱** — LangSmith/Phoenix처럼 실행 중 UI 반영 불가
-2. **OTEL 연동** — 기존 OTEL 파이프라인에서 데이터를 수신하거나 내보내는 기능 없음
-3. **의미론적 LLM 판단자** — Ragas의 Faithfulness 같은 의미 기반 평가 불가 (Adapter로 연동은 가능)
-4. **SaaS 팀 협업** — 팀 대시보드 공유, 실험 비교 히스토리 없음
-5. **범용 에이전트 프레임워크 자동 계측** — OpenAI Agents SDK, Claude Agent SDK, PydanticAI 등 미지원
+1. **의미론적 LLM 판단자** — Ragas의 Faithfulness 같은 의미 기반 평가 불가 (Adapter로 연동은 가능)
+2. **SaaS 팀 협업** — 팀 대시보드 공유, 실험 비교 히스토리 없음
+3. **범용 에이전트 프레임워크 자동 계측** — OpenAI Agents SDK, Claude Agent SDK 등 일부 신규 프레임워크 미지원 (PydanticAI, DSPy는 v0.7.2에서 지원 추가)
 
 ---
 

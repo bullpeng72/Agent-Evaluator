@@ -5,7 +5,7 @@
 **Agent-Evaluator** is a production-ready Python SDK for evaluating AI agents.
 25개의 성능 지표를 세 개의 레이어(기본/에이전틱/하이브리드)로 측정한다.
 
-- **Version:** 0.7.3 (Beta)
+- **Version:** 0.7.4 (Beta)
 - **Python:** 3.8+
 - **License:** MIT
 - **Author:** Sungwoo Kim
@@ -123,11 +123,6 @@ agent_evaluator/
 ├── cost/
 │   └── policy.py            # CostTracker·AdaptivePolicy·SamplingStage
 ├── integrations/
-│   ├── crewai_integration.py
-│   ├── langchain_integration.py
-│   ├── langgraph_integration.py
-│   ├── autogen_integration.py
-│   ├── llm_helpers.py       # LLMEvaluationHelper, AnthropicEvaluationHelper
 │   ├── llm_judge.py         # LLMJudge — LLM-as-Judge 평가 엔진 (opt-in, [llm] extra)
 │   ├── metric_adapters.py   # DeepEval/Ragas/LangSmith adapters
 │   └── framework_integrations.py
@@ -317,14 +312,6 @@ with monitor.conversation("session_id") as conv:
     conv.turn(user="안녕하세요", agent="안녕하세요!", metadata={"latency": 0.3})
 ```
 
-### Framework Factory Functions
-```python
-crew = create_evaluated_crew(tasks, agents, monitor=monitor)
-agent = create_evaluated_langchain_agent(llm, tools, monitor=monitor)
-graph = create_evaluated_langgraph(graph, monitor=monitor)
-agent = create_evaluated_autogen_agent(config, monitor=monitor)
-```
-
 ### Framework-Specific Decorators
 `agent_eval(framework=...)` 파라미터로 21개 프레임워크의 응답에서 메타데이터를 자동 추출한다.
 
@@ -413,9 +400,6 @@ from agent_evaluator import (
     # LLM Judge (opt-in, requires [llm] extra)
     LLMJudge,
 
-    # LLM Helpers
-    LLMHelper, ClaudeHelper,  # aliases for LLMEvaluationHelper, AnthropicEvaluationHelper
-
     # Transparency Subsystem
     TestTransparencyManager, AnnotationType, TestStepStatus,
 
@@ -475,7 +459,7 @@ from agent_evaluator import (
 |------|------|------|
 | `ragas>=0.4.0` | ✅ 지원 | 0.4.x API(EvaluationDataset, SingleTurnSample) 완전 지원. `datasets>=4.0.0,<6.0.0` 함께 적용 |
 | `[frameworks]`/`[full]` pydantic 충돌 | 🟡 허용 | crewai(pydantic<2.12) + pyautogen(pydantic>=2.12 선호) 동시 설치 시 pydantic 2.11.x로 silent downgrade. 기능 동작은 정상이나 autogen 최신 기능 일부 제한 가능 |
-| `pyautogen>=0.3.0` 0.4+ async API | 🟡 부분 지원 | 0.4+(autogen-agentchat 0.4+)는 async API로 전환 → generate_reply wrapping 불가. UserWarning으로 안내하며 수동 `monitor.record_task()` 사용 필요 |
+| `pyautogen>=0.3.0` 0.4+ async API | 🟡 부분 지원 | 0.4+(autogen-agentchat 0.4+)는 async API → `@agent_eval(framework="autogen")`으로 async 함수 래핑 권장. autogen_eval_async 데코레이터(`agent_evaluator.integrations`) 사용 가능 |
 | `AnswerRelevancy` embeddings | 🟡 조건부 | OpenAI API 키 있을 때만 자동 설정. Anthropic-only 환경에서는 AnswerRelevancy 지표 제외됨 |
 
 ## Known Technical Debt
@@ -489,7 +473,7 @@ from agent_evaluator import (
 
 ## Testing
 
-`tests/` 디렉토리에 60개 파일, 1,823개+ 테스트 함수 존재.
+`tests/` 디렉토리에 59개 파일, 1,823개+ 테스트 함수 존재.
 
 ```bash
 # pytest.ini_options in pyproject.toml already configured:
@@ -498,7 +482,7 @@ from agent_evaluator import (
 pytest
 ```
 
-커버리지 현황 (v0.7.3 기준):
+커버리지 현황 (v0.7.4 기준):
 - `base.py`: 92% | `layer1.py`: 84% | `layer2.py`: 95%
 - `hybrid_monitor.py`: 61% | `monitor.py`: 41% | `taskresult_helpers.py`: 89% | 전체: 33%
 
@@ -559,6 +543,14 @@ pytest
 ---
 
 ## 📝 변경 이력
+
+### v0.7.4 (2026-04-08) — 전체 예제 데코레이터 적용 완료 · layer1 버그 수정 · 문서 현행화
+
+- ✨ **예제 19/21 데코레이터 전면 적용** — `@agent_eval` / `@batch_eval` / `@conversation_eval` 을 01~21번 예제 전체에 적용 완료 (02, 03, 17 추가 완성)
+- 🐛 **layer1.py 버그 수정** — 성능 지표 계산 엣지 케이스 수정
+- 🔧 **대시보드 템플릿 개선** — `dashboard.html.j2` / `dashboard2.html.j2` / `slides.html.j2` 마이너 개선
+- 📝 **문서 현행화** — README·CLAUDE.md 테스트 파일 수 수정 (60→59), Docs/ 버전·날짜 갱신
+- ✅ **21개 예제 전수 실행 검증** — `python Evaluator_Examples/0{1..9}*.py` 등 전체 PASS 확인
 
 ### v0.7.3 (2026-04-07) — 보안 트래커 실동작 · 커버리지 전면 확대 · Phoenix 통합 완성
 
