@@ -1121,7 +1121,7 @@ eval.gate(
 ```python
 eval = QuickEval.for_rag("results/")  # hallucination 기본 활성
 
-@agent_eval(monitor, task_type="information_retrieval", rag_mode=True)
+@eval.rag  # task_type="information_retrieval" + rag_mode=True 자동 설정
 def rag_system(question: str, context: str = "", ground_truth: str = "") -> str:
     docs = vector_store.similarity_search(question)
     context = "\n".join([d.page_content for d in docs])
@@ -1269,6 +1269,104 @@ eval.gate(tcr=85, accuracy=70, quality=3.0, p95_latency=3.0)
 │ Token Economy│ ✅ 자동       │ total_cost   │ 예산 내        │
 │ Hallucination│ ❌ opt-in     │ halluc_rate  │ ≤ 5%           │
 └──────────────┴───────────────┴──────────────┴─────────────────┘
+```
+
+---
+
+## QA 관리자 헬스체크 가이드
+
+### 결과를 받았을 때 읽는 순서
+
+평가 결과(`report.to_dict()` 또는 대시보드)를 처음 열었을 때 아래 순서로 확인한다.
+
+```
+1단계: 배포 가능 여부 판단 (TCR)
+    TCR ≥ 85%    → 계속
+    TCR < 85%    → 즉시 중단, 실패 케이스 분석
+
+2단계: 정확도 확인 (Accuracy)
+    Accuracy ≥ 70% → 계속
+    Accuracy < 70% → 프롬프트 개선 필요, 배포 보류
+
+3단계: 사용자 경험 확인 (Quality + Latency)
+    Quality ≥ 3.5 AND P95 ≤ 3.0초 → 계속
+    둘 중 하나라도 미달 → 개선 후 재평가 권장
+
+4단계: 비용 확인 (Token Economy)
+    avg_cost_per_task × 예상 월 호출 수 ≤ 예산 → 계속
+    예산 초과 → AdaptivePolicy 또는 모델 교체 검토
+
+5단계: RAG 에이전트라면 환각 확인 (Hallucination)
+    hallucination_rate ≤ 5% → 배포 가능
+    > 5%  → 검색 품질 개선, 프롬프트 강화 필요
+```
+
+### 에이전트 유형별 최소 통과 기준
+
+| 지표 | 내부 챗봇 | 고객 서비스 | RAG | 코드 생성 | 퍼블릭 서비스 |
+|------|---------|-----------|-----|---------|------------|
+| **TCR** | ≥ 80% | ≥ 90% | ≥ 85% | ≥ 85% | ≥ 95% |
+| **Accuracy** | ≥ 65% | ≥ 75% | ≥ 70% | ≥ 80% | ≥ 70% |
+| **Quality** | ≥ 3.0 | ≥ 4.0 | ≥ 3.5 | ≥ 3.5 | ≥ 4.0 |
+| **P95 Latency** | ≤ 5.0s | ≤ 3.0s | ≤ 5.0s | ≤ 10.0s | ≤ 2.0s |
+| **Hallucination** | — | ≤ 10% | ≤ 5% | — | ≤ 3% |
+
+> 위 수치는 **업계 일반 권장값**이다. 실제 서비스 SLA와 사용자 기대치에 맞게 조정해야 한다.
+
+### 지표 이상 징후 → 원인 분석 패턴
+
+```python
+from agent_evaluator import QuickEval
+
+eval = QuickEval("results/")
+# ... 평가 실행 ...
+
+summary = eval.summary()
+df = eval.export_to_dataframe()
+
+# ① TCR 낮음 → 어떤 태스크 유형에서 실패하는가?
+failed = df[df["completion_score"] < 0.3]
+print("실패 유형 분포:")
+print(failed["task_type"].value_counts())
+
+# ② Accuracy 낮음 → 특정 질문 패턴이 있는가?
+low_acc = df[df["accuracy_score"] < 0.5].sort_values("accuracy_score")
+print("\n정확도 하위 5개 질문:")
+print(low_acc[["question", "response", "accuracy_score"]].head())
+
+# ③ Latency 높음 → 어떤 태스크가 느린가?
+slow = df[df["execution_time"] > df["execution_time"].quantile(0.95)]
+print(f"\nP95 초과 태스크: {len(slow)}개")
+print(slow[["question", "execution_time", "tokens_total"]].head())
+
+# ④ Quality 낮음 → 어느 차원이 문제인가?
+report = eval.monitor.generate_report()
+qm = report.to_dict()
+# quality 5차원 상세 확인
+quality_detail = qm.get("quality_metrics", {})
+for dim in ["relevance", "completeness", "clarity", "conciseness", "coherence"]:
+    val = quality_detail.get(f"avg_{dim}", quality_detail.get(dim, "N/A"))
+    print(f"  {dim}: {val}")
+```
+
+### 주간 품질 트렌드 모니터링
+
+```python
+# 이번 주 vs 지난 주 비교
+eval_this = QuickEval("results/this_week/")
+eval_last = QuickEval("results/last_week/")
+
+comparison = eval_this.compare(eval_last)
+
+print("주간 품질 변화:")
+for metric, delta in comparison.items():
+    arrow = "▲" if delta > 0 else "▼"
+    print(f"  {metric}: {arrow} {delta:+.3f}")
+
+# A/B 테스트: 통계적 유의성 검증 (scipy 있을 때)
+ab = eval_this.ab_test(eval_last)
+if ab.get("significant"):
+    print(f"\n⚠️ 정확도 변화가 통계적으로 유의합니다 (p={ab['p_value']:.3f})")
 ```
 
 ---

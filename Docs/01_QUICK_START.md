@@ -2,7 +2,7 @@
 
 Agent Evaluator를 5분 안에 첫 평가까지 완성하는 최단 경로
 
-**v0.7.4 | Python 3.8+**
+**v0.7.5 | Python 3.8+**
 
 ---
 
@@ -35,7 +35,7 @@ pip install agent-evaluator[serve]
 # 프레임워크 통합 포함 (LangChain/LangGraph)
 pip install agent-evaluator[langchain,serve]
 
-# 실시간 운영 모니터링 (Phoenix + OTEL) — v0.7.4
+# 실시간 운영 모니터링 (Phoenix + OTEL) — v0.7.5
 pip install agent-evaluator[otel]
 ```
 
@@ -180,7 +180,23 @@ with evaluation_session("output_filename") as monitor:
 
 ## 대시보드 실행
 
+대시보드는 `results/` 디렉토리의 JSON 파일을 로드합니다. **먼저 평가 결과를 파일로 저장한 후** 실행하세요.
+
+```python
+# 방법 A: 데코레이터 실행 후 save_to_file()
+monitor.save_to_file("eval")     # results/eval.json + .html 생성
+
+# 방법 B: auto_save — N건마다 자동 저장
+monitor = PerformanceMonitor(output_dir="results/", auto_save=True, auto_save_interval=10)
+
+# 방법 C: QuickEval
+eval = QuickEval("results/")
+eval.save()                      # results/quickeval.json + .html
+```
+
 ```bash
+pip install "agent-evaluator[serve]"
+
 # 기본 실행 (포트 8765, 브라우저 자동 오픈)
 agent-eval dashboard
 
@@ -189,8 +205,6 @@ agent-eval dashboard --port 8080 --watch     # 포트 지정 + 파일 감시
 agent-eval dashboard --no-open               # 브라우저 자동 오픈 비활성화
 agent-eval dashboard --offline               # CDN 에셋 로컬 캐시
 ```
-
-대시보드는 `results/` 디렉토리의 JSON 파일을 자동으로 로드합니다.
 
 ---
 
@@ -221,26 +235,35 @@ agent-eval gate results/eval.json --tcr 85 --accuracy 70
 
 ---
 
-## 실시간 운영 모니터링 (v0.7.4)
+## 실시간 운영 모니터링 (v0.7.5)
 
-Phoenix + OpenTelemetry로 프로덕션 스팬을 실시간 추적합니다.
+Phoenix + OpenTelemetry로 프로덕션 스팬을 실시간 추적합니다. **`setup_otel()`을 PerformanceMonitor 생성 전에 호출해야 합니다.**
 
 ```bash
-# Phoenix 서버 기동 + OTLP 수신 설정
-agent-eval monitor
-
-# 설치 상태 확인
-agent-eval monitor --check
+# 터미널 1 — Phoenix 서버 기동
+pip install "agent-evaluator[otel]"
+agent-eval monitor                           # UI: http://localhost:6006
 ```
 
-코드에서 직접 활성화:
-
 ```python
+# 터미널 2 — 에이전트 코드
 from agent_evaluator import setup_otel, PerformanceMonitor
+from agent_evaluator.decorators import agent_eval
 
-setup_otel(endpoint="http://localhost:6006", service_name="my-agent")
-monitor = PerformanceMonitor()
-# record_task() 호출 시 OTLP 스팬 자동 발행
+setup_otel(endpoint="http://localhost:6006", service_name="my-agent")  # ← 반드시 먼저
+monitor = PerformanceMonitor(output_dir="results/")
+
+@agent_eval(monitor, task_type="qa")
+def my_agent(question: str, ground_truth: str = "") -> str:
+    return llm.invoke(question)
+
+# 호출 시 OTLP 스팬 자동 전송 → Phoenix Tracing 탭에서 실시간 확인
+my_agent("한국의 수도는?", ground_truth="서울")
+```
+
+```bash
+# 설치 상태 확인
+agent-eval monitor --check
 ```
 
 > 자세한 내용: [12_MONITOR_GUIDE.md](12_MONITOR_GUIDE.md)

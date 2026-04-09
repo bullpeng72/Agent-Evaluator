@@ -53,12 +53,12 @@ AI 에이전트 평가에 OTEL이 중요한 이유는 간단하다. **에이전�
 
 ```python
 # 데코레이터 방식 — setup_otel() 1회 설정으로 전체 자동화
-from agent_evaluator.core.otel.provider import setup_otel
+from agent_evaluator import setup_otel
 from agent_evaluator.decorators import agent_eval
 from agent_evaluator import PerformanceMonitor
 
 setup_otel(
-    endpoint="http://localhost:6006/v1/traces",
+    endpoint="http://localhost:6006",
     service_name="my-agent-service"
 )
 
@@ -155,29 +155,33 @@ $ agent-eval monitor
 
 ### 2-3. 코드에서 OTEL 설정
 
-```python
-from agent_evaluator.core.otel.provider import setup_otel
-from agent_evaluator import PerformanceMonitor, QuickEval
+> **중요**: `setup_otel()`은 반드시 `PerformanceMonitor` 또는 `QuickEval` 생성 **전에** 호출해야 합니다. 이후 모든 `record_task()` 호출에서 OTLP 스팬이 자동 발행됩니다.
 
-# 방법 1: setup_otel() 직접 호출
+```python
+from agent_evaluator import setup_otel, PerformanceMonitor, QuickEval
+from agent_evaluator.decorators import agent_eval
+
+# ① setup_otel() — 반드시 먼저 호출
 setup_otel(
-    endpoint="http://localhost:6006/v1/traces",
-    service_name="my-qa-agent",
-    enable_metrics=False  # Phoenix는 /v1/metrics 미지원, False 권장
+    endpoint="http://localhost:6006",   # Phoenix 13.x: UI + OTLP 동일 포트
+    service_name="my-qa-agent",         # Phoenix 프로젝트명으로 표시됨
+    enable_metrics=False                # Phoenix는 /v1/metrics 미지원, False 권장
 )
 
-# 방법 2: PerformanceMonitor에서 직접 설정
+# ② PerformanceMonitor 생성 (이 순서를 바꾸면 OTEL 비활성)
 monitor = PerformanceMonitor(
     output_dir="results/",
-    enable_otel_child_spans=True  # chain_steps를 자식 스팬으로 발행
+    enable_otel_child_spans=True        # chain_steps를 자식 스팬으로 발행 (선택)
 )
 
-# 방법 3: QuickEval 사용 (OTEL 자동 연결)
-eval = QuickEval("results/")
-
+# ③ 데코레이터 적용 — 이후 호출부터 OTLP 스팬 자동 발행
 @agent_eval(monitor, task_type="qa")
 def my_agent(question: str, ground_truth: str = "") -> str:
     return call_llm(question)
+
+# QuickEval 사용 시에도 동일한 순서
+# setup_otel(...)    ← 먼저
+# eval = QuickEval("results/")
 ```
 
 ### 2-4. 프로젝트 분리
@@ -186,7 +190,7 @@ Phoenix는 `openinference.project.name` Resource 속성으로 프로젝트를 �
 
 ```python
 setup_otel(
-    endpoint="http://localhost:6006/v1/traces",
+    endpoint="http://localhost:6006",
     service_name="customer-support-agent",  # Phoenix 프로젝트명으로 사용됨
 )
 ```
@@ -248,7 +252,7 @@ eval = QuickEval.for_llm_judge(
     model="claude-sonnet-4-6"   # LLMJudge 사용 모델
 )
 
-@agent_eval(monitor, task_type="qa")
+@eval.qa  # task_type="qa" 자동 설정
 def my_agent(question: str, ground_truth: str = "") -> str:
     response = call_llm(question)
     return response
@@ -400,11 +404,11 @@ ae.security_threat_detected = True
 ```python
 from agent_evaluator import PerformanceMonitor
 from agent_evaluator.decorators import agent_eval, EvalMetadata
-from agent_evaluator.core.otel.provider import setup_otel
+from agent_evaluator import setup_otel
 
 # OTEL 초기화
 setup_otel(
-    endpoint="http://localhost:6006/v1/traces",
+    endpoint="http://localhost:6006",
     service_name="multi-tool-agent"
 )
 
@@ -604,7 +608,7 @@ def main():
     # 테스트 데이터 로드
     test_cases = load_test_cases("data/ci_test_cases.json")[:args.sample_size]
 
-    @agent_eval(monitor, task_type="qa")
+    @eval.qa  # task_type="qa" 자동 설정
     def agent(question: str, ground_truth: str = "") -> str:
         return call_production_agent(question)
 
@@ -639,7 +643,7 @@ eval = QuickEval(
     enable_hallucination_detection=True,
 )
 
-@agent_eval(monitor, task_type="qa")
+@eval.qa  # task_type="qa" 자동 설정
 def agent(question: str, ground_truth: str = "") -> str:
     return call_llm(question)
 
@@ -804,7 +808,7 @@ eval = QuickEval(
     enable_hallucination_detection=True,
 )
 
-@agent_eval(monitor, task_type="qa")
+@eval.qa  # task_type="qa" 자동 설정
 def agent(question: str, ground_truth: str = "") -> str:
     return call_production_agent(question)
 
@@ -1065,12 +1069,12 @@ eval = QuickEval("results/", **EVAL_CONFIG[ENV])
 """개발 환경: 전수 평가 + LLMJudge + 로컬 Phoenix"""
 import os
 from agent_evaluator import QuickEval
-from agent_evaluator.core.otel.provider import setup_otel
+from agent_evaluator import setup_otel
 
 # 로컬 Phoenix에 연결 (agent-eval monitor 먼저 실행)
 if os.getenv("OTEL_ENABLED", "false").lower() == "true":
     setup_otel(
-        endpoint="http://localhost:6006/v1/traces",
+        endpoint="http://localhost:6006",
         service_name="my-agent-dev",
     )
 
@@ -1081,12 +1085,12 @@ eval = QuickEval(
     enable_security_metrics=True,
 )
 
-@agent_eval(monitor, task_type="qa")
+@eval.qa  # task_type="qa" 자동 설정
 def qa_agent(question: str, ground_truth: str = "") -> str:
     """QA 에이전트 — 개발 환경에서 전수 평가."""
     return call_llm_api(question)
 
-@agent_eval(monitor, task_type="tool_use")
+@eval.tool_use  # task_type="tool_use" 자동 설정
 def tool_agent(question: str, ground_truth: str = "") -> str:
     """도구 사용 에이전트 — 개발 환경."""
     return call_tool_agent(question)
@@ -1128,7 +1132,7 @@ def run_ci_evaluation():
         sample_rate=1.0,   # CI에서는 전수 평가
     )
 
-    @agent_eval(monitor, task_type="qa")
+    @eval.qa  # task_type="qa" 자동 설정
     def agent(question: str, ground_truth: str = "") -> str:
         return call_production_agent(question)
 
@@ -1169,10 +1173,10 @@ if __name__ == "__main__":
 """프로덕션: 샘플링 평가 + OTEL + Phoenix + 알림"""
 import os
 from agent_evaluator import QuickEval, SimpleTaskAlertRule
-from agent_evaluator.core.otel.provider import setup_otel
+from agent_evaluator import setup_otel
 
 # Phoenix에 OTEL 연결 (내부 Phoenix 서버)
-PHOENIX_ENDPOINT = os.getenv("PHOENIX_ENDPOINT", "http://phoenix-server:6006/v1/traces")
+PHOENIX_ENDPOINT = os.getenv("PHOENIX_ENDPOINT", "http://phoenix-server:6006")
 setup_otel(
     endpoint=PHOENIX_ENDPOINT,
     service_name="production-qa-agent",
@@ -1255,7 +1259,7 @@ def run_weekly_regression():
         sample_rate=1.0,   # 회귀 테스트는 전수 평가
     )
 
-    @agent_eval(monitor, task_type="qa")
+    @eval.qa  # task_type="qa" 자동 설정
     def agent(question: str, ground_truth: str = "") -> str:
         return call_production_agent(question)
 
@@ -1316,6 +1320,163 @@ if __name__ == "__main__":
 │                                                                 │
 └─────────────────────────────────────────────────────────────────┘
 ```
+
+---
+
+## 9. QA 관리자 — 품질 트렌드 모니터링
+
+코드를 짜지 않아도 됩니다. 이 섹션은 QA 매니저가 주간/월간 품질 리뷰를 수행하기 위한 실무 가이드입니다.
+
+### 9-1. 주간 품질 리뷰 — 5분 루틴
+
+```python
+# scripts/qa_weekly_review.py
+"""매주 월요일 QA 관리자 보고서 자동 생성"""
+import json
+from pathlib import Path
+from datetime import datetime, timedelta
+from agent_evaluator import QuickEval
+
+# 이번 주 / 지난 주 결과 파일 경로
+THIS_WEEK_JSON = "results/ci/ci_result.json"
+LAST_WEEK_JSON = "results/regression/last_week/regression_result.json"
+
+def run_weekly_review():
+    # 이번 주 결과 로드
+    this_week = QuickEval.replay(THIS_WEEK_JSON)
+    summary   = this_week.summary()
+
+    print("=" * 50)
+    print(f"📊 주간 품질 리뷰 — {datetime.now().strftime('%Y-%m-%d')}")
+    print("=" * 50)
+    print(f"  태스크 완료율 (TCR):  {summary.get('task_completion_rate', 0)*100:.1f}%")
+    print(f"  정확도 (Accuracy):   {summary.get('accuracy', 0)*100:.1f}%")
+    print(f"  품질 점수 (Quality): {summary.get('quality_avg', 0):.2f} / 5.0")
+    print(f"  P95 응답 시간:       {summary.get('p95_latency', 0):.2f}s")
+    print(f"  총 비용:             ${summary.get('total_cost_usd', 0):.4f}")
+    print(f"  환각 발생률:         {summary.get('hallucination_rate', 0)*100:.1f}%")
+    print()
+
+    # 전주 비교 (파일이 있을 때만)
+    if Path(LAST_WEEK_JSON).exists():
+        last_week = QuickEval.replay(LAST_WEEK_JSON)
+        diff = this_week.compare(last_week)
+
+        print("📈 전주 대비 변화:")
+        _fmt = lambda v: f"{v:+.1f}%" if v is not None else "N/A"
+        print(f"  TCR:      {_fmt(diff.get('tcr_delta'))}")
+        print(f"  Accuracy: {_fmt(diff.get('accuracy_delta'))}")
+        print(f"  Quality:  {_fmt(diff.get('quality_delta'))}")
+        print()
+
+        # 회귀 자동 감지
+        regressions = []
+        if diff.get("accuracy_delta", 0) < -3.0:
+            regressions.append(f"정확도 하락 {diff['accuracy_delta']:.1f}%")
+        if diff.get("tcr_delta", 0) < -5.0:
+            regressions.append(f"TCR 하락 {diff['tcr_delta']:.1f}%")
+        if diff.get("p95_latency_delta", 0) > 1.0:
+            regressions.append(f"P95 레이턴시 증가 +{diff['p95_latency_delta']:.2f}s")
+
+        if regressions:
+            print("⚠️  회귀 감지:")
+            for r in regressions:
+                print(f"   - {r}")
+        else:
+            print("✅ 회귀 없음 — 품질 안정")
+
+    # A/B 통계 검정 (scipy 설치 시 p-value 자동 계산)
+    if Path(LAST_WEEK_JSON).exists():
+        ab = this_week.ab_test(last_week)
+        if ab.get("p_value") is not None:
+            sig = "유의미 (p<0.05)" if ab["p_value"] < 0.05 else "무의미 (p≥0.05)"
+            print(f"\n통계적 유의성: {sig} (p={ab['p_value']:.3f})")
+
+if __name__ == "__main__":
+    run_weekly_review()
+```
+
+### 9-2. Phoenix 대시보드 — QA 관리자가 보는 핵심 지표
+
+`agent-eval monitor` 실행 후 `http://localhost:6006` 접속:
+
+| Phoenix 탭 | QA 관리자 활용 포인트 |
+|---|---|
+| **Tracing** | Span 목록 → `ae.accuracy_score` 낮은 스팬 필터 → 실패 케이스 원인 분석 |
+| **Evaluators** | 배치 LLM Judge 점수 → completeness / relevance / factual_consistency 트렌드 |
+| **Datasets** | 골든 데이터셋 버전 관리 → 케이스 추가/삭제 이력 |
+| **Prompts** | 실패 케이스 프롬프트 재현 → Playground에서 프롬프트 개선 실험 |
+
+**Tracing 탭 활용 팁:**
+
+```
+필터 예시:
+  ae.accuracy_score < 0.6          → 정확도 낮은 케이스 집계
+  ae.execution_time > 8.0          → 느린 태스크 집계
+  ae.task_type == "information_retrieval"  → RAG 전용 필터
+  ae.security_threat_detected == "true"   → 보안 위협 감지 케이스
+```
+
+### 9-3. agent-eval dashboard — 로컬 FastAPI 대시보드 활용
+
+OTEL이 없어도 `save_to_file()` 결과만 있으면 사용할 수 있다:
+
+```bash
+# 대시보드 실행
+agent-eval dashboard results/ --watch
+
+# 접속: http://localhost:8765
+```
+
+QA 관리자가 확인해야 할 엔드포인트:
+
+| URL | 내용 |
+|---|---|
+| `/api/stats` | TCR / Accuracy / Quality 전체 통계 |
+| `/api/results?sort_by=accuracy_score&sort_desc=false` | 낮은 점수 케이스 순 정렬 |
+| `/distributions` | 지표 분포 히스토그램 |
+| `/timeline` | 시간대별 지표 변화 |
+| `/anomaly` | 이상 탐지 이벤트 목록 |
+| `/cost/breakdown` | 모델별 / 태스크 유형별 비용 |
+
+### 9-4. QA 관리자 — 품질 기준 설정 자동화
+
+현재 데이터 기반으로 95% 통과 임계값을 자동 제안받는다:
+
+```python
+from agent_evaluator import QuickEval
+
+eval = QuickEval.replay("results/ci/ci_result.json")
+
+# 현재 분포의 95% 기준으로 임계값 자동 제안
+eval.generate_gate_config("gate_config_suggested.json")
+# → gate_config_suggested.json 생성
+
+# 내용 예시:
+# {
+#   "tcr": 87,          ← 현재 데이터의 5th-percentile TCR
+#   "accuracy": 72,     ← 현재 데이터의 5th-percentile Accuracy
+#   "quality": 3.4,     ← 현재 데이터의 5th-percentile Quality
+#   "hallucination": 6  ← 현재 데이터의 95th-percentile Hallucination
+# }
+```
+
+이 파일을 CI/CD 게이팅에 그대로 사용할 수 있다:
+
+```bash
+agent-eval gate results/ci/ci_result.json \
+  --config gate_config_suggested.json
+```
+
+### 9-5. QA 회귀 알림 운영 권고사항
+
+| 주기 | 작업 | 담당 |
+|---|---|---|
+| **매 배포** | CI `agent-eval gate` 통과 확인 | 자동 (GitHub Actions) |
+| **매일** | Phoenix Tracing 탭 이상 스팬 확인 | 온콜 담당자 |
+| **매주** | `qa_weekly_review.py` 결과 리뷰 + 회귀 분석 | QA 매니저 |
+| **매월** | `generate_gate_config()` 재실행 → 임계값 갱신 | QA 매니저 |
+| **분기** | 골든 데이터셋 재검토 → 구식 케이스 교체 | QA + 개발 |
 
 ---
 

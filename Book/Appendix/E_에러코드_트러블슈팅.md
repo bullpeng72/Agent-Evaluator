@@ -1,0 +1,587 @@
+# Appendix E. 에러 코드 & 트러블슈팅
+
+Agent Evaluator 사용 중 자주 발생하는 오류 20가지와 FAQ 10가지를 정리한다.
+
+---
+
+## 자주 발생하는 오류 20가지
+
+---
+
+### 1. Phoenix 스팬이 Tracing 탭에 안 보임
+
+**증상**: `agent-eval monitor`로 Phoenix를 기동했는데 코드 실행 후에도 Tracing 탭이 비어있다.
+
+**원인 A**: `setup_otel()`이 `PerformanceMonitor` 생성 이후에 호출됨
+
+```python
+# 잘못된 순서
+monitor = PerformanceMonitor(output_dir="results/")
+setup_otel(endpoint="http://localhost:6006")  # 이미 늦음
+
+# 올바른 순서
+setup_otel(endpoint="http://localhost:6006")  # 먼저 호출
+monitor = PerformanceMonitor(output_dir="results/")
+```
+
+**원인 B**: endpoint URL에 `/v1/traces` 경로가 포함됨
+
+```python
+# 잘못됨
+setup_otel(endpoint="http://localhost:6006/v1/traces")
+
+# 올바름
+setup_otel(endpoint="http://localhost:6006")
+```
+
+**원인 C**: `agent-eval monitor`가 실행되지 않음. 별도 터미널에서 먼저 기동할 것.
+
+```bash
+# 터미널 1
+agent-eval monitor
+
+# 터미널 2
+python my_agent.py
+```
+
+---
+
+### 2. agent-eval dashboard에 데이터가 없음
+
+**증상**: 대시보드를 열었는데 모든 탭이 빈 상태.
+
+**원인 A**: `save_to_file()`을 한 번도 호출하지 않음
+
+```python
+monitor = PerformanceMonitor(output_dir="results/")
+# ... 평가 실행 후
+monitor.save_to_file("evaluation")  # 반드시 호출
+```
+
+**원인 B**: 대시보드 실행 디렉토리와 결과 파일 경로 불일치
+
+```bash
+# results/ 안에 파일이 있어야 함
+agent-eval dashboard results/
+
+# 파일 확인
+ls results/*.json
+```
+
+**원인 C**: `auto_save=True` 설정 후 충분한 태스크가 누적되지 않음 (기본 10건마다 저장)
+
+---
+
+### 3. agent-eval gate 항상 실패
+
+**증상**: CI/CD에서 `gate` 명령이 항상 exit code 1로 종료.
+
+**원인**: 임계값이 현재 데이터 수준보다 높게 설정됨.
+
+**해결책**: `generate_gate_config()`로 현재 지표 기반 적정 임계값을 자동 제안받는다.
+
+```python
+from agent_evaluator import QuickEval
+
+eval = QuickEval("results/")
+# ... 평가 실행 후
+eval.generate_gate_config("gate_config.json")
+# gate_config.json에 현재 지표의 95% 수준 임계값이 자동 저장됨
+```
+
+```bash
+agent-eval gate result.json --config gate_config.json
+```
+
+---
+
+### 4. accuracy_score가 항상 0.0
+
+**증상**: 모든 태스크의 `accuracy_score`가 0.0으로 기록됨.
+
+**원인 A**: `ground_truth`를 빈 문자열(`""`) 또는 `None`으로 전달
+
+```python
+# 잘못됨 — ground_truth가 없으면 정확도를 계산할 수 없음
+@agent_eval(monitor, task_type="qa")
+def agent(question: str, ground_truth: str = "") -> str: ...
+
+agent("질문", ground_truth="")  # 빈 문자열 전달
+
+# 올바름
+agent("질문", ground_truth="정답 텍스트")
+```
+
+**원인 B**: `task_type`이 실제 수행 내용과 다름 (예: 코드 생성인데 `"qa"`로 설정)
+
+---
+
+### 5. 환각 지표가 항상 0.0 또는 None
+
+**증상**: `report.hallucination_rate`가 항상 `None` 또는 0.0.
+
+**원인**: `enable_hallucination_detection=False` (기본값). opt-in 필요.
+
+```python
+# 방법 1: PerformanceMonitor에서 활성화
+monitor = PerformanceMonitor(enable_hallucination_detection=True)
+
+# 방법 2: 팩토리 메서드 사용
+monitor = PerformanceMonitor.for_rag_evaluation()
+
+# 방법 3: 데코레이터에서 임시 활성 (해당 함수 호출에만 적용)
+@agent_eval(monitor, task_type="information_retrieval", enable_hallucination=True)
+def rag_agent(question: str, context: str = "", ground_truth: str = "") -> str: ...
+
+# 방법 4: rag_mode 사용
+@agent_eval(monitor, task_type="information_retrieval", rag_mode=True, context_arg="context")
+def rag_agent(question: str, context: str = "", ground_truth: str = "") -> str: ...
+```
+
+---
+
+### 6. 보안 지표가 수집되지 않음
+
+**증상**: 보안 관련 모든 지표(`input_security`, `output_leakage` 등)가 보고서에 없음.
+
+**원인**: `enable_security_metrics=False` (기본값). opt-in 필요.
+
+```python
+# 방법 1: PerformanceMonitor에서 활성화
+monitor = PerformanceMonitor(enable_security_metrics=True)
+
+# 방법 2: 팩토리 메서드 사용
+monitor = PerformanceMonitor.for_secure_agents()
+
+# 방법 3: 데코레이터에서 임시 활성
+@agent_eval(monitor, task_type="qa", security_mode=True)
+def agent(question: str, ground_truth: str = "") -> str: ...
+```
+
+---
+
+### 7. ImportError: No module named 'openai'
+
+**증상**: `from agent_evaluator import LLMJudge` 또는 LLM Judge 기능 사용 시 ImportError.
+
+**해결책**:
+
+```bash
+pip install "agent-evaluator[llm]"
+```
+
+`[llm]` extras에 `openai`와 `anthropic` 패키지가 포함된다.
+
+---
+
+### 8. ImportError: No module named 'langchain'
+
+**증상**: `framework="langchain"` 사용 또는 LangChain 예제 실행 시 ImportError.
+
+**해결책**:
+
+```bash
+pip install "agent-evaluator[langchain]"
+```
+
+LangGraph도 동일한 extras에 포함된다 (`langgraph>=1.0.0`).
+
+---
+
+### 9. ragas 설치 후 datasets 버전 충돌
+
+**증상**: `pip install "agent-evaluator[eval]"` 후 `ImportError` 또는 ragas API 오류.
+
+**원인**: `datasets` 패키지 버전 불일치.
+
+**해결책**:
+
+```bash
+pip install "datasets>=4.0.0,<6.0.0"
+```
+
+ragas 0.4.x는 `EvaluationDataset`, `SingleTurnSample` API를 사용한다. 구버전 `datasets`와 호환되지 않는다.
+
+---
+
+### 10. batch_eval DataFrame이 비어있음
+
+**증상**: `return_format="dataframe"` 설정 후 빈 DataFrame 반환.
+
+**원인**: 함수 서명에서 첫 번째 인자가 `questions` 리스트여야 한다.
+
+```python
+# 잘못됨
+@batch_eval(monitor, task_type="qa")
+def batch_agent(question: str, ground_truth: str = "") -> str:  # 단일 항목
+    return llm.invoke(question)
+
+# 올바름
+@batch_eval(monitor, task_type="qa", return_format="dataframe")
+def batch_agent(questions: list, ground_truths: list = None) -> list:
+    return [llm.invoke(q) for q in questions]
+
+df = batch_agent(questions, ground_truths=gts)
+```
+
+---
+
+### 11. conversation_eval 세션 데이터 중복
+
+**증상**: 대화 세션 지표에 중복 턴이 기록되거나 세션이 섞임.
+
+**원인**: 같은 `session_id`를 여러 세션에서 재사용.
+
+**해결책**: 세션마다 고유한 `session_id`를 사용한다.
+
+```python
+import uuid
+
+@conversation_eval(monitor, session_id_arg="session_id")
+def chat_agent(message: str, session_id: str = "s1") -> str:
+    return chatbot.chat(message)
+
+# 각 사용자별 고유 ID
+chat_agent("안녕하세요", session_id=str(uuid.uuid4()))
+```
+
+---
+
+### 12. QuickEval.__repr__ AttributeError
+
+**증상**: `print(eval)` 또는 REPL에서 `QuickEval` 객체 출력 시 `AttributeError: 'QuickEval' object has no attribute 'tcr_tracker'`.
+
+**원인**: 이 버그는 v0.7.1에서 수정되었다. 이전 버전을 사용 중인 경우 업그레이드한다.
+
+```bash
+pip install --upgrade agent-evaluator
+```
+
+v0.7.1+에서는 태스크가 없을 때 `tasks=0`을 안전하게 반환한다.
+
+---
+
+### 13. LLM Judge가 동작하지 않음
+
+**증상**: `enable_llm_judge=True` 설정 후에도 `llm_judge` 지표가 보고서에 없음.
+
+**원인**: `OPENAI_API_KEY` 또는 `ANTHROPIC_API_KEY` 미설정.
+
+**해결책**:
+
+```bash
+export OPENAI_API_KEY=sk-proj-...
+# 또는
+export ANTHROPIC_API_KEY=sk-ant-...
+```
+
+```python
+# Anthropic 모델 명시
+@agent_eval(monitor, task_type="qa", enable_llm_judge=True, judge_model="claude-sonnet-4-6")
+def agent(question: str, ground_truth: str = "") -> str: ...
+```
+
+---
+
+### 14. flush_every 저장이 안 됨
+
+**증상**: `flush_every=10` 설정 후 파일이 생성되지 않음.
+
+**원인 A**: `output_dir`이 `None`이거나 존재하지 않는 경로.
+
+```python
+# output_dir 반드시 지정
+monitor = PerformanceMonitor(output_dir="results/")
+
+@agent_eval(monitor, task_type="qa", flush_every=10, flush_filename="periodic")
+def agent(question: str, ground_truth: str = "") -> str: ...
+```
+
+**원인 B**: 디렉토리 쓰기 권한 없음. `ls -la results/`로 권한을 확인한다.
+
+---
+
+### 15. TaskResult frozen=True 오류
+
+**증상**: `result.accuracy_score = 0.9` 등 TaskResult 필드를 직접 수정하려 할 때 `FrozenInstanceError`.
+
+**원인**: `TaskResult`는 `@dataclass(frozen=True)` — 불변 객체.
+
+**해결책**: `to_dict()`로 복사한 후 수정하거나 `create_taskresult()`로 새로 생성한다.
+
+```python
+# to_dict()로 변환 후 수정
+d = result.to_dict()
+d["accuracy_score"] = 0.9
+new_result = TaskResult.from_dict(d)
+
+# 또는 create_taskresult()로 새로 생성
+from agent_evaluator import create_taskresult
+new_result = create_taskresult(
+    task_id="task_001",
+    question="질문",
+    response="답변",
+    ground_truth="정답",
+    execution_time=1.0,
+    task_type="qa",
+)
+```
+
+---
+
+### 16. evaluation_session 컨텍스트에서 예외 후 데이터 손실
+
+**증상**: `with evaluation_session(...)` 블록 내에서 예외 발생 후 결과 파일이 없음.
+
+**원인**: `PerformanceMonitor`를 직접 사용하고 `finally`에서 `save_to_file()`을 호출하지 않음.
+
+**해결책 A**: `evaluation_session` 컨텍스트 매니저를 사용한다 — 예외 발생 시에도 자동 저장된다.
+
+```python
+from agent_evaluator import evaluation_session
+
+with evaluation_session("output_filename") as monitor:
+    result = agent.run(task)
+    monitor.record_task(result)
+# 세션 종료 시 자동 저장 (예외 발생 시에도 안전)
+```
+
+**해결책 B**: `PerformanceMonitor` 직접 사용 시 `finally` 블록에서 저장한다.
+
+```python
+monitor = PerformanceMonitor(output_dir="results/")
+try:
+    monitor.record_task(result)
+finally:
+    monitor.save_to_file("evaluation")
+```
+
+---
+
+### 17. Pydantic 버전 충돌 (crewai + autogen 동시)
+
+**증상**: crewai와 autogen을 동시에 설치하면 pydantic 2.11.x로 silent downgrade.
+
+**원인**: crewai는 `pydantic<2.12`를 요구하고, autogen은 `pydantic>=2.12`를 선호한다.
+
+**영향**: 기능 동작은 정상이지만 autogen 최신 기능 일부가 제한될 수 있다.
+
+**권장 방법**: crewai와 autogen을 별도 가상환경에서 격리하여 사용한다.
+
+```bash
+# crewai 환경
+python -m venv venv-crewai
+pip install "agent-evaluator[crewai]"
+
+# autogen 환경
+python -m venv venv-autogen
+pip install "agent-evaluator[autogen]"
+```
+
+---
+
+### 18. auto_detect_framework가 잘못 감지됨
+
+**증상**: `auto_detect_framework=True`(기본값)일 때 잘못된 프레임워크로 감지되어 메타데이터 추출 오류.
+
+**해결책**: `framework=` 파라미터로 명시적으로 지정한다.
+
+```python
+# 자동 감지 — 오감지 가능
+@agent_eval(monitor, task_type="qa")
+def agent(question: str, ground_truth: str = "") -> str: ...
+
+# 명시적 지정 — 안전
+@agent_eval(monitor, task_type="qa", framework="openai")
+def agent(question: str, ground_truth: str = "") -> str: ...
+```
+
+지원 프레임워크 목록: `langchain`, `langgraph`, `crewai`, `autogen`, `dspy`, `pydanticai`, `anthropic`, `openai`, `gemini`, `llamaindex`, `haystack`, `groq`, `mistral`, `cohere`, `bedrock`, `ollama`, `vllm`, `huggingface`, `smolagents`, `semantic_kernel`, `vertexai`
+
+---
+
+### 19. agent-eval monitor --check 실패
+
+**증상**: `agent-eval monitor --check` 실행 시 오류 또는 미설치 표시.
+
+**원인 A**: `[otel]` extras 미설치
+
+```bash
+pip install "agent-evaluator[otel]"
+```
+
+**원인 B**: 포트 6006이 이미 사용 중
+
+```bash
+# 포트 사용 확인
+lsof -i :6006
+
+# 다른 포트로 기동
+agent-eval monitor --port 6007
+```
+
+---
+
+### 20. evaluation HTML 보고서가 깨짐
+
+**증상**: `monitor.save_to_file("evaluation")` 후 생성된 `.html` 파일이 깨지거나 `TemplateNotFound` 오류.
+
+**원인**: `jinja2` 미설치.
+
+**해결책**:
+
+```bash
+pip install "agent-evaluator[serve]"
+# 또는 단독 설치
+pip install jinja2>=3.1.0
+```
+
+---
+
+## 자주 묻는 질문 (FAQ) 10가지
+
+---
+
+### Q1. ground_truth 없이 평가가 가능한가?
+
+가능하다. `ground_truth`가 없는 경우:
+- `accuracy_score`는 0.0으로 기록됨 (무의미)
+- `hallucination_rate`는 계산되지 않음
+- `LLMJudge`는 `completeness`, `relevance`, `factual_consistency` 3종을 ground_truth 없이 채점 가능
+
+```python
+@agent_eval(monitor, task_type="qa", enable_llm_judge=True)
+def agent(question: str, ground_truth: str = "") -> str:
+    return llm.invoke(question)
+
+agent("질문")  # ground_truth 없이 호출 — LLM Judge만 동작
+```
+
+---
+
+### Q2. 비동기(async) 에이전트를 평가할 수 있나?
+
+가능하다. `@agent_eval` 데코레이터는 `async def` 함수를 자동으로 감지한다.
+
+```python
+@agent_eval(monitor, task_type="qa", framework="autogen")
+async def async_agent(question: str, ground_truth: str = "") -> str:
+    return await agent.run(question)
+
+# 비동기 컨텍스트 매니저
+async with async_evaluation_session("output") as monitor:
+    result = await agent.run(task)
+    monitor.record_task(result)
+```
+
+---
+
+### Q3. 한 번의 평가 세션에 여러 에이전트를 포함할 수 있나?
+
+가능하다. 하나의 `PerformanceMonitor`에 여러 에이전트의 `TaskResult`를 기록할 수 있다.
+
+```python
+monitor = PerformanceMonitor(output_dir="results/")
+
+@agent_eval(monitor, task_type="qa", framework="openai")
+def agent_a(question: str, ground_truth: str = "") -> str: ...
+
+@agent_eval(monitor, task_type="tool_use", framework="langchain")
+def agent_b(question: str, ground_truth: str = "") -> str: ...
+
+# 두 에이전트 모두 같은 monitor에 기록됨
+```
+
+---
+
+### Q4. 결과를 pandas DataFrame으로 추출하는 방법은?
+
+```python
+df = monitor.export_to_dataframe()
+# 컬럼: task_id, task_type, success, completion_score, accuracy_score,
+#        execution_time, tokens_total, tokens_input, tokens_output,
+#        framework, tool_call_count, has_error, attempts, timestamp, ...
+```
+
+`QuickEval`에서도 동일하게 사용 가능하다.
+
+---
+
+### Q5. 골든 데이터셋이란 무엇인가?
+
+높은 점수를 받은 우수 평가 케이스를 모아둔 참조 데이터셋이다. 회귀 테스트, 새 모델 비교, 파인튜닝 데이터로 활용한다. `agent-eval dataset build` 명령어로 자동 추출하거나 `GoldenSetBuilder`를 코드에서 직접 사용할 수 있다.
+
+---
+
+### Q6. 평가 데코레이터를 적용해도 에이전트 성능에 영향이 있나?
+
+Layer 1/2 네이티브 지표는 순수 Python 알고리즘으로 계산되므로 오버헤드가 매우 작다 (태스크당 < 5ms). 단, 보안 지표(`enable_security_metrics=True`) 활성화 시 5~15ms 추가 오버헤드가 발생한다. LLM Judge(`enable_llm_judge=True`)는 외부 API 호출을 수반하므로 수 초의 추가 시간이 필요하다.
+
+---
+
+### Q7. 멀티턴 대화에서 문맥 유지율을 측정하는 방법은?
+
+`ConversationSession` 또는 `@conversation_eval` 데코레이터를 사용한다.
+
+```python
+from agent_evaluator.decorators import conversation_eval
+
+@conversation_eval(monitor, session_id_arg="session_id")
+def chat_agent(message: str, session_id: str = "s1") -> str:
+    return chatbot.chat(message)
+
+chat_agent("안녕하세요", session_id="u1")
+chat_agent("오늘 날씨는?", session_id="u1")
+```
+
+`ConversationMetrics.context_retention` 지표로 문맥 유지율을 확인한다.
+
+---
+
+### Q8. CI/CD에서 평가를 자동화하는 방법은?
+
+```yaml
+# GitHub Actions 예시
+- name: 에이전트 평가
+  run: python evaluate.py
+
+- name: 품질 게이팅
+  run: agent-eval gate results/evaluation.json --tcr 85 --accuracy 70
+```
+
+`agent-eval gate`가 임계값 미달 시 exit code 1을 반환하여 파이프라인을 자동 차단한다.
+
+---
+
+### Q9. 평가 결과를 외부 시스템으로 내보내는 방법은?
+
+```python
+# Weights & Biases
+monitor.export_to_wandb()
+
+# MLflow
+monitor.export_to_mlflow()
+
+# pandas DataFrame → CSV, Excel
+df = monitor.export_to_dataframe()
+df.to_csv("results.csv")
+```
+
+대시보드 API에서 `/export/excel` 엔드포인트로 Excel 파일 다운로드도 가능하다.
+
+---
+
+### Q10. 이미 기록된 평가 결과를 재분석하는 방법은?
+
+```python
+from agent_evaluator import QuickEval
+
+eval = QuickEval("results/")
+eval.replay("results/evaluation.json")  # 기존 JSON 파일 재로딩
+
+# 재분석 후 gate 적용
+eval.gate(tcr=85, accuracy=70)
+
+# DataFrame으로 추출
+df = eval.export_to_dataframe()
+```

@@ -5138,8 +5138,11 @@ function app() { return {
       this.trData = { traces:[], annotations:[], audit:[], auditItems:[] };
       this.trDetail = {};
       this.annDetail = {};
+      // x-for 옵션 렌더링 완료 후 selId 설정
+      await this.$nextTick();
       if (this.files.length > 0 && !this.selId) {
         this.selId = this.files[0].id;
+        await this.$nextTick();
         await this.loadFile(this.selId);
       }
     } catch(e) { console.error(e); }

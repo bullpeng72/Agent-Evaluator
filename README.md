@@ -3,7 +3,7 @@
 [![PyPI version](https://img.shields.io/pypi/v/agent-evaluator.svg)](https://pypi.org/project/agent-evaluator/)
 [![Python Version](https://img.shields.io/badge/python-3.8%2B-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Version](https://img.shields.io/badge/version-0.7.4-green.svg)](https://github.com/bullpeng72/Agent-Evaluator)
+[![Version](https://img.shields.io/badge/version-0.7.5-green.svg)](https://github.com/bullpeng72/Agent-Evaluator)
 
 **AI 에이전트를 위한 프로덕션 레디 평가 프레임워크**
 
@@ -1108,9 +1108,56 @@ eval = QuickEval("results/", auto_save=True, auto_save_interval=10)
 
 ---
 
-## 평가 결과 시각화
+## 평가 결과 출력 시나리오
 
-### FastAPI 대시보드
+데코레이터로 수집된 지표를 **세 가지 방식**으로 출력할 수 있습니다.
+
+| 시나리오 | 용도 | 추가 작업 |
+|----------|------|----------|
+| 터미널 출력 | 즉시 확인 · 디버깅 | 없음 |
+| FastAPI 대시보드 | 개발·검증 단계 시각화 | `save_to_file()` 후 CLI 실행 |
+| Phoenix OTEL | 프로덕션 실시간 모니터링 | `setup_otel()` 선언 후 별도 터미널에서 `agent-eval monitor` |
+
+### 시나리오 1 — 터미널 출력
+
+데코레이터 실행 후 `generate_report()`로 결과를 즉시 확인합니다.
+
+```python
+from agent_evaluator import PerformanceMonitor
+from agent_evaluator.decorators import agent_eval
+
+monitor = PerformanceMonitor(output_dir="results/")
+
+@agent_eval(monitor, task_type="qa")
+def my_agent(question: str, ground_truth: str = "") -> str:
+    return llm.invoke(question)
+
+for q, gt in dataset:
+    my_agent(q, ground_truth=gt)
+
+# 터미널 출력 — generate_report() 후 to_json() 또는 to_dict()
+report = monitor.generate_report()
+print(report.to_json(indent=2))
+# → {"accuracy_metrics": {...}, "efficiency_metrics": {...}, "quality_metrics": {...}}
+```
+
+### 시나리오 2 — FastAPI 대시보드
+
+`save_to_file()`이 `results/` 에 JSON을 쓰고, `agent-eval dashboard`가 이를 읽습니다.
+
+```python
+# 방법 A: 실행 후 수동 저장
+monitor.save_to_file("eval")          # results/eval.json + .html 생성
+
+# 방법 B: auto_save — N건마다 자동 저장
+monitor = PerformanceMonitor(output_dir="results/", auto_save=True, auto_save_interval=10)
+
+# 방법 C: QuickEval
+eval = QuickEval("results/")
+@eval.qa
+def my_agent(q, ground_truth=""): ...
+eval.save()                           # results/quickeval.json + .html
+```
 
 ```bash
 pip install "agent-evaluator[serve]"
@@ -1123,14 +1170,33 @@ agent-eval dashboard results/ --watch        # 파일 변경 시 자동 갱신
 | `http://localhost:8765/slides` | 발표용 슬라이드 뷰 |
 | `http://localhost:8765/api/docs` | Swagger API 문서 |
 
-### Phoenix 실시간 모니터링
+### 시나리오 3 — Phoenix 실시간 모니터링 (OTEL)
+
+`setup_otel()`을 **PerformanceMonitor 생성 전에** 호출해야 합니다. 이후 모든 `record_task()` 호출에서 OTLP 스팬이 자동 발행됩니다.
 
 ```bash
+# 터미널 1 — Phoenix 서버 기동
 pip install "agent-evaluator[otel]"
 agent-eval monitor                           # http://localhost:6006
 ```
 
-에이전트 실행 시 OTLP 스팬이 자동 전송됩니다. Tracing · Evaluators · Datasets · Prompts 4개 메뉴에서 실시간 확인 가능합니다.
+```python
+# 터미널 2 — 에이전트 코드
+from agent_evaluator import setup_otel, PerformanceMonitor
+from agent_evaluator.decorators import agent_eval
+
+setup_otel(endpoint="http://localhost:6006", service_name="my-agent")  # ← 반드시 먼저
+monitor = PerformanceMonitor(output_dir="results/")
+
+@agent_eval(monitor, task_type="qa")
+def my_agent(question: str, ground_truth: str = "") -> str:
+    return llm.invoke(question)
+
+# 호출 시 OTLP 스팬 자동 전송 → Phoenix Tracing 탭에서 즉시 확인
+my_agent("한국의 수도는?", ground_truth="서울")
+```
+
+Tracing · Evaluators · Datasets · Prompts 4개 메뉴에서 실시간 확인 가능합니다.
 
 ---
 
@@ -1289,6 +1355,12 @@ mypy agent_evaluator/          # 타입 검사
 ---
 
 ## 변경 이력
+
+### v0.7.5 (2026-04-09) — 대시보드 5개 탭 데이터 수정 · AnomalyDetector 버그 수정
+
+- 🐛 `AnomalyDetector` 버그 2개 수정 — latency 키(`total_time`), error rate(`success` 플래그 → 복합 조건)
+- 🔧 예제 3개 대시보드 탭 연동 — 실시간·알림·사용자 반응·이상 감지·평가 비용·외부평가 6개 탭 활성화
+- 📝 `Docs/12_MONITOR_GUIDE.md` 전면 재작성 — Phoenix UI 탭별 완전 가이드 + GraphQL 쿼리 예시
 
 ### v0.7.4 (2026-04-08) — 전체 예제 데코레이터 적용 완료 · layer1 버그 수정 · 문서 현행화
 

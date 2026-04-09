@@ -323,7 +323,7 @@ async def main():
 
     print("\n--- 결과 저장 ---")
     monitor.save_to_file("19_decorator_coverage_expanded")
-    print(f"  {_project_root / 'results' / '19_decorator_coverage_expanded'} 저장 완료")
+    print(f"  {_project_root / 'results' / '19_decorator_coverage_expanded.json'} 저장 완료")
 
 
 asyncio.run(main())
@@ -332,7 +332,7 @@ asyncio.run(main())
 # 결과 확인
 # ---------------------------------------------------------------------------
 import json
-result_path = str(_project_root / "results" / "19_decorator_coverage_expanded")
+result_path = str(_project_root / "results" / "19_decorator_coverage_expanded.json")
 try:
     with open(result_path) as f:
         data = json.load(f)

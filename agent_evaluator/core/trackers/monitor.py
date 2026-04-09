@@ -4183,6 +4183,10 @@ class PerformanceMonitor:
         if not os.path.isabs(filename):
             filename = str(self.output_dir / filename)
 
+        # 확장자가 없으면 .json 자동 추가 (대시보드 로더가 *.json 패턴으로 탐색)
+        if not os.path.splitext(filename)[1]:
+            filename = filename + ".json"
+
         pricing_data: Dict[str, Any] = dict(self.token_tracker.pricing)
 
         # P: tasks 읽기 시 얕은 복사로 lock 보호 — 다른 스레드의 record_task()와 충돌 방지

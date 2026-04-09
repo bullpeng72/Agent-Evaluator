@@ -2,7 +2,7 @@
 
 에이전트 코드에 평가를 적용하는 실전 개발자 레퍼런스
 
-**Version**: 0.7.4  
+**Version**: 0.7.5  
 **최종 업데이트**: 2026-04-08
 
 ---
@@ -112,4 +112,77 @@ eval = QuickEval("results/")
 
 @eval.qa  # 내부적으로 @agent_eval(monitor, task_type="qa") 호출
 def my_agent(q): ...
+```
+
+---
+
+## 6. 평가 결과 출력 시나리오
+
+데코레이터로 수집된 지표를 세 가지 방식으로 출력할 수 있습니다.
+
+### 시나리오 1 — 터미널 출력 (추가 설치 불필요)
+
+```python
+from agent_evaluator import PerformanceMonitor
+from agent_evaluator.decorators import agent_eval
+
+monitor = PerformanceMonitor(output_dir="results/")
+
+@agent_eval(monitor, task_type="qa")
+def my_agent(question: str, ground_truth: str = "") -> str:
+    return llm.invoke(question)
+
+for q, gt in dataset:
+    my_agent(q, ground_truth=gt)
+
+report = monitor.generate_report()
+print(report.to_json(indent=2))
+# → {"accuracy_metrics": {"overall_accuracy": 0.87, ...}, "efficiency_metrics": {...}}
+```
+
+### 시나리오 2 — FastAPI 대시보드 (`[serve]` extras)
+
+`save_to_file()`이 JSON을 쓰고, `agent-eval dashboard`가 이를 읽습니다.
+
+```python
+# 데코레이터 실행 후
+monitor.save_to_file("eval")     # results/eval.json + .html 자동 생성
+
+# 또는 N건마다 자동 저장
+monitor = PerformanceMonitor(output_dir="results/", auto_save=True, auto_save_interval=10)
+
+# QuickEval 사용 시
+eval = QuickEval("results/")
+eval.save()                      # results/quickeval.json + .html
+```
+
+```bash
+pip install "agent-evaluator[serve]"
+agent-eval dashboard results/ --watch    # http://localhost:8765
+```
+
+### 시나리오 3 — Phoenix OTEL 실시간 모니터링 (`[otel]` extras)
+
+`setup_otel()`을 **PerformanceMonitor 생성 전**에 호출해야 합니다.
+
+```bash
+# 터미널 1
+pip install "agent-evaluator[otel]"
+agent-eval monitor                       # Phoenix UI: http://localhost:6006
+```
+
+```python
+# 터미널 2 — 에이전트 코드
+from agent_evaluator import setup_otel, PerformanceMonitor
+from agent_evaluator.decorators import agent_eval
+
+setup_otel(endpoint="http://localhost:6006", service_name="my-agent")  # ← 반드시 먼저
+monitor = PerformanceMonitor(output_dir="results/")
+
+@agent_eval(monitor, task_type="qa")
+def my_agent(question: str, ground_truth: str = "") -> str:
+    return llm.invoke(question)
+
+# 호출 시 OTLP 스팬 자동 전송 → Phoenix Tracing 탭에서 실시간 확인
+my_agent("한국의 수도는?", ground_truth="서울")
 ```

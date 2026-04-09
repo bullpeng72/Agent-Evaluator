@@ -5,7 +5,7 @@
 **Agent-Evaluator** is a production-ready Python SDK for evaluating AI agents.
 25개의 성능 지표를 세 개의 레이어(기본/에이전틱/하이브리드)로 측정한다.
 
-- **Version:** 0.7.4 (Beta)
+- **Version:** 0.7.5 (Beta)
 - **Python:** 3.8+
 - **License:** MIT
 - **Author:** Sungwoo Kim
@@ -154,28 +154,15 @@ agent_evaluator/
 ├── config.py                # 환경변수 설정 로더 (load_env, get_settings)
 └── __init__.py              # Public API surface
 
-Evaluator_Examples/          # 실제 사용 예시 (패키지 외부, 21개 플랫 파일)
-├── 01_quality_eval.py       # 품질 지표 — Accuracy, Hallucination, Quality, RAG
-├── 02_performance_eval.py   # 성능 지표 — TCR, Latency, Token Economy
-├── 03_agentic_eval.py       # 에이전틱 지표 — Tool Call, Coordination, Workflow
-├── 04_security_eval.py      # 보안 지표 — Input Sanitization, Leakage, Auth, Escalation
-├── 05_hybrid_eval.py        # 하이브리드 평가 — DeepEval, Ragas, LangSmith 통합
-├── 06_langchain_eval.py     # LangChain 프레임워크 통합 예제
-├── 07_langgraph_eval.py     # LangGraph 프레임워크 통합 예제
-├── 08_crewai_eval.py        # CrewAI 프레임워크 통합 예제
-├── 09_autogen_eval.py       # AutoGen 프레임워크 통합 예제
-├── 10_cross_framework_eval.py # 멀티 프레임워크 비교 평가
-├── 11_streaming_eval.py     # 실시간 스트리밍 평가 + 사용자 반응(ImplicitFeedback)
-├── 12_alerting_eval.py      # 알림 엔진 예제
-├── 13_golden_set_build.py   # GoldenSetBuilder — 케이스 추출·저장·병합
-├── 14_anomaly_cost_eval.py  # 이상 감지 + 비용 추적 + AdaptivePolicy
-├── 15_conversation_eval.py  # 멀티턴 대화 평가 — ConversationSession
-├── 16_dashboard_demo.py     # FastAPI 대시보드 통합 데모 — save_to_file + Phoenix OTEL
-├── 17_phoenix_verification.py # Phoenix 4개 메뉴 통합 데모 — Tracing·Evaluators·Datasets·Prompts
-├── 18_decorator_eval.py     # @agent_eval 데코레이터 방식 평가
-├── 19_decorator_coverage_expanded.py # 커버리지 확대 데코레이터 검증
-├── 20_quickeval_demo.py     # QuickEval + 신규 기능 통합 데모 (7섹션)
-└── 21_layer2_agentic_eval.py # Layer 2 Agentic Metrics 활성화 가이드 (3가지 방식)
+Evaluator_Examples/          # 실제 사용 예시 (패키지 외부, 7개 통합 파일)
+├── 01_layer1_all_metrics.py      # Layer 1 전체 — Accuracy·Hallucination·Quality·Latency·Token·TCR
+├── 02_layer2_agentic_security.py # Layer 2 전체 — ToolCall·Retry·Coordination·Workflow·Security·대화
+├── 03_framework_adapters.py      # 프레임워크 어댑터 — LangChain·LangGraph·CrewAI·AutoGen + 크로스 파이프라인
+├── 04_decorator_quickeval.py     # 데코레이터 전체 API — @agent_eval·@batch_eval·@conversation_eval·QuickEval
+├── 05_streaming_alerts.py        # 실시간 — StreamingEvaluator·ImplicitFeedback·AlertEngine·SimpleTaskAlertRule
+├── 06_operational.py             # 운영 인프라 — AnomalyDetector·CostTracker·GoldenSetBuilder·evaluation_session
+└── 07_phoenix_hybrid.py          # Phoenix OTEL — Tracing·Datasets·Playground·GraphQL + DeepEval·Ragas(opt-in)
+# 기존 21개 예제: Evaluator_Examples/.deprecated/ 에 보존
 
 scripts/                     # 운영 도구 (live 인프라 필요, pytest 대상 아님)
 └── phoenix_check.py         # Phoenix 통합 자동 점검 — GraphQL 역조회로 pass/fail 판정 (CI 헬스체크용)
@@ -482,7 +469,7 @@ from agent_evaluator import (
 pytest
 ```
 
-커버리지 현황 (v0.7.4 기준):
+커버리지 현황 (v0.7.5 기준):
 - `base.py`: 92% | `layer1.py`: 84% | `layer2.py`: 95%
 - `hybrid_monitor.py`: 61% | `monitor.py`: 41% | `taskresult_helpers.py`: 89% | 전체: 33%
 
@@ -543,6 +530,15 @@ pytest
 ---
 
 ## 📝 변경 이력
+
+### v0.7.5 (2026-04-09) — 대시보드 5개 탭 데이터 수정 · AnomalyDetector 버그 수정 · 예제 현행화
+
+- 🐛 **`AnomalyDetector._get_latencies()` 버그 수정** — `execution_time` 키 읽기 → `total_time`(실제 저장 키)으로 수정, 이상 감지 탭 latency_trend 항상 0 반환 문제 해결
+- 🐛 **`AnomalyDetector._get_error_rate()` 버그 수정** — `t.success` 기준 (create_taskresult 항상 True) → `accuracy_score < 0.05 AND completion_score < 0.05` 복합 조건으로 교체, error_surge 감지 복구
+- 🔧 **`05_streaming_alerts.py` 대시보드 연동** — `streaming._flush()` 호출(실시간 탭), `monitor.record_implicit_feedback()`(사용자 반응 탭), alert JSONL 기록(알림 탭), `enable_anomaly_detection=True`(이상 감지 탭) 추가
+- 🔧 **`06_operational.py` 대시보드 연동** — `evaluation_cost` 키 주입(평가 비용 탭), `enable_anomaly_detection=True`, alert JSONL 기록 추가
+- 🔧 **`07_phoenix_hybrid.py` 외부평가 탭 활성화** — `HybridPerformanceMonitor` 연동(API 키 있을 때) + 데모 `advanced_metrics` JSON 패치(API 키 없을 때), `rag_metrics`·`advanced_metrics_summary` 생성
+- 📝 **`Docs/12_MONITOR_GUIDE.md` 전면 재작성** — Phoenix UI 탭별 완전 가이드(Tracing·Evaluators·Datasets·Prompts·Experiments·Playground), GraphQL 5개 쿼리 예시, FAQ 6개, Evaluators 탭 오해 해소 섹션 추가
 
 ### v0.7.4 (2026-04-08) — 전체 예제 데코레이터 적용 완료 · layer1 버그 수정 · 문서 현행화
 

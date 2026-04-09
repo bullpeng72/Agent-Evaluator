@@ -2,8 +2,8 @@
 
 Agent Evaluator 실시간 평가 대시보드 — 탭별 상세 사용법
 
-**버전:** v0.7.4
-**최종 업데이트:** 2026-04-07
+**버전:** v0.7.5
+**최종 업데이트:** 2026-04-09
 
 ---
 
@@ -16,7 +16,13 @@ Agent Evaluator 실시간 평가 대시보드 — 탭별 상세 사용법
 5. [Security 탭](#security)
 6. [RAG 탭](#rag)
 7. [DeepEval 탭](#deepeval)
-8. [공통 기능](#공통)
+8. [운영 탭 데이터 설정 가이드](#운영탭)
+   - [실시간 탭](#tab-streaming)
+   - [알림 탭](#tab-alerts)
+   - [사용자 반응 탭](#tab-feedback)
+   - [이상 감지 탭](#tab-anomaly)
+   - [평가 비용 탭](#tab-cost)
+9. [공통 기능](#공통)
 
 ---
 
@@ -39,12 +45,45 @@ agent-eval dashboard --offline
 대시보드는 `results/` 폴더의 JSON 파일을 자동으로 로드합니다.
 `--watch` 플래그 사용 시 새 결과 파일 생성/변경을 감지하여 실시간 갱신됩니다.
 
-### 데이터 생성 (데코레이터 방식)
+### 데이터 생성 — `save_to_file()` 필수
+
+대시보드는 `results/` 의 JSON 파일을 읽습니다. 데코레이터 실행 후 **반드시 저장 단계**가 필요합니다.
+
+**방법 A — `save_to_file()` 직접 호출 (PerformanceMonitor)**
+
+```python
+from agent_evaluator import PerformanceMonitor
+from agent_evaluator.decorators import agent_eval
+
+monitor = PerformanceMonitor(output_dir="results/")
+
+@agent_eval(monitor, task_type="qa")
+def my_agent(question: str, ground_truth: str = "") -> str:
+    return llm.invoke(question)
+
+for q, gt in dataset:
+    my_agent(q, ground_truth=gt)
+
+monitor.save_to_file("eval")  # results/eval.json + results/eval.html 생성
+```
+
+**방법 B — `auto_save` (N건마다 자동 저장)**
+
+```python
+monitor = PerformanceMonitor(
+    output_dir="results/",
+    auto_save=True,
+    auto_save_interval=10,       # 10건마다 자동 저장
+    auto_save_filename="auto_save",
+)
+```
+
+**방법 C — `QuickEval.save()`**
 
 ```python
 from agent_evaluator import QuickEval
 
-eval = QuickEval("results/")  # 대시보드가 읽는 results/ 디렉토리
+eval = QuickEval("results/")
 
 @eval.qa
 def my_agent(question: str, ground_truth: str = "") -> str:
@@ -53,10 +92,10 @@ def my_agent(question: str, ground_truth: str = "") -> str:
 for q, gt in dataset:
     my_agent(q, ground_truth=gt)
 
-eval.save()  # results/quickeval.json + .html 자동 생성 → 대시보드에서 바로 확인
+eval.save()  # results/quickeval.json + .html 자동 생성
 ```
 
-> `save_to_file(name)` 또는 `eval.save()` 호출 후 대시보드를 열면 결과를 즉시 확인할 수 있습니다.
+> **flush_every** — `@agent_eval(monitor, task_type="qa", flush_every=50)` 파라미터로 N호출마다 자동 저장할 수도 있습니다.
 
 ---
 
@@ -264,6 +303,247 @@ Layer 3 DeepEval 평가 결과. `HybridPerformanceMonitor` + `enable_deepeval=Tr
 
 ---
 
+## 운영 탭 데이터 설정 가이드 {#운영탭}
+
+대시보드 상단의 **실시간 / 알림 / 사용자 반응 / 이상 감지 / 평가 비용** 5개 탭은
+`@agent_eval` 데코레이터만으로는 데이터가 채워지지 않는 항목이 있습니다.
+각 탭에 필요한 추가 조치를 정리합니다.
+
+### 탭별 요구사항 한눈에 보기
+
+| 탭 | 데코레이터만으로 가능? | 필수 추가 조치 |
+|---|:---:|---|
+| **실시간** | ❌ 불가 | `StreamingEvaluator` 생성 + `record()` + `_flush()` 명시 호출 |
+| **알림** | ⚠️ 반자동 | `alert_rules=` 파라미터 전달 + 핸들러 내 JSONL 기록 함수 구현 |
+| **사용자 반응** | ❌ 불가 | `monitor.record_implicit_feedback()` 명시 호출 |
+| **이상 감지** | ✅ 가능 | `PerformanceMonitor(enable_anomaly_detection=True)` 설정만으로 자동 |
+| **평가 비용** | ✅ 가능 | 토큰 기록 자동 / LLM Judge 비용: `enable_llm_judge=True` 추가 |
+
+> **근본 원인**: `save_to_file()` 내부에서 각 탭의 데이터를 생성하는 조건이 다릅니다.
+> 실시간·사용자반응 탭은 "외부 이벤트(스트리밍 청크, 사용자 피드백)"를 수집해야 하므로
+> 데코레이터가 자동 감지할 수 없습니다.
+
+---
+
+### 실시간 탭 {#tab-streaming}
+
+`StreamingEvaluator` 인스턴스를 생성하고, 평가 루프에서 명시적으로 `record()` → `_flush()`를 호출해야 합니다.
+
+```python
+from agent_evaluator import PerformanceMonitor
+from agent_evaluator.streaming.evaluator import StreamingEvaluator
+
+monitor = PerformanceMonitor(output_dir="results/")
+
+# StreamingEvaluator 생성 — monitor와 연결
+streaming = StreamingEvaluator(
+    monitor=monitor,
+    window_size=20,
+    flush_interval=30,  # 30초마다 자동 flush (백그라운드)
+)
+
+# 각 태스크 평가 후 record()
+result = create_taskresult(...)
+monitor.record_task(result)
+streaming.record(result)          # StreamingEvaluator에도 등록
+
+# 저장 전 반드시 _flush() 호출 — monitor._streaming_snapshot 세팅
+streaming._flush()
+monitor.save_to_file("eval")      # streaming_data 키가 JSON에 포함됨
+```
+
+> **왜 `_flush()`가 필요한가?**
+> `StreamingEvaluator`는 내부적으로 `flush_interval` 초마다 백그라운드 스레드로 flush합니다.
+> 스크립트가 먼저 종료되면 flush가 실행되지 않으므로, 저장 직전에 수동 호출이 필요합니다.
+
+**`save_to_file()` 내부 조건:**
+```python
+if self._streaming_snapshot:      # StreamingEvaluator._flush()가 호출된 경우만 세팅
+    data["streaming_data"] = self._streaming_snapshot
+```
+
+---
+
+### 알림 탭 {#tab-alerts}
+
+알림 탭은 `results/alerts/YYYY-MM-DD.jsonl` 파일을 읽습니다.
+`alert_rules=` 파라미터만으로 알림이 트리거되지만, **JSONL 파일에 기록하는 코드는 핸들러에 직접 구현**해야 합니다.
+
+```python
+import json
+from datetime import date
+from agent_evaluator import SimpleTaskAlertRule, agent_eval
+import os
+
+_TODAY_JSONL = f"results/alerts/{date.today()}.jsonl"
+os.makedirs("results/alerts", exist_ok=True)
+
+def _write_alert_jsonl(rule_name: str, severity: str, message: str, task_id: str = ""):
+    """알림 탭이 읽는 JSONL 파일에 이벤트를 기록한다."""
+    event = {
+        "triggered_at": datetime.now().isoformat(),
+        "rule_name": rule_name,
+        "severity": severity,
+        "message": message,
+        "task_id": task_id,
+    }
+    with open(_TODAY_JSONL, "a", encoding="utf-8") as f:
+        f.write(json.dumps(event, ensure_ascii=False) + "\n")
+
+# 알림 규칙 정의 — 핸들러에서 JSONL 기록 호출
+slow_rule = SimpleTaskAlertRule(
+    name="slow_response",
+    condition=lambda tr: tr.execution_time > 3.0,
+    handler=lambda msg, tr: _write_alert_jsonl("slow_response", "warning", msg, tr.task_id),
+    severity="warning",
+)
+
+@agent_eval(monitor, task_type="qa", alert_rules=[slow_rule])
+def my_agent(question: str, ground_truth: str = "") -> str:
+    return llm.invoke(question)
+```
+
+> **알림 탭 데이터 소스**: `results/alerts/YYYY-MM-DD.jsonl` (날짜별 파일)
+> JSON 결과 파일의 `alerts` 키와는 **별개**입니다. (`alerts` 키는 개선 권고사항 텍스트)
+
+---
+
+### 사용자 반응 탭 {#tab-feedback}
+
+사용자의 클릭·별점·재질문 등 암묵적 피드백은 에이전트 외부에서 발생하므로,
+평가 루프 안에서 **명시적으로 `monitor.record_implicit_feedback()`을 호출**해야 합니다.
+
+```python
+from agent_evaluator import PerformanceMonitor
+
+monitor = PerformanceMonitor(output_dir="results/")
+
+# 태스크 실행
+result = my_agent(question, ground_truth=ground_truth)
+monitor.record_task(result)
+
+# 사용자 피드백 수집 후 별도 기록
+# feedback_type: "thumbs_up" | "thumbs_down" | "explicit_positive" | "explicit_negative"
+#                "follow_up_question" | "task_abandonment" | "retry_request" | "dwell_time"
+monitor.record_implicit_feedback(
+    task_id=result.task_id,
+    feedback_type="thumbs_up",
+    metadata={"dwell_time": 8.5, "source": "ui"},
+)
+
+monitor.save_to_file("eval")  # feedback 키가 JSON에 포함됨
+```
+
+**별도 `ImplicitFeedbackTracker` 인스턴스 사용 금지:**
+```python
+# ❌ 잘못된 방법 — monitor와 연결되지 않아 save_to_file()에 포함되지 않음
+from agent_evaluator import ImplicitFeedbackTracker
+tracker = ImplicitFeedbackTracker()  # monitor 내부 tracker와 다른 인스턴스!
+tracker.record_feedback(task_id, "thumbs_up")
+
+# ✅ 올바른 방법
+monitor.record_implicit_feedback(task_id, "thumbs_up")
+```
+
+**`save_to_file()` 내부 조건:**
+```python
+# monitor.feedback_tracker (내부 인스턴스)에 기록된 데이터만 포함
+data["feedback"] = self.feedback_tracker.get_summary()
+```
+
+---
+
+### 이상 감지 탭 {#tab-anomaly}
+
+`PerformanceMonitor` 생성자에 `enable_anomaly_detection=True`를 설정하면
+`save_to_file()` 시점에 `AnomalyDetector.scan()`이 자동 실행됩니다.
+**데코레이터나 별도 코드 추가 없이 동작합니다.**
+
+```python
+monitor = PerformanceMonitor(
+    output_dir="results/",
+    enable_anomaly_detection=True,
+    anomaly_baseline_window=50,    # 기준선 계산에 사용할 태스크 수 (기본 100)
+    anomaly_detection_window=10,   # 최근 감지 윈도우 (기본 20)
+)
+```
+
+**이상 탐지가 동작하려면 충분한 태스크 수가 필요합니다:**
+
+| 탐지 유형 | 최소 태스크 수 | 알고리즘 |
+|-----------|:---:|---------|
+| `latency_trend` | 5+ | 선형 회귀 (기울기 > 0.05초/태스크) |
+| `accuracy_drift` | 5+ | Z-score (기준선 대비 이탈 > 2.5σ) |
+| `token_spike` | 5+ | IQR (Q3 + 2×IQR 초과) |
+| `error_surge` | detection_window+ | 비율 (오류율 > 20% AND 기준선의 2배) |
+| `security_pattern` | 1+ | 빈도 (보안 위협율 > 10%) |
+
+> **이상 없음 vs 데이터 없음**: 탭이 "이상 없음"을 표시하면 정상 동작입니다.
+> 탭이 완전히 비어있으면 `enable_anomaly_detection=True` 설정을 확인하세요.
+
+---
+
+### 평가 비용 탭 {#tab-cost}
+
+토큰 사용량은 `TokenEconomyTracker`가 자동 기록합니다.
+`evaluation_cost` 키(LLM Judge 비용)를 포함하려면 `enable_llm_judge=True`가 필요합니다.
+
+```python
+# 기본 토큰 비용 — 자동 (추가 설정 불필요)
+monitor = PerformanceMonitor(output_dir="results/")
+
+# LLM Judge 비용 포함 — enable_llm_judge=True 필요
+monitor = PerformanceMonitor(
+    output_dir="results/",
+    enable_llm_judge=True,
+    llm_judge_model="claude-haiku-4-5-20251001",  # 비용 효율적인 모델 권장
+)
+```
+
+**비용 탭 JSON 키 구조:**
+```json
+{
+  "token_economy": {
+    "total_tokens": 45230,
+    "total_cost_usd": 0.0135,
+    "cost_by_model": { "gpt-4o-mini": 0.0135 }
+  },
+  "evaluation_cost": {
+    "total_usd": 0.00842,
+    "llm_judge_usd": 0.00312,
+    "by_provider": { "openai": 0.00530 },
+    "call_count": 50,
+    "budget_per_day": 10.0,
+    "budget_remaining_usd": 9.99158,
+    "sample_rate_current": 0.1,
+    "projected_daily_usd": 0.0842
+  }
+}
+```
+
+---
+
+### 빠른 참조 — `save_to_file()` 내부 조건 요약
+
+```python
+# 실시간 탭
+if self._streaming_snapshot:                   # StreamingEvaluator._flush() 필요
+    data["streaming_data"] = ...
+
+# 사용자 반응 탭
+data["feedback"] = self.feedback_tracker...    # monitor.record_implicit_feedback() 필요
+
+# 이상 감지 탭
+if self.enable_anomaly_detection:              # 생성자 파라미터
+    data["anomaly_data"] = AnomalyDetector().scan(self)
+
+# 평가 비용 탭 (LLM Judge 부분)
+if self.llm_judge is not None:                 # enable_llm_judge=True
+    data["evaluation_cost"] = ...
+```
+
+---
+
 ## 공통 기능 {#공통}
 
 ### 파일 선택
@@ -303,13 +583,19 @@ agent-eval dashboard
 ```
 
 ### 특정 탭이 비어 있는 경우
-| 탭 | 필요 설정 |
-|----|----------|
-| Quality — Hallucination | `enable_hallucination_detection=True` |
-| Agentic — 보안 | `enable_security_metrics=True` |
-| Security | `enable_security_metrics=True` |
-| RAG | `HybridPerformanceMonitor` + Ragas 데이터 |
-| DeepEval | `HybridPerformanceMonitor` + DeepEval 데이터 |
+
+| 탭 | 필요 설정 | 자세한 내용 |
+|----|----------|------------|
+| 실시간 | `StreamingEvaluator` + `record()` + `_flush()` | [실시간 탭 가이드](#tab-streaming) |
+| 알림 | `alert_rules=` 파라미터 + 핸들러에서 JSONL 기록 | [알림 탭 가이드](#tab-alerts) |
+| 사용자 반응 | `monitor.record_implicit_feedback()` | [사용자 반응 탭 가이드](#tab-feedback) |
+| 이상 감지 | `enable_anomaly_detection=True` | [이상 감지 탭 가이드](#tab-anomaly) |
+| 평가 비용 | 자동 (LLM Judge: `enable_llm_judge=True`) | [평가 비용 탭 가이드](#tab-cost) |
+| Quality — Hallucination | `enable_hallucination_detection=True` | — |
+| Agentic — 보안 | `enable_security_metrics=True` | — |
+| Security | `enable_security_metrics=True` | — |
+| RAG | `HybridPerformanceMonitor` + Ragas 데이터 | — |
+| DeepEval | `HybridPerformanceMonitor` + DeepEval 데이터 | — |
 
 ### 포트 충돌
 ```bash

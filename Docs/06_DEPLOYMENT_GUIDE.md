@@ -1,6 +1,6 @@
 # 배포 가이드
 
-**Agent-Evaluator v0.7.4** — CI/CD 통합 및 프로덕션 배포 전략
+**Agent-Evaluator v0.7.5** — CI/CD 통합 및 프로덕션 배포 전략
 
 ---
 
@@ -680,7 +680,7 @@ monitor = PerformanceMonitor(
     output_dir="results/",
     enable_security_metrics=True,  # 반드시 명시
 )
-# v0.7.4부터 record_task() 시 5개 보안 트래커 자동 호출
+# v0.7.5부터 record_task() 시 5개 보안 트래커 자동 호출
 ```
 
 ### 프로덕션 배포 전 체크리스트

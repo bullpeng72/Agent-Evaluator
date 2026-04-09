@@ -1,0 +1,494 @@
+# Chapter 5. Layer 3 — 외부 평가 도구 통합
+
+이 챕터에서는 Layer 1/2만으로 충분하지 않은 세 가지 상황과 그 해결책을 다룬다. Ground truth 없이 응답 품질을 채점하는 LLM Judge, RAG 파이프라인을 정밀하게 평가하는 Ragas, 독성·편향·커스텀 기준 평가를 지원하는 DeepEval을 실제 코드와 함께 설명한다. 세 도구 모두 LLM API 호출 비용이 발생하므로 샘플링 전략도 함께 다룬다.
+
+---
+
+## 5.1 Layer 3이 필요한 세 가지 상황
+
+### Ground Truth가 없을 때
+
+Layer 1의 Accuracy는 `ground_truth`가 있어야 계산된다. 하지만 많은 실제 에이전트는 정답을 정의하기 어렵다.
+
+- 고객 서비스 챗봇: "좋은 응답"의 기준이 상황마다 다르다
+- 창의적 글쓰기 에이전트: 정량적 정답이 없다
+- 요약 에이전트: 핵심 정보를 담았는지 판단이 주관적이다
+
+이런 경우 LLM Judge를 사용한다. LLM이 직접 심사위원이 되어 completeness(완결성), relevance(관련성), factual_consistency(사실 일관성) 3가지 차원으로 자동 채점한다.
+
+### RAG 파이프라인을 정밀하게 평가할 때
+
+RAG 시스템은 검색과 생성 두 단계로 구성된다. Layer 1의 Accuracy와 Hallucination Detection만으로는 "검색이 잘못되었는가" vs "생성이 잘못되었는가"를 구분할 수 없다.
+
+Ragas는 이 문제를 해결한다. Faithfulness(응답이 검색 결과에 충실한가), Answer Relevancy(응답이 질문에 관련 있는가), Context Precision(검색된 내용이 정확한가), Context Recall(필요한 내용이 충분히 검색되었는가) — 이 4가지 지표로 검색 단계와 생성 단계를 분리하여 진단한다.
+
+### Toxicity/Bias 탐지가 필요할 때
+
+퍼블릭 서비스에서 에이전트가 혐오 발언, 성별/인종 편향, 해악 콘텐츠를 생성하면 법적·사회적 위험이 된다. DeepEval의 Toxicity와 Bias 지표가 이를 자동으로 탐지한다. 또한 G-Eval을 통해 "전문성", "공감성" 등 서비스 특화 평가 기준을 LLM으로 정의하고 채점할 수 있다.
+
+---
+
+## 5.2 외부 평가 도구 선택 가이드
+
+### LLM Judge vs DeepEval vs Ragas 비교
+
+| 항목 | LLM Judge | DeepEval | Ragas |
+|-----|---------|--------|-----|
+| **설치** | `[llm]` (가벼움) | `[eval]` (중간) | `[eval]` (중간) |
+| **Ground Truth 필요** | 불필요 | 선택적 | 일부 필요 (Recall) |
+| **특화 영역** | 범용 3차원 자동 채점 | 독성/편향/G-Eval | RAG 파이프라인 전문 |
+| **비용** | LLM 호출 비용 | LLM 호출 비용 | LLM + 임베딩 비용 |
+| **속도** | 보통 | 보통 | 느림 (임베딩 포함) |
+| **커스터마이즈** | 제한적 | G-Eval로 가능 | 제한적 |
+| **데코레이터 통합** | `enable_llm_judge=True` | `HybridPerformanceMonitor` | `HybridPerformanceMonitor` |
+
+### 선택 플로우차트
+
+```
+내 에이전트가 RAG(문서 검색 + 생성) 구조인가?
+    YES → Ragas 사용
+          (Faithfulness, Context Precision/Recall로 검색-생성 분리 진단)
+    NO  ↓
+
+정답(ground_truth)을 제공할 수 있는가?
+    YES → Layer 1 Accuracy로 충분
+          (DeepEval은 추가 품질 검증이나 독성 탐지가 필요할 때만 사용)
+    NO  ↓
+
+퍼블릭 서비스이거나 콘텐츠 생성 에이전트인가?
+    YES → DeepEval
+          (Toxicity, Bias 탐지 + G-Eval 커스텀 기준)
+    NO  ↓
+
+단순히 "좋은 응답인가"를 3차원으로 확인하고 싶은가?
+    YES → LLM Judge
+          (가장 가벼운 선택. [llm] extras만 설치)
+```
+
+---
+
+## 5.3 LLM Judge — Ground Truth 없는 자동 채점
+
+### completeness, relevance, factual_consistency 3차원
+
+LLM Judge는 모든 응답을 3가지 차원으로 0.0~1.0 스코어로 채점한다.
+
+- **completeness (완결성)**: 응답이 질문의 모든 측면을 다루는가?
+- **relevance (관련성)**: 응답이 질문에 직접적으로 관련 있는가?
+- **factual_consistency (사실 일관성)**: 응답이 사실적으로 일관성 있는가? ground_truth가 있을 때 더 정확해진다.
+
+결과는 `TaskResult.extra["llm_judge"]`에 자동으로 기록된다.
+
+```python
+# {"completeness": 4.5, "relevance": 5.0, "factual_consistency": 4.8, "overall": 4.77}
+```
+
+### 코드: enable_llm_judge=True, judge_model="claude-sonnet-4-6"
+
+```python
+from agent_evaluator import PerformanceMonitor, agent_eval
+import os
+
+os.environ["ANTHROPIC_API_KEY"] = os.getenv("ANTHROPIC_API_KEY", "")
+
+monitor = PerformanceMonitor("results/")
+
+# 해당 데코레이터 호출에만 LLM Judge 활성
+@agent_eval(
+    monitor,
+    task_type="qa",
+    enable_llm_judge=True,
+    judge_model="claude-sonnet-4-6",
+)
+def customer_service_agent(question: str, ground_truth: str = "") -> str:
+    return llm.invoke(question)
+
+# 결과 확인 — back-propagation으로 TaskResult에 자동 반영
+customer_service_agent("환불 정책이 어떻게 되나요?")
+customer_service_agent("배송은 얼마나 걸리나요?")
+
+for task in monitor.tasks:
+    judge = task.extra.get("llm_judge", {})
+    print(f"질문: {task.extra.get('question', '')[:40]}")
+    print(f"  완결성: {judge.get('completeness', 0):.2f}")
+    print(f"  관련성: {judge.get('relevance', 0):.2f}")
+    print(f"  사실성: {judge.get('factual_consistency', 0):.2f}")
+    print(f"  종합:   {judge.get('overall', 0):.2f}")
+    print()
+```
+
+QuickEval 팩토리를 사용하면 한 줄로 설정할 수 있다.
+
+```python
+from agent_evaluator import QuickEval
+
+eval = QuickEval.for_llm_judge("results/", model="claude-sonnet-4-6")
+
+@eval.qa
+def agent(question: str, ground_truth: str = "") -> str:
+    return llm.invoke(question)
+```
+
+### judge_sample_rate=0.1 비용 제어
+
+모든 호출에 LLM Judge를 적용하면 비용이 빠르게 증가한다. `judge_sample_rate`로 일부만 샘플링한다.
+
+```python
+@agent_eval(
+    monitor,
+    task_type="qa",
+    enable_llm_judge=True,
+    judge_model="claude-sonnet-4-6",
+    judge_sample_rate=0.1,  # 10%만 LLM Judge 채점
+)
+def agent(question: str, ground_truth: str = "") -> str:
+    return llm.invoke(question)
+```
+
+### judge_budget_per_day=5.0 일일 예산
+
+일일 LLM Judge 비용이 예산을 초과하면 자동으로 스킵된다.
+
+```python
+@agent_eval(
+    monitor,
+    task_type="qa",
+    enable_llm_judge=True,
+    judge_model="claude-sonnet-4-6",
+    judge_sample_rate=0.1,
+    judge_budget_per_day=5.0,   # 일일 $5 예산 — 초과 시 자동 스킵
+)
+def agent(question: str, ground_truth: str = "") -> str:
+    return llm.invoke(question)
+```
+
+### 👨‍💻 개발자 TIP: LLM Judge 활용 시나리오
+
+- **개발 단계**: `judge_sample_rate=1.0`으로 전수 평가하여 에이전트 품질 파악
+- **스테이징**: `judge_sample_rate=0.3`으로 적당한 커버리지 유지
+- **프로덕션**: `judge_sample_rate=0.05~0.1`, `judge_budget_per_day=5.0`으로 비용 제어
+
+---
+
+## 5.4 DeepEval 통합
+
+### pip install "agent-evaluator[eval]"
+
+DeepEval과 Ragas는 동일한 `[eval]` extras에 포함된다.
+
+```bash
+pip install "agent-evaluator[eval]"
+# deepeval>=3.0.0,<4.0.0 + ragas>=0.4.0,<2.0.0 + datasets>=4.0.0,<6.0.0 설치
+```
+
+### G-Eval 커스텀 기준 설정
+
+DeepEval의 핵심 가치는 G-Eval이다. "내가 정의한 기준"으로 LLM이 평가하도록 한다. 정량적 정답이 없는 창의성, 전문성, 어조 적합성 등을 평가할 때 유용하다.
+
+```python
+from deepeval.metrics import GEval
+from deepeval.test_case import LLMTestCaseParams
+
+# 서비스 특화 평가 기준 정의
+professionalism_metric = GEval(
+    name="전문성",
+    criteria="응답이 전문적이고 명확한가? 전문 용어를 적절히 사용하는가?",
+    evaluation_params=[
+        LLMTestCaseParams.INPUT,
+        LLMTestCaseParams.ACTUAL_OUTPUT,
+    ],
+    threshold=0.7,
+)
+
+empathy_metric = GEval(
+    name="공감성",
+    criteria="고객 서비스 응답으로서 공감적이고 도움이 되는가?",
+    evaluation_params=[
+        LLMTestCaseParams.INPUT,
+        LLMTestCaseParams.ACTUAL_OUTPUT,
+    ],
+    threshold=0.6,
+)
+```
+
+### 코드: DeepEvalAdapter 사용
+
+```python
+from agent_evaluator import HybridPerformanceMonitor, agent_eval
+
+monitor = HybridPerformanceMonitor(
+    output_dir="results/",
+    use_deepeval=True,
+    deepeval_metrics=[professionalism_metric, empathy_metric],  # 커스텀 지표 추가
+)
+
+@agent_eval(monitor, task_type="qa")
+def content_agent(question: str, ground_truth: str = "") -> str:
+    return llm.invoke(question)
+
+content_agent(
+    "저희 서비스에 문제가 생겼어요. 어떻게 해야 하나요?",
+    ground_truth="고객 지원팀에 문의하시면 즉시 도움을 드릴 수 있습니다.",
+)
+
+report = monitor.generate_report()
+deepeval_metrics = report.deepeval_metrics
+
+print(f"Hallucination 점수: {deepeval_metrics.get('hallucination_score', 'N/A')}")
+print(f"Answer Relevancy:   {deepeval_metrics.get('answer_relevancy', 'N/A')}")
+print(f"Toxicity 점수:      {deepeval_metrics.get('toxicity_score', 'N/A')}")
+print(f"Bias 점수:          {deepeval_metrics.get('bias_score', 'N/A')}")
+```
+
+독성 점수가 임계값을 초과하면 즉시 알림을 발송하는 패턴이 실무에서 자주 사용된다.
+
+```python
+from agent_evaluator import AlertRuleBuilder
+
+toxicity_alert = AlertRuleBuilder.when_accuracy_below(
+    threshold=0.0,  # toxicity_score > 0이면 알림
+    handler=lambda msg, tr: print(f"[CRITICAL] 독성 콘텐츠 탐지: {msg}"),
+    severity="critical",
+)
+
+@agent_eval(monitor, task_type="qa", alert_rules=[toxicity_alert])
+def public_chatbot(question: str, ground_truth: str = "") -> str:
+    return llm.invoke(question)
+```
+
+---
+
+## 5.5 Ragas 통합 — RAG 파이프라인 4종 지표
+
+### faithfulness, answer_relevancy, context_precision, context_recall
+
+Ragas는 RAG 파이프라인 평가의 업계 표준이다. 4가지 지표는 서로 다른 측면을 측정한다.
+
+```
+입력: 질문(Q) + 검색된 컨텍스트(C) + 에이전트 응답(A) + 정답(G)
+
+Faithfulness:      A가 C에 충실한가? (A의 주장이 C에서 뒷받침되는가)
+Answer Relevancy:  A가 Q에 관련 있는가? (답변이 질문에 답하는가)
+Context Precision: C가 정확한가? (검색된 것 중 실제로 필요한 비율)
+Context Recall:    C가 충분한가? (필요한 정보를 모두 검색했는가)
+```
+
+낮은 지표별 원인과 해결책:
+
+| 지표 | 낮을 때 원인 | 해결책 |
+|-----|-----------|------|
+| Faithfulness 낮음 | LLM이 컨텍스트를 무시하고 환각 생성 | 프롬프트에 "주어진 컨텍스트만 사용" 강화 |
+| Answer Relevancy 낮음 | 검색은 잘 됐지만 답변이 엉뚱한 방향 | 답변 생성 프롬프트 개선 |
+| Context Precision 낮음 | 관련 없는 문서가 검색됨 | 임베딩 모델 교체, 청킹 전략 개선 |
+| Context Recall 낮음 | 필요한 문서가 누락됨 | 검색 개수(k) 증가, reranking 도입 |
+
+### 코드: RagasAdapter + QuickEval.for_rag()
+
+```python
+from agent_evaluator import HybridPerformanceMonitor, agent_eval
+import os
+
+os.environ["OPENAI_API_KEY"] = os.getenv("OPENAI_API_KEY", "")
+# Ragas는 임베딩에 OpenAI API를 사용
+
+monitor = HybridPerformanceMonitor(
+    output_dir="results/",
+    use_ragas=True,
+)
+
+@agent_eval(monitor, task_type="information_retrieval")
+def rag_agent(question: str, context: str = "", ground_truth: str = "") -> str:
+    retrieved_docs = vector_db.search(question, k=5)
+    context_text = "\n".join(doc.page_content for doc in retrieved_docs)
+    return llm.invoke(
+        f"Context:\n{context_text}\n\nQuestion: {question}\n\nAnswer:"
+    )
+
+# context 필드가 핵심 — Ragas가 이 값으로 Faithfulness 등을 계산
+test_cases = [
+    {
+        "question": "한국의 GDP는 얼마인가?",
+        "context": "2023년 한국의 GDP는 약 1조 7천억 달러로 세계 13위이다.",
+        "ground_truth": "약 1조 7천억 달러",
+    },
+    {
+        "question": "서울의 인구는?",
+        "context": "서울특별시의 인구는 2023년 기준 약 940만 명이다.",
+        "ground_truth": "약 940만 명",
+    },
+]
+
+for case in test_cases:
+    rag_agent(
+        case["question"],
+        context=case["context"],
+        ground_truth=case["ground_truth"],
+    )
+
+report = monitor.generate_report()
+ragas_metrics = report.ragas_metrics
+
+print(f"Faithfulness:      {ragas_metrics.get('faithfulness', 0):.2%}")
+print(f"Answer Relevancy:  {ragas_metrics.get('answer_relevancy', 0):.2%}")
+print(f"Context Precision: {ragas_metrics.get('context_precision', 0):.2%}")
+print(f"Context Recall:    {ragas_metrics.get('context_recall', 0):.2%}")
+```
+
+QuickEval을 사용하면 더 간결하다.
+
+```python
+from agent_evaluator import QuickEval
+
+# for_rag(): hallucination_detection=True 자동 활성
+eval = QuickEval.for_rag("results/")
+
+@eval.rag  # task_type="information_retrieval" + context_arg="context" + rag_mode=True
+def rag_pipeline(question: str, context: str = "", ground_truth: str = "") -> str:
+    docs = retriever.get_relevant_documents(question)
+    context = "\n".join([d.page_content for d in docs])
+    return chain.invoke({"question": question, "context": context})
+
+eval.save()
+eval.gate(accuracy=0.75, hallucination=5)
+```
+
+### ragas 0.4.x API (EvaluationDataset, SingleTurnSample)
+
+Agent-Evaluator는 Ragas 0.4.x API를 완전 지원한다. 내부적으로 `EvaluationDataset`과 `SingleTurnSample`을 사용한다.
+
+```python
+# ragas 0.4.x 직접 사용 시 참고
+from ragas import EvaluationDataset, SingleTurnSample
+from ragas import evaluate
+from ragas.metrics import faithfulness, answer_relevancy
+
+sample = SingleTurnSample(
+    user_input="한국의 수도는?",
+    retrieved_contexts=["서울은 대한민국의 수도입니다."],
+    response="서울입니다.",
+    reference="서울",
+)
+
+dataset = EvaluationDataset(samples=[sample])
+result = evaluate(dataset, metrics=[faithfulness, answer_relevancy])
+```
+
+### 📋 QA 관리자 TIP: Ragas로 RAG 개선 사이클 운영
+
+```python
+from agent_evaluator import QuickEval
+
+# 1단계: 현재 버전 측정
+eval_v1 = QuickEval.for_rag("results/v1/")
+# ... v1 에이전트로 테스트셋 실행 ...
+summary_v1 = eval_v1.summary()
+
+# 2단계: 임베딩 모델 변경 후 재측정
+eval_v2 = QuickEval.for_rag("results/v2/")
+# ... v2 에이전트로 동일 테스트셋 실행 ...
+
+# 3단계: 비교
+comparison = eval_v1.compare(eval_v2)
+print(f"Faithfulness 변화: {comparison.get('faithfulness_delta', 0):+.2%}")
+print(f"Context Precision 변화: {comparison.get('context_precision_delta', 0):+.2%}")
+```
+
+---
+
+## 5.6 Layer 3 비용 최적화 전략
+
+### 샘플링 평가 (judge_sample_rate)
+
+세 도구 모두 LLM API 호출 비용이 발생한다. 전수 평가는 개발 단계에서만 사용하고, 프로덕션에서는 반드시 샘플링을 적용한다.
+
+```python
+# LLM Judge: 10% 샘플링 + 일일 예산 제한
+@agent_eval(
+    monitor,
+    task_type="qa",
+    enable_llm_judge=True,
+    judge_model="claude-sonnet-4-6",
+    judge_sample_rate=0.1,        # 10%만 채점
+    judge_budget_per_day=5.0,     # 일 $5 예산
+)
+def agent(question: str, ground_truth: str = "") -> str:
+    return llm.invoke(question)
+```
+
+### 개발 환경에서만 전수 평가
+
+환경 변수로 샘플링 비율을 조절하면 개발/스테이징/프로덕션을 쉽게 구분할 수 있다.
+
+```python
+import os
+
+# 환경별 샘플링 비율
+SAMPLE_RATES = {
+    "development": 1.0,    # 전수 평가
+    "staging":     0.3,    # 30% 샘플링
+    "production":  0.05,   # 5% 샘플링
+}
+
+env = os.getenv("APP_ENV", "development")
+sample_rate = SAMPLE_RATES.get(env, 0.1)
+
+@agent_eval(
+    monitor,
+    task_type="qa",
+    enable_llm_judge=True,
+    judge_model="claude-sonnet-4-6",
+    judge_sample_rate=sample_rate,
+)
+def agent(question: str, ground_truth: str = "") -> str:
+    return llm.invoke(question)
+```
+
+DeepEval과 Ragas는 상대적으로 비용이 높기 때문에, 프로덕션에서는 골든 데이터셋(소량의 검증된 케이스)으로만 실행하는 것을 권장한다.
+
+```python
+# 프로덕션 권장 패턴
+# 1. 일상 평가: Layer 1 + LLM Judge 5% 샘플링
+# 2. 주간 품질 검토: Layer 1 + LLM Judge 100% (골든 데이터셋만)
+# 3. 릴리즈 전 검증: Layer 1 + DeepEval/Ragas (골든 데이터셋만)
+```
+
+### 비용 vs 정밀도 트레이드오프
+
+| 구성 | 비용 수준 | 정밀도 | 권장 사용 환경 |
+|-----|---------|------|------------|
+| Layer 1만 | 무료 | 기본 | 개발 초기, 빠른 피드백 |
+| Layer 1 + LLM Judge (10%) | 낮음 | 중간 | 프로덕션 일상 모니터링 |
+| Layer 1 + LLM Judge (100%) | 중간 | 높음 | 스테이징, 주간 검토 |
+| Layer 1 + DeepEval | 중간~높음 | 높음 | 퍼블릭 서비스 품질 감사 |
+| Layer 1 + Ragas | 높음 | 매우 높음 | RAG 시스템 개선 사이클 |
+| Layer 1 + 모두 조합 | 매우 높음 | 최고 | 릴리즈 전 전수 검증 |
+
+비용을 최소화하면서 품질을 유지하는 실용적인 조합은 **Layer 1 + LLM Judge 10% 샘플링**이다. 이 구성만으로도 에이전트의 성능 저하를 조기에 감지할 수 있다.
+
+```python
+from agent_evaluator import QuickEval
+
+# 실용적인 프로덕션 구성
+eval = QuickEval.for_llm_judge("results/", model="claude-sonnet-4-6")
+
+@eval.qa  # LLM Judge 10% 샘플링 기본 적용
+def production_agent(question: str, ground_truth: str = "") -> str:
+    return llm.invoke(question)
+
+# 자동 저장 — 10건마다
+eval = QuickEval("results/", auto_save=True, auto_save_interval=10)
+```
+
+---
+
+## 이 챕터의 핵심
+
+- **Layer 3이 필요한 세 가지 상황**: Ground truth가 없을 때(LLM Judge), RAG 파이프라인을 정밀하게 평가할 때(Ragas), 독성/편향 탐지가 필요할 때(DeepEval).
+
+- **LLM Judge는 가장 가벼운 Layer 3 선택지**다. `[llm]` extras만 설치하면 되고, `enable_llm_judge=True` 한 줄로 활성화된다. completeness, relevance, factual_consistency 3차원으로 ground truth 없이 자동 채점한다.
+
+- **Ragas는 RAG 파이프라인 진단에 특화**되어 있다. Faithfulness/Answer Relevancy/Context Precision/Context Recall 4가지 지표로 "검색 문제인가, 생성 문제인가"를 분리해서 진단할 수 있다.
+
+- **세 도구 모두 LLM API 비용이 발생**한다. 프로덕션에서는 `judge_sample_rate`와 `judge_budget_per_day`로 반드시 비용을 제어해야 한다. 실용적인 기본값은 5~10% 샘플링이다.
+
+- **환경별 샘플링 전략**을 정의하라. 개발(100%) → 스테이징(30%) → 프로덕션(5%)으로 단계를 나누면 비용과 품질을 균형 있게 유지할 수 있다.

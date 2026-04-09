@@ -7530,7 +7530,16 @@ function app2() {
       // Load server-persisted thresholds before refresh so anomaly detection uses saved values
       await this.loadSettings();
       await this.refresh();
+      // 초기 로드 실패 시 1회 재시도 (서버 기동 직후 race condition 대비)
+      if (!this.files.length) {
+        await new Promise(r => setTimeout(r, 600));
+        await this.refresh();
+      }
       {% if watch %}this._connectSSE();{% endif %}
+      // 탭 전환 후 복귀 시 자동 갱신 (bfcache/탭 복원 대비)
+      document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible') this.refresh();
+      });
       // Redraw charts whenever the active section changes (x-show containers
       // go display:none → block; Plotly needs a fresh render with correct size)
       this.$watch('sec', (newSec) => {
@@ -7562,7 +7571,10 @@ function app2() {
         // /api/results returns { total, page, files: [...] } — extract the array
         const list = Array.isArray(rd) ? rd : (rd.files ?? []);
         this.files = list;
+        // x-for 옵션 렌더링이 완료된 후 selId 설정 (Alpine.js 타이밍 이슈 방지)
+        await this.$nextTick();
         if (list.length && !this.selId) this.selId = list[0].id;
+        await this.$nextTick();
         if (this.selId) await this.loadFile(this.selId);
       } catch(e) { console.warn('refresh error', e); }
       finally { this.loading = false; }
@@ -7681,9 +7693,13 @@ function app2() {
     {% if watch %}
     _connectSSE() {
       const es = new EventSource('/api/stream');
-      es.addEventListener('update', async () => {
+      const _onUpdate = async () => {
         if (this.selId) await this.loadFile(this.selId);
         else await this.refresh();
+      };
+      es.addEventListener('update', _onUpdate);           // named event (server v0.7.4+)
+      es.addEventListener('message', async (e) => {       // fallback: anonymous data:
+        try { if (JSON.parse(e.data).type === 'update') await _onUpdate(); } catch(_) {}
       });
       es.addEventListener('open', () => { this.connected = true; });
       es.addEventListener('error', () => { this.connected = false; });

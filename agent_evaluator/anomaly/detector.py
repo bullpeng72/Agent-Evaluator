@@ -131,7 +131,12 @@ class AnomalyDetector:
     def _get_latencies(self, monitor: "PerformanceMonitor") -> List[float]:
         try:
             latency_data = monitor.latency_tracker.latencies
-            return [entry.get("execution_time", 0.0) for entry in latency_data if isinstance(entry, dict)]
+            # LatencyTracker stores "total_time"; "execution_time" is a legacy fallback
+            return [
+                entry.get("total_time", entry.get("execution_time", 0.0))
+                for entry in latency_data
+                if isinstance(entry, dict)
+            ]
         except Exception:
             return []
 
@@ -156,8 +161,20 @@ class AnomalyDetector:
                 return 0.0, 0.0
             recent = tasks[-self.detection_window:]
             baseline = tasks[-self.baseline_window:-self.detection_window] if len(tasks) > self.detection_window else []
-            recent_rate = sum(1 for t in recent if not t.success) / len(recent)
-            base_rate = sum(1 for t in baseline if not t.success) / len(baseline) if baseline else 0.0
+
+            def _is_error(t: Any) -> bool:
+                # t.success from create_taskresult() may be True even for failed tasks
+                # (completion_score threshold not met). Use accuracy_score and errors as proxy.
+                if not t.success:
+                    return True
+                if t.errors:
+                    return True
+                if getattr(t, "accuracy_score", 1.0) < 0.05 and getattr(t, "completion_score", 1.0) < 0.05:
+                    return True
+                return False
+
+            recent_rate = sum(1 for t in recent if _is_error(t)) / len(recent)
+            base_rate = sum(1 for t in baseline if _is_error(t)) / len(baseline) if baseline else 0.0
             return recent_rate, base_rate
         except Exception:
             return 0.0, 0.0
