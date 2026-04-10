@@ -43,6 +43,11 @@ select{background:var(--bg3);color:var(--text);border:1px solid var(--border);bo
 .nav{display:flex;align-items:center;gap:7px;padding:7px 13px;cursor:pointer;font-size:13px;color:var(--text2);border-left:3px solid transparent}
 .nav:hover,.nav.on{background:var(--bg3);color:var(--text);border-left-color:var(--accent)}
 .nav-badge{margin-left:auto;background:var(--bg);border-radius:99px;font-size:11px;padding:1px 5px;color:var(--text2)}
+.nav-scope{font-size:10px;font-weight:600;border-radius:3px;padding:1px 4px;letter-spacing:.03em;flex-shrink:0;opacity:.75}
+.nav-scope.s-file{background:rgba(99,179,237,.15);color:#63b3ed;border:1px solid rgba(99,179,237,.25)}
+.nav-scope.s-global{background:rgba(72,187,120,.15);color:#48bb78;border:1px solid rgba(72,187,120,.25)}
+.nav-legend{display:flex;align-items:center;gap:10px;padding:8px 13px 6px;border-top:1px solid var(--border);margin-top:4px}
+.nav-legend span{font-size:10px;display:flex;align-items:center;gap:3px;color:var(--text2)}
 .kpi-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;margin-bottom:14px}
 .kpi{background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);padding:12px 14px;transition:border-color .15s,background .15s}
 .kpi:hover{border-color:var(--accent)}
@@ -164,10 +169,16 @@ input[type=text],input[type=number]{background:var(--bg3);color:var(--text);bord
       <div x-show="!n.group" class="nav" :class="{on:sec===n.id}" @click="!n.group&&(sec=n.id)">
         <span x-text="n.icon"></span>
         <span x-text="n.label" style="flex:1;font-size:13px"></span>
+        <span class="nav-scope" :class="n.scope==='file'?'s-file':'s-global'" x-text="n.scope==='file'?'파일':'전역'"></span>
         <span class="nav-badge" x-show="data && n.badge" x-text="data && n.badge ? n.badge(data) : ''"></span>
       </div>
     </div>
   </template>
+  <!-- 범례 -->
+  <div class="nav-legend">
+    <span><i class="nav-scope s-file" style="font-style:normal">파일</i> 선택 파일 기준</span>
+    <span><i class="nav-scope s-global" style="font-style:normal">전역</i> 전체 데이터 기준</span>
+  </div>
 </nav>
 
 <!-- Main -->
@@ -7509,32 +7520,32 @@ function app2() {
 
     nav: [
       { id:'_g1', group:true, label:'평가 결과' },
-      { id:'overview',    label:'개요',         icon:'📊' },
-      { id:'tasks',       label:'태스크',        icon:'📋' },
-      { id:'insights',    label:'인사이트',      icon:'💡' },
+      { id:'overview',    label:'개요',         icon:'📊', scope:'file'   },
+      { id:'tasks',       label:'태스크',        icon:'📋', scope:'file'   },
+      { id:'insights',    label:'인사이트',      icon:'💡', scope:'file'   },
       { id:'_g2', group:true, label:'품질 지표' },
-      { id:'quality',      label:'품질',          icon:'🎯' },
-      { id:'external',     label:'외부 평가',     icon:'🔬' },
-      { id:'conversation', label:'멀티턴 대화',   icon:'💬' },
+      { id:'quality',      label:'품질',          icon:'🎯', scope:'file'   },
+      { id:'external',     label:'외부 평가',     icon:'🔬', scope:'file'   },
+      { id:'conversation', label:'멀티턴 대화',   icon:'💬', scope:'file'   },
       { id:'_g3', group:true, label:'운영 지표' },
-      { id:'performance',  label:'성능',          icon:'⚡' },
-      { id:'agentic',      label:'에이전틱',      icon:'🤖' },
-      { id:'security',     label:'보안',          icon:'🔒' },
+      { id:'performance',  label:'성능',          icon:'⚡', scope:'file'   },
+      { id:'agentic',      label:'에이전틱',      icon:'🤖', scope:'file'   },
+      { id:'security',     label:'보안',          icon:'🔒', scope:'file'   },
       { id:'_g3b', group:true, label:'운영 모니터링' },
-      { id:'realtime',     label:'실시간',        icon:'📡' },
-      { id:'alerts',       label:'알림',          icon:'🔔' },
-      { id:'feedback',     label:'사용자 반응',   icon:'👍' },
-      { id:'anomaly',      label:'이상 감지',     icon:'🚨' },
-      { id:'cost',         label:'평가 비용',     icon:'💰' },
+      { id:'realtime',     label:'실시간',        icon:'📡', scope:'global' },
+      { id:'alerts',       label:'알림',          icon:'🔔', scope:'global' },
+      { id:'feedback',     label:'사용자 반응',   icon:'👍', scope:'global' },
+      { id:'anomaly',      label:'이상 감지',     icon:'🚨', scope:'global' },
+      { id:'cost',         label:'평가 비용',     icon:'💰', scope:'file'   },
       { id:'_g4', group:true, label:'도구 · 관리' },
-      { id:'review',      label:'케이스 검토',   icon:'🗂️' },
-      { id:'compare',     label:'파일 비교',     icon:'📂' },
-      { id:'golden',      label:'골든 데이터셋', icon:'📚' },
-      { id:'export',      label:'내보내기',      icon:'📤' },
+      { id:'review',      label:'케이스 검토',   icon:'🗂️', scope:'global' },
+      { id:'compare',     label:'파일 비교',     icon:'📂', scope:'global' },
+      { id:'golden',      label:'골든 데이터셋', icon:'📚', scope:'global' },
+      { id:'export',      label:'내보내기',      icon:'📤', scope:'file'   },
       { id:'_g5', group:true, label:'정보 · 설정' },
-      { id:'transparency',label:'투명성',        icon:'🔍' },
-      { id:'metrics_guide',label:'지표 설명',    icon:'📖' },
-      { id:'settings',    label:'설정',          icon:'⚙️' },
+      { id:'transparency',label:'투명성',        icon:'🔍', scope:'file'   },
+      { id:'metrics_guide',label:'지표 설명',    icon:'📖', scope:'global' },
+      { id:'settings',    label:'설정',          icon:'⚙️', scope:'global' },
     ],
 
     /* ── lifecycle ── */
