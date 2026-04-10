@@ -3,7 +3,7 @@
 [![PyPI version](https://img.shields.io/pypi/v/agent-evaluator.svg)](https://pypi.org/project/agent-evaluator/)
 [![Python Version](https://img.shields.io/badge/python-3.8%2B-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Version](https://img.shields.io/badge/version-0.7.5-green.svg)](https://github.com/bullpeng72/Agent-Evaluator)
+[![Version](https://img.shields.io/badge/version-0.7.6-green.svg)](https://github.com/bullpeng72/Agent-Evaluator)
 
 **AI 에이전트를 위한 프로덕션 레디 평가 프레임워크**
 
@@ -69,7 +69,7 @@ def my_agent(question, ground_truth=""):
   ├─ [6] PerformanceMonitor.record_task() 호출
   │       ├─ Layer 1: TCR · Accuracy · Hallucination · Quality · Latency · Token
   │       ├─ Layer 2: Tool · Retry · Coordination · Workflow · Security (5종)
-  │       └─ Layer 3: DeepEval · Ragas · LangSmith  (opt-in)
+  │       └─ Layer 3: LLMJudge · DeepEval · Ragas  (opt-in)
   │
   └─ [7] 원본 반환값 그대로 호출자에게 전달
 ```
@@ -159,6 +159,8 @@ def langchain_agent(question: str, ground_truth: str = "") -> str:
 | `security_mode` | `False` | 보안 지표 이 호출에만 임시 활성 |
 | `enable_hallucination` | `False` | Hallucination Detection 이 호출에만 임시 활성 |
 | `enable_llm_judge` | `False` | LLM Judge 이 호출에만 임시 활성 |
+| `enable_anomaly_detection` | `False` | AnomalyDetector 이 호출에만 임시 활성 |
+| `judge_criteria` | `None` | G-Eval 스타일 커스텀 채점 기준 목록 `["medical_accuracy", ...]` (v0.7.6+) |
 | `max_retries` | `1` | 실패 시 최대 재시도 횟수 |
 | `delay` / `backoff` | `0.0` / `1.0` | 재시도 대기 시간 / 지수 백오프 계수 |
 | `timeout` | `None` | 최대 실행 시간(초) |
@@ -262,6 +264,8 @@ def advanced_chat(question: str, session_id: str = "s1") -> str:
 
 | 지표 | 설명 |
 |------|------|
+| `turn_count` | 누적 대화 턴 수 |
+| `overall_score` | 세션 종합 점수 (0–1) |
 | `context_retention` | 이전 턴 맥락이 후속 응답에 반영된 정도 |
 | `topic_coherence` | 대화 전반의 주제 일관성 |
 | `progressive_depth` | 대화가 심화될수록 정보 밀도가 높아지는 정도 |
@@ -985,9 +989,10 @@ def rag_agent(question, context="", ground_truth=""): ...
 
 | 제공자 | 지표 | 조건 |
 |--------|------|------|
-| **DeepEval** | G-Eval · Hallucination · Toxicity · Bias · Answer Relevancy | `pip install "agent-evaluator[eval]"` |
-| **Ragas** | Faithfulness · Answer Relevancy · Context Precision · Context Recall | 동일 + `context` 필드 필요 |
-| **LangSmith** | Latency · Token · Feedback | `LANGSMITH_API_KEY` 환경변수 |
+| **LLMJudge** *(v0.7.5+)* | completeness · relevance · factual · toxicity · bias | `pip install "agent-evaluator[llm]"` · `enable_llm_judge=True` |
+| **LLMJudge** *(v0.7.6+)* | + **faithfulness** (RAG) · **커스텀 기준(G-Eval)** | `rag_mode=True` + `enable_llm_judge=True` · `judge_criteria=[...]` |
+| **DeepEval** | Hallucination(NLI) · Answer Relevancy (LLM) | `pip install "agent-evaluator[eval]"` |
+| **Ragas** | Faithfulness · Answer Relevancy · Context Precision · Context Recall (LLM) | 동일 + `context` 필드 필요 |
 
 ---
 
@@ -1241,42 +1246,25 @@ from agent_evaluator.decorators import (
 
 ## 예제 가이드
 
+7개 통합 파일로 구성됩니다. 각 파일은 독립 실행 가능합니다.
+
 ```bash
 cd Evaluator_Examples
 
-# ── 3종 데코레이터 핵심 예제 ─────────────────────────────────
-python 18_decorator_eval.py                 # @agent_eval 기본 예제
-python 19_decorator_coverage_expanded.py    # 3종 데코레이터 커버리지 검증
-python 20_quickeval_demo.py                 # QuickEval 원스톱 Facade (7섹션)
-python 21_layer2_agentic_eval.py            # Layer 2 Agentic 활성화 가이드
-
-# ── Layer별 지표 검증 ─────────────────────────────────────────
-python 01_quality_eval.py          # @agent_eval — Accuracy · Hallucination · Quality
-python 02_performance_eval.py      # @agent_eval — TCR · Latency · Token Economy
-python 03_agentic_eval.py          # @agent_eval — Tool · Coordination · Workflow
-python 04_security_eval.py         # @agent_eval — 보안 5종
-python 05_hybrid_eval.py           # @batch_eval + HybridPerformanceMonitor — DeepEval · Ragas
-
-# ── 프레임워크별 어댑터 ──────────────────────────────────────
-python 06_langchain_eval.py        # @agent_eval(framework="langchain")
-python 07_langgraph_eval.py        # @agent_eval(framework="langgraph")
-python 08_crewai_eval.py           # @agent_eval(framework="crewai")
-python 09_autogen_eval.py          # @agent_eval(framework="autogen")
-python 10_cross_framework_eval.py  # @batch_eval + 멀티 프레임워크 비교
-
-# ── 고급 기능 ────────────────────────────────────────────────
-python 11_streaming_eval.py        # StreamingEvaluator — 실시간 슬라이딩 윈도우 + ImplicitFeedback
-python 12_alerting_eval.py         # @agent_eval(alert_rules=[...]) + AlertEngine 패턴 비교
-python 13_golden_set_build.py      # @batch_eval — 골든 데이터셋 빌더
-python 14_anomaly_cost_eval.py     # @agent_eval(flush_every=10) — 이상 감지 + 비용 추적
-python 15_conversation_eval.py     # @conversation_eval
-python 16_dashboard_demo.py        # save_to_file + Phoenix OTEL 대시보드 연동
-python 17_phoenix_verification.py  # @agent_eval + Phoenix 4개 메뉴 통합 검증
+python 01_layer1_all_metrics.py        # Layer 1 전체 — Accuracy · Hallucination · Quality · Latency · Token · TCR
+python 02_layer2_agentic_security.py   # Layer 2 전체 — Tool · Retry · Coordination · Workflow · 보안 5종 · 대화
+python 03_framework_adapters.py        # 프레임워크 어댑터 — LangChain · LangGraph · CrewAI · AutoGen + 크로스 파이프라인
+python 04_decorator_quickeval.py       # 데코레이터 전체 API — @agent_eval · @batch_eval · @conversation_eval · QuickEval
+python 05_streaming_alerts.py          # 실시간 — StreamingEvaluator · ImplicitFeedback · AlertEngine · SimpleTaskAlertRule
+python 06_operational.py               # 운영 인프라 — AnomalyDetector · CostTracker · GoldenSetBuilder · evaluation_session
+python 07_phoenix_hybrid.py            # Phoenix OTEL — Tracing · Datasets · Playground · GraphQL + DeepEval · Ragas (opt-in)
 
 # ── 인프라 ───────────────────────────────────────────────────
-agent-eval monitor                 # Phoenix 서버 기동 (http://localhost:6006)
-agent-eval dashboard --watch       # 대시보드 (http://localhost:8765)
+agent-eval monitor                     # Phoenix 서버 기동 (http://localhost:6006)
+agent-eval dashboard --watch           # 대시보드 (http://localhost:8765)
 ```
+
+> 구 21개 예제는 `Evaluator_Examples/.deprecated/` 에 보존됩니다.
 
 ---
 
@@ -1302,7 +1290,7 @@ agent-evaluator/
 │   │   └── monitor_context.py   # evaluation_session · async_evaluation_session
 │   ├── integrations/
 │   │   ├── llm_judge.py         # LLMJudge
-│   │   └── metric_adapters.py   # DeepEval · Ragas · LangSmith 어댑터
+│   │   └── metric_adapters.py   # DeepEval · Ragas 어댑터
 │   ├── serve/                   # FastAPI 대시보드 ([serve] extras)
 │   ├── cli/                     # agent-eval CLI
 │   ├── alerts/                  # AlertEngine · SimpleTaskAlertRule
@@ -1310,8 +1298,8 @@ agent-evaluator/
 │   ├── cost/                    # CostTracker · AdaptivePolicy
 │   └── datasets/                # GoldenSetBuilder
 │
-├── Evaluator_Examples/          # 예제 21개
-├── tests/                       # 1,823개 테스트 함수, 59개 파일
+├── Evaluator_Examples/          # 예제 7개 통합 파일 (.deprecated/에 구 21개 보존)
+├── tests/                       # 2,025개 테스트 함수, 63개 파일
 └── pyproject.toml
 ```
 
@@ -1346,7 +1334,7 @@ git clone https://github.com/bullpeng72/Agent-Evaluator.git
 cd Agent-Evaluator
 pip install -e ".[dev]"
 
-pytest                          # 테스트 실행 (1,823개)
+pytest                          # 테스트 실행 (2,025개)
 ruff check agent_evaluator/    # 린트
 ruff format agent_evaluator/   # 포맷
 mypy agent_evaluator/          # 타입 검사
@@ -1355,6 +1343,14 @@ mypy agent_evaluator/          # 타입 검사
 ---
 
 ## 변경 이력
+
+### v0.7.6 (2026-04-10) — LLMJudge 확장 · G-Eval/Ragas 데코레이터 대체 · 지표 22개 데코레이터 호환
+
+- ✨ `judge_criteria` 파라미터 — `@agent_eval(judge_criteria=["medical_accuracy"])` G-Eval 스타일 커스텀 채점 (DeepEval 대체)
+- ✨ `faithfulness` 차원 — `rag_mode=True + enable_llm_judge=True` 시 context 기반 자동 추가 (Ragas 대체)
+- ✨ Lazy LLMJudge init — `@agent_eval(enable_llm_judge=True)` 만으로 monitor 사전 설정 불필요
+- 🗑️ LangSmith adapter 제거 / `evaluation_cost` 키 제거
+- 📊 데코레이터 호환 지표 22개 (StreamingEvaluator, DeepEval NLI Hallucination만 외부 의존)
 
 ### v0.7.5 (2026-04-09) — 대시보드 5개 탭 데이터 수정 · AnomalyDetector 버그 수정
 

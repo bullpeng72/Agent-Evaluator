@@ -2,9 +2,9 @@
 
 OpenTelemetry + Arize Phoenix 기반 프로덕션 실시간 모니터링
 
-**Version**: 0.7.5
-**Last Updated**: 2026-04-09
-**Status**: ✅ 구현 완료 (v0.7.5)
+**Version**: 0.7.6
+**Last Updated**: 2026-04-10
+**Status**: ✅ 구현 완료 (v0.7.6)
 
 ---
 

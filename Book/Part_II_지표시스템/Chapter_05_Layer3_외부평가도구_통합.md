@@ -1,6 +1,6 @@
 # Chapter 5. Layer 3 — 외부 평가 도구 통합
 
-이 챕터에서는 Layer 1/2만으로 충분하지 않은 세 가지 상황과 그 해결책을 다룬다. Ground truth 없이 응답 품질을 채점하는 LLM Judge, RAG 파이프라인을 정밀하게 평가하는 Ragas, 독성·편향·커스텀 기준 평가를 지원하는 DeepEval을 실제 코드와 함께 설명한다. 세 도구 모두 LLM API 호출 비용이 발생하므로 샘플링 전략도 함께 다룬다.
+이 챕터에서는 Layer 1/2만으로 충분하지 않은 상황과 그 해결책을 다룬다. v0.7.6부터 LLM Judge는 Faithfulness(Ragas 대체)와 G-Eval 커스텀 기준(DeepEval 대체)을 네이티브로 지원하므로, 대부분의 평가 시나리오를 `[llm]` extras 하나로 처리할 수 있다. DeepEval과 Ragas는 심층 RAG 진단이나 전문 지표가 필요한 경우에 추가로 활용한다.
 
 ---
 
@@ -14,7 +14,7 @@ Layer 1의 Accuracy는 `ground_truth`가 있어야 계산된다. 하지만 많�
 - 창의적 글쓰기 에이전트: 정량적 정답이 없다
 - 요약 에이전트: 핵심 정보를 담았는지 판단이 주관적이다
 
-이런 경우 LLM Judge를 사용한다. LLM이 직접 심사위원이 되어 completeness(완결성), relevance(관련성), factual_consistency(사실 일관성) 3가지 차원으로 자동 채점한다.
+이런 경우 LLM Judge를 사용한다. LLM이 직접 심사위원이 되어 completeness(완결성), relevance(관련성), factual_consistency(사실 일관성), toxicity(독성), bias(편향) **5차원 기본**으로 자동 채점한다. safety_score는 `(10 - toxicity - bias) / 10`으로 자동 계산된다.
 
 ### RAG 파이프라인을 정밀하게 평가할 때
 
@@ -32,58 +32,66 @@ Ragas는 이 문제를 해결한다. Faithfulness(응답이 검색 결과에 충
 
 ### LLM Judge vs DeepEval vs Ragas 비교
 
-| 항목 | LLM Judge | DeepEval | Ragas |
+| 항목 | LLM Judge (v0.7.6+) | DeepEval | Ragas |
 |-----|---------|--------|-----|
 | **설치** | `[llm]` (가벼움) | `[eval]` (중간) | `[eval]` (중간) |
 | **Ground Truth 필요** | 불필요 | 선택적 | 일부 필요 (Recall) |
-| **특화 영역** | 범용 3차원 자동 채점 | 독성/편향/G-Eval | RAG 파이프라인 전문 |
+| **특화 영역** | 범용 5차원 + Faithfulness + G-Eval 커스텀 | 독성/편향 전문 | RAG 심층 진단 (4-way) |
 | **비용** | LLM 호출 비용 | LLM 호출 비용 | LLM + 임베딩 비용 |
 | **속도** | 보통 | 보통 | 느림 (임베딩 포함) |
-| **커스터마이즈** | 제한적 | G-Eval로 가능 | 제한적 |
-| **데코레이터 통합** | `enable_llm_judge=True` | `HybridPerformanceMonitor` | `HybridPerformanceMonitor` |
+| **커스터마이즈** | `judge_criteria=[...]`로 무제한 | G-Eval로 가능 | 제한적 |
+| **데코레이터 통합** | `enable_llm_judge=True` ✅ | `HybridPerformanceMonitor` | `HybridPerformanceMonitor` |
+| **권장 시나리오** | 대부분의 범용 평가 | 독성/편향 규제 대응 | Context Precision/Recall 필요 시 |
 
 ### 선택 플로우차트
 
 ```
 내 에이전트가 RAG(문서 검색 + 생성) 구조인가?
-    YES → Ragas 사용
-          (Faithfulness, Context Precision/Recall로 검색-생성 분리 진단)
-    NO  ↓
+    YES → [빠른 방법] LLM Judge + rag_mode=True + enable_llm_judge=True
+                      → faithfulness 차원 자동 추가 ([llm] extras만 필요)
+          [심층 진단] Context Precision/Recall도 필요하다 → Ragas 추가 사용
 
 정답(ground_truth)을 제공할 수 있는가?
     YES → Layer 1 Accuracy로 충분
-          (DeepEval은 추가 품질 검증이나 독성 탐지가 필요할 때만 사용)
+          (독성/편향 규제 대응이 필요하면 DeepEval 추가)
     NO  ↓
 
-퍼블릭 서비스이거나 콘텐츠 생성 에이전트인가?
-    YES → DeepEval
-          (Toxicity, Bias 탐지 + G-Eval 커스텀 기준)
+서비스 특화 기준(전문성, 공감성 등)이 필요한가?
+    YES → LLM Judge + judge_criteria=[...] (G-Eval 네이티브 대체)
     NO  ↓
 
-단순히 "좋은 응답인가"를 3차원으로 확인하고 싶은가?
-    YES → LLM Judge
-          (가장 가벼운 선택. [llm] extras만 설치)
+단순히 "좋은 응답인가"를 5차원으로 확인하고 싶은가?
+    YES → LLM Judge (가장 가벼운 선택. [llm] extras만 설치)
 ```
 
 ---
 
-## 5.3 LLM Judge — Ground Truth 없는 자동 채점
+## 5.3 LLM Judge — Ground Truth 없는 자동 채점 (v0.7.6: 확장)
 
-### completeness, relevance, factual_consistency 3차원
+### 기본 5차원 + 선택적 확장
 
-LLM Judge는 모든 응답을 3가지 차원으로 0.0~1.0 스코어로 채점한다.
+v0.7.6부터 LLM Judge는 기본 5차원 외에 RAG 컨텍스트가 있으면 `faithfulness`를 자동 추가하고, `judge_criteria`로 무제한 커스텀 차원을 추가할 수 있다.
 
-- **completeness (완결성)**: 응답이 질문의 모든 측면을 다루는가?
-- **relevance (관련성)**: 응답이 질문에 직접적으로 관련 있는가?
-- **factual_consistency (사실 일관성)**: 응답이 사실적으로 일관성 있는가? ground_truth가 있을 때 더 정확해진다.
+| 차원 | 기본 포함 | 조건부 활성 |
+|-----|---------|-----------|
+| completeness | ✅ | — |
+| relevance | ✅ | — |
+| factual_consistency | ✅ | — |
+| toxicity | ✅ | — |
+| bias | ✅ | — |
+| **faithfulness** | — | `rag_mode=True` + `enable_llm_judge=True` |
+| **커스텀 차원** | — | `judge_criteria=[...]` |
 
 결과는 `TaskResult.extra["llm_judge"]`에 자동으로 기록된다.
 
 ```python
-# {"completeness": 4.5, "relevance": 5.0, "factual_consistency": 4.8, "overall": 4.77}
+# 기본: {"completeness": 4.5, "relevance": 5.0, "factual_consistency": 4.8,
+#         "toxicity": 0.1, "bias": 0.0, "overall": 4.77}
+# RAG:  + "faithfulness": 4.6
+# 커스텀: + "criteria_scores": {"professionalism": 4.0}, "criteria_overall": 4.0
 ```
 
-### 코드: enable_llm_judge=True, judge_model="claude-sonnet-4-6"
+### 코드 1: 기본 LLM Judge (enable_llm_judge=True)
 
 ```python
 from agent_evaluator import PerformanceMonitor, agent_eval
@@ -127,6 +135,76 @@ eval = QuickEval.for_llm_judge("results/", model="claude-sonnet-4-6")
 @eval.qa
 def agent(question: str, ground_truth: str = "") -> str:
     return llm.invoke(question)
+```
+
+### 코드 2: Faithfulness — Ragas 대체 (v0.7.6+)
+
+RAG 에이전트에서 응답이 검색된 컨텍스트에 얼마나 충실한지를 측정한다.  
+`rag_mode=True`와 `enable_llm_judge=True`를 함께 사용하면 `faithfulness` 차원이 자동 추가된다.  
+`[eval]` extras 없이 `[llm]` extras만으로 동작한다.
+
+```python
+from agent_evaluator import PerformanceMonitor, agent_eval
+
+monitor = PerformanceMonitor("results/")
+
+@agent_eval(
+    monitor,
+    task_type="information_retrieval",
+    rag_mode=True,           # context_arg="context" + 할루시네이션 감지 활성
+    enable_llm_judge=True,   # faithfulness 차원 자동 추가
+    judge_model="claude-sonnet-4-6",
+)
+def rag_agent(question: str, context: str = "", ground_truth: str = "") -> str:
+    return rag_chain.invoke({"input": question, "context": context})
+
+rag_agent(
+    "Python의 GIL이란?",
+    context="GIL(Global Interpreter Lock)은 Python 인터프리터가...",
+    ground_truth="GIL은 멀티스레딩 환경에서 하나의 스레드만 Python 바이트코드를 실행하도록 제한하는 뮤텍스입니다.",
+)
+
+for task in monitor.tasks:
+    judge = task.extra.get("llm_judge", {})
+    print(f"Faithfulness: {judge.get('faithfulness', 0):.2f}/5.0")
+    # → "Faithfulness: 4.6/5.0"
+```
+
+### 코드 3: G-Eval 커스텀 기준 — DeepEval 대체 (v0.7.6+)
+
+`judge_criteria`에 평가 차원 이름을 리스트로 전달하면 LLMJudge가 해당 차원으로 채점한다.  
+DeepEval의 G-Eval을 `[llm]` extras 하나로 대체한다.
+
+```python
+from agent_evaluator import PerformanceMonitor, agent_eval
+
+monitor = PerformanceMonitor(
+    "results/",
+    judge_criteria=["professionalism", "empathy", "clarity"],  # 글로벌 설정
+)
+
+@agent_eval(monitor, task_type="qa", enable_llm_judge=True, judge_model="claude-sonnet-4-6")
+def customer_service_agent(question: str, ground_truth: str = "") -> str:
+    return llm.invoke(question)
+
+# 또는 특정 호출에만 적용 (temp-override)
+@agent_eval(
+    monitor,
+    task_type="qa",
+    enable_llm_judge=True,
+    judge_criteria=["safety", "regulatory_compliance"],  # 이 호출에만 적용
+)
+def regulated_agent(question: str, ground_truth: str = "") -> str:
+    return llm.invoke(question)
+
+# 결과 확인
+for task in monitor.tasks:
+    judge = task.extra.get("llm_judge", {})
+    criteria = judge.get("criteria_scores", {})
+    print(f"전문성: {criteria.get('professionalism', 0):.2f}")
+    print(f"공감성: {criteria.get('empathy', 0):.2f}")
+    print(f"명확성: {criteria.get('clarity', 0):.2f}")
+    print(f"커스텀 종합: {judge.get('criteria_overall', 0):.2f}")
 ```
 
 ### judge_sample_rate=0.1 비용 제어
@@ -485,7 +563,7 @@ eval = QuickEval("results/", auto_save=True, auto_save_interval=10)
 
 - **Layer 3이 필요한 세 가지 상황**: Ground truth가 없을 때(LLM Judge), RAG 파이프라인을 정밀하게 평가할 때(Ragas), 독성/편향 탐지가 필요할 때(DeepEval).
 
-- **LLM Judge는 가장 가벼운 Layer 3 선택지**다. `[llm]` extras만 설치하면 되고, `enable_llm_judge=True` 한 줄로 활성화된다. completeness, relevance, factual_consistency 3차원으로 ground truth 없이 자동 채점한다.
+- **LLM Judge는 가장 가벼운 Layer 3 선택지**다. `[llm]` extras만 설치하면 되고, `enable_llm_judge=True` 한 줄로 활성화된다. completeness, relevance, factual_consistency, toxicity, bias **5차원 기본**으로 ground truth 없이 자동 채점한다 (safety_score 자동 포함). v0.7.6+에서는 `rag_mode=True` 조합으로 faithfulness, `judge_criteria=[...]`로 커스텀 차원도 추가된다.
 
 - **Ragas는 RAG 파이프라인 진단에 특화**되어 있다. Faithfulness/Answer Relevancy/Context Precision/Context Recall 4가지 지표로 "검색 문제인가, 생성 문제인가"를 분리해서 진단할 수 있다.
 

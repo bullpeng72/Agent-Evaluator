@@ -2,7 +2,7 @@
 
 Agent Evaluator를 5분 안에 첫 평가까지 완성하는 최단 경로
 
-**v0.7.5 | Python 3.8+**
+**v0.7.6 | Python 3.8+**
 
 ---
 
@@ -35,7 +35,7 @@ pip install agent-evaluator[serve]
 # 프레임워크 통합 포함 (LangChain/LangGraph)
 pip install agent-evaluator[langchain,serve]
 
-# 실시간 운영 모니터링 (Phoenix + OTEL) — v0.7.5
+# 실시간 운영 모니터링 (Phoenix + OTEL) — v0.7.6
 pip install agent-evaluator[otel]
 ```
 
@@ -235,7 +235,7 @@ agent-eval gate results/eval.json --tcr 85 --accuracy 70
 
 ---
 
-## 실시간 운영 모니터링 (v0.7.5)
+## 실시간 운영 모니터링 (v0.7.6)
 
 Phoenix + OpenTelemetry로 프로덕션 스팬을 실시간 추적합니다. **`setup_otel()`을 PerformanceMonitor 생성 전에 호출해야 합니다.**
 

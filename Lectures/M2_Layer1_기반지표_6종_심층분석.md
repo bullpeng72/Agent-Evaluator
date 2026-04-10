@@ -1,6 +1,7 @@
 # M2 — Layer 1 기반 지표 6종 심층 분석
 
-> Agent-Evaluator의 Layer 1 지표 6종은 외부 의존성 없이 자동으로 활성화된다.
+> **Agent-Evaluator v0.7.5+** 기준  
+> Layer 1 지표 6종은 외부 의존성 없이 자동으로 활성화된다.
 > 각 지표의 측정 원리부터 실무 활용법까지 완전히 이해한다.
 
 ---
@@ -1367,6 +1368,41 @@ for metric, delta in comparison.items():
 ab = eval_this.ab_test(eval_last)
 if ab.get("significant"):
     print(f"\n⚠️ 정확도 변화가 통계적으로 유의합니다 (p={ab['p_value']:.3f})")
+```
+
+---
+
+## 보충: Layer 1 지표 × 데코레이터 활성화 방법
+
+Layer 1 지표를 데코레이터로 수집하는 구체적인 방법 정리다.
+
+| 지표 | `@agent_eval` | `@batch_eval` | `@conversation_eval` | 필수 파라미터 | 자동 여부 |
+|---|:---:|:---:|:---:|---|---|
+| TCR | ✅ | ✅ | ✅ | 없음 (`completion_fn` 선택) | **항상 자동** |
+| Accuracy | ✅ | ✅ | ✅ | `ground_truth_arg` 존재 시 | ground_truth 있으면 자동 |
+| Response Quality | ✅ | ✅ | ✅ | 없음 (`enable_quality_evaluation` 선택) | response + question 자동 |
+| Latency | ✅ | ✅ | ✅ | 없음 | **항상 자동** |
+| TTFT | ✅ generator | ✅ `streaming_mode` | ❌ | generator 리턴 함수 | generator 시 자동 |
+| Token Economy | ✅ | ✅ | ❌ | `framework=` 어댑터 or EvalMetadata | 지원 프레임워크 자동 |
+| Hallucination Rate | ✅ | ✅ | ❌ | `rag_mode=True` (권장) | **수동 활성 필요** |
+
+```python
+# ① 기본 — TCR + Accuracy + Quality + Latency 자동
+@agent_eval(monitor, task_type="qa")
+def agent(question, ground_truth=""): ...
+
+# ② 토큰 비용 추가
+@agent_eval(monitor, framework="openai", model_name="gpt-4o-mini")
+def agent(question, ground_truth=""): ...
+
+# ③ RAG 환각 탐지 (rag_mode 하나로 3가지 자동 설정)
+@agent_eval(monitor, rag_mode=True)
+def rag_agent(question, context="", ground_truth=""): ...
+# 내부: context_arg="context" + enable_hallucination=True + task_type="information_retrieval"
+
+# ④ 커스텀 Accuracy 계산
+@agent_eval(monitor, score_fn=lambda r, gt: custom_similarity(r, gt))
+def agent(question, ground_truth=""): ...
 ```
 
 ---

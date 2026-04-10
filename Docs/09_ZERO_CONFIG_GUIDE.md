@@ -1,6 +1,6 @@
 # Zero Configuration 가이드
 
-별도 설정 없이 자동으로 올바른 위치에 데이터를 저장하는 방법 — Agent Evaluator v0.7.5
+별도 설정 없이 자동으로 올바른 위치에 데이터를 저장하는 방법 — Agent Evaluator v0.7.6
 
 ## 목차
 
@@ -22,7 +22,7 @@
 
 agent-evaluator는 **Zero Configuration** 철학을 따릅니다. 별도의 설정 파일이나 환경 변수 없이도 자동으로 올바른 위치에 데이터를 저장합니다.
 
-v0.7.5 기준 모든 핵심 클래스가 Zero Configuration을 완벽하게 지원합니다:
+v0.7.6 기준 모든 핵심 클래스가 Zero Configuration을 완벽하게 지원합니다:
 
 - `PerformanceMonitor` / `HybridPerformanceMonitor`
 - `KoreanRAGEvaluator`
@@ -339,7 +339,7 @@ agent-eval dashboard --port 8080 --watch
 
 ```json
 {
-  "version": "0.7.5",
+  "version": "0.7.6",
   "created_at": "2026-04-07T10:00:00",
   "data_files": {
     "/path/to/results/my_evaluation.json": {
@@ -548,5 +548,5 @@ chmod 755 ~/.agent_evaluator
 
 ---
 
-**문서 버전**: v0.7.5  
-**최종 업데이트**: 2026-04-08
+**문서 버전**: v0.7.6  
+**최종 업데이트**: 2026-04-10

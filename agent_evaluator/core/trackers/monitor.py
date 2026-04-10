@@ -58,7 +58,13 @@ from .security import (
     ToolChainAttackDetector,
 )
 from .conversation import ConversationSession
-from .feedback import ImplicitFeedbackTracker
+
+try:
+    from .feedback import ImplicitFeedbackTracker as _ImplicitFeedbackTracker
+    _FEEDBACK_AVAILABLE = True
+except ImportError:
+    _ImplicitFeedbackTracker = None  # type: ignore[assignment,misc]
+    _FEEDBACK_AVAILABLE = False
 
 logger = logging.getLogger(__name__)
 
@@ -181,6 +187,9 @@ class PerformanceMonitor:
         judge_model: Optional[str] = None,
         judge_sample_rate: float = 0.1,
         judge_budget_per_day: Optional[float] = None,
+        # G-Eval 스타일 커스텀 평가 기준 (DeepEval 대체)
+        # 예: ["medical_accuracy", "citation_quality"]
+        judge_criteria: Optional[List[str]] = None,
         # Anomaly Detection (Phase 3-B)
         enable_anomaly_detection: bool = False,
         anomaly_baseline_window: int = 100,
@@ -382,6 +391,7 @@ class PerformanceMonitor:
                     model=judge_model,
                     sample_rate=judge_sample_rate,
                     budget_per_day=judge_budget_per_day,
+                    judge_criteria=judge_criteria,
                 )
                 logger.info("LLM Judge 활성화됨 (model=%s, sample_rate=%s)", self.llm_judge.model, judge_sample_rate)
             except ImportError as e:
@@ -405,8 +415,11 @@ class PerformanceMonitor:
         # Phase 1-C: 멀티턴 대화 세션 목록
         self.conversation_sessions: List[Any] = []
 
-        # Phase 2-C: 암묵적 피드백 트래커
-        self.feedback_tracker = ImplicitFeedbackTracker()
+        # Phase 2-C: 암묵적 피드백 트래커 (optional — graceful degradation when unavailable)
+        if _FEEDBACK_AVAILABLE and _ImplicitFeedbackTracker is not None:
+            self.feedback_tracker: Optional[Any] = _ImplicitFeedbackTracker()
+        else:
+            self.feedback_tracker = None
 
         # G3: 멀티모달 지표 트래커
         self.multimodal_tracker = MultimodalMetricsTracker()
@@ -1667,6 +1680,13 @@ class PerformanceMonitor:
                         ground_truth=ground_truth_str,
                         request=_eff_request_hall
                     )
+                    # Context Recall / Precision 근사 계산 (RAG 지표 대체)
+                    self.hallucination_detector.track_rag_task(
+                        task_id=task_result.task_id,
+                        response=_eff_response_hall,
+                        context=_eff_context_hall,
+                        ground_truth=ground_truth_str,
+                    )
                 except (AttributeError, KeyError, TypeError) as _hall_exc:
                     logger.warning(
                         "Hallucination detection failed for %s: %s",
@@ -2467,6 +2487,7 @@ class PerformanceMonitor:
             "accuracy_scores": self.accuracy_evaluator.get_accuracy_scores(),
             "hallucination": self.hallucination_detector.get_hallucination_rate(),
             "quality": self.quality_evaluator.get_quality_metrics(),
+            "rag_metrics": self.hallucination_detector.get_rag_metrics(),
         }
         efficiency_metrics: Dict[str, Any] = {
             "latency": self.latency_tracker.get_latency_stats(),
@@ -4234,39 +4255,17 @@ class PerformanceMonitor:
                 s.to_dict() if hasattr(s, "to_dict") else s
                 for s in self.conversation_sessions
             ],
-            # Phase 2-C: 암묵적 피드백
-            "feedback": {
-                **self.feedback_tracker.get_stats(),
-                "records": self.feedback_tracker.feedbacks,
-            },
+            # Phase 2-C: 암묵적 피드백 (optional — absent when ImplicitFeedbackTracker not installed)
+            "feedback": (
+                {**self.feedback_tracker.get_stats(), "records": self.feedback_tracker.feedbacks}
+                if self.feedback_tracker is not None
+                else {"available": False}
+            ),
         }
 
         # Phase 2-A: StreamingEvaluator 슬라이딩 윈도우 스냅샷 (opt-in)
         if self._streaming_snapshot:
             data["streaming_data"] = self._streaming_snapshot
-
-        # Phase 3-C: LLM Judge 비용 정보
-        if self.llm_judge is not None:
-            judge_summary = self.llm_judge.get_summary()
-            judge_cost = judge_summary.get("total_cost_usd", 0.0)
-            budget = self.llm_judge.budget_per_day
-            # by_provider: llm_judge는 단일 모델을 사용하므로 해당 모델명으로 집계
-            _judge_model = getattr(self.llm_judge, "model", "")
-            _by_provider = {_judge_model: round(judge_cost, 6)} if judge_cost > 0 and _judge_model else {}
-            data["evaluation_cost"] = {
-                "total_usd": judge_cost,
-                "llm_judge_usd": judge_cost,
-                "call_count": judge_summary.get("count", 0),
-                "model": _judge_model,
-                "sample_rate_current": self.llm_judge.sample_rate,
-                "budget_per_day": budget,
-                "budget_remaining_usd": (
-                    round(max(0.0, budget - judge_cost), 6)
-                    if budget is not None else None
-                ),
-                "projected_daily_usd": judge_cost,
-                "by_provider": _by_provider,
-            }
 
         # Auto-add security evaluators if enabled
         if hasattr(self, 'input_sanitizer') and self.input_sanitizer is not None:

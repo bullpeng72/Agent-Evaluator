@@ -78,7 +78,7 @@ ls results/*.json
 
 **원인**: 임계값이 현재 데이터 수준보다 높게 설정됨.
 
-**해결책**: `generate_gate_config()`로 현재 지표 기반 적정 임계값을 자동 제안받는다.
+**해결책**: `generate_gate_config()`로 현재 지표 기반 적정 임계값을 확인한 후, CLI에 직접 지정한다.
 
 ```python
 from agent_evaluator import QuickEval
@@ -86,11 +86,12 @@ from agent_evaluator import QuickEval
 eval = QuickEval("results/")
 # ... 평가 실행 후
 eval.generate_gate_config("gate_config.json")
-# gate_config.json에 현재 지표의 95% 수준 임계값이 자동 저장됨
+# gate_config.json에 현재 지표의 95% 수준 임계값이 저장됨 — 값을 확인 후 CLI에 직접 지정
 ```
 
 ```bash
-agent-eval gate result.json --config gate_config.json
+# 현재 성능 기반으로 임계값 직접 지정
+agent-eval gate result.json --tcr 85 --accuracy 70
 ```
 
 ---

@@ -125,6 +125,21 @@ def create_app(
         allow_headers=["*"],
     )
 
+    # HTML 응답 캐시 완전 차단 (브라우저 캐시로 인한 구버전 HTML 서빙 방지)
+    from starlette.middleware.base import BaseHTTPMiddleware
+
+    class NoCacheHTMLMiddleware(BaseHTTPMiddleware):
+        async def dispatch(self, request, call_next):
+            response = await call_next(request)
+            ct = response.headers.get("content-type", "")
+            if "text/html" in ct:
+                response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+                response.headers["Pragma"] = "no-cache"
+                response.headers["Expires"] = "0"
+            return response
+
+    app.add_middleware(NoCacheHTMLMiddleware)
+
     # State
     app.state.results_dir = results_dir
     app.state.title = title
@@ -165,7 +180,7 @@ def create_app(
 
     @app.get("/", response_class=HTMLResponse)
     async def dashboard(request: Request):
-        return templates.TemplateResponse(
+        resp = templates.TemplateResponse(
             request,
             "dashboard.html.j2",
             {
@@ -175,6 +190,9 @@ def create_app(
                 "offline": app.state.offline,
             },
         )
+        resp.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+        resp.headers["Pragma"] = "no-cache"
+        return resp
 
     @app.get("/slides", response_class=HTMLResponse)
     async def slides(request: Request):
@@ -202,7 +220,7 @@ def create_app(
 
     @app.get("/dashboard", response_class=HTMLResponse)
     async def dashboard2(request: Request):
-        return templates.TemplateResponse(
+        resp = templates.TemplateResponse(
             request,
             "dashboard2.html.j2",
             {
@@ -212,5 +230,8 @@ def create_app(
                 "offline": app.state.offline,
             },
         )
+        resp.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+        resp.headers["Pragma"] = "no-cache"
+        return resp
 
     return app

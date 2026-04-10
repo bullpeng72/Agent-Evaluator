@@ -189,7 +189,7 @@ from agent_evaluator import agent_eval_with_retry
     monitor,
     task_type="qa",
     max_retries=3,
-    retry_on=Exception,
+    retry_on=(Exception,),
     jitter_type="full",    # 재시도 간격에 무작위 지터 추가
     max_delay=10.0,        # 최대 대기 시간(초)
 )

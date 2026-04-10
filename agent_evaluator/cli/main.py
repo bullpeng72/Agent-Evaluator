@@ -756,6 +756,8 @@ def main() -> None:
             f"  {G}agent-eval monitor{R}\n"
             f"  {G}agent-eval monitor --port 6007{R}\n"
             f"  {G}agent-eval monitor --check{R}\n"
+            f"  {G}agent-eval monitor --reset{R}\n"
+            f"  {G}agent-eval monitor --reset --yes{R}\n"
             f"  {G}agent-eval --version{R}\n"
             "\n"
             f"{B}더 자세한 도움말:{R}\n"
@@ -818,9 +820,11 @@ def main() -> None:
             f"{D}pip install 'agent-evaluator[serve]' 필요{R}\n"
             "\n"
             f"{B}접속 URL:{R}\n"
-            f"  {C}http://localhost:8765{R}           메인 대시보드\n"
-            f"  {C}http://localhost:8765/slides{R}    슬라이드 뷰\n"
-            f"  {C}http://localhost:8765/api/docs{R}  Swagger UI\n"
+            f"  {C}http://localhost:8765/dashboard{R}  Dev 대시보드 (메인, 브라우저 자동 오픈)\n"
+            f"  {C}http://localhost:8765{R}            원본 대시보드\n"
+            f"  {C}http://localhost:8765/slides{R}     슬라이드 뷰\n"
+            f"  {C}http://localhost:8765/sdk-docs{R}   SDK 문서\n"
+            f"  {C}http://localhost:8765/api/docs{R}   Swagger UI\n"
         ),
         epilog=(
             f"{B}예시:{R}\n"
@@ -856,6 +860,18 @@ def main() -> None:
         "gate",
         help="CI/CD 품질 게이팅 — 임계값 기준 통과/실패 판정",
         formatter_class=ColoredHelpFormatter,
+        description=(
+            "평가 결과 JSON 파일을 읽어 임계값 기준으로 통과/실패를 판정합니다.\n"
+            "CI/CD 파이프라인(GitHub Actions, GitLab CI 등)에 연동해 품질 게이트로 사용합니다.\n"
+            "\n"
+            f"{B}지원 지표:{R}\n"
+            f"  {Y}--tcr{R}               Task Completion Rate — 태스크 완료율 (%%)\n"
+            f"  {Y}--accuracy{R}          정확도 (%%)\n"
+            f"  {Y}--p95-latency{R}       P95 지연시간 상한 (초)\n"
+            f"  {Y}--hallucination{R}     환각 탐지율 상한 (%%)\n"
+            f"  {Y}--llm-judge{R}         LLM Judge 종합 점수 하한 (0–5)\n"
+            f"  {Y}--fail-on-regression{R} 기준선 대비 허용 회귀 폭 (%%)\n"
+        ),
         epilog=(
             f"{B}종료 코드:{R}\n"
             f"  {G}0{R}  모든 기준 통과\n"
@@ -909,7 +925,8 @@ def main() -> None:
         formatter_class=ColoredHelpFormatter,
         description=(
             "골든 데이터셋을 관리합니다.\n"
-            "운영 평가 결과에서 케이스를 자동 추출하거나 Phoenix에 업로드할 수 있습니다.\n"
+            "운영 평가 결과에서 고품질 케이스를 자동 추출해 회귀 테스트 소재로 활용합니다.\n"
+            f"{D}Phoenix 업로드는 'agent-eval monitor --sync-datasets' 를 사용하세요.{R}\n"
         ),
         epilog=(
             f"{B}예시:{R}\n"

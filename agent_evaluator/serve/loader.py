@@ -106,6 +106,10 @@ class LLMJudgeData:
     avg_relevance: float = 0.0
     avg_factual_consistency: float = 0.0
     avg_overall: float = 0.0
+    avg_toxicity: float = 0.0
+    avg_bias: float = 0.0
+    avg_faithfulness: float = 0.0       # v0.7.6: RAG mode faithfulness (Ragas 대체)
+    avg_criteria_overall: float = 0.0   # v0.7.6: G-Eval 커스텀 기준 평균
     total_cost_usd: float = 0.0
     judged_count: int = 0
     model: str = ""
@@ -626,7 +630,8 @@ def _parse_feedback_data(raw: dict) -> Dict[str, Any]:
 
 def _parse_cost_data(raw: dict) -> Dict[str, Any]:
     """비용 데이터 파싱 — budget/sampling 필드 포함."""
-    cost = raw.get("evaluation_cost", {})
+    # v0.7.6+: evaluation_cost 키 삭제됨. pricing 우선, 이전 JSON 하위 호환 fallback.
+    cost = raw.get("pricing", raw.get("evaluation_cost", {}))
     pricing = raw.get("pricing", {})
     if not cost and not pricing:
         return {}
@@ -929,7 +934,8 @@ def _parse_llm_judge(raw_tasks: List[Dict[str, Any]]) -> "LLMJudgeData":
     if not results:
         return LLMJudgeData()
 
-    dims = ["completeness", "relevance", "factual_consistency", "overall"]
+    dims = ["completeness", "relevance", "factual_consistency", "overall",
+            "toxicity", "bias", "faithfulness", "criteria_overall"]
     avgs = {}
     for dim in dims:
         vals = [r["scores"][dim] for r in results if r.get("scores") and dim in r["scores"]]
@@ -941,6 +947,10 @@ def _parse_llm_judge(raw_tasks: List[Dict[str, Any]]) -> "LLMJudgeData":
         avg_relevance=avgs.get("relevance", 0.0),
         avg_factual_consistency=avgs.get("factual_consistency", 0.0),
         avg_overall=avgs.get("overall", 0.0),
+        avg_toxicity=avgs.get("toxicity", 0.0),
+        avg_bias=avgs.get("bias", 0.0),
+        avg_faithfulness=avgs.get("faithfulness", 0.0),
+        avg_criteria_overall=avgs.get("criteria_overall", 0.0),
         total_cost_usd=round(total_cost, 6),
         judged_count=len(results),
         model=model,

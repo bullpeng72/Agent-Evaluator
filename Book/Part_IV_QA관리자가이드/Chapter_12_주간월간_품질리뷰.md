@@ -251,15 +251,18 @@ if summary_this.get("total_tasks", 0) < 30:
 ```python
 from agent_evaluator.datasets.builder import GoldenSetBuilder
 
-builder = GoldenSetBuilder(output_dir="data/golden_datasets/")
+builder = GoldenSetBuilder(
+    source_dir="results/this_week/",      # 평가 결과 디렉토리
+    output_dir="data/golden_datasets/",
+)
 
-# 이번 주 결과에서 score ≥ 0.85 케이스 추출
-candidates = builder.extract_candidates(
-    results_dir="results/this_week/",
-    min_score=0.85,
-    max_candidates=50,
-    deduplicate=True,
-    strategy="stratified",   # task_type별 균등 추출
+# 이번 주 결과에서 고품질 케이스 추출
+# extract()는 source_dir의 JSON 파일들을 자동으로 읽음
+candidates = builder.extract(
+    strategies=["high_value"],           # accuracy_score ≥ 0.85 케이스
+    max_cases=50,
+    require_human_review=True,
+    min_question_length=10,
 )
 
 print(f"이번 주 신규 후보: {len(candidates)}개")
@@ -267,7 +270,7 @@ print(f"이번 주 신규 후보: {len(candidates)}개")
 # 후보 저장 (대시보드에서 검토 후 승인)
 builder.save_candidates(
     candidates,
-    f"data/golden_datasets/candidates_{datetime.now().strftime('%Y%m%d')}.json"
+    f"candidates_{datetime.now().strftime('%Y%m%d')}.json"
 )
 ```
 
@@ -320,11 +323,15 @@ print(f"갱신 후 케이스: {len(new_golden)}개")
 분기마다 골든셋 전체를 현재 에이전트로 재평가해서 점수가 크게 변한 케이스를 찾는다.
 
 ```python
+import json
 from agent_evaluator import QuickEval
 from agent_evaluator.datasets.builder import GoldenSetBuilder
 
-builder = GoldenSetBuilder(output_dir="data/golden_datasets/")
-golden_cases = builder.load_golden("data/golden_datasets/golden_v2.json")
+# GoldenSetBuilder에는 load_golden() 메서드가 없으므로 직접 JSON 로드
+with open("data/golden_datasets/golden_v2.json", encoding="utf-8") as f:
+    golden_cases = json.load(f)
+if isinstance(golden_cases, dict):
+    golden_cases = golden_cases.get("items", golden_cases.get("qa_pairs", []))
 
 eval_q = QuickEval("results/quarterly/")
 

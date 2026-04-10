@@ -1,6 +1,6 @@
 # Appendix F. 용어 사전
 
-Agent Evaluator v0.7.4에서 사용하는 주요 용어를 영문 기준 가나다 순으로 정리한다.
+Agent Evaluator v0.7.6에서 사용하는 주요 용어를 영문 기준 가나다 순으로 정리한다.
 
 ---
 
@@ -112,6 +112,8 @@ from agent_evaluator import create_taskresult
 
 Confident AI에서 개발한 오픈소스 LLM 평가 라이브러리. Agent Evaluator Layer 3에서 G-Eval, Hallucination Score, Toxicity, Bias, Answer Relevancy 5개 지표를 제공한다. `pip install "agent-evaluator[eval]"`로 설치하며 `OPENAI_API_KEY`가 필요하다.
 
+출처: docs.confident-ai.com
+
 참조: Appendix A (Layer 3) / Appendix D (평가 플랫폼 비교)
 
 ---
@@ -192,7 +194,7 @@ Layer 1 환각 탐지 클래스 (규칙 기반). Unsupported Claim과 Numerical 
 
 ### LLM Judge (LLMJudge)
 
-`ground_truth` 없이 LLM을 평가자로 사용하는 클래스. Completeness / Relevance / Factual Consistency 3차원을 자동 채점한다. `[llm]` extras와 API 키(`OPENAI_API_KEY` 또는 `ANTHROPIC_API_KEY`)가 필요하다.
+`ground_truth` 없이 LLM을 평가자로 사용하는 클래스. Completeness / Relevance / Factual Consistency / Toxicity / Bias 5차원을 기본 채점하며, RAG 컨텍스트가 있으면 Faithfulness(0~5)를, `judge_criteria` 지정 시 커스텀 차원을 추가한다. `[llm]` extras와 API 키(`OPENAI_API_KEY` 또는 `ANTHROPIC_API_KEY`)가 필요하다.
 
 ```python
 from agent_evaluator import LLMJudge
@@ -204,7 +206,9 @@ from agent_evaluator import LLMJudge
 
 ### OTEL (OpenTelemetry)
 
-분산 시스템 관측가능성을 위한 오픈소스 표준. Agent Evaluator에서는 `setup_otel()` 호출 후 `record_task()` 실행 시 OTLP 스팬을 자동으로 발행한다. `[otel]` extras 설치 필요.
+분산 시스템 관측가능성을 위한 오픈소스 표준. CNCF(Cloud Native Computing Foundation)가 관리하며 벤더 중립적 SDK와 프로토콜을 제공한다. Agent Evaluator에서는 `setup_otel()` 호출 후 `record_task()` 실행 시 OTLP 스팬을 자동으로 발행한다. `[otel]` extras 설치 필요.
+
+출처: opentelemetry.io
 
 참조: Appendix B (agent-eval monitor) / Appendix C / 11장 (Phoenix 모니터링)
 
@@ -212,7 +216,9 @@ from agent_evaluator import LLMJudge
 
 ### OTLP (OpenTelemetry Protocol)
 
-OpenTelemetry 데이터 전송 프로토콜. HTTP 또는 gRPC 방식으로 스팬(span) 데이터를 Collector(Phoenix 등)로 전송한다. Agent Evaluator는 HTTP 방식(`/v1/traces` 엔드포인트)을 사용한다.
+OpenTelemetry 데이터 전송 프로토콜. HTTP 또는 gRPC 방식으로 스팬(span) 데이터를 Collector(Phoenix 등)로 전송한다. gRPC 기본 포트는 4317, HTTP 기본 포트는 4318이다. Phoenix는 6006 포트에서 OTLP HTTP를 수신한다. Agent Evaluator는 OTLP HTTP 방식(`/v1/traces` 엔드포인트)을 사용한다.
+
+출처: opentelemetry.io/docs/specs/otlp/ · docs.arize.com/phoenix
 
 참조: Appendix E (오류 #1) / 11장
 
@@ -232,7 +238,9 @@ from agent_evaluator import PerformanceMonitor
 
 ### Phoenix (Arize Phoenix)
 
-Arize AI에서 개발한 오픈소스 LLM 관측가능성 플랫폼. OTEL(OpenInference) 기반으로 트레이스, 평가 지표, 데이터셋, 프롬프트 4개 탭을 제공한다. `agent-eval monitor`로 로컬에서 기동하며 기본 포트는 6006이다.
+Arize AI에서 개발한 오픈소스 LLM 관측가능성 플랫폼. OpenInference(OTEL 기반 AI 관측가능성 의미 규약) 기반으로 트레이스, 평가 지표, 데이터셋, 프롬프트 4개 탭을 제공한다. `agent-eval monitor`로 로컬에서 기동하며 기본 포트는 6006이다.
+
+출처: docs.arize.com/phoenix
 
 참조: Appendix B / Appendix C / Appendix E (오류 #1) / 11장
 
@@ -255,6 +263,8 @@ eval = QuickEval("results/")
 ### Ragas
 
 RAG(Retrieval-Augmented Generation) 평가 전문 오픈소스 라이브러리. Agent Evaluator Layer 3에서 Faithfulness, Answer Relevancy, Context Precision, Context Recall 4개 지표를 제공한다. `pip install "agent-evaluator[eval]"`로 설치하며 `OPENAI_API_KEY`가 필요하다. 버전 0.4.x API(`EvaluationDataset`, `SingleTurnSample`)를 사용한다.
+
+출처: docs.ragas.io
 
 참조: Appendix A (Layer 3) / Appendix D / Appendix E (오류 #9)
 
@@ -292,7 +302,9 @@ from agent_evaluator import SimpleTaskAlertRule
 
 ### Span
 
-OTEL에서 단일 작업 단위를 나타내는 추적 데이터 구조. `record_task()` 호출 시 Agent Evaluator가 자동으로 스팬을 생성하여 Phoenix로 전송한다. 스팬에는 `ae.task_type`, `ae.completion_score`, `ae.framework` 등의 속성이 포함된다.
+OTEL에서 단일 작업 단위를 나타내는 추적 데이터 구조. `record_task()` 호출 시 Agent Evaluator가 자동으로 스팬을 생성하여 Phoenix로 전송한다. 스팬에는 `ae.task_type`, `ae.completion_score`, `ae.framework` 등의 속성과 OpenInference 의미 규약 속성(`openinference.span.kind`, `llm.token_count.*`)이 포함된다.
+
+출처: opentelemetry.io/docs/concepts/signals/traces/ · openinference.readthedocs.io
 
 참조: 11장
 

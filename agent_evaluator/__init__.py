@@ -38,7 +38,7 @@ Quick Start (Decorator):
     >>> # Metrics auto-recorded on every call!
 """
 
-__version__ = "0.7.4"
+__version__ = "0.7.6"
 __author__ = "Sungwoo Kim"
 
 # Exception hierarchy (경량 — 외부 의존성 없음)
@@ -135,14 +135,56 @@ from .decorators import (
 # Task 6: QuickEval — 원스톱 평가 Facade
 from .quick_eval import QuickEval
 
+# Phase 3: Observation Bus — event-driven metric collection
+from .observation import (
+    EvalEvent,
+    EvalEventBus,
+    observe_agent,
+    connect_monitor_to_bus,
+    EvalCallbackHandler,
+    EvalFeedbackMiddleware,
+)
+
+# Phase 4: Policy Engine — YAML-based deployment gating + hot-reload
+from .policy import (
+    PolicyRule,
+    PolicyAction,
+    Policy,
+    RuleViolation,
+    PolicyResult,
+    PolicyViolationError,
+    PolicyEngine,
+    load_policy_file,
+    parse_policy_dict,
+)
+
+# Phase 2: Plugin Registry — open extension points
+from .plugin_registry import (
+    MetricPlugin,
+    FrameworkAdapterPlugin,
+    PluginRegistry,
+    register_metric,
+    register_framework_adapter,
+)
+
+# Phase 1: Config-based zero-param decorator support
+from .eval_config import (
+    EvalConfig,
+    JudgeConfig,
+    SecurityConfig,
+    AnomalyConfig,
+    EvalConfigLoader,
+    get_active_config,
+    get_or_create_monitor,
+    clear_monitor_registry,
+    _UNSET,
+)
+
 # Import helpers with simplified names
 from .helpers.taskresult_helpers import create_taskresult_from_execution as create_taskresult
 
 # Conversation Evaluation (Phase 1-C)
 from .core.trackers.conversation import ConversationSession, ConversationMetrics, ConversationTurn
-
-# Feedback Tracker (Phase 2-C)
-from .core.trackers.feedback import ImplicitFeedbackTracker
 
 # Anomaly Detection (Phase 3-B)
 from .anomaly import AnomalyDetector, AnomalyEvent
@@ -156,6 +198,8 @@ from .cost import CostTracker, AdaptivePolicy, SamplingStage
 # ---------------------------------------------------------------------------
 
 _LAZY_IMPORTS = {
+    # Feedback Tracker (Phase 2-C) — optional, graceful degradation without it
+    "ImplicitFeedbackTracker": ("agent_evaluator.core.trackers.feedback", "ImplicitFeedbackTracker"),
     # Streaming Evaluator (Phase 2-A) — requires serve extras (fastapi/starlette)
     "StreamingEvaluator": ("agent_evaluator.streaming.evaluator", "StreamingEvaluator"),
     "AgentEvalMiddleware": ("agent_evaluator.streaming.middleware", "AgentEvalMiddleware"),
@@ -187,6 +231,7 @@ _LAZY_IMPORTS = {
 
 # 모듈 이름 → extras 이름 매핑 (FrameworkNotInstalledError 메시지용)
 _FRAMEWORK_EXTRA_MAP = {
+    "ImplicitFeedbackTracker": "dev",   # core package — always available; lazy for import-time perf
     "StreamingEvaluator": "serve",
     "AgentEvalMiddleware": "serve",
     "AlertEngine": "serve",
@@ -336,5 +381,16 @@ __all__ = [
     'TestTransparencyManager',
     'AnnotationType',
     'TestStepStatus',
+
+    # Policy Engine (Phase 4)
+    'PolicyRule',
+    'PolicyAction',
+    'Policy',
+    'RuleViolation',
+    'PolicyResult',
+    'PolicyViolationError',
+    'PolicyEngine',
+    'load_policy_file',
+    'parse_policy_dict',
 
 ]

@@ -47,10 +47,10 @@ async def sse_stream(request: Request):
                 try:
                     event = await asyncio.wait_for(queue.get(), timeout=15.0)
                     payload = _json.dumps({"type": event})
-                    yield f"event: {event}\ndata: {payload}\n\n"
+                    yield f"data: {payload}\n\n"
                 except asyncio.TimeoutError:
                     # Keep-alive ping
-                    yield "event: ping\ndata: {\"type\":\"ping\"}\n\n"
+                    yield "data: {\"type\":\"ping\"}\n\n"
         finally:
             watcher.unsubscribe(queue)
 

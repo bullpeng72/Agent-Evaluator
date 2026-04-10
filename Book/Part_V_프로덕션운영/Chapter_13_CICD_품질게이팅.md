@@ -53,7 +53,6 @@ agent-eval gate results/eval.json --tcr 85 --accuracy 70
 agent-eval gate results/eval.json \
   --tcr 85 \
   --accuracy 70 \
-  --quality 3.5 \
   --p95-latency 3.0 \
   --hallucination 5 \
   --llm-judge 3.5 \
@@ -69,27 +68,22 @@ agent-eval gate results/eval.json \
 | `1` | 하나 이상의 임계값 미달 | 빌드 실패 처리 |
 | `2` | 회귀(Regression) 탐지 | 빌드 실패, 별도 알림 |
 
-### 설정 파일 기반 임계값
+### 기준선 저장 및 회귀 감지
 
-임계값이 많아지면 CLI 인수가 복잡해진다. `--config` 옵션으로 JSON 설정 파일을 사용할 수 있다.
+베이스라인을 저장하고 이후 실행에서 회귀를 자동으로 감지할 수 있다.
 
 ```bash
-agent-eval gate results/eval.json --config gate_config.json
+# 현재 결과를 기준선으로 저장
+agent-eval gate results/eval.json --save-baseline
+
+# 이후 실행 시 회귀 감지 (10% 이상 나빠지면 exit code 2)
+agent-eval gate results/eval.json --tcr 85 --fail-on-regression 10
+
+# 기준선 파일 경로 명시
+agent-eval gate results/eval.json --tcr 85 --baseline ci/baseline.json
 ```
 
-```json
-{
-  "tcr": 85,
-  "accuracy": 70,
-  "quality": 3.5,
-  "p95_latency": 3.0,
-  "hallucination": 5,
-  "llm_judge": 3.5,
-  "fail_on_regression": 10
-}
-```
-
-> ⚙️ **DevOps TIP**: `gate_config.json`을 환경별로 관리하라. `gate_config.dev.json`, `gate_config.staging.json`, `gate_config.prod.json`을 각각 만들고, 환경 변수로 선택한다.
+> ⚙️ **DevOps TIP**: `baseline.json`을 환경별로 관리하라. `--baseline ci/baseline.prod.json` 방식으로 환경별로 다른 기준선 파일을 사용할 수 있다.
 
 ### 모든 CLI 옵션
 
@@ -97,12 +91,12 @@ agent-eval gate results/eval.json --config gate_config.json
 |------|------|--------|------|
 | `--tcr` | float | — | Task Completion Rate 최솟값 (%) |
 | `--accuracy` | float | — | 정확도 최솟값 (%) |
-| `--quality` | float | — | 응답 품질 점수 최솟값 (0~5) |
 | `--p95-latency` | float | — | P95 레이턴시 최댓값 (초) |
 | `--hallucination` | float | — | 환각 발생률 최댓값 (%) |
 | `--llm-judge` | float | — | LLM Judge 평균 점수 최솟값 (0~5) |
-| `--fail-on-regression` | int | — | 베이스라인 대비 허용 회귀율 (%) |
-| `--config` | path | — | JSON 설정 파일 경로 |
+| `--fail-on-regression` | float | — | 베이스라인 대비 허용 회귀율 (%) |
+| `--baseline` | path | `<result_dir>/baseline.json` | 기준선 파일 경로 |
+| `--save-baseline` | flag | — | 현재 결과를 기준선으로 저장 |
 | `--junit-xml` | path | — | JUnit XML 결과 파일 경로 |
 
 ### 자동 gate 설정 생성
@@ -389,12 +383,14 @@ pipeline {
 ### 환경 변수로 자동 전환
 
 ```bash
-# GitHub Actions 예시 — 브랜치에 따라 설정 파일 선택
+# GitHub Actions 예시 — 브랜치에 따라 임계값 선택
 - name: 품질 게이팅 실행
   run: |
-    ENV_NAME="${{ github.ref == 'refs/heads/main' && 'prod' || 'staging' }}"
-    agent-eval gate results/ci_run.json \
-      --config ci/gate_config.${ENV_NAME}.json
+    if [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
+      agent-eval gate results/ci_run.json --tcr 85 --accuracy 75 --p95-latency 2.0
+    else
+      agent-eval gate results/ci_run.json --tcr 80 --accuracy 70 --p95-latency 3.0
+    fi
 ```
 
 ```python
@@ -489,6 +485,6 @@ for task in low_accuracy[:10]:
 
 - **GitHub Actions 통합** 시 `--junit-xml` 옵션으로 JUnit 리포트를 생성하고, `actions/github-script`로 PR 코멘트에 품질 지표를 자동 게시할 수 있다.
 
-- **환경별 차등 임계값** 전략을 사용하라. dev는 느슨하게, staging은 보통, prod는 엄격하게. `--config gate_config.prod.json` 방식으로 환경마다 다른 설정 파일을 사용한다.
+- **환경별 차등 임계값** 전략을 사용하라. dev는 느슨하게, staging은 보통, prod는 엄격하게. 브랜치에 따라 `--tcr`, `--accuracy`, `--p95-latency` 값을 다르게 지정하거나, Python `QuickEval.gate()` 메서드에서 환경 변수로 분기한다.
 
 - 게이팅 실패는 나쁜 것이 아니다. **배포 전에 문제를 발견했다**는 의미다. 낮은 케이스를 분석해 임계값 조정 vs 코드 수정을 판단하고, 회귀 케이스는 골든 데이터셋에 추가해 재발을 방지하라.

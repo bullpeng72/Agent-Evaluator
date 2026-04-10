@@ -190,6 +190,14 @@ def list_results(
     - ``total_tasks`` — 총 태스크 수
     - ``total_cost`` — 총 비용(USD)
     """
+    # watch 모드: 항상 디스크에서 직접 읽어 최신 파일 목록 보장
+    if getattr(request.app.state, "watcher", None) is not None:
+        try:
+            from ..loader import load_results as _load_results
+            request.app.state.result_set = _load_results(request.app.state.results_dir)
+        except Exception:
+            pass
+
     _SORT_FIELDS = {"timestamp", "tcr", "accuracy", "avg_latency", "total_tasks", "total_cost"}
     if sort_by not in _SORT_FIELDS:
         sort_by = "timestamp"
@@ -599,6 +607,10 @@ def get_result(file_id: str, request: Request) -> Dict[str, Any]:
             "avg_completeness":       rf.llm_judge.avg_completeness,
             "avg_relevance":          rf.llm_judge.avg_relevance,
             "avg_factual_consistency":rf.llm_judge.avg_factual_consistency,
+            "avg_toxicity":           rf.llm_judge.avg_toxicity,
+            "avg_bias":               rf.llm_judge.avg_bias,
+            "avg_faithfulness":       rf.llm_judge.avg_faithfulness,       # v0.7.6
+            "avg_criteria_overall":   rf.llm_judge.avg_criteria_overall,   # v0.7.6
             "total_cost_usd":         rf.llm_judge.total_cost_usd,
             "model":                  rf.llm_judge.model,
             "results":                rf.llm_judge.results,
@@ -1163,12 +1175,16 @@ def get_metric_detail(file_id: str, metric_name: str, request: Request) -> Dict[
         },
         "cost":          rf.cost_data,
         "llm_judge": {
-            "judged_count":    rf.llm_judge.judged_count,
-            "avg_overall":     rf.llm_judge.avg_overall,
-            "avg_completeness":rf.llm_judge.avg_completeness,
-            "avg_relevance":   rf.llm_judge.avg_relevance,
-            "avg_factual_consistency": rf.llm_judge.avg_factual_consistency,
-            "results":         rf.llm_judge.results,
+            "judged_count":           rf.llm_judge.judged_count,
+            "avg_overall":            rf.llm_judge.avg_overall,
+            "avg_completeness":       rf.llm_judge.avg_completeness,
+            "avg_relevance":          rf.llm_judge.avg_relevance,
+            "avg_factual_consistency":rf.llm_judge.avg_factual_consistency,
+            "avg_toxicity":           rf.llm_judge.avg_toxicity,
+            "avg_bias":               rf.llm_judge.avg_bias,
+            "avg_faithfulness":       rf.llm_judge.avg_faithfulness,       # v0.7.6
+            "avg_criteria_overall":   rf.llm_judge.avg_criteria_overall,   # v0.7.6
+            "results":                rf.llm_judge.results,
         },
     }
 

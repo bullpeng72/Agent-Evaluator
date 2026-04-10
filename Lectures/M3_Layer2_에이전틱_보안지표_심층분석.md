@@ -1,5 +1,6 @@
 # M3 — Layer 2 에이전틱 지표 & 보안 지표 심층 분석
 
+> **Agent-Evaluator v0.7.5+** 기준 (보안 트래커 실동작: v0.7.3+ CRITICAL 수정)  
 > **대상**: Agent-Evaluator SDK를 실무에 적용하는 ML 엔지니어 / AI 개발자  
 > **전제 조건**: M1(데코레이터), M2(Layer 1 기반지표) 수강 완료  
 > **핵심 메시지**: 단순 챗봇에는 필요 없지만, 도구를 사용하는 에이전트에는 반드시 필요한 지표들
@@ -1057,5 +1058,79 @@ escalation_sequence = EvalMetadata(
 | `violation_rate` | > 5% | 권한 외 도구 사용 빈번 |
 | `escalation_detected` | True | 권한 상승 패턴 발견 즉시 |
 | `chain_attack_confidence` | > 0.7 | 복합 공격 의심 즉시 |
+
+---
+
+## 보충: Layer 2 지표 × 데코레이터 활성화 방법
+
+Layer 2 지표를 데코레이터로 수집하는 구체적인 방법 정리다.
+
+### Layer 2-A (Agentic) 활성화
+
+| 지표 | `@agent_eval` | `@batch_eval` | 필수 파라미터 / 데이터 소스 | 자동 여부 |
+|---|:---:|:---:|---|---|
+| Tool Call Efficiency | ✅ | ✅ | `framework=` 어댑터 또는 `EvalMetadata(tool_calls=[...])` | 어댑터 시 자동 |
+| Retry & Error Recovery | ✅ | ❌ | `max_retries > 1` | 재시도 발생 시 자동 |
+| Tool Selection F1 | ✅ | ✅ | `expected_tools_arg="expected_tools"` + tool_calls | **수동 지정 필요** |
+| Agent Coordination | ✅ | ❌ | `framework="crewai"` or `"autogen"` | CrewAI/AutoGen 어댑터 자동 |
+| Workflow Execution | ✅ | ❌ | `framework="langchain"` or `"langgraph"` | LangChain/LangGraph 어댑터 자동 |
+
+```python
+# Tool Call Efficiency — LangChain 어댑터
+@agent_eval(monitor, task_type="tool_use", framework="langchain")
+def agent(question, ground_truth=""): ...  # tool_calls 자동 추출
+
+# Tool Selection F1 — expected_tools 지정
+@agent_eval(monitor, task_type="tool_use",
+            expected_tools_arg="expected_tools", framework="langchain")
+def agent(question, expected_tools=None, ground_truth=""): ...
+
+# Agent Coordination — CrewAI
+@agent_eval(monitor, framework="crewai")
+def crew_agent(question, ground_truth=""): ...  # agent_interactions 자동 추출
+
+# Retry & Error Recovery
+@agent_eval(monitor, max_retries=3, retry_on=(RateLimitError, TimeoutError))
+def agent(question, ground_truth=""): ...
+
+# EvalMetadata로 수동 주입 (프레임워크 어댑터 없이)
+from agent_evaluator import EvalMetadata
+@agent_eval(monitor, task_type="tool_use")
+def agent(question, ground_truth=""):
+    result = my_custom_agent.run(question)
+    return EvalMetadata(
+        tool_calls=[{"tool_name": "search", "duration": 0.3, "success": True}],
+        agent_interactions=[{"from_agent": "planner", "to_agent": "executor",
+                             "type": "delegation", "success": True}],
+    ), result.content
+```
+
+### Layer 2-B (Security) 활성화
+
+| 지표 | `@agent_eval` | 활성 방법 | 추가 파라미터 |
+|---|:---:|---|---|
+| Input Sanitization | ✅ | `security_mode=True` | — |
+| Output Leakage | ✅ | `security_mode=True` | — |
+| Tool Authorization | ✅ | `security_mode=True` | `allowed_tools=[...]` |
+| Privilege Escalation | ✅ | `security_mode=True` | — |
+| Tool Chain Attack | ✅ | `security_mode=True` | — |
+
+> **모든 보안 지표는 `@agent_eval`만 지원한다.** `@batch_eval`, `@conversation_eval`은 미지원이며, 전역 활성화는 `PerformanceMonitor(enable_security_metrics=True)`를 사용한다.
+
+```python
+# 5개 보안 지표 한 번에 활성화
+@agent_eval(monitor,
+            security_mode=True,
+            allowed_tools=["search", "calculate", "read_file"])
+def secure_agent(question, ground_truth=""): ...
+
+# 전역 활성화 (모든 데코레이터에 적용)
+monitor = PerformanceMonitor(
+    enable_security_metrics=True,
+    output_dir="results/",
+)
+@agent_eval(monitor, task_type="tool_use")  # security_mode 없어도 자동 수집
+def agent(question, ground_truth=""): ...
+```
 
 > **다음 강의**: M4에서는 Layer 3 외부 라이브러리 통합, FastAPI 대시보드, 알림 시스템, 이상 탐지, 비용 제어를 다룬다.

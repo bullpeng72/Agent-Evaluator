@@ -2,8 +2,8 @@
 
 Agent Evaluator 실시간 평가 대시보드 — 탭별 상세 사용법
 
-**버전:** v0.7.5
-**최종 업데이트:** 2026-04-09
+**버전:** v0.7.6
+**최종 업데이트:** 2026-04-10
 
 ---
 
@@ -23,6 +23,57 @@ Agent Evaluator 실시간 평가 대시보드 — 탭별 상세 사용법
    - [이상 감지 탭](#tab-anomaly)
    - [평가 비용 탭](#tab-cost)
 9. [공통 기능](#공통)
+
+---
+
+## 메뉴별 활성화 분류 {#분류}
+
+대시보드 21개 메뉴는 데이터를 채우는 방식에 따라 3가지로 나뉜다.
+
+### 🟢 데코레이터만으로 가능 (8개)
+
+`@agent_eval` / `@batch_eval` / `@conversation_eval` 적용 후 `save_to_file()` 호출만으로 자동 채워지는 탭.
+
+| 메뉴 | 데이터 소스 (JSON 키) | 필요한 파라미터 | 작동 방식 |
+|------|----------------------|----------------|----------|
+| **📊 개요** | `summary`, `task_completion`, `efficiency_metrics` | 기본 | `TaskCompletionTracker`·`LatencyTracker`·`TokenEconomyTracker`가 모든 태스크에서 자동 집계. `save_to_file()` 시 KPI 카드 데이터 계산 |
+| **📋 태스크** | `tasks[]` 배열 | 기본 | `TaskResult` 객체를 그대로 직렬화. `task_id`, `accuracy_score`, `execution_time` 등 24개 필드가 테이블로 표시 |
+| **💡 인사이트** | `insights.alerts`, `insights.recommendations` | 기본 | `save_to_file()` 내부에서 TCR·정확도·지연 임계값을 기준으로 자동 비교해 경고/권장사항 생성. 별도 설정 불필요 |
+| **🎯 품질** | `quality_detail`, `accuracy_detail`, `hallucination_detail` | 기본 (환각: `enable_hallucination_detection=True`) | `ResponseQualityEvaluator`(5차원)·`AccuracyEvaluator` 자동 실행. 환각 탭만 `enable_hallucination_detection=True` 별도 활성 필요 |
+| **💬 멀티턴 대화** | `conversation_sessions[]` | `@conversation_eval` | `ConversationSession.compute_metrics()` 자동 호출. `turn_count`, `context_retention`, `topic_coherence` 등 7개 지표 자동 계산 |
+| **⚡ 성능** | `efficiency_metrics.latency`, `efficiency_metrics.tokens` | 기본 | `LatencyTracker`(P50·P90·P95·P99)·`TokenEconomyTracker`(input/output 토큰) 모든 태스크에서 자동 기록 |
+| **🤖 에이전틱** | `tool_usage`, `retry_analysis`, `agent_coordination`, `workflow_analysis` | `task_type="tool_use"` + 응답에 `tool_calls` 포함 | 프레임워크 어댑터(`framework="langchain"` 등)가 응답에서 `tool_calls` 자동 추출. `ToolCallAnalyzer`·`RetryCorrectionTracker`·`ToolSelectionTracker` 자동 실행. 직접 전달 시 `TaskResult(tool_calls=[...])` |
+| **🔒 보안** | `security_metrics` | `security_mode=True` 또는 `PerformanceMonitor(enable_security_metrics=True)` | 5개 보안 트래커(`InputSanitization`·`OutputLeakage`·`ToolAuth`·`PrivilegeEscalation`·`ChainAttack`) 활성화. 성능 영향으로 기본값 False |
+
+---
+
+### 🟡 데코레이터 + 추가 작업으로 가능 (6개)
+
+데코레이터 사용은 전제이되, **별도 객체 생성·플래그·외부 패키지**가 추가로 필요한 탭.
+
+| 메뉴 | 데이터 소스 (JSON 키) | 추가로 필요한 것 | 작동 방식 |
+|------|----------------------|----------------|----------|
+| **🔬 외부 평가** | `rag_metrics`, `advanced_metrics` | `pip install ".[eval]"` + `HybridPerformanceMonitor` + DeepEval/Ragas API 키 | `HybridPerformanceMonitor`가 각 태스크 후 DeepEval G-Eval·Ragas Faithfulness 등을 호출. `save_to_file()`에 `rag_metrics`·`advanced_metrics_summary` 키로 저장 |
+| **📡 실시간** | `streaming_data` | `StreamingEvaluator` 생성 + `record()` + `_flush()` 명시 호출 | `StreamingEvaluator`가 슬라이딩 윈도우(1m/5m/1h)로 TCR·지연·토큰을 집계. 저장 전 `_flush()` 호출해야 `streaming_data` 키 생성 |
+| **🔔 알림** | `results/alerts/YYYY-MM-DD.jsonl` | `SimpleTaskAlertRule` 생성 + `alert_rules=` 전달 + 핸들러에서 JSONL 기록 | 각 태스크 평가 후 `condition(task_result)` 자동 호출. 조건 충족 시 `handler(msg, tr)` 실행. **JSONL 기록은 핸들러 구현 책임** (대시보드는 JSONL 파일을 직접 읽음) |
+| **👍 사용자 반응** | `feedback` | `monitor.record_implicit_feedback(task_id, type)` 명시 호출 | 외부 이벤트(클릭·별점·재질문)를 평가 루프 밖에서 수집해 수동 기록. `ImplicitFeedbackTracker`에 쌓인 데이터가 `save_to_file()` 시 자동 포함 |
+| **🚨 이상 감지** | `anomaly_data` | `PerformanceMonitor(enable_anomaly_detection=True)` | `save_to_file()` 시 `AnomalyDetector.scan(self)` 자동 호출. Z-Score(accuracy_drift)·IQR(token_spike)·선형회귀(latency_trend)·비율(error_surge) 4가지 알고리즘 실행. 최소 5건 이상 태스크 필요 |
+| **💰 평가 비용** | `efficiency_metrics.tokens.total_cost` + `task.extra["llm_judge"]["cost_usd"]` | 토큰 비용: 자동. LLM Judge 비용: `enable_llm_judge=True` | `TokenEconomyTracker`가 모델 단가 테이블로 자동 추정. LLM Judge API 호출 비용은 태스크별 `extra["llm_judge"]["cost_usd"]`에 기록. 대시보드 UI에서 모델 선택 시 단가 재계산 |
+
+---
+
+### 🔵 데코레이터 무관으로 가능 (6개)
+
+결과 JSON 파일이나 별도 관리 도구로 동작하며, 데코레이터 없이도 사용할 수 있는 탭.
+
+| 메뉴 | 데이터 소스 | 작동 방식 |
+|------|------------|----------|
+| **📂 파일 비교** | `results/*.json` (2개 이상) | 드롭다운에서 두 파일 선택 → 지표 차이 자동 계산. `tcr`, `accuracy`, `avg_latency`, `total_cost`를 나란히 비교. 어느 버전이 나은지 배포 판단 기준으로 활용 |
+| **📚 골든 데이터셋** | `data/golden_datasets/*.json` | `agent-eval dataset build results/ --min-score 0.8` CLI 또는 `GoldenSetBuilder` 코드로 생성. 대시보드 UI에서 직접 추가·편집 가능 |
+| **📤 내보내기** | 선택한 `results/*.json` | JSON 원본 / 태스크별 CSV / 독립형 HTML 리포트 3가지 형식. HTML은 대시보드 없이 브라우저에서 열 수 있어 팀 공유에 적합 |
+| **🔍 투명성** | `results/transparency/` 디렉토리 | `TestTransparencyManager.add_annotation()` 으로 단계별 감사 로그 기록. 데코레이터와 독립적으로 동작. 규정 준수·감사 목적 |
+| **📖 지표 설명** | (정적) | 25개 지표 설명·계산식·해석 가이드. 항상 표시 |
+| **⚙️ 설정** | 서버 메모리 (휘발성) | 대시보드 UI에서 임계값(TCR·Accuracy·P95 지연) 직접 입력. 💡 인사이트 탭 경고 기준에 즉시 반영. 서버 재시작 시 초기화 |
 
 ---
 
@@ -486,7 +537,7 @@ monitor = PerformanceMonitor(
 ### 평가 비용 탭 {#tab-cost}
 
 토큰 사용량은 `TokenEconomyTracker`가 자동 기록합니다.
-`evaluation_cost` 키(LLM Judge 비용)를 포함하려면 `enable_llm_judge=True`가 필요합니다.
+LLM Judge 비용을 포함하려면 `enable_llm_judge=True`가 필요합니다. 비용은 태스크별 `task_result.extra["llm_judge"]["cost_usd"]`로 접근합니다 (v0.7.6+에서 최상위 `evaluation_cost` 키 제거됨).
 
 ```python
 # 기본 토큰 비용 — 자동 (추가 설정 불필요)
@@ -507,19 +558,10 @@ monitor = PerformanceMonitor(
     "total_tokens": 45230,
     "total_cost_usd": 0.0135,
     "cost_by_model": { "gpt-4o-mini": 0.0135 }
-  },
-  "evaluation_cost": {
-    "total_usd": 0.00842,
-    "llm_judge_usd": 0.00312,
-    "by_provider": { "openai": 0.00530 },
-    "call_count": 50,
-    "budget_per_day": 10.0,
-    "budget_remaining_usd": 9.99158,
-    "sample_rate_current": 0.1,
-    "projected_daily_usd": 0.0842
   }
 }
 ```
+> **v0.7.6+ 변경**: 최상위 `evaluation_cost` 키가 제거되었습니다. LLM Judge API 호출 비용은 태스크별 `task_result.extra["llm_judge"]["cost_usd"]`로 접근합니다.
 
 ---
 
@@ -537,9 +579,10 @@ data["feedback"] = self.feedback_tracker...    # monitor.record_implicit_feedbac
 if self.enable_anomaly_detection:              # 생성자 파라미터
     data["anomaly_data"] = AnomalyDetector().scan(self)
 
-# 평가 비용 탭 (LLM Judge 부분)
+# 평가 비용 탭 (LLM Judge 부분, v0.7.6+)
+# evaluation_cost 최상위 키 제거 — 비용은 task_result.extra["llm_judge"]["cost_usd"]로 접근
 if self.llm_judge is not None:                 # enable_llm_judge=True
-    data["evaluation_cost"] = ...
+    # 각 task.extra["llm_judge"]["cost_usd"] 에 기록됨
 ```
 
 ---
@@ -578,7 +621,7 @@ if self.llm_judge is not None:                 # enable_llm_judge=True
 ls results/*.json
 
 # 평가 실행 후 다시 시도
-python Evaluator_Examples/01_quality_eval.py
+python Evaluator_Examples/01_layer1_all_metrics.py
 agent-eval dashboard
 ```
 

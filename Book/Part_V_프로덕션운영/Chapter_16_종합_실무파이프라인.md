@@ -247,8 +247,8 @@ eval.save()
 ```
 
 ```bash
-# 골든 데이터셋 자동 빌드 (0.8점 이상 케이스 추출)
-agent-eval dataset build results/ --min-score 0.8
+# 골든 데이터셋 자동 빌드 (고가치 케이스 + 실패 케이스 추출)
+agent-eval dataset build --source results/ --strategy high_value failure_cases
 ```
 
 **Day 3: 알림 규칙 설정**
@@ -386,7 +386,7 @@ Step 4. 이전 버전 롤백 또는 핫픽스 (20~30분)
   - 원인이 외부 장애면: 대기 또는 폴백 모델 전환
 
 Step 5. 회귀 케이스 골든 데이터셋 추가 (사후)
-  agent-eval dataset build results/ --min-score 0.0  # 실패 케이스 추출
+  agent-eval dataset build --source results/ --strategy failure_cases  # 실패 케이스 추출
   # 수동으로 검토 후 골든 데이터셋에 추가
 ```
 

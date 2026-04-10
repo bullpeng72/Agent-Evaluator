@@ -1,6 +1,6 @@
 # 한국어 RAG 평가 가이드
 
-Golden Dataset 생성 및 RAG 시스템 평가 완벽 가이드 — Agent Evaluator v0.7.5
+Golden Dataset 생성 및 RAG 시스템 평가 완벽 가이드 — Agent Evaluator v0.7.6
 
 ## 목차
 
@@ -121,7 +121,7 @@ dataset = generator.generate_from_pdf(
 {
   "dataset_id": "dataset_abc12345",
   "source_document": "company_policy.pdf",
-  "created_at": "2026-04-07T10:30:00",
+  "created_at": "2026-04-10T10:30:00",
   "total_qa_pairs": 45,
   "qa_pairs": [
     {
@@ -180,8 +180,8 @@ Excel/스프레드시트에서 작성한 데이터를 사용하려면 다음 형
 
 ```
 qa_id,question,answer,ground_truth,context,chunk_id,page_number,generated_at
-qa_001,회사 설립 연도는?,2010년에 설립되었습니다,2010년,당사는 2010년에 설립되어...,chunk_001,1,2026-04-07
-qa_002,직원 수는?,약 500명입니다,약 500명,현재 약 500명의 직원이...,chunk_002,1,2026-04-07
+qa_001,회사 설립 연도는?,2010년에 설립되었습니다,2010년,당사는 2010년에 설립되어...,chunk_001,1,2026-04-10
+qa_002,직원 수는?,약 500명입니다,약 500명,현재 약 500명의 직원이...,chunk_002,1,2026-04-10
 ```
 
 ```python
@@ -281,7 +281,7 @@ RAG 평가 리포트
 ================================================================================
 
 리포트 ID: a1b2c3d4
-평가 시간: 2026-04-07T11:30:00
+평가 시간: 2026-04-10T11:30:00
 총 QA 쌍: 45개  |  성공: 43개  |  실패: 2개  |  성공률: 95.6%
 
 ================================================================================
@@ -909,10 +909,10 @@ result = evaluate(dataset, metrics=[Faithfulness(), AnswerRelevancy(), ContextRe
 - [Agent Evaluator 메인 가이드](../README.md)
 - [Ragas 공식 문서](https://docs.ragas.io/)
 - [OpenAI API 문서](https://platform.openai.com/docs)
-- [RAG 지표 평가 예제](../Evaluator_Examples/01_quality_eval.py)
-- [하이브리드 평가 예제](../Evaluator_Examples/05_hybrid_eval.py)
+- [RAG 지표 평가 예제](../Evaluator_Examples/01_layer1_all_metrics.py)
+- [하이브리드 평가 예제](../Evaluator_Examples/07_phoenix_hybrid.py)
 
 ---
 
-**문서 버전**: v0.7.5  
-**최종 업데이트**: 2026-04-07
+**문서 버전**: v0.7.6  
+**최종 업데이트**: 2026-04-10

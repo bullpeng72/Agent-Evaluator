@@ -1,8 +1,122 @@
 # M4 — Layer 3, FastAPI 대시보드, 알림 · 이상탐지 · 비용 제어 심층 분석
 
+> **Agent-Evaluator v0.7.5+** 기준 (LLM Judge 확장 기능: v0.7.6+)  
 > **대상**: 운영 환경에서 AI 에이전트를 안정적으로 모니터링하려는 ML 엔지니어 / DevOps 엔지니어  
 > **전제 조건**: M1(데코레이터), M2(Layer 1), M3(Layer 2) 수강 완료  
 > **핵심 메시지**: Layer 1/2만으로 부족할 때, 운영 인프라와 어떻게 통합하는가
+
+---
+
+## 0. 대시보드 메뉴 3분류 — 무엇이 자동이고 무엇이 아닌가
+
+대시보드 21개 메뉴를 처음 보면 "어떤 탭이 자동으로 채워지고, 어떤 탭은 추가 작업이 필요한가"가 불분명하다. 먼저 전체 구조를 3가지로 분류해 명확히 한다.
+
+### 🟢 데코레이터만으로 가능 (8개)
+
+> `@agent_eval` + `save_to_file()` 만으로 데이터가 자동으로 채워진다.
+
+#### 📊 개요
+- **데이터 흐름**: `TaskResult` → `TaskCompletionTracker` · `LatencyTracker` · `TokenEconomyTracker` → `save_to_file()` → `summary` JSON 키
+- **표시 내용**: TCR · 정확도 · 평균 지연 · 총 비용 KPI 카드, 프레임워크 분포 도넛 차트, 태스크 유형 바 차트
+- **특별 설정 없음** — 모든 `@agent_eval` 호출 결과가 자동 집계됨
+
+#### 📋 태스크
+- **데이터 흐름**: `TaskResult` 객체 직렬화 → `tasks[]` JSON 배열
+- **표시 내용**: 태스크별 `task_id` / `accuracy_score` / `execution_time` / `success` 테이블. 클릭 시 질문·응답·정답 전문 확인
+- **정렬·검색**: 대시보드 API `/api/results?sort_by=accuracy_score&sort_desc=false` 로 문제 케이스 우선 조회 가능
+
+#### 💡 인사이트
+- **데이터 흐름**: `save_to_file()` 내부에서 TCR·정확도·P95 지연 임계값 자동 비교 → `insights.alerts` · `insights.recommendations` JSON 키
+- **표시 내용**: 경고(빨간색) / 주의(노란색) / 정상(초록색) 배지, 자동 개선 권장사항
+- **임계값 조정**: ⚙️ 설정 탭에서 수동 변경 가능
+
+#### 🎯 품질
+- **데이터 흐름**: `ResponseQualityEvaluator`(Relevance·Completeness·Accuracy·Clarity·Usefulness 5차원) + `AccuracyEvaluator`(Token F1·Jaccard·LCS·Char) 자동 실행
+- **환각 탭 예외**: `PerformanceMonitor(enable_hallucination_detection=True)` 설정 필요. 기본값 False (성능 영향)
+- **LLM Judge 섹션**: `@agent_eval(..., enable_llm_judge=True)` 파라미터 추가 시 품질 탭에 Judge 점수 섹션 추가
+
+#### 💬 멀티턴 대화
+- **데이터 흐름**: `@conversation_eval` 데코레이터 → `ConversationSession.compute_metrics()` 자동 호출 → `conversation_sessions[]` JSON 키
+- **표시 내용**: 턴 수 · 컨텍스트 유지율 · 주제 일관성 · 점진적 심화도 · 세션 완료율
+- **`@agent_eval`과 독립**: `@conversation_eval`은 별도 멀티턴 평가 전용 데코레이터
+
+#### ⚡ 성능
+- **데이터 흐름**: 모든 `TaskResult.execution_time` → `LatencyTracker` → `efficiency_metrics.latency` JSON 키
+- **표시 내용**: 평균·P50·P90·P95·P99·최대·표준편차, 분포 히스토그램, 태스크 유형별 지연 비교
+- **토큰 탭**: `TaskResult.tokens_used` → `TokenEconomyTracker` → `efficiency_metrics.tokens` 자동
+
+#### 🤖 에이전틱
+- **데이터 흐름**: `TaskResult.tool_calls` → `ToolCallAnalyzer`·`RetryCorrectionTracker`·`ToolSelectionTracker`·`AgentCoordinationTracker`·`WorkflowExecutionTracker`
+- **자동 추출**: `@agent_eval(framework="langchain")` 등 프레임워크 어댑터가 응답에서 `tool_calls` 자동 파싱
+- **수동 전달**: `create_taskresult(..., tool_calls=[{"name":"search","success":True}])` 직접 지정도 가능
+- **에이전틱 탭 공백**: `has_agentic=False` 상태면 "트래커 미활성화" 메시지 표시 → `task_type="tool_use"` + `tool_calls` 데이터 필요
+
+#### 🔒 보안
+- **데이터 흐름**: `@agent_eval(..., security_mode=True)` → 5개 보안 트래커 활성 → `security_metrics` JSON 키
+- **5개 트래커**: InputSanitization(SQL·XSS·Prompt Injection 탐지) / OutputLeakage(API Key·PII 유출) / ToolAuth(미승인 도구 호출) / PrivilegeEscalation(권한 상승) / ChainAttack(연쇄 공격 패턴)
+- **성능 주의**: 보안 트래커는 각 태스크에 정규식 매칭 오버헤드 추가 → 기본값 False
+
+---
+
+### 🟡 데코레이터 + 추가 작업으로 가능 (6개)
+
+> 데코레이터 사용은 전제이되, **별도 객체·플래그·외부 패키지**가 추가로 필요하다.
+
+#### 🔬 외부 평가 (Ragas / DeepEval)
+- **추가 필요**: `pip install "agent-evaluator[eval]"` + OpenAI API 키(임베딩) + `HybridPerformanceMonitor`
+- **데이터 흐름**: `HybridPerformanceMonitor.record_task()` → 각 태스크 후 Ragas·DeepEval 호출 → `rag_metrics`·`advanced_metrics` JSON 키
+- **비용 주의**: 태스크당 LLM 호출 1~3회 추가 발생. `judge_sample_rate=0.1`로 비용 절감 권장
+
+```python
+from agent_evaluator import HybridPerformanceMonitor
+
+monitor = HybridPerformanceMonitor(
+    output_dir="results/",
+    enable_ragas=True,        # Faithfulness·Answer Relevancy·Context Recall·Precision
+    enable_deepeval=True,     # G-Eval·Hallucination·Toxicity·Bias
+)
+```
+
+#### 📡 실시간
+- **추가 필요**: `StreamingEvaluator` 생성 + `record()` + `_flush()` 명시 호출
+- **데이터 흐름**: `StreamingEvaluator.record(task_result)` → 슬라이딩 윈도우(1m/5m/1h) 집계 → `_flush()` → `monitor._streaming_snapshot` → `save_to_file()` 시 `streaming_data` 키 포함
+- **핵심 주의**: `_flush()` 호출 없으면 `streaming_data` 키가 JSON에 포함되지 않아 탭 공백
+
+#### 🔔 알림
+- **추가 필요**: `SimpleTaskAlertRule` 생성 + `alert_rules=` 전달 + **핸들러에서 JSONL 기록 직접 구현**
+- **데이터 흐름**: 태스크 평가 후 `condition(task_result)` 자동 평가 → 조건 충족 시 `handler(msg, tr)` 실행 → 핸들러가 `results/alerts/YYYY-MM-DD.jsonl` 파일에 기록 → 대시보드가 JSONL 파일 직접 읽음
+- **흔한 실수**: 핸들러에서 `print()`만 하고 JSONL 기록을 빠뜨리면 알림 탭이 공백
+
+#### 👍 사용자 반응
+- **추가 필요**: `monitor.record_implicit_feedback(task_id, feedback_type)` 명시 호출
+- **데이터 흐름**: 외부 이벤트(UI 클릭·별점·재질문) 수집 → 평가 루프 내에서 수동 기록 → `ImplicitFeedbackTracker` 누적 → `save_to_file()` 시 `feedback` 키 포함
+- **독립 인스턴스 금지**: `ImplicitFeedbackTracker()` 직접 생성 금지. 반드시 `monitor.record_implicit_feedback()` 사용
+
+#### 🚨 이상 감지
+- **추가 필요**: `PerformanceMonitor(enable_anomaly_detection=True)` 플래그 설정
+- **데이터 흐름**: `save_to_file()` 내부에서 `AnomalyDetector.scan(monitor)` 자동 호출 → `anomaly_data` JSON 키 생성
+- **탐지 알고리즘**: latency_trend(선형회귀, 기울기 > 0.05초/태스크) / accuracy_drift(Z-Score > 2.5σ) / token_spike(IQR 기반 Q3+2×IQR 초과) / error_surge(오류율 > 20% AND 기준선 2배)
+- **최소 데이터**: 각 알고리즘별 최소 5건 이상 태스크 필요
+
+#### 💰 평가 비용
+- **토큰 비용**: `TokenEconomyTracker` 자동 — 추가 설정 불필요
+- **LLM Judge 비용**: `enable_llm_judge=True` 추가 → 태스크별 `extra["llm_judge"]["cost_usd"]`에 기록
+- **대시보드 UI**: 모델 선택기에서 모델을 변경하면 단가가 재계산됨. 실제 청구액과 차이 가능 (캐싱·배치 할인 미반영)
+
+---
+
+### 🔵 데코레이터 무관으로 가능 (6개)
+
+> 결과 JSON 파일이 있으면 데코레이터 없이도 사용할 수 있는 관리·도구 메뉴.
+
+| 메뉴 | 작동 방식 |
+|------|----------|
+| **📂 파일 비교** | 드롭다운에서 두 파일 선택 → TCR·정확도·지연·비용 차이 자동 계산. 버전 A vs B 배포 판단에 활용 |
+| **📚 골든 데이터셋** | `agent-eval dataset build results/ --min-score 0.8` CLI로 자동 추출, 또는 대시보드 UI에서 수동 추가·편집 |
+| **📤 내보내기** | 선택 파일의 JSON 원본·태스크별 CSV·독립형 HTML 리포트 3가지 다운로드 |
+| **🔍 투명성** | `TestTransparencyManager.add_annotation()` 독립 호출로 단계별 감사 로그 기록 |
+| **📖 지표 설명** | 25개 지표 설명·계산식·해석 가이드. 항상 표시 (정적) |
+| **⚙️ 설정** | UI에서 임계값 직접 입력. 서버 재시작 시 초기화 (영속성 없음) |
 
 ---
 
@@ -44,19 +158,24 @@ def general_agent(question: str, ground_truth: str = "") -> str:
 def secure_agent(question: str, ground_truth: str = "") -> str:
     return agent.run(question)
 
-# ④ QuickEval 팩토리 — 최소 설정
-eval_rag  = QuickEval.for_rag("results/")           # hallucination 기본 활성
-eval_sec  = QuickEval.for_security("results/")       # security 기본 활성
-eval_llm  = QuickEval.for_llm_judge("results/", model="claude-sonnet-4-6")
+# ④ QuickEval 팩토리 — 4종
+eval_rag  = QuickEval.for_rag("results/")                                      # hallucination 기본 활성
+eval_sec  = QuickEval.for_security("results/")                                 # security 기본 활성
+eval_llm  = QuickEval.for_llm_judge("results/", model="claude-sonnet-4-6")    # LLM Judge 활성
+eval_reg  = QuickEval.for_regression_eval("results/", baseline_file="results/baseline.json")  # 회귀 테스트
 ```
 
 ### 1.3 LLM Judge — ground_truth 없는 자동 채점
 
-`LLMJudge`는 정답이 없는 상황에서 LLM이 직접 3차원으로 채점한다. `@agent_eval(enable_llm_judge=True)` 한 줄로 통합된다.
+`LLMJudge`는 정답이 없는 상황에서 LLM이 직접 **5차원 기본 (v0.7.5+), +조건부 확장 (v0.7.6+)** 으로 채점한다. `@agent_eval(enable_llm_judge=True)` 한 줄로 통합된다.
 
 ```python
 # 채점 결과는 TaskResult.extra["llm_judge"]에 자동 기록
-# {"completeness": 4.5, "relevance": 5.0, "factual_consistency": 4.8, "overall": 4.77}
+# 기본 5차원: completeness·relevance·factual_consistency·toxicity·bias
+# {"completeness": 4.5, "relevance": 5.0, "factual_consistency": 4.8,
+#  "toxicity": 0.1, "bias": 0.0, "overall": 4.77, "safety_score": 0.99}
+# v0.7.6+: rag_mode=True → + "faithfulness": 4.6
+# v0.7.6+: judge_criteria=[...] → + "criteria_scores": {...}
 ```
 
 **비용 제어 옵션:**
@@ -222,7 +341,7 @@ def public_chatbot(question, ground_truth=""):
 
 ## 4. Ragas 통합 — RAG 파이프라인 정밀 평가
 
-### 3.1 Ragas 4가지 핵심 지표
+### 4.1 Ragas 4가지 핵심 지표
 
 Ragas는 RAG(Retrieval-Augmented Generation) 파이프라인을 위한 업계 표준 평가 프레임워크다.
 
@@ -251,7 +370,7 @@ Context Recall 낮음 → 필요한 문서가 누락됨
                        해결: k(검색 개수) 증가, 재순위화(reranking) 도입
 ```
 
-### 3.2 기본 사용법
+### 4.2 기본 사용법
 
 ```python
 from agent_evaluator import HybridPerformanceMonitor, agent_eval, create_taskresult
@@ -306,7 +425,7 @@ print(f"Context Precision: {ragas_metrics.get('context_precision', 0):.2%}")
 print(f"Context Recall:    {ragas_metrics.get('context_recall', 0):.2%}")
 ```
 
-### 3.3 QuickEval로 RAG 평가
+### 4.3 QuickEval로 RAG 평가
 
 ```python
 from agent_evaluator import QuickEval
@@ -323,7 +442,7 @@ eval.save()
 eval.gate(accuracy=0.75)  # 75% 미만이면 CI/CD 실패
 ```
 
-### 3.4 실무 팁 — RAG 개선 사이클
+### 4.4 실무 팁 — RAG 개선 사이클
 
 ```python
 # 1. 현재 성능 측정
@@ -346,29 +465,39 @@ print(f"Context Precision 변화: {comparison['context_precision_delta']:+.2%}")
 
 ## 5. LLM Judge — 내장 LLM-as-Judge 평가
 
-### 4.1 LLM Judge vs Ragas/DeepEval
+### 5.1 LLM Judge vs Ragas/DeepEval
 
 | 특징 | LLM Judge | Ragas | DeepEval |
 |------|-----------|-------|---------|
 | 외부 라이브러리 | 불필요 ([llm] extra만) | 필요 | 필요 |
 | Ground Truth 필요 | 불필요 | 부분 필요 | 부분 필요 |
-| 평가 차원 | 3가지 고정 | RAG 전문 | 다양한 NLP 지표 |
+| 평가 차원 | 5차원 기본 + 조건부 확장 | RAG 전문 | 다양한 NLP 지표 |
 | 비용 | LLM API 호출 비용 | LLM API 호출 비용 | LLM API 호출 비용 |
-| 커스터마이즈 | 제한적 | 불가 | G-Eval로 가능 |
+| 커스터마이즈 | `judge_criteria`로 G-Eval 대체 (v0.7.6+) | 불가 | G-Eval로 가능 |
 
 LLM Judge는 **정답이 없는 상황**에서 가장 빛난다. 창의적 글쓰기, 고객 서비스 응답, 요약 등 정량적 정답을 정의하기 어려운 경우에 사용한다.
 
-### 4.2 3가지 평가 차원
+### 5.2 평가 차원 (기본 5 + 조건부 확장)
 
-LLM Judge는 모든 응답을 3가지 차원으로 채점한다 (0.0–1.0):
+LLM Judge는 모든 응답을 5가지 기본 차원으로 채점하고, 설정에 따라 추가 차원이 활성화된다:
 
 ```
+[기본 5차원 — 항상 활성]
 completeness:        응답이 질문의 모든 측면을 다루는가?
 relevance:           응답이 질문에 직접적으로 관련 있는가?
-factual_consistency: 응답이 사실적으로 일관성 있는가? (ground_truth 있을 때)
+factual_consistency: 응답이 사실적으로 일관성 있는가?
+toxicity:            독성 콘텐츠 포함 여부 (낮을수록 좋음)
+bias:                편향 콘텐츠 포함 여부 (낮을수록 좋음)
+
+[조건부 확장 — v0.7.6+]
+faithfulness:        rag_mode=True + enable_llm_judge=True + context 있을 때 자동 추가
+                     0–5 척도 (5=모든 주장이 컨텍스트에 근거)
+criteria_scores:     judge_criteria=[...] 지정 시 커스텀 G-Eval 기준 점수 추가
 ```
 
-### 4.3 기본 사용법
+집계 키: `scores["overall"]` (품질 3차원 평균), `scores["safety_score"]` (안전 2차원 역산)
+
+### 5.3 기본 사용법
 
 ```python
 from agent_evaluator import LLMJudge, PerformanceMonitor, agent_eval
@@ -376,12 +505,9 @@ import os
 
 os.environ["ANTHROPIC_API_KEY"] = "sk-ant-..."
 
-# LLM Judge 초기화
-judge = LLMJudge(model="claude-sonnet-4-6")
-
 monitor = PerformanceMonitor("results/")
 
-# 방법 1: enable_llm_judge 파라미터 (해당 호출만 활성)
+# 방법 1: enable_llm_judge 파라미터 (해당 호출만 활성) — 기본 5차원
 @agent_eval(
     monitor,
     task_type="qa",
@@ -391,12 +517,37 @@ monitor = PerformanceMonitor("results/")
 def creative_agent(question, ground_truth=""):
     return llm.invoke(question)
 
-# 방법 2: QuickEval.for_llm_judge()
+# 방법 2: RAG 에이전트 + faithfulness (v0.7.6+)
+@agent_eval(
+    monitor,
+    task_type="information_retrieval",
+    rag_mode=True,
+    enable_llm_judge=True,
+    judge_model="claude-sonnet-4-6",
+)
+def rag_agent(question, context="", ground_truth=""):
+    return llm.rag(question, context)
+# → scores["faithfulness"]: 0–5 (5=모든 주장이 컨텍스트에 근거)
+
+# 방법 3: G-Eval 커스텀 기준 — judge_criteria (v0.7.6+, DeepEval 대체)
+@agent_eval(
+    monitor,
+    task_type="qa",
+    enable_llm_judge=True,
+    judge_model="claude-sonnet-4-6",
+    judge_criteria=["medical_accuracy", "patient_safety"],
+)
+def medical_agent(question, ground_truth=""):
+    return medical_llm.ask(question)
+# → scores["criteria_scores"]: {"medical_accuracy": 4, "patient_safety": 5}
+# → scores["criteria_overall"]: 4.5
+
+# 방법 4: QuickEval.for_llm_judge()
 from agent_evaluator import QuickEval
 
 eval = QuickEval.for_llm_judge("results/", model="claude-sonnet-4-6")
 
-@agent_eval(monitor, task_type="qa", enable_llm_judge=True, judge_model="claude-sonnet-4-6")
+@eval.qa
 def customer_service_agent(question, ground_truth=""):
     return chatbot.respond(question)
 
@@ -408,13 +559,15 @@ for task in monitor.tasks:
     print(f"  완결성: {judge_scores.get('completeness', 0):.2f}")
     print(f"  관련성: {judge_scores.get('relevance', 0):.2f}")
     print(f"  사실성: {judge_scores.get('factual_consistency', 0):.2f}")
+    print(f"  종합 품질: {judge_scores.get('overall', 0):.2f}")     # 품질 3차원 평균
+    print(f"  안전 점수: {judge_scores.get('safety_score', 0):.2f}") # (10-toxicity-bias)/10
 ```
 
 ---
 
 ## 6. FastAPI 대시보드 — 운영 시각화
 
-### 5.1 데이터 생성 — `save_to_file()` 필수
+### 6.1 데이터 생성 — `save_to_file()` 필수
 
 대시보드는 `results/` 의 JSON 파일을 읽습니다. 데코레이터 실행 후 반드시 저장 단계가 필요합니다.
 
@@ -441,7 +594,7 @@ monitor.save_to_file("eval")        # results/eval.json + .html
 # @agent_eval(monitor, task_type="qa", flush_every=50, flush_filename="periodic")
 ```
 
-### 5.2 대시보드 실행
+### 6.2 대시보드 실행
 
 ```bash
 pip install "agent-evaluator[serve]"
@@ -459,7 +612,7 @@ agent-eval dashboard results/ --port 8080
 # http://localhost:8765
 ```
 
-### 5.3 50+ API 엔드포인트 카테고리
+### 6.3 50+ API 엔드포인트 카테고리
 
 **태스크 조회 및 필터링**:
 

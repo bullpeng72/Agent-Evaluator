@@ -31,7 +31,7 @@ Hallucination만 opt-in인 이유는 NLP 연산 비용 때문이다. 나머지 5
 
 Layer 1은 두 가지 핵심 객체의 협력으로 동작한다.
 
-`TaskResult`는 단일 태스크 실행 결과를 담는 불변 데이터 클래스다. 태스크 ID, 태스크 유형, 성공 여부, 정확도, 실행 시간, 토큰 사용량 등 24개 필드를 가진다. 이 객체에 평가에 필요한 모든 원시 데이터가 담긴다.
+`TaskResult`는 단일 태스크 실행 결과를 담는 불변 데이터 클래스다. 태스크 ID, 태스크 유형, 성공 여부, 정확도, 실행 시간, 토큰 사용량 등 25개 필드(필수 10개 + 선택 15개)를 가진다. 이 객체에 평가에 필요한 모든 원시 데이터가 담긴다.
 
 `PerformanceMonitor`는 중앙 오케스트레이터다. `record_task(result)` 메서드를 호출할 때마다 Layer 1 트래커 6개에 데이터를 분배하고, `generate_report()`를 호출하면 수집된 모든 데이터를 집계한 `EvaluationReport`를 반환한다.
 
@@ -43,7 +43,7 @@ from agent_evaluator import QuickEval
 # 1줄로 시작 — PerformanceMonitor + EvalDecorator 자동 구성
 eval = QuickEval("results/")
 
-@eval.qa  # task_type="qa" 자동 설정, Layer 1 지표 5개 자동 활성
+@eval.qa  # task_type="qa" 자동 설정, Layer 1 기본 지표 5개 자동 활성 (Hallucination은 opt-in)
 def my_agent(question: str, ground_truth: str = "") -> str:
     return llm.invoke(question)
 
@@ -72,19 +72,19 @@ TCR(Task Completion Rate)은 에이전트가 태스크를 얼마나 성공적으
 
 | 완료 수준 | 기준 | 예시 |
 |---------|-----|-----|
-| 완전 성공 (Full Success) | completion_score ≥ 0.8 | 정확한 답변, 정상 완료 |
-| 부분 성공 (Partial Success) | 0.3 ≤ completion_score < 0.8 | 일부 불완전한 답변 |
-| 실패 (Failure) | completion_score < 0.3 | 오류, 빈 응답, 예외 발생 |
+| 완전 성공 (Full Success) | completion_score = 1.0 | 정확한 답변, 정상 완료 |
+| 부분 성공 (Partial Success) | 0.7 ≤ completion_score < 1.0 | 일부 불완전한 답변 |
+| 실패 (Failure) | completion_score < 0.7 | 오류, 빈 응답, 예외 발생 |
 
-### 측정 방법: completion_score > 0.5 기준
+### 측정 방법: completion_score 가중 평균
 
-TCR 공식은 부분 성공에 0.5의 가중치를 적용한다.
+TCR 공식은 모든 태스크의 `completion_score`를 그대로 합산해 평균낸다.
 
 ```
-TCR = (완전성공 수 + 0.5 × 부분성공 수) / 전체 태스크 수
+TCR = (전체 completion_score 합계 / 전체 태스크 수) × 100(%)
 ```
 
-예시: 전체 100건 중 완전성공 70건, 부분성공 20건, 실패 10건이라면 TCR = (70 + 0.5×20) / 100 = **80%**
+예시: 전체 3건의 completion_score가 각각 1.0, 0.8, 0.0이라면 TCR = (1.0 + 0.8 + 0.0) / 3 × 100 = **60%**
 
 데코레이터는 `completion_score`를 자동으로 결정한다. 함수가 정상 반환하면 `completion_score = 1.0`, 예외가 발생하면 `completion_score = 0.0`이다. 세밀한 제어가 필요하면 `EvalMetadata`로 직접 지정한다.
 
@@ -129,7 +129,7 @@ TCR이 임계값 이하로 떨어졌을 때 원인을 빠르게 찾는 방법이
 # 실패한 태스크만 필터링하여 오류 유형 분류
 from collections import Counter
 
-failed_tasks = [t for t in monitor.tasks if t.completion_score < 0.3]
+failed_tasks = [t for t in monitor.tasks if t.completion_score < 0.7]
 
 # 공통 오류 패턴 찾기
 error_types = Counter(
@@ -287,7 +287,7 @@ high_cost_low_quality = df[
 
 ## 3.4 Response Quality — 5차원 품질 평가
 
-### Relevance, Coherence, Completeness, Conciseness, Fluency
+### Relevance, Completeness, Accuracy, Clarity, Usefulness
 
 Ground truth 없이도 측정할 수 있다는 점이 Response Quality의 핵심 장점이다. 실시간 프로덕션처럼 정답을 알 수 없는 환경에서도 품질을 모니터링할 수 있다.
 
@@ -295,9 +295,9 @@ Ground truth 없이도 측정할 수 있다는 점이 Response Quality의 핵심
 |-----|---------|-----------|
 | **Relevance** (관련성) | 응답이 질문에 관련되는가 | 에이전트가 질문을 오해함 |
 | **Completeness** (완결성) | 질문의 모든 측면을 다루는가 | 일부 측면만 답함 |
+| **Accuracy** (정확성) | 내용이 사실에 부합하는가 | 환각, 부정확한 정보 |
 | **Clarity** (명확성) | 이해하기 쉬운가 | 전문 용어 과다, 복잡한 문장 |
-| **Conciseness** (간결성) | 불필요한 장황함이 없는가 | 불필요한 반복, 군더더기 |
-| **Coherence** (일관성) | 논리적 흐름이 자연스러운가 | 논리적 비약, 문단 간 단절 |
+| **Usefulness** (유용성) | 실제 도움이 되는가 | 관련은 있지만 실질적 가치 부족 |
 
 ### 각 차원 0~1 점수, 최종 5점 척도 변환
 
@@ -333,22 +333,22 @@ print(d["quality_grade"])    # "B"
 # 차원별 점수 확인
 dims = d.get("dimension_scores", {})
 print(dims)
-# {"relevance": 0.85, "completeness": 0.72, "clarity": 0.78,
-#  "conciseness": 0.80, "coherence": 0.68}
+# {"relevance": 0.85, "completeness": 0.72, "accuracy": 0.80,
+#  "clarity": 0.78, "usefulness": 0.68}
 
 # 가장 취약한 차원 찾기
 weakest = min(dims.items(), key=lambda x: x[1])
 print(f"취약 차원: {weakest[0]} ({weakest[1]:.2f})")
-# 취약 차원: coherence (0.68)
+# 취약 차원: usefulness (0.68)
 ```
 
 ### 👨‍💻 개발자 TIP: 차원별 대응 전략
 
 - **Relevance 낮음** → 프롬프트에 "질문에 직접 답하라"는 명시적 지시 추가
 - **Completeness 낮음** → 구조화된 응답 형식 지시 (예: "결론-이유-예시 순서로")
+- **Accuracy 낮음** → 환각 방지 프롬프트 강화 ("모르면 모른다고 답하라"), RAG 컨텍스트 품질 개선
 - **Clarity 낮음** → 독자 수준 명시 ("비개발자가 이해할 수 있도록")
-- **Conciseness 낮음** → 길이 제한 추가 ("3문장 이내로 답하라")
-- **Coherence 낮음** → Chain-of-Thought 프롬프팅 적용
+- **Usefulness 낮음** → 응답에 구체적인 다음 단계나 실질적 가이드 포함 지시
 
 ---
 
@@ -670,7 +670,7 @@ eval.gate(
 
 ## 이 챕터의 핵심
 
-- **Layer 1 지표 5개는 `@agent_eval` 한 줄만으로 자동 활성화**된다. Hallucination만 `enable_hallucination_detection=True`로 명시적 활성화가 필요하다.
+- **Layer 1 기본 지표 5개는 `@agent_eval` 한 줄만으로 자동 활성화**된다. Hallucination만 `enable_hallucination=True` (데코레이터) 또는 `enable_hallucination_detection=True` (PerformanceMonitor) 또는 `rag_mode=True`로 활성화된다.
 
 - **TCR은 3단계 완료 수준**으로 구분한다 (완전/부분/실패). 프로덕션 배포 기준은 TCR ≥ 85%, CI 게이팅은 ≥ 80%가 권장값이다.
 

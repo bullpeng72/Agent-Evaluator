@@ -164,8 +164,16 @@ class AlertEngine:
         with self._lock:
             return [r.to_dict() for r in self._rules]
 
-    def evaluate(self, evaluator: "StreamingEvaluator") -> List[AlertEvent]:
-        """모든 규칙을 평가하고 트리거된 알림을 반환."""
+    def evaluate(self, evaluator: Any) -> List[AlertEvent]:
+        """모든 규칙을 평가하고 트리거된 알림을 반환.
+
+        Args:
+            evaluator: ``StreamingEvaluator`` 인스턴스 또는 ``get_stats(window)`` /
+                ``get_stats(window)`` 인터페이스를 갖춘 duck-typed 객체.
+                ``None`` 전달 시 빈 리스트 반환 (graceful degradation).
+        """
+        if evaluator is None:
+            return []
         fired: List[AlertEvent] = []
         with self._lock:
             rules = list(self._rules)

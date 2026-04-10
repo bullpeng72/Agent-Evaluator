@@ -1,6 +1,6 @@
 # Appendix D. 프레임워크 호환성 매트릭스
 
-Agent Evaluator v0.7.4 기준. 21개 통합 프레임워크와 9개 평가 플랫폼 비교를 정리한다.
+Agent Evaluator v0.7.6 기준. 21개 통합 프레임워크와 8개 평가 플랫폼 비교를 정리한다.
 
 ---
 
@@ -65,7 +65,6 @@ Agent Evaluator와 주요 경쟁 평가 플랫폼을 비교한다.
 
 | 플랫폼 | OTEL 지원 | 역할 |
 |--------|----------|------|
-| LangSmith | 완전 네이티브 | Exporter + Collector |
 | Ragas | 간접 지원 | 없음 (외부 플랫폼 연동) |
 | DeepEval | 완전 지원 | OTLP 엔드포인트 |
 | Arize Phoenix | 핵심 아키텍처 | Collector + UI (OpenInference) |
@@ -79,7 +78,6 @@ Agent Evaluator와 주요 경쟁 평가 플랫폼을 비교한다.
 
 | 플랫폼 | LLM API 비용 | 오프라인 실행 | 계산 지연 |
 |--------|:-----------:|:-----------:|:--------:|
-| LangSmith | $2~10 | ❌ | 수 초 |
 | Ragas | $5~20 | ❌ | 수 초~분 |
 | DeepEval | $3~15 | 부분 | 수 초 |
 | Arize Phoenix | $3~10 | ✅ 로컬 | 수 초 |
@@ -93,7 +91,6 @@ Agent Evaluator와 주요 경쟁 평가 플랫폼을 비교한다.
 
 | 플랫폼 | UI 유형 | 셀프호스트 | 비용 |
 |--------|--------|:---------:|------|
-| LangSmith | SaaS | ✅ (Self-Hosted v0.12) | $39/월~ |
 | Ragas | 없음 | — | Ragas.io 별도 |
 | DeepEval | SaaS (Confident AI) | ❌ | 무료(500 runs) / $49/월~ |
 | Arize Phoenix | OSS UI | ✅ | 무료 / Cloud 유료 |
@@ -107,18 +104,18 @@ Agent Evaluator 대시보드 9개 탭: 품질 / 멀티턴 대화 / 성능 / 에�
 
 ### 에이전틱 AI 전용 지표 비교
 
-| 지표 | LangSmith | Ragas | DeepEval | Phoenix | Agent Evaluator |
-|------|:---------:|:-----:|:--------:|:-------:|:---------------:|
-| Tool 선택 정확도 (F1) | ❌ | ✅ | ✅ | ❌ | ✅ `ToolSelectionTracker` |
-| Tool 효율성 / 불필요 호출 | ❌ | ❌ | ❌ | ❌ | ✅ `ToolCallAnalyzer` |
-| 재시도 / 자기수정 패턴 | ❌ | ❌ | ❌ | ❌ | ✅ `RetryCorrectionTracker` |
-| 멀티에이전트 협업 품질 | ❌ | ❌ | ❌ | ❌ | ✅ `AgentCoordinationTracker` |
-| 워크플로우 실행 추적 | ✅ (LangGraph) | ❌ | ❌ | 부분 | ✅ `WorkflowExecutionTracker` |
-| 프롬프트 인젝션 탐지 | ❌ | ❌ | 부분 (Red-team) | ❌ | ✅ `InputSanitizationTracker` |
-| 출력 정보 유출 탐지 | ❌ | ❌ | ❌ | ❌ | ✅ `OutputLeakageDetector` |
-| 권한 상승 탐지 | ❌ | ❌ | ❌ | ❌ | ✅ `PrivilegeEscalationDetector` |
-| Tool 체인 공격 탐지 | ❌ | ❌ | ❌ | ❌ | ✅ `ToolChainAttackDetector` |
-| 허가되지 않은 Tool 사용 | ❌ | ❌ | ❌ | ❌ | ✅ `ToolAuthorizationTracker` |
+| 지표 | Ragas | DeepEval | Phoenix | Agent Evaluator |
+|------|:-----:|:--------:|:-------:|:---------------:|
+| Tool 선택 정확도 (F1) | ✅ | ✅ | ❌ | ✅ `ToolSelectionTracker` |
+| Tool 효율성 / 불필요 호출 | ❌ | ❌ | ❌ | ✅ `ToolCallAnalyzer` |
+| 재시도 / 자기수정 패턴 | ❌ | ❌ | ❌ | ✅ `RetryCorrectionTracker` |
+| 멀티에이전트 협업 품질 | ❌ | ❌ | ❌ | ✅ `AgentCoordinationTracker` |
+| 워크플로우 실행 추적 | ❌ | ❌ | 부분 | ✅ `WorkflowExecutionTracker` |
+| 프롬프트 인젝션 탐지 | ❌ | 부분 (Red-team) | ❌ | ✅ `InputSanitizationTracker` |
+| 출력 정보 유출 탐지 | ❌ | ❌ | ❌ | ✅ `OutputLeakageDetector` |
+| 권한 상승 탐지 | ❌ | ❌ | ❌ | ✅ `PrivilegeEscalationDetector` |
+| Tool 체인 공격 탐지 | ❌ | ❌ | ❌ | ✅ `ToolChainAttackDetector` |
+| 허가되지 않은 Tool 사용 | ❌ | ❌ | ❌ | ✅ `ToolAuthorizationTracker` |
 
 ---
 

@@ -39,7 +39,7 @@ pip install "agent-evaluator[otel]"
 
 # 설치 확인
 agent-eval --version
-# → agent-evaluator 0.7.4
+# → agent-evaluator 0.7.6
 ```
 
 > 👨‍💻 **개발자 TIP**: `[crewai]`와 `[autogen]`은 의존성이 무거워 단독 extras로 분리되어 있습니다. CrewAI와 AutoGen을 동시에 설치하면 pydantic 버전 충돌이 발생할 수 있으므로, 필요한 경우에만 하나씩 설치하세요.
@@ -143,7 +143,7 @@ Agent-Evaluator의 25개 지표는 세 개의 레이어로 구성됩니다. 레�
 ```
 ┌─────────────────────────────────────────────────────────┐
 │  Layer 3 — 하이브리드 평가 (opt-in, 외부 의존성 필요)      │
-│  DeepEvalAdapter, RagasAdapter, LangSmithAdapter         │
+│  DeepEvalAdapter, RagasAdapter                           │
 │  → [eval] extras 설치 + API 키 필요                      │
 ├─────────────────────────────────────────────────────────┤
 │  Layer 2 — 에이전틱 + 보안 지표 (조건부 활성)              │
@@ -195,7 +195,7 @@ monitor = PerformanceMonitor.for_secure_agents(output_dir="results/")
 
 ### Layer 3: 외부 평가 도구 (opt-in)
 
-Layer 3는 DeepEval, Ragas, LangSmith 등 외부 평가 라이브러리와 연동합니다. `[eval]` extras를 설치하고 `HybridPerformanceMonitor`를 사용하면 됩니다.
+Layer 3는 DeepEval, Ragas 등 외부 평가 라이브러리와 연동합니다. `[eval]` extras를 설치하고 `HybridPerformanceMonitor`를 사용하면 됩니다.
 
 ```python
 from agent_evaluator import HybridPerformanceMonitor

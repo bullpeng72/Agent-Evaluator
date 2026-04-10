@@ -106,20 +106,24 @@ eval.generate_gate_config("gate_config.json")
 }
 ```
 
-이 파일을 CI/CD에서 바로 활용할 수 있다:
+이 파일을 CI/CD에서 바로 활용할 수 있다. `agent-eval gate`는 임계값을 CLI 인수로 직접 전달한다:
 
 ```bash
-# CLI에서 파일 기반 게이팅
-agent-eval gate results/eval.json --config gate_config.json
+# 생성된 gate_config.json 값을 읽어 CLI로 전달
+TCR=$(python -c "import json; print(json.load(open('gate_config.json'))['tcr'])")
+ACC=$(python -c "import json; print(json.load(open('gate_config.json'))['accuracy'])")
+agent-eval gate results/eval.json --tcr $TCR --accuracy $ACC
 ```
 
 **환경별로 다른 임계값 파일 관리:**
 
-개발, 스테이징, 운영 환경은 요구 수준이 다르다. 파일을 별도로 유지하고 환경 변수로 선택하는 것이 좋다.
+개발, 스테이징, 운영 환경은 요구 수준이 다르다. 파일을 별도로 유지하고 환경에 맞게 인수를 전달하는 것이 좋다.
 
 ```bash
-# 환경변수 DEPLOY_ENV에 따라 임계값 파일 선택
-agent-eval gate results/eval.json --config gate_config.${DEPLOY_ENV}.json
+# 환경별 임계값 적용 예시 (Prod)
+agent-eval gate results/eval.json --tcr 85 --accuracy 70 --hallucination 5
+# 환경별 임계값 적용 예시 (Dev)
+agent-eval gate results/eval.json --tcr 70 --accuracy 55
 ```
 
 | 환경 | TCR | Accuracy | Hallucination | P95 Latency |

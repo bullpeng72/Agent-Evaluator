@@ -113,10 +113,11 @@ from agent_evaluator import SimpleTaskAlertRule
 
 ```python
 # 토큰 사용량이 4,000개를 초과하면 알림
+# tokens_used는 Dict[str, int] — {"input": N, "output": M, "total": T} 구조
 token_rule = SimpleTaskAlertRule(
     name="high_token_usage",
-    condition=lambda tr: tr.tokens_used > 4000,
-    handler=lambda msg, tr: print(f"[WARNING] 토큰 과다 사용: {tr.task_id}, {tr.tokens_used}개"),
+    condition=lambda tr: tr.tokens_used.get("total", 0) > 4000,
+    handler=lambda msg, tr: print(f"[WARNING] 토큰 과다 사용: {tr.task_id}, {tr.tokens_used.get('total', 0)}개"),
     severity="warning",
     cooldown=180,
 )
@@ -434,13 +435,17 @@ Critical → cooldown: 30초 (30초) — 30초마다 한 번
 알림 규칙은 "특정 값이 임계값을 넘으면" 발동한다. 반면 `AnomalyDetector`는 "최근 패턴과 달라졌을 때" 발동한다. 점진적으로 품질이 나빠지는 케이스는 알림 규칙으로는 잡기 어렵지만 이상 탐지로는 잡힌다.
 
 ```python
-from agent_evaluator import AnomalyDetector, AnomalyEvent, PerformanceMonitor
+from agent_evaluator import PerformanceMonitor
 from agent_evaluator.decorators import agent_eval
 
-monitor = PerformanceMonitor(output_dir="results/")
-
-# Z-Score 기반 이상 탐지 — 표준편차 2.5 이상 벗어나면 이상 이벤트
-detector = AnomalyDetector(z_score_threshold=2.5)
+# 권장: enable_anomaly_detection=True 로 PerformanceMonitor에 통합
+# save_to_file() 호출 시 AnomalyDetector.scan()이 자동 실행됨
+monitor = PerformanceMonitor(
+    output_dir="results/",
+    enable_anomaly_detection=True,   # ← 이것만 추가
+    anomaly_baseline_window=100,     # 기준선 계산 태스크 수 (기본: 100)
+    anomaly_detection_window=20,     # 현재값 계산 태스크 수 (기본: 20)
+)
 ```
 
 `save_to_file()`을 호출할 때 자동으로 이상 탐지를 수행하고 결과를 JSON에 포함한다.
@@ -449,19 +454,20 @@ detector = AnomalyDetector(z_score_threshold=2.5)
 monitor.save_to_file("evaluation")  # anomaly_data 자동 포함
 ```
 
-저장된 JSON의 `anomaly_data` 필드를 대시보드가 읽어 `/anomaly` 엔드포인트로 제공한다.
+저장된 JSON의 `anomaly_data` 필드를 대시보드가 읽어 `/api/anomalies` 엔드포인트로 제공한다.
 
 ### explain_event — 이상 원인 분석
 
 단순히 "이상 이벤트 발생"이 아니라 원인과 권고사항까지 확인할 수 있다.
 
 ```python
-# 대시보드 API로 특정 이벤트 상세 분석
+# 대시보드 API로 특정 이벤트 상세 분석 (file_id 포함 경로)
 import urllib.request, json
 
+file_id = "evaluation"
 event_id = "event_20260409_001"
 with urllib.request.urlopen(
-    f"http://localhost:8765/anomaly/explain/{event_id}"
+    f"http://localhost:8765/api/results/{file_id}/anomaly/explain/{event_id}"
 ) as resp:
     explanation = json.load(resp)
 
@@ -484,7 +490,7 @@ print(f"권고: {explanation['recommendation']}")
 }
 ```
 
-📋 **QA 관리자 TIP:** `z_score_threshold=2.5`가 기본값이다. 너무 낮으면 false positive가 많고, 너무 높으면 진짜 이상을 놓친다. 초기 2주 캘리브레이션 후 데이터를 보고 조정하라. 일반적으로 2.0~3.0 사이가 적당하다.
+📋 **QA 관리자 TIP:** Z-Score 임계값은 내부적으로 2.5로 고정되어 있다. `baseline_window`(기본 100)와 `detection_window`(기본 20)를 조정해 탐지 민감도를 제어할 수 있다. window가 작을수록 최근 데이터에 민감하고, 클수록 장기 추이 기반으로 안정적으로 동작한다.
 
 ---
 
@@ -552,7 +558,7 @@ monitor = PerformanceMonitor(output_dir="results/")
 | accuracy_score | < 0.70 | < 0.55 | 300s / 60s | #monitoring / #alerts |
 | execution_time | > 5초 | > 10초 | 60s / 30s | #monitoring / #alerts |
 | completion_score | < 0.80 | < 0.60 | 120s / 60s | #monitoring / #alerts |
-| tokens_used | > 3000 | > 6000 | 180s / 60s | #monitoring / #alerts |
+| tokens_used["total"] | > 3000 | > 6000 | 180s / 60s | #monitoring / #alerts |
 | attempts (재시도) | ≥ 2 | ≥ 4 | 300s / 120s | #monitoring / #alerts |
 | 보안 위협 탐지 | 1건 | 3건 | 60s / 즉시 | #alerts / #incidents |
 | privilege_escalation | 탐지 즉시 | — | 30s | #incidents |

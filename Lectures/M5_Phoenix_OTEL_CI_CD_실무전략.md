@@ -1,6 +1,6 @@
 # M5: Phoenix · OpenTelemetry · CI/CD — 프로덕션 실무 전략
 
-> **Agent-Evaluator v0.7.4** 기준. 설치: `pip install "agent-evaluator[otel]"`
+> **Agent-Evaluator v0.7.5+** 기준. 설치: `pip install "agent-evaluator[otel]"`
 
 ---
 
@@ -1498,8 +1498,7 @@ agent-eval gate results/ci/ci_result.json \
 ---
 
 > **참고 파일**
-> - `Evaluator_Examples/16_dashboard_demo.py` — 대시보드 + Phoenix OTEL 통합 데모
-> - `Evaluator_Examples/17_phoenix_verification.py` — Phoenix 4개 메뉴 통합 데모
-> - `Evaluator_Examples/13_golden_set_build.py` — GoldenSetBuilder 워크플로우
+> - `Evaluator_Examples/07_phoenix_hybrid.py` — Phoenix OTEL + Tracing·Datasets·GraphQL + DeepEval·Ragas (opt-in)
+> - `Evaluator_Examples/06_operational.py` — AnomalyDetector·CostTracker·GoldenSetBuilder·evaluation_session
 > - `agent_evaluator/core/otel/provider.py` — setup_otel() 구현
 > - `agent_evaluator/cli/gate.py` — agent-eval gate 구현

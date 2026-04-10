@@ -595,6 +595,7 @@ class HallucinationDetector(BaseTracker):
 
     def __init__(self):
         self._detections: List[Dict[str, Any]] = []
+        self._rag_metrics: List[Dict[str, Any]] = []
 
     @property
     def detections(self) -> List[Dict[str, Any]]:
@@ -613,6 +614,7 @@ class HallucinationDetector(BaseTracker):
     def reset(self) -> None:
         """Clear all hallucination detections."""
         self._detections.clear()
+        self._rag_metrics.clear()
 
     def detect_hallucination(self, task_id: str, response: str,
                             context: str, ground_truth: Optional[str] = None,
@@ -695,6 +697,104 @@ class HallucinationDetector(BaseTracker):
 
         self._detections.append(detection)
         return detection
+
+    # ------------------------------------------------------------------
+    # RAG metrics (Context Recall / Context Precision approximation)
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _tokenize(text: str) -> set:
+        """소문자 단어 토큰 집합 (구두점 제거)."""
+        return set(re.sub(r"[^\w\s]", "", text.lower()).split())
+
+    def compute_context_recall(self, ground_truth: str, context: str) -> float:
+        """Context Recall 근사: GT 키워드 중 context 에 포함된 비율.
+
+        Ragas Context Recall (LLM 기반) 의 경량 토큰 오버랩 근사값이다.
+        ground_truth 의 핵심 정보가 retrieved context 에 얼마나 담겼는지를 나타낸다.
+        값이 낮으면 retriever 가 정답에 필요한 문서를 놓쳤을 가능성이 높다.
+
+        Returns:
+            0.0 – 1.0 (1.0 = GT 의 모든 토큰이 context 에 존재)
+        """
+        gt_tokens = self._tokenize(ground_truth)
+        if not gt_tokens:
+            return 0.0
+        ctx_tokens = self._tokenize(context)
+        return round(len(gt_tokens & ctx_tokens) / len(gt_tokens), 4)
+
+    def compute_context_precision(self, response: str, context: str) -> float:
+        """Context Precision 근사: context 토큰 중 response 에 실제 인용된 비율.
+
+        Ragas Context Precision (LLM 기반) 의 경량 근사값이다.
+        retrieved context 가 응답 생성에 얼마나 활용됐는지(노이즈 대비 유용성)를 나타낸다.
+        값이 낮으면 retriever 가 불필요한 문서를 과도하게 가져왔을 가능성이 높다.
+
+        Returns:
+            0.0 – 1.0 (1.0 = context 의 모든 토큰이 response 에 등장)
+        """
+        ctx_tokens = self._tokenize(context)
+        if not ctx_tokens:
+            return 0.0
+        resp_tokens = self._tokenize(response)
+        return round(len(ctx_tokens & resp_tokens) / len(ctx_tokens), 4)
+
+    def track_rag_task(
+        self,
+        task_id: str,
+        response: str,
+        context: str,
+        ground_truth: Optional[str] = None,
+    ) -> Dict[str, float]:
+        """Context Recall / Precision 을 계산하고 내부 목록에 저장한다.
+
+        ``PerformanceMonitor.record_task()`` 에서 ``enable_hallucination_detection=True``
+        이고 ``context`` 와 ``ground_truth`` 가 모두 존재할 때 자동으로 호출된다.
+        ``@agent_eval(rag_mode=True)`` 데코레이터를 사용하면 추가 코드 없이 동작한다.
+
+        Args:
+            task_id: 태스크 고유 ID.
+            response: 에이전트 응답 텍스트.
+            context: Retriever 가 가져온 문서 텍스트.
+            ground_truth: 정답 텍스트 (Context Recall 계산에 사용).
+
+        Returns:
+            Dict with context_recall and context_precision (0.0–1.0).
+        """
+        recall = self.compute_context_recall(ground_truth or "", context) if ground_truth else None
+        precision = self.compute_context_precision(response, context)
+        record: Dict[str, Any] = {
+            "task_id": task_id,
+            "context_precision": precision,
+            "context_recall": recall,
+        }
+        self._rag_metrics.append(record)
+        return {k: v for k, v in record.items() if k != "task_id" and v is not None}
+
+    def get_rag_metrics(self) -> Dict[str, Any]:
+        """Context Recall / Precision 집계 통계를 반환한다.
+
+        Returns:
+            Dict with keys: tasks_evaluated, avg_context_precision,
+            avg_context_recall (None 이면 ground_truth 미제공), per_task list.
+        """
+        if not self._rag_metrics:
+            return {
+                "tasks_evaluated": 0,
+                "avg_context_precision": 0.0,
+                "avg_context_recall": None,
+                "per_task": [],
+            }
+
+        precisions = [r["context_precision"] for r in self._rag_metrics]
+        recalls = [r["context_recall"] for r in self._rag_metrics if r["context_recall"] is not None]
+
+        return {
+            "tasks_evaluated": len(self._rag_metrics),
+            "avg_context_precision": round(sum(precisions) / len(precisions), 4),
+            "avg_context_recall": round(sum(recalls) / len(recalls), 4) if recalls else None,
+            "per_task": list(self._rag_metrics),
+        }
 
     def get_hallucination_rate(self) -> Dict[str, float]:
         """Get overall hallucination statistics"""

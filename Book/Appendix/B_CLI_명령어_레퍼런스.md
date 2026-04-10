@@ -1,6 +1,6 @@
 # Appendix B. CLI 명령어 완전 레퍼런스
 
-Agent Evaluator v0.7.4 CLI 전체 명령어 목록. `pip install agent-evaluator` 설치 후 바로 사용 가능하다.
+Agent Evaluator v0.7.6 CLI 전체 명령어 목록. `pip install agent-evaluator` 설치 후 바로 사용 가능하다.
 
 ---
 
@@ -31,9 +31,9 @@ agent-eval init
 **동작 순서**
 
 1. 현재 디렉토리에 `.env` 파일이 존재하는지 확인
-2. OpenAI API 키 입력 요청 (LLM Judge, AccuracyEvaluator에 필요)
+2. OpenAI API 키 입력 요청 (LLM Judge, DeepEval, Ragas에 필요)
 3. Anthropic API 키 입력 요청 (LLM Judge 대안)
-4. Slack Webhook URL 입력 요청 (알림 기능, 선택)
+4. LangSmith API 키 입력 요청 (LangChain 트레이싱, 선택)
 5. `.env` 파일 생성 또는 업데이트
 
 **출력 예시**
@@ -41,9 +41,9 @@ agent-eval init
 ```
 Agent Evaluator 설정 마법사
 ===========================
-[1/3] OpenAI API 키 (LLM Judge 사용 시 필요): sk-...
-[2/3] Anthropic API 키 (선택): ...
-[3/3] Slack Webhook URL (선택): ...
+[1/3] OpenAI API Key (선택): sk-...
+[2/3] Anthropic API Key (선택): sk-ant-...
+[3/3] LangSmith API Key (선택): ls__...
 .env 파일이 생성되었습니다.
 ```
 
@@ -71,7 +71,7 @@ agent-eval check
 **출력 예시**
 
 ```
-Agent Evaluator v0.7.4 설정 상태
+Agent Evaluator v0.7.6 설정 상태
 =================================
 .env 파일: /Users/username/project/.env (존재)
 
@@ -153,9 +153,13 @@ agent-eval gate <result.json> [옵션]
 |------|------|------|
 | `--tcr` | float | Task Completion Rate 최소값 (%) |
 | `--accuracy` | float | Accuracy 최소값 (%) |
-| `--quality` | float | Response Quality 최소값 (0~5) |
+| `--p95-latency` | float | P95 레이턴시 최대값 (초) |
 | `--hallucination` | float | Hallucination Rate 최대값 (%) |
-| `--config` | 파일경로 | JSON 설정 파일에서 임계값 로드 |
+| `--llm-judge` | float | LLM Judge 종합 점수 최소값 (0~5) |
+| `--fail-on-regression` | float | 기준선 대비 허용 회귀율 (%) |
+| `--baseline` | 파일경로 | 기준선 파일 경로 (기본: `<result_dir>/baseline.json`) |
+| `--save-baseline` | flag | 현재 결과를 기준선으로 저장 |
+| `--junit-xml` | 파일경로 | JUnit XML 결과 파일 경로 (CI 시스템 연동) |
 
 **예시**
 
@@ -164,21 +168,17 @@ agent-eval gate <result.json> [옵션]
 agent-eval gate result.json --tcr 85 --accuracy 70
 
 # 여러 임계값 동시 지정
-agent-eval gate result.json --tcr 90 --accuracy 80 --quality 4.0
+agent-eval gate result.json --tcr 90 --accuracy 80 --p95-latency 3.0 --hallucination 5
 
-# 설정 파일 사용
-agent-eval gate result.json --config gate_config.json
-```
+# LLM Judge 점수 게이팅
+agent-eval gate result.json --tcr 85 --llm-judge 3.5
 
-**gate_config.json 형식**
+# 기준선 저장 후 회귀 감지
+agent-eval gate result.json --save-baseline
+agent-eval gate result.json --tcr 85 --fail-on-regression 10
 
-```json
-{
-    "tcr": 85.0,
-    "accuracy": 70.0,
-    "quality": 4.0,
-    "hallucination": 5.0
-}
+# JUnit XML 출력 (CI 통합)
+agent-eval gate result.json --tcr 85 --junit-xml test-results/gate-results.xml
 ```
 
 **적정 임계값 자동 제안**
@@ -204,40 +204,46 @@ eval.generate_gate_config("gate_config.json")
 
 ## agent-eval dataset
 
-골든 데이터셋 관리 서브커맨드. 평가 결과에서 고품질 케이스를 자동으로 추출하여 골든 데이터셋으로 저장한다.
+골든 데이터셋 관리 서브커맨드. 평가 결과에서 케이스를 자동으로 추출하여 골든 데이터셋으로 저장한다.
 
 **사용법**
 
 ```bash
-agent-eval dataset build <결과디렉토리> [옵션]
+agent-eval dataset build [옵션]
 ```
 
 **옵션**
 
 | 옵션 | 기본값 | 설명 |
 |------|--------|------|
-| `--min-score` | 0.8 | 최소 점수 임계값 (0.0~1.0) |
-| `--output` | data/golden_datasets/ | 저장 경로 |
+| `--source` | `./results` | 결과 JSON 파일 디렉토리 |
+| `--output` | `<source>/golden_datasets/` | 골든셋 출력 디렉토리 |
+| `--strategy` | `failure_cases edge_cases` | 추출 전략 (복수 지정 가능): `failure_cases`, `edge_cases`, `high_value`, `coverage_gap` |
+| `--max-cases` | 50 | 추출할 최대 케이스 수 |
+| `--no-review` | False | 사람 검토 없이 바로 저장 |
+| `--name` | 자동 생성 | 저장 파일 이름 (`candidates_YYYYMMDD_HHMMSS.json`) |
 
 **예시**
 
 ```bash
-# 기본 추출 (점수 0.8 이상)
-agent-eval dataset build results/
+# 기본 추출 (실패 케이스 + 엣지 케이스, 최대 50개)
+agent-eval dataset build
 
-# 고품질 기준 강화
-agent-eval dataset build results/ --min-score 0.9
+# 소스 디렉토리 지정
+agent-eval dataset build --source results/
 
-# 저장 경로 지정
-agent-eval dataset build results/ --output data/golden/ --min-score 0.85
+# 고품질 케이스 중심 추출
+agent-eval dataset build --source results/ --strategy high_value failure_cases
+
+# 저장 경로 및 케이스 수 지정
+agent-eval dataset build --source results/ --output data/golden/ --max-cases 30
 ```
 
 **동작 방식**
 
 1. 결과 디렉토리의 모든 JSON 파일을 스캔
-2. `completion_score × accuracy_score` 기반으로 고품질 케이스 선별
+2. 지정한 전략(`--strategy`)으로 케이스 선별 (실패 케이스, 엣지 케이스, 고가치 케이스 등)
 3. `GoldenSetBuilder`를 통해 골든 데이터셋 파일로 저장
-4. 기존 골든 데이터셋과 자동 병합
 
 ---
 
@@ -255,8 +261,13 @@ agent-eval monitor [옵션]
 
 | 옵션 | 기본값 | 설명 |
 |------|--------|------|
-| `--port` | 6006 | Phoenix 서버 포트 |
-| `--check` | False | OTEL 패키지 설치 여부 및 포트 상태만 확인 |
+| `--port` | `6006` | Phoenix UI + OTLP HTTP 포트 |
+| `--host` | `localhost` | Phoenix 바인딩 호스트 |
+| `--no-open` | — | 브라우저 자동 오픈 비활성화 |
+| `--attach <url>` | — | 자체 기동 없이 기존 Phoenix에 연결 |
+| `--check` | — | 설치 상태 및 포트 점유 확인 |
+| `--working-dir <path>` | `./` | Phoenix DB 저장 디렉토리 |
+| `--sync-datasets <glob>` | — | 골든셋 JSON 파일을 Phoenix Datasets로 업로드 |
 
 **예시**
 
@@ -269,6 +280,12 @@ agent-eval monitor --port 6007
 
 # 설치 상태만 확인 (서버 미기동)
 agent-eval monitor --check
+
+# 기존 Phoenix 서버에 연결 (자체 기동 없음)
+agent-eval monitor --attach http://localhost:6006
+
+# 골든셋 자동 업로드
+agent-eval monitor --sync-datasets 'data/golden_datasets/*.json'
 ```
 
 **사전 조건**
@@ -315,7 +332,7 @@ agent-eval --version
 **출력 예시**
 
 ```
-agent-evaluator 0.7.4
+agent-evaluator 0.7.6
 ```
 
 ---

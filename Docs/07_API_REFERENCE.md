@@ -1,14 +1,14 @@
 # API 레퍼런스
 
-Agent Evaluator v0.7.5 전체 API 문서
+Agent Evaluator v0.7.6 전체 API 문서
 
 ---
 
 ## 버전 정보
 
-- **버전:** v0.7.5
+- **버전:** v0.7.6
 - **Python:** 3.8+
-- **최종 업데이트:** 2026-04-08
+- **최종 업데이트:** 2026-04-10
 
 ---
 
@@ -1031,7 +1031,7 @@ stats = tracker.get_stats()
 
 ## 13. 하이브리드 평가 (Layer 3)
 
-외부 평가 라이브러리(DeepEval, Ragas, LangSmith)와 통합. `[eval]` extra가 필요하다.
+외부 평가 라이브러리(DeepEval, Ragas)와 통합. `[eval]` extra가 필요하다.
 
 ```python
 from agent_evaluator import HybridPerformanceMonitor, ExtendedTaskResult, HybridEvaluationReport
@@ -1073,7 +1073,6 @@ async with hybrid_evaluation_session("hybrid_eval") as monitor:
 report: HybridEvaluationReport = monitor.generate_report()
 report.deepeval_scores     # DeepEval 지표
 report.ragas_scores        # Ragas 지표
-report.langsmith_traces    # LangSmith 트레이싱
 ```
 
 ### 개별 어댑터
@@ -1082,7 +1081,6 @@ report.langsmith_traces    # LangSmith 트레이싱
 from agent_evaluator.integrations.metric_adapters import (
     DeepEvalAdapter,
     RagasAdapter,
-    LangSmithAdapter,
 )
 
 # DeepEval
@@ -1189,4 +1187,4 @@ FrameworkLiteral,   # 21개 프레임워크 Literal 타입
 
 ---
 
-*Agent Evaluator v0.7.5 — [GitHub](https://github.com/bullpeng72/Agent-Evaluator) | [예제 디렉토리](../Evaluator_Examples/)*
+*Agent Evaluator v0.7.6 — [GitHub](https://github.com/bullpeng72/Agent-Evaluator) | [예제 디렉토리](../Evaluator_Examples/)*

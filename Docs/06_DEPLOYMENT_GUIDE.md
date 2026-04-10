@@ -1,6 +1,6 @@
 # 배포 가이드
 
-**Agent-Evaluator v0.7.5** — CI/CD 통합 및 프로덕션 배포 전략
+**Agent-Evaluator v0.7.6** — CI/CD 통합 및 프로덕션 배포 전략
 
 ---
 
@@ -249,7 +249,7 @@ agent-eval gate results/eval.json --tcr 85 --accuracy 70
 agent-eval gate results/eval.json \
   --tcr 85 \
   --accuracy 70 \
-  --quality 0.7 \
+  --quality 3.5 \
   --hallucination 0.1
 
 # 실패 시 sys.exit(1) → CI/CD 파이프라인 중단
@@ -672,7 +672,7 @@ print(settings)  # 현재 설정 출력
 ### 보안 지표 미수집 문제
 
 ```python
-# 잘못된 설정 — 보안 트래커 초기화만 되고 호출 안 됨 (v0.7.2 이하 버그)
+# 잘못된 설정 — 보안 트래커 초기화만 되고 호출 안 됨 (v0.7.2 이하 버그, v0.7.3 CRITICAL 수정)
 monitor = PerformanceMonitor()  # enable_security_metrics 기본값 False
 
 # 올바른 설정
@@ -680,7 +680,7 @@ monitor = PerformanceMonitor(
     output_dir="results/",
     enable_security_metrics=True,  # 반드시 명시
 )
-# v0.7.5부터 record_task() 시 5개 보안 트래커 자동 호출
+# v0.7.3부터 record_task() 시 5개 보안 트래커 자동 호출 (CRITICAL 버그 수정)
 ```
 
 ### 프로덕션 배포 전 체크리스트

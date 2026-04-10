@@ -312,7 +312,7 @@ data:
 ```
 
 ```yaml
-# CI Job에서 ConfigMap 마운트 후 게이팅
+# CI Job에서 ConfigMap에서 읽은 값으로 게이팅
 - name: gate
   image: python:3.11-slim
   command:
@@ -320,7 +320,9 @@ data:
     - -c
     - |
       pip install agent-evaluator && \
-      agent-eval gate /results/latest.json --config /config/gate_config.json
+      TCR=$(cat /config/gate_config.json | python3 -c "import sys,json; print(json.load(sys.stdin)['tcr'])") && \
+      ACC=$(cat /config/gate_config.json | python3 -c "import sys,json; print(json.load(sys.stdin)['accuracy'])") && \
+      agent-eval gate /results/latest.json --tcr "$TCR" --accuracy "$ACC" --p95-latency 3.0
   volumeMounts:
     - mountPath: /config
       name: gate-config
@@ -578,7 +580,7 @@ monitor = PerformanceMonitor(
     output_dir="results/",
     enable_security_metrics=True,  # 반드시 명시
 )
-# v0.7.4+에서 record_task() 시 5개 보안 트래커 자동 호출 확인됨
+# v0.7.3+에서 record_task() 시 5개 보안 트래커 자동 호출 확인됨 (CRITICAL 버그 수정)
 ```
 
 ### 문제 8 — batch_eval DataFrame이 비어있음

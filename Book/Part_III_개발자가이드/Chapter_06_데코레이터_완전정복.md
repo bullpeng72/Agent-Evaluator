@@ -174,7 +174,7 @@ def rag_agent(question: str, context: str = "", ground_truth: str = "") -> str:
     return llm.invoke(f"Context: {context}\n\nQuestion: {question}")
 ```
 
-`rag_mode=True`가 자동으로 하는 일: (1) `context_arg="context"` 설정, (2) `enable_hallucination=True` 환각 탐지 활성화, (3) `HallucinationDetector`에 context를 전달해 일관성 점수 계산.
+`rag_mode=True`가 자동으로 하는 일: (1) `context_arg="context"` 설정, (2) 내부적으로 hallucination 감지 활성화(데코레이터 레벨), (3) `HallucinationDetector`에 context를 전달해 일관성 점수 계산. `enable_llm_judge=True`와 함께 사용 시 `faithfulness` 차원도 자동 추가된다.
 
 ### security_mode=True — 보안 검사 임시 활성
 
@@ -198,8 +198,9 @@ def risky_agent(question: str, ground_truth: str = "") -> str:
 )
 def careful_agent(question: str, ground_truth: str = "") -> str:
     return llm.invoke(question)
-# LLM Judge가 3차원 평가: completeness, relevance, factual_consistency
-# 결과는 TaskResult.extra에 저장되어 대시보드에서 확인 가능
+# LLM Judge가 5차원 기본 평가: completeness, relevance, factual_consistency, toxicity, bias
+# rag_mode=True 시 faithfulness 차원 자동 추가 (6차원), judge_criteria 지정 시 추가 확장
+# 결과는 TaskResult.extra["llm_judge"]에 저장되어 대시보드에서 확인 가능
 ```
 
 ### 모든 파라미터를 활용한 완전한 예시
@@ -366,18 +367,20 @@ chat_agent("서울 날씨 알려줘", sid="user_001")
 flush_conversation("user_001")
 ```
 
-### 6가지 대화 지표
+### 8가지 대화 지표
 
 `flush_conversation()` 또는 `max_turns` 도달 시 자동 계산되는 지표:
 
 | 지표 | 설명 |
 |------|------|
+| `turn_count` | 총 대화 턴 수 |
+| `overall_score` | 아래 지표들의 종합 점수 (0~1) |
 | `context_retention` | 이전 대화 내용을 얼마나 기억하는가 (0~1) |
 | `topic_coherence` | 대화 주제의 일관성 (0~1) |
 | `progressive_depth` | 대화가 깊어지는 정도 (0~1) |
 | `session_completion` | 세션 목표 달성률 (0~1) |
 | `avg_turn_latency` | 평균 응답 지연 시간 (초) |
-| `overall_score` | 위 지표들의 종합 점수 (0~1) |
+| `turn_scores` | 턴별 개별 점수 목록 |
 
 ### 고급 옵션과 챗봇 완전 예시
 
@@ -386,9 +389,9 @@ from agent_evaluator import conversation_eval, flush_conversation, PerformanceMo
 
 monitor = PerformanceMonitor("results/")
 
-def on_turn_callback(turn_idx: int, turn_data: dict):
-    """각 턴 완료 시 호출되는 콜백"""
-    print(f"  턴 {turn_idx}: {turn_data.get('response', '')[:50]}...")
+def on_turn_callback(session_id: str, user: str, response: str, metadata: dict):
+    """각 턴 완료 시 호출되는 콜백 — 시그니처: (session_id, user, response, metadata)"""
+    print(f"  [{session_id}] 사용자: {user[:30]}... → 응답: {response[:50]}...")
 
 @conversation_eval(
     monitor,
@@ -576,17 +579,17 @@ print(f"통계적 유의성: p={ab_result.get('p_value', 'N/A')}")
 자주 쓰는 설정 조합을 이름으로 지정한다:
 
 ```python
-# "production" — flush_every: 50 + enable_anomaly_detection: True
+# "production" — sample_rate=0.1 + timeout=30s + flush_every=50 + enable_anomaly_detection=True + enable_llm_judge=True
 @agent_eval(monitor, task_type="qa", preset="production")
 def prod_agent(question: str, ground_truth: str = "") -> str:
     return llm.invoke(question)
 
-# "development" — enable_llm_judge: True + auto_detect_framework: True
+# "development" — sample_rate=1.0 + enable_llm_judge=True + auto_detect_framework=True + flush_every=1
 @agent_eval(monitor, task_type="qa", preset="development")
 def dev_agent(question: str, ground_truth: str = "") -> str:
     return llm.invoke(question)
 
-# 지원 preset: "production", "development", "testing", "canary"
+# 지원 preset: "production", "development", "testing", "canary", "performance", "security"
 ```
 
 ### sample_condition — 조건부 샘플링
@@ -718,6 +721,196 @@ print()
 # TTFT 통계 확인
 ttft_stats = monitor.latency_tracker.get_ttft_stats()
 print(f"평균 TTFT: {ttft_stats.get('mean', 0):.3f}초")
+```
+
+---
+
+## 6.10 파라미터 × 지표 완전 매핑 — 종합 레퍼런스
+
+실전에서 가장 자주 받는 질문은 "어떤 파라미터를 써야 어떤 지표가 켜지나요?"다. 이 절은 그 질문에 대한 완전한 답이다.
+
+### 지표 × 데코레이터 지원 매트릭스
+
+```
+지표                            @agent_eval  @batch_eval  @conversation_eval
+─────────────────────────────────────────────────────────────────────────────
+[Layer 1 — 기반 지표]
+TCR (태스크 완료율)                  ✅           ✅              ✅
+Accuracy (정확도)                    ✅           ✅              ✅
+Hallucination (환각 탐지)     ✅(opt-in)   ✅(opt-in)          ✅
+Quality (응답 품질 5차원)             ✅           ✅              ✅
+Latency (지연 시간 + TTFT)           ✅           ✅              ✅
+Token Economy (토큰·비용)            ✅           ✅              ✅
+
+[Layer 2-A — 에이전틱 지표]
+Tool Call (도구 호출 패턴)            ✅           ✅              ✅
+Retry/Correction (재시도)            ✅           ✅              ✅
+Tool Selection F1                    ✅           ✅              ✅
+Agent Coordination (멀티에이전트)     ✅           ✅              ✅
+Workflow Execution                   ✅           ✅              ✅
+
+[Layer 2-B — 보안 지표]
+Input Sanitization            ✅(opt-in)   ✅(opt-in)       ✅(opt-in)
+Output Leakage               ✅(opt-in)   ✅(opt-in)       ✅(opt-in)
+Tool Authorization           ✅(opt-in)   ✅(opt-in)       ✅(opt-in)
+Privilege Escalation         ✅(opt-in)   ✅(opt-in)       ✅(opt-in)
+Tool Chain Attack            ✅(opt-in)   ✅(opt-in)       ✅(opt-in)
+
+[Layer 3 — LLM Judge]  (enable_llm_judge=True, [llm] extras)
+Completeness                  ✅(opt-in)   ✅(opt-in)          N/A
+Relevance                     ✅(opt-in)   ✅(opt-in)          N/A
+Factual Consistency           ✅(opt-in)   ✅(opt-in)          N/A
+Toxicity                      ✅(opt-in)   ✅(opt-in)          N/A
+Bias                          ✅(opt-in)   ✅(opt-in)          N/A
+safety_score                  ✅(opt-in)   ✅(opt-in)          N/A
+Faithfulness (RAG, v0.7.6+) ✅(rag+judge) ✅(rag+judge)       N/A
+G-Eval 커스텀 (v0.7.6+)       ✅(opt-in)   ✅(opt-in)          N/A
+
+[대화 지표]  (@conversation_eval 전용)
+Turn Count                        N/A          N/A              ✅
+Overall Score                     N/A          N/A              ✅
+Context Retention                 N/A          N/A              ✅
+Topic Coherence                   N/A          N/A              ✅
+Progressive Depth                 N/A          N/A              ✅
+Session Completion                N/A          N/A              ✅
+Avg Turn Latency                  N/A          N/A              ✅
+Turn Scores                       N/A          N/A              ✅
+```
+
+> **opt-in** = 기본 비활성. 파라미터 또는 monitor 설정으로 활성화 필요.
+
+---
+
+### `@agent_eval` 파라미터 → 지표 활성화 맵
+
+| 파라미터 | 활성화되는 지표 | 비고 |
+|---------|--------------|------|
+| `task_type="qa"` | Accuracy (QA 모드) | 문자열·Enum 혼용 가능 |
+| `task_type="tool_use"` | Tool Call + Tool Selection F1 | Tool 지표 자동 활성 |
+| `task_type="information_retrieval"` | Hallucination 보조 입력 준비 | rag_mode 함께 쓸 것 |
+| `rag_mode=True` | Hallucination + IR task_type 자동 | context_arg도 자동 설정; + faithfulness (enable_llm_judge 조합 시, v0.7.6+) |
+| `context_arg="context"` | Hallucination 컨텍스트 공급 | rag_mode 없이도 사용 가능 |
+| `security_mode=True` | 보안 5종 모두 (temp-override) | finally에서 복원 |
+| `enable_llm_judge=True` | Completeness · Relevance · Factual Consistency · Toxicity · Bias · safety_score | [llm] extras 필요, temp-override |
+| `judge_model="claude-..."` | LLM Judge 모델 지정 | None이면 API 키 기반 자동 |
+| `judge_criteria=[...]` | G-Eval 커스텀 기준 추가 (v0.7.6+) | criteria_scores / criteria_overall 키로 결과 |
+| `enable_hallucination=True` | Hallucination 단독 (temp-override) | rag_mode보다 세밀한 제어 |
+| `enable_anomaly_detection=True` | AnomalyDetector 임시 활성 | finally에서 복원 |
+| `framework="langchain"` | tool_calls · chain_steps · tokens_used 자동 추출 | 21개 프레임워크 지원 |
+| `score_fn=my_fn` | Accuracy 완전 대체 | (response, ground_truth) → float |
+| `flush_every=N` | N회마다 save_to_file() 자동 | flush_filename으로 파일명 지정 |
+| `alert_rules=[rule]` | SimpleTaskAlertRule 조건 즉시 평가 | 조건 충족 시 handler 호출 |
+| `sample_rate=0.1` | 10% 태스크만 기록 | 고빈도 운영 환경 비용 절감 |
+
+---
+
+### 데이터 소스 우선순위 (5단계)
+
+데코레이터가 `tool_calls`, `tokens_used`, `execution_time` 등을 채울 때 다음 우선순위로 소스를 탐색한다.
+
+```
+1순위: EvalMetadata 명시적 반환
+       └─ return response, EvalMetadata(tool_calls=[...], tokens_used=1500)
+
+2순위: eval_context 컨텍스트 매니저
+       └─ with eval_context(monitor, "qa") as ctx: ctx.tokens_used = 1500
+
+3순위: framework= 어댑터 자동 추출
+       └─ @agent_eval(monitor, framework="langchain")
+          → LangChain AIMessage.usage_metadata 자동 파싱
+
+4순위: auto_detect_framework=True (기본 활성)
+       └─ 반환값 속성 12개 기반 프레임워크 자동 감지
+
+5순위: 인수 이름 추출 (fallback)
+       └─ ground_truth= 인수 자동 감지
+          (ground_truth, expected, reference, answer 키워드 인식)
+```
+
+**실전 팁**: EvalMetadata를 명시적으로 반환하면 100% 정확하게 지표를 제어할 수 있다. 프레임워크 자동 감지는 편리하지만 응답 객체 구조가 변경될 경우 추출 실패 가능성이 있다.
+
+---
+
+### 에이전트 유형별 권장 설정
+
+#### 1. QA 에이전트
+```python
+@agent_eval(monitor, task_type="qa")
+def qa_agent(question: str, ground_truth: str = "") -> str:
+    return llm.ask(question)
+# → Accuracy (F1+Jaccard+LCS+Char), Quality 5차원, Latency, TCR
+```
+
+#### 2. RAG 에이전트
+```python
+@agent_eval(monitor, rag_mode=True,
+            enable_llm_judge=True)
+def rag_agent(question: str, context: str = "", ground_truth: str = "") -> str:
+    docs = retriever.get(question)
+    return llm.generate(question, docs)
+# → Hallucination, Faithfulness (LLM Judge), Accuracy, Quality, Latency
+```
+
+#### 3. 도구 사용 에이전트
+```python
+from agent_evaluator import agent_eval, EvalMetadata
+
+@agent_eval(monitor, task_type="tool_use", framework="langchain")
+def tool_agent(question: str, ground_truth: str = "") -> str:
+    result = agent_executor.invoke({"input": question})
+    return result["output"]
+# → Tool Call 패턴, Tool Selection F1, Retry/Correction, TCR
+```
+
+#### 4. 보안 에이전트
+```python
+@agent_eval(monitor, task_type="qa", security_mode=True)
+def secure_agent(question: str, ground_truth: str = "") -> str:
+    return agent.process(question)
+# → Input Sanitization, Output Leakage, Tool Auth, Privilege Escalation, Chain Attack
+```
+
+#### 5. 멀티에이전트 시스템
+```python
+@agent_eval(monitor, task_type="tool_use")
+def multi_agent(question: str, ground_truth: str = ""):
+    result = crew.kickoff({"topic": question})
+    metadata = EvalMetadata(
+        agent_interactions=[
+            {"from": "researcher", "to": "writer", "message": "done"},
+        ],
+        tokens_used=result.token_usage.get("total_tokens", 0),
+    )
+    return result.raw, metadata
+# → Agent Coordination, Workflow Execution, Tool Call, TCR
+```
+
+#### 6. 스트리밍 에이전트 (TTFT 측정)
+```python
+@agent_eval(monitor, task_type="qa")
+def streaming_agent(question: str, ground_truth: str = ""):
+    for chunk in llm.stream(question):
+        yield chunk  # ← 첫 yield = TTFT 자동 기록
+# → Latency + TTFT, Quality, TCR
+```
+
+#### 7. 배치 처리
+```python
+@batch_eval(monitor, task_type="qa",
+            concurrent=True, max_concurrent=5)
+def batch_agent(questions: list, ground_truths: list = None) -> list:
+    return [llm.ask(q) for q in questions]
+# → 전체 Layer 1/2 지표 + DataFrame 반환
+```
+
+#### 8. LLM Judge + G-Eval 커스텀
+```python
+@agent_eval(monitor, task_type="qa",
+            enable_llm_judge=True,
+            judge_criteria=["medical_accuracy", "citation_quality"])
+def medical_agent(question: str, ground_truth: str = "") -> str:
+    return medical_llm.ask(question)
+# → Completeness·Relevance·Factual Consistency + criteria_scores {"medical_accuracy": 4, ...}
 ```
 
 ---

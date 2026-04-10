@@ -2,7 +2,7 @@
 
 Agent Evaluator 25개 지표의 공식·출력키·임계값 참조 문서
 
-**v0.7.5 | Layer 1: 6개 (무료) · Layer 2: 10개 (무료) · Layer 3: 9개 (API 필요)**
+**v0.7.6 | Layer 1: 6개 (무료) · Layer 2: 10개 (무료) · Layer 3: LLMJudge + DeepEval + Ragas (API 필요)**
 
 > 개별 트래커 API 시그니처는 [07_API_REFERENCE.md](07_API_REFERENCE.md)를 참조하세요.
 > 데코레이터 방식 적용은 [13_DECORATOR_GUIDE.md](13_DECORATOR_GUIDE.md)를 참조하세요.
@@ -29,15 +29,17 @@ Agent Evaluator 25개 지표의 공식·출력키·임계값 참조 문서
 | **L2** | Tool Authorization | `ToolAuthorizationTracker` | 무료 | `enable_security_metrics=True` |
 | **L2** | Privilege Escalation | `PrivilegeEscalationDetector` | 무료 | `enable_security_metrics=True` |
 | **L2** | Tool Chain Attack | `ToolChainAttackDetector` | 무료 | `enable_security_metrics=True` |
-| **L3** | G-Eval | DeepEval | OpenAI | `HybridPerformanceMonitor` |
-| **L3** | Hallucination Score (LLM) | DeepEval | OpenAI | `HybridPerformanceMonitor` |
-| **L3** | Toxicity | DeepEval | OpenAI | `HybridPerformanceMonitor` |
-| **L3** | Bias | DeepEval | OpenAI | `HybridPerformanceMonitor` |
-| **L3** | Answer Relevancy (DeepEval) | DeepEval | OpenAI | `HybridPerformanceMonitor` |
-| **L3** | Faithfulness | Ragas | OpenAI | `HybridPerformanceMonitor` |
-| **L3** | Answer Relevancy (Ragas) | Ragas | OpenAI | `HybridPerformanceMonitor` |
-| **L3** | Context Precision | Ragas | OpenAI | `HybridPerformanceMonitor` |
-| **L3** | Context Recall | Ragas | OpenAI | `HybridPerformanceMonitor` |
+| **L1+** | Context Recall (근사) | `HallucinationDetector` | 무료 | `rag_mode=True` |
+| **L1+** | Context Precision (근사) | `HallucinationDetector` | 무료 | `rag_mode=True` |
+| **L3** | completeness · relevance · factual | `LLMJudge` | LLM API | `enable_llm_judge=True` |
+| **L3** | toxicity · bias · safety_score | `LLMJudge` | LLM API | `enable_llm_judge=True` |
+| **L3** | **Faithfulness** *(Ragas 대체, v0.7.6+)* | `LLMJudge` | LLM API | `rag_mode=True + enable_llm_judge=True` |
+| **L3** | **G-Eval 커스텀 기준** *(DeepEval 대체, v0.7.6+)* | `LLMJudge` | LLM API | `judge_criteria=[...]` |
+| **L3** | Hallucination Score (NLI) | DeepEval | OpenAI | `HybridPerformanceMonitor` |
+| **L3** | Answer Relevancy (LLM) | DeepEval/Ragas | OpenAI | `HybridPerformanceMonitor` |
+| **L3** | Faithfulness (LLM-정밀) | Ragas | OpenAI | `HybridPerformanceMonitor` |
+| **L3** | Context Precision (LLM) | Ragas | OpenAI | `HybridPerformanceMonitor` |
+| **L3** | Context Recall (LLM) | Ragas | OpenAI | `HybridPerformanceMonitor` |
 
 ---
 
@@ -570,7 +572,41 @@ stats = monitor.tool_chain_attack_detector.get_attack_stats()
 
 ---
 
-## Layer 3 — Hybrid 지표 (9개)
+## Layer 3 — Hybrid 지표
+
+> **v0.7.6+**: LLMJudge 기본 5차원. **v0.7.6+**: Faithfulness(Ragas 대체)와 G-Eval 커스텀 기준(DeepEval 대체)을
+> 외부 패키지 없이 `@agent_eval` 데코레이터만으로 수집할 수 있습니다.
+> `HybridPerformanceMonitor`는 LLM 기반 NLI Hallucination · LLM Answer Relevancy 등
+> 더 정밀한 의미론적 평가가 필요할 때 사용하세요.
+
+### LLMJudge (네이티브, `[llm]` extra)
+
+설치: `pip install agent-evaluator[llm]`  
+필요: `ANTHROPIC_API_KEY` 또는 `OPENAI_API_KEY`  
+사용: `enable_llm_judge=True` (데코레이터 파라미터로도 가능)
+
+**safety_score 계산 공식**: `safety_score = (10 - toxicity - bias) / 10` → 1.0 = 완전 안전
+
+```python
+# 기본 — completeness · relevance · factual_consistency · toxicity · bias · safety_score
+# safety_score = (10 - toxicity - bias) / 10
+@agent_eval(monitor, task_type="qa", enable_llm_judge=True)
+def agent(question, ground_truth=""): ...
+
+# RAG Faithfulness (Ragas 대체)
+@agent_eval(monitor, rag_mode=True, enable_llm_judge=True)
+def rag_agent(question, context="", ground_truth=""): ...
+# → scores["faithfulness"]: 0–5 (5 = 모든 주장이 컨텍스트에 근거)
+
+# G-Eval 커스텀 기준 (DeepEval 대체)
+@agent_eval(monitor, enable_llm_judge=True,
+            judge_criteria=["medical_accuracy", "patient_safety"])
+def medical_agent(question, ground_truth=""): ...
+# → scores["criteria_scores"]["medical_accuracy"]: 0–5
+# → scores["criteria_overall"]: 커스텀 기준 평균
+```
+
+### DeepEval + Ragas (`[eval]` extra)
 
 설치: `pip install agent-evaluator[eval]`
 필요: `OPENAI_API_KEY`
@@ -686,3 +722,70 @@ d["security_metrics"]["authorization"]["compliance_rate"]   # float (0–100)
 d["security_metrics"]["privilege_escalation"]["escalation_rate"] # float (0–100)
 d["security_metrics"]["attack_detection"]["detection_rate"] # float (0–100)
 ```
+
+---
+
+## 데코레이터 × 지표 활성화 맵
+
+각 지표를 수집하기 위해 어떤 데코레이터와 파라미터를 사용해야 하는지 정리한 통합 맵입니다.
+
+### 지표 × 데코레이터 지원 매트릭스
+
+| 지표 | `@agent_eval` | `@batch_eval` | `@conversation_eval` | 활성 방법 |
+|---|:---:|:---:|:---:|---|
+| **Layer 1 — 기반 지표** | | | | |
+| TCR | ✅ 자동 | ✅ 자동 | ✅ 자동 | 항상 (`completion_fn` 선택 사용) |
+| Accuracy | ✅ 자동 | ✅ 자동 | ✅ 자동 | `ground_truth_arg` 존재 시 |
+| Response Quality (5차원) | ✅ 자동 | ✅ 자동 | ✅ 자동 | response + question 존재 시 |
+| Latency (p50/p95/p99) | ✅ 자동 | ✅ 자동 | ✅ 자동 | 항상 (실행 시간 자동 측정) |
+| TTFT | ✅ generator | ✅ `streaming_mode` | ❌ | generator 리턴 또는 스트리밍 모드 |
+| Token Economy | ✅ 자동 | ✅ 자동 | ❌ | `framework=` 어댑터 또는 EvalMetadata |
+| Hallucination Rate | ✅ `rag_mode=True` | ✅ `context_arg` 지정 | ❌ | context + `enable_hallucination=True` |
+| **Layer 2 — Agentic** | | | | |
+| Tool Call Efficiency | ✅ 자동 | ✅ 자동 | ❌ | `framework=` 어댑터 또는 EvalMetadata.tool_calls |
+| Retry & Error Recovery | ✅ `max_retries>1` | ❌ | ❌ | `max_retries > 1` + 실제 재시도 |
+| Tool Selection F1 | ✅ `expected_tools_arg` | ✅ `expected_tools_arg` | ❌ | expected_tools + tool_calls 동시 존재 |
+| Agent Coordination | ✅ `framework="crewai/autogen"` | ❌ | ❌ | CrewAI/AutoGen 어댑터 또는 EvalMetadata |
+| Workflow Execution | ✅ `framework="langchain/langgraph"` | ❌ | ❌ | LangChain/LangGraph 어댑터 또는 EvalMetadata |
+| **Layer 2 — Security** | | | | |
+| Input Sanitization | ✅ `security_mode=True` | ❌ | ❌ | `security_mode=True` 임시 활성 |
+| Output Leakage | ✅ `security_mode=True` | ❌ | ❌ | 동일 |
+| Tool Authorization | ✅ `security_mode=True` + `allowed_tools` | ❌ | ❌ | 동일 + 화이트리스트 |
+| Privilege Escalation | ✅ `security_mode=True` | ❌ | ❌ | 동일 |
+| Tool Chain Attack | ✅ `security_mode=True` | ❌ | ❌ | 동일 |
+| **Layer 3 / LLM Judge** | | | | |
+| LLM Judge (5차원) | ✅ `enable_llm_judge=True` | ❌ | ❌ | `[llm]` extras |
+| Faithfulness | ✅ `rag_mode` + `enable_llm_judge` | ❌ | ❌ | context 존재 시 자동 추가 |
+| G-Eval 커스텀 기준 | ✅ `judge_criteria=[...]` | ❌ | ❌ | `enable_llm_judge=True` 동반 |
+| **대화 지표** | | | | |
+| Context Retention | ❌ | ❌ | ✅ 자동 | 세션 flush 시 |
+| Topic Coherence | ❌ | ❌ | ✅ 자동 | 세션 flush 시 |
+| Progressive Depth | ❌ | ❌ | ✅ 자동 | 세션 flush 시 |
+| Session Completion | ❌ | ❌ | ✅ 자동 | 세션 flush 시 |
+| Per-turn Score | ❌ | ❌ | ✅ `turn_score_fn` | `turn_score_fn` 지정 시 |
+| **Optional** | | | | |
+| Implicit Feedback | ❌ 직접 불가 | ❌ | ❌ | EvalMetadata.extra에 수동 주입 |
+| Streaming Window | ❌ 직접 불가 | ❌ | ❌ | StreamingEvaluator.record() 별도 호출 |
+| Anomaly Detection | ✅ `enable_anomaly_detection=True` | ❌ | ❌ | save_to_file() 시 자동 계산 |
+
+### 파라미터 → 지표 활성화 요약
+
+| 파라미터 | 활성화 지표 |
+|---|---|
+| `ground_truth_arg` | Accuracy |
+| `rag_mode=True` | Hallucination Rate + context_arg 자동 설정 |
+| `context_arg` | Hallucination Rate (`enable_hallucination=True` 동반 필요) |
+| `expected_tools_arg` | Tool Selection F1 |
+| `framework="langchain/langgraph"` | Tool Call Efficiency, Workflow Execution |
+| `framework="crewai/autogen"` | Agent Coordination |
+| `framework="openai/anthropic"` | Token Economy (정확한 토큰/캐시 비용) |
+| `security_mode=True` | 보안 5개 지표 전체 |
+| `allowed_tools=[...]` | Tool Authorization (화이트리스트 기준 추가) |
+| `enable_llm_judge=True` | LLMJudge 5차원 |
+| `rag_mode=True` + `enable_llm_judge=True` | + Faithfulness |
+| `judge_criteria=[...]` | + G-Eval 커스텀 기준 점수 |
+| `max_retries > 1` | Retry & Error Recovery |
+| `score_fn` | Accuracy (커스텀 계산) |
+| `completion_fn` | TCR (커스텀 계산) |
+| `turn_score_fn` | Per-turn Score (conversation 전용) |
+| `session_score_fn` | Session Overall Score (conversation 전용) |

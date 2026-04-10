@@ -2994,8 +2994,13 @@ def _resolve_args(
     ground_truth_arg: str,
     context_arg: Optional[str],
     expected_tools_arg: Optional[str],
+    fallback_expected_tools: Optional[List[str]] = None,
 ) -> Tuple[str, str, Optional[str], Optional[List[str]]]:
-    """bound arguments 에서 question / ground_truth / context / expected_tools 를 꺼낸다."""
+    """bound arguments 에서 question / ground_truth / context / expected_tools 를 꺼낸다.
+
+    fallback_expected_tools: 함수 인자에서 expected_tools 를 찾지 못했을 때 사용하는
+        데코레이터 수준의 정적 목록 (``@agent_eval(expected_tools=[...])``)。
+    """
     try:
         bound = sig.bind(*args, **kwargs)
         bound.apply_defaults()
@@ -3011,6 +3016,9 @@ def _resolve_args(
     ground_truth = all_args.get(ground_truth_arg, "")
     context = all_args.get(context_arg) if context_arg else None
     expected_tools = all_args.get(expected_tools_arg) if expected_tools_arg else None
+    # 함수 인자에 없으면 데코레이터 수준 정적 목록으로 fallback
+    if expected_tools is None and fallback_expected_tools is not None:
+        expected_tools = fallback_expected_tools
 
     return (
         str(question) if question is not None else "",
@@ -3154,6 +3162,7 @@ def _build_and_record(
     enable_hallucination: bool = False,  # G4: 이 호출에서만 hallucination detection 강제 활성화
     enable_llm_judge: bool = False,        # E1: 이 호출에서만 LLM Judge 강제 활성화
     judge_model: Optional[str] = None,     # E1: LLM Judge 모델 임시 지정
+    judge_criteria: Optional[List[str]] = None,  # J1: G-Eval 기준 임시 지정 (DeepEval 대체)
     security_mode: bool = False,           # E3: 이 호출에서만 security metrics 강제 활성화
     allowed_tools: Optional[List[str]] = None,  # E3: 허용된 도구 목록 임시 주입
     enable_anomaly_detection: bool = False,  # A2: 이 호출에서만 anomaly detection 임시 활성화
@@ -3235,6 +3244,21 @@ def _build_and_record(
                         "framework": effective_framework,
                         "error": _adapter_err,
                     }
+
+        # Phase 2: Plugin Registry — FrameworkAdapterPlugin fallback
+        # built-in 어댑터가 아무것도 설정하지 못했을 때 플러그인 어댑터를 시도
+        if eval_meta is None and not has_error:
+            try:
+                from .plugin_registry import PluginRegistry as _PR
+                if _PR.list_framework_plugins():
+                    _plg_fw, _plg_meta = _PR.detect_and_extract(raw_result)
+                    if _plg_meta is not None:
+                        eval_meta = _plg_meta
+                        if effective_framework in (None, "native", "auto"):
+                            effective_framework = _plg_fw
+                        logger.debug("PluginRegistry 프레임워크 어댑터 '%s' 적용", _plg_fw)
+            except Exception as _pr_exc:
+                logger.debug("PluginRegistry 프레임워크 어댑터 실패 (무시): %s", _pr_exc)
 
         response = _extract_response(raw_result)  # has_error 시에도 partial content 보존
         openai_resp = raw_result if _is_openai_response(raw_result) else None
@@ -3363,6 +3387,27 @@ def _build_and_record(
             _existing_extra.update(extra_override)
             task_result = dataclasses.replace(task_result, extra=_existing_extra)
 
+        # Phase 2: Plugin Registry — MetricPlugin 실행
+        # extra_override 병합 후, 최종 extra에 plugin_metrics 추가
+        try:
+            from .plugin_registry import PluginRegistry as _PR2
+            if _PR2.list_metric_plugins():
+                _plugin_scores = _PR2.compute_all(
+                    question=question,
+                    response=task_result.response or "",
+                    ground_truth=ground_truth or "",
+                    context=context or "",
+                    task_type=task_type,
+                    extra=dict(task_result.extra) if task_result.extra else {},
+                )
+                if _plugin_scores:
+                    _pm_extra: Dict[str, Any] = dict(task_result.extra) if task_result.extra else {}
+                    _pm_extra["plugin_metrics"] = _plugin_scores
+                    task_result = dataclasses.replace(task_result, extra=_pm_extra)
+                    logger.debug("MetricPlugin 결과 적용: %s", list(_plugin_scores.keys()))
+        except Exception as _pr2_exc:
+            logger.debug("PluginRegistry MetricPlugin 실행 실패 (무시): %s", _pr2_exc)
+
         # H1: LLM Judge가 이 호출에서 활성화될지 미리 계산 (try/finally 이후 back-propagation용)
         _judge_will_be_active = enable_llm_judge or (
             isinstance(monitor, list) and any(getattr(_m, "enable_llm_judge", False) for _m in monitor)
@@ -3391,16 +3436,44 @@ def _build_and_record(
                     _hall_restored.append(_m)
 
         # E1: enable_llm_judge — 이 호출 동안만 LLM Judge 임시 활성화
+        # Lazy init: monitor가 enable_llm_judge=False로 생성됐더라도 즉시 초기화
         _llm_judge_restored: list = []
         if enable_llm_judge:
             _monitors_e1 = monitor if isinstance(monitor, list) else [monitor]
             for _m in _monitors_e1:
                 if hasattr(_m, "enable_llm_judge") and not _m.enable_llm_judge:
                     _m.enable_llm_judge = True
-                    _orig_judge_model = getattr(_m, "_judge_model", None)
-                    if judge_model and hasattr(_m, "_judge_model"):
-                        _m._judge_model = judge_model
-                    _llm_judge_restored.append((_m, _orig_judge_model))
+                    # Lazy init: llm_judge 인스턴스가 없으면 지금 생성
+                    if getattr(_m, "llm_judge", None) is None:
+                        try:
+                            from agent_evaluator.integrations.llm_judge import LLMJudge as _LJCls
+                            _lj_kwargs: Dict[str, Any] = {}
+                            if judge_model:
+                                _lj_kwargs["model"] = judge_model
+                            if judge_criteria is not None:
+                                _lj_kwargs["judge_criteria"] = judge_criteria
+                            _m.llm_judge = _LJCls(**_lj_kwargs)
+                            logger.debug("LLM Judge lazy init: model=%s", _m.llm_judge.model)
+                            _llm_judge_restored.append((_m, None, True))  # was_lazy=True
+                        except Exception as _lj_exc:
+                            logger.debug("LLM Judge lazy init 실패: %s", _lj_exc)
+                            _m.enable_llm_judge = False
+                    else:
+                        _orig_judge_model = getattr(_m, "_judge_model", None)
+                        if judge_model and hasattr(_m, "_judge_model"):
+                            _m._judge_model = judge_model
+                        _llm_judge_restored.append((_m, _orig_judge_model, False))
+
+        # J1: judge_criteria — 이 호출 동안만 LLMJudge.judge_criteria 임시 재정의 (G-Eval 대체)
+        _judge_criteria_restored: list = []
+        if judge_criteria is not None:
+            _monitors_j1 = monitor if isinstance(monitor, list) else [monitor]
+            for _m in _monitors_j1:
+                _lj = getattr(_m, "llm_judge", None)
+                if _lj is not None:
+                    _orig_criteria = list(getattr(_lj, "judge_criteria", []))
+                    _lj.judge_criteria = list(judge_criteria)
+                    _judge_criteria_restored.append((_lj, _orig_criteria))
 
         # E3: security_mode — 이 호출 동안만 security metrics 임시 활성화
         _security_restored: list = []
@@ -3438,11 +3511,17 @@ def _build_and_record(
             # G4: hallucination detection 복원
             for _m in _hall_restored:
                 _m.enable_hallucination_detection = False
-            # E1: LLM Judge 복원
-            for _m, _orig_jm in _llm_judge_restored:
+            # E1: LLM Judge 복원 (was_lazy=True → llm_judge 인스턴스 제거)
+            for _restore_tuple in _llm_judge_restored:
+                _m, _orig_jm, _was_lazy = _restore_tuple
                 _m.enable_llm_judge = False
-                if hasattr(_m, "_judge_model"):
+                if _was_lazy:
+                    _m.llm_judge = None  # lazy-init 된 인스턴스 제거
+                elif hasattr(_m, "_judge_model"):
                     _m._judge_model = _orig_jm
+            # J1: judge_criteria 복원
+            for _lj, _orig_criteria in _judge_criteria_restored:
+                _lj.judge_criteria = _orig_criteria
             # E3: security metrics 복원
             for _m in _security_restored:
                 _m.enable_security_metrics = False
@@ -3675,9 +3754,10 @@ class _AgentEvalHandle:
 
 
 def agent_eval(
-    monitor: "PerformanceMonitor",
+    monitor_or_fn: "Any" = None,
     task_type: "Union[str, Any]" = "qa",
     *,
+    profile: Optional[str] = None,
     question_arg: str = "question",
     ground_truth_arg: str = "ground_truth",
     task_id_prefix: str = "task",
@@ -3728,6 +3808,10 @@ def agent_eval(
     # E1: PerformanceMonitor 고급 기능 직접 노출 (모니터 전역 설정 우선)
     enable_llm_judge: bool = False,
     judge_model: Optional[str] = None,
+    # J1: G-Eval 스타일 커스텀 평가 기준 (DeepEval 대체)
+    # 예: judge_criteria=["medical_accuracy", "citation_quality"]
+    # rag_mode=True와 함께 사용 시 faithfulness 차원 자동 추가 (Ragas 대체)
+    judge_criteria: Optional[List[str]] = None,
     enable_anomaly_detection: bool = False,
     # P2-B: 이 데코레이터에서만 품질 평가 강제 활성화
     enable_quality_evaluation: bool = False,
@@ -3742,7 +3826,7 @@ def agent_eval(
     task_id_prefix_cm: str = "eval",
     auto_task_id: bool = False,
     ttft_seconds: Optional[float] = None,
-) -> "_AgentEvalHandle":
+) -> "Any":
     """동기·비동기 에이전트 함수에 평가를 자동 적용하는 데코레이터 (sync/async 자동 감지).
 
     **Quick Start — 90% 사용 사례를 커버하는 핵심 5개 파라미터**::
@@ -3842,6 +3926,60 @@ def agent_eval(
                 ctx.chain_steps = parse_steps(result)
             return result["output"]
     """
+    # ── Phase 1: Config-based zero-param decorator support ─────────────────
+    # Usage modes:
+    #   @agent_eval                    → monitor_or_fn is the function (bare decorator)
+    #   @agent_eval()                  → monitor_or_fn is None
+    #   @agent_eval(profile="rag")     → monitor_or_fn is None
+    #   @agent_eval(monitor, ...)      → monitor_or_fn is PerformanceMonitor (backward compat)
+    _bare_fn = None
+    if callable(monitor_or_fn) and not hasattr(monitor_or_fn, "record_task"):
+        # Bare @agent_eval: monitor_or_fn is the decorated function itself
+        _bare_fn = monitor_or_fn
+        monitor_or_fn = None
+
+    if monitor_or_fn is None:
+        # No explicit monitor: load from config file + monitor registry
+        from .eval_config import get_active_config as _get_cfg, get_or_create_monitor as _get_mon
+        _cfg = _get_cfg(profile=profile)
+        monitor = _get_mon(profile=profile, config=_cfg)
+        # Apply config values conservatively: only when param is still at its SDK default
+        if task_type == "qa":
+            task_type = _cfg.task_type
+        if framework == "native":
+            framework = _cfg.framework
+        if model_name == "":
+            model_name = _cfg.model_name
+        if sample_rate == 1.0:
+            sample_rate = _cfg.sample_rate
+        if not rag_mode:
+            rag_mode = _cfg.rag_mode
+        if not enable_hallucination:
+            enable_hallucination = _cfg.enable_hallucination
+        if not security_mode:
+            security_mode = _cfg.security_mode
+        if not enable_llm_judge:
+            enable_llm_judge = _cfg.judge.enabled
+        if judge_model is None:
+            judge_model = _cfg.judge.model
+        if judge_criteria is None:
+            judge_criteria = _cfg.judge.criteria
+        if not enable_anomaly_detection:
+            enable_anomaly_detection = _cfg.enable_anomaly_detection or _cfg.anomaly.enabled
+        if not enable_quality_evaluation:
+            enable_quality_evaluation = _cfg.enable_quality_evaluation
+        if flush_every is None:
+            flush_every = _cfg.flush_every
+        if flush_filename == "auto_save":
+            flush_filename = _cfg.flush_filename
+        if max_retries == 1:
+            max_retries = _cfg.max_retries
+        if not dry_run:
+            dry_run = _cfg.dry_run
+    else:
+        monitor = monitor_or_fn
+    # ── End Phase 1 ─────────────────────────────────────────────────────────
+
     # 항목 D: rag_mode + security_mode 동시 사용 경고
     if rag_mode and security_mode:
         import warnings as _warnings_d
@@ -3891,6 +4029,12 @@ def agent_eval(
 
     # 재시도 횟수 정규화 (0 이하는 1회 시도로 처리)
     _n_tries = max(1, max_retries)
+
+    # 데코레이터 수준의 static expected_tools 를 closure 변수로 캡처한다.
+    # wrapper 내부에서 _resolve_args() 결과를 'expected_tools' 이름으로 재바인딩하면
+    # Python 이 wrapper 스코프 전체에서 'expected_tools' 를 로컬로 간주해
+    # UnboundLocalError 가 발생하므로, 다른 이름의 closure 변수를 사용한다.
+    _static_expected_tools: Optional[List[str]] = expected_tools
 
     def decorator(func: Callable) -> Callable:
         if not enabled:
@@ -3963,6 +4107,7 @@ def agent_eval(
             question, ground_truth, context, expected_tools = _resolve_args(
                 sig, args, kwargs,
                 question_arg, ground_truth_arg, context_arg, expected_tools_arg,
+                fallback_expected_tools=_static_expected_tools,
             )
             # Gap AQ: task_id_arg > task_id_fn > auto
             task_id: Optional[str] = None
@@ -4083,6 +4228,7 @@ def agent_eval(
                         enable_hallucination=enable_hallucination,  # G4
                         enable_llm_judge=_effective_enable_llm_judge,  # E1
                         judge_model=_effective_judge_model,           # E1
+                        judge_criteria=judge_criteria,                # J1
                         security_mode=security_mode,                  # E3
                         allowed_tools=allowed_tools,                  # E3
                         enable_anomaly_detection=_effective_enable_anomaly,  # A2
@@ -4104,6 +4250,7 @@ def agent_eval(
             question, ground_truth, context, expected_tools = _resolve_args(
                 sig, args, kwargs,
                 question_arg, ground_truth_arg, context_arg, expected_tools_arg,
+                fallback_expected_tools=_static_expected_tools,
             )
             # Gap AQ: task_id_arg > task_id_fn > auto
             task_id: Optional[str] = None
@@ -4214,6 +4361,7 @@ def agent_eval(
                         enable_hallucination=enable_hallucination,  # G4
                         enable_llm_judge=_effective_enable_llm_judge,  # E1
                         judge_model=_effective_judge_model,           # E1
+                        judge_criteria=judge_criteria,                # J1
                         security_mode=security_mode,                  # E3
                         allowed_tools=allowed_tools,                  # E3
                         enable_anomaly_detection=_effective_enable_anomaly,  # A2
@@ -4230,6 +4378,7 @@ def agent_eval(
             question, ground_truth, context, expected_tools = _resolve_args(
                 sig, args, kwargs,
                 question_arg, ground_truth_arg, context_arg, expected_tools_arg,
+                fallback_expected_tools=_static_expected_tools,
             )
             # Gap AQ: task_id_arg > task_id_fn > auto
             task_id: Optional[str] = None
@@ -4302,6 +4451,7 @@ def agent_eval(
                         enable_hallucination=enable_hallucination,  # G4
                         enable_llm_judge=_effective_enable_llm_judge,  # E1
                         judge_model=_effective_judge_model,           # E1
+                        judge_criteria=judge_criteria,                # J1
                         security_mode=security_mode,                  # E3
                         allowed_tools=allowed_tools,                  # E3
                         enable_anomaly_detection=_effective_enable_anomaly,  # A2
@@ -4331,6 +4481,7 @@ def agent_eval(
             question, ground_truth, context, expected_tools = _resolve_args(
                 sig, args, kwargs,
                 question_arg, ground_truth_arg, context_arg, expected_tools_arg,
+                fallback_expected_tools=_static_expected_tools,
             )
             # Gap AQ: task_id_arg > task_id_fn > auto
             task_id: Optional[str] = None
@@ -4403,6 +4554,7 @@ def agent_eval(
                         enable_hallucination=enable_hallucination,  # G4
                         enable_llm_judge=_effective_enable_llm_judge,  # E1
                         judge_model=_effective_judge_model,           # E1
+                        judge_criteria=judge_criteria,                # J1
                         security_mode=security_mode,                  # E3
                         allowed_tools=allowed_tools,                  # E3
                         enable_anomaly_detection=_effective_enable_anomaly,  # A2
@@ -4463,6 +4615,8 @@ def agent_eval(
             ttft_seconds=ttft_seconds,
         )
 
+    if _bare_fn is not None:
+        return decorator(_bare_fn)  # bare @agent_eval: return the wrapped function directly
     return _AgentEvalHandle(decorator, _ctx_factory)
 
 
@@ -6078,6 +6232,7 @@ class EvalDecorator:
         "allowed_tools",             # E3: 허용된 도구 목록
         "enable_llm_judge",          # E1: per-call LLM Judge
         "judge_model",               # E1: LLM Judge 모델
+        "judge_criteria",            # J1: G-Eval 스타일 커스텀 평가 기준
         "enable_anomaly_detection",  # E1: per-call anomaly detection
         "enable_quality_evaluation", # P2-B: per-call quality evaluation
         "timeout",                   # A: 함수 실행 최대 허용 시간(초)
@@ -6162,6 +6317,7 @@ class EvalDecorator:
         security_mode: bool = False,
         enable_llm_judge: bool = False,
         judge_model: Optional[str] = None,
+        judge_criteria: Optional[List[str]] = None,  # J1: G-Eval 스타일 커스텀 평가 기준
         enable_anomaly_detection: bool = False,
         # P2-B: per-call 품질 평가 강제 활성화
         enable_quality_evaluation: bool = False,
@@ -6195,6 +6351,7 @@ class EvalDecorator:
             "security_mode": security_mode,
             "enable_llm_judge": enable_llm_judge,
             "judge_model": judge_model,
+            "judge_criteria": judge_criteria,      # J1
             "enable_anomaly_detection": enable_anomaly_detection,
             "enable_quality_evaluation": enable_quality_evaluation,  # P2-B
         }

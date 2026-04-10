@@ -21,7 +21,6 @@ logger = logging.getLogger(__name__)
 from ..integrations.metric_adapters import (
     DeepEvalAdapter,
     EvaluationContext,
-    LangSmithAdapter,
     MetricAdapter,
     MetricProvider,
     RagasAdapter,
@@ -67,17 +66,14 @@ class HybridPerformanceMonitor(PerformanceMonitor):
     - Native Agent Evaluator metrics (fast, always available)
     - DeepEval metrics (G-Eval, Hallucination, Toxicity, Bias)
     - Ragas metrics (RAG-specific: Faithfulness, Context Recall, etc.)
-    - LangSmith metrics (optional: tracing data)
     """
 
     def __init__(
         self,
         use_deepeval: bool = True,
         use_ragas: bool = True,
-        use_langsmith: bool = False,
         deepeval_model: str = "gpt-4o-mini",
         ragas_model: str = "gpt-4o-mini",
-        langsmith_api_key: Optional[str] = None,
         enable_hallucination_detection: bool = True,
         enable_security_metrics: bool = False,
         security_config: Optional[Dict[str, Any]] = None,
@@ -91,10 +87,8 @@ class HybridPerformanceMonitor(PerformanceMonitor):
         Args:
             use_deepeval: Enable DeepEval metrics
             use_ragas: Enable Ragas metrics
-            use_langsmith: Enable LangSmith integration
             deepeval_model: Model for DeepEval (default: gpt-4o-mini for cost)
             ragas_model: Model for Ragas (default: gpt-4o-mini)
-            langsmith_api_key: LangSmith API key (optional)
             enable_hallucination_detection: Enable Layer1 hallucination detection (default: True for Hybrid)
             enable_security_metrics: Enable security metrics (Layer 1 & 2 security trackers)
             security_config: Security configuration (allowed_tools, restricted_tools, etc.)
@@ -140,16 +134,6 @@ class HybridPerformanceMonitor(PerformanceMonitor):
                 logger.info("Ragas enabled (model: %s)", ragas_model)
             else:
                 logger.warning("Ragas not available — install with: pip install ragas langchain-openai")
-
-        # LangSmith adapter
-        if use_langsmith:
-            adapter = LangSmithAdapter(api_key=langsmith_api_key)
-            if adapter.is_available():
-                self.metric_adapters[MetricProvider.LANGSMITH] = adapter
-                self.enabled_providers.append("langsmith")
-                logger.info("LangSmith enabled")
-            else:
-                logger.warning("LangSmith not available — set LANGSMITH_API_KEY environment variable")
 
         logger.info("HybridPerformanceMonitor ready. Active providers: %s", ", ".join(self.enabled_providers))
 
@@ -230,15 +214,6 @@ class HybridPerformanceMonitor(PerformanceMonitor):
                     providers_used.append("ragas")
                 except Exception as e:
                     logger.warning("Ragas evaluation error: %s", e)
-
-            # LangSmith metrics
-            if MetricProvider.LANGSMITH in self.metric_adapters:
-                try:
-                    langsmith_metrics = self.metric_adapters[MetricProvider.LANGSMITH].evaluate(context)
-                    advanced_metrics.update(langsmith_metrics)
-                    providers_used.append("langsmith")
-                except Exception as e:
-                    logger.warning("LangSmith evaluation error: %s", e)
 
         # Create extended task result
         extended_task = ExtendedTaskResult(
@@ -959,7 +934,7 @@ def create_monitor(
     - "minimal": Native metrics only (fastest, free)
     - "balanced": Native + DeepEval (recommended)
     - "rag": Native + DeepEval + Ragas (for RAG systems)
-    - "full": All providers (requires LangSmith)
+    - "full": All providers (DeepEval + Ragas)
     - "secure": Balanced + Security Metrics (for production)
     - "secure-full": Full + Security Metrics (comprehensive monitoring)
 
@@ -1015,7 +990,6 @@ def create_monitor(
         "full": {
             "use_deepeval": True,
             "use_ragas": True,
-            "use_langsmith": True,
             "deepeval_model": "gpt-4o",
             "ragas_model": "gpt-4o",
             "enable_security_metrics": False

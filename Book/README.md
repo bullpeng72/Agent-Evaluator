@@ -2,7 +2,7 @@
 ## Agent-Evaluator로 구현하는 프로덕션 AI 품질 시스템
 
 **저자**: Sungwoo Kim  
-**버전**: 1.0 (Agent-Evaluator v0.7.4 기준)  
+**버전**: 1.0 (Agent-Evaluator v0.7.5 기준)  
 **언어**: 한국어
 
 ---

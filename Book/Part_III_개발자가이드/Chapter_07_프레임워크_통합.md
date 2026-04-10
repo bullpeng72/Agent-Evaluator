@@ -379,6 +379,7 @@ openai_agent("123 * 456의 값은?", ground_truth="56088")
 ### Gemini
 
 ```python
+import os
 import google.generativeai as genai
 from agent_evaluator import agent_eval, PerformanceMonitor
 

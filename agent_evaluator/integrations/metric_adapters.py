@@ -33,7 +33,6 @@ class MetricProvider(Enum):
     NATIVE = "native"           # Agent Evaluator native metrics
     DEEPEVAL = "deepeval"       # DeepEval metrics (G-Eval, Hallucination, etc.)
     RAGAS = "ragas"             # Ragas metrics (RAG-specific)
-    LANGSMITH = "langsmith"     # LangSmith integration
     CUSTOM = "custom"           # User-defined custom metrics
 
 
@@ -551,95 +550,6 @@ class RagasAdapter(MetricAdapter):
 # ============================================================================
 # LangSmith Adapter (Optional)
 # ============================================================================
-
-class LangSmithAdapter(MetricAdapter):
-    """
-    Adapter for LangSmith tracing integration
-
-    Provides:
-    - Fetch trace data from LangSmith
-    - Import feedback scores
-    - Latency and token metrics from traces
-    """
-
-    def __init__(self, api_key: Optional[str] = None):
-        """
-        Initialize LangSmith adapter
-
-        Args:
-            api_key: LangSmith API key (optional, can use env var)
-        """
-        self._available = False
-        self.api_key = api_key or os.getenv("LANGSMITH_API_KEY")
-
-        try:
-            from langsmith import Client
-
-            if self.api_key:
-                self.client = Client(api_key=self.api_key)
-                self._available = True
-                print("✅ LangSmith adapter initialized")
-            else:
-                print("⚠️  LangSmith API key not found")
-                print("   Set LANGSMITH_API_KEY environment variable")
-
-        except ImportError as e:
-            print(f"⚠️  LangSmith not available: {e}")
-            print("   Install with: pip install langsmith")
-
-    def is_available(self) -> bool:
-        return self._available
-
-    def evaluate(self, context: EvaluationContext) -> Dict[str, Any]:
-        """Fetch metrics from LangSmith trace"""
-        if not self._available:
-            return {}
-
-        results = {}
-
-        try:
-            # Get run_id from metadata
-            run_id = context.metadata.get('langsmith_run_id') if context.metadata else None
-
-            if not run_id:
-                return {}
-
-            # Fetch run data
-            run = self.client.read_run(run_id)
-
-            # Only include keys whose values are actually present — None values
-            # would propagate into advanced_metrics and pollute downstream reports.
-            if hasattr(run, 'total_time') and run.total_time is not None:
-                results['langsmith_latency'] = run.total_time
-            if hasattr(run, 'total_tokens') and run.total_tokens is not None:
-                results['langsmith_tokens'] = run.total_tokens
-            if hasattr(run, 'cost') and run.cost is not None:
-                results['langsmith_cost'] = run.cost
-            if hasattr(run, 'feedback_stats') and run.feedback_stats is not None:
-                results['langsmith_feedback_scores'] = run.feedback_stats
-
-        except (ImportError, AttributeError) as e:
-            logger.warning("LangSmith 모듈 오류: %s", e, exc_info=True)
-            results['langsmith_error'] = f"Module error: {str(e)}"
-        except (ValueError, TypeError) as e:
-            logger.warning("LangSmith 파라미터 오류: %s", e, exc_info=True)
-            results['langsmith_error'] = f"Parameter error: {str(e)}"
-        except Exception as e:
-            logger.warning("LangSmith API 오류: %s", e, exc_info=True)
-            results['langsmith_error'] = f"API error: {str(e)}"
-
-        return results
-
-    def get_metric_names(self) -> List[str]:
-        return [
-            'langsmith_latency',
-            'langsmith_tokens',
-            'langsmith_cost',
-            'langsmith_feedback_scores'
-        ]
-
-
-# ============================================================================
 # Adapter Factory
 # ============================================================================
 
@@ -666,10 +576,6 @@ class MetricAdapterFactory:
             adapter = RagasAdapter(**kwargs)
             return adapter if adapter.is_available() else None
 
-        elif provider == MetricProvider.LANGSMITH:
-            adapter = LangSmithAdapter(**kwargs)
-            return adapter if adapter.is_available() else None
-
         else:
             raise ValueError(f"Unknown provider: {provider}")
 
@@ -689,14 +595,6 @@ class MetricAdapterFactory:
         try:
             import ragas
             available.append(MetricProvider.RAGAS)
-        except ImportError:
-            pass
-
-        # Check LangSmith
-        try:
-            import langsmith
-            if os.getenv("LANGSMITH_API_KEY"):
-                available.append(MetricProvider.LANGSMITH)
         except ImportError:
             pass
 
@@ -725,11 +623,6 @@ def print_available_metrics():
 
         elif provider == MetricProvider.RAGAS:
             adapter = RagasAdapter()
-            if adapter.is_available():
-                print(f"   Metrics: {', '.join(adapter.get_metric_names())}")
-
-        elif provider == MetricProvider.LANGSMITH:
-            adapter = LangSmithAdapter()
             if adapter.is_available():
                 print(f"   Metrics: {', '.join(adapter.get_metric_names())}")
 
