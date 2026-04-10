@@ -46,7 +46,7 @@ from agent_evaluator.streaming.evaluator import StreamingEvaluator
 
 try:
     from agent_evaluator.alerts.engine import AlertEngine, AlertRule
-    from agent_evaluator.alerts.handlers import SlackAlertHandler, WebhookAlertHandler
+    from agent_evaluator.alerts.handlers import SlackHandler, WebhookHandler
     _HAS_ALERTS = True
 except ImportError:
     _HAS_ALERTS = False
@@ -222,7 +222,7 @@ print(f"  dry_run(slow_response, lat=6.0s): triggered={triggered}")
 print("\n=== 섹션 4: AlertRuleBuilder 팩토리 ===")
 
 try:
-    from agent_evaluator.alerts.engine import AlertRuleBuilder  # type: ignore
+    from agent_evaluator.decorators import AlertRuleBuilder
 
     builder_rules = [
         AlertRuleBuilder.when_accuracy_below(
@@ -230,7 +230,7 @@ try:
             handler=lambda msg, tr: print(f"  [Builder-Accuracy] {msg[:60]}"),
         ),
         AlertRuleBuilder.when_latency_above(
-            threshold=10.0,
+            threshold_seconds=10.0,
             handler=lambda msg, tr: print(f"  [Builder-Latency] {msg[:60]}"),
         ),
         AlertRuleBuilder.when_completion_below(
@@ -268,7 +268,7 @@ if _HAS_ALERTS:
     WEBHOOK_URL = os.getenv("ALERT_WEBHOOK_URL", "")
 
     if SLACK_URL:
-        slack_handler = SlackAlertHandler(webhook_url=SLACK_URL)
+        slack_handler = SlackHandler(webhook_url=SLACK_URL)
     else:
         class MockSlack:
             def handle(self, alert):
@@ -276,42 +276,37 @@ if _HAS_ALERTS:
         slack_handler = MockSlack()
 
     if WEBHOOK_URL:
-        webhook_handler = WebhookAlertHandler(webhook_url=WEBHOOK_URL)
+        webhook_handler = WebhookHandler(webhook_url=WEBHOOK_URL)
     else:
         class MockWebhook:
             def handle(self, alert):
-                print(f"  [Mock Webhook] severity={alert.get('severity','?')} {alert.get('metric','')}")
+                print(f"  [Mock Webhook] {alert.get('message', '')[:60]}")
         webhook_handler = MockWebhook()
 
     try:
         engine = AlertEngine()
+        # AlertRule.condition: StreamingEvaluator 인스턴스를 인자로 받아 bool 반환
         engine.add_rule(AlertRule(
             name="error_rate_spike",
-            metric="error_rate",
-            threshold=0.05,
-            comparison="gt",
+            condition=lambda ev: ev.get_stats("5m").get("error_rate", 0) > 5.0,
             handler=slack_handler,
             severity="critical",
-            cooldown_seconds=60,
+            cooldown=60,
         ))
         engine.add_rule(AlertRule(
             name="p95_latency_high",
-            metric="p95_latency",
-            threshold=5.0,
-            comparison="gt",
+            condition=lambda ev: ev.get_stats("5m").get("p95_latency", 0) > 5.0,
             handler=webhook_handler,
             severity="warning",
-            cooldown_seconds=30,
+            cooldown=30,
         ))
 
-        # 현재 슬라이딩 윈도우 스탯으로 알림 평가
-        stats = streaming.get_stats("5m")
-        stats["window"] = "5m"
-        engine.evaluate(stats)
+        # AlertEngine.evaluate()는 StreamingEvaluator 인스턴스를 인자로 받음
+        engine.evaluate(streaming)
 
         print(f"  AlertEngine 2개 규칙 평가 완료")
         try:
-            history = engine.get_history()
+            history = engine.history.get_history()
             print(f"  AlertHistory: {len(history)}건")
         except Exception:
             pass

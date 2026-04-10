@@ -53,6 +53,11 @@ select{background:var(--bg3);color:var(--text);border:1px solid var(--border);bo
 .nav:hover,.nav.on{background:var(--bg3);color:var(--text);border-left-color:var(--accent)}
 .nav-badge{margin-left:auto;background:var(--bg);border-radius:99px;font-size:12px;padding:1px 5px;color:var(--text2);cursor:help}
 .nav-group{font-size:11px;font-weight:700;color:var(--text2);letter-spacing:.08em;text-transform:uppercase;padding:14px 13px 4px;opacity:.7}
+.nav-scope{font-size:10px;font-weight:600;border-radius:3px;padding:1px 4px;letter-spacing:.03em;flex-shrink:0;opacity:.75}
+.nav-scope.s-file{background:rgba(99,179,237,.15);color:#63b3ed;border:1px solid rgba(99,179,237,.25)}
+.nav-scope.s-global{background:rgba(72,187,120,.15);color:#48bb78;border:1px solid rgba(72,187,120,.25)}
+.nav-legend{display:flex;align-items:center;gap:10px;padding:8px 13px 6px;border-top:1px solid var(--border);margin-top:4px}
+.nav-legend span{font-size:10px;display:flex;align-items:center;gap:3px;color:var(--text2)}
 /* cards */
 .kpi-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;margin-bottom:14px}
 .kpi-grid.dq-grid{grid-template-columns:repeat(auto-fill,minmax(180px,1fr))}
@@ -326,6 +331,7 @@ textarea.gd-input{height:60px;resize:vertical;font-family:inherit}
       <div class="nav" :class="{on:sec===n.id}" @click="sec=n.id; if(n.id==='insights'){ti='diag';recFilter='all';}">
         <span x-text="n.icon"></span>
         <span x-text="n.label" style="flex:1"></span>
+        <span class="nav-scope" :class="n.scope==='file'?'s-file':'s-global'" x-text="n.scope==='file'?'파일':'전역'"></span>
         <span class="nav-badge"
           x-show="data && (n.group==='평가 관점' || (n.badge && n.badge(data)))"
           :title="perspScoreDesc(n.id)"
@@ -333,6 +339,11 @@ textarea.gd-input{height:60px;resize:vertical;font-family:inherit}
       </div>
     </div>
   </template>
+  <!-- 범례 -->
+  <div class="nav-legend">
+    <span><i class="nav-scope s-file" style="font-style:normal">파일</i> 선택 파일 기준</span>
+    <span><i class="nav-scope s-global" style="font-style:normal">전역</i> 전체 데이터 기준</span>
+  </div>
 </nav>
 
 <!-- Main -->
@@ -4388,7 +4399,7 @@ textarea.gd-input{height:60px;resize:vertical;font-family:inherit}
 
     <!-- 외부 평가 지표 -->
     <div class="sec-t" style="margin:10px 0 4px;font-size:11px;letter-spacing:.04em;color:var(--text2)">외부 평가 지표</div>
-    <div class="drow"><span class="dk" style="font-size:11px">DeepEval / LangSmith</span><span style="font-size:11px" :style="data.has_advanced?'color:var(--green);font-weight:700':'color:var(--text2)'" x-text="data.has_advanced?'있음':'없음'"></span></div>
+    <div class="drow"><span class="dk" style="font-size:11px">DeepEval / Ragas</span><span style="font-size:11px" :style="data.has_advanced?'color:var(--green);font-weight:700':'color:var(--text2)'" x-text="data.has_advanced?'있음':'없음'"></span></div>
     <div class="drow"><span class="dk" style="font-size:11px">RAG (Ragas)</span><span style="font-size:11px" :style="data.has_rag?'color:var(--green);font-weight:700':'color:var(--text2)'" x-text="data.has_rag?'있음':'없음'"></span></div>
   </div>
 </div>
@@ -4973,25 +4984,25 @@ function app() { return {
   glossSearch: '',
 
   nav: [
-    { id:'overview',      icon:'📊', label:'Overview',           group: '평가 현황' },
-    { id:'quality',       icon:'📊', label:'품질',               group: '평가 관점' },
-    { id:'performance',   icon:'⚡', label:'성능',               group: '평가 관점' },
-    { id:'agentic',       icon:'🤖', label:'에이전틱',           group: '평가 관점' },
-    { id:'security',      icon:'🔒', label:'보안',               group: '평가 관점' },
-    { id:'conversation',  icon:'💬', label:'멀티턴 대화',         group: '평가 관점' },
-    { id:'insights',      icon:'💡', label:'Insights',           group: '분석 & 도구', badge: d=>(d.insights?.alerts?.length||0)||'' },
-    { id:'transparency',  icon:'🔍', label:'투명성',             group: '분석 & 도구' },
-    { id:'anomaly',       icon:'🚨', label:'이상 감지',           group: '분석 & 도구' },
-    { id:'compare',       icon:'⚖️', label:'파일 비교',           group: '분석 & 도구' },
-    { id:'tasks',         icon:'📋', label:'Tasks',              group: '분석 & 도구' },
-    { id:'realtime',      icon:'📡', label:'실시간',             group: '운영 모니터링' },
-    { id:'alerts',        icon:'🔔', label:'알림',               group: '운영 모니터링' },
-    { id:'feedback',      icon:'👍', label:'사용자 반응',         group: '운영 모니터링' },
-    { id:'golden',        icon:'📝', label:'Golden Dataset',     group: '운영' },
-    { id:'export',        icon:'📦', label:'Export',             group: '운영' },
-    { id:'cost',          icon:'💰', label:'평가 비용',           group: '운영' },
-    { id:'settings',      icon:'⚙️', label:'Settings',           group: '운영' },
-    { id:'glossary',      icon:'📚', label:'지표 설명',           group: '운영' },
+    { id:'overview',      icon:'📊', label:'Overview',           group: '평가 현황',    scope:'file'   },
+    { id:'quality',       icon:'📊', label:'품질',               group: '평가 관점',    scope:'file'   },
+    { id:'performance',   icon:'⚡', label:'성능',               group: '평가 관점',    scope:'file'   },
+    { id:'agentic',       icon:'🤖', label:'에이전틱',           group: '평가 관점',    scope:'file'   },
+    { id:'security',      icon:'🔒', label:'보안',               group: '평가 관점',    scope:'file'   },
+    { id:'conversation',  icon:'💬', label:'멀티턴 대화',         group: '평가 관점',    scope:'file'   },
+    { id:'insights',      icon:'💡', label:'Insights',           group: '분석 & 도구',  scope:'file',   badge: d=>(d.insights?.alerts?.length||0)||'' },
+    { id:'transparency',  icon:'🔍', label:'투명성',             group: '분석 & 도구',  scope:'file'   },
+    { id:'tasks',         icon:'📋', label:'Tasks',              group: '분석 & 도구',  scope:'file'   },
+    { id:'anomaly',       icon:'🚨', label:'이상 감지',           group: '분석 & 도구',  scope:'global' },
+    { id:'compare',       icon:'⚖️', label:'파일 비교',           group: '분석 & 도구',  scope:'global' },
+    { id:'realtime',      icon:'📡', label:'실시간',             group: '운영 모니터링', scope:'global' },
+    { id:'alerts',        icon:'🔔', label:'알림',               group: '운영 모니터링', scope:'global' },
+    { id:'feedback',      icon:'👍', label:'사용자 반응',         group: '운영 모니터링', scope:'global' },
+    { id:'golden',        icon:'📝', label:'케이스 검토',         group: '운영',         scope:'global' },
+    { id:'export',        icon:'📦', label:'Export',             group: '운영',         scope:'file'   },
+    { id:'cost',          icon:'💰', label:'평가 비용',           group: '운영',         scope:'file'   },
+    { id:'settings',      icon:'⚙️', label:'Settings',           group: '운영',         scope:'global' },
+    { id:'glossary',      icon:'📚', label:'지표 설명',           group: '운영',         scope:'global' },
   ],
 
   glossary: [
@@ -5072,6 +5083,10 @@ function app() { return {
       desc:'연속 도구 호출 패턴에서 공격 체인 탐지. 데이터 유출(exfiltration) · 횡적 이동(lateral_movement) · 지속성(persistence) · 방어 회피(defense_evasion) 4가지 유형 분류.',
       range:'신뢰도 0~1', target:'탐지율 0%' },
     // ── 하이브리드 (외부 라이브러리) ─────────────────────────────────────
+    { cat:'hybrid', icon:'✨', term:'LLM Judge (Native)', layer:'Layer 3 · 네이티브',
+      purpose:'외부 패키지 없이 LLM이 직접 5차원으로 응답 품질을 채점. DeepEval G-Eval·Ragas Faithfulness의 네이티브 대체.',
+      desc:'5차원(completeness·relevance·factual_consistency·toxicity·bias)을 기본 채점. rag_mode=True 시 Faithfulness(0–5) 자동 추가, judge_criteria 설정 시 G-Eval 커스텀 기준 자동 추가. pip install agent-evaluator[llm] 필요. @agent_eval(enable_llm_judge=True)로 활성화.',
+      range:'overall 0~5', target:'≥ 4.0' },
     { cat:'hybrid', icon:'📚', term:'Faithfulness (Ragas)', layer:'Layer 3 · Ragas',
       purpose:'RAG 에이전트가 검색된 컨텍스트에만 근거하여 답변하는지 평가. 출처 없는 내용 생성 여부 확인.',
       desc:'생성된 답변이 제공된 컨텍스트에 근거한 정도. 높을수록 환각이 적음. Ragas 라이브러리와 LLM API 필요. pip install agent-evaluator[eval]',
@@ -5113,7 +5128,11 @@ function app() { return {
   async init() {
     this.dark = window.matchMedia('(prefers-color-scheme: dark)').matches;
     await this.refresh();
-    if (WATCH) this.startSSE();
+    if (WATCH) {
+      this.startSSE();
+      // 폴링 백업: SSE 수신 실패 시에도 5초마다 파일 목록 자동 갱신
+      setInterval(() => this.refresh(), 5000);
+    }
     await this.loadGoldenList();
     // Load persisted thresholds from server
     try {
@@ -5129,7 +5148,7 @@ function app() { return {
 
   async refresh() {
     try {
-      const r = await fetch('/api/results');
+      const r = await fetch('/api/results', {cache: 'no-store'});
       const rd = await r.json();
       // /api/results returns { total, page, files: [...] } — extract the array
       this.files = Array.isArray(rd) ? rd : (rd.files ?? []);

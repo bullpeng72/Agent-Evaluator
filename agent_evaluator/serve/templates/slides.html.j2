@@ -1074,29 +1074,29 @@ function buildActionPlan(tcr_v, acc_v, hall_v, p95_v, halluHas, costPerTask, dat
   if (!data || tcr_v < 90)
     actions.push({ p:'P1', icon:'🔧', title:'TCR 향상 (현재 '+fmtPct(tcr_v)+'→목표 90%)',
       steps:['실패 태스크 에러 로그 분석 (슬라이드 6 참조)', '실패 집중 Task Type 프롬프트 개선', '부분성공 태스크 재실행 조건 완화'],
-      impact:'TCR +5~10%p 예상', file:'02_performance_eval.py' });
+      impact:'TCR +5~10%p 예상', file:'01_layer1_all_metrics.py' });
   if (acc_v < 70)
     actions.push({ p:'P1', icon:'📚', title:'정확도 개선 (현재 '+fmtPct(acc_v)+'→목표 70%)',
       steps:['타입별 정확도 격차 분석 (슬라이드 7 참조)', '낮은 타입 대상 Few-shot 예시 추가', 'Golden Dataset 품질 검수 및 확장'],
-      impact:'Accuracy +5~15%p 예상', file:'13_golden_set_build.py' });
+      impact:'Accuracy +5~15%p 예상', file:'06_operational.py' });
   if (halluHas && hall_v > 5)
     actions.push({ p:'P1', icon:'🧠', title:'환각 억제 (현재 '+fmtPct(hall_v)+'→목표 5%↓)',
       steps:['환각 다발 유형 집중 분석', 'RAG 기반 Fact 검증 레이어 도입', '응답 생성 온도(temperature) 조정'],
-      impact:'Hallucination -3~8%p 예상', file:'01_quality_eval.py' });
+      impact:'Hallucination -3~8%p 예상', file:'01_layer1_all_metrics.py' });
   if (p95_v > 2)
     actions.push({ p:'P2', icon:'⚡', title:'응답속도 최적화 (P95 '+fmtSec(p95_v)+'→목표 2s↓)',
       steps:['느린 Task Type 식별 (슬라이드 9 참조)', '결과 캐싱 / 병렬 처리 도입', '경량 모델 또는 청크 크기 조정 검토'],
-      impact:'P95 -30~50% 예상', file:'02_performance_eval.py' });
+      impact:'P95 -30~50% 예상', file:'01_layer1_all_metrics.py' });
   if (costPerTask > 0.05)
     actions.push({ p:'P2', icon:'💰', title:'비용 최적화 (Task당 '+fmtCost(costPerTask)+')',
-      steps:['불필요한 Output 토큰 단축 (프롬프트 간결화)', 'AdaptivePolicy 샘플링 도입 (14_anomaly_cost_eval.py)', '고비용 타입 식별 및 모델 티어 분리'],
-      impact:'비용 20~40% 절감 예상', file:'14_anomaly_cost_eval.py' });
+      steps:['불필요한 Output 토큰 단축 (프롬프트 간결화)', 'AdaptivePolicy 샘플링 도입 (06_operational.py)', '고비용 타입 식별 및 모델 티어 분리'],
+      impact:'비용 20~40% 절감 예상', file:'06_operational.py' });
   if (actions.length === 0)
     actions.push({ p:'P3', icon:'✅', title:'모든 핵심 지표 달성 — 지속 모니터링',
       steps:['실시간 대시보드 모니터링 유지 (--watch 모드)', 'Golden Dataset 주기적 확장', 'Anomaly Detection 임계값 점검'],
       impact:'현재 품질 유지', file:'agent-eval dashboard --watch' });
   actions.push({ p:'P3', icon:'📊', title:'지속적 평가 파이프라인 구축',
-    steps:['CI/CD agent-eval gate 품질 게이팅 도입', 'GoldenSetBuilder 자동 케이스 추출 주간 실행', '이상 감지 알림 규칙 설정 (12_alerts_eval.py)'],
+    steps:['CI/CD agent-eval gate 품질 게이팅 도입', 'GoldenSetBuilder 자동 케이스 추출 주간 실행', '이상 감지 알림 규칙 설정 (05_streaming_alerts.py)'],
     impact:'품질 회귀 사전 방지', file:'agent-eval gate result.json --tcr 85' });
 
   return `<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;flex:1;align-content:start">

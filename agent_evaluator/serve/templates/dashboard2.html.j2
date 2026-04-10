@@ -146,7 +146,8 @@ input[type=text],input[type=number]{background:var(--bg3);color:var(--text);bord
   <a class="btn" href="/api/docs" target="_blank">API</a>
   <a class="btn" href="/sdk-docs" target="_blank">SDK</a>
   <div class="sp"></div>
-  {% if watch %}<span style="font-size:11px;color:var(--green);background:rgba(74,222,128,.1);padding:2px 8px;border-radius:99px;border:1px solid rgba(74,222,128,.3)">⚡ watch</span>{% endif %}
+  {% if watch %}<span style="font-size:11px;color:var(--green);background:rgba(74,222,128,.1);padding:2px 8px;border-radius:99px;border:1px solid rgba(74,222,128,.3)">⚡ watch</span>
+  <span id="ae-poll-dbg" style="font-size:10px;color:var(--text2);padding:2px 6px;border-radius:4px;background:rgba(128,128,128,.1)">poll: 대기중</span>{% endif %}
   <span class="dot" :class="{'live':connected,'off':!connected}"></span>
   <span x-text="connected?'Live':'Offline'" style="font-size:13px;color:var(--text2)"></span>
   <button class="btn" @click="dark=!dark" x-text="dark?'☀️':'🌙'"></button>
@@ -1307,10 +1308,12 @@ input[type=text],input[type=number]{background:var(--bg3);color:var(--text);bord
     <div x-data="{
       selK: null,
       meta: {
-        overall:      {label:'종합 점수',      desc:'completeness · relevance · factual_consistency 3차원 점수를 동일 가중치로 평균한 종합 Judge 점수입니다. ground_truth 없이도 응답 품질을 자동으로 모니터링할 수 있습니다.',        hint:'overall = (completeness + relevance + factual_consistency) / 3'},
+        overall:      {label:'종합 점수',      desc:'completeness · relevance · factual_consistency · toxicity · bias 5차원 점수를 평균한 종합 Judge 점수입니다. ground_truth 없이도 응답 품질을 자동으로 모니터링할 수 있습니다.',        hint:'overall = (completeness + relevance + factual_consistency) / 3'},
         completeness: {label:'완결성',          desc:'질문이 제기한 모든 측면과 하위 질문을 응답이 빠짐없이 다루는지 평가합니다. 0=질문 완전 무시, 5=모든 측면 충분히 커버.',                                                             hint:'LLM Judge → integer 0–5\n(질문 범위 대비 응답 커버리지)'},
         relevance:    {label:'관련성',          desc:'응답이 질문의 핵심 의도에 직접적으로 답하고 있는지 평가합니다. 0=완전히 off-topic, 5=완벽하게 핵심을 파악해 답변.',                                                                hint:'LLM Judge → integer 0–5\n(질문 의도 대비 응답 집중도)'},
         factual:      {label:'사실 일관성',     desc:'응답 내부에 자기 모순이 없고 명백한 오류 없이 일관성 있는지 평가합니다. 외부 사실 검증이 아닌 응답 자체의 내적 정합성을 측정합니다. 0=자기 모순, 5=일관되고 신뢰 가능.',          hint:'LLM Judge → integer 0–5\n(내부 모순·오류 없음 여부)'},
+        faithfulness: {label:'충실도 (RAG)',    desc:'RAG 응답의 모든 주장이 검색된 컨텍스트에 의해 지지되는지 측정합니다. rag_mode=True + enable_llm_judge=True 시 자동 추가됩니다. (Ragas 네이티브 대체)',                          hint:'LLM Judge faithfulness → integer 0–5\n(컨텍스트 지지 주장 비율)'},
+        criteria:     {label:'커스텀 기준',    desc:'judge_criteria=[...] 파라미터로 정의한 서비스 특화 평가 기준의 평균 점수입니다. DeepEval G-Eval의 네이티브 대체 방식입니다.',                                               hint:'criteria_overall = mean(judge_criteria 각 차원 점수)'},
       },
       formula(k) {
         const jd = data.llm_judge;
@@ -1318,9 +1321,11 @@ input[type=text],input[type=number]{background:var(--bg3);color:var(--text);bord
         if(k==='completeness')return `avg completeness = ${(jd.avg_completeness||0).toFixed(2)} / 5\nModel: ${jd.model||'—'}  |  샘플: ${jd.judged_count}건`;
         if(k==='relevance')   return `avg relevance = ${(jd.avg_relevance||0).toFixed(2)} / 5\nModel: ${jd.model||'—'}  |  샘플: ${jd.judged_count}건`;
         if(k==='factual')     return `avg factual_consistency = ${(jd.avg_factual_consistency||0).toFixed(2)} / 5\nModel: ${jd.model||'—'}  |  샘플: ${jd.judged_count}건`;
+        if(k==='faithfulness')return `avg faithfulness = ${(jd.avg_faithfulness||0).toFixed(2)} / 5\nRAG 모드 전용 (rag_mode=True + enable_llm_judge=True)\nModel: ${jd.model||'—'}  |  샘플: ${jd.judged_count}건`;
+        if(k==='criteria')    return `avg criteria_overall = ${(jd.avg_criteria_overall||0).toFixed(2)} / 5\njudge_criteria=[...] 파라미터로 정의한 커스텀 기준 평균\nModel: ${jd.model||'—'}  |  샘플: ${jd.judged_count}건`;
         return '';
       },
-      scoreKey(k) { return {overall:'overall',completeness:'completeness',relevance:'relevance',factual:'factual_consistency'}[k]||'overall'; },
+      scoreKey(k) { return {overall:'overall',completeness:'completeness',relevance:'relevance',factual:'factual_consistency',faithfulness:'faithfulness',criteria:'criteria_overall'}[k]||'overall'; },
       items(k) {
         const rs = data.llm_judge.results || [];
         const sk = this.scoreKey(k);
@@ -1333,7 +1338,7 @@ input[type=text],input[type=number]{background:var(--bg3);color:var(--text);bord
       <div class="sdiv">
         <div class="sdiv-line"></div>
         <span class="sdiv-lbl">🤖 LLM Judge</span>
-        <span style="font-size:11px;color:var(--text2);margin-left:6px">— ground_truth 불필요 · 3차원 자동 채점</span>
+        <span style="font-size:11px;color:var(--text2);margin-left:6px">— ground_truth 불필요 · 5차원 자동 채점 + Faithfulness(RAG) + G-Eval 커스텀</span>
         <div class="sdiv-line"></div>
       </div>
 
@@ -1363,6 +1368,22 @@ input[type=text],input[type=number]{background:var(--bg3);color:var(--text);bord
                x-text="(data.llm_judge.avg_factual_consistency||0).toFixed(2)+'/5'"></div>
           <div class="kpi-sub">내적 모순·오류 없음</div>
         </div>
+        <template x-if="(data.llm_judge.avg_faithfulness||0) > 0">
+          <div class="kpi kpi-act" :class="{sel:selK==='faithfulness'}" @click="selK=selK==='faithfulness'?null:'faithfulness'">
+            <div class="kpi-lbl">충실도 (RAG)</div>
+            <div class="kpi-val" :style="`color:${_jc(data.llm_judge.avg_faithfulness||0)}`"
+                 x-text="(data.llm_judge.avg_faithfulness||0).toFixed(2)+'/5'"></div>
+            <div class="kpi-sub">컨텍스트 지지 비율</div>
+          </div>
+        </template>
+        <template x-if="(data.llm_judge.avg_criteria_overall||0) > 0">
+          <div class="kpi kpi-act" :class="{sel:selK==='criteria'}" @click="selK=selK==='criteria'?null:'criteria'">
+            <div class="kpi-lbl">커스텀 기준</div>
+            <div class="kpi-val" :style="`color:${_jc(data.llm_judge.avg_criteria_overall||0)}`"
+                 x-text="(data.llm_judge.avg_criteria_overall||0).toFixed(2)+'/5'"></div>
+            <div class="kpi-sub">G-Eval 커스텀 차원 평균</div>
+          </div>
+        </template>
       </div>
 
       <!-- 클릭 상세 패널 -->
@@ -5887,26 +5908,30 @@ input[type=text],input[type=number]{background:var(--bg3);color:var(--text);bord
 
     <div class="kpi" style="padding:14px 16px;border-left:3px solid #8b5cf6">
       <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:8px">
-        <div style="display:flex;align-items:center;gap:8px"><span style="font-size:20px">🔭</span>
-          <div><div style="font-weight:700;font-size:13.5px">LangSmith Adapter — 트레이싱 데이터 연동</div>
-          <div style="font-size:11px;color:var(--text2)">실서비스 추적 · L3 외부 연동</div></div>
+        <div style="display:flex;align-items:center;gap:8px"><span style="font-size:20px">✨</span>
+          <div><div style="font-weight:700;font-size:13.5px">LLM Judge — LLM-as-Judge 채점</div>
+          <div style="font-size:11px;color:var(--text2)">5차원 + Faithfulness + G-Eval · L3 네이티브</div></div>
         </div>
         <span style="font-size:10px;flex-shrink:0;margin-top:2px;padding:2px 8px;border-radius:10px;background:rgba(139,92,246,.15);color:#8b5cf6;font-weight:600">L3</span>
       </div>
       <div style="font-size:12.5px;line-height:1.6;padding:7px 10px;background:rgba(139,92,246,.07);border-radius:5px;margin-bottom:8px">
-        <strong>LangSmith 실행 트레이스 데이터를 평가 파이프라인과 연동</strong>.<br>
-        오프라인 테스트셋 평가 + 실서비스 트레이스 평가를 통합.
+        <strong>ground_truth 없이 LLM이 직접 응답 품질을 5차원으로 채점</strong>.<br>
+        <code>rag_mode=True</code> 시 <strong>Faithfulness</strong>(Ragas 대체), <code>judge_criteria</code> 시 <strong>G-Eval 커스텀</strong>(DeepEval 대체) 자동 추가. 외부 패키지 불필요.
       </div>
-      <details style="margin-bottom:8px"><summary style="font-size:11.5px;color:var(--text2);cursor:pointer;user-select:none">ℹ️ 설정 방법</summary>
+      <details style="margin-bottom:8px"><summary style="font-size:11.5px;color:var(--text2);cursor:pointer;user-select:none">ℹ️ 차원 구성 · 조건부 확장</summary>
         <div style="font-size:11.5px;color:var(--text2);padding:5px 0 0 14px;line-height:1.6">
-          <code style="font-size:10.5px;background:var(--bg3);padding:1px 4px;border-radius:3px">LANGSMITH_API_KEY</code> 환경변수 설정 필요.<br>
-          <code style="font-size:10.5px;background:var(--bg3);padding:1px 4px;border-radius:3px">pip install "agent-evaluator[langchain]"</code><br>
-          LangSmith run 데이터 → 내부 지표(TCR·Accuracy·Latency 등) 자동 매핑.
+          <strong>기본 5차원</strong>: completeness · relevance · factual_consistency · toxicity · bias<br>
+          <strong>+ Faithfulness</strong>: <code>rag_mode=True + enable_llm_judge=True</code> 조합 시 (0–5)<br>
+          <strong>+ 커스텀 기준</strong>: <code>judge_criteria=["empathy", ...]</code> 설정 시 criteria_scores 추가<br>
+          <code style="font-size:10.5px;background:var(--bg3);padding:1px 4px;border-radius:3px">pip install "agent-evaluator[llm]"</code> 필요.
         </div>
       </details>
-      <div style="font-size:11px;background:var(--bg3);border-radius:4px;padding:5px 10px;margin-bottom:8px;font-family:monospace;color:var(--text2)">📐 LangSmith API run 수집 → 내부 지표 매핑</div>
+      <div style="font-size:11px;background:var(--bg3);border-radius:4px;padding:5px 10px;margin-bottom:8px;font-family:monospace;color:var(--text2)">📐 overall = avg(completeness, relevance, factual_consistency) · safety = (10–toxicity–bias)/10</div>
       <div style="display:flex;gap:5px;flex-wrap:wrap">
-        <span style="font-size:10.5px;padding:2px 8px;border-radius:10px;background:rgba(99,102,241,.12);color:#818cf8;font-weight:600">ℹ️ 연동 성공 시 실서비스 평가 활성화</span>
+        <span style="font-size:10.5px;padding:2px 8px;border-radius:10px;background:rgba(16,185,129,.15);color:#10b981;font-weight:600">🟢 overall ≥4.0 우수</span>
+        <span style="font-size:10.5px;padding:2px 8px;border-radius:10px;background:rgba(245,158,11,.15);color:#f59e0b;font-weight:600">🟡 3.0–3.9 양호</span>
+        <span style="font-size:10.5px;padding:2px 8px;border-radius:10px;background:rgba(239,68,68,.15);color:#ef4444;font-weight:600">🔴 &lt;3.0 개선</span>
+        <span style="font-size:10.5px;padding:2px 8px;border-radius:10px;background:rgba(99,102,241,.12);color:#818cf8;font-weight:600">safety ≥0.9 안전</span>
       </div>
     </div>
 
@@ -6066,7 +6091,7 @@ input[type=text],input[type=number]{background:var(--bg3);color:var(--text);bord
       </div>
       <div style="font-size:12.5px;line-height:1.6;padding:7px 10px;background:rgba(6,182,212,.07);border-radius:5px;margin-bottom:8px">
         <strong>외부 평가 API 호출 비용을 추적하고 예산 초과 시 샘플링률을 자동 하향 조정</strong>.<br>
-        DeepEval·Ragas·LangSmith·LLM Judge 등 유료 외부 평가의 비용 폭주를 방지.
+        DeepEval·Ragas·LLM Judge 등 유료 외부 평가의 비용 폭주를 방지.
       </div>
       <details style="margin-bottom:8px"><summary style="font-size:11.5px;color:var(--text2);cursor:pointer;user-select:none">ℹ️ AdaptivePolicy 동작 방식</summary>
         <div style="font-size:11.5px;color:var(--text2);padding:5px 0 0 14px;line-height:1.6">
@@ -7535,7 +7560,11 @@ function app2() {
         await new Promise(r => setTimeout(r, 600));
         await this.refresh();
       }
-      {% if watch %}this._connectSSE();{% endif %}
+      {% if watch %}
+      this._connectSSE();
+      // 폴링 백업: SSE 수신 실패 시에도 5초마다 파일 목록 자동 갱신 (silent=깜박거림 없음)
+      setInterval(() => this.refresh(true), 5000);
+      {% endif %}
       // 탭 전환 후 복귀 시 자동 갱신 (bfcache/탭 복원 대비)
       document.addEventListener('visibilitychange', () => {
         if (document.visibilityState === 'visible') this.refresh();
@@ -7563,21 +7592,42 @@ function app2() {
     },
     toggleDark() { this.dark = !this.dark; this._applyDark(); },
 
-    async refresh() {
-      this.loading = true;
+    async refresh(silent = false) {
+      // silent=true: 백그라운드 폴링용 — 로딩 스피너 없음, 실제 변경 시에만 UI 업데이트
+      if (!silent) this.loading = true;
       try {
-        const res = await fetch('/api/results');
+        const res = await fetch('/api/results', {cache: 'no-store'});
         const rd = await res.json();
         // /api/results returns { total, page, files: [...] } — extract the array
         const list = Array.isArray(rd) ? rd : (rd.files ?? []);
-        this.files = list;
-        // x-for 옵션 렌더링이 완료된 후 selId 설정 (Alpine.js 타이밍 이슈 방지)
-        await this.$nextTick();
-        if (list.length && !this.selId) this.selId = list[0].id;
-        await this.$nextTick();
-        if (this.selId) await this.loadFile(this.selId);
+
+        // 파일 목록 변경 여부 확인 (id 서명 비교)
+        const newSig = list.map(f => f.id).sort().join(',');
+        const oldSig = this.files.map(f => f.id).sort().join(',');
+        const filesChanged = newSig !== oldSig;
+
+        // 현재 파일의 이전 태스크 수 저장 (files 교체 전)
+        const prevTaskCount = this.selId
+          ? (this.files.find(f => f.id === this.selId)?.total_tasks ?? -1) : -1;
+
+        // 파일 목록이 바뀐 경우에만 dropdown 업데이트 (깜박거림 방지)
+        if (filesChanged || !silent) {
+          this.files = list;
+          // x-for 옵션 렌더링이 완료된 후 selId 설정 (Alpine.js 타이밍 이슈 방지)
+          await this.$nextTick();
+          if (list.length && !this.selId) this.selId = list[0].id;
+          await this.$nextTick();
+        }
+
+        // 현재 파일 데이터 리로드: 수동 새로고침이거나 파일/태스크 수 변경 시에만
+        if (this.selId) {
+          const curTaskCount = list.find(f => f.id === this.selId)?.total_tasks ?? -1;
+          if (!silent || filesChanged || curTaskCount !== prevTaskCount) {
+            await this.loadFile(this.selId);
+          }
+        }
       } catch(e) { console.warn('refresh error', e); }
-      finally { this.loading = false; }
+      finally { if (!silent) this.loading = false; }
     },
 
     async loadFile(id) {
@@ -7693,10 +7743,8 @@ function app2() {
     {% if watch %}
     _connectSSE() {
       const es = new EventSource('/api/stream');
-      const _onUpdate = async () => {
-        if (this.selId) await this.loadFile(this.selId);
-        else await this.refresh();
-      };
+      // SSE 이벤트: silent refresh — 변경된 경우에만 UI 업데이트 (깜박거림 없음)
+      const _onUpdate = async () => { await this.refresh(true); };
       es.addEventListener('update', _onUpdate);           // named event (server v0.7.4+)
       es.addEventListener('message', async (e) => {       // fallback: anonymous data:
         try { if (JSON.parse(e.data).type === 'update') await _onUpdate(); } catch(_) {}
@@ -9106,5 +9154,57 @@ function app2() {
   }; /* end app2() return */
 } /* end app2() */
 </script>
+
+{% if watch %}
+<!-- 독립 폴링 스크립트: 파일 변경 감지 시 Alpine refresh(true) 호출 — 깜박거림 없음 -->
+<script>
+(function() {
+  'use strict';
+  var _knownSig = null;
+  var _pollCount = 0;
+
+  function _dbg(msg) {
+    var el = document.getElementById('ae-poll-dbg');
+    if (el) el.textContent = 'poll: ' + msg;
+  }
+
+  function _silentRefresh() {
+    // Alpine의 refresh(silent=true) 직접 호출 — 변경 시에만 UI 업데이트, 깜박거림 없음
+    try {
+      var el = document.querySelector('[x-data]');
+      if (el && window.Alpine) {
+        var d = Alpine.$data(el);
+        if (d && typeof d.refresh === 'function') { d.refresh(true); return; }
+      }
+    } catch(e) {}
+    // fallback: 버튼 직접 클릭 (full refresh)
+    var btn = document.querySelector('button[title="새로고침"]');
+    if (btn) btn.click();
+  }
+
+  function _poll() {
+    _pollCount++;
+    fetch('/api/results', {cache: 'no-store'})
+      .then(function(r) { return r.json(); })
+      .then(function(rd) {
+        var files = Array.isArray(rd) ? rd : (rd.files || []);
+        var sig = files.map(function(f) { return f.id || ''; }).sort().join(',');
+        var changed = (_knownSig !== null && sig !== _knownSig);
+        _dbg('#' + _pollCount + ' 파일:' + files.length + (changed ? ' ✓' : ''));
+        if (changed) { _silentRefresh(); }
+        _knownSig = sig;
+      })
+      .catch(function(e) { _dbg('#' + _pollCount + ' 오류'); })
+      .finally(function() { setTimeout(_poll, 3000); });
+  }
+
+  if (document.readyState === 'complete') {
+    setTimeout(_poll, 800);
+  } else {
+    window.addEventListener('load', function() { setTimeout(_poll, 800); });
+  }
+})();
+</script>
+{% endif %}
 </body>
 </html>

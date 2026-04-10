@@ -172,6 +172,19 @@ def _print_connect_info(ui_url: str, otlp_url: str) -> None:
     print(bot)
     print()
 
+    # Phoenix UI는 새 프로젝트를 자동 감지하지 않음 (Relay 클라이언트 한계).
+    # 브라우저 콘솔에 아래 스크립트를 붙여넣으면 5초마다 자동 새로고침.
+    print("  ── Phoenix Tracing 자동 새로고침 ──────────────────────────")
+    print("  새 프로젝트는 Phoenix UI에서 수동 새로고침 필요 (UI 한계).")
+    print("  브라우저 콘솔(F12 → Console)에 아래를 붙여넣으면 자동 적용:")
+    print()
+    print("  (()=>{let p='';setInterval(async()=>{const d=await")
+    print(f"  fetch('{ui_url}/v1/projects').then(r=>r.json());")
+    print("  const c=JSON.stringify((d.data??[]).map(x=>x.name).sort());")
+    print("  if(c!==p&&p!=='')location.reload();p=c;},5000);})();")
+    print("  ────────────────────────────────────────────────────────────")
+    print()
+
 
 # ---------------------------------------------------------------------------
 # monitor 메인 핸들러
@@ -216,10 +229,120 @@ def cmd_sync_datasets(args: argparse.Namespace) -> int:
     return 0 if success_count > 0 else 1
 
 
+def cmd_reset_db(args: argparse.Namespace) -> int:
+    """Phoenix DB 초기화 — 모든 트레이스·프로젝트·데이터셋 삭제."""
+    import pathlib
+
+    # 1. DB 경로 결정
+    # PHOENIX_SQL_DATABASE_URL이 설정된 경우 PostgreSQL → 파일 삭제 불가
+    pg_url = os.environ.get("PHOENIX_SQL_DATABASE_URL", "")
+    if pg_url and not pg_url.startswith("sqlite"):
+        print()
+        print("  ❌  PostgreSQL 데이터베이스는 파일 삭제로 초기화할 수 없습니다.")
+        print(f"     PHOENIX_SQL_DATABASE_URL={pg_url}")
+        print("     DB 관리자에게 직접 테이블을 truncate 하도록 요청하세요.")
+        print()
+        return 1
+
+    # working_dir: CLI 인수(명시) → 환경변수 → Phoenix 기본값 순서
+    cli_dir = getattr(args, "working_dir", None)  # None = 미지정
+    env_dir = os.environ.get("PHOENIX_WORKING_DIR", "")
+    if cli_dir:
+        working_dir = pathlib.Path(cli_dir)
+    elif env_dir:
+        working_dir = pathlib.Path(env_dir)
+    else:
+        try:
+            from phoenix.config import get_working_dir
+            working_dir = pathlib.Path(get_working_dir())
+        except Exception:
+            working_dir = pathlib.Path(os.path.expanduser("~/.phoenix"))
+
+    db_file = working_dir / "phoenix.db"
+
+    # 2. DB 파일 존재 확인
+    if not db_file.exists():
+        print()
+        print(f"  ℹ️   Phoenix DB 파일이 없습니다: {db_file}")
+        print("     (아직 Phoenix를 실행한 적이 없거나 이미 초기화된 상태)")
+        print()
+        return 0
+
+    # 3. Phoenix 실행 중 여부 확인
+    port = getattr(args, "port", 6006)
+    host = getattr(args, "host", "localhost")
+    if _port_in_use(port, host):
+        print()
+        print(f"  ❌  Phoenix가 포트 {port}에서 실행 중입니다.")
+        print("     DB를 초기화하려면 먼저 Phoenix를 종료하세요.")
+        print(f"     (Ctrl+C 또는 kill $(lsof -ti :{port}))")
+        print()
+        return 1
+
+    # 4. 삭제 대상 목록 (DB 파일 + WAL 파일 + trace_datasets)
+    targets: list[pathlib.Path] = []
+    for name in ("phoenix.db", "phoenix.db-shm", "phoenix.db-wal"):
+        p = working_dir / name
+        if p.exists():
+            targets.append(p)
+
+    trace_dir = working_dir / "trace_datasets"
+    if trace_dir.exists() and any(trace_dir.iterdir()):
+        targets.append(trace_dir)
+
+    inferences_dir = working_dir / "inferences"
+    if inferences_dir.exists() and any(inferences_dir.iterdir()):
+        targets.append(inferences_dir)
+
+    # 5. 확인 프롬프트 (--yes 없을 때)
+    print()
+    print(f"  Phoenix DB 초기화 — {working_dir}")
+    print()
+    for t in targets:
+        size = t.stat().st_size if t.is_file() else sum(f.stat().st_size for f in t.rglob("*") if f.is_file())
+        print(f"  🗑  {t.name:<24s} ({size/1024:.1f} KB)")
+    print()
+    print("  ⚠️  모든 트레이스·프로젝트·어노테이션·데이터셋이 삭제됩니다.")
+    print()
+
+    if not getattr(args, "yes", False):
+        try:
+            ans = input("  계속하시겠습니까? [y/N] ").strip().lower()
+        except (EOFError, KeyboardInterrupt):
+            ans = ""
+        if ans not in ("y", "yes"):
+            print("  취소됨.")
+            print()
+            return 0
+
+    # 6. 삭제 실행
+    for t in targets:
+        try:
+            if t.is_file():
+                t.unlink()
+                print(f"  ✅  삭제: {t}")
+            elif t.is_dir():
+                shutil.rmtree(t)
+                t.mkdir(exist_ok=True)   # 빈 디렉토리 재생성 (Phoenix 재시작 시 필요)
+                print(f"  ✅  초기화: {t}/")
+        except Exception as exc:
+            print(f"  ❌  실패: {t}  →  {exc}")
+            return 1
+
+    print()
+    print("  Phoenix DB 초기화 완료. 다음 실행 시 새 DB가 자동 생성됩니다.")
+    print(f"  agent-eval monitor --port {port}")
+    print()
+    return 0
+
+
 def cmd_monitor(args: argparse.Namespace) -> int:
     """Phoenix 서버 기동 후 OTEL 연결 정보 출력."""
     if args.check:
         return cmd_check_monitor()
+
+    if getattr(args, "reset", False):
+        return cmd_reset_db(args)
 
     if args.sync_datasets:
         return cmd_sync_datasets(args)
@@ -295,6 +418,37 @@ def cmd_monitor(args: argparse.Namespace) -> int:
     if not args.no_open:
         webbrowser.open(ui_url)
 
+    # 새 프로젝트 감지 — 백그라운드 폴링 스레드
+    # Phoenix UI가 자동 갱신을 지원하지 않으므로 터미널에서 알림 출력
+    import threading
+
+    def _watch_projects(base_url: str) -> None:
+        import urllib.request
+        import json as _json
+
+        known: set = set()
+        initialized = False
+        while True:
+            time.sleep(5)
+            try:
+                with urllib.request.urlopen(f"{base_url}/v1/projects", timeout=3) as resp:
+                    data = _json.loads(resp.read())
+                names = {p["name"] for p in (data.get("data") or [])}
+                if not initialized:
+                    known = names
+                    initialized = True
+                    continue
+                new = names - known
+                if new:
+                    for n in sorted(new):
+                        print(f"\n  🆕  새 프로젝트 감지: [{n}]  → 브라우저에서 새로고침(F5) 또는 콘솔 스크립트 실행")
+                    known = names
+            except Exception:
+                pass  # Phoenix 재시작 중이면 조용히 무시
+
+    watcher = threading.Thread(target=_watch_projects, args=(ui_url,), daemon=True)
+    watcher.start()
+
     print("  Ctrl+C 로 종료\n")
     try:
         proc.wait()
@@ -320,7 +474,7 @@ def build_monitor_subparser(sub: argparse._SubParsersAction) -> None:  # type: i
             "프로덕션 환경의 실시간 트레이싱·스팬 분석·오류 감지에 활용합니다.\n"
             "\n"
             "Phoenix 13.x: UI + OTLP HTTP가 동일 포트(기본 6006) 사용.\n"
-            "예제(01~17) 실행 시 자동으로 OTLP 스팬을 전송하며,\n"
+            "예제(01~07) 실행 시 자동으로 OTLP 스팬을 전송하며,\n"
             "Phoenix UI의 Tracing 탭에서 예제별 독립 프로젝트로 확인할 수 있습니다.\n"
             "\n"
             "필요 패키지:\n"
@@ -368,10 +522,10 @@ def build_monitor_subparser(sub: argparse._SubParsersAction) -> None:  # type: i
     p.add_argument(
         "--working-dir",
         type=str,
-        default="./",
+        default=None,
         dest="working_dir",
         metavar="DIR",
-        help="Phoenix DB 저장 디렉토리 (기본: ./)",
+        help="Phoenix DB 저장 디렉토리 (기본: Phoenix 자동 결정 — 보통 ~/.phoenix)",
     )
     p.add_argument(
         "--sync-datasets",
@@ -383,5 +537,15 @@ def build_monitor_subparser(sub: argparse._SubParsersAction) -> None:  # type: i
             "골든셋 JSON 파일을 Phoenix Datasets로 업로드 (glob 패턴 지원).\n"
             "예: --sync-datasets 'data/golden_datasets/*.json'"
         ),
+    )
+    p.add_argument(
+        "--reset",
+        action="store_true",
+        help="Phoenix DB 초기화 — 모든 트레이스·프로젝트·데이터셋 삭제 (Phoenix 종료 후 실행)",
+    )
+    p.add_argument(
+        "--yes", "-y",
+        action="store_true",
+        help="초기화 확인 프롬프트 없이 바로 실행",
     )
     p.set_defaults(func=cmd_monitor)

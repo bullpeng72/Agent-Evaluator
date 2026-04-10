@@ -257,3 +257,52 @@ print(f"  총 태스크: {total}건  TCR: {tcr:.1%}")
 
 monitor.save_to_file("02_layer2_agentic_security")
 print("\n결과 저장 완료: results/02_layer2_agentic_security.json")
+
+# ===========================================================================
+# 부록: Tool Selection 골든 데이터셋 파일 로드 → 배치 F1 평가
+# ===========================================================================
+# Tool Selection은 expected_tools(정답 도구 목록)가 있어야 F1 기반 평가 가능.
+# data/golden_datasets/tool_selection_candidates.json → 로드 → 배치 평가
+# (대시보드 케이스 검토 탭에서 승인된 케이스가 이 파일을 구성)
+# ===========================================================================
+print("\n=== 부록: Tool Selection 골든 데이터셋 배치 평가 ===")
+
+import json  # noqa: E402
+
+_GOLDEN_FILE = Path(__file__).parent.parent / "data" / "golden_datasets" / "tool_selection_candidates.json"
+
+if _GOLDEN_FILE.exists():
+    tool_golden = json.loads(_GOLDEN_FILE.read_text(encoding="utf-8"))
+    monitor_tool = PerformanceMonitor(output_dir=str(Path(__file__).parent.parent / "results"))
+    f1_scores = []
+
+    for case in tool_golden:
+        expected = case.get("expected_tools") or []
+        used     = case.get("used_tools") or []
+        # F1 계산: precision = used∩expected/used, recall = used∩expected/expected
+        inter = len(set(used) & set(expected))
+        precision = inter / len(used)     if used     else 0.0
+        recall    = inter / len(expected) if expected else 0.0
+        f1 = (2 * precision * recall / (precision + recall)) if (precision + recall) > 0 else 0.0
+        f1_scores.append(f1)
+
+        result = create_taskresult(
+            task_id=case["task_id"],
+            question=case["question"],
+            response=case.get("response", ""),
+            ground_truth=case.get("ground_truth", ""),
+            execution_time=case.get("execution_time", 1.0),
+            task_type="tool_use",
+            tokens_used={"input": 100, "output": 40, "total": 140},
+            tool_calls=[{"tool_name": t, "success": True} for t in used],
+            expected_tools=expected,
+        )
+        monitor_tool.record_task(result)
+        print(f"  {case['task_id']:<12s}  used={used}  expected={expected}  F1={f1:.2f}")
+
+    avg_f1 = sum(f1_scores) / len(f1_scores) if f1_scores else 0.0
+    print(f"\n  골든 케이스 {len(tool_golden)}건 평가 완료  평균 Tool F1: {avg_f1:.2f}")
+    monitor_tool.save_to_file("02_tool_golden_eval")
+    print(f"  저장: results/02_tool_golden_eval.json")
+else:
+    print(f"  ※ {_GOLDEN_FILE} 없음 — 06_operational.py 먼저 실행하거나 agent-eval dashboard에서 케이스 승인 후 병합하세요.")

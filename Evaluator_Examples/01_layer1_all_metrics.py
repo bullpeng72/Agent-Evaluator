@@ -229,10 +229,10 @@ for model_name, tokens in TOKEN_MODELS:
     print(f"  [{model_name:<12s}] 총 {tokens['total']:4d} 토큰")
 
 tok_em = monitor.generate_report().to_dict().get("efficiency_metrics", {})
-tok_report = tok_em.get("token_economy", {})
-total_tok = tok_report.get("total_tokens", 0) or tok_em.get("total_tokens", 0)
+tok_report = tok_em.get("tokens", {})
+total_tok = tok_report.get("total_tokens", 0)
 print(f"  누적 토큰: {int(total_tok):,}")
-cost = tok_report.get("estimated_cost_usd") or tok_em.get("estimated_cost_usd")
+cost = tok_report.get("total_cost")
 if cost:
     print(f"  예상 비용: ${float(cost):.4f} USD")
 
@@ -282,3 +282,47 @@ print(f"  TCR       : {tcr:.1%}")
 monitor.save_to_file("01_layer1_all_metrics")
 print(f"\n결과 저장 완료: results/01_layer1_all_metrics.json")
 print("확인: agent-eval dashboard --results results/")
+
+# ===========================================================================
+# 부록: RAG 골든 데이터셋 파일 로드 → 배치 평가
+# ===========================================================================
+# RAG 평가는 실제 프로덕션에서 미리 준비된 골든 데이터셋(QA 쌍)으로 수행한다.
+# data/golden_datasets/rag_candidates.json → 로드 → 배치 평가 → 결과 저장
+# (대시보드 케이스 검토 탭에서 승인된 케이스가 이 파일을 구성)
+# ===========================================================================
+print("\n=== 부록: RAG 골든 데이터셋 배치 평가 ===")
+
+import json  # noqa: E402 (섹션 구분을 위해 여기서 import)
+
+_GOLDEN_FILE = _PROJECT_ROOT / "data" / "golden_datasets" / "rag_candidates.json"
+
+if _GOLDEN_FILE.exists():
+    rag_golden = json.loads(_GOLDEN_FILE.read_text(encoding="utf-8"))
+    monitor_rag = PerformanceMonitor(output_dir=_OUTPUT_DIR, enable_hallucination_detection=True)
+
+    @agent_eval(monitor_rag, task_type="information_retrieval",
+                task_id_prefix="rag_golden", context_arg="context")
+    def rag_agent_golden(question: str, context: str = "", ground_truth: str = "") -> str:
+        """골든 데이터셋 기반 RAG 에이전트 (시뮬레이션)."""
+        # 실제 에이전트 호출로 교체:
+        #   return real_rag_agent(question, context)
+        ctx = context or ""
+        if ctx and ground_truth:
+            # 컨텍스트가 있으면 ground_truth 키워드 포함 응답 시뮬레이션
+            return ctx[:80] + " " + ground_truth[:30]
+        return "관련 정보를 찾을 수 없습니다."
+
+    for case in rag_golden:
+        rag_agent_golden(
+            question=case["question"],
+            context=case.get("context", ""),
+            ground_truth=case.get("ground_truth", ""),
+        )
+
+    rag_report = monitor_rag.generate_report().to_dict()
+    rag_acc = rag_report.get("accuracy_metrics", {}).get("accuracy_scores", {}).get("overall_accuracy", 0)
+    print(f"  골든 케이스 {len(rag_golden)}건 평가 완료  평균 정확도: {rag_acc:.1f}%")
+    monitor_rag.save_to_file("01_rag_golden_eval")
+    print(f"  저장: results/01_rag_golden_eval.json")
+else:
+    print(f"  ※ {_GOLDEN_FILE} 없음 — 06_operational.py 먼저 실행하거나 agent-eval dashboard에서 케이스 승인 후 병합하세요.")

@@ -437,7 +437,7 @@ agent-eval dashboard --port <span class="nm">8080</span> --watch  <span class="c
           </div>
         </div>
       </div>
-      <div class="note" style="margin-top:8px;font-size:12px">* Hallucination은 <code>enable_hallucination_detection=True</code> 또는 <code>rag_mode=True</code> 필요. L2 Agentic은 <code>tool_calls</code>·<code>agent_interactions</code> 데이터가 있을 때 자동 활성.</div>
+      <div class="note" style="margin-top:8px;font-size:12px">* Hallucination은 데코레이터에서 <code>enable_hallucination=True</code> / PerformanceMonitor에서 <code>enable_hallucination_detection=True</code> 또는 <code>rag_mode=True</code> 필요. L2 Agentic은 <code>tool_calls</code>·<code>agent_interactions</code> 데이터가 있을 때 자동 활성.</div>
     </div>
   </div>
 
@@ -520,6 +520,7 @@ agent-eval dashboard --port <span class="nm">8080</span> --watch  <span class="c
           <tr><td><span class="p">for_rag(output_dir, **kw)</span></td><td><span class="r">QuickEval</span></td><td>classmethod. hallucination_detection=True 자동 적용</td></tr>
           <tr><td><span class="p">for_security(output_dir, **kw)</span></td><td><span class="r">QuickEval</span></td><td>classmethod. enable_security_metrics=True 자동 적용</td></tr>
           <tr><td><span class="p">for_llm_judge(output_dir, model, **kw)</span></td><td><span class="r">QuickEval</span></td><td>classmethod. LLMJudge 자동 설정</td></tr>
+          <tr><td><span class="p">for_regression_eval(output_dir, baseline_file, **kw)</span></td><td><span class="r">QuickEval</span></td><td>classmethod. baseline 대비 성능 저하 감지</td></tr>
         </tbody>
       </table>
 <pre style="margin-top:10px"><span class="kw">from</span> <span class="cn">agent_evaluator</span> <span class="kw">import</span> QuickEval
@@ -566,8 +567,9 @@ eval = <span class="fn">QuickEval</span>(<span class="st">"results/"</span>, aut
           <tr><td><span class="p">alert_rules</span><span class="opt">opt</span></td><td><span class="t">List[SimpleTaskAlertRule]</span></td><td><code>[]</code></td><td>태스크 완료 시 실행할 알림 규칙 목록</td></tr>
           <tr><td><span class="p">rag_mode</span><span class="opt">opt</span></td><td><span class="t">bool</span></td><td><code>False</code></td><td>hallucination_detection + <code>information_retrieval</code> task_type 자동 적용</td></tr>
           <tr><td><span class="p">security_mode</span><span class="opt">opt</span></td><td><span class="t">bool</span></td><td><code>False</code></td><td>보안 5종 지표 임시 활성</td></tr>
-          <tr><td><span class="p">enable_llm_judge</span><span class="opt">opt</span></td><td><span class="t">bool</span></td><td><code>False</code></td><td>LLM Judge 임시 활성 (requires [llm])</td></tr>
+          <tr><td><span class="p">enable_llm_judge</span><span class="opt">opt</span></td><td><span class="t">bool</span></td><td><code>False</code></td><td>LLM Judge 임시 활성 (requires [llm]). 5차원 자동 채점.</td></tr>
           <tr><td><span class="p">judge_model</span><span class="opt">opt</span></td><td><span class="t">str</span></td><td><code>None</code></td><td>LLM Judge 사용 모델</td></tr>
+          <tr><td><span class="p">judge_criteria</span><span class="opt">opt</span></td><td><span class="t">List[str]</span></td><td><code>None</code></td><td>G-Eval 커스텀 평가 기준 (DeepEval 대체). 예: <code>["empathy", "clarity"]</code> → <code>criteria_scores</code> 자동 추가</td></tr>
           <tr><td><span class="p">sample_rate</span><span class="opt">opt</span></td><td><span class="t">float</span></td><td><code>1.0</code></td><td>샘플링 비율 (0–1). 비용 제어용</td></tr>
           <tr><td><span class="p">sample_condition</span><span class="opt">opt</span></td><td><span class="t">Callable</span></td><td><code>None</code></td><td><code>(args, kwargs) → bool</code> 조건부 샘플링</td></tr>
           <tr><td><span class="p">on_record</span><span class="opt">opt</span></td><td><span class="t">Callable</span></td><td><code>None</code></td><td><code>(TaskResult) → TaskResult|None</code> 기록 후 후처리 훅</td></tr>
@@ -811,10 +813,11 @@ chat_agent(<span class="st">"어떻게 시작하면 돼요?"</span>, session_id=
           <tr><td><span class="p">enable_hallucination_detection</span><span class="opt">opt</span></td><td><span class="t">bool</span></td><td><code>False</code></td><td>HallucinationDetector 활성화 (LLM 호출 비용 발생)</td></tr>
           <tr><td><span class="p">enable_security_metrics</span><span class="opt">opt</span></td><td><span class="t">bool</span></td><td><code>False</code></td><td>Layer 2 보안 트래커 5종 활성화</td></tr>
           <tr><td><span class="p">security_config</span><span class="opt">opt</span></td><td><span class="t">Dict</span></td><td><code>None</code></td><td>ToolAuthorizationTracker 설정 (allowed_tools, restricted_tools 등)</td></tr>
-          <tr><td><span class="p">enable_llm_judge</span><span class="opt">opt</span></td><td><span class="t">bool</span></td><td><code>False</code></td><td>LLM-as-Judge 자동 채점 활성화. record_task() 호출 시 자동 트리거.</td></tr>
+          <tr><td><span class="p">enable_llm_judge</span><span class="opt">opt</span></td><td><span class="t">bool</span></td><td><code>False</code></td><td>LLM-as-Judge 자동 채점 활성화. 5차원(완결성·관련성·사실 일관성·독성·편향) 자동 적용.</td></tr>
           <tr><td><span class="p">judge_model</span><span class="opt">opt</span></td><td><span class="t">str|None</span></td><td><code>None</code></td><td>Judge 모델. None → <code>agent-eval init</code> 설정 자동 감지.</td></tr>
           <tr><td><span class="p">judge_sample_rate</span><span class="opt">opt</span></td><td><span class="t">float</span></td><td><code>0.1</code></td><td>Judge 평가 비율 (0.0–1.0). 비용 제어용.</td></tr>
           <tr><td><span class="p">judge_budget_per_day</span><span class="opt">opt</span></td><td><span class="t">float|None</span></td><td><code>None</code></td><td>일일 Judge 예산 한도 (USD). 초과 시 judge 건너뜀.</td></tr>
+          <tr><td><span class="p">judge_criteria</span><span class="opt">opt</span></td><td><span class="t">List[str]|None</span></td><td><code>None</code></td><td>G-Eval 커스텀 평가 기준 목록 (DeepEval 대체). 예: <code>["medical_accuracy", "empathy"]</code></td></tr>
           <tr><td><span class="p">enable_anomaly_detection</span><span class="opt">opt</span></td><td><span class="t">bool</span></td><td><code>False</code></td><td>save_to_file() 시 AnomalyDetector.scan() 자동 실행. 결과가 anomaly_data에 저장됨.</td></tr>
           <tr><td><span class="p">anomaly_baseline_window</span><span class="opt">opt</span></td><td><span class="t">int</span></td><td><code>100</code></td><td>기준선 계산에 사용할 최대 태스크 수.</td></tr>
           <tr><td><span class="p">anomaly_detection_window</span><span class="opt">opt</span></td><td><span class="t">int</span></td><td><code>20</code></td><td>현재 상태 비교에 사용할 최근 태스크 수.</td></tr>
@@ -1376,8 +1379,8 @@ r = detector.<span class="fn">analyze_tool_chain</span>(<span class="st">"t1"</s
 
 <!-- ── LLMJudge ── -->
 <section class="sec" id="llm-judge">
-  <div class="sec-title">✨ LLMJudge <span style="font-size:13px;font-weight:400;color:var(--text2);margin-left:8px">v0.6.3+</span></div>
-  <div class="sec-sub"><code>ground_truth</code> 없이 LLM이 직접 응답 품질을 3차원(완결성·관련성·사실 일관성) 채점합니다. OpenAI / Anthropic Claude 모두 지원.</div>
+  <div class="sec-title">✨ LLMJudge <span style="font-size:13px;font-weight:400;color:var(--text2);margin-left:8px">v0.7.5+</span></div>
+  <div class="sec-sub"><code>ground_truth</code> 없이 LLM이 직접 응답 품질을 <strong>5차원</strong>(완결성·관련성·사실 일관성·독성·편향) 채점합니다. <code>rag_mode=True</code> 시 <strong>Faithfulness</strong>(RAG) 차원 자동 추가, <code>judge_criteria</code> 설정 시 <strong>G-Eval 커스텀</strong> 기준 추가. OpenAI / Anthropic Claude 모두 지원.</div>
   <div class="cls-card">
     <div class="cls-head"><span class="cls-name">LLMJudge</span><span class="kind cls">class</span><span class="cls-src">agent_evaluator.integrations.llm_judge</span></div>
     <div class="cls-desc">비용 제어 샘플링(<code>sample_rate</code>)과 일일 예산 한도(<code>budget_per_day</code>)를 내장한 LLM-as-Judge 엔진.</div>
@@ -1386,12 +1389,13 @@ r = detector.<span class="fn">analyze_tool_chain</span>(<span class="st">"t1"</s
         <tr><td><span class="p">model</span></td><td><span class="t">str|None</span></td><td><span class="r">None</span></td><td><code>agent-eval init</code> 설정 자동 감지. 명시 시 해당 모델 사용</td></tr>
         <tr><td><span class="p">sample_rate</span></td><td><span class="t">float</span></td><td><span class="r">1.0</span></td><td>평가 비율 (0–1). 비용 제어용</td></tr>
         <tr><td><span class="p">budget_per_day</span></td><td><span class="t">float|None</span></td><td><span class="r">None</span></td><td>일일 예산 한도 (USD). 초과 시 judge 건너뜀</td></tr>
+        <tr><td><span class="p">judge_criteria</span><span class="opt">opt</span></td><td><span class="t">List[str]|None</span></td><td><span class="r">None</span></td><td>G-Eval 커스텀 평가 기준. 예: <code>["medical_accuracy", "empathy"]</code> → <code>criteria_scores</code> 자동 추가 (DeepEval G-Eval 대체)</td></tr>
       </tbody></table>
       <table class="mtable" style="margin-top:12px"><thead><tr><th>메서드</th><th>반환 타입</th><th>설명</th></tr></thead><tbody>
-        <tr><td><span class="p">judge(question, response, context=None)</span></td><td><span class="t">dict</span></td><td>단일 채점. 키: <code>completeness</code>·<code>relevance</code>·<code>factual_consistency</code>·<code>overall</code> (0–5)</td></tr>
-        <tr><td><span class="p">get_summary()</span></td><td><span class="t">dict</span></td><td>누적 통계 (호출 수, 평균 점수, 총 비용)</td></tr>
+        <tr><td><span class="p">judge(task_id, question, response, context=None)</span></td><td><span class="t">dict</span></td><td>단일 채점. <strong>기본 5개 키</strong>: <code>completeness</code>·<code>relevance</code>·<code>factual_consistency</code>·<code>toxicity</code>·<code>bias</code>·<code>overall</code>·<code>safety_score</code>. <strong>조건부</strong>: <code>faithfulness</code>(rag_mode 시), <code>criteria_scores</code>·<code>criteria_overall</code>(judge_criteria 설정 시)</td></tr>
+        <tr><td><span class="p">get_summary()</span></td><td><span class="t">dict</span></td><td>누적 통계 (호출 수, 평균 점수, 총 비용). 결과에 따라 faithfulness·criteria_scores 동적 포함</td></tr>
       </tbody></table>
-<pre><span class="cm"># 권장: @agent_eval(enable_llm_judge=True) — 데코레이터에서 자동 통합</span>
+<pre><span class="cm"># 기본 5차원 채점 (completeness·relevance·factual_consistency·toxicity·bias)</span>
 <span class="kw">from</span> <span class="cn">agent_evaluator.decorators</span> <span class="kw">import</span> agent_eval
 
 <span class="de">@agent_eval</span>(monitor, task_type=<span class="st">"qa"</span>,
@@ -1399,15 +1403,30 @@ r = detector.<span class="fn">analyze_tool_chain</span>(<span class="st">"t1"</s
              judge_sample_rate=<span class="nm">0.1</span>, judge_budget_per_day=<span class="nm">5.0</span>)
 <span class="kw">def</span> <span class="fn">my_agent</span>(question: str, ground_truth: str = <span class="st">""</span>) -> str:
     <span class="kw">return</span> llm.<span class="fn">invoke</span>(question)
-<span class="cm"># → TaskResult.extra 에 llm_judge: {completeness, relevance, factual_consistency, overall} 포함</span>
+<span class="cm"># → TaskResult.extra["llm_judge"]: {completeness, relevance, factual_consistency, toxicity, bias, overall, safety_score}</span>
 
-<span class="cm"># 또는 PerformanceMonitor 레벨에서 전역 활성</span>
+<span class="cm"># RAG Faithfulness (Ragas 대체) — rag_mode=True + enable_llm_judge=True</span>
+<span class="de">@agent_eval</span>(monitor, task_type=<span class="st">"information_retrieval"</span>,
+             rag_mode=<span class="kw">True</span>, enable_llm_judge=<span class="kw">True</span>, judge_model=<span class="st">"claude-sonnet-4-6"</span>)
+<span class="kw">def</span> <span class="fn">rag_agent</span>(question: str, context: str = <span class="st">""</span>, ground_truth: str = <span class="st">""</span>) -> str:
+    <span class="kw">return</span> rag_chain.<span class="fn">invoke</span>({"input": question, "context": context})
+<span class="cm"># → extra["llm_judge"]["faithfulness"] 자동 추가 (0–5, 5=모든 주장이 컨텍스트에 근거)</span>
+
+<span class="cm"># G-Eval 커스텀 기준 (DeepEval 대체) — judge_criteria 지정</span>
+<span class="de">@agent_eval</span>(monitor, task_type=<span class="st">"qa"</span>,
+             enable_llm_judge=<span class="kw">True</span>, judge_criteria=[<span class="st">"medical_accuracy"</span>, <span class="st">"empathy"</span>, <span class="st">"clarity"</span>])
+<span class="kw">def</span> <span class="fn">medical_agent</span>(question: str, ground_truth: str = <span class="st">""</span>) -> str:
+    <span class="kw">return</span> llm.<span class="fn">invoke</span>(question)
+<span class="cm"># → extra["llm_judge"]["criteria_scores"]: {"medical_accuracy": 4.0, "empathy": 4.5, "clarity": 4.8}</span>
+<span class="cm"># → extra["llm_judge"]["criteria_overall"]: 4.43</span>
+
+<span class="cm"># PerformanceMonitor 레벨에서 전역 활성 + judge_criteria</span>
 monitor = <span class="fn">PerformanceMonitor</span>(
     output_dir=<span class="st">"results/"</span>,
     enable_llm_judge=<span class="kw">True</span>,
     judge_model=<span class="st">"claude-sonnet-4-6"</span>,
     judge_sample_rate=<span class="nm">0.1</span>,
-    judge_budget_per_day=<span class="nm">5.0</span>,
+    judge_criteria=[<span class="st">"professionalism"</span>, <span class="st">"safety"</span>],
 )
 
 <span class="cm"># QuickEval 팩토리로 최소 설정</span>

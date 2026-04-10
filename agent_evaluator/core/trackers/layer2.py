@@ -66,12 +66,23 @@ _COORD_ALLOWED_INTERACTION_TYPES: frozenset = frozenset({"delegation", "communic
 
 # 흔히 사용되는 별칭 → canonical 유형 매핑 (경고 없이 자동 정규화)
 _COORD_INTERACTION_TYPE_ALIASES: dict = {
+    # 일반 별칭
     "task_delegation": "delegation",
     "result_sharing":  "communication",
     "feedback":        "communication",
     "coordination":    "collaboration",
     "handoff":         "delegation",
     "broadcast":       "communication",
+    # 프레임워크 어댑터 생성 타입 (CrewAI / LangGraph / AutoGen)
+    "task_completion": "communication",   # CrewAI: 태스크 완료 후 coordinator에 통보
+    "output_format":   "communication",   # CrewAI: 출력 포맷 공유
+    "pydantic_output": "communication",   # CrewAI: Pydantic 모델 출력 전달
+    "result":          "communication",   # LangGraph: 노드 결과 반환
+    "tool_result":     "communication",   # LangGraph: 도구 결과 반환
+    "ai_message":      "communication",   # LangGraph: AI 메시지 전달
+    "message":         "communication",   # AutoGen: 에이전트 간 메시지
+    "tool_call":       "delegation",      # 범용: 도구 호출 위임
+    "tool_return":     "communication",   # 범용: 도구 반환값 전달
 }
 
 
