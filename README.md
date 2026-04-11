@@ -1318,12 +1318,15 @@ agent-evaluator/
 | `[llm]` | openai · anthropic | 빠름 |
 | `[langchain]` | langchain ≥1.0 · langgraph ≥1.0 | 중간 |
 | `[crewai]` | crewai ≥1.0 | 무거움 (단독 격리) |
-| `[autogen]` | pyautogen ≥0.3 | 무거움 (단독 격리) |
-| `[eval]` | deepeval · ragas ≥0.4 · datasets ≥4.0 | 무거움 |
+| `[autogen]` | pyautogen ≥0.3 · autogen-agentchat ≥0.4 | 무거움 (단독 격리) |
+| `[eval]` | deepeval ≥3.0 · ragas ≥0.4 · datasets ≥4.0 | 무거움 |
 | `[serve]` | fastapi · uvicorn · jinja2 | 빠름 |
+| `[pdf]` | pdfplumber | 빠름 |
+| `[dspy]` | dspy-ai ≥2.0 | 중간 |
+| `[pydanticai]` | pydantic-ai ≥1.0 | 빠름 |
 | `[otel]` | opentelemetry-sdk · arize-phoenix | 중간 |
-| `[all]` | llm + langchain + eval + serve (권장) | 중간 |
-| `[full]` | 전체 ⚠️ 10분+ | 매우 무거움 |
+| `[all]` | llm + langchain + eval + serve + dspy + pydanticai (권장) | 중간 |
+| `[full]` | all + crewai + autogen + otel ⚠️ 10분+ | 매우 무거움 |
 
 ---
 

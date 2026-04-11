@@ -26,7 +26,7 @@ pip install -e ".[crewai]"            # CrewAI 단독 (무거움)
 pip install -e ".[autogen]"           # AutoGen 단독 (무거움)
 pip install -e ".[dspy]"              # DSPy 통합 (dspy-ai)
 pip install -e ".[pydanticai]"        # PydanticAI 통합 (pydantic-ai)
-pip install -e ".[all]"               # crewai/autogen 제외 전체 (권장)
+pip install -e ".[all]"               # crewai/autogen/otel 제외 전체, dspy/pydanticai 포함 (권장)
 pip install -e ".[full]"              # 진짜 전체 (⚠️ 10분+ 소요)
 
 # --- CLI (pip install 후 바로 사용 가능) ---
@@ -505,7 +505,7 @@ from agent_evaluator import (
 | 항목 | 상태 | 설명 |
 |------|------|------|
 | `ragas>=0.4.0` | ✅ 지원 | 0.4.x API(EvaluationDataset, SingleTurnSample) 완전 지원. `datasets>=4.0.0,<6.0.0` 함께 적용 |
-| `[frameworks]`/`[full]` pydantic 충돌 | 🟡 허용 | crewai(pydantic<2.12) + pyautogen(pydantic>=2.12 선호) 동시 설치 시 pydantic 2.11.x로 silent downgrade. 기능 동작은 정상이나 autogen 최신 기능 일부 제한 가능 |
+| `[crewai,autogen]`/`[full]` pydantic 충돌 | 🟡 허용 | crewai(pydantic<2.12) + pyautogen(pydantic>=2.12 선호) 동시 설치 시 pydantic 2.11.x로 silent downgrade. 기능 동작은 정상이나 autogen 최신 기능 일부 제한 가능 |
 | `pyautogen>=0.3.0` 0.4+ async API | 🟡 부분 지원 | 0.4+(autogen-agentchat 0.4+)는 async API → `@agent_eval(framework="autogen")`으로 async 함수 래핑 권장. autogen_eval_async 데코레이터(`agent_evaluator.integrations`) 사용 가능 |
 | `AnswerRelevancy` embeddings | 🟡 조건부 | OpenAI API 키 있을 때만 자동 설정. Anthropic-only 환경에서는 AnswerRelevancy 지표 제외됨 |
 
@@ -556,9 +556,9 @@ pytest
 - `[pdf]` — `pdfplumber>=0.10.0,<1.0.0` — 빠름
 
 ### Optional (조합 편의 extras)
-- `[frameworks]` — `langchain` + `crewai` + `autogen` 한 번에 (기존 호환, 무거움)
-- `[all]` — crewai/autogen/otel **제외** 전체 (권장, 합리적 설치 시간) — `pip install agent-evaluator[all]`
+- `[all]` — crewai/autogen/otel **제외** 전체, dspy/pydanticai 포함 (권장) — `pip install agent-evaluator[all]`
 - `[full]` — crewai/autogen/otel 포함 진짜 전체 (⚠️ 10분+ 소요) — `pip install agent-evaluator[full]`
+- ~~`[frameworks]`~~ — 제거됨. `pip install agent-evaluator[langchain,crewai,autogen]` 으로 대체
 
 ### Dev (개발 환경)
 - `[dev]` — `pytest` + `pytest-cov` + `pytest-asyncio` + `ruff` + `mypy` + `build` + `twine` + `pre-commit`
