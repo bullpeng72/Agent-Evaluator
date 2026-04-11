@@ -110,7 +110,7 @@ pydanticai = [
 otel = [
     "opentelemetry-sdk>=1.20.0,<2.0.0",
     "opentelemetry-exporter-otlp-proto-http>=1.20.0,<2.0.0",
-    "arize-phoenix>=0.11.0",
+    "arize-phoenix>=0.11.0,<2.0.0",
 ]
 
 # ── 조합 편의 extras ─────────────────────────────────────────────────────────
@@ -171,7 +171,7 @@ full = [
     "python-multipart>=0.0.9,<1.0.0",
     "opentelemetry-sdk>=1.20.0,<2.0.0",
     "opentelemetry-exporter-otlp-proto-http>=1.20.0,<2.0.0",
-    "arize-phoenix>=0.11.0",
+    "arize-phoenix>=0.11.0,<2.0.0",
 ]
 dev = [
     "pytest>=7.0.0",
