@@ -209,7 +209,7 @@ def calculate_accuracy_score(
         # 4가지 메트릭 가중 조합
         token_score = _token_overlap_ratio(resp_norm, truth_norm)
         jaccard_score = _jaccard_similarity(resp_norm, truth_norm)
-        lcs_score = _lcs_similarity(resp_norm, truth_norm)
+        lcs_score = _lcs_ratio_util(resp_norm, truth_norm)
         char_score = _char_similarity(resp_norm, truth_norm)
 
         # 가중 평균
@@ -227,7 +227,7 @@ def calculate_accuracy_score(
     elif method == "jaccard":
         return _jaccard_similarity(resp_norm, truth_norm)
     elif method == "lcs":
-        return _lcs_similarity(resp_norm, truth_norm)
+        return _lcs_ratio_util(resp_norm, truth_norm)
     elif method == "char":
         return _char_similarity(resp_norm, truth_norm)
     else:
@@ -270,12 +270,6 @@ def _jaccard_similarity(text1: str, text2: str) -> float:
 
     return intersection / union if union > 0 else 0.0
 
-
-def _lcs_similarity(text1: str, text2: str) -> float:
-    """Longest Common Subsequence Similarity — delegates to utils.text_similarity."""
-    if not text1 or not text2:
-        return 0.0
-    return _lcs_ratio_util(text1, text2)
 
 
 def _char_similarity(text1: str, text2: str) -> float:
