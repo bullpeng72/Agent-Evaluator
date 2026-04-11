@@ -19,13 +19,13 @@ Coverage targets:
 from unittest.mock import MagicMock
 import pytest
 
+from agent_evaluator.utils.text_similarity import lcs_ratio as _lcs_similarity
 from agent_evaluator.helpers.taskresult_helpers import (
     calculate_completion_score,
     calculate_accuracy_score,
     normalize_text,
     _token_overlap_ratio,
     _jaccard_similarity,
-    _lcs_similarity,
     _char_similarity,
     extract_tokens_from_openai,
     extract_tokens_from_langchain,
