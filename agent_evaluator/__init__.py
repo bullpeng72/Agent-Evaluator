@@ -38,7 +38,7 @@ Quick Start (Decorator):
     >>> # Metrics auto-recorded on every call!
 """
 
-__version__ = "0.7.7"
+__version__ = "0.7.8"
 __author__ = "Sungwoo Kim"
 
 # Exception hierarchy (경량 — 외부 의존성 없음)

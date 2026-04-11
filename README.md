@@ -3,7 +3,7 @@
 [![PyPI version](https://img.shields.io/pypi/v/agent-evaluator.svg)](https://pypi.org/project/agent-evaluator/)
 [![Python Version](https://img.shields.io/badge/python-3.8%2B-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Version](https://img.shields.io/badge/version-0.7.7-green.svg)](https://github.com/bullpeng72/Agent-Evaluator)
+[![Version](https://img.shields.io/badge/version-0.7.8-green.svg)](https://github.com/bullpeng72/Agent-Evaluator)
 
 **AI 에이전트를 위한 프로덕션 레디 평가 프레임워크**
 
@@ -79,19 +79,13 @@ def my_agent(question, ground_truth=""):
 ## 설치
 
 ```bash
-pip install agent-evaluator                        # 기본 (Layer 1/2 즉시 사용)
+# 기본 설치 — LLMJudge · 대시보드 · OTEL 모니터링 · PDF 포함 (sdk 기본 내장)
+pip install agent-evaluator
 
-# ── Group 1: SDK 자체 기능 (LLMJudge · 대시보드 · 모니터 · PDF) ──────────
-pip install "agent-evaluator[llm]"                # LLMJudge 엔진 (openai, anthropic)
-pip install "agent-evaluator[serve]"              # 웹 대시보드 (fastapi, uvicorn, jinja2)
-pip install "agent-evaluator[otel]"               # 운영 실시간 모니터링 (Phoenix + OTEL)
-pip install "agent-evaluator[pdf]"                # 한국어 RAG PDF 처리 (pdfplumber)
-pip install "agent-evaluator[sdk]"                # 위 4개 묶음 — 운영 배포 권장
+# ── Evaluator_Examples/ 예제 실행 ─────────────────────────────────────────
+pip install "agent-evaluator[examples]"           # 모든 예제 실행 가능 (기본 + eval)
 
-# ── Group 2: Evaluator_Examples/ 예제 실행 ────────────────────────────────
-pip install "agent-evaluator[examples]"           # 모든 예제 실행 가능 (sdk + eval)
-
-# ── Group 3: 프레임워크 확장 (사용자 에이전트 코드가 필요로 하는 경우) ────
+# ── 프레임워크 확장 (사용자 에이전트 코드가 필요로 하는 경우) ──────────────
 # agent-evaluator 자체는 아래 패키지 없이도 완전히 동작 (duck typing 방식)
 pip install "agent-evaluator[eval]"               # DeepEval ≥3.0 + Ragas ≥0.4 (외부 평가)
 pip install "agent-evaluator[langchain]"          # LangChain ≥1.0 / LangGraph ≥1.0
@@ -1341,31 +1335,36 @@ agent-evaluator/
 
 ## 의존성 명세
 
-**코어 (항상 설치됨)**
+**기본 설치 포함 패키지** (`pip install agent-evaluator`)
 
 | 패키지 | 버전 범위 | 용도 |
 |--------|----------|------|
 | `numpy` | ≥1.20.0, <3.0.0 | 수치 연산 |
 | `pandas` | ≥1.3.0, <4.0.0 | 지표 집계 |
 | `python-dotenv` | ≥0.19.0, <2.0.0 | 환경변수 관리 |
+| `openai` | ≥1.0.0, <3.0.0 | LLMJudge 엔진 |
+| `anthropic` | ≥0.20.0, <1.0.0 | LLMJudge 엔진 |
+| `fastapi` | ≥0.110.0, <1.0.0 | 웹 대시보드 |
+| `uvicorn[standard]` | ≥0.29.0, <1.0.0 | 웹 대시보드 |
+| `jinja2` | ≥3.1.0, <4.0.0 | 웹 대시보드 |
+| `python-multipart` | ≥0.0.9, <1.0.0 | 웹 대시보드 |
+| `opentelemetry-sdk` | ≥1.20.0, <2.0.0 | OTEL 모니터링 |
+| `opentelemetry-exporter-otlp-proto-http` | ≥1.20.0, <2.0.0 | OTEL 모니터링 |
+| `arize-phoenix` | ≥0.11.0, <2.0.0 | Phoenix 실시간 모니터링 |
+| `pdfplumber` | ≥0.10.0, <1.0.0 | 한국어 RAG PDF 처리 |
 
-**선택 extras** (그룹별 설치 전략은 [## 설치](#설치) 참조)
+**선택 extras** (설치 명령은 [## 설치](#설치) 참조)
 
 | Extra | 주요 패키지 | 설치 시간 | 비고 |
 |-------|-----------|----------|------|
-| `[llm]` | openai ≥1.0, anthropic ≥0.20 | 빠름 | LLMJudge 엔진 |
-| `[serve]` | fastapi ≥0.110, uvicorn, jinja2 ≥3.1 | 빠름 | `agent-eval dashboard` |
-| `[otel]` | opentelemetry-sdk ≥1.20, arize-phoenix ≥0.11 | 중간 | `agent-eval monitor` |
-| `[pdf]` | pdfplumber ≥0.10, <1.0 | 빠름 | 한국어 RAG PDF 처리 |
-| `[sdk]` | llm + serve + otel + pdf | 중간 | **운영 배포 권장** |
-| `[examples]` | sdk + eval | 무거움 | 예제 01~06: 코어만 필요 · 07: otel+eval 필요 |
+| `[examples]` | 기본 + eval | 무거움 | 예제 01~06: 기본만 필요 · 07: eval 추가 필요 |
 | `[eval]` | deepeval ≥3.0, <4.0 · ragas ≥0.4, <2.0 · datasets ≥4.0, <6.0 | 무거움 | DeepEval/Ragas 외부 평가 |
 | `[langchain]` | langchain ≥1.0, langgraph ≥1.0 | 중간 | 사용자 LangChain 에이전트 코드용¹ |
 | `[dspy]` | dspy-ai ≥2.0 | 중간 | 사용자 DSPy 에이전트 코드용¹ |
 | `[pydanticai]` | pydantic-ai ≥1.0, <2.0 | 빠름 | 사용자 PydanticAI 에이전트 코드용¹ |
 | `[crewai]` | crewai ≥1.0, <2.0 | 무거움 (단독 격리) | 사용자 CrewAI 에이전트 코드용¹ |
 | `[autogen]` | pyautogen ≥0.3, autogen-agentchat ≥0.4 | 무거움 (단독 격리) | 사용자 AutoGen 에이전트 코드용¹ |
-| `[full]` | sdk + eval + langchain + dspy + pydanticai + crewai + autogen | 매우 무거움 | ⚠️ 10분+, CI 전체 호환성 검증용 |
+| `[full]` | 기본 + eval + langchain + dspy + pydanticai + crewai + autogen | 매우 무거움 | ⚠️ 10분+, CI 전체 호환성 검증용 |
 | `[dev]` | pytest · pytest-cov · ruff · mypy · build · twine | 빠름 | 개발 환경 |
 
 ¹ agent-evaluator 자체는 이 패키지 없이도 완전히 동작 (duck typing). 사용자의 에이전트 코드가 해당 프레임워크를 직접 import할 때만 설치.

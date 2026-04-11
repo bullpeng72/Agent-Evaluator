@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "agent-evaluator"
-version = "0.7.7"
+version = "0.7.8"
 description = "Production-ready evaluation framework for AI agents — 25 metrics across task completion, accuracy, hallucination, latency, security, and agentic behavior"
 readme = {file = "README.md", content-type = "text/markdown"}
 requires-python = ">=3.8"
@@ -42,18 +42,109 @@ classifiers = [
 ]
 
 dependencies = [
+    # 수치 연산 / 지표 집계 / 환경변수
     "numpy>=1.20.0,<3.0.0",
     "pandas>=1.3.0,<4.0.0",
     "python-dotenv>=0.19.0,<2.0.0",
+    # SDK 자체 기능 (= [sdk] extras) — 기본 설치에 포함
+    # LLMJudge 엔진
+    "openai>=1.0.0,<3.0.0",
+    "anthropic>=0.20.0,<1.0.0",
+    # 웹 대시보드
+    "fastapi>=0.110.0,<1.0.0",
+    "uvicorn[standard]>=0.29.0,<1.0.0",
+    "jinja2>=3.1.0,<4.0.0",
+    "python-multipart>=0.0.9,<1.0.0",
+    # 운영 실시간 모니터링 (Phoenix + OTEL)
+    "opentelemetry-sdk>=1.20.0,<2.0.0",
+    "opentelemetry-exporter-otlp-proto-http>=1.20.0,<2.0.0",
+    "arize-phoenix>=0.11.0,<2.0.0",
+    # 한국어 RAG PDF 처리
+    "pdfplumber>=0.10.0,<1.0.0",
 ]
 
 [project.optional-dependencies]
-# ── 단위 extras ─────────────────────────────────────────────────────────────
+# ════════════════════════════════════════════════════════════════════════════
+# Group 1: SDK 자체 기능 (agent-eval dashboard / monitor / LLMJudge / PDF)
+# ════════════════════════════════════════════════════════════════════════════
 
-# LLM 클라이언트 — LLMHelper / ClaudeHelper 사용 시 (빠름, ~5개 패키지)
+# LLM 클라이언트 — LLMJudge 엔진 (빠름, ~5개 패키지)
+# agent_evaluator/integrations/llm_judge.py 에서 사용
 llm = [
     "openai>=1.0.0,<3.0.0",
     "anthropic>=0.20.0,<1.0.0",
+]
+# 웹 대시보드 — agent-eval serve (빠름, ~8개 패키지)
+# agent_evaluator/serve/ 에서 사용
+serve = [
+    "fastapi>=0.110.0,<1.0.0",
+    "uvicorn[standard]>=0.29.0,<1.0.0",
+    "jinja2>=3.1.0,<4.0.0",
+    "python-multipart>=0.0.9,<1.0.0",
+]
+# 운영 실시간 모니터링 — Phoenix + OTEL (중간, ~20개 패키지)
+# agent-eval monitor 명령어 / core/otel/ / core/trackers/monitor.py 에서 사용
+otel = [
+    "opentelemetry-sdk>=1.20.0,<2.0.0",
+    "opentelemetry-exporter-otlp-proto-http>=1.20.0,<2.0.0",
+    "arize-phoenix>=0.11.0,<2.0.0",
+]
+# PDF 처리 — 한국어 RAG 데이터셋 생성기 (빠름, ~2개 패키지)
+# agent_evaluator/datasets/korean_rag_dataset_generator.py 에서 사용
+pdf = [
+    "pdfplumber>=0.10.0,<1.0.0",
+]
+# SDK 전체 묶음 — llm + serve + otel + pdf (운영 배포 권장)
+sdk = [
+    "openai>=1.0.0,<3.0.0",
+    "anthropic>=0.20.0,<1.0.0",
+    "fastapi>=0.110.0,<1.0.0",
+    "uvicorn[standard]>=0.29.0,<1.0.0",
+    "jinja2>=3.1.0,<4.0.0",
+    "python-multipart>=0.0.9,<1.0.0",
+    "opentelemetry-sdk>=1.20.0,<2.0.0",
+    "opentelemetry-exporter-otlp-proto-http>=1.20.0,<2.0.0",
+    "arize-phoenix>=0.11.0,<2.0.0",
+    "pdfplumber>=0.10.0,<1.0.0",
+]
+
+# ════════════════════════════════════════════════════════════════════════════
+# Group 2: Evaluator_Examples 예제 실행
+# ════════════════════════════════════════════════════════════════════════════
+
+# 모든 예제 실행 — sdk + eval (예제 01-06은 코어만 필요, 07은 llm+otel+eval 필요)
+# pip install "agent-evaluator[examples]" 로 Evaluator_Examples/ 전체 실행 가능
+examples = [
+    "openai>=1.0.0,<3.0.0",
+    "anthropic>=0.20.0,<1.0.0",
+    "fastapi>=0.110.0,<1.0.0",
+    "uvicorn[standard]>=0.29.0,<1.0.0",
+    "jinja2>=3.1.0,<4.0.0",
+    "python-multipart>=0.0.9,<1.0.0",
+    "opentelemetry-sdk>=1.20.0,<2.0.0",
+    "opentelemetry-exporter-otlp-proto-http>=1.20.0,<2.0.0",
+    "arize-phoenix>=0.11.0,<2.0.0",
+    "pdfplumber>=0.10.0,<1.0.0",
+    "deepeval>=3.0.0,<4.0.0",
+    "ragas>=0.4.0,<2.0.0",
+    "datasets>=4.0.0,<6.0.0",
+    "langchain>=1.0.0,<3.0.0",
+    "langchain-openai>=0.1.0,<3.0.0",
+]
+
+# ════════════════════════════════════════════════════════════════════════════
+# Group 3: 프레임워크 확장 (agent_evaluator/integrations/ 에서 try/except로 사용)
+# ════════════════════════════════════════════════════════════════════════════
+
+# 외부 평가 라이브러리 — DeepEval / Ragas (중간, langchain 필요)
+# ragas 0.4.x API: EvaluationDataset + SingleTurnSample, datasets>=4.0.0 필요
+# agent_evaluator/integrations/metric_adapters.py 에서 사용
+eval = [
+    "deepeval>=3.0.0,<4.0.0",
+    "ragas>=0.4.0,<2.0.0",
+    "datasets>=4.0.0,<6.0.0",
+    "langchain>=1.0.0,<3.0.0",
+    "langchain-openai>=0.1.0,<3.0.0",
 ]
 # LangChain / LangGraph 통합 (중간, ~30개 패키지)
 # langchain 1.x LCEL Runnable 기반, BaseCallbackHandler 실시간 추적
@@ -63,6 +154,15 @@ langchain = [
     "langchain-openai>=0.1.0,<3.0.0",
     "langchain-anthropic>=0.1.0,<3.0.0",
     "langgraph>=1.0.0,<3.0.0",
+]
+# DSPy 통합 (중간, ~10개 패키지)
+dspy = [
+    "dspy-ai>=2.0.0",
+]
+# PydanticAI 통합 (빠름, ~5개 패키지)
+# 1.0.0에서 API 전면 재설계 — 0.x와 호환 불가
+pydanticai = [
+    "pydantic-ai>=1.0.0,<2.0.0",
 ]
 # CrewAI 통합 (무거움 — 전이 의존성 100개+, 단독 격리)
 # crewai 1.x: CrewOutput.raw, crew.usage_metrics, result.tasks_output
@@ -76,71 +176,26 @@ autogen = [
     "autogen-agentchat>=0.4.0,<1.0.0",
     "autogen-core>=0.4.0,<1.0.0",
 ]
-# 외부 평가 라이브러리 — DeepEval / Ragas (무거움, langchain 필요)
-# ragas 0.4.x API: EvaluationDataset + SingleTurnSample, datasets>=4.0.0 필요
-eval = [
-    "deepeval>=3.0.0,<4.0.0",
-    "ragas>=0.4.0,<2.0.0",
-    "datasets>=4.0.0,<6.0.0",
-    "langchain>=1.0.0,<3.0.0",
-    "langchain-openai>=0.1.0,<3.0.0",
-]
-# 웹 대시보드 — agent-eval serve (빠름, ~8개 패키지)
-serve = [
-    "fastapi>=0.110.0,<1.0.0",
-    "uvicorn[standard]>=0.29.0,<1.0.0",
-    "jinja2>=3.1.0,<4.0.0",
-    "python-multipart>=0.0.9,<1.0.0",
-]
-# PDF 처리 — pdfplumber (빠름, ~2개 패키지)
-# pypdf는 코드베이스에서 미사용 — pdfplumber만 유지
-pdf = [
-    "pdfplumber>=0.10.0,<1.0.0",
-]
-# DSPy 통합 (중간, ~10개 패키지)
-dspy = [
-    "dspy-ai>=2.0.0",
-]
-# PydanticAI 통합 (빠름, ~5개 패키지)
-# 1.0.0에서 API 전면 재설계 — 0.x와 호환 불가
-pydanticai = [
-    "pydantic-ai>=1.0.0,<2.0.0",
-]
-# 운영 실시간 모니터링 — Phoenix + OTEL (중간, ~20개 패키지)
-# agent-eval monitor 명령어 전용. [all]에 미포함 (Phoenix가 무거우므로 별도 유지), [full]에 포함
-otel = [
-    "opentelemetry-sdk>=1.20.0,<2.0.0",
-    "opentelemetry-exporter-otlp-proto-http>=1.20.0,<2.0.0",
-    "arize-phoenix>=0.11.0,<2.0.0",
-]
 
-# ── 조합 편의 extras ─────────────────────────────────────────────────────────
+# ════════════════════════════════════════════════════════════════════════════
+# 조합 편의 extras
+# ════════════════════════════════════════════════════════════════════════════
 
-# 일반 사용자 권장 — crewai/autogen/otel 제외, 합리적 설치 시간
-# dspy/pydanticai 포함 (가볍고 충돌 없음)
-all = [
-    "openai>=1.0.0,<3.0.0",
-    "anthropic>=0.20.0,<1.0.0",
-    "langchain>=1.0.0,<3.0.0",
-    "langchain-core>=1.0.0,<3.0.0",
-    "langchain-openai>=0.1.0,<3.0.0",
-    "langchain-anthropic>=0.1.0,<3.0.0",
-    "langgraph>=1.0.0,<3.0.0",
-    "deepeval>=3.0.0,<4.0.0",
-    "ragas>=0.4.0,<2.0.0",
-    "datasets>=4.0.0,<6.0.0",
-    "pdfplumber>=0.10.0,<1.0.0",
-    "fastapi>=0.110.0,<1.0.0",
-    "uvicorn[standard]>=0.29.0,<1.0.0",
-    "jinja2>=3.1.0,<4.0.0",
-    "python-multipart>=0.0.9,<1.0.0",
-    "dspy-ai>=2.0.0",
-    "pydantic-ai>=1.0.0,<2.0.0",
-]
-# 전체 (crewai/autogen/otel 포함 — ⚠️ 설치 10분+ 소요, pydantic 버전 충돌 silent downgrade 가능)
+# 전체 (crewai/autogen 포함 — ⚠️ 설치 10분+ 소요, pydantic 버전 충돌 silent downgrade 가능)
 full = [
     "openai>=1.0.0,<3.0.0",
     "anthropic>=0.20.0,<1.0.0",
+    "fastapi>=0.110.0,<1.0.0",
+    "uvicorn[standard]>=0.29.0,<1.0.0",
+    "jinja2>=3.1.0,<4.0.0",
+    "python-multipart>=0.0.9,<1.0.0",
+    "opentelemetry-sdk>=1.20.0,<2.0.0",
+    "opentelemetry-exporter-otlp-proto-http>=1.20.0,<2.0.0",
+    "arize-phoenix>=0.11.0,<2.0.0",
+    "pdfplumber>=0.10.0,<1.0.0",
+    "deepeval>=3.0.0,<4.0.0",
+    "ragas>=0.4.0,<2.0.0",
+    "datasets>=4.0.0,<6.0.0",
     "langchain>=1.0.0,<3.0.0",
     "langchain-core>=1.0.0,<3.0.0",
     "langchain-openai>=0.1.0,<3.0.0",
@@ -150,19 +205,8 @@ full = [
     "pyautogen>=0.3.0,<1.0.0",
     "autogen-agentchat>=0.4.0,<1.0.0",
     "autogen-core>=0.4.0,<1.0.0",
-    "deepeval>=3.0.0,<4.0.0",
-    "ragas>=0.4.0,<2.0.0",
-    "datasets>=4.0.0,<6.0.0",
-    "pdfplumber>=0.10.0,<1.0.0",
-    "fastapi>=0.110.0,<1.0.0",
-    "uvicorn[standard]>=0.29.0,<1.0.0",
-    "jinja2>=3.1.0,<4.0.0",
-    "python-multipart>=0.0.9,<1.0.0",
     "dspy-ai>=2.0.0",
     "pydantic-ai>=1.0.0,<2.0.0",
-    "opentelemetry-sdk>=1.20.0,<2.0.0",
-    "opentelemetry-exporter-otlp-proto-http>=1.20.0,<2.0.0",
-    "arize-phoenix>=0.11.0,<2.0.0",
 ]
 dev = [
     "pytest>=7.0.0",

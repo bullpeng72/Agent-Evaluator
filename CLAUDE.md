@@ -5,7 +5,7 @@
 **Agent-Evaluator** is a production-ready Python SDK for evaluating AI agents.
 25개의 성능 지표를 세 개의 레이어(기본/에이전틱/하이브리드)로 측정한다.
 
-- **Version:** 0.7.7 (Beta)
+- **Version:** 0.7.8 (Beta)
 - **Python:** 3.8+
 - **License:** MIT
 - **Author:** Sungwoo Kim
@@ -546,36 +546,29 @@ pytest
 
 ## Dependencies
 
-### Core (항상 설치됨)
-- `numpy>=1.20.0,<3.0.0`
-- `pandas>=1.3.0,<4.0.0`
-- `python-dotenv>=0.19.0,<2.0.0`
+### 기본 설치 (`pip install agent-evaluator`)
+코어 + SDK 자체 기능이 모두 포함됩니다.
 
-### Group 1: SDK 자체 기능
-- `[llm]` — `openai>=1.0.0,<3.0.0` + `anthropic>=0.20.0,<1.0.0` — LLMJudge 엔진, 빠름
-- `[serve]` — `fastapi>=0.110.0` + `uvicorn[standard]>=0.29.0` + `jinja2>=3.1.0` + `python-multipart>=0.0.9` — 웹 대시보드, 빠름
-- `[otel]` — `opentelemetry-sdk>=1.20.0` + `opentelemetry-exporter-otlp-proto-http>=1.20.0` + `arize-phoenix>=0.11.0` — 운영 실시간 모니터링, 중간
-- `[pdf]` — `pdfplumber>=0.10.0,<1.0.0` — 한국어 RAG PDF 처리, 빠름
-- `[sdk]` — llm + serve + otel + pdf 전체 묶음 (운영 배포 권장)
+- `numpy>=1.20.0,<3.0.0` — 수치 연산
+- `pandas>=1.3.0,<4.0.0` — 지표 집계
+- `python-dotenv>=0.19.0,<2.0.0` — 환경변수 관리
+- `openai>=1.0.0,<3.0.0` + `anthropic>=0.20.0,<1.0.0` — LLMJudge 엔진
+- `fastapi>=0.110.0` + `uvicorn[standard]>=0.29.0` + `jinja2>=3.1.0` + `python-multipart>=0.0.9` — 웹 대시보드
+- `opentelemetry-sdk>=1.20.0` + `opentelemetry-exporter-otlp-proto-http>=1.20.0` + `arize-phoenix>=0.11.0` — OTEL 모니터링
+- `pdfplumber>=0.10.0,<1.0.0` — 한국어 RAG PDF 처리
 
-### Group 2: Evaluator_Examples 예제 실행
-- `[examples]` — sdk + eval 묶음. 예제 01~06은 코어만 필요, 07은 llm+otel+eval 필요
-
-### Group 3: 프레임워크 확장
+### 선택 extras
+- `[examples]` — 기본 + eval 묶음. 예제 01~06은 기본만 필요, 07은 eval 추가 필요
 - `[eval]` — `deepeval>=3.0.0,<4.0.0` + `ragas>=0.4.0,<2.0.0` + `datasets>=4.0.0,<6.0.0` + `langchain>=1.0.0` + `langchain-openai>=0.1.0` — 외부 평가 라이브러리
 - `[langchain]` — `langchain>=1.0.0,<3.0.0` + `langchain-core/openai/anthropic>=1.0.0` + `langgraph>=1.0.0` — LangChain/LangGraph 통합, 중간
 - `[dspy]` — `dspy-ai>=2.0.0` — DSPy 프로그램 평가 (`DSPyEvaluator`, `dspy_eval`)
 - `[pydanticai]` — `pydantic-ai>=1.0.0,<2.0.0` — PydanticAI Agent 평가 (`PydanticAIEvaluator`, `pydanticai_eval`)
 - `[crewai]` — `crewai>=1.0.0,<2.0.0` — 무거움 (전이 의존성 100개+), 단독 격리
 - `[autogen]` — `pyautogen>=0.3.0,<1.0.0` + `autogen-agentchat/core>=0.4.0` — 무거움, 단독 격리
+- `[full]` — 기본+eval+langchain+dspy+pydanticai+crewai+autogen 전체 (⚠️ 10분+ 소요, CI 전체 호환성 검증용)
+- `[dev]` — `pytest` + `pytest-cov` + `pytest-asyncio` + `ruff` + `mypy` + `build` + `twine` + `pre-commit`
 
 > ⚠️ **프레임워크 extras 주의**: `[langchain]`, `[crewai]`, `[autogen]`, `[dspy]`, `[pydanticai]`은 agent-evaluator 자체 의존성이 아님. SDK 어댑터는 duck typing/try-except로 동작하므로 설치 불필요. 이 extras는 **사용자의 에이전트 코드**가 해당 프레임워크를 필요로 할 때 설치.
-
-### 조합 편의 extras
-- `[full]` — sdk+eval+langchain+dspy+pydanticai+crewai+autogen 전체 (⚠️ 10분+ 소요, CI 전체 호환성 검증용) — `pip install agent-evaluator[full]`
-
-### Dev (개발 환경)
-- `[dev]` — `pytest` + `pytest-cov` + `pytest-asyncio` + `ruff` + `mypy` + `build` + `twine` + `pre-commit`
 
 ---
 
