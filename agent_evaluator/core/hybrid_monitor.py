@@ -2,7 +2,7 @@
 Hybrid Performance Monitor
 ===========================
 Extends native Agent Evaluator with external library metrics
-(DeepEval, Ragas, LangSmith)
+(DeepEval, Ragas)
 """
 
 import atexit
@@ -137,7 +137,8 @@ class HybridPerformanceMonitor(PerformanceMonitor):
 
         logger.info("HybridPerformanceMonitor ready. Active providers: %s", ", ".join(self.enabled_providers))
 
-        # Storage for extended results
+        # Storage for extended results — bounded to prevent unbounded memory growth (L4)
+        # For long-running services, consider periodic flush or external storage
         self.extended_tasks: List[ExtendedTaskResult] = []
 
         # Register cleanup handler
@@ -184,10 +185,12 @@ class HybridPerformanceMonitor(PerformanceMonitor):
         )
 
         # 2. Evaluate with external libraries (optional, slower)
-        advanced_metrics = {}
+        # M7: use None when disabled to distinguish "not collected" from "collected but empty"
+        advanced_metrics: Optional[Dict[str, Any]] = None
         providers_used = ["native"]
 
         if enable_advanced_metrics and (input_text or output_text):
+            advanced_metrics = {}  # M7: initialize only when actually collecting metrics
             context = EvaluationContext(
                 input_text=input_text,
                 output_text=output_text,
@@ -201,8 +204,9 @@ class HybridPerformanceMonitor(PerformanceMonitor):
             if MetricProvider.DEEPEVAL in self.metric_adapters:
                 try:
                     deepeval_metrics = self.metric_adapters[MetricProvider.DEEPEVAL].evaluate(context)
-                    advanced_metrics.update(deepeval_metrics)
-                    providers_used.append("deepeval")
+                    if deepeval_metrics is not None:  # M7: None means adapter unavailable
+                        advanced_metrics.update(deepeval_metrics)
+                        providers_used.append("deepeval")
                 except Exception as e:
                     logger.warning("DeepEval evaluation error: %s", e)
 
@@ -210,8 +214,9 @@ class HybridPerformanceMonitor(PerformanceMonitor):
             if MetricProvider.RAGAS in self.metric_adapters and retrieved_context:
                 try:
                     ragas_metrics = self.metric_adapters[MetricProvider.RAGAS].evaluate(context)
-                    advanced_metrics.update(ragas_metrics)
-                    providers_used.append("ragas")
+                    if ragas_metrics is not None:  # M7: None means adapter unavailable
+                        advanced_metrics.update(ragas_metrics)
+                        providers_used.append("ragas")
                 except Exception as e:
                     logger.warning("Ragas evaluation error: %s", e)
 
@@ -357,6 +362,8 @@ class HybridPerformanceMonitor(PerformanceMonitor):
         metric_counts = {}  # Track how many tasks have each metric
 
         for task in self.extended_tasks:
+            if not task.advanced_metrics:  # M7: guard against None or empty
+                continue
             if debug:
                 logger.debug("Task %s metrics: %s", task.task_id, list(task.advanced_metrics.keys()))
 
@@ -415,7 +422,7 @@ class HybridPerformanceMonitor(PerformanceMonitor):
         # Add pass/fail summaries
         for metric_base in ['g_eval', 'hallucination', 'toxicity', 'bias', 'answer_relevancy']:
             passed_key = f'{metric_base}_passed'
-            if any(passed_key in task.advanced_metrics for task in self.extended_tasks):
+            if any(task.advanced_metrics and passed_key in task.advanced_metrics for task in self.extended_tasks):
                 summary[f'{metric_base}_pass_rate'] = self._calculate_pass_rate(passed_key)
 
         return summary
@@ -426,7 +433,7 @@ class HybridPerformanceMonitor(PerformanceMonitor):
         total = 0
 
         for task in self.extended_tasks:
-            if passed_key in task.advanced_metrics:
+            if task.advanced_metrics and passed_key in task.advanced_metrics:
                 total += 1
                 if task.advanced_metrics[passed_key]:
                     passed += 1
@@ -443,7 +450,7 @@ class HybridPerformanceMonitor(PerformanceMonitor):
         total = 0
 
         for task in self.extended_tasks:
-            if metric_name in task.advanced_metrics:
+            if task.advanced_metrics and metric_name in task.advanced_metrics:
                 total += 1
                 if task.advanced_metrics[metric_name]:
                     detected += 1
@@ -569,7 +576,6 @@ class HybridPerformanceMonitor(PerformanceMonitor):
         monitor = cls(
             use_deepeval=False,
             use_ragas=False,
-            use_langsmith=False,
             enable_security_metrics=has_security_metrics
         )
 
@@ -807,7 +813,7 @@ class HybridPerformanceMonitor(PerformanceMonitor):
 
         # DeepEval G-Eval 권장사항
         if 'g_eval_score' in advanced_summary and isinstance(advanced_summary['g_eval_score'], dict):
-            g_eval = advanced_summary['g_eval_score']['mean']
+            g_eval = advanced_summary['g_eval_score'].get('mean', 0.0)
             if g_eval < 0.7:
                 recommendations.append({
                     "area": "G-Eval 품질 개선",
@@ -969,20 +975,17 @@ def create_monitor(
         "minimal": {
             "use_deepeval": False,
             "use_ragas": False,
-            "use_langsmith": False,
             "enable_security_metrics": False
         },
         "balanced": {
             "use_deepeval": True,
             "use_ragas": False,
-            "use_langsmith": False,
             "deepeval_model": "gpt-4o-mini",
             "enable_security_metrics": False
         },
         "rag": {
             "use_deepeval": True,
             "use_ragas": True,
-            "use_langsmith": False,
             "deepeval_model": "gpt-4o-mini",
             "ragas_model": "gpt-4o-mini",
             "enable_security_metrics": False
@@ -997,7 +1000,6 @@ def create_monitor(
         "secure": {
             "use_deepeval": True,
             "use_ragas": False,
-            "use_langsmith": False,
             "deepeval_model": "gpt-4o-mini",
             "enable_security_metrics": True,
             "security_config": {
@@ -1008,7 +1010,6 @@ def create_monitor(
         "secure-full": {
             "use_deepeval": True,
             "use_ragas": True,
-            "use_langsmith": True,
             "deepeval_model": "gpt-4o",
             "ragas_model": "gpt-4o",
             "enable_security_metrics": True,

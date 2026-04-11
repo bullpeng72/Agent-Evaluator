@@ -545,20 +545,35 @@ class LLMJudge:
             # Faithfulness — RAG 평가 (Ragas 대체): context 있을 때 자동 추가
             # 응답의 모든 주장이 context에 근거하는가 (0=context 무시, 5=완전 근거)
             if context_available:
-                faithfulness = max(0, min(5, int(data.get("faithfulness", 0))))
+                raw_faith = data.get("faithfulness")
+                if raw_faith is None:
+                    # H5: warn when the model omits the faithfulness field
+                    logger.warning(
+                        "LLMJudge: 'faithfulness' field missing from response for task %s; defaulting to 0",
+                        task_id,
+                    )
+                    faithfulness = 0
+                else:
+                    faithfulness = max(0, min(5, int(raw_faith)))
                 scores["faithfulness"] = faithfulness
 
             # Custom criteria — G-Eval 스타일 (DeepEval 대체)
             # judge_criteria=["medical_accuracy"] → scores["criteria_scores"]["medical_accuracy"]
             if judge_criteria:
+                # M5: exclude "faithfulness" from criteria when context_available — already scored above
+                _effective_criteria = [
+                    c for c in judge_criteria
+                    if not (context_available and c.lower().replace(" ", "_").replace("-", "_") == "faithfulness")
+                ]
                 criteria_scores: Dict[str, int] = {}
-                for criterion in judge_criteria:
+                for criterion in _effective_criteria:
                     key = criterion.lower().replace(" ", "_").replace("-", "_")
                     criteria_scores[key] = max(0, min(5, int(data.get(key, 0))))
                 scores["criteria_scores"] = criteria_scores
-                scores["criteria_overall"] = round(
-                    sum(criteria_scores.values()) / len(criteria_scores), 3
-                )
+                if criteria_scores:
+                    scores["criteria_overall"] = round(
+                        sum(criteria_scores.values()) / len(criteria_scores), 3
+                    )
 
             return {
                 "task_id": task_id,

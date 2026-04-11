@@ -135,19 +135,6 @@ KEY_DEFS: List[Dict] = [
             ("ANTHROPIC_MODEL", "claude-haiku-4-5-20251001", "사용할 Claude 모델명"),
         ],
     },
-    {
-        "env":      "LANGSMITH_API_KEY",
-        "label":    "LangSmith API Key",
-        "required": False,
-        "extra":    "frameworks",
-        "used_for": "LangSmithAdapter — LangChain 트레이싱 (pip install 'agent-evaluator[frameworks]')",
-        "url":      "https://smith.langchain.com/settings",
-        "prefix":   "ls__",
-        "companion": [
-            ("LANGCHAIN_TRACING_V2", "true",             "LangSmith 트레이싱 활성화"),
-            ("LANGCHAIN_PROJECT",    "agent-evaluator",  "LangSmith 프로젝트명"),
-        ],
-    },
 ]
 
 
@@ -515,8 +502,8 @@ def cmd_check(_args: argparse.Namespace) -> int:
         ("AGENT_EVALUATOR_OUTPUT_DIR", "결과 저장 경로"),
         ("OPENAI_MODEL",               "OpenAI 모델"),
         ("ANTHROPIC_MODEL",            "Claude 모델"),
-        ("LANGCHAIN_TRACING_V2",       "LangSmith 트레이싱"),
-        ("LANGCHAIN_PROJECT",          "LangSmith 프로젝트"),
+        ("LANGCHAIN_TRACING_V2",       "LangChain 트레이싱"),
+        ("LANGCHAIN_PROJECT",          "LangChain 프로젝트"),
     ]:
         default_val = DEFAULTS.get(extra_var, "")
         val = os.getenv(extra_var, default_val)
@@ -528,7 +515,7 @@ def cmd_check(_args: argparse.Namespace) -> int:
     _PKG_MAP = [
         ("openai",     "llm",        "@agent_eval(framework='openai') · LLMJudge · DeepEval · Ragas"),
         ("anthropic",  "llm",        "@agent_eval(framework='anthropic') · LLMJudge"),
-        ("langsmith",  "frameworks", "LangSmithAdapter"),
+        ("langchain",  "langchain",  "@agent_eval(framework='langchain') · LangChain 프레임워크 통합"),
         ("deepeval",   "eval",       "DeepEvalAdapter"),
         ("ragas",      "eval",       "RagasAdapter"),
     ]
@@ -576,7 +563,6 @@ def _print_welcome() -> None:
     _key_vars = [
         ("OPENAI_API_KEY",    "OpenAI",    False),
         ("ANTHROPIC_API_KEY", "Anthropic", False),
-        ("LANGSMITH_API_KEY", "LangSmith", False),
     ]
     set_count = sum(1 for k, _, _ in _key_vars if _is_real_key(os.environ.get(k, "")))
     total     = len(_key_vars)
@@ -737,7 +723,7 @@ def main() -> None:
         formatter_class=ColoredHelpFormatter,
         epilog=(
             f"{B}명령어:{R}\n"
-            f"  {Y}init{R}         OpenAI·Anthropic·LangSmith 등 API 키를 대화형으로 설정\n"
+            f"  {Y}init{R}         OpenAI·Anthropic API 키를 대화형으로 설정\n"
             f"  {Y}check{R}        현재 환경의 API 키 및 설정값 상태를 출력\n"
             f"  {Y}dashboard{R}    평가 결과를 시각화하는 FastAPI 웹 대시보드 실행\n"
             f"  {Y}gate{R}         CI/CD 품질 게이팅 — 임계값 기준 통과/실패 판정\n"
@@ -771,13 +757,12 @@ def main() -> None:
         "init",
         help="대화형 API 키 설정 마법사",
         description=(
-            "OpenAI, Anthropic, LangSmith API 키를\n"
+            "OpenAI, Anthropic API 키를\n"
             "대화형으로 입력하고 .env 파일에 저장합니다.\n"
             "\n"
             f"{B}설정 항목:{R}\n"
             f"  {C}OPENAI_API_KEY{R}              {D}(선택){R} @agent_eval(framework='openai') · LLMJudge · DeepEval · Ragas\n"
             f"  {C}ANTHROPIC_API_KEY{R}           {D}(선택){R} @agent_eval(framework='anthropic') · Claude 평가\n"
-            f"  {C}LANGSMITH_API_KEY{R}           {D}(선택){R} LangSmithAdapter 트레이싱 연동\n"
             f"  {C}AGENT_EVALUATOR_OUTPUT_DIR{R}  평가 결과 저장 디렉토리 {D}(기본: ./results){R}\n"
             "\n"
             f"{B}저장 위치:{R} 실행 시 대화형으로 선택합니다\n"
@@ -798,12 +783,11 @@ def main() -> None:
             "현재 환경에 설정된 API 키 및 설정값 상태를 출력합니다.\n"
             "\n"
             f"{B}출력 항목:{R}\n"
-            f"  {Y}API 키 상태{R}    {C}OPENAI_API_KEY{R}, {C}ANTHROPIC_API_KEY{R},\n"
-            f"               {C}LANGSMITH_API_KEY{R}\n"
+            f"  {Y}API 키 상태{R}    {C}OPENAI_API_KEY{R}, {C}ANTHROPIC_API_KEY{R}\n"
             f"  {Y}기타 설정{R}      {C}AGENT_EVALUATOR_OUTPUT_DIR{R}, {C}OPENAI_MODEL{R},\n"
             f"               {C}ANTHROPIC_MODEL{R}, {C}LANGCHAIN_TRACING_V2{R},\n"
             f"               {C}LANGCHAIN_PROJECT{R}\n"
-            f"  {Y}패키지 상태{R}    openai, anthropic, langsmith, deepeval, ragas 설치 여부\n"
+            f"  {Y}패키지 상태{R}    openai, anthropic, langchain, deepeval, ragas 설치 여부\n"
             f"  {Y}.env 위치{R}      로드된 .env 파일 경로\n"
             "\n"
             f"{D}API 키는 앞 8자만 표시되며 나머지는 마스킹됩니다.{R}"

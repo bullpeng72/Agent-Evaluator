@@ -458,7 +458,8 @@ class PerformanceMonitor:
         # Q: get_live_stats() 성능 최적화 — 최근 태스크 캐시 (최대 5분)
         # record_task() 에서 (timestamp_float, TaskResult) 튜플로 추가
         from collections import deque as _deque
-        self._recent_tasks_cache: "deque" = _deque()
+        # M8: maxlen=10000 prevents unbounded memory growth in long-running monitors.
+        self._recent_tasks_cache: "deque" = _deque(maxlen=10000)
         self._cache_window_seconds: float = 300.0  # 최대 5분 보관
 
     @property
@@ -1518,12 +1519,14 @@ class PerformanceMonitor:
                 self._recent_tasks_cache.popleft()
 
             # Accuracy — store via record_score() to keep _cached_avg consistent.
-            # TaskResult validates accuracy_score ∈ [0.0, 1.0] in __post_init__,
-            # so no further normalisation is needed here.
+            # When ground_truth is absent, accuracy_score=0.0 is a placeholder,
+            # not a measured value.  Pass None so get_accuracy_scores() dropna()
+            # excludes these tasks from the aggregate average (H1 fix).
+            _gt_present = bool(getattr(task_result, "ground_truth", None))
             self.accuracy_evaluator.record_score(
                 task_id=task_result.task_id,
                 task_type=task_result.task_type,
-                accuracy=task_result.accuracy_score,
+                accuracy=task_result.accuracy_score if _gt_present else None,
             )
             
             # Latency

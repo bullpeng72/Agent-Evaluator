@@ -37,8 +37,8 @@ class TestAutoSave:
 
         monitor.record_task(task1)
         # 아직 저장 안 됨 (interval=2, 1개만 기록)
-        # save_to_file은 확장자 없이 파일명 그대로 저장
-        auto_file = os.path.join(str(tmp_path), "auto_test")
+        # save_to_file은 확장자 없으면 .json 자동 추가
+        auto_file = os.path.join(str(tmp_path), "auto_test.json")
         assert not os.path.exists(auto_file)
 
         monitor.record_task(task2)
@@ -71,7 +71,7 @@ class TestAutoSave:
             auto_save_filename="interval_test",
         )
 
-        auto_file = os.path.join(str(tmp_path), "interval_test")
+        auto_file = os.path.join(str(tmp_path), "interval_test.json")
 
         for i in range(2):
             task = create_taskresult(
@@ -110,7 +110,7 @@ class TestFlushEvery:
         def agent(question: str, ground_truth: str = "") -> str:
             return "answer"
 
-        flush_file = os.path.join(str(tmp_path), "flush_test")
+        flush_file = os.path.join(str(tmp_path), "flush_test.json")
 
         agent("q1?")
         assert not os.path.exists(flush_file)
@@ -153,7 +153,7 @@ class TestBatchEvalFlushEvery:
         def batch_agent(questions, ground_truths=None):
             return [f"answer_{i}" for i in range(len(questions))]
 
-        flush_file = os.path.join(str(tmp_path), "batch_flush_test")
+        flush_file = os.path.join(str(tmp_path), "batch_flush_test.json")
 
         batch_agent(questions=["q1"], ground_truths=["a1"])
         assert not os.path.exists(flush_file)

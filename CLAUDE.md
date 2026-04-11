@@ -5,7 +5,7 @@
 **Agent-Evaluator** is a production-ready Python SDK for evaluating AI agents.
 25개의 성능 지표를 세 개의 레이어(기본/에이전틱/하이브리드)로 측정한다.
 
-- **Version:** 0.7.6 (Beta)
+- **Version:** 0.7.7 (Beta)
 - **Python:** 3.8+
 - **License:** MIT
 - **Author:** Sungwoo Kim
@@ -207,6 +207,20 @@ eval = QuickEval("results/", auto_save=True, auto_save_interval=10)
 # 재시도: @eval.with_retry(task_type="qa", max_retries=3)
 ```
 
+### PerformanceMonitor vs HybridPerformanceMonitor 선택 가이드
+
+| 항목 | `PerformanceMonitor` | `HybridPerformanceMonitor` |
+|------|---------------------|---------------------------|
+| 외부 의존성 | 없음 (Layer 1+2 native) | DeepEval / Ragas 필요 (`[eval]` extra) |
+| 설치 시간 | 빠름 | 느림 (deepeval, ragas, datasets) |
+| LLM Judge | ✅ 내장 (`enable_llm_judge=True`) | ✅ 동일 |
+| Faithfulness | ✅ 내장 (`rag_mode=True`) | ✅ + Ragas 방식도 가능 |
+| G-Eval | ✅ 내장 (`judge_criteria=[...]`) | ✅ + DeepEval 방식도 가능 |
+| RAG 평가 | ✅ HallucinationDetector | ✅ + RagasAdapter |
+| 추천 상황 | 대부분의 프로덕션 환경 | DeepEval/Ragas 생태계와 통합 시 |
+
+> **권장**: 신규 프로젝트는 `PerformanceMonitor`로 시작하고, DeepEval/Ragas 지표가 명시적으로 필요한 경우에만 `HybridPerformanceMonitor`로 전환.
+
 ### `PerformanceMonitor`
 중앙 오케스트레이터. 모든 트래커를 내부에서 구성.
 
@@ -302,6 +316,16 @@ metrics: ConversationMetrics = session.compute_metrics()
 # monitor와 통합 (권장)
 with monitor.conversation("session_id") as conv:
     conv.turn(user="안녕하세요", agent="안녕하세요!", metadata={"latency": 0.3})
+
+# @conversation_eval 데코레이터 — on_turn 콜백 시그니처
+# on_turn: (session_id: str, user: str, response: str, metadata: dict) → None
+@conversation_eval(
+    monitor,
+    on_turn=lambda session_id, user, response, metadata: print(f"[{session_id}] {user[:20]}"),
+    on_flush=lambda metrics, session_id: print(f"세션 완료: {metrics.overall_score}"),
+    max_turns=20,
+)
+def chatbot(session_id: str, question: str, ground_truth: str = "") -> str: ...
 ```
 
 ### `LLMJudge` — Safety / Faithfulness / G-Eval (v0.7.5+, 확장 v0.7.6+)
@@ -496,7 +520,7 @@ from agent_evaluator import (
 
 ## Testing
 
-`tests/` 디렉토리에 64개 파일, 2,025개+ 테스트 함수 존재.
+`tests/` 디렉토리에 67개 파일, 2,103개+ 테스트 함수 존재.
 
 ```bash
 # pytest.ini_options in pyproject.toml already configured:
@@ -566,6 +590,16 @@ pytest
 ---
 
 ## 📝 변경 이력
+
+### v0.7.7 (2026-04-11) — 데코레이터 버그 수정 · 3종 데코레이터 완전 parity · Layer 2 스레드 안전성
+
+- 🐛 **`agent_eval` preset effective 값 미적용 수정** — `_effective_flush_every` / `_effective_enabled` 계산 후 실제 변수에 재할당되지 않던 버그 수정. preset으로 지정한 `flush_every` / `enabled`가 이제 실제 동작에 반영됨
+- 🐛 **`completion_fn` ground_truth guard 추가** — `score_fn`은 `and ground_truth` 조건이 있었으나 `completion_fn`에는 누락. `ground_truth` 없을 때 사용자 함수에 빈 문자열/None이 전달되던 문제 수정
+- 🐛 **`HybridPerformanceMonitor` advanced_metrics None 역참조 수정** — `advanced_metrics=None`인 TaskResult에서 `.items()` / `in` 호출 시 TypeError 발생 수정 (None guard 3개소 추가)
+- ✨ **`conversation_eval` LLM Judge 파라미터 추가** — `enable_llm_judge` / `judge_model` / `judge_criteria` 파라미터 추가. `agent_eval` / `batch_eval`과 완전 parity 달성
+- ✨ **`batch_eval` `judge_model` 파라미터 추가** — `enable_llm_judge` / `judge_criteria`만 있고 `judge_model`이 누락되어 있던 문제 수정. `_BATCH_PARAMS` frozenset에도 추가
+- ✨ **3종 데코레이터 preset LLM Judge 적용** — `conversation_eval` / `batch_eval`의 preset 처리 블록에 `enable_llm_judge` / `judge_model` / `judge_criteria` 적용 추가. `agent_eval`과 동일한 패턴
+- 🔧 **Layer 2 트래커 스레드 안전성** — `ToolCallAnalyzer` · `RetryCorrectionTracker` · `ToolSelectionTracker` · `AgentCoordinationTracker` · `WorkflowExecutionTracker` 5개 트래커에 `threading.Lock` 추가. `_executions` append/read/reset 전 구간 보호
 
 ### v0.7.6 (2026-04-10) — LLMJudge 확장 · G-Eval/Ragas 데코레이터 대체 구현 · 데코레이터 호환 지표 22개
 

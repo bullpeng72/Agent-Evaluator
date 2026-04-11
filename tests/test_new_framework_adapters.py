@@ -323,7 +323,7 @@ class TestQuickEvalAlertRules:
         def agent(question: str, ground_truth: str = "") -> str:
             return "answer"
 
-        flush_file = os.path.join(str(tmp_path), "qe_flush")
+        flush_file = os.path.join(str(tmp_path), "qe_flush.json")
 
         agent("q1?", ground_truth="answer")
         assert not os.path.exists(flush_file)

@@ -162,12 +162,7 @@ class Settings:
         )
     )
 
-    # LangSmith (LANGCHAIN_API_KEY 도 허용)
-    langsmith_api_key: Optional[str] = field(
-        default_factory=lambda: (
-            os.getenv("LANGSMITH_API_KEY") or os.getenv("LANGCHAIN_API_KEY")
-        )
-    )
+    # LangChain 트레이싱 (프레임워크 통합 사용 시)
     langchain_tracing_v2: bool = field(
         default_factory=lambda: os.getenv(
             "LANGCHAIN_TRACING_V2", DEFAULTS["LANGCHAIN_TRACING_V2"]
@@ -204,7 +199,6 @@ class Settings:
             f"Settings("
             f"openai_api_key={mask(self.openai_api_key)}, "
             f"anthropic_api_key={mask(self.anthropic_api_key)}, "
-            f"langsmith_api_key={mask(self.langsmith_api_key)}, "
             f"openai_model={self.openai_model!r}, "
             f"anthropic_model={self.anthropic_model!r}, "
             f"output_dir={self.output_dir!r})"
@@ -215,9 +209,6 @@ class Settings:
 
     def has_anthropic(self) -> bool:
         return bool(self.anthropic_api_key)
-
-    def has_langsmith(self) -> bool:
-        return bool(self.langsmith_api_key)
 
 
 # ---------------------------------------------------------------------------
@@ -287,7 +278,6 @@ def init_from_app(
     status: Dict[str, Optional[str]] = {
         "OPENAI_API_KEY":             settings.openai_api_key,
         "ANTHROPIC_API_KEY":          settings.anthropic_api_key,
-        "LANGSMITH_API_KEY":          settings.langsmith_api_key,
         "AGENT_EVALUATOR_OUTPUT_DIR": str(settings.output_dir),
     }
 

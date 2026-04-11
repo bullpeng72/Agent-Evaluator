@@ -335,8 +335,8 @@ class TestAgentEvalRetryAlertRules:
             return "ans"
 
         agent("q")
-        # flush 파일이 생성되어야 함 (확장자 없이 저장)
-        assert (tmp_path / "retry_flush").exists()
+        # flush 파일이 생성되어야 함 (save_to_file은 .json 자동 추가)
+        assert (tmp_path / "retry_flush.json").exists()
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -362,8 +362,9 @@ class TestConversationEvalFlushEvery:
 
         chat("hello", session_id="s100")
         # max_turns=1 → flush 발생 → flush_every=1 → save_to_file 호출
+        # save_to_file은 확장자 없으면 .json 자동 추가
         time.sleep(0.1)
-        assert (tmp_path / "conv_flush").exists()
+        assert (tmp_path / "conv_flush.json").exists()
 
 
 # ─────────────────────────────────────────────────────────────────────────────

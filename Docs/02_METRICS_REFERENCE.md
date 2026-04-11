@@ -2,7 +2,7 @@
 
 Agent Evaluator 25개 지표의 공식·출력키·임계값 참조 문서
 
-**v0.7.6 | Layer 1: 6개 (무료) · Layer 2: 10개 (무료) · Layer 3: LLMJudge + DeepEval + Ragas (API 필요)**
+**v0.7.7 | Layer 1: 6개 (무료) · Layer 2: 10개 (무료) · Layer 3: LLMJudge + DeepEval + Ragas (API 필요)**
 
 > 개별 트래커 API 시그니처는 [07_API_REFERENCE.md](07_API_REFERENCE.md)를 참조하세요.
 > 데코레이터 방식 적용은 [13_DECORATOR_GUIDE.md](13_DECORATOR_GUIDE.md)를 참조하세요.

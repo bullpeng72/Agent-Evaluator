@@ -95,7 +95,11 @@ def health(request: Request) -> Dict[str, Any]:
     try:
         from agent_evaluator import __version__ as _ver
     except Exception:
-        _ver = "0.7.4"
+        try:
+            import importlib.metadata as _im
+            _ver = _im.version("agent-evaluator")
+        except Exception:
+            _ver = "unknown"
 
     # I1: OTEL 활성화 여부를 동적으로 감지
     try:

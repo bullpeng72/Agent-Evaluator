@@ -1,7 +1,7 @@
 """
 Metric Adapters for Hybrid Evaluation Architecture
 ===================================================
-Integrates external evaluation libraries (DeepEval, Ragas, LangSmith)
+Integrates external evaluation libraries (DeepEval, Ragas)
 with Agent Evaluator's native metrics system.
 """
 
@@ -17,9 +17,9 @@ from typing import Dict, Any, List, Optional
 from enum import Enum
 from dataclasses import dataclass
 
-# DeepEval / Ragas / LangSmith 의 비동기 이벤트 루프 정리 관련
+# DeepEval / Ragas 의 비동기 이벤트 루프 정리 관련
 # DeprecationWarning 만 타겟 억제 (전역 억제 금지 — CLAUDE.md 참조)
-warnings.filterwarnings("ignore", category=DeprecationWarning, module=r"deepeval|ragas|langsmith")
+warnings.filterwarnings("ignore", category=DeprecationWarning, module=r"deepeval|ragas")
 warnings.filterwarnings("ignore", message=r".*Event loop.*", category=DeprecationWarning)
 warnings.filterwarnings("ignore", message=r".*coroutine.*was never awaited.*")
 
@@ -128,11 +128,10 @@ class DeepEvalAdapter(MetricAdapter):
             self.LLMTestCase = LLMTestCase
             self.LLMTestCaseParams = LLMTestCaseParams
 
-            print(f"✅ DeepEval adapter initialized (model: {model})")
+            logger.info("DeepEval adapter initialized (model: %s)", model)
 
         except ImportError as e:
-            print(f"⚠️  DeepEval not available: {e}")
-            print("   Install with: pip install deepeval")
+            logger.info("DeepEval not available: %s. Install with: pip install deepeval", e)
 
     def is_available(self) -> bool:
         return self._available
@@ -156,7 +155,7 @@ class DeepEvalAdapter(MetricAdapter):
                     print("Metric evaluation timed out")
         """
         if not self._available:
-            return {}
+            return None  # M7: None signals "adapter unavailable"; {} means "available but no results"
 
         results = {}
 
@@ -188,18 +187,17 @@ class DeepEvalAdapter(MetricAdapter):
                 results.update(self._evaluate_answer_relevancy(test_case))
 
         except (ImportError, AttributeError) as e:
-            # Module or class not found
-            print(f"⚠️  DeepEval module error: {e}")
-            results['deepeval_error'] = f"Module error: {str(e)}"
+            # Module or class not found — return {} so advanced_metrics.update() is a no-op
+            logger.warning("DeepEval module error: %s", e)
+            return {}
         except (ValueError, TypeError) as e:
             # Invalid parameters or type mismatch
-            print(f"⚠️  DeepEval parameter error: {e}")
-            results['deepeval_error'] = f"Parameter error: {str(e)}"
+            logger.warning("DeepEval parameter error: %s", e)
+            return {}
         except Exception as e:
             # Unexpected errors (API, network, etc.)
-            print(f"⚠️  DeepEval unexpected error: {e}")
-            print(f"Traceback: {traceback.format_exc()}")
-            results['deepeval_error'] = f"Unexpected error: {str(e)}"
+            logger.warning("DeepEval unexpected error: %s\n%s", e, traceback.format_exc())
+            return {}
 
         return results
 
@@ -241,15 +239,14 @@ class DeepEvalAdapter(MetricAdapter):
                 'g_eval_passed': metric.score >= self.threshold
             }
         except (AttributeError, ImportError) as e:
-            print(f"⚠️  G-Eval module/attribute error: {e}")
-            return {'g_eval_error': f"Module error: {str(e)}"}
+            logger.warning("G-Eval module/attribute error: %s", e)
+            return {}
         except (ValueError, TypeError) as e:
-            print(f"⚠️  G-Eval parameter error: {e}")
-            return {'g_eval_error': f"Parameter error: {str(e)}"}
+            logger.warning("G-Eval parameter error: %s", e)
+            return {}
         except Exception as e:
-            error_trace = traceback.format_exc()
-            print(f"⚠️  G-Eval unexpected error:\n{error_trace}")
-            return {'g_eval_error': f"Unexpected error: {str(e)}"}
+            logger.warning("G-Eval unexpected error: %s\n%s", e, traceback.format_exc())
+            return {}
 
     def _evaluate_hallucination(self, test_case) -> Dict[str, Any]:
         """Evaluate hallucination (contextual consistency)"""
@@ -266,14 +263,14 @@ class DeepEvalAdapter(MetricAdapter):
                 'hallucination_passed': metric.score >= self.threshold
             }
         except (AttributeError, ImportError) as e:
-            print(f"⚠️  Hallucination metric module error: {e}")
-            return {'hallucination_error': f"Module error: {str(e)}"}
+            logger.warning("Hallucination metric module error: %s", e)
+            return {}
         except (ValueError, TypeError) as e:
-            print(f"⚠️  Hallucination metric parameter error: {e}")
-            return {'hallucination_error': f"Parameter error: {str(e)}"}
+            logger.warning("Hallucination metric parameter error: %s", e)
+            return {}
         except Exception as e:
-            print(f"⚠️  Hallucination metric unexpected error: {e}")
-            return {'hallucination_error': f"Unexpected error: {str(e)}"}
+            logger.warning("Hallucination metric unexpected error: %s", e)
+            return {}
 
     def _evaluate_toxicity(self, test_case) -> Dict[str, Any]:
         """Evaluate toxicity"""
@@ -290,14 +287,14 @@ class DeepEvalAdapter(MetricAdapter):
                 'toxicity_passed': metric.score <= self.threshold
             }
         except (AttributeError, ImportError) as e:
-            print(f"⚠️  Toxicity metric module error: {e}")
-            return {'toxicity_error': f"Module error: {str(e)}"}
+            logger.warning("Toxicity metric module error: %s", e)
+            return {}
         except (ValueError, TypeError) as e:
-            print(f"⚠️  Toxicity metric parameter error: {e}")
-            return {'toxicity_error': f"Parameter error: {str(e)}"}
+            logger.warning("Toxicity metric parameter error: %s", e)
+            return {}
         except Exception as e:
-            print(f"⚠️  Toxicity metric unexpected error: {e}")
-            return {'toxicity_error': f"Unexpected error: {str(e)}"}
+            logger.warning("Toxicity metric unexpected error: %s", e)
+            return {}
 
     def _evaluate_bias(self, test_case) -> Dict[str, Any]:
         """Evaluate bias"""
@@ -314,14 +311,14 @@ class DeepEvalAdapter(MetricAdapter):
                 'bias_passed': metric.score <= self.threshold
             }
         except (AttributeError, ImportError) as e:
-            print(f"⚠️  Bias metric module error: {e}")
-            return {'bias_error': f"Module error: {str(e)}"}
+            logger.warning("Bias metric module error: %s", e)
+            return {}
         except (ValueError, TypeError) as e:
-            print(f"⚠️  Bias metric parameter error: {e}")
-            return {'bias_error': f"Parameter error: {str(e)}"}
+            logger.warning("Bias metric parameter error: %s", e)
+            return {}
         except Exception as e:
-            print(f"⚠️  Bias metric unexpected error: {e}")
-            return {'bias_error': f"Unexpected error: {str(e)}"}
+            logger.warning("Bias metric unexpected error: %s", e)
+            return {}
 
     def _evaluate_answer_relevancy(self, test_case) -> Dict[str, Any]:
         """Evaluate answer relevancy"""
@@ -337,14 +334,14 @@ class DeepEvalAdapter(MetricAdapter):
                 'answer_relevancy_passed': metric.score >= self.threshold
             }
         except (AttributeError, ImportError) as e:
-            print(f"⚠️  Answer relevancy metric module error: {e}")
-            return {'answer_relevancy_error': f"Module error: {str(e)}"}
+            logger.warning("Answer relevancy metric module error: %s", e)
+            return {}
         except (ValueError, TypeError) as e:
-            print(f"⚠️  Answer relevancy metric parameter error: {e}")
-            return {'answer_relevancy_error': f"Parameter error: {str(e)}"}
+            logger.warning("Answer relevancy metric parameter error: %s", e)
+            return {}
         except Exception as e:
-            print(f"⚠️  Answer relevancy metric unexpected error: {e}")
-            return {'answer_relevancy_error': f"Unexpected error: {str(e)}"}
+            logger.warning("Answer relevancy metric unexpected error: %s", e)
+            return {}
 
     def get_metric_names(self) -> List[str]:
         return [
@@ -435,21 +432,22 @@ class RagasAdapter(MetricAdapter):
                 except ImportError:
                     pass
 
-            print(f"✅ Ragas adapter initialized (model: {active_model})")
+            logger.info("Ragas adapter initialized (model: %s)", active_model)
             if not self._embeddings_wrapper:
-                print("   ℹ️  No embeddings configured — AnswerRelevancy will be skipped")
+                logger.info("Ragas: no embeddings configured — AnswerRelevancy will be skipped")
 
         except ImportError as e:
-            print(f"⚠️  Ragas not available: {e}")
-            print("   Install with: pip install 'agent-evaluator[eval]'")
+            logger.info(
+                "Ragas not available: %s. Install with: pip install 'agent-evaluator[eval]'", e
+            )
 
     def is_available(self) -> bool:
         return self._available
 
-    def evaluate(self, context: EvaluationContext) -> Dict[str, Any]:
+    def evaluate(self, context: EvaluationContext) -> Optional[Dict[str, Any]]:
         """Evaluate using Ragas RAG metrics (ragas 0.4.x API)"""
         if not self._available:
-            return {}
+            return None  # M7: None signals "adapter unavailable"; {} means "available but no results"
 
         # Only evaluate RAG tasks with retrieved context
         if not context.retrieved_context:
@@ -524,15 +522,15 @@ class RagasAdapter(MetricAdapter):
                     results['ragas_quality'] = 'poor'
 
         except (ImportError, AttributeError) as e:
-            print(f"⚠️  Ragas module error: {e}")
-            results['ragas_error'] = f"Module error: {str(e)}"
+            # Module or class not found — return {} so advanced_metrics.update() is a no-op
+            logger.warning("Ragas module error: %s", e)
+            return {}
         except (ValueError, TypeError) as e:
-            print(f"⚠️  Ragas parameter error: {e}")
-            results['ragas_error'] = f"Parameter error: {str(e)}"
+            logger.warning("Ragas parameter error: %s", e)
+            return {}
         except Exception as e:
-            print(f"⚠️  Ragas unexpected error: {e}")
-            print(f"Traceback: {traceback.format_exc()}")
-            results['ragas_error'] = f"Unexpected error: {str(e)}"
+            logger.warning("Ragas unexpected error: %s\n%s", e, traceback.format_exc())
+            return {}
 
         return results
 
@@ -547,8 +545,6 @@ class RagasAdapter(MetricAdapter):
         ]
 
 
-# ============================================================================
-# LangSmith Adapter (Optional)
 # ============================================================================
 # Adapter Factory
 # ============================================================================

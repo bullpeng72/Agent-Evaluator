@@ -81,7 +81,6 @@ class TestSettingsRepr:
         s = Settings.__new__(Settings)
         s.openai_api_key = "sk-abcdefghijklmnopqrstuvwxyz1234"
         s.anthropic_api_key = None
-        s.langsmith_api_key = None
         s.openai_model = "gpt-4o-mini"
         s.anthropic_model = "claude-haiku"
         from pathlib import Path
@@ -98,7 +97,6 @@ class TestSettingsRepr:
         s = Settings.__new__(Settings)
         s.openai_api_key = None
         s.anthropic_api_key = None
-        s.langsmith_api_key = None
         s.openai_model = "gpt-4o-mini"
         s.anthropic_model = "claude-haiku"
         from pathlib import Path
@@ -111,7 +109,6 @@ class TestSettingsRepr:
         s = Settings.__new__(Settings)
         s.openai_api_key = None
         s.anthropic_api_key = "sk-ant-api03-supersecretkey1234567890abcdef"
-        s.langsmith_api_key = None
         s.openai_model = "gpt-4o-mini"
         s.anthropic_model = "claude-haiku"
         from pathlib import Path

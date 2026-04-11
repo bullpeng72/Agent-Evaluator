@@ -129,9 +129,11 @@ def test_empty_expected_no_division_by_zero(tracker):
         expected_tools=[],
         actual_tools=["web_search"],
     )
-    # When expected is empty there is no ground truth — accuracy is 0.0 (not 100.0)
-    # so it doesn't inflate aggregated scores. A "note" key signals the skip.
-    assert result["accuracy"] == 0.0
+    # When expected is empty there is no ground truth — accuracy/f1_score are None
+    # (not 0.0) so callers using dropna() exclude them from aggregated averages.
+    # A "note" key signals the evaluation was skipped.
+    assert result["accuracy"] is None
+    assert result["f1_score"] is None
     assert "note" in result
     # All standard keys must be present for consistent downstream aggregation
     for key in ("precision", "recall", "f1_score", "true_positives",

@@ -166,7 +166,7 @@ def calculate_completion_score(
 
 def calculate_accuracy_score(
     response: str,
-    ground_truth: str,
+    ground_truth: Optional[str],
     method: str = "combined"
 ) -> float:
     """
@@ -184,7 +184,9 @@ def calculate_accuracy_score(
         method: "combined" (4가지 조합) 또는 개별 메트릭명
 
     Returns:
-        float: 0.0 ~ 1.0 사이의 정확도 점수
+        float: 0.0 ~ 1.0 사이의 정확도 점수.
+              *response* 또는 *ground_truth* 가 빈 문자열이거나 None인 경우 0.0을 반환한다
+              (ground_truth가 없으면 정확도를 측정할 수 없음).
 
     Examples:
         >>> calculate_accuracy_score("서울", "서울", method="combined")
@@ -192,6 +194,9 @@ def calculate_accuracy_score(
 
         >>> calculate_accuracy_score("대한민국의 수도는 서울입니다", "서울")
         0.85
+
+        >>> calculate_accuracy_score("서울", "")  # empty ground_truth → 0.0
+        0.0
     """
     if not response or not ground_truth:
         return 0.0

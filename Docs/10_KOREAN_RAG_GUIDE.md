@@ -1,6 +1,6 @@
 # 한국어 RAG 평가 가이드
 
-Golden Dataset 생성 및 RAG 시스템 평가 완벽 가이드 — Agent Evaluator v0.7.6
+Golden Dataset 생성 및 RAG 시스템 평가 완벽 가이드 — Agent Evaluator v0.7.7
 
 ## 목차
 
@@ -914,5 +914,5 @@ result = evaluate(dataset, metrics=[Faithfulness(), AnswerRelevancy(), ContextRe
 
 ---
 
-**문서 버전**: v0.7.6  
-**최종 업데이트**: 2026-04-10
+**문서 버전**: v0.7.7  
+**최종 업데이트**: 2026-04-11

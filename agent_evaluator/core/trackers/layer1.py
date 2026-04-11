@@ -515,7 +515,13 @@ class AccuracyEvaluator(BaseTracker):
             return {}
 
         df = pd.DataFrame(self._evaluations)
-        return df.groupby("task_type")["accuracy"].mean().mul(100).round(2).to_dict()
+        return (
+            df.groupby("task_type")["accuracy"]
+            .apply(lambda s: s.dropna().mean())
+            .mul(100)
+            .round(2)
+            .to_dict()
+        )
 
     def get_accuracy_metrics(self) -> Dict[str, Any]:
         """Get aggregated accuracy metrics — consistent superset of get_accuracy_scores().

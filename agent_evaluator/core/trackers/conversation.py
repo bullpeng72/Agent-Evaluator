@@ -406,13 +406,13 @@ class ConversationSession:
     def _compute_context_retention(self) -> float:
         """이전 응답의 top-N 단어가 현재 응답에 등장하는 비율 평균.
 
-        1턴이면 비교 불가하므로 1.0 반환.
+        1턴이면 비교 불가하므로 0.5(중립) 반환.
         이전 응답이 불용어만 포함해 top-N 단어 추출 불가한 턴은 평균에서 제외한다
         (측정 불가 ≠ 완벽한 유지).
         """
         n = len(self._turns)
         if n <= 1:
-            return 1.0
+            return 0.5  # M4: 1-turn → neutral 0.5 (not 1.0) to align with progressive_depth=0.0
 
         scores: List[float] = []
         for i in range(1, n):

@@ -3,7 +3,7 @@
 [![PyPI version](https://img.shields.io/pypi/v/agent-evaluator.svg)](https://pypi.org/project/agent-evaluator/)
 [![Python Version](https://img.shields.io/badge/python-3.8%2B-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Version](https://img.shields.io/badge/version-0.7.6-green.svg)](https://github.com/bullpeng72/Agent-Evaluator)
+[![Version](https://img.shields.io/badge/version-0.7.7-green.svg)](https://github.com/bullpeng72/Agent-Evaluator)
 
 **AI 에이전트를 위한 프로덕션 레디 평가 프레임워크**
 
@@ -1299,7 +1299,7 @@ agent-evaluator/
 │   └── datasets/                # GoldenSetBuilder
 │
 ├── Evaluator_Examples/          # 예제 7개 통합 파일 (.deprecated/에 구 21개 보존)
-├── tests/                       # 2,025개 테스트 함수, 63개 파일
+├── tests/                       # 2,103개 테스트 함수, 67개 파일
 └── pyproject.toml
 ```
 
@@ -1334,7 +1334,7 @@ git clone https://github.com/bullpeng72/Agent-Evaluator.git
 cd Agent-Evaluator
 pip install -e ".[dev]"
 
-pytest                          # 테스트 실행 (2,025개)
+pytest                          # 테스트 실행 (2,103개)
 ruff check agent_evaluator/    # 린트
 ruff format agent_evaluator/   # 포맷
 mypy agent_evaluator/          # 타입 검사
@@ -1343,6 +1343,16 @@ mypy agent_evaluator/          # 타입 검사
 ---
 
 ## 변경 이력
+
+### v0.7.7 (2026-04-11) — 데코레이터 버그 수정 · 3종 데코레이터 완전 parity · Layer 2 스레드 안전성
+
+- 🐛 `agent_eval` preset `flush_every`/`enabled` 미적용 수정 — `_effective_*` 변수 재할당 누락 버그
+- 🐛 `completion_fn` ground_truth guard 추가 — `score_fn`과 동일한 조건으로 맞춤
+- 🐛 `HybridPerformanceMonitor` `advanced_metrics=None` TypeError 수정 — 3개소 None guard 추가
+- ✨ `conversation_eval` LLM Judge 파라미터 추가 — `enable_llm_judge` / `judge_model` / `judge_criteria` (3종 데코레이터 완전 parity)
+- ✨ `batch_eval` `judge_model` 파라미터 추가 — `_BATCH_PARAMS` frozenset 동시 갱신
+- ✨ 3종 데코레이터 preset LLM Judge 적용 — `conversation_eval` / `batch_eval` preset 블록에 LLM Judge 파라미터 반영
+- 🔧 Layer 2 트래커 스레드 안전성 — 5개 트래커(`ToolCallAnalyzer` 등) `threading.Lock` 추가
 
 ### v0.7.6 (2026-04-10) — LLMJudge 확장 · G-Eval/Ragas 데코레이터 대체 · 지표 22개 데코레이터 호환
 

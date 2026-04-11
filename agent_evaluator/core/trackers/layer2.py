@@ -11,6 +11,7 @@ from __future__ import annotations
 import json
 import logging
 import statistics
+import threading
 from collections import defaultdict
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Set, Union
@@ -100,23 +101,28 @@ class ToolCallAnalyzer(BaseTracker):
 
     def __init__(self):
         self._executions: List[Dict[str, Any]] = []
+        self._lock = threading.Lock()  # M4: thread-safe append
 
     @property
     def executions(self) -> List[Dict[str, Any]]:
         """Shallow copy of accumulated execution records."""
-        return list(self._executions)
+        with self._lock:
+            return list(self._executions)
 
     @executions.setter
     def executions(self, value: List[Dict[str, Any]]) -> None:
         """Restore internal state (used by load_from_file)."""
-        self._executions = list(value)
+        with self._lock:
+            self._executions = list(value)
 
     def __repr__(self) -> str:
-        return f"ToolCallAnalyzer(executions={len(self._executions)})"
+        with self._lock:
+            return f"ToolCallAnalyzer(executions={len(self._executions)})"
 
     def reset(self) -> None:
         """Clear all execution records."""
-        self._executions.clear()
+        with self._lock:
+            self._executions.clear()
 
     def analyze_execution(
         self,
@@ -195,7 +201,8 @@ class ToolCallAnalyzer(BaseTracker):
         waste_rate = (metrics["redundant_calls"] + metrics["failed_calls"]) / metrics["total_calls"]
         metrics["efficiency_score"] = round(max(0, 100 - (waste_rate * 100)), 2)
 
-        self._executions.append(metrics)
+        with self._lock:
+            self._executions.append(metrics)
         return metrics
 
     def _count_redundant_calls(self, tool_calls: List) -> int:
@@ -359,25 +366,30 @@ class RetryCorrectionTracker(BaseTracker):
     def __init__(self):
         self._attempts: List[Dict[str, Any]] = []
         self._task_ids: Set[str] = set()
+        self._lock = threading.Lock()  # M4: thread-safe append
 
     @property
     def attempts(self) -> List[Dict[str, Any]]:
         """Shallow copy of accumulated retry attempt records."""
-        return list(self._attempts)
+        with self._lock:
+            return list(self._attempts)
 
     @attempts.setter
     def attempts(self, value: List[Dict[str, Any]]) -> None:
         """Restore internal state (used by load_from_file)."""
-        self._attempts = list(value)
-        self._task_ids = {a.get("task_id") for a in value if a.get("task_id") is not None}
+        with self._lock:
+            self._attempts = list(value)
+            self._task_ids = {a.get("task_id") for a in value if a.get("task_id") is not None}
 
     def __repr__(self) -> str:
-        return f"RetryCorrectionTracker(attempts={len(self._attempts)})"
+        with self._lock:
+            return f"RetryCorrectionTracker(attempts={len(self._attempts)})"
 
     def reset(self) -> None:
         """Clear all retry attempt records."""
-        self._attempts.clear()
-        self._task_ids.clear()
+        with self._lock:
+            self._attempts.clear()
+            self._task_ids.clear()
 
     def track_attempts(
         self,
@@ -420,8 +432,9 @@ class RetryCorrectionTracker(BaseTracker):
             "total_retry_time": sum(a.get("duration", 0) for a in attempts_log[1:])
         }
 
-        self._attempts.append(analysis)
-        self._task_ids.add(task_id)
+        with self._lock:
+            self._attempts.append(analysis)
+            self._task_ids.add(task_id)
 
     def get_retry_metrics(self) -> Dict[str, Any]:
         """Get retry statistics"""
@@ -539,25 +552,30 @@ class ToolSelectionTracker(BaseTracker):
     def __init__(self):
         self._selections: List[Dict[str, Any]] = []
         self._task_ids: Set[str] = set()
+        self._lock = threading.Lock()  # M4: thread-safe append
 
     @property
     def selections(self) -> List[Dict[str, Any]]:
         """Shallow copy of accumulated tool selection records."""
-        return list(self._selections)
+        with self._lock:
+            return list(self._selections)
 
     @selections.setter
     def selections(self, value: List[Dict[str, Any]]) -> None:
         """Restore internal state (used by load_from_file)."""
-        self._selections = list(value)
-        self._task_ids = {s.get("task_id") for s in value if s.get("task_id") is not None}
+        with self._lock:
+            self._selections = list(value)
+            self._task_ids = {s.get("task_id") for s in value if s.get("task_id") is not None}
 
     def __repr__(self) -> str:
-        return f"ToolSelectionTracker(selections={len(self._selections)})"
+        with self._lock:
+            return f"ToolSelectionTracker(selections={len(self._selections)})"
 
     def reset(self) -> None:
         """Clear all selection records."""
-        self._selections.clear()
-        self._task_ids.clear()
+        with self._lock:
+            self._selections.clear()
+            self._task_ids.clear()
 
     def evaluate_selection(
         self,
@@ -593,9 +611,9 @@ class ToolSelectionTracker(BaseTracker):
             100.0
         """
         if not expected_tools:
-            # No ground truth to compare against — return consistent key structure
-            # with accuracy=0.0 so aggregation pipelines can safely sum/average.
-            # The "note" key signals callers that this evaluation was skipped.
+            # No ground truth to compare against — return None for numeric scores
+            # so callers can distinguish "evaluation skipped" from "actual score=0".
+            # Aggregation callers that use dropna() will exclude None automatically.
             return {
                 "task_id": task_id,
                 "expected_tools": expected_tools,
@@ -603,10 +621,10 @@ class ToolSelectionTracker(BaseTracker):
                 "true_positives": 0,
                 "false_positives": len(actual_tools),
                 "false_negatives": 0,
-                "precision": 0.0,
-                "recall": 0.0,
-                "f1_score": 0.0,
-                "accuracy": 0.0,
+                "precision": None,
+                "recall": None,
+                "f1_score": None,
+                "accuracy": None,
                 "note": "No expected tools defined — evaluation skipped",
             }
 
@@ -637,8 +655,9 @@ class ToolSelectionTracker(BaseTracker):
             "accuracy": round(f1_score * 100, 2)
         }
 
-        self._selections.append(result)
-        self._task_ids.add(task_id)
+        with self._lock:
+            self._selections.append(result)
+            self._task_ids.add(task_id)
         return result
 
     def get_accuracy_stats(self) -> Dict[str, Any]:
@@ -657,12 +676,18 @@ class ToolSelectionTracker(BaseTracker):
 
         df = pd.DataFrame(self._selections)
 
+        # H1/M1: evaluate_selection() may return None for skipped entries (no expected_tools).
+        # Use dropna() before mean() so skipped evaluations don't distort averages.
+        def _safe_mean(col: str) -> float:
+            valid = df[col].dropna()
+            return round(valid.mean(), 2) if not valid.empty else 0.0
+
         return {
             "total_evaluations": len(self._selections),
-            "avg_accuracy": round(df["accuracy"].mean(), 2),
-            "avg_precision": round(df["precision"].mean(), 2),
-            "avg_recall": round(df["recall"].mean(), 2),
-            "avg_f1_score": round(df["f1_score"].mean(), 2),
+            "avg_accuracy": _safe_mean("accuracy"),
+            "avg_precision": _safe_mean("precision"),
+            "avg_recall": _safe_mean("recall"),
+            "avg_f1_score": _safe_mean("f1_score"),
             "total_true_positives": int(df["true_positives"].sum()),
             "total_false_positives": int(df["false_positives"].sum()),
             "total_false_negatives": int(df["false_negatives"].sum())
@@ -728,23 +753,28 @@ class AgentCoordinationTracker(BaseTracker):
 
     def __init__(self):
         self._interactions: List[Dict[str, Any]] = []
+        self._lock = threading.Lock()  # M4: thread-safe append
 
     @property
     def interactions(self) -> List[Dict[str, Any]]:
         """Shallow copy of accumulated agent interaction records."""
-        return list(self._interactions)
+        with self._lock:
+            return list(self._interactions)
 
     @interactions.setter
     def interactions(self, value: List[Dict[str, Any]]) -> None:
         """Restore internal state (used by load_from_file)."""
-        self._interactions = list(value)
+        with self._lock:
+            self._interactions = list(value)
 
     def __repr__(self) -> str:
-        return f"AgentCoordinationTracker(interactions={len(self._interactions)})"
+        with self._lock:
+            return f"AgentCoordinationTracker(interactions={len(self._interactions)})"
 
     def reset(self) -> None:
         """Clear all interaction records."""
-        self._interactions.clear()
+        with self._lock:
+            self._interactions.clear()
 
     def track_interaction(
         self,
@@ -805,7 +835,8 @@ class AgentCoordinationTracker(BaseTracker):
             "context": context or {}
         }
 
-        self._interactions.append(interaction)
+        with self._lock:
+            self._interactions.append(interaction)
         return interaction
 
     def calculate_coordination_score(self, task_id: Optional[str] = None) -> Dict[str, Any]:
@@ -1081,23 +1112,28 @@ class WorkflowExecutionTracker(BaseTracker):
 
     def __init__(self):
         self._executions: List[Dict[str, Any]] = []
+        self._lock = threading.Lock()  # M4: thread-safe append
 
     @property
     def executions(self) -> List[Dict[str, Any]]:
         """Shallow copy of accumulated workflow execution records."""
-        return list(self._executions)
+        with self._lock:
+            return list(self._executions)
 
     @executions.setter
     def executions(self, value: List[Dict[str, Any]]) -> None:
         """Restore internal state (used by load_from_file)."""
-        self._executions = list(value)
+        with self._lock:
+            self._executions = list(value)
 
     def __repr__(self) -> str:
-        return f"WorkflowExecutionTracker(steps={len(self._executions)})"
+        with self._lock:
+            return f"WorkflowExecutionTracker(steps={len(self._executions)})"
 
     def reset(self) -> None:
         """Clear all workflow execution records."""
-        self._executions.clear()
+        with self._lock:
+            self._executions.clear()
 
     def track_step(
         self,
@@ -1150,7 +1186,8 @@ class WorkflowExecutionTracker(BaseTracker):
             "metadata": metadata or {}
         }
 
-        self._executions.append(step)
+        with self._lock:
+            self._executions.append(step)
         return step
 
     def calculate_execution_success_rate(

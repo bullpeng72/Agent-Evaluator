@@ -3064,7 +3064,7 @@ def _apply_overrides(
             overrides["accuracy_score"] = _clamp01(float(score_fn(response, ground_truth)))
         except Exception as e:
             logger.debug("score_fn 실패 (자동 계산 유지): %s", e)
-    if completion_fn is not None and response:
+    if completion_fn is not None and response and ground_truth:  # B3: score_fn과 동일하게 ground_truth guard 추가
         try:
             overrides["completion_score"] = _clamp01(float(completion_fn(response, ground_truth)))
         except Exception as e:
@@ -3583,7 +3583,7 @@ def _build_and_record(
             try:
                 on_error(task_result)
             except Exception as e:
-                logger.debug("on_error 콜백 실패: %s", e)
+                logger.warning("on_error 콜백 실패: %s", e)  # L3: warn not debug
 
         return task_result  # Gap AM: 호출자가 수집할 수 있도록 반환
 
@@ -3999,6 +3999,10 @@ def agent_eval(
         if task_type == "qa":
             task_type = "information_retrieval"
 
+    # M1: profile is a legacy alias for preset — if profile is set and preset is not, use profile.
+    if profile is not None and preset is None:
+        preset = profile
+
     # H1: preset — 사전 정의된 파라미터 묶음 적용 (명시적 파라미터가 preset보다 우선)
     # NOTE: Python에서 기본값과 명시적 지정을 구분하기 어려우므로
     # preset은 전역 변수를 nonlocal로 수정하는 대신 내부 변수로 처리
@@ -4019,13 +4023,21 @@ def agent_eval(
     # preset 값 적용 (기본값인 경우에만)
     _effective_sample_rate = sample_rate if sample_rate != 1.0 else _preset_vals.get("sample_rate", sample_rate)
     _effective_timeout = timeout if timeout is not None else _preset_vals.get("timeout", timeout)
-    _effective_flush_every = flush_every if flush_every is not None else _preset_vals.get("flush_every", flush_every)
+    # H1: flush_every가 0(기본)이면 preset 값 적용; 명시적으로 지정한 경우 유지
+    _effective_flush_every = flush_every if flush_every else _preset_vals.get("flush_every", flush_every)
+    # H1: enabled가 True(기본)이면 preset 값 확인; 명시적 False면 preset이 재활성화 못 함
     _effective_enabled = enabled if not enabled else _preset_vals.get("enabled", enabled)
     _effective_allow_dup = allow_duplicate_task_ids if not allow_duplicate_task_ids else _preset_vals.get("allow_duplicate_task_ids", allow_duplicate_task_ids)
     # E1/E5: preset에서 enable_llm_judge / enable_anomaly_detection 적용 (기본값인 경우에만)
     _effective_enable_llm_judge = enable_llm_judge or _preset_vals.get("enable_llm_judge", False)
     _effective_judge_model = judge_model or _preset_vals.get("judge_model", None)
     _effective_enable_anomaly = enable_anomaly_detection or _preset_vals.get("enable_anomaly_detection", False)
+    # M3: preset에서 enable_hallucination 적용 (timeout은 _effective_timeout으로 이미 추출)
+    _effective_enable_hallucination = enable_hallucination or _preset_vals.get("enable_hallucination", False)
+
+    # H1: 계산된 effective 값을 원본 변수에 재할당 — 이후 closure에서 effective 값이 사용됨
+    flush_every = _effective_flush_every
+    enabled = _effective_enabled
 
     # 재시도 횟수 정규화 (0 이하는 1회 시도로 처리)
     _n_tries = max(1, max_retries)
@@ -4066,6 +4078,7 @@ def agent_eval(
                         _mon.save_to_file(flush_filename)
                         logger.debug("flush_every=%d 조건 충족 — '%s' 저장", flush_every, flush_filename)
                     except Exception as _fe:
+                        _flush_counter[0] -= 1  # M6: roll back counter so next call retries
                         logger.debug("flush_every 저장 실패 (무시): %s", _fe)
 
         # on_record에 _maybe_flush 연결 (Gap H: 반환값 보존)
@@ -4103,6 +4116,17 @@ def agent_eval(
                     stacklevel=3,
                 )
             _eval_active_token = _eval_active.set(True)
+            # M2: 중첩 깊이 추적 — ContextVar Token 기반으로 finally에서 복원
+            _nest_depth_token = _NEST_DEPTH.set(_NEST_DEPTH.get() + 1)
+            _current_depth = _NEST_DEPTH.get()
+            if _current_depth > MAX_NESTING_DEPTH:
+                import warnings as _warnings_m2
+                _warnings_m2.warn(
+                    f"agent_eval 중첩 깊이 {_current_depth}가 MAX_NESTING_DEPTH={MAX_NESTING_DEPTH}를 초과합니다. "
+                    "재귀 호출 또는 과도한 데코레이터 중첩을 확인하세요.",
+                    ResourceWarning,
+                    stacklevel=3,
+                )
 
             question, ground_truth, context, expected_tools = _resolve_args(
                 sig, args, kwargs,
@@ -4141,12 +4165,12 @@ def agent_eval(
                 while _attempt < _n_tries:
                     _attempt += 1
                     try:
-                        if timeout is not None:
+                        if _effective_timeout is not None:
                             with concurrent.futures.ThreadPoolExecutor(max_workers=1) as _ex:
                                 try:
-                                    raw = _ex.submit(func, *args, **kwargs).result(timeout=timeout)
+                                    raw = _ex.submit(func, *args, **kwargs).result(timeout=_effective_timeout)
                                 except concurrent.futures.TimeoutError:
-                                    raise TimeoutError(f"exceeded {timeout}s")
+                                    raise TimeoutError(f"exceeded {_effective_timeout}s")
                         else:
                             raw = func(*args, **kwargs)
                         break  # 성공 — retry 루프 탈출
@@ -4196,6 +4220,10 @@ def agent_eval(
                 elapsed = time.perf_counter() - start
                 _pop_ctx(_ctx_token)
                 _eval_active.reset(_eval_active_token)  # 항목 F: 이중 감지 토큰 복원
+                try:
+                    _NEST_DEPTH.reset(_nest_depth_token)  # M2: 중첩 깊이 복원
+                except Exception:
+                    pass
                 # 재시도 데이터를 eval_ctx에 주입 (attempts, errors)
                 if eval_ctx is not None and _n_tries > 1:
                     eval_ctx.attempts = _attempt
@@ -4225,7 +4253,7 @@ def agent_eval(
                         on_error=on_error,
                         custom_parser=custom_parser,  # A9
                         auto_detect_framework=auto_detect_framework,  # C7
-                        enable_hallucination=enable_hallucination,  # G4
+                        enable_hallucination=_effective_enable_hallucination,  # G4/M3
                         enable_llm_judge=_effective_enable_llm_judge,  # E1
                         judge_model=_effective_judge_model,           # E1
                         judge_criteria=judge_criteria,                # J1
@@ -4233,7 +4261,20 @@ def agent_eval(
                         allowed_tools=allowed_tools,                  # E3
                         enable_anomaly_detection=_effective_enable_anomaly,  # A2
                         enable_quality_evaluation=enable_quality_evaluation,  # P2-B
+                        allow_duplicate_task_ids=_effective_allow_dup,  # M2: apply preset value
                     )
+                    # M3: ttft_seconds 외부 주입 — 데코레이터 모드에서 track_ttft() 호출
+                    if ttft_seconds is not None:
+                        _monitors_ttft = monitor if isinstance(monitor, list) else [monitor]
+                        for _m_ttft in _monitors_ttft:
+                            _lt = getattr(_m_ttft, "latency_tracker", None)
+                            if _lt is not None and hasattr(_lt, "track_ttft"):
+                                try:
+                                    _lt.track_ttft(task_id, ttft_seconds,
+                                                   task_type=_task_type_str)
+                                except Exception as _ttft_e:
+                                    logger.debug("ttft track_ttft 실패 (무시): %s", _ttft_e)
+                                break
 
         @functools.wraps(func)
         async def async_wrapper(*args, **kwargs):
@@ -4275,6 +4316,9 @@ def agent_eval(
             error_msg: Optional[str] = None
             raw: Any = None
             eval_ctx, _ctx_token = _push_ctx()
+            # H1: track _eval_active and _NEST_DEPTH for async wrapper (same as gen/agen wrappers)
+            _async_eval_active_token = _eval_active.set(True)
+            _async_nest_depth_token = _NEST_DEPTH.set(_NEST_DEPTH.get() + 1)
             _attempt = 0
             _errors: List[str] = []
             _wait = delay
@@ -4283,8 +4327,8 @@ def agent_eval(
                 while _attempt < _n_tries:
                     _attempt += 1
                     try:
-                        if timeout is not None:
-                            raw = await asyncio.wait_for(func(*args, **kwargs), timeout=timeout)
+                        if _effective_timeout is not None:
+                            raw = await asyncio.wait_for(func(*args, **kwargs), timeout=_effective_timeout)
                         else:
                             raw = await func(*args, **kwargs)
                         break  # 성공
@@ -4330,6 +4374,11 @@ def agent_eval(
             finally:
                 elapsed = time.perf_counter() - start
                 _pop_ctx(_ctx_token)
+                # H1: restore ContextVar tokens set at async_wrapper entry
+                try: _eval_active.reset(_async_eval_active_token)
+                except Exception: pass
+                try: _NEST_DEPTH.reset(_async_nest_depth_token)
+                except Exception: pass
                 if eval_ctx is not None and _n_tries > 1:
                     eval_ctx.attempts = _attempt
                     if _errors:
@@ -4358,7 +4407,7 @@ def agent_eval(
                         on_error=on_error,
                         custom_parser=custom_parser,  # A9
                         auto_detect_framework=auto_detect_framework,  # C7
-                        enable_hallucination=enable_hallucination,  # G4
+                        enable_hallucination=_effective_enable_hallucination,  # G4/M3
                         enable_llm_judge=_effective_enable_llm_judge,  # E1
                         judge_model=_effective_judge_model,           # E1
                         judge_criteria=judge_criteria,                # J1
@@ -4366,6 +4415,7 @@ def agent_eval(
                         allowed_tools=allowed_tools,                  # E3
                         enable_anomaly_detection=_effective_enable_anomaly,  # A2
                         enable_quality_evaluation=enable_quality_evaluation,  # P2-B
+                        allow_duplicate_task_ids=_effective_allow_dup,  # M2: apply preset value
                     )
 
         @functools.wraps(func)
@@ -4404,6 +4454,9 @@ def agent_eval(
             eval_meta_from_gen: Optional[EvalMetadata] = None  # Gap AV
             _first_yield_time: Optional[float] = None           # D6: 첫 청크 시간
             eval_ctx, _ctx_token = _push_ctx()
+            # H6/M3: track _eval_active and _NEST_DEPTH for generators (same as regular wrapper)
+            _gen_eval_active_token = _eval_active.set(True)
+            _gen_nest_depth_token = _NEST_DEPTH.set(_NEST_DEPTH.get() + 1)
 
             try:
                 for chunk in func(*args, **kwargs):
@@ -4421,6 +4474,11 @@ def agent_eval(
             finally:
                 elapsed = time.perf_counter() - start
                 _pop_ctx(_ctx_token)
+                # H6/M3: restore ContextVar tokens set at gen_wrapper entry
+                try: _eval_active.reset(_gen_eval_active_token)
+                except Exception: pass
+                try: _NEST_DEPTH.reset(_gen_nest_depth_token)
+                except Exception: pass
                 raw_str = "".join(chunks)
                 # Gap AV: pass EvalMetadata from generator as (raw, eval_meta) tuple
                 raw_to_record = (raw_str, eval_meta_from_gen) if eval_meta_from_gen else raw_str
@@ -4448,7 +4506,7 @@ def agent_eval(
                         on_error=on_error,
                         custom_parser=custom_parser,  # A9
                         auto_detect_framework=auto_detect_framework,  # C7
-                        enable_hallucination=enable_hallucination,  # G4
+                        enable_hallucination=_effective_enable_hallucination,  # G4/M3
                         enable_llm_judge=_effective_enable_llm_judge,  # E1
                         judge_model=_effective_judge_model,           # E1
                         judge_criteria=judge_criteria,                # J1
@@ -4456,6 +4514,7 @@ def agent_eval(
                         allowed_tools=allowed_tools,                  # E3
                         enable_anomaly_detection=_effective_enable_anomaly,  # A2
                         enable_quality_evaluation=enable_quality_evaluation,  # P2-B
+                        allow_duplicate_task_ids=_effective_allow_dup,  # M2: apply preset value
                     )
                 # D6: 첫 청크 시간을 TTFT로 자동 기록
                 if _first_yield_time is not None:
@@ -4507,6 +4566,9 @@ def agent_eval(
             eval_meta_from_gen: Optional[EvalMetadata] = None  # Gap AV
             _first_yield_time: Optional[float] = None           # D6: 첫 청크 시간
             eval_ctx, _ctx_token = _push_ctx()
+            # H6/M3: track _eval_active and _NEST_DEPTH for async generators
+            _agen_eval_active_token = _eval_active.set(True)
+            _agen_nest_depth_token = _NEST_DEPTH.set(_NEST_DEPTH.get() + 1)
 
             try:
                 async for chunk in func(*args, **kwargs):
@@ -4524,6 +4586,11 @@ def agent_eval(
             finally:
                 elapsed = time.perf_counter() - start
                 _pop_ctx(_ctx_token)
+                # H6/M3: restore ContextVar tokens set at agen_wrapper entry
+                try: _eval_active.reset(_agen_eval_active_token)
+                except Exception: pass
+                try: _NEST_DEPTH.reset(_agen_nest_depth_token)
+                except Exception: pass
                 raw_str = "".join(chunks)
                 # Gap AV: pass EvalMetadata from generator as (raw, eval_meta) tuple
                 raw_to_record = (raw_str, eval_meta_from_gen) if eval_meta_from_gen else raw_str
@@ -4551,7 +4618,7 @@ def agent_eval(
                         on_error=on_error,
                         custom_parser=custom_parser,  # A9
                         auto_detect_framework=auto_detect_framework,  # C7
-                        enable_hallucination=enable_hallucination,  # G4
+                        enable_hallucination=_effective_enable_hallucination,  # G4/M3
                         enable_llm_judge=_effective_enable_llm_judge,  # E1
                         judge_model=_effective_judge_model,           # E1
                         judge_criteria=judge_criteria,                # J1
@@ -4559,6 +4626,7 @@ def agent_eval(
                         allowed_tools=allowed_tools,                  # E3
                         enable_anomaly_detection=_effective_enable_anomaly,  # A2
                         enable_quality_evaluation=enable_quality_evaluation,  # P2-B
+                        allow_duplicate_task_ids=_effective_allow_dup,  # M2: apply preset value
                     )
                 # D6: async generator — 첫 청크 시간을 TTFT로 자동 기록
                 if _first_yield_time is not None:
@@ -4703,6 +4771,22 @@ def _do_flush(entry: Dict[str, Any]) -> None:
     session_score_fn_cb: Optional[Callable] = entry.get("session_score_fn")  # Gap T
     on_record_cb: Optional[Callable] = entry.get("on_record")  # C: on_record 콜백
 
+    # H2: conversation_eval LLM Judge lazy-init — agent_eval과 동일한 패턴
+    _conv_judge_was_lazy = False
+    _conv_enable_llm_judge = entry.get("enable_llm_judge", False)
+    if _conv_enable_llm_judge and getattr(stored_monitor, "llm_judge", None) is None:
+        try:
+            from agent_evaluator.integrations.llm_judge import LLMJudge as _LJCls
+            _lj_model = entry.get("judge_model") or None
+            _lj_criteria = entry.get("judge_criteria") or None
+            stored_monitor.llm_judge = _LJCls(model=_lj_model, judge_criteria=_lj_criteria)
+            stored_monitor.enable_llm_judge = True
+            _conv_judge_was_lazy = True
+            logger.debug("conversation_eval: LLM Judge lazy-init (model=%s)", stored_monitor.llm_judge.model)
+        except Exception as _lj_init_exc:
+            logger.warning("conversation_eval: LLM Judge 초기화 실패 (무시): %s", _lj_init_exc)
+            _conv_enable_llm_judge = False
+
     try:
         with stored_monitor.conversation(session_id) as conv:
             for t in turns:
@@ -4769,6 +4853,11 @@ def _do_flush(entry: Dict[str, Any]) -> None:
                 logger.debug("conversation alert_rules 실패 (무시): %s", _ar_exc)
     except Exception as exc:
         logger.debug("flush_conversation: 세션 '%s' flush 실패: %s", session_id, exc)
+    finally:
+        # H2: lazy-init한 LLM Judge 인스턴스 제거 (monitor 원상 복원)
+        if _conv_judge_was_lazy:
+            stored_monitor.llm_judge = None
+            stored_monitor.enable_llm_judge = False
 
 
 def conversation_eval(
@@ -4795,6 +4884,10 @@ def conversation_eval(
     max_turns_exceeded_action: str = "flush",         # A10: "flush" | "warn" | "error"
     load_previous_session: bool = False,              # A7: True이면 flush_filename 파일에서 이전 세션 로드
     enabled: bool = True,
+    # H2: LLM Judge — agent_eval/batch_eval과 파라미터 parity
+    enable_llm_judge: bool = False,
+    judge_model: Optional[str] = None,
+    judge_criteria: Optional[List[str]] = None,
     # A1: preset — AGENT_EVAL_PRESETS 키로 공통 파라미터 적용
     preset: Optional[str] = None,
 ) -> Callable:
@@ -4845,6 +4938,10 @@ def conversation_eval(
             sample_rate = sample_rate if sample_rate != 1.0 else _cp.get("sample_rate", sample_rate)
             flush_every = flush_every if flush_every else _cp.get("flush_every", flush_every)
             enabled = enabled if not enabled else _cp.get("enabled", enabled)
+            # B1: preset에서 LLM Judge 파라미터 적용 (agent_eval과 parity)
+            enable_llm_judge = enable_llm_judge or _cp.get("enable_llm_judge", False)
+            judge_model = judge_model or _cp.get("judge_model", None)
+            judge_criteria = judge_criteria or _cp.get("judge_criteria", None)
         else:
             import warnings as _w
             _w.warn(
@@ -4915,6 +5012,11 @@ def conversation_eval(
                         "session_score_fn": session_score_fn,  # Gap T
                         "alert_rules": alert_rules,     # SimpleTaskAlertRule 리스트
                         "on_record": on_record,         # C: on_record 콜백
+                        "on_turn": on_turn,             # H4: store callback in registry for external access
+                        # H2: LLM Judge per-session 설정
+                        "enable_llm_judge": enable_llm_judge,
+                        "judge_model": judge_model,
+                        "judge_criteria": judge_criteria,
                     }
                 return _CONV_SESSIONS[session_id]
 
@@ -5251,6 +5353,17 @@ def batch_eval(
     streaming_mode: bool = False,               # G1: True이면 응답을 generator로 yield (메모리 효율)
     # A1: preset — AGENT_EVAL_PRESETS 키로 공통 파라미터 묶음 적용 (agent_eval과 동일)
     preset: Optional[str] = None,
+    # H3: per-call params forwarded to _build_and_record() (parity with agent_eval)
+    enable_llm_judge: bool = False,
+    judge_model: Optional[str] = None,
+    judge_criteria: Optional[List[str]] = None,
+    security_mode: bool = False,
+    enable_hallucination: bool = False,
+    auto_detect_framework: bool = True,
+    custom_parser: Optional[Callable] = None,
+    enable_anomaly_detection: bool = False,
+    enable_quality_evaluation: bool = False,
+    allow_duplicate_task_ids: bool = True,
 ) -> Callable:
     """배치 에이전트 함수(``List[str]`` → ``List[str]``)에 평가를 자동 적용하는 데코레이터.
 
@@ -5306,6 +5419,10 @@ def batch_eval(
             timeout = timeout if timeout is not None else _bp.get("timeout", timeout)
             flush_every = flush_every if flush_every else _bp.get("flush_every", flush_every)
             enabled = enabled if not enabled else _bp.get("enabled", enabled)
+            # B2: preset에서 LLM Judge 파라미터 적용 (agent_eval과 parity)
+            enable_llm_judge = enable_llm_judge or _bp.get("enable_llm_judge", False)
+            judge_model = judge_model or _bp.get("judge_model", None)
+            judge_criteria = judge_criteria or _bp.get("judge_criteria", None)
         else:
             import warnings as _w
             _w.warn(
@@ -5376,7 +5493,13 @@ def batch_eval(
             if contexts_arg:
                 raw_ctx = all_args.get(contexts_arg)
                 if raw_ctx is not None:
-                    contexts = [str(c) for c in (raw_ctx if isinstance(raw_ctx, list) else list(raw_ctx))]
+                    # M5: string must be wrapped as single-element list, not split char-by-char
+                    if isinstance(raw_ctx, str):
+                        contexts = [raw_ctx]
+                    elif isinstance(raw_ctx, list):
+                        contexts = [str(c) for c in raw_ctx]
+                    else:
+                        contexts = [str(c) for c in raw_ctx]
 
             # Gap W: expected_tools_list 추출 (List[List[str]])
             expected_tools_list: Optional[List[Optional[List[str]]]] = None
@@ -5427,6 +5550,14 @@ def batch_eval(
             n = max(len(questions), 1)
             per_item_time = elapsed / n
 
+            # H2: 길이 불일치 경고 — 디버깅을 돕기 위해 명시적으로 기록
+            if isinstance(responses, list) and len(responses) != len(questions):
+                logger.debug(
+                    "batch_eval: questions(%d) vs responses(%d) 길이 불일치. "
+                    "responses가 부족한 항목은 빈 문자열로 처리됩니다.",
+                    len(questions), len(responses),
+                )
+
             # Gap AM: collect results for on_batch_complete
             batch_results: List[Any] = []
 
@@ -5468,6 +5599,17 @@ def batch_eval(
                     eval_ctx=eval_ctx,  # Gap L: 배치 공통 eval_ctx 전달
                     on_record=_effective_on_record,
                     on_error=on_error,
+                    # H3: forward per-call params (parity with agent_eval wrappers)
+                    enable_llm_judge=enable_llm_judge,
+                    judge_model=judge_model,
+                    judge_criteria=judge_criteria,
+                    security_mode=security_mode,
+                    enable_hallucination=enable_hallucination,
+                    auto_detect_framework=auto_detect_framework,
+                    custom_parser=custom_parser,
+                    enable_anomaly_detection=enable_anomaly_detection,
+                    enable_quality_evaluation=enable_quality_evaluation,
+                    allow_duplicate_task_ids=allow_duplicate_task_ids,
                 )
                 if tr is not None:
                     batch_results.append(tr)
@@ -5624,7 +5766,10 @@ def batch_eval(
                             })
                         return pd.DataFrame(_rows)
                     except ImportError:
-                        logger.warning("return_format='dataframe' requires pandas")
+                        logger.warning(
+                            "return_format='dataframe' requires pandas "
+                            "(pip install pandas). Returning raw list instead."
+                        )
                         return _resp
                 return _resp
             wrapper_with_format._last_failures = []
@@ -5638,6 +5783,13 @@ def batch_eval(
         async def async_wrapper(*args, **kwargs):
             if sample_rate < 1.0 and random.random() > sample_rate:
                 return await func(*args, **kwargs)
+            # H3: sample_condition check was missing in async batch wrapper (sync had it)
+            if sample_condition is not None:
+                try:
+                    if not sample_condition(args, kwargs):
+                        return await func(*args, **kwargs)
+                except Exception:
+                    pass
 
             questions, ground_truths, contexts, expected_tools_list = _resolve_batch_args(*args, **kwargs)
             batch_uuid = uuid.uuid4().hex[:8]
@@ -5696,16 +5848,57 @@ def batch_eval(
                 elapsed = time.perf_counter() - start
                 _pop_ctx(_ctx_token)  # Gap L
                 try:
-                    _record_batch(
+                    # H2: store return value so _last_task_results is populated for async too
+                    _async_batch_task_results = _record_batch(
                         questions, ground_truths, responses,
                         elapsed, has_error, error_msg, batch_uuid,
                         eval_ctx=eval_ctx,
                         contexts=contexts,
                         expected_tools_list=expected_tools_list,
                     )
+                    async_wrapper._last_task_results = _async_batch_task_results or []
+                    _last_batch_results_holder[0] = _async_batch_task_results or []
                     _maybe_flush_batch()
                 except Exception as rec_exc:
                     logger.debug("batch_eval (async): record 실패: %s", rec_exc)
+                    async_wrapper._last_task_results = []
+                    _last_batch_results_holder[0] = []
+
+        async_wrapper._last_task_results = []  # H2: initialize before first call
+
+        # M4: return_format 후처리 — async 함수에도 tuple/dataframe 지원
+        _original_async_wrapper = async_wrapper
+        if is_async and return_format in ("tuple", "dataframe"):
+            @functools.wraps(func)
+            async def async_wrapper_with_format(*args, **kwargs):  # type: ignore[misc]
+                _resp = await _original_async_wrapper(*args, **kwargs)
+                _trs = _last_batch_results_holder[0]
+                if return_format == "tuple":
+                    return (_resp, _trs)
+                elif return_format == "dataframe":
+                    try:
+                        import pandas as pd
+                        _rows = []
+                        for _tr in _trs:
+                            _tu = getattr(_tr, "tokens_used", None) or {}
+                            _rows.append({
+                                "task_id":          getattr(_tr, "task_id", ""),
+                                "task_type":        getattr(_tr, "task_type", ""),
+                                "success":          getattr(_tr, "success", None),
+                                "accuracy_score":   getattr(_tr, "accuracy_score", None),
+                                "completion_score": getattr(_tr, "completion_score", None),
+                                "execution_time":   getattr(_tr, "execution_time", None),
+                                "errors":           getattr(_tr, "errors", []),
+                            })
+                        return pd.DataFrame(_rows)
+                    except ImportError:
+                        logger.warning(
+                            "return_format='dataframe' requires pandas. Returning raw list instead."
+                        )
+                        return _resp
+                return _resp
+            async_wrapper_with_format._last_task_results = []
+            async_wrapper = async_wrapper_with_format  # type: ignore[assignment]
 
         return async_wrapper if is_async else wrapper
 
@@ -6252,6 +6445,8 @@ class EvalDecorator:
         "allow_duplicate_task_ids",  # A5: task_id 중복 감지
         "streaming_mode",     # G1: 메모리 효율적 스트리밍 모드
         "preset",             # A1: 사전 정의 파라미터 묶음
+        # H3: LLM Judge parity with agent_eval
+        "enable_llm_judge", "judge_model", "judge_criteria",
     })
     # conversation_eval 에는 framework/model_name/score_fn/completion_fn 미전달
     _CONV_PARAMS: frozenset = frozenset({
@@ -6266,6 +6461,8 @@ class EvalDecorator:
         "on_error",               # Gap A2: 오류 태스크 기록 후 호출되는 콜백
         "preset",                 # A1: 사전 정의 파라미터 묶음
         "on_record",              # C: 세션 flush 후 마지막 TaskResult에 호출되는 콜백
+        # H2: LLM Judge — agent_eval/batch_eval과 파라미터 parity
+        "enable_llm_judge", "judge_model", "judge_criteria",
     })
 
     @classmethod
