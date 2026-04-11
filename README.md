@@ -1252,6 +1252,20 @@ from agent_evaluator.decorators import (
 
 7개 통합 파일로 구성됩니다. 각 파일은 독립 실행 가능합니다.
 
+### 예제별 의존성
+
+| 예제 | 필수 | 선택 |
+|------|------|------|
+| `01_layer1_all_metrics.py` | `pip install agent-evaluator` | `agent-eval monitor` (Phoenix OTEL) |
+| `02_layer2_agentic_security.py` | `pip install agent-evaluator` | `agent-eval monitor` |
+| `03_framework_adapters.py` | `pip install agent-evaluator` | `agent-eval monitor`<br>⚠️ 실제 LangChain/CrewAI/AutoGen 패키지 **불필요** — 데코레이터가 duck typing으로 mock 응답 처리 |
+| `04_decorator_quickeval.py` | `pip install agent-evaluator` | `agent-eval monitor` |
+| `05_streaming_alerts.py` | `pip install agent-evaluator` | `agent-eval monitor`, `SLACK_WEBHOOK_URL` (미설정 시 Mock 핸들러 자동 대체) |
+| `06_operational.py` | `pip install agent-evaluator` | `agent-eval monitor` |
+| `07_phoenix_hybrid.py` | `pip install agent-evaluator` | `pip install "agent-evaluator[otel]"` + `agent-eval monitor`<br>`pip install "agent-evaluator[eval]"` + `OPENAI_API_KEY` (미설정 시 mock 데이터로 대체) |
+
+### 실행
+
 ```bash
 cd Evaluator_Examples
 
