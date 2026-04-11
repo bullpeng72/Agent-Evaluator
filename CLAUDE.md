@@ -547,8 +547,11 @@ pytest
 ### Optional (단위 extras)
 - `[llm]` — `openai>=1.0.0,<3.0.0` + `anthropic>=0.20.0,<1.0.0` — 빠름
 - `[langchain]` — `langchain>=1.0.0,<3.0.0` + `langchain-core/openai/anthropic>=1.0.0` + `langgraph>=1.0.0` — 중간
+  ⚠️ **사용자 프레임워크 extras** — agent-evaluator 자체는 langchain 없이도 완전히 동작. `@agent_eval(framework="langchain")` 데코레이터는 duck typing으로 동작하므로 설치 불필요. 이 extra는 **사용자의 LangChain 에이전트 코드**가 langchain을 필요로 할 때 설치.
 - `[crewai]` — `crewai>=1.0.0,<2.0.0` — 무거움 (전이 의존성 100개+), 단독 격리
+  ⚠️ **사용자 프레임워크 extras** — agent-evaluator 자체 의존성 아님. 사용자의 CrewAI 에이전트 코드가 crewai를 필요로 할 때 설치.
 - `[autogen]` — `pyautogen>=0.3.0,<1.0.0` + `autogen-agentchat/core>=0.4.0` — 무거움, 단독 격리
+  ⚠️ **사용자 프레임워크 extras** — agent-evaluator 자체 의존성 아님. 사용자의 AutoGen 에이전트 코드가 autogen을 필요로 할 때 설치.
 - `[eval]` — `deepeval>=3.0.0,<4.0.0` + `ragas>=0.4.0,<2.0.0` + `datasets>=4.0.0,<6.0.0` + `langchain>=0.2.0`
 - `[dspy]` — `dspy-ai>=2.0.0` — DSPy 프로그램 평가 (`DSPyEvaluator`, `dspy_eval`)
 - `[pydanticai]` — `pydantic-ai>=1.0.0,<2.0.0` — PydanticAI Agent 평가 (`PydanticAIEvaluator`, `pydanticai_eval`)

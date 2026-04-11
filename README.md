@@ -464,12 +464,14 @@ info = get_framework_info("langchain")
 
 ### 어댑터 전체 목록
 
+> **참고**: `framework=` 파라미터와 어댑터는 **duck typing** 방식으로 동작 — agent-evaluator 자체는 해당 프레임워크 패키지 없이도 완전히 동작한다. "필요 extras" 열은 **사용자의 에이전트 코드**가 해당 프레임워크를 import할 때 필요한 패키지다.
+
 | 식별자 | 이름 | 필요 extras | 자동 추출 필드 | async |
 |--------|------|------------|--------------|-------|
-| `langchain` | LangChain | `[langchain]` | `tool_calls` · `chain_steps` | ✅ |
-| `langgraph` | LangGraph | `[langchain]` | `state_transitions` · `graph_traversal` · `tool_calls` · `chain_steps` | ✅ |
-| `crewai` | CrewAI | `[crewai]` | `agent_interactions` | ❌ |
-| `autogen` | AutoGen | `[autogen]` | `conversation_turns` · `tokens_used` | ✅ |
+| `langchain` | LangChain | `[langchain]`¹ | `tool_calls` · `chain_steps` | ✅ |
+| `langgraph` | LangGraph | `[langchain]`¹ | `state_transitions` · `graph_traversal` · `tool_calls` · `chain_steps` | ✅ |
+| `crewai` | CrewAI | `[crewai]`¹ | `agent_interactions` | ❌ |
+| `autogen` | AutoGen | `[autogen]`¹ | `conversation_turns` · `tokens_used` | ✅ |
 | `dspy` | DSPy | `[dspy]` | `chain_steps` · `tokens_used` | ❌ |
 | `pydanticai` | PydanticAI | `[pydanticai]` | `chain_steps` · `tokens_used` | ✅ |
 | `anthropic` | Anthropic | `[llm]` | `tool_calls` · `tokens_used` | ✅ |
@@ -487,6 +489,8 @@ info = get_framework_info("langchain")
 | `smolagents` | HuggingFace smolagents | `[llm]` | `tool_calls` · `chain_steps` | ❌ |
 | `vllm` | vLLM | `[llm]` | `tool_calls` · `tokens_used` | ✅ |
 | `huggingface` | HuggingFace | `[llm]` | `chain_steps` · `tool_calls` | ❌ |
+
+¹ **사용자 프레임워크 extras** — agent-evaluator 자체는 이 패키지 없이 동작. `@agent_eval(framework="langchain")` 데코레이터는 duck typing으로 작동하므로 agent-evaluator 설치 시에는 불필요. 사용자의 에이전트 코드가 해당 프레임워크를 직접 import할 때만 설치.
 
 ---
 
@@ -1313,20 +1317,20 @@ agent-evaluator/
 | `pandas` | >=1.3.0, <4.0.0 | 지표 집계 |
 | `python-dotenv` | >=0.19.0, <2.0.0 | 환경변수 관리 |
 
-| Extra | 패키지 | 속도 |
-|-------|--------|------|
-| `[llm]` | openai · anthropic | 빠름 |
-| `[langchain]` | langchain ≥1.0 · langgraph ≥1.0 | 중간 |
-| `[crewai]` | crewai ≥1.0 | 무거움 (단독 격리) |
-| `[autogen]` | pyautogen ≥0.3 · autogen-agentchat ≥0.4 | 무거움 (단독 격리) |
-| `[eval]` | deepeval ≥3.0 · ragas ≥0.4 · datasets ≥4.0 | 무거움 |
-| `[serve]` | fastapi · uvicorn · jinja2 | 빠름 |
-| `[pdf]` | pdfplumber | 빠름 |
-| `[dspy]` | dspy-ai ≥2.0 | 중간 |
-| `[pydanticai]` | pydantic-ai ≥1.0 | 빠름 |
-| `[otel]` | opentelemetry-sdk · arize-phoenix | 중간 |
-| `[all]` | llm + langchain + eval + serve + dspy + pydanticai (권장) | 중간 |
-| `[full]` | all + crewai + autogen + otel ⚠️ 10분+ | 매우 무거움 |
+| Extra | 패키지 | 속도 | 비고 |
+|-------|--------|------|------|
+| `[llm]` | openai · anthropic | 빠름 | LLMJudge / ClaudeHelper 사용 시 |
+| `[langchain]` | langchain ≥1.0 · langgraph ≥1.0 | 중간 | ⚠️ 사용자 프레임워크 extras — agent-evaluator 자체는 langchain 없이 동작. 사용자의 LangChain 에이전트 코드가 langchain을 필요로 할 때 설치 |
+| `[crewai]` | crewai ≥1.0 | 무거움 (단독 격리) | ⚠️ 사용자 프레임워크 extras — agent-evaluator 자체 의존성 아님 |
+| `[autogen]` | pyautogen ≥0.3 · autogen-agentchat ≥0.4 | 무거움 (단독 격리) | ⚠️ 사용자 프레임워크 extras — agent-evaluator 자체 의존성 아님 |
+| `[eval]` | deepeval ≥3.0 · ragas ≥0.4 · datasets ≥4.0 | 무거움 | DeepEval/Ragas 어댑터 사용 시 |
+| `[serve]` | fastapi · uvicorn · jinja2 | 빠름 | `agent-eval dashboard` CLI |
+| `[pdf]` | pdfplumber | 빠름 | PDF 문서 처리 |
+| `[dspy]` | dspy-ai ≥2.0 | 중간 | DSPy 프로그램 평가 |
+| `[pydanticai]` | pydantic-ai ≥1.0 | 빠름 | PydanticAI Agent 평가 |
+| `[otel]` | opentelemetry-sdk · arize-phoenix | 중간 | `agent-eval monitor` CLI |
+| `[all]` | llm + langchain + eval + serve + dspy + pydanticai (권장) | 중간 | crewai/autogen/otel 제외 |
+| `[full]` | all + crewai + autogen + otel ⚠️ 10분+ | 매우 무거움 | 진짜 전체 |
 
 ---
 
