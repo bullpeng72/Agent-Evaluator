@@ -23,6 +23,11 @@ StreamingEvaluator의 슬라이딩 윈도우 메트릭과 AlertEngine의
   AlertRuleBuilder:
     - when_accuracy_below() / when_latency_above() / when_completion_below()
 
+의존성:
+    필수: pip install agent-evaluator          (numpy·pandas·python-dotenv 포함)
+    선택: agent-eval monitor                   (Phoenix OTEL 시각화 — 없어도 실행됨)
+    선택: SLACK_WEBHOOK_URL 환경변수             (슬랙 알림 — 미설정 시 Mock 핸들러로 대체)
+
 실행:
     python Evaluator_Examples/05_streaming_alerts.py
 

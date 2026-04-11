@@ -23,6 +23,10 @@
     B) get_eval_ctx() 스레드 로컬 주입
     C) framework= 파라미터
 
+의존성:
+    필수: pip install agent-evaluator          (numpy·pandas·python-dotenv 포함)
+    선택: agent-eval monitor                   (Phoenix OTEL 시각화 — 없어도 실행됨)
+
 실행:
     python Evaluator_Examples/02_layer2_agentic_security.py
 

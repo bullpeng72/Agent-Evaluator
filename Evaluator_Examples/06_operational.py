@@ -23,6 +23,10 @@
   CI/CD 품질 게이팅:
     - agent-eval gate 사용법 주석
 
+의존성:
+    필수: pip install agent-evaluator          (numpy·pandas·python-dotenv 포함)
+    선택: agent-eval monitor                   (Phoenix OTEL 시각화 — 없어도 실행됨)
+
 실행:
     python Evaluator_Examples/06_operational.py
 

@@ -29,6 +29,10 @@ QuickEval 원스톱 Facade를 한 파일에서 시연한다.
     - gate() CI/CD 품질 게이팅
     - summary() 집계 결과
 
+의존성:
+    필수: pip install agent-evaluator          (numpy·pandas·python-dotenv 포함)
+    선택: agent-eval monitor                   (Phoenix OTEL 시각화 — 없어도 실행됨)
+
 실행:
     python Evaluator_Examples/04_decorator_quickeval.py
 

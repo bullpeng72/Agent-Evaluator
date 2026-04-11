@@ -12,6 +12,12 @@ LangChain, LangGraph, CrewAI, AutoGen 4개 프레임워크의 응답에서
   - _auto_detect_framework()            → 응답 객체 속성으로 자동 감지
   - 크로스 프레임워크 파이프라인       → LangGraph → LangChain → CrewAI 핸드오프
 
+의존성:
+    필수: pip install agent-evaluator          (numpy·pandas·python-dotenv 포함)
+    선택: agent-eval monitor                   (Phoenix OTEL 시각화 — 없어도 실행됨)
+    비고: 이 예제는 실제 LangChain/CrewAI/AutoGen 패키지 없이 동작한다.
+          @agent_eval(framework=...) 데코레이터는 mock 응답 객체를 duck typing으로 처리한다.
+
 실행:
     python Evaluator_Examples/03_framework_adapters.py
 

@@ -20,6 +20,13 @@ Layer 3 외부 통합 — 대시보드 '외부평가' 탭 활성화:
     → PerformanceMonitor 사용 + 데모 외부평가 데이터 JSON 패치
     → 대시보드에서 외부평가 탭 UI 구조 확인 가능 (목업 데이터)
 
+의존성:
+    필수: pip install agent-evaluator          (numpy·pandas·python-dotenv 포함)
+    선택: pip install "agent-evaluator[otel]"  (Phoenix OTEL — agent-eval monitor 실행 시)
+    선택: pip install "agent-evaluator[eval]"  (DeepEval + Ragas 실평가 활성화)
+    선택: OPENAI_API_KEY 환경변수              (DeepEval/Ragas LLM 채점 — 미설정 시 mock 데이터로 대체)
+    선택: ANTHROPIC_API_KEY 환경변수           (Anthropic 모델 사용 시)
+
 실행:
     python Evaluator_Examples/07_phoenix_hybrid.py
     agent-eval monitor  # (별도 터미널) Phoenix 기동
