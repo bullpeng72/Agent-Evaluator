@@ -3,7 +3,7 @@
 [![PyPI version](https://img.shields.io/pypi/v/agent-evaluator.svg)](https://pypi.org/project/agent-evaluator/)
 [![Python Version](https://img.shields.io/badge/python-3.8%2B-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Version](https://img.shields.io/badge/version-0.7.8-green.svg)](https://github.com/bullpeng72/Agent-Evaluator)
+[![Version](https://img.shields.io/badge/version-0.7.9-green.svg)](https://github.com/bullpeng72/Agent-Evaluator)
 
 **AI 에이전트를 위한 프로덕션 레디 평가 프레임워크**
 
@@ -1350,7 +1350,7 @@ agent-evaluator/
 | `python-multipart` | ≥0.0.9, <1.0.0 | 웹 대시보드 |
 | `opentelemetry-sdk` | ≥1.20.0, <2.0.0 | OTEL 모니터링 |
 | `opentelemetry-exporter-otlp-proto-http` | ≥1.20.0, <2.0.0 | OTEL 모니터링 |
-| `arize-phoenix` | ≥0.11.0, <2.0.0 | Phoenix 실시간 모니터링 |
+| `arize-phoenix` | ≥7.0.0 | Phoenix 실시간 모니터링 |
 | `pdfplumber` | ≥0.10.0, <1.0.0 | 한국어 RAG PDF 처리 |
 
 **선택 extras** (설치 명령은 [## 설치](#설치) 참조)

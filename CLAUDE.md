@@ -5,7 +5,7 @@
 **Agent-Evaluator** is a production-ready Python SDK for evaluating AI agents.
 25개의 성능 지표를 세 개의 레이어(기본/에이전틱/하이브리드)로 측정한다.
 
-- **Version:** 0.7.8 (Beta)
+- **Version:** 0.7.9 (Beta)
 - **Python:** 3.8+
 - **License:** MIT
 - **Author:** Sungwoo Kim
@@ -554,7 +554,7 @@ pytest
 - `python-dotenv>=0.19.0,<2.0.0` — 환경변수 관리
 - `openai>=1.0.0,<3.0.0` + `anthropic>=0.20.0,<1.0.0` — LLMJudge 엔진
 - `fastapi>=0.110.0` + `uvicorn[standard]>=0.29.0` + `jinja2>=3.1.0` + `python-multipart>=0.0.9` — 웹 대시보드
-- `opentelemetry-sdk>=1.20.0` + `opentelemetry-exporter-otlp-proto-http>=1.20.0` + `arize-phoenix>=0.11.0` — OTEL 모니터링
+- `opentelemetry-sdk>=1.20.0` + `opentelemetry-exporter-otlp-proto-http>=1.20.0` + `arize-phoenix>=7.0.0` — OTEL 모니터링
 - `pdfplumber>=0.10.0,<1.0.0` — 한국어 RAG PDF 처리
 
 ### 선택 extras
