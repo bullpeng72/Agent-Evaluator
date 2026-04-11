@@ -150,8 +150,8 @@ class QuickEval:
                     )
                     for _k in _invalid:
                         monitor_kwargs.pop(_k)
-            except Exception:
-                pass  # 검사 실패 시 그대로 전달
+            except Exception as _e:
+                logger.debug("QuickEval.__init__: monitor_kwargs 검사 실패 (무시): %s", _e)
 
         self._monitor = PerformanceMonitor(
             output_dir=output_dir,
@@ -808,7 +808,8 @@ class QuickEval:
                         .get("overall_f1", 0.0)
                         or 0.0
                     )
-            except Exception:
+            except Exception as _e:
+                logger.debug("gate: tool_f1 조회 실패, 0.0 사용: %s", _e)
                 _f1 = 0.0
             _tool_pass = _f1 >= tool_f1_min
             dry_run_results["tool_f1"] = {
@@ -834,7 +835,8 @@ class QuickEval:
                         .get("success_rate", 0.0)
                         or 0.0
                     )
-            except Exception:
+            except Exception as _e:
+                logger.debug("gate: coordination_success_rate 조회 실패, 0.0 사용: %s", _e)
                 _csr = 0.0
             _coord_pass = _csr >= coordination_success_rate_min
             dry_run_results["coordination_success_rate"] = {
