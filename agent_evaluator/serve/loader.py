@@ -629,11 +629,17 @@ def _parse_feedback_data(raw: dict) -> Dict[str, Any]:
 
 
 def _parse_cost_data(raw: dict) -> Dict[str, Any]:
-    """비용 데이터 파싱 — budget/sampling 필드 포함."""
-    # v0.7.6+: evaluation_cost 키 삭제됨. pricing 우선, 이전 JSON 하위 호환 fallback.
-    cost = raw.get("pricing", raw.get("evaluation_cost", {}))
+    """비용 데이터 파싱 — budget/sampling 필드 포함.
+
+    evaluation_cost: CostTracker 결과 (total_usd, by_provider, call_count 등)
+    pricing:         토큰 단가 테이블 (input, output — evaluation_cost와 별개)
+    """
+    # evaluation_cost 우선(CostTracker), 없으면 빈 dict
+    cost = raw.get("evaluation_cost", {})
+    # pricing은 토큰 단가 전용 — 모델명만 보조로 참조
     pricing = raw.get("pricing", {})
-    if not cost and not pricing:
+
+    if not cost:
         return {}
 
     llm_judge_cost = cost.get("llm_judge_usd", 0.0)
@@ -648,7 +654,7 @@ def _parse_cost_data(raw: dict) -> Dict[str, Any]:
         "llm_judge_usd": round(float(llm_judge_cost), 6),
         "by_provider": cost.get("by_provider", {}),
         "call_count": cost.get("call_count", 0),
-        "model": pricing.get("model", cost.get("model", "")),
+        "model": cost.get("model", pricing.get("model", "")),
         "budget_per_day": budget_per_day,
         "budget_remaining_usd": round(float(budget_remaining), 6) if budget_remaining is not None else None,
         "sample_rate_current": float(sample_rate),
@@ -985,7 +991,11 @@ def _parse_tasks(raw_tasks: List[Dict[str, Any]]) -> List[TaskRecord]:
 # ---------------------------------------------------------------------------
 
 def parse_file(path: Path) -> ResultFile:
-    raw: Dict[str, Any] = json.loads(path.read_text(encoding="utf-8"))
+    try:
+        raw: Dict[str, Any] = json.loads(path.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError, UnicodeDecodeError) as _parse_err:
+        logger.warning("parse_file: '%s' 파싱 실패 (빈 결과 반환): %s", path, _parse_err)
+        raw = {}
 
     # Parse advanced first so we can reuse its rag_metrics for has_rag detection
     advanced = _parse_advanced(raw)
