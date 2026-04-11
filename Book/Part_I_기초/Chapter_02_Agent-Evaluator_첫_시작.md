@@ -39,7 +39,7 @@ pip install "agent-evaluator[otel]"
 
 # 설치 확인
 agent-eval --version
-# → agent-evaluator 0.7.6
+# → agent-evaluator 0.7.7
 ```
 
 > 👨‍💻 **개발자 TIP**: `[crewai]`와 `[autogen]`은 의존성이 무거워 단독 extras로 분리되어 있습니다. CrewAI와 AutoGen을 동시에 설치하면 pydantic 버전 충돌이 발생할 수 있으므로, 필요한 경우에만 하나씩 설치하세요.

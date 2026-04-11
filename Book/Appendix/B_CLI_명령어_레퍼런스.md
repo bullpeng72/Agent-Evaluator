@@ -1,6 +1,6 @@
 # Appendix B. CLI 명령어 완전 레퍼런스
 
-Agent Evaluator v0.7.6 CLI 전체 명령어 목록. `pip install agent-evaluator` 설치 후 바로 사용 가능하다.
+Agent Evaluator v0.7.7 CLI 전체 명령어 목록. `pip install agent-evaluator` 설치 후 바로 사용 가능하다.
 
 ---
 
@@ -33,17 +33,15 @@ agent-eval init
 1. 현재 디렉토리에 `.env` 파일이 존재하는지 확인
 2. OpenAI API 키 입력 요청 (LLM Judge, DeepEval, Ragas에 필요)
 3. Anthropic API 키 입력 요청 (LLM Judge 대안)
-4. LangSmith API 키 입력 요청 (LangChain 트레이싱, 선택)
-5. `.env` 파일 생성 또는 업데이트
+4. `.env` 파일 생성 또는 업데이트
 
 **출력 예시**
 
 ```
 Agent Evaluator 설정 마법사
 ===========================
-[1/3] OpenAI API Key (선택): sk-...
-[2/3] Anthropic API Key (선택): sk-ant-...
-[3/3] LangSmith API Key (선택): ls__...
+[1/2] OpenAI API Key (선택): sk-...
+[2/2] Anthropic API Key (선택): sk-ant-...
 .env 파일이 생성되었습니다.
 ```
 
@@ -71,7 +69,7 @@ agent-eval check
 **출력 예시**
 
 ```
-Agent Evaluator v0.7.6 설정 상태
+Agent Evaluator v0.7.7 설정 상태
 =================================
 .env 파일: /Users/username/project/.env (존재)
 
@@ -332,7 +330,7 @@ agent-eval --version
 **출력 예시**
 
 ```
-agent-evaluator 0.7.6
+agent-evaluator 0.7.7
 ```
 
 ---
