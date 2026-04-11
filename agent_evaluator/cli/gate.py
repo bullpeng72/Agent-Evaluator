@@ -20,20 +20,12 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
+from agent_evaluator.cli._utils import _supports_color
+
 
 # ---------------------------------------------------------------------------
 # ANSI 색상
 # ---------------------------------------------------------------------------
-
-def _supports_color() -> bool:
-    if not hasattr(sys.stdout, "isatty"):
-        return False
-    if not sys.stdout.isatty():
-        return False
-    if os.name == "nt":
-        return "ANSICON" in os.environ or "WT_SESSION" in os.environ
-    return True
-
 
 _COLOR = _supports_color()
 

@@ -80,12 +80,24 @@ def my_agent(question, ground_truth=""):
 
 ```bash
 pip install agent-evaluator                        # 기본 (Layer 1/2 즉시 사용)
-pip install "agent-evaluator[llm]"                # OpenAI + Anthropic 클라이언트
+
+# SDK 자체 기능 (LLMJudge · 대시보드 · 모니터 · PDF)
+pip install "agent-evaluator[llm]"                # LLMJudge 엔진 (openai, anthropic)
+pip install "agent-evaluator[serve]"              # 웹 대시보드 (fastapi, uvicorn, jinja2)
+pip install "agent-evaluator[otel]"               # 운영 실시간 모니터링 (Phoenix + OTEL)
+pip install "agent-evaluator[sdk]"                # SDK 전체 묶음 — llm+serve+otel+pdf (운영 권장)
+
+# Evaluator_Examples/ 예제 실행
+pip install "agent-evaluator[examples]"           # 모든 예제 실행 가능 (sdk + eval)
+
+# 프레임워크 확장 (사용자 에이전트 코드가 필요로 하는 경우)
+pip install "agent-evaluator[eval]"               # DeepEval + Ragas (외부 평가 라이브러리)
 pip install "agent-evaluator[langchain]"          # LangChain / LangGraph
-pip install "agent-evaluator[eval]"               # DeepEval + Ragas (Layer 3)
-pip install "agent-evaluator[serve]"              # FastAPI 대시보드
-pip install "agent-evaluator[all]"                # 권장 — crewai/autogen/otel 제외 전체
-pip install "agent-evaluator[full]"               # 전체 (⚠️ 10분+ 소요)
+pip install "agent-evaluator[crewai]"             # CrewAI (무거움)
+pip install "agent-evaluator[autogen]"            # AutoGen (무거움)
+
+# 조합 편의
+pip install "agent-evaluator[full]"               # 전체 (⚠️ crewai/autogen 포함, 10분+ 소요)
 ```
 
 ---
@@ -1317,7 +1329,7 @@ agent-evaluator/
 │   └── datasets/                # GoldenSetBuilder
 │
 ├── Evaluator_Examples/          # 예제 7개 통합 파일 (.deprecated/에 구 21개 보존)
-├── tests/                       # 2,103개 테스트 함수, 67개 파일
+├── tests/                       # 2,117개 테스트 함수, 70개 파일
 └── pyproject.toml
 ```
 
@@ -1331,20 +1343,38 @@ agent-evaluator/
 | `pandas` | >=1.3.0, <4.0.0 | 지표 집계 |
 | `python-dotenv` | >=0.19.0, <2.0.0 | 환경변수 관리 |
 
+**Group 1 — SDK 자체 기능** (agent-eval dashboard · monitor · LLMJudge · PDF)
+
 | Extra | 패키지 | 속도 | 비고 |
 |-------|--------|------|------|
-| `[llm]` | openai · anthropic | 빠름 | LLMJudge / ClaudeHelper 사용 시 |
-| `[langchain]` | langchain ≥1.0 · langgraph ≥1.0 | 중간 | ⚠️ 사용자 프레임워크 extras — agent-evaluator 자체는 langchain 없이 동작. 사용자의 LangChain 에이전트 코드가 langchain을 필요로 할 때 설치 |
-| `[crewai]` | crewai ≥1.0 | 무거움 (단독 격리) | ⚠️ 사용자 프레임워크 extras — agent-evaluator 자체 의존성 아님 |
-| `[autogen]` | pyautogen ≥0.3 · autogen-agentchat ≥0.4 | 무거움 (단독 격리) | ⚠️ 사용자 프레임워크 extras — agent-evaluator 자체 의존성 아님 |
-| `[eval]` | deepeval ≥3.0 · ragas ≥0.4 · datasets ≥4.0 | 무거움 | DeepEval/Ragas 어댑터 사용 시 |
+| `[llm]` | openai · anthropic | 빠름 | LLMJudge 엔진 (`agent_evaluator/integrations/llm_judge.py`) |
 | `[serve]` | fastapi · uvicorn · jinja2 | 빠름 | `agent-eval dashboard` CLI |
-| `[pdf]` | pdfplumber | 빠름 | PDF 문서 처리 |
+| `[otel]` | opentelemetry-sdk · arize-phoenix | 중간 | `agent-eval monitor` CLI |
+| `[pdf]` | pdfplumber | 빠름 | 한국어 RAG PDF 처리 |
+| `[sdk]` | llm + serve + otel + pdf | 중간 | **운영 배포 권장 묶음** |
+
+**Group 2 — Evaluator_Examples 예제 실행**
+
+| Extra | 패키지 | 비고 |
+|-------|--------|------|
+| `[examples]` | sdk + eval | 예제 01~06: 코어만 필요 · 07: llm+otel+eval 필요 |
+
+**Group 3 — 프레임워크 확장** (사용자 에이전트 코드용 — agent-evaluator 자체 의존성 아님)
+
+| Extra | 패키지 | 속도 | 비고 |
+|-------|--------|------|------|
+| `[eval]` | deepeval ≥3.0 · ragas ≥0.4 · datasets ≥4.0 | 무거움 | DeepEval/Ragas 외부 평가 라이브러리 |
+| `[langchain]` | langchain ≥1.0 · langgraph ≥1.0 | 중간 | LangChain/LangGraph 에이전트 코드용 |
 | `[dspy]` | dspy-ai ≥2.0 | 중간 | DSPy 프로그램 평가 |
 | `[pydanticai]` | pydantic-ai ≥1.0 | 빠름 | PydanticAI Agent 평가 |
-| `[otel]` | opentelemetry-sdk · arize-phoenix | 중간 | `agent-eval monitor` CLI |
-| `[all]` | llm + langchain + eval + serve + dspy + pydanticai (권장) | 중간 | crewai/autogen/otel 제외 |
-| `[full]` | all + crewai + autogen + otel ⚠️ 10분+ | 매우 무거움 | 진짜 전체 |
+| `[crewai]` | crewai ≥1.0 | 무거움 (단독 격리) | CrewAI 에이전트 코드용 |
+| `[autogen]` | pyautogen ≥0.3 · autogen-agentchat ≥0.4 | 무거움 (단독 격리) | AutoGen 에이전트 코드용 |
+
+**조합 편의 extras**
+
+| Extra | 구성 | 비고 |
+|-------|------|------|
+| `[full]` | sdk + eval + langchain + dspy + pydanticai + crewai + autogen | 전체 (⚠️ 10분+ 소요, CI용) |
 
 ---
 
@@ -1355,7 +1385,7 @@ git clone https://github.com/bullpeng72/Agent-Evaluator.git
 cd Agent-Evaluator
 pip install -e ".[dev]"
 
-pytest                          # 테스트 실행 (2,103개)
+pytest                          # 테스트 실행 (2,117개)
 ruff check agent_evaluator/    # 린트
 ruff format agent_evaluator/   # 포맷
 mypy agent_evaluator/          # 타입 검사

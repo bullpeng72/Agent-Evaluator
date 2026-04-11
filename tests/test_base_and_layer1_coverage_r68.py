@@ -41,7 +41,7 @@ from agent_evaluator.core.trackers.layer1 import (
     TokenEconomyTracker,
     _assign_grade,
     _qa_char_similarity,
-    _qa_lcs_ratio,
+    _lcs_ratio as _qa_lcs_ratio,
     _normalize_code,
 )
 from agent_evaluator.exceptions import ValidationError

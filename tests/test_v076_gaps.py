@@ -98,7 +98,7 @@ class TestMetricDetailEndpoint:
             security_l2 = SimpleNamespace(privilege_escalation=0, attack_detection=0)
             agentic = SimpleNamespace(tool_efficiency=0, retry_summary={}, coordination_summary={}, workflow_summary={})
             cost_data = {}
-            llm_judge = SimpleNamespace(judged_count=0, avg_overall=0, avg_completeness=0, avg_relevance=0, avg_factual_consistency=0, results=[])
+            llm_judge = SimpleNamespace(judged_count=0, avg_overall=0, avg_completeness=0, avg_relevance=0, avg_factual_consistency=0, avg_toxicity=0, avg_bias=0, avg_faithfulness=0, avg_criteria_overall=0, results=[])
 
         class FakeRS:
             def by_id(self, fid):

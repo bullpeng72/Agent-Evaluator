@@ -18,28 +18,36 @@
 # 개발 환경 설치
 pip install -e ".[dev]"
 
-# 선택적 의존성 포함 설치
-pip install -e ".[llm,serve]"          # 가장 빠른 실용 구성
-pip install -e ".[langchain,serve]"    # LangChain/LangGraph 포함
-pip install -e ".[eval]"               # DeepEval/Ragas 평가
-pip install -e ".[crewai]"            # CrewAI 단독 (무거움)
-pip install -e ".[autogen]"           # AutoGen 단독 (무거움)
+# ── Group 1: SDK 자체 기능 (LLMJudge · 대시보드 · 모니터 · PDF) ──────────
+pip install -e ".[sdk]"               # SDK 전체 묶음 — llm+serve+otel+pdf (운영 권장)
+
+# ── Group 2: Evaluator_Examples/ 예제 실행 ────────────────────────────────
+# 예제 01~06: 코어만으로 실행 (추가 설치 불필요)
+# 예제 07 (Phoenix Hybrid): llm+otel+eval 필요
+pip install -e ".[examples]"          # 모든 예제 실행 가능 (sdk + eval)
+
+# ── Group 3: 프레임워크 확장 ──────────────────────────────────────────────
+pip install -e ".[eval]"               # DeepEval / Ragas 외부 평가 라이브러리
+pip install -e ".[langchain]"          # LangChain / LangGraph 통합
 pip install -e ".[dspy]"              # DSPy 통합 (dspy-ai)
 pip install -e ".[pydanticai]"        # PydanticAI 통합 (pydantic-ai)
-pip install -e ".[all]"               # crewai/autogen/otel 제외 전체, dspy/pydanticai 포함 (권장)
-pip install -e ".[full]"              # 진짜 전체 (⚠️ 10분+ 소요)
+pip install -e ".[crewai]"            # CrewAI 단독 (무거움 — 전이 의존성 100개+)
+pip install -e ".[autogen]"           # AutoGen 단독 (무거움, 단독 격리)
+
+# ── 조합 편의 extras ────────────────────────────────────────────────────
+pip install -e ".[full]"              # 전체 (⚠️ crewai/autogen 포함, 10분+ 소요)
 
 # --- CLI (pip install 후 바로 사용 가능) ---
 agent-eval init          # 대화형 API 키 설정 마법사
 agent-eval check         # 현재 설정 상태 출력
-agent-eval dashboard     # FastAPI 대시보드 실행 (기본 포트 8765)  [개발·검증 단계]
+agent-eval dashboard     # FastAPI 대시보드 실행 (기본 포트 8765)  [serve extra 필요]
 agent-eval gate result.json --tcr 85 --accuracy 70   # CI/CD 품질 게이팅
 agent-eval dataset build results/ --min-score 0.8    # 골든 데이터셋 자동 추출
 agent-eval monitor                                   # Arize Phoenix 서버 기동 + OTLP 스팬 수신 설정 (운영 실시간 모니터링)
 agent-eval monitor --port 6006                       # Phoenix 포트 지정 (기본: 6006)
 agent-eval monitor --check                           # OTEL 패키지 설치 여부 및 포트 점유 상태 확인
 # 예제 실행 시 자동으로 Phoenix에 연결 → 프로젝트별 Tracing·Evaluators·Datasets·Prompts 확인 가능
-# (pip install "agent-evaluator[otel]" 또는 "[full]" 필요)
+# (pip install "agent-evaluator[otel]" 또는 "[sdk]" 필요)
 agent-eval --version     # 버전 출력
 
 # 테스트 실행
@@ -513,14 +521,13 @@ from agent_evaluator import (
 
 | 우선순위 | 항목 | 위치 |
 |---------|------|------|
-| 🟡 Medium | ~9곳에서 bare `except Exception:` 로 에러 무시 | `core/trackers/monitor.py` |
-| 🟡 Medium | `_check_patterns()`, `_is_subsequence()` 중복 구현 가능성 확인 필요 | `core/trackers/` |
+| 🟡 Medium | ~10곳에서 bare `except Exception: pass` 로 에러 무시 (OTEL 속성 빌딩 구간) | `core/trackers/monitor.py` |
 
 ---
 
 ## Testing
 
-`tests/` 디렉토리에 67개 파일, 2,103개+ 테스트 함수 존재.
+`tests/` 디렉토리에 70개 파일, 2,117개+ 테스트 함수 존재.
 
 ```bash
 # pytest.ini_options in pyproject.toml already configured:
@@ -544,24 +551,28 @@ pytest
 - `pandas>=1.3.0,<4.0.0`
 - `python-dotenv>=0.19.0,<2.0.0`
 
-### Optional (단위 extras)
-- `[llm]` — `openai>=1.0.0,<3.0.0` + `anthropic>=0.20.0,<1.0.0` — 빠름
-- `[langchain]` — `langchain>=1.0.0,<3.0.0` + `langchain-core/openai/anthropic>=1.0.0` + `langgraph>=1.0.0` — 중간
-  ⚠️ **사용자 프레임워크 extras** — agent-evaluator 자체는 langchain 없이도 완전히 동작. `@agent_eval(framework="langchain")` 데코레이터는 duck typing으로 동작하므로 설치 불필요. 이 extra는 **사용자의 LangChain 에이전트 코드**가 langchain을 필요로 할 때 설치.
-- `[crewai]` — `crewai>=1.0.0,<2.0.0` — 무거움 (전이 의존성 100개+), 단독 격리
-  ⚠️ **사용자 프레임워크 extras** — agent-evaluator 자체 의존성 아님. 사용자의 CrewAI 에이전트 코드가 crewai를 필요로 할 때 설치.
-- `[autogen]` — `pyautogen>=0.3.0,<1.0.0` + `autogen-agentchat/core>=0.4.0` — 무거움, 단독 격리
-  ⚠️ **사용자 프레임워크 extras** — agent-evaluator 자체 의존성 아님. 사용자의 AutoGen 에이전트 코드가 autogen을 필요로 할 때 설치.
-- `[eval]` — `deepeval>=3.0.0,<4.0.0` + `ragas>=0.4.0,<2.0.0` + `datasets>=4.0.0,<6.0.0` + `langchain>=0.2.0`
+### Group 1: SDK 자체 기능
+- `[llm]` — `openai>=1.0.0,<3.0.0` + `anthropic>=0.20.0,<1.0.0` — LLMJudge 엔진, 빠름
+- `[serve]` — `fastapi>=0.110.0` + `uvicorn[standard]>=0.29.0` + `jinja2>=3.1.0` + `python-multipart>=0.0.9` — 웹 대시보드, 빠름
+- `[otel]` — `opentelemetry-sdk>=1.20.0` + `opentelemetry-exporter-otlp-proto-http>=1.20.0` + `arize-phoenix>=0.11.0` — 운영 실시간 모니터링, 중간
+- `[pdf]` — `pdfplumber>=0.10.0,<1.0.0` — 한국어 RAG PDF 처리, 빠름
+- `[sdk]` — llm + serve + otel + pdf 전체 묶음 (운영 배포 권장)
+
+### Group 2: Evaluator_Examples 예제 실행
+- `[examples]` — sdk + eval 묶음. 예제 01~06은 코어만 필요, 07은 llm+otel+eval 필요
+
+### Group 3: 프레임워크 확장
+- `[eval]` — `deepeval>=3.0.0,<4.0.0` + `ragas>=0.4.0,<2.0.0` + `datasets>=4.0.0,<6.0.0` + `langchain>=1.0.0` + `langchain-openai>=0.1.0` — 외부 평가 라이브러리
+- `[langchain]` — `langchain>=1.0.0,<3.0.0` + `langchain-core/openai/anthropic>=1.0.0` + `langgraph>=1.0.0` — LangChain/LangGraph 통합, 중간
 - `[dspy]` — `dspy-ai>=2.0.0` — DSPy 프로그램 평가 (`DSPyEvaluator`, `dspy_eval`)
 - `[pydanticai]` — `pydantic-ai>=1.0.0,<2.0.0` — PydanticAI Agent 평가 (`PydanticAIEvaluator`, `pydanticai_eval`)
-- `[serve]` — `fastapi>=0.110.0` + `uvicorn[standard]>=0.29.0` + `jinja2>=3.1.0` + `python-multipart>=0.0.9` — 빠름
-- `[pdf]` — `pdfplumber>=0.10.0,<1.0.0` — 빠름
+- `[crewai]` — `crewai>=1.0.0,<2.0.0` — 무거움 (전이 의존성 100개+), 단독 격리
+- `[autogen]` — `pyautogen>=0.3.0,<1.0.0` + `autogen-agentchat/core>=0.4.0` — 무거움, 단독 격리
 
-### Optional (조합 편의 extras)
-- `[all]` — crewai/autogen/otel **제외** 전체, dspy/pydanticai 포함 (권장) — `pip install agent-evaluator[all]`
-- `[full]` — crewai/autogen/otel 포함 진짜 전체 (⚠️ 10분+ 소요) — `pip install agent-evaluator[full]`
-- ~~`[frameworks]`~~ — 제거됨. `pip install agent-evaluator[langchain,crewai,autogen]` 으로 대체
+> ⚠️ **프레임워크 extras 주의**: `[langchain]`, `[crewai]`, `[autogen]`, `[dspy]`, `[pydanticai]`은 agent-evaluator 자체 의존성이 아님. SDK 어댑터는 duck typing/try-except로 동작하므로 설치 불필요. 이 extras는 **사용자의 에이전트 코드**가 해당 프레임워크를 필요로 할 때 설치.
+
+### 조합 편의 extras
+- `[full]` — sdk+eval+langchain+dspy+pydanticai+crewai+autogen 전체 (⚠️ 10분+ 소요, CI 전체 호환성 검증용) — `pip install agent-evaluator[full]`
 
 ### Dev (개발 환경)
 - `[dev]` — `pytest` + `pytest-cov` + `pytest-asyncio` + `ruff` + `mypy` + `build` + `twine` + `pre-commit`

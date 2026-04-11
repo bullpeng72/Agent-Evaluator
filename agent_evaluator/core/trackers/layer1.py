@@ -84,11 +84,6 @@ def _qa_char_similarity(s1: str, s2: str) -> float:
     return len(s1_chars & set(s2)) / len(s1_chars)
 
 
-def _qa_lcs_ratio(s1: str, s2: str) -> float:
-    """LCS length / max(len(s1), len(s2)) — delegates to utils.text_similarity."""
-    return _lcs_ratio(s1, s2)
-
-
 def _normalize_code(code: str) -> str:
     """Remove comments, docstrings, and collapse whitespace for normalized code comparison."""
     code = _RE_CODE_SINGLE_COMMENT.sub('', code)
@@ -344,7 +339,7 @@ class AccuracyEvaluator(BaseTracker):
         char_sim = _qa_char_similarity(gt_norm, pred_norm)
 
         # 4. Longest common subsequence ratio — rolling 2-row DP: O(n) space
-        lcs_sim = _qa_lcs_ratio(gt_norm, pred_norm)
+        lcs_sim = _lcs_ratio(gt_norm, pred_norm)
 
         # Weighted combination (weights defined as module constants above)
         final_score = (

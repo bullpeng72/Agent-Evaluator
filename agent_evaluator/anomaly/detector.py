@@ -165,9 +165,9 @@ class AnomalyDetector:
             def _is_error(t: Any) -> bool:
                 # t.success from create_taskresult() may be True even for failed tasks
                 # (completion_score threshold not met). Use accuracy_score and errors as proxy.
-                if not t.success:
+                if not getattr(t, "success", True):
                     return True
-                if t.errors:
+                if getattr(t, "errors", None):
                     return True
                 if getattr(t, "accuracy_score", 1.0) < 0.05 and getattr(t, "completion_score", 1.0) < 0.05:
                     return True

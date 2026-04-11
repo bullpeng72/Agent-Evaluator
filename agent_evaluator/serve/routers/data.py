@@ -14,7 +14,6 @@ import json as _json_mod
 from fastapi import APIRouter, File, HTTPException, Query, Request, UploadFile
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
-from typing import Optional as _Opt
 
 _SERVER_START_TIME: float = _time_module.time()  # B1: 서버 기동 시각
 
@@ -1821,11 +1820,11 @@ class AnomalyEventSchema(BaseModel):
     event_id: str = ""
     event_type: str = ""
     detected_at: str = ""
-    metric_name: _Opt[str] = None
-    current_value: _Opt[float] = None
-    baseline_value: _Opt[float] = None
-    anomaly_score: _Opt[float] = None
-    description: _Opt[str] = None
+    metric_name: Optional[str] = None
+    current_value: Optional[float] = None
+    baseline_value: Optional[float] = None
+    anomaly_score: Optional[float] = None
+    description: Optional[str] = None
 
 
 class AnomalyListResponse(BaseModel):

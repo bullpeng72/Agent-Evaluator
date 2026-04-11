@@ -18,7 +18,7 @@ from typing import Any, Dict, List, Optional, Set, Union
 
 import pandas as pd
 
-from .base import BaseTracker, TaskResult
+from .base import BaseTracker
 from ...exceptions import ValidationError
 
 logger = logging.getLogger(__name__)

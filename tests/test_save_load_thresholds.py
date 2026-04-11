@@ -52,8 +52,8 @@ def _add_tasks(mon: PerformanceMonitor, n: int = 3) -> None:
 
 class TestSaveLoadRoundTrip:
     def _saved_path(self, tmp_path: Path, name: str) -> Path:
-        """save_to_file saves without extension; return the file path."""
-        return tmp_path / name
+        """save_to_file appends .json automatically; return the file path."""
+        return tmp_path / (name + ".json")
 
     def test_save_creates_file(self, tmp_path):
         mon = _make_monitor(tmp_path)

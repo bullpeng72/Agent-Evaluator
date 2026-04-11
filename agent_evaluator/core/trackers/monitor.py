@@ -1881,15 +1881,15 @@ class PerformanceMonitor:
                 _hal_data_d1 = self.hallucination_detector.get_hallucination_rate()
                 if _hal_data_d1.get("total_evaluated", 0) > 0:
                     attributes["ae.hallucination_rate"] = float(_hal_data_d1.get("overall_rate", 0.0))
-            except Exception:
-                pass
+            except Exception as _e:
+                logger.debug("OTEL attr skipped (hallucination_rate): %s", _e)
             try:
                 _qual_data_d1 = self.quality_evaluator.get_quality_metrics()
                 if _qual_data_d1.get("total_evaluated", 0) > 0:
                     _raw_q_d1 = float(_qual_data_d1.get("avg_total_score", 0.0))
                     attributes["ae.quality_score"] = round(min(_raw_q_d1 / 10.0, 1.0), 4)
-            except Exception:
-                pass
+            except Exception as _e:
+                logger.debug("OTEL attr skipped (quality_score): %s", _e)
 
             # LLM Judge 종합 점수 — Phoenix Evaluators 탭 필터링 지원
             try:
@@ -1907,8 +1907,8 @@ class PerformanceMonitor:
                     _lj_factual = _lj.get("factual_consistency")
                     if _lj_factual is not None:
                         attributes["ae.llm_judge_factual"] = round(float(_lj_factual), 4)
-            except Exception:
-                pass
+            except Exception as _e:
+                logger.debug("OTEL attr skipped (llm_judge): %s", _e)
 
             # Phoenix Prompts 탭 — llm.prompts / input.mime_type 속성으로 프롬프트 추적 활성화
             # Playground 재현 및 Prompts 메뉴 연동에 필요한 OpenInference 표준 속성
@@ -1920,8 +1920,8 @@ class PerformanceMonitor:
                     attributes["llm.prompts"] = json.dumps(_prompt_msgs, ensure_ascii=False)
                     attributes["input.mime_type"] = "text/plain"
                     attributes["output.mime_type"] = "text/plain"
-            except Exception:
-                pass
+            except Exception as _e:
+                logger.debug("OTEL attr skipped (llm.prompts): %s", _e)
 
             # 보안 이벤트 수 — security_mode=True 시 탐지된 위협 총계
             try:
@@ -1936,8 +1936,8 @@ class PerformanceMonitor:
                         + int(_sec_auth.get("unauthorized_calls", 0) or 0)
                     )
                     attributes["ae.security_events_count"] = _sec_count
-            except Exception:
-                pass
+            except Exception as _e:
+                logger.debug("OTEL attr skipped (security_events_count): %s", _e)
 
             # ae.tool_names — 사용된 도구 이름 목록 (Phoenix 도구별 필터링 지원)
             try:
@@ -1951,8 +1951,8 @@ class PerformanceMonitor:
                         _tool_name_list.append(str(_tn))
                     if _tool_name_list:
                         attributes["ae.tool_names"] = json.dumps(_tool_name_list, ensure_ascii=False)
-            except Exception:
-                pass
+            except Exception as _e:
+                logger.debug("OTEL attr skipped (tool_names): %s", _e)
 
             attributes.update({
                 # Playground 재현용 — question/response/ground_truth 전문 기록
@@ -1974,8 +1974,8 @@ class PerformanceMonitor:
                     if _ds_name:
                         attributes["dataset.version"] = str(_ds_name)
                     attributes["dataset.record_count"] = len(self._golden_datasets)
-            except Exception:
-                pass
+            except Exception as _e:
+                logger.debug("OTEL attr skipped (dataset): %s", _e)
 
             # retrieval.documents — INFORMATION_RETRIEVAL 스팬에 RAG 컨텍스트 첨부
             if type_label == "information_retrieval" and getattr(result, "context", None):
@@ -2086,8 +2086,8 @@ class PerformanceMonitor:
                                         try:
                                             from opentelemetry.trace import StatusCode as _SC
                                             _ts.set_status(_SC.ERROR, "tool call failed")
-                                        except Exception:
-                                            pass
+                                        except Exception as _e:
+                                            logger.debug("OTEL attr skipped (tool span status): %s", _e)
                             except Exception as _tse:
                                 logger.debug("tool call 자식 스팬 발행 실패 (무시): %s", _tse)
                     except Exception as _te:
@@ -2698,8 +2698,8 @@ class PerformanceMonitor:
                         ts_epoch = float(ts)
                     if ts_epoch >= cutoff:
                         recent_tasks.append(t)
-                except Exception:
-                    pass
+                except Exception as _e:
+                    logger.debug("OTEL attr skipped (timestamp parse): %s", _e)
 
         if not recent_tasks:
             return {
@@ -4959,8 +4959,8 @@ class PerformanceMonitor:
                         continue
                     if until is not None and ts > until:
                         continue
-                except Exception:
-                    pass  # timestamp 파싱 실패 시 해당 조건 무시
+                except Exception as _e:
+                    logger.debug("OTEL attr skipped (filter timestamp): %s", _e)
             result.append(task)
         return result
 
@@ -5296,8 +5296,8 @@ class PerformanceMonitor:
                     "message": f"작업당 평균 비용이 ${avg_cost:.4f}입니다. 모델 변경이나 프롬프트 단축을 고려하세요.",
                     "metric": avg_cost,
                 })
-        except Exception:
-            pass
+        except Exception as _e:
+            logger.debug("OTEL attr skipped (cost recommendation): %s", _e)
 
         _priority_order = {"high": 0, "medium": 1, "low": 2}
         recommendations.sort(key=lambda x: _priority_order.get(x["priority"], 9))

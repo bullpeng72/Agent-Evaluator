@@ -50,7 +50,6 @@ def _make_hybrid(tmp_path=None) -> HybridPerformanceMonitor:
     return HybridPerformanceMonitor(
         use_deepeval=False,
         use_ragas=False,
-        use_langsmith=False,
         enable_hallucination_detection=False,
         enable_security_metrics=False,
         output_dir=out,
@@ -88,7 +87,6 @@ class TestHybridInit:
         mon = HybridPerformanceMonitor(
             use_deepeval=False,
             use_ragas=False,
-            use_langsmith=False,
             enable_hallucination_detection=False,
             output_dir=str(tmp_path),
             model_name="test-model",
@@ -130,7 +128,8 @@ class TestHybridRecordTask:
             input_text="question",
             output_text="answer",
         )
-        assert mon.extended_tasks[0].advanced_metrics == {}
+        # M7: None means "not collected" (disabled), {} means "collected but empty"
+        assert mon.extended_tasks[0].advanced_metrics is None
 
     def test_method_chaining_multiple_tasks(self, tmp_path):
         mon = _make_hybrid(tmp_path)

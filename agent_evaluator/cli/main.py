@@ -37,22 +37,12 @@ from agent_evaluator.config import (
 from agent_evaluator.cli.gate import cmd_gate
 from agent_evaluator.cli.dataset import cmd_dataset
 from agent_evaluator.cli.monitor import build_monitor_subparser, cmd_monitor
+from agent_evaluator.cli._utils import _supports_color
 
 
 # ---------------------------------------------------------------------------
 # ANSI 색상 (터미널이 아닌 경우 비활성화)
 # ---------------------------------------------------------------------------
-
-def _supports_color() -> bool:
-    if not hasattr(sys.stdout, "isatty"):
-        return False
-    if not sys.stdout.isatty():
-        return False
-    if os.name == "nt":
-        # Windows: ANSICON 또는 Windows Terminal 환경 확인
-        return "ANSICON" in os.environ or "WT_SESSION" in os.environ
-    return True
-
 
 _COLOR = _supports_color()
 
