@@ -82,7 +82,7 @@ eval = [
     "deepeval>=3.0.0,<4.0.0",
     "ragas>=0.4.0,<2.0.0",
     "datasets>=4.0.0,<6.0.0",
-    "langchain>=0.2.0,<3.0.0",
+    "langchain>=1.0.0,<3.0.0",
     "langchain-openai>=0.1.0,<3.0.0",
 ]
 # 웹 대시보드 — agent-eval serve (빠름, ~8개 패키지)
@@ -92,9 +92,9 @@ serve = [
     "jinja2>=3.1.0,<4.0.0",
     "python-multipart>=0.0.9,<1.0.0",
 ]
-# PDF 처리 (빠름, ~3개 패키지)
+# PDF 처리 — pdfplumber (빠름, ~2개 패키지)
+# pypdf는 코드베이스에서 미사용 — pdfplumber만 유지
 pdf = [
-    "pypdf>=3.0.0,<7.0.0",
     "pdfplumber>=0.10.0,<1.0.0",
 ]
 # DSPy 통합 (중간, ~10개 패키지)
@@ -102,8 +102,9 @@ dspy = [
     "dspy-ai>=2.0.0",
 ]
 # PydanticAI 통합 (빠름, ~5개 패키지)
+# 1.0.0에서 API 전면 재설계 — 0.x와 호환 불가
 pydanticai = [
-    "pydantic-ai>=0.0.13",
+    "pydantic-ai>=1.0.0,<2.0.0",
 ]
 # 운영 실시간 모니터링 — Phoenix + OTEL (중간, ~20개 패키지)
 # agent-eval monitor 명령어 전용. [all]에 미포함 (Phoenix가 무거우므로 별도 유지), [full]에 포함
@@ -137,10 +138,9 @@ all = [
     "langchain-openai>=0.1.0,<3.0.0",
     "langchain-anthropic>=0.1.0,<3.0.0",
     "langgraph>=1.0.0,<3.0.0",
-    "deepeval>=0.20.0,<4.0.0",
+    "deepeval>=3.0.0,<4.0.0",
     "ragas>=0.4.0,<2.0.0",
     "datasets>=4.0.0,<6.0.0",
-    "pypdf>=3.0.0,<7.0.0",
     "pdfplumber>=0.10.0,<1.0.0",
     "fastapi>=0.110.0,<1.0.0",
     "uvicorn[standard]>=0.29.0,<1.0.0",
@@ -163,7 +163,6 @@ full = [
     "deepeval>=3.0.0,<4.0.0",
     "ragas>=0.4.0,<2.0.0",
     "datasets>=4.0.0,<6.0.0",
-    "pypdf>=3.0.0,<7.0.0",
     "pdfplumber>=0.10.0,<1.0.0",
     "fastapi>=0.110.0,<1.0.0",
     "uvicorn[standard]>=0.29.0,<1.0.0",

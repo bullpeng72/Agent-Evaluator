@@ -551,9 +551,9 @@ pytest
 - `[autogen]` — `pyautogen>=0.3.0,<1.0.0` + `autogen-agentchat/core>=0.4.0` — 무거움, 단독 격리
 - `[eval]` — `deepeval>=3.0.0,<4.0.0` + `ragas>=0.4.0,<2.0.0` + `datasets>=4.0.0,<6.0.0` + `langchain>=0.2.0`
 - `[dspy]` — `dspy-ai>=2.0.0` — DSPy 프로그램 평가 (`DSPyEvaluator`, `dspy_eval`)
-- `[pydanticai]` — `pydantic-ai>=0.0.13` — PydanticAI Agent 평가 (`PydanticAIEvaluator`, `pydanticai_eval`)
+- `[pydanticai]` — `pydantic-ai>=1.0.0,<2.0.0` — PydanticAI Agent 평가 (`PydanticAIEvaluator`, `pydanticai_eval`)
 - `[serve]` — `fastapi>=0.110.0` + `uvicorn[standard]>=0.29.0` + `jinja2>=3.1.0` + `python-multipart>=0.0.9` — 빠름
-- `[pdf]` — `pypdf>=3.0.0,<7.0.0` + `pdfplumber>=0.10.0,<1.0.0` — 빠름
+- `[pdf]` — `pdfplumber>=0.10.0,<1.0.0` — 빠름
 
 ### Optional (조합 편의 extras)
 - `[frameworks]` — `langchain` + `crewai` + `autogen` 한 번에 (기존 호환, 무거움)
