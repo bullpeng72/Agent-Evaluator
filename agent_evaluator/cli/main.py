@@ -37,6 +37,7 @@ from agent_evaluator.config import (
 from agent_evaluator.cli.gate import cmd_gate
 from agent_evaluator.cli.dataset import cmd_dataset
 from agent_evaluator.cli.monitor import build_monitor_subparser, cmd_monitor
+from agent_evaluator.cli.trend import build_trend_subparser, cmd_trend
 from agent_evaluator.cli._utils import _supports_color
 
 
@@ -962,6 +963,9 @@ def main() -> None:
     # monitor subcommand
     build_monitor_subparser(sub)
 
+    # trend subcommand
+    build_trend_subparser(sub)
+
     parser.add_argument(
         "--version", action="store_true",
         help="패키지 버전 출력",
@@ -979,6 +983,7 @@ def main() -> None:
         "monitor":   cmd_monitor,
         "gate":      cmd_gate,
         "dataset":   cmd_dataset,
+        "trend":     cmd_trend,
     }
 
     if args.command is None:
