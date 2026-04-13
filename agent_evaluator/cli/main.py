@@ -586,6 +586,7 @@ def _print_welcome() -> None:
     print(f"  {Y}dashboard{R}  웹 대시보드 실행  {D}(기본 포트 8765){R}")
     print(f"  {Y}monitor{R}    운영 실시간 모니터링  {D}(Phoenix + OTEL){R}")
     print(f"  {Y}gate{R}       CI/CD 품질 게이팅  {D}(임계값 기준 통과/실패){R}")
+    print(f"  {Y}trend{R}      순차 평가 결과 추세 분석  {D}(TCR·정확도 회귀 감지){R}")
     print(f"  {Y}dataset{R}    골든 데이터셋 관리  {D}(운영 결과 자동 추출){R}")
     print(f"  {Y}--version{R}  버전 출력")
     print()
@@ -709,7 +710,7 @@ def main() -> None:
             "\n"
             "평가 결과 수집·저장·시각화 전 구간을 단일 명령어로 관리합니다.\n"
             "API 키 설정, 환경 상태 확인, 웹 대시보드 실행, CI/CD 게이팅,\n"
-            "골든 데이터셋 관리, Phoenix 실시간 모니터링을 지원합니다."
+            "골든 데이터셋 관리, Phoenix 실시간 모니터링, 추세 분석을 지원합니다."
         ),
         formatter_class=ColoredHelpFormatter,
         epilog=(
@@ -718,6 +719,7 @@ def main() -> None:
             f"  {Y}check{R}        현재 환경의 API 키 및 설정값 상태를 출력\n"
             f"  {Y}dashboard{R}    평가 결과를 시각화하는 FastAPI 웹 대시보드 실행\n"
             f"  {Y}gate{R}         CI/CD 품질 게이팅 — 임계값 기준 통과/실패 판정\n"
+            f"  {Y}trend{R}        순차 평가 결과 추세 분석 — TCR·정확도 회귀 감지\n"
             f"  {Y}dataset{R}      운영 결과에서 골든 데이터셋 자동 추출\n"
             f"  {Y}monitor{R}      Arize Phoenix 기동 + OTLP 스팬 수신 설정 (실시간 모니터링)\n"
             "\n"
@@ -729,6 +731,8 @@ def main() -> None:
             f"  {G}agent-eval dashboard ./results --watch --no-open{R}\n"
             f"  {G}agent-eval gate results/ci_run.json --tcr 85 --accuracy 70{R}\n"
             f"  {G}agent-eval gate results/ci_run.json --save-baseline{R}\n"
+            f"  {G}agent-eval trend results/ --window 10{R}\n"
+            f"  {G}agent-eval trend results/ --fail-on-regression{R}\n"
             f"  {G}agent-eval dataset build --source results/ --max-cases 30{R}\n"
             f"  {G}agent-eval monitor{R}\n"
             f"  {G}agent-eval monitor --port 6007{R}\n"

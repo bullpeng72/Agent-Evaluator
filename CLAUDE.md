@@ -48,6 +48,10 @@ agent-eval monitor --port 6006                       # Phoenix 포트 지정 (�
 agent-eval monitor --check                           # OTEL 패키지 설치 여부 및 포트 점유 상태 확인
 # 예제 실행 시 자동으로 Phoenix에 연결 → 프로젝트별 Tracing·Evaluators·Datasets·Prompts 확인 가능
 # (기본 설치에 포함 — 별도 extras 불필요)
+agent-eval trend results/                            # 최근 10개 결과 파일의 TCR·정확도 추세 분석
+agent-eval trend results/ --window 5                 # 최근 5개 파일만 분석
+agent-eval trend results/ --fail-on-regression       # 회귀 감지 시 exit 1 (CI/CD 실패 처리)
+agent-eval trend results/ --output-json trend.json   # 분석 결과 JSON 저장
 agent-eval --version     # 버전 출력
 
 # 테스트 실행
@@ -148,8 +152,9 @@ agent_evaluator/
 │   ├── watcher.py           # 파일 변경 감시 (--watch)
 │   └── routers/             # API 라우터 12개 (alerts, anomaly, config, conversation, cost, data, export, feedback, golden, stream, transparency, webhook)
 ├── cli/
-│   ├── main.py              # agent-eval CLI 진입점 (init/check/dashboard/gate/dataset)
+│   ├── main.py              # agent-eval CLI 진입점 (init/check/dashboard/gate/dataset/monitor/trend)
 │   ├── gate.py              # agent-eval gate — CI/CD 품질 게이팅
+│   ├── trend.py             # agent-eval trend — 순차 실행 결과 추세 분석 · RunTrendAnalyzer
 │   └── dataset.py           # dataset 서브커맨드 (build)
 ├── utils/
 │   ├── dashboard_integration.py  # Dashboard storage path helper
@@ -527,7 +532,7 @@ from agent_evaluator import (
 
 ## Testing
 
-`tests/` 디렉토리에 62개 파일, 1,837개+ 테스트 함수 존재.
+`tests/` 디렉토리에 63개 파일, 1,861개+ 테스트 함수 존재.
 
 ```bash
 # pytest.ini_options in pyproject.toml already configured:
@@ -598,9 +603,10 @@ pytest
 
 ## 📝 변경 이력
 
-### v0.7.9 (2026-04-13) — arize-phoenix 버전 제약 수정
+### v0.7.9 (2026-04-13) — arize-phoenix 버전 제약 수정 · RunTrendAnalyzer
 
 - 🐛 **arize-phoenix 버전 제약 수정** — pyproject.toml의 `arize-phoenix>=7.0.0` 제약이 최신 릴리즈와 충돌하던 문제 수정. 설치 호환성 복구
+- ✨ **`RunTrendAnalyzer` + `agent-eval trend` 서브커맨드** — 순차 평가 결과 JSON의 TCR·정확도·P95 지연시간·환각률 추세 분석. 선형 slope 계산으로 지속적 하락 감지. `--fail-on-regression`으로 CI/CD 파이프라인 연동. `--window N`, `--pattern GLOB`, `--slope-threshold`, `--output-json` 옵션 지원. 테스트 24개 추가 (이슈 #1)
 
 ### v0.7.8 (2026-04-12) — SDK 기본 내장 · 의존성 extras 현행화
 

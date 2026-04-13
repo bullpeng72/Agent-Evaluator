@@ -1121,6 +1121,7 @@ eval = QuickEval("results/", auto_save=True, auto_save_interval=10)
 | `agent-eval check` | 현재 설정 상태 및 API 키 확인 |
 | `agent-eval dashboard [dir]` | FastAPI 대시보드 웹 서버 실행 |
 | `agent-eval gate <result.json>` | CI/CD 품질 게이팅 |
+| `agent-eval trend <dir>` | 순차 평가 결과 TCR·정확도 추세 분석 (회귀 감지) |
 | `agent-eval dataset build <dir>` | 운영 결과에서 골든 데이터셋 자동 추출 |
 | `agent-eval monitor` | Arize Phoenix + OTEL 실시간 모니터링 |
 | `agent-eval --version` | 패키지 버전 출력 |
@@ -1326,7 +1327,7 @@ agent-evaluator/
 │   └── datasets/                # GoldenSetBuilder
 │
 ├── Evaluator_Examples/          # 예제 7개 통합 파일 (.deprecated/에 구 21개 보존)
-├── tests/                       # 1,837개 테스트 함수, 62개 파일
+├── tests/                       # 1,861개 테스트 함수, 63개 파일
 └── pyproject.toml
 ```
 
@@ -1387,9 +1388,10 @@ mypy agent_evaluator/          # 타입 검사
 
 ## 변경 이력
 
-### v0.7.9 (2026-04-13) — arize-phoenix 버전 제약 수정
+### v0.7.9 (2026-04-13) — arize-phoenix 버전 제약 수정 · RunTrendAnalyzer
 
 - 🐛 arize-phoenix 버전 제약 충돌 수정 — 최신 릴리즈 설치 호환성 복구
+- ✨ `RunTrendAnalyzer` + `agent-eval trend` 서브커맨드 — 순차 평가 결과 JSON의 TCR·정확도 추세 분석, `--fail-on-regression`으로 CI/CD 연동 (이슈 #1)
 
 ### v0.7.8 (2026-04-12) — SDK 기본 내장 · 의존성 extras 현행화
 
