@@ -88,6 +88,36 @@ TCR = (전체 completion_score 합계 / 전체 태스크 수) × 100(%)
 
 데코레이터는 `completion_score`를 자동으로 결정한다. 함수가 정상 반환하면 `completion_score = 1.0`, 예외가 발생하면 `completion_score = 0.0`이다. 세밀한 제어가 필요하면 `EvalMetadata`로 직접 지정한다.
 
+**task_type별 구조적 완료 판정 (v0.8.0+, ground_truth 없는 환경)**
+
+| task_type | 판정 기준 | 결과 |
+|-----------|----------|------|
+| `code_generation`/`coding` | Python AST 파싱 성공 | 1.0 (유효 코드) / 길이 기반 fallback |
+| `tool_use` | `tool_calls` 비어 있지 않음 | 1.0 / 0.6 (도구 미사용 부분 완료) |
+| 기타 | 응답 길이 ≥ 10자 | 1.0 (기본값) |
+
+```python
+# code_generation: AST 파싱 가능한 코드면 completion_score = 1.0
+result = create_taskresult(
+    task_id="t1",
+    question="두 수를 더하는 함수",
+    response="def add(a, b):\n    return a + b",
+    execution_time=1.0,
+    task_type="code_generation",   # ground_truth 없어도 AST 파싱 → 1.0
+)
+# → completion_score = 1.0, TCR 신뢰도 향상
+
+# tool_use: 도구를 실제 사용한 경우만 완전 완료
+result = create_taskresult(
+    task_id="t2",
+    question="현재 날씨 검색",
+    response="서울 맑음",
+    execution_time=1.0,
+    task_type="tool_use",
+    tool_calls=[],                 # 도구 미사용 → completion_score = 0.6
+)
+```
+
 ### 코드 예시: TaskCompletionTracker 직접 사용 + create_taskresult() 활용
 
 ```python
@@ -187,7 +217,13 @@ Jaccard = |교집합| / |합집합|
 
 ### Char Similarity (10%)
 
-문자 수준 비교다. 오탈자나 어절 변형(예: "서울시" vs "서울")을 허용하는 유연한 매칭을 제공한다. 가중치가 낮지만 한국어처럼 형태 변화가 많은 언어에서 중요한 역할을 한다.
+**Levenshtein 거리 기반** 문자 수준 유사도다. 두 문자열 간 편집 거리(삽입·삭제·치환 최소 횟수)를 계산하여 문자 순서까지 반영한다. 오탈자나 어절 변형(예: "서울시" vs "서울")을 허용하는 유연한 매칭을 제공한다. 가중치가 낮지만 한국어처럼 형태 변화가 많은 언어에서 중요한 역할을 한다.
+
+```
+Char Similarity = 1 - (Levenshtein 거리 / max(len(s1), len(s2)))
+```
+
+> v0.8.0부터 집합 기반 문자 교집합(`set(s1) & set(s2)`) 대신 Levenshtein 거리로 통일. 문자 순서가 반영되어 "abc"와 "cba"가 다른 점수를 받는다.
 
 ### 최종 공식
 
@@ -810,3 +846,125 @@ def agent(question, ground_truth=""): ...
 - **Latency는 P95 기준으로 SLA를 설정**한다. 스트리밍 에이전트는 TTFT를 추가로 모니터링한다. P95 < 3초가 실용적 목표값이다.
 
 - **에이전트 유형별 KPI를 정의**하고 `eval.gate()`로 CI/CD에 통합하면, 품질 저하를 배포 전에 차단할 수 있다.
+
+---
+
+## 실전 예제
+
+이 챕터에서 다룬 Layer 1 지표 6종 전체를 한 번에 실행할 수 있는 예제 파일이 제공된다.
+
+**파일**: `Evaluator_Examples/01_layer1_all_metrics.py`
+
+**핵심 코드 (출처: `Evaluator_Examples/01_layer1_all_metrics.py`)**
+
+**섹션 1 — QA 정확도 측정 (`AccuracyEvaluator`)**
+
+```python
+# 출처: Evaluator_Examples/01_layer1_all_metrics.py, 섹션 1
+from agent_evaluator import PerformanceMonitor
+from agent_evaluator.decorators import agent_eval
+
+monitor = PerformanceMonitor(output_dir="results/", enable_hallucination_detection=True)
+
+@agent_eval(monitor, task_type="qa", task_id_prefix="qa")
+def qa_agent(question: str, ground_truth: str = "") -> str:
+    answers = {
+        "한국의 수도는?":   "서울입니다.",
+        "1+1은?":          "3입니다.",   # 의도적 오답
+    }
+    return answers.get(question, "잘 모르겠습니다.")
+
+qa_agent("한국의 수도는?", ground_truth="서울")    # accuracy_score ≈ 0.9
+qa_agent("1+1은?",         ground_truth="2")       # accuracy_score ≈ 0.1
+```
+
+`AccuracyEvaluator`는 TokenF1(40%)·Jaccard(30%)·LCS(20%)·Char Levenshtein(10%) 가중 합산으로 accuracy_score를 계산한다.
+
+**섹션 3 — 할루시네이션 탐지 (`HallucinationDetector`)**
+
+```python
+# 출처: Evaluator_Examples/01_layer1_all_metrics.py, 섹션 3
+from agent_evaluator import create_taskresult
+
+# 수치 불일치 탐지 케이스
+result = create_taskresult(
+    task_id="hall_001",
+    question="아인슈타인의 출생 연도는?",
+    response="아인슈타인은 1865년 미국 뉴욕에서 태어났습니다.",  # 연도·장소 모두 오류
+    ground_truth="1879년, 독일 울름",
+    context="알베르트 아인슈타인은 1879년 독일 울름에서 태어난 물리학자입니다.",
+    execution_time=1.2,
+    task_type="information_retrieval",   # ← 이 task_type이어야 할루시네이션 탐지 활성
+    tokens_used={"input": 120, "output": 40, "total": 160},
+)
+monitor.record_task(result)
+print(f"accuracy_score={result.accuracy_score:.2f}")  # 낮은 점수
+```
+
+`task_type="information_retrieval"` + `context` 필드가 있을 때 `enable_hallucination_detection=True`이면 HallucinationDetector가 자동 활성화된다.
+
+**섹션 5 — 지연시간 분포 (`LatencyTracker`)**
+
+```python
+# 출처: Evaluator_Examples/01_layer1_all_metrics.py, 섹션 5
+import random
+
+latencies = [random.gauss(1.2, 0.4) for _ in range(15)] + [8.5, 12.0]  # 이상치 2개
+for i, lat in enumerate(latencies):
+    result = create_taskresult(
+        task_id=f"perf_{i:03d}", question="지연 테스트", response="완료",
+        ground_truth="완료", execution_time=max(0.1, lat),
+        task_type="qa", tokens_used={"input": 50, "output": 20, "total": 70},
+    )
+    monitor.record_task(result)
+
+lat_stats = monitor.generate_report().to_dict().get("efficiency_metrics", {}).get("latency", {})
+print(f"p95={float(lat_stats.get('p95', 0)):.2f}s")  # 이상치 2개로 급등
+```
+
+p95는 이상치 2개(8.5s, 12.0s)로 인해 정상 평균(~1.2s)보다 크게 올라간다. 소수의 느린 요청이 SLA에 미치는 영향을 측정하는 데 p95/p99가 중요한 이유다.
+
+```bash
+# Evaluator_Examples/ 디렉토리에서 실행
+python 01_layer1_all_metrics.py
+
+# 결과 대시보드 확인
+agent-eval dashboard results/
+```
+
+**예제 구성**
+
+| 섹션 | 내용 | 연관 지표 |
+|------|------|----------|
+| 섹션 1 | QA 정확도 (정답·오답 혼합 5건) | Accuracy (Token F1·Jaccard·LCS·Char) |
+| 섹션 2 | 코드 & RAG 정확도 | Accuracy (AST 비교 / 컨텍스트 기반) |
+| 섹션 3 | 할루시네이션 탐지 4건 | HallucinationDetector |
+| 섹션 4 | 응답 품질 고·중·저 비교 | ResponseQualityEvaluator (5차원) |
+| 섹션 5 | 지연시간 분포 시뮬레이션 | LatencyTracker (p50·p95·p99) |
+| 섹션 6 | 토큰 경제성 & 비용 추정 | TokenEconomyTracker |
+| 섹션 7 | TCR 목표값 비교 | TaskCompletionTracker |
+
+**실행 결과 (v0.8.0 기준)**
+
+```
+=== 최종 리포트 ===
+  총 태스크 : 54건
+  평균 정확도: 59.82%
+  평균 지연  : 1.41s  (p50=1.15s · p95=5.20s · p99=10.95s)
+  TCR       : 43.1%  (목표: 85%)  ← 의도적 오답 포함으로 낮게 설정
+  누적 토큰 : 4,523   예상 비용: $0.0265 USD
+
+결과 저장 완료: results/01_layer1_all_metrics.json
+```
+
+**결과 파일에서 확인할 수 있는 값**
+
+```bash
+# TCR 확인
+python -c "import json; d=json.load(open('results/01_layer1_all_metrics.json')); print(d['summary']['task_completion_rate'])"
+# → 0.431
+
+# P95 지연 확인
+python -c "import json; d=json.load(open('results/01_layer1_all_metrics.json')); print(d['layer1']['latency']['p95_latency'])"
+# → 5.2
+```

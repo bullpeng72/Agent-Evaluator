@@ -566,3 +566,147 @@ eval = QuickEval("results/", auto_save=True, auto_save_interval=10)
 - **세 도구 모두 LLM API 비용이 발생**한다. 프로덕션에서는 `judge_sample_rate`와 `judge_budget_per_day`로 반드시 비용을 제어해야 한다. 실용적인 기본값은 5~10% 샘플링이다.
 
 - **환경별 샘플링 전략**을 정의하라. 개발(100%) → 스테이징(30%) → 프로덕션(5%)으로 단계를 나누면 비용과 품질을 균형 있게 유지할 수 있다.
+
+---
+
+## 실전 예제
+
+이 챕터에서 다룬 HybridPerformanceMonitor, LLM Judge, DeepEval, Ragas, Phoenix 통합을 실행할 수 있는 예제 파일이 제공된다.
+
+**파일**: `Evaluator_Examples/07_phoenix_hybrid.py`
+
+**핵심 코드 (출처: `Evaluator_Examples/07_phoenix_hybrid.py`)**
+
+**모니터 초기화 — 환경에 따른 분기**
+
+```python
+# 출처: Evaluator_Examples/07_phoenix_hybrid.py, 모니터 초기화 섹션
+import os
+
+def _check_eval_packages() -> bool:
+    try:
+        import deepeval  # noqa: F401
+        import ragas     # noqa: F401
+        return True
+    except ImportError:
+        return False
+
+EVAL_AVAILABLE = _check_eval_packages() and bool(os.getenv("OPENAI_API_KEY", ""))
+
+if EVAL_AVAILABLE:
+    from agent_evaluator import HybridPerformanceMonitor
+    monitor = HybridPerformanceMonitor(
+        use_deepeval=True,           # DeepEval G-Eval·Hallucination·Toxicity
+        use_ragas=True,              # Ragas Faithfulness·Answer Relevancy·Context Precision
+        deepeval_model="gpt-4o-mini",
+        ragas_model="gpt-4o-mini",
+        output_dir="results/",
+    )
+else:
+    from agent_evaluator import PerformanceMonitor
+    monitor = PerformanceMonitor(output_dir="results/")
+    # 결과 JSON에 데모 advanced_metrics 주입 → 대시보드 '외부평가' 탭 UI 확인 가능
+```
+
+- `HybridPerformanceMonitor`는 `pip install "agent-evaluator[eval]"` + `OPENAI_API_KEY` 두 가지가 모두 필요하다
+- 미설치 환경에서는 `PerformanceMonitor`로 fallback해 기본 Layer 1+2 지표만 측정한다
+- 두 경우 모두 `record_task()` / `save_to_file()` 인터페이스가 동일해 코드 전환이 최소화된다
+
+**HybridPerformanceMonitor 태스크 평가**
+
+```python
+# 출처: Evaluator_Examples/07_phoenix_hybrid.py, 섹션 1
+from agent_evaluator import create_taskresult
+
+result = create_taskresult(
+    task_id="hybrid_rag_001",
+    question="서울의 주요 특징은?",
+    response="서울은 대한민국의 수도이자 최대 도시로, 약 950만 명이 거주합니다.",
+    ground_truth="서울은 대한민국의 수도",
+    execution_time=1.2,
+    task_type="information_retrieval",
+    tokens_used={"input": 120, "output": 40, "total": 160},
+)
+
+if EVAL_AVAILABLE:
+    # HybridPerformanceMonitor: input_text/output_text/retrieved_context 전달
+    monitor.record_task(
+        result,
+        input_text="서울의 주요 특징은?",
+        output_text="서울은 대한민국의 수도이자 최대 도시로, 약 950만 명이 거주합니다.",
+        expected_output="서울은 대한민국의 수도",
+        retrieved_context=["서울은 대한민국의 수도입니다.", "인구는 약 950만 명입니다."],
+    )
+    # → DeepEval G-Eval·Hallucination + Ragas Faithfulness 자동 계산
+else:
+    monitor.record_task(result)  # Layer 1+2만 계산
+```
+
+- `retrieved_context` 파라미터를 전달하면 Ragas의 4개 RAG 지표(Faithfulness·Answer Relevancy·Context Precision·Context Recall)가 자동 계산된다
+- `HybridEvaluationReport.advanced_metrics_summary`에서 DeepEval·Ragas 결과를 집계해서 확인한다
+- `advanced_metrics`는 태스크별 `TaskResult.extra["advanced_metrics"]`에도 저장되어 대시보드 태스크 목록에서 개별 확인 가능하다
+
+**LLMJudge — 외부 패키지 없이 G-Eval/Ragas 대체**
+
+```python
+# 출처: Evaluator_Examples/07_phoenix_hybrid.py에서 사용하는 LLMJudge 패턴
+from agent_evaluator import LLMJudge, PerformanceMonitor
+from agent_evaluator.decorators import agent_eval
+
+monitor = PerformanceMonitor(
+    output_dir="results/",
+    enable_llm_judge=True,        # LLMJudge 활성화
+    judge_sample_rate=0.1,        # 10%만 채점 (비용 절감)
+    judge_criteria=["accuracy", "completeness"],  # G-Eval 커스텀 기준
+)
+
+@agent_eval(
+    monitor, task_type="qa",
+    enable_llm_judge=True,        # 데코레이터 수준 활성화
+    judge_criteria=["medical_accuracy", "citation_quality"],
+)
+def medical_agent(question: str, ground_truth: str = "") -> str:
+    return f"의학적 답변: {question}"
+
+# 결과에 criteria_scores 포함
+# result["scores"]["criteria_scores"] = {"medical_accuracy": 4, "citation_quality": 5}
+# result["scores"]["criteria_overall"] = 4.5
+```
+
+- `judge_criteria`를 지정하면 DeepEval의 G-Eval을 외부 패키지 없이 대체한다. API 키만 있으면 동작한다
+- `judge_sample_rate=0.1`로 10%만 채점해 비용을 절감한다. 이상 케이스 전수 채점이 필요하면 `sample_condition=lambda r, gt: r.accuracy_score < 0.5`로 조건부 샘플링을 설정한다
+- `rag_mode=True` + `enable_llm_judge=True` 조합이면 `faithfulness` 점수(0-5)도 자동 추가된다 — Ragas LLM-based Faithfulness 대체
+
+```bash
+# Phoenix 서버 없이 실행 (목업 모드 — LLM Judge 없이도 동작)
+python 07_phoenix_hybrid.py
+
+# Phoenix + 외부 평가 활성화 (OPENAI_API_KEY 필요)
+agent-eval monitor                            # 별도 터미널
+pip install 'agent-evaluator[eval]'           # DeepEval·Ragas 설치
+OPENAI_API_KEY=sk-... python 07_phoenix_hybrid.py
+```
+
+**예제 구성**
+
+| 섹션 | 내용 |
+|------|------|
+| 섹션 1 | Phoenix Tracing + task_type별 `span.kind` 자동 매핑 (LLM·TOOL·RETRIEVER·AGENT) |
+| 섹션 2 | Phoenix Playground 연동 — `llm.prompts` 속성으로 프롬프트 재현 |
+| 섹션 3 | Phoenix Datasets 탭 — 고품질 케이스 자동 추출·업로드 |
+| 섹션 4 | Phoenix Prompts 탭 REST 등록 예시 |
+| 섹션 5 | GraphQL 조회 예시 5종 |
+
+**실행 결과 (v0.8.0 기준, 목업 모드)**
+
+```
+  Phoenix 미실행 — OTEL 비활성
+  섹션 1: 5개 태스크, span.kind 자동 매핑 완료
+  외부평가 데이터 주입 완료:
+    G-Eval 평균: 0.793  (min=0.71, max=0.88)
+    RAG 지표 건수: 2건 (faithfulness·answer_relevancy·recall·precision)
+  총 태스크: 7건  TCR: 57.1%
+결과 저장 완료: results/07_phoenix_hybrid.json
+```
+
+> **LLM Judge(내장)와 DeepEval·Ragas(외부) 선택 기준**: ground truth 없이 빠른 품질 채점이 필요하면 `enable_llm_judge=True`(기본 설치 포함). RAG 파이프라인 정밀 진단이 필요하면 `pip install 'agent-evaluator[eval]'` + `RagasAdapter`.

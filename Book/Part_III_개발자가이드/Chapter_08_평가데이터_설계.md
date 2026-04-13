@@ -89,8 +89,8 @@ print(f"정확도: {result_auto.accuracy_score:.2f}")  # → 0.95 (4-way 계산)
 ```
 
 `create_taskresult()`가 자동으로 계산하는 항목:
-- `accuracy_score`: Token Overlap(40%) + Jaccard Similarity(30%) + LCS Ratio(20%) + 문자 유사도(10%)
-- `completion_score`: success 여부 기반
+- `accuracy_score`: TokenOverlapF1(40%) + Jaccard Similarity(30%) + LCS Ratio(20%) + CharSimilarity/Levenshtein(10%)
+- `completion_score`: task_type 인식 — `code_generation`/`coding`은 AST 파싱 성공 여부, `tool_use`는 tool_calls 존재 여부, 기타는 길이 기반
 - `timestamp`: `datetime.utcnow()` 자동 생성
 
 ### 직렬화 / 역직렬화
@@ -551,3 +551,128 @@ print(f"평균 지연: {summary.get('avg_latency', 0):.2f}초")
 - **골든 데이터셋은 `GoldenSetBuilder`로 자동 마이닝**한다. 프로덕션 트래픽에서 `accuracy_score >= 0.85` 케이스를 추출하고, `push_to_phoenix()`로 Phoenix UI와 연동하면 시각적으로 관리할 수 있다.
 - **샘플링 전략은 환경별로 달라진다**: 개발(1.0) → CI(골든셋 전수) → 프로덕션(0.1). `sample_condition`으로 오류 케이스만 전수 기록하는 조건부 샘플링도 가능하다.
 - **한국어 평가는 토큰 비용이 1.5~2배** 높다는 점을 고려해 비용 예측을 조정해야 하며, `KoreanRAGDatasetGenerator`로 PDF에서 한국어 QA 쌍을 자동 생성하고 `QuickEval.for_rag()`로 바로 평가할 수 있다.
+
+---
+
+## 실전 예제
+
+평가 데이터 설계와 골든 데이터셋 운영은 두 예제 파일에서 실제로 확인할 수 있다. `01_layer1_all_metrics.py`는 `create_taskresult()` 헬퍼와 TaskType 활용법을, `06_operational.py`는 `GoldenSetBuilder`를 통한 프로덕션 데이터 마이닝을 보여준다.
+
+**파일**: `Evaluator_Examples/01_layer1_all_metrics.py`, `Evaluator_Examples/06_operational.py`
+
+**핵심 코드**
+
+**`create_taskresult()` 헬퍼 vs 직접 생성 비교 (출처: `01_layer1_all_metrics.py`, 섹션 1)**
+
+```python
+# 출처: Evaluator_Examples/01_layer1_all_metrics.py, 섹션 1
+from agent_evaluator import create_taskresult, TaskResult
+from datetime import datetime
+
+# ✅ 권장: create_taskresult() 헬퍼 — accuracy_score, completion_score, timestamp 자동 계산
+result = create_taskresult(
+    task_id="task_001",
+    question="한국의 수도는?",
+    response="서울입니다.",
+    ground_truth="서울",
+    execution_time=1.23,
+    task_type="qa",
+    tokens_used={"input": 80, "output": 20, "total": 100},
+)
+print(f"accuracy_score={result.accuracy_score:.2f}")    # 자동 계산
+print(f"completion_score={result.completion_score:.2f}") # 자동 계산
+
+# ❌ 비권장: TaskResult 직접 생성 — 11개 필수 필드를 모두 직접 채워야 함
+direct = TaskResult(
+    task_id="task_002",
+    task_type="qa",
+    success=True,
+    completion_score=0.9,        # 직접 계산
+    accuracy_score=0.87,         # 직접 계산
+    execution_time=1.23,
+    tokens_used={"input": 80, "output": 20, "total": 100},
+    tool_calls=[],
+    attempts=1,
+    errors=[],
+    timestamp=datetime.now(),
+    # 선택 필드 13개는 기본값으로 채워짐
+)
+```
+
+- `create_taskresult()`는 `question`, `response`, `ground_truth`에서 TokenF1·Jaccard·LCS·Char Levenshtein 가중 합산으로 accuracy_score를 자동 계산한다
+- `TaskResult`는 `@dataclass(frozen=True)` — 생성 후 불변(immutable)이다. `to_dict()` / `from_dict()` / `from_json()`으로 직렬화·역직렬화를 지원한다
+- `context` 필드에 검색된 문서를 넣으면 HallucinationDetector가 자동으로 활성화된다 (`task_type="information_retrieval"`일 때)
+
+**GoldenSetBuilder — 자동 마이닝 (출처: `06_operational.py`, 섹션 3)**
+
+```python
+# 출처: Evaluator_Examples/06_operational.py, 섹션 3
+from agent_evaluator.datasets.builder import GoldenSetBuilder
+from datetime import datetime
+
+builder = GoldenSetBuilder(
+    source_dir="results/",           # 평가 결과 JSON이 저장된 디렉토리
+    output_dir="data/golden_datasets/",  # 골든 데이터 저장 위치
+)
+
+# 고가치 QA 케이스 추출 (accuracy_score >= 0.7)
+def _to_golden_dict(r, strategy: str = "high_value") -> dict:
+    return {
+        "task_id":        r.task_id,
+        "question":       getattr(r, "question", r.task_id) or r.task_id,
+        "response":       getattr(r, "response", "") or "",
+        "ground_truth":   getattr(r, "ground_truth", "") or "",
+        "accuracy_score": r.accuracy_score,
+        "task_type":      str(r.task_type),
+        "_requires_review": True,    # 대시보드 케이스 검토 탭에서 검토 대기 상태
+        "_strategy":      strategy,
+        "_extracted_at":  datetime.now().isoformat(),
+    }
+
+# 정확도 기준으로 케이스 분류
+high_value = [_to_golden_dict(r, "high_value")    for r in tasks if r.accuracy_score >= 0.7]
+fail_cases = [_to_golden_dict(r, "failure_cases") for r in tasks if r.accuracy_score < 0.2]
+edge_cases = [_to_golden_dict(r, "edge_cases")    for r in tasks if r.execution_time > 8.0]
+
+# 후보 파일 저장 → 대시보드 '케이스 검토' 탭에서 승인/거부 가능
+builder.save_candidates(high_value, filename="qa_candidates.json")
+
+# 승인된 케이스를 마스터 골든셋으로 병합
+builder.merge_to_golden(high_value, version="v1", output_name="master_golden")
+```
+
+- `_requires_review=True`가 포함된 JSON을 `data/golden_datasets/` 디렉토리에 저장하면 대시보드 '케이스 검토' 탭에 검토 대기 항목으로 표시된다
+- `save_candidates()`는 후보 파일을, `merge_to_golden()`은 최종 골든셋 파일을 생성한다. 버전(`version="v1"`)으로 이력을 관리한다
+- 실패 케이스(`failure_cases`)와 엣지 케이스(`edge_cases`)를 포함해야 회귀 테스트 커버리지가 높아진다
+
+```bash
+python Evaluator_Examples/01_layer1_all_metrics.py
+python Evaluator_Examples/06_operational.py
+```
+
+**예제 구성**
+
+| 파일 | 섹션 | 내용 | 연관 기능 |
+|------|------|------|-----------|
+| 01_layer1 | 섹션 1~2 | `create_taskresult()` 헬퍼 사용법 | `task_type`, `accuracy_score` 자동 계산 |
+| 01_layer1 | 섹션 3 | `TaskType.CODE_GENERATION` 평가 | AST 비교 자동 활성화 |
+| 01_layer1 | 섹션 5 | `information_retrieval` 태스크 | `HallucinationDetector` 자동 연동 |
+| 06_operational | 섹션 5 | `GoldenSetBuilder` 마이닝 | `accuracy_score >= 0.85` 케이스 자동 추출 |
+| 06_operational | 섹션 5 | `push_to_phoenix()` | Phoenix Datasets 탭에 골든셋 업로드 |
+
+**실행 결과 (v0.8.0 기준)**
+
+```
+# 01_layer1_all_metrics.py
+총 54개 태스크 | TCR=43.1% | 평균 정확도=59.82%
+  code_generation 태스크: AST 비교 적용, accuracy=0.756
+  information_retrieval: HallucinationDetector 활성화
+
+# 06_operational.py (GoldenSetBuilder 섹션)
+GoldenSetBuilder: 28개 결과 중 12개 골든 케이스 추출
+  기준: accuracy_score >= 0.85 AND completion_score >= 0.9
+  저장: data/golden_datasets/golden_YYYYMMDD_HHMMSS.json
+  Phoenix push: 비활성 (API 키 없음) — ANTHROPIC_API_KEY 설정 시 자동 업로드
+```
+
+> **핵심**: `create_taskresult()`는 `question`과 `response`, `ground_truth`만 넣으면 TokenF1·Jaccard·LCS 가중 합산으로 `accuracy_score`를 자동 계산한다. 직접 `TaskResult()`를 생성할 때는 11개 필수 필드를 모두 채워야 하므로 헬퍼 사용을 강력히 권장한다.

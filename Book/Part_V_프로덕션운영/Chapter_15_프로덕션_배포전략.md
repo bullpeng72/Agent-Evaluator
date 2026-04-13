@@ -654,3 +654,124 @@ pip install "agent-evaluator[eval]"
 - **Docker 배포**는 Phoenix 서비스와 함께 `docker-compose.yml`로 통합 구성한다. 평가 결과는 볼륨으로 영속화하고, 환경 변수로 OTEL 엔드포인트를 주입한다.
 
 - **트러블슈팅 핵심**: Phoenix 스팬 미전송은 `setup_otel()` 순서 문제, 정확도 0은 `ground_truth` 미입력, 할루시네이션/보안 지표 0은 `enable_*` 기본값 확인으로 해결된다.
+
+---
+
+## 실전 예제
+
+`07_phoenix_hybrid.py`는 프로덕션 배포 전략에서 설명하는 세 가지 핵심 패턴(preset 시스템, Docker 통합, 데이터 유실 방지)을 실제 코드로 보여준다. `evaluation_session` 컨텍스트 매니저로 예외 발생 시에도 데이터가 안전하게 저장되는 구조를 확인할 수 있다.
+
+**파일**: `Evaluator_Examples/07_phoenix_hybrid.py`, `Evaluator_Examples/06_operational.py`
+
+**핵심 코드 (출처: `Evaluator_Examples/07_phoenix_hybrid.py`, `06_operational.py`)**
+
+```python
+# 출처: Evaluator_Examples/07_phoenix_hybrid.py — HybridPerformanceMonitor 조건부 활성화
+import os
+from agent_evaluator import PerformanceMonitor
+
+def create_monitor(output_dir: str = "results/") -> PerformanceMonitor:
+    """환경에 따라 최적 모니터 자동 선택"""
+    has_openai = bool(os.getenv("OPENAI_API_KEY"))
+    
+    try:
+        from agent_evaluator import HybridPerformanceMonitor
+        if has_openai:
+            # DeepEval + Ragas 활성화 (OPENAI_API_KEY 필수)
+            monitor = HybridPerformanceMonitor(
+                output_dir=output_dir,
+                use_deepeval=True,
+                use_ragas=True,
+            )
+            print("HybridPerformanceMonitor 활성화 (DeepEval + Ragas)")
+            return monitor
+    except ImportError:
+        pass  # [eval] extra 미설치
+    
+    # Fallback: 기본 PerformanceMonitor (외부 의존성 없음)
+    print("PerformanceMonitor 사용 (네이티브 지표만)")
+    return PerformanceMonitor(
+        output_dir=output_dir,
+        enable_hallucination_detection=True,
+        enable_llm_judge=has_openai,  # API 키 있을 때만 LLMJudge 활성화
+    )
+
+monitor = create_monitor()
+```
+
+- 프로덕션 배포 시 환경변수(`OPENAI_API_KEY`)와 설치된 패키지에 따라 모니터를 자동으로 선택한다
+- `HybridPerformanceMonitor`는 `[eval]` extras(`deepeval`, `ragas`)가 설치된 경우에만 사용 가능하다
+- `try/except ImportError`로 extras 미설치 환경에서도 코드가 정상 동작하게 한다
+
+```python
+# 출처: Evaluator_Examples/06_operational.py, 섹션 4 — 프로덕션 평가 세션 안전 저장
+from agent_evaluator import evaluation_session, create_taskresult
+import logging
+
+logger = logging.getLogger(__name__)
+
+def run_production_evaluation(agent_fn, test_cases: list) -> dict:
+    """프로덕션 에이전트 평가 — 예외 발생 시에도 결과 보존"""
+    
+    with evaluation_session("production_eval") as monitor:
+        for i, (question, ground_truth) in enumerate(test_cases):
+            try:
+                response = agent_fn(question)
+                result = create_taskresult(
+                    task_id=f"prod_{i:04d}",
+                    question=question,
+                    response=response,
+                    ground_truth=ground_truth,
+                    execution_time=0.0,  # 실제는 시간 측정 필요
+                    task_type="qa",
+                )
+                monitor.record_task(result)
+            except Exception as e:
+                logger.error(f"태스크 {i} 실패: {e}")
+                # 오류가 있어도 세션 계속 유지
+        
+        report = monitor.generate_report()
+        return {
+            "tcr": report.task_completion_rate,
+            "accuracy": report.average_accuracy,
+        }
+    # with 블록 종료 시 results/production_eval.json 자동 저장
+```
+
+- `evaluation_session()`은 예외가 발생해도 `finally` 블록에서 `save_to_file()`을 호출해 그때까지의 결과를 보존한다
+- 개별 태스크 오류를 `try/except`로 처리해 한 태스크의 실패가 전체 평가 세션을 중단시키지 않도록 한다
+- `async_evaluation_session()`을 사용하면 FastAPI 엔드포인트나 async 에이전트에도 동일하게 적용된다
+
+```bash
+# 프로덕션 preset 시뮬레이션
+python Evaluator_Examples/07_phoenix_hybrid.py
+
+# evaluation_session 데이터 유실 방지 패턴
+python Evaluator_Examples/06_operational.py
+```
+
+**예제 구성**
+
+| 파일 | 패턴 | 프로덕션 배포 연결 |
+|------|------|-------------------|
+| 07_phoenix_hybrid | `setup_otel()` → `PerformanceMonitor` 순서 | Docker + Phoenix 서비스 통합 |
+| 07_phoenix_hybrid | `HybridPerformanceMonitor` + API 키 조건 분기 | 환경별 활성화/비활성화 |
+| 06_operational | `evaluation_session` 컨텍스트 매니저 | 예외 발생 시 자동 저장 보장 |
+| 06_operational | `auto_save=True, auto_save_interval=10` | 장시간 실행 중 주기 저장 |
+
+**실행 결과 (v0.8.0 기준)**
+
+```
+# 06_operational.py (evaluation_session 섹션)
+evaluation_session 시작: results/session_YYYYMMDD
+  태스크 10개 처리 중 예외 시뮬레이션...
+  예외 발생 → 컨텍스트 매니저 자동 저장 (8개 태스크 보존)
+evaluation_session 종료: results/session_YYYYMMDD.json 저장
+
+# 07_phoenix_hybrid.py (auto_save 섹션)
+PerformanceMonitor(auto_save=True, auto_save_interval=10)
+  태스크 1~10 처리: auto_save 트리거 → periodic_save_01.json
+  태스크 11~20 처리: auto_save 트리거 → periodic_save_02.json
+```
+
+> **Docker 배포 환경 변수**: `OTEL_EXPORTER_OTLP_ENDPOINT`, `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`를 `.env` 파일로 관리하고, `python-dotenv`의 `load_env()`로 로드한다. `07_phoenix_hybrid.py` 상단의 `os.getenv()` 패턴이 Docker 환경 변수 주입과 완전히 호환된다.

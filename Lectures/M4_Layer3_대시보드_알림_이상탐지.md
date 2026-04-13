@@ -7,6 +7,164 @@
 
 ---
 
+> **🗂 실습 파일**
+>
+> | 예제 파일 | 다루는 내용 |
+> |---------|---------|
+> | `Evaluator_Examples/05_streaming_alerts.py` | StreamingEvaluator 슬라이딩 윈도우 · ImplicitFeedbackTracker · SimpleTaskAlertRule · AlertRuleBuilder · AlertEngine · eval_context |
+> | `Evaluator_Examples/06_operational.py` | AnomalyDetector · CostTracker · AdaptivePolicy · GoldenSetBuilder · evaluation_session |
+>
+> ```bash
+> python 05_streaming_alerts.py   # 알림·피드백·대시보드 통합
+> python 06_operational.py        # 이상탐지·비용·골든셋·세션
+> ```
+>
+> **실행 결과 (v0.8.0 기준)**
+>
+> ```
+> # 05_streaming_alerts.py
+>   [1m 윈도우] count=50  tcr=90.0%  p95=9.52s
+>   피드백 통계: total=7  positive=4  negative=3
+>   알림 발생: 2건  대시보드 탭: 실시간·알림·피드백·이상감지 ✅
+>   총 태스크: 56건  TCR: 30.2%
+>
+> # 06_operational.py
+>   골든 데이터셋: QA 6건 + RAG 4건 + Tool 5건 추출
+>   오늘 비용: $0.0305 USD  평가 비용 탭: ✅
+>   총 태스크: 28건  TCR: 46.1%
+> ```
+>
+> 결과 파일: `results/05_streaming_alerts.json` · `results/06_operational.json`  
+> 대시보드: `agent-eval dashboard results/`
+
+### 핵심 코드 예제
+
+#### StreamingEvaluator 슬라이딩 윈도우
+
+```python
+# 출처: Evaluator_Examples/05_streaming_alerts.py, 섹션 1
+from agent_evaluator import PerformanceMonitor
+from agent_evaluator.streaming.evaluator import StreamingEvaluator
+
+monitor = PerformanceMonitor(
+    output_dir="results/",
+    enable_anomaly_detection=True,
+    anomaly_baseline_window=30,   # 앞 30건을 기준선으로
+    anomaly_detection_window=10,  # 나머지 10건을 현재 상태로 비교
+)
+streaming = StreamingEvaluator(monitor=monitor)
+
+# 50건 시뮬레이션 (정상 35건 + 느린 응답 10건 + 오류 5건)
+for i, (acc, success, lat, tok) in enumerate(patterns):
+    streaming.record(
+        task_id=f"stream_{i:04d}",
+        success=success,
+        execution_time=round(lat, 3),
+        tokens_used=tok,
+        accuracy_score=acc,
+        has_error=not success,
+    )
+
+# 슬라이딩 윈도우 통계
+for window in ["1m", "5m"]:
+    stats = streaming.get_stats(window)
+    print(f"[{window}] tcr={stats.get('tcr', 0):.1f}%  p95={stats.get('p95_latency', 0):.2f}s")
+```
+
+- `StreamingEvaluator.record()`는 실시간으로 들어오는 태스크를 슬라이딩 윈도우에 집계한다. `monitor.record_task()`와 함께 호출해야 PerformanceMonitor에도 기록된다
+- `get_stats("1m")`, `get_stats("5m")`, `get_stats("1h")` 세 윈도우를 지원한다. 윈도우별로 TCR, p95 레이턴시, 오류율, 평균 토큰이 집계된다
+- `streaming._flush()`를 save_to_file() 전에 호출해야 대시보드 '실시간' 탭에 데이터가 표시된다
+
+#### SimpleTaskAlertRule + @agent_eval 통합
+
+```python
+# 출처: Evaluator_Examples/05_streaming_alerts.py, 섹션 3
+from agent_evaluator import SimpleTaskAlertRule
+from agent_evaluator.decorators import agent_eval
+
+alert_log = []
+
+low_accuracy_rule = SimpleTaskAlertRule(
+    name="low_accuracy",
+    condition=lambda tr: tr.accuracy_score < 0.5,
+    handler=lambda msg, tr: alert_log.append(f"ACCURACY: {tr.task_id}={tr.accuracy_score:.2f}"),
+    severity="warning",
+    cooldown=0,   # 모든 위반에 즉시 알림
+)
+
+slow_response_rule = SimpleTaskAlertRule(
+    name="slow_response",
+    condition=lambda tr: tr.execution_time > 5.0,
+    handler=lambda msg, tr: alert_log.append(f"SLOW: {tr.task_id}={tr.execution_time:.1f}s"),
+    severity="critical",
+    cooldown=0,
+)
+
+@agent_eval(
+    monitor, task_type="qa",
+    task_id_prefix="alert_test",
+    alert_rules=[low_accuracy_rule, slow_response_rule],  # 복수 규칙 동시 적용
+)
+def monitored_agent(question: str, ground_truth: str = "") -> str:
+    return "모름"  # 낮은 정확도 → low_accuracy_rule 발동
+
+monitored_agent("엉뚱한 질문", ground_truth="전혀 다른 답변")
+
+# dry_run — 핸들러 실행 없이 조건만 검증 (단위 테스트)
+from agent_evaluator import create_taskresult
+test_result = create_taskresult(
+    task_id="dry_test", question="테스트", response="낮은 품질",
+    ground_truth="다른 것", execution_time=6.0, task_type="qa", tokens_used=50,
+)
+triggered = slow_response_rule.dry_run(test_result)
+print(f"dry_run(lat=6.0s): triggered={triggered}")  # True
+```
+
+- `SimpleTaskAlertRule`은 `StreamingEvaluator` 없이도 `TaskResult` 단위로 즉시 조건을 평가한다. `@agent_eval`, `@batch_eval`, `eval_context` 어디에나 `alert_rules=` 파라미터로 전달할 수 있다
+- `dry_run(task_result)`는 핸들러를 실행하지 않고 조건(`condition`) 함수만 평가한다. 알림 규칙을 프로덕션에 배포하기 전에 단위 테스트로 검증하는 데 사용한다
+- `cooldown` 초(seconds) 동안 같은 규칙이 중복 발동되지 않는다. `warning=3600`, `critical=300`으로 계층별로 다르게 설정하는 것이 권장된다
+
+#### AnomalyDetector 이상 탐지
+
+```python
+# 출처: Evaluator_Examples/06_operational.py, 섹션 1
+from agent_evaluator import AnomalyDetector, create_taskresult
+
+detector = AnomalyDetector()
+
+# 정상 기준선 30건 수집
+baseline = []
+for i in range(30):
+    r = create_taskresult(
+        task_id=f"base_{i:03d}", question="기준선 태스크",
+        response="정상 응답", ground_truth="정상",
+        execution_time=round(random.gauss(1.2, 0.3), 3),
+        task_type="qa", tokens_used={"input": 100, "output": 40, "total": 140},
+    )
+    baseline.append(r)
+
+# 이상 케이스 주입 후 스캔
+anomaly_result = create_taskresult(
+    task_id="anom_spike", question="이상 케이스",
+    response="응답", ground_truth="정상",
+    execution_time=15.0,  # 정상(1.2s) 대비 12배 — 지연 스파이크
+    task_type="qa", tokens_used={"input": 100, "output": 40, "total": 140},
+)
+events = detector.scan(baseline + [anomaly_result])
+print(f"이상 이벤트: {len(events)}건")
+
+# explain_event로 원인 설명
+if events:
+    explanation = detector.explain_event(events[0])
+    print(f"원인: {str(explanation)[:80]}")
+```
+
+- `AnomalyDetector.scan(tasks)`는 Z-Score 기반으로 지연 스파이크, 정확도 드리프트, 토큰 폭증, 오류율 급등, 패턴 이탈을 탐지한다
+- 기준선(baseline) 데이터가 충분히 쌓여야 정확한 Z-Score 계산이 가능하다. 최소 20-30건 이상의 정상 데이터 수집 후 스캔하는 것이 권장된다
+- `explain_event()`는 이상 이벤트의 원인(어떤 지표, 어느 정도의 편차)을 사람이 읽을 수 있는 형식으로 반환한다
+
+---
+
 ## 0. 대시보드 메뉴 3분류 — 무엇이 자동이고 무엇이 아닌가
 
 대시보드 21개 메뉴를 처음 보면 "어떤 탭이 자동으로 채워지고, 어떤 탭은 추가 작업이 필요한가"가 불분명하다. 먼저 전체 구조를 3가지로 분류해 명확히 한다.

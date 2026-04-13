@@ -49,7 +49,7 @@ pip install "agent-evaluator[full]"
 
 # 설치 확인
 agent-eval --version
-# → agent-evaluator 0.7.9
+# → agent-evaluator 0.8.0
 ```
 
 > 👨‍💻 **개발자 TIP**: `[crewai]`와 `[autogen]`은 의존성이 무거워 단독 extras로 분리되어 있습니다. CrewAI와 AutoGen을 동시에 설치하면 pydantic 버전 충돌이 발생할 수 있으므로, 필요한 경우에만 하나씩 설치하세요.
@@ -420,3 +420,98 @@ print(comparison)
 > - `QuickEval`을 사용하면 2줄로 첫 평가를 시작할 수 있습니다.
 > - 3-레이어 구조에서 Layer 1은 항상 자동 활성, Layer 2 보안 지표는 `enable_security_metrics=True`로 활성화, Layer 3는 외부 패키지 설치 후 opt-in입니다.
 > - `setup_otel()`은 반드시 `PerformanceMonitor` 생성 전에 호출하고, endpoint에 경로를 붙이지 마세요: `"http://localhost:6006"`.
+
+---
+
+## 실전 예제
+
+챕터 2에서 설명한 첫 시작 과정을 `04_decorator_quickeval.py`로 바로 체험할 수 있다. `QuickEval` 2줄 시작, `@eval.qa` 데코레이터, `eval.save()`와 `eval.gate()`를 한 파일에서 모두 확인한다.
+
+**파일**: `Evaluator_Examples/04_decorator_quickeval.py`
+
+**핵심 코드 (출처: `Evaluator_Examples/04_decorator_quickeval.py`)**
+
+```python
+# 출처: Evaluator_Examples/04_decorator_quickeval.py, 섹션 1 — @agent_eval 기본 사용
+from agent_evaluator import PerformanceMonitor, agent_eval
+
+monitor = PerformanceMonitor(output_dir="results/")
+
+@agent_eval(monitor, task_type="qa")
+def my_agent(question: str, ground_truth: str = "") -> str:
+    # 실제 에이전트 로직 위치
+    return "에이전트 응답 텍스트"
+
+# 호출하면 자동으로 AccuracyEvaluator + LatencyTracker + TCR 집계
+my_agent("한국의 수도는?", ground_truth="서울")
+
+# 보고서 저장 (JSON + HTML 동시 생성)
+monitor.save_to_file("my_first_eval")
+```
+
+- `@agent_eval`은 함수 실행 시간을 자동 측정하고 LatencyTracker에 기록한다
+- `ground_truth`를 전달하면 AccuracyEvaluator가 TokenF1·Jaccard·LCS·Char Similarity 4종 혼합으로 정확도를 계산한다
+- `save_to_file("name")`은 `results/name.json`과 `results/name.html` 두 파일을 생성한다
+
+```python
+# 출처: Evaluator_Examples/04_decorator_quickeval.py, 섹션 8 — QuickEval 원스톱 Facade
+from agent_evaluator import QuickEval
+
+# PerformanceMonitor + EvalDecorator를 1줄로 설정
+eval_qe = QuickEval("results/")
+
+@eval_qe.qa  # task_type="qa" 단축 데코레이터
+def qa_agent(question: str, ground_truth: str = "") -> str:
+    return "QA 에이전트 응답"
+
+@eval_qe.rag  # task_type="information_retrieval" + context_arg="context"
+def rag_agent(question: str, context: str = "", ground_truth: str = "") -> str:
+    return "RAG 에이전트 응답"
+
+# 여러 태스크 실행
+qa_agent("수도는?", ground_truth="서울")
+qa_agent("인구는?", ground_truth="5천만")
+
+# CI/CD 게이팅 — TCR 85% 미달 시 sys.exit(1)
+eval_qe.gate(tcr=85, accuracy=70)
+
+# JSON + HTML 저장
+eval_qe.save()
+```
+
+- `QuickEval`은 `PerformanceMonitor`와 `EvalDecorator`를 내부에서 조합한 Facade 클래스다
+- `@eval_qe.qa`, `@eval_qe.rag` 등 11종의 단축 데코레이터로 태스크 유형별 설정을 자동 적용한다
+- `gate(tcr=85)`는 TCR이 85% 미만이면 `sys.exit(1)`을 호출해 CI/CD 파이프라인을 중단시킨다
+
+```bash
+pip install agent-evaluator       # 기본 설치 (LLMJudge·대시보드·OTEL 포함)
+python Evaluator_Examples/04_decorator_quickeval.py
+agent-eval dashboard results/     # http://localhost:8765
+```
+
+**첫 시작 4단계와 예제 매핑**
+
+| 단계 | 코드 | 예제 파일·섹션 |
+|------|------|---------------|
+| 1. 설치 | `pip install agent-evaluator` | — |
+| 2. QuickEval 생성 | `eval = QuickEval("results/")` | 04_decorator_quickeval, 섹션 1 |
+| 3. 데코레이터 적용 | `@eval.qa` / `@eval.rag` | 04_decorator_quickeval, 섹션 1~3 |
+| 4. 저장·게이팅 | `eval.save()` / `eval.gate(tcr=80)` | 04_decorator_quickeval, 섹션 7~8 |
+
+**실행 결과 (v0.8.0 기준)**
+
+```
+=== 04. 데코레이터 · QuickEval 종합 예제 ===
+QuickEval("results/"): 초기화 완료
+
+섹션 1: @eval.qa 기본
+  14개 태스크 | TCR=57.1% | avg_accuracy=0.712
+
+섹션 7: eval.gate(tcr=80, accuracy=70)
+  ❌ 게이팅 실패 — TCR 57.1% < 80.0%
+  (--tcr 50으로 완화 시 ✅ 통과)
+
+결과 저장: results/quickeval.json + results/quickeval.html
+```
+
+> **2줄 시작 코드**: `eval = QuickEval("results/")` 한 줄로 `PerformanceMonitor` + `EvalDecorator`가 모두 설정된다. API 키 없이도 Layer 1+2 16개 지표를 측정하며, `ANTHROPIC_API_KEY` 설정 시 LLMJudge가 자동 활성화된다.

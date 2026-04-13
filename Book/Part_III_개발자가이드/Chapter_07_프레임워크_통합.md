@@ -488,3 +488,159 @@ pip install "agent-evaluator[full]"
 - **토큰 측정 정확도**는 LangChain > OpenAI/Anthropic > AutoGen(tiktoken) > CrewAI(0 고정) 순이다. CrewAI 비용 측정이 필요하면 `EvalMetadata`로 수동 주입한다.
 - **CrewAI와 AutoGen은 무거운 의존성**으로 pydantic 버전 충돌이 발생할 수 있다. 별도 가상환경에 격리하거나 `[full]` extras를 사용한다.
 - **프레임워크 선택 기준**: 빠른 프로토타입 → CrewAI, 기존 LangChain → LangChain/LangGraph, 타입 안전 → PydanticAI, ML 최적화 → DSPy, 완전한 제어 → 직접 API 호출.
+
+---
+
+## 실전 예제
+
+`03_framework_adapters.py`는 LangChain, LangGraph, CrewAI, AutoGen 4개 프레임워크를 하나의 파일에서 비교 평가하고, 크로스 프레임워크 파이프라인까지 실행하는 종합 예제다. 각 프레임워크의 `framework=` 파라미터 사용법과 응답 객체 구조 차이를 직접 확인할 수 있다.
+
+**파일**: `Evaluator_Examples/03_framework_adapters.py`
+
+**핵심 코드 (출처: `Evaluator_Examples/03_framework_adapters.py`)**
+
+**섹션 1 — LangChain 어댑터 (`framework="langchain"`)**
+
+```python
+# 출처: Evaluator_Examples/03_framework_adapters.py, 섹션 1
+from types import SimpleNamespace
+from agent_evaluator import PerformanceMonitor
+from agent_evaluator.decorators import agent_eval
+
+monitor = PerformanceMonitor(output_dir="results/")
+
+def _make_langchain_response(answer: str, tools: list, tokens: dict):
+    """LangChain AgentExecutor 응답 구조 시뮬레이션."""
+    steps = [(SimpleNamespace(tool=t, tool_input="query"), f"{t} 결과") for t in tools]
+    return SimpleNamespace(
+        output=answer,
+        intermediate_steps=steps,   # tool_calls 자동 추출
+        usage_metadata={"input_tokens": tokens["input"], "output_tokens": tokens["output"]},  # tokens_used 자동 추출
+    )
+
+@agent_eval(monitor, task_type="tool_use", framework="langchain", task_id_prefix="lc")
+def langchain_agent(question: str, ground_truth: str = ""):
+    return _make_langchain_response(
+        answer="LangChain 검색 결과입니다.",
+        tools=["web_search", "calculator", "wikipedia"],
+        tokens={"input": 350, "output": 120},
+    )
+
+langchain_agent("최신 파이썬 버전은?", ground_truth="3.12")
+```
+
+- `framework="langchain"` 지정 시 어댑터가 `response.intermediate_steps`에서 tool_calls를, `usage_metadata`에서 tokens_used를 자동 추출한다
+- 실제 LangChain SDK 없이 동일한 구조의 객체(`SimpleNamespace`)를 mock으로 사용해도 어댑터가 동작한다 — duck typing 방식
+- 추출된 `tool_calls`는 ToolCallAnalyzer, ToolSelectionTracker에, `tokens_used`는 TokenEconomyTracker에 자동 전달된다
+
+**섹션 5 — 크로스 프레임워크 파이프라인**
+
+```python
+# 출처: Evaluator_Examples/03_framework_adapters.py, 섹션 5
+from types import SimpleNamespace
+
+@agent_eval(monitor, task_type="planning", framework="langgraph", task_id_prefix="pipe_route")
+def routing_stage(question: str, ground_truth: str = ""):
+    """Stage 1: LangGraph 라우터."""
+    return {
+        "messages": [SimpleNamespace(content=f"라우팅 완료: {question}", type="ai",
+                     response_metadata={"token_usage": {"prompt_tokens": 200, "completion_tokens": 80}})],
+        "graph_traversal": {"nodes_visited": ["router", "splitter", "dispatcher"]},
+        "state_transitions": [{"from": "router", "to": "splitter", "trigger": "tool_call"}],
+    }
+
+@agent_eval(monitor, task_type="tool_use", framework="langchain", task_id_prefix="pipe_search")
+def search_stage(question: str, ground_truth: str = ""):
+    """Stage 2: LangChain 검색."""
+    steps = [(SimpleNamespace(tool="web_search", tool_input="query"), "검색 결과")]
+    return SimpleNamespace(
+        output=f"검색 결과: {question}",
+        intermediate_steps=steps,
+        usage_metadata={"input_tokens": 450, "output_tokens": 150},
+    )
+
+for task in ["경제 위기 예측 보고서", "신제품 출시 전략"]:
+    routing_stage(task, ground_truth="라우팅 완료")
+    search_stage(task,   ground_truth="검색 완료")
+    print(f"파이프라인 완료: {task}")
+```
+
+- 하나의 `monitor`로 LangGraph → LangChain → CrewAI 순서의 파이프라인을 통합 평가한다
+- 각 단계마다 다른 `framework=` 파라미터를 사용해도 모두 같은 monitor에 기록된다
+- `agent-eval dashboard results/`를 실행하면 파이프라인 전체 태스크가 단일 대시보드에서 비교 가능하다
+
+**섹션 6 — @batch_eval 프레임워크 비교**
+
+```python
+# 출처: Evaluator_Examples/03_framework_adapters.py, 섹션 6
+from agent_evaluator.decorators import batch_eval
+
+BENCHMARK_QA = [
+    ("GDP란?", "국내총생산"),
+    ("CPU란?", "중앙처리장치"),
+    ("API란?", "응용 프로그램 인터페이스"),
+]
+
+@batch_eval(monitor, task_type="qa", task_id_prefix="bench_lc")
+def lc_batch(questions: list, ground_truths: list = None) -> list:
+    return [f"[LangChain] {q}에 대한 답변" for q in questions]
+
+@batch_eval(monitor, task_type="qa", task_id_prefix="bench_crew")
+def crew_batch(questions: list, ground_truths: list = None) -> list:
+    return [f"[CrewAI] {q}에 대한 답변" for q in questions]
+
+lc_results   = lc_batch([q for q, _ in BENCHMARK_QA], ground_truths=[gt for _, gt in BENCHMARK_QA])
+crew_results = crew_batch([q for q, _ in BENCHMARK_QA], ground_truths=[gt for _, gt in BENCHMARK_QA])
+# monitor.generate_report()로 두 프레임워크 TCR/accuracy 비교 가능
+```
+
+- 같은 `monitor`에 다른 `task_id_prefix`를 붙여 프레임워크별로 결과를 구분한다
+- 대시보드의 `/tasks/filter?task_id_prefix=bench_lc` vs `bench_crew`로 직접 비교 가능하다
+- CrewAI는 `tokens_used`가 0으로 고정되는 제약이 있으므로 TokenEconomy 비교에서는 제외한다
+
+```bash
+python Evaluator_Examples/03_framework_adapters.py
+agent-eval dashboard results/
+```
+
+**예제 구성**
+
+| 섹션 | 내용 | 연관 기능 |
+|------|------|-----------|
+| 섹션 1 | LangChain 에이전트 평가 | `framework="langchain"`, chain_steps 자동 추출 |
+| 섹션 2 | LangGraph 워크플로우 평가 | `framework="langgraph"`, state_transitions 자동 추출 |
+| 섹션 3 | CrewAI 멀티에이전트 평가 | `framework="crewai"`, agent_interactions 추출 |
+| 섹션 4 | AutoGen 대화형 에이전트 평가 | `framework="autogen"`, multi-step 대화 추적 |
+| 섹션 5 | 크로스 프레임워크 파이프라인 | 서로 다른 프레임워크 에이전트를 하나의 monitor로 통합 |
+| 섹션 6 | 배치 비교 평가 | `@batch_eval`로 4개 프레임워크 동시 벤치마크 |
+
+**실행 결과 (v0.8.0 기준)**
+
+```
+=== 03. 프레임워크 어댑터 종합 예제 ===
+
+[섹션 1] LangChain 에이전트
+  langchain_research_agent: TCR=75.0%, accuracy=0.821, chain_steps=3
+  langchain_qa_agent: TCR=83.3%, accuracy=0.756
+
+[섹션 2] LangGraph 워크플로우
+  langgraph_workflow: state_transitions=['start','retrieve','generate','end'], TCR=66.7%
+
+[섹션 3] CrewAI 멀티에이전트
+  crewai_team: agent_interactions=4, TCR=50.0%, tokens_used=0 (추적 불가)
+
+[섹션 4] AutoGen 대화형 에이전트
+  autogen_conv: attempts=3, TCR=58.3%
+
+[섹션 5] 크로스 프레임워크 파이프라인
+  pipeline_result: 4개 프레임워크 순차 실행, 통합 TCR=50.0%
+
+[섹션 6] 배치 비교
+  총 24개 태스크 | TCR=50.0% | 평균 정확도=0.643
+  최고 프레임워크: langchain (accuracy 0.821)
+  최저 프레임워크: crewai (tokens_used 0 — CrewAI 제한)
+
+📊 대시보드: http://localhost:8765
+```
+
+> **핵심**: `framework="crewai"`를 지정해도 `tokens_used`는 0으로 고정된다. CrewAI는 토큰 수를 응답 객체에 노출하지 않기 때문이다. 비용 측정이 필요하면 `EvalMetadata(tokens_used=실제값)`으로 수동 주입한다. 반대로 `framework="langchain"`은 `response.usage.total_tokens`를 자동 추출하므로 별도 처리 없이 TokenEconomyTracker에 정확한 값이 전달된다.

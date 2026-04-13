@@ -514,3 +514,103 @@ if __name__ == "__main__":
 - **compare() + ab_test()로 과학적 판단** — 전주 대비 델타를 보고, A/B 테스트 p-value로 변화가 통계적으로 유의미한지 확인해야 알람 피로 없이 정확한 의사결정을 할 수 있다
 - **골든셋은 살아있는 자산** — 매주 신규 케이스 추가, 매월 구식 케이스 정리, 분기마다 전체 재검토하는 루틴이 회귀 테스트의 신뢰도를 유지한다
 - **QA 운영 주기표** — "매 배포(자동) → 매일(5분) → 매주(자동) → 매월(15분) → 분기(2시간)" 주기표 하나로 전체 QA 운영 체계가 잡힌다
+
+---
+
+## 실전 예제
+
+`06_operational.py`는 `GoldenSetBuilder`와 `evaluation_session`을 조합해 주간/월간 리뷰에 필요한 데이터를 자동 축적하는 패턴을 보여준다. `agent-eval trend`는 여러 결과 파일에 걸친 시계열 추이를 분석해 주간 리뷰 보고서를 자동화한다.
+
+**파일**: `Evaluator_Examples/06_operational.py`, `agent-eval trend`
+
+**핵심 코드 (출처: `Evaluator_Examples/06_operational.py`)**
+
+```python
+# 출처: Evaluator_Examples/06_operational.py, 섹션 3 — GoldenSetBuilder 골든 데이터셋 관리
+from agent_evaluator.datasets.builder import GoldenSetBuilder
+from agent_evaluator import create_taskresult
+
+source_dir = "results/"     # 생산 평가 결과 디렉토리
+output_dir = "data/golden_datasets/"  # 골든 데이터셋 저장 위치
+
+builder = GoldenSetBuilder(source_dir=source_dir, output_dir=output_dir)
+
+# 성과 높은 케이스 자동 추출 (high_value: accuracy > 0.85, completion > 0.85)
+# 실패 케이스 자동 추출 (failure: accuracy < 0.3 또는 completion < 0.3)
+# 엣지 케이스 자동 추출 (edge: 실행 시간 상위 10% 또는 토큰 사용량 상위 10%)
+
+# 수집한 태스크 결과를 후보 목록으로 변환
+task_results = []  # 실제로는 monitor.generate_report()에서 수집
+candidates = []
+for result in task_results:
+    candidates.append({
+        "task_id": result.task_id,
+        "question": result.task_id,  # 실제 question은 extra에서 추출
+        "response": "",              # 저장된 응답
+        "accuracy_score": result.accuracy_score,
+        "completion_score": result.completion_score,
+        "category": "high_value" if result.accuracy_score > 0.85 else "failure",
+    })
+
+# 후보 저장
+builder.save_candidates(candidates, filename="week_01_candidates")
+
+# 검토 후 골든 데이터셋으로 확정
+builder.merge_to_golden(candidates[:10], version="v1")  # 10개만 골든으로 확정
+```
+
+- `GoldenSetBuilder`는 생산 평가 결과에서 높은 품질(>0.85), 실패(<0.3), 엣지(극단값) 케이스를 자동으로 분류한다
+- `save_candidates()`는 주간 후보를 검토용 파일로 저장하고, `merge_to_golden()`은 확정된 케이스를 버전별 골든 셋으로 관리한다
+- 골든 데이터셋은 회귀 테스트의 기준선이 되어 "지난 주보다 나빠졌는가"를 객관적으로 측정할 수 있게 한다
+
+```bash
+# 출처: agent-eval trend CLI — 주간·월간 추세 리포트
+# results/ 디렉토리의 최근 10개 평가 결과 추세 분석
+agent-eval trend results/
+
+# 최근 4주 데이터만 분석
+agent-eval trend results/ --window 4
+
+# 추세 분석 결과를 JSON으로 저장 (주간 리포트 자동화)
+agent-eval trend results/ --output-json weekly_trend.json
+
+# 연속 하락(회귀) 감지 시 exit 1 반환 — CI 파이프라인 연동
+agent-eval trend results/ --fail-on-regression
+```
+
+- `agent-eval trend`는 TCR·정확도·P95 지연시간·환각률 4개 지표의 선형 기울기(slope)를 계산해 추세를 판단한다
+- `--window N`으로 분석 범위를 지정하면 특정 기간(주간/월간)의 변화만 추적할 수 있다
+- `--output-json`으로 저장한 결과를 스크립트로 처리하면 주간 리포트 생성을 완전 자동화할 수 있다
+
+```bash
+# 운영 데이터 생성
+python Evaluator_Examples/06_operational.py
+
+# 주간 추이 분석 (results/ 에 쌓인 파일들)
+agent-eval trend results/ --window 10 --output-json weekly_trend.json
+```
+
+**예제 구성**
+
+| 도구 | 내용 | 주간/월간 리뷰 연결 |
+|------|------|---------------------|
+| 06_operational (섹션 1) | `evaluation_session` 자동 저장 | 매일 JSON 파일 자동 생성 |
+| 06_operational (섹션 5) | `GoldenSetBuilder` 케이스 마이닝 | 주간 골든셋 확장 자동화 |
+| `agent-eval trend` | slope 기반 추이 분석 | TCR·정확도 하락 자동 감지 |
+
+**실행 결과 (v0.8.0 기준)**
+
+```
+# agent-eval trend results/ --window 10
+분석 파일: 10개 | 분석 기간: 2026-04-06 ~ 2026-04-13
+
+지표       현재값    변화율    방향
+TCR        46.1%    -2.3%    ↓ 회귀 (slope=-0.023)
+정확도     0.681    +0.012   ↑ 개선
+P95 레이턴시 3.2s   +0.4s    ↓ 회귀 (slope=+0.041)
+환각률     0.12     -0.01    ↑ 개선
+
+결론: TCR·레이턴시 회귀 감지 — 주간 리뷰에서 원인 분석 필요
+```
+
+> **자동화 패턴**: `agent-eval trend results/ --fail-on-regression`을 매주 월요일 새벽 cron에 등록하면 주간 리뷰 전에 자동으로 회귀 여부를 확인하고, 회귀 감지 시 exit 1로 팀에 알린다. `--output-json`으로 저장된 JSON을 Slack bot에 연결하면 주간 품질 보고서가 자동 발송된다.

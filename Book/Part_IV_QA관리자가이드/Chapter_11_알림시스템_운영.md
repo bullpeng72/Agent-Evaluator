@@ -602,3 +602,126 @@ def test_alert_rules():
 - **Warning은 길게, Critical은 짧게** — 쿨다운을 계층별로 다르게 설정해야 알림 피로 없이 중요한 알림을 놓치지 않는다
 - **AnomalyDetector는 알림 규칙의 보완재** — 임계값 기반 알림이 잡지 못하는 "점진적 품질 저하"를 Z-Score로 탐지한다
 - **AdaptivePolicy는 비용 안전망** — 일일 예산을 초과하기 전에 더 저렴한 모델로 자동 전환해서 비용 폭증을 방지한다
+
+---
+
+## 실전 예제
+
+`05_streaming_alerts.py`는 `StreamingEvaluator`, `ImplicitFeedbackTracker`, `AlertEngine`을 함께 사용하는 실시간 알림 파이프라인을 보여준다. `06_operational.py`는 `SimpleTaskAlertRule`과 `AnomalyDetector`의 결합을 통해 임계값·통계 기반 이중 알림 구조를 시연한다.
+
+**파일**: `Evaluator_Examples/05_streaming_alerts.py`, `Evaluator_Examples/06_operational.py`
+
+**핵심 코드 (출처: `Evaluator_Examples/05_streaming_alerts.py`)**
+
+```python
+# 출처: Evaluator_Examples/05_streaming_alerts.py, 섹션 3 — SimpleTaskAlertRule 경량 알림
+from agent_evaluator import SimpleTaskAlertRule, agent_eval, PerformanceMonitor
+
+monitor = PerformanceMonitor(output_dir="results/")
+
+# TaskResult 기반 경량 알림 규칙 정의 (StreamingEvaluator 불필요)
+slow_alert = SimpleTaskAlertRule(
+    name="slow_response",
+    condition=lambda tr: tr.execution_time > 5.0,      # 5초 초과 시 발동
+    handler=lambda msg, tr: print(f"[SLOW] {msg} — {tr.task_id}"),
+    severity="warning",
+    cooldown=60,   # 같은 태스크에 60초 내 중복 알림 방지
+)
+
+low_accuracy_alert = SimpleTaskAlertRule(
+    name="low_accuracy",
+    condition=lambda tr: tr.accuracy_score < 0.5,      # 정확도 50% 미만
+    handler=lambda msg, tr: print(f"[QUALITY] {msg} — score={tr.accuracy_score:.2f}"),
+    severity="critical",
+    cooldown=30,
+)
+
+@agent_eval(monitor, task_type="qa", alert_rules=[slow_alert, low_accuracy_alert])
+def agent(question: str, ground_truth: str = "") -> str:
+    import time
+    time.sleep(6)   # 의도적으로 느린 응답 시뮬레이션
+    return "느린 응답"
+
+# 호출 시 slow_alert 자동 발동
+agent("질문", ground_truth="정답")
+```
+
+- `SimpleTaskAlertRule`은 `StreamingEvaluator` 없이 `TaskResult` 레벨에서 직접 작동하는 경량 알림이다
+- `cooldown` 파라미터로 동일 규칙의 반복 발화를 제어해 알림 피로도(alert fatigue)를 방지한다
+- `handler` 함수에서 Slack WebHook, PagerDuty API 호출, 이메일 발송 등 외부 연동을 구현한다
+
+```python
+# 출처: Evaluator_Examples/05_streaming_alerts.py, 섹션 4 — AlertRuleBuilder 팩토리
+from agent_evaluator.alerts.engine import AlertEngine
+from agent_evaluator.alerts.handlers import AlertRuleBuilder
+import json
+from pathlib import Path
+
+alert_log_path = Path("results/alerts.jsonl")
+
+def jsonl_handler(message: str, task_result) -> None:
+    """JSONL 파일에 알림 기록 — 대시보드 알림 탭 연동"""
+    record = {
+        "timestamp": task_result.timestamp.isoformat() if task_result else "",
+        "rule": message.split(":")[0],
+        "message": message,
+    }
+    with open(alert_log_path, "a") as f:
+        f.write(json.dumps(record, ensure_ascii=False) + "\n")
+
+# 팩토리 메서드로 알림 규칙 생성
+accuracy_rule = (
+    AlertRuleBuilder
+    .when_accuracy_below(threshold=0.6)
+    .with_handler(jsonl_handler)
+    .with_severity("warning")
+    .build()
+)
+
+latency_rule = (
+    AlertRuleBuilder
+    .when_latency_above(threshold=3.0)
+    .with_handler(jsonl_handler)
+    .with_severity("critical")
+    .build()
+)
+
+# dry_run으로 실제 발화 없이 규칙 검증
+fired = accuracy_rule.dry_run(task_result)
+print(f"알림 발화 여부: {fired}")  # True/False
+```
+
+- `AlertRuleBuilder`의 팩토리 메서드(`when_accuracy_below`, `when_latency_above` 등)로 반복 코드 없이 알림 규칙을 생성한다
+- JSONL 형식으로 알림을 기록하면 `agent-eval dashboard`의 알림 탭에서 자동으로 시각화된다
+- `dry_run(task_result)`으로 규칙 설정이 올바른지 실제 알림 발화 없이 테스트할 수 있다
+
+```bash
+python Evaluator_Examples/05_streaming_alerts.py
+python Evaluator_Examples/06_operational.py
+```
+
+**예제 구성**
+
+| 파일 | 섹션 | 내용 | 연관 기능 |
+|------|------|------|-----------|
+| 05_streaming_alerts | 섹션 1 | `StreamingEvaluator` + `SlidingWindow` | 실시간 윈도우 집계 |
+| 05_streaming_alerts | 섹션 2 | `ImplicitFeedbackTracker` | 사용자 반응 추적 → 알림 트리거 |
+| 05_streaming_alerts | 섹션 3 | `AlertEngine` 다채널 알림 | console·webhook·파일 핸들러 |
+| 06_operational | 섹션 4 | `SimpleTaskAlertRule` + `AnomalyDetector` | 임계값+Z-Score 이중 감시 |
+
+**실행 결과 (v0.8.0 기준)**
+
+```
+# 05_streaming_alerts.py
+StreamingEvaluator: 슬라이딩 윈도우 50건 처리
+ImplicitFeedback: negative_feedback 3건 수집 → AlertEngine 트리거
+[ALERT] accuracy_below_threshold: window_avg=0.42 < threshold=0.7
+[ALERT] latency_spike: p95=6.2s > threshold=5.0s
+알림 JSONL 저장: results/alerts.jsonl
+
+# 06_operational.py
+SimpleTaskAlertRule: 5개 규칙 등록 (warning·error·critical)
+AnomalyDetector: latency_spike 2건 (Z-Score=2.3, 2.8)
+```
+
+> **`dry_run()` 활용**: 알림 규칙을 프로덕션에 배포하기 전에 `rule.dry_run(sample_result)`로 단위 테스트를 실행한다. 05_streaming_alerts.py 섹션 3에서 실제 `dry_run()` 패턴을 확인할 수 있다. 쿨다운은 `warning=3600`, `error=1800`, `critical=300`으로 계층별로 다르게 설정하는 것이 핵심이다.

@@ -71,7 +71,7 @@ def my_agent(question: str, ground_truth: str = "") -> str:
 | 항목 | 처리 방법 |
 |------|----------|
 | `execution_time` | `time.perf_counter()` 나노초 측정 |
-| `success` / `completion_score` | 예외 없으면 1.0, 예외 발생 시 0.0 |
+| `success` / `completion_score` | task_type 인식 자동 계산 — `code_generation`은 AST 파싱, `tool_use`는 도구 호출 여부, 기타는 길이 기반 |
 | `accuracy_score` | `ground_truth` vs 반환값 4-way 가중치 계산 |
 | `task_id` | UUID 기반 자동 생성 |
 | `tokens_used` | `framework=` 어댑터 또는 EvalMetadata 자동 추출 |
@@ -1014,3 +1014,158 @@ def medical_agent(question: str, ground_truth: str = "") -> str:
 - **`rag_mode=True`, `security_mode=True`, `enable_llm_judge=True`**는 temp-override 패턴으로 동작하여 해당 호출에만 지표를 임시 활성화하고 `finally`에서 원래 상태로 복원한다.
 - **`flush_every`와 `alert_rules`**는 모든 데코레이터(`@agent_eval`, `@batch_eval`, `@conversation_eval`, `EvalDecorator`)에 동일한 API로 적용된다.
 - **`QuickEval.gate(tcr=85, accuracy=70)`**으로 CI/CD 파이프라인에 품질 게이트를 삽입하여 기준 미달 배포를 자동으로 차단할 수 있다.
+
+---
+
+## 실전 예제
+
+이 챕터에서 다룬 `@agent_eval`, `@batch_eval`, `@conversation_eval`, `QuickEval`, `EvalMetadata`, `eval_context` 전체를 한 파일에서 실행할 수 있다.
+
+**파일**: `Evaluator_Examples/04_decorator_quickeval.py`
+
+**핵심 코드 (출처: `Evaluator_Examples/04_decorator_quickeval.py`)**
+
+**섹션 2 — 커스텀 score_fn / completion_fn**
+
+```python
+# 출처: Evaluator_Examples/04_decorator_quickeval.py, 섹션 2
+from agent_evaluator.decorators import agent_eval
+
+def keyword_score(response: str, ground_truth: str) -> float:
+    """응답에 핵심 키워드가 포함되면 가점."""
+    keywords = ground_truth.lower().split()
+    matches = sum(1 for kw in keywords if kw in response.lower())
+    return min(1.0, matches / max(len(keywords), 1))
+
+@agent_eval(
+    monitor, task_type="qa",
+    score_fn=keyword_score,                               # 정확도 계산 함수 교체
+    completion_fn=lambda r, gt: 1.0 if len(r) > 10 else 0.5,  # 완료 판정 함수 교체
+    task_id_prefix="score_fn",
+)
+def scored_agent(question: str, ground_truth: str = "") -> str:
+    return "서울은 대한민국의 수도이자 최대 도시입니다. — 답변 완료"
+
+scored_agent("한국의 수도에 대해 설명해줘", ground_truth="서울 대한민국 수도")
+```
+
+- `score_fn(response, ground_truth) -> float`를 지정하면 기본 AccuracyEvaluator(TokenF1·Jaccard·LCS) 대신 커스텀 함수로 accuracy_score를 계산한다
+- `completion_fn(response, ground_truth) -> float`를 지정하면 기본 길이 기반 completion_score 대신 커스텀 완료 판정을 사용한다
+- **우선순위**: EvalMetadata > score_fn > 자동 계산
+
+**섹션 5 — max_retries + flush_every + alert_rules 조합**
+
+```python
+# 출처: Evaluator_Examples/04_decorator_quickeval.py, 섹션 5
+from agent_evaluator import SimpleTaskAlertRule
+from agent_evaluator.decorators import agent_eval
+
+slow_alert = SimpleTaskAlertRule(
+    name="slow_response",
+    condition=lambda tr: tr.execution_time > 3.0,
+    handler=lambda msg, tr: print(f"[ALERT] {msg}"),
+    severity="warning",
+    cooldown=0,
+)
+
+_retry_count = {"n": 0}
+
+@agent_eval(
+    monitor, task_type="qa",
+    max_retries=3,               # 최대 3회 재시도
+    retry_on=(ValueError,),      # ValueError 발생 시만 재시도
+    delay=0.0,                   # 재시도 간격 0초 (실제: 0.5~2.0 권장)
+    flush_every=5,               # 5건마다 save_to_file() 자동 호출
+    flush_filename="periodic",
+    alert_rules=[slow_alert],    # 태스크 완료 후 즉시 알림 평가
+    task_id_prefix="retry",
+)
+def flaky_agent(question: str, ground_truth: str = "") -> str:
+    _retry_count["n"] += 1
+    if _retry_count["n"] < 3:
+        raise ValueError(f"임시 오류 (시도 {_retry_count['n']})")
+    return "3번째 성공!"
+
+result = flaky_agent("재시도 테스트", ground_truth="성공")
+print(f"결과: {result}  (시도횟수: {_retry_count['n']})")
+```
+
+- `max_retries=3` + `retry_on=(ValueError,)`로 특정 예외만 재시도한다. `attempts` 필드에 실제 시도 횟수가 기록되어 RetryCorrectionTracker에 전달된다
+- `flush_every=5`는 5번째 호출마다 `save_to_file(flush_filename)`을 자동 호출한다. 장시간 실행 시 데이터 유실을 방지한다
+- `alert_rules=[...]`는 각 태스크 완료 후 즉시 규칙을 평가한다. `slow_alert` 조건(execution_time > 3.0)이 충족되면 handler가 호출된다
+
+**섹션 6 — @batch_eval + return_format="dataframe"**
+
+```python
+# 출처: Evaluator_Examples/04_decorator_quickeval.py, 섹션 6
+from agent_evaluator.decorators import batch_eval
+
+BATCH_DATA = [
+    ("TCP와 UDP의 차이점은?",  "TCP: 연결 지향, UDP: 비연결"),
+    ("REST API란?",            "HTTP 기반 아키텍처 스타일"),
+    ("Git rebase란?",          "커밋 히스토리 재작성"),
+]
+
+@batch_eval(
+    monitor, task_type="qa",
+    task_id_prefix="batch",
+    return_format="dataframe",    # pandas DataFrame으로 결과 반환
+    shuffle=True, shuffle_seed=42,
+    flush_every=5, flush_filename="batch_periodic",
+    on_batch_complete=lambda r: print(f"배치 완료: {len(r)}건"),
+)
+def qa_batch(questions: list, ground_truths: list = None) -> list:
+    return [f"{q}에 대한 배치 응답" for q in questions]
+
+df = qa_batch(
+    questions=[q for q, _ in BATCH_DATA],
+    ground_truths=[gt for _, gt in BATCH_DATA],
+)
+if hasattr(df, "shape"):
+    print(f"DataFrame: {df.shape}")  # (3, N)
+    print(df[["task_id", "accuracy_score", "execution_time"]].to_string())
+```
+
+- `return_format="dataframe"`이면 `@batch_eval`이 pandas DataFrame을 반환한다. 컬럼에 task_id, accuracy_score, execution_time, completion_score 등 모든 TaskResult 필드가 포함된다
+- `shuffle=True, shuffle_seed=42`로 입력 순서를 섞어 배치 평가 편향을 줄인다
+- `on_batch_complete=lambda r: ...` 콜백은 전체 배치가 완료된 후 호출된다
+
+```bash
+python 04_decorator_quickeval.py
+
+agent-eval dashboard results/
+```
+
+**예제 구성**
+
+| 섹션 | 다루는 기능 |
+|------|-----------|
+| 섹션 1 | `@agent_eval` 기본 패턴 (task_type·score_fn·completion_fn) |
+| 섹션 2 | 커스텀 `score_fn` / `completion_fn` |
+| 섹션 3 | `EvalMetadata` 튜플 반환 — score_fn 우선순위 실증 |
+| 섹션 4 | `get_eval_ctx()` 스레드 로컬 — 데코레이터 내부에서 메타데이터 주입 |
+| 섹션 5 | `max_retries` + `flush_every` + `alert_rules` 조합 |
+| 섹션 6 | `@batch_eval` — `on_batch_complete` 콜백 · `DataFrame` 반환 · concurrent 배치 |
+| 섹션 7 | `@conversation_eval` — 자동/수동 flush 2패턴 |
+| 섹션 8 | `QuickEval` Facade — `gate()` · `summary()` · `save()` |
+
+**실행 결과 (v0.8.0 기준)**
+
+```
+=== 섹션 3: EvalMetadata 튜플 반환 ===
+  EvalMetadata(0.92) > score_fn(0.1) 우선순위 확인  반환값 타입: str
+
+=== 섹션 6: @batch_eval 고급 ===
+  DataFrame: (5, 16)  컬럼: ['task_id', 'task_type', 'success', ...]
+  concurrent 배치: 3건 완료
+
+=== 섹션 8: QuickEval Facade ===
+  gate() 실패 (코드 1) — Accuracy 14.1% < 요구 30%  ← 의도적 임계값 도전
+  summary(): tcr=56.2%  accuracy=14.1%
+
+=== 최종 리포트 ===
+  PerformanceMonitor 기록: 14건  TCR: 57.1%
+결과 저장 완료: results/04_decorator_quickeval.json
+```
+
+> **`EvalMetadata` 우선순위 규칙**: 함수가 `(response, EvalMetadata(accuracy=0.92))` 튜플을 반환하면, `score_fn`이 지정돼 있어도 `EvalMetadata.accuracy_score`가 최종값으로 사용된다. 이 동작을 섹션 3에서 직접 확인할 수 있다.

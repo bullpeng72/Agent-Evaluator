@@ -605,3 +605,120 @@ for task in low_accuracy[:10]:
 - **환경별 차등 임계값** 전략을 사용하라. dev는 느슨하게, staging은 보통, prod는 엄격하게. 브랜치에 따라 `--tcr`, `--accuracy`, `--p95-latency` 값을 다르게 지정하거나, Python `QuickEval.gate()` 메서드에서 환경 변수로 분기한다.
 
 - 게이팅 실패는 나쁜 것이 아니다. **배포 전에 문제를 발견했다**는 의미다. 낮은 케이스를 분석해 임계값 조정 vs 코드 수정을 판단하고, 회귀 케이스는 골든 데이터셋에 추가해 재발을 방지하라.
+
+---
+
+## 실전 예제
+
+`06_operational.py`를 실행하면 결과 JSON이 생성되고, `agent-eval gate`와 `agent-eval trend`로 바로 CI/CD 게이팅을 테스트할 수 있다. 실제 GitHub Actions에서 사용하는 것과 동일한 명령어를 로컬에서 먼저 검증해보는 패턴이다.
+
+**파일**: `Evaluator_Examples/06_operational.py`, `agent-eval gate`, `agent-eval trend`
+
+**핵심 코드 (출처: `Evaluator_Examples/06_operational.py`)**
+
+```python
+# 출처: Evaluator_Examples/06_operational.py, 섹션 4 — evaluation_session으로 CI 평가 실행
+from agent_evaluator import evaluation_session, create_taskresult
+import sys
+
+# CI 파이프라인에서 평가 세션 실행
+with evaluation_session("ci_evaluation") as monitor:
+    test_cases = [
+        ("한국의 수도는?", "서울"),
+        ("지구의 위성은?", "달"),
+        ("물의 화학식은?", "H2O"),
+        ("피타고라스 정리는?", "a² + b² = c²"),
+        ("DNA의 구조는?", "이중나선"),
+    ]
+    
+    for i, (question, answer) in enumerate(test_cases):
+        result = create_taskresult(
+            task_id=f"ci_task_{i:03d}",
+            question=question,
+            response=answer,  # 에이전트 실제 응답으로 교체
+            ground_truth=answer,
+            execution_time=0.8,
+            task_type="qa",
+        )
+        monitor.record_task(result)
+
+# 세션 종료 시 results/ci_evaluation.json 자동 저장
+```
+
+- `evaluation_session()`은 CI 파이프라인에서 평가 결과를 안전하게 저장하는 컨텍스트 매니저다
+- 테스트 케이스셋을 자동화하면 PR마다 동일한 조건에서 에이전트 품질을 비교할 수 있다
+
+```bash
+# 출처: agent-eval gate CLI — JSON 결과 기반 품질 게이팅
+# 저장된 평가 결과를 읽어 기준치 초과 시 exit 1 반환
+agent-eval gate results/ci_evaluation.json --tcr 85 --accuracy 70
+
+# 여러 기준 동시 적용
+agent-eval gate results/ci_evaluation.json \
+    --tcr 85 \
+    --accuracy 70 \
+    --max-latency-p95 3.0 \
+    --max-hallucination 0.1
+
+# GitHub Actions 연동 예시 (.github/workflows/eval.yml)
+# - name: Quality Gate
+#   run: agent-eval gate results/ci_evaluation.json --tcr 85 --accuracy 70
+#   # exit 1 시 워크플로 자동 실패
+```
+
+- `agent-eval gate`는 저장된 JSON을 읽어 TCR·정확도·P95 지연시간·환각률을 기준치와 비교한다
+- 기준치 미달 시 `exit 1`을 반환하므로 GitHub Actions, GitLab CI, Jenkins 등 모든 CI 시스템과 연동 가능하다
+- `--tcr 85`는 Task Completion Rate(태스크 완료율)이 85% 이상이어야 함을 의미한다
+
+```bash
+# 출처: agent-eval trend CLI — 연속 회귀 감지
+# PR 전후 추세 비교로 성능 회귀 자동 탐지
+agent-eval trend results/ --fail-on-regression --window 5
+
+# slope-threshold로 허용 하락 기울기 조정 (기본: -0.01 = 1% per run)
+agent-eval trend results/ --fail-on-regression --slope-threshold -0.02
+```
+
+- `--fail-on-regression`은 지표가 연속 하락하는 추세를 감지하면 `exit 1`을 반환한다
+- `--window 5`는 최근 5회 평가 결과만 비교해 장기 데이터 노이즈를 제거한다
+- gate(현재 기준치)와 trend(추세 기울기)를 함께 사용하면 순간적 기준치 통과와 장기 품질 저하를 모두 감지할 수 있다
+
+```bash
+# 1. 평가 결과 생성
+python Evaluator_Examples/06_operational.py
+# → results/operational_YYYYMMDD_HHMMSS.json 생성
+
+# 2. 단일 결과 파일 게이팅
+agent-eval gate results/operational_*.json --tcr 80 --accuracy 70
+# → exit 0 (통과) 또는 exit 1 (실패)
+
+# 3. 추이 기반 회귀 감지 (복수 파일)
+agent-eval trend results/ --window 10 --fail-on-regression
+```
+
+**예제 구성**
+
+| 단계 | 명령어 | 역할 |
+|------|--------|------|
+| 평가 실행 | `python 06_operational.py` | JSON 결과 파일 생성 |
+| 단일 게이트 | `agent-eval gate ... --tcr 80` | 배포 전 단일 검문소 |
+| 추이 게이트 | `agent-eval trend ... --fail-on-regression` | 장기 회귀 감지 |
+
+**실행 결과 (v0.8.0 기준)**
+
+```
+# agent-eval gate (TCR 기준 46.1% < 임계값 80%)
+❌ 품질 게이팅 실패
+   TCR: 46.1% (기준: 80.0%)
+   정확도: 68.1% (기준: 70.0%) — 근접 통과
+   exit 1
+
+# 임계값 완화 시
+agent-eval gate results/operational_*.json --tcr 40 --accuracy 60
+✅ 품질 게이팅 통과
+   TCR: 46.1% ≥ 40.0%
+   정확도: 68.1% ≥ 60.0%
+   exit 0
+```
+
+> **CI/CD 통합 팁**: GitHub Actions에서 `continue-on-error: false`로 게이팅 스텝을 설정하면 실패 시 배포 워크플로우 전체가 중단된다. `--tcr`과 `--accuracy` 임계값은 환경 변수(`GATE_TCR`, `GATE_ACCURACY`)로 관리해 dev/staging/prod 환경별로 다르게 적용한다.

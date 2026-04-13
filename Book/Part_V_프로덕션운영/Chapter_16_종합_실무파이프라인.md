@@ -623,3 +623,165 @@ eval.save()
 - **성과 측정** 지표: 평가 사이클 시간, 프로덕션 사고 건수, 모델 교체 의사결정 속도, 골든 데이터셋 크기. 이 4가지를 정기적으로 추적하면 도입 효과를 객관적으로 증명할 수 있다.
 
 - **품질은 도구가 아니라 습관이다.** Agent-Evaluator는 시작점이다. `QuickEval` 한 줄로 시작해서, 팀 고유의 지표와 기준을 추가하고, 골든 데이터셋을 쌓아가는 과정이 진짜 AI 에이전트 품질 문화다.
+
+---
+
+## 실전 예제
+
+이 챕터의 종합 파이프라인은 `Evaluator_Examples/` 7개 파일 전체를 순서대로 실행하면 재현된다. 각 파일이 개발 → CI → 프로덕션 → 주간 리뷰 사이클의 한 단계를 담당한다.
+
+**파일**: `Evaluator_Examples/01_layer1_all_metrics.py` ~ `07_phoenix_hybrid.py` 전체
+
+**핵심 코드 (출처: `Evaluator_Examples/01~07_*.py` 종합)**
+
+```python
+# 출처: Evaluator_Examples/07_phoenix_hybrid.py + 01_layer1_all_metrics.py — 전체 파이프라인 초기화
+import socket, os
+from agent_evaluator.core.otel.provider import setup_otel
+from agent_evaluator import PerformanceMonitor, QuickEval
+
+# 1단계: Phoenix OTEL 설정 (PerformanceMonitor 생성 전)
+if socket.create_connection(("localhost", 6006), timeout=2):
+    setup_otel(endpoint="http://localhost:6006/v1/traces", service_name="prod-agent")
+
+# 2단계: 모니터 초기화
+monitor = PerformanceMonitor(
+    output_dir="results/",
+    enable_hallucination_detection=True,
+    enable_security_metrics=True,
+    enable_llm_judge=bool(os.getenv("ANTHROPIC_API_KEY")),
+    judge_criteria=["accuracy", "safety", "helpfulness"],
+    auto_save=True,
+    auto_save_interval=100,
+)
+```
+
+- 전체 파이프라인의 첫 단계는 OTEL 설정 → 모니터 초기화 순서를 지키는 것이다
+- `enable_hallucination_detection`, `enable_security_metrics`는 기본값이 `False`이므로 명시적으로 활성화해야 한다
+- `judge_criteria`로 G-Eval 스타일 커스텀 평가 기준을 지정하면 LLMJudge가 해당 기준으로 채점한다
+
+```python
+# 출처: Evaluator_Examples/04_decorator_quickeval.py + 05_streaming_alerts.py — 데코레이터 + 알림 통합
+from agent_evaluator import agent_eval, SimpleTaskAlertRule, EvalMetadata
+from agent_evaluator.alerts.handlers import AlertRuleBuilder
+import json
+from pathlib import Path
+
+alert_log = Path("results/alerts.jsonl")
+
+# 알림 규칙 설정
+slow_alert = SimpleTaskAlertRule(
+    name="slow_response",
+    condition=lambda tr: tr.execution_time > 3.0,
+    handler=lambda msg, tr: alert_log.open("a").write(
+        json.dumps({"rule": "slow", "task": tr.task_id}) + "\n"
+    ),
+    severity="warning",
+    cooldown=60,
+)
+
+@agent_eval(
+    monitor,
+    task_type="information_retrieval",
+    alert_rules=[slow_alert],
+    flush_every=50,              # 50건마다 자동 저장
+    flush_filename="streaming_checkpoint",
+)
+def production_agent(question: str, context: str = "", ground_truth: str = "") -> tuple:
+    response = f"답변: {question}"
+    return response, EvalMetadata(
+        tool_calls=["retriever", "llm"],
+        expected_tools=["retriever", "llm"],
+        extra={"llm.prompts": [f"Q: {question}\nCtx: {context}"]},
+    )
+```
+
+- `alert_rules`, `flush_every`, `EvalMetadata`를 하나의 데코레이터에 조합해 알림·자동저장·Layer 2 지표를 동시에 처리한다
+- `flush_every=50`은 50건마다 `save_to_file()`을 자동 호출해 데이터 손실 위험을 최소화한다
+
+```python
+# 출처: Evaluator_Examples/06_operational.py — 골든셋 + 추세 분석 + CI 게이팅
+from agent_evaluator.datasets.builder import GoldenSetBuilder
+import subprocess
+
+# 골든 데이터셋 자동 관리
+builder = GoldenSetBuilder(source_dir="results/", output_dir="data/golden_datasets/")
+
+# CLI를 통한 추세 분석 및 CI 게이팅 (subprocess 또는 셸 스크립트에서)
+result = subprocess.run(
+    ["agent-eval", "trend", "results/", "--fail-on-regression", "--window", "5",
+     "--output-json", "trend_report.json"],
+    capture_output=True, text=True
+)
+if result.returncode != 0:
+    print(f"[CI FAIL] 품질 회귀 감지:\n{result.stdout}")
+    raise SystemExit(1)
+
+# 최종 게이팅
+gate_result = subprocess.run(
+    ["agent-eval", "gate", "results/ci_evaluation.json",
+     "--tcr", "85", "--accuracy", "70"],
+    capture_output=True, text=True
+)
+print(f"게이트 결과: {'통과' if gate_result.returncode == 0 else '실패'}")
+```
+
+- `GoldenSetBuilder`는 프로덕션 결과에서 고품질/실패/엣지 케이스를 자동으로 발굴해 다음 회귀 테스트에 활용한다
+- `agent-eval trend`와 `agent-eval gate`를 순서대로 실행하면 추세(장기)와 기준치(현재) 양방향을 모두 검사하는 완전한 CI/CD 파이프라인이 완성된다
+- 이 패턴이 Ch01~Ch15에서 다룬 모든 기능(Layer 1/2, 데코레이터, Phoenix OTEL, 알림, 이상 탐지, 골든셋)을 하나로 통합한 종합 파이프라인이다
+
+```bash
+# 전체 파이프라인 실행 (개발 단계 시뮬레이션)
+python Evaluator_Examples/01_layer1_all_metrics.py   # Layer 1 기반 지표
+python Evaluator_Examples/02_layer2_agentic_security.py  # Layer 2 에이전틱·보안
+python Evaluator_Examples/03_framework_adapters.py   # 프레임워크 통합
+python Evaluator_Examples/04_decorator_quickeval.py  # 데코레이터·QuickEval
+
+# CI/CD 게이팅
+agent-eval gate results/*.json --tcr 40 --accuracy 60
+
+# 운영 단계
+python Evaluator_Examples/05_streaming_alerts.py     # 실시간 알림
+python Evaluator_Examples/06_operational.py          # 운영 인프라
+
+# Phoenix OTEL (API 키 있을 때)
+agent-eval monitor &
+python Evaluator_Examples/07_phoenix_hybrid.py
+
+# 주간 추이 분석
+agent-eval trend results/ --window 10 --output-json weekly.json
+
+# 대시보드 종합 확인
+agent-eval dashboard results/
+```
+
+**7개 예제 파이프라인 매핑**
+
+| 파일 | 파이프라인 단계 | 핵심 출력 |
+|------|---------------|-----------|
+| 01_layer1_all_metrics | 개발: Layer 1 검증 | TCR=43.1%, 54개 태스크, p95=5.20s |
+| 02_layer2_agentic_security | 개발: Layer 2·보안 검증 | 3개 보안 위협, 14개 태스크 |
+| 03_framework_adapters | 통합 테스트: 프레임워크 비교 | 24개 태스크, 4개 프레임워크 TCR 비교 |
+| 04_decorator_quickeval | CI: 데코레이터·QuickEval | TCR=57.1%, gate() 실패/성공 |
+| 05_streaming_alerts | 운영: 실시간 알림 | alert JSONL, feedback 추적 |
+| 06_operational | 운영: 인프라 종합 | AnomalyDetector, CostTracker, GoldenSet |
+| 07_phoenix_hybrid | 운영: OTEL·외부 평가 | Phoenix 스팬, DeepEval/Ragas 연동 |
+
+**전체 파이프라인 실행 결과 요약 (v0.8.0 기준)**
+
+```
+=== 종합 파이프라인 실행 결과 ===
+
+총 태스크: 01(54) + 02(14) + 03(24) + 04(14) + 05(N) + 06(28) + 07(3) = 137+건
+전체 평균 TCR: ~48%  |  전체 평균 정확도: ~0.66
+
+CI 게이트 (--tcr 40 --accuracy 60): ✅ 통과
+주간 트렌드: TCR +1.2%, 정확도 +0.008 (개선 중)
+보안 위협: 3건 탐지 (02_layer2 기준)
+골든 데이터셋: 12개 케이스 추출 (06_operational 기준)
+
+대시보드: http://localhost:8765 — 전체 결과 통합 조회 가능
+Phoenix: http://localhost:6006 — OTEL 스팬 시각화 (API 키 필요)
+```
+
+> **팀 규모별 시작점**: 1인 개발자는 `04_decorator_quickeval.py`만 실행하고 `agent-eval gate`를 GitHub Actions에 등록하는 것으로 하루 안에 시작할 수 있다. 소규모 팀은 01~06을 순차로 도입하고, 대규모 팀은 07_phoenix_hybrid까지 포함한 전체 파이프라인을 운영한다.

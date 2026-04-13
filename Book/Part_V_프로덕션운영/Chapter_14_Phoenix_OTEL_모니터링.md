@@ -522,3 +522,129 @@ setup_otel(
 - **Phoenix 4개 탭의 역할**: Tracing(실행 기록 + 필터), Evaluators(LLM Judge 설정), Datasets(골든셋 관리), Prompts(프롬프트 재현 + Playground).
 
 - **Tracing 탭 필터**로 실패 케이스를 빠르게 추출하라. `ae.accuracy_score < 0.5`, `ae.hallucination_detected == "true"`, `ae.framework == "langchain"` 같은 필터 표현식을 활용한다.
+
+---
+
+## 실전 예제
+
+`07_phoenix_hybrid.py`는 `setup_otel()` → `PerformanceMonitor` 순서, Phoenix 프로젝트 분리, DeepEval·Ragas 어댑터 통합까지 Phoenix OTEL 연동의 전체 흐름을 한 파일에서 보여준다. API 키 없이 mock 모드로 실행하면 `setup_otel()` 없이 평가 결과만 확인할 수 있다.
+
+**파일**: `Evaluator_Examples/07_phoenix_hybrid.py`
+
+**핵심 코드 (출처: `Evaluator_Examples/07_phoenix_hybrid.py`)**
+
+```python
+# 출처: Evaluator_Examples/07_phoenix_hybrid.py — Phoenix 실행 여부 확인 + OTEL 설정
+import socket
+from agent_evaluator.core.otel.provider import setup_otel
+from agent_evaluator import PerformanceMonitor
+
+_PHOENIX_URL = "http://localhost:6006"
+_OTLP_URL = "http://localhost:6006/v1/traces"
+
+def _phoenix_running() -> bool:
+    """Phoenix 서버가 실행 중인지 포트 확인"""
+    try:
+        with socket.create_connection(("localhost", 6006), timeout=2):
+            return True
+    except OSError:
+        return False
+
+# Phoenix가 실행 중일 때만 OTEL 설정 — PerformanceMonitor 생성 전에 호출
+if _phoenix_running():
+    setup_otel(
+        endpoint=_OTLP_URL,
+        service_name="my-agent-service",
+        enable_metrics=False,  # Phoenix는 /v1/metrics 미지원
+    )
+    print("Phoenix OTEL 연결 완료")
+else:
+    print("Phoenix 미실행 — OTEL 없이 계속")
+
+# setup_otel() 이후에 monitor 생성해야 OTLP 스팬이 자동 발행됨
+monitor = PerformanceMonitor(output_dir="results/")
+```
+
+- `setup_otel()`은 반드시 `PerformanceMonitor()` 생성 **이전**에 호출해야 한다 — 순서가 바뀌면 스팬이 Phoenix로 전송되지 않는다
+- `_phoenix_running()`으로 서버 실행 여부를 확인해 Phoenix 없는 환경에서도 코드가 정상 동작하게 한다
+- `agent-eval monitor` CLI를 실행하면 Phoenix 서버 기동과 OTLP 수신 설정이 자동으로 완료된다
+
+```python
+# 출처: Evaluator_Examples/07_phoenix_hybrid.py, 섹션 1 — Tracing·Playground 스팬 전송
+from agent_evaluator import agent_eval, EvalMetadata
+
+@agent_eval(
+    monitor,
+    task_type="information_retrieval",
+    question_arg="question",
+    ground_truth_arg="ground_truth",
+)
+def rag_agent(question: str, context: str = "", ground_truth: str = "") -> tuple:
+    # RAG 에이전트 실행
+    response = f"{question}에 대한 답변 (컨텍스트 기반)"
+    
+    return response, EvalMetadata(
+        extra={
+            # Phoenix Playground 탭에서 프롬프트 확인 가능
+            "llm.prompts": [
+                f"시스템: 당신은 QA 에이전트입니다.\n사용자: {question}\n컨텍스트: {context}"
+            ],
+            # Phoenix Datasets 탭 연동
+            "dataset.id": "rag_golden_v1",
+            "dataset.record_count": 100,
+        }
+    )
+
+rag_agent("양자 컴퓨터란?", context="양자 컴퓨터는...", ground_truth="양자역학 원리 활용 컴퓨터")
+# → Phoenix Tracing 탭에서 스팬 확인 가능
+# → Playground 탭에서 프롬프트 재실행 가능
+```
+
+- `EvalMetadata(extra={"llm.prompts": [...]})` 속성을 추가하면 Phoenix의 Playground 탭에서 실제 프롬프트를 조회하고 재실행할 수 있다
+- `"dataset.id"` 속성으로 Phoenix Datasets 탭에 평가 데이터를 연결할 수 있다
+- 모든 `record_task()` 호출은 OTLP 스팬으로 자동 변환되어 Phoenix Tracing 탭에 표시된다
+
+```bash
+# 터미널 A: Phoenix 서버 기동
+agent-eval monitor
+
+# 터미널 B: 예제 실행 (ANTHROPIC_API_KEY 있으면 자동으로 Phoenix 연결)
+python Evaluator_Examples/07_phoenix_hybrid.py
+
+# Phoenix UI 확인
+open http://localhost:6006
+```
+
+**예제 구성**
+
+| 섹션 | 내용 | Phoenix UI 탭 |
+|------|------|---------------|
+| 섹션 1 | `setup_otel()` 설정 + `PerformanceMonitor` 생성 | — (설정) |
+| 섹션 2 | 기본 OTEL 스팬 발행 | Tracing 탭 |
+| 섹션 3 | DeepEval 어댑터 (`HybridPerformanceMonitor`) | Evaluators 탭 |
+| 섹션 4 | Ragas 어댑터 + RAG 평가 | Evaluators 탭 + Datasets 탭 |
+| 섹션 5 | `push_to_phoenix()` 골든셋 업로드 | Datasets 탭 |
+| 섹션 6 | GraphQL 역조회 (`phoenix_check.py`) | Tracing 탭 필터 |
+
+**실행 결과 (v0.8.0 기준, mock 모드)**
+
+```
+=== 07. Phoenix OTEL Hybrid 예제 ===
+[mock 모드] ANTHROPIC_API_KEY 미설정 — Phoenix 연결 없이 실행
+setup_otel: 비활성 (API 키 필요)
+
+섹션 2: 기본 평가 (3개 태스크)
+  TCR=66.7% | avg_accuracy=0.723
+
+섹션 3: DeepEval 어댑터
+  [mock] deepeval 미설치 — advanced_metrics 데모 패치 적용
+  advanced_metrics: {"deepeval_score": 0.85, "answer_relevancy": 0.91}
+
+섹션 4: Ragas 어댑터
+  [mock] ragas 미설치 — rag_metrics 데모 패치 적용
+  rag_metrics: {"faithfulness": 0.89, "context_precision": 0.76}
+
+대시보드 외부 평가 탭: advanced_metrics 3건 표시
+```
+
+> **`setup_otel()` 순서 엄수**: `setup_otel(endpoint="http://localhost:6006")`은 반드시 `PerformanceMonitor(...)` 또는 `QuickEval(...)` 생성 전에 호출해야 한다. 순서를 틀리면 스팬이 Phoenix에 전송되지 않는다. `07_phoenix_hybrid.py` 섹션 1의 코드 순서를 템플릿으로 사용한다.

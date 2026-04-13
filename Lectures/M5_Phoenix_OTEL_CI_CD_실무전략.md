@@ -1,6 +1,6 @@
 # M5: Phoenix · OpenTelemetry · CI/CD — 프로덕션 실무 전략
 
-> **Agent-Evaluator v0.7.9+** 기준. OTEL 모니터링은 `pip install agent-evaluator` 기본 설치에 포함
+> **Agent-Evaluator v0.8.0+** 기준. OTEL 모니터링은 `pip install agent-evaluator` 기본 설치에 포함
 
 ---
 
@@ -14,6 +14,135 @@
 6. [골든 데이터셋 구축 전략](#6-골든-데이터셋-구축-전략)
 7. [프로덕션 운영 전략](#7-프로덕션-운영-전략)
 8. [종합 실무 파이프라인](#8-종합-실무-파이프라인)
+
+---
+
+> **🗂 실습 파일**
+>
+> | 예제 파일 | 다루는 내용 |
+> |---------|---------|
+> | `Evaluator_Examples/07_phoenix_hybrid.py` | Phoenix Tracing·Annotations · Playground 연동 · Datasets 탭 · GraphQL 조회 · HybridPerformanceMonitor |
+> | `Evaluator_Examples/06_operational.py` | GoldenSetBuilder · evaluation_session · CI/CD 게이팅 안내 |
+>
+> ```bash
+> # Phoenix 서버 기동 (별도 터미널)
+> agent-eval monitor
+>
+> # 예제 실행
+> python 07_phoenix_hybrid.py   # http://localhost:6006 에서 스팬 확인
+> python 06_operational.py      # 골든셋 · 세션 · 비용 추적
+> ```
+>
+> **실행 결과 (v0.8.0 기준, Phoenix 미실행 목업 모드)**
+>
+> ```
+>   Phoenix 미실행 — OTEL 비활성 (agent-eval monitor 로 기동)
+>   OPENAI_API_KEY 미설정 — PerformanceMonitor 사용 (데모 외부평가 데이터 주입)
+>   섹션 1: 5개 task_type별 span.kind 자동 매핑 (LLM·TOOL·RETRIEVER·AGENT)
+>   섹션 3: 고품질 케이스 1건 추출 → Datasets 탭 업로드 가능
+>   외부평가 데이터 주입 완료: G-Eval 평균 0.793 / RAG 지표 2건
+>   총 태스크: 7건  TCR: 57.1%
+> ```
+>
+> Phoenix 활성화 시: `OPENAI_API_KEY` 또는 `ANTHROPIC_API_KEY` + `agent-eval monitor` 실행 필요  
+> 외부평가 활성화: `pip install 'agent-evaluator[eval]'` + API 키 필요
+
+### 핵심 코드 예제
+
+#### setup_otel + PerformanceMonitor 초기화 순서
+
+```python
+# 출처: Evaluator_Examples/07_phoenix_hybrid.py, Phoenix 연결 섹션
+import socket
+from agent_evaluator import setup_otel, PerformanceMonitor
+
+# 1단계: Phoenix 실행 여부 확인
+def _phoenix_running(port: int = 6006) -> bool:
+    with socket.socket() as s:
+        s.settimeout(0.5)
+        return s.connect_ex(("localhost", port)) == 0
+
+# 2단계: setup_otel()은 PerformanceMonitor 생성 전에 반드시 호출
+if _phoenix_running():
+    setup_otel(
+        endpoint="http://localhost:6006",  # /v1/traces 경로 붙이지 않음
+        service_name="my-agent-service",
+    )
+    print("Phoenix 연결 성공 — http://localhost:6006")
+
+# 3단계: monitor 생성 (setup_otel 이후여야 스팬이 전송됨)
+monitor = PerformanceMonitor(output_dir="results/")
+```
+
+- `setup_otel()`은 반드시 `PerformanceMonitor(...)` 생성 전에 호출해야 한다. 순서를 바꾸면 스팬이 Phoenix에 전송되지 않는다
+- `endpoint`는 `"http://localhost:6006"` 형식으로 입력한다 — `/v1/traces` 경로를 붙이지 않는다. Phoenix가 자동으로 OTLP 엔드포인트를 처리한다
+- Phoenix가 실행 중이지 않으면 `setup_otel()`을 호출하지 않아도 평가 자체는 정상 동작한다. OTEL 연동은 선택적이다
+
+#### Phoenix Tracing + Annotations (스팬 발행)
+
+```python
+# 출처: Evaluator_Examples/07_phoenix_hybrid.py, 섹션 1
+from agent_evaluator import create_taskresult
+
+TRACING_CASES = [
+    ("qa",                    "한국의 수도는?",   "서울",          "서울입니다."),
+    ("tool_use",              "날씨 검색",        "맑음",          "맑고 따뜻합니다."),
+    ("information_retrieval", "RAG 검색 테스트",  "관련 문서 내용", "문서에 따르면..."),
+]
+
+for task_type, question, ground_truth, response in TRACING_CASES:
+    result = create_taskresult(
+        task_id=f"trace_{task_type[:6]}",
+        question=question,
+        response=response,
+        ground_truth=ground_truth,
+        execution_time=round(1.0 + len(response) * 0.01, 2),
+        task_type=task_type,
+        tokens_used={"input": 120, "output": len(response.split()), "total": 120 + len(response.split())},
+    )
+    monitor.record_task(result)  # → OTLP 스팬 자동 발행 → Phoenix Tracing 탭
+    print(f"[{task_type}] acc={result.accuracy_score:.2f}")
+```
+
+- `monitor.record_task(result)` 한 번의 호출이 OTLP 스팬을 자동으로 Phoenix에 전송한다. 별도의 스팬 발행 코드가 필요 없다
+- Phoenix Tracing 탭에서 `ae.accuracy_score`, `ae.hallucination_detected`, `ae.framework`, `ae.task_type` 속성으로 필터링할 수 있다
+- `task_type="information_retrieval"` + `context` 필드가 있으면 HallucinationDetector가 자동 활성화되고, 탐지 결과가 스팬 속성으로 포함된다
+
+#### HybridPerformanceMonitor (DeepEval/Ragas 통합)
+
+```python
+# 출처: Evaluator_Examples/07_phoenix_hybrid.py, 모니터 초기화 섹션
+import os
+
+OPENAI_KEY  = os.getenv("OPENAI_API_KEY", "")
+EVAL_AVAIL  = bool(OPENAI_KEY)  # eval 패키지 + API 키 모두 필요
+
+if EVAL_AVAIL:
+    from agent_evaluator import HybridPerformanceMonitor
+    monitor = HybridPerformanceMonitor(
+        use_deepeval=True,
+        use_ragas=True,
+        deepeval_model="gpt-4o-mini",
+        ragas_model="gpt-4o-mini",
+        output_dir="results/",
+    )
+    # record_task() 시 DeepEval G-Eval·Hallucination + Ragas Faithfulness 자동 평가
+    monitor.record_task(
+        result,
+        input_text=question,
+        output_text=response,
+        expected_output=ground_truth,
+        retrieved_context=context,  # RAG 태스크에 전달
+    )
+else:
+    from agent_evaluator import PerformanceMonitor
+    monitor = PerformanceMonitor(output_dir="results/")
+    # 기본 Layer 1+2 지표만 측정, 외부 평가는 목업 데이터로 대체
+```
+
+- `HybridPerformanceMonitor`는 `pip install "agent-evaluator[eval]"` + `OPENAI_API_KEY` 두 가지가 모두 있어야 실 평가가 작동한다
+- 미설치 환경에서는 `PerformanceMonitor`로 fallback하고, JSON에 데모 `advanced_metrics` 데이터를 주입해 대시보드 '외부평가' 탭의 UI 구조를 확인할 수 있다
+- `retrieved_context` 파라미터를 전달하면 Ragas의 Faithfulness·Answer Relevancy·Context Precision·Recall 4개 지표가 자동 계산된다
 
 ---
 

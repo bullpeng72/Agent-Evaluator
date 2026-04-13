@@ -1,6 +1,6 @@
 # Appendix F. 용어 사전
 
-Agent Evaluator v0.7.9에서 사용하는 주요 용어를 영문 기준 가나다 순으로 정리한다.
+Agent Evaluator v0.8.0에서 사용하는 주요 용어를 영문 기준 가나다 순으로 정리한다.
 
 ---
 
@@ -10,7 +10,7 @@ Agent Evaluator v0.7.9에서 사용하는 주요 용어를 영문 기준 가나�
 
 ### AccuracyEvaluator
 
-Layer 1 정확도 평가 클래스. `PerformanceMonitor` 내부에서 자동으로 초기화된다. QA 태스크에서는 TokenOverlap (40%) + Jaccard (30%) + LCS (20%) + CharSimilarity (10%) 가중 조합으로 정확도를 계산하고, 코드 태스크에서는 AST 비교를 사용한다. `ground_truth`가 필수이며 빈 문자열이면 0.0이 반환된다.
+Layer 1 정확도 평가 클래스. `PerformanceMonitor` 내부에서 자동으로 초기화된다. QA 태스크에서는 TokenOverlapF1 (40%) + Jaccard (30%) + LCS (20%) + CharSimilarity/Levenshtein (10%) 가중 조합으로 정확도를 계산하고, 코드 태스크에서는 AST 비교를 사용한다. `ground_truth`가 필수이며 빈 문자열이면 0.0이 반환된다.
 
 참조: Appendix A — Layer 1 지표 / 3장
 

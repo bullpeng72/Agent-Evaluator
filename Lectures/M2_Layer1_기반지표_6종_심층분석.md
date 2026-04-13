@@ -19,6 +19,138 @@
 
 ---
 
+> **🗂 실습 파일**
+>
+> | 예제 파일 | 다루는 내용 |
+> |---------|---------|
+> | `Evaluator_Examples/01_layer1_all_metrics.py` | TCR · Accuracy(QA/코드/RAG) · 할루시네이션 탐지 · 응답 품질 5차원 · 지연시간 분포 · 토큰 경제성 |
+>
+> ```bash
+> python 01_layer1_all_metrics.py
+> ```
+>
+> **실행 결과 (v0.8.0 기준)**
+>
+> ```
+> === 최종 리포트 ===
+>   총 태스크 : 54건
+>   평균 정확도: 59.82%
+>   평균 지연  : 1.41s  (p50=1.15s · p95=5.20s · p99=10.95s)
+>   TCR       : 43.1%  (목표: 85%)
+>
+> 결과 저장 완료: results/01_layer1_all_metrics.json
+> ```
+>
+> 결과 파일: `results/01_layer1_all_metrics.json`  
+> 대시보드: `agent-eval dashboard results/`
+
+---
+
+### 핵심 코드 예제
+
+#### 예제 1 — QA 정확도 + `@agent_eval`
+
+```python
+# 출처: Evaluator_Examples/01_layer1_all_metrics.py, 섹션 1
+from agent_evaluator import PerformanceMonitor
+from agent_evaluator.decorators import agent_eval
+
+monitor = PerformanceMonitor(
+    output_dir="results/",
+    enable_hallucination_detection=True,  # HallucinationDetector 활성화
+)
+
+@agent_eval(monitor, task_type="qa", task_id_prefix="qa")
+def qa_agent(question: str, ground_truth: str = "") -> str:
+    answers = {
+        "한국의 수도는?":   "서울입니다.",
+        "물의 화학식은?":   "H2O입니다.",
+        "1+1은?":          "3입니다.",   # 의도적 오답
+    }
+    return answers.get(question, "잘 모르겠습니다.")
+
+qa_agent("한국의 수도는?", ground_truth="서울")
+qa_agent("1+1은?",         ground_truth="2")   # 오답 → accuracy_score 낮음
+```
+
+- `enable_hallucination_detection=True`를 PerformanceMonitor에 설정하면 `information_retrieval` 태스크에서 HallucinationDetector가 자동 활성화된다
+- `@agent_eval`은 함수 실행 시간(LatencyTracker), 토큰 수(TokenEconomyTracker), 정확도(AccuracyEvaluator), 완료율(TCR)을 모두 자동 기록한다
+- 오답(`"3입니다."` vs ground_truth `"2"`)은 TokenF1·Jaccard·LCS 복합 계산으로 낮은 accuracy_score를 받는다
+
+---
+
+#### 예제 2 — 지연시간 분포 측정
+
+```python
+# 출처: Evaluator_Examples/01_layer1_all_metrics.py, 섹션 5
+import random
+from agent_evaluator import create_taskresult
+
+# 정규 분포에 이상치 추가 — 현실적 지연 패턴
+latencies = [random.gauss(1.2, 0.4) for _ in range(15)] + [8.5, 12.0]  # 이상치 2개
+latencies = [max(0.1, lat) for lat in latencies]
+
+for i, lat in enumerate(latencies):
+    result = create_taskresult(
+        task_id=f"perf_{i:03d}",
+        question="지연시간 테스트",
+        response="응답 완료",
+        ground_truth="응답",
+        execution_time=round(lat, 3),
+        task_type="qa",
+        tokens_used={"input": 50, "output": 20, "total": 70},
+    )
+    monitor.record_task(result)
+
+report = monitor.generate_report()
+lat_stats = report.to_dict().get("efficiency_metrics", {}).get("latency", {})
+print(f"p50={float(lat_stats.get('p50', 0)):.2f}s")
+print(f"p95={float(lat_stats.get('p95', 0)):.2f}s")   # 이상치 2개로 급등
+print(f"p99={float(lat_stats.get('p99', 0)):.2f}s")
+```
+
+- `create_taskresult()`는 `execution_time`을 LatencyTracker에 자동 전달한다. 별도 API 없이 단순히 결과 객체를 만들어 `record_task()`에 넘기면 된다
+- `generate_report()`가 반환하는 보고서에서 `efficiency_metrics.latency`로 p50/p95/p99 백분위 지연시간을 확인한다
+- 이상치 2개(8.5s, 12.0s)가 p95를 정상 범위(~2.0s)보다 크게 올리는 것을 확인할 수 있다 — 프로덕션에서 소수의 느린 요청이 p95에 미치는 영향을 이해하는 데 유용하다
+
+---
+
+#### 예제 3 — 토큰 비용 추정
+
+```python
+# 출처: Evaluator_Examples/01_layer1_all_metrics.py, 섹션 6
+TOKEN_MODELS = [
+    ("gpt-4o",      {"input": 800, "output": 200, "total": 1000, "model": "gpt-4o"}),
+    ("claude-3",    {"input": 600, "output": 150, "total": 750,  "model": "claude-3-sonnet"}),
+    ("gpt-4o-mini", {"input": 400, "output": 100, "total": 500,  "model": "gpt-4o-mini"}),
+]
+
+for model_name, tokens in TOKEN_MODELS:
+    result = create_taskresult(
+        task_id=f"tok_{model_name}",
+        question="토큰 비용 테스트",
+        response="응답 내용",
+        ground_truth="응답",
+        execution_time=1.5,
+        task_type="qa",
+        tokens_used=tokens,   # "model" 키로 모델별 단가 자동 적용
+    )
+    monitor.record_task(result)
+
+tok_report = monitor.generate_report().to_dict()
+tok_stats = tok_report.get("efficiency_metrics", {}).get("tokens", {})
+print(f"누적 토큰: {int(tok_stats.get('total_tokens', 0)):,}")
+cost = tok_stats.get("total_cost")
+if cost:
+    print(f"예상 비용: ${float(cost):.4f} USD")
+```
+
+- `tokens_used` 딕셔너리에 `"model"` 키를 포함하면 TokenEconomyTracker가 모델별 단가를 자동으로 적용해 비용을 추정한다
+- gpt-4o, claude-3-sonnet, gpt-4o-mini 등 주요 모델의 단가가 내장되어 있어 별도 설정 없이 비용 계산이 된다
+- `total_cost`가 있으면 `efficiency_metrics.tokens.total_cost`로 접근한다
+
+---
+
 ## 1. Layer 1 개요
 
 ### 1.1 2개 레이어의 구조
@@ -144,6 +276,39 @@ result = create_taskresult(
 )
 ```
 
+#### task_type별 구조적 완료 판정 (v0.8.0+)
+
+ground_truth 없는 환경에서도 task_type을 기반으로 완료 여부를 구조적으로 판정한다.
+
+| task_type | 판정 기준 | completion_score |
+|-----------|----------|-----------------|
+| `code_generation` / `coding` | Python AST 파싱 성공 | 1.0 (유효 코드) / 길이 기반 fallback |
+| `tool_use` | `tool_calls` 비어 있지 않음 | 1.0 / 0.6 (도구 미사용) |
+| 기타 | 응답 길이 ≥ 10자 | 1.0 |
+
+```python
+# code_generation: AST 성공 → completion_score = 1.0 (ground_truth 불필요)
+result = create_taskresult(
+    task_id="code_1",
+    question="두 수를 더하는 함수",
+    response="def add(a, b):\n    return a + b",
+    execution_time=1.0,
+    task_type="code_generation",
+)
+# completion_score = 1.0 → TCR 신뢰도 향상
+
+# tool_use: 도구 미사용 → completion_score = 0.6 (부분 완료)
+result = create_taskresult(
+    task_id="tool_1",
+    question="현재 서울 날씨",
+    response="맑습니다",
+    execution_time=1.0,
+    task_type="tool_use",
+    tool_calls=[],   # 도구 미사용
+)
+# completion_score = 0.6 (텍스트 반환했지만 도구를 써야 하는 태스크)
+```
+
 ### 2.3 어떤 의미가 있는가
 
 TCR은 프로덕션 배포 준비도를 나타내는 가장 직관적인 지표다.
@@ -248,7 +413,7 @@ accuracy = 0.4 × token_f1 + 0.3 × jaccard + 0.2 × lcs_ratio + 0.1 × char_sim
 | Token Overlap F1 | 40% | 토큰화 후 F1 계산 | 핵심 정보 포함 여부 |
 | Jaccard Similarity | 30% | 집합 교집합/합집합 | 단어 집합 유사도 |
 | LCS Ratio | 20% | 최장 공통 부분 수열 | 순서 보존 유사도 |
-| Char Similarity | 10% | 문자 수준 비교 | 오탈자/변형 허용 |
+| Char Similarity | 10% | Levenshtein 거리 기반 | 오탈자/변형 허용, 문자 순서 반영 |
 
 #### Token Overlap F1 상세
 
@@ -309,6 +474,36 @@ def lcs_ratio(response: str, ground_truth: str) -> float:
     lcs_len = dp[m][n]
     return lcs_len / max(m, n) if max(m, n) > 0 else 0.0
 ```
+
+#### Char Similarity 상세 (Levenshtein 기반, v0.8.0+)
+
+```python
+def char_similarity(s1: str, s2: str) -> float:
+    """Levenshtein 거리 기반 — 문자 순서 반영"""
+    if s1 == s2:
+        return 1.0
+    m, n = len(s1), len(s2)
+    if m == 0 or n == 0:
+        return 0.0
+    # 공간 최적화 Levenshtein (O(min(m,n)) 공간)
+    if m > n:
+        s1, s2, m, n = s2, s1, n, m
+    prev_row = list(range(n + 1))
+    for i in range(1, m + 1):
+        curr_row = [i]
+        for j in range(1, n + 1):
+            cost = 0 if s1[i-1] == s2[j-1] else 1
+            curr_row.append(min(prev_row[j]+1, curr_row[j-1]+1, prev_row[j-1]+cost))
+        prev_row = curr_row
+    return max(0.0, 1.0 - prev_row[n] / max(m, n))
+
+# 예시 — 문자 순서가 중요함
+char_similarity("abc", "abc")   # 1.0
+char_similarity("abc", "cba")   # 0.33  ← v0.8.0 이전 집합 방식: 1.0 (오판)
+char_similarity("서울시", "서울")  # 0.80  ← 어절 변형 허용
+```
+
+> **v0.8.0 변경**: 이전 버전의 집합 기반(`set(s1) & set(s2)`) 방식은 문자 순서를 무시했다. Levenshtein으로 교체하여 "abc"와 "cba"가 다른 점수를 받도록 개선.
 
 #### 코드 생성 특수 처리
 

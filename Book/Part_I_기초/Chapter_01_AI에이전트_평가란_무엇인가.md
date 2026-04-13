@@ -155,7 +155,7 @@ answer = response.choices[0].message.content
 | **Braintrust** | SaaS + OSS SDK | v0.5.2 | LLM 실험 + 에이전트 관측 |
 | **Helicone** | SaaS + OSS | — | LLM 프록시 + 비용 관측 |
 | **W&B Weave** | SaaS + OSS SDK | v0.72+ | 에이전트 평가 + 실험 관리 |
-| **Agent Evaluator** | OSS SDK | v0.7.9 | Agentic AI 전문 평가 |
+| **Agent Evaluator** | OSS SDK | v0.8.0 | Agentic AI 전문 평가 |
 
 ### 에이전틱 지표 지원 비교
 
@@ -206,3 +206,97 @@ answer = response.choices[0].message.content
 > - 에이전트 평가의 4대 축은 **정확성**, **신뢰성**, **효율성**, **보안**입니다.
 > - 평가 없는 배포는 기술 부채를 누적시키며, 초기 투자 대비 장기 비용이 훨씬 큽니다.
 > - 에이전트 평가 도구 생태계에서 Tool 선택 정확도, 보안 탐지 등 에이전틱 전용 지표를 LLM 없이 제공하는 도구는 Agent Evaluator가 유일합니다.
+
+---
+
+## 실전 예제
+
+챕터 1에서 설명한 에이전트 평가의 필요성과 4대 축(정확성·신뢰성·효율성·보안)을 실제 지표로 측정하려면 `01_layer1_all_metrics.py`와 `02_layer2_agentic_security.py`로 시작한다. API 키 없이도 Layer 1+2 네이티브 지표 16개를 즉시 실행할 수 있다.
+
+**파일**: `Evaluator_Examples/01_layer1_all_metrics.py`, `Evaluator_Examples/02_layer2_agentic_security.py`
+
+**핵심 코드 (출처: `Evaluator_Examples/01_layer1_all_metrics.py`)**
+
+```python
+# 출처: Evaluator_Examples/01_layer1_all_metrics.py, 섹션 1 — 기본 QA 평가
+from agent_evaluator import PerformanceMonitor, create_taskresult
+
+monitor = PerformanceMonitor(
+    output_dir="results/",
+    enable_hallucination_detection=True,  # Layer 1 환각 감지 활성화
+)
+
+result = create_taskresult(
+    task_id="qa_001",
+    question="대한민국의 수도는 어디인가요?",
+    response="대한민국의 수도는 서울입니다.",
+    ground_truth="서울",
+    execution_time=0.85,
+    task_type="qa",
+)
+
+monitor.record_task(result)
+report = monitor.generate_report()
+print(f"TCR: {report.task_completion_rate:.1%}")
+print(f"Accuracy: {report.average_accuracy:.1%}")
+```
+
+- `create_taskresult()`는 `accuracy_score`를 자동 계산한다 (TokenF1 40% + Jaccard 30% + LCS 20% + Char Levenshtein 10%)
+- `enable_hallucination_detection=True`를 켜면 `task_type="information_retrieval"` 태스크에서 환각 점수가 추가된다
+- `generate_report()`는 TCR·정확도·지연시간·토큰 사용량을 집계한 `EvaluationReport` 객체를 반환한다
+
+```python
+# 출처: Evaluator_Examples/02_layer2_agentic_security.py, 섹션 1 — Tool Call 메타데이터 주입
+from agent_evaluator import agent_eval, EvalMetadata
+
+@agent_eval(monitor, task_type="tool_use")
+def tool_agent(question: str, ground_truth: str = "") -> tuple:
+    # 에이전트 실행 로직 (예시)
+    result_text = f"{question}에 대한 답변"
+    tool_calls_made = ["web_search", "calculator"]
+    expected = ["web_search", "calculator"]
+    
+    # EvalMetadata로 Layer 2 지표 데이터 주입
+    return result_text, EvalMetadata(
+        tool_calls=tool_calls_made,
+        expected_tools=expected,
+    )
+
+# 데코레이터가 AccuracyEvaluator + ToolCallAnalyzer + ToolSelectionTracker를 자동 실행
+tool_agent("2024년 GDP 상위 5개국은?", ground_truth="미국, 중국, 독일, 일본, 인도")
+```
+
+- `@agent_eval` 데코레이터는 `EvalMetadata` 튜플을 반환받으면 Layer 2 지표(Tool Call, Tool Selection F1)를 자동으로 집계한다
+- `expected_tools`와 `tool_calls`를 비교해 F1 점수(정밀도-재현율 조화평균)를 계산한다
+
+```bash
+# Layer 1: 정확성·신뢰성·효율성 측정
+python Evaluator_Examples/01_layer1_all_metrics.py
+
+# Layer 2: 보안·에이전틱 동작 측정
+python Evaluator_Examples/02_layer2_agentic_security.py
+```
+
+**4대 축과 예제 매핑**
+
+| 평가 축 | 측정 지표 | 예제 파일·섹션 |
+|---------|----------|---------------|
+| 정확성 | AccuracyEvaluator (TokenF1·Jaccard·LCS) | 01_layer1, 섹션 1~2 |
+| 신뢰성 | HallucinationDetector, TCR | 01_layer1, 섹션 5~6 |
+| 효율성 | LatencyTracker (p95), TokenEconomyTracker | 01_layer1, 섹션 3~4 |
+| 보안 | InputSanitization, OutputLeakage, ToolAuth | 02_layer2, 섹션 4~6 |
+
+**실행 결과 (v0.8.0 기준)**
+
+```
+# 01_layer1_all_metrics.py
+TCR=43.1% | 54개 태스크 | p95_latency=5.20s | avg_accuracy=59.82%
+
+# 02_layer2_agentic_security.py
+TCR=41.4% | 14개 태스크 | 보안 위협 3건 탐지
+  - SQL Injection 시도 탐지 (InputSanitizationTracker)
+  - 민감 데이터 노출 탐지 (OutputLeakageDetector)
+  - 무단 도구 사용 탐지 (ToolAuthorizationTracker)
+```
+
+> **첫 실행 팁**: 두 파일 모두 API 키 없이 실행된다. `ANTHROPIC_API_KEY` 또는 `OPENAI_API_KEY`를 `.env`에 추가하면 LLMJudge가 활성화되어 `completeness`, `relevance`, `factual_consistency` 세 차원이 추가로 측정된다.

@@ -50,7 +50,7 @@ TCR 임계값을 95%로 설정했다고 가정하자. 에이전트가 하루 1,0
 **측정 방법 및 주의사항:**
 
 - **TCR (Task Completion Rate):** `completion_score ≥ 0.8`인 태스크 비율. 단순 성공/실패가 아닌 부분 완료(0.3~0.8)도 구분한다.
-- **Accuracy:** Token Overlap 40% + Jaccard 30% + LCS 20% + Char 10% 가중 평균. `ground_truth` 파라미터가 있을 때만 의미 있다.
+- **Accuracy:** TokenOverlapF1 40% + Jaccard 30% + LCS 20% + CharSimilarity(Levenshtein) 10% 가중 평균. `ground_truth` 파라미터가 있을 때만 의미 있다.
 - **Quality:** 5개 차원(Relevance, Completeness, Accuracy, Clarity, Usefulness) 평균. 10점 척도가 아님에 주의.
 - **P95 Latency:** 상위 5% 느린 케이스의 응답시간. 평균값에 속지 말 것 — 평균 2초여도 P95가 15초일 수 있다.
 - **Hallucination:** `enable_hallucination_detection=True` 또는 `rag_mode=True` 설정 시에만 수집된다. 기본적으로 비활성이다.
@@ -299,3 +299,117 @@ with open("gate_config_v1.json") as f:
 - **3계층 알림 설계** — Warning(24시간)/Error(4시간)/Critical(30분)로 긴급도를 명확히 구분하고 각 계층별 대응 SLA를 정한다
 - **SLA 문서화** — 임계값은 팀 합의 문서로 공식화하고 월 1회 리뷰해야 "기준이 뭐냐"는 논쟁이 사라진다
 - **2주 캘리브레이션** — 신규 배포 후 1주는 느슨하게 데이터 수집, 2주차에 실데이터 기반 임계값으로 갱신하는 루틴을 따른다
+
+---
+
+## 실전 예제
+
+`06_operational.py`의 `AnomalyDetector`와 `CostTracker` 섹션은 임계값 기반 알림과 비용 제어가 실제 코드에서 어떻게 구성되는지 보여준다. 임계값 캘리브레이션과 에이전트 유형별 KPI 설정의 실제 패턴을 확인할 수 있다.
+
+**파일**: `Evaluator_Examples/06_operational.py`
+
+**핵심 코드 (출처: `Evaluator_Examples/06_operational.py`)**
+
+```python
+# 출처: Evaluator_Examples/06_operational.py, 섹션 1 — AnomalyDetector 기준선 학습
+from agent_evaluator import AnomalyDetector, create_taskresult
+import random
+
+# 기준선 태스크 30개 생성 (정상 범위)
+baseline_results = []
+for i in range(30):
+    result = create_taskresult(
+        task_id=f"baseline_{i}",
+        question="테스트 질문",
+        response="정상 응답",
+        ground_truth="정상 응답",
+        execution_time=random.gauss(1.5, 0.3),  # 평균 1.5초, 표준편차 0.3초
+        task_type="qa",
+    )
+    baseline_results.append(result)
+
+# 이상값 태스크 1개 (명백한 이상)
+anomaly_result = create_taskresult(
+    task_id="anomaly_001",
+    question="테스트 질문",
+    response="느린 응답",
+    ground_truth="정상 응답",
+    execution_time=15.0,  # 평균보다 10배 이상 지연
+    task_type="qa",
+)
+
+# AnomalyDetector: Z-Score 기반 이상 탐지
+detector = AnomalyDetector()
+events = detector.scan(baseline_results + [anomaly_result])
+
+for event in events:
+    explanation = detector.explain_event(event)
+    print(f"이상 감지: {explanation['metric']} — Z-Score {explanation['z_score']:.1f}")
+    print(f"임계값: {explanation['threshold']}, 실제값: {explanation['actual_value']}")
+```
+
+- `AnomalyDetector`는 Z-Score 통계로 지연시간 스파이크, 정확도 급락, 토큰 급증을 자동 탐지한다
+- 기준선 태스크 30개로 정상 범위의 평균(μ)과 표준편차(σ)를 학습한다
+- `explain_event()`는 어떤 지표가, 얼마나 벗어났는지를 사람이 읽기 쉬운 형태로 반환한다
+
+```python
+# 출처: Evaluator_Examples/06_operational.py, 섹션 2 — CostTracker + AdaptivePolicy
+from agent_evaluator import CostTracker, AdaptivePolicy, SamplingStage
+
+# 비용 정책: 1일 예산 10달러, 기본 샘플링 10%
+policy = AdaptivePolicy(
+    default_sample_rate=0.1,   # 기본: 전체의 10%만 LLM Judge 실행
+    budget_per_day=10.0,       # 일일 LLM API 비용 상한
+)
+
+# 3단계 샘플링 구간 설정
+policy.add_stage(SamplingStage(
+    name="initial",
+    sample_rate=1.0,            # 초기 100건: 전수 평가
+    max_tasks=100,
+))
+policy.add_stage(SamplingStage(
+    name="steady",
+    sample_rate=0.1,            # 그 이후: 10% 샘플링
+    max_tasks=None,
+))
+
+tracker = CostTracker(policy=policy)
+
+# 실제 평가 시 샘플링 여부 결정
+for i in range(200):
+    if tracker.should_evaluate(task_id=f"task_{i}"):
+        # LLM Judge 또는 비싼 외부 평가 실행
+        tracker.record_cost(task_id=f"task_{i}", cost_usd=0.02)
+```
+
+- `AdaptivePolicy`는 초기 단계에서 전수 평가 후, 안정 구간에서 샘플링 비율을 낮춰 비용을 절감한다
+- `should_evaluate()`가 `True`를 반환하는 태스크에만 LLMJudge나 DeepEval 등 비싼 연산을 실행한다
+- `budget_per_day`를 초과하면 자동으로 샘플링 비율을 추가 감소시킨다
+
+```bash
+python Evaluator_Examples/06_operational.py
+```
+
+**예제 구성**
+
+| 섹션 | 내용 | 연관 기능 |
+|------|------|-----------|
+| 섹션 2 | `AnomalyDetector` 이상 탐지 설정 | Z-Score 기반 자동 임계값 계산 |
+| 섹션 3 | `CostTracker` + `AdaptivePolicy` | 일일 예산 임계값, 모델 자동 전환 |
+| 섹션 4 | `AlertEngine` 규칙 설정 | TCR/정확도/레이턴시 임계값 알림 |
+| 섹션 5 | `GoldenSetBuilder` 품질 기준 | `accuracy_score >= 0.85` 캘리브레이션 기준 |
+
+**실행 결과 (v0.8.0 기준)**
+
+```
+# 06_operational.py 실행 (28개 태스크)
+AnomalyDetector: latency_spike 2건 탐지 (Z-Score > 2.0)
+CostTracker: 총 비용 $0.0000 (mock 모드)
+AdaptivePolicy: 예산 임계값 $10.00/일 설정
+AlertEngine: accuracy_below_threshold 0건, latency_above_5s 0건
+
+TCR=46.1% | 평균 정확도=0.681 | 평균 레이턴시=1.47s
+```
+
+> **캘리브레이션 전략**: 신규 에이전트는 첫 2주간 `AnomalyDetector`를 `baseline_window=100`으로 설정하고 데이터를 수집한다. 이후 `generate_gate_config()`가 실제 분포 기반 임계값을 제안한다. 챕터 9에서 설명한 "느슨하게 시작, 데이터로 강화" 패턴이 06_operational.py 섹션 2~3에 그대로 구현되어 있다.
