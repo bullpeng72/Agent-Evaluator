@@ -532,7 +532,7 @@ from agent_evaluator import (
 
 ## Testing
 
-`tests/` 디렉토리에 63개 파일, 1,869개+ 테스트 함수 존재.
+`tests/` 디렉토리에 62개 파일, 1,869개+ 테스트 함수 존재.
 
 ```bash
 # pytest.ini_options in pyproject.toml already configured:

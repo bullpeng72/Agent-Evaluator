@@ -245,8 +245,7 @@ chat_agent(<span class="st">"주말 계획 추천해줘"</span>, session_id=<spa
   <div class="cls-card">
     <div class="cls-head"><span class="cls-name">⑤ 대시보드 실행</span></div>
     <div class="cls-body">
-<pre><span class="cm"># pip install "agent-evaluator[serve]" 필요</span>
-agent-eval dashboard                      <span class="cm"># 기본: ./results, 포트 8765</span>
+<pre>agent-eval dashboard                      <span class="cm"># 기본: ./results, 포트 8765 (기본 설치에 포함)</span>
 agent-eval dashboard --port <span class="nm">8080</span> --watch  <span class="cm"># 포트 지정 + 파일 변경 자동 갱신</span></pre>
     </div>
   </div>
@@ -255,25 +254,60 @@ agent-eval dashboard --port <span class="nm">8080</span> --watch  <span class="c
 <!-- ── 설치 ── -->
 <section class="sec" id="install">
   <div class="sec-title">📦 설치 &amp; 의존성</div>
-  <div class="sec-sub">Python 3.8+. Core 의존성: <code>numpy</code>, <code>pandas</code>, <code>python-dotenv</code>. 필요한 extras만 선택 설치.</div>
+  <div class="sec-sub">Python 3.8+. <strong>기본 설치에 LLMJudge · 대시보드 · OTEL 모니터링 · PDF가 모두 포함</strong>됩니다 (v0.7.8+). 프레임워크 통합만 별도 설치.</div>
 
-  <div style="font-size:12px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.06em;margin:0 0 6px">단위 extras — 필요한 것만 선택</div>
+  <div style="font-size:12px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.06em;margin:0 0 6px">기본 설치 — SDK 전체 포함</div>
   <table class="mtable" style="margin-bottom:16px">
     <thead><tr><th>Extra</th><th>설치 명령</th><th>추가 기능</th><th>주요 의존성</th><th>설치 속도</th></tr></thead>
     <tbody>
       <tr>
-        <td><code class="t">core</code></td>
+        <td><code class="t">기본</code></td>
         <td><code>pip install agent-evaluator</code></td>
-        <td>Layer 1+2 (16종 지표), CLI (<code>agent-eval</code>)</td>
-        <td>numpy ≥1.20, pandas ≥1.3, python-dotenv ≥0.19</td>
-        <td>⚡ 빠름</td>
+        <td>Layer 1+2 (25종 지표) · LLMJudge · FastAPI 대시보드 · OTEL 모니터링 · PDF 처리 · CLI (<code>agent-eval</code>) — SDK 전체</td>
+        <td>numpy · pandas · python-dotenv · openai · anthropic · fastapi · uvicorn · opentelemetry-sdk · arize-phoenix · pdfplumber</td>
+        <td>🔶 중간 (~40개)</td>
       </tr>
       <tr>
         <td><code class="t">llm</code></td>
         <td><code>pip install "agent-evaluator[llm]"</code></td>
-        <td>LLMJudge · @agent_eval(framework='openai'|'anthropic')</td>
+        <td>⚠️ 기본 설치에 포함 — 별도 설치 불필요</td>
         <td>openai ≥1.0,&lt;3.0 · anthropic ≥0.20,&lt;1.0</td>
-        <td>⚡ 빠름 (~5개)</td>
+        <td>—</td>
+      </tr>
+      <tr>
+        <td><code class="t">serve</code></td>
+        <td><code>pip install "agent-evaluator[serve]"</code></td>
+        <td>⚠️ 기본 설치에 포함 — 별도 설치 불필요</td>
+        <td>fastapi · uvicorn · jinja2 · python-multipart</td>
+        <td>—</td>
+      </tr>
+      <tr>
+        <td><code class="t">otel</code></td>
+        <td><code>pip install "agent-evaluator[otel]"</code></td>
+        <td>⚠️ 기본 설치에 포함 — 별도 설치 불필요</td>
+        <td>opentelemetry-sdk · arize-phoenix</td>
+        <td>—</td>
+      </tr>
+      <tr>
+        <td><code class="t">pdf</code></td>
+        <td><code>pip install "agent-evaluator[pdf]"</code></td>
+        <td>⚠️ 기본 설치에 포함 — 별도 설치 불필요</td>
+        <td>pdfplumber ≥0.10,&lt;1.0</td>
+        <td>—</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div style="font-size:12px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.06em;margin:0 0 6px">프레임워크 · 외부 평가 extras — 필요한 것만 선택</div>
+  <table class="mtable" style="margin-bottom:16px">
+    <thead><tr><th>Extra</th><th>설치 명령</th><th>추가 기능</th><th>주요 의존성</th><th>설치 속도</th></tr></thead>
+    <tbody>
+      <tr>
+        <td><code class="t">eval</code></td>
+        <td><code>pip install "agent-evaluator[eval]"</code></td>
+        <td>DeepEvalAdapter (5종) + RagasAdapter (4종 RAG)</td>
+        <td>deepeval ≥3.0.0,&lt;4.0 · ragas ≥0.4,&lt;2.0 · datasets ≥4.0,&lt;6.0 · langchain ≥1.0</td>
+        <td>🔴 무거움</td>
       </tr>
       <tr>
         <td><code class="t">langchain</code></td>
@@ -281,6 +315,20 @@ agent-eval dashboard --port <span class="nm">8080</span> --watch  <span class="c
         <td>LangChain + LangGraph 통합 (콜백 실시간 추적)</td>
         <td>langchain ≥1.0,&lt;3.0 · langchain-core · langchain-openai · langchain-anthropic · langgraph ≥1.0,&lt;3.0</td>
         <td>🔶 중간 (~30개)</td>
+      </tr>
+      <tr>
+        <td><code class="t">dspy</code></td>
+        <td><code>pip install "agent-evaluator[dspy]"</code></td>
+        <td>DSPy 프로그램 평가 (<code>DSPyEvaluator</code>, <code>@dspy_eval</code>)</td>
+        <td>dspy-ai ≥2.0.0</td>
+        <td>⚡ 빠름</td>
+      </tr>
+      <tr>
+        <td><code class="t">pydanticai</code></td>
+        <td><code>pip install "agent-evaluator[pydanticai]"</code></td>
+        <td>PydanticAI Agent 평가 (<code>PydanticAIEvaluator</code>, <code>@pydanticai_eval</code>)</td>
+        <td>pydantic-ai ≥1.0.0,&lt;2.0</td>
+        <td>⚡ 빠름</td>
       </tr>
       <tr>
         <td><code class="t">crewai</code></td>
@@ -296,48 +344,6 @@ agent-eval dashboard --port <span class="nm">8080</span> --watch  <span class="c
         <td>pyautogen ≥0.3,&lt;1.0 · autogen-agentchat ≥0.4,&lt;1.0 · autogen-core ≥0.4,&lt;1.0</td>
         <td>🔴 무거움 (단독 격리 권장)</td>
       </tr>
-      <tr>
-        <td><code class="t">eval</code></td>
-        <td><code>pip install "agent-evaluator[eval]"</code></td>
-        <td>DeepEvalAdapter (5종) + RagasAdapter (4종 RAG)</td>
-        <td>deepeval ≥3.0.0,&lt;4.0 · ragas ≥0.4,&lt;2.0 · datasets ≥4.0,&lt;6.0 · langchain ≥0.2</td>
-        <td>🔴 무거움</td>
-      </tr>
-      <tr>
-        <td><code class="t">dspy</code></td>
-        <td><code>pip install "agent-evaluator[dspy]"</code></td>
-        <td>DSPy 프로그램 평가 (<code>DSPyEvaluator</code>, <code>@dspy_eval</code>)</td>
-        <td>dspy-ai ≥2.0.0</td>
-        <td>⚡ 빠름</td>
-      </tr>
-      <tr>
-        <td><code class="t">pydanticai</code></td>
-        <td><code>pip install "agent-evaluator[pydanticai]"</code></td>
-        <td>PydanticAI Agent 평가 (<code>PydanticAIEvaluator</code>, <code>@pydanticai_eval</code>)</td>
-        <td>pydantic-ai ≥0.0.13</td>
-        <td>⚡ 빠름</td>
-      </tr>
-      <tr>
-        <td><code class="t">otel</code></td>
-        <td><code>pip install "agent-evaluator[otel]"</code></td>
-        <td>Arize Phoenix 실시간 모니터링 (<code>agent-eval monitor</code>)</td>
-        <td>opentelemetry-sdk ≥1.20,&lt;2.0 · opentelemetry-exporter-otlp-proto-http ≥1.20,&lt;2.0 · arize-phoenix</td>
-        <td>🔶 중간 (~20개)</td>
-      </tr>
-      <tr>
-        <td><code class="t">serve</code></td>
-        <td><code>pip install "agent-evaluator[serve]"</code></td>
-        <td>FastAPI 웹 대시보드 (<code>agent-eval dashboard</code>)</td>
-        <td>fastapi ≥0.110,&lt;1.0 · uvicorn[standard] ≥0.29,&lt;1.0 · jinja2 ≥3.1,&lt;4.0 · python-multipart ≥0.0.9,&lt;1.0</td>
-        <td>⚡ 빠름 (~8개)</td>
-      </tr>
-      <tr>
-        <td><code class="t">pdf</code></td>
-        <td><code>pip install "agent-evaluator[pdf]"</code></td>
-        <td>PDF 파일 파싱 (한국어 RAG 데이터셋 생성)</td>
-        <td>pypdf ≥3.0,&lt;7.0 · pdfplumber ≥0.10,&lt;1.0</td>
-        <td>⚡ 빠름 (~3개)</td>
-      </tr>
     </tbody>
   </table>
 
@@ -346,26 +352,20 @@ agent-eval dashboard --port <span class="nm">8080</span> --watch  <span class="c
     <thead><tr><th>Extra</th><th>설치 명령</th><th>포함 내용</th><th>비고</th></tr></thead>
     <tbody>
       <tr>
-        <td><code class="t">all</code></td>
-        <td><code>pip install "agent-evaluator[all]"</code></td>
-        <td>llm + langchain + eval + serve + pdf + dspy + pydanticai <strong>(crewai·autogen·otel 제외)</strong></td>
-        <td>✅ 권장 — 합리적 설치 시간</td>
-      </tr>
-      <tr>
-        <td><code class="t">frameworks</code></td>
-        <td><code>pip install "agent-evaluator[frameworks]"</code></td>
-        <td>langchain + crewai + autogen 한 번에 (기존 호환)</td>
-        <td>⚠️ crewai(pydantic&lt;2.12) + pyautogen(pydantic≥2.12) silent downgrade 발생 가능</td>
+        <td><code class="t">examples</code></td>
+        <td><code>pip install "agent-evaluator[examples]"</code></td>
+        <td>기본 + eval — 예제 01~07 전체 실행 가능</td>
+        <td>✅ 예제 실행 권장</td>
       </tr>
       <tr>
         <td><code class="t">full</code></td>
         <td><code>pip install "agent-evaluator[full]"</code></td>
-        <td>all + crewai + autogen + otel 포함 진짜 전체</td>
-        <td>⚠️ 설치 10분+ 소요, pydantic 충돌 가능</td>
+        <td>기본 + eval + langchain + dspy + pydanticai + crewai + autogen 전체</td>
+        <td>⚠️ 10분+ 소요. CI 전체 호환성 검증용</td>
       </tr>
     </tbody>
   </table>
-  <div class="note tip" style="margin-top:12px">💡 <strong>권장 설치 시나리오</strong>: LangChain/LangGraph 사용 → <code>[langchain]</code> · CrewAI만 → <code>[crewai]</code> · AutoGen만 → <code>[autogen]</code> (crewai·autogen 동시 설치 시 pydantic 버전 충돌 가능, <code>[frameworks]</code> 또는 <code>[full]</code> 사용 시 주의)</div>
+  <div class="note tip" style="margin-top:12px">💡 <strong>권장 설치 시나리오</strong>: 기본 설치만으로 25개 지표 + LLMJudge + 대시보드 + OTEL 사용 가능. LangChain/LangGraph → <code>[langchain]</code> · DeepEval/Ragas → <code>[eval]</code> · CrewAI만 → <code>[crewai]</code> · AutoGen만 → <code>[autogen]</code> (crewai·autogen 동시 설치 시 pydantic 버전 충돌 가능)</div>
 </section>
 
 <!-- ── 아키텍처 ── -->
@@ -449,7 +449,7 @@ agent-eval dashboard --port <span class="nm">8080</span> --watch  <span class="c
         <thead><tr><th>TaskResult 필드</th><th>데코레이터 자동 공급 방법</th><th>소비 트래커</th></tr></thead>
         <tbody>
           <tr><td><span class="p">execution_time</span></td><td><code>time.perf_counter()</code> 자동 측정</td><td>LatencyTracker (P50/P95/P99, TTFT)</td></tr>
-          <tr><td><span class="p">success / completion_score</span></td><td>예외 없으면 <code>1.0</code>, 예외 발생 시 <code>0.0</code></td><td>TaskCompletionTracker (TCR)</td></tr>
+          <tr><td><span class="p">success / completion_score</span></td><td>task_type 인식 자동 계산 — <code>code_generation</code>/<code>coding</code>은 AST 파싱 성공 여부, <code>tool_use</code>는 tool_calls 존재 여부, 기타는 응답 길이 기반 (v0.8.0+)</td><td>TaskCompletionTracker (TCR)</td></tr>
           <tr><td><span class="p">accuracy_score</span></td><td><code>ground_truth</code> 파라미터 vs 반환값 자동 계산 (4-way)</td><td>AccuracyEvaluator</td></tr>
           <tr><td><span class="p">tokens_used</span></td><td><code>framework=</code> 어댑터로 응답 객체에서 자동 추출 또는 <code>EvalMetadata.tokens_used</code></td><td>TokenEconomyTracker (비용 추정)</td></tr>
           <tr><td><span class="p">tool_calls</span></td><td><code>framework=</code> 어댑터 자동 추출 또는 <code>EvalMetadata.tool_calls</code></td><td>ToolCallAnalyzer, ToolSelectionTracker</td></tr>
@@ -567,7 +567,7 @@ eval = <span class="fn">QuickEval</span>(<span class="st">"results/"</span>, aut
           <tr><td><span class="p">alert_rules</span><span class="opt">opt</span></td><td><span class="t">List[SimpleTaskAlertRule]</span></td><td><code>[]</code></td><td>태스크 완료 시 실행할 알림 규칙 목록</td></tr>
           <tr><td><span class="p">rag_mode</span><span class="opt">opt</span></td><td><span class="t">bool</span></td><td><code>False</code></td><td>hallucination_detection + <code>information_retrieval</code> task_type 자동 적용</td></tr>
           <tr><td><span class="p">security_mode</span><span class="opt">opt</span></td><td><span class="t">bool</span></td><td><code>False</code></td><td>보안 5종 지표 임시 활성</td></tr>
-          <tr><td><span class="p">enable_llm_judge</span><span class="opt">opt</span></td><td><span class="t">bool</span></td><td><code>False</code></td><td>LLM Judge 임시 활성 (requires [llm]). 5차원 자동 채점.</td></tr>
+          <tr><td><span class="p">enable_llm_judge</span><span class="opt">opt</span></td><td><span class="t">bool</span></td><td><code>False</code></td><td>LLM Judge 임시 활성 (기본 설치에 포함 — API 키 필요). 5차원 자동 채점.</td></tr>
           <tr><td><span class="p">judge_model</span><span class="opt">opt</span></td><td><span class="t">str</span></td><td><code>None</code></td><td>LLM Judge 사용 모델</td></tr>
           <tr><td><span class="p">judge_criteria</span><span class="opt">opt</span></td><td><span class="t">List[str]</span></td><td><code>None</code></td><td>G-Eval 커스텀 평가 기준 (DeepEval 대체). 예: <code>["empathy", "clarity"]</code> → <code>criteria_scores</code> 자동 추가</td></tr>
           <tr><td><span class="p">sample_rate</span><span class="opt">opt</span></td><td><span class="t">float</span></td><td><code>1.0</code></td><td>샘플링 비율 (0–1). 비용 제어용</td></tr>
@@ -856,8 +856,8 @@ chat_agent(<span class="st">"어떻게 시작하면 돼요?"</span>, session_id=
           <tr><td><span class="p">task_id</span></td><td><span class="t">str</span></td><td>태스크 고유 식별자</td></tr>
           <tr><td><span class="p">task_type</span></td><td><span class="t">str</span></td><td>TaskType.value 문자열 (e.g. <code>"qa"</code>)</td></tr>
           <tr><td><span class="p">success</span></td><td><span class="t">bool</span></td><td>태스크 성공 여부</td></tr>
-          <tr><td><span class="p">completion_score</span></td><td><span class="t">float</span></td><td>완료도 점수 (0.0–1.0). 데코레이터가 자동 계산.</td></tr>
-          <tr><td><span class="p">accuracy_score</span></td><td><span class="t">float</span></td><td>정확도 점수 (0.0–1.0). Token F1+Jaccard+LCS+Char 가중 조합.</td></tr>
+          <tr><td><span class="p">completion_score</span></td><td><span class="t">float</span></td><td>완료도 점수 (0.0–1.0). task_type 인식 자동 계산: <code>code_generation</code>/<code>coding</code>은 AST 파싱 성공→1.0, <code>tool_use</code>는 tool_calls 존재→1.0/미존재→0.6, 기타는 응답 길이 기반 (v0.8.0+).</td></tr>
+          <tr><td><span class="p">accuracy_score</span></td><td><span class="t">float</span></td><td>정확도 점수 (0.0–1.0). TokenOverlapF1(40%)+Jaccard(30%)+LCS(20%)+CharSim/Levenshtein(10%) 가중 조합.</td></tr>
           <tr><td><span class="p">execution_time</span></td><td><span class="t">float</span></td><td>실행 시간 (초). 데코레이터가 <code>time.perf_counter()</code>로 자동 측정.</td></tr>
           <tr><td><span class="p">tokens_used</span></td><td><span class="t">Dict[str,int]</span></td><td><code>{"input": N, "output": N, "total": N}</code></td></tr>
           <tr><td><span class="p">tool_calls</span></td><td><span class="t">List[Dict]</span></td><td><code>[{"tool": "name", "input": {...}, "output": "..."}]</code></td></tr>
@@ -895,7 +895,7 @@ chat_agent(<span class="st">"어떻게 시작하면 돼요?"</span>, session_id=
       <table class="mtable">
         <thead><tr><th>Enum 값</th><th>문자열</th><th>정확도 전략</th><th>용도</th></tr></thead>
         <tbody>
-          <tr><td><span class="p">TaskType.QA</span></td><td><code>"qa"</code></td><td>Token F1(40%) + Jaccard(30%) + LCS(20%) + Char(10%)</td><td>질의응답, 사실 확인</td></tr>
+          <tr><td><span class="p">TaskType.QA</span></td><td><code>"qa"</code></td><td>TokenOverlapF1(40%) + Jaccard(30%) + LCS(20%) + CharSim/Levenshtein(10%)</td><td>질의응답, 사실 확인</td></tr>
           <tr><td><span class="p">TaskType.CODE_GENERATION</span></td><td><code>"code_generation"</code></td><td>AST 비교 → 정규화 비교</td><td>코드 생성</td></tr>
           <tr><td><span class="p">TaskType.DATA_ANALYSIS</span></td><td><code>"data_analysis"</code></td><td>수치 추출 + 텍스트 유사도</td><td>데이터 분석</td></tr>
           <tr><td><span class="p">TaskType.DOCUMENT_CREATION</span></td><td><code>"document_creation"</code></td><td>텍스트 유사도 + 구조 검사</td><td>문서·보고서 작성</td></tr>
@@ -970,7 +970,7 @@ status = tracker.<span class="fn">get_benchmark_status</span>(result[<span class
             <td><code class="t">Dict[task_type → float]</code> — 유형별 평균 정확도</td>
           </tr>
       {% endcall %}
-      <div class="note tip" style="margin-top:8px">📐 <strong>정확도 계산 가중치</strong>: Token Overlap 40% + Jaccard 30% + LCS 20% + Char Similarity 10%</div>
+      <div class="note tip" style="margin-top:8px">📐 <strong>정확도 계산 가중치</strong>: TokenOverlapF1 40% + Jaccard 30% + LCS 20% + CharSimilarity(Levenshtein) 10% — F1은 정밀도×재현율 조화평균(패딩 방지), Char는 Levenshtein 거리 기반(문자 순서 반영)</div>
     </div>
   </div>
 </section>
@@ -2070,7 +2070,7 @@ monitor.<span class="fn">save_to_file</span>(<span class="st">"autogen_eval"</sp
 
   <!-- LLM API 직접 연동 -->
   <div class="cls-card" style="margin-top:12px">
-    <div class="cls-head"><span class="cls-name">🔌 LLM API 직접 연동 (openai · anthropic · gemini · 기타)</span><span class="kind fn">agent-evaluator[llm] 또는 해당 SDK</span></div>
+    <div class="cls-head"><span class="cls-name">🔌 LLM API 직접 연동 (openai · anthropic · gemini · 기타)</span><span class="kind fn">기본 설치에 포함 (openai · anthropic SDK)</span></div>
     <div class="cls-body">
 <pre><span class="cm"># OpenAI — usage.total_tokens + message.tool_calls 자동 추출</span>
 <span class="de">@agent_eval</span>(monitor, task_type=<span class="st">"tool_use"</span>, framework=<span class="st">"openai"</span>)

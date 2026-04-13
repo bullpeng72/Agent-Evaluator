@@ -375,7 +375,6 @@ except Exception as e:
 # ===========================================================================
 print("\n=== 섹션 4: evaluation_session context manager ===")
 
-@agent_eval(None, task_type="qa", task_id_prefix="session")
 def session_agent(question: str, ground_truth: str = "", _monitor=None) -> str:
     return f"세션 내 응답: {question}"
 

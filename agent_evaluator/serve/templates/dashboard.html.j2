@@ -390,7 +390,7 @@ textarea.gd-input{height:60px;resize:vertical;font-family:inherit}
           <div style="font-size:10px;color:var(--text2);line-height:1.6;border-top:1px solid var(--border);padding-top:6px;flex:1">
             <div style="font-weight:600;margin-bottom:3px;color:var(--text1);font-size:10.5px">📐 산출 방식</div>
             <div>① <b style="color:var(--text1)">TCR</b> — 완전/부분 성공 태스크 비율</div>
-            <div>② <b style="color:var(--text1)">Accuracy</b> — Token Overlap(40%) + Jaccard(30%) + LCS(20%) + Char(10%) 가중 평균</div>
+            <div>② <b style="color:var(--text1)">Accuracy</b> — TokenOverlapF1(40%) + Jaccard(30%) + LCS(20%) + CharSim/Levenshtein(10%) 가중 평균</div>
             <div>③ <b style="color:var(--text1)">환각역점수</b> — 100 − 환각율×10<br><span style="opacity:.65;padding-left:10px">환각율이 낮을수록 고점</span></div>
             <div>④ <b style="color:var(--text1)">응답품질</b> — 관련성·완전성·정확성·명확성·유용성 5차원 평균 ×20</div>
             <div style="margin-top:4px;opacity:.7">→ 측정된 항목의 단순 평균</div>
@@ -994,7 +994,7 @@ textarea.gd-input{height:60px;resize:vertical;font-family:inherit}
     <div x-show="t1==='acc'" x-data="{
       selK: null,
       meta: {
-        overall_acc:{label:'전체 Accuracy', unit:'%', desc:'ground_truth 기반 가중 평균 정확도', hint:'Token Overlap(40%) · Jaccard(30%) · LCS(20%) · Char Sim(10%) 가중 평균'},
+        overall_acc:{label:'전체 Accuracy', unit:'%', desc:'ground_truth 기반 가중 평균 정확도', hint:'TokenOverlapF1(40%) · Jaccard(30%) · LCS(20%) · CharSim/Levenshtein(10%) 가중 평균'},
         median_acc: {label:'Median', unit:'%', desc:'정확도 점수 중앙값', hint:'정확도 분포의 중간값 — 평균보다 이상값 영향이 적음'},
         min_acc:    {label:'Min', unit:'%', desc:'최저 정확도 점수', hint:'가장 낮은 정확도 태스크 기준'},
         max_acc:    {label:'Max', unit:'%', desc:'최고 정확도 점수', hint:'가장 높은 정확도 태스크 기준'},
@@ -1004,7 +1004,7 @@ textarea.gd-input{height:60px;resize:vertical;font-family:inherit}
         const sc = data.accuracy_metrics?.accuracy_scores||{};
         const all = data.tasks||[];
         const n = all.filter(t=>t.accuracy_score>0).length;
-        if(k==='overall_acc') return `가중 평균 = Token Overlap(40%) + Jaccard(30%)\n+ LCS Ratio(20%) + Char Sim(10%)\n= ${(sc.overall_accuracy||0).toFixed(1)}% (전체 ${all.length}건)`;
+        if(k==='overall_acc') return `가중 평균 = TokenOverlapF1(40%) + Jaccard(30%)\n+ LCS Ratio(20%) + CharSim/Levenshtein(10%)\n= ${(sc.overall_accuracy||0).toFixed(1)}% (전체 ${all.length}건)`;
         if(k==='median_acc') return `중앙값 = 정렬 후 중앙 값\n= ${(sc.median_accuracy||0).toFixed(1)}% (평가 ${n}건)`;
         if(k==='min_acc')    return `최솟값 = ${(sc.min_accuracy||0).toFixed(1)}% (평가 ${n}건 중)`;
         if(k==='max_acc')    return `최댓값 = ${(sc.max_accuracy||0).toFixed(1)}% (평가 ${n}건 중)`;
@@ -1058,7 +1058,7 @@ textarea.gd-input{height:60px;resize:vertical;font-family:inherit}
       <div x-show="data.accuracy_metrics?.accuracy_scores?.overall_accuracy>0" style="margin-top:16px">
         <div class="sec">
           <div class="sec-t">📐 정확도 계산 방식</div>
-          <div style="font-size:13px;color:var(--text2);margin-bottom:8px">Token Overlap(40%) · Jaccard(30%) · LCS Ratio(20%) · Char Similarity(10%) 가중 평균</div>
+          <div style="font-size:13px;color:var(--text2);margin-bottom:8px">TokenOverlapF1(40%) · Jaccard(30%) · LCS Ratio(20%) · CharSim/Levenshtein(10%) 가중 평균</div>
           <div id="q-acc-weights" style="height:80px"></div>
         </div>
         <div class="sec">
@@ -5009,11 +5009,11 @@ function app() { return {
     // ── 품질 ────────────────────────────────────────────────────────────
     { cat:'quality',  icon:'📋', term:'TCR (Task Completion Rate)', layer:'Layer 1 · 기본', tKey:'tcr',
       purpose:'에이전트가 주어진 작업을 얼마나 완수했는지 나타내는 핵심 성과 지표.',
-      desc:'모든 작업의 Completion Score 합계 ÷ 전체 작업 수 × 100. 완전 성공(score=1.0), 부분 성공(0.7~0.99), 실패(<0.7)로 분류.',
+      desc:'모든 작업의 Completion Score 합계 ÷ 전체 작업 수 × 100. task_type 인식 자동 판정(v0.8.0+): code_generation/coding은 AST 파싱 성공 여부, tool_use는 tool_calls 존재 여부, 기타는 응답 길이 기반.',
       range:'0~100%', target:'≥ 90%' },
     { cat:'quality',  icon:'🎯', term:'Accuracy', layer:'Layer 1 · 기본', tKey:'acc',
       purpose:'에이전트 답변이 정답(ground truth)과 얼마나 일치하는지 측정.',
-      desc:'Token Overlap(40%) · Jaccard Similarity(30%) · LCS Ratio(20%) · Char Similarity(10%) 가중 평균. 코드 태스크는 AST 비교 → 정규화 비교 순 fallback.',
+      desc:'TokenOverlapF1(40%) · Jaccard(30%) · LCS(20%) · CharSimilarity/Levenshtein(10%) 가중 평균. TokenOverlapF1은 Precision×Recall 조화평균으로 긴 응답 패딩 방지. Char Similarity는 Levenshtein 거리 기반(문자 순서 반영). 코드 태스크는 AST 비교 → 정규화 비교 순 fallback.',
       range:'0~100%', target:'≥ 70%' },
     { cat:'quality',  icon:'⭐', term:'Response Quality', layer:'Layer 1 · 기본',
       purpose:'정답 일치와 무관하게 응답 자체의 실용적 품질을 다차원으로 평가.',
@@ -5085,7 +5085,7 @@ function app() { return {
     // ── 하이브리드 (외부 라이브러리) ─────────────────────────────────────
     { cat:'hybrid', icon:'✨', term:'LLM Judge (Native)', layer:'Layer 3 · 네이티브',
       purpose:'외부 패키지 없이 LLM이 직접 5차원으로 응답 품질을 채점. DeepEval G-Eval·Ragas Faithfulness의 네이티브 대체.',
-      desc:'5차원(completeness·relevance·factual_consistency·toxicity·bias)을 기본 채점. rag_mode=True 시 Faithfulness(0–5) 자동 추가, judge_criteria 설정 시 G-Eval 커스텀 기준 자동 추가. pip install agent-evaluator[llm] 필요. @agent_eval(enable_llm_judge=True)로 활성화.',
+      desc:'5차원(completeness·relevance·factual_consistency·toxicity·bias)을 기본 채점. rag_mode=True 시 Faithfulness(0–5) 자동 추가, judge_criteria 설정 시 G-Eval 커스텀 기준 자동 추가. LLM API 키만 있으면 사용 가능(기본 설치에 포함). @agent_eval(enable_llm_judge=True)로 활성화.',
       range:'overall 0~5', target:'≥ 4.0' },
     { cat:'hybrid', icon:'📚', term:'Faithfulness (Ragas)', layer:'Layer 3 · Ragas',
       purpose:'RAG 에이전트가 검색된 컨텍스트에만 근거하여 답변하는지 평가. 출처 없는 내용 생성 여부 확인.',
@@ -5479,10 +5479,10 @@ function app() { return {
     }
 
     // ── Accuracy weights ──
-    const _awDesc=['문자 수준 편집 유사도 (SequenceMatcher)','최장 공통 부분 수열 비율 (LCS/max_len)','집합 교집합 ÷ 합집합 (Jaccard Index)','공통 토큰 F1 스코어 (Precision × Recall 조화평균)'];
+    const _awDesc=['Levenshtein 거리 기반 (문자 순서 반영, v0.8.0+)','최장 공통 부분 수열 비율 (LCS/max_len)','집합 교집합 ÷ 합집합 (Jaccard Index)','공통 토큰 F1 (Precision × Recall 조화평균, 패딩 방지)'];
     this._plt('acc-weights',[{
       type:'bar',orientation:'h',
-      y:['Char Sim','LCS Ratio','Jaccard','Token Overlap'],
+      y:['CharSim/Levenshtein','LCS Ratio','Jaccard','Token Overlap F1'],
       x:[10,20,30,40],
       text:['10%','20%','30%','40%'],
       textposition:'inside',
@@ -6331,8 +6331,8 @@ function app() { return {
        margin:{t:10,b:10,l:10,r:10}});
 
     // q-acc-weights
-    const _qawDesc=['문자 수준 편집 유사도 (SequenceMatcher)','최장 공통 부분 수열 비율 (LCS/max_len)','집합 교집합 ÷ 합집합 (Jaccard Index)','공통 토큰 F1 스코어 (Precision × Recall 조화평균)'];
-    this._plt('q-acc-weights',[{type:'bar',orientation:'h',y:['Char Sim','LCS Ratio','Jaccard','Token Overlap'],x:[10,20,30,40],text:['10%','20%','30%','40%'],textposition:'inside',customdata:_qawDesc,hovertemplate:'<b>%{y}</b> — 가중치 %{x}%<br><span style="color:#555555">%{customdata}</span><extra></extra>',marker:{color:['#6c8ef580','#6c8ef5a0','#6c8ef5c0','#6c8ef5']}}],{height:80,margin:{t:5,b:5,l:90,r:40},xaxis:{...scX,range:[0,50],showticklabels:false},yaxis:{...scY,automargin:true},...noLeg});
+    const _qawDesc=['Levenshtein 거리 기반 (문자 순서 반영, v0.8.0+)','최장 공통 부분 수열 비율 (LCS/max_len)','집합 교집합 ÷ 합집합 (Jaccard Index)','공통 토큰 F1 (Precision × Recall 조화평균, 패딩 방지)'];
+    this._plt('q-acc-weights',[{type:'bar',orientation:'h',y:['CharSim/Levenshtein','LCS Ratio','Jaccard','Token Overlap F1'],x:[10,20,30,40],text:['10%','20%','30%','40%'],textposition:'inside',customdata:_qawDesc,hovertemplate:'<b>%{y}</b> — 가중치 %{x}%<br><span style="color:#555555">%{customdata}</span><extra></extra>',marker:{color:['#6c8ef580','#6c8ef5a0','#6c8ef5c0','#6c8ef5']}}],{height:80,margin:{t:5,b:5,l:90,r:40},xaxis:{...scX,range:[0,50],showticklabels:false},yaxis:{...scY,automargin:true},...noLeg});
 
     // q-acc-hist — strip chart (TaskType별 정확도 분포)
     {
@@ -6658,7 +6658,7 @@ function app() { return {
       { name:'TASK_TYPE',      required:true,  fn:t=>!!t.task_type,
         desc:'태스크 유형(qa·code·tool_use 등). 유형별 정확도 분석에 필수.' },
       { name:'ACCURACY_SCORE', required:true,  fn:t=>t.accuracy_score!=null&&t.accuracy_score>=0,
-        desc:'LCS·Token Overlap·Jaccard 가중 평균 정확도(0–1). 품질 비교의 핵심 지표.' },
+        desc:'TokenOverlapF1·Jaccard·LCS·CharSim(Levenshtein) 가중 평균 정확도(0–1). 품질 비교의 핵심 지표.' },
       { name:'EXECUTION_TIME', required:true,  fn:t=>t.execution_time!=null&&t.execution_time>0,
         desc:'태스크 실행 소요 시간(초). 지연 시간 분석·SLA 측정에 필수.' },
       { name:'TIMESTAMP',      required:true,  fn:t=>!!t.timestamp,

@@ -936,7 +936,7 @@ input[type=text],input[type=number]{background:var(--bg3);color:var(--text);bord
       const sorted=[...sc].sort((a,b)=>a-b);
       const med=n%2===0?(sorted[n/2-1]+sorted[n/2])/2:sorted[Math.floor(n/2)];
       const std=Math.sqrt(sc.reduce((a,b)=>a+(b-mean)**2,0)/n);
-      if(k==='overall')return `평균 = Σ accuracy_score / n\n= ${mean.toFixed(1)}% (n=${n})\n가중: Token(40%)+Jaccard(30%)+LCS(20%)+Char(10%)`;
+      if(k==='overall')return `평균 = Σ accuracy_score / n\n= ${mean.toFixed(1)}% (n=${n})\n가중: TokenOverlapF1(40%)+Jaccard(30%)+LCS(20%)+Char/Levenshtein(10%)`;
       if(k==='median')return `중앙값 = ${med.toFixed(1)}% (n=${n})\n이상치에 강건한 대표값`;
       if(k==='minimum')return `최솟값 = ${Math.min(...sc).toFixed(1)}%`;
       if(k==='maximum')return `최댓값 = ${Math.max(...sc).toFixed(1)}%`;
@@ -1029,10 +1029,10 @@ input[type=text],input[type=number]{background:var(--bg3);color:var(--text);bord
         <div class="ct">정확도 가중치 구성</div>
         <div id="d2-q-acc-weights" class="plt-chart" style="height:100px"></div>
         <div style="margin-top:8px;font-size:11px;color:var(--text2);line-height:1.8">
-          <div>🔵 <b>Token Overlap (40%)</b> — 공통 토큰 F1 스코어</div>
+          <div>🔵 <b>Token Overlap F1 (40%)</b> — 공통 토큰 F1 스코어 (정밀도×재현율 조화평균, 패딩 방지)</div>
           <div>🟣 <b>Jaccard (30%)</b> — 집합 교집합/합집합</div>
           <div>🟡 <b>LCS Ratio (20%)</b> — 최장 공통 부분 수열</div>
-          <div>⚪ <b>Char Similarity (10%)</b> — 문자 수준 편집 유사도</div>
+          <div>⚪ <b>Char Similarity (10%)</b> — Levenshtein 거리 기반 (문자 순서 반영, v0.8.0+)</div>
         </div>
       </div>
     </div>
@@ -5452,7 +5452,8 @@ input[type=text],input[type=number]{background:var(--bg3);color:var(--text);bord
       </div>
       <div style="font-size:12.5px;line-height:1.6;padding:7px 10px;background:rgba(16,185,129,.07);border-radius:5px;margin-bottom:8px">
         <strong>AI 에이전트가 주어진 태스크를 얼마나 완료했는가</strong>를 측정하는 최우선 성과 지표.<br>
-        완전 완료(1.0)–부분 완료(0.0) 연속 점수 → 이진 성공/실패보다 세밀한 평가.
+        완전 완료(1.0)–부분 완료(0.0) 연속 점수 → 이진 성공/실패보다 세밀한 평가.<br>
+        <span style="font-size:11.5px;color:var(--text2)">task_type 인식 판정 (v0.8.0+): <code style="font-size:10.5px;background:rgba(0,0,0,.2);padding:0 3px;border-radius:2px">code_generation</code>/<code style="font-size:10.5px;background:rgba(0,0,0,.2);padding:0 3px;border-radius:2px">coding</code>은 AST 파싱, <code style="font-size:10.5px;background:rgba(0,0,0,.2);padding:0 3px;border-radius:2px">tool_use</code>는 tool_calls 여부, 기타는 길이 기반</span>
       </div>
       <details style="margin-bottom:8px"><summary style="font-size:11.5px;color:var(--text2);cursor:pointer;user-select:none">ℹ️ 활용 팁</summary>
         <div style="font-size:11.5px;color:var(--text2);padding:5px 0 0 14px;line-height:1.6">프로덕션 배포 판단 1차 기준. 낮은 TCR은 에이전트가 태스크를 중단하거나 부분 완료하는 패턴을 시사.</div>
@@ -5480,7 +5481,7 @@ input[type=text],input[type=number]{background:var(--bg3);color:var(--text);bord
       <details style="margin-bottom:8px"><summary style="font-size:11.5px;color:var(--text2);cursor:pointer;user-select:none">ℹ️ 활용 팁</summary>
         <div style="font-size:11.5px;color:var(--text2);padding:5px 0 0 14px;line-height:1.6">LLM 비용 없이 즉시 측정 가능한 신뢰도 지표. 코드 태스크는 AST 비교 → 정규화 비교 순으로 fallback.</div>
       </details>
-      <div style="font-size:11px;background:var(--bg3);border-radius:4px;padding:5px 10px;margin-bottom:8px;font-family:monospace;color:var(--text2)">📐 Token Overlap×0.4 + Jaccard×0.3 + LCS×0.2 + Char Sim.×0.1</div>
+      <div style="font-size:11px;background:var(--bg3);border-radius:4px;padding:5px 10px;margin-bottom:8px;font-family:monospace;color:var(--text2)">📐 TokenOverlapF1×0.4 + Jaccard×0.3 + LCS×0.2 + CharSim(Levenshtein)×0.1</div>
       <div style="display:flex;gap:5px;flex-wrap:wrap">
         <span style="font-size:10.5px;padding:2px 8px;border-radius:10px;background:rgba(16,185,129,.15);color:#10b981;font-weight:600">🟢 ≥80% 우수</span>
         <span style="font-size:10.5px;padding:2px 8px;border-radius:10px;background:rgba(245,158,11,.15);color:#f59e0b;font-weight:600">🟡 60–79% 양호</span>
@@ -5934,7 +5935,7 @@ input[type=text],input[type=number]{background:var(--bg3);color:var(--text);bord
           <strong>기본 5차원</strong>: completeness · relevance · factual_consistency · toxicity · bias<br>
           <strong>+ Faithfulness</strong>: <code>rag_mode=True + enable_llm_judge=True</code> 조합 시 (0–5)<br>
           <strong>+ 커스텀 기준</strong>: <code>judge_criteria=["empathy", ...]</code> 설정 시 criteria_scores 추가<br>
-          <code style="font-size:10.5px;background:var(--bg3);padding:1px 4px;border-radius:3px">pip install "agent-evaluator[llm]"</code> 필요.
+          LLM API 키(<code>OPENAI_API_KEY</code> 또는 <code>ANTHROPIC_API_KEY</code>)만 있으면 바로 사용 가능 — 기본 설치에 포함됨.
         </div>
       </details>
       <div style="font-size:11px;background:var(--bg3);border-radius:4px;padding:5px 10px;margin-bottom:8px;font-family:monospace;color:var(--text2)">📐 overall = avg(completeness, relevance, factual_consistency) · safety = (10–toxicity–bias)/10</div>
@@ -7313,7 +7314,7 @@ function tcrRecs(t){
 function tcrAccComp(t){
   const acd=t.accuracy_detail;
   if(!acd||!Object.keys(acd).length) return [];
-  const map={token_overlap:{label:'Token Overlap',w:40},jaccard_similarity:{label:'Jaccard',w:30},jaccard:{label:'Jaccard',w:30},lcs_ratio:{label:'LCS Ratio',w:20},lcs:{label:'LCS Ratio',w:20},char_similarity:{label:'Char Sim',w:10},char_sim:{label:'Char Sim',w:10}};
+  const map={token_overlap:{label:'Token Overlap F1',w:40},jaccard_similarity:{label:'Jaccard',w:30},jaccard:{label:'Jaccard',w:30},lcs_ratio:{label:'LCS Ratio',w:20},lcs:{label:'LCS Ratio',w:20},char_similarity:{label:'CharSim/Levenshtein',w:10},char_sim:{label:'CharSim/Levenshtein',w:10}};
   return Object.entries(acd).filter(([k])=>map[k]).map(([k,v])=>({...map[k],val:Math.min(1,parseFloat(v)||0)})).sort((a,b)=>a.val-b.val);
 }
 // 레이더 6축 정규화 헬퍼 (drawCompareChart·drawCharts와 공유)
@@ -8647,7 +8648,7 @@ function app2() {
         marker:{color:'#6366f1'}, hovertemplate:'%{x:.2f}: %{y}건<extra></extra>'
       }], { xaxis:{title:'정확도'}, yaxis:{title:'건수'} });
       this._plt('d2-q-acc-weights', [{
-        x: ['Token Overlap','Jaccard','LCS','Char'], y:[0.4,0.3,0.2,0.1],
+        x: ['Token Overlap F1','Jaccard','LCS','Char/Levenshtein'], y:[0.4,0.3,0.2,0.1],
         type:'bar', marker:{color:clr}, hovertemplate:'%{x}: %{y:.0%}<extra></extra>'
       }], { yaxis:{tickformat:'.0%'}, title:{text:'가중치 구성',font:{size:11}} });
 

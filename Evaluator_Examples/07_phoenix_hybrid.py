@@ -21,8 +21,8 @@ Layer 3 외부 통합 — 대시보드 '외부평가' 탭 활성화:
     → 대시보드에서 외부평가 탭 UI 구조 확인 가능 (목업 데이터)
 
 의존성:
-    필수: pip install agent-evaluator          (numpy·pandas·python-dotenv 포함)
-    선택: pip install "agent-evaluator[otel]"  (Phoenix OTEL — agent-eval monitor 실행 시)
+    필수: pip install agent-evaluator          (numpy·pandas·python-dotenv·OTEL·Phoenix 포함)
+    선택: agent-eval monitor                   (Phoenix OTEL 시각화 — otel 패키지는 기본 설치에 포함)
     선택: pip install "agent-evaluator[eval]"  (DeepEval + Ragas 실평가 활성화)
     선택: OPENAI_API_KEY 환경변수              (DeepEval/Ragas LLM 채점 — 미설정 시 mock 데이터로 대체)
     선택: ANTHROPIC_API_KEY 환경변수           (Anthropic 모델 사용 시)
@@ -234,7 +234,7 @@ if PHOENIX_ONLINE:
             "name": "07-qa-system-prompt",
             "version": "v1.0",
             "template": "당신은 정확한 답변을 제공하는 AI입니다.\n질문: {question}\n답변:",
-            "tags": ["production", "qa", "v0.7.4"],
+            "tags": ["production", "qa", "v0.8.0"],
         }
         resp = requests.post(f"{_PHOENIX_URL}/v1/prompts", json=prompt_payload, timeout=5)
         if resp.status_code in (200, 201):

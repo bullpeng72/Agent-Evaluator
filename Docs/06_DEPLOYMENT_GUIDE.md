@@ -1,6 +1,6 @@
 # 배포 가이드
 
-**Agent-Evaluator v0.7.9** — CI/CD 통합 및 프로덕션 배포 전략
+**Agent-Evaluator v0.8.0** — CI/CD 통합 및 프로덕션 배포 전략
 
 ---
 

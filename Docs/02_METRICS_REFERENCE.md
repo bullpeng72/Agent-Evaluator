@@ -2,7 +2,7 @@
 
 Agent Evaluator 25개 지표의 공식·출력키·임계값 참조 문서
 
-**v0.7.9 | Layer 1: 6개 (무료) · Layer 2: 10개 (무료) · Layer 3: LLMJudge + DeepEval + Ragas (API 필요)**
+**v0.8.0 | Layer 1: 6개 (무료) · Layer 2: 10개 (무료) · Layer 3: LLMJudge + DeepEval + Ragas (API 필요)**
 
 > 개별 트래커 API 시그니처는 [07_API_REFERENCE.md](07_API_REFERENCE.md)를 참조하세요.
 > 데코레이터 방식 적용은 [13_DECORATOR_GUIDE.md](13_DECORATOR_GUIDE.md)를 참조하세요.
@@ -55,6 +55,11 @@ TCR = sum(completion_score) / task_count × 100
 
 `completion_score`는 `TaskResult` 필드 (0.0–1.0). `create_taskresult()` 사용 시 자동 계산.
 
+> **task_type별 완료 판정 (v0.8.0+)**
+> - `code_generation`/`coding`: AST 파싱 성공 시 1.0, 실패 시 길이 기반 점수
+> - `tool_use`: `tool_calls` 비어 있으면 0.6 반환 (도구 미사용 부분 완료)
+> - 기타: 응답 길이 기반 + `ground_truth` 있으면 유사도 기반
+
 **등급 기준 (%)**
 
 | 등급 | 범위 |
@@ -80,8 +85,15 @@ report.to_dict()["tcr_data"]["successful_tasks"] # int
 **공식 — QA (가중 조합)**
 
 ```
-accuracy = 0.4 × TokenOverlap + 0.3 × Jaccard + 0.2 × LCS + 0.1 × CharSimilarity
+accuracy = 0.4 × TokenOverlapF1 + 0.3 × Jaccard + 0.2 × LCS + 0.1 × CharSimilarity
 ```
+
+| 지표 | 가중치 | 방식 |
+|------|--------|------|
+| TokenOverlapF1 | 40% | 토큰 F1 (정밀도×재현율 조화평균) — 긴 응답 패딩 방지 |
+| Jaccard | 30% | 집합 교집합/합집합 |
+| LCS | 20% | 최장 공통 부분 수열 |
+| CharSimilarity | 10% | Levenshtein 거리 기반 (문자 순서 반영, v0.8.0+) |
 
 **공식 — Code**
 

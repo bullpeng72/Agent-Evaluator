@@ -1327,7 +1327,7 @@ agent-evaluator/
 │   └── datasets/                # GoldenSetBuilder
 │
 ├── Evaluator_Examples/          # 예제 7개 통합 파일 (.deprecated/에 구 21개 보존)
-├── tests/                       # 1,869개 테스트 함수, 63개 파일
+├── tests/                       # 1,869개 테스트 함수, 62개 파일
 └── pyproject.toml
 ```
 

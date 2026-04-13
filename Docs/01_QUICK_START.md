@@ -2,7 +2,7 @@
 
 Agent Evaluator를 5분 안에 첫 평가까지 완성하는 최단 경로
 
-**v0.7.9 | Python 3.8+**
+**v0.8.0 | Python 3.8+**
 
 ---
 
