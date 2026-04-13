@@ -77,11 +77,22 @@ def _normalize_qa_text(text: str) -> str:
 
 
 def _qa_char_similarity(s1: str, s2: str) -> float:
-    """Character-set overlap ratio relative to s1 (ground-truth side)."""
-    s1_chars = set(s1)
-    if not s1_chars:
+    """Character-level similarity using Levenshtein distance (order-aware)."""
+    if s1 == s2:
+        return 1.0
+    m, n = len(s1), len(s2)
+    if m == 0 or n == 0:
         return 0.0
-    return len(s1_chars & set(s2)) / len(s1_chars)
+    if m > n:
+        s1, s2, m, n = s2, s1, n, m
+    prev_row = list(range(n + 1))
+    for i in range(1, m + 1):
+        curr_row = [i]
+        for j in range(1, n + 1):
+            cost = 0 if s1[i - 1] == s2[j - 1] else 1
+            curr_row.append(min(prev_row[j] + 1, curr_row[j - 1] + 1, prev_row[j - 1] + cost))
+        prev_row = curr_row
+    return max(0.0, 1.0 - prev_row[n] / max(m, n))
 
 
 def _normalize_code(code: str) -> str:
@@ -331,9 +342,11 @@ class AccuracyEvaluator(BaseTracker):
         # Jaccard: coverage relative to *union* (penalises extra tokens in prediction)
         jaccard = intersection / union if union > 0 else 0.0
 
-        # Token overlap ratio: coverage relative to *ground-truth only* (recall-oriented).
-        # Intentionally different from Jaccard — extra predicted tokens do not reduce this score.
-        overlap_ratio = intersection / len(gt_tokens)
+        # Token overlap F1: harmonic mean of precision and recall.
+        # Balances coverage of ground-truth (recall) and avoiding hallucinated tokens (precision).
+        precision = intersection / len(pred_tokens) if pred_tokens else 0.0
+        recall = intersection / len(gt_tokens) if gt_tokens else 0.0
+        overlap_ratio = (2 * precision * recall / (precision + recall)) if (precision + recall) > 0 else 0.0
 
         # 3. Character-level similarity (handles typos better)
         char_sim = _qa_char_similarity(gt_norm, pred_norm)

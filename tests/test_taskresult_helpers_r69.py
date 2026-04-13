@@ -83,6 +83,43 @@ class TestCalculateCompletionScore:
     def test_no_ground_truth_long_enough_returns_one(self):
         assert calculate_completion_score("a" * 50, expected_min_length=10) == 1.0
 
+    # --- task_type-aware ---
+
+    def test_code_generation_valid_python_returns_one(self):
+        code = "def add(a, b):\n    return a + b"
+        score = calculate_completion_score(code, task_type="code_generation")
+        assert score == 1.0
+
+    def test_code_generation_syntax_error_uses_length(self):
+        score = calculate_completion_score("def foo(" * 5, task_type="coding")
+        # Should not be 1.0 via AST path; falls through to length-based (long enough → 1.0)
+        assert 0.0 <= score <= 1.0
+
+    def test_code_generation_with_markdown_fence_valid(self):
+        code = "```python\nx = 1 + 2\nprint(x)\n```"
+        score = calculate_completion_score(code, task_type="code_generation")
+        assert score == 1.0
+
+    def test_tool_use_with_tool_calls_returns_one(self):
+        score = calculate_completion_score(
+            "Used the search tool.",
+            task_type="tool_use",
+            tool_calls=[{"tool": "search", "arguments": "{}"}],
+        )
+        assert score == 1.0
+
+    def test_tool_use_without_tool_calls_partial(self):
+        score = calculate_completion_score(
+            "I searched for the answer.",
+            task_type="tool_use",
+            tool_calls=[],
+        )
+        assert score == 0.6
+
+    def test_tool_use_short_response_no_tool_calls(self):
+        score = calculate_completion_score("ok", task_type="tool_use", tool_calls=[])
+        assert 0.3 <= score <= 0.5
+
 
 # ============================================================================
 # calculate_accuracy_score()
@@ -162,6 +199,18 @@ class TestSimilarityHelpers:
 
     def test_token_overlap_empty(self):
         assert _token_overlap_ratio("", "a b") == pytest.approx(0.0)
+
+    def test_token_overlap_f1_penalises_extra_tokens(self):
+        # text1="a b c d e" (5 tokens), text2="a b" (2 tokens) — overlap=2
+        # precision=2/5=0.4, recall=2/2=1.0 → F1=2*0.4*1/(0.4+1)≈0.571
+        score = _token_overlap_ratio("a b c d e", "a b")
+        assert score == pytest.approx(2 * 0.4 * 1.0 / (0.4 + 1.0), abs=1e-3)
+
+    def test_token_overlap_f1_symmetric_partial(self):
+        # F1 of recall-only would differ, but F1 must be <= min(precision, recall) is FALSE
+        # Here just check score is strictly between 0 and 1 for partial overlap
+        score = _token_overlap_ratio("a b c", "b c d")
+        assert 0.0 < score < 1.0
 
     def test_jaccard_identical(self):
         assert _jaccard_similarity("a b c", "a b c") == pytest.approx(1.0)

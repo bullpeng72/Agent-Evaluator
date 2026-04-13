@@ -1327,7 +1327,7 @@ agent-evaluator/
 │   └── datasets/                # GoldenSetBuilder
 │
 ├── Evaluator_Examples/          # 예제 7개 통합 파일 (.deprecated/에 구 21개 보존)
-├── tests/                       # 1,861개 테스트 함수, 63개 파일
+├── tests/                       # 1,869개 테스트 함수, 63개 파일
 └── pyproject.toml
 ```
 
@@ -1378,7 +1378,7 @@ git clone https://github.com/bullpeng72/Agent-Evaluator.git
 cd Agent-Evaluator
 pip install -e ".[dev]"
 
-pytest                          # 테스트 실행 (1,837개)
+pytest                          # 테스트 실행 (1,869개)
 ruff check agent_evaluator/    # 린트
 ruff format agent_evaluator/   # 포맷
 mypy agent_evaluator/          # 타입 검사

@@ -17,6 +17,7 @@ TaskResult 동적 데이터 생성 헬퍼 함수 라이브러리
 - validate_tool_authorization(): 도구 호출 권한 검증
 """
 
+import ast
 import dataclasses
 import logging
 import re
@@ -107,7 +108,9 @@ def calculate_completion_score(
     response: str,
     expected_min_length: int = 10,
     has_error: bool = False,
-    ground_truth: Optional[str] = None
+    ground_truth: Optional[str] = None,
+    task_type: Optional[str] = None,
+    tool_calls: Optional[List[Any]] = None,
 ) -> float:
     """
     작업 완료도 점수 계산 (0.0 ~ 1.0)
@@ -117,6 +120,8 @@ def calculate_completion_score(
         expected_min_length: 최소 기대 길이
         has_error: 에러 발생 여부
         ground_truth: 정답 (선택사항, 있으면 유사도 기반 점수 계산)
+        task_type: 태스크 유형 (선택사항, 유형별 완료 기준 적용)
+        tool_calls: 도구 호출 목록 (tool_use 태스크 완료 판정에 사용)
 
     Returns:
         float: 0.0 ~ 1.0 사이의 완료도 점수
@@ -139,14 +144,45 @@ def calculate_completion_score(
     if not response or not response.strip():
         return 0.0
 
-    # 3. 길이 기반 평가
+    # 3. 태스크 유형별 완료 기준 (ground_truth 없이도 구조적으로 완료 판정)
+    if task_type and not ground_truth:
+        task_type_lower = task_type.lower()
+
+        # code_generation / coding: 파싱 가능한 Python 코드인지 확인
+        if task_type_lower in ("code_generation", "coding"):
+            stripped = response.strip()
+            # 코드 블록 제거 후 파싱 시도
+            if stripped.startswith("```"):
+                lines = stripped.splitlines()
+                inner = "\n".join(lines[1:-1] if lines[-1].strip() == "```" else lines[1:])
+            else:
+                inner = stripped
+            try:
+                ast.parse(inner)
+                return 1.0  # 구문 유효한 코드 → 완전 완료
+            except SyntaxError:
+                pass
+            # 파싱 실패 → 길이 기반으로 fallthrough
+
+        # tool_use: 도구를 실제로 호출했는지 확인
+        elif task_type_lower == "tool_use":
+            if tool_calls:
+                return 1.0
+            # 도구 호출 없이 텍스트만 반환 → 부분 완료
+            response_length = len(response.strip())
+            if response_length < expected_min_length:
+                ratio = response_length / expected_min_length
+                return max(0.3, min(0.5, ratio))
+            return 0.6  # 응답은 있으나 도구 미사용
+
+    # 4. 길이 기반 평가
     response_length = len(response.strip())
     if response_length < expected_min_length:
         # 최소 길이에 미달하면 부분 점수 (0.3 ~ 0.7)
         ratio = response_length / expected_min_length
         return max(0.3, min(0.7, ratio))
 
-    # 4. ground_truth가 있으면 유사도 기반 평가
+    # 5. ground_truth가 있으면 유사도 기반 평가
     if ground_truth:
         similarity = _calculate_simple_similarity(response, ground_truth)
         if similarity >= 0.8:
@@ -156,7 +192,7 @@ def calculate_completion_score(
         else:
             return 0.5
 
-    # 5. 기본 완료 점수
+    # 6. 기본 완료 점수
     return 1.0
 
 
@@ -244,7 +280,7 @@ def normalize_text(text: str) -> str:
 
 # Internal similarity functions
 def _token_overlap_ratio(text1: str, text2: str) -> float:
-    """Token Overlap Ratio"""
+    """Token Overlap F1 — harmonic mean of precision and recall."""
     tokens1 = set(text1.split())
     tokens2 = set(text2.split())
 
@@ -252,9 +288,10 @@ def _token_overlap_ratio(text1: str, text2: str) -> float:
         return 0.0
 
     overlap = len(tokens1 & tokens2)
-    total = max(len(tokens1), len(tokens2))
+    precision = overlap / len(tokens1)
+    recall = overlap / len(tokens2)
 
-    return overlap / total if total > 0 else 0.0
+    return (2 * precision * recall / (precision + recall)) if (precision + recall) > 0 else 0.0
 
 
 def _jaccard_similarity(text1: str, text2: str) -> float:
@@ -549,22 +586,7 @@ def create_taskresult_from_execution(
     """
     from agent_evaluator import TaskResult, TaskType
 
-    # 1. completion_score 동적 계산
-    completion = calculate_completion_score(
-        response=response,
-        expected_min_length=10,
-        has_error=has_error,
-        ground_truth=ground_truth
-    )
-
-    # 2. accuracy_score 동적 계산 (4가지 유사도 메트릭 조합)
-    accuracy = calculate_accuracy_score(
-        response=response,
-        ground_truth=ground_truth,
-        method="combined"
-    )
-
-    # 3. tokens_used 동적 추출
+    # 1. tokens_used 동적 추출
     if openai_response:
         tokens = extract_tokens_from_openai(openai_response)
     elif langchain_result:
@@ -582,12 +604,32 @@ def create_taskresult_from_execution(
     if model_name:
         tokens["model"] = model_name
 
-    # 4. tool_calls 동적 추출
+    # 2. tool_calls 동적 추출 (completion_score 계산 전에 추출해야 task_type 인식 가능)
     tool_calls = []
     if openai_response:
         tool_calls = extract_tool_calls_from_openai_functions(openai_response)
     elif langchain_result:
         tool_calls = extract_tool_calls_from_langchain(langchain_result)
+    # extra_fields로 직접 지정된 tool_calls가 있으면 우선 사용
+    if "tool_calls" in extra_fields:
+        tool_calls = extra_fields["tool_calls"]
+
+    # 3. completion_score 동적 계산 (task_type + tool_calls 정보 활용)
+    completion = calculate_completion_score(
+        response=response,
+        expected_min_length=10,
+        has_error=has_error,
+        ground_truth=ground_truth,
+        task_type=task_type,
+        tool_calls=tool_calls,
+    )
+
+    # 4. accuracy_score 동적 계산 (4가지 유사도 메트릭 조합)
+    accuracy = calculate_accuracy_score(
+        response=response,
+        ground_truth=ground_truth,
+        method="combined"
+    )
 
     # 5. partial_reason 자동 추론 (사용자가 직접 지정하지 않은 경우)
     if partial_reason is None and completion < 1.0:

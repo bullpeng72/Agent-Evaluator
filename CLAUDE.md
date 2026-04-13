@@ -532,7 +532,7 @@ from agent_evaluator import (
 
 ## Testing
 
-`tests/` 디렉토리에 63개 파일, 1,861개+ 테스트 함수 존재.
+`tests/` 디렉토리에 63개 파일, 1,869개+ 테스트 함수 존재.
 
 ```bash
 # pytest.ini_options in pyproject.toml already configured:
@@ -603,10 +603,13 @@ pytest
 
 ## 📝 변경 이력
 
-### v0.7.9 (2026-04-13) — arize-phoenix 버전 제약 수정 · RunTrendAnalyzer
+### v0.7.9 (2026-04-13) — arize-phoenix 버전 제약 수정 · RunTrendAnalyzer · 정확도 지표 개선
 
 - 🐛 **arize-phoenix 버전 제약 수정** — pyproject.toml의 `arize-phoenix>=7.0.0` 제약이 최신 릴리즈와 충돌하던 문제 수정. 설치 호환성 복구
 - ✨ **`RunTrendAnalyzer` + `agent-eval trend` 서브커맨드** — 순차 평가 결과 JSON의 TCR·정확도·P95 지연시간·환각률 추세 분석. 선형 slope 계산으로 지속적 하락 감지. `--fail-on-regression`으로 CI/CD 파이프라인 연동. `--window N`, `--pattern GLOB`, `--slope-threshold`, `--output-json` 옵션 지원. 테스트 24개 추가 (이슈 #1)
+- 🔧 **Token Overlap Recall → F1** — `layer1.py` `_qa_accuracy()` 및 `taskresult_helpers.py` `_token_overlap_ratio()` 의 토큰 중첩 계산을 단순 Recall/max 방식에서 F1(정밀도-재현율 조화평균)으로 교체. 긴 응답에서 불필요한 토큰을 추가해도 점수가 오르지 않도록 개선
+- 🔧 **Char Similarity Levenshtein 통일** — `layer1.py`의 집합 기반 문자 유사도를 `taskresult_helpers.py`와 동일한 Levenshtein 거리 기반으로 교체. 문자 순서 반영으로 정밀도 향상
+- ✨ **`calculate_completion_score()` task_type 인식** — `task_type="code_generation"`/`"coding"` 시 AST 파싱 성공 여부로 완료 판정; `task_type="tool_use"` 시 `tool_calls` 비어 있으면 부분 완료(0.6) 반환. ground_truth 없는 환경의 TCR 신뢰도 향상
 
 ### v0.7.8 (2026-04-12) — SDK 기본 내장 · 의존성 extras 현행화
 
