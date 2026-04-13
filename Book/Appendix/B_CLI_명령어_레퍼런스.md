@@ -11,7 +11,8 @@ Agent Evaluator v0.7.9 CLI 전체 명령어 목록. `pip install agent-evaluator
 | `agent-eval init` | 대화형 API 키 설정 마법사 |
 | `agent-eval check` | 현재 설정 상태 출력 |
 | `agent-eval dashboard` | FastAPI 대시보드 실행 |
-| `agent-eval gate` | CI/CD 품질 게이팅 |
+| `agent-eval gate` | CI/CD 품질 게이팅 (단일 결과 검사) |
+| `agent-eval trend` | 다중 결과 트렌드 분석 + 회귀 감지 |
 | `agent-eval dataset` | 골든 데이터셋 관리 |
 | `agent-eval monitor` | Arize Phoenix 서버 기동 + OTEL 설정 |
 | `agent-eval --version` | 버전 출력 |
@@ -203,6 +204,93 @@ eval.generate_gate_config("gate_config.json")
 
 ---
 
+## agent-eval trend
+
+여러 평가 결과 파일에서 시간 흐름에 따른 지표 추이를 분석한다. `gate`가 단일 결과를 점검하는 반면, `trend`는 N회 실행의 기울기(slope)로 개선·회귀 방향을 판정한다. CI/CD에서 `--fail-on-regression`을 지정하면 회귀 감지 시 종료 코드 1을 반환한다.
+
+**사용법**
+
+```bash
+agent-eval trend <결과디렉토리> [옵션]
+```
+
+**옵션**
+
+| 옵션 | 기본값 | 설명 |
+|------|--------|------|
+| `결과디렉토리` | (필수) | 평가 결과 JSON 파일이 저장된 디렉토리 |
+| `--window`, `-w` | `10` | 분석할 최근 파일 수 |
+| `--pattern` | `*.json` | 파일 이름 글로브 패턴 |
+| `--slope-threshold` | `0.3` | 이 절댓값 미만의 slope는 `stable`로 판정 (단위: %/run 또는 초/run) |
+| `--fail-on-regression` | — | 회귀 감지 시 종료 코드 1 반환 |
+| `--output-json` | — | 분석 결과를 JSON 파일로 저장 |
+
+**종료 코드**
+
+| 코드 | 의미 |
+|------|------|
+| `0` | 회귀 없음 (또는 `--fail-on-regression` 미지정) |
+| `1` | 회귀 감지 (`--fail-on-regression` 지정 시) |
+
+**분석 지표**
+
+- **TCR** (Task Completion Rate): slope > 0 → improving, < 0 → degrading
+- **Accuracy**: slope > 0 → improving
+- **P95 Latency**: slope > 0 → degrading (지연 증가)
+- **Hallucination Rate**: slope > 0 → degrading (환각 증가)
+
+**예시**
+
+```bash
+# 기본 트렌드 분석 (최근 10개 파일)
+agent-eval trend results/
+
+# 최근 5개 파일만 분석
+agent-eval trend results/ --window 5
+
+# 특정 파일 패턴으로 필터링
+agent-eval trend results/ --pattern '*quality*.json' --window 20
+
+# 회귀 감지 시 CI/CD 중단
+agent-eval trend results/ --fail-on-regression
+
+# 민감도 조정 + 결과 저장
+agent-eval trend results/ --slope-threshold 0.5 --output-json trend_report.json
+```
+
+**출력 예시**
+
+```
+트렌드 분석 결과 (최근 10회 실행)
+====================================
+지표              방향        slope
+─────────────────────────────────────
+TCR               improving   +1.23 %/run
+Accuracy          stable       +0.12 %/run
+P95 Latency       stable       +0.05 초/run
+Hallucination     degrading   +0.87 %/run  ⚠️
+
+⚠️ 회귀 감지: Hallucination Rate 상승 추세
+```
+
+**`gate`와의 차이**
+
+| 항목 | `gate` | `trend` |
+|------|--------|---------|
+| 대상 | 단일 결과 파일 | 디렉토리 내 N개 파일 |
+| 판정 방식 | 절댓값 임계값 비교 | slope(기울기) 방향 판정 |
+| 주요 용도 | 현재 빌드 pass/fail | 시간 흐름에 따른 품질 변화 감지 |
+| CI 통합 | 배포 전 게이트 | 주간/스프린트 리포트, 회귀 경보 |
+
+**CI/CD 통합 예시 (GitHub Actions)**
+
+```yaml
+- name: 트렌드 회귀 감지
+  run: agent-eval trend results/ --window 10 --fail-on-regression
+```
+
+---
+
 ## agent-eval dataset
 
 골든 데이터셋 관리 서브커맨드. 평가 결과에서 케이스를 자동으로 추출하여 골든 데이터셋으로 저장한다.
@@ -269,6 +357,8 @@ agent-eval monitor [옵션]
 | `--check` | — | 설치 상태 및 포트 점유 확인 |
 | `--working-dir <path>` | `./` | Phoenix DB 저장 디렉토리 |
 | `--sync-datasets <glob>` | — | 골든셋 JSON 파일을 Phoenix Datasets로 업로드 |
+| `--reset` | — | Phoenix DB를 삭제하고 초기화 (데이터 전체 삭제) |
+| `--yes`, `-y` | — | `--reset` 확인 프롬프트를 건너뜀 |
 
 **예시**
 
@@ -287,7 +377,15 @@ agent-eval monitor --attach http://localhost:6006
 
 # 골든셋 자동 업로드
 agent-eval monitor --sync-datasets 'data/golden_datasets/*.json'
+
+# Phoenix DB 초기화 (모든 트레이스·데이터 삭제)
+agent-eval monitor --reset
+
+# 초기화 확인 프롬프트 생략 (CI/CD 비대화형 환경)
+agent-eval monitor --reset --yes
 ```
+
+> **주의**: `--reset`은 Phoenix DB에 저장된 모든 트레이스, 데이터셋, Evaluators 결과를 삭제한다. 복구 불가능하므로 신중하게 사용할 것.
 
 **사전 조건**
 

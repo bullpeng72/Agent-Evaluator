@@ -3,6 +3,7 @@
 > **이 챕터에서 배우는 것**
 > - 배포 파이프라인에 AI 품질 검문소를 설치하는 이유와 방법
 > - `agent-eval gate` CLI의 모든 옵션과 동작 원리
+> - `agent-eval trend` CLI로 다중 실행 기울기 기반 회귀 감지
 > - GitHub Actions, GitLab CI, Jenkins 완전 통합 패턴
 > - 환경별(dev/staging/prod) 차등 임계값 전략
 > - 게이팅 실패 시 즉각 대응 절차
@@ -116,7 +117,121 @@ eval.generate_gate_config("gate_config.json")
 
 ---
 
-## 13.3 GitHub Actions 통합
+## 13.3 agent-eval trend — 다중 실행 트렌드 분석
+
+`gate`는 **단일 결과 파일**을 절대값 임계값과 비교한다. 반면 `trend`는 **여러 결과 파일의 시간 흐름**을 보고 지표가 좋아지는지 나빠지는지 기울기(slope)로 판단한다. "현재 상태가 기준을 넘는가"가 아니라 "상태가 어떤 방향으로 움직이고 있는가"를 묻는 것이다.
+
+두 명령어는 상호 보완적이다.
+
+| 항목 | `gate` | `trend` |
+|------|--------|---------|
+| 대상 | 단일 결과 파일 | 디렉토리 내 N개 결과 파일 |
+| 판정 방식 | 절댓값 임계값 비교 | slope(기울기) 방향 판정 |
+| 주요 용도 | 현재 빌드 pass/fail | 시간 흐름에 따른 품질 변화 감지 |
+| CI 통합 | 배포 전 게이트 | 주간 리포트, 장기 회귀 경보 |
+
+### 기본 사용법
+
+```bash
+# 최근 10개 결과 파일의 트렌드 분석 (기본)
+agent-eval trend results/
+
+# 최근 20개 파일, 특정 패턴만 분석
+agent-eval trend results/ --window 20 --pattern '*quality*.json'
+
+# 민감도 조정 (slope 0.5 미만은 stable로 판정)
+agent-eval trend results/ --slope-threshold 0.5
+
+# 회귀 감지 시 CI/CD 중단
+agent-eval trend results/ --fail-on-regression
+
+# 결과를 JSON으로 저장
+agent-eval trend results/ --output-json trend_report.json
+```
+
+### 옵션 요약
+
+| 옵션 | 기본값 | 설명 |
+|------|--------|------|
+| `--window`, `-w` | `10` | 분석할 최근 파일 수 |
+| `--pattern` | `*.json` | 파일 이름 글로브 패턴 |
+| `--slope-threshold` | `0.3` | 이 절댓값 미만의 slope는 `stable`로 판정 |
+| `--fail-on-regression` | — | 회귀 감지 시 exit code 1 반환 |
+| `--output-json` | — | 분석 결과를 JSON 파일로 저장 |
+
+### 분석 지표와 방향 판정
+
+| 지표 | slope 양수 | slope 음수 |
+|------|-----------|-----------|
+| TCR | improving ✅ | degrading ⚠️ |
+| Accuracy | improving ✅ | degrading ⚠️ |
+| P95 Latency | degrading ⚠️ (지연 증가) | improving ✅ |
+| Hallucination Rate | degrading ⚠️ (환각 증가) | improving ✅ |
+
+### 출력 예시
+
+```
+트렌드 분석 결과 (최근 10회 실행)
+====================================
+지표              방향        slope
+─────────────────────────────────────
+TCR               improving   +1.23 %/run
+Accuracy          stable       +0.12 %/run
+P95 Latency       stable       +0.05 초/run
+Hallucination     degrading   +0.87 %/run  ⚠️
+
+⚠️ 회귀 감지: Hallucination Rate 상승 추세
+```
+
+### GitHub Actions 통합 — 주간 트렌드 감시
+
+`trend`는 배포마다 실행하는 `gate`와 달리, 주기적으로 실행하는 회귀 감시 워크플로우에 적합하다.
+
+```yaml
+# .github/workflows/weekly-trend-check.yml
+name: Weekly Quality Trend Check
+
+on:
+  schedule:
+    - cron: "0 9 * * 1"   # 매주 월요일 오전 9시
+  workflow_dispatch:
+
+jobs:
+  trend-analysis:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Python 설정
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Agent-Evaluator 설치
+        run: pip install agent-evaluator
+
+      - name: 주간 트렌드 분석 (회귀 시 실패)
+        run: |
+          agent-eval trend results/ \
+            --window 10 \
+            --slope-threshold 0.3 \
+            --fail-on-regression \
+            --output-json trend_report.json
+
+      - name: 트렌드 리포트 아티팩트 저장
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: trend-report
+          path: trend_report.json
+          retention-days: 90
+```
+
+> 📋 **QA 관리자 TIP**: `gate`는 배포 전 스냅샷 검사, `trend`는 스프린트 단위 장기 품질 감시에 사용하라. 두 명령어를 함께 쓰면 단기 이상과 장기 회귀를 모두 조기에 포착할 수 있다.
+
+---
+
+## 13.4 GitHub Actions 통합
 
 GitHub Actions는 현재 가장 널리 쓰이는 CI/CD 플랫폼이다. 완전한 워크플로우 파일을 소개한다.
 
@@ -258,7 +373,7 @@ if __name__ == "__main__":
 
 ---
 
-## 13.4 GitLab CI / Jenkins 통합 패턴
+## 13.5 GitLab CI / Jenkins 통합 패턴
 
 ### GitLab CI — `.gitlab-ci.yml`
 
@@ -370,7 +485,7 @@ pipeline {
 
 ---
 
-## 13.5 배포 환경별 임계값 전략
+## 13.6 배포 환경별 임계값 전략
 
 모든 환경에 같은 임계값을 적용하는 것은 비효율적이다. 개발 단계에서는 빠른 반복이 중요하고, 프로덕션에서는 품질이 최우선이다.
 
@@ -415,7 +530,7 @@ eval.gate(**params)
 
 ---
 
-## 13.6 게이팅 실패 시 대응 절차
+## 13.7 게이팅 실패 시 대응 절차
 
 게이트가 실패했다고 해서 당황할 필요는 없다. 실패는 품질 문제를 배포 전에 발견했다는 의미다. 체계적으로 대응하면 된다.
 
@@ -482,6 +597,8 @@ for task in low_accuracy[:10]:
 - **CI/CD 품질 게이팅**은 AI 에이전트의 응답 품질(TCR, 정확도, 레이턴시)을 배포 파이프라인에서 자동으로 검증하는 검문소다. 코드 테스트만으로는 발견할 수 없는 품질 저하를 사전에 차단한다.
 
 - **`agent-eval gate`**는 평가 결과 JSON을 읽어 임계값과 비교하고, exit code 0(통과)/1(실패)/2(회귀)를 반환한다. 모든 CI/CD 시스템과 통합할 수 있다.
+
+- **`agent-eval trend`**는 N개 결과 파일의 slope(기울기)를 계산해 TCR·정확도·레이턴시·환각률의 개선/안정/회귀 방향을 판정한다. `--fail-on-regression`으로 장기 회귀를 자동 감지한다. `gate`(배포 전 단일 검사)와 함께 사용해 단기 이상과 장기 품질 저하를 모두 포착하라.
 
 - **GitHub Actions 통합** 시 `--junit-xml` 옵션으로 JUnit 리포트를 생성하고, `actions/github-script`로 PR 코멘트에 품질 지표를 자동 게시할 수 있다.
 
