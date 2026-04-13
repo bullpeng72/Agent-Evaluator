@@ -186,7 +186,7 @@ if __name__ == "__main__":
 **1시간 안에 완료**:
 
 ```bash
-pip install "agent-evaluator[llm,serve]"
+pip install agent-evaluator
 ```
 
 ```python
@@ -214,7 +214,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - run: pip install "agent-evaluator[llm]"
+      - run: pip install agent-evaluator
       - run: python evaluate.py
       - run: agent-eval gate results/quickeval.json --tcr 80
 ```

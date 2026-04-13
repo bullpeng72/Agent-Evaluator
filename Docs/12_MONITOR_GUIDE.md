@@ -2,8 +2,8 @@
 
 OpenTelemetry + Arize Phoenix 기반 프로덕션 실시간 모니터링
 
-**Version**: 0.7.7
-**Last Updated**: 2026-04-11
+**Version**: 0.7.9
+**Last Updated**: 2026-04-13
 **Status**: ✅ 구현 완료 (v0.7.6)
 
 ---
@@ -38,7 +38,7 @@ OpenTelemetry + Arize Phoenix 기반 프로덕션 실시간 모니터링
 | **업데이트 방식** | 폴링 (15초 / --watch) | 스팬 수신 즉시 갱신 |
 | **주요 뷰** | 지표 집계 · 태스크 테이블 · 히스토리 | 트레이스 · 스팬 폭포수 · 실시간 오류 |
 | **저장** | JSON 파일 (results/) | SQLite (Phoenix 내부) |
-| **설치 요건** | `[serve]` extras | `[otel]` extras |
+| **설치 요건** | 기본 설치에 포함 | 기본 설치에 포함 |
 | **실행 방식** | 단일 FastAPI 서버 | Arize Phoenix 서버 + OTEL exporter |
 
 ### 의사결정 흐름
@@ -141,7 +141,8 @@ save_to_file()
 ### 단계 1: 설치
 
 ```bash
-pip install "agent-evaluator[otel]"
+# OTEL 모니터링은 기본 설치에 포함
+pip install agent-evaluator
 ```
 
 ### 단계 2: Phoenix 서버 기동 (터미널 A)
@@ -769,13 +770,14 @@ for edge in result["data"]["projects"]["edges"]:
 ### 설치
 
 ```bash
-pip install "agent-evaluator[otel]"
+# OTEL 모니터링 패키지는 기본 설치에 포함
+pip install agent-evaluator
 ```
 
-포함 패키지:
-- `opentelemetry-sdk>=1.20.0,<2.0.0`
-- `opentelemetry-exporter-otlp-proto-http>=1.20.0,<2.0.0`
-- `arize-phoenix>=0.11.0`
+포함 패키지 (기본 설치):
+- `opentelemetry-sdk>=1.20.0`
+- `opentelemetry-exporter-otlp-proto-http>=1.20.0`
+- `arize-phoenix>=7.0.0`
 
 ### 환경변수 (선택)
 

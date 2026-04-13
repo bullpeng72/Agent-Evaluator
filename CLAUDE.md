@@ -47,7 +47,7 @@ agent-eval monitor                                   # Arize Phoenix 서버 기�
 agent-eval monitor --port 6006                       # Phoenix 포트 지정 (기본: 6006)
 agent-eval monitor --check                           # OTEL 패키지 설치 여부 및 포트 점유 상태 확인
 # 예제 실행 시 자동으로 Phoenix에 연결 → 프로젝트별 Tracing·Evaluators·Datasets·Prompts 확인 가능
-# (pip install "agent-evaluator[otel]" 또는 "[sdk]" 필요)
+# (기본 설치에 포함 — 별도 extras 불필요)
 agent-eval --version     # 버전 출력
 
 # 테스트 실행
@@ -109,7 +109,7 @@ agent_evaluator/
 │   ├── agent_evaluator.py   # re-export facade — trackers/ 분리 완료
 │   ├── hybrid_monitor.py    # HybridPerformanceMonitor
 │   ├── monitor_context.py   # Context managers
-│   ├── otel/                # OpenTelemetry 통합 (v0.7.0+, [otel] extras 필요)
+│   ├── otel/                # OpenTelemetry 통합 (v0.7.0+, 기본 설치에 포함)
 │   │   ├── provider.py      # OTELProvider — TracerProvider 설정
 │   │   └── metrics.py       # OTELMetrics — 메트릭 익스포터 (opt-in)
 │   └── trackers/            # 트래커 서브패키지
@@ -527,7 +527,7 @@ from agent_evaluator import (
 
 ## Testing
 
-`tests/` 디렉토리에 70개 파일, 2,117개+ 테스트 함수 존재.
+`tests/` 디렉토리에 62개 파일, 1,837개+ 테스트 함수 존재.
 
 ```bash
 # pytest.ini_options in pyproject.toml already configured:
@@ -597,6 +597,17 @@ pytest
 ---
 
 ## 📝 변경 이력
+
+### v0.7.9 (2026-04-13) — arize-phoenix 버전 제약 수정
+
+- 🐛 **arize-phoenix 버전 제약 수정** — pyproject.toml의 `arize-phoenix>=7.0.0` 제약이 최신 릴리즈와 충돌하던 문제 수정. 설치 호환성 복구
+
+### v0.7.8 (2026-04-12) — SDK 기본 내장 · 의존성 extras 현행화
+
+- ✨ **SDK 기본 내장** — `pip install agent-evaluator` 단독 설치로 LLMJudge · 대시보드 · OTEL 모니터링 모두 사용 가능. `[sdk]` extra 불필요
+- 🔧 **의존성 extras 현행화** — `pypdf` 제거, `pydantic-ai` 하한 갱신, `[frameworks]` extra 제거, `[all]`에 dspy/pydanticai 추가
+- 🔧 **techdebt 제거** — `_lcs_similarity` 삭제, silent except 구간 로그 추가, loader 파서 회귀 테스트 신규
+- 📝 **예제 의존성 문서화** — 예제별 의존성 테이블 추가, docstring에 '의존성' 섹션 추가, `[langchain/crewai/autogen]` extras 역할 명시
 
 ### v0.7.7 (2026-04-11) — 데코레이터 버그 수정 · 3종 데코레이터 완전 parity · Layer 2 스레드 안전성
 

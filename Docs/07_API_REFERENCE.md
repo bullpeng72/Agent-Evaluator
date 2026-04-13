@@ -1,12 +1,12 @@
 # API 레퍼런스
 
-Agent Evaluator v0.7.7 전체 API 문서
+Agent Evaluator v0.7.9 전체 API 문서
 
 ---
 
 ## 버전 정보
 
-- **버전:** v0.7.7
+- **버전:** v0.7.9
 - **Python:** 3.8+
 - **최종 업데이트:** 2026-04-11
 
@@ -798,10 +798,10 @@ with monitor.conversation("session_001") as conv:
 
 ## 9. LLMJudge
 
-ground_truth 없이 LLM이 직접 채점하는 평가 엔진. `[llm]` extra가 필요하다.
+ground_truth 없이 LLM이 직접 채점하는 평가 엔진. 기본 설치에 포함되어 있다.
 
 ```python
-from agent_evaluator import LLMJudge  # pip install "agent-evaluator[llm]"
+from agent_evaluator import LLMJudge  # pip install agent-evaluator (기본 설치에 포함)
 
 judge = LLMJudge(
     model="claude-sonnet-4-6",     # 또는 "gpt-4o-mini"
@@ -1153,7 +1153,7 @@ QuickEval,
 # 멀티턴 대화
 ConversationSession, ConversationMetrics, ConversationTurn,
 
-# LLM Judge (requires [llm])
+# LLM Judge (기본 설치에 포함)
 LLMJudge,
 
 # 투명성
@@ -1187,4 +1187,4 @@ FrameworkLiteral,   # 21개 프레임워크 Literal 타입
 
 ---
 
-*Agent Evaluator v0.7.7 — [GitHub](https://github.com/bullpeng72/Agent-Evaluator) | [예제 디렉토리](../Evaluator_Examples/)*
+*Agent Evaluator v0.7.9 — [GitHub](https://github.com/bullpeng72/Agent-Evaluator) | [예제 디렉토리](../Evaluator_Examples/)*

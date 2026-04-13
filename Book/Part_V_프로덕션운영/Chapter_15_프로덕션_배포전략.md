@@ -152,9 +152,9 @@ WORKDIR /app
 
 RUN apt-get update && apt-get install -y curl && rm -rf /var/lib/apt/lists/*
 
-# 의존성 설치 — [all]: crewai/autogen 제외 전체 (권장)
+# 의존성 설치 — LLMJudge · 대시보드 · OTEL · PDF 포함 (기본 설치)
 COPY pyproject.toml .
-RUN pip install --no-cache-dir "agent-evaluator[all]"
+RUN pip install --no-cache-dir agent-evaluator
 
 # 애플리케이션 코드
 COPY . .
@@ -473,12 +473,12 @@ monitor = PerformanceMonitor(
 
 **증상**: 코드를 실행했는데 Phoenix Tracing 탭에 스팬이 없다.
 
-**원인**: `setup_otel()`을 `PerformanceMonitor` 생성 후에 호출했거나, `[otel]` extras가 설치되지 않았다.
+**원인**: `setup_otel()`을 `PerformanceMonitor` 생성 후에 호출했거나, 기본 설치가 완료되지 않았다.
 
 **해결책**:
 ```bash
-# 1. otel extras 설치 확인
-pip install "agent-evaluator[otel]"
+# 1. 기본 설치 확인 (OTEL 포함)
+pip install agent-evaluator
 agent-eval monitor --check
 
 # 2. 코드에서 순서 확인

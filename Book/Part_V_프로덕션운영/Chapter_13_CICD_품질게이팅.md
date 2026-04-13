@@ -148,7 +148,7 @@ jobs:
 
       - name: Agent-Evaluator 설치
         run: |
-          pip install "agent-evaluator[llm]"
+          pip install agent-evaluator
 
       - name: 에이전트 평가 실행
         env:
@@ -279,7 +279,7 @@ evaluate-agent:
   stage: evaluate
   image: python:3.11-slim
   script:
-    - pip install "agent-evaluator[llm]"
+    - pip install agent-evaluator
     - python ci/run_evaluation.py --output results/ci_run.json
   artifacts:
     paths:
@@ -295,7 +295,7 @@ quality-gate:
   dependencies:
     - evaluate-agent
   script:
-    - pip install "agent-evaluator[llm]"
+    - pip install agent-evaluator
     - agent-eval gate results/ci_run.json
         --tcr 85
         --accuracy 70
@@ -331,7 +331,7 @@ pipeline {
     stages {
         stage('Install') {
             steps {
-                sh 'pip install "agent-evaluator[llm]"'
+                sh 'pip install agent-evaluator'
             }
         }
 

@@ -1,6 +1,6 @@
 # Appendix B. CLI 명령어 완전 레퍼런스
 
-Agent Evaluator v0.7.7 CLI 전체 명령어 목록. `pip install agent-evaluator` 설치 후 바로 사용 가능하다.
+Agent Evaluator v0.7.9 CLI 전체 명령어 목록. `pip install agent-evaluator` 설치 후 바로 사용 가능하다.
 
 ---
 
@@ -69,7 +69,7 @@ agent-eval check
 **출력 예시**
 
 ```
-Agent Evaluator v0.7.7 설정 상태
+Agent Evaluator v0.7.9 설정 상태
 =================================
 .env 파일: /Users/username/project/.env (존재)
 
@@ -78,16 +78,19 @@ Agent Evaluator v0.7.7 설정 상태
   ANTHROPIC_API_KEY: 미설정
   SLACK_WEBHOOK_URL: 미설정
 
-설치된 extras:
-  [llm]     ✅ openai, anthropic
-  [serve]   ✅ fastapi, uvicorn, jinja2
-  [langchain] ❌ 미설치
-  [otel]    ❌ 미설치
+기본 설치 포함 기능:
+  LLM Judge:   ✅ openai, anthropic (API 키 필요)
+  대시보드:    ✅ fastapi, uvicorn, jinja2
+  OTEL 모니터: ✅ opentelemetry-sdk, arize-phoenix
+
+추가 설치 extras:
+  [langchain]  ❌ 미설치 (LangChain 에이전트 사용 시 필요)
+  [eval]       ❌ 미설치 (DeepEval/Ragas 외부 평가 도구 필요 시)
 
 사용 가능한 기능:
   LLM Judge:   ✅ (OPENAI_API_KEY 감지)
-  대시보드:    ✅ ([serve] 설치됨)
-  OTEL 모니터: ❌ (pip install "agent-evaluator[otel]" 필요)
+  대시보드:    ✅ (기본 설치에 포함)
+  OTEL 모니터: ✅ (기본 설치에 포함)
 ```
 
 ---
@@ -128,7 +131,7 @@ agent-eval dashboard results/ --host 0.0.0.0 --port 8765
 
 **사전 조건**
 
-- `pip install "agent-evaluator[serve]"` 설치 필요
+- `pip install agent-evaluator` 기본 설치 (대시보드 포함)
 - 결과 디렉토리에 `*.json` 평가 결과 파일 존재 필요 (`save_to_file()` 호출로 생성)
 
 **주의**: 데이터가 없으면 대시보드가 빈 상태로 표시된다. `monitor.save_to_file("evaluation")` 호출 후 실행할 것.
@@ -289,7 +292,8 @@ agent-eval monitor --sync-datasets 'data/golden_datasets/*.json'
 **사전 조건**
 
 ```bash
-pip install "agent-evaluator[otel]"
+# OTEL 모니터링은 기본 설치에 포함
+pip install agent-evaluator
 ```
 
 **동작 순서**
@@ -330,7 +334,7 @@ agent-eval --version
 **출력 예시**
 
 ```
-agent-evaluator 0.7.7
+agent-evaluator 0.7.9
 ```
 
 ---

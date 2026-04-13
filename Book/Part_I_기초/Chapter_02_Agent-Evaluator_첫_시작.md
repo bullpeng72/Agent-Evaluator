@@ -6,40 +6,50 @@
 
 ## 2.1 설치 — 용도별 extras 선택 가이드
 
-Agent-Evaluator는 핵심 기능과 선택적 기능을 extras로 분리했습니다. 불필요한 의존성을 설치하지 않고 필요한 것만 골라 설치할 수 있습니다.
+Agent-Evaluator는 v0.7.8부터 기본 설치(`pip install agent-evaluator`)에 SDK 전체 기능이 포함됩니다. LLM Judge 엔진, FastAPI 대시보드, OTEL 모니터링, PDF 처리를 별도 설치 없이 바로 사용할 수 있습니다.
 
-### extras 선택 가이드
+### 기본 설치에 포함된 기능
+
+| 기능 | 패키지 |
+|---|---|
+| Layer 1+2 네이티브 지표 | numpy, pandas, python-dotenv |
+| LLM Judge 엔진 | openai, anthropic |
+| FastAPI 대시보드 | fastapi, uvicorn, jinja2, python-multipart |
+| OTEL 모니터링 | opentelemetry-sdk, arize-phoenix |
+| PDF 처리 | pdfplumber |
+
+### 별도 설치가 필요한 extras
 
 | extras | 포함 패키지 | 사용 시기 |
 |---|---|---|
-| *(없음)* | numpy, pandas, python-dotenv | Layer 1+2 네이티브 지표만 필요할 때 |
-| `[llm]` | openai, anthropic | LLM Judge 또는 실제 LLM 연동 평가 |
-| `[langchain]` | langchain, langchain-core, langgraph | LangChain/LangGraph 프레임워크 사용 시 |
 | `[eval]` | deepeval, ragas, datasets | Layer 3 외부 평가 도구 연동 |
-| `[serve]` | fastapi, uvicorn, jinja2 | 로컬 대시보드 UI 실행 |
-| `[otel]` | opentelemetry-sdk, arize-phoenix | Phoenix 실시간 모니터링 |
-| `[all]` | llm + langchain + eval + serve (crewai/autogen/otel 제외) | **일반적으로 권장** |
-| `[full]` | 위 전체 + crewai + autogen + otel | 모든 기능 (설치 10분+ 소요) |
+| `[langchain]` | langchain, langchain-core, langgraph | LangChain/LangGraph 프레임워크 사용 시 |
+| `[dspy]` | dspy-ai | DSPy 프로그램 평가 |
+| `[pydanticai]` | pydantic-ai | PydanticAI Agent 평가 |
+| `[crewai]` | crewai | CrewAI (전이 의존성 100개+, 단독 설치 권장) |
+| `[autogen]` | pyautogen, autogen-agentchat | AutoGen (무거움, 단독 설치 권장) |
+| `[examples]` | 기본 + eval 묶음 | 모든 예제 실행 |
+| `[full]` | 위 전체 | 모든 기능 (설치 10분+ 소요) |
 
 ```bash
-# 일반 개발 환경 (권장)
-pip install "agent-evaluator[all]"
-
-# 최소 설치 (Layer 1+2 지표만)
+# 기본 설치 — LLMJudge · 대시보드 · OTEL 모니터링 · PDF 포함 (권장)
 pip install agent-evaluator
 
-# 대시보드 포함 최소 구성
-pip install "agent-evaluator[serve]"
+# LangChain 프레임워크 통합
+pip install "agent-evaluator[langchain]"
 
-# LangChain 프레임워크 + 대시보드
-pip install "agent-evaluator[langchain,serve]"
+# DeepEval/Ragas 외부 평가 도구 연동
+pip install "agent-evaluator[eval]"
 
-# 실시간 Phoenix 모니터링
-pip install "agent-evaluator[otel]"
+# 모든 예제 실행
+pip install "agent-evaluator[examples]"
+
+# 전체 설치 (⚠️ crewai/autogen 포함, 10분+)
+pip install "agent-evaluator[full]"
 
 # 설치 확인
 agent-eval --version
-# → agent-evaluator 0.7.7
+# → agent-evaluator 0.7.9
 ```
 
 > 👨‍💻 **개발자 TIP**: `[crewai]`와 `[autogen]`은 의존성이 무거워 단독 extras로 분리되어 있습니다. CrewAI와 AutoGen을 동시에 설치하면 pydantic 버전 충돌이 발생할 수 있으므로, 필요한 경우에만 하나씩 설치하세요.
@@ -292,10 +302,7 @@ monitor.save_to_file("evaluation")
 파일이 저장되면 별도 터미널에서 대시보드를 실행합니다.
 
 ```bash
-# [serve] extras 필요
-pip install "agent-evaluator[serve]"
-
-# 대시보드 실행 (기본 포트 8765)
+# 대시보드는 기본 설치에 포함 — 바로 실행 가능
 agent-eval dashboard results/ --watch
 
 # → http://localhost:8765 에서 브라우저로 확인
@@ -311,8 +318,7 @@ agent-eval dashboard results/ --watch
 **터미널 1 — Phoenix 서버 기동:**
 
 ```bash
-pip install "agent-evaluator[otel]"
-
+# OTEL 모니터링은 기본 설치에 포함 — 바로 Phoenix 서버 시작 가능
 # Phoenix 서버 시작 (UI: http://localhost:6006)
 agent-eval monitor
 
@@ -409,7 +415,7 @@ print(comparison)
 
 > **이 챕터의 핵심**
 >
-> - extras는 목적에 맞게 선택하세요: 일반 개발은 `[all]`, 대시보드만 필요하면 `[serve]`, 실시간 모니터링은 `[otel]`.
+> - v0.7.8부터 기본 설치(`pip install agent-evaluator`)에 LLM Judge · 대시보드 · OTEL 모니터링 · PDF가 포함됩니다. 프레임워크별 통합이 필요하면 `[langchain]`, DeepEval/Ragas가 필요하면 `[eval]`을 추가 설치하세요.
 > - API 키는 `.env` 파일로 관리하고, Git에 커밋하지 마세요. Layer 1+2 네이티브 지표 16개는 API 키 없이 동작합니다.
 > - `QuickEval`을 사용하면 2줄로 첫 평가를 시작할 수 있습니다.
 > - 3-레이어 구조에서 Layer 1은 항상 자동 활성, Layer 2 보안 지표는 `enable_security_metrics=True`로 활성화, Layer 3는 외부 패키지 설치 후 opt-in입니다.

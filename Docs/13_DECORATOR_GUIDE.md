@@ -2,7 +2,7 @@
 
 에이전트 코드에 평가를 적용하는 실전 개발자 레퍼런스
 
-**Version**: 0.7.7  
+**Version**: 0.7.9  
 **최종 업데이트**: 2026-04-11
 
 ---
@@ -196,7 +196,7 @@ print(report.to_json(indent=2))
 # → {"accuracy_metrics": {"overall_accuracy": 0.87, ...}, "efficiency_metrics": {...}}
 ```
 
-### 시나리오 2 — FastAPI 대시보드 (`[serve]` extras)
+### 시나리오 2 — FastAPI 대시보드 (기본 설치에 포함)
 
 `save_to_file()`이 JSON을 쓰고, `agent-eval dashboard`가 이를 읽습니다.
 
@@ -213,17 +213,15 @@ eval.save()                      # results/quickeval.json + .html
 ```
 
 ```bash
-pip install "agent-evaluator[serve]"
 agent-eval dashboard results/ --watch    # http://localhost:8765
 ```
 
-### 시나리오 3 — Phoenix OTEL 실시간 모니터링 (`[otel]` extras)
+### 시나리오 3 — Phoenix OTEL 실시간 모니터링 (기본 설치에 포함)
 
 `setup_otel()`을 **PerformanceMonitor 생성 전**에 호출해야 합니다.
 
 ```bash
-# 터미널 1
-pip install "agent-evaluator[otel]"
+# 터미널 1 (기본 설치에 OTEL 포함)
 agent-eval monitor                       # Phoenix UI: http://localhost:6006
 ```
 
@@ -390,7 +388,7 @@ my_agent("한국의 수도는?", ground_truth="서울")
 | `security_mode=True` | Input Sanitization, Output Leakage, Tool Authorization, Privilege Escalation, Tool Chain Attack (5개) | question + response + tool_calls | 임시 활성 (finally 복원) |
 | `allowed_tools=[...]` | Tool Authorization (허용 도구 기준) | 파라미터 화이트리스트 | `security_mode=True` 동반 |
 | `enable_quality_evaluation=True` | Response Quality (5차원) | response + question | 자동 활성과 동일 효과 |
-| `enable_llm_judge=True` | LLMJudge (completeness/relevance/factual_consistency/toxicity/bias) | question + response | `[llm]` extras 필요 |
+| `enable_llm_judge=True` | LLMJudge (completeness/relevance/factual_consistency/toxicity/bias) | question + response | 기본 설치에 포함 (API 키 필요) |
 | `rag_mode=True` + `enable_llm_judge=True` | + Faithfulness | context + response | context 존재 시 자동 추가 |
 | `judge_criteria=[...]` | + G-Eval 커스텀 기준 점수 | question + response | `enable_llm_judge=True` 동반 |
 | `max_retries > 1` | Retry & Error Recovery | 재시도 횟수 + 오류 유형 | 실제 재시도 발생 시 |
@@ -428,7 +426,7 @@ my_agent("한국의 수도는?", ground_truth="서울")
 | Privilege Escalation | ✅ `security_mode=True` | ❌ | ❌ | 동일 |
 | Tool Chain Attack | ✅ `security_mode=True` | ❌ | ❌ | 동일 |
 | **Layer 3 / LLM Judge** | | | | |
-| LLM Judge (5차원) | ✅ `enable_llm_judge=True` | ❌ | ❌ | `[llm]` extras 필요 |
+| LLM Judge (5차원) | ✅ `enable_llm_judge=True` | ❌ | ❌ | 기본 설치에 포함 (API 키 필요) |
 | Faithfulness (RAG, v0.7.6+) | ✅ `rag_mode` + `enable_llm_judge` | ❌ | ❌ | context 존재 시 자동 추가 |
 | G-Eval 커스텀 기준 (v0.7.6+) | ✅ `judge_criteria=[...]` | ❌ | ❌ | `enable_llm_judge=True` 동반 필요 |
 | **대화 지표 (conversation 전용)** | | | | |

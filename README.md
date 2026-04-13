@@ -1003,7 +1003,7 @@ def rag_agent(question, context="", ground_truth=""): ...
 
 | 제공자 | 지표 | 조건 |
 |--------|------|------|
-| **LLMJudge** *(v0.7.5+)* | completeness · relevance · factual · toxicity · bias | `pip install "agent-evaluator[llm]"` · `enable_llm_judge=True` |
+| **LLMJudge** *(v0.7.5+)* | completeness · relevance · factual · toxicity · bias | 기본 설치에 포함 · `enable_llm_judge=True` |
 | **LLMJudge** *(v0.7.6+)* | + **faithfulness** (RAG) · **커스텀 기준(G-Eval)** | `rag_mode=True` + `enable_llm_judge=True` · `judge_criteria=[...]` |
 | **DeepEval** | Hallucination(NLI) · Answer Relevancy (LLM) | `pip install "agent-evaluator[eval]"` |
 | **Ragas** | Faithfulness · Answer Relevancy · Context Precision · Context Recall (LLM) | 동일 + `context` 필드 필요 |
@@ -1179,7 +1179,7 @@ eval.save()                           # results/quickeval.json + .html
 ```
 
 ```bash
-pip install "agent-evaluator[serve]"
+# 대시보드는 기본 설치에 포함
 agent-eval dashboard results/ --watch        # 파일 변경 시 자동 갱신
 ```
 
@@ -1194,8 +1194,7 @@ agent-eval dashboard results/ --watch        # 파일 변경 시 자동 갱신
 `setup_otel()`을 **PerformanceMonitor 생성 전에** 호출해야 합니다. 이후 모든 `record_task()` 호출에서 OTLP 스팬이 자동 발행됩니다.
 
 ```bash
-# 터미널 1 — Phoenix 서버 기동
-pip install "agent-evaluator[otel]"
+# 터미널 1 — Phoenix 서버 기동 (OTEL은 기본 설치에 포함)
 agent-eval monitor                           # http://localhost:6006
 ```
 
@@ -1272,7 +1271,7 @@ from agent_evaluator.decorators import (
 | `04_decorator_quickeval.py` | `pip install agent-evaluator` | `agent-eval monitor` |
 | `05_streaming_alerts.py` | `pip install agent-evaluator` | `agent-eval monitor`, `SLACK_WEBHOOK_URL` (미설정 시 Mock 핸들러 자동 대체) |
 | `06_operational.py` | `pip install agent-evaluator` | `agent-eval monitor` |
-| `07_phoenix_hybrid.py` | `pip install agent-evaluator` | `pip install "agent-evaluator[otel]"` + `agent-eval monitor`<br>`pip install "agent-evaluator[eval]"` + `OPENAI_API_KEY` (미설정 시 mock 데이터로 대체) |
+| `07_phoenix_hybrid.py` | `pip install agent-evaluator` | `agent-eval monitor` (OTEL 기본 포함)<br>`pip install "agent-evaluator[eval]"` + `OPENAI_API_KEY` (미설정 시 mock 데이터로 대체) |
 
 ### 실행
 
@@ -1327,7 +1326,7 @@ agent-evaluator/
 │   └── datasets/                # GoldenSetBuilder
 │
 ├── Evaluator_Examples/          # 예제 7개 통합 파일 (.deprecated/에 구 21개 보존)
-├── tests/                       # 2,117개 테스트 함수, 70개 파일
+├── tests/                       # 1,837개 테스트 함수, 62개 파일
 └── pyproject.toml
 ```
 
@@ -1378,7 +1377,7 @@ git clone https://github.com/bullpeng72/Agent-Evaluator.git
 cd Agent-Evaluator
 pip install -e ".[dev]"
 
-pytest                          # 테스트 실행 (2,117개)
+pytest                          # 테스트 실행 (1,837개)
 ruff check agent_evaluator/    # 린트
 ruff format agent_evaluator/   # 포맷
 mypy agent_evaluator/          # 타입 검사
@@ -1387,6 +1386,17 @@ mypy agent_evaluator/          # 타입 검사
 ---
 
 ## 변경 이력
+
+### v0.7.9 (2026-04-13) — arize-phoenix 버전 제약 수정
+
+- 🐛 arize-phoenix 버전 제약 충돌 수정 — 최신 릴리즈 설치 호환성 복구
+
+### v0.7.8 (2026-04-12) — SDK 기본 내장 · 의존성 extras 현행화
+
+- ✨ `pip install agent-evaluator` 단독으로 LLMJudge · 대시보드 · OTEL 모두 사용 가능 (`[sdk]` extra 불필요)
+- 🔧 의존성 extras 현행화 — pypdf 제거 · pydanticai 하한 갱신 · `[frameworks]` extra 제거 · `[all]`에 dspy/pydanticai 추가
+- 🔧 techdebt 제거 — `_lcs_similarity` 삭제 · silent except 로그 추가 · loader 파서 회귀 테스트 신규
+- 📝 예제별 의존성 테이블 추가 · docstring '의존성' 섹션 추가
 
 ### v0.7.7 (2026-04-11) — 데코레이터 버그 수정 · 3종 데코레이터 완전 parity · Layer 2 스레드 안전성
 

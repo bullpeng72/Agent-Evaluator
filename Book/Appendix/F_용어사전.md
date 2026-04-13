@@ -1,6 +1,6 @@
 # Appendix F. 용어 사전
 
-Agent Evaluator v0.7.7에서 사용하는 주요 용어를 영문 기준 가나다 순으로 정리한다.
+Agent Evaluator v0.7.9에서 사용하는 주요 용어를 영문 기준 가나다 순으로 정리한다.
 
 ---
 
@@ -194,7 +194,7 @@ Layer 1 환각 탐지 클래스 (규칙 기반). Unsupported Claim과 Numerical 
 
 ### LLM Judge (LLMJudge)
 
-`ground_truth` 없이 LLM을 평가자로 사용하는 클래스. Completeness / Relevance / Factual Consistency / Toxicity / Bias 5차원을 기본 채점하며, RAG 컨텍스트가 있으면 Faithfulness(0~5)를, `judge_criteria` 지정 시 커스텀 차원을 추가한다. `[llm]` extras와 API 키(`OPENAI_API_KEY` 또는 `ANTHROPIC_API_KEY`)가 필요하다.
+`ground_truth` 없이 LLM을 평가자로 사용하는 클래스. Completeness / Relevance / Factual Consistency / Toxicity / Bias 5차원을 기본 채점하며, RAG 컨텍스트가 있으면 Faithfulness(0~5)를, `judge_criteria` 지정 시 커스텀 차원을 추가한다. v0.7.8부터 기본 설치에 포함되어 있으며 API 키(`OPENAI_API_KEY` 또는 `ANTHROPIC_API_KEY`)만 있으면 바로 사용 가능하다.
 
 ```python
 from agent_evaluator import LLMJudge
@@ -206,7 +206,7 @@ from agent_evaluator import LLMJudge
 
 ### OTEL (OpenTelemetry)
 
-분산 시스템 관측가능성을 위한 오픈소스 표준. CNCF(Cloud Native Computing Foundation)가 관리하며 벤더 중립적 SDK와 프로토콜을 제공한다. Agent Evaluator에서는 `setup_otel()` 호출 후 `record_task()` 실행 시 OTLP 스팬을 자동으로 발행한다. `[otel]` extras 설치 필요.
+분산 시스템 관측가능성을 위한 오픈소스 표준. CNCF(Cloud Native Computing Foundation)가 관리하며 벤더 중립적 SDK와 프로토콜을 제공한다. Agent Evaluator에서는 `setup_otel()` 호출 후 `record_task()` 실행 시 OTLP 스팬을 자동으로 발행한다. v0.7.8부터 기본 설치에 포함되어 있어 별도 설치 불필요.
 
 출처: opentelemetry.io
 

@@ -2,7 +2,7 @@
 
 Agent Evaluator 25개 지표의 공식·출력키·임계값 참조 문서
 
-**v0.7.7 | Layer 1: 6개 (무료) · Layer 2: 10개 (무료) · Layer 3: LLMJudge + DeepEval + Ragas (API 필요)**
+**v0.7.9 | Layer 1: 6개 (무료) · Layer 2: 10개 (무료) · Layer 3: LLMJudge + DeepEval + Ragas (API 필요)**
 
 > 개별 트래커 API 시그니처는 [07_API_REFERENCE.md](07_API_REFERENCE.md)를 참조하세요.
 > 데코레이터 방식 적용은 [13_DECORATOR_GUIDE.md](13_DECORATOR_GUIDE.md)를 참조하세요.
@@ -579,9 +579,9 @@ stats = monitor.tool_chain_attack_detector.get_attack_stats()
 > `HybridPerformanceMonitor`는 LLM 기반 NLI Hallucination · LLM Answer Relevancy 등
 > 더 정밀한 의미론적 평가가 필요할 때 사용하세요.
 
-### LLMJudge (네이티브, `[llm]` extra)
+### LLMJudge (네이티브, 기본 설치에 포함)
 
-설치: `pip install agent-evaluator[llm]`  
+설치: `pip install agent-evaluator` (기본 설치에 포함)  
 필요: `ANTHROPIC_API_KEY` 또는 `OPENAI_API_KEY`  
 사용: `enable_llm_judge=True` (데코레이터 파라미터로도 가능)
 
@@ -754,7 +754,7 @@ d["security_metrics"]["attack_detection"]["detection_rate"] # float (0–100)
 | Privilege Escalation | ✅ `security_mode=True` | ❌ | ❌ | 동일 |
 | Tool Chain Attack | ✅ `security_mode=True` | ❌ | ❌ | 동일 |
 | **Layer 3 / LLM Judge** | | | | |
-| LLM Judge (5차원) | ✅ `enable_llm_judge=True` | ❌ | ❌ | `[llm]` extras |
+| LLM Judge (5차원) | ✅ `enable_llm_judge=True` | ❌ | ❌ | 기본 설치에 포함 |
 | Faithfulness | ✅ `rag_mode` + `enable_llm_judge` | ❌ | ❌ | context 존재 시 자동 추가 |
 | G-Eval 커스텀 기준 | ✅ `judge_criteria=[...]` | ❌ | ❌ | `enable_llm_judge=True` 동반 |
 | **대화 지표** | | | | |

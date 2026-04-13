@@ -1,6 +1,6 @@
 # 배포 가이드
 
-**Agent-Evaluator v0.7.7** — CI/CD 통합 및 프로덕션 배포 전략
+**Agent-Evaluator v0.7.9** — CI/CD 통합 및 프로덕션 배포 전략
 
 ---
 
@@ -39,14 +39,11 @@
 ### 설치 variants
 
 ```bash
-# 권장: LLM + 대시보드 포함 (가장 빠른 실용 구성)
-pip install "agent-evaluator[llm,serve]"
+# 기본 설치 — LLMJudge · 대시보드 · OTEL 모니터링 · PDF 포함 (권장)
+pip install agent-evaluator
 
-# 전체 설치 (crewai/autogen/otel 제외)
-pip install "agent-evaluator[all]"
-
-# 대시보드만
-pip install "agent-evaluator[serve]"
+# 전체 설치 (crewai/autogen 포함, 10분+)
+pip install "agent-evaluator[full]"
 
 # 개발 환경 (소스에서 설치)
 pip install -e ".[dev]"
@@ -219,7 +216,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          pip install "agent-evaluator[llm,serve]"
+          pip install agent-evaluator
 
       - name: Run evaluation
         env:
@@ -303,7 +300,7 @@ RUN apt-get update && apt-get install -y curl && rm -rf /var/lib/apt/lists/*
 
 # 의존성 설치
 COPY pyproject.toml .
-RUN pip install --no-cache-dir "agent-evaluator[llm,serve]"
+RUN pip install --no-cache-dir agent-evaluator
 
 # 애플리케이션 코드
 COPY agent_evaluator/ ./agent_evaluator/
@@ -464,7 +461,7 @@ agent-eval monitor --check
 ```python
 from agent_evaluator.core.monitor import setup_otel
 
-# Phoenix에 연결 (pip install "agent-evaluator[otel]" 필요)
+# Phoenix에 연결 (기본 설치에 포함)
 setup_otel(
     endpoint="http://localhost:6006",
     service_name="my-agent",
@@ -482,7 +479,7 @@ def _try_setup_otel(project_name: str = "my-agent"):
         setup_otel(endpoint="http://localhost:6006", service_name=project_name)
         print(f"Phoenix 연결됨: http://localhost:6006 (project: {project_name})")
     except ImportError:
-        pass  # otel extra 미설치 시 무시
+        pass  # 설치 오류 시 무시
 
 _try_setup_otel("production-agent")
 ```
@@ -628,8 +625,8 @@ def batch_agent(questions, ground_truths=None): ...
 | `ModuleNotFoundError: agent_evaluator` | 패키지 미설치 | `pip install agent-evaluator` |
 | `AuthenticationError: Invalid API key` | API 키 오류 | `.env` 확인, `agent-eval check` 실행 |
 | `FileNotFoundError: results/` | 출력 디렉토리 없음 | `mkdir -p results/` 또는 `output_dir` 지정 |
-| `ImportError: fastapi` | serve extra 미설치 | `pip install "agent-evaluator[serve]"` |
-| `ImportError: opentelemetry` | otel extra 미설치 | `pip install "agent-evaluator[otel]"` |
+| `ImportError: fastapi` | 기본 설치 미완료 | `pip install agent-evaluator` 재실행 |
+| `ImportError: opentelemetry` | 기본 설치 미완료 | `pip install agent-evaluator` 재실행 |
 | Quality Gate 항상 통과 | 트래커 비활성화 | `enable_hallucination_detection=True` 등 확인 |
 | 보안 지표 0% | `enable_security_metrics` 미설정 | `PerformanceMonitor(enable_security_metrics=True)` |
 
@@ -649,13 +646,13 @@ try:
     from agent_evaluator.serve import server
     print('serve: OK')
 except ImportError:
-    print('serve: NOT installed (pip install agent-evaluator[serve])')
+    print('serve: NOT installed — pip install agent-evaluator 재실행')
 
 try:
     import opentelemetry
     print('otel: OK')
 except ImportError:
-    print('otel: NOT installed (pip install agent-evaluator[otel])')
+    print('otel: NOT installed — pip install agent-evaluator 재실행')
 "
 ```
 

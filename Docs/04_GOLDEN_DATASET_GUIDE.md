@@ -1,6 +1,6 @@
 # Golden Dataset 가이드
 
-Agent Evaluator v0.7.7 | 테스트 데이터셋 생성 및 관리
+Agent Evaluator v0.7.9 | 테스트 데이터셋 생성 및 관리
 
 ---
 
@@ -148,7 +148,8 @@ agent-eval dataset build results/ --min-score 0.8
 PDF 문서에서 한국어 RAG 평가용 QA 쌍을 자동 생성한다. OpenAI API 키가 필요하다.
 
 ```bash
-pip install "agent-evaluator[pdf,llm]"
+# PDF 처리 및 LLM 기능은 기본 설치에 포함
+pip install agent-evaluator
 ```
 
 ```python
@@ -351,9 +352,8 @@ else:
 **필요 패키지:**
 
 ```bash
-pip install "agent-evaluator[otel]"
-# 또는
-pip install "agent-evaluator[all]"
+# OTEL 및 Phoenix 기능은 기본 설치에 포함
+pip install agent-evaluator
 ```
 
 ---

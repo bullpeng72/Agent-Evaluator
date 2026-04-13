@@ -421,7 +421,7 @@ P95 레이턴시 알림을 설정하려면:
 from agent_evaluator import AlertRuleBuilder
 
 latency_alert = AlertRuleBuilder.when_latency_above(
-    threshold=3.0,  # 3초 초과 시 알림
+    threshold_seconds=3.0,  # 3초 초과 시 알림
     handler=lambda msg, tr: print(f"[ALERT] 레이턴시 초과: {msg}"),
     severity="critical",
 )
@@ -665,6 +665,137 @@ eval.gate(
 | 코드 생성 | Accuracy (AST) | TCR | Latency | `tcr=90, accuracy=80` |
 | 대화 에이전트 | Quality | Latency | TCR | `quality=3.5, p95_latency=2.0` |
 | 비용 최적화 에이전트 | TokenEconomy | TCR | Quality | `tcr=80` + 비용 모니터링 |
+
+---
+
+## 3.9 QA 관리자 헬스체크 가이드
+
+평가 결과(`report.to_dict()` 또는 대시보드)를 처음 열었을 때 다음 순서로 확인한다.
+
+### 결과를 받았을 때 읽는 순서
+
+```
+1단계: 배포 가능 여부 판단 (TCR)
+    TCR ≥ 85%    → 계속
+    TCR < 85%    → 즉시 중단, 실패 케이스 분석
+
+2단계: 정확도 확인 (Accuracy)
+    Accuracy ≥ 70% → 계속
+    Accuracy < 70% → 프롬프트 개선 필요, 배포 보류
+
+3단계: 사용자 경험 확인 (Quality + Latency)
+    Quality ≥ 3.5 AND P95 ≤ 3.0초 → 계속
+    둘 중 하나라도 미달 → 개선 후 재평가 권장
+
+4단계: 비용 확인 (Token Economy)
+    avg_cost_per_task × 예상 월 호출 수 ≤ 예산 → 계속
+    예산 초과 → AdaptivePolicy 또는 모델 교체 검토
+
+5단계: RAG 에이전트라면 환각 확인 (Hallucination)
+    hallucination_rate ≤ 5% → 배포 가능
+    > 5%  → 검색 품질 개선, 프롬프트 강화 필요
+```
+
+### 에이전트 유형별 최소 통과 기준
+
+| 지표 | 내부 챗봇 | 고객 서비스 | RAG | 코드 생성 | 퍼블릭 서비스 |
+|------|---------|-----------|-----|---------|------------|
+| **TCR** | ≥ 80% | ≥ 90% | ≥ 85% | ≥ 85% | ≥ 95% |
+| **Accuracy** | ≥ 65% | ≥ 75% | ≥ 70% | ≥ 80% | ≥ 70% |
+| **Quality** | ≥ 3.0 | ≥ 4.0 | ≥ 3.5 | ≥ 3.5 | ≥ 4.0 |
+| **P95 Latency** | ≤ 5.0s | ≤ 3.0s | ≤ 5.0s | ≤ 10.0s | ≤ 2.0s |
+| **Hallucination** | — | ≤ 10% | ≤ 5% | — | ≤ 3% |
+
+> 위 수치는 **업계 일반 권장값**이다. 실제 서비스 SLA와 사용자 기대치에 맞게 조정해야 한다.
+
+### 지표 이상 징후 → 원인 분석 패턴
+
+```python
+from agent_evaluator import QuickEval
+
+eval = QuickEval("results/")
+# ... 평가 실행 ...
+
+summary = eval.summary()
+df = eval.export_to_dataframe()
+
+# ① TCR 낮음 → 어떤 태스크 유형에서 실패하는가?
+failed = df[df["completion_score"] < 0.3]
+print("실패 유형 분포:")
+print(failed["task_type"].value_counts())
+
+# ② Accuracy 낮음 → 특정 질문 패턴이 있는가?
+low_acc = df[df["accuracy_score"] < 0.5].sort_values("accuracy_score")
+print("\n정확도 하위 5개 질문:")
+print(low_acc[["question", "response", "accuracy_score"]].head())
+
+# ③ Latency 높음 → 어떤 태스크가 느린가?
+slow = df[df["execution_time"] > df["execution_time"].quantile(0.95)]
+print(f"\nP95 초과 태스크: {len(slow)}개")
+print(slow[["question", "execution_time"]].head())
+
+# ④ Quality 낮음 → 어느 차원이 문제인가?
+report = eval.monitor.generate_report()
+quality_detail = report.to_dict().get("quality_metrics", {})
+for dim in ["relevance", "completeness", "clarity", "conciseness", "coherence"]:
+    val = quality_detail.get(f"avg_{dim}", "N/A")
+    print(f"  {dim}: {val}")
+```
+
+### 주간 품질 트렌드 모니터링
+
+```python
+# 이번 주 vs 지난 주 비교
+eval_this = QuickEval("results/this_week/")
+eval_last = QuickEval("results/last_week/")
+
+comparison = eval_this.compare(eval_last)
+
+print("주간 품질 변화:")
+for metric, delta in comparison.items():
+    arrow = "▲" if delta > 0 else "▼"
+    print(f"  {metric}: {arrow} {delta:+.3f}")
+
+# A/B 테스트: 통계적 유의성 검증 (scipy 있을 때)
+ab = eval_this.ab_test(eval_last)
+if ab.get("significant"):
+    print(f"\n⚠️ 정확도 변화가 통계적으로 유의합니다 (p={ab['p_value']:.3f})")
+```
+
+---
+
+## 보충: Layer 1 지표 × 데코레이터 활성화 방법
+
+Layer 1 지표를 데코레이터로 수집하는 구체적인 방법 정리다.
+
+| 지표 | `@agent_eval` | `@batch_eval` | `@conversation_eval` | 필수 파라미터 | 자동 여부 |
+|---|:---:|:---:|:---:|---|---|
+| TCR | ✅ | ✅ | ✅ | 없음 (`completion_fn` 선택) | **항상 자동** |
+| Accuracy | ✅ | ✅ | ✅ | `ground_truth` 인자 존재 시 | ground_truth 있으면 자동 |
+| Response Quality | ✅ | ✅ | ✅ | 없음 | response + question 자동 |
+| Latency | ✅ | ✅ | ✅ | 없음 | **항상 자동** |
+| TTFT | ✅ generator | ✅ `streaming_mode` | ❌ | generator 리턴 함수 | generator 시 자동 |
+| Token Economy | ✅ | ✅ | ❌ | `framework=` 어댑터 or EvalMetadata | 지원 프레임워크 자동 |
+| Hallucination Rate | ✅ | ✅ | ❌ | `rag_mode=True` (권장) | **수동 활성 필요** |
+
+```python
+# ① 기본 — TCR + Accuracy + Quality + Latency 자동
+@agent_eval(monitor, task_type="qa")
+def agent(question, ground_truth=""): ...
+
+# ② 토큰 비용 추가 (OpenAI 어댑터)
+@agent_eval(monitor, task_type="qa", framework="openai")
+def agent(question, ground_truth=""): ...
+
+# ③ RAG 환각 탐지 (rag_mode 하나로 3가지 자동 설정)
+@agent_eval(monitor, rag_mode=True)
+def rag_agent(question, context="", ground_truth=""): ...
+# 내부: context_arg="context" + enable_hallucination=True + task_type="information_retrieval"
+
+# ④ 커스텀 Accuracy 계산
+@agent_eval(monitor, score_fn=lambda r, gt: custom_similarity(r, gt))
+def agent(question, ground_truth=""): ...
+```
 
 ---
 

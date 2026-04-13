@@ -41,7 +41,7 @@ def run_and_evaluate(question: str, ground_truth: str) -> str:
         completion_score=1.0 if success else 0.0,
         accuracy_score=0.0,          # 직접 계산해야 함
         execution_time=elapsed,
-        tokens_used=0,               # 프레임워크별로 직접 추출해야 함
+        tokens_used={"total": 0},    # dict 형식 필수; 프레임워크별로 직접 추출해야 함
         tool_calls=[],
         attempts=1,
         errors=errors,
@@ -578,18 +578,29 @@ print(f"통계적 유의성: p={ab_result.get('p_value', 'N/A')}")
 
 자주 쓰는 설정 조합을 이름으로 지정한다:
 
+| preset | 주요 설정 | 용도 |
+|--------|-----------|------|
+| `"production"` | `flush_every=50`, `sample_rate=0.1`, `enable_anomaly_detection=True` | 프로덕션 안정 운영 |
+| `"development"` | `enable_llm_judge=True`, `flush_every=5`, `sample_rate=1.0` | 개발/디버깅 |
+| `"testing"` | 경량 설정, 빠른 실행 | 유닛 테스트 |
+| `"canary"` | 카나리 배포 최적화 | 일부 트래픽 평가 |
+
 ```python
-# "production" — sample_rate=0.1 + timeout=30s + flush_every=50 + enable_anomaly_detection=True + enable_llm_judge=True
+# 프로덕션 preset
 @agent_eval(monitor, task_type="qa", preset="production")
 def prod_agent(question: str, ground_truth: str = "") -> str:
     return llm.invoke(question)
 
-# "development" — sample_rate=1.0 + enable_llm_judge=True + auto_detect_framework=True + flush_every=1
+# 개발 preset — LLM Judge + 자동 프레임워크 감지
 @agent_eval(monitor, task_type="qa", preset="development")
 def dev_agent(question: str, ground_truth: str = "") -> str:
     return llm.invoke(question)
 
-# 지원 preset: "production", "development", "testing", "canary", "performance", "security"
+# 잘못된 preset 지정 시 경고
+@agent_eval(monitor, task_type="qa", preset="PROD")  # 잘못된 이름
+def agent(question: str, ground_truth: str = "") -> str: ...
+# UserWarning: Unknown preset 'PROD'.
+# Valid presets: ['production', 'development', 'testing', 'canary']
 ```
 
 ### sample_condition — 조건부 샘플링
@@ -622,6 +633,80 @@ def add_model_info(task_result):
 @agent_eval(monitor, task_type="qa", on_record=add_model_info)
 def agent(question: str, ground_truth: str = "") -> str:
     return llm.invoke(question)
+```
+
+### AlertRuleBuilder — 전체 팩토리 메서드
+
+`AlertRuleBuilder`는 5종의 빌트인 팩토리로 자주 쓰는 알림 규칙을 간결하게 생성한다:
+
+```python
+from agent_evaluator import AlertRuleBuilder
+
+# 정확도 임계값 알림
+accuracy_rule = AlertRuleBuilder.when_accuracy_below(
+    threshold=0.7,
+    handler=lambda msg, tr: send_slack_alert(msg),
+    cooldown=300,       # 5분 쿨다운
+)
+
+# 레이턴시 임계값 알림
+latency_rule = AlertRuleBuilder.when_latency_above(
+    threshold_seconds=5.0,      # 5초 초과
+    handler=lambda msg, tr: page_oncall(msg),
+    severity="critical",
+    cooldown=60,
+)
+
+# TCR 임계값 알림
+tcr_rule = AlertRuleBuilder.when_completion_below(
+    threshold=0.8,
+    handler=lambda msg, tr: log_to_datadog(msg),
+)
+
+# 오류 발생 알림
+error_rule = AlertRuleBuilder.when_error(
+    handler=lambda msg, tr: print(f"ERROR: {tr.errors}"),
+    severity="critical",
+)
+
+# 도구 호출 과다 알림
+tool_rule = AlertRuleBuilder.when_tool_calls_exceed(
+    max_calls=10,
+    handler=lambda msg, tr: log_warning(msg),
+)
+
+# 모든 규칙을 데코레이터에 적용
+@agent_eval(monitor, task_type="tool_use",
+            alert_rules=[accuracy_rule, latency_rule, error_rule, tool_rule])
+def agent(question: str, ground_truth: str = "") -> str: ...
+```
+
+### SimpleTaskAlertRule 고급 설정
+
+`SimpleTaskAlertRule`은 복합 조건, dry_run, 클래스 레벨 쿨다운을 지원한다:
+
+```python
+from agent_evaluator import SimpleTaskAlertRule
+
+# 복합 조건 (accuracy 낮음 + latency 높음)
+complex_rule = SimpleTaskAlertRule(
+    name="high_risk_failure",
+    condition=lambda tr: tr.accuracy_score < 0.5 and tr.execution_time > 3.0,
+    handler=lambda msg, tr: escalate(msg, tr),
+    severity="critical",
+    cooldown=120,
+    compound_conditions=[
+        {"field": "tokens_used", "op": "gt", "value": 1000},
+        {"field": "attempts", "op": "gt", "value": 1},
+    ],
+)
+
+# dry_run — 핸들러 실행 없이 조건만 검사
+result = complex_rule.dry_run(task_result)
+print(f"조건 충족: {result}")  # True/False
+
+# 클래스 레벨 쿨다운 (같은 이름의 모든 인스턴스 공유)
+SimpleTaskAlertRule.class_level_cooldown["slow_response"] = 300
 ```
 
 ### agent_eval_with_retry — 재시도 + jitter
@@ -684,13 +769,19 @@ def multi_agent_task(question: str, ground_truth: str = "") -> tuple:
     result = crew.kickoff(inputs={"topic": question})
 
     # 멀티에이전트 교환 기록 수동 주입
+    total_tokens = result.token_usage.get("total_tokens", 0) if hasattr(result, "token_usage") else 0
     metadata = EvalMetadata(
         agent_interactions=[
             {"from": "researcher", "to": "writer", "message": "research_done"},
             {"from": "writer", "to": "reviewer", "message": "draft_ready"},
         ],
-        chain_steps=["research", "write", "review", "finalize"],
-        tokens_used=result.token_usage.get("total_tokens", 0) if hasattr(result, "token_usage") else 0,
+        chain_steps=[
+            {"name": "research", "success": True},
+            {"name": "write", "success": True},
+            {"name": "review", "success": True},
+            {"name": "finalize", "success": True},
+        ],
+        tokens_used={"total": total_tokens},  # dict 형식 필수: {"input": n, "output": n, "total": n}
     )
     return result.raw, metadata
 
@@ -756,7 +847,7 @@ Tool Authorization           ✅(opt-in)   ✅(opt-in)       ✅(opt-in)
 Privilege Escalation         ✅(opt-in)   ✅(opt-in)       ✅(opt-in)
 Tool Chain Attack            ✅(opt-in)   ✅(opt-in)       ✅(opt-in)
 
-[Layer 3 — LLM Judge]  (enable_llm_judge=True, [llm] extras)
+[Layer 3 — LLM Judge]  (enable_llm_judge=True, 기본 설치에 포함)
 Completeness                  ✅(opt-in)   ✅(opt-in)          N/A
 Relevance                     ✅(opt-in)   ✅(opt-in)          N/A
 Factual Consistency           ✅(opt-in)   ✅(opt-in)          N/A
@@ -791,7 +882,7 @@ Turn Scores                       N/A          N/A              ✅
 | `rag_mode=True` | Hallucination + IR task_type 자동 | context_arg도 자동 설정; + faithfulness (enable_llm_judge 조합 시, v0.7.6+) |
 | `context_arg="context"` | Hallucination 컨텍스트 공급 | rag_mode 없이도 사용 가능 |
 | `security_mode=True` | 보안 5종 모두 (temp-override) | finally에서 복원 |
-| `enable_llm_judge=True` | Completeness · Relevance · Factual Consistency · Toxicity · Bias · safety_score | [llm] extras 필요, temp-override |
+| `enable_llm_judge=True` | Completeness · Relevance · Factual Consistency · Toxicity · Bias · safety_score | 기본 설치에 포함, temp-override |
 | `judge_model="claude-..."` | LLM Judge 모델 지정 | None이면 API 키 기반 자동 |
 | `judge_criteria=[...]` | G-Eval 커스텀 기준 추가 (v0.7.6+) | criteria_scores / criteria_overall 키로 결과 |
 | `enable_hallucination=True` | Hallucination 단독 (temp-override) | rag_mode보다 세밀한 제어 |
@@ -810,10 +901,10 @@ Turn Scores                       N/A          N/A              ✅
 
 ```
 1순위: EvalMetadata 명시적 반환
-       └─ return response, EvalMetadata(tool_calls=[...], tokens_used=1500)
+       └─ return response, EvalMetadata(tool_calls=[...], tokens_used={"total": 1500})
 
 2순위: eval_context 컨텍스트 매니저
-       └─ with eval_context(monitor, "qa") as ctx: ctx.tokens_used = 1500
+       └─ with eval_context(monitor, "qa") as ctx: ctx.tokens_used = {"total": 1500}
 
 3순위: framework= 어댑터 자동 추출
        └─ @agent_eval(monitor, framework="langchain")
@@ -875,11 +966,12 @@ def secure_agent(question: str, ground_truth: str = "") -> str:
 @agent_eval(monitor, task_type="tool_use")
 def multi_agent(question: str, ground_truth: str = ""):
     result = crew.kickoff({"topic": question})
+    total_tokens = result.token_usage.get("total_tokens", 0) if hasattr(result, "token_usage") else 0
     metadata = EvalMetadata(
         agent_interactions=[
             {"from": "researcher", "to": "writer", "message": "done"},
         ],
-        tokens_used=result.token_usage.get("total_tokens", 0),
+        tokens_used={"total": total_tokens},  # dict 형식 필수
     )
     return result.raw, metadata
 # → Agent Coordination, Workflow Execution, Tool Call, TCR

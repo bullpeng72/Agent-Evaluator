@@ -35,7 +35,7 @@ accuracy_rule = AlertRuleBuilder.when_accuracy_below(
 
 ```python
 latency_rule = AlertRuleBuilder.when_latency_above(
-    seconds=5.0,                 # execution_time > 5.0초 이면 발동
+    threshold_seconds=5.0,       # execution_time > 5.0초 이면 발동
     handler=lambda msg, tr: print(f"[WARNING] 응답 지연: {msg}"),
     severity="warning",
     cooldown=60,                 # 1분 쿨다운
@@ -348,7 +348,7 @@ accuracy_warning = AlertRuleBuilder.when_accuracy_below(
 
 # 규칙 2: 응답 지연 경고 (Warning)
 latency_warning = AlertRuleBuilder.when_latency_above(
-    seconds=5.0,
+    threshold_seconds=5.0,
     handler=slack_handler,
     severity="warning",
     cooldown=60,     # 1분

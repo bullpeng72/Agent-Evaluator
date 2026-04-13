@@ -2,7 +2,7 @@
 ## Agent-Evaluator로 구현하는 프로덕션 AI 품질 시스템
 
 **저자**: Sungwoo Kim  
-**버전**: 1.0 (Agent-Evaluator v0.7.7 기준)  
+**버전**: 1.0 (Agent-Evaluator v0.7.9 기준)  
 **언어**: 한국어
 
 ---
@@ -60,10 +60,9 @@
 ## 실습 환경
 
 ```bash
-pip install "agent-evaluator[all]"   # 권장
-pip install "agent-evaluator[full]"  # OTEL 포함 (10분+)
+pip install agent-evaluator           # 기본 설치 — LLMJudge · 대시보드 · OTEL · PDF 포함 (권장)
+pip install "agent-evaluator[full]"   # 전체 (⚠️ crewai/autogen 포함, 10분+)
 ```
 
 - Python 3.8+
 - (선택) OpenAI 또는 Anthropic API 키 — LLM Judge 사용 시
-- (선택) pip install "agent-evaluator[otel]" — Phoenix 모니터링 시

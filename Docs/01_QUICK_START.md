@@ -2,7 +2,7 @@
 
 Agent Evaluator를 5분 안에 첫 평가까지 완성하는 최단 경로
 
-**v0.7.7 | Python 3.8+**
+**v0.7.9 | Python 3.8+**
 
 ---
 
@@ -23,20 +23,16 @@ Agent Evaluator를 5분 안에 첫 평가까지 완성하는 최단 경로
 ## 설치
 
 ```bash
-# 기본 (Layer 1+2, 대시보드 포함)
-pip install agent-evaluator[all]
-
-# 최소 (Layer 1+2만)
+# 기본 설치 — LLMJudge · 대시보드 · OTEL 모니터링 · PDF 포함
 pip install agent-evaluator
 
-# 대시보드 포함 최소 구성
-pip install agent-evaluator[serve]
+# 모든 예제 실행
+pip install "agent-evaluator[examples]"
 
-# 프레임워크 통합 포함 (LangChain/LangGraph)
-pip install agent-evaluator[langchain,serve]
-
-# 실시간 운영 모니터링 (Phoenix + OTEL) — v0.7.6
-pip install agent-evaluator[otel]
+# 프레임워크 통합 (사용자 에이전트가 해당 프레임워크를 사용하는 경우)
+pip install "agent-evaluator[langchain]"   # LangChain/LangGraph
+pip install "agent-evaluator[eval]"        # DeepEval + Ragas
+pip install "agent-evaluator[full]"        # 전체 (⚠️ crewai/autogen 포함, 10분+)
 ```
 
 > **Python 3.8–3.13** 지원. numpy, pandas는 자동 설치됩니다.
@@ -195,8 +191,6 @@ eval.save()                      # results/quickeval.json + .html
 ```
 
 ```bash
-pip install "agent-evaluator[serve]"
-
 # 기본 실행 (포트 8765, 브라우저 자동 오픈)
 agent-eval dashboard
 
@@ -240,8 +234,7 @@ agent-eval gate results/eval.json --tcr 85 --accuracy 70
 Phoenix + OpenTelemetry로 프로덕션 스팬을 실시간 추적합니다. **`setup_otel()`을 PerformanceMonitor 생성 전에 호출해야 합니다.**
 
 ```bash
-# 터미널 1 — Phoenix 서버 기동
-pip install "agent-evaluator[otel]"
+# 터미널 1 — Phoenix 서버 기동 (기본 설치에 포함)
 agent-eval monitor                           # UI: http://localhost:6006
 ```
 

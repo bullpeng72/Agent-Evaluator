@@ -1,6 +1,6 @@
 # Appendix D. 프레임워크 호환성 매트릭스
 
-Agent Evaluator v0.7.7 기준. 21개 통합 프레임워크와 8개 평가 플랫폼 비교를 정리한다.
+Agent Evaluator v0.7.9 기준. 21개 통합 프레임워크와 8개 평가 플랫폼 비교를 정리한다.
 
 ---
 
@@ -16,8 +16,8 @@ Agent Evaluator v0.7.7 기준. 21개 통합 프레임워크와 8개 평가 플�
 | `autogen` | `[autogen]` | ✅ | ✅ | ✅ | ✅ | ✅ |
 | `dspy` | `[dspy]` | ✅ | ✅ | ✅ | ❌ | ❌ |
 | `pydanticai` | `[pydanticai]` | ✅ | ✅ | ✅ | ❌ | ❌ |
-| `anthropic` | `[llm]` | ✅ | ❌ | ✅ | ❌ | ❌ |
-| `openai` | `[llm]` | ✅ | ❌ | ✅ | ❌ | ❌ |
+| `anthropic` | 기본 설치에 포함 | ✅ | ❌ | ✅ | ❌ | ❌ |
+| `openai` | 기본 설치에 포함 | ✅ | ❌ | ✅ | ❌ | ❌ |
 | `gemini` | 별도 설치 | ✅ | ❌ | ✅ | ❌ | ❌ |
 | `llamaindex` | 별도 설치 | ✅ | ✅ | ✅ | ❌ | ❌ |
 | `haystack` | 별도 설치 | ✅ | ✅ | ❌ | ❌ | ❌ |
@@ -121,38 +121,41 @@ Agent Evaluator 대시보드 9개 탭: 품질 / 멀티턴 대화 / 성능 / 에�
 
 ## extras 설치 가이드
 
-### 단독 extras
+### 기본 설치 포함 기능 (별도 설치 불필요)
+
+v0.7.8부터 아래 기능들은 `pip install agent-evaluator` 기본 설치에 포함됩니다.
+
+| 기능 | 포함 패키지 |
+|------|-----------|
+| LLM Judge 엔진 | openai, anthropic |
+| FastAPI 대시보드 | fastapi, uvicorn, jinja2, python-multipart |
+| OTEL 모니터링 | opentelemetry-sdk, arize-phoenix |
+| PDF 처리 | pdfplumber |
+
+### 별도 설치가 필요한 extras
 
 | extras | 설치 명령어 | 포함 패키지 | 설치 시간 |
 |--------|-----------|-----------|--------|
-| `[llm]` | `pip install "agent-evaluator[llm]"` | openai, anthropic | 빠름 |
 | `[langchain]` | `pip install "agent-evaluator[langchain]"` | langchain, langchain-core, langgraph | 중간 |
 | `[crewai]` | `pip install "agent-evaluator[crewai]"` | crewai (전이 의존성 100개+) | 느림 |
 | `[autogen]` | `pip install "agent-evaluator[autogen]"` | pyautogen, autogen-agentchat | 느림 |
 | `[eval]` | `pip install "agent-evaluator[eval]"` | deepeval, ragas, datasets | 중간 |
 | `[dspy]` | `pip install "agent-evaluator[dspy]"` | dspy-ai | 중간 |
 | `[pydanticai]` | `pip install "agent-evaluator[pydanticai]"` | pydantic-ai | 빠름 |
-| `[serve]` | `pip install "agent-evaluator[serve]"` | fastapi, uvicorn, jinja2 | 빠름 |
-| `[otel]` | `pip install "agent-evaluator[otel]"` | opentelemetry-sdk, arize-phoenix | 중간 |
-
-### 조합 extras (권장)
-
-| extras | 설명 | 설치 시간 |
-|--------|------|--------|
-| `[all]` | crewai / autogen / otel 제외 전체 | 합리적 |
-| `[full]` | 모든 패키지 포함 (crewai, autogen, otel 포함) | 10분+ |
+| `[examples]` | `pip install "agent-evaluator[examples]"` | 기본 + eval 묶음 | 중간 |
+| `[full]` | `pip install "agent-evaluator[full]"` | 위 전체 (crewai, autogen 포함) | 10분+ |
 
 **용도별 최적 조합**
 
-| 용도 | 권장 extras | 이유 |
-|------|-----------|------|
-| 빠른 시작 | `[llm,serve]` | LLM Judge + 대시보드 |
-| LangChain/LangGraph | `[langchain,serve]` | 프레임워크 통합 + 대시보드 |
-| RAG 평가 | `[eval,serve]` | Ragas + DeepEval + 대시보드 |
-| 운영 모니터링 | `[llm,serve,otel]` | Phoenix 연동 포함 |
-| CrewAI 전용 | `[crewai]` | 단독 격리 설치 |
-| AutoGen 전용 | `[autogen]` | 단독 격리 설치 |
-| 범용 (권장) | `[all]` | 대부분 기능 포함 |
+| 용도 | 권장 | 이유 |
+|------|------|------|
+| 빠른 시작 | `pip install agent-evaluator` | LLM Judge · 대시보드 · OTEL 기본 포함 |
+| LangChain/LangGraph | `pip install "agent-evaluator[langchain]"` | 프레임워크 통합 추가 |
+| RAG 외부 평가 | `pip install "agent-evaluator[eval]"` | Ragas + DeepEval 추가 |
+| 모든 예제 실행 | `pip install "agent-evaluator[examples]"` | 예제 의존성 포함 |
+| CrewAI 전용 | `pip install "agent-evaluator[crewai]"` | 단독 격리 설치 |
+| AutoGen 전용 | `pip install "agent-evaluator[autogen]"` | 단독 격리 설치 |
+| 전체 설치 | `pip install "agent-evaluator[full]"` | ⚠️ 10분+, CI 호환성 검증용 |
 
 ### 알려진 의존성 충돌
 

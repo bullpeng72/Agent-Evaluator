@@ -1,6 +1,6 @@
 # M5: Phoenix · OpenTelemetry · CI/CD — 프로덕션 실무 전략
 
-> **Agent-Evaluator v0.7.5+** 기준. 설치: `pip install "agent-evaluator[otel]"`
+> **Agent-Evaluator v0.7.9+** 기준. OTEL 모니터링은 `pip install agent-evaluator` 기본 설치에 포함
 
 ---
 
@@ -103,11 +103,8 @@ output.value             = "2023년 기준 약 1조 7천억 달러입니다."
 ### 1-4. 설치
 
 ```bash
-# OTEL 지원 포함 설치
-pip install "agent-evaluator[otel]"
-
-# 또는 전체 설치 (otel 포함)
-pip install "agent-evaluator[all]"
+# 기본 설치 — OTEL 모니터링 포함 (별도 extras 불필요)
+pip install agent-evaluator
 
 # 설치 확인
 agent-eval monitor --check
@@ -509,8 +506,8 @@ jobs:
 
       - name: Agent-Evaluator 설치
         run: |
-          pip install "agent-evaluator[llm]"
-          # LLM Judge 사용 시: pip install "agent-evaluator[llm,eval]"
+          pip install agent-evaluator
+          # DeepEval/Ragas 외부 평가 사용 시: pip install "agent-evaluator[eval]"
 
       - name: 에이전트 평가 실행
         env:

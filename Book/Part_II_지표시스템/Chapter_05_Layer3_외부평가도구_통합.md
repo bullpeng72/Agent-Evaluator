@@ -1,6 +1,6 @@
 # Chapter 5. Layer 3 — 외부 평가 도구 통합
 
-이 챕터에서는 Layer 1/2만으로 충분하지 않은 상황과 그 해결책을 다룬다. v0.7.6부터 LLM Judge는 Faithfulness(Ragas 대체)와 G-Eval 커스텀 기준(DeepEval 대체)을 네이티브로 지원하므로, 대부분의 평가 시나리오를 `[llm]` extras 하나로 처리할 수 있다. DeepEval과 Ragas는 심층 RAG 진단이나 전문 지표가 필요한 경우에 추가로 활용한다.
+이 챕터에서는 Layer 1/2만으로 충분하지 않은 상황과 그 해결책을 다룬다. v0.7.6부터 LLM Judge는 Faithfulness(Ragas 대체)와 G-Eval 커스텀 기준(DeepEval 대체)을 네이티브로 지원하며, v0.7.8부터 LLM Judge 엔진이 기본 설치에 포함되어 있다. DeepEval과 Ragas는 심층 RAG 진단이나 전문 지표가 필요한 경우에 `[eval]` extras를 추가로 설치하여 활용한다.
 
 ---
 
@@ -34,7 +34,7 @@ Ragas는 이 문제를 해결한다. Faithfulness(응답이 검색 결과에 충
 
 | 항목 | LLM Judge (v0.7.6+) | DeepEval | Ragas |
 |-----|---------|--------|-----|
-| **설치** | `[llm]` (가벼움) | `[eval]` (중간) | `[eval]` (중간) |
+| **설치** | 기본 설치에 포함 | `[eval]` (중간) | `[eval]` (중간) |
 | **Ground Truth 필요** | 불필요 | 선택적 | 일부 필요 (Recall) |
 | **특화 영역** | 범용 5차원 + Faithfulness + G-Eval 커스텀 | 독성/편향 전문 | RAG 심층 진단 (4-way) |
 | **비용** | LLM 호출 비용 | LLM 호출 비용 | LLM + 임베딩 비용 |
@@ -48,7 +48,7 @@ Ragas는 이 문제를 해결한다. Faithfulness(응답이 검색 결과에 충
 ```
 내 에이전트가 RAG(문서 검색 + 생성) 구조인가?
     YES → [빠른 방법] LLM Judge + rag_mode=True + enable_llm_judge=True
-                      → faithfulness 차원 자동 추가 ([llm] extras만 필요)
+                      → faithfulness 차원 자동 추가 (기본 설치에 포함)
           [심층 진단] Context Precision/Recall도 필요하다 → Ragas 추가 사용
 
 정답(ground_truth)을 제공할 수 있는가?
@@ -61,7 +61,7 @@ Ragas는 이 문제를 해결한다. Faithfulness(응답이 검색 결과에 충
     NO  ↓
 
 단순히 "좋은 응답인가"를 5차원으로 확인하고 싶은가?
-    YES → LLM Judge (가장 가벼운 선택. [llm] extras만 설치)
+    YES → LLM Judge (가장 가벼운 선택. 기본 설치에 포함)
 ```
 
 ---
@@ -141,7 +141,7 @@ def agent(question: str, ground_truth: str = "") -> str:
 
 RAG 에이전트에서 응답이 검색된 컨텍스트에 얼마나 충실한지를 측정한다.  
 `rag_mode=True`와 `enable_llm_judge=True`를 함께 사용하면 `faithfulness` 차원이 자동 추가된다.  
-`[eval]` extras 없이 `[llm]` extras만으로 동작한다.
+`[eval]` extras 없이 기본 설치만으로 동작한다.
 
 ```python
 from agent_evaluator import PerformanceMonitor, agent_eval
@@ -173,7 +173,7 @@ for task in monitor.tasks:
 ### 코드 3: G-Eval 커스텀 기준 — DeepEval 대체 (v0.7.6+)
 
 `judge_criteria`에 평가 차원 이름을 리스트로 전달하면 LLMJudge가 해당 차원으로 채점한다.  
-DeepEval의 G-Eval을 `[llm]` extras 하나로 대체한다.
+DeepEval의 G-Eval을 기본 설치만으로 대체한다.
 
 ```python
 from agent_evaluator import PerformanceMonitor, agent_eval
@@ -263,31 +263,7 @@ pip install "agent-evaluator[eval]"
 
 DeepEval의 핵심 가치는 G-Eval이다. "내가 정의한 기준"으로 LLM이 평가하도록 한다. 정량적 정답이 없는 창의성, 전문성, 어조 적합성 등을 평가할 때 유용하다.
 
-```python
-from deepeval.metrics import GEval
-from deepeval.test_case import LLMTestCaseParams
-
-# 서비스 특화 평가 기준 정의
-professionalism_metric = GEval(
-    name="전문성",
-    criteria="응답이 전문적이고 명확한가? 전문 용어를 적절히 사용하는가?",
-    evaluation_params=[
-        LLMTestCaseParams.INPUT,
-        LLMTestCaseParams.ACTUAL_OUTPUT,
-    ],
-    threshold=0.7,
-)
-
-empathy_metric = GEval(
-    name="공감성",
-    criteria="고객 서비스 응답으로서 공감적이고 도움이 되는가?",
-    evaluation_params=[
-        LLMTestCaseParams.INPUT,
-        LLMTestCaseParams.ACTUAL_OUTPUT,
-    ],
-    threshold=0.6,
-)
-```
+`HybridPerformanceMonitor`에서는 `generate_report(quality_criteria=...)` 파라미터로 G-Eval 기준을 문자열로 전달한다. DeepEval의 `GEval` 객체를 직접 주입하는 방식은 지원하지 않는다.
 
 ### 코드: DeepEvalAdapter 사용
 
@@ -296,26 +272,42 @@ from agent_evaluator import HybridPerformanceMonitor, agent_eval
 
 monitor = HybridPerformanceMonitor(
     output_dir="results/",
-    use_deepeval=True,
-    deepeval_metrics=[professionalism_metric, empathy_metric],  # 커스텀 지표 추가
+    use_deepeval=True,          # DeepEval 기본 지표 활성 (Hallucination, Toxicity, Bias, Answer Relevancy)
+    deepeval_model="gpt-4o-mini",  # 평가 모델 (기본값)
 )
 
 @agent_eval(monitor, task_type="qa")
 def content_agent(question: str, ground_truth: str = "") -> str:
     return llm.invoke(question)
 
-content_agent(
-    "저희 서비스에 문제가 생겼어요. 어떻게 해야 하나요?",
+from agent_evaluator import create_taskresult
+
+# G-Eval 커스텀 기준: record_task() 호출 시 quality_criteria 전달
+task = create_taskresult(
+    task_id="task_001",
+    question="저희 서비스에 문제가 생겼어요. 어떻게 해야 하나요?",
+    response=content_agent("저희 서비스에 문제가 생겼어요. 어떻게 해야 하나요?"),
     ground_truth="고객 지원팀에 문의하시면 즉시 도움을 드릴 수 있습니다.",
+    execution_time=1.5,
+)
+monitor.record_task(
+    task,
+    quality_criteria="응답이 전문적이고 공감적인가? 고객 서비스 응답으로 적절한가?",
 )
 
 report = monitor.generate_report()
-deepeval_metrics = report.deepeval_metrics
+advanced = report.advanced_metrics_summary  # HybridEvaluationReport 전용 필드
 
-print(f"Hallucination 점수: {deepeval_metrics.get('hallucination_score', 'N/A')}")
-print(f"Answer Relevancy:   {deepeval_metrics.get('answer_relevancy', 'N/A')}")
-print(f"Toxicity 점수:      {deepeval_metrics.get('toxicity_score', 'N/A')}")
-print(f"Bias 점수:          {deepeval_metrics.get('bias_score', 'N/A')}")
+hal = advanced.get("hallucination_score", {})
+rel = advanced.get("answer_relevancy", {})
+tox = advanced.get("toxicity_score", {})
+bias = advanced.get("bias_score", {})
+g_eval = advanced.get("g_eval_score", {})
+print(f"Hallucination 점수: {hal.get('mean', 'N/A')}")
+print(f"Answer Relevancy:   {rel.get('mean', 'N/A')}")
+print(f"Toxicity 점수:      {tox.get('mean', 'N/A')}")
+print(f"Bias 점수:          {bias.get('mean', 'N/A')}")
+print(f"G-Eval (전문성·공감성): {g_eval.get('mean', 'N/A')}")
 ```
 
 독성 점수가 임계값을 초과하면 즉시 알림을 발송하는 패턴이 실무에서 자주 사용된다.
@@ -404,12 +396,16 @@ for case in test_cases:
     )
 
 report = monitor.generate_report()
-ragas_metrics = report.ragas_metrics
+advanced = report.advanced_metrics_summary  # HybridEvaluationReport 전용 필드
 
-print(f"Faithfulness:      {ragas_metrics.get('faithfulness', 0):.2%}")
-print(f"Answer Relevancy:  {ragas_metrics.get('answer_relevancy', 0):.2%}")
-print(f"Context Precision: {ragas_metrics.get('context_precision', 0):.2%}")
-print(f"Context Recall:    {ragas_metrics.get('context_recall', 0):.2%}")
+faith = advanced.get("faithfulness", {})
+rel = advanced.get("answer_relevancy", {})
+prec = advanced.get("context_precision", {})
+recall = advanced.get("context_recall", {})
+print(f"Faithfulness:      {faith.get('mean', 0):.2%}")
+print(f"Answer Relevancy:  {rel.get('mean', 0):.2%}")
+print(f"Context Precision: {prec.get('mean', 0):.2%}")
+print(f"Context Recall:    {recall.get('mean', 0):.2%}")
 ```
 
 QuickEval을 사용하면 더 간결하다.
@@ -563,7 +559,7 @@ eval = QuickEval("results/", auto_save=True, auto_save_interval=10)
 
 - **Layer 3이 필요한 세 가지 상황**: Ground truth가 없을 때(LLM Judge), RAG 파이프라인을 정밀하게 평가할 때(Ragas), 독성/편향 탐지가 필요할 때(DeepEval).
 
-- **LLM Judge는 가장 가벼운 Layer 3 선택지**다. `[llm]` extras만 설치하면 되고, `enable_llm_judge=True` 한 줄로 활성화된다. completeness, relevance, factual_consistency, toxicity, bias **5차원 기본**으로 ground truth 없이 자동 채점한다 (safety_score 자동 포함). v0.7.6+에서는 `rag_mode=True` 조합으로 faithfulness, `judge_criteria=[...]`로 커스텀 차원도 추가된다.
+- **LLM Judge는 가장 가벼운 Layer 3 선택지**다. 기본 설치에 포함되어 있으며, `enable_llm_judge=True` 한 줄로 활성화된다. completeness, relevance, factual_consistency, toxicity, bias **5차원 기본**으로 ground truth 없이 자동 채점한다 (safety_score 자동 포함). v0.7.6+에서는 `rag_mode=True` 조합으로 faithfulness, `judge_criteria=[...]`로 커스텀 차원도 추가된다.
 
 - **Ragas는 RAG 파이프라인 진단에 특화**되어 있다. Faithfulness/Answer Relevancy/Context Precision/Context Recall 4가지 지표로 "검색 문제인가, 생성 문제인가"를 분리해서 진단할 수 있다.
 

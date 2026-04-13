@@ -185,11 +185,11 @@ eval_reg  = QuickEval.for_regression_eval("results/", baseline_file="results/bas
 ### 1.4 설치
 
 ```bash
-# LLM Judge (OpenAI/Anthropic 클라이언트)
-pip install "agent-evaluator[llm]"
+# LLM Judge · 대시보드 · OTEL 모니터링은 기본 설치에 포함
+pip install agent-evaluator
 
-# 권장 실용 구성 (llm + serve + eval)
-pip install "agent-evaluator[all]"
+# DeepEval/Ragas 외부 평가 라이브러리가 추가로 필요한 경우
+pip install "agent-evaluator[eval]"
 ```
 
 ---
@@ -202,7 +202,7 @@ Layer 1/2만으로 부족할 때 세 가지 외부 평가 방법을 선택할 �
 
 | | **LLM Judge** | **DeepEval** | **Ragas** |
 |---|---|---|---|
-| **설치** | `[llm]` (가벼움) | `[eval]` (중간) | `[eval]` (중간) |
+| **설치** | 기본 설치에 포함 | `[eval]` (중간) | `[eval]` (중간) |
 | **주요 용도** | 정답 없는 응답 품질 평가 | NLP 품질 + 독성/편향 | RAG 파이프라인 전문 평가 |
 | **Ground Truth 필요** | 불필요 | 부분 필요 | 필요 (Recall만) |
 | **API 비용** | LLM 호출 비용 | LLM 호출 비용 | 임베딩 + LLM 비용 |
@@ -469,7 +469,7 @@ print(f"Context Precision 변화: {comparison['context_precision_delta']:+.2%}")
 
 | 특징 | LLM Judge | Ragas | DeepEval |
 |------|-----------|-------|---------|
-| 외부 라이브러리 | 불필요 ([llm] extra만) | 필요 | 필요 |
+| 외부 라이브러리 | 불필요 (기본 설치에 포함) | 필요 | 필요 |
 | Ground Truth 필요 | 불필요 | 부분 필요 | 부분 필요 |
 | 평가 차원 | 5차원 기본 + 조건부 확장 | RAG 전문 | 다양한 NLP 지표 |
 | 비용 | LLM API 호출 비용 | LLM API 호출 비용 | LLM API 호출 비용 |
@@ -597,9 +597,7 @@ monitor.save_to_file("eval")        # results/eval.json + .html
 ### 6.2 대시보드 실행
 
 ```bash
-pip install "agent-evaluator[serve]"
-
-# 기본 실행 — results/ 디렉토리의 평가 파일 로드
+# 대시보드는 기본 설치에 포함 — 기본 실행 (results/ 디렉토리의 평가 파일 로드)
 agent-eval dashboard results/
 
 # 파일 변경 감시 모드 (실시간 갱신)

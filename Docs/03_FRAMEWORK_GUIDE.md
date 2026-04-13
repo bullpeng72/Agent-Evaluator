@@ -2,7 +2,7 @@
 
 LangChain · LangGraph · CrewAI · AutoGen 연동 참조 문서
 
-**v0.7.7 | Python 3.8+**
+**v0.7.9 | Python 3.8+**
 
 ---
 
@@ -27,7 +27,7 @@ LangChain · LangGraph · CrewAI · AutoGen 연동 참조 문서
 | 패키지 | 최소 버전 | 설치 |
 |--------|----------|------|
 | Python | 3.8+ | — |
-| agent-evaluator | 0.7.7 | `pip install agent-evaluator` |
+| agent-evaluator | 0.7.9 | `pip install agent-evaluator` |
 | LangChain | 1.0.0+ | `pip install agent-evaluator[langchain]` |
 | LangGraph | 1.0.0+ | `pip install agent-evaluator[langchain]` |
 | CrewAI | 1.0.0+ | `pip install agent-evaluator[crewai]` |
@@ -37,12 +37,12 @@ LangChain · LangGraph · CrewAI · AutoGen 연동 참조 문서
 
 ```bash
 # 프레임워크별 단독 설치
-pip install agent-evaluator[langchain]   # LangChain + LangGraph
-pip install agent-evaluator[crewai]      # CrewAI
-pip install agent-evaluator[autogen]     # AutoGen
+pip install "agent-evaluator[langchain]"   # LangChain + LangGraph
+pip install "agent-evaluator[crewai]"      # CrewAI
+pip install "agent-evaluator[autogen]"     # AutoGen
 
-# 권장: 대부분의 경우 (crewai/autogen 제외)
-pip install agent-evaluator[all]
+# 전체 설치 (crewai/autogen 포함, 10분+)
+pip install "agent-evaluator[full]"
 ```
 
 ### 프레임워크 가용성 확인
@@ -370,4 +370,4 @@ with monitor.conversation("session_002") as conv:
 
 ---
 
-*Updated: 2026-04-11 (v0.7.7) | MIT License*
+*Updated: 2026-04-13 (v0.7.9) | MIT License*

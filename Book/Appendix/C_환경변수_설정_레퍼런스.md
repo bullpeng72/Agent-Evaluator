@@ -1,6 +1,6 @@
 # Appendix C. 환경변수 & 설정 레퍼런스
 
-Agent Evaluator v0.7.7에서 사용하는 환경변수와 `.env` 파일 설정 전체를 정리한다.
+Agent Evaluator v0.7.9에서 사용하는 환경변수와 `.env` 파일 설정 전체를 정리한다.
 
 ---
 
@@ -150,19 +150,21 @@ POST 요청으로 알림 데이터(JSON 형식)가 전송된다.
 
 ---
 
-## extras별 필요 환경변수 표
+## 기능별 필요 환경변수 표
 
-| extras | 필요 환경변수 | 선택 환경변수 | 비고 |
+> v0.7.8부터 LLM Judge(`[llm]`), 대시보드(`[serve]`), OTEL 모니터링(`[otel]`), PDF 처리(`[pdf]`)는 기본 설치에 포함됩니다. 아래 표에서 "기본 설치 포함" 항목은 별도 extras 설치 없이 사용 가능합니다.
+
+| 기능 / extras | 필요 환경변수 | 선택 환경변수 | 비고 |
 |--------|-------------|-------------|------|
-| `[llm]` | `OPENAI_API_KEY` 또는 `ANTHROPIC_API_KEY` 중 하나 | 둘 다 설정 가능 | LLM Judge 사용 시 |
+| **LLM Judge** (기본 설치 포함) | `OPENAI_API_KEY` 또는 `ANTHROPIC_API_KEY` 중 하나 | 둘 다 설정 가능 | API 키만 있으면 바로 사용 |
+| **대시보드** (기본 설치 포함) | 없음 | `SLACK_WEBHOOK_URL`, `ALERT_WEBHOOK_URL` | 대시보드만은 키 불필요 |
+| **OTEL 모니터링** (기본 설치 포함) | 없음 | `OTEL_ENABLED`, `PHOENIX_ENDPOINT` | `agent-eval monitor`로 설정 가능 |
 | `[langchain]` | `OPENAI_API_KEY` | `ANTHROPIC_API_KEY` | LangChain 모델 호출 시 |
 | `[crewai]` | LLM 공급자 키 | — | CrewAI 내부 LLM 호출 시 |
 | `[autogen]` | LLM 공급자 키 | — | AutoGen 내부 LLM 호출 시 |
 | `[eval]` | `OPENAI_API_KEY` | — | DeepEval, Ragas 지표 계산 |
 | `[dspy]` | LLM 공급자 키 | — | DSPy 프로그램 실행 시 |
 | `[pydanticai]` | LLM 공급자 키 | — | PydanticAI Agent 실행 시 |
-| `[serve]` | 없음 | `SLACK_WEBHOOK_URL`, `ALERT_WEBHOOK_URL` | 대시보드만은 키 불필요 |
-| `[otel]` | 없음 | `OTEL_ENABLED`, `PHOENIX_ENDPOINT` | `agent-eval monitor`로 설정 가능 |
 
 ---
 

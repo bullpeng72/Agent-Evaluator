@@ -462,11 +462,11 @@ gemini_agent("한국의 전통 음식 5가지를 알려줘", ground_truth="비�
 ### 설치 조합 권장 가이드
 
 ```bash
-# 대부분의 경우 — 경량 + 실용적
-pip install "agent-evaluator[llm,serve]"
+# 기본 설치 — LLMJudge · 대시보드 · OTEL · PDF 포함 (권장)
+pip install agent-evaluator
 
-# LangChain 생태계 사용 시
-pip install "agent-evaluator[langchain,serve]"
+# LangChain 생태계 사용 시 (에이전트 코드가 LangChain을 사용하는 경우)
+pip install "agent-evaluator[langchain]"
 
 # 벤치마크 / 고급 평가 필요 시
 pip install "agent-evaluator[eval]"   # DeepEval + Ragas
@@ -475,8 +475,8 @@ pip install "agent-evaluator[eval]"   # DeepEval + Ragas
 pip install "agent-evaluator[crewai]"   # 별도 가상환경
 pip install "agent-evaluator[autogen]"  # 별도 가상환경
 
-# 대부분 다 필요할 때 (권장 전체 구성)
-pip install "agent-evaluator[all]"   # crewai/autogen/otel 제외 전체
+# 전체 설치 (⚠️ crewai/autogen 포함, 10분+)
+pip install "agent-evaluator[full]"
 ```
 
 ---
@@ -486,5 +486,5 @@ pip install "agent-evaluator[all]"   # crewai/autogen/otel 제외 전체
 - **`framework=` 파라미터는 응답 객체 → SDK 내부 형식 변환기**다. 함수가 문자열이 아닌 SDK 응답 객체 전체를 반환해야 토큰 수, 도구 호출, 체인 단계가 자동 추출된다.
 - **`auto_detect_framework=True`(기본값)**으로 12개 속성을 분석해 프레임워크를 자동 감지하므로, `framework=`를 명시하지 않아도 동작한다. 단, 정확도를 위해 명시 권장.
 - **토큰 측정 정확도**는 LangChain > OpenAI/Anthropic > AutoGen(tiktoken) > CrewAI(0 고정) 순이다. CrewAI 비용 측정이 필요하면 `EvalMetadata`로 수동 주입한다.
-- **CrewAI와 AutoGen은 무거운 의존성**으로 pydantic 버전 충돌이 발생할 수 있다. 별도 가상환경에 격리하거나 `[all]` extras를 사용한다.
+- **CrewAI와 AutoGen은 무거운 의존성**으로 pydantic 버전 충돌이 발생할 수 있다. 별도 가상환경에 격리하거나 `[full]` extras를 사용한다.
 - **프레임워크 선택 기준**: 빠른 프로토타입 → CrewAI, 기존 LangChain → LangChain/LangGraph, 타입 안전 → PydanticAI, ML 최적화 → DSPy, 완전한 제어 → 직접 API 호출.

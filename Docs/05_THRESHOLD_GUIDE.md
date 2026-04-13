@@ -2,7 +2,7 @@
 
 Agent-Evaluator의 임계값 설정, 품질 게이트, CI/CD 통합 방법을 설명합니다.
 
-**Version**: 0.7.7 | **Last Updated**: 2026-04-11
+**Version**: 0.7.9 | **Last Updated**: 2026-04-13
 
 ---
 
@@ -186,7 +186,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Install dependencies
-        run: pip install "agent-evaluator[llm]"
+        run: pip install agent-evaluator
 
       - name: Run evaluation
         env:
@@ -239,7 +239,7 @@ def test_latency_gate():
 evaluate:
   stage: test
   script:
-    - pip install "agent-evaluator[llm]"
+    - pip install agent-evaluator
     - python scripts/run_eval.py
     - agent-eval gate results/eval.json --tcr 85 --accuracy 70
   artifacts:

@@ -155,7 +155,7 @@ answer = response.choices[0].message.content
 | **Braintrust** | SaaS + OSS SDK | v0.5.2 | LLM 실험 + 에이전트 관측 |
 | **Helicone** | SaaS + OSS | — | LLM 프록시 + 비용 관측 |
 | **W&B Weave** | SaaS + OSS SDK | v0.72+ | 에이전트 평가 + 실험 관리 |
-| **Agent Evaluator** | OSS SDK | v0.7.7 | Agentic AI 전문 평가 |
+| **Agent Evaluator** | OSS SDK | v0.7.9 | Agentic AI 전문 평가 |
 
 ### 에이전틱 지표 지원 비교
 

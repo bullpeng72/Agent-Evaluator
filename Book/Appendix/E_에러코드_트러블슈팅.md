@@ -168,10 +168,11 @@ def agent(question: str, ground_truth: str = "") -> str: ...
 **해결책**:
 
 ```bash
-pip install "agent-evaluator[llm]"
+# openai/anthropic는 기본 설치에 포함 — 재설치로 해결
+pip install --upgrade agent-evaluator
 ```
 
-`[llm]` extras에 `openai`와 `anthropic` 패키지가 포함된다.
+v0.7.8부터 `openai`와 `anthropic` 패키지는 기본 설치에 포함되어 있다. ImportError가 발생하면 기본 설치가 올바르게 완료되지 않은 것이다.
 
 ---
 
@@ -405,10 +406,10 @@ def agent(question: str, ground_truth: str = "") -> str: ...
 
 **증상**: `agent-eval monitor --check` 실행 시 오류 또는 미설치 표시.
 
-**원인 A**: `[otel]` extras 미설치
+**원인 A**: 기본 설치가 완료되지 않음 (OTEL은 기본 설치에 포함)
 
 ```bash
-pip install "agent-evaluator[otel]"
+pip install --upgrade agent-evaluator
 ```
 
 **원인 B**: 포트 6006이 이미 사용 중
@@ -427,12 +428,13 @@ agent-eval monitor --port 6007
 
 **증상**: `monitor.save_to_file("evaluation")` 후 생성된 `.html` 파일이 깨지거나 `TemplateNotFound` 오류.
 
-**원인**: `jinja2` 미설치.
+**원인**: `jinja2` 미설치. v0.7.8부터 기본 설치에 포함되어 있어야 한다.
 
 **해결책**:
 
 ```bash
-pip install "agent-evaluator[serve]"
+# jinja2는 기본 설치에 포함 — 재설치로 해결
+pip install --upgrade agent-evaluator
 # 또는 단독 설치
 pip install jinja2>=3.1.0
 ```
