@@ -3,7 +3,7 @@
 [![PyPI version](https://img.shields.io/pypi/v/agent-evaluator.svg)](https://pypi.org/project/agent-evaluator/)
 [![Python Version](https://img.shields.io/badge/python-3.8%2B-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Version](https://img.shields.io/badge/version-0.7.9-green.svg)](https://github.com/bullpeng72/Agent-Evaluator)
+[![Version](https://img.shields.io/badge/version-0.8.0-green.svg)](https://github.com/bullpeng72/Agent-Evaluator)
 
 **AI 에이전트를 위한 프로덕션 레디 평가 프레임워크**
 
@@ -1387,6 +1387,14 @@ mypy agent_evaluator/          # 타입 검사
 ---
 
 ## 변경 이력
+
+### v0.8.0 (2026-04-13) — 정확도 지표 전면 개선 · Token F1 · task_type 인식 TCR
+
+- 🔧 **Token Overlap F1** — `_qa_accuracy()` · `_token_overlap_ratio()` 토큰 중첩을 Recall/max → F1(조화평균)으로 교체. 불필요한 토큰 추가로 점수 인플레이션 방지
+- 🔧 **Char Similarity Levenshtein 통일** — `layer1.py` 집합 기반 → Levenshtein 거리 기반. `taskresult_helpers.py`와 구현 일치, 문자 순서 반영
+- ✨ **task_type 인식 completion_score** — `code_generation`/`coding`: AST 파싱 성공 시 1.0; `tool_use`: 도구 미사용 시 0.6 반환. ground_truth 없는 환경의 TCR 신뢰도 향상
+- 🧪 테스트 8개 추가 (1,869개+)
+- 📝 **Book 16개 챕터 + Lectures 5개 실전 코드 삽입** — `Evaluator_Examples/` 7개 파일의 실제 Python 코드를 각 챕터/강의에 직접 포함. 모든 코드 블록에 출처 표시
 
 ### v0.7.9 (2026-04-13) — arize-phoenix 버전 제약 수정 · RunTrendAnalyzer
 

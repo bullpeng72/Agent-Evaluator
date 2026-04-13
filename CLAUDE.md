@@ -5,7 +5,7 @@
 **Agent-Evaluator** is a production-ready Python SDK for evaluating AI agents.
 25개의 성능 지표를 세 개의 레이어(기본/에이전틱/하이브리드)로 측정한다.
 
-- **Version:** 0.7.9 (Beta)
+- **Version:** 0.8.0 (Beta)
 - **Python:** 3.8+
 - **License:** MIT
 - **Author:** Sungwoo Kim
@@ -586,9 +586,13 @@ pytest
 | Token Overlap | 40% | F1 기반 토큰 매칭 |
 | Jaccard Similarity | 30% | 집합 교집합/합집합 |
 | LCS Ratio | 20% | Longest Common Subsequence |
-| Char Similarity | 10% | 문자 수준 유사도 |
+| Char Similarity | 10% | Levenshtein 거리 기반 (문자 순서 반영) |
 
 코드 정확도: AST 비교 → 정규화 비교 순으로 fallback.
+
+completion_score task_type 인식 (v0.8.0+):
+- `code_generation`/`coding`: AST 파싱 성공 시 1.0, 실패 시 길이 기반
+- `tool_use`: `tool_calls` 비어 있으면 0.6 (도구 미사용 부분 완료)
 
 ---
 
@@ -602,6 +606,15 @@ pytest
 ---
 
 ## 📝 변경 이력
+
+### v0.8.0 (2026-04-13) — 정확도 지표 전면 개선 · Token F1 · Char Levenshtein · task_type 인식 TCR
+
+- 🔧 **Token Overlap Recall → F1** — `layer1.py` `_qa_accuracy()` 및 `taskresult_helpers.py` `_token_overlap_ratio()` 의 토큰 중첩 계산을 단순 Recall/max 방식에서 F1(정밀도-재현율 조화평균)으로 교체. 긴 응답에서 불필요한 토큰을 추가해도 점수가 오르지 않도록 개선
+- 🔧 **Char Similarity Levenshtein 통일** — `layer1.py`의 집합 기반 문자 유사도(`set(s1) & set(s2)`)를 `taskresult_helpers.py`와 동일한 Levenshtein 거리 기반으로 교체. 문자 순서 반영으로 정밀도 향상 ("abc"/"cba" 구분)
+- ✨ **`calculate_completion_score()` task_type 인식** — `task_type="code_generation"`/`"coding"` 시 AST 파싱 성공 여부로 완료 판정; `task_type="tool_use"` 시 `tool_calls` 비어 있으면 부분 완료(0.6) 반환. ground_truth 없는 환경의 TCR 신뢰도 향상
+- 🔧 **`create_taskresult_from_execution()` 실행 순서 개선** — tool_calls를 completion_score 계산 전에 먼저 추출해 task_type 인식 완료 판정에 활용
+- 🧪 **테스트 8개 추가** — task_type 인식(code_generation AST·markdown fence·tool_use) + F1 토큰 오버랩 회귀 테스트
+- 📝 **Book 16개 챕터 + Lectures 5개 실전 코드 삽입** — `Evaluator_Examples/` 7개 파일의 실제 실행 가능한 Python 코드를 각 챕터와 강의에 직접 포함. 모든 코드 블록에 `# 출처: Evaluator_Examples/XX.py, 섹션 N` 출처 표시
 
 ### v0.7.9 (2026-04-13) — arize-phoenix 버전 제약 수정 · RunTrendAnalyzer · 정확도 지표 개선
 
