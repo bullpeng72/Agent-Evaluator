@@ -187,9 +187,9 @@ monitor = PerformanceMonitor(
 monitor = PerformanceMonitor(
     output_dir="results/",
     enable_llm_judge=True,
-    llm_judge_model="claude-haiku-4-5-20251001",  # 비용 효율적 모델 권장
+    judge_model="claude-haiku-4-5-20251001",  # 비용 효율적 모델 권장
 )
-# 비용은 각 task.extra["llm_judge"]["cost_usd"]에 기록됨
+# 비용은 각 task.llm_judge["cost_usd"]에 기록됨 (llm_judge는 TaskResult 직접 필드)
 ```
 
 ---
@@ -603,6 +603,176 @@ curl http://localhost:8765/api/cost/breakdown
 전날 비용이 예산 내에 있는가? 특정 태스크 유형의 비용이 급증했는가?
 
 이 4단계를 매일 실행하면 문제를 조기에 발견하고 대응할 수 있다.
+
+---
+
+## 10.8 자주 발생하는 문제 & 해결책
+
+대시보드 운영 중 가장 자주 마주치는 문제 10가지와 즉각 적용 가능한 해결책을 정리한다.
+
+### 문제 1: 대시보드에 데이터가 없음
+
+**증상**: `agent-eval dashboard`를 열었는데 모든 탭이 빈 상태.
+
+**원인 A**: `save_to_file()`을 한 번도 호출하지 않음
+```python
+monitor = PerformanceMonitor(output_dir="results/")
+# ... 평가 실행 후
+monitor.save_to_file("evaluation")  # 반드시 호출
+```
+
+**원인 B**: 대시보드 실행 디렉토리와 결과 파일 경로 불일치
+```bash
+agent-eval dashboard results/    # results/ 안에 JSON 파일이 있어야 함
+ls results/*.json                # 파일 존재 확인
+```
+
+**원인 C**: `auto_save=True` 설정 후 충분한 태스크가 누적되지 않음 (기본 10건마다 저장)
+
+---
+
+### 문제 2: Phoenix 스팬이 Tracing 탭에 안 보임
+
+**증상**: `agent-eval monitor`로 Phoenix를 기동했는데 코드 실행 후에도 Tracing 탭이 비어있다.
+
+**원인 A**: `setup_otel()`이 `PerformanceMonitor` 생성 이후에 호출됨
+```python
+# 잘못된 순서
+monitor = PerformanceMonitor(output_dir="results/")
+setup_otel(endpoint="http://localhost:6006")  # 이미 늦음
+
+# 올바른 순서
+setup_otel(endpoint="http://localhost:6006")  # 먼저 호출
+monitor = PerformanceMonitor(output_dir="results/")
+```
+
+**원인 B**: endpoint URL에 `/v1/traces` 경로가 포함됨 (SDK가 내부적으로 붙이므로 이중 경로가 됨)
+```python
+# 잘못됨
+setup_otel(endpoint="http://localhost:6006/v1/traces")
+# 올바름
+setup_otel(endpoint="http://localhost:6006")
+```
+
+---
+
+### 문제 3: agent-eval gate 항상 실패
+
+**증상**: CI/CD에서 `gate` 명령이 항상 exit code 1로 종료.
+
+**원인**: 임계값이 현재 데이터 수준보다 높게 설정됨.
+
+**해결책**: `generate_gate_config()`로 현재 지표 기반 적정 임계값을 확인한 후 적용한다.
+```python
+eval = QuickEval("results/")
+eval.generate_gate_config("gate_config.json")  # 현재 성능의 95% 수준 자동 생성
+```
+```bash
+agent-eval gate result.json --tcr 85 --accuracy 70  # 확인된 값으로 직접 지정
+```
+
+---
+
+### 문제 4: accuracy_score가 항상 0.0
+
+**증상**: 모든 태스크의 `accuracy_score`가 0.0으로 기록됨.
+
+**원인**: `ground_truth`를 빈 문자열(`""`) 또는 `None`으로 전달하면 정확도를 계산할 수 없다.
+```python
+# 잘못됨
+agent("질문", ground_truth="")    # 빈 문자열
+# 올바름
+agent("질문", ground_truth="정답 텍스트")
+```
+
+---
+
+### 문제 5: 환각 지표가 항상 0.0 또는 None
+
+**증상**: `report.hallucination_rate`가 항상 `None` 또는 0.0.
+
+**원인**: `enable_hallucination_detection=False` (기본값). 명시적으로 활성화해야 한다.
+```python
+monitor = PerformanceMonitor(enable_hallucination_detection=True)
+# 또는 RAG 모드 사용
+@agent_eval(monitor, task_type="information_retrieval", rag_mode=True, context_arg="context")
+def rag_agent(question: str, context: str = "", ground_truth: str = "") -> str: ...
+```
+
+---
+
+### 문제 6: 보안 지표가 수집되지 않음
+
+**증상**: 보안 관련 모든 지표(`input_security`, `output_leakage` 등)가 보고서에 없음.
+
+**원인**: `enable_security_metrics=False` (기본값).
+```python
+monitor = PerformanceMonitor(enable_security_metrics=True)
+# 또는 팩토리 메서드
+monitor = PerformanceMonitor.for_secure_agents()
+# 또는 데코레이터에서 임시 활성
+@agent_eval(monitor, task_type="qa", security_mode=True)
+def agent(question: str, ground_truth: str = "") -> str: ...
+```
+
+---
+
+### 문제 7: LLM Judge가 동작하지 않음
+
+**증상**: `enable_llm_judge=True` 설정 후에도 `llm_judge` 지표가 보고서에 없음.
+
+**원인**: `OPENAI_API_KEY` 또는 `ANTHROPIC_API_KEY` 미설정.
+```bash
+export ANTHROPIC_API_KEY=sk-ant-...
+```
+```python
+@agent_eval(monitor, task_type="qa", enable_llm_judge=True,
+            judge_model="claude-sonnet-4-6")
+def agent(question: str, ground_truth: str = "") -> str: ...
+```
+
+---
+
+### 문제 8: ImportError: No module named 'langchain'
+
+**증상**: `framework="langchain"` 사용 또는 LangChain 예제 실행 시 ImportError.
+```bash
+pip install "agent-evaluator[langchain]"    # LangGraph도 포함됨
+```
+
+---
+
+### 문제 9: conversation_eval 세션 데이터 중복
+
+**증상**: 대화 세션 지표에 중복 턴이 기록되거나 세션이 섞임.
+
+**원인**: 같은 `session_id`를 여러 세션에서 재사용.
+```python
+import uuid
+
+@conversation_eval(monitor, session_id_arg="session_id")
+def chat_agent(message: str, session_id: str = "s1") -> str:
+    return chatbot.chat(message)
+
+# 각 사용자별 고유 ID 사용
+chat_agent("안녕하세요", session_id=str(uuid.uuid4()))
+```
+
+---
+
+### 문제 10: flush_every 저장이 안 됨
+
+**증상**: `flush_every=10` 설정 후 파일이 생성되지 않음.
+
+**원인**: `output_dir`이 `None`이거나 존재하지 않는 경로.
+```python
+monitor = PerformanceMonitor(output_dir="results/")  # output_dir 반드시 지정
+
+@agent_eval(monitor, task_type="qa", flush_every=10, flush_filename="periodic")
+def agent(question: str, ground_truth: str = "") -> str: ...
+```
+
+> 📖 **전체 20가지 오류 + FAQ 10가지**: → Appendix E 에러코드 & 트러블슈팅
 
 ---
 

@@ -199,6 +199,48 @@ answer = response.choices[0].message.content
 
 ---
 
+## 1.6 AI 평가 지표의 역사 — BLEU에서 LLM-as-Judge까지
+
+Agent-Evaluator의 지표 설계를 이해하려면 AI 평가 연구가 어떤 문제를 해결하면서 발전해왔는지 아는 것이 도움이 된다.
+
+### 참조 기반 지표 시대 (2002–2017)
+
+**BLEU** (Papineni et al. 2002)는 기계 번역 품질을 인간 참조 번역과의 n-gram 정밀도로 측정하는 최초의 자동화 지표였다. 빠르고 재현 가능하지만 **정밀도(Precision)만 측정**하고 의미적 동의어를 인식하지 못한다는 근본적 한계를 가진다.
+
+**ROUGE** (Lin 2004)는 문서 요약을 위해 **재현율(Recall) 중심**으로 설계됐다. BLEU와 반대 방향의 편향을 가진다.
+
+이 두 지표는 20년간 NLP 벤치마킹의 표준이었지만, "서울이 대한민국의 수도이다"와 "한국의 수도는 서울"이 인간에게는 동일하지만 BLEU 점수는 낮다는 문제를 해결하지 못했다.
+
+**Agent-Evaluator의 대응**: BLEU/ROUGE 대신 **Token F1**(Precision+Recall 균형)을 핵심 지표로 채택하고, 4개 서브지표(Token F1 + Jaccard + LCS + Char Levenshtein) 조합으로 단일 지표의 맹점을 보완.
+
+### 의미 유사도의 부상 (2018–2021)
+
+**BERTScore** (Zhang et al. 2019)는 BERT 임베딩 공간에서 코사인 유사도를 계산해 의미적 유사도를 측정한다. 동의어와 패라프레이즈를 자동 처리하며 인간 판단과의 상관이 BLEU보다 높다. 그러나 **GPU 메모리와 추론 시간**이 필요하고, 언어·도메인별로 BERT 모델을 따로 튜닝해야 한다.
+
+**Agent-Evaluator의 대응**: 프로덕션 모니터링에서 매 요청마다 BERTScore를 계산하는 것은 비현실적이다. 외부 의존성 없이 <1ms로 동작하는 4중 가중 알고리즘을 기본으로 제공하고, 정밀 평가가 필요한 경우에만 LLM Judge를 샘플링 방식으로 추가한다.
+
+### LLM-as-Judge의 등장 (2022–현재)
+
+**HELM** (Liang et al. 2022)은 42개 시나리오 × 7개 지표로 정확성·강건성·공정성·독성을 동시 측정하는 종합 벤치마크다. **MT-Bench** (Zheng et al. 2023)와 **Chatbot Arena**는 GPT-4로 모델 응답을 채점하거나 두 응답 중 선호도를 선택하는 **LLM-as-Judge** 패러다임을 정착시켰다. 인간 판단과 높은 상관관계를 보이면서도 대규모 자동 평가가 가능하다.
+
+**Agent-Evaluator의 대응**: `LLMJudge` 클래스가 이 패러다임을 구현한다. completeness·relevance·factual_consistency·toxicity·bias 5차원을 ground_truth 없이 채점하며, RAG 모드에서는 faithfulness 차원이 추가된다. DeepEval G-Eval의 커스텀 기준(`judge_criteria`)도 외부 패키지 없이 지원한다.
+
+```
+AI 평가 발전 요약:
+  BLEU (2002)    → Precision 편향, 동의어 불인식
+  ROUGE (2004)   → Recall 편향
+  BERTScore (2019) → 의미적 유사도, but 느리고 무거움
+  HELM (2022)    → 종합 벤치마크, 다축 측정
+  LLM-as-Judge (2023) → 인간 판단 대리, 유연한 기준
+
+  Agent-Evaluator → 4중 가중 알고리즘(빠름) + LLM Judge 샘플링(정밀)
+                     외부 의존성 없이 프로덕션에서 바로 사용 가능
+```
+
+> 📖 **더 깊이**: 각 지표의 수식과 한계 분석은 → Appendix G §G.1 (AI 평가의 역사와 발전), Appendix I §I.1 (정확도 지표 심층 비교)
+
+---
+
 > **이 챕터의 핵심**
 >
 > - AI 에이전트는 입력→출력 1회의 LLM과 달리, 도구 호출·멀티스텝·상태·반복 동작으로 평가 복잡성이 근본적으로 다릅니다.

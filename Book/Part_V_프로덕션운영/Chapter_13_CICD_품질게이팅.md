@@ -657,8 +657,8 @@ agent-eval gate results/ci_evaluation.json --tcr 85 --accuracy 70
 agent-eval gate results/ci_evaluation.json \
     --tcr 85 \
     --accuracy 70 \
-    --max-latency-p95 3.0 \
-    --max-hallucination 0.1
+    --p95-latency 3.0 \
+    --hallucination 5
 
 # GitHub Actions 연동 예시 (.github/workflows/eval.yml)
 # - name: Quality Gate
@@ -675,8 +675,8 @@ agent-eval gate results/ci_evaluation.json \
 # PR 전후 추세 비교로 성능 회귀 자동 탐지
 agent-eval trend results/ --fail-on-regression --window 5
 
-# slope-threshold로 허용 하락 기울기 조정 (기본: -0.01 = 1% per run)
-agent-eval trend results/ --fail-on-regression --slope-threshold -0.02
+# slope-threshold로 민감도 조정 (기본: 0.3 — 절댓값 기준, 작을수록 민감하게 감지)
+agent-eval trend results/ --fail-on-regression --slope-threshold 0.02
 ```
 
 - `--fail-on-regression`은 지표가 연속 하락하는 추세를 감지하면 `exit 1`을 반환한다

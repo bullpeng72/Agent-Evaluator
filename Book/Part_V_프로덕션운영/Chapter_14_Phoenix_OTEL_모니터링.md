@@ -329,17 +329,23 @@ Datasets 탭에서는 골든 데이터셋을 Phoenix에서 직접 관리한다. 
 ```python
 from agent_evaluator.datasets.builder import GoldenSetBuilder
 
-builder = GoldenSetBuilder(output_dir="data/golden_datasets/")
+builder = GoldenSetBuilder(
+    source_dir="results/",
+    output_dir="data/golden_datasets/",
+)
 
-cases = builder.load_candidates("data/golden_datasets/candidates.json")
-approved = [c for c in cases if c.get("score", 0) >= 0.8]
+# 프로덕션 결과에서 고품질 케이스 추출
+candidates = builder.extract(
+    strategies=["high_value", "failure_cases"],
+    max_cases=100,
+)
+approved = [c for c in candidates if c.get("accuracy_score", 0) >= 0.8]
 
 # Phoenix Datasets 탭에 업로드 (1-call 래퍼)
 builder.push_to_phoenix(
     cases=approved,
     dataset_name="golden_v2_2026_04"
 )
-# dataset.id, dataset.version, dataset.record_count 속성 자동 설정
 ```
 
 Phoenix Datasets 탭에서 볼 수 있는 정보:
@@ -539,8 +545,7 @@ import socket
 from agent_evaluator.core.otel.provider import setup_otel
 from agent_evaluator import PerformanceMonitor
 
-_PHOENIX_URL = "http://localhost:6006"
-_OTLP_URL = "http://localhost:6006/v1/traces"
+_PHOENIX_URL = "http://localhost:6006"  # /v1/traces 경로는 SDK가 자동 추가
 
 def _phoenix_running() -> bool:
     """Phoenix 서버가 실행 중인지 포트 확인"""
@@ -553,9 +558,9 @@ def _phoenix_running() -> bool:
 # Phoenix가 실행 중일 때만 OTEL 설정 — PerformanceMonitor 생성 전에 호출
 if _phoenix_running():
     setup_otel(
-        endpoint=_OTLP_URL,
+        endpoint=_PHOENIX_URL,          # base URL만 전달 — /v1/traces는 자동 추가
         service_name="my-agent-service",
-        enable_metrics=False,  # Phoenix는 /v1/metrics 미지원
+        enable_metrics=False,           # Phoenix는 /v1/metrics 미지원
     )
     print("Phoenix OTEL 연결 완료")
 else:

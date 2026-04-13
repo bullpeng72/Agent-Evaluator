@@ -82,13 +82,21 @@ v0.7.6부터 LLM Judge는 기본 5차원 외에 RAG 컨텍스트가 있으면 `f
 | **faithfulness** | — | `rag_mode=True` + `enable_llm_judge=True` |
 | **커스텀 차원** | — | `judge_criteria=[...]` |
 
-결과는 `TaskResult.extra["llm_judge"]`에 자동으로 기록된다.
+결과는 `task.llm_judge["scores"]`에 자동으로 기록된다. (`llm_judge`는 `TaskResult`의 직접 필드이며 `extra` 딕셔너리가 아님)
 
 ```python
-# 기본: {"completeness": 4.5, "relevance": 5.0, "factual_consistency": 4.8,
-#         "toxicity": 0.1, "bias": 0.0, "overall": 4.77}
-# RAG:  + "faithfulness": 4.6
-# 커스텀: + "criteria_scores": {"professionalism": 4.0}, "criteria_overall": 4.0
+# task.llm_judge 구조:
+# {
+#   "scores": {
+#     "completeness": 4.5, "relevance": 5.0, "factual_consistency": 4.8,
+#     "toxicity": 0.1, "bias": 0.0, "overall": 4.77,
+#     # RAG:    "faithfulness": 4.6
+#     # 커스텀: "criteria_scores": {"professionalism": 4.0}, "criteria_overall": 4.0
+#   },
+#   "reasoning": "...",
+#   "model": "claude-haiku-4-5-20251001",
+#   "cost_usd": 0.00012
+# }
 ```
 
 ### 코드 1: 기본 LLM Judge (enable_llm_judge=True)
@@ -116,12 +124,12 @@ customer_service_agent("환불 정책이 어떻게 되나요?")
 customer_service_agent("배송은 얼마나 걸리나요?")
 
 for task in monitor.tasks:
-    judge = task.extra.get("llm_judge", {})
-    print(f"질문: {task.extra.get('question', '')[:40]}")
-    print(f"  완결성: {judge.get('completeness', 0):.2f}")
-    print(f"  관련성: {judge.get('relevance', 0):.2f}")
-    print(f"  사실성: {judge.get('factual_consistency', 0):.2f}")
-    print(f"  종합:   {judge.get('overall', 0):.2f}")
+    judge_scores = (task.llm_judge or {}).get("scores", {})
+    print(f"질문: {(task.question or '')[:40]}")
+    print(f"  완결성: {judge_scores.get('completeness', 0):.2f}")
+    print(f"  관련성: {judge_scores.get('relevance', 0):.2f}")
+    print(f"  사실성: {judge_scores.get('factual_consistency', 0):.2f}")
+    print(f"  종합:   {judge_scores.get('overall', 0):.2f}")
     print()
 ```
 
@@ -165,8 +173,8 @@ rag_agent(
 )
 
 for task in monitor.tasks:
-    judge = task.extra.get("llm_judge", {})
-    print(f"Faithfulness: {judge.get('faithfulness', 0):.2f}/5.0")
+    judge_scores = (task.llm_judge or {}).get("scores", {})
+    print(f"Faithfulness: {judge_scores.get('faithfulness', 0):.2f}/5.0")
     # → "Faithfulness: 4.6/5.0"
 ```
 
@@ -199,26 +207,30 @@ def regulated_agent(question: str, ground_truth: str = "") -> str:
 
 # 결과 확인
 for task in monitor.tasks:
-    judge = task.extra.get("llm_judge", {})
-    criteria = judge.get("criteria_scores", {})
+    judge_scores = (task.llm_judge or {}).get("scores", {})
+    criteria = judge_scores.get("criteria_scores", {})
     print(f"전문성: {criteria.get('professionalism', 0):.2f}")
     print(f"공감성: {criteria.get('empathy', 0):.2f}")
     print(f"명확성: {criteria.get('clarity', 0):.2f}")
-    print(f"커스텀 종합: {judge.get('criteria_overall', 0):.2f}")
+    print(f"커스텀 종합: {judge_scores.get('criteria_overall', 0):.2f}")
 ```
 
 ### judge_sample_rate=0.1 비용 제어
 
-모든 호출에 LLM Judge를 적용하면 비용이 빠르게 증가한다. `judge_sample_rate`로 일부만 샘플링한다.
+모든 호출에 LLM Judge를 적용하면 비용이 빠르게 증가한다. `judge_sample_rate`는 **`PerformanceMonitor`** 생성 시 지정해 일부만 샘플링한다.
+
+> ⚠️ `judge_sample_rate`와 `judge_budget_per_day`는 **`@agent_eval` 데코레이터가 아닌 `PerformanceMonitor()`**에 전달해야 한다.
 
 ```python
-@agent_eval(
-    monitor,
-    task_type="qa",
+# judge_sample_rate / judge_budget_per_day는 PerformanceMonitor 생성 시 지정
+monitor = PerformanceMonitor(
+    output_dir="results/",
     enable_llm_judge=True,
     judge_model="claude-sonnet-4-6",
-    judge_sample_rate=0.1,  # 10%만 LLM Judge 채점
+    judge_sample_rate=0.1,          # 10%만 LLM Judge 채점
 )
+
+@agent_eval(monitor, task_type="qa", enable_llm_judge=True)
 def agent(question: str, ground_truth: str = "") -> str:
     return llm.invoke(question)
 ```
@@ -228,19 +240,22 @@ def agent(question: str, ground_truth: str = "") -> str:
 일일 LLM Judge 비용이 예산을 초과하면 자동으로 스킵된다.
 
 ```python
-@agent_eval(
-    monitor,
-    task_type="qa",
+monitor = PerformanceMonitor(
+    output_dir="results/",
     enable_llm_judge=True,
     judge_model="claude-sonnet-4-6",
-    judge_sample_rate=0.1,
-    judge_budget_per_day=5.0,   # 일일 $5 예산 — 초과 시 자동 스킵
+    judge_sample_rate=0.1,          # 10%만 채점
+    judge_budget_per_day=5.0,       # 일일 $5 예산 — 초과 시 자동 스킵
 )
+
+@agent_eval(monitor, task_type="qa", enable_llm_judge=True)
 def agent(question: str, ground_truth: str = "") -> str:
     return llm.invoke(question)
 ```
 
 ### 👨‍💻 개발자 TIP: LLM Judge 활용 시나리오
+
+샘플링 비율과 예산은 `PerformanceMonitor` 생성 시 한 번만 지정한다.
 
 - **개발 단계**: `judge_sample_rate=1.0`으로 전수 평가하여 에이전트 품질 파악
 - **스테이징**: `judge_sample_rate=0.3`으로 적당한 커버리지 유지
@@ -476,15 +491,16 @@ print(f"Context Precision 변화: {comparison.get('context_precision_delta', 0):
 세 도구 모두 LLM API 호출 비용이 발생한다. 전수 평가는 개발 단계에서만 사용하고, 프로덕션에서는 반드시 샘플링을 적용한다.
 
 ```python
-# LLM Judge: 10% 샘플링 + 일일 예산 제한
-@agent_eval(
-    monitor,
-    task_type="qa",
+# LLM Judge: 10% 샘플링 + 일일 예산 제한 — PerformanceMonitor에 지정
+monitor = PerformanceMonitor(
+    output_dir="results/",
     enable_llm_judge=True,
     judge_model="claude-sonnet-4-6",
     judge_sample_rate=0.1,        # 10%만 채점
     judge_budget_per_day=5.0,     # 일 $5 예산
 )
+
+@agent_eval(monitor, task_type="qa", enable_llm_judge=True)
 def agent(question: str, ground_truth: str = "") -> str:
     return llm.invoke(question)
 ```
@@ -495,6 +511,8 @@ def agent(question: str, ground_truth: str = "") -> str:
 
 ```python
 import os
+from agent_evaluator import PerformanceMonitor
+from agent_evaluator.decorators import agent_eval
 
 # 환경별 샘플링 비율
 SAMPLE_RATES = {
@@ -506,13 +524,15 @@ SAMPLE_RATES = {
 env = os.getenv("APP_ENV", "development")
 sample_rate = SAMPLE_RATES.get(env, 0.1)
 
-@agent_eval(
-    monitor,
-    task_type="qa",
+# judge_sample_rate는 PerformanceMonitor에서 지정
+monitor = PerformanceMonitor(
+    output_dir="results/",
     enable_llm_judge=True,
     judge_model="claude-sonnet-4-6",
-    judge_sample_rate=sample_rate,
+    judge_sample_rate=sample_rate,  # 환경별 샘플링 비율
 )
+
+@agent_eval(monitor, task_type="qa", enable_llm_judge=True)
 def agent(question: str, ground_truth: str = "") -> str:
     return llm.invoke(question)
 ```
@@ -525,6 +545,76 @@ DeepEval과 Ragas는 상대적으로 비용이 높기 때문에, 프로덕션에
 # 2. 주간 품질 검토: Layer 1 + LLM Judge 100% (골든 데이터셋만)
 # 3. 릴리즈 전 검증: Layer 1 + DeepEval/Ragas (골든 데이터셋만)
 ```
+
+### 환각 탐지 3단계 전략 — 90% 비용 절감
+
+**모든 케이스에 LLM Judge를 적용하면 비용이 너무 크다.** 아래 3단계 전략을 사용하면 동일한 탐지 품질을 약 90% 낮은 비용으로 달성할 수 있다.
+
+```
+1단계 (전체 태스크): 규칙 기반 환각 탐지 (무료, <5ms)
+  enable_hallucination_detection=True
+  → hallucination_rate > 0.15 인 케이스 플래그
+
+2단계 (플래그된 케이스만): LLM Judge rag_mode=True
+  → faithfulness 점수로 정밀 검증
+
+3단계 (faithfulness < 2.0): 인간 검토
+  → 실제 컨텍스트 무시 여부 최종 판정
+```
+
+**정밀도-비용 트레이드오프:**
+
+| 방법 | 정밀도 | 재현율 | 비용 | 속도 |
+|------|--------|--------|------|------|
+| 규칙 기반 (Layer 1) | ~70-80% | ~65-75% | 무료 | <5ms |
+| LLM Judge rag_mode | ~90-95% | ~88-92% | API 비용 | 500ms-2s |
+| 3단계 조합 | ~90%+ | ~88%+ | -90% vs 전수 LLM | 혼합 |
+
+**코드 구현:**
+
+```python
+from agent_evaluator import PerformanceMonitor, LLMJudge
+from agent_evaluator.decorators import agent_eval
+
+# 1단계: 규칙 기반 전수 탐지 설정
+monitor = PerformanceMonitor(
+    output_dir="results/",
+    enable_hallucination_detection=True,    # 규칙 기반 전수 탐지
+)
+
+# 질문·응답·컨텍스트를 별도로 보관 (2단계 재검증용)
+qa_log = []
+
+@agent_eval(monitor, task_type="information_retrieval",
+            rag_mode=True, context_arg="context")
+def rag_agent(question: str, context: str = "", ground_truth: str = "") -> str:
+    response = retrieval_chain.invoke({"question": question, "context": context})
+    qa_log.append({"question": question, "response": response, "context": context})
+    return response
+
+# ... 평가 실행 후
+
+# 2단계: 집계 환각률이 임계값 초과 시 LLM Judge로 정밀 검증
+report = monitor.generate_report()
+d = report.to_dict()
+hallucination_rate = d.get("hallucination_rate", 0) or 0
+
+if hallucination_rate > 0.15:
+    judge = LLMJudge(model="claude-haiku-4-5-20251001")
+    # 샘플만 정밀 검증 (최대 20건)
+    for case in qa_log[:20]:
+        result = judge.judge(
+            f"review_{case['question'][:20]}",
+            question=case["question"],
+            response=case["response"],
+            context=case["context"],
+        )
+        # 3단계: faithfulness 점수가 낮으면 인간 검토 대기열로
+        if result["scores"].get("faithfulness", 5) < 2.0:
+            send_to_human_review(case)  # 인간 검토 대기열
+```
+
+> ⚠️ **한국어 환각 탐지 주의**: 규칙 기반 방법은 "서울이"와 "서울"을 다른 토큰으로 처리하는 등 한국어 형태소 처리에 약점이 있다. 한국어 특화 에이전트에서는 `judge_sample_rate`를 높이거나 (예: 0.2), LLM Judge를 기본 탐지기로 사용하는 것을 권장한다.
 
 ### 비용 vs 정밀도 트레이드오프
 
@@ -710,3 +800,141 @@ OPENAI_API_KEY=sk-... python 07_phoenix_hybrid.py
 ```
 
 > **LLM Judge(내장)와 DeepEval·Ragas(외부) 선택 기준**: ground truth 없이 빠른 품질 채점이 필요하면 `enable_llm_judge=True`(기본 설치 포함). RAG 파이프라인 정밀 진단이 필요하면 `pip install 'agent-evaluator[eval]'` + `RagasAdapter`.
+
+---
+
+## 5.8 LLM-as-Judge 이론과 신뢰성 분석
+
+> Agent-Evaluator의 LLM Judge를 프로덕션에 도입하기 전에 이 섹션을 읽어라. LLM Judge의 한계를 알고 보완 전략을 갖춘 팀만이 신뢰할 수 있는 자동 평가 시스템을 구축할 수 있다.
+
+### 5.8.1 LLM-as-Judge의 이론적 배경
+
+**LLM-as-Judge 패러다임**은 2023년 Zheng et al.의 "Judging LLM-as-a-Judge with MT-Bench and Chatbot Arena" 논문에서 체계화됐다. 핵심 발견:
+
+1. **강력한 LLM(GPT-4 수준)은 인간 전문가 평가자와 80% 이상 일치한다** — 쌍별 비교 기준
+2. **쌍별 비교(pairwise)는 단일 점수(pointwise)보다 신뢰도가 높다** — 하지만 비용이 2배
+3. **Chain-of-Thought 채점 근거를 요구하면 일관성이 향상된다**
+
+Agent-Evaluator의 LLM Judge는 쌍별 비교 대신 **단일 절대 채점(pointwise absolute scoring)**을 사용한다. 이유:
+- CI/CD 파이프라인에서 비교 기준이 없는 단일 응답을 평가해야 하는 경우가 대부분
+- 비용을 절반으로 줄이면서 실용적 정확도를 유지
+
+### 5.8.2 G-Eval 방법론
+
+**G-Eval (Liu et al. 2023)**은 "GPT를 사용해 평가 기준(criteria)에 기반한 자동 평가를 수행"하는 프레임워크다. 논문의 핵심 기여:
+
+```
+G-Eval 프로세스:
+  1. 평가 기준(criteria)을 자연어로 정의
+     예: "의료 정확도 — 응답이 최신 의학 가이드라인을 따르는가?"
+  
+  2. LLM에게 "단계별 평가 방법"을 먼저 생성하게 함 (Chain-of-Thought)
+  
+  3. 생성된 평가 방법에 따라 1~5점 채점
+  
+  4. 확률 분포 기반 가중 평균으로 최종 점수 계산
+     (단순 argmax 대신 가중 평균을 사용해 연속적 점수 확보)
+```
+
+Agent-Evaluator의 `judge_criteria` 파라미터는 이 방법론의 3단계까지를 구현한다:
+
+```python
+# G-Eval 스타일 커스텀 기준 예시
+judge = LLMJudge(
+    judge_criteria=["medical_accuracy", "evidence_based", "patient_safety"],
+)
+
+# 프롬프트에서 각 기준을 1~5점으로 채점하도록 지시
+# 결과: scores["criteria_scores"]["medical_accuracy"] = 4
+```
+
+### 5.8.3 알려진 편향과 Agent-Evaluator의 대응
+
+| 편향 유형 | 연구 출처 | Agent-Evaluator 완화 |
+|----------|---------|-------------------|
+| **위치 편향** | Zheng et al. 2023 | 단일 응답 채점(비교 없음)으로 완전 제거 |
+| **장황함 편향** | Length-controlled AlpacaEval | Completeness와 Relevance 분리 채점 — 긴 응답도 관련성 낮으면 낮은 점수 |
+| **자기강화 편향** | Panickssery et al. 2024 | `judge_model` 파라미터로 생성 모델과 다른 Judge 사용 가능 |
+| **형식 편향** | Wang et al. 2023 | 시스템 프롬프트에 "형식이 아닌 내용 기준으로 평가" 명시 |
+| **숫자 집중 편향** | MT-Bench 분석 | 1~5 척도 사용 (1~10보다 극단값 감소) |
+
+### 5.8.4 Faithfulness vs 다른 RAG 지표의 관계
+
+```
+RAG 파이프라인 평가 지표 간 관계:
+
+                    ┌─ Context Precision (검색 품질)
+검색 단계 ──────────┤
+                    └─ Context Recall   (검색 완전성)
+                          │
+                          │ 컨텍스트 전달
+                          ▼
+생성 단계 ──────────── Faithfulness    (컨텍스트 충실도)
+                    └─ Answer Relevancy (질문 관련성)
+
+Faithfulness (LLM Judge, Agent-Evaluator):
+  - 응답의 주장들이 컨텍스트에 근거하는지 채점 (1~5)
+  - 컨텍스트가 없어도 측정하면 의미 없음
+
+RAGAS Faithfulness:
+  - 응답을 원자적 주장으로 분해 → 각 주장의 컨텍스트 지지 여부 이진 판정
+  - 지지되는 주장 수 / 전체 주장 수 = faithfulness score (0~1)
+  - 더 세밀하지만 비용이 높고 임베딩 필요
+
+Layer 1 HallucinationRate:
+  - 컨텍스트 토큰 커버리지 + 수치 불일치 탐지 (규칙 기반)
+  - 가장 빠르지만 정밀도가 낮음
+
+선택 기준:
+  속도 우선:     Layer 1 HallucinationDetector
+  정밀도 중간:   LLM Judge (rag_mode=True, faithfulness)
+  최고 정밀도:   Ragas 4지표 (Context Precision/Recall + Faithfulness + Answer Relevancy)
+```
+
+### 5.8.5 Layer 3의 비용 최적화 전략
+
+프로덕션에서 Layer 3를 모든 태스크에 적용하면 비용이 폭발적으로 증가한다. 실제 팀들이 사용하는 최적화 전략:
+
+**전략 1: 조건부 LLM Judge**
+```python
+# Layer 1 결과가 애매한 케이스만 LLM Judge 적용
+rule = SimpleTaskAlertRule(
+    name="borderline_accuracy",
+    condition=lambda tr: 0.4 < tr.accuracy_score < 0.7,  # 애매한 정확도
+    handler=lambda msg, tr: queue_for_llm_judge(tr),
+)
+```
+
+**전략 2: 중요도 기반 샘플링**
+```python
+# 고가치 태스크(프리미엄 사용자, 고위험 도메인)는 반드시 Judge
+@agent_eval(
+    monitor,
+    task_type="qa",
+    enable_llm_judge=True,
+    sample_condition=lambda args, kwargs: kwargs.get("user_tier") == "premium",
+)
+def premium_agent(question, ground_truth=""): ...
+```
+
+**전략 3: 주기적 샘플 배치**
+```python
+# 매일 밤 최근 1000건에서 무작위 100건만 LLM Judge 채점
+# → 비용 90% 절감, 트렌드 파악은 가능
+judge = LLMJudge(sample_rate=0.1)  # 10% 샘플링
+```
+
+**전략 4: 첫 배포 시 강화, 안정화 후 완화**
+```python
+# 신규 에이전트 배포 첫 주: 100% 채점
+# 안정화 후: 5% 채점
+judge_sample_rate = 1.0 if deployment_age_days < 7 else 0.05
+```
+
+---
+
+> 📖 **더 깊이 알고 싶다면**
+> - **Appendix G.4**: 평가 방법론 비교 (인간/규칙/모델 기반)
+> - **Appendix H.10**: LLM Judge 프롬프트 구조와 집계 수식
+> - **Appendix I.3**: LLM Judge 신뢰성 심층 분석
+> - **Appendix I.4**: RAG 평가 지표 비교 (Faithfulness vs HallucinationRate vs Ragas)

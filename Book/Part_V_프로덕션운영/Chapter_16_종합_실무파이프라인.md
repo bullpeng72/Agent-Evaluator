@@ -642,7 +642,7 @@ from agent_evaluator import PerformanceMonitor, QuickEval
 
 # 1단계: Phoenix OTEL 설정 (PerformanceMonitor 생성 전)
 if socket.create_connection(("localhost", 6006), timeout=2):
-    setup_otel(endpoint="http://localhost:6006/v1/traces", service_name="prod-agent")
+    setup_otel(endpoint="http://localhost:6006", service_name="prod-agent")
 
 # 2단계: 모니터 초기화
 monitor = PerformanceMonitor(

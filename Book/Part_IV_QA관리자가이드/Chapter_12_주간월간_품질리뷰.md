@@ -160,6 +160,8 @@ if __name__ == "__main__":
 
 ## 12.3 전주 대비 회귀 분석 패턴
 
+> 📖 **`compare()` 통계 수식**: `accuracy_delta`, `p95_latency_delta` 등 각 델타 값의 계산 방식과 통계적 해석은 **[Appendix H §H.4](../Appendix/H_알고리즘_수학적_레퍼런스.md)**를 참조하세요.
+
 `compare()` 메서드는 두 `QuickEval` 인스턴스의 지표를 비교해서 델타(변화량)를 반환한다.
 
 ### compare() 반환값 구조

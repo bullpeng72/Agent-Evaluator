@@ -7,6 +7,11 @@
 > - Warning / Error / Critical 3계층 알림 체계를 설계하고, 품질 SLA를 문서화한다
 > - 초기 배포 후 2주 캘리브레이션 프로세스를 적용한다
 
+> 📖 **관련 레퍼런스**
+> - **[Appendix I — 지표 비교 분석 및 선택 가이드](../Appendix/I_지표_비교분석_선택가이드.md)**: 에이전트 유형별 지표 선택 결정 트리 및 비용 프로파일 → §I.6 결정 트리 참조
+> - **[Appendix G — AI 품질 평가 이론적 기초](../Appendix/G_AI평가_이론적기초.md)**: 이 챕터의 권장 임계값(TCR≥85%, Accuracy≥70%)이 도출된 이론적 근거 → §G.5 참조
+> - **[Appendix A — 25개 지표 완전 레퍼런스](../Appendix/A_25개지표_레퍼런스.md)**: 각 지표의 권장 임계값 기본값 빠른 조회
+
 ---
 
 ## 9.1 좋은 임계값의 조건
@@ -66,6 +71,90 @@ TCR 임계값을 95%로 설정했다고 가정하자. 에이전트가 하루 1,0
 | Workflow Execution | ≥ 80% | 워크플로우 단계 완료율 |
 
 📋 **QA 관리자 TIP:** 에이전트가 여러 유형을 동시에 처리한다면 가장 엄격한 기준을 전체에 적용하지 말 것. `task_type` 별로 별도 임계값 파일을 관리하는 것이 현실적이다.
+
+### 9.2.1 어떤 레이어를 활성화할 것인가? — 지표 선택 의사결정 트리
+
+에이전트 유형별 KPI 기준표를 정했다면, 다음 단계는 **어떤 레이어의 지표를 활성화할지**를 결정하는 것이다. 아래 의사결정 트리를 순서대로 따라가면 최소 비용으로 최대 커버리지를 얻을 수 있다.
+
+```
+[시작]
+  │
+  ▼
+에이전트가 도구를 사용하는가?
+  │
+  ├─ NO → Layer 1만 활성 (TCR, Accuracy, Quality, Latency, Token, Hallucination*)
+  │         *(hallucination은 RAG 경우에만)
+  │
+  └─ YES ─→ Layer 1 + Layer 2-A 활성
+              │
+              ▼
+            에이전트가 민감 데이터/외부 시스템에 접근하는가?
+              │
+              ├─ NO → Layer 1 + Layer 2-A 유지
+              │
+              └─ YES → Layer 2-B 추가 (보안 지표 5개)
+                          enable_security_metrics=True
+
+[계속]
+  │
+  ▼
+Ground truth를 항상 가질 수 있는가?
+  │
+  ├─ YES → Layer 1/2로 충분 (낮은 비용)
+  │
+  └─ NO → LLM Judge 추가 (Layer 3)
+            │
+            ▼
+          RAG 파이프라인인가?
+            │
+            ├─ NO → LLM Judge (5차원) + judge_sample_rate=0.1
+            │
+            └─ YES → LLM Judge (rag_mode=True, faithfulness 추가)
+                       OR Ragas (더 정밀한 RAG 평가 필요 시)
+
+[심화]
+  │
+  ▼
+특정 도메인 기준이 필요한가? (의료, 법률, 금융 등)
+  │
+  └─ YES → judge_criteria=["domain_accuracy", "citation_quality", ...]
+             (G-Eval 스타일 커스텀 기준)
+```
+
+**코드로 바로 적용:**
+
+```python
+from agent_evaluator import PerformanceMonitor
+from agent_evaluator.decorators import agent_eval
+
+# Case 1: 도구 없는 QA 챗봇 (Layer 1만)
+monitor = PerformanceMonitor(output_dir="results/")
+
+# Case 2: Tool Use 에이전트 (Layer 1 + 2-A)
+monitor = PerformanceMonitor(output_dir="results/")
+# → 기본적으로 Layer 2-A 트래커(ToolCall, Retry 등)는 자동 수집됨
+
+# Case 3: 보안 에이전트 (Layer 1 + 2-A + 2-B)
+monitor = PerformanceMonitor(
+    output_dir="results/",
+    enable_security_metrics=True,   # Layer 2-B 활성화
+)
+
+# Case 4: RAG + LLM Judge (Layer 1 + 3)
+monitor = PerformanceMonitor(
+    output_dir="results/",
+    enable_hallucination_detection=True,
+    enable_llm_judge=True,
+    judge_sample_rate=0.1,          # 10%만 채점 (비용 절감)
+)
+
+@agent_eval(monitor, task_type="information_retrieval",
+            rag_mode=True, context_arg="context")
+def rag_agent(question: str, context: str = "", ground_truth: str = "") -> str:
+    return retrieval_chain.invoke({"question": question, "context": context})
+```
+
+> 📖 **더 깊이**: 레이어 선택의 비용-정밀도 트레이드오프 분석은 → Appendix I §I.7 지표별 비용 프로파일
 
 ---
 
@@ -356,36 +445,40 @@ for event in events:
 # 출처: Evaluator_Examples/06_operational.py, 섹션 2 — CostTracker + AdaptivePolicy
 from agent_evaluator import CostTracker, AdaptivePolicy, SamplingStage
 
-# 비용 정책: 1일 예산 10달러, 기본 샘플링 10%
+# SamplingStage는 Enum (DEFAULT / ANOMALY / BUDGET_EXCEEDED)
+# AdaptivePolicy: 이상 감지 상태에 따라 샘플링률 자동 조정
 policy = AdaptivePolicy(
     default_sample_rate=0.1,   # 기본: 전체의 10%만 LLM Judge 실행
+    anomaly_sample_rate=1.0,   # 이상 감지 시 100% 전수 평가로 전환
     budget_per_day=10.0,       # 일일 LLM API 비용 상한
+    alert_at=0.8,              # 예산 80% 도달 시 알림
 )
 
-# 3단계 샘플링 구간 설정
-policy.add_stage(SamplingStage(
-    name="initial",
-    sample_rate=1.0,            # 초기 100건: 전수 평가
-    max_tasks=100,
-))
-policy.add_stage(SamplingStage(
-    name="steady",
-    sample_rate=0.1,            # 그 이후: 10% 샘플링
-    max_tasks=None,
-))
+tracker = CostTracker(budget_per_day=10.0, alert_at=0.8)
 
-tracker = CostTracker(policy=policy)
+# LLM Judge 호출 시마다 비용 기록
+for i in range(10):
+    # 현재 샘플링 비율 기준으로 실행 여부 결정
+    if policy.current_sample_rate >= 1.0 or (i % 10 == 0):
+        tracker.record(
+            provider="anthropic",
+            model="claude-haiku-4-5-20251001",
+            cost_usd=0.001,
+            input_tokens=200,
+            output_tokens=50,
+        )
 
-# 실제 평가 시 샘플링 여부 결정
-for i in range(200):
-    if tracker.should_evaluate(task_id=f"task_{i}"):
-        # LLM Judge 또는 비싼 외부 평가 실행
-        tracker.record_cost(task_id=f"task_{i}", cost_usd=0.02)
+# 이상 감지 발생 시 전수 평가 모드로 전환
+policy.enter_anomaly_mode(reason="accuracy 급락 감지")
+print(f"이상 모드 전환: sample_rate={policy.current_sample_rate:.0%}")
+print(f"오늘 비용: ${tracker.get_today_cost():.4f} USD")
+print(f"예산 초과 여부: {tracker.is_budget_exceeded()}")
 ```
 
-- `AdaptivePolicy`는 초기 단계에서 전수 평가 후, 안정 구간에서 샘플링 비율을 낮춰 비용을 절감한다
-- `should_evaluate()`가 `True`를 반환하는 태스크에만 LLMJudge나 DeepEval 등 비싼 연산을 실행한다
-- `budget_per_day`를 초과하면 자동으로 샘플링 비율을 추가 감소시킨다
+- `AdaptivePolicy`는 평상시 낮은 샘플링률로 비용을 절감하고, 이상 감지 시 `enter_anomaly_mode()`를 호출해 전수 평가로 전환한다
+- `SamplingStage`는 `DEFAULT` / `ANOMALY` / `BUDGET_EXCEEDED` 세 상태를 가지는 Enum이다
+- `CostTracker.record()`로 비용을 기록하고, `is_budget_exceeded()`로 예산 초과 여부를 확인한다
+- `budget_per_day`를 초과하면 `policy.current_sample_rate`가 자동으로 0으로 내려간다
 
 ```bash
 python Evaluator_Examples/06_operational.py

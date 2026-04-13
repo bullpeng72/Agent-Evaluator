@@ -501,51 +501,52 @@ print(f"권고: {explanation['recommendation']}")
 ```python
 from agent_evaluator import AdaptivePolicy, SamplingStage, CostTracker
 
-# 비용 정책 설정
+# SamplingStage Enum: DEFAULT / ANOMALY / BUDGET_EXCEEDED
+# AdaptivePolicy: 이상 감지·예산 초과 시 샘플링률 자동 전환
 policy = AdaptivePolicy(
-    daily_budget_usd=50.0,       # 하루 예산 $50
-    stages=[
-        SamplingStage(
-            name="normal",
-            model="gpt-4o",
-            sample_rate=1.0,     # 100% 전수 평가
-            budget_threshold=0.7, # 예산의 70% 이하일 때
-        ),
-        SamplingStage(
-            name="reduced",
-            model="gpt-4o-mini",
-            sample_rate=0.5,     # 50% 샘플링 평가
-            budget_threshold=0.9, # 예산의 70~90%일 때
-        ),
-        SamplingStage(
-            name="minimal",
-            model="gpt-4o-mini",
-            sample_rate=0.1,     # 10% 샘플링 평가
-            budget_threshold=1.0, # 예산의 90~100%일 때
-        ),
-    ],
-    on_stage_change=lambda old, new: print(
-        f"[AdaptivePolicy] 모델 전환: {old.model} → {new.model}, "
-        f"샘플링 {old.sample_rate:.0%} → {new.sample_rate:.0%}"
-    ),
+    default_sample_rate=0.1,     # 평상시 10% 샘플링 — 비용 절감
+    anomaly_sample_rate=1.0,     # 이상 감지 시 100% 전수 평가
+    budget_per_day=50.0,         # 하루 예산 $50
+    alert_at=0.8,                # 예산 80% 도달 시 알림
 )
 
-# CostTracker와 연동
-cost_tracker = CostTracker(policy=policy)
+# CostTracker: provider/model별 비용 기록 및 예산 추적
+cost_tracker = CostTracker(budget_per_day=50.0, alert_at=0.8)
 monitor = PerformanceMonitor(output_dir="results/")
+
+# LLM Judge 호출 시 현재 샘플링 비율 기준으로 실행 여부 결정
+import random
+for task_id in range(100):
+    if random.random() < policy.current_sample_rate:
+        cost_tracker.record(
+            provider="anthropic",
+            model="claude-haiku-4-5-20251001",
+            cost_usd=0.001,
+        )
+
+# 예산 소진 시 자동으로 샘플링 비율 0으로 전환
+if cost_tracker.is_budget_exceeded():
+    print(f"예산 초과 — 오늘 평가 중단: ${cost_tracker.get_today_cost():.2f} USD")
+
+# 이상 감지 시 전수 평가로 전환, 해소 시 기본 모드 복귀
+policy.enter_anomaly_mode(reason="accuracy 급락 감지")
+print(f"이상 모드: sample_rate={policy.current_sample_rate:.0%}")  # → 100%
+
+policy.exit_anomaly_mode()
+print(f"복귀 후: sample_rate={policy.current_sample_rate:.0%}")   # → 10%
 ```
 
-**단계 전환 로직:**
+**`SamplingStage` 상태 전환:**
 
 ```
-하루 비용 < $35 (70%)   → normal:  gpt-4o, 100% 샘플링
-하루 비용 $35~$45 (90%) → reduced: gpt-4o-mini, 50% 샘플링
-하루 비용 > $45 (90%+)  → minimal: gpt-4o-mini, 10% 샘플링
+DEFAULT        → 10% 샘플링 (평상시)
+ANOMALY        → 100% 전수 평가 (enter_anomaly_mode() 호출 후)
+BUDGET_EXCEEDED → 0% 평가 중단 (budget_per_day 초과 시 자동 전환)
 ```
 
-예산의 90%에 도달하면 알림을 보내고 10% 샘플링으로 낮춘다. 나머지 10% 예산으로 당일 서비스를 유지한다.
+예산의 80%에 도달하면 알림이 발생하고(`is_budget_alert()`), 초과 시 자동으로 평가를 중단해 당일 비용 폭증을 방지한다.
 
-📋 **QA 관리자 TIP:** `AdaptivePolicy`의 `on_stage_change` 콜백에 Slack 알림을 연결하라. 모델이 자동 전환되는 상황을 팀이 실시간으로 알아야 한다. 전환이 잦다면 일일 예산을 늘리거나 샘플링 전략을 재검토할 신호다.
+📋 **QA 관리자 TIP:** `is_budget_alert()` 또는 `is_budget_exceeded()` 호출 결과를 `SimpleTaskAlertRule` 조건에 연결하면 예산 경고를 Slack으로 자동 전달할 수 있다. `enter_anomaly_mode()` 호출이 잦다면 일일 예산을 늘리거나 샘플링 전략을 재검토할 신호다.
 
 ---
 

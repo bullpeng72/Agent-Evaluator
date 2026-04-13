@@ -2,6 +2,11 @@
 
 이 챕터에서 배우는 것: Agent-Evaluator SDK의 핵심 인터페이스인 데코레이터 시스템을 완벽하게 이해한다. 비즈니스 로직과 평가 코드를 어떻게 깔끔하게 분리하는지, 상황별로 어떤 데코레이터를 선택해야 하는지, 그리고 RAG·멀티에이전트·스트리밍 같은 실전 시나리오에서 데코레이터를 어떻게 조합하는지를 단계적으로 익힌다.
 
+> 📖 **관련 레퍼런스**
+> - **[Appendix E — 에러 코드 & 트러블슈팅](../Appendix/E_에러코드_트러블슈팅.md)**: 데코레이터 적용 후 발생하는 오류 코드별 원인과 해결책
+> - **[Chapter 8 — 평가 데이터 설계](Chapter_08_평가데이터_설계.md)**: 데코레이터에 전달할 `ground_truth`와 `task_type`을 어떻게 설계할지 → **먼저 읽기 권장**
+> - **[Appendix I — 지표 비교 분석 및 선택 가이드](../Appendix/I_지표_비교분석_선택가이드.md)**: `task_type` 선택이 정확도 계산에 미치는 영향
+
 ---
 
 ## 6.1 왜 데코레이터인가 — SDK 설계 철학
@@ -200,7 +205,7 @@ def careful_agent(question: str, ground_truth: str = "") -> str:
     return llm.invoke(question)
 # LLM Judge가 5차원 기본 평가: completeness, relevance, factual_consistency, toxicity, bias
 # rag_mode=True 시 faithfulness 차원 자동 추가 (6차원), judge_criteria 지정 시 추가 확장
-# 결과는 TaskResult.extra["llm_judge"]에 저장되어 대시보드에서 확인 가능
+# 결과는 task.llm_judge["scores"]에 저장되어 대시보드에서 확인 가능 (llm_judge는 TaskResult 직접 필드)
 ```
 
 ### 모든 파라미터를 활용한 완전한 예시
