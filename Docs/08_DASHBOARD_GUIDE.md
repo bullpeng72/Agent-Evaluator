@@ -2,8 +2,8 @@
 
 Agent Evaluator 실시간 평가 대시보드 — 탭별 상세 사용법
 
-**버전:** v0.8.0
-**최종 업데이트:** 2026-04-13
+**버전:** v0.8.1
+**최종 업데이트:** 2026-04-15
 
 ---
 
@@ -43,7 +43,7 @@ Agent Evaluator 실시간 평가 대시보드 — 탭별 상세 사용법
 | **💬 멀티턴 대화** | `conversation_sessions[]` | `@conversation_eval` | `ConversationSession.compute_metrics()` 자동 호출. `turn_count`, `context_retention`, `topic_coherence` 등 7개 지표 자동 계산 |
 | **⚡ 성능** | `efficiency_metrics.latency`, `efficiency_metrics.tokens` | 기본 | `LatencyTracker`(P50·P90·P95·P99)·`TokenEconomyTracker`(input/output 토큰) 모든 태스크에서 자동 기록 |
 | **🤖 에이전틱** | `tool_usage`, `retry_analysis`, `agent_coordination`, `workflow_analysis` | `task_type="tool_use"` + 응답에 `tool_calls` 포함 | 프레임워크 어댑터(`framework="langchain"` 등)가 응답에서 `tool_calls` 자동 추출. `ToolCallAnalyzer`·`RetryCorrectionTracker`·`ToolSelectionTracker` 자동 실행. 직접 전달 시 `TaskResult(tool_calls=[...])` |
-| **🔒 보안** | `security_metrics` | `security_mode=True` 또는 `PerformanceMonitor(enable_security_metrics=True)` | 5개 보안 트래커(`InputSanitization`·`OutputLeakage`·`ToolAuth`·`PrivilegeEscalation`·`ChainAttack`) 활성화. 성능 영향으로 기본값 False |
+| **🔒 보안** | `security_metrics` | `security=SecurityConfig()` 또는 `PerformanceMonitor(enable_security_metrics=True)` | 5개 보안 트래커(`InputSanitization`·`OutputLeakage`·`ToolAuth`·`PrivilegeEscalation`·`ChainAttack`) 활성화. 성능 영향으로 기본값 False |
 
 ---
 
@@ -58,7 +58,7 @@ Agent Evaluator 실시간 평가 대시보드 — 탭별 상세 사용법
 | **🔔 알림** | `results/alerts/YYYY-MM-DD.jsonl` | `SimpleTaskAlertRule` 생성 + `alert_rules=` 전달 + 핸들러에서 JSONL 기록 | 각 태스크 평가 후 `condition(task_result)` 자동 호출. 조건 충족 시 `handler(msg, tr)` 실행. **JSONL 기록은 핸들러 구현 책임** (대시보드는 JSONL 파일을 직접 읽음) |
 | **👍 사용자 반응** | `feedback` | `monitor.record_implicit_feedback(task_id, type)` 명시 호출 | 외부 이벤트(클릭·별점·재질문)를 평가 루프 밖에서 수집해 수동 기록. `ImplicitFeedbackTracker`에 쌓인 데이터가 `save_to_file()` 시 자동 포함 |
 | **🚨 이상 감지** | `anomaly_data` | `PerformanceMonitor(enable_anomaly_detection=True)` | `save_to_file()` 시 `AnomalyDetector.scan(self)` 자동 호출. Z-Score(accuracy_drift)·IQR(token_spike)·선형회귀(latency_trend)·비율(error_surge) 4가지 알고리즘 실행. 최소 5건 이상 태스크 필요 |
-| **💰 평가 비용** | `efficiency_metrics.tokens.total_cost` + `task.extra["llm_judge"]["cost_usd"]` | 토큰 비용: 자동. LLM Judge 비용: `enable_llm_judge=True` | `TokenEconomyTracker`가 모델 단가 테이블로 자동 추정. LLM Judge API 호출 비용은 태스크별 `extra["llm_judge"]["cost_usd"]`에 기록. 대시보드 UI에서 모델 선택 시 단가 재계산 |
+| **💰 평가 비용** | `efficiency_metrics.tokens.total_cost` + `task.extra["llm_judge"]["cost_usd"]` | 토큰 비용: 자동. LLM Judge 비용: `llm_judge=LLMJudgeConfig()` | `TokenEconomyTracker`가 모델 단가 테이블로 자동 추정. LLM Judge API 호출 비용은 태스크별 `extra["llm_judge"]["cost_usd"]`에 기록. 대시보드 UI에서 모델 선택 시 단가 재계산 |
 
 ---
 
@@ -368,7 +368,7 @@ Layer 3 DeepEval 평가 결과. `HybridPerformanceMonitor` + `enable_deepeval=Tr
 | **알림** | ⚠️ 반자동 | `alert_rules=` 파라미터 전달 + 핸들러 내 JSONL 기록 함수 구현 |
 | **사용자 반응** | ❌ 불가 | `monitor.record_implicit_feedback()` 명시 호출 |
 | **이상 감지** | ✅ 가능 | `PerformanceMonitor(enable_anomaly_detection=True)` 설정만으로 자동 |
-| **평가 비용** | ✅ 가능 | 토큰 기록 자동 / LLM Judge 비용: `enable_llm_judge=True` 추가 |
+| **평가 비용** | ✅ 가능 | 토큰 기록 자동 / LLM Judge 비용: `llm_judge=LLMJudgeConfig()` 추가 |
 
 > **근본 원인**: `save_to_file()` 내부에서 각 탭의 데이터를 생성하는 조건이 다릅니다.
 > 실시간·사용자반응 탭은 "외부 이벤트(스트리밍 청크, 사용자 피드백)"를 수집해야 하므로
@@ -537,18 +537,21 @@ monitor = PerformanceMonitor(
 ### 평가 비용 탭 {#tab-cost}
 
 토큰 사용량은 `TokenEconomyTracker`가 자동 기록합니다.
-LLM Judge 비용을 포함하려면 `enable_llm_judge=True`가 필요합니다. 비용은 태스크별 `task_result.extra["llm_judge"]["cost_usd"]`로 접근합니다 (v0.7.6+에서 최상위 `evaluation_cost` 키 제거됨).
+LLM Judge 비용을 포함하려면 `llm_judge=LLMJudgeConfig()` 파라미터가 필요합니다. 비용은 태스크별 `task_result.extra["llm_judge"]["cost_usd"]`로 접근합니다 (v0.7.6+에서 최상위 `evaluation_cost` 키 제거됨).
 
 ```python
+from agent_evaluator.decorators import agent_eval, LLMJudgeConfig
+
 # 기본 토큰 비용 — 자동 (추가 설정 불필요)
 monitor = PerformanceMonitor(output_dir="results/")
 
-# LLM Judge 비용 포함 — enable_llm_judge=True 필요
-monitor = PerformanceMonitor(
-    output_dir="results/",
-    enable_llm_judge=True,
-    llm_judge_model="claude-haiku-4-5-20251001",  # 비용 효율적인 모델 권장
+# LLM Judge 비용 포함 — llm_judge=LLMJudgeConfig() 필요
+@agent_eval(
+    monitor,
+    task_type="qa",
+    llm_judge=LLMJudgeConfig(model="claude-haiku-4-5-20251001"),  # 비용 효율적인 모델 권장
 )
+def my_agent(question: str, ground_truth: str = "") -> str: ...
 ```
 
 **비용 탭 JSON 키 구조:**
@@ -581,7 +584,7 @@ if self.enable_anomaly_detection:              # 생성자 파라미터
 
 # 평가 비용 탭 (LLM Judge 부분, v0.7.6+)
 # evaluation_cost 최상위 키 제거 — 비용은 task_result.extra["llm_judge"]["cost_usd"]로 접근
-if self.llm_judge is not None:                 # enable_llm_judge=True
+if self.llm_judge is not None:                 # llm_judge=LLMJudgeConfig() 설정 시
     # 각 task.extra["llm_judge"]["cost_usd"] 에 기록됨
 ```
 
@@ -633,7 +636,7 @@ agent-eval dashboard
 | 알림 | `alert_rules=` 파라미터 + 핸들러에서 JSONL 기록 | [알림 탭 가이드](#tab-alerts) |
 | 사용자 반응 | `monitor.record_implicit_feedback()` | [사용자 반응 탭 가이드](#tab-feedback) |
 | 이상 감지 | `enable_anomaly_detection=True` | [이상 감지 탭 가이드](#tab-anomaly) |
-| 평가 비용 | 자동 (LLM Judge: `enable_llm_judge=True`) | [평가 비용 탭 가이드](#tab-cost) |
+| 평가 비용 | 자동 (LLM Judge: `llm_judge=LLMJudgeConfig()`) | [평가 비용 탭 가이드](#tab-cost) |
 | Quality — Hallucination | `enable_hallucination_detection=True` | — |
 | Agentic — 보안 | `enable_security_metrics=True` | — |
 | Security | `enable_security_metrics=True` | — |

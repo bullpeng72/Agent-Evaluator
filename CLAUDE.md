@@ -5,7 +5,7 @@
 **Agent-Evaluator** is a production-ready Python SDK for evaluating AI agents.
 25개의 성능 지표를 세 개의 레이어(기본/에이전틱/하이브리드)로 측정한다.
 
-- **Version:** 0.8.0 (Beta)
+- **Version:** 0.8.1 (Beta)
 - **Python:** 3.8+
 - **License:** MIT
 - **Author:** Sungwoo Kim
@@ -217,7 +217,7 @@ eval = QuickEval("results/", auto_save=True, auto_save_interval=10)
 # 단축 데코레이터: qa, tool_use, rag, code, reasoning, planning, data_analysis, creative, multi_agent, secure, streaming
 # 배치: @eval.batch(task_type="qa")
 # 직접 호출: @eval(task_type="qa", score_fn=my_fn)
-# 재시도: @eval.with_retry(task_type="qa", max_retries=3)
+# 재시도: @eval.with_retry(task_type="qa", retry=RetryConfig(max=3))
 ```
 
 ### PerformanceMonitor vs HybridPerformanceMonitor 선택 가이드
@@ -367,8 +367,9 @@ result["scores"]["criteria_scores"]   # {"medical_accuracy": 4, "citation_qualit
 result["scores"]["criteria_overall"]  # 커스텀 기준 평균
 
 # 데코레이터에서 직접 사용 (Lazy init — monitor가 enable_llm_judge=False여도 동작)
-@agent_eval(monitor, rag_mode=True, enable_llm_judge=True,
-            judge_criteria=["safety", "evidence_based"])
+from agent_evaluator.decorators import LLMJudgeConfig
+@agent_eval(monitor, rag_mode=True,
+            llm_judge=LLMJudgeConfig(criteria=["safety", "evidence_based"]))
 def rag_agent(question, context="", ground_truth=""): ...
 ```
 
@@ -431,10 +432,10 @@ with eval_context(monitor, "qa", alert_rules=[rule]) as ctx:
 N번 호출마다 `save_to_file()` 을 자동 실행한다.
 
 ```python
-@agent_eval(monitor, task_type="qa", flush_every=10, flush_filename="periodic")
+@agent_eval(monitor, task_type="qa", flush_every=10)
 def agent(question, ground_truth=""): ...
 
-@batch_eval(monitor, flush_every=5, flush_filename="batch_periodic")
+@batch_eval(monitor, flush_every=5)
 def batch_agent(questions, ground_truths=None): ...
 ```
 
@@ -459,6 +460,9 @@ from agent_evaluator import (
 
     # LLM Judge (opt-in, requires [llm] extra)
     LLMJudge,
+
+    # Decorator Config Dataclasses (v0.8.1+)
+    RetryConfig, LLMJudgeConfig, SecurityConfig,
 
     # Transparency Subsystem
     TestTransparencyManager, AnnotationType, TestStepStatus,
@@ -532,7 +536,7 @@ from agent_evaluator import (
 
 ## Testing
 
-`tests/` 디렉토리에 62개 파일, 1,869개+ 테스트 함수 존재.
+`tests/` 디렉토리에 49개 파일, 2,348개+ 테스트 함수 존재.
 
 ```bash
 # pytest.ini_options in pyproject.toml already configured:
@@ -606,6 +610,18 @@ completion_score task_type 인식 (v0.8.0+):
 ---
 
 ## 📝 변경 이력
+
+### v0.8.1 (2026-04-14) — 데코레이터 파라미터 구조화 · RetryConfig · LLMJudgeConfig · SecurityConfig
+
+- ✨ **`RetryConfig` 데이터클래스** — `max_retries/delay/backoff` 개별 파라미터 → `retry=RetryConfig(max=3, delay=1.0, backoff=2.0)` 구조화 묶음으로 교체. `on`, `jitter_type`, `max_delay`, `should_retry`, `on_retry` 필드 포함
+- ✨ **`LLMJudgeConfig` 데이터클래스** — `enable_llm_judge/judge_model/judge_criteria` → `llm_judge=LLMJudgeConfig(model=..., criteria=[...])` 구조화. `sample_rate` 필드 포함
+- ✨ **`SecurityConfig` 데이터클래스** — `security_mode` → `security=SecurityConfig(allowed_tools=[...])` 구조화
+- 🗑️ **개별 파라미터 제거** — `max_retries`, `delay`, `backoff`, `jitter_type`, `max_delay`, `enable_llm_judge`, `judge_model`, `judge_criteria`, `security_mode`, `enable_quality_evaluation`, `flush_filename` 제거 (3종 데코레이터 모두 적용)
+- 🔧 **`enable_hallucination` → `enable_hallucination_detection`** — 구 이름 완전 제거, 신 이름으로 통일
+- 🧪 **테스트 548개 추가** — 파라미터 구조화·제거·이름 변경 검증 + 커버리지 개선 (72개 파일, 2,417개+ 함수)
+- 🔧 **테스트 파일 리구조화** — 72개 → 49개 파일 (중복 클래스 병합·제거); 테스트 함수 2,348개 (TestCompareWithThresholds·TestSnapshot 중복 제거)
+- 🔧 **예제 파일 API 현행화** — `Evaluator_Examples/` 구 파라미터(`max_retries/retry_on/flush_filename/shuffle/concurrent`) → 신 API(`RetryConfig`, `concurrency=N`) 교체
+- 🔧 **골든 데이터셋 정리** — `data/golden_datasets/` 레거시 53개 파일 제거, 예제용 별칭 2개(`rag_candidates.json`, `tool_selection_candidates.json`) 생성
 
 ### v0.8.0 (2026-04-13) — 정확도 지표 전면 개선 · Token F1 · Char Levenshtein · task_type 인식 TCR
 

@@ -29,49 +29,45 @@ from __future__ import annotations
 
 import functools
 import logging
-from typing import Any, Callable, Dict, List, Optional, TypeVar, Union, overload
+from typing import Any, Callable, Dict, List, Optional, Union
 
 logger = logging.getLogger(__name__)
-
-_F = TypeVar("_F", bound=Callable[..., Any])
 
 __all__ = ["QuickEval"]
 
 
-class _QuickEvalDecorator:
-    """QuickEval 속성 접근 시 반환되는 데코레이터 헬퍼.
+class _QuickEvalBatchShortcut:
+    """QuickEval.batch 속성 반환 객체 — @eval.batch / @eval.batch() 모두 지원."""
 
-    괄호 없이 ``@eval.qa`` 로도, 파라미터와 함께 ``@eval.qa(score_fn=...)`` 로도 동작한다.
-    """
-
-    def __init__(self, eval_decorator: Any, task_type: str) -> None:
+    def __init__(self, eval_decorator: Any) -> None:
         self._eval = eval_decorator
-        self._task_type = task_type
 
-    @overload
-    def __call__(self, func: _F) -> _F: ...
-    @overload
-    def __call__(self, func: None = None, **kwargs: Any) -> Callable[[_F], _F]: ...
     def __call__(self, func_or_kwargs: Any = None, **kwargs: Any) -> Any:
-        """괄호 없이 함수에 직접 적용하거나 kwargs와 함께 호출한다.
-
-        Usage::
-
-            @eval.qa                       # 괄호 없이
-            def f(q, ground_truth=""): ...
-
-            @eval.qa(score_fn=my_fn)       # kwargs와 함께
-            def f(q, ground_truth=""): ...
-        """
         if callable(func_or_kwargs):
-            # @eval.qa (괄호 없음) — 함수에 직접 적용
-            return self._eval(task_type=self._task_type)(func_or_kwargs)
+            return self._eval.batch()(func_or_kwargs)
         elif func_or_kwargs is None:
-            # @eval.qa() 또는 @eval.qa(score_fn=...) — 데코레이터 반환
-            return self._eval(task_type=self._task_type, **kwargs)
+            return self._eval.batch(**kwargs)
         else:
             raise TypeError(
-                f"_QuickEvalDecorator.__call__: callable 또는 키워드 인자를 기대합니다, "
+                f"_QuickEvalBatchShortcut: callable 또는 키워드 인자를 기대합니다, "
+                f"got {type(func_or_kwargs).__name__!r}"
+            )
+
+
+class _QuickEvalChatShortcut:
+    """QuickEval.chat 속성 반환 객체 — @eval.chat / @eval.chat() 모두 지원."""
+
+    def __init__(self, eval_decorator: Any) -> None:
+        self._eval = eval_decorator
+
+    def __call__(self, func_or_kwargs: Any = None, **kwargs: Any) -> Any:
+        if callable(func_or_kwargs):
+            return self._eval.conversation()(func_or_kwargs)
+        elif func_or_kwargs is None:
+            return self._eval.conversation(**kwargs)
+        else:
+            raise TypeError(
+                f"_QuickEvalChatShortcut: callable 또는 키워드 인자를 기대합니다, "
                 f"got {type(func_or_kwargs).__name__!r}"
             )
 
@@ -164,7 +160,6 @@ class QuickEval:
             self._monitor,
             alert_rules=alert_rules or [],
             flush_every=flush_every,
-            flush_filename=flush_filename,
         )
 
     @classmethod
@@ -409,70 +404,64 @@ class QuickEval:
         return self._eval
 
     # ------------------------------------------------------------------
-    # 단축 데코레이터 속성 — @eval.qa, @eval.tool_use 등
+    # __getattr__ 위임 — 단축 속성을 EvalDecorator로 위임
+    # ------------------------------------------------------------------
+
+    # EvalDecorator에 위임할 속성 목록.
+    # EvalDecorator가 _ShortcutCallable 프로퍼티로 제공하는 task_type 단축키 + 유틸리티 메서드.
+    # NOTE: batch / chat 은 EvalDecorator에 no-paren property가 없으므로 아래에 직접 정의.
+    _DELEGATED_ATTRS: frozenset = frozenset({
+        # task_type 단축 속성 (_ShortcutCallable 반환)
+        "qa", "tool_use", "rag", "code", "reasoning",
+        "planning", "data_analysis", "creative",
+        "multi_agent", "secure", "streaming",
+        # EvalDecorator 유틸리티 메서드
+        "context", "update_defaults", "inspect", "get_config",
+    })
+
+    def __getattr__(self, name: str) -> Any:
+        """미등록 속성을 내부 EvalDecorator로 위임한다.
+
+        ``qa``, ``rag`` 등의 단축 속성과 ``update_defaults`` 같은 유틸리티를
+        QuickEval에서 그대로 사용할 수 있도록 EvalDecorator에 전달한다.
+
+        Raises:
+            AttributeError: ``_DELEGATED_ATTRS`` 에 없는 이름이거나 EvalDecorator에도
+                없는 경우.
+        """
+        # __init__ 완료 전 (_eval 미존재) 또는 내부 속성 접근 시 무한 재귀 방지
+        if name.startswith("_"):
+            raise AttributeError(f"'QuickEval' object has no attribute {name!r}")
+        try:
+            eval_dec = object.__getattribute__(self, "_eval")
+        except AttributeError:
+            raise AttributeError(f"'QuickEval' object has no attribute {name!r}")
+        if name in self._DELEGATED_ATTRS:
+            return getattr(eval_dec, name)
+        raise AttributeError(f"'QuickEval' object has no attribute {name!r}")
+
+    # ------------------------------------------------------------------
+    # 단축 데코레이터 속성 — batch / chat (no-paren 지원)
+    # NOTE: EvalDecorator.batch / .conversation 은 메서드(callable)이므로
+    #       @eval.batch (괄호 없음) 패턴을 지원하려면 별도 프로퍼티 필요.
     # ------------------------------------------------------------------
 
     @property
-    def qa(self) -> _QuickEvalDecorator:
-        """``task_type="qa"`` 데코레이터. 괄호 없이 사용 가능.
+    def batch(self) -> _QuickEvalBatchShortcut:
+        """배치 처리 평가 데코레이터 (``batch_eval``).
 
         Usage::
 
-            @eval.qa
-            def agent(question, ground_truth=""): ...
+            @eval.batch
+            def batch_agent(questions, ground_truths=None): ...
 
-            @eval.qa(score_fn=my_fn)
-            def agent(question, ground_truth=""): ...
+            @eval.batch(task_type="tool_use")
+            def batch_agent(questions, ground_truths=None): ...
         """
-        return _QuickEvalDecorator(self._eval, "qa")
+        return _QuickEvalBatchShortcut(self._eval)
 
     @property
-    def tool_use(self) -> _QuickEvalDecorator:
-        """``task_type="tool_use"`` 데코레이터."""
-        return _QuickEvalDecorator(self._eval, "tool_use")
-
-    @property
-    def rag(self) -> _QuickEvalDecorator:
-        """``task_type="information_retrieval"`` + ``context_arg="context"`` 데코레이터.
-
-        Usage::
-
-            @eval.rag
-            def rag_agent(question, context="", ground_truth=""): ...
-        """
-        class _RagDecorator(_QuickEvalDecorator):
-            def __call__(self_inner, func_or_kwargs=None, **kwargs):
-                kwargs.setdefault("context_arg", "context")
-                return super().__call__(func_or_kwargs, **kwargs)
-        return _RagDecorator(self._eval, "information_retrieval")
-
-    @property
-    def code(self) -> _QuickEvalDecorator:
-        """``task_type="code_generation"`` 데코레이터."""
-        return _QuickEvalDecorator(self._eval, "code_generation")
-
-    @property
-    def reasoning(self) -> _QuickEvalDecorator:
-        """``task_type="reasoning"`` 데코레이터."""
-        return _QuickEvalDecorator(self._eval, "reasoning")
-
-    @property
-    def planning(self) -> _QuickEvalDecorator:
-        """``task_type="planning"`` 데코레이터."""
-        return _QuickEvalDecorator(self._eval, "planning")
-
-    @property
-    def data_analysis(self) -> _QuickEvalDecorator:
-        """``task_type="data_analysis"`` 데코레이터."""
-        return _QuickEvalDecorator(self._eval, "data_analysis")
-
-    @property
-    def creative(self) -> _QuickEvalDecorator:
-        """``task_type="creative"`` 데코레이터."""
-        return _QuickEvalDecorator(self._eval, "creative")
-
-    @property
-    def chat(self) -> Any:
+    def chat(self) -> _QuickEvalChatShortcut:
         """멀티턴 대화 평가 데코레이터 (``conversation_eval``).
 
         Usage::
@@ -483,40 +472,26 @@ class QuickEval:
             @eval.chat(max_turns=10)
             def chatbot(question, session_id="default"): ...
         """
-        eval_dec = self._eval
-
-        class _ChatDecorator:
-            def __call__(self_inner, func_or_kwargs=None, **kwargs):
-                if callable(func_or_kwargs):
-                    return eval_dec.conversation()(func_or_kwargs)
-                elif func_or_kwargs is None:
-                    return eval_dec.conversation(**kwargs)
-                else:
-                    raise TypeError("callable 또는 kwargs를 기대합니다")
-
-        return _ChatDecorator()
+        return _QuickEvalChatShortcut(self._eval)
 
     @property
-    def batch(self) -> Any:
-        """배치 처리 평가 데코레이터 (``batch_eval``).
+    def security(self) -> Any:
+        """보안 평가 단축 데코레이터 (``EvalDecorator.secure`` 별칭).
+
+        ``security_mode=True`` 로 자동 설정된다.
+        ``QuickEval.for_security()`` 로 생성한 인스턴스와 함께 사용하면 보안 지표가
+        활성화된다.
 
         Usage::
 
-            @eval.batch
-            def batch_agent(questions, ground_truths=None): ...
+            eval = QuickEval.for_security("results/")
+
+            @eval.security
+            def secure_agent(question, ground_truth=""): ...
         """
-        eval_dec = self._eval
-
-        class _BatchDecorator:
-            def __call__(self_inner, func_or_kwargs=None, **kwargs):
-                if callable(func_or_kwargs):
-                    return eval_dec.batch()(func_or_kwargs)
-                elif func_or_kwargs is None:
-                    return eval_dec.batch(**kwargs)
-                else:
-                    raise TypeError("callable 또는 kwargs를 기대합니다")
-
-        return _BatchDecorator()
+        # EvalDecorator에서는 'secure'라는 이름으로 등록되어 있음
+        # QuickEval은 하위 호환성을 위해 'security' 별칭으로 노출
+        return self._eval.secure
 
     # ------------------------------------------------------------------
     # 직접 호출 — @eval(task_type="qa") 형태
@@ -541,53 +516,6 @@ class QuickEval:
             def fragile_agent(question, ground_truth=""): ...
         """
         return self._eval.with_retry(task_type=task_type, **kwargs)
-
-    @property
-    def multi_agent(self) -> _QuickEvalDecorator:
-        """멀티 에이전트 협업 평가 데코레이터 ``task_type="coordination"`` (A8).
-
-        Usage::
-
-            @eval.multi_agent
-            def crew_task(question, ground_truth=""): ...
-        """
-        return _QuickEvalDecorator(self._eval, "coordination")
-
-    @property
-    def security(self) -> _QuickEvalDecorator:
-        """보안 평가 데코레이터 ``task_type="tool_use"`` + ``framework="native"`` (A8).
-
-        보안 지표(InputSanitization, OutputLeakage 등)가 활성화된 경우에 유용하다.
-
-        Usage::
-
-            eval = QuickEval.for_security("results/")
-
-            @eval.security
-            def secure_agent(question, ground_truth=""): ...
-        """
-        return _QuickEvalDecorator(self._eval, "tool_use")
-
-    @property
-    def streaming(self) -> _QuickEvalDecorator:
-        """generator / async generator 함수 전용 데코레이터.
-
-        ``agent_eval`` 이 generator 함수를 자동 감지하므로 ``@eval.qa`` 와 동일하게
-        동작하지만, 스트리밍 의도를 명시적으로 표현한다.
-
-        Usage::
-
-            @eval.streaming
-            def agent(question, ground_truth=""):
-                for chunk in llm.stream(question):  # sync generator
-                    yield chunk
-
-            @eval.streaming
-            async def async_agent(question, ground_truth=""):
-                async for chunk in llm.astream(question):  # async generator
-                    yield chunk
-        """
-        return _QuickEvalDecorator(self._eval, "qa")
 
     # ------------------------------------------------------------------
     # 결과 저장 / 보고

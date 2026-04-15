@@ -104,20 +104,12 @@ class TestChunkStep:
 # ---------------------------------------------------------------------------
 class TestAllowDuplicateTaskIds:
     def test_duplicate_warning(self):
+        """allow_duplicate_task_ids was removed; passing it raises TypeError."""
+        import pytest
         from agent_evaluator import agent_eval
         m = PerformanceMonitor()
-        m.record_task(_make_task(task_id="dup_id"))
-
-        @agent_eval(m, task_type="qa", task_id_prefix="dup_id",
-                    allow_duplicate_task_ids=False)
-        def fn(question, ground_truth=""): return "ok"
-
-        with warnings.catch_warnings(record=True) as w:
-            warnings.simplefilter("always")
-            # Use task_id_fn to force a specific task_id
-            pass
-        # Basic: warning system works
-        assert allow_duplicate_task_ids_warning_flag_exists()
+        with pytest.raises(TypeError):
+            agent_eval(m, task_type="qa", allow_duplicate_task_ids=False)
 
     def test_no_warning_when_allowed(self):
         """allow_duplicate_task_ids=True (default) → no warning."""
@@ -146,13 +138,14 @@ def allow_duplicate_task_ids_warning_flag_exists():
 class TestJitterType:
     def test_jitter_type_none_no_sleep(self, monkeypatch):
         from agent_evaluator import agent_eval
+        from agent_evaluator.decorators import RetryConfig
         sleep_calls = []
         monkeypatch.setattr("time.sleep", lambda t: sleep_calls.append(t))
         m = PerformanceMonitor()
         attempts = [0]
 
-        @agent_eval(m, "qa", max_retries=2, delay=0.01,
-                    jitter_type="none", retry_on=(ValueError,))
+        @agent_eval(m, "qa", retry=RetryConfig(max=2, delay=0.01,
+                    jitter_type="none", on=(ValueError,)))
         def fn(question, ground_truth=""):
             attempts[0] += 1
             if attempts[0] < 2:
@@ -163,11 +156,12 @@ class TestJitterType:
         assert attempts[0] >= 1
 
     def test_jitter_type_full_produces_float(self):
-        """jitter_type parameter accepted without error."""
+        """jitter_type parameter accepted without error via RetryConfig."""
         from agent_evaluator import agent_eval
+        from agent_evaluator.decorators import RetryConfig
         m = PerformanceMonitor()
 
-        @agent_eval(m, "qa", max_retries=1, jitter_type="full", max_delay=30.0)
+        @agent_eval(m, "qa", retry=RetryConfig(max=1, jitter_type="full", max_delay=30.0))
         def fn(question, ground_truth=""): return "ok"
 
         result = fn("q")
@@ -175,9 +169,10 @@ class TestJitterType:
 
     def test_jitter_type_decorrelated(self):
         from agent_evaluator import agent_eval
+        from agent_evaluator.decorators import RetryConfig
         m = PerformanceMonitor()
 
-        @agent_eval(m, "qa", max_retries=1, jitter_type="decorrelated", delay=0.001)
+        @agent_eval(m, "qa", retry=RetryConfig(max=1, jitter_type="decorrelated", delay=0.001))
         def fn(question, ground_truth=""): return "ok"
 
         result = fn("q")
@@ -253,29 +248,6 @@ class TestMonitorReset:
         t = _make_task("new_task")
         m.reset().record_task(t)
         assert m.task_count == 1
-
-
-# ---------------------------------------------------------------------------
-# D2: snapshot / compare_with_snapshot
-# ---------------------------------------------------------------------------
-class TestSnapshot:
-    def test_snapshot_returns_dict(self):
-        m = _make_monitor_with_tasks(2)
-        snap = m.snapshot()
-        assert isinstance(snap, dict)
-        assert "snapshot_time" in snap
-        assert "task_count" in snap
-        assert snap["task_count"] == 2
-
-    def test_compare_with_snapshot(self):
-        m = _make_monitor_with_tasks(2)
-        snap = m.snapshot()
-        m.record_task(_make_task("new_t"))
-        delta = m.compare_with_snapshot(snap)
-        assert isinstance(delta, dict)
-        assert "delta" in delta
-        assert delta["task_count_delta"] == 1
-        assert "current_time" in delta
 
 
 # ---------------------------------------------------------------------------

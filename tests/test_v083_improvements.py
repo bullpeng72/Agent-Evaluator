@@ -133,24 +133,30 @@ class TestH2AutoDetectFramework:
 
 class TestH4EvalDecoratorModeParams:
     def test_rag_mode_stored_in_defaults(self, monitor):
-        """rag_mode=True 가 _defaults 에 저장됨."""
-        ed = EvalDecorator(monitor, rag_mode=True)
-        assert ed._defaults["rag_mode"] is True
+        """rag_mode was removed — EvalDecorator no longer accepts rag_mode."""
+        import inspect
+        sig = inspect.signature(EvalDecorator.__init__)
+        assert "rag_mode" not in sig.parameters
+        assert "rag_mode" not in EvalDecorator(monitor)._defaults
 
     def test_security_mode_stored_in_defaults(self, monitor):
-        """security_mode=True 가 _defaults 에 저장됨."""
-        ed = EvalDecorator(monitor, security_mode=True)
-        assert ed._defaults["security_mode"] is True
+        """security_mode 제거됨 — security=SecurityConfig() 가 _defaults["security"]에 저장됨."""
+        from agent_evaluator.decorators import SecurityConfig
+        ed = EvalDecorator(monitor, security=SecurityConfig())
+        assert ed._defaults["security"] is not None
+        assert isinstance(ed._defaults["security"], SecurityConfig)
 
     def test_enable_llm_judge_stored_in_defaults(self, monitor):
-        """enable_llm_judge=True 가 _defaults 에 저장됨."""
-        ed = EvalDecorator(monitor, enable_llm_judge=True)
-        assert ed._defaults["enable_llm_judge"] is True
+        """llm_judge=LLMJudgeConfig() 가 _defaults["llm_judge"] 에 저장됨."""
+        from agent_evaluator.decorators import LLMJudgeConfig
+        ed = EvalDecorator(monitor, llm_judge=LLMJudgeConfig())
+        assert ed._defaults["llm_judge"] is not None
 
     def test_judge_model_stored_in_defaults(self, monitor):
-        """judge_model 이 _defaults 에 저장됨."""
-        ed = EvalDecorator(monitor, judge_model="gpt-4o")
-        assert ed._defaults["judge_model"] == "gpt-4o"
+        """llm_judge=LLMJudgeConfig(model=...) 가 _defaults["llm_judge"].model 에 저장됨."""
+        from agent_evaluator.decorators import LLMJudgeConfig
+        ed = EvalDecorator(monitor, llm_judge=LLMJudgeConfig(model="gpt-4o"))
+        assert ed._defaults["llm_judge"].model == "gpt-4o"
 
     def test_enable_anomaly_detection_stored_in_defaults(self, monitor):
         """enable_anomaly_detection=True 가 _defaults 에 저장됨."""
@@ -186,10 +192,10 @@ class TestH4EvalDecoratorModeParams:
         assert result == "결과"
 
     def test_defaults_propagated_to_call(self, monitor):
-        """EvalDecorator(monitor, rag_mode=True).__call__() 시 rag_mode 전파."""
-        ed = EvalDecorator(monitor, rag_mode=True)
-        # __call__ 호출 결과도 rag_mode가 반영된 agent_eval 데코레이터여야 함
-        deco = ed("qa")  # rag_mode is in _defaults, merged into kwargs
+        """EvalDecorator defaults propagate to __call__. rag_mode is removed."""
+        # Use enable_hallucination instead of rag_mode
+        ed = EvalDecorator(monitor, enable_hallucination=True)
+        deco = ed("qa")  # enable_hallucination is in _defaults, merged into kwargs
         assert callable(deco)
 
 
@@ -200,14 +206,13 @@ class TestH4EvalDecoratorModeParams:
 
 class TestH1LLMJudgeBackpropagation:
     def test_judge_flag_computed_before_temp_override(self, monitor):
-        """enable_llm_judge=True 이면 _judge_will_be_active 플래그가 True여야 함.
-        실제 LLM 호출 없이 플래그 계산 경로만 검증."""
+        """llm_judge=None (기본) 이면 LLM Judge 비활성화 — 예외 없이 동작."""
+        from agent_evaluator.decorators import LLMJudgeConfig
         # monitor.enable_llm_judge 기본값 False
         assert not getattr(monitor, "enable_llm_judge", False)
 
-        # enable_llm_judge=True 파라미터를 주면 back-propagation 로직이 실행되어야 함
-        # (실제 judge 호출 없이) — 예외 없이 동작만 확인
-        @agent_eval(monitor, task_type="qa", enable_llm_judge=False)
+        # llm_judge=None(기본값) 으로 실행 — 예외 없이 동작해야 함
+        @agent_eval(monitor, task_type="qa")
         def agent(question, ground_truth=""):
             return "답변"
 
@@ -227,16 +232,17 @@ class TestH1LLMJudgeBackpropagation:
         assert collected[0].task_id is not None
 
     def test_monitor_enable_llm_judge_restored_after_call(self, monitor):
-        """enable_llm_judge=True 임시 활성화 후 monitor 상태가 복원됨."""
-        monitor.enable_llm_judge = False
+        """llm_judge=LLMJudgeConfig() 사용 후 monitor.enable_llm_judge 상태 복원됨."""
+        from agent_evaluator.decorators import LLMJudgeConfig
+        original = getattr(monitor, "enable_llm_judge", False)
 
-        @agent_eval(monitor, task_type="qa", enable_llm_judge=True)
+        @agent_eval(monitor, task_type="qa", llm_judge=LLMJudgeConfig())
         def agent(question, ground_truth=""):
             return "답변"
 
         agent("질문")
-        # 복원 확인
-        assert monitor.enable_llm_judge is False
+        # llm_judge= 는 per-call 임시 활성화, monitor 상태가 복원되어야 함
+        assert getattr(monitor, "enable_llm_judge", False) == original
 
 
 # ---------------------------------------------------------------------------
@@ -449,15 +455,12 @@ class TestM3SessionsEndpoint:
 
 class TestIntegration:
     def test_eval_decorator_rag_mode_propagates_to_agent_eval(self, monitor):
-        """EvalDecorator(rag_mode=True).__call__() → agent_eval(rag_mode=True) 전파."""
-        ed = EvalDecorator(monitor, rag_mode=True)
-
-        called_with_rag = []
-
-        original_agent_eval = agent_eval.__wrapped__ if hasattr(agent_eval, "__wrapped__") else None
+        """rag_mode removed; use context_arg + enable_hallucination instead."""
+        ed = EvalDecorator(monitor, enable_hallucination=True,
+                           context_arg="context")
 
         # 단순히 실행 오류 없음 확인
-        @ed("qa")  # rag_mode=True 가 defaults 에서 전파
+        @ed("information_retrieval")
         def rag_agent(question, context="", ground_truth=""):
             return "RAG 답변"
 

@@ -250,8 +250,10 @@ class ConversationSession:
         self,
         session_id: str,
         monitor: Optional[Any] = None,
+        task_type: str = "qa",
     ) -> None:
         self.session_id = session_id
+        self.task_type = task_type
         self._monitor = monitor
         self._turns: List[ConversationTurn] = []
         self.metrics: Optional[ConversationMetrics] = None

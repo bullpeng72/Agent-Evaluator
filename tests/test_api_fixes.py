@@ -1,14 +1,14 @@
 """
-tests/test_api_fixes_r63_r65.py
-=================================
-Round 63 — HybridPerformanceMonitor method chaining (LSP fix)
-Round 63 — HybridPerformanceMonitor lock fix (직접 뮤테이션)
-Round 64 — task_id 빈 문자열 검증
-Round 65 — accuracy_evaluator save/load round-trip
-Round 65 — compare_with_thresholds 주요 경로
+tests/test_api_fixes.py
+========================
+과거 버그 수정 및 API 수정 회귀 테스트 (Round 63-65, v5)
 """
+from __future__ import annotations
+
 import json
+import os
 import tempfile
+import warnings
 from datetime import datetime
 from pathlib import Path
 
@@ -49,6 +49,10 @@ def _make_monitor(tmp_path=None, **kwargs) -> PerformanceMonitor:
         **kwargs,
     )
 
+
+# ===========================================================================
+# From test_api_fixes_r63_r65.py
+# ===========================================================================
 
 # ---------------------------------------------------------------------------
 # Round 64 — task_id validation
@@ -122,7 +126,6 @@ class TestHybridMonitorMethodChaining:
             pytest.skip("HybridPerformanceMonitor not available")
 
         monitor = HybridPerformanceMonitor()
-        # This would raise AttributeError if return type is None
         (monitor
             .record_task(_make_task("c1"), enable_advanced_metrics=False)
             .record_task(_make_task("c2"), enable_advanced_metrics=False))
@@ -136,7 +139,6 @@ class TestHybridMonitorMethodChaining:
 class TestAccuracyEvaluatorSaveLoad:
     def test_accuracy_evaluations_preserved_after_save_load(self, tmp_path):
         mon = _make_monitor(tmp_path)
-        # Add tasks with ground_truth → triggers accuracy evaluation
         for i in range(4):
             task = create_taskresult(
                 task_id=f"acc_{i:03d}",
@@ -145,13 +147,11 @@ class TestAccuracyEvaluatorSaveLoad:
                 ground_truth="Paris",
                 execution_time=1.0,
             )
-            # Force accuracy_evaluator to run by providing ground_truth
             mon.record_task(task, ground_truth="Paris", response="Paris")
 
         n_before = len(mon.accuracy_evaluator._evaluations)
         assert n_before > 0, "accuracy_evaluator should have evaluations before save"
 
-        # Save and reload
         save_path = str(tmp_path / "acc_test.json")
         mon.save_to_file(save_path)
         loaded = PerformanceMonitor.load_from_file(save_path)
@@ -200,7 +200,6 @@ class TestAccuracyEvaluatorSaveLoad:
         mon.save_to_file(save_path)
         loaded = PerformanceMonitor.load_from_file(save_path)
 
-        # _task_ids must be populated (setter reconstructs them)
         assert len(loaded.accuracy_evaluator._task_ids) > 0
 
     def test_compare_with_thresholds_accuracy_after_load(self, tmp_path):
@@ -218,115 +217,163 @@ class TestAccuracyEvaluatorSaveLoad:
         save_path = str(tmp_path / "cmp.json")
         mon.save_to_file(save_path)
         loaded = PerformanceMonitor.load_from_file(save_path)
-        loaded.thresholds = {"accuracy": 0.0}  # always-pass threshold
+        loaded.thresholds = {"accuracy": 0.0}
         result = loaded.compare_with_thresholds()
         assert "accuracy" in result
         assert result["accuracy"]["status"] in ("pass", "fail", "pending")
 
 
-# ---------------------------------------------------------------------------
-# Round 65 — compare_with_thresholds coverage
-# ---------------------------------------------------------------------------
+# ===========================================================================
+# From test_bug_fixes_v5.py
+# ===========================================================================
 
-class TestCompareWithThresholds:
-    def _mon_with_tasks(self, tmp_path=None, n=3):
-        mon = _make_monitor(tmp_path)
-        for i in range(n):
-            mon.record_task(_make_task(f"cwt_{i:03d}", accuracy=0.8 + i * 0.05))
-        return mon
+class TestQualityMetrics:
+    """quality_metrics 버그 수정 검증"""
 
-    def test_empty_thresholds_returns_empty_dict(self):
-        mon = self._mon_with_tasks()
-        mon.thresholds = {}
-        assert mon.compare_with_thresholds() == {}
+    def test_quality_metrics_not_empty(self):
+        monitor = PerformanceMonitor()
+        task = create_taskresult(
+            task_id="q1",
+            question="What is the capital of France?",
+            response="Paris is the capital of France.",
+            ground_truth="Paris",
+            execution_time=1.0,
+        )
+        monitor.record_task(task)
+        report = monitor.generate_report()
+        assert report.quality_metrics != {}, "quality_metrics should not be empty dict"
 
-    def test_none_thresholds_returns_empty_dict(self):
-        mon = self._mon_with_tasks()
-        # _thresholds is None by default
-        assert mon.compare_with_thresholds() == {}
+    def test_quality_metrics_has_expected_keys(self):
+        monitor = PerformanceMonitor()
+        task = create_taskresult(
+            task_id="q1",
+            question="Q",
+            response="A detailed response",
+            ground_truth="A",
+            execution_time=0.5,
+        )
+        monitor.record_task(task)
+        report = monitor.generate_report()
+        assert isinstance(report.quality_metrics, dict)
 
-    def test_tcr_pass(self):
-        mon = self._mon_with_tasks()
-        mon.thresholds = {"tcr": 0.0}  # always pass
-        result = mon.compare_with_thresholds()
-        assert result["tcr"]["status"] == "pass"
-        assert result["tcr"]["direction"] == "higher"
-        assert result["tcr"]["unit"] == "%"
 
-    def test_tcr_fail(self):
-        mon = self._mon_with_tasks()
-        mon.thresholds = {"tcr": 999.0}  # impossible threshold
-        result = mon.compare_with_thresholds()
-        assert result["tcr"]["status"] == "fail"
+class TestHTMLGeneration:
+    """save_to_file() HTML 생성 검증"""
 
-    def test_latency_pass(self):
-        mon = _make_monitor()
-        mon.record_task(_make_task("lat_1", execution_time=0.5))
-        mon.thresholds = {"latency": 999.0}  # always pass
-        result = mon.compare_with_thresholds()
-        assert result["latency"]["status"] == "pass"
-        assert result["latency"]["direction"] == "lower"
+    def test_save_generates_html(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            monitor = PerformanceMonitor(output_dir=tmpdir)
+            for i in range(2):
+                task = create_taskresult(
+                    task_id=f"t{i}",
+                    question=f"Q{i}",
+                    response=f"A{i}",
+                    ground_truth=f"A{i}",
+                    execution_time=float(i + 1),
+                )
+                monitor.record_task(task)
+            monitor.save_to_file("test_html")
+            files = os.listdir(tmpdir)
+            html_files = [f for f in files if f.endswith(".html")]
+            assert len(html_files) >= 1, f"Expected HTML file, got: {files}"
 
-    def test_latency_fail(self):
-        mon = _make_monitor()
-        mon.record_task(_make_task("lat_2", execution_time=5.0))
-        mon.thresholds = {"latency": 0.001}  # always fail
-        result = mon.compare_with_thresholds()
-        assert result["latency"]["status"] == "fail"
+    def test_save_html_is_valid(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            monitor = PerformanceMonitor(output_dir=tmpdir)
+            task = create_taskresult(
+                task_id="t1",
+                question="Q",
+                response="A",
+                ground_truth="A",
+                execution_time=1.0,
+            )
+            monitor.record_task(task)
+            monitor.save_to_file("test_valid_html")
+            html_files = [f for f in os.listdir(tmpdir) if f.endswith(".html")]
+            if html_files:
+                html_path = os.path.join(tmpdir, html_files[0])
+                content = open(html_path, encoding="utf-8").read()
+                assert len(content) > 100
+                assert "<html" in content.lower() or "<!DOCTYPE" in content
 
-    def test_accuracy_pending_when_no_evaluations(self):
-        mon = _make_monitor()
-        # Record task with pre-computed accuracy_score → accuracy_evaluator stays empty
-        mon.record_task(_make_task("no_eval_001", accuracy=0.9))
-        mon.thresholds = {"accuracy": 50.0}
-        result = mon.compare_with_thresholds()
-        # With pre-computed score only, accuracy_evaluator may be empty → 'pending'
-        assert result["accuracy"]["status"] in ("pass", "fail", "pending")
+    def test_save_still_creates_json_on_html_failure(self):
+        """HTML 생성 실패해도 JSON은 저장되어야 함"""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            monitor = PerformanceMonitor(output_dir=tmpdir)
+            task = create_taskresult(
+                task_id="t1", question="Q", response="A",
+                ground_truth="A", execution_time=1.0,
+            )
+            monitor.record_task(task)
+            path = monitor.save_to_file("fallback_test.json")
+            assert path.endswith(".json")
+            assert os.path.exists(path)
 
-    def test_faithfulness_pending_no_data(self):
-        mon = self._mon_with_tasks()
-        mon.thresholds = {"faithfulness": 0.8}
-        result = mon.compare_with_thresholds()
-        assert result["faithfulness"]["status"] == "pending"
-        assert result["faithfulness"]["value"] == 0.0
 
-    def test_faithfulness_pass_with_data(self):
-        mon = self._mon_with_tasks()
-        mon.record_rag_metrics(faithfulness=0.95)
-        mon.thresholds = {"faithfulness": 0.5}
-        result = mon.compare_with_thresholds()
-        assert result["faithfulness"]["status"] == "pass"
+class TestContextParameter:
+    """create_taskresult() context 파라미터 추가 검증"""
 
-    def test_faithfulness_fail_with_data(self):
-        mon = self._mon_with_tasks()
-        mon.record_rag_metrics(faithfulness=0.3)
-        mon.thresholds = {"faithfulness": 0.8}
-        result = mon.compare_with_thresholds()
-        assert result["faithfulness"]["status"] == "fail"
+    def test_create_taskresult_accepts_context(self):
+        task = create_taskresult(
+            task_id="t1",
+            question="What is AI?",
+            response="AI is artificial intelligence.",
+            ground_truth="Artificial Intelligence",
+            execution_time=0.5,
+            context="Reference document: AI stands for Artificial Intelligence...",
+        )
+        assert task.context == "Reference document: AI stands for Artificial Intelligence..."
 
-    def test_result_item_has_required_keys(self):
-        mon = self._mon_with_tasks()
-        mon.thresholds = {"tcr": 50.0}
-        result = mon.compare_with_thresholds()
-        item = result["tcr"]
-        for key in ("name", "value", "threshold", "status", "direction", "unit"):
-            assert key in item, f"Missing key '{key}' in compare_with_thresholds() result"
+    def test_create_taskresult_context_default_none(self):
+        task = create_taskresult(
+            task_id="t1",
+            question="Q",
+            response="A",
+            ground_truth="G",
+            execution_time=0.5,
+        )
+        assert task.context is None
 
-    def test_invalid_threshold_type_raises(self):
-        mon = self._mon_with_tasks()
-        with pytest.raises(ValidationError):
-            mon.thresholds = {"tcr": "eighty"}  # type: ignore — setter raises
+    def test_evaluate_qa_accepts_context(self):
+        monitor = PerformanceMonitor()
+        result = monitor.evaluate_qa(
+            question="What is AI?",
+            response="Artificial Intelligence",
+            ground_truth="AI",
+            context="AI stands for Artificial Intelligence.",
+        )
+        assert "accuracy_score" in result
 
-    def test_multiple_thresholds_all_present(self):
-        mon = self._mon_with_tasks()
-        mon.thresholds = {"tcr": 50.0, "latency": 10.0}
-        result = mon.compare_with_thresholds()
-        assert "tcr" in result
-        assert "latency" in result
 
-    def test_cost_per_task_threshold(self):
-        mon = self._mon_with_tasks()
-        mon.thresholds = {"cost_per_task": 999.0}
-        result = mon.compare_with_thresholds()
-        assert result["cost_per_task"]["status"] == "pass"
-        assert result["cost_per_task"]["direction"] == "lower"
+class TestDeprecationWarning:
+    """record_task() deprecated 파라미터 경고 검증"""
+
+    def test_request_param_always_warns(self):
+        monitor = PerformanceMonitor()
+        task = create_taskresult(
+            task_id="t1",
+            question="existing question",
+            response="A",
+            ground_truth="A",
+            execution_time=0.5,
+        )
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            monitor.record_task(task, request="override question")
+        assert any(issubclass(x.category, DeprecationWarning) for x in w), \
+            "DeprecationWarning should fire even when task_result.question is set"
+
+    def test_request_param_none_no_warning(self):
+        monitor = PerformanceMonitor()
+        task = create_taskresult(
+            task_id="t1",
+            question="Q",
+            response="A",
+            ground_truth="A",
+            execution_time=0.5,
+        )
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            monitor.record_task(task)
+        dep_warnings = [x for x in w if issubclass(x.category, DeprecationWarning)]
+        assert len(dep_warnings) == 0

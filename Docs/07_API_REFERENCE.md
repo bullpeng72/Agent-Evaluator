@@ -1,14 +1,14 @@
 # API 레퍼런스
 
-Agent Evaluator v0.8.0 전체 API 문서
+Agent Evaluator v0.8.1 전체 API 문서
 
 ---
 
 ## 버전 정보
 
-- **버전:** v0.8.0
+- **버전:** v0.8.1
 - **Python:** 3.8+
-- **최종 업데이트:** 2026-04-11
+- **최종 업데이트:** 2026-04-15
 
 ---
 
@@ -273,15 +273,13 @@ from agent_evaluator.decorators import agent_eval
     task_id_prefix=None,             # task_id 접두사
     enabled=True,                    # 데코레이터 활성화 여부
     rag_mode=False,                  # context_arg + hallucination + IR 자동 설정
-    security_mode=False,             # 보안 지표 임시 활성 (finally에서 복원)
-    enable_llm_judge=False,          # LLM Judge 임시 활성
-    judge_model=None,                # LLM Judge 모델명
+    security=None,                   # 보안 지표 임시 활성 (SecurityConfig())
+    llm_judge=None,                  # LLM Judge 설정 (LLMJudgeConfig(model=..., criteria=[...]))
     enable_anomaly_detection=False,  # 이상 탐지 임시 활성
-    enable_hallucination=False,      # Hallucination 탐지 임시 활성
+    enable_hallucination_detection=False,  # Hallucination 탐지 임시 활성
     alert_rules=[],                  # SimpleTaskAlertRule 목록
     flush_every=0,                   # N 호출마다 save_to_file() 자동 실행 (0=비활성)
-    flush_filename=None,             # flush 저장 파일명
-    max_retries=0,                   # 실패 시 재시도 횟수
+    retry=None,                      # 재시도 설정 (RetryConfig(max=N, delay=X, backoff=Y))
     on_record=None,                  # TaskResult 후처리 콜백 (TaskResult → TaskResult)
     sample_rate=1.0,                 # 샘플링 비율 (0.0–1.0)
     sample_condition=None,           # (args, kwargs) → bool 조건부 샘플링
@@ -333,7 +331,7 @@ eval = QuickEval.from_config("eval_config.yaml")
 @eval.creative     # task_type="creative"
 @eval.chat         # task_type="qa" (대화형)
 @eval.multi_agent  # task_type="tool_use" + 멀티 에이전트 설정
-@eval.security     # security_mode=True
+@eval.security     # security=SecurityConfig()
 def agent(question: str, ground_truth: str = "") -> str:
     ...
 ```
@@ -390,7 +388,6 @@ from agent_evaluator.decorators import batch_eval
     allow_duplicate_task_ids=False,
     alert_rules=[],
     flush_every=0,
-    flush_filename=None,
 )
 def batch_agent(questions: list, ground_truths: list = None) -> list:
     return [llm.invoke(q) for q in questions]
@@ -441,7 +438,6 @@ from agent_evaluator.decorators import conversation_eval
     max_turns_exceeded_action="warn",        # "warn"|"raise"|"ignore"
     load_previous_session=False,             # 이전 세션 이어서 평가
     flush_every=0,
-    flush_filename=None,
     on_session_timeout=None,                 # 세션 타임아웃 콜백
     on_turn=None,                            # 턴별 콜백 (turn_num, question, response)
     session_score_fn=None,                   # 세션 점수 함수 override
@@ -466,17 +462,16 @@ decorator = EvalDecorator(
     monitor,
     task_type="qa",
     rag_mode=False,
-    security_mode=False,
-    enable_llm_judge=False,
-    judge_model=None,
+    security=None,
+    llm_judge=None,
     enable_anomaly_detection=False,
-    enable_hallucination=False,
+    enable_hallucination_detection=False,
 )
 
 @decorator.qa           # task_type="qa"
 @decorator.tool_use     # task_type="tool_use"
 @decorator.rag          # task_type="information_retrieval"
-@decorator.secure       # security_mode=True
+@decorator.secure       # security=SecurityConfig()
 def agent(question: str, ground_truth: str = "") -> str:
     ...
 
@@ -705,10 +700,12 @@ monitor = PerformanceMonitor(output_dir="results/", enable_security_metrics=True
 monitor = PerformanceMonitor.for_secure_agents(output_dir="results/")
 ```
 
-### 방법 2 — security_mode 임시 활성 (데코레이터)
+### 방법 2 — SecurityConfig 임시 활성 (데코레이터)
 
 ```python
-@agent_eval(monitor, task_type="qa", security_mode=True)
+from agent_evaluator.decorators import agent_eval, SecurityConfig
+
+@agent_eval(monitor, task_type="qa", security=SecurityConfig())
 def secure_agent(question: str, ground_truth: str = "") -> str:
     return llm.invoke(question)
 # 함수 종료 후 monitor의 security 설정을 원래 값으로 복원
@@ -832,7 +829,9 @@ def agent(question: str, ground_truth: str = "") -> str:
 ### agent_eval과 통합
 
 ```python
-@agent_eval(monitor, task_type="qa", enable_llm_judge=True, judge_model="claude-sonnet-4-6")
+from agent_evaluator.decorators import agent_eval, LLMJudgeConfig
+
+@agent_eval(monitor, task_type="qa", llm_judge=LLMJudgeConfig(model="claude-sonnet-4-6"))
 def agent(question: str, ground_truth: str = "") -> str:
     return llm.invoke(question)
 ```
@@ -1187,4 +1186,4 @@ FrameworkLiteral,   # 21개 프레임워크 Literal 타입
 
 ---
 
-*Agent Evaluator v0.8.0 — [GitHub](https://github.com/bullpeng72/Agent-Evaluator) | [예제 디렉토리](../Evaluator_Examples/)*
+*Agent Evaluator v0.8.1 — [GitHub](https://github.com/bullpeng72/Agent-Evaluator) | [예제 디렉토리](../Evaluator_Examples/)*

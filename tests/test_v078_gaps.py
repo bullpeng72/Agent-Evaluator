@@ -89,7 +89,7 @@ class TestBatchEvalConcurrentFailure:
 
         m = _make_monitor()
 
-        @batch_eval(m, task_type="qa", concurrent=True, max_concurrent=2)
+        @batch_eval(m, task_type="qa", concurrency=2)
         def agent(questions, ground_truths=None):
             return [f"ans:{q}" for q in questions]
 
@@ -116,8 +116,7 @@ class TestBatchEvalConcurrentFailure:
         @batch_eval(
             m,
             task_type="qa",
-            concurrent=True,
-            max_concurrent=2,
+            concurrency=2,
             on_item_error=on_item_err,
         )
         def agent(questions, ground_truths=None):
@@ -143,36 +142,28 @@ class TestBatchEvalConcurrentFailure:
 
 class TestBatchEvalStrictTypes:
     def test_strict_types_list_passes(self):
-        """str list 입력은 strict_types=True에서 통과한다."""
+        """strict_types 제거됨 — 전달 시 TypeError 발생."""
         from agent_evaluator.decorators import batch_eval
 
         m = _make_monitor()
-
-        @batch_eval(m, task_type="qa", strict_types=True)
-        def agent(questions, ground_truths=None):
-            return [f"ans:{q}" for q in questions]
-
-        result = agent(["hello", "world"])
-        assert result == ["ans:hello", "ans:world"]
-
-    def test_strict_types_non_list_raises(self):
-        """비 list 타입은 strict_types=True에서 TypeError를 발생시킨다."""
-        from agent_evaluator.decorators import batch_eval
-
-        m = _make_monitor()
-
-        @batch_eval(m, task_type="qa", strict_types=True)
-        def agent(questions, ground_truths=None):
-            return [f"ans:{q}" for q in questions]
 
         with pytest.raises(TypeError):
-            agent("single_string_not_list")
+            batch_eval(m, task_type="qa", strict_types=True)
+
+    def test_strict_types_non_list_raises(self):
+        """strict_types=False 도 TypeError (파라미터 자체가 제거됨)."""
+        from agent_evaluator.decorators import batch_eval
+
+        m = _make_monitor()
+
+        with pytest.raises(TypeError):
+            batch_eval(m, task_type="qa", strict_types=False)
 
     def test_strict_types_param_exists(self):
-        """batch_eval에 strict_types 파라미터가 있다."""
+        """batch_eval에서 strict_types 파라미터가 제거됨."""
         from agent_evaluator.decorators import batch_eval
         sig = inspect.signature(batch_eval)
-        assert "strict_types" in sig.parameters
+        assert "strict_types" not in sig.parameters
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -193,22 +184,22 @@ class TestConversationEvalParticipantId:
         assert tm.participant_id is None
 
     def test_participant_id_arg_param_exists(self):
-        """conversation_eval에 participant_id_arg 파라미터가 있다."""
+        """conversation_eval에서 participant_id_arg 파라미터가 제거됨."""
         from agent_evaluator.decorators import conversation_eval
         sig = inspect.signature(conversation_eval)
-        assert "participant_id_arg" in sig.parameters
+        assert "participant_id_arg" not in sig.parameters
 
     def test_participant_id_arg_functional(self):
-        """participant_id_arg로 지정한 파라미터 값이 예외 없이 처리된다."""
+        """participant_id_arg 제거 후 conversation_eval 기본 호출이 정상 동작한다."""
         from agent_evaluator.decorators import conversation_eval, flush_conversation
 
         m = _make_monitor()
 
-        @conversation_eval(m, participant_id_arg="pid")
-        def chat(question, session_id="sid_default", pid="unknown"):
+        @conversation_eval(m)
+        def chat(question, session_id="sid_default"):
             return f"echo:{question}"
 
-        chat("hi", session_id="pid_test_sess", pid="user_A")
+        chat("hi", session_id="pid_test_sess")
         flush_conversation("pid_test_sess")
         assert True
 
@@ -284,14 +275,15 @@ class TestEvalDecoratorAutoCommonParams:
 
 class TestAgentEvalShould:
     def test_should_retry_param_exists(self):
-        """agent_eval에 should_retry 파라미터가 있다."""
-        from agent_evaluator.decorators import agent_eval
+        """should_retry 는 agent_eval 직접 파라미터가 아닌 RetryConfig.should_retry 로 지정."""
+        from agent_evaluator.decorators import agent_eval, RetryConfig
         sig = inspect.signature(agent_eval)
-        assert "should_retry" in sig.parameters
+        assert "should_retry" not in sig.parameters
+        assert "retry" in sig.parameters
 
     def test_should_retry_false_raises_eventually(self):
-        """should_retry=lambda e: False 지정 시에도 최종적으로 예외가 발생한다."""
-        from agent_evaluator.decorators import agent_eval
+        """RetryConfig(should_retry=lambda e: False) 지정 시 첫 번째 예외에서 중단."""
+        from agent_evaluator.decorators import agent_eval, RetryConfig
 
         m = _make_monitor()
         call_count = [0]
@@ -299,24 +291,22 @@ class TestAgentEvalShould:
         @agent_eval(
             m,
             task_type="qa",
-            max_retries=3,
-            retry_on=(ValueError,),
-            should_retry=lambda e: False,
+            retry=RetryConfig(max=3, on=(ValueError,), should_retry=lambda e: False),
         )
         def agent(question, ground_truth=""):
             call_count[0] += 1
             raise ValueError("fail")
 
-        # should_retry=False이면 결국 ValueError가 발생해야 함
+        # should_retry=False이면 재시도 없이 ValueError 발생
         with pytest.raises(ValueError):
             agent("q")
 
-        # 호출 횟수는 1 이상
+        # should_retry=False이면 한 번만 호출
         assert call_count[0] >= 1
 
     def test_should_retry_conditional(self):
-        """특정 메시지의 예외만 재시도한다."""
-        from agent_evaluator.decorators import agent_eval
+        """RetryConfig(should_retry=...) 로 특정 메시지 예외만 재시도한다."""
+        from agent_evaluator.decorators import agent_eval, RetryConfig
 
         m = _make_monitor()
         call_count = [0]
@@ -324,9 +314,7 @@ class TestAgentEvalShould:
         @agent_eval(
             m,
             task_type="qa",
-            max_retries=3,
-            retry_on=(ValueError,),
-            should_retry=lambda e: "retry_me" in str(e),
+            retry=RetryConfig(max=3, on=(ValueError,), should_retry=lambda e: "retry_me" in str(e)),
         )
         def agent(question, ground_truth=""):
             call_count[0] += 1
@@ -1005,18 +993,18 @@ class TestAutoDetectFramework:
         assert _auto_detect_framework(None) is None
 
     def test_auto_detect_framework_param_exists(self):
-        """agent_eval에 auto_detect_framework 파라미터가 있다."""
+        """auto_detect_framework 는 agent_eval에서 제거됨 — 항상 자동 감지."""
         from agent_evaluator.decorators import agent_eval
         sig = inspect.signature(agent_eval)
-        assert "auto_detect_framework" in sig.parameters
+        assert "auto_detect_framework" not in sig.parameters
 
     def test_auto_detect_framework_functional(self):
-        """auto_detect_framework=True 시 Anthropic 응답을 자동 감지한다."""
+        """auto_detect_framework 제거 후에도 Anthropic 응답이 자동 감지된다."""
         from agent_evaluator.decorators import agent_eval
 
         m = _make_monitor()
 
-        @agent_eval(m, task_type="qa", auto_detect_framework=True)
+        @agent_eval(m, task_type="qa")
         def agent(question, ground_truth=""):
             return type("Message", (), {
                 "content": [type("TextBlock", (), {"text": "answer", "type": "text"})()],

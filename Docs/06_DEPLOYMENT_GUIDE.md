@@ -1,6 +1,6 @@
 # 배포 가이드
 
-**Agent-Evaluator v0.8.0** — CI/CD 통합 및 프로덕션 배포 전략
+**Agent-Evaluator v0.8.1** — CI/CD 통합 및 프로덕션 배포 전략
 
 ---
 
@@ -414,7 +414,7 @@ from agent_evaluator import QuickEval
 # production: flush_every=50, enable_anomaly_detection=True
 eval = QuickEval("results/", preset="production")
 
-# development: enable_llm_judge=True, auto_detect_framework=True
+# development: llm_judge=LLMJudgeConfig(), auto_detect_framework=True
 eval = QuickEval("results/", preset="development")
 
 # testing: 경량 평가 (외부 API 호출 최소화)
@@ -606,11 +606,11 @@ def selective_agent(question: str, ground_truth: str = "") -> str:
 from agent_evaluator.decorators import agent_eval, batch_eval
 
 # 10번 호출마다 저장
-@agent_eval(monitor, task_type="qa", flush_every=10, flush_filename="periodic")
+@agent_eval(monitor, task_type="qa", flush_every=10)
 def agent(question, ground_truth=""): ...
 
 # batch_eval에도 동일 적용
-@batch_eval(monitor, flush_every=5, flush_filename="batch_checkpoint")
+@batch_eval(monitor, flush_every=5)
 def batch_agent(questions, ground_truths=None): ...
 ```
 

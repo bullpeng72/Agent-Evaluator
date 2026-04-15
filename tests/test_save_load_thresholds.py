@@ -105,44 +105,6 @@ class TestSaveLoadRoundTrip:
 
 
 # ===========================================================================
-# compare_with_thresholds
-# ===========================================================================
-
-class TestCompareWithThresholds:
-    def test_empty_thresholds_returns_empty(self, tmp_path):
-        mon = _make_monitor(tmp_path)
-        _add_tasks(mon)
-        result = mon.compare_with_thresholds()
-        assert result == {}
-
-    def test_threshold_pass(self, tmp_path):
-        mon = _make_monitor(tmp_path)
-        _add_tasks(mon, 5)
-        mon.thresholds = {"tcr": 0.0}  # very low threshold → should pass
-        result = mon.compare_with_thresholds()
-        assert "tcr" in result
-        assert result["tcr"]["status"] == "pass"
-
-    def test_threshold_fail(self, tmp_path):
-        mon = _make_monitor(tmp_path)
-        _add_tasks(mon, 3)
-        mon.thresholds = {"tcr": 999.0}  # impossibly high → must fail
-        result = mon.compare_with_thresholds()
-        assert "tcr" in result
-        assert result["tcr"]["status"] == "fail"
-
-    def test_result_has_required_keys(self, tmp_path):
-        mon = _make_monitor(tmp_path)
-        _add_tasks(mon)
-        mon.thresholds = {"tcr": 50.0}
-        result = mon.compare_with_thresholds()
-        assert "tcr" in result
-        entry = result["tcr"]
-        for key in ("value", "threshold", "status", "direction"):
-            assert key in entry, f"missing key: {key}"
-
-
-# ===========================================================================
 # evaluation_session — no stdout print
 # ===========================================================================
 

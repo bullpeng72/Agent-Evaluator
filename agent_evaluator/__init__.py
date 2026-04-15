@@ -38,7 +38,7 @@ Quick Start (Decorator):
     >>> # Metrics auto-recorded on every call!
 """
 
-__version__ = "0.8.0"
+__version__ = "0.8.1"
 __author__ = "Sungwoo Kim"
 
 # Exception hierarchy (경량 — 외부 의존성 없음)
@@ -130,6 +130,12 @@ from .decorators import (
     register_preset,
     # M1: 프레임워크 타입 힌트 (IDE 자동완성 지원)
     FrameworkLiteral,
+    # RetryConfig — 재시도 파라미터 묶음
+    RetryConfig,
+    # LLMJudgeConfig — LLM-as-Judge 파라미터 묶음 (v0.8.2+)
+    LLMJudgeConfig,
+    # SecurityConfig — 보안 메트릭 파라미터 묶음 (v0.8.3+)
+    SecurityConfig,
 )
 
 # Task 6: QuickEval — 원스톱 평가 Facade
@@ -299,6 +305,10 @@ __all__ = [
 
     # LLM Judge (lazy)
     'LLMJudge',
+    # LLMJudgeConfig — LLM-as-Judge 파라미터 묶음 (v0.8.2+)
+    'LLMJudgeConfig',
+    # SecurityConfig — 보안 메트릭 파라미터 묶음 (v0.8.3+)
+    'SecurityConfig',
 
     # Conversation Evaluation (Phase 1-C)
     'ConversationSession',

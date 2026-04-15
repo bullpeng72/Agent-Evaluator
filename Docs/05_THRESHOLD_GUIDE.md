@@ -2,7 +2,7 @@
 
 Agent-Evaluator의 임계값 설정, 품질 게이트, CI/CD 통합 방법을 설명합니다.
 
-**Version**: 0.8.0 | **Last Updated**: 2026-04-13
+**Version**: 0.8.1 | **Last Updated**: 2026-04-15
 
 ---
 

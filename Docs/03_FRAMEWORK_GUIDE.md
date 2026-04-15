@@ -2,7 +2,7 @@
 
 LangChain · LangGraph · CrewAI · AutoGen 연동 참조 문서
 
-**v0.8.0 | Python 3.8+**
+**v0.8.1 | Python 3.8+**
 
 ---
 
@@ -27,7 +27,7 @@ LangChain · LangGraph · CrewAI · AutoGen 연동 참조 문서
 | 패키지 | 최소 버전 | 설치 |
 |--------|----------|------|
 | Python | 3.8+ | — |
-| agent-evaluator | 0.8.0 | `pip install agent-evaluator` |
+| agent-evaluator | 0.8.1 | `pip install agent-evaluator` |
 | LangChain | 1.0.0+ | `pip install agent-evaluator[langchain]` |
 | LangGraph | 1.0.0+ | `pip install agent-evaluator[langchain]` |
 | CrewAI | 1.0.0+ | `pip install agent-evaluator[crewai]` |
@@ -263,10 +263,10 @@ async def run_autogen(question: str, ground_truth: str = "") -> str:
 ## 보안 지표 추가 (공통)
 
 ```python
-# 방법 1: 데코레이터 security_mode (임시 활성, 권장)
-from agent_evaluator.decorators import agent_eval
+# 방법 1: 데코레이터 SecurityConfig (임시 활성, 권장)
+from agent_evaluator.decorators import agent_eval, SecurityConfig
 
-@agent_eval(monitor, task_type="qa", security_mode=True)
+@agent_eval(monitor, task_type="qa", security=SecurityConfig())
 def secure_agent(question: str, ground_truth: str = "") -> str:
     return llm.invoke(question)
 
@@ -370,4 +370,4 @@ with monitor.conversation("session_002") as conv:
 
 ---
 
-*Updated: 2026-04-13 (v0.8.0) | MIT License*
+*Updated: 2026-04-15 (v0.8.1) | MIT License*

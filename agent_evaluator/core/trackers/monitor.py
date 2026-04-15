@@ -543,7 +543,7 @@ class PerformanceMonitor:
         """
         return {k: list(v) for k, v in self._rag_metrics.items()}
 
-    def conversation(self, session_id: str) -> "ConversationSession":
+    def conversation(self, session_id: str, task_type: str = "qa") -> "ConversationSession":
         """멀티턴 대화 평가 세션 시작.
 
         Usage::
@@ -554,11 +554,12 @@ class PerformanceMonitor:
 
         Args:
             session_id: 세션 고유 ID.
+            task_type: 태스크 유형 (기본: ``"qa"``). 대시보드 필터링에 사용된다.
 
         Returns:
             ConversationSession 인스턴스.
         """
-        return ConversationSession(session_id=session_id, monitor=self)
+        return ConversationSession(session_id=session_id, monitor=self, task_type=task_type)
 
     def load_golden_dataset(self, dataset_path: Optional[str] = None) -> List[Dict[str, Any]]:
         """

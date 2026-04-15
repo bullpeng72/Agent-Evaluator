@@ -3,7 +3,7 @@
 [![PyPI version](https://img.shields.io/pypi/v/agent-evaluator.svg)](https://pypi.org/project/agent-evaluator/)
 [![Python Version](https://img.shields.io/badge/python-3.8%2B-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Version](https://img.shields.io/badge/version-0.8.0-green.svg)](https://github.com/bullpeng72/Agent-Evaluator)
+[![Version](https://img.shields.io/badge/version-0.8.1-green.svg)](https://github.com/bullpeng72/Agent-Evaluator)
 
 **AI 에이전트를 위한 프로덕션 레디 평가 프레임워크**
 
@@ -118,7 +118,7 @@ Agent Evaluator의 평가 인터페이스는 호출 패턴에 따라 정확히 *
 
 ```python
 from agent_evaluator import PerformanceMonitor
-from agent_evaluator.decorators import agent_eval
+from agent_evaluator.decorators import agent_eval, RetryConfig, SecurityConfig, LLMJudgeConfig
 
 monitor = PerformanceMonitor("results/")
 
@@ -132,8 +132,8 @@ def agent(question: str, ground_truth: str = "") -> str:
 async def async_agent(question: str, ground_truth: str = "") -> str:
     return await async_llm.invoke(question)
 
-# 재시도 내장 — 실패 시 자동 재시도, attempts 필드 자동 기록
-@agent_eval(monitor, task_type="qa", max_retries=3, delay=1.0, backoff=2.0)
+# 재시도 내장 — RetryConfig 로 재시도 정책 구성, attempts 필드 자동 기록
+@agent_eval(monitor, task_type="qa", retry=RetryConfig(max=3, delay=1.0, backoff=2.0))
 def robust_agent(question: str, ground_truth: str = "") -> str:
     return unreliable_llm.invoke(question)
 
@@ -142,8 +142,8 @@ def robust_agent(question: str, ground_truth: str = "") -> str:
 def rag_agent(question: str, context: str = "", ground_truth: str = "") -> str:
     return retrieval_llm.invoke(question, context)
 
-# 보안 검사 — security_mode=True 로 5개 보안 트래커 임시 활성
-@agent_eval(monitor, task_type="qa", security_mode=True)
+# 보안 검사 — security=SecurityConfig() 로 5개 보안 트래커 임시 활성
+@agent_eval(monitor, task_type="qa", security=SecurityConfig())
 def secure_agent(question: str, ground_truth: str = "") -> str:
     return llm.invoke(question)
 
@@ -159,20 +159,17 @@ def langchain_agent(question: str, ground_truth: str = "") -> str:
 |---------|--------|------|
 | `task_type` | `"qa"` | 태스크 유형 (qa · tool_use · information_retrieval · code_generation 등) |
 | `framework` | `"native"` | 프레임워크 어댑터 (21종 지원) |
-| `auto_detect_framework` | `True` | 반환값 타입으로 프레임워크 자동 감지 |
 | `question_arg` | `"question"` | 질문 인자명 |
 | `ground_truth_arg` | `"ground_truth"` | 정답 인자명 |
 | `context_arg` | `None` | RAG 컨텍스트 인자명 |
 | `expected_tools_arg` | `None` | 기대 툴 목록 인자명 (Tool Selection F1 자동 계산) |
 | `score_fn` | `None` | 커스텀 정확도 계산 함수 `(response, gt) → float` |
 | `rag_mode` | `False` | context_arg + hallucination 자동 활성 단축 설정 |
-| `security_mode` | `False` | 보안 지표 이 호출에만 임시 활성 |
-| `enable_hallucination` | `False` | Hallucination Detection 이 호출에만 임시 활성 |
-| `enable_llm_judge` | `False` | LLM Judge 이 호출에만 임시 활성 |
+| `retry` | `None` | `RetryConfig` 인스턴스 — 재시도 정책 (max · delay · backoff · jitter_type 등) |
+| `security` | `None` | `SecurityConfig` 인스턴스 — 보안 지표 이 호출에만 임시 활성 |
+| `llm_judge` | `None` | `LLMJudgeConfig` 인스턴스 — LLM Judge 이 호출에만 임시 활성 |
+| `enable_hallucination_detection` | `False` | Hallucination Detection 이 호출에만 임시 활성 |
 | `enable_anomaly_detection` | `False` | AnomalyDetector 이 호출에만 임시 활성 |
-| `judge_criteria` | `None` | G-Eval 스타일 커스텀 채점 기준 목록 `["medical_accuracy", ...]` (v0.7.6+) |
-| `max_retries` | `1` | 실패 시 최대 재시도 횟수 |
-| `delay` / `backoff` | `0.0` / `1.0` | 재시도 대기 시간 / 지수 백오프 계수 |
 | `timeout` | `None` | 최대 실행 시간(초) |
 | `sample_rate` | `1.0` | 기록 샘플링 비율 |
 | `on_record` | `None` | 기록 직전 콜백 (TaskResult 교체 가능) |
@@ -321,7 +318,7 @@ dec = EvalDecorator(
 @dec(task_type="qa")                                   # agent_eval 직접 호출
 def qa_agent(question, ground_truth=""): ...
 
-@dec.with_retry(task_type="qa", max_retries=3)         # 재시도 포함
+@dec.with_retry(task_type="qa", retry=RetryConfig(max=3))  # 재시도 포함
 def robust_agent(question, ground_truth=""): ...
 
 # ── batch_eval ───────────────────────────────────────
@@ -338,7 +335,7 @@ def chat(question, sid="s1"): ...
 @dec.rag            # task_type="information_retrieval" + rag_mode=True
 @dec.code           # task_type="code_generation"
 @dec.reasoning      # task_type="reasoning"
-@dec.secure         # task_type="qa" + security_mode=True
+@dec.secure         # task_type="qa" + security=SecurityConfig()
 ```
 
 ---
@@ -950,7 +947,7 @@ def fixed_agent(question: str, ground_truth: str = "") -> str:
 | **Response Quality** | `ResponseQualityEvaluator` | response + request 있으면 자동 | `dimension_scores` · `total_score` (0–5) · `grade` |
 | **Latency** | `LatencyTracker` | 함수 실행 시간 자동 측정 | `mean` · `p50` · `p90` · `p95` · `p99` · `std` |
 | **Token Economy** | `TokenEconomyTracker` | 프레임워크 어댑터 자동 추출 | `total_tokens` · `total_cost` · `estimated_monthly_cost` |
-| **Hallucination** | `HallucinationDetector` | `rag_mode=True` 또는 `enable_hallucination=True` | `hallucination_rate` · `unsupported_claims_count` · `by_severity` |
+| **Hallucination** | `HallucinationDetector` | `rag_mode=True` 또는 `enable_hallucination_detection=True` | `hallucination_rate` · `unsupported_claims_count` · `by_severity` |
 
 Accuracy 계산 방식: Token Overlap(40%) + Jaccard Similarity(30%) + LCS(20%) + 문자 유사도(10%)
 
@@ -959,12 +956,12 @@ Accuracy 계산 방식: Token Overlap(40%) + Jaccard Similarity(30%) + LCS(20%) 
 | 지표 | 클래스 | 활성화 조건 | 주요 출력 |
 |------|--------|-----------|---------|
 | **Tool Call Analysis** | `ToolCallAnalyzer` | `tool_calls` 자동 추출 또는 EvalMetadata | `efficiency_score` · `redundancy_rate` · `failure_rate` |
-| **Retry & Correction** | `RetryCorrectionTracker` | `max_retries` 파라미터 또는 `attempts` 필드 | `retry_rate` · `first_attempt_success_rate` · `correction_success_rate` |
+| **Retry & Correction** | `RetryCorrectionTracker` | `retry=RetryConfig(max=N)` 파라미터 또는 `attempts` 필드 | `retry_rate` · `first_attempt_success_rate` · `correction_success_rate` |
 | **Tool Selection F1** | `ToolSelectionTracker` | `expected_tools_arg` 파라미터 지정 | `precision` · `recall` · `f1_score` |
 | **Agent Coordination** | `AgentCoordinationTracker` | `agent_interactions` 자동 추출 | `score` · `pattern_type` · `unique_agents` |
 | **Workflow Execution** | `WorkflowExecutionTracker` | `chain_steps` · `state_transitions` 자동 추출 | `step_success_rate` · `task_success_rate` · `bottlenecks` |
 
-### Layer 2-B — 보안 지표 (`security_mode=True` 또는 Monitor 전역 설정)
+### Layer 2-B — 보안 지표 (`security=SecurityConfig()` 또는 Monitor 전역 설정)
 
 | 지표 | 클래스 | 탐지 대상 | 주요 출력 |
 |------|--------|---------|---------|
@@ -977,8 +974,10 @@ Accuracy 계산 방식: Token Overlap(40%) + Jaccard Similarity(30%) + LCS(20%) 
 보안 지표 활성화 방법:
 
 ```python
+from agent_evaluator.decorators import SecurityConfig
+
 # 방법 A: 특정 함수에만 임시 활성 (이 호출만)
-@agent_eval(monitor, task_type="qa", security_mode=True)
+@agent_eval(monitor, task_type="qa", security=SecurityConfig())
 def secure_agent(question, ground_truth=""): ...
 
 # 방법 B: Monitor 전역 설정 (모든 record_task에 적용)
@@ -1003,8 +1002,8 @@ def rag_agent(question, context="", ground_truth=""): ...
 
 | 제공자 | 지표 | 조건 |
 |--------|------|------|
-| **LLMJudge** *(v0.7.5+)* | completeness · relevance · factual · toxicity · bias | 기본 설치에 포함 · `enable_llm_judge=True` |
-| **LLMJudge** *(v0.7.6+)* | + **faithfulness** (RAG) · **커스텀 기준(G-Eval)** | `rag_mode=True` + `enable_llm_judge=True` · `judge_criteria=[...]` |
+| **LLMJudge** *(v0.7.5+)* | completeness · relevance · factual · toxicity · bias | 기본 설치에 포함 · `llm_judge=LLMJudgeConfig()` |
+| **LLMJudge** *(v0.7.6+)* | + **faithfulness** (RAG) · **커스텀 기준(G-Eval)** | `rag_mode=True` + `llm_judge=LLMJudgeConfig(criteria=[...])` |
 | **DeepEval** | Hallucination(NLI) · Answer Relevancy (LLM) | `pip install "agent-evaluator[eval]"` |
 | **Ragas** | Faithfulness · Answer Relevancy · Context Precision · Context Recall (LLM) | 동일 + `context` 필드 필요 |
 
@@ -1082,10 +1081,10 @@ def chat(question, session_id="s1"): ...
 프로세스가 중간에 종료되어도 결과가 보존됩니다. 3종 데코레이터 모두 지원합니다.
 
 ```python
-@agent_eval(monitor, task_type="qa", flush_every=10, flush_filename="checkpoint")
+@agent_eval(monitor, task_type="qa", flush_every=10)
 def agent(question, ground_truth=""): ...
 
-@batch_eval(monitor, task_type="qa", flush_every=5, flush_filename="batch_cp")
+@batch_eval(monitor, task_type="qa", flush_every=5)
 def batch_agent(questions, ground_truths=None): ...
 
 # QuickEval에서도 동일
@@ -1101,7 +1100,7 @@ eval = QuickEval("results/", auto_save=True, auto_save_interval=10)
 | preset | 자동 적용 설정 | 환경 |
 |--------|-------------|-----|
 | `"production"` | `flush_every=50` · `enable_anomaly_detection=True` · `sample_rate=0.1` | 운영 서버 |
-| `"development"` | `enable_llm_judge=True` · `auto_detect_framework=True` | 개발·디버깅 |
+| `"development"` | `llm_judge=LLMJudgeConfig()` · `auto_detect_framework=True` | 개발·디버깅 |
 | `"testing"` | `sample_rate=1.0` · `timeout=10.0` | 단위 테스트 |
 | `"canary"` | `sample_rate=0.01` · `flush_every=100` | 카나리 배포 |
 
@@ -1327,7 +1326,7 @@ agent-evaluator/
 │   └── datasets/                # GoldenSetBuilder
 │
 ├── Evaluator_Examples/          # 예제 7개 통합 파일 (.deprecated/에 구 21개 보존)
-├── tests/                       # 1,869개 테스트 함수, 62개 파일
+├── tests/                       # 2,417개 테스트 함수, 72개 파일
 └── pyproject.toml
 ```
 
@@ -1378,7 +1377,7 @@ git clone https://github.com/bullpeng72/Agent-Evaluator.git
 cd Agent-Evaluator
 pip install -e ".[dev]"
 
-pytest                          # 테스트 실행 (1,869개)
+pytest                          # 테스트 실행 (2,417개)
 ruff check agent_evaluator/    # 린트
 ruff format agent_evaluator/   # 포맷
 mypy agent_evaluator/          # 타입 검사
@@ -1387,6 +1386,17 @@ mypy agent_evaluator/          # 타입 검사
 ---
 
 ## 변경 이력
+
+### v0.8.1 (2026-04-14) — 데코레이터 파라미터 구조화 · RetryConfig · LLMJudgeConfig · SecurityConfig
+
+- ✨ **`RetryConfig`** — `retry=RetryConfig(max=3, delay=1.0, backoff=2.0)` 로 재시도 정책 구성. `on`, `jitter_type`, `max_delay`, `should_retry`, `on_retry` 필드 포함
+- ✨ **`LLMJudgeConfig`** — `llm_judge=LLMJudgeConfig(model=..., criteria=[...])` 로 LLM Judge 설정 구성
+- ✨ **`SecurityConfig`** — `security=SecurityConfig(allowed_tools=[...])` 로 보안 지표 설정 구성
+- 🗑️ **구 개별 파라미터 제거** — `max_retries`, `delay`, `backoff`, `security_mode`, `enable_llm_judge`, `judge_model`, `judge_criteria`, `enable_quality_evaluation`, `flush_filename` (3종 데코레이터 모두 적용)
+- 🔧 **`enable_hallucination` → `enable_hallucination_detection`** — 파라미터 이름 통일
+- 🧪 테스트 548개 추가 · 파일 72→49개 리구조화 (2,348개+, 49개 파일)
+- 🔧 예제 파일 API 현행화 — 구 파라미터 → RetryConfig/concurrency 교체
+- 🔧 골든 데이터셋 정리 — 레거시 53개 파일 제거
 
 ### v0.8.0 (2026-04-13) — 정확도 지표 전면 개선 · Token F1 · task_type 인식 TCR
 

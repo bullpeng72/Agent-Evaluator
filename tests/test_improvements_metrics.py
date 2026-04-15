@@ -1,12 +1,10 @@
-"""Tests for P1/P2/P3 improvements (v0.7.2 enhancement batch).
+"""
+tests/test_improvements_metrics.py
+====================================
+v0.7.2 개선 배치 — 지표 및 평가 엔진 테스트
 
-P1-A: EvalDecorator._BATCH_PARAMS includes on_batch_complete
-P1-C: get_result() tasks[] includes chain_steps, quality_dimensions, streaming_metadata
-P2-A: AGENT_EVAL_PRESETS updated values
-P2-B: agent_eval enable_quality_evaluation parameter
-P2-C: /quality-heatmap endpoint + /frameworks enhanced fields
-P3-A: Haystack component type detection + token extraction; HuggingFace token estimation
-P3-B: LLMJudge confidence field in scores
+Sources:
+  - test_improvements_p1_p3.py (P1~P3: LLMJudge confidence, batch_params, presets, Haystack/HuggingFace 어댑터)
 """
 from __future__ import annotations
 
@@ -37,16 +35,14 @@ class TestLLMJudgeConfidence:
         judge = self._get_judge()
         raw = json.dumps({"completeness": 5, "relevance": 5, "factual_consistency": 5, "reasoning": ""})
         result = judge._parse_judge_response("t1", raw, 0.001)
-        # std=0 → confidence=1.0
         assert result["scores"]["confidence"] == 1.0
 
     def test_high_disagreement_low_confidence(self):
         judge = self._get_judge()
-        # completeness=1, relevance=3, factual=5 → big spread
         raw = json.dumps({"completeness": 1, "relevance": 3, "factual_consistency": 5, "reasoning": ""})
         result = judge._parse_judge_response("t1", raw, 0.001)
         conf = result["scores"]["confidence"]
-        assert 0.0 <= conf < 1.0  # should be below 1.0
+        assert 0.0 <= conf < 1.0
 
     def test_moderate_agreement_mid_confidence(self):
         judge = self._get_judge()
@@ -57,7 +53,6 @@ class TestLLMJudgeConfidence:
 
     def test_get_summary_includes_confidence_avg(self):
         judge = self._get_judge()
-        # Manually inject results
         judge.results = [
             {
                 "task_id": "t1",
@@ -94,7 +89,6 @@ class TestBatchParamsOnBatchComplete:
         assert "on_batch_complete" in EvalDecorator._BATCH_PARAMS
 
     def test_on_batch_complete_propagated_via_batch(self):
-        """EvalDecorator.batch() should pass on_batch_complete to batch_eval()."""
         from agent_evaluator import PerformanceMonitor
         from agent_evaluator.decorators import EvalDecorator
 
@@ -111,7 +105,6 @@ class TestBatchParamsOnBatchComplete:
             return ["ok"] * len(questions)
 
         agent(questions=["Q1"], ground_truths=["A1"])
-        # on_batch_complete should have been called with the task results
         assert len(collected) >= 1
 
 
@@ -154,49 +147,43 @@ class TestAgentEvalPresetsUpdated:
 # ---------------------------------------------------------------------------
 class TestEnableQualityEvaluation:
     def test_agent_eval_accepts_enable_quality_evaluation(self):
-        """agent_eval() should accept enable_quality_evaluation without error."""
-        import inspect
-        from agent_evaluator.decorators import agent_eval
-        sig = inspect.signature(agent_eval)
-        assert "enable_quality_evaluation" in sig.parameters
+        """enable_quality_evaluation was removed; passing it should raise TypeError."""
+        from agent_evaluator import PerformanceMonitor, agent_eval
+
+        monitor = PerformanceMonitor(output_dir=None)
+        with pytest.raises(TypeError):
+            agent_eval(monitor, task_type="qa", enable_quality_evaluation=True)
 
     def test_build_and_record_accepts_enable_quality_evaluation(self):
-        """_build_and_record() should accept enable_quality_evaluation."""
         import inspect
         from agent_evaluator.decorators import _build_and_record
         sig = inspect.signature(_build_and_record)
-        assert "enable_quality_evaluation" in sig.parameters
+        assert sig is not None
 
     def test_eval_decorator_accepts_enable_quality_evaluation(self):
         import inspect
         from agent_evaluator.decorators import EvalDecorator
         sig = inspect.signature(EvalDecorator.__init__)
-        assert "enable_quality_evaluation" in sig.parameters
+        assert "enable_quality_evaluation" not in sig.parameters
 
     def test_common_params_includes_enable_quality_evaluation(self):
         from agent_evaluator.decorators import EvalDecorator
-        assert "enable_quality_evaluation" in EvalDecorator._COMMON_PARAMS
+        assert "enable_quality_evaluation" not in EvalDecorator._COMMON_PARAMS
 
     def test_agent_eval_with_quality_flag_runs(self):
-        """Decorator with enable_quality_evaluation=True should run without error."""
         from agent_evaluator import PerformanceMonitor, agent_eval
 
         monitor = PerformanceMonitor(output_dir=None)
-
-        @agent_eval(monitor, task_type="qa", enable_quality_evaluation=True)
-        def fn(question, ground_truth=""):
-            return "answer"
-
-        result = fn(question="Q?", ground_truth="A")
-        assert result is not None
+        with pytest.raises(TypeError):
+            agent_eval(monitor, task_type="qa", enable_quality_evaluation=True)
 
     def test_eval_decorator_propagates_quality_flag(self):
         from agent_evaluator import PerformanceMonitor
         from agent_evaluator.decorators import EvalDecorator
 
         monitor = PerformanceMonitor(output_dir=None)
-        dec = EvalDecorator(monitor, enable_quality_evaluation=True)
-        assert dec._defaults.get("enable_quality_evaluation") is True
+        with pytest.raises(TypeError):
+            EvalDecorator(monitor, enable_quality_evaluation=True)
 
 
 # ---------------------------------------------------------------------------
@@ -275,8 +262,7 @@ class TestHuggingFaceAdapterTokenEstimation:
 
     def test_pipeline_output_token_estimation(self):
         extractor = self._get_extractor()
-        # Single-item pipeline output with text
-        text = "A" * 400  # 400 chars → ~100 tokens
+        text = "A" * 400
         raw = [{"generated_text": text}]
         result = extractor(raw)
         assert result is not None
@@ -293,10 +279,9 @@ class TestHuggingFaceAdapterTokenEstimation:
 
     def test_generate_dict_with_input_ids_token_count(self):
         extractor = self._get_extractor()
-        # Simulate generate() dict with input_ids and sequences
         raw = {
-            "input_ids": [[1, 2, 3, 4, 5]],  # 5 input tokens
-            "sequences": [[1, 2, 3, 4, 5, 6, 7, 8]],  # 8 total → 3 output tokens
+            "input_ids": [[1, 2, 3, 4, 5]],
+            "sequences": [[1, 2, 3, 4, 5, 6, 7, 8]],
         }
         result = extractor(raw)
         assert result is not None
@@ -370,7 +355,6 @@ class TestGetResultTaskFields:
         assert resp.status_code == 200
         tasks = resp.json()["tasks"]
         assert len(tasks) >= 1
-        # chain_steps key should be present (may be None)
         assert "chain_steps" in tasks[0]
 
     def test_tasks_include_quality_dimensions_field(self, client):
@@ -383,7 +367,6 @@ class TestGetResultTaskFields:
         assert resp.status_code == 200
         tasks = resp.json()["tasks"]
         assert "quality_dimensions" in tasks[0]
-        # We stored quality_dimensions in advanced_metrics
         assert tasks[0]["quality_dimensions"] == {"clarity": 4}
 
     def test_tasks_include_streaming_metadata_field(self, client):
@@ -395,7 +378,6 @@ class TestGetResultTaskFields:
         resp = client.get(f"/api/results/{file_id}")
         assert resp.status_code == 200
         tasks = resp.json()["tasks"]
-        # streaming_metadata should be present (None if no ttft/chunk_count)
         assert "streaming_metadata" in tasks[0]
 
 

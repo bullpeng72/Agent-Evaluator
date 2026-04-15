@@ -2,8 +2,8 @@
 
 에이전트 코드에 평가를 적용하는 실전 개발자 레퍼런스
 
-**Version**: 0.8.0  
-**최종 업데이트**: 2026-04-11
+**Version**: 0.8.1  
+**최종 업데이트**: 2026-04-15
 
 ---
 
@@ -67,16 +67,17 @@ def rag_agent(question: str, context: str = "", ground_truth: str = "") -> str:
 
 ### LLM Judge + Faithfulness (v0.7.6+)
 
-`rag_mode=True`와 `enable_llm_judge=True`를 함께 쓰면 LLMJudge가 `faithfulness` 차원을 자동으로 추가합니다.  
+`rag_mode=True`와 `llm_judge=LLMJudgeConfig()`를 함께 쓰면 LLMJudge가 `faithfulness` 차원을 자동으로 추가합니다.  
 이는 Ragas `faithfulness` 지표의 **네이티브 대체** 방식으로, `[eval]` extras 설치 없이 동작합니다.
 
 ```python
+from agent_evaluator.decorators import agent_eval, LLMJudgeConfig
+
 @agent_eval(
     monitor,
     task_type="information_retrieval",
     rag_mode=True,          # context_arg="context" + hallucination 활성
-    enable_llm_judge=True,  # faithfulness 차원 자동 추가
-    judge_model="claude-sonnet-4-6",
+    llm_judge=LLMJudgeConfig(model="claude-sonnet-4-6"),  # faithfulness 차원 자동 추가
 )
 def rag_agent(question: str, context: str = "", ground_truth: str = "") -> str:
     return rag_chain.invoke({"input": question, "context": context})
@@ -92,9 +93,7 @@ def rag_agent(question: str, context: str = "", ground_truth: str = "") -> str:
 @agent_eval(
     monitor,
     task_type="qa",
-    enable_llm_judge=True,
-    judge_model="claude-sonnet-4-6",
-    judge_criteria=["professionalism", "empathy", "clarity"],  # 커스텀 평가 차원
+    llm_judge=LLMJudgeConfig(model="claude-sonnet-4-6", criteria=["professionalism", "empathy", "clarity"]),  # 커스텀 평가 차원
 )
 def customer_service_agent(question: str, ground_truth: str = "") -> str:
     return llm.invoke(question)
@@ -107,7 +106,7 @@ def customer_service_agent(question: str, ground_truth: str = "") -> str:
 **`judge_criteria` 동작 규칙**
 - 기준 이름 → 소문자 + 공백/하이픈 → 언더스코어로 정규화 (`"Code Quality"` → `"code_quality"`)
 - 기존 5개 차원(completeness, relevance, factual_consistency, toxicity, bias)에 **추가**됨
-- `PerformanceMonitor(judge_criteria=[...])` 또는 `@agent_eval(..., judge_criteria=[...])` 두 가지 설정 지원
+- `PerformanceMonitor(judge_criteria=[...])` 또는 `@agent_eval(..., llm_judge=LLMJudgeConfig(criteria=[...]))` 두 가지 설정 지원
 
 ---
 
@@ -269,13 +268,8 @@ my_agent("한국의 수도는?", ground_truth="서울")
 | `sample_condition` | callable\|None | `None` | 조건부 샘플링 `(args, kwargs) → bool` |
 | `timeout` | float\|None | `None` | 타임아웃(초), 초과 시 TimeoutError |
 | `enabled` | bool | `True` | False 이면 데코레이터 완전 비활성화 |
-| `max_retries` | int | `1` | 재시도 횟수 (>1 이면 RetryCorrection 트래커 활성) |
+| `retry` | RetryConfig\|None | `None` | 재시도 설정 (`RetryConfig(max=N, delay=X, backoff=Y, ...)`) |
 | `retry_on` | tuple | `(Exception,)` | 재시도할 예외 타입 |
-| `delay` | float | `0.0` | 재시도 초기 지연(초) |
-| `backoff` | float | `1.0` | 재시도 지연 배수 |
-| `jitter` | bool | `False` | 재시도 지연에 무작위 변동 추가 |
-| `jitter_type` | str | `"full"` | "full" / "decorrelated" / "none" |
-| `max_delay` | float | `60.0` | 재시도 최대 지연(초) |
 | `should_retry` | callable\|None | `None` | 재시도 조건 함수 `(exc, attempt) → bool` |
 | `on_retry` | callable\|None | `None` | 재시도 시 콜백 `(exc, attempt)` |
 | `on_record` | callable\|None | `None` | 기록 완료 후 콜백 `(TaskResult)` |
@@ -283,17 +277,13 @@ my_agent("한국의 수도는?", ground_truth="서울")
 | `alert_rules` | list | `[]` | SimpleTaskAlertRule 리스트 |
 | `alert_error_mode` | str | `"log"` | 알림 오류 처리: "log" / "strict" / "ignore" |
 | `flush_every` | int\|None | `None` | N회마다 save_to_file() 자동 호출 |
-| `flush_filename` | str | `"auto_save"` | flush_every 저장 파일명 |
 | `allow_duplicate_task_ids` | bool | `True` | 중복 task_id 허용 |
 | `preset` | str\|None | `None` | AGENT_EVAL_PRESETS 이름 (production/development/testing/canary) |
-| `enable_hallucination` | bool | `False` | HallucinationDetector 임시 활성 |
+| `enable_hallucination_detection` | bool | `False` | HallucinationDetector 임시 활성 |
 | `rag_mode` | bool | `False` | context_arg="context" + hallucination + task_type="information_retrieval" 자동 |
-| `security_mode` | bool | `False` | 보안 5개 트래커 임시 활성 |
+| `security` | SecurityConfig\|None | `None` | 보안 5개 트래커 임시 활성 (`SecurityConfig()`) |
 | `allowed_tools` | list\|None | `None` | ToolAuthorization 허용 도구 화이트리스트 |
-| `enable_quality_evaluation` | bool | `False` | ResponseQualityEvaluator 명시적 활성 |
-| `enable_llm_judge` | bool | `False` | LLMJudge 임시 활성 |
-| `judge_model` | str\|None | `None` | LLMJudge 모델 (None → API 키 기반 자동 선택) |
-| `judge_criteria` | list\|None | `None` | G-Eval 커스텀 평가 기준 `["medical_accuracy", ...]` |
+| `llm_judge` | LLMJudgeConfig\|None | `None` | LLMJudge 설정 (`LLMJudgeConfig(model=..., criteria=[...])`) |
 | `enable_anomaly_detection` | bool | `False` | AnomalyDetector 임시 활성 |
 | `dry_run` | bool | `False` | 기록 없이 TaskResult만 반환 |
 
@@ -320,7 +310,6 @@ my_agent("한국의 수도는?", ground_truth="서울")
 | `on_item_error` | callable\|None | `None` | 아이템 오류 처리 `(exc, idx, question) → str` |
 | `alert_rules` | list | `[]` | SimpleTaskAlertRule 리스트 |
 | `flush_every` | int | `0` | N건마다 자동 저장 (0=비활성) |
-| `flush_filename` | str | `"batch_eval_auto"` | 자동 저장 파일명 |
 | `sample_rate` | float | `1.0` | 샘플링 비율 |
 | `sample_condition` | callable\|None | `None` | 조건부 샘플링 |
 | `timeout` | float\|None | `None` | 전체 배치 타임아웃(초) |
@@ -358,7 +347,6 @@ my_agent("한국의 수도는?", ground_truth="서울")
 | `turn_score_fn` | callable\|None | `None` | 커스텀 턴 점수 `(user, response, metadata) → float` |
 | `alert_rules` | list | `[]` | SimpleTaskAlertRule 리스트 |
 | `flush_every` | int | `0` | N턴마다 자동 저장 |
-| `flush_filename` | str | `"conv_eval_auto"` | 자동 저장 파일명 |
 | `enabled` | bool | `True` | 비활성화 플래그 |
 | `preset` | str\|None | `None` | AGENT_EVAL_PRESETS 이름 |
 
@@ -371,7 +359,7 @@ my_agent("한국의 수도는?", ground_truth="서울")
 | 파라미터 | 활성화되는 지표/트래커 | 데이터 소스 | 조건 |
 |---|---|---|---|
 | `ground_truth_arg` | Accuracy | 함수 인자 자동 추출 | 인자 이름 일치 시 항상 |
-| `context_arg` | Hallucination Rate | 함수 인자 자동 추출 | `enable_hallucination=True` 또는 `rag_mode=True` 동반 필요 |
+| `context_arg` | Hallucination Rate | 함수 인자 자동 추출 | `enable_hallucination_detection=True` 또는 `rag_mode=True` 동반 필요 |
 | `rag_mode=True` | Hallucination Rate + context_arg="context" 자동 설정 | "context" 인자 자동 추출 | context 인자 존재 시 |
 | `expected_tools_arg` | Tool Selection F1 (Precision/Recall/F1) | 함수 인자 자동 추출 | tool_calls 동시 존재 시 |
 | `framework="langchain"` | Tool Call Efficiency, Workflow Execution | LangChain 응답 객체 자동 파싱 | LangChain AgentExecutor 응답 |
@@ -384,14 +372,13 @@ my_agent("한국의 수도는?", ground_truth="서울")
 | `model_name` | Token Economy 비용 정확도 향상 | 파라미터 직접 지정 | tokens_used 존재 시 |
 | `score_fn` | Accuracy | 커스텀 함수 계산값 | response + ground_truth 존재 시 |
 | `completion_fn` | TCR | 커스텀 함수 계산값 | response 존재 시 |
-| `enable_hallucination=True` | Hallucination Rate | context 인자 | context + response 존재 시 |
-| `security_mode=True` | Input Sanitization, Output Leakage, Tool Authorization, Privilege Escalation, Tool Chain Attack (5개) | question + response + tool_calls | 임시 활성 (finally 복원) |
-| `allowed_tools=[...]` | Tool Authorization (허용 도구 기준) | 파라미터 화이트리스트 | `security_mode=True` 동반 |
-| `enable_quality_evaluation=True` | Response Quality (5차원) | response + question | 자동 활성과 동일 효과 |
-| `enable_llm_judge=True` | LLMJudge (completeness/relevance/factual_consistency/toxicity/bias) | question + response | 기본 설치에 포함 (API 키 필요) |
-| `rag_mode=True` + `enable_llm_judge=True` | + Faithfulness | context + response | context 존재 시 자동 추가 |
-| `judge_criteria=[...]` | + G-Eval 커스텀 기준 점수 | question + response | `enable_llm_judge=True` 동반 |
-| `max_retries > 1` | Retry & Error Recovery | 재시도 횟수 + 오류 유형 | 실제 재시도 발생 시 |
+| `enable_hallucination_detection=True` | Hallucination Rate | context 인자 | context + response 존재 시 |
+| `security=SecurityConfig()` | Input Sanitization, Output Leakage, Tool Authorization, Privilege Escalation, Tool Chain Attack (5개) | question + response + tool_calls | 임시 활성 (finally 복원) |
+| `allowed_tools=[...]` | Tool Authorization (허용 도구 기준) | 파라미터 화이트리스트 | `security=SecurityConfig()` 동반 |
+| `llm_judge=LLMJudgeConfig()` | LLMJudge (completeness/relevance/factual_consistency/toxicity/bias) | question + response | 기본 설치에 포함 (API 키 필요) |
+| `rag_mode=True` + `llm_judge=LLMJudgeConfig()` | + Faithfulness | context + response | context 존재 시 자동 추가 |
+| `llm_judge=LLMJudgeConfig(criteria=[...])` | + G-Eval 커스텀 기준 점수 | question + response | llm_judge 설정 내 criteria 지정 |
+| `retry=RetryConfig(max=N)` (N>1) | Retry & Error Recovery | 재시도 횟수 + 오류 유형 | 실제 재시도 발생 시 |
 | `timeout=N` | Latency (타임아웃 에러 포함) | 실행 시간 측정 | 타임아웃 초과 시 completion_score=0 |
 | `sample_rate=0.1` | 모든 지표 (10% 샘플만 기록) | — | 샘플 미해당 시 함수는 정상 실행 |
 | `sample_condition=fn` | 모든 지표 (조건 충족 건만 기록) | — | fn 반환값 False 시 기록 생략 |
@@ -412,23 +399,23 @@ my_agent("한국의 수도는?", ground_truth="서울")
 | Latency (p50/p95/p99) | ✅ 자동 | ✅ 자동 | ✅ 자동 | 항상 (실행 시간 자동 측정) |
 | TTFT | ✅ generator 함수 | ✅ `streaming_mode=True` | ❌ | generator 리턴 또는 스트리밍 모드 |
 | Token Economy | ✅ 자동 | ✅ 자동 | ❌ | `framework=` 어댑터 또는 EvalMetadata |
-| Hallucination Rate | ✅ `rag_mode=True` | ✅ `context_arg` 지정 | ❌ | context 인자 + `enable_hallucination=True` |
+| Hallucination Rate | ✅ `rag_mode=True` | ✅ `context_arg` 지정 | ❌ | context 인자 + `enable_hallucination_detection=True` |
 | **Layer 2 — Agentic 지표** | | | | |
 | Tool Call Efficiency | ✅ 자동 | ✅ 자동 | ❌ | `framework=` 어댑터 또는 EvalMetadata.tool_calls |
-| Retry & Error Recovery | ✅ `max_retries>1` | ❌ | ❌ | `max_retries > 1` + 실제 재시도 발생 |
+| Retry & Error Recovery | ✅ `retry=RetryConfig(max=N)` | ❌ | ❌ | `RetryConfig(max>1)` + 실제 재시도 발생 |
 | Tool Selection F1 | ✅ `expected_tools_arg` | ✅ `expected_tools_arg` | ❌ | expected_tools + tool_calls 동시 존재 |
 | Agent Coordination | ✅ `framework="crewai/autogen"` | ❌ | ❌ | CrewAI/AutoGen 어댑터 또는 EvalMetadata |
 | Workflow Execution | ✅ `framework="langchain/langgraph"` | ❌ | ❌ | LangChain/LangGraph 어댑터 또는 EvalMetadata |
 | **Layer 2 — Security 지표** | | | | |
-| Input Sanitization | ✅ `security_mode=True` | ❌ | ❌ | `security_mode=True` 임시 활성 |
-| Output Leakage | ✅ `security_mode=True` | ❌ | ❌ | 동일 |
-| Tool Authorization | ✅ `security_mode=True` + `allowed_tools` | ❌ | ❌ | 동일 + 화이트리스트 |
-| Privilege Escalation | ✅ `security_mode=True` | ❌ | ❌ | 동일 |
-| Tool Chain Attack | ✅ `security_mode=True` | ❌ | ❌ | 동일 |
+| Input Sanitization | ✅ `security=SecurityConfig()` | ❌ | ❌ | `security=SecurityConfig()` 임시 활성 |
+| Output Leakage | ✅ `security=SecurityConfig()` | ❌ | ❌ | 동일 |
+| Tool Authorization | ✅ `security=SecurityConfig()` + `allowed_tools` | ❌ | ❌ | 동일 + 화이트리스트 |
+| Privilege Escalation | ✅ `security=SecurityConfig()` | ❌ | ❌ | 동일 |
+| Tool Chain Attack | ✅ `security=SecurityConfig()` | ❌ | ❌ | 동일 |
 | **Layer 3 / LLM Judge** | | | | |
-| LLM Judge (5차원) | ✅ `enable_llm_judge=True` | ❌ | ❌ | 기본 설치에 포함 (API 키 필요) |
-| Faithfulness (RAG, v0.7.6+) | ✅ `rag_mode` + `enable_llm_judge` | ❌ | ❌ | context 존재 시 자동 추가 |
-| G-Eval 커스텀 기준 (v0.7.6+) | ✅ `judge_criteria=[...]` | ❌ | ❌ | `enable_llm_judge=True` 동반 필요 |
+| LLM Judge (5차원) | ✅ `llm_judge=LLMJudgeConfig()` | ❌ | ❌ | 기본 설치에 포함 (API 키 필요) |
+| Faithfulness (RAG, v0.7.6+) | ✅ `rag_mode` + `llm_judge=LLMJudgeConfig()` | ❌ | ❌ | context 존재 시 자동 추가 |
+| G-Eval 커스텀 기준 (v0.7.6+) | ✅ `llm_judge=LLMJudgeConfig(criteria=[...])` | ❌ | ❌ | llm_judge 설정 내 criteria 지정 |
 | **대화 지표 (conversation 전용)** | | | | |
 | Context Retention | ❌ | ❌ | ✅ 자동 | 세션 flush 시 compute_metrics() |
 | Topic Coherence | ❌ | ❌ | ✅ 자동 | 동일 |
@@ -526,12 +513,12 @@ d["security_metrics"]["authorization"]["compliance_rate"]        # float (0–10
 d["security_metrics"]["privilege_escalation"]["escalation_rate"] # float (0–100)
 d["security_metrics"]["attack_detection"]["detection_rate"]      # float (0–100)
 
-# LLM Judge (enable_llm_judge=True 시)
+# LLM Judge (llm_judge=LLMJudgeConfig() 시)
 task_dict["extra"]["llm_judge"]["completeness"]         # float (0–5)
 task_dict["extra"]["llm_judge"]["relevance"]            # float (0–5)
 task_dict["extra"]["llm_judge"]["factual_consistency"]  # float (0–5)
 task_dict["extra"]["llm_judge"]["faithfulness"]         # float (0–5, RAG 시)
-task_dict["extra"]["llm_judge"]["criteria_scores"]      # dict (judge_criteria 시)
+task_dict["extra"]["llm_judge"]["criteria_scores"]      # dict (LLMJudgeConfig(criteria=[...]) 시)
 
 # Conversation (flush 후)
 session_dict["context_retention"]   # float (0–1)

@@ -279,7 +279,7 @@ class TestEvalDecoratorConvParams:
             "sample_rate", "enabled", "alert_rules", "on_session_timeout",
             "on_flush", "on_turn", "session_score_fn", "turn_score_fn",
             "max_turns", "flush_on_error", "max_session_seconds",
-            "flush_every", "flush_filename",
+            "flush_every",
         }
         for param in expected:
             assert param in EvalDecorator._CONV_PARAMS, f"Missing: {param}"
@@ -288,7 +288,7 @@ class TestEvalDecoratorConvParams:
         from agent_evaluator.decorators import EvalDecorator, conversation_eval
         import inspect
         m = _make_monitor()
-        ed = EvalDecorator(m, flush_every=5, flush_filename="test_conv_flush")
+        ed = EvalDecorator(m, flush_every=5)
         # conversation() method should forward flush_every
         sig = inspect.signature(conversation_eval)
         assert "flush_every" in sig.parameters
@@ -300,13 +300,13 @@ class TestEvalDecoratorConvParams:
 
 class TestAgentEvalRetryAlertRules:
     def test_alert_rules_param(self):
-        """agent_eval에 alert_rules, flush_every, flush_filename 파라미터 존재."""
+        """agent_eval에 alert_rules, flush_every 파라미터 존재 (flush_filename 제거됨)."""
         import inspect
         from agent_evaluator.decorators import agent_eval
         sig = inspect.signature(agent_eval)
         assert "alert_rules" in sig.parameters
         assert "flush_every" in sig.parameters
-        assert "flush_filename" in sig.parameters
+        assert "flush_filename" not in sig.parameters
 
     def test_alert_rules_fired(self):
         from agent_evaluator.decorators import agent_eval, SimpleTaskAlertRule
@@ -318,7 +318,7 @@ class TestAgentEvalRetryAlertRules:
             cooldown=0.0,
         )
 
-        @agent_eval(m, max_retries=1, alert_rules=[rule])
+        @agent_eval(m, task_type="qa", alert_rules=[rule])
         def agent(question, ground_truth=""):
             return "ans"
 
@@ -329,14 +329,13 @@ class TestAgentEvalRetryAlertRules:
         from agent_evaluator.decorators import agent_eval
         m = _make_monitor(str(tmp_path))
 
-        @agent_eval(m, max_retries=1, flush_every=1,
-                    flush_filename="retry_flush")
+        @agent_eval(m, task_type="qa", flush_every=1)
         def agent(question, ground_truth=""):
             return "ans"
 
         agent("q")
-        # flush 파일이 생성되어야 함 (save_to_file은 .json 자동 추가)
-        assert (tmp_path / "retry_flush.json").exists()
+        # flush 파일이 생성되어야 함 — 기본 파일명 auto_save.json
+        assert (tmp_path / "auto_save.json").exists()
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -349,22 +348,21 @@ class TestConversationEvalFlushEvery:
         import inspect
         sig = inspect.signature(conversation_eval)
         assert "flush_every" in sig.parameters
-        assert "flush_filename" in sig.parameters
+        assert "flush_filename" not in sig.parameters
 
     def test_flush_every_triggers(self, tmp_path):
         from agent_evaluator.decorators import conversation_eval, flush_conversation
         m = _make_monitor(str(tmp_path))
 
-        @conversation_eval(m, max_turns=1, flush_every=1,
-                           flush_filename="conv_flush")
+        @conversation_eval(m, max_turns=1, flush_every=1)
         def chat(question, session_id="s1"):
             return "hi"
 
         chat("hello", session_id="s100")
-        # max_turns=1 → flush 발생 → flush_every=1 → save_to_file 호출
+        # max_turns=1 → flush 발생 → flush_every=1 → save_to_file("auto_save") 호출
         # save_to_file은 확장자 없으면 .json 자동 추가
         time.sleep(0.1)
-        assert (tmp_path / "conv_flush.json").exists()
+        assert (tmp_path / "auto_save.json").exists()
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -376,14 +374,17 @@ class TestBatchEvalSyncConcurrent:
         from agent_evaluator.decorators import batch_eval
         import inspect
         sig = inspect.signature(batch_eval)
-        assert "concurrent" in sig.parameters
+        # concurrent/max_concurrent removed; concurrency=N is the new param
+        assert "concurrent" not in sig.parameters
+        assert "max_concurrent" not in sig.parameters
+        assert "concurrency" in sig.parameters
 
     def test_sync_concurrent_executes(self):
         from agent_evaluator.decorators import batch_eval
         m = _make_monitor()
         call_threads = []
 
-        @batch_eval(m, task_type="qa", concurrent=True, max_concurrent=3)
+        @batch_eval(m, task_type="qa", concurrency=3)
         def agents(questions, ground_truths=None):
             call_threads.append(threading.current_thread().name)
             return [q + "_ans" for q in questions]
@@ -395,7 +396,7 @@ class TestBatchEvalSyncConcurrent:
         from agent_evaluator.decorators import batch_eval
         m = _make_monitor()
 
-        @batch_eval(m, task_type="qa", concurrent=True)
+        @batch_eval(m, task_type="qa", concurrency=4)
         def agents(questions, ground_truths=None):
             return [q.upper() for q in questions]
 

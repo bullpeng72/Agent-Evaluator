@@ -8,15 +8,14 @@ QuickEval 원스톱 Facade를 한 파일에서 시연한다.
     - score_fn / completion_fn 커스텀 점수
     - task_id_fn 커스텀 task ID
     - flush_every 주기 저장
-    - max_retries + retry_on
+    - retry=RetryConfig(max, on, delay, backoff)
     - alert_rules (SimpleTaskAlertRule)
     - EvalMetadata 튜플 반환 (우선순위: EvalMetadata > score_fn)
     - get_eval_ctx() 스레드 로컬 주입
 
   @batch_eval:
-    - concurrent=True / max_concurrent
+    - concurrency=N (병렬 항목 실행)
     - return_format="dataframe" | "list"
-    - shuffle + shuffle_seed
     - on_batch_complete / on_item_error
 
   @conversation_eval:
@@ -46,7 +45,7 @@ from pathlib import Path
 from agent_evaluator import PerformanceMonitor, QuickEval, SimpleTaskAlertRule, setup_otel
 from agent_evaluator.decorators import (
     agent_eval, batch_eval, conversation_eval,
-    flush_conversation, EvalMetadata, get_eval_ctx,
+    flush_conversation, EvalMetadata, get_eval_ctx, RetryConfig,
 )
 
 _PROJECT_ROOT = Path(__file__).parent.parent
@@ -167,9 +166,9 @@ ctx_agent("LangGraph 워크플로우 테스트", ground_truth="성공")
 print("  get_eval_ctx()로 graph_traversal·state_transitions 주입 완료")
 
 # ===========================================================================
-# 섹션 5: max_retries + flush_every + alert_rules
+# 섹션 5: retry=RetryConfig + flush_every + alert_rules
 # ===========================================================================
-print("\n=== 섹션 5: max_retries + flush_every + alert_rules ===")
+print("\n=== 섹션 5: retry=RetryConfig + flush_every + alert_rules ===")
 
 slow_alert = SimpleTaskAlertRule(
     name="slow_response",
@@ -183,8 +182,8 @@ _retry_count = {"n": 0}
 
 @agent_eval(
     monitor, task_type="qa",
-    max_retries=3, retry_on=(ValueError,), delay=0.0,
-    flush_every=5, flush_filename="04_flush_periodic",
+    retry=RetryConfig(max=3, on=(ValueError,), delay=0.0),
+    flush_every=5,
     alert_rules=[slow_alert],
     task_id_prefix="retry",
 )
@@ -198,7 +197,7 @@ result = flaky_agent("재시도 테스트", ground_truth="성공")
 print(f"  결과: {result}  (attempts={_retry_count['n']})")
 
 # ===========================================================================
-# 섹션 6: @batch_eval (concurrent + DataFrame + shuffle)
+# 섹션 6: @batch_eval (concurrency + DataFrame)
 # ===========================================================================
 print("\n=== 섹션 6: @batch_eval 고급 ===")
 
@@ -214,8 +213,7 @@ BATCH_DATA = [
     monitor, task_type="qa",
     task_id_prefix="batch_basic",
     return_format="dataframe",
-    shuffle=True, shuffle_seed=42,
-    flush_every=5, flush_filename="04_batch_basic",
+    flush_every=5,
     on_batch_complete=lambda r: print(f"  on_batch_complete: {len(r)}건"),
 )
 def qa_batch(questions: list, ground_truths: list = None) -> list:
@@ -228,12 +226,12 @@ df = qa_batch(
 if hasattr(df, "shape"):
     print(f"  DataFrame: {df.shape}  컬럼: {list(df.columns[:5])}")
 
-# 병렬 배치 (concurrent=True)
+# 병렬 배치 (concurrency=3)
 @batch_eval(
     monitor, task_type="tool_use",
     task_id_prefix="batch_concurrent",
     return_format="list",
-    concurrent=True, max_concurrent=3,
+    concurrency=3,
     on_item_error=lambda i, q, e: print(f"  항목 {i} 오류: {type(e).__name__}"),
 )
 def tool_batch(questions: list, ground_truths: list = None) -> list:

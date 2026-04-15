@@ -153,26 +153,34 @@ class TestAlertRuleBuilderE6:
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# E2: rag_mode
+# E2: rag_mode — removed; use context_arg + enable_hallucination directly
 # ─────────────────────────────────────────────────────────────────────────────
 class TestRagModeE2:
     def test_rag_mode_sets_context_arg(self):
+        """rag_mode=True 는 context_arg + enable_hallucination_detection 을 자동 활성화."""
         from agent_evaluator import agent_eval, PerformanceMonitor
+        import inspect
         monitor = PerformanceMonitor(output_dir="/tmp/test_e2/")
 
-        @agent_eval(monitor, task_type="qa", rag_mode=True)
+        # rag_mode is still in signature as a shortcut parameter
+        assert "rag_mode" in inspect.signature(agent_eval).parameters
+
+        @agent_eval(monitor, task_type="information_retrieval",
+                    context_arg="context", enable_hallucination_detection=True)
         def rag_fn(question, context="", ground_truth=""):
             return "answer"
 
-        # Should not raise — context_arg auto-set to "context"
+        # Should not raise — context_arg explicitly set
         rag_fn("Q?", context="Some context", ground_truth="answer")
         assert monitor.task_count >= 1
 
     def test_rag_mode_changes_task_type_to_information_retrieval(self):
+        """rag_mode=True 사용 시 task_type을 직접 지정해야 한다."""
         from agent_evaluator import agent_eval, PerformanceMonitor
         monitor = PerformanceMonitor(output_dir="/tmp/test_e2/")
 
-        @agent_eval(monitor, task_type="qa", rag_mode=True)
+        @agent_eval(monitor, task_type="information_retrieval",
+                    context_arg="context", enable_hallucination_detection=True)
         def rag_fn(question, context="", ground_truth=""):
             return "answer"
 
@@ -182,11 +190,11 @@ class TestRagModeE2:
         assert tasks[-1].task_type == "information_retrieval"
 
     def test_rag_mode_with_explicit_task_type_other_than_qa(self):
-        """rag_mode=True + task_type != 'qa' → task_type should NOT be overridden."""
+        """Without rag_mode, task_type is always what you specify."""
         from agent_evaluator import agent_eval, PerformanceMonitor
         monitor = PerformanceMonitor(output_dir="/tmp/test_e2/")
 
-        @agent_eval(monitor, task_type="tool_use", rag_mode=True)
+        @agent_eval(monitor, task_type="tool_use", context_arg="context")
         def rag_fn(question, context="", ground_truth=""):
             return "answer"
 
@@ -200,24 +208,25 @@ class TestRagModeE2:
 # ─────────────────────────────────────────────────────────────────────────────
 class TestSecurityModeE3:
     def test_security_mode_restores_flag_after_call(self):
-        from agent_evaluator import agent_eval, PerformanceMonitor
+        """security=SecurityConfig() 사용 후 monitor 상태 복원."""
+        from agent_evaluator import PerformanceMonitor
+        from agent_evaluator.decorators import agent_eval, SecurityConfig
         monitor = PerformanceMonitor(output_dir="/tmp/test_e3/", enable_security_metrics=False)
 
-        @agent_eval(monitor, task_type="tool_use", security_mode=True)
+        @agent_eval(monitor, task_type="tool_use", security=SecurityConfig())
         def secure_fn(question, ground_truth=""):
-            # Capture state during execution (via monitor's flag)
             return "done"
 
         secure_fn("do secure thing", ground_truth="done")
-        # After call, flag should be restored
         assert monitor.enable_security_metrics is False
 
     def test_security_mode_does_not_affect_already_enabled_monitor(self):
-        """If monitor already has security_metrics enabled, it should stay enabled."""
-        from agent_evaluator import agent_eval, PerformanceMonitor
+        """monitor가 이미 security_metrics=True이면 유지됨."""
+        from agent_evaluator import PerformanceMonitor
+        from agent_evaluator.decorators import agent_eval, SecurityConfig
         monitor = PerformanceMonitor(output_dir="/tmp/test_e3/", enable_security_metrics=True)
 
-        @agent_eval(monitor, task_type="tool_use", security_mode=True)
+        @agent_eval(monitor, task_type="tool_use", security=SecurityConfig())
         def secure_fn(question, ground_truth=""):
             return "done"
 
@@ -225,11 +234,14 @@ class TestSecurityModeE3:
         assert monitor.enable_security_metrics is True
 
     def test_security_mode_in_agent_eval_signature(self):
+        """security_mode/allowed_tools 제거됨 — security=SecurityConfig() 사용."""
         import inspect
         from agent_evaluator import agent_eval
+        from agent_evaluator.decorators import SecurityConfig
         sig = inspect.signature(agent_eval)
-        assert "security_mode" in sig.parameters
-        assert "allowed_tools" in sig.parameters
+        assert "security_mode" not in sig.parameters
+        assert "allowed_tools" not in sig.parameters
+        assert "security" in sig.parameters
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -237,35 +249,46 @@ class TestSecurityModeE3:
 # ─────────────────────────────────────────────────────────────────────────────
 class TestEnableLlmJudgeE1:
     def test_enable_llm_judge_in_agent_eval_signature(self):
+        """enable_llm_judge/judge_model 제거됨 — llm_judge=LLMJudgeConfig() 사용."""
         import inspect
         from agent_evaluator import agent_eval
+        from agent_evaluator.decorators import LLMJudgeConfig
         sig = inspect.signature(agent_eval)
-        assert "enable_llm_judge" in sig.parameters
-        assert "judge_model" in sig.parameters
+        assert "enable_llm_judge" not in sig.parameters
+        assert "judge_model" not in sig.parameters
+        assert "llm_judge" in sig.parameters
         assert "enable_anomaly_detection" in sig.parameters
 
     def test_enable_llm_judge_restores_after_call(self):
+        """llm_judge=LLMJudgeConfig() 사용 후 monitor 상태 변경 없음."""
         from agent_evaluator import agent_eval, PerformanceMonitor
-        monitor = PerformanceMonitor(output_dir="/tmp/test_e1/", enable_llm_judge=False)
+        from agent_evaluator.decorators import LLMJudgeConfig
+        monitor = PerformanceMonitor(output_dir="/tmp/test_e1/")
 
-        @agent_eval(monitor, task_type="qa", enable_llm_judge=True)
+        original = getattr(monitor, "enable_llm_judge", False)
+
+        @agent_eval(monitor, task_type="qa", llm_judge=LLMJudgeConfig())
         def fn(question, ground_truth=""):
             return "answer"
 
         fn("Q?", ground_truth="A")
-        assert monitor.enable_llm_judge is False
+        # monitor 상태는 변경되지 않아야 함
+        assert getattr(monitor, "enable_llm_judge", False) == original
 
     def test_enable_anomaly_detection_in_common_params(self):
         from agent_evaluator.decorators import EvalDecorator
         assert "enable_anomaly_detection" in EvalDecorator._COMMON_PARAMS
 
     def test_rag_mode_in_common_params(self):
+        """rag_mode was removed from _COMMON_PARAMS."""
         from agent_evaluator.decorators import EvalDecorator
-        assert "rag_mode" in EvalDecorator._COMMON_PARAMS
+        assert "rag_mode" not in EvalDecorator._COMMON_PARAMS
 
     def test_security_mode_in_common_params(self):
+        """security_mode 제거됨 — _COMMON_PARAMS에 없어야 함."""
         from agent_evaluator.decorators import EvalDecorator
-        assert "security_mode" in EvalDecorator._COMMON_PARAMS
+        assert "security_mode" not in EvalDecorator._COMMON_PARAMS
+        assert "security" in EvalDecorator._COMMON_PARAMS
 
 
 # ─────────────────────────────────────────────────────────────────────────────

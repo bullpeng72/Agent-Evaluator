@@ -1,7 +1,7 @@
 # AI Agent 평가 프레임워크 비교 분석
 
-**Version**: 0.8.0
-**Last Updated**: 2026-04-13
+**Version**: 0.8.1
+**Last Updated**: 2026-04-15
 **기준 버전**: 각 프레임워크 2025–2026년 최신 릴리스 기준
 **분석 목적**: 개발자가 서비스 코드 외에 작성해야 하는 코드량 / 자동화 수준 비교
 
@@ -19,7 +19,7 @@
 | **Braintrust** | SaaS + OSS SDK | v0.5.2 (2025) | LLM 실험 + 에이전트 관측 |
 | **Helicone** | SaaS + OSS | 시맨틱 버전 없음 (활발 유지) | LLM 프록시 + 비용 관측 |
 | **W&B Weave** | SaaS + OSS SDK | v0.72+ (2025) | 에이전트 평가 + 실험 관리 |
-| **Agent Evaluator** | OSS SDK | v0.8.0 (2026.04) | Agentic AI 전문 평가 |
+| **Agent Evaluator** | OSS SDK | v0.8.1 (2026.04) | Agentic AI 전문 평가 |
 
 ---
 

@@ -40,7 +40,7 @@ from pathlib import Path
 from agent_evaluator import PerformanceMonitor, create_taskresult, setup_otel
 from agent_evaluator.decorators import (
     agent_eval, conversation_eval, flush_conversation,
-    EvalMetadata, get_eval_ctx,
+    EvalMetadata, get_eval_ctx, RetryConfig,
 )
 
 _PROJECT_ROOT = Path(__file__).parent.parent
@@ -93,7 +93,7 @@ _attempt_count = {"n": 0}
 
 @agent_eval(
     monitor, task_type="qa",
-    max_retries=3, retry_on=(ConnectionError,), delay=0.0,
+    retry=RetryConfig(max=3, on=(ConnectionError,), delay=0.0),
     task_id_prefix="retry",
 )
 def flaky_agent(question: str, ground_truth: str = "") -> str:
