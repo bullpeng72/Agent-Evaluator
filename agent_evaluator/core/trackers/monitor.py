@@ -2632,6 +2632,21 @@ class PerformanceMonitor:
         except Exception as _e:
             logger.debug("multimodal_metrics 리포트 추가 실패 (무시): %s", _e)
 
+        # v0.9.0+: Harness groups 집계
+        extra_metrics: Optional[Dict[str, Any]] = None
+        if self.tcr_tracker.tasks:
+            try:
+                harness_groups = self._compute_harness_groups(
+                    tasks=list(self.tcr_tracker.tasks),
+                    security_metrics=security_metrics,
+                    layer1=layer1,
+                    layer2=layer2,
+                )
+                if harness_groups:
+                    extra_metrics = {"harness_groups": harness_groups}
+            except Exception as _hg_exc:
+                logger.debug("harness_groups 집계 실패 (무시): %s", _hg_exc)
+
         report = EvaluationReport(
             period="current_session",
             total_tasks=len(self.tcr_tracker.tasks),
@@ -2641,10 +2656,685 @@ class PerformanceMonitor:
             security_metrics=security_metrics,
             alerts=self._generate_alerts(),
             recommendations=self._generate_recommendations(),
-            timestamp=datetime.now()
+            timestamp=datetime.now(),
+            extra_metrics=extra_metrics,
         )
 
         return report
+
+    def _compute_harness_groups(
+        self,
+        tasks: list,
+        security_metrics: dict,
+        layer1: Optional[Dict[str, Any]] = None,
+        layer2: Optional[Dict[str, Any]] = None,
+    ) -> dict:
+        """v0.9.1+: Harness Config 지표가 기록된 TaskResult들에서 그룹별 집계 점수를 계산한다.
+
+        Args:
+            tasks: PerformanceMonitor.tcr_tracker.tasks 리스트.
+            security_metrics: _collect_security_metrics() 결과.
+
+        Returns:
+            {A-G: {name, score, status, details}, overall: {score, status, scored_groups}}
+        """
+        from typing import List as _List
+        if not tasks:
+            return {}
+        n = max(len(tasks), 1)
+
+        def _status(score: Optional[float], warn: float = 0.7, fail: float = 0.5) -> str:
+            if score is None:
+                return "n/a"
+            if score >= warn:
+                return "pass"
+            if score >= fail:
+                return "warn"
+            return "fail"
+
+        # ── A 그룹: 목표 달성 (TCR + instruction_adherence + goal_alignment + plan_coherence) ──
+        tcr_pct_a = 0.0
+        try:
+            _tcr_stats_a = self.tcr_tracker.calculate_tcr()
+            tcr_pct_a = float(_tcr_stats_a.get("tcr", 0.0))
+        except Exception:
+            pass
+
+        _ifr_scores = [
+            t.extra["instruction_adherence"]["score"]
+            for t in tasks
+            if (t.extra or {}).get("instruction_adherence") is not None
+        ]
+        avg_ifr = sum(_ifr_scores) / len(_ifr_scores) if _ifr_scores else None
+
+        _goal_a_vals = [
+            t.extra["goal_alignment"]["score"]
+            for t in tasks
+            if (t.extra or {}).get("goal_alignment") is not None
+        ]
+        avg_goal_a = sum(_goal_a_vals) / len(_goal_a_vals) if _goal_a_vals else None
+
+        _plan_a_vals = [
+            t.extra["plan_coherence"]["score"]
+            for t in tasks
+            if (t.extra or {}).get("plan_coherence") is not None
+        ]
+        avg_plan_a = sum(_plan_a_vals) / len(_plan_a_vals) if _plan_a_vals else None
+
+        _subtask_vals = [
+            t.extra["subtask_completion"]["completion_rate"]
+            for t in tasks
+            if (t.extra or {}).get("subtask_completion") is not None
+        ]
+        avg_subtask = sum(_subtask_vals) / len(_subtask_vals) if _subtask_vals else None
+
+        _cr_vals = [
+            t.extra["context_retention"]["retention_score"]
+            for t in tasks
+            if (t.extra or {}).get("context_retention") is not None
+        ]
+        avg_context_r = sum(_cr_vals) / len(_cr_vals) if _cr_vals else None
+
+        # knowledge_retention → Group A (Phase 5)
+        _kr_vals = [
+            t.extra.get("knowledge_retention", {}).get("retention_score")
+            for t in tasks
+            if (t.extra or {}).get("knowledge_retention") is not None
+        ]
+        avg_knowledge_ret: Optional[float] = sum(_kr_vals) / len(_kr_vals) if _kr_vals else None
+
+        _a_vals: _List[float] = [tcr_pct_a / 100.0]
+        if avg_ifr is not None:
+            _a_vals.append(avg_ifr)
+        if avg_goal_a is not None:
+            _a_vals.append(avg_goal_a)
+        if avg_plan_a is not None:
+            _a_vals.append(avg_plan_a)
+        if avg_subtask is not None:
+            _a_vals.append(avg_subtask)
+        if avg_context_r is not None:
+            _a_vals.append(avg_context_r)
+        if avg_knowledge_ret is not None:
+            _a_vals.append(avg_knowledge_ret)
+        _a_score = float(sum(_a_vals) / len(_a_vals))
+
+        # ── B 그룹: 행동 무결성 (loop, goal_alignment, plan_coherence, state_consistency, deadlock) ──
+        _loop_counts = sum(
+            1 for t in tasks
+            if (t.extra or {}).get("loop_detection", {}).get("detected", False)
+        )
+        _loop_rate = _loop_counts / n
+
+        avg_goal_align: Optional[float] = None
+        _goal_vals = [
+            t.extra["goal_alignment"]["score"]
+            for t in tasks
+            if (t.extra or {}).get("goal_alignment") is not None
+        ]
+        if _goal_vals:
+            avg_goal_align = sum(_goal_vals) / len(_goal_vals)
+
+        avg_plan: Optional[float] = None
+        _plan_vals = [
+            t.extra["plan_coherence"]["score"]
+            for t in tasks
+            if (t.extra or {}).get("plan_coherence") is not None
+        ]
+        if _plan_vals:
+            avg_plan = sum(_plan_vals) / len(_plan_vals)
+
+        _sc_scores = [
+            t.extra["state_consistency"]["consistency_score"]
+            for t in tasks
+            if (t.extra or {}).get("state_consistency") is not None
+        ]
+        avg_sc = sum(_sc_scores) / len(_sc_scores) if _sc_scores else None
+        _deadlock_count = sum(
+            1 for t in tasks
+            if (t.extra or {}).get("deadlock", {}).get("deadlock_detected", False)
+        )
+
+        _scope_vals = [
+            t.extra["scope"]["scope_score"]
+            for t in tasks
+            if (t.extra or {}).get("scope") is not None
+        ]
+        avg_scope_score = sum(_scope_vals) / len(_scope_vals) if _scope_vals else None
+
+        # tool_parameter_safety → Group B (Phase 5)
+        _tps_vals = [
+            t.extra.get("tool_parameter_safety", {}).get("safety_score")
+            for t in tasks
+            if (t.extra or {}).get("tool_parameter_safety") is not None
+        ]
+        avg_tool_param_safety: Optional[float] = (
+            sum(_tps_vals) / len(_tps_vals) if _tps_vals else None
+        )
+
+        # context_window → Group B (Phase 6)
+        _cw_scores = [
+            t.extra.get("context_window", {}).get("context_window_score")
+            for t in tasks
+            if t.extra and t.extra.get("context_window")
+        ]
+        _avg_context_window: Optional[float] = (
+            sum(_cw_scores) / len(_cw_scores) if _cw_scores else None
+        )
+
+        _bint_vals = [max(0.0, 1.0 - _loop_rate)]
+        if avg_goal_align is not None:
+            _bint_vals.append(avg_goal_align)
+        if avg_plan is not None:
+            _bint_vals.append(avg_plan)
+        if avg_sc is not None:
+            _bint_vals.append(avg_sc)
+        if _deadlock_count > 0:
+            _bint_vals.append(max(0.0, 1.0 - _deadlock_count / n))
+        if avg_scope_score is not None:
+            _bint_vals.append(avg_scope_score)
+        if avg_tool_param_safety is not None:
+            _bint_vals.append(avg_tool_param_safety)
+        if _avg_context_window is not None:
+            _bint_vals.append(_avg_context_window)
+        _bint_score = sum(_bint_vals) / len(_bint_vals)
+
+        # ── C 그룹: 신뢰성 (TCR + SLA breach) ──
+        tcr_pct = 0.0
+        try:
+            _tcr_stats = self.tcr_tracker.calculate_tcr()
+            tcr_pct = float(_tcr_stats.get("tcr", 0.0))
+        except Exception:
+            pass
+
+        _rel_vals: _List[float] = [tcr_pct / 100.0]
+
+        _sla_results = [
+            t.extra["sla"]
+            for t in tasks
+            if (t.extra or {}).get("sla") is not None
+        ]
+        _sla_breach_count = sum(1 for s in _sla_results if not s.get("sla_met", True))
+        _sla_breach_rate = _sla_breach_count / len(_sla_results) if _sla_results else None
+        if _sla_breach_rate is not None:
+            _rel_vals.append(max(0.0, 1.0 - _sla_breach_rate))
+
+        # reproducibility → Group C
+        _repro_scores = [
+            t.extra["reproducibility"]["score"]
+            for t in tasks
+            if (t.extra or {}).get("reproducibility") is not None
+        ]
+        avg_reproducibility: Optional[float] = sum(_repro_scores) / len(_repro_scores) if _repro_scores else None
+        if avg_reproducibility is not None:
+            _rel_vals.append(avg_reproducibility)
+
+        # fault_tolerance recovery_rate → Group C
+        _ft_scores = [
+            t.extra["fault_tolerance"]["recovery_rate"]
+            for t in tasks
+            if (t.extra or {}).get("fault_tolerance") is not None
+        ]
+        avg_ft: Optional[float] = sum(_ft_scores) / len(_ft_scores) if _ft_scores else None
+        if avg_ft is not None:
+            _rel_vals.append(avg_ft)
+
+        # graceful_degradation → Group C (Phase 4)
+        _deg_scores = [
+            t.extra.get("graceful_degradation", {}).get("degradation_score")
+            for t in tasks
+            if (t.extra or {}).get("graceful_degradation") is not None
+        ]
+        _avg_degradation: Optional[float] = sum(_deg_scores) / len(_deg_scores) if _deg_scores else None
+        if _avg_degradation is not None:
+            _rel_vals.append(_avg_degradation)
+
+        # retry_consistency → Group C (Phase 5)
+        _rc_scores = [
+            t.extra.get("retry_consistency", {}).get("consistency_score")
+            for t in tasks
+            if (t.extra or {}).get("retry_consistency") is not None
+        ]
+        _avg_retry_consistency: Optional[float] = (
+            sum(_rc_scores) / len(_rc_scores) if _rc_scores else None
+        )
+        if _avg_retry_consistency is not None:
+            _rel_vals.append(_avg_retry_consistency)
+
+        # idempotency → Group C (Phase 6)
+        _idem_scores = [
+            t.extra.get("idempotency", {}).get("idempotency_score")
+            for t in tasks
+            if t.extra and t.extra.get("idempotency")
+        ]
+        _avg_idempotency: Optional[float] = (
+            sum(_idem_scores) / len(_idem_scores) if _idem_scores else None
+        )
+        if _avg_idempotency is not None:
+            _rel_vals.append(_avg_idempotency)
+
+        _rel_score = sum(_rel_vals) / len(_rel_vals) if _rel_vals else (tcr_pct / 100.0)
+
+        # ── D 그룹: 성능 효율 (latency + efficiency) ──
+        _p95 = 0.0
+        try:
+            _lat_stats = self.latency_tracker.get_latency_stats()
+            _p95 = float(_lat_stats.get("p95", 0.0))
+        except Exception:
+            pass
+
+        _eff_ratios = [
+            t.extra["efficiency"]["efficiency_ratio"]
+            for t in tasks
+            if (t.extra or {}).get("efficiency") is not None
+        ]
+        avg_eff_ratio = sum(_eff_ratios) / len(_eff_ratios) if _eff_ratios else None
+
+        # resource_budget → Group D (Phase 4)
+        _budget_scores = [
+            t.extra.get("resource_budget", {}).get("budget_score")
+            for t in tasks
+            if (t.extra or {}).get("resource_budget") is not None
+        ]
+        _avg_budget: Optional[float] = sum(_budget_scores) / len(_budget_scores) if _budget_scores else None
+
+        # TTFT variability (Phase 5 — automatic, no Config needed)
+        _ttft_values: _List[float] = []
+        for _t in tasks:
+            _ttft = None
+            if _t.extra:
+                _ttft = _t.extra.get("ttft_ms") or _t.extra.get("ttft")
+            if _ttft is not None:
+                try:
+                    _ttft_values.append(float(_ttft))
+                except (TypeError, ValueError):
+                    pass
+
+        _avg_ttft_variability: Optional[float] = None
+        _ttft_stddev: Optional[float] = None
+        _ttft_p50: Optional[float] = None
+        _ttft_p95: Optional[float] = None
+        if len(_ttft_values) >= 5:
+            _ttft_sorted = sorted(_ttft_values)
+            if len(_ttft_sorted) >= 4:
+                _q1 = _ttft_sorted[len(_ttft_sorted) // 4]
+                _q3 = _ttft_sorted[3 * len(_ttft_sorted) // 4]
+                _iqr = _q3 - _q1
+                _ttft_clean = [
+                    v for v in _ttft_sorted
+                    if _q1 - 1.5 * _iqr <= v <= _q3 + 1.5 * _iqr
+                ]
+            else:
+                _ttft_clean = _ttft_sorted
+
+            if len(_ttft_clean) >= 2:
+                _ttft_stddev = statistics.stdev(_ttft_clean)
+                _ttft_p50 = sorted(_ttft_clean)[len(_ttft_clean) // 2]
+                _p95_idx = int(0.95 * len(_ttft_clean))
+                _ttft_p95 = sorted(_ttft_clean)[min(_p95_idx, len(_ttft_clean) - 1)]
+                _ttft_ratio = _ttft_p95 / max(_ttft_p50, 1.0)
+                _max_std = 500.0
+                _max_ratio = 3.0
+                _std_score = max(0.0, 1.0 - _ttft_stddev / _max_std)
+                _ratio_score = max(0.0, 1.0 - (_ttft_ratio - 1.0) / max(_max_ratio - 1.0, 1.0))
+                _avg_ttft_variability = (_std_score + _ratio_score) / 2.0
+
+        # cost_predictability → Group D (Phase 6)
+        _avg_cost_predictability: Optional[float] = None
+        if len(tasks) >= 5:
+            _costs_by_type: Dict[str, _List[float]] = {}
+            for _ct in tasks:
+                _ttype_d = str(_ct.task_type) if _ct.task_type else "unknown"
+                _tu = _ct.tokens_used or 0
+                if isinstance(_tu, dict):
+                    _cv_cost = float(_tu.get("total", 0) or _tu.get("output", 0) or 0)
+                else:
+                    try:
+                        _cv_cost = float(_tu)
+                    except (TypeError, ValueError):
+                        _cv_cost = 0.0
+                _costs_by_type.setdefault(_ttype_d, []).append(_cv_cost)
+            _cv_scores_d: _List[float] = []
+            for _costs_list in _costs_by_type.values():
+                if len(_costs_list) >= 2:
+                    _cv_mean = statistics.mean(_costs_list)
+                    if _cv_mean > 0:
+                        _cv_std = statistics.stdev(_costs_list)
+                        _cv_val = _cv_std / _cv_mean
+                        _cv_score_d = max(0.0, 1.0 - _cv_val)
+                        _cv_scores_d.append(_cv_score_d)
+            if _cv_scores_d:
+                _avg_cost_predictability = sum(_cv_scores_d) / len(_cv_scores_d)
+
+        _perf_vals: _List[float] = []
+        if _p95 > 0:
+            _perf_vals.append(max(0.0, 1.0 - min(1.0, _p95 / 10.0)))
+        if avg_eff_ratio is not None:
+            _norm_eff = min(1.0, avg_eff_ratio * 1000.0) if avg_eff_ratio < 0.001 else min(1.0, avg_eff_ratio)
+            _perf_vals.append(_norm_eff)
+        if _avg_budget is not None:
+            _perf_vals.append(_avg_budget)
+        if _avg_ttft_variability is not None:
+            _perf_vals.append(_avg_ttft_variability)
+        if _avg_cost_predictability is not None:
+            _perf_vals.append(_avg_cost_predictability)
+        _perf_score = sum(_perf_vals) / len(_perf_vals) if _perf_vals else 0.5
+
+        # ── E 그룹: 보안 (threat_count + CVSS 가중치) ──
+        sec_threats = security_metrics.get("threat_count", 0) or 0
+        _sec_score_raw = max(0.0, 1.0 - (sec_threats / max(n, 1)))
+        _cvss_scores = [
+            t.extra["threat_severity"]["weighted_score"]
+            for t in tasks
+            if (t.extra or {}).get("threat_severity") is not None
+        ]
+        # compliance → Group E (Phase 4)
+        _compliance_scores = [
+            t.extra.get("compliance", {}).get("compliance_score")
+            for t in tasks
+            if (t.extra or {}).get("compliance") is not None
+        ]
+        _avg_compliance: Optional[float] = (
+            sum(_compliance_scores) / len(_compliance_scores) if _compliance_scores else None
+        )
+
+        # Native security tracker data (Phase 5 — already stored in TaskResult.extra)
+        _native_e_scores: _List[float] = []
+
+        _priv_esc_count = sum(
+            1 for t in tasks
+            if t.extra and t.extra.get("privilege_escalation", {}).get("detected")
+        )
+        if _priv_esc_count > 0 or any(t.extra and "privilege_escalation" in t.extra for t in tasks):
+            _native_e_scores.append(max(0.0, 1.0 - _priv_esc_count / max(n, 1)))
+
+        _chain_attack_count = sum(
+            1 for t in tasks
+            if t.extra and t.extra.get("tool_chain_attack", {}).get("detected")
+        )
+        if _chain_attack_count > 0 or any(t.extra and "tool_chain_attack" in t.extra for t in tasks):
+            _native_e_scores.append(max(0.0, 1.0 - _chain_attack_count / max(n, 1)))
+
+        _leakage_count = sum(
+            int(t.extra.get("output_leakage", {}).get("leak_count", 0))
+            for t in tasks if t.extra
+        )
+        if any(t.extra and "output_leakage" in t.extra for t in tasks):
+            _native_e_scores.append(max(0.0, 1.0 - min(1.0, _leakage_count / max(n, 1))))
+
+        _injection_count = sum(
+            int(t.extra.get("input_injection", {}).get("threat_count", 0))
+            for t in tasks if t.extra
+        )
+        if any(t.extra and "input_injection" in t.extra for t in tasks):
+            _native_e_scores.append(max(0.0, 1.0 - min(1.0, _injection_count / max(n, 1))))
+
+        if _cvss_scores:
+            avg_cvss = sum(_cvss_scores) / len(_cvss_scores)
+            _cvss_normalized = max(0.0, 1.0 - avg_cvss / 10.0)
+            _e_base_scores: _List[float] = [_sec_score_raw, _cvss_normalized]
+            if _avg_compliance is not None:
+                _e_base_scores.append(_avg_compliance)
+        elif _avg_compliance is not None:
+            _e_base_scores = [_sec_score_raw, _avg_compliance]
+        else:
+            _e_base_scores = [_sec_score_raw]
+
+        # threat_response → Group E (Phase 6)
+        _tr_scores = [
+            t.extra.get("threat_response", {}).get("response_score")
+            for t in tasks
+            if t.extra and t.extra.get("threat_response")
+        ]
+        _avg_threat_response: Optional[float] = (
+            sum(_tr_scores) / len(_tr_scores) if _tr_scores else None
+        )
+
+        _all_e_scores = _e_base_scores + _native_e_scores
+        if _avg_threat_response is not None:
+            _all_e_scores = _all_e_scores + [_avg_threat_response]
+        _sec_score = sum(_all_e_scores) / len(_all_e_scores)
+
+        # ── G 그룹: 관측 가능성 (tool coverage + hallucination + observability) ──
+        _tool_coverage = 0.0
+        try:
+            _tc_stats = self.tool_call_analyzer.get_tool_stats()
+            _tool_total = _tc_stats.get("total_calls", 0)
+            _tool_success = _tc_stats.get("successful_calls", 0)
+            _tool_coverage = _tool_success / max(_tool_total, 1)
+        except Exception:
+            pass
+
+        hall_rate = None
+        try:
+            _hall_stats = self.hallucination_detector.get_hallucination_stats()
+            hall_rate = _hall_stats.get("hallucination_rate")
+        except Exception:
+            pass
+
+        _obs_custom_scores = [
+            t.extra["observability"]["observability_score"]
+            for t in tasks
+            if (t.extra or {}).get("observability") is not None
+        ]
+        avg_obs_custom = sum(_obs_custom_scores) / len(_obs_custom_scores) if _obs_custom_scores else None
+
+        _expl_vals = [
+            t.extra["explainability"]["score"]
+            for t in tasks
+            if (t.extra or {}).get("explainability") is not None
+        ]
+        avg_explainability: Optional[float] = sum(_expl_vals) / len(_expl_vals) if _expl_vals else None
+
+        # error_diagnosis → Group G (Phase 5)
+        _ed_scores = [
+            t.extra.get("error_diagnosis", {}).get("diagnosis_score")
+            for t in tasks
+            if (t.extra or {}).get("error_diagnosis") is not None
+        ]
+        avg_error_diagnosis: Optional[float] = (
+            sum(_ed_scores) / len(_ed_scores) if _ed_scores else None
+        )
+
+        # latency_attribution → Group G (Phase 6)
+        _la_scores = [
+            t.extra.get("latency_attribution", {}).get("attribution_score")
+            for t in tasks
+            if t.extra and t.extra.get("latency_attribution")
+        ]
+        _avg_latency_attribution: Optional[float] = (
+            sum(_la_scores) / len(_la_scores) if _la_scores else None
+        )
+
+        _obs_vals: _List[float] = [_tool_coverage]
+        if hall_rate is not None:
+            _obs_vals.append(max(0.0, 1.0 - float(hall_rate)))
+        if avg_obs_custom is not None:
+            _obs_vals.append(avg_obs_custom)
+        if avg_explainability is not None:
+            _obs_vals.append(avg_explainability)
+        if avg_error_diagnosis is not None:
+            _obs_vals.append(avg_error_diagnosis)
+        if _avg_latency_attribution is not None:
+            _obs_vals.append(_avg_latency_attribution)
+        _obs_score = sum(_obs_vals) / len(_obs_vals)
+
+        # ── F 그룹: 멀티에이전트 조율 ──
+        _coord_data: Optional[float] = None
+        try:
+            _coord_stats = self.coordination_tracker.get_coordination_stats()
+            _n_agents = _coord_stats.get("unique_agents", 0)
+            _n_interactions = _coord_stats.get("total_interactions", 0)
+            if _n_interactions > 0:
+                _coord_data = float(min(1.0, _n_agents / max(_n_interactions, 1)))
+        except Exception:
+            pass
+
+        _consensus_scores = [
+            t.extra["consensus"]["consensus_score"]
+            for t in tasks
+            if (t.extra or {}).get("consensus") is not None
+        ]
+        avg_consensus: Optional[float] = sum(_consensus_scores) / len(_consensus_scores) if _consensus_scores else None
+
+        _prop_vals = [
+            t.extra["propagation"]["fidelity_score"]
+            for t in tasks
+            if (t.extra or {}).get("propagation") is not None
+        ]
+        avg_propagation: Optional[float] = sum(_prop_vals) / len(_prop_vals) if _prop_vals else None
+
+        # agent_role → Group F (Phase 4)
+        _role_scores = [
+            t.extra.get("agent_role", {}).get("role_compliance_score")
+            for t in tasks
+            if (t.extra or {}).get("agent_role") is not None
+        ]
+        _avg_role: Optional[float] = sum(_role_scores) / len(_role_scores) if _role_scores else None
+
+        # conflict_resolution → Group F (Phase 4)
+        _conflict_scores = [
+            t.extra.get("conflict_resolution", {}).get("resolution_score")
+            for t in tasks
+            if (t.extra or {}).get("conflict_resolution") is not None
+        ]
+        _avg_conflict_res: Optional[float] = (
+            sum(_conflict_scores) / len(_conflict_scores) if _conflict_scores else None
+        )
+
+        _f_vals: _List[float] = []
+        if _coord_data is not None:
+            _f_vals.append(_coord_data)
+        if avg_consensus is not None:
+            _f_vals.append(avg_consensus)
+        if avg_propagation is not None:
+            _f_vals.append(avg_propagation)
+        if _avg_role is not None:
+            _f_vals.append(_avg_role)
+        if _avg_conflict_res is not None:
+            _f_vals.append(_avg_conflict_res)
+        _f_score: Optional[float] = float(sum(_f_vals) / len(_f_vals)) if _f_vals else None
+
+        # ── 그룹별 결과 모음 ──
+        _a_s = round(_a_score, 4)
+        _b_s = round(float(_bint_score), 4)
+        _c_s = round(float(_rel_score), 4)
+        _d_s = round(float(_perf_score), 4)
+        _e_s = round(float(_sec_score), 4)
+        _f_s = round(_f_score, 4) if _f_score is not None else None
+        _g_s = round(float(_obs_score), 4)
+
+        # overall: 유효 그룹 점수 평균
+        _scored = [s for s in [_a_s, _b_s, _c_s, _d_s, _e_s, _f_s, _g_s] if s is not None]
+        _overall_score = round(float(sum(_scored) / len(_scored)), 4) if _scored else 0.0
+
+        groups: Dict[str, Any] = {
+            "A": {
+                "name": "Goal Achievement",
+                "score": _a_s,
+                "status": _status(_a_s),
+                "details": {
+                    "tcr_pct": round(tcr_pct_a, 2),
+                    "tasks_with_ifr": len(_ifr_scores),
+                    "avg_instruction_adherence": round(avg_ifr, 4) if avg_ifr is not None else None,
+                    "avg_goal_alignment": round(avg_goal_a, 4) if avg_goal_a is not None else None,
+                    "avg_plan_coherence": round(avg_plan_a, 4) if avg_plan_a is not None else None,
+                    "avg_subtask_completion": round(avg_subtask, 4) if avg_subtask is not None else None,
+                    "avg_context_retention": round(avg_context_r, 4) if avg_context_r is not None else None,
+                    "avg_knowledge_retention": round(avg_knowledge_ret, 4) if avg_knowledge_ret is not None else None,
+                },
+            },
+            "B": {
+                "name": "Behavioral Integrity",
+                "score": _b_s,
+                "status": _status(_b_s),
+                "details": {
+                    "loop_detection_rate": round(_loop_rate, 4),
+                    "loop_count": _loop_counts,
+                    "avg_goal_alignment": round(avg_goal_align, 4) if avg_goal_align is not None else None,
+                    "avg_plan_coherence": round(avg_plan, 4) if avg_plan is not None else None,
+                    "avg_state_consistency": round(avg_sc, 4) if avg_sc is not None else None,
+                    "deadlock_count": _deadlock_count,
+                    "avg_scope_score": round(avg_scope_score, 4) if avg_scope_score is not None else None,
+                    "avg_tool_parameter_safety": round(avg_tool_param_safety, 4) if avg_tool_param_safety is not None else None,
+                    "avg_context_window": round(_avg_context_window, 4) if _avg_context_window is not None else None,
+                },
+            },
+            "C": {
+                "name": "Reliability",
+                "score": _c_s,
+                "status": _status(_c_s),
+                "details": {
+                    "tcr_pct": round(tcr_pct, 2),
+                    "sla_breach_rate": round(_sla_breach_rate, 4) if _sla_breach_rate is not None else None,
+                    "sla_breach_count": _sla_breach_count if _sla_results else None,
+                    "avg_reproducibility": round(avg_reproducibility, 4) if avg_reproducibility is not None else None,
+                    "avg_fault_tolerance": round(avg_ft, 4) if avg_ft is not None else None,
+                    "avg_degradation": round(_avg_degradation, 4) if _avg_degradation is not None else None,
+                    "avg_retry_consistency": round(_avg_retry_consistency, 4) if _avg_retry_consistency is not None else None,
+                    "avg_idempotency": round(_avg_idempotency, 4) if _avg_idempotency is not None else None,
+                },
+            },
+            "D": {
+                "name": "Performance Contract",
+                "score": _d_s,
+                "status": _status(_d_s),
+                "details": {
+                    "p95_latency_s": round(_p95, 4),
+                    "avg_efficiency_ratio": round(avg_eff_ratio, 8) if avg_eff_ratio is not None else None,
+                    "avg_budget_score": round(_avg_budget, 4) if _avg_budget is not None else None,
+                    "ttft_variability_score": round(_avg_ttft_variability, 4) if _avg_ttft_variability is not None else None,
+                    "ttft_stddev_ms": round(_ttft_stddev, 4) if _ttft_stddev is not None else None,
+                    "ttft_p50_ms": round(_ttft_p50, 4) if _ttft_p50 is not None else None,
+                    "ttft_p95_ms": round(_ttft_p95, 4) if _ttft_p95 is not None else None,
+                    "avg_cost_predictability": round(_avg_cost_predictability, 4) if _avg_cost_predictability is not None else None,
+                },
+            },
+            "E": {
+                "name": "Security Boundary",
+                "score": _e_s,
+                "status": _status(_e_s),
+                "details": {
+                    "threat_count": sec_threats,
+                    "avg_cvss_weighted_score": round(sum(_cvss_scores) / len(_cvss_scores), 4) if _cvss_scores else None,
+                    "avg_compliance_score": round(_avg_compliance, 4) if _avg_compliance is not None else None,
+                    "privilege_escalation_rate": round(_priv_esc_count / max(n, 1), 4),
+                    "chain_attack_rate": round(_chain_attack_count / max(n, 1), 4),
+                    "leakage_count": _leakage_count,
+                    "injection_count": _injection_count,
+                    "avg_threat_response": round(_avg_threat_response, 4) if _avg_threat_response is not None else None,
+                },
+            },
+            "F": {
+                "name": "Multi-Agent Coordination",
+                "score": _f_s,
+                "status": _status(_f_s) if _f_s is not None else "n/a",
+                "details": {
+                    "avg_consensus": round(avg_consensus, 4) if avg_consensus is not None else None,
+                    "avg_propagation": round(avg_propagation, 4) if avg_propagation is not None else None,
+                    "avg_role_compliance": round(_avg_role, 4) if _avg_role is not None else None,
+                    "avg_conflict_resolution": round(_avg_conflict_res, 4) if _avg_conflict_res is not None else None,
+                },
+            },
+            "G": {
+                "name": "Observability",
+                "score": _g_s,
+                "status": _status(_g_s),
+                "details": {
+                    "tool_coverage": round(_tool_coverage, 4),
+                    "hallucination_rate": hall_rate,
+                    "avg_observability_score": round(avg_obs_custom, 4) if avg_obs_custom is not None else None,
+                    "avg_explainability": round(avg_explainability, 4) if avg_explainability is not None else None,
+                    "avg_error_diagnosis": round(avg_error_diagnosis, 4) if avg_error_diagnosis is not None else None,
+                    "avg_latency_attribution": round(_avg_latency_attribution, 4) if _avg_latency_attribution is not None else None,
+                },
+            },
+            "overall": {
+                "score": _overall_score,
+                "status": _status(_overall_score),
+                "scored_groups": len(_scored),
+            },
+        }
+        return groups
 
     def get_live_stats(
         self,

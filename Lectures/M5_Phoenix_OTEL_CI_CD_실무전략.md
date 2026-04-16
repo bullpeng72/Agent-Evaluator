@@ -1010,10 +1010,10 @@ monitor = PerformanceMonitor(
 # 패턴 2: 데코레이터 flush_every
 from agent_evaluator import agent_eval
 
-@agent_eval(monitor, task_type="qa", flush_every=50, flush_filename="periodic")
+@agent_eval(monitor, task_type="qa", flush_every=50)
 def my_agent(question: str, ground_truth: str = "") -> str:
     return call_llm(question)
-# 50번 호출마다 results/periodic.json 자동 저장
+# 50번 호출마다 자동 저장
 
 # 패턴 3: eval_context — 데코레이터 불가 시 세션 단위 탈출구
 from agent_evaluator import evaluation_session
@@ -1068,8 +1068,7 @@ import random
 @agent_eval(
     monitor,
     task_type="qa",
-    enable_llm_judge=random.random() < 0.05,   # 5% 확률로만 LLMJudge 활성
-    judge_model="claude-sonnet-4-6",
+    llm_judge=LLMJudgeConfig(model="claude-sonnet-4-6") if random.random() < 0.05 else None,  # 5% 확률로만 LLMJudge 활성
     flush_every=50,
 )
 def production_agent(question: str, ground_truth: str = "") -> str:
@@ -1337,7 +1336,6 @@ eval = QuickEval(
     task_type="qa",
     alert_rules=alerts,
     flush_every=50,
-    flush_filename="production_checkpoint",
 )
 def serve_request(question: str, ground_truth: str = "") -> str:
     """프로덕션 에이전트 서비스 엔드포인트."""

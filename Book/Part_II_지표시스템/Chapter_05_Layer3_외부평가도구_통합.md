@@ -39,15 +39,15 @@ Ragas는 이 문제를 해결한다. Faithfulness(응답이 검색 결과에 충
 | **특화 영역** | 범용 5차원 + Faithfulness + G-Eval 커스텀 | 독성/편향 전문 | RAG 심층 진단 (4-way) |
 | **비용** | LLM 호출 비용 | LLM 호출 비용 | LLM + 임베딩 비용 |
 | **속도** | 보통 | 보통 | 느림 (임베딩 포함) |
-| **커스터마이즈** | `judge_criteria=[...]`로 무제한 | G-Eval로 가능 | 제한적 |
-| **데코레이터 통합** | `enable_llm_judge=True` ✅ | `HybridPerformanceMonitor` | `HybridPerformanceMonitor` |
+| **커스터마이즈** | `llm_judge=LLMJudgeConfig(criteria=[...])`로 무제한 | G-Eval로 가능 | 제한적 |
+| **데코레이터 통합** | `llm_judge=LLMJudgeConfig()` ✅ | `HybridPerformanceMonitor` | `HybridPerformanceMonitor` |
 | **권장 시나리오** | 대부분의 범용 평가 | 독성/편향 규제 대응 | Context Precision/Recall 필요 시 |
 
 ### 선택 플로우차트
 
 ```
 내 에이전트가 RAG(문서 검색 + 생성) 구조인가?
-    YES → [빠른 방법] LLM Judge + rag_mode=True + enable_llm_judge=True
+    YES → [빠른 방법] LLM Judge + rag_mode=True + llm_judge=LLMJudgeConfig()
                       → faithfulness 차원 자동 추가 (기본 설치에 포함)
           [심층 진단] Context Precision/Recall도 필요하다 → Ragas 추가 사용
 
@@ -57,7 +57,7 @@ Ragas는 이 문제를 해결한다. Faithfulness(응답이 검색 결과에 충
     NO  ↓
 
 서비스 특화 기준(전문성, 공감성 등)이 필요한가?
-    YES → LLM Judge + judge_criteria=[...] (G-Eval 네이티브 대체)
+    YES → LLM Judge + llm_judge=LLMJudgeConfig(criteria=[...]) (G-Eval 네이티브 대체)
     NO  ↓
 
 단순히 "좋은 응답인가"를 5차원으로 확인하고 싶은가?
@@ -70,7 +70,7 @@ Ragas는 이 문제를 해결한다. Faithfulness(응답이 검색 결과에 충
 
 ### 기본 5차원 + 선택적 확장
 
-v0.7.6부터 LLM Judge는 기본 5차원 외에 RAG 컨텍스트가 있으면 `faithfulness`를 자동 추가하고, `judge_criteria`로 무제한 커스텀 차원을 추가할 수 있다.
+v0.7.6부터 LLM Judge는 기본 5차원 외에 RAG 컨텍스트가 있으면 `faithfulness`를 자동 추가하고, `llm_judge=LLMJudgeConfig(criteria=[...])`로 무제한 커스텀 차원을 추가할 수 있다.
 
 | 차원 | 기본 포함 | 조건부 활성 |
 |-----|---------|-----------|
@@ -79,8 +79,8 @@ v0.7.6부터 LLM Judge는 기본 5차원 외에 RAG 컨텍스트가 있으면 `f
 | factual_consistency | ✅ | — |
 | toxicity | ✅ | — |
 | bias | ✅ | — |
-| **faithfulness** | — | `rag_mode=True` + `enable_llm_judge=True` |
-| **커스텀 차원** | — | `judge_criteria=[...]` |
+| **faithfulness** | — | `rag_mode=True` + `llm_judge=LLMJudgeConfig()` |
+| **커스텀 차원** | — | `llm_judge=LLMJudgeConfig(criteria=[...])` |
 
 결과는 `task.llm_judge["scores"]`에 자동으로 기록된다. (`llm_judge`는 `TaskResult`의 직접 필드이며 `extra` 딕셔너리가 아님)
 
@@ -99,7 +99,7 @@ v0.7.6부터 LLM Judge는 기본 5차원 외에 RAG 컨텍스트가 있으면 `f
 # }
 ```
 
-### 코드 1: 기본 LLM Judge (enable_llm_judge=True)
+### 코드 1: 기본 LLM Judge (llm_judge=LLMJudgeConfig())
 
 ```python
 from agent_evaluator import PerformanceMonitor, agent_eval
@@ -110,11 +110,12 @@ os.environ["ANTHROPIC_API_KEY"] = os.getenv("ANTHROPIC_API_KEY", "")
 monitor = PerformanceMonitor("results/")
 
 # 해당 데코레이터 호출에만 LLM Judge 활성
+from agent_evaluator.decorators import agent_eval, LLMJudgeConfig
+
 @agent_eval(
     monitor,
     task_type="qa",
-    enable_llm_judge=True,
-    judge_model="claude-sonnet-4-6",
+    llm_judge=LLMJudgeConfig(model="claude-sonnet-4-6"),
 )
 def customer_service_agent(question: str, ground_truth: str = "") -> str:
     return llm.invoke(question)
@@ -148,7 +149,7 @@ def agent(question: str, ground_truth: str = "") -> str:
 ### 코드 2: Faithfulness — Ragas 대체 (v0.7.6+)
 
 RAG 에이전트에서 응답이 검색된 컨텍스트에 얼마나 충실한지를 측정한다.  
-`rag_mode=True`와 `enable_llm_judge=True`를 함께 사용하면 `faithfulness` 차원이 자동 추가된다.  
+`rag_mode=True`와 `llm_judge=LLMJudgeConfig()`를 함께 사용하면 `faithfulness` 차원이 자동 추가된다.  
 `[eval]` extras 없이 기본 설치만으로 동작한다.
 
 ```python
@@ -156,12 +157,13 @@ from agent_evaluator import PerformanceMonitor, agent_eval
 
 monitor = PerformanceMonitor("results/")
 
+from agent_evaluator.decorators import agent_eval, LLMJudgeConfig
+
 @agent_eval(
     monitor,
     task_type="information_retrieval",
     rag_mode=True,           # context_arg="context" + 할루시네이션 감지 활성
-    enable_llm_judge=True,   # faithfulness 차원 자동 추가
-    judge_model="claude-sonnet-4-6",
+    llm_judge=LLMJudgeConfig(model="claude-sonnet-4-6"),  # faithfulness 차원 자동 추가
 )
 def rag_agent(question: str, context: str = "", ground_truth: str = "") -> str:
     return rag_chain.invoke({"input": question, "context": context})
@@ -180,7 +182,7 @@ for task in monitor.tasks:
 
 ### 코드 3: G-Eval 커스텀 기준 — DeepEval 대체 (v0.7.6+)
 
-`judge_criteria`에 평가 차원 이름을 리스트로 전달하면 LLMJudge가 해당 차원으로 채점한다.  
+`llm_judge=LLMJudgeConfig(criteria=[...])`로 평가 차원 이름을 전달하면 LLMJudge가 해당 차원으로 채점한다.  
 DeepEval의 G-Eval을 기본 설치만으로 대체한다.
 
 ```python
@@ -191,7 +193,9 @@ monitor = PerformanceMonitor(
     judge_criteria=["professionalism", "empathy", "clarity"],  # 글로벌 설정
 )
 
-@agent_eval(monitor, task_type="qa", enable_llm_judge=True, judge_model="claude-sonnet-4-6")
+from agent_evaluator.decorators import agent_eval, LLMJudgeConfig
+
+@agent_eval(monitor, task_type="qa", llm_judge=LLMJudgeConfig(model="claude-sonnet-4-6"))
 def customer_service_agent(question: str, ground_truth: str = "") -> str:
     return llm.invoke(question)
 
@@ -199,8 +203,7 @@ def customer_service_agent(question: str, ground_truth: str = "") -> str:
 @agent_eval(
     monitor,
     task_type="qa",
-    enable_llm_judge=True,
-    judge_criteria=["safety", "regulatory_compliance"],  # 이 호출에만 적용
+    llm_judge=LLMJudgeConfig(criteria=["safety", "regulatory_compliance"]),  # 이 호출에만 적용
 )
 def regulated_agent(question: str, ground_truth: str = "") -> str:
     return llm.invoke(question)
@@ -230,7 +233,9 @@ monitor = PerformanceMonitor(
     judge_sample_rate=0.1,          # 10%만 LLM Judge 채점
 )
 
-@agent_eval(monitor, task_type="qa", enable_llm_judge=True)
+from agent_evaluator.decorators import agent_eval, LLMJudgeConfig
+
+@agent_eval(monitor, task_type="qa", llm_judge=LLMJudgeConfig())
 def agent(question: str, ground_truth: str = "") -> str:
     return llm.invoke(question)
 ```
@@ -248,7 +253,9 @@ monitor = PerformanceMonitor(
     judge_budget_per_day=5.0,       # 일일 $5 예산 — 초과 시 자동 스킵
 )
 
-@agent_eval(monitor, task_type="qa", enable_llm_judge=True)
+from agent_evaluator.decorators import agent_eval, LLMJudgeConfig
+
+@agent_eval(monitor, task_type="qa", llm_judge=LLMJudgeConfig())
 def agent(question: str, ground_truth: str = "") -> str:
     return llm.invoke(question)
 ```
@@ -492,6 +499,8 @@ print(f"Context Precision 변화: {comparison.get('context_precision_delta', 0):
 
 ```python
 # LLM Judge: 10% 샘플링 + 일일 예산 제한 — PerformanceMonitor에 지정
+from agent_evaluator.decorators import agent_eval, LLMJudgeConfig
+
 monitor = PerformanceMonitor(
     output_dir="results/",
     enable_llm_judge=True,
@@ -500,7 +509,7 @@ monitor = PerformanceMonitor(
     judge_budget_per_day=5.0,     # 일 $5 예산
 )
 
-@agent_eval(monitor, task_type="qa", enable_llm_judge=True)
+@agent_eval(monitor, task_type="qa", llm_judge=LLMJudgeConfig())
 def agent(question: str, ground_truth: str = "") -> str:
     return llm.invoke(question)
 ```
@@ -532,7 +541,9 @@ monitor = PerformanceMonitor(
     judge_sample_rate=sample_rate,  # 환경별 샘플링 비율
 )
 
-@agent_eval(monitor, task_type="qa", enable_llm_judge=True)
+from agent_evaluator.decorators import agent_eval, LLMJudgeConfig
+
+@agent_eval(monitor, task_type="qa", llm_judge=LLMJudgeConfig())
 def agent(question: str, ground_truth: str = "") -> str:
     return llm.invoke(question)
 ```
@@ -649,7 +660,7 @@ eval = QuickEval("results/", auto_save=True, auto_save_interval=10)
 
 - **Layer 3이 필요한 세 가지 상황**: Ground truth가 없을 때(LLM Judge), RAG 파이프라인을 정밀하게 평가할 때(Ragas), 독성/편향 탐지가 필요할 때(DeepEval).
 
-- **LLM Judge는 가장 가벼운 Layer 3 선택지**다. 기본 설치에 포함되어 있으며, `enable_llm_judge=True` 한 줄로 활성화된다. completeness, relevance, factual_consistency, toxicity, bias **5차원 기본**으로 ground truth 없이 자동 채점한다 (safety_score 자동 포함). v0.7.6+에서는 `rag_mode=True` 조합으로 faithfulness, `judge_criteria=[...]`로 커스텀 차원도 추가된다.
+- **LLM Judge는 가장 가벼운 Layer 3 선택지**다. 기본 설치에 포함되어 있으며, `llm_judge=LLMJudgeConfig()` 한 줄로 활성화된다. completeness, relevance, factual_consistency, toxicity, bias **5차원 기본**으로 ground truth 없이 자동 채점한다 (safety_score 자동 포함). v0.7.6+에서는 `rag_mode=True` 조합으로 faithfulness, `llm_judge=LLMJudgeConfig(criteria=[...])`로 커스텀 차원도 추가된다.
 
 - **Ragas는 RAG 파이프라인 진단에 특화**되어 있다. Faithfulness/Answer Relevancy/Context Precision/Context Recall 4가지 지표로 "검색 문제인가, 생성 문제인가"를 분리해서 진단할 수 있다.
 
@@ -741,7 +752,7 @@ else:
 ```python
 # 출처: Evaluator_Examples/07_phoenix_hybrid.py에서 사용하는 LLMJudge 패턴
 from agent_evaluator import LLMJudge, PerformanceMonitor
-from agent_evaluator.decorators import agent_eval
+from agent_evaluator.decorators import agent_eval, LLMJudgeConfig
 
 monitor = PerformanceMonitor(
     output_dir="results/",
@@ -752,8 +763,7 @@ monitor = PerformanceMonitor(
 
 @agent_eval(
     monitor, task_type="qa",
-    enable_llm_judge=True,        # 데코레이터 수준 활성화
-    judge_criteria=["medical_accuracy", "citation_quality"],
+    llm_judge=LLMJudgeConfig(criteria=["medical_accuracy", "citation_quality"]),
 )
 def medical_agent(question: str, ground_truth: str = "") -> str:
     return f"의학적 답변: {question}"
@@ -763,9 +773,9 @@ def medical_agent(question: str, ground_truth: str = "") -> str:
 # result["scores"]["criteria_overall"] = 4.5
 ```
 
-- `judge_criteria`를 지정하면 DeepEval의 G-Eval을 외부 패키지 없이 대체한다. API 키만 있으면 동작한다
+- `llm_judge=LLMJudgeConfig(criteria=[...])`를 지정하면 DeepEval의 G-Eval을 외부 패키지 없이 대체한다. API 키만 있으면 동작한다
 - `judge_sample_rate=0.1`로 10%만 채점해 비용을 절감한다. 이상 케이스 전수 채점이 필요하면 `sample_condition=lambda r, gt: r.accuracy_score < 0.5`로 조건부 샘플링을 설정한다
-- `rag_mode=True` + `enable_llm_judge=True` 조합이면 `faithfulness` 점수(0-5)도 자동 추가된다 — Ragas LLM-based Faithfulness 대체
+- `rag_mode=True` + `llm_judge=LLMJudgeConfig()` 조합이면 `faithfulness` 점수(0-5)도 자동 추가된다 — Ragas LLM-based Faithfulness 대체
 
 ```bash
 # Phoenix 서버 없이 실행 (목업 모드 — LLM Judge 없이도 동작)
@@ -799,7 +809,7 @@ OPENAI_API_KEY=sk-... python 07_phoenix_hybrid.py
 결과 저장 완료: results/07_phoenix_hybrid.json
 ```
 
-> **LLM Judge(내장)와 DeepEval·Ragas(외부) 선택 기준**: ground truth 없이 빠른 품질 채점이 필요하면 `enable_llm_judge=True`(기본 설치 포함). RAG 파이프라인 정밀 진단이 필요하면 `pip install 'agent-evaluator[eval]'` + `RagasAdapter`.
+> **LLM Judge(내장)와 DeepEval·Ragas(외부) 선택 기준**: ground truth 없이 빠른 품질 채점이 필요하면 `llm_judge=LLMJudgeConfig()`(기본 설치 포함). RAG 파이프라인 정밀 진단이 필요하면 `pip install 'agent-evaluator[eval]'` + `RagasAdapter`.
 
 ---
 
@@ -836,7 +846,7 @@ G-Eval 프로세스:
      (단순 argmax 대신 가중 평균을 사용해 연속적 점수 확보)
 ```
 
-Agent-Evaluator의 `judge_criteria` 파라미터는 이 방법론의 3단계까지를 구현한다:
+Agent-Evaluator의 `LLMJudgeConfig(criteria=[...])` 파라미터는 이 방법론의 3단계까지를 구현한다:
 
 ```python
 # G-Eval 스타일 커스텀 기준 예시
@@ -907,11 +917,13 @@ rule = SimpleTaskAlertRule(
 
 **전략 2: 중요도 기반 샘플링**
 ```python
+from agent_evaluator.decorators import agent_eval, LLMJudgeConfig
+
 # 고가치 태스크(프리미엄 사용자, 고위험 도메인)는 반드시 Judge
 @agent_eval(
     monitor,
     task_type="qa",
-    enable_llm_judge=True,
+    llm_judge=LLMJudgeConfig(),
     sample_condition=lambda args, kwargs: kwargs.get("user_tier") == "premium",
 )
 def premium_agent(question, ground_truth=""): ...

@@ -393,7 +393,7 @@ ae.tool_calls_count >= 5
 
 ### Evaluators 탭 — LLM Judge 트렌드 시각화
 
-`enable_llm_judge=True`로 평가한 결과는 Evaluators 탭에서 트렌드 차트로 확인할 수 있다.
+`llm_judge=LLMJudgeConfig()`로 평가한 결과는 Evaluators 탭에서 트렌드 차트로 확인할 수 있다.
 
 - completeness, relevance, factual_consistency 3가지 차원의 주간 트렌드
 - 점수 분포 히스토그램으로 "대부분은 괜찮은데 특정 케이스만 나쁜지" 확인

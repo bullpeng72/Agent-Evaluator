@@ -243,6 +243,7 @@ class EvaluationReport:
     alerts: Optional[List[Dict[str, str]]] = None
     recommendations: Optional[List[Dict[str, str]]] = None
     timestamp: Optional[datetime] = None
+    extra_metrics: Optional[Dict[str, Any]] = None  # v0.9.0+: harness_groups, etc.
 
     def __eq__(self, other: object) -> bool:
         """Semantic equality — compares evaluation data fields, excludes ``timestamp``.

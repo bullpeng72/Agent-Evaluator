@@ -93,3 +93,4 @@ Evaluator_Examples/**/*.html
 # DeepEval telemetry (auto-generated, UUID only)
 .deepeval_telemtry.txt
 .deepeval/
+.claude/

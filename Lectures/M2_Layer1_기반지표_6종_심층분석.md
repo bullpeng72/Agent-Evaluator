@@ -161,7 +161,7 @@ Agent-Evaluator의 16개 네이티브 지표는 2개 레이어로 나뉜다:
 |---|---|---|---|
 | **Layer 1** | 외부 의존성 없음, 항상 자동 활성 | 6개 | `@agent_eval` 적용만으로 충분 |
 | **Layer 2-A** | 외부 의존성 없음, 데이터 있을 때 자동 활성 | 5개 | `tool_calls`·`chain_steps`·`agent_interactions` 공급 시 자동 |
-| **Layer 2-B** | 외부 의존성 없음, opt-in | 5개 (보안) | `security_mode=True` 또는 `enable_security_metrics=True` |
+| **Layer 2-B** | 외부 의존성 없음, opt-in | 5개 (보안) | `security=SecurityConfig()` 또는 `enable_security_metrics=True` |
 
 > **Layer 1과 Layer 2의 핵심 차이**: Layer 1은 모든 TaskResult에서 항상 계산된다. Layer 2는 TaskResult에 특정 필드(`tool_calls` 등)가 있어야 의미있는 값이 산출된다. 데코레이터의 `framework=` 파라미터나 `EvalMetadata`로 해당 필드를 자동/수동 공급할 수 있다.
 
@@ -1194,16 +1194,16 @@ def classify_severity(rate: float) -> str:
 @agent_eval(
     monitor,
     task_type="information_retrieval",
-    rag_mode=True,          # context_arg + enable_hallucination 자동 활성화
+    rag_mode=True,          # context_arg + enable_hallucination_detection 자동 활성화
 )
 def rag_agent(question: str, context: str = "", ground_truth: str = "") -> str:
     return llm.invoke(f"Context: {context}\n\nQ: {question}")
 
-# 방법 2: enable_hallucination=True (이번 호출만)
+# 방법 2: enable_hallucination_detection=True (이번 호출만)
 @agent_eval(
     monitor,
     task_type="qa",
-    enable_hallucination=True,
+    enable_hallucination_detection=True,
     context_arg="context",   # 컨텍스트 인자 이름 지정 필수
 )
 def agent(question: str, context: str = "", ground_truth: str = "") -> str:
@@ -1593,7 +1593,7 @@ def agent(question, ground_truth=""): ...
 # ③ RAG 환각 탐지 (rag_mode 하나로 3가지 자동 설정)
 @agent_eval(monitor, rag_mode=True)
 def rag_agent(question, context="", ground_truth=""): ...
-# 내부: context_arg="context" + enable_hallucination=True + task_type="information_retrieval"
+# 내부: context_arg="context" + enable_hallucination_detection=True + task_type="information_retrieval"
 
 # ④ 커스텀 Accuracy 계산
 @agent_eval(monitor, score_fn=lambda r, gt: custom_similarity(r, gt))

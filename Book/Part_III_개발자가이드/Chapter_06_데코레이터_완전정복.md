@@ -179,12 +179,14 @@ def rag_agent(question: str, context: str = "", ground_truth: str = "") -> str:
     return llm.invoke(f"Context: {context}\n\nQuestion: {question}")
 ```
 
-`rag_mode=True`가 자동으로 하는 일: (1) `context_arg="context"` 설정, (2) 내부적으로 hallucination 감지 활성화(데코레이터 레벨), (3) `HallucinationDetector`에 context를 전달해 일관성 점수 계산. `enable_llm_judge=True`와 함께 사용 시 `faithfulness` 차원도 자동 추가된다.
+`rag_mode=True`가 자동으로 하는 일: (1) `context_arg="context"` 설정, (2) 내부적으로 hallucination 감지 활성화(데코레이터 레벨), (3) `HallucinationDetector`에 context를 전달해 일관성 점수 계산. `llm_judge=LLMJudgeConfig()`와 함께 사용 시 `faithfulness` 차원도 자동 추가된다.
 
-### security_mode=True — 보안 검사 임시 활성
+### security=SecurityConfig() — 보안 검사 임시 활성
 
 ```python
-@agent_eval(monitor, task_type="qa", security_mode=True)
+from agent_evaluator.decorators import agent_eval, SecurityConfig
+
+@agent_eval(monitor, task_type="qa", security=SecurityConfig())
 def risky_agent(question: str, ground_truth: str = "") -> str:
     return agent.invoke(question)
 # 5종 보안 트래커 임시 활성: InputSanitization, OutputLeakage,
@@ -192,19 +194,20 @@ def risky_agent(question: str, ground_truth: str = "") -> str:
 # finally 블록에서 원래 설정으로 자동 복원
 ```
 
-### enable_llm_judge=True — LLM-as-Judge 채점
+### llm_judge=LLMJudgeConfig() — LLM-as-Judge 채점
 
 ```python
+from agent_evaluator.decorators import agent_eval, LLMJudgeConfig
+
 @agent_eval(
     monitor,
     task_type="qa",
-    enable_llm_judge=True,
-    judge_model="claude-sonnet-4-6",  # 채점에 사용할 LLM
+    llm_judge=LLMJudgeConfig(model="claude-sonnet-4-6"),  # 채점에 사용할 LLM
 )
 def careful_agent(question: str, ground_truth: str = "") -> str:
     return llm.invoke(question)
 # LLM Judge가 5차원 기본 평가: completeness, relevance, factual_consistency, toxicity, bias
-# rag_mode=True 시 faithfulness 차원 자동 추가 (6차원), judge_criteria 지정 시 추가 확장
+# rag_mode=True 시 faithfulness 차원 자동 추가 (6차원), LLMJudgeConfig(criteria=[...]) 지정 시 추가 확장
 # 결과는 task.llm_judge["scores"]에 저장되어 대시보드에서 확인 가능 (llm_judge는 TaskResult 직접 필드)
 ```
 
@@ -231,21 +234,20 @@ accuracy_alert = AlertRuleBuilder.when_accuracy_below(
     cooldown=300,
 )
 
+from agent_evaluator.decorators import agent_eval, LLMJudgeConfig, RetryConfig
+
 @agent_eval(
     monitor,
     task_type="qa",
     framework="openai",           # 프레임워크 자동 메타데이터 추출
     rag_mode=False,               # RAG 모드 (기본: False)
-    security_mode=False,          # 보안 검사 (기본: False)
-    enable_llm_judge=True,        # LLM Judge 채점 활성
-    judge_model="claude-sonnet-4-6",
+    llm_judge=LLMJudgeConfig(model="claude-sonnet-4-6"),  # LLM Judge 채점 활성
     enable_anomaly_detection=True,  # 이상 탐지 활성
     sample_rate=0.5,              # 50%만 기록 (고트래픽용)
     flush_every=50,               # 50회마다 자동 저장
-    flush_filename="periodic_save",
     alert_rules=[slow_alert, accuracy_alert],
     timeout=15.0,                 # 15초 초과 시 강제 중단
-    max_retries=2,                # 실패 시 최대 2회 재시도
+    retry=RetryConfig(max=2),     # 실패 시 최대 2회 재시도
     preset="production",          # preset 시스템 적용
 )
 def production_agent(question: str, ground_truth: str = "") -> str:
@@ -333,7 +335,6 @@ slow_cases = df[df["execution_time"] > 5.0]
     item_timeout=30.0,              # 항목당 최대 30초
     on_item_error=lambda e, q: print(f"오류: {q[:30]}... → {e}"),
     flush_every=50,                 # 50건마다 자동 저장
-    flush_filename="batch_checkpoint",
     streaming_mode=True,            # 대용량 배치 메모리 절약
 )
 def batch_agent(questions: list, ground_truths: list = None) -> list:
@@ -404,7 +405,6 @@ def on_turn_callback(session_id: str, user: str, response: str, metadata: dict):
     max_turns=20,
     on_turn=on_turn_callback,
     flush_every=5,               # 5턴마다 중간 저장
-    flush_filename="conv_checkpoint",
 )
 def customer_service_agent(
     question: str,
@@ -473,7 +473,7 @@ with eval_context(monitor, task_type="qa") as ctx:
 여러 에이전트 함수에 동일한 `framework`, `alert_rules`, `flush_every` 설정을 적용해야 할 때, `EvalDecorator` 인스턴스를 하나 만들어 공유한다:
 
 ```python
-from agent_evaluator.decorators import EvalDecorator
+from agent_evaluator.decorators import EvalDecorator, LLMJudgeConfig
 from agent_evaluator import PerformanceMonitor, AlertRuleBuilder
 
 monitor = PerformanceMonitor("results/")
@@ -482,8 +482,7 @@ monitor = PerformanceMonitor("results/")
 eval = EvalDecorator(
     monitor,
     framework="openai",
-    enable_llm_judge=True,
-    judge_model="claude-sonnet-4-6",
+    llm_judge=LLMJudgeConfig(model="claude-sonnet-4-6"),
     alert_rules=[
         AlertRuleBuilder.when_accuracy_below(0.7,
             handler=lambda msg, tr: send_slack(msg))
@@ -586,7 +585,7 @@ print(f"통계적 유의성: p={ab_result.get('p_value', 'N/A')}")
 | preset | 주요 설정 | 용도 |
 |--------|-----------|------|
 | `"production"` | `flush_every=50`, `sample_rate=0.1`, `enable_anomaly_detection=True` | 프로덕션 안정 운영 |
-| `"development"` | `enable_llm_judge=True`, `flush_every=5`, `sample_rate=1.0` | 개발/디버깅 |
+| `"development"` | `llm_judge=LLMJudgeConfig()`, `flush_every=5`, `sample_rate=1.0` | 개발/디버깅 |
 | `"testing"` | 경량 설정, 빠른 실행 | 유닛 테스트 |
 | `"canary"` | 카나리 배포 최적화 | 일부 트래픽 평가 |
 
@@ -714,18 +713,20 @@ print(f"조건 충족: {result}")  # True/False
 SimpleTaskAlertRule.class_level_cooldown["slow_response"] = 300
 ```
 
-### agent_eval_with_retry — 재시도 + jitter
+### RetryConfig — 재시도 + jitter
 
 ```python
-from agent_evaluator import agent_eval_with_retry
+from agent_evaluator.decorators import agent_eval, RetryConfig
 
-@agent_eval_with_retry(
+@agent_eval(
     monitor,
     task_type="qa",
-    max_retries=3,
-    jitter_type="full",           # "full" / "decorrelated" / "none"
-    max_delay=30.0,               # 최대 대기 시간 상한 (초)
-    should_retry=lambda e: isinstance(e, RateLimitError),  # 재시도 조건
+    retry=RetryConfig(
+        max=3,
+        jitter_type="full",            # "full" / "decorrelated" / "none"
+        max_delay=30.0,                # 최대 대기 시간 상한 (초)
+        should_retry=lambda e: isinstance(e, RateLimitError),  # 재시도 조건
+    ),
 )
 def rate_limited_agent(question: str, ground_truth: str = "") -> str:
     return llm.invoke(question)
@@ -852,7 +853,7 @@ Tool Authorization           ✅(opt-in)   ✅(opt-in)       ✅(opt-in)
 Privilege Escalation         ✅(opt-in)   ✅(opt-in)       ✅(opt-in)
 Tool Chain Attack            ✅(opt-in)   ✅(opt-in)       ✅(opt-in)
 
-[Layer 3 — LLM Judge]  (enable_llm_judge=True, 기본 설치에 포함)
+[Layer 3 — LLM Judge]  (llm_judge=LLMJudgeConfig(), 기본 설치에 포함)
 Completeness                  ✅(opt-in)   ✅(opt-in)          N/A
 Relevance                     ✅(opt-in)   ✅(opt-in)          N/A
 Factual Consistency           ✅(opt-in)   ✅(opt-in)          N/A
@@ -884,17 +885,17 @@ Turn Scores                       N/A          N/A              ✅
 | `task_type="qa"` | Accuracy (QA 모드) | 문자열·Enum 혼용 가능 |
 | `task_type="tool_use"` | Tool Call + Tool Selection F1 | Tool 지표 자동 활성 |
 | `task_type="information_retrieval"` | Hallucination 보조 입력 준비 | rag_mode 함께 쓸 것 |
-| `rag_mode=True` | Hallucination + IR task_type 자동 | context_arg도 자동 설정; + faithfulness (enable_llm_judge 조합 시, v0.7.6+) |
+| `rag_mode=True` | Hallucination + IR task_type 자동 | context_arg도 자동 설정; + faithfulness (llm_judge 조합 시, v0.7.6+) |
 | `context_arg="context"` | Hallucination 컨텍스트 공급 | rag_mode 없이도 사용 가능 |
-| `security_mode=True` | 보안 5종 모두 (temp-override) | finally에서 복원 |
-| `enable_llm_judge=True` | Completeness · Relevance · Factual Consistency · Toxicity · Bias · safety_score | 기본 설치에 포함, temp-override |
-| `judge_model="claude-..."` | LLM Judge 모델 지정 | None이면 API 키 기반 자동 |
-| `judge_criteria=[...]` | G-Eval 커스텀 기준 추가 (v0.7.6+) | criteria_scores / criteria_overall 키로 결과 |
-| `enable_hallucination=True` | Hallucination 단독 (temp-override) | rag_mode보다 세밀한 제어 |
+| `security=SecurityConfig()` | 보안 5종 모두 (temp-override) | finally에서 복원 |
+| `llm_judge=LLMJudgeConfig()` | Completeness · Relevance · Factual Consistency · Toxicity · Bias · safety_score | 기본 설치에 포함, temp-override |
+| `llm_judge=LLMJudgeConfig(model="claude-...")` | LLM Judge 모델 지정 | None이면 API 키 기반 자동 |
+| `llm_judge=LLMJudgeConfig(criteria=[...])` | G-Eval 커스텀 기준 추가 (v0.7.6+) | criteria_scores / criteria_overall 키로 결과 |
+| `enable_hallucination_detection=True` | Hallucination 단독 (temp-override) | rag_mode보다 세밀한 제어 |
 | `enable_anomaly_detection=True` | AnomalyDetector 임시 활성 | finally에서 복원 |
 | `framework="langchain"` | tool_calls · chain_steps · tokens_used 자동 추출 | 21개 프레임워크 지원 |
 | `score_fn=my_fn` | Accuracy 완전 대체 | (response, ground_truth) → float |
-| `flush_every=N` | N회마다 save_to_file() 자동 | flush_filename으로 파일명 지정 |
+| `flush_every=N` | N회마다 save_to_file() 자동 | |
 | `alert_rules=[rule]` | SimpleTaskAlertRule 조건 즉시 평가 | 조건 충족 시 handler 호출 |
 | `sample_rate=0.1` | 10% 태스크만 기록 | 고빈도 운영 환경 비용 절감 |
 
@@ -939,8 +940,10 @@ def qa_agent(question: str, ground_truth: str = "") -> str:
 
 #### 2. RAG 에이전트
 ```python
+from agent_evaluator.decorators import agent_eval, LLMJudgeConfig
+
 @agent_eval(monitor, rag_mode=True,
-            enable_llm_judge=True)
+            llm_judge=LLMJudgeConfig())
 def rag_agent(question: str, context: str = "", ground_truth: str = "") -> str:
     docs = retriever.get(question)
     return llm.generate(question, docs)
@@ -960,7 +963,9 @@ def tool_agent(question: str, ground_truth: str = "") -> str:
 
 #### 4. 보안 에이전트
 ```python
-@agent_eval(monitor, task_type="qa", security_mode=True)
+from agent_evaluator.decorators import agent_eval, SecurityConfig
+
+@agent_eval(monitor, task_type="qa", security=SecurityConfig())
 def secure_agent(question: str, ground_truth: str = "") -> str:
     return agent.process(question)
 # → Input Sanitization, Output Leakage, Tool Auth, Privilege Escalation, Chain Attack
@@ -1002,9 +1007,10 @@ def batch_agent(questions: list, ground_truths: list = None) -> list:
 
 #### 8. LLM Judge + G-Eval 커스텀
 ```python
+from agent_evaluator.decorators import agent_eval, LLMJudgeConfig
+
 @agent_eval(monitor, task_type="qa",
-            enable_llm_judge=True,
-            judge_criteria=["medical_accuracy", "citation_quality"])
+            llm_judge=LLMJudgeConfig(criteria=["medical_accuracy", "citation_quality"]))
 def medical_agent(question: str, ground_truth: str = "") -> str:
     return medical_llm.ask(question)
 # → Completeness·Relevance·Factual Consistency + criteria_scores {"medical_accuracy": 4, ...}
@@ -1016,7 +1022,7 @@ def medical_agent(question: str, ground_truth: str = "") -> str:
 
 - **데코레이터는 비즈니스 로직을 건드리지 않는다.** `@agent_eval(monitor, task_type="qa")`를 함수 위에 붙이는 것만으로 11개 TaskResult 필드가 자동으로 채워지고 PerformanceMonitor에 기록된다.
 - **상황별 데코레이터 선택**: 단일 함수 → `@agent_eval`, 대량 배치 → `@batch_eval`, 멀티턴 → `@conversation_eval`, 데코레이터 불가 → `eval_context`, 설정 공유 → `EvalDecorator`, 빠른 시작 → `QuickEval`.
-- **`rag_mode=True`, `security_mode=True`, `enable_llm_judge=True`**는 temp-override 패턴으로 동작하여 해당 호출에만 지표를 임시 활성화하고 `finally`에서 원래 상태로 복원한다.
+- **`rag_mode=True`, `security=SecurityConfig()`, `llm_judge=LLMJudgeConfig()`**는 temp-override 패턴으로 동작하여 해당 호출에만 지표를 임시 활성화하고 `finally`에서 원래 상태로 복원한다.
 - **`flush_every`와 `alert_rules`**는 모든 데코레이터(`@agent_eval`, `@batch_eval`, `@conversation_eval`, `EvalDecorator`)에 동일한 API로 적용된다.
 - **`QuickEval.gate(tcr=85, accuracy=70)`**으로 CI/CD 파이프라인에 품질 게이트를 삽입하여 기준 미달 배포를 자동으로 차단할 수 있다.
 
@@ -1075,13 +1081,13 @@ slow_alert = SimpleTaskAlertRule(
 
 _retry_count = {"n": 0}
 
+from agent_evaluator.decorators import agent_eval, RetryConfig
+
 @agent_eval(
     monitor, task_type="qa",
-    max_retries=3,               # 최대 3회 재시도
+    retry=RetryConfig(max=3),    # 최대 3회 재시도
     retry_on=(ValueError,),      # ValueError 발생 시만 재시도
-    delay=0.0,                   # 재시도 간격 0초 (실제: 0.5~2.0 권장)
     flush_every=5,               # 5건마다 save_to_file() 자동 호출
-    flush_filename="periodic",
     alert_rules=[slow_alert],    # 태스크 완료 후 즉시 알림 평가
     task_id_prefix="retry",
 )
@@ -1095,8 +1101,8 @@ result = flaky_agent("재시도 테스트", ground_truth="성공")
 print(f"결과: {result}  (시도횟수: {_retry_count['n']})")
 ```
 
-- `max_retries=3` + `retry_on=(ValueError,)`로 특정 예외만 재시도한다. `attempts` 필드에 실제 시도 횟수가 기록되어 RetryCorrectionTracker에 전달된다
-- `flush_every=5`는 5번째 호출마다 `save_to_file(flush_filename)`을 자동 호출한다. 장시간 실행 시 데이터 유실을 방지한다
+- `retry=RetryConfig(max=3)` + `retry_on=(ValueError,)`로 특정 예외만 재시도한다. `attempts` 필드에 실제 시도 횟수가 기록되어 RetryCorrectionTracker에 전달된다
+- `flush_every=5`는 5번째 호출마다 `save_to_file()`을 자동 호출한다. 장시간 실행 시 데이터 유실을 방지한다
 - `alert_rules=[...]`는 각 태스크 완료 후 즉시 규칙을 평가한다. `slow_alert` 조건(execution_time > 3.0)이 충족되면 handler가 호출된다
 
 **섹션 6 — @batch_eval + return_format="dataframe"**
@@ -1116,7 +1122,7 @@ BATCH_DATA = [
     task_id_prefix="batch",
     return_format="dataframe",    # pandas DataFrame으로 결과 반환
     shuffle=True, shuffle_seed=42,
-    flush_every=5, flush_filename="batch_periodic",
+    flush_every=5,
     on_batch_complete=lambda r: print(f"배치 완료: {len(r)}건"),
 )
 def qa_batch(questions: list, ground_truths: list = None) -> list:

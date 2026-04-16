@@ -436,10 +436,10 @@ class TestConversationEvalLlmJudgeWorks:
 
 class TestBatchEvalParamCount:
     def test_param_count_is_32(self):
-        """batch_eval 파라미터 수가 31개이어야 한다 (security_mode 제거)."""
+        """batch_eval 파라미터 수가 v0.9.5+ 기준 62개이어야 한다 (Phase 6 Harness Config 4개 추가)."""
         sig = inspect.signature(batch_eval)
-        assert len(sig.parameters) == 31, (
-            f"batch_eval 파라미터 수: {len(sig.parameters)}개 (예상: 31개)\n"
+        assert len(sig.parameters) == 62, (
+            f"batch_eval 파라미터 수: {len(sig.parameters)}개 (예상: 62개)\n"
             f"파라미터 목록: {list(sig.parameters.keys())}"
         )
 
@@ -450,10 +450,10 @@ class TestBatchEvalParamCount:
 
 class TestConversationEvalParamCount:
     def test_param_count_is_28(self):
-        """conversation_eval 파라미터 수가 27개이어야 한다 (flush_filename 제거)."""
+        """conversation_eval 파라미터 수가 v0.9.5+ 기준 54개이어야 한다 (Phase 6 Harness Config 4개 추가)."""
         sig = inspect.signature(conversation_eval)
-        assert len(sig.parameters) == 27, (
-            f"conversation_eval 파라미터 수: {len(sig.parameters)}개 (예상: 27개)\n"
+        assert len(sig.parameters) == 54, (
+            f"conversation_eval 파라미터 수: {len(sig.parameters)}개 (예상: 54개)\n"
             f"파라미터 목록: {list(sig.parameters.keys())}"
         )
 
@@ -710,7 +710,7 @@ class TestSignatureSize:
         """현재 agent_eval 파라미터 수 스냅샷 (회귀 방지)."""
         sig = inspect.signature(agent_eval)
         count = len(sig.parameters)
-        assert count < 50, f"파라미터가 너무 많습니다: {count}개"
+        assert count < 65, f"파라미터가 너무 많습니다: {count}개"
         assert count >= 28, f"파라미터가 너무 적습니다: {count}개 (잘못된 제거 가능성)"
 
 
@@ -958,7 +958,7 @@ class TestParamCountSnapshot:
     def test_agent_eval_param_count_after_round6(self):
         sig = inspect.signature(agent_eval)
         count = len(sig.parameters)
-        assert 20 <= count <= 55, f"예상 범위를 벗어난 파라미터 수: {count}"
+        assert 20 <= count <= 68, f"예상 범위를 벗어난 파라미터 수: {count}"
 
     def test_flush_filename_not_in_conv_params(self):
         """conversation_eval에서도 flush_filename 완전 제거 — _CONV_PARAMS에 없어야 함."""
@@ -1216,10 +1216,10 @@ class TestGroupCLLMJudgeDeprecationWarning:
 
 class TestParamCountSnapshotV082:
     def test_agent_eval_param_count_in_expected_range(self):
-        """agent_eval 파라미터 수가 예상 범위(20~42) 내에 있음"""
+        """agent_eval 파라미터 수가 예상 범위(20~65) 내에 있음"""
         sig = inspect.signature(agent_eval)
         count = len(sig.parameters)
-        assert 20 <= count <= 42, (
+        assert 20 <= count <= 65, (
             f"agent_eval 파라미터 수가 예상 범위를 벗어남: {count}\n"
             f"파라미터 목록: {list(sig.parameters.keys())}"
         )

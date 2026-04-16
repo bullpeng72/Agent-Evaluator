@@ -185,6 +185,679 @@ class SecurityConfig:
 
 
 # ---------------------------------------------------------------------------
+# v0.9.0+: Phase 1 Harness Config 데이터클래스 6개 (A/B/C/G 그룹 보조)
+# ---------------------------------------------------------------------------
+
+
+@dataclasses.dataclass
+class InstructionConfig:
+    """응답 형식·길이·언어 준수 여부 추적 설정 (Harness A — Goal Achievement).
+
+    Example::
+
+        @agent_eval(monitor, task_type="qa",
+                    instructions=InstructionConfig(expected_format="json", required_keywords=["result"]))
+        def agent(question, ground_truth=""): ...
+    """
+    expected_format: Optional[str] = None                     # "json"|"markdown"|"yaml"|"plain"|None
+    required_sections: List[str] = dataclasses.field(default_factory=list)
+    max_chars: Optional[int] = None
+    min_chars: Optional[int] = None
+    max_words: Optional[int] = None
+    min_words: Optional[int] = None
+    forbidden_phrases: List[str] = dataclasses.field(default_factory=list)
+    required_keywords: List[str] = dataclasses.field(default_factory=list)
+    expected_language: Optional[str] = None
+    fail_on_violation: bool = False
+    violation_weight: float = 0.1
+
+
+@dataclasses.dataclass
+class LoopDetectionConfig:
+    """도구 호출 루프·반복 패턴 감지 설정 (Harness B — Behavioral Integrity).
+
+    Example::
+
+        @agent_eval(monitor, task_type="tool_use",
+                    loop_detection=LoopDetectionConfig(consecutive_repeat_threshold=3))
+        def agent(question, ground_truth=""): ...
+    """
+    consecutive_repeat_threshold: int = 3       # N회 연속 동일 도구 호출 시 루프 감지
+    window_size: int = 5                         # 슬라이딩 윈도우 크기
+    duplicate_in_window_threshold: int = 2       # 윈도우 내 중복 도구 호출 허용 횟수
+    check_response_loop: bool = False            # 응답 텍스트 루프 여부 추가 검사
+    response_similarity_threshold: float = 0.95  # 응답 유사도 임계값 (check_response_loop=True 시)
+    on_loop_detected: str = "record"             # "record"|"warn"|"fail"
+
+
+@dataclasses.dataclass
+class GoalAlignmentConfig:
+    """목표-행동 정렬 추적 설정 (Harness A — Goal Achievement).
+
+    Example::
+
+        @agent_eval(monitor, task_type="tool_use",
+                    goal_alignment=GoalAlignmentConfig(goal_tool_map={"search": ["web_search"]}))
+        def agent(question, ground_truth=""): ...
+    """
+    use_keyword_overlap: bool = True                              # 질문 키워드 ↔ 도구명 오버랩 계산
+    goal_tool_map: Dict[str, List[str]] = dataclasses.field(default_factory=dict)  # 목표 키워드 → 도구 목록 매핑
+    use_llm_scoring: bool = False                                 # LLM-as-Judge 정렬 점수 (opt-in)
+    alignment_threshold: float = 0.6                             # 경고 임계값 (0.0~1.0)
+    ignore_no_tool_tasks: bool = True                            # 도구 호출 없는 태스크 무시
+
+
+@dataclasses.dataclass
+class ReproducibilityConfig:
+    """재현성 추적 설정 — 동일 입력에 동일 결과 (Harness C — Reliability).
+
+    Example::
+
+        @agent_eval(monitor, task_type="qa",
+                    reproducibility=ReproducibilityConfig(runs=3, similarity_measure="token_f1"))
+        def agent(question, ground_truth=""): ...
+    """
+    runs: int = 3                                   # 동일 입력 반복 실행 횟수
+    similarity_measure: str = "token_f1"            # "token_f1"|"jaccard"|"exact"
+    reproducibility_threshold: float = 0.85         # 재현성 임계값
+    fail_on_low_reproducibility: bool = False        # 임계값 미달 시 success=False
+    skip_side_effects: bool = False                  # 부수효과(DB쓰기 등) 있는 함수 건너뜀
+
+
+@dataclasses.dataclass
+class FaultToleranceConfig:
+    """장애 내성·폴백 추적 설정 (Harness C — Reliability).
+
+    Example::
+
+        @agent_eval(monitor, task_type="tool_use",
+                    fault_tolerance=FaultToleranceConfig(check_fallback_attempts=True))
+        def agent(question, ground_truth=""): ...
+    """
+    check_fallback_attempts: bool = True             # 실패 후 폴백 도구 사용 여부 추적
+    partial_success_threshold: float = 0.5           # 부분 성공 임계값 (0.0~1.0)
+    score_recovery_quality: bool = True              # 폴백 복구 품질 채점
+    expected_fallback_tools: Dict[str, List[str]] = dataclasses.field(default_factory=dict)  # 도구명 → 폴백 도구 목록
+
+
+@dataclasses.dataclass
+class PlanConfig:
+    """계획 일관성 추적 설정 (Harness A — Goal Achievement).
+
+    Example::
+
+        @agent_eval(monitor, task_type="planning",
+                    plan_tracking=PlanConfig(available_tools=["search", "summarize"]))
+        def agent(question, ground_truth=""): ...
+    """
+    plan_field: str = "plan"                          # 응답에서 플랜 추출할 JSON 필드명
+    steps_field: str = "steps"                        # 플랜 내 단계 필드명
+    check_goal_coverage: bool = True                  # 목표 키워드가 계획 단계에 포함되는지 확인
+    check_step_ordering: bool = True                  # 단계 순서 논리성 확인
+    check_executability: bool = True                  # 각 단계가 사용 가능한 도구로 실행 가능한지 확인
+    available_tools: List[str] = dataclasses.field(default_factory=list)  # 사용 가능한 도구 목록
+    use_llm_scoring: bool = False                     # LLM-as-Judge 계획 품질 채점 (opt-in)
+    min_steps: int = 2                                # 최소 계획 단계 수
+    max_steps: int = 20                               # 최대 계획 단계 수
+
+
+# ---------------------------------------------------------------------------
+# v0.9.1+: 신규 Harness Config 데이터클래스 7개
+# ---------------------------------------------------------------------------
+
+
+@dataclasses.dataclass
+class SLAConfig:
+    """SLA 준수 추적 설정.
+
+    Example::
+
+        @agent_eval(monitor, task_type="qa",
+                    sla=SLAConfig(p95_ms=3000, max_cost_per_task=0.005))
+        def agent(question, ground_truth=""): ...
+    """
+    p95_ms: float = 5000.0
+    p99_ms: float = 10000.0
+    ttft_ms: Optional[float] = None
+    breach_window: int = 10
+    warn_threshold: int = 2
+    fail_threshold: int = 5
+    max_cost_per_task: Optional[float] = None
+    budget_usd: Optional[float] = None
+
+
+@dataclasses.dataclass
+class ThreatSeverityConfig:
+    """CVSS 가중치 기반 보안 위협 심각도 설정.
+
+    Example::
+
+        @agent_eval(monitor, task_type="tool_use",
+                    threat_severity=ThreatSeverityConfig(fail_on_critical=True))
+        def agent(question, ground_truth=""): ...
+    """
+    severity_weights: Dict[str, float] = dataclasses.field(default_factory=dict)
+    warn_score: float = 4.0
+    fail_score: float = 7.0
+    fail_on_critical: bool = True
+
+
+@dataclasses.dataclass
+class EfficiencyConfig:
+    """비용 대비 완료율(ROI) 측정 설정.
+
+    Example::
+
+        @agent_eval(monitor, task_type="qa",
+                    efficiency=EfficiencyConfig(cost_unit="usd", target_cost_per_completion=0.005))
+        def agent(question, ground_truth=""): ...
+    """
+    cost_unit: str = "tokens"   # "tokens" | "usd" | "time_ms"
+    target_cost_per_completion: Optional[float] = None
+    penalize_failed_tokens: bool = True
+    warn_ratio: float = 2.0
+    fail_ratio: float = 4.0
+
+
+@dataclasses.dataclass
+class StateConsistencyConfig:
+    """실행 전후 상태 일관성 검증 설정.
+
+    ``state_fn`` 은 실행 전후 각각 한 번씩 호출되어 현재 시스템 상태 딕셔너리를 반환해야 한다.
+
+    Example::
+
+        @agent_eval(monitor, task_type="tool_use",
+                    state_consistency=StateConsistencyConfig(
+                        state_fn=lambda: {"row_count": db.count()},
+                        expected_changes={"row_count": lambda b, a: a == b + 1},
+                        unchanged_keys=["user_permissions"],
+                    ))
+        def agent(question, ground_truth=""): ...
+    """
+    state_fn: Optional[Callable[[], Dict[str, Any]]] = None
+    expected_changes: Dict[str, Any] = dataclasses.field(default_factory=dict)
+    unchanged_keys: List[str] = dataclasses.field(default_factory=list)
+    fail_on_unexpected_change: bool = False
+
+
+@dataclasses.dataclass
+class DeadlockConfig:
+    """다중 에이전트 교착(Deadlock) 탐지 설정.
+
+    Example::
+
+        @agent_eval(monitor, task_type="multi_agent",
+                    deadlock=DeadlockConfig(check_circular_delegation=True, max_delegation_depth=8))
+        def agent(question, ground_truth=""): ...
+    """
+    check_circular_delegation: bool = True
+    check_starvation: bool = True
+    starvation_threshold: int = 3
+    check_livelock: bool = False
+    livelock_window: int = 6
+    max_delegation_depth: int = 10
+
+
+@dataclasses.dataclass
+class ObservabilityConfig:
+    """Trace 완성도 및 감사 이벤트 SLO 설정.
+
+    Example::
+
+        @agent_eval(monitor, task_type="tool_use",
+                    observability=ObservabilityConfig(min_coverage=0.99))
+        def agent(question, ground_truth=""): ...
+    """
+    required_span_attributes: List[str] = dataclasses.field(
+        default_factory=lambda: ["task_id", "task_type", "execution_time"]
+    )
+    check_trace_continuity: bool = True
+    audit_events: List[str] = dataclasses.field(default_factory=list)
+    min_coverage: float = 0.95
+
+
+@dataclasses.dataclass
+class ConsensusConfig:
+    """다중 에이전트 합의 품질 측정 설정.
+
+    ``batch_eval`` 과 함께 사용할 때 가장 효과적이다. 단일 ``agent_eval`` 에서는
+    응답 하나만 평가하므로 consensus_score 는 항상 1.0 이 된다.
+
+    Example::
+
+        @batch_eval(monitor, task_type="multi_agent",
+                    consensus=ConsensusConfig(consensus_method="weighted",
+                                             agent_weights={"expert": 3.0}))
+        def ensemble_agent(questions, ground_truths=None): ...
+    """
+    consensus_method: str = "majority"   # "majority" | "weighted" | "unanimity"
+    agent_weights: Dict[str, float] = dataclasses.field(default_factory=dict)
+    similarity_threshold: float = 0.7
+    select_consensus_response: bool = False
+
+
+# ---------------------------------------------------------------------------
+# v0.9.2+: Phase 3 Harness Config 데이터클래스
+# ---------------------------------------------------------------------------
+
+
+@dataclasses.dataclass
+class ScopeConfig:
+    """도구 사용 범위 경계 설정 (Harness B — Behavioral Integrity).
+
+    Example::
+
+        @agent_eval(monitor, task_type="tool_use",
+                    scope=ScopeConfig(allowed_tools=["search", "summarize"], fail_on_violation=True))
+        def agent(question, ground_truth=""): ...
+    """
+    allowed_tools: List[str] = dataclasses.field(default_factory=list)
+    forbidden_tools: List[str] = dataclasses.field(default_factory=list)
+    max_tool_calls: Optional[int] = None
+    max_unique_tools: Optional[int] = None
+    fail_on_violation: bool = False
+
+
+@dataclasses.dataclass
+class ContextRetentionConfig:
+    """핵심 컨텍스트 엔티티 및 원래 목표 보존 여부 추적 설정 (Harness A — Goal Achievement).
+
+    Example::
+
+        @agent_eval(monitor, task_type="qa",
+                    context_retention=ContextRetentionConfig(key_entities=["Seoul", "Korea"]))
+        def agent(question, ground_truth=""): ...
+    """
+    key_entities: List[str] = dataclasses.field(default_factory=list)
+    context_arg: str = "context"
+    retention_threshold: float = 0.7
+    check_original_goal: bool = True
+    entity_weight: float = 0.6
+    goal_weight: float = 0.4
+
+
+@dataclasses.dataclass
+class ExplainabilityConfig:
+    """응답 설명 가능성 요구 사항 설정 (Harness G — Observability).
+
+    Example::
+
+        @agent_eval(monitor, task_type="reasoning",
+                    explainability=ExplainabilityConfig(require_reasoning=True, require_citations=True))
+        def agent(question, ground_truth=""): ...
+    """
+    require_reasoning: bool = True
+    reasoning_markers: List[str] = dataclasses.field(
+        default_factory=lambda: ["because", "therefore", "since", "thus", "reason", "왜냐하면", "따라서"]
+    )
+    require_uncertainty_expression: bool = False
+    uncertainty_markers: List[str] = dataclasses.field(
+        default_factory=lambda: ["uncertain", "may", "might", "possibly", "not sure", "불확실"]
+    )
+    require_citations: bool = False
+    citation_markers: List[str] = dataclasses.field(
+        default_factory=lambda: ["according to", "based on", "source:", "ref:", "참고:"]
+    )
+    min_reasoning_length: int = 20
+    check_action_explanation_alignment: bool = False
+
+
+@dataclasses.dataclass
+class SubtaskConfig:
+    """예상 하위 작업 완료율 추적 설정 (Harness A — Goal Achievement).
+
+    Example::
+
+        @agent_eval(monitor, task_type="planning",
+                    subtask_tracking=SubtaskConfig(expected_subtasks=["검색", "요약", "작성"]))
+        def agent(question, ground_truth=""): ...
+    """
+    expected_subtasks: List[str] = dataclasses.field(default_factory=list)
+    completion_markers: List[str] = dataclasses.field(
+        default_factory=lambda: ["done", "completed", "finished", "✓", "완료", "처리"]
+    )
+    check_ordering: bool = False
+    min_completion_rate: float = 0.8
+    auto_extract: bool = False
+
+
+@dataclasses.dataclass
+class PropagationConfig:
+    """멀티에이전트 정보 전파 충실도 측정 설정 (Harness F — Multi-Agent Coordination).
+
+    Example::
+
+        @agent_eval(monitor, task_type="multi_agent",
+                    propagation=PropagationConfig(key_facts=["deadline: 2026-04-30", "budget: 10M"]))
+        def agent(question, ground_truth=""): ...
+    """
+    source_agent: str = ""
+    key_facts: List[str] = dataclasses.field(default_factory=list)
+    check_in_response: bool = True
+    check_in_tool_calls: bool = False
+    similarity_threshold: float = 0.7
+    penalize_distortion: bool = True
+
+
+# v0.9.3+: Phase 4 Harness Config 데이터클래스
+
+@dataclasses.dataclass
+class AgentRoleConfig:
+    """멀티에이전트 역할 준수 측정 설정 (Harness F — Multi-Agent Coordination).
+
+    Example::
+
+        @agent_eval(monitor, task_type="multi_agent",
+                    agent_role=AgentRoleConfig(role_name="researcher",
+                                               allowed_tools=["search", "read"],
+                                               forbidden_tools=["write", "delete"]))
+        def agent(question, ground_truth=""): ...
+    """
+    role_name: str = ""
+    allowed_tools: List[str] = dataclasses.field(default_factory=list)
+    forbidden_tools: List[str] = dataclasses.field(default_factory=list)
+    allowed_action_keywords: List[str] = dataclasses.field(default_factory=list)
+    forbidden_action_keywords: List[str] = dataclasses.field(default_factory=list)
+    check_tool_role_alignment: bool = True
+    role_violation_penalty: float = 0.3
+
+
+@dataclasses.dataclass
+class GracefulDegradationConfig:
+    """장애/저하 상황에서의 응답 품질 측정 설정 (Harness C — Reliability).
+
+    Example::
+
+        @agent_eval(monitor, task_type="qa",
+                    graceful_degradation=GracefulDegradationConfig(quality_floor=0.4))
+        def agent(question, ground_truth=""): ...
+    """
+    partial_result_markers: List[str] = dataclasses.field(default_factory=lambda: [
+        "partial", "incomplete", "best effort", "부분", "일부", "완전하지 않"
+    ])
+    quality_floor: float = 0.3
+    detect_timeout_fallback: bool = True
+    empty_response_penalty: float = 1.0
+    check_error_acknowledgment: bool = True
+
+
+@dataclasses.dataclass
+class ComplianceConfig:
+    """PII 노출 및 컴플라이언스 프레임워크 위반 측정 설정 (Harness E — Security Boundary).
+
+    Example::
+
+        @agent_eval(monitor, task_type="qa",
+                    compliance=ComplianceConfig(compliance_framework="gdpr",
+                                                pii_categories=["email", "phone"]))
+        def agent(question, ground_truth=""): ...
+    """
+    pii_categories: List[str] = dataclasses.field(default_factory=lambda: [
+        "name", "email", "phone", "address", "ssn", "credit_card", "passport"
+    ])
+    compliance_framework: str = "general"
+    require_data_minimization: bool = True
+    forbidden_data_patterns: List[str] = dataclasses.field(default_factory=list)
+    check_consent_language: bool = False
+    violation_severity: str = "high"
+
+
+@dataclasses.dataclass
+class ResourceBudgetConfig:
+    """리소스 예산 초과 감지 설정 (Harness D — Performance Contract).
+
+    Example::
+
+        @agent_eval(monitor, task_type="qa",
+                    resource_budget=ResourceBudgetConfig(max_tokens=2000, max_cost_usd=0.05))
+        def agent(question, ground_truth=""): ...
+    """
+    max_tokens: Optional[int] = None
+    max_cost_usd: Optional[float] = None
+    max_execution_time_ms: Optional[float] = None
+    warn_at_pct: float = 0.8
+    count_failed_tokens: bool = True
+    rollover: bool = False
+
+
+@dataclasses.dataclass
+class ConflictResolutionConfig:
+    """멀티에이전트 충돌 감지 및 해결 품질 측정 설정 (Harness F — Multi-Agent Coordination).
+
+    Example::
+
+        @agent_eval(monitor, task_type="multi_agent",
+                    conflict_resolution=ConflictResolutionConfig(
+                        expect_escalation_on_fail=True))
+        def agent(question, ground_truth=""): ...
+    """
+    conflict_markers: List[str] = dataclasses.field(default_factory=lambda: [
+        "disagree", "conflict", "contradiction", "inconsistent", "반대", "충돌", "모순"
+    ])
+    resolution_markers: List[str] = dataclasses.field(default_factory=lambda: [
+        "resolved", "consensus", "agreed", "decided", "해결", "합의", "결정"
+    ])
+    check_resolution_quality: bool = True
+    require_explanation: bool = False
+    unresolved_penalty: float = 0.5
+    expect_escalation_on_fail: bool = False
+
+
+@dataclasses.dataclass
+class ToolParameterSafetyConfig:
+    """도구 파라미터 안전성 검사 설정 (Harness B — Behavioral Integrity).
+
+    도구 호출 파라미터에 위험 패턴·금지 키·스키마 위반이 있는지 검사한다.
+
+    Example::
+
+        @agent_eval(monitor, task_type="tool_use",
+                    tool_parameter_safety=ToolParameterSafetyConfig(
+                        forbidden_argument_keys={"shell_exec": ["cmd"]}))
+        def agent(question, ground_truth=""): ...
+    """
+    tool_schemas: Dict[str, Dict[str, Any]] = dataclasses.field(default_factory=dict)
+    dangerous_patterns: List[str] = dataclasses.field(default_factory=lambda: [
+        r"\.\./", r"&&", r"\|\|", r";.*rm\s", r"__import__", r"eval\(", r"exec\(",
+    ])
+    forbidden_argument_keys: Dict[str, List[str]] = dataclasses.field(default_factory=dict)
+    max_argument_length: int = 2000
+    fail_on_dangerous: bool = False
+
+
+@dataclasses.dataclass
+class KnowledgeRetentionConfig:
+    """대화 중 사실 보존 측정 설정 (Harness A — Goal Achievement).
+
+    시드 턴에서 언급된 사실이 이후 응답에서 유지되는지 검사한다.
+
+    Example::
+
+        @agent_eval(monitor, task_type="qa",
+                    knowledge_retention=KnowledgeRetentionConfig(
+                        facts_to_retain=["서울", "2024"], seed_turns=2))
+        def agent(question, ground_truth=""): ...
+    """
+    facts_to_retain: List[str] = dataclasses.field(default_factory=list)
+    seed_turns: int = 2
+    check_from_turn: int = 3
+    allow_implicit_retention: bool = True
+    retention_threshold: float = 0.6
+
+
+@dataclasses.dataclass
+class RetryConsistencyConfig:
+    """재시도 일관성 측정 설정 (Harness C — Reliability).
+
+    재시도 횟수와 성공 여부를 기반으로 재시도 효율성을 평가한다.
+
+    Example::
+
+        @agent_eval(monitor, task_type="qa",
+                    retry_consistency=RetryConsistencyConfig(min_retry_count=2))
+        def agent(question, ground_truth=""): ...
+    """
+    group_by_task_prefix: bool = True
+    improvement_threshold: float = 0.1
+    penalize_degradation: bool = True
+    min_retry_count: int = 2
+
+
+@dataclasses.dataclass
+class TTFTVariabilityConfig:
+    """TTFT(Time To First Token) 변동성 측정 설정 (Harness D — Performance Contract).
+
+    이 Config는 ``PerformanceMonitor`` 레벨에서 자동 집계되므로
+    ``_build_and_record`` 파라미터가 아닌 타입 힌트용으로만 제공된다.
+
+    Example::
+
+        # 이 Config는 현재 decorator param으로 전달하지 않음.
+        # monitor._compute_harness_groups()에서 ttft_ms 자동 집계.
+        cfg = TTFTVariabilityConfig(max_stddev_ms=300.0)
+    """
+    max_stddev_ms: float = 500.0
+    max_p95_p50_ratio: float = 3.0
+    min_samples: int = 5
+    remove_outliers: bool = True
+
+
+@dataclasses.dataclass
+class ErrorDiagnosisConfig:
+    """오류 진단 품질 측정 설정 (Harness G — Observability).
+
+    실패 응답이 오류를 인정하고, 근본 원인을 제시하며, 대안을 제안하는지 평가한다.
+
+    Example::
+
+        @agent_eval(monitor, task_type="qa",
+                    error_diagnosis=ErrorDiagnosisConfig(only_on_failure=True))
+        def agent(question, ground_truth=""): ...
+    """
+    failure_acknowledgment_markers: List[str] = dataclasses.field(default_factory=lambda: [
+        "failed", "unable", "error", "could not", "오류", "실패", "불가능", "할 수 없"
+    ])
+    root_cause_markers: List[str] = dataclasses.field(default_factory=lambda: [
+        "because", "due to", "caused by", "reason", "왜냐하면", "때문에", "원인"
+    ])
+    suggestion_markers: List[str] = dataclasses.field(default_factory=lambda: [
+        "try", "suggest", "recommend", "alternatively", "시도", "제안", "대신"
+    ])
+    only_on_failure: bool = True
+    acknowledgment_weight: float = 0.3
+    root_cause_weight: float = 0.5
+    suggestion_weight: float = 0.2
+
+
+# v0.9.3+: Phase 6 Harness Config 데이터클래스
+
+@dataclasses.dataclass
+class IdempotencyConfig:
+    """멱등성 평가 설정 (Group C — Reliability).
+
+    도구 호출이 반복 실행 시 부작용을 발생시키는지 평가한다.
+    비멱등 도구를 사용하면 점수가 감점되고, 중복 감지 응답은 보너스를 받는다.
+
+    Example::
+
+        @agent_eval(monitor, task_type="tool_use",
+                    idempotency=IdempotencyConfig(non_idempotent_penalty=0.2))
+        def agent(question, ground_truth=""): ...
+    """
+    non_idempotent_patterns: List[str] = dataclasses.field(default_factory=lambda: [
+        "create", "delete", "insert", "update", "post", "write",
+        "생성", "삭제", "저장", "수정", "전송",
+    ])
+    duplicate_detection_markers: List[str] = dataclasses.field(default_factory=lambda: [
+        "already", "duplicate", "exists", "이미", "중복", "존재",
+    ])
+    non_idempotent_penalty: float = 0.2
+    warn_on_non_idempotent: bool = True
+
+
+@dataclasses.dataclass
+class CostPredictabilityConfig:
+    """비용 예측 가능성 평가 설정 (Group D — Performance Contract).
+
+    동일 task_type 내 토큰/비용의 변동 계수(CV)를 측정하여 비용 안정성을 평가한다.
+    모니터 수준에서 집계되며, 태스크 단위 extra에는 저장되지 않는다.
+
+    Example::
+
+        monitor = PerformanceMonitor("results/")
+        # CostPredictabilityConfig는 _compute_harness_groups()에서 자동 사용됨
+    """
+    max_coefficient_of_variation: float = 0.3
+    outlier_multiplier: float = 3.0
+    min_samples: int = 5
+    cost_metric: str = "tokens"  # "tokens" | "usd" | "time_ms"
+
+
+@dataclasses.dataclass
+class ThreatResponseConfig:
+    """위협 대응 품질 평가 설정 (Group E — Security Boundary).
+
+    보안 위협이 탐지되었을 때 에이전트가 적절히 차단·에스컬레이션·중단하는지 평가한다.
+
+    Example::
+
+        @agent_eval(monitor, task_type="qa",
+                    threat_response=ThreatResponseConfig(score_clean_tasks=True))
+        def agent(question, ground_truth=""): ...
+    """
+    isolation_markers: List[str] = dataclasses.field(default_factory=lambda: [
+        "blocked", "rejected", "denied", "quarantine", "차단", "거부", "격리",
+    ])
+    escalation_markers: List[str] = dataclasses.field(default_factory=lambda: [
+        "escalate", "report", "alert", "notify", "에스컬레이션", "보고", "알림",
+    ])
+    abort_markers: List[str] = dataclasses.field(default_factory=lambda: [
+        "abort", "stop", "terminate", "cancel", "중단", "종료", "취소",
+    ])
+    score_clean_tasks: bool = True
+    no_response_penalty: float = 0.5
+
+
+@dataclasses.dataclass
+class ContextWindowConfig:
+    """컨텍스트 윈도우 활용 평가 설정 (Group B — Behavioral Integrity).
+
+    토큰 포화도, 반복 패턴, 정보 밀도를 측정하여 응답 품질을 평가한다.
+
+    Example::
+
+        @agent_eval(monitor, task_type="qa",
+                    context_window=ContextWindowConfig(window_size_tokens=128000))
+        def agent(question, ground_truth=""): ...
+    """
+    window_size_tokens: int = 128000
+    warn_at_pct: float = 0.7
+    saturated_at_pct: float = 0.9
+    repetition_threshold: int = 3
+    min_information_density: float = 0.3
+
+
+@dataclasses.dataclass
+class LatencyAttributionConfig:
+    """지연 원인 분석 평가 설정 (Group G — Observability).
+
+    전체 실행 시간 중 도구·모델·네트워크·미귀속 지연의 비율을 측정한다.
+
+    Example::
+
+        @agent_eval(monitor, task_type="tool_use",
+                    latency_attribution=LatencyAttributionConfig(max_tool_time_ratio=0.6))
+        def agent(question, ground_truth=""): ...
+    """
+    tool_latency_key: str = "tool_latencies"
+    model_latency_key: str = "model_latency_ms"
+    network_latency_key: str = "network_latency_ms"
+    max_tool_time_ratio: float = 0.6
+    max_unattributed_ratio: float = 0.3
+
+
+# ---------------------------------------------------------------------------
 # EvalMetadata — 튜플 반환 프로토콜
 # ---------------------------------------------------------------------------
 
@@ -3228,6 +3901,48 @@ def _build_and_record(
     allowed_tools: Optional[List[str]] = None,  # E3: 허용된 도구 목록 임시 주입
     enable_anomaly_detection: bool = False,  # A2: 이 호출에서만 anomaly detection 임시 활성화
     enable_quality_evaluation: bool = False,  # P2-B: 이 호출에서만 품질 평가 강제 활성화
+    # v0.9.0+: Phase 1 Harness Config
+    instructions: Optional["InstructionConfig"] = None,
+    loop_detection: Optional["LoopDetectionConfig"] = None,
+    goal_alignment: Optional["GoalAlignmentConfig"] = None,
+    reproducibility: Optional["ReproducibilityConfig"] = None,
+    reproducibility_responses: Optional[List[str]] = None,
+    fault_tolerance: Optional["FaultToleranceConfig"] = None,
+    plan_tracking: Optional["PlanConfig"] = None,
+    # v0.9.1+: 신규 Harness Config
+    sla: Optional["SLAConfig"] = None,
+    threat_severity: Optional["ThreatSeverityConfig"] = None,
+    efficiency: Optional["EfficiencyConfig"] = None,
+    state_consistency_before: Optional[Dict[str, Any]] = None,
+    state_consistency_after: Optional[Dict[str, Any]] = None,
+    state_consistency: Optional["StateConsistencyConfig"] = None,
+    deadlock: Optional["DeadlockConfig"] = None,
+    observability: Optional["ObservabilityConfig"] = None,
+    consensus: Optional["ConsensusConfig"] = None,
+    consensus_responses: Optional[List[str]] = None,
+    # v0.9.2+: Phase 3 Harness Config
+    scope: Optional["ScopeConfig"] = None,
+    context_retention: Optional["ContextRetentionConfig"] = None,
+    explainability: Optional["ExplainabilityConfig"] = None,
+    subtask_tracking: Optional["SubtaskConfig"] = None,
+    propagation: Optional["PropagationConfig"] = None,
+    context_retention_text: Optional[str] = None,  # 추출된 context 인자 값
+    # v0.9.3+: Phase 4 Harness Config
+    agent_role: Optional["AgentRoleConfig"] = None,
+    graceful_degradation: Optional["GracefulDegradationConfig"] = None,
+    compliance: Optional["ComplianceConfig"] = None,
+    resource_budget: Optional["ResourceBudgetConfig"] = None,
+    conflict_resolution: Optional["ConflictResolutionConfig"] = None,
+    # v0.9.4+: Phase 5 Harness Config
+    tool_parameter_safety: Optional["ToolParameterSafetyConfig"] = None,
+    knowledge_retention: Optional["KnowledgeRetentionConfig"] = None,
+    retry_consistency: Optional["RetryConsistencyConfig"] = None,
+    error_diagnosis: Optional["ErrorDiagnosisConfig"] = None,
+    # v0.9.5+: Phase 6 Harness Config
+    idempotency: Optional["IdempotencyConfig"] = None,
+    threat_response: Optional["ThreatResponseConfig"] = None,
+    context_window: Optional["ContextWindowConfig"] = None,
+    latency_attribution: Optional["LatencyAttributionConfig"] = None,
 ) -> Optional[Any]:
     """TaskResult 를 생성·병합·기록하는 공통 로직. sync/async/streaming/Gemini wrapper 양쪽에서 호출."""
     try:
@@ -3447,6 +4162,429 @@ def _build_and_record(
             _existing_extra: Dict[str, Any] = dict(task_result.extra) if task_result.extra else {}
             _existing_extra.update(extra_override)
             task_result = dataclasses.replace(task_result, extra=_existing_extra)
+
+        # v0.9.0+: Phase 1 Harness Config 평가
+        _p1_extra: Dict[str, Any] = {}
+
+        if instructions is not None:
+            try:
+                from agent_evaluator.helpers.taskresult_helpers import eval_instruction_adherence
+                _raw_response = str(raw_result) if raw_result is not None else ""
+                _instr_result = eval_instruction_adherence(_raw_response, instructions)
+                _p1_extra["instruction_adherence"] = _instr_result
+                # fail_on_violation=True → success=False
+                if instructions.fail_on_violation and _instr_result.get("violation_count", 0) > 0:
+                    task_result = dataclasses.replace(task_result, success=False)
+            except Exception as _e:
+                logger.debug("instruction_adherence 평가 실패 (무시): %s", _e)
+
+        if loop_detection is not None:
+            try:
+                from agent_evaluator.helpers.taskresult_helpers import eval_loop_detection
+                _ld_calls = task_result.tool_calls or []
+                _ld_chain = task_result.extra.get("chain_steps") if task_result.extra else None
+                _ld_result = eval_loop_detection(_ld_calls, _ld_chain, loop_detection)
+                _p1_extra["loop_detection"] = _ld_result
+            except Exception as _e:
+                logger.debug("loop_detection 평가 실패 (무시): %s", _e)
+
+        if goal_alignment is not None:
+            try:
+                from agent_evaluator.helpers.taskresult_helpers import eval_goal_alignment
+                _ga_calls = task_result.tool_calls or []
+                _ga_result = eval_goal_alignment(question, _ga_calls, goal_alignment)
+                if _ga_result is not None:
+                    _p1_extra["goal_alignment"] = _ga_result
+            except Exception as _e:
+                logger.debug("goal_alignment 평가 실패 (무시): %s", _e)
+
+        if reproducibility is not None and reproducibility_responses is not None:
+            try:
+                from agent_evaluator.helpers.taskresult_helpers import compute_reproducibility_score
+                _repro_result = compute_reproducibility_score(
+                    reproducibility_responses, reproducibility.similarity_measure
+                )
+                _p1_extra["reproducibility"] = _repro_result
+                if (
+                    reproducibility.fail_on_low_reproducibility
+                    and _repro_result["score"] < reproducibility.reproducibility_threshold
+                ):
+                    task_result = dataclasses.replace(task_result, success=False)
+            except Exception as _e:
+                logger.debug("reproducibility 평가 실패 (무시): %s", _e)
+
+        if fault_tolerance is not None:
+            try:
+                from agent_evaluator.helpers.taskresult_helpers import eval_fault_tolerance
+                _ft_calls = task_result.tool_calls or []
+                _ft_result = eval_fault_tolerance(_ft_calls, fault_tolerance)
+                _p1_extra["fault_tolerance"] = _ft_result
+            except Exception as _e:
+                logger.debug("fault_tolerance 평가 실패 (무시): %s", _e)
+
+        if plan_tracking is not None:
+            try:
+                from agent_evaluator.helpers.taskresult_helpers import eval_plan_coherence
+                _raw_response = str(raw_result) if raw_result is not None else ""
+                _plan_result = eval_plan_coherence(_raw_response, question, plan_tracking)
+                if _plan_result is not None:
+                    _p1_extra["plan_coherence"] = _plan_result
+            except Exception as _e:
+                logger.debug("plan_coherence 평가 실패 (무시): %s", _e)
+
+        if _p1_extra:
+            _existing = dict(task_result.extra or {})
+            _existing.update(_p1_extra)
+            task_result = dataclasses.replace(task_result, extra=_existing)
+
+        # v0.9.1+: 신규 Harness Config 평가
+        _harness_extra: Dict[str, Any] = {}
+
+        if sla is not None:
+            try:
+                from agent_evaluator.helpers.taskresult_helpers import eval_sla
+                _cost = None
+                if task_result.extra:
+                    _cost = task_result.extra.get("cost_usd") or (
+                        task_result.extra.get("llm_judge", {}).get("cost_usd")
+                        if isinstance(task_result.extra.get("llm_judge"), dict) else None
+                    )
+                _sla_result = eval_sla(
+                    task_result.execution_time or elapsed,
+                    task_result.tokens_used or 0,
+                    _cost,
+                    sla,
+                )
+                _harness_extra["sla"] = _sla_result
+            except Exception as _e:
+                logger.debug("SLAConfig 평가 실패 (무시): %s", _e)
+
+        if threat_severity is not None:
+            try:
+                from agent_evaluator.helpers.taskresult_helpers import eval_threat_severity
+                _ts_result = eval_threat_severity(
+                    dict(task_result.extra) if task_result.extra else {},
+                    threat_severity,
+                )
+                _harness_extra["threat_severity"] = _ts_result
+                if _ts_result.get("fail_triggered"):
+                    task_result = dataclasses.replace(task_result, success=False)
+            except Exception as _e:
+                logger.debug("ThreatSeverityConfig 평가 실패 (무시): %s", _e)
+
+        if efficiency is not None:
+            try:
+                from agent_evaluator.helpers.taskresult_helpers import eval_efficiency
+                _cost_usd = None
+                if task_result.extra and isinstance(task_result.extra.get("llm_judge"), dict):
+                    _cost_usd = task_result.extra["llm_judge"].get("cost_usd")
+                _eff_result = eval_efficiency(
+                    task_result.completion_score or 0.0,
+                    task_result.tokens_used or 0,
+                    task_result.execution_time or elapsed,
+                    _cost_usd,
+                    efficiency,
+                )
+                _harness_extra["efficiency"] = _eff_result
+            except Exception as _e:
+                logger.debug("EfficiencyConfig 평가 실패 (무시): %s", _e)
+
+        if state_consistency is not None and state_consistency_before is not None:
+            try:
+                from agent_evaluator.helpers.taskresult_helpers import eval_state_consistency
+                _sc_result = eval_state_consistency(
+                    state_consistency_before,
+                    state_consistency_after,
+                    state_consistency,
+                )
+                if _sc_result is not None:
+                    _harness_extra["state_consistency"] = _sc_result
+                    if (
+                        getattr(state_consistency, "fail_on_unexpected_change", False)
+                        and (_sc_result.get("unexpected_changes") or _sc_result.get("invariant_violations"))
+                    ):
+                        task_result = dataclasses.replace(task_result, success=False)
+            except Exception as _e:
+                logger.debug("StateConsistencyConfig 평가 실패 (무시): %s", _e)
+
+        if deadlock is not None:
+            try:
+                from agent_evaluator.helpers.taskresult_helpers import eval_deadlock
+                _ai = (task_result.extra or {}).get("agent_interactions") or {}
+                _dl_result = eval_deadlock(
+                    task_result.tool_calls or [],
+                    _ai if isinstance(_ai, dict) else {},
+                    deadlock,
+                )
+                _harness_extra["deadlock"] = _dl_result
+            except Exception as _e:
+                logger.debug("DeadlockConfig 평가 실패 (무시): %s", _e)
+
+        if observability is not None:
+            try:
+                from agent_evaluator.helpers.taskresult_helpers import eval_observability
+                _obs_result = eval_observability(
+                    task_result.tool_calls or [],
+                    dict(task_result.extra) if task_result.extra else {},
+                    task_result.task_id or task_id,
+                    task_result.task_type or task_type,
+                    task_result.execution_time or elapsed,
+                    observability,
+                )
+                _harness_extra["observability"] = _obs_result
+            except Exception as _e:
+                logger.debug("ObservabilityConfig 평가 실패 (무시): %s", _e)
+
+        if consensus is not None and consensus_responses:
+            try:
+                from agent_evaluator.helpers.taskresult_helpers import eval_consensus
+                _cs_result = eval_consensus(
+                    consensus_responses,
+                    None,
+                    consensus,
+                )
+                _harness_extra["consensus"] = _cs_result
+            except Exception as _e:
+                logger.debug("ConsensusConfig 평가 실패 (무시): %s", _e)
+
+        if _harness_extra:
+            _merged_extra: Dict[str, Any] = dict(task_result.extra) if task_result.extra else {}
+            _merged_extra.update(_harness_extra)
+            task_result = dataclasses.replace(task_result, extra=_merged_extra)
+
+        # v0.9.2+: Phase 3 Harness Config 평가
+        _p3_extra: Dict[str, Any] = {}
+
+        if scope is not None:
+            try:
+                from agent_evaluator.helpers.taskresult_helpers import eval_scope
+                _scope_result = eval_scope(task_result.tool_calls, scope)
+                _p3_extra["scope"] = _scope_result
+                if scope.fail_on_violation and not _scope_result["in_scope"]:
+                    raise ValueError(f"Scope violation: {_scope_result['violations']}")
+            except ValueError:
+                raise
+            except Exception as _e:
+                logger.debug("ScopeConfig 평가 실패 (무시): %s", _e)
+
+        if context_retention is not None:
+            try:
+                from agent_evaluator.helpers.taskresult_helpers import eval_context_retention
+                _ctx_text = context_retention_text or ""
+                _cr_result = eval_context_retention(
+                    task_result.response, task_result.question, _ctx_text, context_retention
+                )
+                _p3_extra["context_retention"] = _cr_result
+            except Exception as _e:
+                logger.debug("ContextRetentionConfig 평가 실패 (무시): %s", _e)
+
+        if explainability is not None:
+            try:
+                from agent_evaluator.helpers.taskresult_helpers import eval_explainability
+                _expl_result = eval_explainability(
+                    task_result.response, task_result.tool_calls, explainability
+                )
+                _p3_extra["explainability"] = _expl_result
+            except Exception as _e:
+                logger.debug("ExplainabilityConfig 평가 실패 (무시): %s", _e)
+
+        if subtask_tracking is not None:
+            try:
+                from agent_evaluator.helpers.taskresult_helpers import eval_subtask_completion
+                _sub_result = eval_subtask_completion(
+                    task_result.response, task_result.tool_calls, subtask_tracking
+                )
+                _p3_extra["subtask_completion"] = _sub_result
+            except Exception as _e:
+                logger.debug("SubtaskConfig 평가 실패 (무시): %s", _e)
+
+        if propagation is not None:
+            try:
+                from agent_evaluator.helpers.taskresult_helpers import eval_propagation
+                _agent_interactions = task_result.extra.get("agent_interactions", []) if task_result.extra else []
+                _prop_result = eval_propagation(
+                    task_result.response, _agent_interactions, propagation
+                )
+                _p3_extra["propagation"] = _prop_result
+            except Exception as _e:
+                logger.debug("PropagationConfig 평가 실패 (무시): %s", _e)
+
+        if _p3_extra:
+            _merged_p3: Dict[str, Any] = dict(task_result.extra or {})
+            _merged_p3.update(_p3_extra)
+            task_result = dataclasses.replace(task_result, extra=_merged_p3)
+
+        # v0.9.3+: Phase 4 Harness Config 평가
+        _p4_extra: Dict[str, Any] = {}
+
+        if agent_role is not None:
+            try:
+                from agent_evaluator.helpers.taskresult_helpers import eval_role_adherence
+                _p4_extra["agent_role"] = eval_role_adherence(
+                    task_result.tool_calls, task_result.response, agent_role
+                )
+            except Exception as _e:
+                logger.debug("AgentRoleConfig 평가 실패 (무시): %s", _e)
+
+        if graceful_degradation is not None:
+            try:
+                from agent_evaluator.helpers.taskresult_helpers import eval_graceful_degradation
+                _p4_extra["graceful_degradation"] = eval_graceful_degradation(
+                    task_result.response,
+                    task_result.tool_calls,
+                    task_result.errors is not None and len(task_result.errors) > 0,
+                    task_result.execution_time * 1000,  # seconds → ms
+                    graceful_degradation,
+                )
+            except Exception as _e:
+                logger.debug("GracefulDegradationConfig 평가 실패 (무시): %s", _e)
+
+        if compliance is not None:
+            try:
+                from agent_evaluator.helpers.taskresult_helpers import eval_compliance
+                _p4_extra["compliance"] = eval_compliance(
+                    task_result.response, task_result.question, compliance
+                )
+            except Exception as _e:
+                logger.debug("ComplianceConfig 평가 실패 (무시): %s", _e)
+
+        if resource_budget is not None:
+            try:
+                from agent_evaluator.helpers.taskresult_helpers import eval_resource_budget
+                _cost = task_result.extra.get("cost_usd", 0.0) if task_result.extra else 0.0
+                _p4_extra["resource_budget"] = eval_resource_budget(
+                    task_result.tokens_used,
+                    _cost,
+                    task_result.execution_time * 1000,
+                    resource_budget,
+                )
+            except Exception as _e:
+                logger.debug("ResourceBudgetConfig 평가 실패 (무시): %s", _e)
+
+        if conflict_resolution is not None:
+            try:
+                from agent_evaluator.helpers.taskresult_helpers import eval_conflict_resolution
+                _agent_interactions_p4 = (
+                    task_result.extra.get("agent_interactions", []) if task_result.extra else []
+                )
+                _p4_extra["conflict_resolution"] = eval_conflict_resolution(
+                    task_result.response, _agent_interactions_p4, conflict_resolution
+                )
+            except Exception as _e:
+                logger.debug("ConflictResolutionConfig 평가 실패 (무시): %s", _e)
+
+        if _p4_extra:
+            _merged_p4: Dict[str, Any] = dict(task_result.extra or {})
+            _merged_p4.update(_p4_extra)
+            task_result = dataclasses.replace(task_result, extra=_merged_p4)
+
+        # v0.9.4+: Phase 5 Harness Config 평가
+        _p5_extra: Dict[str, Any] = {}
+
+        if tool_parameter_safety is not None:
+            try:
+                from agent_evaluator.helpers.taskresult_helpers import eval_tool_parameter_safety
+                _p5_extra["tool_parameter_safety"] = eval_tool_parameter_safety(
+                    task_result.tool_calls, tool_parameter_safety
+                )
+            except Exception as _e:
+                logger.debug("ToolParameterSafetyConfig 평가 실패 (무시): %s", _e)
+
+        if knowledge_retention is not None:
+            try:
+                from agent_evaluator.helpers.taskresult_helpers import eval_knowledge_retention
+                _conv_history = (
+                    task_result.extra.get("conversation_history", [])
+                    if task_result.extra else []
+                )
+                _kr_result = eval_knowledge_retention(
+                    task_result.response, _conv_history, knowledge_retention
+                )
+                if _kr_result is not None:
+                    _p5_extra["knowledge_retention"] = _kr_result
+            except Exception as _e:
+                logger.debug("KnowledgeRetentionConfig 평가 실패 (무시): %s", _e)
+
+        if retry_consistency is not None:
+            try:
+                from agent_evaluator.helpers.taskresult_helpers import eval_retry_consistency
+                _rc_result = eval_retry_consistency(task_result, retry_consistency)
+                if _rc_result is not None:
+                    _p5_extra["retry_consistency"] = _rc_result
+            except Exception as _e:
+                logger.debug("RetryConsistencyConfig 평가 실패 (무시): %s", _e)
+
+        if error_diagnosis is not None:
+            try:
+                from agent_evaluator.helpers.taskresult_helpers import eval_error_diagnosis
+                _ed_result = eval_error_diagnosis(
+                    task_result.response,
+                    task_result.errors is not None and len(task_result.errors) > 0,
+                    task_result.success,
+                    error_diagnosis,
+                )
+                if _ed_result is not None:
+                    _p5_extra["error_diagnosis"] = _ed_result
+            except Exception as _e:
+                logger.debug("ErrorDiagnosisConfig 평가 실패 (무시): %s", _e)
+
+        if _p5_extra:
+            _merged_p5: Dict[str, Any] = dict(task_result.extra or {})
+            _merged_p5.update(_p5_extra)
+            task_result = dataclasses.replace(task_result, extra=_merged_p5)
+
+        # ── Phase 6 Harness ──────────────────────────────────────────────────────────
+        _p6_extra: Dict[str, Any] = {}
+
+        if idempotency is not None:
+            try:
+                from agent_evaluator.helpers.taskresult_helpers import eval_idempotency
+                _p6_extra["idempotency"] = eval_idempotency(
+                    task_result.tool_calls, task_result.response, idempotency
+                )
+            except Exception as _e:
+                logger.debug("IdempotencyConfig 평가 실패 (무시): %s", _e)
+
+        if threat_response is not None:
+            try:
+                from agent_evaluator.helpers.taskresult_helpers import eval_threat_response
+                _tr_result = eval_threat_response(
+                    task_result.response,
+                    task_result.tool_calls,
+                    task_result.extra or {},
+                    threat_response,
+                )
+                if _tr_result is not None:
+                    _p6_extra["threat_response"] = _tr_result
+            except Exception as _e:
+                logger.debug("ThreatResponseConfig 평가 실패 (무시): %s", _e)
+
+        if context_window is not None:
+            try:
+                from agent_evaluator.helpers.taskresult_helpers import eval_context_window
+                _p6_extra["context_window"] = eval_context_window(
+                    task_result.response,
+                    task_result.tokens_used,
+                    context_window,
+                )
+            except Exception as _e:
+                logger.debug("ContextWindowConfig 평가 실패 (무시): %s", _e)
+
+        if latency_attribution is not None:
+            try:
+                from agent_evaluator.helpers.taskresult_helpers import eval_latency_attribution
+                _p6_extra["latency_attribution"] = eval_latency_attribution(
+                    task_result.execution_time * 1000.0,
+                    task_result.extra,
+                    latency_attribution,
+                )
+            except Exception as _e:
+                logger.debug("LatencyAttributionConfig 평가 실패 (무시): %s", _e)
+
+        if _p6_extra:
+            _merged_p6: Dict[str, Any] = dict(task_result.extra or {})
+            _merged_p6.update(_p6_extra)
+            task_result = dataclasses.replace(task_result, extra=_merged_p6)
 
         # Phase 2: Plugin Registry — MetricPlugin 실행
         # extra_override 병합 후, 최종 extra에 plugin_metrics 추가
@@ -3852,6 +4990,43 @@ def agent_eval(
     ttft_seconds: Optional[float] = None,
     # S: alert 핸들러 예외 처리 모드 ("log" | "strict", 기본: "log")
     alert_error_mode: str = "log",
+    # v0.9.0+: Phase 1 Harness Config
+    instructions: Optional["InstructionConfig"] = None,
+    loop_detection: Optional["LoopDetectionConfig"] = None,
+    goal_alignment: Optional["GoalAlignmentConfig"] = None,
+    reproducibility: Optional["ReproducibilityConfig"] = None,
+    fault_tolerance: Optional["FaultToleranceConfig"] = None,
+    plan_tracking: Optional["PlanConfig"] = None,
+    # v0.9.1+: 신규 Harness Config
+    sla: Optional["SLAConfig"] = None,
+    threat_severity: Optional["ThreatSeverityConfig"] = None,
+    efficiency: Optional["EfficiencyConfig"] = None,
+    state_consistency: Optional["StateConsistencyConfig"] = None,
+    deadlock: Optional["DeadlockConfig"] = None,
+    observability: Optional["ObservabilityConfig"] = None,
+    consensus: Optional["ConsensusConfig"] = None,
+    # v0.9.2+: Phase 3 Harness Config
+    scope: Optional["ScopeConfig"] = None,
+    context_retention: Optional["ContextRetentionConfig"] = None,
+    explainability: Optional["ExplainabilityConfig"] = None,
+    subtask_tracking: Optional["SubtaskConfig"] = None,
+    propagation: Optional["PropagationConfig"] = None,
+    # v0.9.3+: Phase 4 Harness Config
+    agent_role: Optional["AgentRoleConfig"] = None,
+    graceful_degradation: Optional["GracefulDegradationConfig"] = None,
+    compliance: Optional["ComplianceConfig"] = None,
+    resource_budget: Optional["ResourceBudgetConfig"] = None,
+    conflict_resolution: Optional["ConflictResolutionConfig"] = None,
+    # v0.9.4+: Phase 5 Harness Config
+    tool_parameter_safety: Optional["ToolParameterSafetyConfig"] = None,
+    knowledge_retention: Optional["KnowledgeRetentionConfig"] = None,
+    retry_consistency: Optional["RetryConsistencyConfig"] = None,
+    error_diagnosis: Optional["ErrorDiagnosisConfig"] = None,
+    # v0.9.5+: Phase 6 Harness Config
+    idempotency: Optional["IdempotencyConfig"] = None,
+    threat_response: Optional["ThreatResponseConfig"] = None,
+    context_window: Optional["ContextWindowConfig"] = None,
+    latency_attribution: Optional["LatencyAttributionConfig"] = None,
 ) -> "Any":
     """동기·비동기 에이전트 함수에 평가를 자동 적용하는 데코레이터 (sync/async 자동 감지).
 
@@ -4175,6 +5350,18 @@ def agent_eval(
             _errors: List[str] = []
             _wait = _retry_delay
 
+            # StateConsistencyConfig: 실행 전 상태 스냅샷
+            _state_before: Optional[Dict[str, Any]] = None
+            _state_after: Optional[Dict[str, Any]] = None
+            _state_fn = getattr(state_consistency, "state_fn", None) if state_consistency is not None else None
+            if _state_fn is not None:
+                try:
+                    _state_before = _state_fn()
+                except Exception as _se:
+                    logger.debug("StateConsistencyConfig state_fn (before) 실패 (무시): %s", _se)
+            # ReproducibilityConfig: 응답 목록 (추가 실행 후 채움)
+            _repro_responses: Optional[List[str]] = None
+
             try:
                 while _attempt < _n_tries:
                     _attempt += 1
@@ -4227,6 +5414,24 @@ def agent_eval(
                                 time.sleep(_actual)
                         _wait = _wait * _retry_backoff
                 caller_result, _ = _split_raw(raw)  # EvalMetadata 분리
+                # StateConsistencyConfig: 실행 후 상태 스냅샷
+                if _state_fn is not None and _state_before is not None:
+                    try:
+                        _state_after = _state_fn()
+                    except Exception as _se:
+                        logger.debug("StateConsistencyConfig state_fn (after) 실패 (무시): %s", _se)
+                # ReproducibilityConfig: 추가 실행 수집
+                if reproducibility is not None and not has_error:
+                    _repro_responses = [str(caller_result) if caller_result is not None else ""]
+                    _extra_runs = max(0, (getattr(reproducibility, "runs", 3) or 3) - 1)
+                    for _ in range(_extra_runs):
+                        try:
+                            _ex_raw = func(*args, **kwargs)
+                            _ex_resp, _ = _split_raw(_ex_raw)
+                            _repro_responses.append(str(_ex_resp) if _ex_resp is not None else "")
+                        except Exception as _re:
+                            logger.debug("reproducibility 추가 실행 실패 (무시): %s", _re)
+                            _repro_responses.append("")
                 return caller_result
             except Exception:
                 raise
@@ -4272,6 +5477,41 @@ def agent_eval(
                         allowed_tools=_effective_allowed_tools,
                         enable_anomaly_detection=_effective_enable_anomaly,
                         allow_duplicate_task_ids=True,
+                        instructions=instructions,
+                        loop_detection=loop_detection,
+                        goal_alignment=goal_alignment,
+                        reproducibility=reproducibility,
+                        reproducibility_responses=_repro_responses,
+                        fault_tolerance=fault_tolerance,
+                        plan_tracking=plan_tracking,
+                        sla=sla,
+                        threat_severity=threat_severity,
+                        efficiency=efficiency,
+                        state_consistency_before=_state_before,
+                        state_consistency_after=_state_after,
+                        state_consistency=state_consistency,
+                        deadlock=deadlock,
+                        observability=observability,
+                        consensus=consensus,
+                        scope=scope,
+                        context_retention=context_retention,
+                        explainability=explainability,
+                        subtask_tracking=subtask_tracking,
+                        propagation=propagation,
+                        context_retention_text=context if context_retention is not None else None,
+                        agent_role=agent_role,
+                        graceful_degradation=graceful_degradation,
+                        compliance=compliance,
+                        resource_budget=resource_budget,
+                        conflict_resolution=conflict_resolution,
+                        tool_parameter_safety=tool_parameter_safety,
+                        knowledge_retention=knowledge_retention,
+                        retry_consistency=retry_consistency,
+                        error_diagnosis=error_diagnosis,
+                        idempotency=idempotency,
+                        threat_response=threat_response,
+                        context_window=context_window,
+                        latency_attribution=latency_attribution,
                 )
                 # M3: ttft_seconds 외부 주입 — 데코레이터 모드에서 track_ttft() 호출
                 if ttft_seconds is not None:
@@ -4314,6 +5554,16 @@ def agent_eval(
             _attempt = 0
             _errors: List[str] = []
             _wait = _retry_delay
+
+            # StateConsistencyConfig: 실행 전 상태 스냅샷 (async)
+            _async_state_before: Optional[Dict[str, Any]] = None
+            _async_state_after: Optional[Dict[str, Any]] = None
+            _async_state_fn = getattr(state_consistency, "state_fn", None) if state_consistency is not None else None
+            if _async_state_fn is not None:
+                try:
+                    _async_state_before = _async_state_fn()
+                except Exception as _se:
+                    logger.debug("StateConsistencyConfig state_fn async (before) 실패 (무시): %s", _se)
 
             try:
                 while _attempt < _n_tries:
@@ -4360,6 +5610,12 @@ def agent_eval(
                                 await asyncio.sleep(_actual)
                         _wait = _wait * _retry_backoff
                 caller_result, _ = _split_raw(raw)
+                # StateConsistencyConfig: 실행 후 상태 스냅샷 (async)
+                if _async_state_fn is not None and _async_state_before is not None:
+                    try:
+                        _async_state_after = _async_state_fn()
+                    except Exception as _se:
+                        logger.debug("StateConsistencyConfig state_fn async (after) 실패 (무시): %s", _se)
                 return caller_result
             except Exception:
                 raise
@@ -4404,6 +5660,41 @@ def agent_eval(
                         allowed_tools=_effective_allowed_tools,
                         enable_anomaly_detection=_effective_enable_anomaly,
                         allow_duplicate_task_ids=True,
+                        instructions=instructions,
+                        loop_detection=loop_detection,
+                        goal_alignment=goal_alignment,
+                        reproducibility=reproducibility,
+                        reproducibility_responses=None,  # async reproducibility는 미지원
+                        fault_tolerance=fault_tolerance,
+                        plan_tracking=plan_tracking,
+                        sla=sla,
+                        threat_severity=threat_severity,
+                        efficiency=efficiency,
+                        state_consistency_before=_async_state_before,
+                        state_consistency_after=_async_state_after,
+                        state_consistency=state_consistency,
+                        deadlock=deadlock,
+                        observability=observability,
+                        consensus=consensus,
+                        scope=scope,
+                        context_retention=context_retention,
+                        explainability=explainability,
+                        subtask_tracking=subtask_tracking,
+                        propagation=propagation,
+                        context_retention_text=context if context_retention is not None else None,
+                        agent_role=agent_role,
+                        graceful_degradation=graceful_degradation,
+                        compliance=compliance,
+                        resource_budget=resource_budget,
+                        conflict_resolution=conflict_resolution,
+                        tool_parameter_safety=tool_parameter_safety,
+                        knowledge_retention=knowledge_retention,
+                        retry_consistency=retry_consistency,
+                        error_diagnosis=error_diagnosis,
+                        idempotency=idempotency,
+                        threat_response=threat_response,
+                        context_window=context_window,
+                        latency_attribution=latency_attribution,
                     )
 
         @functools.wraps(func)
@@ -4488,6 +5779,24 @@ def agent_eval(
                         allowed_tools=_effective_allowed_tools,
                         enable_anomaly_detection=_effective_enable_anomaly,
                         allow_duplicate_task_ids=True,
+                        instructions=instructions,
+                        loop_detection=loop_detection,
+                        goal_alignment=goal_alignment,
+                        fault_tolerance=fault_tolerance,
+                        plan_tracking=plan_tracking,
+                        agent_role=agent_role,
+                        graceful_degradation=graceful_degradation,
+                        compliance=compliance,
+                        resource_budget=resource_budget,
+                        conflict_resolution=conflict_resolution,
+                        tool_parameter_safety=tool_parameter_safety,
+                        knowledge_retention=knowledge_retention,
+                        retry_consistency=retry_consistency,
+                        error_diagnosis=error_diagnosis,
+                        idempotency=idempotency,
+                        threat_response=threat_response,
+                        context_window=context_window,
+                        latency_attribution=latency_attribution,
                 )
                 # D6: 첫 청크 시간을 TTFT로 자동 기록
                 if _first_yield_time is not None:
@@ -4585,6 +5894,24 @@ def agent_eval(
                         allowed_tools=_effective_allowed_tools,
                         enable_anomaly_detection=_effective_enable_anomaly,
                         allow_duplicate_task_ids=True,
+                        instructions=instructions,
+                        loop_detection=loop_detection,
+                        goal_alignment=goal_alignment,
+                        fault_tolerance=fault_tolerance,
+                        plan_tracking=plan_tracking,
+                        agent_role=agent_role,
+                        graceful_degradation=graceful_degradation,
+                        compliance=compliance,
+                        resource_budget=resource_budget,
+                        conflict_resolution=conflict_resolution,
+                        tool_parameter_safety=tool_parameter_safety,
+                        knowledge_retention=knowledge_retention,
+                        retry_consistency=retry_consistency,
+                        error_diagnosis=error_diagnosis,
+                        idempotency=idempotency,
+                        threat_response=threat_response,
+                        context_window=context_window,
+                        latency_attribution=latency_attribution,
                 )
                 # D6: async generator — 첫 청크 시간을 TTFT로 자동 기록
                 if _first_yield_time is not None:
@@ -4850,6 +6177,39 @@ def conversation_eval(
     task_id_prefix: str = "conv",
     # A10: max_turns 초과 시 동작 ("flush" | "warn" | "error", 기본: "flush")
     max_turns_exceeded_action: str = "flush",
+    # v0.9.0+: Phase 1 Harness Config
+    instructions: Optional["InstructionConfig"] = None,
+    loop_detection: Optional["LoopDetectionConfig"] = None,
+    goal_alignment: Optional["GoalAlignmentConfig"] = None,
+    fault_tolerance: Optional["FaultToleranceConfig"] = None,
+    plan_tracking: Optional["PlanConfig"] = None,
+    # v0.9.1+: 신규 Harness Config
+    sla: Optional["SLAConfig"] = None,
+    threat_severity: Optional["ThreatSeverityConfig"] = None,
+    efficiency: Optional["EfficiencyConfig"] = None,
+    deadlock: Optional["DeadlockConfig"] = None,
+    observability: Optional["ObservabilityConfig"] = None,
+    # v0.9.2+: Phase 3 Harness Config
+    scope: Optional["ScopeConfig"] = None,
+    context_retention: Optional["ContextRetentionConfig"] = None,
+    explainability: Optional["ExplainabilityConfig"] = None,
+    subtask_tracking: Optional["SubtaskConfig"] = None,
+    # v0.9.3+: Phase 4 Harness Config
+    agent_role: Optional["AgentRoleConfig"] = None,
+    graceful_degradation: Optional["GracefulDegradationConfig"] = None,
+    compliance: Optional["ComplianceConfig"] = None,
+    resource_budget: Optional["ResourceBudgetConfig"] = None,
+    conflict_resolution: Optional["ConflictResolutionConfig"] = None,
+    # v0.9.4+: Phase 5 Harness Config
+    tool_parameter_safety: Optional["ToolParameterSafetyConfig"] = None,
+    knowledge_retention: Optional["KnowledgeRetentionConfig"] = None,
+    retry_consistency: Optional["RetryConsistencyConfig"] = None,
+    error_diagnosis: Optional["ErrorDiagnosisConfig"] = None,
+    # v0.9.5+: Phase 6 Harness Config
+    idempotency: Optional["IdempotencyConfig"] = None,
+    threat_response: Optional["ThreatResponseConfig"] = None,
+    context_window: Optional["ContextWindowConfig"] = None,
+    latency_attribution: Optional["LatencyAttributionConfig"] = None,
 ) -> Callable:
     """멀티턴 대화 함수에 ``ConversationSession`` 기반 세션 평가를 자동 적용.
 
@@ -5270,6 +6630,43 @@ def batch_eval(
     enable_anomaly_detection: bool = False,
     security: Optional["SecurityConfig"] = None,
     llm_judge: Optional["LLMJudgeConfig"] = None,
+    # v0.9.0+: Phase 1 Harness Config
+    instructions: Optional["InstructionConfig"] = None,
+    loop_detection: Optional["LoopDetectionConfig"] = None,
+    goal_alignment: Optional["GoalAlignmentConfig"] = None,
+    reproducibility: Optional["ReproducibilityConfig"] = None,
+    fault_tolerance: Optional["FaultToleranceConfig"] = None,
+    plan_tracking: Optional["PlanConfig"] = None,
+    # v0.9.1+: 신규 Harness Config
+    sla: Optional["SLAConfig"] = None,
+    threat_severity: Optional["ThreatSeverityConfig"] = None,
+    efficiency: Optional["EfficiencyConfig"] = None,
+    state_consistency: Optional["StateConsistencyConfig"] = None,
+    deadlock: Optional["DeadlockConfig"] = None,
+    observability: Optional["ObservabilityConfig"] = None,
+    consensus: Optional["ConsensusConfig"] = None,
+    # v0.9.2+: Phase 3 Harness Config
+    scope: Optional["ScopeConfig"] = None,
+    context_retention: Optional["ContextRetentionConfig"] = None,
+    explainability: Optional["ExplainabilityConfig"] = None,
+    subtask_tracking: Optional["SubtaskConfig"] = None,
+    propagation: Optional["PropagationConfig"] = None,
+    # v0.9.3+: Phase 4 Harness Config
+    agent_role: Optional["AgentRoleConfig"] = None,
+    graceful_degradation: Optional["GracefulDegradationConfig"] = None,
+    compliance: Optional["ComplianceConfig"] = None,
+    resource_budget: Optional["ResourceBudgetConfig"] = None,
+    conflict_resolution: Optional["ConflictResolutionConfig"] = None,
+    # v0.9.4+: Phase 5 Harness Config
+    tool_parameter_safety: Optional["ToolParameterSafetyConfig"] = None,
+    knowledge_retention: Optional["KnowledgeRetentionConfig"] = None,
+    retry_consistency: Optional["RetryConsistencyConfig"] = None,
+    error_diagnosis: Optional["ErrorDiagnosisConfig"] = None,
+    # v0.9.5+: Phase 6 Harness Config
+    idempotency: Optional["IdempotencyConfig"] = None,
+    threat_response: Optional["ThreatResponseConfig"] = None,
+    context_window: Optional["ContextWindowConfig"] = None,
+    latency_attribution: Optional["LatencyAttributionConfig"] = None,
 ) -> Callable:
     """배치 에이전트 함수(``List[str]`` → ``List[str]``)에 평가를 자동 적용하는 데코레이터.
 
@@ -5497,6 +6894,37 @@ def batch_eval(
                     custom_parser=custom_parser,
                     enable_anomaly_detection=enable_anomaly_detection,
                     allow_duplicate_task_ids=True,
+                    instructions=instructions,
+                    loop_detection=loop_detection,
+                    goal_alignment=goal_alignment,
+                    fault_tolerance=fault_tolerance,
+                    plan_tracking=plan_tracking,
+                    sla=sla,
+                    threat_severity=threat_severity,
+                    efficiency=efficiency,
+                    state_consistency=state_consistency,
+                    deadlock=deadlock,
+                    observability=observability,
+                    consensus=consensus,
+                    scope=scope,
+                    context_retention=context_retention,
+                    explainability=explainability,
+                    subtask_tracking=subtask_tracking,
+                    propagation=propagation,
+                    context_retention_text=item_context if context_retention is not None else None,
+                    agent_role=agent_role,
+                    graceful_degradation=graceful_degradation,
+                    compliance=compliance,
+                    resource_budget=resource_budget,
+                    conflict_resolution=conflict_resolution,
+                    tool_parameter_safety=tool_parameter_safety,
+                    knowledge_retention=knowledge_retention,
+                    retry_consistency=retry_consistency,
+                    error_diagnosis=error_diagnosis,
+                    idempotency=idempotency,
+                    threat_response=threat_response,
+                    context_window=context_window,
+                    latency_attribution=latency_attribution,
                 )
                 if tr is not None:
                     batch_results.append(tr)
@@ -6315,6 +7743,18 @@ class EvalDecorator:
         "security",           # SecurityConfig 통합
         "llm_judge",          # LLMJudgeConfig 통합
         "concurrency",        # concurrent execution
+        # v0.9.0+: Phase 1 Harness Config
+        "instructions", "loop_detection", "goal_alignment", "reproducibility", "fault_tolerance", "plan_tracking",
+        # v0.9.1+: 신규 Harness Config
+        "sla", "threat_severity", "efficiency", "state_consistency", "deadlock", "observability", "consensus",
+        # v0.9.2+: Phase 3 Harness Config
+        "scope", "context_retention", "explainability", "subtask_tracking", "propagation",
+        # v0.9.3+: Phase 4 Harness Config
+        "agent_role", "graceful_degradation", "compliance", "resource_budget", "conflict_resolution",
+        # v0.9.4+: Phase 5 Harness Config
+        "tool_parameter_safety", "knowledge_retention", "retry_consistency", "error_diagnosis",
+        # v0.9.5+: Phase 6 Harness Config
+        "idempotency", "threat_response", "context_window", "latency_attribution",
     })
     # conversation_eval 에는 framework/model_name/score_fn/completion_fn 미전달
     _CONV_PARAMS: frozenset = frozenset({
@@ -6327,6 +7767,18 @@ class EvalDecorator:
         "preset",                 # A1: 사전 정의 파라미터 묶음
         "on_record",              # C: 세션 flush 후 마지막 TaskResult에 호출되는 콜백
         "llm_judge",              # LLMJudgeConfig 통합
+        # v0.9.0+: Phase 1 Harness Config
+        "instructions", "loop_detection", "goal_alignment", "fault_tolerance", "plan_tracking",
+        # v0.9.1+: 신규 Harness Config
+        "sla", "threat_severity", "efficiency", "deadlock", "observability",
+        # v0.9.2+: Phase 3 Harness Config
+        "scope", "context_retention", "explainability", "subtask_tracking",
+        # v0.9.3+: Phase 4 Harness Config
+        "agent_role", "graceful_degradation", "compliance", "resource_budget", "conflict_resolution",
+        # v0.9.4+: Phase 5 Harness Config
+        "tool_parameter_safety", "knowledge_retention", "retry_consistency", "error_diagnosis",
+        # v0.9.5+: Phase 6 Harness Config
+        "idempotency", "threat_response", "context_window", "latency_attribution",
     })
 
     @classmethod

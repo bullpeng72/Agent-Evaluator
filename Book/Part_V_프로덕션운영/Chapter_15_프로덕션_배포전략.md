@@ -27,7 +27,7 @@ try:
 except Exception:
     pass  # Phoenix 없이도 동작
 
-# development: enable_llm_judge=True + auto_detect_framework=True
+# development: llm_judge=LLMJudgeConfig() + auto_detect_framework=True
 eval = QuickEval("results/", preset="development")
 
 @eval.qa
@@ -37,7 +37,7 @@ def agent(question: str, ground_truth: str = "") -> str:
 
 개발 환경의 특징:
 - `sample_rate=1.0` — 모든 호출을 평가 (전수 평가)
-- `enable_llm_judge=True` — LLM Judge로 상세 채점
+- `llm_judge=LLMJudgeConfig()` — LLM Judge로 상세 채점
 - `auto_detect_framework=True` — 프레임워크 자동 감지
 - 로컬 Phoenix에 스팬 전송 (설치된 경우)
 
@@ -359,7 +359,6 @@ monitor = PerformanceMonitor(
     monitor,
     task_type="qa",
     flush_every=50,
-    flush_filename="periodic_checkpoint",  # results/periodic_checkpoint.json
 )
 def agent(question: str, ground_truth: str = "") -> str:
     return call_llm(question)
@@ -533,8 +532,8 @@ print('Accuracy:', data['summary'].get('accuracy', 0) * 100)
 # QuickEval 사용 시 내부 judge_sample_rate 조절
 eval = QuickEval.for_llm_judge("results/", model="claude-sonnet-4-6")
 
-# 또는 agent_eval에서 enable_llm_judge 조건부 사용
-@agent_eval(monitor, task_type="qa", enable_llm_judge=False)  # 기본 비활성
+# 또는 agent_eval에서 llm_judge 조건부 사용
+@agent_eval(monitor, task_type="qa")  # llm_judge 기본 비활성
 def agent(question, ground_truth=""): ...
 ```
 

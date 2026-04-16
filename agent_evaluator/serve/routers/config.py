@@ -27,6 +27,15 @@ class ThresholdBody(BaseModel):
     p95: Optional[float] = None
     p99: Optional[float] = None
     cost: Optional[float] = None
+    # Phase 2: Harness 그룹별 임계값 (0.0~1.0, 그룹 A~G + overall)
+    harness_A: Optional[float] = None
+    harness_B: Optional[float] = None
+    harness_C: Optional[float] = None
+    harness_D: Optional[float] = None
+    harness_E: Optional[float] = None
+    harness_F: Optional[float] = None
+    harness_G: Optional[float] = None
+    harness_overall: Optional[float] = None
 
 _DEFAULTS: Dict[str, float] = {
     "tcr": 90.0,
@@ -35,6 +44,15 @@ _DEFAULTS: Dict[str, float] = {
     "p95": 2.0,
     "p99": 5.0,
     "cost": 0.01,
+    # Phase 2: harness gates (0.0~1.0 범위, 이하면 warn/fail)
+    "harness_A": 0.70,
+    "harness_B": 0.70,
+    "harness_C": 0.70,
+    "harness_D": 0.70,
+    "harness_E": 0.70,
+    "harness_F": 0.70,
+    "harness_G": 0.70,
+    "harness_overall": 0.70,
 }
 
 

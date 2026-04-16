@@ -455,7 +455,7 @@ gemini_agent("한국의 전통 음식 5가지를 알려줘", ground_truth="비�
 
 멀티에이전트 지표(AgentCoordination): AutoGen > CrewAI > LangGraph > LangChain (단일 에이전트)
 
-보안 지표: 모든 프레임워크 동일 (`enable_security_metrics=True` 또는 `security_mode=True`)
+보안 지표: 모든 프레임워크 동일 (`enable_security_metrics=True` 또는 `security=SecurityConfig()`)
 
 > 📋 **QA 관리자 TIP**: 평가 데이터의 신뢰성을 위해 토큰 비용 측정이 중요하다면 LangChain 또는 직접 API 호출(Anthropic/OpenAI) 방식을 선택해야 한다. CrewAI의 경우 EvalMetadata로 토큰을 수동 주입하지 않으면 `total_cost_usd=0`으로 기록되어 비용 분석이 불가능하다.
 

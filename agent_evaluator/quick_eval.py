@@ -83,6 +83,19 @@ class QuickEval:
         alert_rules: 모든 데코레이터에 적용할 :class:`SimpleTaskAlertRule` 리스트.
         flush_every: N 번 호출마다 ``save_to_file()`` 자동 실행 (0 = 비활성).
         flush_filename: flush 저장 파일명 (기본: ``"quickeval_flush"``).
+        instructions: :class:`InstructionConfig` — 응답 형식·키워드 준수 추적.
+        goal_alignment: :class:`GoalAlignmentConfig` — 목표-도구 정렬 추적.
+        plan_tracking: :class:`PlanConfig` — 계획 일관성 추적.
+        loop_detection: :class:`LoopDetectionConfig` — 도구 호출 루프 감지.
+        scope: :class:`ScopeConfig` — 도구 사용 범위 경계 설정.
+        sla: :class:`SLAConfig` — SLA 준수 추적.
+        threat_severity: :class:`ThreatSeverityConfig` — 보안 위협 심각도 설정.
+        compliance: :class:`ComplianceConfig` — PII·컴플라이언스 위반 추적.
+        fault_tolerance: :class:`FaultToleranceConfig` — 장애 내성 추적.
+        reproducibility: :class:`ReproducibilityConfig` — 재현성 추적.
+        observability: :class:`ObservabilityConfig` — 트레이스 완성도 설정.
+        explainability: :class:`ExplainabilityConfig` — 응답 설명 가능성 설정.
+        consensus: :class:`ConsensusConfig` — 멀티에이전트 합의 품질 설정.
         **monitor_kwargs: :class:`PerformanceMonitor` 에 전달할 추가 파라미터.
 
     Examples::
@@ -101,6 +114,19 @@ class QuickEval:
 
         eval.save()
         eval.gate(tcr=85)
+
+        # Harness Config 통합
+        from agent_evaluator import InstructionConfig, SLAConfig
+        eval = QuickEval(
+            "results/",
+            instructions=InstructionConfig(required_keywords=["result"]),
+            sla=SLAConfig(p95_ms=3000),
+        )
+
+        @eval.qa
+        def my_agent(question, ground_truth=""): ...
+
+        eval.harness_gate(min_group_score=0.7)
 
         # RAG 특화 (hallucination 자동 활성화)
         eval = QuickEval.for_rag("results/")
@@ -122,6 +148,20 @@ class QuickEval:
         alert_rules: Optional[List[Any]] = None,
         flush_every: int = 0,
         flush_filename: str = "quickeval_flush",
+        # Harness Config 그룹별 파라미터
+        instructions: Optional[Any] = None,         # InstructionConfig
+        goal_alignment: Optional[Any] = None,        # GoalAlignmentConfig
+        plan_tracking: Optional[Any] = None,         # PlanConfig
+        loop_detection: Optional[Any] = None,        # LoopDetectionConfig
+        scope: Optional[Any] = None,                 # ScopeConfig
+        sla: Optional[Any] = None,                   # SLAConfig
+        threat_severity: Optional[Any] = None,       # ThreatSeverityConfig
+        compliance: Optional[Any] = None,            # ComplianceConfig
+        fault_tolerance: Optional[Any] = None,       # FaultToleranceConfig
+        reproducibility: Optional[Any] = None,       # ReproducibilityConfig
+        observability: Optional[Any] = None,         # ObservabilityConfig
+        explainability: Optional[Any] = None,        # ExplainabilityConfig
+        consensus: Optional[Any] = None,             # ConsensusConfig
         **monitor_kwargs: Any,
     ) -> None:
         import inspect as _inspect
@@ -148,6 +188,25 @@ class QuickEval:
                         monitor_kwargs.pop(_k)
             except Exception as _e:
                 logger.debug("QuickEval.__init__: monitor_kwargs 검사 실패 (무시): %s", _e)
+
+        # Harness defaults — None이 아닌 파라미터만 저장
+        self._harness_defaults: Dict[str, Any] = {
+            k: v for k, v in {
+                "instructions": instructions,
+                "goal_alignment": goal_alignment,
+                "plan_tracking": plan_tracking,
+                "loop_detection": loop_detection,
+                "scope": scope,
+                "sla": sla,
+                "threat_severity": threat_severity,
+                "compliance": compliance,
+                "fault_tolerance": fault_tolerance,
+                "reproducibility": reproducibility,
+                "observability": observability,
+                "explainability": explainability,
+                "consensus": consensus,
+            }.items() if v is not None
+        }
 
         self._monitor = PerformanceMonitor(
             output_dir=output_dir,
@@ -326,6 +385,78 @@ class QuickEval:
         kwargs.setdefault("judge_model", model)
         return cls(output_dir, **kwargs)
 
+    @classmethod
+    def for_harness(
+        cls,
+        output_dir: str = "results/",
+        *,
+        sla_p95: Optional[float] = None,
+        reproducibility_runs: int = 3,
+        enable_security: bool = True,
+        **kwargs: Any,
+    ) -> "QuickEval":
+        """Harness 관점의 완전 평가에 최적화된 QuickEval 인스턴스.
+
+        Goal Achievement · Behavioral Integrity · Reliability · Performance Contract ·
+        Security Boundary · Multi-Agent · Observability 7개 그룹을 모두 측정한다.
+
+        Args:
+            output_dir: 결과 저장 디렉토리.
+            sla_p95: P95 레이턴시 SLA(초). 설정 시 초과 태스크에 경고 기록.
+            reproducibility_runs: 재현성 측정용 재실행 횟수 (기본: 3).
+            enable_security: 보안 메트릭 활성화 여부 (기본: True).
+
+        Example::
+
+            eval = QuickEval.for_harness("results/", sla_p95=5.0)
+
+            @eval.qa
+            def agent(question, ground_truth=""): ...
+        """
+        if enable_security:
+            kwargs.setdefault("enable_security_metrics", True)
+        if sla_p95 is not None:
+            kwargs.setdefault("sla_p95", sla_p95)
+        kwargs.setdefault("_harness_reproducibility_runs", reproducibility_runs)
+        return cls(output_dir, **kwargs)
+
+    @classmethod
+    def for_production(
+        cls,
+        output_dir: str = "results/",
+        *,
+        sla_p95: float = 5.0,
+        reproducibility_runs: int = 3,
+        judge_model: Optional[str] = None,
+        **kwargs: Any,
+    ) -> "QuickEval":
+        """프로덕션 배포 전 종합 평가에 최적화된 QuickEval 인스턴스.
+
+        SLA · 재현성 · 보안 · LLM Judge 모두 활성화한다.
+
+        Args:
+            output_dir: 결과 저장 디렉토리.
+            sla_p95: P95 레이턴시 SLA(초, 기본: 5.0).
+            reproducibility_runs: 재현성 측정용 재실행 횟수 (기본: 3).
+            judge_model: LLM Judge 모델명. None이면 API 키 기반 자동 결정.
+
+        Example::
+
+            eval = QuickEval.for_production("results/", sla_p95=3.0)
+
+            @eval.qa
+            def agent(question, ground_truth=""): ...
+
+            eval.gate(tcr=90, accuracy=80)  # CI/CD 게이팅
+        """
+        kwargs.setdefault("enable_security_metrics", True)
+        kwargs.setdefault("enable_llm_judge", True)
+        if judge_model is not None:
+            kwargs.setdefault("judge_model", judge_model)
+        kwargs.setdefault("sla_p95", sla_p95)
+        kwargs.setdefault("_harness_reproducibility_runs", reproducibility_runs)
+        return cls(output_dir, **kwargs)
+
     # ------------------------------------------------------------------
     # 프리셋 팩토리 — list_presets() / from_preset()
     # ------------------------------------------------------------------
@@ -500,12 +631,19 @@ class QuickEval:
     def __call__(self, task_type: Any = "qa", **kwargs: Any) -> Callable:
         """``@eval(task_type=...)`` 형태로 데코레이터를 직접 생성한다.
 
+        Harness defaults (``instructions``, ``sla`` 등)가 설정된 경우 자동으로 병합된다.
+        kwargs로 직접 전달한 파라미터가 harness defaults보다 우선한다.
+
         Usage::
 
             @eval(task_type="qa", score_fn=my_fn)
             def agent(question, ground_truth=""): ...
         """
-        return self._eval(task_type=task_type, **kwargs)
+        # harness defaults와 kwargs 병합 (kwargs가 우선)
+        # __new__ 후 __init__ 미호출 시 방어 처리
+        harness_defaults: Dict[str, Any] = getattr(self, "_harness_defaults", {})
+        merged: Dict[str, Any] = {**harness_defaults, **kwargs}
+        return self._eval(task_type=task_type, **merged)
 
     def with_retry(self, task_type: Any = "qa", **kwargs: Any) -> Callable:
         """재시도 내장 데코레이터 (``agent_eval_with_retry``).
@@ -1208,6 +1346,133 @@ class QuickEval:
                 self_h._stopped = True
 
         return _WatchHandle()
+
+    # ------------------------------------------------------------------
+    # Harness 게이팅 / 요약
+    # ------------------------------------------------------------------
+
+    def harness_gate(
+        self,
+        min_group_score: float = 0.7,
+        required_groups: Optional[List[str]] = None,
+        fail_on_warn: bool = False,
+    ) -> Dict[str, Any]:
+        """Harness 그룹 점수 기반 CI/CD 게이팅.
+
+        Args:
+            min_group_score: 각 그룹의 최소 허용 점수 (기본 0.7).
+            required_groups: 검사할 그룹 목록 (기본: 점수가 있는 모든 그룹).
+                예: ``["A", "D", "E"]`` — Goal·Performance·Security만 검사.
+            fail_on_warn: ``True`` 이면 ``warn`` 상태도 실패로 처리.
+
+        Returns:
+            ``{"passed": bool, "groups": {...}, "failed_groups": [...]}``
+
+        Raises:
+            SystemExit(1): 게이팅 실패 시.
+
+        Example::
+
+            eval = QuickEval(
+                "results/",
+                instructions=InstructionConfig(required_keywords=["result"]),
+                sla=SLAConfig(p95_ms=3000),
+            )
+
+            @eval.qa
+            def my_agent(question, ground_truth=""): ...
+
+            my_agent("test", ground_truth="answer")
+            eval.harness_gate(min_group_score=0.7, required_groups=["A", "D"])
+        """
+        import sys
+
+        report = self._monitor.generate_report()
+        harness_groups = (report.extra_metrics or {}).get("harness_groups", {})
+
+        if not harness_groups:
+            print("[harness_gate] No harness data available — skipping gate")
+            return {"passed": True, "groups": {}, "failed_groups": []}
+
+        results: Dict[str, Any] = {}
+        failed: List[str] = []
+
+        groups_to_check = required_groups or [
+            k for k in harness_groups
+            if k != "overall" and isinstance(harness_groups[k], dict)
+        ]
+
+        for group_name in groups_to_check:
+            group_data = harness_groups.get(group_name, {})
+            if not isinstance(group_data, dict):
+                continue
+            score = group_data.get("score")
+            status = group_data.get("status", "n/a")
+            if score is None:
+                results[group_name] = {"score": None, "status": "n/a", "passed": True}
+                continue
+            passed = float(score) >= min_group_score
+            if fail_on_warn and status == "warn":
+                passed = False
+            results[group_name] = {
+                "score": round(float(score), 3),
+                "status": status,
+                "passed": passed,
+            }
+            if not passed:
+                failed.append(group_name)
+
+        overall_passed = len(failed) == 0
+
+        print(f"\n{'=' * 50}")
+        print(f"Harness Gate: {'PASSED' if overall_passed else 'FAILED'}")
+        for g, r in results.items():
+            icon = "[PASS]" if r["passed"] else "[FAIL]"
+            score_str = f"{r['score']:.3f}" if r["score"] is not None else "n/a"
+            print(f"  {icon} Group {g}: {score_str} ({r['status']})")
+        if failed:
+            print(f"\nFailed groups: {failed}")
+        print(f"{'=' * 50}\n")
+
+        if not overall_passed:
+            sys.exit(1)
+
+        return {"passed": overall_passed, "groups": results, "failed_groups": failed}
+
+    def harness_summary(self) -> Dict[str, Any]:
+        """Harness 그룹별 요약 리포트를 반환합니다.
+
+        Returns:
+            ``{"overall": float | None, "groups": {A: {score, status, details}, ...}}``
+
+        Example::
+
+            s = eval.harness_summary()
+            print(f"Overall: {s['overall']}")
+            for group, data in s['groups'].items():
+                print(f"  Group {group}: {data['score']}")
+        """
+        report = self._monitor.generate_report()
+        harness_groups = (report.extra_metrics or {}).get("harness_groups", {})
+
+        if not harness_groups:
+            return {"overall": None, "groups": {}}
+
+        group_summary: Dict[str, Any] = {}
+        for k, v in harness_groups.items():
+            if k == "overall":
+                continue
+            if isinstance(v, dict):
+                group_summary[k] = {
+                    "score": v.get("score"),
+                    "status": v.get("status", "n/a"),
+                    "details": v.get("details", {}),
+                }
+
+        overall = harness_groups.get("overall", {})
+        overall_score = overall.get("score") if isinstance(overall, dict) else None
+
+        return {"overall": overall_score, "groups": group_summary}
 
     def __repr__(self) -> str:
         total = self._monitor.task_count  # D7: task_count property 사용

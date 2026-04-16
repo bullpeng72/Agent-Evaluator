@@ -206,6 +206,47 @@ input[type=text],input[type=number]{background:var(--bg3);color:var(--text);bord
 
 <!-- Sidebar -->
 <nav class="side">
+
+  <!-- ── Harness Gate 미니 패널 (상단 고정) ── -->
+  <div x-show="data && data.harness_groups && data.harness_groups.overall"
+       x-cloak
+       style="margin:6px 8px 4px;border:1px solid var(--border);border-radius:8px;padding:8px 10px;background:var(--bg3)">
+    <!-- 타이틀 + 전체 게이트 -->
+    <div style="display:flex;align-items:center;gap:4px;margin-bottom:7px">
+      <span style="font-size:10px;font-weight:700;color:var(--text2);letter-spacing:.04em;white-space:nowrap">🏁 HARNESS GATE</span>
+      <span style="font-size:9px;font-weight:700;padding:1px 6px;border-radius:99px;color:#fff;margin-left:auto;white-space:nowrap;cursor:pointer"
+            :style="`background:${gc(data.harness_groups.overall?.gate)}`"
+            x-text="(data.harness_groups.overall?.gate||'?').toUpperCase()"
+            @click="sec='overview'"></span>
+    </div>
+    <!-- A–G 그룹 점수 박스 -->
+    <div style="display:flex;gap:3px;justify-content:space-between">
+      <template x-for="gk in ['A','B','C','D','E','F','G']" :key="gk">
+        <div x-show="data.harness_groups[gk]"
+             :title="`${gk}: ${data.harness_groups[gk]?.name||''}\n${data.harness_groups[gk]?.score!=null?Math.round(data.harness_groups[gk].score*100)+'%':'n/a'} · ${(data.harness_groups[gk]?.gate||'?').toUpperCase()}`"
+             style="display:flex;flex-direction:column;align-items:center;gap:2px;cursor:pointer"
+             @click="sec=({A:'quality',B:'agentic',C:'reliability',D:'performance',E:'security',F:'agentic',G:'anomaly'}[gk]||'overview')">
+          <!-- 그룹 레터 박스 -->
+          <div style="width:22px;height:18px;border-radius:3px;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:800;color:#fff"
+               :style="`background:${gc(data.harness_groups[gk]?.gate)};opacity:${data.harness_groups[gk]?.score!=null?1:.45}`"
+               x-text="gk"></div>
+          <!-- 점수 % -->
+          <div style="font-size:8.5px;line-height:1;color:var(--text2)"
+               x-text="data.harness_groups[gk]?.score!=null?Math.round(data.harness_groups[gk].score*100)+'%':'—'"></div>
+        </div>
+      </template>
+    </div>
+    <!-- 범례: 전체 점수 -->
+    <div x-show="data.harness_groups.overall?.score!=null"
+         style="margin-top:7px;padding-top:6px;border-top:1px solid var(--border);display:flex;align-items:center;justify-content:space-between">
+      <span style="font-size:9px;color:var(--text2)">전체 점수</span>
+      <span style="font-size:11px;font-weight:700"
+            :style="`color:${gc(data.harness_groups.overall?.gate)}`"
+            x-text="data.harness_groups.overall?.score!=null?Math.round(data.harness_groups.overall.score*100)+'%':'—'"></span>
+    </div>
+  </div>
+  <!-- ──────────────────────────────────────── -->
+
   <template x-for="n in nav" :key="n.id">
     <div>
       <div x-show="n.group" class="nav-grp">

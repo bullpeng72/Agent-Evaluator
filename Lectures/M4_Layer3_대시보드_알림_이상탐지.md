@@ -191,7 +191,7 @@ if events:
 #### 🎯 품질
 - **데이터 흐름**: `ResponseQualityEvaluator`(Relevance·Completeness·Accuracy·Clarity·Usefulness 5차원) + `AccuracyEvaluator`(Token F1·Jaccard·LCS·Char) 자동 실행
 - **환각 탭 예외**: `PerformanceMonitor(enable_hallucination_detection=True)` 설정 필요. 기본값 False (성능 영향)
-- **LLM Judge 섹션**: `@agent_eval(..., enable_llm_judge=True)` 파라미터 추가 시 품질 탭에 Judge 점수 섹션 추가
+- **LLM Judge 섹션**: `@agent_eval(..., llm_judge=LLMJudgeConfig())` 파라미터 추가 시 품질 탭에 Judge 점수 섹션 추가
 
 #### 💬 멀티턴 대화
 - **데이터 흐름**: `@conversation_eval` 데코레이터 → `ConversationSession.compute_metrics()` 자동 호출 → `conversation_sessions[]` JSON 키
@@ -210,7 +210,7 @@ if events:
 - **에이전틱 탭 공백**: `has_agentic=False` 상태면 "트래커 미활성화" 메시지 표시 → `task_type="tool_use"` + `tool_calls` 데이터 필요
 
 #### 🔒 보안
-- **데이터 흐름**: `@agent_eval(..., security_mode=True)` → 5개 보안 트래커 활성 → `security_metrics` JSON 키
+- **데이터 흐름**: `@agent_eval(..., security=SecurityConfig())` → 5개 보안 트래커 활성 → `security_metrics` JSON 키
 - **5개 트래커**: InputSanitization(SQL·XSS·Prompt Injection 탐지) / OutputLeakage(API Key·PII 유출) / ToolAuth(미승인 도구 호출) / PrivilegeEscalation(권한 상승) / ChainAttack(연쇄 공격 패턴)
 - **성능 주의**: 보안 트래커는 각 태스크에 정규식 매칭 오버헤드 추가 → 기본값 False
 
@@ -258,7 +258,7 @@ monitor = HybridPerformanceMonitor(
 
 #### 💰 평가 비용
 - **토큰 비용**: `TokenEconomyTracker` 자동 — 추가 설정 불필요
-- **LLM Judge 비용**: `enable_llm_judge=True` 추가 → 태스크별 `extra["llm_judge"]["cost_usd"]`에 기록
+- **LLM Judge 비용**: `llm_judge=LLMJudgeConfig()` 추가 → 태스크별 `extra["llm_judge"]["cost_usd"]`에 기록
 - **대시보드 UI**: 모델 선택기에서 모델을 변경하면 단가가 재계산됨. 실제 청구액과 차이 가능 (캐싱·배치 할인 미반영)
 
 ---
@@ -287,15 +287,15 @@ Layer 1/2는 외부 의존성 없이 동작하며 대부분의 기본 지표를 
 | 상황 | Layer 1/2 한계 | 데코레이터 기반 해결책 |
 |------|----------------|----------------------|
 | RAG — 환각 정밀 탐지 | Hallucination은 단순 패턴 매칭 | `@agent_eval(..., rag_mode=True)` |
-| Ground Truth 없는 평가 | Accuracy는 정답이 있어야 계산 가능 | `@agent_eval(..., enable_llm_judge=True, judge_model="claude-sonnet-4-6")` |
-| 보안 위협 탐지 | 기본은 보안 지표 비활성 | `@agent_eval(..., security_mode=True)` |
+| Ground Truth 없는 평가 | Accuracy는 정답이 있어야 계산 가능 | `@agent_eval(..., llm_judge=LLMJudgeConfig(model="claude-sonnet-4-6"))` |
+| 보안 위협 탐지 | 기본은 보안 지표 비활성 | `@agent_eval(..., security=SecurityConfig())` |
 | 모든 설정 최소화 | 각 파라미터 직접 설정 필요 | `QuickEval.for_rag()` · `QuickEval.for_security()` · `QuickEval.for_llm_judge()` |
 
 ### 1.2 상황별 데코레이터 설정 패턴
 
 ```python
 from agent_evaluator.decorators import agent_eval
-from agent_evaluator import PerformanceMonitor, QuickEval
+from agent_evaluator import PerformanceMonitor, QuickEval, LLMJudgeConfig, SecurityConfig
 
 # ① RAG 에이전트 — hallucination 자동 활성
 monitor = PerformanceMonitor.for_rag_evaluation("results/")
@@ -306,13 +306,13 @@ def rag_agent(question: str, context: str = "", ground_truth: str = "") -> str:
 
 # ② LLM Judge — ground_truth 없이 자동 채점 (completeness·relevance·factual_consistency)
 @agent_eval(monitor, task_type="qa",
-            enable_llm_judge=True, judge_model="claude-sonnet-4-6",
+            llm_judge=LLMJudgeConfig(model="claude-sonnet-4-6"),
             judge_sample_rate=0.1, judge_budget_per_day=5.0)
 def general_agent(question: str, ground_truth: str = "") -> str:
     return llm.invoke(question)
 
 # ③ 보안 강화 에이전트 — 5종 보안 지표 임시 활성
-@agent_eval(monitor, task_type="qa", security_mode=True)
+@agent_eval(monitor, task_type="qa", security=SecurityConfig())
 def secure_agent(question: str, ground_truth: str = "") -> str:
     return agent.run(question)
 
@@ -325,7 +325,7 @@ eval_reg  = QuickEval.for_regression_eval("results/", baseline_file="results/bas
 
 ### 1.3 LLM Judge — ground_truth 없는 자동 채점
 
-`LLMJudge`는 정답이 없는 상황에서 LLM이 직접 **5차원 기본 (v0.7.5+), +조건부 확장 (v0.7.6+)** 으로 채점한다. `@agent_eval(enable_llm_judge=True)` 한 줄로 통합된다.
+`LLMJudge`는 정답이 없는 상황에서 LLM이 직접 **5차원 기본 (v0.7.5+), +조건부 확장 (v0.7.6+)** 으로 채점한다. `@agent_eval(llm_judge=LLMJudgeConfig())` 한 줄로 통합된다.
 
 ```python
 # 채점 결과는 TaskResult.extra["llm_judge"]에 자동 기록
@@ -333,7 +333,7 @@ eval_reg  = QuickEval.for_regression_eval("results/", baseline_file="results/bas
 # {"completeness": 4.5, "relevance": 5.0, "factual_consistency": 4.8,
 #  "toxicity": 0.1, "bias": 0.0, "overall": 4.77, "safety_score": 0.99}
 # v0.7.6+: rag_mode=True → + "faithfulness": 4.6
-# v0.7.6+: judge_criteria=[...] → + "criteria_scores": {...}
+# v0.7.6+: llm_judge=LLMJudgeConfig(criteria=[...]) → + "criteria_scores": {...}
 ```
 
 **비용 제어 옵션:**
@@ -365,7 +365,7 @@ Layer 1/2만으로 부족할 때 세 가지 외부 평가 방법을 선택할 �
 | **Ground Truth 필요** | 불필요 | 부분 필요 | 필요 (Recall만) |
 | **API 비용** | LLM 호출 비용 | LLM 호출 비용 | 임베딩 + LLM 비용 |
 | **커스터마이즈** | 제한적 | G-Eval로 가능 | 제한적 |
-| **데코레이터 통합** | `enable_llm_judge=True` | `HybridPerformanceMonitor` | `HybridPerformanceMonitor` |
+| **데코레이터 통합** | `llm_judge=LLMJudgeConfig()` | `HybridPerformanceMonitor` | `HybridPerformanceMonitor` |
 
 ### 2.2 선택 플로차트
 
@@ -393,7 +393,7 @@ Layer 1/2만으로 부족할 때 세 가지 외부 평가 방법을 선택할 �
 ```python
 # LLM Judge: 10%만 샘플링
 @agent_eval(monitor, task_type="qa",
-            enable_llm_judge=True, judge_sample_rate=0.1, judge_budget_per_day=5.0)
+            llm_judge=LLMJudgeConfig(), judge_sample_rate=0.1, judge_budget_per_day=5.0)
 def agent(q, ground_truth=""): ...
 
 # DeepEval / Ragas: 스테이징 환경에서만, 또는 골든 데이터셋(소량)으로
@@ -648,9 +648,9 @@ toxicity:            독성 콘텐츠 포함 여부 (낮을수록 좋음)
 bias:                편향 콘텐츠 포함 여부 (낮을수록 좋음)
 
 [조건부 확장 — v0.7.6+]
-faithfulness:        rag_mode=True + enable_llm_judge=True + context 있을 때 자동 추가
+faithfulness:        rag_mode=True + llm_judge=LLMJudgeConfig() + context 있을 때 자동 추가
                      0–5 척도 (5=모든 주장이 컨텍스트에 근거)
-criteria_scores:     judge_criteria=[...] 지정 시 커스텀 G-Eval 기준 점수 추가
+criteria_scores:     llm_judge=LLMJudgeConfig(criteria=[...]) 지정 시 커스텀 G-Eval 기준 점수 추가
 ```
 
 집계 키: `scores["overall"]` (품질 3차원 평균), `scores["safety_score"]` (안전 2차원 역산)
@@ -658,19 +658,18 @@ criteria_scores:     judge_criteria=[...] 지정 시 커스텀 G-Eval 기준 점
 ### 5.3 기본 사용법
 
 ```python
-from agent_evaluator import LLMJudge, PerformanceMonitor, agent_eval
+from agent_evaluator import LLMJudge, PerformanceMonitor, agent_eval, LLMJudgeConfig
 import os
 
 os.environ["ANTHROPIC_API_KEY"] = "sk-ant-..."
 
 monitor = PerformanceMonitor("results/")
 
-# 방법 1: enable_llm_judge 파라미터 (해당 호출만 활성) — 기본 5차원
+# 방법 1: llm_judge 파라미터 (해당 호출만 활성) — 기본 5차원
 @agent_eval(
     monitor,
     task_type="qa",
-    enable_llm_judge=True,
-    judge_model="claude-sonnet-4-6",
+    llm_judge=LLMJudgeConfig(model="claude-sonnet-4-6"),
 )
 def creative_agent(question, ground_truth=""):
     return llm.invoke(question)
@@ -680,20 +679,17 @@ def creative_agent(question, ground_truth=""):
     monitor,
     task_type="information_retrieval",
     rag_mode=True,
-    enable_llm_judge=True,
-    judge_model="claude-sonnet-4-6",
+    llm_judge=LLMJudgeConfig(model="claude-sonnet-4-6"),
 )
 def rag_agent(question, context="", ground_truth=""):
     return llm.rag(question, context)
 # → scores["faithfulness"]: 0–5 (5=모든 주장이 컨텍스트에 근거)
 
-# 방법 3: G-Eval 커스텀 기준 — judge_criteria (v0.7.6+, DeepEval 대체)
+# 방법 3: G-Eval 커스텀 기준 — LLMJudgeConfig(criteria=...) (v0.7.6+, DeepEval 대체)
 @agent_eval(
     monitor,
     task_type="qa",
-    enable_llm_judge=True,
-    judge_model="claude-sonnet-4-6",
-    judge_criteria=["medical_accuracy", "patient_safety"],
+    llm_judge=LLMJudgeConfig(model="claude-sonnet-4-6", criteria=["medical_accuracy", "patient_safety"]),
 )
 def medical_agent(question, ground_truth=""):
     return medical_llm.ask(question)
@@ -749,7 +745,7 @@ monitor.save_to_file("eval")        # results/eval.json + .html
 # monitor = PerformanceMonitor(output_dir="results/", auto_save=True, auto_save_interval=10)
 
 # 방법 C: 데코레이터에 flush_every 지정
-# @agent_eval(monitor, task_type="qa", flush_every=50, flush_filename="periodic")
+# @agent_eval(monitor, task_type="qa", flush_every=50)
 ```
 
 ### 6.2 대시보드 실행

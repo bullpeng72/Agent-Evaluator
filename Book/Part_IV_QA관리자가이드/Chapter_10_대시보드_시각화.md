@@ -91,7 +91,7 @@ JSON: summary / tasks[] / insights / efficiency_metrics
 
 **🔒 보안**
 
-`@agent_eval(..., security_mode=True)` 파라미터 하나로 5개 보안 트래커(입력 위협·출력 유출·도구 권한·권한 상승·체인 공격)를 활성화한다. 성능 오버헤드로 인해 기본값은 False다.
+`@agent_eval(..., security=SecurityConfig())` 파라미터 하나로 5개 보안 트래커(입력 위협·출력 유출·도구 권한·권한 상승·체인 공격)를 활성화한다. 성능 오버헤드로 인해 기본값은 False다.
 
 ---
 
@@ -299,7 +299,7 @@ from agent_evaluator.decorators import agent_eval
 monitor = PerformanceMonitor(output_dir="results/")
 
 # 20회 호출마다 자동 저장
-@agent_eval(monitor, task_type="qa", flush_every=20, flush_filename="periodic")
+@agent_eval(monitor, task_type="qa", flush_every=20)
 def my_agent(question: str, ground_truth: str = "") -> str:
     return llm.invoke(question)
 ```
@@ -711,7 +711,7 @@ monitor = PerformanceMonitor(enable_security_metrics=True)
 # 또는 팩토리 메서드
 monitor = PerformanceMonitor.for_secure_agents()
 # 또는 데코레이터에서 임시 활성
-@agent_eval(monitor, task_type="qa", security_mode=True)
+@agent_eval(monitor, task_type="qa", security=SecurityConfig())
 def agent(question: str, ground_truth: str = "") -> str: ...
 ```
 
@@ -719,15 +719,15 @@ def agent(question: str, ground_truth: str = "") -> str: ...
 
 ### 문제 7: LLM Judge가 동작하지 않음
 
-**증상**: `enable_llm_judge=True` 설정 후에도 `llm_judge` 지표가 보고서에 없음.
+**증상**: `llm_judge=LLMJudgeConfig()` 설정 후에도 `llm_judge` 지표가 보고서에 없음.
 
 **원인**: `OPENAI_API_KEY` 또는 `ANTHROPIC_API_KEY` 미설정.
 ```bash
 export ANTHROPIC_API_KEY=sk-ant-...
 ```
 ```python
-@agent_eval(monitor, task_type="qa", enable_llm_judge=True,
-            judge_model="claude-sonnet-4-6")
+@agent_eval(monitor, task_type="qa",
+            llm_judge=LLMJudgeConfig(model="claude-sonnet-4-6"))
 def agent(question: str, ground_truth: str = "") -> str: ...
 ```
 
@@ -768,7 +768,7 @@ chat_agent("안녕하세요", session_id=str(uuid.uuid4()))
 ```python
 monitor = PerformanceMonitor(output_dir="results/")  # output_dir 반드시 지정
 
-@agent_eval(monitor, task_type="qa", flush_every=10, flush_filename="periodic")
+@agent_eval(monitor, task_type="qa", flush_every=10)
 def agent(question: str, ground_truth: str = "") -> str: ...
 ```
 

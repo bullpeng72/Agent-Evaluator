@@ -443,7 +443,7 @@ Ground truth를 항상 가질 수 있는가?
 | 24 | Ragas Faithfulness | 3 | ✅ | OpenAI | 🐢 | $$$ | △ | RAG 파이프라인 |
 | 25 | Ragas Relevancy 外 | 3 | ✅ | OpenAI | 🐢 | $$$ | △ | RAG 검색 평가 |
 
-**opt-in**: `enable_hallucination_detection=True`, `enable_security_metrics=True`, `enable_llm_judge=True` 등으로 명시 활성화 필요  
+**opt-in**: `enable_hallucination_detection=True`, `enable_security_metrics=True`, `llm_judge=LLMJudgeConfig()` 등으로 명시 활성화 필요  
 **속도**: ⚡ = <50ms, 🐢 = >500ms  
 **비용**: $0 = 무료, $$ = 건당 $0.001~0.01, $$$ = 건당 $0.01+
 

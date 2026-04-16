@@ -159,6 +159,10 @@ class ResultFile:
     anomaly_data: List[Dict[str, Any]] = field(default_factory=list)
     cost_data: Dict[str, Any] = field(default_factory=dict)
     streaming_data: Dict[str, Any] = field(default_factory=dict)
+    # Phase 2: Harness 그룹 집계 (EvaluationReport.extra_metrics["harness_groups"])
+    harness_groups: Optional[Dict[str, Any]] = field(default_factory=dict)
+    loop_events: List[Dict[str, Any]] = field(default_factory=list)
+    fault_tolerance_by_tool: Dict[str, Any] = field(default_factory=dict)
 
     # ---- computed helpers ------------------------------------------------
     @property
@@ -314,6 +318,10 @@ class ResultFile:
     @property
     def has_conversations(self) -> bool:
         return len(self.conversation_sessions) > 0
+
+    @property
+    def has_harness(self) -> bool:
+        return bool(self.harness_groups and len(self.harness_groups) > 1)
 
 
 @dataclass
@@ -704,6 +712,170 @@ def _parse_anomaly_data(raw: dict) -> List[Dict[str, Any]]:
     return result
 
 
+def _compute_harness_groups_fallback(report: dict) -> Dict[str, Any]:
+    """기존 JSON 파일에 harness_groups 없을 때 기존 지표에서 A~G 그룹 계산.
+
+    monitor.py의 _compute_harness_groups()와 동일한 그룹 체계를 따르되,
+    직렬화된 report dict에서 직접 읽는다.
+    """
+    acc = report.get("accuracy_metrics") or {}
+    eff = report.get("efficiency_metrics") or {}
+    sec = report.get("security_metrics") or {}
+
+    # ── Group A: Goal Achievement ──────────────────────────────────────────
+    tcr_pct = float((acc.get("tcr") or {}).get("tcr", 0.0) or 0.0)
+    overall_acc = float((acc.get("accuracy_scores") or {}).get("overall_accuracy", 0.0) or 0.0) / 100.0
+    a_score = round((tcr_pct / 100.0 + overall_acc) / 2.0, 4)
+
+    # ── Group B: Behavioral Integrity ─────────────────────────────────────
+    # 루프 감지 없으면 TCR 기반 프록시
+    b_score = round(min(1.0, tcr_pct / 100.0 * 0.95), 4)
+
+    # ── Group C: Reliability ─────────────────────────────────────────────
+    retry_block = acc.get("retry_correction") or {}
+    avg_retry = retry_block.get("avg_retry_count") or retry_block.get("avg_retries_per_task")
+    if avg_retry is not None:
+        c_score = round(max(0.0, 1.0 - float(avg_retry) / 5.0), 4)
+    else:
+        c_score = round(min(1.0, tcr_pct / 100.0), 4)
+
+    # ── Group D: Performance Contract ────────────────────────────────────
+    lat = (eff.get("latency") or {})
+    p95 = lat.get("p95") or lat.get("p95_latency")
+    if p95 is not None:
+        p95 = float(p95)
+        d_score = round(1.0 if p95 < 5.0 else (0.7 if p95 < 10.0 else 0.3), 4)
+    else:
+        d_score = 0.5
+
+    # ── Group E: Security Boundary ────────────────────────────────────────
+    threat_count = int(sec.get("threat_count", 0) or 0)
+    n = max(1, int(report.get("total_tasks", 1) or 1))
+    e_score = round(max(0.0, 1.0 - threat_count / n), 4)
+
+    # ── Group F: Multi-Agent Coordination ────────────────────────────────
+    coord_block = report.get("coordination_metrics") or {}
+    coord_rate = (
+        (coord_block.get("interaction_patterns") or {}).get("coordination_success_rate")
+        or coord_block.get("coordination_success_rate")
+    )
+    f_score = round(float(coord_rate), 4) if coord_rate is not None else None
+
+    # ── Group G: Observability ────────────────────────────────────────────
+    hall_block = acc.get("hallucination") or {}
+    hall_rate = hall_block.get("overall_rate") or hall_block.get("average_hallucination_rate") or 0.0
+    g_score = round(max(0.0, 1.0 - float(hall_rate) / 100.0), 4)
+
+    def _gate(score: Optional[float], hi: float = 0.7, lo: float = 0.5) -> str:
+        if score is None:
+            return "n/a"
+        return "pass" if score >= hi else ("warn" if score >= lo else "fail")
+
+    groups: Dict[str, Any] = {
+        "A": {"name": "Goal Achievement",          "score": a_score, "gate": _gate(a_score)},
+        "B": {"name": "Behavioral Integrity",       "score": b_score, "gate": _gate(b_score)},
+        "C": {"name": "Reliability",               "score": c_score, "gate": _gate(c_score)},
+        "D": {"name": "Performance Contract",       "score": d_score, "gate": _gate(d_score)},
+        "E": {"name": "Security Boundary",          "score": e_score, "gate": _gate(e_score, hi=0.9, lo=0.7)},
+        "F": {"name": "Multi-Agent Coordination",   "score": f_score, "gate": _gate(f_score)},
+        "G": {"name": "Observability",              "score": g_score, "gate": _gate(g_score)},
+    }
+    scored = [v["score"] for v in groups.values() if v["score"] is not None]
+    overall = round(sum(scored) / len(scored), 4) if scored else 0.0
+    gates = [v["gate"] for v in groups.values() if v["gate"] != "n/a"]
+    overall_gate = "fail" if "fail" in gates else ("warn" if "warn" in gates else "pass")
+    groups["overall"] = {"score": overall, "gate": overall_gate}
+    return groups
+
+
+def _parse_harness_data(
+    raw: dict,
+) -> "tuple[Optional[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]":
+    """EvaluationReport.extra_metrics["harness_groups"] 및 task extras 파싱.
+
+    Returns:
+        (harness_groups, loop_events, fault_tolerance_by_tool)
+        harness_groups: 항상 8-key dict (A~G + overall) 반환 (has_harness 판별은 ResultFile.has_harness).
+    """
+    # harness_groups: report.extra_metrics.harness_groups
+    report = raw.get("report", raw)
+    extra = report.get("extra_metrics", {})
+    if not isinstance(extra, dict):
+        extra = {}
+    harness_groups: Optional[Dict[str, Any]] = extra.get("harness_groups")
+    if not isinstance(harness_groups, dict):
+        harness_groups = None
+
+    # monitor.py 는 "status" 키를 사용, 대시보드는 "gate" 키를 사용 — 정규화
+    if isinstance(harness_groups, dict):
+        for gv in harness_groups.values():
+            if isinstance(gv, dict) and "status" in gv and "gate" not in gv:
+                gv["gate"] = gv["status"]
+
+    # 기존 파일(Phase 1 이전 생성)에 harness_groups 없으면 기존 지표에서 fallback 계산
+    if harness_groups is None:
+        try:
+            harness_groups = _compute_harness_groups_fallback(report)
+        except Exception:
+            harness_groups = None
+
+    # loop_events: tasks[*].extra.loop_detection.detected=True 목록 병합
+    loop_events: List[Dict[str, Any]] = []
+    # fault_tolerance_by_tool: tasks[*].extra.fault_tolerance 도구별 집계
+    ft_acc: Dict[str, Dict[str, int]] = {}
+
+    for t in raw.get("tasks", []):
+        if not isinstance(t, dict):
+            continue
+        task_extra = t.get("extra") or {}
+        if not isinstance(task_extra, dict):
+            continue
+        task_id = t.get("task_id", "")
+
+        # loop_events
+        ld = task_extra.get("loop_detection")
+        if isinstance(ld, dict) and ld.get("detected"):
+            loop_events.append({
+                "task_id": task_id,
+                "type": ld.get("type", "unknown"),
+                "at_step": ld.get("at_step"),
+                "tool": ld.get("tool"),
+                "detected_at": t.get("timestamp", ""),
+            })
+
+        # fault_tolerance_by_tool
+        ft = task_extra.get("fault_tolerance")
+        if isinstance(ft, dict):
+            failures = int(ft.get("failures_detected", 0) or 0)
+            fallbacks = int(ft.get("fallback_attempts", 0) or 0)
+            # 도구명은 task_extra나 tool_calls에서 추출
+            tool_name = "unknown"
+            tcs = t.get("tool_calls") or []
+            if isinstance(tcs, list) and tcs:
+                first_failed = next(
+                    (tc.get("name", "unknown") for tc in tcs
+                     if isinstance(tc, dict) and not tc.get("success", True)),
+                    tcs[0].get("name", "unknown") if isinstance(tcs[0], dict) else "unknown",
+                )
+                tool_name = first_failed
+            if failures > 0:
+                if tool_name not in ft_acc:
+                    ft_acc[tool_name] = {"total": 0, "recovered": 0}
+                ft_acc[tool_name]["total"] += failures
+                ft_acc[tool_name]["recovered"] += min(fallbacks, failures)
+
+    fault_tolerance_by_tool: Dict[str, Any] = {
+        tool: {
+            "total": v["total"],
+            "recovered": v["recovered"],
+            "recovery_rate": round(v["recovered"] / v["total"] * 100, 1) if v["total"] else 0.0,
+        }
+        for tool, v in ft_acc.items()
+    }
+
+    return harness_groups, loop_events, fault_tolerance_by_tool
+
+
 # ---------------------------------------------------------------------------
 # Agentic parsing
 # ---------------------------------------------------------------------------
@@ -999,6 +1171,7 @@ def parse_file(path: Path) -> ResultFile:
 
     # Parse advanced first so we can reuse its rag_metrics for has_rag detection
     advanced = _parse_advanced(raw)
+    harness_groups, loop_events, fault_tolerance_by_tool = _parse_harness_data(raw)
 
     # ResultFile.rag_metrics: top-level field wins; fall back to advanced.rag_metrics
     # (which was already built from per-task data if needed)
@@ -1044,6 +1217,9 @@ def parse_file(path: Path) -> ResultFile:
         anomaly_data=_parse_anomaly_data(raw),
         cost_data=_parse_cost_data(raw),
         streaming_data=_parse_streaming_data(raw),
+        harness_groups=harness_groups,
+        loop_events=loop_events,
+        fault_tolerance_by_tool=fault_tolerance_by_tool,
     )
 
 

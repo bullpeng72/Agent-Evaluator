@@ -131,7 +131,7 @@ monitor = PerformanceMonitor(enable_hallucination_detection=True)
 monitor = PerformanceMonitor.for_rag_evaluation()
 
 # 방법 3: 데코레이터에서 임시 활성 (해당 함수 호출에만 적용)
-@agent_eval(monitor, task_type="information_retrieval", enable_hallucination=True)
+@agent_eval(monitor, task_type="information_retrieval", enable_hallucination_detection=True)
 def rag_agent(question: str, context: str = "", ground_truth: str = "") -> str: ...
 
 # 방법 4: rag_mode 사용
@@ -155,7 +155,7 @@ monitor = PerformanceMonitor(enable_security_metrics=True)
 monitor = PerformanceMonitor.for_secure_agents()
 
 # 방법 3: 데코레이터에서 임시 활성
-@agent_eval(monitor, task_type="qa", security_mode=True)
+@agent_eval(monitor, task_type="qa", security=SecurityConfig())
 def agent(question: str, ground_truth: str = "") -> str: ...
 ```
 
@@ -265,7 +265,7 @@ v0.7.1+에서는 태스크가 없을 때 `tasks=0`을 안전하게 반환한다.
 
 ### 13. LLM Judge가 동작하지 않음
 
-**증상**: `enable_llm_judge=True` 설정 후에도 `llm_judge` 지표가 보고서에 없음.
+**증상**: `llm_judge=LLMJudgeConfig()` 설정 후에도 `llm_judge` 지표가 보고서에 없음.
 
 **원인**: `OPENAI_API_KEY` 또는 `ANTHROPIC_API_KEY` 미설정.
 
@@ -279,7 +279,7 @@ export ANTHROPIC_API_KEY=sk-ant-...
 
 ```python
 # Anthropic 모델 명시
-@agent_eval(monitor, task_type="qa", enable_llm_judge=True, judge_model="claude-sonnet-4-6")
+@agent_eval(monitor, task_type="qa", llm_judge=LLMJudgeConfig(model="claude-sonnet-4-6"))
 def agent(question: str, ground_truth: str = "") -> str: ...
 ```
 
@@ -295,7 +295,7 @@ def agent(question: str, ground_truth: str = "") -> str: ...
 # output_dir 반드시 지정
 monitor = PerformanceMonitor(output_dir="results/")
 
-@agent_eval(monitor, task_type="qa", flush_every=10, flush_filename="periodic")
+@agent_eval(monitor, task_type="qa", flush_every=10)
 def agent(question: str, ground_truth: str = "") -> str: ...
 ```
 
@@ -453,7 +453,7 @@ pip install jinja2>=3.1.0
 - `LLMJudge`는 `completeness`, `relevance`, `factual_consistency` 3종을 ground_truth 없이 채점 가능
 
 ```python
-@agent_eval(monitor, task_type="qa", enable_llm_judge=True)
+@agent_eval(monitor, task_type="qa", llm_judge=LLMJudgeConfig())
 def agent(question: str, ground_truth: str = "") -> str:
     return llm.invoke(question)
 
@@ -518,7 +518,7 @@ df = monitor.export_to_dataframe()
 
 ### Q6. 평가 데코레이터를 적용해도 에이전트 성능에 영향이 있나?
 
-Layer 1/2 네이티브 지표는 순수 Python 알고리즘으로 계산되므로 오버헤드가 매우 작다 (태스크당 < 5ms). 단, 보안 지표(`enable_security_metrics=True`) 활성화 시 5~15ms 추가 오버헤드가 발생한다. LLM Judge(`enable_llm_judge=True`)는 외부 API 호출을 수반하므로 수 초의 추가 시간이 필요하다.
+Layer 1/2 네이티브 지표는 순수 Python 알고리즘으로 계산되므로 오버헤드가 매우 작다 (태스크당 < 5ms). 단, 보안 지표(`enable_security_metrics=True`) 활성화 시 5~15ms 추가 오버헤드가 발생한다. LLM Judge(`llm_judge=LLMJudgeConfig()`)는 외부 API 호출을 수반하므로 수 초의 추가 시간이 필요하다.
 
 ---
 

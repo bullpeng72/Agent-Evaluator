@@ -618,6 +618,11 @@ def get_result(file_id: str, request: Request) -> Dict[str, Any]:
             "model":                  rf.llm_judge.model,
             "results":                rf.llm_judge.results,
         },
+        # Phase 2: Harness 그룹 + 에이전틱 확장
+        "harness_groups":          getattr(rf, "harness_groups", None),
+        "has_harness":             getattr(rf, "has_harness", False),
+        "loop_events":             getattr(rf, "loop_events", []),
+        "fault_tolerance_by_tool": getattr(rf, "fault_tolerance_by_tool", {}),
     }
 
 
@@ -756,7 +761,69 @@ def aggregate_tasks(
             "total_tokens": g["_tokens"],
         }
 
-    return {"file_id": file_id, "by": by, "groups": result_groups}
+    return {
+        "file_id": file_id,
+        "by": by,
+        "groups": result_groups,
+        # Phase 2: Harness 그룹 집계 포함
+        "harness_groups": getattr(rf, "harness_groups", None),
+    }
+
+
+@router.get("/results/{file_id}/reliability")
+def get_reliability(file_id: str, request: Request) -> Dict[str, Any]:
+    """Reliability 탭용 — 재현성·루프·도구 내결함성 집계 (Phase 2).
+
+    Returns:
+        error_free_rate, retry_free_rate, loop_events, fault_tolerance_by_tool,
+        harness_groups, reproducibility_by_type
+    """
+    import math
+    from collections import defaultdict
+
+    rs = _rs(request)
+    rf = rs.by_id(file_id)
+    if rf is None:
+        raise HTTPException(status_code=404, detail="File not found")
+
+    tasks = rf.tasks
+    n = len(tasks) or 1
+    error_free = sum(1 for t in tasks if not t.errors)
+    retry_free = sum(1 for t in tasks if t.attempts <= 1)
+
+    # completion_score 분산 by task_type
+    by_type: Dict[str, list] = defaultdict(list)
+    for t in tasks:
+        by_type[str(getattr(t, "task_type", "unknown"))].append(
+            getattr(t, "completion_score", 0.0) or 0.0
+        )
+
+    repro_by_type: Dict[str, Any] = {}
+    for tt, scores in by_type.items():
+        if len(scores) < 2:
+            repro_by_type[tt] = {"count": len(scores), "mean": None, "std": None, "cv": None}
+            continue
+        mean = sum(scores) / len(scores)
+        variance = sum((s - mean) ** 2 for s in scores) / len(scores)
+        std = math.sqrt(variance)
+        cv = round(std / mean * 100, 1) if mean > 0 else None
+        repro_by_type[tt] = {
+            "count": len(scores),
+            "mean": round(mean, 3),
+            "std": round(std, 3),
+            "cv": cv,
+        }
+
+    return {
+        "file_id": file_id,
+        "total_tasks": rf.total_tasks,
+        "error_free_rate": round(error_free / n * 100, 1),
+        "retry_free_rate": round(retry_free / n * 100, 1),
+        "loop_events": getattr(rf, "loop_events", []),
+        "fault_tolerance_by_tool": getattr(rf, "fault_tolerance_by_tool", {}),
+        "harness_groups": getattr(rf, "harness_groups", None),
+        "reproducibility_by_type": repro_by_type,
+    }
 
 
 @router.post("/results/{file_id}/tasks/filter")

@@ -64,10 +64,10 @@ Anthropic Claude API 키. `LLMJudge`의 대안 모델로 사용된다.
 export ANTHROPIC_API_KEY=sk-ant-...
 ```
 
-`judge_model="claude-sonnet-4-6"` 지정 시 이 키가 사용된다.
+`LLMJudgeConfig(model="claude-sonnet-4-6")` 지정 시 이 키가 사용된다.
 
 ```python
-@agent_eval(monitor, task_type="qa", enable_llm_judge=True, judge_model="claude-sonnet-4-6")
+@agent_eval(monitor, task_type="qa", llm_judge=LLMJudgeConfig(model="claude-sonnet-4-6"))
 def agent(question: str, ground_truth: str = "") -> str: ...
 ```
 

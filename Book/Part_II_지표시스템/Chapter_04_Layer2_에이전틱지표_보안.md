@@ -40,7 +40,7 @@ Layer 2는 두 가지 성격의 지표로 나뉜다.
 
 **Layer 2-A (에이전틱 행동 분석)**: 에이전트가 어떻게 행동하는가를 측정한다. `tool_calls`, `chain_steps`, `agent_interactions` 데이터가 공급되면 자동으로 활성화된다. 별도 플래그가 필요 없다.
 
-**Layer 2-B (보안 위협 탐지)**: 에이전트가 안전한가를 측정한다. 성능에 영향을 주기 때문에 기본값은 비활성이며, `enable_security_metrics=True` 또는 `security_mode=True`로 명시적 활성화가 필요하다.
+**Layer 2-B (보안 위협 탐지)**: 에이전트가 안전한가를 측정한다. 성능에 영향을 주기 때문에 기본값은 비활성이며, `enable_security_metrics=True`(PerformanceMonitor) 또는 `security=SecurityConfig()`(데코레이터)로 명시적 활성화가 필요하다.
 
 ---
 
@@ -78,16 +78,17 @@ Layer 2는 두 가지 성격의 지표로 나뉜다.
 | DB/파일 접근 | ToolCall + Workflow | 보안 5종 전체 |
 | RAG 파이프라인 | ToolCall + Workflow | OutputLeakage |
 
-### enable_security_metrics=True vs security_mode=True 차이
+### enable_security_metrics=True vs security=SecurityConfig() 차이
 
 두 옵션은 작동 범위가 다르다.
 
 `enable_security_metrics=True`는 `PerformanceMonitor` 생성 시 지정하는 **영구 활성화** 옵션이다. 해당 모니터를 통해 기록되는 모든 태스크에 5개 보안 트래커가 적용된다.
 
-`security_mode=True`는 `@agent_eval` 데코레이터의 파라미터로 지정하는 **임시 활성화** 옵션이다. 해당 데코레이터가 적용된 함수 호출에만 보안 지표가 임시로 활성화되고, 호출이 끝나면 원래 설정으로 복원된다.
+`security=SecurityConfig()`는 `@agent_eval` 데코레이터의 파라미터로 지정하는 **임시 활성화** 옵션이다. 해당 데코레이터가 적용된 함수 호출에만 보안 지표가 임시로 활성화되고, 호출이 끝나면 원래 설정으로 복원된다.
 
 ```python
 from agent_evaluator import PerformanceMonitor, agent_eval
+from agent_evaluator.decorators import SecurityConfig
 
 # 영구 활성: 이 모니터의 모든 태스크에 보안 지표 적용
 monitor_secure = PerformanceMonitor(
@@ -96,7 +97,7 @@ monitor_secure = PerformanceMonitor(
 )
 
 # 임시 활성: 이 데코레이터 호출에만 보안 지표 적용
-@agent_eval(monitor, task_type="qa", security_mode=True)
+@agent_eval(monitor, task_type="qa", security=SecurityConfig())
 def public_agent(question, ground_truth=""):
     return llm.invoke(question)
 ```
@@ -182,16 +183,18 @@ avg_attempts            = 전체 시도 횟수 / 전체 태스크 수
 `attempts` 필드로 재시도 횟수를 추적한다.
 
 ```python
-from agent_evaluator import agent_eval_with_retry
+from agent_evaluator.decorators import agent_eval, RetryConfig
 
 # 자동 재시도 + 추적
-@agent_eval_with_retry(
+@agent_eval(
     monitor,
     task_type="qa",
-    max_retries=3,
-    retry_on=(Exception,),
-    jitter_type="full",    # 재시도 간격에 무작위 지터 추가
-    max_delay=10.0,        # 최대 대기 시간(초)
+    retry=RetryConfig(
+        max=3,
+        on=(Exception,),
+        jitter_type="full",    # 재시도 간격에 무작위 지터 추가
+        max_delay=10.0,        # 최대 대기 시간(초)
+    ),
 )
 def flaky_agent(question, ground_truth=""):
     return unstable_api.call(question)
@@ -327,7 +330,7 @@ print(f"병목 단계: {wf_metrics['bottlenecks']}")
 
 ## 4.4 Layer 2-B: 보안 위협 탐지 5종
 
-Layer 2-B 보안 지표 5종은 기본값 `False`다. `enable_security_metrics=True`로 `PerformanceMonitor`를 생성하거나, 데코레이터에 `security_mode=True`를 추가해야 활성화된다.
+Layer 2-B 보안 지표 5종은 기본값 `False`다. `enable_security_metrics=True`로 `PerformanceMonitor`를 생성하거나, 데코레이터에 `security=SecurityConfig()`를 추가해야 활성화된다.
 
 ### 4.4.1 Input Sanitization — SQL/Command/Path/XSS/Prompt Injection
 
@@ -389,7 +392,7 @@ browse_web     → read_config   → write_config   → execute_system_cmd
 - **횡단 이동**: `access_system_A → discover_credentials → access_system_B`
 - **지속성 공격**: `modify_startup → install_backdoor → hide_traces`
 
-### 전체 코드 예시: security_mode=True 설정 + 보안 태스크 평가
+### 전체 코드 예시: security=SecurityConfig() 설정 + 보안 태스크 평가
 
 ```python
 from agent_evaluator import PerformanceMonitor, agent_eval, EvalMetadata
@@ -496,7 +499,7 @@ print(f"권한 위반율: {auth_sec.get('violation_rate', 0.0):.2%}")
 대응 방법:
 1. `threat_types` 딕셔너리로 어떤 유형이 오탐인지 확인
 2. 오탐 패턴이 반복된다면 해당 에이전트의 컨텍스트를 검토하여 Input Sanitization 설정을 조정
-3. 기술 문서 에이전트처럼 코드 입력이 정상인 경우, `security_mode`를 선택적으로만 적용
+3. 기술 문서 에이전트처럼 코드 입력이 정상인 경우, `security=SecurityConfig()`를 선택적으로만 적용
 
 ### 주간 보안 리뷰 체크리스트
 
@@ -634,18 +637,20 @@ def agent(question, ground_truth=""):
 
 | 지표 | `@agent_eval` | 활성 방법 | 추가 파라미터 |
 |---|:---:|---|---|
-| Input Sanitization | ✅ | `security_mode=True` | — |
-| Output Leakage | ✅ | `security_mode=True` | — |
-| Tool Authorization | ✅ | `security_mode=True` | `allowed_tools=[...]` |
-| Privilege Escalation | ✅ | `security_mode=True` | — |
-| Tool Chain Attack | ✅ | `security_mode=True` | — |
+| Input Sanitization | ✅ | `security=SecurityConfig()` | — |
+| Output Leakage | ✅ | `security=SecurityConfig()` | — |
+| Tool Authorization | ✅ | `security=SecurityConfig()` | `allowed_tools=[...]` |
+| Privilege Escalation | ✅ | `security=SecurityConfig()` | — |
+| Tool Chain Attack | ✅ | `security=SecurityConfig()` | — |
 
 > **모든 보안 지표는 `@agent_eval`만 지원한다.** `@batch_eval`, `@conversation_eval`은 미지원이며, 전역 활성화는 `PerformanceMonitor(enable_security_metrics=True)`를 사용한다.
 
 ```python
 # 5개 보안 지표 한 번에 활성화
+from agent_evaluator.decorators import SecurityConfig
+
 @agent_eval(monitor,
-            security_mode=True,
+            security=SecurityConfig(),
             allowed_tools=["search", "calculate", "read_file"])
 def secure_agent(question, ground_truth=""): ...
 
@@ -654,7 +659,7 @@ monitor = PerformanceMonitor(
     enable_security_metrics=True,
     output_dir="results/",
 )
-@agent_eval(monitor, task_type="tool_use")  # security_mode 없어도 자동 수집
+@agent_eval(monitor, task_type="tool_use")  # security=SecurityConfig() 없어도 자동 수집
 def agent(question, ground_truth=""): ...
 ```
 
@@ -664,7 +669,7 @@ def agent(question, ground_truth=""): ...
 
 - **Layer 2-A는 데이터만 공급하면 자동 활성화**된다. `framework=` 파라미터 또는 `EvalMetadata`로 `tool_calls`, `chain_steps`, `agent_interactions`를 제공하면 된다.
 
-- **Layer 2-B(보안)는 기본값 비활성**이다. `enable_security_metrics=True`(영구) 또는 `security_mode=True`(임시)로 명시적 활성화가 필요하다.
+- **Layer 2-B(보안)는 기본값 비활성**이다. `enable_security_metrics=True`(영구) 또는 `security=SecurityConfig()`(임시)로 명시적 활성화가 필요하다.
 
 - **3단계 점진적 도입**이 현실적이다. 1주차 Layer 1 baseline → 2주차 도구 행동 분석 추가 → 3주차 보안 지표 추가.
 
@@ -809,7 +814,7 @@ agent-eval dashboard results/
 
 > **Tool Selection F1 활성화 조건**: `expected_tools_arg=["search", "calculator"]`처럼 기대 도구 목록을 명시해야 F1 점수가 계산된다. 목록 없이 호출하면 도구 호출 횟수만 기록된다.
 
-> **보안 지표 활성화**: `enable_security_metrics=True`(영구) 또는 `security_mode=True`(단일 호출 임시)로 활성화한다. 기본값은 비활성(성능 영향 최소화)이다.
+> **보안 지표 활성화**: `enable_security_metrics=True`(영구) 또는 `security=SecurityConfig()`(단일 호출 임시)로 활성화한다. 기본값은 비활성(성능 영향 최소화)이다.
 
 ---
 

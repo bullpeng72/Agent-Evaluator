@@ -30,7 +30,7 @@ from agent_evaluator import AdaptivePolicy, SamplingStage
 
 ### agent_eval (데코레이터)
 
-단일 함수를 평가 대상으로 등록하는 핵심 데코레이터. `PerformanceMonitor`에 `TaskResult`를 자동으로 기록한다. `framework=`, `rag_mode=`, `security_mode=`, `flush_every=`, `alert_rules=` 등 다양한 파라미터를 지원한다.
+단일 함수를 평가 대상으로 등록하는 핵심 데코레이터. `PerformanceMonitor`에 `TaskResult`를 자동으로 기록한다. `framework=`, `rag_mode=`, `security=SecurityConfig()`, `flush_every=`, `alert_rules=` 등 다양한 파라미터를 지원한다.
 
 ```python
 from agent_evaluator.decorators import agent_eval
@@ -164,7 +164,7 @@ with evaluation_session("output_filename") as monitor:
 `@agent_eval`, `@batch_eval` 데코레이터의 파라미터. N번 호출마다 `save_to_file()`을 자동으로 실행한다. 장시간 실행 평가에서 중간 저장을 보장한다.
 
 ```python
-@agent_eval(monitor, task_type="qa", flush_every=10, flush_filename="periodic")
+@agent_eval(monitor, task_type="qa", flush_every=10)
 def agent(question: str, ground_truth: str = "") -> str: ...
 ```
 

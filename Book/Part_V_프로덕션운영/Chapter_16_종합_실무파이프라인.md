@@ -119,7 +119,6 @@ alert_rule = SimpleTaskAlertRule(
     task_type="qa",
     sample_rate=0.1,              # 10% 샘플링
     flush_every=50,               # 50회마다 저장
-    flush_filename="prod_eval",
     alert_rules=[alert_rule],
 )
 def production_agent(question: str, ground_truth: str = "") -> str:
@@ -685,7 +684,6 @@ slow_alert = SimpleTaskAlertRule(
     task_type="information_retrieval",
     alert_rules=[slow_alert],
     flush_every=50,              # 50건마다 자동 저장
-    flush_filename="streaming_checkpoint",
 )
 def production_agent(question: str, context: str = "", ground_truth: str = "") -> tuple:
     response = f"답변: {question}"

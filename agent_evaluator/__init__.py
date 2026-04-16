@@ -136,6 +136,45 @@ from .decorators import (
     LLMJudgeConfig,
     # SecurityConfig — 보안 메트릭 파라미터 묶음 (v0.8.3+)
     SecurityConfig,
+    # v0.9.0+: Phase 1 Harness Config 데이터클래스
+    InstructionConfig,
+    LoopDetectionConfig,
+    GoalAlignmentConfig,
+    ReproducibilityConfig,
+    FaultToleranceConfig,
+    PlanConfig,
+    # v0.9.1+: 신규 Harness Config 데이터클래스
+    SLAConfig,
+    ThreatSeverityConfig,
+    EfficiencyConfig,
+    StateConsistencyConfig,
+    DeadlockConfig,
+    ObservabilityConfig,
+    ConsensusConfig,
+    # v0.9.2+: Phase 3 Harness Config 데이터클래스
+    ScopeConfig,
+    ContextRetentionConfig,
+    ExplainabilityConfig,
+    SubtaskConfig,
+    PropagationConfig,
+    # v0.9.3+: Phase 4 Harness Config 데이터클래스
+    AgentRoleConfig,
+    GracefulDegradationConfig,
+    ComplianceConfig,
+    ResourceBudgetConfig,
+    ConflictResolutionConfig,
+    # v0.9.4+: Phase 5 Harness Config 데이터클래스
+    ToolParameterSafetyConfig,
+    KnowledgeRetentionConfig,
+    RetryConsistencyConfig,
+    TTFTVariabilityConfig,
+    ErrorDiagnosisConfig,
+    # v0.9.5+: Phase 6 Harness Config 데이터클래스
+    IdempotencyConfig,
+    CostPredictabilityConfig,
+    ThreatResponseConfig,
+    ContextWindowConfig,
+    LatencyAttributionConfig,
 )
 
 # Task 6: QuickEval — 원스톱 평가 Facade
@@ -309,6 +348,45 @@ __all__ = [
     'LLMJudgeConfig',
     # SecurityConfig — 보안 메트릭 파라미터 묶음 (v0.8.3+)
     'SecurityConfig',
+    # v0.9.0+: Phase 1 Harness Config 데이터클래스
+    'InstructionConfig',
+    'LoopDetectionConfig',
+    'GoalAlignmentConfig',
+    'ReproducibilityConfig',
+    'FaultToleranceConfig',
+    'PlanConfig',
+    # v0.9.1+: 신규 Harness Config 데이터클래스
+    'SLAConfig',
+    'ThreatSeverityConfig',
+    'EfficiencyConfig',
+    'StateConsistencyConfig',
+    'DeadlockConfig',
+    'ObservabilityConfig',
+    'ConsensusConfig',
+    # v0.9.2+: Phase 3 Harness Config 데이터클래스
+    'ScopeConfig',
+    'ContextRetentionConfig',
+    'ExplainabilityConfig',
+    'SubtaskConfig',
+    'PropagationConfig',
+    # v0.9.3+: Phase 4 Harness Config 데이터클래스
+    'AgentRoleConfig',
+    'GracefulDegradationConfig',
+    'ComplianceConfig',
+    'ResourceBudgetConfig',
+    'ConflictResolutionConfig',
+    # v0.9.4+: Phase 5 Harness Config 데이터클래스
+    'ToolParameterSafetyConfig',
+    'KnowledgeRetentionConfig',
+    'RetryConsistencyConfig',
+    'TTFTVariabilityConfig',
+    'ErrorDiagnosisConfig',
+    # v0.9.5+: Phase 6 Harness Config 데이터클래스
+    'IdempotencyConfig',
+    'CostPredictabilityConfig',
+    'ThreatResponseConfig',
+    'ContextWindowConfig',
+    'LatencyAttributionConfig',
 
     # Conversation Evaluation (Phase 1-C)
     'ConversationSession',

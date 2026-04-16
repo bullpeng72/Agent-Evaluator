@@ -870,7 +870,7 @@ def agent(question, ground_truth=""): ...
 # ③ RAG 환각 탐지 (rag_mode 하나로 3가지 자동 설정)
 @agent_eval(monitor, rag_mode=True)
 def rag_agent(question, context="", ground_truth=""): ...
-# 내부: context_arg="context" + enable_hallucination=True + task_type="information_retrieval"
+# 내부: context_arg="context" + enable_hallucination_detection=True + task_type="information_retrieval"
 
 # ④ 커스텀 Accuracy 계산
 @agent_eval(monitor, score_fn=lambda r, gt: custom_similarity(r, gt))
@@ -881,7 +881,7 @@ def agent(question, ground_truth=""): ...
 
 ## 이 챕터의 핵심
 
-- **Layer 1 기본 지표 5개는 `@agent_eval` 한 줄만으로 자동 활성화**된다. Hallucination만 `enable_hallucination=True` (데코레이터) 또는 `enable_hallucination_detection=True` (PerformanceMonitor) 또는 `rag_mode=True`로 활성화된다.
+- **Layer 1 기본 지표 5개는 `@agent_eval` 한 줄만으로 자동 활성화**된다. Hallucination만 `enable_hallucination_detection=True` (데코레이터 또는 PerformanceMonitor) 또는 `rag_mode=True`로 활성화된다.
 
 - **TCR은 3단계 완료 수준**으로 구분한다 (완전/부분/실패). 프로덕션 배포 기준은 TCR ≥ 85%, CI 게이팅은 ≥ 80%가 권장값이다.
 

@@ -167,7 +167,7 @@ Layer 2는 이 "중간 과정"을 측정한다.
 | 구분 | 트래커 | 활성화 조건 | 데코레이터 공급 방법 |
 |------|--------|------------|-------------------|
 | **Layer 2-A** 행동 분석 | ToolCallAnalyzer, RetryCorrectionTracker, ToolSelectionTracker, AgentCoordinationTracker, WorkflowExecutionTracker | `tool_calls`·`chain_steps`·`agent_interactions` 데이터가 있을 때 자동 활성 | `framework="langchain"` 등 어댑터 자동 추출 또는 `EvalMetadata` 수동 주입 |
-| **Layer 2-B** 보안 | InputSanitizationTracker, OutputLeakageDetector, ToolAuthorizationTracker, PrivilegeEscalationDetector, ToolChainAttackDetector | `security_mode=True` 또는 `enable_security_metrics=True` | `@agent_eval(..., security_mode=True)` 또는 `PerformanceMonitor(enable_security_metrics=True)` |
+| **Layer 2-B** 보안 | InputSanitizationTracker, OutputLeakageDetector, ToolAuthorizationTracker, PrivilegeEscalationDetector, ToolChainAttackDetector | `security=SecurityConfig()` 또는 `enable_security_metrics=True` | `@agent_eval(..., security=SecurityConfig())` 또는 `PerformanceMonitor(enable_security_metrics=True)` |
 
 ### 1.3 어떤 Layer 2 지표를 활성화해야 하는가? — 에이전트 유형별 결정 가이드
 
@@ -385,16 +385,13 @@ avg_attempts             = total_attempts / total_tasks
 ### 3.3 활성화 방법
 
 ```python
-# 방법 1: agent_eval_with_retry 데코레이터 (자동 재시도 + 추적)
-from agent_evaluator import agent_eval_with_retry
+# 방법 1: agent_eval + RetryConfig (자동 재시도 + 추적)
+from agent_evaluator.decorators import agent_eval, RetryConfig
 
-@agent_eval_with_retry(
+@agent_eval(
     monitor,
     task_type="qa",
-    max_retries=3,
-    retry_on=Exception,  # 어떤 예외에서 재시도할지
-    jitter_type="full",  # 지터 타입: "full", "decorrelated", "none"
-    max_delay=10.0,      # 최대 대기 시간(초)
+    retry=RetryConfig(max=3, on=(Exception,), jitter_type="full", max_delay=10.0),
 )
 def flaky_agent(question, ground_truth=""):
     response = unreliable_api.call(question)
@@ -416,7 +413,7 @@ def my_agent(question, ground_truth=""):
 from agent_evaluator import agent_eval_with_retry, PerformanceMonitor
 monitor = PerformanceMonitor("results/")
 
-@agent_eval_with_retry(monitor, task_type="qa", max_retries=3)
+@agent_eval_with_retry(monitor, task_type="qa", retry=RetryConfig(max=3))
 def agent(question, ground_truth=""):
     return llm.invoke(question)
 ```
@@ -824,7 +821,7 @@ monitor = PerformanceMonitor(
 )
 
 # 특정 데코레이터 호출에만 적용 (임시 활성)
-@agent_eval(monitor, task_type="qa", security_mode=True)
+@agent_eval(monitor, task_type="qa", security=SecurityConfig())
 def public_facing_agent(question, ground_truth=""):
     ...
 
@@ -942,7 +939,7 @@ print(infer_privilege_level("write_file"))    # "admin"
 print(infer_privilege_level("delete_db"))     # "critical"
 print(infer_privilege_level("send_email"))    # "user"
 
-@agent_eval(monitor, task_type="tool_use", security_mode=True)
+@agent_eval(monitor, task_type="tool_use", security=SecurityConfig())
 def privileged_agent(question, ground_truth=""):
     # 이 에이전트는 user 권한만 있어야 함
     result = agent.run(question)
@@ -971,7 +968,7 @@ guest 권한 도구 → user 권한 도구 → admin 권한 도구 → critical 
 ```
 
 ```python
-@agent_eval(monitor, task_type="tool_use", security_mode=True)
+@agent_eval(monitor, task_type="tool_use", security=SecurityConfig())
 def persistent_agent(question, ground_truth=""):
     # 다중 턴 에이전트 — 권한 상승 공격 시뮬레이션
     result = agent.run(question)
@@ -1000,7 +997,7 @@ print(f"상승 경로: {escalation['escalation_path']}")
 - **지속성 공격**: `modify_startup → install_backdoor → hide_traces`
 
 ```python
-@agent_eval(monitor, task_type="tool_use", security_mode=True)
+@agent_eval(monitor, task_type="tool_use", security=SecurityConfig())
 def advanced_agent(question, ground_truth=""):
     result = agent.run(question)
     return result, EvalMetadata(
@@ -1044,7 +1041,7 @@ monitor = PerformanceMonitor(
     task_type="tool_use",
     framework="langchain",          # tool_calls 자동 추출
     expected_tools_arg="expected",  # Tool Selection F1 활성
-    max_retries=2,                  # Retry 추적
+    retry=RetryConfig(max=2),       # Retry 추적
 )
 def enterprise_agent(question, ground_truth="", expected=None):
     result = agent_executor.invoke({
@@ -1225,7 +1222,7 @@ def agent(question, expected_tools=None, ground_truth=""): ...
 def crew_agent(question, ground_truth=""): ...  # agent_interactions 자동 추출
 
 # Retry & Error Recovery
-@agent_eval(monitor, max_retries=3, retry_on=(RateLimitError, TimeoutError))
+@agent_eval(monitor, retry=RetryConfig(max=3), retry_on=(RateLimitError, TimeoutError))
 def agent(question, ground_truth=""): ...
 
 # EvalMetadata로 수동 주입 (프레임워크 어댑터 없이)
@@ -1244,18 +1241,20 @@ def agent(question, ground_truth=""):
 
 | 지표 | `@agent_eval` | 활성 방법 | 추가 파라미터 |
 |---|:---:|---|---|
-| Input Sanitization | ✅ | `security_mode=True` | — |
-| Output Leakage | ✅ | `security_mode=True` | — |
-| Tool Authorization | ✅ | `security_mode=True` | `allowed_tools=[...]` |
-| Privilege Escalation | ✅ | `security_mode=True` | — |
-| Tool Chain Attack | ✅ | `security_mode=True` | — |
+| Input Sanitization | ✅ | `security=SecurityConfig()` | — |
+| Output Leakage | ✅ | `security=SecurityConfig()` | — |
+| Tool Authorization | ✅ | `security=SecurityConfig()` | `allowed_tools=[...]` |
+| Privilege Escalation | ✅ | `security=SecurityConfig()` | — |
+| Tool Chain Attack | ✅ | `security=SecurityConfig()` | — |
 
 > **모든 보안 지표는 `@agent_eval`만 지원한다.** `@batch_eval`, `@conversation_eval`은 미지원이며, 전역 활성화는 `PerformanceMonitor(enable_security_metrics=True)`를 사용한다.
 
 ```python
+from agent_evaluator import SecurityConfig
+
 # 5개 보안 지표 한 번에 활성화
 @agent_eval(monitor,
-            security_mode=True,
+            security=SecurityConfig(),
             allowed_tools=["search", "calculate", "read_file"])
 def secure_agent(question, ground_truth=""): ...
 
