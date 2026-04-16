@@ -112,35 +112,63 @@ hr{border:none;border-top:1px solid var(--border);margin:20px 0}
   <a class="nav-item" href="#task-result">TaskResult <span class="tag">dataclass</span></a>
   <a class="nav-item" href="#task-type">TaskType <span class="tag">enum</span></a>
 
-  <div class="nav-group">Layer 1 — Foundation (항상 활성)</div>
-  <a class="nav-item" href="#tcr">TaskCompletionTracker</a>
+  <div class="nav-group">A · 목표 달성 — Goal Achievement</div>
+  <a class="nav-item" href="#tcr">TaskCompletionTracker <span class="tag">TCR</span></a>
   <a class="nav-item" href="#accuracy">AccuracyEvaluator</a>
   <a class="nav-item" href="#quality">ResponseQualityEvaluator</a>
-  <a class="nav-item" href="#latency">LatencyTracker</a>
-  <a class="nav-item" href="#token">TokenEconomyTracker</a>
-  <a class="nav-item" href="#hallucination">HallucinationDetector <span class="tag">opt-in</span></a>
+  <a class="nav-item" href="#llm-judge">LLMJudge <span class="tag">opt-in</span></a>
+  <a class="nav-item" href="#harness-a" style="font-size:11px;color:var(--text2)">↳ InstructionConfig</a>
+  <a class="nav-item" href="#harness-a" style="font-size:11px;color:var(--text2)">↳ GoalAlignmentConfig</a>
+  <a class="nav-item" href="#harness-a" style="font-size:11px;color:var(--text2)">↳ PlanConfig</a>
+  <a class="nav-item" href="#harness-a" style="font-size:11px;color:var(--text2)">↳ ContextRetentionConfig</a>
+  <a class="nav-item" href="#harness-a" style="font-size:11px;color:var(--text2)">↳ SubtaskConfig · KnowledgeRetentionConfig</a>
 
-  <div class="nav-group">Layer 2 — Agentic (데이터 공급 시 자동)</div>
+  <div class="nav-group">B · 행동 무결성 — Behavioral Integrity</div>
   <a class="nav-item" href="#toolcall">ToolCallAnalyzer</a>
   <a class="nav-item" href="#toolsel">ToolSelectionTracker</a>
   <a class="nav-item" href="#retry">RetryCorrectionTracker</a>
-  <a class="nav-item" href="#coord">AgentCoordinationTracker</a>
   <a class="nav-item" href="#workflow">WorkflowExecutionTracker</a>
+  <a class="nav-item" href="#harness-b" style="font-size:11px;color:var(--text2)">↳ LoopDetectionConfig</a>
+  <a class="nav-item" href="#harness-b" style="font-size:11px;color:var(--text2)">↳ ScopeConfig · ContextWindowConfig</a>
+  <a class="nav-item" href="#harness-b" style="font-size:11px;color:var(--text2)">↳ ToolParameterSafetyConfig</a>
 
-  <div class="nav-group">Layer 2 — Security (opt-in)</div>
+  <div class="nav-group">C · 신뢰성 — Reliability</div>
+  <a class="nav-item" href="#hallucination">HallucinationDetector <span class="tag">opt-in</span></a>
+  <a class="nav-item" href="#harness-c" style="font-size:11px;color:var(--text2)">↳ ReproducibilityConfig</a>
+  <a class="nav-item" href="#harness-c" style="font-size:11px;color:var(--text2)">↳ FaultToleranceConfig · IdempotencyConfig</a>
+  <a class="nav-item" href="#harness-c" style="font-size:11px;color:var(--text2)">↳ GracefulDegradationConfig</a>
+  <a class="nav-item" href="#harness-c" style="font-size:11px;color:var(--text2)">↳ RetryConsistencyConfig · StateConsistencyConfig</a>
+
+  <div class="nav-group">D · 성능 계약 — Performance Contract</div>
+  <a class="nav-item" href="#latency">LatencyTracker</a>
+  <a class="nav-item" href="#token">TokenEconomyTracker</a>
+  <a class="nav-item" href="#gate-cli">agent-eval gate <span class="tag">CLI</span></a>
+  <a class="nav-item" href="#cost">CostTracker · AdaptivePolicy</a>
+  <a class="nav-item" href="#harness-d" style="font-size:11px;color:var(--text2)">↳ SLAConfig · EfficiencyConfig</a>
+  <a class="nav-item" href="#harness-d" style="font-size:11px;color:var(--text2)">↳ ResourceBudgetConfig</a>
+  <a class="nav-item" href="#harness-d" style="font-size:11px;color:var(--text2)">↳ TTFTVariabilityConfig · CostPredictabilityConfig</a>
+
+  <div class="nav-group">E · 보안 경계 — Security Boundary</div>
   <a class="nav-item" href="#sanitize">InputSanitizationTracker</a>
   <a class="nav-item" href="#leakage">OutputLeakageDetector</a>
   <a class="nav-item" href="#authz">ToolAuthorizationTracker</a>
   <a class="nav-item" href="#privesc">PrivilegeEscalationDetector</a>
   <a class="nav-item" href="#chainatk">ToolChainAttackDetector</a>
+  <a class="nav-item" href="#harness-e" style="font-size:11px;color:var(--text2)">↳ ThreatSeverityConfig · ComplianceConfig</a>
+  <a class="nav-item" href="#harness-e" style="font-size:11px;color:var(--text2)">↳ ThreatResponseConfig</a>
 
-  <div class="nav-group">부가 기능</div>
-  <a class="nav-item" href="#llm-judge">LLMJudge <span class="tag">opt-in</span></a>
-  <a class="nav-item" href="#gate-cli">agent-eval gate <span class="tag">CLI</span></a>
+  <div class="nav-group">F · 다중 에이전트 — Multi-Agent</div>
+  <a class="nav-item" href="#coord">AgentCoordinationTracker</a>
+  <a class="nav-item" href="#streaming">StreamingEvaluator</a>
+  <a class="nav-item" href="#harness-f" style="font-size:11px;color:var(--text2)">↳ DeadlockConfig · ConsensusConfig</a>
+  <a class="nav-item" href="#harness-f" style="font-size:11px;color:var(--text2)">↳ PropagationConfig · AgentRoleConfig</a>
+  <a class="nav-item" href="#harness-f" style="font-size:11px;color:var(--text2)">↳ ConflictResolutionConfig</a>
+
+  <div class="nav-group">G · 운영 관측성 — Observability</div>
   <a class="nav-item" href="#anomaly">AnomalyDetector</a>
   <a class="nav-item" href="#alerts">AlertEngine · SimpleTaskAlertRule</a>
-  <a class="nav-item" href="#streaming">StreamingEvaluator</a>
-  <a class="nav-item" href="#cost">CostTracker · AdaptivePolicy</a>
+  <a class="nav-item" href="#harness-g" style="font-size:11px;color:var(--text2)">↳ ObservabilityConfig · ExplainabilityConfig</a>
+  <a class="nav-item" href="#harness-g" style="font-size:11px;color:var(--text2)">↳ ErrorDiagnosisConfig · LatencyAttributionConfig</a>
 </nav>
 
 <div style="display:flex;flex-direction:column;overflow:hidden">
