@@ -2,7 +2,7 @@
 
 LangChain · LangGraph · CrewAI · AutoGen 연동 참조 문서
 
-**v0.8.1 | Python 3.8+**
+**v0.8.2 | Python 3.8+**
 
 ---
 
@@ -27,7 +27,7 @@ LangChain · LangGraph · CrewAI · AutoGen 연동 참조 문서
 | 패키지 | 최소 버전 | 설치 |
 |--------|----------|------|
 | Python | 3.8+ | — |
-| agent-evaluator | 0.8.1 | `pip install agent-evaluator` |
+| agent-evaluator | 0.8.2 | `pip install agent-evaluator` |
 | LangChain | 1.0.0+ | `pip install agent-evaluator[langchain]` |
 | LangGraph | 1.0.0+ | `pip install agent-evaluator[langchain]` |
 | CrewAI | 1.0.0+ | `pip install agent-evaluator[crewai]` |
@@ -370,4 +370,4 @@ with monitor.conversation("session_002") as conv:
 
 ---
 
-*Updated: 2026-04-15 (v0.8.1) | MIT License*
+*Updated: 2026-04-17 (v0.8.2) | MIT License*

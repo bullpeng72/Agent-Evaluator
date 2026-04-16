@@ -1,6 +1,6 @@
 # Zero Configuration 가이드
 
-별도 설정 없이 자동으로 올바른 위치에 데이터를 저장하는 방법 — Agent Evaluator v0.8.1
+별도 설정 없이 자동으로 올바른 위치에 데이터를 저장하는 방법 — Agent Evaluator v0.8.2
 
 ## 목차
 
@@ -339,7 +339,7 @@ agent-eval dashboard --port 8080 --watch
 
 ```json
 {
-  "version": "0.8.1",
+  "version": "0.8.2",
   "created_at": "2026-04-07T10:00:00",
   "data_files": {
     "/path/to/results/my_evaluation.json": {
@@ -548,5 +548,5 @@ chmod 755 ~/.agent_evaluator
 
 ---
 
-**문서 버전**: v0.8.1  
-**최종 업데이트**: 2026-04-15
+**문서 버전**: v0.8.2  
+**최종 업데이트**: 2026-04-17

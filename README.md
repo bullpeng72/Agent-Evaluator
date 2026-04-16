@@ -3,7 +3,7 @@
 [![PyPI version](https://img.shields.io/pypi/v/agent-evaluator.svg)](https://pypi.org/project/agent-evaluator/)
 [![Python Version](https://img.shields.io/badge/python-3.8%2B-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Version](https://img.shields.io/badge/version-0.8.1-green.svg)](https://github.com/bullpeng72/Agent-Evaluator)
+[![Version](https://img.shields.io/badge/version-0.8.2-green.svg)](https://github.com/bullpeng72/Agent-Evaluator)
 
 **AI 에이전트를 위한 프로덕션 레디 평가 프레임워크**
 
@@ -1386,6 +1386,13 @@ mypy agent_evaluator/          # 타입 검사
 ---
 
 ## 변경 이력
+
+### v0.8.2 (2026-04-17) — Harness Config 지표 설명 통일 · 대시보드 UI 개선
+
+- ✨ 지표 설명 Harness Config 카드 33개 양식 통일 (아이콘·활용 팁·수식·임계값 배지)
+- ✨ `Docs/14_HARNESS_ROADMAP.md` + `Evaluator_Examples/08_harness_eval.py` 추가
+- 🧪 테스트 2개 파일 추가 — 53개 파일 2,465개+ 함수
+- 🔧 `.gitignore` `.claude/` 추가
 
 ### v0.8.1 (2026-04-14) — 데코레이터 파라미터 구조화 · RetryConfig · LLMJudgeConfig · SecurityConfig
 

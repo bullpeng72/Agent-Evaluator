@@ -2,10 +2,10 @@
 
 > 에이전트 평가 패러다임 전환: **"지표 수집"** → **"배포 가능성 판정"**
 
-**기준 버전:** v0.8.1  
+**기준 버전:** v0.8.2  
 **목표 버전:** v0.9.0  
-**작성일:** 2026-04-16  
-**갱신일:** 2026-04-16  
+**작성일:** 2026-04-17  
+**갱신일:** 2026-04-17  
 **상태:** Phase 1 ✅ · Phase 2 ✅ · Phase 3 ✅ · Phase 4 ✅ · Phase 5 ✅ · Phase 6 ✅ · Dashboard 재설계 ✅
 
 ---
@@ -150,7 +150,7 @@ v0.8.x까지의 지표 체계는 **"레이어 중심"** — Layer 1(기반), Lay
 
 ## 3. Phase 1 — 신규 지표 개발 + 데코레이터 수용 ✅ 완료
 
-> **구현 완료 일자:** 2026-04-16  
+> **구현 완료 일자:** 2026-04-17  
 > **실제 테스트 결과:** 신규 117개 (test_decorators_harness.py 117개 + test_report_harness_groups.py 포함), 전체 2,467개 통과  
 > **계획 대비 주요 변경:** [§3.5 구현 편차 참고](#35-구현-편차--실제-구현-현황)
 
@@ -651,7 +651,7 @@ Phase 1 계획과 실제 구현 간 차이점을 기록한다. 향후 Phase 2/3 
 
 ## 4. Phase 2 — Dashboard UI 개선 ✅ 완료
 
-> **구현 완료 일자:** 2026-04-16  
+> **구현 완료 일자:** 2026-04-17  
 > **테스트 결과:** 기존 2,467개 전체 통과 (UI 변경 — 별도 테스트 파일 추가 없음)  
 > **계획 대비 주요 변경:** [§4.10 구현 편차 참고](#410-구현-편차--실제-구현-현황)
 
@@ -812,7 +812,7 @@ Phase 1 계획과 실제 구현 간 차이점을 기록한다. 향후 Phase 2/3 
 
 ---
 
-### 4.4 Security 탭 → Group E 개선 ✅ 구현완료 (2026-04-16)
+### 4.4 Security 탭 → Group E 개선 ✅ 구현완료 (2026-04-17)
 
 **변경 내용:** 5개 개별 차트 나열 → 보안 경계 흐름 통합 뷰
 
@@ -982,7 +982,7 @@ SLA 항목: P95 응답시간, P99 응답시간, TTFT, 평균 비용/태스크, �
 
 ---
 
-### 4.8 네비게이션 구조 재편 (중기, P3) ⏳ 미구현
+### 4.8 네비게이션 구조 재편 (중기, P3) ✅ 완료
 
 현재 21개 플랫 목록 → 3단 계층 구조로 전환.
 
@@ -1019,21 +1019,21 @@ SLA 항목: P95 응답시간, P99 응답시간, TTFT, 평균 비용/태스크, �
 
 ### 4.10 구현 편차 / 실제 구현 현황
 
-> **2026-04-16 검토 결과 수정:** 위젯 필터 버그 3건 발견·수정 완료.
+> **2026-04-17 검토 결과 수정:** 위젯 필터 버그 3건 발견·수정 완료.
 
 | 항목 | 계획 | 실제 구현 | 영향 |
 |------|------|----------|------|
 | Graceful Degradation 매트릭스 | Agentic 탭에 FaultTolerance 테이블 추가 | Reliability 탭에서 `fault_tolerance_by_tool` 표시 | 위치 변경 (기능은 동일) |
 | Security 탭 보안 경계 흐름 | 3단 입력→실행→출력 통합 뷰 | 미구현 | Phase 3으로 이동 |
-| Nav Harness 정렬 구조 | 3단 계층 구조 | A~G 그룹별 2단 계층 구조 (2026-04-16 구현) | 계획보다 간소화 — gate pill + score badge 포함 |
+| Nav Harness 정렬 구조 | 3단 계층 구조 | A~G 그룹별 2단 계층 구조 (2026-04-17 구현) | 계획보다 간소화 — gate pill + score badge 포함 |
 | Reliability 탭 재현성 게이지 | task별 run_responses 히트맵 | completion_score 표준편차(CV%) 테이블로 대체 | 구현 간소화 |
 | loader fault_tolerance_by_tool | task.extra.fault_tolerance = `{tool: {total, recovered}}` dict | task.extra.fault_tolerance = `{failures_detected, fallback_attempts}` 단일 dict → 첫 번째 실패 도구에 귀속 | Phase 1 구현 결과 그대로 수용 |
 | **[버그 수정] Quality IFR 위젯 필터** | `filter(k.includes('goal')\|\|k.includes('instruction'))` | 실제 키 `"A"` — 조건 항상 false → 위젯 미표시 | **수정 완료**: `k==='A'` + `x-data="{ gA: data.harness_groups['A'] }"` + TCR·정확도·IFR 세부 KPI 추가 |
 | **[버그 수정] Performance SLA 패널 필터** | `filter(k.includes('latency')\|\|k.includes('performance')\|\|...)` | 실제 키 `"D"` — 조건 항상 false → 패널 미표시 | **수정 완료**: `k==='D'` + P95·토큰 효율 세부 KPI 추가 |
 | **[버그 수정] Reliability C 그룹 KPI 필터** | `filter(k.includes('reliab')\|\|...)` | 실제 키 `"C"` — 조건 항상 false → KPI 미표시 | **수정 완료**: `k==='C'` → Group C 종합 KPI 카드 표시 |
-| **[구현완료] Goal-Action Alignment 산점도** | X=goal_alignment_score, Y=accuracy_score 산점도 | `extra.goal_alignment` 있는 태스크만 `x-if`로 표시, `#d2-goal-align-scatter` Plotly scatter (태스크 유형별 trace, 버블 크기=토큰, 0.7 기준선) — 2026-04-16 | ✅ |
-| harness_groups 기존 파일 미지원 | Phase 1 이후 생성 파일만 | loader fallback 계산 추가 (2026-04-16) | 기존 파일도 A~G 자동 계산 후 대시보드 표시 |
-| monitor harness_groups `status` → `gate` | dashboard 는 `gate` 키 사용 | monitor.py 는 `status` 키 저장 → dashboard 미표시 | **수정 완료 (2026-04-16)**: loader에서 `status`→`gate` 정규화 |
+| **[구현완료] Goal-Action Alignment 산점도** | X=goal_alignment_score, Y=accuracy_score 산점도 | `extra.goal_alignment` 있는 태스크만 `x-if`로 표시, `#d2-goal-align-scatter` Plotly scatter (태스크 유형별 trace, 버블 크기=토큰, 0.7 기준선) — 2026-04-17 | ✅ |
+| harness_groups 기존 파일 미지원 | Phase 1 이후 생성 파일만 | loader fallback 계산 추가 (2026-04-17) | 기존 파일도 A~G 자동 계산 후 대시보드 표시 |
+| monitor harness_groups `status` → `gate` | dashboard 는 `gate` 키 사용 | monitor.py 는 `status` 키 저장 → dashboard 미표시 | **수정 완료 (2026-04-17)**: loader에서 `status`→`gate` 정규화 |
 
 ---
 
@@ -1319,7 +1319,7 @@ Evaluator_Examples/
 
 ## 6. Phase 4 — 심화 Config 지표 5종 ✅ 완료
 
-> **구현 완료:** 2026-04-16 · 신규 Config 5종 · 전체 테스트 2,467개 통과
+> **구현 완료:** 2026-04-17 · 신규 Config 5종 · 전체 테스트 2,467개 통과
 
 ### 6.1 신규 Config 클래스 5종
 
@@ -1340,7 +1340,7 @@ Evaluator_Examples/
 
 ## 7. Phase 5 — 고급 Config 지표 7종 (보안 네이티브 통합 포함) ✅ 완료
 
-> **구현 완료:** 2026-04-16 · 신규 Config 7종 + Group E 네이티브 트래커 통합
+> **구현 완료:** 2026-04-17 · 신규 Config 7종 + Group E 네이티브 트래커 통합
 
 ### 7.1 신규 Config 클래스 7종
 
@@ -1372,7 +1372,7 @@ _injection_count = sum(1 for r in results if r.extra.get("input_injection_threat
 
 ## 8. Phase 6 — 최종 Config 지표 5종 ✅ 완료
 
-> **구현 완료:** 2026-04-16 · 신규 Config 5종
+> **구현 완료:** 2026-04-17 · 신규 Config 5종
 
 ### 8.1 신규 Config 클래스 5종
 
@@ -1404,7 +1404,7 @@ Phase 1-6을 거쳐 구현된 전체 Config 클래스:
 
 ## 9. Dashboard 지표 배치 재설계 (Zero-Base) ✅ 완료
 
-> **작업 일자:** 2026-04-16 · 대상 파일: `dashboard2.html.j2`
+> **작업 일자:** 2026-04-17 · 대상 파일: `dashboard2.html.j2`
 
 ### 9.1 Zero-Base 지표 배치 계획
 
@@ -1649,17 +1649,17 @@ def test_harness_gate_fail_on_security():
 ## 12. 버전 릴리즈 계획
 
 ```
-v0.8.1 (완료)
+v0.8.2 (완료)
     └── 데코레이터 파라미터 구조화 (RetryConfig·LLMJudgeConfig·SecurityConfig)
 
-★ Phase 1 단일 구현 (2026-04-16, v0.8.1 코드베이스에 적용)
+★ Phase 1 단일 구현 (2026-04-17, v0.8.2 코드베이스에 적용)
     ├── InstructionConfig · LoopDetectionConfig · GoalAlignmentConfig  ✅
     ├── ReproducibilityConfig · FaultToleranceConfig · PlanConfig       ✅
     ├── harness_groups 집계 (EvaluationReport.extra_metrics)            ✅
     ├── QuickEval.for_harness() / for_production() 팩토리               ✅
     └── 테스트 117개 신규, 전체 2,467개                                  ✅
 
-★ Phase 2 단일 구현 (2026-04-16)
+★ Phase 2 단일 구현 (2026-04-17)
     ├── Dashboard: Harness Gate 패널 (Overview)                        ✅
     ├── Dashboard: Group A 위젯 (Quality)                              ✅
     ├── Dashboard: Group D SLA Gate (Performance)                      ✅
@@ -1673,26 +1673,26 @@ v0.8.1 (완료)
     ├── Goal-Action Alignment 산점도                                   ✅
     └── SLAConfig·ThreatSeverityConfig·EfficiencyConfig 등 7종 Config  ✅
 
-★ Phase 3 단일 구현 (2026-04-16) — 예제 + QuickEval 통합
+★ Phase 3 단일 구현 (2026-04-17) — 예제 + QuickEval 통합
     ├── 08_harness_eval.py 신규 (674줄, Groups A-G 전 구간 예시)       ✅
     ├── QuickEval: 13개 harness 파라미터, harness_gate(), harness_summary() ✅
     └── ScopeConfig·ContextRetentionConfig·ExplainabilityConfig 등 5종 ✅
 
-★ Phase 4 단일 구현 (2026-04-16) — 심화 Config 10종
+★ Phase 4 단일 구현 (2026-04-17) — 심화 Config 10종
     ├── AgentRoleConfig · GracefulDegradationConfig · ComplianceConfig  ✅
     ├── ResourceBudgetConfig · ConflictResolutionConfig                 ✅
     └── SubtaskConfig · PropagationConfig 등 추가 5종                  ✅
 
-★ Phase 5 단일 구현 (2026-04-16) — 고급 Config 5종 + 보안 통합
+★ Phase 5 단일 구현 (2026-04-17) — 고급 Config 5종 + 보안 통합
     ├── ToolParameterSafetyConfig · KnowledgeRetentionConfig            ✅
     ├── RetryConsistencyConfig · TTFTVariabilityConfig · ErrorDiagnosisConfig ✅
     └── Group E _compute_harness_groups() 네이티브 트래커 통합          ✅
 
-★ Phase 6 단일 구현 (2026-04-16) — 최종 Config 5종
+★ Phase 6 단일 구현 (2026-04-17) — 최종 Config 5종
     ├── IdempotencyConfig · CostPredictabilityConfig · ThreatResponseConfig ✅
     └── ContextWindowConfig · LatencyAttributionConfig                 ✅
 
-★ Dashboard 재설계 (2026-04-16) — Zero-Base 지표 배치 + 신규 패널
+★ Dashboard 재설계 (2026-04-17) — Zero-Base 지표 배치 + 신규 패널
     ├── Group A 확장: GoalAlign·Plan·Subtask·ContextRet·KnowledgeRet    ✅
     ├── Group B 신규 패널 (agentic 탭): Loop·StateConst·Scope·ToolParam·CtxWin ✅
     ├── Group C 확장: Degradation·RetryConsistency·Idempotency          ✅
@@ -1725,7 +1725,7 @@ v0.9.0 (예정) — Nav 재편 + 문서 최종화
 
 ---
 
-*작성: 2026-04-16 (v0.8.1 코드베이스 분석 및 Harness 관점 지표 설계)*  
-*Phase 1–2 완료 기준 갱신: 2026-04-16 — 구현 편차·실제 테스트 수 반영·버전 계획 수정*  
-*Phase 3–6 완료 갱신: 2026-04-16 — 33종 Config 클래스 전체 구현 완료·전체 테스트 2,467개 통과*  
-*Dashboard 재설계 완료 갱신: 2026-04-16 — Zero-Base 계획 수립·신규 6개 Harness 패널(B·C확장·D확장·E·F·G) 구현·§9 추가*
+*작성: 2026-04-17 (v0.8.2 코드베이스 분석 및 Harness 관점 지표 설계)*  
+*Phase 1–2 완료 기준 갱신: 2026-04-17 — 구현 편차·실제 테스트 수 반영·버전 계획 수정*  
+*Phase 3–6 완료 갱신: 2026-04-17 — 33종 Config 클래스 전체 구현 완료·전체 테스트 2,467개 통과*  
+*Dashboard 재설계 완료 갱신: 2026-04-17 — Zero-Base 계획 수립·신규 6개 Harness 패널(B·C확장·D확장·E·F·G) 구현·§9 추가*

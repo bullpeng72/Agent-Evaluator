@@ -5,7 +5,7 @@
 **Agent-Evaluator** is a production-ready Python SDK for evaluating AI agents.
 25개의 성능 지표를 세 개의 레이어(기본/에이전틱/하이브리드)로 측정한다.
 
-- **Version:** 0.8.1 (Beta)
+- **Version:** 0.8.2 (Beta)
 - **Python:** 3.8+
 - **License:** MIT
 - **Author:** Sungwoo Kim
@@ -536,7 +536,7 @@ from agent_evaluator import (
 
 ## Testing
 
-`tests/` 디렉토리에 49개 파일, 2,348개+ 테스트 함수 존재.
+`tests/` 디렉토리에 53개 파일, 2,465개+ 테스트 함수 존재.
 
 ```bash
 # pytest.ini_options in pyproject.toml already configured:
@@ -610,6 +610,16 @@ completion_score task_type 인식 (v0.8.0+):
 ---
 
 ## 📝 변경 이력
+
+### v0.8.2 (2026-04-17) — Harness Config 지표 설명 통일 · 대시보드 UI 개선 · 문서 확장
+
+- ✨ **지표 설명 Harness Config 카드 33개 양식 통일** — 기존 소형 카드 → 트래커 카드와 동일한 전체 양식(아이콘·설명 박스·활용 팁·📐 수식·🟢🟡🔴 임계값 배지) 적용
+- ✨ **`Docs/14_HARNESS_ROADMAP.md` 추가** — Harness 평가 게이트 A-G 그룹 로드맵 문서
+- ✨ **`Evaluator_Examples/08_harness_eval.py` 추가** — Harness Config 실전 평가 예제
+- 🧪 **테스트 추가** — `test_decorators_harness.py` · `test_report_harness_groups.py` 신규 추가. 53개 파일 2,465개+ 함수
+- 🔧 **대시보드 그리드 통일** — minmax 320px→360px, gap 10px→12px, padding 12/14→14/16px
+- 🔧 **그룹 배지 색상 통일** — A badge-ok, B 파랑, C badge-warn, D 하늘, E badge-fail, F 보라, G 청록
+- 🔧 **`.gitignore` `.claude/` 추가** — Claude Code 내부 worktree 디렉토리 추적 제외
 
 ### v0.8.1 (2026-04-14) — 데코레이터 파라미터 구조화 · RetryConfig · LLMJudgeConfig · SecurityConfig
 
