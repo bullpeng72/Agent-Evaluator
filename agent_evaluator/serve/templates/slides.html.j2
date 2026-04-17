@@ -24,6 +24,9 @@
   --kpi-bg:rgba(255,255,255,.06);--kpi-bd:rgba(255,255,255,.12);
   --bar-bg:rgba(255,255,255,.1);--card-bg:rgba(255,255,255,.05);
   --divider:rgba(255,255,255,.12);
+  /* Gate colors */
+  --gate-A:#10b981; --gate-B:#3b82f6; --gate-C:#f59e0b;
+  --gate-D:#0ea5e9; --gate-E:#ef4444; --gate-F:#8b5cf6; --gate-G:#06b6d4;
 }
 body.light {
   --tc:#1e2030;--tc2:#5a6080;--gc:rgba(0,0,0,.08);
@@ -101,6 +104,12 @@ body.light #file-select option{background:#f0f2ff;}
 .p-ok{background:rgba(74,222,128,.15);color:var(--green);}
 .p-warn{background:rgba(250,204,21,.15);color:var(--yellow);}
 .p-fail{background:rgba(248,113,113,.15);color:var(--red);}
+/* ── Gate pill ── */
+.gate-pill{display:inline-flex;align-items:center;border-radius:99px;padding:3px 12px;font-size:13px!important;font-weight:700!important;margin-left:10px;vertical-align:middle;}
+.gate-pill-pass{background:rgba(16,185,129,.18);color:#10b981;}
+.gate-pill-warn{background:rgba(245,158,11,.18);color:#f59e0b;}
+.gate-pill-fail{background:rgba(239,68,68,.18);color:#ef4444;}
+.gate-pill-na  {background:rgba(136,144,176,.15);color:#8890b0;}
 /* ── Cards ── */
 .card{background:var(--card-bg);border:1px solid var(--kpi-bd);border-radius:8px;padding:10px 14px;margin-bottom:7px;flex-shrink:0;}
 .card-row{display:flex;align-items:flex-start;gap:11px;}
@@ -139,6 +148,12 @@ body.light #file-select option{background:#f0f2ff;}
   width:28px;height:28px;border-radius:50%;background:rgba(108,142,245,.2);
   color:var(--accent);font-size:13px!important;font-weight:700!important;
   display:flex;align-items:center;justify-content:center;flex-shrink:0;
+}
+.agenda-gate-num{
+  width:28px;height:28px;border-radius:50%;
+  font-size:13px!important;font-weight:700!important;
+  display:flex;align-items:center;justify-content:center;flex-shrink:0;
+  color:#fff;
 }
 .agenda-text{font-size:13px!important;color:var(--tc)!important;font-weight:600!important;}
 .agenda-sub {font-size:11px!important;color:var(--tc2)!important;}
@@ -183,6 +198,29 @@ body.light #file-select option{background:#f0f2ff;}
 .finding-title{font-size:14px!important;font-weight:700!important;color:var(--tc)!important;margin-bottom:3px!important;}
 .finding-detail{font-size:12px!important;color:var(--tc2)!important;line-height:1.5!important;}
 .finding-badge{float:right;padding:2px 10px;border-radius:99px;font-size:11px!important;font-weight:700!important;}
+/* ── Harness Scorecard ── */
+.gate-card{
+  border-radius:12px;padding:14px 12px 10px;text-align:center;
+  border:1px solid rgba(255,255,255,.1);
+  display:flex;flex-direction:column;align-items:center;gap:5px;
+}
+.gate-letter{font-size:28px!important;font-weight:900!important;line-height:1!important;}
+.gate-name{font-size:10px!important;color:var(--tc2)!important;line-height:1.3!important;}
+.gate-score{font-size:18px!important;font-weight:800!important;line-height:1.1!important;}
+/* ── Harness inactive notice ── */
+.harness-inactive{
+  background:rgba(108,142,245,.06);border:1px dashed rgba(108,142,245,.25);
+  border-radius:8px;padding:10px 14px;font-size:11px;color:var(--tc2);
+  text-align:center;flex-shrink:0;margin-top:4px;
+}
+/* ── Gate border accents ── */
+.gate-border-A{border-left:3px solid var(--gate-A)!important;}
+.gate-border-B{border-left:3px solid var(--gate-B)!important;}
+.gate-border-C{border-left:3px solid var(--gate-C)!important;}
+.gate-border-D{border-left:3px solid var(--gate-D)!important;}
+.gate-border-E{border-left:3px solid var(--gate-E)!important;}
+.gate-border-F{border-left:3px solid var(--gate-F)!important;}
+.gate-border-G{border-left:3px solid var(--gate-G)!important;}
 </style>
 </head>
 <body>
@@ -200,7 +238,7 @@ body.light #file-select option{background:#f0f2ff;}
   <div class="title-inner">
     <div style="font-size:2.5em">🤖</div>
     <h1>Agent Evaluator</h1>
-    <div class="title-sub">AI 에이전트 성능 평가 리포트</div>
+    <div class="title-sub">AI 에이전트 성능 평가 리포트 — Harness Gate A–G</div>
     <div style="height:1px;width:56px;background:var(--divider)"></div>
     <div class="title-name" id="slide-title">—</div>
     <div class="title-meta" id="slide-meta">—</div>
@@ -208,18 +246,42 @@ body.light #file-select option{background:#f0f2ff;}
   </div>
 </section>
 
-<!-- ═══ 2. AGENDA ═══ -->
+<!-- ═══ 2. AGENDA (Gate A-G 중심) ═══ -->
 <section>
-  <h2>📋 발표 순서</h2>
+  <h2>📋 발표 순서 — Harness Gate 평가</h2>
   <div style="display:grid;grid-template-columns:1fr 1fr;gap:9px;flex:1;align-content:start">
-    <div class="agenda-item"><div class="agenda-num">1</div><div><div class="agenda-text">평가 개요</div><div class="agenda-sub">대상 · 방법 · 데이터셋</div></div></div>
-    <div class="agenda-item"><div class="agenda-num">2</div><div><div class="agenda-text">핵심 발견 (Key Findings)</div><div class="agenda-sub">3가지 주요 결과 요약</div></div></div>
-    <div class="agenda-item"><div class="agenda-num">3</div><div><div class="agenda-text">태스크 완료율 (TCR)</div><div class="agenda-sub">성공 · 부분성공 · 실패 분석</div></div></div>
-    <div class="agenda-item"><div class="agenda-num">4</div><div><div class="agenda-text">실패 원인 분석</div><div class="agenda-sub">에러 패턴 · 취약 구간 파악</div></div></div>
-    <div class="agenda-item"><div class="agenda-num">5</div><div><div class="agenda-text">정확도 · 응답품질</div><div class="agenda-sub">Accuracy · 5차원 Quality</div></div></div>
-    <div class="agenda-item"><div class="agenda-num">6</div><div><div class="agenda-text">성능 · 비용 효율</div><div class="agenda-sub">Latency · Token · Cost</div></div></div>
-    <div class="agenda-item"><div class="agenda-num">7</div><div><div class="agenda-text">보안 · 에이전틱 지표</div><div class="agenda-sub">Security L1/L2 · Tool · Workflow</div></div></div>
-    <div class="agenda-item"><div class="agenda-num">8</div><div><div class="agenda-text">종합 점수 · 액션 플랜</div><div class="agenda-sub">Health Score · 우선순위 개선과제</div></div></div>
+    <div class="agenda-item">
+      <div class="agenda-num">★</div>
+      <div><div class="agenda-text">평가 개요 · Harness Scorecard</div><div class="agenda-sub">대상 · 방법 · Gate A–G 종합 성적</div></div>
+    </div>
+    <div class="agenda-item">
+      <div class="agenda-gate-num" style="background:var(--gate-A)">A</div>
+      <div><div class="agenda-text">Gate A — 목표 달성</div><div class="agenda-sub">TCR · 정확도 · 목표 정렬</div></div>
+    </div>
+    <div class="agenda-item">
+      <div class="agenda-gate-num" style="background:var(--gate-B)">B</div>
+      <div><div class="agenda-text">Gate B — 행동 무결성</div><div class="agenda-sub">Tool 패턴 · 루프 · 상태 일관성</div></div>
+    </div>
+    <div class="agenda-item">
+      <div class="agenda-gate-num" style="background:var(--gate-C)">C</div>
+      <div><div class="agenda-text">Gate C — 신뢰성</div><div class="agenda-sub">Retry · 내결함성 · 멱등성</div></div>
+    </div>
+    <div class="agenda-item">
+      <div class="agenda-gate-num" style="background:var(--gate-D)">D</div>
+      <div><div class="agenda-text">Gate D — 성능 계약</div><div class="agenda-sub">Latency · Cost · SLA</div></div>
+    </div>
+    <div class="agenda-item">
+      <div class="agenda-gate-num" style="background:var(--gate-E)">E</div>
+      <div><div class="agenda-text">Gate E — 보안 경계</div><div class="agenda-sub">Security L1/L2 · 위협 탐지</div></div>
+    </div>
+    <div class="agenda-item">
+      <div class="agenda-gate-num" style="background:var(--gate-F)">F</div>
+      <div><div class="agenda-text">Gate F — 멀티에이전트</div><div class="agenda-sub">Coordination · Workflow · 합의</div></div>
+    </div>
+    <div class="agenda-item">
+      <div class="agenda-gate-num" style="background:var(--gate-G)">G</div>
+      <div><div class="agenda-text">Gate G — 관측가능성</div><div class="agenda-sub">Quality · LLM Judge · 설명가능성</div></div>
+    </div>
   </div>
 </section>
 
@@ -249,242 +311,252 @@ body.light #file-select option{background:#f0f2ff;}
   </div>
 </section>
 
-<!-- ═══ 4. KEY FINDINGS ═══ -->
+<!-- ═══ 4. HARNESS SCORECARD ═══ -->
+<section id="sl-harness-scorecard">
+  <h2>🏁 Harness Gate 종합 성적표</h2>
+  <div id="hs-gate-grid" style="display:grid;grid-template-columns:repeat(7,1fr);gap:9px;margin-bottom:12px;flex-shrink:0"></div>
+  <div style="margin-bottom:10px;flex-shrink:0">
+    <div style="font-size:11px;color:var(--tc2);margin-bottom:5px;font-weight:600">종합 Harness 점수</div>
+    <div class="gauge-track"><div class="gauge-fill" id="hs-overall-gauge-fill" style="width:0%;background:var(--accent)"></div></div>
+    <div class="gauge-lbls"><span>0%</span><span id="hs-overall-val" style="color:var(--accent);font-weight:700">—</span><span>100%</span></div>
+  </div>
+  <div class="kpi-row kpi-row-4" style="margin-bottom:10px">
+    <div class="kpi-box"><div class="kpi-lbl">활성 Gate</div><div class="kpi-val" id="hs-active">—</div></div>
+    <div class="kpi-box"><div class="kpi-lbl">PASS</div><div class="kpi-val c-green" id="hs-pass">—</div></div>
+    <div class="kpi-box"><div class="kpi-lbl">WARN</div><div class="kpi-val c-yellow" id="hs-warn">—</div></div>
+    <div class="kpi-box"><div class="kpi-lbl">FAIL</div><div class="kpi-val c-red" id="hs-fail">—</div></div>
+  </div>
+  <div id="hs-harness-notice" class="harness-inactive" style="display:none">
+    ⚙️ Harness Config 미활성 — <code>@agent_eval</code> 데코레이터에서 InstructionConfig, SLAConfig 등 Harness Config를 전달하면 Gate별 세부 점수가 표시됩니다.
+  </div>
+  <div class="bottom-line" id="hs-bottom"></div>
+</section>
+
+<!-- ═══ 5. Gate A — 목표 달성 ═══ -->
+<section id="sl-gate-A">
+  <h2>Gate A — 목표 달성 <span class="gate-pill gate-pill-na" id="gA-pill">—</span></h2>
+  <div class="kpi-row kpi-row-4" style="margin-bottom:8px">
+    <div class="kpi-box gate-border-A"><div class="kpi-lbl">Gate A 점수</div><div class="kpi-val" id="gA-score">—</div></div>
+    <div class="kpi-box"><div class="kpi-lbl">TCR</div><div class="kpi-val" id="gA-tcr">—</div><div class="kpi-sub">태스크 완료율</div></div>
+    <div class="kpi-box"><div class="kpi-lbl">전체 정확도</div><div class="kpi-val" id="gA-acc">—</div></div>
+    <div class="kpi-box"><div class="kpi-lbl">완전성공</div><div class="kpi-val c-green" id="gA-full">—</div><div class="kpi-sub">건</div></div>
+  </div>
+  <div class="two-col" style="flex:1;align-items:start">
+    <div>
+      <div class="bar-title">Task Type별 완료율</div>
+      <div id="gA-type-bars"></div>
+      <div style="margin-top:10px">
+        <div class="bar-title">정확도 분포</div>
+        <div class="chart-wrap" style="height:140px"><canvas id="gA-acc-chart"></canvas></div>
+      </div>
+    </div>
+    <div>
+      <div class="bar-title">Harness A 세부 점수</div>
+      <div id="gA-harness"></div>
+    </div>
+  </div>
+  <div class="bottom-line" id="gA-bottom"></div>
+</section>
+
+<!-- ═══ 6. Gate B — 행동 무결성 (has_agentic 조건) ═══ -->
+<section id="sl-gate-B" data-visibility="hidden">
+  <h2>Gate B — 행동 무결성 <span class="gate-pill gate-pill-na" id="gB-pill">—</span></h2>
+  <div class="kpi-row kpi-row-4" style="margin-bottom:8px">
+    <div class="kpi-box gate-border-B"><div class="kpi-lbl">Gate B 점수</div><div class="kpi-val" id="gB-score">—</div></div>
+    <div class="kpi-box"><div class="kpi-lbl">Tool F1</div><div class="kpi-val" id="gB-tool-f1">—</div><div class="kpi-sub">도구 선택 정확도</div></div>
+    <div class="kpi-box"><div class="kpi-lbl">워크플로우</div><div class="kpi-val" id="gB-wf">—</div><div class="kpi-sub">단계 성공률</div></div>
+    <div class="kpi-box"><div class="kpi-lbl">Tool 호출수</div><div class="kpi-val" id="gB-tool-n">—</div></div>
+  </div>
+  <div class="two-col" style="flex:1;align-items:start">
+    <div>
+      <div class="bar-title">에이전틱 지표</div>
+      <div id="gB-native-bars"></div>
+      <div style="margin-top:10px">
+        <div class="bar-title">해석 기준</div>
+        <div class="card" style="padding:10px 12px">
+          <div style="font-size:11px;color:var(--tc2);line-height:2">
+            • Tool F1 ≥ 80%: 도구 선택 우수<br>
+            • 워크플로우 ≥ 80%: 프로세스 안정<br>
+            • 루프 감지율 낮을수록 양호<br>
+            • 상태 일관성 ≥ 90%: 신뢰 가능
+          </div>
+        </div>
+      </div>
+    </div>
+    <div>
+      <div class="bar-title">Harness B 세부 점수</div>
+      <div id="gB-harness"></div>
+    </div>
+  </div>
+  <div class="bottom-line" id="gB-bottom"></div>
+</section>
+
+<!-- ═══ 7. Gate C — 신뢰성 ═══ -->
+<section id="sl-gate-C">
+  <h2>Gate C — 신뢰성 <span class="gate-pill gate-pill-na" id="gC-pill">—</span></h2>
+  <div class="kpi-row kpi-row-4" style="margin-bottom:8px">
+    <div class="kpi-box gate-border-C"><div class="kpi-lbl">Gate C 점수</div><div class="kpi-val" id="gC-score">—</div></div>
+    <div class="kpi-box"><div class="kpi-lbl">재시도 발생</div><div class="kpi-val" id="gC-retry-n">—</div><div class="kpi-sub">건</div></div>
+    <div class="kpi-box"><div class="kpi-lbl">재시도 후 성공</div><div class="kpi-val" id="gC-retry-sr">—</div></div>
+    <div class="kpi-box"><div class="kpi-lbl">환각 발생률</div><div class="kpi-val" id="gC-hallu">—</div><div class="kpi-sub">낮을수록 안전</div></div>
+  </div>
+  <div class="two-col" style="flex:1;align-items:start">
+    <div>
+      <div class="bar-title">신뢰성 지표</div>
+      <div id="gC-native-bars"></div>
+      <div id="gC-hallu-wrap" style="margin-top:10px">
+        <div class="bar-title">환각 위험 게이지</div>
+        <div id="gC-hallu-gauge"></div>
+      </div>
+      <div id="gC-hallu-inactive" class="harness-inactive" style="display:none;margin-top:10px">
+        환각 감지 비활성 — <code>enable_hallucination_detection=True</code>
+      </div>
+    </div>
+    <div>
+      <div class="bar-title">Harness C 세부 점수</div>
+      <div id="gC-harness"></div>
+    </div>
+  </div>
+  <div class="bottom-line" id="gC-bottom"></div>
+</section>
+
+<!-- ═══ 8. Gate D — 성능 계약 ═══ -->
+<section id="sl-gate-D">
+  <h2>Gate D — 성능 계약 <span class="gate-pill gate-pill-na" id="gD-pill">—</span></h2>
+  <div class="kpi-row kpi-row-4" style="margin-bottom:8px">
+    <div class="kpi-box gate-border-D"><div class="kpi-lbl">Gate D 점수</div><div class="kpi-val" id="gD-score">—</div></div>
+    <div class="kpi-box"><div class="kpi-lbl">평균 지연</div><div class="kpi-val" id="gD-lat-mean">—</div></div>
+    <div class="kpi-box"><div class="kpi-lbl">P95 (목표 2s)</div><div class="kpi-val" id="gD-lat-p95">—</div></div>
+    <div class="kpi-box"><div class="kpi-lbl">Task당 비용</div><div class="kpi-val" id="gD-cost-task">—</div></div>
+  </div>
+  <div class="two-col" style="flex:1;align-items:start">
+    <div>
+      <div class="bar-title">Latency 백분위</div>
+      <div class="chart-wrap" style="height:160px"><canvas id="gD-lat-bar"></canvas></div>
+      <div style="margin-top:10px">
+        <div class="bar-title">Token 사용량</div>
+        <div id="gD-tok-bars"></div>
+      </div>
+    </div>
+    <div>
+      <div class="bar-title">SLA 달성 여부</div>
+      <div id="gD-sla"></div>
+      <div style="margin-top:8px">
+        <div class="bar-title">Harness D 세부 점수</div>
+        <div id="gD-harness"></div>
+      </div>
+    </div>
+  </div>
+  <div class="bottom-line" id="gD-bottom"></div>
+</section>
+
+<!-- ═══ 9. Gate E — 보안 경계 ═══ -->
+<section id="sl-gate-E">
+  <h2>Gate E — 보안 경계 <span class="gate-pill gate-pill-na" id="gE-pill">—</span></h2>
+  <div id="gE-active" class="slide-content">
+    <div class="kpi-row kpi-row-4" style="margin-bottom:8px">
+      <div class="kpi-box gate-border-E"><div class="kpi-lbl">Gate E 점수</div><div class="kpi-val" id="gE-score">—</div></div>
+      <div class="kpi-box"><div class="kpi-lbl">입력 위협률</div><div class="kpi-val" id="gE-thr">—</div><div class="kpi-sub">L1 입력 검증</div></div>
+      <div class="kpi-box"><div class="kpi-lbl">출력 유출률</div><div class="kpi-val" id="gE-leak">—</div><div class="kpi-sub">L1 출력 검사</div></div>
+      <div class="kpi-box"><div class="kpi-lbl">권한 준수율</div><div class="kpi-val" id="gE-auth">—</div><div class="kpi-sub">L1 도구 인가</div></div>
+    </div>
+    <div class="two-col" style="flex:1;align-items:start">
+      <div>
+        <div class="bar-title">보안 안전율 (100%에 가까울수록 양호)</div>
+        <div id="gE-native-bars"></div>
+      </div>
+      <div>
+        <div class="bar-title">Harness E 세부 점수</div>
+        <div id="gE-harness"></div>
+      </div>
+    </div>
+  </div>
+  <div id="gE-inactive" class="no-data" style="display:none;flex:1">
+    <div class="no-data-icon">🛡️</div>
+    <div>보안 트래커 비활성</div>
+    <div style="font-size:11px">PerformanceMonitor(enable_security_metrics=True)</div>
+  </div>
+  <div class="bottom-line" id="gE-bottom"></div>
+</section>
+
+<!-- ═══ 10. Gate F — 멀티에이전트 (has_agentic 조건) ═══ -->
+<section id="sl-gate-F" data-visibility="hidden">
+  <h2>Gate F — 멀티에이전트 <span class="gate-pill gate-pill-na" id="gF-pill">—</span></h2>
+  <div class="kpi-row kpi-row-4" style="margin-bottom:8px">
+    <div class="kpi-box gate-border-F"><div class="kpi-lbl">Gate F 점수</div><div class="kpi-val" id="gF-score">—</div></div>
+    <div class="kpi-box"><div class="kpi-lbl">협력 성공률</div><div class="kpi-val" id="gF-coord-sr">—</div><div class="kpi-sub">멀티에이전트</div></div>
+    <div class="kpi-box"><div class="kpi-lbl">워크플로우 SR</div><div class="kpi-val" id="gF-wf-sr">—</div></div>
+    <div class="kpi-box"><div class="kpi-lbl">재시도 성공</div><div class="kpi-val" id="gF-retry-sr">—</div></div>
+  </div>
+  <div class="two-col" style="flex:1;align-items:start">
+    <div>
+      <div class="bar-title">멀티에이전트 지표</div>
+      <div id="gF-native-bars"></div>
+      <div style="margin-top:10px">
+        <div class="bar-title">해석 기준</div>
+        <div class="card" style="padding:10px 12px">
+          <div style="font-size:11px;color:var(--tc2);line-height:2">
+            • 협력 성공 ≥ 80%: 멀티에이전트 안정<br>
+            • 워크플로우 ≥ 80%: 분산 프로세스 신뢰<br>
+            • 재시도 성공 ≥ 60%: 자기수정 가능<br>
+            • Consensus ≥ 85%: 에이전트 합의 우수
+          </div>
+        </div>
+      </div>
+    </div>
+    <div>
+      <div class="bar-title">Harness F 세부 점수</div>
+      <div id="gF-harness"></div>
+    </div>
+  </div>
+  <div class="bottom-line" id="gF-bottom"></div>
+</section>
+
+<!-- ═══ 11. Gate G — 관측가능성 ═══ -->
+<section id="sl-gate-G">
+  <h2>Gate G — 관측가능성 <span class="gate-pill gate-pill-na" id="gG-pill">—</span></h2>
+  <div class="kpi-row kpi-row-4" style="margin-bottom:8px">
+    <div class="kpi-box gate-border-G"><div class="kpi-lbl">Gate G 점수</div><div class="kpi-val" id="gG-score">—</div></div>
+    <div class="kpi-box"><div class="kpi-lbl">품질 평균</div><div class="kpi-val" id="gG-qual-avg">—</div><div class="kpi-sub">/ 5.0</div></div>
+    <div class="kpi-box"><div class="kpi-lbl">LLM Judge 점수</div><div class="kpi-val" id="gG-judge">—</div><div class="kpi-sub">측정 시</div></div>
+    <div class="kpi-box"><div class="kpi-lbl">Faithfulness</div><div class="kpi-val" id="gG-faith">—</div><div class="kpi-sub">RAG 모드 시</div></div>
+  </div>
+  <div class="two-col" style="flex:1;align-items:start">
+    <div>
+      <div class="bar-title">응답품질 5차원</div>
+      <div id="gG-quality-dims"></div>
+      <div id="gG-quality-gauge-wrap" style="display:none;margin-top:8px">
+        <div style="font-size:11px;color:var(--tc2);margin-bottom:4px;font-weight:600">종합 품질 점수 (/ 5.0)</div>
+        <div class="gauge-track"><div class="gauge-fill" id="gG-quality-gauge-fill" style="width:0%;background:#06b6d4"></div></div>
+        <div class="gauge-lbls"><span>0</span><span id="gG-quality-avg-val" style="color:#06b6d4;font-weight:700"></span><span>5.0</span></div>
+      </div>
+      <div id="gG-quality-nodata" class="no-data" style="display:none">
+        <div class="no-data-icon">📊</div>
+        <div style="font-size:11px">ResponseQualityEvaluator 미활성</div>
+      </div>
+    </div>
+    <div>
+      <div class="bar-title">Harness G 세부 점수</div>
+      <div id="gG-harness"></div>
+    </div>
+  </div>
+  <div class="bottom-line" id="gG-bottom"></div>
+</section>
+
+<!-- ═══ 12. KEY FINDINGS ═══ -->
 <section>
   <h2>🔑 핵심 발견 (Key Findings)</h2>
   <div id="kf-cards" class="slide-content" style="gap:0"></div>
   <div id="kf-verdict" class="verdict-banner" style="margin-top:8px"></div>
 </section>
 
-<!-- ═══ 5. TASK COMPLETION RATE ═══ -->
-<section>
-  <h2>📋 태스크 완료율 (TCR)</h2>
-  <div class="two-col" style="flex:1;align-items:start">
-    <div>
-      <div class="chart-wrap" style="height:230px"><canvas id="sl-donut"></canvas></div>
-      <div class="chart-label">완전성공 · 부분성공 · 실패 비율</div>
-      <div class="kpi-row kpi-row-4" style="margin-top:10px">
-        <div class="kpi-box"><div class="kpi-lbl">TCR</div><div class="kpi-val" id="tcr-val">—</div></div>
-        <div class="kpi-box"><div class="kpi-lbl">완전성공</div><div class="kpi-val c-green" id="tcr-full">—</div></div>
-        <div class="kpi-box"><div class="kpi-lbl">부분성공</div><div class="kpi-val c-yellow" id="tcr-partial">—</div></div>
-        <div class="kpi-box"><div class="kpi-lbl">실패</div><div class="kpi-val c-red" id="tcr-fail">—</div></div>
-      </div>
-    </div>
-    <div>
-      <div class="bar-title">Task Type별 완료율</div>
-      <div id="sl-type-bars" style="flex:1;overflow:hidden"></div>
-    </div>
-  </div>
-  <div class="bottom-line" id="tcr-bottom"></div>
-</section>
-
-<!-- ═══ 6. FAILURE ANALYSIS ═══ -->
-<section>
-  <h2>🔍 실패 원인 분석</h2>
-  <div id="fa-nodata" class="no-data" style="display:none;flex:1">
-    <div class="no-data-icon">✅</div>
-    <div>실패한 태스크가 없습니다</div>
-  </div>
-  <div id="fa-content" class="two-col" style="flex:1;align-items:start">
-    <div>
-      <div class="bar-title">실패 집중 Task Type (성공률 낮은 순)</div>
-      <div id="fa-type-bars"></div>
-      <div style="margin-top:12px">
-        <div class="bar-title">완전실패 vs 부분성공</div>
-        <div id="fa-ratio"></div>
-      </div>
-    </div>
-    <div>
-      <div class="bar-title">에러 유형 분포</div>
-      <div id="fa-error-bars"></div>
-      <div style="margin-top:12px">
-        <div class="bar-title">실패 태스크 정확도 분포</div>
-        <div class="chart-wrap" style="height:130px"><canvas id="fa-fail-hist"></canvas></div>
-      </div>
-    </div>
-  </div>
-  <div class="bottom-line" id="fa-bottom"></div>
-</section>
-
-<!-- ═══ 7. ACCURACY & QUALITY ═══ -->
-<section>
-  <h2>🎯 정확도 &amp; 응답품질</h2>
-  <div class="two-col" style="flex:1;align-items:start">
-    <div>
-      <div class="kpi-row kpi-row-2" style="margin-bottom:10px">
-        <div class="kpi-box"><div class="kpi-lbl">Overall Accuracy</div><div class="kpi-val" id="sl-acc-overall">—</div></div>
-        <div class="kpi-box"><div class="kpi-lbl">중앙값</div><div class="kpi-val" id="sl-acc-med">—</div><div class="kpi-sub" id="sl-acc-std"></div></div>
-      </div>
-      <div class="bar-title">Task Type별 정확도</div>
-      <div id="acc-type-bars"></div>
-    </div>
-    <div>
-      <div class="bar-title">응답품질 5차원</div>
-      <div id="sl-quality-dims"></div>
-      <div id="sl-quality-avg-wrap" style="display:none;margin-top:10px">
-        <div style="font-size:11px;color:var(--tc2);margin-bottom:6px;font-weight:600">종합 품질 점수 (/ 5.0)</div>
-        <div class="gauge-track"><div class="gauge-fill" id="sl-quality-gauge-fill" style="width:0%;background:#6c8ef5"></div></div>
-        <div class="gauge-lbls"><span>0</span><span id="sl-quality-avg-val" style="color:var(--accent);font-weight:700"></span><span>5.0</span></div>
-      </div>
-      <div id="sl-quality-nodata" class="no-data" style="display:none">
-        <div class="no-data-icon">📊</div>
-        <div style="font-size:11px">ResponseQualityEvaluator 미활성</div>
-      </div>
-    </div>
-  </div>
-  <div class="bottom-line" id="acc-bottom"></div>
-</section>
-
-<!-- ═══ 8. HALLUCINATION ═══ -->
-<section>
-  <h2>🧠 환각 감지 (Hallucination Detection)</h2>
-  <div id="sl-hallu-active" class="slide-content">
-    <div class="kpi-row kpi-row-4" style="margin-bottom:10px">
-      <div class="kpi-box"><div class="kpi-lbl">환각 발생률</div><div class="kpi-val" id="sl-hallu-rate">—</div><div class="kpi-sub" id="sl-hallu-rate-sub"></div></div>
-      <div class="kpi-box"><div class="kpi-lbl">평가 건수</div><div class="kpi-val" id="sl-hallu-total">—</div></div>
-      <div class="kpi-box"><div class="kpi-lbl">감지 건수</div><div class="kpi-val c-red" id="sl-hallu-flagged">—</div></div>
-      <div class="kpi-box"><div class="kpi-lbl">안전 건수</div><div class="kpi-val c-green" id="sl-hallu-safe">—</div></div>
-    </div>
-    <div style="margin-bottom:12px">
-      <div style="font-size:11px;color:var(--tc2);margin-bottom:6px;font-weight:600">위험 수준 게이지 (0% 안전 → 30% 위험)</div>
-      <div id="sl-hallu-gauge"></div>
-    </div>
-    <div class="two-col" style="flex:1;align-items:start">
-      <div>
-        <div class="bar-title">유형별 발생 건수</div>
-        <div id="sl-hallu-types"></div>
-      </div>
-      <div>
-        <div class="bar-title">위험 수준 해석</div>
-        <div id="sl-hallu-interpret"></div>
-      </div>
-    </div>
-  </div>
-  <div id="sl-hallu-inactive" class="no-data" style="display:none;flex:1">
-    <div class="no-data-icon">🧠</div>
-    <div>환각 감지 트래커 비활성</div>
-    <div style="font-size:11px">PerformanceMonitor(enable_hallucination_detection=True)</div>
-  </div>
-</section>
-
-<!-- ═══ 9. LATENCY ═══ -->
-<section>
-  <h2>⚡ 응답 지연 (Latency)</h2>
-  <div class="two-col" style="flex:1;align-items:start">
-    <div>
-      <div class="kpi-row kpi-row-2" style="margin-bottom:10px">
-        <div class="kpi-box"><div class="kpi-lbl">평균 (Mean)</div><div class="kpi-val" id="lat-mean">—</div></div>
-        <div class="kpi-box"><div class="kpi-lbl">P95 (기준: ≤2s)</div><div class="kpi-val" id="lat-p95">—</div></div>
-      </div>
-      <div class="chart-wrap" style="height:210px"><canvas id="sl-lat-bar"></canvas></div>
-      <div class="chart-label">백분위별 응답시간 (초)</div>
-    </div>
-    <div>
-      <div class="bar-title">SLA 달성 여부</div>
-      <div id="lat-sla"></div>
-      <div style="margin-top:12px">
-        <div class="bar-title">Task Type별 평균 지연</div>
-        <div id="sl-lat-type-bars"></div>
-      </div>
-    </div>
-  </div>
-  <div class="bottom-line" id="lat-bottom"></div>
-</section>
-
-<!-- ═══ 10. COST EFFICIENCY ═══ -->
-<section>
-  <h2>💰 비용 효율 (Cost Efficiency)</h2>
-  <div class="two-col" style="flex:1;align-items:start">
-    <div>
-      <div class="kpi-row kpi-row-2" style="margin-bottom:9px">
-        <div class="kpi-box"><div class="kpi-lbl">총 비용</div><div class="kpi-val c-green" id="sl-cost-total">—</div></div>
-        <div class="kpi-box"><div class="kpi-lbl">Task당 비용</div><div class="kpi-val" id="sl-cost-task">—</div></div>
-      </div>
-      <div class="kpi-row kpi-row-2" style="margin-bottom:9px">
-        <div class="kpi-box"><div class="kpi-lbl">성공 Task당 비용</div><div class="kpi-val" id="sl-cost-success">—</div><div class="kpi-sub">비용 효율 핵심 지표</div></div>
-        <div class="kpi-box"><div class="kpi-lbl">월간 추정 비용</div><div class="kpi-val c-yellow" id="sl-cost-monthly">—</div><div class="kpi-sub">동일 부하 기준</div></div>
-      </div>
-      <div class="kpi-box">
-        <div class="kpi-lbl">비용 효율 등급</div>
-        <div style="display:flex;align-items:center;gap:12px;margin-top:4px">
-          <div class="grade-badge" id="cost-grade-badge">—</div>
-          <div id="cost-grade-desc" style="font-size:12px;color:var(--tc2)"></div>
-        </div>
-      </div>
-    </div>
-    <div>
-      <div class="chart-wrap" style="height:160px"><canvas id="sl-tok-pie"></canvas></div>
-      <div class="chart-label" id="sl-tok-info"></div>
-      <div style="margin-top:12px">
-        <div class="bar-title">Input / Output 토큰</div>
-        <div id="sl-cost-tok-bars"></div>
-      </div>
-    </div>
-  </div>
-  <div class="bottom-line" id="cost-bottom"></div>
-</section>
-
-<!-- ═══ 11. SECURITY ═══ -->
-<section>
-  <h2>🛡️ 보안 지표 (Security)</h2>
-  <div id="sl-security-content" class="slide-content">
-    <div class="no-data" style="flex:1">
-      <div class="no-data-icon">🛡️</div>
-      <div>보안 트래커 비활성</div>
-      <div style="font-size:11px">PerformanceMonitor(enable_security_metrics=True)</div>
-    </div>
-  </div>
-</section>
-
-<!-- ═══ 12. AGENTIC (conditional) ═══ -->
-<section id="sl-agentic-section" data-visibility="hidden">
-  <h2>🤖 에이전틱 지표 (Agentic Metrics)</h2>
-  <div id="sl-agentic-content" class="slide-content">
-    <div class="no-data" style="flex:1">
-      <div class="no-data-icon">🤖</div>
-      <div>에이전틱 트래커 비활성</div>
-    </div>
-  </div>
-</section>
-
-<!-- ═══ 13. HEALTH SCORE ═══ -->
-<section>
-  <h2>🏥 종합 건강 점수 (Health Score)</h2>
-  <div class="two-col" style="flex:1;align-items:center">
-    <div style="text-align:center;padding:10px 0">
-      <div class="health-big" id="sl-health-score">—</div>
-      <div style="font-size:13px;color:var(--tc2);margin-top:4px">/ 100</div>
-      <div style="display:flex;align-items:center;justify-content:center;gap:14px;margin-top:14px">
-        <div class="grade-badge" id="health-grade-badge">—</div>
-        <div>
-          <div style="font-size:18px;font-weight:800;color:var(--tc)" id="sl-health-label"></div>
-          <div style="font-size:11px;color:var(--tc2);margin-top:3px" id="sl-health-desc"></div>
-        </div>
-      </div>
-    </div>
-    <div>
-      <div class="bar-title" style="margin-bottom:10px">차원별 점수</div>
-      <div id="sl-health-bars"></div>
-      <div style="margin-top:10px">
-        <div class="bar-title">점수 계산 기준</div>
-        <div style="font-size:11px;color:var(--tc2);line-height:1.8">
-          • 기초 (Layer 1): TCR + 정확도 + 환각 페널티 평균<br>
-          • 성능: P95 지연 기반 지수 감소 (목표 2s)<br>
-          • 보안: L1/L2 안전율 4개 평균 <span style="opacity:.5">(측정 시)</span><br>
-          • 에이전틱: Tool F1 · Coordination · Workflow 평균 <span style="opacity:.5">(측정 시)</span>
-        </div>
-      </div>
-    </div>
-  </div>
-</section>
-
-<!-- ═══ 14. ACTION PLAN ═══ -->
+<!-- ═══ 13. ACTION PLAN ═══ -->
 <section>
   <h2>🚀 액션 플랜 (Action Plan)</h2>
   <div id="ap-content" class="slide-content"></div>
 </section>
 
-<!-- ═══ 15. THANK YOU ═══ -->
+<!-- ═══ 14. THANK YOU ═══ -->
 <section style="padding:0!important">
   <div class="title-inner">
     <div style="font-size:2em">🎉</div>
@@ -603,17 +675,8 @@ function _populateSlides(data){
     else if (t.errors) typeStats[tp].errors.push(t.errors);
   });
 
-  // error type frequency across all tasks
-  const errorFreq = {};
-  tasks.forEach(t => {
-    (Array.isArray(t.errors) ? t.errors : t.errors ? [t.errors] : []).forEach(e => {
-      const key = String(e).substring(0,40);
-      errorFreq[key] = (errorFreq[key]||0) + 1;
-    });
-  });
-
-  const health = calcHealth(tcr, acc, hallu, lat, data);
   const { l1sc, perfSc, secSc, agSc } = calcHealthParts(tcr, acc, hallu, lat, data);
+  const health = calcHealth(tcr, acc, hallu, lat, data);
 
   /* ── Slide 1: Title ── */
   document.getElementById('slide-title').textContent = data.name || '';
@@ -642,7 +705,20 @@ function _populateSlides(data){
      </div>`
   ).join('');
 
-  /* ── Slide 4: Key Findings ── */
+  /* ── Slide 4: Harness Scorecard ── */
+  renderHarnessScorecard(data);
+
+  /* ── Slide 5-11: Gate slides ── */
+  renderGateA(data, typeStats, tcr_v, acc_v);
+  renderGateB(data);
+  renderGateC(data, halluHas, hall_v);
+  renderGateD(data, lat, tok, p95_v);
+  renderGateE(data);
+  renderGateF(data);
+  renderGateG(data, qual);
+
+  /* ── Slide 12: Key Findings ── */
+  const costPerTask = tok.avg_cost_per_task || ((data.total_tasks||1) ? (tok.total_cost||0)/(data.total_tasks||1) : 0);
   const findings = buildFindings(tcr_v, acc_v, hall_v, p95_v, halluHas, lat, tok, tasks, data);
   document.getElementById('kf-cards').innerHTML = findings.cards;
   document.getElementById('kf-verdict').className = 'verdict-banner ' + findings.verdictCls;
@@ -653,181 +729,319 @@ function _populateSlides(data){
        <div class="vb-sub">${findings.verdictSub}</div>
      </div>`;
 
-  /* ── Slide 5: TCR ── */
-  setKpi('tcr-val', fmtPct(tcr_v), tcr_v>=90?'c-green':tcr_v>=70?'c-yellow':'c-red');
-  set('tcr-full',    tcr.full_success||0);
-  set('tcr-partial', tcr.partial_success||0);
-  set('tcr-fail',    tcr.failures||0);
-  document.getElementById('sl-type-bars').innerHTML = Object.entries(typeStats)
-    .sort((a,b) => (a[1].ok/a[1].n) - (b[1].ok/b[1].n)) // 낮은 순
-    .slice(0, 8)
-    .map(([tp, s]) => {
-      const rate = Math.round(s.ok/s.n*100);
-      const col = rate>=90?'#4ade80':rate>=70?'#facc15':'#f87171';
-      return `<div class="bar-row">
-        <div class="bar-lbl"><span>${tp}</span><span style="color:${col}">${rate}% <span style="font-weight:400;font-size:10px;opacity:.7">(${s.n}건)</span></span></div>
-        <div class="bar-track"><div class="bar-fill" style="width:${rate}%;background:${col}"></div></div>
-      </div>`;
-    }).join('');
-  const worstType = Object.entries(typeStats).sort((a,b) => (a[1].ok/a[1].n)-(b[1].ok/b[1].n))[0];
-  document.getElementById('tcr-bottom').innerHTML =
-    `<strong>Bottom Line:</strong> ${tasks.length}개 태스크 중 완전성공 ${tcr.full_success||0}건(${fmtPct(tcr_v)})` +
-    (worstType ? ` · 가장 낮은 타입: <strong>${worstType[0]}</strong> (${Math.round(worstType[1].ok/worstType[1].n*100)}%)` : '');
+  /* ── Slide 13: Action Plan ── */
+  const actions = buildActionPlan(tcr_v, acc_v, hall_v, p95_v, halluHas, costPerTask, data);
+  document.getElementById('ap-content').innerHTML = actions;
+}
 
-  /* ── Slide 6: Failure Analysis ── */
-  const failTasks = tasks.filter(t => !t.success);
-  if (failTasks.length === 0) {
-    document.getElementById('fa-nodata').style.display = 'flex';
-    document.getElementById('fa-content').style.display = 'none';
-  } else {
-    document.getElementById('fa-nodata').style.display = 'none';
-    document.getElementById('fa-content').style.display = 'grid';
+/* ═══════════════════════════════════════════════════
+   HARNESS SCORECARD
+═══════════════════════════════════════════════════ */
+function renderHarnessScorecard(d) {
+  const hg = d.harness_groups || {};
+  const gates = ['A','B','C','D','E','F','G'];
+  const names = {A:'목표 달성',B:'행동 무결성',C:'신뢰성',D:'성능 계약',
+                 E:'보안 경계',F:'멀티에이전트',G:'관측가능성'};
+  const colors = {A:'#10b981',B:'#3b82f6',C:'#f59e0b',D:'#0ea5e9',
+                  E:'#ef4444',F:'#8b5cf6',G:'#06b6d4'};
 
-    // worst types
-    const worstTypes = Object.entries(typeStats)
-      .filter(([,s]) => s.n > 0)
-      .map(([tp,s]) => [tp, Math.round(s.ok/s.n*100), s.n])
-      .sort((a,b) => a[1]-b[1]).slice(0,6);
-    const maxWN = Math.max(...worstTypes.map(x=>x[2]));
-    document.getElementById('fa-type-bars').innerHTML = worstTypes.map(([tp,rate,n]) => {
-      const col = rate>=90?'#4ade80':rate>=70?'#facc15':'#f87171';
-      return `<div class="bar-row">
-        <div class="bar-lbl"><span>${tp}</span><span style="color:${col}">${rate}% 성공 (${n}건)</span></div>
-        <div class="bar-track"><div class="bar-fill" style="width:${100-rate}%;background:${col}40"></div></div>
-      </div>`;
-    }).join('');
+  // Derive scores for gates without harness data from native metrics
+  const nativeScores = deriveNativeGateScores(d);
+  const hasAnyHarness = Object.keys(hg).length > 0;
 
-    // complete fail vs partial
-    const completeFail = tasks.filter(t => !t.success && (t.completion_score||0) < 0.3).length;
-    const partialFail  = failTasks.length - completeFail;
-    document.getElementById('fa-ratio').innerHTML =
-      `<div class="bar-row">
-         <div class="bar-lbl"><span>완전 실패</span><span style="color:#f87171">${completeFail}건 (${Math.round(completeFail/failTasks.length*100)}%)</span></div>
-         <div class="bar-track"><div class="bar-fill" style="width:${Math.round(completeFail/failTasks.length*100)}%;background:#f87171"></div></div>
-       </div>
-       <div class="bar-row">
-         <div class="bar-lbl"><span>부분 실패 (점수 낮음)</span><span style="color:#facc15">${partialFail}건 (${Math.round(partialFail/failTasks.length*100)}%)</span></div>
-         <div class="bar-track"><div class="bar-fill" style="width:${Math.round(partialFail/failTasks.length*100)}%;background:#facc15"></div></div>
-       </div>`;
+  let passC = 0, warnC = 0, failC = 0, activeC = 0;
+  const gateResults = {};
 
-    // error types
-    const errEntries = Object.entries(errorFreq).sort((a,b)=>b[1]-a[1]).slice(0,6);
-    if (errEntries.length > 0) {
-      const maxE = errEntries[0][1];
-      document.getElementById('fa-error-bars').innerHTML = errEntries.map(([e,n]) =>
-        `<div class="bar-row">
-           <div class="bar-lbl"><span style="font-size:11px">${e}</span><span style="color:#f87171">${n}건</span></div>
-           <div class="bar-track"><div class="bar-fill" style="width:${Math.round(n/maxE*100)}%;background:#f87171"></div></div>
-         </div>`).join('');
-    } else {
-      document.getElementById('fa-error-bars').innerHTML =
-        '<div style="font-size:11px;color:var(--tc2);margin-top:4px">errors 필드 데이터 없음</div>';
+  gates.forEach(gk => {
+    const hgData = hg[gk];
+    let score = null, status = 'na';
+
+    if (hgData) {
+      score = hgData.score ?? hgData.overall_score ?? null;
+      status = hgData.status || gateStatus(score);
+      activeC++;
+      if (status === 'pass') passC++;
+      else if (status === 'warn') warnC++;
+      else if (status === 'fail') failC++;
+    } else if (nativeScores[gk] != null) {
+      score = nativeScores[gk];
+      status = gateStatus(score);
+      activeC++;
+      if (status === 'pass') passC++;
+      else if (status === 'warn') warnC++;
+      else if (status === 'fail') failC++;
     }
+    gateResults[gk] = { score, status };
+  });
 
-    document.getElementById('fa-bottom').innerHTML =
-      `<strong>Bottom Line:</strong> 실패 ${failTasks.length}건 중 완전실패 ${completeFail}건` +
-      (errEntries.length ? ` · 주요 에러: <strong>${errEntries[0][0]}</strong> (${errEntries[0][1]}건)` : '');
-  }
-
-  /* ── Slide 7: Accuracy & Quality ── */
-  setKpi('sl-acc-overall', fmtPct(acc_v), acc_v>=70?'c-green':acc_v>=50?'c-yellow':'c-red');
-  set('sl-acc-med', fmtPct(acc.median_accuracy));
-  set('sl-acc-std', `표준편차 ${(acc.std_accuracy||0).toFixed(2)}`);
-
-  // per-type accuracy bars
-  const typeAccList = Object.entries(typeStats)
-    .map(([tp,s]) => [tp, s.acc.length ? s.acc.reduce((a,b)=>a+b,0)/s.acc.length : 0, s.n])
-    .sort((a,b) => b[1]-a[1]).slice(0, 7);
-  document.getElementById('acc-type-bars').innerHTML = typeAccList.map(([tp,avg,n]) => {
-    const col = avg>=70?'#4ade80':avg>=50?'#facc15':'#f87171';
-    return `<div class="bar-row">
-      <div class="bar-lbl"><span>${tp}</span><span style="color:${col}">${avg.toFixed(1)}%</span></div>
-      <div class="bar-track"><div class="bar-fill" style="width:${Math.round(avg)}%;background:${col}"></div></div>
+  // Gate card grid
+  document.getElementById('hs-gate-grid').innerHTML = gates.map(gk => {
+    const { score, status } = gateResults[gk];
+    const c = colors[gk];
+    const scoreStr = score != null ? Math.round(score) + '%' : 'N/A';
+    const statusIcon = status === 'pass' ? '✅' : status === 'warn' ? '⚠️' : status === 'fail' ? '❌' : '—';
+    const alpha = status === 'na' ? '0.08' : '0.13';
+    return `<div class="gate-card" style="background:${c}${status==='na'?'11':'1a'};border-color:${c}${status==='na'?'33':'55'}">
+      <div class="gate-letter" style="color:${c}">${gk}</div>
+      <div class="gate-score" style="color:${status==='na'?'var(--tc2)':c}">${scoreStr}</div>
+      <div style="font-size:16px">${statusIcon}</div>
+      <div class="gate-name">${names[gk]}</div>
     </div>`;
   }).join('');
 
-  // quality dims
-  const dims = [
-    ['정확성 (Accuracy)',  qual.accuracy_score],
-    ['완결성 (Completeness)', qual.completeness_score],
-    ['명확성 (Clarity)',   qual.clarity_score],
-    ['관련성 (Relevance)', qual.relevance_score],
-    ['창의성 (Creativity)',qual.creativity_score],
-  ];
-  const hasQual = dims.some(([,v]) => v != null && v > 0);
-  if (hasQual) {
-    document.getElementById('sl-quality-dims').innerHTML = dims.map(([lbl,v]) => {
-      const pct = v != null ? Math.round(v/5*100) : 0;
-      const col = pct>=70?'#4ade80':pct>=50?'#6c8ef5':'#f87171';
-      return `<div class="qdim-row">
-        <div class="qdim-lbl">${lbl.split(' ')[0]}</div>
-        <div class="qdim-track"><div class="qdim-fill" style="width:${pct}%;background:${col}"></div></div>
-        <div class="qdim-val">${v!=null?v.toFixed(1):'—'}</div>
-      </div>`;
-    }).join('');
-    const avgScore = qual.avg_score || 0;
-    document.getElementById('sl-quality-avg-wrap').style.display = '';
-    document.getElementById('sl-quality-gauge-fill').style.width = `${Math.round(avgScore/5*100)}%`;
-    document.getElementById('sl-quality-avg-val').textContent = `${avgScore.toFixed(2)} / 5.0`;
-  } else {
-    document.getElementById('sl-quality-nodata').style.display = 'flex';
-  }
-  document.getElementById('acc-bottom').innerHTML =
-    `<strong>Bottom Line:</strong> 전체 정확도 ${fmtPct(acc_v)}` +
-    (typeAccList.length ? ` · 최고 타입: <strong>${typeAccList[0][0]}</strong> ${typeAccList[0][1].toFixed(1)}%` +
-      (typeAccList.length>1 ? ` · 최저: <strong>${typeAccList[typeAccList.length-1][0]}</strong> ${typeAccList[typeAccList.length-1][1].toFixed(1)}%` : '') : '');
+  // Overall gauge
+  const overallScore = activeC > 0
+    ? Math.round(gates.reduce((s, gk) => s + (gateResults[gk].score ?? 0), 0) / activeC)
+    : 0;
+  const gaugeColor = overallScore >= 80 ? '#10b981' : overallScore >= 60 ? '#f59e0b' : '#ef4444';
+  document.getElementById('hs-overall-gauge-fill').style.width = overallScore + '%';
+  document.getElementById('hs-overall-gauge-fill').style.background = gaugeColor;
+  document.getElementById('hs-overall-val').textContent = overallScore + '%';
+  document.getElementById('hs-overall-val').style.color = gaugeColor;
 
-  /* ── Slide 8: Hallucination ── */
+  set('hs-active', activeC);
+  setKpi('hs-pass', passC, 'c-green');
+  setKpi('hs-warn', warnC, 'c-yellow');
+  setKpi('hs-fail', failC, 'c-red');
+
+  // Harness notice
+  document.getElementById('hs-harness-notice').style.display = hasAnyHarness ? 'none' : '';
+
+  const worstGate = gates.filter(gk => gateResults[gk].status === 'fail')[0];
+  document.getElementById('hs-bottom').innerHTML =
+    `<strong>Bottom Line:</strong> ${activeC}개 Gate 평가 · PASS ${passC} / WARN ${warnC} / FAIL ${failC}` +
+    (worstGate ? ` · 가장 낮은 Gate: <strong>${worstGate}(${names[worstGate]})</strong>` : ' · 모든 Gate 양호');
+}
+
+/* ── Native score derivation for gates without Harness Config ── */
+function deriveNativeGateScores(d) {
+  const tcr   = d.accuracy_metrics?.tcr || {};
+  const acc   = d.accuracy_metrics?.accuracy_scores || {};
+  const hallu = d.accuracy_metrics?.hallucination || {};
+  const lat   = d.efficiency_metrics?.latency || {};
+  const tok   = d.efficiency_metrics?.tokens || {};
+  const qual  = d.quality_detail || {};
+  const ag    = d.agentic || {};
+  const sl1   = d.security_l1 || {};
+  const sl2   = d.security_l2 || {};
+
+  const tcr_v = tcr.tcr || 0;
+  const acc_v = acc.overall_accuracy || 0;
+  const p95_v = lat.p95;
+
+  // Gate A: avg of TCR + accuracy
+  const gA = (tcr_v + acc_v) / 2;
+
+  // Gate B: tool + workflow (agentic only)
+  const toolF1  = ag.tool_selection_summary?.avg_f1_score;
+  const wfSR    = ag.workflow_summary?.step_success_rate;
+  const gBVals  = [toolF1, wfSR].filter(v => v != null && v >= 0);
+  const gB      = d.has_agentic && gBVals.length ? gBVals.reduce((a,b)=>a+b,0)/gBVals.length : null;
+
+  // Gate C: retry success + (1 - hallucination penalty)
+  const retrySR = ag.retry_summary?.eventual_success_rate;
+  const halluRate = hallu.overall_rate || 0;
+  const halluPenalty = (hallu.total_evaluated||0) > 0 ? Math.max(0, 100 - halluRate * 5) : null;
+  const gCVals = [retrySR, halluPenalty].filter(v => v != null);
+  const gC     = gCVals.length ? gCVals.reduce((a,b)=>a+b,0)/gCVals.length : Math.max(0, 100 - halluRate * 5);
+
+  // Gate D: latency score + cost score
+  const latScore = (p95_v == null || (p95_v === 0 && !(d.total_tasks))) ? null
+    : p95_v === 0 ? 100 : Math.max(5, Math.round(100 * Math.exp(-0.2 * p95_v)));
+  const costPerTask = tok.avg_cost_per_task || 0;
+  const costScore = costPerTask <= 0 ? null
+    : costPerTask < 0.001 ? 100 : costPerTask < 0.005 ? 85 : costPerTask < 0.02 ? 70 : costPerTask < 0.05 ? 55 : 35;
+  const gDVals = [latScore, costScore].filter(v => v != null);
+  const gD     = gDVals.length ? gDVals.reduce((a,b)=>a+b,0)/gDVals.length : latScore;
+
+  // Gate E: security rates (active only)
+  let gE = null;
+  if (d.has_security) {
+    const thr  = sl1.input_security?.threat_rate || 0;
+    const leak = sl1.output_leakage?.leakage_rate || 0;
+    const auth = sl1.authorization?.compliance_rate ?? 100;
+    const esc  = sl2.privilege_escalation?.escalation_rate || 0;
+    gE = ((100-thr) + (100-leak) + auth + (100-esc)) / 4;
+  }
+
+  // Gate F: coordination + workflow (agentic only)
+  const coordSR = ag.coordination_summary?.success_rate;
+  const gFVals  = [coordSR, wfSR].filter(v => v != null && v >= 0);
+  const gF      = d.has_agentic && gFVals.length ? gFVals.reduce((a,b)=>a+b,0)/gFVals.length : null;
+
+  // Gate G: quality avg
+  const qualAvg = qual.avg_score;
+  const judgeAvg = d.llm_judge?.avg_overall;
+  const gGVals = [qualAvg != null ? qualAvg/5*100 : null, judgeAvg != null ? judgeAvg/5*100 : null].filter(v=>v!=null);
+  const gG = gGVals.length ? gGVals.reduce((a,b)=>a+b,0)/gGVals.length : (qualAvg != null ? qualAvg/5*100 : 50);
+
+  return { A: gA, B: gB, C: gC, D: gD, E: gE, F: gF, G: gG };
+}
+
+function gateStatus(score) {
+  if (score == null) return 'na';
+  if (score >= 80) return 'pass';
+  if (score >= 60) return 'warn';
+  return 'fail';
+}
+
+function updateGatePill(id, score) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  const s = gateStatus(score);
+  el.className = 'gate-pill ' + (s === 'pass' ? 'gate-pill-pass' : s === 'warn' ? 'gate-pill-warn' : s === 'fail' ? 'gate-pill-fail' : 'gate-pill-na');
+  const label = s === 'pass' ? '✅ PASS' : s === 'warn' ? '⚠️ WARN' : s === 'fail' ? '❌ FAIL' : '— N/A';
+  el.textContent = label + (score != null ? ' ' + Math.round(score) + '%' : '');
+}
+
+function harnessGroupHtml(gk, hg) {
+  const g = hg[gk];
+  if (!g) {
+    return `<div class="harness-inactive">⚙️ Harness Config 미활성 — <code>@agent_eval</code> 데코레이터에서 활성화</div>`;
+  }
+  const metrics = g.metrics || g.scores || {};
+  if (!Object.keys(metrics).length) {
+    return `<div class="harness-inactive">Harness ${gk} 지표 없음</div>`;
+  }
+  const entries = Object.entries(metrics).slice(0, 7);
+  const maxV = Math.max(...entries.map(([,v]) => +v||0), 1);
+  return entries.map(([k, v]) => {
+    const pct = Math.min(+(v||0), 100);
+    const c = pct >= 80 ? '#10b981' : pct >= 60 ? '#f59e0b' : '#ef4444';
+    return `<div class="bar-row">
+      <div class="bar-lbl"><span style="font-size:11px">${k.replace(/_/g,' ')}</span><span style="color:${c}">${pct.toFixed(1)}%</span></div>
+      <div class="bar-track"><div class="bar-fill" style="width:${pct}%;background:${c}"></div></div>
+    </div>`;
+  }).join('');
+}
+
+/* ── Gate A ── */
+function renderGateA(d, typeStats, tcr_v, acc_v) {
+  const hg = d.harness_groups || {};
+  const ns = deriveNativeGateScores(d);
+  const gScore = hg['A']?.score ?? hg['A']?.overall_score ?? ns.A;
+
+  updateGatePill('gA-pill', gScore);
+
+  setKpi('gA-score', gScore != null ? Math.round(gScore) + '%' : '—',
+    gScore >= 80 ? 'c-green' : gScore >= 60 ? 'c-yellow' : 'c-red');
+  setKpi('gA-tcr', fmtPct(tcr_v), tcr_v>=90?'c-green':tcr_v>=70?'c-yellow':'c-red');
+  setKpi('gA-acc', fmtPct(acc_v), acc_v>=70?'c-green':acc_v>=50?'c-yellow':'c-red');
+  set('gA-full', d.accuracy_metrics?.tcr?.full_success || 0);
+
+  // type completion bars
+  const typeBars = Object.entries(typeStats)
+    .sort((a,b) => (a[1].ok/a[1].n) - (b[1].ok/b[1].n)).slice(0, 8);
+  document.getElementById('gA-type-bars').innerHTML = typeBars.map(([tp, s]) => {
+    const rate = Math.round(s.ok/s.n*100);
+    const col = rate>=90?'#4ade80':rate>=70?'#facc15':'#f87171';
+    return `<div class="bar-row">
+      <div class="bar-lbl"><span>${tp}</span><span style="color:${col}">${rate}% <span style="font-weight:400;font-size:10px;opacity:.7">(${s.n}건)</span></span></div>
+      <div class="bar-track"><div class="bar-fill" style="width:${rate}%;background:${col}"></div></div>
+    </div>`;
+  }).join('');
+
+  document.getElementById('gA-harness').innerHTML = harnessGroupHtml('A', hg);
+
+  const worstType = Object.entries(typeStats).sort((a,b) => (a[1].ok/a[1].n)-(b[1].ok/b[1].n))[0];
+  document.getElementById('gA-bottom').innerHTML =
+    `<strong>Gate A:</strong> TCR ${fmtPct(tcr_v)} · 정확도 ${fmtPct(acc_v)}` +
+    (worstType ? ` · 가장 낮은 타입: <strong>${worstType[0]}</strong> (${Math.round(worstType[1].ok/worstType[1].n*100)}%)` : '');
+}
+
+/* ── Gate B ── */
+function renderGateB(d) {
+  if (!d.has_agentic) return;
+  document.getElementById('sl-gate-B').removeAttribute('data-visibility');
+
+  const hg = d.harness_groups || {};
+  const ag = d.agentic || {};
+  const toolF1  = ag.tool_selection_summary?.avg_f1_score || 0;
+  const wfSR    = ag.workflow_summary?.step_success_rate || 0;
+  const toolN   = ag.tool_call_summary?.total_calls || 0;
+  const ns      = deriveNativeGateScores(d);
+  const gScore  = hg['B']?.score ?? hg['B']?.overall_score ?? ns.B;
+  updateGatePill('gB-pill', gScore);
+
+  setKpi('gB-score', gScore != null ? Math.round(gScore) + '%' : '—',
+    gScore >= 80 ? 'c-green' : gScore >= 60 ? 'c-yellow' : 'c-red');
+  setKpi('gB-tool-f1', fmtPct(toolF1), toolF1>=80?'c-green':toolF1>=60?'c-yellow':'c-red');
+  setKpi('gB-wf', fmtPct(wfSR), wfSR>=80?'c-green':wfSR>=60?'c-yellow':'c-red');
+  set('gB-tool-n', toolN);
+
+  document.getElementById('gB-native-bars').innerHTML = buildBars([
+    ['Tool F1',          toolF1,  '#3b82f6'],
+    ['워크플로우 SR',    wfSR,    '#22d3ee'],
+    ['협력 성공률',      ag.coordination_summary?.success_rate||0, '#4ade80'],
+    ['재시도 성공률',    ag.retry_summary?.eventual_success_rate||0, '#facc15'],
+  ]);
+
+  document.getElementById('gB-harness').innerHTML = harnessGroupHtml('B', hg);
+
+  document.getElementById('gB-bottom').innerHTML =
+    `<strong>Gate B:</strong> Tool F1 ${fmtPct(toolF1)} · 워크플로우 ${fmtPct(wfSR)} · 총 Tool 호출 ${toolN}건`;
+}
+
+/* ── Gate C ── */
+function renderGateC(d, halluHas, hall_v) {
+  const hg = d.harness_groups || {};
+  const ag = d.agentic || {};
+  const retryN  = ag.retry_summary?.total_tasks_with_retries || ag.retry_summary?.total_attempts || 0;
+  const retrySR = ag.retry_summary?.eventual_success_rate || 0;
+  const ns      = deriveNativeGateScores(d);
+  const gScore  = hg['C']?.score ?? hg['C']?.overall_score ?? ns.C;
+  updateGatePill('gC-pill', gScore);
+
+  setKpi('gC-score', gScore != null ? Math.round(gScore) + '%' : '—',
+    gScore >= 80 ? 'c-green' : gScore >= 60 ? 'c-yellow' : 'c-red');
+  set('gC-retry-n', retryN);
+  setKpi('gC-retry-sr', fmtPct(retrySR), retrySR>=80?'c-green':retrySR>=50?'c-yellow':'c-red');
+  setKpi('gC-hallu', halluHas ? fmtPct(hall_v) : '—', halluHas ? (hall_v<=5?'c-green':hall_v<=15?'c-yellow':'c-red') : '');
+
+  const reliabilityBars = [];
+  if (retryN > 0) reliabilityBars.push(['재시도 성공률', retrySR, '#f59e0b']);
+  if (halluHas) reliabilityBars.push(['환각 안전율', Math.max(0,100-hall_v*5), '#4ade80']);
+  reliabilityBars.push(['태스크 완료율', d.accuracy_metrics?.tcr?.tcr||0, '#6c8ef5']);
+  document.getElementById('gC-native-bars').innerHTML = buildBars(reliabilityBars);
+
   if (halluHas) {
-    document.getElementById('sl-hallu-active').style.display = '';
-    document.getElementById('sl-hallu-inactive').style.display = 'none';
-    const hr_v = hallu.overall_rate||0;
-    const flagged = hallu.total_flagged||0;
-    const hTotal  = hallu.total_evaluated||0;
-    setKpi('sl-hallu-rate', fmtPct(hr_v), hr_v<=5?'c-green':hr_v<=15?'c-yellow':'c-red');
-    set('sl-hallu-rate-sub', hr_v<=5?'✅ 안전':hr_v<=15?'⚠️ 주의':'❌ 위험');
-    set('sl-hallu-total', hTotal);
-    set('sl-hallu-flagged', flagged);
-    set('sl-hallu-safe', hTotal-flagged);
-    const hpct = Math.min(100, hr_v/30*100);
-    const hcol = hr_v<=5?'#4ade80':hr_v<=15?'#facc15':'#f87171';
-    document.getElementById('sl-hallu-gauge').innerHTML =
+    document.getElementById('gC-hallu-wrap').style.display = '';
+    document.getElementById('gC-hallu-inactive').style.display = 'none';
+    const hpct = Math.min(100, hall_v/30*100);
+    const hcol = hall_v<=5?'#4ade80':hall_v<=15?'#facc15':'#f87171';
+    document.getElementById('gC-hallu-gauge').innerHTML =
       `<div class="gauge-track"><div class="gauge-fill" style="width:${hpct}%;background:${hcol}"></div></div>
-       <div class="gauge-lbls"><span>0% 안전</span><span style="color:${hcol};font-weight:700">${fmtPct(hr_v)} 현재</span><span>30% 위험</span></div>`;
-    const types = hallu.by_type || {};
-    if (Object.keys(types).length) {
-      const maxT = Math.max(...Object.values(types));
-      document.getElementById('sl-hallu-types').innerHTML = Object.entries(types)
-        .sort((a,b)=>b[1]-a[1])
-        .map(([tp,n]) => `<div class="bar-row">
-          <div class="bar-lbl"><span>${tp}</span><span style="color:#f87171">${n}건</span></div>
-          <div class="bar-track"><div class="bar-fill" style="width:${Math.round(n/maxT*100)}%;background:#f87171"></div></div>
-        </div>`).join('');
-    } else {
-      document.getElementById('sl-hallu-types').innerHTML = '<div style="font-size:11px;color:var(--tc2)">유형 분류 데이터 없음</div>';
-    }
-    document.getElementById('sl-hallu-interpret').innerHTML = [
-      ['0 – 5%',   '안전 (Green)', '#4ade80', hr_v<=5],
-      ['5 – 15%',  '주의 (Yellow)', '#facc15', hr_v>5 && hr_v<=15],
-      ['15 – 30%', '위험 (Orange)', '#fb923c', hr_v>15 && hr_v<=30],
-      ['>30%',     '심각 (Red)', '#f87171', hr_v>30],
-    ].map(([range, label, c, active]) =>
-      `<div class="bar-row" style="${active?'background:'+c+'18;border-radius:6px;padding:3px 6px;':''};margin-bottom:6px">
-         <div class="bar-lbl" style="margin-bottom:0">
-           <span style="color:${c};font-weight:${active?700:400}">${range}</span>
-           <span style="color:${active?c:'var(--tc2)'};font-weight:${active?700:400}">${label}${active?' ← 현재':''}</span>
-         </div>
-       </div>`
-    ).join('');
+       <div class="gauge-lbls"><span>0% 안전</span><span style="color:${hcol};font-weight:700">${fmtPct(hall_v)} 현재</span><span>30% 위험</span></div>`;
   } else {
-    document.getElementById('sl-hallu-active').style.display = 'none';
-    document.getElementById('sl-hallu-inactive').style.display = 'flex';
+    document.getElementById('gC-hallu-wrap').style.display = 'none';
+    document.getElementById('gC-hallu-inactive').style.display = '';
   }
 
-  /* ── Slide 9: Latency ── */
-  setKpi('lat-mean', fmtSec(lat.mean), '');
-  setKpi('lat-p95', fmtSec(p95_v), p95_v<=2?'c-green':p95_v<=5?'c-yellow':'c-red');
-  document.getElementById('lat-sla').innerHTML = [
+  document.getElementById('gC-harness').innerHTML = harnessGroupHtml('C', hg);
+
+  document.getElementById('gC-bottom').innerHTML =
+    `<strong>Gate C:</strong> 재시도 ${retryN}건 · 재시도 성공 ${fmtPct(retrySR)}` +
+    (halluHas ? ` · 환각 ${fmtPct(hall_v)} (${hall_v<=5?'안전':hall_v<=15?'주의':'위험'})` : '');
+}
+
+/* ── Gate D ── */
+function renderGateD(d, lat, tok, p95_v) {
+  const hg = d.harness_groups || {};
+  const ns = deriveNativeGateScores(d);
+  const gScore = hg['D']?.score ?? hg['D']?.overall_score ?? ns.D;
+  updateGatePill('gD-pill', gScore);
+  const totalCost   = tok.total_cost || 0;
+  const taskCount   = d.total_tasks || 1;
+  const costPerTask = tok.avg_cost_per_task || (taskCount ? totalCost/taskCount : 0);
+
+  setKpi('gD-score', gScore != null ? Math.round(gScore) + '%' : '—',
+    gScore >= 80 ? 'c-green' : gScore >= 60 ? 'c-yellow' : 'c-red');
+  setKpi('gD-lat-mean', fmtSec(lat.mean), '');
+  setKpi('gD-lat-p95', fmtSec(p95_v), p95_v<=2?'c-green':p95_v<=5?'c-yellow':'c-red');
+  set('gD-cost-task', fmtCost(costPerTask));
+
+  // SLA cards
+  document.getElementById('gD-sla').innerHTML = [
     ['P50 (중앙값)', lat.p50, 1.0, '쾌적한 경험의 절반 이상'],
     ['P95',         lat.p95, 2.0, '95%의 사용자 경험'],
     ['P99',         lat.p99, 3.0, '99%의 사용자 경험'],
@@ -849,210 +1063,201 @@ function _populateSlides(data){
     </div>`;
   }).join('');
 
-  // Task type latency
-  const typeLatList = Object.entries(typeStats)
-    .map(([tp,s]) => [tp, s.lat.length ? s.lat.reduce((a,b)=>a+b,0)/s.lat.length : 0])
-    .sort((a,b)=>b[1]-a[1]).slice(0,6);
-  const maxLat = Math.max(...typeLatList.map(x=>x[1]), 0.01);
-  document.getElementById('sl-lat-type-bars').innerHTML = typeLatList.map(([tp,v]) => {
-    const col = v<=1?'#4ade80':v<=2?'#facc15':'#f87171';
-    return `<div class="bar-row">
-      <div class="bar-lbl"><span>${tp}</span><span style="color:${col}">${v.toFixed(2)}s</span></div>
-      <div class="bar-track"><div class="bar-fill" style="width:${Math.round(v/maxLat*100)}%;background:${col}"></div></div>
-    </div>`;
-  }).join('');
-  document.getElementById('lat-bottom').innerHTML =
-    `<strong>Bottom Line:</strong> P95 ${fmtSec(p95_v)} (목표 2s ${p95_v<=2?'✅ 달성':'❌ 초과'})` +
-    (typeLatList.length ? ` · 가장 느린 타입: <strong>${typeLatList[0][0]}</strong> (${typeLatList[0][1].toFixed(2)}s)` : '');
-
-  /* ── Slide 10: Cost ── */
-  const totalCost = tok.total_cost || 0;
-  const taskCount = data.total_tasks || 1;
-  const successCount = (tcr.full_success||0) + (tcr.partial_success||0);
-  const costPerSuccess = successCount > 0 ? totalCost / successCount : 0;
-  const costPerTask    = tok.avg_cost_per_task || (taskCount ? totalCost/taskCount : 0);
-
-  set('sl-cost-total',   fmtCost(totalCost));
-  set('sl-cost-task',    fmtCost(costPerTask));
-  set('sl-cost-success', fmtCost(costPerSuccess));
-  set('sl-cost-monthly', fmtCost(tok.estimated_monthly_cost));
-
-  // Cost efficiency grade
-  const { grade, gradeColor, gradeBg, gradeDesc } = costGrade(costPerTask);
-  const gb = document.getElementById('cost-grade-badge');
-  gb.textContent = grade;
-  gb.style.background = gradeBg;
-  gb.style.color = gradeColor;
-  set('cost-grade-desc', gradeDesc);
-  document.getElementById('cost-bottom').innerHTML =
-    `<strong>Bottom Line:</strong> Task당 ${fmtCost(costPerTask)} · 성공건당 ${fmtCost(costPerSuccess)} · 효율 등급 <strong>${grade}</strong> — ${gradeDesc}`;
-
+  // Token bars
   const totalIn  = tok.total_input_tokens  || 0;
   const totalOut = tok.total_output_tokens || 0;
-  const totalTok = totalIn + totalOut;
-  set('sl-tok-info', `총 ${totalTok.toLocaleString()} 토큰 · Task당 ${Math.round(tok.avg_tokens_per_task||0)}`);
   const maxT = Math.max(totalIn, totalOut, 1);
-  document.getElementById('sl-cost-tok-bars').innerHTML =
+  document.getElementById('gD-tok-bars').innerHTML =
     [['Input', totalIn, '#6c8ef5'], ['Output', totalOut, '#4ade80']].map(([lbl,v,c]) =>
     `<div class="bar-row">
        <div class="bar-lbl"><span>${lbl}</span><span style="color:${c}">${v.toLocaleString()}</span></div>
        <div class="bar-track"><div class="bar-fill" style="width:${Math.round(v/maxT*100)}%;background:${c}"></div></div>
      </div>`).join('');
 
-  /* ── Slide 11: Security ── */
-  if (data.has_security) {
-    const s1 = data.security_l1||{}, s2 = data.security_l2||{};
-    const thr  = s1.input_security?.threat_rate||0;
-    const leak = s1.output_leakage?.leakage_rate||0;
-    const auth = s1.authorization?.compliance_rate??100;
-    const esc  = s2.privilege_escalation?.escalation_rate||0;
-    const atk  = s2.attack_detection?.detection_rate||0;
-    const sc   = v => v<=5?'#4ade80':v<=20?'#facc15':'#f87171';
-    document.getElementById('sl-security-content').innerHTML =
-      `<div class="kpi-row kpi-row-5" style="margin-top:4px">
-        <div class="kpi-box"><div class="kpi-lbl">입력 위협률</div><div class="kpi-val" style="color:${sc(thr)}">${fmtPct(thr)}</div><div class="kpi-sub">L1 입력 검증</div></div>
-        <div class="kpi-box"><div class="kpi-lbl">출력 유출률</div><div class="kpi-val" style="color:${sc(leak)}">${fmtPct(leak)}</div><div class="kpi-sub">L1 출력 검사</div></div>
-        <div class="kpi-box"><div class="kpi-lbl">권한 준수율</div><div class="kpi-val" style="color:${auth>=90?'#4ade80':'#facc15'}">${fmtPct(auth)}</div><div class="kpi-sub">L1 도구 인가</div></div>
-        <div class="kpi-box"><div class="kpi-lbl">권한 상승률</div><div class="kpi-val" style="color:${sc(esc)}">${fmtPct(esc)}</div><div class="kpi-sub">L2 권한 탐지</div></div>
-        <div class="kpi-box"><div class="kpi-lbl">공격 체인 탐지</div><div class="kpi-val c-accent">${fmtPct(atk)}</div><div class="kpi-sub">L2 체인 공격</div></div>
-      </div>
-      <div style="margin-top:12px">
-        <div class="bar-title">보안 안전율 (100%에 가까울수록 양호)</div>
-        ${buildBars([
-          ['입력 안전율 (L1)',  100-thr,  '#4ade80'],
-          ['출력 안전율 (L1)',  100-leak, '#4ade80'],
-          ['권한 준수율 (L1)',  auth,      '#6c8ef5'],
-          ['권한 상승 안전율 (L2)', 100-esc, '#facc15'],
-        ])}
-      </div>`;
+  document.getElementById('gD-harness').innerHTML = harnessGroupHtml('D', hg);
+
+  document.getElementById('gD-bottom').innerHTML =
+    `<strong>Gate D:</strong> P95 ${fmtSec(p95_v)} (SLA 2s ${p95_v<=2?'✅ 달성':'❌ 초과'}) · Task당 비용 ${fmtCost(costPerTask)}`;
+}
+
+/* ── Gate E ── */
+function renderGateE(d) {
+  const hg = d.harness_groups || {};
+  if (!d.has_security) {
+    document.getElementById('gE-active').style.display = 'none';
+    document.getElementById('gE-inactive').style.display = 'flex';
+    document.getElementById('gE-bottom').style.display = 'none';
+    return;
   }
+  document.getElementById('gE-active').style.display = '';
+  document.getElementById('gE-inactive').style.display = 'none';
 
-  /* ── Slide 12: Agentic ── */
-  if (data.has_agentic) {
-    document.getElementById('sl-agentic-section').removeAttribute('data-visibility');
-    const ag = data.agentic||{};
-    const toolF1  = ag.tool_selection_summary?.avg_f1_score||0;
-    const coordSR = ag.coordination_summary?.success_rate||0;
-    const wfSR    = ag.workflow_summary?.step_success_rate||0;
-    const retryN  = ag.retry_summary?.total_tasks_with_retries||ag.retry_summary?.total_attempts||0;
-    const retrySR = ag.retry_summary?.eventual_success_rate||0;
-    document.getElementById('sl-agentic-content').innerHTML =
-      `<div class="kpi-row kpi-row-5" style="margin-top:4px">
-        <div class="kpi-box"><div class="kpi-lbl">Tool F1</div><div class="kpi-val c-accent">${toolF1.toFixed(1)}%</div><div class="kpi-sub">도구 선택 정확도</div></div>
-        <div class="kpi-box"><div class="kpi-lbl">멀티에이전트</div><div class="kpi-val ${coordSR>=80?'c-green':coordSR>=60?'c-yellow':'c-red'}">${fmtPct(coordSR)}</div><div class="kpi-sub">협력 성공률</div></div>
-        <div class="kpi-box"><div class="kpi-lbl">워크플로우</div><div class="kpi-val ${wfSR>=80?'c-green':wfSR>=60?'c-yellow':'c-red'}">${fmtPct(wfSR)}</div><div class="kpi-sub">단계 성공률</div></div>
-        <div class="kpi-box"><div class="kpi-lbl">재시도 발생</div><div class="kpi-val">${retryN}</div><div class="kpi-sub">건</div></div>
-        <div class="kpi-box"><div class="kpi-lbl">재시도 성공</div><div class="kpi-val ${retrySR>=80?'c-green':retrySR>=50?'c-yellow':'c-red'}">${fmtPct(retrySR)}</div></div>
-      </div>
-      <div style="margin-top:12px;display:grid;grid-template-columns:1fr 1fr;gap:22px">
-        <div>
-          <div class="bar-title">에이전틱 지표 레이더</div>
-          ${buildBars([
-            ['Tool F1',         toolF1,   '#6c8ef5'],
-            ['멀티에이전트 성공',coordSR,  '#4ade80'],
-            ['워크플로우 단계',  wfSR,     '#22d3ee'],
-            ['재시도 후 성공',   retrySR,  '#facc15'],
-          ])}
-        </div>
-        <div>
-          <div class="bar-title">해석 기준</div>
-          <div class="card" style="padding:10px 12px">
-            <div style="font-size:11px;color:var(--tc2);line-height:2">
-              • Tool F1 ≥ 80%: 도구 선택 우수<br>
-              • 멀티에이전트 ≥ 80%: 협력 안정<br>
-              • 워크플로우 ≥ 80%: 프로세스 안정<br>
-              • 재시도 성공 ≥ 60%: 자기수정 가능
-            </div>
-          </div>
-        </div>
-      </div>`;
-  }
+  const sl1 = d.security_l1 || {};
+  const sl2 = d.security_l2 || {};
+  const thr  = sl1.input_security?.threat_rate || 0;
+  const leak = sl1.output_leakage?.leakage_rate || 0;
+  const auth = sl1.authorization?.compliance_rate ?? 100;
+  const esc  = sl2.privilege_escalation?.escalation_rate || 0;
+  const atk  = sl2.attack_detection?.detection_rate || 0;
 
-  /* ── Slide 13: Health Score ── */
-  const hEl = document.getElementById('sl-health-score');
-  hEl.textContent = health;
-  hEl.style.color = health>=80?'#4ade80':health>=60?'#facc15':'#f87171';
+  const ns    = deriveNativeGateScores(d);
+  const gScore = hg['E']?.score ?? hg['E']?.overall_score ?? ns.E;
+  updateGatePill('gE-pill', gScore);
+  const sc = v => v<=5?'#4ade80':v<=20?'#facc15':'#f87171';
 
-  const hGrade = healthGrade(health);
-  const hgb = document.getElementById('health-grade-badge');
-  hgb.textContent = hGrade.letter;
-  hgb.style.background = hGrade.bg;
-  hgb.style.color = hGrade.color;
-  set('sl-health-label', hGrade.label);
-  set('sl-health-desc', hGrade.desc);
+  setKpi('gE-score', gScore != null ? Math.round(gScore) + '%' : '—',
+    gScore >= 80 ? 'c-green' : gScore >= 60 ? 'c-yellow' : 'c-red');
+  setKpi('gE-thr',  fmtPct(thr),  thr<=5?'c-green':thr<=20?'c-yellow':'c-red');
+  setKpi('gE-leak', fmtPct(leak), leak<=5?'c-green':leak<=20?'c-yellow':'c-red');
+  setKpi('gE-auth', fmtPct(auth), auth>=90?'c-green':'c-yellow');
 
-  const healthRows = [
-    ['기초 (TCR·Accuracy·Hallucination)', l1sc, `TCR ${fmtPct(tcr_v)} · Acc ${fmtPct(acc_v)}`],
-    ['성능 (P95 Latency)',                perfSc, `P95 ${fmtSec(p95_v)}`],
-    ...(data.has_security ? [['보안 (Security L1/L2)', secSc, '입력/출력/권한/에스컬레이션']] : []),
-    ...(data.has_agentic  ? [['에이전틱 (Tool·Coord·Workflow)', agSc, 'Tool F1 · 멀티에이전트 · 워크플로우']] : []),
+  document.getElementById('gE-native-bars').innerHTML = buildBars([
+    ['입력 안전율 (L1)',       100-thr,  '#4ade80'],
+    ['출력 안전율 (L1)',       100-leak, '#4ade80'],
+    ['권한 준수율 (L1)',       auth,     '#6c8ef5'],
+    ['권한 상승 안전율 (L2)',  100-esc,  '#facc15'],
+    ['공격 체인 탐지율 (L2)', atk,      '#ef4444'],
+  ]);
+
+  document.getElementById('gE-harness').innerHTML = harnessGroupHtml('E', hg);
+
+  document.getElementById('gE-bottom').innerHTML =
+    `<strong>Gate E:</strong> 입력위협 ${fmtPct(thr)} · 출력유출 ${fmtPct(leak)} · 권한준수 ${fmtPct(auth)} · 권한상승 ${fmtPct(esc)}`;
+}
+
+/* ── Gate F ── */
+function renderGateF(d) {
+  if (!d.has_agentic) return;
+  document.getElementById('sl-gate-F').removeAttribute('data-visibility');
+
+  const hg    = d.harness_groups || {};
+  const ag    = d.agentic || {};
+  const coordSR = ag.coordination_summary?.success_rate || 0;
+  const wfSR    = ag.workflow_summary?.step_success_rate || 0;
+  const retrySR = ag.retry_summary?.eventual_success_rate || 0;
+  const ns      = deriveNativeGateScores(d);
+  const gScore  = hg['F']?.score ?? hg['F']?.overall_score ?? ns.F;
+  updateGatePill('gF-pill', gScore);
+
+  setKpi('gF-score', gScore != null ? Math.round(gScore) + '%' : '—',
+    gScore >= 80 ? 'c-green' : gScore >= 60 ? 'c-yellow' : 'c-red');
+  setKpi('gF-coord-sr', fmtPct(coordSR), coordSR>=80?'c-green':coordSR>=60?'c-yellow':'c-red');
+  setKpi('gF-wf-sr',    fmtPct(wfSR),    wfSR>=80?'c-green':wfSR>=60?'c-yellow':'c-red');
+  setKpi('gF-retry-sr', fmtPct(retrySR), retrySR>=60?'c-green':retrySR>=40?'c-yellow':'c-red');
+
+  document.getElementById('gF-native-bars').innerHTML = buildBars([
+    ['협력 성공률',   coordSR, '#8b5cf6'],
+    ['워크플로우 SR', wfSR,    '#22d3ee'],
+    ['재시도 성공',   retrySR, '#facc15'],
+    ['Tool F1',       ag.tool_selection_summary?.avg_f1_score||0, '#4ade80'],
+  ]);
+
+  document.getElementById('gF-harness').innerHTML = harnessGroupHtml('F', hg);
+
+  document.getElementById('gF-bottom').innerHTML =
+    `<strong>Gate F:</strong> 협력 성공 ${fmtPct(coordSR)} · 워크플로우 ${fmtPct(wfSR)} · 재시도 성공 ${fmtPct(retrySR)}`;
+}
+
+/* ── Gate G ── */
+function renderGateG(d, qual) {
+  const hg    = d.harness_groups || {};
+  const judge = d.llm_judge || {};
+  const ns    = deriveNativeGateScores(d);
+  const gScore = hg['G']?.score ?? hg['G']?.overall_score ?? ns.G;
+  updateGatePill('gG-pill', gScore);
+  const qualAvg  = qual.avg_score;
+  const judgeAvg = judge.avg_overall;
+  const faithful = judge.avg_faithfulness;
+
+  setKpi('gG-score', gScore != null ? Math.round(gScore) + '%' : '—',
+    gScore >= 80 ? 'c-green' : gScore >= 60 ? 'c-yellow' : 'c-red');
+  setKpi('gG-qual-avg', qualAvg != null ? qualAvg.toFixed(2) : '—',
+    qualAvg >= 4 ? 'c-green' : qualAvg >= 3 ? 'c-yellow' : 'c-red');
+  set('gG-judge',  judgeAvg  != null ? judgeAvg.toFixed(2)  + ' / 5' : '—');
+  set('gG-faith',  faithful  != null ? faithful.toFixed(2)  + ' / 5' : '—');
+
+  // Quality dims
+  const dims = [
+    ['정확성 (Accuracy)',     qual.accuracy_score],
+    ['완결성 (Completeness)', qual.completeness_score],
+    ['명확성 (Clarity)',      qual.clarity_score],
+    ['관련성 (Relevance)',    qual.relevance_score],
+    ['창의성 (Creativity)',   qual.creativity_score],
   ];
-  const bc = v => v>=80?'#4ade80':v>=60?'#facc15':'#f87171';
-  document.getElementById('sl-health-bars').innerHTML = healthRows.map(([lbl,v,hint]) =>
-    `<div class="bar-row">
-       <div class="bar-lbl">
-         <span>${lbl}</span>
-         <span style="color:${bc(v)};font-weight:700">${v}%</span>
-       </div>
-       <div class="bar-track"><div class="bar-fill" style="width:${v}%;background:${bc(v)}"></div></div>
-       <div style="font-size:10px;color:var(--tc2);margin-top:2px">${hint}</div>
-     </div>`).join('');
+  const hasQual = dims.some(([,v]) => v != null && v > 0);
+  if (hasQual) {
+    document.getElementById('gG-quality-dims').innerHTML = dims.map(([lbl,v]) => {
+      const pct = v != null ? Math.round(v/5*100) : 0;
+      const col = pct>=70?'#4ade80':pct>=50?'#06b6d4':'#f87171';
+      return `<div class="qdim-row">
+        <div class="qdim-lbl">${lbl.split(' ')[0]}</div>
+        <div class="qdim-track"><div class="qdim-fill" style="width:${pct}%;background:${col}"></div></div>
+        <div class="qdim-val">${v!=null?v.toFixed(1):'—'}</div>
+      </div>`;
+    }).join('');
+    document.getElementById('gG-quality-gauge-wrap').style.display = '';
+    document.getElementById('gG-quality-gauge-fill').style.width = `${Math.round((qualAvg||0)/5*100)}%`;
+    document.getElementById('gG-quality-avg-val').textContent = `${(qualAvg||0).toFixed(2)} / 5.0`;
+    document.getElementById('gG-quality-nodata').style.display = 'none';
+  } else {
+    document.getElementById('gG-quality-nodata').style.display = 'flex';
+    document.getElementById('gG-quality-gauge-wrap').style.display = 'none';
+  }
 
-  /* ── Slide 14: Action Plan ── */
-  const actions = buildActionPlan(tcr_v, acc_v, hall_v, p95_v, halluHas, costPerTask, data);
-  document.getElementById('ap-content').innerHTML = actions;
+  document.getElementById('gG-harness').innerHTML = harnessGroupHtml('G', hg);
+
+  document.getElementById('gG-bottom').innerHTML =
+    `<strong>Gate G:</strong> 품질 평균 ${qualAvg != null ? qualAvg.toFixed(2)+'/5.0' : '—'}` +
+    (judgeAvg != null ? ` · LLM Judge ${judgeAvg.toFixed(2)}/5` : '') +
+    (faithful != null ? ` · Faithfulness ${faithful.toFixed(2)}/5` : '');
 }
 
 /* ═══════════════════════════════════════════════════
    HELPER BUILDERS
 ═══════════════════════════════════════════════════ */
 function buildFindings(tcr_v, acc_v, hall_v, p95_v, halluHas, lat, tok, tasks, data){
-  // Identify top 3 findings (most impactful)
   const items = [];
 
-  // TCR finding
   if (tcr_v < 90) {
-    items.push({ ok:false, title:`TCR ${fmtPct(tcr_v)} — 목표(90%) 미달`,
-      detail:`${tcr_v>=70?'부분적':'전체적'} 개선 필요. 실패 태스크 패턴 분석이 우선과제입니다.`,
+    items.push({ ok:false, title:`Gate A — TCR ${fmtPct(tcr_v)} (목표 90% 미달)`,
+      detail:`${tcr_v>=70?'부분적':'전체적'} 개선 필요. Gate A 실패 태스크 패턴 분석이 우선과제입니다.`,
       badge:tcr_v>=70?'⚠️ 개선필요':'❌ 긴급개선', badgeCls:tcr_v>=70?'#facc15':'#f87171' });
   } else {
-    items.push({ ok:true, title:`TCR ${fmtPct(tcr_v)} — 목표(90%) 달성`,
+    items.push({ ok:true, title:`Gate A — TCR ${fmtPct(tcr_v)} (목표 달성)`,
       detail:`태스크 완료율이 우수합니다. 부분성공 태스크의 완전성공 전환이 다음 목표입니다.`,
-      badge:'✅ 달성', badgeCls:'#4ade80' });
+      badge:'✅ PASS', badgeCls:'#4ade80' });
   }
 
-  // Accuracy finding
-  if (acc_v < 70) {
-    items.push({ ok:false, title:`정확도 ${fmtPct(acc_v)} — 목표(70%) 미달`,
-      detail:`Golden Dataset 품질 점검 및 프롬프트 개선이 필요합니다. 타입별 격차 확인 필수.`,
-      badge:'⚠️ 개선필요', badgeCls:'#facc15' });
-  } else {
-    items.push({ ok:true, title:`정확도 ${fmtPct(acc_v)} — 목표(70%) 달성`,
-      detail:`정확도 수준이 양호합니다. 중앙값과 분포 확인으로 일관성을 검증하세요.`,
-      badge:'✅ 달성', badgeCls:'#4ade80' });
-  }
-
-  // Latency finding
   if (p95_v > 2 && p95_v > 0) {
-    items.push({ ok:false, title:`P95 지연 ${fmtSec(p95_v)} — SLA(2s) 초과`,
-      detail:`응답 속도가 목표를 초과합니다. 캐싱·모델 경량화·청크 조정을 검토하세요.`,
+    items.push({ ok:false, title:`Gate D — P95 ${fmtSec(p95_v)} (SLA 2s 초과)`,
+      detail:`Gate D 성능 계약 위반. 캐싱·모델 경량화·청크 조정을 검토하세요.`,
       badge:'⚠️ SLA 위반', badgeCls:'#f87171' });
   } else if (halluHas && hall_v > 5) {
-    items.push({ ok:false, title:`환각 발생률 ${fmtPct(hall_v)} — 기준(5%) 초과`,
-      detail:`환각이 허용 수준을 초과합니다. RAG 검증 파이프라인 도입을 검토하세요.`,
-      badge:'⚠️ 주의', badgeCls:'#facc15' });
+    items.push({ ok:false, title:`Gate C — 환각 ${fmtPct(hall_v)} (기준 5% 초과)`,
+      detail:`Gate C 신뢰성 저하. RAG 검증 파이프라인 도입을 검토하세요.`,
+      badge:'⚠️ WARN', badgeCls:'#facc15' });
   } else {
-    items.push({ ok:true, title:`응답 지연 ${fmtSec(p95_v)} — SLA(2s) 달성`,
+    items.push({ ok:true, title:`Gate D — P95 ${fmtSec(p95_v)} (SLA 달성)`,
       detail:`P95 지연이 목표 이내입니다. 현재 성능을 유지하면서 비용 최적화를 검토하세요.`,
-      badge:'✅ 달성', badgeCls:'#4ade80' });
+      badge:'✅ PASS', badgeCls:'#4ade80' });
+  }
+
+  if (acc_v < 70) {
+    items.push({ ok:false, title:`Gate A — 정확도 ${fmtPct(acc_v)} (목표 70% 미달)`,
+      detail:`Gate A 목표 달성 저하. Golden Dataset 품질 점검 및 프롬프트 개선이 필요합니다.`,
+      badge:'⚠️ 개선필요', badgeCls:'#facc15' });
+  } else {
+    items.push({ ok:true, title:`Gate A — 정확도 ${fmtPct(acc_v)} (목표 달성)`,
+      detail:`정확도 수준이 양호합니다. 중앙값과 분포 확인으로 일관성을 검증하세요.`,
+      badge:'✅ PASS', badgeCls:'#4ade80' });
   }
 
   const passCount = items.filter(i=>i.ok).length;
   const verdictCls = passCount===3?'vb-pass':passCount>=1?'vb-cond':'vb-fail';
   const verdictIcon = passCount===3?'🏆':passCount>=1?'⚠️':'❌';
   const verdictColor = passCount===3?'#4ade80':passCount>=1?'#facc15':'#f87171';
-  const verdictLabel = passCount===3?'PASS — 모든 핵심 지표 달성':passCount>=1?'CONDITIONAL — 일부 지표 미달':'FAIL — 핵심 지표 미달성';
-  const verdictSub = `${passCount}/3개 핵심 지표 달성 · ${items.filter(i=>!i.ok).map(i=>i.title.split('—')[0].trim()).join(', ')||'없음'} 개선 필요`;
+  const verdictLabel = passCount===3?'PASS — 핵심 Gate 달성':passCount>=1?'CONDITIONAL — 일부 Gate 미달':'FAIL — 핵심 Gate 미달성';
+  const verdictSub = `${passCount}/3개 핵심 Gate 달성 · ${items.filter(i=>!i.ok).map(i=>i.title.split('—')[0].trim()).join(', ')||'없음'} 개선 필요`;
 
   const cards = items.map((item, i) =>
     `<div class="finding-card">
@@ -1071,33 +1276,33 @@ function buildFindings(tcr_v, acc_v, hall_v, p95_v, halluHas, lat, tok, tasks, d
 
 function buildActionPlan(tcr_v, acc_v, hall_v, p95_v, halluHas, costPerTask, data){
   const actions = [];
-  if (!data || tcr_v < 90)
-    actions.push({ p:'P1', icon:'🔧', title:'TCR 향상 (현재 '+fmtPct(tcr_v)+'→목표 90%)',
-      steps:['실패 태스크 에러 로그 분석 (슬라이드 6 참조)', '실패 집중 Task Type 프롬프트 개선', '부분성공 태스크 재실행 조건 완화'],
+  if (tcr_v < 90)
+    actions.push({ p:'P1', icon:'🔧', title:'Gate A — TCR 향상 (현재 '+fmtPct(tcr_v)+'→목표 90%)',
+      steps:['실패 태스크 에러 로그 분석 (Gate A 슬라이드 참조)', '실패 집중 Task Type 프롬프트 개선', '부분성공 태스크 재실행 조건 완화'],
       impact:'TCR +5~10%p 예상', file:'01_layer1_all_metrics.py' });
   if (acc_v < 70)
-    actions.push({ p:'P1', icon:'📚', title:'정확도 개선 (현재 '+fmtPct(acc_v)+'→목표 70%)',
-      steps:['타입별 정확도 격차 분석 (슬라이드 7 참조)', '낮은 타입 대상 Few-shot 예시 추가', 'Golden Dataset 품질 검수 및 확장'],
+    actions.push({ p:'P1', icon:'📚', title:'Gate A — 정확도 개선 (현재 '+fmtPct(acc_v)+'→목표 70%)',
+      steps:['타입별 정확도 격차 분석 (Gate A 슬라이드 참조)', '낮은 타입 대상 Few-shot 예시 추가', 'Golden Dataset 품질 검수 및 확장'],
       impact:'Accuracy +5~15%p 예상', file:'06_operational.py' });
   if (halluHas && hall_v > 5)
-    actions.push({ p:'P1', icon:'🧠', title:'환각 억제 (현재 '+fmtPct(hall_v)+'→목표 5%↓)',
+    actions.push({ p:'P1', icon:'🧠', title:'Gate C — 환각 억제 (현재 '+fmtPct(hall_v)+'→목표 5%↓)',
       steps:['환각 다발 유형 집중 분석', 'RAG 기반 Fact 검증 레이어 도입', '응답 생성 온도(temperature) 조정'],
       impact:'Hallucination -3~8%p 예상', file:'01_layer1_all_metrics.py' });
   if (p95_v > 2)
-    actions.push({ p:'P2', icon:'⚡', title:'응답속도 최적화 (P95 '+fmtSec(p95_v)+'→목표 2s↓)',
-      steps:['느린 Task Type 식별 (슬라이드 9 참조)', '결과 캐싱 / 병렬 처리 도입', '경량 모델 또는 청크 크기 조정 검토'],
+    actions.push({ p:'P2', icon:'⚡', title:'Gate D — 응답속도 최적화 (P95 '+fmtSec(p95_v)+'→목표 2s↓)',
+      steps:['느린 Task Type 식별 (Gate D 슬라이드 참조)', '결과 캐싱 / 병렬 처리 도입', '경량 모델 또는 청크 크기 조정 검토'],
       impact:'P95 -30~50% 예상', file:'01_layer1_all_metrics.py' });
   if (costPerTask > 0.05)
-    actions.push({ p:'P2', icon:'💰', title:'비용 최적화 (Task당 '+fmtCost(costPerTask)+')',
+    actions.push({ p:'P2', icon:'💰', title:'Gate D — 비용 최적화 (Task당 '+fmtCost(costPerTask)+')',
       steps:['불필요한 Output 토큰 단축 (프롬프트 간결화)', 'AdaptivePolicy 샘플링 도입 (06_operational.py)', '고비용 타입 식별 및 모델 티어 분리'],
       impact:'비용 20~40% 절감 예상', file:'06_operational.py' });
   if (actions.length === 0)
-    actions.push({ p:'P3', icon:'✅', title:'모든 핵심 지표 달성 — 지속 모니터링',
+    actions.push({ p:'P3', icon:'✅', title:'모든 Gate 달성 — 지속 모니터링',
       steps:['실시간 대시보드 모니터링 유지 (--watch 모드)', 'Golden Dataset 주기적 확장', 'Anomaly Detection 임계값 점검'],
       impact:'현재 품질 유지', file:'agent-eval dashboard --watch' });
-  actions.push({ p:'P3', icon:'📊', title:'지속적 평가 파이프라인 구축',
-    steps:['CI/CD agent-eval gate 품질 게이팅 도입', 'GoldenSetBuilder 자동 케이스 추출 주간 실행', '이상 감지 알림 규칙 설정 (05_streaming_alerts.py)'],
-    impact:'품질 회귀 사전 방지', file:'agent-eval gate result.json --tcr 85' });
+  actions.push({ p:'P3', icon:'📊', title:'Gate 기반 CI/CD 파이프라인 구축',
+    steps:['agent-eval gate 품질 게이팅 도입 (모든 Gate 기준)', 'GoldenSetBuilder 자동 케이스 추출 주간 실행', 'Harness Config 전 Gate 활성화 (08_harness_eval.py)'],
+    impact:'Gate 회귀 사전 방지', file:'agent-eval gate result.json --tcr 85' });
 
   return `<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;flex:1;align-content:start">
     ${actions.slice(0,4).map(a =>
@@ -1160,23 +1365,6 @@ function calcHealth(tcr, acc, hallu, lat, data){
   return active.length ? Math.round(active.reduce((a,b)=>a+b,0)/active.length) : 0;
 }
 
-function healthGrade(h){
-  if (h>=90) return { letter:'A+', color:'#4ade80', bg:'rgba(74,222,128,.18)', label:'EXCELLENT', desc:'최고 수준의 에이전트 성능' };
-  if (h>=80) return { letter:'A',  color:'#4ade80', bg:'rgba(74,222,128,.15)', label:'GOOD',      desc:'안정적인 프로덕션 수준' };
-  if (h>=70) return { letter:'B',  color:'#facc15', bg:'rgba(250,204,21,.15)', label:'FAIR',      desc:'일부 지표 개선 필요' };
-  if (h>=60) return { letter:'C',  color:'#fb923c', bg:'rgba(251,146,60,.15)', label:'POOR',      desc:'주요 지표 개선 시급' };
-  return             { letter:'F',  color:'#f87171', bg:'rgba(248,113,113,.15)',label:'CRITICAL',  desc:'즉각적인 품질 개선 필요' };
-}
-
-function costGrade(perTask){
-  if (perTask <= 0)     return { grade:'N/A', gradeColor:'#8890b0', gradeBg:'rgba(136,144,176,.15)', gradeDesc:'비용 데이터 없음' };
-  if (perTask < 0.001)  return { grade:'A+',  gradeColor:'#4ade80', gradeBg:'rgba(74,222,128,.18)',  gradeDesc:'$0.001/task 미만 — 매우 경제적' };
-  if (perTask < 0.005)  return { grade:'A',   gradeColor:'#4ade80', gradeBg:'rgba(74,222,128,.15)',  gradeDesc:'$0.001~0.005/task — 경제적' };
-  if (perTask < 0.02)   return { grade:'B',   gradeColor:'#facc15', gradeBg:'rgba(250,204,21,.15)',  gradeDesc:'$0.005~0.02/task — 적정 수준' };
-  if (perTask < 0.05)   return { grade:'C',   gradeColor:'#fb923c', gradeBg:'rgba(251,146,60,.15)',  gradeDesc:'$0.02~0.05/task — 최적화 검토' };
-  return                       { grade:'D',   gradeColor:'#f87171', gradeBg:'rgba(248,113,113,.15)', gradeDesc:'$0.05/task 초과 — 비용 절감 필요' };
-}
-
 /* ── Misc helpers ── */
 function set(id, val){ const el=document.getElementById(id); if(el) el.textContent=val; }
 function setKpi(id, val, cls){
@@ -1212,9 +1400,8 @@ function renderCharts(data){
   const scY={ticks:{color:TC,font:FONT},grid:{color:GC}};
   const noLeg={plugins:{legend:{display:false}}};
 
-  const tcr=data.accuracy_metrics?.tcr||{};
   const lat=data.efficiency_metrics?.latency||{};
-  const tok=data.efficiency_metrics?.tokens||{};
+  const tcr=data.accuracy_metrics?.tcr||{};
 
   // Task type pie (slide 3)
   const typeStats={};
@@ -1233,36 +1420,26 @@ function renderCharts(data){
       plugins:{legend:{position:'right',labels:{color:TC,font:{size:11,family:FONT.family},padding:10}}}},
   });
 
-  // TCR donut
-  const full=tcr.full_success||0, partial=tcr.partial_success||0;
-  const fail=tcr.failures||Math.max(0,(data.total_tasks||0)-full-partial);
-  _mk('sl-donut',{type:'doughnut',
-    data:{labels:['완전성공','부분성공','실패'],
-      datasets:[{data:[full,partial,fail],backgroundColor:['#4ade80','#facc15','#f87171'],borderWidth:0}]},
-    options:{maintainAspectRatio:false,cutout:'60%',
-      plugins:{legend:{position:'bottom',labels:{color:TC,font:FONT,padding:12}}}},
-  });
-
-  // Failure score hist
-  const failTasks=(data.tasks||[]).filter(t=>!t.success);
-  if(failTasks.length>0){
+  // Gate A: accuracy distribution (histogram)
+  const tasks=data.tasks||[];
+  if(tasks.length>0){
     const bk=Array(10).fill(0);
-    failTasks.forEach(t=>{ bk[Math.min(Math.floor((t.accuracy_score||0)*10),9)]++; });
-    _mk('fa-fail-hist',{type:'bar',
+    tasks.forEach(t=>{ bk[Math.min(Math.floor((t.accuracy_score||0)*10),9)]++; });
+    _mk('gA-acc-chart',{type:'bar',
       data:{labels:['0','10','20','30','40','50','60','70','80','90'],
-        datasets:[{data:bk,backgroundColor:'#f8717155',borderColor:'#f87171',borderWidth:1}]},
+        datasets:[{data:bk,backgroundColor:'#10b98155',borderColor:'#10b981',borderWidth:1}]},
       options:{maintainAspectRatio:false,...noLeg,
         scales:{x:{...scX,ticks:{...scX.ticks,font:{size:9,family:FONT.family}}},y:{...scY,ticks:{...scY.ticks,stepSize:1}}}},
     });
   }
 
-  // Latency bar
+  // Gate D: Latency bar
   const latVals=[
     {lbl:'P50',v:lat.p50||0,c:'#4ade80'},{lbl:'P95',v:lat.p95||0,c:'#facc15'},
     {lbl:'P99',v:lat.p99||0,c:'#f87171'},{lbl:'Max',v:lat.max||0,c:'#f87171'},
   ].filter(x=>x.v>0);
   if(latVals.length>0){
-    _mk('sl-lat-bar',{type:'bar',
+    _mk('gD-lat-bar',{type:'bar',
       data:{labels:latVals.map(x=>x.lbl),
         datasets:[{data:latVals.map(x=>+x.v.toFixed(3)),
           backgroundColor:latVals.map(x=>x.c+'70'),borderColor:latVals.map(x=>x.c),borderWidth:1}]},
@@ -1271,22 +1448,9 @@ function renderCharts(data){
       },
     });
   }
-
-  // Token pie
-  const totalIn=tok.total_input_tokens||0, totalOut=tok.total_output_tokens||0;
-  if(totalIn+totalOut>0){
-    _mk('sl-tok-pie',{type:'doughnut',
-      data:{labels:['Input','Output'],
-        datasets:[{data:[totalIn,totalOut],
-          backgroundColor:['#6c8ef560','#4ade8060'],
-          borderColor:['#6c8ef5','#4ade80'],borderWidth:1}]},
-      options:{maintainAspectRatio:false,cutout:'60%',
-        plugins:{legend:{position:'bottom',labels:{color:TC,font:{size:11,family:FONT.family},padding:12}}}},
-    });
-  }
 }
 
-/* ── duplicate Reveal.on removed — registered above before Reveal.initialize ── */
+/* ── visibility change reload ── */
 document.addEventListener('visibilitychange',()=>{
   if(document.visibilityState==='visible'){
     const sel=document.getElementById('file-select');

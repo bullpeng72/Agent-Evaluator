@@ -1,4 +1,4 @@
-# Chapter 9. 임계값 설정과 품질 기준 수립
+# Chapter 14. 임계값 설정과 품질 기준 수립
 
 > **이 챕터에서 배우는 것**
 > - 좋은 임계값이란 무엇인지, 어떤 기준으로 설정해야 하는지 이해한다
@@ -10,11 +10,11 @@
 > 📖 **관련 레퍼런스**
 > - **[Appendix I — 지표 비교 분석 및 선택 가이드](../Appendix/I_지표_비교분석_선택가이드.md)**: 에이전트 유형별 지표 선택 결정 트리 및 비용 프로파일 → §I.6 결정 트리 참조
 > - **[Appendix G — AI 품질 평가 이론적 기초](../Appendix/G_AI평가_이론적기초.md)**: 이 챕터의 권장 임계값(TCR≥85%, Accuracy≥70%)이 도출된 이론적 근거 → §G.5 참조
-> - **[Appendix A — 25개 지표 완전 레퍼런스](../Appendix/A_25개지표_레퍼런스.md)**: 각 지표의 권장 임계값 기본값 빠른 조회
+> - **[Appendix A — 58개 지표 완전 레퍼런스](../Appendix/A_58개지표_레퍼런스.md)**: 각 지표의 권장 임계값 기본값 빠른 조회
 
 ---
 
-## 9.1 좋은 임계값의 조건
+## 14.1 좋은 임계값의 조건
 
 임계값(Threshold)은 에이전트 품질 관리의 핵심 도구다. 그런데 임계값을 설정한다는 것은 생각보다 섬세한 작업이다. 너무 엄격하면 팀 전체가 알림 폭발에 지치고, 너무 느슨하면 진짜 문제를 놓친다.
 
@@ -40,7 +40,7 @@ TCR 임계값을 95%로 설정했다고 가정하자. 에이전트가 하루 1,0
 
 ---
 
-## 9.2 에이전트 유형별 KPI 기준표
+## 14.2 에이전트 유형별 KPI 기준표
 
 에이전트의 목적에 따라 어떤 지표를 중점적으로 관리해야 하는지가 다르다. 아래 표는 5가지 주요 에이전트 유형별 권장 임계값과 측정 방법을 정리한 것이다.
 
@@ -62,7 +62,7 @@ TCR 임계값을 95%로 설정했다고 가정하자. 에이전트가 하루 1,0
 
 **Tool Use 에이전트의 추가 지표:**
 
-도구를 많이 쓰는 에이전트는 Layer 2 지표도 함께 관리해야 한다.
+도구를 많이 쓰는 에이전트는 Group B-G 지표도 함께 관리해야 한다.
 
 | 지표 | 권장값 | 설명 |
 |------|--------|------|
@@ -72,9 +72,9 @@ TCR 임계값을 95%로 설정했다고 가정하자. 에이전트가 하루 1,0
 
 📋 **QA 관리자 TIP:** 에이전트가 여러 유형을 동시에 처리한다면 가장 엄격한 기준을 전체에 적용하지 말 것. `task_type` 별로 별도 임계값 파일을 관리하는 것이 현실적이다.
 
-### 9.2.1 어떤 레이어를 활성화할 것인가? — 지표 선택 의사결정 트리
+### 14.2.1 어떤 지표 그룹을 활성화할 것인가? — 지표 선택 의사결정 트리
 
-에이전트 유형별 KPI 기준표를 정했다면, 다음 단계는 **어떤 레이어의 지표를 활성화할지**를 결정하는 것이다. 아래 의사결정 트리를 순서대로 따라가면 최소 비용으로 최대 커버리지를 얻을 수 있다.
+에이전트 유형별 KPI 기준표를 정했다면, 다음 단계는 **어떤 지표 그룹을 활성화할지**를 결정하는 것이다. 아래 의사결정 트리를 순서대로 따라가면 최소 비용으로 최대 커버리지를 얻을 수 있다.
 
 ```
 [시작]
@@ -82,17 +82,17 @@ TCR 임계값을 95%로 설정했다고 가정하자. 에이전트가 하루 1,0
   ▼
 에이전트가 도구를 사용하는가?
   │
-  ├─ NO → Layer 1만 활성 (TCR, Accuracy, Quality, Latency, Token, Hallucination*)
+  ├─ NO → Group A-D 기반 지표만 활성 (TCR, Accuracy, Quality, Latency, Token, Hallucination*)
   │         *(hallucination은 RAG 경우에만)
   │
-  └─ YES ─→ Layer 1 + Layer 2-A 활성
+  └─ YES ─→ Group A-G 기반 + 에이전틱 지표 활성
               │
               ▼
             에이전트가 민감 데이터/외부 시스템에 접근하는가?
               │
-              ├─ NO → Layer 1 + Layer 2-A 유지
+              ├─ NO → Group A-G 기반 + 에이전틱 지표 유지
               │
-              └─ YES → Layer 2-B 추가 (보안 지표 5개)
+              └─ YES → Group E 보안 지표 추가
                           enable_security_metrics=True
 
 [계속]
@@ -100,9 +100,9 @@ TCR 임계값을 95%로 설정했다고 가정하자. 에이전트가 하루 1,0
   ▼
 Ground truth를 항상 가질 수 있는가?
   │
-  ├─ YES → Layer 1/2로 충분 (낮은 비용)
+  ├─ YES → Group A-G 기반 지표로 충분 (낮은 비용)
   │
-  └─ NO → LLM Judge 추가 (Layer 3)
+  └─ NO → LLM Judge 추가 (Group G)
             │
             ▼
           RAG 파이프라인인가?
@@ -127,20 +127,20 @@ Ground truth를 항상 가질 수 있는가?
 from agent_evaluator import PerformanceMonitor
 from agent_evaluator.decorators import agent_eval
 
-# Case 1: 도구 없는 QA 챗봇 (Layer 1만)
+# Case 1: 도구 없는 QA 챗봇 (Group A 기반만)
 monitor = PerformanceMonitor(output_dir="results/")
 
-# Case 2: Tool Use 에이전트 (Layer 1 + 2-A)
+# Case 2: Tool Use 에이전트 (Group A-B)
 monitor = PerformanceMonitor(output_dir="results/")
-# → 기본적으로 Layer 2-A 트래커(ToolCall, Retry 등)는 자동 수집됨
+# → 기본적으로 Group B 트래커(ToolCall, Retry 등)는 자동 수집됨
 
-# Case 3: 보안 에이전트 (Layer 1 + 2-A + 2-B)
+# Case 3: 보안 에이전트 (Group A-B + Group E)
 monitor = PerformanceMonitor(
     output_dir="results/",
-    enable_security_metrics=True,   # Layer 2-B 활성화
+    enable_security_metrics=True,   # Group E 활성화
 )
 
-# Case 4: RAG + LLM Judge (Layer 1 + 3)
+# Case 4: RAG + LLM Judge (Group A + Group G)
 monitor = PerformanceMonitor(
     output_dir="results/",
     enable_hallucination_detection=True,
@@ -158,7 +158,7 @@ def rag_agent(question: str, context: str = "", ground_truth: str = "") -> str:
 
 ---
 
-## 9.3 임계값 자동 제안 — generate_gate_config()
+## 14.3 임계값 자동 제안 — generate_gate_config()
 
 새 에이전트를 배포하거나 처음 임계값을 설정할 때 가장 흔히 하는 실수는 "느낌상" 숫자를 정하는 것이다. 더 나은 방법은 충분한 평가를 먼저 실행한 후 현재 성능 분포를 기반으로 임계값을 자동 생성하는 것이다.
 
@@ -225,7 +225,7 @@ agent-eval gate results/eval.json --tcr 70 --accuracy 55
 
 ---
 
-## 9.4 Warning / Error / Critical 3계층 알림 설계
+## 14.4 Warning / Error / Critical 3계층 알림 설계
 
 모든 문제가 동일한 긴급도를 갖지 않는다. "응답 품질이 조금 낮다"와 "서비스가 완전히 멈췄다"는 다른 수준의 대응이 필요하다. 3계층 알림 체계는 이 차이를 명확히 한다.
 
@@ -270,7 +270,7 @@ agent-eval gate results/eval.json --tcr 70 --accuracy 55
 
 ---
 
-## 9.5 품질 SLA 문서 작성 가이드
+## 14.5 품질 SLA 문서 작성 가이드
 
 임계값 설정이 끝났다면, 이를 팀 전체가 동의한 **SLA(Service Level Agreement) 문서**로 공식화해야 한다. SLA 문서가 없으면 "왜 이게 문제냐"는 논쟁이 반복된다.
 
@@ -318,7 +318,7 @@ agent-eval gate results/eval.json --tcr 70 --accuracy 55
 
 ---
 
-## 9.6 초기 배포 후 2주 캘리브레이션 프로세스
+## 14.6 초기 배포 후 2주 캘리브레이션 프로세스
 
 임계값을 처음 설정했다고 끝이 아니다. 실제 트래픽을 맞이하면 예상치 못한 패턴이 나타난다. 초기 2주는 **캘리브레이션 기간**으로 설정하고, 느슨한 임계값으로 데이터를 수집하는 것이 현명하다.
 
@@ -378,6 +378,129 @@ with open("gate_config_v1.json") as f:
 ```
 
 📋 **QA 관리자 TIP:** 임계값이 갑자기 크게 달라졌다면 에이전트 성능이 바뀐 것인지, 평가 방식이 바뀐 것인지 확인하라. 두 달치 `gate_config.json`을 비교해서 갑작스러운 변화가 있으면 원인을 추적해야 한다.
+
+---
+
+## 14.7 Harness Config로 임계값을 코드로 선언하기
+
+### 14.7.1 Config-as-Code 전환의 이점
+
+지금까지 `agent-eval gate --tcr 85 --accuracy 70` CLI 파라미터나 `monitor.gate(tcr=85)` 호출로 임계값을 설정했습니다. 이 방식의 문제는 **배포 기준이 코드 외부**에 있다는 것입니다.
+
+Harness Config로 전환하면:
+
+| 기존 방식 | Harness Config 방식 |
+|---------|-------------------|
+| CLI 파라미터 (`--tcr 85`) | `InstructionConfig(min_completion_rate=0.85)` |
+| 코드 외부에 기준 산재 | Git으로 기준 변경 이력 추적 |
+| 에이전트 유형별 구분 어려움 | `task_types=["qa"]`로 유형별 기준 분리 |
+| 재검토 시 어디를 봐야 하는지 불명확 | 단일 파일에서 전체 기준 조회 가능 |
+
+### 14.7.2 에이전트 유형별 KPI를 Config로 선언
+
+§14.2의 에이전트 유형별 KPI 기준표를 Config 코드로 변환합니다.
+
+```python
+from agent_evaluator.decorators import (
+    InstructionConfig, ReproducibilityConfig, SLAConfig,
+    ThreatSeverityConfig, ComplianceConfig, FaultToleranceConfig,
+)
+
+# ── QA 챗봇 ──────────────────────────────────────────────────────────
+qa_harness = [
+    InstructionConfig(min_completion_rate=0.85, min_accuracy=0.70, fail_on_violation=True),
+    SLAConfig(max_p95_latency=5.0, fail_on_violation=True),
+]
+
+# ── RAG 검색 ─────────────────────────────────────────────────────────
+rag_harness = [
+    InstructionConfig(min_completion_rate=0.88, min_accuracy=0.75, fail_on_violation=True),
+    SLAConfig(max_p95_latency=4.0, fail_on_violation=True),
+    ReproducibilityConfig(min_consistency_rate=0.80, fail_on_violation=False),  # 모니터링만
+]
+
+# ── 보안 에이전트 ─────────────────────────────────────────────────────
+security_harness = [
+    InstructionConfig(min_completion_rate=0.95, min_accuracy=0.80, fail_on_violation=True),
+    SLAConfig(max_p95_latency=3.0, fail_on_violation=True),
+    ThreatSeverityConfig(max_severity="low", fail_on_violation=True),
+    ComplianceConfig(standards=["GDPR"], fail_on_violation=True),
+]
+
+# ── 사용 ─────────────────────────────────────────────────────────────
+@agent_eval(monitor, task_type="qa", harness_configs=qa_harness)
+def qa_agent(question: str, ground_truth: str = "") -> str: ...
+
+@agent_eval(monitor, task_type="information_retrieval",
+            harness_configs=rag_harness, rag_mode=True)
+def rag_agent(question: str, context: str = "", ground_truth: str = "") -> str: ...
+```
+
+### 14.7.3 Wilson Score Interval — 통계적 임계값 설정
+
+§14.3의 `generate_gate_config()`는 "현재 성능의 95% 수준"을 자동 계산합니다. 하지만 샘플 수가 적으면 이 값이 얼마나 신뢰할 수 있는지 알아야 합니다.
+
+**Wilson Score Interval**은 관찰된 TCR이 "진짜 성능 범위" 어디에 있는지 95% 신뢰구간으로 추정합니다.
+
+```python
+import math
+
+def wilson_lower_bound(successes: int, trials: int, z: float = 1.96) -> float:
+    """Wilson Score 하한 — 보수적 TCR 임계값 추정"""
+    if trials == 0:
+        return 0.0
+    p = successes / trials
+    denominator = 1 + z**2 / trials
+    center = p + z**2 / (2 * trials)
+    margin = z * math.sqrt(p * (1 - p) / trials + z**2 / (4 * trials**2))
+    return (center - margin) / denominator
+
+# 실용 예시 — 동일한 90% TCR, 다른 신뢰구간
+print(f"n=20,  TCR=90%:  Wilson 하한 = {wilson_lower_bound(18, 20):.1%}")   # ~72%
+print(f"n=100, TCR=90%:  Wilson 하한 = {wilson_lower_bound(90, 100):.1%}")  # ~83%
+print(f"n=500, TCR=90%:  Wilson 하한 = {wilson_lower_bound(450, 500):.1%}") # ~87%
+```
+
+**임계값 설정에의 적용:**
+
+| 측정 샘플 수 | 전략 | 임계값 설정 |
+|------------|------|-----------|
+| < 50건 | 보수적: Wilson 하한 사용 | `min_completion_rate = wilson_lower_bound(성공수, n)` |
+| 50~200건 | 절충: 관찰값과 Wilson 하한 평균 | `min_completion_rate = (관찰TCR + wilson_하한) / 2` |
+| 200건 이상 | 신뢰: 관찰값 - 5% 마진 | `min_completion_rate = 관찰TCR - 0.05` |
+
+```python
+# 실무 패턴: 샘플 수에 따른 자동 임계값 결정
+def adaptive_threshold(
+    successes: int,
+    trials: int,
+    margin: float = 0.05,
+) -> float:
+    """샘플 수에 따라 Wilson 하한 또는 관찰값 기반 임계값 반환"""
+    if trials < 50:
+        return wilson_lower_bound(successes, trials)
+    elif trials < 200:
+        observed = successes / trials
+        wilson = wilson_lower_bound(successes, trials)
+        return (observed + wilson) / 2
+    else:
+        observed = successes / trials
+        return max(0.0, observed - margin)
+
+# 2주 캘리브레이션 완료 후 Config 자동 생성
+report = monitor.generate_report()
+total = int(report.total_tasks)
+successful = int(total * report.task_completion_rate / 100)
+threshold = adaptive_threshold(successful, total)
+
+instruction_cfg = InstructionConfig(
+    min_completion_rate=threshold,
+    fail_on_violation=True,
+)
+print(f"캘리브레이션 임계값: {threshold:.1%} (n={total})")
+```
+
+> 📋 **QA 관리자 TIP**: "우리 에이전트 TCR이 90%인데 임계값을 85%로 설정했다"는 것만으로는 충분하지 않습니다. "n=25에서 관찰한 90%는 Wilson 하한이 72%"이므로, 실제로는 72~100% 어딘가에 있습니다. 배포 초기 2주 동안은 Wilson 하한을 사용해 보수적으로 판단하고, 데이터가 200건 이상 쌓이면 관찰값 기반으로 전환하세요.
 
 ---
 
@@ -493,7 +616,7 @@ python Evaluator_Examples/06_operational.py
 | 섹션 4 | `AlertEngine` 규칙 설정 | TCR/정확도/레이턴시 임계값 알림 |
 | 섹션 5 | `GoldenSetBuilder` 품질 기준 | `accuracy_score >= 0.85` 캘리브레이션 기준 |
 
-**실행 결과 (v0.8.0 기준)**
+**실행 결과 (v0.8.2 기준)**
 
 ```
 # 06_operational.py 실행 (28개 태스크)

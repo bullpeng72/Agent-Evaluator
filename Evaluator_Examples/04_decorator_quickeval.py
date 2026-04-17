@@ -42,7 +42,7 @@ QuickEval 원스톱 Facade를 한 파일에서 시연한다.
 import asyncio
 from pathlib import Path
 
-from agent_evaluator import PerformanceMonitor, QuickEval, SimpleTaskAlertRule, setup_otel
+from agent_evaluator import PerformanceMonitor, QuickEval, SimpleTaskAlertRule, LLMJudge, setup_otel
 from agent_evaluator.decorators import (
     agent_eval, batch_eval, conversation_eval,
     flush_conversation, EvalMetadata, get_eval_ctx, RetryConfig,
@@ -351,3 +351,75 @@ print(f"  PerformanceMonitor 기록: {total}건  TCR: {tcr:.1%}")
 
 monitor.save_to_file("04_decorator_quickeval")
 print("\n결과 저장 완료: results/04_decorator_quickeval.json")
+
+
+# ===========================================================================
+# 섹션 추가: LLMJudge 직접 사용
+# ===========================================================================
+# LLMJudge는 ground_truth 없이 completeness·relevance·factual_consistency·
+# toxicity·bias 5차원 + RAG faithfulness + G-Eval 커스텀 기준을 LLM으로 채점.
+# API 키가 없으면 gracefully skip.
+print("\n=== LLMJudge 직접 사용 ===")
+
+try:
+    import os
+    _has_key = bool(os.getenv("ANTHROPIC_API_KEY") or os.getenv("OPENAI_API_KEY"))
+    if not _has_key:
+        print("  API 키 없음 — LLMJudge 섹션 skip (ANTHROPIC_API_KEY 또는 OPENAI_API_KEY 필요)")
+    else:
+        # ── 기본 5차원 채점 ────────────────────────────────────────────────
+        judge = LLMJudge(
+            model=None,          # None → API 키 기반 자동 결정
+            sample_rate=1.0,     # 100% 채점 (프로덕션에서는 0.1 권장)
+        )
+        result = judge.judge(
+            task_id="llm_judge_001",
+            question="한국의 수도는 어디인가요?",
+            response="서울입니다. 서울은 약 950만 명이 거주하는 대한민국의 수도입니다.",
+        )
+        scores = result.get("scores") or {}
+        if result.get("error"):
+            print(f"  기본 채점 오류: {result['error']}")
+        else:
+            print(f"  기본 채점 — overall: {scores.get('overall', 0):.2f}")
+            print(f"    completeness={scores.get('completeness',0)}  "
+                  f"relevance={scores.get('relevance',0)}  "
+                  f"factual_consistency={scores.get('factual_consistency',0)}")
+            safety = scores.get("safety_score")
+            if safety is not None:
+                print(f"    safety_score={safety:.2f}  (1.0=완전 안전)")
+
+        # ── RAG Faithfulness 채점 (Ragas 대체) ─────────────────────────────
+        rag_result = judge.judge(
+            task_id="llm_judge_rag",
+            question="서울의 인구는?",
+            response="서울의 인구는 약 950만 명입니다.",
+            context="서울은 대한민국의 수도로 인구 약 950만 명이 거주합니다.",
+        )
+        rag_scores = rag_result.get("scores") or {}
+        faithfulness = rag_scores.get("faithfulness")
+        if faithfulness is not None:
+            print(f"\n  RAG Faithfulness: {faithfulness}/5 (5=모든 주장이 컨텍스트에 근거)")
+
+        # ── G-Eval 커스텀 기준 채점 (DeepEval 대체) ───────────────────────
+        geval_judge = LLMJudge(
+            model=None,
+            judge_criteria=["medical_accuracy", "citation_quality"],
+        )
+        geval_result = geval_judge.judge(
+            task_id="llm_judge_geval",
+            question="아스피린의 주요 부작용은?",
+            response="아스피린은 위장 출혈 위험이 있으며 혈소판 응집을 억제합니다.",
+        )
+        geval_scores = geval_result.get("scores") or {}
+        criteria_scores = geval_scores.get("criteria_scores") or {}
+        criteria_overall = geval_scores.get("criteria_overall")
+        if criteria_scores:
+            print(f"\n  G-Eval 커스텀 기준:")
+            for k, v in criteria_scores.items():
+                print(f"    {k}: {v}/5")
+            if criteria_overall is not None:
+                print(f"    criteria_overall: {criteria_overall:.2f}")
+
+except Exception as _e:
+    print(f"  LLMJudge 실행 중 오류 (skip): {_e}")

@@ -265,11 +265,9 @@ v0.7.1+에서는 태스크가 없을 때 `tasks=0`을 안전하게 반환한다.
 
 ### 13. LLM Judge가 동작하지 않음
 
-**증상**: `llm_judge=LLMJudgeConfig()` 설정 후에도 `llm_judge` 지표가 보고서에 없음.
+**증상**: LLM Judge 지표(`completeness`, `relevance`, `faithfulness` 등)가 보고서에 없음.
 
-**원인**: `OPENAI_API_KEY` 또는 `ANTHROPIC_API_KEY` 미설정.
-
-**해결책**:
+**원인 A**: `OPENAI_API_KEY` 또는 `ANTHROPIC_API_KEY` 미설정.
 
 ```bash
 export OPENAI_API_KEY=sk-proj-...
@@ -277,10 +275,31 @@ export OPENAI_API_KEY=sk-proj-...
 export ANTHROPIC_API_KEY=sk-ant-...
 ```
 
+**원인 B**: 데코레이터에 `llm_judge=LLMJudgeConfig()` 파라미터가 누락됨.
+
 ```python
-# Anthropic 모델 명시
-@agent_eval(monitor, task_type="qa", llm_judge=LLMJudgeConfig(model="claude-sonnet-4-6"))
+# ❌ LLM Judge 비활성 — llm_judge 파라미터 없음
+@agent_eval(monitor, task_type="qa")
 def agent(question: str, ground_truth: str = "") -> str: ...
+
+# ✅ LLM Judge 활성
+from agent_evaluator.decorators import LLMJudgeConfig
+@agent_eval(monitor, task_type="qa", llm_judge=LLMJudgeConfig())
+def agent(question: str, ground_truth: str = "") -> str: ...
+
+# ✅ Anthropic 모델 명시
+@agent_eval(monitor, task_type="qa", llm_judge=LLMJudgeConfig(model="claude-haiku-4-5-20251001"))
+def agent(question: str, ground_truth: str = "") -> str: ...
+```
+
+**원인 C**: `PerformanceMonitor`에서 `enable_llm_judge=True`가 아니라 `judge_sample_rate=0`으로 설정됨.
+
+```python
+# ❌ sample_rate=0 → 모든 태스크 스킵
+monitor = PerformanceMonitor(output_dir="results/", judge_sample_rate=0)
+
+# ✅ 기본 10% 샘플링
+monitor = PerformanceMonitor(output_dir="results/", judge_sample_rate=0.1)
 ```
 
 ---
@@ -518,7 +537,7 @@ df = monitor.export_to_dataframe()
 
 ### Q6. 평가 데코레이터를 적용해도 에이전트 성능에 영향이 있나?
 
-Layer 1/2 네이티브 지표는 순수 Python 알고리즘으로 계산되므로 오버헤드가 매우 작다 (태스크당 < 5ms). 단, 보안 지표(`enable_security_metrics=True`) 활성화 시 5~15ms 추가 오버헤드가 발생한다. LLM Judge(`llm_judge=LLMJudgeConfig()`)는 외부 API 호출을 수반하므로 수 초의 추가 시간이 필요하다.
+Group A-G 네이티브 지표는 순수 Python 알고리즘으로 계산되므로 오버헤드가 매우 작다 (태스크당 < 5ms). 단, 보안 지표(`enable_security_metrics=True`) 활성화 시 5~15ms 추가 오버헤드가 발생한다. LLM Judge(`llm_judge=LLMJudgeConfig()`)는 외부 API 호출을 수반하므로 수 초의 추가 시간이 필요하다.
 
 ---
 

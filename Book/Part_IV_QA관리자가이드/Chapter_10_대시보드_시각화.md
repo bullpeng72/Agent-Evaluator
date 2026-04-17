@@ -1,4 +1,4 @@
-# Chapter 10. 대시보드와 시각화
+# Chapter 15. 대시보드와 시각화
 
 > **이 챕터에서 배우는 것**
 > - Agent-Evaluator 대시보드의 아키텍처와 50+ 엔드포인트 구조를 이해한다
@@ -10,7 +10,7 @@
 
 ---
 
-## 10.1 대시보드 아키텍처 — 50+ 엔드포인트 구조
+## 15.1 대시보드 아키텍처 — 50+ 엔드포인트 구조
 
 Agent-Evaluator 대시보드는 **FastAPI 백엔드 + Alpine.js 프론트엔드** 조합으로 만들어진 경량 웹 애플리케이션이다. 별도의 데이터베이스가 없고, `results/` 디렉토리의 JSON 파일을 실시간으로 읽어서 시각화한다.
 
@@ -56,7 +56,7 @@ Agent-Evaluator 대시보드는 **FastAPI 백엔드 + Alpine.js 프론트엔드*
 
 ---
 
-## 10.2 메뉴별 활성화 분류 — 무엇이 자동이고 무엇이 아닌가
+## 15.2 메뉴별 활성화 분류 — 무엇이 자동이고 무엇이 아닌가
 
 대시보드를 처음 열면 일부 탭이 비어 있다. "어떤 탭은 자동으로 채워지고, 어떤 탭은 추가 작업이 필요한가"를 파악하는 것이 대시보드 활용의 출발점이다. 21개 메뉴는 세 가지 유형으로 나뉜다.
 
@@ -211,7 +211,7 @@ monitor = PerformanceMonitor(
 
 ---
 
-## 10.3 데이터 생성 — save_to_file() 3가지 방법
+## 15.3 데이터 생성 — save_to_file() 3가지 방법
 
 대시보드는 데이터를 직접 생성하지 않는다. 평가 코드가 JSON 파일을 만들어야 대시보드가 읽을 수 있다. 3가지 방법이 있다.
 
@@ -315,7 +315,7 @@ def my_agent(question: str, ground_truth: str = "") -> str:
 
 ---
 
-## 10.4 대시보드 실행
+## 15.4 대시보드 실행
 
 ```bash
 # 기본 실행 — results/ 디렉토리, 포트 8765
@@ -340,7 +340,7 @@ agent-eval dashboard --offline
 
 ---
 
-## 10.5 핵심 API 엔드포인트 활용
+## 15.5 핵심 API 엔드포인트 활용
 
 대시보드 UI가 편리하지만, API를 직접 호출하면 더 세밀한 분석이 가능하다. 모든 엔드포인트는 `http://localhost:8765`를 기준으로 한다.
 
@@ -499,7 +499,7 @@ curl "http://localhost:8765/api/conversation/evaluation/session_001"
 
 ---
 
-## 10.6 실시간 업데이트
+## 15.6 실시간 업데이트
 
 ### WebSocket — 실시간 이벤트 스트림
 
@@ -530,7 +530,7 @@ curl -N "http://localhost:8765/stream/filtered/evaluation"
 
 ---
 
-## 10.7 데이터 내보내기
+## 15.7 데이터 내보내기
 
 분석 결과를 팀과 공유하거나 외부 도구로 가져가야 할 때 내보내기 기능을 사용한다.
 
@@ -606,7 +606,7 @@ curl http://localhost:8765/api/cost/breakdown
 
 ---
 
-## 10.8 자주 발생하는 문제 & 해결책
+## 15.8 자주 발생하는 문제 & 해결책
 
 대시보드 운영 중 가장 자주 마주치는 문제 10가지와 즉각 적용 가능한 해결책을 정리한다.
 
@@ -866,7 +866,7 @@ agent-eval dashboard results/
 | 06_operational | 이상 감지·비용·실시간·알림 | AnomalyDetector, CostTracker, alert JSONL |
 | 07_phoenix_hybrid | 외부 평가·OTEL | advanced_metrics, rag_metrics |
 
-**실행 결과 (v0.8.0 기준)**
+**실행 결과 (v0.8.2 기준)**
 
 ```
 # 04_decorator_quickeval.py

@@ -1,6 +1,146 @@
 # Appendix F. 용어 사전
 
-Agent Evaluator v0.8.0에서 사용하는 주요 용어를 영문 기준 가나다 순으로 정리한다.
+Agent Evaluator v0.8.2에서 사용하는 주요 용어를 영문 기준 가나다 순으로 정리한다.
+
+---
+
+## AI Native 5속성 정의
+
+Agent-Evaluator가 기존 소프트웨어 테스팅과 다른 이유를 설명하는 5가지 AI 에이전트 고유 속성.
+
+| # | 속성 | 정의 | 연관 Group |
+|---|------|------|-----------|
+| 1 | **비결정론적 출력** (Non-deterministic Output) | 동일 입력에도 매번 다른 응답을 생성하는 특성. 단일 테스트로 품질을 확정할 수 없으며 통계적 측정이 필수다. | Group A, C |
+| 2 | **컨텍스트 의존성** (Context Dependency) | 이전 대화 내용·도구 결과·프롬프트 구조가 응답에 깊이 영향. 격리된 단위 테스트로는 실 품질 측정 불가. | Group A, B |
+| 3 | **다단계 추론** (Multi-step Reasoning) | 단일 응답이 아닌 계획 수립 → 도구 호출 → 결과 통합의 연쇄로 구성. 중간 단계의 오류가 최종 결과를 크게 훼손. | Group B, G |
+| 4 | **도구 활용** (Tool Utilization) | 외부 API, 파일 시스템, 데이터베이스 등을 자율적으로 호출. 도구 선택 오류·과잉 호출·인가 위반이 새로운 실패 모드를 만든다. | Group B, E |
+| 5 | **자율적 목표 추구** (Autonomous Goal Pursuit) | 명시적 지시 없이 목표 달성을 위해 스스로 행동을 선택. 설계 범위를 벗어난 행동이 예기치 않게 발생할 수 있다. | Group B, F |
+
+참조: Appendix G §G.6 (AI Native 평가 전략 5가지) / Chapter 1 (AI 에이전트 평가란 무엇인가)
+
+---
+
+## Harness Engineering 핵심 용어
+
+---
+
+### Config-as-Code
+
+에이전트의 배포 기준을 소스 코드로 선언하는 패턴. "문서나 관행"이 아닌 "실행 가능한 코드"로 품질 기준을 명시한다. Harness Config 클래스들이 이 패턴의 구현체다.
+
+```python
+# Config-as-Code 예시
+from agent_evaluator.decorators import SLAConfig, ThreatSeverityConfig
+
+@agent_eval(monitor,
+            sla=SLAConfig(p95_ms=2000, fail_on_violation=True),
+            threat=ThreatSeverityConfig(max_critical=0))
+def agent(question, ground_truth=""): ...
+```
+
+참조: Part II 전체 / Appendix A §Part 2 (33개 Config 레퍼런스)
+
+---
+
+### fail_on_violation
+
+Harness Config의 공통 플래그. `True`로 설정하면 해당 Config 조건 위반 시 `TaskResult.success = False`로 강제 처리된다. CI/CD 파이프라인에서 배포를 자동 차단하는 핵심 메커니즘이다.
+
+참조: Appendix A §Part 2 / Chapter 13 (CI/CD 품질 게이팅)
+
+---
+
+### Group A-G (Harness 7차원)
+
+58개 지표를 7개 품질 차원으로 분류하는 Harness Engineering의 핵심 구조.
+
+| Group | 차원 | 핵심 질문 |
+|-------|------|-----------|
+| A | 목표달성 | 에이전트가 지시를 완수했는가? |
+| B | 행동무결성 | 의도치 않은 행동이 없었는가? |
+| C | 신뢰성 | 일관되고 재현 가능한가? |
+| D | 성능계약 | SLA/비용 계약을 지켰는가? |
+| E | 보안경계 | 공격·유출을 차단했는가? |
+| F | 다중에이전트 협업 | 교착 없이 협력했는가? |
+| G | 운영관측성 | 실패 원인을 즉시 추적할 수 있는가? |
+
+참조: Chapter 3 (Harness Engineering 기초) / Part II 전체
+
+---
+
+### Harness Config
+
+에이전트의 배포 기준을 선언하는 데이터클래스 계열. 33개 클래스가 Group A-G에 분산되어 있다. `@agent_eval` 데코레이터나 `PerformanceMonitor`에 주입해 사용한다.
+
+```python
+from agent_evaluator.decorators import SLAConfig, ThreatSeverityConfig, ReproducibilityConfig
+```
+
+전체 목록과 사용법: Appendix A §Part 2 (33개 Config 완전 레퍼런스)
+
+**사용법**: `@agent_eval` 데코레이터 파라미터 또는 `PerformanceMonitor` + `HarnessEvaluationGate`로 주입한다.
+
+```python
+# 방법 1: 데코레이터 파라미터
+@agent_eval(monitor,
+            sla=SLAConfig(p95_ms=2000, fail_on_violation=True),
+            instruction=InstructionConfig(required_keywords=["서울"]))
+def agent(question, ground_truth=""): ...
+
+# 방법 2: HarnessEvaluationGate 일괄 적용
+from agent_evaluator import HarnessEvaluationGate
+gate = HarnessEvaluationGate(report)
+result = gate.evaluate()  # {"passed": True, "violations": [...]}
+```
+
+---
+
+### Harness Engineering
+
+AI 에이전트를 프로덕션에 안전하게 배포하기 위한 품질 공학 방법론. Tracker(관찰/측정) × Config(기준 선언) × Gate(배포 판정) 3요소로 구성된다. 기존 소프트웨어 테스팅의 "버그 없음 확인"을 넘어 "배포 가능 여부 판정"까지 자동화한다.
+
+참조: Chapter 1, Chapter 3
+
+---
+
+### HarnessEvaluationGate
+
+Group A-G 전체를 한 번에 체크하는 종합 배포 판정 도구. 각 Group의 Config 위반 여부를 집계해 최종 pass/fail을 반환한다. `agent-eval gate` CLI의 내부 구현체이기도 하다.
+
+```python
+from agent_evaluator import HarnessEvaluationGate
+gate = HarnessEvaluationGate(report)
+result = gate.evaluate()  # {"passed": True, "violations": [...]}
+```
+
+참조: Chapter 18 (CI/CD Harness Gate)
+
+---
+
+### 확률론적 품질 (Probabilistic Quality)
+
+AI 에이전트 품질을 단일 점수가 아닌 **분포**로 이해하는 패러다임. 같은 `accuracy=0.85`라도 분산이 작으면 안정적, 크면 예측 불가능한 에이전트다. Wilson Score Interval 등 통계적 신뢰구간 기반 임계값 설정이 이 패러다임의 구현이다.
+
+참조: Chapter 14 (임계값 설정) / Appendix G (AI Native 이론)
+
+---
+
+### 드리프트 (Drift)
+
+에이전트 성능이 배포 후 시간이 지남에 따라 저하되는 현상. 코드 변경·모델 업데이트·프롬프트 수정·학습 데이터 변화 4가지 소스에서 발생한다. `agent-eval trend`와 `RunTrendAnalyzer`로 조기 감지한다.
+
+참조: Chapter 18, Chapter 21
+
+---
+
+### 자기개선 루프 (Self-Improvement Loop)
+
+평가 결과를 에이전트 개선에 환류하는 3단계 파이프라인.
+1. **감지**: RunTrendAnalyzer로 성능 하락 탐지
+2. **진단**: Group별 Tracker 드릴다운으로 원인 귀속
+3. **개선**: 프롬프트/파인튜닝/Config 재조정
+
+참조: Chapter 21 (지속 평가·자기개선 파이프라인)
 
 ---
 
@@ -10,9 +150,9 @@ Agent Evaluator v0.8.0에서 사용하는 주요 용어를 영문 기준 가나�
 
 ### AccuracyEvaluator
 
-Layer 1 정확도 평가 클래스. `PerformanceMonitor` 내부에서 자동으로 초기화된다. QA 태스크에서는 TokenOverlapF1 (40%) + Jaccard (30%) + LCS (20%) + CharSimilarity/Levenshtein (10%) 가중 조합으로 정확도를 계산하고, 코드 태스크에서는 AST 비교를 사용한다. `ground_truth`가 필수이며 빈 문자열이면 0.0이 반환된다.
+Group A 정확도 평가 클래스. `PerformanceMonitor` 내부에서 자동으로 초기화된다. QA 태스크에서는 TokenOverlapF1 (40%) + Jaccard (30%) + LCS (20%) + CharSimilarity/Levenshtein (10%) 가중 조합으로 정확도를 계산하고, 코드 태스크에서는 AST 비교를 사용한다. `ground_truth`가 필수이며 빈 문자열이면 0.0이 반환된다.
 
-참조: Appendix A — Layer 1 지표 / 3장
+참조: Appendix A — Group A 지표 / 3장
 
 ---
 
@@ -110,11 +250,11 @@ from agent_evaluator import create_taskresult
 
 ### DeepEval
 
-Confident AI에서 개발한 오픈소스 LLM 평가 라이브러리. Agent Evaluator Layer 3에서 G-Eval, Hallucination Score, Toxicity, Bias, Answer Relevancy 5개 지표를 제공한다. `pip install "agent-evaluator[eval]"`로 설치하며 `OPENAI_API_KEY`가 필요하다.
+Confident AI에서 개발한 오픈소스 LLM 평가 라이브러리. Agent Evaluator Group G에서 G-Eval, Hallucination Score, Toxicity, Bias, Answer Relevancy 5개 지표를 제공한다. `pip install "agent-evaluator[eval]"`로 설치하며 `OPENAI_API_KEY`가 필요하다.
 
 출처: docs.confident-ai.com
 
-참조: Appendix A (Layer 3) / Appendix D (평가 플랫폼 비교)
+참조: Appendix A (Group G) / Appendix D (평가 플랫폼 비교)
 
 ---
 
@@ -186,9 +326,9 @@ from agent_evaluator.datasets.builder import GoldenSetBuilder
 
 ### HallucinationDetector
 
-Layer 1 환각 탐지 클래스 (규칙 기반). Unsupported Claim과 Numerical Inconsistency 두 가지 방법으로 탐지한다. 정확도 70~80%, 오버헤드 < 5ms. `enable_hallucination_detection=True`로 opt-in해야 한다. Layer 3 DeepEval Hallucination Score(LLM 기반, 90~95% 정확도)와 방향이 반대이므로 주의한다.
+Group A 환각 탐지 클래스 (규칙 기반). Unsupported Claim과 Numerical Inconsistency 두 가지 방법으로 탐지한다. 정확도 70~80%, 오버헤드 < 5ms. `enable_hallucination_detection=True`로 opt-in해야 한다. 외부 평가 라이브러리 DeepEval Hallucination Score(LLM 기반, 90~95% 정확도)와 방향이 반대이므로 주의한다.
 
-참조: Appendix A (Layer 1 #6) / Appendix E (오류 #5)
+참조: Appendix A (Group A #6) / Appendix E (오류 #5)
 
 ---
 
@@ -226,7 +366,7 @@ OpenTelemetry 데이터 전송 프로토콜. HTTP 또는 gRPC 방식으로 스�
 
 ### PerformanceMonitor
 
-Agent Evaluator의 중앙 오케스트레이터 클래스. 모든 트래커(Layer 1~2)를 내부에서 초기화하고 `record_task()`, `generate_report()`, `save_to_file()` 등의 메서드를 제공한다. `for_rag_evaluation()`, `for_secure_agents()` 팩토리 메서드로 용도별 최적 설정을 빠르게 적용할 수 있다.
+Agent Evaluator의 중앙 오케스트레이터 클래스. 모든 트래커(Group A-G)를 내부에서 초기화하고 `record_task()`, `generate_report()`, `save_to_file()` 등의 메서드를 제공한다. `for_rag_evaluation()`, `for_secure_agents()` 팩토리 메서드로 용도별 최적 설정을 빠르게 적용할 수 있다.
 
 ```python
 from agent_evaluator import PerformanceMonitor
@@ -262,11 +402,11 @@ eval = QuickEval("results/")
 
 ### Ragas
 
-RAG(Retrieval-Augmented Generation) 평가 전문 오픈소스 라이브러리. Agent Evaluator Layer 3에서 Faithfulness, Answer Relevancy, Context Precision, Context Recall 4개 지표를 제공한다. `pip install "agent-evaluator[eval]"`로 설치하며 `OPENAI_API_KEY`가 필요하다. 버전 0.4.x API(`EvaluationDataset`, `SingleTurnSample`)를 사용한다.
+RAG(Retrieval-Augmented Generation) 평가 전문 오픈소스 라이브러리. Agent Evaluator Group G에서 Faithfulness, Answer Relevancy, Context Precision, Context Recall 4개 지표를 제공한다. `pip install "agent-evaluator[eval]"`로 설치하며 `OPENAI_API_KEY`가 필요하다. 버전 0.4.x API(`EvaluationDataset`, `SingleTurnSample`)를 사용한다.
 
 출처: docs.ragas.io
 
-참조: Appendix A (Layer 3) / Appendix D / Appendix E (오류 #9)
+참조: Appendix A (Group G) / Appendix D / Appendix E (오류 #9)
 
 ---
 
@@ -312,9 +452,9 @@ OTEL에서 단일 작업 단위를 나타내는 추적 데이터 구조. `record
 
 ### TCR (Task Completion Rate)
 
-태스크 완료율. Layer 1의 핵심 지표로 `TaskResult.completion_score` (0.0~1.0)의 평균을 백분율로 표현한다. 95% 이상 우수, 85~95% 양호, 70% 미만 개선 필요.
+태스크 완료율. Group A의 핵심 지표로 `TaskResult.completion_score` (0.0~1.0)의 평균을 백분율로 표현한다. 95% 이상 우수, 85~95% 양호, 70% 미만 개선 필요.
 
-참조: Appendix A (Layer 1 #1)
+참조: Appendix A (Group A #1)
 
 ---
 
@@ -346,7 +486,7 @@ from agent_evaluator import TaskType
 
 스트리밍 응답에서 첫 번째 토큰이 생성되기까지의 시간. `LatencyTracker.track_ttft()`로 기록하거나 데코레이터 방식에서 제너레이터 함수의 첫 청크 yield 시점에 자동으로 기록된다. v0.7.2+에서 지원.
 
-참조: Appendix A (Layer 1 #4) / 5장 (스트리밍 평가)
+참조: Appendix A (Group D #4) / 5장 (스트리밍 평가)
 
 ---
 
@@ -364,9 +504,9 @@ from agent_evaluator import TaskType
 
 ### 에이전틱 지표
 
-에이전트 고유의 행동 패턴을 측정하는 Layer 2 지표들의 총칭. Tool Call Efficiency, Retry & Error Recovery, Tool Selection Accuracy, Agent Coordination, Workflow Execution 5종을 포함한다. LLM API 없이 알고리즘 기반으로 계산된다.
+에이전트 고유의 행동 패턴을 측정하는 Group B 에이전틱 지표들의 총칭. Tool Call Efficiency, Retry & Error Recovery, Tool Selection Accuracy, Agent Coordination, Workflow Execution 5종을 포함한다. LLM API 없이 알고리즘 기반으로 계산된다.
 
-참조: Appendix A (Layer 2-A)
+참조: Appendix A (Group B)
 
 ---
 
@@ -404,9 +544,9 @@ CI/CD 파이프라인에서 품질 임계값 미달 시 배포를 자동으로 �
 
 ### 환각 탐지
 
-AI 에이전트가 컨텍스트에 근거가 없는 내용을 사실처럼 생성하는 현상(환각)을 탐지하는 기능. Agent Evaluator는 두 가지 방식을 제공한다: Layer 1 규칙 기반(무료, opt-in, 정확도 70~80%)과 Layer 3 LLM 기반(DeepEval, 정확도 90~95%, API 비용 발생). 두 방식은 점수 방향이 반대이므로 주의가 필요하다.
+AI 에이전트가 컨텍스트에 근거가 없는 내용을 사실처럼 생성하는 현상(환각)을 탐지하는 기능. Agent Evaluator는 두 가지 방식을 제공한다: Group A 규칙 기반(무료, opt-in, 정확도 70~80%)과 외부 평가 라이브러리(DeepEval, 정확도 90~95%, API 비용 발생). 두 방식은 점수 방향이 반대이므로 주의가 필요하다.
 
-참조: Appendix A (Layer 1 #6, Layer 3 DeepEval)
+참조: Appendix A (Group A #6, Group G DeepEval)
 
 ---
 

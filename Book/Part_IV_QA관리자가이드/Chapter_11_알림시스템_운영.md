@@ -1,4 +1,4 @@
-# Chapter 11. 알림 시스템 운영
+# Chapter 16. 알림 시스템 운영
 
 > **이 챕터에서 배우는 것**
 > - `AlertRuleBuilder`의 5종 팩토리 메서드로 표준 알림 규칙을 빠르게 설정하는 방법을 익힌다
@@ -9,7 +9,7 @@
 
 ---
 
-## 11.1 AlertRuleBuilder — 5종 팩토리 메서드
+## 16.1 AlertRuleBuilder — 5종 팩토리 메서드
 
 `AlertRuleBuilder`는 가장 흔히 필요한 알림 규칙을 한 줄로 생성하는 팩토리 클래스다. 5가지 정적 메서드를 제공한다.
 
@@ -101,7 +101,7 @@ def my_agent(question: str, ground_truth: str = "") -> str:
 
 ---
 
-## 11.2 SimpleTaskAlertRule — 커스텀 조건 알림
+## 16.2 SimpleTaskAlertRule — 커스텀 조건 알림
 
 `AlertRuleBuilder`가 제공하지 않는 조건이 필요할 때는 `SimpleTaskAlertRule`로 완전히 커스텀할 수 있다.
 
@@ -223,7 +223,7 @@ def agent_b(question, ground_truth=""): ...
 
 ---
 
-## 11.3 Slack / 이메일 / Webhook 핸들러 설정
+## 16.3 Slack / 이메일 / Webhook 핸들러 설정
 
 ### SLACK_WEBHOOK_URL 환경변수 기반 fallback 패턴
 
@@ -396,7 +396,7 @@ def production_agent(question: str, ground_truth: str = "") -> str:
 
 ---
 
-## 11.4 쿨다운 전략과 알림 피로 방지
+## 16.4 쿨다운 전략과 알림 피로 방지
 
 쿨다운은 동일한 규칙이 짧은 시간 안에 반복 발동하지 않도록 하는 메커니즘이다. 알림 피로를 막는 핵심 도구다.
 
@@ -430,7 +430,7 @@ Critical → cooldown: 30초 (30초) — 30초마다 한 번
 
 ---
 
-## 11.5 AnomalyDetector — Z-Score 이상 탐지
+## 16.5 AnomalyDetector — Z-Score 이상 탐지
 
 알림 규칙은 "특정 값이 임계값을 넘으면" 발동한다. 반면 `AnomalyDetector`는 "최근 패턴과 달라졌을 때" 발동한다. 점진적으로 품질이 나빠지는 케이스는 알림 규칙으로는 잡기 어렵지만 이상 탐지로는 잡힌다.
 
@@ -494,7 +494,7 @@ print(f"권고: {explanation['recommendation']}")
 
 ---
 
-## 11.6 AdaptivePolicy — 예산 초과 시 자동 다운그레이드
+## 16.6 AdaptivePolicy — 예산 초과 시 자동 다운그레이드
 
 비용이 예산을 초과하면 더 저렴한 모델로 자동 전환하는 정책이다. 비용 폭증을 방지하는 마지막 안전망이다.
 
@@ -710,7 +710,7 @@ python Evaluator_Examples/06_operational.py
 | 05_streaming_alerts | 섹션 3 | `AlertEngine` 다채널 알림 | console·webhook·파일 핸들러 |
 | 06_operational | 섹션 4 | `SimpleTaskAlertRule` + `AnomalyDetector` | 임계값+Z-Score 이중 감시 |
 
-**실행 결과 (v0.8.0 기준)**
+**실행 결과 (v0.8.2 기준)**
 
 ```
 # 05_streaming_alerts.py

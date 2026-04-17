@@ -5,11 +5,59 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Version](https://img.shields.io/badge/version-0.8.2-green.svg)](https://github.com/bullpeng72/Agent-Evaluator)
 
-**AI 에이전트를 위한 프로덕션 레디 평가 프레임워크**
+**AI 에이전트 배포 준비도를 7개 Gate로 판정하는 Harness Engineering 평가 SDK**
 
-함수 위에 데코레이터 한 줄을 추가하는 것만으로 에이전트를 평가할 수 있습니다.
-LangChain, CrewAI, AutoGen, LangGraph 등 **21개 프레임워크**를 자동 인식하고,
-태스크 완료율부터 보안 취약점까지 **25개 지표**를 코드 수정 없이 측정합니다.
+에이전트가 "잘 동작하는가?"를 넘어 **"프로덕션에 배포할 준비가 됐는가?"** 를 묻습니다.
+목표 달성(A) · 행동 무결성(B) · 신뢰성(C) · 성능 계약(D) · 보안 경계(E) · 멀티에이전트 조율(F) · 관측 가능성(G) —
+**7개 Harness Gate가 에이전트의 배포 준비도를 종합 판정**합니다.
+
+데코레이터 한 줄로 LangChain · CrewAI · AutoGen 등 **21개 프레임워크**를 자동 인식하고,
+**58개 지표(25 Native Trackers + 33 Harness Config)**를 코드 수정 없이 측정합니다.
+
+---
+
+## Harness Engineering — 7개 Gate로 AI 에이전트 배포 준비도 판정
+
+단순 정확도 측정이 아닌 **배포 준비도(deployment readiness)** 를 기준으로 에이전트를 평가합니다.
+33개 Harness Config를 데코레이터 파라미터로 전달하면, `PerformanceMonitor`가 자동 집계해 7개 Gate의 PASS/WARN/FAIL을 판정합니다.
+
+```python
+from agent_evaluator import (
+    InstructionConfig, GoalAlignmentConfig,          # Gate A — 목표 달성
+    LoopDetectionConfig, StateConsistencyConfig,      # Gate B — 행동 무결성
+    FaultToleranceConfig, GracefulDegradationConfig,  # Gate C — 신뢰성
+    SLAConfig, EfficiencyConfig,                      # Gate D — 성능 계약
+    ThreatSeverityConfig, ComplianceConfig,           # Gate E — 보안 경계
+    ConsensusConfig, AgentRoleConfig,                 # Gate F — 멀티에이전트 조율
+    ExplainabilityConfig, ObservabilityConfig,        # Gate G — 관측 가능성
+)
+from agent_evaluator.decorators import agent_eval
+
+@agent_eval(monitor, task_type="qa",
+    instruction=InstructionConfig(required_keywords=["서울"], strict=True),
+    loop_detection=LoopDetectionConfig(max_loop_count=3, loop_threshold=0.85),
+    sla=SLAConfig(max_response_time=5.0, p95_threshold=3.0),
+    explainability=ExplainabilityConfig(min_reasoning_steps=2),
+)
+def my_agent(question: str, ground_truth: str = "") -> str:
+    return llm.invoke(question)
+
+monitor.save_to_file("eval")   # eval.json + eval.html — Gate A–G 판정 포함
+```
+
+| Gate | 영역 | 판정 기준 | Harness Config (개수) |
+|------|------|-----------|----------------------|
+| **A** 🟢 | **Goal Achievement** | 지시 이행률 · 목표 정렬 · 계획 일관성 · 컨텍스트 유지 | InstructionConfig · GoalAlignmentConfig · PlanConfig · SubtaskConfig · ContextRetentionConfig · KnowledgeRetentionConfig **(6)** |
+| **B** 🔵 | **Behavioral Integrity** | 루프 탐지 · 범위 일탈 · 도구 안전성 · 상태 일관성 · 교착 탐지 | LoopDetectionConfig · ScopeConfig · ToolParameterSafetyConfig · ContextWindowConfig · StateConsistencyConfig · DeadlockConfig **(6)** |
+| **C** 🟡 | **Reliability** | 재현 가능성 · 오류 복구율 · 품질 하한 · 멱등성 | ReproducibilityConfig · FaultToleranceConfig · GracefulDegradationConfig · RetryConsistencyConfig · IdempotencyConfig **(5)** |
+| **D** 🔵 | **Performance Contract** | SLA 준수율 · 토큰 효율 · TTFT 변동성 · 비용 예측 가능성 | SLAConfig · EfficiencyConfig · ResourceBudgetConfig · TTFTVariabilityConfig · CostPredictabilityConfig **(5)** |
+| **E** 🔴 | **Security Boundary** | 위협 심각도 · 규정 준수 · 위협 대응 행동 | ThreatSeverityConfig · ComplianceConfig · ThreatResponseConfig **(3)** |
+| **F** 🟣 | **Multi-Agent Coordination** | 에이전트 간 합의율 · 정보 전파 정확도 · 역할 준수 · 충돌 해결 | ConsensusConfig · PropagationConfig · AgentRoleConfig · ConflictResolutionConfig **(4)** |
+| **G** 🩵 | **Observability** | 추론 설명 가능성 · 내부 상태 추적 · 오류 진단 · 지연 원인 분석 | ExplainabilityConfig · ObservabilityConfig · ErrorDiagnosisConfig · LatencyAttributionConfig **(4)** |
+
+각 Gate는 **25개 Native Tracker**(Layer 1 기반 지표 6개 + Layer 2 에이전틱 지표 10개 + 보안 지표 5개 + LLMJudge)로부터 원시 측정값을 받아 집계됩니다.
+
+> 전체 실전 예제: `Evaluator_Examples/08_harness_eval.py` | 대시보드: `agent-eval dashboard`
 
 ---
 
@@ -69,7 +117,8 @@ def my_agent(question, ground_truth=""):
   ├─ [6] PerformanceMonitor.record_task() 호출
   │       ├─ Layer 1: TCR · Accuracy · Hallucination · Quality · Latency · Token
   │       ├─ Layer 2: Tool · Retry · Coordination · Workflow · Security (5종)
-  │       └─ Layer 3: LLMJudge · DeepEval · Ragas  (opt-in)
+  │       ├─ Layer 3: LLMJudge · DeepEval · Ragas  (opt-in)
+  │       └─ Harness: 33개 Config 자동 집계 → Gate A–G 통과/경고/실패 판정
   │
   └─ [7] 원본 반환값 그대로 호출자에게 전달
 ```
@@ -936,7 +985,7 @@ def fixed_agent(question: str, ground_truth: str = "") -> str:
 
 ---
 
-## 25개 지표와 데코레이터 활성화 조건
+## 58개 지표와 데코레이터 활성화 조건
 
 ### Layer 1 — 기초 지표 (기본 데코레이터로 자동 활성)
 
@@ -1006,6 +1055,44 @@ def rag_agent(question, context="", ground_truth=""): ...
 | **LLMJudge** *(v0.7.6+)* | + **faithfulness** (RAG) · **커스텀 기준(G-Eval)** | `rag_mode=True` + `llm_judge=LLMJudgeConfig(criteria=[...])` |
 | **DeepEval** | Hallucination(NLI) · Answer Relevancy (LLM) | `pip install "agent-evaluator[eval]"` |
 | **Ragas** | Faithfulness · Answer Relevancy · Context Precision · Context Recall (LLM) | 동일 + `context` 필드 필요 |
+
+### Harness Engineering — 33개 Config, 7개 Gate Group (A–G)
+
+Harness Config는 `@agent_eval` 데코레이터 파라미터로 전달하며, `PerformanceMonitor`가 자동 집계합니다. 대시보드 **Harness Gate** 탭에서 그룹별 통과/경고/실패를 시각화합니다.
+
+```python
+from agent_evaluator import (
+    InstructionConfig, GoalAlignmentConfig, PlanConfig,   # Group A
+    LoopDetectionConfig, StateConsistencyConfig,           # Group B
+    FaultToleranceConfig, GracefulDegradationConfig,       # Group C
+    SLAConfig, EfficiencyConfig,                           # Group D
+    ThreatSeverityConfig, ComplianceConfig,                # Group E
+    ConsensusConfig, AgentRoleConfig,                      # Group F
+    ExplainabilityConfig, ObservabilityConfig,             # Group G
+)
+
+@agent_eval(monitor, task_type="qa",
+    instruction=InstructionConfig(required_keywords=["서울"], strict=True),
+    loop_detection=LoopDetectionConfig(max_loop_count=3),
+    sla=SLAConfig(max_response_time=5.0, p95_threshold=3.0),
+    explainability=ExplainabilityConfig(min_reasoning_steps=2),
+)
+def my_agent(question: str, ground_truth: str = "") -> str: ...
+```
+
+| Group | 영역 | Config (개수) |
+|-------|------|--------------|
+| **A** | Goal Achievement | InstructionConfig · GoalAlignmentConfig · PlanConfig · SubtaskConfig · ContextRetentionConfig · KnowledgeRetentionConfig **(6)** |
+| **B** | Behavioral Integrity | LoopDetectionConfig · ScopeConfig · ToolParameterSafetyConfig · ContextWindowConfig · StateConsistencyConfig · DeadlockConfig **(6)** |
+| **C** | Reliability | ReproducibilityConfig · FaultToleranceConfig · GracefulDegradationConfig · RetryConsistencyConfig · IdempotencyConfig **(5)** |
+| **D** | Performance Contract | SLAConfig · EfficiencyConfig · ResourceBudgetConfig · TTFTVariabilityConfig · CostPredictabilityConfig **(5)** |
+| **E** | Security Boundary | ThreatSeverityConfig · ComplianceConfig · ThreatResponseConfig **(3)** |
+| **F** | Multi-Agent Coord. | ConsensusConfig · PropagationConfig · AgentRoleConfig · ConflictResolutionConfig **(4)** |
+| **G** | Observability | ExplainabilityConfig · ObservabilityConfig · ErrorDiagnosisConfig · LatencyAttributionConfig **(4)** |
+
+> **Note**: `TTFTVariabilityConfig` · `CostPredictabilityConfig`는 monitor 수준 자동 집계(≥5 tasks with `ttft_ms` extra 및 task_type별 토큰 CV). 데코레이터 파라미터 불필요.
+
+전체 실전 예제: `Evaluator_Examples/08_harness_eval.py`
 
 ---
 
@@ -1259,7 +1346,7 @@ from agent_evaluator.decorators import (
 
 ## 예제 가이드
 
-7개 통합 파일로 구성됩니다. 각 파일은 독립 실행 가능합니다.
+9개 파일로 구성됩니다. 각 파일은 독립 실행 가능합니다.
 
 ### 예제별 의존성
 
@@ -1272,6 +1359,8 @@ from agent_evaluator.decorators import (
 | `05_streaming_alerts.py` | `pip install agent-evaluator` | `agent-eval monitor`, `SLACK_WEBHOOK_URL` (미설정 시 Mock 핸들러 자동 대체) |
 | `06_operational.py` | `pip install agent-evaluator` | `agent-eval monitor` |
 | `07_phoenix_hybrid.py` | `pip install agent-evaluator` | `agent-eval monitor` (OTEL 기본 포함)<br>`pip install "agent-evaluator[eval]"` + `OPENAI_API_KEY` (미설정 시 mock 데이터로 대체) |
+| `08_harness_eval.py` | `pip install agent-evaluator` | `agent-eval monitor` |
+| `08_harness_validation.py` | `pip install agent-evaluator` | — |
 
 ### 실행
 
@@ -1281,10 +1370,12 @@ cd Evaluator_Examples
 python 01_layer1_all_metrics.py        # Layer 1 전체 — Accuracy · Hallucination · Quality · Latency · Token · TCR
 python 02_layer2_agentic_security.py   # Layer 2 전체 — Tool · Retry · Coordination · Workflow · 보안 5종 · 대화
 python 03_framework_adapters.py        # 프레임워크 어댑터 — LangChain · LangGraph · CrewAI · AutoGen + 크로스 파이프라인
-python 04_decorator_quickeval.py       # 데코레이터 전체 API — @agent_eval · @batch_eval · @conversation_eval · QuickEval
+python 04_decorator_quickeval.py       # 데코레이터 전체 API — @agent_eval · @batch_eval · @conversation_eval · QuickEval · LLMJudge
 python 05_streaming_alerts.py          # 실시간 — StreamingEvaluator · ImplicitFeedback · AlertEngine · SimpleTaskAlertRule
 python 06_operational.py               # 운영 인프라 — AnomalyDetector · CostTracker · GoldenSetBuilder · evaluation_session
 python 07_phoenix_hybrid.py            # Phoenix OTEL — Tracing · Datasets · Playground · GraphQL + DeepEval · Ragas (opt-in)
+python 08_harness_eval.py              # Harness Engineering — 7개 Gate(A-G) · 33개 Config 실전 평가
+python 08_harness_validation.py        # Harness Config 파라미터 검증 · 경계 케이스 테스트
 
 # ── 인프라 ───────────────────────────────────────────────────
 agent-eval monitor                     # Phoenix 서버 기동 (http://localhost:6006)
@@ -1307,8 +1398,8 @@ agent-evaluator/
 │   │   ├── trackers/
 │   │   │   ├── base.py          # TaskResult · EvaluationReport · TaskType
 │   │   │   ├── layer1.py        # Foundation 지표 6종
-│   │   │   ├── layer2.py        # Agentic 지표 5종
-│   │   │   ├── security.py      # 보안 지표 5종
+│   │   │   ├── layer2.py        # Agentic 지표 5종 (+ 보안 5종)
+│   │   │   ├── security.py      # 보안 지표 5종 (Layer 2-B)
 │   │   │   ├── monitor.py       # PerformanceMonitor (오케스트레이터)
 │   │   │   ├── conversation.py  # ConversationSession · ConversationMetrics
 │   │   │   └── feedback.py      # ImplicitFeedbackTracker
@@ -1325,8 +1416,8 @@ agent-evaluator/
 │   ├── cost/                    # CostTracker · AdaptivePolicy
 │   └── datasets/                # GoldenSetBuilder
 │
-├── Evaluator_Examples/          # 예제 7개 통합 파일 (.deprecated/에 구 21개 보존)
-├── tests/                       # 2,417개 테스트 함수, 72개 파일
+├── Evaluator_Examples/          # 예제 9개 파일 (.deprecated/에 구 21개 보존)
+├── tests/                       # 2,465개+ 테스트 함수, 53개 파일
 └── pyproject.toml
 ```
 
@@ -1377,7 +1468,7 @@ git clone https://github.com/bullpeng72/Agent-Evaluator.git
 cd Agent-Evaluator
 pip install -e ".[dev]"
 
-pytest                          # 테스트 실행 (2,417개)
+pytest                          # 테스트 실행 (2,465개+)
 ruff check agent_evaluator/    # 린트
 ruff format agent_evaluator/   # 포맷
 mypy agent_evaluator/          # 타입 검사
@@ -1387,108 +1478,52 @@ mypy agent_evaluator/          # 타입 검사
 
 ## 변경 이력
 
-### v0.8.2 (2026-04-17) — Harness Config 지표 설명 통일 · 대시보드 UI 개선
+### v0.8.2 (2026-04-17) — Harness Config 33개 양식 통일 · 대시보드 UI 개선
 
-- ✨ 지표 설명 Harness Config 카드 33개 양식 통일 (아이콘·활용 팁·수식·임계값 배지)
-- ✨ `Docs/14_HARNESS_ROADMAP.md` + `Evaluator_Examples/08_harness_eval.py` 추가
-- 🧪 테스트 2개 파일 추가 — 53개 파일 2,465개+ 함수
-- 🔧 `.gitignore` `.claude/` 추가
+- Harness Config 카드 33개 아이콘·수식·임계값 배지 양식 통일; `08_harness_eval.py` 예제 추가
+- 대시보드 Nav 3단 계층 재편; Gate 상관 히트맵(7×7 Pearson) · 실패 연쇄 추적 추가
+- HTML 리포트 Gate A–G 중심 전면 재편; CSV export Gate 컬럼 16개 추가
+- 그룹 분류 수정: StateConsistencyConfig·DeadlockConfig Group F→B 이동
+- 테스트 파일 2개 추가 (53개 파일, 2,465개+)
 
-### v0.8.1 (2026-04-14) — 데코레이터 파라미터 구조화 · RetryConfig · LLMJudgeConfig · SecurityConfig
+### v0.8.1 (2026-04-14) — 데코레이터 파라미터 구조화
 
-- ✨ **`RetryConfig`** — `retry=RetryConfig(max=3, delay=1.0, backoff=2.0)` 로 재시도 정책 구성. `on`, `jitter_type`, `max_delay`, `should_retry`, `on_retry` 필드 포함
-- ✨ **`LLMJudgeConfig`** — `llm_judge=LLMJudgeConfig(model=..., criteria=[...])` 로 LLM Judge 설정 구성
-- ✨ **`SecurityConfig`** — `security=SecurityConfig(allowed_tools=[...])` 로 보안 지표 설정 구성
-- 🗑️ **구 개별 파라미터 제거** — `max_retries`, `delay`, `backoff`, `security_mode`, `enable_llm_judge`, `judge_model`, `judge_criteria`, `enable_quality_evaluation`, `flush_filename` (3종 데코레이터 모두 적용)
-- 🔧 **`enable_hallucination` → `enable_hallucination_detection`** — 파라미터 이름 통일
-- 🧪 테스트 548개 추가 · 파일 72→49개 리구조화 (2,348개+, 49개 파일)
-- 🔧 예제 파일 API 현행화 — 구 파라미터 → RetryConfig/concurrency 교체
-- 🔧 골든 데이터셋 정리 — 레거시 53개 파일 제거
+- `RetryConfig` · `LLMJudgeConfig` · `SecurityConfig` 3개 구조체 도입; 개별 파라미터 제거
+- `enable_hallucination` → `enable_hallucination_detection` 이름 통일
+- 테스트 548개 추가; 파일 72→49개 리구조화
 
-### v0.8.0 (2026-04-13) — 정확도 지표 전면 개선 · Token F1 · task_type 인식 TCR
+### v0.8.0 (2026-04-13) — 정확도 지표 전면 개선
 
-- 🔧 **Token Overlap F1** — `_qa_accuracy()` · `_token_overlap_ratio()` 토큰 중첩을 Recall/max → F1(조화평균)으로 교체. 불필요한 토큰 추가로 점수 인플레이션 방지
-- 🔧 **Char Similarity Levenshtein 통일** — `layer1.py` 집합 기반 → Levenshtein 거리 기반. `taskresult_helpers.py`와 구현 일치, 문자 순서 반영
-- ✨ **task_type 인식 completion_score** — `code_generation`/`coding`: AST 파싱 성공 시 1.0; `tool_use`: 도구 미사용 시 0.6 반환. ground_truth 없는 환경의 TCR 신뢰도 향상
-- 🧪 테스트 8개 추가 (1,869개+)
-- 📝 **Book 16개 챕터 + Lectures 5개 실전 코드 삽입** — `Evaluator_Examples/` 7개 파일의 실제 Python 코드를 각 챕터/강의에 직접 포함. 모든 코드 블록에 출처 표시
+- Token Overlap F1(조화평균) 교체; Char Similarity Levenshtein 통일
+- task_type 인식 completion_score: code_generation AST 파싱, tool_use 미사용 시 0.6
 
-### v0.7.9 (2026-04-13) — arize-phoenix 버전 제약 수정 · RunTrendAnalyzer
+### v0.7.9 (2026-04-13) — RunTrendAnalyzer · arize-phoenix 호환 수정
 
-- 🐛 arize-phoenix 버전 제약 충돌 수정 — 최신 릴리즈 설치 호환성 복구
-- ✨ `RunTrendAnalyzer` + `agent-eval trend` 서브커맨드 — 순차 평가 결과 JSON의 TCR·정확도 추세 분석, `--fail-on-regression`으로 CI/CD 연동 (이슈 #1)
+- `RunTrendAnalyzer` + `agent-eval trend` — 추세 분석 · `--fail-on-regression` CI/CD 연동
+- arize-phoenix 버전 제약 충돌 수정
 
-### v0.7.8 (2026-04-12) — SDK 기본 내장 · 의존성 extras 현행화
+### v0.7.8 (2026-04-12) — SDK 기본 내장
 
-- ✨ `pip install agent-evaluator` 단독으로 LLMJudge · 대시보드 · OTEL 모두 사용 가능 (`[sdk]` extra 불필요)
-- 🔧 의존성 extras 현행화 — pypdf 제거 · pydanticai 하한 갱신 · `[frameworks]` extra 제거 · `[all]`에 dspy/pydanticai 추가
-- 🔧 techdebt 제거 — `_lcs_similarity` 삭제 · silent except 로그 추가 · loader 파서 회귀 테스트 신규
-- 📝 예제별 의존성 테이블 추가 · docstring '의존성' 섹션 추가
+- `pip install agent-evaluator` 단독으로 LLMJudge · 대시보드 · OTEL 사용 가능
 
-### v0.7.7 (2026-04-11) — 데코레이터 버그 수정 · 3종 데코레이터 완전 parity · Layer 2 스레드 안전성
+### v0.7.7 (2026-04-11) — 데코레이터 버그 수정 · 스레드 안전성
 
-- 🐛 `agent_eval` preset `flush_every`/`enabled` 미적용 수정 — `_effective_*` 변수 재할당 누락 버그
-- 🐛 `completion_fn` ground_truth guard 추가 — `score_fn`과 동일한 조건으로 맞춤
-- 🐛 `HybridPerformanceMonitor` `advanced_metrics=None` TypeError 수정 — 3개소 None guard 추가
-- ✨ `conversation_eval` LLM Judge 파라미터 추가 — `enable_llm_judge` / `judge_model` / `judge_criteria` (3종 데코레이터 완전 parity)
-- ✨ `batch_eval` `judge_model` 파라미터 추가 — `_BATCH_PARAMS` frozenset 동시 갱신
-- ✨ 3종 데코레이터 preset LLM Judge 적용 — `conversation_eval` / `batch_eval` preset 블록에 LLM Judge 파라미터 반영
-- 🔧 Layer 2 트래커 스레드 안전성 — 5개 트래커(`ToolCallAnalyzer` 등) `threading.Lock` 추가
+- `agent_eval` preset 파라미터 미적용 버그 수정; Layer 2 트래커 5개 `threading.Lock` 추가
 
-### v0.7.6 (2026-04-10) — LLMJudge 확장 · G-Eval/Ragas 데코레이터 대체 · 지표 22개 데코레이터 호환
+### v0.7.6 (2026-04-10) — LLMJudge G-Eval/Ragas 대체
 
-- ✨ `judge_criteria` 파라미터 — `@agent_eval(judge_criteria=["medical_accuracy"])` G-Eval 스타일 커스텀 채점 (DeepEval 대체)
-- ✨ `faithfulness` 차원 — `rag_mode=True + enable_llm_judge=True` 시 context 기반 자동 추가 (Ragas 대체)
-- ✨ Lazy LLMJudge init — `@agent_eval(enable_llm_judge=True)` 만으로 monitor 사전 설정 불필요
-- 🗑️ LangSmith adapter 제거 / `evaluation_cost` 키 제거
-- 📊 데코레이터 호환 지표 22개 (StreamingEvaluator, DeepEval NLI Hallucination만 외부 의존)
+- `judge_criteria` G-Eval 커스텀 채점; `rag_mode=True` 시 `faithfulness` 자동 추가
 
-### v0.7.5 (2026-04-09) — 대시보드 5개 탭 데이터 수정 · AnomalyDetector 버그 수정
+### v0.7.0–v0.7.5 (2026-04-01~09) — OTEL/Phoenix · 3종 데코레이터 · QuickEval
 
-- 🐛 `AnomalyDetector` 버그 2개 수정 — latency 키(`total_time`), error rate(`success` 플래그 → 복합 조건)
-- 🔧 예제 3개 대시보드 탭 연동 — 실시간·알림·사용자 반응·이상 감지·평가 비용·외부평가 6개 탭 활성화
-- 📝 `Docs/12_MONITOR_GUIDE.md` 전면 재작성 — Phoenix UI 탭별 완전 가이드 + GraphQL 쿼리 예시
+- `agent-eval monitor` CLI · Arize Phoenix 실시간 모니터링
+- 3종 데코레이터 완성(`agent_eval`·`batch_eval`·`conversation_eval`) · `QuickEval` Facade
+- 21개 프레임워크 어댑터 · 보안 트래커 실동작 버그 수정(CRITICAL)
 
-### v0.7.4 (2026-04-08) — 전체 예제 데코레이터 적용 완료 · layer1 버그 수정 · 문서 현행화
+### v0.6.x (2026-03-21~04-01) — SDK 안정화
 
-- ✨ 예제 19/21 `@agent_eval` / `@batch_eval` / `@conversation_eval` 전면 적용 (02, 03, 17 추가 완성)
-- 🐛 `layer1.py` 성능 지표 계산 버그 수정
-- 🔧 대시보드 템플릿(`dashboard.html.j2` 등) 마이너 개선
-- 📝 테스트 파일 수 60→59 반영, Docs/ 버전·날짜 갱신
-- ✅ 21개 예제 전수 실행 검증 완료
+- LangChain/LangGraph/CrewAI/AutoGen · FastAPI 대시보드 · LLMJudge · ConversationSession
 
-### v0.7.3 (2026-04-07) — 보안 트래커 실동작 · 커버리지 전면 확대 · Phoenix 통합 완성
+### v0.2.x–v0.5.x — 초기 구현
 
-- **보안 메트릭 실동작** — `record_task()`에서 5개 보안 트래커 누락 호출 버그 수정 (CRITICAL)
-- **프레임워크 어댑터 확대** — AutoGen `agent_interactions`/`state_transitions`; Haystack/SK `tool_calls`; PydanticAI/LlamaIndex `tool_calls`; CrewAI `state_transitions`
-- **Phoenix 통합 완성** — Prompts 탭(`llm.prompts`) + Datasets 탭(`dataset.id`) + `ae.tool_names` span 속성 추가
-- **대시보드 API** — `security_incidents_count` · `has_multimodal` · `multimodal_task_count` 목록뷰 노출
-
-### v0.7.2 (2026-04-05) — 3종 데코레이터 API 완성 · 21개 프레임워크 어댑터 · 대시보드 API 확장
-
-- **3종 데코레이터 API 완성** — `agent_eval` / `batch_eval` / `conversation_eval` / `EvalDecorator` 파라미터 일관성 확보; `alert_rules` · `flush_every` · `preset` 3종 공통 적용
-- **21개 프레임워크 어댑터** — `auto_detect_framework=True` 기본 활성; `FrameworkLiteral` 타입 힌트; `_FRAMEWORK_ADAPTER_META` 레지스트리
-- **`preset` 파라미터** — `production` / `development` / `testing` / `canary` 3종 데코레이터 공통 지원
-- **`AlertRuleBuilder`** — `when_accuracy_below()` · `when_latency_above()` · `when_completion_below()` · `when_error()` · `when_tool_calls_exceed()` 5개 팩토리 메서드
-- **대시보드 API 확장** — 50+ 엔드포인트 (필터링 · 집계 · 시계열 · 비교 · 랭킹)
-
-### v0.7.1 (2026-04-03) — QuickEval · SimpleTaskAlertRule · DSPy/PydanticAI 통합
-
-- **`QuickEval`** — 3종 데코레이터 원스톱 Facade; `for_rag()` · `for_security()` · `for_llm_judge()` 팩토리
-- **`SimpleTaskAlertRule`** — StreamingEvaluator 없이 동작하는 경량 알림; 3종 데코레이터에 `alert_rules=` 통합
-- **`flush_every`** — 3종 데코레이터 공통 N건마다 `save_to_file()` 자동 실행
-- **DSPy / PydanticAI 통합** — `[dspy]` · `[pydanticai]` extras 추가
-
-### v0.7.0 (2026-04-01) — Phoenix + OTEL 실시간 모니터링
-
-- **`agent-eval monitor`** CLI — Arize Phoenix 서버 기동 + OTLP 스팬 수신
-- **`setup_otel()`** 공개 API; `[otel]` extras 신규
-
-### v0.6.x (2026-03-21 ~ 04-01) — SDK 안정화 · 프레임워크 통합 · 대시보드
-
-- LangChain / LangGraph / CrewAI / AutoGen 4개 완전 지원
-- FastAPI 대시보드 · LLMJudge · ConversationSession · Ragas 0.4.x 지원
-
-### v0.2.x – v0.5.x — 초기 구현
-
-- Layer 1/2/3 트래커 25개 · `ConversationSession` · `evaluation_session` 초기 구현
+- Layer 1/2/3 트래커 25개 · `evaluation_session` 초기 구현

@@ -1,14 +1,27 @@
-# Threshold & Quality Gate 가이드
+# 품질 게이트 가이드
 
-Agent-Evaluator의 임계값 설정, 품질 게이트, CI/CD 통합 방법을 설명합니다.
+임계값 설정 · 품질 게이팅 · CI/CD 통합
 
-**Version**: 0.8.2 | **Last Updated**: 2026-04-17
+**v0.8.2 | Python 3.8+**
+
+---
+
+## 목차
+
+1. [개요](#1-개요)
+2. [게이팅 방법 3가지](#2-게이팅-방법-3가지)
+3. [지원 Threshold 메트릭 전체 목록](#3-지원-threshold-메트릭-전체-목록)
+4. [환경별 권장값](#4-환경별-권장값)
+5. [CI/CD 통합](#5-cicd-통합)
+6. [임계값 파일 관리](#6-임계값-파일-관리)
+7. [추세 분석 (agent-eval trend)](#7-추세-분석-agent-eval-trend)
+8. [Best Practices](#8-best-practices)
 
 ---
 
 ## 1. 개요
 
-**Threshold(임계값)** 는 에이전트 품질의 최저 기준선입니다. 세 가지 목적으로 사용됩니다.
+**Threshold(임계값)** 는 에이전트 품질의 최저 기준선입니다.
 
 - **품질 게이트** — 배포 전 최소 성능 보장
 - **CI/CD 자동화** — 평가 점수 미달 시 파이프라인 차단 (`sys.exit(1)`)
@@ -16,7 +29,7 @@ Agent-Evaluator의 임계값 설정, 품질 게이트, CI/CD 통합 방법을 �
 
 ---
 
-## 2. Threshold 설정 방법
+## 2. 게이팅 방법 3가지
 
 ### 방법 1 — CLI gate (가장 간단)
 
@@ -29,7 +42,7 @@ agent-eval gate results/eval.json --tcr 85 --accuracy 70
 # 복합: 4개 지표 동시 검사
 agent-eval gate results/eval.json --tcr 85 --accuracy 70 --quality 3.5 --hallucination 5
 
-# 임계값 파일을 사용 (gate_config.json)
+# 임계값 파일 사용
 agent-eval gate results/eval.json --config gate_config.json
 ```
 
@@ -55,20 +68,13 @@ for q, gt in dataset:
 
 # 임계값 미달 시 sys.exit(1)
 eval.gate(tcr=85, accuracy=70, quality=3.5, hallucination=5.0)
-```
 
-`raise_on_fail=False`를 지정하면 종료 대신 `bool` 반환값을 얻습니다.
-
-```python
+# raise_on_fail=False → 종료 대신 bool 반환
 passed = eval.gate(tcr=80, accuracy=65, raise_on_fail=False)
 if not passed:
     print("품질 기준 미달 — 배포 보류")
-```
 
-현재 실행 결과를 바탕으로 임계값 파일을 자동 생성합니다 (현재 값의 95% 수준).
-
-```python
-# 현재 결과 기반으로 gate_config.json 자동 생성
+# 현재 결과 기반으로 gate_config.json 자동 생성 (현재 값의 95% 수준)
 eval.generate_gate_config("gate_config.json")
 ```
 
@@ -88,7 +94,6 @@ monitor.thresholds = {
     "latency": 5.0,   # P95 기준, 초 단위
 }
 
-# 태스크 기록 후 임계값 비교
 results = monitor.compare_with_thresholds()
 for metric, data in results.items():
     status = "PASS" if data["status"] == "pass" else "FAIL"
@@ -115,7 +120,6 @@ for metric, data in results.items():
         "direction": "lower_is_better",
         "unit": "seconds",
     },
-    # ...
 }
 ```
 
@@ -127,28 +131,28 @@ for metric, data in results.items():
 |--------|-----------|------|------|---------------|
 | Layer 1 | `tcr` | % | 높을수록 좋음 | ≥ 85 |
 | Layer 1 | `accuracy` | % | 높을수록 좋음 | ≥ 70 |
-| Layer 1 | `hallucination` | % | 낮을수록 좋음 | ≤ 5 |
+| Layer 1 | `hallucination` | % | **낮을수록 좋음** | ≤ 5 |
 | Layer 1 | `quality` | 점 (0–5) | 높을수록 좋음 | ≥ 3.5 |
-| Layer 1 | `latency` | 초 (P95) | 낮을수록 좋음 | ≤ 5.0 |
-| Layer 1 | `cost_per_task` | USD | 낮을수록 좋음 | ≤ 0.05 |
+| Layer 1 | `latency` | 초 (P95) | **낮을수록 좋음** | ≤ 5.0 |
+| Layer 1 | `cost_per_task` | USD | **낮을수록 좋음** | ≤ 0.05 |
 | Layer 2 | `tool_selection_accuracy` | % (F1) | 높을수록 좋음 | ≥ 80 |
 | Layer 2 | `agent_coordination` | % | 높을수록 좋음 | ≥ 75 |
 | Layer 2 | `workflow_execution` | % | 높을수록 좋음 | ≥ 80 |
 | Layer 2 | `retry_success_rate` | % | 높을수록 좋음 | ≥ 60 |
 | Layer 2 (보안) | `input_sanitization` | % | 높을수록 좋음 | ≥ 95 |
-| Layer 2 (보안) | `output_leakage` | % (탐지율) | 낮을수록 좋음 | ≤ 1 |
+| Layer 2 (보안) | `output_leakage` | % (탐지율) | **낮을수록 좋음** | ≤ 1 |
 | Layer 2 (보안) | `authorization` | % | 높을수록 좋음 | ≥ 99 |
-| Layer 2 (보안) | `privilege_escalation` | 건 | 낮을수록 좋음 | 0 |
-| Layer 2 (보안) | `tool_chain_attack` | 건 | 낮을수록 좋음 | 0 |
+| Layer 2 (보안) | `privilege_escalation` | 건 | **낮을수록 좋음** | 0 |
+| Layer 2 (보안) | `tool_chain_attack` | 건 | **낮을수록 좋음** | 0 |
 | Layer 3 (RAG) | `faithfulness` | 점 (0–1) | 높을수록 좋음 | ≥ 0.80 |
 | Layer 3 (RAG) | `answer_relevancy` | 점 (0–1) | 높을수록 좋음 | ≥ 0.75 |
 | Layer 3 (RAG) | `context_recall` | 점 (0–1) | 높을수록 좋음 | ≥ 0.70 |
 | Layer 3 (RAG) | `context_precision` | 점 (0–1) | 높을수록 좋음 | ≥ 0.70 |
 
-**주의사항:**
-- `latency`는 평균이 아닌 **P95(95 백분위수)** 기준입니다.
-- `quality`는 **5점 척도** (0–5)입니다. 10점 척도가 아닙니다.
-- `hallucination`은 낮을수록 좋은 지표입니다 (미달 판정이 반전됨).
+> **주의사항**:
+> - `latency`는 평균이 아닌 **P95(95 백분위수)** 기준입니다.
+> - `quality`는 **5점 척도** (0–5)입니다. 10점 척도가 아닙니다.
+> - `hallucination`, `output_leakage`, `privilege_escalation`, `tool_chain_attack`은 낮을수록 좋습니다 (미달 판정 방향 반전).
 
 ---
 
@@ -167,7 +171,7 @@ for metric, data in results.items():
 
 ---
 
-## 5. CI/CD 통합 예제
+## 5. CI/CD 통합
 
 ### GitHub Actions
 
@@ -180,7 +184,7 @@ on:
   pull_request:
 
 jobs:
-  evaluate:
+  quality-gate:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -191,7 +195,8 @@ jobs:
       - name: Run evaluation
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-        run: python scripts/run_eval.py
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: python scripts/run_evaluation.py
 
       - name: Quality Gate
         run: |
@@ -200,11 +205,16 @@ jobs:
             --accuracy 70 \
             --quality 3.5 \
             --hallucination 5
+
+      - name: Upload results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: evaluation-results
+          path: results/
 ```
 
-### pytest conftest.py
-
-테스트 스위트 내에서 품질 게이트를 통합합니다.
+### pytest Quality Gate
 
 ```python
 # tests/test_quality_gate.py
@@ -218,11 +228,9 @@ def test_quality_gate():
     def agent(question: str, ground_truth: str = "") -> str:
         return my_agent.invoke(question)
 
-    # 테스트 케이스 실행
     for question, ground_truth in load_test_cases():
         agent(question, ground_truth=ground_truth)
 
-    # raise_on_fail=False → AssertionError 대신 bool 반환
     passed = eval.gate(tcr=80, accuracy=65, raise_on_fail=False)
     assert passed, "Agent did not meet quality thresholds"
 
@@ -231,6 +239,10 @@ def test_latency_gate():
     # ... 평가 실행 ...
     passed = eval.gate(latency=8.0, raise_on_fail=False)
     assert passed, f"P95 latency exceeded 8s threshold"
+```
+
+```bash
+pytest tests/test_quality_gate.py -v
 ```
 
 ### GitLab CI
@@ -248,42 +260,41 @@ evaluate:
     when: always
 ```
 
+### Golden Dataset 기반 회귀 테스트
+
+```python
+# tests/test_quality_regression.py
+from agent_evaluator import QuickEval
+
+def test_quality_regression(golden_dataset):
+    eval = QuickEval("results/")
+
+    @eval.qa
+    def agent(question, ground_truth=""):
+        return my_agent(question)
+
+    for pair in golden_dataset["qa_pairs"]:
+        agent(pair["question"], ground_truth=pair["ground_truth"])
+
+    assert eval.gate(tcr=85, accuracy=70, raise_on_fail=False), (
+        f"Quality regression detected: {eval.summary()}"
+    )
+```
+
 ---
 
-## 6. 임계값 파일 저장/로드
+## 6. 임계값 파일 관리
 
 임계값을 코드에 하드코딩하지 않고 파일로 관리하면 환경별 설정을 분리할 수 있습니다.
 
 ### 파일 생성 — 자동
 
 ```python
-from agent_evaluator import QuickEval
-
-eval = QuickEval("results/")
-# ... 평가 실행 후 ...
-
 # 현재 결과의 95% 수준으로 gate_config.json 자동 생성
 eval.generate_gate_config("gate_config.json")
 ```
 
 ### 파일 생성 — 수동
-
-```python
-import json
-
-thresholds = {
-    "tcr": 85.0,
-    "accuracy": 70.0,
-    "quality": 3.5,
-    "hallucination": 5.0,
-    "latency": 5.0,
-}
-
-with open("gate_config.json", "w") as f:
-    json.dump(thresholds, f, indent=2)
-```
-
-`gate_config.json` 예시:
 
 ```json
 {
@@ -299,6 +310,9 @@ with open("gate_config.json", "w") as f:
 
 ```bash
 agent-eval gate results/eval.json --config gate_config.json
+
+# 환경별 설정 파일 분리
+agent-eval gate results/eval.json --config gate_config.${DEPLOY_ENV}.json
 ```
 
 ### 코드에서 파일 로드
@@ -317,7 +331,27 @@ results = monitor.compare_with_thresholds()
 
 ---
 
-## 7. Best Practices
+## 7. 추세 분석 (agent-eval trend)
+
+순차 실행 결과의 TCR·정확도 추세를 분석하고, 회귀 감지 시 CI/CD를 차단합니다.
+
+```bash
+# 최근 10개 결과 파일 TCR·정확도 추세 분석
+agent-eval trend results/
+
+# 최근 5개 파일만 분석
+agent-eval trend results/ --window 5
+
+# 회귀 감지 시 exit 1 (CI/CD 실패 처리)
+agent-eval trend results/ --fail-on-regression
+
+# 분석 결과 JSON 저장
+agent-eval trend results/ --output-json trend.json
+```
+
+---
+
+## 8. Best Practices
 
 **보수적으로 시작하라**
 처음부터 엄격한 임계값을 설정하면 false failure가 많아집니다. 초기에는 느슨하게 설정하고 (`tcr: 70`, `accuracy: 55`), 데이터가 쌓이면 점진적으로 강화합니다.
@@ -337,6 +371,12 @@ results = monitor.compare_with_thresholds()
 **환경마다 다른 임계값 파일을 유지하라**
 `gate_config.dev.json`, `gate_config.staging.json`, `gate_config.prod.json`을 별도로 관리하고 CI/CD 환경 변수로 선택합니다.
 
-```bash
-agent-eval gate results/eval.json --config gate_config.${DEPLOY_ENV}.json
-```
+---
+
+| 목적 | 문서 |
+|------|------|
+| 설치 · 기본 사용법 | [01_GETTING_STARTED.md](01_GETTING_STARTED.md) |
+| 58개 지표 상세 | [02_METRICS_GUIDE.md](02_METRICS_GUIDE.md) |
+| 데코레이터 · 프레임워크 통합 | [03_INTEGRATION_GUIDE.md](03_INTEGRATION_GUIDE.md) |
+| 골든 데이터셋 · 한국어 RAG | [04_DATA_GUIDE.md](04_DATA_GUIDE.md) |
+| Docker · 환경별 설정 | [07_OPERATIONS.md](07_OPERATIONS.md) |

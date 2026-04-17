@@ -1,10 +1,17 @@
 """
 Comprehensive HTML Report Generator for Agent Evaluator
-Designed for AI Agent Developers and Quality Managers
+Harness Gate A–G 중심 구조 (v0.8.2+)
 """
-from datetime import datetime
-import re
+from __future__ import annotations
 
+import re
+from datetime import datetime
+from typing import Any, Dict, Optional
+
+
+# ---------------------------------------------------------------------------
+# Utility: markdown → html
+# ---------------------------------------------------------------------------
 
 def markdown_to_html(text: str) -> str:
     """Convert simple markdown formatting to HTML with support for nested lists"""
@@ -31,53 +38,36 @@ def markdown_to_html(text: str) -> str:
 
         # Check for numbered list item (1. 2. 3.)
         if re.match(r'^\d+\.\s+', stripped):
-            # Close any open bullet list before starting new numbered item
             if in_bullet_list:
                 result_lines.append('</ul>')
                 in_bullet_list = False
-
-            # Close previous numbered list item if exists
             if in_numbered_list:
                 result_lines.append('</li>')
-
-            # Start numbered list if not already started
             if not in_numbered_list:
                 result_lines.append('<ol style="margin: 10px 0 10px 20px; line-height: 2.0;">')
                 in_numbered_list = True
-
-            # Start new list item - remove trailing colon for better readability
             content = re.sub(r'^\d+\.\s+', '', stripped)
-            # Remove trailing colon if present
             content = re.sub(r':$', '', content)
-            # Content already has <strong> tags from markdown conversion, don't add more
             result_lines.append(f'<li>{content}')
 
-        # Check for bullet list item (starts with - or •)
         elif re.match(r'^\s*[-•]\s*', line) and re.sub(r'^\s*[-•]\s*', '', line).strip():
             content = re.sub(r'^\s*[-•]\s*', '', line.strip())
             if in_numbered_list:
-                # Nested bullet inside numbered list
                 if not in_bullet_list:
                     result_lines.append('<ul style="margin: 5px 0 5px 20px; line-height: 1.8;">')
                     in_bullet_list = True
             else:
-                # Top-level bullet list
                 if not in_bullet_list:
                     result_lines.append('<ul style="margin: 10px 0 10px 20px; line-height: 2.0;">')
                     in_bullet_list = True
             result_lines.append(f'<li>{content}</li>')
 
-        # Regular text line
         else:
             if stripped:
-                # If we're inside a numbered list item, add to current item
                 if in_numbered_list and not in_bullet_list:
-                    # Check if this might be a continuation line (indented)
                     if line.startswith('   ') or line.startswith('\t'):
                         result_lines.append(f'<br>{stripped}')
                     else:
-                        # Not indented - might be header or regular text
-                        # Close any open lists and add as paragraph
                         if in_bullet_list:
                             result_lines.append('</ul>')
                             in_bullet_list = False
@@ -87,7 +77,6 @@ def markdown_to_html(text: str) -> str:
                             in_numbered_list = False
                         result_lines.append(f'<p style="margin: 10px 0; line-height: 1.8;">{stripped}</p>')
                 else:
-                    # Regular paragraph
                     if in_bullet_list:
                         result_lines.append('</ul>')
                         in_bullet_list = False
@@ -97,11 +86,9 @@ def markdown_to_html(text: str) -> str:
                         in_numbered_list = False
                     result_lines.append(f'<p style="margin: 10px 0; line-height: 1.8;">{stripped}</p>')
             else:
-                # Empty line - keep as spacing unless inside list
                 if not in_numbered_list and not in_bullet_list:
                     result_lines.append('<br>')
 
-    # Close any remaining open lists
     if in_bullet_list:
         result_lines.append('</ul>')
     if in_numbered_list:
@@ -111,1618 +98,1523 @@ def markdown_to_html(text: str) -> str:
     return '\n'.join(result_lines)
 
 
-def _build_css_and_head() -> str:
-    """Build the CSS stylesheet and HTML DOCTYPE/head section."""
-    parts = []
-    parts.append('''<!DOCTYPE html>
+# ---------------------------------------------------------------------------
+# Gate helpers
+# ---------------------------------------------------------------------------
+
+_GATE_COLORS: Dict[str, str] = {
+    "A": "#10b981",  # emerald
+    "B": "#3b82f6",  # blue
+    "C": "#f59e0b",  # amber
+    "D": "#0ea5e9",  # sky
+    "E": "#ef4444",  # red
+    "F": "#8b5cf6",  # purple
+    "G": "#06b6d4",  # cyan
+}
+
+_GATE_NAMES: Dict[str, str] = {
+    "A": "Goal Achievement",
+    "B": "Behavioral Integrity",
+    "C": "Reliability",
+    "D": "Performance Contract",
+    "E": "Security Boundary",
+    "F": "Multi-Agent Coordination",
+    "G": "Observability",
+}
+
+_STATUS_COLORS = {"pass": "#10b981", "warn": "#f59e0b", "fail": "#ef4444"}
+_STATUS_LABELS = {"pass": "PASS", "warn": "WARN", "fail": "FAIL"}
+
+
+def _gate_badge(gate: str) -> str:
+    """PASS/WARN/FAIL 배지 HTML 반환."""
+    gate = (gate or "").lower()
+    color = _STATUS_COLORS.get(gate, "#9ca3af")
+    label = _STATUS_LABELS.get(gate, gate.upper() if gate else "—")
+    return (
+        f'<span style="display:inline-block;padding:2px 10px;border-radius:12px;'
+        f'font-size:11px;font-weight:700;background:{color}22;color:{color};'
+        f'border:1px solid {color}66">{label}</span>'
+    )
+
+
+def _gate_score_bar(score: float, gate_key: str) -> str:
+    """게이트 색상으로 진행바 + 퍼센트 텍스트 반환."""
+    color = _GATE_COLORS.get(gate_key, "#6b7280")
+    pct = min(max(float(score or 0) * 100, 0), 100)
+    return (
+        f'<div style="display:flex;align-items:center;gap:8px">'
+        f'<div style="flex:1;height:8px;background:#e5e7eb;border-radius:4px">'
+        f'<div style="height:8px;width:{pct:.1f}%;background:{color};border-radius:4px"></div>'
+        f'</div>'
+        f'<span style="font-size:12px;font-weight:600;color:{color};min-width:40px">{pct:.1f}%</span>'
+        f'</div>'
+    )
+
+
+def _metric_row(label: str, value: Any, hint: str = "",
+                good_thresh: float = 0.8, warn_thresh: float = 0.6) -> str:
+    """지표 1행: 라벨 | 값(색상 자동) | 힌트 텍스트."""
+    if value is None:
+        val_str = "—"
+        color = "#9ca3af"
+    else:
+        try:
+            fv = float(value)
+            if fv >= good_thresh:
+                color = "#10b981"
+            elif fv >= warn_thresh:
+                color = "#f59e0b"
+            else:
+                color = "#ef4444"
+            # Format: if 0-1 range show as percent, else as-is
+            if 0 <= fv <= 1:
+                val_str = f"{fv * 100:.1f}%"
+            else:
+                val_str = f"{fv:.2f}"
+        except (TypeError, ValueError):
+            val_str = str(value)
+            color = "#374151"
+    hint_html = f'<span style="font-size:11px;color:#6b7280;margin-left:6px">{hint}</span>' if hint else ""
+    return (
+        f'<tr>'
+        f'<td style="padding:6px 10px;border-bottom:1px solid #f3f4f6;color:#374151">{label}</td>'
+        f'<td style="padding:6px 10px;border-bottom:1px solid #f3f4f6;font-weight:600;color:{color}">'
+        f'{val_str}{hint_html}</td>'
+        f'</tr>'
+    )
+
+
+def _pct(v: Any, scale: float = 1.0) -> str:
+    if v is None:
+        return "—"
+    try:
+        return f"{float(v) * scale:.1f}%"
+    except (TypeError, ValueError):
+        return "—"
+
+
+def _num(v: Any, fmt: str = ".2f") -> str:
+    if v is None:
+        return "—"
+    try:
+        return format(float(v), fmt)
+    except (TypeError, ValueError):
+        return "—"
+
+
+def _score_color(v: Any, hi: float = 70.0, lo: float = 50.0) -> str:
+    if v is None:
+        return "#9ca3af"
+    try:
+        fv = float(v)
+        if fv >= hi:
+            return "#10b981"
+        if fv >= lo:
+            return "#f59e0b"
+        return "#ef4444"
+    except (TypeError, ValueError):
+        return "#9ca3af"
+
+
+# ---------------------------------------------------------------------------
+# CSS / Head
+# ---------------------------------------------------------------------------
+
+def _build_css() -> str:
+    return '''<!DOCTYPE html>
 <html lang="ko">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Agent Evaluator - 종합 평가 리포트</title>
-    <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; line-height: 1.6; background: #f5f5f5; color: #333; }
-        .container { max-width: 1400px; margin: 0 auto; background: white; padding: 40px; }
-        .header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 40px; border-radius: 10px; margin-bottom: 40px; }
-        .header h1 { font-size: 36px; margin-bottom: 10px; }
-        .header .subtitle { font-size: 14px; opacity: 0.9; margin-top: 10px; }
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Agent Evaluator — Harness Gate 리포트</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;line-height:1.6;background:#f5f6fa;color:#1e2030}
+.container{max-width:1300px;margin:0 auto;background:#fff;padding:36px}
 
-        .section { margin-bottom: 40px; padding: 30px; background: #f8f9fa; border-radius: 10px; border-left: 5px solid #667eea; }
-        .section h2 { color: #2c3e50; margin-bottom: 20px; font-size: 24px; display: flex; align-items: center; }
-        .section h2 .icon { margin-right: 10px; }
-        .section h3 { color: #34495e; margin: 25px 0 15px 0; font-size: 18px; padding-bottom: 10px; border-bottom: 2px solid #ecf0f1; }
-        .section h4 { color: #555; margin: 20px 0 10px 0; font-size: 16px; }
+/* Header */
+.rpt-header{background:linear-gradient(135deg,#1e293b 0%,#334155 100%);color:#fff;padding:36px;border-radius:12px;margin-bottom:32px}
+.rpt-header h1{font-size:28px;margin-bottom:6px}
+.rpt-header .sub{font-size:13px;opacity:.8;margin-top:8px}
+.rpt-header .meta{margin-top:12px;font-size:13px;opacity:.9;display:flex;gap:24px;flex-wrap:wrap}
 
-        .metrics-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px; margin: 20px 0; }
-        .metric-card { background: white; padding: 25px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); border-left: 4px solid #3498db; transition: transform 0.2s; }
-        .metric-card:hover { transform: translateY(-2px); box-shadow: 0 4px 8px rgba(0,0,0,0.15); }
-        .metric-card h3 { margin: 0 0 10px 0; color: #7f8c8d; font-size: 13px; text-transform: uppercase; letter-spacing: 0.5px; }
-        .metric-card .value { font-size: 32px; font-weight: bold; color: #2c3e50; }
-        .metric-card .subtitle { font-size: 12px; color: #95a5a6; margin-top: 5px; }
+/* Scorecard */
+.scorecard{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:14px;margin-bottom:36px}
+.sc-card{background:#fff;border:1px solid #e5e7eb;border-radius:10px;padding:14px;border-top:4px solid #e5e7eb}
+.sc-card .sc-gate{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#6b7280;margin-bottom:4px}
+.sc-card .sc-name{font-size:12px;color:#374151;margin-bottom:8px}
+.sc-card .sc-badge{margin-bottom:8px}
 
-        .status-good { border-left-color: #27ae60; }
-        .status-warning { border-left-color: #f39c12; }
-        .status-critical { border-left-color: #e74c3c; }
+/* Gate sections */
+.gate-section{margin-bottom:32px;padding:24px;background:#f8fafc;border-radius:10px;border-left:5px solid #e5e7eb}
+.gate-section h2{font-size:18px;color:#1e2030;margin-bottom:16px;display:flex;align-items:center;gap:10px}
+.gate-section h3{font-size:14px;font-weight:600;color:#374151;margin:18px 0 8px;padding-bottom:6px;border-bottom:1px solid #e5e7eb}
 
-        table { width: 100%; border-collapse: collapse; margin: 20px 0; background: white; box-shadow: 0 2px 4px rgba(0,0,0,0.1); border-radius: 8px; overflow: hidden; }
-        th, td { padding: 15px; text-align: left; border-bottom: 1px solid #ddd; }
-        th { background: #667eea; color: white; font-weight: 600; text-transform: uppercase; font-size: 12px; letter-spacing: 0.5px; }
-        tr:nth-child(even) { background: #f8f9fa; }
-        tr:hover { background: #e9ecef; }
+/* KPI grid */
+.kpis{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px;margin:12px 0}
+.kpi{background:#fff;border:1px solid #e5e7eb;border-radius:8px;padding:12px}
+.kpi-lbl{font-size:10px;color:#6b7280;text-transform:uppercase;letter-spacing:.3px}
+.kpi-val{font-size:20px;font-weight:800;margin:3px 0;color:#1e2030}
 
-        .insight-box { background: white; padding: 20px; margin: 15px 0; border-radius: 8px; border-left: 4px solid #3498db; }
-        .insight-box.warning { border-left-color: #f39c12; background: #fffbf0; }
-        .insight-box.critical { border-left-color: #e74c3c; background: #fff5f5; }
-        .insight-box.success { border-left-color: #27ae60; background: #f0fff4; }
-        .insight-box h4 { margin: 0 0 10px 0; color: #2c3e50; }
-        .insight-box p { margin: 5px 0; line-height: 1.8; }
-        .insight-box ul { margin: 10px 0 10px 20px; }
-        .insight-box li { margin: 5px 0; }
+/* Metric table */
+.mtable{width:100%;border-collapse:collapse;background:#fff;border-radius:8px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,.06);margin:10px 0}
+.mtable th{background:#f1f5f9;padding:8px 12px;text-align:left;font-size:11px;font-weight:600;color:#64748b;text-transform:uppercase}
+.mtable td{padding:7px 12px;border-bottom:1px solid #f3f4f6;font-size:13px}
+.mtable tr:last-child td{border-bottom:none}
+.mtable tr:hover td{background:#f8fafc}
 
-        .recommendation { background: white; padding: 20px; margin: 15px 0; border-radius: 8px; border-left: 4px solid #3498db; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
-        .recommendation strong { color: #2980b9; display: block; margin-bottom: 8px; font-size: 16px; }
-        .recommendation p { line-height: 1.8; color: #555; }
+/* Harness detail table */
+.htable{width:100%;border-collapse:collapse;margin:8px 0}
+.htable td{padding:5px 10px;font-size:12px;border-bottom:1px solid #f3f4f6;color:#374151}
+.htable tr:last-child td{border-bottom:none}
 
-        .priority-high { border-left-color: #e74c3c; }
-        .priority-medium { border-left-color: #f39c12; }
-        .priority-low { border-left-color: #3498db; }
+/* Inactive banner (Harness Config 미활성) */
+.inactive-banner{background:#f9fafb;border:1px dashed #d1d5db;border-radius:8px;padding:12px 16px;font-size:12px;color:#9ca3af;margin:8px 0}
+/* Not-tested banner (데이터 미수집) */
+.not-tested{background:#fafafa;border:1px solid #e5e7eb;border-radius:8px;padding:12px 16px;font-size:12px;color:#6b7280;margin:8px 0;display:flex;align-items:flex-start;gap:8px}
+.not-tested strong{color:#374151;white-space:nowrap}
 
-        .badge { display: inline-block; padding: 4px 12px; border-radius: 12px; font-size: 11px; font-weight: 600; text-transform: uppercase; }
-        .badge-success { background: #d4edda; color: #155724; }
-        .badge-warning { background: #fff3cd; color: #856404; }
-        .badge-danger { background: #f8d7da; color: #721c24; }
+/* Insight boxes */
+.ibox{background:#fff;padding:14px;margin:10px 0;border-radius:8px;border-left:4px solid #3b82f6}
+.ibox.ok{border-left-color:#10b981;background:#f0fdf4}
+.ibox.warn{border-left-color:#f59e0b;background:#fffbeb}
+.ibox.fail{border-left-color:#ef4444;background:#fef2f2}
 
-        .footer { margin-top: 60px; padding-top: 30px; border-top: 2px solid #ecf0f1; text-align: center; color: #95a5a6; font-size: 12px; }
-        .footer p { margin: 5px 0; }
+/* Recommendation */
+.rec{background:#fff;padding:16px;margin:10px 0;border-radius:8px;border-left:4px solid #6366f1;box-shadow:0 1px 3px rgba(0,0,0,.06)}
+.rec strong{display:block;margin-bottom:6px;color:#4f46e5;font-size:14px}
+.rec p{color:#555;font-size:13px;line-height:1.7}
 
-        .toc { background: white; padding: 20px; border-radius: 8px; margin-bottom: 30px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
-        .toc h3 { color: #2c3e50; margin-bottom: 15px; }
-        .toc ul { list-style: none; }
-        .toc li { padding: 8px 0; border-bottom: 1px solid #ecf0f1; }
-        .toc a { color: #3498db; text-decoration: none; }
-        .toc a:hover { text-decoration: underline; }
+.badge{display:inline-block;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:600}
+.badge-ok{background:#d1fae5;color:#065f46}
+.badge-warn{background:#fef3c7;color:#92400e}
+.badge-fail{background:#fee2e2;color:#991b1b}
 
-        @media print {
-            .container { padding: 20px; }
-            .metric-card, .section { break-inside: avoid; }
-        }
-    </style>
+.footer{margin-top:48px;padding-top:20px;border-top:1px solid #e5e7eb;text-align:center;color:#9ca3af;font-size:12px}
+
+@media print{.container{padding:16px}.gate-section{break-inside:avoid}}
+</style>
 </head>
 <body>
-    <div class="container">''')
-    return ''.join(parts)
+<div class="container">'''
 
 
-def _build_header_toc(total_tasks, success_rate, tcr, acc, latency, has_llm_judge: bool = False) -> str:
-    """Build the header div and table of contents."""
-    try:
-        from agent_evaluator import __version__ as _ver
-    except Exception:
-        _ver = "0.6.6"
+# ---------------------------------------------------------------------------
+# Not-tested notice helper
+# ---------------------------------------------------------------------------
 
-    # success_rate is already 0-100 (from TaskCompletionTracker)
-    success_pct = float(success_rate or 0)
-
-    llm_judge_toc = '<li><a href="#llm-judge">3. ⚖️ LLM Judge - 자동 채점</a></li>' if has_llm_judge else ''
-    # Adjust numbering based on whether LLM Judge is present
-    perf_num   = 4 if has_llm_judge else 3
-    agent_num  = 5 if has_llm_judge else 4
-    adv_num    = 6 if has_llm_judge else 5
-    sec_num    = 7 if has_llm_judge else 6
-    ins_num    = 8 if has_llm_judge else 7
-    trans_num  = 9 if has_llm_judge else 8
-    rec_num    = 10 if has_llm_judge else 9
-    conc_num   = 11 if has_llm_judge else 10
-
-    parts = []
-    parts.append(f'''
-        <div class="header">
-            <h1>📊 Agent Evaluator 종합 평가 리포트</h1>
-            <div class="subtitle">AI Agent 개발자 및 품질 관리자를 위한 상세 성능 분석 보고서</div>
-            <div style="margin-top: 15px;"><p><strong>생성일시:</strong> {datetime.now().strftime('%Y년 %m월 %d일 %H:%M:%S')}</p>
-                <p><strong>평가 대상:</strong> {total_tasks}개 Task</p>
-                <p><strong>평가 버전:</strong> Agent Evaluator v{_ver}</p>
-            </div>
-        </div>
-
-        <!-- Table of Contents -->
-        <div class="toc">
-            <h3>📑 목차</h3>
-            <ul>
-                <li><a href="#summary">1. 핵심 요약 (Executive Summary)</a></li>
-                <li><a href="#core">2. 🎯 Core Metrics - 작업 완료도 및 정확성</a></li>
-                {llm_judge_toc}
-                <li><a href="#performance">{perf_num}. ⚡ Performance - 실행 효율성 및 리소스</a></li>
-                <li><a href="#agentic">{agent_num}. 🤖 Agentic AI - 도구 사용 및 협업</a></li>
-                <li><a href="#advanced">{adv_num}. 🔬 Advanced Metrics - 외부 라이브러리 평가</a></li>
-                <li><a href="#security">{sec_num}. 🔒 Security - 보안 지표 (Layer 1 &amp; 2)</a></li>
-                <li><a href="#insights">{ins_num}. 💡 Insights - 주요 인사이트 및 알림</a></li>
-                <li><a href="#transparency">{trans_num}. 🔍 Test 투명성 - 평가 프로세스 투명성</a></li>
-                <li><a href="#recommendations">{rec_num}. 개선 권장사항 (Recommendations)</a></li>
-                <li><a href="#conclusion">{conc_num}. 결론 및 다음 단계 (Conclusion)</a></li>
-            </ul>
-        </div>
-
-        <!-- Executive Summary -->
-        <div class="section" id="summary">
-            <h2><span class="icon">📋</span>핵심 요약 (Executive Summary)</h2>
-            <p style="margin-bottom: 20px; line-height: 1.8;">
-                본 리포트는 총 <strong>{total_tasks}개</strong>의 Task를 평가한 결과입니다.
-                전체 완전 성공률은 <strong>{success_pct:.1f}%</strong>이며, 작업 완료율(TCR)은 <strong>{tcr:.1f}%</strong>를 기록했습니다.
-            </p>
-            <div class="metrics-grid">''')
-
-    # Status badges for KPIs
-    success_badge = 'badge-success' if success_pct >= 90 else 'badge-warning' if success_pct >= 75 else 'badge-danger'
-    tcr_badge = 'badge-success' if tcr >= 90 else 'badge-warning' if tcr >= 75 else 'badge-danger'
-    acc_badge = 'badge-success' if acc >= 85 else 'badge-warning' if acc >= 70 else 'badge-danger'
-    latency_badge = 'badge-success' if latency <= 3.0 else 'badge-warning' if latency <= 5.0 else 'badge-danger'
-
-    parts.append(f'''
-                <div class="metric-card">
-                    <h3>완전 성공률</h3>
-                    <div class="value">{success_pct:.1f}%</div>
-                    <div class="subtitle"><span class="{success_badge}">{'우수' if success_pct >= 90 else '양호' if success_pct >= 75 else '개선 필요'}</span></div>
-                </div>
-                <div class="metric-card">
-                    <h3>작업 완료율 (TCR)</h3>
-                    <div class="value">{tcr:.1f}%</div>
-                    <div class="subtitle"><span class="{tcr_badge}">{'우수' if tcr >= 90 else '양호' if tcr >= 75 else '개선 필요'}</span></div>
-                </div>
-                <div class="metric-card">
-                    <h3>정확도</h3>
-                    <div class="value">{acc:.1f}%</div>
-                    <div class="subtitle"><span class="{acc_badge}">{'우수' if acc >= 85 else '양호' if acc >= 70 else '개선 필요'}</span></div>
-                </div>
-                <div class="metric-card">
-                    <h3>평균 응답 시간</h3>
-                    <div class="value">{latency:.2f}s</div>
-                    <div class="subtitle"><span class="{latency_badge}">{'빠름' if latency <= 3.0 else '보통' if latency <= 5.0 else '느림'}</span></div>
-                </div>
-            </div>
-        </div>''')
-
-    return ''.join(parts)
+def _not_tested(reason: str = "") -> str:
+    """데이터가 수집되지 않은 섹션에 표시하는 '테스트되지 않음' 배너."""
+    msg = reason or "해당 항목이 테스트되지 않았습니다."
+    return f'<div class="not-tested">🔍 <strong>미측정</strong>&nbsp;{msg}</div>'
 
 
-def _build_core_section(tcr, success_rate, acc, accuracy_metrics, quality_metrics, hallucination_data) -> str:
-    """Build the Core Metrics section (TCR, accuracy, quality, hallucination)."""
-    # success_rate is already 0-100 (from TaskCompletionTracker)
-    success_pct = float(success_rate or 0)
-    parts = []
+# ---------------------------------------------------------------------------
+# Scorecard
+# ---------------------------------------------------------------------------
 
-    parts.append(f'''
-        <!-- Core Metrics Section -->
-        <div class="section" id="core">
-            <h2><span class="icon">🎯</span>Core Metrics - 작업 완료도 및 정확성</h2>
-            <p style="margin-bottom: 20px; line-height: 1.8;">
-                Core Metrics는 <strong>"What was achieved"</strong> (무엇을 달성했는가)를 측정합니다.
-                작업 완료율, 정확도, 품질, 환각 탐지 등 AI Agent의 기본적인 성능을 평가합니다.
-            </p>
-
-            <h3>작업 완료율 (Task Completion Rate - TCR)</h3>''')
-
-    parts.append(f'''
-            <div class="insight-box {'success' if tcr >= 90 else 'warning' if tcr >= 75 else 'critical'}">
-                <h4>TCR 요약</h4>
-                <p><strong>작업 완료율:</strong> {tcr:.1f}%</p>
-                <p><strong>완전 성공률:</strong> {success_pct:.1f}%</p>
-                <p><strong>벤치마크 등급:</strong> {'S등급 (Outstanding)' if tcr >= 95 else 'A등급 (Excellent)' if tcr >= 90 else 'B등급 (Good)' if tcr >= 80 else 'C등급 (Fair)' if tcr >= 70 else 'D등급 (Poor)'}</p>
-            </div>
-
-            <h3>정확도 (Accuracy)</h3>''')
-
-    parts.append(f'''
-            <div class="insight-box {'success' if acc >= 85 else 'warning' if acc >= 70 else 'critical'}">
-                <h4>정확도 요약</h4>
-                <p><strong>전체 정확도:</strong> {acc:.1f}%</p>
-                <p><strong>높은 정확도 (≥90%):</strong> {accuracy_metrics.get('high_accuracy_count', 0)}개</p>
-                <p><strong>낮은 정확도 (<70%):</strong> {accuracy_metrics.get('low_accuracy_count', 0)}개</p>
-                <p><strong>평균 정확도:</strong> {accuracy_metrics.get('overall_accuracy', 0):.1f}%</p>
-            </div>
-
-            <h3>응답 품질 분석 (Quality Analysis)</h3>''')
-
-    # Detailed Quality metrics
-    if quality_metrics.get('total_evaluated', 0) > 0:
-        avg_score = quality_metrics.get('avg_total_score', 0)
-        quality_status = '우수' if avg_score >= 4.5 else '양호' if avg_score >= 4.0 else '개선 필요'
-        quality_class = 'success' if avg_score >= 4.5 else 'warning' if avg_score >= 4.0 else 'critical'
-
-        parts.append(f'''
-            <div class="insight-box {quality_class}">
-                <h4>품질 평가 요약</h4>
-                <p><strong>평가 상태:</strong> {quality_status}</p>
-                <p><strong>평가된 응답:</strong> {quality_metrics.get('total_evaluated', 0)}개</p>
-                <p><strong>평균 품질 점수:</strong> {avg_score:.2f}/5.0</p>
-                <p><strong>고품질 응답 (A/B등급):</strong> {quality_metrics.get('high_quality_count', 0)}개 ({quality_metrics.get('high_quality_count', 0) / quality_metrics.get('total_evaluated', 1) * 100:.1f}%)</p>
-            </div>
-
-            <h4>차원별 점수 상세</h4>
-            <table>
-                <thead>
-                    <tr>
-                        <th>평가 차원</th>
-                        <th>평균 점수</th>
-                        <th>가중치</th>
-                        <th>설명</th>
-                        <th>개발자 가이드</th>
-                    </tr>
-                </thead>
-                <tbody>''')
-
-        dimensions = [
-            ('relevance', 'Relevance (관련성)', '25%', '질문과 답변의 연관성', '프롬프트 엔지니어링으로 질문 의도 파악 강화'),
-            ('completeness', 'Completeness (완전성)', '25%', '필요한 정보의 포함 여부', '필수 요소 체크리스트 추가 및 검증 로직 구현'),
-            ('accuracy', 'Accuracy (정확성)', '20%', '사실적 정확도', 'RAG 컨텍스트 품질 개선 및 환각 탐지 강화'),
-            ('clarity', 'Clarity (명확성)', '15%', '이해하기 쉬운 정도', '구조화된 응답 포맷 사용 및 단계별 설명 추가'),
-            ('usefulness', 'Usefulness (유용성)', '15%', '실용적 가치', '사용자 피드백 반영 및 실행 가능한 답변 생성')
-        ]
-
-        dim_scores = quality_metrics.get('dimension_scores', {})
-        for dim_key, dim_name, weight, desc, guide in dimensions:
-            score = dim_scores.get(dim_key, 0)
-            score_badge = 'badge-success' if score >= 4.5 else 'badge-warning' if score >= 4.0 else 'badge-danger'
-            parts.append(f'''
-                    <tr>
-                        <td><strong>{dim_name}</strong></td>
-                        <td><span class="{score_badge}">{score:.2f}/5.0</span></td>
-                        <td>{weight}</td>
-                        <td>{desc}</td>
-                        <td style="font-size: 12px; color: #555;">{guide}</td>
-                    </tr>''')
-
-        parts.append('''
-                </tbody>
-            </table>
-
-            <h4>등급 분포</h4>
-            <table>
-                <thead>
-                    <tr>
-                        <th>등급</th>
-                        <th>응답 수</th>
-                        <th>비율</th>
-                        <th>평가</th>
-                    </tr>
-                </thead>
-                <tbody>''')
-
-        grade_dist = quality_metrics.get('grade_distribution', {})
-        grade_order = ['A', 'B', 'C', 'D', 'F']
-        for grade in grade_order:
-            count = grade_dist.get(grade, 0)
-            if count > 0:
-                percentage = count / quality_metrics.get('total_evaluated', 1) * 100
-                grade_eval = '우수' if grade in ['A', 'B'] else '보통' if grade == 'C' else '개선 필요'
-                parts.append(f'''
-                    <tr>
-                        <td><strong>{grade}</strong></td>
-                        <td>{count}개</td>
-                        <td>{percentage:.1f}%</td>
-                        <td>{grade_eval}</td>
-                    </tr>''')
-
-        parts.append('</tbody></table>')
-
-    # Hallucination Detection
-    parts.append('<h3>환각 탐지 (Hallucination Detection)</h3>')
-    hall_rate = hallucination_data.get('overall_rate', 0)  # Define with default value
-    if hallucination_data.get('total_evaluated', 0) > 0:
-        hall_rate = hallucination_data.get('overall_rate', 0)
-        hall_status = '안전' if hall_rate < 5 else '주의' if hall_rate < 10 else '위험'
-        hall_class = 'success' if hall_rate < 5 else 'warning' if hall_rate < 10 else 'critical'
-
-        parts.append(f'''
-            <div class="insight-box {hall_class}">
-                <h4>환각 탐지 요약</h4>
-                <p><strong>탐지 상태:</strong> {hall_status}</p>
-                <p><strong>전체 환각률:</strong> {hall_rate:.1f}%</p>
-                <p><strong>검사된 응답:</strong> {hallucination_data.get('total_evaluated', 0)}개</p>
-                <p><strong>환각 탐지:</strong> {hallucination_data.get('total_flagged', 0)}개</p>
-                <p><strong>정상 응답:</strong> {hallucination_data.get('total_evaluated', 0) - hallucination_data.get('total_flagged', 0)}개</p>
-            </div>
-
-            <h4>환각 유형별 분석</h4>
-            <table>
-                <thead>
-                    <tr>
-                        <th>환각 유형</th>
-                        <th>발생 횟수</th>
-                        <th>심각도</th>
-                        <th>설명</th>
-                        <th>개발자 조치사항</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <tr>
-                        <td><strong>지원되지 않는 주장</strong></td>
-                        <td>{hallucination_data.get('unsupported_claims_count', 0)}개</td>
-                        <td><span class="badge-warning">중간</span></td>
-                        <td>제공된 컨텍스트에서 지원되지 않는 정보</td>
-                        <td style="font-size: 12px;">RAG 검색 품질 개선, 컨텍스트 윈도우 확장</td>
-                    </tr>
-                    <tr>
-                        <td><strong>숫자 불일치</strong></td>
-                        <td>{hallucination_data.get('numerical_inconsistencies_count', 0)}개</td>
-                        <td><span class="badge-danger">높음</span></td>
-                        <td>컨텍스트와 다른 숫자 정보</td>
-                        <td style="font-size: 12px;">숫자 추출 후 컨텍스트 대조 검증, 계산 로직 추가</td>
-                    </tr>
-                </tbody>
-            </table>''')
-
-    parts.append('</div>')
-    return ''.join(parts)
-
-
-def _build_performance_section(latency, latency_stats, token_stats, retry_metrics) -> str:
-    """Build the Performance section (latency, tokens, retry)."""
-    parts = []
-
-    parts.append(f'''
-        <div class="section" id="performance">
-            <h2><span class="icon">⚡</span>Performance - 실행 효율성 및 리소스</h2>
-            <p style="margin-bottom: 20px; line-height: 1.8;">
-                Performance Metrics는 <strong>"How efficiently"</strong> (얼마나 효율적으로)를 측정합니다.
-                응답 시간, 비용, 재시도 효율성 등 실행 효율성과 리소스 사용을 평가합니다.
-            </p>
-
-            <h3>응답 시간 분석 (Latency)</h3>''')
-
-    if latency_stats:
-        p95 = latency_stats.get('p95', 0)
-        median = latency_stats.get('median', 0)
-        max_latency = latency_stats.get('max', 0)
-
-        latency_insight_class = 'success' if latency <= 3.0 else 'warning' if latency <= 5.0 else 'critical'
-
-        parts.append(f'''
-            <div class="insight-box {latency_insight_class}">
-                <h4>응답 시간 요약</h4>
-                <p><strong>평균:</strong> {latency:.2f}초</p>
-                <p><strong>중앙값:</strong> {median:.2f}초</p>
-                <p><strong>P95:</strong> {p95:.2f}초 (95%의 요청이 이 시간 내에 완료)</p>
-                <p><strong>최대:</strong> {max_latency:.2f}초</p>
-            </div>
-
-            <h4>개발자 최적화 가이드</h4>
-            <ul style="margin: 15px 0 15px 20px; line-height: 2.0;">''')
-
-        if latency > 5.0:
-            parts.append('''
-                <li><strong>프롬프트 최적화:</strong> 불필요한 지시사항 제거, 간결한 프롬프트 작성</li>
-                <li><strong>모델 선택:</strong> 더 빠른 모델 (예: GPT-3.5-turbo) 사용 고려</li>
-                <li><strong>병렬 처리:</strong> 독립적인 작업은 병렬로 실행</li>
-                <li><strong>캐싱:</strong> 반복적인 질의에 대한 응답 캐싱 구현</li>''')
-        elif latency > 3.0:
-            parts.append('''
-                <li><strong>프롬프트 간소화:</strong> 예시 수 줄이기, 핵심 지시사항만 포함</li>
-                <li><strong>토큰 최적화:</strong> 출력 토큰 수 제한 (max_tokens 설정)</li>''')
+def _build_scorecard(harness_groups: Dict[str, Any]) -> str:
+    cards = []
+    for key in "ABCDEFG":
+        color = _GATE_COLORS[key]
+        name = _GATE_NAMES[key]
+        gdata = harness_groups.get(key, {})
+        if isinstance(gdata, dict):
+            score = gdata.get("score")
+            gate_status = (gdata.get("gate") or gdata.get("status") or "").lower()
         else:
-            parts.append('''
-                <li>✅ 응답 시간이 우수합니다. 현재 최적화 수준을 유지하세요.</li>''')
-
-        parts.append('</ul>')
-
-    # Token and Cost Analysis
-    total_cost = token_stats.get('total_cost', 0)
-    avg_cost_per_task = token_stats.get('avg_cost_per_task', 0)
-    cost_insight_class = 'success' if avg_cost_per_task <= 0.01 else 'warning' if avg_cost_per_task <= 0.05 else 'critical'
-
-    parts.append(f'''
-            <h3>토큰 & 비용 분석 (Token & Cost)</h3>
-            <div class="insight-box {cost_insight_class}">
-                <h4>비용 요약</h4>
-                <p><strong>총 비용:</strong> ${total_cost:.4f}</p>
-                <p><strong>Task당 평균 비용:</strong> ${avg_cost_per_task:.4f}</p>
-                <p><strong>총 토큰 사용량:</strong> {token_stats.get('total_tokens', 0):,} tokens</p>
-                <p><strong>Task당 평균 토큰:</strong> {token_stats.get('avg_tokens_per_task', 0):,.0f} tokens</p>
-            </div>
-
-            <h4>토큰 사용 내역</h4>
-            <table>
-                <thead>
-                    <tr>
-                        <th>구분</th>
-                        <th>토큰 수</th>
-                        <th>비율</th>
-                        <th>최적화 포인트</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <tr>
-                        <td><strong>입력 토큰</strong></td>
-                        <td>{token_stats.get('total_input_tokens', 0):,}</td>
-                        <td>{token_stats.get('total_input_tokens', 0) / max(token_stats.get('total_tokens', 0), 1) * 100:.1f}%</td>
-                        <td>프롬프트 간소화, 컨텍스트 최적화</td>
-                    </tr>
-                    <tr>
-                        <td><strong>출력 토큰</strong></td>
-                        <td>{token_stats.get('total_output_tokens', 0):,}</td>
-                        <td>{token_stats.get('total_output_tokens', 0) / max(token_stats.get('total_tokens', 0), 1) * 100:.1f}%</td>
-                        <td>max_tokens 설정, 응답 길이 제한</td>
-                    </tr>
-                    <tr>
-                        <td><strong>총계</strong></td>
-                        <td><strong>{token_stats.get('total_tokens', 0):,}</strong></td>
-                        <td><strong>100.0%</strong></td>
-                        <td>전반적인 효율성 모니터링</td>
-                    </tr>
-                </tbody>
-            </table>
-
-            <h3>재시도 성공률 (Retry Success Rate)</h3>''')
-
-    # Add Retry Success details
-    if retry_metrics and retry_metrics.get('total_tasks_with_retries', 0) > 0:
-        retry_rate = retry_metrics.get('retry_rate', 0)
-        eventual_success = retry_metrics.get('eventual_success_rate', 0)
-        first_attempt_success = retry_metrics.get('first_attempt_success_rate', 0)
-        avg_attempts = retry_metrics.get('avg_attempts_per_task', 0)
-        retry_success_count = retry_metrics.get('retry_success_count', 0)
-
-        retry_class = 'success' if eventual_success >= 80 and retry_rate < 30 else 'warning'
-
-        parts.append(f'''
-            <div class="insight-box {retry_class}">
-                <h4>재시도 요약</h4>
-                <p><strong>재시도율:</strong> {retry_rate:.1f}%</p>
-                <p><strong>1차 시도 성공률:</strong> {first_attempt_success:.1f}%</p>
-                <p><strong>최종 성공률:</strong> {eventual_success:.1f}%</p>
-                <p><strong>개선도:</strong> +{eventual_success - first_attempt_success:.1f}%p (재시도로 구제한 Task: {retry_success_count}개)</p>
-                <p><strong>평균 시도 횟수:</strong> {avg_attempts:.2f}회</p>
-            </div>
-
-            <h4>재시도 효과 분석</h4>
-            <table>
-                <thead>
-                    <tr>
-                        <th>지표</th>
-                        <th>값</th>
-                        <th>목표</th>
-                        <th>상태</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <tr>
-                        <td><strong>재시도율</strong></td>
-                        <td>{retry_rate:.1f}%</td>
-                        <td>&lt; 30%</td>
-                        <td><span class="{'badge-success' if retry_rate < 30 else 'badge-warning'}">{'적정' if retry_rate < 30 else '높음'}</span></td>
-                    </tr>
-                    <tr>
-                        <td><strong>최종 성공률</strong></td>
-                        <td>{eventual_success:.1f}%</td>
-                        <td>≥ 80%</td>
-                        <td><span class="{'badge-success' if eventual_success >= 80 else 'badge-danger'}">{'우수' if eventual_success >= 80 else '개선 필요'}</span></td>
-                    </tr>
-                    <tr>
-                        <td><strong>평균 시도 횟수</strong></td>
-                        <td>{avg_attempts:.2f}회</td>
-                        <td>&lt; 3회</td>
-                        <td><span class="{'badge-success' if avg_attempts < 3 else 'badge-warning'}">{'적정' if avg_attempts < 3 else '많음'}</span></td>
-                    </tr>
-                </tbody>
-            </table>
-
-            <h4>재시도 최적화 가이드</h4>
-            <ul style="margin: 15px 0 15px 20px; line-height: 2.0;">''')
-
-        if retry_rate > 30:
-            parts.append('''
-                <li><strong>재시도율 감소:</strong> 1차 시도 성공률을 높이기 위해 입력 검증 강화 및 프롬프트 품질 개선</li>''')
-
-        if eventual_success < 80:
-            parts.append('''
-                <li><strong>재시도 로직 개선:</strong> 실패 원인을 분석하여 타겟 개선, 더 나은 에러 복구 전략 필요</li>''')
-
-        if avg_attempts > 3:
-            parts.append('''
-                <li><strong>재시도 한계 조정:</strong> 평균 시도 횟수가 많음, 재시도 한계 설정 검토 및 빠른 실패 전략 고려</li>''')
-
-        if eventual_success >= 80 and retry_rate < 30:
-            parts.append('''
-                <li>✅ 재시도 메커니즘이 효과적으로 작동하고 있습니다. 현재 수준을 유지하세요.</li>''')
-
-        parts.append('</ul>')
-    else:
-        parts.append('''
-            <p>재시도 데이터가 없습니다. Task 실패 시 재시도 메커니즘이 활성화되면 여기에서 재시도 효율성 지표를 확인할 수 있습니다.</p>''')
-
-    parts.append('''
-        </div>''')
-
-    return ''.join(parts)
-
-
-def _build_agentic_section(monitor, tool_selection_stats, coordination_stats, workflow_stats, retry_metrics) -> str:
-    """Build the Agentic section (tool selection, efficiency, coordination, workflow, retry patterns, security-in-agentic)."""
-    parts = []
-
-    parts.append('''
-        <!-- Agentic AI Section -->
-        <div class="section" id="agentic">
-            <h2><span class="icon">🤖</span>Agentic AI - 도구 사용 및 협업</h2>
-            <p style="margin-bottom: 20px; line-height: 1.8;">
-                Agentic AI Metrics는 AI Agent의 <strong>도구 사용 능력 및 협업 품질</strong>을 측정합니다.
-                도구 선택 정확도, 도구 실행 효율성, 다중 에이전트 협업, 워크플로우 실행을 평가합니다.
-            </p>
-
-''')
-
-    if tool_selection_stats and tool_selection_stats.get('total_evaluations', 0) > 0:
-        parts.append('<h3>도구 선택 정확도 (Tool Selection Accuracy)</h3>')
-        tool_acc = tool_selection_stats.get('avg_f1_score', 0)  # already 0-100 scale
-        tool_class = 'success' if tool_acc >= 85 else 'warning' if tool_acc >= 70 else 'critical'
-
-        parts.append(f'''
-            <div class="insight-box {tool_class}">
-                <h4>도구 선택 요약</h4>
-                <p><strong>F1 정확도:</strong> {tool_acc:.1f}%</p>
-                <p><strong>평가된 Task:</strong> {tool_selection_stats.get('total_evaluations', 0)}개</p>
-                <p><strong>올바른 도구 선택:</strong> {tool_selection_stats.get('total_true_positives', 0)}개</p>
-            </div>''')
-
-    # Tool Efficiency
-    tool_efficiency_stats = monitor.tool_analyzer.get_efficiency_stats()
-
-    if tool_efficiency_stats and tool_efficiency_stats.get('total_calls', 0) > 0:
-        parts.append('<h3>도구 실행 효율성 (Tool Efficiency)</h3>')
-        efficiency_score = tool_efficiency_stats.get('avg_efficiency_score', 0)
-        success_rate = tool_efficiency_stats.get('success_rate', 0)
-        redundancy_rate = tool_efficiency_stats.get('redundancy_rate', 0)
-
-        efficiency_class = 'success' if efficiency_score >= 80 else 'warning' if efficiency_score >= 60 else 'critical'
-
-        parts.append(f'''
-            <div class="insight-box {efficiency_class}">
-                <h4>도구 효율성 요약</h4>
-                <p><strong>전체 효율성 점수:</strong> {efficiency_score:.1f}%</p>
-                <p><strong>도구 호출 성공률:</strong> {success_rate:.1f}%</p>
-                <p><strong>중복 호출률:</strong> {redundancy_rate:.1f}%</p>
-                <p><strong>총 도구 호출:</strong> {tool_efficiency_stats.get('total_calls', 0)}회</p>
-                <p><strong>성공한 호출:</strong> {tool_efficiency_stats.get('total_calls', 0) - tool_efficiency_stats.get('total_failed_calls', 0)}회</p>
-            </div>
-
-            <h4>도구별 실행 통계</h4>''')
-
-        # Get per-tool breakdown from task results (tool_analyzer.executions stores only summary metrics)
-        _tasks = monitor.tcr_tracker.tasks if hasattr(monitor, 'tcr_tracker') else []
-        if _tasks:
-            tool_breakdown = {}
-            for task in _tasks:
-                for call in (task.tool_calls or []):
-                    if isinstance(call, str):
-                        tool_name = call
-                        success, duration = True, 0.0
-                    elif isinstance(call, dict):
-                        tool_name = call.get('tool_name') or call.get('tool') or call.get('name', 'Unknown')
-                        success = call.get('success', True)
-                        duration = call.get('duration', 0.0)
-                    else:
-                        continue
-                    if tool_name not in tool_breakdown:
-                        tool_breakdown[tool_name] = {'success': 0, 'failure': 0, 'total': 0, 'total_duration': 0}
-                    tool_breakdown[tool_name]['total'] += 1
-                    if success:
-                        tool_breakdown[tool_name]['success'] += 1
-                    else:
-                        tool_breakdown[tool_name]['failure'] += 1
-                    tool_breakdown[tool_name]['total_duration'] += duration
-
-            if tool_breakdown:
-                parts.append('''
-            <table>
-                <thead>
-                    <tr>
-                        <th>도구명</th>
-                        <th>총 호출</th>
-                        <th>성공</th>
-                        <th>실패</th>
-                        <th>성공률</th>
-                        <th>평균 실행 시간</th>
-                    </tr>
-                </thead>
-                <tbody>''')
-
-                for tool_name, stats in sorted(tool_breakdown.items(), key=lambda x: x[1]['total'], reverse=True):
-                    tool_success_rate = (stats['success'] / stats['total'] * 100) if stats['total'] > 0 else 0
-                    avg_duration = (stats['total_duration'] / stats['total']) if stats['total'] > 0 else 0
-                    success_badge = 'badge-success' if tool_success_rate >= 90 else 'badge-warning' if tool_success_rate >= 70 else 'badge-danger'
-
-                    parts.append(f'''
-                    <tr>
-                        <td><strong>{tool_name}</strong></td>
-                        <td>{stats['total']}회</td>
-                        <td>{stats['success']}회</td>
-                        <td>{stats['failure']}회</td>
-                        <td><span class="{success_badge}">{tool_success_rate:.1f}%</span></td>
-                        <td>{avg_duration:.3f}초</td>
-                    </tr>''')
-
-                parts.append('</tbody></table>')
-
-        # Add optimization guide
-        parts.append('''
-            <h4>도구 효율성 최적화 가이드</h4>
-            <ul style="margin: 15px 0 15px 20px; line-height: 2.0;">''')
-
-        if success_rate < 90:
-            parts.append('''
-                <li><strong>성공률 개선:</strong> 실패한 도구 호출의 원인 분석, 입력 검증 강화, 에러 핸들링 개선</li>''')
-
-        if redundancy_rate > 20:
-            parts.append('''
-                <li><strong>중복 제거:</strong> 불필요한 중복 호출 감소, 캐싱 메커니즘 도입, 도구 선택 로직 최적화</li>''')
-
-        if efficiency_score >= 80:
-            parts.append('''
-                <li>✅ 도구 실행 효율성이 우수합니다. 현재 수준을 유지하세요.</li>''')
-
-        parts.append('</ul>')
-    else:
-        parts.append('''
-            <p>도구 효율성 데이터가 없습니다. AI Agent가 도구를 사용하면 여기에서 실행 효율성 지표를 확인할 수 있습니다.</p>''')
-
-    # Multi-Agent Coordination
-    if coordination_stats and coordination_stats.get('total_interactions', 0) > 0:
-        parts.append('<h3>다중 에이전트 협업 (Multi-Agent Coordination)</h3>')
-        coord_score = coordination_stats.get('overall_score', 0) * 10
-        coord_class = 'success' if coord_score >= 85 else 'warning' if coord_score >= 70 else 'critical'
-
-        parts.append(f'''
-            <div class="insight-box {coord_class}">
-                <h4>협업 요약</h4>
-                <p><strong>협업 점수:</strong> {coord_score:.1f}%</p>
-                <p><strong>총 상호작용:</strong> {coordination_stats.get('total_interactions', 0)}개</p>
-                <p><strong>성공적인 상호작용:</strong> {int(coordination_stats.get('total_interactions', 0) * coordination_stats.get('success_rate', 0) / 100)}개</p>
-            </div>''')
-
-    # Workflow Execution
-    if workflow_stats and workflow_stats.get('total_tasks', 0) > 0:
-        parts.append('<h3>워크플로우 실행 (Workflow Execution)</h3>')
-        # CRITICAL FIX: Use 'step_success_rate' not 'success_rate', and it's already a percentage (don't multiply by 100)
-        workflow_rate = workflow_stats.get('step_success_rate', 0)
-        workflow_class = 'success' if workflow_rate >= 85 else 'warning' if workflow_rate >= 70 else 'critical'
-
-        parts.append(f'''
-            <div class="insight-box {workflow_class}">
-                <h4>워크플로우 요약</h4>
-                <p><strong>성공률:</strong> {workflow_rate:.1f}%</p>
-                <p><strong>총 워크플로우:</strong> {workflow_stats.get('total_tasks', 0)}개</p>
-                <p><strong>성공:</strong> {workflow_stats.get('fully_successful_tasks', 0)}개</p>
-            </div>''')
-
-    # Retry Patterns
-    if retry_metrics and retry_metrics.get('total_tasks_with_retries', 0) > 0:
-        parts.append('<h3>재시도 패턴 (Retry Patterns)</h3>')
-        retry_rate = retry_metrics.get('retry_rate', 0)
-        # CRITICAL FIX: Use 'eventual_success_rate' not 'final_success_rate'
-        final_success = retry_metrics.get('eventual_success_rate', 0)
-
-        parts.append(f'''
-            <div class="insight-box">
-                <h4>재시도 요약</h4>
-                <p><strong>재시도율:</strong> {retry_rate:.1f}%</p>
-                <p><strong>재시도 후 최종 성공률:</strong> {final_success:.1f}%</p>
-                <p><strong>재시도 발생 Task:</strong> {retry_metrics.get('total_tasks_with_retries', 0)}개</p>
-                <p><strong>평균 재시도 횟수:</strong> {retry_metrics.get('avg_attempts_per_task', 0):.2f}회</p>
-            </div>
-
-            <h4>개발자 가이드</h4>
-            <ul style="margin: 15px 0 15px 20px; line-height: 2.0;">
-                <li><strong>재시도 로직 최적화:</strong> 실패 원인 분석 후 타겟 개선</li>
-                <li><strong>에러 핸들링:</strong> 명확한 에러 메시지와 복구 전략</li>
-                <li><strong>Fallback 전략:</strong> 재시도 실패 시 대안 제공</li>
-            </ul>''')
-
-    # 데이터가 하나도 없는 경우 안내 메시지
-    has_agentic_data = (
-        (tool_selection_stats and tool_selection_stats.get('total_evaluations', 0) > 0) or
-        (tool_efficiency_stats and tool_efficiency_stats.get('total_calls', 0) > 0) or
-        (coordination_stats and coordination_stats.get('total_interactions', 0) > 0) or
-        (workflow_stats and workflow_stats.get('total_tasks', 0) > 0) or
-        (retry_metrics and retry_metrics.get('total_tasks_with_retries', 0) > 0)
-    )
-    if not has_agentic_data:
-        parts.append('''
-            <div class="insight-box warning">
-                <h4>ℹ️ 에이전틱 데이터 없음</h4>
-                <p>이 평가에는 도구 호출·협업·워크플로우 데이터가 없습니다.
-                Tool Use 태스크를 기록하면 이 섹션에 지표가 표시됩니다.</p>
-            </div>''')
-
-    parts.append('</div>')
-    return ''.join(parts)
-
-
-def _build_advanced_section(adv_metrics) -> str:
-    """Build the Advanced Metrics section (DeepEval, Ragas)."""
-    parts = []
-
-    parts.append('''
-        <div class="section" id="advanced">
-            <h2><span class="icon">🔬</span>Advanced Metrics - 외부 라이브러리 평가</h2>
-            <p style="margin-bottom: 20px; line-height: 1.8;">
-                Advanced Metrics는 <strong>외부 평가 라이브러리</strong>를 활용하여 AI Agent의 성능을 다각도로 분석합니다.
-                DeepEval과 Ragas 라이브러리를 통해 더 깊이 있는 품질 평가를 제공합니다.
-            </p>
-
-            <h3>DeepEval 평가 결과</h3>''')
-
-    # Check for DeepEval metrics in advanced_metrics_summary
-    has_deepeval = any(key in adv_metrics for key in [
-        'g_eval_score', 'hallucination_score', 'toxicity_score', 'bias_score', 'answer_relevancy_score'
-    ])
-
-    if has_deepeval:
-        # G-Eval Score
-        g_eval_data = adv_metrics.get('g_eval_score', {})
-        if g_eval_data:
-            g_eval_score = g_eval_data.get('mean', 0) * 100
-            g_eval_class = 'success' if g_eval_score >= 70 else 'warning' if g_eval_score >= 50 else 'critical'
-
-            parts.append(f'''
-            <h4>G-Eval (전반적 품질)</h4>
-            <div class="insight-box {g_eval_class}">
-                <p><strong>평균 점수:</strong> {g_eval_score:.1f}%</p>
-                <p><strong>평가 횟수:</strong> {g_eval_data.get('count', 0)}회</p>
-                <p><strong>평가:</strong> {'우수' if g_eval_score >= 70 else '양호' if g_eval_score >= 50 else '개선 필요'}</p>
-                <p><strong>설명:</strong> LLM을 평가자로 사용한 전반적인 응답 품질 점수입니다.</p>
-            </div>''')
-
-        # Hallucination Score (높을수록 좋음 - 환각이 없음)
-        hall_data = adv_metrics.get('hallucination_score', {})
-        if hall_data:
-            hall_score = hall_data.get('mean', 0) * 100
-            hall_class = 'success' if hall_score >= 70 else 'warning' if hall_score >= 50 else 'critical'
-
-            parts.append(f'''
-            <h4>Hallucination Score (환각 없음 점수)</h4>
-            <div class="insight-box {hall_class}">
-                <p><strong>평균 점수:</strong> {hall_score:.1f}%</p>
-                <p><strong>평가 횟수:</strong> {hall_data.get('count', 0)}회</p>
-                <p><strong>평가:</strong> {'우수' if hall_score >= 70 else '양호' if hall_score >= 50 else '개선 필요'}</p>
-                <p><strong>설명:</strong> 컨텍스트에 충실한 정도 (높을수록 환각이 적음)</p>
-            </div>''')
-
-        # Toxicity Score (낮을수록 좋음)
-        tox_data = adv_metrics.get('toxicity_score', {})
-        if tox_data:
-            tox_score = tox_data.get('mean', 0) * 100
-            tox_class = 'success' if tox_score <= 30 else 'warning' if tox_score <= 50 else 'critical'
-
-            parts.append(f'''
-            <h4>Toxicity Score (독성 점수)</h4>
-            <div class="insight-box {tox_class}">
-                <p><strong>평균 점수:</strong> {tox_score:.1f}%</p>
-                <p><strong>평가 횟수:</strong> {tox_data.get('count', 0)}회</p>
-                <p><strong>평가:</strong> {'우수 (낮음)' if tox_score <= 30 else '양호' if tox_score <= 50 else '높음 (개선 필요)'}</p>
-                <p><strong>설명:</strong> 유해하거나 부적절한 콘텐츠 점수 (낮을수록 좋음)</p>
-            </div>''')
-
-        # Bias Score (낮을수록 좋음)
-        bias_data = adv_metrics.get('bias_score', {})
-        if bias_data:
-            bias_score = bias_data.get('mean', 0) * 100
-            bias_class = 'success' if bias_score <= 30 else 'warning' if bias_score <= 50 else 'critical'
-
-            parts.append(f'''
-            <h4>Bias Score (편향 점수)</h4>
-            <div class="insight-box {bias_class}">
-                <p><strong>평균 점수:</strong> {bias_score:.1f}%</p>
-                <p><strong>평가 횟수:</strong> {bias_data.get('count', 0)}회</p>
-                <p><strong>평가:</strong> {'우수 (낮음)' if bias_score <= 30 else '양호' if bias_score <= 50 else '높음 (개선 필요)'}</p>
-                <p><strong>설명:</strong> 편향된 응답 점수 (낮을수록 공정함)</p>
-            </div>''')
-
-        # Answer Relevancy Score (높을수록 좋음)
-        ans_rel_data = adv_metrics.get('answer_relevancy_score', {})
-        if ans_rel_data:
-            ans_rel_score = ans_rel_data.get('mean', 0) * 100
-            ans_rel_class = 'success' if ans_rel_score >= 70 else 'warning' if ans_rel_score >= 50 else 'critical'
-
-            parts.append(f'''
-            <h4>Answer Relevancy (답변 관련성)</h4>
-            <div class="insight-box {ans_rel_class}">
-                <p><strong>평균 점수:</strong> {ans_rel_score:.1f}%</p>
-                <p><strong>평가 횟수:</strong> {ans_rel_data.get('count', 0)}회</p>
-                <p><strong>평가:</strong> {'우수' if ans_rel_score >= 70 else '양호' if ans_rel_score >= 50 else '개선 필요'}</p>
-                <p><strong>설명:</strong> 질문과 답변의 관련성 점수</p>
-            </div>''')
-    else:
-        parts.append('''
-            <p>DeepEval 평가 데이터가 없습니다. external_library_mode="all" 또는 "deepeval"로 설정하여 DeepEval 메트릭을 활성화할 수 있습니다.</p>''')
-
-    # Ragas Metrics
-    parts.append('<h3>Ragas 평가 결과</h3>')
-
-    # Check for Ragas metrics in advanced_metrics_summary
-    has_ragas = any(key in adv_metrics for key in [
-        'ragas_faithfulness', 'ragas_context_precision', 'ragas_context_recall', 'ragas_answer_relevancy'
-    ])
-
-    if has_ragas:
-        # Faithfulness (Ragas)
-        faithfulness_data = adv_metrics.get('ragas_faithfulness', {})
-        if faithfulness_data:
-            faith_score = faithfulness_data.get('mean', 0) * 100
-            faith_class = 'success' if faith_score >= 70 else 'warning' if faith_score >= 50 else 'critical'
-
-            parts.append(f'''
-            <h4>Faithfulness (컨텍스트 충실도)</h4>
-            <div class="insight-box {faith_class}">
-                <p><strong>평균 점수:</strong> {faith_score:.1f}%</p>
-                <p><strong>최대:</strong> {faithfulness_data.get('max', 0):.3f}</p>
-                <p><strong>최소:</strong> {faithfulness_data.get('min', 0):.3f}</p>
-                <p><strong>평가:</strong> {'우수' if faith_score >= 70 else '양호' if faith_score >= 50 else '개선 필요'}</p>
-                <p><strong>설명:</strong> 생성된 답변이 검색된 컨텍스트에 얼마나 충실한지 측정 (환각 방지)</p>
-            </div>''')
-
-        # Context Precision (Ragas)
-        ctx_precision_data = adv_metrics.get('ragas_context_precision', {})
-        if ctx_precision_data:
-            prec_score = ctx_precision_data.get('mean', 0) * 100
-            prec_class = 'success' if prec_score >= 70 else 'warning' if prec_score >= 50 else 'critical'
-
-            parts.append(f'''
-            <h4>Context Precision (검색 정밀도)</h4>
-            <div class="insight-box {prec_class}">
-                <p><strong>평균 점수:</strong> {prec_score:.1f}%</p>
-                <p><strong>최대:</strong> {ctx_precision_data.get('max', 0):.3f}</p>
-                <p><strong>최소:</strong> {ctx_precision_data.get('min', 0):.3f}</p>
-                <p><strong>평가:</strong> {'우수' if prec_score >= 70 else '양호' if prec_score >= 50 else '개선 필요'}</p>
-                <p><strong>설명:</strong> 검색된 컨텍스트 중 관련 있는 정보의 비율 (노이즈 최소화)</p>
-            </div>''')
-
-        # Context Recall (Ragas)
-        ctx_recall_data = adv_metrics.get('ragas_context_recall', {})
-        if ctx_recall_data:
-            recall_score = ctx_recall_data.get('mean', 0) * 100
-            recall_class = 'success' if recall_score >= 70 else 'warning' if recall_score >= 50 else 'critical'
-
-            parts.append(f'''
-            <h4>Context Recall (검색 재현율)</h4>
-            <div class="insight-box {recall_class}">
-                <p><strong>평균 점수:</strong> {recall_score:.1f}%</p>
-                <p><strong>최대:</strong> {ctx_recall_data.get('max', 0):.3f}</p>
-                <p><strong>최소:</strong> {ctx_recall_data.get('min', 0):.3f}</p>
-                <p><strong>평가:</strong> {'우수' if recall_score >= 70 else '양호' if recall_score >= 50 else '개선 필요'}</p>
-                <p><strong>설명:</strong> 필요한 정보를 모두 검색했는지 측정 (완전성)</p>
-            </div>''')
-
-        # Answer Relevancy (Ragas)
-        ans_rel_data = adv_metrics.get('ragas_answer_relevancy', {})
-        if ans_rel_data:
-            ans_rel_score = ans_rel_data.get('mean', 0) * 100
-            ans_rel_class = 'success' if ans_rel_score >= 70 else 'warning' if ans_rel_score >= 50 else 'critical'
-
-            parts.append(f'''
-            <h4>Answer Relevancy (답변 관련성)</h4>
-            <div class="insight-box {ans_rel_class}">
-                <p><strong>평균 점수:</strong> {ans_rel_score:.1f}%</p>
-                <p><strong>최대:</strong> {ans_rel_data.get('max', 0):.3f}</p>
-                <p><strong>최소:</strong> {ans_rel_data.get('min', 0):.3f}</p>
-                <p><strong>평가:</strong> {'우수' if ans_rel_score >= 70 else '양호' if ans_rel_score >= 50 else '개선 필요'}</p>
-                <p><strong>설명:</strong> 답변이 질문과 얼마나 관련 있는지 측정</p>
-            </div>''')
-    else:
-        parts.append('''
-            <p>Ragas 평가 데이터가 없습니다. external_library_mode="all" 또는 "ragas"로 설정하여 Ragas 메트릭을 활성화할 수 있습니다.</p>''')
-
-    # Advanced Metrics Summary
-    parts.append('''
-            <h3>Advanced Metrics 활용 가이드</h3>
-            <div class="insight-box">
-                <h4>외부 라이브러리 메트릭의 장점</h4>
-                <ul style="margin: 10px 0 10px 20px; line-height: 2.0;">
-                    <li><strong>다각적 평가:</strong> 여러 관점에서 AI Agent 성능을 평가하여 숨겨진 문제 발견</li>
-                    <li><strong>업계 표준:</strong> DeepEval과 Ragas는 널리 사용되는 평가 프레임워크로 벤치마킹 용이</li>
-                    <li><strong>RAG 최적화:</strong> 특히 RAG(Retrieval-Augmented Generation) 시스템의 검색 품질 개선에 유용</li>
-                    <li><strong>컨텍스트 품질:</strong> 검색된 컨텍스트의 정밀도와 재현율을 정량적으로 측정</li>
-                </ul>
-                <p style="margin-top: 15px;"><strong>활성화 방법:</strong> HybridPerformanceMonitor 초기화 시 <code>external_library_mode="all"</code> 파라미터를 설정하세요.</p>
-            </div>
-        </div>''')
-
-    return ''.join(parts)
-
-
-def _build_transparency_section() -> str:
-    """Build the Test Transparency section."""
-    parts = []
-
-    parts.append('''
-        <div class="section" id="transparency">
-            <h2><span class="icon">🔍</span>Test 투명성 - 평가 프로세스 투명성</h2>
-            <p style="margin-bottom: 20px; line-height: 1.8;">
-                Test 투명성은 <strong>평가 프로세스의 투명성과 추적 가능성</strong>을 보장합니다.
-                각 메트릭의 계산 과정, 주석, 감사 로그를 제공하여 평가 결과의 신뢰성을 높입니다.
-            </p>''')
-
-    # Get transparency data from file system
-    from ..utils.path_helpers import get_evaluation_results_dir
-    transparency_stats = {}
-
-    _results = get_evaluation_results_dir()
-    traces_dir = _results / "traces"
-    annotations_dir = _results / "annotations"
-    audit_logs_dir = _results / "audit_logs"
-    reports_dir = _results / "transparent_reports"
-
-    has_traces = traces_dir.exists() and list(traces_dir.glob("trace_*.json"))
-    has_annotations = annotations_dir.exists() and list(annotations_dir.glob("annotation_*.json"))
-    has_audit_logs = audit_logs_dir.exists() and list(audit_logs_dir.glob("audit_*.json"))
-    has_reports = reports_dir.exists() and list(reports_dir.glob("report_*.json"))
-
-    if has_traces or has_annotations or has_audit_logs or has_reports:
-        transparency_stats = {
-            'total_reports': len(list(reports_dir.glob("report_*.json"))) if has_reports else 0,
-            'traced_metrics': len(list(traces_dir.glob("trace_*.json"))) if has_traces else 0,
-            'annotated_items': len(list(annotations_dir.glob("annotation_*.json"))) if has_annotations else 0,
-            'audit_events': len(list(audit_logs_dir.glob("audit_*.json"))) if has_audit_logs else 0
-        }
-
-    if transparency_stats and (transparency_stats.get('total_reports', 0) > 0 or
-                                transparency_stats.get('traced_metrics', 0) > 0 or
-                                transparency_stats.get('annotated_items', 0) > 0 or
-                                transparency_stats.get('audit_events', 0) > 0):
-        parts.append(f'''
-            <h3>투명성 요약</h3>
-            <div class="insight-box success">
-                <h4>평가 투명성 현황</h4>
-                <p><strong>생성된 상세 리포트:</strong> {transparency_stats.get('total_reports', 0)}개</p>
-                <p><strong>추적 가능한 메트릭:</strong> {transparency_stats.get('traced_metrics', 0)}개</p>
-                <p><strong>주석 처리된 항목:</strong> {transparency_stats.get('annotated_items', 0)}개</p>
-                <p><strong>감사 로그 이벤트:</strong> {transparency_stats.get('audit_events', 0)}개</p>
-            </div>
-
-            <h3>투명성 구성 요소</h3>
-            <table>
-                <thead>
-                    <tr>
-                        <th>구성 요소</th>
-                        <th>설명</th>
-                        <th>활용 사례</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <tr>
-                        <td><strong>📋 상세 리포트</strong></td>
-                        <td>각 Task별 평가 결과의 상세 내역</td>
-                        <td>개별 Task 성능 분석, 문제 원인 추적</td>
-                    </tr>
-                    <tr>
-                        <td><strong>🔍 메트릭 추적</strong></td>
-                        <td>각 메트릭의 계산 과정 및 중간 값</td>
-                        <td>메트릭 검증, 계산 로직 이해</td>
-                    </tr>
-                    <tr>
-                        <td><strong>📝 주석 (Annotations)</strong></td>
-                        <td>평가자의 코멘트 및 특이사항 기록</td>
-                        <td>정성적 분석, 추가 컨텍스트 제공</td>
-                    </tr>
-                    <tr>
-                        <td><strong>📜 감사 로그</strong></td>
-                        <td>평가 과정의 모든 이벤트 기록</td>
-                        <td>평가 과정 재현, 변경 이력 추적</td>
-                    </tr>
-                </tbody>
-            </table>''')
-
-        parts.append('''
-            <h3>투명성 활용 가이드</h3>
-            <div class="insight-box">
-                <h4>투명성 데이터 활용 방법</h4>
-                <ul style="margin: 10px 0 10px 20px; line-height: 2.0;">
-                    <li><strong>디버깅:</strong> 실패한 Task의 상세 리포트를 통해 정확한 실패 원인 파악</li>
-                    <li><strong>검증:</strong> 메트릭 추적 데이터로 계산 과정의 정확성 검증</li>
-                    <li><strong>개선:</strong> 주석과 감사 로그를 분석하여 반복적인 문제 패턴 발견</li>
-                    <li><strong>규정 준수:</strong> 감사 로그를 통해 평가 과정의 투명성 입증 (Compliance)</li>
-                    <li><strong>지식 공유:</strong> 상세 리포트를 팀과 공유하여 개선 방안 논의</li>
-                </ul>
-                <p style="margin-top: 15px;"><strong>접근 방법:</strong> <code>agent-eval serve</code> 대시보드의 투명성 섹션에서 각 리포트를 확인할 수 있습니다.</p>
-            </div>''')
-    else:
-        parts.append('''
-            <p>투명성 데이터가 없습니다. TransparentEvaluationReport를 생성하여 평가 프로세스의 투명성을 확보할 수 있습니다.</p>
-            <div class="insight-box">
-                <h4>투명성 리포트 생성 방법</h4>
-                <p>다음 코드를 사용하여 각 Task별 상세 리포트를 생성할 수 있습니다:</p>
-                <pre style="background: #f4f4f4; padding: 15px; border-radius: 5px; overflow-x: auto; margin-top: 10px;">
-report = transparency.generate_transparent_report(
-    task_id="task_001",
-    task_type="qa",
-    success=True
-)</pre>
-            </div>''')
-
-    parts.append('</div>')
-    return ''.join(parts)
-
-
-def _build_security_section(monitor) -> str:
-    """Build the standalone Security section. Returns empty string if security metrics unavailable."""
-    # Check if security metrics are available
-    has_security = (
-        getattr(monitor, 'input_sanitizer', None) is not None
-        and getattr(monitor, 'output_leakage_detector', None) is not None
+            score = None
+            gate_status = ""
+        badge_html = _gate_badge(gate_status) if gate_status else '<span style="font-size:11px;color:#9ca3af">미설정</span>'
+        bar_html = _gate_score_bar(score, key) if score is not None else ""
+        cards.append(
+            f'<div class="sc-card" style="border-top-color:{color}">'
+            f'<div class="sc-gate" style="color:{color}">Gate {key}</div>'
+            f'<div class="sc-name">{name}</div>'
+            f'<div class="sc-badge">{badge_html}</div>'
+            f'{bar_html}'
+            f'</div>'
+        )
+    return '<div class="scorecard">' + ''.join(cards) + '</div>'
+
+
+# ---------------------------------------------------------------------------
+# Gate A — Goal Achievement
+# ---------------------------------------------------------------------------
+
+def _build_gate_a(tcr: float, success_rate: float, acc: float,
+                  accuracy_metrics: Dict, hallucination_data: Dict,
+                  harness_a: Dict) -> str:
+    color = _GATE_COLORS["A"]
+    gate_status = (harness_a.get("gate") or harness_a.get("status") or "").lower()
+    badge = _gate_badge(gate_status) if gate_status else ""
+
+    # TCR / accuracy KPIs
+    kpis = (
+        f'<div class="kpi"><div class="kpi-lbl">TCR</div>'
+        f'<div class="kpi-val" style="color:{_score_color(tcr)}">{_num(tcr, ".1f")}%</div></div>'
+        f'<div class="kpi"><div class="kpi-lbl">완전 성공률</div>'
+        f'<div class="kpi-val" style="color:{_score_color(success_rate)}">{_num(success_rate, ".1f")}%</div></div>'
+        f'<div class="kpi"><div class="kpi-lbl">전체 정확도</div>'
+        f'<div class="kpi-val" style="color:{_score_color(acc)}">{_num(acc, ".1f")}%</div></div>'
     )
 
-    if not has_security:
+    # Accuracy by task_type
+    by_type = accuracy_metrics.get("accuracy_by_task_type") or accuracy_metrics.get("by_type") or {}
+    type_rows = ""
+    if isinstance(by_type, dict):
+        for ttype, tdata in by_type.items():
+            if isinstance(tdata, dict):
+                v = tdata.get("avg_accuracy", tdata.get("mean", tdata.get("accuracy")))
+            else:
+                v = tdata
+            if v is not None:
+                pct_v = float(v) * 100 if float(v) <= 1.0 else float(v)
+                type_rows += (
+                    f'<tr>'
+                    f'<td style="padding:5px 10px;border-bottom:1px solid #f3f4f6;font-size:12px">{ttype}</td>'
+                    f'<td style="padding:5px 10px;border-bottom:1px solid #f3f4f6;font-weight:600;'
+                    f'color:{_score_color(pct_v)}">{pct_v:.1f}%</td>'
+                    f'</tr>'
+                )
+
+    type_table = ""
+    if type_rows:
+        type_table = (
+            f'<h3>task_type별 정확도</h3>'
+            f'<table class="mtable"><thead><tr><th>Task Type</th><th>정확도</th></tr></thead>'
+            f'<tbody>{type_rows}</tbody></table>'
+        )
+
+    # Hallucination
+    hall_html = ""
+    hall_rate = 0.0
+    _hall_measured = bool(hallucination_data) and hallucination_data.get("total_evaluated", 0) > 0
+    if not _hall_measured:
+        hall_html = (
+            f'<h3>환각 탐지</h3>'
+            + _not_tested("환각 탐지가 활성화되지 않았습니다 — "
+                          "<code>enable_hallucination_detection=True</code> 로 측정할 수 있습니다.")
+        )
+    if _hall_measured:
+        hall_rate = float(hallucination_data.get("overall_rate") or 0)
+        hall_pct = hall_rate  # overall_rate is already a percentage (0–100 scale)
+        hall_col = _score_color(100 - hall_pct)
+        hall_html = (
+            f'<h3>환각 탐지</h3>'
+            f'<div class="kpis">'
+            f'<div class="kpi"><div class="kpi-lbl">환각율</div>'
+            f'<div class="kpi-val" style="color:{hall_col}">{hall_pct:.1f}%</div></div>'
+            f'<div class="kpi"><div class="kpi-lbl">안전율</div>'
+            f'<div class="kpi-val" style="color:{_score_color(100 - hall_pct)}">{100 - hall_pct:.1f}%</div></div>'
+            f'</div>'
+        )
+
+    # Harness A detail
+    details = harness_a.get("details") or {}
+    harness_rows = ""
+    fields = [
+        ("instruction_adherence", "지시 이행률"),
+        ("goal_alignment", "목표 정렬 점수"),
+        ("plan_coherence", "계획 일관성"),
+        ("subtask_completion", "하위 태스크 완료율"),
+        ("context_retention", "컨텍스트 유지율"),
+        ("knowledge_retention", "지식 보존·활용"),
+    ]
+    for fk, flabel in fields:
+        v = details.get(fk)
+        if v is not None:
+            harness_rows += _metric_row(flabel, v)
+    harness_block = ""
+    if harness_rows:
+        harness_block = (
+            f'<h3>Harness A 세부 지표</h3>'
+            f'<table class="mtable"><tbody>{harness_rows}</tbody></table>'
+        )
+    elif not details:
+        harness_block = '<div class="inactive-banner">⚙️ Harness Config 미활성 — InstructionConfig · GoalAlignmentConfig 등을 데코레이터에 전달하면 세부 지표가 표시됩니다.</div>'
+
+    return (
+        f'<div class="gate-section" id="gate-a" style="border-left-color:{color}">'
+        f'<h2 style="color:{color}">Gate A &nbsp;<span style="font-size:14px;color:#374151">목표 달성 (Goal Achievement)</span>&nbsp;{badge}</h2>'
+        f'<div class="kpis">{kpis}</div>'
+        f'{type_table}'
+        f'{hall_html}'
+        f'{harness_block}'
+        f'</div>'
+    )
+
+
+# ---------------------------------------------------------------------------
+# Gate B — Behavioral Integrity
+# ---------------------------------------------------------------------------
+
+def _build_gate_b(tool_selection_stats: Dict, has_agentic: bool,
+                  harness_b: Dict) -> str:
+    color = _GATE_COLORS["B"]
+    gate_status = (harness_b.get("gate") or harness_b.get("status") or "").lower()
+    badge = _gate_badge(gate_status) if gate_status else ""
+
+    tool_html = ""
+    if not has_agentic:
+        tool_html = (
+            f'<h3>도구 사용 분석</h3>'
+            + _not_tested("에이전틱 도구 사용 데이터가 없습니다 — "
+                          "<code>task_type=\"tool_use\"</code> 태스크를 실행하면 측정됩니다.")
+        )
+    elif not tool_selection_stats:
+        tool_html = (
+            f'<h3>도구 사용 분석</h3>'
+            + _not_tested("도구 선택 데이터가 수집되지 않았습니다.")
+        )
+    if has_agentic and tool_selection_stats:
+        f1 = tool_selection_stats.get("avg_f1")
+        eff = tool_selection_stats.get("avg_efficiency")
+        redundancy = tool_selection_stats.get("redundancy_rate")
+        fail_rate = tool_selection_stats.get("failure_rate")
+        kpi_parts = ""
+        if f1 is not None:
+            kpi_parts += (
+                f'<div class="kpi"><div class="kpi-lbl">Tool Selection F1</div>'
+                f'<div class="kpi-val" style="color:{_score_color(float(f1)*100,80,60)}">{float(f1):.3f}</div></div>'
+            )
+        if eff is not None:
+            kpi_parts += (
+                f'<div class="kpi"><div class="kpi-lbl">도구 효율성</div>'
+                f'<div class="kpi-val" style="color:{_score_color(float(eff)*100)}">{_pct(eff)}</div></div>'
+            )
+        if redundancy is not None:
+            kpi_parts += (
+                f'<div class="kpi"><div class="kpi-lbl">중복 호출률</div>'
+                f'<div class="kpi-val" style="color:{_score_color(100 - float(redundancy)*100)}">{_pct(redundancy)}</div></div>'
+            )
+        if fail_rate is not None:
+            kpi_parts += (
+                f'<div class="kpi"><div class="kpi-lbl">도구 실패율</div>'
+                f'<div class="kpi-val" style="color:{_score_color(100 - float(fail_rate)*100)}">{_pct(fail_rate)}</div></div>'
+            )
+        if kpi_parts:
+            tool_html = f'<h3>도구 사용 분석</h3><div class="kpis">{kpi_parts}</div>'
+
+    # Harness B detail
+    details = harness_b.get("details") or {}
+    harness_rows = ""
+    fields = [
+        ("loop_detection_score", "루프 탐지율"),
+        ("scope_compliance", "범위 준수율"),
+        ("tool_param_safety", "도구 파라미터 안전성"),
+        ("context_window_efficiency", "컨텍스트 창 효율"),
+        ("state_consistency", "상태 일관성"),
+        ("deadlock_score", "교착 방지율"),
+    ]
+    for fk, flabel in fields:
+        v = details.get(fk)
+        if v is not None:
+            harness_rows += _metric_row(flabel, v)
+    harness_block = ""
+    if harness_rows:
+        harness_block = (
+            f'<h3>Harness B 세부 지표</h3>'
+            f'<table class="mtable"><tbody>{harness_rows}</tbody></table>'
+        )
+    elif not details:
+        harness_block = '<div class="inactive-banner">⚙️ Harness Config 미활성 — LoopDetectionConfig · ScopeConfig 등을 데코레이터에 전달하면 세부 지표가 표시됩니다.</div>'
+
+    return (
+        f'<div class="gate-section" id="gate-b" style="border-left-color:{color}">'
+        f'<h2 style="color:{color}">Gate B &nbsp;<span style="font-size:14px;color:#374151">행동 무결성 (Behavioral Integrity)</span>&nbsp;{badge}</h2>'
+        f'{tool_html}'
+        f'{harness_block}'
+        f'</div>'
+    )
+
+
+# ---------------------------------------------------------------------------
+# Gate C — Reliability
+# ---------------------------------------------------------------------------
+
+def _build_gate_c(retry_metrics: Dict, harness_c: Dict) -> str:
+    color = _GATE_COLORS["C"]
+    gate_status = (harness_c.get("gate") or harness_c.get("status") or "").lower()
+    badge = _gate_badge(gate_status) if gate_status else ""
+
+    retry_html = ""
+    _retry_total = (retry_metrics or {}).get("total_retries", (retry_metrics or {}).get("total", 0))
+    _retry_measured = bool(retry_metrics) and (
+        _retry_total is not None and _retry_total > 0
+        or retry_metrics.get("overall_retry_rate") is not None
+        or retry_metrics.get("retry_rate") is not None
+    )
+    if not _retry_measured:
+        retry_html = (
+            f'<h3>재시도 / 복구</h3>'
+            + _not_tested("재시도 데이터가 수집되지 않았습니다 — "
+                          "재시도가 발생하지 않았거나 <code>RetryConfig</code> 가 설정되지 않았습니다.")
+        )
+    if _retry_measured:
+        retry_rate = retry_metrics.get("overall_retry_rate") or retry_metrics.get("retry_rate")
+        correction_rate = retry_metrics.get("correction_success_rate") or retry_metrics.get("success_rate")
+        kpi_parts = ""
+        if retry_rate is not None:
+            kpi_parts += (
+                f'<div class="kpi"><div class="kpi-lbl">재시도율</div>'
+                f'<div class="kpi-val">{_pct(retry_rate)}</div></div>'
+            )
+        if correction_rate is not None:
+            kpi_parts += (
+                f'<div class="kpi"><div class="kpi-lbl">재시도 성공률</div>'
+                f'<div class="kpi-val" style="color:{_score_color(float(correction_rate)*100)}">{_pct(correction_rate)}</div></div>'
+            )
+        if kpi_parts:
+            retry_html = f'<h3>재시도 / 복구</h3><div class="kpis">{kpi_parts}</div>'
+
+    details = harness_c.get("details") or {}
+    harness_rows = ""
+    fields = [
+        ("reproducibility", "재현성"),
+        ("fault_tolerance", "장애 허용률"),
+        ("graceful_degradation", "점진적 품질 하강"),
+        ("retry_consistency", "재시도 일관성"),
+        ("idempotency", "멱등성"),
+    ]
+    for fk, flabel in fields:
+        v = details.get(fk)
+        if v is not None:
+            harness_rows += _metric_row(flabel, v)
+    harness_block = ""
+    if harness_rows:
+        harness_block = (
+            f'<h3>Harness C 세부 지표</h3>'
+            f'<table class="mtable"><tbody>{harness_rows}</tbody></table>'
+        )
+    elif not details:
+        harness_block = '<div class="inactive-banner">⚙️ Harness Config 미활성 — FaultToleranceConfig · ReproducibilityConfig 등을 데코레이터에 전달하면 세부 지표가 표시됩니다.</div>'
+
+    return (
+        f'<div class="gate-section" id="gate-c" style="border-left-color:{color}">'
+        f'<h2 style="color:{color}">Gate C &nbsp;<span style="font-size:14px;color:#374151">신뢰성 (Reliability)</span>&nbsp;{badge}</h2>'
+        f'{retry_html}'
+        f'{harness_block}'
+        f'</div>'
+    )
+
+
+# ---------------------------------------------------------------------------
+# Gate D — Performance Contract
+# ---------------------------------------------------------------------------
+
+def _build_gate_d(latency_stats: Dict, token_stats: Dict, harness_d: Dict) -> str:
+    color = _GATE_COLORS["D"]
+    gate_status = (harness_d.get("gate") or harness_d.get("status") or "").lower()
+    badge = _gate_badge(gate_status) if gate_status else ""
+
+    # Latency KPIs
+    def _sec(v):
+        if v is None:
+            return "—"
+        try:
+            return f"{float(v):.3f}s"
+        except (TypeError, ValueError):
+            return "—"
+
+    lat_html = ""
+    if not latency_stats:
+        lat_html = f'<h3>지연 분석</h3>' + _not_tested("지연 데이터가 수집되지 않았습니다.")
+    if latency_stats:
+        lat_kpis = (
+            f'<div class="kpi"><div class="kpi-lbl">Mean</div><div class="kpi-val">{_sec(latency_stats.get("mean"))}</div></div>'
+            f'<div class="kpi"><div class="kpi-lbl">P50</div><div class="kpi-val">{_sec(latency_stats.get("p50"))}</div></div>'
+            f'<div class="kpi"><div class="kpi-lbl">P90</div><div class="kpi-val">{_sec(latency_stats.get("p90"))}</div></div>'
+            f'<div class="kpi"><div class="kpi-lbl">P95</div><div class="kpi-val">{_sec(latency_stats.get("p95"))}</div></div>'
+            f'<div class="kpi"><div class="kpi-lbl">P99</div><div class="kpi-val">{_sec(latency_stats.get("p99"))}</div></div>'
+        )
+        lat_html = f'<h3>지연 분석</h3><div class="kpis">{lat_kpis}</div>'
+
+    # Token & cost KPIs
+    tok_html = ""
+    if not token_stats:
+        tok_html = (
+            f'<h3>토큰 &amp; 비용</h3>'
+            + _not_tested("토큰·비용 데이터가 수집되지 않았습니다 — "
+                          "토큰 수를 <code>TaskResult</code> 에 기록하면 측정됩니다.")
+        )
+    if token_stats:
+        def _cost(v):
+            if v is None:
+                return "—"
+            try:
+                fv = float(v)
+                if fv == 0:
+                    return "$0"
+                s = f"{fv:.6f}" if fv < 0.01 else f"{fv:.4f}"
+                return "$" + s.rstrip("0").rstrip(".")
+            except (TypeError, ValueError):
+                return "—"
+
+        tok_kpis = (
+            f'<div class="kpi"><div class="kpi-lbl">총 토큰</div>'
+            f'<div class="kpi-val">{int(token_stats.get("total_tokens") or 0):,}</div></div>'
+            f'<div class="kpi"><div class="kpi-lbl">평균 토큰/Task</div>'
+            f'<div class="kpi-val">{_num(token_stats.get("avg_tokens_per_task"), ".0f")}</div></div>'
+            f'<div class="kpi"><div class="kpi-lbl">총 비용</div>'
+            f'<div class="kpi-val">{_cost(token_stats.get("total_cost"))}</div></div>'
+            f'<div class="kpi"><div class="kpi-lbl">비용/Task</div>'
+            f'<div class="kpi-val">{_cost(token_stats.get("avg_cost_per_task"))}</div></div>'
+        )
+        tok_html = f'<h3>토큰 & 비용</h3><div class="kpis">{tok_kpis}</div>'
+
+    details = harness_d.get("details") or {}
+    harness_rows = ""
+    fields = [
+        ("sla_compliance", "SLA 준수율"),
+        ("efficiency_score", "효율 점수"),
+        ("resource_budget_compliance", "리소스 예산 준수"),
+        ("ttft_variability", "TTFT 변동성"),
+        ("cost_predictability", "비용 예측가능성"),
+    ]
+    for fk, flabel in fields:
+        v = details.get(fk)
+        if v is not None:
+            harness_rows += _metric_row(flabel, v)
+    harness_block = ""
+    if harness_rows:
+        harness_block = (
+            f'<h3>Harness D 세부 지표</h3>'
+            f'<table class="mtable"><tbody>{harness_rows}</tbody></table>'
+        )
+    elif not details:
+        harness_block = '<div class="inactive-banner">⚙️ Harness Config 미활성 — SLAConfig · EfficiencyConfig 등을 데코레이터에 전달하면 세부 지표가 표시됩니다.</div>'
+
+    return (
+        f'<div class="gate-section" id="gate-d" style="border-left-color:{color}">'
+        f'<h2 style="color:{color}">Gate D &nbsp;<span style="font-size:14px;color:#374151">성능 계약 (Performance Contract)</span>&nbsp;{badge}</h2>'
+        f'{lat_html}'
+        f'{tok_html}'
+        f'{harness_block}'
+        f'</div>'
+    )
+
+
+# ---------------------------------------------------------------------------
+# Gate E — Security Boundary
+# ---------------------------------------------------------------------------
+
+def _build_gate_e_from_monitor(monitor, harness_e: Dict) -> str:
+    """monitor 객체에서 보안 데이터를 직접 추출."""
+    color = _GATE_COLORS["E"]
+    gate_status = (harness_e.get("gate") or harness_e.get("status") or "").lower()
+    badge = _gate_badge(gate_status) if gate_status else ""
+
+    sec_html = ""
+    try:
+        input_sec = monitor.input_sanitizer.get_sanitization_metrics() if hasattr(monitor, 'input_sanitizer') else {}
+        output_leak = monitor.output_leakage_detector.get_leakage_metrics() if hasattr(monitor, 'output_leakage_detector') else {}
+        tool_auth = monitor.tool_auth_tracker.get_authorization_metrics() if hasattr(monitor, 'tool_auth_tracker') else {}
+        priv_esc = monitor.privilege_escalation_detector.get_escalation_metrics() if hasattr(monitor, 'privilege_escalation_detector') else {}
+        chain_atk = monitor.tool_chain_attack_detector.get_attack_metrics() if hasattr(monitor, 'tool_chain_attack_detector') else {}
+        sec_html = _build_security_kpis(input_sec, output_leak, tool_auth, priv_esc, chain_atk)
+    except Exception:
+        pass
+
+    details = harness_e.get("details") or {}
+    harness_rows = ""
+    fields = [
+        ("threat_severity_score", "위협 심각도 점수"),
+        ("compliance_score", "규정 준수율"),
+        ("threat_response_score", "위협 대응 점수"),
+    ]
+    for fk, flabel in fields:
+        v = details.get(fk)
+        if v is not None:
+            harness_rows += _metric_row(flabel, v)
+    harness_block = ""
+    if harness_rows:
+        harness_block = (
+            f'<h3>Harness E 세부 지표</h3>'
+            f'<table class="mtable"><tbody>{harness_rows}</tbody></table>'
+        )
+    elif not details:
+        harness_block = '<div class="inactive-banner">⚙️ Harness Config 미활성 — ThreatSeverityConfig · ComplianceConfig 등을 데코레이터에 전달하면 세부 지표가 표시됩니다.</div>'
+
+    return (
+        f'<div class="gate-section" id="gate-e" style="border-left-color:{color}">'
+        f'<h2 style="color:{color}">Gate E &nbsp;<span style="font-size:14px;color:#374151">보안 경계 (Security Boundary)</span>&nbsp;{badge}</h2>'
+        f'{sec_html}'
+        f'{harness_block}'
+        f'</div>'
+    )
+
+
+def _build_gate_e_from_rf(rf, harness_e: Dict) -> str:
+    """ResultFile 객체에서 보안 데이터를 추출."""
+    color = _GATE_COLORS["E"]
+    gate_status = (harness_e.get("gate") or harness_e.get("status") or "").lower()
+    badge = _gate_badge(gate_status) if gate_status else ""
+
+    sec_html = ""
+    if getattr(rf, "has_security", False):
+        try:
+            sl1 = rf.security_l1
+            sl2 = rf.security_l2
+            inp = sl1.input_security or {}
+            out = sl1.output_leakage or {}
+            auth = sl1.authorization or {}
+            priv = sl2.privilege_escalation or {}
+            atk = sl2.attack_detection or {}
+            sec_html = _build_security_kpis(inp, out, auth, priv, atk)
+        except Exception:
+            pass
+
+    details = harness_e.get("details") or {}
+    harness_rows = ""
+    fields = [
+        ("threat_severity_score", "위협 심각도 점수"),
+        ("compliance_score", "규정 준수율"),
+        ("threat_response_score", "위협 대응 점수"),
+    ]
+    for fk, flabel in fields:
+        v = details.get(fk)
+        if v is not None:
+            harness_rows += _metric_row(flabel, v)
+    harness_block = ""
+    if harness_rows:
+        harness_block = (
+            f'<h3>Harness E 세부 지표</h3>'
+            f'<table class="mtable"><tbody>{harness_rows}</tbody></table>'
+        )
+    elif not details:
+        harness_block = '<div class="inactive-banner">⚙️ Harness Config 미활성 — ThreatSeverityConfig · ComplianceConfig 등을 데코레이터에 전달하면 세부 지표가 표시됩니다.</div>'
+
+    return (
+        f'<div class="gate-section" id="gate-e" style="border-left-color:{color}">'
+        f'<h2 style="color:{color}">Gate E &nbsp;<span style="font-size:14px;color:#374151">보안 경계 (Security Boundary)</span>&nbsp;{badge}</h2>'
+        f'{sec_html}'
+        f'{harness_block}'
+        f'</div>'
+    )
+
+
+def _build_security_kpis(input_sec: Dict, output_leak: Dict, tool_auth: Dict,
+                          priv_esc: Dict, chain_atk: Dict) -> str:
+    """공통 보안 KPI 블록 생성."""
+    kpi_parts = []
+
+    if input_sec:
+        threat_rate = float(input_sec.get("threat_rate") or 0)
+        total_inp = input_sec.get("total_inputs_evaluated", 0)
+        safe = 100 - threat_rate
+        kpi_parts.append(
+            f'<div class="kpi"><div class="kpi-lbl">입력 보안 (L1)</div>'
+            f'<div class="kpi-val" style="color:{_score_color(safe)}">{safe:.1f}%</div>'
+            f'<div style="font-size:10px;color:#6b7280">{total_inp}건 · 위협 {threat_rate:.1f}%</div></div>'
+        )
+
+    if output_leak:
+        leak_rate = float(output_leak.get("leakage_rate") or 0)
+        total_out = output_leak.get("total_outputs_evaluated", 0)
+        safe = 100 - leak_rate
+        kpi_parts.append(
+            f'<div class="kpi"><div class="kpi-lbl">출력 유출 방지 (L1)</div>'
+            f'<div class="kpi-val" style="color:{_score_color(safe)}">{safe:.1f}%</div>'
+            f'<div style="font-size:10px;color:#6b7280">{total_out}건 · 유출 {leak_rate:.1f}%</div></div>'
+        )
+
+    if tool_auth:
+        comply = float(tool_auth.get("compliance_rate") or 100)
+        total_calls = tool_auth.get("total_tool_calls", 0)
+        kpi_parts.append(
+            f'<div class="kpi"><div class="kpi-lbl">도구 권한 준수 (L1)</div>'
+            f'<div class="kpi-val" style="color:{_score_color(comply)}">{comply:.1f}%</div>'
+            f'<div style="font-size:10px;color:#6b7280">{total_calls}건 호출</div></div>'
+        )
+
+    if priv_esc:
+        esc_rate = float(priv_esc.get("escalation_rate") or 0)
+        total_priv = priv_esc.get("total_evaluations", 0)
+        safe = 100 - esc_rate
+        kpi_parts.append(
+            f'<div class="kpi"><div class="kpi-lbl">권한 상승 방어 (L2)</div>'
+            f'<div class="kpi-val" style="color:{_score_color(safe)}">{safe:.1f}%</div>'
+            f'<div style="font-size:10px;color:#6b7280">{total_priv}건 · 탐지 {esc_rate:.1f}%</div></div>'
+        )
+
+    if chain_atk:
+        atk_rate = float(chain_atk.get("detection_rate") or 0)
+        total_chains = chain_atk.get("total_chains_analyzed", 0)
+        safe = 100 - atk_rate
+        kpi_parts.append(
+            f'<div class="kpi"><div class="kpi-lbl">공격 체인 탐지 (L2)</div>'
+            f'<div class="kpi-val" style="color:{_score_color(safe)}">{safe:.1f}%</div>'
+            f'<div style="font-size:10px;color:#6b7280">{total_chains}건 · 의심 {atk_rate:.1f}%</div></div>'
+        )
+
+    if not kpi_parts:
+        return (
+            f'<h3>보안 지표</h3>'
+            + _not_tested("보안 지표가 활성화되지 않았습니다 — "
+                          "<code>enable_security_metrics=True</code> 로 측정할 수 있습니다.")
+        )
+    return f'<h3>보안 지표</h3><div class="kpis">{"".join(kpi_parts)}</div>'
+
+
+# ---------------------------------------------------------------------------
+# Gate F — Multi-Agent Coordination
+# ---------------------------------------------------------------------------
+
+def _build_gate_f(coordination_stats: Dict, workflow_stats: Dict,
+                  has_agentic: bool, harness_f: Dict) -> str:
+    color = _GATE_COLORS["F"]
+    gate_status = (harness_f.get("gate") or harness_f.get("status") or "").lower()
+    badge = _gate_badge(gate_status) if gate_status else ""
+
+    coord_html = ""
+    if not has_agentic:
+        coord_html = (
+            f'<h3>협업 / 워크플로우</h3>'
+            + _not_tested("멀티에이전트 실행 데이터가 없습니다 — "
+                          "에이전트 협업 태스크가 실행되지 않았습니다.")
+        )
+    if has_agentic:
+        kpi_parts = []
+        if coordination_stats:
+            coord_score = coordination_stats.get("avg_coordination_score") or coordination_stats.get("score")
+            if coord_score is not None:
+                kpi_parts.append(
+                    f'<div class="kpi"><div class="kpi-lbl">협업 점수</div>'
+                    f'<div class="kpi-val" style="color:{_score_color(float(coord_score)*100)}">'
+                    f'{float(coord_score)*100:.1f}%</div></div>'
+                )
+        if workflow_stats:
+            wf_rate = workflow_stats.get("success_rate") or workflow_stats.get("overall_success_rate")
+            step_rate = workflow_stats.get("step_success_rate")
+            if wf_rate is not None:
+                kpi_parts.append(
+                    f'<div class="kpi"><div class="kpi-lbl">워크플로우 성공률</div>'
+                    f'<div class="kpi-val" style="color:{_score_color(float(wf_rate)*100)}">'
+                    f'{float(wf_rate)*100:.1f}%</div></div>'
+                )
+            if step_rate is not None:
+                _step_pct = float(step_rate) if float(step_rate) > 1.0 else float(step_rate) * 100
+                kpi_parts.append(
+                    f'<div class="kpi"><div class="kpi-lbl">단계 성공률</div>'
+                    f'<div class="kpi-val" style="color:{_score_color(_step_pct)}">'
+                    f'{_step_pct:.1f}%</div></div>'
+                )
+        if kpi_parts:
+            coord_html = f'<h3>협업 / 워크플로우</h3><div class="kpis">{"".join(kpi_parts)}</div>'
+
+    details = harness_f.get("details") or {}
+    harness_rows = ""
+    fields = [
+        ("consensus_rate", "합의율"),
+        ("propagation_accuracy", "정보 전파 정확도"),
+        ("agent_role_compliance", "역할 준수율"),
+        ("conflict_resolution_rate", "충돌 해결률"),
+    ]
+    for fk, flabel in fields:
+        v = details.get(fk)
+        if v is not None:
+            harness_rows += _metric_row(flabel, v)
+    harness_block = ""
+    if harness_rows:
+        harness_block = (
+            f'<h3>Harness F 세부 지표</h3>'
+            f'<table class="mtable"><tbody>{harness_rows}</tbody></table>'
+        )
+    elif not details:
+        harness_block = '<div class="inactive-banner">⚙️ Harness Config 미활성 — ConsensusConfig · AgentRoleConfig 등을 데코레이터에 전달하면 세부 지표가 표시됩니다.</div>'
+
+    return (
+        f'<div class="gate-section" id="gate-f" style="border-left-color:{color}">'
+        f'<h2 style="color:{color}">Gate F &nbsp;<span style="font-size:14px;color:#374151">멀티에이전트 협업 (Multi-Agent Coordination)</span>&nbsp;{badge}</h2>'
+        f'{coord_html}'
+        f'{harness_block}'
+        f'</div>'
+    )
+
+
+# ---------------------------------------------------------------------------
+# Gate G — Observability
+# ---------------------------------------------------------------------------
+
+def _build_gate_g(quality_metrics: Dict, llm_judge_data: Any,
+                  harness_g: Dict) -> str:
+    color = _GATE_COLORS["G"]
+    gate_status = (harness_g.get("gate") or harness_g.get("status") or "").lower()
+    badge = _gate_badge(gate_status) if gate_status else ""
+
+    quality_html = ""
+    if not quality_metrics or quality_metrics.get("total_evaluated", 0) == 0:
+        quality_html = (
+            f'<h3>응답 품질 (5차원)</h3>'
+            + _not_tested("응답 품질 평가 데이터가 수집되지 않았습니다.")
+        )
+    if quality_metrics and quality_metrics.get("total_evaluated", 0) > 0:
+        avg_score = quality_metrics.get("avg_total_score", 0)
+        dim_scores = quality_metrics.get("dimension_scores", {})
+        dimensions = [
+            ("relevance", "관련성"),
+            ("completeness", "완전성"),
+            ("accuracy", "정확성"),
+            ("clarity", "명확성"),
+            ("usefulness", "유용성"),
+        ]
+        rows = ""
+        for dk, dlabel in dimensions:
+            v = dim_scores.get(dk)
+            if v is not None:
+                pct_v = float(v) / 5 * 100
+                rows += (
+                    f'<tr>'
+                    f'<td style="padding:5px 10px;border-bottom:1px solid #f3f4f6;font-size:12px">{dlabel}</td>'
+                    f'<td style="padding:5px 10px;border-bottom:1px solid #f3f4f6;font-weight:600;'
+                    f'color:{_score_color(pct_v,80,60)}">{float(v):.2f}/5.0</td>'
+                    f'</tr>'
+                )
+        kpi_html = (
+            f'<div class="kpi"><div class="kpi-lbl">평균 품질 점수</div>'
+            f'<div class="kpi-val" style="color:{_score_color(float(avg_score)/5*100,0.8,0.6)}">'
+            f'{float(avg_score):.2f}/5</div></div>'
+            f'<div class="kpi"><div class="kpi-lbl">평가 건수</div>'
+            f'<div class="kpi-val">{quality_metrics.get("total_evaluated", 0)}</div></div>'
+        )
+        quality_html = (
+            f'<h3>응답 품질 (5차원)</h3>'
+            f'<div class="kpis">{kpi_html}</div>'
+            f'<table class="mtable"><thead><tr><th>차원</th><th>평균</th></tr></thead>'
+            f'<tbody>{rows}</tbody></table>'
+        )
+
+    # LLM Judge
+    judge_html = ""
+    if not llm_judge_data:
+        judge_html = (
+            f'<h3>LLM Judge</h3>'
+            + _not_tested("LLM Judge가 활성화되지 않았습니다 — "
+                          "<code>enable_llm_judge=True</code> 또는 <code>LLMJudgeConfig</code> 로 측정할 수 있습니다.")
+        )
+    if llm_judge_data:
+        try:
+            judged_count = 0
+            overall = None
+            completeness = None
+            relevance = None
+            factual = None
+            model_name = "—"
+            # Support both LLMJudgeData (dataclass) and dict summary
+            if hasattr(llm_judge_data, "judged_count"):
+                judged_count = llm_judge_data.judged_count
+                overall = getattr(llm_judge_data, "avg_overall", None)
+                completeness = getattr(llm_judge_data, "avg_completeness", None)
+                relevance = getattr(llm_judge_data, "avg_relevance", None)
+                factual = getattr(llm_judge_data, "avg_factual_consistency", None)
+                model_name = getattr(llm_judge_data, "model", "—") or "—"
+            elif isinstance(llm_judge_data, dict):
+                judged_count = llm_judge_data.get("count", 0)
+                overall = llm_judge_data.get("avg_overall") or llm_judge_data.get("overall")
+                completeness = llm_judge_data.get("avg_completeness")
+                relevance = llm_judge_data.get("avg_relevance")
+                factual = llm_judge_data.get("avg_factual_consistency")
+                model_name = llm_judge_data.get("model", "—") or "—"
+            if judged_count == 0:
+                judge_html = (
+                    f'<h3>LLM Judge</h3>'
+                    + _not_tested("LLM Judge 채점 결과가 없습니다 — 샘플 비율(<code>judge_sample_rate</code>) 을 확인하세요.")
+                )
+            if judged_count > 0:
+                def _judge_val(v):
+                    if v is None:
+                        return "—"
+                    fv = float(v)
+                    # Normalize to 0-10 scale for display
+                    scale = 10 if fv <= 10 else 100
+                    return f"{fv:.2f}/{scale}"
+                ov_100 = float(overall) * 10 if overall is not None and float(overall) <= 10 else float(overall or 0)
+                judge_kpis = (
+                    f'<div class="kpi"><div class="kpi-lbl">평가 건수</div>'
+                    f'<div class="kpi-val">{judged_count}</div></div>'
+                    f'<div class="kpi"><div class="kpi-lbl">종합 점수</div>'
+                    f'<div class="kpi-val" style="color:{_score_color(ov_100)}">'
+                    f'{_judge_val(overall)}</div></div>'
+                    f'<div class="kpi"><div class="kpi-lbl">완전성</div>'
+                    f'<div class="kpi-val">{_judge_val(completeness)}</div></div>'
+                    f'<div class="kpi"><div class="kpi-lbl">관련성</div>'
+                    f'<div class="kpi-val">{_judge_val(relevance)}</div></div>'
+                    f'<div class="kpi"><div class="kpi-lbl">사실 일관성</div>'
+                    f'<div class="kpi-val">{_judge_val(factual)}</div></div>'
+                    f'<div class="kpi"><div class="kpi-lbl">Judge 모델</div>'
+                    f'<div class="kpi-val" style="font-size:11px">{model_name}</div></div>'
+                )
+                judge_html = f'<h3>LLM Judge (7차원)</h3><div class="kpis">{judge_kpis}</div>'
+        except Exception:
+            pass
+
+    details = harness_g.get("details") or {}
+    harness_rows = ""
+    fields = [
+        ("explainability_score", "설명가능성"),
+        ("observability_score", "내부 상태 관측가능성"),
+        ("error_diagnosis_accuracy", "오류 진단 정확도"),
+        ("latency_attribution_score", "지연 원인 분석"),
+    ]
+    for fk, flabel in fields:
+        v = details.get(fk)
+        if v is not None:
+            harness_rows += _metric_row(flabel, v)
+    harness_block = ""
+    if harness_rows:
+        harness_block = (
+            f'<h3>Harness G 세부 지표</h3>'
+            f'<table class="mtable"><tbody>{harness_rows}</tbody></table>'
+        )
+    elif not details:
+        harness_block = '<div class="inactive-banner">⚙️ Harness Config 미활성 — ExplainabilityConfig · ObservabilityConfig 등을 데코레이터에 전달하면 세부 지표가 표시됩니다.</div>'
+
+    return (
+        f'<div class="gate-section" id="gate-g" style="border-left-color:{color}">'
+        f'<h2 style="color:{color}">Gate G &nbsp;<span style="font-size:14px;color:#374151">관측가능성 (Observability)</span>&nbsp;{badge}</h2>'
+        f'{quality_html}'
+        f'{judge_html}'
+        f'{harness_block}'
+        f'</div>'
+    )
+
+
+# ---------------------------------------------------------------------------
+# Advanced / RAG / Conversation
+# ---------------------------------------------------------------------------
+
+def _build_advanced_section(adv_metrics: Dict, rag_metrics: Dict,
+                             has_advanced: bool, has_rag: bool,
+                             has_conversation: bool,
+                             conversation_sessions: list) -> str:
+    if not has_advanced and not has_rag and not has_conversation:
         return ""
 
-    parts = []
+    parts = ['<div class="gate-section" id="advanced" style="border-left-color:#6366f1">'
+             '<h2 style="color:#6366f1">고급 평가 (Advanced Metrics)</h2>']
 
-    parts.append('''
-        <div class="section" id="security">
-            <h2><span class="icon">🔒</span>Security - 보안 지표</h2>
-            <p style="margin-bottom: 20px; line-height: 1.8;">
-                보안 메트릭은 AI Agent의 안전성과 신뢰성을 평가합니다. Layer 1 (Native Security)과 Layer 2 (Agentic Security)로 구분됩니다.
-            </p>''')
+    # DeepEval
+    if has_advanced and adv_metrics:
+        de_keys = [
+            ("g_eval_score", "G-Eval"),
+            ("hallucination_score", "Hallucination"),
+            ("toxicity_score", "Toxicity"),
+            ("bias_score", "Bias"),
+            ("answer_relevancy_score", "Answer Relevancy"),
+        ]
+        rows = ""
+        for k, label in de_keys:
+            v = adv_metrics.get(k)
+            if isinstance(v, dict) and v:
+                mean_v = v.get("mean") or 0
+                rows += (
+                    f'<tr>'
+                    f'<td style="padding:5px 10px;font-size:12px;border-bottom:1px solid #f3f4f6">{label}</td>'
+                    f'<td style="padding:5px 10px;font-weight:600;color:{_score_color(float(mean_v)*100,0.8,0.6)};border-bottom:1px solid #f3f4f6">{float(mean_v):.3f}</td>'
+                    f'<td style="padding:5px 10px;border-bottom:1px solid #f3f4f6">{v.get("min", 0):.2f}</td>'
+                    f'<td style="padding:5px 10px;border-bottom:1px solid #f3f4f6">{v.get("max", 0):.2f}</td>'
+                    f'</tr>'
+                )
+        if rows:
+            parts.append(
+                f'<h3>DeepEval</h3>'
+                f'<table class="mtable"><thead><tr><th>지표</th><th>평균</th><th>최솟값</th><th>최댓값</th></tr></thead>'
+                f'<tbody>{rows}</tbody></table>'
+            )
 
-    # Get security metrics
-    try:
-        # Layer 1 Security
-        input_sec_stats = monitor.input_sanitizer.get_security_stats()
-        output_leak_stats = monitor.output_leakage_detector.get_leakage_stats()
-        auth_stats = monitor.tool_authorizer.get_compliance_stats() if getattr(monitor, 'tool_authorizer', None) is not None else {}
+    # RAG
+    if has_rag and rag_metrics:
+        rag_keys = [
+            ("faithfulness", "Faithfulness"),
+            ("answer_relevancy", "Answer Relevancy"),
+            ("context_recall", "Context Recall"),
+            ("context_precision", "Context Precision"),
+        ]
+        rows = ""
+        for k, label in rag_keys:
+            vals = rag_metrics.get(k, [])
+            if vals:
+                avg_v = sum(vals) / len(vals)
+                rows += (
+                    f'<tr>'
+                    f'<td style="padding:5px 10px;font-size:12px;border-bottom:1px solid #f3f4f6">{label}</td>'
+                    f'<td style="padding:5px 10px;font-weight:600;color:{_score_color(avg_v*100,80,60)};border-bottom:1px solid #f3f4f6">{avg_v:.3f}</td>'
+                    f'<td style="padding:5px 10px;border-bottom:1px solid #f3f4f6">{min(vals):.2f}</td>'
+                    f'<td style="padding:5px 10px;border-bottom:1px solid #f3f4f6">{max(vals):.2f}</td>'
+                    f'<td style="padding:5px 10px;border-bottom:1px solid #f3f4f6">{len(vals)}건</td>'
+                    f'</tr>'
+                )
+        if rows:
+            parts.append(
+                f'<h3>RAG 지표 (Ragas)</h3>'
+                f'<table class="mtable"><thead><tr><th>지표</th><th>평균</th><th>최솟값</th><th>최댓값</th><th>건수</th></tr></thead>'
+                f'<tbody>{rows}</tbody></table>'
+            )
 
-        threat_rate = input_sec_stats.get('threat_rate', 0)
-        leakage_rate = output_leak_stats.get('leakage_rate', 0)
-        compliance_rate = auth_stats.get('compliance_rate', 100)
-
-        # Layer 2 Security
-        esc_stats = monitor.privilege_escalation_detector.get_escalation_stats() if getattr(monitor, 'privilege_escalation_detector', None) is not None else {}
-        attack_stats = monitor.tool_chain_attack_detector.get_attack_stats() if getattr(monitor, 'tool_chain_attack_detector', None) is not None else {}
-
-        esc_rate = esc_stats.get('escalation_rate', 0)
-        attack_rate = attack_stats.get('detection_rate', 0)
-
-        # Security Summary Cards
-        parts.append('<div class="metrics-grid">')
-
-        # Input Threat
-        threat_badge = 'status-good' if threat_rate < 10 else 'status-warning' if threat_rate < 20 else 'status-critical'
-        threat_status = 'badge-success' if threat_rate < 10 else 'badge-warning' if threat_rate < 20 else 'badge-danger'
-        parts.append(f'''
-                <div class="metric-card {threat_badge}">
-                    <h3>입력 위협 탐지율</h3>
-                    <div class="value">{threat_rate:.1f}%</div>
-                    <div class="subtitle"><span class="{threat_status}">Layer 1</span></div>
-                </div>''')
-
-        # Output Leakage
-        leak_badge = 'status-good' if leakage_rate < 5 else 'status-warning' if leakage_rate < 10 else 'status-critical'
-        leak_status = 'badge-success' if leakage_rate < 5 else 'badge-warning' if leakage_rate < 10 else 'badge-danger'
-        parts.append(f'''
-                <div class="metric-card {leak_badge}">
-                    <h3>출력 유출 탐지율</h3>
-                    <div class="value">{leakage_rate:.1f}%</div>
-                    <div class="subtitle"><span class="{leak_status}">Layer 1</span></div>
-                </div>''')
-
-        # Authorization Compliance
-        auth_badge = 'status-good' if compliance_rate >= 95 else 'status-warning' if compliance_rate >= 85 else 'status-critical'
-        auth_status = 'badge-success' if compliance_rate >= 95 else 'badge-warning' if compliance_rate >= 85 else 'badge-danger'
-        parts.append(f'''
-                <div class="metric-card {auth_badge}">
-                    <h3>권한 준수율</h3>
-                    <div class="value">{compliance_rate:.1f}%</div>
-                    <div class="subtitle"><span class="{auth_status}">Layer 1</span></div>
-                </div>''')
-
-        # Privilege Escalation
-        if esc_stats:
-            esc_badge = 'status-good' if esc_rate < 10 else 'status-warning' if esc_rate < 20 else 'status-critical'
-            esc_status = 'badge-success' if esc_rate < 10 else 'badge-warning' if esc_rate < 20 else 'badge-danger'
-            parts.append(f'''
-                <div class="metric-card {esc_badge}">
-                    <h3>권한 상승 탐지율</h3>
-                    <div class="value">{esc_rate:.1f}%</div>
-                    <div class="subtitle"><span class="{esc_status}">Layer 2</span></div>
-                </div>''')
-
-        parts.append('</div>')
-
-        # Detailed Layer 1 Security
-        parts.append('''
-            <h3>🔒 Layer 1 Security (Native Security)</h3>
-            <p style="margin-bottom: 15px; line-height: 1.8;">
-                Layer 1 보안은 입력 검증, 출력 유출 방지, 도구 권한 관리 등 기본적인 보안 메커니즘을 평가합니다.
-            </p>''')
-
-        # Input Security
-        input_class = 'success' if threat_rate < 10 else 'warning' if threat_rate < 20 else 'critical'
-        parts.append(f'''
-            <div class="insight-box {input_class}">
-                <h4>입력 보안 (Input Sanitization)</h4>
-                <p><strong>위협 탐지율:</strong> {threat_rate:.1f}%</p>
-                <p><strong>평가된 입력:</strong> {input_sec_stats.get('total_inputs_evaluated', 0)}개</p>
-                <p><strong>위협 탐지:</strong> {input_sec_stats.get('inputs_with_threats', 0)}개</p>
-                <p><strong>SQL Injection:</strong> {input_sec_stats.get('sql_injection_attempts', 0)}건</p>
-                <p><strong>Prompt Injection:</strong> {input_sec_stats.get('prompt_injection_attempts', 0)}건</p>
-                <p><strong>XSS 시도:</strong> {input_sec_stats.get('xss_attempts', 0)}건</p>
-                <p><strong>Path Traversal:</strong> {input_sec_stats.get('path_traversal_attempts', 0)}건</p>
-            </div>''')
-
-        # Output Leakage
-        leak_class = 'success' if leakage_rate < 5 else 'warning' if leakage_rate < 10 else 'critical'
-        parts.append(f'''
-            <div class="insight-box {leak_class}">
-                <h4>출력 유출 방지 (Output Leakage Detection)</h4>
-                <p><strong>유출 탐지율:</strong> {leakage_rate:.1f}%</p>
-                <p><strong>평가된 출력:</strong> {output_leak_stats.get('total_outputs_evaluated', 0)}개</p>
-                <p><strong>유출 탐지:</strong> {output_leak_stats.get('outputs_with_leakage', 0)}개</p>
-                <p><strong>API Key 유출:</strong> {output_leak_stats.get('api_key_leaks', 0)}건</p>
-                <p><strong>Password 유출:</strong> {output_leak_stats.get('password_leaks', 0)}건</p>
-                <p><strong>Email 노출:</strong> {output_leak_stats.get('email_leaks', 0)}건</p>
-                <p><strong>고위험 유출:</strong> {output_leak_stats.get('critical_severity_count', 0)}건</p>
-            </div>''')
-
-        # Authorization
-        if auth_stats:
-            auth_class = 'success' if compliance_rate >= 95 else 'warning' if compliance_rate >= 85 else 'critical'
-            parts.append(f'''
-            <div class="insight-box {auth_class}">
-                <h4>도구 권한 관리 (Tool Authorization)</h4>
-                <p><strong>준수율:</strong> {compliance_rate:.1f}%</p>
-                <p><strong>총 도구 호출:</strong> {auth_stats.get('total_tool_calls', 0)}개</p>
-                <p><strong>위반율:</strong> {auth_stats.get('violation_rate', 0):.1f}%</p>
-                <p><strong>제한된 도구 시도:</strong> {auth_stats.get('restricted_tool_attempts', 0)}건</p>
-                <p><strong>위험한 파라미터:</strong> {auth_stats.get('dangerous_param_attempts', 0)}건</p>
-            </div>''')
-
-        # Detailed Layer 2 Security
-        if esc_stats or attack_stats:
-            parts.append('''
-            <h3>🛡️ Layer 2 Security (Agentic Security)</h3>
-            <p style="margin-bottom: 15px; line-height: 1.8;">
-                Layer 2 보안은 권한 상승, 공격 패턴 탐지 등 에이전트 특화 보안 위협을 평가합니다.
-            </p>''')
-
-        # Privilege Escalation
-        if esc_stats:
-            esc_class = 'success' if esc_rate < 10 else 'warning' if esc_rate < 20 else 'critical'
-            parts.append(f'''
-            <div class="insight-box {esc_class}">
-                <h4>권한 상승 탐지 (Privilege Escalation Detection)</h4>
-                <p><strong>상승 탐지율:</strong> {esc_rate:.1f}%</p>
-                <p><strong>평가된 체인:</strong> {esc_stats.get('total_evaluations', 0)}개</p>
-                <p><strong>상승 탐지:</strong> {esc_stats.get('escalations_detected', 0)}건</p>
-                <p><strong>고위험 이벤트:</strong> {esc_stats.get('high_risk_events', 0)}건</p>
-            </div>''')
-
-        # Attack Detection
-        if attack_stats:
-            attack_class = 'success' if attack_rate < 10 else 'warning' if attack_rate < 20 else 'critical'
-            parts.append(f'''
-            <div class="insight-box {attack_class}">
-                <h4>공격 패턴 탐지 (Tool Chain Attack Detection)</h4>
-                <p><strong>공격 탐지율:</strong> {attack_rate:.1f}%</p>
-                <p><strong>분석된 체인:</strong> {attack_stats.get('total_chains_analyzed', 0)}개</p>
-                <p><strong>의심스러운 체인:</strong> {attack_stats.get('suspicious_chains', 0)}개</p>
-                <p><strong>데이터 유출:</strong> {attack_stats.get('data_exfiltration_detected', 0)}건</p>
-                <p><strong>횡적 이동:</strong> {attack_stats.get('lateral_movement_detected', 0)}건</p>
-                <p><strong>방어 회피:</strong> {attack_stats.get('defense_evasion_detected', 0)}건</p>
-                <p><strong>지속성 확보:</strong> {attack_stats.get('persistence_detected', 0)}건</p>
-            </div>''')
-
-    except Exception as e:
-        parts.append(f'<p>보안 메트릭을 가져오는 중 오류 발생: {str(e)}</p>')
+    # Conversation
+    if has_conversation and conversation_sessions:
+        rows = ""
+        for sess in conversation_sessions[:20]:
+            if isinstance(sess, dict):
+                sid = sess.get("session_id", "—")
+                turns = sess.get("turn_count", sess.get("turns", 0))
+                score = sess.get("overall_score") or sess.get("score")
+                ctx = sess.get("context_retention") or sess.get("context")
+                score_str = f"{float(score) * 100:.1f}%" if score is not None else "—"
+                ctx_str = f"{float(ctx) * 100:.1f}%" if ctx is not None else "—"
+                rows += (
+                    f'<tr>'
+                    f'<td style="padding:5px 10px;font-size:12px;border-bottom:1px solid #f3f4f6">{sid}</td>'
+                    f'<td style="padding:5px 10px;border-bottom:1px solid #f3f4f6">{turns}</td>'
+                    f'<td style="padding:5px 10px;font-weight:600;color:{_score_color(float(score or 0)*100,80,60)};border-bottom:1px solid #f3f4f6">'
+                    f'{score_str}</td>'
+                    f'<td style="padding:5px 10px;border-bottom:1px solid #f3f4f6">'
+                    f'{ctx_str}</td>'
+                    f'</tr>'
+                )
+        if rows:
+            parts.append(
+                f'<h3>멀티턴 대화 세션</h3>'
+                f'<table class="mtable"><thead><tr><th>Session ID</th><th>턴 수</th><th>종합 점수</th><th>컨텍스트 유지율</th></tr></thead>'
+                f'<tbody>{rows}</tbody></table>'
+            )
 
     parts.append('</div>')
     return ''.join(parts)
 
 
-def _build_insights_section(tcr, acc, hall_rate, latency, quality_metrics, avg_cost_per_task) -> str:
-    """Build the Key Insights section."""
-    parts = []
+# ---------------------------------------------------------------------------
+# Recommendations
+# ---------------------------------------------------------------------------
 
-    parts.append('''
-        <div class="section" id="insights">
-            <h2><span class="icon">💡</span>주요 인사이트 (Key Insights)</h2>
-            <h3>강점 (Strengths)</h3>''')
+def _build_recommendations(harness_groups: Dict, tcr: float, acc: float,
+                             hall_rate: float, latency: float,
+                             quality_metrics: Dict) -> str:
+    recs = []
 
-    strengths = []
-    if tcr >= 90:
-        strengths.append('높은 작업 완료율 (TCR ≥ 90%)')
-    if acc >= 85:
-        strengths.append('우수한 정확도 (≥ 85%)')
-    if quality_metrics.get('avg_total_score', 0) >= 4.5:
-        strengths.append('뛰어난 응답 품질 (≥ 4.5/5.0)')
-    if hall_rate < 5:
-        strengths.append('낮은 환각률 (< 5%)')
-    if latency <= 3.0:
-        strengths.append('빠른 응답 시간 (≤ 3초)')
+    # Gate-based FAIL/WARN recommendations
+    gate_labels = {
+        "A": ("목표 달성", "TCR·정확도·환각 지표를 개선하세요. InstructionConfig / GoalAlignmentConfig를 데코레이터에 추가하여 세부 추적을 활성화하세요."),
+        "B": ("행동 무결성", "루프 탐지·범위 준수 설정을 강화하세요. LoopDetectionConfig / ScopeConfig 파라미터를 조정하세요."),
+        "C": ("신뢰성", "재시도 정책과 장애 허용 메커니즘을 검토하세요. FaultToleranceConfig를 활성화하여 복구율을 측정하세요."),
+        "D": ("성능 계약", "SLA 임계값을 초과했습니다. SLAConfig로 응답시간 상한을 정의하고 P95 지연을 모니터링하세요."),
+        "E": ("보안 경계", "보안 위협이 탐지되었습니다. enable_security_metrics=True와 ThreatSeverityConfig를 활성화하세요."),
+        "F": ("멀티에이전트 협업", "에이전트 간 협업 점수가 낮습니다. ConsensusConfig / ConflictResolutionConfig를 추가하세요."),
+        "G": ("관측가능성", "설명가능성·관측가능성 지표를 강화하세요. ExplainabilityConfig / ObservabilityConfig를 활성화하세요."),
+    }
+    for key in "ABCDEFG":
+        gdata = harness_groups.get(key, {})
+        if not isinstance(gdata, dict):
+            continue
+        gate_status = (gdata.get("gate") or gdata.get("status") or "").lower()
+        if gate_status in ("fail", "warn"):
+            label, guide = gate_labels.get(key, (f"Gate {key}", "설정을 검토하세요."))
+            priority_class = "priority-high" if gate_status == "fail" else "priority-medium"
+            badge_cls = "badge-fail" if gate_status == "fail" else "badge-warn"
+            badge_label = "FAIL" if gate_status == "fail" else "WARN"
+            recs.append(
+                f'<div class="rec {priority_class}">'
+                f'<strong><span class="badge {badge_cls}">{badge_label}</span> Gate {key} — {label}</strong>'
+                f'<p>{guide}</p>'
+                f'</div>'
+            )
 
-    if strengths:
-        parts.append('<ul style="margin: 15px 0 15px 20px; line-height: 2.0;">')
-        for strength in strengths:
-            parts.append(f'<li>✅ {strength}</li>')
-        parts.append('</ul>')
-    else:
-        parts.append('<p>현재 명확한 강점 영역이 식별되지 않았습니다. 전반적인 개선이 필요합니다.</p>')
-
-    parts.append('<h3>개선 영역 (Areas for Improvement)</h3>')
-
-    improvements = []
+    # Native metric recommendations
     if tcr < 75:
-        improvements.append(('작업 완료율 향상', '에러 핸들링 강화 및 안정성 개선', 'high'))
+        recs.append(
+            '<div class="rec priority-high"><strong>TCR 개선 필요</strong>'
+            '<p>작업 완료율이 75% 미만입니다. 에이전트 프롬프트를 개선하고 실패 케이스를 분석하세요.</p></div>'
+        )
     if acc < 70:
-        improvements.append(('정확도 개선', '검증 로직 추가 및 품질 관리 강화', 'high'))
-    if hall_rate >= 10:
-        improvements.append(('환각 감소', 'RAG 컨텍스트 품질 향상 및 사실 검증', 'high'))
+        recs.append(
+            '<div class="rec priority-high"><strong>정확도 개선 필요</strong>'
+            '<p>정확도가 70% 미만입니다. RAG 컨텍스트 품질 또는 ground_truth 설정을 검토하세요.</p></div>'
+        )
+    if hall_rate > 0.2:
+        recs.append(
+            '<div class="rec priority-high"><strong>환각 위험 높음</strong>'
+            '<p>환각율이 20%를 초과합니다. 사실 검증 로직을 강화하세요.</p></div>'
+        )
     if latency > 5.0:
-        improvements.append(('응답 시간 최적화', '프롬프트 및 모델 최적화', 'medium'))
-    if quality_metrics.get('avg_total_score', 0) < 4.0:
-        improvements.append(('응답 품질 향상', '프롬프트 엔지니어링 및 출력 구조화', 'medium'))
-    if avg_cost_per_task > 0.05:
-        improvements.append(('비용 최적화', '토큰 사용량 감소 및 효율성 개선', 'low'))
+        recs.append(
+            '<div class="rec priority-medium"><strong>응답 지연 개선 필요</strong>'
+            '<p>평균 응답시간이 5초를 초과합니다. 병렬 처리 또는 캐싱을 검토하세요.</p></div>'
+        )
 
-    if improvements:
-        parts.append('<table><thead><tr><th>개선 영역</th><th>조치사항</th><th>우선순위</th></tr></thead><tbody>')
-        for area, action, priority in improvements:
-            priority_badge = 'badge-danger' if priority == 'high' else 'badge-warning' if priority == 'medium' else 'badge-success'
-            priority_text = '높음' if priority == 'high' else '중간' if priority == 'medium' else '낮음'
-            parts.append(f'<tr><td><strong>{area}</strong></td><td>{action}</td><td><span class="{priority_badge}">{priority_text}</span></td></tr>')
-        parts.append('</tbody></table>')
-    else:
-        parts.append('<p style="color: #27ae60;">✅ 모든 지표가 우수한 수준입니다. 현재 품질을 유지하세요.</p>')
+    if not recs:
+        recs.append(
+            '<div class="rec" style="border-left-color:#10b981">'
+            '<strong style="color:#065f46">모든 지표 양호</strong>'
+            '<p>현재 설정에서 개선이 필요한 지표가 없습니다. 지속적인 모니터링을 유지하세요.</p>'
+            '</div>'
+        )
 
-    parts.append('</div>')
-    return ''.join(parts)
-
-
-def _build_recommendations_section(report, hall_rate, latency, quality_metrics) -> str:
-    """Build the Recommendations section."""
-    parts = []
-
-    # Recompute strengths (same logic as _build_insights_section)
-    # Note: tcr, acc, hall_rate, latency, quality_metrics are needed; tcr/acc not passed here
-    # so we rely on report.recommendations branching; strengths only used for fallback condition
-    strengths = []  # placeholder — populated below if we have the metrics from report
-    # We approximate strengths from report data when available
-    tcr_data = report.accuracy_metrics.get('tcr', {}) if hasattr(report, 'accuracy_metrics') else {}
-    tcr = tcr_data.get('tcr', 0) if isinstance(tcr_data, dict) else 0
-    accuracy_metrics = {}
-    acc = 0
-    if hasattr(report, 'accuracy_metrics'):
-        acc_data = report.accuracy_metrics.get('overall_accuracy', 0)
-        acc = acc_data if isinstance(acc_data, (int, float)) else 0
-
-    if tcr >= 90:
-        strengths.append('높은 작업 완료율 (TCR ≥ 90%)')
-    if acc >= 85:
-        strengths.append('우수한 정확도 (≥ 85%)')
-    if quality_metrics.get('avg_total_score', 0) >= 4.5:
-        strengths.append('뛰어난 응답 품질 (≥ 4.5/5.0)')
-    if hall_rate < 5:
-        strengths.append('낮은 환각률 (< 5%)')
-    if latency <= 3.0:
-        strengths.append('빠른 응답 시간 (≤ 3초)')
-
-    parts.append('''
-        <div class="section" id="recommendations">
-            <h2><span class="icon">🎯</span>개선 권장사항 (Recommendations)</h2>''')
-
-    if report.recommendations:
-        for i, rec in enumerate(report.recommendations, 1):
-            priority_class = 'priority-high' if i <= 3 else 'priority-medium' if i <= 6 else 'priority-low'
-
-            # Handle different recommendation data structures
-            # Structure 1: {"title": "...", "suggestion": "..."}
-            # Structure 2: {"area": "...", "issue": "...", "suggestion": "...", "impact": "..."}
-
-            title = rec.get('title', '')
-            if not title:
-                # Use 'area' or 'issue' as title if 'title' is not present
-                title = rec.get('area', rec.get('issue', ''))
-
-            # Build detailed content
-            content_parts = []
-
-            if 'issue' in rec and rec.get('area') != rec.get('issue'):
-                content_parts.append(f"<p style=\"margin: 10px 0; line-height: 1.8;\"><strong>🔍 현재 문제점</strong><br/>{rec['issue']}</p>")
-
-            if 'suggestion' in rec and rec['suggestion']:
-                content_parts.append(f"<div style=\"margin: 10px 0;\"><strong>💡 개선 제안</strong>{markdown_to_html(rec['suggestion'])}</div>")
-
-            if 'impact' in rec and rec['impact']:
-                content_parts.append(f"<div style=\"margin: 10px 0;\"><strong>📈 예상 효과</strong>{markdown_to_html(rec['impact'])}</div>")
-
-            # If no structured fields, use suggestion as plain HTML
-            if not content_parts and 'suggestion' in rec:
-                content_parts.append(markdown_to_html(rec['suggestion']))
-
-            content_html = '\n'.join(content_parts)
-
-            parts.append(f'''
-            <div class="recommendation {priority_class}">
-                <strong>{i}. {title}</strong>
-                {content_html}
-            </div>''')
-    else:
-        # Generate default recommendations based on metrics
-        if hall_rate >= 10:
-            parts.append('''
-            <div class="recommendation priority-high">
-                <strong>1. 환각 탐지 및 완화 강화</strong>
-                <p>환각률이 높습니다 (≥ 10%). RAG 시스템의 검색 품질을 개선하고, 컨텍스트 윈도우를 확장하며,
-                출력 검증 단계를 추가하세요. 특히 숫자 정보는 반드시 소스와 대조 검증하세요.</p>
-            </div>''')
-
-        if latency > 5.0:
-            parts.append('''
-            <div class="recommendation priority-high">
-                <strong>2. 응답 시간 최적화</strong>
-                <p>평균 응답 시간이 5초를 초과합니다. 프롬프트를 간소화하고, 필요시 더 빠른 모델로 전환하며,
-                병렬 처리 및 캐싱을 구현하세요.</p>
-            </div>''')
-
-        if quality_metrics.get('avg_total_score', 0) < 4.0:
-            parts.append('''
-            <div class="recommendation priority-medium">
-                <strong>3. 응답 품질 개선</strong>
-                <p>품질 점수가 4.0 미만입니다. 프롬프트에 구체적인 출력 포맷을 명시하고,
-                Few-shot 예시를 추가하며, 구조화된 응답 생성을 유도하세요.</p>
-            </div>''')
-
-        if not strengths or len(strengths) < 2:
-            parts.append('''
-            <div class="recommendation priority-medium">
-                <strong>전반적인 품질 관리 체계 수립</strong>
-                <p>체계적인 테스트 및 모니터링 프로세스를 구축하세요.
-                자동화된 평가 파이프라인, 지속적인 성능 추적, 정기적인 품질 리뷰를 실시하세요.</p>
-            </div>''')
-
-    parts.append('</div>')
-    return ''.join(parts)
+    return (
+        '<div class="gate-section" id="recommendations" style="border-left-color:#6366f1">'
+        '<h2 style="color:#6366f1">개선 권장사항 (Recommendations)</h2>'
+        + ''.join(recs)
+        + '</div>'
+    )
 
 
-def _build_conclusion_section(total_tasks, tcr, acc, hall_rate) -> str:
-    """Build the Conclusion section and footer."""
+# ---------------------------------------------------------------------------
+# Conclusion
+# ---------------------------------------------------------------------------
+
+def _build_conclusion(total_tasks: int, tcr: float, acc: float,
+                       hall_rate: float, harness_groups: Dict) -> str:
     try:
         from agent_evaluator import __version__ as _ver
     except Exception:
-        _ver = "0.6.5"
-    parts = []
+        _ver = "0.8.2"
 
-    overall_status = '우수' if (tcr >= 90 and acc >= 85 and hall_rate < 5) else '양호' if (tcr >= 75 and acc >= 70 and hall_rate < 10) else '개선 필요'
-    conclusion_class = 'success' if overall_status == '우수' else 'warning' if overall_status == '양호' else 'critical'
+    pass_count = sum(
+        1 for key in "ABCDEFG"
+        if isinstance(harness_groups.get(key), dict)
+        and (harness_groups[key].get("gate") or harness_groups[key].get("status") or "").lower() == "pass"
+    )
+    total_active = sum(
+        1 for key in "ABCDEFG"
+        if isinstance(harness_groups.get(key), dict)
+        and (harness_groups[key].get("gate") or harness_groups[key].get("status") or "")
+    )
 
-    parts.append(f'''
-        <div class="section" id="conclusion">
-            <h2><span class="icon">📝</span>결론 및 다음 단계 (Conclusion)</h2>
+    grade = "S (Outstanding)" if tcr >= 95 and acc >= 90 else \
+            "A (Excellent)" if tcr >= 90 and acc >= 85 else \
+            "B (Good)" if tcr >= 80 and acc >= 70 else \
+            "C (Fair)" if tcr >= 70 else "D (Needs Improvement)"
 
-            <div class="insight-box {conclusion_class}">
-                <h4>전체 평가</h4>
-                <p><strong>종합 평가:</strong> {overall_status}</p>
-                <p>본 AI Agent는 {total_tasks}개의 Task를 평가한 결과, 전반적으로 <strong>{overall_status}</strong> 수준의 성능을 보였습니다.</p>
-            </div>
-
-            <h3>다음 단계 (Next Steps)</h3>
-            <ol style="margin: 15px 0 15px 20px; line-height: 2.0;">
-                <li><strong>우선순위 개선 작업 착수:</strong> 위에 식별된 개선 영역 중 우선순위가 높은 항목부터 개선</li>
-                <li><strong>지속적인 모니터링:</strong> Agent Evaluator를 CI/CD 파이프라인에 통합하여 자동 평가</li>
-                <li><strong>A/B 테스팅:</strong> 변경사항의 영향을 측정하기 위한 비교 평가 실시</li>
-                <li><strong>정기 리뷰:</strong> 주간/월간 성능 리뷰 미팅으로 지속적인 품질 개선</li>
-            </ol>
-
-            <h3>문의 및 지원</h3>
-            <p>본 리포트에 대한 질문이나 Agent Evaluator 사용에 관한 지원이 필요하시면 GitHub 저장소를 방문하세요.</p>
-            <p>
-                <strong>GitHub:</strong>
-                <a href="https://github.com/bullpeng72/Agent-Evaluator" target="_blank">
-                    https://github.com/bullpeng72/Agent-Evaluator
-                </a>
-                &nbsp;·&nbsp;
-                <strong>Author:</strong> Sungwoo Kim
-                &nbsp;·&nbsp;
-                <strong>License:</strong> MIT
-            </p>
-        </div>
-
-        <!-- Footer -->
-        <div class="footer">
-            <p><strong>Agent Evaluator</strong> v{_ver} - AI 에이전트 성능 평가 시스템</p>
-            <p>Designed for AI Agent Developers and Quality Managers</p>
-            <p>Generated at {datetime.now().strftime('%Y년 %m월 %d일 %H:%M:%S')}</p>
-            <p>© 2026 Sungwoo Kim. Agent Evaluator is released under the MIT License.</p>
-        </div>
-    </div>
-</body>
-</html>''')
-
-    return ''.join(parts)
+    return (
+        f'<div class="gate-section" id="conclusion" style="border-left-color:#374151">'
+        f'<h2 style="color:#374151">결론 및 다음 단계 (Conclusion)</h2>'
+        f'<div class="ibox ok">'
+        f'<p><strong>평가 등급:</strong> {grade}</p>'
+        f'<p><strong>총 태스크:</strong> {total_tasks}개</p>'
+        f'<p><strong>TCR:</strong> {_num(tcr, ".1f")}% | <strong>정확도:</strong> {_num(acc, ".1f")}% | '
+        f'<strong>환각율:</strong> {hall_rate:.1f}%</p>'
+        f'{"<p><strong>Harness Gate:</strong> " + str(pass_count) + "/" + str(total_active) + " PASS</p>" if total_active > 0 else ""}'
+        f'</div>'
+        f'<div class="footer">'
+        f'<p>Generated by <strong>Agent Evaluator v{_ver}</strong> &nbsp;|&nbsp; {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}</p>'
+        f'</div>'
+        f'</div>'
+    )
 
 
-def _build_llm_judge_section(monitor) -> str:
-    """Build the LLM-as-Judge section. Returns empty string if judge is not active."""
-    judge = getattr(monitor, "llm_judge", None)
-    if judge is None:
-        return ""
+# ---------------------------------------------------------------------------
+# Header
+# ---------------------------------------------------------------------------
 
-    summary = judge.get_summary()
-    if summary["count"] == 0:
-        return ""
+def _build_header(total_tasks: int, tcr: float, acc: float,
+                  latency: float, harness_groups: Dict) -> str:
+    try:
+        from agent_evaluator import __version__ as _ver
+    except Exception:
+        _ver = "0.8.2"
 
-    avg = summary["avg_scores"]
-    total_cost = summary["total_cost_usd"]
-    model_name = getattr(judge, "model", "—")
-    judged_count = summary["count"]
-    results = summary.get("results", [])
+    gate_badges = ""
+    for key in "ABCDEFG":
+        gdata = harness_groups.get(key, {})
+        _g_gate = gdata.get("gate") or gdata.get("status")
+        if isinstance(gdata, dict) and _g_gate:
+            gate_badges += (
+                f'<span style="margin-right:6px">'
+                f'<span style="font-size:10px;color:{_GATE_COLORS[key]};font-weight:700">Gate {key} </span>'
+                f'{_gate_badge(_g_gate)}</span>'
+            )
 
-    overall = avg.get("overall", 0)
-    completeness = avg.get("completeness", 0)
-    relevance = avg.get("relevance", 0)
-    factual = avg.get("factual_consistency", 0)
+    gate_badges_div = f'<div style="margin-top:10px">{gate_badges}</div>' if gate_badges else ""
+    return (
+        '<div class="rpt-header">'
+        '<h1>📊 Agent Evaluator — Harness Gate 리포트</h1>'
+        '<div class="sub">AI Agent 품질 평가 · Harness Gate A–G 중심 구조</div>'
+        f'<div class="meta">'
+        f'<span>📅 {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}</span>'
+        f'<span>📋 {total_tasks}개 태스크</span>'
+        f'<span>🔖 v{_ver}</span>'
+        f'<span>TCR: <strong>{_num(tcr, ".1f")}%</strong></span>'
+        f'<span>정확도: <strong>{_num(acc, ".1f")}%</strong></span>'
+        f'<span>지연: <strong>{_num(latency, ".2f")}s</strong></span>'
+        f'</div>'
+        f'{gate_badges_div}'
+        f'</div>'
+    )
 
-    overall_box_class = "success" if overall >= 4.0 else ("warning" if overall >= 2.5 else "critical")
 
-    def score_badge(v: float) -> str:
-        color = "#27ae60" if v >= 4.0 else ("#f39c12" if v >= 2.5 else "#e74c3c")
-        label = "우수" if v >= 4.0 else ("양호" if v >= 2.5 else "개선 필요")
-        return f'<span style="color:{color};font-weight:bold">{v:.2f}/5 ({label})</span>'
-
-    def row_overall_color(v: float) -> str:
-        return "#27ae60" if v >= 4.0 else ("#f39c12" if v >= 2.5 else "#e74c3c")
-
-    # ── 차원별 요약 테이블 ──
-    dim_table = f"""
-            <table>
-                <thead>
-                    <tr>
-                        <th>평가 차원</th>
-                        <th>평균 점수</th>
-                        <th>설명</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <tr>
-                        <td><strong>종합 (Overall)</strong></td>
-                        <td>{score_badge(overall)}</td>
-                        <td>completeness · relevance · factual_consistency 3차원 평균</td>
-                    </tr>
-                    <tr>
-                        <td><strong>완결성 (Completeness)</strong></td>
-                        <td>{score_badge(completeness)}</td>
-                        <td>질문의 모든 측면을 빠짐없이 다루는가</td>
-                    </tr>
-                    <tr>
-                        <td><strong>관련성 (Relevance)</strong></td>
-                        <td>{score_badge(relevance)}</td>
-                        <td>질문의 핵심 의도에 직접적으로 답하는가</td>
-                    </tr>
-                    <tr>
-                        <td><strong>사실 일관성 (Factual Consistency)</strong></td>
-                        <td>{score_badge(factual)}</td>
-                        <td>내적 모순 없이 일관되고 신뢰할 수 있는가</td>
-                    </tr>
-                </tbody>
-            </table>"""
-
-    # ── 태스크별 상세 테이블 ──
-    task_rows = ""
-    for r in results:
-        scores = r.get("scores") or {}
-        c = scores.get("completeness", "—")
-        rel = scores.get("relevance", "—")
-        fact_s = scores.get("factual_consistency", "—")
-        ov = scores.get("overall")
-        ov_str = f"{ov:.2f}" if ov is not None else "—"
-        ov_color = row_overall_color(ov) if ov is not None else "#aaa"
-        reasoning = (r.get("reasoning") or "—")[:130]
-        task_rows += f"""
-                    <tr>
-                        <td style="font-family:monospace;font-size:12px">{r.get('task_id', '—')}</td>
-                        <td style="text-align:center">{c}</td>
-                        <td style="text-align:center">{rel}</td>
-                        <td style="text-align:center">{fact_s}</td>
-                        <td style="text-align:center;font-weight:bold;color:{ov_color}">{ov_str}</td>
-                        <td style="color:#666;font-size:12px">{reasoning}</td>
-                    </tr>"""
-
-    task_table = ""
-    if task_rows:
-        task_table = f"""
-            <h3>태스크별 Judge 점수</h3>
-            <table>
-                <thead>
-                    <tr>
-                        <th>Task ID</th>
-                        <th style="text-align:center">완결성</th>
-                        <th style="text-align:center">관련성</th>
-                        <th style="text-align:center">사실 일관성</th>
-                        <th style="text-align:center">종합</th>
-                        <th>판단 근거</th>
-                    </tr>
-                </thead>
-                <tbody>{task_rows}
-                </tbody>
-            </table>"""
-
-    return f'''
-        <!-- LLM Judge Section -->
-        <div class="section" id="llm-judge" style="border-left-color:#8b5cf6">
-            <h2><span class="icon">🤖</span>LLM Judge - 3차원 자동 채점</h2>
-            <p style="margin-bottom: 20px; line-height: 1.8;">
-                LLM-as-Judge는 <strong>"ground_truth 없이"</strong> AI 응답의 품질을 자동 평가합니다.
-                completeness · relevance · factual_consistency 3차원을 0–5 정수로 채점하며,
-                실제 운영 환경에서 레이블 없이도 응답 품질을 지속적으로 모니터링할 수 있습니다.
-            </p>
-
-            <h3>종합 평가 결과</h3>
-            <div class="insight-box {overall_box_class}" style="{'border-left-color:#8b5cf6;background:#faf5ff' if overall_box_class == 'success' else ''}">
-                <h4>Judge 요약</h4>
-                <p><strong>종합 점수:</strong> {overall:.2f}/5.0</p>
-                <p><strong>채점 건수:</strong> {judged_count}건</p>
-                <p><strong>Judge 모델:</strong> {model_name}</p>
-                <p><strong>누적 비용:</strong> ${total_cost:.5f} USD</p>
-                <p><strong>벤치마크 등급:</strong> {'S등급 (Outstanding)' if overall >= 4.8 else 'A등급 (Excellent)' if overall >= 4.0 else 'B등급 (Good)' if overall >= 3.0 else 'C등급 (Fair)' if overall >= 2.0 else 'D등급 (Poor)'}</p>
-            </div>
-
-            <h3>차원별 평균 점수</h3>
-            {dim_table}
-            {task_table}
-        </div>'''
-
+# ---------------------------------------------------------------------------
+# generate_comprehensive_html_report(monitor)
+# ---------------------------------------------------------------------------
 
 def generate_comprehensive_html_report(monitor) -> str:
-    """Generate detailed comprehensive HTML report with all metrics and actionable insights"""
+    """Generate Harness Gate A–G 중심 종합 HTML 리포트.
 
-    # Get all metrics — HybridPerformanceMonitor provides generate_hybrid_report();
-    # fall back to generate_report() for plain PerformanceMonitor
-    if hasattr(monitor, 'generate_hybrid_report'):
+    Args:
+        monitor: PerformanceMonitor or HybridPerformanceMonitor instance.
+
+    Returns:
+        Self-contained HTML string.
+    """
+    # --- Collect report / metrics ---
+    if hasattr(monitor, "generate_hybrid_report"):
         report = monitor.generate_hybrid_report()
     else:
         report = monitor.generate_report()
-    quality_metrics = monitor.quality_evaluator.get_quality_metrics()
-    hallucination_data = monitor.hallucination_detector.get_hallucination_rate()
-    token_stats = monitor.token_tracker.get_usage_stats()
-    tool_selection_stats = monitor.tool_selection_tracker.get_accuracy_stats()
-    coordination_stats = monitor.agent_coordination_tracker.calculate_coordination_score()
-    workflow_stats = monitor.workflow_tracker.calculate_execution_success_rate()
-    retry_metrics = monitor.retry_tracker.get_retry_metrics()
-    latency_stats = monitor.latency_tracker.get_latency_stats()
 
-    # Get advanced metrics from report (same as dashboard)
-    adv_metrics = report.advanced_metrics_summary if hasattr(report, 'advanced_metrics_summary') else {}
+    quality_metrics: Dict = {}
+    try:
+        quality_metrics = monitor.quality_evaluator.get_quality_metrics()
+    except Exception:
+        pass
 
-    # Extract values
-    tcr_data = report.accuracy_metrics.get('tcr', {})
-    tcr = tcr_data.get('tcr', 0) if isinstance(tcr_data, dict) else 0
-    success_rate = tcr_data.get('success_rate', 0) if isinstance(tcr_data, dict) else 0
+    hallucination_data: Dict = {}
+    try:
+        hallucination_data = monitor.hallucination_detector.get_hallucination_rate()
+    except Exception:
+        pass
 
-    accuracy_metrics = monitor.accuracy_evaluator.get_accuracy_scores()
-    acc = accuracy_metrics.get('overall_accuracy', 0)
+    token_stats: Dict = {}
+    try:
+        token_stats = monitor.token_tracker.get_usage_stats()
+    except Exception:
+        pass
 
-    latency_data = report.efficiency_metrics.get('latency', {})
-    latency = latency_data.get('mean', 0) if isinstance(latency_data, dict) else 0
+    tool_selection_stats: Dict = {}
+    try:
+        tool_selection_stats = monitor.tool_selection_tracker.get_accuracy_stats()
+    except Exception:
+        pass
 
-    total_tasks = len(monitor.tcr_tracker.tasks)
-    avg_cost_per_task = token_stats.get('avg_cost_per_task', 0)
-    hall_rate = hallucination_data.get('overall_rate', 0)
+    coordination_stats: Dict = {}
+    try:
+        coordination_stats = monitor.agent_coordination_tracker.calculate_coordination_score()
+    except Exception:
+        pass
 
-    # Detect LLM Judge availability
-    _judge = getattr(monitor, 'llm_judge', None)
-    has_llm_judge = bool(_judge and _judge.get_summary().get('count', 0) > 0)
+    workflow_stats: Dict = {}
+    try:
+        workflow_stats = monitor.workflow_tracker.calculate_execution_success_rate()
+    except Exception:
+        pass
 
-    # Build from sections
+    retry_metrics: Dict = {}
+    try:
+        retry_metrics = monitor.retry_tracker.get_retry_metrics()
+    except Exception:
+        pass
+
+    latency_stats: Dict = {}
+    try:
+        latency_stats = monitor.latency_tracker.get_latency_stats()
+    except Exception:
+        pass
+
+    adv_metrics: Dict = {}
+    try:
+        adv_metrics = report.advanced_metrics_summary if hasattr(report, "advanced_metrics_summary") else {}
+    except Exception:
+        pass
+
+    # Scalar values
+    accuracy_metrics: Dict = {}
+    try:
+        accuracy_metrics = monitor.accuracy_evaluator.get_accuracy_scores()
+    except Exception:
+        pass
+
+    tcr_data = (report.accuracy_metrics.get("tcr", {}) if hasattr(report, "accuracy_metrics") else {}) or {}
+    tcr = float(tcr_data.get("tcr") or 0)
+    success_rate = float(tcr_data.get("success_rate") or 0)
+    acc = float(accuracy_metrics.get("overall_accuracy") or 0)
+
+    latency_data = (report.efficiency_metrics.get("latency", {}) if hasattr(report, "efficiency_metrics") else {}) or {}
+    latency = float(latency_data.get("mean") or 0)
+
+    total_tasks = 0
+    try:
+        total_tasks = len(monitor.tcr_tracker.tasks)
+    except Exception:
+        pass
+
+    hall_rate = float(hallucination_data.get("overall_rate") or 0)
+
+    # Harness groups
+    harness_groups: Dict = getattr(report, "harness_groups", None) or {}
+    if not harness_groups and hasattr(report, "extra_metrics"):
+        harness_groups = (report.extra_metrics or {}).get("harness_groups") or {}
+
+    # Agentic flag
+    has_agentic = bool(
+        tool_selection_stats or coordination_stats or workflow_stats
+    )
+
+    # LLM Judge
+    llm_judge_data = None
+    try:
+        _judge = getattr(monitor, "llm_judge", None)
+        if _judge:
+            summary = _judge.get_summary()
+            if summary.get("count", 0) > 0:
+                llm_judge_data = summary
+    except Exception:
+        pass
+
+    # RAG / advanced flags
+    has_advanced = bool(adv_metrics)
+    has_rag = False
+    rag_metrics: Dict = {}
+    has_conversation = False
+    conversation_sessions: list = []
+
+    # Build HTML
     parts = [
-        _build_css_and_head(),
-        _build_header_toc(total_tasks, success_rate, tcr, acc, latency, has_llm_judge=has_llm_judge),
-        _build_core_section(tcr, success_rate, acc, accuracy_metrics, quality_metrics, hallucination_data),
-        _build_llm_judge_section(monitor),
-        _build_performance_section(latency, latency_stats, token_stats, retry_metrics),
-        _build_agentic_section(monitor, tool_selection_stats, coordination_stats, workflow_stats, retry_metrics),
-        _build_advanced_section(adv_metrics),
-        _build_transparency_section(),
-        _build_security_section(monitor),
-        _build_insights_section(tcr, acc, hall_rate, latency, quality_metrics, avg_cost_per_task),
-        _build_recommendations_section(report, hall_rate, latency, quality_metrics),
-        _build_conclusion_section(total_tasks, tcr, acc, hall_rate),
+        _build_css(),
+        _build_header(total_tasks, tcr, acc, latency, harness_groups),
+        _build_scorecard(harness_groups),
+        _build_gate_a(tcr, success_rate, acc, accuracy_metrics, hallucination_data, harness_groups.get("A", {})),
+        _build_gate_b(tool_selection_stats, has_agentic, harness_groups.get("B", {})),
+        _build_gate_c(retry_metrics, harness_groups.get("C", {})),
+        _build_gate_d(latency_stats, token_stats, harness_groups.get("D", {})),
+        _build_gate_e_from_monitor(monitor, harness_groups.get("E", {})),
+        _build_gate_f(coordination_stats, workflow_stats, has_agentic, harness_groups.get("F", {})),
+        _build_gate_g(quality_metrics, llm_judge_data, harness_groups.get("G", {})),
+        _build_advanced_section(adv_metrics, rag_metrics, has_advanced, has_rag, has_conversation, conversation_sessions),
+        _build_recommendations(harness_groups, tcr, acc, hall_rate, latency, quality_metrics),
+        _build_conclusion(total_tasks, tcr, acc, hall_rate, harness_groups),
+        '</div></body></html>',
+    ]
+    return ''.join(parts)
+
+
+# ---------------------------------------------------------------------------
+# generate_html_from_result_file(rf)  — Dashboard export router용
+# ---------------------------------------------------------------------------
+
+def generate_html_from_result_file(rf) -> str:
+    """ResultFile 객체에서 Harness Gate A–G 중심 HTML 리포트를 생성한다.
+
+    Args:
+        rf: loader.ResultFile 인스턴스
+
+    Returns:
+        Self-contained HTML string.
+    """
+    # --- Scalar helpers ---
+    def _f(v: Any, default: float = 0.0) -> float:
+        try:
+            return float(v) if v is not None else default
+        except (TypeError, ValueError):
+            return default
+
+    # Basic metrics
+    tcr_data = rf.accuracy_metrics.get("tcr", {}) or {}
+    acc_data = rf.accuracy_metrics.get("accuracy_scores", {}) or {}
+    hall_data = rf.accuracy_metrics.get("hallucination", {}) or {}
+    lat_data = rf.efficiency_metrics.get("latency", {}) or {}
+    tok_data = rf.efficiency_metrics.get("tokens", {}) or {}
+
+    tcr = _f(tcr_data.get("tcr"))
+    success_rate = _f(tcr_data.get("success_rate"))
+    acc = _f(acc_data.get("overall_accuracy"))
+    latency = _f(lat_data.get("mean"))
+    hall_rate = _f(hall_data.get("overall_rate"))
+    total_tasks = rf.total_tasks
+
+    harness_groups: Dict = getattr(rf, "harness_groups", None) or {}
+    has_agentic = getattr(rf, "has_agentic", False)
+
+    # accuracy_metrics dict for task_type breakdown
+    accuracy_metrics: Dict = acc_data
+
+    # hallucination_data
+    hallucination_data: Dict = hall_data
+
+    # quality_metrics from quality_detail
+    quality_metrics: Dict = {}
+    if getattr(rf, "has_quality_detail", False):
+        qd = rf.quality_detail
+        try:
+            quality_metrics = {
+                "total_evaluated": len(getattr(qd, "evaluations", [])),
+                "avg_total_score": _f(getattr(qd, "avg_score", 0)),
+                "dimension_scores": dict(getattr(qd, "dimension_summary", {})),
+            }
+        except Exception:
+            pass
+
+    # retry metrics
+    retry_metrics: Dict = {}
+    if has_agentic:
+        ag = rf.agentic
+        retry = ag.get("retry_summary") if isinstance(ag, dict) else getattr(ag, "retry_summary", None)
+        if isinstance(retry, dict):
+            retry_metrics = retry
+
+    # latency stats
+    latency_stats: Dict = lat_data
+
+    # token stats
+    token_stats: Dict = tok_data
+
+    # tool_selection_stats
+    tool_selection_stats: Dict = {}
+    if has_agentic:
+        ag = rf.agentic
+        tool_eff = ag.get("tool_efficiency") if isinstance(ag, dict) else getattr(ag, "tool_efficiency", None)
+        tool_sel = ag.get("tool_selection_summary") if isinstance(ag, dict) else getattr(ag, "tool_selection_summary", None)
+        if isinstance(tool_eff, dict):
+            tool_selection_stats.update(tool_eff)
+        if isinstance(tool_sel, dict):
+            tool_selection_stats.update(tool_sel)
+
+    # coordination / workflow
+    coordination_stats: Dict = {}
+    workflow_stats: Dict = {}
+    if has_agentic:
+        ag = rf.agentic
+        coord = ag.get("coordination_summary") if isinstance(ag, dict) else getattr(ag, "coordination_summary", None)
+        workflow = ag.get("workflow_summary") if isinstance(ag, dict) else getattr(ag, "workflow_summary", None)
+        if isinstance(coord, dict):
+            coordination_stats = coord
+        if isinstance(workflow, dict):
+            workflow_stats = workflow
+
+    # LLM Judge
+    llm_judge_data = None
+    if getattr(rf, "has_llm_judge", False):
+        llm_judge_data = rf.llm_judge
+
+    # Advanced
+    has_advanced = getattr(rf, "has_advanced", False)
+    adv_metrics: Dict = {}
+    if has_advanced:
+        try:
+            adv_metrics = rf.advanced.summary or {}
+        except Exception:
+            pass
+
+    has_rag = getattr(rf, "has_rag", False)
+    rag_metrics: Dict = rf.rag_metrics if has_rag else {}
+
+    has_conversation = getattr(rf, "has_conversation", False)
+    conversation_sessions: list = rf.conversation_sessions if has_conversation else []
+
+    # Build HTML
+    parts = [
+        _build_css(),
+        _build_header(total_tasks, tcr, acc, latency, harness_groups),
+        _build_scorecard(harness_groups),
+        _build_gate_a(tcr, success_rate, acc, accuracy_metrics, hallucination_data, harness_groups.get("A", {})),
+        _build_gate_b(tool_selection_stats, has_agentic, harness_groups.get("B", {})),
+        _build_gate_c(retry_metrics, harness_groups.get("C", {})),
+        _build_gate_d(latency_stats, token_stats, harness_groups.get("D", {})),
+        _build_gate_e_from_rf(rf, harness_groups.get("E", {})),
+        _build_gate_f(coordination_stats, workflow_stats, has_agentic, harness_groups.get("F", {})),
+        _build_gate_g(quality_metrics, llm_judge_data, harness_groups.get("G", {})),
+        _build_advanced_section(adv_metrics, rag_metrics, has_advanced, has_rag, has_conversation, conversation_sessions),
+        _build_recommendations(harness_groups, tcr, acc, hall_rate, latency, quality_metrics),
+        _build_conclusion(total_tasks, tcr, acc, hall_rate, harness_groups),
+        '</div></body></html>',
     ]
     return ''.join(parts)

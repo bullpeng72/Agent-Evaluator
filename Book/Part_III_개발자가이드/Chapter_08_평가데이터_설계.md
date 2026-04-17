@@ -1,10 +1,10 @@
-# Chapter 8. 평가 데이터 설계
+# Chapter 13. 평가 데이터 설계
 
 이 챕터에서 배우는 것: SDK의 핵심 데이터 구조인 `TaskResult`의 24개 필드를 이해하고, 안전하게 생성하는 방법을 익힌다. 10종 `TaskType`별로 자동 활성화되는 지표가 무엇인지 파악하고, 프로덕션 트래픽에서 골든 데이터셋을 자동으로 마이닝하는 전략을 배운다. 마지막으로 개발 환경부터 프로덕션까지 상황별 샘플링 전략과 A/B 테스트 설계 방법을 습득한다.
 
 ---
 
-## 8.1 TaskResult — SDK의 핵심 데이터 구조
+## 13.1 TaskResult — SDK의 핵심 데이터 구조
 
 `TaskResult`는 에이전트 실행 결과를 담는 불변(immutable) 데이터 클래스다. SDK의 모든 평가 데이터는 이 구조를 통해 흐른다.
 
@@ -113,7 +113,7 @@ updated = dataclasses.replace(result_auto, framework="openai", model="gpt-4o-min
 
 ---
 
-## 8.2 TaskType 10종 완전 가이드
+## 13.2 TaskType 10종 완전 가이드
 
 `TaskType`은 Python Enum으로, 문자열과 혼용 가능하다:
 
@@ -168,7 +168,7 @@ tool_agent(
 
 ---
 
-## 8.3 골든 데이터셋 구축 전략
+## 13.3 골든 데이터셋 구축 전략
 
 ### 골든 데이터셋의 역할
 
@@ -266,7 +266,7 @@ agent-eval dataset build results/ --min-score 0.8
 
 ---
 
-## 8.4 샘플링 전략 — 언제 전수 평가, 언제 샘플링
+## 13.4 샘플링 전략 — 언제 전수 평가, 언제 샘플링
 
 모든 요청을 평가하면 비용과 지연이 증가한다. 상황별 적절한 샘플링 전략이 필요하다:
 
@@ -310,7 +310,7 @@ def selective_agent(question: str, ground_truth: str = "") -> str:
 
 ---
 
-## 8.5 A/B 테스트 설계
+## 13.5 A/B 테스트 설계
 
 두 가지 에이전트(모델 버전, 프롬프트 변형 등)를 통계적으로 비교하는 패턴이다.
 
@@ -360,7 +360,7 @@ if p_value is not None:
 
 ---
 
-## 8.6 evaluation_session — 컨텍스트 매니저 패턴
+## 13.6 evaluation_session — 컨텍스트 매니저 패턴
 
 데코레이터 대신 with 블록으로 세션을 관리하고 싶을 때, 또는 세션 종료 시 자동 저장을 원할 때 사용한다:
 
@@ -407,7 +407,7 @@ asyncio.run(run_async_eval())
 
 ---
 
-## 8.7 한국어 평가 특화 전략
+## 13.7 한국어 평가 특화 전략
 
 한국어 에이전트를 평가할 때는 언어 특성을 고려한 전략이 필요하다.
 
@@ -544,6 +544,127 @@ print(f"평균 지연: {summary.get('avg_latency', 0):.2f}초")
 
 ---
 
+## 13.8 에이전트 유형별 최소 Tracker + Config 세트
+
+에이전트를 처음 평가할 때 "모든 지표를 다 켜야 하는가?"라는 질문이 자주 나온다.  
+답은 **아니다**. 에이전트 유형별로 **최소한으로 필요한 Tracker + Harness Config 조합**이 있다.  
+이 최소 세트로 시작하고, 운영 경험이 쌓이면 점진적으로 확장한다.
+
+┌─────────────────────────────────────────────────────┐
+│ 🔗 Harness 연결                                      │
+│ 이 절은 모든 Group에 걸쳐 있습니다.                    │
+│ 에이전트 유형이 "어떤 Group을 우선 활성화할지"를 결정.  │
+│ Gate 판정: HarnessEvaluationGate(group_configs={...}) │
+└─────────────────────────────────────────────────────┘
+
+### 에이전트 유형별 최소 세트 표
+
+| 에이전트 유형 | 필수 Group | 필수 Tracker | 최소 Config 세트 | 선택 확장 |
+|------------|-----------|-------------|-----------------|----------|
+| **단순 QA** | A, C | TaskCompletionTracker, AccuracyEvaluator | `InstructionConfig`, `ReproducibilityConfig` | Group D (SLA) |
+| **RAG** | A, C, E | + HallucinationDetector | + `ThreatSeverityConfig`, `IdempotencyConfig` | Group G (LLM Judge) |
+| **코드 생성** | A, B, E | + ToolCallAnalyzer | `ScopeConfig`, `ComplianceConfig`, `InstructionConfig` | Group C (신뢰성) |
+| **도구 사용** | A, B, D | + ToolSelectionTracker, LatencyTracker | `SLAConfig`, `LoopDetectionConfig`, `SubtaskConfig` | Group F (멀티에이전트) |
+| **멀티에이전트** | A, B, F, G | + AgentCoordinationTracker | `DeadlockConfig`, `AgentRoleConfig`, `ObservabilityConfig` | Group C, E 전체 |
+| **보안 민감** | A, E (전부) | + InputSanitizationTracker, OutputLeakageDetector | `ThreatSeverityConfig`, `ComplianceConfig`, `ThreatResponseConfig` | Group B ToolParameterSafety |
+| **장기 대화** | A, C, F | + ConversationSession | `ContextRetentionConfig`, `FaultToleranceConfig` | Group D TTFT |
+
+### 코드로 최소 세트 적용
+
+```python
+from agent_evaluator import PerformanceMonitor, agent_eval, TaskResult
+
+# ── 단순 QA 에이전트 최소 세트 ──────────────────────────────────────
+from agent_evaluator.core.trackers.base import (
+    InstructionConfig, ReproducibilityConfig
+)
+
+monitor = PerformanceMonitor(
+    output_dir="results/",
+    harness_configs={
+        "instruction": InstructionConfig(min_completion_rate=0.85),
+        "reproducibility": ReproducibilityConfig(min_consistency_score=0.80),
+    }
+)
+
+@agent_eval(monitor, task_type="qa")
+def qa_agent(question: str, ground_truth: str = "") -> str:
+    return llm.invoke(question)
+
+
+# ── RAG 에이전트 최소 세트 ───────────────────────────────────────────
+from agent_evaluator.core.trackers.base import (
+    ThreatSeverityConfig, IdempotencyConfig
+)
+
+monitor_rag = PerformanceMonitor.for_rag_evaluation(
+    output_dir="results/",
+    harness_configs={
+        "threat": ThreatSeverityConfig(max_severity_level="medium", fail_on_violation=True),
+        "idempotency": IdempotencyConfig(min_idempotency_score=0.75),
+    }
+)
+
+@agent_eval(monitor_rag, task_type="information_retrieval")
+def rag_agent(question: str, context: str = "", ground_truth: str = "") -> str:
+    return llm.invoke(f"컨텍스트: {context}\n질문: {question}")
+
+
+# ── 멀티에이전트 최소 세트 ──────────────────────────────────────────
+from agent_evaluator.core.trackers.base import (
+    DeadlockConfig, AgentRoleConfig, ObservabilityConfig
+)
+
+monitor_multi = PerformanceMonitor(
+    output_dir="results/",
+    harness_configs={
+        "deadlock": DeadlockConfig(max_wait_cycles=3, fail_on_violation=True),
+        "roles": AgentRoleConfig(
+            allowed_roles=["researcher", "writer", "reviewer"],
+            require_role_declaration=True,
+        ),
+        "observability": ObservabilityConfig(
+            require_trace_id=True,
+            min_span_coverage=0.90,
+        ),
+    }
+)
+```
+
+### TaskType과 Group 자동 활성화 관계
+
+`create_taskresult(task_type=...)` 호출 시 아래 Group의 Tracker가 자동으로 활성화된다:
+
+| TaskType | 자동 활성 Group | 수동 활성 필요 Group |
+|---------|--------------|-------------------|
+| `"qa"` | A (TCR·Accuracy·Quality) | C (Reproducibility), D (Latency) |
+| `"tool_use"` | A, B (ToolCall·ToolSelection) | D (SLA), F (Coordination) |
+| `"information_retrieval"` | A, E (Hallucination·context 있을 때) | G (LLMJudge faithfulness) |
+| `"code_generation"` / `"coding"` | A (AST 비교), B (Scope) | E (Compliance) |
+| `"reasoning"` / `"planning"` | A, B (Workflow) | C (Retry), F (멀티스텝) |
+
+### 점진적 확장 로드맵
+
+```
+Week 1 — 최소 세트로 시작
+  PerformanceMonitor + 2개 Config + @agent_eval
+  → TCR, Accuracy, Harness Gate 기본 판정 확인
+
+Week 2~4 — 운영 데이터 분석 후 확장
+  지속 낮은 지표 → 해당 Group Config 추가
+  (예: P95 지연 높음 → Group D SLAConfig 추가)
+
+Month 2 — HarnessEvaluationGate 종합 판정 도입
+  모든 필요 Group Config → HarnessEvaluationGate에 통합
+  CI/CD pipeline에 gate() 연결
+
+Month 3+ — 전체 Group 커버리지 달성
+  agent-eval trend로 회귀 모니터링
+  GoldenSetBuilder로 데이터셋 자동 확장
+```
+
+---
+
 ## 이 챕터의 핵심
 
 - **`TaskResult`는 불변(frozen=True) 데이터 클래스**다. 24개 필드 중 11개는 필수이며, `create_taskresult()` 헬퍼를 사용하면 accuracy_score와 timestamp를 자동 계산해준다.
@@ -660,7 +781,7 @@ python Evaluator_Examples/06_operational.py
 | 06_operational | 섹션 5 | `GoldenSetBuilder` 마이닝 | `accuracy_score >= 0.85` 케이스 자동 추출 |
 | 06_operational | 섹션 5 | `push_to_phoenix()` | Phoenix Datasets 탭에 골든셋 업로드 |
 
-**실행 결과 (v0.8.0 기준)**
+**실행 결과 (v0.8.2 기준)**
 
 ```
 # 01_layer1_all_metrics.py

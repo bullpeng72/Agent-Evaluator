@@ -1,6 +1,6 @@
 # Appendix B. CLI 명령어 완전 레퍼런스
 
-Agent Evaluator v0.8.0 CLI 전체 명령어 목록. `pip install agent-evaluator` 설치 후 바로 사용 가능하다.
+Agent Evaluator v0.8.2 CLI 전체 명령어 목록. `pip install agent-evaluator` 설치 후 바로 사용 가능하다.
 
 ---
 
@@ -70,7 +70,7 @@ agent-eval check
 **출력 예시**
 
 ```
-Agent Evaluator v0.8.0 설정 상태
+Agent Evaluator v0.8.2 설정 상태
 =================================
 .env 파일: /Users/username/project/.env (존재)
 
@@ -99,6 +99,20 @@ Agent Evaluator v0.8.0 설정 상태
 ## agent-eval dashboard
 
 FastAPI 기반 평가 결과 대시보드를 실행한다. 9개 탭(품질, 성능, 에이전틱, 보안, 멀티턴 대화, 이상 감지, 평가 비용, 골든 데이터셋, 투명성)으로 구성된다.
+
+각 탭이 커버하는 Group:
+
+| 탭 | 커버 Group | 주요 지표 |
+|----|-----------|---------|
+| 품질 | A (목표달성) | TCR, Accuracy, Response Quality |
+| 성능 | D (성능계약) | Latency P50/P95/P99, Token Economy |
+| 에이전틱 | B (행동무결성), F (다중에이전트) | Tool Call, Workflow, Coordination |
+| 보안 | E (보안경계) | InputSanitization, OutputLeakage, ToolAuth |
+| 멀티턴 대화 | A, B, G | ConversationMetrics, context_retention |
+| 이상 감지 | 전체 Group | AnomalyDetector (통계적 이상치) |
+| 평가 비용 | D (비용 부분) | Token/API 비용 추적 |
+| 골든 데이터셋 | 전체 | GoldenSetBuilder 관리 케이스 |
+| 투명성 | G (운영관측성) | TestTransparencyManager 추적 |
 
 **사용법**
 
@@ -142,6 +156,8 @@ agent-eval dashboard results/ --host 0.0.0.0 --port 8765
 ## agent-eval gate
 
 평가 결과 JSON 파일을 읽어 설정한 임계값과 비교한다. 임계값 미달 시 `sys.exit(1)`로 종료하여 CI/CD 파이프라인을 차단한다.
+
+> **참고**: `agent-eval gate`는 Python API의 `HarnessEvaluationGate`를 CLI로 래핑한 명령어다. Config-as-Code로 선언한 Harness Config(InstructionConfig, SLAConfig 등)를 JSON 결과에 적용해 Group A-G 전체를 한 번에 판정한다. Python 코드에서 직접 사용하려면 `from agent_evaluator import HarnessEvaluationGate`를 참고한다.
 
 **사용법**
 
@@ -221,7 +237,7 @@ agent-eval trend <결과디렉토리> [옵션]
 | `결과디렉토리` | (필수) | 평가 결과 JSON 파일이 저장된 디렉토리 |
 | `--window`, `-w` | `10` | 분석할 최근 파일 수 |
 | `--pattern` | `*.json` | 파일 이름 글로브 패턴 |
-| `--slope-threshold` | `0.3` | 이 절댓값 미만의 slope는 `stable`로 판정 (단위: %/run 또는 초/run) |
+| `--slope-threshold` | `0.3` | 이 절댓값 미만의 slope는 `stable`로 판정 (단위: %/run 또는 초/run). slope 계산 공식은 Appendix H §H.6 참고 |
 | `--fail-on-regression` | — | 회귀 감지 시 종료 코드 1 반환 |
 | `--output-json` | — | 분석 결과를 JSON 파일로 저장 |
 
@@ -432,7 +448,7 @@ agent-eval --version
 **출력 예시**
 
 ```
-agent-evaluator 0.8.0
+agent-evaluator 0.8.2
 ```
 
 ---

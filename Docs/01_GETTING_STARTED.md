@@ -1,6 +1,6 @@
-# 빠른 시작 가이드
+# 시작하기
 
-Agent Evaluator를 5분 안에 첫 평가까지 완성하는 최단 경로
+Agent Evaluator를 설치부터 첫 평가, 결과 저장, 대시보드 실행까지 완성하는 최단 경로
 
 **v0.8.2 | Python 3.8+**
 
@@ -10,13 +10,14 @@ Agent Evaluator를 5분 안에 첫 평가까지 완성하는 최단 경로
 
 1. [설치](#설치)
 2. [데코레이터 방식 — 권장](#데코레이터-방식--권장)
-3. [헬퍼로 간편하게](#헬퍼로-간편하게)
-4. [컨텍스트 매니저 패턴](#컨텍스트-매니저-패턴)
-5. [대시보드 실행](#대시보드-실행)
-6. [보안·에이전틱 지표 활성화](#보안에이전틱-지표-활성화)
-7. [CI/CD 품질 게이팅](#cicd-품질-게이팅)
-8. [실시간 운영 모니터링](#실시간-운영-모니터링-v073)
-9. [다음 단계](#다음-단계)
+3. [저수준 직접 기록 (탈출구)](#저수준-직접-기록-탈출구)
+4. [컨텍스트 매니저 패턴 (탈출구)](#컨텍스트-매니저-패턴-탈출구)
+5. [결과 저장 경로 — Zero Configuration](#결과-저장-경로--zero-configuration)
+6. [대시보드 실행](#대시보드-실행)
+7. [보안·에이전틱 지표 활성화](#보안에이전틱-지표-활성화)
+8. [CI/CD 품질 게이팅](#cicd-품질-게이팅)
+9. [실시간 운영 모니터링](#실시간-운영-모니터링)
+10. [다음 단계](#다음-단계)
 
 ---
 
@@ -41,11 +42,9 @@ pip install "agent-evaluator[full]"        # 전체 (⚠️ crewai/autogen 포�
 
 ## 데코레이터 방식 — 권장
 
-에이전트 함수에 데코레이터 한 줄만 추가하면 자동으로 평가가 적용됩니다. 용도에 따라 **3개의 핵심 데코레이터**가 제공됩니다.
+에이전트 함수에 데코레이터 한 줄만 추가하면 자동으로 평가가 적용됩니다.
 
 ### 1. @agent_eval (단일 호출)
-
-가장 일반적인 에이전트 호출 평가에 사용합니다.
 
 ```python
 from agent_evaluator import agent_eval, PerformanceMonitor
@@ -62,19 +61,15 @@ my_agent("한국의 수도는?", ground_truth="서울")
 
 ### 2. @batch_eval (대량 처리)
 
-리스트 형태의 입력을 받아 일괄 평가할 때 사용합니다.
-
 ```python
 from agent_evaluator import batch_eval
 
-@batch_eval(monitor, task_type="qa")
+@batch_eval(monitor, task_type="qa", concurrent=True, max_concurrent=5)
 def batch_agent(questions: list, ground_truths: list = None) -> list:
     return [llm.invoke(q) for q in questions]
 ```
 
 ### 3. @conversation_eval (멀티턴 대화)
-
-연속적인 대화 세션의 맥락 유지율 등을 평가합니다.
 
 ```python
 from agent_evaluator import conversation_eval, flush_conversation
@@ -83,15 +78,29 @@ from agent_evaluator import conversation_eval, flush_conversation
 def chat_agent(question: str, sid: str = "default") -> str:
     return chatbot.chat(question)
 
-# 동일 sid 호출 시 턴 자동 누적
 chat_agent("안녕", sid="user_1")
 chat_agent("날씨 알려줘", sid="user_1")
-
-# 세션 명시적 종료 및 지표 기록
-flush_conversation("user_1")
+flush_conversation("user_1")   # 세션 명시적 종료 및 지표 기록
 ```
 
-> **QuickEval**: 위 데코레이터들을 더 짧게 설정하고 싶다면 `eval = QuickEval("results/")` 팩토리를 사용하세요. (`@eval.qa`, `@eval.rag` 등 지원)
+### QuickEval — 1줄 팩토리
+
+```python
+from agent_evaluator import QuickEval
+
+eval = QuickEval("results/")
+
+@eval.qa                          # task_type="qa"
+def my_agent(question, ground_truth=""): ...
+
+@eval.rag                         # task_type="information_retrieval" + hallucination
+def rag_agent(question, context="", ground_truth=""): ...
+
+eval.save()                       # quickeval.json + quickeval.html
+eval.gate(tcr=85, accuracy=70)    # CI/CD 게이팅
+```
+
+단축 데코레이터: `qa`, `tool_use`, `rag`, `code`, `reasoning`, `planning`, `data_analysis`, `creative`, `multi_agent`, `secure`, `streaming`
 
 ---
 
@@ -106,7 +115,6 @@ from agent_evaluator import create_taskresult, PerformanceMonitor
 
 monitor = PerformanceMonitor(output_dir="results/")
 
-# 점수 자동 계산 — accuracy_score, completion_score 불필요
 result = create_taskresult(
     task_id="task_001",
     question="한국의 수도는?",
@@ -141,7 +149,6 @@ from agent_evaluator.decorators import eval_context
 
 monitor = PerformanceMonitor(output_dir="results/")
 
-# eval_context — 외부 함수 / 데코레이터 불가 시 1건씩 기록
 with eval_context(monitor, task_type="qa",
                   question="한국의 수도는?", ground_truth="서울") as ctx:
     ctx.response = external_lib.call("한국의 수도는?")
@@ -157,7 +164,7 @@ async with eval_context(monitor, task_type="qa", question=q) as ctx:
     ctx.response = await async_external.call(q)
 ```
 
-`evaluation_session`은 세션 단위 자동 저장이 필요할 때 사용합니다. 내부에서 `eval_context`와 함께 사용하면 각 태스크가 자동으로 기록됩니다.
+`evaluation_session`은 세션 단위 자동 저장이 필요할 때 사용합니다.
 
 ```python
 from agent_evaluator import evaluation_session
@@ -169,7 +176,65 @@ with evaluation_session("output_filename") as monitor:
                           question=item["question"],
                           ground_truth=item["answer"]) as ctx:
             ctx.response = external_agent.run(item["question"])
-# 블록 종료 시 results/output_filename.json + .html 자동 저장 (예외 발생 시에도 안전)
+# 블록 종료 시 results/output_filename.json + .html 자동 저장
+```
+
+---
+
+## 결과 저장 경로 — Zero Configuration
+
+별도 설정 없이 자동으로 올바른 위치에 저장됩니다.
+
+### 자동 경로 감지 순서
+
+| 우선순위 | 방법 |
+|---------|------|
+| 1 | 환경 변수 `AGENT_EVALUATOR_OUTPUT_DIR` (최우선) |
+| 2 | 환경 변수 `AGENT_EVALUATOR_ROOT` (프로젝트 루트 지정) |
+| 3 | Git 저장소 루트 아래 `results/` |
+| 4 | 현재 작업 디렉토리 아래 `results/` (폴백) |
+
+```python
+# 현재 감지된 경로 확인
+from agent_evaluator.utils.path_helpers import find_project_root, get_evaluation_results_dir
+
+print("프로젝트 루트:", find_project_root())
+print("결과 저장 경로:", get_evaluation_results_dir())
+```
+
+### 명시적 경로 지정
+
+```bash
+# 결과 저장 디렉토리 직접 지정 (최우선)
+export AGENT_EVALUATOR_OUTPUT_DIR=/path/to/results
+
+# 프로젝트 루트 지정
+export AGENT_EVALUATOR_ROOT=/path/to/my/project
+```
+
+```python
+import os
+os.environ['AGENT_EVALUATOR_ROOT'] = '/path/to/my/project'
+monitor.save_to_file("my_evaluation")
+# → /path/to/my/project/results/my_evaluation_evaluation.json
+```
+
+### 결과 파일 자동 레지스트리
+
+`save_to_file()` 호출 시 `~/.agent_evaluator/registry.json`에 자동 등록됩니다. 대시보드가 이를 통해 파일 위치를 자동 인식합니다.
+
+### 자동 저장 (auto_save)
+
+```python
+monitor = PerformanceMonitor(
+    output_dir="results/",
+    auto_save=True,
+    auto_save_interval=10,      # 10건마다 자동 저장
+    auto_save_filename="auto_checkpoint",
+)
+
+# QuickEval에도 동일 적용
+eval = QuickEval("results/", auto_save=True, auto_save_interval=10)
 ```
 
 ---
@@ -179,10 +244,10 @@ with evaluation_session("output_filename") as monitor:
 대시보드는 `results/` 디렉토리의 JSON 파일을 로드합니다. **먼저 평가 결과를 파일로 저장한 후** 실행하세요.
 
 ```python
-# 방법 A: 데코레이터 실행 후 save_to_file()
+# 방법 A: save_to_file()
 monitor.save_to_file("eval")     # results/eval.json + .html 생성
 
-# 방법 B: auto_save — N건마다 자동 저장
+# 방법 B: auto_save
 monitor = PerformanceMonitor(output_dir="results/", auto_save=True, auto_save_interval=10)
 
 # 방법 C: QuickEval
@@ -227,15 +292,22 @@ monitor = PerformanceMonitor.for_rag_evaluation(output_dir="results/")
 agent-eval gate results/eval.json --tcr 85 --accuracy 70
 ```
 
+```python
+# 코드에서 게이팅
+eval.gate(tcr=85, accuracy=70)                    # 실패 시 sys.exit(1)
+passed = eval.gate(tcr=80, accuracy=65, raise_on_fail=False)  # bool 반환
+```
+
 ---
 
-## 실시간 운영 모니터링 (v0.7.6)
+## 실시간 운영 모니터링
 
 Phoenix + OpenTelemetry로 프로덕션 스팬을 실시간 추적합니다. **`setup_otel()`을 PerformanceMonitor 생성 전에 호출해야 합니다.**
 
 ```bash
-# 터미널 1 — Phoenix 서버 기동 (기본 설치에 포함)
+# 터미널 1 — Phoenix 서버 기동
 agent-eval monitor                           # UI: http://localhost:6006
+agent-eval monitor --check                   # 설치 상태 확인
 ```
 
 ```python
@@ -250,16 +322,9 @@ monitor = PerformanceMonitor(output_dir="results/")
 def my_agent(question: str, ground_truth: str = "") -> str:
     return llm.invoke(question)
 
-# 호출 시 OTLP 스팬 자동 전송 → Phoenix Tracing 탭에서 실시간 확인
 my_agent("한국의 수도는?", ground_truth="서울")
+# → OTLP 스팬 자동 전송 → Phoenix Tracing 탭에서 실시간 확인
 ```
-
-```bash
-# 설치 상태 확인
-agent-eval monitor --check
-```
-
-> 자세한 내용: [12_MONITOR_GUIDE.md](12_MONITOR_GUIDE.md)
 
 ---
 
@@ -267,11 +332,11 @@ agent-eval monitor --check
 
 | 목적 | 문서 |
 |------|------|
-| 25개 지표 상세 (공식·출력키·임계값) | [02_METRICS_REFERENCE.md](02_METRICS_REFERENCE.md) |
-| 프레임워크 통합 (LangChain/CrewAI/AutoGen/LangGraph) | [03_FRAMEWORK_GUIDE.md](03_FRAMEWORK_GUIDE.md) |
-| 골든 데이터셋 구성 | [04_GOLDEN_DATASET_GUIDE.md](04_GOLDEN_DATASET_GUIDE.md) |
-| 품질 임계값 설정 | [05_THRESHOLD_GUIDE.md](05_THRESHOLD_GUIDE.md) |
-| 전체 API 레퍼런스 | [07_API_REFERENCE.md](07_API_REFERENCE.md) |
-| 대시보드 UI 상세 | [08_DASHBOARD_GUIDE.md](08_DASHBOARD_GUIDE.md) |
-| 실시간 모니터링 (Phoenix + OTEL) | [12_MONITOR_GUIDE.md](12_MONITOR_GUIDE.md) |
-| 사용 예제 파일 | [Evaluator_Examples/](../Evaluator_Examples/) |
+| 58개 지표 상세 (25 Native + 33 Harness Config) | [02_METRICS_GUIDE.md](02_METRICS_GUIDE.md) |
+| 데코레이터 파라미터 전체 + 프레임워크 통합 | [03_INTEGRATION_GUIDE.md](03_INTEGRATION_GUIDE.md) |
+| 골든 데이터셋 구성 · 한국어 RAG 평가 | [04_DATA_GUIDE.md](04_DATA_GUIDE.md) |
+| 품질 임계값 설정 · CI/CD 통합 | [05_QUALITY_GATE.md](05_QUALITY_GATE.md) |
+| 대시보드 탭 상세 · Phoenix 모니터링 | [06_OBSERVABILITY.md](06_OBSERVABILITY.md) |
+| Docker · 환경별 설정 · 성능 최적화 | [07_OPERATIONS.md](07_OPERATIONS.md) |
+| 전체 API 레퍼런스 | [08_API_REFERENCE.md](08_API_REFERENCE.md) |
+| 실행 가능 예제 파일 | [Evaluator_Examples/](../Evaluator_Examples/) |

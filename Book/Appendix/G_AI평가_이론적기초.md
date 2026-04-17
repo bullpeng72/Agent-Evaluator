@@ -76,7 +76,7 @@ LLM의 등장은 평가 방식을 근본적으로 바꿨다. 모델 성능이 GL
 
 **WebArena (Zhou et al. 2023)**는 실제 웹사이트 환경(Reddit, GitLab, 이커머스 등)에서 에이전트가 완전한 웹 태스크를 수행하는 능력을 평가한다.
 
-이러한 연구들이 공통적으로 발견한 사실은: **에이전트 평가에는 도구 사용 패턴, 오류 복구, 멀티스텝 계획, 보안 정책 준수를 측정하는 전용 지표가 필요하다**는 것이다. Agent-Evaluator의 Layer 2 지표군이 바로 이 필요에서 설계됐다.
+이러한 연구들이 공통적으로 발견한 사실은: **에이전트 평가에는 도구 사용 패턴, 오류 복구, 멀티스텝 계획, 보안 정책 준수를 측정하는 전용 지표가 필요하다**는 것이다. Agent-Evaluator의 Group B-F 에이전틱 지표군이 바로 이 필요에서 설계됐다.
 
 ---
 
@@ -131,9 +131,9 @@ Agent-Evaluator의 `InputSanitizationTracker`는 정규표현식 패턴 매칭 �
 **LLM-as-Judge**는 타당도가 높고 비용이 중간이지만 신뢰도는 중간이다.
 
 Agent-Evaluator의 3-Layer 설계는 이 트리레마에 대한 실용적 해답이다:
-- **Layer 1**: 신뢰도·비용 최우선 (규칙 기반, 밀리초 단위)
-- **Layer 2**: 신뢰도 유지, 에이전트 특화 타당도 추가 (규칙 기반 + 패턴 매칭)
-- **Layer 3**: 타당도 최우선, 비용은 opt-in으로 제어 (LLM-as-Judge, 샘플링)
+- **Group A-D (기반 지표)**: 신뢰도·비용 최우선 (규칙 기반, 밀리초 단위)
+- **Group B-F (에이전틱 지표)**: 신뢰도 유지, 에이전트 특화 타당도 추가 (규칙 기반 + 패턴 매칭)
+- **Group G (관측성)**: 타당도 최우선, 비용은 opt-in으로 제어 (LLM-as-Judge, 샘플링)
 
 ---
 
@@ -231,7 +231,7 @@ Agent-Evaluator의 `AgentCoordinationTracker`는 이 중 **협업 패턴과 성�
 - 도메인 지식 반영 한계: "혈압 180/120은 위험한가?" → ground_truth 없이 판단 불가
 - 창의적 답변 평가 한계: 정답이 하나가 아닌 태스크에서 낮은 타당도
 
-**Agent-Evaluator의 선택:** Layer 1, Layer 2 모두 규칙 기반. 모든 프로덕션 배포에서 즉시 사용 가능하도록 외부 의존성을 제거했다.
+**Agent-Evaluator의 선택:** Group A-F 모두 규칙 기반. 모든 프로덕션 배포에서 즉시 사용 가능하도록 외부 의존성을 제거했다.
 
 ### G.4.3 모델 기반 평가 (LLM-as-Judge)
 
@@ -259,10 +259,10 @@ Agent-Evaluator의 `AgentCoordinationTracker`는 이 중 **협업 패턴과 성�
 ```
 하이브리드 평가 파이프라인:
   
-  1단계: 규칙 기반 (Layer 1+2) — 모든 태스크에 적용
+  1단계: 규칙 기반 (Group A-F) — 모든 태스크에 적용
          → 기준 미달 시 즉시 플래그, LLM Judge 호출 건너뜀
   
-  2단계: LLM Judge (Layer 3) — 샘플링 적용 (5~10%)
+  2단계: LLM Judge (Group G) — 샘플링 적용 (5~10%)
          → 심층 품질 분석, 미묘한 오류 탐지
   
   3단계: 인간 검토 (Human) — 최고 위험 케이스만
@@ -275,14 +275,14 @@ Agent-Evaluator의 `AgentCoordinationTracker`는 이 중 **협업 패턴과 성�
 
 ## G.5 Agent-Evaluator 설계 원칙의 이론적 근거
 
-### G.5.1 Zero-dependency Layer 1/2의 이유
+### G.5.1 Zero-dependency Group A-F의 이유
 
 프로덕션 환경에서 외부 의존성은 세 가지 위험을 만든다:
 1. **가용성 위험**: OpenAI API 다운 → 평가 시스템 전체 중단
 2. **비용 위험**: 트래픽 급증 시 평가 비용 폭발적 증가
 3. **지연 위험**: 외부 API 응답 지연이 애플리케이션 응답 지연으로 전파
 
-Layer 1/2를 외부 의존성 없이 설계함으로써 **평가 시스템이 애플리케이션과 같은 수명주기를 가지도록** 했다. 평가는 항상 동작하거나, 실패해도 주 기능에 영향을 주지 않는다.
+Group A-F를 외부 의존성 없이 설계함으로써 **평가 시스템이 애플리케이션과 같은 수명주기를 가지도록** 했다. 평가는 항상 동작하거나, 실패해도 주 기능에 영향을 주지 않는다.
 
 ### G.5.2 4-지표 가중 합산의 이론적 근거
 
@@ -343,9 +343,25 @@ Agent-Evaluator의 `HallucinationDetector`는 경량 버전으로, 수치 불일
 
 **JudgeBench**: LLM Judge 자체의 품질을 평가하는 메타-벤치마크. "어떤 LLM이 가장 공정한 Judge인가"를 측정한다. GPT-4o, Claude Opus가 상위권이지만, 도메인 특화 태스크에서는 파인튜닝된 소형 모델이 더 나은 경우도 있다.
 
-이런 연구 결과는 Agent-Evaluator의 `LLMJudge`가 단독으로 사용되지 않고 Layer 1/2 규칙 기반 지표와 함께 사용되어야 하는 이유를 뒷받침한다.
+이런 연구 결과는 Agent-Evaluator의 `LLMJudge`가 단독으로 사용되지 않고 Group A-F 규칙 기반 지표와 함께 사용되어야 하는 이유를 뒷받침한다.
 
 ---
+
+---
+
+## G.7.0 이론과 Group A-G 구현 매핑
+
+G.1~G.6에서 다룬 이론이 Agent-Evaluator의 어느 Group에서 구현되는지 정리한다.
+
+| 이론 | 섹션 | 구현 Group | 핵심 클래스 |
+|------|------|-----------|-----------|
+| 구성 타당도 | G.2.1 | A (TCR, Accuracy) | `TaskCompletionTracker`, `AccuracyEvaluator` |
+| 내용 타당도 | G.2.2 | A, G | `ResponseQualityEvaluator`, `LLMJudge` |
+| LLM-as-Judge | G.1.3 | G | `LLMJudge` (7차원) |
+| 에이전트 평가 특수성 | G.3 | B, E, F | `ToolCallAnalyzer`, `InputSanitizationTracker` |
+| Config-as-Code | G.8.1 | 전체 (33개 Config) | `HarnessEvaluationGate` |
+| 확률론적 품질 | G.9.1 | A, C | `ReproducibilityConfig`, Wilson Score |
+| 드리프트 인식 | G.9.3, G.8.4 | D (추세) | `RunTrendAnalyzer` |
 
 ## G.7 Agent-Evaluator 25개 지표와 연구 출처
 
@@ -378,4 +394,230 @@ Agent-Evaluator의 `HallucinationDetector`는 경량 버전으로, 수치 불일
 
 ---
 
-*본 Appendix는 Agent-Evaluator v0.8.0 기준으로 작성됐다. AI 평가 연구는 빠르게 발전하고 있으며, 주요 학회(NeurIPS, ACL, ICLR)에서 새로운 방법론이 지속적으로 발표되고 있다.*
+---
+
+## G.8 Harness Engineering 이론적 기초
+
+### G.8.1 배포 판단 시스템으로서의 평가
+
+기존 AI 평가는 "얼마나 좋은가"를 측정하는 것에 집중했다. Harness Engineering은 이를 확장해 **"배포해도 되는가"를 판단**하는 시스템으로 전환한다.
+
+이 전환의 핵심은 **평가 기준(Config)과 측정 지표(Tracker)를 분리**하는 것이다.
+
+```
+기존 접근:  measure(agent) → score → "점수가 충분히 높으면 배포"
+Harness:    Config.declare(criteria) + Tracker.measure(agent) → Gate.judge() → "pass/fail"
+```
+
+소프트웨어 엔지니어링의 **계약 프로그래밍(Design by Contract, Meyer 1992)**에서 영감을 받은 패러다임이다. "전제 조건(precondition), 사후 조건(postcondition), 불변 조건(invariant)"을 AI 에이전트에 적용하면:
+- **Precondition**: 에이전트가 처리할 수 있는 입력의 범위 (ScopeConfig, ThreatSeverityConfig)
+- **Postcondition**: 에이전트가 보장해야 하는 출력 품질 (InstructionConfig, SLAConfig)
+- **Invariant**: 항상 유지되어야 하는 시스템 속성 (ComplianceConfig, ToolAuthorizationTracker)
+
+### G.8.2 Config-as-Code 패턴
+
+Harness Config는 **Infrastructure-as-Code**의 AI 평가 버전이다. 배포 기준을 코드로 선언함으로써:
+
+1. **버전 관리**: 배포 기준이 Git에서 추적된다. "지난 달에 SLA 기준이 5초에서 3초로 변경됐다"를 커밋 히스토리에서 확인할 수 있다.
+
+2. **코드 리뷰**: 배포 기준 변경이 PR을 통해 팀의 동의를 거친다. "QA 팀장이 TCR 기준을 80%→90%로 높였는가"를 코드 변경으로 확인할 수 있다.
+
+3. **재현 가능성**: 어떤 기준으로 이 버전을 배포했는지 코드만 보면 알 수 있다. 과거 배포 판단을 재현할 수 있다.
+
+4. **자동화**: CI/CD 파이프라인에서 `HarnessEvaluationGate`가 자동으로 배포 판단을 내린다.
+
+```python
+# 예시: 배포 기준의 진화 (Git 히스토리에서 추적 가능)
+# v1: 초기 기준
+instruction_cfg = InstructionConfig(min_completion_rate=0.80)
+
+# v2: 3개월 후, 사용자 불만으로 상향
+instruction_cfg = InstructionConfig(min_completion_rate=0.90, fail_on_violation=True)
+
+# v3: 특정 task_type에 별도 기준 적용
+instruction_cfg_qa = InstructionConfig(min_completion_rate=0.90, task_types=["qa"])
+instruction_cfg_code = InstructionConfig(min_completion_rate=0.85, task_types=["code_generation"])
+```
+
+### G.8.3 확률론적 배포 판단 이론
+
+전통 소프트웨어의 배포 판단은 이분적(binary)이다: "테스트가 모두 통과했는가, 아닌가."
+
+AI 에이전트의 배포 판단은 **확률론적(probabilistic)**이다. 같은 에이전트도 실행마다 다른 결과를 낸다.
+
+**Wilson Score Interval**을 사용한 TCR 신뢰 구간 추정:
+
+```
+Wilson Score 하한 = (p̂ + z²/2n - z√[p̂(1-p̂)/n + z²/4n²]) / (1 + z²/n)
+
+여기서:
+  p̂ = 관찰된 성공률 (TCR)
+  n  = 실행 횟수
+  z  = 신뢰수준 z값 (95% → 1.96)
+```
+
+실용적 의미: 20번 평가에서 TCR 90%를 관찰했을 때, 95% 신뢰구간은 약 [68%, 99%]로 매우 넓다. 100번 평가에서 TCR 90%를 관찰하면 신뢰구간은 약 [82%, 95%]로 좁아진다.
+
+**배포 판단의 보수적 접근**: 충분한 샘플(최소 100개 태스크)이 없으면 신뢰구간의 **하한**을 사용해 배포 판단.
+
+```python
+import math
+
+def wilson_lower_bound(successes: int, trials: int, z: float = 1.96) -> float:
+    """Wilson Score 하한 계산 — 보수적 TCR 추정"""
+    if trials == 0:
+        return 0.0
+    p = successes / trials
+    denominator = 1 + z**2 / trials
+    center = p + z**2 / (2 * trials)
+    margin = z * math.sqrt(p * (1 - p) / trials + z**2 / (4 * trials**2))
+    return (center - margin) / denominator
+
+# 20번 중 18번 성공 (90%) → 하한 72.0%
+# 100번 중 90번 성공 (90%) → 하한 83.0%
+# 1000번 중 900번 성공 (90%) → 하한 88.0%
+```
+
+이 이론은 **Part IV Chapter 14 (임계값 설정)** 에서 실무 적용 방법을 다룬다.
+
+### G.8.4 드리프트 이론 — 에이전트가 왜 시간이 지나면서 나빠지는가
+
+정적 소프트웨어와 달리, AI 에이전트는 코드가 변하지 않아도 시간이 지나면서 성능이 저하될 수 있다. 이를 **AI 드리프트(AI Drift)**라 한다.
+
+**드리프트의 4가지 원인:**
+
+1. **입력 데이터 드리프트(Data Drift)**: 사용자 질의 패턴이 모델 학습 분포에서 벗어남.
+   - 탐지 방법: 입력 토큰 분포의 KL-divergence 모니터링
+   - Agent-Evaluator 대응: `AnomalyDetector`가 입력 패턴 이상을 탐지
+
+2. **모델 드리프트(Model Drift)**: LLM 공급자가 모델을 업데이트.
+   - 탐지 방법: 고정 골든 데이터셋으로 주기적 회귀 테스트
+   - Agent-Evaluator 대응: `GoldenSetBuilder` + `agent-eval trend`
+
+3. **컨셉 드리프트(Concept Drift)**: 사용자가 기대하는 응답 품질이 변화.
+   - 탐지 방법: LLMJudge 채점 추세 모니터링
+   - Agent-Evaluator 대응: `RunTrendAnalyzer`의 accuracy slope 분석
+
+4. **환경 드리프트(Environment Drift)**: 에이전트가 의존하는 외부 API/데이터가 변화.
+   - 탐지 방법: 도구 호출 성공률 시계열 분석
+   - Agent-Evaluator 대응: `ToolCallAnalyzer` 효율성 추세 + `AnomalyDetector`
+
+**드리프트 탐지의 통계적 기초:**
+
+```
+단순 이동 평균(SMA):   MA_t = Σ(x_{t-k}, ..., x_t) / (k+1)
+지수 이동 평균(EMA):   EMA_t = α × x_t + (1-α) × EMA_{t-1}
+선형 회귀 기울기:       slope = Σ(t_i - t̄)(x_i - x̄) / Σ(t_i - t̄)²
+```
+
+`RunTrendAnalyzer`는 선형 회귀 기울기를 사용한다. `slope < -0.05/run`이면 "지속적 하락"으로 간주해 경보를 발령한다.
+
+---
+
+## G.9 AI Native 에이전트 평가 전략 — 5가지
+
+> AI Native 5속성(비결정론적 출력, 컨텍스트 의존성, 다단계 추론, 도구 활용, 자율적 목표 추구)은 각각 고유한 **평가 전략**을 요구한다. G.9.1~G.9.5는 이 5가지 속성에 대응하는 평가 이론과 Agent-Evaluator의 구현을 설명한다.
+>
+> | 속성 | 대응 전략 | 섹션 |
+> |------|---------|------|
+> | 비결정론적 출력 | 확률론적 품질 측정 | G.9.1 |
+> | 컨텍스트 의존성 | AI-by-AI 평가 (교차 검증) | G.9.2 |
+> | 다단계 추론 | 드리프트 인식 (시계열 모니터링) | G.9.3 |
+> | 도구 활용 | 출현 행동 탐지 (이상 감지) | G.9.4 |
+> | 자율적 목표 추구 | 지속 평가 (CI/CD 루프) | G.9.5 |
+
+### G.9.1 확률론적 품질 (Probabilistic Quality)
+
+**이론적 배경**: 베이지안 추론(Bayesian Inference)에서 영감.
+
+고전적 품질 관리(Six Sigma 등)는 불량률을 결정론적으로 정의한다: "불량 부품이 0개여야 한다." AI 에이전트의 "불량"은 이분적이지 않다. "60% 정답에 가까운 응답"은 불량인가, 양품인가?
+
+**Harness Engineering의 대응**: 응답 품질을 확률 분포로 모델링.
+
+```
+품질 분포: Q ~ Normal(μ, σ²)
+
+배포 기준:
+  P(Q ≥ threshold) ≥ confidence
+  
+예: "정확도 70% 이상인 응답이 85% 이상의 확률로 나와야 배포 가능"
+→ InstructionConfig(min_completion_rate=0.85, min_accuracy=0.70)
+```
+
+### G.9.2 AI-by-AI 평가 (AI Evaluating AI)
+
+**이론적 문제**: 자기 참조(Self-Reference) 패러독스.
+
+"GPT-4가 좋은 응답을 만든다"는 것을 "GPT-4로 채점"으로 검증할 수 있는가? 평가자 편향(evaluator bias)이 개입한다.
+
+**해결 전략:**
+
+1. **이종 모델 평가자**: 생성 모델(GPT-4)과 다른 모델(Claude)로 채점
+2. **교차 평가(Cross-evaluation)**: 에이전트 A의 응답을 에이전트 B가 채점
+3. **기준 앙커링(Criteria Anchoring)**: `judge_criteria`로 주관적 판단을 구조화된 기준으로 대체
+4. **샘플링 검증**: 전체의 10%만 LLM 채점, 나머지는 규칙 기반으로 교차 검증
+
+```python
+# 이종 모델 평가자 패턴 — v0.8.2
+judge = LLMJudge(
+    model="claude-haiku-4-5-20251001",  # 생성 모델과 다른 평가 모델
+    judge_criteria=["factual_accuracy", "medical_safety"],  # 구체적 기준
+    sample_rate=0.10,  # 비용 통제
+)
+```
+
+### G.9.3 드리프트 인식 (Drift Awareness)
+
+§G.8.4 참조. AI 에이전트 평가는 **일회성 측정**이 아닌 **시계열 모니터링**이어야 한다.
+
+**이론적 근거**: 개념 드리프트(Concept Drift) 문헌(Widmer & Kubat 1996, Gama et al. 2004)은 데이터 분포가 시간에 따라 변할 때 정적 모델의 성능이 저하됨을 보인다. AI 에이전트는 데이터 분포뿐만 아니라 모델 자체, 외부 도구, 사용자 기대도 변하기 때문에 드리프트 위험이 더 크다.
+
+### G.9.4 출현 행동 (Emergent Behavior)
+
+**이론적 배경**: 복잡계 이론(Complex Systems Theory).
+
+에이전트가 단독으로는 보이지 않는 행동이 도구 체인, 멀티에이전트 상호작용, 컨텍스트 누적에 의해 나타난다. "설계하지 않은 능력"이 되기도 하고, "예상치 못한 실패"가 되기도 한다.
+
+출현 행동의 평가 도전:
+1. **사전 정의 불가**: 어떤 출현 행동이 나타날지 미리 테스트 케이스를 작성할 수 없다.
+2. **재현 어려움**: 특정 입력 조합, 도구 상태, 히스토리가 모두 일치해야 재현된다.
+3. **부분적으로 긍정적**: 출현 행동이 항상 나쁜 것은 아니다 (예상치 못한 창의적 해결).
+
+**Agent-Evaluator의 접근**: `AnomalyDetector`는 통계적 정상 범위를 학습하고 이탈을 탐지한다. "무엇이 이상한지"를 사전에 정의하지 않고, "정상 분포에서 얼마나 벗어났는가"로 탐지한다.
+
+```python
+# 출현 행동 탐지 — 통계적 접근
+monitor = PerformanceMonitor(
+    output_dir="results/",
+    enable_anomaly_detection=True,  # 통계적 이상 탐지 활성화
+)
+# → IQR 기반 이상 탐지: Q3 + 1.5×IQR 초과 시 이상으로 분류
+```
+
+### G.9.5 지속 평가 (Continuous Evaluation)
+
+**이론적 배경**: DevOps의 Continuous Integration/Continuous Deployment(CI/CD) 철학을 AI 평가에 적용.
+
+전통 소프트웨어는 "배포 전 테스트 → 배포 → 운영"의 선형 흐름이다. AI 에이전트는 "배포 전 테스트 → 배포 → 운영 중 평가 → 드리프트 탐지 → 재보정 → 재배포"의 순환 흐름이 필요하다.
+
+```
+[평가] → [측정] → [이상 탐지] → [원인 분석] → [개선] → [재검증] → [배포]
+   ↑                                                                      │
+   └──────────────────────── 자기개선 루프 ──────────────────────────────┘
+```
+
+이 루프의 각 단계에서 Agent-Evaluator가 제공하는 도구:
+
+| 단계 | 도구 | Config/Tracker |
+|------|------|---------------|
+| 평가 | `PerformanceMonitor`, `@agent_eval` | Group A-G Tracker |
+| 측정 | `generate_report()`, `save_to_file()` | EvaluationReport |
+| 이상 탐지 | `AnomalyDetector`, `agent-eval trend` | AnomalyConfig, RunTrendAnalyzer |
+| 원인 분석 | `LLMJudge`, Phoenix OTEL | Group G ObservabilityConfig |
+| 개선 | `GoldenSetBuilder` | 골든 데이터셋 자동 확장 |
+| 재검증 | `HarnessEvaluationGate` | Group A-G Config 전체 |
+| 배포 | `agent-eval gate` | CI/CD 통합 |
+
+---
+
+*본 Appendix는 Agent-Evaluator v0.8.2 기준으로 작성됐다. AI 평가 연구는 빠르게 발전하고 있으며, 주요 학회(NeurIPS, ACL, ICLR)에서 새로운 방법론이 지속적으로 발표되고 있다. Harness Engineering 개념과 Config-as-Code 패턴은 v0.8.x 시리즈에서 지속적으로 발전 중이다.*

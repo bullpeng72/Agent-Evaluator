@@ -1,15 +1,15 @@
-# Chapter 6. 데코레이터 완전 정복
+# Chapter 11. 데코레이터 완전 정복
 
 이 챕터에서 배우는 것: Agent-Evaluator SDK의 핵심 인터페이스인 데코레이터 시스템을 완벽하게 이해한다. 비즈니스 로직과 평가 코드를 어떻게 깔끔하게 분리하는지, 상황별로 어떤 데코레이터를 선택해야 하는지, 그리고 RAG·멀티에이전트·스트리밍 같은 실전 시나리오에서 데코레이터를 어떻게 조합하는지를 단계적으로 익힌다.
 
 > 📖 **관련 레퍼런스**
 > - **[Appendix E — 에러 코드 & 트러블슈팅](../Appendix/E_에러코드_트러블슈팅.md)**: 데코레이터 적용 후 발생하는 오류 코드별 원인과 해결책
-> - **[Chapter 8 — 평가 데이터 설계](Chapter_08_평가데이터_설계.md)**: 데코레이터에 전달할 `ground_truth`와 `task_type`을 어떻게 설계할지 → **먼저 읽기 권장**
+> - **[Chapter 13 — 평가 데이터 설계](Chapter_08_평가데이터_설계.md)**: 데코레이터에 전달할 `ground_truth`와 `task_type`을 어떻게 설계할지 → **먼저 읽기 권장**
 > - **[Appendix I — 지표 비교 분석 및 선택 가이드](../Appendix/I_지표_비교분석_선택가이드.md)**: `task_type` 선택이 정확도 계산에 미치는 영향
 
 ---
 
-## 6.1 왜 데코레이터인가 — SDK 설계 철학
+## 11.1 왜 데코레이터인가 — SDK 설계 철학
 
 ### 비즈니스 로직과 평가 코드의 분리
 
@@ -84,7 +84,7 @@ def my_agent(question: str, ground_truth: str = "") -> str:
 
 ---
 
-## 6.2 에이전트 유형별 데코레이터 선택 가이드
+## 11.2 에이전트 유형별 데코레이터 선택 가이드
 
 상황에 맞는 데코레이터를 고르는 6행 결정 테이블:
 
@@ -101,7 +101,7 @@ def my_agent(question: str, ground_truth: str = "") -> str:
 
 ---
 
-## 6.3 @agent_eval — 단일 태스크 평가
+## 11.3 @agent_eval — 단일 태스크 평가
 
 `@agent_eval`은 단일 에이전트 함수에 평가를 삽입하는 가장 기본적인 방법이다. 동기, 비동기, 제너레이터(스트리밍) 함수를 모두 자동 감지하여 처리한다.
 
@@ -259,7 +259,7 @@ def production_agent(question: str, ground_truth: str = "") -> str:
 
 ---
 
-## 6.4 @batch_eval — 대량 데이터셋 평가
+## 11.4 @batch_eval — 대량 데이터셋 평가
 
 질문 목록을 한 번에 평가해야 할 때 사용한다. 루프를 직접 작성하지 않고, 배치 전체를 한 번의 함수 정의로 처리한다.
 
@@ -345,7 +345,7 @@ def batch_agent(questions: list, ground_truths: list = None) -> list:
 
 ---
 
-## 6.5 @conversation_eval — 멀티턴 대화 평가
+## 11.5 @conversation_eval — 멀티턴 대화 평가
 
 챗봇이나 고객 상담 에이전트처럼 여러 번의 대화가 이어지는 시나리오를 평가한다. `session_id`가 같은 호출을 하나의 세션으로 묶어 대화 전용 지표를 계산한다.
 
@@ -430,7 +430,7 @@ monitor.save_to_file("chatbot_eval")
 
 ---
 
-## 6.6 eval_context — 데코레이터를 쓸 수 없을 때
+## 11.6 eval_context — 데코레이터를 쓸 수 없을 때
 
 외부 라이브러리의 콜백으로 에이전트가 실행되거나, 복잡한 조건부 로직 때문에 함수 데코레이터를 붙이기 어려울 때 사용하는 with 블록 패턴이다.
 
@@ -466,7 +466,7 @@ with eval_context(monitor, task_type="qa") as ctx:
 
 ---
 
-## 6.7 EvalDecorator & QuickEval — 팩토리 패턴
+## 11.7 EvalDecorator & QuickEval — 팩토리 패턴
 
 ### EvalDecorator — 공통 설정 재사용
 
@@ -576,7 +576,7 @@ print(f"통계적 유의성: p={ab_result.get('p_value', 'N/A')}")
 
 ---
 
-## 6.8 고급 기능
+## 11.8 고급 기능
 
 ### preset 시스템
 
@@ -734,7 +734,7 @@ def rate_limited_agent(question: str, ground_truth: str = "") -> str:
 
 ---
 
-## 6.9 개발자 실전 패턴 모음
+## 11.9 개발자 실전 패턴 모음
 
 ### RAG 에이전트 평가 완전 예시
 
@@ -822,7 +822,7 @@ print(f"평균 TTFT: {ttft_stats.get('mean', 0):.3f}초")
 
 ---
 
-## 6.10 파라미터 × 지표 완전 매핑 — 종합 레퍼런스
+## 11.10 파라미터 × 지표 완전 매핑 — 종합 레퍼런스
 
 실전에서 가장 자주 받는 질문은 "어떤 파라미터를 써야 어떤 지표가 켜지나요?"다. 이 절은 그 질문에 대한 완전한 답이다.
 
@@ -831,7 +831,7 @@ print(f"평균 TTFT: {ttft_stats.get('mean', 0):.3f}초")
 ```
 지표                            @agent_eval  @batch_eval  @conversation_eval
 ─────────────────────────────────────────────────────────────────────────────
-[Layer 1 — 기반 지표]
+[Group A-D — 기반 지표]
 TCR (태스크 완료율)                  ✅           ✅              ✅
 Accuracy (정확도)                    ✅           ✅              ✅
 Hallucination (환각 탐지)     ✅(opt-in)   ✅(opt-in)          ✅
@@ -839,21 +839,21 @@ Quality (응답 품질 5차원)             ✅           ✅              ✅
 Latency (지연 시간 + TTFT)           ✅           ✅              ✅
 Token Economy (토큰·비용)            ✅           ✅              ✅
 
-[Layer 2-A — 에이전틱 지표]
+[Group B·F — 에이전틱 지표]
 Tool Call (도구 호출 패턴)            ✅           ✅              ✅
 Retry/Correction (재시도)            ✅           ✅              ✅
 Tool Selection F1                    ✅           ✅              ✅
 Agent Coordination (멀티에이전트)     ✅           ✅              ✅
 Workflow Execution                   ✅           ✅              ✅
 
-[Layer 2-B — 보안 지표]
+[Group E — 보안 지표]
 Input Sanitization            ✅(opt-in)   ✅(opt-in)       ✅(opt-in)
 Output Leakage               ✅(opt-in)   ✅(opt-in)       ✅(opt-in)
 Tool Authorization           ✅(opt-in)   ✅(opt-in)       ✅(opt-in)
 Privilege Escalation         ✅(opt-in)   ✅(opt-in)       ✅(opt-in)
 Tool Chain Attack            ✅(opt-in)   ✅(opt-in)       ✅(opt-in)
 
-[Layer 3 — LLM Judge]  (llm_judge=LLMJudgeConfig(), 기본 설치에 포함)
+[Group G — LLM Judge]  (llm_judge=LLMJudgeConfig(), 기본 설치에 포함)
 Completeness                  ✅(opt-in)   ✅(opt-in)          N/A
 Relevance                     ✅(opt-in)   ✅(opt-in)          N/A
 Factual Consistency           ✅(opt-in)   ✅(opt-in)          N/A
@@ -1002,7 +1002,7 @@ def streaming_agent(question: str, ground_truth: str = ""):
             concurrent=True, max_concurrent=5)
 def batch_agent(questions: list, ground_truths: list = None) -> list:
     return [llm.ask(q) for q in questions]
-# → 전체 Layer 1/2 지표 + DataFrame 반환
+# → 전체 Group A-G 지표 + DataFrame 반환
 ```
 
 #### 8. LLM Judge + G-Eval 커스텀
@@ -1160,7 +1160,7 @@ agent-eval dashboard results/
 | 섹션 7 | `@conversation_eval` — 자동/수동 flush 2패턴 |
 | 섹션 8 | `QuickEval` Facade — `gate()` · `summary()` · `save()` |
 
-**실행 결과 (v0.8.0 기준)**
+**실행 결과 (v0.8.2 기준)**
 
 ```
 === 섹션 3: EvalMetadata 튜플 반환 ===
@@ -1180,3 +1180,149 @@ agent-eval dashboard results/
 ```
 
 > **`EvalMetadata` 우선순위 규칙**: 함수가 `(response, EvalMetadata(accuracy=0.92))` 튜플을 반환하면, `score_fn`이 지정돼 있어도 `EvalMetadata.accuracy_score`가 최종값으로 사용된다. 이 동작을 섹션 3에서 직접 확인할 수 있다.
+
+---
+
+## 11.11 Harness Config와 데코레이터 통합
+
+> **이 절에서 배우는 것**: 데코레이터 파라미터에 Harness Config를 연결해 "배포 기준"을 에이전트 함수에 직접 선언하는 방법을 익힌다. 측정(Tracker) + 기준(Config) + 판정(Gate)을 하나의 데코레이터에서 완성한다.
+
+### 11.11.1 `harness_configs` 파라미터
+
+`@agent_eval`, `@batch_eval`, `@conversation_eval` 모두 `harness_configs` 파라미터로 Config 목록을 받습니다.
+
+```python
+from agent_evaluator.decorators import (
+    InstructionConfig, SLAConfig, ThreatSeverityConfig,
+    agent_eval,
+)
+from agent_evaluator import PerformanceMonitor
+
+monitor = PerformanceMonitor(output_dir="results/")
+
+# Harness Config — 배포 기준 선언
+instruction_cfg = InstructionConfig(
+    min_completion_rate=0.90,
+    min_accuracy=0.80,
+    fail_on_violation=True,
+)
+sla_cfg = SLAConfig(
+    max_p95_latency=3.0,
+    max_cost_per_task=0.01,
+    fail_on_violation=True,
+)
+
+@agent_eval(
+    monitor,
+    task_type="qa",
+    harness_configs=[instruction_cfg, sla_cfg],
+)
+def my_agent(question: str, ground_truth: str = "") -> str:
+    return llm.invoke(question)
+```
+
+`fail_on_violation=True`로 설정된 Config의 기준을 위반하면 해당 태스크의 `TaskResult.success`가 `False`로 강제 설정됩니다. TCR 계산에 반영되어 Gate 판정에 영향을 줍니다.
+
+### 11.11.2 에이전트 유형별 최소 Config 세트
+
+| 에이전트 유형 | 핵심 Config | 선택 Config |
+|-------------|------------|------------|
+| **기본 QA** | `InstructionConfig` | `SLAConfig` |
+| **RAG 에이전트** | `InstructionConfig`, `ReproducibilityConfig` | `FaultToleranceConfig` |
+| **도구 사용 에이전트** | `InstructionConfig`, `ScopeConfig`, `SLAConfig` | `LoopDetectionConfig` |
+| **보안 민감 에이전트** | `InstructionConfig`, `ThreatSeverityConfig`, `ComplianceConfig` | `ThreatResponseConfig` |
+| **멀티에이전트** | `InstructionConfig`, `DeadlockConfig`, `SLAConfig` | `ConsensusConfig` |
+| **프로덕션 전체** | 위 전체 조합 | `ObservabilityConfig`, `ErrorDiagnosisConfig` |
+
+### 11.11.3 `RetryConfig`, `LLMJudgeConfig`, `SecurityConfig` 구조화 파라미터
+
+v0.8.1에서 도입된 3종 구조화 Config는 기존 개별 파라미터를 데이터클래스로 묶은 것입니다.
+
+```python
+from agent_evaluator.decorators import RetryConfig, LLMJudgeConfig, SecurityConfig
+
+@agent_eval(
+    monitor,
+    task_type="qa",
+    # 재시도 설정 (실행 동작)
+    retry=RetryConfig(
+        max=3,
+        delay=1.0,
+        backoff=2.0,
+    ),
+    # LLM Judge 설정 (Group G 운영관측성)
+    llm_judge=LLMJudgeConfig(
+        model="claude-haiku-4-5-20251001",
+        criteria=["medical_accuracy", "citation_quality"],  # G-Eval 대체
+    ),
+    # 보안 설정 (Group E 보안경계)
+    security=SecurityConfig(
+        allowed_tools=["search", "read"],
+    ),
+)
+def medical_agent(question: str, ground_truth: str = "") -> str:
+    return llm.invoke(question)
+```
+
+### 11.11.4 데코레이터 + Harness Gate 전체 패턴
+
+측정(데코레이터) + 기준(Config) + 판정(Gate)을 하나의 워크플로우로 연결합니다.
+
+```python
+from agent_evaluator.decorators import (
+    InstructionConfig, SLAConfig, ThreatSeverityConfig,
+    RetryConfig, LLMJudgeConfig, SecurityConfig,
+    agent_eval,
+)
+from agent_evaluator import PerformanceMonitor, QuickEval
+
+# ── 방법 A: PerformanceMonitor + @agent_eval (세밀한 제어) ──
+monitor = PerformanceMonitor(
+    output_dir="results/",
+    enable_security_metrics=True,   # Group E
+    enable_llm_judge=True,         # Group G
+    judge_sample_rate=0.1,
+)
+
+harness = [
+    InstructionConfig(min_completion_rate=0.90, fail_on_violation=True),
+    SLAConfig(max_p95_latency=3.0, fail_on_violation=True),
+    ThreatSeverityConfig(max_severity="medium", fail_on_violation=True),
+]
+
+@agent_eval(
+    monitor,
+    task_type="qa",
+    harness_configs=harness,
+    retry=RetryConfig(max=2),
+    llm_judge=LLMJudgeConfig(criteria=["factual_accuracy"]),
+    security=SecurityConfig(allowed_tools=["search"]),
+)
+def production_agent(question: str, ground_truth: str = "") -> str:
+    return llm.invoke(question)
+
+# 평가 실행
+for q, gt in test_dataset:
+    production_agent(q, ground_truth=gt)
+
+# Harness Gate — 배포 최종 판정
+report = monitor.generate_report()
+print(f"Group A TCR: {report.task_completion_rate:.1%}")
+print(f"Group D p95: {report.latency_p95:.2f}s")
+monitor.gate(tcr=90, p95_latency=3.0)  # 기준 미달 시 sys.exit(1)
+
+# ── 방법 B: QuickEval (빠른 시작) ──
+eval = QuickEval.for_security("results/")  # Group E 강화 설정
+
+@eval.qa
+def simple_agent(question: str, ground_truth: str = "") -> str:
+    return llm.invoke(question)
+
+for q, gt in test_dataset:
+    simple_agent(q, ground_truth=gt)
+
+eval.gate(tcr=85, accuracy=70)
+eval.save()
+```
+
+> 📖 **더 깊이**: Group별 Config 전체 파라미터는 → **[Appendix A — 58개 지표 완전 레퍼런스](../Appendix/A_58개지표_레퍼런스.md)** §Part 2 Harness Config 레퍼런스 참조.

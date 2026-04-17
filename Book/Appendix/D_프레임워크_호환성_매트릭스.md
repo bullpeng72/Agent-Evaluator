@@ -1,6 +1,6 @@
 # Appendix D. 프레임워크 호환성 매트릭스
 
-Agent Evaluator v0.8.0 기준. 21개 통합 프레임워크와 8개 평가 플랫폼 비교를 정리한다.
+Agent Evaluator v0.8.2 기준. 21개 통합 프레임워크와 8개 평가 플랫폼 비교를 정리한다.
 
 ---
 
@@ -54,6 +54,26 @@ Agent Evaluator v0.8.0 기준. 21개 통합 프레임워크와 8개 평가 플�
 | LangGraph | 상태 머신 / DAG | 부분 | 부분 (노드 전환) | ~82% (~21개) |
 | CrewAI | 역할 기반 멀티에이전트 | ❌ 0 고정 | ✅ | ~78% (~20개) |
 | AutoGen | 대화형 멀티에이전트 | 부분 (tiktoken) | ✅ | ~80% (~20개) |
+
+> **지표 커버리지 기준**: Group A-G의 **25개 Tracker** 기준으로 산출 (분모 = 25).  
+> 33개 Harness Config는 모든 프레임워크에서 동일하게 설정 가능하므로 커버리지에 포함하지 않음.  
+> **토큰 정확도**: ✅ 실제값 = LLM API 응답에서 실제 토큰 수 획득 | ❌ 0 고정 = 프레임워크에서 토큰 정보 미제공, 추정값 사용 | 부분 = 일부 호출 경로에서만 가능
+
+### AI Native 속성별 프레임워크 지원 현황
+
+에이전트의 AI Native 속성을 평가하는 데 프레임워크별로 제공하는 메타데이터가 다르다.
+
+| AI Native 속성 | LangChain | LangGraph | CrewAI | AutoGen |
+|--------------|-----------|-----------|--------|---------|
+| 비결정론적 출력 추적 | △ (체인 단계 기록) | ✅ (상태 전이 추적) | △ | ✅ (대화 로그) |
+| 다단계 추론 추적 | ✅ chain_steps | ✅ chain_steps | ✅ chain_steps | ✅ chain_steps |
+| 도구 활용 메타데이터 | ✅ tool_calls | ✅ tool_calls | ✅ tool_calls | ✅ tool_calls |
+| 자율 목표 추구 범위 탐지 | ❌ | ✅ state_transitions | ✅ state_transitions | ✅ agent_interactions |
+| 멀티에이전트 협업 추적 | ❌ | △ (노드 전환만) | ✅ agent_interactions | ✅ agent_interactions |
+
+△ = 부분 지원 (Tracker 자동 추출은 가능하나 데이터 완결성 제한)
+
+> **선택 가이드**: 비결정론적 출력 분석이 중요하면 LangGraph/AutoGen, 멀티에이전트 협업 완전 추적이 필요하면 CrewAI/AutoGen을 선택한다.
 
 ---
 

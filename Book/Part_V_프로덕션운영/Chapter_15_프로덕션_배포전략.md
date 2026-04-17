@@ -1,4 +1,4 @@
-# Chapter 15. 프로덕션 배포 전략
+# Chapter 20. 프로덕션 배포 전략
 
 > **이 챕터에서 배우는 것**
 > - 개발/CI/프로덕션 환경별 최적 설정 전략과 preset 시스템
@@ -11,7 +11,7 @@
 
 ---
 
-## 15.1 환경별 설정 전략 — preset 시스템 활용
+## 20.1 환경별 설정 전략 — preset 시스템 활용
 
 AI 에이전트 평가는 환경마다 목적이 다르다. 개발 환경에서는 빠른 피드백이 중요하고, CI 환경에서는 재현 가능성이, 프로덕션에서는 운영 오버헤드 최소화가 핵심이다.
 
@@ -143,7 +143,7 @@ def create_monitor() -> PerformanceMonitor:
 
 ---
 
-## 15.2 Docker 배포 패턴
+## 20.2 Docker 배포 패턴
 
 ### Dockerfile
 
@@ -246,7 +246,7 @@ docker-compose logs -f agent
 
 ---
 
-## 15.3 Kubernetes 운영 패턴
+## 20.3 Kubernetes 운영 패턴
 
 ### 멀티 레플리카 환경에서 평가 데이터 합산
 
@@ -336,7 +336,7 @@ data:
 
 ---
 
-## 15.4 데이터 유실 방지 전략
+## 20.4 데이터 유실 방지 전략
 
 프로덕션에서 평가 데이터 유실은 두 가지 상황에서 발생한다. 첫째, 프로세스가 갑자기 종료되는 경우. 둘째, 결과를 저장하는 것을 잊어버리는 경우. 두 상황 모두 방어할 수 있다.
 
@@ -401,15 +401,15 @@ async with async_evaluation_session("async_eval") as monitor:
 
 ---
 
-## 15.5 성능 최적화 — 평가 오버헤드 최소화
+## 20.5 성능 최적화 — 평가 오버헤드 최소화
 
-에이전트 평가가 실제 서비스 응답 시간에 영향을 주어서는 안 된다. 올바르게 설정하면 Layer 1 기본 지표의 오버헤드는 1ms 미만이다.
+에이전트 평가가 실제 서비스 응답 시간에 영향을 주어서는 안 된다. 올바르게 설정하면 Group A-G 기반 지표의 오버헤드는 1ms 미만이다.
 
 ### 오버헤드 비교
 
 | 설정 | 지연 추가 | CPU 추가 | 비용 추가 |
 |------|----------|----------|----------|
-| Layer 1만 (기본) | ~1ms | 낮음 | 없음 |
+| Group A-G 기반 (기본) | ~1ms | 낮음 | 없음 |
 | +Hallucination Detection | ~50ms | 중간 | 없음 |
 | +Security Metrics | ~10ms | 낮음 | 없음 |
 | +LLM Judge (전수) | ~500ms | LLM API | 높음 |
@@ -468,7 +468,7 @@ monitor = PerformanceMonitor(
 
 ---
 
-## 15.6 트러블슈팅 — 자주 발생하는 문제 10가지
+## 20.6 트러블슈팅 — 자주 발생하는 문제 10가지
 
 ### 문제 1 — Phoenix 스팬이 안 보임
 
@@ -650,7 +650,7 @@ pip install "agent-evaluator[eval]"
 
 - **데이터 유실 방지**는 이중 저장으로 해결한다. `auto_save=True`와 `flush_every=50`을 동시에 설정하고, 세션 단위 평가는 `evaluation_session` 컨텍스트 매니저를 사용한다.
 
-- **평가 오버헤드**는 기본 설정(Layer 1만)에서 ~1ms다. `enable_hallucination_detection`, `enable_security_metrics`는 기본값이 `False`이므로 필요할 때만 활성화한다.
+- **평가 오버헤드**는 기본 설정(Group A-G 기반만)에서 ~1ms다. `enable_hallucination_detection`, `enable_security_metrics`는 기본값이 `False`이므로 필요할 때만 활성화한다.
 
 - **Docker 배포**는 Phoenix 서비스와 함께 `docker-compose.yml`로 통합 구성한다. 평가 결과는 볼륨으로 영속화하고, 환경 변수로 OTEL 엔드포인트를 주입한다.
 
@@ -760,7 +760,7 @@ python Evaluator_Examples/06_operational.py
 | 06_operational | `evaluation_session` 컨텍스트 매니저 | 예외 발생 시 자동 저장 보장 |
 | 06_operational | `auto_save=True, auto_save_interval=10` | 장시간 실행 중 주기 저장 |
 
-**실행 결과 (v0.8.0 기준)**
+**실행 결과 (v0.8.2 기준)**
 
 ```
 # 06_operational.py (evaluation_session 섹션)

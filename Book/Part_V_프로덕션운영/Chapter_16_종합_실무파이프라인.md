@@ -1,4 +1,4 @@
-# Chapter 16. 종합 실무 파이프라인
+# Chapter 21. 종합 실무 파이프라인
 
 > **이 챕터에서 배우는 것**
 > - 개발 → CI → 프로덕션 → 주간 회귀 전체 사이클을 한 그림으로 이해하기
@@ -9,7 +9,7 @@
 
 ---
 
-## 16.1 개발 → CI → 프로덕션 → 주간 회귀 전체 사이클
+## 21.1 개발 → CI → 프로덕션 → 주간 회귀 전체 사이클
 
 앞의 챕터에서 각 단계를 개별적으로 살펴봤다. 이제 이 모든 것을 하나의 파이프라인으로 연결하자.
 
@@ -174,7 +174,7 @@ if __name__ == "__main__":
 
 ---
 
-## 16.2 팀 규모별 도입 로드맵
+## 21.2 팀 규모별 도입 로드맵
 
 모든 팀이 처음부터 완전한 파이프라인을 구축할 필요는 없다. 팀 규모에 맞게 단계적으로 도입하는 것이 현실적이다.
 
@@ -314,7 +314,7 @@ docker run -d \
 **Week 2: GitHub Actions CI/CD 완전 통합**
 
 ```yaml
-# .github/workflows/agent-quality-gate.yml (Chapter 13 참조)
+# .github/workflows/agent-quality-gate.yml (Chapter 18 참조)
 # PR → 평가 → gate → PR 코멘트 자동 게시
 ```
 
@@ -353,7 +353,7 @@ rules = [
 
 ---
 
-## 16.3 프로덕션 품질 사고 대응 런북 (Runbook)
+## 21.3 프로덕션 품질 사고 대응 런북 (Runbook)
 
 품질 사고는 반드시 발생한다. 중요한 것은 발견했을 때 체계적으로 대응하는 것이다.
 
@@ -455,7 +455,7 @@ for metric, delta in comparison.items():
 
 ---
 
-## 16.4 Agent-Evaluator 도입 성과 측정
+## 21.4 Agent-Evaluator 도입 성과 측정
 
 도입의 효과를 객관적으로 측정하기 위한 지표 체계다.
 
@@ -493,7 +493,7 @@ for k, v in metrics.items():
 
 ---
 
-## 16.5 다음 단계 — 더 발전하기
+## 21.5 다음 단계 — 더 발전하기
 
 Agent-Evaluator의 핵심 기능을 익혔다면, 다음 단계로 확장할 수 있다.
 
@@ -569,7 +569,7 @@ class CustomerSatisfactionTracker(BaseTracker):
 
 ## 에필로그 — 품질은 결국 습관이다
 
-이 책을 통해 AI 에이전트 평가의 3개 레이어(기반, 에이전틱, 하이브리드)와 25개 지표, CI/CD 통합, 프로덕션 모니터링까지 살펴봤다. 마지막으로 가장 중요한 이야기를 하고 싶다.
+이 책을 통해 AI 에이전트 평가의 3개 레이어(기반, 에이전틱, 하이브리드)와 58개 지표(25 Native + 33 Harness Config), CI/CD 통합, 프로덕션 모니터링까지 살펴봤다. 마지막으로 가장 중요한 이야기를 하고 싶다.
 
 ### AI 에이전트 평가는 도구가 아니라 문화다
 
@@ -601,7 +601,7 @@ eval.save()
 
 ### Agent-Evaluator를 시작점으로, 팀만의 평가 문화 만들기
 
-모든 팀의 에이전트는 다르다. 고객 서비스 에이전트와 코드 생성 에이전트의 "품질"은 다르게 정의된다. Agent-Evaluator의 25개 지표는 시작점이다. 여기서 팀 고유의 기준을 추가하고, 골든 데이터셋을 쌓고, 임계값을 조정하면서 팀만의 평가 문화를 만들어가라.
+모든 팀의 에이전트는 다르다. 고객 서비스 에이전트와 코드 생성 에이전트의 "품질"은 다르게 정의된다. Agent-Evaluator의 58개 지표(25 Native + 33 Harness Config)는 시작점이다. 여기서 팀 고유의 기준을 추가하고, 골든 데이터셋을 쌓고, 임계값을 조정하면서 팀만의 평가 문화를 만들어가라.
 
 한 달 후, 당신의 팀은 이렇게 말할 수 있을 것이다.
 
@@ -622,6 +622,241 @@ eval.save()
 - **성과 측정** 지표: 평가 사이클 시간, 프로덕션 사고 건수, 모델 교체 의사결정 속도, 골든 데이터셋 크기. 이 4가지를 정기적으로 추적하면 도입 효과를 객관적으로 증명할 수 있다.
 
 - **품질은 도구가 아니라 습관이다.** Agent-Evaluator는 시작점이다. `QuickEval` 한 줄로 시작해서, 팀 고유의 지표와 기준을 추가하고, 골든 데이터셋을 쌓아가는 과정이 진짜 AI 에이전트 품질 문화다.
+
+---
+
+## 21.7 드리프트 → 재보정 파이프라인
+
+AI 에이전트는 배포 후에도 조용히 성능이 변한다. 모델이 업데이트되거나, 데이터가 달라지거나, 사용 패턴이 변하면 지표가 서서히 하락한다. 이것이 **드리프트(Drift)**다. 단순 모니터링으로는 부족하다. **드리프트를 감지하고 → 원인을 진단하고 → 자동으로 재보정(Recalibration)**하는 파이프라인이 필요하다.
+
+### 4가지 드리프트 유형과 감지 신호
+
+| 드리프트 유형 | 정의 | 감지 신호 (Harness Group) | agent-eval 지표 |
+|------------|------|--------------------------|----------------|
+| **데이터 드리프트** | 입력 분포 변화 | Group A — TCR 점진적 하락 | `AccuracyEvaluator` score 추세 |
+| **개념 드리프트** | 정답의 기준 변화 | Group A — HallucinationRate 상승 | `HallucinationDetector` 추세 |
+| **모델 드리프트** | 모델 버전 업데이트 | Group C — Reproducibility 하락 | `RetryCorrectionTracker` 재시도율 |
+| **운영 드리프트** | 인프라/부하 변화 | Group D — P95 지연 상승 | `LatencyTracker` P95 추세 |
+
+### 드리프트 감지 파이프라인
+
+```python
+# drift_detection.py — 매일 cron으로 실행
+from agent_evaluator.cli.trend import RunTrendAnalyzer
+import json
+
+analyzer = RunTrendAnalyzer(results_dir="results/", window=14)  # 최근 14일
+trends = analyzer.analyze()
+
+# 드리프트 판정 기준
+drift_signals = []
+
+if trends.get("accuracy_slope", 0) < -0.02:    # 주당 2% 이상 정확도 하락
+    drift_signals.append(("concept_drift", "AccuracyEvaluator", trends["accuracy_slope"]))
+
+if trends.get("tcr_slope", 0) < -0.03:          # 주당 3% 이상 TCR 하락
+    drift_signals.append(("data_drift", "TaskCompletionTracker", trends["tcr_slope"]))
+
+if trends.get("p95_latency_slope", 0) > 0.5:   # P95 지연 주당 0.5초 이상 상승
+    drift_signals.append(("operational_drift", "LatencyTracker", trends["p95_latency_slope"]))
+
+if drift_signals:
+    print(f"🚨 드리프트 감지: {len(drift_signals)}개 신호")
+    for drift_type, tracker, slope in drift_signals:
+        print(f"   [{drift_type}] {tracker}: slope={slope:+.3f}/week")
+    # Slack/이메일 알림 발송
+    send_drift_alert(drift_signals)
+else:
+    print("✅ 드리프트 없음 — 지표 안정")
+```
+
+```bash
+# 주간 자동 드리프트 감지 (cron)
+agent-eval trend results/ --window 14 --fail-on-regression --output-json drift_report.json
+
+# 드리프트 발견 시 임계값 재보정 트리거
+if [ $? -ne 0 ]; then
+    python scripts/recalibrate_thresholds.py --report drift_report.json
+fi
+```
+
+### 임계값 재보정 — Wilson Score Interval 적용
+
+드리프트 이후 새 기준선(baseline)을 재설정할 때, 최근 데이터로 Wilson Score 기반 신뢰구간 임계값을 재계산한다:
+
+```python
+# recalibrate_thresholds.py
+import json
+import math
+
+def wilson_lower_bound(successes: int, trials: int, z: float = 1.96) -> float:
+    """최근 N회 실행에서 95% 신뢰구간 하한 계산"""
+    if trials == 0:
+        return 0.0
+    p = successes / trials
+    denom = 1 + z**2 / trials
+    center = p + z**2 / (2 * trials)
+    spread = z * math.sqrt(p * (1 - p) / trials + z**2 / (4 * trials**2))
+    return (center - spread) / denom
+
+def recalibrate_from_recent(results_dir: str, window: int = 30) -> dict:
+    """최근 window일 결과로 새 임계값 계산"""
+    # 최근 결과 로드
+    recent_results = load_recent_results(results_dir, days=window)
+    
+    successes = sum(1 for r in recent_results if r.get("task_completion_rate", 0) >= 0.8)
+    trials = len(recent_results)
+    
+    new_tcr_threshold = wilson_lower_bound(successes, trials) - 0.05  # 5% 마진
+    
+    print(f"재보정 결과: trials={trials}, TCR 새 임계값={new_tcr_threshold:.1%}")
+    return {"tcr": new_tcr_threshold, "recalibrated_at": "2026-04-17"}
+```
+
+---
+
+## 21.8 자기개선 루프 — 평가 → 진단 → 개선 3단계
+
+최고 수준의 AI 시스템은 평가 결과를 다시 학습에 활용한다. 이것이 **자기개선 루프(Self-Improvement Loop)**다. Agent-Evaluator의 데이터를 기반으로 프롬프트·파인튜닝·Config을 자동으로 개선하는 3단계 파이프라인을 구성할 수 있다.
+
+```
+Stage 1: 지표 하락 감지          Stage 2: 원인 귀속              Stage 3: 개선 액션
+─────────────────────         ─────────────────────────      ──────────────────────────
+RunTrendAnalyzer              Group별 Tracker 드릴다운         결과에 따른 액션 선택
+  ↓                              ↓                              ↓
+TCR 하락 감지                  어느 Group이 낮은가?           Group A 낮음 → 프롬프트 개선
+정확도 하락 감지               어느 Tracker가 낮은가?         Group D 높음 → 인프라 확장
+P95 지연 상승 감지             실패 케이스 패턴 분석           Group E 위반 → 보안 Config 강화
+```
+
+### Stage 1 — 지표 하락 감지 (RunTrendAnalyzer)
+
+```python
+from agent_evaluator.cli.trend import RunTrendAnalyzer
+
+# 매주 실행 — 최근 4주 추세 분석
+analyzer = RunTrendAnalyzer(results_dir="results/", window=28)
+trends = analyzer.analyze()
+
+print(f"TCR 추세: {trends.get('tcr_slope', 0):+.3f}/week")
+print(f"정확도 추세: {trends.get('accuracy_slope', 0):+.3f}/week")
+print(f"P95 지연 추세: {trends.get('p95_latency_slope', 0):+.3f}s/week")
+
+# 개선 필요 여부 판정
+needs_improvement = (
+    trends.get("tcr_slope", 0) < -0.01 or      # TCR 주당 1% 이상 하락
+    trends.get("accuracy_slope", 0) < -0.01     # 정확도 주당 1% 이상 하락
+)
+```
+
+### Stage 2 — 원인 귀속 (Group별 Tracker 드릴다운)
+
+```python
+from agent_evaluator import PerformanceMonitor
+import json
+
+# 최근 실패 케이스 로드
+with open("results/latest_eval.json") as f:
+    eval_data = json.load(f)
+
+tasks = eval_data.get("tasks", [])
+failed = [t for t in tasks if not t.get("success", True)]
+
+# Group별 실패 분포 분석
+group_failures = {
+    "A_목표달성": sum(1 for t in failed if t.get("accuracy_score", 1.0) < 0.5),
+    "B_행동무결성": sum(1 for t in failed if len(t.get("tool_calls", [])) == 0 and t.get("task_type") == "tool_use"),
+    "D_성능계약": sum(1 for t in failed if t.get("execution_time", 0) > 5.0),
+    "E_보안경계": sum(1 for t in failed if t.get("security_violations", 0) > 0),
+}
+
+dominant_group = max(group_failures, key=group_failures.get)
+print(f"주요 실패 원인: {dominant_group} ({group_failures[dominant_group]}건)")
+
+# 실패 케이스 패턴 추출
+failure_patterns = []
+for t in failed:
+    if t.get("accuracy_score", 1.0) < 0.5:
+        failure_patterns.append({
+            "question": t.get("question", ""),
+            "response": t.get("response", ""),
+            "ground_truth": t.get("ground_truth", ""),
+            "accuracy": t.get("accuracy_score"),
+        })
+
+print(f"분석할 실패 패턴: {len(failure_patterns)}개")
+```
+
+### Stage 3 — 개선 액션
+
+원인 귀속 결과에 따라 세 가지 개선 경로 중 하나를 선택한다:
+
+```python
+def select_improvement_action(dominant_group: str, failure_patterns: list) -> str:
+    """Group별 진단 결과에 따라 개선 액션 선택"""
+    
+    if dominant_group == "A_목표달성":
+        # 프롬프트 개선 — 실패 케이스에서 패턴 추출
+        print("→ 액션: 프롬프트 개선")
+        print("  1. 실패 케이스 10개를 프롬프트 엔지니어에게 전달")
+        print("  2. Few-shot 예시 업데이트")
+        print("  3. System prompt에 실패 패턴 대응 지침 추가")
+        return "prompt_improvement"
+    
+    elif dominant_group == "D_성능계약":
+        # 인프라 확장 — SLA 위반이 주원인
+        print("→ 액션: 인프라 확장 또는 모델 경량화")
+        print("  1. 현재 P95: 조회 후 SLAConfig max_p95 재협의")
+        print("  2. 응답 캐싱 레이어 검토")
+        print("  3. 모델 → 더 빠른 버전으로 교체 검토 (품질 희생 최소화)")
+        return "infra_scaling"
+    
+    elif dominant_group == "E_보안경계":
+        # Config 강화 — 보안 위반이 주원인
+        print("→ 액션: ThreatSeverityConfig 강화")
+        print("  1. max_severity_level 하향 조정 ('medium' → 'low')")
+        print("  2. fail_on_violation=True 확인")
+        print("  3. InputSanitizationTracker 패턴 업데이트")
+        return "security_hardening"
+    
+    else:
+        print(f"→ 액션: {dominant_group} 전문가 리뷰 요청")
+        return "manual_review"
+
+
+# 자기개선 루프 실행
+action = select_improvement_action(dominant_group, failure_patterns)
+print(f"\n📋 개선 계획 수립 완료: {action}")
+print(f"   다음 평가 주기에서 개선 효과 측정 예정")
+```
+
+### 자기개선 루프 KPI
+
+개선 루프를 운영하면 아래 지표로 효과를 측정한다:
+
+| KPI | 측정 방법 | 목표 |
+|-----|---------|------|
+| 드리프트 감지 시간 (MTTD) | 하락 발생 → 감지까지 평균 일수 | < 3일 |
+| 개선 적용 시간 (MTTR) | 감지 → 배포까지 평균 일수 | < 7일 |
+| 루프당 TCR 개선 | 개선 전후 TCR 변화 | +5% 이상 |
+| 재발률 | 동일 원인 재발생 비율 | < 10% |
+
+```python
+# 자기개선 KPI 측정
+from agent_evaluator.cli.trend import RunTrendAnalyzer
+
+# 개선 전 기준선
+before_trends = RunTrendAnalyzer("results/before_improvement/", window=14).analyze()
+# 개선 후 측정
+after_trends = RunTrendAnalyzer("results/after_improvement/", window=14).analyze()
+
+tcr_improvement = after_trends.get("tcr_mean", 0) - before_trends.get("tcr_mean", 0)
+accuracy_improvement = after_trends.get("accuracy_mean", 0) - before_trends.get("accuracy_mean", 0)
+
+print(f"개선 효과:")
+print(f"  TCR: {before_trends.get('tcr_mean', 0):.1%} → {after_trends.get('tcr_mean', 0):.1%} ({tcr_improvement:+.1%})")
+print(f"  정확도: {before_trends.get('accuracy_mean', 0):.1%} → {after_trends.get('accuracy_mean', 0):.1%} ({accuracy_improvement:+.1%})")
+```
 
 ---
 
@@ -694,7 +929,7 @@ def production_agent(question: str, context: str = "", ground_truth: str = "") -
     )
 ```
 
-- `alert_rules`, `flush_every`, `EvalMetadata`를 하나의 데코레이터에 조합해 알림·자동저장·Layer 2 지표를 동시에 처리한다
+- `alert_rules`, `flush_every`, `EvalMetadata`를 하나의 데코레이터에 조합해 알림·자동저장·Group B-G 지표를 동시에 처리한다
 - `flush_every=50`은 50건마다 `save_to_file()`을 자동 호출해 데이터 손실 위험을 최소화한다
 
 ```python
@@ -726,12 +961,12 @@ print(f"게이트 결과: {'통과' if gate_result.returncode == 0 else '실패'
 
 - `GoldenSetBuilder`는 프로덕션 결과에서 고품질/실패/엣지 케이스를 자동으로 발굴해 다음 회귀 테스트에 활용한다
 - `agent-eval trend`와 `agent-eval gate`를 순서대로 실행하면 추세(장기)와 기준치(현재) 양방향을 모두 검사하는 완전한 CI/CD 파이프라인이 완성된다
-- 이 패턴이 Ch01~Ch15에서 다룬 모든 기능(Layer 1/2, 데코레이터, Phoenix OTEL, 알림, 이상 탐지, 골든셋)을 하나로 통합한 종합 파이프라인이다
+- 이 패턴이 Ch01~Ch15에서 다룬 모든 기능(Group A-G 지표, 데코레이터, Phoenix OTEL, 알림, 이상 탐지, 골든셋)을 하나로 통합한 종합 파이프라인이다
 
 ```bash
 # 전체 파이프라인 실행 (개발 단계 시뮬레이션)
-python Evaluator_Examples/01_layer1_all_metrics.py   # Layer 1 기반 지표
-python Evaluator_Examples/02_layer2_agentic_security.py  # Layer 2 에이전틱·보안
+python Evaluator_Examples/01_layer1_all_metrics.py   # Group A-D 기반 지표
+python Evaluator_Examples/02_layer2_agentic_security.py  # Group B-E 에이전틱·보안
 python Evaluator_Examples/03_framework_adapters.py   # 프레임워크 통합
 python Evaluator_Examples/04_decorator_quickeval.py  # 데코레이터·QuickEval
 
@@ -757,15 +992,15 @@ agent-eval dashboard results/
 
 | 파일 | 파이프라인 단계 | 핵심 출력 |
 |------|---------------|-----------|
-| 01_layer1_all_metrics | 개발: Layer 1 검증 | TCR=43.1%, 54개 태스크, p95=5.20s |
-| 02_layer2_agentic_security | 개발: Layer 2·보안 검증 | 3개 보안 위협, 14개 태스크 |
+| 01_layer1_all_metrics | 개발: Group A-D 검증 | TCR=43.1%, 54개 태스크, p95=5.20s |
+| 02_layer2_agentic_security | 개발: Group B-E·보안 검증 | 3개 보안 위협, 14개 태스크 |
 | 03_framework_adapters | 통합 테스트: 프레임워크 비교 | 24개 태스크, 4개 프레임워크 TCR 비교 |
 | 04_decorator_quickeval | CI: 데코레이터·QuickEval | TCR=57.1%, gate() 실패/성공 |
 | 05_streaming_alerts | 운영: 실시간 알림 | alert JSONL, feedback 추적 |
 | 06_operational | 운영: 인프라 종합 | AnomalyDetector, CostTracker, GoldenSet |
 | 07_phoenix_hybrid | 운영: OTEL·외부 평가 | Phoenix 스팬, DeepEval/Ragas 연동 |
 
-**전체 파이프라인 실행 결과 요약 (v0.8.0 기준)**
+**전체 파이프라인 실행 결과 요약 (v0.8.2 기준)**
 
 ```
 === 종합 파이프라인 실행 결과 ===

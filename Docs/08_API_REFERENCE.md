@@ -14,7 +14,7 @@ Agent Evaluator v0.8.2 전체 API 문서
 
 ## 목차
 
-1. [빠른 시작 (3가지 패턴)](#1-빠른-시작)
+1. [빠른 시작 (4가지 패턴)](#1-빠른-시작)
 2. [핵심 클래스 API](#2-핵심-클래스-api)
 3. [데코레이터 API](#3-데코레이터-api)
 4. [EvalMetadata & get_eval_ctx()](#4-evalmetadata--get_eval_ctx)
@@ -66,7 +66,25 @@ chat("오늘 날씨는?", sid="u1")
 flush_conversation("u1")
 ```
 
-### 패턴 3 — QuickEval (편의용 팩토리)
+### 패턴 3 — @batch_eval (배치 일괄 처리)
+
+질문 리스트를 한 번에 평가하고 결과를 자동으로 기록합니다.
+
+```python
+from agent_evaluator.decorators import batch_eval
+
+@batch_eval(monitor, task_type="qa", task_id_prefix="qa_batch")
+def qa_batch(questions: list, ground_truths: list = None) -> list:
+    return [llm.invoke(q) for q in questions]
+
+qa_batch(
+    questions=["한국의 수도는?", "Python 창시자는?"],
+    ground_truths=["서울", "귀도 반 로섬"],
+)
+# → 2개의 TaskResult가 monitor에 기록됨
+```
+
+### 패턴 4 — QuickEval (편의용 팩토리)
 
 설정을 한 줄로 끝내고 싶을 때 사용합니다.
 
@@ -369,7 +387,7 @@ eval = QuickEval("results/", auto_save=True, auto_save_interval=10)
 
 ### batch_eval
 
-리스트 입력을 받아 일괄 처리하는 데코레이터.
+리스트 입력을 받아 일괄 처리하는 데코레이터. `questions[i]` / `ground_truths[i]` / `responses[i]`를 묶어 각각 독립된 `TaskResult`로 기록한다.
 
 ```python
 from agent_evaluator.decorators import batch_eval
@@ -377,17 +395,45 @@ from agent_evaluator.decorators import batch_eval
 @batch_eval(
     monitor,
     task_type="qa",
-    concurrent=False,         # True이면 ThreadPool 병렬 실행
-    max_concurrent=4,         # 최대 동시 실행 수
-    shuffle=False,            # 입력 순서 무작위화
-    item_timeout=None,        # 항목별 타임아웃 (초)
-    strict_types=False,       # 입출력 타입 검증
-    on_item_error="skip",     # "skip"|"raise"|"continue"
-    return_format="list",     # "list"|"tuple"|"dataframe"
-    streaming_mode=False,     # 제너레이터 스트리밍
-    allow_duplicate_task_ids=False,
-    alert_rules=[],
-    flush_every=0,
+    # ── 입출력 파라미터 이름 ──────────────────────────────────
+    questions_arg="questions",        # 질문 리스트 파라미터 이름 (기본: "questions")
+    ground_truths_arg="ground_truths",# 정답 리스트 파라미터 이름 (기본: "ground_truths")
+    contexts_arg=None,                # RAG context 리스트 파라미터 이름 (RAG 평가 시)
+    expected_tools_arg=None,          # expected_tools 리스트 파라미터 이름 (Tool F1 계산 시)
+    # ── task_id 생성 ─────────────────────────────────────────
+    task_id_prefix="batch",           # 자동 생성 task_id 접두어 → {prefix}_{uuid8}_{i:03d}
+    task_id_fn=None,                  # 커스텀 task_id 생성 함수 (index, question, gt) -> str
+    # ── 프레임워크 / 모델 ────────────────────────────────────
+    framework="native",               # 프레임워크 식별자 (21개 지원)
+    model_name="",                    # LLM 모델명
+    # ── 채점 커스텀 ─────────────────────────────────────────
+    score_fn=None,                    # 커스텀 accuracy 함수 (response, gt) -> float
+    completion_fn=None,               # 커스텀 completion 함수
+    # ── 콜백 ────────────────────────────────────────────────
+    on_record=None,                   # 항목별 기록 후 콜백 (task_result) -> None
+    on_error=None,                    # 배치 함수 예외 발생 시 콜백
+    on_batch_complete=None,           # 배치 전체 완료 후 콜백 (results_list) -> None
+    on_batch_progress=None,           # 항목별 진행 콜백 (i, total) -> None
+    on_item_error=None,               # 항목별 오류 콜백 (exc, index, question) -> None
+    # ── 실행 제어 ────────────────────────────────────────────
+    concurrency=0,                    # >0이면 항목별 병렬 실행 (ThreadPool/asyncio.gather)
+    item_timeout=None,                # 항목별 타임아웃 (초)
+    timeout=None,                     # 배치 전체 타임아웃 (초)
+    sample_rate=1.0,                  # 평가 실행 비율 (0.0–1.0)
+    enabled=True,                     # False이면 데코레이터 우회
+    # ── 저장 / 출력 ─────────────────────────────────────────
+    return_format="list",             # "list" | "dataframe"
+    flush_every=None,                 # N 배치 호출마다 save_to_file() 자동 실행
+    alert_rules=None,                 # SimpleTaskAlertRule 목록
+    preset=None,                      # "production"|"development"|"testing"|"canary"
+    # ── 선택적 평가 활성화 ───────────────────────────────────
+    enable_hallucination_detection=False,
+    enable_anomaly_detection=False,
+    security=None,                    # SecurityConfig() — 보안 지표 임시 활성
+    llm_judge=None,                   # LLMJudgeConfig(model=..., criteria=[...])
+    custom_parser=None,               # 응답 파싱 커스텀 함수
+    # ── Harness Config (33개 모두 지원) ─────────────────────
+    # instructions=InstructionConfig(...), sla=SLAConfig(...), ...
 )
 def batch_agent(questions: list, ground_truths: list = None) -> list:
     return [llm.invoke(q) for q in questions]
@@ -396,6 +442,34 @@ results = batch_agent(questions, ground_truths=gts)
 ```
 
 `return_format="dataframe"` 시 DataFrame에는 `tokens_total`, `tokens_input`, `tokens_output`, `framework`, `tool_call_count`, `has_error`, `attempts`, `timestamp` 컬럼이 포함된다.
+
+#### 주요 사용 예시
+
+```python
+# RAG 배치 평가
+@batch_eval(
+    monitor, task_type="information_retrieval",
+    contexts_arg="contexts",
+    enable_hallucination_detection=True,
+)
+def rag_batch(questions, contexts=None, ground_truths=None):
+    return [rag_chain.invoke({"question": q, "context": c})
+            for q, c in zip(questions, contexts)]
+
+# 병렬 실행 (concurrency=4 → ThreadPool 4개)
+@batch_eval(monitor, task_type="qa", concurrency=4, item_timeout=10.0)
+def fast_batch(questions, ground_truths=None):
+    return [llm.invoke(q) for q in questions]
+
+# LLM Judge + 배치 저장
+@batch_eval(
+    monitor, task_type="qa",
+    llm_judge=LLMJudgeConfig(model="claude-haiku-4-5-20251001"),
+    flush_every=5,
+)
+def judged_batch(questions, ground_truths=None):
+    return [llm.invoke(q) for q in questions]
+```
 
 ---
 

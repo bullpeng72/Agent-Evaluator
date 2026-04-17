@@ -61,7 +61,7 @@ answer = response.choices[0].message.content
 
 **문제**: 개발 단계에서 몇 가지 케이스만 손으로 확인하고 배포했기 때문에, 저빈도 질의 패턴에서 발생하는 환각을 발견하지 못했습니다.
 
-**필요했던 평가**: Hallucination Detection — 에이전트의 답변이 제공된 컨텍스트와 사실적으로 일치하는지 측정하는 자동화된 지표.
+**필요했던 평가**: `HallucinationDetector` — 에이전트의 답변이 제공된 컨텍스트와 사실적으로 일치하는지 측정하는 자동화된 지표. **Group C 신뢰성** 차원의 핵심 지표입니다.
 
 ### 사례 2: 도구 권한 초과 사용 (보안 위협)
 
@@ -69,7 +69,7 @@ answer = response.choices[0].message.content
 
 **문제**: 에이전트의 기능 테스트만 수행했고, 악의적 입력에 대한 보안 테스트가 없었습니다.
 
-**필요했던 평가**: InputSanitizationTracker(프롬프트 인젝션 탐지), OutputLeakageDetector(민감 정보 출력 탐지), ToolAuthorizationTracker(허가된 도구만 사용하는지 감시).
+**필요했던 평가**: `InputSanitizationTracker`(프롬프트 인젝션 탐지), `OutputLeakageDetector`(민감 정보 출력 탐지), `ToolAuthorizationTracker`(허가된 도구만 사용하는지 감시). **Group E 보안경계** 차원의 4개 트래커입니다.
 
 ### 사례 3: 응답 시간 급증으로 인한 서비스 장애
 
@@ -77,69 +77,201 @@ answer = response.choices[0].message.content
 
 **문제**: 응답 시간과 도구 호출 횟수를 지속적으로 모니터링하는 체계가 없었습니다.
 
-**필요했던 평가**: LatencyTracker(p95 레이턴시 모니터링), ToolCallAnalyzer(도구 호출 패턴 분석), AnomalyDetector(비정상 패턴 자동 감지).
+**필요했던 평가**: `LatencyTracker`(p95 레이턴시 + `SLAConfig` 위반 감지), `ToolCallAnalyzer`(도구 호출 패턴 분석), `AnomalyDetector`(비정상 패턴 자동 감지). **Group D 성능계약** 차원입니다.
 
-> 👨‍💻 **개발자 TIP**: 이 세 가지 사례는 각각 품질, 보안, 효율성 실패입니다. 개발 단계의 몇 가지 수동 테스트로는 발견할 수 없습니다. 자동화된 평가 파이프라인이 없는 상태로 에이전트를 배포하는 것은 시트벨트 없이 고속도로에 진입하는 것과 같습니다.
-
----
-
-## 1.3 에이전트 평가의 4대 축
-
-에이전트 평가는 네 가지 핵심 차원에서 이루어집니다. 이 4대 축은 Agent-Evaluator의 25개 지표 설계 철학이기도 합니다.
-
-### 1. 정확성 (Accuracy): 답변이 맞는가?
-
-가장 직관적인 차원입니다. 에이전트가 제공한 답변이 사실적으로 올바른지, 주어진 컨텍스트와 일치하는지를 측정합니다.
-
-- **QA 정확도**: 정답과 비교한 F1/LCS 기반 토큰 매칭
-- **환각 탐지**: 답변이 제공된 문서 범위를 벗어나는지
-- **코드 정확도**: 생성된 코드의 AST 비교
-
-### 2. 신뢰성 (Reliability): 일관되게 완료하는가?
-
-에이전트가 목표를 안정적으로 달성하는지를 측정합니다. 높은 정확도를 가진 에이전트도 자주 실패하거나 재시도를 반복한다면 프로덕션에서 신뢰하기 어렵습니다.
-
-- **Task Completion Rate (TCR)**: 목표를 성공적으로 완료한 비율
-- **재시도 패턴**: 실패 후 자기수정 능력
-- **워크플로우 완료율**: 멀티스텝 작업의 전체 퍼널 완료율
-
-### 3. 효율성 (Efficiency): 비용과 속도가 적절한가?
-
-같은 목표를 달성하더라도 토큰 10,000개를 쓰는 에이전트와 1,000개를 쓰는 에이전트는 운영 비용이 10배 차이 납니다. 레이턴시도 마찬가지입니다.
-
-- **레이턴시**: p50/p95/p99 응답 시간 분포
-- **토큰 경제성**: 작업당 토큰 사용량과 예상 비용
-- **도구 효율성**: 불필요한 도구 호출 탐지
-
-### 4. 보안 (Security): 안전하게 동작하는가?
-
-에이전트는 외부 입력을 처리하고, 도구를 통해 실제 시스템에 영향을 미칩니다. 보안은 선택 사항이 아닙니다.
-
-- **입력 검증**: SQL 인젝션, 프롬프트 인젝션 탐지
-- **출력 필터링**: 민감 정보, 시스템 경로 노출 방지
-- **권한 통제**: 허가된 도구만 사용하는지, 권한 상승을 시도하는지
+> 👨‍💻 **개발자 TIP**: 이 세 가지 사례는 각각 신뢰성(C), 보안(E), 성능(D) 실패입니다. 개발 단계의 몇 가지 수동 테스트로는 발견할 수 없습니다. 자동화된 평가 파이프라인이 없는 상태로 에이전트를 배포하는 것은 시트벨트 없이 고속도로에 진입하는 것과 같습니다.
 
 ---
 
-## 1.4 평가 없이 배포하면 생기는 일 — 기술 부채 시나리오
+## 1.3 Harness Engineering — 배포 판단의 7차원
 
-평가 체계 없이 에이전트를 배포하면 어떤 일이 생기는지 시나리오로 살펴보겠습니다.
+기존 소프트웨어 테스팅은 에이전트 배포 판단에 충분하지 않습니다. 에이전트를 배포하기 전에 "통과/실패"를 선언할 근거가 필요합니다. Harness Engineering은 이 판단을 체계화하는 3요소 프레임워크입니다.
 
-**1단계 — 첫 배포**: 개발팀이 손으로 20~30개 케이스를 테스트하고 배포합니다. 잘 동작하는 것처럼 보입니다.
+```
+Tracker (관찰/측정) × Config (기준 선언) × Gate (배포 판정)
+```
 
-**2단계 — 사용자 증가**: 실제 사용자들이 예상 못한 질의 패턴을 입력하기 시작합니다. 에러 로그가 늘어나지만 어떤 케이스에서 실패하는지 파악하기 어렵습니다.
+- **Tracker**: 에이전트 실행 중 지표를 자동 기록 (25개 네이티브 트래커)
+- **Config**: "이 에이전트는 어떤 조건에서 배포될 수 있는가"를 코드로 선언 (33개 Harness Config)
+- **Gate**: Config 위반 시 `success=False` → `HarnessEvaluationGate`로 종합 판정
 
-**3단계 — 조용한 실패**: 에이전트가 명시적인 오류 없이 잘못된 정보를 자신감 있게 제공합니다. 환각입니다. 모니터링 지표가 없으니 팀은 알지 못합니다.
+### 7개 품질 차원 (Group A-G)
 
-**4단계 — 보안 사고**: 악의적 사용자가 프롬프트 인젝션을 시도해 성공합니다. 사후에 로그를 뒤지지만 어떤 입력이 문제였는지 재현이 어렵습니다.
+58개 지표(25 Tracker + 33 Config)는 7개 품질 차원으로 구분됩니다.
 
-**5단계 — 대규모 리팩토링**: 문제가 쌓이면 결국 전체 에이전트를 재설계해야 합니다. 처음부터 평가 체계를 갖췄더라면 각 단계에서 조기에 발견하고 수정할 수 있었던 문제들입니다.
+| Group | 차원 | 핵심 질문 | Tracker 수 | Config 수 |
+|-------|------|-----------|-----------|-----------|
+| **A** | 목표달성 | 에이전트가 지시를 제대로 완수했는가? | 6 | 6 |
+| **B** | 행동무결성 | 의도하지 않은 행동 없이 동작했는가? | 5 | 4 |
+| **C** | 신뢰성 | 같은 입력에 일관되게 응답하는가? | 6 | 5 |
+| **D** | 성능계약 | SLA/비용 계약을 지켰는가? | 5 | 5 |
+| **E** | 보안경계 | 외부 공격·데이터 유출을 차단했는가? | 4 | 4 |
+| **F** | 다중에이전트 협업 | 여러 에이전트가 교착 없이 협력했는가? | 5 | 5 |
+| **G** | 운영관측성 | 실패 원인을 즉시 추적·설명할 수 있는가? | 4 | 4 |
+| | **합계** | | **35** | **33** |
 
-평가 체계는 기술 부채를 만들지 않는 보험입니다. 초기 투자 비용은 작지만, 장기적으로 대규모 장애와 리팩토링 비용을 막아줍니다.
+> 공식 표기: **"25 Tracker + 33 Config = 58개 지표"**
+
+### 배포 판단 코드 예시 — 5줄
+
+아래는 세 가지 차원(목표달성·성능·보안)을 선언하고 배포 판단을 내리는 최소 예제입니다.
+
+```python
+from agent_evaluator.decorators import (
+    InstructionConfig, SLAConfig, ThreatSeverityConfig, agent_eval
+)
+from agent_evaluator import PerformanceMonitor
+
+monitor = PerformanceMonitor(output_dir="results/")
+
+# ① Config 선언 — 배포 기준을 코드로 정의
+instruction_cfg = InstructionConfig(min_completion_rate=0.90, fail_on_violation=True)
+sla_cfg = SLAConfig(max_p95_latency=3.0, fail_on_violation=True)
+threat_cfg = ThreatSeverityConfig(max_severity="medium", fail_on_violation=True)
+
+# ② Tracker 자동 수집 — @agent_eval이 실행마다 지표 기록
+@agent_eval(
+    monitor,
+    task_type="qa",
+    harness_configs=[instruction_cfg, sla_cfg, threat_cfg],
+)
+def my_agent(question: str, ground_truth: str = "") -> str:
+    return llm.invoke(question)
+
+# ③ Gate — Config 위반 시 배포 중단
+monitor.gate(tcr=90, p95_latency=3.0)
+```
+
+Group A-G 각 차원의 구체적인 Tracker와 Config는 **Part II — Harness 지표 체계**(Chapter 03~10)에서 상세히 다룹니다.
+
+> 📋 **QA 관리자 TIP**: "어떤 지표를 먼저 적용해야 하나?" → 우선순위: **A(목표달성) → D(성능계약)/E(보안경계) → C(신뢰성) → B(행동무결성) → G(관측성) → F(다중에이전트)**. Group A는 모든 에이전트의 기본 판단 근거입니다. Group E 보안은 외부 입력을 처리하는 에이전트라면 즉시 적용해야 합니다.
 
 ---
 
-## 1.5 AI 에이전트 평가 프레임워크 생태계 — 9개 도구 비교표
+## 1.4 기존 소프트웨어 테스팅의 3가지 한계
+
+기존 QA 방법론은 왜 AI 에이전트에 충분하지 않을까요? 핵심적인 세 가지 한계를 살펴보겠습니다.
+
+### 한계 ①: 결정론적 pass/fail의 붕괴
+
+전통 소프트웨어 테스트는 "이 입력에 대해 이 출력이 나왔는가"를 판단합니다. 단위 테스트, 통합 테스트, E2E 테스트 모두 예상 출력을 하드코딩하고 비교합니다.
+
+```python
+# 전통 소프트웨어 테스트 — 결정론적
+def test_add():
+    assert add(2, 3) == 5  # 항상 5
+
+# AI 에이전트 테스트 — 확률론적
+def test_agent():
+    result = agent("한국의 수도는?")
+    assert result == "서울입니다."  # 이 비교는 의미가 없다.
+    # "서울이 한국의 수도입니다", "수도는 서울입니다" 모두 정답인데
+    # 하나만 통과 처리된다.
+```
+
+에이전트의 응답은 의미적으로 동일해도 표현이 다를 수 있습니다. 단일 케이스 통과/실패 대신, **통계적 품질 분포**로 판단해야 합니다. "이번 실행에서 통과했는가"가 아니라 "1,000번 실행했을 때 90% 이상 정확한가"가 올바른 질문입니다.
+
+### 한계 ②: 단일 실행 테스트의 불충분성
+
+전통 테스트는 각 케이스를 한 번씩 실행합니다. 에이전트는 실행할 때마다 다른 결과를 낼 수 있어, 단일 실행 테스트는 비결정론적 동작을 놓칩니다.
+
+| 테스트 방식 | 전통 소프트웨어 | AI 에이전트 |
+|-----------|-------------|-----------|
+| 케이스 반복 | 불필요 (결정론적) | 필수 (확률론적) |
+| 결과 판단 | 정확히 일치 | 임계값 기반 통계 |
+| 재현 가능성 | 항상 재현 | 확률적 재현 |
+| 실패 정의 | 하나라도 실패 | N% 이상 성공 |
+
+`ReproducibilityConfig`의 `min_consistency_rate`는 이 문제를 해결합니다. "같은 입력에 대해 70% 이상 일관된 응답을 생성하는가"를 자동 판정합니다.
+
+### 한계 ③: 배포 후 드리프트의 미탐지
+
+전통 소프트웨어는 코드가 변경될 때 동작이 바뀝니다. 에이전트는 코드가 동일해도 시간이 지나면서 동작이 달라질 수 있습니다.
+
+- **데이터 드리프트**: 입력 패턴이 학습 분포에서 멀어짐
+- **모델 업스트림 변경**: LLM 공급자가 모델을 조용히 업데이트
+- **컨텍스트 길이 증가**: 히스토리 누적으로 컨텍스트 윈도우 포화
+- **외부 API 변화**: 도구가 의존하는 외부 API 응답 형식 변경
+
+이 드리프트는 기존 테스트 스위트를 통과해도 프로덕션에서 발생합니다. `RunTrendAnalyzer`(`agent-eval trend`)는 순차 평가 결과의 TCR·정확도 기울기를 분석해 조기 경보를 발령합니다.
+
+```bash
+# 100번 평가 결과의 드리프트를 자동 감지
+agent-eval trend results/ --fail-on-regression
+# → slope < -0.05 이면 exit 1 (CI/CD 파이프라인 중단)
+```
+
+> 👨‍💻 **개발자 TIP**: 세 한계의 해결책은 모두 **지속 평가**입니다. 배포 전 1회 테스트가 아닌, 프로덕션에서도 계속 측정하는 루프가 Harness Engineering의 핵심입니다.
+
+---
+
+## 1.5 AI Native 평가의 5가지 고유 도전
+
+전통 소프트웨어 QA 경험이 있는 엔지니어가 AI 에이전트 평가를 처음 시작할 때 부딪히는 고유한 도전이 있습니다. 이 도전들이 Harness Engineering의 58개 지표 설계 근거가 됩니다.
+
+### 도전 ①: 확률론적 품질 (Probabilistic Quality)
+
+동일 입력 → 비결정론적 출력. 기존 assert 기반 테스트는 의미가 없습니다.
+
+**해결**: TokenF1 + Jaccard + LCS + Char Levenshtein 4중 가중 알고리즘으로 **의미적 유사도**를 측정. 단일 케이스 통과 여부 대신 **평균 정확도 분포**로 판단합니다.
+
+```
+기존 방식: assert response == "서울입니다."    # ❌ 표현이 조금만 달라도 실패
+Harness 방식: accuracy_score ≥ 0.85           # ✅ 의미가 같으면 통과
+```
+
+### 도전 ②: AI-by-AI 평가 (AI Evaluating AI)
+
+에이전트 응답의 품질을 자동으로 채점하려면 또 다른 LLM이 필요합니다. 이를 LLM-as-Judge라고 합니다. 하지만 채점 LLM 자체도 편향이 있고, API 호출 비용이 발생합니다.
+
+**해결**: `LLMJudge`는 **샘플링(기본 10%)** 방식으로 비용을 제어합니다. 7차원(completeness·relevance·factual_consistency·toxicity·bias·faithfulness·criteria_scores) 자동 채점으로 ground_truth 없이도 품질을 측정합니다.
+
+```python
+judge = LLMJudge(sample_rate=0.1)  # 10%만 LLM 채점, 나머지는 네이티브 알고리즘
+```
+
+### 도전 ③: 드리프트 인식 (Drift Awareness)
+
+모델·데이터·환경의 변화가 코드 변경 없이 에이전트 동작을 바꿉니다.
+
+**해결**: `RunTrendAnalyzer`가 순차 평가 결과의 기울기를 자동 계산합니다. TCR이 지속적으로 감소하는 추세를 감지하면 경보를 발령합니다.
+
+```
+평가 결과 시계열: [0.92, 0.91, 0.89, 0.86, 0.82, ...]
+slope = -0.025/평가 → 드리프트 감지 → CI 경보
+```
+
+### 도전 ④: 출현 행동 대응 (Emergent Behavior)
+
+설계하지 않은 동작이 에이전트에서 예상치 못하게 등장합니다. 특히 도구 체인이 길어질수록, 멀티에이전트 시스템일수록 예측 불가능한 상호작용이 발생합니다.
+
+**해결**: `AnomalyDetector`가 통계적 정상 범위를 학습하고 이탈 시 즉시 탐지합니다. `ToolChainAttackDetector`는 도구 체인에서 발생하는 비정상 연쇄 호출을 추적합니다.
+
+```python
+# 도구 체인 이상 탐지 — 정상적이지 않은 연쇄 패턴을 자동 감지
+monitor = PerformanceMonitor(
+    output_dir="results/",
+    enable_security_metrics=True,   # Group E 활성화
+    enable_anomaly_detection=True,  # 출현 행동 감지
+)
+```
+
+### 도전 ⑤: 지속 평가 (Continuous Evaluation)
+
+AI 에이전트는 배포 후에도 계속 변합니다. 일회성 배포 전 테스트만으로는 충분하지 않습니다.
+
+**해결**: `evaluation_session` 컨텍스트 매니저 + `agent-eval trend` + Phoenix OTEL을 결합한 **자기개선 루프**를 구성합니다.
+
+```
+[운영] 실시간 평가 → [이상 탐지] 드리프트 경보 → [원인 분석] LLMJudge·Phoenix
+→ [개선] 프롬프트/모델 교체 → [검증] HarnessEvaluationGate 재통과 → [배포]
+```
+
+> 📋 **QA 관리자 TIP**: AI Native 5가지 도전은 전통 QA 역할을 없애지 않습니다. "케이스를 통과했는가" 대신 "품질 분포가 배포 기준을 만족하는가"로 판단 언어를 바꾸는 것입니다. Part IV — QA 관리자 가이드에서 이 전환을 단계별로 다룹니다.
+
+---
+
+## 1.6 AI 에이전트 평가 프레임워크 생태계 — 9개 도구 비교표
 
 현재 AI 에이전트 평가를 위한 도구들이 빠르게 발전하고 있습니다. 각 도구의 특성을 이해하면 상황에 맞는 선택을 할 수 있습니다.
 
@@ -155,7 +287,7 @@ answer = response.choices[0].message.content
 | **Braintrust** | SaaS + OSS SDK | v0.5.2 | LLM 실험 + 에이전트 관측 |
 | **Helicone** | SaaS + OSS | — | LLM 프록시 + 비용 관측 |
 | **W&B Weave** | SaaS + OSS SDK | v0.72+ | 에이전트 평가 + 실험 관리 |
-| **Agent Evaluator** | OSS SDK | v0.8.0 | Agentic AI 전문 평가 |
+| **Agent Evaluator** | OSS SDK | v0.8.2 | Harness Engineering 배포 판단 |
 
 ### 에이전틱 지표 지원 비교
 
@@ -171,6 +303,8 @@ answer = response.choices[0].message.content
 | 프롬프트 인젝션 탐지 | ❌ | ❌ | ⚠️ Red-team | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ |
 | 출력 정보 유출 탐지 | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ |
 | 권한 상승 탐지 | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ |
+| **Harness Config 배포 판정** | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | **✅** |
+| **드리프트 추세 탐지** | 부분 | ❌ | ❌ | 부분 | ✅ | 부분 | ❌ | ✅ | ✅ |
 
 ### 비용 및 오프라인 실행 비교
 
@@ -188,53 +322,50 @@ answer = response.choices[0].message.content
 
 ### 어떤 도구를 선택해야 하는가?
 
-도구 선택은 팀의 상황에 따라 다릅니다.
-
-- **LangChain/LangGraph를 이미 사용 중이고 클라우드 서비스를 선호한다면**: LangSmith가 가장 낮은 통합 비용을 제공합니다.
-- **RAG 파이프라인 품질을 집중적으로 평가하고 싶다면**: Ragas가 가장 풍부한 RAG 전용 지표를 제공합니다.
-- **LLM 관측가능성과 분산 트레이싱이 중심이라면**: Arize Phoenix의 OTEL 기반 아키텍처가 적합합니다.
-- **Tool 선택, 보안, 재시도 등 에이전트 고유 동작을 평가해야 하며, 외부 API 비용 없이 로컬에서 실행하고 싶다면**: Agent Evaluator가 이 책에서 다루는 선택지입니다.
+- **LangChain/LangGraph를 이미 사용 중이고 클라우드 서비스를 선호한다면**: LangSmith
+- **RAG 파이프라인 품질을 집중적으로 평가하고 싶다면**: Ragas
+- **LLM 관측가능성과 분산 트레이싱이 중심이라면**: Arize Phoenix
+- **Tool 선택, 보안, 재시도 등 에이전트 고유 동작을 평가하고, 배포 판단 기준을 코드로 선언하며, 외부 API 비용 없이 로컬에서 실행하고 싶다면**: Agent Evaluator
 
 이 책의 나머지 챕터들은 Agent-Evaluator를 중심으로 진행하지만, Part III에서 다른 도구들과의 연동 방법도 함께 다룹니다.
 
 ---
 
-## 1.6 AI 평가 지표의 역사 — BLEU에서 LLM-as-Judge까지
+## 1.7 AI 평가 지표의 역사 — BLEU에서 LLM-as-Judge까지
 
-Agent-Evaluator의 지표 설계를 이해하려면 AI 평가 연구가 어떤 문제를 해결하면서 발전해왔는지 아는 것이 도움이 된다.
+Agent-Evaluator의 지표 설계를 이해하려면 AI 평가 연구가 어떤 문제를 해결하면서 발전해왔는지 아는 것이 도움이 됩니다.
 
 ### 참조 기반 지표 시대 (2002–2017)
 
-**BLEU** (Papineni et al. 2002)는 기계 번역 품질을 인간 참조 번역과의 n-gram 정밀도로 측정하는 최초의 자동화 지표였다. 빠르고 재현 가능하지만 **정밀도(Precision)만 측정**하고 의미적 동의어를 인식하지 못한다는 근본적 한계를 가진다.
+**BLEU** (Papineni et al. 2002)는 기계 번역 품질을 인간 참조 번역과의 n-gram 정밀도로 측정하는 최초의 자동화 지표였습니다. 빠르고 재현 가능하지만 **정밀도(Precision)만 측정**하고 의미적 동의어를 인식하지 못한다는 근본적 한계를 가집니다.
 
-**ROUGE** (Lin 2004)는 문서 요약을 위해 **재현율(Recall) 중심**으로 설계됐다. BLEU와 반대 방향의 편향을 가진다.
+**ROUGE** (Lin 2004)는 문서 요약을 위해 **재현율(Recall) 중심**으로 설계됐습니다.
 
-이 두 지표는 20년간 NLP 벤치마킹의 표준이었지만, "서울이 대한민국의 수도이다"와 "한국의 수도는 서울"이 인간에게는 동일하지만 BLEU 점수는 낮다는 문제를 해결하지 못했다.
-
-**Agent-Evaluator의 대응**: BLEU/ROUGE 대신 **Token F1**(Precision+Recall 균형)을 핵심 지표로 채택하고, 4개 서브지표(Token F1 + Jaccard + LCS + Char Levenshtein) 조합으로 단일 지표의 맹점을 보완.
+**Agent-Evaluator의 대응**: BLEU/ROUGE 대신 **Token F1**(Precision+Recall 균형)을 핵심 지표로 채택하고, 4개 서브지표(Token F1 + Jaccard + LCS + Char Levenshtein) 조합으로 단일 지표의 맹점을 보완합니다. (→ Group A 목표달성 §4.2)
 
 ### 의미 유사도의 부상 (2018–2021)
 
-**BERTScore** (Zhang et al. 2019)는 BERT 임베딩 공간에서 코사인 유사도를 계산해 의미적 유사도를 측정한다. 동의어와 패라프레이즈를 자동 처리하며 인간 판단과의 상관이 BLEU보다 높다. 그러나 **GPU 메모리와 추론 시간**이 필요하고, 언어·도메인별로 BERT 모델을 따로 튜닝해야 한다.
+**BERTScore** (Zhang et al. 2019)는 BERT 임베딩 공간에서 코사인 유사도를 계산해 의미적 유사도를 측정합니다. 동의어와 패라프레이즈를 자동 처리하며 인간 판단과의 상관이 BLEU보다 높습니다. 그러나 **GPU 메모리와 추론 시간**이 필요합니다.
 
-**Agent-Evaluator의 대응**: 프로덕션 모니터링에서 매 요청마다 BERTScore를 계산하는 것은 비현실적이다. 외부 의존성 없이 <1ms로 동작하는 4중 가중 알고리즘을 기본으로 제공하고, 정밀 평가가 필요한 경우에만 LLM Judge를 샘플링 방식으로 추가한다.
+**Agent-Evaluator의 대응**: 프로덕션 모니터링에서 매 요청마다 BERTScore를 계산하는 것은 비현실적입니다. 외부 의존성 없이 <1ms로 동작하는 4중 가중 알고리즘을 기본으로 제공하고, 정밀 평가가 필요한 경우에만 LLM Judge를 샘플링 방식으로 추가합니다.
 
 ### LLM-as-Judge의 등장 (2022–현재)
 
-**HELM** (Liang et al. 2022)은 42개 시나리오 × 7개 지표로 정확성·강건성·공정성·독성을 동시 측정하는 종합 벤치마크다. **MT-Bench** (Zheng et al. 2023)와 **Chatbot Arena**는 GPT-4로 모델 응답을 채점하거나 두 응답 중 선호도를 선택하는 **LLM-as-Judge** 패러다임을 정착시켰다. 인간 판단과 높은 상관관계를 보이면서도 대규모 자동 평가가 가능하다.
+**HELM** (Liang et al. 2022)은 42개 시나리오 × 7개 지표로 정확성·강건성·공정성·독성을 동시 측정하는 종합 벤치마크입니다. **MT-Bench** (Zheng et al. 2023)와 **Chatbot Arena**는 GPT-4로 모델 응답을 채점하거나 두 응답 중 선호도를 선택하는 **LLM-as-Judge** 패러다임을 정착시켰습니다.
 
-**Agent-Evaluator의 대응**: `LLMJudge` 클래스가 이 패러다임을 구현한다. completeness·relevance·factual_consistency·toxicity·bias 5차원을 ground_truth 없이 채점하며, RAG 모드에서는 faithfulness 차원이 추가된다. DeepEval G-Eval의 커스텀 기준(`judge_criteria`)도 외부 패키지 없이 지원한다.
+**Agent-Evaluator의 대응**: `LLMJudge` 클래스가 이 패러다임을 구현합니다. completeness·relevance·factual_consistency·toxicity·bias 5차원을 ground_truth 없이 채점하며, RAG 모드에서는 faithfulness 차원이 추가됩니다. DeepEval G-Eval의 커스텀 기준(`judge_criteria`)도 외부 패키지 없이 지원합니다. (→ Group G 운영관측성 §10.2)
 
 ```
 AI 평가 발전 요약:
-  BLEU (2002)    → Precision 편향, 동의어 불인식
-  ROUGE (2004)   → Recall 편향
-  BERTScore (2019) → 의미적 유사도, but 느리고 무거움
-  HELM (2022)    → 종합 벤치마크, 다축 측정
+  BLEU (2002)       → Precision 편향, 동의어 불인식
+  ROUGE (2004)      → Recall 편향
+  BERTScore (2019)  → 의미적 유사도, but 느리고 무거움
+  HELM (2022)       → 종합 벤치마크, 다축 측정
   LLM-as-Judge (2023) → 인간 판단 대리, 유연한 기준
 
-  Agent-Evaluator → 4중 가중 알고리즘(빠름) + LLM Judge 샘플링(정밀)
-                     외부 의존성 없이 프로덕션에서 바로 사용 가능
+  Agent-Evaluator   → 4중 가중 알고리즘(빠름) + LLM Judge 샘플링(정밀)
+                       + 33개 Harness Config(배포 판단)
+                       외부 의존성 없이 프로덕션에서 바로 사용 가능
 ```
 
 > 📖 **더 깊이**: 각 지표의 수식과 한계 분석은 → Appendix G §G.1 (AI 평가의 역사와 발전), Appendix I §I.1 (정확도 지표 심층 비교)
@@ -244,28 +375,29 @@ AI 평가 발전 요약:
 > **이 챕터의 핵심**
 >
 > - AI 에이전트는 입력→출력 1회의 LLM과 달리, 도구 호출·멀티스텝·상태·반복 동작으로 평가 복잡성이 근본적으로 다릅니다.
-> - 환각, 보안 위협, 레이턴시 급증은 평가 체계 없이는 배포 후에야 발견되는 전형적인 실패 패턴입니다.
-> - 에이전트 평가의 4대 축은 **정확성**, **신뢰성**, **효율성**, **보안**입니다.
-> - 평가 없는 배포는 기술 부채를 누적시키며, 초기 투자 대비 장기 비용이 훨씬 큽니다.
-> - 에이전트 평가 도구 생태계에서 Tool 선택 정확도, 보안 탐지 등 에이전틱 전용 지표를 LLM 없이 제공하는 도구는 Agent Evaluator가 유일합니다.
+> - 환각·보안 위협·레이턴시 급증은 평가 체계 없이는 배포 후에야 발견되는 전형적인 실패 패턴입니다. 각각 Group C·E·D 차원의 문제입니다.
+> - **Harness Engineering**은 Tracker(관찰) × Config(기준) × Gate(판정)의 3요소로 배포를 판단합니다.
+> - 58개 지표(25 Tracker + 33 Config)는 7개 품질 차원 Group A-G로 구조화됩니다.
+> - AI Native 평가의 5가지 고유 도전(확률론적 품질·AI-by-AI 평가·드리프트·출현 행동·지속 평가)은 기존 소프트웨어 테스팅 방법론으로 해결되지 않습니다.
+> - 에이전트 평가 도구 생태계에서 Harness Config 기반 배포 판정과 에이전틱 전용 지표를 LLM 없이 제공하는 도구는 Agent Evaluator가 유일합니다.
 
 ---
 
 ## 실전 예제
 
-챕터 1에서 설명한 에이전트 평가의 필요성과 4대 축(정확성·신뢰성·효율성·보안)을 실제 지표로 측정하려면 `01_layer1_all_metrics.py`와 `02_layer2_agentic_security.py`로 시작한다. API 키 없이도 Layer 1+2 네이티브 지표 16개를 즉시 실행할 수 있다.
+챕터 1에서 설명한 Harness Engineering 개념과 Group A-G 7차원을 실제 지표로 측정하려면 `01_layer1_all_metrics.py`와 `02_layer2_agentic_security.py`로 시작합니다. API 키 없이도 네이티브 지표를 즉시 실행할 수 있습니다.
 
 **파일**: `Evaluator_Examples/01_layer1_all_metrics.py`, `Evaluator_Examples/02_layer2_agentic_security.py`
 
 **핵심 코드 (출처: `Evaluator_Examples/01_layer1_all_metrics.py`)**
 
 ```python
-# 출처: Evaluator_Examples/01_layer1_all_metrics.py, 섹션 1 — 기본 QA 평가
+# 출처: Evaluator_Examples/01_layer1_all_metrics.py, 섹션 1 — 기본 QA 평가 (Group A 목표달성)
 from agent_evaluator import PerformanceMonitor, create_taskresult
 
 monitor = PerformanceMonitor(
     output_dir="results/",
-    enable_hallucination_detection=True,  # Layer 1 환각 감지 활성화
+    enable_hallucination_detection=True,  # Group C 신뢰성 — 환각 감지 활성화
 )
 
 result = create_taskresult(
@@ -279,56 +411,53 @@ result = create_taskresult(
 
 monitor.record_task(result)
 report = monitor.generate_report()
-print(f"TCR: {report.task_completion_rate:.1%}")
-print(f"Accuracy: {report.average_accuracy:.1%}")
+print(f"TCR: {report.task_completion_rate:.1%}")      # Group A 목표달성
+print(f"Accuracy: {report.average_accuracy:.1%}")     # Group A 목표달성
 ```
 
-- `create_taskresult()`는 `accuracy_score`를 자동 계산한다 (TokenF1 40% + Jaccard 30% + LCS 20% + Char Levenshtein 10%)
-- `enable_hallucination_detection=True`를 켜면 `task_type="information_retrieval"` 태스크에서 환각 점수가 추가된다
-- `generate_report()`는 TCR·정확도·지연시간·토큰 사용량을 집계한 `EvaluationReport` 객체를 반환한다
+- `create_taskresult()`는 `accuracy_score`를 자동 계산합니다 (TokenF1 40% + Jaccard 30% + LCS 20% + Char Levenshtein 10%)
+- `enable_hallucination_detection=True`를 켜면 `task_type="information_retrieval"` 태스크에서 환각 점수(Group C)가 추가됩니다
+- `generate_report()`는 TCR·정확도·지연시간·토큰 사용량을 집계한 `EvaluationReport` 객체를 반환합니다
 
 ```python
-# 출처: Evaluator_Examples/02_layer2_agentic_security.py, 섹션 1 — Tool Call 메타데이터 주입
+# 출처: Evaluator_Examples/02_layer2_agentic_security.py, 섹션 1 — Group E 보안경계 측정
 from agent_evaluator import agent_eval, EvalMetadata
 
 @agent_eval(monitor, task_type="tool_use")
 def tool_agent(question: str, ground_truth: str = "") -> tuple:
-    # 에이전트 실행 로직 (예시)
     result_text = f"{question}에 대한 답변"
     tool_calls_made = ["web_search", "calculator"]
     expected = ["web_search", "calculator"]
-    
-    # EvalMetadata로 Layer 2 지표 데이터 주입
     return result_text, EvalMetadata(
         tool_calls=tool_calls_made,
         expected_tools=expected,
     )
 
-# 데코레이터가 AccuracyEvaluator + ToolCallAnalyzer + ToolSelectionTracker를 자동 실행
+# 데코레이터가 Group A(Accuracy) + Group B(ToolCall) + Group F(ToolSelection F1)를 자동 측정
 tool_agent("2024년 GDP 상위 5개국은?", ground_truth="미국, 중국, 독일, 일본, 인도")
 ```
 
-- `@agent_eval` 데코레이터는 `EvalMetadata` 튜플을 반환받으면 Layer 2 지표(Tool Call, Tool Selection F1)를 자동으로 집계한다
-- `expected_tools`와 `tool_calls`를 비교해 F1 점수(정밀도-재현율 조화평균)를 계산한다
-
 ```bash
-# Layer 1: 정확성·신뢰성·효율성 측정
+# Group A/C/D — 목표달성·신뢰성·성능계약 측정
 python Evaluator_Examples/01_layer1_all_metrics.py
 
-# Layer 2: 보안·에이전틱 동작 측정
+# Group B/E/F — 행동무결성·보안경계·다중에이전트 측정
 python Evaluator_Examples/02_layer2_agentic_security.py
 ```
 
-**4대 축과 예제 매핑**
+**Group A-G와 예제 매핑**
 
-| 평가 축 | 측정 지표 | 예제 파일·섹션 |
-|---------|----------|---------------|
-| 정확성 | AccuracyEvaluator (TokenF1·Jaccard·LCS) | 01_layer1, 섹션 1~2 |
-| 신뢰성 | HallucinationDetector, TCR | 01_layer1, 섹션 5~6 |
-| 효율성 | LatencyTracker (p95), TokenEconomyTracker | 01_layer1, 섹션 3~4 |
-| 보안 | InputSanitization, OutputLeakage, ToolAuth | 02_layer2, 섹션 4~6 |
+| Group | 차원 | 측정 지표 | 예제 파일·섹션 |
+|-------|------|----------|---------------|
+| A | 목표달성 | AccuracyEvaluator (TokenF1·Jaccard·LCS), TCR | 01_layer1, 섹션 1~2 |
+| B | 행동무결성 | ToolCallAnalyzer, WorkflowExecutionTracker | 02_layer2, 섹션 1~3 |
+| C | 신뢰성 | HallucinationDetector, RetryCorrectionTracker | 01_layer1, 섹션 5~6 |
+| D | 성능계약 | LatencyTracker (p95), TokenEconomyTracker | 01_layer1, 섹션 3~4 |
+| E | 보안경계 | InputSanitization, OutputLeakage, ToolAuth | 02_layer2, 섹션 4~6 |
+| F | 다중에이전트 | AgentCoordinationTracker, ToolSelectionTracker | 02_layer2, 섹션 7~8 |
+| G | 운영관측성 | LLMJudge 7차원, Phoenix OTEL | 07_phoenix_hybrid |
 
-**실행 결과 (v0.8.0 기준)**
+**실행 결과 (v0.8.2 기준)**
 
 ```
 # 01_layer1_all_metrics.py
@@ -336,9 +465,9 @@ TCR=43.1% | 54개 태스크 | p95_latency=5.20s | avg_accuracy=59.82%
 
 # 02_layer2_agentic_security.py
 TCR=41.4% | 14개 태스크 | 보안 위협 3건 탐지
-  - SQL Injection 시도 탐지 (InputSanitizationTracker)
-  - 민감 데이터 노출 탐지 (OutputLeakageDetector)
-  - 무단 도구 사용 탐지 (ToolAuthorizationTracker)
+  - SQL Injection 시도 탐지 (Group E — InputSanitizationTracker)
+  - 민감 데이터 노출 탐지 (Group E — OutputLeakageDetector)
+  - 무단 도구 사용 탐지 (Group E — ToolAuthorizationTracker)
 ```
 
-> **첫 실행 팁**: 두 파일 모두 API 키 없이 실행된다. `ANTHROPIC_API_KEY` 또는 `OPENAI_API_KEY`를 `.env`에 추가하면 LLMJudge가 활성화되어 `completeness`, `relevance`, `factual_consistency` 세 차원이 추가로 측정된다.
+> **첫 실행 팁**: 두 파일 모두 API 키 없이 실행됩니다. `ANTHROPIC_API_KEY` 또는 `OPENAI_API_KEY`를 `.env`에 추가하면 LLMJudge(Group G)가 활성화되어 `completeness`, `relevance`, `factual_consistency` 세 차원이 추가로 측정됩니다.

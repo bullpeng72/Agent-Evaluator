@@ -1,4 +1,4 @@
-# Chapter 14. OpenTelemetry와 Phoenix 실시간 모니터링
+# Chapter 19. OpenTelemetry와 Phoenix 실시간 모니터링
 
 > **이 챕터에서 배우는 것**
 > - OpenTelemetry의 핵심 개념과 에이전트 평가에 적용하는 이유
@@ -9,7 +9,7 @@
 
 ---
 
-## 14.1 OpenTelemetry 개념 — 에이전트 평가에 적용하는 이유
+## 19.1 OpenTelemetry 개념 — 에이전트 평가에 적용하는 이유
 
 **OpenTelemetry(OTEL)**는 분산 시스템의 관찰 가능성(Observability)을 위한 오픈 표준이다. CNCF(Cloud Native Computing Foundation)가 관리하며, 벤더에 종속되지 않는 SDK와 프로토콜을 제공한다. 원래는 마이크로서비스의 분산 추적을 위해 만들어졌지만, AI 에이전트 평가에도 자연스럽게 들어맞는다.
 
@@ -54,7 +54,7 @@ Agent-Evaluator에서 `record_task()`를 호출하면, 이미 계산된 25개 �
 
 ---
 
-## 14.2 setup_otel() — 올바른 설정 순서 (핵심!)
+## 19.2 setup_otel() — 올바른 설정 순서 (핵심!)
 
 이것이 가장 중요한 내용이다. `setup_otel()`은 반드시 `PerformanceMonitor` 또는 `QuickEval` 생성 **전에** 호출해야 한다. 순서가 바뀌면 OTEL이 활성화되지 않고, Phoenix에 스팬이 전혀 전송되지 않는다.
 
@@ -122,7 +122,7 @@ setup_otel(endpoint="http://localhost:6006", service_name="my-agent")  # 늦음!
 
 ---
 
-## 14.3 agent-eval monitor — 2-터미널 패턴
+## 19.3 agent-eval monitor — 2-터미널 패턴
 
 Phoenix를 로컬에서 실행하는 가장 간단한 방법은 `agent-eval monitor` 명령어다. Phoenix 서버 기동과 OTLP 엔드포인트 설정을 한 번에 처리한다.
 
@@ -189,7 +189,7 @@ agent-eval monitor --check
 
 ---
 
-## 14.4 Phoenix 4개 탭 완전 활용법
+## 19.4 Phoenix 4개 탭 완전 활용법
 
 Phoenix UI를 열면 왼쪽 사이드바에 여러 탭이 있다. 각 탭이 무엇을 보여주는지, Agent-Evaluator와 어떻게 연결되는지 살펴본다.
 
@@ -405,7 +405,7 @@ response = requests.post("http://localhost:6006/v1/prompts", json={
 
 ---
 
-## 14.5 25개 스팬 속성 (ae.*) 활용법
+## 19.5 25개 스팬 속성 (ae.*) 활용법
 
 Agent-Evaluator는 `record_task()` 호출마다 다음 속성들을 스팬에 자동으로 포함한다.
 
@@ -449,7 +449,7 @@ Agent-Evaluator는 `record_task()` 호출마다 다음 속성들을 스팬에 �
 
 ---
 
-## 14.6 외부 모니터링 도구 연동 개요
+## 19.6 외부 모니터링 도구 연동 개요
 
 ### Grafana 연동
 
@@ -631,7 +631,7 @@ open http://localhost:6006
 | 섹션 5 | `push_to_phoenix()` 골든셋 업로드 | Datasets 탭 |
 | 섹션 6 | GraphQL 역조회 (`phoenix_check.py`) | Tracing 탭 필터 |
 
-**실행 결과 (v0.8.0 기준, mock 모드)**
+**실행 결과 (v0.8.2 기준, mock 모드)**
 
 ```
 === 07. Phoenix OTEL Hybrid 예제 ===

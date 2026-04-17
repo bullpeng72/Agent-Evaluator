@@ -78,7 +78,7 @@
 
 ### I.2.1 3가지 방법론 개요
 
-**방법 1: 규칙 기반 (Agent-Evaluator Layer 1)**
+**방법 1: 규칙 기반 (Agent-Evaluator Group A-G Tracker)**
 - 컨텍스트 토큰 커버리지 + 수치 불일치 탐지
 - 정밀도: ~70-80%, 재현율: ~65-75%
 - 비용: 0 (외부 API 없음)
@@ -101,7 +101,7 @@
 ```
                   정밀도
                     ↑
-              ● LLM Judge (Layer 3)
+              ● LLM Judge (Group G)
              /     |
             /      |
            ● NLI   |
@@ -228,12 +228,12 @@ def _auto_select_model():
 이 두 지표는 "응답이 얼마나 사실에 충실한가"를 측정하지만 방향이 반대다.
 
 ```
-HallucinationRate (Layer 1, 규칙 기반):
+HallucinationRate (Group A, 규칙 기반):
   - 높을수록 나쁨: 0.0 = 완벽, 1.0 = 최악
   - 컨텍스트 없이도 측정 가능 (ground_truth 기반)
   - 수치 불일치와 미지원 주장 탐지
 
-Faithfulness (Layer 3, LLM Judge):
+Faithfulness (LLM Judge, Group G):
   - 높을수록 좋음: 1~5 스케일 (5=완벽하게 충실)
   - 컨텍스트 필수 (RAG의 검색 결과가 context로 전달)
   - 응답의 모든 주장이 컨텍스트에 근거하는지 LLM이 판단
@@ -276,10 +276,10 @@ Answer Relevancy가 낮음:
 |------|----------|
 | OpenAI API 키만 있음 | Ragas (LangChain 기반) |
 | Anthropic API 키 있음 | LLM Judge (`rag_mode=True`) |
-| 외부 의존성 없이 평가 | Layer 1 HallucinationDetector |
+| 외부 의존성 없이 평가 | Group A HallucinationDetector |
 | 가장 정밀한 RAG 평가 | Ragas 4지표 모두 |
 | 빠른 배포 전 검사 | LLM Judge (`judge_sample_rate=0.1`) |
-| 컨텍스트 없는 환경 | Layer 1만 (Ragas/LLM Judge 모두 context 필요) |
+| 컨텍스트 없는 환경 | Group A 기반만 (Ragas/LLM Judge 모두 context 필요) |
 
 ---
 
@@ -310,7 +310,7 @@ TCR: 1.0              ← 최종 완료
 ```
 
 **정확도/TCR만 보면**: 에이전트가 "훌륭히 작동"
-**Layer 2까지 보면**: 도구 사용 비효율이 포착되고, 반복 개선 방향이 명확해짐
+**Group B-G까지 보면**: 도구 사용 비효율이 포착되고, 반복 개선 방향이 명확해짐
 
 ### I.5.2 지표 간 상관관계
 
@@ -335,19 +335,28 @@ TCR: 1.0              ← 최종 완료
 [시작]
   │
   ▼
+배포 기준을 코드로 선언하고 Git에서 추적하고 싶은가?
+  │
+  ├─ YES → Harness Config 활성화
+  │          @agent_eval(monitor, sla=SLAConfig(...), instruction=InstructionConfig(...))
+  │          → HarnessEvaluationGate로 Group A-G 전체 배포 판정
+  │
+  └─ NO  → 기본 Tracker 모드 (지표 측정만, 배포 자동 차단 없음)
+
+  ▼
 에이전트가 도구를 사용하는가?
   │
-  ├─ NO → Layer 1만 활성 (TCR, Accuracy, Quality, Latency, Token, Hallucination*)
+  ├─ NO → Group A 지표 활성 (TCR, Accuracy, Quality, Latency, Token, Hallucination*)
   │         *(hallucination은 RAG 경우에만)
   │
-  └─ YES ─→ Layer 1 + Layer 2-A 활성
+  └─ YES ─→ Group A + Group B 에이전틱 지표 활성 (ToolCall, Workflow, ToolSelection)
               │
               ▼
             에이전트가 민감 데이터/외부 시스템에 접근하는가?
               │
-              ├─ NO → Layer 1 + Layer 2-A 유지
+              ├─ NO → Group A + B 지표 유지
               │
-              └─ YES → Layer 2-B 추가 (보안 지표 5개)
+              └─ YES → Group E 보안 지표 추가
                           enable_security_metrics=True
 
 [계속]
@@ -355,9 +364,9 @@ TCR: 1.0              ← 최종 완료
   ▼
 Ground truth를 항상 가질 수 있는가?
   │
-  ├─ YES → Layer 1/2로 충분 (낮은 비용)
+  ├─ YES → Group A-F 기반 지표로 충분 (낮은 비용)
   │
-  └─ NO → LLM Judge 추가 (Layer 3)
+  └─ NO → LLM Judge 추가 (Group G)
             │
             ▼
           RAG 파이프라인인가?
@@ -374,6 +383,15 @@ Ground truth를 항상 가질 수 있는가?
   │
   └─ YES → judge_criteria=["domain_accuracy", "citation_quality", ...]
              (G-Eval 스타일 커스텀 기준)
+
+[배포 자동화]
+  │
+  ▼
+지표 선택 완료 후 배포를 자동 차단하려면?
+  │
+  └─ HarnessEvaluationGate 설정
+       Python: gate.evaluate() → {"passed": bool, "violations": [...]}
+       CLI:    agent-eval gate result.json --tcr 85 --accuracy 70
 ```
 
 ---
@@ -389,7 +407,7 @@ Ground truth를 항상 가질 수 있는가?
 | Response Quality | 2~10ms | 없음 | 최소 |
 | Latency 통계 | < 1ms | 없음 | O(n) |
 | Token Economy | < 1ms | 없음 | 최소 |
-| Hallucination (Layer 1) | 5~20ms | 없음 | 최소 |
+| Hallucination (Group A) | 5~20ms | 없음 | 최소 |
 | Tool Call Efficiency | < 1ms | 없음 | 최소 |
 | Tool Selection F1 | < 1ms | 없음 | 최소 |
 | Agent Coordination | 2~5ms | 없음 | O(nodes) |
@@ -403,45 +421,47 @@ Ground truth를 항상 가질 수 있는가?
 
 | 구성 | 월간 API 비용 | 측정 오버헤드 |
 |------|------------|------------|
-| Layer 1 only | $0 | < 0.5% |
-| Layer 1 + Layer 2 | $0 | < 1% |
-| Layer 1 + Layer 2 + LLM Judge (10%) | ~$90 | < 2% |
-| Layer 1 + Layer 2 + LLM Judge (100%) | ~$900 | 2~5% |
-| Layer 1 + Layer 2 + Ragas (100%) | ~$1,500~$5,000 | 10~30% |
+| Group A-G 기반만 | $0 | < 0.5% |
+| Group A-G 기반 + 에이전틱 | $0 | < 1% |
+| Group A-G 전체 + LLM Judge (10%) | ~$90 | < 2% |
+| Group A-G 전체 + LLM Judge (100%) | ~$900 | 2~5% |
+| Group A-G 전체 + Ragas (100%) | ~$1,500~$5,000 | 10~30% |
 
 > 💡 **비용 최적화**: LLM Judge는 10% 샘플링만으로도 전수 평가 대비 90% 비용 절감, 정확도는 5~8%p 차이. 10% 샘플링이 대부분 프로덕션 환경에서 최적의 선택이다.
 
+> **비용 추정 기준**: claude-haiku-4-5-20251001 모델, 태스크당 평균 입력 1,000 토큰 + 출력 300 토큰 기준. claude-sonnet-4-6 사용 시 약 3~5배 증가, gpt-4o-mini 사용 시 유사 수준.
+
 ---
 
-## I.8 Agent-Evaluator 25개 지표 전체 비교표
+## I.8 Agent-Evaluator 25개 Tracker 지표 전체 비교표
 
-| # | 지표 | 레이어 | opt-in | 외부 의존 | 속도 | 비용 | 한국어 지원 | 주요 용도 |
-|---|------|--------|--------|----------|------|------|----------|----------|
-| 1 | TCR | 1 | — | 없음 | ⚡ | $0 | ✅ | 핵심 완료율 |
-| 2 | 정확도 | 1 | — | 없음 | ⚡ | $0 | ✅ | 응답 품질 |
-| 3 | 응답 품질 | 1 | — | 없음 | ⚡ | $0 | ✅ | 다차원 품질 |
-| 4 | 지연시간 | 1 | — | 없음 | ⚡ | $0 | N/A | 성능 SLA |
-| 5 | 토큰 경제 | 1 | — | 없음 | ⚡ | $0 | N/A | 비용 추적 |
-| 6 | 환각 탐지 | 1 | ✅ | 없음 | ⚡ | $0 | △ | RAG 품질 |
-| 7 | 도구 효율 | 2-A | — | 없음 | ⚡ | $0 | N/A | 도구 패턴 |
-| 8 | 재시도·복구 | 2-A | — | 없음 | ⚡ | $0 | N/A | 오류 회복 |
-| 9 | 도구 선택 F1 | 2-A | — | 없음 | ⚡ | $0 | N/A | 도구 정확도 |
-| 10 | 에이전트 협력 | 2-A | — | 없음 | ⚡ | $0 | N/A | 멀티에이전트 |
-| 11 | 워크플로 실행 | 2-A | — | 없음 | ⚡ | $0 | N/A | 프로세스 품질 |
-| 12 | 입력 위생화 | 2-B | ✅ | 없음 | ⚡ | $0 | ✅ | 주입 공격 |
-| 13 | 출력 누출 | 2-B | ✅ | 없음 | ⚡ | $0 | ✅ | 데이터 보호 |
-| 14 | 도구 인가 | 2-B | ✅ | 없음 | ⚡ | $0 | N/A | 권한 관리 |
-| 15 | 권한 상승 | 2-B | ✅ | 없음 | ⚡ | $0 | N/A | 보안 위협 |
-| 16 | 체인 공격 | 2-B | ✅ | 없음 | ⚡ | $0 | N/A | 복합 공격 |
-| 17 | LLM Judge (완결성) | 3 | ✅ | LLM API | 🐢 | $$ | ✅ | 주관적 품질 |
-| 18 | LLM Judge (관련성) | 3 | ✅ | LLM API | 🐢 | $$ | ✅ | 질문 적합성 |
-| 19 | LLM Judge (사실성) | 3 | ✅ | LLM API | 🐢 | $$ | ✅ | 팩트체크 |
-| 20 | LLM Judge (독성) | 3 | ✅ | LLM API | 🐢 | $$ | ✅ | 안전성 |
-| 21 | LLM Judge (편향) | 3 | ✅ | LLM API | 🐢 | $$ | ✅ | 공정성 |
-| 22 | Faithfulness | 3 | ✅ | LLM API | 🐢 | $$ | ✅ | RAG 충실도 |
-| 23 | DeepEval (5지표) | 3 | ✅ | OpenAI | 🐢 | $$$ | △ | 외부 검증 |
-| 24 | Ragas Faithfulness | 3 | ✅ | OpenAI | 🐢 | $$$ | △ | RAG 파이프라인 |
-| 25 | Ragas Relevancy 外 | 3 | ✅ | OpenAI | 🐢 | $$$ | △ | RAG 검색 평가 |
+| # | 지표 | Group | opt-in | 외부 의존 | 속도 | 비용 | 한국어 지원 | 주요 용도 |
+|---|------|-------|--------|----------|------|------|----------|----------|
+| 1 | TCR | A | — | 없음 | ⚡ | $0 | ✅ | 핵심 완료율 |
+| 2 | 정확도 | A | — | 없음 | ⚡ | $0 | ✅ | 응답 품질 |
+| 3 | 응답 품질 | A | — | 없음 | ⚡ | $0 | ✅ | 다차원 품질 |
+| 4 | 지연시간 | D | — | 없음 | ⚡ | $0 | N/A | 성능 SLA |
+| 5 | 토큰 경제 | D | — | 없음 | ⚡ | $0 | N/A | 비용 추적 |
+| 6 | 환각 탐지 | A | ✅ | 없음 | ⚡ | $0 | △ | RAG 품질 |
+| 7 | 도구 효율 | B | — | 없음 | ⚡ | $0 | N/A | 도구 패턴 |
+| 8 | 재시도·복구 | C | — | 없음 | ⚡ | $0 | N/A | 오류 회복 |
+| 9 | 도구 선택 F1 | B | — | 없음 | ⚡ | $0 | N/A | 도구 정확도 |
+| 10 | 에이전트 협력 | F | — | 없음 | ⚡ | $0 | N/A | 멀티에이전트 |
+| 11 | 워크플로 실행 | B | — | 없음 | ⚡ | $0 | N/A | 프로세스 품질 |
+| 12 | 입력 위생화 | E | ✅ | 없음 | ⚡ | $0 | ✅ | 주입 공격 |
+| 13 | 출력 누출 | E | ✅ | 없음 | ⚡ | $0 | ✅ | 데이터 보호 |
+| 14 | 도구 인가 | E | ✅ | 없음 | ⚡ | $0 | N/A | 권한 관리 |
+| 15 | 권한 상승 | E | ✅ | 없음 | ⚡ | $0 | N/A | 보안 위협 |
+| 16 | 체인 공격 | E | ✅ | 없음 | ⚡ | $0 | N/A | 복합 공격 |
+| 17 | LLM Judge (완결성) | G | ✅ | LLM API | 🐢 | $$ | ✅ | 주관적 품질 |
+| 18 | LLM Judge (관련성) | G | ✅ | LLM API | 🐢 | $$ | ✅ | 질문 적합성 |
+| 19 | LLM Judge (사실성) | G | ✅ | LLM API | 🐢 | $$ | ✅ | 팩트체크 |
+| 20 | LLM Judge (독성) | G | ✅ | LLM API | 🐢 | $$ | ✅ | 안전성 |
+| 21 | LLM Judge (편향) | G | ✅ | LLM API | 🐢 | $$ | ✅ | 공정성 |
+| 22 | Faithfulness | G | ✅ | LLM API | 🐢 | $$ | ✅ | RAG 충실도 |
+| 23 | DeepEval (5지표) | G (외부) | ✅ | OpenAI | 🐢 | $$$ | △ | 외부 검증 |
+| 24 | Ragas Faithfulness | G (외부) | ✅ | OpenAI | 🐢 | $$$ | △ | RAG 파이프라인 |
+| 25 | Ragas Relevancy 外 | G (외부) | ✅ | OpenAI | 🐢 | $$$ | △ | RAG 검색 평가 |
 
 **opt-in**: `enable_hallucination_detection=True`, `enable_security_metrics=True`, `llm_judge=LLMJudgeConfig()` 등으로 명시 활성화 필요  
 **속도**: ⚡ = <50ms, 🐢 = >500ms  
@@ -449,4 +469,4 @@ Ground truth를 항상 가질 수 있는가?
 
 ---
 
-*본 Appendix는 Agent-Evaluator v0.8.0 기준이며 외부 서비스 가격은 2025년 기준이다. 최신 가격은 각 서비스 공식 가격표를 참조하라.*
+*본 Appendix는 Agent-Evaluator v0.8.2 기준이며 외부 서비스 가격은 2025년 기준이다. 최신 가격은 각 서비스 공식 가격표를 참조하라.*

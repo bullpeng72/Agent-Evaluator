@@ -7,14 +7,17 @@
     InstructionConfig, GoalAlignmentConfig, PlanConfig, SubtaskConfig
 
   Group B — Behavioral Integrity
-    LoopDetectionConfig, ScopeConfig, ToolParameterSafetyConfig, ContextWindowConfig
+    LoopDetectionConfig, ScopeConfig, ToolParameterSafetyConfig, ContextWindowConfig,
+    StateConsistencyConfig, DeadlockConfig
 
   Group C — Reliability
-    FaultToleranceConfig, ReproducibilityConfig, RetryConsistencyConfig, IdempotencyConfig
+    FaultToleranceConfig, GracefulDegradationConfig, ReproducibilityConfig,
+    RetryConsistencyConfig, IdempotencyConfig
 
   Group D — Performance Contract
     SLAConfig, EfficiencyConfig, ResourceBudgetConfig
-    (CostPredictabilityConfig는 monitor 수준 자동 집계)
+    TTFTVariabilityConfig — monitor 수준 자동 집계 (ttft_ms extra 값 기반)
+    CostPredictabilityConfig — monitor 수준 자동 집계 (task_type별 토큰 CV 기반)
 
   Group E — Security Boundary
     ThreatSeverityConfig, ComplianceConfig, ThreatResponseConfig
@@ -23,7 +26,7 @@
     ConsensusConfig, PropagationConfig, AgentRoleConfig, ConflictResolutionConfig
 
   Group G — Observability
-    ExplainabilityConfig, ObservabilityConfig, ErrorDiagnosisConfig
+    ExplainabilityConfig, ObservabilityConfig, ErrorDiagnosisConfig, LatencyAttributionConfig
 
 의존성:
     필수: pip install agent-evaluator          (numpy·pandas·python-dotenv 포함)
@@ -60,16 +63,18 @@ from agent_evaluator import (
     ToolParameterSafetyConfig,
     ContextWindowConfig,
     StateConsistencyConfig,
+    DeadlockConfig,
     # Group C — Reliability
     FaultToleranceConfig,
+    GracefulDegradationConfig,
     ReproducibilityConfig,
     RetryConsistencyConfig,
     IdempotencyConfig,
-    GracefulDegradationConfig,
     # Group D — Performance Contract
     SLAConfig,
     EfficiencyConfig,
     ResourceBudgetConfig,
+    TTFTVariabilityConfig,
     CostPredictabilityConfig,
     # Group E — Security Boundary
     ThreatSeverityConfig,
@@ -260,10 +265,35 @@ def param_safe_agent(question: str, ground_truth: str = "") -> str:
         window_size_tokens=4096,
         warn_at_pct=0.7,
     ),
+    state_consistency=StateConsistencyConfig(
+        # state_fn: 실행 전·후 시스템 상태를 딕셔너리로 반환하는 callable
+        # 실제 환경에서는 DB 행 수·권한 테이블 등을 반환.
+        # mock에서는 단순 counter로 시뮬레이션
+        state_fn=lambda: {"context_size": 0, "user_permissions": "read_only"},
+        unchanged_keys=["user_permissions"],  # 이 키는 변경되면 안 됨
+        fail_on_unexpected_change=False,
+    ),
 )
 def context_window_agent(question: str, ground_truth: str = "") -> str:
-    """컨텍스트 윈도우 활용 에이전트 (mock)."""
+    """컨텍스트 윈도우 + 상태 일관성 에이전트 (mock)."""
     return f"컨텍스트 내 정보를 활용하여 답변: {question}"
+
+
+@agent_eval(
+    monitor,
+    task_type="multi_agent",
+    task_id_prefix="b_deadlock",
+    deadlock=DeadlockConfig(
+        check_circular_delegation=True,
+        max_delegation_depth=8,
+        check_starvation=True,
+        starvation_threshold=3,
+    ),
+)
+def deadlock_resistant_agent(question: str, ground_truth: str = "") -> str:
+    """교착 방지 에이전트 (mock) — 순환 위임 없이 단방향 위임."""
+    # 실제 환경에서는 DeadlockConfig가 에이전트 위임 깊이와 순환 패턴을 추적
+    return f"[coordinator → executor → finalizer] 단방향 위임으로 처리: {question}"
 
 
 # 섹션 2 실행
@@ -278,8 +308,9 @@ for q, gt in BEHAVIORAL_CASES:
     scope_bounded_agent(q, ground_truth=gt)
     param_safe_agent(q, ground_truth=gt)
     context_window_agent(q, ground_truth=gt)
+    deadlock_resistant_agent(q, ground_truth=gt)
 
-print(f"  섹션 2 완료: {len(BEHAVIORAL_CASES) * 4}건 기록")
+print(f"  섹션 2 완료: {len(BEHAVIORAL_CASES) * 5}건 기록")
 
 
 # ===========================================================================
@@ -299,13 +330,19 @@ _fault_call_count = {"n": 0}
         check_fallback_attempts=True,
         partial_success_threshold=0.5,
     ),
+    graceful_degradation=GracefulDegradationConfig(
+        quality_floor=0.4,
+        partial_result_markers=["부분", "폴백", "fallback", "partial"],
+        check_error_acknowledgment=True,
+    ),
     retry=RetryConfig(max=2, on=(RuntimeError,), delay=0.0),
 )
 def fault_tolerant_agent(question: str, ground_truth: str = "") -> str:
-    """장애 내성 에이전트 (mock) — 첫 번째 시도 실패 후 폴백."""
+    """장애 내성 + 우아한 저하 에이전트 (mock) — 실패 시 부분 완료 응답."""
     _fault_call_count["n"] += 1
     if _fault_call_count["n"] % 3 == 1:
-        raise RuntimeError("도구 일시 오류 — 폴백 시도")
+        # 우아한 저하: 완전 실패 대신 부분 결과 + 오류 인정 반환
+        return f"부분 완료(폴백): 외부 도구 일시 오류로 인해 캐시 데이터로 응답합니다. {question}"
     return f"폴백 처리 완료: {question}"
 
 
@@ -426,14 +463,21 @@ def budget_aware_agent(question: str, ground_truth: str = "") -> str:
     return f"예산 내 응답: {question}"
 
 
-# CostPredictabilityConfig 설명
-# ────────────────────────────────────────────────────────────────────────
-# CostPredictabilityConfig는 monitor 수준에서 자동 집계됩니다.
-# 태스크마다 individual하게 전달하는 config가 아니라,
-# monitor.generate_report() 호출 시 _compute_harness_groups() 내부에서
-# 동일 task_type의 토큰 CV(변동계수)를 자동으로 계산합니다.
-# 별도로 @agent_eval(...) 파라미터로 넣을 필요 없습니다.
-# ────────────────────────────────────────────────────────────────────────
+# ── TTFTVariabilityConfig · CostPredictabilityConfig (monitor 수준 자동 집계) ──
+# 이 두 Config는 @agent_eval 파라미터가 아닌 monitor 수준에서 자동 측정됩니다.
+#
+# TTFTVariabilityConfig:
+#   - 태스크 extra 에 "ttft_ms" 값이 있으면 자동으로 표준편차·P95/P50 비율 계산
+#   - 스트리밍 에이전트는 자동 기록됨; 비스트리밍은 get_eval_ctx()로 수동 주입 가능
+#
+# CostPredictabilityConfig:
+#   - 동일 task_type 내 tokens_used 변동 계수(CV)를 자동 계산 (5건 이상 필요)
+#   - 아래 예시처럼 여러 task_type 태스크가 충분히 쌓이면 자동 집계됨
+#
+# 참고 Config 클래스 정의:
+_ttft_cfg  = TTFTVariabilityConfig(max_stddev_ms=300.0, max_p95_p50_ratio=2.5)
+_cost_cfg  = CostPredictabilityConfig(max_coefficient_of_variation=0.3, min_samples=5)
+# ─── 위 인스턴스는 타입 문서화 목적. 실제 집계는 generate_report() 자동 처리 ───
 
 # 섹션 4 실행
 PERFORMANCE_CASES = [

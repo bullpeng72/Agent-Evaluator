@@ -94,3 +94,6 @@ Evaluator_Examples/**/*.html
 .deepeval_telemtry.txt
 .deepeval/
 .claude/
+
+# Lectures — 강의 자료 (별도 관리)
+Lectures/

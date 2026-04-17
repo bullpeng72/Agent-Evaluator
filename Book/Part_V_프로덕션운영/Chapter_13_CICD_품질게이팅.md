@@ -1,4 +1,4 @@
-# Chapter 13. CI/CD 품질 게이팅
+# Chapter 18. CI/CD 품질 게이팅
 
 > **이 챕터에서 배우는 것**
 > - 배포 파이프라인에 AI 품질 검문소를 설치하는 이유와 방법
@@ -10,7 +10,7 @@
 
 ---
 
-## 13.1 품질 게이팅이란 — 배포 파이프라인에 품질 검문소 세우기
+## 18.1 품질 게이팅이란 — 배포 파이프라인에 품질 검문소 세우기
 
 소프트웨어 팀은 오래전부터 CI/CD 파이프라인에 단위 테스트, 정적 분석, 코드 커버리지 검사를 넣어왔다. 이 검사 중 하나라도 실패하면 배포가 차단된다. 이것이 **품질 게이팅(Quality Gating)**이다. 목표는 간단하다. 품질 기준을 통과하지 못한 코드는 프로덕션에 나가지 못하게 막는 것이다.
 
@@ -40,7 +40,7 @@
 
 ---
 
-## 13.2 agent-eval gate CLI 완전 가이드
+## 18.2 agent-eval gate CLI 완전 가이드
 
 `agent-eval gate`는 평가 결과 JSON 파일을 읽고, 지정한 임계값과 비교해 통과/실패를 판정한다. CI/CD 시스템이 이해하는 **exit code**로 결과를 반환한다.
 
@@ -117,7 +117,7 @@ eval.generate_gate_config("gate_config.json")
 
 ---
 
-## 13.3 agent-eval trend — 다중 실행 트렌드 분석
+## 18.3 agent-eval trend — 다중 실행 트렌드 분석
 
 `gate`는 **단일 결과 파일**을 절대값 임계값과 비교한다. 반면 `trend`는 **여러 결과 파일의 시간 흐름**을 보고 지표가 좋아지는지 나빠지는지 기울기(slope)로 판단한다. "현재 상태가 기준을 넘는가"가 아니라 "상태가 어떤 방향으로 움직이고 있는가"를 묻는 것이다.
 
@@ -231,7 +231,7 @@ jobs:
 
 ---
 
-## 13.4 GitHub Actions 통합
+## 18.4 GitHub Actions 통합
 
 GitHub Actions는 현재 가장 널리 쓰이는 CI/CD 플랫폼이다. 완전한 워크플로우 파일을 소개한다.
 
@@ -373,7 +373,7 @@ if __name__ == "__main__":
 
 ---
 
-## 13.5 GitLab CI / Jenkins 통합 패턴
+## 18.5 GitLab CI / Jenkins 통합 패턴
 
 ### GitLab CI — `.gitlab-ci.yml`
 
@@ -485,7 +485,7 @@ pipeline {
 
 ---
 
-## 13.6 배포 환경별 임계값 전략
+## 18.6 배포 환경별 임계값 전략
 
 모든 환경에 같은 임계값을 적용하는 것은 비효율적이다. 개발 단계에서는 빠른 반복이 중요하고, 프로덕션에서는 품질이 최우선이다.
 
@@ -530,7 +530,7 @@ eval.gate(**params)
 
 ---
 
-## 13.7 게이팅 실패 시 대응 절차
+## 18.7 게이팅 실패 시 대응 절차
 
 게이트가 실패했다고 해서 당황할 필요는 없다. 실패는 품질 문제를 배포 전에 발견했다는 의미다. 체계적으로 대응하면 된다.
 
@@ -605,6 +605,224 @@ for task in low_accuracy[:10]:
 - **환경별 차등 임계값** 전략을 사용하라. dev는 느슨하게, staging은 보통, prod는 엄격하게. 브랜치에 따라 `--tcr`, `--accuracy`, `--p95-latency` 값을 다르게 지정하거나, Python `QuickEval.gate()` 메서드에서 환경 변수로 분기한다.
 
 - 게이팅 실패는 나쁜 것이 아니다. **배포 전에 문제를 발견했다**는 의미다. 낮은 케이스를 분석해 임계값 조정 vs 코드 수정을 판단하고, 회귀 케이스는 골든 데이터셋에 추가해 재발을 방지하라.
+
+---
+
+## 18.8 4가지 변경 소스 × Harness Group 영향 매트릭스
+
+AI 에이전트 시스템에서 품질이 변화하는 원인은 크게 4가지다. 각 변경 소스가 어떤 Group 지표에 가장 먼저 영향을 미치는지 파악하면, CI/CD 게이팅에서 어떤 Harness Config를 강화해야 하는지 결정할 수 있다.
+
+┌─────────────────────────────────────────────────────┐
+│ ⚠️ 이 지표가 없으면 생기는 일                          │
+│ 변경 소스를 추적하지 않으면 "어디서 무너졌는지" 모른 채  │
+│ 디버깅에 수 시간을 소비한다.                           │
+│ 실제 사례: 프롬프트 1줄 수정 후 Group A TCR 8% 하락.  │
+│ 변경 소스 매트릭스가 없었다면 원인 파악에 3일 걸림.      │
+└─────────────────────────────────────────────────────┘
+
+### 변경 소스 × Group 영향 매트릭스
+
+| 변경 소스 | 가장 영향받는 Group | 2순위 영향 Group | 모니터링 핵심 지표 | 권장 Config 강화 |
+|---------|-------------------|----------------|-----------------|----------------|
+| **코드 변경** (로직·도구·API) | Group B 행동무결성 | Group C 신뢰성 | ToolCallAnalyzer, WorkflowExecution, RetryCorrection | `ScopeConfig`, `LoopDetectionConfig` |
+| **모델 교체** (버전 업/다운) | Group A 목표달성 | Group G 운영관측성 | TCR, AccuracyEvaluator, HallucinationDetector | `InstructionConfig`, `GoalAlignmentConfig`, `ObservabilityConfig` |
+| **프롬프트 수정** (템플릿·지시문) | Group A 목표달성 | Group C 신뢰성 | AccuracyEvaluator, HallucinationDetector, Reproducibility | `InstructionConfig`, `ReproducibilityConfig` |
+| **데이터 변경** (벡터DB·문서 갱신) | Group A 목표달성 | Group E 보안경계 | HallucinationDetector, InputSanitization, OutputLeakage | `ThreatSeverityConfig`, `IdempotencyConfig` |
+
+### 변경 소스별 CI/CD 게이팅 강화 전략
+
+```python
+import os
+from agent_evaluator import PerformanceMonitor, QuickEval
+
+# CI 환경변수로 변경 소스 감지
+change_source = os.getenv("CI_CHANGE_SOURCE", "unknown")  
+# 값: "code" | "model" | "prompt" | "data"
+
+# 변경 소스에 따라 임계값 강화
+GATE_PROFILES = {
+    "code": {"tcr": 85, "accuracy": 70, "groups": ["B", "C"]},
+    "model": {"tcr": 90, "accuracy": 75, "groups": ["A", "G"]},
+    "prompt": {"tcr": 88, "accuracy": 72, "groups": ["A", "C"]},
+    "data":  {"tcr": 85, "accuracy": 70, "groups": ["A", "E"]},
+    "unknown": {"tcr": 80, "accuracy": 65, "groups": []},
+}
+
+profile = GATE_PROFILES.get(change_source, GATE_PROFILES["unknown"])
+print(f"변경 소스: {change_source} → TCR 기준 {profile['tcr']}%, 강화 Group: {profile['groups']}")
+
+eval = QuickEval("results/")
+eval.gate(tcr=profile["tcr"], accuracy=profile["accuracy"])
+```
+
+```yaml
+# GitHub Actions — 변경 소스 자동 감지 + 게이팅 강화
+name: AI Quality Gate
+
+on:
+  push:
+    branches: [main, staging]
+
+jobs:
+  detect-change-source:
+    runs-on: ubuntu-latest
+    outputs:
+      source: ${{ steps.detect.outputs.source }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+      - id: detect
+        run: |
+          CHANGED=$(git diff --name-only HEAD~1)
+          if echo "$CHANGED" | grep -q "prompts/"; then
+            echo "source=prompt" >> $GITHUB_OUTPUT
+          elif echo "$CHANGED" | grep -q "model_config"; then
+            echo "source=model" >> $GITHUB_OUTPUT
+          elif echo "$CHANGED" | grep -q "data/"; then
+            echo "source=data" >> $GITHUB_OUTPUT
+          else
+            echo "source=code" >> $GITHUB_OUTPUT
+          fi
+
+  quality-gate:
+    needs: detect-change-source
+    runs-on: ubuntu-latest
+    env:
+      CI_CHANGE_SOURCE: ${{ needs.detect-change-source.outputs.source }}
+    steps:
+      - uses: actions/checkout@v4
+      - run: pip install agent-evaluator
+      - run: python scripts/run_golden_eval.py
+      - run: agent-eval gate results/*.json --tcr ${{ env.TCR_THRESHOLD }} --accuracy ${{ env.ACC_THRESHOLD }}
+        env:
+          TCR_THRESHOLD: ${{ needs.detect-change-source.outputs.source == 'model' && '90' || '85' }}
+          ACC_THRESHOLD: ${{ needs.detect-change-source.outputs.source == 'model' && '75' || '70' }}
+```
+
+---
+
+## 18.9 HarnessEvaluationGate — 완전한 CI/CD 배포 판정
+
+`agent-eval gate` CLI는 TCR·정확도·지연 등 개별 지표 임계값을 확인한다. `HarnessEvaluationGate`는 여기서 한 단계 더 나아가 **7개 Group 전체의 Config 위반 여부**를 종합 판정한다. 단순 숫자 임계값이 아니라, **"이 에이전트가 배포 기준을 충족하는가"를 Config 선언으로 판정**한다.
+
+### HarnessEvaluationGate 아키텍처
+
+```
+개별 Config 판정                    종합 Gate 판정
+──────────────────                  ──────────────────────────
+InstructionConfig  → pass/fail ─┐
+SLAConfig          → pass/fail ─┤→ HarnessEvaluationGate → DEPLOY / HOLD
+ThreatSeverityConfig → pass/fail┤   (모든 Config 통과 시만)
+DeadlockConfig     → pass/fail ─┘
+```
+
+### 코드 예시 — CI/CD 완전 통합
+
+```python
+# ci_quality_check.py — CI/CD 파이프라인에서 실행
+import sys
+from agent_evaluator import PerformanceMonitor, agent_eval, create_taskresult
+from agent_evaluator.core.trackers.base import (
+    InstructionConfig, SLAConfig, ThreatSeverityConfig,
+    ReproducibilityConfig, DeadlockConfig, ObservabilityConfig
+)
+
+# 1. HarnessEvaluationGate 구성 (에이전트가 배포 기준을 소유)
+harness = {
+    # Group A — 목표달성
+    "instruction": InstructionConfig(
+        min_completion_rate=0.85,
+        min_accuracy_score=0.72,
+        fail_on_violation=True,       # 위반 시 success=False 강제
+    ),
+    # Group D — 성능계약
+    "sla": SLAConfig(
+        max_p95_latency_sec=3.0,
+        max_cost_per_task_usd=0.05,
+        fail_on_violation=True,
+    ),
+    # Group E — 보안경계
+    "security": ThreatSeverityConfig(
+        max_severity_level="low",
+        fail_on_violation=True,       # 보안 위반은 즉시 배포 차단
+    ),
+    # Group C — 신뢰성
+    "reproducibility": ReproducibilityConfig(
+        min_consistency_score=0.80,
+        fail_on_violation=False,      # 경고만, 배포는 허용
+    ),
+}
+
+monitor = PerformanceMonitor(
+    output_dir="results/",
+    harness_configs=harness,
+    enable_hallucination_detection=True,
+    enable_security_metrics=True,
+)
+
+# 2. 골든 데이터셋으로 평가 실행
+import json
+with open("data/golden_datasets/master_golden.json") as f:
+    golden = json.load(f)
+
+@agent_eval(monitor, task_type="qa")
+def production_agent(question: str, ground_truth: str = "") -> str:
+    # 실제 에이전트 호출
+    return agent_runner.invoke(question)
+
+for pair in golden.get("qa_pairs", []):
+    production_agent(pair["question"], ground_truth=pair["ground_truth"])
+
+# 3. Harness Gate 판정
+monitor.save_to_file("ci_eval")
+report = monitor.generate_report()
+
+violations = [
+    name for name, cfg in harness.items()
+    if getattr(cfg, "fail_on_violation", False) and report.harness_violations.get(name, False)
+]
+
+if violations:
+    print(f"❌ HarnessEvaluationGate 배포 차단")
+    print(f"   위반 Config: {', '.join(violations)}")
+    sys.exit(1)
+else:
+    print(f"✅ HarnessEvaluationGate 배포 승인")
+    print(f"   TCR: {report.task_completion_rate:.1%} | 정확도: {report.average_accuracy:.1%}")
+    sys.exit(0)
+```
+
+```yaml
+# GitHub Actions — HarnessEvaluationGate 통합
+  harness-gate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: pip install agent-evaluator
+      - run: python ci_quality_check.py
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      - name: Upload evaluation report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: harness-eval-report
+          path: results/ci_eval.html
+```
+
+### CLI gate vs HarnessEvaluationGate 비교
+
+| 항목 | `agent-eval gate` CLI | `HarnessEvaluationGate` |
+|-----|----------------------|------------------------|
+| 판정 기준 | 단일 숫자 임계값 (TCR, 정확도) | Config 선언 기반 (7개 Group) |
+| 위반 세분성 | "통과/실패" 1가지 | Group별 위반 항목 명시 |
+| fail_on_violation | 없음 | Config별 개별 설정 |
+| 버전 관리 | CLI 인수 (파라미터) | Python 코드 (Git 추적) |
+| 권장 사용 | 빠른 시작, 간단한 기준 | 프로덕션, 복잡한 기준 |
+| Config-as-Code | ❌ | ✅ |
+
+> **권장**: 초기에는 `agent-eval gate --tcr 85`로 빠르게 시작. Config 종류가 3개 이상 생기면 `HarnessEvaluationGate`로 전환해 Config-as-Code 패턴을 확립한다.
 
 ---
 
@@ -704,7 +922,7 @@ agent-eval trend results/ --window 10 --fail-on-regression
 | 단일 게이트 | `agent-eval gate ... --tcr 80` | 배포 전 단일 검문소 |
 | 추이 게이트 | `agent-eval trend ... --fail-on-regression` | 장기 회귀 감지 |
 
-**실행 결과 (v0.8.0 기준)**
+**실행 결과 (v0.8.2 기준)**
 
 ```
 # agent-eval gate (TCR 기준 46.1% < 임계값 80%)

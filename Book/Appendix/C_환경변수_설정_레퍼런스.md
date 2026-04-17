@@ -1,6 +1,6 @@
 # Appendix C. 환경변수 & 설정 레퍼런스
 
-Agent Evaluator v0.8.0에서 사용하는 환경변수와 `.env` 파일 설정 전체를 정리한다.
+Agent Evaluator v0.8.2에서 사용하는 환경변수와 `.env` 파일 설정 전체를 정리한다.
 
 ---
 
@@ -45,8 +45,8 @@ OpenAI API 키. 다음 기능에서 사용된다.
 
 - `LLMJudge` — GPT 모델로 completeness / relevance / factual_consistency 채점
 - `AccuracyEvaluator` — 고급 정확도 평가 (선택)
-- Layer 3 DeepEval 지표 (G-Eval, Hallucination Score, Toxicity, Bias, Answer Relevancy)
-- Layer 3 Ragas 지표 (Faithfulness, Context Precision 등)
+- 외부 평가 라이브러리 DeepEval 지표 (G-Eval, Hallucination Score, Toxicity, Bias, Answer Relevancy)
+- 외부 평가 라이브러리 Ragas 지표 (Faithfulness, Context Precision 등)
 
 ```bash
 export OPENAI_API_KEY=sk-proj-...
@@ -152,7 +152,9 @@ POST 요청으로 알림 데이터(JSON 형식)가 전송된다.
 
 ## 기능별 필요 환경변수 표
 
-> v0.7.8부터 LLM Judge(`[llm]`), 대시보드(`[serve]`), OTEL 모니터링(`[otel]`), PDF 처리(`[pdf]`)는 기본 설치에 포함됩니다. 아래 표에서 "기본 설치 포함" 항목은 별도 extras 설치 없이 사용 가능합니다.
+> v0.7.8부터 LLM Judge, 대시보드, OTEL 모니터링, PDF 처리는 기본 설치에 포함됩니다. 아래 표에서 "기본 설치 포함" 항목은 별도 extras 설치 없이 사용 가능합니다.
+>
+> ⚠️ **v0.7.7 이전에서 업그레이드하는 경우**: `pip install --upgrade agent-evaluator`만 실행하면 충분합니다. 기존 extras(`[langchain]`, `[eval]` 등) 설정은 유지됩니다.
 
 | 기능 / extras | 필요 환경변수 | 선택 환경변수 | 비고 |
 |--------|-------------|-------------|------|
@@ -211,6 +213,47 @@ echo ".env" >> .gitignore
 4. SDK 기본값
 
 같은 설정이 여러 곳에 있을 경우 우선순위가 높은 값이 사용된다.
+
+---
+
+## LLMJudge 모델 선택 우선순위
+
+동일 코드에서 여러 API 키가 설정된 경우, `LLMJudge`는 아래 순서로 모델을 선택한다.
+
+| 우선순위 | 조건 | 사용 모델 |
+|---------|------|---------|
+| 1 | `LLMJudgeConfig(model="claude-...")` 명시 | 지정된 Anthropic 모델 |
+| 2 | `LLMJudgeConfig(model="gpt-...")` 명시 | 지정된 OpenAI 모델 |
+| 3 | `ANTHROPIC_API_KEY` 설정됨 | `claude-haiku-4-5-20251001` (기본) |
+| 4 | `OPENAI_API_KEY` 설정됨 | `gpt-4o-mini` (기본) |
+| 5 | 둘 다 미설정 | LLM Judge 비활성 (오류 없음) |
+
+**예시**: `OPENAI_API_KEY`와 `ANTHROPIC_API_KEY`가 모두 설정된 경우 Anthropic 키가 우선 사용된다. OpenAI를 강제하려면 `LLMJudgeConfig(model="gpt-4o-mini")`로 명시 지정한다.
+
+---
+
+## 환경변수와 Harness Config의 관계
+
+환경변수는 **전역 인프라 설정**이고, Harness Config는 **태스크별 배포 기준**이다. 둘은 독립적으로 동작하며 혼동에 주의해야 한다.
+
+| 구분 | 환경변수 | Harness Config |
+|------|---------|---------------|
+| 적용 범위 | 전체 프로세스 | 데코레이터/Monitor 인스턴스 단위 |
+| 설정 위치 | `.env` 파일, 셸 환경 | Python 코드 (`@agent_eval(sla=SLAConfig(...))`) |
+| Git 추적 | ❌ (보안상 제외) | ✅ (Config-as-Code) |
+| 런타임 변경 | ✅ 가능 | ❌ 불변 (frozen dataclass) |
+
+**핵심**: `OTEL_ENABLED=true`는 OpenTelemetry 스팬 발행을 켜지만, `ObservabilityConfig`의 배포 판정 기준과는 무관하다. 두 설정 모두 필요한 경우 독립적으로 설정한다.
+
+```python
+# 인프라 설정 (환경변수)
+# OTEL_ENABLED=true  ← .env에서
+
+# 배포 기준 (Config-as-Code)
+from agent_evaluator import ObservabilityConfig
+@agent_eval(monitor, observability=ObservabilityConfig(min_trace_coverage=0.9))
+def agent(...): ...
+```
 
 ---
 

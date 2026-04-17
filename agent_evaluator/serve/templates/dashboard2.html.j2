@@ -228,11 +228,11 @@ input[type=text],input[type=number]{background:var(--bg3);color:var(--text);bord
              @click="sec=({A:'quality',B:'agentic',C:'reliability',D:'performance',E:'security',F:'agentic',G:'anomaly'}[gk]||'overview')">
           <!-- 그룹 레터 박스 -->
           <div style="width:22px;height:18px;border-radius:3px;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:800;color:#fff"
-               :style="`background:${gc(data.harness_groups[gk]?.gate)};opacity:${data.harness_groups[gk]?.score!=null?1:.45}`"
+               :style="`background:${(gk==='E'&&!data.has_security)||(gk==='B'&&!data.has_agentic)?'var(--text2)':gc(data.harness_groups[gk]?.gate)};opacity:${data.harness_groups[gk]?.score!=null?1:.45}`"
                x-text="gk"></div>
-          <!-- 점수 % -->
+          <!-- 점수 % (미측정 그룹은 — 표시) -->
           <div style="font-size:8.5px;line-height:1;color:var(--text2)"
-               x-text="data.harness_groups[gk]?.score!=null?Math.round(data.harness_groups[gk].score*100)+'%':'—'"></div>
+               x-text="(gk==='E'&&!data.has_security)||(gk==='B'&&!data.has_agentic)?'—':data.harness_groups[gk]?.score!=null?Math.round(data.harness_groups[gk].score*100)+'%':'—'"></div>
         </div>
       </template>
     </div>
@@ -249,15 +249,31 @@ input[type=text],input[type=number]{background:var(--bg3);color:var(--text);bord
 
   <template x-for="n in nav" :key="n.id">
     <div>
-      <div x-show="n.group" class="nav-grp">
-        <span x-text="n.label"></span>
+      <!-- ── Tier 1: Gate 그룹 헤더 — 접기/펼치기 + Gate 상태 pill ── -->
+      <div x-show="n.group" class="nav-grp"
+           :style="n.hkey ? 'cursor:pointer;user-select:none' : ''"
+           @click="n.hkey && (navCollapsed[n.id] = !navCollapsed[n.id])">
+        <!-- 접기 화살표 (hkey 있는 그룹만) -->
+        <span x-show="!!n.hkey"
+              style="font-size:9px;color:var(--text2);width:10px;flex-shrink:0;margin-right:2px;transition:transform .15s"
+              :style="navCollapsed[n.id] ? 'transform:rotate(-90deg)' : ''"
+              x-text="'▼'"></span>
+        <span x-text="n.label" style="flex:1"></span>
+        <!-- Gate 상태 pill: PASS/WARN/FAIL + 점수 -->
         <span x-show="n.hkey && data && (data.harness_groups||{})[n.hkey]"
-              style="font-size:9px;font-weight:700;padding:1px 5px;border-radius:3px;color:#fff;flex-shrink:0;margin-right:2px"
-              :style="n.hkey && data && (data.harness_groups||{})[n.hkey] ? `background:${(data.harness_groups[n.hkey].gate||'')==='pass'?'var(--green)':(data.harness_groups[n.hkey].gate||'')==='fail'?'var(--red)':'var(--yellow)'}` : ''"
-              x-text="n.hkey && data && (data.harness_groups||{})[n.hkey] ? ((data.harness_groups[n.hkey].gate)||'?').toUpperCase() : ''">
+              style="font-size:9px;font-weight:700;padding:1px 6px;border-radius:99px;color:#fff;flex-shrink:0;white-space:nowrap"
+              :style="n.hkey && data && (data.harness_groups||{})[n.hkey]
+                ? `background:${(data.harness_groups[n.hkey].gate||'')==='pass'?'var(--green)':(data.harness_groups[n.hkey].gate||'')==='fail'?'var(--red)':'var(--yellow)'}`
+                : ''"
+              x-text="n.hkey && data && (data.harness_groups||{})[n.hkey]
+                ? `${(data.harness_groups[n.hkey].gate||'?').toUpperCase()} ${data.harness_groups[n.hkey].score!=null?Math.round(data.harness_groups[n.hkey].score*100)+'%':''}`
+                : ''">
         </span>
       </div>
-      <div x-show="!n.group" class="nav" :class="{on:sec===n.id, 's-file':n.scope==='file', 's-global':n.scope==='global'}" @click="!n.group&&(sec=n.id)">
+      <!-- ── Tier 2: 탭 아이템 — 부모 그룹 접힘 시 숨김 ── -->
+      <div x-show="!n.group && !navCollapsed[_navParentMap[n.id]]"
+           class="nav" :class="{on:sec===n.id, 's-file':n.scope==='file', 's-global':n.scope==='global'}"
+           @click="sec=n.id">
         <span x-text="n.icon" style="flex-shrink:0"></span>
         <span x-text="n.label" style="flex:1;font-size:13px;line-height:1.3"></span>
         <span class="nav-badge-slot">
@@ -266,6 +282,20 @@ input[type=text],input[type=number]{background:var(--bg3);color:var(--text);bord
                 :style="data && n.badgeColor && n.badgeColor(data) ? `background:${n.badgeColor(data)};color:#fff` : ''"></span>
         </span>
       </div>
+      <!-- ── Tier 3: 활성 탭의 섹션 빠른 이동 앵커 ── -->
+      <template x-if="!n.group && sec===n.id && n.anchors && !navCollapsed[_navParentMap[n.id]]">
+        <div>
+          <template x-for="a in n.anchors" :key="a.id">
+            <div style="display:flex;align-items:center;gap:5px;padding:3px 12px 3px 26px;cursor:pointer;font-size:11px;color:var(--text2);border-left:3px solid transparent"
+                 @click.stop="(function(){const el=document.getElementById(a.id);if(el)el.scrollIntoView({behavior:'smooth',block:'start'});})()"
+                 @mouseenter="$el.style.color='var(--text)';$el.style.borderLeftColor='var(--accent)'"
+                 @mouseleave="$el.style.color='var(--text2)';$el.style.borderLeftColor='transparent'">
+              <span style="font-size:9px;opacity:.6">↳</span>
+              <span x-text="a.label"></span>
+            </div>
+          </template>
+        </div>
+      </template>
     </div>
   </template>
   <!-- 범례 -->
@@ -365,7 +395,7 @@ input[type=text],input[type=number]{background:var(--bg3);color:var(--text);bord
       failN(){ return Object.entries(data.harness_groups).filter(([k,v])=>k!=='overall'&&v.gate==='fail').length; },
       warnN(){ return Object.entries(data.harness_groups).filter(([k,v])=>k!=='overall'&&(v.gate==='warn'||v.gate==='partial')).length; },
     }">
-      <div class="sdiv"><div class="sdiv-line"></div><span class="sdiv-lbl">🏁 Harness 평가 게이트</span><span style="font-size:11px;color:var(--text2);margin-left:6px">— 배포 가능성 그룹별 판정</span><div class="sdiv-line"></div></div>
+      <div class="sdiv"><div class="sdiv-line"></div><span class="sdiv-lbl">🏁 Harness 평가 게이트 <span style="font-size:10px;font-weight:400;opacity:.75;margin-left:4px">— 배포 가능성 그룹별 판정</span></span><div class="sdiv-line"></div></div>
 
       <!-- ① Overall 요약 카드 -->
       <template x-if="data.harness_groups.overall">
@@ -439,7 +469,7 @@ input[type=text],input[type=number]{background:var(--bg3);color:var(--text);bord
     </div>
   </template>
 
-  <div class="sdiv"><div class="sdiv-line"></div><span class="sdiv-lbl">📊 핵심 지표</span><div class="sdiv-line"></div></div>
+  <div class="sdiv"><div class="sdiv-line"></div><span class="sdiv-lbl">📊 핵심 지표<span class="grp-chip grp-A" style="margin-left:6px;font-size:9.5px">A TCR·정확도·품질</span><span class="grp-chip grp-C" style="margin-left:6px;font-size:9.5px">C 환각</span><span class="grp-chip grp-D" style="margin-left:6px;font-size:9.5px">D 지연·비용</span></span><div class="sdiv-line"></div></div>
     <div class="kpi-grid">
       <div class="kpi kpi-act" :class="{sel:selK==='total_tasks'}" @click="selK=selK==='total_tasks'?null:'total_tasks'">
         <div class="kpi-lbl">Total Tasks</div>
@@ -516,6 +546,9 @@ input[type=text],input[type=number]{background:var(--bg3);color:var(--text);bord
                         x-text="(t.completion_score||0)>=1?'완료':(t.completion_score||0)>=0.7?'부분':'실패'"></span>
                 </div>
               </template>
+              <div x-show="items(selK,data).length===0" style="padding:18px 10px;text-align:center;color:var(--text2);font-size:12px;line-height:1.6">
+                평가 결과 파일을 로드하면 관련 태스크 목록이 표시됩니다.
+              </div>
             </div>
           </div>
         </div>
@@ -524,7 +557,7 @@ input[type=text],input[type=number]{background:var(--bg3);color:var(--text);bord
   </div>
 
   <!-- Deploy Gates -->
-  <div class="sdiv"><div class="sdiv-line"></div><span class="sdiv-lbl">🚀 배포 준비도</span><span style="font-size:11px;color:var(--text2);margin-left:6px">— 환경별 배포 가능 기준 충족 여부</span><div class="sdiv-line"></div></div>
+  <div class="sdiv"><div class="sdiv-line"></div><span class="sdiv-lbl">🚀 배포 준비도 <span style="font-size:10px;font-weight:400;opacity:.75;margin-left:4px">— 환경별 배포 가능 기준 충족 여부</span></span><div class="sdiv-line"></div></div>
   <div class="dgate">
     <template x-for="g in deployGates()" :key="g.key">
       <div class="dgate-box" :class="g.cls">
@@ -544,14 +577,14 @@ input[type=text],input[type=number]{background:var(--bg3);color:var(--text);bord
   </div>
 
   <!-- Charts: distribution only (2-col) -->
-  <div class="sdiv"><div class="sdiv-line"></div><span class="sdiv-lbl">📈 분포 현황</span><div class="sdiv-line"></div></div>
+  <div class="sdiv"><div class="sdiv-line"></div><span class="sdiv-lbl">📈 분포 현황<span class="grp-chip grp-A" style="margin-left:6px;font-size:9.5px">A 목표 달성</span></span><div class="sdiv-line"></div></div>
   <div class="cg" style="margin-bottom:12px">
     <div class="cbox"><div class="ct">성공/실패 분포</div><div id="d2-ov-donut" class="plt-chart"></div></div>
     <div class="cbox"><div class="ct">TaskType별 태스크 수</div><div id="d2-ov-type" class="plt-chart"></div></div>
   </div>
 
   <!-- Perspective Radar: separate section -->
-  <div class="sdiv"><div class="sdiv-line"></div><span class="sdiv-lbl">🕸️ 관점별 종합 점수</span><div class="sdiv-line"></div></div>
+  <div class="sdiv"><div class="sdiv-line"></div><span class="sdiv-lbl">🕸️ 관점별 종합 점수<span class="grp-chip grp-A" style="margin-left:6px;font-size:9.5px">A 목표 달성</span><span class="grp-chip grp-D" style="margin-left:6px;font-size:9.5px">D 성능 계약</span></span><div class="sdiv-line"></div></div>
   <div class="cg" style="margin-bottom:12px;align-items:stretch">
     <div class="cbox" style="display:flex;flex-direction:column">
       <div class="ct" style="flex-shrink:0">에이전트 역량 레이더 <span class="text-xs-muted">(6축 재설계 · 완료율·정확품질·운영효율·에이전틱역량·신뢰성·보안)</span></div>
@@ -612,8 +645,42 @@ input[type=text],input[type=number]{background:var(--bg3);color:var(--text);bord
     </div>
   </div>
 
+  <!-- ═══ Gate 간 상관 히트맵 ═══ -->
+  <div class="sdiv"><div class="sdiv-line"></div><span class="sdiv-lbl">🔥 Gate 간 상관 히트맵<span class="grp-chip grp-D" style="margin-left:6px;font-size:9.5px">태스크별 점수 Pearson 상관</span></span><div class="sdiv-line"></div></div>
+  <div x-data="{open:false}" style="margin-bottom:12px">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+      <div style="font-size:12px;color:var(--text2);line-height:1.5">
+        Gate A–G의 태스크별 점수 간 Pearson 상관계수.
+        <strong style="color:var(--green)">+1(녹색)</strong> = 함께 좋아짐 &nbsp;·&nbsp;
+        <strong style="color:var(--red)">-1(빨강)</strong> = 반대 방향 &nbsp;·&nbsp;
+        <span style="color:var(--text2)">회색 셀 = 데이터 부족</span>
+      </div>
+      <button class="btn" @click="open=!open;$nextTick(()=>open&&drawGateHeatmap())"
+              x-text="open?'접기':'히트맵 열기'" style="flex-shrink:0;margin-left:8px"></button>
+    </div>
+    <div x-show="open" x-cloak>
+      <!-- 데이터 부족 안내 -->
+      <template x-if="!hasHeatmapData()">
+        <div style="padding:20px;text-align:center;background:var(--bg2);border:1px solid var(--border);border-radius:8px;color:var(--text2);font-size:12px">
+          태스크 수가 5건 미만이거나 Gate 점수 데이터가 없어 상관 분석을 표시할 수 없습니다.
+        </div>
+      </template>
+      <template x-if="hasHeatmapData()">
+        <div>
+          <div id="d2-gate-heatmap" style="height:320px"></div>
+          <!-- 해석 가이드 -->
+          <div style="margin-top:8px;display:flex;gap:12px;flex-wrap:wrap;font-size:11px;color:var(--text2)">
+            <span>💡 A↔D 높은 양의 상관: 성능 저하 시 목표 달성도 함께 하락</span>
+            <span>💡 E↔B 높은 양의 상관: 보안 이슈와 행동 이상이 함께 발생</span>
+            <span>💡 강한 음의 상관: 두 Gate가 trade-off 관계 → 하나 개선 시 다른 쪽 주의</span>
+          </div>
+        </div>
+      </template>
+    </div>
+  </div>
+
   <!-- Anomalies Summary (aggregated from Insights) -->
-  <div class="sdiv"><div class="sdiv-line"></div><span class="sdiv-lbl">⚠️ 이상 징후</span><div class="sdiv-line"></div></div>
+  <div class="sdiv"><div class="sdiv-line"></div><span class="sdiv-lbl">⚠️ 이상 징후<span class="grp-chip grp-G" style="margin-left:6px;font-size:9.5px">G 관측성</span></span><div class="sdiv-line"></div></div>
 
   <!-- 이상 없음 -->
   <template x-if="autoAnomalies().length===0 && zScoreAnomalies().length===0 && !(data?.insights?.alerts?.length) && !(data?.insights?.recommendations?.length)">
@@ -739,7 +806,7 @@ input[type=text],input[type=number]{background:var(--bg3);color:var(--text);bord
 <div x-show="data && sec==='quality'" x-cloak>
 
   <!-- TCR subsection -->
-  <div class="sdiv"><div class="sdiv-line"></div><span class="sdiv-lbl">✅ 태스크 완료율 (TCR)</span><div class="sdiv-line"></div></div>
+  <div id="s-quality-group-a" class="sdiv"><div class="sdiv-line"></div><span class="sdiv-lbl">✅ 태스크 완료율 (TCR)<span class="grp-chip grp-A" style="margin-left:6px;font-size:9.5px">A 목표 달성</span></span><div class="sdiv-line"></div></div>
   <div x-data="{
     selK:null,
     expandedId:null,
@@ -1104,7 +1171,7 @@ input[type=text],input[type=number]{background:var(--bg3);color:var(--text);bord
   </div>
 
   <!-- Accuracy subsection -->
-  <div class="sdiv"><div class="sdiv-line"></div><span class="sdiv-lbl">🎯 정확도</span><div class="sdiv-line"></div></div>
+  <div class="sdiv"><div class="sdiv-line"></div><span class="sdiv-lbl">🎯 정확도<span class="grp-chip grp-A" style="margin-left:6px;font-size:9.5px">A 목표 달성</span></span><div class="sdiv-line"></div></div>
   <div x-data="{
     selK:null,
     meta:{
@@ -1225,7 +1292,7 @@ input[type=text],input[type=number]{background:var(--bg3);color:var(--text);bord
   </div>
 
   <!-- Response Quality subsection -->
-  <div class="sdiv"><div class="sdiv-line"></div><span class="sdiv-lbl">⭐ 응답 품질</span><div class="sdiv-line"></div></div>
+  <div class="sdiv"><div class="sdiv-line"></div><span class="sdiv-lbl">⭐ 응답 품질<span class="grp-chip grp-A" style="margin-left:6px;font-size:9.5px">A 목표 달성</span></span><div class="sdiv-line"></div></div>
   <div x-data="{
     selK:null,
     meta:{
@@ -1320,7 +1387,7 @@ input[type=text],input[type=number]{background:var(--bg3);color:var(--text);bord
   </div>
 
   <!-- Hallucination subsection -->
-  <div class="sdiv"><div class="sdiv-line"></div><span class="sdiv-lbl">🔍 환각 탐지</span><div class="sdiv-line"></div></div>
+  <div id="s-hallucination" class="sdiv"><div class="sdiv-line"></div><span class="sdiv-lbl">🔍 환각 탐지<span class="grp-chip grp-C" style="margin-left:6px;font-size:9.5px">C 신뢰성</span></span><div class="sdiv-line"></div></div>
   <div x-data="{
     selK:null,
     meta:{
@@ -1645,11 +1712,33 @@ input[type=text],input[type=number]{background:var(--bg3);color:var(--text);bord
 
   <!-- Phase 2: Harness Group A — 목표 달성 (IFR + 세부 지표) -->
   <template x-if="data.harness_groups && data.harness_groups['A']">
-    <div x-data="{ gA: data.harness_groups['A'] }">
-      <div class="sdiv"><div class="sdiv-line"></div><span class="sdiv-lbl">📋 Harness Group A — 목표 달성</span><div class="sdiv-line"></div></div>
+    <div x-data="{
+  gA: data.harness_groups['A'],
+  selK:null,
+  meta:{
+    group_a:{label:'Group A 종합',desc:'목표 달성 7개 지표(TCR·정확도·IFR·목표정렬·계획일관성·서브태스크·컨텍스트·지식보존)의 가중 평균 게이트.',hint:'score = 가중 평균 | gate: pass≥0.75, warn≥0.6, fail<0.6'},
+    tcr:{label:'Task Completion Rate',desc:'에이전트가 주어진 태스크를 완료한 비율. 이진 성공/실패보다 세밀한 연속 점수(0-1) 사용.',hint:'avg(completion_score) × 100 | 🟢 ≥85% 🟡 ≥70% 🔴 <70%'},
+    avg_accuracy:{label:'평균 정확도',desc:'응답이 Ground Truth와 얼마나 일치하는지. TokenF1·Jaccard·LCS·Char 4가지 방법 가중 합산.',hint:'TokenF1×0.4 + Jaccard×0.3 + LCS×0.2 + CharSim×0.1 | 🟢 ≥70% 🟡 ≥50% 🔴 <50%'},
+    avg_instruction_adherence:{label:'명령 준수율 (IFR)',desc:'InstructionConfig 설정 시 응답이 요구 형식·키워드·길이를 준수하는 비율.',hint:'형식 위반 건수 / 전체 건수 차감 | 🟢 ≥80% 🟡 ≥60% 🔴 <60%'},
+    avg_goal_alignment:{label:'목표 정렬',desc:'GoalAlignmentConfig로 측정. 질문 키워드와 실제 도구 호출 간 정렬 점수.',hint:'keyword↔tool 매핑 점수 | 🟢 ≥0.8 🟡 ≥0.6 🔴 <0.6'},
+    avg_plan_coherence:{label:'계획 일관성',desc:'PlanConfig 설정 시 응답 계획의 목표 포함·단계 순서·실행 가능성 검증.',hint:'계획 JSON 파싱 + 키워드 포함 + tool 실행 가능 여부 | 🟢 ≥0.85 🟡 ≥0.6 🔴 <0.6'},
+    avg_subtask_completion:{label:'서브태스크 완료',desc:'SubtaskConfig 설정 시 예상 하위 태스크 목록 대비 실제 완료율.',hint:'완료 마커 탐지 / 전체 서브태스크 수 | 🟢 ≥0.9 🟡 ≥0.7 🔴 <0.7'},
+    avg_context_retention:{label:'컨텍스트 유지',desc:'ContextRetentionConfig 설정 시 핵심 엔티티와 목표가 응답에 보존되는 비율.',hint:'엔티티 0.6 + 목표 0.4 가중 합산 | 🟢 ≥0.85 🟡 ≥0.6 🔴 <0.6'},
+    avg_knowledge_retention:{label:'지식 유지',desc:'KnowledgeRetentionConfig 설정 시 초기 턴 사실이 이후 응답에 유지되는 비율.',hint:'seed_turns 사실 → check_from_turn 이후 응답 검사 | 🟢 ≥90% 🟡 ≥70% 🔴 <70%'},
+  },
+  formula(k,d){
+    const g=d.harness_groups?.A||{};
+    const dt=g.details||{};
+    if(k==='group_a') return `종합 = 가중 평균(TCR·정확도·IFR·목표정렬…)\n= ${(g.score||0)*100 .toFixed(1)}%\nGate: ${(g.gate||'?').toUpperCase()}`;
+    const v=dt[k];
+    if(v==null) return '데이터 없음';
+    return `${this.meta[k]?.label} = ${(v*100).toFixed(1)}%\n태스크 수: ${dt.task_count||'—'}\n원시값: ${v.toFixed(4)}`;
+  }
+}">
+      <div id="s-instruction-adh" class="sdiv"><div class="sdiv-line"></div><span class="sdiv-lbl">📋 Harness Group A — 목표 달성</span><div class="sdiv-line"></div></div>
       <div class="kpi-grid">
         <!-- A 종합 게이트 -->
-        <div class="kpi">
+        <div class="kpi kpi-act" :class="{sel:selK==='group_a'}" @click="selK=selK==='group_a'?null:'group_a'">
           <div class="kpi-lbl">Group A 종합</div>
           <div class="kpi-val"
                :style="`color:${gA.gate==='pass'?'var(--green)':gA.gate==='fail'?'var(--red)':'var(--yellow)'}`"
@@ -1659,21 +1748,21 @@ input[type=text],input[type=number]{background:var(--bg3);color:var(--text);bord
                x-text="(gA.gate||'?').toUpperCase()"></div>
         </div>
         <!-- TCR -->
-        <div class="kpi" x-show="gA.details && gA.details.task_completion_rate!=null">
+        <div class="kpi kpi-act" :class="{sel:selK==='tcr'}" @click="selK=selK==='tcr'?null:'tcr'" x-show="gA.details && gA.details.task_completion_rate!=null">
           <div class="kpi-lbl">Task Completion (TCR)</div>
           <div class="kpi-val"
                :style="`color:${(gA.details?.task_completion_rate||0)>=85?'var(--green)':(gA.details?.task_completion_rate||0)>=70?'var(--yellow)':'var(--red)'}`"
                x-text="gA.details?.task_completion_rate!=null?gA.details.task_completion_rate.toFixed(1)+'%':'—'"></div>
         </div>
         <!-- 정확도 -->
-        <div class="kpi" x-show="gA.details && gA.details.avg_accuracy!=null">
+        <div class="kpi kpi-act" :class="{sel:selK==='avg_accuracy'}" @click="selK=selK==='avg_accuracy'?null:'avg_accuracy'" x-show="gA.details && gA.details.avg_accuracy!=null">
           <div class="kpi-lbl">평균 정확도</div>
           <div class="kpi-val"
                :style="`color:${(gA.details?.avg_accuracy||0)>=0.7?'var(--green)':(gA.details?.avg_accuracy||0)>=0.5?'var(--yellow)':'var(--red)'}`"
                x-text="gA.details?.avg_accuracy!=null?((gA.details.avg_accuracy)*100).toFixed(1)+'%':'—'"></div>
         </div>
         <!-- IFR (Instruction Adherence) — InstructionConfig 사용 시에만 -->
-        <div class="kpi" x-show="gA.details && gA.details.avg_instruction_adherence!=null">
+        <div class="kpi kpi-act" :class="{sel:selK==='avg_instruction_adherence'}" @click="selK=selK==='avg_instruction_adherence'?null:'avg_instruction_adherence'" x-show="gA.details && gA.details.avg_instruction_adherence!=null">
           <div class="kpi-lbl">명령 준수율 (IFR)</div>
           <div class="kpi-val"
                :style="`color:${(gA.details?.avg_instruction_adherence||0)>=0.8?'var(--green)':(gA.details?.avg_instruction_adherence||0)>=0.6?'var(--yellow)':'var(--red)'}`"
@@ -1681,47 +1770,84 @@ input[type=text],input[type=number]{background:var(--bg3);color:var(--text);bord
           <div class="kpi-sub" x-text="gA.details?.tasks_with_ifr ? gA.details.tasks_with_ifr+'건 측정' : ''"></div>
         </div>
         <!-- 목표 정렬 — GoalAlignmentConfig -->
-        <div class="kpi" x-show="gA.details && gA.details.avg_goal_alignment!=null">
+        <div class="kpi kpi-act" :class="{sel:selK==='avg_goal_alignment'}" @click="selK=selK==='avg_goal_alignment'?null:'avg_goal_alignment'" x-show="gA.details && gA.details.avg_goal_alignment!=null">
           <div class="kpi-lbl">목표 정렬</div>
           <div class="kpi-val"
                :style="`color:${(gA.details?.avg_goal_alignment||0)>=0.8?'var(--green)':(gA.details?.avg_goal_alignment||0)>=0.6?'var(--yellow)':'var(--red)'}`"
                x-text="gA.details?.avg_goal_alignment!=null?((gA.details.avg_goal_alignment)*100).toFixed(1)+'%':'—'"></div>
         </div>
         <!-- 계획 일관성 — PlanConfig -->
-        <div class="kpi" x-show="gA.details && gA.details.avg_plan_coherence!=null">
+        <div class="kpi kpi-act" :class="{sel:selK==='avg_plan_coherence'}" @click="selK=selK==='avg_plan_coherence'?null:'avg_plan_coherence'" x-show="gA.details && gA.details.avg_plan_coherence!=null">
           <div class="kpi-lbl">계획 일관성</div>
           <div class="kpi-val"
                :style="`color:${(gA.details?.avg_plan_coherence||0)>=0.8?'var(--green)':(gA.details?.avg_plan_coherence||0)>=0.6?'var(--yellow)':'var(--red)'}`"
                x-text="gA.details?.avg_plan_coherence!=null?((gA.details.avg_plan_coherence)*100).toFixed(1)+'%':'—'"></div>
         </div>
         <!-- 서브태스크 완료 — SubtaskConfig -->
-        <div class="kpi" x-show="gA.details && gA.details.avg_subtask_completion!=null">
+        <div class="kpi kpi-act" :class="{sel:selK==='avg_subtask_completion'}" @click="selK=selK==='avg_subtask_completion'?null:'avg_subtask_completion'" x-show="gA.details && gA.details.avg_subtask_completion!=null">
           <div class="kpi-lbl">서브태스크 완료</div>
           <div class="kpi-val"
                :style="`color:${(gA.details?.avg_subtask_completion||0)>=0.8?'var(--green)':(gA.details?.avg_subtask_completion||0)>=0.6?'var(--yellow)':'var(--red)'}`"
                x-text="gA.details?.avg_subtask_completion!=null?((gA.details.avg_subtask_completion)*100).toFixed(1)+'%':'—'"></div>
         </div>
         <!-- 컨텍스트 유지 — ContextRetentionConfig -->
-        <div class="kpi" x-show="gA.details && gA.details.avg_context_retention!=null">
+        <div class="kpi kpi-act" :class="{sel:selK==='avg_context_retention'}" @click="selK=selK==='avg_context_retention'?null:'avg_context_retention'" x-show="gA.details && gA.details.avg_context_retention!=null">
           <div class="kpi-lbl">컨텍스트 유지</div>
           <div class="kpi-val"
                :style="`color:${(gA.details?.avg_context_retention||0)>=0.8?'var(--green)':(gA.details?.avg_context_retention||0)>=0.6?'var(--yellow)':'var(--red)'}`"
                x-text="gA.details?.avg_context_retention!=null?((gA.details.avg_context_retention)*100).toFixed(1)+'%':'—'"></div>
         </div>
         <!-- 지식 유지 — KnowledgeRetentionConfig -->
-        <div class="kpi" x-show="gA.details && gA.details.avg_knowledge_retention!=null">
+        <div class="kpi kpi-act" :class="{sel:selK==='avg_knowledge_retention'}" @click="selK=selK==='avg_knowledge_retention'?null:'avg_knowledge_retention'" x-show="gA.details && gA.details.avg_knowledge_retention!=null">
           <div class="kpi-lbl">지식 유지</div>
           <div class="kpi-val"
                :style="`color:${(gA.details?.avg_knowledge_retention||0)>=0.8?'var(--green)':(gA.details?.avg_knowledge_retention||0)>=0.6?'var(--yellow)':'var(--red)'}`"
                x-text="gA.details?.avg_knowledge_retention!=null?((gA.details.avg_knowledge_retention)*100).toFixed(1)+'%':'—'"></div>
         </div>
       </div>
+      <div x-show="selK" style="margin-top:10px;padding:12px 14px;background:var(--bg2);border:1px solid var(--border);border-radius:8px">
+        <template x-if="selK">
+          <div>
+            <div style="font-weight:600;font-size:13px;margin-bottom:8px;color:var(--text1)" x-text="meta[selK]?.label||selK"></div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:8px">
+              <div style="font-size:12px;line-height:1.6;padding:8px 10px;background:var(--bg3);border-radius:6px" x-text="meta[selK]?.desc||''"></div>
+              <div style="font-size:11.5px;font-family:monospace;white-space:pre-wrap;padding:8px 10px;background:var(--bg);border:1px solid var(--border);border-radius:6px" x-text="formula(selK,data)"></div>
+            </div>
+            <div style="font-size:11px;color:var(--text2);padding:6px 10px;background:var(--bg);border-radius:4px" x-text="meta[selK]?.hint||''"></div>
+              <!-- 관련 태스크 -->
+              <div style="margin-top:10px;border-top:1px solid var(--border);padding-top:8px">
+                <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px">
+                  <span style="font-size:11px;font-weight:600;color:var(--text2);text-transform:uppercase">관련 태스크</span>
+                  <span style="font-size:11px;color:var(--text2)" x-text="(data.tasks||[]).length+'건'"></span>
+                </div>
+                <div x-show="!(data.tasks||[]).length" style="font-size:11px;color:var(--text2);text-align:center;padding:10px">
+                  평가 결과 파일을 로드하면 태스크 목록이 표시됩니다.
+                </div>
+                <div class="dtx" style="max-height:180px;overflow-y:auto" x-show="(data.tasks||[]).length">
+                  <div class="dtx-row dtx-head" style="grid-template-columns:minmax(100px,1.5fr) 80px 70px 50px;position:sticky;top:0;z-index:1">
+                    <span>태스크 ID</span><span>유형</span><span>완료율</span><span>상태</span>
+                  </div>
+                  <template x-for="t in [...(data.tasks||[])].sort((a,b)=>(a.completion_score||0)-(b.completion_score||0)).slice(0,20)" :key="t.task_id">
+                    <div class="dtx-row" style="grid-template-columns:minmax(100px,1.5fr) 80px 70px 50px">
+                      <span class="dtx-id" x-text="t.task_id"></span>
+                      <span class="text-muted" x-text="t.task_type||'-'"></span>
+                      <span :style="`color:${(t.completion_score||0)>=0.9?'var(--green)':(t.completion_score||0)>=0.7?'var(--yellow)':'var(--red)'}`"
+                            x-text="((t.completion_score||0)*100).toFixed(0)+'%'"></span>
+                      <span :class="(t.completion_score||0)>=1?'badge-ok':(t.completion_score||0)>=0.7?'badge-warn':'badge-ng'"
+                            x-text="(t.completion_score||0)>=1?'완료':(t.completion_score||0)>=0.7?'부분':'실패'"></span>
+                    </div>
+                  </template>
+                </div>
+              </div>
+          </div>
+        </template>
+      </div>
     </div>
   </template>
 
   <!-- Goal-Action Alignment Scatter (§4.2) — goal_alignment data가 있는 태스크에만 표시 -->
   <template x-if="(data.tasks||[]).some(t=>t.extra&&t.extra.goal_alignment!=null)">
-    <div class="cbox" style="margin-top:12px">
+    <div id="s-goal-align" class="cbox" style="margin-top:12px">
       <div class="sdiv"><div class="sdiv-line"></div><span class="sdiv-lbl">🎯 목표-행동 정렬 분포</span><div class="sdiv-line"></div></div>
       <div class="ct" style="font-size:11px;color:var(--text2);margin-bottom:6px">목표 정렬 점수(X) vs 정확도(Y) — 버블 크기: 토큰 사용량 · 색상: 태스크 유형 · 점선: 0.7 기준선</div>
       <div id="d2-goal-align-scatter" style="height:300px"></div>
@@ -1999,7 +2125,7 @@ input[type=text],input[type=number]{background:var(--bg3);color:var(--text);bord
 <div x-show="data && sec==='performance'" x-cloak>
 
   <!-- Latency subsection -->
-  <div class="sdiv"><div class="sdiv-line"></div><span class="sdiv-lbl">⏱ 지연 시간</span><div class="sdiv-line"></div></div>
+  <div class="sdiv"><div class="sdiv-line"></div><span class="sdiv-lbl">⏱ 지연 시간<span class="grp-chip grp-D" style="margin-left:6px;font-size:9.5px">D 성능 계약</span></span><div class="sdiv-line"></div></div>
   <div x-data="{
     selK:null,
     meta:{
@@ -2128,7 +2254,7 @@ input[type=text],input[type=number]{background:var(--bg3);color:var(--text);bord
   </div>
 
   <!-- Token Economy subsection -->
-  <div class="sdiv"><div class="sdiv-line"></div><span class="sdiv-lbl">🪙 토큰 경제</span><div class="sdiv-line"></div></div>
+  <div class="sdiv"><div class="sdiv-line"></div><span class="sdiv-lbl">🪙 토큰 경제<span class="grp-chip grp-D" style="margin-left:6px;font-size:9.5px">D 성능 계약</span></span><div class="sdiv-line"></div></div>
   <div x-data="{
     selK:null,
     meta:{
@@ -2233,7 +2359,7 @@ input[type=text],input[type=number]{background:var(--bg3);color:var(--text);bord
   </div>
 
   <!-- Cost subsection -->
-  <div class="sdiv"><div class="sdiv-line"></div><span class="sdiv-lbl">💰 비용 분석</span><div class="sdiv-line"></div></div>
+  <div class="sdiv"><div class="sdiv-line"></div><span class="sdiv-lbl">💰 비용 분석<span class="grp-chip grp-D" style="margin-left:6px;font-size:9.5px">D 성능 계약</span></span><div class="sdiv-line"></div></div>
   <div x-data="{
     selK: null,
     meta:{
@@ -2416,11 +2542,32 @@ input[type=text],input[type=number]{background:var(--bg3);color:var(--text);bord
 
   <!-- Phase 2: Harness Group D — 성능 계약 / SLA Gate -->
   <template x-if="data.harness_groups && data.harness_groups['D']">
-    <div x-data="{ gD: data.harness_groups['D'] }">
+    <div x-data="{
+  gD: data.harness_groups['D'],
+  selK:null,
+  meta:{
+    group_d:{label:'Group D 종합',desc:'성능 계약 지표(P95지연·토큰효율·리소스예산·TTFT변동성·비용예측성·효율ROI)의 가중 평균 게이트.',hint:'gate: pass≥0.75, warn≥0.6, fail<0.6'},
+    p95_latency_s:{label:'P95 지연시간',desc:'SLAConfig 설정 시 P95 지연 임계값 기준 SLA 준수 여부.',hint:'LatencyTracker P95 값(초) | 🟢 <5s 🟡 <10s 🔴 ≥10s'},
+    token_efficiency:{label:'토큰 효율',desc:'ResourceBudgetConfig 설정 시 최대 토큰 예산 대비 실제 사용 효율. 높을수록 예산 내 처리.',hint:'예산 내 완료 태스크 비율 | 🟢 ≥80% 🟡 ≥50% 🔴 <50%'},
+    avg_budget_score:{label:'리소스 예산',desc:'ResourceBudgetConfig 사용 태스크의 예산 준수 점수. 예산의 80% 미만 사용 시 우수.',hint:'예산 사용률 역산 점수 | 🟢 ≥0.8 🟡 ≥0.6 🔴 <0.6'},
+    ttft_variability_score:{label:'TTFT 변동성',desc:'TTFTVariabilityConfig 설정 시 첫 토큰 응답 시간의 표준편차·P95/P50 비율로 일관성 평가.',hint:'낮은 변동성 → 1.0에 가까운 점수 | 🟢 stddev<100ms 🟡 <300ms 🔴 ≥300ms'},
+    avg_cost_predictability:{label:'비용 예측성',desc:'CostPredictabilityConfig 설정 시 동일 task_type 내 비용 변동 계수(CV)로 예측 가능성 측정.',hint:'CV < max_coefficient_of_variation | 🟢 CV<0.2 🟡 0.2-0.3 🔴 >0.3'},
+    avg_efficiency_ratio:{label:'효율 ROI',desc:'EfficiencyConfig 설정 시 비용 단위당 완료 점수 ROI. 목표 대비 실제 비용 비율.',hint:'완료점수 / 비용단위 | 🟢 ROI>1.0 🟡 0.5-1.0 🔴 <0.5'},
+  },
+  formula(k,d){
+    const g=d.harness_groups?.D||{};
+    const dt=g.details||{};
+    if(k==='group_d') return `종합 = ${(g.score||0)*100 .toFixed(1)}%\nGate: ${(g.gate||'?').toUpperCase()}`;
+    const v=dt[k];
+    if(v==null) return '데이터 없음';
+    const isTime=k==='p95_latency_s';
+    return `${this.meta[k]?.label} = ${isTime?v.toFixed(2)+'s':(v*100).toFixed(1)+'%'}\n원시값: ${v.toFixed(4)}`;
+  }
+}">
       <div class="sdiv"><div class="sdiv-line"></div><span class="sdiv-lbl">🎯 Harness Group D — 성능 계약 (SLA Gate)</span><div class="sdiv-line"></div></div>
       <div class="kpi-grid">
         <!-- D 종합 게이트 -->
-        <div class="kpi">
+        <div class="kpi kpi-act" :class="{sel:selK==='group_d'}" @click="selK=selK==='group_d'?null:'group_d'">
           <div class="kpi-lbl">Group D 종합</div>
           <div class="kpi-val"
                :style="`color:${gD.gate==='pass'?'var(--green)':gD.gate==='fail'?'var(--red)':'var(--yellow)'}`"
@@ -2430,7 +2577,7 @@ input[type=text],input[type=number]{background:var(--bg3);color:var(--text);bord
                x-text="(gD.gate||'?').toUpperCase()"></div>
         </div>
         <!-- P95 지연 -->
-        <div class="kpi" x-show="gD.details && gD.details.p95_latency_s!=null">
+        <div class="kpi kpi-act" :class="{sel:selK==='p95_latency_s'}" @click="selK=selK==='p95_latency_s'?null:'p95_latency_s'" x-show="gD.details && gD.details.p95_latency_s!=null">
           <div class="kpi-lbl">P95 지연시간</div>
           <div class="kpi-val"
                :style="`color:${(gD.details?.p95_latency_s||0)<5?'var(--green)':(gD.details?.p95_latency_s||0)<10?'var(--yellow)':'var(--red)'}`"
@@ -2439,14 +2586,14 @@ input[type=text],input[type=number]{background:var(--bg3);color:var(--text);bord
                x-text="(gD.details?.p95_latency_s||0)<5?'SLA OK':'SLA 초과'"></div>
         </div>
         <!-- 토큰 효율 -->
-        <div class="kpi" x-show="gD.details && gD.details.token_efficiency!=null">
+        <div class="kpi kpi-act" :class="{sel:selK==='token_efficiency'}" @click="selK=selK==='token_efficiency'?null:'token_efficiency'" x-show="gD.details && gD.details.token_efficiency!=null">
           <div class="kpi-lbl">토큰 효율</div>
           <div class="kpi-val"
                :style="`color:${(gD.details?.token_efficiency||0)>=0.8?'var(--green)':(gD.details?.token_efficiency||0)>=0.5?'var(--yellow)':'var(--red)'}`"
                x-text="gD.details?.token_efficiency!=null?((gD.details.token_efficiency)*100).toFixed(0)+'%':'—'"></div>
         </div>
         <!-- 리소스 예산 — ResourceBudgetConfig -->
-        <div class="kpi" x-show="gD.details && gD.details.avg_budget_score!=null">
+        <div class="kpi kpi-act" :class="{sel:selK==='avg_budget_score'}" @click="selK=selK==='avg_budget_score'?null:'avg_budget_score'" x-show="gD.details && gD.details.avg_budget_score!=null">
           <div class="kpi-lbl">리소스 예산</div>
           <div class="kpi-val"
                :style="`color:${(gD.details?.avg_budget_score||0)>=0.8?'var(--green)':(gD.details?.avg_budget_score||0)>=0.6?'var(--yellow)':'var(--red)'}`"
@@ -2454,7 +2601,7 @@ input[type=text],input[type=number]{background:var(--bg3);color:var(--text);bord
           <div class="kpi-sub muted">ResourceBudget</div>
         </div>
         <!-- TTFT 변동성 — TTFTVariabilityConfig -->
-        <div class="kpi" x-show="gD.details && gD.details.ttft_variability_score!=null">
+        <div class="kpi kpi-act" :class="{sel:selK==='ttft_variability_score'}" @click="selK=selK==='ttft_variability_score'?null:'ttft_variability_score'" x-show="gD.details && gD.details.ttft_variability_score!=null">
           <div class="kpi-lbl">TTFT 변동성</div>
           <div class="kpi-val"
                :style="`color:${(gD.details?.ttft_variability_score||0)>=0.8?'var(--green)':(gD.details?.ttft_variability_score||0)>=0.6?'var(--yellow)':'var(--red)'}`"
@@ -2463,13 +2610,58 @@ input[type=text],input[type=number]{background:var(--bg3);color:var(--text);bord
                x-text="'σ='+(gD.details?.ttft_stddev_ms||0).toFixed(0)+'ms'"></div>
         </div>
         <!-- 비용 예측성 — CostPredictabilityConfig -->
-        <div class="kpi" x-show="gD.details && gD.details.avg_cost_predictability!=null">
+        <div class="kpi kpi-act" :class="{sel:selK==='avg_cost_predictability'}" @click="selK=selK==='avg_cost_predictability'?null:'avg_cost_predictability'" x-show="gD.details && gD.details.avg_cost_predictability!=null">
           <div class="kpi-lbl">비용 예측성</div>
           <div class="kpi-val"
                :style="`color:${(gD.details?.avg_cost_predictability||0)>=0.8?'var(--green)':(gD.details?.avg_cost_predictability||0)>=0.6?'var(--yellow)':'var(--red)'}`"
                x-text="gD.details?.avg_cost_predictability!=null?((gD.details.avg_cost_predictability)*100).toFixed(1)+'%':'—'"></div>
           <div class="kpi-sub muted">CostPredictability</div>
         </div>
+        <!-- 효율 ROI — EfficiencyConfig -->
+        <div class="kpi kpi-act" :class="{sel:selK==='avg_efficiency_ratio'}" @click="selK=selK==='avg_efficiency_ratio'?null:'avg_efficiency_ratio'" x-show="gD.details && gD.details.avg_efficiency_ratio!=null">
+          <div class="kpi-lbl">효율 ROI</div>
+          <div class="kpi-val"
+               :style="`color:${(gD.details?.avg_efficiency_ratio||0)>=1.0?'var(--green)':(gD.details?.avg_efficiency_ratio||0)>=0.5?'var(--yellow)':'var(--red)'}`"
+               x-text="gD.details?.avg_efficiency_ratio!=null?((gD.details.avg_efficiency_ratio)*100).toFixed(1)+'%':'—'"></div>
+          <div class="kpi-sub muted">Efficiency</div>
+        </div>
+      </div>
+      <div x-show="selK" style="margin-top:10px;padding:12px 14px;background:var(--bg2);border:1px solid var(--border);border-radius:8px">
+        <template x-if="selK">
+          <div>
+            <div style="font-weight:600;font-size:13px;margin-bottom:8px;color:var(--text1)" x-text="meta[selK]?.label||selK"></div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:8px">
+              <div style="font-size:12px;line-height:1.6;padding:8px 10px;background:var(--bg3);border-radius:6px" x-text="meta[selK]?.desc||''"></div>
+              <div style="font-size:11.5px;font-family:monospace;white-space:pre-wrap;padding:8px 10px;background:var(--bg);border:1px solid var(--border);border-radius:6px" x-text="formula(selK,data)"></div>
+            </div>
+            <div style="font-size:11px;color:var(--text2);padding:6px 10px;background:var(--bg);border-radius:4px" x-text="meta[selK]?.hint||''"></div>
+              <!-- 관련 태스크 -->
+              <div style="margin-top:10px;border-top:1px solid var(--border);padding-top:8px">
+                <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px">
+                  <span style="font-size:11px;font-weight:600;color:var(--text2);text-transform:uppercase">관련 태스크</span>
+                  <span style="font-size:11px;color:var(--text2)" x-text="(data.tasks||[]).length+'건'"></span>
+                </div>
+                <div x-show="!(data.tasks||[]).length" style="font-size:11px;color:var(--text2);text-align:center;padding:10px">
+                  평가 결과 파일을 로드하면 태스크 목록이 표시됩니다.
+                </div>
+                <div class="dtx" style="max-height:180px;overflow-y:auto" x-show="(data.tasks||[]).length">
+                  <div class="dtx-row dtx-head" style="grid-template-columns:minmax(100px,1.5fr) 80px 70px 50px;position:sticky;top:0;z-index:1">
+                    <span>태스크 ID</span><span>유형</span><span>완료율</span><span>상태</span>
+                  </div>
+                  <template x-for="t in [...(data.tasks||[])].sort((a,b)=>(a.completion_score||0)-(b.completion_score||0)).slice(0,20)" :key="t.task_id">
+                    <div class="dtx-row" style="grid-template-columns:minmax(100px,1.5fr) 80px 70px 50px">
+                      <span class="dtx-id" x-text="t.task_id"></span>
+                      <span class="text-muted" x-text="t.task_type||'-'"></span>
+                      <span :style="`color:${(t.completion_score||0)>=0.9?'var(--green)':(t.completion_score||0)>=0.7?'var(--yellow)':'var(--red)'}`"
+                            x-text="((t.completion_score||0)*100).toFixed(0)+'%'"></span>
+                      <span :class="(t.completion_score||0)>=1?'badge-ok':(t.completion_score||0)>=0.7?'badge-warn':'badge-ng'"
+                            x-text="(t.completion_score||0)>=1?'완료':(t.completion_score||0)>=0.7?'부분':'실패'"></span>
+                    </div>
+                  </template>
+                </div>
+              </div>
+          </div>
+        </template>
       </div>
     </div>
   </template>
@@ -2480,40 +2672,117 @@ input[type=text],input[type=number]{background:var(--bg3);color:var(--text);bord
 <div x-show="data && sec==='reliability'" x-cloak
      x-init="if(sec==='reliability') loadReliability()">
 
-  <div class="sdiv"><div class="sdiv-line"></div><span class="sdiv-lbl">🔁 재현성 · 안정성 (Group C)</span><div class="sdiv-line"></div></div>
+  <div class="sdiv"><div class="sdiv-line"></div><span class="sdiv-lbl">🔁 재현성 · 안정성 (Group C)<span class="grp-chip grp-C" style="margin-left:6px;font-size:9.5px">C 신뢰성</span></span><div class="sdiv-line"></div></div>
 
+  <div x-data="{
+    selK:null,
+    meta:{
+      error_free_rate:{label:'오류 없는 태스크',desc:'에러 없이 완료된 태스크 비율. errors 배열이 비어 있고 attempts=1인 태스크를 기준으로 집계.',hint:'error_free = tasks_with_no_errors / total_tasks × 100 | 🟢 ≥90% 🟡 ≥70% 🔴 <70%'},
+      retry_free_rate:{label:'재시도 없는 태스크',desc:'재시도 없이 첫 번째 시도에 성공한 태스크 비율. 높을수록 에이전트가 안정적으로 동작함을 의미.',hint:'retry_free = tasks_with_attempts≤1 / total_tasks × 100 | 🟢 ≥90% 🟡 ≥70% 🔴 <70%'},
+      group_c_summary:{label:'Group C 종합',desc:'신뢰성 지표(우아한저하·재시도일관성·멱등성·재현성·장애내성)의 가중 평균 게이트.',hint:'gate: pass≥0.75, warn≥0.6, fail<0.6'},
+    },
+    formula(k,d){
+      if(k==='error_free_rate') return `error_free_rate = ${d.reliability?.error_free_rate?.toFixed(1)||'—'}%\n\nerrors=[] AND attempts=1 태스크 비율`;
+      if(k==='retry_free_rate') return `retry_free_rate = ${d.reliability?.retry_free_rate?.toFixed(1)||'—'}%\n\nattempts ≤ 1 태스크 비율`;
+      if(k==='group_c_summary'){const g=d.harness_groups?.C||{};return `종합 = ${(g.score||0)*100 .toFixed(1)}%\nGate: ${(g.gate||'?').toUpperCase()}`;}
+      return '';
+    }
+  }">
   <div class="kpi-grid">
-    <div class="kpi">
+    <div class="kpi kpi-act" :class="{sel:selK==='error_free_rate'}" @click="selK=selK==='error_free_rate'?null:'error_free_rate'">
       <div class="kpi-lbl">오류 없는 태스크</div>
       <div class="kpi-val"
            :style="`color:${(reliabilityData.error_free_rate||0)>=90?'var(--green)':(reliabilityData.error_free_rate||0)>=70?'var(--yellow)':'var(--red)'}`"
            x-text="reliabilityData.error_free_rate!=null?reliabilityData.error_free_rate.toFixed(1)+'%':'—'"></div>
       <div class="kpi-sub ok" x-show="(reliabilityData.error_free_rate||0)>=90">Good</div>
     </div>
-    <div class="kpi">
+    <div class="kpi kpi-act" :class="{sel:selK==='retry_free_rate'}" @click="selK=selK==='retry_free_rate'?null:'retry_free_rate'">
       <div class="kpi-lbl">재시도 없는 태스크</div>
       <div class="kpi-val"
            :style="`color:${(reliabilityData.retry_free_rate||0)>=90?'var(--green)':(reliabilityData.retry_free_rate||0)>=70?'var(--yellow)':'var(--red)'}`"
            x-text="reliabilityData.retry_free_rate!=null?reliabilityData.retry_free_rate.toFixed(1)+'%':'—'"></div>
     </div>
     <template x-if="data.harness_groups && data.harness_groups['C']">
-      <div class="kpi" x-data="{ gC: data.harness_groups['C'] }">
+      <div class="kpi kpi-act" :class="{sel:selK==='group_c_summary'}" @click="selK=selK==='group_c_summary'?null:'group_c_summary'">
         <div class="kpi-lbl">Group C 종합</div>
         <div class="kpi-val"
-             :style="`color:${gC.gate==='pass'?'var(--green)':gC.gate==='fail'?'var(--red)':'var(--yellow)'}`"
-             x-text="gC.score!=null?(gC.score*100).toFixed(1)+'%':'—'"></div>
+             :style="`color:${data.harness_groups.C.gate==='pass'?'var(--green)':data.harness_groups.C.gate==='fail'?'var(--red)':'var(--yellow)'}`"
+             x-text="data.harness_groups.C.score!=null?(data.harness_groups.C.score*100).toFixed(1)+'%':'—'"></div>
         <div class="kpi-sub"
-             :class="gC.gate==='pass'?'ok':gC.gate==='fail'?'':'warn'"
-             x-text="(gC.gate||'?').toUpperCase()"></div>
+             :class="data.harness_groups.C.gate==='pass'?'ok':data.harness_groups.C.gate==='fail'?'':'warn'"
+             x-text="(data.harness_groups.C.gate||'?').toUpperCase()"></div>
       </div>
     </template>
   </div>
+  <!-- 기본 신뢰성 카드 상세 패널 -->
+  <div x-show="selK" style="margin:8px 0 14px;border:1px solid var(--accent);border-radius:8px;overflow:hidden" x-cloak>
+    <template x-if="selK">
+      <div>
+        <div class="panel-header">
+          <span class="val-md" x-text="meta[selK]?.label||selK"></span>
+          <button class="btn-close" @click="selK=null">×</button>
+        </div>
+        <div class="grid-2-divider">
+          <div class="panel-bg2-r">
+            <div class="label-upper">설명</div>
+            <div class="body-text" x-text="meta[selK]?.desc||''"></div>
+          </div>
+          <div class="panel-bg3">
+            <div class="label-upper">📐 산출 방식</div>
+            <div style="font-size:12px;font-family:monospace;color:var(--accent);line-height:1.8;white-space:pre-line" x-text="formula(selK,data)"></div>
+          </div>
+        </div>
+        <div class="panel-bg">
+          <div style="font-size:11px;color:var(--text2);margin-bottom:6px" x-text="meta[selK]?.hint||''"></div>
+          <div style="display:flex;align-items:center;gap:6px;margin-top:8px;margin-bottom:6px">
+            <span style="font-size:11px;font-weight:600;color:var(--text2);text-transform:uppercase">관련 태스크</span>
+            <span style="font-size:11px;color:var(--text2)" x-text="(data.tasks||[]).length+'건'"></span>
+          </div>
+          <div x-show="!(data.tasks||[]).length" style="font-size:11px;color:var(--text2);text-align:center;padding:10px">
+            평가 결과 파일을 로드하면 태스크 목록이 표시됩니다.
+          </div>
+          <div class="dtx" style="max-height:180px;overflow-y:auto" x-show="(data.tasks||[]).length">
+            <div class="dtx-row dtx-head" style="grid-template-columns:minmax(100px,1.5fr) 80px 70px 50px;position:sticky;top:0;z-index:1">
+              <span>태스크 ID</span><span>유형</span><span>완료율</span><span>상태</span>
+            </div>
+            <template x-for="t in [...(data.tasks||[])].sort((a,b)=>(a.completion_score||0)-(b.completion_score||0)).slice(0,20)" :key="t.task_id">
+              <div class="dtx-row" style="grid-template-columns:minmax(100px,1.5fr) 80px 70px 50px">
+                <span class="dtx-id" x-text="t.task_id"></span>
+                <span class="text-muted" x-text="t.task_type||'-'"></span>
+                <span :style="`color:${(t.completion_score||0)>=0.9?'var(--green)':(t.completion_score||0)>=0.7?'var(--yellow)':'var(--red)'}`"
+                      x-text="((t.completion_score||0)*100).toFixed(0)+'%'"></span>
+                <span :class="(t.completion_score||0)>=1?'badge-ok':(t.completion_score||0)>=0.7?'badge-warn':'badge-ng'"
+                      x-text="(t.completion_score||0)>=1?'완료':(t.completion_score||0)>=0.7?'부분':'실패'"></span>
+              </div>
+            </template>
+          </div>
+        </div>
+      </div>
+    </template>
+  </div>
+  </div>
   <!-- Group C Phase 4-6 확장 지표 -->
   <template x-if="data.harness_groups && data.harness_groups['C']">
-    <div x-data="{ gC: data.harness_groups['C'] }">
+    <div x-data="{
+  gC: data.harness_groups['C'],
+  selK:null,
+  meta:{
+    avg_degradation:{label:'우아한 저하',desc:'GracefulDegradationConfig 설정 시 서비스 저하 상황에서 부분 완료·최선 노력 응답 여부 측정.',hint:'quality_floor 충족 여부 + 오류 인정 마커 | 🟢 ≥0.8 🟡 ≥0.6 🔴 <0.6'},
+    avg_retry_consistency:{label:'재시도 일관성',desc:'RetryConsistencyConfig 설정 시 재시도 후 성능 개선 여부 측정. 재시도해도 개선이 없으면 감점.',hint:'개선률 improvement_threshold 초과 여부 | 🟢 >10% 개선 🟡 0-10% 🔴 악화'},
+    avg_idempotency:{label:'멱등성',desc:'IdempotencyConfig 설정 시 비멱등 도구(create·delete·update) 사용 시 감점. 중복 탐지 시 보너스.',hint:'비멱등 호출 0건 시 1.0 | 🟢 ≥0.9 🟡 ≥0.7 🔴 <0.7'},
+    avg_reproducibility:{label:'재현성',desc:'ReproducibilityConfig 설정 시 동일 입력 N회 반복 결과의 응답 유사도.',hint:'Token F1 유사도 평균 | 🟢 ≥0.9 🟡 ≥0.7 🔴 <0.7'},
+    avg_fault_tolerance:{label:'장애 내성',desc:'FaultToleranceConfig 설정 시 도구 실패 후 폴백 도구 사용 여부 추적.',hint:'폴백 복구율 | 🟢 ≥0.8 🟡 ≥0.5 🔴 <0.5'},
+  },
+  formula(k,d){
+    const dt=(d.harness_groups?.C||{}).details||{};
+    const v=dt[k];
+    if(v==null) return '데이터 없음';
+    return `${this.meta[k]?.label} = ${(v*100).toFixed(1)}%\n원시값: ${v.toFixed(4)}`;
+  }
+}">
       <div class="kpi-grid" style="margin-top:8px">
         <!-- 우아한 저하 — GracefulDegradationConfig -->
-        <div class="kpi" x-show="gC.details && gC.details.avg_degradation!=null">
+        <div class="kpi kpi-act" :class="{sel:selK==='avg_degradation'}" @click="selK=selK==='avg_degradation'?null:'avg_degradation'" x-show="gC.details && gC.details.avg_degradation!=null">
           <div class="kpi-lbl">우아한 저하</div>
           <div class="kpi-val"
                :style="`color:${(gC.details?.avg_degradation||0)>=0.8?'var(--green)':(gC.details?.avg_degradation||0)>=0.6?'var(--yellow)':'var(--red)'}`"
@@ -2521,7 +2790,7 @@ input[type=text],input[type=number]{background:var(--bg3);color:var(--text);bord
           <div class="kpi-sub muted">GracefulDegradation</div>
         </div>
         <!-- 재시도 일관성 — RetryConsistencyConfig -->
-        <div class="kpi" x-show="gC.details && gC.details.avg_retry_consistency!=null">
+        <div class="kpi kpi-act" :class="{sel:selK==='avg_retry_consistency'}" @click="selK=selK==='avg_retry_consistency'?null:'avg_retry_consistency'" x-show="gC.details && gC.details.avg_retry_consistency!=null">
           <div class="kpi-lbl">재시도 일관성</div>
           <div class="kpi-val"
                :style="`color:${(gC.details?.avg_retry_consistency||0)>=0.8?'var(--green)':(gC.details?.avg_retry_consistency||0)>=0.6?'var(--yellow)':'var(--red)'}`"
@@ -2529,13 +2798,66 @@ input[type=text],input[type=number]{background:var(--bg3);color:var(--text);bord
           <div class="kpi-sub muted">RetryConsistency</div>
         </div>
         <!-- 멱등성 — IdempotencyConfig -->
-        <div class="kpi" x-show="gC.details && gC.details.avg_idempotency!=null">
+        <div class="kpi kpi-act" :class="{sel:selK==='avg_idempotency'}" @click="selK=selK==='avg_idempotency'?null:'avg_idempotency'" x-show="gC.details && gC.details.avg_idempotency!=null">
           <div class="kpi-lbl">멱등성</div>
           <div class="kpi-val"
                :style="`color:${(gC.details?.avg_idempotency||0)>=0.8?'var(--green)':(gC.details?.avg_idempotency||0)>=0.6?'var(--yellow)':'var(--red)'}`"
                x-text="gC.details?.avg_idempotency!=null?((gC.details.avg_idempotency)*100).toFixed(1)+'%':'—'"></div>
           <div class="kpi-sub muted">Idempotency</div>
         </div>
+        <!-- 재현성 — ReproducibilityConfig -->
+        <div class="kpi kpi-act" :class="{sel:selK==='avg_reproducibility'}" @click="selK=selK==='avg_reproducibility'?null:'avg_reproducibility'" x-show="gC.details && gC.details.avg_reproducibility!=null">
+          <div class="kpi-lbl">재현성</div>
+          <div class="kpi-val"
+               :style="`color:${(gC.details?.avg_reproducibility||0)>=0.9?'var(--green)':(gC.details?.avg_reproducibility||0)>=0.7?'var(--yellow)':'var(--red)'}`"
+               x-text="gC.details?.avg_reproducibility!=null?((gC.details.avg_reproducibility)*100).toFixed(1)+'%':'—'"></div>
+          <div class="kpi-sub muted">Reproducibility</div>
+        </div>
+        <!-- 장애 내성 — FaultToleranceConfig -->
+        <div class="kpi kpi-act" :class="{sel:selK==='avg_fault_tolerance'}" @click="selK=selK==='avg_fault_tolerance'?null:'avg_fault_tolerance'" x-show="gC.details && gC.details.avg_fault_tolerance!=null">
+          <div class="kpi-lbl">장애 내성</div>
+          <div class="kpi-val"
+               :style="`color:${(gC.details?.avg_fault_tolerance||0)>=0.8?'var(--green)':(gC.details?.avg_fault_tolerance||0)>=0.5?'var(--yellow)':'var(--red)'}`"
+               x-text="gC.details?.avg_fault_tolerance!=null?((gC.details.avg_fault_tolerance)*100).toFixed(1)+'%':'—'"></div>
+          <div class="kpi-sub muted">FaultTolerance</div>
+        </div>
+      </div>
+      <div x-show="selK" style="margin-top:10px;padding:12px 14px;background:var(--bg2);border:1px solid var(--border);border-radius:8px">
+        <template x-if="selK">
+          <div>
+            <div style="font-weight:600;font-size:13px;margin-bottom:8px;color:var(--text1)" x-text="meta[selK]?.label||selK"></div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:8px">
+              <div style="font-size:12px;line-height:1.6;padding:8px 10px;background:var(--bg3);border-radius:6px" x-text="meta[selK]?.desc||''"></div>
+              <div style="font-size:11.5px;font-family:monospace;white-space:pre-wrap;padding:8px 10px;background:var(--bg);border:1px solid var(--border);border-radius:6px" x-text="formula(selK,data)"></div>
+            </div>
+            <div style="font-size:11px;color:var(--text2);padding:6px 10px;background:var(--bg);border-radius:4px" x-text="meta[selK]?.hint||''"></div>
+              <!-- 관련 태스크 -->
+              <div style="margin-top:10px;border-top:1px solid var(--border);padding-top:8px">
+                <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px">
+                  <span style="font-size:11px;font-weight:600;color:var(--text2);text-transform:uppercase">관련 태스크</span>
+                  <span style="font-size:11px;color:var(--text2)" x-text="(data.tasks||[]).length+'건'"></span>
+                </div>
+                <div x-show="!(data.tasks||[]).length" style="font-size:11px;color:var(--text2);text-align:center;padding:10px">
+                  평가 결과 파일을 로드하면 태스크 목록이 표시됩니다.
+                </div>
+                <div class="dtx" style="max-height:180px;overflow-y:auto" x-show="(data.tasks||[]).length">
+                  <div class="dtx-row dtx-head" style="grid-template-columns:minmax(100px,1.5fr) 80px 70px 50px;position:sticky;top:0;z-index:1">
+                    <span>태스크 ID</span><span>유형</span><span>완료율</span><span>상태</span>
+                  </div>
+                  <template x-for="t in [...(data.tasks||[])].sort((a,b)=>(a.completion_score||0)-(b.completion_score||0)).slice(0,20)" :key="t.task_id">
+                    <div class="dtx-row" style="grid-template-columns:minmax(100px,1.5fr) 80px 70px 50px">
+                      <span class="dtx-id" x-text="t.task_id"></span>
+                      <span class="text-muted" x-text="t.task_type||'-'"></span>
+                      <span :style="`color:${(t.completion_score||0)>=0.9?'var(--green)':(t.completion_score||0)>=0.7?'var(--yellow)':'var(--red)'}`"
+                            x-text="((t.completion_score||0)*100).toFixed(0)+'%'"></span>
+                      <span :class="(t.completion_score||0)>=1?'badge-ok':(t.completion_score||0)>=0.7?'badge-warn':'badge-ng'"
+                            x-text="(t.completion_score||0)>=1?'완료':(t.completion_score||0)>=0.7?'부분':'실패'"></span>
+                    </div>
+                  </template>
+                </div>
+              </div>
+          </div>
+        </template>
       </div>
     </div>
   </template>
@@ -2611,6 +2933,137 @@ input[type=text],input[type=number]{background:var(--bg3);color:var(--text);bord
   </div>
   <div x-show="reliabilityLoading" style="padding:32px;text-align:center;color:var(--text2)">로딩 중…</div>
 
+  <!-- ── Retry / 보정 (Group C) ─────────────────────────────────────────── -->
+  <!-- 재시도·보정 지표는 Group C (신뢰성) 소속: RetryCorrectionTracker -->
+  <div class="sdiv"><div class="sdiv-line"></div><span class="sdiv-lbl">🔁 재시도 / 보정<span class="grp-chip grp-C" style="margin-left:6px;font-size:9.5px">C 신뢰성</span></span><div class="sdiv-line"></div></div>
+  <div x-data="{
+    selK:null,
+    meta:{
+      retry_rate:{label:'재시도율 (시도 기준)',unit:'%',desc:'전체 실행 시도 중 재시도가 차지하는 비율입니다. 시도 횟수 기준으로 계산하며, 태스크 기준 재시도율(retry_rate)과 구분됩니다. 높을수록 첫 시도 실패가 잦아 비용과 지연이 증가합니다.',hint:'overall_retry_rate = (총시도 − 태스크수) / 총시도 × 100'},
+      first_success:{label:'첫 시도 성공률',unit:'%',desc:'추가 재시도 없이 첫 번째 시도에서 성공한 태스크의 비율입니다. 높을수록 에이전트의 계획·실행 능력이 안정적이며, 운영 환경에서 비용과 응답 시간을 절감합니다. 100% − 재시도율(태스크 기준)에 해당합니다.',hint:'first_attempt_success_rate = 1회 성공 태스크 / 전체 태스크 × 100'},
+      eventual_success:{label:'최종 성공률',unit:'%',desc:'재시도를 포함해 결국 성공한 태스크의 비율입니다. 첫 시도 성공률과의 차이가 재시도 효과(+Xpp)이며, 이 값이 크면 재시도 전략이 실패 만회에 기여하고 있음을 나타냅니다.',hint:'eventual_success_rate = 최종 성공 태스크 / 전체 태스크 × 100'},
+      correction:{label:'보정 성공률',unit:'%',desc:'재시도가 발생한 태스크 중에서 결국 성공으로 전환된 비율입니다. 에이전트의 자기 교정 능력을 나타내며, 낮으면 재시도해도 동일한 오류를 반복하고 있어 프롬프트 또는 도구 설계 개선이 필요합니다.',hint:'correction_success_rate = retry 후 성공 / retry 발생 태스크 × 100'},
+      avg_attempts:{label:'평균 시도',unit:'회',desc:'태스크 1건을 완료하는 데 평균적으로 소요된 시도 횟수입니다. 1.0에 가까울수록 효율적입니다. 재시도가 많을수록 LLM 호출 비용과 응답 지연이 선형으로 증가하므로 목표치(≤1.3)를 설정해 모니터링하는 것이 좋습니다.',hint:'avg_attempts_per_task = avg(total_attempts per task)'},
+      avg_retry_time:{label:'평균 재시도 시간',unit:'s',desc:'재시도가 발생한 태스크에서 재시도에만 소요된 평균 시간입니다. 전체 태스크가 아닌 재시도 태스크만 분모로 사용합니다. 높으면 재시도 대기 시간이 길거나 복잡한 오류 처리가 발생하고 있음을 의미합니다.',hint:'avg_retry_time = avg(retry_time) — 재시도 발생 태스크 한정'},
+    },
+    formula(k,d){
+      const rs=d.agentic?.retry_summary||{};
+      const ra=d.agentic?.retry_attempts||[];
+      const total=ra.length||1;
+      const tw=rs.total_tasks_with_retries||ra.filter(r=>(r.total_attempts||1)>1).length||0;
+      const ta=rs.total_attempts||ra.reduce((s,r)=>s+(r.total_attempts||1),0)||0;
+      const firstOK=rs.first_attempt_success_rate!=null?rs.first_attempt_success_rate:null;
+      const finalOK=rs.eventual_success_rate||0;
+      const effect=firstOK!=null?(finalOK-firstOK).toFixed(1):null;
+      if(k==='retry_rate')return `overall_retry_rate (시도 기준)\n= (총시도 ${ta} − 태스크 ${total}) / 총시도 ${ta} × 100\n= ${(rs.overall_retry_rate||0).toFixed(1)}%\n\nretry_rate (태스크 기준, 참고)\n= 재시도 발생 태스크 ${tw} / 전체 ${total} × 100\n= ${(rs.retry_rate||0).toFixed(1)}%\n\n※ 두 지표는 분모가 달라 값 차이가 있습니다`;
+      if(k==='first_success')return `첫 시도 성공률\n= 1회 성공 태스크 / 전체 태스크 × 100\n= ${(rs.first_attempt_success_rate||0).toFixed(1)}%\n\n재시도 발생 태스크: ${tw}건 / 전체 ${total}건\n(100 − retry_rate(태스크기준) = ${(100-(rs.retry_rate||0)).toFixed(1)}%와 동일)`;
+      if(k==='eventual_success'){const e=effect!=null?`\n\n재시도 효과 = 최종(${finalOK.toFixed(1)}%) − 첫시도(${(firstOK||0).toFixed(1)}%)\n= +${effect}%p (재시도로 만회한 성공 비율)`:'';return `최종 성공률\n= 최종 성공 태스크 / 전체 태스크 × 100\n= ${finalOK.toFixed(1)}%${e}`;}
+      if(k==='correction')return `보정 성공률\n= retry 후 성공 / retry 발생 태스크 × 100\n= ${(rs.correction_success_rate||0).toFixed(1)}%\n\nretry 발생 태스크: ${tw}건\n※ 재시도해도 실패하면 보정 성공률에 포함되지 않음`;
+      if(k==='avg_attempts'){const dist=ra.reduce((m,r)=>{const a=r.total_attempts||1;m[a]=(m[a]||0)+1;return m;},{});const distStr=Object.entries(dist).sort((a,b)=>+a[0]-+b[0]).map(([a,c])=>`${a}회: ${c}건`).join(' / ');return `평균 시도 = avg(total_attempts)\n= ${(rs.avg_attempts_per_task||rs.avg_attempts||0).toFixed(2)}회\n\n시도 횟수 분포: ${distStr}\n1.0이면 전 태스크 1회 성공`;}
+      if(k==='avg_retry_time')return `평균 재시도 시간 (재시도 태스크 한정)\n= avg(retry_time)\n= ${(rs.avg_retry_time||0).toFixed(2)}s\n\nretry 발생 태스크: ${tw}건 (전체 ${total}건 중)\n※ 분모는 재시도 태스크만 포함`;
+      return '';
+    },
+    items(k,d){
+      const ra=d.agentic?.retry_attempts||[];
+      if(k==='retry_rate') return [...ra].filter(r=>(r.total_attempts||1)>1).sort((a,b)=>(b.total_attempts||1)-(a.total_attempts||1));
+      if(k==='first_success') return [...ra].sort((a,b)=>((a.total_attempts||1)>1?1:0)-((b.total_attempts||1)>1?1:0));
+      if(k==='eventual_success') return [...ra].sort((a,b)=>(a.final_success===b.final_success?0:a.final_success?1:-1));
+      if(k==='correction') return [...ra].filter(r=>(r.total_attempts||1)>1).sort((a,b)=>(a.final_success===b.final_success?0:a.final_success?1:-1));
+      if(k==='avg_retry_time') return [...ra].filter(r=>(r.total_attempts||1)>1).sort((a,b)=>(b.total_retry_time||b.total_time||0)-(a.total_retry_time||a.total_time||0));
+      return [...ra].sort((a,b)=>(b.total_attempts||1)-(a.total_attempts||1));
+    },
+    filterLabel(k){
+      if(k==='retry_rate'||k==='avg_retry_time'||k==='correction') return '재시도 발생 태스크';
+      if(k==='first_success') return '전체 태스크 (1회성공 → 재시도 순)';
+      if(k==='eventual_success') return '전체 태스크 (실패 우선)';
+      return '전체 태스크 (시도 많은 순)';
+    },
+    attemptColor(n){return n>=3?'#e55':n===2?'#e9a020':'inherit';},
+    retryTimeColor(s){return s>5?'#e55':s>2?'#e9a020':'inherit';},
+  }">
+    <div class="kpi-grid">
+      <div class="kpi kpi-act" :class="{sel:selK==='retry_rate'}" @click="selK=selK==='retry_rate'?null:'retry_rate'">
+        <div class="kpi-lbl">재시도율</div>
+        <div class="kpi-val" x-text="_pct(data.agentic?.retry_summary?.overall_retry_rate||0)"></div>
+        <div class="kpi-sub" x-text="'태스크기준 '+_pct(data.agentic?.retry_summary?.retry_rate||0)"></div>
+      </div>
+      <div class="kpi kpi-act" :class="{sel:selK==='first_success'}" @click="selK=selK==='first_success'?null:'first_success'">
+        <div class="kpi-lbl">첫 시도 성공률</div>
+        <div class="kpi-val" :style="`color:${_bc(data.agentic?.retry_summary?.first_attempt_success_rate||0,90,70)}`"
+             x-text="_pct(data.agentic?.retry_summary?.first_attempt_success_rate||0)"></div>
+      </div>
+      <div class="kpi kpi-act" :class="{sel:selK==='eventual_success'}" @click="selK=selK==='eventual_success'?null:'eventual_success'">
+        <div class="kpi-lbl">최종 성공률</div>
+        <div class="kpi-val" :style="`color:${_bc(data.agentic?.retry_summary?.eventual_success_rate||0,90,70)}`"
+             x-text="_pct(data.agentic?.retry_summary?.eventual_success_rate||0)"></div>
+      </div>
+      <div class="kpi kpi-act" :class="{sel:selK==='correction'}" @click="selK=selK==='correction'?null:'correction'">
+        <div class="kpi-lbl">보정 성공률</div>
+        <div class="kpi-val" :style="`color:${_bc(data.agentic?.retry_summary?.correction_success_rate||0,80,60)}`"
+             x-text="_pct(data.agentic?.retry_summary?.correction_success_rate||0)"></div>
+        <div class="kpi-sub" x-text="'재시도 '+((data.agentic?.retry_summary?.total_tasks_with_retries)||(data.agentic?.retry_attempts||[]).filter(r=>(r.total_attempts||1)>1).length||0)+'건'"></div>
+      </div>
+      <div class="kpi kpi-act" :class="{sel:selK==='avg_attempts'}" @click="selK=selK==='avg_attempts'?null:'avg_attempts'">
+        <div class="kpi-lbl">평균 시도</div>
+        <div class="kpi-val" x-text="(data.agentic?.retry_summary?.avg_attempts_per_task||data.agentic?.retry_summary?.avg_attempts||0).toFixed(2)+'회'"></div>
+      </div>
+      <div class="kpi kpi-act" :class="{sel:selK==='avg_retry_time'}" @click="selK=selK==='avg_retry_time'?null:'avg_retry_time'">
+        <div class="kpi-lbl">평균 재시도 시간</div>
+        <div class="kpi-val" x-text="_sec(data.agentic?.retry_summary?.avg_retry_time||0)"></div>
+        <div class="kpi-sub">재시도 태스크 기준</div>
+      </div>
+    </div>
+    <div x-show="selK" style="margin:8px 0 14px;border:1px solid var(--accent);border-radius:8px;overflow:hidden" x-cloak>
+      <template x-if="selK">
+        <div>
+          <div class="panel-header">
+            <span class="val-md" x-text="meta[selK]?.label||selK"></span>
+            <button class="btn-close" @click="selK=null">×</button>
+          </div>
+          <div class="grid-2-divider">
+            <div class="panel-bg2-r">
+              <div class="label-upper">설명</div>
+              <div class="body-text" x-text="meta[selK]?.desc||''"></div>
+            </div>
+            <div class="panel-bg3">
+              <div class="label-upper">📐 산출 방식</div>
+              <div style="font-size:12px;font-family:monospace;color:var(--accent);line-height:1.8;white-space:pre-line" x-text="formula(selK,data)"></div>
+            </div>
+          </div>
+          <div class="panel-bg">
+            <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px">
+              <span style="font-size:11px;font-weight:600;color:var(--text2);text-transform:uppercase">태스크별 재시도 기록</span>
+              <span class="tag-sm" x-text="filterLabel(selK)"></span>
+              <span style="font-size:11px;color:var(--text2);margin-left:auto" x-text="items(selK,data).length+'건'"></span>
+            </div>
+            <div style="font-size:11px;color:var(--text2);margin-bottom:6px">
+              🔴 3회↑ 재시도 &nbsp;🟡 2회 재시도 &nbsp;· 재시도 시간 🟡 &gt;2s &nbsp;🔴 &gt;5s
+            </div>
+            <div class="dtx" style="max-height:240px;overflow-y:auto">
+              <div class="dtx-row dtx-head" style="grid-template-columns:minmax(100px,1.2fr) 90px 44px minmax(0,1fr) 58px 70px;position:sticky;top:0;z-index:1">
+                <span>태스크 ID</span><span>유형</span><span>시도</span><span>재시도 이유</span><span>최종성공</span><span>재시도시간</span>
+              </div>
+              <template x-for="(r, ridx) in items(selK,data)" :key="ridx">
+                <div class="dtx-row" :style="`grid-template-columns:minmax(100px,1.2fr) 90px 44px minmax(0,1fr) 58px 70px;${!r.final_success&&(r.total_attempts||1)>1?'background:rgba(220,50,50,0.06)':''}`">
+                  <span class="dtx-id" x-text="r.task_id"></span>
+                  <span style="font-size:11px;color:var(--text2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap" :title="r.task_type||'—'" x-text="r.task_type||'—'"></span>
+                  <span :style="`font-weight:600;color:${attemptColor(r.total_attempts||1)}`" x-text="(r.total_attempts||1)+'회'"></span>
+                  <span style="font-size:11px;color:var(--text2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap" :title="(r.retry_reasons||[]).filter(x=>x&&x!=='unknown'&&x!=='').join(', ')||'—'" x-text="(r.retry_reasons&&r.retry_reasons.filter(x=>x&&x!=='unknown'&&x!=='').length>0?r.retry_reasons.filter(x=>x&&x!=='unknown'&&x!=='').join(', '):'—')"></span>
+                  <span :class="r.final_success?'badge-ok':'badge-ng'" x-text="r.final_success?'✓':'✗'"></span>
+                  <span :style="`color:${retryTimeColor(r.total_retry_time||r.total_time||0)}`" x-text="_sec(r.total_retry_time||r.total_time||0)"></span>
+                </div>
+              </template>
+            </div>
+          </div>
+        </div>
+      </template>
+    </div>
+    <div class="cg" style="margin-top:8px">
+      <div class="cbox"><div class="ct">재시도 횟수 분포</div><div id="d2-rel-retry-hist" class="plt-chart"></div></div>
+      <div class="cbox"><div class="ct">태스크 유형별 재시도율</div><div id="d2-rel-retry-type" class="plt-chart"></div></div>
+    </div>
+  </div>
+
 </div><!-- /reliability -->
 
 <!-- ══ SECTION 5: AGENTIC ══ -->
@@ -2623,7 +3076,7 @@ input[type=text],input[type=number]{background:var(--bg3);color:var(--text);bord
   <div x-show="data.has_agentic">
 
   <!-- Tool Efficiency subsection -->
-  <div class="sdiv"><div class="sdiv-line"></div><span class="sdiv-lbl">🔧 도구 효율성</span><div class="sdiv-line"></div></div>
+  <div class="sdiv"><div class="sdiv-line"></div><span class="sdiv-lbl">🔧 도구 효율성<span class="grp-chip grp-B" style="margin-left:6px;font-size:9.5px">B 행동 무결성</span></span><div class="sdiv-line"></div></div>
   <div x-data="{
     selK:null,
     meta:{
@@ -2767,7 +3220,7 @@ input[type=text],input[type=number]{background:var(--bg3);color:var(--text);bord
   </div>
 
   <!-- Tool Selection subsection -->
-  <div class="sdiv"><div class="sdiv-line"></div><span class="sdiv-lbl">🎯 도구 선택 정확도</span><div class="sdiv-line"></div></div>
+  <div class="sdiv"><div class="sdiv-line"></div><span class="sdiv-lbl">🎯 도구 선택 정확도<span class="grp-chip grp-B" style="margin-left:6px;font-size:9.5px">B 행동 무결성</span></span><div class="sdiv-line"></div></div>
   <div x-data="{
     selK:null,
     meta:{
@@ -2855,138 +3308,10 @@ input[type=text],input[type=number]{background:var(--bg3);color:var(--text);bord
     </div>
   </div>
 
-  <!-- Retry subsection -->
-  <div class="sdiv"><div class="sdiv-line"></div><span class="sdiv-lbl">🔁 재시도 / 보정</span><div class="sdiv-line"></div></div>
-  <div x-data="{
-    selK:null,
-    meta:{
-      retry_rate:{label:'재시도율 (시도 기준)',unit:'%',desc:'전체 실행 시도 중 재시도가 차지하는 비율입니다. 시도 횟수 기준으로 계산하며, 태스크 기준 재시도율(retry_rate)과 구분됩니다. 높을수록 첫 시도 실패가 잦아 비용과 지연이 증가합니다.',hint:'overall_retry_rate = (총시도 − 태스크수) / 총시도 × 100'},
-      first_success:{label:'첫 시도 성공률',unit:'%',desc:'추가 재시도 없이 첫 번째 시도에서 성공한 태스크의 비율입니다. 높을수록 에이전트의 계획·실행 능력이 안정적이며, 운영 환경에서 비용과 응답 시간을 절감합니다. 100% − 재시도율(태스크 기준)에 해당합니다.',hint:'first_attempt_success_rate = 1회 성공 태스크 / 전체 태스크 × 100'},
-      eventual_success:{label:'최종 성공률',unit:'%',desc:'재시도를 포함해 결국 성공한 태스크의 비율입니다. 첫 시도 성공률과의 차이가 재시도 효과(+Xpp)이며, 이 값이 크면 재시도 전략이 실패 만회에 기여하고 있음을 나타냅니다.',hint:'eventual_success_rate = 최종 성공 태스크 / 전체 태스크 × 100'},
-      correction:{label:'보정 성공률',unit:'%',desc:'재시도가 발생한 태스크 중에서 결국 성공으로 전환된 비율입니다. 에이전트의 자기 교정 능력을 나타내며, 낮으면 재시도해도 동일한 오류를 반복하고 있어 프롬프트 또는 도구 설계 개선이 필요합니다.',hint:'correction_success_rate = retry 후 성공 / retry 발생 태스크 × 100'},
-      avg_attempts:{label:'평균 시도',unit:'회',desc:'태스크 1건을 완료하는 데 평균적으로 소요된 시도 횟수입니다. 1.0에 가까울수록 효율적입니다. 재시도가 많을수록 LLM 호출 비용과 응답 지연이 선형으로 증가하므로 목표치(≤1.3)를 설정해 모니터링하는 것이 좋습니다.',hint:'avg_attempts_per_task = avg(total_attempts per task)'},
-      avg_retry_time:{label:'평균 재시도 시간',unit:'s',desc:'재시도가 발생한 태스크에서 재시도에만 소요된 평균 시간입니다. 전체 태스크가 아닌 재시도 태스크만 분모로 사용합니다. 높으면 재시도 대기 시간이 길거나 복잡한 오류 처리가 발생하고 있음을 의미합니다.',hint:'avg_retry_time = avg(retry_time) — 재시도 발생 태스크 한정'},
-    },
-    formula(k,d){
-      const rs=d.agentic?.retry_summary||{};
-      const ra=d.agentic?.retry_attempts||[];
-      const total=ra.length||1;
-      const tw=rs.total_tasks_with_retries||ra.filter(r=>(r.total_attempts||1)>1).length||0;
-      const ta=rs.total_attempts||ra.reduce((s,r)=>s+(r.total_attempts||1),0)||0;
-      const firstOK=rs.first_attempt_success_rate!=null?rs.first_attempt_success_rate:null;
-      const finalOK=rs.eventual_success_rate||0;
-      const effect=firstOK!=null?(finalOK-firstOK).toFixed(1):null;
-      if(k==='retry_rate')return `overall_retry_rate (시도 기준)\n= (총시도 ${ta} − 태스크 ${total}) / 총시도 ${ta} × 100\n= ${(rs.overall_retry_rate||0).toFixed(1)}%\n\nretry_rate (태스크 기준, 참고)\n= 재시도 발생 태스크 ${tw} / 전체 ${total} × 100\n= ${(rs.retry_rate||0).toFixed(1)}%\n\n※ 두 지표는 분모가 달라 값 차이가 있습니다`;
-      if(k==='first_success')return `첫 시도 성공률\n= 1회 성공 태스크 / 전체 태스크 × 100\n= ${(rs.first_attempt_success_rate||0).toFixed(1)}%\n\n재시도 발생 태스크: ${tw}건 / 전체 ${total}건\n(100 − retry_rate(태스크기준) = ${(100-(rs.retry_rate||0)).toFixed(1)}%와 동일)`;
-      if(k==='eventual_success'){const e=effect!=null?`\n\n재시도 효과 = 최종(${finalOK.toFixed(1)}%) − 첫시도(${(firstOK||0).toFixed(1)}%)\n= +${effect}%p (재시도로 만회한 성공 비율)`:'';return `최종 성공률\n= 최종 성공 태스크 / 전체 태스크 × 100\n= ${finalOK.toFixed(1)}%${e}`;}
-      if(k==='correction')return `보정 성공률\n= retry 후 성공 / retry 발생 태스크 × 100\n= ${(rs.correction_success_rate||0).toFixed(1)}%\n\nretry 발생 태스크: ${tw}건\n※ 재시도해도 실패하면 보정 성공률에 포함되지 않음`;
-      if(k==='avg_attempts'){const dist=ra.reduce((m,r)=>{const a=r.total_attempts||1;m[a]=(m[a]||0)+1;return m;},{});const distStr=Object.entries(dist).sort((a,b)=>+a[0]-+b[0]).map(([a,c])=>`${a}회: ${c}건`).join(' / ');return `평균 시도 = avg(total_attempts)\n= ${(rs.avg_attempts_per_task||rs.avg_attempts||0).toFixed(2)}회\n\n시도 횟수 분포: ${distStr}\n1.0이면 전 태스크 1회 성공`;}
-      if(k==='avg_retry_time')return `평균 재시도 시간 (재시도 태스크 한정)\n= avg(retry_time)\n= ${(rs.avg_retry_time||0).toFixed(2)}s\n\nretry 발생 태스크: ${tw}건 (전체 ${total}건 중)\n※ 분모는 재시도 태스크만 포함`;
-      return '';
-    },
-    items(k,d){
-      const ra=d.agentic?.retry_attempts||[];
-      if(k==='retry_rate') return [...ra].filter(r=>(r.total_attempts||1)>1).sort((a,b)=>(b.total_attempts||1)-(a.total_attempts||1));
-      if(k==='first_success') return [...ra].sort((a,b)=>((a.total_attempts||1)>1?1:0)-((b.total_attempts||1)>1?1:0));
-      if(k==='eventual_success') return [...ra].sort((a,b)=>(a.final_success===b.final_success?0:a.final_success?1:-1));
-      if(k==='correction') return [...ra].filter(r=>(r.total_attempts||1)>1).sort((a,b)=>(a.final_success===b.final_success?0:a.final_success?1:-1));
-      if(k==='avg_retry_time') return [...ra].filter(r=>(r.total_attempts||1)>1).sort((a,b)=>(b.total_retry_time||b.total_time||0)-(a.total_retry_time||a.total_time||0));
-      return [...ra].sort((a,b)=>(b.total_attempts||1)-(a.total_attempts||1));
-    },
-    filterLabel(k){
-      if(k==='retry_rate'||k==='avg_retry_time'||k==='correction') return '재시도 발생 태스크';
-      if(k==='first_success') return '전체 태스크 (1회성공 → 재시도 순)';
-      if(k==='eventual_success') return '전체 태스크 (실패 우선)';
-      return '전체 태스크 (시도 많은 순)';
-    },
-    attemptColor(n){return n>=3?'#e55':n===2?'#e9a020':'inherit';},
-    retryTimeColor(s){return s>5?'#e55':s>2?'#e9a020':'inherit';},
-  }">
-    <div class="kpi-grid">
-      <div class="kpi kpi-act" :class="{sel:selK==='retry_rate'}" @click="selK=selK==='retry_rate'?null:'retry_rate'">
-        <div class="kpi-lbl">재시도율</div>
-        <div class="kpi-val" x-text="_pct(data.agentic?.retry_summary?.overall_retry_rate||0)"></div>
-        <div class="kpi-sub" x-text="'태스크기준 '+_pct(data.agentic?.retry_summary?.retry_rate||0)"></div>
-      </div>
-      <div class="kpi kpi-act" :class="{sel:selK==='first_success'}" @click="selK=selK==='first_success'?null:'first_success'">
-        <div class="kpi-lbl">첫 시도 성공률</div>
-        <div class="kpi-val" :style="`color:${_bc(data.agentic?.retry_summary?.first_attempt_success_rate||0,90,70)}`"
-             x-text="_pct(data.agentic?.retry_summary?.first_attempt_success_rate||0)"></div>
-      </div>
-      <div class="kpi kpi-act" :class="{sel:selK==='eventual_success'}" @click="selK=selK==='eventual_success'?null:'eventual_success'">
-        <div class="kpi-lbl">최종 성공률</div>
-        <div class="kpi-val" :style="`color:${_bc(data.agentic?.retry_summary?.eventual_success_rate||0,90,70)}`"
-             x-text="_pct(data.agentic?.retry_summary?.eventual_success_rate||0)"></div>
-      </div>
-      <div class="kpi kpi-act" :class="{sel:selK==='correction'}" @click="selK=selK==='correction'?null:'correction'">
-        <div class="kpi-lbl">보정 성공률</div>
-        <div class="kpi-val" :style="`color:${_bc(data.agentic?.retry_summary?.correction_success_rate||0,80,60)}`"
-             x-text="_pct(data.agentic?.retry_summary?.correction_success_rate||0)"></div>
-        <div class="kpi-sub" x-text="'재시도 '+((data.agentic?.retry_summary?.total_tasks_with_retries)||(data.agentic?.retry_attempts||[]).filter(r=>(r.total_attempts||1)>1).length||0)+'건'"></div>
-      </div>
-      <div class="kpi kpi-act" :class="{sel:selK==='avg_attempts'}" @click="selK=selK==='avg_attempts'?null:'avg_attempts'">
-        <div class="kpi-lbl">평균 시도</div>
-        <div class="kpi-val" x-text="(data.agentic?.retry_summary?.avg_attempts_per_task||data.agentic?.retry_summary?.avg_attempts||0).toFixed(2)+'회'"></div>
-      </div>
-      <div class="kpi kpi-act" :class="{sel:selK==='avg_retry_time'}" @click="selK=selK==='avg_retry_time'?null:'avg_retry_time'">
-        <div class="kpi-lbl">평균 재시도 시간</div>
-        <div class="kpi-val" x-text="_sec(data.agentic?.retry_summary?.avg_retry_time||0)"></div>
-        <div class="kpi-sub">재시도 태스크 기준</div>
-      </div>
-    </div>
-    <div x-show="selK" style="margin:8px 0 14px;border:1px solid var(--accent);border-radius:8px;overflow:hidden" x-cloak>
-      <template x-if="selK">
-        <div>
-          <div class="panel-header">
-            <span class="val-md" x-text="meta[selK]?.label||selK"></span>
-            <button class="btn-close" @click="selK=null">×</button>
-          </div>
-          <div class="grid-2-divider">
-            <div class="panel-bg2-r">
-              <div class="label-upper">설명</div>
-              <div class="body-text" x-text="meta[selK]?.desc||''"></div>
-            </div>
-            <div class="panel-bg3">
-              <div class="label-upper">📐 산출 방식</div>
-              <div style="font-size:12px;font-family:monospace;color:var(--accent);line-height:1.8;white-space:pre-line" x-text="formula(selK,data)"></div>
-            </div>
-          </div>
-          <div class="panel-bg">
-            <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px">
-              <span style="font-size:11px;font-weight:600;color:var(--text2);text-transform:uppercase">태스크별 재시도 기록</span>
-              <span class="tag-sm" x-text="filterLabel(selK)"></span>
-              <span style="font-size:11px;color:var(--text2);margin-left:auto" x-text="items(selK,data).length+'건'"></span>
-            </div>
-            <div style="font-size:11px;color:var(--text2);margin-bottom:6px">
-              🔴 3회↑ 재시도 &nbsp;🟡 2회 재시도 &nbsp;· 재시도 시간 🟡 &gt;2s &nbsp;🔴 &gt;5s
-            </div>
-            <div class="dtx" style="max-height:240px;overflow-y:auto">
-              <div class="dtx-row dtx-head" style="grid-template-columns:minmax(100px,1.2fr) 90px 44px minmax(0,1fr) 58px 70px;position:sticky;top:0;z-index:1">
-                <span>태스크 ID</span><span>유형</span><span>시도</span><span>재시도 이유</span><span>최종성공</span><span>재시도시간</span>
-              </div>
-              <template x-for="(r, ridx) in items(selK,data)" :key="ridx">
-                <div class="dtx-row" :style="`grid-template-columns:minmax(100px,1.2fr) 90px 44px minmax(0,1fr) 58px 70px;${!r.final_success&&(r.total_attempts||1)>1?'background:rgba(220,50,50,0.06)':''}`">
-                  <span class="dtx-id" x-text="r.task_id"></span>
-                  <span style="font-size:11px;color:var(--text2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap" :title="r.task_type||'—'" x-text="r.task_type||'—'"></span>
-                  <span :style="`font-weight:600;color:${attemptColor(r.total_attempts||1)}`" x-text="(r.total_attempts||1)+'회'"></span>
-                  <span style="font-size:11px;color:var(--text2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap" :title="(r.retry_reasons||[]).filter(x=>x&&x!=='unknown'&&x!=='').join(', ')||'—'" x-text="(r.retry_reasons&&r.retry_reasons.filter(x=>x&&x!=='unknown'&&x!=='').length>0?r.retry_reasons.filter(x=>x&&x!=='unknown'&&x!=='').join(', '):'—')"></span>
-                  <span :class="r.final_success?'badge-ok':'badge-ng'" x-text="r.final_success?'✓':'✗'"></span>
-                  <span :style="`color:${retryTimeColor(r.total_retry_time||r.total_time||0)}`" x-text="_sec(r.total_retry_time||r.total_time||0)"></span>
-                </div>
-              </template>
-            </div>
-          </div>
-        </div>
-      </template>
-    </div>
-    <div class="cg" style="margin-top:8px">
-      <div class="cbox"><div class="ct">재시도 횟수 분포</div><div id="d2-ag-retry-hist" class="plt-chart"></div></div>
-      <div class="cbox"><div class="ct">태스크 유형별 재시도율</div><div id="d2-ag-retry-type" class="plt-chart"></div></div>
-    </div>
-  </div>
+  <!-- Retry 섹션은 Group C (신뢰성) 소속 → reliability 탭으로 이동됨 (Zero-Base 재설계) -->
 
   <!-- Multi-Agent Coordination subsection -->
-  <div class="sdiv"><div class="sdiv-line"></div><span class="sdiv-lbl">🤝 멀티에이전트 협업</span><div class="sdiv-line"></div></div>
+  <div class="sdiv"><div class="sdiv-line"></div><span class="sdiv-lbl">🤝 멀티에이전트 협업<span class="grp-chip grp-F" style="margin-left:6px;font-size:9.5px">F 다중 에이전트</span></span><div class="sdiv-line"></div></div>
   <div x-show="!data.has_coordination">
     <div class="badge-gray" style="display:inline-block;margin-bottom:12px">협업 데이터 없음 — AgentCoordinationTracker 미활성화</div>
   </div>
@@ -3138,10 +3463,28 @@ input[type=text],input[type=number]{background:var(--bg3);color:var(--text);bord
 
   <!-- Harness Group F — 다중 에이전트 협업 -->
   <template x-if="data.harness_groups && data.harness_groups['F'] && data.harness_groups['F'].score!=null">
-    <div x-data="{ gF: data.harness_groups['F'] }">
+    <div x-data="{
+  gF: data.harness_groups['F'],
+  selK:null,
+  meta:{
+    group_f:{label:'Group F 종합',desc:'다중 에이전트 협업 지표(합의율·전파충실도·역할준수·충돌해소)의 가중 평균 게이트.',hint:'gate: pass≥0.75, warn≥0.6, fail<0.6'},
+    avg_consensus:{label:'합의율',desc:'ConsensusConfig 설정 시 다중 에이전트 간 합의 품질. 다수결·가중·만장일치 방식 지원.',hint:'합의 달성 태스크 / 전체 × 100 | 🟢 ≥0.8 🟡 ≥0.6 🔴 <0.6'},
+    avg_propagation:{label:'전파 충실도',desc:'PropagationConfig 설정 시 소스 에이전트 사실이 하위 에이전트에 보존되는 비율.',hint:'핵심 사실 보존율 | 🟢 ≥0.9 🟡 ≥0.7 🔴 <0.7'},
+    avg_role_compliance:{label:'역할 준수율',desc:'AgentRoleConfig 설정 시 에이전트가 자신의 역할 범위(허용 도구·행동) 내에서만 동작하는 비율.',hint:'역할 위반 차감 | 🟢 ≥0.9 🟡 ≥0.7 🔴 <0.7'},
+    avg_conflict_resolution:{label:'충돌 해소율',desc:'ConflictResolutionConfig 설정 시 에이전트 간 충돌이 감지 후 해결되는 비율.',hint:'해결 마커 확인 / 충돌 탐지 | 🟢 ≥0.9 🟡 ≥0.7 🔴 <0.7'},
+  },
+  formula(k,d){
+    const g=d.harness_groups?.F||{};
+    const dt=g.details||{};
+    if(k==='group_f') return `종합 = ${(g.score||0)*100 .toFixed(1)}%\nGate: ${(g.gate||'?').toUpperCase()}`;
+    const v=dt[k];
+    if(v==null) return '데이터 없음';
+    return `${this.meta[k]?.label} = ${(v*100).toFixed(1)}%\n원시값: ${v.toFixed(4)}`;
+  }
+}">
       <div class="sdiv"><div class="sdiv-line"></div><span class="sdiv-lbl">🤝 Harness Group F — 다중 에이전트 협업</span><div class="sdiv-line"></div></div>
       <div class="kpi-grid">
-        <div class="kpi">
+        <div class="kpi kpi-act" :class="{sel:selK==='group_f'}" @click="selK=selK==='group_f'?null:'group_f'">
           <div class="kpi-lbl">Group F 종합</div>
           <div class="kpi-val"
                :style="`color:${gF.gate==='pass'?'var(--green)':gF.gate==='fail'?'var(--red)':'var(--yellow)'}`"
@@ -3151,7 +3494,7 @@ input[type=text],input[type=number]{background:var(--bg3);color:var(--text);bord
                x-text="(gF.gate||'?').toUpperCase()"></div>
         </div>
         <!-- 합의율 — ConsensusConfig -->
-        <div class="kpi" x-show="gF.details && gF.details.avg_consensus!=null">
+        <div class="kpi kpi-act" :class="{sel:selK==='avg_consensus'}" @click="selK=selK==='avg_consensus'?null:'avg_consensus'" x-show="gF.details && gF.details.avg_consensus!=null">
           <div class="kpi-lbl">합의율</div>
           <div class="kpi-val"
                :style="`color:${(gF.details?.avg_consensus||0)>=0.8?'var(--green)':(gF.details?.avg_consensus||0)>=0.6?'var(--yellow)':'var(--red)'}`"
@@ -3159,7 +3502,7 @@ input[type=text],input[type=number]{background:var(--bg3);color:var(--text);bord
           <div class="kpi-sub muted">Consensus</div>
         </div>
         <!-- 전파 충실도 — PropagationConfig -->
-        <div class="kpi" x-show="gF.details && gF.details.avg_propagation!=null">
+        <div class="kpi kpi-act" :class="{sel:selK==='avg_propagation'}" @click="selK=selK==='avg_propagation'?null:'avg_propagation'" x-show="gF.details && gF.details.avg_propagation!=null">
           <div class="kpi-lbl">전파 충실도</div>
           <div class="kpi-val"
                :style="`color:${(gF.details?.avg_propagation||0)>=0.8?'var(--green)':(gF.details?.avg_propagation||0)>=0.6?'var(--yellow)':'var(--red)'}`"
@@ -3167,7 +3510,7 @@ input[type=text],input[type=number]{background:var(--bg3);color:var(--text);bord
           <div class="kpi-sub muted">Propagation</div>
         </div>
         <!-- 역할 준수 — AgentRoleConfig -->
-        <div class="kpi" x-show="gF.details && gF.details.avg_role_compliance!=null">
+        <div class="kpi kpi-act" :class="{sel:selK==='avg_role_compliance'}" @click="selK=selK==='avg_role_compliance'?null:'avg_role_compliance'" x-show="gF.details && gF.details.avg_role_compliance!=null">
           <div class="kpi-lbl">역할 준수율</div>
           <div class="kpi-val"
                :style="`color:${(gF.details?.avg_role_compliance||0)>=0.8?'var(--green)':(gF.details?.avg_role_compliance||0)>=0.6?'var(--yellow)':'var(--red)'}`"
@@ -3175,7 +3518,7 @@ input[type=text],input[type=number]{background:var(--bg3);color:var(--text);bord
           <div class="kpi-sub muted">AgentRole</div>
         </div>
         <!-- 충돌 해소 — ConflictResolutionConfig -->
-        <div class="kpi" x-show="gF.details && gF.details.avg_conflict_resolution!=null">
+        <div class="kpi kpi-act" :class="{sel:selK==='avg_conflict_resolution'}" @click="selK=selK==='avg_conflict_resolution'?null:'avg_conflict_resolution'" x-show="gF.details && gF.details.avg_conflict_resolution!=null">
           <div class="kpi-lbl">충돌 해소율</div>
           <div class="kpi-val"
                :style="`color:${(gF.details?.avg_conflict_resolution||0)>=0.8?'var(--green)':(gF.details?.avg_conflict_resolution||0)>=0.6?'var(--yellow)':'var(--red)'}`"
@@ -3183,11 +3526,48 @@ input[type=text],input[type=number]{background:var(--bg3);color:var(--text);bord
           <div class="kpi-sub muted">ConflictResolution</div>
         </div>
       </div>
+      <div x-show="selK" style="margin-top:10px;padding:12px 14px;background:var(--bg2);border:1px solid var(--border);border-radius:8px">
+        <template x-if="selK">
+          <div>
+            <div style="font-weight:600;font-size:13px;margin-bottom:8px;color:var(--text1)" x-text="meta[selK]?.label||selK"></div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:8px">
+              <div style="font-size:12px;line-height:1.6;padding:8px 10px;background:var(--bg3);border-radius:6px" x-text="meta[selK]?.desc||''"></div>
+              <div style="font-size:11.5px;font-family:monospace;white-space:pre-wrap;padding:8px 10px;background:var(--bg);border:1px solid var(--border);border-radius:6px" x-text="formula(selK,data)"></div>
+            </div>
+            <div style="font-size:11px;color:var(--text2);padding:6px 10px;background:var(--bg);border-radius:4px" x-text="meta[selK]?.hint||''"></div>
+              <!-- 관련 태스크 -->
+              <div style="margin-top:10px;border-top:1px solid var(--border);padding-top:8px">
+                <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px">
+                  <span style="font-size:11px;font-weight:600;color:var(--text2);text-transform:uppercase">관련 태스크</span>
+                  <span style="font-size:11px;color:var(--text2)" x-text="(data.tasks||[]).length+'건'"></span>
+                </div>
+                <div x-show="!(data.tasks||[]).length" style="font-size:11px;color:var(--text2);text-align:center;padding:10px">
+                  평가 결과 파일을 로드하면 태스크 목록이 표시됩니다.
+                </div>
+                <div class="dtx" style="max-height:180px;overflow-y:auto" x-show="(data.tasks||[]).length">
+                  <div class="dtx-row dtx-head" style="grid-template-columns:minmax(100px,1.5fr) 80px 70px 50px;position:sticky;top:0;z-index:1">
+                    <span>태스크 ID</span><span>유형</span><span>완료율</span><span>상태</span>
+                  </div>
+                  <template x-for="t in [...(data.tasks||[])].sort((a,b)=>(a.completion_score||0)-(b.completion_score||0)).slice(0,20)" :key="t.task_id">
+                    <div class="dtx-row" style="grid-template-columns:minmax(100px,1.5fr) 80px 70px 50px">
+                      <span class="dtx-id" x-text="t.task_id"></span>
+                      <span class="text-muted" x-text="t.task_type||'-'"></span>
+                      <span :style="`color:${(t.completion_score||0)>=0.9?'var(--green)':(t.completion_score||0)>=0.7?'var(--yellow)':'var(--red)'}`"
+                            x-text="((t.completion_score||0)*100).toFixed(0)+'%'"></span>
+                      <span :class="(t.completion_score||0)>=1?'badge-ok':(t.completion_score||0)>=0.7?'badge-warn':'badge-ng'"
+                            x-text="(t.completion_score||0)>=1?'완료':(t.completion_score||0)>=0.7?'부분':'실패'"></span>
+                    </div>
+                  </template>
+                </div>
+              </div>
+          </div>
+        </template>
+      </div>
     </div>
   </template>
 
   <!-- Workflow subsection -->
-  <div class="sdiv"><div class="sdiv-line"></div><span class="sdiv-lbl">🔀 워크플로우 실행</span><div class="sdiv-line"></div></div>
+  <div class="sdiv"><div class="sdiv-line"></div><span class="sdiv-lbl">🔀 워크플로우 실행<span class="grp-chip grp-F" style="margin-left:6px;font-size:9.5px">F 다중 에이전트</span></span><div class="sdiv-line"></div></div>
   <div x-show="!data.has_workflow">
     <div class="badge-gray" style="display:inline-block;margin-bottom:12px">워크플로우 데이터 없음 — WorkflowExecutionTracker 미활성화</div>
   </div>
@@ -3283,7 +3663,7 @@ input[type=text],input[type=number]{background:var(--bg3);color:var(--text);bord
   </div>
 
   <!-- Framework Distribution -->
-  <div class="sdiv"><div class="sdiv-line"></div><span class="sdiv-lbl">🏗 프레임워크 분포</span><div class="sdiv-line"></div></div>
+  <div class="sdiv"><div class="sdiv-line"></div><span class="sdiv-lbl">🏗 프레임워크 분포<span class="grp-chip grp-B" style="margin-left:6px;font-size:9.5px">B 행동 무결성</span></span><div class="sdiv-line"></div></div>
   <div class="sec">
     <div class="sec-t">프레임워크별 태스크 현황</div>
     <div class="dtx">
@@ -3306,10 +3686,30 @@ input[type=text],input[type=number]{background:var(--bg3);color:var(--text);bord
 
   <!-- Harness Group B — 행동 무결성 -->
   <template x-if="data.harness_groups && data.harness_groups['B']">
-    <div x-data="{ gB: data.harness_groups['B'] }">
+    <div x-data="{
+  gB: data.harness_groups['B'],
+  selK:null,
+  meta:{
+    group_b:{label:'Group B 종합',desc:'행동 무결성 6개 지표(루프감지·상태일관성·범위준수·도구파라미터안전·컨텍스트윈도우·교착감지)의 가중 평균 게이트.',hint:'score = 가중 평균 | gate: pass≥0.75, warn≥0.6, fail<0.6'},
+    loop_detection_rate:{label:'루프 감지율',desc:'LoopDetectionConfig 설정 시 도구 연속 중복 호출 패턴 감지율. 낮을수록 좋음.',hint:'루프 감지 태스크 / 전체 태스크 × 100 | 🟢 ≤5% 🟡 ≤15% 🔴 >15%'},
+    avg_state_consistency:{label:'상태 일관성',desc:'StateConsistencyConfig 설정 시 실행 전·후 시스템 상태 일관성 유지 점수.',hint:'불변 키 변경 탐지 / 전체 상태 키 | 🟢 ≥0.9 🟡 ≥0.7 🔴 <0.7'},
+    avg_scope_score:{label:'범위 준수율',desc:'ScopeConfig 설정 시 허용 도구 목록 외 호출 위반 여부 측정.',hint:'(전체 - 위반) / 전체 | 🟢 ≥0.9 🟡 ≥0.7 🔴 <0.7'},
+    avg_tool_parameter_safety:{label:'도구 파라미터 안전',desc:'ToolParameterSafetyConfig 설정 시 도구 파라미터에 위험 패턴(경로탈출·명령체이닝) 탐지.',hint:'위험 패턴 0건 시 1.0 | 🟢 ≥0.9 안전 🟡 ≥0.7 🔴 <0.7'},
+    avg_context_window:{label:'컨텍스트 윈도우',desc:'ContextWindowConfig 설정 시 토큰 포화도·반복 패턴·정보 밀도 측정.',hint:'토큰 사용률 + 반복 비율 | 🟢 <70% 🟡 70-89% 🔴 ≥90%'},
+    avg_deadlock_score:{label:'교착 감지',desc:'DeadlockConfig 설정 시 순환 위임·리소스 기아·라이브락 탐지 점수. 높을수록 좋음(교착 없음).',hint:'교착 이벤트 0건 시 1.0 | 🟢 ≥0.9 🟡 ≥0.7 🔴 <0.7'},
+  },
+  formula(k,d){
+    const g=d.harness_groups?.B||{};
+    const dt=g.details||{};
+    if(k==='group_b') return `종합 = 가중 평균(루프감지·상태일관성·범위준수…)\n= ${(g.score||0)*100 .toFixed(1)}%\nGate: ${(g.gate||'?').toUpperCase()}`;
+    const v=dt[k];
+    if(v==null) return '데이터 없음';
+    return `${this.meta[k]?.label} = ${(v*100).toFixed(1)}%\n원시값: ${v.toFixed(4)}`;
+  }
+}">
       <div class="sdiv"><div class="sdiv-line"></div><span class="sdiv-lbl">🛡 Harness Group B — 행동 무결성</span><div class="sdiv-line"></div></div>
       <div class="kpi-grid">
-        <div class="kpi">
+        <div class="kpi kpi-act" :class="{sel:selK==='group_b'}" @click="selK=selK==='group_b'?null:'group_b'">
           <div class="kpi-lbl">Group B 종합</div>
           <div class="kpi-val"
                :style="`color:${gB.gate==='pass'?'var(--green)':gB.gate==='fail'?'var(--red)':'var(--yellow)'}`"
@@ -3319,7 +3719,7 @@ input[type=text],input[type=number]{background:var(--bg3);color:var(--text);bord
                x-text="(gB.gate||'?').toUpperCase()"></div>
         </div>
         <!-- 루프 감지율 — LoopDetectionConfig -->
-        <div class="kpi" x-show="gB.details && gB.details.loop_detection_rate!=null">
+        <div class="kpi kpi-act" :class="{sel:selK==='loop_detection_rate'}" @click="selK=selK==='loop_detection_rate'?null:'loop_detection_rate'" x-show="gB.details && gB.details.loop_detection_rate!=null">
           <div class="kpi-lbl">루프 감지율</div>
           <div class="kpi-val"
                :style="`color:${(gB.details?.loop_detection_rate||0)<=0.05?'var(--green)':(gB.details?.loop_detection_rate||0)<=0.15?'var(--yellow)':'var(--red)'}`"
@@ -3328,7 +3728,7 @@ input[type=text],input[type=number]{background:var(--bg3);color:var(--text);bord
                x-text="(gB.details?.loop_count||0)===0?'루프 없음':(gB.details?.loop_count||0)+'건 감지'"></div>
         </div>
         <!-- 상태 일관성 — StateConsistencyConfig -->
-        <div class="kpi" x-show="gB.details && gB.details.avg_state_consistency!=null">
+        <div class="kpi kpi-act" :class="{sel:selK==='avg_state_consistency'}" @click="selK=selK==='avg_state_consistency'?null:'avg_state_consistency'" x-show="gB.details && gB.details.avg_state_consistency!=null">
           <div class="kpi-lbl">상태 일관성</div>
           <div class="kpi-val"
                :style="`color:${(gB.details?.avg_state_consistency||0)>=0.8?'var(--green)':(gB.details?.avg_state_consistency||0)>=0.6?'var(--yellow)':'var(--red)'}`"
@@ -3336,7 +3736,7 @@ input[type=text],input[type=number]{background:var(--bg3);color:var(--text);bord
           <div class="kpi-sub muted">StateConsistency</div>
         </div>
         <!-- 범위 준수 — ScopeConfig -->
-        <div class="kpi" x-show="gB.details && gB.details.avg_scope_score!=null">
+        <div class="kpi kpi-act" :class="{sel:selK==='avg_scope_score'}" @click="selK=selK==='avg_scope_score'?null:'avg_scope_score'" x-show="gB.details && gB.details.avg_scope_score!=null">
           <div class="kpi-lbl">범위 준수율</div>
           <div class="kpi-val"
                :style="`color:${(gB.details?.avg_scope_score||0)>=0.8?'var(--green)':(gB.details?.avg_scope_score||0)>=0.6?'var(--yellow)':'var(--red)'}`"
@@ -3344,7 +3744,7 @@ input[type=text],input[type=number]{background:var(--bg3);color:var(--text);bord
           <div class="kpi-sub muted">Scope</div>
         </div>
         <!-- 도구 파라미터 안전 — ToolParameterSafetyConfig -->
-        <div class="kpi" x-show="gB.details && gB.details.avg_tool_parameter_safety!=null">
+        <div class="kpi kpi-act" :class="{sel:selK==='avg_tool_parameter_safety'}" @click="selK=selK==='avg_tool_parameter_safety'?null:'avg_tool_parameter_safety'" x-show="gB.details && gB.details.avg_tool_parameter_safety!=null">
           <div class="kpi-lbl">도구 파라미터 안전</div>
           <div class="kpi-val"
                :style="`color:${(gB.details?.avg_tool_parameter_safety||0)>=0.8?'var(--green)':(gB.details?.avg_tool_parameter_safety||0)>=0.6?'var(--yellow)':'var(--red)'}`"
@@ -3352,13 +3752,58 @@ input[type=text],input[type=number]{background:var(--bg3);color:var(--text);bord
           <div class="kpi-sub muted">ToolParamSafety</div>
         </div>
         <!-- 컨텍스트 윈도우 — ContextWindowConfig -->
-        <div class="kpi" x-show="gB.details && gB.details.avg_context_window!=null">
+        <div class="kpi kpi-act" :class="{sel:selK==='avg_context_window'}" @click="selK=selK==='avg_context_window'?null:'avg_context_window'" x-show="gB.details && gB.details.avg_context_window!=null">
           <div class="kpi-lbl">컨텍스트 윈도우</div>
           <div class="kpi-val"
                :style="`color:${(gB.details?.avg_context_window||0)>=0.8?'var(--green)':(gB.details?.avg_context_window||0)>=0.6?'var(--yellow)':'var(--red)'}`"
                x-text="gB.details?.avg_context_window!=null?((gB.details.avg_context_window)*100).toFixed(1)+'%':'—'"></div>
           <div class="kpi-sub muted">ContextWindow</div>
         </div>
+        <!-- 교착 감지 — DeadlockConfig -->
+        <div class="kpi kpi-act" :class="{sel:selK==='avg_deadlock_score'}" @click="selK=selK==='avg_deadlock_score'?null:'avg_deadlock_score'" x-show="gB.details && gB.details.avg_deadlock_score!=null">
+          <div class="kpi-lbl">교착 감지</div>
+          <div class="kpi-val"
+               :style="`color:${(gB.details?.avg_deadlock_score||1)>=0.9?'var(--green)':(gB.details?.avg_deadlock_score||1)>=0.7?'var(--yellow)':'var(--red)'}`"
+               x-text="gB.details?.avg_deadlock_score!=null?((gB.details.avg_deadlock_score)*100).toFixed(1)+'%':'—'"></div>
+          <div class="kpi-sub muted">Deadlock</div>
+        </div>
+      </div>
+      <div x-show="selK" style="margin-top:10px;padding:12px 14px;background:var(--bg2);border:1px solid var(--border);border-radius:8px">
+        <template x-if="selK">
+          <div>
+            <div style="font-weight:600;font-size:13px;margin-bottom:8px;color:var(--text1)" x-text="meta[selK]?.label||selK"></div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:8px">
+              <div style="font-size:12px;line-height:1.6;padding:8px 10px;background:var(--bg3);border-radius:6px" x-text="meta[selK]?.desc||''"></div>
+              <div style="font-size:11.5px;font-family:monospace;white-space:pre-wrap;padding:8px 10px;background:var(--bg);border:1px solid var(--border);border-radius:6px" x-text="formula(selK,data)"></div>
+            </div>
+            <div style="font-size:11px;color:var(--text2);padding:6px 10px;background:var(--bg);border-radius:4px" x-text="meta[selK]?.hint||''"></div>
+              <!-- 관련 태스크 -->
+              <div style="margin-top:10px;border-top:1px solid var(--border);padding-top:8px">
+                <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px">
+                  <span style="font-size:11px;font-weight:600;color:var(--text2);text-transform:uppercase">관련 태스크</span>
+                  <span style="font-size:11px;color:var(--text2)" x-text="(data.tasks||[]).length+'건'"></span>
+                </div>
+                <div x-show="!(data.tasks||[]).length" style="font-size:11px;color:var(--text2);text-align:center;padding:10px">
+                  평가 결과 파일을 로드하면 태스크 목록이 표시됩니다.
+                </div>
+                <div class="dtx" style="max-height:180px;overflow-y:auto" x-show="(data.tasks||[]).length">
+                  <div class="dtx-row dtx-head" style="grid-template-columns:minmax(100px,1.5fr) 80px 70px 50px;position:sticky;top:0;z-index:1">
+                    <span>태스크 ID</span><span>유형</span><span>완료율</span><span>상태</span>
+                  </div>
+                  <template x-for="t in [...(data.tasks||[])].sort((a,b)=>(a.completion_score||0)-(b.completion_score||0)).slice(0,20)" :key="t.task_id">
+                    <div class="dtx-row" style="grid-template-columns:minmax(100px,1.5fr) 80px 70px 50px">
+                      <span class="dtx-id" x-text="t.task_id"></span>
+                      <span class="text-muted" x-text="t.task_type||'-'"></span>
+                      <span :style="`color:${(t.completion_score||0)>=0.9?'var(--green)':(t.completion_score||0)>=0.7?'var(--yellow)':'var(--red)'}`"
+                            x-text="((t.completion_score||0)*100).toFixed(0)+'%'"></span>
+                      <span :class="(t.completion_score||0)>=1?'badge-ok':(t.completion_score||0)>=0.7?'badge-warn':'badge-ng'"
+                            x-text="(t.completion_score||0)>=1?'완료':(t.completion_score||0)>=0.7?'부분':'실패'"></span>
+                    </div>
+                  </template>
+                </div>
+              </div>
+          </div>
+        </template>
       </div>
     </div>
   </template>
@@ -3398,7 +3843,7 @@ input[type=text],input[type=number]{background:var(--bg3);color:var(--text);bord
   <div x-show="data.has_security">
 
   <!-- Security Boundary Flow (§4.4) — 입력→실행→출력 3단계 경계 흐름 -->
-  <div class="sdiv"><div class="sdiv-line"></div><span class="sdiv-lbl">🔍 경계 흐름 분석</span><div class="sdiv-line"></div></div>
+  <div class="sdiv"><div class="sdiv-line"></div><span class="sdiv-lbl">🔍 경계 흐름 분석<span class="grp-chip grp-B" style="margin-left:6px;font-size:9.5px">B 행동 무결성</span></span><div class="sdiv-line"></div></div>
   <div class="cbox" x-data="{
     inputT(d){ return (d.security_l1?.input_security?.inputs_with_threats||0); },
     execV(d){ return (d.security_l1?.authorization?.unauthorized_calls||0)+(d.security_l2?.privilege_escalation?.escalations_detected||0); },
@@ -3454,7 +3899,7 @@ input[type=text],input[type=number]{background:var(--bg3);color:var(--text);bord
   </div>
 
   <!-- Security Summary -->
-  <div class="sdiv"><div class="sdiv-line"></div><span class="sdiv-lbl">🛡 보안 종합 점수</span><div class="sdiv-line"></div></div>
+  <div class="sdiv"><div class="sdiv-line"></div><span class="sdiv-lbl">🛡 보안 종합 점수<span class="grp-chip grp-E" style="margin-left:6px;font-size:9.5px">E 보안 경계</span></span><div class="sdiv-line"></div></div>
   <div x-data="{
     selK:null,
     score(k,d){
@@ -3709,7 +4154,7 @@ input[type=text],input[type=number]{background:var(--bg3);color:var(--text);bord
   </div>
 
   <!-- L1 Input Security -->
-  <div class="sdiv"><div class="sdiv-line"></div><span class="sdiv-lbl">L1 · 입력 위협 탐지</span><div class="sdiv-line"></div></div>
+  <div id="s-sec-input" class="sdiv"><div class="sdiv-line"></div><span class="sdiv-lbl">L1 · 입력 위협 탐지<span class="grp-chip grp-E" style="margin-left:6px;font-size:9.5px">E 보안 경계</span></span><div class="sdiv-line"></div></div>
   <div x-data="{
     selK:null,
     meta:{
@@ -3839,7 +4284,7 @@ input[type=text],input[type=number]{background:var(--bg3);color:var(--text);bord
   </div>
 
   <!-- L1 Output Security -->
-  <div class="sdiv"><div class="sdiv-line"></div><span class="sdiv-lbl">L1 · 출력 유출 탐지</span><div class="sdiv-line"></div></div>
+  <div id="s-sec-output" class="sdiv"><div class="sdiv-line"></div><span class="sdiv-lbl">L1 · 출력 유출 탐지<span class="grp-chip grp-E" style="margin-left:6px;font-size:9.5px">E 보안 경계</span></span><div class="sdiv-line"></div></div>
   <div x-data="{
     selK:null,
     meta:{
@@ -3947,7 +4392,7 @@ input[type=text],input[type=number]{background:var(--bg3);color:var(--text);bord
   </div>
 
   <!-- L1 Authorization -->
-  <div class="sdiv"><div class="sdiv-line"></div><span class="sdiv-lbl">L1 · 도구 권한 준수</span><div class="sdiv-line"></div></div>
+  <div id="s-sec-auth" class="sdiv"><div class="sdiv-line"></div><span class="sdiv-lbl">L1 · 도구 권한 준수<span class="grp-chip grp-E" style="margin-left:6px;font-size:9.5px">E 보안 경계</span></span><div class="sdiv-line"></div></div>
   <div x-data="{
     selK:null,
     meta:{
@@ -4257,7 +4702,7 @@ input[type=text],input[type=number]{background:var(--bg3);color:var(--text);bord
   </div>
 
   <!-- L2 Privilege Escalation -->
-  <div class="sdiv"><div class="sdiv-line"></div><span class="sdiv-lbl">L2 · 권한 상승 탐지</span><div class="sdiv-line"></div></div>
+  <div id="s-sec-privesc" class="sdiv"><div class="sdiv-line"></div><span class="sdiv-lbl">L2 · 권한 상승 탐지<span class="grp-chip grp-E" style="margin-left:6px;font-size:9.5px">E 보안 경계</span></span><div class="sdiv-line"></div></div>
   <div x-data="{
     selK:null,
     privTracking(d){ return d.security_l2?.privilege_escalation?.tracking_active !== false; },
@@ -4630,10 +5075,30 @@ input[type=text],input[type=number]{background:var(--bg3);color:var(--text);bord
 
   <!-- Harness Group E — 보안 경계 -->
   <template x-if="data.harness_groups && data.harness_groups['E']">
-    <div x-data="{ gE: data.harness_groups['E'] }">
+    <div x-data="{
+  gE: data.harness_groups['E'],
+  selK:null,
+  meta:{
+    group_e:{label:'Group E 종합',desc:'보안 경계 지표(위협감지·컴플라이언스·권한상승·공격체인·위협대응)의 가중 평균 게이트.',hint:'gate: pass≥0.75, warn≥0.6, fail<0.6'},
+    threat_count:{label:'탐지된 위협',desc:'ThreatSeverityConfig 설정 시 탐지된 보안 위협 건수. 0건이 목표.',hint:'위협 건수 (낮을수록 좋음) | 🟢 0건 🟡 ≤3건 🔴 >3건'},
+    avg_compliance_score:{label:'컴플라이언스',desc:'ComplianceConfig 설정 시 PII 노출·GDPR·HIPAA 등 컴플라이언스 준수 점수.',hint:'위반 건수 차감 | 🟢 ≥0.9 🟡 ≥0.7 🔴 <0.7'},
+    privilege_escalation_rate:{label:'권한 상승율',desc:'PrivilegeEscalationDetector 측정. 에이전트가 자신의 권한 수준 이상으로 상승을 시도하는 비율.',hint:'상승 시도 / 전체 태스크 × 100 | 🟢 0% 🟡 ≤5% 🔴 >5%'},
+    chain_attack_rate:{label:'공격 체인 탐지',desc:'ToolChainAttackDetector 측정. 개별 정상이지만 조합 시 공격이 되는 연쇄 패턴 탐지율.',hint:'공격 체인 탐지 / 전체 태스크 × 100 | 🟢 0% 🟡 ≤5% 🔴 >5%'},
+    avg_threat_response:{label:'위협 대응 점수',desc:'ThreatResponseConfig 설정 시 위협 탐지 시 차단·에스컬레이션·중단으로 적절히 대응하는지.',hint:'대응율 = 적절 대응 / 위협 탐지 | 🟢 ≥0.9 🟡 ≥0.7 🔴 <0.7'},
+  },
+  formula(k,d){
+    const g=d.harness_groups?.E||{};
+    const dt=g.details||{};
+    if(k==='group_e') return `종합 = ${(g.score||0)*100 .toFixed(1)}%\nGate: ${(g.gate||'?').toUpperCase()}`;
+    if(k==='threat_count') return `탐지된 위협 = ${dt.threat_count??0}건\n권한상승: ${dt.privilege_escalation_count??0}건\n공격체인: ${dt.chain_attack_count??0}건`;
+    const v=dt[k];
+    if(v==null) return '데이터 없음';
+    return `${this.meta[k]?.label} = ${(v*100).toFixed(1)}%\n원시값: ${v.toFixed(4)}`;
+  }
+}">
       <div class="sdiv"><div class="sdiv-line"></div><span class="sdiv-lbl">🛡 Harness Group E — 보안 경계</span><div class="sdiv-line"></div></div>
       <div class="kpi-grid">
-        <div class="kpi">
+        <div class="kpi kpi-act" :class="{sel:selK==='group_e'}" @click="selK=selK==='group_e'?null:'group_e'">
           <div class="kpi-lbl">Group E 종합</div>
           <div class="kpi-val"
                :style="`color:${gE.gate==='pass'?'var(--green)':gE.gate==='fail'?'var(--red)':'var(--yellow)'}`"
@@ -4643,7 +5108,7 @@ input[type=text],input[type=number]{background:var(--bg3);color:var(--text);bord
                x-text="(gE.gate||'?').toUpperCase()"></div>
         </div>
         <!-- 탐지된 위협 수 -->
-        <div class="kpi" x-show="gE.details && gE.details.threat_count!=null">
+        <div class="kpi kpi-act" :class="{sel:selK==='threat_count'}" @click="selK=selK==='threat_count'?null:'threat_count'" x-show="gE.details && gE.details.threat_count!=null">
           <div class="kpi-lbl">탐지된 위협</div>
           <div class="kpi-val"
                :style="`color:${(gE.details?.threat_count||0)===0?'var(--green)':(gE.details?.threat_count||0)<=3?'var(--yellow)':'var(--red)'}`"
@@ -4652,7 +5117,7 @@ input[type=text],input[type=number]{background:var(--bg3);color:var(--text);bord
                x-text="(gE.details?.threat_count||0)===0?'위협 없음':'검토 필요'"></div>
         </div>
         <!-- 컴플라이언스 — ComplianceConfig -->
-        <div class="kpi" x-show="gE.details && gE.details.avg_compliance_score!=null">
+        <div class="kpi kpi-act" :class="{sel:selK==='avg_compliance_score'}" @click="selK=selK==='avg_compliance_score'?null:'avg_compliance_score'" x-show="gE.details && gE.details.avg_compliance_score!=null">
           <div class="kpi-lbl">컴플라이언스</div>
           <div class="kpi-val"
                :style="`color:${(gE.details?.avg_compliance_score||0)>=0.9?'var(--green)':(gE.details?.avg_compliance_score||0)>=0.7?'var(--yellow)':'var(--red)'}`"
@@ -4660,7 +5125,7 @@ input[type=text],input[type=number]{background:var(--bg3);color:var(--text);bord
           <div class="kpi-sub muted">Compliance</div>
         </div>
         <!-- 권한 상승율 -->
-        <div class="kpi" x-show="gE.details && gE.details.privilege_escalation_rate!=null">
+        <div class="kpi kpi-act" :class="{sel:selK==='privilege_escalation_rate'}" @click="selK=selK==='privilege_escalation_rate'?null:'privilege_escalation_rate'" x-show="gE.details && gE.details.privilege_escalation_rate!=null">
           <div class="kpi-lbl">권한 상승율</div>
           <div class="kpi-val"
                :style="`color:${(gE.details?.privilege_escalation_rate||0)===0?'var(--green)':(gE.details?.privilege_escalation_rate||0)<=0.05?'var(--yellow)':'var(--red)'}`"
@@ -4669,7 +5134,7 @@ input[type=text],input[type=number]{background:var(--bg3);color:var(--text);bord
                x-text="(gE.details?.privilege_escalation_rate||0)===0?'정상':'이상 감지'"></div>
         </div>
         <!-- 공격 체인 탐지율 -->
-        <div class="kpi" x-show="gE.details && gE.details.chain_attack_rate!=null">
+        <div class="kpi kpi-act" :class="{sel:selK==='chain_attack_rate'}" @click="selK=selK==='chain_attack_rate'?null:'chain_attack_rate'" x-show="gE.details && gE.details.chain_attack_rate!=null">
           <div class="kpi-lbl">공격 체인 탐지</div>
           <div class="kpi-val"
                :style="`color:${(gE.details?.chain_attack_rate||0)===0?'var(--green)':(gE.details?.chain_attack_rate||0)<=0.05?'var(--yellow)':'var(--red)'}`"
@@ -4678,7 +5143,7 @@ input[type=text],input[type=number]{background:var(--bg3);color:var(--text);bord
                x-text="(gE.details?.chain_attack_rate||0)===0?'정상':'위협 탐지'"></div>
         </div>
         <!-- 위협 대응 점수 — ThreatResponseConfig -->
-        <div class="kpi" x-show="gE.details && gE.details.avg_threat_response!=null">
+        <div class="kpi kpi-act" :class="{sel:selK==='avg_threat_response'}" @click="selK=selK==='avg_threat_response'?null:'avg_threat_response'" x-show="gE.details && gE.details.avg_threat_response!=null">
           <div class="kpi-lbl">위협 대응 점수</div>
           <div class="kpi-val"
                :style="`color:${(gE.details?.avg_threat_response||0)>=0.8?'var(--green)':(gE.details?.avg_threat_response||0)>=0.6?'var(--yellow)':'var(--red)'}`"
@@ -4686,11 +5151,48 @@ input[type=text],input[type=number]{background:var(--bg3);color:var(--text);bord
           <div class="kpi-sub muted">ThreatResponse</div>
         </div>
       </div>
+      <div x-show="selK" style="margin-top:10px;padding:12px 14px;background:var(--bg2);border:1px solid var(--border);border-radius:8px">
+        <template x-if="selK">
+          <div>
+            <div style="font-weight:600;font-size:13px;margin-bottom:8px;color:var(--text1)" x-text="meta[selK]?.label||selK"></div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:8px">
+              <div style="font-size:12px;line-height:1.6;padding:8px 10px;background:var(--bg3);border-radius:6px" x-text="meta[selK]?.desc||''"></div>
+              <div style="font-size:11.5px;font-family:monospace;white-space:pre-wrap;padding:8px 10px;background:var(--bg);border:1px solid var(--border);border-radius:6px" x-text="formula(selK,data)"></div>
+            </div>
+            <div style="font-size:11px;color:var(--text2);padding:6px 10px;background:var(--bg);border-radius:4px" x-text="meta[selK]?.hint||''"></div>
+              <!-- 관련 태스크 -->
+              <div style="margin-top:10px;border-top:1px solid var(--border);padding-top:8px">
+                <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px">
+                  <span style="font-size:11px;font-weight:600;color:var(--text2);text-transform:uppercase">관련 태스크</span>
+                  <span style="font-size:11px;color:var(--text2)" x-text="(data.tasks||[]).length+'건'"></span>
+                </div>
+                <div x-show="!(data.tasks||[]).length" style="font-size:11px;color:var(--text2);text-align:center;padding:10px">
+                  평가 결과 파일을 로드하면 태스크 목록이 표시됩니다.
+                </div>
+                <div class="dtx" style="max-height:180px;overflow-y:auto" x-show="(data.tasks||[]).length">
+                  <div class="dtx-row dtx-head" style="grid-template-columns:minmax(100px,1.5fr) 80px 70px 50px;position:sticky;top:0;z-index:1">
+                    <span>태스크 ID</span><span>유형</span><span>완료율</span><span>상태</span>
+                  </div>
+                  <template x-for="t in [...(data.tasks||[])].sort((a,b)=>(a.completion_score||0)-(b.completion_score||0)).slice(0,20)" :key="t.task_id">
+                    <div class="dtx-row" style="grid-template-columns:minmax(100px,1.5fr) 80px 70px 50px">
+                      <span class="dtx-id" x-text="t.task_id"></span>
+                      <span class="text-muted" x-text="t.task_type||'-'"></span>
+                      <span :style="`color:${(t.completion_score||0)>=0.9?'var(--green)':(t.completion_score||0)>=0.7?'var(--yellow)':'var(--red)'}`"
+                            x-text="((t.completion_score||0)*100).toFixed(0)+'%'"></span>
+                      <span :class="(t.completion_score||0)>=1?'badge-ok':(t.completion_score||0)>=0.7?'badge-warn':'badge-ng'"
+                            x-text="(t.completion_score||0)>=1?'완료':(t.completion_score||0)>=0.7?'부분':'실패'"></span>
+                    </div>
+                  </template>
+                </div>
+              </div>
+          </div>
+        </template>
+      </div>
     </div>
   </template>
 
   <!-- OWASP LLM Top 10 -->
-  <div class="sdiv"><div class="sdiv-line"></div><span class="sdiv-lbl">🔐 OWASP LLM Top 10 대응</span><div class="sdiv-line"></div></div>
+  <div class="sdiv"><div class="sdiv-line"></div><span class="sdiv-lbl">🔐 OWASP LLM Top 10 대응<span class="grp-chip grp-E" style="margin-left:6px;font-size:9.5px">E 보안 경계</span></span><div class="sdiv-line"></div></div>
   <div class="sec">
     <div class="sec-t">OWASP LLM Top 10 (2025) — 트래커 매핑</div>
     <div class="dtx">
@@ -4852,7 +5354,7 @@ input[type=text],input[type=number]{background:var(--bg3);color:var(--text);bord
   </template>
 
   <!-- 자동 이상 탐지 -->
-  <div class="sdiv"><div class="sdiv-line"></div><span class="sdiv-lbl">🔍 자동 이상 탐지</span><div class="sdiv-line"></div></div>
+  <div class="sdiv"><div class="sdiv-line"></div><span class="sdiv-lbl">🔍 자동 이상 탐지<span class="grp-chip grp-G" style="margin-left:6px;font-size:9.5px">G 관측성</span></span><div class="sdiv-line"></div></div>
   <div x-data="{open:true}">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
       <div class="hstack">
@@ -4983,7 +5485,7 @@ input[type=text],input[type=number]{background:var(--bg3);color:var(--text);bord
   </div>
 
   <!-- 통계적 이상 탐지 -->
-  <div class="sdiv"><div class="sdiv-line"></div><span class="sdiv-lbl">📊 통계적 이상 탐지 (Z-Score)</span><div class="sdiv-line"></div></div>
+  <div class="sdiv"><div class="sdiv-line"></div><span class="sdiv-lbl">📊 통계적 이상 탐지 (Z-Score)<span class="grp-chip grp-G" style="margin-left:6px;font-size:9.5px">G 관측성</span></span><div class="sdiv-line"></div></div>
   <div style="background:var(--bg3);border-radius:var(--r);padding:14px;border:1px solid var(--border);margin-bottom:14px">
     <div style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:4px">|z| &gt; 2 태스크</div>
     <div style="font-size:12px;color:var(--text2);margin-bottom:12px">지연 또는 정확도가 평균에서 표준편차 2배 이상 벗어난 태스크</div>
@@ -5054,7 +5556,7 @@ input[type=text],input[type=number]{background:var(--bg3);color:var(--text);bord
   </div>
 
   <!-- 📉 지표 회귀 감지 -->
-  <div class="sdiv"><div class="sdiv-line"></div><span class="sdiv-lbl">📉 지표 회귀 감지</span><div class="sdiv-line"></div></div>
+  <div class="sdiv"><div class="sdiv-line"></div><span class="sdiv-lbl">📉 지표 회귀 감지<span class="grp-chip grp-G" style="margin-left:6px;font-size:9.5px">G 관측성</span></span><div class="sdiv-line"></div></div>
   <div x-data="{open:true}" style="margin-bottom:14px">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
       <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
@@ -5138,7 +5640,7 @@ input[type=text],input[type=number]{background:var(--bg3);color:var(--text);bord
   </div>
 
   <!-- 지표 상관관계 -->
-  <div class="sdiv"><div class="sdiv-line"></div><span class="sdiv-lbl">🔗 지표 상관관계 (Pearson)</span><div class="sdiv-line"></div></div>
+  <div class="sdiv"><div class="sdiv-line"></div><span class="sdiv-lbl">🔗 지표 상관관계 (Pearson)<span class="grp-chip grp-G" style="margin-left:6px;font-size:9.5px">G 관측성</span></span><div class="sdiv-line"></div></div>
   <div style="background:var(--bg3);border-radius:var(--r);padding:14px;border:1px solid var(--border);margin-bottom:6px">
     <div style="font-size:12px;color:var(--text2);margin-bottom:10px">accuracy / execution_time / tokens_used / completion_score — 파랑: 양의 상관, 빨강: 음의 상관</div>
     <!-- 핵심 상관 요약 -->
@@ -5217,7 +5719,7 @@ input[type=text],input[type=number]{background:var(--bg3);color:var(--text);bord
   </div>
 
   <!-- 배포 게이트 -->
-  <div class="sdiv"><div class="sdiv-line"></div><span class="sdiv-lbl">🚀 배포 게이트</span><div class="sdiv-line"></div></div>
+  <div class="sdiv"><div class="sdiv-line"></div><span class="sdiv-lbl">🚀 배포 게이트<span class="grp-chip grp-G" style="margin-left:6px;font-size:9.5px">G 관측성</span></span><div class="sdiv-line"></div></div>
   <div class="dgate" style="margin-bottom:16px">
     <template x-for="g in deployGates()" :key="g.key">
       <div class="dgate-box" :class="g.cls">
@@ -5239,7 +5741,7 @@ input[type=text],input[type=number]{background:var(--bg3);color:var(--text);bord
   <!-- 서버 알림 -->
   <template x-if="data.insights && data.insights.alerts && data.insights.alerts.length">
     <div>
-      <div class="sdiv"><div class="sdiv-line"></div><span class="sdiv-lbl">🔔 서버 알림</span><div class="sdiv-line"></div></div>
+      <div class="sdiv"><div class="sdiv-line"></div><span class="sdiv-lbl">🔔 서버 알림<span class="grp-chip grp-G" style="margin-left:6px;font-size:9.5px">G 관측성</span></span><div class="sdiv-line"></div></div>
       <div style="margin-bottom:14px">
         <template x-for="(al,i) in data.insights.alerts" :key="i">
           <div class="alert" :class="al.level==='error'?'critical':al.level==='warn'?'medium':'low'" style="margin-bottom:6px">
@@ -5258,7 +5760,7 @@ input[type=text],input[type=number]{background:var(--bg3);color:var(--text);bord
 
   <!-- 권고사항 + 성능 병목 개선 -->
   <div>
-    <div class="sdiv"><div class="sdiv-line"></div><span class="sdiv-lbl">💡 권고사항 및 대응방안</span><div class="sdiv-line"></div></div>
+    <div class="sdiv"><div class="sdiv-line"></div><span class="sdiv-lbl">💡 권고사항 및 대응방안<span class="grp-chip grp-G" style="margin-left:6px;font-size:9.5px">G 관측성</span></span><div class="sdiv-line"></div></div>
     <div style="margin-bottom:14px">
       <!-- 서버 권고사항 -->
       <template x-if="data.insights && data.insights.recommendations && data.insights.recommendations.length">
@@ -5314,6 +5816,107 @@ input[type=text],input[type=number]{background:var(--bg3);color:var(--text);bord
       </div>
     </div>
   </div>
+
+  <!-- ═══ 실패 연쇄 추적 ═══ -->
+  <div id="s-coFailure">
+  <div class="sdiv"><div class="sdiv-line"></div><span class="sdiv-lbl">🔗 실패 연쇄 추적<span class="grp-chip grp-B" style="margin-left:6px;font-size:9.5px">Gate 간 공동 실패 패턴</span></span><div class="sdiv-line"></div></div>
+  <div x-data="{
+    coFail: null,
+    gates: ['A','B','C','D','E','F','G'],
+    gNames: {A:'목표달성',B:'행동무결',C:'신뢰성',D:'성능계약',E:'보안경계',F:'다중에이전트',G:'관측성'},
+    get matrix() { if(!this.coFail) this.coFail=computeCoFailure(); return this.coFail; },
+    cellColor(v) {
+      if(v==null) return 'var(--bg3)';
+      if(v>=0.7) return 'rgba(239,68,68,0.35)';
+      if(v>=0.4) return 'rgba(245,158,11,0.30)';
+      return 'rgba(16,185,129,0.18)';
+    },
+    cellText(v) { return v==null?'—':(v*100).toFixed(0)+'%'; },
+  }" x-init="coFail=computeCoFailure()">
+
+    <!-- 데이터 부족 -->
+    <template x-if="!hasCoFailData()">
+      <div style="padding:16px 20px;background:var(--bg2);border:1px solid var(--border);border-radius:8px;color:var(--text2);font-size:12px;text-align:center">
+        Harness Config 적용 태스크 5건 이상 또는 복수 Gate fail/warn 이력이 있어야 연쇄 분석이 활성화됩니다.
+      </div>
+    </template>
+
+    <template x-if="hasCoFailData()">
+      <div>
+        <!-- 상위 연쇄 패턴 카드 -->
+        <div style="margin-bottom:14px">
+          <div style="font-size:12px;font-weight:600;color:var(--text);margin-bottom:8px">주요 공동 실패 패턴 (상위 3쌍)</div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <template x-for="pair in topCoFailPairs()" :key="pair.g1+pair.g2">
+              <div style="padding:10px 14px;border-radius:8px;background:var(--bg2);border:1px solid var(--border);min-width:150px">
+                <div style="font-size:11px;color:var(--text2);margin-bottom:4px"
+                     x-text="'Gate ' + pair.g1 + ' 실패 시'"></div>
+                <div style="font-size:13px;font-weight:700;color:var(--text)"
+                     x-text="'Gate ' + pair.g2 + ' 도 실패'"></div>
+                <div style="font-size:22px;font-weight:800;margin:4px 0"
+                     :style="`color:${pair.rate>=0.7?'var(--red)':pair.rate>=0.4?'var(--yellow)':'var(--green)'}`"
+                     x-text="(pair.rate*100).toFixed(0)+'%'"></div>
+                <div style="font-size:10px;color:var(--text2)"
+                     x-text="pair.count + '건 중 ' + Math.round(pair.count*pair.rate) + '건 동반 실패'"></div>
+              </div>
+            </template>
+          </div>
+        </div>
+
+        <!-- Co-failure 매트릭스 -->
+        <div style="font-size:12px;font-weight:600;color:var(--text);margin-bottom:8px">
+          전체 Gate 공동 실패율 매트릭스
+          <span style="font-size:10px;font-weight:400;color:var(--text2);margin-left:6px">
+            (행 Gate 실패 시 → 열 Gate도 실패한 비율)
+          </span>
+        </div>
+        <div style="overflow-x:auto">
+          <table style="border-collapse:collapse;font-size:11px;min-width:480px">
+            <thead>
+              <tr>
+                <th style="padding:5px 10px;text-align:left;color:var(--text2);font-weight:600;white-space:nowrap;min-width:90px">실패 시 →</th>
+                <template x-for="g in gates" :key="'th-'+g">
+                  <th style="padding:5px 8px;text-align:center;color:var(--text2);font-weight:600;min-width:52px">
+                    <div x-text="g"></div>
+                    <div style="font-size:9px;font-weight:400;opacity:.7" x-text="gNames[g]"></div>
+                  </th>
+                </template>
+              </tr>
+            </thead>
+            <tbody>
+              <template x-for="g1 in gates" :key="'row-'+g1">
+                <tr>
+                  <td style="padding:5px 10px;font-weight:600;white-space:nowrap;color:var(--text);border-right:1px solid var(--border)">
+                    <span x-text="g1"></span>
+                    <span style="font-size:10px;font-weight:400;color:var(--text2);margin-left:4px" x-text="gNames[g1]"></span>
+                  </td>
+                  <template x-for="g2 in gates" :key="'cell-'+g1+g2">
+                    <td style="padding:5px 8px;text-align:center;border-radius:4px;transition:background .1s"
+                        :style="`background:${g1===g2?'var(--bg3)':cellColor(matrix[g1]&&matrix[g1][g2])}`"
+                        :title="g1===g2?'—':`${g1} 실패 시 ${g2} 동반 실패율: ${cellText(matrix[g1]&&matrix[g1][g2])}`">
+                      <span x-show="g1===g2" style="color:var(--text2)">—</span>
+                      <span x-show="g1!==g2"
+                            style="font-variant-numeric:tabular-nums;font-weight:600"
+                            :style="`color:${(matrix[g1]&&matrix[g1][g2])==null?'var(--text2)':(matrix[g1][g2]>=0.7?'#ef4444':matrix[g1][g2]>=0.4?'#d97706':'#065f46')}`"
+                            x-text="cellText(matrix[g1]&&matrix[g1][g2])"></span>
+                    </td>
+                  </template>
+                </tr>
+              </template>
+            </tbody>
+          </table>
+        </div>
+        <!-- 범례 -->
+        <div style="display:flex;gap:12px;margin-top:8px;font-size:10px;color:var(--text2);flex-wrap:wrap">
+          <span><span style="display:inline-block;width:10px;height:10px;background:rgba(239,68,68,.35);border-radius:2px;vertical-align:middle;margin-right:3px"></span>≥70% 위험 연쇄</span>
+          <span><span style="display:inline-block;width:10px;height:10px;background:rgba(245,158,11,.30);border-radius:2px;vertical-align:middle;margin-right:3px"></span>40–69% 주의</span>
+          <span><span style="display:inline-block;width:10px;height:10px;background:rgba(16,185,129,.18);border-radius:2px;vertical-align:middle;margin-right:3px"></span>&lt;40% 낮은 연관</span>
+          <span><span style="display:inline-block;width:10px;height:10px;background:var(--bg3);border-radius:2px;vertical-align:middle;margin-right:3px"></span>데이터 없음</span>
+        </div>
+      </div>
+    </template>
+  </div>
+  </div><!-- end s-coFailure -->
 
 </section>
 
@@ -6178,7 +6781,7 @@ input[type=text],input[type=number]{background:var(--bg3);color:var(--text);bord
 
   <!-- ── Layer 1 ── -->
   <div x-show="mf==='all'||mf==='gA'||mf==='gC'||mf==='gD'">
-  <div class="sdiv" style="margin-bottom:12px"><div class="sdiv-lbl">기반 지표 (Foundation Metrics, 6개)<span class="grp-chip grp-A">A TCR·정확도·품질</span><span class="grp-chip grp-C">C 환각</span><span class="grp-chip grp-D">D 지연·토큰</span></div><div class="sdiv-line"></div></div>
+  <div class="sdiv" style="margin-bottom:12px"><div class="sdiv-line"></div><span class="sdiv-lbl">기반 지표 (Foundation Metrics, 6개)<span class="grp-chip grp-A">A TCR·정확도·품질</span><span class="grp-chip grp-C">C 환각</span><span class="grp-chip grp-D">D 지연·토큰</span></span><div class="sdiv-line"></div></div>
   <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(360px,1fr));gap:12px;margin-bottom:24px">
     <!-- L1 cards -->
     <div class="kpi" style="padding:14px 16px;border-left:3px solid #10b981">
@@ -6187,7 +6790,10 @@ input[type=text],input[type=number]{background:var(--bg3);color:var(--text);bord
           <div><div class="val-sm">TCR — Task Completion Rate</div>
           <div class="text-muted">태스크 완료율 · L1 핵심</div></div>
         </div>
-        <span class="badge-ok" style="font-size:10px;flex-shrink:0;margin-top:2px">핵심</span>
+        <div style="display:flex;flex-direction:column;align-items:flex-end;gap:3px;flex-shrink:0;margin-top:2px">
+          <span class="grp-chip grp-A" style="margin-left:0;font-size:9.5px">A 목표달성</span>
+          <span class="badge-ok" style="font-size:10px">핵심</span>
+        </div>
       </div>
       <div style="font-size:12.5px;line-height:1.6;padding:7px 10px;background:rgba(16,185,129,.07);border-radius:5px;margin-bottom:8px">
         <strong>AI 에이전트가 주어진 태스크를 얼마나 완료했는가</strong>를 측정하는 최우선 성과 지표.<br>
@@ -6211,7 +6817,10 @@ input[type=text],input[type=number]{background:var(--bg3);color:var(--text);bord
           <div><div class="val-sm">Accuracy — 정확도</div>
           <div class="text-muted">응답 정확도 · L1 품질</div></div>
         </div>
-        <span class="badge-ok" style="font-size:10px;flex-shrink:0;margin-top:2px">품질</span>
+        <div style="display:flex;flex-direction:column;align-items:flex-end;gap:3px;flex-shrink:0;margin-top:2px">
+          <span class="grp-chip grp-A" style="margin-left:0;font-size:9.5px">A 목표달성</span>
+          <span class="badge-ok" style="font-size:10px">품질</span>
+        </div>
       </div>
       <div style="font-size:12.5px;line-height:1.6;padding:7px 10px;background:rgba(16,185,129,.07);border-radius:5px;margin-bottom:8px">
         <strong>AI 응답이 정답(Ground Truth)과 얼마나 일치하는가</strong>를 외부 LLM 없이 측정.<br>
@@ -6234,7 +6843,10 @@ input[type=text],input[type=number]{background:var(--bg3);color:var(--text);bord
           <div><div class="val-sm">Hallucination Rate — 환각률</div>
           <div class="text-muted">사실 불일치 탐지 · L1 신뢰성</div></div>
         </div>
-        <span class="badge-warn" style="font-size:10px;flex-shrink:0;margin-top:2px">신뢰성</span>
+        <div style="display:flex;flex-direction:column;align-items:flex-end;gap:3px;flex-shrink:0;margin-top:2px">
+          <span class="grp-chip grp-C" style="margin-left:0;font-size:9.5px">C 신뢰성</span>
+          <span class="badge-warn" style="font-size:10px">신뢰성</span>
+        </div>
       </div>
       <div style="font-size:12.5px;line-height:1.6;padding:7px 10px;background:rgba(245,158,11,.07);border-radius:5px;margin-bottom:8px">
         <strong>AI가 사실과 다른 내용을 생성하는 빈도</strong>를 탐지.<br>
@@ -6260,7 +6872,10 @@ input[type=text],input[type=number]{background:var(--bg3);color:var(--text);bord
           <div><div class="val-sm">Response Quality — 응답 품질</div>
           <div class="text-muted">5차원 구조적 평가 · L1 품질</div></div>
         </div>
-        <span class="badge-ok" style="font-size:10px;flex-shrink:0;margin-top:2px">품질</span>
+        <div style="display:flex;flex-direction:column;align-items:flex-end;gap:3px;flex-shrink:0;margin-top:2px">
+          <span class="grp-chip grp-A" style="margin-left:0;font-size:9.5px">A 목표달성</span>
+          <span class="badge-ok" style="font-size:10px">품질</span>
+        </div>
       </div>
       <div style="font-size:12.5px;line-height:1.6;padding:7px 10px;background:rgba(16,185,129,.07);border-radius:5px;margin-bottom:8px">
         <strong>응답이 "좋은 답변"인지를 5개 차원으로 구조적 평가</strong>.<br>
@@ -6286,7 +6901,10 @@ input[type=text],input[type=number]{background:var(--bg3);color:var(--text);bord
           <div><div class="val-sm">Latency — 지연 시간</div>
           <div class="text-muted">응답 속도 · L1 성능</div></div>
         </div>
-        <span class="badge-ok" style="font-size:10px;flex-shrink:0;margin-top:2px">성능</span>
+        <div style="display:flex;flex-direction:column;align-items:flex-end;gap:3px;flex-shrink:0;margin-top:2px">
+          <span class="grp-chip grp-D" style="margin-left:0;font-size:9.5px">D 성능계약</span>
+          <span class="badge-ok" style="font-size:10px">성능</span>
+        </div>
       </div>
       <div style="font-size:12.5px;line-height:1.6;padding:7px 10px;background:rgba(16,185,129,.07);border-radius:5px;margin-bottom:8px">
         <strong>AI 에이전트의 응답 속도와 일관성</strong>을 백분위수 기반으로 측정.<br>
@@ -6312,7 +6930,10 @@ input[type=text],input[type=number]{background:var(--bg3);color:var(--text);bord
           <div><div class="val-sm">Token Economy — 토큰 경제성</div>
           <div class="text-muted">비용 효율성 · L1 비용</div></div>
         </div>
-        <span class="badge-ok" style="font-size:10px;flex-shrink:0;margin-top:2px">비용</span>
+        <div style="display:flex;flex-direction:column;align-items:flex-end;gap:3px;flex-shrink:0;margin-top:2px">
+          <span class="grp-chip grp-D" style="margin-left:0;font-size:9.5px">D 성능계약</span>
+          <span class="badge-ok" style="font-size:10px">비용</span>
+        </div>
       </div>
       <div style="font-size:12.5px;line-height:1.6;padding:7px 10px;background:rgba(16,185,129,.07);border-radius:5px;margin-bottom:8px">
         <strong>AI 에이전트의 비용 효율성과 토큰 사용 패턴</strong> 추적.<br>
@@ -6336,7 +6957,7 @@ input[type=text],input[type=number]{background:var(--bg3);color:var(--text);bord
 
   <!-- ── Groups B·F — Agentic ── -->
   <div x-show="mf==='all'||mf==='gB'||mf==='gF'">
-  <div class="sdiv" style="margin-bottom:12px"><div class="sdiv-lbl">에이전틱 지표 (Agentic Metrics, 5개)<span class="grp-chip grp-B">B 도구·재시도·워크플로</span><span class="grp-chip grp-F">F 협업·조율</span></div><div class="sdiv-line"></div></div>
+  <div class="sdiv" style="margin-bottom:12px"><div class="sdiv-line"></div><span class="sdiv-lbl">에이전틱 지표 (Agentic Metrics, 5개)<span class="grp-chip grp-B">B 도구·재시도·워크플로</span><span class="grp-chip grp-F">F 협업·조율</span></span><div class="sdiv-line"></div></div>
   <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(360px,1fr));gap:12px;margin-bottom:24px">
 
     <div class="kpi" style="padding:14px 16px;border-left:3px solid #3b82f6">
@@ -6345,7 +6966,10 @@ input[type=text],input[type=number]{background:var(--bg3);color:var(--text);bord
           <div><div class="val-sm">Tool Call Efficiency — 도구 호출 효율</div>
           <div class="text-muted">도구 성공률 · L2 에이전틱</div></div>
         </div>
-        <span class="badge-info" style="font-size:10px;flex-shrink:0;margin-top:2px">에이전틱</span>
+        <div style="display:flex;flex-direction:column;align-items:flex-end;gap:3px;flex-shrink:0;margin-top:2px">
+          <span class="grp-chip grp-B" style="margin-left:0;font-size:9.5px">B 행동무결성</span>
+          <span class="badge-info" style="font-size:10px">에이전틱</span>
+        </div>
       </div>
       <div style="font-size:12.5px;line-height:1.6;padding:7px 10px;background:rgba(59,130,246,.07);border-radius:5px;margin-bottom:8px">
         <strong>에이전트가 외부 도구를 얼마나 성공적으로 호출하는가</strong> 측정.<br>
@@ -6372,7 +6996,10 @@ input[type=text],input[type=number]{background:var(--bg3);color:var(--text);bord
           <div><div class="val-sm">Tool Selection F1 — 도구 선택 정확도</div>
           <div class="text-muted">선택 정합성 · L2 에이전틱</div></div>
         </div>
-        <span class="badge-info" style="font-size:10px;flex-shrink:0;margin-top:2px">에이전틱</span>
+        <div style="display:flex;flex-direction:column;align-items:flex-end;gap:3px;flex-shrink:0;margin-top:2px">
+          <span class="grp-chip grp-B" style="margin-left:0;font-size:9.5px">B 행동무결성</span>
+          <span class="badge-info" style="font-size:10px">에이전틱</span>
+        </div>
       </div>
       <div style="font-size:12.5px;line-height:1.6;padding:7px 10px;background:rgba(59,130,246,.07);border-radius:5px;margin-bottom:8px">
         <strong>태스크에 필요한 도구를 올바르게 선택하는가</strong>를 F1으로 평가.<br>
@@ -6398,7 +7025,10 @@ input[type=text],input[type=number]{background:var(--bg3);color:var(--text);bord
           <div><div class="val-sm">Retry Rate — 재시도율</div>
           <div class="text-muted">자가 수정 능력 · L2 에이전틱</div></div>
         </div>
-        <span class="badge-info" style="font-size:10px;flex-shrink:0;margin-top:2px">에이전틱</span>
+        <div style="display:flex;flex-direction:column;align-items:flex-end;gap:3px;flex-shrink:0;margin-top:2px">
+          <span class="grp-chip grp-B" style="margin-left:0;font-size:9.5px">B 행동무결성</span>
+          <span class="badge-info" style="font-size:10px">에이전틱</span>
+        </div>
       </div>
       <div style="font-size:12.5px;line-height:1.6;padding:7px 10px;background:rgba(59,130,246,.07);border-radius:5px;margin-bottom:8px">
         <strong>실패 후 스스로 수정하고 재시도하는 빈도와 효율성</strong> 측정.<br>
@@ -6424,7 +7054,10 @@ input[type=text],input[type=number]{background:var(--bg3);color:var(--text);bord
           <div><div class="val-sm">Coordination Score — 협업 점수</div>
           <div class="text-muted">멀티에이전트 협업 · L2 에이전틱</div></div>
         </div>
-        <span class="badge-info" style="font-size:10px;flex-shrink:0;margin-top:2px">에이전틱</span>
+        <div style="display:flex;flex-direction:column;align-items:flex-end;gap:3px;flex-shrink:0;margin-top:2px">
+          <span class="grp-chip grp-F" style="margin-left:0;font-size:9.5px">F 다중에이전트</span>
+          <span class="badge-info" style="font-size:10px">에이전틱</span>
+        </div>
       </div>
       <div style="font-size:12.5px;line-height:1.6;padding:7px 10px;background:rgba(59,130,246,.07);border-radius:5px;margin-bottom:8px">
         <strong>멀티 에이전트 시스템에서 에이전트 간 협업의 효율성</strong> 측정.<br>
@@ -6449,7 +7082,10 @@ input[type=text],input[type=number]{background:var(--bg3);color:var(--text);bord
           <div><div class="val-sm">Workflow Success Rate — 워크플로우 성공률</div>
           <div class="text-muted">다단계 흐름 · L2 에이전틱</div></div>
         </div>
-        <span class="badge-info" style="font-size:10px;flex-shrink:0;margin-top:2px">에이전틱</span>
+        <div style="display:flex;flex-direction:column;align-items:flex-end;gap:3px;flex-shrink:0;margin-top:2px">
+          <span class="grp-chip grp-B" style="margin-left:0;font-size:9.5px">B 행동무결성</span>
+          <span class="badge-info" style="font-size:10px">에이전틱</span>
+        </div>
       </div>
       <div style="font-size:12.5px;line-height:1.6;padding:7px 10px;background:rgba(59,130,246,.07);border-radius:5px;margin-bottom:8px">
         <strong>복잡한 다단계 작업의 전체 흐름 성공률</strong>을 단계별로 측정.<br>
@@ -6473,7 +7109,7 @@ input[type=text],input[type=number]{background:var(--bg3);color:var(--text);bord
 
   <!-- ── Group E — Security ── -->
   <div x-show="mf==='all'||mf==='gE'">
-  <div class="sdiv" style="margin-bottom:12px"><div class="sdiv-lbl">보안 경계 (Security Metrics, 5개)<span class="grp-chip grp-E">E 입력위협·출력유출·권한남용</span></div><div class="sdiv-line"></div></div>
+  <div class="sdiv" style="margin-bottom:12px"><div class="sdiv-line"></div><span class="sdiv-lbl">보안 경계 (Security Metrics, 5개)<span class="grp-chip grp-E">E 입력위협·출력유출·권한남용</span></span><div class="sdiv-line"></div></div>
   <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(360px,1fr));gap:12px;margin-bottom:24px">
 
     <div class="kpi" style="padding:14px 16px;border-left:3px solid #ef4444">
@@ -6482,7 +7118,10 @@ input[type=text],input[type=number]{background:var(--bg3);color:var(--text);bord
           <div><div class="val-sm">Input Security — 입력 위협 탐지</div>
           <div class="text-muted">악의적 입력 차단 · L2 보안</div></div>
         </div>
-        <span class="badge-ng" style="font-size:10px;flex-shrink:0;margin-top:2px">보안</span>
+        <div style="display:flex;flex-direction:column;align-items:flex-end;gap:3px;flex-shrink:0;margin-top:2px">
+          <span class="grp-chip grp-E" style="margin-left:0;font-size:9.5px">E 보안경계</span>
+          <span class="badge-ng" style="font-size:10px">보안</span>
+        </div>
       </div>
       <div style="font-size:12.5px;line-height:1.6;padding:7px 10px;background:rgba(239,68,68,.07);border-radius:5px;margin-bottom:8px">
         <strong>악의적 입력 공격이 에이전트에 유입되는 빈도</strong>를 탐지.<br>
@@ -6508,7 +7147,10 @@ input[type=text],input[type=number]{background:var(--bg3);color:var(--text);bord
           <div><div class="val-sm">Output Leakage — 민감 정보 유출</div>
           <div class="text-muted">출력 데이터 보호 · L2 보안</div></div>
         </div>
-        <span class="badge-ng" style="font-size:10px;flex-shrink:0;margin-top:2px">보안</span>
+        <div style="display:flex;flex-direction:column;align-items:flex-end;gap:3px;flex-shrink:0;margin-top:2px">
+          <span class="grp-chip grp-E" style="margin-left:0;font-size:9.5px">E 보안경계</span>
+          <span class="badge-ng" style="font-size:10px">보안</span>
+        </div>
       </div>
       <div style="font-size:12.5px;line-height:1.6;padding:7px 10px;background:rgba(239,68,68,.07);border-radius:5px;margin-bottom:8px">
         <strong>AI 응답에 민감 정보가 포함되어 외부로 노출되는지</strong>를 탐지.<br>
@@ -6533,7 +7175,10 @@ input[type=text],input[type=number]{background:var(--bg3);color:var(--text);bord
           <div><div class="val-sm">Tool Authorization — 도구 권한 준수</div>
           <div class="text-muted">허가된 도구만 호출 · L2 보안</div></div>
         </div>
-        <span class="badge-ng" style="font-size:10px;flex-shrink:0;margin-top:2px">보안</span>
+        <div style="display:flex;flex-direction:column;align-items:flex-end;gap:3px;flex-shrink:0;margin-top:2px">
+          <span class="grp-chip grp-E" style="margin-left:0;font-size:9.5px">E 보안경계</span>
+          <span class="badge-ng" style="font-size:10px">보안</span>
+        </div>
       </div>
       <div style="font-size:12.5px;line-height:1.6;padding:7px 10px;background:rgba(239,68,68,.07);border-radius:5px;margin-bottom:8px">
         <strong>에이전트가 사전에 허가된 도구만 호출하는가</strong>를 감시.<br>
@@ -6558,7 +7203,10 @@ input[type=text],input[type=number]{background:var(--bg3);color:var(--text);bord
           <div><div class="val-sm">Privilege Escalation — 권한 상승 방어</div>
           <div class="text-muted">상승 시도 차단 · L2 보안 심화</div></div>
         </div>
-        <span class="badge-ng" style="font-size:10px;flex-shrink:0;margin-top:2px">심화</span>
+        <div style="display:flex;flex-direction:column;align-items:flex-end;gap:3px;flex-shrink:0;margin-top:2px">
+          <span class="grp-chip grp-E" style="margin-left:0;font-size:9.5px">E 보안경계</span>
+          <span class="badge-ng" style="font-size:10px">심화</span>
+        </div>
       </div>
       <div style="font-size:12.5px;line-height:1.6;padding:7px 10px;background:rgba(239,68,68,.07);border-radius:5px;margin-bottom:8px">
         <strong>에이전트가 자신의 권한 수준 이상으로 상승을 시도하는 것</strong>을 탐지.<br>
@@ -6582,7 +7230,10 @@ input[type=text],input[type=number]{background:var(--bg3);color:var(--text);bord
           <div><div class="val-sm">Tool Chain Attack — 공격 체인 탐지</div>
           <div class="text-muted">연쇄 패턴 탐지 · L2 보안 심화</div></div>
         </div>
-        <span class="badge-ng" style="font-size:10px;flex-shrink:0;margin-top:2px">심화</span>
+        <div style="display:flex;flex-direction:column;align-items:flex-end;gap:3px;flex-shrink:0;margin-top:2px">
+          <span class="grp-chip grp-E" style="margin-left:0;font-size:9.5px">E 보안경계</span>
+          <span class="badge-ng" style="font-size:10px">심화</span>
+        </div>
       </div>
       <div style="font-size:12.5px;line-height:1.6;padding:7px 10px;background:rgba(239,68,68,.07);border-radius:5px;margin-bottom:8px">
         <strong>개별적으로 정상이지만 조합 시 공격이 되는 연쇄 패턴</strong>을 탐지.<br>
@@ -6601,8 +7252,8 @@ input[type=text],input[type=number]{background:var(--bg3);color:var(--text);bord
   </div><!-- /l2s -->
 
   <!-- ── Groups A·C — Hybrid/External ── -->
-  <div x-show="mf==='all'||mf==='gA'||mf==='gC'">
-  <div class="sdiv" style="margin-bottom:12px"><div class="sdiv-lbl">하이브리드 외부 평가 (Hybrid / External, 4개)<span class="grp-chip grp-A">A DeepEval·LLMJudge</span><span class="grp-chip grp-C">C Ragas·환각 검증</span></div><div class="sdiv-line"></div></div>
+  <div x-show="mf==='all'||mf==='gA'||mf==='gB'||mf==='gC'||mf==='gD'||mf==='gE'||mf==='gF'||mf==='gG'">
+  <div class="sdiv" style="margin-bottom:12px"><div class="sdiv-line"></div><span class="sdiv-lbl">하이브리드 외부 평가 (Hybrid / External, 4개)<span class="grp-chip grp-A">A DeepEval·LLMJudge</span><span class="grp-chip grp-C">C Ragas·환각 검증</span></span><div class="sdiv-line"></div></div>
   <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(360px,1fr));gap:12px">
 
     <div class="kpi" style="padding:14px 16px;border-left:3px solid #8b5cf6">
@@ -6611,7 +7262,10 @@ input[type=text],input[type=number]{background:var(--bg3);color:var(--text);bord
           <div><div class="val-sm">Ragas — RAG 파이프라인 정밀 평가</div>
           <div class="text-muted">검색·생성 품질 · L3 외부 라이브러리</div></div>
         </div>
-        <span style="font-size:10px;flex-shrink:0;margin-top:2px;padding:2px 8px;border-radius:10px;background:rgba(139,92,246,.15);color:#8b5cf6;font-weight:600">L3</span>
+        <div style="display:flex;flex-direction:column;align-items:flex-end;gap:3px;flex-shrink:0;margin-top:2px">
+          <span class="grp-chip grp-C" style="margin-left:0;font-size:9.5px">C 신뢰성</span>
+          <span style="font-size:10px;flex-shrink:0;margin-top:2px;padding:2px 8px;border-radius:10px;background:rgba(139,92,246,.15);color:#8b5cf6;font-weight:600">L3</span>
+        </div>
       </div>
       <div style="font-size:12.5px;line-height:1.6;padding:7px 10px;background:rgba(139,92,246,.07);border-radius:5px;margin-bottom:8px">
         <strong>RAG 파이프라인의 검색·생성 품질을 외부 라이브러리로 정밀 평가</strong>.<br>
@@ -6637,7 +7291,10 @@ input[type=text],input[type=number]{background:var(--bg3);color:var(--text);bord
           <div><div class="val-sm">DeepEval — G-Eval LLM 기반 품질 평가</div>
           <div class="text-muted">LLM-as-Judge · L3 외부 라이브러리</div></div>
         </div>
-        <span style="font-size:10px;flex-shrink:0;margin-top:2px;padding:2px 8px;border-radius:10px;background:rgba(139,92,246,.15);color:#8b5cf6;font-weight:600">L3</span>
+        <div style="display:flex;flex-direction:column;align-items:flex-end;gap:3px;flex-shrink:0;margin-top:2px">
+          <span class="grp-chip grp-A" style="margin-left:0;font-size:9.5px">A 목표달성</span>
+          <span style="font-size:10px;flex-shrink:0;margin-top:2px;padding:2px 8px;border-radius:10px;background:rgba(139,92,246,.15);color:#8b5cf6;font-weight:600">L3</span>
+        </div>
       </div>
       <div style="font-size:12.5px;line-height:1.6;padding:7px 10px;background:rgba(139,92,246,.07);border-radius:5px;margin-bottom:8px">
         <strong>LLM 자체를 평가자로 활용하여 인간 판단에 가까운 품질 점수</strong> 제공.<br>
@@ -6663,7 +7320,10 @@ input[type=text],input[type=number]{background:var(--bg3);color:var(--text);bord
           <div><div class="val-sm">LLM Judge — LLM-as-Judge 채점</div>
           <div class="text-muted">5차원 + Faithfulness + G-Eval · L3 네이티브</div></div>
         </div>
-        <span style="font-size:10px;flex-shrink:0;margin-top:2px;padding:2px 8px;border-radius:10px;background:rgba(139,92,246,.15);color:#8b5cf6;font-weight:600">L3</span>
+        <div style="display:flex;flex-direction:column;align-items:flex-end;gap:3px;flex-shrink:0;margin-top:2px">
+          <span class="grp-chip grp-A" style="margin-left:0;font-size:9.5px">A 목표달성</span>
+          <span style="font-size:10px;flex-shrink:0;margin-top:2px;padding:2px 8px;border-radius:10px;background:rgba(139,92,246,.15);color:#8b5cf6;font-weight:600">L3</span>
+        </div>
       </div>
       <div style="font-size:12.5px;line-height:1.6;padding:7px 10px;background:rgba(139,92,246,.07);border-radius:5px;margin-bottom:8px">
         <strong>ground_truth 없이 LLM이 직접 응답 품질을 5차원으로 채점</strong>.<br>
@@ -6692,7 +7352,10 @@ input[type=text],input[type=number]{background:var(--bg3);color:var(--text);bord
           <div><div class="val-sm">Deployment Gates — 배포 준비도 게이트</div>
           <div class="text-muted">자동 배포 판정 · L3 종합</div></div>
         </div>
-        <span class="badge-ok" style="font-size:10px;flex-shrink:0;margin-top:2px">종합</span>
+        <div style="display:flex;flex-direction:column;align-items:flex-end;gap:3px;flex-shrink:0;margin-top:2px">
+          <span class="grp-chip grp-A" style="margin-left:0;font-size:9px">A-G 전체</span>
+          <span class="badge-ok" style="font-size:10px">종합</span>
+        </div>
       </div>
       <div style="font-size:12.5px;line-height:1.6;padding:7px 10px;background:rgba(139,92,246,.07);border-radius:5px;margin-bottom:8px">
         <strong>"지금 프로덕션에 배포해도 되는가?"를 여러 지표 조합으로 자동 판정</strong>.<br>
@@ -6716,8 +7379,8 @@ input[type=text],input[type=number]{background:var(--bg3);color:var(--text);bord
   </div><!-- /l3 -->
 
   <!-- ── Groups G·D — Operational / Extended ── -->
-  <div x-show="mf==='all'||mf==='gG'">
-  <div class="sdiv" style="margin-bottom:12px"><div class="sdiv-lbl">운영·확장 기능 (Operational, 5개)<span class="grp-chip grp-G">G 이상감지·알림·스트리밍·대화</span><span class="grp-chip grp-D">D 평가비용</span></div><div class="sdiv-line"></div></div>
+  <div x-show="mf==='all'||mf==='gG'||mf==='gD'">
+  <div class="sdiv" style="margin-bottom:12px"><div class="sdiv-line"></div><span class="sdiv-lbl">운영·확장 기능 (Operational, 5개)<span class="grp-chip grp-G">G 이상감지·알림·스트리밍·대화</span><span class="grp-chip grp-D">D 평가비용</span></span><div class="sdiv-line"></div></div>
   <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(360px,1fr));gap:12px;margin-bottom:24px">
 
     <div class="kpi" style="padding:14px 16px;border-left:3px solid #06b6d4">
@@ -6726,7 +7389,10 @@ input[type=text],input[type=number]{background:var(--bg3);color:var(--text);bord
           <div><div class="val-sm">ConversationSession — 멀티턴 대화 평가</div>
           <div class="text-muted">대화 품질 · 멀티턴 흐름 분석</div></div>
         </div>
-        <span style="font-size:10px;flex-shrink:0;margin-top:2px;padding:2px 8px;border-radius:10px;background:rgba(6,182,212,.15);color:#06b6d4;font-weight:600">대화</span>
+        <div style="display:flex;flex-direction:column;align-items:flex-end;gap:3px;flex-shrink:0;margin-top:2px">
+          <span class="grp-chip grp-G" style="margin-left:0;font-size:9.5px">G 운영관측성</span>
+          <span style="font-size:10px;flex-shrink:0;margin-top:2px;padding:2px 8px;border-radius:10px;background:rgba(6,182,212,.15);color:#06b6d4;font-weight:600">대화</span>
+        </div>
       </div>
       <div style="font-size:12.5px;line-height:1.6;padding:7px 10px;background:rgba(6,182,212,.07);border-radius:5px;margin-bottom:8px">
         <strong>멀티턴 대화 세션 전체의 품질을 6개 차원으로 평가</strong>.<br>
@@ -6756,7 +7422,10 @@ input[type=text],input[type=number]{background:var(--bg3);color:var(--text);bord
           <div><div class="val-sm">AnomalyDetector — 이상 감지</div>
           <div class="text-muted">통계 기반 이상 패턴 자동 탐지</div></div>
         </div>
-        <span style="font-size:10px;flex-shrink:0;margin-top:2px;padding:2px 8px;border-radius:10px;background:rgba(6,182,212,.15);color:#06b6d4;font-weight:600">이상감지</span>
+        <div style="display:flex;flex-direction:column;align-items:flex-end;gap:3px;flex-shrink:0;margin-top:2px">
+          <span class="grp-chip grp-G" style="margin-left:0;font-size:9.5px">G 운영관측성</span>
+          <span style="font-size:10px;flex-shrink:0;margin-top:2px;padding:2px 8px;border-radius:10px;background:rgba(6,182,212,.15);color:#06b6d4;font-weight:600">이상감지</span>
+        </div>
       </div>
       <div style="font-size:12.5px;line-height:1.6;padding:7px 10px;background:rgba(6,182,212,.07);border-radius:5px;margin-bottom:8px">
         <strong>평가 지표의 급격한 변화(이상치)를 Z-score·IQR·선형회귀·비율 분석으로 자동 탐지</strong>.<br>
@@ -6785,7 +7454,10 @@ input[type=text],input[type=number]{background:var(--bg3);color:var(--text);bord
           <div><div class="val-sm">AlertEngine — 알림 엔진</div>
           <div class="text-muted">임계값 초과 시 자동 알림</div></div>
         </div>
-        <span style="font-size:10px;flex-shrink:0;margin-top:2px;padding:2px 8px;border-radius:10px;background:rgba(6,182,212,.15);color:#06b6d4;font-weight:600">알림</span>
+        <div style="display:flex;flex-direction:column;align-items:flex-end;gap:3px;flex-shrink:0;margin-top:2px">
+          <span class="grp-chip grp-G" style="margin-left:0;font-size:9.5px">G 운영관측성</span>
+          <span style="font-size:10px;flex-shrink:0;margin-top:2px;padding:2px 8px;border-radius:10px;background:rgba(6,182,212,.15);color:#06b6d4;font-weight:600">알림</span>
+        </div>
       </div>
       <div style="font-size:12.5px;line-height:1.6;padding:7px 10px;background:rgba(6,182,212,.07);border-radius:5px;margin-bottom:8px">
         <strong>지표가 사전 설정 임계값을 초과할 때 실시간으로 알림을 발송</strong>.<br>
@@ -6812,7 +7484,10 @@ input[type=text],input[type=number]{background:var(--bg3);color:var(--text);bord
           <div><div class="val-sm">StreamingEvaluator — 실시간 스트리밍 평가</div>
           <div class="text-muted">슬라이딩 윈도우 · 온라인 평가</div></div>
         </div>
-        <span style="font-size:10px;flex-shrink:0;margin-top:2px;padding:2px 8px;border-radius:10px;background:rgba(6,182,212,.15);color:#06b6d4;font-weight:600">스트리밍</span>
+        <div style="display:flex;flex-direction:column;align-items:flex-end;gap:3px;flex-shrink:0;margin-top:2px">
+          <span class="grp-chip grp-G" style="margin-left:0;font-size:9.5px">G 운영관측성</span>
+          <span style="font-size:10px;flex-shrink:0;margin-top:2px;padding:2px 8px;border-radius:10px;background:rgba(6,182,212,.15);color:#06b6d4;font-weight:600">스트리밍</span>
+        </div>
       </div>
       <div style="font-size:12.5px;line-height:1.6;padding:7px 10px;background:rgba(6,182,212,.07);border-radius:5px;margin-bottom:8px">
         <strong>슬라이딩 윈도우 기반으로 스트리밍 태스크를 실시간 평가</strong>.<br>
@@ -6838,7 +7513,10 @@ input[type=text],input[type=number]{background:var(--bg3);color:var(--text);bord
           <div><div class="val-sm">CostTracker / AdaptivePolicy — 비용 추적 & 적응형 정책</div>
           <div class="text-muted">평가 비용 제어 · 샘플링 자동 조정</div></div>
         </div>
-        <span style="font-size:10px;flex-shrink:0;margin-top:2px;padding:2px 8px;border-radius:10px;background:rgba(6,182,212,.15);color:#06b6d4;font-weight:600">비용</span>
+        <div style="display:flex;flex-direction:column;align-items:flex-end;gap:3px;flex-shrink:0;margin-top:2px">
+          <span class="grp-chip grp-D" style="margin-left:0;font-size:9.5px">D 성능계약</span>
+          <span style="font-size:10px;flex-shrink:0;margin-top:2px;padding:2px 8px;border-radius:10px;background:rgba(6,182,212,.15);color:#06b6d4;font-weight:600">비용</span>
+        </div>
       </div>
       <div style="font-size:12.5px;line-height:1.6;padding:7px 10px;background:rgba(6,182,212,.07);border-radius:5px;margin-bottom:8px">
         <strong>외부 평가 API 호출 비용을 추적하고 예산 초과 시 샘플링률을 자동 하향 조정</strong>.<br>
@@ -6864,7 +7542,7 @@ input[type=text],input[type=number]{background:var(--bg3);color:var(--text);bord
 
   <!-- ── Harness Config 지표 — Group A ── -->
   <div x-show="mf==='all'||mf==='gA'">
-  <div class="sdiv" style="margin-bottom:12px"><div class="sdiv-lbl">Harness Config — 추가 평가 기준 (6개)<span class="grp-chip grp-A">A 목표 달성</span></div><div class="sdiv-line"></div></div>
+  <div class="sdiv" style="margin-bottom:12px"><div class="sdiv-line"></div><span class="sdiv-lbl">Harness Config — 추가 평가 기준 (6개)<span class="grp-chip grp-A">A 목표 달성</span></span><div class="sdiv-line"></div></div>
   <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(360px,1fr));gap:12px;margin-bottom:24px">
 
     <div class="kpi" style="padding:14px 16px;border-left:3px solid #10b981">
@@ -7016,7 +7694,7 @@ input[type=text],input[type=number]{background:var(--bg3);color:var(--text);bord
 
   <!-- ── Harness Config 지표 — Group B ── -->
   <div x-show="mf==='all'||mf==='gB'">
-  <div class="sdiv" style="margin-bottom:12px"><div class="sdiv-lbl">Harness Config — 추가 평가 기준 (4개)<span class="grp-chip grp-B">B 행동 무결성</span></div><div class="sdiv-line"></div></div>
+  <div class="sdiv" style="margin-bottom:12px"><div class="sdiv-line"></div><span class="sdiv-lbl">Harness Config — 추가 평가 기준 (6개)<span class="grp-chip grp-B">B 행동 무결성</span></span><div class="sdiv-line"></div></div>
   <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(360px,1fr));gap:12px;margin-bottom:24px">
 
     <div class="kpi" style="padding:14px 16px;border-left:3px solid #3b82f6">
@@ -7115,12 +7793,60 @@ input[type=text],input[type=number]{background:var(--bg3);color:var(--text);bord
       </div>
     </div>
 
+    <div class="kpi" style="padding:14px 16px;border-left:3px solid #3b82f6">
+      <div class="row-between">
+        <div class="hstack"><span class="icon-lg">🔗</span>
+          <div><div class="val-sm">DeadlockConfig — 교착 감지</div>
+          <div class="text-muted">행동 무결성 · 교착 탐지 · B</div></div>
+        </div>
+        <span style="font-size:10px;flex-shrink:0;margin-top:2px;padding:2px 8px;border-radius:10px;background:rgba(59,130,246,.15);color:#3b82f6;font-weight:600">B 행동무결성</span>
+      </div>
+      <div style="font-size:12.5px;line-height:1.6;padding:7px 10px;background:rgba(59,130,246,.07);border-radius:5px;margin-bottom:8px">
+        <strong>순환 위임·리소스 기아(starvation)·라이브락 탐지.</strong><br>위임 깊이 한도 초과 시 교착으로 판정. 멀티에이전트 워크플로 행동 무결성의 핵심 지표.<br>max_delegation_depth 초과 시 CrewAI·AutoGen 무한 위임 루프 조기 탐지.
+      </div>
+      <details class="mb-2"><summary class="toggle-text">ℹ️ 활용 팁</summary>
+        <div class="hint-text">조기 탐지로 비용 폭발 방지. <code style="font-size:10.5px;background:var(--bg3);padding:1px 4px;border-radius:3px">check_circular_delegation=True</code> + max_delegation_depth=8 권장.</div>
+      </details>
+      <div class="code-hint">📐 deadlock=DeadlockConfig(
+  check_circular_delegation=True,
+  max_delegation_depth=8)</div>
+      <div class="flex-wrap-5">
+        <span class="badge-pass">🟢 교착 0건 정상</span>
+        <span style="font-size:10.5px;padding:2px 8px;border-radius:10px;background:rgba(245,158,11,.15);color:#f59e0b;font-weight:600">🟡 1건 경고</span>
+        <span class="badge-fail">🔴 ≥2건 시스템 위험</span>
+      </div>
+    </div>
+
+    <div class="kpi" style="padding:14px 16px;border-left:3px solid #3b82f6">
+      <div class="row-between">
+        <div class="hstack"><span class="icon-lg">📌</span>
+          <div><div class="val-sm">StateConsistencyConfig — 상태 일관성</div>
+          <div class="text-muted">실행 전후 상태 일관성 · B</div></div>
+        </div>
+        <span style="font-size:10px;flex-shrink:0;margin-top:2px;padding:2px 8px;border-radius:10px;background:rgba(59,130,246,.15);color:#3b82f6;font-weight:600">B 행동무결성</span>
+      </div>
+      <div style="font-size:12.5px;line-height:1.6;padding:7px 10px;background:rgba(59,130,246,.07);border-radius:5px;margin-bottom:8px">
+        <strong>실행 전·후 시스템 상태를 비교해 의도치 않은 변경 탐지.</strong><br><code style="font-size:10.5px;background:var(--bg3);padding:0 3px;border-radius:2px">state_fn</code>이 전·후 상태를 반환하면 예상 변경/불변 키 검증.<br>DB 행 수·권한 테이블 등 시스템 상태의 의도치 않은 변경 자동 탐지.
+      </div>
+      <details class="mb-2"><summary class="toggle-text">ℹ️ 활용 팁</summary>
+        <div class="hint-text">금융·의료 시스템에서 에이전트 실행 후 DB 상태 무결성 자동 검증에 적합. <code style="font-size:10.5px;background:var(--bg3);padding:1px 4px;border-radius:3px">unchanged_keys=["permissions"]</code>로 변경 금지 필드 지정.</div>
+      </details>
+      <div class="code-hint">📐 state_consistency=StateConsistencyConfig(
+  state_fn=lambda: {"rows": db.count()},
+  unchanged_keys=["permissions"])</div>
+      <div class="flex-wrap-5">
+        <span class="badge-pass">🟢 상태 일관 유지 합격</span>
+        <span style="font-size:10.5px;padding:2px 8px;border-radius:10px;background:rgba(245,158,11,.15);color:#f59e0b;font-weight:600">🟡 예상 변경 발생 경고</span>
+        <span class="badge-fail">🔴 불변 위반 실패</span>
+      </div>
+    </div>
+
   </div><!-- /gB config grid -->
   </div><!-- /harness gB -->
 
   <!-- ── Harness Config 지표 — Group C ── -->
   <div x-show="mf==='all'||mf==='gC'">
-  <div class="sdiv" style="margin-bottom:12px"><div class="sdiv-lbl">Harness Config — 추가 평가 기준 (6개)<span class="grp-chip grp-C">C 신뢰성</span></div><div class="sdiv-line"></div></div>
+  <div class="sdiv" style="margin-bottom:12px"><div class="sdiv-line"></div><span class="sdiv-lbl">Harness Config — 추가 평가 기준 (5개)<span class="grp-chip grp-C">C 신뢰성</span></span><div class="sdiv-line"></div></div>
   <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(360px,1fr));gap:12px;margin-bottom:24px">
 
     <div class="kpi" style="padding:14px 16px;border-left:3px solid #f59e0b">
@@ -7244,36 +7970,12 @@ input[type=text],input[type=number]{background:var(--bg3);color:var(--text);bord
       </div>
     </div>
 
-    <div class="kpi" style="padding:14px 16px;border-left:3px solid #f59e0b">
-      <div class="row-between">
-        <div class="hstack"><span class="icon-lg">📌</span>
-          <div><div class="val-sm">StateConsistencyConfig — 상태 일관성</div>
-          <div class="text-muted">실행 전후 상태 일관성 · C</div></div>
-        </div>
-        <span class="badge-warn" style="font-size:10px;flex-shrink:0;margin-top:2px">C 신뢰성</span>
-      </div>
-      <div style="font-size:12.5px;line-height:1.6;padding:7px 10px;background:rgba(245,158,11,.07);border-radius:5px;margin-bottom:8px">
-        <strong>실행 전·후 시스템 상태를 비교해 의도치 않은 변경 탐지.</strong><br><code style="font-size:10.5px;background:var(--bg3);padding:0 3px;border-radius:2px">state_fn</code>이 전·후 상태를 반환하면 예상 변경/불변 키 검증.<br>DB 행 수·권한 테이블 등 시스템 상태의 의도치 않은 변경 자동 탐지.
-      </div>
-      <details class="mb-2"><summary class="toggle-text">ℹ️ 활용 팁</summary>
-        <div class="hint-text">금융·의료 시스템에서 에이전트 실행 후 DB 상태 무결성 자동 검증에 적합. <code style="font-size:10.5px;background:var(--bg3);padding:1px 4px;border-radius:3px">unchanged_keys=["permissions"]</code>로 변경 금지 필드 지정.</div>
-      </details>
-      <div class="code-hint">📐 state_consistency=StateConsistencyConfig(
-  state_fn=lambda: {"rows": db.count()},
-  unchanged_keys=["permissions"])</div>
-      <div class="flex-wrap-5">
-        <span class="badge-pass">🟢 상태 일관 유지 합격</span>
-        <span style="font-size:10.5px;padding:2px 8px;border-radius:10px;background:rgba(245,158,11,.15);color:#f59e0b;font-weight:600">🟡 예상 변경 발생 경고</span>
-        <span class="badge-fail">🔴 불변 위반 실패</span>
-      </div>
-    </div>
-
   </div><!-- /gC config grid -->
   </div><!-- /harness gC -->
 
   <!-- ── Harness Config 지표 — Group D ── -->
   <div x-show="mf==='all'||mf==='gD'">
-  <div class="sdiv" style="margin-bottom:12px"><div class="sdiv-lbl">Harness Config — 추가 평가 기준 (5개)<span class="grp-chip grp-D">D 성능 계약</span></div><div class="sdiv-line"></div></div>
+  <div class="sdiv" style="margin-bottom:12px"><div class="sdiv-line"></div><span class="sdiv-lbl">Harness Config — 추가 평가 기준 (5개)<span class="grp-chip grp-D">D 성능 계약</span></span><div class="sdiv-line"></div></div>
   <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(360px,1fr));gap:12px;margin-bottom:24px">
 
     <div class="kpi" style="padding:14px 16px;border-left:3px solid #0ea5e9">
@@ -7404,7 +8106,7 @@ input[type=text],input[type=number]{background:var(--bg3);color:var(--text);bord
 
   <!-- ── Harness Config 지표 — Group E ── -->
   <div x-show="mf==='all'||mf==='gE'">
-  <div class="sdiv" style="margin-bottom:12px"><div class="sdiv-lbl">Harness Config — 추가 평가 기준 (3개)<span class="grp-chip grp-E">E 보안 경계</span></div><div class="sdiv-line"></div></div>
+  <div class="sdiv" style="margin-bottom:12px"><div class="sdiv-line"></div><span class="sdiv-lbl">Harness Config — 추가 평가 기준 (3개)<span class="grp-chip grp-E">E 보안 경계</span></span><div class="sdiv-line"></div></div>
   <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(360px,1fr));gap:12px;margin-bottom:24px">
 
     <div class="kpi" style="padding:14px 16px;border-left:3px solid #ef4444">
@@ -7484,32 +8186,8 @@ input[type=text],input[type=number]{background:var(--bg3);color:var(--text);bord
 
   <!-- ── Harness Config 지표 — Group F ── -->
   <div x-show="mf==='all'||mf==='gF'">
-  <div class="sdiv" style="margin-bottom:12px"><div class="sdiv-lbl">Harness Config — 추가 평가 기준 (5개)<span class="grp-chip grp-F">F 다중 에이전트</span></div><div class="sdiv-line"></div></div>
+  <div class="sdiv" style="margin-bottom:12px"><div class="sdiv-line"></div><span class="sdiv-lbl">Harness Config — 추가 평가 기준 (4개)<span class="grp-chip grp-F">F 다중 에이전트</span></span><div class="sdiv-line"></div></div>
   <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(360px,1fr));gap:12px;margin-bottom:24px">
-
-    <div class="kpi" style="padding:14px 16px;border-left:3px solid #8b5cf6">
-      <div class="row-between">
-        <div class="hstack"><span class="icon-lg">🔗</span>
-          <div><div class="val-sm">DeadlockConfig — 교착 감지</div>
-          <div class="text-muted">다중 에이전트 교착 탐지 · F</div></div>
-        </div>
-        <span style="font-size:10px;flex-shrink:0;margin-top:2px;padding:2px 8px;border-radius:10px;background:rgba(139,92,246,.15);color:#8b5cf6;font-weight:600">F 다중에이전트</span>
-      </div>
-      <div style="font-size:12.5px;line-height:1.6;padding:7px 10px;background:rgba(139,92,246,.07);border-radius:5px;margin-bottom:8px">
-        <strong>순환 위임·리소스 기아(starvation)·라이브락 탐지.</strong><br>위임 깊이 한도 초과 시 교착으로 판정. 멀티에이전트 워크플로 안정성 검증의 핵심 지표.<br>max_delegation_depth 초과 시 CrewAI·AutoGen 무한 위임 루프 조기 탐지.
-      </div>
-      <details class="mb-2"><summary class="toggle-text">ℹ️ 활용 팁</summary>
-        <div class="hint-text">조기 탐지로 비용 폭발 방지. <code style="font-size:10.5px;background:var(--bg3);padding:1px 4px;border-radius:3px">check_circular_delegation=True</code> + max_delegation_depth=8 권장.</div>
-      </details>
-      <div class="code-hint">📐 deadlock=DeadlockConfig(
-  check_circular_delegation=True,
-  max_delegation_depth=8)</div>
-      <div class="flex-wrap-5">
-        <span class="badge-pass">🟢 교착 0건 정상</span>
-        <span style="font-size:10.5px;padding:2px 8px;border-radius:10px;background:rgba(245,158,11,.15);color:#f59e0b;font-weight:600">🟡 1건 경고</span>
-        <span class="badge-fail">🔴 ≥2건 시스템 위험</span>
-      </div>
-    </div>
 
     <div class="kpi" style="padding:14px 16px;border-left:3px solid #8b5cf6">
       <div class="row-between">
@@ -7612,7 +8290,7 @@ input[type=text],input[type=number]{background:var(--bg3);color:var(--text);bord
 
   <!-- ── Harness Config 지표 — Group G ── -->
   <div x-show="mf==='all'||mf==='gG'">
-  <div class="sdiv" style="margin-bottom:12px"><div class="sdiv-lbl">Harness Config — 추가 평가 기준 (4개)<span class="grp-chip grp-G">G 운영 관측성</span></div><div class="sdiv-line"></div></div>
+  <div class="sdiv" style="margin-bottom:12px"><div class="sdiv-line"></div><span class="sdiv-lbl">Harness Config — 추가 평가 기준 (4개)<span class="grp-chip grp-G">G 운영 관측성</span></span><div class="sdiv-line"></div></div>
   <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(360px,1fr));gap:12px;margin-bottom:24px">
 
     <div class="kpi" style="padding:14px 16px;border-left:3px solid #06b6d4">
@@ -8416,10 +9094,29 @@ input[type=text],input[type=number]{background:var(--bg3);color:var(--text);bord
 
   <!-- Harness Group G — 관측성 (Observability) -->
   <template x-if="data && data.harness_groups && data.harness_groups['G']">
-    <div x-data="{ gG: data.harness_groups['G'] }">
+    <div x-data="{
+  gG: data.harness_groups['G'],
+  selK:null,
+  meta:{
+    group_g:{label:'Group G 종합',desc:'관측성 지표(도구커버리지·설명가능성·오류진단·지연귀속·관측성점수)의 가중 평균 게이트.',hint:'gate: pass≥0.75, warn≥0.6, fail<0.6'},
+    tool_coverage:{label:'도구 커버리지',desc:'ObservabilityConfig 설정 시 도구 호출 추적 커버리지. 계측 누락 구간 탐지.',hint:'추적된 도구 호출 / 전체 | 🟢 ≥90% 🟡 ≥70% 🔴 <70%'},
+    avg_explainability:{label:'설명가능성',desc:'ExplainabilityConfig 설정 시 응답에 추론 마커·불확실성·인용 포함 여부 점수.',hint:'추론+불확실성+인용 마커 가중합 | 🟢 ≥0.8 🟡 ≥0.6 🔴 <0.6'},
+    avg_error_diagnosis:{label:'오류 진단',desc:'ErrorDiagnosisConfig 설정 시 실패 응답이 오류인정·근본원인·대안제안 3요소를 포함하는지.',hint:'오류인정0.3 + 근본원인0.5 + 대안0.2 | 🟢 ≥0.8 🟡 ≥0.5 🔴 <0.5'},
+    avg_latency_attribution:{label:'지연 귀속 정확도',desc:'LatencyAttributionConfig 설정 시 전체 지연을 도구·모델·네트워크·미귀속으로 분해하는 정확도.',hint:'미귀속 비율 30% 초과 시 경고 | 🟢 ≥0.8 🟡 ≥0.6 🔴 <0.6'},
+    avg_observability_score:{label:'관측성 점수',desc:'ObservabilityConfig 설정 시 필수 스팬 속성 포함 여부·트레이스 연속성·감사 이벤트 SLO 종합.',hint:'min_coverage 달성 여부 | 🟢 ≥0.9 🟡 ≥0.7 🔴 <0.7'},
+  },
+  formula(k,d){
+    const g=d.harness_groups?.G||{};
+    const dt=g.details||{};
+    if(k==='group_g') return `종합 = ${(g.score||0)*100 .toFixed(1)}%\nGate: ${(g.gate||'?').toUpperCase()}`;
+    const v=dt[k];
+    if(v==null) return '데이터 없음';
+    return `${this.meta[k]?.label} = ${(v*100).toFixed(1)}%\n원시값: ${v.toFixed(4)}`;
+  }
+}">
       <div class="sdiv"><div class="sdiv-line"></div><span class="sdiv-lbl">🔍 Harness Group G — 관측성</span><div class="sdiv-line"></div></div>
       <div class="kpi-grid">
-        <div class="kpi">
+        <div class="kpi kpi-act" :class="{sel:selK==='group_g'}" @click="selK=selK==='group_g'?null:'group_g'">
           <div class="kpi-lbl">Group G 종합</div>
           <div class="kpi-val"
                :style="`color:${gG.gate==='pass'?'var(--green)':gG.gate==='fail'?'var(--red)':'var(--yellow)'}`"
@@ -8429,7 +9126,7 @@ input[type=text],input[type=number]{background:var(--bg3);color:var(--text);bord
                x-text="(gG.gate||'?').toUpperCase()"></div>
         </div>
         <!-- 도구 커버리지 -->
-        <div class="kpi" x-show="gG.details && gG.details.tool_coverage!=null">
+        <div class="kpi kpi-act" :class="{sel:selK==='tool_coverage'}" @click="selK=selK==='tool_coverage'?null:'tool_coverage'" x-show="gG.details && gG.details.tool_coverage!=null">
           <div class="kpi-lbl">도구 커버리지</div>
           <div class="kpi-val"
                :style="`color:${(gG.details?.tool_coverage||0)>=0.9?'var(--green)':(gG.details?.tool_coverage||0)>=0.7?'var(--yellow)':'var(--red)'}`"
@@ -8437,7 +9134,7 @@ input[type=text],input[type=number]{background:var(--bg3);color:var(--text);bord
           <div class="kpi-sub muted">Tool Coverage</div>
         </div>
         <!-- 설명가능성 — ExplainabilityConfig -->
-        <div class="kpi" x-show="gG.details && gG.details.avg_explainability!=null">
+        <div class="kpi kpi-act" :class="{sel:selK==='avg_explainability'}" @click="selK=selK==='avg_explainability'?null:'avg_explainability'" x-show="gG.details && gG.details.avg_explainability!=null">
           <div class="kpi-lbl">설명가능성</div>
           <div class="kpi-val"
                :style="`color:${(gG.details?.avg_explainability||0)>=0.8?'var(--green)':(gG.details?.avg_explainability||0)>=0.6?'var(--yellow)':'var(--red)'}`"
@@ -8445,7 +9142,7 @@ input[type=text],input[type=number]{background:var(--bg3);color:var(--text);bord
           <div class="kpi-sub muted">Explainability</div>
         </div>
         <!-- 오류 진단 — ErrorDiagnosisConfig -->
-        <div class="kpi" x-show="gG.details && gG.details.avg_error_diagnosis!=null">
+        <div class="kpi kpi-act" :class="{sel:selK==='avg_error_diagnosis'}" @click="selK=selK==='avg_error_diagnosis'?null:'avg_error_diagnosis'" x-show="gG.details && gG.details.avg_error_diagnosis!=null">
           <div class="kpi-lbl">오류 진단</div>
           <div class="kpi-val"
                :style="`color:${(gG.details?.avg_error_diagnosis||0)>=0.8?'var(--green)':(gG.details?.avg_error_diagnosis||0)>=0.6?'var(--yellow)':'var(--red)'}`"
@@ -8453,7 +9150,7 @@ input[type=text],input[type=number]{background:var(--bg3);color:var(--text);bord
           <div class="kpi-sub muted">ErrorDiagnosis</div>
         </div>
         <!-- 지연 귀속 — LatencyAttributionConfig -->
-        <div class="kpi" x-show="gG.details && gG.details.avg_latency_attribution!=null">
+        <div class="kpi kpi-act" :class="{sel:selK==='avg_latency_attribution'}" @click="selK=selK==='avg_latency_attribution'?null:'avg_latency_attribution'" x-show="gG.details && gG.details.avg_latency_attribution!=null">
           <div class="kpi-lbl">지연 귀속 정확도</div>
           <div class="kpi-val"
                :style="`color:${(gG.details?.avg_latency_attribution||0)>=0.8?'var(--green)':(gG.details?.avg_latency_attribution||0)>=0.6?'var(--yellow)':'var(--red)'}`"
@@ -8461,13 +9158,50 @@ input[type=text],input[type=number]{background:var(--bg3);color:var(--text);bord
           <div class="kpi-sub muted">LatencyAttribution</div>
         </div>
         <!-- 관측성 점수 — ObservabilityConfig -->
-        <div class="kpi" x-show="gG.details && gG.details.avg_observability_score!=null">
+        <div class="kpi kpi-act" :class="{sel:selK==='avg_observability_score'}" @click="selK=selK==='avg_observability_score'?null:'avg_observability_score'" x-show="gG.details && gG.details.avg_observability_score!=null">
           <div class="kpi-lbl">관측성 점수</div>
           <div class="kpi-val"
                :style="`color:${(gG.details?.avg_observability_score||0)>=0.8?'var(--green)':(gG.details?.avg_observability_score||0)>=0.6?'var(--yellow)':'var(--red)'}`"
                x-text="gG.details?.avg_observability_score!=null?((gG.details.avg_observability_score)*100).toFixed(1)+'%':'—'"></div>
           <div class="kpi-sub muted">Observability</div>
         </div>
+      </div>
+      <div x-show="selK" style="margin-top:10px;padding:12px 14px;background:var(--bg2);border:1px solid var(--border);border-radius:8px">
+        <template x-if="selK">
+          <div>
+            <div style="font-weight:600;font-size:13px;margin-bottom:8px;color:var(--text1)" x-text="meta[selK]?.label||selK"></div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:8px">
+              <div style="font-size:12px;line-height:1.6;padding:8px 10px;background:var(--bg3);border-radius:6px" x-text="meta[selK]?.desc||''"></div>
+              <div style="font-size:11.5px;font-family:monospace;white-space:pre-wrap;padding:8px 10px;background:var(--bg);border:1px solid var(--border);border-radius:6px" x-text="formula(selK,data)"></div>
+            </div>
+            <div style="font-size:11px;color:var(--text2);padding:6px 10px;background:var(--bg);border-radius:4px" x-text="meta[selK]?.hint||''"></div>
+              <!-- 관련 태스크 -->
+              <div style="margin-top:10px;border-top:1px solid var(--border);padding-top:8px">
+                <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px">
+                  <span style="font-size:11px;font-weight:600;color:var(--text2);text-transform:uppercase">관련 태스크</span>
+                  <span style="font-size:11px;color:var(--text2)" x-text="(data.tasks||[]).length+'건'"></span>
+                </div>
+                <div x-show="!(data.tasks||[]).length" style="font-size:11px;color:var(--text2);text-align:center;padding:10px">
+                  평가 결과 파일을 로드하면 태스크 목록이 표시됩니다.
+                </div>
+                <div class="dtx" style="max-height:180px;overflow-y:auto" x-show="(data.tasks||[]).length">
+                  <div class="dtx-row dtx-head" style="grid-template-columns:minmax(100px,1.5fr) 80px 70px 50px;position:sticky;top:0;z-index:1">
+                    <span>태스크 ID</span><span>유형</span><span>완료율</span><span>상태</span>
+                  </div>
+                  <template x-for="t in [...(data.tasks||[])].sort((a,b)=>(a.completion_score||0)-(b.completion_score||0)).slice(0,20)" :key="t.task_id">
+                    <div class="dtx-row" style="grid-template-columns:minmax(100px,1.5fr) 80px 70px 50px">
+                      <span class="dtx-id" x-text="t.task_id"></span>
+                      <span class="text-muted" x-text="t.task_type||'-'"></span>
+                      <span :style="`color:${(t.completion_score||0)>=0.9?'var(--green)':(t.completion_score||0)>=0.7?'var(--yellow)':'var(--red)'}`"
+                            x-text="((t.completion_score||0)*100).toFixed(0)+'%'"></span>
+                      <span :class="(t.completion_score||0)>=1?'badge-ok':(t.completion_score||0)>=0.7?'badge-warn':'badge-ng'"
+                            x-text="(t.completion_score||0)>=1?'완료':(t.completion_score||0)>=0.7?'부분':'실패'"></span>
+                    </div>
+                  </template>
+                </div>
+              </div>
+          </div>
+        </template>
       </div>
     </div>
   </template>
@@ -9125,6 +9859,10 @@ function app2() {
     webhookUrl: '', webhookPayload: '{"event":"test","value":42}', webhookResult: null, webhookLoading: false,
     thresholds: { tcr_min: 0.7, acc_min: 0.7, hall_max: 0.2, p95_max: 5, cost_max: 0.05 },
 
+    /* ── Nav 3단 계층 ── */
+    navCollapsed: {},          // { '_gA': false, '_gB': false, ... }
+    _navParentMap: {},         // { 'quality': '_gA', 'agentic': '_gB', ... }
+
     /* ── Agent 적용 모델 (전역 — 모든 비용 표시에 반영) ── */
     selModel: null,
     pEd: false,
@@ -9179,6 +9917,12 @@ function app2() {
       /* ── Group A · 목표 달성 ──────────────────────────── */
       { id:'_gA', group:true, label:'A · 목표 달성', hkey:'A' },
       { id:'quality',      label:'품질 · 정확도',    icon:'🎯', scope:'file',
+        anchors:[
+          {id:'s-quality-group-a', label:'TCR · 정확도'},
+          {id:'s-instruction-adh', label:'Instruction Adherence'},
+          {id:'s-goal-align',      label:'Goal Alignment'},
+          {id:'s-hallucination',   label:'환각 분석'},
+        ],
         badge: d => { const g=(d.harness_groups||{}).A; return g&&g.score!=null?(g.score*100).toFixed(0)+'%':'NA'; },
         badgeColor: d => { const g=(d.harness_groups||{}).A; if(!g||g.score==null)return ''; return g.gate==='pass'?'var(--green)':g.gate==='fail'?'var(--red)':'var(--yellow)'; } },
       { id:'external',     label:'외부 평가',         icon:'🔬', scope:'file',
@@ -9199,43 +9943,70 @@ function app2() {
           return sessions?sessions+'세션':'OK';
         } },
 
-      /* ── Group B · 행동 무결성 ────────────────────────── */
-      { id:'_gB', group:true, label:'B · 행동 무결성', hkey:'B' },
-      { id:'agentic',      label:'에이전틱 · 루프',   icon:'🤖', scope:'file',
-        badge: d => { const g=(d.harness_groups||{}).B; return g&&g.score!=null?(g.score*100).toFixed(0)+'%':(d.has_agentic?'—':'NA'); },
-        badgeColor: d => { const g=(d.harness_groups||{}).B; if(!g||g.score==null)return ''; return g.gate==='pass'?'var(--green)':g.gate==='fail'?'var(--red)':'var(--yellow)'; } },
+      /* ── Group B+F · 행동 무결성 · 다중 에이전트 ────────── */
+      /* F(다중 에이전트) 지표는 agentic 탭 내 Group F 패널에 표시됨    */
+      { id:'_gB', group:true, label:'B+F · 에이전틱', hkey:'B' },
+      { id:'agentic',      label:'에이전틱 · 루프 · 다중',   icon:'🤖', scope:'file',
+        badge: d => { if(!d.has_agentic) return 'NA'; const g=(d.harness_groups||{}).B; return g&&g.score!=null?(g.score*100).toFixed(0)+'%':'—'; },
+        badgeColor: d => { if(!d.has_agentic) return ''; const g=(d.harness_groups||{}).B; if(!g||g.score==null)return ''; return g.gate==='pass'?'var(--green)':g.gate==='fail'?'var(--red)':'var(--yellow)'; } },
 
       /* ── Group C · 신뢰성 ─────────────────────────────── */
       { id:'_gC', group:true, label:'C · 신뢰성', hkey:'C' },
-      { id:'reliability',  label:'재현성 · 안정성',  icon:'🔁', scope:'file',
-        badge: d => { const g=(d.harness_groups||{}).C; return g&&g.score!=null?(g.score*100).toFixed(0)+'%':'NA'; },
-        badgeColor: d => { const g=(d.harness_groups||{}).C; if(!g||g.score==null)return ''; return g.gate==='pass'?'var(--green)':g.gate==='fail'?'var(--red)':'var(--yellow)'; } },
+      { id:'reliability',  label:'재현성 · 안정성 · 재시도',  icon:'🔁', scope:'file',
+        badge: d => {
+          /* 실제 재시도/오류 데이터가 없으면 NA — Group C 점수는 vacuously 1.0이 될 수 있음 */
+          const hasRel = (d.tasks||[]).some(t=>t.attempts>1) ||
+                         (d.tasks||[]).some(t=>t.errors&&t.errors.length>0) ||
+                         ((d.harness_groups||{}).C?.details?.avg_reproducibility!=null);
+          if(!hasRel) return 'NA';
+          const g=(d.harness_groups||{}).C; return g&&g.score!=null?(g.score*100).toFixed(0)+'%':'—'; },
+        badgeColor: d => {
+          const hasRel = (d.tasks||[]).some(t=>t.attempts>1) ||
+                         (d.tasks||[]).some(t=>t.errors&&t.errors.length>0) ||
+                         ((d.harness_groups||{}).C?.details?.avg_reproducibility!=null);
+          if(!hasRel) return '';
+          const g=(d.harness_groups||{}).C; if(!g||g.score==null)return ''; return g.gate==='pass'?'var(--green)':g.gate==='fail'?'var(--red)':'var(--yellow)'; } },
 
       /* ── Group D · 성능 계약 ─────────────────────────── */
       { id:'_gD', group:true, label:'D · 성능 계약', hkey:'D' },
       { id:'performance',  label:'성능 · SLA',       icon:'⚡', scope:'file',
-        badge: d => { const g=(d.harness_groups||{}).D; return g&&g.score!=null?(g.score*100).toFixed(0)+'%':'NA'; },
-        badgeColor: d => { const g=(d.harness_groups||{}).D; if(!g||g.score==null)return ''; return g.gate==='pass'?'var(--green)':g.gate==='fail'?'var(--red)':'var(--yellow)'; } },
+        badge: d => {
+          /* 태스크 없으면 NA; SLA/ResourceBudget Config 없이 harness D=50%처럼 보이는 것 방지 */
+          if(!(d.total_tasks||0)) return 'NA';
+          const g=(d.harness_groups||{}).D;
+          /* Harness D 기본값 0.5(50%) = SLA/Budget Config 미사용 → latency 기반 대리 표시 */
+          if(g&&g.score!=null&&g.score!==0.5) return (g.score*100).toFixed(0)+'%';
+          const lat=d.efficiency_metrics?.latency?.mean||d.efficiency_metrics?.avg_latency;
+          return lat!=null?lat.toFixed(2)+'s avg':'—'; },
+        badgeColor: d => {
+          if(!(d.total_tasks||0)) return '';
+          const g=(d.harness_groups||{}).D; if(!g||g.score==null||g.score===0.5)return '';
+          return g.gate==='pass'?'var(--green)':g.gate==='fail'?'var(--red)':'var(--yellow)'; } },
 
       /* ── Group E · 보안 경계 ─────────────────────────── */
       { id:'_gE', group:true, label:'E · 보안 경계', hkey:'E' },
       { id:'security',     label:'보안',             icon:'🔒', scope:'file',
-        badge: d => { const g=(d.harness_groups||{}).E; return g&&g.score!=null?(g.score*100).toFixed(0)+'%':(d.has_security?'—':'NA'); },
-        badgeColor: d => { const g=(d.harness_groups||{}).E; if(!g||g.score==null)return ''; return g.gate==='pass'?'var(--green)':g.gate==='fail'?'var(--red)':'var(--yellow)'; } },
+        anchors:[
+          {id:'s-sec-input',   label:'입력 보안'},
+          {id:'s-sec-output',  label:'출력 누출'},
+          {id:'s-sec-auth',    label:'도구 권한'},
+          {id:'s-sec-privesc', label:'권한 에스컬레이션'},
+        ],
+        /* has_security=false → 보안 트래커 미실행 → harness E=1.0(vacuous)이라도 NA 표시 */
+        badge: d => { if(!d.has_security) return 'NA'; const g=(d.harness_groups||{}).E; return g&&g.score!=null?(g.score*100).toFixed(0)+'%':'—'; },
+        badgeColor: d => { if(!d.has_security) return ''; const g=(d.harness_groups||{}).E; if(!g||g.score==null)return ''; return g.gate==='pass'?'var(--green)':g.gate==='fail'?'var(--red)':'var(--yellow)'; } },
 
-      /* ── Group F · 다중 에이전트 ─────────────────────── */
-      { id:'_gF', group:true, label:'F · 다중 에이전트', hkey:'F' },
+      /* ── Group G · 운영 관측성 ──────────────────────── */
+      /* F 지표는 agentic 탭에 포함 → 별도 G섹션으로 통합            */
+      { id:'_gG', group:true, label:'G · 운영 관측성', hkey:'G' },
+      { id:'anomaly',      label:'이상 감지 · 관측성', icon:'🚨', scope:'global',
+        badge: d => { const n=(d.anomaly_events||[]).length||(d.anomaly_summary?.total_events||0); return n?n+'건':'OK'; } },
       { id:'realtime',     label:'실시간 모니터링',  icon:'📡', scope:'global',
         badge: d => 'Live' },
       { id:'alerts',       label:'알림',             icon:'🔔', scope:'global',
         badge: d => { const n=(d.alerts||[]).length||(d.alert_summary?.total_alerts||0); return n?n+'건':'OK'; } },
-
-      /* ── Group G · 운영 관측성 ──────────────────────── */
-      { id:'_gG', group:true, label:'G · 운영 관측성', hkey:'G' },
       { id:'feedback',     label:'사용자 반응',      icon:'👍', scope:'global',
         badge: d => { const n=(d.feedback_entries||[]).length||(d.feedback_summary?.total||0); return n?n+'건':'OK'; } },
-      { id:'anomaly',      label:'이상 감지',        icon:'🚨', scope:'global',
-        badge: d => { const n=(d.anomaly_events||[]).length||(d.anomaly_summary?.total_events||0); return n?n+'건':'OK'; } },
       { id:'cost',         label:'평가 비용',        icon:'💰', scope:'file',
         badge: d => {
           const cost=d.efficiency_metrics?.tokens?.total_cost||d.efficiency_metrics?.total_cost||0;
@@ -9251,6 +10022,10 @@ function app2() {
       { id:'tasks',        label:'태스크 목록',      icon:'📋', scope:'file',
         badge: d => { const n=d.total_tasks||0; return n?n+'건':'NA'; } },
       { id:'insights',     label:'인사이트',         icon:'💡', scope:'file',
+        anchors:[
+          {id:'s-insights',    label:'자동 이상 탐지'},
+          {id:'s-coFailure',   label:'실패 연쇄 추적'},
+        ],
         badge: d => { const n=(d.insights?.alerts||[]).length; return n?n+'건':'OK'; } },
       { id:'compare',      label:'파일 비교',        icon:'📂', scope:'global',
         badge: d => { const n=(d._allFiles||this.files||[]).length; return n>1?n+'파일':'—'; } },
@@ -9266,7 +10041,7 @@ function app2() {
       { id:'transparency', label:'투명성',           icon:'🔍', scope:'file',
         badge: d => { return d.transparency?'ON':'—'; } },
       { id:'metrics_guide',label:'지표 설명',        icon:'📖', scope:'global',
-        badge: d => '51개' },
+        badge: d => '58개' },
       { id:'settings',     label:'설정',             icon:'⚙️', scope:'global',
         badge: d => '⚙' },
     ],
@@ -9286,6 +10061,12 @@ function app2() {
           if (def) { this.selModel = {...def}; localStorage.setItem('ae-sel-model', JSON.stringify(this.selModel)); }
         }
       } catch(e) {}
+      // Nav parent map 사전 계산 (접기/펼치기용)
+      let _curGroup = null;
+      for (const n of this.nav) {
+        if (n.group) _curGroup = n.id;
+        else this._navParentMap[n.id] = _curGroup;
+      }
       // Load server-persisted thresholds before refresh so anomaly detection uses saved values
       await this.loadSettings();
       await this.refresh();
@@ -9307,7 +10088,7 @@ function app2() {
       // go display:none → block; Plotly needs a fresh render with correct size)
       this.$watch('sec', (newSec) => {
         this.$nextTick(() => requestAnimationFrame(() => this.drawCharts()));
-        if (newSec === 'insights')    this.$nextTick(() => this.loadPrevData());
+        if (newSec === 'insights')    this.$nextTick(() => { this.loadPrevData(); });
         if (newSec === 'alerts')      this.loadAlerts();
         if (newSec === 'reliability') this.loadReliability();
         if (newSec === 'review' && !this.candidateFiles.length) this.loadCandidates();
@@ -10353,6 +11134,11 @@ function app2() {
         showlegend: false,
       });
 
+      /* --- Overview: Gate 상관 히트맵 (열려있을 때만) --- */
+      if (document.getElementById('d2-gate-heatmap')?.clientWidth > 0) {
+        this.drawGateHeatmap();
+      }
+
       /* --- Quality: TCR by type --- */
       this._plt('d2-q-donut', [{
         values: [succCount, failCount],
@@ -10729,7 +11515,7 @@ function app2() {
         });
       }
 
-      /* --- Agentic: Retry --- */
+      /* --- Reliability: Retry (Group C) --- */
       // 재시도 횟수 분포 — retry_attempts 집계 (막대 차트, 가독성 향상)
       const retryAttemptsDist = this.data.agentic?.retry_attempts || [];
       if (retryAttemptsDist.length > 0) {
@@ -10737,13 +11523,13 @@ function app2() {
         for (const r of retryAttemptsDist) { const a = r.total_attempts||1; rdist[a]=(rdist[a]||0)+1; }
         const rxs = Object.keys(rdist).map(Number).sort((a,b)=>a-b);
         const rColors = rxs.map(x=>x>=3?'#e55':x===2?'#e9a020':'#8b5cf6');
-        this._plt('d2-ag-retry-hist', [{
+        this._plt('d2-rel-retry-hist', [{
           x: rxs.map(x=>x+'회'), y: rxs.map(x=>rdist[x]),
           type:'bar', marker:{color:rColors},
           hovertemplate:'%{x}: %{y}건<extra></extra>'
         }], { xaxis:{title:'시도 횟수'}, yaxis:{title:'태스크 수', dtick:1}, bargap:0.35, margin:{t:20,r:20,b:40,l:50} });
       } else {
-        this._plt('d2-ag-retry-hist', [{x:[],y:[],type:'bar'}], { annotations:[{x:0.5,y:0.5,xref:'paper',yref:'paper',text:'재시도 없음',showarrow:false,font:{color:'#888',size:13}}] });
+        this._plt('d2-rel-retry-hist', [{x:[],y:[],type:'bar'}], { annotations:[{x:0.5,y:0.5,xref:'paper',yref:'paper',text:'재시도 없음',showarrow:false,font:{color:'#888',size:13}}] });
       }
       // 태스크 유형별 재시도율 — data.agentic.retry_attempts 집계
       const retryAttempts = this.data.agentic?.retry_attempts || [];
@@ -10756,7 +11542,7 @@ function app2() {
       }
       const rtTypeKeys = Object.keys(rtByType);
       if (rtTypeKeys.length > 0) {
-        this._plt('d2-ag-retry-type', [{
+        this._plt('d2-rel-retry-type', [{
           x: rtTypeKeys,
           y: rtTypeKeys.map(k => rtByType[k].total > 0 ? rtByType[k].retries/rtByType[k].total*100 : 0),
           type:'bar', marker:{color:'#f59e0b'}, hovertemplate:'%{x}: %{y:.1f}%<extra></extra>'
@@ -10766,7 +11552,7 @@ function app2() {
         const rsByType = this.data.agentic.retry_summary.by_task_type || {};
         const rsTKeys = Object.keys(rsByType);
         if (rsTKeys.length > 0) {
-          this._plt('d2-ag-retry-type', [{
+          this._plt('d2-rel-retry-type', [{
             x: rsTKeys, y: rsTKeys.map(k => (rsByType[k]?.retry_rate||rsByType[k]?.avg_attempts||0)),
             type:'bar', marker:{color:'#f59e0b'}, hovertemplate:'%{x}: %{y:.1f}<extra></extra>'
           }], { yaxis:{title:'평균 시도'}, xaxis:{tickangle:-30}, margin:{t:20,r:20,b:80,l:55} });
@@ -10908,6 +11694,157 @@ function app2() {
       if (!title) return null; // issue가 이미 제목으로 사용됨
       return str(r.issue) || str(r.detail) || null;
     },
+    // ══════════════════════════════════════════════════════════════
+    // Gate 상관 히트맵 (Overview) — Change 2
+    // ══════════════════════════════════════════════════════════════
+    _gateScoreForTask(task, gk) {
+      // 태스크별 Gate 점수 추출: extra.harness_groups 우선, 없으면 native 지표로 근사
+      const hg = task?.extra?.harness_groups || {};
+      if (hg[gk]?.score != null) return hg[gk].score;
+      switch (gk) {
+        case 'A': {
+          const c = task.completion_score ?? null;
+          const a = task.accuracy_score != null ? task.accuracy_score / 100 : null;
+          if (c == null && a == null) return null;
+          return ((c ?? 0) + (a ?? 0)) / ((c != null ? 1 : 0) + (a != null ? 1 : 0));
+        }
+        case 'C': {
+          const attempts = task.attempts ?? 1;
+          return Math.max(0, 1 - (attempts - 1) * 0.25);
+        }
+        case 'D': {
+          const t = task.execution_time;
+          if (t == null) return null;
+          return Math.max(0, 1 - t / 10);
+        }
+        case 'G': {
+          const q = task.quality_score ?? task.response_quality?.total_score;
+          return q != null ? Math.min(1, q / 5) : null;
+        }
+        default: return null;
+      }
+    },
+    hasHeatmapData() {
+      if (!this.data?.tasks?.length || this.data.tasks.length < 5) return false;
+      // 최소 2개 gate에서 점수가 있어야 함
+      const gates = ['A','B','C','D','E','F','G'];
+      let activeGates = 0;
+      for (const g of gates) {
+        const hasAny = this.data.tasks.some(t => this._gateScoreForTask(t, g) != null);
+        if (hasAny) activeGates++;
+      }
+      return activeGates >= 2;
+    },
+    computeGateCorrelation() {
+      const tasks = this.data?.tasks || [];
+      const gates = ['A','B','C','D','E','F','G'];
+      // 각 gate별 점수 벡터 수집
+      const vectors = {};
+      for (const g of gates) {
+        vectors[g] = tasks.map(t => this._gateScoreForTask(t, g));
+      }
+      // Pearson 상관계수 계산 (null 제외)
+      const pearson = (xs, ys) => {
+        const pairs = xs.map((x, i) => [x, ys[i]]).filter(([a, b]) => a != null && b != null);
+        if (pairs.length < 3) return null;
+        const n = pairs.length;
+        const mx = pairs.reduce((s, [a]) => s + a, 0) / n;
+        const my = pairs.reduce((s, [, b]) => s + b, 0) / n;
+        const num = pairs.reduce((s, [a, b]) => s + (a - mx) * (b - my), 0);
+        const dx = Math.sqrt(pairs.reduce((s, [a]) => s + (a - mx) ** 2, 0));
+        const dy = Math.sqrt(pairs.reduce((s, [, b]) => s + (b - my) ** 2, 0));
+        return (dx && dy) ? Math.max(-1, Math.min(1, num / (dx * dy))) : 0;
+      };
+      const matrix = gates.map(g1 =>
+        gates.map((g2, j) => g1 === g2 ? 1.0 : pearson(vectors[g1], vectors[g2]))
+      );
+      return { gates, matrix };
+    },
+    drawGateHeatmap() {
+      const el = document.getElementById('d2-gate-heatmap');
+      if (!el) return;
+      const { gates, matrix } = this.computeGateCorrelation();
+      const labels = gates.map(g => ({A:'A\n목표',B:'B\n행동',C:'C\n신뢰',D:'D\n성능',E:'E\n보안',F:'F\n협업',G:'G\n관측'}[g] || g));
+      const textVals = matrix.map(row =>
+        row.map(v => v == null ? '—' : v === 1.0 ? '1.00' : v.toFixed(2))
+      );
+      const colorscale = [
+        [0.0, '#ef4444'], [0.25, '#f97316'], [0.5, this.dark ? '#1e293b' : '#e5e7eb'],
+        [0.75, '#22c55e'], [1.0, '#10b981'],
+      ];
+      Plotly.react(el, [{
+        type: 'heatmap',
+        z: matrix,
+        x: labels, y: labels,
+        colorscale,
+        zmin: -1, zmax: 1,
+        text: textVals,
+        texttemplate: '<b>%{text}</b>',
+        hovertemplate: '%{y} ↔ %{x}: %{text}<extra></extra>',
+        showscale: true,
+        colorbar: { title: { text: '상관계수', side: 'right', font: { size: 10 } }, thickness: 14, len: 0.9, tickfont: { size: 10 } },
+      }], {
+        paper_bgcolor: 'rgba(0,0,0,0)', plot_bgcolor: 'rgba(0,0,0,0)',
+        font: { family: 'Inter,sans-serif', size: 11, color: this.dark ? '#d1d5db' : '#374151' },
+        margin: { t: 20, r: 90, b: 60, l: 60 },
+        xaxis: { tickfont: { size: 11 }, side: 'bottom', gridcolor: 'rgba(128,128,128,0.1)' },
+        yaxis: { tickfont: { size: 11 }, gridcolor: 'rgba(128,128,128,0.1)', autorange: 'reversed' },
+      }, { responsive: true, displayModeBar: false });
+    },
+
+    // ══════════════════════════════════════════════════════════════
+    // 실패 연쇄 추적 (Insights) — Change 3
+    // ══════════════════════════════════════════════════════════════
+    _taskGateFail(task, gk) {
+      // 태스크 수준 Gate fail/warn 여부
+      const hg = task?.extra?.harness_groups || {};
+      if (hg[gk]) return hg[gk].gate === 'fail' || hg[gk].gate === 'warn';
+      // native 지표로 근사
+      const score = this._gateScoreForTask(task, gk);
+      return score != null && score < 0.7;
+    },
+    hasCoFailData() {
+      const tasks = this.data?.tasks || [];
+      if (tasks.length < 5) return false;
+      const gates = ['A','B','C','D','E','F','G'];
+      // 최소 1개 gate에서 fail/warn 태스크가 2건 이상 있어야 의미 있음
+      return gates.some(g => tasks.filter(t => this._taskGateFail(t, g)).length >= 2);
+    },
+    computeCoFailure() {
+      const tasks = this.data?.tasks || [];
+      const gates = ['A','B','C','D','E','F','G'];
+      const result = {};
+      for (const g1 of gates) {
+        result[g1] = {};
+        const failTasks = tasks.filter(t => this._taskGateFail(t, g1));
+        for (const g2 of gates) {
+          if (g1 === g2) { result[g1][g2] = null; continue; }
+          if (!failTasks.length) { result[g1][g2] = null; continue; }
+          const coFail = failTasks.filter(t => this._taskGateFail(t, g2)).length;
+          result[g1][g2] = { rate: coFail / failTasks.length, count: failTasks.length };
+        }
+      }
+      return result;
+    },
+    topCoFailPairs(n = 3) {
+      const matrix = this.computeCoFailure();
+      const gates = ['A','B','C','D','E','F','G'];
+      const pairs = [];
+      for (const g1 of gates) {
+        for (const g2 of gates) {
+          if (g1 >= g2) continue; // 중복 제거 (A-B = B-A)
+          const v = matrix[g1]?.[g2];
+          if (v && v.rate > 0) {
+            // 양방향 중 더 높은 방향 선택
+            const v2 = matrix[g2]?.[g1];
+            const best = (!v2 || v.rate >= (v2.rate || 0)) ? { g1, g2, ...v } : { g1: g2, g2: g1, ...v2 };
+            pairs.push(best);
+          }
+        }
+      }
+      return pairs.sort((a, b) => b.rate - a.rate).slice(0, n);
+    },
+
     // ── Markdown → HTML ────────────────────────────────────────────────────
     md2html(s) {
       if (!s) return '';

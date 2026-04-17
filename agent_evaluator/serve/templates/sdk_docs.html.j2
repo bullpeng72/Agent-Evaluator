@@ -128,9 +128,9 @@ hr{border:none;border-top:1px solid var(--border);margin:20px 0}
   <a class="nav-item" href="#toolsel">ToolSelectionTracker</a>
   <a class="nav-item" href="#retry">RetryCorrectionTracker</a>
   <a class="nav-item" href="#workflow">WorkflowExecutionTracker</a>
-  <a class="nav-item" href="#harness-b" style="font-size:11px;color:var(--text2)">↳ LoopDetectionConfig</a>
+  <a class="nav-item" href="#harness-b" style="font-size:11px;color:var(--text2)">↳ LoopDetectionConfig · DeadlockConfig</a>
   <a class="nav-item" href="#harness-b" style="font-size:11px;color:var(--text2)">↳ ScopeConfig · ContextWindowConfig</a>
-  <a class="nav-item" href="#harness-b" style="font-size:11px;color:var(--text2)">↳ ToolParameterSafetyConfig</a>
+  <a class="nav-item" href="#harness-b" style="font-size:11px;color:var(--text2)">↳ ToolParameterSafetyConfig · StateConsistencyConfig</a>
 
   <div class="nav-group">C · 신뢰성 — Reliability</div>
   <a class="nav-item" href="#hallucination">HallucinationDetector <span class="tag">opt-in</span></a>
@@ -160,8 +160,8 @@ hr{border:none;border-top:1px solid var(--border);margin:20px 0}
   <div class="nav-group">F · 다중 에이전트 — Multi-Agent</div>
   <a class="nav-item" href="#coord">AgentCoordinationTracker</a>
   <a class="nav-item" href="#streaming">StreamingEvaluator</a>
-  <a class="nav-item" href="#harness-f" style="font-size:11px;color:var(--text2)">↳ DeadlockConfig · ConsensusConfig</a>
-  <a class="nav-item" href="#harness-f" style="font-size:11px;color:var(--text2)">↳ PropagationConfig · AgentRoleConfig</a>
+  <a class="nav-item" href="#harness-f" style="font-size:11px;color:var(--text2)">↳ ConsensusConfig · PropagationConfig</a>
+  <a class="nav-item" href="#harness-f" style="font-size:11px;color:var(--text2)">↳ AgentRoleConfig</a>
   <a class="nav-item" href="#harness-f" style="font-size:11px;color:var(--text2)">↳ ConflictResolutionConfig</a>
 
   <div class="nav-group">G · 운영 관측성 — Observability</div>
@@ -244,7 +244,7 @@ monitor.<span class="fn">save_to_file</span>(<span class="st">"eval_run"</span>)
     <div class="cls-body">
 <pre><span class="kw">from</span> <span class="cn">agent_evaluator.decorators</span> <span class="kw">import</span> batch_eval
 
-<span class="de">@batch_eval</span>(monitor, task_type=<span class="st">"qa"</span>, flush_every=<span class="nm">20</span>, flush_filename=<span class="st">"batch"</span>)
+<span class="de">@batch_eval</span>(monitor, task_type=<span class="st">"qa"</span>, flush_every=<span class="nm">20</span>)
 <span class="kw">def</span> <span class="fn">batch_agent</span>(questions: list, ground_truths: list = <span class="kw">None</span>) -> list:
     <span class="kw">return</span> [llm.<span class="fn">invoke</span>(q) <span class="kw">for</span> q <span class="kw">in</span> questions]
 
@@ -465,7 +465,7 @@ agent-eval dashboard --port <span class="nm">8080</span> --watch  <span class="c
           </div>
         </div>
       </div>
-      <div class="note" style="margin-top:8px;font-size:12px">* Hallucination은 데코레이터에서 <code>enable_hallucination=True</code> / PerformanceMonitor에서 <code>enable_hallucination_detection=True</code> 또는 <code>rag_mode=True</code> 필요. L2 Agentic은 <code>tool_calls</code>·<code>agent_interactions</code> 데이터가 있을 때 자동 활성.</div>
+      <div class="note" style="margin-top:8px;font-size:12px">* Hallucination은 데코레이터에서 <code>enable_hallucination_detection=True</code> / PerformanceMonitor에서 <code>enable_hallucination_detection=True</code> 또는 <code>rag_mode=True</code> 필요. L2 Agentic은 <code>tool_calls</code>·<code>agent_interactions</code> 데이터가 있을 때 자동 활성.</div>
     </div>
   </div>
 
@@ -591,13 +591,12 @@ eval = <span class="fn">QuickEval</span>(<span class="st">"results/"</span>, aut
           <tr><td><span class="p">task_id_prefix</span><span class="opt">opt</span></td><td><span class="t">str</span></td><td><code>"task"</code></td><td>자동 생성 task_id 접두사</td></tr>
           <tr><td><span class="p">task_id_fn</span><span class="opt">opt</span></td><td><span class="t">Callable</span></td><td><code>None</code></td><td><code>(args, kwargs) → str</code> 동적 task_id 생성</td></tr>
           <tr><td><span class="p">flush_every</span><span class="opt">opt</span></td><td><span class="t">int</span></td><td><code>0</code></td><td>N 호출마다 save_to_file() 자동 실행 (0=비활성)</td></tr>
-          <tr><td><span class="p">flush_filename</span><span class="opt">opt</span></td><td><span class="t">str</span></td><td><code>None</code></td><td>flush_every 저장 파일명</td></tr>
           <tr><td><span class="p">alert_rules</span><span class="opt">opt</span></td><td><span class="t">List[SimpleTaskAlertRule]</span></td><td><code>[]</code></td><td>태스크 완료 시 실행할 알림 규칙 목록</td></tr>
           <tr><td><span class="p">rag_mode</span><span class="opt">opt</span></td><td><span class="t">bool</span></td><td><code>False</code></td><td>hallucination_detection + <code>information_retrieval</code> task_type 자동 적용</td></tr>
-          <tr><td><span class="p">security_mode</span><span class="opt">opt</span></td><td><span class="t">bool</span></td><td><code>False</code></td><td>보안 5종 지표 임시 활성</td></tr>
-          <tr><td><span class="p">enable_llm_judge</span><span class="opt">opt</span></td><td><span class="t">bool</span></td><td><code>False</code></td><td>LLM Judge 임시 활성 (기본 설치에 포함 — API 키 필요). 5차원 자동 채점.</td></tr>
-          <tr><td><span class="p">judge_model</span><span class="opt">opt</span></td><td><span class="t">str</span></td><td><code>None</code></td><td>LLM Judge 사용 모델</td></tr>
-          <tr><td><span class="p">judge_criteria</span><span class="opt">opt</span></td><td><span class="t">List[str]</span></td><td><code>None</code></td><td>G-Eval 커스텀 평가 기준 (DeepEval 대체). 예: <code>["empathy", "clarity"]</code> → <code>criteria_scores</code> 자동 추가</td></tr>
+          <tr><td><span class="p">enable_hallucination_detection</span><span class="opt">opt</span></td><td><span class="t">bool</span></td><td><code>False</code></td><td>이 호출에서만 hallucination detection 강제 활성</td></tr>
+          <tr><td><span class="p">security</span><span class="opt">opt</span></td><td><span class="t">SecurityConfig</span></td><td><code>None</code></td><td>보안 5종 지표 설정 — <code>SecurityConfig(enable_security_metrics=True)</code></td></tr>
+          <tr><td><span class="p">llm_judge</span><span class="opt">opt</span></td><td><span class="t">LLMJudgeConfig</span></td><td><code>None</code></td><td>LLM Judge 설정 — <code>LLMJudgeConfig(model="claude-sonnet-4-6", criteria=["accuracy"])</code>. 기본 설치에 포함 (API 키 필요)</td></tr>
+          <tr><td><span class="p">retry</span><span class="opt">opt</span></td><td><span class="t">RetryConfig</span></td><td><code>None</code></td><td>재시도 정책 — <code>RetryConfig(max=3, delay=1.0, backoff=2.0)</code></td></tr>
           <tr><td><span class="p">sample_rate</span><span class="opt">opt</span></td><td><span class="t">float</span></td><td><code>1.0</code></td><td>샘플링 비율 (0–1). 비용 제어용</td></tr>
           <tr><td><span class="p">sample_condition</span><span class="opt">opt</span></td><td><span class="t">Callable</span></td><td><code>None</code></td><td><code>(args, kwargs) → bool</code> 조건부 샘플링</td></tr>
           <tr><td><span class="p">on_record</span><span class="opt">opt</span></td><td><span class="t">Callable</span></td><td><code>None</code></td><td><code>(TaskResult) → TaskResult|None</code> 기록 후 후처리 훅</td></tr>
@@ -636,14 +635,14 @@ monitor = <span class="fn">PerformanceMonitor</span>(output_dir=<span class="st"
     <span class="kw">return</span> rag.<span class="fn">run</span>(question, context)
 
 <span class="cm"># 보안 모드 — InputSanitization·OutputLeakage 등 5종 임시 활성</span>
-<span class="de">@agent_eval</span>(monitor, task_type=<span class="st">"qa"</span>, security_mode=<span class="kw">True</span>)
+<span class="de">@agent_eval</span>(monitor, task_type=<span class="st">"qa"</span>, security=<span class="fn">SecurityConfig</span>(enable_security_metrics=<span class="kw">True</span>))
 <span class="kw">def</span> <span class="fn">secure_agent</span>(question: str, ground_truth: str = <span class="st">""</span>) -> str:
     <span class="kw">return</span> agent.<span class="fn">run</span>(question)
 
 <span class="cm"># LLM Judge + 주기 저장 조합</span>
 <span class="de">@agent_eval</span>(monitor, task_type=<span class="st">"qa"</span>,
-             enable_llm_judge=<span class="kw">True</span>, judge_model=<span class="st">"claude-sonnet-4-6"</span>,
-             flush_every=<span class="nm">50</span>, flush_filename=<span class="st">"production_run"</span>)
+             llm_judge=<span class="fn">LLMJudgeConfig</span>(model=<span class="st">"claude-sonnet-4-6"</span>),
+             flush_every=<span class="nm">50</span>)
 <span class="kw">def</span> <span class="fn">prod_agent</span>(question: str, ground_truth: str = <span class="st">""</span>) -> str:
     <span class="kw">return</span> llm.<span class="fn">invoke</span>(question)
 
@@ -664,25 +663,26 @@ monitor = <span class="fn">PerformanceMonitor</span>(output_dir=<span class="st"
     <div class="cls-body">
       <div class="slbl">파라미터</div>
       {% call param_table() %}
-          <tr><td><span class="p">monitor</span><span class="req">✦</span></td><td><span class="t">PerformanceMonitor</span></td><td>—</td><td>결과를 기록할 모니터 인스턴스</td></tr>
+          <tr><td><span class="p">monitor</span><span class="req">✦</span></td><td><span class="t">PerformanceMonitor</span></td><td>—</td><td>결과를 기록할 모니터 인스턴스 (List 전달 시 다중 모니터 동시 기록)</td></tr>
           <tr><td><span class="p">task_type</span><span class="opt">opt</span></td><td><span class="t">str</span></td><td><code>"qa"</code></td><td>TaskType 소문자 문자열</td></tr>
-          <tr><td><span class="p">framework</span><span class="opt">opt</span></td><td><span class="t">FrameworkLiteral</span></td><td><code>None</code></td><td>21개 프레임워크 메타데이터 자동 추출</td></tr>
-          <tr><td><span class="p">concurrent</span><span class="opt">opt</span></td><td><span class="t">bool</span></td><td><code>False</code></td><td>ThreadPoolExecutor 병렬 처리 활성</td></tr>
-          <tr><td><span class="p">max_concurrent</span><span class="opt">opt</span></td><td><span class="t">int</span></td><td><code>5</code></td><td>최대 병렬 스레드 수</td></tr>
-          <tr><td><span class="p">shuffle</span><span class="opt">opt</span></td><td><span class="t">bool</span></td><td><code>False</code></td><td>입력 순서 셔플</td></tr>
+          <tr><td><span class="p">questions_arg</span><span class="opt">opt</span></td><td><span class="t">str</span></td><td><code>"questions"</code></td><td>질문 리스트를 담는 함수 파라미터명</td></tr>
+          <tr><td><span class="p">ground_truths_arg</span><span class="opt">opt</span></td><td><span class="t">str</span></td><td><code>"ground_truths"</code></td><td>정답 리스트를 담는 함수 파라미터명</td></tr>
+          <tr><td><span class="p">framework</span><span class="opt">opt</span></td><td><span class="t">FrameworkLiteral</span></td><td><code>"native"</code></td><td>21개 프레임워크 메타데이터 자동 추출</td></tr>
+          <tr><td><span class="p">concurrency</span><span class="opt">opt</span></td><td><span class="t">int</span></td><td><code>0</code></td><td>항목별 병렬 실행 상한 (asyncio.gather). 0=순차 처리</td></tr>
           <tr><td><span class="p">item_timeout</span><span class="opt">opt</span></td><td><span class="t">float</span></td><td><code>None</code></td><td>항목별 타임아웃 (초)</td></tr>
-          <tr><td><span class="p">on_item_error</span><span class="opt">opt</span></td><td><span class="t">str</span></td><td><code>"skip"</code></td><td><code>"skip"</code> | <code>"raise"</code> | <code>"record"</code> — 개별 항목 오류 처리</td></tr>
+          <tr><td><span class="p">on_item_error</span><span class="opt">opt</span></td><td><span class="t">Callable</span></td><td><code>None</code></td><td><code>(exception, item_idx) → None</code> 개별 항목 오류 처리 콜백</td></tr>
           <tr><td><span class="p">return_format</span><span class="opt">opt</span></td><td><span class="t">str</span></td><td><code>"list"</code></td><td><code>"list"</code> | <code>"tuple"</code> | <code>"dataframe"</code></td></tr>
-          <tr><td><span class="p">flush_every</span><span class="opt">opt</span></td><td><span class="t">int</span></td><td><code>0</code></td><td>N건마다 save_to_file() 자동 실행</td></tr>
-          <tr><td><span class="p">flush_filename</span><span class="opt">opt</span></td><td><span class="t">str</span></td><td><code>None</code></td><td>flush 저장 파일명</td></tr>
+          <tr><td><span class="p">flush_every</span><span class="opt">opt</span></td><td><span class="t">int</span></td><td><code>0</code></td><td>N 배치 호출마다 save_to_file() 자동 실행</td></tr>
           <tr><td><span class="p">alert_rules</span><span class="opt">opt</span></td><td><span class="t">List[SimpleTaskAlertRule]</span></td><td><code>[]</code></td><td>알림 규칙 목록</td></tr>
-          <tr><td><span class="p">allow_duplicate_task_ids</span><span class="opt">opt</span></td><td><span class="t">bool</span></td><td><code>False</code></td><td>중복 task_id 허용</td></tr>
+          <tr><td><span class="p">llm_judge</span><span class="opt">opt</span></td><td><span class="t">LLMJudgeConfig</span></td><td><code>None</code></td><td>배치 전체에 LLM Judge 적용 — <code>LLMJudgeConfig(model=..., criteria=[...])</code></td></tr>
+          <tr><td><span class="p">security</span><span class="opt">opt</span></td><td><span class="t">SecurityConfig</span></td><td><code>None</code></td><td>보안 5종 지표 설정 — <code>SecurityConfig(enable_security_metrics=True)</code></td></tr>
+          <tr><td><span class="p">on_batch_complete</span><span class="opt">opt</span></td><td><span class="t">Callable</span></td><td><code>None</code></td><td><code>(results: list) → None</code> 배치 완료 후 훅</td></tr>
       {% endcall %}
-      <div class="note tip" style="margin-top:8px">💡 함수 시그니처: <code>(questions: list, ground_truths: list = None) → list</code>. 반환 리스트와 입력 리스트의 인덱스가 1:1 매핑됩니다.</div>
+      <div class="note tip" style="margin-top:8px">💡 함수 시그니처: <code>(questions: list, ground_truths: list = None) → list</code>. 반환 리스트와 입력 리스트의 인덱스가 1:1 매핑됩니다. <code>questions_arg</code>/<code>ground_truths_arg</code>로 파라미터명 재매핑 가능.</div>
 <pre style="margin-top:10px"><span class="kw">from</span> <span class="cn">agent_evaluator.decorators</span> <span class="kw">import</span> batch_eval
 
 <span class="cm"># 기본 배치 평가</span>
-<span class="de">@batch_eval</span>(monitor, task_type=<span class="st">"qa"</span>, flush_every=<span class="nm">20</span>, flush_filename=<span class="st">"batch_run"</span>)
+<span class="de">@batch_eval</span>(monitor, task_type=<span class="st">"qa"</span>, flush_every=<span class="nm">20</span>)
 <span class="kw">def</span> <span class="fn">batch_agent</span>(questions: list, ground_truths: list = <span class="kw">None</span>) -> list:
     <span class="kw">return</span> [llm.<span class="fn">invoke</span>(q) <span class="kw">for</span> q <span class="kw">in</span> questions]
 
@@ -691,21 +691,23 @@ batch_agent(
     ground_truths=[<span class="st">"A1"</span>, <span class="st">"A2"</span>, <span class="st">"A3"</span>],
 )
 
-<span class="cm"># 병렬 처리 — 응답 시간 단축</span>
-<span class="de">@batch_eval</span>(monitor, task_type=<span class="st">"qa"</span>, concurrent=<span class="kw">True</span>, max_concurrent=<span class="nm">8</span>)
+<span class="cm"># 병렬 처리 — concurrency=8로 상한 설정 (asyncio.gather)</span>
+<span class="de">@batch_eval</span>(monitor, task_type=<span class="st">"qa"</span>, concurrency=<span class="nm">8</span>)
 <span class="kw">def</span> <span class="fn">parallel_agent</span>(questions: list, ground_truths: list = <span class="kw">None</span>) -> list:
     <span class="kw">return</span> [llm.<span class="fn">invoke</span>(q) <span class="kw">for</span> q <span class="kw">in</span> questions]
 
-<span class="cm"># DataFrame 반환 (tokens_total, framework, tool_call_count, has_error, timestamp 포함)</span>
+<span class="cm"># DataFrame 반환 (task_id, accuracy_score, completion_score, tokens_total ... 포함)</span>
 <span class="de">@batch_eval</span>(monitor, task_type=<span class="st">"tool_use"</span>, return_format=<span class="st">"dataframe"</span>)
 <span class="kw">def</span> <span class="fn">df_agent</span>(questions: list, ground_truths: list = <span class="kw">None</span>) -> list:
     <span class="kw">return</span> [agent.<span class="fn">run</span>(q) <span class="kw">for</span> q <span class="kw">in</span> questions]
 
 df = <span class="fn">df_agent</span>(questions=[...], ground_truths=[...])
-<span class="cm"># df.columns → ['task_id', 'question', 'response', 'accuracy', 'tokens_total', ...]</span>
+<span class="cm"># df.columns → ['task_id', 'task_type', 'success', 'accuracy_score', ...]</span>
 
-<span class="cm"># 오류 허용 — 일부 항목 실패해도 나머지 계속 평가</span>
-<span class="de">@batch_eval</span>(monitor, task_type=<span class="st">"qa"</span>, on_item_error=<span class="st">"record"</span>, item_timeout=<span class="nm">30.0</span>)
+<span class="cm"># 오류 콜백 + 항목 타임아웃</span>
+<span class="de">@batch_eval</span>(monitor, task_type=<span class="st">"qa"</span>,
+             on_item_error=<span class="kw">lambda</span> exc, idx: <span class="fn">print</span>(<span class="st">f"[ERR] item {idx}: {exc}"</span>),
+             item_timeout=<span class="nm">30.0</span>)
 <span class="kw">def</span> <span class="fn">robust_agent</span>(questions: list, ground_truths: list = <span class="kw">None</span>) -> list:
     <span class="kw">return</span> [risky_call(q) <span class="kw">for</span> q <span class="kw">in</span> questions]</pre>
     </div>
@@ -722,15 +724,16 @@ df = <span class="fn">df_agent</span>(questions=[...], ground_truths=[...])
       <div class="slbl">파라미터</div>
       {% call param_table() %}
           <tr><td><span class="p">monitor</span><span class="req">✦</span></td><td><span class="t">PerformanceMonitor</span></td><td>—</td><td>결과를 기록할 모니터 인스턴스</td></tr>
-          <tr><td><span class="p">session_id</span><span class="opt">opt</span></td><td><span class="t">str</span></td><td><code>None</code></td><td>고정 session_id (None이면 <code>session_id</code> 파라미터에서 자동 추출)</td></tr>
-          <tr><td><span class="p">participant_id_arg</span><span class="opt">opt</span></td><td><span class="t">str</span></td><td><code>"session_id"</code></td><td>세션 ID를 담는 함수 파라미터명</td></tr>
+          <tr><td><span class="p">session_id_arg</span><span class="opt">opt</span></td><td><span class="t">str</span></td><td><code>"session_id"</code></td><td>세션 ID를 담는 함수 파라미터명. 함수에 <code>session_id: str</code>이 있으면 자동 인식.</td></tr>
+          <tr><td><span class="p">user_arg</span><span class="opt">opt</span></td><td><span class="t">str</span></td><td><code>"question"</code></td><td>사용자 발화를 담는 함수 파라미터명</td></tr>
           <tr><td><span class="p">max_turns</span><span class="opt">opt</span></td><td><span class="t">int</span></td><td><code>None</code></td><td>세션당 최대 턴 수 제한</td></tr>
-          <tr><td><span class="p">max_turns_exceeded_action</span><span class="opt">opt</span></td><td><span class="t">str</span></td><td><code>"warn"</code></td><td><code>"warn"</code> | <code>"stop"</code> | <code>"reset"</code></td></tr>
-          <tr><td><span class="p">session_timeout</span><span class="opt">opt</span></td><td><span class="t">float</span></td><td><code>None</code></td><td>세션 비활성 타임아웃 (초)</td></tr>
+          <tr><td><span class="p">max_turns_exceeded_action</span><span class="opt">opt</span></td><td><span class="t">str</span></td><td><code>"flush"</code></td><td><code>"flush"</code> | <code>"warn"</code> | <code>"error"</code> — 최대 턴 초과 시 동작</td></tr>
+          <tr><td><span class="p">max_session_seconds</span><span class="opt">opt</span></td><td><span class="t">float</span></td><td><code>None</code></td><td>세션 비활성 자동 flush 타이머 (초)</td></tr>
           <tr><td><span class="p">flush_every</span><span class="opt">opt</span></td><td><span class="t">int</span></td><td><code>0</code></td><td>N세션마다 save_to_file() 자동 실행</td></tr>
-          <tr><td><span class="p">flush_filename</span><span class="opt">opt</span></td><td><span class="t">str</span></td><td><code>None</code></td><td>flush 저장 파일명</td></tr>
-          <tr><td><span class="p">on_turn</span><span class="opt">opt</span></td><td><span class="t">Callable</span></td><td><code>None</code></td><td><code>(session_id, turn_idx, user, response) → None</code> 턴 완료 훅</td></tr>
+          <tr><td><span class="p">on_turn</span><span class="opt">opt</span></td><td><span class="t">Callable</span></td><td><code>None</code></td><td><code>(session_id, user, response, metadata) → None</code> 턴 완료 훅</td></tr>
+          <tr><td><span class="p">on_flush</span><span class="opt">opt</span></td><td><span class="t">Callable</span></td><td><code>None</code></td><td><code>(metrics, session_id) → None</code> 세션 flush 완료 훅</td></tr>
           <tr><td><span class="p">session_score_fn</span><span class="opt">opt</span></td><td><span class="t">Callable</span></td><td><code>None</code></td><td><code>(ConversationMetrics) → float</code> 커스텀 세션 점수</td></tr>
+          <tr><td><span class="p">llm_judge</span><span class="opt">opt</span></td><td><span class="t">LLMJudgeConfig</span></td><td><code>None</code></td><td>세션별 LLM Judge 적용</td></tr>
       {% endcall %}
       <div class="slbl">ConversationMetrics — 자동 산출되는 지표</div>
       <table class="mtable" style="margin-bottom:10px">
@@ -767,7 +770,7 @@ chat_agent(<span class="st">"어떻게 시작하면 돼요?"</span>, session_id=
     monitor,
     session_score_fn=<span class="kw">lambda</span> m: (m.context_retention_score + m.topic_coherence_score) / <span class="nm">2</span>,
     on_turn=<span class="kw">lambda</span> sid, idx, u, r: <span class="fn">print</span>(<span class="st">f"[Turn {idx}] {sid}: {r[:50]}"</span>),
-    max_turns=<span class="nm">20</span>, max_turns_exceeded_action=<span class="st">"warn"</span>,
+    max_turns=<span class="nm">20</span>, max_turns_exceeded_action=<span class="st">"flush"</span>,
 )
 <span class="kw">def</span> <span class="fn">monitored_chat</span>(user_input: str, session_id: str = <span class="st">""</span>) -> str:
     <span class="kw">return</span> llm.<span class="fn">invoke</span>(user_input)
