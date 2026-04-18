@@ -267,6 +267,21 @@ AI 에이전트는 배포 후에도 계속 변합니다. 일회성 배포 전 �
 → [개선] 프롬프트/모델 교체 → [검증] HarnessEvaluationGate 재통과 → [배포]
 ```
 
+### AI Native 5대 도전 ↔ Harness Gate A–G 매핑
+
+5가지 도전은 추상적인 문제가 아닙니다. Harness Engineering의 7개 Gate가 각 도전에 정확히 대응합니다.
+
+| AI Native 도전 | 핵심 질문 | 대응 Harness Gate | 주요 Tracker / Config |
+|--------------|---------|-----------------|----------------------|
+| ① 확률론적 품질 | "통계적으로 충분히 정확한가?" | **Gate A** 목표달성, **Gate C** 신뢰성 | AccuracyEvaluator, ReproducibilityConfig |
+| ② AI-by-AI 평가 | "LLM Judge 비용 없이 품질을 측정할 수 있는가?" | **Gate G** 운영관측성 | LLMJudge (sample_rate 조절), ExplainabilityConfig |
+| ③ 드리프트 인식 | "배포 후 성능 저하를 조기에 감지하는가?" | **Gate D** 성능계약, **Gate C** 신뢰성 | LatencyTracker, RunTrendAnalyzer, CostPredictabilityConfig |
+| ④ 출현 행동 대응 | "예측 못한 도구 호출·루프·범위 이탈을 탐지하는가?" | **Gate B** 행동무결성, **Gate E** 보안경계 | ToolChainAttackDetector, AnomalyDetector, ScopeConfig |
+| ⑤ 지속 평가 | "배포 후에도 지속적으로 품질을 검증하는가?" | **Gate A–G 전체** (CI/CD + 실시간 모니터링) | HarnessEvaluationGate, Phoenix OTEL, agent-eval trend |
+
+**개발자 관점**: 각 도전에 대응하는 Tracker를 활성화하고 Config로 기준을 선언합니다.  
+**QA 관리자 관점**: 도전이 해결됐는지를 Gate A–G의 PASS/WARN/FAIL 판정으로 확인합니다.
+
 > 📋 **QA 관리자 TIP**: AI Native 5가지 도전은 전통 QA 역할을 없애지 않습니다. "케이스를 통과했는가" 대신 "품질 분포가 배포 기준을 만족하는가"로 판단 언어를 바꾸는 것입니다. Part IV — QA 관리자 가이드에서 이 전환을 단계별로 다룹니다.
 
 ---

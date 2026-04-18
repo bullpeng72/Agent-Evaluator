@@ -17,6 +17,10 @@
 > - **[Appendix A §Part 2 — Config 레퍼런스](../Appendix/A_58개지표_레퍼런스.md)**: Group E Config 파라미터 전체 목록
 > - **[Evaluator_Examples/02_layer2_agentic_security.py](../../Evaluator_Examples/02_layer2_agentic_security.py)**: 보안 트래커 실전 예제
 
+> **독자별 읽기 가이드**  
+> - **QA 관리자**: §8.1(개요) → §8.4(Config 설정) → §8.5(임계값·Gate 판정) 순서로 읽으면 "어떤 위협 기준을 선언할지"를 빠르게 파악할 수 있습니다.  
+> - **개발자**: §8.2(Tracker 상세) → §8.3(코드 예제) → §8.4(Config 선언) 순서로 읽으면 `ThreatSeverityConfig`, `ComplianceConfig` 등을 바로 적용할 수 있습니다.
+
 ---
 
 ```

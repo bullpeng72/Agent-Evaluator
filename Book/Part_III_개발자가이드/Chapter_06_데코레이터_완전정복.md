@@ -82,6 +82,20 @@ def my_agent(question: str, ground_truth: str = "") -> str:
 | `tokens_used` | `framework=` 어댑터 또는 EvalMetadata 자동 추출 |
 | `monitor.record_task()` | 측정 완료 후 자동 호출 |
 
+### 데코레이터 선택이 Gate 판정에 미치는 영향
+
+데코레이터의 `task_type`과 Harness Config 선택은 QA 관리자가 보는 Gate A–G 판정에 직접 영향을 준다.
+
+| 개발자 선택 | Tracker 동작 | QA 관리자가 보는 Gate 결과 |
+|-----------|------------|------------------------|
+| `task_type="qa"` | AccuracyEvaluator F1 기반 계산 | Gate A 정확도 점수 |
+| `task_type="tool_use"` | ToolCallAnalyzer 활성화 | Gate B 행동무결성 점수 추가 |
+| `sla=SLAConfig(p95_ms=2000, fail_on_violation=True)` | LatencyTracker P95 감시, 초과 시 success=False | Gate D WARN/FAIL + TCR 하락 |
+| `enable_security_metrics=True` | InputSanitizationTracker 등 5종 활성 | Gate E 보안경계 점수 추가 |
+| `enable_llm_judge=True` | LLMJudge 7차원 채점 | Gate G 운영관측성 점수 추가 |
+
+> 📋 **QA 관리자와의 협업**: Config 임계값을 처음 설정할 때는 `fail_on_violation=False`(관찰 모드)로 시작한 뒤 데이터를 QA 관리자와 공유하세요. 임계값 협의 후 `True`로 전환하면 배포 차단이 활성화됩니다. 상세 협업 워크플로우 → [Chapter 3 §3.5](../Part_II_지표시스템/Chapter_03_Harness_Engineering_기초.md) / Config 임계값 설정 기준 → [Chapter 14](../Part_IV_QA관리자가이드/Chapter_09_임계값설정_품질기준.md)
+
 ---
 
 ## 11.2 에이전트 유형별 데코레이터 선택 가이드

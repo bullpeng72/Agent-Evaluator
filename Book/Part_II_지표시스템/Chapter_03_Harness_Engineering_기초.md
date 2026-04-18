@@ -441,9 +441,128 @@ def qa_agent(question: str, ground_truth: str = "") -> str:
 
 ---
 
-## 3.5 HarnessEvaluationGate — 종합 배포 판정 아키텍처
+## 3.5 개발자 ↔ QA 관리자 협업 브리지
 
-### 3.5.1 Gate의 역할
+Harness Engineering에는 두 종류의 사용자가 있다. **개발자**는 Tracker와 Config로 평가를 구현하고, **QA 관리자**는 Gate A–G 판정 결과로 배포를 승인하거나 차단한다. 두 역할이 어떻게 연결되는지 이해하면 팀 전체가 같은 언어로 소통할 수 있다.
+
+### 3.5.1 두 역할이 보는 Harness
+
+```
+┌──────────────────────────────────────────────────────────────────┐
+│  개발자 관점 (구현)            QA 관리자 관점 (판정)               │
+│                                                                  │
+│  @agent_eval(                  대시보드 / Gate 리포트              │
+│    monitor,                                                      │
+│    sla=SLAConfig(p95_ms=2000)  → Gate D 성능계약: PASS ✅         │
+│    scope=ScopeConfig(...)      → Gate B 행동무결성: WARN ⚠️        │
+│    threat_severity=...         → Gate E 보안경계: PASS ✅         │
+│  )                                                               │
+│  def my_agent(...): ...                                          │
+│                                                                  │
+│  ← 코드로 선언 →               ← 판정 결과로 소통 →               │
+└──────────────────────────────────────────────────────────────────┘
+```
+
+### 3.5.2 협업 워크플로우 — 5단계
+
+실제 팀에서 Harness Engineering이 어떻게 흐르는지 한 사이클을 따라가 본다.
+
+**Step 1 — 개발자: Tracker 활성화 (측정 시작)**
+
+```python
+monitor = PerformanceMonitor(
+    output_dir="results/",
+    enable_hallucination_detection=True,  # Group C Tracker
+    enable_security_metrics=True,         # Group E Tracker
+)
+```
+
+Tracker는 코드를 변경하지 않아도 자동으로 데이터를 수집한다. 이 시점에서 QA 관리자는 아직 개입하지 않는다.
+
+**Step 2 — 개발자: 초기 평가 실행 (기준 없는 측정)**
+
+```python
+@agent_eval(monitor, task_type="qa")
+def my_agent(question, ground_truth=""):
+    return llm.invoke(question)
+
+# 10개 샘플 실행
+for q, gt in test_cases:
+    my_agent(q, ground_truth=gt)
+
+report = monitor.generate_report()
+print(f"응답시간 P95: {report.to_dict()['latency_data']['p95']:.2f}초")
+print(f"TCR: {report.task_completion_rate:.1f}%")
+```
+
+이 결과를 QA 관리자에게 공유한다.
+
+**Step 3 — QA 관리자: Config 기준 결정 (기준 선언)**
+
+측정 데이터를 바탕으로 QA 관리자가 배포 기준을 결정한다.
+
+```
+측정 결과:
+  - 응답시간 P95: 1.8초  →  SLAConfig(p95_ms=2500) 설정
+  - TCR: 91%            →  eval.gate(tcr=85) 설정
+  - 보안 위협 탐지: 0건  →  ThreatSeverityConfig(fail_on_critical=True) 설정
+
+QA 관리자 결정 (문서 또는 구두):
+  "P95 2.5초 이내, TCR 85% 이상, 보안 위협 0건을 배포 기준으로 한다"
+```
+
+**Step 4 — 개발자: Config 코드 반영 (기준을 코드로)**
+
+```python
+@agent_eval(
+    monitor,
+    task_type="qa",
+    sla=SLAConfig(
+        p95_ms=2500,           # QA 관리자 결정 반영
+        fail_on_violation=True,
+    ),
+    threat_severity=ThreatSeverityConfig(
+        fail_on_critical=True,  # QA 관리자 결정 반영
+    ),
+)
+def my_agent(question, ground_truth=""):
+    return llm.invoke(question)
+
+eval.gate(tcr=85, accuracy=70)  # QA 관리자 결정 반영
+```
+
+이제 기준이 소스 코드 안에 존재한다. 팀 누구나 `git log`로 기준의 변경 이력을 볼 수 있다.
+
+**Step 5 — CI/CD: 자동 Gate 판정 (반복 검증)**
+
+```yaml
+# .github/workflows/eval.yml
+- name: Harness Gate check
+  run: agent-eval gate results/latest.json --tcr 85 --accuracy 70
+```
+
+PR마다 Gate가 자동으로 동작한다. 기준을 위반하면 배포가 차단된다. QA 관리자는 대시보드에서 Group별 점수를 확인하고 추가 기준을 요청할 수 있다.
+
+### 3.5.3 Gate A–G와 Tracker·Config 매핑 요약
+
+| Gate | 품질 질문 | 관련 Tracker | 관련 Config |
+|------|----------|-------------|------------|
+| **A** 목표달성 | 지시를 완수했는가? | TCR, Accuracy, ResponseQuality | InstructionConfig, GoalAlignmentConfig, PlanConfig |
+| **B** 행동무결성 | 의도치 않은 행동이 없었는가? | ToolCallAnalyzer, WorkflowExecution | LoopDetectionConfig, ScopeConfig, ToolParameterSafetyConfig |
+| **C** 신뢰성 | 일관되고 재현 가능한가? | HallucinationDetector, RetryCorrection | ReproducibilityConfig, FaultToleranceConfig, IdempotencyConfig |
+| **D** 성능계약 | SLA·비용을 지켰는가? | LatencyTracker, TokenEconomy | SLAConfig, ResourceBudgetConfig, EfficiencyConfig |
+| **E** 보안경계 | 공격·유출을 차단했는가? | InputSanitization, OutputLeakage, ToolAuth | ThreatSeverityConfig, ComplianceConfig, ThreatResponseConfig |
+| **F** 다중에이전트 | 교착 없이 협력했는가? | AgentCoordination, ToolSelection | ConsensusConfig, AgentRoleConfig, ConflictResolutionConfig |
+| **G** 운영관측성 | 실패 원인을 즉시 추적할 수 있는가? | LLMJudge (7차원) | ObservabilityConfig, ExplainabilityConfig, ErrorDiagnosisConfig |
+
+> 📖 **각 Group의 상세 내용**: Chapter 4(A) ~ Chapter 10(G)에서 Tracker·Config를 깊이 다룬다.  
+> 📖 **Config 파라미터 전체 목록**: [Appendix A §Part 2](../Appendix/A_58개지표_레퍼런스.md)
+
+---
+
+## 3.6 HarnessEvaluationGate — 종합 배포 판정 아키텍처
+
+### 3.6.1 Gate의 역할
 
 `eval.gate()`는 TCR·정확도 두 개 지표만 체크하는 단순 Gate다. 에이전트가 성숙해지면 7개 Group 전체를 종합적으로 체크하는 Gate가 필요하다. 그것이 `HarnessEvaluationGate`다.
 
@@ -472,7 +591,7 @@ print(result)
 # }
 ```
 
-### 3.5.2 CI/CD 파이프라인 통합
+### 3.6.2 CI/CD 파이프라인 통합
 
 ```yaml
 # .github/workflows/eval.yml
@@ -495,7 +614,7 @@ jobs:
             --fail-on-group-violation C,E  # Group C·E 위반 시 배포 차단
 ```
 
-### 3.5.3 Group별 가중치 설정
+### 3.6.3 Group별 가중치 설정
 
 에이전트 유형에 따라 Group별 중요도가 다르다.
 
@@ -517,7 +636,7 @@ gate = HarnessEvaluationGate(
 
 ---
 
-## 3.6 AI Native 특성과 Harness Engineering의 연결
+## 3.7 AI Native 특성과 Harness Engineering의 연결
 
 기존 소프트웨어 테스팅은 결정론적 시스템을 위해 설계됐다. AI 에이전트는 5가지 AI Native 특성을 가지며, Harness Engineering은 이 각각에 직접 대응한다.
 
@@ -628,7 +747,7 @@ Harness 대응: 배포 전 `HarnessEvaluationGate` + 배포 후 Phoenix OTEL 실
 
 ---
 
-## 3.7 실습: 첫 Harness 배포 판정 (5분)
+## 3.8 실습: 첫 Harness 배포 판정 (5분)
 
 이 책의 모든 Harness 개념을 한 파일에서 경험한다.
 
@@ -684,7 +803,7 @@ print("\n✅ Harness Gate 통과 — 배포 가능")
 
 ---
 
-## 3.8 이 챕터의 핵심 요약
+## 3.9 이 챕터의 핵심 요약
 
 | 개념 | 한 줄 정의 |
 |------|-----------|

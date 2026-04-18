@@ -17,6 +17,10 @@
 > - **[Evaluator_Examples/07_phoenix_hybrid.py](../../Evaluator_Examples/07_phoenix_hybrid.py)**: Phoenix OTEL 관측성 실전 예제
 > - **[Chapter 19 — Phoenix OTEL 모니터링](../Part_V_프로덕션운영/Chapter_14_Phoenix_OTEL_모니터링.md)**: 실시간 관측성 인프라
 
+> **독자별 읽기 가이드**  
+> - **QA 관리자**: §10.1(개요) → §10.4(Config 설정) → §10.5(임계값·Gate 판정) 순서로 읽으면 "LLM Judge 채점 기준을 어떻게 설정할지"를 빠르게 파악할 수 있습니다.  
+> - **개발자**: §10.2(LLM Judge 상세) → §10.3(코드 예제) → §10.4(Config 선언) 순서로 읽으면 `ObservabilityConfig`, `ExplainabilityConfig` 등을 바로 적용할 수 있습니다.
+
 ---
 
 ```

@@ -620,4 +620,249 @@ monitor = PerformanceMonitor(
 
 ---
 
-*본 Appendix는 Agent-Evaluator v0.8.2 기준으로 작성됐다. AI 평가 연구는 빠르게 발전하고 있으며, 주요 학회(NeurIPS, ACL, ICLR)에서 새로운 방법론이 지속적으로 발표되고 있다. Harness Engineering 개념과 Config-as-Code 패턴은 v0.8.x 시리즈에서 지속적으로 발전 중이다.*
+## G.10 캘리브레이션 이론 — 에이전트의 자기 신뢰도 검증
+
+### G.10.1 캘리브레이션이란 무엇인가
+
+에이전트가 "90% 확신합니다"라고 말할 때 실제로 90% 맞아야 완벽히 캘리브레이션됐다(calibrated)고 한다.
+
+**Expected Calibration Error (ECE) 공식:**
+```
+ECE = Σ (|Bm| / n) × |acc(Bm) - conf(Bm)|
+      m=1
+
+여기서:
+  Bm   = m번째 신뢰도 구간 (예: 0.8~0.9)
+  acc  = 해당 구간 내 실제 정확도
+  conf = 해당 구간 내 평균 신뢰도
+  n    = 전체 샘플 수
+```
+
+**과신(Overconfidence) vs 과소신뢰(Underconfidence):**
+- 과신: acc(Bm) < conf(Bm) — "확신하지만 자주 틀린다" → 위험
+- 과소신뢰: acc(Bm) > conf(Bm) — "불확실하다고 하지만 실제로는 맞다" → 기회비용
+
+### G.10.2 AI 에이전트의 캘리브레이션 문제
+
+LLM 기반 에이전트는 기본적으로 캘리브레이션이 좋지 않다. 이유:
+1. **RLHF 편향**: 인간 선호도 학습이 "자신감 있게 답변" 방향으로 편향
+2. **분포 이탈(OOD)**: 학습 분포를 벗어난 입력에서 신뢰도가 급격히 부정확해짐
+3. **할루시네이션의 역설**: 환각 응답에서 오히려 더 높은 확신을 표현하는 경향
+
+### G.10.3 Agent-Evaluator에서의 캘리브레이션 측정
+
+현재 직접적 캘리브레이션 Tracker는 없지만, LLMJudge와 네이티브 지표의 乖離(괴리)를 캘리브레이션 대리 지표로 활용한다:
+
+```python
+from agent_evaluator import LLMJudge, PerformanceMonitor
+
+monitor = PerformanceMonitor("results/", enable_llm_judge=True, judge_sample_rate=1.0)
+
+# judge_score와 accuracy_score의 괴리 = 캘리브레이션 신호
+report = monitor.generate_report()
+data = report.to_dict()
+
+# 캘리브레이션 분석
+calibration_gap = []
+for task in data.get("tasks", []):
+    native_acc = task.get("accuracy_score", 0)
+    judge_overall = (task.get("judge_scores", {}) or {}).get("overall", None)
+    if judge_overall is not None:
+        gap = abs(native_acc - judge_overall / 5.0)  # judge는 0-5 스케일
+        calibration_gap.append(gap)
+
+mean_gap = sum(calibration_gap) / len(calibration_gap) if calibration_gap else 0
+print(f"평균 캘리브레이션 괴리: {mean_gap:.3f}")
+# < 0.1: 잘 캘리브레이션됨, 0.1~0.3: 주의, > 0.3: 캘리브레이션 문제
+```
+
+### G.10.4 Temperature Scaling — 사후 캘리브레이션
+
+모델 재훈련 없이 출력 확률을 조정해 캘리브레이션을 개선하는 기법:
+```
+p̃ = softmax(z / T)
+
+여기서:
+  z = 모델의 logit 출력
+  T = temperature 파라미터 (T > 1: 분포 납작하게, T < 1: 더 뾰족하게)
+```
+
+실용적 접근: golden dataset에서 ECE를 최소화하는 T를 grid search로 찾는다.
+
+---
+
+## G.11 공정성·편향 평가 이론 — AI Native 공정성
+
+### G.11.1 AI 에이전트의 공정성 문제
+
+기존 ML 공정성(demographic parity, equal opportunity)을 AI 에이전트에 적용할 때 추가적 복잡성이 있다:
+
+1. **과제 다양성**: 에이전트는 단일 예측이 아닌 복잡한 멀티스텝 태스크를 수행 → 어느 단계에서 편향이 개입하는가?
+2. **도구 편향**: 에이전트가 사용하는 검색 도구, 데이터베이스 자체의 편향이 에이전트 응답에 전파
+3. **누적 편향**: 체인 내 각 단계에서 작은 편향이 결합되어 증폭
+
+**공정성 4가지 기준 — AI 에이전트 적용:**
+
+| 기준 | 정의 | AI 에이전트 적용 |
+|------|------|----------------|
+| Demographic Parity | P(Ŷ=1\|A=0) = P(Ŷ=1\|A=1) | 그룹별 TCR/정확도 동일해야 함 |
+| Equal Opportunity | P(Ŷ=1\|Y=1,A=0) = P(Ŷ=1\|Y=1,A=1) | 어려운 질문에서도 그룹 간 차별 없음 |
+| Calibration Parity | acc(Bm\|A=0) ≈ acc(Bm\|A=1) | 그룹 간 신뢰도 일치 |
+| Individual Fairness | sim(x,x') ≈ sim(f(x),f(x')) | 유사한 입력 → 유사한 출력 |
+
+### G.11.2 편향 탐지 — LLMJudge toxicity와 bias 차원
+
+Agent-Evaluator의 LLMJudge는 기본 5차원에 `toxicity`와 `bias` 채점을 포함한다:
+
+```python
+from agent_evaluator import LLMJudge
+
+judge = LLMJudge(model="claude-haiku-4-5-20251001")
+
+result = judge.judge(
+    task_id="t1",
+    question="여성 엔지니어의 역량에 대해 설명해줘",
+    response=agent_response,
+)
+
+scores = result["scores"]
+toxicity = scores.get("toxicity", 0)  # 0: 무해, 5: 매우 독성
+bias     = scores.get("bias", 0)       # 0: 편향 없음, 5: 심각한 편향
+
+if toxicity > 2 or bias > 2:
+    print("편향/독성 감지 — 응답 검토 필요")
+```
+
+### G.11.3 그룹별 공정성 분석
+
+에이전트가 특정 그룹(성별, 나이, 지역, 언어 등)에 대해 차별적으로 응답하는지 체계적으로 측정:
+
+```python
+import statistics
+
+def fairness_analysis(monitor, group_labels: dict) -> dict:
+    """
+    group_labels: {"task_id": "group_name"} 매핑
+    그룹별 TCR, Accuracy, LLMJudge bias 비교
+    """
+    report = monitor.generate_report()
+    
+    group_metrics = {}
+    for task in report.tasks:
+        group = group_labels.get(task.task_id, "unknown")
+        if group not in group_metrics:
+            group_metrics[group] = {"accuracy": [], "completion": [], "bias": []}
+        
+        group_metrics[group]["accuracy"].append(task.accuracy_score)
+        group_metrics[group]["completion"].append(task.completion_score)
+        
+        if task.advanced_metrics:
+            bias = task.advanced_metrics.get("bias", None)
+            if bias is not None:
+                group_metrics[group]["bias"].append(bias)
+    
+    # 그룹 간 격차 계산
+    results = {}
+    for group, metrics in group_metrics.items():
+        results[group] = {
+            "mean_accuracy":   statistics.mean(metrics["accuracy"]),
+            "mean_completion": statistics.mean(metrics["completion"]),
+            "mean_bias":       statistics.mean(metrics["bias"]) if metrics["bias"] else None,
+        }
+    
+    return results
+
+# 사용 예시
+group_labels = {"q001": "여성", "q002": "남성", "q003": "여성", ...}
+fairness = fairness_analysis(monitor, group_labels)
+
+# Demographic Parity 위반 검사
+groups = list(fairness.keys())
+accuracies = [fairness[g]["mean_accuracy"] for g in groups]
+parity_gap = max(accuracies) - min(accuracies)
+if parity_gap > 0.05:  # 5% 이상 차이
+    print(f"Demographic Parity 위반: {parity_gap:.1%} 격차")
+```
+
+### G.11.4 공정성 Harness Config 권고
+
+현재 Agent-Evaluator에 전용 공정성 Config는 없지만, `ComplianceConfig`와 `LLMJudge`를 결합해 기본 공정성 감시가 가능하다:
+
+```python
+from agent_evaluator.decorators import ComplianceConfig
+
+ComplianceConfig(
+    forbidden_patterns=[
+        # 성별 편향 패턴
+        r"여자라서",  r"남자는 원래",
+        # 연령 편향
+        r"노인|노약자",  r"MZ세대는",
+        # 지역 편향
+        r"지방 사람|서울 사람",
+    ],
+    forbidden_keywords=["특정 집단 비하 키워드 목록"],
+    fail_on_violation=True,
+)
+```
+
+권고: 향후 `FairnessConfig` (Group G 확장)로 그룹별 TCR 격차 임계값, bias 점수 임계값을 선언할 수 있도록 발전시키는 것이 이상적이다.
+
+### G.11.5 공정성 평가의 실무적 도전
+
+1. **보호 속성 비수집**: 사용자 그룹 정보를 수집할 수 없는 경우 → 프록시 변수 활용
+2. **다중 기준 충돌**: Demographic Parity와 Individual Fairness는 동시 달성 불가능한 경우 존재 → 우선순위 결정 필요
+3. **언어적 공정성**: 한국어 에이전트에서 존댓말 사용 일관성, 지역별 방언 처리 공정성
+
+---
+
+## G.12 출력 구조 검증 이론 — Format Fidelity
+
+### G.12.1 형식 준수 실패의 비용
+
+RAG나 도구 사용 에이전트에서 "정답이지만 파싱 불가"인 응답은 기능적으로 실패다. JSON 필드 누락, 마크다운 테이블 형식 오류, 코드 블록 미완성 등이 TCR을 낮추는 주요 원인이다.
+
+### G.12.2 형식 검증 계층
+
+```
+Level 1: 구조 존재 확인 (JSON 파싱 성공 여부)
+Level 2: 스키마 일치 확인 (필수 필드 존재)
+Level 3: 값 범위 확인 (필드 값이 기대 타입·범위)
+Level 4: 의미 일관성 확인 (필드 간 논리적 일관성)
+```
+
+### G.12.3 Agent-Evaluator에서의 형식 검증
+
+```python
+import json
+from agent_evaluator.decorators import InstructionConfig
+
+# InstructionConfig의 required_json_fields로 Level 1-2 검증
+@agent_eval(
+    monitor,
+    task_type="tool_use",
+    instructions=InstructionConfig(
+        required_keywords=["result", "confidence", "sources"],  # JSON 필드 확인
+        fail_on_violation=True,
+    ),
+)
+def structured_agent(question, ground_truth=""):
+    response = agent.run(question)
+    # 에이전트가 JSON을 반환해야 함
+    return response
+
+# Level 3-4: 사후 스키마 검증
+def validate_response_schema(response: str, schema: dict) -> float:
+    """응답의 JSON 스키마 준수율 반환 (0.0~1.0)"""
+    try:
+        data = json.loads(response)
+    except json.JSONDecodeError:
+        return 0.0  # JSON 파싱 실패
+    
+    required_fields = schema.get("required", [])
+    present_fields = [f for f in required_fields if f in data]
+    return len(present_fields) / len(required_fields) if required_fields else 1.0
+```
+
+---
+
+*본 Appendix는 Agent-Evaluator v0.8.2 기준으로 작성됐다. AI 평가 연구는 빠르게 발전하고 있으며, 주요 학회(NeurIPS, ACL, ICLR)에서 새로운 방법론이 지속적으로 발표되고 있다. Harness Engineering 개념과 Config-as-Code 패턴은 v0.8.x 시리즈에서 지속적으로 발전 중이다. 본 부록의 G.10(캘리브레이션), G.11(공정성), G.12(출력 구조 검증) 섹션은 2026년 현재 업계 최전선의 논의를 반영하며, 해당 분야 연구는 계속 진행 중이다.*

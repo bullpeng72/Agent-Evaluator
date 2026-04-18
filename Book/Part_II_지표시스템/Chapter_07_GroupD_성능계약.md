@@ -18,6 +18,10 @@
 > - **[Appendix A §Part 2 — Config 레퍼런스](../Appendix/A_58개지표_레퍼런스.md)**: Group D Config 파라미터 전체 목록
 > - **[Evaluator_Examples/01_layer1_all_metrics.py](../../Evaluator_Examples/01_layer1_all_metrics.py)**: LatencyTracker·TokenEconomy 실전 예제
 
+> **독자별 읽기 가이드**  
+> - **QA 관리자**: §7.1(개요) → §7.4(Config 설정) → §7.5(임계값·Gate 판정) 순서로 읽으면 "SLA·비용 기준을 어떻게 선언할지"를 빠르게 파악할 수 있습니다.  
+> - **개발자**: §7.2(Tracker 상세) → §7.3(코드 예제) → §7.4(Config 선언) 순서로 읽으면 `SLAConfig`, `ResourceBudgetConfig` 등을 바로 적용할 수 있습니다.
+
 ---
 
 ```

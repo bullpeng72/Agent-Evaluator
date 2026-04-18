@@ -20,6 +20,10 @@
 > - **[Evaluator_Examples/01_layer1_all_metrics.py](../../Evaluator_Examples/01_layer1_all_metrics.py)**: Group A Tracker 실전 예제
 > - **[Evaluator_Examples/08_harness_eval.py](../../Evaluator_Examples/08_harness_eval.py)**: Group A Config 실전 예제
 
+> **독자별 읽기 가이드**  
+> - **QA 관리자**: §4.1(개요) → §4.4(Config 설정) → §4.5(임계값·Gate 판정) 순서로 읽으면 "어떤 기준을 세울지"를 빠르게 파악할 수 있습니다.  
+> - **개발자**: §4.2(Tracker 상세) → §4.3(코드 예제) → §4.4(Config 선언) 순서로 읽으면 구현에 바로 적용할 수 있습니다.
+
 ---
 
 ```

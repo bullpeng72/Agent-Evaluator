@@ -54,6 +54,26 @@ Agent-Evaluator 대시보드는 **FastAPI 백엔드 + Alpine.js 프론트엔드*
 | **RAG** | Faithfulness, Answer Relevancy, Context Precision/Recall | `HybridPerformanceMonitor` 필요 |
 | **DeepEval** | G-Eval, Toxicity, Bias, Answer Relevancy | `use_deepeval=True` 필요 |
 
+### Gate 점수 이해하기 — 대시보드 숫자의 원천
+
+Overview 탭의 Gate A–G 표시등이 초록/노랑/빨강으로 바뀌는 기준은 무엇인가? 각 Gate 점수는 특정 Tracker가 수집한 데이터의 집계다.
+
+| 대시보드 Gate 표시 | 원천 Tracker (개발자가 활성화) | 개발자 설정 방법 |
+|-------------------|--------------------------|----------------|
+| **Gate A** 목표달성 | `TaskCompletionTracker` (TCR) + `AccuracyEvaluator` | 기본 자동 |
+| **Gate B** 행동무결성 | `ToolCallAnalyzer` + `WorkflowExecutionTracker` | `task_type="tool_use"` 또는 tool_calls 데이터 |
+| **Gate C** 신뢰성 | `HallucinationDetector` + `RetryCorrectionTracker` | `enable_hallucination_detection=True` |
+| **Gate D** 성능계약 | `LatencyTracker` (P95) + `TokenEconomyTracker` | 기본 자동 |
+| **Gate E** 보안경계 | `InputSanitizationTracker` 외 4종 | `enable_security_metrics=True` |
+| **Gate F** 다중에이전트 | `AgentCoordinationTracker` + `ToolSelectionTracker` | agent_interactions 데이터 포함 시 |
+| **Gate G** 운영관측성 | `LLMJudge` 7차원 채점 | `enable_llm_judge=True` + API 키 |
+
+**Gate가 회색(비활성)으로 표시되는 경우**: 담당 Tracker가 꺼져 있거나 입력 데이터가 없는 것이다. 개발자에게 위 표를 참고해 해당 Tracker 활성화를 요청하면 된다.
+
+**Gate 점수 계산 방식**: Tracker 측정값이 Config에 선언된 임계값을 얼마나 초과하는지 집계. `fail_on_violation=True`인 Config가 위반될수록 TCR이 떨어지고 Gate A 점수에 반영된다.
+
+> 📖 각 Gate의 상세 점수 계산 공식 → Part II Chapter 4–10 (Gate A–G별 챕터) / Tracker 활성화 전체 목록 → [Chapter 2 §2.5](../Part_I_기초/Chapter_02_Agent-Evaluator_첫_시작.md) / 개발자-QA 협업 흐름 → [Chapter 3 §3.5](../Part_II_지표시스템/Chapter_03_Harness_Engineering_기초.md)
+
 ---
 
 ## 15.2 메뉴별 활성화 분류 — 무엇이 자동이고 무엇이 아닌가

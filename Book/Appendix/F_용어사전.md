@@ -4,6 +4,26 @@ Agent Evaluator v0.8.2에서 사용하는 주요 용어를 영문 기준 가나�
 
 ---
 
+## AI Native 평가란 무엇인가
+
+**AI Native 평가(AI Native Evaluation)**는 AI 에이전트의 고유한 작동 방식에서 비롯되는 5가지 속성을 측정 대상으로 삼는 평가 패러다임이다.
+
+기존 소프트웨어 테스팅은 "입력 X → 출력 Y, Y가 맞으면 통과"라는 결정론적 검증에 기반한다. AI 에이전트는 이 가정이 성립하지 않는다. 같은 입력에도 경로가 달라지고(비결정론적), 여러 도구를 자율적으로 선택하며(도구 활용), 이전 컨텍스트에 따라 응답이 달라진다(컨텍스트 의존성). 단일 `assert` 테스트로는 품질을 확정할 수 없으며 **통계적 측정 + 배포 판정**이 필수다.
+
+Harness Engineering의 Group A–G는 AI Native 5속성 각각을 커버하도록 설계되었다.
+
+| AI Native 속성 | 기존 테스팅의 한계 | 대응 Harness Group |
+|--------------|----------------|------------------|
+| 비결정론적 출력 | 단일 assert 통과 ≠ 재현 보장 | Group A (정확도 통계), Group C (재현성) |
+| 컨텍스트 의존성 | 격리 테스트로 실 품질 측정 불가 | Group A (완수율), Group B (루프·범위) |
+| 다단계 추론 | 최종 결과만 검증, 중간 오류 미탐지 | Group B (워크플로우), Group G (설명가능성) |
+| 도구 활용 | 도구 호출 권한·패턴 검증 체계 없음 | Group B (도구 안전성), Group E (보안경계) |
+| 자율적 목표 추구 | 범위 이탈 행동 탐지 불가 | Group B (범위 일탈), Group F (다중에이전트 교착) |
+
+참조: Chapter 1 §1.2 / Appendix G (AI Native 이론적 기초)
+
+---
+
 ## AI Native 5속성 정의
 
 Agent-Evaluator가 기존 소프트웨어 테스팅과 다른 이유를 설명하는 5가지 AI 에이전트 고유 속성.
@@ -21,6 +41,55 @@ Agent-Evaluator가 기존 소프트웨어 테스팅과 다른 이유를 설명�
 ---
 
 ## Harness Engineering 핵심 용어
+
+---
+
+### Gate (배포 판정)
+
+Tracker가 수집한 측정값과 Config가 선언한 기준을 대조하여 **"지금 배포해도 되는가"를 자동으로 판정**하는 단계. 두 가지 형태가 있다.
+
+| 형태 | 사용 상황 | 체크 항목 |
+|------|----------|---------|
+| `eval.gate(tcr=85, accuracy=70)` | 단순 배포 기준 (TCR·Accuracy) | 2개 지표 임계값 |
+| `HarnessEvaluationGate(report).evaluate()` | Group A–G 종합 판정 | 7개 Group 전체 Config 위반 여부 |
+
+**개발자 관점**: `fail_on_violation=True`로 선언한 Config가 위반되면 `TaskResult.success=False`가 누적되고, `gate()` 호출 시 `sys.exit(1)`로 CI/CD 파이프라인을 차단한다.
+
+**QA 관리자 관점**: Gate 결과는 대시보드의 "Group A–G PASS/WARN/FAIL" 상태, HTML 리포트의 `blocking_violations` 목록, `agent-eval gate` CLI의 exit code로 확인한다.
+
+```python
+# 단순 Gate
+eval.gate(tcr=85, accuracy=70)   # 미달 시 sys.exit(1)
+
+# 종합 Gate
+from agent_evaluator import HarnessEvaluationGate
+result = HarnessEvaluationGate(report).evaluate()
+# → {"passed": True/False, "groups": {"A": ..., "B": ..., ...}}
+```
+
+참조: Chapter 3 §3.6 / Chapter 18 (CI/CD) / Appendix B (CLI)
+
+---
+
+### Tracker (관찰·측정자)
+
+에이전트 실행 중 자동으로 지표를 수집하는 25개 관찰 클래스의 통칭. 판단하지 않고 오직 측정만 한다.
+
+`PerformanceMonitor`에 `record_task(result)`를 호출할 때 내부의 Tracker들이 자동으로 동작한다. 별도 코드 없이 `@agent_eval` 데코레이터 하나로 모든 기본 Tracker가 활성화된다.
+
+**개발자 관점**: Tracker는 `TaskResult`의 각 필드(`execution_time`, `tool_calls`, `accuracy_score` 등)를 채운다. opt-in Tracker는 `PerformanceMonitor` 생성자 파라미터로 활성화한다.
+
+**QA 관리자 관점**: Tracker가 수집한 데이터가 Gate A–G의 점수 원천이다. "Gate D 점수가 낮다"면 `LatencyTracker`나 `TokenEconomyTracker`가 SLA 초과를 탐지한 것이다.
+
+| 종류 | Tracker | 담당 Group | 활성화 |
+|------|---------|-----------|--------|
+| 기본 자동 | TaskCompletionTracker, AccuracyEvaluator, LatencyTracker, TokenEconomyTracker, ToolCallAnalyzer, WorkflowExecutionTracker, RetryCorrectionTracker, AgentCoordinationTracker, ToolSelectionTracker | A, B, C, D, F | 항상 |
+| opt-in | HallucinationDetector | C | `enable_hallucination_detection=True` |
+| opt-in | InputSanitizationTracker, OutputLeakageDetector, ToolAuthorizationTracker, PrivilegeEscalationDetector, ToolChainAttackDetector | E | `enable_security_metrics=True` |
+| opt-in | LLMJudge (7차원) | G | `enable_llm_judge=True` |
+| opt-in | ResponseQualityEvaluator | A | 자동 (ground_truth 있을 때) |
+
+참조: Chapter 2 §2.4 / Chapter 3 §3.2 / Appendix A §Part 1
 
 ---
 
@@ -97,9 +166,23 @@ result = gate.evaluate()  # {"passed": True, "violations": [...]}
 
 ### Harness Engineering
 
-AI 에이전트를 프로덕션에 안전하게 배포하기 위한 품질 공학 방법론. Tracker(관찰/측정) × Config(기준 선언) × Gate(배포 판정) 3요소로 구성된다. 기존 소프트웨어 테스팅의 "버그 없음 확인"을 넘어 "배포 가능 여부 판정"까지 자동화한다.
+AI 에이전트를 프로덕션에 안전하게 배포하기 위한 품질 공학 방법론. **Tracker(관찰/측정) × Config(기준 선언) × Gate(배포 판정)** 3요소로 구성된다.
 
-참조: Chapter 1, Chapter 3
+기존 소프트웨어 테스팅이 "버그가 없는가?"를 묻는다면, Harness Engineering은 "**지금 이 조건에서 배포해도 되는가?**"를 묻는다. 이 질문의 답을 소스 코드로 선언하고, 실행마다 자동으로 검증한다.
+
+**3가지 배포 실패 유형과 Harness의 대응:**
+
+| 실패 유형 | 설명 | Harness 대응 |
+|---------|------|-------------|
+| 측정 없는 배포 | "응답이 나온다"만 확인하고 배포 | Tracker 25개 자동 측정 |
+| 기준 없는 측정 | 숫자는 있으나 팀마다 판단이 달라 결정 불가 | Config-as-Code로 기준을 소스에 명시 |
+| 배포 후 무감지 | 배포 당시 통과했으나 성능이 서서히 저하 | Gate + 드리프트 탐지(`agent-eval trend`) |
+
+**두 독자의 Harness 진입점:**
+- **개발자**: `@agent_eval(monitor, sla=SLAConfig(...))` — Config 선언이 Harness의 시작
+- **QA 관리자**: Gate A–G 판정 결과 — Config 위반 집계가 배포 결정의 근거
+
+참조: Chapter 1 §1.3 / Chapter 3 §3.1 / Chapter 3 §3.5 (개발자-QA 협업 브리지)
 
 ---
 

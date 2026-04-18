@@ -14,6 +14,37 @@
 
 ---
 
+## 14.0 임계값 설정 전에 알아야 할 것 — 숫자는 어디서 오는가
+
+대시보드와 리포트에 표시되는 모든 숫자는 개발자가 작성한 Tracker + Config로부터 온다. 임계값을 설정하기 전에 이 출처를 이해하면 **"이 숫자가 왜 이 값인가"를 진단**할 수 있다.
+
+```
+개발자 코드                     Tracker 측정                QA 관리자가 보는 값
+─────────────────────────────────────────────────────────────────────────
+@agent_eval(monitor,
+  task_type="qa",          →  AccuracyEvaluator       →  Gate A 정확도: 72%
+  sla=SLAConfig(                                          Gate D P95: 3.1초
+    p95_ms=2000),          →  LatencyTracker P95       →  Gate D: WARN ⚠️
+  enable_security=True,    →  InputSanitizationTracker →  Gate E: PASS ✅
+)
+```
+
+| QA 관리자가 보는 항목 | 원천 Tracker | 개발자 활성화 방법 |
+|--------------------|------------|-----------------|
+| Gate A — TCR, Accuracy | TaskCompletionTracker, AccuracyEvaluator | 기본 자동 (항상) |
+| Gate B — Tool 패턴, 루프 | ToolCallAnalyzer, WorkflowExecutionTracker | `task_type="tool_use"` 또는 tool_calls 데이터 포함 시 |
+| Gate C — 환각률, 재시도 | HallucinationDetector, RetryCorrectionTracker | `enable_hallucination_detection=True` |
+| Gate D — P95 지연, 비용 | LatencyTracker, TokenEconomyTracker | 기본 자동 (항상) |
+| Gate E — 보안 위협 건수 | InputSanitizationTracker 외 4종 | `enable_security_metrics=True` |
+| Gate F — 다중에이전트 협업 | AgentCoordinationTracker, ToolSelectionTracker | agent_interactions 데이터 포함 시 |
+| Gate G — LLM Judge 점수 | LLMJudge 7차원 | `enable_llm_judge=True` + API 키 |
+
+> **데이터가 없는 Gate**: 담당 Tracker가 비활성이거나 입력 데이터가 없으면 해당 Gate 점수가 표시되지 않는다(회색 처리). "왜 Gate E가 보이지 않나?"라면 개발자에게 `enable_security_metrics=True` 설정을 요청하면 된다.
+
+> 📖 **개발자-QA 협업 워크플로우**: [Chapter 3 §3.5](../Part_II_지표시스템/Chapter_03_Harness_Engineering_기초.md) — Tracker 활성화 → 초기 측정 → 임계값 협의 → Config 반영 → CI/CD 자동화의 5단계를 다룬다.
+
+---
+
 ## 14.1 좋은 임계값의 조건
 
 임계값(Threshold)은 에이전트 품질 관리의 핵심 도구다. 그런데 임계값을 설정한다는 것은 생각보다 섬세한 작업이다. 너무 엄격하면 팀 전체가 알림 폭발에 지치고, 너무 느슨하면 진짜 문제를 놓친다.

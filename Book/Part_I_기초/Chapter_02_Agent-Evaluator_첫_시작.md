@@ -345,7 +345,61 @@ monitor_sec = PerformanceMonitor.for_secure_agents("results/")   # Group E 강�
 
 ---
 
-## 2.5 세 가지 결과 출력 시나리오
+## 2.5 개발자와 QA 관리자가 보는 것 — 역할별 데이터 흐름
+
+같은 평가 시스템을 두 역할이 서로 다른 지점에서 만납니다. 이 흐름을 한눈에 이해하면 나머지 챕터를 각자의 관점에서 효율적으로 읽을 수 있습니다.
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                  Harness Engineering 데이터 흐름                          │
+│                                                                          │
+│  👨‍💻 개발자가 작성하는 것          ──────→  🗂️ SDK가 만드는 것              │
+│                                                                          │
+│  @agent_eval(monitor,                   Tracker 자동 측정                 │
+│    sla=SLAConfig(p95_ms=2000),    →     · execution_time                │
+│    scope=ScopeConfig(...),              · tool_calls                    │
+│    threat_severity=ThreatSev...         · tokens_used                   │
+│  )                                      · accuracy_score                 │
+│  def my_agent(...): ...                 · (security events)              │
+│                                              ↓                           │
+│                                    TaskResult (한 건)                    │
+│                                              ↓                           │
+│                                    Config 위반 여부 검증                  │
+│                                    fail_on_violation → success=False     │
+│                                              ↓                           │
+│                                    results/eval.json 누적               │
+│                                              ↓                           │
+│  ─────────────────────────────────  Gate 판정  ──────────────────────── │
+│                                              ↓                           │
+│  📊 QA 관리자가 보는 것                                                    │
+│                                                                          │
+│  대시보드 (agent-eval dashboard)          HTML 리포트                     │
+│  · Gate A–G 통과/경고/실패               · 태스크별 Group 점수             │
+│  · 지표 추세 (trend)                     · Config 위반 목록               │
+│  · 이상 탐지 알림                         · 배포 권고 여부                  │
+│                                                                          │
+│  CI/CD (agent-eval gate CLI)                                             │
+│  · pass → 배포 진행                                                       │
+│  · fail → 배포 차단 + 원인 Group 표시                                     │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+### 개발자가 결정하는 것 → QA 관리자에게 미치는 영향
+
+| 개발자 선언 | Tracker가 측정 | QA 관리자가 보는 판정 |
+|-----------|--------------|-------------------|
+| `SLAConfig(p95_ms=2000)` | LatencyTracker → p95 집계 | Gate D 성능계약: PASS / WARN |
+| `ScopeConfig(allowed_tools=["search"])` | ToolCallAnalyzer → 범위 이탈 감지 | Gate B 행동무결성: PASS / FAIL |
+| `enable_security_metrics=True` | InputSanitizationTracker → 위협 탐지 | Gate E 보안경계: 위협 건수 표시 |
+| `enable_llm_judge=True` | LLMJudge → 7차원 채점 | Gate G 운영관측성: 설명가능성 점수 |
+| `fail_on_violation=True` (어떤 Config든) | TaskResult.success=False 처리 | TCR 하락 → Gate A 영향 |
+
+> **개발자 읽기 경로**: Part II(지표 이해) → Part III(데코레이터·Config 구현) → Part V(CI/CD 연동)  
+> **QA 관리자 읽기 경로**: Part II(지표 이해) → Part IV(임계값 설정·대시보드) → Part V(Gate 운영)
+
+---
+
+## 2.6 세 가지 결과 출력 시나리오
 
 Agent-Evaluator는 평가 결과를 세 가지 방식으로 출력할 수 있습니다.
 
