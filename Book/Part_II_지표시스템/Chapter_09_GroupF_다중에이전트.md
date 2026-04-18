@@ -702,7 +702,7 @@ def verify_against_trusted_source(candidate: str) -> str:
 
 **수학적 모델 — Shapley Value 기반 기여도 계산**:
 
-협력 게임 이론의 Shapley Value는 각 플레이어(에이전트)의 평균 한계 기여도를 공정하게 분배하는 유일한 방법이다.
+협력 게임 이론의 Shapley Value는 각 플레이어(에이전트)의 평균 한계 기여도를 공정하게 분배하는 유일한 방법이다 (Shapley 1953, *A Value for n-Person Games*, Princeton University Press).
 
 ```
 φᵢ(v) = Σ      [|S|!(n-|S|-1)!/n!] × [v(S∪{i}) - v(S)]
@@ -1104,3 +1104,86 @@ def monitored_orchestrator(question: str, ground_truth: str = "") -> str:
 
 > 🔗 **다음 챕터**: Chapter 10 — Group G: 운영관측성  
 > 에이전트의 실패 원인을 즉시 추적하고 설명할 수 있는지 측정하는 4개 Config를 이해한다. LLM Judge와 운영관측성의 연결을 다룬다.
+
+---
+
+## 9.9 실전 예제 파일
+
+| 예제 파일 | 관련 내용 |
+|---------|---------|
+| [`Evaluator_Examples/08_harness_eval.py`](../../Evaluator_Examples/08_harness_eval.py) | 섹션 6: Group F Multi-Agent Coordination — 4개 Config 실전 예제 |
+| [`Evaluator_Examples/02_layer2_agentic_security.py`](../../Evaluator_Examples/02_layer2_agentic_security.py) | 섹션 4: AgentCoordinationTracker·ToolSelectionTracker 실전 예제 |
+
+**핵심 코드 (출처: `Evaluator_Examples/08_harness_eval.py`, 섹션 6 — Group F Multi-Agent Coordination)**
+
+```python
+# 출처: Evaluator_Examples/08_harness_eval.py, 섹션 6 — Group F Multi-Agent Coordination
+from agent_evaluator import (
+    ConsensusConfig, PropagationConfig,
+    AgentRoleConfig, ConflictResolutionConfig,
+)
+from agent_evaluator.decorators import batch_eval
+
+# ── ConsensusConfig: 에이전트 간 합의율·분쟁 탐지 선언 ──
+@batch_eval(
+    monitor,
+    task_type="multi_agent",
+    task_id_prefix="f_consensus",
+    consensus=ConsensusConfig(
+        consensus_method="majority",
+        similarity_threshold=0.7,
+    ),
+)
+def consensus_agent(questions: list, ground_truths: list = None) -> list:
+    """3개 에이전트 응답 집계 — majority vote."""
+    return [f"에이전트 합의 결과: {q}에 대해 majority vote 완료" for q in questions]
+
+# ── PropagationConfig: 정보 전파 정확도·왜곡 탐지 선언 ──
+@agent_eval(
+    monitor,
+    task_type="multi_agent",
+    task_id_prefix="f_propagation",
+    propagation=PropagationConfig(
+        key_facts=["project_id", "deadline"],
+        check_in_response=True,
+        similarity_threshold=0.6,
+    ),
+)
+def propagation_agent(question: str, ground_truth: str = "") -> str:
+    return f"project_id: PROJ-001, deadline: 2026-06-30 — {question} 처리 완료"
+
+# ── AgentRoleConfig: 역할 준수율·역할 위반 탐지 선언 ──
+@agent_eval(
+    monitor,
+    task_type="multi_agent",
+    task_id_prefix="f_role",
+    agent_role=AgentRoleConfig(
+        role_name="summarizer",
+        allowed_tools=["search", "summarize"],
+        forbidden_tools=["delete", "write_db"],
+        role_violation_penalty=0.3,
+    ),
+)
+def role_bounded_agent(question: str, ground_truth: str = "") -> str:
+    return f"[summarizer] 요약 수행: {question}에 대한 핵심 내용 정리 완료"
+
+# ── ConflictResolutionConfig: 충돌 해결 패턴·해결 시간 선언 ──
+@agent_eval(
+    monitor,
+    task_type="multi_agent",
+    task_id_prefix="f_conflict",
+    conflict_resolution=ConflictResolutionConfig(
+        unresolved_penalty=0.3,
+        check_resolution_quality=True,
+    ),
+)
+def conflict_resolver_agent(question: str, ground_truth: str = "") -> str:
+    if "충돌" in question or "disagree" in question.lower():
+        return "합의 도달: 에이전트 간 의견 충돌을 resolved하고 최종 결정을 내렸습니다."
+    return f"일치된 응답: {question}"
+```
+
+```bash
+python Evaluator_Examples/08_harness_eval.py           # Group F 포함 전체
+python Evaluator_Examples/02_layer2_agentic_security.py  # AgentCoordinationTracker 예제
+```

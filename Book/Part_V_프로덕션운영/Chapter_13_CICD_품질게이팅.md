@@ -836,7 +836,7 @@ else:
 
 `06_operational.py`를 실행하면 결과 JSON이 생성되고, `agent-eval gate`와 `agent-eval trend`로 바로 CI/CD 게이팅을 테스트할 수 있다. 실제 GitHub Actions에서 사용하는 것과 동일한 명령어를 로컬에서 먼저 검증해보는 패턴이다.
 
-**파일**: `Evaluator_Examples/06_operational.py`, `agent-eval gate`, `agent-eval trend`
+**파일**: `Evaluator_Examples/08_harness_validation.py`, `Evaluator_Examples/06_operational.py`, `agent-eval gate`, `agent-eval trend`
 
 **핵심 코드 (출처: `Evaluator_Examples/06_operational.py`)**
 
@@ -946,3 +946,74 @@ agent-eval gate results/operational_*.json --tcr 40 --accuracy 60
 ```
 
 > **CI/CD 통합 팁**: GitHub Actions에서 `continue-on-error: false`로 게이팅 스텝을 설정하면 실패 시 배포 워크플로우 전체가 중단된다. `--tcr`과 `--accuracy` 임계값은 환경 변수(`GATE_TCR`, `GATE_ACCURACY`)로 관리해 dev/staging/prod 환경별로 다르게 적용한다.
+
+**Harness Validation CI 예제 (출처: `Evaluator_Examples/08_harness_validation.py`)**
+
+```python
+# 출처: Evaluator_Examples/08_harness_validation.py — Harness 7개 Group CI/CD 게이팅
+# 실행: python Evaluator_Examples/08_harness_validation.py [--strict]
+# 종료 코드: 0 = 전체 PASS/WARN, 1 = 하나 이상 FAIL
+import sys
+from agent_evaluator import (
+    PerformanceMonitor,
+    InstructionConfig, GoalAlignmentConfig,      # Group A
+    LoopDetectionConfig, ScopeConfig,             # Group B
+    ReproducibilityConfig, RetryConsistencyConfig, # Group C
+    SLAConfig, ResourceBudgetConfig,              # Group D
+    ThreatSeverityConfig, ComplianceConfig,       # Group E
+    ConsensusConfig, AgentRoleConfig,             # Group F
+    ExplainabilityConfig, ObservabilityConfig,    # Group G
+)
+from agent_evaluator.decorators import agent_eval
+import json
+
+monitor = PerformanceMonitor(output_dir="results/", enable_security_metrics=True)
+
+# Group A + B 최소 커버리지 예제
+@agent_eval(
+    monitor,
+    task_type="qa",
+    task_id_prefix="val_a",
+    instructions=InstructionConfig(
+        expected_format="json",
+        required_keywords=["answer", "source"],
+    ),
+    goal_alignment=GoalAlignmentConfig(
+        goal_tool_map={"search": ["web_search"]},
+        alignment_threshold=0.5,
+    ),
+)
+def _group_a_agent(question: str, ground_truth: str = "") -> str:
+    return json.dumps({"answer": question + "에 대한 검증 답변", "source": "내부 DB"})
+
+@agent_eval(
+    monitor,
+    task_type="tool_use",
+    task_id_prefix="val_b",
+    loop_detection=LoopDetectionConfig(consecutive_repeat_threshold=3, window_size=5),
+    scope=ScopeConfig(
+        allowed_tools=["search", "summarize", "report"],
+        forbidden_tools=["delete_all", "drop_table"],
+    ),
+)
+def _group_b_agent(question: str, ground_truth: str = "") -> str:
+    return f"재무 리포트 조회: {question}"
+
+# 게이트 결과 출력 및 exit code 처리
+def _print_gate_and_exit(monitor: PerformanceMonitor, strict: bool = False) -> None:
+    report_dict = monitor.generate_report().to_dict()
+    harness     = report_dict.get("extra_metrics", {}).get("harness_groups", {})
+    failed = [gk for gk in "ABCDEFG"
+              if harness.get(gk, {}).get("gate", "").upper() == "FAIL"]
+    warned = [gk for gk in "ABCDEFG"
+              if harness.get(gk, {}).get("gate", "").upper() == "WARN"]
+    print(f"\n  FAIL 그룹: {failed or '없음'}  WARN 그룹: {warned or '없음'}")
+    should_fail = bool(failed) or (strict and bool(warned))
+    sys.exit(1 if should_fail else 0)
+```
+
+```bash
+# CI/CD 파이프라인 통합 — 7개 Gate 전체 검증
+python Evaluator_Examples/08_harness_validation.py           # WARN 허용
+python Evaluator_Examples/08_harness_validation.py --strict  # WARN도 실패 처리
+```

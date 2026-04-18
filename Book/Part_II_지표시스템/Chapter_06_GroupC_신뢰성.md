@@ -512,7 +512,81 @@ print(f"재시도 성공률: {d.get('retry_success_rate', 'N/A')}")
 
 ---
 
-## 6.7 이 챕터의 핵심 요약
+---
+
+## 6.7 실전 예제 파일
+
+| 예제 파일 | 관련 내용 |
+|---------|---------|
+| [`Evaluator_Examples/08_harness_eval.py`](../../Evaluator_Examples/08_harness_eval.py) | 섹션 3: Group C Reliability — 4개 Config 실전 예제 |
+| [`Evaluator_Examples/01_layer1_all_metrics.py`](../../Evaluator_Examples/01_layer1_all_metrics.py) | 섹션 2: HallucinationDetector 실전 예제 |
+
+**핵심 코드 (출처: `Evaluator_Examples/08_harness_eval.py`, 섹션 3 — Group C Reliability)**
+
+```python
+# 출처: Evaluator_Examples/08_harness_eval.py, 섹션 3 — Group C Reliability
+from agent_evaluator import (
+    FaultToleranceConfig, GracefulDegradationConfig,
+    ReproducibilityConfig, RetryConsistencyConfig, IdempotencyConfig,
+)
+from agent_evaluator.decorators import RetryConfig
+
+# ── FaultToleranceConfig + GracefulDegradationConfig: 장애 내성 + 우아한 저하 ──
+@agent_eval(
+    monitor,
+    task_type="tool_use",
+    task_id_prefix="c_fault",
+    fault_tolerance=FaultToleranceConfig(
+        check_fallback_attempts=True,
+        partial_success_threshold=0.5,
+    ),
+    graceful_degradation=GracefulDegradationConfig(
+        quality_floor=0.4,
+        partial_result_markers=["부분", "폴백", "fallback", "partial"],
+        check_error_acknowledgment=True,
+    ),
+    retry=RetryConfig(max=2, on=(RuntimeError,), delay=0.0),
+)
+def fault_tolerant_agent(question: str, ground_truth: str = "") -> str:
+    """실패 시 부분 완료 응답으로 우아하게 저하."""
+    return f"부분 완료(폴백): 캐시 데이터로 응답합니다. {question}"
+
+# ── ReproducibilityConfig: 동일 입력 반복 실행 일관성 선언 ──
+@agent_eval(
+    monitor,
+    task_type="qa",
+    task_id_prefix="c_repro",
+    reproducibility=ReproducibilityConfig(
+        runs=3,
+        similarity_measure="token_f1",
+        reproducibility_threshold=0.8,
+    ),
+)
+def reproducible_agent(question: str, ground_truth: str = "") -> str:
+    return f"재현 가능한 답변: {question}에 대해 정해진 응답을 반환합니다."
+
+# ── IdempotencyConfig: 멱등성·중복 실행 안전성 선언 ──
+@agent_eval(
+    monitor,
+    task_type="tool_use",
+    task_id_prefix="c_idempotency",
+    idempotency=IdempotencyConfig(
+        non_idempotent_patterns=["create", "delete", "insert", "생성", "삭제"],
+        non_idempotent_penalty=0.2,
+    ),
+)
+def idempotent_agent(question: str, ground_truth: str = "") -> str:
+    return f"읽기 전용 조회 완료: {question}에 대한 데이터를 검색했습니다."
+```
+
+```bash
+python Evaluator_Examples/08_harness_eval.py          # Group C 포함 전체
+python Evaluator_Examples/01_layer1_all_metrics.py    # HallucinationDetector 예제
+```
+
+---
+
+## 6.8 이 챕터의 핵심 요약
 
 | 지표/Config | 역할 | 핵심 파라미터 |
 |------------|------|-------------|

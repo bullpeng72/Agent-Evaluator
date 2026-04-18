@@ -438,7 +438,80 @@ print(f"신뢰성: {judge_summary.get('avg_scores', {}).get('factual_consistency
 
 ---
 
-## 10.6 이 챕터의 핵심 요약
+## 10.6 실전 예제 파일
+
+| 예제 파일 | 관련 내용 |
+|---------|---------|
+| [`Evaluator_Examples/08_harness_eval.py`](../../Evaluator_Examples/08_harness_eval.py) | 섹션 7: Group G Observability — 4개 Config + Harness 전체 리포트 |
+| [`Evaluator_Examples/07_phoenix_hybrid.py`](../../Evaluator_Examples/07_phoenix_hybrid.py) | Phoenix OTEL 트레이싱·Playground 스팬 전송 실전 예제 |
+
+**핵심 코드 (출처: `Evaluator_Examples/08_harness_eval.py`, 섹션 7 — Group G Observability)**
+
+```python
+# 출처: Evaluator_Examples/08_harness_eval.py, 섹션 7 — Group G Observability
+from agent_evaluator import (
+    ExplainabilityConfig, ObservabilityConfig,
+    ErrorDiagnosisConfig, LatencyAttributionConfig,
+)
+
+# ── ExplainabilityConfig: 추론 단계·설명 가능성 기준 선언 ──
+@agent_eval(
+    monitor,
+    task_type="reasoning",
+    task_id_prefix="g_explain",
+    explainability=ExplainabilityConfig(
+        require_reasoning=True,
+        min_reasoning_length=50,
+        reasoning_keywords=["왜냐하면", "따라서", "근거"],
+    ),
+)
+def explainable_agent(question: str, ground_truth: str = "") -> str:
+    return f"[추론] 왜냐하면 {question}에 대한 근거가 있기 때문입니다. 따라서 이 결론에 도달했습니다."
+
+# ── ObservabilityConfig: 내부 상태 추적·추적 가능성 기준 선언 ──
+@agent_eval(
+    monitor,
+    task_type="qa",
+    task_id_prefix="g_observability",
+    observability=ObservabilityConfig(
+        check_trace_continuity=True,
+        min_coverage=0.95,
+        required_trace_fields=["input", "output", "latency"],
+    ),
+)
+def observable_agent(question: str, ground_truth: str = "") -> str:
+    return f"추적 가능 응답: {question}"
+
+# ── Harness 전체 리포트 추출 — Group A-G 점수 확인 ──
+final_report  = monitor.generate_report()
+report_dict   = final_report.to_dict()
+harness_groups = (report_dict.get("extra_metrics") or {}).get("harness_groups", {})
+
+group_labels = {
+    "A": "Goal Achievement",     "B": "Behavioral Integrity",
+    "C": "Reliability",          "D": "Performance Contract",
+    "E": "Security Boundary",    "F": "Multi-Agent Coordination",
+    "G": "Observability",
+}
+for gk, label in group_labels.items():
+    group_data = harness_groups.get(gk, {})
+    score  = group_data.get("score")
+    status = group_data.get("status", "n/a")
+    if score is not None:
+        bar = "█" * int(score * 10) + "░" * (10 - int(score * 10))
+        print(f"Group {gk} [{label:<28s}] {bar} {score:.3f} ({status})")
+
+monitor.save_to_file("08_harness_eval")
+```
+
+```bash
+python Evaluator_Examples/08_harness_eval.py      # Group G 포함 전체 — 배포 판정 리포트까지
+python Evaluator_Examples/07_phoenix_hybrid.py    # Phoenix 트레이싱 + 데이터셋 업로드
+```
+
+---
+
+## 10.7 이 챕터의 핵심 요약
 
 | Config | 역할 | 핵심 파라미터 |
 |--------|------|-------------|

@@ -391,6 +391,12 @@ G.1~G.6에서 다룬 이론이 Agent-Evaluator의 어느 Group에서 구현되�
 | G-Eval (커스텀 기준) | 기준 기반 평가 | G-Eval (Liu et al. 2023) |
 | DeepEval (5지표) | 다차원 LLM 평가 | DeepEval framework |
 | Ragas (4지표) | RAG 파이프라인 평가 | RAGAS (Es et al. 2023) |
+| TCR 신뢰 구간 | Wilson Score 하한 | Wilson (1927), Brown et al. (2001) |
+| 에이전트 기여도 | Shapley Value 공정 분배 | Shapley (1953), *A Value for n-Person Games* |
+| 보정(Calibration) | ECE — 예측 신뢰도 정확도 | Guo et al. (2017), Naeini et al. (2015) |
+| Byzantine 합의 | 결함 허용 에이전트 합의 | Lamport, Shostak & Pease (1982) |
+| 공정성 — 인구통계 동등성 | 그룹 간 FPR 균등 | Hardt et al. (2016), *Equality of Opportunity* |
+| 공정성 — 보정 동등성 | 그룹 간 ECE 균등 | Pleiss et al. (2017) |
 
 ---
 
@@ -866,3 +872,53 @@ def validate_response_schema(response: str, schema: dict) -> float:
 ---
 
 *본 Appendix는 Agent-Evaluator v0.8.2 기준으로 작성됐다. AI 평가 연구는 빠르게 발전하고 있으며, 주요 학회(NeurIPS, ACL, ICLR)에서 새로운 방법론이 지속적으로 발표되고 있다. Harness Engineering 개념과 Config-as-Code 패턴은 v0.8.x 시리즈에서 지속적으로 발전 중이다. 본 부록의 G.10(캘리브레이션), G.11(공정성), G.12(출력 구조 검증) 섹션은 2026년 현재 업계 최전선의 논의를 반영하며, 해당 분야 연구는 계속 진행 중이다.*
+
+---
+
+## G.13 참고 문헌
+
+### 평가 지표 핵심 논문
+
+| 약칭 | 전체 인용 |
+|------|---------|
+| Papineni et al. (2002) | Papineni, K., Roukos, S., Ward, T., & Zhu, W.-J. (2002). BLEU: a method for automatic evaluation of machine translation. *ACL 2002*, 311–318. |
+| Lin (2004) | Lin, C.-Y. (2004). ROUGE: A package for automatic evaluation of summaries. *ACL Workshop on Text Summarization*, 74–81. |
+| Denkowski & Lavie (2014) | Denkowski, M., & Lavie, A. (2014). Meteor universal: Language specific translation evaluation for any target language. *EACL Workshop*, 376–380. |
+| Zhang et al. (2019) | Zhang, T., Kishore, V., Wu, F., Weinberger, K., & Artzi, Y. (2019). BERTScore: Evaluating text generation with BERT. *ICLR 2020*. |
+| Zheng et al. (2023) | Zheng, L., et al. (2023). Judging LLM-as-a-Judge with MT-Bench and Chatbot Arena. *NeurIPS 2023*. |
+| Liu et al. (2023) — G-Eval | Liu, Y., et al. (2023). G-Eval: NLG evaluation using GPT-4 with better human alignment. *EMNLP 2023*. |
+| Liu et al. (2023) — AgentBench | Liu, X., et al. (2023). AgentBench: Evaluating LLMs as agents. *ICLR 2024*. |
+| Es et al. (2023) | Es, S., et al. (2023). RAGAS: Automated evaluation of retrieval augmented generation. *EACL 2024*. |
+| Min et al. (2023) | Min, S., et al. (2023). FActScore: Fine-grained atomic evaluation of factual precision in long form text generation. *EMNLP 2023*. |
+| Madaan et al. (2023) | Madaan, A., et al. (2023). Self-Refine: Iterative refinement with self-feedback. *NeurIPS 2023*. |
+| Schick et al. (2023) | Schick, T., et al. (2023). Toolformer: Language models can teach themselves to use tools. *NeurIPS 2023*. |
+| Wu et al. (2023) | Wu, Q., et al. (2023). AutoGen: Enabling next-gen LLM applications via multi-agent conversation. *arXiv:2308.08155*. |
+
+### 수학·통계 기초
+
+| 약칭 | 전체 인용 |
+|------|---------|
+| Wilson (1927) | Wilson, E. B. (1927). Probable inference, the law of succession, and statistical inference. *JASA, 22*(158), 209–212. |
+| Brown et al. (2001) | Brown, L. D., Cai, T. T., & DasGupta, A. (2001). Interval estimation for a binomial proportion. *Statistical Science, 16*(2), 101–133. |
+| Shapley (1953) | Shapley, L. S. (1953). A value for n-person games. In H. Kuhn & A. Tucker (Eds.), *Contributions to the Theory of Games*, Vol. 2, 307–317. Princeton University Press. |
+| Jaccard (1901) | Jaccard, P. (1901). Étude comparative de la distribution florale dans une portion des Alpes et du Jura. *Bulletin de la Société Vaudoise des Sciences Naturelles, 37*, 547–579. |
+| Levenshtein (1966) | Levenshtein, V. I. (1966). Binary codes capable of correcting deletions, insertions, and reversals. *Soviet Physics Doklady, 10*(8), 707–710. |
+
+### 보정·공정성
+
+| 약칭 | 전체 인용 |
+|------|---------|
+| Guo et al. (2017) | Guo, C., Pleiss, G., Sun, Y., & Weinberger, K. Q. (2017). On calibration of modern neural networks. *ICML 2017*, 1321–1330. |
+| Naeini et al. (2015) | Naeini, M. P., Cooper, G., & Hauskrecht, M. (2015). Obtaining well calibrated probabilities using Bayesian binning. *AAAI 2015*, 2901–2907. |
+| Hardt et al. (2016) | Hardt, M., Price, E., & Srebro, N. (2016). Equality of opportunity in supervised learning. *NeurIPS 2016*, 3315–3323. |
+| Pleiss et al. (2017) | Pleiss, G., Raghavan, M., Wu, F., Kleinberg, J., & Weinberger, K. Q. (2017). On fairness and calibration. *NeurIPS 2017*, 5680–5689. |
+
+### 보안·신뢰성
+
+| 약칭 | 전체 인용 |
+|------|---------|
+| Lamport et al. (1982) | Lamport, L., Shostak, R., & Pease, M. (1982). The Byzantine generals problem. *ACM TOPLAS, 4*(3), 382–401. |
+| OWASP LLM (2025) | OWASP Top 10 for Large Language Model Applications (2025). https://owasp.org/www-project-top-10-for-large-language-model-applications/ |
+| MITRE ATLAS (2024) | MITRE ATLAS: Adversarial Threat Landscape for Artificial-Intelligence Systems (2024). https://atlas.mitre.org/ |
+| NIST SP 800-53 | NIST Special Publication 800-53 Rev. 5: Security and Privacy Controls for Information Systems and Organizations. https://nvlpubs.nist.gov/nistpubs/SpecialPublications/NIST.SP.800-53r5.pdf |
+| Beyer et al. (2016) | Beyer, B., Jones, C., Petoff, J., & Murphy, N. R. (2016). *Site Reliability Engineering*. O'Reilly Media. |

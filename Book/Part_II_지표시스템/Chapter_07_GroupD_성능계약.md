@@ -446,7 +446,82 @@ agent-eval trend results/ --metric cost --window 30
 
 ---
 
-## 7.6 이 챕터의 핵심 요약
+## 7.6 실전 예제 파일
+
+| 예제 파일 | 관련 내용 |
+|---------|---------|
+| [`Evaluator_Examples/08_harness_eval.py`](../../Evaluator_Examples/08_harness_eval.py) | 섹션 4: Group D Performance Contract — 3개 Config 실전 예제 |
+| [`Evaluator_Examples/01_layer1_all_metrics.py`](../../Evaluator_Examples/01_layer1_all_metrics.py) | 섹션 4~5: LatencyTracker·TokenEconomyTracker 실전 예제 |
+
+**핵심 코드 (출처: `Evaluator_Examples/08_harness_eval.py`, 섹션 4 — Group D Performance Contract)**
+
+```python
+# 출처: Evaluator_Examples/08_harness_eval.py, 섹션 4 — Group D Performance Contract
+import time, random
+from agent_evaluator import (
+    SLAConfig, EfficiencyConfig, ResourceBudgetConfig,
+    TTFTVariabilityConfig, CostPredictabilityConfig,
+)
+
+# ── SLAConfig: SLA 응답시간·비용 계약 선언 ──
+@agent_eval(
+    monitor,
+    task_type="qa",
+    task_id_prefix="d_sla",
+    sla=SLAConfig(
+        p95_ms=2000,
+        p99_ms=5000,
+        max_cost_per_task=0.01,
+    ),
+)
+def sla_compliant_agent(question: str, ground_truth: str = "") -> str:
+    """SLA 준수 에이전트 — 50~300ms 응답 시뮬레이션."""
+    time.sleep(random.uniform(0.05, 0.3))
+    return f"SLA 준수 응답: {question}"
+
+# ── EfficiencyConfig: 비용 대비 완료율 기준 선언 ──
+@agent_eval(
+    monitor,
+    task_type="qa",
+    task_id_prefix="d_efficiency",
+    efficiency=EfficiencyConfig(
+        cost_unit="tokens",
+        target_cost_per_completion=0.005,
+        penalize_failed_tokens=True,
+    ),
+)
+def efficient_agent(question: str, ground_truth: str = "") -> str:
+    return f"효율적 답변: {question[:30]}"
+
+# ── ResourceBudgetConfig: 개별 태스크 토큰·비용 상한 선언 ──
+@agent_eval(
+    monitor,
+    task_type="qa",
+    task_id_prefix="d_budget",
+    resource_budget=ResourceBudgetConfig(
+        max_tokens=1000,
+        max_cost_usd=0.02,
+        warn_at_pct=0.8,   # 80% 도달 시 WARN
+    ),
+)
+def budget_aware_agent(question: str, ground_truth: str = "") -> str:
+    return f"예산 내 응답: {question}"
+
+# ── TTFTVariabilityConfig·CostPredictabilityConfig: monitor 수준 자동 집계 ──
+# 이 두 Config는 @agent_eval 파라미터가 아닌 monitor 수준에서 자동 측정된다.
+# extra 딕셔너리에 "ttft_ms" 값이 있으면 TTFTVariabilityConfig가 자동 집계한다.
+_ttft_cfg = TTFTVariabilityConfig(max_stddev_ms=300.0, max_p95_p50_ratio=2.5)
+_cost_cfg = CostPredictabilityConfig(max_coefficient_of_variation=0.3, min_samples=5)
+```
+
+```bash
+python Evaluator_Examples/08_harness_eval.py          # Group D 포함 전체
+python Evaluator_Examples/01_layer1_all_metrics.py    # LatencyTracker·TokenEconomy 예제
+```
+
+---
+
+## 7.7 이 챕터의 핵심 요약
 
 | 지표/Config | 역할 | 핵심 파라미터 |
 |------------|------|-------------|

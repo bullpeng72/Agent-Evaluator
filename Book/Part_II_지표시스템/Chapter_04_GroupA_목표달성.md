@@ -631,7 +631,120 @@ else:
 
 ---
 
-## 4.7 이 챕터의 핵심 요약
+---
+
+## 4.7 실전 예제 파일
+
+이 챕터에서 설명한 Group A Config 전체를 바로 실행해볼 수 있는 예제 파일이 준비되어 있다.
+
+| 예제 파일 | 관련 내용 |
+|---------|---------|
+| [`Evaluator_Examples/08_harness_eval.py`](../../Evaluator_Examples/08_harness_eval.py) | 섹션 1: Group A Goal Achievement — 4개 Config 실전 예제 |
+| [`Evaluator_Examples/01_layer1_all_metrics.py`](../../Evaluator_Examples/01_layer1_all_metrics.py) | 섹션 1~2: AccuracyEvaluator · HallucinationDetector · TCR Tracker 실전 예제 |
+
+**핵심 코드 (출처: `Evaluator_Examples/08_harness_eval.py`, 섹션 1 — Group A Goal Achievement)**
+
+```python
+# 출처: Evaluator_Examples/08_harness_eval.py, 섹션 1 — Group A Goal Achievement
+from agent_evaluator import (
+    PerformanceMonitor, InstructionConfig, GoalAlignmentConfig,
+    PlanConfig, SubtaskConfig,
+)
+from agent_evaluator.decorators import agent_eval
+import json
+
+monitor = PerformanceMonitor(output_dir="results/", enable_security_metrics=True)
+
+# ── InstructionConfig: 응답 형식·필수 키워드·최소 길이 선언 ──
+@agent_eval(
+    monitor,
+    task_type="qa",
+    task_id_prefix="a_instruction",
+    instructions=InstructionConfig(
+        expected_format="json",
+        required_keywords=["result", "confidence"],
+        min_chars=20,
+    ),
+)
+def instruction_agent(question: str, ground_truth: str = "") -> str:
+    return json.dumps({"result": f"{question}에 대한 답변", "confidence": 0.92})
+
+# ── GoalAlignmentConfig: 목표-도구 정렬 임계값 선언 ──
+@agent_eval(
+    monitor,
+    task_type="tool_use",
+    task_id_prefix="a_goal",
+    goal_alignment=GoalAlignmentConfig(
+        goal_tool_map={"분석": ["analyze_tool", "search"]},
+        alignment_threshold=0.5,
+    ),
+)
+def goal_aligned_agent(question: str, ground_truth: str = "") -> str:
+    return f"분석 결과: {question}에 대한 검색 및 분석 완료"
+
+# ── PlanConfig: 계획 일관성·단계 완주율 선언 ──
+@agent_eval(
+    monitor,
+    task_type="planning",
+    task_id_prefix="a_plan",
+    plan_tracking=PlanConfig(
+        check_goal_coverage=True,
+        min_steps=2,
+        available_tools=["search", "analyze"],
+    ),
+)
+def plan_agent(question: str, ground_truth: str = "") -> str:
+    plan = {"plan": {"steps": [
+        {"name": "search",    "tool": "search",  "description": "정보 검색"},
+        {"name": "analyze",   "tool": "analyze", "description": "결과 분석"},
+        {"name": "summarize", "tool": "analyze", "description": "요약 작성"},
+    ]}}
+    return json.dumps(plan)
+
+# ── SubtaskConfig: 하위 태스크 분해·완료율 선언 ──
+@agent_eval(
+    monitor,
+    task_type="planning",
+    task_id_prefix="a_subtask",
+    subtask_tracking=SubtaskConfig(
+        expected_subtasks=["데이터 수집", "분석", "요약"],
+        min_completion_rate=0.7,
+    ),
+)
+def subtask_agent(question: str, ground_truth: str = "") -> str:
+    return "데이터 수집 완료, 분석 완료, 요약 작성 완료"
+```
+
+**Layer 1 Tracker 예제 (출처: `Evaluator_Examples/01_layer1_all_metrics.py`, 섹션 1 — QA 정확도)**
+
+```python
+# 출처: Evaluator_Examples/01_layer1_all_metrics.py, 섹션 1 — QA 정확도 (@agent_eval 데코레이터)
+@agent_eval(monitor, task_type="qa", task_id_prefix="qa")
+def qa_agent(question: str, ground_truth: str = "") -> str:
+    """단순 QA 에이전트 — AccuracyEvaluator 자동 활성."""
+    answers = {
+        "한국의 수도는?":       "서울입니다.",
+        "파이썬을 만든 사람은?": "귀도 반 로섬입니다.",
+        "지구의 위성은?":        "달입니다.",
+    }
+    return answers.get(question, "잘 모르겠습니다.")
+
+# 실행 후 결과 확인
+report = monitor.generate_report()
+monitor.save_to_file("group_a_eval")
+# → results/group_a_eval.json  (+ .html)
+# → agent-eval dashboard --results results/
+```
+
+```bash
+# 전체 예제 실행
+python Evaluator_Examples/08_harness_eval.py        # Group A~G 전체
+python Evaluator_Examples/01_layer1_all_metrics.py  # Layer 1 Tracker 전체
+```
+
+---
+
+## 4.8 이 챕터의 핵심 요약
 
 | 지표/Config | 역할 | 핵심 파라미터 |
 |------------|------|-------------|
