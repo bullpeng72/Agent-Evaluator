@@ -521,6 +521,34 @@ print('Accuracy:', data['summary'].get('accuracy', 0) * 100)
 # 실제 성능보다 5-10% 낮게 임계값 설정
 ```
 
+### Gate별 배포 거부 시 — 진단 빠른 가이드
+
+CI에서 `agent-eval gate` 실패 메시지에 Gate 이름이 표시된다면, 아래 표로 첫 번째 체크포인트를 바로 찾는다.
+
+| 실패 Gate | 원인 후보 1순위 | 개발자에게 확인할 것 | QA가 할 수 있는 것 |
+|-----------|-------------|-------------------|-----------------|
+| **Gate A** (목표달성) | accuracy·TCR 하락 | `ground_truth` 제공 여부, `task_type` 설정 | 임계값이 실제 성능과 괴리됐는지 Chapter 14 §14.1 재검토 |
+| **Gate B** (행동무결성) | 도구 루프 or scope 이탈 | `LoopDetectionConfig`, `ScopeConfig` 선언 여부 | 대시보드 Tool Call 탭에서 반복 패턴 확인 |
+| **Gate C** (신뢰성) | 환각·재시도율 상승 | `enable_hallucination_detection=True` 설정 여부 | 동일 입력 반복 실행으로 재현성 확인 |
+| **Gate D** (성능계약) | P95 latency SLA 초과 or 비용 폭증 | `SLAConfig(p95_ms=...)`, `ResourceBudgetConfig` 선언 | 최근 모델·프롬프트 변경 이력 확인 |
+| **Gate E** (보안경계) | 위협 탐지 누적 or 권한 상승 | `enable_security_metrics=True` 여부, `ComplianceConfig` | Appendix K 레드팀 체크리스트로 즉시 검증 |
+| **Gate F** (다중에이전트) | 교착·합의 실패 | `ConsensusConfig`, `DeadlockConfig` 선언 여부 | 에이전트 토폴로지 변경 이력 확인 |
+| **Gate G** (관측성) | 추론 설명 부족 or 상태 추적 미흡 | `ExplainabilityConfig(min_reasoning_steps=N)` | Phoenix 트레이스로 step 수 직접 확인 |
+
+```bash
+# Gate별 현재 점수 빠른 조회
+python -c "
+import json
+with open('results/ci_run.json') as f:
+    data = json.load(f)
+gates = data.get('harness_gates', {})
+for gate, info in gates.items():
+    status = info.get('status', 'N/A')
+    score = info.get('score', 'N/A')
+    print(f'{gate}: {status} (score={score})')
+"
+```
+
 ### 문제 4 — LLM Judge 비용이 너무 많이 나옴
 
 **증상**: LLM Judge 사용 후 API 비용이 급증했다.

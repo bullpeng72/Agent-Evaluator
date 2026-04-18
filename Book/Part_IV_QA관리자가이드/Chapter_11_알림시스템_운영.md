@@ -9,6 +9,23 @@
 
 ---
 
+> **알림과 Harness Gate의 관계**  
+> 알림 규칙은 개별 태스크 이벤트를 감지하고, Harness Gate는 누적 지표를 판정한다. 두 시스템은 같은 데이터를 다른 시간 단위로 본다.
+>
+> | 알림 규칙 (실시간 이벤트) | 연관 Harness Gate (누적 판정) | Gate 악화 신호 |
+> |------------------------|---------------------------|----------------|
+> | `when_accuracy_below(0.70)` | **Gate A** 목표달성 | accuracy 누적 평균 < 임계값 |
+> | `when_latency_above(5.0)` | **Gate D** 성능계약 | P95 latency SLA 위반율 증가 |
+> | `when_completion_below(0.80)` | **Gate A** 목표달성 | TCR 누적 하락 |
+> | `when_tool_calls_exceed(10)` | **Gate B** 행동무결성 | 도구 호출 루프 탐지율 증가 |
+> | `when_error(...)` | **Gate C** 신뢰성 | 오류 복구율·재시도율 악화 |
+> | `보안 위협 탐지` | **Gate E** 보안경계 | 위협 심각도 누적 점수 상승 |
+> | `privilege_escalation` | **Gate E** 보안경계 | 즉시 Gate E FAIL 트리거 |
+>
+> **실무 원칙**: 알림이 반복 발생한다면 Gate 점수 추세를 확인하라. 알림 5회 = Gate 경고(WARN) 예고일 수 있다.
+
+---
+
 ## 16.1 AlertRuleBuilder — 5종 팩토리 메서드
 
 `AlertRuleBuilder`는 가장 흔히 필요한 알림 규칙을 한 줄로 생성하는 팩토리 클래스다. 5가지 정적 메서드를 제공한다.
@@ -554,15 +571,15 @@ BUDGET_EXCEEDED → 0% 평가 중단 (budget_per_day 초과 시 자동 전환)
 
 실무에서 바로 사용할 수 있는 권장 임계값과 쿨다운 조합이다.
 
-| 지표 | Warning | Error | 쿨다운 (W/E) | 채널 (W/E) |
-|------|---------|-------|-------------|-----------|
-| accuracy_score | < 0.70 | < 0.55 | 300s / 60s | #monitoring / #alerts |
-| execution_time | > 5초 | > 10초 | 60s / 30s | #monitoring / #alerts |
-| completion_score | < 0.80 | < 0.60 | 120s / 60s | #monitoring / #alerts |
-| tokens_used["total"] | > 3000 | > 6000 | 180s / 60s | #monitoring / #alerts |
-| attempts (재시도) | ≥ 2 | ≥ 4 | 300s / 120s | #monitoring / #alerts |
-| 보안 위협 탐지 | 1건 | 3건 | 60s / 즉시 | #alerts / #incidents |
-| privilege_escalation | 탐지 즉시 | — | 30s | #incidents |
+| 지표 | Warning | Error | 쿨다운 (W/E) | 채널 (W/E) | 연관 Gate |
+|------|---------|-------|-------------|-----------|----------|
+| accuracy_score | < 0.70 | < 0.55 | 300s / 60s | #monitoring / #alerts | Gate A |
+| execution_time | > 5초 | > 10초 | 60s / 30s | #monitoring / #alerts | Gate D |
+| completion_score | < 0.80 | < 0.60 | 120s / 60s | #monitoring / #alerts | Gate A |
+| tokens_used["total"] | > 3000 | > 6000 | 180s / 60s | #monitoring / #alerts | Gate D |
+| attempts (재시도) | ≥ 2 | ≥ 4 | 300s / 120s | #monitoring / #alerts | Gate C |
+| 보안 위협 탐지 | 1건 | 3건 | 60s / 즉시 | #alerts / #incidents | Gate E |
+| privilege_escalation | 탐지 즉시 | — | 30s | #incidents | Gate E |
 
 **알림 규칙 단위 테스트 체크리스트:**
 

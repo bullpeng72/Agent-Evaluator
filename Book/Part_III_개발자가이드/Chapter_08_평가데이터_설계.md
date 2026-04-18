@@ -140,6 +140,27 @@ result2 = create_taskresult(task_type="qa", ...)       # 동일하게 동작
 | `CODING` | `"coding"` | AST 비교 기반 Accuracy | CODE_GENERATION과 동일 동작 |
 | `DOCUMENT_CREATION` | `"document_creation"` | Quality, Completeness | 구조/형식 평가 |
 
+> **📋 QA 관리자 연결 포인트**: `task_type`은 개발자가 선택하지만, 그 결과는 QA 대시보드의 **Harness Gate 점수**에 직접 반영됩니다. 아래 표는 어떤 `task_type`이 어느 Gate를 활성화하는지 보여줍니다.
+
+**TaskType → 활성화되는 Harness Gate:**
+
+| TaskType | 주요 기여 Gate | Gate가 회색(비활성)인 경우 |
+|---------|-------------|--------------------------|
+| `qa` | **Gate A** (목표달성: accuracy·TCR) | `ground_truth` 미제공 시 accuracy 0 |
+| `tool_use` | **Gate B** (행동무결성: tool 안전성·루프) + **Gate A** | `tool_calls` 필드 비어있으면 Gate B 데이터 없음 |
+| `information_retrieval` | **Gate A** + **Gate C** (신뢰성: hallucination) | `context` 미제공 시 hallucination 지표 미수집 |
+| `code_generation` / `coding` | **Gate A** (AST 정확도) + **Gate D** (latency) | AST 파싱 실패 시 길이 기반으로 fallback |
+| `reasoning` / `planning` | **Gate A** + **Gate B** (workflow 실행) | `expected_tools` 제공 시 Gate B Tool Selection 활성 |
+| `data_analysis` / `document_creation` / `creative` | **Gate A** (quality 5차원) | `ground_truth` 없으면 accuracy 미산정 |
+
+```
+개발자가 task_type을 선택  →  해당 Tracker 자동 활성  →  Gate 점수 계산
+"tool_use" 선택             →  ToolCallAnalyzer 수집   →  Gate B 점수 생성
+"information_retrieval" + context  →  HallucinationDetector  →  Gate C 점수 생성
+```
+
+> **실무 팁**: QA 관리자가 "Gate B가 항상 회색이에요"라고 하면, 개발자는 `task_type="tool_use"` 설정 여부와 `tool_calls` 필드 수집 여부를 먼저 확인한다.
+
 ```python
 from agent_evaluator import agent_eval, PerformanceMonitor
 
