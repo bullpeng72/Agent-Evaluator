@@ -28,6 +28,7 @@ exit code로 반환한다.  CI/CD 파이프라인에서 직접 실행 가능.
 """
 
 import json
+import socket
 import sys
 import time
 from pathlib import Path
@@ -35,6 +36,7 @@ from pathlib import Path
 from agent_evaluator import (
     PerformanceMonitor,
     create_taskresult,
+    setup_otel,
     # Group A
     InstructionConfig,
     GoalAlignmentConfig,
@@ -59,6 +61,18 @@ from agent_evaluator import (
 )
 from agent_evaluator.decorators import agent_eval
 
+# ---------------------------------------------------------------------------
+# Phoenix OTEL 선택적 연결 (agent-eval monitor 실행 중일 때만 활성화)
+# ---------------------------------------------------------------------------
+try:
+    with socket.socket() as _s:
+        _s.settimeout(0.5)
+        if _s.connect_ex(("localhost", 6006)) == 0:
+            setup_otel(endpoint="http://localhost:6006", service_name="08-harness-validation")
+            print("  Phoenix 모니터링 활성화 — http://localhost:6006")
+except Exception:
+    pass
+
 # ── 설정 ──────────────────────────────────────────────────────────────────────
 _PROJECT_ROOT = Path(__file__).parent.parent
 _OUTPUT_DIR   = str(_PROJECT_ROOT / "results")
@@ -67,6 +81,7 @@ _STRICT_MODE  = "--strict" in sys.argv   # WARN도 실패로 처리
 monitor = PerformanceMonitor(
     output_dir=_OUTPUT_DIR,
     enable_security_metrics=True,
+    enable_transparency=True,           # 투명성 탭: 메트릭 계산 Traces 자동 생성
 )
 
 # ── 그룹별 아이콘 ──────────────────────────────────────────────────────────────

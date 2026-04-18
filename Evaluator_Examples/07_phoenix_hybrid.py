@@ -88,12 +88,16 @@ if EVAL_AVAILABLE:
         deepeval_model="gpt-4o-mini",
         ragas_model="gpt-4o-mini",
         output_dir=_OUTPUT_DIR,
+        enable_transparency=True,       # 투명성 탭: 메트릭 계산 Traces 자동 생성
     )
     print("  HybridPerformanceMonitor 활성화 — DeepEval + Ragas 실평가")
     print("  대시보드 '외부평가' 탭에 실제 점수가 표시됩니다")
 else:
     from agent_evaluator import PerformanceMonitor
-    monitor = PerformanceMonitor(output_dir=_OUTPUT_DIR)
+    monitor = PerformanceMonitor(
+        output_dir=_OUTPUT_DIR,
+        enable_transparency=True,       # 투명성 탭: 메트릭 계산 Traces 자동 생성
+    )
     if not _OPENAI_KEY:
         print("  OPENAI_API_KEY 미설정 — PerformanceMonitor 사용 (데모 외부평가 데이터 주입)")
     else:
@@ -211,7 +215,7 @@ try:
 
     if PHOENIX_ONLINE and high_value:
         try:
-            builder.push_to_phoenix(high_value, dataset_name="07-phoenix-golden", phoenix_url=_PHOENIX_URL)
+            builder.push_to_phoenix(high_value, dataset_name="07-phoenix-golden", phoenix_endpoint=_PHOENIX_URL)
             print(f"  Phoenix Datasets 업로드 완료")
         except Exception as e:
             print(f"  push_to_phoenix: {e}")
@@ -231,16 +235,29 @@ if PHOENIX_ONLINE:
         import requests
 
         prompt_payload = {
-            "name": "07-qa-system-prompt",
-            "version": "v1.0",
-            "template": "당신은 정확한 답변을 제공하는 AI입니다.\n질문: {question}\n답변:",
-            "tags": ["production", "qa", "v0.8.0"],
+            "prompt": {"name": "07-qa-system-prompt"},
+            "version": {
+                "template": {
+                    "type": "chat",
+                    "messages": [
+                        {"role": "system", "content": "당신은 정확하고 간결한 답변을 제공하는 AI 어시스턴트입니다."},
+                        {"role": "user",   "content": "질문: {{question}}\n답변:"},
+                    ],
+                },
+                "template_type": "CHAT",
+                "template_format": "MUSTACHE",
+                "model_provider": "ANTHROPIC",
+                "model_name": "claude-sonnet-4-6",
+                "invocation_parameters": {"type": "anthropic", "anthropic": {"max_tokens": 1024}},
+                "tags": ["production", "qa", "v0.8.2"],
+            },
         }
         resp = requests.post(f"{_PHOENIX_URL}/v1/prompts", json=prompt_payload, timeout=5)
         if resp.status_code in (200, 201):
-            print(f"  프롬프트 등록 성공: {resp.json().get('name', '?')}")
+            data_field = resp.json().get("data", {})
+            print(f"  프롬프트 등록 성공: id={data_field.get('id', '?')}  model={data_field.get('model_name', '?')}")
         else:
-            print(f"  프롬프트 등록 응답: {resp.status_code}")
+            print(f"  프롬프트 등록 응답: {resp.status_code} — {resp.text[:200]}")
     except Exception as e:
         print(f"  Prompts REST API: {e}")
 else:

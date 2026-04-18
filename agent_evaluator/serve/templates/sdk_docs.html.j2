@@ -137,7 +137,7 @@ hr{border:none;border-top:1px solid var(--border);margin:20px 0}
   <a class="nav-item" href="#harness-c" style="font-size:11px;color:var(--text2)">↳ ReproducibilityConfig</a>
   <a class="nav-item" href="#harness-c" style="font-size:11px;color:var(--text2)">↳ FaultToleranceConfig · IdempotencyConfig</a>
   <a class="nav-item" href="#harness-c" style="font-size:11px;color:var(--text2)">↳ GracefulDegradationConfig</a>
-  <a class="nav-item" href="#harness-c" style="font-size:11px;color:var(--text2)">↳ RetryConsistencyConfig · StateConsistencyConfig</a>
+  <a class="nav-item" href="#harness-c" style="font-size:11px;color:var(--text2)">↳ RetryConsistencyConfig</a>
 
   <div class="nav-group">D · 성능 계약 — Performance Contract</div>
   <a class="nav-item" href="#latency">LatencyTracker</a>
@@ -499,7 +499,7 @@ agent-eval dashboard --port <span class="nm">8080</span> --watch  <span class="c
         <tbody>
           <tr><td><span class="badge l1">L1</span></td><td>Foundation</td><td>6종</td><td>항상 (Hallucination만 opt-in)</td><td>TCR, Accuracy, Quality, Latency, Token, Hallucination</td></tr>
           <tr><td><span class="badge l2">L2</span></td><td>Agentic</td><td>5종</td><td><code>tool_calls</code> · <code>chain_steps</code> · <code>agent_interactions</code> 데이터 공급 시 자동</td><td>Tool Efficiency, Selection F1, Retry, Coordination, Workflow</td></tr>
-          <tr><td><span class="badge l2">L2</span></td><td>Security <span class="badge req-b">opt-in</span></td><td>5종</td><td><code>security_mode=True</code> 또는 <code>enable_security_metrics=True</code></td><td>Injection, Leakage, AuthZ, PrivEsc, ChainAttack</td></tr>
+          <tr><td><span class="badge l2">L2</span></td><td>Security <span class="badge req-b">opt-in</span></td><td>5종</td><td>데코레이터: <code>security=SecurityConfig(enable_security_metrics=True)</code><br>또는 PerformanceMonitor: <code>enable_security_metrics=True</code></td><td>Injection, Leakage, AuthZ, PrivEsc, ChainAttack</td></tr>
         </tbody>
       </table>
     </div>
@@ -600,6 +600,14 @@ eval = <span class="fn">QuickEval</span>(<span class="st">"results/"</span>, aut
           <tr><td><span class="p">sample_rate</span><span class="opt">opt</span></td><td><span class="t">float</span></td><td><code>1.0</code></td><td>샘플링 비율 (0–1). 비용 제어용</td></tr>
           <tr><td><span class="p">sample_condition</span><span class="opt">opt</span></td><td><span class="t">Callable</span></td><td><code>None</code></td><td><code>(args, kwargs) → bool</code> 조건부 샘플링</td></tr>
           <tr><td><span class="p">on_record</span><span class="opt">opt</span></td><td><span class="t">Callable</span></td><td><code>None</code></td><td><code>(TaskResult) → TaskResult|None</code> 기록 후 후처리 훅</td></tr>
+          <tr style="background:var(--bg3)"><td colspan="4" style="font-weight:700;color:var(--accent);padding:6px 10px;font-size:12px">🔧 Harness Engineering Config (v0.8.0+) — 7개 Gate · 33개 Config <a href="#harness-a" style="color:var(--text2);font-weight:400;font-size:11px;margin-left:4px">→ 상세 레퍼런스</a></td></tr>
+          <tr><td><span class="p">instructions</span><span class="opt">opt</span></td><td><span class="t">InstructionConfig</span></td><td><code>None</code></td><td>Gate A — 지시 이행률·형식·키워드 검증. <a href="#harness-a" style="color:var(--accent)">→ GoalAlignmentConfig, PlanConfig 등 6종</a></td></tr>
+          <tr><td><span class="p">loop_detection</span><span class="opt">opt</span></td><td><span class="t">LoopDetectionConfig</span></td><td><code>None</code></td><td>Gate B — 반복 루프 탐지. <a href="#harness-b" style="color:var(--accent)">→ ScopeConfig, StateConsistencyConfig, DeadlockConfig 등 6종</a></td></tr>
+          <tr><td><span class="p">reproducibility</span><span class="opt">opt</span></td><td><span class="t">ReproducibilityConfig</span></td><td><code>None</code></td><td>Gate C — 재현 가능성. <a href="#harness-c" style="color:var(--accent)">→ FaultToleranceConfig, RetryConsistencyConfig 등 5종</a></td></tr>
+          <tr><td><span class="p">sla</span><span class="opt">opt</span></td><td><span class="t">SLAConfig</span></td><td><code>None</code></td><td>Gate D — SLA 응답시간 계약. <a href="#harness-d" style="color:var(--accent)">→ EfficiencyConfig, ResourceBudgetConfig 등 5종</a></td></tr>
+          <tr><td><span class="p">threat_severity</span><span class="opt">opt</span></td><td><span class="t">ThreatSeverityConfig</span></td><td><code>None</code></td><td>Gate E — 위협 심각도 분류. <a href="#harness-e" style="color:var(--accent)">→ ComplianceConfig, ThreatResponseConfig 3종</a></td></tr>
+          <tr><td><span class="p">consensus</span><span class="opt">opt</span></td><td><span class="t">ConsensusConfig</span></td><td><code>None</code></td><td>Gate F — 에이전트 간 합의율. <a href="#harness-f" style="color:var(--accent)">→ PropagationConfig, AgentRoleConfig, ConflictResolutionConfig 4종</a></td></tr>
+          <tr><td><span class="p">explainability</span><span class="opt">opt</span></td><td><span class="t">ExplainabilityConfig</span></td><td><code>None</code></td><td>Gate G — 추론 설명 가능성. <a href="#harness-g" style="color:var(--accent)">→ ObservabilityConfig, ErrorDiagnosisConfig, LatencyAttributionConfig 4종</a></td></tr>
       {% endcall %}
       <div class="slbl">함수 시그니처 규칙</div>
       <div class="note tip">💡 파라미터명 <code>question</code>·<code>ground_truth</code>·<code>context</code>가 있으면 자동 인식합니다. 다른 이름을 쓸 경우 <code>question_arg</code>·<code>ground_truth_arg</code>·<code>context_arg</code> 파라미터로 매핑하세요.</div>
@@ -1752,6 +1760,180 @@ policy = <span class="fn">AdaptivePolicy</span>(default_sample_rate=<span class=
 <span class="cm"># 이상 감지 플래그 설정 → 샘플링률 자동 전환</span>
 policy.<span class="fn">set_anomaly_detected</span>(<span class="kw">True</span>)
 rate = policy.<span class="fn">get_sample_rate</span>()  <span class="cm"># → 1.0</span></pre>
+    </div>
+  </div>
+</section>
+
+<!-- ── Harness Engineering Config ── -->
+<section class="sec" id="harness-a">
+  <div class="sec-title">🔧 Harness Engineering Config <span style="font-size:13px;font-weight:400;color:var(--text2);margin-left:8px">v0.8.0+ · 7 Gates · 33 Configs</span></div>
+  <div class="sec-sub">7개 Gate A–G, 33개 Config 데이터클래스. <code>@agent_eval</code> 데코레이터 파라미터로 전달하면 <code>PerformanceMonitor</code>가 Gate별 PASS/WARN/FAIL을 자동 판정합니다.</div>
+
+  <div class="note tip" style="margin-bottom:12px">💡 <strong>기본 사용법</strong>: <code>@agent_eval(monitor, task_type="qa", instructions=InstructionConfig(...), sla=SLAConfig(...))</code><br>결과는 <code>report.extra_metrics["harness_groups"]</code> 또는 대시보드 Harness Gate 탭에서 확인.</div>
+
+  <!-- Gate A -->
+  <div class="cls-card">
+    <div class="cls-head"><span class="cls-name">Gate A — Goal Achievement</span><span class="kind fn">6개 Config</span><span style="font-size:11px;color:var(--text2);margin-left:auto">지시 이행률 · 목표 정렬 · 계획 일관성 · 컨텍스트 유지</span></div>
+    <div class="cls-body">
+      <table class="mtable" style="font-size:12px">
+        <thead><tr><th>파라미터명</th><th>Config 클래스</th><th>핵심 필드</th><th>기본 판정 기준</th></tr></thead>
+        <tbody>
+          <tr><td><code>instructions</code></td><td><span class="t">InstructionConfig</span></td><td><code>expected_format</code>, <code>required_keywords</code>, <code>min_chars</code></td><td>키워드 미포함 → FAIL</td></tr>
+          <tr><td><code>goal_alignment</code></td><td><span class="t">GoalAlignmentConfig</span></td><td><code>goal_tool_map</code>, <code>alignment_threshold</code></td><td>임계값 미달 → WARN/FAIL</td></tr>
+          <tr><td><code>plan_tracking</code></td><td><span class="t">PlanConfig</span></td><td><code>expected_steps</code>, <code>step_completion_threshold</code></td><td>단계 완주율 기반</td></tr>
+          <tr><td><code>subtask_tracking</code></td><td><span class="t">SubtaskConfig</span></td><td><code>expected_subtasks</code>, <code>completion_threshold</code></td><td>하위 태스크 완료율</td></tr>
+          <tr><td><code>context_retention</code></td><td><span class="t">ContextRetentionConfig</span></td><td><code>required_context_keys</code>, <code>retention_threshold</code></td><td>컨텍스트 키 유지율</td></tr>
+          <tr><td><code>knowledge_retention</code></td><td><span class="t">KnowledgeRetentionConfig</span></td><td><code>knowledge_keys</code>, <code>retention_threshold</code></td><td>지식 보존·활용 점수</td></tr>
+        </tbody>
+      </table>
+<pre style="margin-top:10px"><span class="kw">from</span> <span class="cn">agent_evaluator</span> <span class="kw">import</span> InstructionConfig, GoalAlignmentConfig
+<span class="kw">from</span> <span class="cn">agent_evaluator.decorators</span> <span class="kw">import</span> agent_eval
+
+<span class="de">@agent_eval</span>(monitor, task_type=<span class="st">"qa"</span>,
+    instructions=<span class="fn">InstructionConfig</span>(
+        expected_format=<span class="st">"json"</span>,
+        required_keywords=[<span class="st">"answer"</span>, <span class="st">"source"</span>],
+        min_chars=<span class="nm">10</span>,
+    ),
+    goal_alignment=<span class="fn">GoalAlignmentConfig</span>(
+        goal_tool_map={<span class="st">"search"</span>: [<span class="st">"web_search"</span>]},
+        alignment_threshold=<span class="nm">0.5</span>,
+    ),
+)
+<span class="kw">def</span> <span class="fn">my_agent</span>(question: str, ground_truth: str = <span class="st">""</span>) -> str: ...</pre>
+    </div>
+  </div>
+
+  <!-- Gate B (id for nav scroll target) -->
+  <div class="cls-card" style="margin-top:12px" id="harness-b">
+    <div class="cls-head"><span class="cls-name">Gate B — Behavioral Integrity</span><span class="kind fn">6개 Config</span><span style="font-size:11px;color:var(--text2);margin-left:auto">루프 탐지 · 범위 일탈 · 도구 안전성 · 상태 일관성</span></div>
+    <div class="cls-body">
+      <table class="mtable" style="font-size:12px">
+        <thead><tr><th>파라미터명</th><th>Config 클래스</th><th>핵심 필드</th><th>기본 판정 기준</th></tr></thead>
+        <tbody>
+          <tr><td><code>loop_detection</code></td><td><span class="t">LoopDetectionConfig</span></td><td><code>consecutive_repeat_threshold</code>, <code>window_size</code></td><td>임계 초과 루프 → FAIL</td></tr>
+          <tr><td><code>scope</code></td><td><span class="t">ScopeConfig</span></td><td><code>allowed_tools</code>, <code>forbidden_tools</code></td><td>금지 도구 사용 → FAIL</td></tr>
+          <tr><td><code>tool_parameter_safety</code></td><td><span class="t">ToolParameterSafetyConfig</span></td><td><code>forbidden_patterns</code>, <code>max_parameter_length</code></td><td>금지 패턴 탐지 → FAIL</td></tr>
+          <tr><td><code>context_window</code></td><td><span class="t">ContextWindowConfig</span></td><td><code>max_context_tokens</code>, <code>utilization_threshold</code></td><td>창 활용 효율 측정</td></tr>
+          <tr><td><code>state_consistency</code></td><td><span class="t">StateConsistencyConfig</span></td><td><code>unchanged_keys</code>, <code>consistency_threshold</code></td><td>실행 전후 상태 불일치 → WARN</td></tr>
+          <tr><td><code>deadlock</code></td><td><span class="t">DeadlockConfig</span></td><td><code>max_delegation_depth</code>, <code>cycle_detection</code></td><td>순환 위임 탐지 → FAIL</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Gate C -->
+  <div class="cls-card" style="margin-top:12px" id="harness-c">
+    <div class="cls-head"><span class="cls-name">Gate C — Reliability</span><span class="kind fn">5개 Config</span><span style="font-size:11px;color:var(--text2);margin-left:auto">재현 가능성 · 오류 복구 · 품질 하한 · 멱등성</span></div>
+    <div class="cls-body">
+      <table class="mtable" style="font-size:12px">
+        <thead><tr><th>파라미터명</th><th>Config 클래스</th><th>핵심 필드</th><th>기본 판정 기준</th></tr></thead>
+        <tbody>
+          <tr><td><code>reproducibility</code></td><td><span class="t">ReproducibilityConfig</span></td><td><code>runs</code>, <code>reproducibility_threshold</code></td><td>동일 입력 반복 일관성</td></tr>
+          <tr><td><code>fault_tolerance</code></td><td><span class="t">FaultToleranceConfig</span></td><td><code>error_recovery_threshold</code>, <code>partial_success_ok</code></td><td>오류 후 복구율</td></tr>
+          <tr><td><code>graceful_degradation</code></td><td><span class="t">GracefulDegradationConfig</span></td><td><code>min_quality_score</code>, <code>partial_result_markers</code></td><td>품질 하한 보증</td></tr>
+          <tr><td><code>retry_consistency</code></td><td><span class="t">RetryConsistencyConfig</span></td><td><code>min_retry_count</code>, <code>penalize_degradation</code></td><td>재시도 간 일관성</td></tr>
+          <tr><td><code>idempotency</code></td><td><span class="t">IdempotencyConfig</span></td><td><code>check_idempotent</code>, <code>similarity_threshold</code></td><td>중복 실행 결과 동일성</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Gate D -->
+  <div class="cls-card" style="margin-top:12px" id="harness-d">
+    <div class="cls-head"><span class="cls-name">Gate D — Performance Contract</span><span class="kind fn">5개 Config</span><span style="font-size:11px;color:var(--text2);margin-left:auto">SLA · 토큰 효율 · TTFT 변동성 · 비용 예측</span></div>
+    <div class="cls-body">
+      <table class="mtable" style="font-size:12px">
+        <thead><tr><th>파라미터명</th><th>Config 클래스</th><th>핵심 필드</th><th>기본 판정 기준</th></tr></thead>
+        <tbody>
+          <tr><td><code>sla</code></td><td><span class="t">SLAConfig</span></td><td><code>p95_ms</code>, <code>max_response_time</code></td><td>P95 초과 비율 → FAIL</td></tr>
+          <tr><td><code>efficiency</code></td><td><span class="t">EfficiencyConfig</span></td><td><code>min_completion_per_token</code>, <code>max_tool_calls</code></td><td>토큰 효율 임계값</td></tr>
+          <tr><td><code>resource_budget</code></td><td><span class="t">ResourceBudgetConfig</span></td><td><code>max_tokens</code>, <code>max_cost_usd</code></td><td>예산 초과 → FAIL</td></tr>
+          <tr><td><code>ttft_variability</code><span style="color:var(--text2);font-size:10px;margin-left:4px">monitor</span></td><td><span class="t">TTFTVariabilityConfig</span></td><td><code>max_std_ms</code>, <code>p95_p50_ratio</code></td><td>monitor 수준 자동 집계</td></tr>
+          <tr><td><code>cost_predictability</code><span style="color:var(--text2);font-size:10px;margin-left:4px">monitor</span></td><td><span class="t">CostPredictabilityConfig</span></td><td><code>max_token_cv</code>, <code>task_type</code></td><td>task_type별 토큰 CV</td></tr>
+        </tbody>
+      </table>
+      <div class="note" style="margin-top:8px;font-size:12px">⚠️ <code>TTFTVariabilityConfig</code>, <code>CostPredictabilityConfig</code>는 <code>@agent_eval</code> 데코레이터가 아닌 <code>PerformanceMonitor</code>에서 집계됩니다. <code>monitor.record_task()</code> 호출 후 <code>generate_report()</code>에서 자동 계산.</div>
+    </div>
+  </div>
+
+  <!-- Gate E -->
+  <div class="cls-card" style="margin-top:12px" id="harness-e">
+    <div class="cls-head"><span class="cls-name">Gate E — Security Boundary</span><span class="kind fn">3개 Config</span><span style="font-size:11px;color:var(--text2);margin-left:auto">위협 심각도 · 규정 준수 · 위협 대응</span></div>
+    <div class="cls-body">
+      <table class="mtable" style="font-size:12px">
+        <thead><tr><th>파라미터명</th><th>Config 클래스</th><th>핵심 필드</th><th>기본 판정 기준</th></tr></thead>
+        <tbody>
+          <tr><td><code>threat_severity</code></td><td><span class="t">ThreatSeverityConfig</span></td><td><code>fail_score</code>, <code>fail_on_critical</code></td><td>임계 점수 초과 → FAIL</td></tr>
+          <tr><td><code>compliance</code></td><td><span class="t">ComplianceConfig</span></td><td><code>compliance_framework</code>, <code>forbidden_keywords</code></td><td>금지 패턴 탐지 → FAIL</td></tr>
+          <tr><td><code>threat_response</code></td><td><span class="t">ThreatResponseConfig</span></td><td><code>expected_response_actions</code>, <code>block_on_threat</code></td><td>대응 행동 누락 → WARN</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Gate F -->
+  <div class="cls-card" style="margin-top:12px" id="harness-f">
+    <div class="cls-head"><span class="cls-name">Gate F — Multi-Agent Coordination</span><span class="kind fn">4개 Config</span><span style="font-size:11px;color:var(--text2);margin-left:auto">합의율 · 정보 전파 · 역할 준수 · 충돌 해결</span></div>
+    <div class="cls-body">
+      <table class="mtable" style="font-size:12px">
+        <thead><tr><th>파라미터명</th><th>Config 클래스</th><th>핵심 필드</th><th>기본 판정 기준</th></tr></thead>
+        <tbody>
+          <tr><td><code>consensus</code></td><td><span class="t">ConsensusConfig</span></td><td><code>consensus_method</code>, <code>similarity_threshold</code></td><td>합의율 임계값 미달 → WARN</td></tr>
+          <tr><td><code>propagation</code></td><td><span class="t">PropagationConfig</span></td><td><code>propagation_accuracy_threshold</code>, <code>detect_distortion</code></td><td>정보 왜곡 탐지</td></tr>
+          <tr><td><code>agent_role</code></td><td><span class="t">AgentRoleConfig</span></td><td><code>role_name</code>, <code>allowed_tools</code></td><td>역할 위반 → FAIL</td></tr>
+          <tr><td><code>conflict_resolution</code></td><td><span class="t">ConflictResolutionConfig</span></td><td><code>resolution_strategies</code>, <code>max_resolution_time</code></td><td>미해결 충돌 → WARN</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Gate G -->
+  <div class="cls-card" style="margin-top:12px" id="harness-g">
+    <div class="cls-head"><span class="cls-name">Gate G — Observability</span><span class="kind fn">4개 Config</span><span style="font-size:11px;color:var(--text2);margin-left:auto">추론 설명 · 상태 추적 · 오류 진단 · 지연 분석</span></div>
+    <div class="cls-body">
+      <table class="mtable" style="font-size:12px">
+        <thead><tr><th>파라미터명</th><th>Config 클래스</th><th>핵심 필드</th><th>기본 판정 기준</th></tr></thead>
+        <tbody>
+          <tr><td><code>explainability</code></td><td><span class="t">ExplainabilityConfig</span></td><td><code>require_reasoning</code>, <code>min_reasoning_length</code></td><td>추론 누락 → FAIL</td></tr>
+          <tr><td><code>observability</code></td><td><span class="t">ObservabilityConfig</span></td><td><code>check_trace_continuity</code>, <code>min_coverage</code></td><td>추적 커버리지 미달 → WARN</td></tr>
+          <tr><td><code>error_diagnosis</code></td><td><span class="t">ErrorDiagnosisConfig</span></td><td><code>require_root_cause</code>, <code>diagnosis_accuracy_threshold</code></td><td>원인 분석 누락 → WARN</td></tr>
+          <tr><td><code>latency_attribution</code></td><td><span class="t">LatencyAttributionConfig</span></td><td><code>track_phases</code>, <code>attribution_threshold</code></td><td>구간별 지연 분석</td></tr>
+        </tbody>
+      </table>
+<pre style="margin-top:10px"><span class="cm"># Gate 결과 확인</span>
+report = monitor.<span class="fn">generate_report</span>()
+harness = report.<span class="fn">to_dict</span>()[<span class="st">"extra_metrics"</span>][<span class="st">"harness_groups"</span>]
+<span class="cm"># {"A": {"gate": "PASS", "score": 0.92}, "B": {"gate": "WARN", "score": 0.71}, ...}</span>
+
+<span class="cm"># agent-eval gate CLI — CI/CD 통합</span>
+<span class="cm"># agent-eval gate results/eval.json --tcr 85 --accuracy 70</span></pre>
+    </div>
+  </div>
+
+  <!-- GoldenSetBuilder · push_to_phoenix -->
+  <div class="cls-card" style="margin-top:12px">
+    <div class="cls-head"><span class="cls-name">GoldenSetBuilder · push_to_phoenix</span><span class="kind cls">class</span><span class="cls-src">agent_evaluator.datasets.builder</span></div>
+    <div class="cls-body">
+      <div class="cls-desc">평가 결과에서 골든 데이터셋을 자동 추출하고 Phoenix로 업로드합니다. <code>merge_to_golden()</code> + <code>upload_to_phoenix()</code>를 한 번에 처리하는 편의 메서드입니다.</div>
+      <table class="mtable" style="margin-top:8px">
+        <thead><tr><th>메서드</th><th>반환</th><th>설명</th></tr></thead>
+        <tbody>
+          <tr><td><span class="p">push_to_phoenix(cases, dataset_name, phoenix_endpoint="http://localhost:6006", version="latest")</span></td><td><span class="r">Optional[str]</span></td><td>골든셋을 저장 후 Phoenix Datasets API에 업로드. 반환값: <code>dataset_id</code> (실패 시 <code>None</code>)</td></tr>
+          <tr><td><span class="p">extract(strategies=["failure_cases","high_value"], ...)</span></td><td><span class="r">List[Dict]</span></td><td>평가 결과에서 골든셋 후보 추출. <code>strategies</code>: <code>"failure_cases"</code> | <code>"high_value"</code> | <code>"diverse"</code></td></tr>
+          <tr><td><span class="p">merge_to_golden(cases, version="latest", output_name=None)</span></td><td><span class="r">Path</span></td><td>케이스를 골든셋 JSON에 병합 저장. 중복 제거.</td></tr>
+        </tbody>
+      </table>
+<pre style="margin-top:10px"><span class="kw">from</span> <span class="cn">agent_evaluator.datasets.builder</span> <span class="kw">import</span> GoldenSetBuilder
+
+builder = <span class="fn">GoldenSetBuilder</span>(<span class="st">"results/"</span>, <span class="st">"data/golden_datasets/"</span>)
+candidates = builder.<span class="fn">extract</span>(strategies=[<span class="st">"failure_cases"</span>, <span class="st">"high_value"</span>])
+dataset_id = builder.<span class="fn">push_to_phoenix</span>(
+    candidates,
+    dataset_name=<span class="st">"qa-golden-v1"</span>,
+    phoenix_endpoint=<span class="st">"http://localhost:6006"</span>,  <span class="cm"># phoenix_url= 아님 주의</span>
+)
+<span class="cm"># Phoenix UI → Datasets &amp; Experiments 탭에서 확인</span></pre>
     </div>
   </div>
 </section>

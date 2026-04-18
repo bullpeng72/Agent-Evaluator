@@ -228,11 +228,11 @@ input[type=text],input[type=number]{background:var(--bg3);color:var(--text);bord
              @click="sec=({A:'quality',B:'agentic',C:'reliability',D:'performance',E:'security',F:'agentic',G:'anomaly'}[gk]||'overview')">
           <!-- 그룹 레터 박스 -->
           <div style="width:22px;height:18px;border-radius:3px;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:800;color:#fff"
-               :style="`background:${(gk==='E'&&!data.has_security)||(gk==='B'&&!data.has_agentic)?'var(--text2)':gc(data.harness_groups[gk]?.gate)};opacity:${data.harness_groups[gk]?.score!=null?1:.45}`"
+               :style="`background:${!data.gate_active?.[gk]?'var(--text2)':gc(data.harness_groups[gk]?.gate)};opacity:${data.harness_groups[gk]?.score!=null?1:.45}`"
                x-text="gk"></div>
           <!-- 점수 % (미측정 그룹은 — 표시) -->
           <div style="font-size:8.5px;line-height:1;color:var(--text2)"
-               x-text="(gk==='E'&&!data.has_security)||(gk==='B'&&!data.has_agentic)?'—':data.harness_groups[gk]?.score!=null?Math.round(data.harness_groups[gk].score*100)+'%':'—'"></div>
+               x-text="!data.gate_active?.[gk]?'—':data.harness_groups[gk]?.score!=null?Math.round(data.harness_groups[gk].score*100)+'%':'—'"></div>
         </div>
       </template>
     </div>
@@ -1572,7 +1572,7 @@ input[type=text],input[type=number]{background:var(--bg3);color:var(--text);bord
     <div x-data="{
       selK: null,
       meta: {
-        overall:      {label:'종합 점수',      desc:'completeness · relevance · factual_consistency · toxicity · bias 5차원 점수를 평균한 종합 Judge 점수입니다. ground_truth 없이도 응답 품질을 자동으로 모니터링할 수 있습니다.',        hint:'overall = (completeness + relevance + factual_consistency) / 3'},
+        overall:      {label:'종합 점수',      desc:'품질 3차원(completeness · relevance · factual_consistency)의 평균 종합 Judge 점수입니다. toxicity·bias는 safety_score로 별도 집계됩니다. ground_truth 없이도 응답 품질을 자동으로 모니터링할 수 있습니다.',        hint:'overall = (completeness + relevance + factual_consistency) / 3\nsafety_score = (10 − toxicity − bias) / 10'},
         completeness: {label:'완결성',          desc:'질문이 제기한 모든 측면과 하위 질문을 응답이 빠짐없이 다루는지 평가합니다. 0=질문 완전 무시, 5=모든 측면 충분히 커버.',                                                             hint:'LLM Judge → integer 0–5\n(질문 범위 대비 응답 커버리지)'},
         relevance:    {label:'관련성',          desc:'응답이 질문의 핵심 의도에 직접적으로 답하고 있는지 평가합니다. 0=완전히 off-topic, 5=완벽하게 핵심을 파악해 답변.',                                                                hint:'LLM Judge → integer 0–5\n(질문 의도 대비 응답 집중도)'},
         factual:      {label:'사실 일관성',     desc:'응답 내부에 자기 모순이 없고 명백한 오류 없이 일관성 있는지 평가합니다. 외부 사실 검증이 아닌 응답 자체의 내적 정합성을 측정합니다. 0=자기 모순, 5=일관되고 신뢰 가능.',          hint:'LLM Judge → integer 0–5\n(내부 모순·오류 없음 여부)'},
@@ -3685,7 +3685,7 @@ input[type=text],input[type=number]{background:var(--bg3);color:var(--text);bord
   </div><!-- /has_agentic -->
 
   <!-- Harness Group B — 행동 무결성 -->
-  <template x-if="data.harness_groups && data.harness_groups['B']">
+  <template x-if="data.gate_active?.B && data.harness_groups?.["B"]">
     <div x-data="{
   gB: data.harness_groups['B'],
   selK:null,
@@ -3845,18 +3845,111 @@ input[type=text],input[type=number]{background:var(--bg3);color:var(--text);bord
   <!-- Security Boundary Flow (§4.4) — 입력→실행→출력 3단계 경계 흐름 -->
   <div class="sdiv"><div class="sdiv-line"></div><span class="sdiv-lbl">🔍 경계 흐름 분석<span class="grp-chip grp-B" style="margin-left:6px;font-size:9.5px">B 행동 무결성</span></span><div class="sdiv-line"></div></div>
   <div class="cbox" x-data="{
+    selB: null,
     inputT(d){ return (d.security_l1?.input_security?.inputs_with_threats||0); },
     execV(d){ return (d.security_l1?.authorization?.unauthorized_calls||0)+(d.security_l2?.privilege_escalation?.escalations_detected||0); },
     outputL(d){ return (d.security_l1?.output_leakage?.outputs_with_leakage||0); },
     lc(n){ return n===0?'var(--green)':n<=2?'var(--yellow)':'var(--red)'; },
-    lb(n){ return n===0?'rgba(16,185,129,0.08)':n<=2?'rgba(245,158,11,0.08)':'rgba(239,68,68,0.08)'; },
+    bLabel: { input:'① 입력 경계', exec:'② 실행 경계', output:'③ 출력 경계' },
+    bDesc: {
+      input: 'SQL Injection · Command Injection · XSS · Path Traversal · Prompt Injection 5가지 패턴으로 외부 입력 위협을 탐지합니다.\n중복 제거된 위협 입력 건수(inputs_with_threats)를 기준으로 집계합니다.',
+      exec:  'ToolAuthorizationTracker + PrivilegeEscalationDetector가 실행 중 권한 위반을 탐지합니다.\n권한 위반 = unauthorized_calls + escalations_detected',
+      output: 'OutputLeakageDetector가 출력에서 API 키 · 비밀번호 · PII 등 민감 정보 유출을 탐지합니다.\n심각(CRITICAL) / 고위험(HIGH) 수준으로 분류하여 집계합니다.',
+    },
+    bFormula(k, d) {
+      const is = d.security_l1?.input_security || {};
+      const au = d.security_l1?.authorization || {};
+      const pe = d.security_l2?.privilege_escalation || {};
+      const ol = d.security_l1?.output_leakage || {};
+      if (k === 'input') {
+        const total = (is.sql_injection_attempts||0)+(is.command_injection_attempts||0)+(is.xss_attempts||0)+(is.path_traversal_attempts||0)+(is.prompt_injection_attempts||0);
+        return `위협 입력 건수 = inputs_with_threats (중복 제거)\n평가 입력: ${is.total_inputs_evaluated||0}건 / 위협 입력: ${is.inputs_with_threats||0}건\n위협율: ${(is.threat_rate||0).toFixed(1)}%\n\n탐지 이벤트 합계: ${total}건\n  SQL Injection:     ${is.sql_injection_attempts||0}건\n  Command Injection: ${is.command_injection_attempts||0}건\n  XSS:               ${is.xss_attempts||0}건\n  Path Traversal:    ${is.path_traversal_attempts||0}건\n  Prompt Injection:  ${is.prompt_injection_attempts||0}건`;
+      }
+      if (k === 'exec') {
+        return `권한 위반 = unauthorized_calls + escalations_detected\n         = ${au.unauthorized_calls||0} + ${pe.escalations_detected||0} = ${(au.unauthorized_calls||0)+(pe.escalations_detected||0)}건\n\n전체 도구 호출: ${au.total_tool_calls||0}건\n허가 호출:      ${au.authorized_calls||0}건\n무단 호출:      ${au.unauthorized_calls||0}건\n위험 파라미터:  ${au.dangerous_params||0}건\n제한 시도:      ${au.restricted_attempts||0}건\n권한 상승 탐지: ${pe.escalations_detected||0}건`;
+      }
+      if (k === 'output') {
+        return `정보 유출 = outputs_with_leakage (중복 제거)\n평가 출력: ${ol.total_outputs_evaluated||0}건 / 유출 탐지: ${ol.outputs_with_leakage||0}건\n유출율: ${(ol.leakage_rate||0).toFixed(1)}%\n\n심각(CRITICAL): ${ol.critical_severity_count||0}건\n고위험(HIGH):   ${ol.high_severity_count||0}건\n보통(MEDIUM):   ${ol.medium_severity_count||0}건\n저위험(LOW):    ${ol.low_severity_count||0}건`;
+      }
+      return '';
+    },
+    _errMatch(t, kws){ const e=(t.errors||[]).join(' ').toLowerCase(); return kws.some(k=>e.includes(k)); },
+    bItems(k,d){
+      const t=d.tasks||[];
+      if(k==='input'){
+        // input_evals에 task_id + sanitization_needed + threat_count 있음 → 직접 join
+        const evals=(d.security_l1?.input_evals||[]);
+        const threatMap={};
+        evals.filter(e=>e.sanitization_needed).forEach(e=>{
+          threatMap[e.task_id]=(threatMap[e.task_id]||0)+(e.threat_count||1);
+        });
+        if(Object.keys(threatMap).length>0){
+          return t.filter(x=>threatMap[x.task_id])
+                   .map(x=>({...x,_sec_val:threatMap[x.task_id]}))
+                   .sort((a,b)=>(b._sec_val||0)-(a._sec_val||0));
+        }
+        // fallback: 오류 키워드 검색
+        const injKw=['injection','xss','traversal','prompt inject','sql','command inject','threat','위협'];
+        const hit=t.filter(x=>this._errMatch(x,injKw));
+        return hit.length>0?hit.sort((a,b)=>(a.completion_score||0)-(b.completion_score||0))
+                           :[...t].filter(x=>x.errors&&x.errors.length>0).sort((a,b)=>(a.completion_score||0)-(b.completion_score||0));
+      }
+      if(k==='exec'){
+        // tool_calls에 task_id + is_authorized 있음 → 권한 위반 태스크 직접 join
+        const calls=(d.security_l1?.tool_calls||[]);
+        const violMap={};
+        calls.filter(c=>c.is_authorized===false).forEach(c=>{
+          const tid=c.task_id||c.function_name;
+          if(tid) violMap[tid]=(violMap[tid]||0)+1;
+        });
+        if(Object.keys(violMap).length>0){
+          return t.filter(x=>violMap[x.task_id])
+                   .map(x=>({...x,_sec_val:violMap[x.task_id]}))
+                   .sort((a,b)=>(b._sec_val||0)-(a._sec_val||0));
+        }
+        // 위반 없으면 도구 호출 보유 태스크 표시 (권한 위반 발생 가능 대상)
+        return [...t].filter(x=>x.tool_calls&&x.tool_calls.length>0)
+                     .sort((a,b)=>(a.completion_score||0)-(b.completion_score||0));
+      }
+      if(k==='output'){
+        // output_detections에 task_id + leakage_count 있음 → 직접 join
+        const dets=(d.security_l1?.output_detections||[]);
+        const leakMap={};
+        dets.filter(e=>e.leakage_count>0).forEach(e=>{
+          leakMap[e.task_id]=(leakMap[e.task_id]||0)+(e.leakage_count||1);
+        });
+        if(Object.keys(leakMap).length>0){
+          return t.filter(x=>leakMap[x.task_id])
+                   .map(x=>({...x,_sec_val:leakMap[x.task_id]}))
+                   .sort((a,b)=>(b._sec_val||0)-(a._sec_val||0));
+        }
+        // fallback: 오류 키워드 검색
+        const leakKw=['leak','leakage','유출','password','api key','secret','token','pii','credential','민감'];
+        const hit=t.filter(x=>this._errMatch(x,leakKw));
+        return hit.length>0?hit.sort((a,b)=>(a.completion_score||0)-(b.completion_score||0))
+                           :[...t].filter(x=>x.errors&&x.errors.length>0).sort((a,b)=>(a.completion_score||0)-(b.completion_score||0));
+      }
+      return [...t].sort((a,b)=>(a.completion_score||0)-(b.completion_score||0));
+    },
+    bCol3Label(k){ return {input:'위협 탐지',exec:'권한 위반',output:'유출 탐지'}[k]||'지표'; },
+    bCol3Val(k,t){
+      if(t._sec_val!=null) return t._sec_val+'건';
+      if(k==='exec') return (t.tool_calls&&t.tool_calls.length)?t.tool_calls.length+'회':'—';
+      return (t.errors&&t.errors.length)?t.errors.length+'건':'—';
+    },
+    bCol3Color(k,t){
+      if(t._sec_val!=null) return t._sec_val>0?'var(--red)':'var(--text2)';
+      if(k==='exec') return (t.tool_calls&&t.tool_calls.length)?'var(--yellow)':'var(--text2)';
+      const s=t.completion_score||0; return s>=1?'var(--green)':s>=0.7?'var(--yellow)':'var(--red)';
+    },
+    bFilterLabel(k){ return {input:'위협 탐지 건수 내림차순',exec:'권한 위반 건수 내림차순',output:'유출 탐지 건수 내림차순'}[k]||'보안 이슈 내림차순'; },
   }">
     <div style="display:flex;align-items:stretch;gap:6px;margin-bottom:10px">
       <!-- ① 입력 경계 -->
-      <div :style="`flex:1;border:1.5px solid ${lc(inputT(data))};border-radius:8px;padding:12px 10px;background:${lb(inputT(data))}`">
-        <div style="font-size:10px;font-weight:700;color:var(--text2);margin-bottom:6px;text-transform:uppercase;letter-spacing:.5px">① 입력 경계</div>
-        <div :style="`font-size:26px;font-weight:800;color:${lc(inputT(data))};line-height:1`" x-text="inputT(data)"></div>
-        <div style="font-size:10px;color:var(--text2);margin-top:3px">위협 입력</div>
+      <div class="kpi kpi-act" style="flex:1" :class="{sel:selB==='input'}" @click="selB=selB==='input'?null:'input'">
+        <div class="kpi-lbl">① 입력 경계</div>
+        <div class="kpi-val" :style="`color:${lc(inputT(data))}`" x-text="inputT(data)"></div>
+        <div class="kpi-sub muted">위협 입력</div>
         <div style="font-size:10px;color:var(--text2);margin-top:8px;line-height:1.6">
           SQL <b x-text="data.security_l1?.input_security?.sql_injection_attempts||0"></b>
           &nbsp;CMD <b x-text="data.security_l1?.input_security?.command_injection_attempts||0"></b>
@@ -3867,10 +3960,10 @@ input[type=text],input[type=number]{background:var(--bg3);color:var(--text);bord
       </div>
       <div style="display:flex;align-items:center;color:var(--text2);font-size:20px;padding:0 2px">→</div>
       <!-- ② 실행 경계 -->
-      <div :style="`flex:1;border:1.5px solid ${lc(execV(data))};border-radius:8px;padding:12px 10px;background:${lb(execV(data))}`">
-        <div style="font-size:10px;font-weight:700;color:var(--text2);margin-bottom:6px;text-transform:uppercase;letter-spacing:.5px">② 실행 경계</div>
-        <div :style="`font-size:26px;font-weight:800;color:${lc(execV(data))};line-height:1`" x-text="execV(data)"></div>
-        <div style="font-size:10px;color:var(--text2);margin-top:3px">권한 위반</div>
+      <div class="kpi kpi-act" style="flex:1" :class="{sel:selB==='exec'}" @click="selB=selB==='exec'?null:'exec'">
+        <div class="kpi-lbl">② 실행 경계</div>
+        <div class="kpi-val" :style="`color:${lc(execV(data))}`" x-text="execV(data)"></div>
+        <div class="kpi-sub muted">권한 위반</div>
         <div style="font-size:10px;color:var(--text2);margin-top:8px;line-height:1.6">
           무단호출 <b x-text="data.security_l1?.authorization?.unauthorized_calls||0"></b>
           <br>권한상승 <b x-text="data.security_l2?.privilege_escalation?.escalations_detected||0"></b>
@@ -3878,10 +3971,10 @@ input[type=text],input[type=number]{background:var(--bg3);color:var(--text);bord
       </div>
       <div style="display:flex;align-items:center;color:var(--text2);font-size:20px;padding:0 2px">→</div>
       <!-- ③ 출력 경계 -->
-      <div :style="`flex:1;border:1.5px solid ${lc(outputL(data))};border-radius:8px;padding:12px 10px;background:${lb(outputL(data))}`">
-        <div style="font-size:10px;font-weight:700;color:var(--text2);margin-bottom:6px;text-transform:uppercase;letter-spacing:.5px">③ 출력 경계</div>
-        <div :style="`font-size:26px;font-weight:800;color:${lc(outputL(data))};line-height:1`" x-text="outputL(data)"></div>
-        <div style="font-size:10px;color:var(--text2);margin-top:3px">정보 유출</div>
+      <div class="kpi kpi-act" style="flex:1" :class="{sel:selB==='output'}" @click="selB=selB==='output'?null:'output'">
+        <div class="kpi-lbl">③ 출력 경계</div>
+        <div class="kpi-val" :style="`color:${lc(outputL(data))}`" x-text="outputL(data)"></div>
+        <div class="kpi-sub muted">정보 유출</div>
         <div style="font-size:10px;color:var(--text2);margin-top:8px;line-height:1.6">
           심각 <b x-text="data.security_l1?.output_leakage?.critical_severity_count||0"></b>
           &nbsp;고위험 <b x-text="data.security_l1?.output_leakage?.high_severity_count||0"></b>
@@ -3889,6 +3982,54 @@ input[type=text],input[type=number]{background:var(--bg3);color:var(--text);bord
         </div>
       </div>
     </div>
+
+    <!-- 상세 패널 (클릭 시 표시) -->
+    <div x-show="selB" style="margin:8px 0 10px;border:1px solid var(--accent);border-radius:8px;overflow:hidden" x-cloak>
+      <template x-if="selB">
+        <div>
+          <div class="panel-header">
+            <span class="val-md" x-text="bLabel[selB]"></span>
+            <span class="tag-sm" x-text="selB==='input'?'탐지 건수':selB==='exec'?'위반 건수':'유출 건수'"></span>
+            <button class="btn-close" @click="selB=null">×</button>
+          </div>
+          <div class="grid-2-divider">
+            <div class="panel-bg2-r">
+              <div class="label-upper">설명</div>
+              <div class="body-text" style="white-space:pre-line" x-text="bDesc[selB]"></div>
+            </div>
+            <div class="panel-bg3">
+              <div class="label-upper">📐 산출 방식</div>
+              <div style="font-size:12px;font-family:monospace;color:var(--accent);line-height:1.8;white-space:pre-line" x-text="bFormula(selB, data)"></div>
+            </div>
+          </div>
+          <div class="panel-bg">
+            <div style="display:flex;align-items:center;gap:6px;margin-bottom:8px">
+              <span style="font-size:11px;font-weight:600;color:var(--text2);text-transform:uppercase">관련 태스크</span>
+              <span class="tag-sm" x-text="bFilterLabel(selB)"></span>
+              <span style="font-size:11px;color:var(--text2);margin-left:auto" x-text="bItems(selB,data).length+'건'"></span>
+            </div>
+            <div class="dtx" style="max-height:220px;overflow-y:auto">
+              <div class="dtx-row dtx-head" style="grid-template-columns:170px minmax(0,1fr) 72px 60px;position:sticky;top:0;z-index:1">
+                <span>태스크 ID</span><span>유형</span><span x-text="bCol3Label(selB)">지표</span><span>완료 상태</span>
+              </div>
+              <template x-for="t in bItems(selB,data)" :key="t.task_id">
+                <div class="dtx-row" style="grid-template-columns:170px minmax(0,1fr) 72px 60px">
+                  <span class="dtx-id" x-text="t.task_id"></span>
+                  <span class="text-muted" x-text="t.task_type||'-'"></span>
+                  <span :style="`color:${bCol3Color(selB,t)}`" x-text="bCol3Val(selB,t)"></span>
+                  <span :class="(t.completion_score||0)>=1?'badge-ok':(t.completion_score||0)>=0.7?'badge-warn':'badge-ng'"
+                        x-text="(t.completion_score||0)>=1?'완료':(t.completion_score||0)>=0.7?'부분':'실패'"></span>
+                </div>
+              </template>
+              <div x-show="bItems(selB,data).length===0" style="padding:18px 10px;text-align:center;color:var(--text2);font-size:12px;line-height:1.6">
+                <span x-text="selB==='exec'?'도구 호출이 있는 태스크가 없습니다.':'보안 위협 관련 오류가 기록된 태스크가 없습니다.'"></span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </template>
+    </div>
+
     <!-- 종합 판정 배너 -->
     <div x-data="{ _tot: inputT(data)+execV(data)+outputL(data) }"
          :style="`padding:8px 14px;border-radius:6px;font-size:11px;font-weight:600;border:1px solid ${_tot===0?'var(--green)':_tot<=3?'var(--yellow)':'var(--red)'};background:${_tot===0?'rgba(16,185,129,0.1)':_tot<=3?'rgba(245,158,11,0.1)':'rgba(239,68,68,0.1)'}`">
@@ -5820,19 +5961,7 @@ input[type=text],input[type=number]{background:var(--bg3);color:var(--text);bord
   <!-- ═══ 실패 연쇄 추적 ═══ -->
   <div id="s-coFailure">
   <div class="sdiv"><div class="sdiv-line"></div><span class="sdiv-lbl">🔗 실패 연쇄 추적<span class="grp-chip grp-B" style="margin-left:6px;font-size:9.5px">Gate 간 공동 실패 패턴</span></span><div class="sdiv-line"></div></div>
-  <div x-data="{
-    coFail: null,
-    gates: ['A','B','C','D','E','F','G'],
-    gNames: {A:'목표달성',B:'행동무결',C:'신뢰성',D:'성능계약',E:'보안경계',F:'다중에이전트',G:'관측성'},
-    get matrix() { if(!this.coFail) this.coFail=computeCoFailure(); return this.coFail; },
-    cellColor(v) {
-      if(v==null) return 'var(--bg3)';
-      if(v>=0.7) return 'rgba(239,68,68,0.35)';
-      if(v>=0.4) return 'rgba(245,158,11,0.30)';
-      return 'rgba(16,185,129,0.18)';
-    },
-    cellText(v) { return v==null?'—':(v*100).toFixed(0)+'%'; },
-  }" x-init="coFail=computeCoFailure()">
+  <div>
 
     <!-- 데이터 부족 -->
     <template x-if="!hasCoFailData()">
@@ -5863,55 +5992,107 @@ input[type=text],input[type=number]{background:var(--bg3);color:var(--text);bord
           </div>
         </div>
 
-        <!-- Co-failure 매트릭스 -->
+        <!-- Co-failure 매트릭스 + 해석 패널 (side-by-side) -->
         <div style="font-size:12px;font-weight:600;color:var(--text);margin-bottom:8px">
           전체 Gate 공동 실패율 매트릭스
           <span style="font-size:10px;font-weight:400;color:var(--text2);margin-left:6px">
             (행 Gate 실패 시 → 열 Gate도 실패한 비율)
           </span>
         </div>
-        <div style="overflow-x:auto">
-          <table style="border-collapse:collapse;font-size:11px;min-width:480px">
-            <thead>
-              <tr>
-                <th style="padding:5px 10px;text-align:left;color:var(--text2);font-weight:600;white-space:nowrap;min-width:90px">실패 시 →</th>
-                <template x-for="g in gates" :key="'th-'+g">
-                  <th style="padding:5px 8px;text-align:center;color:var(--text2);font-weight:600;min-width:52px">
-                    <div x-text="g"></div>
-                    <div style="font-size:9px;font-weight:400;opacity:.7" x-text="gNames[g]"></div>
-                  </th>
-                </template>
-              </tr>
-            </thead>
-            <tbody>
-              <template x-for="g1 in gates" :key="'row-'+g1">
+        <div style="display:flex;gap:14px;align-items:flex-start">
+          <!-- 매트릭스 테이블 -->
+          <div style="overflow-x:auto;flex:1;min-width:0">
+            <table style="border-collapse:collapse;font-size:11px;min-width:480px">
+              <thead>
                 <tr>
-                  <td style="padding:5px 10px;font-weight:600;white-space:nowrap;color:var(--text);border-right:1px solid var(--border)">
-                    <span x-text="g1"></span>
-                    <span style="font-size:10px;font-weight:400;color:var(--text2);margin-left:4px" x-text="gNames[g1]"></span>
-                  </td>
-                  <template x-for="g2 in gates" :key="'cell-'+g1+g2">
-                    <td style="padding:5px 8px;text-align:center;border-radius:4px;transition:background .1s"
-                        :style="`background:${g1===g2?'var(--bg3)':cellColor(matrix[g1]&&matrix[g1][g2])}`"
-                        :title="g1===g2?'—':`${g1} 실패 시 ${g2} 동반 실패율: ${cellText(matrix[g1]&&matrix[g1][g2])}`">
-                      <span x-show="g1===g2" style="color:var(--text2)">—</span>
-                      <span x-show="g1!==g2"
-                            style="font-variant-numeric:tabular-nums;font-weight:600"
-                            :style="`color:${(matrix[g1]&&matrix[g1][g2])==null?'var(--text2)':(matrix[g1][g2]>=0.7?'#ef4444':matrix[g1][g2]>=0.4?'#d97706':'#065f46')}`"
-                            x-text="cellText(matrix[g1]&&matrix[g1][g2])"></span>
-                    </td>
+                  <th style="padding:5px 10px;text-align:left;color:var(--text2);font-weight:600;white-space:nowrap;min-width:90px">실패 시 →</th>
+                  <template x-for="g in ['A','B','C','D','E','F','G']" :key="'th-'+g">
+                    <th style="padding:5px 8px;text-align:center;color:var(--text2);font-weight:600;min-width:52px">
+                      <div x-text="g"></div>
+                      <div style="font-size:9px;font-weight:400;opacity:.7" x-text="{A:'목표달성',B:'행동무결',C:'신뢰성',D:'성능계약',E:'보안경계',F:'다중에이전트',G:'관측성'}[g]"></div>
+                    </th>
                   </template>
                 </tr>
-              </template>
-            </tbody>
-          </table>
-        </div>
-        <!-- 범례 -->
-        <div style="display:flex;gap:12px;margin-top:8px;font-size:10px;color:var(--text2);flex-wrap:wrap">
-          <span><span style="display:inline-block;width:10px;height:10px;background:rgba(239,68,68,.35);border-radius:2px;vertical-align:middle;margin-right:3px"></span>≥70% 위험 연쇄</span>
-          <span><span style="display:inline-block;width:10px;height:10px;background:rgba(245,158,11,.30);border-radius:2px;vertical-align:middle;margin-right:3px"></span>40–69% 주의</span>
-          <span><span style="display:inline-block;width:10px;height:10px;background:rgba(16,185,129,.18);border-radius:2px;vertical-align:middle;margin-right:3px"></span>&lt;40% 낮은 연관</span>
-          <span><span style="display:inline-block;width:10px;height:10px;background:var(--bg3);border-radius:2px;vertical-align:middle;margin-right:3px"></span>데이터 없음</span>
+              </thead>
+              <tbody>
+                <template x-for="g1 in ['A','B','C','D','E','F','G']" :key="'row-'+g1">
+                  <tr>
+                    <td style="padding:5px 10px;font-weight:600;white-space:nowrap;color:var(--text);border-right:1px solid var(--border)">
+                      <span x-text="g1"></span>
+                      <span style="font-size:10px;font-weight:400;color:var(--text2);margin-left:4px" x-text="{A:'목표달성',B:'행동무결',C:'신뢰성',D:'성능계약',E:'보안경계',F:'다중에이전트',G:'관측성'}[g1]"></span>
+                    </td>
+                    <template x-for="g2 in ['A','B','C','D','E','F','G']" :key="'cell-'+g1+g2">
+                      <td style="padding:5px 8px;text-align:center;border-radius:4px;transition:background .1s"
+                          :style="`background:${g1===g2?'var(--bg3)':coFailCellColor(coFailMatrix[g1]&&coFailMatrix[g1][g2])}`"
+                          :title="g1===g2?'—':`${g1} 실패 시 ${g2} 동반 실패율: ${coFailCellText(coFailMatrix[g1]&&coFailMatrix[g1][g2])}`">
+                        <span x-show="g1===g2" style="color:var(--text2)">—</span>
+                        <span x-show="g1!==g2"
+                              style="font-variant-numeric:tabular-nums;font-weight:600"
+                              :style="`color:${coFailCellRate(coFailMatrix[g1]&&coFailMatrix[g1][g2])==null?'var(--text2)':(coFailCellRate(coFailMatrix[g1][g2])>=0.7?'#ef4444':coFailCellRate(coFailMatrix[g1][g2])>=0.4?'#d97706':'#065f46')}`"
+                              x-text="coFailCellText(coFailMatrix[g1]&&coFailMatrix[g1][g2])"></span>
+                      </td>
+                    </template>
+                  </tr>
+                </template>
+              </tbody>
+            </table>
+            <!-- 범례 -->
+            <div style="display:flex;gap:12px;margin-top:8px;font-size:10px;color:var(--text2);flex-wrap:wrap">
+              <span><span style="display:inline-block;width:10px;height:10px;background:rgba(239,68,68,.35);border-radius:2px;vertical-align:middle;margin-right:3px"></span>≥70% 위험 연쇄</span>
+              <span><span style="display:inline-block;width:10px;height:10px;background:rgba(245,158,11,.30);border-radius:2px;vertical-align:middle;margin-right:3px"></span>40–69% 주의</span>
+              <span><span style="display:inline-block;width:10px;height:10px;background:rgba(16,185,129,.18);border-radius:2px;vertical-align:middle;margin-right:3px"></span>&lt;40% 낮은 연관</span>
+              <span><span style="display:inline-block;width:10px;height:10px;background:var(--bg3);border-radius:2px;vertical-align:middle;margin-right:3px"></span>데이터 없음</span>
+            </div>
+          </div>
+
+          <!-- ── 매트릭스 해석 패널 ── -->
+          <div style="width:260px;flex-shrink:0;background:var(--bg3);border:1px solid var(--border);border-radius:8px;overflow:hidden;font-size:11px">
+            <!-- 헤더 -->
+            <div style="padding:8px 12px;background:var(--bg2);border-bottom:1px solid var(--border);display:flex;align-items:center;gap:6px">
+              <span style="font-size:11px;font-weight:700;color:var(--text)">📖 매트릭스 해석</span>
+            </div>
+
+            <!-- 해석 항목 없음 -->
+            <template x-if="coFailInsights().length===0">
+              <div style="padding:14px 12px;color:var(--text2);line-height:1.6;text-align:center">
+                유의미한 연쇄 실패<br>패턴이 없습니다.
+              </div>
+            </template>
+
+            <!-- 해석 항목 -->
+            <template x-if="coFailInsights().length>0">
+              <div>
+                <template x-for="(ins, idx) in coFailInsights()" :key="ins.g1+ins.g2">
+                  <div :style="`padding:10px 12px;border-bottom:1px solid var(--border);${idx===0?'background:var(--bg2)':''}`">
+                    <!-- Gate 쌍 + 비율 -->
+                    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:5px">
+                      <div style="display:flex;align-items:center;gap:4px">
+                        <span :class="'grp-chip grp-'+ins.g1" style="font-size:9px;padding:1px 5px" x-text="ins.g1"></span>
+                        <span style="color:var(--text2);font-size:10px">→</span>
+                        <span :class="'grp-chip grp-'+ins.g2" style="font-size:9px;padding:1px 5px" x-text="ins.g2"></span>
+                      </div>
+                      <span style="font-size:14px;font-weight:800;font-variant-numeric:tabular-nums"
+                            :style="`color:${ins.sev==='high'?'var(--red)':ins.sev==='medium'?'var(--yellow)':'var(--green)'}`"
+                            x-text="ins.pct+'%'"></span>
+                    </div>
+                    <!-- 설명 -->
+                    <div style="color:var(--text);line-height:1.55;margin-bottom:4px" x-text="ins.msg"></div>
+                    <!-- 조치 힌트 -->
+                    <div style="display:flex;gap:4px;align-items:flex-start">
+                      <span style="color:var(--accent);flex-shrink:0">💡</span>
+                      <span style="color:var(--text2);line-height:1.5" x-text="ins.action"></span>
+                    </div>
+                  </div>
+                </template>
+                <!-- 요약 -->
+                <div style="padding:8px 12px;font-size:10px;color:var(--text2);line-height:1.5">
+                  <span x-text="`총 ${coFailInsights().length}개 연쇄 패턴 탐지 · 위험(≥70%) `"></span>
+                  <span style="color:var(--red);font-weight:600" x-text="coFailInsights().filter(i=>i.sev==='high').length+'건'"></span>
+                </div>
+              </div>
+            </template>
+          </div>
+          <!-- end 해석 패널 -->
         </div>
       </div>
     </template>
@@ -6328,21 +6509,17 @@ input[type=text],input[type=number]{background:var(--bg3);color:var(--text);bord
       <!-- 현재 파일 정보 -->
       <div class="sdiv"><div class="sdiv-lbl">현재 파일: <strong x-text="data?.name||selId"></strong></div><div class="sdiv-line"></div></div>
 
-      <!-- 포함 평가 지표 배지 -->
+      <!-- 포함 Harness Gate 배지 -->
       <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:16px">
-        <span style="font-size:11px;color:var(--text2);padding:3px 0;margin-right:4px">포함 지표:</span>
-        <span style="font-size:11px;padding:2px 9px;border-radius:99px;background:#6366f133;color:#818cf8">기본 (TCR·정확도·지연·비용)</span>
-        <span x-show="data?.has_quality" style="font-size:11px;padding:2px 9px;border-radius:99px;background:#8b5cf633;color:#a78bfa">품질 (응답품질·환각)</span>
-        <span x-show="data?.has_agentic" style="font-size:11px;padding:2px 9px;border-radius:99px;background:#06b6d433;color:#22d3ee">에이전틱 (도구·재시도·워크플로우)</span>
-        <span x-show="data?.has_security" style="font-size:11px;padding:2px 9px;border-radius:99px;background:#ef444433;color:#f87171">보안 (L1 입력/출력·L2 권한상승)</span>
-        <span x-show="data?.has_rag" style="font-size:11px;padding:2px 9px;border-radius:99px;background:#10b98133;color:#34d399">RAG (Faithfulness·Relevancy·Recall·Precision)</span>
-        <span x-show="data?.has_advanced" style="font-size:11px;padding:2px 9px;border-radius:99px;background:#f59e0b33;color:#fbbf24">외부평가 (DeepEval·G-Eval·Toxicity·Bias)</span>
-        <span x-show="data?.has_conversation" style="font-size:11px;padding:2px 9px;border-radius:99px;background:#ec489933;color:#f472b6">멀티턴 (문맥유지·주제일관성·깊이)</span>
-        <span x-show="data?.has_llm_judge" style="font-size:11px;padding:2px 9px;border-radius:99px;background:#0ea5e933;color:#38bdf8">LLM Judge (점수·근거·판단)</span>
-        <span x-show="data?.has_feedback" style="font-size:11px;padding:2px 9px;border-radius:99px;background:#65a30d33;color:#a3e635">사용자 반응 (암묵적 피드백)</span>
-        <span x-show="data?.has_anomaly" style="font-size:11px;padding:2px 9px;border-radius:99px;background:#ea580c33;color:#fb923c">이상 감지 (Z-score·IQR·급격한 변화)</span>
-        <span x-show="data?.has_cost" style="font-size:11px;padding:2px 9px;border-radius:99px;background:#64748b33;color:#94a3b8">평가 비용 (토큰·샘플링 정책)</span>
-        <span x-show="data?.has_streaming" style="font-size:11px;padding:2px 9px;border-radius:99px;background:#7c3aed33;color:#c4b5fd">실시간 (슬라이딩 윈도우·1m/5m/1h)</span>
+        <span style="font-size:11px;color:var(--text2);padding:3px 0;margin-right:4px">포함 Gate:</span>
+        <!-- Gate A~G: 단일 정규 소스 data.gate_active 사용 -->
+        <span style="font-size:11px;padding:2px 9px;border-radius:99px;background:#6366f133;color:#818cf8">Gate A — 목표달성</span>
+        <span x-show="data?.gate_active?.B" style="font-size:11px;padding:2px 9px;border-radius:99px;background:#06b6d433;color:#22d3ee">Gate B — 행동무결성</span>
+        <span x-show="data?.gate_active?.C" style="font-size:11px;padding:2px 9px;border-radius:99px;background:#10b98133;color:#34d399">Gate C — 신뢰성</span>
+        <span x-show="data?.gate_active?.D" style="font-size:11px;padding:2px 9px;border-radius:99px;background:#f59e0b33;color:#fbbf24">Gate D — 성능계약</span>
+        <span x-show="data?.gate_active?.E" style="font-size:11px;padding:2px 9px;border-radius:99px;background:#ef444433;color:#f87171">Gate E — 보안경계</span>
+        <span x-show="data?.gate_active?.F" style="font-size:11px;padding:2px 9px;border-radius:99px;background:#ec489933;color:#f472b6">Gate F — 멀티에이전트</span>
+        <span x-show="data?.gate_active?.G" style="font-size:11px;padding:2px 9px;border-radius:99px;background:#8b5cf633;color:#a78bfa">Gate G — 관측가능성</span>
       </div>
 
       <!-- 3개 형식 카드 -->
@@ -6409,18 +6586,14 @@ input[type=text],input[type=number]{background:var(--bg3);color:var(--text);bord
           <div style="font-size:10px;color:var(--text2);background:var(--bg2);border-radius:6px;padding:6px 8px;font-family:monospace;line-height:1.8">
             task_id · task_type · success<br>
             completion_score · accuracy_score<br>
-            execution_time · timestamp<br>
-            tokens_input · tokens_output · tokens_total<br>
+            execution_time · tokens_input · tokens_output · tokens_total<br>
             tool_calls_count · attempts · errors<br>
-            framework
+            timestamp · framework
             <template x-if="data?.has_rag || data?.has_advanced">
               <span><br>ragas_* · g_eval_score · …</span>
             </template>
-            <template x-if="data?.has_conversation">
-              <span>conv_session_id · turn_count<br></span>
-            </template>
-            <template x-if="data?.has_cost">
-              <span>cost_total · sampling_stage</span>
+            <template x-if="data?.has_harness">
+              <span><br>gate_A~G_score · gate_A~G_status<br>harness_overall_score · harness_overall_status</span>
             </template>
           </div>
           <a class="btn" :href="'/api/export/csv/'+selId" download style="text-decoration:none;margin-top:auto">다운로드</a>
@@ -6441,28 +6614,22 @@ input[type=text],input[type=number]{background:var(--bg3);color:var(--text);bord
             <span style="color:var(--accent)">팀 공유·리뷰·아카이브에 적합</span>
           </div>
           <div style="font-size:10px;color:var(--text2);background:var(--bg2);border-radius:6px;padding:6px 8px;font-family:monospace;line-height:1.8">
-            KPI 요약 · 성공/실패 차트<br>
-            태스크 테이블 (framework · tool_calls 포함)<br>
-            <template x-if="data?.has_quality">
-              <span>품질·환각 지표<br></span>
-            </template>
+            KPI 헤더 (TCR · 정확도 · 지연)<br>
+            Harness Gate A–G 스코어카드<br>
+            Gate A: 목표달성 (TCR · 정확도 · 환각)<br>
+            Gate B–G: 신뢰성 · 성능 · 보안 · 조율 · 관측가능성<br>
+            개선 권고 · 종합 결론
             <template x-if="data?.has_agentic">
-              <span>에이전틱 지표 (tool/retry/workflow)<br></span>
-            </template>
-            <template x-if="data?.has_security">
-              <span>보안 L1/L2 요약<br></span>
+              <span><br>Gate B/F 에이전틱 (도구선택 · 멀티에이전트)</span>
             </template>
             <template x-if="data?.has_llm_judge">
-              <span>LLM Judge (완전성·관련성·사실성)<br></span>
+              <span><br>Gate G LLM Judge (완전성 · 관련성 · 사실성)</span>
             </template>
             <template x-if="data?.has_rag || data?.has_advanced">
-              <span>RAG · DeepEval 지표<br></span>
+              <span><br>RAG · DeepEval 지표</span>
             </template>
             <template x-if="data?.has_conversation">
-              <span>멀티턴 대화 요약<br></span>
-            </template>
-            <template x-if="data?.has_anomaly">
-              <span>이상 감지 타임라인</span>
+              <span><br>멀티턴 대화 요약</span>
             </template>
           </div>
           <a class="btn" :href="'/api/export/html/'+selId" download style="text-decoration:none;margin-top:auto">다운로드</a>
@@ -6477,17 +6644,14 @@ input[type=text],input[type=number]{background:var(--bg3);color:var(--text);bord
             <div style="flex:1;min-width:0">
               <div style="font-size:12px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" x-text="f.name||f.id"></div>
               <div style="font-size:10px;color:var(--text2);margin-top:2px;display:flex;flex-wrap:wrap;gap:4px">
-                <span x-show="f.has_quality" style="padding:1px 5px;border-radius:99px;background:#8b5cf622;color:#a78bfa">품질</span>
-                <span x-show="f.has_agentic" style="padding:1px 5px;border-radius:99px;background:#06b6d422;color:#22d3ee">에이전틱</span>
-                <span x-show="f.has_security" style="padding:1px 5px;border-radius:99px;background:#ef444422;color:#f87171">보안</span>
-                <span x-show="f.has_rag" style="padding:1px 5px;border-radius:99px;background:#10b98122;color:#34d399">RAG</span>
-                <span x-show="f.has_advanced" style="padding:1px 5px;border-radius:99px;background:#f59e0b22;color:#fbbf24">외부평가</span>
-                <span x-show="f.has_conversation" style="padding:1px 5px;border-radius:99px;background:#ec489922;color:#f472b6">멀티턴</span>
-                <span x-show="f.has_llm_judge" style="padding:1px 5px;border-radius:99px;background:#0ea5e922;color:#38bdf8">LLM Judge</span>
-                <span x-show="f.has_feedback" style="padding:1px 5px;border-radius:99px;background:#65a30d22;color:#a3e635">사용자 반응</span>
-                <span x-show="f.has_anomaly" style="padding:1px 5px;border-radius:99px;background:#ea580c22;color:#fb923c">이상 감지</span>
-                <span x-show="f.has_cost" style="padding:1px 5px;border-radius:99px;background:#64748b22;color:#94a3b8">평가 비용</span>
-                <span x-show="f.has_streaming" style="padding:1px 5px;border-radius:99px;background:#7c3aed22;color:#c4b5fd">실시간</span>
+                <!-- Gate A~G: 단일 정규 소스 f.gate_active 사용 -->
+                <span style="padding:1px 5px;border-radius:99px;background:#6366f122;color:#818cf8">Gate A</span>
+                <span x-show="f.gate_active?.B" style="padding:1px 5px;border-radius:99px;background:#06b6d422;color:#22d3ee">Gate B</span>
+                <span x-show="f.gate_active?.C" style="padding:1px 5px;border-radius:99px;background:#10b98122;color:#34d399">Gate C</span>
+                <span x-show="f.gate_active?.D" style="padding:1px 5px;border-radius:99px;background:#f59e0b22;color:#fbbf24">Gate D</span>
+                <span x-show="f.gate_active?.E" style="padding:1px 5px;border-radius:99px;background:#ef444422;color:#f87171">Gate E</span>
+                <span x-show="f.gate_active?.F" style="padding:1px 5px;border-radius:99px;background:#ec489922;color:#f472b6">Gate F</span>
+                <span x-show="f.gate_active?.G" style="padding:1px 5px;border-radius:99px;background:#8b5cf622;color:#a78bfa">Gate G</span>
                 <span class="muted" x-text="f.total_tasks+'개 태스크'"></span>
               </div>
             </div>
@@ -6694,8 +6858,11 @@ input[type=text],input[type=number]{background:var(--bg3);color:var(--text);bord
       <span><strong style="color:var(--text)">전체 범위 표시</strong> — 평가 실행 중 기록된 측정 단계 로그입니다.
       <code style="background:var(--bg3);padding:1px 4px;border-radius:3px">results/traces/</code> 디렉토리의 모든 trace가 표시됩니다.</span>
     </div>
-    <div x-show="!transpTraces.length" style="text-align:center;padding:32px;color:var(--text2);font-size:13px">
-      Trace 파일 없음 — TestTransparencyManager를 사용한 예제를 실행하세요.
+    <div x-show="!transpTraces.length" style="text-align:center;padding:32px;color:var(--text2);font-size:13px;line-height:1.8">
+      Trace 파일 없음<br>
+      <span style="font-size:12px">예제 파일(<code style="background:var(--bg3);padding:1px 4px;border-radius:3px">01~08</code>)을 재실행하면
+      <code style="background:var(--bg3);padding:1px 4px;border-radius:3px">results/traces/</code> 디렉토리에 자동 생성됩니다.<br>
+      모든 예제에 <code style="background:var(--bg3);padding:1px 4px;border-radius:3px">enable_transparency=True</code>가 설정되어 있습니다.</span>
     </div>
     <template x-for="(tr,i) in transpTraces" :key="i">
       <div style="background:var(--bg3);border:1px solid var(--border);border-radius:var(--r);padding:12px;margin-bottom:8px">
@@ -10048,9 +10215,7 @@ function app2() {
 
     /* ── lifecycle ── */
     async init() {
-      const saved = localStorage.getItem('d2-dark');
-      if (saved !== null) this.dark = saved === 'true';
-      else this.dark = window.matchMedia('(prefers-color-scheme:dark)').matches;
+      this.dark = false;  // 기본 테마: 라이트 (리프레시 시 항상 라이트)
       this._applyDark();
       /* 이전에 선택한 모델 복원 (없으면 Claude Sonnet 4.5 기본 적용) */
       try {
@@ -10104,7 +10269,6 @@ function app2() {
     },
     _applyDark() {
       document.documentElement.classList.toggle('dark', this.dark);
-      localStorage.setItem('d2-dark', this.dark);
     },
     toggleDark() { this.dark = !this.dark; this._applyDark(); },
 
@@ -11810,8 +11974,43 @@ function app2() {
       // 최소 1개 gate에서 fail/warn 태스크가 2건 이상 있어야 의미 있음
       return gates.some(g => tasks.filter(t => this._taskGateFail(t, g)).length >= 2);
     },
-    computeCoFailure() {
-      const tasks = this.data?.tasks || [];
+    // ── 매트릭스 해석 (interpretation) ──────────────────────────────────
+    coFailInsights() {
+      const pairs = this.topCoFailPairs(6);
+      const gN = {A:'목표달성',B:'행동무결',C:'신뢰성',D:'성능계약',E:'보안경계',F:'다중에이전트',G:'관측성'};
+      return pairs.map(p => {
+        const pct = Math.round(p.rate * 100);
+        const sev = p.rate >= 0.7 ? 'high' : p.rate >= 0.4 ? 'medium' : 'low';
+        let msg, action;
+        if (sev === 'high') {
+          msg = `Gate ${p.g1} 실패 시 Gate ${p.g2}가 반드시 동반 실패합니다.`;
+          action = `Gate ${p.g1}(${gN[p.g1]}) 개선으로 Gate ${p.g2}(${gN[p.g2]})도 직접 해결 가능합니다.`;
+        } else if (sev === 'medium') {
+          msg = `Gate ${p.g1} 실패 시 Gate ${p.g2}가 자주 동반 실패합니다.`;
+          action = `두 Gate의 공통 원인을 점검하세요.`;
+        } else {
+          msg = `Gate ${p.g1} 실패 시 Gate ${p.g2}가 가끔 동반 실패합니다.`;
+          action = `부분적 연관 — 개별 원인을 확인하세요.`;
+        }
+        return { ...p, pct, sev, msg, action, g1n: gN[p.g1], g2n: gN[p.g2] };
+      });
+    },
+    // ── 매트릭스 셀 헬퍼 (inner x-data 없이 outer 컴포넌트에서 직접 호출) ──
+    get coFailMatrix() { return this.computeCoFailure(); },
+    coFailCellRate(v) { return v == null ? null : (v.rate ?? v); },
+    coFailCellColor(v) {
+      const r = this.coFailCellRate(v);
+      if (r == null) return 'var(--bg3)';
+      if (r >= 0.7)  return 'rgba(239,68,68,0.35)';
+      if (r >= 0.4)  return 'rgba(245,158,11,0.30)';
+      return 'rgba(16,185,129,0.18)';
+    },
+    coFailCellText(v) {
+      const r = this.coFailCellRate(v);
+      return r == null ? '—' : (r * 100).toFixed(0) + '%';
+    },
+    computeCoFailure(tasksArg) {
+      const tasks = tasksArg || this.data?.tasks || [];
       const gates = ['A','B','C','D','E','F','G'];
       const result = {};
       for (const g1 of gates) {

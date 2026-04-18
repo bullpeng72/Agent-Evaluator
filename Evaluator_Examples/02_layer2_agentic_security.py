@@ -59,6 +59,7 @@ except Exception:
 monitor = PerformanceMonitor(
     output_dir=_OUTPUT_DIR,
     enable_security_metrics=True,
+    enable_transparency=True,           # 투명성 탭: 메트릭 계산 Traces 자동 생성
 )
 
 # ===========================================================================
@@ -277,7 +278,7 @@ _GOLDEN_FILE = Path(__file__).parent.parent / "data" / "golden_datasets" / "tool
 
 if _GOLDEN_FILE.exists():
     tool_golden = json.loads(_GOLDEN_FILE.read_text(encoding="utf-8"))
-    monitor_tool = PerformanceMonitor(output_dir=str(Path(__file__).parent.parent / "results"))
+    monitor_tool = PerformanceMonitor(output_dir=str(Path(__file__).parent.parent / "results"), enable_transparency=True)
     f1_scores = []
 
     for case in tool_golden:

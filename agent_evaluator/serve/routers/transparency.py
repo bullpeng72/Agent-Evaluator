@@ -79,12 +79,12 @@ def _list_files(paths: List[Path]) -> List[Dict[str, Any]]:
     return result
 
 
-@router.get("/traces")
+@router.get("/traces", summary="추적 목록")
 def list_traces(request: Request):
     return _list_files(_transparency(request).trace_files)
 
 
-@router.get("/traces/{name}")
+@router.get("/traces/{name}", summary="추적 상세")
 def get_trace(name: str, request: Request):
     for p in _transparency(request).trace_files:
         if p.name == name or p.stem == name:
@@ -95,12 +95,12 @@ def get_trace(name: str, request: Request):
     raise HTTPException(status_code=404, detail="Trace not found")
 
 
-@router.get("/audit")
+@router.get("/audit", summary="감사 로그 목록")
 def list_audit(request: Request):
     return _list_files(_transparency(request).audit_files)
 
 
-@router.get("/audit/{name}")
+@router.get("/audit/{name}", summary="감사 로그 상세")
 def get_audit(name: str, request: Request):
     for p in _transparency(request).audit_files:
         if p.name == name or p.stem == name:
@@ -111,7 +111,7 @@ def get_audit(name: str, request: Request):
     raise HTTPException(status_code=404, detail="Audit log not found")
 
 
-@router.get("/annotations")
+@router.get("/annotations", summary="어노테이션 목록")
 def list_annotations(request: Request, file_id: str = Query("")):
     """list annotations; if file_id given, only return annotations for that file or global ones."""
     files = _transparency(request).annotation_files
@@ -134,7 +134,7 @@ def list_annotations(request: Request, file_id: str = Query("")):
     return result
 
 
-@router.get("/annotations/{name}")
+@router.get("/annotations/{name}", summary="어노테이션 상세")
 def get_annotation(name: str, request: Request):
     for p in _transparency(request).annotation_files:
         if p.name == name or p.stem == name:
@@ -145,7 +145,7 @@ def get_annotation(name: str, request: Request):
     raise HTTPException(status_code=404, detail="Annotation not found")
 
 
-@router.post("/annotations")
+@router.post("/annotations", summary="어노테이션 생성")
 def create_annotation(body: AnnotationCreate, request: Request):
     """대시보드에서 새 어노테이션 직접 작성"""
     annotation_id = f"annotation_{uuid.uuid4().hex[:8]}"
@@ -176,7 +176,7 @@ def create_annotation(body: AnnotationCreate, request: Request):
     return annotation
 
 
-@router.post("/annotations/{name}/reply")
+@router.post("/annotations/{name}/reply", summary="어노테이션 댓글 추가")
 def add_reply(name: str, body: ReplyCreate, request: Request):
     """기존 어노테이션에 답글 추가"""
     ann_dir = _annotations_dir(request)

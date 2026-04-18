@@ -64,7 +64,7 @@ async def sse_stream(request: Request):
     )
 
 
-@router.get("/stream/live-stats")
+@router.get("/stream/live-stats", summary="실시간 집계 통계 스냅샷")
 async def live_stats(request: Request, window: str = "5m") -> JSONResponse:
     """
     Return current sliding-window metrics from StreamingEvaluator (if running).
@@ -92,7 +92,7 @@ async def live_stats(request: Request, window: str = "5m") -> JSONResponse:
         return JSONResponse({"window": window, "available": False})
 
 
-@router.get("/stream/snapshot/{file_id}")
+@router.get("/stream/snapshot/{file_id}", summary="파일 스냅샷")
 async def file_snapshot(request: Request, file_id: str, window: str = "5m") -> JSONResponse:
     """
     Return saved streaming snapshot from a result file (offline fallback).
@@ -245,7 +245,7 @@ async def stream_filtered_tasks(
     query: str = Query(default="", description="필터 조건 (예: accuracy_score<0.5, task_type=qa)"),
     poll_interval: float = Query(default=2.0, ge=0.5, le=30.0),
 ):
-    """조건 맞는 신규 태스크만 SSE로 스트리밍 (B6).
+    """조건 맞는 신규 태스크만 SSE로 스트리밍.
 
     query 형식: ``field<value`` / ``field>value`` / ``field=value`` / ``field<=value`` / ``field>=value``
 
@@ -377,7 +377,7 @@ async def stream_filtered_tasks(
 
 @router.websocket("/ws/events", name="WebSocket 실시간 이벤트 스트림")
 async def websocket_events(websocket: WebSocket):
-    """WebSocket 실시간 이벤트 스트림 (B7).
+    """WebSocket 실시간 이벤트 스트림.
 
     연결 즉시 현재 파일 목록을 전송하고,
     이후 task_added 이벤트를 실시간으로 push 한다.

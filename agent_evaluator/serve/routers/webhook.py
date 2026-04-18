@@ -22,7 +22,7 @@ class WebhookTestBody(BaseModel):
     payload: Dict[str, Any] = {}
 
 
-@router.post("/test")
+@router.post("/test", summary="웹훅 테스트")
 async def test_webhook(body: WebhookTestBody) -> Dict[str, Any]:
     """Proxy a test POST to the provided webhook URL.
 

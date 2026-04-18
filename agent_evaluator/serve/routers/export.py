@@ -124,7 +124,7 @@ def export_csv(file_id: str, request: Request):
     )
 
 
-@router.get("/parquet/{file_id}")
+@router.get("/parquet/{file_id}", summary="Parquet 내보내기")
 def export_parquet(file_id: str, request: Request):
     """TaskResult 리스트를 Apache Parquet 형식으로 다운로드.
 
@@ -177,9 +177,9 @@ def export_parquet(file_id: str, request: Request):
     )
 
 
-@router.get("/excel/{file_id}")
+@router.get("/excel/{file_id}", summary="Excel 내보내기")
 def export_excel(file_id: str, request: Request):
-    """Excel (.xlsx) 형식으로 내보내기 (B10).
+    """Excel (.xlsx) 형식으로 내보내기.
 
     openpyxl이 없으면 501 오류 반환.
     """

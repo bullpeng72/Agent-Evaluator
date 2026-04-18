@@ -24,7 +24,7 @@ from fastapi import APIRouter, Body, File, Form, HTTPException, Query, Request, 
 from fastapi.concurrency import run_in_threadpool
 from pydantic import BaseModel
 
-router = APIRouter(prefix="/api/golden", tags=["golden datasets"])
+router = APIRouter(prefix="/api/golden", tags=["golden"])
 
 
 class GoldenCreateBody(BaseModel):
@@ -347,7 +347,7 @@ def _read_json(path: Path) -> Any:
     return json.loads(path.read_text(encoding="utf-8"))
 
 
-@router.get("")
+@router.get("", summary="골든 데이터셋 목록")
 def list_golden(request: Request) -> List[Dict[str, Any]]:
     gdir = _golden_dir(request)
     result = []
@@ -368,7 +368,7 @@ def list_golden(request: Request) -> List[Dict[str, Any]]:
 # NOTE: /{name} 파라미터 라우트보다 반드시 먼저 등록해야 함 (FastAPI 순서 매칭)
 # ---------------------------------------------------------------------------
 
-@router.get("/candidates")
+@router.get("/candidates", summary="골든셋 후보 목록")
 def list_candidates(request: Request) -> List[Dict[str, Any]]:
     """*candidates*.json 파일 목록 반환 (prefix 무관하게 탐색)."""
     gdir = _golden_dir(request)
@@ -395,7 +395,7 @@ def list_candidates(request: Request) -> List[Dict[str, Any]]:
     return result
 
 
-@router.get("/candidates/{name}")
+@router.get("/candidates/{name}", summary="후보 파일 상세")
 def get_candidate_file(name: str, request: Request) -> List[Dict[str, Any]]:
     """후보 파일의 케이스 목록 반환 (인덱스 포함)."""
     gdir = _golden_dir(request)
@@ -410,7 +410,7 @@ def get_candidate_file(name: str, request: Request) -> List[Dict[str, Any]]:
     raise HTTPException(status_code=404, detail="Candidate file not found")
 
 
-@router.post("/candidates/{name}/approve/{idx}")
+@router.post("/candidates/{name}/approve/{idx}", summary="케이스 개별 승인")
 def approve_case(name: str, idx: int, request: Request) -> Dict[str, Any]:
     """단일 케이스 승인 — _approved=True 플래그 설정."""
     gdir = _golden_dir(request)
@@ -432,7 +432,7 @@ def approve_case(name: str, idx: int, request: Request) -> Dict[str, Any]:
     raise HTTPException(status_code=404, detail="Candidate file not found")
 
 
-@router.post("/candidates/{name}/reject/{idx}")
+@router.post("/candidates/{name}/reject/{idx}", summary="케이스 개별 거부")
 def reject_case(name: str, idx: int, request: Request) -> Dict[str, Any]:
     """단일 케이스 거부 — _rejected=True 플래그 설정."""
     gdir = _golden_dir(request)
@@ -454,14 +454,14 @@ def reject_case(name: str, idx: int, request: Request) -> Dict[str, Any]:
     raise HTTPException(status_code=404, detail="Candidate file not found")
 
 
-@router.post("/candidates/{name}/bulk-approve")
+@router.post("/candidates/{name}/bulk-approve", summary="케이스 일괄 승인")
 def bulk_approve_cases(
     name: str,
     request: Request,
     min_accuracy: float = Query(default=0.0, ge=0.0, le=1.0),
     indices: Optional[List[int]] = Query(default=None),
 ) -> Dict[str, Any]:
-    """조건 기반 일괄 승인 (B11).
+    """조건 기반 일괄 승인.
 
     - min_accuracy > 0이면 해당 점수 이상인 케이스만 승인.
     - indices가 있으면 해당 인덱스만 승인.
@@ -505,7 +505,7 @@ def bulk_approve_cases(
     raise HTTPException(status_code=404, detail="Candidate file not found")
 
 
-@router.post("/candidates/{name}/merge")
+@router.post("/candidates/{name}/merge", summary="승인된 케이스 병합")
 def merge_approved(name: str, request: Request) -> Dict[str, Any]:
     """승인된 케이스를 골든셋에 병합 — 새 golden_*.json 파일 생성."""
     gdir = _golden_dir(request)
@@ -536,7 +536,7 @@ def merge_approved(name: str, request: Request) -> Dict[str, Any]:
 # 골든 데이터셋 CRUD — /{name} 파라미터 라우트는 고정 경로보다 반드시 뒤에 등록
 # ---------------------------------------------------------------------------
 
-@router.get("/versions")
+@router.get("/versions", summary="골든셋 버전 목록")
 def list_versions(request: Request) -> List[Dict[str, Any]]:
     """golden_*.json 파일 버전 목록 (candidates 제외)."""
     gdir = _golden_dir(request)
@@ -557,7 +557,7 @@ def list_versions(request: Request) -> List[Dict[str, Any]]:
     return result
 
 
-@router.post("")
+@router.post("", summary="골든 데이터셋 생성")
 async def create_golden(request: Request, body: GoldenCreateBody) -> Dict[str, Any]:
     gdir = _golden_dir(request)
     try:
@@ -569,7 +569,7 @@ async def create_golden(request: Request, body: GoldenCreateBody) -> Dict[str, A
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("/{name}")
+@router.get("/{name}", summary="골든 데이터셋 상세")
 def get_golden(name: str, request: Request) -> Any:
     gdir = _golden_dir(request)
     for p in [gdir / name, gdir / f"{name}.json"]:
@@ -581,7 +581,7 @@ def get_golden(name: str, request: Request) -> Any:
     raise HTTPException(status_code=404, detail="Golden dataset not found")
 
 
-@router.put("/{name}")
+@router.put("/{name}", summary="골든 데이터셋 저장")
 async def save_golden(
     name: str,
     request: Request,
@@ -597,7 +597,7 @@ async def save_golden(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.delete("/{name}")
+@router.delete("/{name}", summary="골든 데이터셋 삭제")
 def delete_golden(name: str, request: Request) -> Dict[str, Any]:
     gdir = _golden_dir(request)
     for p in [gdir / name, gdir / f"{name}.json"]:

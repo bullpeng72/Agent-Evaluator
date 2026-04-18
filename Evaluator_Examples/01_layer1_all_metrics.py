@@ -52,6 +52,7 @@ except Exception:
 monitor = PerformanceMonitor(
     output_dir=_OUTPUT_DIR,
     enable_hallucination_detection=True,
+    enable_transparency=True,           # 투명성 탭: 메트릭 계산 Traces 자동 생성
 )
 
 # ===========================================================================
@@ -318,7 +319,7 @@ _GOLDEN_FILE = _PROJECT_ROOT / "data" / "golden_datasets" / "rag_candidates.json
 
 if _GOLDEN_FILE.exists():
     rag_golden = json.loads(_GOLDEN_FILE.read_text(encoding="utf-8"))
-    monitor_rag = PerformanceMonitor(output_dir=_OUTPUT_DIR, enable_hallucination_detection=True)
+    monitor_rag = PerformanceMonitor(output_dir=_OUTPUT_DIR, enable_hallucination_detection=True, enable_transparency=True)
 
     @agent_eval(monitor_rag, task_type="information_retrieval",
                 task_id_prefix="rag_golden", context_arg="context")

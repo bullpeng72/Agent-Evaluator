@@ -61,7 +61,10 @@ try:
 except Exception:
     pass
 
-monitor = PerformanceMonitor(output_dir=_OUTPUT_DIR)
+monitor = PerformanceMonitor(
+    output_dir=_OUTPUT_DIR,
+    enable_transparency=True,           # 투명성 탭: 메트릭 계산 Traces 자동 생성
+)
 
 # ===========================================================================
 # 섹션 1: @agent_eval 기본 + 파라미터 자동 탐지

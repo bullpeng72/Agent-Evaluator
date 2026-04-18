@@ -1,5 +1,5 @@
 """
-05_harness_eval.py — Harness 기반 AI 에이전트 평가
+08_harness_eval.py — Harness 기반 AI 에이전트 평가
 ====================================================================
 7개 그룹(A-G)의 Harness Config를 통해 에이전트를 다각도로 평가한다.
 
@@ -33,10 +33,10 @@
     선택: agent-eval monitor                   (Phoenix OTEL 시각화 — 없어도 실행됨)
 
 실행:
-    python Evaluator_Examples/05_harness_eval.py
+    python Evaluator_Examples/08_harness_eval.py
 
 결과:
-    results/05_harness_eval.json   (+ .html)
+    results/08_harness_eval.json   (+ .html)
     → agent-eval dashboard 로 확인 가능
 """
 
@@ -104,7 +104,7 @@ try:
     with socket.socket() as s:
         s.settimeout(0.5)
         if s.connect_ex(("localhost", 6006)) == 0:
-            setup_otel(endpoint="http://localhost:6006", service_name="05-harness-eval")
+            setup_otel(endpoint="http://localhost:6006", service_name="08-harness-eval")
             print("  Phoenix 모니터링 활성화 — http://localhost:6006")
 except Exception:
     pass
@@ -116,6 +116,7 @@ monitor = PerformanceMonitor(
     output_dir=_OUTPUT_DIR,
     enable_hallucination_detection=False,
     enable_security_metrics=True,
+    enable_transparency=True,           # 투명성 탭: 메트릭 계산 Traces 자동 생성
 )
 
 
@@ -713,6 +714,6 @@ else:
     print("\n  ※ harness_groups 데이터 없음 — generate_report() 후 extra_metrics 확인")
 
 # 결과 저장
-monitor.save_to_file("05_harness_eval")
-print("\n결과 저장 완료: results/05_harness_eval.json")
+monitor.save_to_file("08_harness_eval")
+print("\n결과 저장 완료: results/08_harness_eval.json")
 print("확인: agent-eval dashboard --results results/")

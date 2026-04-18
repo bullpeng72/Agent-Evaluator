@@ -8,7 +8,7 @@ router = APIRouter(prefix="/api/anomalies", tags=["anomaly"])
 def _rs(request: Request):
     return request.app.state.result_set
 
-@router.get("")
+@router.get("", summary="이상 탐지 결과 목록")
 def list_anomalies(request: Request) -> List[Dict[str, Any]]:
     """모든 파일의 이상 탐지 결과 목록."""
     rs = _rs(request)
@@ -26,7 +26,7 @@ def list_anomalies(request: Request) -> List[Dict[str, Any]]:
             })
     return result
 
-@router.get("/{file_id}")
+@router.get("/{file_id}", summary="파일별 이상 탐지 결과")
 def get_anomalies(file_id: str, request: Request) -> Dict[str, Any]:
     """특정 파일의 이상 탐지 결과."""
     rs = _rs(request)

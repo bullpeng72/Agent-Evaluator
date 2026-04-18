@@ -76,7 +76,7 @@ def _read_jsonl(path: Path) -> List[Dict[str, Any]]:
         pass
     return records
 
-@router.get("")
+@router.get("", summary="알림 목록 조회")
 def list_alerts(request: Request, days: int = 7) -> List[Dict[str, Any]]:
     """최근 N일 알림 히스토리."""
     alert_dir = _alert_dir(request)
@@ -86,7 +86,7 @@ def list_alerts(request: Request, days: int = 7) -> List[Dict[str, Any]]:
         result.extend(_read_jsonl(alert_dir / f"{d}.jsonl"))
     return sorted(result, key=lambda x: x.get("triggered_at", ""), reverse=True)
 
-@router.get("/today")
+@router.get("/today", summary="오늘 알림 조회")
 def today_alerts(request: Request) -> Dict[str, Any]:
     """오늘 발화된 알림 요약."""
     alert_dir = _alert_dir(request)
@@ -110,7 +110,7 @@ def today_alerts(request: Request) -> Dict[str, Any]:
         "events": records,
     }
 
-@router.get("/file/{file_id}")
+@router.get("/file/{file_id}", summary="파일별 알림 조회")
 def file_alerts(file_id: str, request: Request) -> Dict[str, Any]:
     """선택된 결과 파일 날짜에 해당하는 알림 히스토리 반환.
 
@@ -155,7 +155,7 @@ def file_alerts(file_id: str, request: Request) -> Dict[str, Any]:
     }
 
 
-@router.get("/patterns")
+@router.get("/patterns", summary="알림 패턴 분석")
 def alert_patterns(request: Request, days: int = 7) -> Dict[str, Any]:
     """최근 N일 알림의 시간대·요일·규칙별 반복 패턴 탐지."""
     alert_dir = _alert_dir(request)
@@ -200,7 +200,7 @@ def alert_patterns(request: Request, days: int = 7) -> Dict[str, Any]:
     }
 
 
-@router.get("/rules")
+@router.get("/rules", summary="알림 규칙 목록")
 def list_alert_rules(request: Request) -> Dict[str, Any]:
     """알림 규칙 목록 조회 (B7/B8) — 파일 기반 영구 저장."""
     rules_file = _get_rules_file(request)
@@ -211,7 +211,7 @@ def list_alert_rules(request: Request) -> Dict[str, Any]:
     return {"total": len(rules), "rules": list(rules.values())}
 
 
-@router.post("/rules")
+@router.post("/rules", summary="알림 규칙 생성")
 def create_alert_rule(body: AlertRuleCreate, request: Request) -> Dict[str, Any]:
     """알림 규칙 생성 (B7/B8) — 파일 영구 저장 + compound_conditions 지원.
 
@@ -254,7 +254,7 @@ def create_alert_rule(body: AlertRuleCreate, request: Request) -> Dict[str, Any]
     return rule
 
 
-@router.get("/rules/{rule_id}")
+@router.get("/rules/{rule_id}", summary="알림 규칙 상세")
 def get_alert_rule(rule_id: str, request: Request) -> Dict[str, Any]:
     """알림 규칙 단일 조회 (B7/B8) — 파일에서 조회."""
     rules_file = _get_rules_file(request)
@@ -265,7 +265,7 @@ def get_alert_rule(rule_id: str, request: Request) -> Dict[str, Any]:
     return rule
 
 
-@router.delete("/rules/{rule_id}")
+@router.delete("/rules/{rule_id}", summary="알림 규칙 삭제")
 def delete_alert_rule(rule_id: str, request: Request) -> Dict[str, Any]:
     """알림 규칙 삭제 (B7/B8) — 파일에서도 삭제."""
     rules_file = _get_rules_file(request)
@@ -281,7 +281,7 @@ def delete_alert_rule(rule_id: str, request: Request) -> Dict[str, Any]:
     return {"deleted": True, "rule_id": rule_id, "name": rule.get("name")}
 
 
-@router.get("/summary")
+@router.get("/summary", summary="알림 요약")
 def alert_summary(request: Request) -> Dict[str, Any]:
     """7일 알림 통계 요약."""
     alert_dir = _alert_dir(request)

@@ -45,7 +45,10 @@ try:
 except Exception:
     pass
 
-monitor = PerformanceMonitor(output_dir=_OUTPUT_DIR)
+monitor = PerformanceMonitor(
+    output_dir=_OUTPUT_DIR,
+    enable_transparency=True,           # 투명성 탭: 메트릭 계산 Traces 자동 생성
+)
 
 
 # ---------------------------------------------------------------------------

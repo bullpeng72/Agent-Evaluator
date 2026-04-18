@@ -676,7 +676,7 @@ completion_score task_type 인식 (v0.8.0+):
 - 대시보드 Nav 3단 계층 재편; Gate 상관 히트맵(7×7 Pearson) · 실패 연쇄 추적 추가
 - HTML 리포트 Gate A–G 중심 전면 재편; CSV export Gate 컬럼 16개 추가
 - 그룹 분류 수정: StateConsistencyConfig·DeadlockConfig Group F→B 이동
-- 테스트 파일 2개 추가 (53개 파일, 2,465개+)
+- 테스트 파일 2개 추가 (52개 파일, 2,465개+)
 
 ### v0.8.1 (2026-04-14) — 데코레이터 파라미터 구조화
 

@@ -9,7 +9,7 @@ router = APIRouter(prefix="/api/cost", tags=["cost"])
 def _rs(request: Request):
     return request.app.state.result_set
 
-@router.get("/summary")
+@router.get("/summary", summary="비용 요약")
 def cost_summary(request: Request) -> Dict[str, Any]:
     """전체 평가 비용 요약."""
     rs = _rs(request)
@@ -34,12 +34,12 @@ def cost_summary(request: Request) -> Dict[str, Any]:
         "by_file": by_file,
     }
 
-@router.get("/trend")
+@router.get("/trend", summary="날짜별 비용 추세")
 def cost_trend(
     request: Request,
     days: int = Query(default=30, ge=1, le=365),
 ) -> Dict[str, Any]:
-    """날짜별 비용 추세 (B9) — 최근 N일간 파일별 비용을 날짜 버킷으로 집계.
+    """날짜별 비용 추세 — 최근 N일간 파일별 비용을 날짜 버킷으로 집계.
 
     Returns:
         period_days, buckets (날짜 리스트), values (날짜별 총 비용 USD),
@@ -92,12 +92,12 @@ def cost_trend(
     }
 
 
-@router.get("/breakdown")
+@router.get("/breakdown", summary="비용 세부 분석")
 def cost_breakdown(
     request: Request,
     by: str = Query(default="model", description="그룹화 기준: model|task_type|file"),
 ) -> Dict[str, Any]:
-    """비용 세부 분석 (B9) — by 기준 그룹화.
+    """비용 세부 분석 — by 기준 그룹화.
 
     Returns:
         by, groups (key → total_usd/task_count/avg_cost_per_task/total_tokens)
@@ -166,7 +166,7 @@ def cost_breakdown(
     }
 
 
-@router.get("/{file_id}")
+@router.get("/{file_id}", summary="파일별 비용")
 def get_file_cost(file_id: str, request: Request) -> Dict[str, Any]:
     """특정 파일의 비용 상세."""
     rs = _rs(request)

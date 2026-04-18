@@ -323,6 +323,35 @@ class ResultFile:
     def has_harness(self) -> bool:
         return bool(self.harness_groups and len(self.harness_groups) > 1)
 
+    @property
+    def harness_is_configured(self) -> bool:
+        """extra_metrics.harness_groups가 JSON에 실제 저장된 경우 True (fallback 계산 아님)."""
+        extra = (self.raw or {}).get("extra_metrics", {}) or {}
+        return isinstance(extra.get("harness_groups"), dict)
+
+    @property
+    def gate_data_presence(self) -> Dict[str, bool]:
+        """각 Gate(A~G)에 실제 데이터가 있는지 판정하는 단일 정규 소스.
+
+        대시보드 전체(미니패널·에이전틱탭·내보내기 배지·파일목록)가 이 값만 사용해야 한다.
+        - Harness Config 사용 파일: harness_groups 점수 존재 여부로 판정
+        - 그 외(fallback 계산): has_* 플래그 매핑으로 판정
+        """
+        if self.harness_is_configured and self.harness_groups:
+            return {
+                gk: (self.harness_groups.get(gk) or {}).get("score") is not None
+                for gk in ["A", "B", "C", "D", "E", "F", "G"]
+            }
+        return {
+            "A": True,
+            "B": self.has_tool_use or self.has_workflow,
+            "C": self.has_retry or self.has_anomaly,
+            "D": self.has_cost or self.has_streaming,
+            "E": self.has_security,
+            "F": self.has_coordination or self.has_conversation,
+            "G": self.has_quality_detail or self.has_llm_judge or self.has_feedback,
+        }
+
 
 @dataclass
 class ResultSet:

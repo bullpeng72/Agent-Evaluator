@@ -385,7 +385,7 @@ SESSION_TASKS = [
     ("TCP 포트 80번?",     "HTTP"),
 ]
 
-with evaluation_session("06_session_demo") as session_monitor:
+with evaluation_session("06_session_demo", enable_transparency=True) as session_monitor:
     @agent_eval(session_monitor, task_type="qa", task_id_prefix="sess")
     def _agent(question: str, ground_truth: str = "") -> str:
         return f"응답: {question}"
@@ -408,6 +408,7 @@ monitor_main = PerformanceMonitor(
     enable_anomaly_detection=True,
     anomaly_baseline_window=20,    # 35건 중 앞 20건 기준선
     anomaly_detection_window=10,   # 나머지 10건 현재 상태 비교
+    enable_transparency=True,      # 투명성 탭: 메트릭 계산 Traces 자동 생성
 )
 # 이상 기준선 데이터 포함 (anomaly_baseline 30건 + golden_tasks 8건)
 for r in BASELINE[:20]:

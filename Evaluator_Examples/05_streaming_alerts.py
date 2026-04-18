@@ -74,6 +74,7 @@ monitor = PerformanceMonitor(
     enable_anomaly_detection=True,     # ← 이상 감지 탭 활성화
     anomaly_baseline_window=30,        # 50건 중 앞 30건을 기준선으로
     anomaly_detection_window=10,       # 나머지 10건을 현재 상태로 비교
+    enable_transparency=True,          # 투명성 탭: 메트릭 계산 Traces 자동 생성
 )
 
 # ===========================================================================

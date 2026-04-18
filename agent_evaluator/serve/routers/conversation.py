@@ -13,7 +13,7 @@ router = APIRouter(prefix="/api/conversation", tags=["conversation"])
 def _rs(request: Request):
     return request.app.state.result_set
 
-@router.get("")
+@router.get("", summary="대화 세션 목록")
 def list_conversations(request: Request) -> List[Dict[str, Any]]:
     """모든 파일의 대화 세션 요약 목록."""
     rs = _rs(request)
@@ -29,7 +29,7 @@ def list_conversations(request: Request) -> List[Dict[str, Any]]:
             })
     return result
 
-@router.get("/{file_id}")
+@router.get("/{file_id}", summary="파일별 대화 세션")
 def get_conversations(file_id: str, request: Request) -> Dict[str, Any]:
     """특정 파일의 대화 세션 상세."""
     rs = _rs(request)
@@ -67,7 +67,7 @@ def get_conversations(file_id: str, request: Request) -> Dict[str, Any]:
     }
 
 
-@router.get("/{file_id}/{session_id}")
+@router.get("/{file_id}/{session_id}", summary="대화 세션 상세")
 def get_session_detail(file_id: str, session_id: str, request: Request) -> Dict[str, Any]:
     """특정 세션의 turn-by-turn 상세 + 6개 지표 분석.
 
