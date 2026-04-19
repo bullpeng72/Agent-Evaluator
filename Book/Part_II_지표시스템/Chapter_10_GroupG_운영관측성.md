@@ -15,7 +15,7 @@
 > - **[Appendix A — 58개 지표 완전 레퍼런스](../Appendix/A_58개지표_레퍼런스.md)**: Group G Config 입력·출력
 > - **[Appendix A §Part 2 — Config 레퍼런스](../Appendix/A_58개지표_레퍼런스.md)**: Group G Config 파라미터 전체 목록
 > - **[Evaluator_Examples/07_phoenix_hybrid.py](../../Evaluator_Examples/07_phoenix_hybrid.py)**: Phoenix OTEL 관측성 실전 예제
-> - **[Chapter 19 — Phoenix OTEL 모니터링](../Part_V_프로덕션운영/Chapter_14_Phoenix_OTEL_모니터링.md)**: 실시간 관측성 인프라
+> - **[Chapter 19 — Phoenix OTEL 모니터링](../Part_V_프로덕션운영/Chapter_19_Phoenix_OTEL_모니터링.md)**: 실시간 관측성 인프라
 
 > **독자별 읽기 가이드**  
 > - **QA 관리자**: §10.1(개요) → §10.4(Config 설정) → §10.5(임계값·Gate 판정) 순서로 읽으면 "LLM Judge 채점 기준을 어떻게 설정할지"를 빠르게 파악할 수 있습니다.  

@@ -37,21 +37,21 @@
 > **권장 읽기 순서**: Chapter 13(평가 데이터 설계) → Chapter 11(데코레이터) → Chapter 12(프레임워크 통합)  
 > 지표를 이해한 뒤 평가 데이터를 먼저 설계하고, 그 다음 데코레이터와 프레임워크를 익히는 순서가 가장 효율적입니다.
 
-- [Chapter 11. 데코레이터 완전 정복](Part_III_개발자가이드/Chapter_06_데코레이터_완전정복.md)
-- [Chapter 12. 21개 프레임워크 통합](Part_III_개발자가이드/Chapter_07_프레임워크_통합.md)
-- [Chapter 13. 평가 데이터 설계](Part_III_개발자가이드/Chapter_08_평가데이터_설계.md) ← **Part II 직후 읽기 권장**
+- [Chapter 11. 데코레이터 완전 정복](Part_III_개발자가이드/Chapter_11_데코레이터_완전정복.md)
+- [Chapter 12. 21개 프레임워크 통합](Part_III_개발자가이드/Chapter_12_프레임워크_통합.md)
+- [Chapter 13. 평가 데이터 설계](Part_III_개발자가이드/Chapter_13_평가데이터_설계.md) ← **Part II 직후 읽기 권장**
 
 ### Part IV — QA 관리자 가이드: Harness 기준을 세우고 지속적으로 모니터링하다
-- [Chapter 14. 임계값 설정과 품질 기준 수립](Part_IV_QA관리자가이드/Chapter_09_임계값설정_품질기준.md)
-- [Chapter 15. 대시보드와 시각화](Part_IV_QA관리자가이드/Chapter_10_대시보드_시각화.md)
-- [Chapter 16. 알림 시스템 운영](Part_IV_QA관리자가이드/Chapter_11_알림시스템_운영.md)
-- [Chapter 17. 주간·월간 품질 리뷰](Part_IV_QA관리자가이드/Chapter_12_주간월간_품질리뷰.md)
+- [Chapter 14. 임계값 설정과 품질 기준 수립](Part_IV_QA관리자가이드/Chapter_14_임계값설정_품질기준.md)
+- [Chapter 15. 대시보드와 시각화](Part_IV_QA관리자가이드/Chapter_15_대시보드_시각화.md)
+- [Chapter 16. 알림 시스템 운영](Part_IV_QA관리자가이드/Chapter_16_알림시스템_운영.md)
+- [Chapter 17. 주간·월간 품질 리뷰](Part_IV_QA관리자가이드/Chapter_17_주간월간_품질리뷰.md)
 
 ### Part V — 프로덕션 운영: Harness Gate로 배포하고 지속적으로 개선하다
-- [Chapter 18. CI/CD Harness Gate 운영](Part_V_프로덕션운영/Chapter_13_CICD_품질게이팅.md)
-- [Chapter 19. OpenTelemetry와 Phoenix 실시간 모니터링](Part_V_프로덕션운영/Chapter_14_Phoenix_OTEL_모니터링.md)
-- [Chapter 20. 프로덕션 배포 전략](Part_V_프로덕션운영/Chapter_15_프로덕션_배포전략.md)
-- [Chapter 21. 지속 평가·자기개선 파이프라인](Part_V_프로덕션운영/Chapter_16_종합_실무파이프라인.md)
+- [Chapter 18. CI/CD Harness Gate 운영](Part_V_프로덕션운영/Chapter_18_CICD_품질게이팅.md)
+- [Chapter 19. OpenTelemetry와 Phoenix 실시간 모니터링](Part_V_프로덕션운영/Chapter_19_Phoenix_OTEL_모니터링.md)
+- [Chapter 20. 프로덕션 배포 전략](Part_V_프로덕션운영/Chapter_20_프로덕션_배포전략.md)
+- [Chapter 21. 지속 평가·자기개선 파이프라인](Part_V_프로덕션운영/Chapter_21_종합_실무파이프라인.md)
 
 ### 부록 — 이론 심화 (먼저 읽어도 좋습니다)
 > **추천**: Appendix G→H→I는 Part II를 읽기 전에 먼저 보면 "왜 이 지표인가"에 대한 이론적 근거를 갖출 수 있습니다.

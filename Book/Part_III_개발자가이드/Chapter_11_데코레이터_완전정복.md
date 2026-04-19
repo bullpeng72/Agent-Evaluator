@@ -4,7 +4,7 @@
 
 > 📖 **관련 레퍼런스**
 > - **[Appendix E — 에러 코드 & 트러블슈팅](../Appendix/E_에러코드_트러블슈팅.md)**: 데코레이터 적용 후 발생하는 오류 코드별 원인과 해결책
-> - **[Chapter 13 — 평가 데이터 설계](Chapter_08_평가데이터_설계.md)**: 데코레이터에 전달할 `ground_truth`와 `task_type`을 어떻게 설계할지 → **먼저 읽기 권장**
+> - **[Chapter 13 — 평가 데이터 설계](Chapter_13_평가데이터_설계.md)**: 데코레이터에 전달할 `ground_truth`와 `task_type`을 어떻게 설계할지 → **먼저 읽기 권장**
 > - **[Appendix I — 지표 비교 분석 및 선택 가이드](../Appendix/I_지표_비교분석_선택가이드.md)**: `task_type` 선택이 정확도 계산에 미치는 영향
 
 ---
@@ -94,7 +94,7 @@ def my_agent(question: str, ground_truth: str = "") -> str:
 | `enable_security_metrics=True` | InputSanitizationTracker 등 5종 활성 | Gate E 보안경계 점수 추가 |
 | `enable_llm_judge=True` | LLMJudge 7차원 채점 | Gate G 운영관측성 점수 추가 |
 
-> 📋 **QA 관리자와의 협업**: Config 임계값을 처음 설정할 때는 `fail_on_violation=False`(관찰 모드)로 시작한 뒤 데이터를 QA 관리자와 공유하세요. 임계값 협의 후 `True`로 전환하면 배포 차단이 활성화됩니다. 상세 협업 워크플로우 → [Chapter 3 §3.5](../Part_II_지표시스템/Chapter_03_Harness_Engineering_기초.md) / Config 임계값 설정 기준 → [Chapter 14](../Part_IV_QA관리자가이드/Chapter_09_임계값설정_품질기준.md)
+> 📋 **QA 관리자와의 협업**: Config 임계값을 처음 설정할 때는 `fail_on_violation=False`(관찰 모드)로 시작한 뒤 데이터를 QA 관리자와 공유하세요. 임계값 협의 후 `True`로 전환하면 배포 차단이 활성화됩니다. 상세 협업 워크플로우 → [Chapter 3 §3.5](../Part_II_지표시스템/Chapter_03_Harness_Engineering_기초.md) / Config 임계값 설정 기준 → [Chapter 14](../Part_IV_QA관리자가이드/Chapter_14_임계값설정_품질기준.md)
 
 ---
 
