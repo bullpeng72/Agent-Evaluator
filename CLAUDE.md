@@ -217,7 +217,7 @@ agent_evaluator/
 │   ├── templates/
 │   │   ├── dashboard2.html.j2   # Harness Gate 대시보드 (Alpine.js + Plotly, Nav 3단 계층)
 │   │   └── slides.html.j2       # Harness Gate 슬라이드 (Reveal.js, 14슬라이드 Gate A–G)
-│   └── routers/             # API 라우터 13개
+│   └── routers/             # API 라우터 12개
 ├── cli/
 │   ├── main.py              # agent-eval CLI 진입점
 │   ├── gate.py              # agent-eval gate — CI/CD 품질 게이팅
@@ -317,6 +317,7 @@ monitor = PerformanceMonitor(
     output_dir="results/",
     enable_hallucination_detection=False,  # 기본값 False (성능 영향)
     enable_security_metrics=False,         # 기본값 False
+    enable_transparency=False,             # True 이면 traces/audit_logs 자동 생성
     # LLM Judge (opt-in)
     enable_llm_judge=False,                # True 이면 모든 태스크에 LLM 채점 적용
     judge_model=None,                      # None → API 키 기반 자동 결정
@@ -420,10 +421,10 @@ from agent_evaluator import (
 from agent_evaluator.decorators import agent_eval
 
 @agent_eval(monitor, task_type="qa",
-    instruction=InstructionConfig(required_keywords=["서울"], strict=True),
-    loop_detection=LoopDetectionConfig(max_loop_count=3, loop_threshold=0.85),
-    sla=SLAConfig(max_response_time=5.0, p95_threshold=3.0),
-    explainability=ExplainabilityConfig(min_reasoning_steps=2),
+    instructions=InstructionConfig(required_keywords=["서울"], fail_on_violation=True),
+    loop_detection=LoopDetectionConfig(consecutive_repeat_threshold=3),
+    sla=SLAConfig(p95_ms=3000),
+    explainability=ExplainabilityConfig(min_reasoning_length=20),
 )
 def my_agent(question: str, ground_truth: str = "") -> str: ...
 ```
@@ -487,12 +488,18 @@ from agent_evaluator import (
     # Core
     PerformanceMonitor, TaskResult, TaskType, EvaluationReport,
 
+    # QuickEval — 원스톱 Facade
+    QuickEval,
+
     # Hybrid
     HybridPerformanceMonitor, ExtendedTaskResult, HybridEvaluationReport,
 
     # Helpers
     create_taskresult, evaluation_session, async_evaluation_session,
     hybrid_evaluation_session,
+
+    # OTEL
+    setup_otel,
 
     # Multi-turn Conversation Evaluation
     ConversationSession, ConversationMetrics, ConversationTurn,
@@ -539,6 +546,9 @@ from agent_evaluator import (
 
     # Security Helper
     infer_privilege_level,
+
+    # Alerts
+    SimpleTaskAlertRule, AlertRuleBuilder,
 
     # Phase 2/3 — Streaming, Feedback, Anomaly, Cost
     ImplicitFeedbackTracker,

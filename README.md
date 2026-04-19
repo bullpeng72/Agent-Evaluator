@@ -34,10 +34,10 @@ from agent_evaluator import (
 from agent_evaluator.decorators import agent_eval
 
 @agent_eval(monitor, task_type="qa",
-    instruction=InstructionConfig(required_keywords=["서울"], strict=True),
-    loop_detection=LoopDetectionConfig(max_loop_count=3, loop_threshold=0.85),
-    sla=SLAConfig(max_response_time=5.0, p95_threshold=3.0),
-    explainability=ExplainabilityConfig(min_reasoning_steps=2),
+    instructions=InstructionConfig(required_keywords=["서울"], fail_on_violation=True),
+    loop_detection=LoopDetectionConfig(consecutive_repeat_threshold=3),
+    sla=SLAConfig(p95_ms=3000),
+    explainability=ExplainabilityConfig(min_reasoning_length=20),
 )
 def my_agent(question: str, ground_truth: str = "") -> str:
     return llm.invoke(question)
@@ -1072,10 +1072,10 @@ from agent_evaluator import (
 )
 
 @agent_eval(monitor, task_type="qa",
-    instruction=InstructionConfig(required_keywords=["서울"], strict=True),
-    loop_detection=LoopDetectionConfig(max_loop_count=3),
-    sla=SLAConfig(max_response_time=5.0, p95_threshold=3.0),
-    explainability=ExplainabilityConfig(min_reasoning_steps=2),
+    instructions=InstructionConfig(required_keywords=["서울"], fail_on_violation=True),
+    loop_detection=LoopDetectionConfig(consecutive_repeat_threshold=3),
+    sla=SLAConfig(p95_ms=3000),
+    explainability=ExplainabilityConfig(min_reasoning_length=20),
 )
 def my_agent(question: str, ground_truth: str = "") -> str: ...
 ```
@@ -1398,18 +1398,18 @@ agent-evaluator/
 │   │   ├── trackers/
 │   │   │   ├── base.py          # TaskResult · EvaluationReport · TaskType
 │   │   │   ├── layer1.py        # Foundation 지표 6종
-│   │   │   ├── layer2.py        # Agentic 지표 5종 (+ 보안 5종)
+│   │   │   ├── layer2.py        # Agentic 지표 5종
 │   │   │   ├── security.py      # 보안 지표 5종 (Layer 2-B)
 │   │   │   ├── monitor.py       # PerformanceMonitor (오케스트레이터)
 │   │   │   ├── conversation.py  # ConversationSession · ConversationMetrics
 │   │   │   └── feedback.py      # ImplicitFeedbackTracker
-│   │   ├── otel/                # OpenTelemetry 통합 ([otel] extras)
+│   │   ├── otel/                # OpenTelemetry 통합 (기본 설치에 포함)
 │   │   ├── hybrid_monitor.py    # HybridPerformanceMonitor
 │   │   └── monitor_context.py   # evaluation_session · async_evaluation_session
 │   ├── integrations/
 │   │   ├── llm_judge.py         # LLMJudge
 │   │   └── metric_adapters.py   # DeepEval · Ragas 어댑터
-│   ├── serve/                   # FastAPI 대시보드 ([serve] extras)
+│   ├── serve/                   # FastAPI 대시보드 (기본 설치에 포함)
 │   ├── cli/                     # agent-eval CLI
 │   ├── alerts/                  # AlertEngine · SimpleTaskAlertRule
 │   ├── anomaly/                 # AnomalyDetector
