@@ -10,6 +10,7 @@ Security Metrics — Layer 1 & Layer 2:
 from __future__ import annotations
 
 import json
+import random
 import re
 from typing import Any, Dict, List, Optional, Union
 
@@ -105,11 +106,18 @@ class InputSanitizationTracker(SecurityTrackerMixin):
             matches the input, the entire input is treated as safe and no threat
             flags are set. Use for known-safe query templates or system inputs.
             Example: [r"^SELECT \\* FROM products WHERE", r"example\\.com"]
+        sample_rate: 0.0–1.0. 이 비율의 입력만 실제로 검사하고 나머지는 건너뜁니다.
+            기본값 1.0 (전수 검사). 고트래픽 환경에서 0.1~0.3으로 낮춰 성능 최적화.
     """
 
-    def __init__(self, whitelist_patterns: Optional[List[str]] = None):
+    def __init__(
+        self,
+        whitelist_patterns: Optional[List[str]] = None,
+        sample_rate: float = 1.0,
+    ):
         self._evaluations: List[Dict[str, Any]] = []
         self._whitelist = [re.compile(p, re.IGNORECASE) for p in (whitelist_patterns or [])]
+        self._sample_rate = max(0.0, min(1.0, float(sample_rate)))
 
         # Dangerous patterns (pre-compiled for performance)
         self.sql_injection_patterns = [
@@ -187,6 +195,24 @@ class InputSanitizationTracker(SecurityTrackerMixin):
                 - sanitization_needed (bool): True if any threat was detected
                 - threat_count (int): number of distinct threat types found (0-5)
         """
+        # Sampling check — skip this call probabilistically to reduce overhead
+        if self._sample_rate < 1.0 and random.random() > self._sample_rate:
+            result: Dict[str, Any] = {
+                "task_id": task_id,
+                "has_sql_injection": False,
+                "has_command_injection": False,
+                "has_path_traversal": False,
+                "has_xss": False,
+                "has_prompt_injection": False,
+                "risk_level": "low",
+                "sanitization_needed": False,
+                "threat_count": 0,
+                "sampled_out": True,
+                "confidence": 0.0,
+            }
+            self._evaluations.append(result)
+            return result
+
         # Whitelist check — if any whitelist pattern matches, skip all threat detection
         if self._whitelist and self._check_patterns(input_text, self._whitelist):
             result = {
@@ -299,6 +325,11 @@ class InputSanitizationTracker(SecurityTrackerMixin):
 # Layer 1 Security: Output Leakage Detection
 # ============================================================================
 
+_DEFAULT_EXCLUDED_UNIX_PATHS: List[str] = [
+    "usr/", "bin/", "sbin/", "lib/", "lib64/", "proc/", "sys/", "dev/",
+]
+
+
 class OutputLeakageDetector(SecurityTrackerMixin):
     """
     Detect sensitive information leakage in outputs
@@ -310,11 +341,22 @@ class OutputLeakageDetector(SecurityTrackerMixin):
         whitelist_patterns: Optional list of regex patterns. If any matches the
             output, the output is treated as safe (no leakage flags set).
             Example: [r"example@company\\.com", r"192\\.168\\.1\\.1"]
+        excluded_unix_paths: Unix 경로 탐지에서 제외할 접두사 목록.
+            기본값: ["usr/", "bin/", "sbin/", "lib/", "lib64/", "proc/", "sys/", "dev/"]
+            Example: ["usr/", "bin/", "myapp/", "opt/"]
+        sample_rate: 0.0–1.0. 이 비율의 출력만 실제로 검사하고 나머지는 건너뜁니다.
+            기본값 1.0 (전수 검사).
     """
 
-    def __init__(self, whitelist_patterns: Optional[List[str]] = None):
+    def __init__(
+        self,
+        whitelist_patterns: Optional[List[str]] = None,
+        excluded_unix_paths: Optional[List[str]] = None,
+        sample_rate: float = 1.0,
+    ):
         self._detections: List[Dict[str, Any]] = []
         self._whitelist = [re.compile(p, re.IGNORECASE) for p in (whitelist_patterns or [])]
+        self._sample_rate = max(0.0, min(1.0, float(sample_rate)))
 
         # Sensitive patterns (pre-compiled for performance)
         self.api_key_patterns = [
@@ -358,12 +400,16 @@ class OutputLeakageDetector(SecurityTrackerMixin):
             ]
         ]
 
+        _excluded = excluded_unix_paths if excluded_unix_paths is not None else _DEFAULT_EXCLUDED_UNIX_PATHS
+        _lookahead = "|".join(re.escape(p) for p in _excluded) if _excluded else None
+        _unix_pattern = (
+            rf"(/(?!{_lookahead})[a-z][a-zA-Z0-9_-]*/[\w/.-]+)"
+            if _lookahead
+            else r"(/[a-z][a-zA-Z0-9_-]*/[\w/.-]+)"
+        )
         self.file_path_patterns = [
-            re.compile(p) for p in [
-                r"([A-Z]:\\(?!Windows\\|Program Files)[\w\\]+)",  # Windows path (excludes common system dirs)
-                # Unix path: exclude common non-sensitive system prefixes to reduce false positives
-                r"(/(?!usr/|bin/|sbin/|lib(?:64)?/|proc/|sys/|dev/)[a-z][a-zA-Z0-9_-]*/[\w/.-]+)",
-            ]
+            re.compile(r"([A-Z]:\\(?!Windows\\|Program Files)[\w\\]+)"),
+            re.compile(_unix_pattern),
         ]
 
     @property
@@ -397,6 +443,23 @@ class OutputLeakageDetector(SecurityTrackerMixin):
                 - severity (str): ``"critical"`` | ``"high"`` | ``"medium"``
                   | ``"low"`` | ``"none"``
         """
+        # Sampling check — skip this call probabilistically to reduce overhead
+        if self._sample_rate < 1.0 and random.random() > self._sample_rate:
+            result: Dict[str, Any] = {
+                "task_id": task_id,
+                **{k: False for k in [
+                    "contains_api_key", "contains_password", "contains_credit_card",
+                    "contains_email", "contains_phone", "contains_ssn",
+                    "contains_private_ip", "contains_file_path",
+                ]},
+                "leakage_count": 0,
+                "severity": "none",
+                "sampled_out": True,
+                "confidence": 0.0,
+            }
+            self._detections.append(result)
+            return result
+
         # Whitelist check — output is safe if any whitelist pattern matches
         if self._whitelist and self._check_patterns(output_text, self._whitelist):
             result = {

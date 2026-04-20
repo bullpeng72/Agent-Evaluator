@@ -2877,6 +2877,12 @@ class PerformanceMonitor:
             1 for t in tasks
             if (t.extra or {}).get("deadlock", {}).get("deadlock_detected", False)
         )
+        _deadlock_by_type: Dict[str, int] = {}
+        for _t in tasks:
+            _dl = (_t.extra or {}).get("deadlock", {})
+            if _dl.get("deadlock_detected") and _dl.get("deadlock_type"):
+                _dtype = str(_dl["deadlock_type"])
+                _deadlock_by_type[_dtype] = _deadlock_by_type.get(_dtype, 0) + 1
 
         _scope_vals = [
             t.extra["scope"]["scope_score"]
@@ -3109,6 +3115,21 @@ class PerformanceMonitor:
                         _cv_scores_d.append(_cv_score_d)
             if _cv_scores_d:
                 _avg_cost_predictability = sum(_cv_scores_d) / len(_cv_scores_d)
+
+        # ── D 그룹: insufficient_data 경고 수집 ──
+        _d_insufficient: _List[str] = []
+        if _ttft_values and len(_ttft_values) < _ttft_min_samples:
+            _d_insufficient.append(
+                f"ttft_variability: {len(_ttft_values)} samples < min_samples={_ttft_min_samples}"
+            )
+        if len(tasks) < _cost_min_samples:
+            _d_insufficient.append(
+                f"cost_predictability: {len(tasks)} tasks < min_samples={_cost_min_samples}"
+            )
+        if _sla_results and len(_sla_results) < 5:
+            _d_insufficient.append(
+                f"sla: {len(_sla_results)} samples < recommended_min=5"
+            )
 
         _perf_vals: _List[float] = []
         if _p95 > 0:
@@ -3358,6 +3379,7 @@ class PerformanceMonitor:
                 "avg_plan_coherence": round(avg_plan, 4) if avg_plan is not None else None,
                 "avg_state_consistency": round(avg_sc, 4) if avg_sc is not None else None,
                 "deadlock_count": _deadlock_count,
+                "deadlock_by_type": _deadlock_by_type if _deadlock_by_type else None,
                 "avg_deadlock_score": round(max(0.0, 1.0 - _deadlock_count / max(n, 1)), 4),
                 "avg_scope_score": round(avg_scope_score, 4) if avg_scope_score is not None else None,
                 "avg_tool_parameter_safety": round(avg_tool_param_safety, 4) if avg_tool_param_safety is not None else None,
@@ -3382,6 +3404,7 @@ class PerformanceMonitor:
                 "ttft_p50_ms": round(_ttft_p50, 4) if _ttft_p50 is not None else None,
                 "ttft_p95_ms": round(_ttft_p95, 4) if _ttft_p95 is not None else None,
                 "avg_cost_predictability": round(_avg_cost_predictability, 4) if _avg_cost_predictability is not None else None,
+                "insufficient_data_warnings": _d_insufficient if _d_insufficient else None,
             }),
             "E": _g(_e_s, "Security Boundary", {
                 "threat_count": sec_threats,

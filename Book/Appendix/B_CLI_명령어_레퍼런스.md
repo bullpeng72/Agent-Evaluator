@@ -1,6 +1,6 @@
 # Appendix B. CLI 명령어 완전 레퍼런스
 
-Agent Evaluator v0.8.2 CLI 전체 명령어 목록. `pip install agent-evaluator` 설치 후 바로 사용 가능하다.
+Agent Evaluator v0.8.3 CLI 전체 명령어 목록. `pip install agent-evaluator` 설치 후 바로 사용 가능하다.
 
 ---
 
@@ -70,7 +70,7 @@ agent-eval check
 **출력 예시**
 
 ```
-Agent Evaluator v0.8.2 설정 상태
+Agent Evaluator v0.8.3 설정 상태
 =================================
 .env 파일: /Users/username/project/.env (존재)
 
@@ -448,7 +448,7 @@ agent-eval --version
 **출력 예시**
 
 ```
-agent-evaluator 0.8.2
+agent-evaluator 0.8.3
 ```
 
 ---

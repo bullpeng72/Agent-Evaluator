@@ -1009,7 +1009,7 @@ agent-eval dashboard results/
 | 06_operational | 운영: 인프라 종합 | AnomalyDetector, CostTracker, GoldenSet |
 | 07_phoenix_hybrid | 운영: OTEL·외부 평가 | Phoenix 스팬, DeepEval/Ragas 연동 |
 
-**전체 파이프라인 실행 결과 요약 (v0.8.2 기준)**
+**전체 파이프라인 실행 결과 요약 (v0.8.3 기준)**
 
 ```
 === 종합 파이프라인 실행 결과 ===

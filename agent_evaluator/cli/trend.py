@@ -52,6 +52,7 @@ class RunPoint:
     accuracy: Optional[float]
     p95_latency: Optional[float]
     hallucination: Optional[float]
+    total_cost: Optional[float] = None
 
 
 @dataclass
@@ -83,6 +84,7 @@ class RunTrendReport:
     accuracy_trend: Optional[MetricTrend] = None
     latency_trend: Optional[MetricTrend] = None
     hallucination_trend: Optional[MetricTrend] = None
+    cost_trend: Optional[MetricTrend] = None
 
     @property
     def any_regression(self) -> bool:
@@ -93,6 +95,7 @@ class RunTrendReport:
                 self.accuracy_trend,
                 self.latency_trend,
                 self.hallucination_trend,
+                self.cost_trend,
             ]
             if t is not None
         )
@@ -123,6 +126,7 @@ class RunTrendReport:
                     "accuracy": r.accuracy,
                     "p95_latency": r.p95_latency,
                     "hallucination": r.hallucination,
+                    "total_cost": r.total_cost,
                 }
                 for r in self.runs
             ],
@@ -131,6 +135,7 @@ class RunTrendReport:
                 "accuracy": _trend_dict(self.accuracy_trend),
                 "p95_latency": _trend_dict(self.latency_trend),
                 "hallucination": _trend_dict(self.hallucination_trend),
+                "total_cost": _trend_dict(self.cost_trend),
             },
         }
 
@@ -202,6 +207,7 @@ class RunTrendAnalyzer:
                     accuracy=m.get("accuracy"),
                     p95_latency=m.get("p95_latency"),
                     hallucination=m.get("hallucination"),
+                    total_cost=m.get("total_cost"),
                 )
             )
 
@@ -226,6 +232,12 @@ class RunTrendAnalyzer:
                 "hallucination",
                 "환각 탐지율",
                 [r.hallucination for r in runs],
+                higher_is_better=False,
+            ),
+            cost_trend=self._trend(
+                "total_cost",
+                "총 비용",
+                [r.total_cost for r in runs],
                 higher_is_better=False,
             ),
         )
@@ -315,6 +327,8 @@ def _fmt(val: Optional[float], unit: str) -> str:
         return f"{val:.1f}%"
     if unit == "s":
         return f"{val:.3f}s"
+    if unit == "$":
+        return f"${val:.4f}"
     return f"{val:.2f}"
 
 
@@ -323,6 +337,7 @@ _METRIC_UNIT = {
     "accuracy": "%",
     "p95_latency": "s",
     "hallucination": "%",
+    "total_cost": "$",
 }
 
 
@@ -348,6 +363,8 @@ def _print_report(report: RunTrendReport, slope_threshold: float) -> None:
                 parts.append(f"acc={run.accuracy:.1f}%")
             if run.p95_latency is not None:
                 parts.append(f"p95={run.p95_latency:.3f}s")
+            if run.total_cost is not None:
+                parts.append(f"cost=${run.total_cost:.4f}")
             summary = "  ".join(parts) if parts else f"{D}지표 없음{R}"
             print(f"  {D}{i:>2}.{R} {fname:<52} {D}{summary}{R}")
         print()
@@ -358,6 +375,7 @@ def _print_report(report: RunTrendReport, slope_threshold: float) -> None:
         (report.accuracy_trend, "accuracy"),
         (report.latency_trend, "p95_latency"),
         (report.hallucination_trend, "hallucination"),
+        (report.cost_trend, "total_cost"),
     ]
     active = [(t, k) for t, k in trends if t is not None]
 

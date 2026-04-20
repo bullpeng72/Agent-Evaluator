@@ -721,7 +721,7 @@ python Evaluator_Examples/06_operational.py
 | 05_streaming_alerts | 섹션 3 | `AlertEngine` 다채널 알림 | console·webhook·파일 핸들러 |
 | 06_operational | 섹션 4 | `SimpleTaskAlertRule` + `AnomalyDetector` | 임계값+Z-Score 이중 감시 |
 
-**실행 결과 (v0.8.2 기준)**
+**실행 결과 (v0.8.3 기준)**
 
 ```
 # 05_streaming_alerts.py

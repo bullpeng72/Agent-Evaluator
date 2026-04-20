@@ -886,7 +886,7 @@ agent-eval dashboard results/
 | 06_operational | 이상 감지·비용·실시간·알림 | AnomalyDetector, CostTracker, alert JSONL |
 | 07_phoenix_hybrid | 외부 평가·OTEL | advanced_metrics, rag_metrics |
 
-**실행 결과 (v0.8.2 기준)**
+**실행 결과 (v0.8.3 기준)**
 
 ```
 # 04_decorator_quickeval.py

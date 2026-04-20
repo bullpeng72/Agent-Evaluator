@@ -1478,7 +1478,7 @@ mypy agent_evaluator/          # 타입 검사
 
 ## 변경 이력
 
-### v0.8.3 (2026-04-20) — LLMJudge 안정성 강화 · Gate A 블렌딩 가중치 · 비동기 지원
+### v0.8.3 (2026-04-21) — LLMJudge 안정성 강화 · Gate 개선 · 보안 트래커 확장
 
 - LLMJudge 연속 오류 자동 비활성화 (3회 연속 실패 → `reset_errors()`로 복구)
 - `faithfulness` 누락 시 `None` 저장 — 점수 오염 방지
@@ -1486,6 +1486,12 @@ mypy agent_evaluator/          # 타입 검사
 - `GoalAlignmentConfig` · `PlanConfig`에 `llm_blend_weight` 추가 (LLM-rule 혼합 비율, 기본 0.5)
 - `LLMJudge.ajudge()` 비동기 메서드 추가
 - `LLMJudgeConfig.sample_rate` 데코레이터 전달 버그 수정
+- `agent-eval gate --min-gate-score / --group-weights` — Gate A–G 가중 복합 점수 판정
+- `agent-eval trend` 비용 추세 분석 (`total_cost`, `--fail-on-regression` 연동)
+- `OutputLeakageDetector(excluded_unix_paths=[...])` — 시스템 경로 제외 목록 커스터마이즈
+- 보안 트래커 `sample_rate` 파라미터 추가 (고트래픽 성능 최적화)
+- Group B `deadlock_by_type` 분류 · Gate D `insufficient_data_warnings` 추가
+- `LLMJudge(escalation_model=..., escalation_threshold=2.5)` — 다중 모델 자동 에스컬레이션
 
 ### v0.8.2 (2026-04-17) — Harness Config 33개 양식 통일 · 대시보드 UI 개선
 

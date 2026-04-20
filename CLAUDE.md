@@ -605,7 +605,7 @@ from agent_evaluator import (
 
 ## Testing
 
-`tests/` 디렉토리에 **51개 파일, 2,465개+ 테스트 함수** 존재.
+`tests/` 디렉토리에 **53개 파일, 2,465개+ 테스트 함수** 존재.
 
 ```bash
 # pytest.ini_options in pyproject.toml already configured:
@@ -680,7 +680,7 @@ completion_score task_type 인식 (v0.8.0+):
 
 ## 📝 변경 이력
 
-### v0.8.3 (2026-04-20) — LLMJudge 안정성 강화 · Gate A 블렌딩 가중치 · 비동기 지원
+### v0.8.3 (2026-04-21) — LLMJudge 안정성 강화 · Gate 개선 · 보안 트래커 확장
 
 - LLMJudge 연속 오류 자동 비활성화 (3회 연속 실패 → `_disabled_reason` 설정, `reset_errors()` 복구)
 - `faithfulness` 누락 시 `0` 대신 `None` 저장 — 점수 오염 방지; 통계 집계에서 `None` 제외
@@ -688,7 +688,13 @@ completion_score task_type 인식 (v0.8.0+):
 - `GoalAlignmentConfig.llm_blend_weight` · `PlanConfig.llm_blend_weight` 추가 (0.0–1.0, 기본 0.5)
 - `LLMJudge.ajudge()` 비동기 메서드 추가 — `run_in_executor` 기반 non-blocking 호출
 - `LLMJudgeConfig.sample_rate` 데코레이터 전달 경로 버그 수정 (5개 호출 지점 전부 연결)
-- 예제 `04_decorator_quickeval.py` · `08_harness_eval.py` LLMJudge 개선 반영
+- `agent-eval gate --min-gate-score SCORE --group-weights A:2.0,E:3.0` — Gate A–G 가중 복합 점수 판정
+- `agent-eval trend` 비용 추세 분석 — `total_cost` 필드 + `$` 단위 출력, `--fail-on-regression` 연동
+- `OutputLeakageDetector(excluded_unix_paths=[...])` — 동적 negative lookahead로 시스템 경로 제외 목록 커스터마이즈
+- `InputSanitizationTracker` · `OutputLeakageDetector`에 `sample_rate` 파라미터 추가 — 고트래픽 환경 성능 최적화
+- Harness Group B 리포트에 `deadlock_by_type` 분류 추가 (`circular` / `starvation` / `depth_exceeded` / `livelock`)
+- Gate D 집계에 `insufficient_data_warnings` 필드 추가 — TTFT·cost·SLA 샘플 부족 시 경고
+- `LLMJudge(escalation_model=..., escalation_threshold=2.5)` — primary 점수 미달 시 상위 모델 자동 재채점
 
 ### v0.8.2 (2026-04-17) — Harness Config 33개 양식 통일 · 대시보드 UI 개선
 

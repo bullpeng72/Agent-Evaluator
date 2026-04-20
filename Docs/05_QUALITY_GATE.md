@@ -44,9 +44,31 @@ agent-eval gate results/eval.json --tcr 85 --accuracy 70 --quality 3.5 --halluci
 
 # 임계값 파일 사용
 agent-eval gate results/eval.json --config gate_config.json
+
+# Harness Gate A–G 복합 점수 판정 (v0.8.3+)
+agent-eval gate results/eval.json --min-gate-score 0.75
+
+# Gate별 가중치 지정 — 보안(E)·목표달성(A)을 3배 강조
+agent-eval gate results/eval.json --min-gate-score 0.75 --group-weights "A:2.0,E:3.0,B:1.0"
 ```
 
 임계값을 하나라도 미달하면 비제로(non-zero) 종료 코드를 반환합니다.
+
+#### `--min-gate-score` / `--group-weights` 상세
+
+| 옵션 | 형식 | 설명 |
+|------|------|------|
+| `--min-gate-score` | `float` (0.0–1.0) | Gate A–G 가중 평균 최소값. 미달 시 exit(1) |
+| `--group-weights` | `"A:W,B:W,..."` | Gate별 가중치 (생략 시 균등 가중). 미정의 Gate는 기본값 1.0 |
+
+```bash
+# 예: 보안(E) 3배, 신뢰성(C) 2배 가중, 전체 복합 점수 0.8 이상 필요
+agent-eval gate results/eval.json \
+  --min-gate-score 0.80 \
+  --group-weights "C:2.0,E:3.0"
+```
+
+복합 점수는 `extra_metrics.harness_groups.{A-G}.score` 필드에서 추출합니다. 해당 데이터가 없는 Gate는 계산에서 제외됩니다.
 
 ---
 

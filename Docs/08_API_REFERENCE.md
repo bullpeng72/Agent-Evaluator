@@ -8,7 +8,7 @@ Agent Evaluator v0.8.3 전체 API 문서
 
 - **버전:** v0.8.3
 - **Python:** 3.8+
-- **최종 업데이트:** 2026-04-18
+- **최종 업데이트:** 2026-04-21
 
 ---
 
@@ -824,6 +824,22 @@ result = check_output_leakage(agent_output)
 | `PrivilegeEscalationDetector` | 권한 상승 시도 |
 | `ToolChainAttackDetector` | 연쇄 도구 공격 패턴 |
 
+#### 주요 파라미터 (v0.8.3+)
+
+```python
+# 샘플링 — 고트래픽 환경에서 성능 최적화
+tracker = InputSanitizationTracker(sample_rate=0.2)   # 20%만 검사
+detector = OutputLeakageDetector(sample_rate=0.2)
+
+# 시스템 경로 제외 목록 커스터마이즈 (OutputLeakageDetector)
+detector = OutputLeakageDetector(
+    excluded_unix_paths=["usr/", "bin/", "myapp/", "opt/"]  # 기본: 8개 시스템 접두사
+)
+
+# sample_rate=0.0 이면 전부 건너뜀 (sampled_out: True 반환)
+# sample_rate=1.0 이면 전수 검사 (기본값)
+```
+
 ---
 
 ## 8. ConversationSession
@@ -875,20 +891,40 @@ ground_truth 없이 LLM이 직접 채점하는 평가 엔진. 기본 설치에 �
 from agent_evaluator import LLMJudge  # pip install agent-evaluator (기본 설치에 포함)
 
 judge = LLMJudge(
-    model="claude-sonnet-4-6",     # 또는 "gpt-4o-mini"
-    temperature=0.0,
+    model="claude-haiku-4-5-20251001",   # 기본 모델 (빠름·저비용)
+    sample_rate=0.1,                      # 10%만 채점
+    budget_per_day=1.0,                   # 하루 $1 상한
+    judge_criteria=["medical_accuracy"],  # G-Eval 커스텀 기준 (선택)
+    # 다중 모델 자동 에스컬레이션 (v0.8.3+)
+    escalation_model="claude-sonnet-4-6", # primary 점수 미달 시 재채점
+    escalation_threshold=2.5,             # overall < 2.5 이면 에스컬레이션 (0–5 스케일)
 )
 
-score = judge.evaluate(
+result = judge.judge(
+    task_id="t1",
     question="한국의 수도는?",
     response="서울은 한국의 수도입니다.",
-    ground_truth="서울",  # 선택 — 없으면 completeness 기반 평가
+    context="한국은 동아시아의 나라이다.",  # RAG 컨텍스트 (선택)
 )
 
-score.completeness         # float (0.0–1.0) — 완전성
-score.relevance            # float (0.0–1.0) — 관련성
-score.factual_consistency  # float (0.0–1.0) — 사실 일관성
+result["scores"]["overall"]        # float (0–5) — 품질 3차원 평균
+result["scores"]["faithfulness"]   # float (0–5) — RAG 충실도 (context 있을 때)
+result.get("escalated")            # True이면 escalation_model로 재채점된 결과
+result.get("primary_overall")      # 에스컬레이션 전 primary 점수
 ```
+
+#### `LLMJudge` 생성자 파라미터
+
+| 파라미터 | 기본값 | 설명 |
+|---------|--------|------|
+| `model` | `None` (자동) | 기본 채점 모델 |
+| `sample_rate` | `0.1` | 채점 비율 (0.0–1.0) |
+| `budget_per_day` | `None` | 일일 USD 상한 |
+| `judge_criteria` | `None` | G-Eval 커스텀 기준 리스트 |
+| `escalation_model` | `None` | 재채점 상위 모델 (v0.8.3+) |
+| `escalation_threshold` | `2.5` | 에스컬레이션 트리거 임계값 (v0.8.3+) |
+| `max_context_chars` | `4000` | 컨텍스트 잘림 한도 |
+| `seed` | `None` | 샘플링 재현성용 랜덤 시드 |
 
 ### QuickEval과 통합
 

@@ -50,7 +50,7 @@ pip install "agent-evaluator[full]"
 
 # 설치 확인
 agent-eval --version
-# → agent-evaluator 0.8.2
+# → agent-evaluator 0.8.3
 ```
 
 > 👨‍💻 **개발자 TIP**: `[crewai]`와 `[autogen]`은 의존성이 무거워 단독 extras로 분리되어 있습니다. CrewAI와 AutoGen을 동시에 설치하면 pydantic 버전 충돌이 발생할 수 있으므로, 필요한 경우에만 하나씩 설치하세요.
@@ -661,7 +661,7 @@ eval_qe.save()  # JSON + HTML
 | 3. Gate | 배포 판정 | `eval.gate(tcr=80)` | 04_decorator_quickeval, 섹션 7 |
 | 4. 저장 | 결과 보존 | `eval.save()` / `monitor.save_to_file()` | 04_decorator_quickeval, 섹션 8 |
 
-**실행 결과 (v0.8.2 기준)**
+**실행 결과 (v0.8.3 기준)**
 
 ```
 === 04. 데코레이터 · QuickEval 종합 예제 ===

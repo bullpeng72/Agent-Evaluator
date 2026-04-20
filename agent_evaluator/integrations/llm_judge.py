@@ -242,6 +242,11 @@ class LLMJudge:
                         cumulative cost exceeds this limit, judging is skipped
                         and a warning is emitted.
         seed: Random seed for deterministic sampling (tests / reproducibility).
+        escalation_model: 확신도가 낮은 결과를 재채점할 상위 모델.  ``None`` 이면
+                          단일 모델 모드.
+                          Example: ``escalation_model="claude-sonnet-4-6"``
+        escalation_threshold: 0–5 스케일 기준, primary ``overall`` 점수가 이 값
+                              미만이면 ``escalation_model`` 로 재채점한다. 기본값 2.5.
     """
 
     def __init__(
@@ -253,12 +258,17 @@ class LLMJudge:
         seed: Optional[int] = None,
         judge_criteria: Optional[List[str]] = None,
         max_context_chars: int = 4000,
+        escalation_model: Optional[str] = None,
+        escalation_threshold: float = 2.5,
     ) -> None:
         if not 0.0 <= sample_rate <= 1.0:
             raise ValueError(f"sample_rate must be in [0, 1]; got {sample_rate}")
 
         # model=None → agent-eval init 설정(OPENAI_MODEL / ANTHROPIC_MODEL)에서 자동 결정
         self.model = model if model is not None else _resolve_default_model()
+        # escalation_model: primary 점수가 escalation_threshold 미만이면 이 모델로 재채점
+        self.escalation_model: Optional[str] = escalation_model
+        self.escalation_threshold: float = float(escalation_threshold)
         self.sample_rate = sample_rate
         self.budget_per_day = budget_per_day
 
@@ -346,6 +356,29 @@ class LLMJudge:
 
         # Run the judge
         result = self._call_judge(task_id, question, response, context)
+
+        # Escalation: primary overall 점수 < escalation_threshold 이면 상위 모델로 재채점
+        if (
+            self.escalation_model
+            and not result.get("error")
+            and not result.get("skipped")
+        ):
+            _primary_overall = (result.get("scores") or {}).get("overall")
+            if _primary_overall is not None and _primary_overall < self.escalation_threshold:
+                _orig_model = self.model
+                self.model = self.escalation_model
+                self._pricing = _MODEL_PRICING.get(self.model, _DEFAULT_PRICING)
+                try:
+                    _escalated = self._call_judge(task_id, question, response, context)
+                finally:
+                    self.model = _orig_model
+                    self._pricing = _MODEL_PRICING.get(self.model, _DEFAULT_PRICING)
+                if not _escalated.get("error"):
+                    _escalated["escalated"] = True
+                    _escalated["escalated_from_model"] = _orig_model
+                    _escalated["primary_overall"] = _primary_overall
+                    result = _escalated
+
         self.results.append(result)
 
         # 오류 카운터 업데이트

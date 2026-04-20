@@ -897,6 +897,21 @@ def main() -> None:
         "--junit-xml", metavar="PATH", dest="junit_xml",
         help="JUnit XML 출력 경로 (CI 시스템 연동)",
     )
+    gate_p.add_argument(
+        "--min-gate-score", type=float, metavar="SCORE", dest="min_gate_score",
+        help=(
+            "Harness Gate A–G 복합 점수 하한 (0.0–1.0). "
+            "지정 시 그룹 가중 평균이 이 값 미만이면 실패 처리."
+        ),
+    )
+    gate_p.add_argument(
+        "--group-weights", metavar="WEIGHTS", dest="group_weights",
+        help=(
+            "Gate 그룹별 가중치 (기본: 모두 1.0). "
+            "형식: 'A:2.0,B:1.5,E:3.0'. "
+            "--min-gate-score 와 함께 사용."
+        ),
+    )
 
     # dataset subcommand
     ds_p = sub.add_parser(

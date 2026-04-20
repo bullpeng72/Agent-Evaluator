@@ -764,7 +764,7 @@ def classify_topology(interactions: list) -> str:
 ### H.9.1 입력 위생화 — 정규표현식 패턴 매칭
 
 ```python
-# v0.8.2 기준: OWASP Top 10 for LLMs (2023) + MITRE ATLAS (2024) 기반
+# v0.8.3 기준: OWASP Top 10 for LLMs (2023) + MITRE ATLAS (2024) 기반
 # 업데이트 주기: 반기 (신규 공격 패턴 검토)
 # 참조: https://owasp.org/www-project-top-10-for-large-language-model-applications/
 INJECTION_PATTERNS = {
@@ -959,4 +959,4 @@ def should_judge(task_id: str, sample_rate: float) -> bool:
 
 ---
 
-*본 Appendix의 수식과 알고리즘은 Agent-Evaluator v0.8.2 소스 코드(`agent_evaluator/core/trackers/layer1.py`, `layer2.py`, `security.py`, `integrations/llm_judge.py`)와 직접 대응된다.*
+*본 Appendix의 수식과 알고리즘은 Agent-Evaluator v0.8.3 소스 코드(`agent_evaluator/core/trackers/layer1.py`, `layer2.py`, `security.py`, `integrations/llm_judge.py`)와 직접 대응된다.*

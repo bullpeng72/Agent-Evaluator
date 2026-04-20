@@ -788,7 +788,7 @@ python Evaluator_Examples/06_operational.py
 | 06_operational | `evaluation_session` 컨텍스트 매니저 | 예외 발생 시 자동 저장 보장 |
 | 06_operational | `auto_save=True, auto_save_interval=10` | 장시간 실행 중 주기 저장 |
 
-**실행 결과 (v0.8.2 기준)**
+**실행 결과 (v0.8.3 기준)**
 
 ```
 # 06_operational.py (evaluation_session 섹션)

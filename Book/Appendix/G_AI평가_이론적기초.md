@@ -564,7 +564,7 @@ def wilson_lower_bound(successes: int, trials: int, z: float = 1.96) -> float:
 4. **샘플링 검증**: 전체의 10%만 LLM 채점, 나머지는 규칙 기반으로 교차 검증
 
 ```python
-# 이종 모델 평가자 패턴 — v0.8.2
+# 이종 모델 평가자 패턴 — v0.8.3
 # 출처: Evaluator_Examples/04_decorator_quickeval.py, LLMJudge 섹션
 judge = LLMJudge(
     model="claude-haiku-4-5-20251001",  # 생성 모델과 다른 평가 모델
@@ -876,7 +876,7 @@ def validate_response_schema(response: str, schema: dict) -> float:
 
 ---
 
-*본 Appendix는 Agent-Evaluator v0.8.2 기준으로 작성됐다. AI 평가 연구는 빠르게 발전하고 있으며, 주요 학회(NeurIPS, ACL, ICLR)에서 새로운 방법론이 지속적으로 발표되고 있다. Harness Engineering 개념과 Config-as-Code 패턴은 v0.8.x 시리즈에서 지속적으로 발전 중이다. 본 부록의 G.10(캘리브레이션), G.11(공정성), G.12(출력 구조 검증) 섹션은 2026년 현재 업계 최전선의 논의를 반영하며, 해당 분야 연구는 계속 진행 중이다.*
+*본 Appendix는 Agent-Evaluator v0.8.3 기준으로 작성됐다. AI 평가 연구는 빠르게 발전하고 있으며, 주요 학회(NeurIPS, ACL, ICLR)에서 새로운 방법론이 지속적으로 발표되고 있다. Harness Engineering 개념과 Config-as-Code 패턴은 v0.8.x 시리즈에서 지속적으로 발전 중이다. 본 부록의 G.10(캘리브레이션), G.11(공정성), G.12(출력 구조 검증) 섹션은 2026년 현재 업계 최전선의 논의를 반영하며, 해당 분야 연구는 계속 진행 중이다.*
 
 ---
 

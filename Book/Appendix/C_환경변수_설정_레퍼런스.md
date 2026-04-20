@@ -1,6 +1,6 @@
 # Appendix C. 환경변수 & 설정 레퍼런스
 
-Agent Evaluator v0.8.2에서 사용하는 환경변수와 `.env` 파일 설정 전체를 정리한다.
+Agent Evaluator v0.8.3에서 사용하는 환경변수와 `.env` 파일 설정 전체를 정리한다.
 
 ---
 
