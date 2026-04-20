@@ -191,6 +191,8 @@ class PerformanceMonitor:
         # G-Eval 스타일 커스텀 평가 기준 (DeepEval 대체)
         # 예: ["medical_accuracy", "citation_quality"]
         judge_criteria: Optional[List[str]] = None,
+        # LLM Judge context 잘림 한도 (기본 4000자 — RAG 문서 1~2페이지 커버)
+        judge_max_context_chars: int = 4000,
         # 한국어 형태소 분석 기반 토큰화 (kiwipiepy 필요)
         use_korean_tokenizer: bool = False,
         # 의미 기반 환각 탐지 (sentence-transformers 필요, opt-in)
@@ -415,6 +417,7 @@ class PerformanceMonitor:
                     budget_per_day=judge_budget_per_day,
                     budget_storage_path=judge_budget_storage_path,
                     judge_criteria=judge_criteria,
+                    max_context_chars=judge_max_context_chars,
                 )
                 logger.info("LLM Judge 활성화됨 (model=%s, sample_rate=%s)", self.llm_judge.model, judge_sample_rate)
             except ImportError as e:

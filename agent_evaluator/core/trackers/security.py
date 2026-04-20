@@ -99,10 +99,17 @@ class InputSanitizationTracker(SecurityTrackerMixin):
 
     Layer 1 Security Metric: Detects dangerous patterns in user inputs
     including SQL injection, command injection, prompt injection, XSS, etc.
+
+    Args:
+        whitelist_patterns: Optional list of regex patterns. If any pattern
+            matches the input, the entire input is treated as safe and no threat
+            flags are set. Use for known-safe query templates or system inputs.
+            Example: [r"^SELECT \\* FROM products WHERE", r"example\\.com"]
     """
 
-    def __init__(self):
+    def __init__(self, whitelist_patterns: Optional[List[str]] = None):
         self._evaluations: List[Dict[str, Any]] = []
+        self._whitelist = [re.compile(p, re.IGNORECASE) for p in (whitelist_patterns or [])]
 
         # Dangerous patterns (pre-compiled for performance)
         self.sql_injection_patterns = [
@@ -180,16 +187,57 @@ class InputSanitizationTracker(SecurityTrackerMixin):
                 - sanitization_needed (bool): True if any threat was detected
                 - threat_count (int): number of distinct threat types found (0-5)
         """
+        # Whitelist check — if any whitelist pattern matches, skip all threat detection
+        if self._whitelist and self._check_patterns(input_text, self._whitelist):
+            result = {
+                "task_id": task_id,
+                "has_sql_injection": False,
+                "has_command_injection": False,
+                "has_path_traversal": False,
+                "has_xss": False,
+                "has_prompt_injection": False,
+                "risk_level": "low",
+                "sanitization_needed": False,
+                "threat_count": 0,
+                "whitelisted": True,
+                "confidence": 1.0,
+            }
+            self._evaluations.append(result)
+            return result
+
+        # Pattern-level confidence: specific patterns score higher than generic keyword patterns.
+        # Each category returns (detected: bool, confidence: float).
+        def _check_with_confidence(patterns: list) -> tuple:
+            for pattern in patterns:
+                if (pattern.search(input_text)
+                        if hasattr(pattern, "search")
+                        else re.search(pattern, input_text)):
+                    # Patterns with longer, more specific matches get higher confidence.
+                    match = (pattern.search(input_text)
+                             if hasattr(pattern, "search")
+                             else re.search(pattern, input_text))
+                    match_len = len(match.group(0)) if match else 0
+                    # Confidence: 0.5 base + up to 0.5 scaled by match specificity (≥10 chars = 1.0)
+                    confidence = min(1.0, 0.5 + match_len / 20)
+                    return True, round(confidence, 2)
+            return False, 0.0
+
+        sql_hit, sql_conf = _check_with_confidence(self.sql_injection_patterns)
+        cmd_hit, cmd_conf = _check_with_confidence(self.command_injection_patterns)
+        path_hit, path_conf = _check_with_confidence(self.path_traversal_patterns)
+        xss_hit, xss_conf = _check_with_confidence(self.xss_patterns)
+        prompt_hit, prompt_conf = _check_with_confidence(self.prompt_injection_patterns)
+
         result = {
             "task_id": task_id,
-            "has_sql_injection": self._check_patterns(input_text, self.sql_injection_patterns),
-            "has_command_injection": self._check_patterns(input_text, self.command_injection_patterns),
-            "has_path_traversal": self._check_patterns(input_text, self.path_traversal_patterns),
-            "has_xss": self._check_patterns(input_text, self.xss_patterns),
-            "has_prompt_injection": self._check_patterns(input_text, self.prompt_injection_patterns),
+            "has_sql_injection": sql_hit,
+            "has_command_injection": cmd_hit,
+            "has_path_traversal": path_hit,
+            "has_xss": xss_hit,
+            "has_prompt_injection": prompt_hit,
+            "whitelisted": False,
         }
 
-        # Calculate risk level
         threat_count = sum([result[k] for k in result if k.startswith("has_")])
         if threat_count >= 3:
             result["risk_level"] = "critical"
@@ -202,6 +250,13 @@ class InputSanitizationTracker(SecurityTrackerMixin):
 
         result["sanitization_needed"] = threat_count > 0
         result["threat_count"] = threat_count
+
+        # Overall confidence: mean of detected-category confidences (0.0 when no threat)
+        hit_confs = [c for hit, c in [
+            (sql_hit, sql_conf), (cmd_hit, cmd_conf), (path_hit, path_conf),
+            (xss_hit, xss_conf), (prompt_hit, prompt_conf),
+        ] if hit]
+        result["confidence"] = round(sum(hit_confs) / len(hit_confs), 2) if hit_confs else 0.0
 
         self._evaluations.append(result)
         return result
@@ -250,10 +305,16 @@ class OutputLeakageDetector(SecurityTrackerMixin):
 
     Layer 1 Security Metric: Detects API keys, passwords, PII,
     and other sensitive data in agent outputs.
+
+    Args:
+        whitelist_patterns: Optional list of regex patterns. If any matches the
+            output, the output is treated as safe (no leakage flags set).
+            Example: [r"example@company\\.com", r"192\\.168\\.1\\.1"]
     """
 
-    def __init__(self):
+    def __init__(self, whitelist_patterns: Optional[List[str]] = None):
         self._detections: List[Dict[str, Any]] = []
+        self._whitelist = [re.compile(p, re.IGNORECASE) for p in (whitelist_patterns or [])]
 
         # Sensitive patterns (pre-compiled for performance)
         self.api_key_patterns = [
@@ -336,6 +397,36 @@ class OutputLeakageDetector(SecurityTrackerMixin):
                 - severity (str): ``"critical"`` | ``"high"`` | ``"medium"``
                   | ``"low"`` | ``"none"``
         """
+        # Whitelist check — output is safe if any whitelist pattern matches
+        if self._whitelist and self._check_patterns(output_text, self._whitelist):
+            result = {
+                "task_id": task_id,
+                **{k: False for k in [
+                    "contains_api_key", "contains_password", "contains_credit_card",
+                    "contains_email", "contains_phone", "contains_ssn",
+                    "contains_private_ip", "contains_file_path",
+                ]},
+                "leakage_count": 0,
+                "severity": "none",
+                "whitelisted": True,
+                "confidence": 1.0,
+            }
+            self._detections.append(result)
+            return result
+
+        # Confidence per category: structured patterns (API keys, credit cards, SSN) get 0.9,
+        # keyword-context patterns (passwords) get 0.75, generic PII (email, phone) get 0.6.
+        _CAT_CONFIDENCE = {
+            "contains_api_key": 0.9,
+            "contains_password": 0.75,
+            "contains_credit_card": 0.9,
+            "contains_email": 0.6,
+            "contains_phone": 0.6,
+            "contains_ssn": 0.9,
+            "contains_private_ip": 0.7,
+            "contains_file_path": 0.65,
+        }
+
         result = {
             "task_id": task_id,
             "contains_api_key": self._check_patterns(output_text, self.api_key_patterns),
@@ -346,13 +437,12 @@ class OutputLeakageDetector(SecurityTrackerMixin):
             "contains_ssn": bool(self.ssn_pattern.search(output_text)),
             "contains_private_ip": self._check_patterns(output_text, self.private_ip_patterns),
             "contains_file_path": self._check_patterns(output_text, self.file_path_patterns),
+            "whitelisted": False,
         }
 
-        # Calculate leakage count and severity
         leakage_count = sum([result[k] for k in result if k.startswith("contains_")])
         result["leakage_count"] = leakage_count
 
-        # Severity based on type of data leaked
         if result["contains_api_key"] or result["contains_password"] or result["contains_credit_card"]:
             result["severity"] = "critical"
         elif result["contains_ssn"] or result["contains_email"]:
@@ -363,6 +453,10 @@ class OutputLeakageDetector(SecurityTrackerMixin):
             result["severity"] = "low"
         else:
             result["severity"] = "none"
+
+        # Overall confidence: mean of detected-category confidences
+        hit_confs = [_CAT_CONFIDENCE[k] for k in _CAT_CONFIDENCE if result.get(k)]
+        result["confidence"] = round(sum(hit_confs) / len(hit_confs), 2) if hit_confs else 0.0
 
         self._detections.append(result)
         return result

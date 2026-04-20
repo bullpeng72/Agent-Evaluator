@@ -1054,11 +1054,19 @@ class ResponseQualityEvaluator(BaseTracker):
         "usefulness": 0.15,
     }
 
-    def __init__(self, dimensions: Optional[Dict[str, float]] = None):
+    def __init__(
+        self,
+        dimensions: Optional[Dict[str, float]] = None,
+        format_bonus: bool = False,
+    ):
         """
         Args:
             dimensions: Custom dimension weights dict. Must sum to 1.0 (±0.01 tolerance).
                 If None, uses ``DEFAULT_DIMENSIONS``.
+            format_bonus: When True, the clarity score applies a 1.2× boost for
+                responses that contain newlines (structured formatting). Default False
+                to avoid rewarding verbosity or markdown decoration over content quality.
+                Set True only if formatting quality is an explicit evaluation criterion.
 
         Raises:
             ValidationError: If provided weights do not sum to 1.0.
@@ -1079,6 +1087,7 @@ class ResponseQualityEvaluator(BaseTracker):
             self.dimensions = dict(dimensions)
         else:
             self.dimensions = dict(self.DEFAULT_DIMENSIONS)
+        self.format_bonus = format_bonus
         self._evaluations: List[Dict[str, Any]] = []
         self._task_ids: Set[str] = set()
 
@@ -1148,11 +1157,12 @@ class ResponseQualityEvaluator(BaseTracker):
             completeness = min(word_count / 150, 1.0)
         scores["completeness"] = completeness * _QUALITY_SCORE_MAX
 
-        # Clarity (based on response length and structure)
-        has_structure = '\n' in response or '.' in response
-        # 1.2 boost: 구조화된 응답(줄바꿈·마침표 포함)은 가독성이 높으므로 20% 보정
-        # min()으로 _QUALITY_SCORE_MAX(5) 초과 방지
-        clarity = min(word_count / 100, 1.0) * (1.2 if has_structure else 1.0)
+        # Clarity (length-normalized + optional structure bonus)
+        # has_structure requires actual line breaks — a single period does not indicate
+        # structured output (every sentence ends with one), so we intentionally exclude it.
+        has_structure = '\n' in response
+        boost = (1.2 if has_structure else 1.0) if self.format_bonus else 1.0
+        clarity = min(word_count / 100, 1.0) * boost
         scores["clarity"] = min(clarity * _QUALITY_SCORE_MAX, _QUALITY_SCORE_MAX)
 
         # Accuracy score (use ground truth if available)
@@ -1164,16 +1174,15 @@ class ResponseQualityEvaluator(BaseTracker):
             # Heuristic: longer, more complete responses tend to be more accurate
             scores["accuracy"] = min(completeness * _QUALITY_SCORE_MAX, _QUALITY_SCORE_MAX)
 
-        # Usefulness score (heuristic based on response characteristics)
-        # Good indicators: length, structure, specific examples
+        # Usefulness score — length + content indicators (structure reuses has_structure above)
         has_examples = any(word in response.lower() for word in ['예를 들어', 'example', ':', '•', '-'])
         has_numbers = any(char.isdigit() for char in response)
 
         usefulness = (
-            0.4 * min(word_count / 150, 1.0) +  # Adequate length
-            0.3 * (1.0 if has_structure else 0.5) +  # Well-structured
-            0.2 * (1.0 if has_examples else 0.5) +  # Has examples
-            0.1 * (1.0 if has_numbers else 0.5)     # Has specific data
+            0.4 * min(word_count / 150, 1.0) +              # Adequate length
+            0.3 * (1.0 if has_structure else 0.5) +          # Well-structured (newlines only)
+            0.2 * (1.0 if has_examples else 0.5) +           # Has examples
+            0.1 * (1.0 if has_numbers else 0.5)              # Has specific data
         )
         scores["usefulness"] = usefulness * _QUALITY_SCORE_MAX
 

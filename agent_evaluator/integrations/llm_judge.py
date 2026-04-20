@@ -192,10 +192,15 @@ def _resolve_default_model() -> str:
     return "gpt-4o-mini"
 
 
-def _build_user_message(question: str, response: str, context: Optional[str] = None) -> str:
+def _build_user_message(
+    question: str,
+    response: str,
+    context: Optional[str] = None,
+    max_context_chars: int = 4000,
+) -> str:
     parts = [f"QUESTION:\n{question}", f"\nAGENT RESPONSE:\n{response}"]
     if context:
-        parts.insert(1, f"\nCONTEXT:\n{context[:1500]}")  # cap context
+        parts.insert(1, f"\nCONTEXT:\n{context[:max_context_chars]}")
     return "\n".join(parts)
 
 
@@ -229,6 +234,7 @@ class LLMJudge:
         budget_storage_path: Optional[str] = None,
         seed: Optional[int] = None,
         judge_criteria: Optional[List[str]] = None,
+        max_context_chars: int = 4000,
     ) -> None:
         if not 0.0 <= sample_rate <= 1.0:
             raise ValueError(f"sample_rate must be in [0, 1]; got {sample_rate}")
@@ -247,6 +253,9 @@ class LLMJudge:
         # G-Eval 스타일 커스텀 평가 기준 (DeepEval 대체)
         # 예: ["medical_accuracy", "citation_quality"] → 각 기준마다 0–5 점수 추가
         self.judge_criteria: List[str] = list(judge_criteria) if judge_criteria else []
+
+        # Context 잘림 한도 — 기본 4000자 (RAG 문서 평균 1~2페이지 커버)
+        self.max_context_chars: int = max(100, max_context_chars)
 
         self._rng = random.Random(seed)
         self._pricing = _MODEL_PRICING.get(self.model, _DEFAULT_PRICING)
@@ -667,7 +676,7 @@ class LLMJudge:
                 context_available=context_available,
                 judge_criteria=self.judge_criteria or None,
             )
-            user_msg = _build_user_message(question, response, context)
+            user_msg = _build_user_message(question, response, context, self.max_context_chars)
 
             msg = client.messages.create(
                 model=self.model,
@@ -730,7 +739,7 @@ class LLMJudge:
                 context_available=context_available,
                 judge_criteria=self.judge_criteria or None,
             )
-            user_msg = _build_user_message(question, response, context)
+            user_msg = _build_user_message(question, response, context, self.max_context_chars)
 
             completion = client.chat.completions.create(
                 model=self.model,

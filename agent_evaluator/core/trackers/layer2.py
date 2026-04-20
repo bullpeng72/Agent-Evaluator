@@ -198,7 +198,8 @@ class ToolCallAnalyzer(BaseTracker):
 
         # Calculate efficiency score (only reachable when total_calls > 0;
         # empty tool_calls returns early above with efficiency_score=None).
-        waste_rate = (metrics["redundant_calls"] + metrics["failed_calls"]) / metrics["total_calls"]
+        # Cap at 1.0: a call can be both redundant and failed, so naive sum can exceed total_calls
+        waste_rate = min(1.0, (metrics["redundant_calls"] + metrics["failed_calls"]) / metrics["total_calls"])
         metrics["efficiency_score"] = round(max(0, 100 - (waste_rate * 100)), 2)
 
         with self._lock:
@@ -749,11 +750,35 @@ class ToolSelectionTracker(BaseTracker):
 # ============================================================================
 
 class AgentCoordinationTracker(BaseTracker):
-    """Track multi-agent coordination quality for CrewAI"""
+    """Track multi-agent coordination quality for CrewAI.
 
-    def __init__(self):
+    Args:
+        hub_threshold: Fraction of total interactions handled by a single agent
+            to classify the topology as ``"hub"`` pattern. Default: data-driven
+            (mean + 1·std of per-agent interaction shares). Pass an explicit float
+            (0.0–1.0) to override — useful for known fixed architectures.
+        chain_ratio: Minimum fraction of agents that each send/receive ≤ 2
+            messages to classify the topology as ``"chain"`` pattern.
+        mesh_density_threshold: Minimum undirected connection density to classify
+            the topology as ``"mesh"`` pattern.
+        ideal_agent_count: Reference agent count for the diversity score (agents /
+            ideal_agent_count, capped at 1.0). Defaults to ``_COORD_IDEAL_AGENT_COUNT``.
+    """
+
+    def __init__(
+        self,
+        hub_threshold: Optional[float] = None,
+        chain_ratio: float = _COORD_CHAIN_RATIO,
+        mesh_density_threshold: float = _COORD_MESH_DENSITY_THRESHOLD,
+        ideal_agent_count: int = _COORD_IDEAL_AGENT_COUNT,
+    ):
         self._interactions: List[Dict[str, Any]] = []
         self._lock = threading.Lock()  # M4: thread-safe append
+        # None → compute dynamically from interaction data (mean + 1·std)
+        self._hub_threshold_override: Optional[float] = hub_threshold
+        self._chain_ratio = chain_ratio
+        self._mesh_density_threshold = mesh_density_threshold
+        self._ideal_agent_count = ideal_agent_count
 
     @property
     def interactions(self) -> List[Dict[str, Any]]:
@@ -871,7 +896,7 @@ class AgentCoordinationTracker(BaseTracker):
 
         # Score calculation (0-10 scale)
         # success_rate(0-100) → /10 → (0-10), then weight by _COORD_WEIGHT_SUCCESS
-        diversity_score = min(len(agents) / _COORD_IDEAL_AGENT_COUNT, 1.0) * _COORD_SCORE_SCALE
+        diversity_score = min(len(agents) / self._ideal_agent_count, 1.0) * _COORD_SCORE_SCALE
         balance_score = (len(type_counts) / _COORD_IDEAL_INTERACTION_TYPES) * _COORD_SCORE_SCALE
 
         coordination_score = (
@@ -929,31 +954,48 @@ class AgentCoordinationTracker(BaseTracker):
             max_receives = max(agent_receive_counts.values()) if agent_receive_counts else 0
             total_interactions = len(self._interactions)
 
-            # Hub: Central agent handles > _COORD_HUB_THRESHOLD of interactions
-            hub_threshold = total_interactions * _COORD_HUB_THRESHOLD
+            # Dynamic hub threshold: if not overridden, use mean + 1·std of per-agent
+            # interaction shares so the threshold adapts to actual data distribution.
+            if self._hub_threshold_override is not None:
+                _hub_frac = self._hub_threshold_override
+            elif total_agents >= 3:
+                shares = [
+                    (agent_send_counts.get(a, 0) + agent_receive_counts.get(a, 0))
+                    / (total_interactions * 2)
+                    for a in all_agents
+                ]
+                mean_share = sum(shares) / len(shares)
+                variance = sum((s - mean_share) ** 2 for s in shares) / len(shares)
+                std_share = variance ** 0.5
+                # A hub agent must exceed mean + 1·std — adapts to team size
+                _hub_frac = min(0.9, mean_share + std_share)
+            else:
+                _hub_frac = _COORD_HUB_THRESHOLD
+
+            hub_threshold = total_interactions * _hub_frac
             if max_sends >= hub_threshold or max_receives >= hub_threshold:
                 pattern_type = "hub"
                 pattern_confidence = min((max(max_sends, max_receives) / total_interactions) * 100, 100)
 
             # Chain Pattern: Sequential passing (each agent mostly talks to 1-2 others)
             elif total_agents >= 3:
-                # Check if agents form a chain (each agent has ~1 sender and ~1 receiver)
                 chain_like = sum(1 for agent in all_agents
                                if agent_send_counts.get(agent, 0) <= 2
                                and agent_receive_counts.get(agent, 0) <= 2)
 
-                if chain_like / total_agents >= _COORD_CHAIN_RATIO:
+                if chain_like / total_agents >= self._chain_ratio:
                     pattern_type = "chain"
                     pattern_confidence = (chain_like / total_agents) * 100
 
             # Mesh Pattern: Many-to-many connections
-            # Check connection density
-            unique_pairs = len(agent_pairs)
-            max_possible_pairs = total_agents * (total_agents - 1)  # Directed graph
+            unique_pairs = len({
+                tuple(sorted(k.split("->"))) for k in agent_pairs
+            })
+            max_possible_pairs = total_agents * (total_agents - 1) // 2  # Undirected
 
             if max_possible_pairs > 0:
                 connection_density = unique_pairs / max_possible_pairs
-                if connection_density >= _COORD_MESH_DENSITY_THRESHOLD:
+                if connection_density >= self._mesh_density_threshold:
                     pattern_type = "mesh"
                     pattern_confidence = connection_density * 100
 
@@ -1087,7 +1129,8 @@ class AgentCoordinationTracker(BaseTracker):
             if itx.get("to_agent"):
                 all_agents.add(itx["to_agent"])
         n = len(all_agents)
-        max_pairs = n * (n - 1) if n > 1 else 1
+        # Undirected unique pairs: n*(n-1)/2 maximum — matches sorted-tuple dedup in unique_pairs
+        max_pairs = n * (n - 1) // 2 if n > 1 else 1
         unique_pairs = len({
             tuple(sorted([str(itx.get("from_agent", "")), str(itx.get("to_agent", ""))]))
             for itx in self._interactions
@@ -1269,9 +1312,9 @@ class WorkflowExecutionTracker(BaseTracker):
         nodes = [s for s in steps if s["step_type"] == "node"]
         branches = [s for s in steps if s["step_type"] == "branch"]
 
-        # Efficiency = successful nodes / total steps * 100
+        # Efficiency = successful nodes / total nodes (not total steps which includes branches/edges)
         successful_nodes = sum(1 for n in nodes if n["success"])
-        efficiency = (successful_nodes / len(steps)) * 100 if steps else 0
+        efficiency = (successful_nodes / len(nodes)) * 100 if nodes else 0
 
         return {
             "efficiency": round(efficiency, 2),

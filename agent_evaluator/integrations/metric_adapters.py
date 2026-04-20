@@ -10,6 +10,7 @@ import math
 import os
 import traceback
 import warnings
+from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeoutError
 
 logger = logging.getLogger(__name__)
 from abc import ABC, abstractmethod
@@ -98,10 +99,10 @@ class DeepEvalAdapter(MetricAdapter):
         Args:
             model: LLM model to use for evaluation (default: gpt-4o-mini for cost)
             threshold: Threshold for binary metrics (default: 0.5)
-            timeout: Timeout for API calls in seconds (default: 60)
-                     Note: Currently informational - actual timeout enforcement
-                     depends on OpenAI client configuration. For production use,
-                     consider implementing timeout using concurrent.futures.
+            timeout: Timeout per metric API call in seconds (default: 60).
+                     Enforced via ThreadPoolExecutor.submit().result(timeout=...).
+                     The underlying thread is not killed on timeout (Python limitation),
+                     but the calling code proceeds immediately after TimeoutError.
         """
         self.model = model
         self.threshold = threshold
@@ -136,23 +137,26 @@ class DeepEvalAdapter(MetricAdapter):
     def is_available(self) -> bool:
         return self._available
 
-    def evaluate(self, context: EvaluationContext) -> Dict[str, Any]:
+    def _run_with_timeout(self, fn, *args) -> Any:
+        """metric.measure() 등 블로킹 호출을 self.timeout 초 내에 실행.
+
+        TimeoutError 발생 시 빈 dict를 반환하고 경고 로그를 출력한다.
+        Python 스레드는 강제 종료할 수 없으므로 백그라운드 스레드는 계속 실행될 수 있다.
         """
-        Evaluate using DeepEval metrics
+        with ThreadPoolExecutor(max_workers=1) as executor:
+            future = executor.submit(fn, *args)
+            try:
+                return future.result(timeout=self.timeout)
+            except FuturesTimeoutError:
+                logger.warning(
+                    "DeepEval metric timed out after %ds — skipping", self.timeout
+                )
+                return {}
 
-        Note: This method makes external API calls (OpenAI) which may take time.
-        The timeout parameter in __init__ is informational. For production use
-        with strict timeout requirements, consider wrapping metric evaluations
-        with concurrent.futures.ThreadPoolExecutor and timeout.
+    def evaluate(self, context: EvaluationContext) -> Dict[str, Any]:
+        """Evaluate using DeepEval metrics.
 
-        Example timeout implementation:
-            from concurrent.futures import ThreadPoolExecutor, TimeoutError
-            with ThreadPoolExecutor() as executor:
-                future = executor.submit(metric.measure, test_case)
-                try:
-                    future.result(timeout=self.timeout)
-                except TimeoutError:
-                    print("Metric evaluation timed out")
+        Each individual metric call is bounded by ``self.timeout`` seconds.
         """
         if not self._available:
             return None  # M7: None signals "adapter unavailable"; {} means "available but no results"
@@ -231,7 +235,9 @@ class DeepEvalAdapter(MetricAdapter):
                 threshold=self.threshold,
                 async_mode=False  # Synchronous for simpler error handling
             )
-            metric.measure(test_case)
+            timed_out = self._run_with_timeout(metric.measure, test_case)
+            if timed_out == {}:
+                return {}
 
             return {
                 'g_eval_score': metric.score,
@@ -255,7 +261,8 @@ class DeepEvalAdapter(MetricAdapter):
                 threshold=self.threshold,
                 model=self.model
             )
-            metric.measure(test_case)
+            if self._run_with_timeout(metric.measure, test_case) == {}:
+                return {}
 
             return {
                 'hallucination_score': metric.score,
@@ -279,7 +286,8 @@ class DeepEvalAdapter(MetricAdapter):
                 threshold=self.threshold,
                 model=self.model
             )
-            metric.measure(test_case)
+            if self._run_with_timeout(metric.measure, test_case) == {}:
+                return {}
 
             return {
                 'toxicity_score': metric.score,
@@ -303,7 +311,8 @@ class DeepEvalAdapter(MetricAdapter):
                 threshold=self.threshold,
                 model=self.model
             )
-            metric.measure(test_case)
+            if self._run_with_timeout(metric.measure, test_case) == {}:
+                return {}
 
             return {
                 'bias_score': metric.score,
@@ -327,7 +336,8 @@ class DeepEvalAdapter(MetricAdapter):
                 threshold=self.threshold,
                 model=self.model
             )
-            metric.measure(test_case)
+            if self._run_with_timeout(metric.measure, test_case) == {}:
+                return {}
 
             return {
                 'answer_relevancy_score': metric.score,
