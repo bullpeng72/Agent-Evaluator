@@ -41,9 +41,11 @@ import json
 import logging
 import os
 import random
+import threading
 import time
 import warnings
 from datetime import date
+from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
@@ -224,6 +226,7 @@ class LLMJudge:
         model: Optional[str] = None,
         sample_rate: float = 0.1,
         budget_per_day: Optional[float] = None,
+        budget_storage_path: Optional[str] = None,
         seed: Optional[int] = None,
         judge_criteria: Optional[List[str]] = None,
     ) -> None:
@@ -234,6 +237,12 @@ class LLMJudge:
         self.model = model if model is not None else _resolve_default_model()
         self.sample_rate = sample_rate
         self.budget_per_day = budget_per_day
+
+        # 예산 영속 저장 경로 (None이면 in-memory only)
+        self._budget_storage_path: Optional[Path] = (
+            Path(budget_storage_path) if budget_storage_path else None
+        )
+        self._budget_lock = threading.Lock()
 
         # G-Eval 스타일 커스텀 평가 기준 (DeepEval 대체)
         # 예: ["medical_accuracy", "citation_quality"] → 각 기준마다 0–5 점수 추가
@@ -452,22 +461,49 @@ class LLMJudge:
     # Internal helpers
     # ------------------------------------------------------------------
 
+    def _load_budget_state(self) -> tuple:
+        """파일에서 당일 예산 상태 로드. 파일 없거나 오류면 (today, 0.0) 반환."""
+        if self._budget_storage_path is None:
+            return self._budget_day, self._budget_spent
+        try:
+            if self._budget_storage_path.exists():
+                data = json.loads(self._budget_storage_path.read_text(encoding="utf-8"))
+                saved_day = date.fromisoformat(data["date"])
+                if saved_day == date.today():
+                    return saved_day, float(data["spent"])
+        except Exception as exc:
+            logger.debug("budget 상태 파일 로드 실패 (무시): %s", exc)
+        return date.today(), 0.0
+
+    def _save_budget_state(self, spent: float) -> None:
+        """당일 예산 상태를 파일에 저장. 실패 시 조용히 무시 — 저장 실패가 judge 동작을 막으면 안 됨."""
+        if self._budget_storage_path is None:
+            return
+        try:
+            self._budget_storage_path.parent.mkdir(parents=True, exist_ok=True)
+            self._budget_storage_path.write_text(
+                json.dumps({"date": date.today().isoformat(), "spent": round(spent, 8)}),
+                encoding="utf-8",
+            )
+        except Exception as exc:
+            logger.debug("budget 상태 파일 저장 실패 (무시): %s", exc)
+
     def _check_budget(self) -> bool:
         """Return True if we are within the daily budget (or no budget set)."""
         if self.budget_per_day is None:
             return True
-        today = date.today()
-        if self._budget_day != today:
-            self._budget_day = today
-            self._budget_spent = 0.0
-        return self._budget_spent < self.budget_per_day
+        with self._budget_lock:
+            self._budget_day, self._budget_spent = self._load_budget_state()
+            return self._budget_spent < self.budget_per_day
 
     def _estimate_cost(self, input_tokens: int, output_tokens: int) -> float:
         cost = (
             input_tokens / 1000 * self._pricing["input"]
             + output_tokens / 1000 * self._pricing["output"]
         )
-        self._budget_spent += cost
+        with self._budget_lock:
+            self._budget_spent += cost
+            self._save_budget_state(self._budget_spent)
         return round(cost, 8)
 
     def _call_judge(

@@ -94,6 +94,17 @@ otel = [
 pdf = [
     "pdfplumber>=0.10.0,<1.0.0",
 ]
+# 한국어 형태소 분석 — AccuracyEvaluator / HallucinationDetector 정확도 향상 (빠름, ~1개 패키지)
+# use_korean_tokenizer=True 시 자동 사용; 미설치 시 공백 분리 폴백
+korean = [
+    "kiwipiepy>=0.17.0",
+]
+# 의미 기반 환각 탐지 — HallucinationDetector 정확도 향상 (무거움, ~500MB 모델 다운로드)
+# use_semantic_similarity=True 시 자동 사용; 미설치 시 단어 중복 방식으로 폴백
+# paraphrase-multilingual-MiniLM-L12-v2: 50개 언어 지원 (한국어 포함)
+semantic = [
+    "sentence-transformers>=2.7.0,<5.0.0",
+]
 # SDK 전체 묶음 — llm + serve + otel + pdf (운영 배포 권장)
 sdk = [
     "openai>=1.0.0,<3.0.0",

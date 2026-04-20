@@ -187,9 +187,15 @@ class PerformanceMonitor:
         judge_model: Optional[str] = None,
         judge_sample_rate: float = 0.1,
         judge_budget_per_day: Optional[float] = None,
+        judge_budget_storage_path: Optional[str] = None,
         # G-Eval 스타일 커스텀 평가 기준 (DeepEval 대체)
         # 예: ["medical_accuracy", "citation_quality"]
         judge_criteria: Optional[List[str]] = None,
+        # 한국어 형태소 분석 기반 토큰화 (kiwipiepy 필요)
+        use_korean_tokenizer: bool = False,
+        # 의미 기반 환각 탐지 (sentence-transformers 필요, opt-in)
+        use_semantic_hallucination: bool = False,
+        semantic_weight: float = 0.5,
         # Anomaly Detection (Phase 3-B)
         enable_anomaly_detection: bool = False,
         anomaly_baseline_window: int = 100,
@@ -233,6 +239,16 @@ class PerformanceMonitor:
             judge_budget_per_day: Optional USD hard cap per calendar day.  When
                 cumulative judge cost exceeds this value, further judge calls are
                 skipped with a RuntimeWarning.
+            judge_budget_storage_path: JSON 파일 경로. 지정 시 일일 예산 누적액을 파일에
+                영속 저장하여 프로세스 재시작 후에도 당일 예산이 유지된다.
+                예: ``".judge_budget.json"``. None(기본값)이면 in-memory only.
+            use_korean_tokenizer: True 이면 AccuracyEvaluator / HallucinationDetector 에서
+                kiwipiepy 형태소 분석기를 사용한다 (pip install "agent-evaluator[korean]" 필요).
+                미설치 시 공백 분리 폴백으로 동작하며 경고 로그가 출력된다.
+            use_semantic_hallucination: True 이면 HallucinationDetector 에서 sentence-transformers
+                기반 의미 유사도를 활성화한다 (pip install "agent-evaluator[semantic]" 필요).
+                미설치 시 단어 중복 방식으로 폴백한다.
+            semantic_weight: 의미 유사도 혼합 비율 (0.0 = 단어 중복만, 1.0 = 의미 유사도만, 기본 0.5).
             enable_anomaly_detection: Enable automatic anomaly detection at save_to_file() time.
                 When True, AnomalyDetector.scan() is called and results are stored under
                 ``anomaly_data`` in the JSON output, making the dashboard 이상 감지 tab
@@ -284,8 +300,14 @@ class PerformanceMonitor:
 
         # Layer 1: Basic trackers (Native Metrics)
         self.tcr_tracker = TaskCompletionTracker()
-        self.accuracy_evaluator = AccuracyEvaluator()
-        self.hallucination_detector = HallucinationDetector()
+        self.accuracy_evaluator = AccuracyEvaluator(
+            use_korean_tokenizer=use_korean_tokenizer
+        )
+        self.hallucination_detector = HallucinationDetector(
+            use_korean_tokenizer=use_korean_tokenizer,
+            use_semantic_similarity=use_semantic_hallucination,
+            semantic_weight=semantic_weight,
+        )
         self.quality_evaluator = ResponseQualityEvaluator()
         self.latency_tracker = LatencyTracker()
         self.token_tracker = TokenEconomyTracker(pricing)
@@ -391,6 +413,7 @@ class PerformanceMonitor:
                     model=judge_model,
                     sample_rate=judge_sample_rate,
                     budget_per_day=judge_budget_per_day,
+                    budget_storage_path=judge_budget_storage_path,
                     judge_criteria=judge_criteria,
                 )
                 logger.info("LLM Judge 활성화됨 (model=%s, sample_rate=%s)", self.llm_judge.model, judge_sample_rate)
@@ -3009,7 +3032,9 @@ class PerformanceMonitor:
         if _p95 > 0:
             _perf_vals.append(max(0.0, 1.0 - min(1.0, _p95 / 10.0)))
         if avg_eff_ratio is not None:
-            _norm_eff = min(1.0, avg_eff_ratio * 1000.0) if avg_eff_ratio < 0.001 else min(1.0, avg_eff_ratio)
+            # Normalize: token-based ratio ~0.001 maps to 1.0; remove conditional to avoid score
+            # reversal near the 0.001 boundary (e.g. 0.002 → 0.002 vs 0.0009 → 0.9).
+            _norm_eff = min(1.0, avg_eff_ratio * 1000.0)
             _perf_vals.append(_norm_eff)
         if _avg_budget is not None:
             _perf_vals.append(_avg_budget)
@@ -3097,10 +3122,8 @@ class PerformanceMonitor:
         # ── G 그룹: 관측 가능성 (tool coverage + hallucination + observability) ──
         _tool_coverage = 0.0
         try:
-            _tc_stats = self.tool_call_analyzer.get_tool_stats()
-            _tool_total = _tc_stats.get("total_calls", 0)
-            _tool_success = _tc_stats.get("successful_calls", 0)
-            _tool_coverage = _tool_success / max(_tool_total, 1)
+            _tc_stats = self.tool_call_analyzer.get_efficiency_stats()
+            _tool_coverage = _tc_stats.get("success_rate", 0.0) / 100.0
         except Exception:
             pass
 
