@@ -117,11 +117,12 @@ def create_app(
                   redoc_url="/api/redoc", openapi_version="3.1.0",
                   lifespan=lifespan)
 
-    # CORS — allow same-origin + localhost dev access
+    # CORS — localhost-only (dashboard is never exposed to the public internet)
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=["*"],
-        allow_methods=["*"],
+        allow_origins=["http://localhost:8765", "http://127.0.0.1:8765",
+                       "http://localhost:*", "http://127.0.0.1:*"],
+        allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
         allow_headers=["*"],
     )
 

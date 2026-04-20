@@ -231,9 +231,9 @@ def careful_agent(question: str, ground_truth: str = "") -> str:
 ### 모든 파라미터를 활용한 완전한 예시
 
 ```python
-from agent_evaluator import (
-    agent_eval, PerformanceMonitor, SimpleTaskAlertRule, AlertRuleBuilder
-)
+# 출처: Evaluator_Examples/04_decorator_quickeval.py, 섹션 3 — agent_eval 완전 예시
+from agent_evaluator import PerformanceMonitor, SimpleTaskAlertRule, AlertRuleBuilder
+from agent_evaluator.decorators import agent_eval, LLMJudgeConfig, RetryConfig
 
 monitor = PerformanceMonitor(output_dir="results/")
 
@@ -250,8 +250,6 @@ accuracy_alert = AlertRuleBuilder.when_accuracy_below(
     handler=lambda msg, tr: send_slack(msg),
     cooldown=300,
 )
-
-from agent_evaluator.decorators import agent_eval, LLMJudgeConfig, RetryConfig
 
 @agent_eval(
     monitor,
@@ -283,7 +281,8 @@ def production_agent(question: str, ground_truth: str = "") -> str:
 ### 기본 사용법
 
 ```python
-from agent_evaluator import batch_eval, PerformanceMonitor
+from agent_evaluator import PerformanceMonitor
+from agent_evaluator.decorators import batch_eval
 
 monitor = PerformanceMonitor("results/")
 
@@ -299,14 +298,14 @@ responses = batch_agent(questions=questions, ground_truths=ground_truths)
 # → TaskResult 100개 자동 기록
 ```
 
-### concurrent=True — 병렬 처리
+### concurrency=N — 병렬 처리
 
 ```python
+# 출처: Evaluator_Examples/04_decorator_quickeval.py, 섹션 6 — concurrent 배치
 @batch_eval(
     monitor,
     task_type="qa",
-    concurrent=True,
-    max_concurrent=4,   # 최대 4개 동시 실행
+    concurrency=4,      # 최대 4개 동시 실행 (>0이면 ThreadPoolExecutor/asyncio.gather 사용)
 )
 async def concurrent_batch(questions: list, ground_truths: list = None) -> list:
     tasks = [async_llm.ainvoke(q) for q in questions]
@@ -345,20 +344,19 @@ slow_cases = df[df["execution_time"] > 5.0]
 ### 기타 유용한 파라미터
 
 ```python
+# 출처: Evaluator_Examples/04_decorator_quickeval.py, 섹션 6 — batch_eval 옵션
 @batch_eval(
     monitor,
     task_type="qa",
-    shuffle=True,                   # 처리 전 순서 무작위 섞기
     item_timeout=30.0,              # 항목당 최대 30초
     on_item_error=lambda e, q: print(f"오류: {q[:30]}... → {e}"),
     flush_every=50,                 # 50건마다 자동 저장
-    streaming_mode=True,            # 대용량 배치 메모리 절약
 )
 def batch_agent(questions: list, ground_truths: list = None) -> list:
     return [llm.invoke(q) for q in questions]
 ```
 
-> 📋 **QA 관리자 TIP**: `return_format="dataframe"`과 `shuffle=True`를 함께 사용하면 순서 편향 없이 랜덤 샘플의 품질 분포를 파악할 수 있다. CI 파이프라인에서 골든 데이터셋 100개를 배치로 돌리고 DataFrame 결과를 CSV로 저장하면 품질 트렌드를 추적하기 좋다.
+> 📋 **QA 관리자 TIP**: `return_format="dataframe"`과 `concurrency=N`을 함께 사용하면 병렬 실행 후 pandas DataFrame으로 품질 분포를 파악할 수 있다. CI 파이프라인에서 골든 데이터셋 100개를 배치로 돌리고 DataFrame 결과를 CSV로 저장하면 품질 트렌드를 추적하기 좋다. 입력 순서 섞기가 필요하면 호출 전에 `random.shuffle(questions)`으로 처리한다. `shuffle=`·`streaming_mode=` 파라미터는 존재하지 않는다.
 
 ---
 
@@ -369,7 +367,9 @@ def batch_agent(questions: list, ground_truths: list = None) -> list:
 ### 기본 사용법
 
 ```python
-from agent_evaluator import conversation_eval, flush_conversation, PerformanceMonitor
+# 출처: Evaluator_Examples/04_decorator_quickeval.py, 섹션 5 — conversation_eval
+from agent_evaluator import PerformanceMonitor
+from agent_evaluator.decorators import conversation_eval, flush_conversation
 
 monitor = PerformanceMonitor("results/")
 
@@ -408,7 +408,9 @@ flush_conversation("user_001")
 ### 고급 옵션과 챗봇 완전 예시
 
 ```python
-from agent_evaluator import conversation_eval, flush_conversation, PerformanceMonitor
+# 출처: Evaluator_Examples/04_decorator_quickeval.py, 섹션 5 — conversation_eval 고급
+from agent_evaluator import PerformanceMonitor
+from agent_evaluator.decorators import conversation_eval, flush_conversation
 
 monitor = PerformanceMonitor("results/")
 
@@ -1019,10 +1021,11 @@ def streaming_agent(question: str, ground_truth: str = ""):
 #### 7. 배치 처리
 ```python
 @batch_eval(monitor, task_type="qa",
-            concurrent=True, max_concurrent=5)
+            concurrency=5)          # concurrency=N → 병렬 처리
 def batch_agent(questions: list, ground_truths: list = None) -> list:
     return [llm.ask(q) for q in questions]
 # → 전체 Group A-G 지표 + DataFrame 반환
+# 출처: Evaluator_Examples/04_decorator_quickeval.py, 섹션 6 — batch_eval 병렬
 ```
 
 #### 8. LLM Judge + G-Eval 커스텀
@@ -1105,8 +1108,7 @@ from agent_evaluator.decorators import agent_eval, RetryConfig
 
 @agent_eval(
     monitor, task_type="qa",
-    retry=RetryConfig(max=3),    # 최대 3회 재시도
-    retry_on=(ValueError,),      # ValueError 발생 시만 재시도
+    retry=RetryConfig(max=3, on=(ValueError,)),  # ValueError 발생 시만 최대 3회 재시도
     flush_every=5,               # 5건마다 save_to_file() 자동 호출
     alert_rules=[slow_alert],    # 태스크 완료 후 즉시 알림 평가
     task_id_prefix="retry",
@@ -1121,7 +1123,7 @@ result = flaky_agent("재시도 테스트", ground_truth="성공")
 print(f"결과: {result}  (시도횟수: {_retry_count['n']})")
 ```
 
-- `retry=RetryConfig(max=3)` + `retry_on=(ValueError,)`로 특정 예외만 재시도한다. `attempts` 필드에 실제 시도 횟수가 기록되어 RetryCorrectionTracker에 전달된다
+- `retry=RetryConfig(max=3, on=(ValueError,))`로 특정 예외만 재시도한다. `on=` 파라미터는 `RetryConfig` 내부에 있으며 독립적인 `retry_on=` 파라미터는 존재하지 않는다. `attempts` 필드에 실제 시도 횟수가 기록되어 RetryCorrectionTracker에 전달된다
 - `flush_every=5`는 5번째 호출마다 `save_to_file()`을 자동 호출한다. 장시간 실행 시 데이터 유실을 방지한다
 - `alert_rules=[...]`는 각 태스크 완료 후 즉시 규칙을 평가한다. `slow_alert` 조건(execution_time > 3.0)이 충족되면 handler가 호출된다
 
@@ -1141,7 +1143,6 @@ BATCH_DATA = [
     monitor, task_type="qa",
     task_id_prefix="batch",
     return_format="dataframe",    # pandas DataFrame으로 결과 반환
-    shuffle=True, shuffle_seed=42,
     flush_every=5,
     on_batch_complete=lambda r: print(f"배치 완료: {len(r)}건"),
 )
@@ -1158,8 +1159,8 @@ if hasattr(df, "shape"):
 ```
 
 - `return_format="dataframe"`이면 `@batch_eval`이 pandas DataFrame을 반환한다. 컬럼에 task_id, accuracy_score, execution_time, completion_score 등 모든 TaskResult 필드가 포함된다
-- `shuffle=True, shuffle_seed=42`로 입력 순서를 섞어 배치 평가 편향을 줄인다
 - `on_batch_complete=lambda r: ...` 콜백은 전체 배치가 완료된 후 호출된다
+- `shuffle`, `shuffle_seed` 파라미터는 `batch_eval`에 존재하지 않는다. 입력 순서를 섞으려면 호출 전에 Python 리스트를 직접 `random.shuffle()`로 처리한다
 
 ```bash
 python 04_decorator_quickeval.py
@@ -1213,10 +1214,12 @@ agent-eval dashboard results/
 
 ```python
 # 출처: Evaluator_Examples/08_harness_eval.py, 섹션 Group A·D — 데코레이터 Config 통합 예제
+# 출처: Evaluator_Examples/08_harness_eval.py, 섹션 1 — Harness Config 기본
 from agent_evaluator import (
-    agent_eval, PerformanceMonitor,
+    PerformanceMonitor,
     InstructionConfig, SLAConfig, ThreatSeverityConfig,
 )
+from agent_evaluator.decorators import agent_eval
 
 monitor = PerformanceMonitor(output_dir="results/")
 
@@ -1224,21 +1227,19 @@ monitor = PerformanceMonitor(output_dir="results/")
     monitor,
     task_type="qa",
     instructions=InstructionConfig(        # Group A — 목표달성
-        min_completion_rate=0.90,
-        min_accuracy=0.80,
+        required_keywords=["답변"],        # 응답에 포함되어야 할 키워드
         fail_on_violation=True,
     ),
     sla=SLAConfig(                         # Group D — 성능계약
-        max_p95_latency=3.0,
+        p95_ms=3000,                       # P95 응답시간 3초 이하 (밀리초 단위)
         max_cost_per_task=0.01,
-        fail_on_violation=True,
     ),
 )
 def my_agent(question: str, ground_truth: str = "") -> str:
     return llm.invoke(question)
 ```
 
-`fail_on_violation=True`로 설정된 Config의 기준을 위반하면 해당 태스크의 `TaskResult.success`가 `False`로 강제 설정됩니다. TCR 계산에 반영되어 Gate 판정에 영향을 줍니다.
+`InstructionConfig(fail_on_violation=True)`로 설정하면 기준 위반 시 해당 태스크의 `TaskResult.success`가 `False`로 강제 설정됩니다. TCR 계산에 반영되어 Gate 판정에 영향을 줍니다. `SLAConfig`의 시간 기준은 `p95_ms` (밀리초)로 지정하며, `max_p95_latency` (초) 파라미터는 존재하지 않습니다.
 
 ### 12.11.2 에이전트 유형별 최소 Config 세트
 
@@ -1288,10 +1289,10 @@ def medical_agent(question: str, ground_truth: str = "") -> str:
 ```python
 # 출처: Evaluator_Examples/08_harness_eval.py, 섹션 종합 — PerformanceMonitor + @agent_eval 통합
 from agent_evaluator import (
-    agent_eval, PerformanceMonitor, QuickEval,
+    PerformanceMonitor, QuickEval,
     InstructionConfig, SLAConfig, ThreatSeverityConfig,
 )
-from agent_evaluator.decorators import RetryConfig, LLMJudgeConfig, SecurityConfig
+from agent_evaluator.decorators import agent_eval, RetryConfig, LLMJudgeConfig, SecurityConfig
 
 # ── 방법 A: PerformanceMonitor + @agent_eval (세밀한 제어) ──
 monitor = PerformanceMonitor(
@@ -1304,9 +1305,9 @@ monitor = PerformanceMonitor(
 @agent_eval(
     monitor,
     task_type="qa",
-    instructions=InstructionConfig(min_completion_rate=0.90, fail_on_violation=True),
-    sla=SLAConfig(max_p95_latency=3.0, fail_on_violation=True),
-    threat_severity=ThreatSeverityConfig(max_severity="medium", fail_on_violation=True),
+    instructions=InstructionConfig(required_keywords=["답변"], fail_on_violation=True),
+    sla=SLAConfig(p95_ms=3000, max_cost_per_task=0.01),  # 밀리초 단위
+    threat_severity=ThreatSeverityConfig(warn_score=4.0, fail_score=7.0, fail_on_critical=True),
     retry=RetryConfig(max=2),
     llm_judge=LLMJudgeConfig(criteria=["factual_accuracy"]),
     security=SecurityConfig(allowed_tools=["search"]),

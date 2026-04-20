@@ -4,10 +4,9 @@ from datetime import datetime, timedelta
 from typing import Any, Dict, List
 from fastapi import APIRouter, HTTPException, Query, Request
 
-router = APIRouter(prefix="/api/cost", tags=["cost"])
+from agent_evaluator.serve.routers._utils import _rs
 
-def _rs(request: Request):
-    return request.app.state.result_set
+router = APIRouter(prefix="/api/cost", tags=["cost"])
 
 @router.get("/summary", summary="비용 요약")
 def cost_summary(request: Request) -> Dict[str, Any]:

@@ -15,7 +15,7 @@
 
 **25개 Native Trackers + 33개 Harness Config = 58개 지표**를 3개 레이어(Foundation / Agentic / Hybrid)로 측정한다.
 
-- **Version:** 0.8.2 (Beta)
+- **Version:** 0.8.3 (Beta)
 - **Python:** 3.8+
 - **License:** MIT
 - **Author:** Sungwoo Kim
@@ -605,7 +605,7 @@ from agent_evaluator import (
 
 ## Testing
 
-`tests/` 디렉토리에 **53개 파일, 2,465개+ 테스트 함수** 존재.
+`tests/` 디렉토리에 **51개 파일, 2,465개+ 테스트 함수** 존재.
 
 ```bash
 # pytest.ini_options in pyproject.toml already configured:
@@ -679,6 +679,16 @@ completion_score task_type 인식 (v0.8.0+):
 ---
 
 ## 📝 변경 이력
+
+### v0.8.3 (2026-04-20) — LLMJudge 안정성 강화 · Gate A 블렌딩 가중치 · 비동기 지원
+
+- LLMJudge 연속 오류 자동 비활성화 (3회 연속 실패 → `_disabled_reason` 설정, `reset_errors()` 복구)
+- `faithfulness` 누락 시 `0` 대신 `None` 저장 — 점수 오염 방지; 통계 집계에서 `None` 제외
+- `AGENT_EVALUATOR_JUDGE_PROVIDER` 환경변수 도입 — `auto` / `openai` / `anthropic` 선택
+- `GoalAlignmentConfig.llm_blend_weight` · `PlanConfig.llm_blend_weight` 추가 (0.0–1.0, 기본 0.5)
+- `LLMJudge.ajudge()` 비동기 메서드 추가 — `run_in_executor` 기반 non-blocking 호출
+- `LLMJudgeConfig.sample_rate` 데코레이터 전달 경로 버그 수정 (5개 호출 지점 전부 연결)
+- 예제 `04_decorator_quickeval.py` · `08_harness_eval.py` LLMJudge 개선 반영
 
 ### v0.8.2 (2026-04-17) — Harness Config 33개 양식 통일 · 대시보드 UI 개선
 

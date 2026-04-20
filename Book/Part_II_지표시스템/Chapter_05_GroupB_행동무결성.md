@@ -331,9 +331,9 @@ ContextWindowConfig(
 | Gemini 1.5 Pro | 1,000,000 | 1000000 |
 | Llama 3.1 70B | 128,000 | 128000 |
 
-### 5.3.5 StateConsistencyConfig — 실행 전후 상태 일관성 (v0.8.2 Group E→B 이동)
+### 5.3.5 StateConsistencyConfig — 실행 전후 상태 일관성 (v0.8.2 Group F→B 이동)
 
-> ℹ️ **v0.8.2 변경**: `StateConsistencyConfig`는 v0.8.2에서 Group E(보안경계)에서 Group B(행동무결성)로 이동했다. 상태 일관성은 보안 위협보다 행동 무결성 문제에 가깝기 때문이다.
+> ℹ️ **v0.8.2 변경**: `StateConsistencyConfig`는 v0.8.2에서 Group F(다중에이전트)에서 Group B(행동무결성)로 이동했다. 상태 일관성은 다중 에이전트 협업이 아닌 단일 에이전트 행동 무결성 문제이기 때문이다.
 
 에이전트 실행 전후의 상태(공유 변수, 파일, DB 등)가 선언된 불변 조건을 유지하는지 검증한다. 예기치 않은 사이드 이펙트를 탐지한다.
 
@@ -577,16 +577,19 @@ report = monitor.generate_report()
 gate = HarnessEvaluationGate(report)
 result = gate.evaluate()
 
-group_b = result["groups"]["B"]
-print(f"Group B 통과: {group_b['passed']}")
-print(f"Group B 점수: {group_b['score']:.3f}")
+group_b = result["groups"].get("B", {})
+print(f"Group B 통과: {group_b.get('passed', 'n/a')}")
+print(f"Group B 점수: {group_b.get('score', 0.0):.3f}")
+print(f"Group B 상태: {group_b.get('status', 'n/a')}")
 
-# Group B 위반 사례 상세
-if not group_b['passed']:
-    for violation in group_b['violations']:
-        print(f"  위반: {violation['type']} — {violation['detail']}")
-        # 예: "scope_violation: tool 'delete_file' not in allowed_tools"
-        # 예: "loop_detected: search called 4 times consecutively"
+# 전체 위반 목록에서 Group B 관련 항목 필터링
+if not group_b.get("passed", True):
+    b_violations = [v for v in result.get("violations", []) if v.get("group") == "B"]
+    for v in b_violations:
+        print(f"  위반: Group {v['group']} score={v.get('score', 0.0):.3f} ({v.get('status', '')})")
+
+# CI/CD — 실패 시 sys.exit(1)
+gate.enforce()
 ```
 
 ---
@@ -682,7 +685,7 @@ python Evaluator_Examples/02_layer2_agentic_security.py  # Layer 2 Tracker 전�
 | `ScopeConfig` | 허용/금지 도구 범위 | `allowed_tools`, `forbidden_tools`, `fail_on_violation` |
 | `ToolParameterSafetyConfig` | 파라미터 위험 패턴 기준 | `dangerous_patterns`, `fail_on_dangerous` |
 | `ContextWindowConfig` | 컨텍스트 윈도우 포화도 기준 | `window_size_tokens`, `warn_at_pct`, `saturated_at_pct` |
-| `StateConsistencyConfig` | 실행 전후 상태 일관성 기준 (v0.8.2 E→B) | `unchanged_keys`, `fail_on_inconsistency` |
+| `StateConsistencyConfig` | 실행 전후 상태 일관성 기준 (v0.8.2 F→B) | `unchanged_keys`, `fail_on_inconsistency` |
 | `DeadlockConfig` | 교착·기아·라이브락 탐지 기준 (v0.8.2 F→B) | `check_circular_delegation`, `max_delegation_depth`, `fail_on_deadlock` |
 
 > 🔗 **다음 챕터**: Chapter 6 — Group C: 신뢰성  

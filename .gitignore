@@ -97,3 +97,8 @@ Evaluator_Examples/**/*.html
 
 # Lectures — 강의 자료 (별도 관리)
 Lectures/
+
+# Secrets & certificates
+*.key
+*.pem
+secrets/

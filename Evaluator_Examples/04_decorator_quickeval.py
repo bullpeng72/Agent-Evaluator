@@ -42,10 +42,20 @@ QuickEval 원스톱 Facade를 한 파일에서 시연한다.
 import asyncio
 from pathlib import Path
 
-from agent_evaluator import PerformanceMonitor, QuickEval, SimpleTaskAlertRule, LLMJudge, setup_otel
+# 💡 import 간략화 팁: `import agent_evaluator as ae` 한 줄로
+#    PerformanceMonitor · QuickEval · agent_eval · batch_eval · RetryConfig 등
+#    모든 Public API를 ae.XXX 형태로 접근 가능.
+#
+#   import agent_evaluator as ae
+#   from agent_evaluator.decorators import conversation_eval, flush_conversation, EvalMetadata, get_eval_ctx
+#   # 이후: ae.PerformanceMonitor()  ae.agent_eval(...)  ae.RetryConfig(...)
+from agent_evaluator import (
+    PerformanceMonitor, QuickEval, SimpleTaskAlertRule, LLMJudge, setup_otel,
+    GoalAlignmentConfig, PlanConfig,
+)
 from agent_evaluator.decorators import (
     agent_eval, batch_eval, conversation_eval,
-    flush_conversation, EvalMetadata, get_eval_ctx, RetryConfig,
+    flush_conversation, EvalMetadata, get_eval_ctx, RetryConfig, LLMJudgeConfig,
 )
 
 _PROJECT_ROOT = Path(__file__).parent.parent
@@ -423,6 +433,86 @@ try:
                 print(f"    {k}: {v}/5")
             if criteria_overall is not None:
                 print(f"    criteria_overall: {criteria_overall:.2f}")
+
+        # ── 개선 2: AGENT_EVALUATOR_JUDGE_PROVIDER — 모델 우선순위 제어 ───
+        # .env 또는 환경변수에 AGENT_EVALUATOR_JUDGE_PROVIDER=anthropic 으로 설정하면
+        # 양쪽 키가 모두 있어도 Anthropic을 우선 사용한다.
+        import os as _os
+        _provider = _os.getenv("AGENT_EVALUATOR_JUDGE_PROVIDER", "auto")
+        print(f"\n  [개선 2] 현재 AGENT_EVALUATOR_JUDGE_PROVIDER={_provider!r}")
+        print(f"    → 실제 선택된 모델: {judge.model}")
+        print(f"    (변경하려면: AGENT_EVALUATOR_JUDGE_PROVIDER=anthropic|openai|auto)")
+
+        # ── 개선 3: GoalAlignmentConfig.llm_blend_weight ─────────────────
+        # use_llm_scoring=True 일 때 rule-based 점수와 LLM relevance 점수를
+        # 가중 블렌딩한다. 0.8 = LLM 80%, rule 20%.
+        _blend_monitor = PerformanceMonitor(
+            output_dir=_OUTPUT_DIR,
+            enable_llm_judge=True,
+            judge_model=None,
+        )
+
+        @agent_eval(
+            _blend_monitor,
+            task_type="tool_use",
+            task_id_prefix="blend",
+            goal_alignment=GoalAlignmentConfig(
+                goal_tool_map={"검색": ["web_search"]},
+                use_llm_scoring=True,
+                llm_blend_weight=0.8,   # LLM 판단 80%, rule 20% 반영
+            ),
+        )
+        def blended_agent(question: str, ground_truth: str = "") -> str:
+            return f"web_search 결과: {question}에 대한 검색 완료"
+
+        blended_agent("최신 AI 논문을 검색해줘", ground_truth="검색 결과")
+        print(f"\n  [개선 3] GoalAlignmentConfig(llm_blend_weight=0.8) 적용됨")
+        print(f"    → goal_alignment 점수 = rule*0.2 + LLM_relevance*0.8")
+        print(f"    PlanConfig도 동일하게 llm_blend_weight 지원")
+
+        # ── 개선 4: ajudge() — 비동기 진입점 ────────────────────────────
+        # async def 에이전트에서 이벤트 루프 블로킹 없이 채점할 때 사용.
+        async def _run_async_judge():
+            async_judge = LLMJudge(model=None, sample_rate=1.0)
+            result = await async_judge.ajudge(
+                task_id="llm_judge_async",
+                question="서울의 인구는?",
+                response="약 950만 명입니다.",
+            )
+            return result
+
+        async_result = asyncio.run(_run_async_judge())
+        async_scores = async_result.get("scores") or {}
+        if async_result.get("error"):
+            print(f"\n  [개선 4] ajudge() 오류: {async_result['error']}")
+        else:
+            print(f"\n  [개선 4] ajudge() (비동기) overall={async_scores.get('overall', 0):.2f}")
+            print(f"    → asyncio.run_in_executor로 sync judge()를 스레드 풀 실행")
+            print(f"    → async def 에이전트에서 await judge.ajudge(...) 사용 권장")
+
+        # ── @agent_eval LLMJudgeConfig(sample_rate=...) 연동 확인 ────────
+        # 이전에 sample_rate이 LLMJudge 인스턴스에 연결되지 않던 버그가 수정됨.
+        _sr_monitor = PerformanceMonitor(
+            output_dir=_OUTPUT_DIR,
+            enable_llm_judge=True,
+            judge_model=None,
+            judge_sample_rate=1.0,
+        )
+
+        @agent_eval(
+            _sr_monitor,
+            task_type="qa",
+            task_id_prefix="sr_test",
+            llm_judge=LLMJudgeConfig(model=None, sample_rate=0.0),  # 0% → 항상 skip
+        )
+        def sr_agent(question: str, ground_truth: str = "") -> str:
+            return "테스트 응답"
+
+        sr_agent("테스트 질문", ground_truth="테스트")
+        _sr_tasks = _sr_monitor.tcr_tracker.tasks
+        _sr_judged = [t for t in _sr_tasks if (t.extra or {}).get("llm_judge") and
+                      not (t.extra or {})["llm_judge"].get("skipped")]
+        print(f"\n  [버그 수정] LLMJudgeConfig(sample_rate=0.0) → 채점된 태스크: {len(_sr_judged)}건 (0이어야 함)")
 
 except Exception as _e:
     print(f"  LLMJudge 실행 중 오류 (skip): {_e}")

@@ -575,8 +575,7 @@ monitor = PerformanceMonitor(output_dir="results/")
 
 ```python
 # 출처: Evaluator_Examples/07_phoenix_hybrid.py, 섹션 1 — Tracing·Playground 스팬 전송
-from agent_evaluator import EvalMetadata
-from agent_evaluator.decorators import agent_eval
+from agent_evaluator.decorators import agent_eval, EvalMetadata
 
 @agent_eval(
     monitor,

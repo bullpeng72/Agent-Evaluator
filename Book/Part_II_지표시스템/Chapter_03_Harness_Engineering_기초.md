@@ -39,7 +39,7 @@ eval = QuickEval("results/")
 
 @eval(
     task_type="qa",
-    sla=SLAConfig(p95_ms=2000, fail_on_violation=True),      # SLA 선언
+    sla=SLAConfig(p95_ms=2000),                               # SLA 선언
     instructions=InstructionConfig(expected_language="ko"),   # 언어 기준 선언
 )
 def agent(question, ground_truth=""):
@@ -213,7 +213,7 @@ Tracker 25개와 Config 33개를 7개 Group으로 분류한다. (보안 Tracker 
 | Config | `ScopeConfig` | 허용/금지 도구 범위 선언 |
 | Config | `ToolParameterSafetyConfig` | 도구 파라미터 위험 패턴 기준 |
 | Config | `ContextWindowConfig` | 컨텍스트 윈도우 포화도 기준 |
-| Config | `StateConsistencyConfig` | 실행 전후 상태 일관성 기준 (v0.8.2에서 Group E→B 이동) |
+| Config | `StateConsistencyConfig` | 실행 전후 상태 일관성 기준 (v0.8.2에서 Group F→B 이동) |
 | Config | `DeadlockConfig` | 교착·기아·라이브락 탐지 기준 (v0.8.2에서 Group F→B 이동) |
 
 ### Group C — 신뢰성 (Reliability)
@@ -369,7 +369,7 @@ def agent(question, ground_truth=""):
 ```python
 @eval(
     task_type="qa",
-    sla=SLAConfig(p95_ms=2000, fail_on_violation=True),  # ← fail 활성화
+    sla=SLAConfig(p95_ms=2000, fail_threshold=3),         # ← SLA 위반 3건 누적 시 fail 활성화
     instructions=InstructionConfig(
         expected_language="ko",
         fail_on_violation=True,
@@ -495,8 +495,11 @@ for q, gt in test_cases:
     my_agent(q, ground_truth=gt)
 
 report = monitor.generate_report()
-print(f"응답시간 P95: {report.to_dict()['latency_data']['p95']:.2f}초")
-print(f"TCR: {report.task_completion_rate:.1f}%")
+d = report.to_dict()
+p95 = d.get("efficiency_metrics", {}).get("latency", {}).get("p95", 0.0)
+tcr = d.get("accuracy_metrics", {}).get("tcr", {}).get("tcr", 0.0)
+print(f"응답시간 P95: {p95:.2f}초")
+print(f"TCR: {tcr * 100:.1f}%")
 ```
 
 이 결과를 QA 관리자에게 공유한다.
@@ -582,17 +585,20 @@ print(result)
 # {
 #   "passed": False,
 #   "groups": {
-#     "A": {"passed": True,  "score": 0.91},
-#     "B": {"passed": True,  "score": 0.97},
-#     "C": {"passed": False, "score": 0.72, "violations": ["reproducibility_below_threshold"]},
-#     "D": {"passed": True,  "score": 0.88},
-#     "E": {"passed": True,  "score": 1.00},
-#     "F": {"passed": True,  "score": 0.94},
-#     "G": {"passed": True,  "score": 0.89},
+#     "A": {"passed": True,  "score": 0.91, "status": "pass"},
+#     "B": {"passed": True,  "score": 0.97, "status": "pass"},
+#     "C": {"passed": False, "score": 0.72, "status": "fail"},
+#     "D": {"passed": True,  "score": 0.88, "status": "pass"},
+#     "E": {"passed": True,  "score": 1.00, "status": "pass"},
+#     "F": {"passed": True,  "score": 0.94, "status": "pass"},
+#     "G": {"passed": True,  "score": 0.89, "status": "pass"},
 #   },
-#   "overall_score": 0.90,
-#   "blocking_violations": ["C.reproducibility_below_threshold"],
+#   "violations": [{"group": "C", "score": 0.72, "status": "fail"}],
+#   "summary": {"total_groups": 7, "passed_groups": 6, "overall_score": 0.90},
 # }
+
+# CI/CD — 실패 시 sys.exit(1)
+gate.enforce()
 ```
 
 ### 3.6.2 CI/CD 파이프라인 통합
@@ -618,24 +624,24 @@ jobs:
             --fail-on-group-violation C,E  # Group C·E 위반 시 배포 차단
 ```
 
-### 3.6.3 Group별 가중치 설정
+### 3.6.3 특정 Group만 검사
 
-에이전트 유형에 따라 Group별 중요도가 다르다.
+에이전트 유형에 따라 검사할 Group을 지정할 수 있다.
+`HarnessEvaluationGate`는 `report`, `min_group_score`, `required_groups`, `fail_on_warn`을 지원한다. `group_weights`는 지원하지 않는다.
 
 ```python
+# 출처: Evaluator_Examples/08_harness_eval.py, 섹션 7 — HarnessEvaluationGate 활용
+from agent_evaluator import HarnessEvaluationGate
+
+# 목표달성(A)·보안경계(E)만 필수 통과 — 나머지는 경고만
 gate = HarnessEvaluationGate(
     report,
-    group_weights={
-        "A": 0.25,   # 목표달성 — 가장 중요
-        "B": 0.10,
-        "C": 0.15,   # 신뢰성 — 의료/금융 에이전트는 더 높게
-        "D": 0.15,
-        "E": 0.25,   # 보안경계 — 외부 노출 에이전트는 더 높게
-        "F": 0.05,
-        "G": 0.05,
-    },
-    required_groups=["A", "E"],  # A·E는 pass 필수
+    required_groups=["A", "E"],  # A·E는 점수가 있으면 반드시 통과해야 함
+    min_group_score=0.7,         # 각 그룹 최소 허용 점수 70%
+    fail_on_warn=False,          # warn 상태는 실패로 처리하지 않음
 )
+result = gate.evaluate()
+gate.enforce()   # 기준 미달 시 sys.exit(1)
 ```
 
 ---
@@ -767,7 +773,7 @@ eval = QuickEval("results/")
 # Step 1: Config 선언 (배포 기준을 코드로)
 @eval(
     task_type="qa",
-    sla=SLAConfig(p95_ms=3000, fail_on_violation=False),    # 관찰 모드
+    sla=SLAConfig(p95_ms=3000),                              # 관찰 모드 (위반 시 기록만)
     instructions=InstructionConfig(expected_language="ko"),
 )
 def simple_agent(question: str, ground_truth: str = "") -> str:
@@ -795,8 +801,10 @@ for question, ground_truth in test_cases:
 print("\n=== Harness Gate 결과 ===")
 report = eval.monitor.generate_report()
 d = report.to_dict()
-print(f"TCR    : {d.get('tcr', 0) * 100:.1f}%")
-print(f"정확도  : {d.get('accuracy', 0) * 100:.1f}%")
+tcr = d.get("accuracy_metrics", {}).get("tcr", {}).get("tcr", 0.0)
+acc = d.get("accuracy_metrics", {}).get("accuracy_scores", {}).get("overall_accuracy", 0.0)
+print(f"TCR    : {tcr * 100:.1f}%")
+print(f"정확도  : {acc * 100:.1f}%")
 
 # Step 4: 배포 판정 (기준 미달 시 sys.exit(1))
 eval.gate(tcr=60, accuracy=50)

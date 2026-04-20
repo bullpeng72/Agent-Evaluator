@@ -243,6 +243,7 @@ class GoalAlignmentConfig:
     use_keyword_overlap: bool = True                              # 질문 키워드 ↔ 도구명 오버랩 계산
     goal_tool_map: Dict[str, List[str]] = dataclasses.field(default_factory=dict)  # 목표 키워드 → 도구 목록 매핑
     use_llm_scoring: bool = False                                 # LLM-as-Judge 정렬 점수 (opt-in)
+    llm_blend_weight: float = 0.5                                 # LLM judge 블렌딩 비중 (0.0=rule only, 1.0=LLM only)
     alignment_threshold: float = 0.6                             # 경고 임계값 (0.0~1.0)
     ignore_no_tool_tasks: bool = True                            # 도구 호출 없는 태스크 무시
 
@@ -297,6 +298,7 @@ class PlanConfig:
     check_executability: bool = True                  # 각 단계가 사용 가능한 도구로 실행 가능한지 확인
     available_tools: List[str] = dataclasses.field(default_factory=list)  # 사용 가능한 도구 목록
     use_llm_scoring: bool = False                     # LLM-as-Judge 계획 품질 채점 (opt-in)
+    llm_blend_weight: float = 0.5                     # LLM judge 블렌딩 비중 (0.0=rule only, 1.0=LLM only)
     min_steps: int = 2                                # 최소 계획 단계 수
     max_steps: int = 20                               # 최대 계획 단계 수
 
@@ -324,6 +326,7 @@ class SLAConfig:
     fail_threshold: int = 5
     max_cost_per_task: Optional[float] = None
     budget_usd: Optional[float] = None
+    token_limit: Optional[int] = None          # 태스크당 최대 허용 토큰 수 (None = 제한 없음)
 
 
 @dataclasses.dataclass
@@ -3897,6 +3900,7 @@ def _build_and_record(
     enable_llm_judge: bool = False,        # E1: 이 호출에서만 LLM Judge 강제 활성화
     judge_model: Optional[str] = None,     # E1: LLM Judge 모델 임시 지정
     judge_criteria: Optional[List[str]] = None,  # J1: G-Eval 기준 임시 지정 (DeepEval 대체)
+    judge_sample_rate: Optional[float] = None,  # J2: sample_rate 임시 지정
     security_mode: bool = False,           # E3: 이 호출에서만 security metrics 강제 활성화
     allowed_tools: Optional[List[str]] = None,  # E3: 허용된 도구 목록 임시 주입
     enable_anomaly_detection: bool = False,  # A2: 이 호출에서만 anomaly detection 임시 활성화
@@ -4185,6 +4189,18 @@ def _build_and_record(
                 _ld_chain = task_result.extra.get("chain_steps") if task_result.extra else None
                 _ld_result = eval_loop_detection(_ld_calls, _ld_chain, loop_detection)
                 _p1_extra["loop_detection"] = _ld_result
+                # on_loop_detected: "fail" → success=False, "warn" → logger 경고
+                _on_loop = getattr(loop_detection, "on_loop_detected", "record")
+                if _ld_result.get("detected"):
+                    if _on_loop == "fail":
+                        task_result = dataclasses.replace(task_result, success=False)
+                    elif _on_loop == "warn":
+                        logger.warning(
+                            "Loop detected (task_id=%s): %s at step %s",
+                            getattr(task_result, "task_id", "?"),
+                            _ld_result.get("loop_type"),
+                            _ld_result.get("loop_at_step"),
+                        )
             except Exception as _e:
                 logger.debug("loop_detection 평가 실패 (무시): %s", _e)
 
@@ -4244,16 +4260,25 @@ def _build_and_record(
             try:
                 from agent_evaluator.helpers.taskresult_helpers import eval_sla
                 _cost = None
+                _ttft = None
                 if task_result.extra:
                     _cost = task_result.extra.get("cost_usd") or (
                         task_result.extra.get("llm_judge", {}).get("cost_usd")
                         if isinstance(task_result.extra.get("llm_judge"), dict) else None
                     )
+                    # ttft_ms가 extra에 있으면 SLA TTFT 검사에 사용
+                    _raw_ttft = task_result.extra.get("ttft_ms") or task_result.extra.get("ttft")
+                    if _raw_ttft is not None:
+                        try:
+                            _ttft = float(_raw_ttft)
+                        except (TypeError, ValueError):
+                            pass
                 _sla_result = eval_sla(
                     task_result.execution_time or elapsed,
                     task_result.tokens_used or 0,
                     _cost,
                     sla,
+                    ttft_ms=_ttft,
                 )
                 _harness_extra["sla"] = _sla_result
             except Exception as _e:
@@ -4452,11 +4477,18 @@ def _build_and_record(
             try:
                 from agent_evaluator.helpers.taskresult_helpers import eval_resource_budget
                 _cost = task_result.extra.get("cost_usd", 0.0) if task_result.extra else 0.0
+                _rb_tok_dict = task_result.tokens_used or {}
+                _rb_total_tok = (
+                    int(_rb_tok_dict.get("total") or _rb_tok_dict.get("input", 0) + _rb_tok_dict.get("output", 0))
+                    if isinstance(_rb_tok_dict, dict)
+                    else int(_rb_tok_dict or 0)
+                )
                 _p4_extra["resource_budget"] = eval_resource_budget(
-                    task_result.tokens_used,
+                    _rb_total_tok,
                     _cost,
                     task_result.execution_time * 1000,
                     resource_budget,
+                    task_succeeded=task_result.success,
                 )
             except Exception as _e:
                 logger.debug("ResourceBudgetConfig 평가 실패 (무시): %s", _e)
@@ -4539,9 +4571,17 @@ def _build_and_record(
         if idempotency is not None:
             try:
                 from agent_evaluator.helpers.taskresult_helpers import eval_idempotency
-                _p6_extra["idempotency"] = eval_idempotency(
+                _idem_result = eval_idempotency(
                     task_result.tool_calls, task_result.response, idempotency
                 )
+                _p6_extra["idempotency"] = _idem_result
+                if (getattr(idempotency, "warn_on_non_idempotent", True)
+                        and _idem_result.get("non_idempotent_count", 0) > 0):
+                    logger.warning(
+                        "Non-idempotent tools detected in task %s: %s",
+                        task_result.task_id,
+                        _idem_result.get("non_idempotent_tools", []),
+                    )
             except Exception as _e:
                 logger.debug("IdempotencyConfig 평가 실패 (무시): %s", _e)
 
@@ -4562,9 +4602,15 @@ def _build_and_record(
         if context_window is not None:
             try:
                 from agent_evaluator.helpers.taskresult_helpers import eval_context_window
+                _tok_dict = task_result.tokens_used or {}
+                _total_tok = (
+                    int(_tok_dict.get("total") or _tok_dict.get("input", 0) + _tok_dict.get("output", 0))
+                    if isinstance(_tok_dict, dict)
+                    else int(_tok_dict or 0)
+                )
                 _p6_extra["context_window"] = eval_context_window(
                     task_result.response,
-                    task_result.tokens_used,
+                    _total_tok,
                     context_window,
                 )
             except Exception as _e:
@@ -4651,6 +4697,8 @@ def _build_and_record(
                                 _lj_kwargs["model"] = judge_model
                             if judge_criteria is not None:
                                 _lj_kwargs["judge_criteria"] = judge_criteria
+                            if judge_sample_rate is not None:
+                                _lj_kwargs["sample_rate"] = judge_sample_rate
                             _m.llm_judge = _LJCls(**_lj_kwargs)
                             logger.debug("LLM Judge lazy init: model=%s", _m.llm_judge.model)
                             _llm_judge_restored.append((_m, None, True))  # was_lazy=True
@@ -4673,6 +4721,17 @@ def _build_and_record(
                     _orig_criteria = list(getattr(_lj, "judge_criteria", []))
                     _lj.judge_criteria = list(judge_criteria)
                     _judge_criteria_restored.append((_lj, _orig_criteria))
+
+        # J2: judge_sample_rate — 이 호출 동안만 LLMJudge.sample_rate 임시 재정의
+        _judge_sample_rate_restored: list = []
+        if judge_sample_rate is not None:
+            _monitors_j2 = monitor if isinstance(monitor, list) else [monitor]
+            for _m in _monitors_j2:
+                _lj = getattr(_m, "llm_judge", None)
+                if _lj is not None:
+                    _orig_sample_rate = getattr(_lj, "sample_rate", 1.0)
+                    _lj.sample_rate = judge_sample_rate
+                    _judge_sample_rate_restored.append((_lj, _orig_sample_rate))
 
         # E3: security_mode — 이 호출 동안만 security metrics 임시 활성화
         _security_restored: list = []
@@ -4721,6 +4780,9 @@ def _build_and_record(
             # J1: judge_criteria 복원
             for _lj, _orig_criteria in _judge_criteria_restored:
                 _lj.judge_criteria = _orig_criteria
+            # J2: judge_sample_rate 복원
+            for _lj, _orig_sr in _judge_sample_rate_restored:
+                _lj.sample_rate = _orig_sr
             # E3: security metrics 복원
             for _m in _security_restored:
                 _m.enable_security_metrics = False
@@ -5215,10 +5277,12 @@ def agent_eval(
         _effective_enable_llm_judge = True
         _effective_judge_model = llm_judge.model
         _effective_judge_criteria = llm_judge.criteria
+        _effective_judge_sample_rate = llm_judge.sample_rate
     else:
         _effective_enable_llm_judge = bool(_preset_vals.get("enable_llm_judge", False))
         _effective_judge_model = _preset_vals.get("judge_model", None)
         _effective_judge_criteria = _preset_vals.get("judge_criteria", None)
+        _effective_judge_sample_rate = None
 
     # v0.8.3+: resolve security config → internal variables for _build_and_record
     if security is not None:
@@ -5448,6 +5512,17 @@ def agent_eval(
                     eval_ctx.attempts = _attempt
                     if _errors:
                         eval_ctx.errors = _errors
+                # ContextRetentionConfig.context_arg override
+                _cr_context_text = context
+                if context_retention is not None:
+                    _cr_cfg_arg = getattr(context_retention, "context_arg", None) or context_arg
+                    if _cr_cfg_arg and _cr_cfg_arg != context_arg:
+                        try:
+                            _cr_bound = sig.bind(*args, **kwargs)
+                            _cr_bound.apply_defaults()
+                            _cr_context_text = str(_cr_bound.arguments.get(_cr_cfg_arg, context or ""))
+                        except Exception:
+                            pass
                 _build_and_record(
                         monitor,
                         task_type=_task_type_str,
@@ -5473,6 +5548,7 @@ def agent_eval(
                         enable_llm_judge=_effective_enable_llm_judge,
                         judge_model=_effective_judge_model,
                         judge_criteria=_effective_judge_criteria,
+                        judge_sample_rate=_effective_judge_sample_rate,
                         security_mode=_effective_security_mode,
                         allowed_tools=_effective_allowed_tools,
                         enable_anomaly_detection=_effective_enable_anomaly,
@@ -5498,7 +5574,7 @@ def agent_eval(
                         explainability=explainability,
                         subtask_tracking=subtask_tracking,
                         propagation=propagation,
-                        context_retention_text=context if context_retention is not None else None,
+                        context_retention_text=_cr_context_text if context_retention is not None else None,
                         agent_role=agent_role,
                         graceful_degradation=graceful_degradation,
                         compliance=compliance,
@@ -5631,6 +5707,17 @@ def agent_eval(
                     eval_ctx.attempts = _attempt
                     if _errors:
                         eval_ctx.errors = _errors
+                # ContextRetentionConfig.context_arg override (async)
+                _cr_context_text = context
+                if context_retention is not None:
+                    _cr_cfg_arg = getattr(context_retention, "context_arg", None) or context_arg
+                    if _cr_cfg_arg and _cr_cfg_arg != context_arg:
+                        try:
+                            _cr_bound = sig.bind(*args, **kwargs)
+                            _cr_bound.apply_defaults()
+                            _cr_context_text = str(_cr_bound.arguments.get(_cr_cfg_arg, context or ""))
+                        except Exception:
+                            pass
                 _build_and_record(
                         monitor,
                         task_type=_task_type_str,
@@ -5656,6 +5743,7 @@ def agent_eval(
                         enable_llm_judge=_effective_enable_llm_judge,
                         judge_model=_effective_judge_model,
                         judge_criteria=_effective_judge_criteria,
+                        judge_sample_rate=_effective_judge_sample_rate,
                         security_mode=_effective_security_mode,
                         allowed_tools=_effective_allowed_tools,
                         enable_anomaly_detection=_effective_enable_anomaly,
@@ -5681,7 +5769,7 @@ def agent_eval(
                         explainability=explainability,
                         subtask_tracking=subtask_tracking,
                         propagation=propagation,
-                        context_retention_text=context if context_retention is not None else None,
+                        context_retention_text=_cr_context_text if context_retention is not None else None,
                         agent_role=agent_role,
                         graceful_degradation=graceful_degradation,
                         compliance=compliance,
@@ -5775,6 +5863,7 @@ def agent_eval(
                         enable_llm_judge=_effective_enable_llm_judge,
                         judge_model=_effective_judge_model,
                         judge_criteria=_effective_judge_criteria,
+                        judge_sample_rate=_effective_judge_sample_rate,
                         security_mode=_effective_security_mode,
                         allowed_tools=_effective_allowed_tools,
                         enable_anomaly_detection=_effective_enable_anomaly,
@@ -5890,6 +5979,7 @@ def agent_eval(
                         enable_llm_judge=_effective_enable_llm_judge,
                         judge_model=_effective_judge_model,
                         judge_criteria=_effective_judge_criteria,
+                        judge_sample_rate=_effective_judge_sample_rate,
                         security_mode=_effective_security_mode,
                         allowed_tools=_effective_allowed_tools,
                         enable_anomaly_detection=_effective_enable_anomaly,
@@ -6732,6 +6822,7 @@ def batch_eval(
     _effective_enable_llm_judge = llm_judge is not None
     _effective_judge_model = llm_judge.model if llm_judge else None
     _effective_judge_criteria = llm_judge.criteria if llm_judge else None
+    _effective_judge_sample_rate = llm_judge.sample_rate if llm_judge else None
     _effective_security_mode = security is not None
     _effective_allowed_tools = security.allowed_tools if security else None
 
@@ -6888,6 +6979,7 @@ def batch_eval(
                     enable_llm_judge=_effective_enable_llm_judge,
                     judge_model=_effective_judge_model,
                     judge_criteria=_effective_judge_criteria,
+                    judge_sample_rate=_effective_judge_sample_rate,
                     security_mode=_effective_security_mode,
                     enable_hallucination=enable_hallucination_detection,
                     auto_detect_framework=True,

@@ -85,8 +85,9 @@ error_rule = AlertRuleBuilder.when_error(
 ### when_tool_calls_exceed — 도구 호출 횟수 상한 알림
 
 ```python
+# 출처: Evaluator_Examples/04_decorator_quickeval.py, 섹션 3 — AlertRuleBuilder
 tool_rule = AlertRuleBuilder.when_tool_calls_exceed(
-    count=10,                    # tool_calls 횟수 > 10 이면 발동
+    max_calls=10,                # tool_calls 횟수 > 10 이면 발동
     handler=lambda msg, tr: print(f"[WARNING] 과도한 도구 호출: {msg}"),
     severity="warning",
     cooldown=180,
@@ -670,9 +671,9 @@ agent("질문", ground_truth="정답")
 - `handler` 함수에서 Slack WebHook, PagerDuty API 호출, 이메일 발송 등 외부 연동을 구현한다
 
 ```python
-# 출처: Evaluator_Examples/05_streaming_alerts.py, 섹션 4 — AlertRuleBuilder 팩토리
+# 출처: Evaluator_Examples/04_decorator_quickeval.py, 섹션 3 — AlertRuleBuilder 팩토리
+from agent_evaluator import AlertRuleBuilder  # decorators.py에 정의, agent_evaluator에서 export
 from agent_evaluator.alerts.engine import AlertEngine
-from agent_evaluator.alerts.handlers import AlertRuleBuilder
 import json
 from pathlib import Path
 
@@ -688,26 +689,18 @@ def jsonl_handler(message: str, task_result) -> None:
     with open(alert_log_path, "a") as f:
         f.write(json.dumps(record, ensure_ascii=False) + "\n")
 
-# 팩토리 메서드로 알림 규칙 생성
-accuracy_rule = (
-    AlertRuleBuilder
-    .when_accuracy_below(threshold=0.6)
-    .with_handler(jsonl_handler)
-    .with_severity("warning")
-    .build()
+# 팩토리 메서드로 알림 규칙 생성 — 각 메서드가 SimpleTaskAlertRule을 직접 반환
+accuracy_rule = AlertRuleBuilder.when_accuracy_below(
+    threshold=0.6,
+    handler=jsonl_handler,
+    severity="warning",
 )
 
-latency_rule = (
-    AlertRuleBuilder
-    .when_latency_above(threshold=3.0)
-    .with_handler(jsonl_handler)
-    .with_severity("critical")
-    .build()
+latency_rule = AlertRuleBuilder.when_latency_above(
+    threshold_seconds=3.0,
+    handler=jsonl_handler,
+    severity="critical",
 )
-
-# dry_run으로 실제 발화 없이 규칙 검증
-fired = accuracy_rule.dry_run(task_result)
-print(f"알림 발화 여부: {fired}")  # True/False
 ```
 
 - `AlertRuleBuilder`의 팩토리 메서드(`when_accuracy_below`, `when_latency_above` 등)로 반복 코드 없이 알림 규칙을 생성한다

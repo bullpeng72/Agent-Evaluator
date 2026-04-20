@@ -3,10 +3,9 @@ from __future__ import annotations
 from typing import Any, Dict, List
 from fastapi import APIRouter, HTTPException, Request
 
-router = APIRouter(prefix="/api/anomalies", tags=["anomaly"])
+from agent_evaluator.serve.routers._utils import _rs
 
-def _rs(request: Request):
-    return request.app.state.result_set
+router = APIRouter(prefix="/api/anomalies", tags=["anomaly"])
 
 @router.get("", summary="이상 탐지 결과 목록")
 def list_anomalies(request: Request) -> List[Dict[str, Any]]:

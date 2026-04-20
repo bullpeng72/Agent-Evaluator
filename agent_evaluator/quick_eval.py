@@ -33,7 +33,7 @@ from typing import Any, Callable, Dict, List, Optional, Union
 
 logger = logging.getLogger(__name__)
 
-__all__ = ["QuickEval"]
+__all__ = ["QuickEval", "HarnessEvaluationGate"]
 
 
 class _QuickEvalBatchShortcut:
@@ -1477,3 +1477,277 @@ class QuickEval:
     def __repr__(self) -> str:
         total = self._monitor.task_count  # D7: task_count property 사용
         return f"QuickEval(output_dir={self._monitor.output_dir!r}, tasks={total})"
+
+
+# ---------------------------------------------------------------------------
+# HarnessEvaluationGate — Group A-G 종합 배포 판정 도구
+# ---------------------------------------------------------------------------
+
+class HarnessEvaluationGate:
+    """Group A-G Harness Config 기반 종합 배포 판정 도구.
+
+    ``PerformanceMonitor.generate_report()``가 반환한 ``EvaluationReport``에서
+    harness_groups 데이터를 읽어 Group A-G 전체를 한 번에 평가한다.
+    ``agent-eval gate`` CLI의 Python API 버전이며, CI/CD 파이프라인에서
+    자동 배포 차단에 사용한다.
+
+    Args:
+        report: ``PerformanceMonitor.generate_report()`` 반환값.
+        min_group_score: 각 그룹 최소 허용 점수 (기본 0.7 = 70%).
+        required_groups: 검사할 그룹 목록. ``None``이면 점수가 있는 모든 그룹.
+            예: ``["A", "D", "E"]`` — Goal·Performance·Security만 검사.
+        fail_on_warn: ``True``이면 ``warn`` 상태도 실패로 처리.
+
+    Example::
+
+        from agent_evaluator import PerformanceMonitor, HarnessEvaluationGate
+        from agent_evaluator import InstructionConfig, SLAConfig
+        from agent_evaluator.decorators import agent_eval
+
+        monitor = PerformanceMonitor(output_dir="results/")
+
+        @agent_eval(monitor, task_type="qa",
+            instructions=InstructionConfig(required_keywords=["서울"], fail_on_violation=True),
+            sla=SLAConfig(p95_ms=3000, fail_on_violation=True),
+        )
+        def my_agent(question, ground_truth=""): ...
+
+        my_agent("한국의 수도는?", ground_truth="서울")
+
+        report = monitor.generate_report()
+        gate = HarnessEvaluationGate(report)
+        result = gate.evaluate()
+        # → {"passed": True, "groups": {"A": {...}, "D": {...}}, "violations": [], "summary": {...}}
+
+        # CI/CD — 실패 시 sys.exit(1)
+        gate.enforce()
+
+        # 특정 그룹만 검사
+        HarnessEvaluationGate(report, required_groups=["A", "E"]).enforce()
+    """
+
+    def __init__(
+        self,
+        report: Any,
+        *,
+        min_group_score: float = 0.7,
+        required_groups: Optional[List[str]] = None,
+        fail_on_warn: bool = False,
+    ) -> None:
+        self._report = report
+        self._min_group_score = min_group_score
+        self._required_groups = required_groups
+        self._fail_on_warn = fail_on_warn
+        self._result: Optional[Dict[str, Any]] = None
+
+    # ------------------------------------------------------------------
+    # Public API
+    # ------------------------------------------------------------------
+
+    def evaluate(self) -> Dict[str, Any]:
+        """Group A-G 전체를 평가하고 결과 dict를 반환한다.
+
+        Returns:
+            ``{
+                "passed": bool,
+                "groups": {
+                    "A": {"score": float|None, "status": str, "passed": bool},
+                    ...
+                },
+                "violations": [{"group": str, "score": float, "status": str}],
+                "summary": {
+                    "total_groups": int,
+                    "passed_groups": int,
+                    "overall_score": float|None,
+                }
+            }``
+
+        Example::
+
+            result = gate.evaluate()
+            if not result["passed"]:
+                for v in result["violations"]:
+                    print(f"Group {v['group']} failed: {v['score']:.3f}")
+        """
+        harness_groups = (getattr(self._report, "extra_metrics", None) or {}).get(
+            "harness_groups", {}
+        )
+
+        if not harness_groups:
+            self._result = {
+                "passed": True,
+                "groups": {},
+                "violations": [],
+                "summary": {"total_groups": 0, "passed_groups": 0, "overall_score": None},
+            }
+            return self._result
+
+        groups_to_check: List[str] = self._required_groups or [
+            k for k in harness_groups
+            if k != "overall" and isinstance(harness_groups[k], dict)
+        ]
+
+        results: Dict[str, Any] = {}
+        violations: List[Dict[str, Any]] = []
+
+        for group_name in groups_to_check:
+            group_data = harness_groups.get(group_name, {})
+            if not isinstance(group_data, dict):
+                continue
+            score = group_data.get("score")
+            status = group_data.get("status", "n/a")
+
+            if score is None:
+                results[group_name] = {"score": None, "status": "n/a", "passed": True}
+                continue
+
+            passed = float(score) >= self._min_group_score
+            if self._fail_on_warn and status == "warn":
+                passed = False
+
+            results[group_name] = {
+                "score": round(float(score), 3),
+                "status": status,
+                "passed": passed,
+            }
+
+            if not passed:
+                violations.append({
+                    "group": group_name,
+                    "score": round(float(score), 3),
+                    "status": status,
+                })
+
+        overall = harness_groups.get("overall", {})
+        overall_score = overall.get("score") if isinstance(overall, dict) else None
+        passed_count = sum(1 for r in results.values() if r.get("passed", True))
+
+        self._result = {
+            "passed": len(violations) == 0,
+            "groups": results,
+            "violations": violations,
+            "summary": {
+                "total_groups": len(results),
+                "passed_groups": passed_count,
+                "overall_score": round(float(overall_score), 3) if overall_score is not None else None,
+            },
+        }
+        return self._result
+
+    def enforce(self, exit_on_fail: bool = True) -> "HarnessEvaluationGate":
+        """``evaluate()``를 실행하고 실패 시 ``sys.exit(1)``을 호출한다.
+
+        Args:
+            exit_on_fail: ``False``로 설정하면 ``sys.exit`` 없이 결과만 반환.
+
+        Returns:
+            ``self`` — 메서드 체이닝용.
+
+        Raises:
+            SystemExit(1): 게이팅 실패 시 (``exit_on_fail=True`` 기본값일 때).
+
+        Example::
+
+            HarnessEvaluationGate(report).enforce()          # CI/CD — 실패 시 종료
+            result = gate.enforce(exit_on_fail=False).result  # dry-run
+        """
+        import sys
+
+        result = self.evaluate()
+        self._print_result(result)
+        if not result["passed"] and exit_on_fail:
+            sys.exit(1)
+        return self
+
+    @classmethod
+    def from_file(
+        cls,
+        result_file: str,
+        *,
+        min_group_score: float = 0.7,
+        required_groups: Optional[List[str]] = None,
+        fail_on_warn: bool = False,
+    ) -> "HarnessEvaluationGate":
+        """JSON 결과 파일에서 Gate를 직접 생성한다.
+
+        Args:
+            result_file: ``monitor.save_to_file()``이 생성한 JSON 경로.
+
+        Returns:
+            ``HarnessEvaluationGate`` 인스턴스.
+
+        Example::
+
+            gate = HarnessEvaluationGate.from_file("results/eval.json")
+            gate.enforce()
+        """
+        import json
+
+        with open(result_file, encoding="utf-8") as _f:
+            data: Dict[str, Any] = json.load(_f)
+
+        class _ReportProxy:
+            """JSON 데이터를 EvaluationReport처럼 노출하는 최소 프록시."""
+            def __init__(self, extra: Dict[str, Any]) -> None:
+                self.extra_metrics = extra
+
+        # JSON 최상위에 extra_metrics 또는 harness_groups 키가 있을 수 있음
+        extra = data.get("extra_metrics") or {}
+        if "harness_groups" not in extra and "harness_groups" in data:
+            extra = {"harness_groups": data["harness_groups"]}
+
+        return cls(
+            _ReportProxy(extra),
+            min_group_score=min_group_score,
+            required_groups=required_groups,
+            fail_on_warn=fail_on_warn,
+        )
+
+    # ------------------------------------------------------------------
+    # Property
+    # ------------------------------------------------------------------
+
+    @property
+    def result(self) -> Optional[Dict[str, Any]]:
+        """마지막 ``evaluate()`` 또는 ``enforce()`` 결과. 호출 전에는 ``None``."""
+        return self._result
+
+    @property
+    def passed(self) -> Optional[bool]:
+        """``evaluate()`` 호출 후 통과 여부. 호출 전에는 ``None``."""
+        return self._result["passed"] if self._result is not None else None
+
+    # ------------------------------------------------------------------
+    # Internal
+    # ------------------------------------------------------------------
+
+    def _print_result(self, result: Dict[str, Any]) -> None:
+        ok = result["passed"]
+        summary = result["summary"]
+        print(f"\n{'=' * 52}")
+        print(f"  Harness Evaluation Gate: {'PASSED ✅' if ok else 'FAILED ❌'}")
+        print(f"{'─' * 52}")
+        for g in sorted(result["groups"]):
+            r = result["groups"][g]
+            icon = "✅" if r["passed"] else "❌"
+            score_str = f"{r['score']:.3f}" if r["score"] is not None else "n/a"
+            print(f"  {icon} Group {g}: {score_str}  ({r['status']})")
+        print(f"{'─' * 52}")
+        print(
+            f"  Passed: {summary['passed_groups']}/{summary['total_groups']} groups"
+            + (f"  |  Overall: {summary['overall_score']:.3f}" if summary["overall_score"] is not None else "")
+        )
+        if result["violations"]:
+            print(f"\n  ⚠ Violations:")
+            for v in result["violations"]:
+                print(f"    Group {v['group']}: score={v['score']:.3f}  status={v['status']}")
+        print(f"{'=' * 52}\n")
+
+    def __repr__(self) -> str:
+        status = "evaluated" if self._result else "pending"
+        return (
+            f"HarnessEvaluationGate("
+            f"min_score={self._min_group_score}, "
+            f"groups={self._required_groups!r}, "
+            f"status={status!r})"
+        )

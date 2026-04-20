@@ -1296,7 +1296,7 @@ input[type=text],input[type=number]{background:var(--bg3);color:var(--text);bord
   <div x-data="{
     selK:null,
     meta:{
-      avg_score:{label:'평균 품질 점수',unit:'/5',desc:'5개 품질 차원을 종합한 응답 품질의 대표값입니다. 단순한 정답 일치 여부를 넘어 응답의 실용적 가치를 평가하며, 사용자 만족도와 가장 상관관계가 높은 지표입니다.',hint:'avg(dimension_scores) / 5'},
+      avg_score:{label:'평균 품질 점수',unit:'/5',desc:'5개 품질 차원을 가중 평균한 응답 품질의 대표값입니다. 단순한 정답 일치 여부를 넘어 응답의 실용적 가치를 평가하며, 사용자 만족도와 가장 상관관계가 높은 지표입니다.',hint:'avg(total_score) — total_score = 관련성×0.25 + 완전성×0.25 + 정확성×0.20 + 명확성×0.15 + 유용성×0.15'},
       relevance:{label:'관련성',unit:'/5',desc:'응답이 질문의 핵심 의도에 얼마나 직접적으로 답하고 있는지를 나타냅니다. 질문과 무관한 정보를 늘어놓거나 핵심을 벗어난 응답을 탐지하는 데 유용합니다.',hint:'quality_detail.dimension_summary.relevance'},
       completeness:{label:'완전성',unit:'/5',desc:'질문에서 요구하는 모든 측면을 응답이 빠짐없이 다루고 있는지를 측정합니다. 불완전한 답변이나 일부 요건만 충족한 응답을 식별하며, 멀티-파트 질문 처리 능력을 평가합니다.',hint:'quality_detail.dimension_summary.completeness'},
       accuracy:{label:'정확성',unit:'/5',desc:'응답에 포함된 사실, 수치, 개념이 실제로 정확한지를 평가합니다. 잘못된 정보나 오류가 포함된 응답을 탐지하며, 사실 기반 QA·분석 태스크에서 특히 중요한 차원입니다.',hint:'quality_detail.dimension_summary.accuracy'},
@@ -1306,7 +1306,7 @@ input[type=text],input[type=number]{background:var(--bg3);color:var(--text);bord
     formula(k,d){
       const ds=d.quality_detail?.dimension_summary||{};
       const avg=d.quality_detail?.avg_score||0;
-      if(k==='avg_score')return `평균 = (관련성+완전성+정확성+명확성+유용성)/5\n= ${avg.toFixed(2)}/5 = ${(avg*20).toFixed(1)}%`;
+      if(k==='avg_score')return `가중 평균 = 관련성×0.25 + 완전성×0.25 + 정확성×0.20 + 명확성×0.15 + 유용성×0.15\n= ${(ds.relevance||0).toFixed(2)}×0.25 + ${(ds.completeness||0).toFixed(2)}×0.25 + ${(ds.accuracy||0).toFixed(2)}×0.20 + ${(ds.clarity||0).toFixed(2)}×0.15 + ${(ds.usefulness||0).toFixed(2)}×0.15\n= ${avg.toFixed(2)}/5 = ${(avg*20).toFixed(1)}%`;
       return `${k} = ${(ds[k]||0).toFixed(2)}/5`;
     },
     items(k,d){
@@ -1576,7 +1576,7 @@ input[type=text],input[type=number]{background:var(--bg3);color:var(--text);bord
         completeness: {label:'완결성',          desc:'질문이 제기한 모든 측면과 하위 질문을 응답이 빠짐없이 다루는지 평가합니다. 0=질문 완전 무시, 5=모든 측면 충분히 커버.',                                                             hint:'LLM Judge → integer 0–5\n(질문 범위 대비 응답 커버리지)'},
         relevance:    {label:'관련성',          desc:'응답이 질문의 핵심 의도에 직접적으로 답하고 있는지 평가합니다. 0=완전히 off-topic, 5=완벽하게 핵심을 파악해 답변.',                                                                hint:'LLM Judge → integer 0–5\n(질문 의도 대비 응답 집중도)'},
         factual:      {label:'사실 일관성',     desc:'응답 내부에 자기 모순이 없고 명백한 오류 없이 일관성 있는지 평가합니다. 외부 사실 검증이 아닌 응답 자체의 내적 정합성을 측정합니다. 0=자기 모순, 5=일관되고 신뢰 가능.',          hint:'LLM Judge → integer 0–5\n(내부 모순·오류 없음 여부)'},
-        faithfulness: {label:'충실도 (RAG)',    desc:'RAG 응답의 모든 주장이 검색된 컨텍스트에 의해 지지되는지 측정합니다. rag_mode=True + enable_llm_judge=True 시 자동 추가됩니다. (Ragas 네이티브 대체)',                          hint:'LLM Judge faithfulness → integer 0–5\n(컨텍스트 지지 주장 비율)'},
+        faithfulness: {label:'충실도 (RAG)',    desc:'RAG 응답의 모든 주장이 검색된 컨텍스트에 의해 지지되는지 측정합니다. context= 전달 시 자동 추가됩니다. 모델이 필드를 누락하면 해당 건은 집계에서 제외되어 실제 채점된 건의 평균만 표시됩니다. (Ragas 네이티브 대체)',  hint:'LLM Judge faithfulness → integer 0–5\n(컨텍스트 지지 주장 비율)\n※ 필드 누락 건은 집계 제외'},
         criteria:     {label:'커스텀 기준',    desc:'judge_criteria=[...] 파라미터로 정의한 서비스 특화 평가 기준의 평균 점수입니다. DeepEval G-Eval의 네이티브 대체 방식입니다.',                                               hint:'criteria_overall = mean(judge_criteria 각 차원 점수)'},
       },
       formula(k) {

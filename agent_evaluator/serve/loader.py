@@ -1145,7 +1145,11 @@ def _parse_llm_judge(raw_tasks: List[Dict[str, Any]]) -> "LLMJudgeData":
             "toxicity", "bias", "faithfulness", "criteria_overall"]
     avgs = {}
     for dim in dims:
-        vals = [r["scores"][dim] for r in results if r.get("scores") and dim in r["scores"]]
+        # faithfulness는 None(누락)이 가능 — None 제외하고 실제 채점 건수만 평균
+        vals = [
+            r["scores"][dim] for r in results
+            if r.get("scores") and dim in r["scores"] and isinstance(r["scores"][dim], (int, float))
+        ]
         avgs[dim] = round(sum(vals) / len(vals), 3) if vals else 0.0
 
     return LLMJudgeData(

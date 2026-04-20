@@ -251,7 +251,8 @@ echo ".env" >> .gitignore
 
 # 배포 기준 (Config-as-Code)
 from agent_evaluator import ObservabilityConfig
-@agent_eval(monitor, observability=ObservabilityConfig(min_trace_coverage=0.9))
+from agent_evaluator.decorators import agent_eval
+@agent_eval(monitor, observability=ObservabilityConfig(min_coverage=0.9))
 def agent(...): ...
 ```
 

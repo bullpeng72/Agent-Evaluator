@@ -46,6 +46,15 @@ import time
 from pathlib import Path
 from typing import Any, Dict, List
 
+# ---------------------------------------------------------------------------
+# 💡 import 간략화 팁: 아래 긴 import 대신 `import agent_evaluator as ae` 한 줄로
+#    33개 Config 전체 + PerformanceMonitor · create_taskresult 등을 ae.XXX 로 사용 가능.
+#
+#   import agent_evaluator as ae
+#   from agent_evaluator.decorators import agent_eval, batch_eval, RetryConfig
+#
+#   ae.InstructionConfig(...)  ae.SLAConfig(...)  ae.LoopDetectionConfig(...)
+# ---------------------------------------------------------------------------
 from agent_evaluator import (
     PerformanceMonitor,
     create_taskresult,
@@ -117,6 +126,11 @@ monitor = PerformanceMonitor(
     enable_hallucination_detection=False,
     enable_security_metrics=True,
     enable_transparency=True,           # 투명성 탭: 메트릭 계산 Traces 자동 생성
+    # LLM Judge 활성화 — Gate A goal_alignment/plan_coherence 블렌딩에 사용
+    # API 키 없는 환경에서도 기본 평가는 정상 동작함 (judge만 skip)
+    enable_llm_judge=bool(__import__("os").getenv("ANTHROPIC_API_KEY") or __import__("os").getenv("OPENAI_API_KEY")),
+    judge_model=None,          # None → AGENT_EVALUATOR_JUDGE_PROVIDER 환경변수 기반 자동 결정
+    judge_sample_rate=1.0,     # 예제이므로 100% 채점 (프로덕션: 0.1 권장)
 )
 
 
@@ -148,6 +162,11 @@ def instruction_agent(question: str, ground_truth: str = "") -> str:
     goal_alignment=GoalAlignmentConfig(
         goal_tool_map={"분석": ["analyze_tool", "search"]},
         alignment_threshold=0.5,
+        # LLM Judge와 rule-based 점수를 가중 블렌딩 (개선 3)
+        # enable_llm_judge=True + use_llm_scoring=True 조합 시 Gate A 점수에 반영됨
+        # llm_blend_weight: 0.0=rule only, 1.0=LLM only, 0.5=50:50(기본)
+        use_llm_scoring=True,
+        llm_blend_weight=0.5,
     ),
 )
 def goal_aligned_agent(question: str, ground_truth: str = "") -> str:
@@ -163,6 +182,9 @@ def goal_aligned_agent(question: str, ground_truth: str = "") -> str:
         check_goal_coverage=True,
         min_steps=2,
         available_tools=["search", "analyze"],
+        # LLM Judge relevance와 rule-based plan score를 블렌딩 (개선 3)
+        use_llm_scoring=True,
+        llm_blend_weight=0.5,
     ),
 )
 def plan_agent(question: str, ground_truth: str = "") -> str:

@@ -3,10 +3,9 @@ from __future__ import annotations
 from typing import Any, Dict, List
 from fastapi import APIRouter, HTTPException, Request
 
-router = APIRouter(prefix="/api/feedback", tags=["feedback"])
+from agent_evaluator.serve.routers._utils import _rs
 
-def _rs(request: Request):
-    return request.app.state.result_set
+router = APIRouter(prefix="/api/feedback", tags=["feedback"])
 
 @router.get("", summary="피드백 목록")
 def list_feedback(request: Request) -> List[Dict[str, Any]]:

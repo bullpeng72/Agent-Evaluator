@@ -14,6 +14,8 @@ v0.8.0: Direct-API wrapper classes (LangChainEvaluator, CrewAIEvaluator 등) 완
 
 from typing import Any, Dict, List, Optional, Union
 
+from agent_evaluator.core.trackers.security import infer_privilege_level
+
 
 # ==============================================================================
 # Input Type Adapters — framework-agnostic 변환 헬퍼
@@ -509,33 +511,6 @@ def extract_tools_from_framework_object(obj: Any) -> List[str]:
             _extract_tools_list(getattr(participant, attr, None))
 
     return tool_names
-
-
-# ==============================================================================
-# Security helpers — shared across all framework adapters
-# ==============================================================================
-
-def infer_privilege_level(tool_name: str) -> str:
-    """도구 이름 기반 권한 수준 추론 (PrivilegeEscalationDetector용 공유 헬퍼).
-
-    DQ-124: CrewAI에만 있던 로직을 공유 유틸리티로 분리 —
-    LangChain / LangGraph / AutoGen 어댑터에서도 동일 휴리스틱 사용.
-
-    Returns:
-        "admin" | "write" | "read"
-    """
-    _tn = (tool_name or "").lower()
-    if any(k in _tn for k in (
-        "delete", "drop", "remove", "exec", "system", "admin", "root",
-        "sudo", "kill", "purge", "destroy", "truncate", "revoke", "chmod", "export",
-    )):
-        return "admin"
-    if any(k in _tn for k in (
-        "write", "update", "create", "modify", "insert", "post", "put",
-        "patch", "upload", "save", "backup", "sync", "push", "migrate",
-    )):
-        return "write"
-    return "read"
 
 
 # ==============================================================================

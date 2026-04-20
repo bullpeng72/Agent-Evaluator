@@ -880,8 +880,11 @@ import socket, os
 from agent_evaluator import setup_otel, PerformanceMonitor, QuickEval
 
 # 1단계: Phoenix OTEL 설정 (PerformanceMonitor 생성 전)
-if socket.create_connection(("localhost", 6006), timeout=2):
+try:
+    socket.create_connection(("localhost", 6006), timeout=2)
     setup_otel(endpoint="http://localhost:6006", service_name="prod-agent")
+except OSError:
+    pass  # Phoenix 없는 환경에서는 OTEL 없이 동작
 
 # 2단계: 모니터 초기화
 monitor = PerformanceMonitor(

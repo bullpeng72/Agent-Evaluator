@@ -210,6 +210,9 @@ class PerformanceMonitor:
         enabled_security_trackers: Optional[List[str]] = None,
         # D2: OTEL 자식 스팬 — chain_steps 각 항목을 별도 자식 스팬으로 발행
         enable_otel_child_spans: bool = False,
+        # Phase 1: Harness D Config 파라미터 연동
+        ttft_variability_config: Optional[Any] = None,
+        cost_predictability_config: Optional[Any] = None,
     ):
         """
         Initialize Performance Monitor
@@ -325,6 +328,9 @@ class PerformanceMonitor:
         )
         # D2: OTEL 자식 스팬 활성화 여부
         self.enable_otel_child_spans: bool = enable_otel_child_spans
+        # Phase 1: Harness D Config 인스턴스 저장
+        self._ttft_variability_config = ttft_variability_config
+        self._cost_predictability_config = cost_predictability_config
 
         # Layer 1: Security trackers (optional)
         self.input_sanitizer = None
@@ -2667,6 +2673,8 @@ class PerformanceMonitor:
                     security_metrics=security_metrics,
                     layer1=layer1,
                     layer2=layer2,
+                    ttft_variability_config=self._ttft_variability_config,
+                    cost_predictability_config=self._cost_predictability_config,
                 )
                 if harness_groups:
                     extra_metrics = {"harness_groups": harness_groups}
@@ -2694,6 +2702,8 @@ class PerformanceMonitor:
         security_metrics: dict,
         layer1: Optional[Dict[str, Any]] = None,
         layer2: Optional[Dict[str, Any]] = None,
+        ttft_variability_config: Optional[Any] = None,
+        cost_predictability_config: Optional[Any] = None,
     ) -> dict:
         """v0.9.1+: Harness Config 지표가 기록된 TaskResult들에서 그룹별 집계 점수를 계산한다.
 
@@ -2733,18 +2743,44 @@ class PerformanceMonitor:
         ]
         avg_ifr = sum(_ifr_scores) / len(_ifr_scores) if _ifr_scores else None
 
-        _goal_a_vals = [
-            t.extra["goal_alignment"]["score"]
-            for t in tasks
-            if (t.extra or {}).get("goal_alignment") is not None
-        ]
+        _goal_a_vals: _List[float] = []
+        for _t in tasks:
+            _ga = ((_t.extra or {}).get("goal_alignment") or {})
+            if not _ga:
+                continue
+            _ga_score = float(_ga.get("score", 0.0))
+            # use_llm_scoring=True 이고 LLM judge relevance 점수가 있으면 블렌딩 (추가 API 호출 없음)
+            if _ga.get("use_llm_scoring"):
+                _lj = (_t.extra or {}).get("llm_judge") or {}
+                _lj_scores = _lj.get("scores") or {}
+                _rel = _lj_scores.get("relevance")
+                if _rel is not None:
+                    try:
+                        _rel_norm = float(_rel) / 5.0  # 0-5 → 0-1 정규화
+                        _w = max(0.0, min(1.0, float(_ga.get("llm_blend_weight", 0.5))))
+                        _ga_score = _ga_score * (1 - _w) + _rel_norm * _w
+                    except (TypeError, ValueError):
+                        pass
+            _goal_a_vals.append(_ga_score)
         avg_goal_a = sum(_goal_a_vals) / len(_goal_a_vals) if _goal_a_vals else None
 
-        _plan_a_vals = [
-            t.extra["plan_coherence"]["score"]
-            for t in tasks
-            if (t.extra or {}).get("plan_coherence") is not None
-        ]
+        _plan_a_vals: _List[float] = []
+        for _t in tasks:
+            _pc = ((_t.extra or {}).get("plan_coherence") or {})
+            if not _pc:
+                continue
+            _pc_score = float(_pc.get("score", 0.0))
+            # use_llm_scoring=True 이면 기존 LLM judge relevance 점수와 가중 블렌딩
+            if _pc.get("use_llm_scoring"):
+                _lj_pc = ((_t.extra or {}).get("llm_judge") or {})
+                _rel_pc = (_lj_pc.get("scores") or {}).get("relevance")
+                if _rel_pc is not None:
+                    try:
+                        _w_pc = max(0.0, min(1.0, float(_pc.get("llm_blend_weight", 0.5))))
+                        _pc_score = _pc_score * (1 - _w_pc) + (float(_rel_pc) / 5.0) * _w_pc
+                    except (TypeError, ValueError):
+                        pass
+            _plan_a_vals.append(_pc_score)
         avg_plan_a = sum(_plan_a_vals) / len(_plan_a_vals) if _plan_a_vals else None
 
         _subtask_vals = [
@@ -2792,22 +2828,44 @@ class PerformanceMonitor:
         _loop_rate = _loop_counts / n
 
         avg_goal_align: Optional[float] = None
-        _goal_vals = [
-            t.extra["goal_alignment"]["score"]
-            for t in tasks
-            if (t.extra or {}).get("goal_alignment") is not None
-        ]
+        _goal_vals: _List[float] = []
+        for _t in tasks:
+            _ga2 = ((_t.extra or {}).get("goal_alignment") or {})
+            if not _ga2:
+                continue
+            _ga2_score = float(_ga2.get("score", 0.0))
+            if _ga2.get("use_llm_scoring"):
+                _lj2 = ((_t.extra or {}).get("llm_judge") or {})
+                _rel2 = (_lj2.get("scores") or {}).get("relevance")
+                if _rel2 is not None:
+                    try:
+                        _w2 = max(0.0, min(1.0, float(_ga2.get("llm_blend_weight", 0.5))))
+                        _ga2_score = _ga2_score * (1 - _w2) + (float(_rel2) / 5.0) * _w2
+                    except (TypeError, ValueError):
+                        pass
+            _goal_vals.append(_ga2_score)
         if _goal_vals:
             avg_goal_align = sum(_goal_vals) / len(_goal_vals)
 
         avg_plan: Optional[float] = None
-        _plan_vals = [
-            t.extra["plan_coherence"]["score"]
-            for t in tasks
-            if (t.extra or {}).get("plan_coherence") is not None
-        ]
-        if _plan_vals:
-            avg_plan = sum(_plan_vals) / len(_plan_vals)
+        _plan_vals_b: _List[float] = []
+        for _t in tasks:
+            _pc2 = ((_t.extra or {}).get("plan_coherence") or {})
+            if not _pc2:
+                continue
+            _pc2_score = float(_pc2.get("score", 0.0))
+            if _pc2.get("use_llm_scoring"):
+                _lj_pc2 = ((_t.extra or {}).get("llm_judge") or {})
+                _rel_pc2 = (_lj_pc2.get("scores") or {}).get("relevance")
+                if _rel_pc2 is not None:
+                    try:
+                        _w_pc2 = max(0.0, min(1.0, float(_pc2.get("llm_blend_weight", 0.5))))
+                        _pc2_score = _pc2_score * (1 - _w_pc2) + (float(_rel_pc2) / 5.0) * _w_pc2
+                    except (TypeError, ValueError):
+                        pass
+            _plan_vals_b.append(_pc2_score)
+        if _plan_vals_b:
+            avg_plan = sum(_plan_vals_b) / len(_plan_vals_b)
 
         _sc_scores = [
             t.extra["state_consistency"]["consistency_score"]
@@ -2948,11 +3006,23 @@ class PerformanceMonitor:
         except Exception:
             pass
 
-        _eff_ratios = [
-            t.extra["efficiency"]["efficiency_ratio"]
-            for t in tasks
-            if (t.extra or {}).get("efficiency") is not None
-        ]
+        # calibrated_score 우선 사용 (target_cost_per_completion 설정 시); 없으면 efficiency_ratio
+        _eff_calibrated_vals: _List[float] = []
+        _eff_ratios: _List[float] = []
+        for _t in tasks:
+            _eff = ((_t.extra or {}).get("efficiency") or {})
+            if not _eff:
+                continue
+            if "calibrated_score" in _eff:
+                _eff_calibrated_vals.append(float(_eff["calibrated_score"]))
+            _eff_ratios.append(float(_eff.get("efficiency_ratio", 0.0)))
+        # calibrated_score가 있는 태스크가 절반 이상이면 calibrated_score 사용
+        if len(_eff_calibrated_vals) >= max(1, len(_eff_ratios) // 2):
+            avg_eff_calibrated: Optional[float] = (
+                sum(_eff_calibrated_vals) / len(_eff_calibrated_vals)
+            )
+        else:
+            avg_eff_calibrated = None
         avg_eff_ratio = sum(_eff_ratios) / len(_eff_ratios) if _eff_ratios else None
 
         # resource_budget → Group D (Phase 4)
@@ -2963,7 +3033,13 @@ class PerformanceMonitor:
         ]
         _avg_budget: Optional[float] = sum(_budget_scores) / len(_budget_scores) if _budget_scores else None
 
-        # TTFT variability (Phase 5 — automatic, no Config needed)
+        # TTFT variability — TTFTVariabilityConfig 파라미터 우선 사용
+        _ttft_cfg = ttft_variability_config
+        _ttft_min_samples: int = int(getattr(_ttft_cfg, "min_samples", 5)) if _ttft_cfg else 5
+        _ttft_max_std: float = float(getattr(_ttft_cfg, "max_stddev_ms", 500.0)) if _ttft_cfg else 500.0
+        _ttft_max_ratio: float = float(getattr(_ttft_cfg, "max_p95_p50_ratio", 3.0)) if _ttft_cfg else 3.0
+        _ttft_remove_outliers: bool = bool(getattr(_ttft_cfg, "remove_outliers", True)) if _ttft_cfg else True
+
         _ttft_values: _List[float] = []
         for _t in tasks:
             _ttft = None
@@ -2979,9 +3055,9 @@ class PerformanceMonitor:
         _ttft_stddev: Optional[float] = None
         _ttft_p50: Optional[float] = None
         _ttft_p95: Optional[float] = None
-        if len(_ttft_values) >= 5:
+        if len(_ttft_values) >= _ttft_min_samples:
             _ttft_sorted = sorted(_ttft_values)
-            if len(_ttft_sorted) >= 4:
+            if _ttft_remove_outliers and len(_ttft_sorted) >= 4:
                 _q1 = _ttft_sorted[len(_ttft_sorted) // 4]
                 _q3 = _ttft_sorted[3 * len(_ttft_sorted) // 4]
                 _iqr = _q3 - _q1
@@ -2998,15 +3074,17 @@ class PerformanceMonitor:
                 _p95_idx = int(0.95 * len(_ttft_clean))
                 _ttft_p95 = sorted(_ttft_clean)[min(_p95_idx, len(_ttft_clean) - 1)]
                 _ttft_ratio = _ttft_p95 / max(_ttft_p50, 1.0)
-                _max_std = 500.0
-                _max_ratio = 3.0
-                _std_score = max(0.0, 1.0 - _ttft_stddev / _max_std)
-                _ratio_score = max(0.0, 1.0 - (_ttft_ratio - 1.0) / max(_max_ratio - 1.0, 1.0))
+                _std_score = max(0.0, 1.0 - _ttft_stddev / max(_ttft_max_std, 1.0))
+                _ratio_score = max(0.0, 1.0 - (_ttft_ratio - 1.0) / max(_ttft_max_ratio - 1.0, 1.0))
                 _avg_ttft_variability = (_std_score + _ratio_score) / 2.0
 
-        # cost_predictability → Group D (Phase 6)
+        # cost_predictability — CostPredictabilityConfig 파라미터 우선 사용
+        _cost_cfg = cost_predictability_config
+        _cost_min_samples: int = int(getattr(_cost_cfg, "min_samples", 5)) if _cost_cfg else 5
+        _cost_max_cv: float = float(getattr(_cost_cfg, "max_coefficient_of_variation", 0.3)) if _cost_cfg else 0.3
+
         _avg_cost_predictability: Optional[float] = None
-        if len(tasks) >= 5:
+        if len(tasks) >= _cost_min_samples:
             _costs_by_type: Dict[str, _List[float]] = {}
             for _ct in tasks:
                 _ttype_d = str(_ct.task_type) if _ct.task_type else "unknown"
@@ -3026,7 +3104,8 @@ class PerformanceMonitor:
                     if _cv_mean > 0:
                         _cv_std = statistics.stdev(_costs_list)
                         _cv_val = _cv_std / _cv_mean
-                        _cv_score_d = max(0.0, 1.0 - _cv_val)
+                        # Config의 max_cv를 임계값으로 사용: CV가 max_cv 이하면 1.0
+                        _cv_score_d = max(0.0, 1.0 - _cv_val / max(_cost_max_cv, 0.01))
                         _cv_scores_d.append(_cv_score_d)
             if _cv_scores_d:
                 _avg_cost_predictability = sum(_cv_scores_d) / len(_cv_scores_d)
@@ -3034,7 +3113,10 @@ class PerformanceMonitor:
         _perf_vals: _List[float] = []
         if _p95 > 0:
             _perf_vals.append(max(0.0, 1.0 - min(1.0, _p95 / 10.0)))
-        if avg_eff_ratio is not None:
+        if avg_eff_calibrated is not None:
+            # target_cost_per_completion 기반 calibrated_score 사용 (0-1 직접 사용)
+            _perf_vals.append(avg_eff_calibrated)
+        elif avg_eff_ratio is not None:
             # Normalize: token-based ratio ~0.001 maps to 1.0; remove conditional to avoid score
             # reversal near the 0.001 boundary (e.g. 0.002 → 0.002 vs 0.0009 → 0.9).
             _norm_eff = min(1.0, avg_eff_ratio * 1000.0)

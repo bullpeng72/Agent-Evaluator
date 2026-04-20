@@ -422,9 +422,9 @@ Harness Config로 전환하면:
 
 | 기존 방식 | Harness Config 방식 |
 |---------|-------------------|
-| CLI 파라미터 (`--tcr 85`) | `InstructionConfig(min_completion_rate=0.85)` |
+| CLI 파라미터 (`--tcr 85`) | `SLAConfig(p95_ms=5000)` + `InstructionConfig(fail_on_violation=True)` |
 | 코드 외부에 기준 산재 | Git으로 기준 변경 이력 추적 |
-| 에이전트 유형별 구분 어려움 | `task_types=["qa"]`로 유형별 기준 분리 |
+| 에이전트 유형별 구분 어려움 | 데코레이터별 Config를 분리 선언 |
 | 재검토 시 어디를 봐야 하는지 불명확 | 단일 파일에서 전체 기준 조회 가능 |
 
 ### 14.7.2 에이전트 유형별 KPI를 Config로 선언
@@ -434,36 +434,37 @@ Harness Config로 전환하면:
 ```python
 # 출처: Evaluator_Examples/08_harness_eval.py, 섹션 Group A·C·D·E — KPI를 Config로 선언
 from agent_evaluator import (
-    agent_eval, PerformanceMonitor,
+    PerformanceMonitor,
     InstructionConfig, ReproducibilityConfig, SLAConfig,
     ThreatSeverityConfig, ComplianceConfig,
 )
+from agent_evaluator.decorators import agent_eval
 
 monitor = PerformanceMonitor(output_dir="results/", enable_security_metrics=True)
 
 # ── QA 챗봇 ──────────────────────────────────────────────────────────
 @agent_eval(
     monitor, task_type="qa",
-    instructions=InstructionConfig(min_completion_rate=0.85, min_accuracy=0.70, fail_on_violation=True),
-    sla=SLAConfig(max_p95_latency=5.0, fail_on_violation=True),
+    instructions=InstructionConfig(fail_on_violation=True),  # 지시 이행 기준
+    sla=SLAConfig(p95_ms=5000),                              # P95 5초 이하 (밀리초)
 )
 def qa_agent(question: str, ground_truth: str = "") -> str: ...
 
 # ── RAG 검색 ─────────────────────────────────────────────────────────
 @agent_eval(
     monitor, task_type="information_retrieval", rag_mode=True,
-    instructions=InstructionConfig(min_completion_rate=0.88, min_accuracy=0.75, fail_on_violation=True),
-    sla=SLAConfig(max_p95_latency=4.0, fail_on_violation=True),
-    reproducibility=ReproducibilityConfig(min_consistency_rate=0.80, fail_on_violation=False),  # 모니터링만
+    instructions=InstructionConfig(fail_on_violation=True),
+    sla=SLAConfig(p95_ms=4000),                              # P95 4초 이하
+    reproducibility=ReproducibilityConfig(reproducibility_threshold=0.80),  # 재현율 기준
 )
 def rag_agent(question: str, context: str = "", ground_truth: str = "") -> str: ...
 
 # ── 보안 에이전트 ─────────────────────────────────────────────────────
 @agent_eval(
     monitor, task_type="qa",
-    instructions=InstructionConfig(min_completion_rate=0.95, min_accuracy=0.80, fail_on_violation=True),
-    sla=SLAConfig(max_p95_latency=3.0, fail_on_violation=True),
-    threat_severity=ThreatSeverityConfig(max_severity="low", fail_on_violation=True),
+    instructions=InstructionConfig(fail_on_violation=True),
+    sla=SLAConfig(p95_ms=3000),                              # P95 3초 이하
+    threat_severity=ThreatSeverityConfig(warn_score=3.0, fail_score=6.0, fail_on_critical=True),
     compliance=ComplianceConfig(standards=["GDPR"], fail_on_violation=True),
 )
 def security_agent(question: str, ground_truth: str = "") -> str: ...
@@ -496,11 +497,11 @@ print(f"n=500, TCR=90%:  Wilson 하한 = {wilson_lower_bound(450, 500):.1%}") # 
 
 **임계값 설정에의 적용:**
 
-| 측정 샘플 수 | 전략 | 임계값 설정 |
+| 측정 샘플 수 | 전략 | TCR 임계값 계산 |
 |------------|------|-----------|
-| < 50건 | 보수적: Wilson 하한 사용 | `min_completion_rate = wilson_lower_bound(성공수, n)` |
-| 50~200건 | 절충: 관찰값과 Wilson 하한 평균 | `min_completion_rate = (관찰TCR + wilson_하한) / 2` |
-| 200건 이상 | 신뢰: 관찰값 - 5% 마진 | `min_completion_rate = 관찰TCR - 0.05` |
+| < 50건 | 보수적: Wilson 하한 사용 | `tcr = wilson_lower_bound(성공수, n)` |
+| 50~200건 | 절충: 관찰값과 Wilson 하한 평균 | `tcr = (관찰TCR + wilson_하한) / 2` |
+| 200건 이상 | 신뢰: 관찰값 - 5% 마진 | `tcr = 관찰TCR - 0.05` |
 
 ```python
 # 실무 패턴: 샘플 수에 따른 자동 임계값 결정
@@ -521,16 +522,20 @@ def adaptive_threshold(
         return max(0.0, observed - margin)
 
 # 2주 캘리브레이션 완료 후 Config 자동 생성
+# 출처: Evaluator_Examples/08_harness_eval.py, 섹션 Group A — InstructionConfig
 report = monitor.generate_report()
 total = int(report.total_tasks)
 successful = int(total * report.task_completion_rate / 100)
 threshold = adaptive_threshold(successful, total)
 
+# InstructionConfig는 응답 형식·키워드·분량 등 지시 이행 규칙을 정의한다
+# TCR 임계값(threshold)은 monitor.gate(tcr=...) 또는 agent-eval gate CLI로 관리한다
 instruction_cfg = InstructionConfig(
-    min_completion_rate=threshold,
     fail_on_violation=True,
+    # required_keywords, forbidden_phrases, min_chars 등 실제 지시 요건 추가
 )
-print(f"캘리브레이션 임계값: {threshold:.1%} (n={total})")
+print(f"캘리브레이션 TCR 임계값: {threshold:.1%} (n={total})")
+print(f"→ CI/CD: agent-eval gate result.json --tcr {threshold*100:.0f}")
 ```
 
 > 📋 **QA 관리자 TIP**: "우리 에이전트 TCR이 90%인데 임계값을 85%로 설정했다"는 것만으로는 충분하지 않습니다. "n=25에서 관찰한 90%는 Wilson 하한이 72%"이므로, 실제로는 72~100% 어딘가에 있습니다. 배포 초기 2주 동안은 Wilson 하한을 사용해 보수적으로 판단하고, 데이터가 200건 이상 쌓이면 관찰값 기반으로 전환하세요.

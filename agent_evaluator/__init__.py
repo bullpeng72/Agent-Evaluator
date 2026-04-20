@@ -38,7 +38,7 @@ Quick Start (Decorator):
     >>> # Metrics auto-recorded on every call!
 """
 
-__version__ = "0.8.2"
+__version__ = "0.8.3"
 __author__ = "Sungwoo Kim"
 
 # Exception hierarchy (경량 — 외부 의존성 없음)
@@ -178,7 +178,7 @@ from .decorators import (
 )
 
 # Task 6: QuickEval — 원스톱 평가 Facade
-from .quick_eval import QuickEval
+from .quick_eval import QuickEval, HarnessEvaluationGate
 
 # Import helpers with simplified names
 from .helpers.taskresult_helpers import create_taskresult_from_execution as create_taskresult
@@ -416,6 +416,10 @@ __all__ = [
     'CostTracker',
     'AdaptivePolicy',
     'SamplingStage',
+
+    # QuickEval Facade + HarnessEvaluationGate
+    'QuickEval',
+    'HarnessEvaluationGate',
 
     # Golden Set Builder (Phase 3-A — lazy)
     'GoldenSetBuilder',

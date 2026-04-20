@@ -8,7 +8,7 @@
 │ Config 5종: ReproducibilityConfig · FaultToleranceConfig · │
 │             GracefulDegradationConfig ·                    │
 │             RetryConsistencyConfig · IdempotencyConfig      │
-│ Gate 판정: HarnessEvaluationGate.check_group_C()           │
+│ Gate 판정: HarnessEvaluationGate(report).evaluate()         │
 └────────────────────────────────────────────────────────────┘
 ```
 
@@ -76,6 +76,7 @@ Group A(목표달성)가 "결과가 맞는가?"를 묻는다면, Group C는 "결
 - **정보 출처 추적**: RAG 에이전트의 경우 응답이 검색된 문서에 기반하는가
 
 ```python
+# 출처: Evaluator_Examples/01_layer1_all_metrics.py, 섹션 3 — HallucinationDetector + RAG 평가
 from agent_evaluator import PerformanceMonitor
 from agent_evaluator.decorators import agent_eval
 
@@ -115,6 +116,7 @@ print(f"환각 점수: {d.get('hallucination_score', 0):.3f}")
 환각 탐지를 더 정밀하게 하려면 LLMJudge와 결합한다.
 
 ```python
+# 출처: Evaluator_Examples/01_layer1_all_metrics.py, 섹션 3 — LLMJudge faithfulness + RAG
 from agent_evaluator import LLMJudgeConfig
 
 @agent_eval(
@@ -147,6 +149,7 @@ def rag_agent(question: str, context: str = "", ground_truth: str = "") -> str:
 | `self_correction_rate` | 스스로 오류를 수정한 비율 |
 
 ```python
+# 출처: Evaluator_Examples/02_layer2_agentic_security.py, 섹션 2 — RetryCorrectionTracker
 from agent_evaluator import create_taskresult
 
 # 재시도 정보 기록
@@ -529,6 +532,7 @@ from agent_evaluator import (
     ReproducibilityConfig, RetryConsistencyConfig, IdempotencyConfig,
     RetryConfig,
 )
+from agent_evaluator.decorators import agent_eval
 
 # ── FaultToleranceConfig + GracefulDegradationConfig: 장애 내성 + 우아한 저하 ──
 @agent_eval(

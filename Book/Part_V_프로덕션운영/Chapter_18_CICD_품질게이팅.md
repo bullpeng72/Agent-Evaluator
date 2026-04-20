@@ -730,10 +730,11 @@ DeadlockConfig     → pass/fail ─┘
 # ci_quality_check.py — CI/CD 파이프라인에서 실행
 import sys, json
 from agent_evaluator import (
-    PerformanceMonitor, agent_eval, create_taskresult,
+    PerformanceMonitor, create_taskresult,
     InstructionConfig, SLAConfig, ThreatSeverityConfig,   # Group A, D, E
     ReproducibilityConfig, DeadlockConfig, ObservabilityConfig,  # Group C, B, G
 )
+from agent_evaluator.decorators import agent_eval
 
 # 1. PerformanceMonitor 생성 (Harness Config는 @agent_eval에서 선언)
 monitor = PerformanceMonitor(
@@ -750,25 +751,24 @@ with open("data/golden_datasets/master_golden.json") as f:
     monitor, task_type="qa",
     # Group A — 목표달성
     instructions=InstructionConfig(
-        min_completion_rate=0.85,
-        min_accuracy_score=0.72,
-        fail_on_violation=True,       # 위반 시 success=False 강제
+        required_keywords=[],          # 필수 키워드 (빈 목록 = 모두 허용)
+        fail_on_violation=True,        # 위반 시 success=False 강제
     ),
     # Group D — 성능계약
     sla=SLAConfig(
-        max_p95_latency_sec=3.0,
-        max_cost_per_task_usd=0.05,
-        fail_on_violation=True,
+        p95_ms=3000,                   # P95 레이턴시 3초 이내
+        max_cost_per_task=0.05,        # 태스크당 최대 $0.05
     ),
     # Group E — 보안경계
     threat_severity=ThreatSeverityConfig(
-        max_severity_level="low",
-        fail_on_violation=True,       # 보안 위반은 즉시 배포 차단
+        warn_score=3.0,
+        fail_score=7.0,
+        fail_on_critical=True,         # 보안 위반은 즉시 배포 차단
     ),
     # Group C — 신뢰성
     reproducibility=ReproducibilityConfig(
-        min_consistency_score=0.80,
-        fail_on_violation=False,      # 경고만, 배포는 허용
+        reproducibility_threshold=0.80,
+        fail_on_low_reproducibility=False,  # 경고만, 배포는 허용
     ),
 )
 def production_agent(question: str, ground_truth: str = "") -> str:

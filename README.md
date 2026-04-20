@@ -3,7 +3,7 @@
 [![PyPI version](https://img.shields.io/pypi/v/agent-evaluator.svg)](https://pypi.org/project/agent-evaluator/)
 [![Python Version](https://img.shields.io/badge/python-3.8%2B-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Version](https://img.shields.io/badge/version-0.8.2-green.svg)](https://github.com/bullpeng72/Agent-Evaluator)
+[![Version](https://img.shields.io/badge/version-0.8.3-green.svg)](https://github.com/bullpeng72/Agent-Evaluator)
 
 **AI 에이전트 배포 준비도를 7개 Gate로 판정하는 Harness Engineering 평가 SDK**
 
@@ -1477,6 +1477,15 @@ mypy agent_evaluator/          # 타입 검사
 ---
 
 ## 변경 이력
+
+### v0.8.3 (2026-04-20) — LLMJudge 안정성 강화 · Gate A 블렌딩 가중치 · 비동기 지원
+
+- LLMJudge 연속 오류 자동 비활성화 (3회 연속 실패 → `reset_errors()`로 복구)
+- `faithfulness` 누락 시 `None` 저장 — 점수 오염 방지
+- `AGENT_EVALUATOR_JUDGE_PROVIDER` 환경변수 도입 (`auto` / `openai` / `anthropic`)
+- `GoalAlignmentConfig` · `PlanConfig`에 `llm_blend_weight` 추가 (LLM-rule 혼합 비율, 기본 0.5)
+- `LLMJudge.ajudge()` 비동기 메서드 추가
+- `LLMJudgeConfig.sample_rate` 데코레이터 전달 버그 수정
 
 ### v0.8.2 (2026-04-17) — Harness Config 33개 양식 통일 · 대시보드 UI 개선
 

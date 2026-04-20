@@ -577,7 +577,7 @@ print(f"평균 지연: {summary.get('avg_latency', 0):.2f}초")
 │ 🔗 Harness 연결                                      │
 │ 이 절은 모든 Group에 걸쳐 있습니다.                    │
 │ 에이전트 유형이 "어떤 Group을 우선 활성화할지"를 결정.  │
-│ Gate 판정: HarnessEvaluationGate(group_configs={...}) │
+│ Gate 판정: HarnessEvaluationGate(report).evaluate()   │
 └─────────────────────────────────────────────────────┘
 
 ### 에이전트 유형별 최소 세트 표
@@ -610,8 +610,8 @@ monitor = PerformanceMonitor(output_dir="results/")
 @agent_eval(
     monitor,
     task_type="qa",
-    instructions=InstructionConfig(min_completion_rate=0.85),
-    reproducibility=ReproducibilityConfig(min_consistency_score=0.80),
+    instructions=InstructionConfig(fail_on_violation=True),          # 지시 이행 기준
+    reproducibility=ReproducibilityConfig(reproducibility_threshold=0.80),  # 재현성 임계값
 )
 def qa_agent(question: str, ground_truth: str = "") -> str:
     return llm.invoke(question)
@@ -624,8 +624,8 @@ monitor_rag = PerformanceMonitor.for_rag_evaluation(output_dir="results/")
     monitor_rag,
     task_type="information_retrieval",
     context_arg="context",
-    threat_severity=ThreatSeverityConfig(max_severity_level="medium", fail_on_violation=True),
-    idempotency=IdempotencyConfig(min_idempotency_score=0.75),
+    threat_severity=ThreatSeverityConfig(warn_score=4.0, fail_score=7.0, fail_on_critical=True),
+    idempotency=IdempotencyConfig(non_idempotent_penalty=0.2),
 )
 def rag_agent(question: str, context: str = "", ground_truth: str = "") -> str:
     return llm.invoke(f"컨텍스트: {context}\n질문: {question}")
@@ -637,14 +637,15 @@ monitor_multi = PerformanceMonitor(output_dir="results/")
 @agent_eval(
     monitor_multi,
     task_type="tool_use",
-    deadlock=DeadlockConfig(max_wait_cycles=3, fail_on_violation=True),
+    deadlock=DeadlockConfig(check_circular_delegation=True, max_delegation_depth=8),
     agent_role=AgentRoleConfig(
-        allowed_roles=["researcher", "writer", "reviewer"],
-        require_role_declaration=True,
+        role_name="researcher",
+        allowed_tools=["search", "read"],
+        forbidden_tools=["delete"],
     ),
     observability=ObservabilityConfig(
-        require_trace_id=True,
-        min_span_coverage=0.90,
+        min_coverage=0.90,
+        check_trace_continuity=True,
     ),
 )
 def multi_agent(question: str, ground_truth: str = "") -> str:

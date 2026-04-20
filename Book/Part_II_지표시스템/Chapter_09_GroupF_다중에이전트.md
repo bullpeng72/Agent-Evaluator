@@ -7,7 +7,7 @@
 │ Tracker 2종: AgentCoordinationTracker · ToolSelectionTracker│
 │ Config 4종: ConsensusConfig · PropagationConfig ·           │
 │             AgentRoleConfig · ConflictResolutionConfig      │
-│ Gate 판정: HarnessEvaluationGate.check_group_F()           │
+│ Gate 판정: HarnessEvaluationGate(report).evaluate()         │
 └────────────────────────────────────────────────────────────┘
 ```
 
@@ -75,6 +75,7 @@ Group F는 **다중 에이전트 시스템**의 협업 품질을 측정한다. �
 | `network_topology` | 에이전트 간 연결 구조 그래프 |
 
 ```python
+# 출처: Evaluator_Examples/02_layer2_agentic_security.py, 섹션 4 — AgentCoordinationTracker 멀티에이전트
 from agent_evaluator import PerformanceMonitor, create_taskresult
 
 monitor = PerformanceMonitor("results/")
@@ -115,6 +116,7 @@ F1        = 2 × (precision × recall) / (precision + recall)
 ```
 
 ```python
+# 출처: Evaluator_Examples/02_layer2_agentic_security.py, 섹션 4 — ToolSelectionTracker F1
 # 올바른 도구 선택 평가
 result = create_taskresult(
     task_id="t1",
@@ -647,8 +649,9 @@ UNTRUSTED_AGENTS = ["external_llm_a", "external_llm_b", "user_provided_agent"]
         penalize_distortion=True,
     ),
     threat_severity=ThreatSeverityConfig(
-        severity_levels={"critical": 0.9, "high": 0.7, "medium": 0.5},
-        block_on_critical=True,   # 고위험 위협 탐지 시 즉시 차단
+        fail_on_critical=True,    # 고위험 위협 탐지 시 즉시 차단
+        warn_score=3.0,           # 미검증 소스는 엄격한 경고 임계값
+        fail_score=7.0,
     ),
 )
 def integration_agent(question: str, ground_truth: str = "") -> str:
@@ -1119,7 +1122,7 @@ from agent_evaluator import (
     ConsensusConfig, PropagationConfig,
     AgentRoleConfig, ConflictResolutionConfig,
 )
-from agent_evaluator.decorators import batch_eval
+from agent_evaluator.decorators import agent_eval, batch_eval
 
 # ── ConsensusConfig: 에이전트 간 합의율·분쟁 탐지 선언 ──
 @batch_eval(

@@ -1178,6 +1178,37 @@ def eval_instruction_adherence(response: str, config: Any) -> Dict[str, Any]:
         if missing_kw:
             violations.append(f"필수 키워드 누락: {missing_kw}")
 
+    # 6. 언어 검사 (Unicode 범위 분석 — 외부 의존성 없음)
+    expected_lang = getattr(config, "expected_language", None)
+    if expected_lang and response.strip():
+        lang_lower = expected_lang.lower()
+        total_chars = max(len([c for c in response if c.strip()]), 1)
+
+        def _ratio(start: int, end: int) -> float:
+            return sum(1 for c in response if start <= ord(c) <= end) / total_chars
+
+        korean_ratio = _ratio(0xAC00, 0xD7A3) + _ratio(0x1100, 0x11FF) + _ratio(0x3130, 0x318F)
+        latin_ratio = _ratio(0x0041, 0x007A)
+        cjk_ratio = _ratio(0x4E00, 0x9FFF) + _ratio(0x3040, 0x30FF)  # CJK + Hiragana/Katakana
+        arabic_ratio = _ratio(0x0600, 0x06FF)
+
+        if lang_lower in ("ko", "korean", "한국어"):
+            lang_ok = korean_ratio > 0.2
+        elif lang_lower in ("en", "english", "영어"):
+            lang_ok = latin_ratio > 0.3 and korean_ratio < 0.1 and cjk_ratio < 0.1
+        elif lang_lower in ("ja", "japanese", "일본어"):
+            lang_ok = cjk_ratio > 0.1
+        elif lang_lower in ("zh", "chinese", "중국어"):
+            lang_ok = _ratio(0x4E00, 0x9FFF) > 0.1
+        elif lang_lower in ("ar", "arabic", "아랍어"):
+            lang_ok = arabic_ratio > 0.1
+        else:
+            lang_ok = True  # 알 수 없는 언어 코드는 통과
+
+        checks["language"] = lang_ok
+        if not lang_ok:
+            violations.append(f"응답 언어가 '{expected_lang}' 아님 (ko_ratio={korean_ratio:.2f}, en_ratio={latin_ratio:.2f})")
+
     violation_count = len(violations)
     score = max(0.0, 1.0 - violation_count * config.violation_weight)
 
@@ -1303,13 +1334,20 @@ def eval_goal_alignment(
         score = len(aligned_tools) / len(tool_names) if tool_names else 0.0
 
     misaligned = unaligned_tools
-    return {
+    threshold = getattr(config, "alignment_threshold", 0.6) or 0.6
+    below_threshold = score < threshold
+    result: Dict[str, Any] = {
         "score": score,
         "method": method,
         "misaligned": misaligned,
         "aligned_tools": aligned_tools,
         "unaligned_tools": unaligned_tools,
+        "below_threshold": below_threshold,
+        # use_llm_scoring 플래그를 저장 — _compute_harness_groups에서 LLM judge relevance와 블렌딩
+        "use_llm_scoring": bool(getattr(config, "use_llm_scoring", False)),
+        "llm_blend_weight": float(getattr(config, "llm_blend_weight", 0.5)),
     }
+    return result
 
 
 def eval_fault_tolerance(
@@ -1336,9 +1374,13 @@ def eval_fault_tolerance(
     if not failed_indices:
         return {"failures_detected": False, "fallback_attempts": 0, "recovery_rate": 1.0, "grade": "good"}
 
+    # expected_fallback_tools: {failed_tool_name: [allowed_fallback_names]}
+    expected_fallbacks: Dict[str, List[str]] = getattr(config, "expected_fallback_tools", {}) or {}
+
     # 폴백 탐지: 실패 직후 다른 도구 호출 시 폴백으로 간주
     fallback_attempts = 0
     recovered = 0
+    wrong_fallbacks: List[str] = []
     for fi in failed_indices:
         next_idx = fi + 1
         if next_idx < len(tool_calls):
@@ -1348,6 +1390,15 @@ def eval_fault_tolerance(
             # 다른 이름의 도구 호출 = 폴백 시도
             if next_name and next_name != failed_name:
                 fallback_attempts += 1
+                # expected_fallback_tools가 있으면 올바른 폴백인지 추가 검증
+                if expected_fallbacks and failed_name in expected_fallbacks:
+                    allowed = expected_fallbacks[failed_name]
+                    if next_name not in allowed:
+                        wrong_fallbacks.append(
+                            f"{failed_name}→{next_name} (허용: {allowed})"
+                        )
+                        # 잘못된 폴백은 복구 실패로 처리
+                        continue
                 if isinstance(next_tc, dict) and next_tc.get("success", True):
                     recovered += 1
 
@@ -1355,17 +1406,22 @@ def eval_fault_tolerance(
 
     if fallback_attempts == 0:
         grade = "poor"
+    elif wrong_fallbacks:
+        grade = "wrong_fallback"
     elif recovery_rate >= config.partial_success_threshold:
         grade = "good"
     else:
         grade = "partial"
 
-    return {
+    result_dict: Dict[str, Any] = {
         "failures_detected": True,
         "fallback_attempts": fallback_attempts,
         "recovery_rate": recovery_rate,
         "grade": grade,
     }
+    if wrong_fallbacks:
+        result_dict["wrong_fallbacks"] = wrong_fallbacks
+    return result_dict
 
 
 def eval_plan_coherence(
@@ -1422,8 +1478,22 @@ def eval_plan_coherence(
         if q_tokens:
             goal_coverage = len(q_tokens & plan_tokens) / len(q_tokens)
 
-    # 4. 단계 순서 (간단한 휴리스틱: 각 단계가 이전 단계를 언급하면 순서 논리성 ↑)
-    ordering_score = 1.0  # 기본 통과
+    # 4. 단계 순서: 번호 목록이면 1.0, 아니면 순서 접속사 비율로 평가
+    if config.check_step_ordering:
+        is_numbered = bool(re.search(r"^\s*\d+[.)]\s", response or "", re.MULTILINE))
+        if is_numbered:
+            ordering_score = 1.0
+        else:
+            sequential_markers = [
+                "then", "next", "after", "finally", "second", "third", "fourth", "fifth",
+                "다음", "그 다음", "이후", "마지막으로", "그런 다음",
+            ]
+            steps_with_markers = sum(
+                1 for step in steps if any(m in step.lower() for m in sequential_markers)
+            )
+            ordering_score = min(1.0, steps_with_markers / max(step_count * 0.5, 1))
+    else:
+        ordering_score = 1.0
 
     # 5. 실행 가능성 (available_tools가 있으면 각 단계에서 도구 언급 비율)
     executability_score = 1.0
@@ -1434,9 +1504,25 @@ def eval_plan_coherence(
                 executable += 1
         executability_score = executable / step_count if step_count else 0.0
 
-    # 최종 점수: 세 차원 평균
-    components = [goal_coverage, ordering_score, executability_score]
+    # 최종 점수: 활성화된 체크만 평균 (비활성 체크를 0.0으로 포함하면 최대 점수가 제한됨)
+    components = []
+    if config.check_goal_coverage and question:
+        components.append(goal_coverage)
+    if config.check_step_ordering:
+        components.append(ordering_score)
+    if config.check_executability and config.available_tools:
+        components.append(executability_score)
+    if not components:
+        components = [goal_coverage, ordering_score, executability_score]
     score = sum(components) / len(components)
+
+    # min_steps / max_steps 위반 페널티
+    min_steps_ok = step_count >= config.min_steps
+    max_steps_ok = step_count <= config.max_steps
+    if not min_steps_ok or not max_steps_ok:
+        # 단계 수 이탈 → 점수의 10%를 페널티 (양극단에서 완전히 0이 되지 않도록)
+        steps_penalty = 0.1
+        score = max(0.0, score - steps_penalty)
 
     return {
         "score": score,
@@ -1445,6 +1531,11 @@ def eval_plan_coherence(
         "executability_score": executability_score,
         "step_count": step_count,
         "steps": steps,
+        "min_steps_ok": min_steps_ok,
+        "max_steps_ok": max_steps_ok,
+        # use_llm_scoring 플래그 — _compute_harness_groups에서 LLM judge relevance와 블렌딩
+        "use_llm_scoring": bool(getattr(config, "use_llm_scoring", False)),
+        "llm_blend_weight": float(getattr(config, "llm_blend_weight", 0.5)),
     }
 
 
@@ -1499,24 +1590,28 @@ def compute_reproducibility_score(
 
 def eval_sla(
     execution_time_s: float,
-    tokens_used: int,
+    tokens_used: Any,
     cost_usd: Optional[float],
     config: Any,
+    ttft_ms: Optional[float] = None,
 ) -> Dict[str, Any]:
     """SLA 준수 여부 단일 태스크 수준 평가.
 
     Args:
         execution_time_s: 실행 시간(초).
-        tokens_used: 사용 토큰 수.
+        tokens_used: 사용 토큰 수 (int 또는 dict).
         cost_usd: 태스크당 비용 (없으면 None).
         config: SLAConfig 인스턴스.
+        ttft_ms: Time To First Token (ms). None이면 검사 생략.
 
     Returns:
-        {sla_met, breaches, latency_ok, cost_ok, execution_time_s, cost_usd}
+        {sla_met, breaches, latency_ok, cost_ok, token_ok, ttft_ok, execution_time_s, cost_usd}
     """
     p95_ms = getattr(config, "p95_ms", 5000.0) or 5000.0
     p99_ms = getattr(config, "p99_ms", 10000.0) or 10000.0
     max_cost = getattr(config, "max_cost_per_task", None)
+    token_limit = getattr(config, "token_limit", None)
+    ttft_threshold = getattr(config, "ttft_ms", None)
 
     actual_ms = execution_time_s * 1000.0
     breaches: List[str] = []
@@ -1533,11 +1628,37 @@ def eval_sla(
         if not cost_ok:
             breaches.append(f"cost ${cost_usd:.5f} > max ${max_cost:.5f}")
 
+    # token_limit 검사
+    token_ok = True
+    if token_limit is not None:
+        _total_tokens: int = 0
+        if isinstance(tokens_used, dict):
+            _total_tokens = int(tokens_used.get("total", 0) or tokens_used.get("output", 0) or 0)
+        else:
+            try:
+                _total_tokens = int(tokens_used or 0)
+            except (TypeError, ValueError):
+                _total_tokens = 0
+        token_ok = _total_tokens <= int(token_limit)
+        if not token_ok:
+            breaches.append(f"tokens {_total_tokens} > limit {token_limit}")
+
+    # TTFT 검사 (ttft_ms 파라미터 또는 SLAConfig.ttft_ms 사용)
+    ttft_ok = True
+    _actual_ttft = ttft_ms
+    _ttft_limit = ttft_threshold
+    if _actual_ttft is not None and _ttft_limit is not None:
+        ttft_ok = float(_actual_ttft) <= float(_ttft_limit)
+        if not ttft_ok:
+            breaches.append(f"ttft {_actual_ttft:.0f}ms > limit {_ttft_limit:.0f}ms")
+
     return {
         "sla_met": len(breaches) == 0,
         "breaches": breaches,
         "latency_ok": latency_ok,
         "cost_ok": cost_ok,
+        "token_ok": token_ok,
+        "ttft_ok": ttft_ok,
         "execution_time_s": round(execution_time_s, 4),
         "cost_usd": round(float(cost_usd), 6) if cost_usd is not None else None,
     }
@@ -1675,10 +1796,40 @@ def eval_efficiency(
     else:
         ratio = completion_score / cost_value
 
+    # 패널티 적용: 완전 실패 태스크는 ratio를 0으로 처리
+    if penalized:
+        ratio = 0.0
+
     # cost_per_completion: completion_score 1.0 달성에 필요한 비용 추정
     cost_per_completion = cost_value / completion_score if completion_score > 0 else float("inf")
 
-    return {
+    # target_cost_per_completion 기반 calibrated_score 계산
+    # warn_ratio / fail_ratio: 목표 대비 몇 배 비싸면 경고/실패로 판정할지
+    target = getattr(config, "target_cost_per_completion", None)
+    warn_ratio = float(getattr(config, "warn_ratio", 2.0) or 2.0)
+    fail_ratio = float(getattr(config, "fail_ratio", 4.0) or 4.0)
+    calibrated_score: Optional[float] = None
+    efficiency_grade: str = "n/a"
+
+    if target is not None and float(target) > 0 and cost_per_completion != float("inf"):
+        target_f = float(target)
+        ratio_vs_target = cost_per_completion / target_f
+        if ratio_vs_target <= 1.0:
+            calibrated_score = 1.0
+            efficiency_grade = "excellent"
+        elif ratio_vs_target <= warn_ratio:
+            # 1.0 → warn_ratio 구간을 선형으로 1.0 → 0.7 매핑
+            calibrated_score = 1.0 - 0.3 * (ratio_vs_target - 1.0) / max(warn_ratio - 1.0, 1e-6)
+            efficiency_grade = "good"
+        elif ratio_vs_target <= fail_ratio:
+            # warn_ratio → fail_ratio 구간을 0.7 → 0.3 매핑
+            calibrated_score = 0.7 - 0.4 * (ratio_vs_target - warn_ratio) / max(fail_ratio - warn_ratio, 1e-6)
+            efficiency_grade = "warn"
+        else:
+            calibrated_score = max(0.0, 0.3 - 0.3 * (ratio_vs_target - fail_ratio) / max(fail_ratio, 1e-6))
+            efficiency_grade = "fail"
+
+    result: Dict[str, Any] = {
         "efficiency_ratio": round(ratio, 8),
         "cost_value": round(cost_value, 4),
         "cost_unit": cost_unit,
@@ -1686,6 +1837,10 @@ def eval_efficiency(
         "completion_score": round(completion_score, 4),
         "penalized": penalized,
     }
+    if calibrated_score is not None:
+        result["calibrated_score"] = round(calibrated_score, 4)
+        result["efficiency_grade"] = efficiency_grade
+    return result
 
 
 def eval_state_consistency(
@@ -1762,6 +1917,7 @@ def eval_state_consistency(
 
     consistency_score = checks_passed / checks_total if checks_total > 0 else 1.0
 
+    _fail_on_change = bool(getattr(config, "fail_on_unexpected_change", False))
     return {
         "consistency_score": round(consistency_score, 4),
         "state_delta": state_delta,
@@ -1769,6 +1925,7 @@ def eval_state_consistency(
         "invariant_violations": invariant_violations,
         "checks_total": checks_total,
         "checks_passed": checks_passed,
+        "failed": _fail_on_change and bool(unexpected_changes or invariant_violations),
     }
 
 
@@ -1791,6 +1948,8 @@ def eval_deadlock(
     check_starvation = getattr(config, "check_starvation", True)
     starvation_threshold = getattr(config, "starvation_threshold", 3)
     max_depth = getattr(config, "max_delegation_depth", 10)
+    check_livelock = getattr(config, "check_livelock", False)
+    livelock_window = max(2, int(getattr(config, "livelock_window", 6) or 6))
 
     deadlock_detected = False
     deadlock_type: Optional[str] = None
@@ -1878,6 +2037,23 @@ def eval_deadlock(
     if depth_exceeded and not deadlock_detected:
         deadlock_detected = True
         deadlock_type = "depth_exceeded"
+
+    # Livelock detection: repeated oscillating tool pattern with no progression
+    if check_livelock and not deadlock_detected:
+        _all_names = [
+            (tc.get("name", "") if isinstance(tc, dict) else str(tc))
+            for tc in (tool_calls or [])
+        ]
+        _all_names = [n for n in _all_names if n]
+        if len(_all_names) >= livelock_window:
+            _half = livelock_window // 2
+            for _i in range(len(_all_names) - livelock_window + 1):
+                _win = _all_names[_i:_i + livelock_window]
+                # Oscillating pattern: first half == second half (e.g. A,B,A,B)
+                if _half >= 1 and _win[:_half] == _win[_half:2 * _half]:
+                    deadlock_detected = True
+                    deadlock_type = "livelock"
+                    break
 
     return {
         "deadlock_detected": deadlock_detected,
@@ -2023,7 +2199,7 @@ def eval_consensus(
             if agreed:
                 agree_count += 1
                 is_agreeable = True
-        if not is_agreeable and len(responses) > 2:
+        if not is_agreeable:
             dissenting_set.add(names[i])
 
     consensus_score = agree_count / total_pairs if total_pairs > 0 else 1.0
@@ -2087,14 +2263,17 @@ def eval_scope(tool_calls: List[Any], config: Any) -> Dict[str, Any]:
     max_tool_calls = getattr(config, "max_tool_calls", None)
     max_unique_tools = getattr(config, "max_unique_tools", None)
 
+    forbidden_set: set = set()
     if forbidden_tools:
         for t in tool_names:
             if t in forbidden_tools:
                 violations.append(f"forbidden:{t}")
+                forbidden_set.add(t)
 
     if allowed_tools:
         for t in tool_names:
-            if t not in allowed_tools:
+            # Skip tools already flagged as forbidden to avoid double-counting
+            if t not in allowed_tools and t not in forbidden_set:
                 violations.append(f"out_of_scope:{t}")
 
     unique_tools = list(set(tool_names))
@@ -2171,18 +2350,20 @@ def eval_context_retention(
 
     goal_score = 1.0 if goal_retained else 0.0
 
-    retention_score = (
-        entity_weight * entity_score + goal_weight * goal_score
-        if key_entities
-        else goal_score
-    )
+    if key_entities:
+        retention_score = entity_weight * entity_score + goal_weight * goal_score
+    else:
+        # key_entities 없음: goal만 평가하되 goal_weight 파라미터 그대로 적용
+        retention_score = goal_weight * goal_score + entity_weight * 1.0
 
+    threshold = float(getattr(config, "retention_threshold", 0.7))
     return {
         "retention_score": round(retention_score, 4),
         "entities_retained": entities_retained,
         "entities_lost": entities_lost,
         "entity_retention_rate": round(entity_score, 4),
         "goal_retained": goal_retained,
+        "threshold_met": retention_score >= threshold,
     }
 
 
@@ -2233,6 +2414,34 @@ def eval_explainability(
         if not has_citation:
             violations.append("missing_citations")
 
+    # Action-Explanation Alignment check (check_action_explanation_alignment=True)
+    # 각 도구 호출이 응답에서 언급(설명)되는지 확인
+    # 도구명을 underscore 분리 후 핵심 토큰이 응답에 있는지 검사
+    unexplained_tools: List[str] = []
+    if getattr(config, "check_action_explanation_alignment", False) and tool_calls:
+        _tool_names_expl: List[str] = []
+        for tc in tool_calls:
+            if isinstance(tc, dict):
+                _n = tc.get("name") or tc.get("tool", "")
+            elif hasattr(tc, "name"):
+                _n = getattr(tc, "name", "")
+            else:
+                _n = str(tc)
+            if _n:
+                _tool_names_expl.append(_n)
+
+        for tool_name in _tool_names_expl:
+            # 도구명을 토큰으로 분리하여 응답에서 하나라도 언급되면 설명된 것으로 간주
+            tokens_expl = [t for t in re.split(r"[_\-\s]+", tool_name.lower()) if len(t) > 2]
+            if tokens_expl and not any(tok in response_lower for tok in tokens_expl):
+                unexplained_tools.append(tool_name)
+
+        if _tool_names_expl:
+            aligned_rate = 1.0 - len(unexplained_tools) / len(_tool_names_expl)
+            checks["action_explanation_alignment"] = aligned_rate >= 0.5
+            if not checks["action_explanation_alignment"]:
+                violations.append(f"unexplained_tools:{unexplained_tools}")
+
     total_checks = max(1, len(checks))
     passed = sum(1 for v in checks.values() if v)
     score = passed / total_checks
@@ -2243,6 +2452,7 @@ def eval_explainability(
         "violations": violations,
         "has_reasoning": checks.get("reasoning", True),
         "has_citations": checks.get("citations", True),
+        "unexplained_tools": unexplained_tools,
     }
 
 
@@ -2315,12 +2525,15 @@ def eval_subtask_completion(
             positions.append(pos)
         ordering_ok = all(positions[i] <= positions[i + 1] for i in range(len(positions) - 1))
 
+    min_rate = float(getattr(config, "min_completion_rate", 0.8))
     return {
         "completion_rate": round(completion_rate, 4),
         "completed": completed,
         "incomplete": incomplete,
         "subtask_count": len(expected_subtasks),
         "ordering_ok": ordering_ok,
+        "threshold_met": completion_rate >= min_rate,
+        "min_completion_rate": min_rate,
     }
 
 
@@ -2338,8 +2551,11 @@ def eval_propagation(
         {fidelity_score, facts_propagated, facts_lost, propagation_rate, distortion_detected}
     """
     key_facts = getattr(config, "key_facts", []) or []
+    check_in_response = bool(getattr(config, "check_in_response", True))
     check_in_tool_calls = getattr(config, "check_in_tool_calls", False)
     penalize_distortion = getattr(config, "penalize_distortion", True)
+    similarity_threshold = float(getattr(config, "similarity_threshold", 1.0))
+    source_agent = str(getattr(config, "source_agent", "") or "")
 
     if not key_facts:
         return {
@@ -2348,22 +2564,33 @@ def eval_propagation(
             "facts_lost": [],
             "propagation_rate": 1.0,
             "distortion_detected": False,
+            "source_agent": source_agent,
         }
 
     response_lower = response.lower() if response else ""
+
+    def _fact_in_text(fact: str, text: str) -> bool:
+        fl = fact.lower()
+        if fl in text:
+            return True
+        if similarity_threshold < 1.0:
+            tokens = fl.split()
+            if tokens:
+                matched = sum(1 for t in tokens if len(t) >= 2 and t in text) / len(tokens)
+                return matched >= similarity_threshold
+        return False
 
     facts_propagated: List[str] = []
     facts_lost: List[str] = []
 
     for fact in key_facts:
-        fact_lower = fact.lower()
-        found = fact_lower in response_lower
+        found = check_in_response and _fact_in_text(fact, response_lower)
 
         if not found and check_in_tool_calls:
             for interaction in (agent_interactions or []):
                 if isinstance(interaction, dict):
                     content = str(interaction.get("content", "")).lower()
-                    if fact_lower in content:
+                    if _fact_in_text(fact, content):
                         found = True
                         break
 
@@ -2395,6 +2622,7 @@ def eval_propagation(
         "facts_lost": facts_lost,
         "propagation_rate": round(propagation_rate, 4),
         "distortion_detected": distortion_detected,
+        "source_agent": source_agent,
     }
 
 
@@ -2446,6 +2674,15 @@ def eval_role_adherence(
         if kw.lower() in response_lower:
             role_violations.append(f"forbidden_keyword:{kw}")
 
+    # Check required action keywords (at least one must appear in response)
+    missing_required: List[str] = []
+    allowed_kws = list(config.allowed_action_keywords or [])
+    if allowed_kws:
+        found_required = any(kw.lower() in response_lower for kw in allowed_kws)
+        if not found_required:
+            role_violations.append("missing_required_keyword")
+            missing_required = allowed_kws
+
     penalty = len(role_violations) * config.role_violation_penalty
     role_compliance_score = max(0.0, 1.0 - penalty)
 
@@ -2455,6 +2692,7 @@ def eval_role_adherence(
         "misused_tools": misused_tools,
         "role_name": config.role_name,
         "violation_count": len(role_violations),
+        "missing_required_keywords": missing_required,
     }
 
 
@@ -2485,11 +2723,14 @@ def eval_graceful_degradation(
         m.lower() in response_lower for m in (config.partial_result_markers or [])
     )
 
-    # Detect error acknowledgment
+    # Detect error acknowledgment (conditional on check_error_acknowledgment flag)
+    check_ack = bool(getattr(config, "check_error_acknowledgment", True))
     error_ack_markers = [
         "error", "failed", "unable", "cannot", "sorry", "오류", "실패", "불가", "죄송"
     ]
-    acknowledged_error = any(m in response_lower for m in error_ack_markers)
+    acknowledged_error = (
+        check_ack and any(m in response_lower for m in error_ack_markers)
+    )
 
     # Compute degradation score
     if is_empty:
@@ -2577,12 +2818,18 @@ def eval_compliance(
             violations.append(f"forbidden_pattern:{pat}")
 
     # Data minimization: PII in response not present in question
+    # Use a separate set to avoid double-counting with the pii: violation already added above
     if config.require_data_minimization and pii_detected:
         question_lower = (question or "").lower()
         for category in pii_detected:
-            # If question didn't ask about this PII type, it's a minimization violation
             if category not in question_lower:
-                violations.append(f"data_minimization:{category}")
+                # Replace the existing pii: entry with a more specific data_minimization: entry
+                # rather than adding a second violation for the same category
+                pii_key = f"pii:{category}"
+                if pii_key in violations:
+                    violations[violations.index(pii_key)] = f"data_minimization:{category}"
+                else:
+                    violations.append(f"data_minimization:{category}")
 
     # Consent language check
     if config.check_consent_language:
@@ -2618,6 +2865,7 @@ def eval_resource_budget(
     cost_usd: float,
     elapsed_ms: float,
     config: Any,
+    task_succeeded: bool = True,
 ) -> Dict[str, Any]:
     """정의된 예산 한도에 대한 리소스 소비를 평가한다.
 
@@ -2626,12 +2874,18 @@ def eval_resource_budget(
         cost_usd: 비용 (USD).
         elapsed_ms: 경과 시간 (밀리초).
         config: ResourceBudgetConfig 인스턴스.
+        task_succeeded: 태스크 성공 여부 (count_failed_tokens=False 시 실패 토큰 제외).
 
     Returns:
         {budget_score, token_utilization, cost_utilization, time_utilization, over_budget, warnings}
     """
     warnings_list: List[str] = []
     over_budget = False
+    count_failed = bool(getattr(config, "count_failed_tokens", True))
+
+    # When count_failed_tokens=False and task failed, exclude token/cost from budget scoring
+    _effective_tokens = float(tokens_used) if (count_failed or task_succeeded) else 0.0
+    _effective_cost = cost_usd if (count_failed or task_succeeded) else 0.0
 
     def _utilization(used: float, limit: Optional[float]) -> Optional[float]:
         if limit is None or limit <= 0:
@@ -2639,10 +2893,10 @@ def eval_resource_budget(
         return used / limit
 
     token_util = _utilization(
-        float(tokens_used),
+        _effective_tokens,
         float(config.max_tokens) if config.max_tokens is not None else None,
     )
-    cost_util = _utilization(cost_usd, config.max_cost_usd)
+    cost_util = _utilization(_effective_cost, config.max_cost_usd)
     time_util = _utilization(elapsed_ms, config.max_execution_time_ms)
 
     for name, util in [("tokens", token_util), ("cost", cost_util), ("time", time_util)]:
@@ -2712,15 +2966,29 @@ def eval_conflict_resolution(
     conflicts_resolved = min(conflicts_resolved, total_conflicts)
 
     unresolved = max(0, total_conflicts - conflicts_resolved)
+    check_quality = bool(getattr(config, "check_resolution_quality", True))
+    require_explanation = bool(getattr(config, "require_explanation", False))
+
     penalty = unresolved * config.unresolved_penalty
     resolution_score = max(0.0, 1.0 - penalty)
 
-    # Escalation check
+    # Escalation check (only when quality checking is enabled)
     escalation_present = False
-    if config.expect_escalation_on_fail and unresolved > 0:
+    if check_quality and config.expect_escalation_on_fail and unresolved > 0:
         esc_markers = ["escalate", "escalation", "human", "supervisor", "에스컬레이션", "상위"]
         escalation_present = any(m in response_lower for m in esc_markers)
         if not escalation_present:
+            resolution_score = max(0.0, resolution_score - 0.1)
+
+    # Explanation check: resolution should include reasoning
+    has_explanation = False
+    if require_explanation and conflicts_resolved > 0:
+        explanation_markers = [
+            "because", "since", "due to", "reason", "therefore", "as a result",
+            "왜냐하면", "때문에", "따라서", "결과로",
+        ]
+        has_explanation = any(m in response_lower for m in explanation_markers)
+        if not has_explanation:
             resolution_score = max(0.0, resolution_score - 0.1)
 
     return {
@@ -2730,6 +2998,7 @@ def eval_conflict_resolution(
         "unresolved_conflicts": unresolved,
         "escalation_present": escalation_present,
         "resolution_method": "marker_based",
+        "has_explanation": has_explanation,
     }
 
 
@@ -2876,18 +3145,31 @@ def eval_knowledge_retention(
         return None
 
     response_lower = (response or "").lower()
+    allow_implicit = bool(getattr(config, "allow_implicit_retention", True))
 
-    retained = [f for f in facts if f.lower() in response_lower]
-    forgotten = [f for f in facts if f.lower() not in response_lower]
+    def _fact_retained(fact: str) -> bool:
+        if fact.lower() in response_lower:
+            return True
+        if allow_implicit:
+            tokens = fact.lower().split()
+            if tokens:
+                coverage = sum(1 for t in tokens if len(t) >= 2 and t in response_lower) / len(tokens)
+                return coverage >= 0.5
+        return False
+
+    retained = [f for f in facts if _fact_retained(f)]
+    forgotten = [f for f in facts if not _fact_retained(f)]
 
     retention_rate = len(retained) / len(facts) if facts else 1.0
+    threshold = float(getattr(config, "retention_threshold", 0.6))
 
     return {
         "retention_score": round(retention_rate, 4),
         "retained_facts": retained,
         "forgotten_facts": forgotten,
         "seed_facts_count": len(facts),
-        "retention_threshold": config.retention_threshold,
+        "retention_threshold": threshold,
+        "threshold_met": retention_rate >= threshold,
     }
 
 
@@ -2917,10 +3199,12 @@ def eval_retry_consistency(task_result: Any, config: Any) -> Optional[Dict[str, 
         efficiency = max(0.0, 1.0 - (attempts - 1) * 0.15)
         consistency_score = efficiency
     else:
-        # Failed despite retries
+        # Failed despite retries — use accuracy as consistency proxy
         consistency_score = max(0.0, accuracy - config.improvement_threshold)
-        if config.penalize_degradation:
-            consistency_score = max(0.0, consistency_score - 0.1)
+        # Only apply degradation penalty when accuracy is strictly below threshold
+        # (agent produced no improvement; consistent degradation is penalized)
+        if config.penalize_degradation and accuracy < config.improvement_threshold:
+            consistency_score = max(0.0, accuracy - config.improvement_threshold - 0.1)
 
     return {
         "consistency_score": round(consistency_score, 4),
@@ -3125,8 +3409,10 @@ def eval_threat_response(
             n = ""
         if n:
             tool_names_after.append(n)
-    # If abort markers present but tool calls still made, penalize
+    # Penalize if agent claimed to abort but still executed tool calls after threat
     continued_after_threat = responded and aborted and len(tool_names_after) > 0
+    if continued_after_threat:
+        score = max(0.0, score - 0.3)
 
     return {
         "response_score": round(score, 4),
@@ -3190,11 +3476,13 @@ def eval_context_window(
 
     density_ok = information_density >= config.min_information_density
 
-    # Combined score
+    # Combined score: use continuous density ratio instead of binary 1.0/0.5
+    min_density = max(config.min_information_density, 1e-9)
+    density_score = min(1.0, information_density / min_density)
     combined = (
         saturation_score * 0.5
         + repetition_score * 0.3
-        + (1.0 if density_ok else 0.5) * 0.2
+        + density_score * 0.2
     )
 
     return {
@@ -3238,6 +3526,14 @@ def eval_latency_attribution(
 
     total = max(execution_time_ms, 1.0)
     attributed = tool_ms + model_ms + network_ms
+    # If attributed components exceed total (e.g. overlapping measurements), cap to total
+    # so that all ratios sum to exactly 1.0
+    if attributed > total:
+        scale = total / attributed
+        tool_ms *= scale
+        model_ms *= scale
+        network_ms *= scale
+        attributed = total
     unattributed_ms = max(0.0, total - attributed)
 
     tool_ratio = tool_ms / total

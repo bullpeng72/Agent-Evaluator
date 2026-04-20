@@ -8,10 +8,9 @@ from __future__ import annotations
 from typing import Any, Dict, List
 from fastapi import APIRouter, HTTPException, Request
 
-router = APIRouter(prefix="/api/conversation", tags=["conversation"])
+from agent_evaluator.serve.routers._utils import _rs
 
-def _rs(request: Request):
-    return request.app.state.result_set
+router = APIRouter(prefix="/api/conversation", tags=["conversation"])
 
 @router.get("", summary="대화 세션 목록")
 def list_conversations(request: Request) -> List[Dict[str, Any]]:

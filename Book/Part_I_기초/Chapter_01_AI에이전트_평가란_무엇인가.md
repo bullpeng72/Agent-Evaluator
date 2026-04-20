@@ -119,7 +119,7 @@ Tracker (관찰/측정) × Config (기준 선언) × Gate (배포 판정)
 ```python
 # 출처: Evaluator_Examples/08_harness_eval.py, 섹션 1 — 3-Element Harness(Tracker·Config·Gate) 최소 예시
 from agent_evaluator import (
-    PerformanceMonitor,
+    PerformanceMonitor, HarnessEvaluationGate,
     InstructionConfig, SLAConfig, ThreatSeverityConfig,
 )
 from agent_evaluator.decorators import agent_eval
@@ -127,9 +127,18 @@ from agent_evaluator.decorators import agent_eval
 monitor = PerformanceMonitor(output_dir="results/")
 
 # ① Config 선언 — 배포 기준을 코드로 정의
-instruction_cfg = InstructionConfig(min_completion_rate=0.90, fail_on_violation=True)
-sla_cfg = SLAConfig(max_p95_latency=3.0, fail_on_violation=True)
-threat_cfg = ThreatSeverityConfig(max_severity="medium", fail_on_violation=True)
+instruction_cfg = InstructionConfig(
+    required_keywords=["결과"],  # 응답에 포함되어야 할 키워드
+    fail_on_violation=True,
+)
+sla_cfg = SLAConfig(
+    p95_ms=3000,                # P95 응답 3초 이내
+    max_cost_per_task=0.01,     # 태스크당 비용 $0.01 이하
+)
+threat_cfg = ThreatSeverityConfig(
+    fail_on_critical=True,       # 치명적 위협 탐지 시 fail
+    fail_score=7.0,
+)
 
 # ② Tracker 자동 수집 — @agent_eval이 실행마다 지표 기록
 @agent_eval(
@@ -143,7 +152,9 @@ def my_agent(question: str, ground_truth: str = "") -> str:
     return llm.invoke(question)
 
 # ③ Gate — Config 위반 시 배포 중단
-monitor.gate(tcr=90, p95_latency=3.0)
+report = monitor.generate_report()
+gate = HarnessEvaluationGate(report)
+gate.enforce()   # 기준 미달 시 sys.exit(1) → CI/CD 파이프라인 차단
 ```
 
 Group A-G 각 차원의 구체적인 Tracker와 Config는 **Part II — Harness 지표 체계**(Chapter 03~10)에서 상세히 다룹니다.
@@ -430,8 +441,11 @@ result = create_taskresult(
 
 monitor.record_task(result)
 report = monitor.generate_report()
-print(f"TCR: {report.task_completion_rate:.1%}")      # Group A 목표달성
-print(f"Accuracy: {report.average_accuracy:.1%}")     # Group A 목표달성
+d = report.to_dict()
+tcr = d.get("accuracy_metrics", {}).get("tcr", {}).get("tcr", 0.0)
+acc = d.get("accuracy_metrics", {}).get("accuracy_scores", {}).get("overall_accuracy", 0.0)
+print(f"TCR: {tcr:.1%}")      # Group A 목표달성
+print(f"Accuracy: {acc:.1%}") # Group A 목표달성
 ```
 
 - `create_taskresult()`는 `accuracy_score`를 자동 계산합니다 (TokenF1 40% + Jaccard 30% + LCS 20% + Char Levenshtein 10%)

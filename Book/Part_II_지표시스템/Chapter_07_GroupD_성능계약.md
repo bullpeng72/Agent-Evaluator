@@ -8,7 +8,7 @@
 │ Config 5종: SLAConfig · EfficiencyConfig ·                 │
 │             ResourceBudgetConfig · TTFTVariabilityConfig ·  │
 │             CostPredictabilityConfig                        │
-│ Gate 판정: HarnessEvaluationGate.check_group_D()           │
+│ Gate 판정: HarnessEvaluationGate(report).evaluate()         │
 └────────────────────────────────────────────────────────────┘
 ```
 
@@ -79,6 +79,7 @@ Group D는 에이전트가 **약속한 성능 계약(Performance Contract)**을 
 | `latency_histogram` | 응답 시간 분포 히스토그램 |
 
 ```python
+# 출처: Evaluator_Examples/01_layer1_all_metrics.py, 섹션 5 — LatencyTracker 퍼센타일
 from agent_evaluator import PerformanceMonitor
 from agent_evaluator.decorators import agent_eval
 import time
@@ -113,6 +114,7 @@ print(f"P99 응답 시간: {d.get('latency_p99', 0) * 1000:.0f}ms")
 스트리밍 응답 에이전트에서 첫 토큰까지의 대기 시간을 별도로 측정한다.
 
 ```python
+# 출처: Evaluator_Examples/01_layer1_all_metrics.py, 섹션 5 — 스트리밍 TTFT 자동 측정
 from agent_evaluator.decorators import agent_eval
 
 @agent_eval(monitor, task_type="qa")
@@ -146,6 +148,7 @@ def streaming_agent(question: str, ground_truth: str = "") -> str:
 | `token_efficiency` | 완료율 대비 토큰 효율 |
 
 ```python
+# 출처: Evaluator_Examples/01_layer1_all_metrics.py, 섹션 6 — TokenEconomyTracker 비용 추정
 from agent_evaluator import create_taskresult
 
 result = create_taskresult(
@@ -467,6 +470,7 @@ from agent_evaluator import (
     SLAConfig, EfficiencyConfig, ResourceBudgetConfig,
     TTFTVariabilityConfig, CostPredictabilityConfig,
 )
+from agent_evaluator.decorators import agent_eval
 
 # ── SLAConfig: SLA 응답시간·비용 계약 선언 ──
 @agent_eval(

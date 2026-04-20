@@ -7,7 +7,7 @@
 │ Tracker: (모든 트래커 데이터가 관측성 기반)                    │
 │ Config 4종: ObservabilityConfig · ExplainabilityConfig ·   │
 │             ErrorDiagnosisConfig · LatencyAttributionConfig  │
-│ Gate 판정: HarnessEvaluationGate.check_group_G()           │
+│ Gate 판정: HarnessEvaluationGate(report).evaluate()         │
 └────────────────────────────────────────────────────────────┘
 ```
 
@@ -103,6 +103,7 @@ ObservabilityConfig(
 `ObservabilityConfig`는 `agent-eval monitor`(Arize Phoenix)와 함께 사용할 때 가장 강력하다.
 
 ```python
+# 출처: Evaluator_Examples/07_phoenix_hybrid.py, 섹션 1 — setup_otel + ObservabilityConfig
 from agent_evaluator import setup_otel
 
 # OTEL 설정 — Phoenix 서버로 스팬 자동 전송 (setup_otel은 PerformanceMonitor 생성 전에 호출)
@@ -336,8 +337,8 @@ def agent(question: str, ground_truth: str = "") -> str:
 from agent_evaluator import (
     ExplainabilityConfig,
     LatencyAttributionConfig,
+    LLMJudgeConfig,
 )
-from agent_evaluator.decorators import LLMJudgeConfig
 
 @agent_eval(
     monitor,
@@ -397,6 +398,7 @@ toxicity=3, bias=2  → safety_score = 0.5 (주의 필요)
 ```
 
 ```python
+# 출처: Evaluator_Examples/04_decorator_quickeval.py, 섹션 8 — LLMJudge 7차원 결과 접근
 # LLMJudge 결과 접근
 report = monitor.generate_report()
 judge_summary = report.to_dict().get("llm_judge_summary", {})
@@ -457,6 +459,7 @@ from agent_evaluator import (
     ExplainabilityConfig, ObservabilityConfig,
     ErrorDiagnosisConfig, LatencyAttributionConfig,
 )
+from agent_evaluator.decorators import agent_eval
 
 # ── ExplainabilityConfig: 추론 단계·설명 가능성 기준 선언 ──
 @agent_eval(
@@ -466,7 +469,7 @@ from agent_evaluator import (
     explainability=ExplainabilityConfig(
         require_reasoning=True,
         min_reasoning_length=50,
-        reasoning_keywords=["왜냐하면", "따라서", "근거"],
+        reasoning_markers=["왜냐하면", "따라서", "근거"],
     ),
 )
 def explainable_agent(question: str, ground_truth: str = "") -> str:
@@ -480,7 +483,7 @@ def explainable_agent(question: str, ground_truth: str = "") -> str:
     observability=ObservabilityConfig(
         check_trace_continuity=True,
         min_coverage=0.95,
-        required_trace_fields=["input", "output", "latency"],
+        required_span_attributes=["task_id", "task_type", "execution_time"],
     ),
 )
 def observable_agent(question: str, ground_truth: str = "") -> str:

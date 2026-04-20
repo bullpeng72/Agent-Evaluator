@@ -175,18 +175,36 @@ def _resolve_default_model() -> str:
     """
     Settings에서 사용 가능한 API 키와 모델명을 읽어 기본 judge 모델을 결정한다.
 
-    우선순위:
-      1. OPENAI_API_KEY 설정됨  → OPENAI_MODEL (기본: gpt-4o-mini)
-      2. ANTHROPIC_API_KEY 설정됨 → ANTHROPIC_MODEL (기본: claude-haiku-4-5-20251001)
-      3. 둘 다 없으면 → "gpt-4o-mini" (사용 시 오류 메시지로 안내)
+    우선순위는 AGENT_EVALUATOR_JUDGE_PROVIDER 환경변수로 제어한다:
+      - "auto"      (기본): OPENAI_API_KEY 있으면 OpenAI 우선, 없으면 Anthropic
+      - "openai"   : OPENAI_API_KEY가 있을 때만 OpenAI 선택 (없으면 Anthropic 폴백)
+      - "anthropic": ANTHROPIC_API_KEY가 있을 때만 Anthropic 선택 (없으면 OpenAI 폴백)
+
+    ``agent-eval init``으로 설정한 API 키와 AGENT_EVALUATOR_JUDGE_PROVIDER 값이 반영된다.
     """
     try:
         from ..config import get_settings
         s = get_settings()
-        if s.has_openai():
-            return s.openai_model
-        if s.has_anthropic():
-            return s.anthropic_model
+        provider = os.getenv("AGENT_EVALUATOR_JUDGE_PROVIDER", "auto").lower().strip()
+
+        if provider == "anthropic":
+            if s.has_anthropic():
+                return s.anthropic_model
+            if s.has_openai():
+                logger.debug("AGENT_EVALUATOR_JUDGE_PROVIDER=anthropic 이지만 Anthropic 키 없음 → OpenAI 폴백")
+                return s.openai_model
+        elif provider == "openai":
+            if s.has_openai():
+                return s.openai_model
+            if s.has_anthropic():
+                logger.debug("AGENT_EVALUATOR_JUDGE_PROVIDER=openai 이지만 OpenAI 키 없음 → Anthropic 폴백")
+                return s.anthropic_model
+        else:
+            # auto: 기존 동작 유지 (OpenAI 우선)
+            if s.has_openai():
+                return s.openai_model
+            if s.has_anthropic():
+                return s.anthropic_model
     except Exception as _e:
         logger.debug("설정에서 모델 이름 조회 실패 (무시): %s", _e)
     return "gpt-4o-mini"
@@ -264,6 +282,13 @@ class LLMJudge:
         self._budget_day: Optional[date] = None
         self._budget_spent: float = 0.0
 
+        # 연속 오류 자동 비활성화 — API 키 만료·한도 초과처럼 재시도해도 소용없는 오류가
+        # 반복되면 _consecutive_errors 가 _max_consecutive_errors 를 초과할 때 judge를 중단.
+        # 성공 시 카운터는 0으로 리셋된다.
+        self._consecutive_errors: int = 0
+        self._max_consecutive_errors: int = 3
+        self._disabled_reason: Optional[str] = None  # 비활성화 사유 (None = 정상)
+
         # Results store: task_id → judge result dict
         self.results: List[Dict[str, Any]] = []
 
@@ -300,6 +325,11 @@ class LLMJudge:
               - ``skipped``: True if sampling decided to skip this task
               - ``error``: error message if the API call failed (scores will be None)
         """
+        # 연속 오류 비활성화 게이트 — API 키 만료 등 재시도해도 무의미한 오류가
+        # _max_consecutive_errors 번 반복되면 이후 호출을 모두 skip 처리한다.
+        if self._disabled_reason is not None:
+            return {"task_id": task_id, "skipped": True, "reason": self._disabled_reason}
+
         # Sampling gate
         if self._rng.random() > self.sample_rate:
             return {"task_id": task_id, "skipped": True}
@@ -317,7 +347,58 @@ class LLMJudge:
         # Run the judge
         result = self._call_judge(task_id, question, response, context)
         self.results.append(result)
+
+        # 오류 카운터 업데이트
+        if result.get("error"):
+            self._consecutive_errors += 1
+            if self._consecutive_errors >= self._max_consecutive_errors:
+                self._disabled_reason = f"auto_disabled_after_{self._consecutive_errors}_errors"
+                warnings.warn(
+                    f"LLMJudge: {self._consecutive_errors}회 연속 오류로 자동 비활성화됨. "
+                    f"마지막 오류: {result['error']!r}. "
+                    "API 키·네트워크를 확인하거나 judge.reset_errors()를 호출해 재활성화하세요.",
+                    RuntimeWarning,
+                    stacklevel=2,
+                )
+        else:
+            # 성공 시 카운터 리셋
+            self._consecutive_errors = 0
+
         return result
+
+    def reset_errors(self) -> None:
+        """연속 오류 카운터를 초기화하고 judge를 재활성화한다.
+
+        API 키를 교체하거나 네트워크 문제가 해소된 후 호출한다.
+
+        Example::
+            judge.reset_errors()
+            result = judge.judge("t1", question="...", response="...")
+        """
+        self._consecutive_errors = 0
+        self._disabled_reason = None
+        logger.info("LLMJudge: 오류 카운터 초기화 — judge 재활성화됨")
+
+    async def ajudge(
+        self,
+        task_id: str,
+        question: str,
+        response: str,
+        context: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """비동기 진입점 — sync `judge()`를 스레드 풀에서 실행해 이벤트 루프 블로킹을 방지한다.
+
+        async def 에이전트 함수와 함께 사용할 때 권장한다.
+        ``await monitor.arecord_task()`` 와 함께 사용하거나,
+        평가 결과를 직접 수집할 때 단독으로 호출한다.
+
+        Example::
+            result = await judge.ajudge("t1", question="...", response="...")
+        """
+        import asyncio
+        return await asyncio.get_event_loop().run_in_executor(
+            None, self.judge, task_id, question, response, context
+        )
 
     def get_summary(self) -> Dict[str, Any]:
         """
@@ -341,6 +422,7 @@ class LLMJudge:
 
         avg_scores: Dict[str, Any] = {}
         for dim in sorted(all_scalar_dims):
+            # faithfulness는 None 값을 제외하고 평균 계산 (누락 필드를 0으로 오염시키지 않음)
             vals = [
                 r["scores"][dim]
                 for r in judged
@@ -592,15 +674,16 @@ class LLMJudge:
             if context_available:
                 raw_faith = data.get("faithfulness")
                 if raw_faith is None:
-                    # H5: warn when the model omits the faithfulness field
+                    # H5: faithfulness 필드 누락 — 0(허위) 대신 None으로 기록해 집계에서 제외
+                    # 0으로 처리하면 실제 faithfulness와 무관하게 점수가 과소 평가됨
                     logger.warning(
-                        "LLMJudge: 'faithfulness' field missing from response for task %s; defaulting to 0",
+                        "LLMJudge: 'faithfulness' field missing from response for task %s; "
+                        "recorded as None (excluded from avg_faithfulness)",
                         task_id,
                     )
-                    faithfulness = 0
+                    scores["faithfulness"] = None
                 else:
-                    faithfulness = max(0, min(5, int(raw_faith)))
-                scores["faithfulness"] = faithfulness
+                    scores["faithfulness"] = max(0, min(5, int(raw_faith)))
 
             # Custom criteria — G-Eval 스타일 (DeepEval 대체)
             # judge_criteria=["medical_accuracy"] → scores["criteria_scores"]["medical_accuracy"]

@@ -4,12 +4,12 @@
 ┌────────────────────────────────────────────────────────────┐
 │ 🔗 Harness 연결                                             │
 │ Group A — Goal Achievement (목표달성)                       │
-│ Tracker 4종: TaskCompletionTracker · AccuracyEvaluator ·   │
-│              ResponseQualityEvaluator · ToolSelectionTracker│
+│ Tracker 3종: TaskCompletionTracker · AccuracyEvaluator ·   │
+│              ResponseQualityEvaluator                       │
 │ Config 6종: InstructionConfig · GoalAlignmentConfig ·      │
 │             PlanConfig · ContextRetentionConfig ·           │
 │             SubtaskConfig · KnowledgeRetentionConfig        │
-│ Gate 판정: HarnessEvaluationGate.check_group_A()           │
+│ Gate 판정: HarnessEvaluationGate(report).evaluate()        │
 └────────────────────────────────────────────────────────────┘
 ```
 
@@ -121,11 +121,17 @@ r2 = create_taskresult(
 monitor.record_task(r1)
 monitor.record_task(r2)
 
+# 출처: Evaluator_Examples/01_layer1_all_metrics.py, 섹션 6 — TCR 집계 확인
 report = monitor.generate_report()
 d = report.to_dict()
-print(f"TCR: {d['tcr'] * 100:.1f}%")              # TCR: 80.0%
-print(f"완전 성공: {d['full_success_rate'] * 100:.1f}%")  # 50.0%
-print(f"부분 성공: {d['partial_success_rate'] * 100:.1f}%")  # 50.0%
+tcr_data = d.get("accuracy_metrics", {}).get("tcr", {})
+total = tcr_data.get("total_tasks", 1) or 1
+tcr   = tcr_data.get("tcr", 0.0)
+full  = tcr_data.get("full_success", 0)
+part  = tcr_data.get("partial_success", 0)
+print(f"TCR: {tcr * 100:.1f}%")                            # TCR: 80.0%
+print(f"완전 성공: {full}/{total} ({full/total*100:.1f}%)")  # 1/2 (50.0%)
+print(f"부분 성공: {part}/{total} ({part/total*100:.1f}%)")  # 1/2 (50.0%)
 ```
 
 **TCR 임계값 가이드:**
@@ -228,8 +234,9 @@ agent("딥러닝이란 무엇인가?")
 
 report = monitor.generate_report()
 d = report.to_dict()
-print(d["quality_score"])           # 4.1 (0~5 척도)
-print(d["quality_dimensions"])      # {"completeness": 4.5, "relevance": 4.2, ...}
+qm = d.get("quality_metrics", {})
+print(qm.get("avg_total_score", 0.0))    # 4.1 (0~5 척도)
+print(qm.get("dimension_averages", {}))  # {"completeness": 4.5, "relevance": 4.2, ...}
 ```
 
 ---
@@ -522,16 +529,28 @@ def research_agent(question: str, ground_truth: str = "") -> str:
 배포 결정은 분포를 보고 내려야 한다.
 
 ```python
-from agent_evaluator import RunTrendAnalyzer
+from agent_evaluator.cli.trend import RunTrendAnalyzer
 
-# 최근 10개 평가 결과의 TCR 추세 분석
-analyzer = RunTrendAnalyzer("results/")
-trend = analyzer.analyze(window=10)
+# 최근 10개 평가 결과의 TCR 추세 분석 (window는 생성자에서 지정)
+analyzer = RunTrendAnalyzer("results/", window=10)
+report = analyzer.analyze()   # RunTrendReport 반환
 
-print(f"TCR 평균: {trend['tcr_mean']:.3f}")
-print(f"TCR 표준편차: {trend['tcr_std']:.3f}")
-print(f"추세 기울기: {trend['tcr_slope']:.4f}")  # 음수면 하락 추세
-print(f"회귀 위험: {trend['regression_risk']}")   # "low"|"medium"|"high"
+if report.tcr_trend:
+    print(f"TCR 추세 기울기: {report.tcr_trend.slope:.4f}")    # 음수면 하락 추세
+    print(f"TCR 방향: {report.tcr_trend.direction}")            # "stable"|"improving"|"degrading"
+    print(f"TCR 최초값: {report.tcr_trend.first_val:.3f}")
+    print(f"TCR 최종값: {report.tcr_trend.last_val:.3f}")
+print(f"회귀 감지: {report.any_regression}")   # True → 배포 위험
+```
+
+또는 CLI로 간단히 확인:
+
+```bash
+# 최근 10개 결과 추세 분석
+agent-eval trend results/ --window 10
+
+# 회귀 감지 시 CI/CD 실패 처리
+agent-eval trend results/ --fail-on-regression
 ```
 
 ### 4.5.2 accuracy는 task_type별로 다르게 해석한다
@@ -579,8 +598,10 @@ def agent(question: str, ground_truth: str = "") -> str:
 
 # 결과 접근
 report = monitor.generate_report()
-judge_summary = report.to_dict().get("llm_judge_summary", {})
-print(judge_summary.get("criteria_scores", {}))
+d = report.to_dict()
+# LLM Judge 결과는 extra_metrics 내 llm_judge 키 하위에 집계됨
+judge_data = d.get("extra_metrics", {}).get("llm_judge", {})
+print(judge_data.get("criteria_scores", {}))
 # {"goal_achievement": 4.2, "instruction_following": 4.5, "completeness": 3.8}
 ```
 
@@ -628,18 +649,19 @@ gate = HarnessEvaluationGate(report)
 result = gate.evaluate()
 
 # Group A 상세 결과
-group_a = result["groups"]["A"]
-print(f"Group A 통과: {group_a['passed']}")
-print(f"Group A 점수: {group_a['score']:.3f}")
-if not group_a['passed']:
-    print(f"위반 항목: {group_a['violations']}")
+group_a = result["groups"].get("A", {})
+print(f"Group A 통과: {group_a.get('passed', 'n/a')}")
+print(f"Group A 점수: {group_a.get('score', 0.0):.3f}")
+print(f"Group A 상태: {group_a.get('status', 'n/a')}")
 
 # 전체 Gate 결과
 if result["passed"]:
     print("✅ Harness Gate 통과 — 배포 가능")
 else:
     print(f"❌ Harness Gate 실패")
-    print(f"차단 위반: {result['blocking_violations']}")
+    # violations: [{"group": str, "score": float, "status": str}, ...]
+    for v in result.get("violations", []):
+        print(f"  Group {v['group']} 실패: score={v.get('score', 0.0):.3f} ({v.get('status', '')})")
 ```
 
 ---

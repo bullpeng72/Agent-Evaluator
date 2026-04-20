@@ -127,11 +127,12 @@ def key_source(env_var: str) -> str:
 
 # 기본값 상수 (중복 제거 — Settings, KEY_DEFS, cmd_check 에서 공유)
 DEFAULTS: Dict[str, str] = {
-    "OPENAI_MODEL":               "gpt-4o-mini",
-    "ANTHROPIC_MODEL":            "claude-haiku-4-5-20251001",
-    "LANGCHAIN_TRACING_V2":       "false",
-    "LANGCHAIN_PROJECT":          "agent-evaluator",
-    "AGENT_EVALUATOR_OUTPUT_DIR": "./results",
+    "OPENAI_MODEL":                    "gpt-4o-mini",
+    "ANTHROPIC_MODEL":                 "claude-haiku-4-5-20251001",
+    "LANGCHAIN_TRACING_V2":            "false",
+    "LANGCHAIN_PROJECT":               "agent-evaluator",
+    "AGENT_EVALUATOR_OUTPUT_DIR":      "./results",
+    "AGENT_EVALUATOR_JUDGE_PROVIDER":  "auto",  # "auto" | "openai" | "anthropic"
 }
 
 

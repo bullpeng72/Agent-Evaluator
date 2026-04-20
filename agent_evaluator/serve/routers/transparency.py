@@ -24,6 +24,8 @@ logger = logging.getLogger(__name__)
 from fastapi import APIRouter, HTTPException, Query, Request
 from pydantic import BaseModel
 
+from agent_evaluator.serve.routers._utils import _read_json
+
 router = APIRouter(prefix="/api/transparency", tags=["transparency"])
 
 
@@ -62,10 +64,6 @@ def _reload_transparency(request: Request):
     request.app.state.result_set.transparency = _load_transparency(
         request.app.state.results_dir
     )
-
-
-def _read_json(path: Path) -> Dict[str, Any]:
-    return json.loads(path.read_text(encoding="utf-8"))
 
 
 def _list_files(paths: List[Path]) -> List[Dict[str, Any]]:

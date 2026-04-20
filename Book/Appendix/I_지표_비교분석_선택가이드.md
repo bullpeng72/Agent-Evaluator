@@ -170,6 +170,7 @@ def normalize_korean(text: str) -> str:
 
 ```python
 # LLM Judge의 일관성 측정 방법
+# 출처: Evaluator_Examples/04_decorator_quickeval.py, LLMJudge 섹션
 def measure_consistency(judge: LLMJudge, test_cases: list, n_repeats: int = 3) -> float:
     """
     같은 케이스에 대해 n회 채점 후 표준편차로 일관성 측정
@@ -338,7 +339,7 @@ TCR: 1.0              ← 최종 완료
 배포 기준을 코드로 선언하고 Git에서 추적하고 싶은가?
   │
   ├─ YES → Harness Config 활성화
-  │          @agent_eval(monitor, sla=SLAConfig(...), instruction=InstructionConfig(...))
+  │          @agent_eval(monitor, sla=SLAConfig(...), instructions=InstructionConfig(...))
   │          → HarnessEvaluationGate로 Group A-G 전체 배포 판정
   │
   └─ NO  → 기본 Tracker 모드 (지표 측정만, 배포 자동 차단 없음)

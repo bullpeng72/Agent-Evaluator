@@ -100,10 +100,11 @@ result = HarnessEvaluationGate(report).evaluate()
 ```python
 # Config-as-Code 예시
 from agent_evaluator import SLAConfig, ThreatSeverityConfig
+from agent_evaluator.decorators import agent_eval
 
 @agent_eval(monitor,
             sla=SLAConfig(p95_ms=2000, fail_on_violation=True),
-            threat=ThreatSeverityConfig(max_critical=0))
+            threat_severity=ThreatSeverityConfig(warn_score=3.0, fail_score=7.0, fail_on_critical=True))
 def agent(question, ground_truth=""): ...
 ```
 
@@ -153,7 +154,7 @@ from agent_evaluator import SLAConfig, ThreatSeverityConfig, ReproducibilityConf
 # 방법 1: 데코레이터 파라미터
 @agent_eval(monitor,
             sla=SLAConfig(p95_ms=2000, fail_on_violation=True),
-            instruction=InstructionConfig(required_keywords=["서울"]))
+            instructions=InstructionConfig(required_keywords=["서울"]))
 def agent(question, ground_truth=""): ...
 
 # 방법 2: HarnessEvaluationGate 일괄 적용

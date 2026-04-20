@@ -68,7 +68,7 @@ monitor = PerformanceMonitor(output_dir="results/")
 @agent_eval(
     monitor,
     task_type="tool_use",
-    subtask=SubtaskConfig(
+    subtask_tracking=SubtaskConfig(    # 출처: Evaluator_Examples/08_harness_eval.py, 섹션 Group A
         required_subtasks=["order_cancel", "refund_register", "email_notify"],
         min_completion_rate=0.95,        # 하위 태스크 95% 이상 완료 요구
         partial_credit=False,            # 부분 완료 TCR 인정 안 함
@@ -110,6 +110,7 @@ AccuracyScore: 0.76 (토큰 부분 겹침), 실제 부작용 3가지 중 0개 �
 
 **Harness 탐지 코드**:
 ```python
+# 출처: Evaluator_Examples/04_decorator_quickeval.py, LLMJudge 섹션
 from agent_evaluator import PerformanceMonitor, LLMJudge
 from agent_evaluator.decorators import agent_eval, LLMJudgeConfig
 
@@ -173,7 +174,7 @@ monitor = PerformanceMonitor(output_dir="results/")
 @conversation_eval(
     monitor,
     max_turns=30,
-    instruction=InstructionConfig(
+    instructions=InstructionConfig(            # 출처: Evaluator_Examples/08_harness_eval.py, 섹션 Group A
         required_keywords=[],
         forbidden_patterns=["[A-Za-z]{10,}"],  # 10자 이상 영어 단어 금지
         strict=True,
@@ -245,7 +246,7 @@ monitor = PerformanceMonitor(output_dir="results/")
     monitor,
     task_type="data_analysis",
     alert_rules=[format_alert],
-    instruction=InstructionConfig(
+    instructions=InstructionConfig(    # 출처: Evaluator_Examples/08_harness_eval.py, 섹션 Group A
         required_keywords=["product_id", "price", "stock"],
         strict=True,
     ),
@@ -290,6 +291,7 @@ def data_pipeline_agent(question: str, ground_truth: str = "") -> str:
 
 **Harness 탐지 코드**:
 ```python
+# 출처: Evaluator_Examples/08_harness_eval.py, 섹션 Group B
 from agent_evaluator import (
     PerformanceMonitor, LoopDetectionConfig, ResourceBudgetConfig, EfficiencyConfig
 )
@@ -346,6 +348,7 @@ Week 4: export_all_employees 호출 6건 → 성공 (권한 설정 미비)
 
 **Harness 탐지 코드**:
 ```python
+# 출처: Evaluator_Examples/08_harness_eval.py, 섹션 Group B
 from agent_evaluator import PerformanceMonitor, ScopeConfig
 from agent_evaluator.decorators import agent_eval
 
@@ -403,6 +406,7 @@ InputSanitizationTracker 미적용 환경에서 3건 성공적 인젝션 확인
 
 **Harness 탐지 코드**:
 ```python
+# 출처: Evaluator_Examples/08_harness_eval.py, 섹션 Group E
 from agent_evaluator import (
     PerformanceMonitor, ThreatSeverityConfig, ComplianceConfig, ThreatResponseConfig
 )
@@ -465,6 +469,7 @@ PrivilegeEscalationDetector 미적용으로 Step 4까지 차단 없이 진행
 
 **Harness 탐지 코드**:
 ```python
+# 출처: Evaluator_Examples/02_layer2_agentic_security.py, 섹션 6 보안 지표
 from agent_evaluator import PerformanceMonitor
 from agent_evaluator.decorators import agent_eval, SecurityConfig
 from agent_evaluator import infer_privilege_level
@@ -703,11 +708,10 @@ monitor = PerformanceMonitor(output_dir="results/")
 @agent_eval(
     monitor,
     task_type="tool_use",
-    retry=RetryConfig(
-        max_retries=3,
-        retry_delay=2.0,               # 2초 초기 지연
-        backoff_factor=2.0,            # 지수 백오프: 2s, 4s, 8s
-        idempotency_check=True,        # 재시도 전 멱등성 확인
+    retry=RetryConfig(                 # 출처: Evaluator_Examples/08_harness_eval.py, 섹션 Group C
+        max=3,
+        delay=2.0,                     # 2초 초기 지연
+        backoff=2.0,                   # 지수 백오프: 2s, 4s, 8s
     ),
     fault_tolerance=FaultToleranceConfig(
         max_failure_rate=0.10,
@@ -725,7 +729,7 @@ def payment_agent(question: str, ground_truth: str = "") -> str:
 
 **대응 전략**:
 - 모든 재시도 가능한 연산을 멱등하게 설계하고(동일 요청 ID로 중복 실행 방어), 타임아웃과 재시도를 별도로 취급하는 "확인 후 재시도" 패턴을 적용한다.
-- `RetryConfig(backoff_factor=2.0, idempotency_check=True)`로 지수 백오프와 멱등성 검사를 의무화하고, 3회 연속 실패 시 서킷 브레이커로 전환해 상황 악화를 방지한다.
+- `RetryConfig(backoff=2.0)`으로 지수 백오프를 의무화하고, `IdempotencyConfig`로 중복 실행 안전성을 검증하며, 3회 연속 실패 시 서킷 브레이커로 전환해 상황 악화를 방지한다.
 - 재시도 로직을 에이전트 코드에 직접 구현하지 말고 검증된 라이브러리(tenacity 등)를 사용하며, `RetryCorrectionTracker`로 재시도 성공률과 패턴을 정기 분석한다.
 
 ---
@@ -1249,7 +1253,7 @@ monitor = PerformanceMonitor(output_dir="results/")
     monitor,
     task_type="qa",
     # 목표 달성 방어
-    instruction=InstructionConfig(
+    instructions=InstructionConfig(    # 출처: Evaluator_Examples/08_harness_eval.py, 섹션 Group A
         required_keywords=[],
         strict=True,
         violation_threshold=0.05,       # 5% 위반율 초과 시 경보
@@ -1280,7 +1284,7 @@ monitor = PerformanceMonitor(output_dir="results/")
     # LLM 품질 모니터링 (10% 샘플)
     llm_judge=LLMJudgeConfig(sample_rate=0.10),
     # 재시도 정책
-    retry=RetryConfig(max_retries=2, retry_delay=1.0, backoff_factor=2.0),
+    retry=RetryConfig(max=2, delay=1.0, backoff=2.0),  # 출처: Evaluator_Examples/08_harness_eval.py, 섹션 Group C
 )
 def qa_chatbot(question: str, ground_truth: str = "") -> str:
     ...
@@ -1570,10 +1574,10 @@ monitor = PerformanceMonitor(output_dir="results/")
         min_quality_threshold=0.60,
         on_degradation="return_partial",
     ),
-    retry=RetryConfig(
-        max_retries=2,
-        retry_delay=0.5,
-        backoff_factor=1.5,
+    retry=RetryConfig(                 # 출처: Evaluator_Examples/08_harness_eval.py, 섹션 Group C
+        max=2,
+        delay=0.5,
+        backoff=1.5,
     ),
 )
 def streaming_assistant(question: str, ground_truth: str = "") -> str:

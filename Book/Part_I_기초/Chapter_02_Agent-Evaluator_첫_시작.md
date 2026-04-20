@@ -164,10 +164,10 @@ TCR 66.7%이 게이팅 기준 80% 미달이므로 `gate()`는 `sys.exit(1)`을 �
 `gate()`는 간단한 단일 임계값 판정입니다. 더 복잡한 배포 기준은 **Harness Config** 데이터클래스로 선언합니다.
 
 ```python
-# 출처: Evaluator_Examples/08_harness_eval.py, 섹션 2 — Group A·D Config 선언 및 통합
+# 출처: Evaluator_Examples/08_harness_eval.py, 섹션 1·4 — Group A·D Config 선언 및 통합
 from agent_evaluator import (
-    PerformanceMonitor,
-    InstructionConfig,    # Group A — 완료율·지시 준수
+    PerformanceMonitor, HarnessEvaluationGate,
+    InstructionConfig,    # Group A — 지시 준수
     SLAConfig,           # Group D — 레이턴시·비용 계약
     ThreatSeverityConfig, # Group E — 보안 위협 수준
 )
@@ -177,13 +177,13 @@ monitor = PerformanceMonitor(output_dir="results/")
 
 # Config 선언 — 배포 기준을 소스 코드로 명세
 instruction_cfg = InstructionConfig(
-    min_completion_rate=0.90,   # TCR 90% 이상 필요
-    fail_on_violation=True,     # 위반 시 해당 태스크 success=False
+    required_keywords=["결론"],  # 응답에 "결론" 키워드 포함 필수
+    max_words=500,               # 최대 500단어
+    fail_on_violation=True,      # 위반 시 해당 태스크 success=False
 )
 sla_cfg = SLAConfig(
-    max_p95_latency=3.0,        # p95 응답 시간 3초 이하 필요
-    max_cost_per_task=0.01,     # 태스크당 비용 $0.01 이하
-    fail_on_violation=True,
+    p95_ms=3000,                 # p95 응답 시간 3초 이하 필요
+    max_cost_per_task=0.01,      # 태스크당 비용 $0.01 이하
 )
 
 # Tracker + Config 통합 — @agent_eval이 실행마다 Config 검증
@@ -196,23 +196,32 @@ sla_cfg = SLAConfig(
 def my_agent(question: str, ground_truth: str = "") -> str:
     return llm.invoke(question)
 
-# Gate — 전체 평가 종합 배포 판정
-monitor.gate(tcr=90, p95_latency=3.0)
+# Gate — 전체 평가 종합 배포 판정 (기준 미달 시 sys.exit(1))
+report = monitor.generate_report()
+gate = HarnessEvaluationGate(report)
+gate.enforce()
 ```
 
 ### 배포 판정 결과 이해하기
 
 ```python
 report = monitor.generate_report()
+d = report.to_dict()
 
 # 7개 Group별 상태 확인
-print(f"Group A (목표달성): TCR={report.task_completion_rate:.1%}")
-print(f"Group D (성능계약): p95={report.latency_p95:.2f}s")
+am = d.get("accuracy_metrics", {})
+em = d.get("efficiency_metrics", {})
+tcr = am.get("tcr", {}).get("tcr", 0.0)
+p95 = em.get("latency", {}).get("p95", 0.0)
+print(f"Group A (목표달성): TCR={tcr:.1%}")
+print(f"Group D (성능계약): p95={p95:.2f}s")
 
-# Config 위반 목록 — 어떤 태스크가 기준을 위반했는가
-if hasattr(report, 'harness_violations'):
-    for v in report.harness_violations:
-        print(f"  ⚠️ {v['config']}: {v['reason']}")
+# Harness 그룹별 점수 확인
+harness_groups = d.get("extra_metrics", {}).get("harness_groups", {})
+for group_key in ["A", "B", "C", "D", "E", "F", "G"]:
+    group_data = harness_groups.get(group_key, {})
+    if isinstance(group_data, dict) and group_data.get("score") is not None:
+        print(f"  Gate {group_key}: score={group_data['score']:.3f} ({group_data.get('status', 'n/a')})")
 ```
 
 평가 결과 파일이 `results/quickeval.json`과 `results/quickeval.html`로 저장됩니다. HTML 파일을 브라우저에서 열면 Group A-G별 시각화된 리포트를 확인할 수 있습니다.
@@ -231,7 +240,7 @@ Agent-Evaluator의 58개 지표는 세 층(Layer)과 세 역할(Tracker·Config�
 ┌────────────────────────────────────────────────────────────────────┐
 │  Gate — HarnessEvaluationGate                                       │
 │  Group A-G 전체 Config를 종합해 배포 통과/실패 판정                    │
-│  → monitor.gate() / QuickEval.gate() / agent-eval gate CLI         │
+│  → HarnessEvaluationGate(report).enforce() / QuickEval.gate() / agent-eval gate CLI │
 ├────────────────────────────────────────────────────────────────────┤
 │  Config — 33개 Harness Config 데이터클래스                            │
 │  배포 기준을 소스 코드로 선언 (fail_on_violation=True 시 강제 차단)      │
@@ -648,7 +657,7 @@ eval_qe.save()  # JSON + HTML
 | 단계 | 역할 | 코드 | 예제 파일·섹션 |
 |------|------|------|---------------|
 | 1. Tracker | 지표 수집 | `@eval.qa` / `@agent_eval(monitor)` | 04_decorator_quickeval, 섹션 1 |
-| 2. Config | 기준 선언 | `InstructionConfig(min_completion_rate=0.9)` | 04_decorator_quickeval, 섹션 4 |
+| 2. Config | 기준 선언 | `InstructionConfig(required_keywords=["결론"], fail_on_violation=True)` | 04_decorator_quickeval, 섹션 4 |
 | 3. Gate | 배포 판정 | `eval.gate(tcr=80)` | 04_decorator_quickeval, 섹션 7 |
 | 4. 저장 | 결과 보존 | `eval.save()` / `monitor.save_to_file()` | 04_decorator_quickeval, 섹션 8 |
 

@@ -204,7 +204,7 @@ monitor = PerformanceMonitor(
 @agent_eval(
     monitor,
     task_type="qa",
-    instruction=InstructionConfig(required_keywords=[], strict=False),
+    instructions=InstructionConfig(required_keywords=[], strict=False),  # 출처: Evaluator_Examples/08_harness_eval.py, 섹션 Group A
     sla=SLAConfig(max_response_time=10.0, p95_threshold=8.0),
     loop_detection=LoopDetectionConfig(max_loop_count=5),
     compliance=ComplianceConfig(forbidden_patterns=["password", "secret_key"]),
@@ -273,7 +273,7 @@ monitor = PerformanceMonitor(
 @agent_eval(
     monitor,
     task_type="qa",
-    instruction=InstructionConfig(required_keywords=["출처"], strict=False),
+    instructions=InstructionConfig(required_keywords=["출처"], strict=False),  # 출처: Evaluator_Examples/08_harness_eval.py, 섹션 Group A
     sla=SLAConfig(max_response_time=5.0, p95_threshold=4.0),
     fault_tolerance=FaultToleranceConfig(min_recovery_rate=0.85),
     explainability=ExplainabilityConfig(min_reasoning_steps=1),
@@ -340,11 +340,11 @@ monitor = PerformanceMonitor(
     monitor,
     task_type="information_retrieval",
     rag_mode=True,
-    # Group A
-    instruction=InstructionConfig(required_keywords=["근거", "출처"], strict=True),
+    # Group A  # 출처: Evaluator_Examples/08_harness_eval.py, 섹션 Group A
+    instructions=InstructionConfig(required_keywords=["근거", "출처"], strict=True),
     goal_alignment=GoalAlignmentConfig(min_alignment_score=0.85, allow_partial=True),
-    plan=PlanConfig(min_plan_consistency=0.80),
-    subtask=SubtaskConfig(min_completion_rate=0.90),
+    plan_tracking=PlanConfig(min_plan_consistency=0.80),
+    subtask_tracking=SubtaskConfig(min_completion_rate=0.90),
     context_retention=ContextRetentionConfig(min_retention_rate=0.85),
     # Group B
     loop_detection=LoopDetectionConfig(max_loop_count=2, loop_threshold=0.90),
@@ -430,7 +430,7 @@ monitor = PerformanceMonitor(
 @agent_eval(
     monitor,
     task_type="qa",
-    instruction=InstructionConfig(required_keywords=[], strict=False),
+    instructions=InstructionConfig(required_keywords=[], strict=False),  # 출처: Evaluator_Examples/08_harness_eval.py, 섹션 Group A
     sla=SLAConfig(max_response_time=8.0),
     fault_tolerance=FaultToleranceConfig(min_recovery_rate=0.80),
 )
@@ -451,7 +451,7 @@ monitor = PerformanceMonitor.for_rag_evaluation(output_dir="results/")
     monitor,
     task_type="information_retrieval",
     rag_mode=True,
-    instruction=InstructionConfig(required_keywords=["출처"], strict=False),
+    instructions=InstructionConfig(required_keywords=["출처"], strict=False),  # 출처: Evaluator_Examples/08_harness_eval.py, 섹션 Group A
     sla=SLAConfig(max_response_time=5.0),
     fault_tolerance=FaultToleranceConfig(min_recovery_rate=0.85),
 )

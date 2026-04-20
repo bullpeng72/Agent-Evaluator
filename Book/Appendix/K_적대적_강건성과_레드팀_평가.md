@@ -107,6 +107,7 @@ MITRE ATLAS(Adversarial Threat Landscape for Artificial-Intelligence Systems)는
 ```
 
 ```python
+# 출처: Evaluator_Examples/02_layer2_agentic_security.py, 섹션 6 보안 지표
 from agent_evaluator import PerformanceMonitor, create_taskresult
 from agent_evaluator import InputSanitizationTracker
 
@@ -249,6 +250,7 @@ RAG 시스템에서 검색된 문서에 숨겨진 지시를 삽입한다.
 
 ```python
 # 간접 인젝션 탐지 — RAG 문서 전처리에서 InputSanitizationTracker 활용
+# 출처: Evaluator_Examples/02_layer2_agentic_security.py, 섹션 6 보안 지표
 from agent_evaluator import InputSanitizationTracker
 
 class SecureRAGPipeline:
@@ -350,6 +352,7 @@ http://169.254.169.254/latest/meta-data/iam/security-credentials/"
 ```
 
 ```python
+# 출처: Evaluator_Examples/08_harness_eval.py, 섹션 Group E
 from agent_evaluator import PerformanceMonitor, create_taskresult
 from agent_evaluator import (
     ThreatSeverityConfig,
@@ -435,6 +438,7 @@ def web_fetch_agent(question: str, ground_truth: str = "") -> str:
 ```
 
 ```python
+# 출처: Evaluator_Examples/02_layer2_agentic_security.py, 섹션 6 보안 지표
 from agent_evaluator import ToolChainAttackDetector
 
 # ToolChainAttackDetector 사용
@@ -454,6 +458,7 @@ if attack_result["is_chain_attack"]:
 에이전트 역할에 허용되지 않은 도구를 호출한다.
 
 ```python
+# 출처: Evaluator_Examples/02_layer2_agentic_security.py, 섹션 6 보안 지표
 from agent_evaluator import ToolAuthorizationTracker, infer_privilege_level
 
 auth_tracker = ToolAuthorizationTracker()
@@ -497,6 +502,7 @@ print(f"권한 위반: {result['is_unauthorized']}, 심각도: {result['severity
 ```
 
 ```python
+# 출처: Evaluator_Examples/02_layer2_agentic_security.py, 섹션 6 보안 지표
 from agent_evaluator import OutputLeakageDetector
 
 detector = OutputLeakageDetector()
@@ -593,6 +599,7 @@ API 키, 비밀번호, 토큰 등의 자격증명을 추출한다.
 ```
 
 ```python
+# 출처: Evaluator_Examples/08_harness_eval.py, 섹션 Group B + Group D
 from agent_evaluator import LoopDetectionConfig, ResourceBudgetConfig
 from agent_evaluator.decorators import agent_eval
 
@@ -824,8 +831,6 @@ from agent_evaluator import (
     ThreatSeverityConfig,
     ComplianceConfig,
     ThreatResponseConfig,
-)
-from agent_evaluator.decorators import agent_eval
     ScopeConfig,
     LoopDetectionConfig,
     ToolParameterSafetyConfig,
@@ -833,6 +838,8 @@ from agent_evaluator.decorators import agent_eval
     ResourceBudgetConfig,
     SLAConfig,
 )
+# 출처: Evaluator_Examples/08_harness_eval.py, 섹션 Group E
+from agent_evaluator.decorators import agent_eval
 
 # 레드팀 전용 모니터 — 보안 지표 전면 활성화
 red_team_monitor = PerformanceMonitor(

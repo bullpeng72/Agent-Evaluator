@@ -95,11 +95,12 @@ class TestBuildUserMessage:
         assert "CONTEXT" in msg
         assert "ctx text" in msg
 
-    def test_context_capped_at_1500(self):
-        long_ctx = "x" * 3000
+    def test_context_capped_at_default(self):
+        long_ctx = "x" * 6000
         msg = _build_user_message("Q?", "A.", context=long_ctx)
-        # context is capped — should not contain 3000 x's
-        assert "x" * 1501 not in msg
+        # context is capped at default 4000 chars — 6000 x's should be truncated
+        assert "x" * 4001 not in msg
+        assert "x" * 100 in msg  # some context still present
 
     def test_no_context_no_context_block(self):
         msg = _build_user_message("Q?", "A.", context=None)

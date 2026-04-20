@@ -24,6 +24,8 @@ from fastapi import APIRouter, Body, File, Form, HTTPException, Query, Request, 
 from fastapi.concurrency import run_in_threadpool
 from pydantic import BaseModel
 
+from agent_evaluator.serve.routers._utils import _read_json
+
 router = APIRouter(prefix="/api/golden", tags=["golden"])
 
 
@@ -343,10 +345,6 @@ def _golden_dir(request: Request) -> Path:
     return d
 
 
-def _read_json(path: Path) -> Any:
-    return json.loads(path.read_text(encoding="utf-8"))
-
-
 @router.get("", summary="골든 데이터셋 목록")
 def list_golden(request: Request) -> List[Dict[str, Any]]:
     gdir = _golden_dir(request)
@@ -599,8 +597,12 @@ async def save_golden(
 
 @router.delete("/{name}", summary="골든 데이터셋 삭제")
 def delete_golden(name: str, request: Request) -> Dict[str, Any]:
-    gdir = _golden_dir(request)
+    gdir = _golden_dir(request).resolve()
     for p in [gdir / name, gdir / f"{name}.json"]:
+        try:
+            p.resolve().relative_to(gdir)
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Invalid dataset name")
         if p.exists():
             p.unlink()
             return {"ok": True, "name": name}

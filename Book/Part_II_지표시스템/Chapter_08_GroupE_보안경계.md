@@ -10,7 +10,7 @@
 │              ToolChainAttackDetector                         │
 │ Config 3종: ThreatSeverityConfig · ComplianceConfig ·       │
 │             ThreatResponseConfig                            │
-│ Gate 판정: HarnessEvaluationGate.check_group_E()           │
+│ Gate 판정: HarnessEvaluationGate(report).evaluate()         │
 └────────────────────────────────────────────────────────────┘
 ```
 
@@ -345,7 +345,7 @@ def public_agent(question: str, ground_truth: str = "") -> str:
 ### 패턴 2 — 금융·의료 에이전트 (강화 보안 + 2계층 탐지)
 
 ```python
-from agent_evaluator.decorators import LLMJudgeConfig
+from agent_evaluator import LLMJudgeConfig
 
 @agent_eval(
     monitor,
@@ -431,6 +431,7 @@ def agent(question: str, ground_truth: str = "") -> str:
 from agent_evaluator import (
     ThreatSeverityConfig, ComplianceConfig, ThreatResponseConfig,
 )
+from agent_evaluator.decorators import agent_eval
 
 # ── ThreatSeverityConfig: 위협 심각도 임계값 선언 ──
 @agent_eval(

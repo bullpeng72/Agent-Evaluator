@@ -7,6 +7,7 @@ import os
 import time as _time_module
 from collections import defaultdict
 from datetime import datetime as _datetime
+from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 import json as _json_mod
@@ -14,6 +15,8 @@ import json as _json_mod
 from fastapi import APIRouter, File, HTTPException, Query, Request, UploadFile
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
+
+from agent_evaluator.serve.routers._utils import _rs
 
 _SERVER_START_TIME: float = _time_module.time()  # B1: 서버 기동 시각
 
@@ -28,10 +31,6 @@ _ARCHIVE_STORE: Dict[str, bool] = {}
 # B2: 태스크 태그 인메모리 저장소 {file_id: {task_id: [tags]}}
 # ---------------------------------------------------------------------------
 _TASK_TAG_STORE: Dict[str, Dict[str, List[str]]] = {}
-
-
-def _rs(request: Request):
-    return request.app.state.result_set
 
 
 def _to_meta(f) -> Dict[str, Any]:
@@ -659,6 +658,11 @@ def delete_result(
     else:
         path = getattr(rf, "path", None)
         if path is not None and os.path.exists(str(path)):
+            results_dir: Path = request.app.state.results_dir
+            try:
+                Path(str(path)).resolve().relative_to(results_dir.resolve())
+            except ValueError:
+                raise HTTPException(status_code=400, detail="File path outside results directory")
             try:
                 os.remove(str(path))
             except OSError as exc:
