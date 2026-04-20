@@ -542,8 +542,7 @@ setup_otel(
 ```python
 # 출처: Evaluator_Examples/07_phoenix_hybrid.py — Phoenix 실행 여부 확인 + OTEL 설정
 import socket
-from agent_evaluator.core.otel.provider import setup_otel
-from agent_evaluator import PerformanceMonitor
+from agent_evaluator import setup_otel, PerformanceMonitor
 
 _PHOENIX_URL = "http://localhost:6006"  # /v1/traces 경로는 SDK가 자동 추가
 
@@ -576,7 +575,8 @@ monitor = PerformanceMonitor(output_dir="results/")
 
 ```python
 # 출처: Evaluator_Examples/07_phoenix_hybrid.py, 섹션 1 — Tracing·Playground 스팬 전송
-from agent_evaluator import agent_eval, EvalMetadata
+from agent_evaluator import EvalMetadata
+from agent_evaluator.decorators import agent_eval
 
 @agent_eval(
     monitor,

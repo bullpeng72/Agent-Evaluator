@@ -726,53 +726,51 @@ DeadlockConfig     → pass/fail ─┘
 ### 코드 예시 — CI/CD 완전 통합
 
 ```python
+# 출처: Evaluator_Examples/08_harness_eval.py, 섹션 CI/CD 통합 — HarnessEvaluationGate 배포 차단 예제
 # ci_quality_check.py — CI/CD 파이프라인에서 실행
-import sys
-from agent_evaluator import PerformanceMonitor, agent_eval, create_taskresult
-from agent_evaluator.core.trackers.base import (
-    InstructionConfig, SLAConfig, ThreatSeverityConfig,
-    ReproducibilityConfig, DeadlockConfig, ObservabilityConfig
+import sys, json
+from agent_evaluator import (
+    PerformanceMonitor, agent_eval, create_taskresult,
+    InstructionConfig, SLAConfig, ThreatSeverityConfig,   # Group A, D, E
+    ReproducibilityConfig, DeadlockConfig, ObservabilityConfig,  # Group C, B, G
 )
 
-# 1. HarnessEvaluationGate 구성 (에이전트가 배포 기준을 소유)
-harness = {
-    # Group A — 목표달성
-    "instruction": InstructionConfig(
-        min_completion_rate=0.85,
-        min_accuracy_score=0.72,
-        fail_on_violation=True,       # 위반 시 success=False 강제
-    ),
-    # Group D — 성능계약
-    "sla": SLAConfig(
-        max_p95_latency_sec=3.0,
-        max_cost_per_task_usd=0.05,
-        fail_on_violation=True,
-    ),
-    # Group E — 보안경계
-    "security": ThreatSeverityConfig(
-        max_severity_level="low",
-        fail_on_violation=True,       # 보안 위반은 즉시 배포 차단
-    ),
-    # Group C — 신뢰성
-    "reproducibility": ReproducibilityConfig(
-        min_consistency_score=0.80,
-        fail_on_violation=False,      # 경고만, 배포는 허용
-    ),
-}
-
+# 1. PerformanceMonitor 생성 (Harness Config는 @agent_eval에서 선언)
 monitor = PerformanceMonitor(
     output_dir="results/",
-    harness_configs=harness,
     enable_hallucination_detection=True,
     enable_security_metrics=True,
 )
 
 # 2. 골든 데이터셋으로 평가 실행
-import json
 with open("data/golden_datasets/master_golden.json") as f:
     golden = json.load(f)
 
-@agent_eval(monitor, task_type="qa")
+@agent_eval(
+    monitor, task_type="qa",
+    # Group A — 목표달성
+    instructions=InstructionConfig(
+        min_completion_rate=0.85,
+        min_accuracy_score=0.72,
+        fail_on_violation=True,       # 위반 시 success=False 강제
+    ),
+    # Group D — 성능계약
+    sla=SLAConfig(
+        max_p95_latency_sec=3.0,
+        max_cost_per_task_usd=0.05,
+        fail_on_violation=True,
+    ),
+    # Group E — 보안경계
+    threat_severity=ThreatSeverityConfig(
+        max_severity_level="low",
+        fail_on_violation=True,       # 보안 위반은 즉시 배포 차단
+    ),
+    # Group C — 신뢰성
+    reproducibility=ReproducibilityConfig(
+        min_consistency_score=0.80,
+        fail_on_violation=False,      # 경고만, 배포는 허용
+    ),
+)
 def production_agent(question: str, ground_truth: str = "") -> str:
     # 실제 에이전트 호출
     return agent_runner.invoke(question)
@@ -784,14 +782,13 @@ for pair in golden.get("qa_pairs", []):
 monitor.save_to_file("ci_eval")
 report = monitor.generate_report()
 
-violations = [
-    name for name, cfg in harness.items()
-    if getattr(cfg, "fail_on_violation", False) and report.harness_violations.get(name, False)
-]
+# Harness Gate 위반 여부: report.harness_gate_results에서 FAIL 항목 집계
+gate_results = getattr(report, "harness_gate_results", {})
+violations = [k for k, v in gate_results.items() if v == "FAIL"]
 
 if violations:
     print(f"❌ HarnessEvaluationGate 배포 차단")
-    print(f"   위반 Config: {', '.join(violations)}")
+    print(f"   위반 Gate: {', '.join(violations)}")
     sys.exit(1)
 else:
     print(f"✅ HarnessEvaluationGate 배포 승인")

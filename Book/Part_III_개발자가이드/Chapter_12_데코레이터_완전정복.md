@@ -62,7 +62,8 @@ def run_and_evaluate(question: str, ground_truth: str) -> str:
 
 ```python
 # 데코레이터 방식 — 비즈니스 로직만 남는다
-from agent_evaluator import agent_eval, PerformanceMonitor
+from agent_evaluator import PerformanceMonitor
+from agent_evaluator.decorators import agent_eval
 
 monitor = PerformanceMonitor("results/")
 
@@ -122,7 +123,9 @@ def my_agent(question: str, ground_truth: str = "") -> str:
 ### 기본 사용법
 
 ```python
-from agent_evaluator import agent_eval, PerformanceMonitor
+# 출처: Evaluator_Examples/04_decorator_quickeval.py, 섹션 1 — @agent_eval 기본 사용법
+from agent_evaluator import PerformanceMonitor
+from agent_evaluator.decorators import agent_eval
 
 monitor = PerformanceMonitor(output_dir="results/")
 
@@ -780,7 +783,8 @@ eval.gate(tcr=80, accuracy=65)
 ### 멀티에이전트 협력 평가 예시
 
 ```python
-from agent_evaluator import agent_eval, PerformanceMonitor, EvalMetadata
+from agent_evaluator import PerformanceMonitor, EvalMetadata
+from agent_evaluator.decorators import agent_eval
 
 monitor = PerformanceMonitor("results/")
 
@@ -811,7 +815,8 @@ multi_agent_task("AI 트렌드 2026 보고서", ground_truth="보고서 완성")
 ### 스트리밍 에이전트 평가 예시
 
 ```python
-from agent_evaluator import agent_eval, PerformanceMonitor
+from agent_evaluator import PerformanceMonitor
+from agent_evaluator.decorators import agent_eval
 
 monitor = PerformanceMonitor("results/")
 
@@ -966,7 +971,8 @@ def rag_agent(question: str, context: str = "", ground_truth: str = "") -> str:
 
 #### 3. 도구 사용 에이전트
 ```python
-from agent_evaluator import agent_eval, EvalMetadata
+from agent_evaluator import EvalMetadata
+from agent_evaluator.decorators import agent_eval
 
 @agent_eval(monitor, task_type="tool_use", framework="langchain")
 def tool_agent(question: str, ground_truth: str = "") -> str:
@@ -1201,35 +1207,32 @@ agent-eval dashboard results/
 
 > **이 절에서 배우는 것**: 데코레이터 파라미터에 Harness Config를 연결해 "배포 기준"을 에이전트 함수에 직접 선언하는 방법을 익힌다. 측정(Tracker) + 기준(Config) + 판정(Gate)을 하나의 데코레이터에서 완성한다.
 
-### 12.11.1 `harness_configs` 파라미터
+### 12.11.1 Harness Config 파라미터
 
-`@agent_eval`, `@batch_eval`, `@conversation_eval` 모두 `harness_configs` 파라미터로 Config 목록을 받습니다.
+각 Harness Config는 `@agent_eval` 데코레이터에 **이름 있는 개별 파라미터**로 전달합니다. Config 종류마다 파라미터명이 다릅니다 (예: `instructions=`, `sla=`, `threat_severity=`).
 
 ```python
-from agent_evaluator.decorators import (
+# 출처: Evaluator_Examples/08_harness_eval.py, 섹션 Group A·D — 데코레이터 Config 통합 예제
+from agent_evaluator import (
+    agent_eval, PerformanceMonitor,
     InstructionConfig, SLAConfig, ThreatSeverityConfig,
-    agent_eval,
 )
-from agent_evaluator import PerformanceMonitor
 
 monitor = PerformanceMonitor(output_dir="results/")
-
-# Harness Config — 배포 기준 선언
-instruction_cfg = InstructionConfig(
-    min_completion_rate=0.90,
-    min_accuracy=0.80,
-    fail_on_violation=True,
-)
-sla_cfg = SLAConfig(
-    max_p95_latency=3.0,
-    max_cost_per_task=0.01,
-    fail_on_violation=True,
-)
 
 @agent_eval(
     monitor,
     task_type="qa",
-    harness_configs=[instruction_cfg, sla_cfg],
+    instructions=InstructionConfig(        # Group A — 목표달성
+        min_completion_rate=0.90,
+        min_accuracy=0.80,
+        fail_on_violation=True,
+    ),
+    sla=SLAConfig(                         # Group D — 성능계약
+        max_p95_latency=3.0,
+        max_cost_per_task=0.01,
+        fail_on_violation=True,
+    ),
 )
 def my_agent(question: str, ground_truth: str = "") -> str:
     return llm.invoke(question)
@@ -1283,12 +1286,12 @@ def medical_agent(question: str, ground_truth: str = "") -> str:
 측정(데코레이터) + 기준(Config) + 판정(Gate)을 하나의 워크플로우로 연결합니다.
 
 ```python
-from agent_evaluator.decorators import (
+# 출처: Evaluator_Examples/08_harness_eval.py, 섹션 종합 — PerformanceMonitor + @agent_eval 통합
+from agent_evaluator import (
+    agent_eval, PerformanceMonitor, QuickEval,
     InstructionConfig, SLAConfig, ThreatSeverityConfig,
-    RetryConfig, LLMJudgeConfig, SecurityConfig,
-    agent_eval,
 )
-from agent_evaluator import PerformanceMonitor, QuickEval
+from agent_evaluator.decorators import RetryConfig, LLMJudgeConfig, SecurityConfig
 
 # ── 방법 A: PerformanceMonitor + @agent_eval (세밀한 제어) ──
 monitor = PerformanceMonitor(
@@ -1298,16 +1301,12 @@ monitor = PerformanceMonitor(
     judge_sample_rate=0.1,
 )
 
-harness = [
-    InstructionConfig(min_completion_rate=0.90, fail_on_violation=True),
-    SLAConfig(max_p95_latency=3.0, fail_on_violation=True),
-    ThreatSeverityConfig(max_severity="medium", fail_on_violation=True),
-]
-
 @agent_eval(
     monitor,
     task_type="qa",
-    harness_configs=harness,
+    instructions=InstructionConfig(min_completion_rate=0.90, fail_on_violation=True),
+    sla=SLAConfig(max_p95_latency=3.0, fail_on_violation=True),
+    threat_severity=ThreatSeverityConfig(max_severity="medium", fail_on_violation=True),
     retry=RetryConfig(max=2),
     llm_judge=LLMJudgeConfig(criteria=["factual_accuracy"]),
     security=SecurityConfig(allowed_tools=["search"]),

@@ -78,7 +78,7 @@ def reasoning_agent(question: str, ground_truth: str = "") -> str:
 에이전트 실행의 모든 단계가 충분히 추적 가능한 상태인지 측정한다. OpenTelemetry 스팬의 완성도와 감사 이벤트 SLO를 선언한다.
 
 ```python
-from agent_evaluator.decorators import ObservabilityConfig
+from agent_evaluator import ObservabilityConfig
 
 ObservabilityConfig(
     required_span_attributes=[       # 모든 스팬에 반드시 포함되어야 할 속성
@@ -103,11 +103,11 @@ ObservabilityConfig(
 `ObservabilityConfig`는 `agent-eval monitor`(Arize Phoenix)와 함께 사용할 때 가장 강력하다.
 
 ```python
-from agent_evaluator.core.otel import setup_otel
+from agent_evaluator import setup_otel
 
-# OTEL 설정 — Phoenix 서버로 스팬 자동 전송
+# OTEL 설정 — Phoenix 서버로 스팬 자동 전송 (setup_otel은 PerformanceMonitor 생성 전에 호출)
 setup_otel(
-    endpoint="http://localhost:6006/v1/traces",
+    endpoint="http://localhost:6006",
     service_name="my-agent",
 )
 
@@ -136,7 +136,7 @@ agent-eval monitor --port 6006
 에이전트 응답에 추론 근거, 불확실성 표현, 출처 인용이 포함되는지 측정한다. 특히 의료·금융·법률 에이전트에서 중요하다.
 
 ```python
-from agent_evaluator.decorators import ExplainabilityConfig
+from agent_evaluator import ExplainabilityConfig
 
 ExplainabilityConfig(
     require_reasoning=True,          # 추론 근거 필수 포함
@@ -190,7 +190,7 @@ qa_explainability = ExplainabilityConfig(
 에이전트가 실패했을 때 단순히 "실패했다"고 말하는 것이 아니라, 원인을 설명하고 대안을 제시하는지 측정한다.
 
 ```python
-from agent_evaluator.decorators import ErrorDiagnosisConfig
+from agent_evaluator import ErrorDiagnosisConfig
 
 ErrorDiagnosisConfig(
     failure_acknowledgment_markers=[  # 오류를 인정하는 마커
@@ -253,7 +253,7 @@ def diagnostic_agent(question: str, ground_truth: str = "") -> str:
 전체 응답 시간 중 어느 부분에서 시간이 소요되는지 측정한다. "응답이 느리다"는 것만 아는 것이 아니라, "도구 호출 때문에 느린지, LLM 호출 때문에 느린지"를 구분한다.
 
 ```python
-from agent_evaluator.decorators import LatencyAttributionConfig
+from agent_evaluator import LatencyAttributionConfig
 
 LatencyAttributionConfig(
     tool_latency_key="tool_latencies",       # extra 딕셔너리의 도구 지연 키
@@ -308,9 +308,11 @@ result = create_taskresult(
 ### 패턴 1 — 기본 관측성 (모든 에이전트 권장)
 
 ```python
-from agent_evaluator.decorators import (
-    agent_eval, ObservabilityConfig, ErrorDiagnosisConfig
+from agent_evaluator import (
+    ObservabilityConfig,
+    ErrorDiagnosisConfig,
 )
+from agent_evaluator.decorators import agent_eval
 
 @agent_eval(
     monitor,
@@ -331,9 +333,11 @@ def agent(question: str, ground_truth: str = "") -> str:
 ### 패턴 2 — 고신뢰 서비스 (설명 가능성 + LLM Judge)
 
 ```python
-from agent_evaluator.decorators import (
-    ExplainabilityConfig, LLMJudgeConfig, LatencyAttributionConfig
+from agent_evaluator import (
+    ExplainabilityConfig,
+    LatencyAttributionConfig,
 )
+from agent_evaluator.decorators import LLMJudgeConfig
 
 @agent_eval(
     monitor,
@@ -525,6 +529,6 @@ python Evaluator_Examples/07_phoenix_hybrid.py    # Phoenix 트레이싱 + 데�
 > **Part II 완료.** 7개 Group(Chapter 3~10)에서 58개 지표(25 Tracker + 33 Config)를 모두 학습했다.  
 > 
 > **다음 단계 — Part III: 개발자 가이드**
-> - Chapter 11: 데코레이터 완전 정복 — `@agent_eval`, `@batch_eval`, `@conversation_eval`에 Harness Config 통합
-> - Chapter 12: 21개 프레임워크 통합 — LangChain, LangGraph, CrewAI, AutoGen 등
-> - Chapter 13: 평가 데이터 설계 — 골든 데이터셋과 에이전트 유형별 최소 세트
+> - Chapter 11: 평가 데이터 설계 — 골든 데이터셋과 에이전트 유형별 최소 세트
+> - Chapter 12: 데코레이터 완전 정복 — `@agent_eval`, `@batch_eval`, `@conversation_eval`에 Harness Config 통합
+> - Chapter 13: 21개 프레임워크 통합 — LangChain, LangGraph, CrewAI, AutoGen 등

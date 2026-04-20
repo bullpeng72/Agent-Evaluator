@@ -101,14 +101,14 @@ Tracker (관찰/측정) × Config (기준 선언) × Gate (배포 판정)
 
 | Group | 차원 | 핵심 질문 | Tracker 수 | Config 수 |
 |-------|------|-----------|-----------|-----------|
-| **A** | 목표달성 | 에이전트가 지시를 제대로 완수했는가? | 6 | 6 |
-| **B** | 행동무결성 | 의도하지 않은 행동 없이 동작했는가? | 5 | 4 |
-| **C** | 신뢰성 | 같은 입력에 일관되게 응답하는가? | 6 | 5 |
-| **D** | 성능계약 | SLA/비용 계약을 지켰는가? | 5 | 5 |
-| **E** | 보안경계 | 외부 공격·데이터 유출을 차단했는가? | 4 | 4 |
-| **F** | 다중에이전트 협업 | 여러 에이전트가 교착 없이 협력했는가? | 5 | 5 |
-| **G** | 운영관측성 | 실패 원인을 즉시 추적·설명할 수 있는가? | 4 | 4 |
-| | **합계** | | **35** | **33** |
+| **A** | 목표달성 | 에이전트가 지시를 제대로 완수했는가? | 4 | 6 |
+| **B** | 행동무결성 | 의도하지 않은 행동 없이 동작했는가? | 3 | 6 |
+| **C** | 신뢰성 | 같은 입력에 일관되게 응답하는가? | 3 | 5 |
+| **D** | 성능계약 | SLA/비용 계약을 지켰는가? | 4 | 5 |
+| **E** | 보안경계 | 외부 공격·데이터 유출을 차단했는가? | 5 | 3 |
+| **F** | 다중에이전트 협업 | 여러 에이전트가 교착 없이 협력했는가? | 3 | 4 |
+| **G** | 운영관측성 | 실패 원인을 즉시 추적·설명할 수 있는가? | 3 | 4 |
+| | **합계** | | **25** | **33** |
 
 > 공식 표기: **"25 Tracker + 33 Config = 58개 지표"**
 
@@ -117,10 +117,12 @@ Tracker (관찰/측정) × Config (기준 선언) × Gate (배포 판정)
 아래는 세 가지 차원(목표달성·성능·보안)을 선언하고 배포 판단을 내리는 최소 예제입니다.
 
 ```python
-from agent_evaluator.decorators import (
-    InstructionConfig, SLAConfig, ThreatSeverityConfig, agent_eval
+# 출처: Evaluator_Examples/08_harness_eval.py, 섹션 1 — 3-Element Harness(Tracker·Config·Gate) 최소 예시
+from agent_evaluator import (
+    PerformanceMonitor,
+    InstructionConfig, SLAConfig, ThreatSeverityConfig,
 )
-from agent_evaluator import PerformanceMonitor
+from agent_evaluator.decorators import agent_eval
 
 monitor = PerformanceMonitor(output_dir="results/")
 
@@ -133,7 +135,9 @@ threat_cfg = ThreatSeverityConfig(max_severity="medium", fail_on_violation=True)
 @agent_eval(
     monitor,
     task_type="qa",
-    harness_configs=[instruction_cfg, sla_cfg, threat_cfg],
+    instructions=instruction_cfg,
+    sla=sla_cfg,
+    threat_severity=threat_cfg,
 )
 def my_agent(question: str, ground_truth: str = "") -> str:
     return llm.invoke(question)
@@ -436,7 +440,8 @@ print(f"Accuracy: {report.average_accuracy:.1%}")     # Group A 목표달성
 
 ```python
 # 출처: Evaluator_Examples/02_layer2_agentic_security.py, 섹션 1 — Group E 보안경계 측정
-from agent_evaluator import agent_eval, EvalMetadata
+from agent_evaluator import EvalMetadata
+from agent_evaluator.decorators import agent_eval
 
 @agent_eval(monitor, task_type="tool_use")
 def tool_agent(question: str, ground_truth: str = "") -> tuple:

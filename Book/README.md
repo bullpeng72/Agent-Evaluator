@@ -150,14 +150,16 @@ def my_agent(question, ground_truth=""): ...
 ## Harness Engineering 58개 지표 구조
 
 ```
-Group A — 목표달성     (Tracker 6종 + Config 6종)  ← 에이전트가 지시를 완수했는가?
-Group B — 행동무결성   (Tracker 5종 + Config 6종)  ← 의도치 않은 행동이 없었는가?
-Group C — 신뢰성       (Tracker 6종 + Config 5종)  ← 일관되고 재현 가능한가?
-Group D — 성능계약     (Tracker 5종 + Config 5종)  ← SLA/비용 계약을 지켰는가?
-Group E — 보안경계     (Tracker 4종 + Config 3종)  ← 공격·유출을 차단했는가?
-Group F — 다중에이전트 (Tracker 5종 + Config 4종)  ← 교착 없이 협력했는가?
-Group G — 운영관측성   (Tracker 4종 + Config 4종)  ← 실패 원인을 즉시 추적할 수 있는가?
+Group A — 목표달성     (Tracker 3종 + Config 6종)  ← 에이전트가 지시를 완수했는가?
+Group B — 행동무결성   (Tracker 2종 + Config 6종)  ← 의도치 않은 행동이 없었는가?
+Group C — 신뢰성       (Tracker 2종 + Config 5종)  ← 일관되고 재현 가능한가?
+Group D — 성능계약     (Tracker 2종 + Config 5종)  ← SLA/비용 계약을 지켰는가?
+Group E — 보안경계     (Tracker 5종 + Config 3종)  ← 공격·유출을 차단했는가?
+Group F — 다중에이전트 (Tracker 2종 + Config 4종)  ← 교착 없이 협력했는가?
+Group G — 운영관측성   (Tracker 0종 + Config 4종)  ← 실패 원인을 즉시 추적할 수 있는가?
 ────────────────────────────────────────────────────────
+Harness Gate 직접 매핑: Tracker 16종 + Config 33종 = 49개
+운영 지원 Tracker(ConversationSession·Feedback·Anomaly·Cost·Streaming) 9종 포함 시:
 합계: Native Tracker 25종 + Harness Config 33종 = 58개 지표
 ```
 
@@ -177,21 +179,3 @@ pip install "agent-evaluator[full]"   # 전체 (⚠️ crewai/autogen 포함, 10
 
 ---
 
-## 집필 현황
-
-Agent-Evaluator v0.8.2 기준. 전체 완료.
-
-| 파일 | 상태 |
-|------|------|
-| Part I — 2개 챕터 | ✅ Harness 7차원 개정 + AI Native 5대 도전 매핑 완료 |
-| Part II — 8개 챕터 (Ch03~10) | ✅ Group A-G 챕터 + 개발자↔QA 협업 브리지 완료 |
-| Part III — 3개 챕터 | ✅ Harness Config 통합 + 데코레이터→Gate 영향표 완료 |
-| Part IV — 4개 챕터 | ✅ Harness Config 임계값 + Gate 데이터 원천 설명 완료 |
-| Part V — 4개 챕터 | ✅ HarnessEvaluationGate CI/CD + 자기개선 루프 완료 |
-| Appendix A — 58개 지표 레퍼런스 | ✅ 챕터 역참조(↗ Chapter X §X.X) 추가 완료 |
-| Appendix F — 용어 사전 | ✅ AI Native·Gate·Tracker·Harness Engineering 정의 확장 완료 |
-| Appendix G — AI 평가 이론적 기초 | ✅ Calibration(ECE)·Fairness·출력 구조 검증 추가 완료 |
-| Appendix H–I | ✅ 수식 레퍼런스·비교 가이드 완료 |
-| Appendix J — 프로덕션 실패 패턴 카탈로그 | ✅ 20개 패턴·탐지 코드·대응 전략 신규 작성 완료 |
-| Appendix K — 적대적 강건성과 레드팀 평가 | ✅ OWASP LLM Top 10·31개 공격 패턴·5단계 방법론 신규 작성 완료 |
-| Appendix L — 예산 최적화 평가 설계 | ✅ 비용 프로파일·Pareto 조합·지식 증류·ROI 신규 작성 완료 |

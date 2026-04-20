@@ -20,7 +20,8 @@
 `framework=`를 명시하지 않아도 `auto_detect_framework=True`(기본값)가 응답 객체의 속성을 분석해 프레임워크를 자동 감지한다:
 
 ```python
-from agent_evaluator import agent_eval, PerformanceMonitor
+from agent_evaluator import PerformanceMonitor
+from agent_evaluator.decorators import agent_eval
 
 monitor = PerformanceMonitor("results/")
 
@@ -322,7 +323,8 @@ asyncio.run(pa_agent("파이썬의 GIL이란?", ground_truth="Global Interpreter
 
 ```python
 import anthropic
-from agent_evaluator import agent_eval, PerformanceMonitor
+from agent_evaluator import PerformanceMonitor
+from agent_evaluator.decorators import agent_eval
 
 monitor = PerformanceMonitor("results/")
 client = anthropic.Anthropic()
@@ -351,7 +353,8 @@ claude_agent("최신 AI 연구 동향은?", ground_truth="GPT-4, Claude 3.5 등"
 
 ```python
 from openai import OpenAI
-from agent_evaluator import agent_eval, PerformanceMonitor
+from agent_evaluator import PerformanceMonitor
+from agent_evaluator.decorators import agent_eval
 
 monitor = PerformanceMonitor("results/")
 client = OpenAI()
@@ -381,7 +384,8 @@ openai_agent("123 * 456의 값은?", ground_truth="56088")
 ```python
 import os
 import google.generativeai as genai
-from agent_evaluator import agent_eval, PerformanceMonitor
+from agent_evaluator import PerformanceMonitor
+from agent_evaluator.decorators import agent_eval
 
 monitor = PerformanceMonitor("results/")
 genai.configure(api_key=os.getenv("GOOGLE_API_KEY"))

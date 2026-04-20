@@ -1019,7 +1019,7 @@ def legal_qa_agent(question: str, ground_truth: str = "") -> str:
 
 ## Category 5 — 다중에이전트 장애 (Gate F)
 
-다중에이전트 장애 카테고리는 여러 에이전트가 협력하는 시스템에서 발생하는 조율 실패, 정보 왜곡, 교착 상태 패턴을 포함한다. Gate F(Multi-Agent Coordination)가 관할하며, DeadlockConfig, PropagationConfig, ConsensusConfig가 핵심 탐지 수단이다.
+다중에이전트 장애 카테고리는 여러 에이전트가 협력하는 시스템에서 발생하는 조율 실패, 정보 왜곡, 교착 상태 패턴을 포함한다. Gate F(Multi-Agent Coordination)가 관할하며, PropagationConfig, ConsensusConfig가 핵심 탐지 수단이다. `DeadlockConfig`는 v0.8.2에서 Gate B(Behavioral Integrity)로 재분류됐으나, 다중에이전트 교착 방어에도 함께 활용된다.
 
 ---
 

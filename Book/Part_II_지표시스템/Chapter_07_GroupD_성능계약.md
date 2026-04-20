@@ -79,7 +79,8 @@ Group D는 에이전트가 **약속한 성능 계약(Performance Contract)**을 
 | `latency_histogram` | 응답 시간 분포 히스토그램 |
 
 ```python
-from agent_evaluator import PerformanceMonitor, agent_eval
+from agent_evaluator import PerformanceMonitor
+from agent_evaluator.decorators import agent_eval
 import time
 
 monitor = PerformanceMonitor("results/")
@@ -187,7 +188,7 @@ print(f"추정 비용: ${d.get('estimated_cost_usd', 0):.4f}")
 응답 시간과 비용에 대한 SLA(Service Level Agreement)를 코드로 선언한다. **Group D의 핵심 Config**다.
 
 ```python
-from agent_evaluator.decorators import SLAConfig
+from agent_evaluator import SLAConfig
 
 SLAConfig(
     p95_ms=3000.0,          # P95 응답 시간 상한 (ms)
@@ -235,7 +236,7 @@ api_sla = SLAConfig(
 토큰/비용 대비 실제 완료율(ROI)을 측정한다. "돈을 쓴 만큼 가치가 나왔는가?"를 평가한다.
 
 ```python
-from agent_evaluator.decorators import EfficiencyConfig
+from agent_evaluator import EfficiencyConfig
 
 EfficiencyConfig(
     cost_unit="tokens",                   # "tokens"|"usd"|"time_ms"
@@ -269,7 +270,7 @@ def agent(question: str, ground_truth: str = "") -> str:
 개별 태스크 수준에서 토큰·비용·실행시간의 하드 상한을 설정한다. `SLAConfig`가 통계적 위반을 탐지한다면, `ResourceBudgetConfig`는 개별 태스크의 폭주를 즉시 차단한다.
 
 ```python
-from agent_evaluator.decorators import ResourceBudgetConfig
+from agent_evaluator import ResourceBudgetConfig
 
 ResourceBudgetConfig(
     max_tokens=2000,              # 태스크당 최대 토큰 수
@@ -311,7 +312,7 @@ def agent(question: str, ground_truth: str = "") -> str:
 첫 토큰까지의 대기 시간(TTFT) 변동성을 측정한다. 스트리밍 에이전트에서 사용자 체감 품질에 직접 영향을 준다.
 
 ```python
-from agent_evaluator.decorators import TTFTVariabilityConfig
+from agent_evaluator import TTFTVariabilityConfig
 
 TTFTVariabilityConfig(
     max_stddev_ms=500.0,       # TTFT 표준편차 허용 상한 (ms)
@@ -328,7 +329,7 @@ TTFTVariabilityConfig(
 동일 `task_type` 내 비용의 변동 계수(CV, Coefficient of Variation)를 측정한다. 비용이 예측 가능하게 안정적인지를 평가한다.
 
 ```python
-from agent_evaluator.decorators import CostPredictabilityConfig
+from agent_evaluator import CostPredictabilityConfig
 
 CostPredictabilityConfig(
     max_coefficient_of_variation=0.3,  # CV 허용 상한 (30% = 낮은 변동성)
@@ -356,8 +357,10 @@ CV > 0.8  → 매우 불규칙 — 비용 예산 계획 불가
 ### 패턴 1 — 실시간 챗봇 (저지연 중심)
 
 ```python
-from agent_evaluator.decorators import (
-    SLAConfig, ResourceBudgetConfig, EfficiencyConfig
+from agent_evaluator import (
+    SLAConfig,
+    ResourceBudgetConfig,
+    EfficiencyConfig,
 )
 
 @agent_eval(
@@ -386,8 +389,10 @@ def chatbot(question: str, ground_truth: str = "") -> str:
 ### 패턴 2 — 비용 예산 관리가 중요한 에이전트
 
 ```python
-from agent_evaluator.decorators import (
-    SLAConfig, ResourceBudgetConfig, CostPredictabilityConfig
+from agent_evaluator import (
+    SLAConfig,
+    ResourceBudgetConfig,
+    CostPredictabilityConfig,
 )
 
 @agent_eval(
@@ -534,4 +539,4 @@ python Evaluator_Examples/01_layer1_all_metrics.py    # LatencyTracker·TokenEco
 | `CostPredictabilityConfig` | 비용 예측 가능성 기준 | `max_coefficient_of_variation`, `cost_metric` |
 
 > 🔗 **다음 챕터**: Chapter 8 — Group E: 보안경계  
-> 외부 공격과 데이터 유출을 차단하는 4개 Tracker와 4개 Config를 완전히 이해한다. 패턴 매칭과 의미 기반 탐지 2계층 보안을 다룬다.
+> 외부 공격과 데이터 유출을 차단하는 5개 Tracker와 3개 Config를 완전히 이해한다. 패턴 매칭과 의미 기반 탐지 2계층 보안을 다룬다.

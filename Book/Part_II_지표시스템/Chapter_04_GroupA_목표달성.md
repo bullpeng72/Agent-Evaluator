@@ -4,8 +4,8 @@
 ┌────────────────────────────────────────────────────────────┐
 │ 🔗 Harness 연결                                             │
 │ Group A — Goal Achievement (목표달성)                       │
-│ Tracker 3종: TaskCompletionTracker · AccuracyEvaluator ·   │
-│              ResponseQualityEvaluator                       │
+│ Tracker 4종: TaskCompletionTracker · AccuracyEvaluator ·   │
+│              ResponseQualityEvaluator · ToolSelectionTracker│
 │ Config 6종: InstructionConfig · GoalAlignmentConfig ·      │
 │             PlanConfig · ContextRetentionConfig ·           │
 │             SubtaskConfig · KnowledgeRetentionConfig        │
@@ -149,8 +149,8 @@ Accuracy는 응답이 ground_truth와 얼마나 가까운지 측정한다. BLEU�
 | Char Similarity | 10% | Levenshtein 거리 기반 | 문자 순서·오타 반영 |
 
 ```python
-# 4중 가중 정확도 계산 예시
-from agent_evaluator.helpers.taskresult_helpers import create_taskresult
+# 출처: Evaluator_Examples/01_layer1_all_metrics.py, 섹션 1 — 4중 가중 정확도 계산 예시
+from agent_evaluator import create_taskresult
 
 result = create_taskresult(
     task_id="t1",
@@ -198,20 +198,25 @@ result = create_taskresult(
 | 0.50~0.70 | 🟠 미흡 | ground_truth 품질 확인 필요 |
 | < 0.50 | 🔴 낮음 | 에이전트 전면 재검토 |
 
-### 4.2.3 ResponseQualityEvaluator — 5차원 품질 평가
+### 4.2.3 ResponseQualityEvaluator — 5차원 가중 품질 평가
 
-ground_truth 없이도 응답 자체의 품질을 5개 차원으로 평가한다. 각 차원을 0~5 척도로 측정하고 `quality_score`(평균)를 계산한다.
+ground_truth 없이도 응답 자체의 품질을 5개 차원으로 평가한다. 각 차원을 0~5 척도로 측정하고 **가중 평균**으로 `quality_score`를 계산한다.
 
-| 차원 | 측정 내용 |
-|------|---------|
-| completeness | 응답이 질문에 완전히 답했는가? |
-| relevance | 응답이 질문과 관련이 있는가? |
-| clarity | 응답이 명확하고 이해하기 쉬운가? |
-| coherence | 응답이 논리적으로 일관성 있는가? |
-| depth | 응답이 충분한 깊이와 상세함을 가지는가? |
+| 차원 | 가중치 | 측정 내용 |
+|------|-------|---------|
+| relevance | ×0.25 | 응답이 질문과 관련이 있는가? |
+| completeness | ×0.25 | 응답이 질문에 완전히 답했는가? |
+| accuracy | ×0.20 | 응답의 사실적 정확성이 높은가? |
+| clarity | ×0.15 | 응답이 명확하고 이해하기 쉬운가? |
+| usefulness | ×0.15 | 응답이 실제로 유용한가? |
+
+```
+quality_score = relevance×0.25 + completeness×0.25 + accuracy×0.20 + clarity×0.15 + usefulness×0.15
+```
 
 ```python
-from agent_evaluator import PerformanceMonitor, agent_eval
+from agent_evaluator import PerformanceMonitor
+from agent_evaluator.decorators import agent_eval
 
 monitor = PerformanceMonitor("results/")
 
@@ -236,7 +241,7 @@ print(d["quality_dimensions"])      # {"completeness": 4.5, "relevance": 4.2, ..
 응답이 선언된 형식·언어·길이 기준을 지키는지 검증한다. **가장 먼저 도입해야 할 Config**다.
 
 ```python
-from agent_evaluator.decorators import InstructionConfig
+from agent_evaluator import InstructionConfig
 
 InstructionConfig(
     expected_format="json",           # "json"|"markdown"|"yaml"|"plain"|None
@@ -260,7 +265,8 @@ InstructionConfig(
 **사용 예시:**
 
 ```python
-from agent_evaluator.decorators import agent_eval, InstructionConfig
+from agent_evaluator import InstructionConfig
+from agent_evaluator.decorators import agent_eval
 
 # 고객 응대 봇 — JSON 구조화 응답 강제
 @agent_eval(
@@ -293,7 +299,7 @@ def customer_bot(question: str, ground_truth: str = "") -> str:
 에이전트가 사용한 도구가 질문의 목표와 정렬되어 있는지 측정한다. "검색"이 목표인데 "코드 실행"을 사용했다면 정렬이 낮다.
 
 ```python
-from agent_evaluator.decorators import GoalAlignmentConfig
+from agent_evaluator import GoalAlignmentConfig
 
 GoalAlignmentConfig(
     use_keyword_overlap=True,          # 질문 키워드 ↔ 도구명 오버랩 측정
@@ -314,7 +320,7 @@ GoalAlignmentConfig(
 에이전트가 계획(plan)을 수립하고 그 계획대로 실행하는지 추적한다. 다단계 추론이나 복잡한 태스크를 처리하는 에이전트에 적합하다.
 
 ```python
-from agent_evaluator.decorators import PlanConfig
+from agent_evaluator import PlanConfig
 
 PlanConfig(
     plan_field="plan",                 # 응답 JSON에서 계획 추출할 필드명
@@ -352,7 +358,7 @@ def research_agent(question: str, ground_truth: str = "") -> str:
 RAG 에이전트나 멀티턴 대화 에이전트에서 원래 목표와 핵심 엔티티가 응답 전반에 유지되는지 측정한다.
 
 ```python
-from agent_evaluator.decorators import ContextRetentionConfig
+from agent_evaluator import ContextRetentionConfig
 
 ContextRetentionConfig(
     key_entities=["서울", "2024년", "인공지능"],  # 보존되어야 할 핵심 엔티티
@@ -385,7 +391,7 @@ def rag_agent(question: str, context: str = "", ground_truth: str = "") -> str:
 복잡한 태스크를 여러 하위 작업(subtask)으로 분해하고, 각 서브태스크의 완료 여부를 추적한다.
 
 ```python
-from agent_evaluator.decorators import SubtaskConfig
+from agent_evaluator import SubtaskConfig
 
 SubtaskConfig(
     expected_subtasks=["키워드 추출", "검색", "요약", "번역"],  # 기대하는 서브태스크 목록
@@ -403,7 +409,7 @@ SubtaskConfig(
 멀티턴 대화에서 초기 턴에 언급된 사실이 이후 응답에서도 유지되는지 측정한다. 에이전트가 대화 중 "기억"을 잃는 문제를 탐지한다.
 
 ```python
-from agent_evaluator.decorators import KnowledgeRetentionConfig
+from agent_evaluator import KnowledgeRetentionConfig
 
 KnowledgeRetentionConfig(
     facts_to_retain=[                # 보존되어야 할 사실 목록
@@ -425,7 +431,7 @@ KnowledgeRetentionConfig(
 ### 패턴 1 — 단순 QA 봇 (최소 구성)
 
 ```python
-from agent_evaluator.decorators import InstructionConfig, SLAConfig
+from agent_evaluator import InstructionConfig, SLAConfig
 
 @agent_eval(
     monitor,
@@ -445,8 +451,10 @@ def simple_qa(question: str, ground_truth: str = "") -> str:
 ### 패턴 2 — RAG 에이전트 (컨텍스트 보존 포함)
 
 ```python
-from agent_evaluator.decorators import (
-    InstructionConfig, ContextRetentionConfig, GoalAlignmentConfig
+from agent_evaluator import (
+    InstructionConfig,
+    ContextRetentionConfig,
+    GoalAlignmentConfig,
 )
 
 @agent_eval(
@@ -474,8 +482,10 @@ def rag_agent(question: str, context: str = "", ground_truth: str = "") -> str:
 ### 패턴 3 — 복잡한 계획 에이전트 (서브태스크 추적)
 
 ```python
-from agent_evaluator.decorators import (
-    PlanConfig, SubtaskConfig, InstructionConfig
+from agent_evaluator import (
+    PlanConfig,
+    SubtaskConfig,
+    InstructionConfig,
 )
 
 @agent_eval(
@@ -582,10 +592,13 @@ Group A의 Config 위반과 Tracker 지표를 종합해 배포 가능 여부를 
 
 ```python
 from agent_evaluator import PerformanceMonitor, HarnessEvaluationGate
-from agent_evaluator.decorators import (
-    agent_eval, InstructionConfig, GoalAlignmentConfig,
-    SLAConfig, ThreatSeverityConfig,
+from agent_evaluator import (
+    InstructionConfig,
+    GoalAlignmentConfig,
+    SLAConfig,
+    ThreatSeverityConfig,
 )
+from agent_evaluator.decorators import agent_eval
 
 monitor = PerformanceMonitor("results/")
 
@@ -750,7 +763,7 @@ python Evaluator_Examples/01_layer1_all_metrics.py  # Layer 1 Tracker 전체
 |------------|------|-------------|
 | `TaskCompletionTracker` | TCR 측정 | completion_score 3단계 자동 계산 |
 | `AccuracyEvaluator` | 4중 가중 정확도 | Token F1 40% + Jaccard 30% + LCS 20% + Levenshtein 10% |
-| `ResponseQualityEvaluator` | 5차원 품질 | completeness · relevance · clarity · coherence · depth |
+| `ResponseQualityEvaluator` | 5차원 가중 품질 | relevance(×0.25) · completeness(×0.25) · accuracy(×0.20) · clarity(×0.15) · usefulness(×0.15) |
 | `InstructionConfig` | 형식·언어·길이 기준 | `expected_format`, `expected_language`, `fail_on_violation` |
 | `GoalAlignmentConfig` | 목표-도구 정렬 기준 | `goal_tool_map`, `alignment_threshold` |
 | `PlanConfig` | 계획 완성도 기준 | `available_tools`, `check_executability` |
@@ -759,4 +772,4 @@ python Evaluator_Examples/01_layer1_all_metrics.py  # Layer 1 Tracker 전체
 | `KnowledgeRetentionConfig` | 대화 중 사실 보존 기준 | `facts_to_retain`, `seed_turns` |
 
 > 🔗 **다음 챕터**: Chapter 5 — Group B: 행동무결성  
-> 에이전트가 허가된 범위 안에서만 동작하는지, 루프나 스코프 이탈 없이 작동하는지 측정하는 2개 Tracker와 4개 Config를 완전히 이해한다.
+> 에이전트가 허가된 범위 안에서만 동작하는지, 루프나 스코프 이탈 없이 작동하는지 측정하는 2개 Tracker와 6개 Config를 완전히 이해한다.

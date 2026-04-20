@@ -432,39 +432,41 @@ Harness Config로 전환하면:
 §14.2의 에이전트 유형별 KPI 기준표를 Config 코드로 변환합니다.
 
 ```python
-from agent_evaluator.decorators import (
+# 출처: Evaluator_Examples/08_harness_eval.py, 섹션 Group A·C·D·E — KPI를 Config로 선언
+from agent_evaluator import (
+    agent_eval, PerformanceMonitor,
     InstructionConfig, ReproducibilityConfig, SLAConfig,
-    ThreatSeverityConfig, ComplianceConfig, FaultToleranceConfig,
+    ThreatSeverityConfig, ComplianceConfig,
 )
 
+monitor = PerformanceMonitor(output_dir="results/", enable_security_metrics=True)
+
 # ── QA 챗봇 ──────────────────────────────────────────────────────────
-qa_harness = [
-    InstructionConfig(min_completion_rate=0.85, min_accuracy=0.70, fail_on_violation=True),
-    SLAConfig(max_p95_latency=5.0, fail_on_violation=True),
-]
-
-# ── RAG 검색 ─────────────────────────────────────────────────────────
-rag_harness = [
-    InstructionConfig(min_completion_rate=0.88, min_accuracy=0.75, fail_on_violation=True),
-    SLAConfig(max_p95_latency=4.0, fail_on_violation=True),
-    ReproducibilityConfig(min_consistency_rate=0.80, fail_on_violation=False),  # 모니터링만
-]
-
-# ── 보안 에이전트 ─────────────────────────────────────────────────────
-security_harness = [
-    InstructionConfig(min_completion_rate=0.95, min_accuracy=0.80, fail_on_violation=True),
-    SLAConfig(max_p95_latency=3.0, fail_on_violation=True),
-    ThreatSeverityConfig(max_severity="low", fail_on_violation=True),
-    ComplianceConfig(standards=["GDPR"], fail_on_violation=True),
-]
-
-# ── 사용 ─────────────────────────────────────────────────────────────
-@agent_eval(monitor, task_type="qa", harness_configs=qa_harness)
+@agent_eval(
+    monitor, task_type="qa",
+    instructions=InstructionConfig(min_completion_rate=0.85, min_accuracy=0.70, fail_on_violation=True),
+    sla=SLAConfig(max_p95_latency=5.0, fail_on_violation=True),
+)
 def qa_agent(question: str, ground_truth: str = "") -> str: ...
 
-@agent_eval(monitor, task_type="information_retrieval",
-            harness_configs=rag_harness, rag_mode=True)
+# ── RAG 검색 ─────────────────────────────────────────────────────────
+@agent_eval(
+    monitor, task_type="information_retrieval", rag_mode=True,
+    instructions=InstructionConfig(min_completion_rate=0.88, min_accuracy=0.75, fail_on_violation=True),
+    sla=SLAConfig(max_p95_latency=4.0, fail_on_violation=True),
+    reproducibility=ReproducibilityConfig(min_consistency_rate=0.80, fail_on_violation=False),  # 모니터링만
+)
 def rag_agent(question: str, context: str = "", ground_truth: str = "") -> str: ...
+
+# ── 보안 에이전트 ─────────────────────────────────────────────────────
+@agent_eval(
+    monitor, task_type="qa",
+    instructions=InstructionConfig(min_completion_rate=0.95, min_accuracy=0.80, fail_on_violation=True),
+    sla=SLAConfig(max_p95_latency=3.0, fail_on_violation=True),
+    threat_severity=ThreatSeverityConfig(max_severity="low", fail_on_violation=True),
+    compliance=ComplianceConfig(standards=["GDPR"], fail_on_violation=True),
+)
+def security_agent(question: str, ground_truth: str = "") -> str: ...
 ```
 
 ### 14.7.3 Wilson Score Interval — 통계적 임계값 설정

@@ -76,7 +76,8 @@ Group A(목표달성)가 "결과가 맞는가?"를 묻는다면, Group C는 "결
 - **정보 출처 추적**: RAG 에이전트의 경우 응답이 검색된 문서에 기반하는가
 
 ```python
-from agent_evaluator import PerformanceMonitor, agent_eval
+from agent_evaluator import PerformanceMonitor
+from agent_evaluator.decorators import agent_eval
 
 monitor = PerformanceMonitor(
     output_dir="results/",
@@ -114,7 +115,7 @@ print(f"환각 점수: {d.get('hallucination_score', 0):.3f}")
 환각 탐지를 더 정밀하게 하려면 LLMJudge와 결합한다.
 
 ```python
-from agent_evaluator.decorators import LLMJudgeConfig
+from agent_evaluator import LLMJudgeConfig
 
 @agent_eval(
     monitor,
@@ -176,7 +177,7 @@ print(f"재시도 성공률: {d.get('retry_success_rate', 0) * 100:.1f}%")
 동일한 입력을 N회 실행해 응답의 일관성을 측정한다. AI Native 관점의 "확률론적 품질"을 직접 측정하는 핵심 Config다.
 
 ```python
-from agent_evaluator.decorators import ReproducibilityConfig
+from agent_evaluator import ReproducibilityConfig
 
 ReproducibilityConfig(
     runs=3,                              # 동일 입력 반복 실행 횟수
@@ -226,7 +227,7 @@ def finance_agent(question: str, ground_truth: str = "") -> str:
 에이전트가 도구 실패나 부분적인 오류 상황에서 적절한 폴백(fallback) 전략을 사용하는지 측정한다.
 
 ```python
-from agent_evaluator.decorators import FaultToleranceConfig
+from agent_evaluator import FaultToleranceConfig
 
 FaultToleranceConfig(
     check_fallback_attempts=True,           # 실패 후 폴백 도구 사용 여부 추적
@@ -265,7 +266,7 @@ def db_agent(question: str, ground_truth: str = "") -> str:
 에이전트가 최적 조건이 아닐 때(도구 실패, 컨텍스트 부족, 타임아웃 등) 완전한 실패 대신 부분적인 결과를 제공하는지 측정한다. "모든 것을 실패하거나, 모든 것을 성공하거나" 대신 "가능한 것을 제공하고 부족함을 인정하는" 패턴을 장려한다.
 
 ```python
-from agent_evaluator.decorators import GracefulDegradationConfig
+from agent_evaluator import GracefulDegradationConfig
 
 GracefulDegradationConfig(
     partial_result_markers=[             # 부분 결과를 나타내는 마커
@@ -306,7 +307,7 @@ def robust_agent(question: str, ground_truth: str = "") -> str:
 재시도 횟수와 결과를 기반으로 재시도 전략의 효율성을 평가한다. "재시도가 실제로 성공으로 이어지는가?"를 측정한다.
 
 ```python
-from agent_evaluator.decorators import RetryConsistencyConfig
+from agent_evaluator import RetryConsistencyConfig
 
 RetryConsistencyConfig(
     group_by_task_prefix=True,           # task_id 접두사 기준 태스크 그룹화
@@ -325,7 +326,7 @@ RetryConsistencyConfig(
 | 코드 | `retry=RetryConfig(max=3)` | `retry_consistency=RetryConsistencyConfig(...)` |
 
 ```python
-from agent_evaluator.decorators import RetryConfig, RetryConsistencyConfig
+from agent_evaluator import RetryConfig, RetryConsistencyConfig
 
 @agent_eval(
     monitor,
@@ -345,7 +346,7 @@ def agent(question: str, ground_truth: str = "") -> str:
 동일한 도구를 반복 실행했을 때 부작용(side effect)이 발생하는지 평가한다. 데이터 생성·삭제·수정 등 비멱등(non-idempotent) 도구를 불필요하게 반복 호출하면 감점된다.
 
 ```python
-from agent_evaluator.decorators import IdempotencyConfig
+from agent_evaluator import IdempotencyConfig
 
 IdempotencyConfig(
     non_idempotent_patterns=[            # 비멱등 도구 패턴 목록
@@ -385,10 +386,8 @@ def db_write_agent(question: str, ground_truth: str = "") -> str:
 ### 패턴 1 — 의료·금융 정보 에이전트 (고신뢰성 요구)
 
 ```python
-from agent_evaluator import PerformanceMonitor
-from agent_evaluator.decorators import (
-    agent_eval, ReproducibilityConfig, LLMJudgeConfig
-)
+from agent_evaluator import PerformanceMonitor, ReproducibilityConfig, LLMJudgeConfig
+from agent_evaluator.decorators import agent_eval
 
 monitor = PerformanceMonitor(
     output_dir="results/",
@@ -417,7 +416,7 @@ def medical_info_agent(question: str, context: str = "", ground_truth: str = "")
 ### 패턴 2 — 분산 서비스 에이전트 (장애 내성 중심)
 
 ```python
-from agent_evaluator.decorators import (
+from agent_evaluator import (
     FaultToleranceConfig, GracefulDegradationConfig,
     RetryConsistencyConfig
 )
@@ -528,8 +527,8 @@ print(f"재시도 성공률: {d.get('retry_success_rate', 'N/A')}")
 from agent_evaluator import (
     FaultToleranceConfig, GracefulDegradationConfig,
     ReproducibilityConfig, RetryConsistencyConfig, IdempotencyConfig,
+    RetryConfig,
 )
-from agent_evaluator.decorators import RetryConfig
 
 # ── FaultToleranceConfig + GracefulDegradationConfig: 장애 내성 + 우아한 저하 ──
 @agent_eval(

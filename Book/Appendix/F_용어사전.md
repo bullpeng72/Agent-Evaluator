@@ -99,7 +99,7 @@ result = HarnessEvaluationGate(report).evaluate()
 
 ```python
 # Config-as-Code 예시
-from agent_evaluator.decorators import SLAConfig, ThreatSeverityConfig
+from agent_evaluator import SLAConfig, ThreatSeverityConfig
 
 @agent_eval(monitor,
             sla=SLAConfig(p95_ms=2000, fail_on_violation=True),
@@ -142,7 +142,7 @@ Harness Config의 공통 플래그. `True`로 설정하면 해당 Config 조건 
 에이전트의 배포 기준을 선언하는 데이터클래스 계열. 33개 클래스가 Group A-G에 분산되어 있다. `@agent_eval` 데코레이터나 `PerformanceMonitor`에 주입해 사용한다.
 
 ```python
-from agent_evaluator.decorators import SLAConfig, ThreatSeverityConfig, ReproducibilityConfig
+from agent_evaluator import SLAConfig, ThreatSeverityConfig, ReproducibilityConfig
 ```
 
 전체 목록과 사용법: Appendix A §Part 2 (33개 Config 완전 레퍼런스)

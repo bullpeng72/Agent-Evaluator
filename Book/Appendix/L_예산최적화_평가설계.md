@@ -253,8 +253,8 @@ optimal_rate = min(1.0, 20 / (10000 × 0.003)) = min(1.0, 0.667) = 0.667
 67% 샘플링으로 월 $20 이내다.
 
 ```python
-from agent_evaluator import PerformanceMonitor, LLMJudge
-from agent_evaluator.decorators import agent_eval, LLMJudgeConfig
+from agent_evaluator import PerformanceMonitor, LLMJudge, LLMJudgeConfig
+from agent_evaluator.decorators import agent_eval
 from agent_evaluator import (
     InstructionConfig, SLAConfig, FaultToleranceConfig,
     ExplainabilityConfig, ComplianceConfig, LoopDetectionConfig,
@@ -320,8 +320,9 @@ from agent_evaluator import (
     ThreatSeverityConfig, ComplianceConfig, ThreatResponseConfig,
     ConsensusConfig, PropagationConfig, AgentRoleConfig, ConflictResolutionConfig,
     ExplainabilityConfig, ObservabilityConfig, ErrorDiagnosisConfig, LatencyAttributionConfig,
+    LLMJudgeConfig, SecurityConfig,
 )
-from agent_evaluator.decorators import agent_eval, LLMJudgeConfig, SecurityConfig
+from agent_evaluator.decorators import agent_eval
 
 monitor = PerformanceMonitor(
     output_dir="results/",

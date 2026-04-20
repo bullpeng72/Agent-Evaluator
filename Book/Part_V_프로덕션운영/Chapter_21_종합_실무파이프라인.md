@@ -552,7 +552,7 @@ DSPy의 최적화 결과를 Agent-Evaluator로 평가하고, 골든 데이터셋
 팀 고유의 지표가 필요하다면 `BaseTracker`를 상속해 커스텀 트래커를 만들 수 있다.
 
 ```python
-from agent_evaluator.core.trackers.base import BaseTracker, TaskResult
+from agent_evaluator import BaseTracker, TaskResult
 
 class CustomerSatisfactionTracker(BaseTracker):
     """고객 만족도 추정 트래커 (응답 길이, 완성도 기반)"""
@@ -877,8 +877,7 @@ print(f"  정확도: {before_trends.get('accuracy_mean', 0):.1%} → {after_tren
 ```python
 # 출처: Evaluator_Examples/07_phoenix_hybrid.py + 01_layer1_all_metrics.py — 전체 파이프라인 초기화
 import socket, os
-from agent_evaluator.core.otel.provider import setup_otel
-from agent_evaluator import PerformanceMonitor, QuickEval
+from agent_evaluator import setup_otel, PerformanceMonitor, QuickEval
 
 # 1단계: Phoenix OTEL 설정 (PerformanceMonitor 생성 전)
 if socket.create_connection(("localhost", 6006), timeout=2):
@@ -902,7 +901,8 @@ monitor = PerformanceMonitor(
 
 ```python
 # 출처: Evaluator_Examples/04_decorator_quickeval.py + 05_streaming_alerts.py — 데코레이터 + 알림 통합
-from agent_evaluator import agent_eval, SimpleTaskAlertRule, EvalMetadata
+from agent_evaluator import SimpleTaskAlertRule, EvalMetadata
+from agent_evaluator.decorators import agent_eval
 from agent_evaluator.alerts.handlers import AlertRuleBuilder
 import json
 from pathlib import Path

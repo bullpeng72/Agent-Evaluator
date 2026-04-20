@@ -9,7 +9,7 @@
 `TaskResult`는 에이전트 실행 결과를 담는 불변(immutable) 데이터 클래스다. SDK의 모든 평가 데이터는 이 구조를 통해 흐른다.
 
 ```python
-from agent_evaluator.core.trackers.base import TaskResult
+from agent_evaluator import TaskResult
 ```
 
 `@dataclass(frozen=True)`로 선언되어 생성 후 수정이 불가능하다. 불변 설계의 이유는 두 가지다. 첫째, 여러 트래커가 동시에 같은 `TaskResult`를 읽어도 데이터 오염이 없다. 둘째, 직렬화/역직렬화 시 동일성이 보장된다.
@@ -162,7 +162,8 @@ result2 = create_taskresult(task_type="qa", ...)       # 동일하게 동작
 > **실무 팁**: QA 관리자가 "Gate B가 항상 회색이에요"라고 하면, 개발자는 `task_type="tool_use"` 설정 여부와 `tool_calls` 필드 수집 여부를 먼저 확인한다.
 
 ```python
-from agent_evaluator import agent_eval, PerformanceMonitor
+from agent_evaluator import PerformanceMonitor
+from agent_evaluator.decorators import agent_eval
 
 monitor = PerformanceMonitor("results/")
 
@@ -300,7 +301,8 @@ agent-eval dataset build results/ --min-score 0.8
 | 이상 탐지 | 조건부 | `sample_condition` | 오류 발생 케이스만 전수 기록 |
 
 ```python
-from agent_evaluator import agent_eval, PerformanceMonitor
+from agent_evaluator import PerformanceMonitor
+from agent_evaluator.decorators import agent_eval
 
 monitor = PerformanceMonitor("results/")
 
@@ -593,63 +595,60 @@ print(f"평균 지연: {summary.get('avg_latency', 0):.2f}초")
 ### 코드로 최소 세트 적용
 
 ```python
-from agent_evaluator import PerformanceMonitor, agent_eval, TaskResult
+# 출처: Evaluator_Examples/08_harness_eval.py, 섹션 Group A·B·C — 에이전트 유형별 최소 Harness Config 세트
+from agent_evaluator import (
+    PerformanceMonitor,
+    InstructionConfig, ReproducibilityConfig,          # Group A, C
+    ThreatSeverityConfig, IdempotencyConfig,           # Group E, C
+    DeadlockConfig, AgentRoleConfig, ObservabilityConfig,  # Group B, F, G
+)
+from agent_evaluator.decorators import agent_eval
 
 # ── 단순 QA 에이전트 최소 세트 ──────────────────────────────────────
-from agent_evaluator.core.trackers.base import (
-    InstructionConfig, ReproducibilityConfig
-)
+monitor = PerformanceMonitor(output_dir="results/")
 
-monitor = PerformanceMonitor(
-    output_dir="results/",
-    harness_configs={
-        "instruction": InstructionConfig(min_completion_rate=0.85),
-        "reproducibility": ReproducibilityConfig(min_consistency_score=0.80),
-    }
+@agent_eval(
+    monitor,
+    task_type="qa",
+    instructions=InstructionConfig(min_completion_rate=0.85),
+    reproducibility=ReproducibilityConfig(min_consistency_score=0.80),
 )
-
-@agent_eval(monitor, task_type="qa")
 def qa_agent(question: str, ground_truth: str = "") -> str:
     return llm.invoke(question)
 
 
 # ── RAG 에이전트 최소 세트 ───────────────────────────────────────────
-from agent_evaluator.core.trackers.base import (
-    ThreatSeverityConfig, IdempotencyConfig
-)
+monitor_rag = PerformanceMonitor.for_rag_evaluation(output_dir="results/")
 
-monitor_rag = PerformanceMonitor.for_rag_evaluation(
-    output_dir="results/",
-    harness_configs={
-        "threat": ThreatSeverityConfig(max_severity_level="medium", fail_on_violation=True),
-        "idempotency": IdempotencyConfig(min_idempotency_score=0.75),
-    }
+@agent_eval(
+    monitor_rag,
+    task_type="information_retrieval",
+    context_arg="context",
+    threat_severity=ThreatSeverityConfig(max_severity_level="medium", fail_on_violation=True),
+    idempotency=IdempotencyConfig(min_idempotency_score=0.75),
 )
-
-@agent_eval(monitor_rag, task_type="information_retrieval")
 def rag_agent(question: str, context: str = "", ground_truth: str = "") -> str:
     return llm.invoke(f"컨텍스트: {context}\n질문: {question}")
 
 
 # ── 멀티에이전트 최소 세트 ──────────────────────────────────────────
-from agent_evaluator.core.trackers.base import (
-    DeadlockConfig, AgentRoleConfig, ObservabilityConfig
-)
+monitor_multi = PerformanceMonitor(output_dir="results/")
 
-monitor_multi = PerformanceMonitor(
-    output_dir="results/",
-    harness_configs={
-        "deadlock": DeadlockConfig(max_wait_cycles=3, fail_on_violation=True),
-        "roles": AgentRoleConfig(
-            allowed_roles=["researcher", "writer", "reviewer"],
-            require_role_declaration=True,
-        ),
-        "observability": ObservabilityConfig(
-            require_trace_id=True,
-            min_span_coverage=0.90,
-        ),
-    }
+@agent_eval(
+    monitor_multi,
+    task_type="tool_use",
+    deadlock=DeadlockConfig(max_wait_cycles=3, fail_on_violation=True),
+    agent_role=AgentRoleConfig(
+        allowed_roles=["researcher", "writer", "reviewer"],
+        require_role_declaration=True,
+    ),
+    observability=ObservabilityConfig(
+        require_trace_id=True,
+        min_span_coverage=0.90,
+    ),
 )
+def multi_agent(question: str, ground_truth: str = "") -> str:
+    return orchestrator.run(question)
 ```
 
 ### TaskType과 Group 자동 활성화 관계

@@ -164,13 +164,14 @@ TCR 66.7%이 게이팅 기준 80% 미달이므로 `gate()`는 `sys.exit(1)`을 �
 `gate()`는 간단한 단일 임계값 판정입니다. 더 복잡한 배포 기준은 **Harness Config** 데이터클래스로 선언합니다.
 
 ```python
-from agent_evaluator.decorators import (
+# 출처: Evaluator_Examples/08_harness_eval.py, 섹션 2 — Group A·D Config 선언 및 통합
+from agent_evaluator import (
+    PerformanceMonitor,
     InstructionConfig,    # Group A — 완료율·지시 준수
     SLAConfig,           # Group D — 레이턴시·비용 계약
     ThreatSeverityConfig, # Group E — 보안 위협 수준
-    agent_eval,
 )
-from agent_evaluator import PerformanceMonitor
+from agent_evaluator.decorators import agent_eval
 
 monitor = PerformanceMonitor(output_dir="results/")
 
@@ -189,7 +190,8 @@ sla_cfg = SLAConfig(
 @agent_eval(
     monitor,
     task_type="qa",
-    harness_configs=[instruction_cfg, sla_cfg],
+    instructions=instruction_cfg,
+    sla=sla_cfg,
 )
 def my_agent(question: str, ground_truth: str = "") -> str:
     return llm.invoke(question)
@@ -234,11 +236,11 @@ Agent-Evaluator의 58개 지표는 세 층(Layer)과 세 역할(Tracker·Config�
 │  Config — 33개 Harness Config 데이터클래스                            │
 │  배포 기준을 소스 코드로 선언 (fail_on_violation=True 시 강제 차단)      │
 │  Group A: InstructionConfig, GoalAlignmentConfig, ...              │
-│  Group B: LoopDetectionConfig, ScopeConfig, ...                    │
+│  Group B: LoopDetectionConfig, ScopeConfig, StateConsistencyConfig, DeadlockConfig, ...│
 │  Group C: ReproducibilityConfig, FaultToleranceConfig, ...         │
 │  Group D: SLAConfig, EfficiencyConfig, ResourceBudgetConfig, ...   │
 │  Group E: ThreatSeverityConfig, ComplianceConfig, ...              │
-│  Group F: DeadlockConfig, ConsensusConfig, ...                     │
+│  Group F: ConsensusConfig, PropagationConfig, ...                  │
 │  Group G: ObservabilityConfig, ExplainabilityConfig, ...           │
 ├────────────────────────────────────────────────────────────────────┤
 │  Tracker — 25개 네이티브 트래커 (+ LLMJudge + AnomalyDetector)        │
@@ -602,7 +604,8 @@ print(comparison)
 
 ```python
 # 출처: Evaluator_Examples/04_decorator_quickeval.py, 섹션 1 — @agent_eval 기본 사용
-from agent_evaluator import PerformanceMonitor, agent_eval
+from agent_evaluator import PerformanceMonitor
+from agent_evaluator.decorators import agent_eval
 
 monitor = PerformanceMonitor(output_dir="results/")
 

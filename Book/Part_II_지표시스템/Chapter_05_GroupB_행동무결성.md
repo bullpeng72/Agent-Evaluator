@@ -5,8 +5,9 @@
 │ 🔗 Harness 연결                                             │
 │ Group B — Behavioral Integrity (행동무결성)                  │
 │ Tracker 2종: ToolCallAnalyzer · WorkflowExecutionTracker   │
-│ Config 4종: LoopDetectionConfig · ScopeConfig ·            │
+│ Config 6종: LoopDetectionConfig · ScopeConfig ·            │
 │             ToolParameterSafetyConfig · ContextWindowConfig│
+│             StateConsistencyConfig · DeadlockConfig        │
 │ Gate 판정: HarnessEvaluationGate.check_group_B()           │
 └────────────────────────────────────────────────────────────┘
 ```
@@ -155,14 +156,14 @@ monitor.record_task(result)
 
 ---
 
-## 5.3 Config 4종 레퍼런스
+## 5.3 Config 6종 레퍼런스
 
 ### 5.3.1 LoopDetectionConfig — 도구 호출 루프 탐지
 
 연속으로 동일한 도구를 반복 호출하거나, 짧은 시간 안에 같은 도구를 과도하게 사용하는 루프 패턴을 탐지한다.
 
 ```python
-from agent_evaluator.decorators import LoopDetectionConfig
+from agent_evaluator import LoopDetectionConfig
 
 LoopDetectionConfig(
     consecutive_repeat_threshold=3,    # N회 연속 동일 도구 호출 시 루프 감지
@@ -177,7 +178,8 @@ LoopDetectionConfig(
 **사용 예시:**
 
 ```python
-from agent_evaluator.decorators import agent_eval, LoopDetectionConfig
+from agent_evaluator import LoopDetectionConfig
+from agent_evaluator.decorators import agent_eval
 
 @agent_eval(
     monitor,
@@ -204,7 +206,7 @@ def search_agent(question: str, ground_truth: str = "") -> str:
 에이전트가 사용할 수 있는 도구의 목록과 제한을 코드로 선언한다. **범위 이탈이 즉시 배포 차단으로 연결되어야 하는 에이전트**에 필수다.
 
 ```python
-from agent_evaluator.decorators import ScopeConfig
+from agent_evaluator import ScopeConfig
 
 ScopeConfig(
     allowed_tools=["search", "summarize", "translate"],  # 허용 도구 화이트리스트
@@ -254,7 +256,7 @@ analytics_scope = ScopeConfig(
 도구 호출 파라미터에 위험한 패턴(경로 순회, 코드 인젝션 등)이 포함되어 있는지 검사한다. Group E의 보안 트래커보다 가볍게 동작하는 파라미터 수준 검사다.
 
 ```python
-from agent_evaluator.decorators import ToolParameterSafetyConfig
+from agent_evaluator import ToolParameterSafetyConfig
 
 ToolParameterSafetyConfig(
     tool_schemas={              # 도구별 파라미터 스키마 (선택 사항)
@@ -309,7 +311,7 @@ def code_agent(question: str, ground_truth: str = "") -> str:
 에이전트가 LLM의 컨텍스트 윈도우를 얼마나 효율적으로 활용하는지 측정한다. 윈도우가 포화 상태에 가까워지면 응답 품질이 저하될 수 있다.
 
 ```python
-from agent_evaluator.decorators import ContextWindowConfig
+from agent_evaluator import ContextWindowConfig
 
 ContextWindowConfig(
     window_size_tokens=128000,   # LLM 컨텍스트 윈도우 크기 (토큰)
@@ -329,6 +331,81 @@ ContextWindowConfig(
 | Gemini 1.5 Pro | 1,000,000 | 1000000 |
 | Llama 3.1 70B | 128,000 | 128000 |
 
+### 5.3.5 StateConsistencyConfig — 실행 전후 상태 일관성 (v0.8.2 Group E→B 이동)
+
+> ℹ️ **v0.8.2 변경**: `StateConsistencyConfig`는 v0.8.2에서 Group E(보안경계)에서 Group B(행동무결성)로 이동했다. 상태 일관성은 보안 위협보다 행동 무결성 문제에 가깝기 때문이다.
+
+에이전트 실행 전후의 상태(공유 변수, 파일, DB 등)가 선언된 불변 조건을 유지하는지 검증한다. 예기치 않은 사이드 이펙트를 탐지한다.
+
+```python
+from agent_evaluator import StateConsistencyConfig
+
+StateConsistencyConfig(
+    unchanged_keys=["user_id", "session_token", "read_only_config"],  # 변경 불가 상태 키
+    allowed_state_changes=["output", "cache", "log"],                  # 변경 허용 키
+    check_before_after=True,          # 실행 전후 상태 스냅샷 비교
+    fail_on_inconsistency=True,       # 일관성 위반 시 success=False
+    state_provider=None,              # 커스텀 상태 제공자 (None: tool_calls 기반 추론)
+)
+```
+
+**사용 예시:**
+
+```python
+# 출처: Evaluator_Examples/08_harness_eval.py, 섹션 2 — Group B Behavioral Integrity
+from agent_evaluator import StateConsistencyConfig
+from agent_evaluator.decorators import agent_eval
+
+@agent_eval(
+    monitor,
+    task_type="tool_use",
+    state_consistency=StateConsistencyConfig(
+        unchanged_keys=["user_id", "account_balance"],  # 잔액은 이 에이전트가 변경 불가
+        fail_on_inconsistency=True,
+    ),
+)
+def read_only_agent(question: str, ground_truth: str = "") -> str:
+    return agent.run(question)
+```
+
+### 5.3.6 DeadlockConfig — 교착·기아·라이브락 탐지 (v0.8.2 Group F→B 이동)
+
+> ℹ️ **v0.8.2 변경**: `DeadlockConfig`는 v0.8.2에서 Group F(다중에이전트)에서 Group B(행동무결성)로 이동했다. 단일 에이전트에서도 순환 도구 의존성이 발생할 수 있기 때문이다.
+
+에이전트 간 또는 도구 간 교착(deadlock)·기아(starvation)·라이브락(livelock) 패턴을 탐지한다.
+
+```python
+from agent_evaluator import DeadlockConfig
+
+DeadlockConfig(
+    check_circular_delegation=True,   # A→B→A 순환 위임 탐지
+    max_delegation_depth=8,           # 최대 위임 깊이 (초과 시 탐지)
+    check_starvation=True,            # 에이전트/도구 기아 상태 탐지
+    starvation_threshold=3,           # N회 연속 응답 없음 시 기아 판정
+    check_livelock=False,             # 라이브락 탐지 (opt-in, 성능 영향)
+    fail_on_deadlock=True,            # 교착 탐지 시 success=False
+)
+```
+
+**사용 예시 — 멀티에이전트 오케스트레이터:**
+
+```python
+# 출처: Evaluator_Examples/08_harness_eval.py, 섹션 2 — Group B Behavioral Integrity
+@agent_eval(
+    monitor,
+    task_type="multi_agent",
+    task_id_prefix="b_deadlock",
+    deadlock=DeadlockConfig(
+        check_circular_delegation=True,
+        max_delegation_depth=8,
+        check_starvation=True,
+        starvation_threshold=3,
+    ),
+)
+def deadlock_resistant_agent(question: str, ground_truth: str = "") -> str:
+    return f"[coordinator → executor → finalizer] 단방향 위임으로 처리: {question}"
+```
+
 ---
 
 ## 5.4 조합 패턴 — 에이전트 유형별 추천 구성
@@ -336,9 +413,11 @@ ContextWindowConfig(
 ### 패턴 1 — 도구 사용 에이전트 (기본 행동무결성)
 
 ```python
-from agent_evaluator.decorators import (
-    agent_eval, ScopeConfig, LoopDetectionConfig
+from agent_evaluator import (
+    ScopeConfig,
+    LoopDetectionConfig,
 )
+from agent_evaluator.decorators import agent_eval
 
 @agent_eval(
     monitor,
@@ -360,10 +439,13 @@ def tool_agent(question: str, ground_truth: str = "") -> str:
 ### 패턴 2 — 코드 실행 에이전트 (파라미터 안전성 포함)
 
 ```python
-from agent_evaluator.decorators import (
-    agent_eval, ScopeConfig, ToolParameterSafetyConfig,
-    LoopDetectionConfig, ContextWindowConfig
+from agent_evaluator import (
+    ScopeConfig,
+    ToolParameterSafetyConfig,
+    LoopDetectionConfig,
+    ContextWindowConfig,
 )
+from agent_evaluator.decorators import agent_eval
 
 @agent_eval(
     monitor,
@@ -395,11 +477,14 @@ Group B는 에이전트의 의도하지 않은 행동을 차단한다. Group E�
 
 ```python
 from agent_evaluator import PerformanceMonitor
-from agent_evaluator.decorators import (
-    agent_eval, ScopeConfig, LoopDetectionConfig,
-    ToolParameterSafetyConfig, ThreatSeverityConfig,
+from agent_evaluator import (
+    ScopeConfig,
+    LoopDetectionConfig,
+    ToolParameterSafetyConfig,
+    ThreatSeverityConfig,
     ComplianceConfig,
 )
+from agent_evaluator.decorators import agent_eval
 
 monitor = PerformanceMonitor(
     output_dir="results/",
@@ -512,7 +597,7 @@ if not group_b['passed']:
 
 | 예제 파일 | 관련 내용 |
 |---------|---------|
-| [`Evaluator_Examples/08_harness_eval.py`](../../Evaluator_Examples/08_harness_eval.py) | 섹션 2: Group B Behavioral Integrity — 5개 Config 실전 예제 |
+| [`Evaluator_Examples/08_harness_eval.py`](../../Evaluator_Examples/08_harness_eval.py) | 섹션 2: Group B Behavioral Integrity — 6개 Config 실전 예제 |
 | [`Evaluator_Examples/02_layer2_agentic_security.py`](../../Evaluator_Examples/02_layer2_agentic_security.py) | 섹션 4~5: ToolCallAnalyzer · WorkflowExecutionTracker 실전 예제 |
 
 **핵심 코드 (출처: `Evaluator_Examples/08_harness_eval.py`, 섹션 2 — Group B Behavioral Integrity)**
@@ -597,6 +682,8 @@ python Evaluator_Examples/02_layer2_agentic_security.py  # Layer 2 Tracker 전�
 | `ScopeConfig` | 허용/금지 도구 범위 | `allowed_tools`, `forbidden_tools`, `fail_on_violation` |
 | `ToolParameterSafetyConfig` | 파라미터 위험 패턴 기준 | `dangerous_patterns`, `fail_on_dangerous` |
 | `ContextWindowConfig` | 컨텍스트 윈도우 포화도 기준 | `window_size_tokens`, `warn_at_pct`, `saturated_at_pct` |
+| `StateConsistencyConfig` | 실행 전후 상태 일관성 기준 (v0.8.2 E→B) | `unchanged_keys`, `fail_on_inconsistency` |
+| `DeadlockConfig` | 교착·기아·라이브락 탐지 기준 (v0.8.2 F→B) | `check_circular_delegation`, `max_delegation_depth`, `fail_on_deadlock` |
 
 > 🔗 **다음 챕터**: Chapter 6 — Group C: 신뢰성  
 > 에이전트가 같은 입력에 일관된 결과를 내는지, 장애 상황에서 우아하게 대응하는지 측정하는 2개 Tracker와 5개 Config를 완전히 이해한다.

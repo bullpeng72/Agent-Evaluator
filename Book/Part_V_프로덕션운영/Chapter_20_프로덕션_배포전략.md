@@ -532,7 +532,7 @@ CI에서 `agent-eval gate` 실패 메시지에 Gate 이름이 표시된다면, �
 | **Gate C** (신뢰성) | 환각·재시도율 상승 | `enable_hallucination_detection=True` 설정 여부 | 동일 입력 반복 실행으로 재현성 확인 |
 | **Gate D** (성능계약) | P95 latency SLA 초과 or 비용 폭증 | `SLAConfig(p95_ms=...)`, `ResourceBudgetConfig` 선언 | 최근 모델·프롬프트 변경 이력 확인 |
 | **Gate E** (보안경계) | 위협 탐지 누적 or 권한 상승 | `enable_security_metrics=True` 여부, `ComplianceConfig` | Appendix K 레드팀 체크리스트로 즉시 검증 |
-| **Gate F** (다중에이전트) | 교착·합의 실패 | `ConsensusConfig`, `DeadlockConfig` 선언 여부 | 에이전트 토폴로지 변경 이력 확인 |
+| **Gate F** (다중에이전트) | 교착·합의 실패 | `ConsensusConfig`, `PropagationConfig` 선언 여부; 교착 방어는 Gate B `DeadlockConfig` 병행 | 에이전트 토폴로지 변경 이력 확인 |
 | **Gate G** (관측성) | 추론 설명 부족 or 상태 추적 미흡 | `ExplainabilityConfig(min_reasoning_steps=N)` | Phoenix 트레이스로 step 수 직접 확인 |
 
 ```bash

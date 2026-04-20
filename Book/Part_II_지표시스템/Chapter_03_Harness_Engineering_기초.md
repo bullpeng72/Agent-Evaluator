@@ -33,7 +33,7 @@ def test_agent_response():
 
 # Harness Engineering — "배포 가능한지" 판정
 from agent_evaluator import QuickEval
-from agent_evaluator.decorators import SLAConfig, InstructionConfig
+from agent_evaluator import SLAConfig, InstructionConfig
 
 eval = QuickEval("results/")
 
@@ -114,7 +114,7 @@ monitor.record_task(result)
 #   TokenEconomyTracker   → tokens_used 기록
 ```
 
-Agent-Evaluator의 Tracker는 25개(보안 포함 35개)이며, Group A-G에 분산되어 있다.
+Agent-Evaluator의 Tracker는 25개이며, Group A-G에 분산되어 있다. 보안 Tracker 5종(Group E)은 `enable_security_metrics=True`로 활성화하는 opt-in이며, 25개 안에 포함된다.
 
 ### 3.2.2 Config — 기준을 선언하는 자
 
@@ -123,13 +123,14 @@ Config는 "어떤 상태가 합격인가"를 선언하는 기준서(Specificatio
 Config 데이터클래스는 33개이며, `@agent_eval` 데코레이터의 파라미터로 주입한다.
 
 ```python
-from agent_evaluator.decorators import (
-    agent_eval,
+# 출처: Evaluator_Examples/08_harness_eval.py, 섹션 1 — Harness 3-Element: Tracker·Config·Gate
+from agent_evaluator import (
     SLAConfig,              # Group D: 성능계약
     InstructionConfig,      # Group A: 목표달성
     ReproducibilityConfig,  # Group C: 신뢰성
     ThreatSeverityConfig,   # Group E: 보안경계
 )
+from agent_evaluator.decorators import agent_eval
 
 @agent_eval(
     monitor,
@@ -182,7 +183,7 @@ eval.gate(tcr=85, accuracy=70)
 
 ## 3.3 58개 지표 전체 지도 — Group A-G 매핑
 
-Tracker 25개(+ 보안 10개 = 35개)와 Config 33개를 7개 Group으로 분류한다.
+Tracker 25개와 Config 33개를 7개 Group으로 분류한다. (보안 Tracker 5종은 25개 안에 포함, opt-in 활성화 필요)
 
 ### Group A — 목표달성 (Goal Achievement)
 
@@ -192,7 +193,7 @@ Tracker 25개(+ 보안 10개 = 35개)와 Config 33개를 7개 Group으로 분류
 |------|------|------|
 | Tracker | `TaskCompletionTracker` | Task Completion Rate (TCR) — 완료 비율 |
 | Tracker | `AccuracyEvaluator` | 정확도 — Token F1 + Jaccard + LCS + Levenshtein 4중 가중 |
-| Tracker | `ResponseQualityEvaluator` | 응답 품질 — completeness · relevance · clarity · coherence · depth |
+| Tracker | `ResponseQualityEvaluator` | 응답 품질 — relevance(×0.25) · completeness(×0.25) · accuracy(×0.20) · clarity(×0.15) · usefulness(×0.15) 가중 평균 |
 | Config | `InstructionConfig` | 응답 형식·길이·언어 준수 기준 |
 | Config | `GoalAlignmentConfig` | 목표-행동 정렬 기준 |
 | Config | `PlanConfig` | 계획 실행 완성도 기준 |
@@ -212,6 +213,8 @@ Tracker 25개(+ 보안 10개 = 35개)와 Config 33개를 7개 Group으로 분류
 | Config | `ScopeConfig` | 허용/금지 도구 범위 선언 |
 | Config | `ToolParameterSafetyConfig` | 도구 파라미터 위험 패턴 기준 |
 | Config | `ContextWindowConfig` | 컨텍스트 윈도우 포화도 기준 |
+| Config | `StateConsistencyConfig` | 실행 전후 상태 일관성 기준 (v0.8.2에서 Group E→B 이동) |
+| Config | `DeadlockConfig` | 교착·기아·라이브락 탐지 기준 (v0.8.2에서 Group F→B 이동) |
 
 ### Group C — 신뢰성 (Reliability)
 
@@ -250,9 +253,9 @@ Tracker 25개(+ 보안 10개 = 35개)와 Config 33개를 7개 Group으로 분류
 | Tracker | `InputSanitizationTracker` | SQL·Command·Path·XSS·Prompt Injection 탐지 |
 | Tracker | `OutputLeakageDetector` | 민감 데이터 출력 유출 탐지 |
 | Tracker | `ToolAuthorizationTracker` | 미허가 도구 사용 탐지 |
+| Tracker | `PrivilegeEscalationDetector` | 권한 상승 패턴 탐지 |
 | Tracker | `ToolChainAttackDetector` | 도구 연쇄 공격 패턴 탐지 |
 | Config | `ThreatSeverityConfig` | CVSS 기반 위협 심각도 기준 |
-| Config | `StateConsistencyConfig` | 실행 전후 상태 일관성 기준 |
 | Config | `ComplianceConfig` | PII·컴플라이언스 위반 기준 |
 | Config | `ThreatResponseConfig` | 위협 탐지 시 응답 행동 기준 |
 
@@ -266,7 +269,6 @@ Tracker 25개(+ 보안 10개 = 35개)와 Config 33개를 7개 Group으로 분류
 |------|------|------|
 | Tracker | `AgentCoordinationTracker` | 에이전트 간 상호작용 추적 |
 | Tracker | `ToolSelectionTracker` | 도구 선택 F1 정확도 |
-| Config | `DeadlockConfig` | 교착·기아·라이브락 탐지 기준 |
 | Config | `ConsensusConfig` | 다중 에이전트 합의 품질 기준 |
 | Config | `PropagationConfig` | 에이전트 간 정보 전파 충실도 기준 |
 | Config | `AgentRoleConfig` | 에이전트 역할 준수 기준 |
@@ -290,13 +292,15 @@ Tracker 25개(+ 보안 10개 = 35개)와 Config 33개를 7개 Group으로 분류
 | Group | Tracker | Config | 합계 |
 |-------|---------|--------|------|
 | A 목표달성 | 3 | 6 | 9 |
-| B 행동무결성 | 2 | 4 | 6 |
+| B 행동무결성 | 2 | 6 | 8 |
 | C 신뢰성 | 2 | 5 | 7 |
 | D 성능계약 | 2 | 5 | 7 |
-| E 보안경계 | 4 | 4 | 8 |
-| F 다중에이전트 | 2 | 5 | 7 |
+| E 보안경계 | 5 | 3 | 8 |
+| F 다중에이전트 | 2 | 4 | 6 |
 | G 운영관측성 | 0 | 4 | 4 |
-| **합계** | **25** | **33** | **58** |
+| **합계** | **16** | **33** | **49** |
+
+> ℹ️ **지표 수 안내**: Harness Gate(A–G)에 직접 매핑되는 Native Tracker는 16개다. `ConversationSession`, `ImplicitFeedbackTracker`, `AnomalyDetector`, `CostTracker`, `StreamingEvaluator` 등 운영 지원 트래커 9개를 합산하면 SDK 전체 Native Tracker는 25개다. Harness Gate 판정 대상은 이 표의 49개(16 Tracker + 33 Config)이며, 운영 지원 트래커를 포함한 전체는 **25 + 33 = 58개**다. 전체 목록은 [Appendix A](../Appendix/A_58개지표_레퍼런스.md)에서 확인한다.
 
 ---
 
@@ -346,7 +350,7 @@ def agent(question, ground_truth=""):
 **Day 7 — 첫 Config 도입 (SLA + 기본 기준)**
 
 ```python
-from agent_evaluator.decorators import SLAConfig, InstructionConfig
+from agent_evaluator import SLAConfig, InstructionConfig
 
 @eval(
     task_type="qa",
@@ -383,8 +387,7 @@ eval.gate(tcr=85, accuracy=70)
 ```python
 # 출처: Evaluator_Examples/08_harness_eval.py
 from agent_evaluator import PerformanceMonitor
-from agent_evaluator.decorators import (
-    agent_eval,
+from agent_evaluator import (
     InstructionConfig,
     ReproducibilityConfig,
     SLAConfig,
@@ -392,6 +395,7 @@ from agent_evaluator.decorators import (
     ThreatSeverityConfig,
     ObservabilityConfig,
 )
+from agent_evaluator.decorators import agent_eval
 
 monitor = PerformanceMonitor(
     output_dir="results/",
@@ -548,10 +552,10 @@ PR마다 Gate가 자동으로 동작한다. 기준을 위반하면 배포가 차
 | Gate | 품질 질문 | 관련 Tracker | 관련 Config |
 |------|----------|-------------|------------|
 | **A** 목표달성 | 지시를 완수했는가? | TCR, Accuracy, ResponseQuality | InstructionConfig, GoalAlignmentConfig, PlanConfig |
-| **B** 행동무결성 | 의도치 않은 행동이 없었는가? | ToolCallAnalyzer, WorkflowExecution | LoopDetectionConfig, ScopeConfig, ToolParameterSafetyConfig |
+| **B** 행동무결성 | 의도치 않은 행동이 없었는가? | ToolCallAnalyzer, WorkflowExecution | LoopDetectionConfig, ScopeConfig, ToolParameterSafetyConfig, ContextWindowConfig, StateConsistencyConfig, DeadlockConfig |
 | **C** 신뢰성 | 일관되고 재현 가능한가? | HallucinationDetector, RetryCorrection | ReproducibilityConfig, FaultToleranceConfig, IdempotencyConfig |
 | **D** 성능계약 | SLA·비용을 지켰는가? | LatencyTracker, TokenEconomy | SLAConfig, ResourceBudgetConfig, EfficiencyConfig |
-| **E** 보안경계 | 공격·유출을 차단했는가? | InputSanitization, OutputLeakage, ToolAuth | ThreatSeverityConfig, ComplianceConfig, ThreatResponseConfig |
+| **E** 보안경계 | 공격·유출을 차단했는가? | InputSanitization, OutputLeakage, ToolAuth, PrivilegeEscalation, ToolChainAttack | ThreatSeverityConfig, ComplianceConfig, ThreatResponseConfig |
 | **F** 다중에이전트 | 교착 없이 협력했는가? | AgentCoordination, ToolSelection | ConsensusConfig, AgentRoleConfig, ConflictResolutionConfig |
 | **G** 운영관측성 | 실패 원인을 즉시 추적할 수 있는가? | LLMJudge (7차원) | ObservabilityConfig, ExplainabilityConfig, ErrorDiagnosisConfig |
 
@@ -665,7 +669,8 @@ sla=SLAConfig(p95_ms=2000)          # P95 기반 SLA
 Harness 대응: `ExplainabilityConfig`와 LLMJudge의 결합.
 
 ```python
-from agent_evaluator.decorators import LLMJudgeConfig, ExplainabilityConfig
+from agent_evaluator import ExplainabilityConfig
+from agent_evaluator.decorators import LLMJudgeConfig
 
 @agent_eval(
     monitor,
@@ -712,7 +717,7 @@ Harness 대응: `AnomalyDetector`와 `ScopeConfig`의 결합. `ScopeConfig`는 "
 
 ```python
 from agent_evaluator import AnomalyDetector
-from agent_evaluator.decorators import ScopeConfig
+from agent_evaluator import ScopeConfig
 
 monitor = PerformanceMonitor(
     output_dir="results/",
@@ -755,7 +760,7 @@ Harness 대응: 배포 전 `HarnessEvaluationGate` + 배포 후 Phoenix OTEL 실
 # 출처: Evaluator_Examples/08_harness_eval.py, 섹션 1
 """5분 안에 완성하는 첫 Harness 평가"""
 from agent_evaluator import QuickEval
-from agent_evaluator.decorators import SLAConfig, InstructionConfig
+from agent_evaluator import SLAConfig, InstructionConfig
 
 eval = QuickEval("results/")
 

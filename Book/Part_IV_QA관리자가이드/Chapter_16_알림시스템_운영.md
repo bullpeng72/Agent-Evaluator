@@ -633,7 +633,8 @@ def test_alert_rules():
 
 ```python
 # 출처: Evaluator_Examples/05_streaming_alerts.py, 섹션 3 — SimpleTaskAlertRule 경량 알림
-from agent_evaluator import SimpleTaskAlertRule, agent_eval, PerformanceMonitor
+from agent_evaluator import SimpleTaskAlertRule, PerformanceMonitor
+from agent_evaluator.decorators import agent_eval
 
 monitor = PerformanceMonitor(output_dir="results/")
 
