@@ -115,7 +115,7 @@ def agent(question, ground_truth=""): ...
 
 Harness Config의 공통 플래그. `True`로 설정하면 해당 Config 조건 위반 시 `TaskResult.success = False`로 강제 처리된다. CI/CD 파이프라인에서 배포를 자동 차단하는 핵심 메커니즘이다.
 
-참조: Appendix A §Part 2 / Chapter 13 (CI/CD 품질 게이팅)
+참조: Appendix A §Part 2 / Chapter 18 (CI/CD 품질 게이팅)
 
 ---
 

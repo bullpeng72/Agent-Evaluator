@@ -1,10 +1,10 @@
-# Chapter 13. 평가 데이터 설계
+# Chapter 11. 평가 데이터 설계
 
 이 챕터에서 배우는 것: SDK의 핵심 데이터 구조인 `TaskResult`의 24개 필드를 이해하고, 안전하게 생성하는 방법을 익힌다. 10종 `TaskType`별로 자동 활성화되는 지표가 무엇인지 파악하고, 프로덕션 트래픽에서 골든 데이터셋을 자동으로 마이닝하는 전략을 배운다. 마지막으로 개발 환경부터 프로덕션까지 상황별 샘플링 전략과 A/B 테스트 설계 방법을 습득한다.
 
 ---
 
-## 13.1 TaskResult — SDK의 핵심 데이터 구조
+## 11.1 TaskResult — SDK의 핵심 데이터 구조
 
 `TaskResult`는 에이전트 실행 결과를 담는 불변(immutable) 데이터 클래스다. SDK의 모든 평가 데이터는 이 구조를 통해 흐른다.
 
@@ -113,7 +113,7 @@ updated = dataclasses.replace(result_auto, framework="openai", model="gpt-4o-min
 
 ---
 
-## 13.2 TaskType 10종 완전 가이드
+## 11.2 TaskType 10종 완전 가이드
 
 `TaskType`은 Python Enum으로, 문자열과 혼용 가능하다:
 
@@ -189,7 +189,7 @@ tool_agent(
 
 ---
 
-## 13.3 골든 데이터셋 구축 전략
+## 11.3 골든 데이터셋 구축 전략
 
 ### 골든 데이터셋의 역할
 
@@ -287,7 +287,7 @@ agent-eval dataset build results/ --min-score 0.8
 
 ---
 
-## 13.4 샘플링 전략 — 언제 전수 평가, 언제 샘플링
+## 11.4 샘플링 전략 — 언제 전수 평가, 언제 샘플링
 
 모든 요청을 평가하면 비용과 지연이 증가한다. 상황별 적절한 샘플링 전략이 필요하다:
 
@@ -331,7 +331,7 @@ def selective_agent(question: str, ground_truth: str = "") -> str:
 
 ---
 
-## 13.5 A/B 테스트 설계
+## 11.5 A/B 테스트 설계
 
 두 가지 에이전트(모델 버전, 프롬프트 변형 등)를 통계적으로 비교하는 패턴이다.
 
@@ -381,7 +381,7 @@ if p_value is not None:
 
 ---
 
-## 13.6 evaluation_session — 컨텍스트 매니저 패턴
+## 11.6 evaluation_session — 컨텍스트 매니저 패턴
 
 데코레이터 대신 with 블록으로 세션을 관리하고 싶을 때, 또는 세션 종료 시 자동 저장을 원할 때 사용한다:
 
@@ -428,7 +428,7 @@ asyncio.run(run_async_eval())
 
 ---
 
-## 13.7 한국어 평가 특화 전략
+## 11.7 한국어 평가 특화 전략
 
 한국어 에이전트를 평가할 때는 언어 특성을 고려한 전략이 필요하다.
 
@@ -565,7 +565,7 @@ print(f"평균 지연: {summary.get('avg_latency', 0):.2f}초")
 
 ---
 
-## 13.8 에이전트 유형별 최소 Tracker + Config 세트
+## 11.8 에이전트 유형별 최소 Tracker + Config 세트
 
 에이전트를 처음 평가할 때 "모든 지표를 다 켜야 하는가?"라는 질문이 자주 나온다.  
 답은 **아니다**. 에이전트 유형별로 **최소한으로 필요한 Tracker + Harness Config 조합**이 있다.  

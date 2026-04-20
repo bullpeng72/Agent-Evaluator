@@ -34,12 +34,10 @@
 - [Chapter 10. Group G — 운영관측성 지표](Part_II_지표시스템/Chapter_10_GroupG_운영관측성.md)
 
 ### Part III — 개발자 가이드: 코드로 Harness를 심다
-> **권장 읽기 순서**: Chapter 13(평가 데이터 설계) → Chapter 11(데코레이터) → Chapter 12(프레임워크 통합)  
-> 지표를 이해한 뒤 평가 데이터를 먼저 설계하고, 그 다음 데코레이터와 프레임워크를 익히는 순서가 가장 효율적입니다.
 
-- [Chapter 11. 데코레이터 완전 정복](Part_III_개발자가이드/Chapter_11_데코레이터_완전정복.md)
-- [Chapter 12. 21개 프레임워크 통합](Part_III_개발자가이드/Chapter_12_프레임워크_통합.md)
-- [Chapter 13. 평가 데이터 설계](Part_III_개발자가이드/Chapter_13_평가데이터_설계.md) ← **Part II 직후 읽기 권장**
+- [Chapter 11. 평가 데이터 설계](Part_III_개발자가이드/Chapter_11_평가데이터_설계.md) ← **Part II 직후 읽기 권장**
+- [Chapter 12. 데코레이터 완전 정복](Part_III_개발자가이드/Chapter_12_데코레이터_완전정복.md)
+- [Chapter 13. 21개 프레임워크 통합](Part_III_개발자가이드/Chapter_13_프레임워크_통합.md)
 
 ### Part IV — QA 관리자 가이드: Harness 기준을 세우고 지속적으로 모니터링하다
 - [Chapter 14. 임계값 설정과 품질 기준 수립](Part_IV_QA관리자가이드/Chapter_14_임계값설정_품질기준.md)
@@ -130,16 +128,16 @@ def my_agent(question, ground_truth=""): ...
 
 | 독자 유형 | 권장 읽기 경로 |
 |---|---|
-| AI 에이전트 개발자 | Part I → Part II (Ch3~10) → Ch13 → Ch11 → Ch12 → Part V → Appendix L |
+| AI 에이전트 개발자 | Part I → Part II (Ch3~10) → Ch11 → Ch12 → Ch13 → Part V → Appendix L |
 | QA 관리자 / Harness 담당 엔지니어 | Part I → Part II (Ch3~5 필수) → Part IV → Ch18 → Appendix J |
 | DevOps / MLOps 엔지니어 | Part I (Ch2만) → Ch18 → Ch19 → Ch21 → Appendix J §J.4 |
 | 보안 엔지니어 / 레드팀 | Ch8 → Appendix K → Ch18 §Gate E 설정 |
 | 평가 이론 연구자 | Appendix G → Appendix H → Appendix I → Part II 전체 |
-| 이미 운영 중인 팀 (빠른 시작) | Ch2 → Ch13 → Ch11 → Ch14 → Ch18 |
+| 이미 운영 중인 팀 (빠른 시작) | Ch2 → Ch11 → Ch12 → Ch14 → Ch18 |
 | 프로덕션 품질 위기 대응 | Appendix J → Ch21 §21.3 (Runbook) → Ch18 |
-| 예산 제약 스타트업 | Appendix L → Ch11 (필수 Config만) → Ch18 |
+| 예산 제약 스타트업 | Appendix L → Ch12 (필수 Config만) → Ch18 |
 | Harness Config 레퍼런스만 필요 | Appendix A §Part 2 |
-| 전체 | Part I → II → Ch13 → Ch11 → Ch12 → IV → V → 부록 G~L |
+| 전체 | Part I → II → Ch11 → Ch12 → Ch13 → IV → V → 부록 G~L |
 
 > **QA 관리자 참고**: Ch10(Group G/LLM Judge)는 Chapter 14에서 LLM Judge 비용 설정을 다룰 때 필요합니다. Part II를 Ch3~9만 읽을 경우 Chapter 14의 §14.7 이전에 Ch10을 보완하세요.
 
@@ -153,14 +151,14 @@ def my_agent(question, ground_truth=""): ...
 
 ```
 Group A — 목표달성     (Tracker 6종 + Config 6종)  ← 에이전트가 지시를 완수했는가?
-Group B — 행동무결성   (Tracker 5종 + Config 4종)  ← 의도치 않은 행동이 없었는가?
+Group B — 행동무결성   (Tracker 5종 + Config 6종)  ← 의도치 않은 행동이 없었는가?
 Group C — 신뢰성       (Tracker 6종 + Config 5종)  ← 일관되고 재현 가능한가?
 Group D — 성능계약     (Tracker 5종 + Config 5종)  ← SLA/비용 계약을 지켰는가?
-Group E — 보안경계     (Tracker 4종 + Config 4종)  ← 공격·유출을 차단했는가?
-Group F — 다중에이전트 (Tracker 5종 + Config 5종)  ← 교착 없이 협력했는가?
+Group E — 보안경계     (Tracker 4종 + Config 3종)  ← 공격·유출을 차단했는가?
+Group F — 다중에이전트 (Tracker 5종 + Config 4종)  ← 교착 없이 협력했는가?
 Group G — 운영관측성   (Tracker 4종 + Config 4종)  ← 실패 원인을 즉시 추적할 수 있는가?
 ────────────────────────────────────────────────────────
-합계: Tracker 35종 + Config 33종 = 58개 지표
+합계: Native Tracker 25종 + Harness Config 33종 = 58개 지표
 ```
 
 배포 판정은 `HarnessEvaluationGate`가 7개 Group을 한 번에 평가한다.

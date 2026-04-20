@@ -1,10 +1,10 @@
-# Chapter 12. 21개 프레임워크 통합
+# Chapter 13. 21개 프레임워크 통합
 
 이 챕터에서 배우는 것: Agent-Evaluator SDK가 LangChain, CrewAI, AutoGen, DSPy, Anthropic, OpenAI 등 21개 프레임워크와 어떻게 통합되는지를 이해한다. `framework=` 파라미터 하나가 내부적으로 어떤 자동 추출 메커니즘을 작동시키는지, 각 프레임워크의 설치 방법과 주요 자동 추출 항목을 파악하고, 팀 상황에 맞는 프레임워크를 선택하는 기준을 배운다.
 
 ---
 
-## 12.1 framework= 파라미터의 동작 원리
+## 13.1 framework= 파라미터의 동작 원리
 
 `@agent_eval(monitor, task_type="qa", framework="langchain")`처럼 `framework=`를 지정하면 데코레이터가 에이전트 함수의 반환값을 해당 프레임워크의 응답 객체로 간주하고 다음 항목들을 자동으로 추출한다:
 
@@ -58,7 +58,7 @@ info = get_framework_info("langchain")
 
 ---
 
-## 12.2 LangChain / LangGraph
+## 13.2 LangChain / LangGraph
 
 LangChain은 Python AI 생태계에서 가장 성숙한 프레임워크다. Agent-Evaluator는 LangChain의 콜백 시스템과 응답 객체에서 정확한 토큰 수와 도구 호출 기록을 추출한다.
 
@@ -132,7 +132,7 @@ lg_agent("보고서 초안 작성해줘", ground_truth="초안 완성")
 
 ---
 
-## 12.3 CrewAI
+## 13.3 CrewAI
 
 CrewAI는 역할 기반 멀티에이전트 시스템으로, Researcher + Writer + Reviewer 같은 역할을 가진 에이전트들이 협력하는 구조다.
 
@@ -195,7 +195,7 @@ def run_crew(question: str, ground_truth: str = "") -> tuple:
 
 ---
 
-## 12.4 AutoGen
+## 13.4 AutoGen
 
 AutoGen 0.4+는 async-first API를 채택했다. 복잡한 멀티에이전트 대화를 비동기로 처리하며, Agent-Evaluator는 에이전트 간 메시지 교환에서 `agent_interactions`를 자동 추출한다.
 
@@ -240,7 +240,7 @@ monitor.save_to_file("autogen_eval")
 
 ---
 
-## 12.5 DSPy / PydanticAI
+## 13.5 DSPy / PydanticAI
 
 ### DSPy — 프로그래밍 방식 LLM 파이프라인
 
@@ -314,7 +314,7 @@ asyncio.run(pa_agent("파이썬의 GIL이란?", ground_truth="Global Interpreter
 
 ---
 
-## 12.6 Anthropic / OpenAI / Gemini
+## 13.6 Anthropic / OpenAI / Gemini
 
 직접 LLM API를 호출하는 패턴은 프레임워크 없이도 SDK와 통합된다.
 
@@ -398,7 +398,7 @@ gemini_agent("한국의 전통 음식 5가지를 알려줘", ground_truth="비�
 
 ---
 
-## 12.7 기타 프레임워크 간략 소개
+## 13.7 기타 프레임워크 간략 소개
 
 다음 표는 나머지 지원 프레임워크의 설치 방법과 주요 추출 항목을 정리한 것이다:
 
@@ -419,7 +419,7 @@ gemini_agent("한국의 전통 음식 5가지를 알려줘", ground_truth="비�
 
 ---
 
-## 12.8 프레임워크 선택 가이드
+## 13.8 프레임워크 선택 가이드
 
 프레임워크 선택은 팀의 Python 숙련도, 기존 기술 스택, 그리고 에이전트 아키텍처의 복잡도에 따라 달라진다.
 
