@@ -783,12 +783,12 @@ python Evaluator_Examples/ch10_group_g.py
 
 | 파일 | 패턴 | 프로덕션 배포 연결 |
 |------|------|-------------------|
-| 07_phoenix_hybrid | `setup_otel()` → `PerformanceMonitor` 순서 | Docker + Phoenix 서비스 통합 |
-| 07_phoenix_hybrid | `HybridPerformanceMonitor` + API 키 조건 분기 | 환경별 활성화/비활성화 |
-| 06_operational | `evaluation_session` 컨텍스트 매니저 | 예외 발생 시 자동 저장 보장 |
-| 06_operational | `auto_save=True, auto_save_interval=10` | 장시간 실행 중 주기 저장 |
+| ch19_phoenix | `setup_otel()` → `PerformanceMonitor` 순서 | Docker + Phoenix 서비스 통합 |
+| ch19_phoenix | `HybridPerformanceMonitor` + API 키 조건 분기 | 환경별 활성화/비활성화 |
+| ch10_group_g | `evaluation_session` 컨텍스트 매니저 | 예외 발생 시 자동 저장 보장 |
+| ch10_group_g | `auto_save=True, auto_save_interval=10` | 장시간 실행 중 주기 저장 |
 
-**실행 결과 (v0.8.3 기준)**
+**실행 결과 (v0.8.4 기준)**
 
 ```
 # ch10_group_g.py (evaluation_session 섹션)

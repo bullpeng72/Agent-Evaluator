@@ -1001,26 +1001,26 @@ agent-eval dashboard results/
 
 | 파일 | 파이프라인 단계 | 핵심 출력 |
 |------|---------------|-----------|
-| 01_layer1_all_metrics | 개발: Group A-D 검증 | TCR=43.1%, 54개 태스크, p95=5.20s |
-| 02_layer2_agentic_security | 개발: Group B-E·보안 검증 | 3개 보안 위협, 14개 태스크 |
-| 03_framework_adapters | 통합 테스트: 프레임워크 비교 | 24개 태스크, 4개 프레임워크 TCR 비교 |
-| 04_decorator_quickeval | CI: 데코레이터·QuickEval | TCR=57.1%, gate() 실패/성공 |
-| 05_streaming_alerts | 운영: 실시간 알림 | alert JSONL, feedback 추적 |
-| 06_operational | 운영: 인프라 종합 | AnomalyDetector, CostTracker, GoldenSet |
-| 07_phoenix_hybrid | 운영: OTEL·외부 평가 | Phoenix 스팬, DeepEval/Ragas 연동 |
+| ch02_first_eval | 개발: Group A-D 검증 | TCR=43.1%, 54개 태스크, p95=5.20s |
+| ch05_group_b + ch08_group_e | 개발: Group B-E·보안 검증 | 3개 보안 위협, 14개 태스크 |
+| ch13_frameworks | 통합 테스트: 프레임워크 비교 | 24개 태스크, 4개 프레임워크 TCR 비교 |
+| ch12_decorators | CI: 데코레이터·QuickEval | TCR=57.1%, gate() 실패/성공 |
+| ch16_alerts | 운영: 실시간 알림 | alert JSONL, feedback 추적 |
+| ch10_group_g | 운영: 인프라 종합 | AnomalyDetector, CostTracker, GoldenSet |
+| ch19_phoenix | 운영: OTEL·외부 평가 | Phoenix 스팬, DeepEval/Ragas 연동 |
 
-**전체 파이프라인 실행 결과 요약 (v0.8.3 기준)**
+**전체 파이프라인 실행 결과 요약 (v0.8.4 기준)**
 
 ```
 === 종합 파이프라인 실행 결과 ===
 
-총 태스크: 01(54) + 02(14) + 03(24) + 04(14) + 05(N) + 06(28) + 07(3) = 137+건
+총 태스크: ch02(54) + ch05+ch08(14) + ch13(24) + ch12(14) + ch16(N) + ch10(28) + ch19(3) = 137+건
 전체 평균 TCR: ~48%  |  전체 평균 정확도: ~0.66
 
 CI 게이트 (--tcr 40 --accuracy 60): ✅ 통과
 주간 트렌드: TCR +1.2%, 정확도 +0.008 (개선 중)
-보안 위협: 3건 탐지 (02_layer2 기준)
-골든 데이터셋: 12개 케이스 추출 (06_operational 기준)
+보안 위협: 3건 탐지 (ch08_group_e 기준)
+골든 데이터셋: 12개 케이스 추출 (ch10_group_g 기준)
 
 대시보드: http://localhost:8765 — 전체 결과 통합 조회 가능
 Phoenix: http://localhost:6006 — OTEL 스팬 시각화 (API 키 필요)
@@ -1130,4 +1130,4 @@ monitor_v2.save_to_file("10_version_v2")
 
 > **패턴 핵심**: 독립 `PerformanceMonitor` 인스턴스를 버전마다 생성 → 동일 Config로 동일 태스크 실행 → Gate 점수 차이가 버전 개선 근거가 된다.
 
-> **팀 규모별 시작점**: 1인 개발자는 `ch12_decorators.py`만 실행하고 `agent-eval gate`를 GitHub Actions에 등록하는 것으로 하루 안에 시작할 수 있다. 소규모 팀은 01~06을 순차로 도입하고, 대규모 팀은 07_phoenix_hybrid까지 포함한 전체 파이프라인을 운영한다.
+> **팀 규모별 시작점**: 1인 개발자는 `ch12_decorators.py`만 실행하고 `agent-eval gate`를 GitHub Actions에 등록하는 것으로 하루 안에 시작할 수 있다. 소규모 팀은 ch02~ch13을 순차로 도입하고, 대규모 팀은 ch19_phoenix까지 포함한 전체 파이프라인을 운영한다.

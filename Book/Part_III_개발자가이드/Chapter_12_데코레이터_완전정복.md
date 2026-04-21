@@ -1210,7 +1210,7 @@ agent-eval dashboard results/
 | 섹션 7 | `@conversation_eval` — 자동/수동 flush 2패턴 |
 | 섹션 8 | `QuickEval` Facade — `gate()` · `summary()` · `save()` |
 
-**실행 결과 (v0.8.3 기준)**
+**실행 결과 (v0.8.4 기준)**
 
 ```
 === 섹션 3: EvalMetadata 튜플 반환 ===

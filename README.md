@@ -57,7 +57,7 @@ monitor.save_to_file("eval")   # eval.json + eval.html — Gate A–G 판정 포
 
 각 Gate는 **25개 Native Tracker**(Layer 1 기반 지표 6개 + Layer 2 에이전틱 지표 10개 + 보안 지표 5개 + LLMJudge)로부터 원시 측정값을 받아 집계됩니다.
 
-> 전체 실전 예제: `Evaluator_Examples/08_harness_eval.py` | 대시보드: `agent-eval dashboard`
+> 전체 실전 예제: `Evaluator_Examples/ch03_harness_basics.py` | 대시보드: `agent-eval dashboard`
 
 ---
 
@@ -1092,7 +1092,7 @@ def my_agent(question: str, ground_truth: str = "") -> str: ...
 
 > **Note**: `TTFTVariabilityConfig` · `CostPredictabilityConfig`는 monitor 수준 자동 집계(≥5 tasks with `ttft_ms` extra 및 task_type별 토큰 CV). 데코레이터 파라미터 불필요.
 
-전체 실전 예제: `Evaluator_Examples/08_harness_eval.py`
+전체 실전 예제: `Evaluator_Examples/ch03_harness_basics.py`
 
 ---
 
@@ -1346,43 +1346,59 @@ from agent_evaluator.decorators import (
 
 ## 예제 가이드
 
-9개 파일로 구성됩니다. 각 파일은 독립 실행 가능합니다.
+Book 챕터 기반 17개 파일로 구성됩니다. 각 파일은 독립 실행 가능합니다.
 
 ### 예제별 의존성
 
-| 예제 | 필수 | 선택 |
-|------|------|------|
-| `01_layer1_all_metrics.py` | `pip install agent-evaluator` | `agent-eval monitor` (Phoenix OTEL) |
-| `02_layer2_agentic_security.py` | `pip install agent-evaluator` | `agent-eval monitor` |
-| `03_framework_adapters.py` | `pip install agent-evaluator` | `agent-eval monitor`<br>⚠️ 실제 LangChain/CrewAI/AutoGen 패키지 **불필요** — 데코레이터가 duck typing으로 mock 응답 처리 |
-| `04_decorator_quickeval.py` | `pip install agent-evaluator` | `agent-eval monitor` |
-| `05_streaming_alerts.py` | `pip install agent-evaluator` | `agent-eval monitor`, `SLACK_WEBHOOK_URL` (미설정 시 Mock 핸들러 자동 대체) |
-| `06_operational.py` | `pip install agent-evaluator` | `agent-eval monitor` |
-| `07_phoenix_hybrid.py` | `pip install agent-evaluator` | `agent-eval monitor` (OTEL 기본 포함)<br>`pip install "agent-evaluator[eval]"` + `OPENAI_API_KEY` (미설정 시 mock 데이터로 대체) |
-| `08_harness_eval.py` | `pip install agent-evaluator` | `agent-eval monitor` |
-| `08_harness_validation.py` | `pip install agent-evaluator` | — |
+| 예제 | 챕터 | 내용 | 선택 |
+|------|------|------|------|
+| `ch01_quickstart.py` | Ch01 | QuickEval 5분 첫 평가 | — |
+| `ch02_first_eval.py` | Ch02 | Layer 1 기초 — 정확도·할루시네이션·TCR | — |
+| `ch03_harness_basics.py` | Ch03 | Harness Gate A–G 7개 개요 | `agent-eval monitor` |
+| `ch04_group_a.py` | Ch04 | Gate A: Goal Achievement (6개 Config) | — |
+| `ch05_group_b.py` | Ch05 | Gate B: Behavioral Integrity (6개 Config) | — |
+| `ch06_group_c.py` | Ch06 | Gate C: Reliability (5개 Config) | — |
+| `ch07_group_d.py` | Ch07 | Gate D: Performance Contract (5개 Config) | — |
+| `ch08_group_e.py` | Ch08 | Gate E: Security Boundary (3개 Config) | — |
+| `ch09_group_f.py` | Ch09 | Gate F: Multi-Agent Coordination (4개 Config) | — |
+| `ch10_group_g.py` | Ch10 | Gate G: Observability + AnomalyDetector · CostTracker | — |
+| `ch11_eval_data.py` | Ch11 | 평가데이터 설계 — GoldenSetBuilder · evaluation_session | — |
+| `ch12_decorators.py` | Ch12 | 데코레이터 완전정복 — @agent_eval · @batch_eval · QuickEval · LLMJudge | — |
+| `ch13_frameworks.py` | Ch13 | 프레임워크 통합 — LangChain · LangGraph · CrewAI · AutoGen | `agent-evaluator[langchain]` (선택) |
+| `ch16_alerts.py` | Ch16 | 알림시스템 — StreamingEvaluator · AlertEngine · SimpleTaskAlertRule | `SLACK_WEBHOOK_URL` (미설정 시 Mock) |
+| `ch18_cicd_gate.py` | Ch18 | CI/CD 품질 게이팅 — Harness 최소 검증 · exit 0/1 | — |
+| `ch19_phoenix.py` | Ch19 | Phoenix OTEL — Tracing · Datasets · GraphQL + DeepEval · Ragas | `agent-evaluator[eval]` + `OPENAI_API_KEY` (선택) |
+| `ch20_deployment.py` | Ch20 | 프로덕션 배포전략 — v1 vs v2 Gate 점수 비교 | — |
 
 ### 실행
 
 ```bash
 cd Evaluator_Examples
 
-python 01_layer1_all_metrics.py        # Layer 1 전체 — Accuracy · Hallucination · Quality · Latency · Token · TCR
-python 02_layer2_agentic_security.py   # Layer 2 전체 — Tool · Retry · Coordination · Workflow · 보안 5종 · 대화
-python 03_framework_adapters.py        # 프레임워크 어댑터 — LangChain · LangGraph · CrewAI · AutoGen + 크로스 파이프라인
-python 04_decorator_quickeval.py       # 데코레이터 전체 API — @agent_eval · @batch_eval · @conversation_eval · QuickEval · LLMJudge
-python 05_streaming_alerts.py          # 실시간 — StreamingEvaluator · ImplicitFeedback · AlertEngine · SimpleTaskAlertRule
-python 06_operational.py               # 운영 인프라 — AnomalyDetector · CostTracker · GoldenSetBuilder · evaluation_session
-python 07_phoenix_hybrid.py            # Phoenix OTEL — Tracing · Datasets · Playground · GraphQL + DeepEval · Ragas (opt-in)
-python 08_harness_eval.py              # Harness Engineering — 7개 Gate(A-G) · 33개 Config 실전 평가
-python 08_harness_validation.py        # Harness Config 파라미터 검증 · 경계 케이스 테스트
+python ch01_quickstart.py      # QuickEval 5분 첫 평가
+python ch02_first_eval.py      # Layer 1 기초 — Accuracy · Hallucination · Quality · Latency · Token · TCR
+python ch03_harness_basics.py  # Harness Gate A–G 개요 — 7개 Gate · 33개 Config
+python ch04_group_a.py         # Gate A: Goal Achievement — InstructionConfig · GoalAlignmentConfig 외
+python ch05_group_b.py         # Gate B: Behavioral Integrity — LoopDetectionConfig · StateConsistencyConfig 외
+python ch06_group_c.py         # Gate C: Reliability — ReproducibilityConfig · FaultToleranceConfig 외
+python ch07_group_d.py         # Gate D: Performance Contract — SLAConfig · TTFTVariabilityConfig 외
+python ch08_group_e.py         # Gate E: Security Boundary — ThreatSeverityConfig · ComplianceConfig 외
+python ch09_group_f.py         # Gate F: Multi-Agent Coordination — ConsensusConfig · AgentRoleConfig 외
+python ch10_group_g.py         # Gate G: Observability + AnomalyDetector · CostTracker
+python ch11_eval_data.py       # 평가데이터 설계 — GoldenSetBuilder · evaluation_session
+python ch12_decorators.py      # 데코레이터 완전정복 — @agent_eval · @batch_eval · QuickEval · LLMJudge
+python ch13_frameworks.py      # 프레임워크 통합 — LangChain · LangGraph · CrewAI · AutoGen
+python ch16_alerts.py          # 알림시스템 — StreamingEvaluator · AlertEngine
+python ch18_cicd_gate.py       # CI/CD 품질 게이팅
+python ch19_phoenix.py         # Phoenix OTEL + DeepEval · Ragas (opt-in)
+python ch20_deployment.py      # 프로덕션 배포전략
 
 # ── 인프라 ───────────────────────────────────────────────────
-agent-eval monitor                     # Phoenix 서버 기동 (http://localhost:6006)
-agent-eval dashboard --watch           # 대시보드 (http://localhost:8765)
+agent-eval monitor             # Phoenix 서버 기동 (http://localhost:6006)
+agent-eval dashboard --watch   # 대시보드 (http://localhost:8765)
 ```
 
-> 구 21개 예제는 `Evaluator_Examples/.deprecated/` 에 보존됩니다.
+> 구 11개 예제(01~08, 09, 10)는 `Evaluator_Examples/.deprecated/` 에 보존됩니다.
 
 ---
 

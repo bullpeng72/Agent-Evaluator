@@ -321,7 +321,7 @@ AI 에이전트는 배포 후에도 계속 변합니다. 일회성 배포 전 �
 | **Braintrust** | SaaS + OSS SDK | v0.5.2 | LLM 실험 + 에이전트 관측 |
 | **Helicone** | SaaS + OSS | — | LLM 프록시 + 비용 관측 |
 | **W&B Weave** | SaaS + OSS SDK | v0.72+ | 에이전트 평가 + 실험 관리 |
-| **Agent Evaluator** | OSS SDK | v0.8.3 | Harness Engineering 배포 판단 |
+| **Agent Evaluator** | OSS SDK | v0.8.4 | Harness Engineering 배포 판단 |
 
 ### 에이전틱 지표 지원 비교
 
@@ -487,15 +487,15 @@ python Evaluator_Examples/ch05_group_b.py
 
 | Group | 차원 | 측정 지표 | 예제 파일·섹션 |
 |-------|------|----------|---------------|
-| A | 목표달성 | AccuracyEvaluator (TokenF1·Jaccard·LCS), TCR | 01_layer1, 섹션 1~2 |
-| B | 행동무결성 | ToolCallAnalyzer, WorkflowExecutionTracker | 02_layer2, 섹션 1~3 |
-| C | 신뢰성 | HallucinationDetector, RetryCorrectionTracker | 01_layer1, 섹션 5~6 |
-| D | 성능계약 | LatencyTracker (p95), TokenEconomyTracker | 01_layer1, 섹션 3~4 |
-| E | 보안경계 | InputSanitization, OutputLeakage, ToolAuth | 02_layer2, 섹션 4~6 |
-| F | 다중에이전트 | AgentCoordinationTracker, ToolSelectionTracker | 02_layer2, 섹션 7~8 |
-| G | 운영관측성 | LLMJudge 7차원, Phoenix OTEL | 07_phoenix_hybrid |
+| A | 목표달성 | AccuracyEvaluator (TokenF1·Jaccard·LCS), TCR | ch02_first_eval, ch04_group_a |
+| B | 행동무결성 | ToolCallAnalyzer, WorkflowExecutionTracker | ch05_group_b |
+| C | 신뢰성 | HallucinationDetector, RetryCorrectionTracker | ch02_first_eval, ch06_group_c |
+| D | 성능계약 | LatencyTracker (p95), TokenEconomyTracker | ch07_group_d |
+| E | 보안경계 | InputSanitization, OutputLeakage, ToolAuth | ch08_group_e |
+| F | 다중에이전트 | AgentCoordinationTracker, ToolSelectionTracker | ch09_group_f |
+| G | 운영관측성 | LLMJudge 7차원, Phoenix OTEL | ch10_group_g, ch19_phoenix |
 
-**실행 결과 (v0.8.3 기준)**
+**실행 결과 (v0.8.4 기준)**
 
 ```
 # ch02_first_eval.py

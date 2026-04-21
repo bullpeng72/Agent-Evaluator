@@ -1360,5 +1360,5 @@ d["hallucination_data"]["overall_rate"]     # float (0–1)
 
 ---
 
-> 전체 실전 예제: `Evaluator_Examples/08_harness_eval.py`  
+> 전체 실전 예제: `Evaluator_Examples/ch03_harness_basics.py`  
 > API 시그니처 상세: `Docs/08_API_REFERENCE.md`

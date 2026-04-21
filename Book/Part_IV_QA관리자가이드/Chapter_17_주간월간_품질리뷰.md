@@ -609,11 +609,11 @@ agent-eval trend results/ --window 10 --output-json weekly_trend.json
 
 | 도구 | 내용 | 주간/월간 리뷰 연결 |
 |------|------|---------------------|
-| 06_operational (섹션 1) | `evaluation_session` 자동 저장 | 매일 JSON 파일 자동 생성 |
-| 06_operational (섹션 5) | `GoldenSetBuilder` 케이스 마이닝 | 주간 골든셋 확장 자동화 |
+| ch10_group_g (섹션 1) | `evaluation_session` 자동 저장 | 매일 JSON 파일 자동 생성 |
+| ch11_eval_data (섹션 5) | `GoldenSetBuilder` 케이스 마이닝 | 주간 골든셋 확장 자동화 |
 | `agent-eval trend` | slope 기반 추이 분석 | TCR·정확도 하락 자동 감지 |
 
-**실행 결과 (v0.8.3 기준)**
+**실행 결과 (v0.8.4 기준)**
 
 ```
 # agent-eval trend results/ --window 10

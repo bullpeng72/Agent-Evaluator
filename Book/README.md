@@ -2,7 +2,7 @@
 ## Agent-Evaluator로 구현하는 프로덕션 AI 품질 시스템
 
 **저자**: Sungwoo Kim  
-**버전**: 2.0 (Agent-Evaluator v0.8.3 기준)  
+**버전**: 2.0 (Agent-Evaluator v0.8.4 기준)  
 **언어**: 한국어
 
 > **핵심 전환**: "25개 지표를 측정하는 도구" → "58개 지표 기반 Harness Engineering 배포 판단 시스템"  

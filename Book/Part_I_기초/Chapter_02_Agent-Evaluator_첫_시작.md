@@ -50,7 +50,7 @@ pip install "agent-evaluator[full]"
 
 # 설치 확인
 agent-eval --version
-# → agent-evaluator 0.8.3
+# → agent-evaluator 0.8.4
 ```
 
 > 👨‍💻 **개발자 TIP**: `[crewai]`와 `[autogen]`은 의존성이 무거워 단독 extras로 분리되어 있습니다. CrewAI와 AutoGen을 동시에 설치하면 pydantic 버전 충돌이 발생할 수 있으므로, 필요한 경우에만 하나씩 설치하세요.
@@ -656,12 +656,12 @@ eval_qe.save()  # JSON + HTML
 
 | 단계 | 역할 | 코드 | 예제 파일·섹션 |
 |------|------|------|---------------|
-| 1. Tracker | 지표 수집 | `@eval.qa` / `@agent_eval(monitor)` | 04_decorator_quickeval, 섹션 1 |
-| 2. Config | 기준 선언 | `InstructionConfig(required_keywords=["결론"], fail_on_violation=True)` | 04_decorator_quickeval, 섹션 4 |
-| 3. Gate | 배포 판정 | `eval.gate(tcr=80)` | 04_decorator_quickeval, 섹션 7 |
-| 4. 저장 | 결과 보존 | `eval.save()` / `monitor.save_to_file()` | 04_decorator_quickeval, 섹션 8 |
+| 1. Tracker | 지표 수집 | `@eval.qa` / `@agent_eval(monitor)` | ch12_decorators, 섹션 1 |
+| 2. Config | 기준 선언 | `InstructionConfig(required_keywords=["결론"], fail_on_violation=True)` | ch12_decorators, 섹션 4 |
+| 3. Gate | 배포 판정 | `eval.gate(tcr=80)` | ch12_decorators, 섹션 7 |
+| 4. 저장 | 결과 보존 | `eval.save()` / `monitor.save_to_file()` | ch12_decorators, 섹션 8 |
 
-**실행 결과 (v0.8.3 기준)**
+**실행 결과 (v0.8.4 기준)**
 
 ```
 === 04. 데코레이터 · QuickEval 종합 예제 ===

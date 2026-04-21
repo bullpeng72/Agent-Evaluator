@@ -630,7 +630,7 @@ open http://localhost:6006
 | 섹션 5 | `push_to_phoenix()` 골든셋 업로드 | Datasets 탭 |
 | 섹션 6 | GraphQL 역조회 (`phoenix_check.py`) | Tracing 탭 필터 |
 
-**실행 결과 (v0.8.3 기준, mock 모드)**
+**실행 결과 (v0.8.4 기준, mock 모드)**
 
 ```
 === 07. Phoenix OTEL Hybrid 예제 ===

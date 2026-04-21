@@ -925,7 +925,7 @@ agent-eval trend results/ --window 10 --fail-on-regression
 | 단일 게이트 | `agent-eval gate ... --tcr 80` | 배포 전 단일 검문소 |
 | 추이 게이트 | `agent-eval trend ... --fail-on-regression` | 장기 회귀 감지 |
 
-**실행 결과 (v0.8.3 기준)**
+**실행 결과 (v0.8.4 기준)**
 
 ```
 # agent-eval gate (TCR 기준 46.1% < 임계값 80%)

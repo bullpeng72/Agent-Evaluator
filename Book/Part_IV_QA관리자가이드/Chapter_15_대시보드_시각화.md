@@ -882,11 +882,11 @@ agent-eval dashboard results/
 
 | 예제 파일 | 채워지는 대시보드 탭 | 핵심 데이터 |
 |-----------|---------------------|------------|
-| 04_decorator_quickeval | 개요·태스크 목록·LLM Judge | EvalMetadata priority 시연, gate() 결과 |
-| 06_operational | 이상 감지·비용·실시간·알림 | AnomalyDetector, CostTracker, alert JSONL |
-| 07_phoenix_hybrid | 외부 평가·OTEL | advanced_metrics, rag_metrics |
+| ch12_decorators | 개요·태스크 목록·LLM Judge | EvalMetadata priority 시연, gate() 결과 |
+| ch10_group_g | 이상 감지·비용·실시간·알림 | AnomalyDetector, CostTracker, alert JSONL |
+| ch19_phoenix | 외부 평가·OTEL | advanced_metrics, rag_metrics |
 
-**실행 결과 (v0.8.3 기준)**
+**실행 결과 (v0.8.4 기준)**
 
 ```
 # ch12_decorators.py

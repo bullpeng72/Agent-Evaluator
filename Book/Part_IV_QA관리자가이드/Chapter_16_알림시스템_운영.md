@@ -814,12 +814,12 @@ python Evaluator_Examples/ch10_group_g.py
 
 | 파일 | 섹션 | 내용 | 연관 기능 |
 |------|------|------|-----------|
-| 05_streaming_alerts | 섹션 1 | `StreamingEvaluator` + `SlidingWindow` | 실시간 윈도우 집계 |
-| 05_streaming_alerts | 섹션 2 | `ImplicitFeedbackTracker` | 사용자 반응 추적 → 알림 트리거 |
-| 05_streaming_alerts | 섹션 3 | `AlertEngine` 다채널 알림 | console·webhook·파일 핸들러 |
-| 06_operational | 섹션 4 | `SimpleTaskAlertRule` + `AnomalyDetector` | 임계값+Z-Score 이중 감시 |
+| ch16_alerts | 섹션 1 | `StreamingEvaluator` + `SlidingWindow` | 실시간 윈도우 집계 |
+| ch16_alerts | 섹션 2 | `ImplicitFeedbackTracker` | 사용자 반응 추적 → 알림 트리거 |
+| ch16_alerts | 섹션 3 | `AlertEngine` 다채널 알림 | console·webhook·파일 핸들러 |
+| ch10_group_g | 섹션 4 | `SimpleTaskAlertRule` + `AnomalyDetector` | 임계값+Z-Score 이중 감시 |
 
-**실행 결과 (v0.8.3 기준)**
+**실행 결과 (v0.8.4 기준)**
 
 ```
 # ch16_alerts.py

@@ -796,13 +796,13 @@ python Evaluator_Examples/ch10_group_g.py
 
 | 파일 | 섹션 | 내용 | 연관 기능 |
 |------|------|------|-----------|
-| 01_layer1 | 섹션 1~2 | `create_taskresult()` 헬퍼 사용법 | `task_type`, `accuracy_score` 자동 계산 |
-| 01_layer1 | 섹션 3 | `TaskType.CODE_GENERATION` 평가 | AST 비교 자동 활성화 |
-| 01_layer1 | 섹션 5 | `information_retrieval` 태스크 | `HallucinationDetector` 자동 연동 |
-| 06_operational | 섹션 5 | `GoldenSetBuilder` 마이닝 | `accuracy_score >= 0.9` 케이스 자동 추출 |
-| 06_operational | 섹션 5 | `push_to_phoenix()` | `upload_to_phoenix()` 래퍼 — Phoenix Datasets 탭에 골든셋 업로드 |
+| ch02_first_eval | 섹션 1~2 | `create_taskresult()` 헬퍼 사용법 | `task_type`, `accuracy_score` 자동 계산 |
+| ch02_first_eval | 섹션 3 | `TaskType.CODE_GENERATION` 평가 | AST 비교 자동 활성화 |
+| ch02_first_eval | 섹션 5 | `information_retrieval` 태스크 | `HallucinationDetector` 자동 연동 |
+| ch11_eval_data | 섹션 5 | `GoldenSetBuilder` 마이닝 | `accuracy_score >= 0.9` 케이스 자동 추출 |
+| ch11_eval_data | 섹션 5 | `push_to_phoenix()` | `upload_to_phoenix()` 래퍼 — Phoenix Datasets 탭에 골든셋 업로드 |
 
-**실행 결과 (v0.8.3 기준)**
+**실행 결과 (v0.8.4 기준)**
 
 ```
 # ch02_first_eval.py
