@@ -21,10 +21,11 @@ import importlib.util
 import os
 import shutil
 import socket
+import subprocess
 import sys
 import time
 import webbrowser
-from typing import Dict, List, Optional
+from typing import TYPE_CHECKING, Dict, List, Optional
 
 
 # ---------------------------------------------------------------------------
@@ -81,6 +82,64 @@ def _port_in_use(port: int, host: str = "localhost") -> bool:
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
         s.settimeout(1)
         return s.connect_ex((host, port)) == 0
+
+
+def _get_pids_on_port(port: int) -> List[int]:
+    """포트를 점유 중인 PID 목록 반환 (lsof 사용, 없으면 빈 리스트)."""
+    try:
+        import subprocess as _sp
+        out = _sp.check_output(
+            ["lsof", "-ti", f":{port}"],
+            stderr=_sp.DEVNULL,
+            text=True,
+        )
+        return [int(p) for p in out.split() if p.isdigit()]
+    except Exception:
+        return []
+
+
+def _report_startup_failure(
+    proc: "subprocess.Popen[bytes]",
+    output_lines: List[str],
+    ui_port: int,
+    grpc_port: int,
+    host: str,
+) -> None:
+    """Phoenix 기동 실패 원인을 분석해 사용자 친화적 메시지를 출력한다."""
+    returncode = proc.poll()
+    full_output = "".join(output_lines)
+
+    # gRPC 포트 충돌 여부 (타임아웃 후 재확인)
+    if _port_in_use(grpc_port, host):
+        pids = _get_pids_on_port(grpc_port)
+        pid_hint = f" (PID {pids[0]})" if pids else ""
+        print(f"  ❌  Phoenix 기동 실패 — gRPC 포트 {grpc_port} 충돌{pid_hint}")
+        print(f"     다른 Phoenix 인스턴스가 포트 {grpc_port}를 점유하고 있습니다.")
+        print(f"     해결:  kill $(lsof -ti :{grpc_port})  후 재실행")
+        print(f"     또는:  PHOENIX_GRPC_PORT=4318 agent-eval monitor")
+    elif returncode is not None:
+        print(f"  ❌  Phoenix 프로세스가 즉시 종료됐습니다 (exitcode={returncode}).")
+        # 출력에서 핵심 오류 줄 추출
+        error_lines = [
+            ln.rstrip() for ln in output_lines
+            if any(kw in ln for kw in ("Error", "ERROR", "Exception", "FAILED", "Failed"))
+        ]
+        if error_lines:
+            print("     오류 내용:")
+            for ln in error_lines[:5]:
+                print(f"       {ln.strip()}")
+        else:
+            print("     직접 실행해 오류를 확인하세요:")
+            print(f"       PHOENIX_PORT={ui_port} phoenix serve")
+    else:
+        print(f"  ❌  Phoenix 서버 기동 시간 초과 (30초).")
+        print(f"     직접 실행해 오류를 확인하세요:")
+        print(f"       PHOENIX_PORT={ui_port} phoenix serve")
+        if _port_in_use(grpc_port, host):
+            pids = _get_pids_on_port(grpc_port)
+            pid_hint = f" (PID {pids[0]})" if pids else ""
+            print(f"     힌트: gRPC 포트 {grpc_port}가 사용 중{pid_hint}")
+    print()
 
 
 def _phoenix_cmd() -> List[str]:
@@ -374,7 +433,7 @@ def cmd_monitor(args: argparse.Namespace) -> int:
             webbrowser.open(ui_url)
         return 0
 
-    # Phoenix 포트 충돌 확인
+    # Phoenix UI 포트 충돌 확인
     if _port_in_use(port, host):
         print()
         print(f"  ⚠️   포트 {port}가 이미 사용 중입니다.")
@@ -382,12 +441,23 @@ def cmd_monitor(args: argparse.Namespace) -> int:
         print()
         return 1
 
+    # gRPC 포트(4317) 사전 충돌 확인
+    _GRPC_PORT = int(os.environ.get("PHOENIX_GRPC_PORT", "4317"))
+    if _port_in_use(_GRPC_PORT, host):
+        pids = _get_pids_on_port(_GRPC_PORT)
+        pid_hint = f" (PID {pids[0]} — kill {pids[0]} 로 종료)" if pids else ""
+        print()
+        print(f"  ❌  gRPC 포트 {_GRPC_PORT}가 이미 사용 중입니다.{pid_hint}")
+        print(f"     Phoenix는 UI 포트({port})와 gRPC 포트({_GRPC_PORT})를 동시에 사용합니다.")
+        print(f"     해결 방법:")
+        print(f"       1. 기존 프로세스 종료:  kill $(lsof -ti :{_GRPC_PORT})")
+        print(f"       2. gRPC 포트 변경:      PHOENIX_GRPC_PORT=4318 agent-eval monitor")
+        print()
+        return 1
+
     # Phoenix 서버 기동
-    # Phoenix 13.x: 포트는 PHOENIX_PORT 환경변수로 지정
     print(f"\n  Agent Evaluator — 운영 모니터링 기동 중...\n")
     try:
-        import subprocess
-
         env = os.environ.copy()
         env["PHOENIX_PORT"] = str(port)
 
@@ -395,22 +465,39 @@ def cmd_monitor(args: argparse.Namespace) -> int:
         proc = subprocess.Popen(
             cmd,
             env=env,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
         )
     except Exception as exc:
         print(f"  ❌  Phoenix 서버 기동 실패: {exc}")
         return 1
 
-    # 서버 준비 대기 (최대 30초 — Phoenix 13.x는 DB 초기화로 시간이 걸릴 수 있음)
+    # 서버 준비 대기 (최대 30초)
+    # — Phoenix 14.x는 DB 마이그레이션으로 첫 실행 시 수 초 소요
+    _startup_output: list = []
+
+    import threading as _threading
+
+    def _drain_output() -> None:
+        for line in proc.stdout:  # type: ignore[union-attr]
+            _startup_output.append(line.decode(errors="replace"))
+
+    _drain_thread = _threading.Thread(target=_drain_output, daemon=True)
+    _drain_thread.start()
+
     for _ in range(60):
+        # 프로세스가 조기에 종료된 경우 즉시 진단
+        if proc.poll() is not None:
+            _drain_thread.join(timeout=2)
+            _report_startup_failure(proc, _startup_output, port, _GRPC_PORT, host)
+            return 1
         if _port_in_use(port, host):
             break
         time.sleep(0.5)
     else:
-        print("  ❌  Phoenix 서버 기동 시간 초과 (30초).")
-        print(f"     직접 실행해보세요: PHOENIX_PORT={port} phoenix serve")
         proc.terminate()
+        _drain_thread.join(timeout=2)
+        _report_startup_failure(proc, _startup_output, port, _GRPC_PORT, host)
         return 1
 
     _print_connect_info(ui_url, otlp_url)
