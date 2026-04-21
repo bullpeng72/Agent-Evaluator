@@ -85,6 +85,10 @@ from dotenv import load_dotenv
 load_dotenv()
 ```
 
+- **`load_env()`**: 프로젝트 루트의 `.env` 파일을 자동 탐지해 `OPENAI_API_KEY`, `ANTHROPIC_API_KEY` 등의 환경변수를 프로세스에 로드한다.
+- **방법 1 권장 이유**: Git 저장소 루트를 자동으로 찾아 올바른 `.env` 경로를 결정하므로 스크립트 위치와 무관하게 동작한다.
+- **방법 2**: `python-dotenv`를 직접 사용하며, 현재 작업 디렉토리 기준으로 `.env`를 탐색하므로 실행 경로에 의존적이다.
+
 **저장 경로 자동 감지**: `output_dir`를 별도로 지정하지 않으면 SDK가 다음 순서로 경로를 자동 결정합니다.
 
 1. 환경 변수 `AGENT_EVALUATOR_OUTPUT_DIR` (최우선)
@@ -107,12 +111,16 @@ Git 저장소에서 작업한다면 별도 설정 없이도 항상 올바른 위
 ### 단계 1 — QuickEval로 측정 시작 (1줄)
 
 ```python
-# quick_start.py
+# 출처: Evaluator_Examples/ch02_quickstart.py
 from agent_evaluator import QuickEval
 
 # QuickEval은 PerformanceMonitor + EvalDecorator를 하나로 감싼 Facade
 eval = QuickEval("results/")
 ```
+
+- **`QuickEval`**: `PerformanceMonitor`와 `EvalDecorator`를 1줄로 초기화하는 Facade 클래스다.
+- **`"results/"`**: 평가 결과 JSON·HTML 파일이 저장될 디렉토리 경로다. 디렉토리가 없으면 자동으로 생성된다.
+- **내부 동작**: `PerformanceMonitor(output_dir="results/")` 인스턴스를 생성하고, 단축 데코레이터(`qa`, `rag`, `tool_use` 등)를 제공한다.
 
 ### 단계 2 — 에이전트 함수에 데코레이터 적용 (2줄)
 
@@ -126,6 +134,10 @@ def my_agent(question: str, ground_truth: str = "") -> str:
     return answers.get(question, "모르겠습니다.")
 ```
 
+- **`@eval.qa`**: `task_type="qa"`로 설정된 `@agent_eval` 데코레이터의 단축형으로, Group A `AccuracyEvaluator`와 `TaskCompletionTracker`를 자동 활성화한다.
+- **함수 시그니처**: `question`과 `ground_truth`를 파라미터로 받는 것이 규칙이다. `ground_truth`는 데코레이터가 정확도 계산에 사용하며 기본값 `""`으로 두면 생략 가능하다.
+- **반환값**: 문자열을 반환하면 데코레이터가 `ground_truth`와 비교해 `accuracy_score`를 자동 계산한다.
+
 ### 단계 3 — 평가 실행 (n줄)
 
 ```python
@@ -133,6 +145,10 @@ my_agent("한국의 수도는?", ground_truth="서울")
 my_agent("파이썬 창시자는?", ground_truth="귀도 반 로섬")
 my_agent("우주의 나이는?", ground_truth="138억 년")
 ```
+
+- **호출 방식**: 일반 함수처럼 호출하면 데코레이터가 실행 시간을 측정하고 `ground_truth`와 응답을 비교해 `TaskResult`를 자동 생성한다.
+- **세 번째 케이스**: 딕셔너리에 없는 질문이므로 `"모르겠습니다."`를 반환하고 `ground_truth="138억 년"`과 비교해 낮은 정확도가 기록된다.
+- **누적 저장**: 각 호출 결과가 `monitor` 내부 버퍼에 누적되며, `save()` 또는 `gate()` 호출 시 한꺼번에 처리된다.
 
 ### 단계 4 — 첫 배포 판정 (Gate)
 
@@ -144,6 +160,10 @@ eval.gate(tcr=80, accuracy=70)  # TCR < 80% 또는 Accuracy < 70% 이면 sys.exi
 eval.save()
 print(eval.summary())
 ```
+
+- **`eval.gate(tcr=80, accuracy=70)`**: TCR이 80% 미만이거나 평균 정확도가 70% 미만이면 `sys.exit(1)`을 호출해 CI/CD 파이프라인을 차단한다.
+- **`eval.save()`**: `results/quickeval.json`과 `results/quickeval.html`을 동시에 생성한다.
+- **`eval.summary()`**: TCR·정확도·p95 레이턴시·비용·품질 평균을 담은 딕셔너리를 반환한다.
 
 실행 출력:
 
@@ -202,6 +222,11 @@ gate = HarnessEvaluationGate(report)
 gate.enforce()
 ```
 
+- **Config 선언 패턴**: `InstructionConfig`, `SLAConfig` 등의 Config 객체를 먼저 만들고, `@agent_eval`의 파라미터로 전달하면 실행마다 자동 검증된다.
+- **`fail_on_violation=True`**: 해당 Config 기준을 위반하면 그 태스크의 `success=False`로 처리되어 TCR에 직접 반영된다.
+- **`HarnessEvaluationGate(report).enforce()`**: `generate_report()` 결과를 받아 Group A–G 전체 Config 위반 여부를 종합 판정하고, 기준 미달이면 `sys.exit(1)`을 호출한다.
+- **`QuickEval.gate()` vs `HarnessEvaluationGate`**: 전자는 TCR·정확도 단순 임계값, 후자는 33개 Config 전체를 포함한 정밀 판정이다.
+
 ### 배포 판정 결과 이해하기
 
 ```python
@@ -223,6 +248,11 @@ for group_key in ["A", "B", "C", "D", "E", "F", "G"]:
     if isinstance(group_data, dict) and group_data.get("score") is not None:
         print(f"  Gate {group_key}: score={group_data['score']:.3f} ({group_data.get('status', 'n/a')})")
 ```
+
+- **`report.to_dict()`**: `EvaluationReport`를 직렬화해 `accuracy_metrics`, `efficiency_metrics`, `extra_metrics` 등의 키를 가진 딕셔너리를 반환한다.
+- **TCR 경로**: `d["accuracy_metrics"]["tcr"]["tcr"]` — 태스크 성공 건수 / 전체 건수 비율이다.
+- **p95 레이턴시 경로**: `d["efficiency_metrics"]["latency"]["p95"]` — 전체 실행 시간 중 95번째 백분위 값(초)이다.
+- **`harness_groups` 경로**: `d["extra_metrics"]["harness_groups"]["A"]` ~ `["G"]` — 각 Gate의 `score`(0–1), `status`(PASS/WARN/FAIL), `gate` 필드를 포함한다.
 
 평가 결과 파일이 `results/quickeval.json`과 `results/quickeval.html`로 저장됩니다. HTML 파일을 브라우저에서 열면 Group A-G별 시각화된 리포트를 확인할 수 있습니다.
 
@@ -325,6 +355,11 @@ report = monitor.generate_report()
 # → to_dict()로 직렬화: accuracy_metrics["tcr"]["tcr"], efficiency_metrics["latency"]["p95"] 등
 ```
 
+- **`PerformanceMonitor`**: Group A–G의 모든 Tracker를 내부에서 자동 구성하며, `enable_*` 플래그로 비용이 큰 opt-in Tracker를 선택적으로 활성화한다.
+- **`create_taskresult()`**: `question`·`response`·`ground_truth`를 받아 `accuracy_score`(4중 가중 알고리즘)와 `completion_score`를 자동 계산한 `TaskResult` 객체를 반환한다.
+- **`TaskResult`**: `frozen=True` 데이터클래스로 불변(immutable)이며, `to_dict()` / `from_dict()` / `from_json()` 직렬화를 지원한다.
+- **`generate_report()`**: `record_task()`로 누적된 모든 TaskResult를 집계해 `EvaluationReport` 객체를 반환한다. `to_dict()`로 JSON 직렬화 가능하다.
+
 ### Group A-G 활성화 방법
 
 | Group | 기본 활성 | 활성화 방법 |
@@ -351,6 +386,10 @@ monitor = PerformanceMonitor(
 monitor_rag = PerformanceMonitor.for_rag_evaluation("results/")  # Group C 강화
 monitor_sec = PerformanceMonitor.for_secure_agents("results/")   # Group E 강화
 ```
+
+- **최대 측정 모드**: `enable_hallucination_detection`, `enable_security_metrics`, `enable_llm_judge`를 모두 켜면 Group A–G 전체가 활성화되며 가장 포괄적인 평가가 가능하다.
+- **`judge_sample_rate=0.1`**: LLMJudge가 전체 태스크의 10%만 채점하므로 Group G 품질 측정 비용을 90% 절감한다.
+- **팩토리 메서드**: `for_rag_evaluation()`은 `enable_hallucination_detection=True`를, `for_secure_agents()`는 `enable_security_metrics=True`를 자동 설정해 용도별 최적 구성을 한 줄로 초기화한다.
 
 > 📖 **더 깊이**: Group별 Tracker 파라미터와 Config 전체 레퍼런스는 → **Part II — Chapter 03~10** (Group A-G 챕터)에서 상세히 다룹니다.
 
@@ -438,6 +477,10 @@ import json
 print(json.dumps(report.to_dict(), indent=2, ensure_ascii=False))
 ```
 
+- **`record_task(result)`**: `TaskResult`를 내부 버퍼에 추가한다. 여러 번 호출해 누적한 뒤 `generate_report()`를 호출한다.
+- **`report.to_dict()`**: `EvaluationReport`를 JSON 직렬화 가능한 딕셔너리로 변환한다. `summary`, `accuracy_metrics`, `efficiency_metrics` 등의 키를 포함한다.
+- **`ensure_ascii=False`**: 한국어 등 비ASCII 문자를 이스케이프 없이 그대로 출력한다.
+
 출력 예시:
 
 ```json
@@ -477,6 +520,10 @@ for question, answer in test_cases:
 # JSON + HTML 파일 저장
 monitor.save_to_file("evaluation")
 ```
+
+- **`save_to_file("evaluation")`**: `results/evaluation_evaluation.json`과 `results/evaluation_evaluation.html` 두 파일을 동시에 생성한다.
+- **HTML 리포트**: 브라우저에서 바로 열 수 있으며, Group A–G 탭과 태스크별 점수 테이블이 포함된 시각화 리포트다.
+- **`--watch` 옵션**: 결과 디렉토리의 파일 변경을 감시해 새 평가 결과가 추가될 때 대시보드를 자동으로 갱신한다.
 
 ```bash
 # 대시보드 실행 (기본 설치에 포함)
@@ -520,6 +567,11 @@ def my_agent(question: str, ground_truth: str = "") -> str:
 my_agent("한국의 수도는?", ground_truth="서울")
 # → Phoenix Tracing 탭에서 ae.tcr, ae.accuracy, ae.execution_time 실시간 확인
 ```
+
+- **`setup_otel(endpoint=..., service_name=...)`**: OTLP HTTP 익스포터를 초기화하며, 반드시 `PerformanceMonitor` 생성 **이전**에 호출해야 트레이서가 올바르게 연결된다.
+- **`endpoint` 주의사항**: 경로(`/v1/traces`)를 붙이지 않고 호스트:포트만 입력한다. SDK가 OTLP 경로를 자동으로 추가한다.
+- **Phoenix UI**: `http://localhost:6006` 에서 Tracing 탭을 열면 태스크별 `ae.tcr`, `ae.accuracy`, `ae.execution_time` 등의 속성을 실시간으로 확인할 수 있다.
+- **`service_name`**: Phoenix 대시보드에서 서비스를 구분하는 이름으로, 여러 에이전트를 동시에 추적할 때 식별자가 된다.
 
 ---
 
@@ -591,6 +643,11 @@ comparison = eval_a.compare(eval_b)
 print(comparison)
 ```
 
+- **독립 `QuickEval` 인스턴스**: `eval_a`와 `eval_b`를 각각 다른 디렉토리로 초기화해 두 버전의 결과가 섞이지 않도록 분리한다.
+- **동일 `test_dataset`**: 같은 테스트 케이스를 두 버전에 동일하게 적용해야 공정한 비교가 가능하다.
+- **`eval.save("v1")`**: 파일명 접두사를 지정해 `results/version_a/v1_eval.json` 형태로 저장한다.
+- **`eval_a.compare(eval_b)`**: Group A(TCR·정확도)와 Group D(레이턴시·비용)의 수치 차이를 딕셔너리로 반환한다.
+
 ---
 
 > **이 챕터의 핵심**
@@ -629,8 +686,12 @@ my_agent("한국의 수도는?", ground_truth="서울")
 monitor.save_to_file("my_first_eval")
 ```
 
+- **`@agent_eval(monitor, task_type="qa")`**: 함수를 실행할 때마다 실행 시간을 측정하고 `ground_truth`와 응답을 비교해 `TaskResult`를 생성한 뒤 `monitor`에 자동 기록한다.
+- **자동 집계 범위**: `task_type="qa"` 설정 시 Group A(`AccuracyEvaluator`, `TaskCompletionTracker`)와 Group D(`LatencyTracker`, `TokenEconomyTracker`)가 기본 활성화된다.
+- **`save_to_file("my_first_eval")`**: `results/my_first_eval_evaluation.json`과 `results/my_first_eval_evaluation.html`을 동시에 생성한다.
+
 ```python
-# 출처: Evaluator_Examples/ch12_decorators.py, 섹션 8 — QuickEval + Harness Gate
+# 출처: Evaluator_Examples/ch12_decorators.py, 섹션 8 — QuickEval Facade — 원스톱 간편 시작
 from agent_evaluator import QuickEval
 
 eval_qe = QuickEval("results/")
@@ -651,6 +712,11 @@ eval_qe.gate(tcr=80, accuracy=70)
 
 eval_qe.save()  # JSON + HTML
 ```
+
+- **`@eval_qe.qa`와 `@eval_qe.rag`**: 같은 `QuickEval` 인스턴스에 여러 에이전트를 등록할 수 있으며, 각각 `task_type`이 다른 `TaskResult`로 누적된다.
+- **`@eval_qe.rag`**: `task_type="information_retrieval"`로 설정되며 `hallucination_detection=True`가 자동 활성화되어 Group C 신뢰성 지표가 추가된다.
+- **`eval_qe.gate(tcr=80, accuracy=70)`**: 누적된 모든 태스크(qa + rag 합산)의 TCR·정확도를 기준으로 Gate를 판정하며, 기준 미달 시 `sys.exit(1)`을 호출한다.
+- **`eval_qe.save()`**: 파일명 없이 호출하면 기본 이름 `quickeval.json` / `quickeval.html`로 저장된다.
 
 **Harness 아키텍처 4단계와 예제 매핑**
 

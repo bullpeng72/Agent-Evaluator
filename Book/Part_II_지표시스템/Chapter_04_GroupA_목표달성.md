@@ -17,7 +17,7 @@
 > - **[Appendix A — 58개 지표 완전 레퍼런스](../Appendix/A_58개지표_레퍼런스.md)**: Group A 지표 입력·출력·기본값
 > - **[Appendix H — 수학적 상세](../Appendix/H_알고리즘_수학적_레퍼런스.md)**: 4중 가중 정확도 공식, TCR 의사코드
 > - **[Appendix A §Part 2 — Config 레퍼런스](../Appendix/A_58개지표_레퍼런스.md)**: Group A Config 파라미터 전체 목록
-> - **[Evaluator_Examples/ch02_first_eval.py](../../Evaluator_Examples/ch02_first_eval.py)**: Group A Tracker 실전 예제
+> - **[Evaluator_Examples/ch01_first_eval.py](../../Evaluator_Examples/ch01_first_eval.py)**: Group A Tracker 실전 예제
 > - **[Evaluator_Examples/ch03_harness_basics.py](../../Evaluator_Examples/ch03_harness_basics.py)**: Group A Config 실전 예제
 
 > **독자별 읽기 가이드**  
@@ -121,7 +121,7 @@ r2 = create_taskresult(
 monitor.record_task(r1)
 monitor.record_task(r2)
 
-# 출처: Evaluator_Examples/ch07_group_d.py, 섹션 토큰경제 — TCR 집계 확인
+# 출처: Evaluator_Examples/ch07_group_d.py, 섹션 추가B — 토큰 경제성 & 비용 추정
 report = monitor.generate_report()
 d = report.to_dict()
 tcr_data = d.get("accuracy_metrics", {}).get("tcr", {})
@@ -133,6 +133,11 @@ print(f"TCR: {tcr * 100:.1f}%")                            # TCR: 80.0%
 print(f"완전 성공: {full}/{total} ({full/total*100:.1f}%)")  # 1/2 (50.0%)
 print(f"부분 성공: {part}/{total} ({part/total*100:.1f}%)")  # 1/2 (50.0%)
 ```
+
+- **`task_type="tool_use"`**: 도구 호출이 있으면 `completion_score=1.0`, 없으면 `0.6`(부분 완료)으로 자동 계산한다
+- **`tool_calls` 필드**: 실제 도구 호출 목록을 전달해야 `TaskCompletionTracker`가 도구 사용 여부를 정확히 판단한다
+- **TCR 집계 경로**: `report.to_dict()["accuracy_metrics"]["tcr"]` 하위에 `tcr`·`full_success`·`partial_success` 세 값이 들어 있다
+- **주의점**: `total_tasks`가 0인 경우 ZeroDivisionError를 방지하기 위해 `or 1` 가드가 필요하다
 
 **TCR 임계값 가이드:**
 
@@ -155,7 +160,7 @@ Accuracy는 응답이 ground_truth와 얼마나 가까운지 측정한다. BLEU�
 | Char Similarity | 10% | Levenshtein 거리 기반 | 문자 순서·오타 반영 |
 
 ```python
-# 출처: Evaluator_Examples/ch02_first_eval.py, 섹션 QA — 4중 가중 정확도 계산 예시
+# 출처: Evaluator_Examples/ch01_first_eval.py, 섹션 1 — QA 정확도
 from agent_evaluator import create_taskresult
 
 result = create_taskresult(
@@ -179,6 +184,10 @@ result2 = create_taskresult(
 print(f"정확도: {result2.accuracy_score:.3f}")  # 0.87 (더 간결, ground_truth와 가까움)
 ```
 
+- **`create_taskresult()`**: `accuracy_score`를 Token F1·Jaccard·LCS·Levenshtein 4중 가중으로 자동 계산한다
+- **응답 길이 영향**: `result`는 "서울특별시"를 포함해 `ground_truth="서울"`보다 길기 때문에 Token F1 재현율이 높아도 정밀도가 낮아져 0.78이 나온다
+- **`result2`**: "서울입니다."로 더 간결하게 응답해 `ground_truth`와 가까워 0.87이 나온다
+
 **코드 정확도 — AST 비교**
 
 `task_type="code_generation"`이면 텍스트 비교 대신 Python AST 비교를 사용한다.
@@ -194,6 +203,10 @@ result = create_taskresult(
 )
 # AST 구조 동일 → accuracy_score = 1.0 (공백 차이 무시)
 ```
+
+- **`task_type="code_generation"`**: 텍스트 비교 대신 Python AST 파싱 후 구조 비교를 수행한다
+- **공백 무시**: `add(a,b)`와 `add(a, b)`는 AST 구조가 동일하므로 `accuracy_score=1.0`이 된다
+- **AST 파싱 실패 시 fallback**: 유효한 Python 코드가 아니면 응답 길이 기반으로 `completion_score`를 계산한다
 
 **Accuracy 임계값 가이드:**
 
@@ -239,6 +252,10 @@ print(qm.get("avg_total_score", 0.0))    # 4.1 (0~5 척도)
 print(qm.get("dimension_averages", {}))  # {"completeness": 4.5, "relevance": 4.2, ...}
 ```
 
+- **`@agent_eval`**: 함수 반환값을 자동으로 `TaskResult`로 변환하고 `monitor.record_task()`를 호출해 5차원 품질 평가를 자동 실행한다
+- **`quality_metrics` 경로**: `report.to_dict()["quality_metrics"]` 하위에 `avg_total_score`(0–5 척도 종합)와 `dimension_averages`(5개 차원별 평균)가 들어 있다
+- **ground_truth 불필요**: `ResponseQualityEvaluator`는 응답 자체만으로 5차원을 평가하므로 ground_truth 없이도 품질을 측정할 수 있다
+
 ---
 
 ## 4.3 Config 6종 레퍼런스
@@ -269,6 +286,11 @@ InstructionConfig(
 )
 ```
 
+- **`expected_format`**: 응답이 JSON·Markdown·YAML·plain 형식을 따르는지 자동으로 파싱해 검증한다
+- **`forbidden_phrases`**: 에이전트의 역량 부족 신호("모르겠습니다")나 불필요한 사과 표현을 응답에서 탐지한다
+- **`fail_on_violation=True`**: 위반이 발생하면 해당 `TaskResult.success`를 `False`로 강제해 TCR에 직접 반영된다
+- **`violation_weight`**: `fail_on_violation=False`일 때 위반 횟수에 이 가중치를 곱해 `instruction_score`를 감점한다
+
 **사용 예시:**
 
 ```python
@@ -292,6 +314,10 @@ def customer_bot(question: str, ground_truth: str = "") -> str:
     # 반드시 {"answer": "...", "confidence": 0.9} 형태로 반환해야 함
     return response
 ```
+
+- **`expected_format="json"`**: 응답이 유효한 JSON인지 파싱해 검증하며, 위반 시 `fail_on_violation=True`에 의해 즉시 fail 처리한다
+- **`required_sections`**: JSON 응답에 `"answer"`·`"confidence"` 키가 반드시 포함되어야 한다
+- **`forbidden_phrases`**: 영어·중국어 거절 표현을 탐지해 한국어 전용 서비스 정책을 코드로 강제한다
 
 **임계값 가이드:**
 
@@ -322,6 +348,11 @@ GoalAlignmentConfig(
 )
 ```
 
+- **`goal_tool_map`**: 질문에서 "검색", "분석" 등 목표 키워드를 탐지하면 매핑된 도구가 실제로 사용되었는지 확인한다
+- **`alignment_threshold=0.6`**: 목표-도구 정렬 점수가 0.6 미만이면 경고를 발생시킨다
+- **`ignore_no_tool_tasks=True`**: 도구를 전혀 사용하지 않은 태스크는 정렬 계산에서 제외해 단순 QA 태스크가 점수를 낮추지 않도록 한다
+- **`use_llm_scoring=True`**: LLM Judge가 목표와 도구 선택의 의미론적 정렬을 추가로 채점한다 (비용 증가)
+
 ### 4.3.3 PlanConfig — 계획 실행 완성도
 
 에이전트가 계획(plan)을 수립하고 그 계획대로 실행하는지 추적한다. 다단계 추론이나 복잡한 태스크를 처리하는 에이전트에 적합하다.
@@ -342,6 +373,10 @@ PlanConfig(
 )
 ```
 
+- **`plan_field`·`steps_field`**: 응답 JSON에서 계획 구조를 추출할 필드명을 지정한다 (응답이 `{"plan": {"steps": [...]}}` 형태여야 함)
+- **`check_executability=True`**: 계획 단계에서 사용하는 도구가 `available_tools` 목록에 있는지 확인해 실행 불가능한 계획을 탐지한다
+- **`min_steps`·`max_steps`**: 계획 단계가 지나치게 적거나 많으면 계획 품질 점수를 낮춘다
+
 **사용 예시 — 연구 에이전트:**
 
 ```python
@@ -360,6 +395,10 @@ def research_agent(question: str, ground_truth: str = "") -> str:
     return planner.run(question)
 ```
 
+- **`task_type="planning"`**: 계획 태스크임을 명시해 `PlanConfig` 집계가 Group A Gate 점수에 포함되도록 한다
+- **응답 형식 조건**: `planner.run()` 반환값이 `{"plan": {"steps": [...]}}` 구조를 포함해야 `PlanConfig`가 계획을 파싱할 수 있다
+- **`check_executability=True`**: 계획 단계의 도구가 `available_tools`에 없으면 실행 불가 단계로 표시해 계획 완성도 점수를 낮춘다
+
 ### 4.3.4 ContextRetentionConfig — 핵심 컨텍스트 보존
 
 RAG 에이전트나 멀티턴 대화 에이전트에서 원래 목표와 핵심 엔티티가 응답 전반에 유지되는지 측정한다.
@@ -377,6 +416,10 @@ ContextRetentionConfig(
 )
 ```
 
+- **`key_entities`**: 응답에 반드시 언급되어야 할 핵심 엔티티 목록을 선언한다 (예: 제품명·날짜·고유명사)
+- **`retention_threshold=0.7`**: 엔티티의 70% 이상이 응답에 포함되어야 통과로 처리한다
+- **`entity_weight=0.6`·`goal_weight=0.4`**: 최종 `context_retention_score`를 엔티티 보존율(60%)과 목표 보존율(40%)의 가중 평균으로 계산한다
+
 **사용 예시 — RAG 에이전트:**
 
 ```python
@@ -392,6 +435,10 @@ ContextRetentionConfig(
 def rag_agent(question: str, context: str = "", ground_truth: str = "") -> str:
     return rag_chain.invoke({"question": question, "context": context})
 ```
+
+- **`task_type="information_retrieval"`**: RAG 태스크에 적합한 타입으로 지정해 `ContextRetentionConfig`가 Group A 평가에 포함된다
+- **`retention_threshold=0.8`**: 제품명·버전·오류코드 세 엔티티 중 80% 이상(2.4개 이상)이 응답에 포함되어야 통과한다
+- **`context` 파라미터**: RAG 에이전트는 함수 시그니처에 `context` 인자를 포함해야 `ContextRetentionConfig.context_arg`가 올바르게 동작한다
 
 ### 4.3.5 SubtaskConfig — 서브태스크 완료율
 
@@ -410,6 +457,10 @@ SubtaskConfig(
     auto_extract=False,              # True: LLM으로 서브태스크 자동 추출 (opt-in)
 )
 ```
+
+- **`completion_markers`**: 응답 텍스트에서 "완료", "done" 등의 마커를 탐지해 서브태스크 완료 여부를 판단한다
+- **`min_completion_rate=0.8`**: 4개 서브태스크 중 3.2개 이상 완료되어야 통과한다 (실제로는 4개 중 4개 또는 3개 기준)
+- **`auto_extract=True`**: LLM이 응답에서 서브태스크를 자동 추출해 `expected_subtasks`와 비교한다 (추가 API 비용 발생)
 
 ### 4.3.6 KnowledgeRetentionConfig — 대화 중 사실 보존
 
@@ -430,6 +481,11 @@ KnowledgeRetentionConfig(
     retention_threshold=0.6,         # 사실 보존율 임계값
 )
 ```
+
+- **`facts_to_retain`**: 초기 대화 턴에서 언급된 사실로, 이후 응답에서 이 사실이 유지되는지 측정한다
+- **`seed_turns=2`**: 처음 2개 턴에서 사실이 제공되며, `check_from_turn=3`부터 보존 여부를 검사한다
+- **`allow_implicit_retention=True`**: "김민준 씨"처럼 간접 표현도 "사용자 이름: 김민준" 보존으로 인정한다
+- **멀티턴 대화 활용**: `ConversationSession`·`@conversation_eval`과 함께 사용하면 턴별 사실 보존 추이를 자세히 추적할 수 있다
 
 ---
 
@@ -454,6 +510,10 @@ from agent_evaluator import InstructionConfig, SLAConfig
 def simple_qa(question: str, ground_truth: str = "") -> str:
     return llm.invoke(question)
 ```
+
+- **최소 Config**: Group A의 `InstructionConfig` 하나로 응답 언어·길이·금지 표현을 한 번에 선언한다
+- **`SLAConfig` 동시 선언**: Group A(목표달성)와 Group D(성능계약)를 하나의 데코레이터에 함께 선언해 두 Gate를 동시에 평가한다
+- **`fail_on_violation=True`**: "모르겠습니다" 응답이 나오면 즉시 `success=False`로 처리해 TCR에 반영한다
 
 ### 패턴 2 — RAG 에이전트 (컨텍스트 보존 포함)
 
@@ -486,6 +546,10 @@ def rag_agent(question: str, context: str = "", ground_truth: str = "") -> str:
     return rag_chain.invoke({"question": question, "context": context})
 ```
 
+- **`rag_mode=True`**: `HallucinationDetector`를 자동으로 활성화해 검색된 문서와 응답의 사실 일관성을 Group C 지표로 측정한다
+- **`required_keywords=["출처"]`**: 응답에 "출처" 키워드가 없으면 경고를 발생시킨다 (`fail_on_violation=False`이므로 fail은 아님)
+- **3개 Config 조합**: 형식 기준(A)·컨텍스트 보존(A)·목표-도구 정렬(A)을 동시에 선언해 RAG 에이전트의 Group A 핵심 요소를 완전히 커버한다
+
 ### 패턴 3 — 복잡한 계획 에이전트 (서브태스크 추적)
 
 ```python
@@ -516,6 +580,10 @@ def research_agent(question: str, ground_truth: str = "") -> str:
     return planner.run(question)
 ```
 
+- **`PlanConfig` + `SubtaskConfig` 병용**: 거시적 계획 구조(단계 수·실행 가능성)와 미시적 서브태스크 완료율을 동시에 측정한다
+- **`required_sections=["개요", "결론"]`**: 연구 보고서 형식의 필수 구조를 강제해 형식 미준수 응답을 탐지한다
+- **`min_completion_rate=0.75`**: 4개 서브태스크 중 3개 이상 완료되어야 Group A 판정이 통과된다
+
 ---
 
 ## 4.5 AI Native 관점 — Group A의 확률론적 품질
@@ -542,6 +610,10 @@ if report.tcr_trend:
     print(f"TCR 최종값: {report.tcr_trend.last_val:.3f}")
 print(f"회귀 감지: {report.any_regression}")   # True → 배포 위험
 ```
+
+- **`RunTrendAnalyzer("results/", window=10)`**: `results/` 디렉토리의 JSON 결과 파일을 수정 시간순으로 정렬해 최근 10개를 분석한다
+- **`slope` 음수**: TCR이 시간이 지나면서 하락 중임을 의미하며, `direction="degrading"`으로 표시된다
+- **`any_regression=True`**: TCR·정확도·비용 중 하나라도 회귀가 감지되면 `True`가 된다 — CI/CD에서 즉시 배포 차단 신호로 활용한다
 
 또는 CLI로 간단히 확인:
 
@@ -577,6 +649,10 @@ eval.gate(
 )
 ```
 
+- **`task_type`별 차등 임계값**: 코드 생성은 0.90처럼 높게, 창의적 작업은 0.50처럼 낮게 설정해 task_type의 특성을 반영한다
+- **`eval.gate(accuracy=...)`**: `accuracy` 파라미터는 0–100 정수 퍼센트로 전달한다 (0.0–1.0 float이 아닌 점에 주의)
+- **동적 임계값**: 에이전트의 `task_type`을 런타임에 조회해 gate 기준을 유연하게 적용할 수 있다
+
 ### 4.5.3 AI-by-AI 평가 — LLM Judge로 목표달성 측정
 
 ground_truth 없이 LLM Judge가 목표달성을 5차원으로 채점한다.
@@ -604,6 +680,11 @@ judge_data = d.get("extra_metrics", {}).get("llm_judge", {})
 print(judge_data.get("criteria_scores", {}))
 # {"goal_achievement": 4.2, "instruction_following": 4.5, "completeness": 3.8}
 ```
+
+- **`criteria=["goal_achievement", ...]`**: Group A 관련 커스텀 기준을 G-Eval 방식으로 LLM에게 채점 요청한다 (0–5 척도)
+- **`sample_rate=0.2`**: 전체 호출의 20%만 LLM Judge로 채점해 비용을 80% 절감한다
+- **결과 경로**: `report.to_dict()["extra_metrics"]["llm_judge"]["criteria_scores"]`에 기준별 평균 점수가 집계된다
+- **ground_truth 불필요**: LLM Judge는 응답과 질문만으로 목표달성 여부를 판단하므로 레이블 없이도 사용할 수 있다
 
 ---
 
@@ -664,6 +745,11 @@ else:
         print(f"  Group {v['group']} 실패: score={v.get('score', 0.0):.3f} ({v.get('status', '')})")
 ```
 
+- **4개 Config 조합**: Group A(`InstructionConfig`·`GoalAlignmentConfig`)와 Group D(`SLAConfig`)·Group E(`ThreatSeverityConfig`)를 함께 선언해 4개 Gate를 한 번에 평가한다
+- **`result["groups"]["A"]`**: Group A의 점수(`score`)와 통과 여부(`passed`)를 개별적으로 확인할 수 있다
+- **`result["violations"]`**: Gate 실패 시 어느 Group이 몇 점으로 실패했는지 목록으로 반환해 즉각적인 원인 파악이 가능하다
+- **`gate.enforce()` 대안**: 수동으로 `result["passed"]`를 확인하는 대신 `gate.enforce()`를 호출하면 실패 시 자동으로 `sys.exit(1)`이 실행된다
+
 ---
 
 ---
@@ -675,13 +761,13 @@ else:
 | 예제 파일 | 관련 내용 |
 |---------|---------|
 | [`Evaluator_Examples/ch03_harness_basics.py`](../../Evaluator_Examples/ch03_harness_basics.py) | 섹션 1: Group A Goal Achievement — 4개 Config 실전 예제 |
-| [`Evaluator_Examples/ch02_first_eval.py`](../../Evaluator_Examples/ch02_first_eval.py) | 섹션 1~2: AccuracyEvaluator · HallucinationDetector · TCR Tracker 실전 예제 |
+| [`Evaluator_Examples/ch01_first_eval.py`](../../Evaluator_Examples/ch01_first_eval.py) | 섹션 1~2: AccuracyEvaluator · HallucinationDetector · TCR Tracker 실전 예제 |
 | [`Evaluator_Examples/ch04_group_a.py`](../../Evaluator_Examples/ch04_group_a.py) | 시나리오 6+7: Gate A FAIL — InstructionConfig·GoalAlignmentConfig·ContextRetentionConfig 위반 |
 
 **핵심 코드 (출처: `Evaluator_Examples/ch03_harness_basics.py`, 섹션 1 — Group A Goal Achievement)**
 
 ```python
-# 출처: Evaluator_Examples/ch04_group_a.py, 섹션 Gate A Goal Achievement
+# 출처: Evaluator_Examples/ch04_group_a.py, 섹션 1 — Group A Goal Achievement
 from agent_evaluator import (
     PerformanceMonitor, InstructionConfig, GoalAlignmentConfig,
     PlanConfig, SubtaskConfig,
@@ -751,10 +837,15 @@ def subtask_agent(question: str, ground_truth: str = "") -> str:
     return "데이터 수집 완료, 분석 완료, 요약 작성 완료"
 ```
 
-**Layer 1 Tracker 예제 (출처: `Evaluator_Examples/ch02_first_eval.py`, 섹션 1 — QA 정확도)**
+- **`task_id_prefix`**: 각 에이전트 함수에 고유 prefix를 지정해 리포트에서 Group A의 어느 Config가 어떤 태스크를 평가했는지 식별한다
+- **`plan_agent` 반환 형식**: `json.dumps({"plan": {"steps": [...]}})` 구조로 반환해야 `PlanConfig`가 계획을 파싱한다
+- **`subtask_agent` 응답**: "완료" 마커가 포함된 텍스트를 반환해 `SubtaskConfig`의 `completion_markers` 탐지가 작동한다
+- **단일 monitor 공유**: 4개 에이전트 함수가 동일 `monitor`를 공유하므로 `generate_report()` 한 번으로 모든 Config 결과를 통합 집계한다
+
+**Layer 1 Tracker 예제 (출처: `Evaluator_Examples/ch01_first_eval.py`, 섹션 1 — QA 정확도)**
 
 ```python
-# 출처: Evaluator_Examples/ch02_first_eval.py, 섹션 QA — QA 정확도 (@agent_eval 데코레이터)
+# 출처: Evaluator_Examples/ch01_first_eval.py, 섹션 1 — QA 정확도
 @agent_eval(monitor, task_type="qa", task_id_prefix="qa")
 def qa_agent(question: str, ground_truth: str = "") -> str:
     """단순 QA 에이전트 — AccuracyEvaluator 자동 활성."""
@@ -772,10 +863,14 @@ monitor.save_to_file("group_a_eval")
 # → agent-eval dashboard --results results/
 ```
 
+- **`@agent_eval(monitor, task_type="qa")`**: 데코레이터만 붙이면 `AccuracyEvaluator`·`TaskCompletionTracker`·`ResponseQualityEvaluator`가 자동으로 활성화된다
+- **`save_to_file("group_a_eval")`**: `results/group_a_eval.json`과 `results/group_a_eval.html` 두 파일을 자동 생성한다
+- **대시보드 확인**: `agent-eval dashboard --results results/`를 실행하면 브라우저에서 Group A 지표를 시각적으로 확인할 수 있다
+
 ```bash
 # 전체 예제 실행
 python Evaluator_Examples/ch03_harness_basics.py        # Group A~G 전체
-python Evaluator_Examples/ch02_first_eval.py  # Layer 1 Tracker 전체
+python Evaluator_Examples/ch01_first_eval.py  # Layer 1 Tracker 전체
 python Evaluator_Examples/ch04_group_a.py   # 시나리오 6+7: Gate A FAIL 케이스
 ```
 

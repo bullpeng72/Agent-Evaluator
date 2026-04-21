@@ -185,6 +185,10 @@ def rag_agent(question: str, context: str = "", ground_truth: str = "") -> str:
     return retrieval_chain.invoke({"question": question, "context": context})
 ```
 
+- Case 1·2는 `PerformanceMonitor` 기본 설정만으로 Group A-B 트래커가 자동 활성화된다
+- Case 3처럼 `enable_security_metrics=True`를 추가하면 보안 트래커 5개가 켜지고 Gate E 점수가 계산된다
+- Case 4에서 `judge_sample_rate=0.1`을 설정하면 전체 태스크의 10%만 LLM Judge로 채점해 API 비용을 절감할 수 있다
+
 > 📖 **더 깊이**: 레이어 선택의 비용-정밀도 트레이드오프 분석은 → Appendix I §I.7 지표별 비용 프로파일
 
 ---
@@ -196,6 +200,7 @@ def rag_agent(question: str, context: str = "", ground_truth: str = "") -> str:
 `generate_gate_config()`는 현재 결과의 **95% 수준**을 임계값으로 자동 제안한다. 즉, 현재 에이전트가 달성하는 성능에서 약간의 여유를 둔 현실적인 기준을 만들어준다.
 
 ```python
+# 출처: Evaluator_Examples/ch14_thresholds.py, 섹션 1 — generate_gate_config() 데이터 기반 임계값 자동 생성
 from agent_evaluator import QuickEval
 
 eval = QuickEval("results/")
@@ -212,6 +217,10 @@ for q, gt in test_dataset:
 eval.generate_gate_config("gate_config.json")
 ```
 
+- `generate_gate_config()`는 현재 평가 결과의 95% 수준을 자동으로 계산해 임계값 파일을 생성한다
+- 최소 50개 이상의 태스크를 실행한 후 호출해야 통계적으로 신뢰할 수 있는 값이 나온다
+- 생성된 JSON 파일을 CI/CD에서 읽어 `agent-eval gate` 명령으로 바로 활용할 수 있다
+
 생성된 `gate_config.json` 예시:
 
 ```json
@@ -226,6 +235,10 @@ eval.generate_gate_config("gate_config.json")
 }
 ```
 
+- `tcr`·`accuracy`·`p95_latency` 등 각 필드는 해당 지표의 95% 수준 값이다
+- `based_on_tasks`는 이 임계값을 계산하는 데 사용된 태스크 수로, 샘플 신뢰도를 나타낸다
+- `generated_at` 타임스탬프로 언제 생성된 임계값인지 추적하고 월 단위로 갱신할 수 있다
+
 이 파일을 CI/CD에서 바로 활용할 수 있다. `agent-eval gate`는 임계값을 CLI 인수로 직접 전달한다:
 
 ```bash
@@ -234,6 +247,10 @@ TCR=$(python -c "import json; print(json.load(open('gate_config.json'))['tcr'])"
 ACC=$(python -c "import json; print(json.load(open('gate_config.json'))['accuracy'])")
 agent-eval gate results/eval.json --tcr $TCR --accuracy $ACC
 ```
+
+- `agent-eval gate`는 `result.json` 파일을 읽어 지표가 임계값을 만족하면 exit 0, 실패하면 exit 1을 반환한다
+- `--tcr`과 `--accuracy` 인수에 환경변수나 JSON 파싱 값을 동적으로 전달할 수 있다
+- CI/CD 파이프라인에서 exit 1이 반환되면 배포를 자동 차단해 품질 게이팅 역할을 한다
 
 **환경별로 다른 임계값 파일 관리:**
 
@@ -245,6 +262,10 @@ agent-eval gate results/eval.json --tcr 85 --accuracy 70 --hallucination 5
 # 환경별 임계값 적용 예시 (Dev)
 agent-eval gate results/eval.json --tcr 70 --accuracy 55
 ```
+
+- 개발 환경은 느슨한 임계값으로 빠른 반복 개발을 허용하고, 운영 환경은 엄격한 기준으로 품질을 보호한다
+- `--hallucination` 인수는 `enable_hallucination_detection=True`가 설정된 평가 결과에서만 의미가 있다
+- 환경별 임계값을 별도 파일(`gate_dev.json`, `gate_prod.json`)로 관리하면 실수로 환경이 바뀌는 것을 방지할 수 있다
 
 | 환경 | TCR | Accuracy | Hallucination | P95 Latency |
 |------|-----|----------|---------------|-------------|
@@ -374,6 +395,10 @@ def agent(question: str, ground_truth: str = "") -> str:
 # 1주일 후 → results/week1/ 에 충분한 데이터 축적
 ```
 
+- `auto_save_interval=50`으로 설정하면 50건마다 자동으로 JSON 파일을 저장해 데이터 유실을 방지한다
+- `results/week1/` 같이 주차별 디렉토리를 분리하면 2주차 이후 `generate_gate_config()`로 각 주 데이터를 독립적으로 분석할 수 있다
+- 1주차에는 알림 쿨다운을 길게 설정해 초기 불안정 구간에서 알림 피로가 발생하지 않도록 한다
+
 1주차에는 알림도 최소화한다. 경고 임계값을 실제 목표보다 20~30% 낮게 설정해서 알림 폭발을 방지한다.
 
 ### 2주차: generate_gate_config()로 기준 갱신
@@ -396,6 +421,10 @@ with open("gate_config_v1.json") as f:
     for k, v in config.items():
         print(f"  {k}: {v}")
 ```
+
+- `replay()`로 기존 JSON 파일을 로드해 새로 실행하지 않고도 임계값을 계산할 수 있다
+- `generate_gate_config()`가 반환하는 파일명에 버전(`v1`, `v2`)을 포함하면 캘리브레이션 이력을 추적할 수 있다
+- 출력값을 확인해 업계 권장값과 크게 벗어난 항목은 팀 리뷰를 거쳐 수동 조정한다
 
 ### 이후: 월 1회 정기 갱신
 
@@ -470,6 +499,10 @@ def rag_agent(question: str, context: str = "", ground_truth: str = "") -> str: 
 def security_agent(question: str, ground_truth: str = "") -> str: ...
 ```
 
+- `SLAConfig(p95_ms=...)` 값은 밀리초 단위이므로 §14.2 표의 "P95 Latency" 초 값에 1000을 곱해 입력한다
+- `fail_on_violation=True`를 설정하면 기준 위반 시 해당 태스크의 `completion_score`가 0으로 처리되어 TCR에 즉시 반영된다
+- Config를 코드에 선언하면 Git blame으로 "누가, 언제, 왜 임계값을 바꿨는지" 추적이 가능하다
+
 ### 14.7.3 Wilson Score Interval — 통계적 임계값 설정
 
 §14.3의 `generate_gate_config()`는 "현재 성능의 95% 수준"을 자동 계산합니다. 하지만 샘플 수가 적으면 이 값이 얼마나 신뢰할 수 있는지 알아야 합니다.
@@ -494,6 +527,10 @@ print(f"n=20,  TCR=90%:  Wilson 하한 = {wilson_lower_bound(18, 20):.1%}")   # 
 print(f"n=100, TCR=90%:  Wilson 하한 = {wilson_lower_bound(90, 100):.1%}")  # ~83%
 print(f"n=500, TCR=90%:  Wilson 하한 = {wilson_lower_bound(450, 500):.1%}") # ~87%
 ```
+
+- 같은 90% TCR이라도 샘플 20건은 Wilson 하한이 ~72%로 크게 낮아지므로, 초기 데이터로 과도하게 엄격한 임계값을 설정하지 않아야 한다
+- `z=1.96`은 95% 신뢰수준을 의미하며, 더 보수적인 판단이 필요하면 `z=2.576`(99%)으로 조정할 수 있다
+- 샘플 수가 200건 이상이 되면 Wilson 보정 효과가 미미해져 관찰값에서 5% 마진만 빼는 단순 방식으로 충분하다
 
 **임계값 설정에의 적용:**
 
@@ -522,7 +559,7 @@ def adaptive_threshold(
         return max(0.0, observed - margin)
 
 # 2주 캘리브레이션 완료 후 Config 자동 생성
-# 출처: Evaluator_Examples/ch04_group_a.py, 섹션 Group A — InstructionConfig
+# 출처: Evaluator_Examples/ch04_group_a.py, 섹션 1 — Group A Goal Achievement
 report = monitor.generate_report()
 total = int(report.total_tasks)
 successful = int(total * report.task_completion_rate / 100)
@@ -554,14 +591,50 @@ print(f"→ CI/CD: agent-eval gate result.json --tcr {threshold*100:.0f}")
 
 ## 실전 예제
 
-`ch10_group_g.py`의 `AnomalyDetector`와 `CostTracker` 섹션은 임계값 기반 알림과 비용 제어가 실제 코드에서 어떻게 구성되는지 보여준다. 임계값 캘리브레이션과 에이전트 유형별 KPI 설정의 실제 패턴을 확인할 수 있다.
+`ch14_thresholds.py`는 `generate_gate_config()`·`HarnessEvaluationGate`·`SimpleTaskAlertRule`을 조합해 임계값 설정과 Gate 판정을 자동화하는 패턴을 보여준다. `ch10_group_g.py`의 `AnomalyDetector`와 `CostTracker` 섹션은 운영 임계값 기반 알림과 비용 제어가 실제 코드에서 어떻게 구성되는지 보여준다.
 
-**파일**: `Evaluator_Examples/ch10_group_g.py`
+**파일**: `Evaluator_Examples/ch14_thresholds.py`, `Evaluator_Examples/ch10_group_g.py`
+
+**핵심 코드 (출처: `Evaluator_Examples/ch14_thresholds.py`)**
+
+```python
+# 출처: Evaluator_Examples/ch14_thresholds.py, 섹션 2 — HarnessEvaluationGate 임계값 선언 및 판정
+from agent_evaluator import (
+    PerformanceMonitor, SLAConfig, ResourceBudgetConfig, InstructionConfig,
+)
+from agent_evaluator.decorators import agent_eval
+
+monitor = PerformanceMonitor(output_dir="results/")
+
+sla_cfg    = SLAConfig(p95_ms=5000, max_cost_per_task=0.05)
+budget_cfg = ResourceBudgetConfig(max_tokens=2000, max_cost_usd=10.0)
+instr_cfg  = InstructionConfig(required_keywords=["완료"], fail_on_violation=False)
+
+@agent_eval(monitor, task_type="qa",
+            sla=sla_cfg, resource_budget=budget_cfg, instructions=instr_cfg)
+def agent(question: str, ground_truth: str = "") -> str:
+    return f"처리 완료: {question}"
+
+# 평가 실행 후 Gate 판정
+for q, gt in [("서울 특징?", "수도"), ("파이썬?", "언어"), ("HTTP?", "프로토콜")]:
+    agent(q, ground_truth=gt)
+
+report = monitor.generate_report()
+harness = report.to_dict().get("extra_metrics", {}).get("harness_groups", {})
+for gate in ["A", "D"]:
+    gd = harness.get(gate, {})
+    if isinstance(gd, dict) and gd.get("score") is not None:
+        print(f"Gate {gate}: score={gd['score']:.3f} → {gd.get('status', 'n/a')}")
+```
+
+- `SLAConfig(p95_ms=5000)`은 P95 응답 시간 5,000ms(5초) 이하를 Gate D 임계값으로 선언한다
+- `ResourceBudgetConfig`는 태스크당 토큰·비용 상한을 설정해 예산 초과 시 해당 태스크를 위반으로 처리한다
+- `harness_groups["D"]["status"]`가 `"FAIL"`이면 Gate D가 임계값을 초과한 것이므로 배포를 보류해야 한다
 
 **핵심 코드 (출처: `Evaluator_Examples/ch10_group_g.py`)**
 
 ```python
-# 출처: Evaluator_Examples/ch10_group_g.py, 섹션 이상탐지 — AnomalyDetector 기준선 학습
+# 출처: Evaluator_Examples/ch10_group_g.py, 섹션 추가A — 이상 탐지 (AnomalyDetector)
 from agent_evaluator import AnomalyDetector, create_taskresult
 import random
 
@@ -603,7 +676,7 @@ for event in events:
 - `explain_event()`는 어떤 지표가, 얼마나 벗어났는지를 사람이 읽기 쉬운 형태로 반환한다
 
 ```python
-# 출처: Evaluator_Examples/ch10_group_g.py, 섹션 비용추적 — CostTracker + AdaptivePolicy
+# 출처: Evaluator_Examples/ch10_group_g.py, 섹션 추가B — 비용 추적 + 적응형 샘플링
 from agent_evaluator import CostTracker, AdaptivePolicy, SamplingStage
 
 # SamplingStage는 Enum (DEFAULT / ANOMALY / BUDGET_EXCEEDED)
@@ -675,7 +748,7 @@ TCR=46.1% | 평균 정확도=0.681 | 평균 레이턴시=1.47s
 `StreamingEvaluator`의 슬라이딩 윈도우 통계가 임계값을 초과하면 `SimpleTaskAlertRule`이 즉시 발동하는 패턴이다:
 
 ```python
-# 출처: Evaluator_Examples/ch16_alerts.py, 섹션 3 — 임계값 기반 실시간 알림
+# 출처: Evaluator_Examples/ch16_alerts.py, 섹션 3 — SimpleTaskAlertRule — @agent_eval 통합 경량 알림
 from agent_evaluator import PerformanceMonitor, SimpleTaskAlertRule, create_taskresult
 from agent_evaluator.streaming.evaluator import StreamingEvaluator
 

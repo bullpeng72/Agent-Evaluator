@@ -204,7 +204,7 @@ monitor = PerformanceMonitor(
 @agent_eval(
     monitor,
     task_type="qa",
-    instructions=InstructionConfig(required_keywords=[]),  # 출처: Evaluator_Examples/ch04_group_a.py, 섹션 Group A
+    instructions=InstructionConfig(required_keywords=[]),  # 출처: Evaluator_Examples/ch04_group_a.py, 섹션 1 — Group A Goal Achievement
     sla=SLAConfig(p95_ms=8000),
     loop_detection=LoopDetectionConfig(consecutive_repeat_threshold=5),
     compliance=ComplianceConfig(forbidden_data_patterns=["password", "secret_key"]),
@@ -273,7 +273,7 @@ monitor = PerformanceMonitor(
 @agent_eval(
     monitor,
     task_type="qa",
-    instructions=InstructionConfig(required_keywords=["출처"]),  # 출처: Evaluator_Examples/ch04_group_a.py, 섹션 Group A
+    instructions=InstructionConfig(required_keywords=["출처"]),  # 출처: Evaluator_Examples/ch04_group_a.py, 섹션 1 — Group A Goal Achievement
     sla=SLAConfig(p95_ms=4000),
     fault_tolerance=FaultToleranceConfig(partial_success_threshold=0.85),
     explainability=ExplainabilityConfig(min_reasoning_length=20),
@@ -340,7 +340,7 @@ monitor = PerformanceMonitor(
     monitor,
     task_type="information_retrieval",
     rag_mode=True,
-    # Group A  # 출처: Evaluator_Examples/ch04_group_a.py, 섹션 Group A
+    # Group A  # 출처: Evaluator_Examples/ch04_group_a.py, 섹션 1 — Group A Goal Achievement
     instructions=InstructionConfig(
         required_keywords=["근거", "출처"],
         fail_on_violation=True,          # 키워드 미포함 시 success=False
@@ -468,7 +468,7 @@ monitor = PerformanceMonitor(
 @agent_eval(
     monitor,
     task_type="qa",
-    instructions=InstructionConfig(required_keywords=[]),  # 출처: Evaluator_Examples/ch04_group_a.py, 섹션 Group A
+    instructions=InstructionConfig(required_keywords=[]),  # 출처: Evaluator_Examples/ch04_group_a.py, 섹션 1 — Group A Goal Achievement
     sla=SLAConfig(p95_ms=8000),
     fault_tolerance=FaultToleranceConfig(partial_success_threshold=0.80),
 )
@@ -489,7 +489,7 @@ monitor = PerformanceMonitor.for_rag_evaluation(output_dir="results/")
     monitor,
     task_type="information_retrieval",
     rag_mode=True,
-    instructions=InstructionConfig(required_keywords=["출처"]),  # 출처: Evaluator_Examples/ch04_group_a.py, 섹션 Group A
+    instructions=InstructionConfig(required_keywords=["출처"]),  # 출처: Evaluator_Examples/ch04_group_a.py, 섹션 1 — Group A Goal Achievement
     sla=SLAConfig(p95_ms=5000),
     fault_tolerance=FaultToleranceConfig(partial_success_threshold=0.85),
 )

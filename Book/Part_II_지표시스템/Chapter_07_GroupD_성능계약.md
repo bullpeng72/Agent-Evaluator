@@ -16,7 +16,7 @@
 > - **[Appendix A — 58개 지표 완전 레퍼런스](../Appendix/A_58개지표_레퍼런스.md)**: Group D 지표 입력·출력
 > - **[Appendix H — 수학적 상세](../Appendix/H_알고리즘_수학적_레퍼런스.md)**: 퍼센타일 계산 공식, 비용 추정 수식
 > - **[Appendix A §Part 2 — Config 레퍼런스](../Appendix/A_58개지표_레퍼런스.md)**: Group D Config 파라미터 전체 목록
-> - **[Evaluator_Examples/ch02_first_eval.py](../../Evaluator_Examples/ch02_first_eval.py)**: LatencyTracker·TokenEconomy 실전 예제
+> - **[Evaluator_Examples/ch01_first_eval.py](../../Evaluator_Examples/ch01_first_eval.py)**: LatencyTracker·TokenEconomy 실전 예제
 > - **[Evaluator_Examples/ch04_group_a.py](../../Evaluator_Examples/ch04_group_a.py)**: Gate D FAIL 시나리오 — 시나리오 12 (TTFTVariabilityConfig·ResourceBudgetConfig)
 
 > **독자별 읽기 가이드**  
@@ -80,7 +80,7 @@ Group D는 에이전트가 **약속한 성능 계약(Performance Contract)**을 
 | `latency_histogram` | 응답 시간 분포 히스토그램 |
 
 ```python
-# 출처: Evaluator_Examples/ch07_group_d.py, 섹션 지연시간 — LatencyTracker 퍼센타일
+# 출처: Evaluator_Examples/ch07_group_d.py, 섹션 추가A — 지연시간 분포 (LatencyTracker)
 from agent_evaluator import PerformanceMonitor
 from agent_evaluator.decorators import agent_eval
 import time
@@ -102,6 +102,11 @@ print(f"P95 응답 시간: {d.get('latency_p95', 0) * 1000:.0f}ms")
 print(f"P99 응답 시간: {d.get('latency_p99', 0) * 1000:.0f}ms")
 ```
 
+- `@agent_eval`로 감싼 함수는 실행 시간이 자동으로 `LatencyTracker`에 기록된다.
+- `generate_report()`를 호출하면 P50·P95·P99 퍼센타일이 계산된다.
+- `latency_p95`는 SLA 위반 여부를 판단하는 핵심 지표다.
+- 태스크 수가 적을수록 퍼센타일 추정치가 불안정하므로 최소 20건 이상 실행을 권장한다.
+
 **P95 vs P99 선택 가이드:**
 
 | 지표 | 의미 | 권장 SLA 기준 |
@@ -115,7 +120,7 @@ print(f"P99 응답 시간: {d.get('latency_p99', 0) * 1000:.0f}ms")
 스트리밍 응답 에이전트에서 첫 토큰까지의 대기 시간을 별도로 측정한다.
 
 ```python
-# 출처: Evaluator_Examples/ch07_group_d.py, 섹션 지연시간 — 스트리밍 TTFT 자동 측정
+# 출처: Evaluator_Examples/ch07_group_d.py, 섹션 추가A — 지연시간 분포 (TTFT 측정)
 from agent_evaluator.decorators import agent_eval
 
 @agent_eval(monitor, task_type="qa")
@@ -124,6 +129,10 @@ def streaming_agent(question: str, ground_truth: str = "") -> str:
     for chunk in llm.stream(question):
         yield chunk
 ```
+
+- 제너레이터를 반환하면 `@agent_eval`이 첫 번째 `yield` 시점을 TTFT로 자동 기록한다.
+- TTFT는 전체 응답 시간과 별도로 `ttft_p50` 등 퍼센타일로 집계된다.
+- 스트리밍을 지원하지 않는 에이전트는 TTFT 대신 전체 응답 시간을 지연 지표로 사용한다.
 
 **응답 시간 임계값 가이드:**
 
@@ -149,7 +158,7 @@ def streaming_agent(question: str, ground_truth: str = "") -> str:
 | `token_efficiency` | 완료율 대비 토큰 효율 |
 
 ```python
-# 출처: Evaluator_Examples/ch07_group_d.py, 섹션 토큰경제 — TokenEconomyTracker 비용 추정
+# 출처: Evaluator_Examples/ch07_group_d.py, 섹션 추가B — 토큰 경제성 & 비용 추정
 from agent_evaluator import create_taskresult
 
 result = create_taskresult(
@@ -174,6 +183,11 @@ print(f"태스크당 평균: {d.get('avg_tokens_per_task', 0):.0f} 토큰")
 print(f"추정 비용: ${d.get('estimated_cost_usd', 0):.4f}")
 ```
 
+- `extra` 딕셔너리에 `input_tokens`·`output_tokens`를 넣으면 모델별 단가로 비용이 자동 추정된다.
+- `model` 필드가 없으면 `tokens_used` 전체를 output 토큰으로 간주해 추정한다.
+- `estimated_cost_usd`는 참고용 추정치이며, 실제 청구 금액과 다를 수 있다.
+- 여러 모델을 혼용할 경우 각 태스크에 `model` 필드를 명시해야 정확한 비용이 집계된다.
+
 **모델별 비용 참고 (2026년 4월 기준):**
 
 | 모델 | Input (1M 토큰) | Output (1M 토큰) |
@@ -192,7 +206,7 @@ print(f"추정 비용: ${d.get('estimated_cost_usd', 0):.4f}")
 응답 시간과 비용에 대한 SLA(Service Level Agreement)를 코드로 선언한다. **Group D의 핵심 Config**다.
 
 ```python
-# 출처: Evaluator_Examples/ch07_group_d.py, 섹션 Gate D Performance Contract
+# 출처: Evaluator_Examples/ch07_group_d.py, 섹션 4 — Group D Performance Contract
 from agent_evaluator import SLAConfig
 
 SLAConfig(
@@ -206,6 +220,11 @@ SLAConfig(
     budget_usd=None,        # 전체 평가 세션 최대 비용 (USD)
 )
 ```
+
+- `p95_ms`·`p99_ms`는 밀리초 단위로 선언하며, `SLAConfig`가 선언한 임계값을 초과하면 Gate D가 경고 또는 fail 처리된다.
+- `breach_window`는 슬라이딩 윈도우 크기이며, 최근 N건 중 위반 수가 `fail_threshold`를 넘으면 fail이 된다.
+- `max_cost_per_task`와 `budget_usd`는 비용 측면의 SLA 계약으로, `ResourceBudgetConfig`와 함께 사용하면 통계·개별 수준을 이중으로 통제할 수 있다.
+- `ttft_ms`는 스트리밍 에이전트 전용이며, 비스트리밍 에이전트에서는 `None`으로 두면 된다.
 
 **서비스 유형별 SLAConfig 예시:**
 
@@ -236,12 +255,16 @@ api_sla = SLAConfig(
 )
 ```
 
+- 실시간 챗봇은 P95 2초, 배치 에이전트는 P95 30초처럼 서비스 특성에 맞게 임계값을 조정한다.
+- `ttft_ms=500` 설정은 스트리밍 챗봇에서 사용자 체감 응답성을 확보하는 데 효과적이다.
+- `fail_threshold`를 낮게 설정할수록 위반에 민감하게 반응하므로, 초기 테스트 단계에서는 느슨하게 시작한다.
+
 ### 7.3.2 EfficiencyConfig — 비용 대비 완료율
 
 토큰/비용 대비 실제 완료율(ROI)을 측정한다. "돈을 쓴 만큼 가치가 나왔는가?"를 평가한다.
 
 ```python
-# 출처: Evaluator_Examples/ch07_group_d.py, 섹션 Gate D Performance Contract
+# 출처: Evaluator_Examples/ch07_group_d.py, 섹션 4 — Group D Performance Contract
 from agent_evaluator import EfficiencyConfig
 
 EfficiencyConfig(
@@ -256,7 +279,7 @@ EfficiencyConfig(
 **사용 예시:**
 
 ```python
-# 출처: Evaluator_Examples/ch07_group_d.py, 섹션 Gate D Performance Contract
+# 출처: Evaluator_Examples/ch07_group_d.py, 섹션 4 — Group D Performance Contract
 @agent_eval(
     monitor,
     task_type="qa",
@@ -271,6 +294,10 @@ EfficiencyConfig(
 def agent(question: str, ground_truth: str = "") -> str:
     return llm.invoke(question)
 ```
+
+- `target_cost_per_completion`에 목표 토큰 수를 설정하면, 실제 완료 비용이 이를 초과하는 비율을 추적한다.
+- `penalize_failed_tokens=True`는 실패 태스크도 비용으로 산정해 재시도 남용을 억제한다.
+- `warn_ratio=2.0`이면 목표 대비 2배 초과 시 경고, `fail_ratio`에 도달하면 Gate D가 fail이 된다.
 
 ### 7.3.3 ResourceBudgetConfig — 리소스 예산 상한
 
@@ -315,6 +342,10 @@ def agent(question: str, ground_truth: str = "") -> str:
     return llm.invoke(question)
 ```
 
+- `SLAConfig`는 전체 통계적 추세를, `ResourceBudgetConfig`는 개별 태스크 수준을 통제하므로 두 Config를 함께 사용하는 것이 권장된다.
+- `warn_at_pct=0.75`이면 예산의 75%에 도달했을 때 미리 경고해 조기 대응이 가능하다.
+- `max_execution_time_ms`는 개별 태스크 하드 상한으로, 무한 루프나 타임아웃 미설정 LLM 호출로부터 보호한다.
+
 ### 7.3.4 TTFTVariabilityConfig — TTFT 변동성
 
 첫 토큰까지의 대기 시간(TTFT) 변동성을 측정한다. 스트리밍 에이전트에서 사용자 체감 품질에 직접 영향을 준다.
@@ -338,7 +369,7 @@ TTFTVariabilityConfig(
 동일 `task_type` 내 비용의 변동 계수(CV, Coefficient of Variation)를 측정한다. 비용이 예측 가능하게 안정적인지를 평가한다.
 
 ```python
-# 출처: Evaluator_Examples/ch07_group_d.py, 섹션 Gate D Performance Contract
+# 출처: Evaluator_Examples/ch07_group_d.py, 섹션 4 — Group D Performance Contract
 from agent_evaluator import CostPredictabilityConfig
 
 CostPredictabilityConfig(
@@ -348,6 +379,11 @@ CostPredictabilityConfig(
     cost_metric="tokens",              # "tokens"|"usd"|"time_ms"
 )
 ```
+
+- `max_coefficient_of_variation`은 비용 안정성 기준으로, 값이 낮을수록 비용이 예측 가능하다는 의미다.
+- `min_samples`에 미달하면 Gate D 리포트에 `insufficient_data_warnings`가 기록된다.
+- `outlier_multiplier`로 IQR 기반 이상치를 제거하면 단일 극단값이 CV를 왜곡하는 것을 방지한다.
+- `cost_metric="usd"`로 설정하면 토큰 수 대신 달러 기준으로 변동성을 측정한다.
 
 **CV(변동 계수) 해석:**
 
@@ -396,6 +432,11 @@ def chatbot(question: str, ground_truth: str = "") -> str:
     return llm.invoke(question)
 ```
 
+- `SLAConfig(p95_ms=1500)`은 챗봇에서 95%의 사용자가 1.5초 이내에 응답을 받아야 함을 선언한다.
+- `ttft_ms=500`으로 스트리밍 첫 토큰이 0.5초 이내에 출력되도록 요구해 체감 응답성을 높인다.
+- `ResourceBudgetConfig(max_tokens=1500)`은 응답 길이가 짧도록 유도해 지연 시간과 비용을 동시에 절감한다.
+- `EfficiencyConfig(target_cost_per_completion=800)`은 완료 태스크당 평균 800토큰 이내를 목표로 설정한다.
+
 ### 패턴 2 — 비용 예산 관리가 중요한 에이전트
 
 ```python
@@ -423,6 +464,10 @@ def cost_controlled_agent(question: str, ground_truth: str = "") -> str:
     return llm.invoke(question)
 ```
 
+- `SLAConfig(budget_usd=5.0)`은 평가 세션 전체 비용이 $5를 초과하면 Gate D가 fail 처리된다.
+- `max_cost_per_task`와 `max_cost_usd`를 함께 설정하면 태스크 단위·세션 단위 두 계층에서 비용을 통제한다.
+- `warn_at_pct=0.7`로 예산 70% 도달 시 경고해 세션 종료 전 대응 여유를 확보한다.
+
 ---
 
 ## 7.5 AI Native 관점 — 성능은 계약이다
@@ -448,6 +493,10 @@ def fast_agent(question: str, ground_truth: str = "") -> str:
     return fast_llm.invoke(question)         # haiku 같은 빠른 모델 사용
 ```
 
+- `SLAConfig(p95_ms=1000)`과 `InstructionConfig(max_words=100)`을 함께 선언하면 응답 길이 제한이 지연 시간 단축으로 이어진다.
+- 빠른 응답이 필요한 경우 Haiku 계열 모델로 전환해 비용과 지연을 동시에 줄일 수 있다.
+- 이 트레이드오프를 코드로 명시하면 모델 변경 시 SLA 영향을 즉시 측정할 수 있다.
+
 ### 7.5.2 비용 예측 가능성과 드리프트
 
 같은 에이전트라도 입력의 복잡도가 달라지면 비용이 달라진다. `CostPredictabilityConfig`로 비용 변동성을 모니터링하고, `agent-eval trend`로 시간에 따른 비용 추세를 추적한다.
@@ -466,13 +515,13 @@ agent-eval trend results/ --metric cost --window 30
 | 예제 파일 | 관련 내용 |
 |---------|---------|
 | [`Evaluator_Examples/ch03_harness_basics.py`](../../Evaluator_Examples/ch03_harness_basics.py) | 섹션 4: Group D Performance Contract — 3개 Config 실전 예제 |
-| [`Evaluator_Examples/ch02_first_eval.py`](../../Evaluator_Examples/ch02_first_eval.py) | 섹션 4~5: LatencyTracker·TokenEconomyTracker 실전 예제 |
+| [`Evaluator_Examples/ch01_first_eval.py`](../../Evaluator_Examples/ch01_first_eval.py) | 섹션 4~5: LatencyTracker·TokenEconomyTracker 실전 예제 |
 | [`Evaluator_Examples/ch04_group_a.py`](../../Evaluator_Examples/ch04_group_a.py) | 시나리오 12: Gate D FAIL (TTFTVariability·ResourceBudget·TTFT 극단분산) |
 
 **핵심 코드 (출처: `Evaluator_Examples/ch03_harness_basics.py`, 섹션 4 — Group D Performance Contract)**
 
 ```python
-# 출처: Evaluator_Examples/ch07_group_d.py, 섹션 Gate D Performance Contract
+# 출처: Evaluator_Examples/ch07_group_d.py, 섹션 4 — Group D Performance Contract
 import time, random
 from agent_evaluator import (
     SLAConfig, EfficiencyConfig, ResourceBudgetConfig,
@@ -531,11 +580,20 @@ _ttft_cfg = TTFTVariabilityConfig(max_stddev_ms=300.0, max_p95_p50_ratio=2.5)
 _cost_cfg = CostPredictabilityConfig(max_coefficient_of_variation=0.3, min_samples=5)
 ```
 
+- `SLAConfig`·`EfficiencyConfig`·`ResourceBudgetConfig`는 `@agent_eval` 파라미터로 선언하고, `TTFTVariabilityConfig`·`CostPredictabilityConfig`는 `PerformanceMonitor` 수준에서 자동 집계된다.
+- `sla_compliant_agent`는 50~300ms 범위의 응답 시간을 시뮬레이션해 P95 기준을 충족하는 기본 케이스를 보여준다.
+- `budget_aware_agent`의 `warn_at_pct=0.8`은 토큰 예산 80% 도달 시 WARN을 발생시켜 조기 경고를 제공한다.
+- 다섯 Config를 모두 조합하면 Gate D의 시간·비용·안정성 세 계약을 완전히 커버할 수 있다.
+
 ```bash
 python Evaluator_Examples/ch03_harness_basics.py          # Group D 포함 전체
-python Evaluator_Examples/ch02_first_eval.py    # LatencyTracker·TokenEconomy 예제
+python Evaluator_Examples/ch01_first_eval.py    # LatencyTracker·TokenEconomy 예제
 python Evaluator_Examples/ch04_group_a.py  # Gate D FAIL — 배포 차단 케이스
 ```
+
+- `ch03_harness_basics.py`는 Group D를 포함한 Harness Gate 전체 기본 예제다.
+- `ch01_first_eval.py`는 `LatencyTracker`와 `TokenEconomyTracker`를 직접 다루는 Layer 1 예제다.
+- `ch04_group_a.py`의 시나리오 12에서는 TTFT 극단 분산과 ResourceBudget 초과로 Gate D FAIL 흐름을 재현한다.
 
 ---
 

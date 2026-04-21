@@ -20,6 +20,10 @@ answer = response.choices[0].message.content
 # → "서울입니다."
 ```
 
+- **단일 호출**: 입력 → 출력이 1회로 완결되어 평가가 단순하다.
+- **결정론적 비교**: `answer == "서울"` 수준의 정확 매칭으로 품질을 판단할 수 있다.
+- **한계**: 온도(temperature) > 0 이면 같은 입력에도 다른 표현이 나오며, 이 비교 방식은 곧 한계에 부딪힌다.
+
 이 흐름은 결정론적에 가깝습니다. 입력이 고정되면 출력도 거의 고정됩니다(온도=0일 때). 정확성 평가는 `answer == "서울"` 수준의 비교로 충분할 때가 많습니다.
 
 ### 에이전트: 도구 호출 + 멀티스텝 + 상태 + 반복
@@ -161,6 +165,12 @@ gate = HarnessEvaluationGate(report)
 gate.enforce()   # 기준 미달 시 sys.exit(1) → CI/CD 파이프라인 차단
 ```
 
+- **3요소 패턴**: ① Config(기준 선언) → ② `@agent_eval`(Tracker 자동 수집) → ③ `HarnessEvaluationGate.enforce()`(종합 판정) 순서로 구성된다.
+- **`InstructionConfig(required_keywords=["결과"])`**: 응답에 "결과" 키워드가 없으면 해당 태스크를 `success=False`로 처리해 TCR을 낮춘다.
+- **`SLAConfig(p95_ms=3000)`**: p95 응답 시간이 3초를 초과하거나 태스크당 비용이 $0.01을 넘으면 Gate D에서 FAIL 판정을 받는다.
+- **`ThreatSeverityConfig(fail_on_critical=True, fail_score=7.0)`**: 위협 점수 7.0 이상의 입력이 탐지되면 해당 태스크를 즉시 실패 처리하고 Gate E에 반영한다.
+- **`gate.enforce()`**: Group A–G 전체 Config 위반 여부를 종합 판정해 기준 미달이면 `sys.exit(1)`을 호출해 CI/CD 파이프라인을 차단한다.
+
 Group A-G 각 차원의 구체적인 Tracker와 Config는 **Part II — Harness 지표 체계**(Chapter 03~10)에서 상세히 다룹니다.
 
 > 📋 **QA 관리자 TIP**: "어떤 지표를 먼저 적용해야 하나?" → 우선순위: **A(목표달성) → D(성능계약)/E(보안경계) → C(신뢰성) → B(행동무결성) → G(관측성) → F(다중에이전트)**. Group A는 모든 에이전트의 기본 판단 근거입니다. Group E 보안은 외부 입력을 처리하는 에이전트라면 즉시 적용해야 합니다.
@@ -187,6 +197,10 @@ def test_agent():
     # "서울이 한국의 수도입니다", "수도는 서울입니다" 모두 정답인데
     # 하나만 통과 처리된다.
 ```
+
+- **결정론적 테스트**: 전통 함수는 입력이 같으면 항상 동일한 출력을 반환하므로 `assert` 비교로 충분하다.
+- **확률론적 테스트의 문제**: 에이전트는 의미적으로 동일한 답변도 표현이 달라 단순 문자열 비교가 실패한다.
+- **Harness 해결책**: `AccuracyEvaluator`의 4중 가중 알고리즘(TokenF1·Jaccard·LCS·Char)으로 의미적 유사도를 계산해 단일 케이스 통과 여부 대신 **통계적 정확도 분포**로 판단한다.
 
 에이전트의 응답은 의미적으로 동일해도 표현이 다를 수 있습니다. 단일 케이스 통과/실패 대신, **통계적 품질 분포**로 판단해야 합니다. "이번 실행에서 통과했는가"가 아니라 "1,000번 실행했을 때 90% 이상 정확한가"가 올바른 질문입니다.
 
@@ -249,6 +263,10 @@ Harness 방식: accuracy_score ≥ 0.85           # ✅ 의미가 같으면 통�
 judge = LLMJudge(sample_rate=0.1)  # 10%만 LLM 채점, 나머지는 네이티브 알고리즘
 ```
 
+- **`sample_rate=0.1`**: 전체 태스크의 10%만 LLM으로 채점해 API 비용을 90% 절감한다.
+- **나머지 90%**: 외부 API 호출 없이 네이티브 알고리즘(TokenF1·Jaccard·LCS)으로 즉시 계산된다.
+- **자동 모델 결정**: `model=None`(기본값)이면 환경에 설정된 API 키를 기반으로 OpenAI 또는 Anthropic 모델을 자동 선택한다.
+
 ### 도전 ③: 드리프트 인식 (Drift Awareness)
 
 모델·데이터·환경의 변화가 코드 변경 없이 에이전트 동작을 바꿉니다.
@@ -274,6 +292,10 @@ monitor = PerformanceMonitor(
     enable_anomaly_detection=True,  # 출현 행동 감지
 )
 ```
+
+- **`enable_security_metrics=True`**: Group E(보안경계) — `InputSanitizationTracker`, `OutputLeakageDetector`, `ToolAuthorizationTracker`, `PrivilegeEscalationDetector`, `ToolChainAttackDetector` 5개 트래커를 활성화한다.
+- **`enable_anomaly_detection=True`**: `AnomalyDetector`가 통계적 정상 범위를 학습하고, 도구 호출 횟수·응답 시간 등이 비정상적으로 이탈할 때 자동으로 탐지한다.
+- **opt-in 설계**: 두 옵션 모두 기본값 `False`이며, 활성화하면 태스크당 측정 오버헤드가 증가하므로 필요할 때만 켠다.
 
 ### 도전 ⑤: 지속 평가 (Continuous Evaluation)
 
@@ -419,14 +441,14 @@ AI 평가 발전 요약:
 
 ## 실전 예제
 
-챕터 1에서 설명한 Harness Engineering 개념과 Group A-G 7차원을 실제 지표로 측정하려면 `ch02_first_eval.py`와 `ch05_group_b.py`로 시작합니다. API 키 없이도 네이티브 지표를 즉시 실행할 수 있습니다.
+챕터 1에서 설명한 Harness Engineering 개념과 Group A-G 7차원을 실제 지표로 측정하려면 `ch01_first_eval.py`와 `ch05_group_b.py`로 시작합니다. API 키 없이도 네이티브 지표를 즉시 실행할 수 있습니다.
 
-**파일**: `Evaluator_Examples/ch02_first_eval.py`, `Evaluator_Examples/ch05_group_b.py`
+**파일**: `Evaluator_Examples/ch01_first_eval.py`, `Evaluator_Examples/ch05_group_b.py`
 
-**핵심 코드 (출처: `Evaluator_Examples/ch02_first_eval.py`)**
+**핵심 코드 (출처: `Evaluator_Examples/ch01_first_eval.py`)**
 
 ```python
-# 출처: Evaluator_Examples/ch02_first_eval.py, 섹션 QA — 기본 QA 평가 (Group A 목표달성)
+# 출처: Evaluator_Examples/ch01_first_eval.py, 섹션 1 — QA 정확도
 from agent_evaluator import PerformanceMonitor, create_taskresult
 
 monitor = PerformanceMonitor(
@@ -457,7 +479,7 @@ print(f"Accuracy: {acc:.1%}") # Group A 목표달성
 - `generate_report()`는 TCR·정확도·지연시간·토큰 사용량을 집계한 `EvaluationReport` 객체를 반환합니다
 
 ```python
-# 출처: Evaluator_Examples/ch05_group_b.py, 섹션 1 — Group E 보안경계 측정
+# 출처: Evaluator_Examples/ch05_group_b.py, 섹션 2 — Group B Behavioral Integrity
 from agent_evaluator import EvalMetadata
 from agent_evaluator.decorators import agent_eval
 
@@ -475,9 +497,14 @@ def tool_agent(question: str, ground_truth: str = "") -> tuple:
 tool_agent("2024년 GDP 상위 5개국은?", ground_truth="미국, 중국, 독일, 일본, 인도")
 ```
 
+- **`EvalMetadata`**: 응답 텍스트와 함께 `tool_calls`·`expected_tools` 등 메타데이터를 반환하면 `@agent_eval`이 자동으로 파싱해 트래커에 전달한다.
+- **`tool_calls`**: 실제로 호출한 도구 목록 — `ToolCallAnalyzer`(Group B)와 `ToolSelectionTracker`(Group F)가 분석한다.
+- **`expected_tools`**: 기대 도구 목록과 실제 호출을 F1 점수로 비교해 도구 선택 정확도를 측정한다.
+- **자동 측정 범위**: 단일 데코레이터 하나로 Group A(정확도·TCR), Group B(도구 패턴), Group D(레이턴시), Group F(도구 선택 F1)가 동시에 기록된다.
+
 ```bash
 # Group A/C/D — 목표달성·신뢰성·성능계약 측정
-python Evaluator_Examples/ch02_first_eval.py
+python Evaluator_Examples/ch01_first_eval.py
 
 # Group B/E/F — 행동무결성·보안경계·다중에이전트 측정
 python Evaluator_Examples/ch05_group_b.py
@@ -487,9 +514,9 @@ python Evaluator_Examples/ch05_group_b.py
 
 | Group | 차원 | 측정 지표 | 예제 파일·섹션 |
 |-------|------|----------|---------------|
-| A | 목표달성 | AccuracyEvaluator (TokenF1·Jaccard·LCS), TCR | ch02_first_eval, ch04_group_a |
+| A | 목표달성 | AccuracyEvaluator (TokenF1·Jaccard·LCS), TCR | ch01_first_eval, ch04_group_a |
 | B | 행동무결성 | ToolCallAnalyzer, WorkflowExecutionTracker | ch05_group_b |
-| C | 신뢰성 | HallucinationDetector, RetryCorrectionTracker | ch02_first_eval, ch06_group_c |
+| C | 신뢰성 | HallucinationDetector, RetryCorrectionTracker | ch01_first_eval, ch06_group_c |
 | D | 성능계약 | LatencyTracker (p95), TokenEconomyTracker | ch07_group_d |
 | E | 보안경계 | InputSanitization, OutputLeakage, ToolAuth | ch08_group_e |
 | F | 다중에이전트 | AgentCoordinationTracker, ToolSelectionTracker | ch09_group_f |
@@ -498,7 +525,7 @@ python Evaluator_Examples/ch05_group_b.py
 **실행 결과 (v0.8.4 기준)**
 
 ```
-# ch02_first_eval.py
+# ch01_first_eval.py
 TCR=43.1% | 54개 태스크 | p95_latency=5.20s | avg_accuracy=59.82%
 
 # ch05_group_b.py
@@ -515,7 +542,7 @@ TCR=41.4% | 14개 태스크 | 보안 위협 3건 탐지
 `framework=` 파라미터 하나로 LangChain·LangGraph·CrewAI·AutoGen 응답 객체에서 tool_calls·agent_interactions·tokens_used를 자동 추출한다. 실제 SDK 없이도 mock 응답 객체로 동작한다(duck typing).
 
 ```python
-# 출처: Evaluator_Examples/ch13_frameworks.py, 섹션 1 — framework= 파라미터 하나로 Group B·F 자동 측정
+# 출처: Evaluator_Examples/ch13_frameworks.py, 섹션 1 — LangChain 어댑터
 from types import SimpleNamespace
 from agent_evaluator import PerformanceMonitor
 from agent_evaluator.decorators import agent_eval
@@ -538,6 +565,10 @@ langchain_agent("GDP 상위 5개국은?", ground_truth="미국, 중국, 독일, 
 # Group D: tokens_used={input:350, output:120} 자동 기록
 ```
 
+- **`framework="langchain"`**: LangChain AgentExecutor 응답에서 `intermediate_steps`(도구 호출 목록)와 `usage_metadata`(토큰 사용량)를 자동으로 파싱한다.
+- **`SimpleNamespace` 사용**: 실제 LangChain SDK 없이도 duck typing으로 동작하므로 테스트 환경에서도 mock 객체로 프레임워크 어댑터를 검증할 수 있다.
+- **자동 연결 범위**: `intermediate_steps` → Group B `ToolCallAnalyzer`, `usage_metadata` → Group D `TokenEconomyTracker`로 데이터가 자동 라우팅된다.
+
 **버전 비교 — Harness Gate로 "어느 버전을 배포할지" 결정 (출처: `Evaluator_Examples/ch20_deployment.py`)**
 
 ```python
@@ -559,3 +590,8 @@ v2_fail = [g for g in "ABCDEFG" if ((h2.get(g) or {}).get("gate") or "").upper()
 print(f"v1 FAIL Gates: {v1_fail}")   # 배포 불가
 print(f"v2 FAIL Gates: {v2_fail}")   # FAIL 없으면 배포 승인
 ```
+
+- **독립 monitor**: `monitor_v1`과 `monitor_v2`를 분리해 Gate 간 데이터 교차 오염 없이 동일 테스트 케이스를 각각 평가한다.
+- **`harness_groups` 경로**: `report.to_dict()["extra_metrics"]["harness_groups"]`에 Gate A–G별 `score`, `status`, `gate` 필드가 저장된다.
+- **배포 결정 로직**: `v2_fail`이 빈 리스트(`[]`)이면 모든 Gate를 통과한 것이므로 v2 배포를 승인하고, v1은 차단한다.
+- **`enable_security_metrics=True`**: 두 버전 모두 Group E(보안경계) 지표를 포함해 동등한 조건에서 비교한다.

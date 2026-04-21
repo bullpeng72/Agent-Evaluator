@@ -69,6 +69,11 @@ def reasoning_agent(question: str, ground_truth: str = "") -> str:
     return llm.invoke(question)
 ```
 
+- `ExplainabilityConfig(require_reasoning=True)`는 응답에 추론 마커가 없으면 설명 가능성 점수가 0으로 처리된다.
+- `ErrorDiagnosisConfig(only_on_failure=True)`는 실패한 응답에만 진단 품질을 검사해 불필요한 연산을 줄인다.
+- `LLMJudgeConfig(criteria=["reasoning_quality", "explainability"])`로 LLM이 설명 품질을 자동 채점한다.
+- `sample_rate=0.3`은 전체 태스크의 30%만 LLM Judge로 채점해 비용을 절감하면서도 품질 신호를 유지한다.
+
 ---
 
 ## 10.2 Config 4종 레퍼런스
@@ -103,7 +108,7 @@ ObservabilityConfig(
 `ObservabilityConfig`는 `agent-eval monitor`(Arize Phoenix)와 함께 사용할 때 가장 강력하다.
 
 ```python
-# 출처: Evaluator_Examples/ch19_phoenix.py, 섹션 1 — setup_otel + ObservabilityConfig
+# 출처: Evaluator_Examples/ch19_phoenix.py, 섹션 1 — Tracing — 스팬 전송 + Annotations
 from agent_evaluator import setup_otel
 
 # OTEL 설정 — Phoenix 서버로 스팬 자동 전송 (setup_otel은 PerformanceMonitor 생성 전에 호출)
@@ -125,12 +130,20 @@ def agent(question: str, ground_truth: str = "") -> str:
     return llm.invoke(question)
 ```
 
+- `setup_otel()`은 `PerformanceMonitor` 생성 전에 호출해야 모든 스팬이 Phoenix로 전송된다.
+- `min_coverage=0.99`는 99% 이상의 태스크에서 지정된 스팬 속성이 완성되어야 PASS가 된다는 의미다.
+- `required_span_attributes`에 없는 속성은 스팬 완성도 계산에서 제외된다.
+- Phoenix UI(`http://localhost:6006`)에서 스팬 트레이스를 실시간으로 확인할 수 있다.
+
 ```bash
 # Phoenix 서버 기동 + OTEL 설정
 agent-eval monitor --port 6006
 
 # http://localhost:6006 에서 스팬 트레이스 확인
 ```
+
+- `agent-eval monitor` 명령으로 Phoenix 서버를 기동하면 OTLP 스팬 수신이 즉시 시작된다.
+- 기본 포트는 6006이며, `--port` 옵션으로 변경할 수 있다.
 
 ### 10.2.2 ExplainabilityConfig — 설명 가능성 기준
 
@@ -185,6 +198,11 @@ qa_explainability = ExplainabilityConfig(
     min_reasoning_length=0,
 )
 ```
+
+- 도메인의 위험도에 따라 `require_citations`와 `require_uncertainty_expression`을 선택적으로 활성화한다.
+- 의료·법률처럼 고위험 도메인은 `min_reasoning_length`를 높게(50 이상) 설정해 근거 서술을 충분히 유도한다.
+- `citation_markers`를 도메인 전용 키워드("제", "조", "판례" 등)로 재정의하면 법령 인용을 정밀하게 탐지할 수 있다.
+- 일반 QA 봇은 `require_reasoning=False`로 설정해 불필요한 설명 요구로 인한 점수 저하를 방지한다.
 
 ### 10.2.3 ErrorDiagnosisConfig — 오류 진단 품질
 
@@ -249,6 +267,11 @@ def diagnostic_agent(question: str, ground_truth: str = "") -> str:
         return f"오류가 발생했습니다 (원인: {e.__class__.__name__}). 다시 시도해주세요."
 ```
 
+- `only_on_failure=True` 설정 시 성공한 응답은 진단 품질 검사에서 제외되어 연산 비용을 절감한다.
+- `root_cause_weight=0.5`로 원인 설명이 진단 점수의 절반을 차지하도록 설정한다.
+- 예외 클래스명(`e.__class__.__name__`)을 응답에 포함하면 `root_cause_markers` 탐지 확률이 높아진다.
+- "다시 시도해주세요" 같은 표현은 `suggestion_markers`에 해당하는 대안 제시로 인식된다.
+
 ### 10.2.4 LatencyAttributionConfig — 지연 원인 귀속
 
 전체 응답 시간 중 어느 부분에서 시간이 소요되는지 측정한다. "응답이 느리다"는 것만 아는 것이 아니라, "도구 호출 때문에 느린지, LLM 호출 때문에 느린지"를 구분한다.
@@ -289,6 +312,11 @@ result = create_taskresult(
     },
 )
 ```
+
+- `extra["tool_latencies"]`에 도구별 지연(ms)을 딕셔너리로 전달하면 도구 호출 비중이 자동 계산된다.
+- `model_latency_ms`와 `network_latency_ms`를 별도로 기입하면 LLM·네트워크 지연을 분리해 진단할 수 있다.
+- 귀속 불가 지연(`execution_time` − 합산 지연)이 30%를 초과하면 `warn_on_high_unattributed=True`로 경고가 발생한다.
+- `max_tool_time_ratio=0.6`은 도구 호출이 전체 응답 시간의 60%를 초과하면 Gate G 경고로 처리한다.
 
 **지연 분석 활용:**
 
@@ -331,6 +359,11 @@ def agent(question: str, ground_truth: str = "") -> str:
     return llm.invoke(question)
 ```
 
+- `ObservabilityConfig`와 `ErrorDiagnosisConfig`의 조합은 모든 에이전트에 기본 적용할 수 있는 최소 관측성 구성이다.
+- `min_coverage=0.95`는 전체 태스크 중 95% 이상이 스팬 속성을 완성해야 Gate G PASS 조건을 충족한다.
+- `only_on_failure=True` 설정으로 성공 응답에 대한 불필요한 오류 진단 검사를 건너뛴다.
+- 두 Config를 함께 사용하면 추적 가능성과 오류 설명 품질을 동시에 측정할 수 있다.
+
 ### 패턴 2 — 고신뢰 서비스 (설명 가능성 + LLM Judge)
 
 ```python
@@ -366,6 +399,11 @@ def expert_agent(question: str, ground_truth: str = "") -> str:
     return expert_llm.invoke(question)
 ```
 
+- 고신뢰 서비스에는 `ExplainabilityConfig(require_reasoning=True, require_citations=True)`를 함께 활성화해 추론 근거와 출처 인용을 모두 요구한다.
+- `LatencyAttributionConfig(max_tool_time_ratio=0.5)`는 도구 호출이 응답 시간의 절반을 초과하면 경고를 발생시킨다.
+- `LLMJudgeConfig(sample_rate=0.2)`로 20%만 LLM 채점해 비용을 제어하면서 품질 신호를 유지한다.
+- 4개 Config를 모두 조합하면 설명 가능성·지연 귀속·오류 진단·자동 채점을 단일 데코레이터로 통합할 수 있다.
+
 ---
 
 ## 10.4 AI Native 관점 — "AI Judge는 Harness의 일급 시민"
@@ -398,7 +436,7 @@ toxicity=3, bias=2  → safety_score = 0.5 (주의 필요)
 ```
 
 ```python
-# 출처: Evaluator_Examples/ch12_decorators.py, 섹션 8 — LLMJudge 7차원 결과 접근
+# 출처: Evaluator_Examples/ch12_decorators.py, 섹션 추가 — LLMJudge 직접 사용
 # LLMJudge 결과 접근
 report = monitor.generate_report()
 judge_summary = report.to_dict().get("llm_judge_summary", {})
@@ -407,6 +445,11 @@ print(f"전체 품질: {judge_summary.get('avg_scores', {}).get('overall', 0):.2
 print(f"안전 점수: {judge_summary.get('avg_scores', {}).get('safety_score', 0):.2f}")
 print(f"신뢰성: {judge_summary.get('avg_scores', {}).get('factual_consistency', 0):.2f}")
 ```
+
+- `llm_judge_summary`는 `report.to_dict()` 결과 딕셔너리에서 LLMJudge 채점 통계를 담고 있다.
+- `overall`은 completeness·relevance·factual_consistency 3차원의 평균 점수다.
+- `safety_score`가 0.5 미만이면 독성 또는 편향 점수가 높다는 의미로 즉각 점검이 필요하다.
+- `faithfulness`는 `rag_mode=True`와 `context`를 함께 전달한 태스크에서만 집계된다.
 
 ---
 
@@ -455,7 +498,7 @@ print(f"신뢰성: {judge_summary.get('avg_scores', {}).get('factual_consistency
 **핵심 코드 (출처: `Evaluator_Examples/ch03_harness_basics.py`, 섹션 7 — Group G Observability)**
 
 ```python
-# 출처: Evaluator_Examples/ch10_group_g.py, 섹션 Gate G Observability
+# 출처: Evaluator_Examples/ch10_group_g.py, 섹션 7 — Group G Observability
 from agent_evaluator import (
     ExplainabilityConfig, ObservabilityConfig,
     ErrorDiagnosisConfig, LatencyAttributionConfig,
@@ -583,12 +626,12 @@ no_diagnosis_agent("오류 원인을 진단해줘", ground_truth="오류 진단"
 python Evaluator_Examples/ch04_group_a.py   # 시나리오 5+16+17: Gate G FAIL 케이스
 ```
 
-**Layer 1 지표 — 관측성의 기초 수치 (출처: `Evaluator_Examples/ch02_first_eval.py`)**
+**Layer 1 지표 — 관측성의 기초 수치 (출처: `Evaluator_Examples/ch01_first_eval.py`)**
 
 Group G Config가 추적 완성도와 설명 가능성을 판정한다면, Layer 1은 그 기반이 되는 원시 지표(지연·토큰·품질)를 수집한다. 두 레이어를 함께 운영하면 "추적 완성도 90%이며, p95 지연이 3초"처럼 관측 가능한 수치로 표현된다.
 
 ```python
-# 출처: Evaluator_Examples/ch02_first_eval.py, 섹션 응답품질+5+6 — 관측성 기초 수치
+# 출처: Evaluator_Examples/ch01_first_eval.py, 섹션 3 — 응답 품질 5차원
 from agent_evaluator import PerformanceMonitor, create_taskresult
 import random
 
@@ -637,7 +680,7 @@ print(f"  총 토큰: {int(tok.get('total_tokens',0)):,}")
 Gate G는 응답의 추적 가능성과 설명 가능성을 판정하지만, 그 토대는 운영 인프라다. `AnomalyDetector`는 관측성 점수 드리프트를 실시간 탐지하고, `CostTracker`는 투명성 비용(LLMJudge 호출 등)을 예산 내에서 유지한다.
 
 ```python
-# 출처: Evaluator_Examples/ch10_group_g.py, 섹션 이상탐지 — 관측성 드리프트 이상 탐지
+# 출처: Evaluator_Examples/ch10_group_g.py, 섹션 추가A — 이상 탐지 (AnomalyDetector)
 from agent_evaluator import PerformanceMonitor, create_taskresult, AnomalyDetector
 import random
 
@@ -677,7 +720,7 @@ for ev in events[:3]:
 ```
 
 ```python
-# 출처: Evaluator_Examples/ch10_group_g.py, 섹션 비용추적 — LLMJudge 비용 추적
+# 출처: Evaluator_Examples/ch10_group_g.py, 섹션 추가B — 비용 추적 + 적응형 샘플링
 from agent_evaluator import CostTracker, AdaptivePolicy
 
 # Gate G에서 ExplainabilityConfig·ObservabilityConfig는 LLMJudge를 사용할 수 있음

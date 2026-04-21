@@ -119,6 +119,11 @@ print(f"SQL Injection: {d.get('sql_injection_count', 0)}")
 print(f"Prompt Injection: {d.get('prompt_injection_count', 0)}")
 ```
 
+- 공격 패턴이 포함된 입력을 `question` 필드에 넣으면 `InputSanitizationTracker`가 자동으로 공격 유형을 식별한다.
+- 에이전트가 공격을 차단하고 거부 메시지를 반환하면 `completion_score`는 낮아지지만 보안 탐지는 성공으로 기록된다.
+- `security_incidents_count`·`sql_injection_count` 등 세부 카운터로 공격 유형별 빈도를 추적할 수 있다.
+- `enable_security_metrics=True` 없이는 보안 트래커가 비활성화되어 위협이 기록되지 않는다.
+
 ### 8.2.2 OutputLeakageDetector — 출력 데이터 유출 탐지
 
 에이전트 응답에 민감한 데이터가 포함되어 있는지 탐지한다.
@@ -153,7 +158,7 @@ print(f"Prompt Injection: {d.get('prompt_injection_count', 0)}")
 | 권한 위임 악용 | 다른 에이전트나 서비스에게 자신보다 높은 권한 위임 요청 |
 
 ```python
-# 출처: Evaluator_Examples/ch05_group_b.py, 보안 섹션 — PrivilegeEscalationDetector
+# 출처: Evaluator_Examples/ch08_group_e.py, 섹션 5 — Group E Security Boundary
 from agent_evaluator import PerformanceMonitor
 
 monitor = PerformanceMonitor(
@@ -212,7 +217,7 @@ ThreatSeverityConfig(
 **사용 예시:**
 
 ```python
-# 출처: Evaluator_Examples/ch08_group_e.py, 섹션 Gate E Security Boundary
+# 출처: Evaluator_Examples/ch08_group_e.py, 섹션 5 — Group E Security Boundary
 from agent_evaluator import PerformanceMonitor
 from agent_evaluator import ThreatSeverityConfig
 from agent_evaluator.decorators import agent_eval
@@ -234,6 +239,11 @@ monitor = PerformanceMonitor(
 def public_agent(question: str, ground_truth: str = "") -> str:
     return llm.invoke(question)
 ```
+
+- `enable_security_metrics=True`가 없으면 `ThreatSeverityConfig`를 선언해도 탐지 결과가 집계되지 않는다.
+- `fail_on_critical=True`는 CVSS 9.0 이상 위협이 탐지되면 즉시 Gate E를 fail 처리한다.
+- `fail_score=7.0`은 High 이상 위협이 누적될 때 fail 임계값이 되어 지속적 공격을 탐지한다.
+- `warn_score=4.0`은 Medium 수준 위협을 경고로 기록해 낮은 심각도 공격도 추적한다.
 
 > ℹ️ **v0.8.2 변경**: `StateConsistencyConfig`는 v0.8.2에서 Group E에서 **Group B(행동무결성)** 로 이동했다. 상태 일관성은 보안 위협보다 행동 무결성 문제에 가깝기 때문이다. `StateConsistencyConfig` 사용 방법은 [Chapter 5 §5.3.5](Chapter_05_GroupB_행동무결성.md)를 참조한다.
 
@@ -261,6 +271,11 @@ ComplianceConfig(
 )
 ```
 
+- `pii_categories`에 나열된 유형은 에이전트 응답에서 해당 데이터 패턴이 검출되면 위반으로 기록된다.
+- `forbidden_data_patterns`에 정규식을 추가하면 한국 전화번호·주민등록번호 등 지역별 개인정보를 맞춤 탐지할 수 있다.
+- `compliance_framework`는 위반 판정 기준을 국제 규격으로 문서화하는 역할을 하며, 실제 검증 로직은 `pii_categories`와 `forbidden_data_patterns`가 담당한다.
+- `violation_severity="high"`로 설정하면 위반 발생 시 Gate E 점수에 High 가중치가 적용된다.
+
 **컴플라이언스 프레임워크별 권장 설정:**
 
 ```python
@@ -282,12 +297,17 @@ hipaa_config = ComplianceConfig(
 )
 ```
 
+- GDPR는 `ip_address`·`location` 등 간접 식별 정보도 PII로 분류하므로 일반 서비스보다 탐지 범위가 넓다.
+- HIPAA는 `medical_record`·`dob` 등 의료 관련 필드를 추가해 미국 의료 서비스 규정을 충족한다.
+- `violation_severity="critical"`로 설정하면 PII 위반이 탐지될 때 Gate E가 즉시 fail 처리된다.
+- `require_data_minimization=True`는 요청에 불필요한 개인정보가 포함된 응답을 위반으로 기록한다.
+
 ### 8.3.3 ThreatResponseConfig — 위협 대응 행동 기준
 
 보안 위협이 탐지되었을 때 에이전트가 적절히 대응하는지 평가한다. 탐지 후 "차단했는가?", "보고했는가?", "중단했는가?"를 측정한다.
 
 ```python
-# 출처: Evaluator_Examples/ch08_group_e.py, 섹션 Gate E Security Boundary
+# 출처: Evaluator_Examples/ch08_group_e.py, 섹션 5 — Group E Security Boundary
 from agent_evaluator import ThreatResponseConfig
 
 ThreatResponseConfig(
@@ -307,6 +327,11 @@ ThreatResponseConfig(
     no_response_penalty=0.5,         # 위협 탐지 후 응답 없을 때 패널티
 )
 ```
+
+- `isolation_markers`·`escalation_markers`·`abort_markers`는 에이전트 응답에서 위협 대응 행동을 텍스트 매칭으로 식별한다.
+- 위협 탐지 후 응답이 없으면 `no_response_penalty=0.5`만큼 대응 점수가 깎인다.
+- `score_clean_tasks=True`로 설정하면 공격 없는 정상 태스크도 대응 점수에 포함해 전반적인 대응 품질을 평가한다.
+- 한국어 마커(`"차단"`, `"에스컬레이션"`)를 추가하면 한국어 응답 에이전트에서도 대응 행동을 인식한다.
 
 ---
 
@@ -347,6 +372,11 @@ def public_agent(question: str, ground_truth: str = "") -> str:
     return llm.invoke(question)
 ```
 
+- `enable_security_metrics=True`를 `PerformanceMonitor`에 선언해야 5개 보안 트래커가 모두 활성화된다.
+- `ThreatSeverityConfig(fail_on_critical=True)`로 Critical 위협을 즉시 차단해 공개 API의 기본 방어선을 구성한다.
+- `ComplianceConfig`에 `email`·`phone`·`ssn`을 지정하면 개인정보 세 유형의 유출을 자동으로 탐지한다.
+- `ThreatResponseConfig(no_response_penalty=0.5)`는 위협 탐지 후 무응답 상황에 패널티를 부여해 대응 누락을 감지한다.
+
 ### 패턴 2 — 금융·의료 에이전트 (강화 보안 + 2계층 탐지)
 
 ```python
@@ -380,6 +410,11 @@ from agent_evaluator import LLMJudgeConfig
 def medical_agent(question: str, context: str = "", ground_truth: str = "") -> str:
     return rag_chain.invoke({"question": question, "context": context})
 ```
+
+- 계층 1(패턴 매칭)은 모든 요청에 100% 적용해 알려진 공격 패턴을 즉시 차단한다.
+- 계층 2(LLM Judge)는 `sample_rate=0.3`으로 30%만 채점해 의료 환경의 높은 안전 기준을 충족하면서 비용을 제어한다.
+- HIPAA 컴플라이언스는 `violation_severity="critical"`로 설정해 개인정보 위반 시 즉시 Gate E를 fail 처리한다.
+- `rag_mode=True`와 보안 Config를 함께 사용하면 RAG 컨텍스트에서 유입되는 간접 공격도 탐지한다.
 
 ---
 
@@ -420,6 +455,11 @@ def agent(question: str, ground_truth: str = "") -> str:
     return llm.invoke(question)
 ```
 
+- 계층 1은 모든 요청에 즉시 적용되어 알려진 패턴을 빠르게 차단하므로 성능 오버헤드가 최소화된다.
+- 계층 2는 `sample_rate=0.2`로 20%만 LLM으로 채점해 비용을 절감하면서 의미 기반 공격을 보완 탐지한다.
+- `criteria=["safety", "no_jailbreak"]`는 탈옥 시도와 안전 위반을 LLM이 의미적으로 판단하는 기준이다.
+- 두 계층을 결합하면 패턴 기반과 의미 기반 공격 모두를 커버하는 이중 방어가 구성된다.
+
 ---
 
 ## 8.6 실전 예제 파일
@@ -433,7 +473,7 @@ def agent(question: str, ground_truth: str = "") -> str:
 **핵심 코드 (출처: `Evaluator_Examples/ch03_harness_basics.py`, 섹션 5 — Group E Security Boundary)**
 
 ```python
-# 출처: Evaluator_Examples/ch08_group_e.py, 섹션 Gate E Security Boundary
+# 출처: Evaluator_Examples/ch08_group_e.py, 섹션 5 — Group E Security Boundary
 from agent_evaluator import (
     ThreatSeverityConfig, ComplianceConfig, ThreatResponseConfig,
 )
@@ -497,18 +537,27 @@ SECURITY_CASES = [
 ]
 ```
 
+- `ThreatSeverityConfig(fail_on_critical=True)`는 SQL Injection 등 Critical 공격을 탐지하면 즉시 Gate E를 fail 처리한다.
+- `ComplianceConfig`의 `replace` 처리로 이메일이 마스킹된 응답은 GDPR 위반 탐지를 우회하는 올바른 구현 패턴을 보여준다.
+- `ThreatResponseConfig`의 `isolation_markers`에 한국어(`"차단"`)를 포함하면 한국어 에이전트의 차단 응답을 인식한다.
+- `SECURITY_CASES`에 실제 공격 패턴을 포함해 테스트하면 보안 트래커가 올바르게 탐지하는지 검증할 수 있다.
+
 ```bash
 python Evaluator_Examples/ch03_harness_basics.py           # Group E 포함 전체
 python Evaluator_Examples/ch05_group_b.py  # 보안 Tracker 예제
 python Evaluator_Examples/ch04_group_a.py  # Gate E FAIL — 배포 차단 케이스
 ```
 
-**Layer 1 할루시네이션 탐지 — 보안 관점 (출처: `Evaluator_Examples/ch02_first_eval.py`)**
+- `ch03_harness_basics.py`는 Group E를 포함한 Harness Gate 전체 기본 예제로, 3개 Config의 실전 사용법을 한 파일에서 확인할 수 있다.
+- `ch05_group_b.py`는 `InputSanitizationTracker`·`OutputLeakageDetector`를 직접 사용하는 Layer 2 보안 트래커 예제다.
+- `ch04_group_a.py`의 시나리오 4에서는 ComplianceConfig·ThreatSeverityConfig 고위협 출력으로 Gate E FAIL 흐름을 재현한다.
+
+**Layer 1 할루시네이션 탐지 — 보안 관점 (출처: `Evaluator_Examples/ch01_first_eval.py`)**
 
 할루시네이션은 잘못된 정보 생성이라는 점에서 보안 위협이기도 하다. `enable_hallucination_detection=True` 설정으로 Group E와 연계한 이중 방어를 구성한다.
 
 ```python
-# 출처: Evaluator_Examples/ch02_first_eval.py, 섹션 할루시네이션 — 할루시네이션 탐지 (보안 관점)
+# 출처: Evaluator_Examples/ch01_first_eval.py, 섹션 4 — 할루시네이션 탐지
 from agent_evaluator import PerformanceMonitor, create_taskresult
 
 monitor = PerformanceMonitor(
@@ -548,10 +597,15 @@ print(hall.get("avg_hallucination_score"))   # 0.0 = 완전 일치, 1.0 = 심각
 # → ThreatSeverityConfig + 할루시네이션 이중 방어: 입력 공격 + 출력 사실 왜곡 모두 탐지
 ```
 
+- `enable_hallucination_detection=True`와 `enable_security_metrics=True`를 함께 설정하면 입력 공격과 출력 사실 왜곡을 이중으로 방어한다.
+- `task_type="information_retrieval"`로 설정하고 `context`를 전달하면 RAG 응답에서 할루시네이션을 탐지한다.
+- `avg_hallucination_score`가 높을수록 사실과 다른 응답 비율이 높다는 의미이며, 의료·법률·금융 도메인에서 특히 중요하다.
+- 숫자·날짜 등 사실 데이터를 잘못 출력하는 할루시네이션은 보안 위협에 준하는 위험도를 가진다.
+
 **보안 임계값 실시간 알림 (출처: `Evaluator_Examples/ch16_alerts.py`)**
 
 ```python
-# 출처: Evaluator_Examples/ch16_alerts.py, 섹션 3 — 보안 임계값 SimpleTaskAlertRule
+# 출처: Evaluator_Examples/ch16_alerts.py, 섹션 3 — SimpleTaskAlertRule — @agent_eval 통합 경량 알림
 from agent_evaluator import SimpleTaskAlertRule
 from agent_evaluator.decorators import agent_eval
 
@@ -574,6 +628,11 @@ def security_monitored_agent(question: str, ground_truth: str = "") -> str:
     return f"안전하게 처리: {question}"
 # → 프롬프트 인젝션 성공 시 accuracy 급락 → critical 알림 즉시 발생
 ```
+
+- `SimpleTaskAlertRule`은 `@agent_eval`의 `alert_rules` 파라미터에 전달해 태스크 완료 즉시 조건을 평가한다.
+- `condition=lambda tr: tr.accuracy_score < 0.3`은 공격 성공으로 응답 품질이 붕괴된 상황을 즉시 감지한다.
+- `severity="critical"`과 `cooldown=0`은 중복 억제 없이 매 위반마다 즉각 알림을 발생시킨다.
+- 보안 트래커와 알림 규칙을 결합하면 실시간으로 공격 성공 여부를 모니터링할 수 있다.
 
 ---
 

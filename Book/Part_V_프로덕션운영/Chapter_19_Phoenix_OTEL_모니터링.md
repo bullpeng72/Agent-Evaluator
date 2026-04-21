@@ -268,6 +268,10 @@ def multi_tool_agent(question: str, ground_truth: str = "") -> tuple:
 # Phoenix에서 3개의 자식 스팬이 워터폴로 표시됨
 ```
 
+- `enable_otel_child_spans=True`를 설정하면 `chain_steps` 항목이 각각 자식 스팬으로 발행되어 Phoenix에서 워터폴 뷰로 확인할 수 있다
+- `chain_steps`의 `duration` 값이 자식 스팬의 실행 시간으로 표시되어 어느 도구 호출이 병목인지 즉시 파악된다
+- 루트 스팬 아래 자식 스팬 트리가 생성되므로 도구 호출 순서와 전체 레이턴시 구성을 시각적으로 분석할 수 있다
+
 **에이전트 점수(Annotations) 확인**
 
 `save_to_file()` 호출 후 약 3초 뒤, 스팬 상세 패널의 "Annotations" 섹션에서 accuracy, completion, success 점수를 확인할 수 있다.
@@ -348,6 +352,10 @@ builder.push_to_phoenix(
 )
 ```
 
+- `GoldenSetBuilder.extract()`는 `high_value`(높은 정확도)와 `failure_cases`(실패 케이스) 전략으로 회귀 테스트에 가치 있는 케이스를 자동으로 선별한다
+- `accuracy_score >= 0.8` 필터로 낮은 품질 케이스를 제외해 골든 데이터셋의 신뢰도를 유지한다
+- `push_to_phoenix()`로 업로드된 데이터셋은 Phoenix Datasets 탭에서 버전 관리되며 과거 버전과 비교할 수 있다
+
 Phoenix Datasets 탭에서 볼 수 있는 정보:
 - 데이터셋 이름 및 버전 (`dataset.version`)
 - 레코드 수 (`dataset.record_count`)
@@ -389,6 +397,10 @@ def my_agent(question: str, ground_truth: str = "") -> tuple:
         }
     )
 ```
+
+- `EvalMetadata(extra={"llm.prompts": [...]})` 형식으로 프롬프트를 포함하면 Phoenix Prompts 탭의 Playground에서 해당 스팬을 재실행할 수 있다
+- `role`/`content` 구조는 OpenAI 채팅 메시지 형식과 동일하므로 기존 프롬프트 코드를 그대로 활용할 수 있다
+- 낮은 점수를 받은 스팬을 Playground에서 열어 프롬프트를 수정·재실행하면 수정 전후 응답을 나란히 비교할 수 있다
 
 프롬프트 버전 관리가 필요한 경우, Phoenix REST API로 직접 등록할 수 있다.
 
@@ -464,6 +476,9 @@ setup_otel(
 )
 ```
 
+- `endpoint`를 Grafana Tempo의 OTLP HTTP 포트(4318)로 변경하는 것만으로 Phoenix 대신 Grafana로 스팬을 전송할 수 있다
+- `enable_metrics=True`를 설정하면 Prometheus 형식 메트릭도 함께 익스포트되어 Grafana 대시보드에서 시각화 가능하다
+
 ```yaml
 # docker-compose.yml — Grafana + Tempo + Prometheus 스택
 services:
@@ -477,6 +492,9 @@ services:
       - "3000:3000"
 ```
 
+- Tempo는 트레이스(스팬) 저장소, Grafana는 시각화 레이어로 역할이 분리된다
+- 기업 내부에 이미 Grafana 스택이 있다면 Phoenix 없이 바로 이 구성으로 연동할 수 있다
+
 ### Datadog 연동
 
 Datadog은 OTLP 엔드포인트를 지원하므로, `setup_otel()`의 endpoint만 변경하면 된다.
@@ -488,7 +506,8 @@ setup_otel(
 )
 ```
 
-Datadog Agent 설정에서 OTLP 수신을 활성화해야 한다.
+- Datadog Agent가 OTLP 수신을 활성화하면 `setup_otel()`의 endpoint만 변경하는 것으로 스팬이 Datadog APM으로 전송된다
+- `service_name`이 Datadog 서비스 카탈로그의 서비스명으로 등록되므로 일관된 이름을 사용해야 한다
 
 ```yaml
 # datadog.yaml
@@ -498,6 +517,9 @@ otlp_config:
       http:
         endpoint: "0.0.0.0:4318"
 ```
+
+- `otlp_config.receiver.protocols.http`를 활성화해야 OTLP/HTTP 형식 스팬을 수신할 수 있다
+- 기업 환경에서 이미 Datadog을 사용 중이라면 Phoenix 없이 바로 이 설정으로 에이전트 트레이스를 통합할 수 있다
 
 ### 기업 내부 Jaeger/Zipkin 연동
 
@@ -619,6 +641,10 @@ python Evaluator_Examples/ch19_phoenix.py
 open http://localhost:6006
 ```
 
+- 터미널 A의 `agent-eval monitor`를 먼저 실행한 뒤 터미널 B에서 에이전트를 실행해야 스팬이 Phoenix에 전달된다
+- `ANTHROPIC_API_KEY`가 없으면 mock 모드로 실행되어 Phoenix 연결 없이도 평가 결과를 로컬에서 확인할 수 있다
+- 실행 후 `http://localhost:6006` Tracing 탭에서 스팬이 수신됐는지 즉시 확인할 수 있다
+
 **예제 구성**
 
 | 섹션 | 내용 | Phoenix UI 탭 |
@@ -700,3 +726,7 @@ sys.exit(0)
 python Evaluator_Examples/ch18_cicd_gate.py           # Phoenix 없이도 동작
 python Evaluator_Examples/ch18_cicd_gate.py --strict  # WARN도 차단
 ```
+
+- Phoenix 없는 환경(CI 서버)에서도 Gate 판정은 정상 동작하므로 OTEL 연결 여부와 무관하게 CI/CD 파이프라인에 적용할 수 있다
+- `--strict` 옵션을 추가하면 WARN 상태 Gate도 FAIL로 처리해 프로덕션 배포 전 강화 검증에 활용할 수 있다
+- 로컬 개발 시 터미널 1에서 Phoenix를 기동하면 Gate 판정 결과가 Phoenix Tracing 탭에도 실시간으로 기록된다

@@ -49,6 +49,7 @@
 매주 월요일 아침, 지난 한 주의 평가 결과를 자동으로 분석하는 스크립트다. 코드를 실행하는 것은 개발자가 아니어도 된다 — 결과 요약이 Slack으로 자동 전송된다.
 
 ```python
+# 출처: Evaluator_Examples/ch17_weekly_review.py, 섹션 2 — QuickEval.replay() + compare() — 전주 대비 변화 비교
 """qa_weekly_review.py — 매주 월요일 자동 실행하는 주간 품질 리뷰 스크립트."""
 import json
 import os
@@ -162,12 +163,20 @@ if __name__ == "__main__":
     main()
 ```
 
+- `replay()`로 저장된 JSON 파일을 로드해 새 평가 없이도 주간 집계 통계와 비교 결과를 계산할 수 있다
+- `compare(eval_last)`는 이번 주와 지난 주의 accuracy·TCR·latency 델타를 반환하고, 회귀 기준을 초과하면 `regressions` 리스트에 추가된다
+- Slack Webhook URL이 없을 때는 콘솔 출력으로 fallback되므로 개발 환경에서도 스크립트를 그대로 테스트할 수 있다
+
 **자동 실행 설정 (cron):**
 
 ```bash
 # 매주 월요일 오전 9시 실행
 0 9 * * 1 cd /path/to/project && python qa_weekly_review.py >> logs/weekly_review.log 2>&1
 ```
+
+- `0 9 * * 1`은 매주 월요일 오전 9시를 의미하는 cron 표현식이다 — 팀 스탠드업 전에 결과가 Slack에 전달되도록 시간을 설정한다
+- `>> logs/weekly_review.log 2>&1`로 표준 출력과 오류를 로그 파일에 추가 기록해 실행 이력을 보존한다
+- cron 작업은 환경변수를 직접 전달해야 하므로 `SLACK_WEBHOOK_URL`을 crontab에 선언하거나 `.env` 파일로 로드하는 로직을 스크립트에 추가한다
 
 ---
 
@@ -198,6 +207,10 @@ comparison = eval_this.compare(eval_last)
 # comparison["total_cost_usd_delta"]  — 비용 변화 (예: +5.23 = +$5.23)
 # comparison["hallucination_rate_delta"] — 환각율 변화
 ```
+
+- `compare()`는 두 `QuickEval` 인스턴스 모두 `replay()`로 데이터가 로드된 상태에서만 의미 있는 값을 반환한다
+- `accuracy_delta = -0.03`은 이번 주 Accuracy가 전주보다 3 퍼센트 포인트 낮아진 것을 의미한다
+- `total_cost_usd_delta`로 주간 비용 변화를 추적하면 예산 초과 추세를 조기에 발견할 수 있다
 
 ### 회귀 임계값 기준
 
@@ -231,6 +244,10 @@ ab_result = eval_this.ab_test(eval_last)
 # ab_result["significant"]    — True if p_value < 0.05
 ```
 
+- `ab_test()`는 내부적으로 `scipy.stats.ttest_ind()`를 사용하므로 `pip install scipy`가 필요하다
+- `p_value < 0.05`이면 두 기간의 품질 차이가 통계적으로 유의미하다 — 단순히 `compare()` 델타만 보면 우연한 변동과 실제 회귀를 구분하기 어렵다
+- `sample_size_a`와 `sample_size_b`를 함께 확인해 한쪽 기간 샘플이 30건 미만이면 결과 신뢰도가 낮다는 점을 감안해야 한다
+
 ### p-value 해석
 
 | p-value | 해석 | 대응 |
@@ -250,6 +267,10 @@ if summary_this.get("total_tasks", 0) < 30:
     print("[WARNING] 샘플 수 부족 — A/B 테스트 결과 신뢰도 낮음")
     print(f"  현재: {summary_this['total_tasks']}개, 권장: 30개 이상")
 ```
+
+- `summary().get("total_tasks", 0)`으로 현재 평가 파일의 태스크 수를 확인해 A/B 테스트 실행 여부를 판단한다
+- 주간 태스크 수가 30건 미만이면 격주 비교 또는 월간 비교로 전환하는 것이 통계적으로 더 신뢰할 수 있다
+- 30건 미만 경고를 스크립트에 포함하면 팀이 결과를 과신하지 않도록 방지할 수 있다
 
 📋 **QA 관리자 TIP:** `ab_test()`는 내부적으로 `scipy.stats.ttest_ind()`를 사용한다. scipy가 설치되지 않은 환경에서는 p-value 없이 단순 비교만 반환한다. `pip install scipy`로 설치하면 정확한 통계 검정 결과를 얻을 수 있다.
 
@@ -289,6 +310,10 @@ builder.save_candidates(
 )
 ```
 
+- `strategies=["high_value"]`는 `accuracy_score >= 0.85`이고 `completion_score >= 0.85`인 케이스를 자동으로 선별한다
+- `require_human_review=True`로 설정하면 자동 추출 후 대시보드에서 사람이 검토해 승인할 때까지 골든셋에 반영되지 않는다
+- 날짜를 파일명에 포함하면(`YYYY%m%d`) 주차별 후보 파일을 구분해 관리할 수 있다
+
 대시보드에서 후보를 검토한 후 일괄 승인:
 
 ```bash
@@ -298,6 +323,10 @@ agent-eval dashboard
 # http://localhost:8765 접속
 # → Golden Datasets 탭 → Candidates → Bulk Approve
 ```
+
+- 대시보드 Golden Datasets 탭에서 각 후보 케이스의 질문, 응답, 점수를 확인하고 개별 또는 일괄 승인할 수 있다
+- Bulk Approve는 검토된 후보 전체를 골든셋에 한 번에 추가해 주간 루틴을 빠르게 완료할 수 있게 한다
+- 승인된 케이스는 다음 분기 회귀 테스트의 기준선이 되므로 신중하게 검토한다
 
 또는 CLI로 직접 추출:
 
@@ -333,6 +362,10 @@ new_golden = [c for c in golden_cases if c["id"] not in cases_to_remove]
 print(f"갱신 후 케이스: {len(new_golden)}개")
 ```
 
+- `created_at` 필드를 기준으로 30일 이상 된 케이스를 자동으로 추려내 월간 검토 작업을 구조화할 수 있다
+- 삭제 대상 ID를 `cases_to_remove` 집합으로 관리하면 변경 이력을 코드 커밋 메시지에 남길 수 있다
+- 갱신된 케이스 수를 출력해 골든셋 규모가 줄어드는 추세이면 신규 케이스 추출을 늘려야 한다는 신호로 삼는다
+
 ### 분기: 전체 데이터셋 재검토
 
 분기마다 골든셋 전체를 현재 에이전트로 재평가해서 점수가 크게 변한 케이스를 찾는다.
@@ -364,6 +397,10 @@ eval_q.save("quarterly_regression")
 eval_q.gate(tcr=90, accuracy=75)
 ```
 
+- 골든셋 JSON 구조는 `items` 또는 `qa_pairs` 키를 사용할 수 있으므로 두 경우를 모두 처리하는 `get()` 체인을 사용한다
+- 분기 회귀 테스트는 평상시보다 엄격한 임계값(`tcr=90, accuracy=75`)을 사용해 누적된 품질 저하를 확인한다
+- `eval_q.gate()`가 exit 1을 반환하면 분기 배포 계획을 재검토해야 한다는 신호다
+
 ---
 
 ## 17.6 Phoenix 대시보드로 트렌드 읽기
@@ -384,6 +421,10 @@ eval = QuickEval("results/")
 # ... 이후 모든 평가가 Phoenix에 자동 기록
 ```
 
+- `setup_otel()`은 `PerformanceMonitor` 생성 전에 호출해야 한다 — 순서가 바뀌면 스팬이 Phoenix에 전송되지 않는다
+- `service_name`은 Phoenix UI에서 서비스를 구분하는 식별자로 사용된다 — 여러 에이전트를 운영할 때 고유한 이름을 지정한다
+- `endpoint`에는 `/v1/traces` 경로를 포함하지 않는다 — SDK가 내부적으로 경로를 붙이므로 이중 경로 오류가 발생한다
+
 ### Tracing 탭 — 실패 케이스 추적
 
 Phoenix Tracing 탭의 필터 표현식으로 문제 케이스를 찾는다.
@@ -401,6 +442,10 @@ ae.framework = "langchain" AND ae.execution_time > 5.0
 # 도구를 5개 이상 호출한 에이전트
 ae.tool_calls_count >= 5
 ```
+
+- `ae.` 접두사는 Agent-Evaluator가 OTEL 스팬에 추가하는 커스텀 속성을 의미한다
+- `AND` 연산자로 여러 조건을 결합하면 "느리고 부정확한" 케이스처럼 복합적인 문제 패턴을 정밀하게 찾을 수 있다
+- 환각 탐지 필드(`ae.hallucination_detected`)는 `enable_hallucination_detection=True` 또는 `rag_mode=True`가 설정된 태스크에서만 생성된다
 
 실패 케이스를 클릭하면 입력(질문), 출력(응답), 정답, 실행 시간, 토큰 사용량을 한 화면에서 볼 수 있다.
 
@@ -467,6 +512,10 @@ eval_monthly.save("monthly_report_april_2026")
 print("보고서 생성 완료: results/monthly_report_april_2026.html")
 ```
 
+- `replay()`로 월간 집계 JSON을 로드한 후 `save()`를 호출하면 JSON과 HTML 보고서가 동시에 생성된다
+- HTML 파일은 모든 차트와 지표를 포함한 독립 실행형 파일이므로 별도 서버 없이 이메일 첨부나 팀 위키 업로드로 공유할 수 있다
+- 파일명에 연월을 포함(`april_2026`)하면 월별 보고서 이력을 디렉토리에서 쉽게 조회할 수 있다
+
 ### 월간 보고서 주요 포함 항목
 
 | 항목 | 출처 | 핵심 질문 |
@@ -518,6 +567,10 @@ if __name__ == "__main__":
     main()
 ```
 
+- `MONTH = datetime.now().strftime("%Y_%m")`으로 월별 파일명을 자동 생성해 스크립트를 수정 없이 매달 재사용할 수 있다
+- `hallucination_rate`는 `enable_hallucination_detection=True`가 설정된 평가 파일에서만 유의미한 값이 나온다
+- 스크립트를 cron에 등록해 매월 1일 자동 실행하면 경영진 보고용 월간 리포트가 사람 개입 없이 생성된다
+
 📋 **QA 관리자 TIP:** 월간 HTML 보고서를 생성한 후 팀 이메일로 공유할 때는 파일을 직접 첨부하는 것이 좋다. HTML 파일 안에 차트를 포함한 모든 데이터가 자기 완결적으로 포함되어 있어서 별도 서버 없이 브라우저에서 바로 열 수 있다.
 
 ---
@@ -534,49 +587,99 @@ if __name__ == "__main__":
 
 ## 실전 예제
 
-`ch10_group_g.py`는 `GoldenSetBuilder`와 `evaluation_session`을 조합해 주간/월간 리뷰에 필요한 데이터를 자동 축적하는 패턴을 보여준다. `agent-eval trend`는 여러 결과 파일에 걸친 시계열 추이를 분석해 주간 리뷰 보고서를 자동화한다.
+`ch17_weekly_review.py`는 `RunTrendAnalyzer`·`QuickEval.compare()`·`ImplicitFeedbackTracker`를 조합해 주간/월간 리뷰를 자동화하는 패턴을 보여준다. `agent-eval trend`는 여러 결과 파일에 걸친 시계열 추이를 분석해 주간 리뷰 보고서를 자동화한다.
 
-**파일**: `Evaluator_Examples/ch10_group_g.py`, `agent-eval trend`
+**파일**: `Evaluator_Examples/ch17_weekly_review.py`, `agent-eval trend`
 
-**핵심 코드 (출처: `Evaluator_Examples/ch10_group_g.py`)**
+**핵심 코드 (출처: `Evaluator_Examples/ch17_weekly_review.py`)**
 
 ```python
-# 출처: Evaluator_Examples/ch11_eval_data.py, 섹션 골든셋 — GoldenSetBuilder 골든 데이터셋 관리
-from agent_evaluator.datasets.builder import GoldenSetBuilder
-from agent_evaluator import create_taskresult
+# 출처: Evaluator_Examples/ch17_weekly_review.py, 섹션 1 — RunTrendAnalyzer 추세 분석
+from agent_evaluator.cli.trend import RunTrendAnalyzer
 
-source_dir = "results/"     # 생산 평가 결과 디렉토리
-output_dir = "data/golden_datasets/"  # 골든 데이터셋 저장 위치
+analyzer = RunTrendAnalyzer(
+    results_dir="results/",
+    pattern="*.json",
+    window=10,           # 최근 10개 파일 분석
+    slope_threshold=0.3, # 이 값 이상의 기울기를 회귀로 판정
+)
+report = analyzer.analyze()
 
-builder = GoldenSetBuilder(source_dir=source_dir, output_dir=output_dir)
+print(f"분석 파일 수: {len(report.runs)}개")
+print(f"회귀 감지:    {'있음' if report.any_regression else '없음'}")
 
-# 성과 높은 케이스 자동 추출 (high_value: accuracy > 0.85, completion > 0.85)
-# 실패 케이스 자동 추출 (failure: accuracy < 0.3 또는 completion < 0.3)
-# 엣지 케이스 자동 추출 (edge: 실행 시간 상위 10% 또는 토큰 사용량 상위 10%)
+# RunTrendReport는 개별 속성으로 지표를 제공한다
+for name, trend in [
+    ("tcr",          report.tcr_trend),
+    ("accuracy",     report.accuracy_trend),
+    ("latency",      report.latency_trend),
+    ("cost",         report.cost_trend),
+]:
+    if trend is None:
+        continue
+    direction = "↑" if trend.slope > 0 else "↓" if trend.slope < 0 else "→"
+    print(f"  {name}: slope={trend.slope:+.3f}/run  {direction}  "
+          f"{'[REGRESS]' if trend.is_regression else '[stable]'}")
 
-# 수집한 태스크 결과를 후보 목록으로 변환
-task_results = []  # 실제로는 monitor.generate_report()에서 수집
-candidates = []
-for result in task_results:
-    candidates.append({
-        "task_id": result.task_id,
-        "question": result.task_id,  # 실제 question은 extra에서 추출
-        "response": "",              # 저장된 응답
-        "accuracy_score": result.accuracy_score,
-        "completion_score": result.completion_score,
-        "category": "high_value" if result.accuracy_score > 0.85 else "failure",
-    })
-
-# 후보 저장
-builder.save_candidates(candidates, filename="week_01_candidates")
-
-# 검토 후 골든 데이터셋으로 확정
-builder.merge_to_golden(candidates[:10], version="v1")  # 10개만 골든으로 확정
+if report.any_regression:
+    import sys
+    sys.exit(1)  # CI/CD 파이프라인에서 배포 차단
 ```
 
-- `GoldenSetBuilder`는 생산 평가 결과에서 높은 품질(>0.85), 실패(<0.3), 엣지(극단값) 케이스를 자동으로 분류한다
-- `save_candidates()`는 주간 후보를 검토용 파일로 저장하고, `merge_to_golden()`은 확정된 케이스를 버전별 골든 셋으로 관리한다
-- 골든 데이터셋은 회귀 테스트의 기준선이 되어 "지난 주보다 나빠졌는가"를 객관적으로 측정할 수 있게 한다
+- `RunTrendAnalyzer`는 결과 디렉토리의 JSON 파일들을 수정 시각 순으로 정렬해 최근 N개를 분석한다
+- `slope`는 파일 1개당 변화량으로, `accuracy_trend.slope = -3.0`이면 파일마다 정확도가 3pp씩 하락하는 추세다
+- `report.any_regression`이 `True`이면 `slope_threshold` 이상의 하락 기울기를 가진 지표가 있다는 의미다
+
+```python
+# 출처: Evaluator_Examples/ch17_weekly_review.py, 섹션 2 — QuickEval.compare() 전주 대비 비교
+from agent_evaluator import QuickEval
+
+eval_last = QuickEval("results/")
+eval_last.replay("results/last_week.json")   # 지난 주 결과 파일 로드
+
+eval_this = QuickEval("results/")
+eval_this.replay("results/this_week.json")   # 이번 주 결과 파일 로드
+
+# compare() → {"self": {...}, "other": {...}, "delta": {"tcr": N, "accuracy": N, "avg_latency": N}}
+# summary() → {"tcr": N%, "accuracy": N%, "p95_latency": N초, ...}  (tcr·accuracy는 0~100 단위)
+comparison = eval_this.compare(eval_last)
+delta = comparison["delta"]
+print(f"Accuracy:    {delta.get('accuracy', 0):+.1f}pp")    # 퍼센트 포인트
+print(f"TCR:         {delta.get('tcr', 0):+.1f}pp")
+print(f"Avg Latency: {delta.get('avg_latency', 0):+.2f}초")
+
+# 통계적 유의성 검증 (pip install scipy 필요)
+# ab_test() → {"p_value", "significant", "sample_sizes": {"self": N, "other": N}, ...}
+ab_result = eval_this.ab_test(eval_last)
+print(f"p-value: {ab_result['p_value']:.4f}  "
+      f"{'유의미' if ab_result.get('significant') else '무의미'}")
+```
+
+- `replay()`는 저장된 JSON 파일을 로드해 새 평가 실행 없이도 통계와 비교 결과를 계산한다
+- `compare()["delta"]["accuracy"]`가 음수이면 이번 주 정확도가 전주보다 하락한 것으로, 단위는 퍼센트 포인트(pp)다
+- `ab_test()["significant"]`가 `True`이면 차이가 통계적으로 유의미해 우연 변동이 아닌 실제 회귀임을 의미한다
+
+```python
+# 출처: Evaluator_Examples/ch17_weekly_review.py, 섹션 3 — ImplicitFeedbackTracker 주간 집계
+from agent_evaluator import ImplicitFeedbackTracker
+
+tracker = ImplicitFeedbackTracker()
+# 긍정 feedback_type: copy, thumbs_up, save, share, follow_up_depth
+# 부정 feedback_type: regenerate, thumbs_down, abandon, correction
+tracker.record(task_id="t001", feedback_type="copy")
+tracker.record(task_id="t002", feedback_type="regenerate")
+
+# get_stats() → {"total", "positive_count", "negative_count",
+#                "positive_rate", "regenerate_rate", "type_distribution"}
+stats = tracker.get_stats()
+print(f"긍정율:       {stats['positive_rate']:.1f}%")
+print(f"재생성율:     {stats['regenerate_rate']:.1f}%")   # 낮을수록 좋음
+print(f"유형 분포:    {stats['type_distribution']}")
+```
+
+- `feedback_type`은 사전 정의된 유형만 허용된다: `copy`, `thumbs_up`, `save`, `share`, `follow_up_depth`(긍정), `regenerate`, `thumbs_down`, `abandon`, `correction`(부정)
+- `regenerate_rate`가 높으면 사용자가 응답에 불만족해 재생성을 자주 요청하고 있음을 의미한다
+- `positive_rate`는 전체 피드백 중 긍정 비율로, 주간 추이를 추적하면 품질 인식 변화를 조기 발견할 수 있다
 
 ```bash
 # 출처: agent-eval trend CLI — 주간·월간 추세 리포트
@@ -598,8 +701,8 @@ agent-eval trend results/ --fail-on-regression
 - `--output-json`으로 저장한 결과를 스크립트로 처리하면 주간 리포트 생성을 완전 자동화할 수 있다
 
 ```bash
-# 운영 데이터 생성
-python Evaluator_Examples/ch10_group_g.py
+# 운영 데이터 생성 후 주간 추이 분석
+python Evaluator_Examples/ch17_weekly_review.py
 
 # 주간 추이 분석 (results/ 에 쌓인 파일들)
 agent-eval trend results/ --window 10 --output-json weekly_trend.json
@@ -637,7 +740,7 @@ P95 레이턴시 3.2s   +0.4s    ↓ 회귀 (slope=+0.041)
 `ImplicitFeedbackTracker`의 주간 집계와 `StreamingEvaluator`의 윈도우 통계를 결합해 주간 리뷰 보고서를 자동 생성한다:
 
 ```python
-# 출처: Evaluator_Examples/ch16_alerts.py, 섹션 2 — ImplicitFeedbackTracker 주간 집계
+# 출처: Evaluator_Examples/ch17_weekly_review.py, 섹션 3 — ImplicitFeedbackTracker — 사용자 암묵적 피드백 주간 집계
 from agent_evaluator import PerformanceMonitor
 
 monitor = PerformanceMonitor(output_dir="results/", enable_transparency=True)

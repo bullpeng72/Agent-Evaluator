@@ -308,6 +308,10 @@ eval.save()
 eval.save("my_eval_20260409")
 ```
 
+- `eval.save()`를 인수 없이 호출하면 `quickeval.json`과 `quickeval.html`이 기본 파일명으로 생성된다
+- 파일명을 지정하면 날짜나 버전을 포함한 이름으로 저장해 여러 실행 결과를 구분할 수 있다
+- `QuickEval`을 사용할 때는 `PerformanceMonitor.save_to_file()` 대신 `eval.save()`를 사용하는 것이 일관성 있는 방식이다
+
 ### flush_every — 데코레이터에서 N회마다 자동 저장
 
 데코레이터 수준에서 저장 주기를 제어할 수도 있다. 여러 에이전트를 동시에 평가할 때 유용하다.
@@ -323,6 +327,10 @@ monitor = PerformanceMonitor(output_dir="results/")
 def my_agent(question: str, ground_truth: str = "") -> str:
     return llm.invoke(question)
 ```
+
+- `flush_every=N`은 데코레이터 수준에서 N회 호출마다 `save_to_file()`을 자동 호출한다
+- 여러 에이전트가 같은 `monitor`를 공유할 때 에이전트별로 저장 주기를 다르게 설정할 수 있다
+- `output_dir`을 반드시 지정해야 파일이 생성된다 — `None`이면 flush가 무시된다
 
 **방법 선택 가이드:**
 
@@ -354,6 +362,10 @@ agent-eval dashboard --no-open
 agent-eval dashboard --offline
 ```
 
+- `--watch` 옵션을 사용하면 `results/` 폴더에 새 JSON 파일이 생길 때마다 대시보드가 자동으로 갱신된다
+- `--port`로 포트를 변경하면 여러 프로젝트의 대시보드를 동시에 띄울 수 있다
+- `--offline` 모드는 폐쇄망 환경에서 CDN 없이 모든 에셋을 로컬에서 로드한다
+
 접속 URL: `http://localhost:8765`
 
 `--watch` 모드를 사용하면 `results/` 폴더에 새 JSON 파일이 생기거나 기존 파일이 변경될 때 자동으로 갱신된다. 평가 스크립트를 별도 터미널에서 실행하면서 대시보드를 동시에 보는 개발 워크플로우에 적합하다.
@@ -369,6 +381,10 @@ agent-eval dashboard --offline
 ```bash
 curl http://localhost:8765/api/stats | python3 -m json.tool
 ```
+
+- `api/stats`는 모든 평가 파일의 집계 통계를 한 번에 반환하는 가장 빠른 점검 엔드포인트다
+- `python3 -m json.tool`을 파이프로 연결하면 JSON을 들여쓰기 형태로 보기 좋게 출력한다
+- 이 엔드포인트를 매일 아침 cron으로 호출해 전날 대비 TCR·Accuracy 변화를 자동으로 확인할 수 있다
 
 응답 예시:
 ```json
@@ -427,6 +443,10 @@ curl -X POST http://localhost:8765/api/results/evaluation/tasks/filter \
   }'
 ```
 
+- `"logic": "AND"`로 여러 조건을 동시에 만족하는 케이스만 필터링할 수 있다 — `"OR"`로 바꾸면 하나라도 만족하는 케이스를 반환한다
+- `"op": "contains"` 연산자로 오류 메시지나 응답 텍스트 안에 특정 문자열이 포함된 케이스를 찾을 수 있다
+- 문제 케이스의 공통 패턴을 발견하면 `InstructionConfig.required_keywords` 등 Config 수정으로 개선 방향을 잡을 수 있다
+
 지원하는 연산자: `eq` (같음), `ne` (다름), `gt` (초과), `gte` (이상), `lt` (미만), `lte` (이하), `contains` (포함), `in` (목록 중 하나)
 
 ### /api/results/{file_id}/distributions — 지표 분포 히스토그램
@@ -439,6 +459,10 @@ curl "http://localhost:8765/api/results/evaluation/distributions?metric=accuracy
 curl "http://localhost:8765/api/results/evaluation/distributions?metric=execution_time"
 ```
 
+- 분포 히스토그램에서 특정 구간에 케이스가 몰려 있는지 확인하면 "대부분 좋은데 일부가 매우 나쁜" 이중 분포 패턴을 발견할 수 있다
+- `accuracy_score` 분포에서 0.0~0.2 구간이 높으면 `ground_truth`가 누락된 케이스가 있을 가능성이 크다
+- `execution_time` 분포의 긴 꼬리는 P95 지연시간 문제의 원인을 시각적으로 확인하는 데 유용하다
+
 분포를 보면 "평균은 괜찮은데 하위 10%가 매우 나쁜" 패턴을 발견할 수 있다. 평균만 보면 놓치는 문제다.
 
 ### /api/results/{file_id}/timeline — 시간대별 품질 변화
@@ -450,6 +474,10 @@ curl "http://localhost:8765/api/results/evaluation/timeline?metric=accuracy_scor
 # 일별 TCR 추이
 curl "http://localhost:8765/api/results/evaluation/timeline?metric=task_completion_rate&granularity=day"
 ```
+
+- `granularity=hour`는 배포 직후 시간 단위 품질 변화를 추적할 때 유용하고, `day`는 주간 트렌드 분석에 적합하다
+- 배포 전후의 타임라인을 비교하면 새 버전이 정확도나 응답시간에 어떤 영향을 주는지 즉각 파악할 수 있다
+- `metric` 파라미터에 `execution_time`을 지정하면 시간대별 지연 변화를 확인해 특정 시간대의 성능 저하를 발견할 수 있다
 
 배포 직후 `/timeline`을 확인하면 새 버전이 품질에 긍정적/부정적 영향을 주는지 즉시 파악할 수 있다.
 
@@ -466,6 +494,10 @@ curl "http://localhost:8765/api/anomalies/evaluation"
 curl "http://localhost:8765/api/results/evaluation/anomaly/explain/event_20260409_001"
 ```
 
+- `api/anomalies`는 `enable_anomaly_detection=True`로 생성된 평가 파일에서만 데이터가 반환된다
+- 이벤트 상세 엔드포인트는 `anomaly_type`, `z_score`, `root_cause`, `recommendation`을 포함해 원인 분석을 도와준다
+- Z-Score 기반으로 기준선(평균)에서 2.5 표준편차 이상 벗어난 태스크가 이벤트로 기록된다
+
 이상 탐지(AnomalyDetector)가 활성화되어 있을 때만 데이터가 쌓인다. Z-Score 기반으로 정상 범위를 벗어난 태스크를 자동으로 표시한다.
 
 ### /api/cost/breakdown — 모델별/태스크별 비용 분석
@@ -477,6 +509,10 @@ curl http://localhost:8765/api/cost/breakdown
 # 비용 추이 — 일별 비용 변화
 curl "http://localhost:8765/api/cost/trend?granularity=day"
 ```
+
+- `api/cost/breakdown`의 `by_task_type` 필드로 어느 태스크 유형이 비용을 가장 많이 소비하는지 파악할 수 있다
+- `by_model` 분류로 비싼 모델과 저렴한 모델의 비용 비율을 비교해 `judge_model` 선택을 최적화할 수 있다
+- `cost/trend?granularity=day`로 일별 비용 추이를 보면 특정 날에 비용이 급증한 원인을 추적할 수 있다
 
 응답 예시:
 ```json
@@ -504,6 +540,10 @@ curl "http://localhost:8765/api/results/evaluation/llm_judge?min_score=0&max_sco
 curl "http://localhost:8765/api/results/evaluation/llm_judge?aggregate=true"
 ```
 
+- `min_score`/`max_score`로 특정 점수 범위의 LLM Judge 결과만 필터링해 낮은 품질 케이스를 집중 분석할 수 있다
+- `aggregate=true`를 추가하면 completeness·relevance·factual_consistency 등 각 차원의 평균 점수를 반환한다
+- LLM Judge 데이터는 `enable_llm_judge=True`와 API 키가 설정된 평가 결과에서만 생성된다
+
 ### /api/conversation — 대화 세션 목록
 
 ```bash
@@ -516,6 +556,10 @@ curl "http://localhost:8765/api/conversation/evaluation"
 # 특정 세션 상세
 curl "http://localhost:8765/api/conversation/evaluation/session_001"
 ```
+
+- `@conversation_eval` 데코레이터로 수집된 멀티턴 대화 세션만 이 엔드포인트에 표시된다
+- 특정 세션 상세에서 턴별 응답, 컨텍스트 유지율, 주제 일관성 점수를 확인할 수 있다
+- 세션 ID는 코드에서 직접 지정하거나 자동 생성된 UUID를 사용한다
 
 ---
 
@@ -534,6 +578,10 @@ ws.onmessage = (event) => {
 };
 ```
 
+- `ws/events` WebSocket은 새 태스크가 평가될 때마다 이벤트를 실시간 전송한다
+- 대시보드 UI는 내부적으로 이 WebSocket을 연결해 `--watch` 모드에서 자동 새로고침을 구현한다
+- 외부 모니터링 도구(Grafana 등)에서 직접 연결하면 커스텀 실시간 대시보드를 만들 수 있다
+
 대시보드 UI는 이미 이 WebSocket을 사용하므로, `--watch` 모드로 실행하면 별도 새로고침 없이 실시간 업데이트가 된다.
 
 ### SSE — Server-Sent Events
@@ -548,6 +596,10 @@ curl -N "http://localhost:8765/stream/tasks/evaluation"
 curl -N "http://localhost:8765/stream/filtered/evaluation"
 ```
 
+- `curl -N` 옵션은 버퍼링 없이 데이터를 실시간으로 출력하는 SSE(Server-Sent Events) 수신에 필요하다
+- `stream/filtered`는 특정 조건을 만족하는 이벤트만 구독해 불필요한 트래픽을 줄인다
+- SSE 스트림을 파이프로 연결하면 실시간 알림 스크립트를 쉘에서 직접 구현할 수 있다
+
 ---
 
 ## 15.7 데이터 내보내기
@@ -560,6 +612,10 @@ curl -N "http://localhost:8765/stream/filtered/evaluation"
 # Excel 파일 다운로드 (file_id 기반)
 curl -o evaluation_results.xlsx "http://localhost:8765/api/export/excel/evaluation"
 ```
+
+- `-o` 옵션으로 다운로드 파일명을 지정하면 바로 Excel 파일로 저장된다
+- Excel 내보내기는 `[export]` extra(`pyarrow` + `openpyxl`)가 설치되어야 동작한다 — 미설치 시 HTTP 409 오류가 반환된다
+- 다운로드된 Excel 파일에는 태스크별 accuracy, latency, tokens, task_type 등 모든 지표가 컬럼으로 정리되어 있다
 
 Excel 파일에는 태스크별 전체 지표가 컬럼으로 정리되어 있다. 스프레드시트 도구에서 추가 분석이 필요할 때 유용하다.
 
@@ -815,7 +871,7 @@ def agent(question: str, ground_truth: str = "") -> str: ...
 **핵심 코드 (출처: `Evaluator_Examples/ch12_decorators.py`, `ch10_group_g.py`)**
 
 ```python
-# 출처: Evaluator_Examples/ch12_decorators.py, 섹션 8 — QuickEval 결과 저장 및 대시보드 연동
+# 출처: Evaluator_Examples/ch12_decorators.py, 섹션 8 — QuickEval Facade — 원스톱 간편 시작
 from agent_evaluator import QuickEval
 
 eval_qe = QuickEval("results/", auto_save=True, auto_save_interval=10)
@@ -840,7 +896,7 @@ eval_qe.save()
 - `agent-eval dashboard results/`를 실행하면 FastAPI 서버가 기동되어 실시간 지표를 웹 UI로 확인할 수 있다
 
 ```python
-# 출처: Evaluator_Examples/ch11_eval_data.py, 섹션 session — evaluation_session 컨텍스트 매니저
+# 출처: Evaluator_Examples/ch11_eval_data.py, 섹션 4 — evaluation_session — context manager + 자동 저장
 from agent_evaluator import evaluation_session, create_taskresult
 
 # 세션 종료 시 자동으로 results/session_results.json 저장

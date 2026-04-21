@@ -75,7 +75,7 @@ Group F는 **다중 에이전트 시스템**의 협업 품질을 측정한다. �
 | `network_topology` | 에이전트 간 연결 구조 그래프 |
 
 ```python
-# 출처: Evaluator_Examples/ch09_group_f.py, 섹션 협조 지표 — AgentCoordinationTracker 멀티에이전트
+# 출처: Evaluator_Examples/ch09_group_f.py, 섹션 6 — Group F Multi-Agent Coordination
 from agent_evaluator import PerformanceMonitor, create_taskresult
 
 monitor = PerformanceMonitor("results/")
@@ -104,6 +104,11 @@ result = create_taskresult(
 monitor.record_task(result)
 ```
 
+- `tool_calls` 목록에 에이전트 이름을 기입하면 `AgentCoordinationTracker`가 위임 체인을 자동으로 추적한다.
+- `extra["agent_interactions"]`에 `from`·`to`·`type` 필드를 선언하면 위임 방향과 핸드오프 패턴이 기록된다.
+- `coordination_score`는 0~1 범위이며, 0.9 이상이면 Group F Gate PASS에 기여한다.
+- `delegation`(위임)과 `handoff`(인계)를 구분해 선언하면 위임 깊이와 병렬 실행률이 따로 집계된다.
+
 ### 9.2.2 ToolSelectionTracker — 도구 선택 F1
 
 에이전트가 각 태스크에서 올바른 도구를 선택하는지 F1 기반으로 측정한다. "도구를 얼마나 많이 사용했나"가 아닌 "올바른 도구를 선택했나"를 측정한다.
@@ -116,7 +121,7 @@ F1        = 2 × (precision × recall) / (precision + recall)
 ```
 
 ```python
-# 출처: Evaluator_Examples/ch09_group_f.py, 섹션 협조 지표 — ToolSelectionTracker F1
+# 출처: Evaluator_Examples/ch09_group_f.py, 섹션 6 — Group F Multi-Agent Coordination
 # 올바른 도구 선택 평가
 result = create_taskresult(
     task_id="t1",
@@ -134,6 +139,11 @@ result = create_taskresult(
 )
 # F1 = 1.0 (필요한 도구를 정확히 선택)
 ```
+
+- `expected_tools` 키를 `extra` 딕셔너리에 선언하면 `ToolSelectionTracker`가 F1 점수를 자동 계산한다.
+- F1은 정밀도(불필요한 도구 사용 최소화)와 재현율(필요한 도구 누락 최소화)의 조화평균이다.
+- 불필요한 도구를 추가로 호출하면 정밀도가 떨어지고, 필요한 도구를 빠뜨리면 재현율이 낮아진다.
+- F1 = 1.0은 필요한 도구를 정확히 선택했음을 의미한다.
 
 ---
 
@@ -184,6 +194,11 @@ def ensemble_agent(questions: list, ground_truths: list = None) -> list:
     ]
 ```
 
+- `consensus_method="weighted"` 설정 시 `agent_weights`의 비율로 가중 투표가 이루어진다.
+- `select_consensus_response=True`로 설정하면 합의 응답이 최종 결과로 자동 선택된다.
+- `similarity_threshold=0.75`는 두 응답이 75% 이상 유사할 때 합의로 인정한다는 의미다.
+- 전문가 에이전트에 높은 가중치를 부여하면 소수 고품질 응답이 다수결에 묻히는 것을 방지할 수 있다.
+
 ### 9.3.2 PropagationConfig — 정보 전파 충실도
 
 선행 에이전트가 수집한 핵심 정보가 후속 에이전트로 왜곡 없이 전달되는지 측정한다.
@@ -221,6 +236,11 @@ def writer_agent(question: str, ground_truth: str = "") -> str:
     # 작가 에이전트 — 연구자의 사실을 기반으로 작성해야 함
     return writer.run(question)
 ```
+
+- `key_facts`에 선언된 사실이 응답 텍스트에 포함되어 있는지 `check_in_response=True`로 자동 검사한다.
+- `penalize_distortion=True`는 핵심 사실이 왜곡(수치 변경·표현 변형)됐을 때 추가 패널티를 부과한다.
+- `source_agent`는 어떤 에이전트의 출력을 기준으로 전파 충실도를 검사할지 명시한다.
+- 파이프라인 단계가 많을수록 `similarity_threshold`를 단계별로 완화(예: 0.75 → 0.6)하는 것을 권장한다.
 
 ### 9.3.3 AgentRoleConfig — 에이전트 역할 준수
 
@@ -264,6 +284,11 @@ writer_role = AgentRoleConfig(
 )
 ```
 
+- 각 역할마다 `allowed_tools`와 `forbidden_tools`를 명시적으로 선언해 역할 경계를 구분한다.
+- `@agent_eval`의 `agent_role` 파라미터에 해당 역할 Config를 할당하면 역할 위반이 자동으로 탐지된다.
+- `role_violation_penalty` 값이 클수록 역할 위반 한 건이 Gate F 점수에 미치는 영향이 커진다.
+- 역할 간 도구 교집합이 없도록 설계하면 역할 이탈 탐지 정확도가 높아진다.
+
 ### 9.3.4 ConflictResolutionConfig — 충돌 해결 품질
 
 에이전트 간 의견 충돌이 발생했을 때 적절하게 해결하는지 측정한다. 충돌을 방치하거나, 무시하거나, 에스컬레이션 없이 진행하는 것을 탐지한다.
@@ -286,6 +311,11 @@ ConflictResolutionConfig(
     expect_escalation_on_fail=True,  # 해결 실패 시 에스컬레이션 기대
 )
 ```
+
+- `conflict_markers`와 `resolution_markers`는 응답 텍스트에서 충돌·해결 신호를 문자열 매칭으로 탐지한다.
+- `unresolved_penalty=0.5`는 충돌이 해결되지 않을 때마다 Gate F 점수에서 0.5점을 차감한다.
+- `expect_escalation_on_fail=True` 설정 시 해결에 실패했을 때 에스컬레이션 신호가 없으면 추가 패널티가 부과된다.
+- `require_explanation=True`로 설정하면 충돌 해결 근거가 응답에 포함되어야 한다.
 
 ---
 
@@ -329,6 +359,11 @@ def worker(question: str, ground_truth: str = "") -> str:
     return worker_agent.run(question)
 ```
 
+- 오케스트레이터에는 `DeadlockConfig`와 전체 파이프라인 `SLAConfig`를, 워커에는 `AgentRoleConfig`를 배치하는 것이 기본 패턴이다.
+- `check_circular_delegation=True`는 A→B→A 형태의 순환 위임을 그래프 사이클 탐지로 차단한다.
+- `max_delegation_depth=5`를 초과하면 위임 체인이 강제 중단되어 재귀 폭발을 방지한다.
+- 워커의 `role_violation_penalty`를 오케스트레이터보다 높게 설정하면 역할 이탈에 더 엄격하게 대응할 수 있다.
+
 ### 패턴 2 — 앙상블 에이전트 (합의 기반)
 
 ```python
@@ -355,6 +390,11 @@ from agent_evaluator.decorators import batch_eval
 def ensemble(questions: list, ground_truths: list = None) -> list:
     return run_ensemble(questions)
 ```
+
+- `domain_expert: 4.0` 가중치는 전문가 에이전트의 응답이 일반 에이전트보다 4배 더 큰 영향을 합의에 미친다는 의미다.
+- `ConflictResolutionConfig`를 함께 사용하면 합의 실패 시 충돌 처리 로직도 동시에 평가된다.
+- `unresolved_penalty=0.6`은 합의에 실패하고 충돌도 해결되지 않을 때 Gate F 점수를 크게 낮춘다.
+- 앙상블 패턴에서는 `consensus_method="unanimity"`보다 `"weighted"`가 실용적으로 권장된다.
 
 ---
 
@@ -1112,13 +1152,13 @@ def monitored_orchestrator(question: str, ground_truth: str = "") -> str:
 | 예제 파일 | 관련 내용 |
 |---------|---------|
 | [`Evaluator_Examples/ch03_harness_basics.py`](../../Evaluator_Examples/ch03_harness_basics.py) | 섹션 6: Group F Multi-Agent Coordination — 4개 Config 실전 예제 |
-| [`Evaluator_Examples/ch05_group_b.py`](../../Evaluator_Examples/ch05_group_b.py) | 섹션 4: AgentCoordinationTracker·ToolSelectionTracker 실전 예제 |
+| [`Evaluator_Examples/ch09_group_f.py`](../../Evaluator_Examples/ch09_group_f.py) | 섹션 6: AgentCoordinationTracker·ToolSelectionTracker 실전 예제 |
 | [`Evaluator_Examples/ch04_group_a.py`](../../Evaluator_Examples/ch04_group_a.py) | 시나리오 13+14+15: Gate F FAIL — ConsensusConfig·PropagationConfig·AgentRoleConfig·ConflictResolutionConfig 위반 |
 
 **핵심 코드 (출처: `Evaluator_Examples/ch03_harness_basics.py`, 섹션 6 — Group F Multi-Agent Coordination)**
 
 ```python
-# 출처: Evaluator_Examples/ch09_group_f.py, 섹션 Gate F Multi-Agent Coordination
+# 출처: Evaluator_Examples/ch09_group_f.py, 섹션 6 — Group F Multi-Agent Coordination
 from agent_evaluator import (
     ConsensusConfig, PropagationConfig,
     AgentRoleConfig, ConflictResolutionConfig,
@@ -1363,7 +1403,7 @@ python Evaluator_Examples/ch04_group_a.py   # 시나리오 13+14+15: Gate F FAIL
 `AnomalyDetector`는 Gate F 점수 급락(합의율 붕괴·역할 위반 급증)을 기준선 대비 드리프트로 탐지한다. `CostTracker`는 다중 에이전트 호출 비용이 예산을 초과하면 자동으로 샘플링 비율을 낮춘다.
 
 ```python
-# 출처: Evaluator_Examples/ch10_group_g.py, 섹션 1+2 — 다중에이전트 이상 탐지 + 비용 제어
+# 출처: Evaluator_Examples/ch10_group_g.py, 섹션 추가A·추가B — 이상 탐지 + 비용 추적
 from agent_evaluator import (
     PerformanceMonitor, create_taskresult,
     AnomalyDetector, CostTracker, AdaptivePolicy,

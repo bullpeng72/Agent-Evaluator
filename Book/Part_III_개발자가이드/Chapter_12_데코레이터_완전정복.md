@@ -56,6 +56,10 @@ def run_and_evaluate(question: str, ground_truth: str) -> str:
     return response
 ```
 
+- 데코레이터 없이 평가하려면 `execution_time`, `accuracy_score`, `task_id`, `tokens_used` 등 11개 필수 필드를 직접 채워야 한다
+- `accuracy_score` 계산 로직(TokenF1·Jaccard·LCS)을 매 함수마다 구현하면 일관성이 떨어지고 유지보수 부채가 쌓인다
+- 에이전트 함수가 늘어날수록 이 보일러플레이트 코드가 기하급수적으로 증가하여 비즈니스 로직보다 평가 코드가 더 많아진다
+
 문제는 명확하다. `execution_time` 측정을 빠뜨리면 0이 기록되고, `accuracy_score` 계산 로직을 매번 구현해야 하며, 에이전트 함수가 늘어날수록 이 코드가 기하급수적으로 증가한다.
 
 데코레이터 방식은 이 모든 것을 한 줄로 해결한다:
@@ -71,6 +75,10 @@ monitor = PerformanceMonitor("results/")
 def my_agent(question: str, ground_truth: str = "") -> str:
     return llm.invoke(question)  # 비즈니스 로직만
 ```
+
+- `@agent_eval(monitor, task_type="qa")`를 함수 위에 붙이는 것만으로 TaskResult 생성부터 monitor 기록까지 전 과정이 자동화된다
+- 함수 시그니처에 `ground_truth: str = ""`를 포함하면 데코레이터가 자동으로 인식해 accuracy_score를 계산한다
+- 동기·비동기·제너레이터(스트리밍) 함수를 모두 자동 감지해 처리하므로 함수 타입에 무관하게 동일하게 적용된다
 
 데코레이터가 자동으로 처리하는 항목:
 
@@ -182,6 +190,11 @@ def claude_agent(question: str, ground_truth: str = "") -> str:
     )
 ```
 
+- `framework=` 지정 시 함수가 **문자열이 아닌 SDK 응답 객체 전체**를 반환해야 토큰 수, 도구 호출 등이 자동 추출된다
+- `framework="anthropic"`은 `usage.input_tokens` / `usage.output_tokens`와 캐시 토큰(`cache_read_input_tokens`)을 자동 파싱한다
+- `framework="openai"`는 `choices[0].message.tool_calls`와 `usage.total_tokens`를 자동 파싱한다
+- 응답 객체가 아닌 문자열을 반환하면 토큰 추출은 실패하지만 기본 평가(accuracy, latency)는 정상 동작한다
+
 `framework=`를 생략하면 `auto_detect_framework=True`(기본값)가 응답 객체의 속성을 분석해 프레임워크를 자동 감지한다. `response.choices + response.usage` → openai, `response.content + response.model` → anthropic 등 12개 속성 기반으로 동작한다.
 
 4개 프레임워크(LangChain, LangGraph, CrewAI, AutoGen)를 mock 응답 객체로 한 파일에서 비교하는 완전한 예제는 `ch13_frameworks.py`를 참조한다:
@@ -225,6 +238,10 @@ def rag_agent(question: str, context: str = "", ground_truth: str = "") -> str:
     return llm.invoke(f"Context: {context}\n\nQuestion: {question}")
 ```
 
+- `rag_mode=True` 하나로 `context_arg="context"` 설정, `HallucinationDetector` 활성화, LLMJudge와 함께 사용 시 `faithfulness` 차원 자동 추가가 모두 이루어진다
+- 함수 시그니처에 `context: str = ""` 파라미터가 있어야 데코레이터가 컨텍스트를 자동으로 추출해 HallucinationDetector에 전달한다
+- `task_type="information_retrieval"`과 함께 사용하는 것을 권장한다. `rag_mode=True`를 지정하면 task_type도 자동으로 설정된다
+
 `rag_mode=True`가 자동으로 하는 일: (1) `context_arg="context"` 설정, (2) 내부적으로 hallucination 감지 활성화(데코레이터 레벨), (3) `HallucinationDetector`에 context를 전달해 일관성 점수 계산. `llm_judge=LLMJudgeConfig()`와 함께 사용 시 `faithfulness` 차원도 자동 추가된다.
 
 ### security=SecurityConfig() — 보안 검사 임시 활성
@@ -239,6 +256,10 @@ def risky_agent(question: str, ground_truth: str = "") -> str:
 # ToolAuthorization, PrivilegeEscalation, ToolChainAttack
 # finally 블록에서 원래 설정으로 자동 복원
 ```
+
+- `security=SecurityConfig()`는 5종 보안 트래커를 **해당 호출에만** 임시 활성화하는 temp-override 패턴이다. `finally` 블록에서 원래 상태로 자동 복원된다
+- `SecurityConfig(allowed_tools=["search", "read"])`처럼 허용 도구 목록을 지정할 수 있다. 목록 외 도구 호출이 감지되면 `ToolAuthorizationTracker`에 기록된다
+- 전체 monitor에 항상 보안 지표를 켜려면 `PerformanceMonitor(enable_security_metrics=True)`를 사용한다
 
 ### llm_judge=LLMJudgeConfig() — LLM-as-Judge 채점
 
@@ -257,10 +278,14 @@ def careful_agent(question: str, ground_truth: str = "") -> str:
 # 결과는 task.llm_judge["scores"]에 저장되어 대시보드에서 확인 가능 (llm_judge는 TaskResult 직접 필드)
 ```
 
+- `LLMJudgeConfig(model=None)`이면 환경 변수에 있는 API 키를 기반으로 모델을 자동 결정한다 (`ANTHROPIC_API_KEY` → claude, `OPENAI_API_KEY` → gpt)
+- `LLMJudgeConfig(sample_rate=0.1)`을 지정하면 전체 호출의 10%만 LLM 채점을 실행해 비용을 절감한다
+- `LLMJudgeConfig(criteria=["medical_accuracy", "citation_quality"])`처럼 커스텀 기준을 추가하면 `criteria_scores` 키로 각 기준별 점수가 기록된다
+
 ### 모든 파라미터를 활용한 완전한 예시
 
 ```python
-# 출처: Evaluator_Examples/ch12_decorators.py, 섹션 3 — agent_eval 완전 예시
+# 출처: Evaluator_Examples/ch12_decorators.py, 섹션 3 — EvalMetadata 튜플 반환 (우선순위: EvalMetadata > score_fn)
 from agent_evaluator import PerformanceMonitor, SimpleTaskAlertRule, AlertRuleBuilder
 from agent_evaluator.decorators import agent_eval, LLMJudgeConfig, RetryConfig
 
@@ -301,6 +326,10 @@ def production_agent(question: str, ground_truth: str = "") -> str:
     )
 ```
 
+- `preset="production"`을 지정하면 `flush_every=50`, `sample_rate=0.1`, `enable_anomaly_detection=True`가 자동으로 적용된다
+- `timeout=15.0`으로 최대 실행 시간을 제한할 수 있으며, 초과 시 `TimeoutError`가 발생하고 `success=False`로 기록된다
+- `alert_rules=[...]` 목록에 여러 규칙을 넣으면 태스크 완료 후 순서대로 평가된다. `cooldown` 설정으로 동일 규칙의 연속 발화를 방지한다
+
 ---
 
 ## 12.4 @batch_eval — 대량 데이터셋 평가
@@ -327,10 +356,14 @@ responses = batch_agent(questions=questions, ground_truths=ground_truths)
 # → TaskResult 100개 자동 기록
 ```
 
+- `@batch_eval`은 `questions` 리스트를 받아 각 항목에 대해 자동으로 TaskResult를 생성한다. 직접 루프를 작성할 필요가 없다
+- `ground_truths` 파라미터명은 `ground_truths`, `expected`, `answers` 등 여러 키워드를 자동 인식한다
+- `task_id_prefix`를 지정하면 `prefix_0`, `prefix_1`, ... 형식으로 task_id가 생성되어 결과를 그룹별로 구분할 수 있다
+
 ### concurrency=N — 병렬 처리
 
 ```python
-# 출처: Evaluator_Examples/ch12_decorators.py, 섹션 6 — concurrent 배치
+# 출처: Evaluator_Examples/ch12_decorators.py, 섹션 6 — @batch_eval (concurrency + DataFrame)
 @batch_eval(
     monitor,
     task_type="qa",
@@ -341,6 +374,10 @@ async def concurrent_batch(questions: list, ground_truths: list = None) -> list:
     return await asyncio.gather(*tasks)
 # 100개 질문을 4개씩 병렬 처리 → 처리 속도 약 4배 향상
 ```
+
+- `concurrency=4`를 지정하면 `asyncio.gather()` 또는 `ThreadPoolExecutor`를 사용해 최대 4개의 항목을 동시에 처리한다
+- 비동기 함수(`async def`)에는 `asyncio.gather()`가, 동기 함수에는 `ThreadPoolExecutor`가 자동으로 선택된다
+- `concurrency`를 너무 높게 설정하면 LLM API rate limit에 걸릴 수 있다. 일반적으로 4~8이 안정적인 범위다
 
 ### return_format="dataframe" — 분석용 DataFrame
 
@@ -370,6 +407,10 @@ print(f"평균 실행시간(오류): {error_cases['execution_time'].mean():.2f}�
 slow_cases = df[df["execution_time"] > 5.0]
 ```
 
+- `return_format="dataframe"` 결과의 컬럼은 task_id, accuracy_score, completion_score, execution_time, tokens_total 등 모든 TaskResult 필드를 포함한다
+- pandas의 필터링과 집계 기능을 그대로 활용할 수 있어 품질 분포 파악, 이상치 탐색, CSV 저장이 편리하다
+- DataFrame 결과를 `GoldenSetBuilder`의 소스 데이터로 연결하면 낮은 정확도 케이스를 골든 데이터셋의 `failure_cases` 전략으로 자동 추출할 수 있다
+
 ### 기타 유용한 파라미터
 
 ```python
@@ -385,6 +426,10 @@ def batch_agent(questions: list, ground_truths: list = None) -> list:
     return [llm.invoke(q) for q in questions]
 ```
 
+- `item_timeout=30.0`은 항목 하나에 대한 최대 허용 시간이다. 초과한 항목은 `success=False`, `errors=["timeout"]`으로 기록된다
+- `on_item_error` 콜백은 항목 처리 중 예외 발생 시 호출된다. 시그니처는 `(exception, question) -> None`이다
+- `flush_every=50`은 50건 처리마다 `save_to_file()`을 자동 호출해 장시간 배치 실행 중 데이터 유실을 방지한다
+
 > 📋 **QA 관리자 TIP**: `return_format="dataframe"`과 `concurrency=N`을 함께 사용하면 병렬 실행 후 pandas DataFrame으로 품질 분포를 파악할 수 있다. CI 파이프라인에서 골든 데이터셋 100개를 배치로 돌리고 DataFrame 결과를 CSV로 저장하면 품질 트렌드를 추적하기 좋다. 입력 순서 섞기가 필요하면 호출 전에 `random.shuffle(questions)`으로 처리한다. `shuffle=`·`streaming_mode=` 파라미터는 존재하지 않는다.
 
 ---
@@ -396,7 +441,7 @@ def batch_agent(questions: list, ground_truths: list = None) -> list:
 ### 기본 사용법
 
 ```python
-# 출처: Evaluator_Examples/ch12_decorators.py, 섹션 5 — conversation_eval
+# 출처: Evaluator_Examples/ch12_decorators.py, 섹션 7 — @conversation_eval
 from agent_evaluator import PerformanceMonitor
 from agent_evaluator.decorators import conversation_eval, flush_conversation
 
@@ -419,6 +464,10 @@ chat_agent("서울 날씨 알려줘", sid="user_001")
 flush_conversation("user_001")
 ```
 
+- `session_id_arg="sid"`는 함수 파라미터 중 세션 ID로 사용할 인수 이름을 지정한다. 같은 sid 값으로 호출된 모든 턴이 하나의 세션으로 묶인다
+- `max_turns=10`에 도달하면 자동으로 `flush_conversation()`이 호출되어 `ConversationMetrics`가 계산된다
+- `flush_conversation(session_id)`를 명시적으로 호출하면 세션을 강제 종료하고 지표를 즉시 기록할 수 있다
+
 ### 8가지 대화 지표
 
 `flush_conversation()` 또는 `max_turns` 도달 시 자동 계산되는 지표:
@@ -437,7 +486,7 @@ flush_conversation("user_001")
 ### 고급 옵션과 챗봇 완전 예시
 
 ```python
-# 출처: Evaluator_Examples/ch12_decorators.py, 섹션 5 — conversation_eval 고급
+# 출처: Evaluator_Examples/ch12_decorators.py, 섹션 7 — @conversation_eval 고급
 from agent_evaluator import PerformanceMonitor
 from agent_evaluator.decorators import conversation_eval, flush_conversation
 
@@ -510,6 +559,10 @@ with eval_context(monitor, task_type="qa") as ctx:
         ctx.response = (ctx.response or "") + chunk
 ```
 
+- `eval_context`는 `with` 블록으로 평가를 감싸는 패턴으로, 데코레이터를 붙일 수 없는 외부 API 콜백이나 이벤트 핸들러에서 사용한다
+- `ctx.response`에 결과를 할당하면 블록 종료 시 자동으로 TaskResult가 생성되어 monitor에 기록된다
+- `ctx.chunk_step(chunk)`는 스트리밍 응답에서 첫 청크 수신 시각을 TTFT(Time-To-First-Token)로 자동 기록한다
+
 > 👨‍💻 **개발자 TIP**: LangChain의 `on_llm_end` 콜백, FastAPI 라우터 내부, 또는 서드파티 프레임워크의 이벤트 핸들러처럼 함수 시그니처를 마음대로 바꿀 수 없는 상황에서 `eval_context`가 유일한 선택지가 된다.
 
 ---
@@ -553,6 +606,10 @@ def rag_agent(question: str, context: str = "", ground_truth: str = "") -> str:
     return rag_chain.invoke({"question": question, "context": context})
 ```
 
+- `EvalDecorator`는 공통 설정을 한 번 정의하고 여러 에이전트 함수에 재사용할 수 있는 팩토리 패턴이다
+- `.qa`, `.rag`, `.tool_use` 등 단축 속성으로 task_type별 설정을 간결하게 적용할 수 있다
+- `framework=`, `alert_rules=`, `flush_every=` 등 공통 설정은 `EvalDecorator` 생성 시 한 번만 지정하면 모든 하위 데코레이터에 자동 전파된다
+
 `EvalDecorator`의 단축 속성 11종: `.qa`, `.rag`, `.tool_use`, `.code`, `.reasoning`, `.planning`, `.data_analysis`, `.creative`, `.multi_agent`, `.secure`, `.streaming`
 
 ### QuickEval — 원스톱 Facade
@@ -574,6 +631,10 @@ rag_eval = QuickEval.for_rag("results/")       # hallucination_detection=True �
 sec_eval = QuickEval.for_security("results/")  # enable_security_metrics=True 자동
 judge_eval = QuickEval.for_llm_judge("results/", model="claude-sonnet-4-6")
 ```
+
+- `QuickEval("results/")`은 내부적으로 `PerformanceMonitor`와 `EvalDecorator`를 생성한다. 별도로 monitor를 만들 필요가 없다
+- `.for_rag()`, `.for_security()`, `.for_llm_judge()` 팩토리 메서드는 목적에 맞는 설정이 사전 적용된 `QuickEval` 인스턴스를 반환한다
+- 단축 속성(`.qa`, `.rag` 등)으로 에이전트를 등록하면 내부적으로 `@agent_eval`이 적용된다
 
 ### QuickEval 전체 워크플로우
 
@@ -622,6 +683,10 @@ ab_result = eval_a.ab_test(eval_b)  # t-검정 p-value (scipy 설치 시)
 print(f"통계적 유의성: p={ab_result.get('p_value', 'N/A')}")
 ```
 
+- `eval.save()`는 `results/quickeval.json`과 `quickeval.html`을 함께 생성한다
+- `eval.gate(tcr=85, accuracy=70)`은 기준 미달 시 `sys.exit(1)`을 호출해 CI/CD 파이프라인을 중단시킨다
+- `eval.summary()`는 accuracy, p95_latency, total_cost_usd 등 핵심 지표를 dict로 반환한다
+
 ---
 
 ## 12.8 고급 기능
@@ -655,6 +720,10 @@ def agent(question: str, ground_truth: str = "") -> str: ...
 # Valid presets: ['production', 'development', 'testing', 'canary']
 ```
 
+- preset은 자주 사용하는 설정 조합에 이름을 붙인 것이다. `"production"` preset은 비용 절감과 안정성을 위한 설정이 미리 정의되어 있다
+- preset을 지정하면서 개별 파라미터를 추가로 지정할 수 있다. 개별 파라미터가 preset보다 우선 적용된다
+- 잘못된 preset 이름을 지정하면 `UserWarning`이 발생하고 기본 설정으로 동작한다
+
 ### sample_condition — 조건부 샘플링
 
 `sample_rate`와 독립적으로 동작하는 조건 기반 샘플링:
@@ -669,6 +738,10 @@ def agent(question: str, ground_truth: str = "") -> str: ...
 def agent(question: str, ground_truth: str = "") -> str:
     return llm.invoke(question)
 ```
+
+- `sample_condition` lambda의 시그니처는 `(args, kwargs) -> bool`이다. `True`를 반환하면 해당 호출을 기록하고, `False`이면 건너뛴다
+- `sample_rate`와 함께 사용하면 AND 조건으로 동작한다. 조건 충족 후 추가로 `sample_rate` 확률로 샘플링한다
+- 오류가 발생한 케이스만 기록하거나, 특정 사용자 그룹만 추적하는 등 세밀한 샘플링 전략을 구현할 수 있다
 
 ### on_record — TaskResult 후처리
 
@@ -686,6 +759,10 @@ def add_model_info(task_result):
 def agent(question: str, ground_truth: str = "") -> str:
     return llm.invoke(question)
 ```
+
+- `on_record` 콜백은 `TaskResult`를 받아 수정된 `TaskResult`를 반환하거나 `None`을 반환할 수 있다. `None` 반환 시 원본 TaskResult가 그대로 사용된다
+- `TaskResult`는 `frozen=True`이므로 `dataclasses.replace()`로 새 인스턴스를 생성해 필드를 변경해야 한다
+- 모델 버전, A/B 그룹, 실험 ID 등 외부 메타데이터를 `extra` 필드에 주입하는 용도로 주로 활용한다
 
 ### AlertRuleBuilder — 전체 팩토리 메서드
 
@@ -732,6 +809,10 @@ tool_rule = AlertRuleBuilder.when_tool_calls_exceed(
             alert_rules=[accuracy_rule, latency_rule, error_rule, tool_rule])
 def agent(question: str, ground_truth: str = "") -> str: ...
 ```
+
+- `AlertRuleBuilder`의 팩토리 메서드는 자주 쓰는 알림 패턴을 한 줄로 생성한다. 직접 `SimpleTaskAlertRule`을 작성하는 것보다 간결하다
+- `cooldown` 파라미터로 동일 규칙이 연속으로 발화되지 않도록 최소 간격(초)을 지정할 수 있다
+- `severity="critical"`이면 핸들러 호출 후 로그에도 CRITICAL 레벨로 기록된다
 
 ### SimpleTaskAlertRule 고급 설정
 

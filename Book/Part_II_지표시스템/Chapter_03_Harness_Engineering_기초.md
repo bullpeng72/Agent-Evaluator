@@ -349,6 +349,10 @@ def agent(question, ground_truth=""):
 # 며칠간 수집된 데이터를 보며 실제 지표 분포를 파악한다
 ```
 
+- **목적**: Config 선언 없이 기본 지표(TCR·정확도·품질·지연)를 수집만 한다
+- **`@eval.qa`**: `task_type="qa"` 단축 데코레이터로 QA 태스크를 자동 인식한다
+- **다음 단계**: 며칠간 데이터를 모은 뒤 실제 P95·TCR 분포를 보고 Day 7 Config 임계값을 결정한다
+
 **Day 7 — 첫 Config 도입 (SLA + 기본 기준)**
 
 ```python
@@ -365,6 +369,10 @@ from agent_evaluator import SLAConfig, InstructionConfig
 def agent(question, ground_truth=""):
     return llm.invoke(question)
 ```
+
+- **`SLAConfig(p95_ms=3000)`**: Day 1 측정 데이터에서 확인한 실제 P95 응답 시간을 기준으로 SLA를 선언한다
+- **`InstructionConfig`**: 한국어 응답 강제 + 300단어 상한으로 응답 품질 하한선을 코드로 선언한다
+- **이 시점에서는 `fail_on_violation`이 없으므로** 위반 시 기록만 하고 실패 처리는 하지 않는다
 
 **Day 30 — 배포 판정 자동화 (fail_on_violation + gate)**
 
@@ -383,6 +391,10 @@ def agent(question, ground_truth=""):
 # CI/CD에서 자동 배포 차단
 eval.gate(tcr=85, accuracy=70)
 ```
+
+- **`fail_on_violation=True`**: 언어 기준 위반 시 해당 태스크의 `TaskResult.success`를 자동으로 `False`로 강제한다
+- **`sla.fail_threshold=3`**: SLA 위반이 3건을 넘으면 Gate 점수를 낮춰 배포 차단에 반영한다
+- **`eval.gate(tcr=85, accuracy=70)`**: TCR 85% 미만 또는 정확도 70% 미만이면 `sys.exit(1)`로 CI/CD 파이프라인을 차단한다
 
 ### 3.4.4 Config 조합 — 프로덕션 QA 에이전트 예시
 
@@ -444,6 +456,12 @@ monitor = PerformanceMonitor(
 def qa_agent(question: str, ground_truth: str = "") -> str:
     return llm.invoke(question)
 ```
+
+- **멀티 Config 조합**: 하나의 `@agent_eval`에 Group A·C·D·E·G를 동시 선언해 5개 Gate를 한 번에 평가한다
+- **`enable_hallucination_detection=True`**: Group C의 `HallucinationDetector`를 활성화한다 (기본값 False, 성능 영향 있음)
+- **`enable_security_metrics=True`**: Group E 보안 트래커 5종을 활성화한다 (기본값 False)
+- **`forbidden_phrases`**: "모르겠습니다" 등 역량 부족 신호를 응답에서 탐지하면 `fail_on_violation=True`에 의해 즉시 fail 처리한다
+- **`warn_at_pct=0.8`**: 토큰 예산의 80%를 소진하면 경고(fail 없음)를 발생시킨다
 
 ---
 
@@ -539,6 +557,10 @@ def my_agent(question, ground_truth=""):
 eval.gate(tcr=85, accuracy=70)  # QA 관리자 결정 반영
 ```
 
+- **기준의 코드화**: QA 관리자가 구두나 문서로 결정한 기준을 `@agent_eval` 파라미터로 옮긴다
+- **버전 관리**: 이 코드가 Git에 커밋되므로 `git log`로 기준 변경 이력을 언제든 추적할 수 있다
+- **팀 가시성**: PR 리뷰 시 Config 파라미터 변경이 diff에 명시적으로 드러나 합의 절차를 자연스럽게 강제한다
+
 이제 기준이 소스 코드 안에 존재한다. 팀 누구나 `git log`로 기준의 변경 이력을 볼 수 있다.
 
 **Step 5 — CI/CD: 자동 Gate 판정 (반복 검증)**
@@ -602,6 +624,11 @@ print(result)
 gate.enforce()
 ```
 
+- **`HarnessEvaluationGate(report)`**: `monitor.generate_report()`가 반환한 `EvaluationReport`를 받아 Group A–G를 일괄 평가한다
+- **`result["passed"]`**: 하나라도 `required_groups` 기준을 미달하면 `False`가 된다
+- **`result["violations"]`**: 실패한 Group 목록과 점수를 반환해 어디서 차단됐는지 즉시 확인한다
+- **`gate.enforce()`**: `passed=False`이면 `sys.exit(1)`을 호출해 CI/CD 파이프라인을 자동 차단한다
+
 ### 3.6.2 CI/CD 파이프라인 통합
 
 ```yaml
@@ -644,6 +671,10 @@ gate = HarnessEvaluationGate(
 result = gate.evaluate()
 gate.enforce()   # 기준 미달 시 sys.exit(1)
 ```
+
+- **`required_groups=["A", "E"]`**: 목표달성과 보안경계만 필수 통과로 지정하고 나머지 Group(B·C·D·F·G)은 경고만 발생시킨다
+- **`min_group_score=0.7`**: 필수 Group의 점수가 0.7 미만이면 Gate 실패로 처리한다
+- **`fail_on_warn=False`**: `warn` 상태는 실패로 간주하지 않아 점진적 기준 도입 단계에서 유용하다
 
 
 ### 3.6.4 ch18_cicd_gate.py — CI/CD 전용 최소 검증 스크립트
@@ -721,6 +752,9 @@ python Evaluator_Examples/ch18_cicd_gate.py         # FAIL만 차단
 python Evaluator_Examples/ch18_cicd_gate.py --strict  # WARN도 차단
 ```
 
+- **기본 모드**: Gate 상태가 `FAIL`인 Group이 하나라도 있으면 `sys.exit(1)`로 파이프라인을 차단한다
+- **`--strict` 모드**: `WARN` 상태도 실패로 처리해 더 엄격한 품질 기준을 적용한다
+
 | 항목 | `ch03_harness_basics.py` | `ch18_cicd_gate.py` |
 |------|---------------------|---------------------------|
 | 목적 | 교육·시연 | CI/CD 자동화 |
@@ -754,6 +788,10 @@ reproducibility=ReproducibilityConfig(
 sla=SLAConfig(p95_ms=2000)          # P95 기반 SLA
 ```
 
+- **`ReproducibilityConfig(runs=5)`**: 동일 입력을 5회 실행해 결과 분산을 측정한다 (단일 `assert`로 확인 불가한 부분)
+- **`reproducibility_threshold=0.85`**: 5회 중 85% 이상 일관된 결과가 나와야 통과로 처리한다
+- **`SLAConfig(p95_ms=2000)`**: 단일 샘플이 아닌 전체 실행의 95번째 백분위수 응답 시간으로 SLA를 판정한다
+
 ### 특성 2 — AI-by-AI 평가 (AI-Evaluated AI)
 
 사람이 수백 개의 응답을 읽으며 품질을 채점하는 것은 확장되지 않는다. LLM Judge는 선택 사항이 아니라 Harness Engineering의 핵심 도구다.
@@ -780,6 +818,11 @@ from agent_evaluator.decorators import LLMJudgeConfig
 def agent(question, ground_truth=""):
     return llm.invoke(question)
 ```
+
+- **`LLMJudgeConfig(criteria=[...])`**: LLM이 `factual_accuracy`·`reasoning_quality` 기준으로 응답을 0–5 척도로 자동 채점한다 (ground_truth 불필요)
+- **`sample_rate=0.1`**: 전체 호출의 10%만 LLM Judge로 채점해 비용을 90% 절감한다
+- **`ExplainabilityConfig`**: 응답에 추론 근거 마커("왜냐하면", "근거:" 등)가 포함되어야 하며, 추론 텍스트가 최소 50자 이상이어야 한다
+- **두 Config의 결합**: LLM Judge가 채점한 `reasoning_quality` 점수와 `ExplainabilityConfig`의 마커 탐지가 Group G 관측성 점수에 함께 기여한다
 
 ### 특성 3 — 드리프트 인식 (Drift Awareness)
 
@@ -828,6 +871,10 @@ monitor = PerformanceMonitor(
 def agent(question, ground_truth=""):
     return tool_agent.run(question)
 ```
+
+- **`enable_anomaly_detection=True`**: `AnomalyDetector`를 활성화해 지연 급등·오류율 이상·토큰 소비 급증 등 통계적 이상치를 자동 탐지한다
+- **`ScopeConfig(allowed_tools=[...])`**: 허용 도구 목록 외의 도구를 사용하면 `fail_on_violation=True`에 의해 즉시 실패 처리한다
+- **`forbidden_tools`**: 절대 호출하면 안 되는 도구를 명시하면 설계자가 예측하지 못한 도구 호출도 차단한다
 
 ### 특성 5 — 지속 평가 (Continuous Evaluation)
 
@@ -963,6 +1010,11 @@ for gk in "ABCDEFG":
 monitor_v1.save_to_file("v1_harness"); monitor_v2.save_to_file("v2_harness")
 ```
 
+- **독립 monitor 2개**: v1·v2 에이전트를 각각 다른 `PerformanceMonitor`로 평가해 Group A–G 점수를 독립적으로 집계한다
+- **동일 Config 선언**: 두 에이전트에 동일한 `InstructionConfig`를 적용해 같은 기준으로 비교한다
+- **`harness_groups` 딕셔너리**: `report.to_dict()`의 `extra_metrics.harness_groups`에서 Group별 점수를 꺼내 delta를 계산한다
+- **`save_to_file()`**: JSON + HTML 두 파일을 자동 생성하며, 대시보드에서 v1·v2를 나란히 확인할 수 있다
+
 **Phoenix OTEL과 Harness Gate 연동 (출처: `Evaluator_Examples/ch19_phoenix.py`)**
 
 `setup_otel()`을 Harness 평가 전에 호출하면 Gate A–G의 모든 스팬이 Phoenix로 전송되어 대시보드에서 Group별 점수 추이를 시각적으로 확인할 수 있다.
@@ -988,6 +1040,11 @@ monitor = PerformanceMonitor(
 )
 # → Phoenix http://localhost:6006 의 Traces 탭에서 Gate별 점수를 스팬으로 확인 가능
 ```
+
+- **`setup_otel()` 호출 순서**: `PerformanceMonitor` 생성 전에 반드시 `setup_otel()`을 호출해야 스팬이 Phoenix로 전송된다
+- **`socket.create_connection` 체크**: CI 환경에서 Phoenix가 미실행 상태여도 예외를 잡아 OTEL 없이 정상 진행하도록 안전하게 처리한다
+- **`enable_transparency=True`**: Gate A–G의 집계 과정을 OTEL 스팬으로 내보내 Phoenix Traces 탭에서 시각적으로 확인할 수 있다
+- **주의점**: Phoenix를 먼저 `agent-eval monitor` 명령으로 실행한 후 이 코드를 실행해야 스팬이 수신된다
 
 ---
 

@@ -797,7 +797,7 @@ if parity_gap > 0.05:  # 5% 이상 차이
 현재 Agent-Evaluator에 전용 공정성 Config는 없지만, `ComplianceConfig`와 `LLMJudge`를 결합해 기본 공정성 감시가 가능하다:
 
 ```python
-# 출처: Evaluator_Examples/ch08_group_e.py, 섹션 Group E
+# 출처: Evaluator_Examples/ch08_group_e.py, 섹션 5 — Group E Security Boundary
 from agent_evaluator import ComplianceConfig
 
 ComplianceConfig(
@@ -841,7 +841,7 @@ Level 4: 의미 일관성 확인 (필드 간 논리적 일관성)
 ### G.12.3 Agent-Evaluator에서의 형식 검증
 
 ```python
-# 출처: Evaluator_Examples/ch04_group_a.py, 섹션 Group A — InstructionConfig 형식 검증
+# 출처: Evaluator_Examples/ch04_group_a.py, 섹션 1 — Group A Goal Achievement
 import json
 from agent_evaluator import InstructionConfig
 from agent_evaluator.decorators import agent_eval

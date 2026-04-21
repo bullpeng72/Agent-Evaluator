@@ -194,6 +194,8 @@ if __name__ == "__main__":
 pip install agent-evaluator
 ```
 
+- 기본 설치 한 줄로 LLMJudge, 대시보드, OTEL이 모두 포함되므로 추가 설치 없이 바로 평가를 시작할 수 있다
+
 ```python
 # evaluate.py — 5줄로 시작
 from agent_evaluator import QuickEval
@@ -224,6 +226,10 @@ jobs:
       - run: agent-eval gate results/quickeval.json --tcr 80
 ```
 
+- 10줄 워크플로우로 모든 푸시와 PR에서 품질 게이팅이 자동 실행된다
+- `python evaluate.py`에서 `eval.gate()`를 직접 호출하거나 별도 `agent-eval gate` 스텝으로 분리하는 두 방식 모두 동작한다
+- TCR 80% 임계값은 처음 시작하기에 적절한 수준이며, 팀이 익숙해지면 서서히 높여가면 된다
+
 완료 후 얻는 것: 기본 평가 자동화 + CI 게이팅
 
 ---
@@ -251,10 +257,16 @@ eval.save()
 # 높은 점수 케이스 자동 추출
 ```
 
+- 50개 케이스부터 시작해 `high_value`(정확도 높은 케이스)와 `failure_cases`(실패 케이스)를 함께 수집하면 균형 잡힌 골든 데이터셋이 만들어진다
+- `eval.save()` 결과 파일이 골든 데이터셋 빌드의 소스가 되므로 반드시 먼저 호출해야 한다
+
 ```bash
 # 골든 데이터셋 자동 빌드 (고가치 케이스 + 실패 케이스 추출)
 agent-eval dataset build --source results/ --strategy high_value failure_cases
 ```
+
+- `--strategy high_value failure_cases` 옵션으로 두 전략을 동시에 적용해 성공·실패 케이스를 균형 있게 추출한다
+- 추출된 케이스는 수동 검토 후 CI 데이터셋에 추가해 회귀 방지에 활용한다
 
 **Day 3: 알림 규칙 설정**
 
@@ -283,6 +295,10 @@ def agent(question: str, ground_truth: str = "") -> str:
     return call_llm(question)
 ```
 
+- `SimpleTaskAlertRule`의 `condition` 람다에서 `tr.accuracy_score`, `tr.execution_time`, `tr.success` 등 TaskResult 필드를 조건으로 활용할 수 있다
+- `cooldown=300`으로 5분 이내 중복 알림을 억제해 Slack 채널이 과부하되지 않게 한다
+- `handler`에 Slack 웹훅 요청을 넣으면 품질 저하 즉시 팀에 알림이 발송된다
+
 **Day 4~5: 대시보드 + 주간 리뷰**
 
 ```bash
@@ -292,6 +308,9 @@ agent-eval dashboard results/
 # 주간 리뷰 스크립트 cron 등록
 # 매주 월요일 09:00: python scripts/weekly_regression.py
 ```
+
+- `agent-eval dashboard results/`는 해당 디렉토리의 모든 JSON 결과 파일을 자동으로 로드해 Harness Gate 대시보드를 실행한다
+- cron으로 주간 회귀 스크립트를 자동화하면 매주 월요일 팀 리뷰 전에 최신 품질 리포트가 준비된다
 
 완료 후 얻는 것: 품질 저하 즉시 알림 + 대시보드 시각화 + 주간 회귀 방지
 
@@ -317,12 +336,17 @@ docker run -d \
 # setup_otel(endpoint="http://phoenix.internal:6006", service_name="prod-agent")
 ```
 
+- `-v /data/phoenix:/data`로 SQLite DB를 호스트 볼륨에 마운트하면 컨테이너를 재시작해도 트레이스 데이터가 보존된다
+- 내부 도메인(`phoenix.internal`)을 DNS에 등록하면 에이전트 코드에서 환경 변수 한 줄(`OTEL_ENDPOINT`)만 변경하면 된다
+
 **Week 2: GitHub Actions CI/CD 완전 통합**
 
 ```yaml
 # .github/workflows/agent-quality-gate.yml (Chapter 18 참조)
 # PR → 평가 → gate → PR 코멘트 자동 게시
 ```
+
+- Chapter 18의 완전한 워크플로우를 그대로 복사해 사용하면 PR 코멘트 자동 게시까지 설정이 완료된다
 
 **Week 3: 5-규칙 알림 + 이상 감지**
 
@@ -346,6 +370,10 @@ rules = [
     SimpleTaskAlertRule("security_threat", lambda tr: bool(tr.errors),             handler=security_alert, cooldown=30),
 ]
 ```
+
+- 5개 규칙을 우선순위별로 구분해 `task_failure`(장애)와 `security_threat`(보안)에는 PagerDuty·보안 전담 핸들러를 연결한다
+- `cooldown` 값을 심각도에 따라 다르게 설정하면 보안 위협은 30초마다 빠르게 알리고 토큰 비용은 2분마다 느슨하게 알릴 수 있다
+- 리스트 형태로 관리하면 규칙 추가·제거가 쉽고 `@agent_eval(alert_rules=rules)`에 그대로 전달할 수 있다
 
 **Week 4: 전담 QA 운영 루틴 확립**
 
@@ -394,6 +422,10 @@ Step 5. 회귀 케이스 골든 데이터셋 추가 (사후)
   agent-eval dataset build --source results/ --strategy failure_cases  # 실패 케이스 추출
   # 수동으로 검토 후 골든 데이터셋에 추가
 ```
+
+- 각 단계에 시간 목표가 명시되어 있어 30분 이내에 해결 또는 롤백 결정을 내릴 수 있는 구조다
+- Step 5의 `agent-eval dataset build --strategy failure_cases`는 사고 원인이 된 케이스를 골든 데이터셋에 추가해 동일 문제의 재발을 방지한다
+- Phoenix Tracing 필터(`ae.accuracy_score < 0.5`)를 미리 즐겨찾기에 저장해두면 사고 시 Step 2를 1분 안에 완료할 수 있다
 
 ```python
 # 긴급 진단 스크립트
@@ -531,6 +563,9 @@ def vision_agent(question: str, image_path: str, ground_truth: str = "") -> tupl
     )
 ```
 
+- `EvalMetadata(extra={...})`에 이미지 관련 메타데이터를 추가하면 Phoenix 스팬 속성에 포함되어 이미지 유형별 성능 분석이 가능하다
+- `task_type="qa"`를 유지하면서 `extra`에 멀티모달 정보를 넣는 방식으로 기존 평가 인프라를 그대로 활용할 수 있다
+
 ### DSPy로 프롬프트 자동 최적화 연계
 
 ```python
@@ -544,6 +579,9 @@ eval = QuickEval("results/")
 def dspy_agent(question: str, ground_truth: str = "") -> str:
     return dspy_program(question=question).answer
 ```
+
+- `framework="dspy"`를 지정하면 DSPy 응답 객체에서 메타데이터를 자동으로 추출해 스팬 속성에 포함한다
+- DSPy가 프롬프트를 최적화할 때마다 Agent-Evaluator로 Gate 점수를 비교하면 어느 최적화 버전이 더 나은지 데이터로 확인할 수 있다
 
 DSPy의 최적화 결과를 Agent-Evaluator로 평가하고, 골든 데이터셋에서 검증하는 사이클을 자동화할 수 있다.
 
@@ -685,6 +723,10 @@ if [ $? -ne 0 ]; then
     python scripts/recalibrate_thresholds.py --report drift_report.json
 fi
 ```
+
+- `--window 14`로 최근 2주 데이터를 분석해 단기 노이즈를 제거하고 실질적인 드리프트만 감지한다
+- `--fail-on-regression`이 `exit 1`을 반환하면 `$?` 체크로 즉시 재보정 스크립트를 트리거할 수 있다
+- `--output-json drift_report.json`에 slope 값과 드리프트 방향이 저장되어 재보정 스크립트가 원인 유형을 판단하는 데 활용된다
 
 ### 임계값 재보정 — Wilson Score Interval 적용
 
@@ -870,12 +912,12 @@ print(f"  정확도: {before_trends.get('accuracy_mean', 0):.1%} → {after_tren
 
 이 챕터의 종합 파이프라인은 `Evaluator_Examples/` 7개 파일 전체를 순서대로 실행하면 재현된다. 각 파일이 개발 → CI → 프로덕션 → 주간 리뷰 사이클의 한 단계를 담당한다.
 
-**파일**: `Evaluator_Examples/ch02_first_eval.py` ~ `ch19_phoenix.py` 전체
+**파일**: `Evaluator_Examples/ch01_first_eval.py` ~ `ch19_phoenix.py` 전체
 
-**핵심 코드 (출처: `Evaluator_Examples/01~07_*.py` 종합)**
+**핵심 코드 (출처: `Evaluator_Examples/ch19_phoenix.py` + `ch01_first_eval.py` — 전체 파이프라인 초기화)**
 
 ```python
-# 출처: Evaluator_Examples/ch19_phoenix.py + ch02_first_eval.py — 전체 파이프라인 초기화
+# 출처: Evaluator_Examples/ch19_phoenix.py + ch01_first_eval.py — 전체 파이프라인 초기화
 import socket, os
 from agent_evaluator import setup_otel, PerformanceMonitor, QuickEval
 
@@ -974,7 +1016,7 @@ print(f"게이트 결과: {'통과' if gate_result.returncode == 0 else '실패'
 
 ```bash
 # 전체 파이프라인 실행 (개발 단계 시뮬레이션)
-python Evaluator_Examples/ch02_first_eval.py   # Group A-D 기반 지표
+python Evaluator_Examples/ch01_first_eval.py   # Group A-D 기반 지표
 python Evaluator_Examples/ch05_group_b.py  # Group B-E 에이전틱·보안
 python Evaluator_Examples/ch13_frameworks.py   # 프레임워크 통합
 python Evaluator_Examples/ch12_decorators.py  # 데코레이터·QuickEval
@@ -1001,7 +1043,7 @@ agent-eval dashboard results/
 
 | 파일 | 파이프라인 단계 | 핵심 출력 |
 |------|---------------|-----------|
-| ch02_first_eval | 개발: Group A-D 검증 | TCR=43.1%, 54개 태스크, p95=5.20s |
+| ch01_first_eval | 개발: Group A-D 검증 | TCR=43.1%, 54개 태스크, p95=5.20s |
 | ch05_group_b + ch08_group_e | 개발: Group B-E·보안 검증 | 3개 보안 위협, 14개 태스크 |
 | ch13_frameworks | 통합 테스트: 프레임워크 비교 | 24개 태스크, 4개 프레임워크 TCR 비교 |
 | ch12_decorators | CI: 데코레이터·QuickEval | TCR=57.1%, gate() 실패/성공 |

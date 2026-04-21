@@ -433,6 +433,10 @@ quality-gate:
     - main
 ```
 
+- `evaluate` 스테이지에서 평가를 실행하고 결과를 아티팩트로 저장해 `gate` 스테이지가 참조할 수 있게 한다
+- `quality-gate` 스테이지는 `dependencies`로 이전 스테이지 아티팩트를 받아 `agent-eval gate`를 실행한다
+- `artifacts.reports.junit`으로 JUnit 형식 결과를 GitLab MR 페이지에 자동 표시할 수 있다
+
 ### Jenkins — `Jenkinsfile`
 
 ```groovy
@@ -513,6 +517,10 @@ pipeline {
       agent-eval gate results/ci_run.json --tcr 80 --accuracy 70 --p95-latency 3.0
     fi
 ```
+
+- `main` 브랜치는 더 엄격한 임계값(TCR 85%, 정확도 75%)을 적용해 프로덕션 배포 품질을 보장한다
+- `else` 분기(PR/개발 브랜치)는 완화된 임계값을 적용해 개발 중 빠른 피드백을 허용한다
+- GitHub 환경 변수 `github.ref`로 브랜치를 감지하므로 별도 설정 파일 없이 동작한다
 
 ```python
 # Python에서 환경별 eval.gate() 호출
@@ -661,6 +669,10 @@ eval = QuickEval("results/")
 eval.gate(tcr=profile["tcr"], accuracy=profile["accuracy"])
 ```
 
+- `CI_CHANGE_SOURCE` 환경변수를 CI 시스템에서 주입하면 변경 소스에 따라 임계값이 자동으로 달라진다
+- 모델 교체 시 TCR 90%·정확도 75%로 가장 엄격하게 검사해 모델 품질 저하를 즉시 차단한다
+- `unknown` 타입은 80%/65%로 안전한 기본값을 제공해 설정 누락 시에도 완전히 무방비 상태가 되지 않는다
+
 ```yaml
 # GitHub Actions — 변경 소스 자동 감지 + 게이팅 강화
 name: AI Quality Gate
@@ -705,6 +717,10 @@ jobs:
           TCR_THRESHOLD: ${{ needs.detect-change-source.outputs.source == 'model' && '90' || '85' }}
           ACC_THRESHOLD: ${{ needs.detect-change-source.outputs.source == 'model' && '75' || '70' }}
 ```
+
+- `detect-change-source` 잡이 `git diff`로 변경된 파일을 분석해 `prompts/`, `model_config`, `data/` 경로에 따라 소스를 자동 분류한다
+- `quality-gate` 잡은 앞 잡의 `outputs.source`를 참조해 조건부로 TCR·정확도 임계값을 설정한다
+- 두 잡을 분리하면 변경 소스 감지 로직을 독립적으로 테스트하고 재사용할 수 있다
 
 ---
 
@@ -814,6 +830,10 @@ else:
           path: results/ci_eval.html
 ```
 
+- `ci_quality_check.py`가 내부에서 `sys.exit(1)`을 호출하면 이 스텝이 실패 처리되어 배포 워크플로우 전체가 중단된다
+- `if: always()`를 적용한 아티팩트 업로드는 게이팅 실패 시에도 HTML 리포트를 저장해 원인 분석에 활용할 수 있다
+- Harness Gate 위반 항목은 `ci_eval.html`에 Group별로 표시되므로 실패 이유를 즉시 파악할 수 있다
+
 ### CLI gate vs HarnessEvaluationGate 비교
 
 | 항목 | `agent-eval gate` CLI | `HarnessEvaluationGate` |
@@ -838,7 +858,7 @@ else:
 **핵심 코드 (출처: `Evaluator_Examples/ch10_group_g.py`)**
 
 ```python
-# 출처: Evaluator_Examples/ch11_eval_data.py, 섹션 session — evaluation_session으로 CI 평가 실행
+# 출처: Evaluator_Examples/ch11_eval_data.py, 섹션 4 — evaluation_session — context manager + 자동 저장
 from agent_evaluator import evaluation_session, create_taskresult
 import sys
 
@@ -1061,6 +1081,10 @@ if result.get("E", {}).get("gate") == "FAIL":
     sys.exit(1)
 ```
 
+- `ComplianceConfig(pii_categories=["email", "phone"])`가 출력에서 이메일·전화번호 패턴을 탐지하면 `compliance_score`가 하락한다
+- `required_groups=["E"]`로 Gate E만 필수로 지정하면 다른 Gate 상태와 무관하게 보안 위반 시 즉시 차단할 수 있다
+- `sys.exit(1)` 직접 호출 대신 `gate.enforce()`를 사용하면 실패 이유 메시지와 함께 자동 종료된다
+
 **`ch20_deployment.py` — v1 vs v2 배포 결정 자동화**
 
 ```python
@@ -1101,3 +1125,7 @@ def decide_deployment(monitor_v1, monitor_v2, threshold=0.7):
 python Evaluator_Examples/ch04_group_a.py   # 17개 FAIL 시나리오 재현
 python Evaluator_Examples/ch20_deployment.py       # v1 vs v2 Gate 점수 비교
 ```
+
+- `ch04_group_a.py` 실행 결과로 각 Config에서 FAIL을 유발하는 임계값을 파악한 뒤 `ch18_cicd_gate.py` Config 파라미터를 조정한다
+- `ch20_deployment.py`는 두 버전의 독립 `PerformanceMonitor`에서 Gate 점수를 비교해 어느 버전을 배포할지 자동으로 판정한다
+- 두 파일을 CI 파이프라인 단계로 순서대로 실행하면 "FAIL 기준 보정 → 버전 비교 → 배포 결정"의 완전한 흐름이 구성된다

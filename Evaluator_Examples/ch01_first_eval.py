@@ -1,7 +1,7 @@
 """
-ch02_first_eval.py — Layer 1 기초 지표 (정확도·품질·할루시네이션·TCR)
+ch01_first_eval.py — Layer 1 기초 지표 (정확도·품질·할루시네이션·TCR)
 =======================================================================
-Book Chapter 02 — Agent-Evaluator 첫 시작
+Book Chapter 01 — AI에이전트 평가란 무엇인가
 
   AccuracyEvaluator       : QA / 코드 / RAG 정확도
   ResponseQualityEvaluator: 5차원 응답 품질
@@ -13,10 +13,10 @@ Book Chapter 02 — Agent-Evaluator 첫 시작
     선택: agent-eval monitor   (Phoenix OTEL 시각화)
 
 실행:
-    python Evaluator_Examples/ch02_first_eval.py
+    python Evaluator_Examples/ch01_first_eval.py
 
 결과:
-    results/ch02_first_eval.json  (+ .html)
+    results/ch01_first_eval.json  (+ .html)
     → agent-eval dashboard --results results/
     → deprecated 전체 예제: Evaluator_Examples/.deprecated/01_layer1_all_metrics.py
 """
@@ -35,7 +35,7 @@ try:
     with socket.socket() as s:
         s.settimeout(0.5)
         if s.connect_ex(("localhost", 6006)) == 0:
-            setup_otel(endpoint="http://localhost:6006", service_name="ch02-first-eval")
+            setup_otel(endpoint="http://localhost:6006", service_name="ch01-first-eval")
             print("  Phoenix 모니터링 활성화 — http://localhost:6006")
 except Exception:
     pass
@@ -200,6 +200,6 @@ print(f"  총 태스크 : {total_tasks}건")
 print(f"  평균 정확도: {acc:.2%}")
 print(f"  TCR       : {tcr:.1%}")
 
-monitor.save_to_file("ch02_first_eval")
-print("\n결과 저장 완료: results/ch02_first_eval.json")
+monitor.save_to_file("ch01_first_eval")
+print("\n결과 저장 완료: results/ch01_first_eval.json")
 print("확인: agent-eval dashboard --results results/")

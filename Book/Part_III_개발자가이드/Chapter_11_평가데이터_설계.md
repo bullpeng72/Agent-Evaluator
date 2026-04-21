@@ -12,6 +12,10 @@
 from agent_evaluator import TaskResult
 ```
 
+- `TaskResult`는 SDK 전체 평가 파이프라인의 기본 단위로, 모든 트래커가 이 구조를 통해 데이터를 주고받는다
+- `@dataclass(frozen=True)`로 선언되어 생성 후 변경이 불가능하므로 멀티스레드 환경에서도 안전하게 공유된다
+- `to_dict()` / `from_dict()` / `from_json()` 메서드로 JSON 직렬화·역직렬화를 지원한다
+
 `@dataclass(frozen=True)`로 선언되어 생성 후 수정이 불가능하다. 불변 설계의 이유는 두 가지다. 첫째, 여러 트래커가 동시에 같은 `TaskResult`를 읽어도 데이터 오염이 없다. 둘째, 직렬화/역직렬화 시 동일성이 보장된다.
 
 ### 24개 필드 목록
@@ -125,6 +129,10 @@ result1 = create_taskresult(task_type=TaskType.QA, ...)
 result2 = create_taskresult(task_type="qa", ...)       # 동일하게 동작
 ```
 
+- `TaskType`은 Python Enum이지만 문자열 `"qa"`, `"tool_use"` 등도 동일하게 허용하여 코드 간결성을 유지할 수 있다
+- `task_type` 선택이 어떤 Tracker를 자동 활성화할지 결정하므로, Harness Gate 점수에 직접 영향을 준다
+- 잘못된 문자열을 입력하면 `ValueError`가 발생하므로 아래 표를 참고해 정확한 값을 사용한다
+
 **각 TaskType별 자동 활성 지표:**
 
 | TaskType | 문자열 값 | 자동 활성 지표 | 특이 동작 |
@@ -187,6 +195,10 @@ tool_agent(
     expected_tools=["weather_api", "location_service"],
 )
 ```
+
+- `task_type="code_generation"`을 사용하면 AST 파싱 기반 정확도 계산이 자동 활성화된다. 파싱에 실패하면 길이 기반으로 fallback된다
+- `task_type="tool_use"`는 `tool_calls` 필드가 비어있으면 completion_score를 0.6으로 처리한다. `expected_tools_arg`를 지정해야 Tool Selection F1이 계산된다
+- 두 에이전트 함수가 하나의 `monitor`를 공유하면 동일 리포트에서 task_type별 지표를 비교할 수 있다
 
 ---
 
@@ -329,6 +341,10 @@ def selective_agent(question: str, ground_truth: str = "") -> str:
     return llm.invoke(question)
 ```
 
+- `sample_rate=1.0`은 모든 호출을 기록하며, `0.1`은 약 10%를 무작위로 선택해 기록한다. 환경 변수나 설정으로 런타임에 교체하는 것을 권장한다
+- `sample_condition`은 lambda 함수로 조건을 정의한다. `sample_rate`와 AND 조건으로 동작하므로 두 가지를 동시에 지정할 수 있다
+- `monitor`는 여러 에이전트 함수가 공유할 수 있다. 동일 `monitor`에 `dev_agent`와 `prod_agent` 결과가 섞이지 않도록 환경별로 별도 `output_dir`를 사용하는 것을 권장한다
+
 > 📋 **QA 관리자 TIP**: 프로덕션에서 `sample_rate=0.1`을 적용하더라도 하루 1만 건의 요청이면 1,000개의 평가 데이터가 쌓인다. 이 정도면 통계적으로 충분한 품질 지표를 계산할 수 있다. 반면 CI 파이프라인에서는 샘플링 없이 골든 데이터셋 전체를 돌린다.
 
 ---
@@ -381,6 +397,11 @@ if p_value is not None:
         print(f"통계적으로 유의미하지 않은 차이 (p={p_value:.4f})")
 ```
 
+- `QuickEval("results/model_a/")`처럼 서로 다른 `output_dir`를 지정하면 두 버전의 평가 결과가 독립적으로 저장된다
+- `eval_a.compare(eval_b)`는 accuracy, latency, tcr 등 핵심 지표의 delta를 dict로 반환한다
+- `eval_a.ab_test(eval_b)`는 scipy가 설치된 경우 Welch's t-검정으로 p-value를 계산한다. scipy가 없으면 해당 키가 None으로 반환된다
+- 동일한 골든 데이터셋을 두 에이전트에 똑같이 입력해야 통계적으로 의미 있는 비교가 된다
+
 ---
 
 ## 11.6 evaluation_session — 컨텍스트 매니저 패턴
@@ -425,6 +446,11 @@ async def run_async_eval():
 
 asyncio.run(run_async_eval())
 ```
+
+- `evaluation_session("eval_output")`은 세션 종료 시 `eval_output.json`과 `eval_output.html`을 자동 생성한다. 예외 발생 시에도 try/finally로 안전하게 저장된다
+- `async_evaluation_session`은 동기 버전과 동일한 API를 async context manager 방식으로 제공하므로, `async with` 블록 안에서 `await` 호출이 가능하다
+- `monitor.record_task(task)`는 `PerformanceMonitor`를 반환하므로 메서드 체이닝이 가능하다
+- 장시간 배치 실행 시 `auto_save=True, auto_save_interval=10`을 함께 지정해 중간 결과 유실을 방지할 것을 권장한다
 
 > 👨‍💻 **개발자 TIP**: `evaluation_session`은 내부적으로 try/finally 패턴을 사용하므로, 에이전트 실행 중 예외가 발생해도 그때까지 수집된 데이터가 안전하게 저장된다. 장시간 실행 배치에서는 `auto_save=True, auto_save_interval=10`을 함께 사용해 중간 결과를 보존하는 것을 권장한다.
 
@@ -698,16 +724,16 @@ Month 3+ — 전체 Group 커버리지 달성
 
 ## 실전 예제
 
-평가 데이터 설계와 골든 데이터셋 운영은 두 예제 파일에서 실제로 확인할 수 있다. `ch02_first_eval.py`는 `create_taskresult()` 헬퍼와 TaskType 활용법을, `ch10_group_g.py`는 `GoldenSetBuilder`를 통한 프로덕션 데이터 마이닝을 보여준다.
+평가 데이터 설계와 골든 데이터셋 운영은 두 예제 파일에서 실제로 확인할 수 있다. `ch01_first_eval.py`는 `create_taskresult()` 헬퍼와 TaskType 활용법을, `ch10_group_g.py`는 `GoldenSetBuilder`를 통한 프로덕션 데이터 마이닝을 보여준다.
 
-**파일**: `Evaluator_Examples/ch02_first_eval.py`, `Evaluator_Examples/ch10_group_g.py`
+**파일**: `Evaluator_Examples/ch01_first_eval.py`, `Evaluator_Examples/ch10_group_g.py`
 
 **핵심 코드**
 
-**`create_taskresult()` 헬퍼 vs 직접 생성 비교 (출처: `ch02_first_eval.py`, 섹션 1)**
+**`create_taskresult()` 헬퍼 vs 직접 생성 비교 (출처: `ch01_first_eval.py`, 섹션 1)**
 
 ```python
-# 출처: Evaluator_Examples/ch02_first_eval.py, 섹션 QA
+# 출처: Evaluator_Examples/ch01_first_eval.py, 섹션 1 — QA 정확도
 from agent_evaluator import create_taskresult, TaskResult
 from datetime import datetime
 
@@ -745,10 +771,10 @@ direct = TaskResult(
 - `TaskResult`는 `@dataclass(frozen=True)` — 생성 후 불변(immutable)이다. `to_dict()` / `from_dict()` / `from_json()`으로 직렬화·역직렬화를 지원한다
 - `context` 필드에 검색된 문서를 넣으면 HallucinationDetector가 자동으로 활성화된다 (`task_type="information_retrieval"`일 때)
 
-**GoldenSetBuilder — 자동 마이닝 (출처: `ch10_group_g.py`, 섹션 3)**
+**GoldenSetBuilder — 자동 마이닝 (출처: `ch11_eval_data.py`, 섹션 3)**
 
 ```python
-# 출처: Evaluator_Examples/ch11_eval_data.py, 섹션 골든셋
+# 출처: Evaluator_Examples/ch11_eval_data.py, 섹션 3 — GoldenSetBuilder — QA / RAG / Tool Selection 골든 데이터 구축
 from agent_evaluator.datasets.builder import GoldenSetBuilder
 from datetime import datetime
 
@@ -788,7 +814,7 @@ builder.merge_to_golden(high_value, version="v1", output_name="master_golden")
 - 실패 케이스(`failure_cases`)와 엣지 케이스(`edge_cases`)를 포함해야 회귀 테스트 커버리지가 높아진다
 
 ```bash
-python Evaluator_Examples/ch02_first_eval.py
+python Evaluator_Examples/ch01_first_eval.py
 python Evaluator_Examples/ch10_group_g.py
 ```
 
@@ -796,16 +822,16 @@ python Evaluator_Examples/ch10_group_g.py
 
 | 파일 | 섹션 | 내용 | 연관 기능 |
 |------|------|------|-----------|
-| ch02_first_eval | 섹션 1~2 | `create_taskresult()` 헬퍼 사용법 | `task_type`, `accuracy_score` 자동 계산 |
-| ch02_first_eval | 섹션 3 | `TaskType.CODE_GENERATION` 평가 | AST 비교 자동 활성화 |
-| ch02_first_eval | 섹션 5 | `information_retrieval` 태스크 | `HallucinationDetector` 자동 연동 |
+| ch01_first_eval | 섹션 1~2 | `create_taskresult()` 헬퍼 사용법 | `task_type`, `accuracy_score` 자동 계산 |
+| ch01_first_eval | 섹션 3 | `TaskType.CODE_GENERATION` 평가 | AST 비교 자동 활성화 |
+| ch01_first_eval | 섹션 5 | `information_retrieval` 태스크 | `HallucinationDetector` 자동 연동 |
 | ch11_eval_data | 섹션 5 | `GoldenSetBuilder` 마이닝 | `accuracy_score >= 0.9` 케이스 자동 추출 |
 | ch11_eval_data | 섹션 5 | `push_to_phoenix()` | `upload_to_phoenix()` 래퍼 — Phoenix Datasets 탭에 골든셋 업로드 |
 
 **실행 결과 (v0.8.4 기준)**
 
 ```
-# ch02_first_eval.py
+# ch01_first_eval.py
 총 54개 태스크 | TCR=43.1% | 평균 정확도=59.82%
   code_generation 태스크: AST 비교 적용, accuracy=0.756
   information_retrieval: HallucinationDetector 활성화

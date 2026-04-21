@@ -62,6 +62,103 @@ except Exception:
     pass
 
 # ===========================================================================
+# 섹션 1: create_taskresult() — TaskResult 기본 생성
+# ===========================================================================
+# create_taskresult() 헬퍼는 accuracy_score·completion_score를 자동 계산한다.
+# TaskResult 직접 생성보다 권장되는 방식이다.
+# ===========================================================================
+print("\n=== 섹션 1: create_taskresult() 기본 사용 ===")
+
+# 기본 QA TaskResult — 자동 점수 계산
+r_qa = create_taskresult(
+    task_id="qa_demo_001",
+    question="한국의 수도는?",
+    response="서울입니다.",
+    ground_truth="서울",
+    execution_time=0.85,
+    task_type="qa",
+    tokens_used={"input": 20, "output": 10, "total": 30},
+)
+print(f"  [QA]      accuracy={r_qa.accuracy_score:.3f}  completion={r_qa.completion_score:.3f}")
+
+# 코드 생성 — AST 비교로 정확도 계산
+r_code = create_taskresult(
+    task_id="code_demo_001",
+    question="리스트를 정렬하는 파이썬 코드",
+    response="sorted_list = sorted(my_list)",
+    ground_truth="sorted_list = sorted(my_list)",
+    execution_time=1.2,
+    task_type="code_generation",
+)
+print(f"  [Code]    accuracy={r_code.accuracy_score:.3f}  completion={r_code.completion_score:.3f}")
+
+# 도구 호출 — tool_calls 없으면 completion_score=0.6 (부분 완료)
+r_tool_no_calls = create_taskresult(
+    task_id="tool_demo_001",
+    question="날씨 검색해줘",
+    response="날씨를 알려드리기 어렵습니다.",
+    ground_truth="오늘 서울 날씨는 맑음입니다.",
+    execution_time=0.5,
+    task_type="tool_use",
+)
+r_tool_with_calls = create_taskresult(
+    task_id="tool_demo_002",
+    question="날씨 검색해줘",
+    response="오늘 서울 날씨는 맑음 15도입니다.",
+    ground_truth="오늘 서울 날씨는 맑음입니다.",
+    execution_time=1.8,
+    task_type="tool_use",
+    tool_calls=[{"tool_name": "weather_api", "success": True}],
+)
+print(f"  [Tool/no] completion={r_tool_no_calls.completion_score:.3f}  (도구 미사용 → 부분 완료)")
+print(f"  [Tool/ok] completion={r_tool_with_calls.completion_score:.3f}  (도구 사용 → 더 높은 완료)")
+
+# 직렬화 / 역직렬화
+d = r_qa.to_dict()
+from agent_evaluator import TaskResult
+r_restored = TaskResult.from_dict(d)
+print(f"  직렬화 → 복원: task_id={r_restored.task_id}  accuracy={r_restored.accuracy_score:.3f}")
+
+# ===========================================================================
+# 섹션 2: task_type별 데이터 설계 패턴
+# ===========================================================================
+# 태스크 유형마다 accuracy·completion_score 계산 방식이 다르다.
+# 평가 데이터를 설계할 때 task_type을 올바르게 지정해야 한다.
+# ===========================================================================
+print("\n=== 섹션 2: task_type별 데이터 설계 패턴 ===")
+
+monitor_types = PerformanceMonitor(output_dir=_OUTPUT_DIR)
+
+TYPE_CASES = [
+    # (task_type, question, response, ground_truth, tool_calls)
+    ("qa",                     "한국 수도?",    "서울",           "서울",         None),
+    ("information_retrieval",  "판다스란?",     "데이터 처리 라이브러리", "데이터분석", None),
+    ("reasoning",              "2+3×4는?",      "14입니다.",      "14",           None),
+    ("planning",               "여행 계획 짜줘","1일차: 서울 도착…","계획서",       None),
+    ("creative",               "시 한 편",      "봄이 왔네요…",   "봄 관련 시",   None),
+    ("data_analysis",          "매출 분석",     "3월 매출 급증",  "매출 분석",    None),
+    ("tool_use",               "파일 읽기",     "파일 내용: abc", "파일 내용",
+     [{"tool_name": "file_reader", "success": True}]),
+    ("code_generation",        "피보나치 함수", "def fib(n): return n if n<=1 else fib(n-1)+fib(n-2)",
+     "def fib(n):", None),
+]
+
+for task_type, q, resp, gt, tool_calls in TYPE_CASES:
+    kwargs = {
+        "task_id": f"type_{task_type[:6]}_{hash(q)%100:03d}",
+        "question": q, "response": resp, "ground_truth": gt,
+        "execution_time": 1.0, "task_type": task_type,
+    }
+    if tool_calls:
+        kwargs["tool_calls"] = tool_calls
+    r = create_taskresult(**kwargs)
+    monitor_types.record_task(r)
+    print(f"  [{task_type:<22}] acc={r.accuracy_score:.3f}  comp={r.completion_score:.3f}")
+
+print(f"\n  ▶ code_generation은 AST 비교로 구조가 같으면 높은 정확도")
+print(f"  ▶ tool_use는 tool_calls 포함 여부와 accuracy에 따라 completion_score가 결정됨")
+
+# ===========================================================================
 # 섹션 3: GoldenSetBuilder — QA / RAG / Tool Selection 골든 데이터 구축
 # ===========================================================================
 # 대시보드 '케이스 검토' 탭 연동:

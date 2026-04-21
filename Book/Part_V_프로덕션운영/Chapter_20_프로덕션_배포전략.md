@@ -244,6 +244,10 @@ docker-compose logs -f agent
 # Phoenix 접속:  http://localhost:6006
 ```
 
+- `docker-compose up -d`로 에이전트·Phoenix·대시보드 세 서비스를 동시에 기동한다
+- `depends_on`과 `healthcheck`로 Phoenix가 준비된 뒤에 에이전트가 시작되므로 OTEL 연결 타이밍 문제가 없다
+- `evaluation_results` 볼륨을 에이전트와 대시보드가 공유하므로 대시보드에서 실시간 평가 결과를 바로 확인할 수 있다
+
 ---
 
 ## 20.3 Kubernetes 운영 패턴
@@ -313,6 +317,9 @@ data:
     }
 ```
 
+- ConfigMap에 게이팅 임계값을 JSON으로 저장하면 코드 변경 없이 `kubectl apply`로 임계값을 조정할 수 있다
+- 환경별(dev/staging/prod) ConfigMap을 분리해 네임스페이스에 따라 다른 임계값을 자동으로 적용할 수 있다
+
 ```yaml
 # CI Job에서 ConfigMap에서 읽은 값으로 게이팅
 - name: gate
@@ -331,6 +338,9 @@ data:
     - mountPath: /results
       name: eval-results
 ```
+
+- ConfigMap을 마운트해 임계값을 동적으로 읽으므로 파드 재시작 없이 게이팅 기준을 변경할 수 있다
+- `python3 -c`로 JSON을 파싱해 셸 변수에 담아 `agent-eval gate`에 전달하는 패턴은 추가 도구 없이도 동작한다
 
 > ⚙️ **DevOps TIP**: 멀티 레플리카 환경에서 각 파드마다 `output_dir`에 고유 suffix를 붙여라. `output_dir=f"results/pod-{os.getenv('POD_NAME', 'local')}"` 패턴을 쓰면 파드별 결과 충돌을 방지할 수 있다.
 
@@ -364,6 +374,10 @@ def agent(question: str, ground_truth: str = "") -> str:
     return call_llm(question)
 ```
 
+- `auto_save=True`는 `auto_save_interval`마다 백그라운드에서 자동 저장해 프로세스 비정상 종료 시에도 마지막 체크포인트까지의 데이터를 보존한다
+- `flush_every=50`은 50회 호출마다 `save_to_file()`을 즉시 실행해 메모리 누적 없이 주기적으로 디스크에 기록한다
+- 두 설정을 함께 사용하면 짧은 주기(auto_save)와 호출 횟수 기반(flush_every) 이중 체크포인트가 구성된다
+
 ### evaluation_session — 예외 발생 시에도 안전한 저장
 
 ```python
@@ -378,6 +392,9 @@ with evaluation_session("evaluation") as monitor:
 # 세션 종료 시 results/evaluation.json + .html 자동 저장
 ```
 
+- `evaluation_session`은 `with` 블록이 정상 종료되든 예외로 종료되든 `finally`에서 반드시 `save_to_file()`을 호출한다
+- 세션 이름(`"evaluation"`)이 저장 파일명이 되므로 실행마다 의미 있는 이름을 지정해 이후 분석을 용이하게 한다
+
 ```python
 # 비동기 에이전트
 from agent_evaluator import async_evaluation_session
@@ -386,6 +403,9 @@ async with async_evaluation_session("async_eval") as monitor:
     result = await agent.run(task)
     monitor.record_task(result)
 ```
+
+- `async_evaluation_session`은 FastAPI 핸들러나 async 에이전트에서 `await` 없이 동기 컨텍스트 매니저처럼 사용할 수 있다
+- 내부적으로 `asyncio`와 스레드 세이프한 저장 메커니즘을 사용하므로 동시 요청 처리 중에도 안전하다
 
 ### 저장 주기 선택 가이드
 
@@ -452,6 +472,10 @@ from agent_evaluator.decorators import agent_eval
 def agent(question: str, ground_truth: str = "") -> str:
     return call_llm(question)
 ```
+
+- `sample_condition`에 람다를 전달하면 평가 실행 여부를 동적으로 제어할 수 있다
+- 짧은 질문은 스킵하고 긴 질문(복잡한 태스크)만 평가하면 실질적인 품질 정보 손실 없이 오버헤드를 줄일 수 있다
+- `args[0]`은 첫 번째 위치 인자(질문 텍스트)를 참조하며, `kwargs`를 통해 키워드 인자도 조건에 활용할 수 있다
 
 ### OTEL 오버헤드 최소화
 
@@ -548,6 +572,9 @@ for gate, info in gates.items():
     print(f'{gate}: {status} (score={score})')
 "
 ```
+
+- `harness_gates` 키에서 Gate A-G 각각의 `status`(PASS/WARN/FAIL)와 `score`를 즉시 조회할 수 있다
+- CI 로그에서 실패 Gate를 확인한 뒤 위 표의 해당 행을 참조하면 첫 번째 체크포인트를 빠르게 찾을 수 있다
 
 ### 문제 4 — LLM Judge 비용이 너무 많이 나옴
 
@@ -733,7 +760,7 @@ monitor = create_monitor()
 - `try/except ImportError`로 extras 미설치 환경에서도 코드가 정상 동작하게 한다
 
 ```python
-# 출처: Evaluator_Examples/ch11_eval_data.py, 섹션 session — 프로덕션 평가 세션 안전 저장
+# 출처: Evaluator_Examples/ch11_eval_data.py, 섹션 4 — evaluation_session — context manager + 자동 저장
 from agent_evaluator import evaluation_session, create_taskresult
 import logging
 
@@ -850,10 +877,17 @@ gate = HarnessEvaluationGate(report, min_group_score=0.7, fail_on_warn=False)
 gate.enforce()  # FAIL 시 sys.exit(1)
 ```
 
+- 단계 1(`ch04_group_a.py`)로 각 Config가 FAIL을 유발하는 임계값을 파악한 뒤 `instructions`, `scope`, `sla` 파라미터를 실제 에이전트 성능에 맞게 조정한다
+- `gate.enforce()`는 Gate FAIL 시 자동으로 `sys.exit(1)`을 호출하므로 수동 분기 코드 없이 배포 차단이 구성된다
+- `fail_on_warn=False`로 설정하면 WARN 상태 Gate는 차단 없이 경고만 로그에 남겨 단계적으로 품질 기준을 강화할 수 있다
+
 ```bash
 python Evaluator_Examples/ch04_group_a.py   # FAIL 임계값 보정
 python Evaluator_Examples/ch20_deployment.py       # 배포 버전 결정
 ```
+
+- `ch04_group_a.py`가 먼저 실행되어야 FAIL 기준값이 보정되므로 두 스크립트를 순서대로 실행하는 것이 중요하다
+- `ch20_deployment.py`의 최종 출력에서 v1/v2 Gate 점수 차이를 보고 배포 버전을 결정한다
 
 **`ch20_deployment.py` — v1 vs v2 Gate 비교로 배포 버전 결정**
 
@@ -942,3 +976,7 @@ print("Harness Gate PASS — 배포 진행")
 python Evaluator_Examples/ch18_cicd_gate.py           # 카나리 배포: WARN 허용
 python Evaluator_Examples/ch18_cicd_gate.py --strict  # 전체 배포: WARN도 차단
 ```
+
+- 카나리 배포 단계에서는 WARN 허용 모드로 실행해 소수 트래픽에서 품질 확인 후 전체 배포를 결정한다
+- 전체 배포 전에는 `--strict` 모드를 적용해 WARN 상태 Gate도 차단함으로써 잠재 문제를 사전에 제거한다
+- 같은 스크립트를 옵션 하나로 두 단계에 재사용할 수 있어 배포 파이프라인 관리가 단순해진다

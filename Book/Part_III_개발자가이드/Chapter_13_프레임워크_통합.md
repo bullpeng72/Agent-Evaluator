@@ -57,6 +57,10 @@ info = get_framework_info("langchain")
 # }
 ```
 
+- `get_framework_info(name)`는 해당 어댑터가 추출하는 항목, 설명, 토큰 정확도를 dict로 반환한다
+- `"extracts"` 키의 목록이 비어있거나 `"token_accuracy": "estimated"`이면 해당 프레임워크에서 토큰 수 측정이 부정확할 수 있다
+- 지원되지 않는 프레임워크 이름을 입력하면 빈 dict가 반환된다
+
 ---
 
 ## 13.2 LangChain / LangGraph
@@ -105,6 +109,10 @@ report = monitor.generate_report()
 monitor.save_to_file("langchain_eval")
 ```
 
+- `framework="langchain"` 지정 시 `agent_executor.invoke()` 반환값 전체(`dict`)를 함수가 반환해야 `intermediate_steps`에서 tool_calls가 추출된다
+- `usage_metadata`와 `response_metadata.token_usage` 두 경로를 모두 탐색하며, 다중 메시지가 있으면 누산해 `tokens_used`를 계산한다
+- `PerformanceMonitor.for_rag_evaluation()`은 hallucination_detection이 활성화된 monitor를 반환한다
+
 **자동 추출 항목**: `usage_metadata` + `response_metadata.token_usage` 다중 메시지 누산, `ToolMessage` / `AIMessage`에서 chain_steps 추출, 타임스탬프 기반 실행 시간.
 
 ### LangGraph — 상태 머신 통합
@@ -129,6 +137,10 @@ def lg_agent(question: str, ground_truth: str = "") -> str:
 
 lg_agent("보고서 초안 작성해줘", ground_truth="초안 완성")
 ```
+
+- `@langgraph_eval`은 LangGraph 전용 데코레이터로, 그래프의 노드 전환(`state_transitions`)을 자동으로 캡처한다
+- `result["messages"][-1]`처럼 마지막 `AIMessage` 객체를 반환하면 `usage_metadata`에서 토큰 수를 자동 추출한다
+- 노드별 실행 시간이 각각 `chain_steps`에 기록되어 WorkflowExecutionTracker로 전달된다
 
 **자동 추출 항목**: 노드별 실측 타이밍, 노드 전환(AgentCoordination), Workflow Execution, `AIMessage.usage_metadata` 토큰.
 
@@ -184,6 +196,10 @@ run_crew("AI 트렌드 2026", ground_truth="보고서 완성")
 monitor.save_to_file("crewai_eval")
 ```
 
+- `@crewai_eval`은 `crew.kickoff()` 반환값인 `CrewOutput` 객체에서 에이전트 간 교환 기록을 자동 추출한다
+- `result` 전체를 반환하면 어댑터가 에이전트 역할별 상호작용을 `agent_interactions` 형식으로 파싱한다
+- `PerformanceMonitor.for_secure_agents()`는 보안 지표(`enable_security_metrics=True`)가 활성화된 monitor를 반환한다
+
 **자동 추출 항목**: Agent Coordination (역할별 교환), Tool Selection F1. **주의**: CrewAI SDK가 토큰 수를 외부에 노출하지 않아 `tokens_used=0`으로 기록된다. 정확한 비용 측정이 필요하면 `EvalMetadata`를 통해 수동으로 주입한다:
 
 ```python
@@ -194,6 +210,10 @@ def run_crew(question: str, ground_truth: str = "") -> tuple:
     meta = EvalMetadata(tokens_used={"input": 800, "output": 400, "total": 1200})
     return result.raw, meta
 ```
+
+- 함수가 `(응답, EvalMetadata)` 튜플을 반환하면 데코레이터가 자동으로 `EvalMetadata`를 분리해 처리한다
+- `tokens_used` dict는 `{"input": N, "output": M, "total": T}` 형식이어야 한다
+- CrewAI 비용 측정이 필요한 경우 LLM API 응답에서 토큰 수를 직접 읽거나 tiktoken으로 추정해 주입한다
 
 ---
 
@@ -236,6 +256,10 @@ asyncio.run(run_autogen("멀티에이전트 협업 전략 제안", ground_truth=
 monitor.save_to_file("autogen_eval")
 ```
 
+- `@autogen_eval`로 래핑된 함수는 반드시 `async def`여야 한다. AutoGen 0.4+는 async-first API를 채택했기 때문이다
+- `result` 전체(`TeamRunResult` 객체)를 반환하면 에이전트 간 메시지 교환이 `agent_interactions`로 자동 추출된다
+- 토큰 수는 tiktoken으로 추정되므로 실제 API 비용과 약간의 오차가 있을 수 있다
+
 **자동 추출 항목**: 에이전트 메시지 교환(`agent_interactions`), `ToolCallEvent` 기반 도구 호출, tiktoken 기반 토큰 수 추정.
 
 > 👨‍💻 **개발자 TIP**: AutoGen 0.4+의 async API 때문에 `@autogen_eval`로 래핑된 함수는 반드시 `async def`여야 한다. 동기 컨텍스트에서 호출할 때는 `asyncio.run()`을 사용한다. CrewAI와 AutoGen은 pydantic 버전 충돌이 발생할 수 있어 별도 가상환경에 격리하는 것을 권장한다.
@@ -275,6 +299,10 @@ def dspy_agent(question: str, ground_truth: str = "") -> str:
 dspy_agent("태양계에서 가장 큰 행성은?", ground_truth="목성")
 ```
 
+- `@dspy_eval`은 DSPy `Prediction` 객체의 `_completions` 속성에서 chain_steps를 추출한다
+- `result` 전체(`dspy.Prediction`)를 반환해야 LM history와 중간 추론 단계가 자동 파싱된다
+- `task_type="reasoning"`은 Multi-step chain 분석을 활성화해 chain_steps 기반 WorkflowExecution 지표를 계산한다
+
 **자동 추출**: `_completions` / `completions` 속성 기반, LM history에서 multi-step chain_steps 구성, `tool_calls` / `actions` 추출.
 
 ### PydanticAI — 타입 안전 에이전트
@@ -312,6 +340,10 @@ import asyncio
 asyncio.run(pa_agent("파이썬의 GIL이란?", ground_truth="Global Interpreter Lock"))
 ```
 
+- `@pydanticai_eval`로 래핑된 함수는 `async def`여야 한다. PydanticAI의 `agent.run()`은 코루틴을 반환한다
+- `result` 전체(`AgentRunResult` 객체)를 반환해야 `all_messages()`를 통해 대화 이력과 도구 호출이 추출된다
+- `result_type=AnswerModel`처럼 Pydantic 모델을 지정하면 구조화된 응답이 자동으로 검증되므로 타입 안전성이 보장된다
+
 **자동 추출**: `all_messages()` 우선 / `.messages` fallback, `ToolCallPart` / `ToolReturnPart` / `TextPart` 세분화 추출.
 
 ---
@@ -348,6 +380,10 @@ def claude_agent(question: str, ground_truth: str = "") -> anthropic.types.Messa
 claude_agent("최신 AI 연구 동향은?", ground_truth="GPT-4, Claude 3.5 등")
 ```
 
+- `framework="anthropic"` 지정 시 함수가 `anthropic.types.Message` 객체 전체를 반환해야 토큰 수와 도구 호출이 자동 추출된다
+- `usage.input_tokens` / `usage.output_tokens`와 함께 캐시 토큰(`cache_creation_input_tokens`, `cache_read_input_tokens`)도 자동으로 수집된다 (SDK ≥0.29)
+- `content[].tool_use` 블록에서 도구 호출 기록을 추출해 ToolCallAnalyzer에 전달한다
+
 **자동 추출**: `content[].tool_use` (도구 호출), `usage.input_tokens` / `usage.output_tokens`, 캐시 토큰(`cache_creation_input_tokens` / `cache_read_input_tokens`, SDK ≥0.29).
 
 ### OpenAI
@@ -378,6 +414,10 @@ def openai_agent(question: str, ground_truth: str = "") -> object:
 openai_agent("123 * 456의 값은?", ground_truth="56088")
 ```
 
+- `framework="openai"` 지정 시 함수가 `ChatCompletion` 객체 전체를 반환해야 tool_calls와 usage가 자동 추출된다
+- `choices[0].message.tool_calls`에서 함수 호출 목록이, `usage` 필드에서 `prompt_tokens` / `completion_tokens`가 추출된다
+- OpenAI Responses API(`openai.responses.create()`) 응답도 동일한 어댑터로 처리된다
+
 **자동 추출**: `choices[0].message.tool_calls`, `usage.total_tokens` / `usage.prompt_tokens` / `usage.completion_tokens`.
 
 ### Gemini
@@ -398,6 +438,10 @@ def gemini_agent(question: str, ground_truth: str = "") -> object:
 
 gemini_agent("한국의 전통 음식 5가지를 알려줘", ground_truth="비빔밥, 김치...")
 ```
+
+- `framework="gemini"` 지정 시 `GenerateContentResponse` 전체를 반환해야 도구 호출과 토큰 수가 추출된다
+- `candidates[0].content.parts[].function_call`에서 도구 호출이, `usage_metadata`에서 `prompt_token_count` / `candidates_token_count`가 추출된다
+- `google.generativeai` SDK와 `google-cloud-aiplatform` (VertexAI) 모두 동일한 어댑터로 처리된다
 
 **자동 추출**: `candidates[0].content.parts[].function_call` (도구 호출), `usage_metadata` (토큰).
 

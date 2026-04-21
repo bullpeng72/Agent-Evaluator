@@ -1,7 +1,7 @@
 """
-ch01_quickstart.py — 5분 안에 시작하는 첫 에이전트 평가
+ch02_quickstart.py — 5분 안에 시작하는 첫 에이전트 평가
 ==========================================================
-Book Chapter 01 — AI에이전트 평가란 무엇인가
+Book Chapter 02 — Agent-Evaluator 첫 시작
 
 QuickEval 원스톱 Facade로 에이전트를 3줄로 평가한다.
 평가 결과가 어떻게 생성되고, 어디서 확인하는지 보여준다.
@@ -10,10 +10,10 @@ QuickEval 원스톱 Facade로 에이전트를 3줄로 평가한다.
     pip install agent-evaluator
 
 실행:
-    python Evaluator_Examples/ch01_quickstart.py
+    python Evaluator_Examples/ch02_quickstart.py
 
 결과:
-    results/ch01_quickstart.json  (+ .html)
+    results/ch02_quickstart.json  (+ .html)
     → agent-eval dashboard --results results/
 """
 
@@ -30,7 +30,7 @@ try:
     with socket.socket() as s:
         s.settimeout(0.5)
         if s.connect_ex(("localhost", 6006)) == 0:
-            setup_otel(endpoint="http://localhost:6006", service_name="ch01-quickstart")
+            setup_otel(endpoint="http://localhost:6006", service_name="ch02-quickstart")
             print("  Phoenix 모니터링 활성화 — http://localhost:6006")
 except Exception:
     pass
@@ -59,14 +59,14 @@ QA_CASES = [
     ("1+1은?",               "2"),
 ]
 
-print("\n=== Ch01 첫 에이전트 평가 ===")
+print("\n=== Ch02 첫 에이전트 평가 ===")
 for question, gt in QA_CASES:
     result = my_agent(question, ground_truth=gt)
     print(f"  Q: {question:<25s}  응답: {result}")
 
 # 결과 저장 + CI/CD 품질 게이팅
-eval.save("ch01_quickstart")
-print("\n결과 저장 완료: results/ch01_quickstart.json")
+eval.save("ch02_quickstart")
+print("\n결과 저장 완료: results/ch02_quickstart.json")
 print("확인: agent-eval dashboard --results results/")
 print("\n── CI/CD 품질 게이팅 (TCR ≥ 70%, accuracy ≥ 60%) ──")
 try:

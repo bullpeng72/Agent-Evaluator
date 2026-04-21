@@ -68,7 +68,7 @@ monitor = PerformanceMonitor(output_dir="results/")
 @agent_eval(
     monitor,
     task_type="tool_use",
-    subtask_tracking=SubtaskConfig(    # 출처: Evaluator_Examples/ch04_group_a.py, 섹션 Group A
+    subtask_tracking=SubtaskConfig(    # 출처: Evaluator_Examples/ch04_group_a.py, 섹션 1 — Group A Goal Achievement
         expected_subtasks=["order_cancel", "refund_register", "email_notify"],
         min_completion_rate=0.95,        # 하위 태스크 95% 이상 완료 요구
         check_ordering=False,            # 순서 검사 여부 (False = 순서 무관)
@@ -174,7 +174,7 @@ monitor = PerformanceMonitor(output_dir="results/")
 @conversation_eval(
     monitor,
     max_turns=30,
-    instructions=InstructionConfig(            # 출처: Evaluator_Examples/ch04_group_a.py, 섹션 Group A
+    instructions=InstructionConfig(            # 출처: Evaluator_Examples/ch04_group_a.py, 섹션 1 — Group A Goal Achievement
         required_keywords=[],
         forbidden_phrases=["[A-Za-z]{10,}"],   # 10자 이상 영어 단어 금지
         fail_on_violation=True,
@@ -246,7 +246,7 @@ monitor = PerformanceMonitor(output_dir="results/")
     monitor,
     task_type="data_analysis",
     alert_rules=[format_alert],
-    instructions=InstructionConfig(    # 출처: Evaluator_Examples/ch04_group_a.py, 섹션 Group A
+    instructions=InstructionConfig(    # 출처: Evaluator_Examples/ch04_group_a.py, 섹션 1 — Group A Goal Achievement
         required_keywords=["product_id", "price", "stock"],
         fail_on_violation=True,
     ),
@@ -291,7 +291,7 @@ def data_pipeline_agent(question: str, ground_truth: str = "") -> str:
 
 **Harness 탐지 코드**:
 ```python
-# 출처: Evaluator_Examples/ch05_group_b.py, 섹션 Group B
+# 출처: Evaluator_Examples/ch05_group_b.py, 섹션 2 — Group B Behavioral Integrity
 from agent_evaluator import (
     PerformanceMonitor, LoopDetectionConfig, ResourceBudgetConfig, EfficiencyConfig
 )
@@ -349,7 +349,7 @@ Week 4: export_all_employees 호출 6건 → 성공 (권한 설정 미비)
 
 **Harness 탐지 코드**:
 ```python
-# 출처: Evaluator_Examples/ch05_group_b.py, 섹션 Group B
+# 출처: Evaluator_Examples/ch05_group_b.py, 섹션 2 — Group B Behavioral Integrity
 from agent_evaluator import PerformanceMonitor, ScopeConfig
 from agent_evaluator.decorators import agent_eval
 
@@ -406,7 +406,7 @@ InputSanitizationTracker 미적용 환경에서 3건 성공적 인젝션 확인
 
 **Harness 탐지 코드**:
 ```python
-# 출처: Evaluator_Examples/ch08_group_e.py, 섹션 Group E
+# 출처: Evaluator_Examples/ch08_group_e.py, 섹션 5 — Group E Security Boundary
 from agent_evaluator import (
     PerformanceMonitor, ThreatSeverityConfig, ComplianceConfig, ThreatResponseConfig
 )
@@ -468,7 +468,7 @@ PrivilegeEscalationDetector 미적용으로 Step 4까지 차단 없이 진행
 
 **Harness 탐지 코드**:
 ```python
-# 출처: Evaluator_Examples/ch08_group_e.py, 섹션 보안 지표
+# 출처: Evaluator_Examples/ch08_group_e.py, 섹션 5 — Group E Security Boundary
 from agent_evaluator import PerformanceMonitor
 from agent_evaluator.decorators import agent_eval, SecurityConfig
 from agent_evaluator import infer_privilege_level
@@ -703,7 +703,7 @@ monitor = PerformanceMonitor(output_dir="results/")
 @agent_eval(
     monitor,
     task_type="tool_use",
-    retry=RetryConfig(                 # 출처: Evaluator_Examples/ch06_group_c.py, 섹션 Group C
+    retry=RetryConfig(                 # 출처: Evaluator_Examples/ch06_group_c.py, 섹션 3 — Group C Reliability
         max=3,
         delay=2.0,                     # 2초 초기 지연
         backoff=2.0,                   # 지수 백오프: 2s, 4s, 8s
@@ -1250,7 +1250,7 @@ monitor = PerformanceMonitor(output_dir="results/")
     monitor,
     task_type="qa",
     # 목표 달성 방어
-    instructions=InstructionConfig(    # 출처: Evaluator_Examples/ch04_group_a.py, 섹션 Group A
+    instructions=InstructionConfig(    # 출처: Evaluator_Examples/ch04_group_a.py, 섹션 1 — Group A Goal Achievement
         required_keywords=[],
         fail_on_violation=False,        # 관찰 모드 (위반 시 기록만, fail 없음)
         violation_weight=0.1,           # 위반당 completion_score 감점
@@ -1281,7 +1281,7 @@ monitor = PerformanceMonitor(output_dir="results/")
     # LLM 품질 모니터링 (10% 샘플)
     llm_judge=LLMJudgeConfig(sample_rate=0.10),
     # 재시도 정책
-    retry=RetryConfig(max=2, delay=1.0, backoff=2.0),  # 출처: Evaluator_Examples/ch06_group_c.py, 섹션 Group C
+    retry=RetryConfig(max=2, delay=1.0, backoff=2.0),  # 출처: Evaluator_Examples/ch06_group_c.py, 섹션 3 — Group C Reliability
 )
 def qa_chatbot(question: str, ground_truth: str = "") -> str:
     ...
@@ -1570,7 +1570,7 @@ monitor = PerformanceMonitor(output_dir="results/")
         quality_floor=0.60,
         check_error_acknowledgment=True,
     ),
-    retry=RetryConfig(                 # 출처: Evaluator_Examples/ch06_group_c.py, 섹션 Group C
+    retry=RetryConfig(                 # 출처: Evaluator_Examples/ch06_group_c.py, 섹션 3 — Group C Reliability
         max=2,
         delay=0.5,
         backoff=1.5,

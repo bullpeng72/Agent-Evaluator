@@ -50,6 +50,10 @@ accuracy_rule = AlertRuleBuilder.when_accuracy_below(
 )
 ```
 
+- `threshold=0.70`은 0~1.0 스케일의 `accuracy_score` 기준이다 — 대시보드에서 보이는 70%가 아니라 0.70으로 입력한다
+- `handler` 람다의 첫 번째 인수 `msg`는 규칙 이름과 현재 값을 포함한 자동 생성 메시지이고, `tr`은 해당 `TaskResult` 객체다
+- `cooldown=300`으로 5분 내 동일 규칙이 반복 발동하지 않게 해 알림 피로를 방지한다
+
 ### when_latency_above — 응답시간 상한 알림
 
 ```python
@@ -61,6 +65,10 @@ latency_rule = AlertRuleBuilder.when_latency_above(
 )
 ```
 
+- `threshold_seconds`는 초 단위로 `execution_time` 필드와 비교한다 — `SLAConfig(p95_ms=5000)`의 5000ms와 동일한 기준을 사용하는 것이 일관성 있다
+- 응답 지연 알림은 개별 태스크 수준에서 발동하므로 P95를 넘기기 전에 이상 징후를 조기에 감지할 수 있다
+- `cooldown=60`으로 1분마다 알림을 받으면 지연 문제가 지속되는지 빠르게 파악할 수 있다
+
 ### when_completion_below — 완료율 하한 알림
 
 ```python
@@ -71,6 +79,10 @@ completion_rule = AlertRuleBuilder.when_completion_below(
     cooldown=120,
 )
 ```
+
+- `completion_score`는 단순 성공/실패가 아니라 0.0~1.0 연속값으로 부분 완료를 표현한다 — `threshold=0.80`은 태스크가 80% 미만 완료된 경우에 발동한다
+- `severity="error"`로 설정하면 대시보드 알림 탭에서 Error 수준으로 분류되어 Warning과 구분된다
+- TCR과 `completion_score`는 연관이 있으므로 완료율 하락 알림이 자주 발동하면 Gate A TCR을 점검해야 한다
 
 ### when_error — 오류 발생 알림
 
@@ -87,7 +99,7 @@ error_rule = AlertRuleBuilder.when_error(
 ### when_tool_calls_exceed — 도구 호출 횟수 상한 알림
 
 ```python
-# 출처: Evaluator_Examples/ch12_decorators.py, 섹션 3 — AlertRuleBuilder
+# 출처: Evaluator_Examples/ch16_alerts.py, 섹션 4 — AlertRuleBuilder 팩토리
 tool_rule = AlertRuleBuilder.when_tool_calls_exceed(
     max_calls=10,                # tool_calls 횟수 > 10 이면 발동
     handler=lambda msg, tr: print(f"[WARNING] 과도한 도구 호출: {msg}"),
@@ -107,6 +119,10 @@ def my_agent(question: str, ground_truth: str = "") -> str:
     return llm.invoke(question)
 ```
 
+- `alert_rules`는 리스트로 여러 규칙을 동시에 등록할 수 있다 — 각 태스크가 완료될 때마다 등록된 모든 규칙이 순서대로 평가된다
+- 각 규칙의 `cooldown`은 독립적으로 동작하므로 accuracy와 latency 알림이 서로 간섭하지 않는다
+- 규칙 수가 늘어나면 `all_rules = [...]` 리스트로 분리해 관리하는 것이 코드 가독성을 높인다
+
 `QuickEval`에서도 동일한 방식으로 적용한다:
 
 ```python
@@ -118,6 +134,10 @@ eval = QuickEval("results/")
 def my_agent(question: str, ground_truth: str = "") -> str:
     return llm.invoke(question)
 ```
+
+- `QuickEval`의 `@eval(...)` 직접 호출 방식에서도 `alert_rules` 파라미터를 동일하게 지원한다
+- `@eval.qa`, `@eval.rag` 같은 단축 데코레이터에는 `alert_rules`를 전달할 수 없으므로, 알림이 필요하면 `@eval(task_type="qa", alert_rules=[...])` 형태를 사용한다
+- `QuickEval.for_security()`와 같은 팩토리 메서드로 생성한 인스턴스에서도 동일하게 동작한다
 
 ---
 
@@ -335,6 +355,10 @@ def create_email_handler(to_address: str):
     return handler
 ```
 
+- SMTP 자격증명은 `os.getenv()`로만 읽어야 하며, 코드에 하드코딩하면 보안 사고로 이어질 수 있다
+- `smtp_user`가 없을 때 콘솔 출력으로 fallback하는 패턴을 사용하면 개발 환경에서도 알림 흐름을 테스트할 수 있다
+- HTML 본문에 `task_result.task_id`, `accuracy_score`, `execution_time`을 포함하면 이메일만 보고도 어떤 태스크에서 발생한 문제인지 바로 파악할 수 있다
+
 ### 완전한 5-규칙 프로덕션 알림 설정 코드
 
 실제 운영 환경에서 바로 사용할 수 있는 완전한 알림 설정 예시다.
@@ -413,6 +437,10 @@ all_rules = [accuracy_warning, latency_warning, completion_error,
 def production_agent(question: str, ground_truth: str = "") -> str:
     return llm.invoke(question)
 ```
+
+- Warning·Error·Critical 3계층으로 규칙을 분리하고 채널도 `#monitoring`, `#alerts`, `#incidents`로 나누면 긴급도에 따라 빠르게 대응할 수 있다
+- 규칙 3처럼 `completion_error_handler`에서 Slack과 이메일을 동시에 호출하면 Error 수준 이상은 다중 채널로 알릴 수 있다
+- `auto_save_interval=50`으로 설정해 50건마다 파일을 자동 저장하면 대시보드가 알림 이력과 동기화된다
 
 ---
 
@@ -636,7 +664,7 @@ for window in ["1m", "5m"]:
 클릭, 저장, 재생성 같은 사용자 행동 신호를 수집해 품질 프록시로 활용한다:
 
 ```python
-# 출처: Evaluator_Examples/ch16_alerts.py, 섹션 2 — ImplicitFeedbackTracker
+# 출처: Evaluator_Examples/ch16_alerts.py, 섹션 2 — ImplicitFeedbackTracker — 사용자 암묵적 피드백
 # 지원 타입: thumbs_up, thumbs_down, save, share, regenerate, copy, correction, abandon
 FEEDBACK_EVENTS = [
     ("stream_0001", "thumbs_up",  {"dwell_time": 8.5}),
@@ -769,7 +797,7 @@ agent("질문", ground_truth="정답")
 - `handler` 함수에서 Slack WebHook, PagerDuty API 호출, 이메일 발송 등 외부 연동을 구현한다
 
 ```python
-# 출처: Evaluator_Examples/ch12_decorators.py, 섹션 3 — AlertRuleBuilder 팩토리
+# 출처: Evaluator_Examples/ch16_alerts.py, 섹션 4 — AlertRuleBuilder 팩토리
 from agent_evaluator import AlertRuleBuilder  # decorators.py에 정의, agent_evaluator에서 export
 from agent_evaluator.alerts.engine import AlertEngine
 import json
