@@ -179,7 +179,7 @@ def create_app(
     #   3. /slides, /sdk-docs, /api/* 라우트는 그대로 유지 (독립적)
     # ------------------------------------------------------------------ #
 
-    @app.get("/", response_class=HTMLResponse)
+    @app.get("/", response_class=HTMLResponse, include_in_schema=False)
     async def dashboard(request: Request):
         resp = templates.TemplateResponse(
             request,
@@ -195,7 +195,7 @@ def create_app(
         resp.headers["Pragma"] = "no-cache"
         return resp
 
-    @app.get("/slides", response_class=HTMLResponse)
+    @app.get("/slides", response_class=HTMLResponse, include_in_schema=False)
     async def slides(request: Request):
         return templates.TemplateResponse(
             request,
@@ -207,7 +207,7 @@ def create_app(
             },
         )
 
-    @app.get("/sdk-docs", response_class=HTMLResponse)
+    @app.get("/sdk-docs", response_class=HTMLResponse, include_in_schema=False)
     async def sdk_docs(request: Request):
         return templates.TemplateResponse(
             request,
@@ -219,7 +219,7 @@ def create_app(
             },
         )
 
-    @app.get("/dashboard", response_class=HTMLResponse)
+    @app.get("/dashboard", response_class=HTMLResponse, include_in_schema=False)
     async def dashboard2(request: Request):
         resp = templates.TemplateResponse(
             request,

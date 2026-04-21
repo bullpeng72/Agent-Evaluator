@@ -432,7 +432,7 @@ Harness Config로 전환하면:
 §14.2의 에이전트 유형별 KPI 기준표를 Config 코드로 변환합니다.
 
 ```python
-# 출처: Evaluator_Examples/08_harness_eval.py, 섹션 Group A·C·D·E — KPI를 Config로 선언
+# 출처: Evaluator_Examples/ch04_group_a.py, 섹션 Group A·C·D·E — KPI를 Config로 선언
 from agent_evaluator import (
     PerformanceMonitor,
     InstructionConfig, ReproducibilityConfig, SLAConfig,
@@ -522,7 +522,7 @@ def adaptive_threshold(
         return max(0.0, observed - margin)
 
 # 2주 캘리브레이션 완료 후 Config 자동 생성
-# 출처: Evaluator_Examples/08_harness_eval.py, 섹션 Group A — InstructionConfig
+# 출처: Evaluator_Examples/ch04_group_a.py, 섹션 Group A — InstructionConfig
 report = monitor.generate_report()
 total = int(report.total_tasks)
 successful = int(total * report.task_completion_rate / 100)
@@ -554,14 +554,14 @@ print(f"→ CI/CD: agent-eval gate result.json --tcr {threshold*100:.0f}")
 
 ## 실전 예제
 
-`06_operational.py`의 `AnomalyDetector`와 `CostTracker` 섹션은 임계값 기반 알림과 비용 제어가 실제 코드에서 어떻게 구성되는지 보여준다. 임계값 캘리브레이션과 에이전트 유형별 KPI 설정의 실제 패턴을 확인할 수 있다.
+`ch10_group_g.py`의 `AnomalyDetector`와 `CostTracker` 섹션은 임계값 기반 알림과 비용 제어가 실제 코드에서 어떻게 구성되는지 보여준다. 임계값 캘리브레이션과 에이전트 유형별 KPI 설정의 실제 패턴을 확인할 수 있다.
 
-**파일**: `Evaluator_Examples/06_operational.py`
+**파일**: `Evaluator_Examples/ch10_group_g.py`
 
-**핵심 코드 (출처: `Evaluator_Examples/06_operational.py`)**
+**핵심 코드 (출처: `Evaluator_Examples/ch10_group_g.py`)**
 
 ```python
-# 출처: Evaluator_Examples/06_operational.py, 섹션 1 — AnomalyDetector 기준선 학습
+# 출처: Evaluator_Examples/ch10_group_g.py, 섹션 이상탐지 — AnomalyDetector 기준선 학습
 from agent_evaluator import AnomalyDetector, create_taskresult
 import random
 
@@ -603,7 +603,7 @@ for event in events:
 - `explain_event()`는 어떤 지표가, 얼마나 벗어났는지를 사람이 읽기 쉬운 형태로 반환한다
 
 ```python
-# 출처: Evaluator_Examples/06_operational.py, 섹션 2 — CostTracker + AdaptivePolicy
+# 출처: Evaluator_Examples/ch10_group_g.py, 섹션 비용추적 — CostTracker + AdaptivePolicy
 from agent_evaluator import CostTracker, AdaptivePolicy, SamplingStage
 
 # SamplingStage는 Enum (DEFAULT / ANOMALY / BUDGET_EXCEEDED)
@@ -642,7 +642,7 @@ print(f"예산 초과 여부: {tracker.is_budget_exceeded()}")
 - `budget_per_day`를 초과하면 `policy.current_sample_rate`가 자동으로 0으로 내려간다
 
 ```bash
-python Evaluator_Examples/06_operational.py
+python Evaluator_Examples/ch10_group_g.py
 ```
 
 **예제 구성**
@@ -657,7 +657,7 @@ python Evaluator_Examples/06_operational.py
 **실행 결과 (v0.8.3 기준)**
 
 ```
-# 06_operational.py 실행 (28개 태스크)
+# ch10_group_g.py 실행 (28개 태스크)
 AnomalyDetector: latency_spike 2건 탐지 (Z-Score > 2.0)
 CostTracker: 총 비용 $0.0000 (mock 모드)
 AdaptivePolicy: 예산 임계값 $10.00/일 설정
@@ -666,4 +666,68 @@ AlertEngine: accuracy_below_threshold 0건, latency_above_5s 0건
 TCR=46.1% | 평균 정확도=0.681 | 평균 레이턴시=1.47s
 ```
 
-> **캘리브레이션 전략**: 신규 에이전트는 첫 2주간 `AnomalyDetector`를 `baseline_window=100`으로 설정하고 데이터를 수집한다. 이후 `generate_gate_config()`가 실제 분포 기반 임계값을 제안한다. 챕터 9에서 설명한 "느슨하게 시작, 데이터로 강화" 패턴이 06_operational.py 섹션 2~3에 그대로 구현되어 있다.
+> **캘리브레이션 전략**: 신규 에이전트는 첫 2주간 `AnomalyDetector`를 `baseline_window=100`으로 설정하고 데이터를 수집한다. 이후 `generate_gate_config()`가 실제 분포 기반 임계값을 제안한다. 챕터 9에서 설명한 "느슨하게 시작, 데이터로 강화" 패턴이 ch10_group_g.py 섹션 2~3에 그대로 구현되어 있다.
+
+---
+
+### `ch16_alerts.py` — 임계값 트리거 실시간 알림
+
+`StreamingEvaluator`의 슬라이딩 윈도우 통계가 임계값을 초과하면 `SimpleTaskAlertRule`이 즉시 발동하는 패턴이다:
+
+```python
+# 출처: Evaluator_Examples/ch16_alerts.py, 섹션 3 — 임계값 기반 실시간 알림
+from agent_evaluator import PerformanceMonitor, SimpleTaskAlertRule, create_taskresult
+from agent_evaluator.streaming.evaluator import StreamingEvaluator
+
+monitor = PerformanceMonitor(output_dir="results/")
+streaming = StreamingEvaluator(monitor=monitor)
+
+# 임계값 기반 알림 규칙 — accuracy < 0.5 또는 latency > 5초
+low_accuracy_rule = SimpleTaskAlertRule(
+    name="low_accuracy",
+    condition=lambda tr: tr.accuracy_score < 0.5,
+    handler=lambda msg, tr: print(f"[ACCURACY ALERT] {tr.task_id}: {tr.accuracy_score:.2f}"),
+    severity="warning",
+    cooldown=0,
+)
+slow_response_rule = SimpleTaskAlertRule(
+    name="slow_response",
+    condition=lambda tr: tr.execution_time > 5.0,
+    handler=lambda msg, tr: print(f"[LATENCY ALERT] {tr.task_id}: {tr.execution_time:.1f}s"),
+    severity="critical",
+    cooldown=0,
+)
+
+# 윈도우 집계가 임계값 초과 여부를 실시간으로 확인
+for i in range(20):
+    result = create_taskresult(
+        task_id=f"task_{i:03d}",
+        question=f"질문 {i}",
+        response="응답" if i % 3 != 0 else "",
+        ground_truth="응답",
+        execution_time=0.5 if i < 15 else 8.0,  # 15번 이후 지연 급증
+        task_type="qa",
+    )
+    monitor.record_task(result)
+    streaming.record(
+        task_id=result.task_id,
+        success=(i % 3 != 0),
+        execution_time=result.execution_time,
+        accuracy_score=result.accuracy_score or 0.0,
+    )
+    # 알림 규칙 수동 평가 (데코레이터 없이 사용 시)
+    low_accuracy_rule.evaluate(result)
+    slow_response_rule.evaluate(result)
+
+# 윈도우 통계로 임계값 위반 확인
+stats = streaming.get_stats("5m")
+print(f"5m window: tcr={stats.get('tcr',0):.1f}%  p95={stats.get('p95_latency',0):.2f}s")
+```
+
+- `SimpleTaskAlertRule.evaluate(result)`는 `@agent_eval` 없이도 수동으로 호출할 수 있다
+- `StreamingEvaluator.get_stats("5m")`의 `tcr`·`p95_latency`를 `SimpleTaskAlertRule` 조건에 직접 활용하면 슬라이딩 윈도우 기반 트렌드 알림을 만들 수 있다
+- 임계값 설정 원칙: p95 latency는 SLAConfig와 동일한 값을 사용하고, accuracy는 Gate A `alignment_threshold`보다 5–10% 높게 설정해 조기 경보로 활용한다
+
+```bash
+python Evaluator_Examples/ch16_alerts.py
+```

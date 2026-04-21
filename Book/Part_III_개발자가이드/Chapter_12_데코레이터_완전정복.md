@@ -91,7 +91,7 @@ def my_agent(question: str, ground_truth: str = "") -> str:
 |-----------|------------|------------------------|
 | `task_type="qa"` | AccuracyEvaluator F1 기반 계산 | Gate A 정확도 점수 |
 | `task_type="tool_use"` | ToolCallAnalyzer 활성화 | Gate B 행동무결성 점수 추가 |
-| `sla=SLAConfig(p95_ms=2000, fail_on_violation=True)` | LatencyTracker P95 감시, 초과 시 success=False | Gate D WARN/FAIL + TCR 하락 |
+| `sla=SLAConfig(p95_ms=2000, fail_threshold=3)` | LatencyTracker P95 감시, 위반 3회 누적 시 FAIL 처리 | Gate D WARN/FAIL + TCR 하락 |
 | `enable_security_metrics=True` | InputSanitizationTracker 등 5종 활성 | Gate E 보안경계 점수 추가 |
 | `enable_llm_judge=True` | LLMJudge 7차원 채점 | Gate G 운영관측성 점수 추가 |
 
@@ -123,7 +123,7 @@ def my_agent(question: str, ground_truth: str = "") -> str:
 ### 기본 사용법
 
 ```python
-# 출처: Evaluator_Examples/04_decorator_quickeval.py, 섹션 1 — @agent_eval 기본 사용법
+# 출처: Evaluator_Examples/ch12_decorators.py, 섹션 1 — @agent_eval 기본 사용법
 from agent_evaluator import PerformanceMonitor
 from agent_evaluator.decorators import agent_eval
 
@@ -184,6 +184,35 @@ def claude_agent(question: str, ground_truth: str = "") -> str:
 
 `framework=`를 생략하면 `auto_detect_framework=True`(기본값)가 응답 객체의 속성을 분석해 프레임워크를 자동 감지한다. `response.choices + response.usage` → openai, `response.content + response.model` → anthropic 등 12개 속성 기반으로 동작한다.
 
+4개 프레임워크(LangChain, LangGraph, CrewAI, AutoGen)를 mock 응답 객체로 한 파일에서 비교하는 완전한 예제는 `ch13_frameworks.py`를 참조한다:
+
+```python
+# 출처: Evaluator_Examples/ch13_frameworks.py, 섹션 1 — LangChain duck-typing 어댑터
+from types import SimpleNamespace
+from agent_evaluator.decorators import agent_eval
+
+def _make_langchain_response(answer, tools, tokens):
+    steps = [(SimpleNamespace(tool=t, tool_input="query"), f"{t} 결과") for t in tools]
+    return SimpleNamespace(
+        output=answer,
+        intermediate_steps=steps,           # ← tool_calls 자동 추출
+        usage_metadata={"input_tokens": tokens["input"], "output_tokens": tokens["output"]},
+    )
+
+@agent_eval(monitor, task_type="tool_use", framework="langchain", task_id_prefix="lc")
+def langchain_agent(question: str, ground_truth: str = ""):
+    return _make_langchain_response(
+        answer="LangChain 검색 결과입니다.",
+        tools=["web_search", "calculator", "wikipedia"],
+        tokens={"input": 350, "output": 120},
+    )
+```
+
+- 실제 LangChain SDK 없이 동일한 구조의 `SimpleNamespace` 객체를 사용해도 어댑터가 정상 동작한다 — duck typing 방식
+- `intermediate_steps`에서 `tool_calls`를 자동 추출, `usage_metadata`에서 `tokens_used`를 자동 추출
+- `ch13_frameworks.py` 섹션 5에서 LangGraph → LangChain → CrewAI 크로스 프레임워크 파이프라인을 하나의 `monitor`로 통합 평가하는 패턴을 확인할 수 있다
+
+
 ### rag_mode=True — RAG 전용 자동 설정
 
 ```python
@@ -231,7 +260,7 @@ def careful_agent(question: str, ground_truth: str = "") -> str:
 ### 모든 파라미터를 활용한 완전한 예시
 
 ```python
-# 출처: Evaluator_Examples/04_decorator_quickeval.py, 섹션 3 — agent_eval 완전 예시
+# 출처: Evaluator_Examples/ch12_decorators.py, 섹션 3 — agent_eval 완전 예시
 from agent_evaluator import PerformanceMonitor, SimpleTaskAlertRule, AlertRuleBuilder
 from agent_evaluator.decorators import agent_eval, LLMJudgeConfig, RetryConfig
 
@@ -301,7 +330,7 @@ responses = batch_agent(questions=questions, ground_truths=ground_truths)
 ### concurrency=N — 병렬 처리
 
 ```python
-# 출처: Evaluator_Examples/04_decorator_quickeval.py, 섹션 6 — concurrent 배치
+# 출처: Evaluator_Examples/ch12_decorators.py, 섹션 6 — concurrent 배치
 @batch_eval(
     monitor,
     task_type="qa",
@@ -344,7 +373,7 @@ slow_cases = df[df["execution_time"] > 5.0]
 ### 기타 유용한 파라미터
 
 ```python
-# 출처: Evaluator_Examples/04_decorator_quickeval.py, 섹션 6 — batch_eval 옵션
+# 출처: Evaluator_Examples/ch12_decorators.py, 섹션 6 — batch_eval 옵션
 @batch_eval(
     monitor,
     task_type="qa",
@@ -367,7 +396,7 @@ def batch_agent(questions: list, ground_truths: list = None) -> list:
 ### 기본 사용법
 
 ```python
-# 출처: Evaluator_Examples/04_decorator_quickeval.py, 섹션 5 — conversation_eval
+# 출처: Evaluator_Examples/ch12_decorators.py, 섹션 5 — conversation_eval
 from agent_evaluator import PerformanceMonitor
 from agent_evaluator.decorators import conversation_eval, flush_conversation
 
@@ -408,7 +437,7 @@ flush_conversation("user_001")
 ### 고급 옵션과 챗봇 완전 예시
 
 ```python
-# 출처: Evaluator_Examples/04_decorator_quickeval.py, 섹션 5 — conversation_eval 고급
+# 출처: Evaluator_Examples/ch12_decorators.py, 섹션 5 — conversation_eval 고급
 from agent_evaluator import PerformanceMonitor
 from agent_evaluator.decorators import conversation_eval, flush_conversation
 
@@ -1025,7 +1054,7 @@ def streaming_agent(question: str, ground_truth: str = ""):
 def batch_agent(questions: list, ground_truths: list = None) -> list:
     return [llm.ask(q) for q in questions]
 # → 전체 Group A-G 지표 + DataFrame 반환
-# 출처: Evaluator_Examples/04_decorator_quickeval.py, 섹션 6 — batch_eval 병렬
+# 출처: Evaluator_Examples/ch12_decorators.py, 섹션 6 — batch_eval 병렬
 ```
 
 #### 8. LLM Judge + G-Eval 커스텀
@@ -1055,14 +1084,14 @@ def medical_agent(question: str, ground_truth: str = "") -> str:
 
 이 챕터에서 다룬 `@agent_eval`, `@batch_eval`, `@conversation_eval`, `QuickEval`, `EvalMetadata`, `eval_context` 전체를 한 파일에서 실행할 수 있다.
 
-**파일**: `Evaluator_Examples/04_decorator_quickeval.py`
+**파일**: `Evaluator_Examples/ch12_decorators.py`
 
-**핵심 코드 (출처: `Evaluator_Examples/04_decorator_quickeval.py`)**
+**핵심 코드 (출처: `Evaluator_Examples/ch12_decorators.py`)**
 
 **섹션 2 — 커스텀 score_fn / completion_fn**
 
 ```python
-# 출처: Evaluator_Examples/04_decorator_quickeval.py, 섹션 2
+# 출처: Evaluator_Examples/ch12_decorators.py, 섹션 2
 from agent_evaluator.decorators import agent_eval
 
 def keyword_score(response: str, ground_truth: str) -> float:
@@ -1087,10 +1116,10 @@ scored_agent("한국의 수도에 대해 설명해줘", ground_truth="서울 대
 - `completion_fn(response, ground_truth) -> float`를 지정하면 기본 길이 기반 completion_score 대신 커스텀 완료 판정을 사용한다
 - **우선순위**: EvalMetadata > score_fn > 자동 계산
 
-**섹션 5 — max_retries + flush_every + alert_rules 조합**
+**섹션 5 — retry=RetryConfig(max=3) + flush_every + alert_rules 조합**
 
 ```python
-# 출처: Evaluator_Examples/04_decorator_quickeval.py, 섹션 5
+# 출처: Evaluator_Examples/ch12_decorators.py, 섹션 5
 from agent_evaluator import SimpleTaskAlertRule
 from agent_evaluator.decorators import agent_eval
 
@@ -1130,7 +1159,7 @@ print(f"결과: {result}  (시도횟수: {_retry_count['n']})")
 **섹션 6 — @batch_eval + return_format="dataframe"**
 
 ```python
-# 출처: Evaluator_Examples/04_decorator_quickeval.py, 섹션 6
+# 출처: Evaluator_Examples/ch12_decorators.py, 섹션 6
 from agent_evaluator.decorators import batch_eval
 
 BATCH_DATA = [
@@ -1163,7 +1192,7 @@ if hasattr(df, "shape"):
 - `shuffle`, `shuffle_seed` 파라미터는 `batch_eval`에 존재하지 않는다. 입력 순서를 섞으려면 호출 전에 Python 리스트를 직접 `random.shuffle()`로 처리한다
 
 ```bash
-python 04_decorator_quickeval.py
+python ch12_decorators.py
 
 agent-eval dashboard results/
 ```
@@ -1176,7 +1205,7 @@ agent-eval dashboard results/
 | 섹션 2 | 커스텀 `score_fn` / `completion_fn` |
 | 섹션 3 | `EvalMetadata` 튜플 반환 — score_fn 우선순위 실증 |
 | 섹션 4 | `get_eval_ctx()` 스레드 로컬 — 데코레이터 내부에서 메타데이터 주입 |
-| 섹션 5 | `max_retries` + `flush_every` + `alert_rules` 조합 |
+| 섹션 5 | `retry=RetryConfig(max=3)` + `flush_every` + `alert_rules` 조합 |
 | 섹션 6 | `@batch_eval` — `on_batch_complete` 콜백 · `DataFrame` 반환 · concurrent 배치 |
 | 섹션 7 | `@conversation_eval` — 자동/수동 flush 2패턴 |
 | 섹션 8 | `QuickEval` Facade — `gate()` · `summary()` · `save()` |
@@ -1213,8 +1242,8 @@ agent-eval dashboard results/
 각 Harness Config는 `@agent_eval` 데코레이터에 **이름 있는 개별 파라미터**로 전달합니다. Config 종류마다 파라미터명이 다릅니다 (예: `instructions=`, `sla=`, `threat_severity=`).
 
 ```python
-# 출처: Evaluator_Examples/08_harness_eval.py, 섹션 Group A·D — 데코레이터 Config 통합 예제
-# 출처: Evaluator_Examples/08_harness_eval.py, 섹션 1 — Harness Config 기본
+# 출처: Evaluator_Examples/ch04_group_a.py, 섹션 Group A·D — 데코레이터 Config 통합 예제
+# 출처: Evaluator_Examples/ch03_harness_basics.py, 섹션 1 — Harness Config 기본
 from agent_evaluator import (
     PerformanceMonitor,
     InstructionConfig, SLAConfig, ThreatSeverityConfig,
@@ -1287,7 +1316,7 @@ def medical_agent(question: str, ground_truth: str = "") -> str:
 측정(데코레이터) + 기준(Config) + 판정(Gate)을 하나의 워크플로우로 연결합니다.
 
 ```python
-# 출처: Evaluator_Examples/08_harness_eval.py, 섹션 종합 — PerformanceMonitor + @agent_eval 통합
+# 출처: Evaluator_Examples/ch03_harness_basics.py — PerformanceMonitor + @agent_eval 통합
 from agent_evaluator import (
     PerformanceMonitor, QuickEval,
     InstructionConfig, SLAConfig, ThreatSeverityConfig,
@@ -1320,10 +1349,14 @@ for q, gt in test_dataset:
     production_agent(q, ground_truth=gt)
 
 # Harness Gate — 배포 최종 판정
+from agent_evaluator import HarnessEvaluationGate
+
 report = monitor.generate_report()
-print(f"Group A TCR: {report.task_completion_rate:.1%}")
-print(f"Group D p95: {report.latency_p95:.2f}s")
-monitor.gate(tcr=90, p95_latency=3.0)  # 기준 미달 시 sys.exit(1)
+d = report.to_dict()
+print(f"Group A TCR: {d.get('accuracy_metrics', {}).get('tcr', {}).get('tcr', 0):.1%}")
+print(f"Group D p95: {d.get('efficiency_metrics', {}).get('latency', {}).get('p95', 0):.2f}s")
+gate = HarnessEvaluationGate(report)
+gate.enforce()  # 기준 미달 시 sys.exit(1)
 
 # ── 방법 B: QuickEval (빠른 시작) ──
 eval = QuickEval.for_security("results/")  # Group E 강화 설정

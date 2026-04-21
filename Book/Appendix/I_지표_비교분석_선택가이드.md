@@ -170,7 +170,7 @@ def normalize_korean(text: str) -> str:
 
 ```python
 # LLM Judge의 일관성 측정 방법
-# 출처: Evaluator_Examples/04_decorator_quickeval.py, LLMJudge 섹션
+# 출처: Evaluator_Examples/ch12_decorators.py, LLMJudge 섹션
 def measure_consistency(judge: LLMJudge, test_cases: list, n_repeats: int = 3) -> float:
     """
     같은 케이스에 대해 n회 채점 후 표준편차로 일관성 측정

@@ -2,7 +2,7 @@
 
 설치 · Docker · 환경별 설정 · 성능 최적화 · 트러블슈팅
 
-**v0.8.3 | Python 3.8+**
+**v0.8.4 | Python 3.8+**
 
 ---
 
@@ -65,6 +65,11 @@ AGENT_EVALUATOR_OUTPUT_DIR=results/
 # 환경 구분
 ENV=production
 LOG_LEVEL=INFO
+
+# LLM Judge 제공자 (v0.8.3+)
+# auto: API 키 보유 제공자 자동 선택 (기본값)
+# openai | anthropic: 특정 제공자 우선 사용
+AGENT_EVALUATOR_JUDGE_PROVIDER=auto
 
 # 선택: 알림 Webhook
 ALERT_WEBHOOK=https://hooks.slack.com/services/...

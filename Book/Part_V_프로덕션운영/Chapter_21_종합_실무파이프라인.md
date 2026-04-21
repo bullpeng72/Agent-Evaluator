@@ -870,12 +870,12 @@ print(f"  정확도: {before_trends.get('accuracy_mean', 0):.1%} → {after_tren
 
 이 챕터의 종합 파이프라인은 `Evaluator_Examples/` 7개 파일 전체를 순서대로 실행하면 재현된다. 각 파일이 개발 → CI → 프로덕션 → 주간 리뷰 사이클의 한 단계를 담당한다.
 
-**파일**: `Evaluator_Examples/01_layer1_all_metrics.py` ~ `07_phoenix_hybrid.py` 전체
+**파일**: `Evaluator_Examples/ch02_first_eval.py` ~ `ch19_phoenix.py` 전체
 
 **핵심 코드 (출처: `Evaluator_Examples/01~07_*.py` 종합)**
 
 ```python
-# 출처: Evaluator_Examples/07_phoenix_hybrid.py + 01_layer1_all_metrics.py — 전체 파이프라인 초기화
+# 출처: Evaluator_Examples/ch19_phoenix.py + ch02_first_eval.py — 전체 파이프라인 초기화
 import socket, os
 from agent_evaluator import setup_otel, PerformanceMonitor, QuickEval
 
@@ -903,7 +903,7 @@ monitor = PerformanceMonitor(
 - `judge_criteria`로 G-Eval 스타일 커스텀 평가 기준을 지정하면 LLMJudge가 해당 기준으로 채점한다
 
 ```python
-# 출처: Evaluator_Examples/04_decorator_quickeval.py + 05_streaming_alerts.py — 데코레이터 + 알림 통합
+# 출처: Evaluator_Examples/ch12_decorators.py + ch16_alerts.py — 데코레이터 + 알림 통합
 from agent_evaluator import SimpleTaskAlertRule, EvalMetadata
 from agent_evaluator.decorators import agent_eval
 from agent_evaluator.alerts.handlers import AlertRuleBuilder
@@ -942,7 +942,7 @@ def production_agent(question: str, context: str = "", ground_truth: str = "") -
 - `flush_every=50`은 50건마다 `save_to_file()`을 자동 호출해 데이터 손실 위험을 최소화한다
 
 ```python
-# 출처: Evaluator_Examples/06_operational.py — 골든셋 + 추세 분석 + CI 게이팅
+# 출처: Evaluator_Examples/ch10_group_g.py — 골든셋 + 추세 분석 + CI 게이팅
 from agent_evaluator.datasets.builder import GoldenSetBuilder
 import subprocess
 
@@ -974,21 +974,21 @@ print(f"게이트 결과: {'통과' if gate_result.returncode == 0 else '실패'
 
 ```bash
 # 전체 파이프라인 실행 (개발 단계 시뮬레이션)
-python Evaluator_Examples/01_layer1_all_metrics.py   # Group A-D 기반 지표
-python Evaluator_Examples/02_layer2_agentic_security.py  # Group B-E 에이전틱·보안
-python Evaluator_Examples/03_framework_adapters.py   # 프레임워크 통합
-python Evaluator_Examples/04_decorator_quickeval.py  # 데코레이터·QuickEval
+python Evaluator_Examples/ch02_first_eval.py   # Group A-D 기반 지표
+python Evaluator_Examples/ch05_group_b.py  # Group B-E 에이전틱·보안
+python Evaluator_Examples/ch13_frameworks.py   # 프레임워크 통합
+python Evaluator_Examples/ch12_decorators.py  # 데코레이터·QuickEval
 
 # CI/CD 게이팅
 agent-eval gate results/*.json --tcr 40 --accuracy 60
 
 # 운영 단계
-python Evaluator_Examples/05_streaming_alerts.py     # 실시간 알림
-python Evaluator_Examples/06_operational.py          # 운영 인프라
+python Evaluator_Examples/ch16_alerts.py     # 실시간 알림
+python Evaluator_Examples/ch10_group_g.py          # 운영 인프라
 
 # Phoenix OTEL (API 키 있을 때)
 agent-eval monitor &
-python Evaluator_Examples/07_phoenix_hybrid.py
+python Evaluator_Examples/ch19_phoenix.py
 
 # 주간 추이 분석
 agent-eval trend results/ --window 10 --output-json weekly.json
@@ -1026,4 +1026,108 @@ CI 게이트 (--tcr 40 --accuracy 60): ✅ 통과
 Phoenix: http://localhost:6006 — OTEL 스팬 시각화 (API 키 필요)
 ```
 
-> **팀 규모별 시작점**: 1인 개발자는 `04_decorator_quickeval.py`만 실행하고 `agent-eval gate`를 GitHub Actions에 등록하는 것으로 하루 안에 시작할 수 있다. 소규모 팀은 01~06을 순차로 도입하고, 대규모 팀은 07_phoenix_hybrid까지 포함한 전체 파이프라인을 운영한다.
+### `ch18_cicd_gate.py` — 종합 파이프라인 CI/CD 게이팅
+
+```python
+# 출처: Evaluator_Examples/ch18_cicd_gate.py — CI/CD 자동화 최소 검증
+# 전체 파이프라인의 마지막 단계: 7개 Gate 각 1개 Config로 신속 검증 (실행 ~3초)
+import subprocess, sys
+
+def run_harness_gate(strict: bool = False) -> bool:
+    """ch18_cicd_gate.py를 실행해 Gate 판정 결과를 반환한다."""
+    cmd = ["python", "Evaluator_Examples/ch18_cicd_gate.py"]
+    if strict:
+        cmd.append("--strict")   # WARN도 FAIL로 처리
+    result = subprocess.run(cmd, capture_output=True, text=True)
+    summary_line = [l for l in result.stdout.splitlines() if l.startswith("{")]
+    if summary_line:
+        import json
+        summary = json.loads(summary_line[-1])
+        print("Gate 요약:", summary)  # {"A": "PASS", "B": "PASS", ...}
+    return result.returncode == 0
+
+# 파이프라인 단계별 실행
+steps = [
+    ("단위 평가",   "python Evaluator_Examples/ch03_harness_basics.py"),
+    ("FAIL 검증",   "python Evaluator_Examples/ch04_group_a.py"),
+    ("버전 비교",   "python Evaluator_Examples/ch20_deployment.py"),
+]
+for name, cmd in steps:
+    print(f"[{name}] 실행 중...")
+    # subprocess.run(cmd.split(), check=True)  # 실제 파이프라인에서 활성화
+
+# 최종 Gate 검증 — FAIL 시 배포 차단
+if not run_harness_gate(strict=True):
+    print("❌ Harness Gate FAIL — 배포 파이프라인 중단")
+    sys.exit(1)
+print("✅ Harness Gate PASS — 배포 진행")
+```
+
+```bash
+python Evaluator_Examples/ch18_cicd_gate.py           # 빠른 Gate 검증 (~3초)
+python Evaluator_Examples/ch18_cicd_gate.py --strict  # WARN도 차단
+```
+
+### `ch20_deployment.py` — Gate 점수로 배포 버전 결정
+
+두 `PerformanceMonitor`를 독립 인스턴스로 운영해 v1·v2 에이전트의 7개 Gate 점수를 나란히 비교하고, 어느 버전을 배포할지 자동으로 판정한다.
+
+```python
+# 출처: Evaluator_Examples/ch20_deployment.py — 독립 monitor로 v1 vs v2 비교
+from agent_evaluator import PerformanceMonitor, TTFTVariabilityConfig, CostPredictabilityConfig
+
+# 두 버전의 독립 monitor — 서로 간섭하지 않음
+monitor_v1 = PerformanceMonitor(
+    output_dir="results/",
+    enable_security_metrics=True,
+    ttft_variability_config=TTFTVariabilityConfig(max_stddev_ms=300.0, max_p95_p50_ratio=2.5, min_samples=5),
+    cost_predictability_config=CostPredictabilityConfig(max_coefficient_of_variation=0.3, min_samples=5),
+)
+monitor_v2 = PerformanceMonitor(
+    output_dir="results/",
+    enable_security_metrics=True,
+    ttft_variability_config=TTFTVariabilityConfig(max_stddev_ms=300.0, max_p95_p50_ratio=2.5, min_samples=5),
+    cost_predictability_config=CostPredictabilityConfig(max_coefficient_of_variation=0.3, min_samples=5),
+)
+```
+
+```python
+# 출처: Evaluator_Examples/ch20_deployment.py — Gate별 점수 차이 출력
+r1 = monitor_v1.generate_report().to_dict()
+r2 = monitor_v2.generate_report().to_dict()
+h1 = (r1.get("extra_metrics") or {}).get("harness_groups", {})
+h2 = (r2.get("extra_metrics") or {}).get("harness_groups", {})
+
+_BADGE = {"PASS": "✅", "WARN": "⚠️ ", "FAIL": "❌"}
+for gk in "ABCDEFG":
+    g1 = ((h1.get(gk) or {}).get("gate") or "?").upper()
+    g2 = ((h2.get(gk) or {}).get("gate") or "?").upper()
+    s1 = (h1.get(gk) or {}).get("score") or 0.0
+    s2 = (h2.get(gk) or {}).get("score") or 0.0
+    delta = (s2 - s1) * 100
+    arrow = f"+{delta:.1f}%" if delta > 0.5 else (f"{delta:.1f}%" if delta < -0.5 else "  ─")
+    print(f"  Gate {gk}  v1={_BADGE[g1]}{s1:.0%}  v2={_BADGE[g2]}{s2:.0%}  {arrow}")
+# 예시 출력:
+#   Gate A  v1=❌ 32%  v2=✅ 91%  +59.0%
+#   Gate D  v1=❌ 41%  v2=✅ 88%  +47.0%
+#   Gate E  v1=❌ 25%  v2=✅ 95%  +70.0%
+```
+
+```python
+# 출처: Evaluator_Examples/ch20_deployment.py — 배포 결정 자동화
+v1_fail = [g for g in "ABCDEFG" if ((h1.get(g) or {}).get("gate") or "?").upper() == "FAIL"]
+v2_fail = [g for g in "ABCDEFG" if ((h2.get(g) or {}).get("gate") or "?").upper() == "FAIL"]
+
+if v1_fail:
+    print(f"  v1: ❌ 배포 차단 — Gate {v1_fail} FAIL")
+if not v2_fail:
+    print("  v2: ✅ 배포 승인 — 모든 필수 Gate 통과")
+
+monitor_v1.save_to_file("10_version_v1")
+monitor_v2.save_to_file("10_version_v2")
+# → results/10_version_v1.json / 10_version_v2.json — 대시보드에서 나란히 비교
+```
+
+> **패턴 핵심**: 독립 `PerformanceMonitor` 인스턴스를 버전마다 생성 → 동일 Config로 동일 태스크 실행 → Gate 점수 차이가 버전 개선 근거가 된다.
+
+> **팀 규모별 시작점**: 1인 개발자는 `ch12_decorators.py`만 실행하고 `agent-eval gate`를 GitHub Actions에 등록하는 것으로 하루 안에 시작할 수 있다. 소규모 팀은 01~06을 순차로 도입하고, 대규모 팀은 07_phoenix_hybrid까지 포함한 전체 파이프라인을 운영한다.

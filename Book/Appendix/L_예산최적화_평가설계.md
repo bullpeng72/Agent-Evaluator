@@ -167,12 +167,12 @@ def get_judge_score(question: str, response: str, judge: LLMJudge) -> dict:
 | Gate | 최소 Tracker | 최소 Config | 월 비용 추정 | 놓치는 실패 유형 |
 |---|---|---|---|---|
 | **A — Goal Achievement** | `TaskCompletionTracker`, `AccuracyEvaluator` | `InstructionConfig(required_keywords=[...])` | $0 | 미묘한 목표 이탈, 계획 비일관성 |
-| **B — Behavioral Integrity** | `ToolCallAnalyzer`, `RetryCorrectionTracker` | `LoopDetectionConfig(max_loop_count=5)` | $0 | 권한 없는 도구 사용, 상태 불일치 |
-| **C — Reliability** | `TaskCompletionTracker`, `RetryCorrectionTracker` | `FaultToleranceConfig(min_recovery_rate=0.8)` | $0 | 멱등성 위반, 재시도 간 응답 편차 |
-| **D — Performance Contract** | `LatencyTracker`, `TokenEconomyTracker` | `SLAConfig(max_response_time=5.0)` | $0 | TTFT 변동성, 비용 예측 불가능성 |
-| **E — Security Boundary** | `InputSanitizationTracker`, `OutputLeakageDetector` | `ComplianceConfig(forbidden_patterns=[...])` | $0 | 체인 공격, 권한 상승 시도 |
-| **F — Multi-Agent Coord** | `AgentCoordinationTracker` | `ConsensusConfig(min_consensus_rate=0.8)` | $0 | 정보 왜곡 전파, 역할 위반 |
-| **G — Observability** | `LatencyTracker` (구간별) | `ObservabilityConfig(trace_level="basic")` | $0 | 추론 설명 불충분, 오류 진단 누락 |
+| **B — Behavioral Integrity** | `ToolCallAnalyzer`, `RetryCorrectionTracker` | `LoopDetectionConfig(consecutive_repeat_threshold=5)` | $0 | 권한 없는 도구 사용, 상태 불일치 |
+| **C — Reliability** | `TaskCompletionTracker`, `RetryCorrectionTracker` | `FaultToleranceConfig(partial_success_threshold=0.8)` | $0 | 멱등성 위반, 재시도 간 응답 편차 |
+| **D — Performance Contract** | `LatencyTracker`, `TokenEconomyTracker` | `SLAConfig(p95_ms=5000)` | $0 | TTFT 변동성, 비용 예측 불가능성 |
+| **E — Security Boundary** | `InputSanitizationTracker`, `OutputLeakageDetector` | `ComplianceConfig(forbidden_data_patterns=[...])` | $0 | 체인 공격, 권한 상승 시도 |
+| **F — Multi-Agent Coord** | `AgentCoordinationTracker` | `ConsensusConfig(similarity_threshold=0.8)` | $0 | 정보 왜곡 전파, 역할 위반 |
+| **G — Observability** | `LatencyTracker` (구간별) | `ObservabilityConfig(min_coverage=0.8)` | $0 | 추론 설명 불충분, 오류 진단 누락 |
 
 > 모든 Gate의 최소 비용이 $0인 것은 Native Tracker가 외부 API 없이 동작하기 때문이다. LLMJudge를 추가하면 Gate G(Observability)와 Gate A(Goal Achievement)에서 가장 큰 품질 개선이 나타난다.
 
@@ -204,10 +204,10 @@ monitor = PerformanceMonitor(
 @agent_eval(
     monitor,
     task_type="qa",
-    instructions=InstructionConfig(required_keywords=[], strict=False),  # 출처: Evaluator_Examples/08_harness_eval.py, 섹션 Group A
-    sla=SLAConfig(max_response_time=10.0, p95_threshold=8.0),
-    loop_detection=LoopDetectionConfig(max_loop_count=5),
-    compliance=ComplianceConfig(forbidden_patterns=["password", "secret_key"]),
+    instructions=InstructionConfig(required_keywords=[]),  # 출처: Evaluator_Examples/ch04_group_a.py, 섹션 Group A
+    sla=SLAConfig(p95_ms=8000),
+    loop_detection=LoopDetectionConfig(consecutive_repeat_threshold=5),
+    compliance=ComplianceConfig(forbidden_data_patterns=["password", "secret_key"]),
 )
 def my_agent(question: str, ground_truth: str = "") -> str:
     # 에이전트 로직
@@ -222,7 +222,7 @@ monitor.save_to_file("weekly_starter")
 - 응답 정확도 급락 (Token F1 < 0.5)
 - SLA 위반 (지연 급증)
 - 입력 보안 위협 (40+ 패턴 탐지)
-- 무한 루프 (max_loop_count 초과)
+- 무한 루프 (consecutive_repeat_threshold 초과)
 
 **탐지하지 못하는 실패 (주의)**:
 - 환각(Hallucination) — `HallucinationDetector` 비활성화로 인해
@@ -273,12 +273,12 @@ monitor = PerformanceMonitor(
 @agent_eval(
     monitor,
     task_type="qa",
-    instructions=InstructionConfig(required_keywords=["출처"], strict=False),  # 출처: Evaluator_Examples/08_harness_eval.py, 섹션 Group A
-    sla=SLAConfig(max_response_time=5.0, p95_threshold=4.0),
-    fault_tolerance=FaultToleranceConfig(min_recovery_rate=0.85),
-    explainability=ExplainabilityConfig(min_reasoning_steps=1),
-    compliance=ComplianceConfig(forbidden_patterns=["주민등록번호", "카드번호"]),
-    loop_detection=LoopDetectionConfig(max_loop_count=3),
+    instructions=InstructionConfig(required_keywords=["출처"]),  # 출처: Evaluator_Examples/ch04_group_a.py, 섹션 Group A
+    sla=SLAConfig(p95_ms=4000),
+    fault_tolerance=FaultToleranceConfig(partial_success_threshold=0.85),
+    explainability=ExplainabilityConfig(min_reasoning_length=20),
+    compliance=ComplianceConfig(forbidden_data_patterns=["주민등록번호", "카드번호"]),
+    loop_detection=LoopDetectionConfig(consecutive_repeat_threshold=3),
     llm_judge=LLMJudgeConfig(
         model="claude-haiku-4-5-20251001",
         sample_rate=0.20,
@@ -340,35 +340,73 @@ monitor = PerformanceMonitor(
     monitor,
     task_type="information_retrieval",
     rag_mode=True,
-    # Group A  # 출처: Evaluator_Examples/08_harness_eval.py, 섹션 Group A
-    instructions=InstructionConfig(required_keywords=["근거", "출처"], strict=True),
-    goal_alignment=GoalAlignmentConfig(min_alignment_score=0.85, allow_partial=True),
-    plan_tracking=PlanConfig(min_plan_consistency=0.80),
+    # Group A  # 출처: Evaluator_Examples/ch04_group_a.py, 섹션 Group A
+    instructions=InstructionConfig(
+        required_keywords=["근거", "출처"],
+        fail_on_violation=True,          # 키워드 미포함 시 success=False
+    ),
+    goal_alignment=GoalAlignmentConfig(
+        alignment_threshold=0.85,        # 목표 정렬 경고 임계값
+        ignore_no_tool_tasks=False,
+    ),
+    plan_tracking=PlanConfig(
+        min_steps=2,
+        check_goal_coverage=True,
+    ),
     subtask_tracking=SubtaskConfig(min_completion_rate=0.90),
-    context_retention=ContextRetentionConfig(min_retention_rate=0.85),
+    context_retention=ContextRetentionConfig(
+        retention_threshold=0.85,        # 컨텍스트 유지율 임계값
+        check_original_goal=True,
+    ),
     # Group B
-    loop_detection=LoopDetectionConfig(max_loop_count=2, loop_threshold=0.90),
-    scope=ScopeConfig(allowed_actions=["search", "retrieve", "summarize"]),
+    loop_detection=LoopDetectionConfig(
+        consecutive_repeat_threshold=2,  # 2회 연속 동일 도구 호출 시 루프 감지
+        window_size=5,
+    ),
+    scope=ScopeConfig(
+        allowed_tools=["search", "retrieve", "summarize"],
+        fail_on_violation=True,
+    ),
     state_consistency=StateConsistencyConfig(unchanged_keys=["user_id", "session_id"]),
     deadlock=DeadlockConfig(max_delegation_depth=3),
     # Group C
-    fault_tolerance=FaultToleranceConfig(min_recovery_rate=0.95),
-    graceful_degradation=GracefulDegradationConfig(min_quality_floor=0.60),
-    idempotency=IdempotencyConfig(check_duplicate_results=True),
+    fault_tolerance=FaultToleranceConfig(
+        partial_success_threshold=0.5,
+        check_fallback_attempts=True,
+    ),
+    graceful_degradation=GracefulDegradationConfig(
+        quality_floor=0.60,              # 장애 시 허용 최소 품질 점수
+        check_error_acknowledgment=True,
+    ),
+    idempotency=IdempotencyConfig(warn_on_non_idempotent=True),
     # Group D
-    sla=SLAConfig(max_response_time=3.0, p95_threshold=2.5, p99_threshold=4.0),
-    efficiency=EfficiencyConfig(max_tokens_per_task=2000),
+    sla=SLAConfig(
+        p95_ms=3000,                     # P95 응답시간 3초 상한 (밀리초)
+        p99_ms=4000,                     # P99 응답시간 4초 상한 (밀리초)
+    ),
+    efficiency=EfficiencyConfig(
+        target_cost_per_completion=0.01, # 완료 태스크당 목표 비용 $0.01
+        penalize_failed_tokens=True,
+    ),
     resource_budget=ResourceBudgetConfig(max_cost_usd=0.05),
     # Group E
-    threat_severity=ThreatSeverityConfig(block_critical=True, block_high=True),
+    threat_severity=ThreatSeverityConfig(
+        fail_on_critical=True,           # Critical 위협 감지 시 즉시 fail
+        fail_score=4.0,                  # CVSS 4.0 이상 시 fail
+    ),
     compliance=ComplianceConfig(
-        forbidden_patterns=["주민등록번호", "카드번호", "비밀번호"],
-        required_disclosures=["AI가 생성한 답변입니다"],
+        forbidden_data_patterns=["\\d{6}-\\d{7}", "\\d{4}-\\d{4}-\\d{4}-\\d{4}"],  # 주민번호·카드번호 패턴
+        pii_categories=["ssn", "credit_card"],
+        compliance_framework="general",
     ),
     # Group G
-    explainability=ExplainabilityConfig(min_reasoning_steps=3),
-    observability=ObservabilityConfig(trace_level="full"),
-    error_diagnosis=ErrorDiagnosisConfig(require_root_cause=True),
+    explainability=ExplainabilityConfig(
+        min_reasoning_length=60,         # 최소 추론 텍스트 60자
+        require_reasoning=True,
+        reasoning_markers=["근거:", "출처:", "왜냐하면"],
+    ),
+    observability=ObservabilityConfig(min_coverage=0.99),
+    error_diagnosis=ErrorDiagnosisConfig(root_cause_weight=0.7),
     # LLM Judge
     llm_judge=LLMJudgeConfig(
         model="claude-sonnet-4-6",
@@ -430,9 +468,9 @@ monitor = PerformanceMonitor(
 @agent_eval(
     monitor,
     task_type="qa",
-    instructions=InstructionConfig(required_keywords=[], strict=False),  # 출처: Evaluator_Examples/08_harness_eval.py, 섹션 Group A
-    sla=SLAConfig(max_response_time=8.0),
-    fault_tolerance=FaultToleranceConfig(min_recovery_rate=0.80),
+    instructions=InstructionConfig(required_keywords=[]),  # 출처: Evaluator_Examples/ch04_group_a.py, 섹션 Group A
+    sla=SLAConfig(p95_ms=8000),
+    fault_tolerance=FaultToleranceConfig(partial_success_threshold=0.80),
 )
 def qa_chatbot(question: str, ground_truth: str = "") -> str:
     return response
@@ -451,9 +489,9 @@ monitor = PerformanceMonitor.for_rag_evaluation(output_dir="results/")
     monitor,
     task_type="information_retrieval",
     rag_mode=True,
-    instructions=InstructionConfig(required_keywords=["출처"], strict=False),  # 출처: Evaluator_Examples/08_harness_eval.py, 섹션 Group A
-    sla=SLAConfig(max_response_time=5.0),
-    fault_tolerance=FaultToleranceConfig(min_recovery_rate=0.85),
+    instructions=InstructionConfig(required_keywords=["출처"]),  # 출처: Evaluator_Examples/ch04_group_a.py, 섹션 Group A
+    sla=SLAConfig(p95_ms=5000),
+    fault_tolerance=FaultToleranceConfig(partial_success_threshold=0.85),
 )
 def rag_agent(question: str, context: str = "", ground_truth: str = "") -> str:
     return response
@@ -478,9 +516,9 @@ monitor = PerformanceMonitor(
 @agent_eval(
     monitor,
     task_type="tool_use",
-    scope=ScopeConfig(allowed_actions=["search", "calculate", "format"]),
-    efficiency=EfficiencyConfig(max_tokens_per_task=3000),
-    loop_detection=LoopDetectionConfig(max_loop_count=4),
+    scope=ScopeConfig(allowed_tools=["search", "calculate", "format"]),
+    efficiency=EfficiencyConfig(warn_ratio=1.5, fail_ratio=2.0),
+    loop_detection=LoopDetectionConfig(consecutive_repeat_threshold=4),
 )
 def tool_agent(question: str, ground_truth: str = "") -> str:
     return response
@@ -493,18 +531,21 @@ def tool_agent(question: str, ground_truth: str = "") -> str:
 커버: 인젝션 공격(40%), 민감 정보 유출(30%), 무단 도구 사용(15%) = **85% 커버**
 
 ```python
+from agent_evaluator import ThreatSeverityConfig, ComplianceConfig, ThreatResponseConfig
+from agent_evaluator.decorators import agent_eval
+
 monitor = PerformanceMonitor.for_secure_agents(output_dir="results/")
 
 @agent_eval(
     monitor,
     task_type="tool_use",
-    threat_severity=ThreatSeverityConfig(block_critical=True, block_high=True),
+    threat_severity=ThreatSeverityConfig(fail_on_critical=True, warn_score=4.0, fail_score=7.0),
     compliance=ComplianceConfig(
-        forbidden_patterns=["API_KEY", "password", "SECRET"],
-        required_disclosures=[],
+        forbidden_data_patterns=["API_KEY", "password", "SECRET"],
     ),
     threat_response=ThreatResponseConfig(
-        expected_actions_on_threat=["block", "log", "alert"],
+        isolation_markers=["[BLOCKED]", "[THREAT DETECTED]"],
+        abort_markers=["[ABORT]"],
     ),
 )
 def secure_agent(question: str, ground_truth: str = "") -> str:
@@ -523,9 +564,9 @@ from agent_evaluator import ConsensusConfig, PropagationConfig, ConflictResoluti
 @agent_eval(
     monitor,
     task_type="planning",
-    consensus=ConsensusConfig(min_consensus_rate=0.80, dispute_threshold=0.3),
-    propagation=PropagationConfig(max_distortion_rate=0.10),
-    conflict_resolution=ConflictResolutionConfig(max_resolution_time=30.0),
+    consensus=ConsensusConfig(similarity_threshold=0.80, consensus_method="majority"),
+    propagation=PropagationConfig(similarity_threshold=0.90, penalize_distortion=True),
+    conflict_resolution=ConflictResolutionConfig(require_explanation=True, expect_escalation_on_fail=True),
 )
 def orchestrator_agent(question: str, ground_truth: str = "") -> str:
     return response

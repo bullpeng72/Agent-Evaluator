@@ -2,7 +2,7 @@
 
 임계값 설정 · 품질 게이팅 · CI/CD 통합
 
-**v0.8.3 | Python 3.8+**
+**v0.8.4 | Python 3.8+**
 
 ---
 
@@ -15,7 +15,8 @@
 5. [CI/CD 통합](#5-cicd-통합)
 6. [임계값 파일 관리](#6-임계값-파일-관리)
 7. [추세 분석 (agent-eval trend)](#7-추세-분석-agent-eval-trend)
-8. [Best Practices](#8-best-practices)
+8. [도메인별 Harness Config 프리셋](#8-도메인별-harness-config-프리셋)
+9. [Best Practices](#9-best-practices)
 
 ---
 
@@ -373,7 +374,7 @@ agent-eval trend results/ --output-json trend.json
 
 ---
 
-## 8. Best Practices
+## 9. Best Practices
 
 **보수적으로 시작하라**
 처음부터 엄격한 임계값을 설정하면 false failure가 많아집니다. 초기에는 느슨하게 설정하고 (`tcr: 70`, `accuracy: 55`), 데이터가 쌓이면 점진적으로 강화합니다.
@@ -395,7 +396,125 @@ agent-eval trend results/ --output-json trend.json
 
 ---
 
-| 목적 | 문서 |
+## 8. 도메인별 Harness Config 프리셋
+
+도메인마다 위험 허용 수준이 다릅니다. 아래 프리셋을 참고해 도메인에 맞게 임계값을 조정하세요.
+
+### 의료 AI (엄격)
+
+생명·안전 직결 시스템 — 오탐보다 미탐이 더 위험합니다.
+
+```python
+from agent_evaluator import (
+    ThreatSeverityConfig, ComplianceConfig, SLAConfig,
+    ExplainabilityConfig, FaultToleranceConfig,
+)
+
+MEDICAL_HARNESS = dict(
+    # Gate E: 위협 임계값을 절반으로 낮춤 (낮은 위협도도 즉시 차단)
+    threat_severity=ThreatSeverityConfig(fail_score=4.0, fail_on_critical=True),
+    # Gate E: HIPAA 준수 + 데이터 최소화 필수
+    compliance=ComplianceConfig(
+        compliance_framework="hipaa",
+        pii_categories=["ssn", "medical_record", "diagnosis", "email", "phone"],
+        require_data_minimization=True,
+    ),
+    # Gate D: 응답 지연 엄격 (진단 보조 시스템은 빠른 응답 필수)
+    sla=SLAConfig(p95_ms=2000, p99_ms=4000),
+    # Gate G: 반드시 추론 과정 포함 (의사의 검토를 위해)
+    explainability=ExplainabilityConfig(
+        require_reasoning=True,
+        min_reasoning_length=100,
+        reasoning_markers=["왜냐하면", "따라서", "근거", "증거"],
+    ),
+    # Gate C: 오류 복구 필수 (시스템 중단 불가)
+    fault_tolerance=FaultToleranceConfig(
+        check_fallback_attempts=True,
+        partial_success_threshold=0.8,  # 80% 이상 완성도 필요
+    ),
+)
+```
+
+### 금융 AI (엄격)
+
+규제 준수 + 비용 예측 가능성이 핵심입니다.
+
+```python
+from agent_evaluator import (
+    ComplianceConfig, SLAConfig, ResourceBudgetConfig,
+    CostPredictabilityConfig, ThreatSeverityConfig,
+)
+
+FINANCE_HARNESS = dict(
+    # Gate E: SOX/PCI-DSS 준수
+    compliance=ComplianceConfig(
+        compliance_framework="sox",
+        pii_categories=["credit_card", "bank_account", "ssn", "tax_id"],
+        require_data_minimization=True,
+    ),
+    # Gate D: 매우 엄격한 SLA (금융 거래 지연 = 손실)
+    sla=SLAConfig(p95_ms=1000, p99_ms=2000),
+    # Gate D: 비용 예산 엄격 제한 (건당 처리 비용 통제)
+    resource_budget=ResourceBudgetConfig(max_tokens=800, max_cost_usd=0.005),
+    # Gate D: 비용 변동성 최소화 (예산 예측 가능성)
+    # monitor 생성자에 전달: PerformanceMonitor(cost_predictability_config=...)
+    # CostPredictabilityConfig(max_coefficient_of_variation=0.2, min_samples=10)
+    threat_severity=ThreatSeverityConfig(fail_score=5.0, fail_on_critical=True),
+)
+```
+
+### 일반 챗봇 (완화)
+
+사용자 경험 중심 — 빠른 이터레이션이 중요합니다.
+
+```python
+from agent_evaluator import (
+    SLAConfig, ComplianceConfig, ExplainabilityConfig,
+)
+
+CHATBOT_HARNESS = dict(
+    # Gate D: 여유로운 SLA (챗봇은 5초까지 허용)
+    sla=SLAConfig(p95_ms=5000, p99_ms=10000),
+    # Gate E: 기본 PII 보호만
+    compliance=ComplianceConfig(
+        pii_categories=["email", "phone"],
+        compliance_framework="general",
+    ),
+    # Gate G: 추론 과정 선택 (챗봇은 간결한 답변 선호)
+    explainability=ExplainabilityConfig(
+        require_reasoning=False,
+        min_reasoning_length=0,
+    ),
+)
+```
+
+### 프리셋 적용 패턴
+
+```python
+from agent_evaluator.decorators import agent_eval
+
+# 도메인 선택
+DOMAIN = "medical"  # "medical" | "finance" | "chatbot"
+PRESET = {"medical": MEDICAL_HARNESS, "finance": FINANCE_HARNESS, "chatbot": CHATBOT_HARNESS}[DOMAIN]
+
+@agent_eval(monitor, task_type="qa", **PRESET)
+def domain_agent(question: str, ground_truth: str = "") -> str:
+    return f"도메인 특화 응답: {question}"
+```
+
+### 도메인별 임계값 비교
+
+| 항목 | 의료 | 금융 | 일반 챗봇 |
+|------|------|------|-----------|
+| SLA P95 | 2,000ms | 1,000ms | 5,000ms |
+| ThreatSeverity fail_score | 4.0 | 5.0 | 7.0 (기본) |
+| 추론 과정 필수 | ✅ 필수 | 권장 | 선택 |
+| PII 카테고리 | 의료+개인정보 | 금융+개인정보 | 이메일·전화 |
+| 비용 예산/건 | — | $0.005 | $0.01 |
+
+---
+
+## 9. Best Practices
 |------|------|
 | 설치 · 기본 사용법 | [01_GETTING_STARTED.md](01_GETTING_STARTED.md) |
 | 58개 지표 상세 | [02_METRICS_GUIDE.md](02_METRICS_GUIDE.md) |

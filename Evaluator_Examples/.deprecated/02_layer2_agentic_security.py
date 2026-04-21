@@ -109,6 +109,12 @@ print(f"  결과: {result}  (시도 횟수: {_attempt_count['n']})")
 # ===========================================================================
 # 섹션 3: 도구 선택 정확도 F1 (ToolSelectionTracker)
 # ===========================================================================
+# ⚠️ 집계 방식 안내:
+#   Tool Selection F1은 태스크 단위 extras에 저장되지 않고 리포트 수준에서 집계된다.
+#   즉, 개별 TaskResult.extras에는 F1 값이 없으며,
+#   generate_report() → accuracy_metrics.tool_selection_f1 에서 전체 평균을 확인한다.
+#   (tool_calls + expected_tools가 있는 태스크만 집계 대상)
+# ===========================================================================
 print("\n=== 섹션 3: 도구 선택 F1 ===")
 
 TOOL_SELECTION_CASES = [
@@ -182,6 +188,12 @@ for name, success, steps in WORKFLOWS:
 
 # ===========================================================================
 # 섹션 6: 보안 지표 (Security Metrics)
+# ===========================================================================
+# ⚠️ 집계 방식 안내:
+#   InputSanitizationTracker / OutputLeakageDetector / ToolAuthorizationTracker는
+#   탐지 결과를 태스크 단위 extras에 저장하지 않고 리포트 수준에서 집계한다.
+#   (enable_security_metrics=True 시 record_task() 호출마다 내부 집계 업데이트)
+#   최종 결과: generate_report() → security_metrics.{sanitization, output_leakage, ...}
 # ===========================================================================
 print("\n=== 섹션 6: 보안 지표 ===")
 

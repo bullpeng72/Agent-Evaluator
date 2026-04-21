@@ -17,8 +17,8 @@
 > - **[Appendix A — 58개 지표 완전 레퍼런스](../Appendix/A_58개지표_레퍼런스.md)**: Group A 지표 입력·출력·기본값
 > - **[Appendix H — 수학적 상세](../Appendix/H_알고리즘_수학적_레퍼런스.md)**: 4중 가중 정확도 공식, TCR 의사코드
 > - **[Appendix A §Part 2 — Config 레퍼런스](../Appendix/A_58개지표_레퍼런스.md)**: Group A Config 파라미터 전체 목록
-> - **[Evaluator_Examples/01_layer1_all_metrics.py](../../Evaluator_Examples/01_layer1_all_metrics.py)**: Group A Tracker 실전 예제
-> - **[Evaluator_Examples/08_harness_eval.py](../../Evaluator_Examples/08_harness_eval.py)**: Group A Config 실전 예제
+> - **[Evaluator_Examples/ch02_first_eval.py](../../Evaluator_Examples/ch02_first_eval.py)**: Group A Tracker 실전 예제
+> - **[Evaluator_Examples/ch03_harness_basics.py](../../Evaluator_Examples/ch03_harness_basics.py)**: Group A Config 실전 예제
 
 > **독자별 읽기 가이드**  
 > - **QA 관리자**: §4.1(개요) → §4.4(Config 설정) → §4.5(임계값·Gate 판정) 순서로 읽으면 "어떤 기준을 세울지"를 빠르게 파악할 수 있습니다.  
@@ -121,7 +121,7 @@ r2 = create_taskresult(
 monitor.record_task(r1)
 monitor.record_task(r2)
 
-# 출처: Evaluator_Examples/01_layer1_all_metrics.py, 섹션 6 — TCR 집계 확인
+# 출처: Evaluator_Examples/ch07_group_d.py, 섹션 토큰경제 — TCR 집계 확인
 report = monitor.generate_report()
 d = report.to_dict()
 tcr_data = d.get("accuracy_metrics", {}).get("tcr", {})
@@ -155,7 +155,7 @@ Accuracy는 응답이 ground_truth와 얼마나 가까운지 측정한다. BLEU�
 | Char Similarity | 10% | Levenshtein 거리 기반 | 문자 순서·오타 반영 |
 
 ```python
-# 출처: Evaluator_Examples/01_layer1_all_metrics.py, 섹션 1 — 4중 가중 정확도 계산 예시
+# 출처: Evaluator_Examples/ch02_first_eval.py, 섹션 QA — 4중 가중 정확도 계산 예시
 from agent_evaluator import create_taskresult
 
 result = create_taskresult(
@@ -674,13 +674,14 @@ else:
 
 | 예제 파일 | 관련 내용 |
 |---------|---------|
-| [`Evaluator_Examples/08_harness_eval.py`](../../Evaluator_Examples/08_harness_eval.py) | 섹션 1: Group A Goal Achievement — 4개 Config 실전 예제 |
-| [`Evaluator_Examples/01_layer1_all_metrics.py`](../../Evaluator_Examples/01_layer1_all_metrics.py) | 섹션 1~2: AccuracyEvaluator · HallucinationDetector · TCR Tracker 실전 예제 |
+| [`Evaluator_Examples/ch03_harness_basics.py`](../../Evaluator_Examples/ch03_harness_basics.py) | 섹션 1: Group A Goal Achievement — 4개 Config 실전 예제 |
+| [`Evaluator_Examples/ch02_first_eval.py`](../../Evaluator_Examples/ch02_first_eval.py) | 섹션 1~2: AccuracyEvaluator · HallucinationDetector · TCR Tracker 실전 예제 |
+| [`Evaluator_Examples/ch04_group_a.py`](../../Evaluator_Examples/ch04_group_a.py) | 시나리오 6+7: Gate A FAIL — InstructionConfig·GoalAlignmentConfig·ContextRetentionConfig 위반 |
 
-**핵심 코드 (출처: `Evaluator_Examples/08_harness_eval.py`, 섹션 1 — Group A Goal Achievement)**
+**핵심 코드 (출처: `Evaluator_Examples/ch03_harness_basics.py`, 섹션 1 — Group A Goal Achievement)**
 
 ```python
-# 출처: Evaluator_Examples/08_harness_eval.py, 섹션 1 — Group A Goal Achievement
+# 출처: Evaluator_Examples/ch04_group_a.py, 섹션 Gate A Goal Achievement
 from agent_evaluator import (
     PerformanceMonitor, InstructionConfig, GoalAlignmentConfig,
     PlanConfig, SubtaskConfig,
@@ -750,10 +751,10 @@ def subtask_agent(question: str, ground_truth: str = "") -> str:
     return "데이터 수집 완료, 분석 완료, 요약 작성 완료"
 ```
 
-**Layer 1 Tracker 예제 (출처: `Evaluator_Examples/01_layer1_all_metrics.py`, 섹션 1 — QA 정확도)**
+**Layer 1 Tracker 예제 (출처: `Evaluator_Examples/ch02_first_eval.py`, 섹션 1 — QA 정확도)**
 
 ```python
-# 출처: Evaluator_Examples/01_layer1_all_metrics.py, 섹션 1 — QA 정확도 (@agent_eval 데코레이터)
+# 출처: Evaluator_Examples/ch02_first_eval.py, 섹션 QA — QA 정확도 (@agent_eval 데코레이터)
 @agent_eval(monitor, task_type="qa", task_id_prefix="qa")
 def qa_agent(question: str, ground_truth: str = "") -> str:
     """단순 QA 에이전트 — AccuracyEvaluator 자동 활성."""
@@ -773,9 +774,76 @@ monitor.save_to_file("group_a_eval")
 
 ```bash
 # 전체 예제 실행
-python Evaluator_Examples/08_harness_eval.py        # Group A~G 전체
-python Evaluator_Examples/01_layer1_all_metrics.py  # Layer 1 Tracker 전체
+python Evaluator_Examples/ch03_harness_basics.py        # Group A~G 전체
+python Evaluator_Examples/ch02_first_eval.py  # Layer 1 Tracker 전체
+python Evaluator_Examples/ch04_group_a.py   # 시나리오 6+7: Gate A FAIL 케이스
 ```
+
+**FAIL 케이스 (출처: `Evaluator_Examples/ch04_group_a.py`)**
+
+시나리오 6: `InstructionConfig` + `GoalAlignmentConfig` 동시 위반 — JSON 형식 무시·목표 도구 미사용
+
+```python
+# 출처: Evaluator_Examples/ch04_group_a.py, 역케이스 Gate A FAIL
+from agent_evaluator import PerformanceMonitor, InstructionConfig, GoalAlignmentConfig
+from agent_evaluator.decorators import agent_eval
+
+monitor_a = PerformanceMonitor(output_dir="results/")
+
+@agent_eval(
+    monitor_a,
+    task_type="qa",
+    task_id_prefix="bad_a_goal",
+    instructions=InstructionConfig(
+        expected_format="json",
+        required_keywords=["result", "confidence", "reasoning"],
+        min_chars=100,
+    ),
+    goal_alignment=GoalAlignmentConfig(
+        goal_tool_map={"분석": ["analyze_tool", "search"]},
+        alignment_threshold=0.6,
+        ignore_no_tool_tasks=False,
+    ),
+)
+def goal_failing_agent(question: str, ground_truth: str = "") -> str:
+    # JSON 형식 미준수, required_keywords 없음, 목표 도구 미사용
+    return f"네, {question} 처리했습니다."
+
+goal_failing_agent("이 데이터를 분석해줘", ground_truth="분석 완료")
+# → Gate A FAIL: instruction_score=0.0 (format 위반) + goal_alignment=0.0 (도구 미사용)
+```
+
+시나리오 7: `ContextRetentionConfig` + `KnowledgeRetentionConfig` 위반 — 핵심 엔티티 망각
+
+```python
+# 출처: Evaluator_Examples/ch04_group_a.py, 역케이스 Gate A FAIL
+from agent_evaluator import ContextRetentionConfig, KnowledgeRetentionConfig
+
+@agent_eval(
+    monitor_a,
+    task_type="qa",
+    task_id_prefix="bad_a_context",
+    context_retention=ContextRetentionConfig(
+        key_entities=["GPT-4", "Claude", "Gemini", "LLaMA"],
+        retention_threshold=0.8,
+    ),
+    knowledge_retention=KnowledgeRetentionConfig(
+        facts_to_retain=["OpenAI", "Anthropic", "Google", "Meta"],
+        retention_threshold=0.8,
+    ),
+)
+def context_forgetting_agent(question: str, ground_truth: str = "") -> str:
+    # 핵심 엔티티를 전혀 언급하지 않음 → context_retention_score=0.0
+    return f"이 주제에 대해 AI 업계에서 연구 중입니다. {question}"
+
+context_forgetting_agent("주요 LLM 모델들을 비교해줘", ground_truth="모델 비교")
+# → Gate A FAIL: context_retention=0.0 + knowledge_retention=0.0
+```
+
+- `goal_failing_agent`는 `expected_format="json"` 준수 실패 + `required_keywords` 누락 + 목표 도구(`analyze_tool`) 미사용으로 Gate A FAIL을 유도한다
+- `context_forgetting_agent`는 응답에 `key_entities` 목록("GPT-4", "Claude" 등)이 전혀 없어 `context_retention_score=0.0`이 된다
+- 두 시나리오 합산 시 Gate A 점수 ≈ 34% (FAIL)
+- **대응 방법**: 응답 함수가 `expected_format`·`required_keywords`를 반드시 포함하도록 프롬프트를 수정하고, 컨텍스트 창에 `key_entities`를 항상 포함시킨다
 
 ---
 

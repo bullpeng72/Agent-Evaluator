@@ -7,7 +7,9 @@
 > - **[Appendix A — 58개 지표 완전 레퍼런스](../Appendix/A_58개지표_레퍼런스.md)**: 각 Tracker와 Config의 입력·출력·임계값 기본값 한눈에 조회
 > - **[Appendix G — AI 품질 평가 이론적 기초](../Appendix/G_AI평가_이론적기초.md)**: Harness Engineering 설계 철학의 이론적 배경
 > - **[Appendix A §Part 2 — 33개 Harness Config 레퍼런스](../Appendix/A_58개지표_레퍼런스.md)**: 파라미터 상세 레퍼런스
-> - **[Evaluator_Examples/08_harness_eval.py](../../Evaluator_Examples/08_harness_eval.py)**: 이 챕터 실전 예제
+> - **[Evaluator_Examples/ch03_harness_basics.py](../../Evaluator_Examples/ch03_harness_basics.py)**: 이 챕터 실전 예제
+> - **[Evaluator_Examples/ch04_group_a.py](../../Evaluator_Examples/ch04_group_a.py)**: Gate A~G FAIL 시나리오 — 배포 차단 케이스 17개
+> - **[Evaluator_Examples/ch20_deployment.py](../../Evaluator_Examples/ch20_deployment.py)**: v1 레거시 → v2 개선 에이전트 Harness Gate 비교
 
 ---
 
@@ -123,7 +125,7 @@ Config는 "어떤 상태가 합격인가"를 선언하는 기준서(Specificatio
 Config 데이터클래스는 33개이며, `@agent_eval` 데코레이터의 파라미터로 주입한다.
 
 ```python
-# 출처: Evaluator_Examples/08_harness_eval.py, 섹션 1 — Harness 3-Element: Tracker·Config·Gate
+# 출처: Evaluator_Examples/ch03_harness_basics.py, 섹션 1 — Harness 3-Element: Tracker·Config·Gate
 from agent_evaluator import (
     SLAConfig,              # Group D: 성능계약
     InstructionConfig,      # Group A: 목표달성
@@ -259,7 +261,7 @@ Tracker 25개와 Config 33개를 7개 Group으로 분류한다. (보안 Tracker 
 | Config | `ComplianceConfig` | PII·컴플라이언스 위반 기준 |
 | Config | `ThreatResponseConfig` | 위협 탐지 시 응답 행동 기준 |
 
-> ⚠️ **보안 트래커 활성화**: 보안 트래커 4종은 `enable_security_metrics=True`로 명시적으로 활성화해야 한다. 성능에 영향을 주므로 기본값은 `False`다.
+> ⚠️ **보안 트래커 활성화**: 보안 트래커 5종(`InputSanitizationTracker`, `OutputLeakageDetector`, `ToolAuthorizationTracker`, `PrivilegeEscalationDetector`, `ToolChainAttackDetector`)은 `enable_security_metrics=True`로 명시적으로 활성화해야 한다. 성능에 영향을 주므로 기본값은 `False`다.
 
 ### Group F — 다중에이전트 협업 (Multi-Agent Coordination)
 
@@ -369,7 +371,7 @@ def agent(question, ground_truth=""):
 ```python
 @eval(
     task_type="qa",
-    sla=SLAConfig(p95_ms=2000, fail_threshold=3),         # ← SLA 위반 3건 누적 시 fail 활성화
+    sla=SLAConfig(p95_ms=2000, fail_threshold=3),           # P95 응답 2초 이내, 3건 위반 시 fail
     instructions=InstructionConfig(
         expected_language="ko",
         fail_on_violation=True,
@@ -385,7 +387,7 @@ eval.gate(tcr=85, accuracy=70)
 ### 3.4.4 Config 조합 — 프로덕션 QA 에이전트 예시
 
 ```python
-# 출처: Evaluator_Examples/08_harness_eval.py
+# 출처: Evaluator_Examples/ch03_harness_basics.py
 from agent_evaluator import PerformanceMonitor
 from agent_evaluator import (
     InstructionConfig,
@@ -526,7 +528,6 @@ QA 관리자 결정 (문서 또는 구두):
     task_type="qa",
     sla=SLAConfig(
         p95_ms=2500,           # QA 관리자 결정 반영
-        fail_on_violation=True,
     ),
     threat_severity=ThreatSeverityConfig(
         fail_on_critical=True,  # QA 관리자 결정 반영
@@ -630,7 +631,7 @@ jobs:
 `HarnessEvaluationGate`는 `report`, `min_group_score`, `required_groups`, `fail_on_warn`을 지원한다. `group_weights`는 지원하지 않는다.
 
 ```python
-# 출처: Evaluator_Examples/08_harness_eval.py, 섹션 7 — HarnessEvaluationGate 활용
+# 출처: Evaluator_Examples/ch03_harness_basics.py, 섹션 7 — HarnessEvaluationGate 활용
 from agent_evaluator import HarnessEvaluationGate
 
 # 목표달성(A)·보안경계(E)만 필수 통과 — 나머지는 경고만
@@ -643,6 +644,91 @@ gate = HarnessEvaluationGate(
 result = gate.evaluate()
 gate.enforce()   # 기준 미달 시 sys.exit(1)
 ```
+
+
+### 3.6.4 ch18_cicd_gate.py — CI/CD 전용 최소 검증 스크립트
+
+`ch03_harness_basics.py`는 33개 Config 전체를 교육용으로 시연하지만, CI/CD 파이프라인에서는 **7개 Gate당 1개 Config씩 최소 검증**만 실행하는 `ch18_cicd_gate.py`를 사용한다:
+
+```python
+# 출처: Evaluator_Examples/ch18_cicd_gate.py — CI/CD 전용 최소 검증
+import json, sys
+from agent_evaluator import (
+    PerformanceMonitor,
+    InstructionConfig, GoalAlignmentConfig,      # Group A
+    LoopDetectionConfig, ScopeConfig,            # Group B
+    ReproducibilityConfig, RetryConsistencyConfig, # Group C
+    SLAConfig, ResourceBudgetConfig,             # Group D
+    ThreatSeverityConfig, ComplianceConfig,      # Group E
+    ConsensusConfig, AgentRoleConfig,            # Group F
+    ExplainabilityConfig, ObservabilityConfig,   # Group G
+)
+from agent_evaluator.decorators import agent_eval
+
+_STRICT_MODE = "--strict" in sys.argv   # WARN도 FAIL로 처리
+
+monitor = PerformanceMonitor(output_dir="results/", enable_security_metrics=True)
+
+# Group A — 목표달성
+@agent_eval(monitor, task_type="qa", task_id_prefix="val_a",
+    instructions=InstructionConfig(required_keywords=["answer", "source"], min_chars=10),
+    goal_alignment=GoalAlignmentConfig(goal_tool_map={"search": ["web_search"]}, alignment_threshold=0.5),
+)
+def _group_a_agent(question, ground_truth=""):
+    return json.dumps({"answer": question + "에 대한 검증 답변", "source": "내부 DB"})
+
+# Group B — 행동무결성
+@agent_eval(monitor, task_type="tool_use", task_id_prefix="val_b",
+    loop_detection=LoopDetectionConfig(consecutive_repeat_threshold=3, window_size=5),
+    scope=ScopeConfig(
+        allowed_tools=["search", "summarize", "report"],
+        forbidden_tools=["delete_all", "drop_table"],
+    ),
+)
+def _group_b_agent(question, ground_truth=""):
+    return f"재무 리포트 조회: {question}"
+
+# ... (Group C~G는 동일 패턴으로 각 1개 Config)
+
+# 실행 및 판정
+for q in ["최근 분기 실적은?", "이번 달 비용 예측을 해줘"]:
+    _group_a_agent(q, ground_truth="검증 완료")
+    _group_b_agent(q, ground_truth="검증 완료")
+
+report = monitor.generate_report()
+monitor.save_to_file("harness_validation")
+
+# JSON 한 줄 요약 — CI 로그 파싱용
+d = report.to_dict()
+harness = d.get("harness_gates", {})
+summary = {
+    grp: harness.get(grp, {}).get("gate_status", "N/A")
+    for grp in ["A", "B", "C", "D", "E", "F", "G"]
+}
+print(json.dumps(summary))  # {"A": "PASS", "B": "PASS", ...}
+
+# exit code 결정
+failures = [g for g, s in summary.items() if s == "FAIL"]
+warnings = [g for g, s in summary.items() if s == "WARN"]
+if failures or (_STRICT_MODE and warnings):
+    sys.exit(1)
+sys.exit(0)
+```
+
+```bash
+# GitHub Actions 통합
+python Evaluator_Examples/ch18_cicd_gate.py         # FAIL만 차단
+python Evaluator_Examples/ch18_cicd_gate.py --strict  # WARN도 차단
+```
+
+| 항목 | `ch03_harness_basics.py` | `ch18_cicd_gate.py` |
+|------|---------------------|---------------------------|
+| 목적 | 교육·시연 | CI/CD 자동화 |
+| Config 수 | 33개 전부 | 7개 (Gate당 1개) |
+| 실행 시간 | ~15초 | ~3초 |
+| exit code | 없음 | 0 (통과) / 1 (실패) |
+| `--strict` | 없음 | WARN → FAIL 처리 |
+
 
 ---
 
@@ -687,8 +773,8 @@ from agent_evaluator.decorators import LLMJudgeConfig
         sample_rate=0.1,              # 10%만 채점 (비용 절감)
     ),
     explainability=ExplainabilityConfig(
-        require_reasoning=True,       # 추론 근거 필수
-        require_citations=True,       # 출처 표시 필수
+        min_reasoning_length=50,      # 추론 근거 최소 50자
+        reasoning_markers=["왜냐하면", "근거:", "출처:"],  # 추론 마커 필수
     ),
 )
 def agent(question, ground_truth=""):
@@ -763,7 +849,7 @@ Harness 대응: 배포 전 `HarnessEvaluationGate` + 배포 후 Phoenix OTEL 실
 이 책의 모든 Harness 개념을 한 파일에서 경험한다.
 
 ```python
-# 출처: Evaluator_Examples/08_harness_eval.py, 섹션 1
+# 출처: Evaluator_Examples/ch03_harness_basics.py, 섹션 1
 """5분 안에 완성하는 첫 Harness 평가"""
 from agent_evaluator import QuickEval
 from agent_evaluator import SLAConfig, InstructionConfig
@@ -816,7 +902,96 @@ print("\n✅ Harness Gate 통과 — 배포 가능")
 
 ---
 
-## 3.9 이 챕터의 핵심 요약
+## 3.9 실전 예제 파일
+
+이 챕터에서 설명한 Harness Engineering 개념을 바로 실행해볼 수 있는 예제 파일이 준비되어 있다.
+
+| 예제 파일 | 관련 내용 |
+|---------|---------|
+| [`Evaluator_Examples/ch03_harness_basics.py`](../../Evaluator_Examples/ch03_harness_basics.py) | 7개 Gate(A-G) 전체 PASS 시나리오 — 33개 Config 실전 시연 |
+| [`Evaluator_Examples/ch18_cicd_gate.py`](../../Evaluator_Examples/ch18_cicd_gate.py) | CI/CD 게이팅 exit code 검증 — HarnessEvaluationGate.enforce() |
+| [`Evaluator_Examples/ch04_group_a.py`](../../Evaluator_Examples/ch04_group_a.py) | 17개 시나리오 — Gate A~G 모두 FAIL 유도, 배포 차단 케이스 완전 시연 |
+| [`Evaluator_Examples/ch20_deployment.py`](../../Evaluator_Examples/ch20_deployment.py) | v1 레거시 → v2 개선 에이전트 Harness Gate 비교 (+29% 향상) |
+
+```bash
+python Evaluator_Examples/ch03_harness_basics.py         # Gate A~G PASS 전체
+python Evaluator_Examples/ch18_cicd_gate.py   # CI/CD 게이팅 exit code
+python Evaluator_Examples/ch04_group_a.py  # Gate A~G FAIL 케이스 — 배포 차단 시나리오
+python Evaluator_Examples/ch20_deployment.py   # v1 vs v2 버전 비교
+```
+
+**버전 비교 — Harness Gate로 배포 결정 (출처: `Evaluator_Examples/ch20_deployment.py`)**
+
+`ch20_deployment.py`는 두 `PerformanceMonitor`를 독립적으로 운영해 v1·v2 에이전트의 Gate A–G 점수를 나란히 비교한다. 점수 차이가 "v2를 배포하는 이유"의 코드 근거가 된다.
+
+```python
+# 출처: Evaluator_Examples/ch20_deployment.py — 독립 monitor로 v1 vs v2 Gate 비교
+from agent_evaluator import PerformanceMonitor, SLAConfig, ComplianceConfig, ExplainabilityConfig
+from agent_evaluator.decorators import agent_eval
+
+monitor_v1 = PerformanceMonitor(output_dir="results/", enable_security_metrics=True)
+monitor_v2 = PerformanceMonitor(output_dir="results/", enable_security_metrics=True)
+
+# Gate A: v1 — 형식 미준수 / v2 — JSON 준수
+@agent_eval(monitor_v1, task_type="qa", task_id_prefix="v1_instr",
+            instructions=InstructionConfig(expected_format="json", required_keywords=["result"]))
+def v1_agent(question: str, ground_truth: str = "") -> str:
+    return f"답: {question}"  # JSON 미준수
+
+@agent_eval(monitor_v2, task_type="qa", task_id_prefix="v2_instr",
+            instructions=InstructionConfig(expected_format="json", required_keywords=["result"]))
+def v2_agent(question: str, ground_truth: str = "") -> str:
+    import json
+    return json.dumps({"result": f"{question}에 대한 정확한 답변"})  # JSON 준수
+
+for q in ["분기 실적 분석", "보고서 작성", "모델 평가"]:
+    v1_agent(q, ground_truth="분석")
+    v2_agent(q, ground_truth="분석")
+
+# Gate별 점수 비교
+r1 = monitor_v1.generate_report().to_dict()
+r2 = monitor_v2.generate_report().to_dict()
+h1 = (r1.get("extra_metrics") or {}).get("harness_groups", {})
+h2 = (r2.get("extra_metrics") or {}).get("harness_groups", {})
+
+for gk in "ABCDEFG":
+    s1 = (h1.get(gk) or {}).get("score") or 0.0
+    s2 = (h2.get(gk) or {}).get("score") or 0.0
+    delta = (s2 - s1) * 100
+    print(f"  Gate {gk}: v1={s1:.0%}  v2={s2:.0%}  {'+' if delta>0 else ''}{delta:.1f}%p")
+
+monitor_v1.save_to_file("v1_harness"); monitor_v2.save_to_file("v2_harness")
+```
+
+**Phoenix OTEL과 Harness Gate 연동 (출처: `Evaluator_Examples/ch19_phoenix.py`)**
+
+`setup_otel()`을 Harness 평가 전에 호출하면 Gate A–G의 모든 스팬이 Phoenix로 전송되어 대시보드에서 Group별 점수 추이를 시각적으로 확인할 수 있다.
+
+```python
+# 출처: Evaluator_Examples/ch19_phoenix.py — Harness Gate + Phoenix OTEL 연동
+import socket
+from agent_evaluator import setup_otel, PerformanceMonitor
+
+# Phoenix 실행 여부 확인 — CI 환경에서는 미실행이 정상
+try:
+    with socket.create_connection(("localhost", 6006), timeout=1):
+        setup_otel(endpoint="http://localhost:6006", service_name="harness-gate")
+        print("Phoenix OTEL 연결 — Gate A–G 스팬 전송 활성화")
+except OSError:
+    print("Phoenix 미실행 — OTEL 없이 Gate 판정만 수행")
+
+# setup_otel() 이후에 monitor 생성 (순서 필수)
+monitor = PerformanceMonitor(
+    output_dir="results/",
+    enable_security_metrics=True,
+    enable_transparency=True,  # Harness 집계 Traces → Phoenix 전송
+)
+# → Phoenix http://localhost:6006 의 Traces 탭에서 Gate별 점수를 스팬으로 확인 가능
+```
+
+---
+
+## 3.10 이 챕터의 핵심 요약
 
 | 개념 | 한 줄 정의 |
 |------|-----------|

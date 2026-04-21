@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "agent-evaluator"
-version = "0.8.3"
+version = "0.8.4"
 description = "Production-ready evaluation framework for AI agents — 58 metrics (25 native + 33 Harness Config) across 7 evaluation gates: goal achievement, behavioral integrity, reliability, performance, security, multi-agent coordination, and observability"
 readme = {file = "README.md", content-type = "text/markdown"}
 requires-python = ">=3.8"
@@ -186,6 +186,28 @@ autogen = [
     "pyautogen>=0.3.0,<1.0.0",
     "autogen-agentchat>=0.4.0,<1.0.0",
     "autogen-core>=0.4.0,<1.0.0",
+]
+
+# ════════════════════════════════════════════════════════════════════════════
+# Group 4: 선택적 연동 (각 기능 전용)
+# ════════════════════════════════════════════════════════════════════════════
+
+# 대시보드 Parquet / Excel 내보내기
+# agent_evaluator/serve/routers/export.py 에서 사용
+# 미설치 시: Parquet/Excel 엔드포인트 HTTP 409 반환
+export = [
+    "pyarrow>=10.0.0",
+    "openpyxl>=3.1.0",
+]
+# Weights & Biases 실험 추적 연동
+# PerformanceMonitor.export_to_wandb() 에서 사용
+wandb = [
+    "wandb>=0.17.0",
+]
+# MLflow 실험 추적 연동
+# PerformanceMonitor.export_to_mlflow() 에서 사용
+mlflow = [
+    "mlflow>=2.0.0",
 ]
 
 # ════════════════════════════════════════════════════════════════════════════

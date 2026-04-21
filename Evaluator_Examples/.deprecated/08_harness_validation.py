@@ -1,30 +1,43 @@
 """
-08_harness_validation.py — Harness CI/CD 검증 스크립트
+08_harness_validation.py — Harness CI/CD 검증 게이트
 ====================================================================
-7개 Harness 그룹(A–G)을 최소 커버리지로 검증하고 게이트 결과를
-exit code로 반환한다.  CI/CD 파이프라인에서 직접 실행 가능.
+⚙️  자동화 전용 스크립트 — CI/CD 파이프라인에서 직접 호출하는 용도.
+    사람이 읽는 교육용 예제는 08_harness_eval.py 를 참조하세요.
 
-  Group A — Goal Achievement      (InstructionConfig, GoalAlignmentConfig)
-  Group B — Behavioral Integrity  (LoopDetectionConfig, ScopeConfig)
-  Group C — Reliability           (ReproducibilityConfig, RetryConsistencyConfig)
-  Group D — Performance Contract  (SLAConfig, ResourceBudgetConfig)
-  Group E — Security Boundary     (ThreatSeverityConfig, ComplianceConfig)
-  Group F — Multi-Agent Coord.    (ConsensusConfig, AgentRoleConfig)
-  Group G — Observability         (ExplainabilityConfig, ObservabilityConfig)
+역할:
+  - 7개 Gate 각 1개 Config씩 최소 검증 (총 7개 에이전트)
+  - PASS/WARN/FAIL 판정 후 exit 0 또는 exit 1 반환
+  - --strict 플래그: WARN도 FAIL로 처리 (배포 전 강화 검증)
+  - JSON 한 줄 요약: CI 로그에서 파싱하기 쉬운 구조
 
-종료 코드:
-  0 — 모든 그룹 PASS (또는 WARN)
-  1 — 한 개 이상의 그룹 FAIL
+08_harness_eval.py 와의 차이:
+  ┌───────────────────────┬──────────────────┬─────────────────────┐
+  │ 항목                   │ 08_harness_eval  │ 08_harness_validation│
+  ├───────────────────────┼──────────────────┼─────────────────────┤
+  │ 목적                   │ 교육·시연        │ CI/CD 자동화         │
+  │ Config 수              │ 33개 전부        │ 7개 (Gate당 1개)     │
+  │ FAIL 역케이스          │ ✅ 포함          │ ❌ 없음 (PASS만)     │
+  │ 실행 시간              │ ~15초            │ ~3초                │
+  │ exit code              │ 없음             │ 0 (통과) / 1 (실패) │
+  │ --strict               │ 없음             │ ✅ 지원              │
+  └───────────────────────┴──────────────────┴─────────────────────┘
+
+CI/CD 통합 예시:
+  # GitHub Actions
+  - name: Harness Gate
+    run: |
+      python Evaluator_Examples/08_harness_validation.py
+      python Evaluator_Examples/08_harness_validation.py --strict   # WARN도 차단
+
+  # agent-eval CLI (권장)
+  agent-eval gate results/harness_validation.json --tcr 80
 
 의존성:
-  pip install agent-evaluator      (외부 extras 불필요)
+    pip install agent-evaluator
 
 실행:
-  python Evaluator_Examples/08_harness_validation.py
-  python Evaluator_Examples/08_harness_validation.py --strict   # WARN도 실패 처리
-
-결과:
-  results/harness_validation.json  (+  .html)
+    python Evaluator_Examples/08_harness_validation.py
+    python Evaluator_Examples/08_harness_validation.py --strict
 """
 
 import json
@@ -233,9 +246,12 @@ def _group_f_agent(question: str, ground_truth: str = "") -> str:
     ),
 )
 def _group_g_agent(question: str, ground_truth: str = "") -> str:
+    # ExplainabilityConfig는 reasoning_markers("왜냐하면", "따라서" 등) 존재 여부를 검사한다.
+    # ObservabilityConfig는 required_span_attributes 커버리지(task_id·task_type·execution_time)를 검사한다.
     return (
-        "검증 응답: 이 답변은 내부 지식베이스를 기반으로 작성되었습니다. "
-        f"질문 '{question}'에 대해 관측성 추적을 포함한 응답을 반환합니다."
+        f"검증 응답: 질문 '{question}'을 분석했습니다. "
+        "왜냐하면 이 항목이 핵심 관측성 기준과 직결되기 때문입니다. "
+        "따라서 내부 지식베이스와 추적 메타데이터를 활용하여 GDPR 원칙에 맞게 응답합니다."
     )
 
 
@@ -321,6 +337,9 @@ if __name__ == "__main__":
         print("  ⚠️  harness_groups 데이터 없음 — 평가 설정 확인 필요")
         sys.exit(0)
 
+    print()
+    print("  ── CI/CD 모드: PASS/FAIL 판정 후 exit code 반환 ─────────────────")
+
     should_fail = _print_gate(harness)
 
     if should_fail:
@@ -330,3 +349,7 @@ if __name__ == "__main__":
     else:
         print("\n  Harness Gate 통과 — exit 0")
         sys.exit(0)
+
+# ── 전체 시연은 08_harness_eval.py 참조 ─────────────────────────────────────
+# 각 Config의 PASS/FAIL 비교, 33개 Config 전체 시연, 역케이스(나쁜 에이전트)는
+# python Evaluator_Examples/08_harness_eval.py 를 실행하세요.

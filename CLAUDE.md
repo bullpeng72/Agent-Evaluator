@@ -15,7 +15,7 @@
 
 **25개 Native Trackers + 33개 Harness Config = 58개 지표**를 3개 레이어(Foundation / Agentic / Hybrid)로 측정한다.
 
-- **Version:** 0.8.3 (Beta)
+- **Version:** 0.8.4 (Beta)
 - **Python:** 3.8+
 - **License:** MIT
 - **Author:** Sungwoo Kim
@@ -41,6 +41,13 @@ pip install -e ".[pydanticai]"        # PydanticAI 통합 (pydantic-ai)
 pip install -e ".[crewai]"            # CrewAI 단독 (무거움 — 전이 의존성 100개+)
 pip install -e ".[autogen]"           # AutoGen 단독 (무거움, 단독 격리)
 pip install -e ".[full]"              # 전체 (⚠️ crewai/autogen 포함, 10분+ 소요)
+
+# ── 선택적 기능 확장 (해당 기능 사용 시에만 설치) ───────────────────────────
+pip install -e ".[korean]"            # kiwipiepy — 한국어 형태소 분석 정밀 토큰화
+pip install -e ".[semantic]"          # sentence-transformers — 의미 기반 환각 탐지
+pip install -e ".[export]"            # pyarrow + openpyxl — 대시보드 Parquet/Excel 내보내기
+pip install -e ".[wandb]"             # wandb — PerformanceMonitor.export_to_wandb()
+pip install -e ".[mlflow]"            # mlflow — PerformanceMonitor.export_to_mlflow()
 
 # ── CLI (pip install 후 바로 사용 가능) ──────────────────────────────────────
 agent-eval init          # 대화형 API 키 설정 마법사
@@ -232,17 +239,25 @@ agent_evaluator/
 ├── config.py                # 환경변수 설정 로더 (load_env, get_settings)
 └── __init__.py              # Public API surface
 
-Evaluator_Examples/          # 실제 사용 예시 (패키지 외부, 9개 파일)
-├── 01_layer1_all_metrics.py      # Layer 1 전체 — Accuracy·Hallucination·Quality·Latency·Token·TCR
-├── 02_layer2_agentic_security.py # Layer 2 전체 — ToolCall·Retry·Coordination·Workflow·Security·대화
-├── 03_framework_adapters.py      # 프레임워크 어댑터 — LangChain·LangGraph·CrewAI·AutoGen + 크로스 파이프라인
-├── 04_decorator_quickeval.py     # 데코레이터 전체 API — @agent_eval·@batch_eval·@conversation_eval·QuickEval·LLMJudge
-├── 05_streaming_alerts.py        # 실시간 — StreamingEvaluator·ImplicitFeedback·AlertEngine·SimpleTaskAlertRule
-├── 06_operational.py             # 운영 인프라 — AnomalyDetector·CostTracker·GoldenSetBuilder·evaluation_session
-├── 07_phoenix_hybrid.py          # Phoenix OTEL — Tracing·Datasets·Playground·GraphQL + DeepEval·Ragas(opt-in)
-├── 08_harness_eval.py            # Harness Engineering — 7개 Gate(A-G) · 33개 Config 실전 평가
-└── 08_harness_validation.py      # Harness Config 파라미터 검증 · 경계 케이스 테스트
-# 기존 21개 예제: Evaluator_Examples/.deprecated/ 에 보존
+Evaluator_Examples/          # Book 챕터 기반 예제 (17개 파일 — ch01~ch20)
+├── ch01_quickstart.py        # Ch01 — QuickEval 5분 첫 평가
+├── ch02_first_eval.py        # Ch02 — Layer 1 기초 (정확도·할루시네이션·TCR)
+├── ch03_harness_basics.py    # Ch03 — Harness Gate A–G 7개 개요
+├── ch04_group_a.py           # Ch04 — Gate A: Goal Achievement (6개 Config)
+├── ch05_group_b.py           # Ch05 — Gate B: Behavioral Integrity (6개 Config)
+├── ch06_group_c.py           # Ch06 — Gate C: Reliability (5개 Config)
+├── ch07_group_d.py           # Ch07 — Gate D: Performance Contract (5개 Config)
+├── ch08_group_e.py           # Ch08 — Gate E: Security Boundary (3개 Config)
+├── ch09_group_f.py           # Ch09 — Gate F: Multi-Agent Coordination (4개 Config)
+├── ch10_group_g.py           # Ch10 — Gate G: Observability + AnomalyDetector·CostTracker
+├── ch11_eval_data.py         # Ch11 — 평가데이터 설계 (GoldenSetBuilder·evaluation_session)
+├── ch12_decorators.py        # Ch12 — 데코레이터 완전정복 (@agent_eval·@batch_eval·QuickEval·LLMJudge)
+├── ch13_frameworks.py        # Ch13 — 프레임워크 통합 (LangChain·LangGraph·CrewAI·AutoGen)
+├── ch16_alerts.py            # Ch16 — 알림시스템 (StreamingEvaluator·AlertEngine·SimpleTaskAlertRule)
+├── ch18_cicd_gate.py         # Ch18 — CI/CD 품질 게이팅 (Harness 최소 검증·exit 0/1)
+├── ch19_phoenix.py           # Ch19 — Phoenix OTEL (Tracing·Datasets·Playground·GraphQL + DeepEval·Ragas)
+└── ch20_deployment.py        # Ch20 — 프로덕션 배포전략 (v1 vs v2 Gate 점수 비교)
+# 구 번호 예제(01~10): Evaluator_Examples/.deprecated/ 에 보존
 
 scripts/
 └── phoenix_check.py         # Phoenix 통합 자동 점검 — GraphQL 역조회로 pass/fail 판정
@@ -643,6 +658,11 @@ pytest
 - `[pydanticai]` — `pydantic-ai>=1.0.0,<2.0.0`
 - `[crewai]` — `crewai>=1.0.0,<2.0.0` — 무거움 (전이 의존성 100개+), 단독 격리
 - `[autogen]` — `pyautogen>=0.3.0,<1.0.0` + `autogen-agentchat/core>=0.4.0` — 무거움, 단독 격리
+- `[korean]` — `kiwipiepy>=0.17.0` — `AccuracyEvaluator(use_korean_tokenizer=True)` 한국어 형태소 분석
+- `[semantic]` — `sentence-transformers>=2.7.0,<5.0.0` — `HallucinationDetector(use_semantic_similarity=True)` 의미 기반 환각 탐지
+- `[export]` — `pyarrow>=10.0.0` + `openpyxl>=3.1.0` — 대시보드 Parquet/Excel 내보내기 (미설치 시 HTTP 409)
+- `[wandb]` — `wandb>=0.17.0` — `PerformanceMonitor.export_to_wandb()` W&B 실험 추적
+- `[mlflow]` — `mlflow>=2.0.0` — `PerformanceMonitor.export_to_mlflow()` MLflow 실험 추적
 - `[full]` — 기본+eval+langchain+dspy+pydanticai+crewai+autogen 전체 (⚠️ 10분+ 소요)
 - `[dev]` — `pytest` + `pytest-cov` + `pytest-asyncio` + `ruff` + `mypy` + `build` + `twine` + `pre-commit`
 
@@ -679,6 +699,18 @@ completion_score task_type 인식 (v0.8.0+):
 ---
 
 ## 📝 변경 이력
+
+### v0.8.4 (2026-04-21) — 예제 파일 Book 챕터 기반 전면 재편
+
+- 📝 예제 파일 11개(layer-based) → 17개(chapter-based) 재편: `chXX_topic.py` 네이밍 통일
+- 🔧 Phoenix `service_name` 및 `save_to_file` 출력명을 챕터 번호 기준으로 동기화
+- ✨ `ch05_group_b.py` — WorkflowExecutionTracker 섹션 추가 (3개 파이프라인 시나리오)
+- ✨ `ch07_group_d.py` — LatencyTracker(p50/p95/p99) · TokenEconomyTracker 섹션 추가
+- ✨ `ch10_group_g.py` — AnomalyDetector(5가지 이상 탐지) · CostTracker + AdaptivePolicy 섹션 추가
+- ✨ `ch02_first_eval.py` — 코드/RAG 정확도 · ResponseQualityEvaluator 섹션 추가
+- 🐛 `ch05_group_b.py` `create_taskresult` 임포트 누락 수정
+- 📝 Book 27개 마크다운 파일의 `# 출처:` 참조를 새 파일명으로 일괄 갱신
+- 📝 구 예제 파일 11개 → `.deprecated/` 로 이전 보존
 
 ### v0.8.3 (2026-04-21) — LLMJudge 안정성 강화 · Gate 개선 · 보안 트래커 확장
 

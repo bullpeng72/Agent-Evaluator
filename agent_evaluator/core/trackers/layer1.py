@@ -1785,7 +1785,7 @@ class TokenEconomyTracker(BaseTracker):
         """
         n = len(df)
         if n < 5:
-            logger.warning(
+            logger.debug(
                 "Cost percentile calculation may be unreliable with only %d sample(s). "
                 "Collect more tasks for stable percentile estimates (recommended: ≥20).",
                 n,

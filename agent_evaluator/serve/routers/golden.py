@@ -347,6 +347,10 @@ def _golden_dir(request: Request) -> Path:
 
 @router.get("", summary="골든 데이터셋 목록")
 def list_golden(request: Request) -> List[Dict[str, Any]]:
+    """골든 데이터셋 디렉토리의 .json 파일 목록을 반환한다.
+
+    각 항목은 ``name`` · ``stem`` · ``size_bytes`` · ``count`` (QA 케이스 수)를 포함한다.
+    """
     gdir = _golden_dir(request)
     result = []
     for p in sorted(gdir.glob("*.json")):
@@ -557,6 +561,11 @@ def list_versions(request: Request) -> List[Dict[str, Any]]:
 
 @router.post("", summary="골든 데이터셋 생성")
 async def create_golden(request: Request, body: GoldenCreateBody) -> Dict[str, Any]:
+    """새 골든 데이터셋 파일을 생성한다.
+
+    ``body.name``으로 파일명을 지정하고 ``body.items`` 배열에 QA 케이스를 담아 전송한다.
+    동일 이름의 파일이 있으면 덮어쓴다.
+    """
     gdir = _golden_dir(request)
     try:
         fname = body.name if body.name.endswith(".json") else f"{body.name}.json"
@@ -569,6 +578,11 @@ async def create_golden(request: Request, body: GoldenCreateBody) -> Dict[str, A
 
 @router.get("/{name}", summary="골든 데이터셋 상세")
 def get_golden(name: str, request: Request) -> Any:
+    """골든 데이터셋 파일의 전체 내용을 반환한다.
+
+    Args:
+        name: 파일 이름(확장자 포함 또는 생략 가능). 예: ``production_dataset`` 또는 ``production_dataset.json``.
+    """
     gdir = _golden_dir(request)
     for p in [gdir / name, gdir / f"{name}.json"]:
         if p.exists():
@@ -585,6 +599,13 @@ async def save_golden(
     request: Request,
     body: Any = Body(..., description="골든 데이터셋 전체 내용 (list 또는 dict)"),
 ) -> Dict[str, Any]:
+    """골든 데이터셋 파일을 덮어쓰기로 저장한다.
+
+    대시보드에서 케이스를 편집한 뒤 전체 내용을 저장할 때 사용한다.
+
+    Args:
+        name: 파일 이름(확장자 포함 또는 생략 가능).
+    """
     gdir = _golden_dir(request)
     fname = name if name.endswith(".json") else f"{name}.json"
     path = gdir / fname
@@ -597,6 +618,13 @@ async def save_golden(
 
 @router.delete("/{name}", summary="골든 데이터셋 삭제")
 def delete_golden(name: str, request: Request) -> Dict[str, Any]:
+    """골든 데이터셋 파일을 삭제한다.
+
+    경로 순회(path traversal) 공격을 방지하기 위해 name에 ``..``가 포함되면 400을 반환한다.
+
+    Args:
+        name: 삭제할 파일 이름(확장자 포함 또는 생략 가능).
+    """
     gdir = _golden_dir(request).resolve()
     for p in [gdir / name, gdir / f"{name}.json"]:
         try:

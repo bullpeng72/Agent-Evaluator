@@ -533,14 +533,14 @@ setup_otel(
 
 ## 실전 예제
 
-`07_phoenix_hybrid.py`는 `setup_otel()` → `PerformanceMonitor` 순서, Phoenix 프로젝트 분리, DeepEval·Ragas 어댑터 통합까지 Phoenix OTEL 연동의 전체 흐름을 한 파일에서 보여준다. API 키 없이 mock 모드로 실행하면 `setup_otel()` 없이 평가 결과만 확인할 수 있다.
+`ch19_phoenix.py`는 `setup_otel()` → `PerformanceMonitor` 순서, Phoenix 프로젝트 분리, DeepEval·Ragas 어댑터 통합까지 Phoenix OTEL 연동의 전체 흐름을 한 파일에서 보여준다. API 키 없이 mock 모드로 실행하면 `setup_otel()` 없이 평가 결과만 확인할 수 있다.
 
-**파일**: `Evaluator_Examples/07_phoenix_hybrid.py`
+**파일**: `Evaluator_Examples/ch19_phoenix.py`
 
-**핵심 코드 (출처: `Evaluator_Examples/07_phoenix_hybrid.py`)**
+**핵심 코드 (출처: `Evaluator_Examples/ch19_phoenix.py`)**
 
 ```python
-# 출처: Evaluator_Examples/07_phoenix_hybrid.py — Phoenix 실행 여부 확인 + OTEL 설정
+# 출처: Evaluator_Examples/ch19_phoenix.py — Phoenix 실행 여부 확인 + OTEL 설정
 import socket
 from agent_evaluator import setup_otel, PerformanceMonitor
 
@@ -574,7 +574,7 @@ monitor = PerformanceMonitor(output_dir="results/")
 - `agent-eval monitor` CLI를 실행하면 Phoenix 서버 기동과 OTLP 수신 설정이 자동으로 완료된다
 
 ```python
-# 출처: Evaluator_Examples/07_phoenix_hybrid.py, 섹션 1 — Tracing·Playground 스팬 전송
+# 출처: Evaluator_Examples/ch19_phoenix.py, 섹션 1 — Tracing·Playground 스팬 전송
 from agent_evaluator.decorators import agent_eval, EvalMetadata
 
 @agent_eval(
@@ -613,7 +613,7 @@ rag_agent("양자 컴퓨터란?", context="양자 컴퓨터는...", ground_truth
 agent-eval monitor
 
 # 터미널 B: 예제 실행 (ANTHROPIC_API_KEY 있으면 자동으로 Phoenix 연결)
-python Evaluator_Examples/07_phoenix_hybrid.py
+python Evaluator_Examples/ch19_phoenix.py
 
 # Phoenix UI 확인
 open http://localhost:6006
@@ -651,4 +651,52 @@ setup_otel: 비활성 (API 키 필요)
 대시보드 외부 평가 탭: advanced_metrics 3건 표시
 ```
 
-> **`setup_otel()` 순서 엄수**: `setup_otel(endpoint="http://localhost:6006")`은 반드시 `PerformanceMonitor(...)` 또는 `QuickEval(...)` 생성 전에 호출해야 한다. 순서를 틀리면 스팬이 Phoenix에 전송되지 않는다. `07_phoenix_hybrid.py` 섹션 1의 코드 순서를 템플릿으로 사용한다.
+> **`setup_otel()` 순서 엄수**: `setup_otel(endpoint="http://localhost:6006")`은 반드시 `PerformanceMonitor(...)` 또는 `QuickEval(...)` 생성 전에 호출해야 한다. 순서를 틀리면 스팬이 Phoenix에 전송되지 않는다. `ch19_phoenix.py` 섹션 1의 코드 순서를 템플릿으로 사용한다.
+
+**CI/CD 검증 스크립트의 Phoenix 연동 패턴 (출처: `Evaluator_Examples/ch18_cicd_gate.py`)**
+
+`ch18_cicd_gate.py`는 Phoenix 포트를 소켓으로 확인한 뒤 조건부로 OTEL을 활성화한다. Phoenix가 없는 CI 환경에서도 Gate 판정은 정상 동작하며, Phoenix가 있으면 스팬이 자동 전송된다.
+
+```python
+# 출처: Evaluator_Examples/ch18_cicd_gate.py — Phoenix 조건부 연결 + CI/CD Gate 판정
+import socket, sys
+from agent_evaluator import PerformanceMonitor, setup_otel
+
+# Phoenix 포트 확인 — CI 환경에서는 보통 미실행 (스킵해도 Gate 판정은 정상)
+try:
+    with socket.socket() as _s:
+        _s.settimeout(0.5)
+        if _s.connect_ex(("localhost", 6006)) == 0:
+            setup_otel(endpoint="http://localhost:6006", service_name="harness-validation")
+            print("  Phoenix 모니터링 활성화 — http://localhost:6006")
+except Exception:
+    pass   # Phoenix 없으면 OTEL 없이 계속 — Gate 판정에는 영향 없음
+
+monitor = PerformanceMonitor(
+    output_dir="results/",
+    enable_security_metrics=True,
+    enable_transparency=True,   # Phoenix 연결 시 투명성 Traces 자동 전송
+)
+
+# ... 에이전트 등록 및 실행 ...
+
+# Gate 판정 — Phoenix 연결 여부와 무관하게 동작
+report_dict = monitor.generate_report().to_dict()
+harness = report_dict.get("extra_metrics", {}).get("harness_groups", {})
+gate = (harness.get("overall", {}).get("gate") or "unknown").upper()
+
+if gate == "FAIL":
+    print("❌ Harness Gate FAIL — exit 1")
+    sys.exit(1)
+print("✅ Harness Gate PASS — exit 0")
+sys.exit(0)
+# → Phoenix 없어도 Gate 판정 정상 / Phoenix 있으면 모든 스팬이 대시보드에 기록됨
+```
+
+```bash
+# 2-터미널 패턴: Phoenix + CI/CD 검증 동시 운영
+# 터미널 1: agent-eval monitor          # Phoenix 서버 기동
+# 터미널 2: python Evaluator_Examples/ch18_cicd_gate.py  # OTEL 자동 활성화
+python Evaluator_Examples/ch18_cicd_gate.py           # Phoenix 없이도 동작
+python Evaluator_Examples/ch18_cicd_gate.py --strict  # WARN도 차단
+```

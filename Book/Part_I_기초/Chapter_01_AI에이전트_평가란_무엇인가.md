@@ -69,7 +69,7 @@ answer = response.choices[0].message.content
 
 **문제**: 에이전트의 기능 테스트만 수행했고, 악의적 입력에 대한 보안 테스트가 없었습니다.
 
-**필요했던 평가**: `InputSanitizationTracker`(프롬프트 인젝션 탐지), `OutputLeakageDetector`(민감 정보 출력 탐지), `ToolAuthorizationTracker`(허가된 도구만 사용하는지 감시). **Group E 보안경계** 차원의 4개 트래커입니다.
+**필요했던 평가**: `InputSanitizationTracker`(프롬프트 인젝션 탐지), `OutputLeakageDetector`(민감 정보 출력 탐지), `ToolAuthorizationTracker`(허가된 도구만 사용하는지 감시), `PrivilegeEscalationDetector`(권한 상승 패턴 탐지), `ToolChainAttackDetector`(도구 연쇄 공격 탐지). **Group E 보안경계** 차원의 5개 트래커입니다.
 
 ### 사례 3: 응답 시간 급증으로 인한 서비스 장애
 
@@ -99,16 +99,20 @@ Tracker (관찰/측정) × Config (기준 선언) × Gate (배포 판정)
 
 58개 지표(25 Tracker + 33 Config)는 7개 품질 차원으로 구분됩니다.
 
-| Group | 차원 | 핵심 질문 | Tracker 수 | Config 수 |
+| Group | 차원 | 핵심 질문 | Tracker 수¹ | Config 수 |
 |-------|------|-----------|-----------|-----------|
-| **A** | 목표달성 | 에이전트가 지시를 제대로 완수했는가? | 4 | 6 |
-| **B** | 행동무결성 | 의도하지 않은 행동 없이 동작했는가? | 3 | 6 |
-| **C** | 신뢰성 | 같은 입력에 일관되게 응답하는가? | 3 | 5 |
-| **D** | 성능계약 | SLA/비용 계약을 지켰는가? | 4 | 5 |
+| **A** | 목표달성 | 에이전트가 지시를 제대로 완수했는가? | 3 | 6 |
+| **B** | 행동무결성 | 의도하지 않은 행동 없이 동작했는가? | 2 | 6 |
+| **C** | 신뢰성 | 같은 입력에 일관되게 응답하는가? | 2 | 5 |
+| **D** | 성능계약 | SLA/비용 계약을 지켰는가? | 2 | 5 |
 | **E** | 보안경계 | 외부 공격·데이터 유출을 차단했는가? | 5 | 3 |
-| **F** | 다중에이전트 협업 | 여러 에이전트가 교착 없이 협력했는가? | 3 | 4 |
-| **G** | 운영관측성 | 실패 원인을 즉시 추적·설명할 수 있는가? | 3 | 4 |
-| | **합계** | | **25** | **33** |
+| **F** | 다중에이전트 협업 | 여러 에이전트가 교착 없이 협력했는가? | 2 | 4 |
+| **G** | 운영관측성 | 실패 원인을 즉시 추적·설명할 수 있는가? | 0 | 4 |
+| | **Harness Gate 직접 지표** | | **16** | **33** |
+| | **운영 지원 Tracker** (모니터링·비용·스트리밍 등) | | **+9** | — |
+| | **SDK 전체 합계** | | **25** | **33** |
+
+> ¹ Harness Gate(A–G)에 직접 집계되는 Native Tracker는 16개다. `ConversationSession`, `ImplicitFeedbackTracker`, `AnomalyDetector`, `CostTracker`, `StreamingEvaluator` 등 운영 지원 Tracker 9개를 합산하면 SDK 전체 Native Tracker는 25개다. Group G는 별도 Tracker 없이 `LLMJudge`(선택 활성화)와 Config 4개로 관측성을 측정한다.
 
 > 공식 표기: **"25 Tracker + 33 Config = 58개 지표"**
 
@@ -117,7 +121,7 @@ Tracker (관찰/측정) × Config (기준 선언) × Gate (배포 판정)
 아래는 세 가지 차원(목표달성·성능·보안)을 선언하고 배포 판단을 내리는 최소 예제입니다.
 
 ```python
-# 출처: Evaluator_Examples/08_harness_eval.py, 섹션 1 — 3-Element Harness(Tracker·Config·Gate) 최소 예시
+# 출처: Evaluator_Examples/ch03_harness_basics.py, 섹션 1 — 3-Element Harness(Tracker·Config·Gate) 최소 예시
 from agent_evaluator import (
     PerformanceMonitor, HarnessEvaluationGate,
     InstructionConfig, SLAConfig, ThreatSeverityConfig,
@@ -197,7 +201,7 @@ def test_agent():
 | 재현 가능성 | 항상 재현 | 확률적 재현 |
 | 실패 정의 | 하나라도 실패 | N% 이상 성공 |
 
-`ReproducibilityConfig`의 `min_consistency_rate`는 이 문제를 해결합니다. "같은 입력에 대해 70% 이상 일관된 응답을 생성하는가"를 자동 판정합니다.
+`ReproducibilityConfig`의 `reproducibility_threshold`는 이 문제를 해결합니다. "같은 입력에 대해 70% 이상 일관된 응답을 생성하는가"를 자동 판정합니다.
 
 ### 한계 ③: 배포 후 드리프트의 미탐지
 
@@ -415,14 +419,14 @@ AI 평가 발전 요약:
 
 ## 실전 예제
 
-챕터 1에서 설명한 Harness Engineering 개념과 Group A-G 7차원을 실제 지표로 측정하려면 `01_layer1_all_metrics.py`와 `02_layer2_agentic_security.py`로 시작합니다. API 키 없이도 네이티브 지표를 즉시 실행할 수 있습니다.
+챕터 1에서 설명한 Harness Engineering 개념과 Group A-G 7차원을 실제 지표로 측정하려면 `ch02_first_eval.py`와 `ch05_group_b.py`로 시작합니다. API 키 없이도 네이티브 지표를 즉시 실행할 수 있습니다.
 
-**파일**: `Evaluator_Examples/01_layer1_all_metrics.py`, `Evaluator_Examples/02_layer2_agentic_security.py`
+**파일**: `Evaluator_Examples/ch02_first_eval.py`, `Evaluator_Examples/ch05_group_b.py`
 
-**핵심 코드 (출처: `Evaluator_Examples/01_layer1_all_metrics.py`)**
+**핵심 코드 (출처: `Evaluator_Examples/ch02_first_eval.py`)**
 
 ```python
-# 출처: Evaluator_Examples/01_layer1_all_metrics.py, 섹션 1 — 기본 QA 평가 (Group A 목표달성)
+# 출처: Evaluator_Examples/ch02_first_eval.py, 섹션 QA — 기본 QA 평가 (Group A 목표달성)
 from agent_evaluator import PerformanceMonitor, create_taskresult
 
 monitor = PerformanceMonitor(
@@ -453,7 +457,7 @@ print(f"Accuracy: {acc:.1%}") # Group A 목표달성
 - `generate_report()`는 TCR·정확도·지연시간·토큰 사용량을 집계한 `EvaluationReport` 객체를 반환합니다
 
 ```python
-# 출처: Evaluator_Examples/02_layer2_agentic_security.py, 섹션 1 — Group E 보안경계 측정
+# 출처: Evaluator_Examples/ch05_group_b.py, 섹션 1 — Group E 보안경계 측정
 from agent_evaluator import EvalMetadata
 from agent_evaluator.decorators import agent_eval
 
@@ -473,10 +477,10 @@ tool_agent("2024년 GDP 상위 5개국은?", ground_truth="미국, 중국, 독�
 
 ```bash
 # Group A/C/D — 목표달성·신뢰성·성능계약 측정
-python Evaluator_Examples/01_layer1_all_metrics.py
+python Evaluator_Examples/ch02_first_eval.py
 
 # Group B/E/F — 행동무결성·보안경계·다중에이전트 측정
-python Evaluator_Examples/02_layer2_agentic_security.py
+python Evaluator_Examples/ch05_group_b.py
 ```
 
 **Group A-G와 예제 매핑**
@@ -494,10 +498,10 @@ python Evaluator_Examples/02_layer2_agentic_security.py
 **실행 결과 (v0.8.3 기준)**
 
 ```
-# 01_layer1_all_metrics.py
+# ch02_first_eval.py
 TCR=43.1% | 54개 태스크 | p95_latency=5.20s | avg_accuracy=59.82%
 
-# 02_layer2_agentic_security.py
+# ch05_group_b.py
 TCR=41.4% | 14개 태스크 | 보안 위협 3건 탐지
   - SQL Injection 시도 탐지 (Group E — InputSanitizationTracker)
   - 민감 데이터 노출 탐지 (Group E — OutputLeakageDetector)
@@ -505,3 +509,53 @@ TCR=41.4% | 14개 태스크 | 보안 위협 3건 탐지
 ```
 
 > **첫 실행 팁**: 두 파일 모두 API 키 없이 실행됩니다. `ANTHROPIC_API_KEY` 또는 `OPENAI_API_KEY`를 `.env`에 추가하면 LLMJudge(Group G)가 활성화되어 `completeness`, `relevance`, `factual_consistency` 세 차원이 추가로 측정됩니다.
+
+**프레임워크 어댑터 — 실제 프레임워크 응답에서 Group 지표 자동 추출 (출처: `Evaluator_Examples/ch13_frameworks.py`)**
+
+`framework=` 파라미터 하나로 LangChain·LangGraph·CrewAI·AutoGen 응답 객체에서 tool_calls·agent_interactions·tokens_used를 자동 추출한다. 실제 SDK 없이도 mock 응답 객체로 동작한다(duck typing).
+
+```python
+# 출처: Evaluator_Examples/ch13_frameworks.py, 섹션 1 — framework= 파라미터 하나로 Group B·F 자동 측정
+from types import SimpleNamespace
+from agent_evaluator import PerformanceMonitor
+from agent_evaluator.decorators import agent_eval
+
+monitor = PerformanceMonitor(output_dir="results/")
+
+@agent_eval(monitor, task_type="tool_use", framework="langchain", task_id_prefix="lc")
+def langchain_agent(question: str, ground_truth: str = ""):
+    steps = [(SimpleNamespace(tool=t, tool_input="q"), f"{t} 결과")
+             for t in ["web_search", "calculator"]]
+    return SimpleNamespace(
+        output=f"결과: {question}",
+        intermediate_steps=steps,            # → Group B ToolCallAnalyzer 자동 연결
+        usage_metadata={"input_tokens": 350, "output_tokens": 120},  # → TokenEconomyTracker
+    )
+
+langchain_agent("GDP 상위 5개국은?", ground_truth="미국, 중국, 독일, 일본, 인도")
+# Group A: accuracy_score 자동 계산 (TokenF1·Jaccard·LCS)
+# Group B: tool_calls=[web_search, calculator] 자동 기록
+# Group D: tokens_used={input:350, output:120} 자동 기록
+```
+
+**버전 비교 — Harness Gate로 "어느 버전을 배포할지" 결정 (출처: `Evaluator_Examples/ch20_deployment.py`)**
+
+```python
+# 출처: Evaluator_Examples/ch20_deployment.py — v1 vs v2 Gate 점수 비교
+from agent_evaluator import PerformanceMonitor
+# 두 monitor를 독립적으로 운영 — Gate 간 교차 오염 없음
+monitor_v1 = PerformanceMonitor(output_dir="results/", enable_security_metrics=True)
+monitor_v2 = PerformanceMonitor(output_dir="results/", enable_security_metrics=True)
+
+# ... v1·v2 에이전트 등록 및 동일 테스트 케이스 실행 ...
+
+r1 = monitor_v1.generate_report().to_dict()
+r2 = monitor_v2.generate_report().to_dict()
+h1 = (r1.get("extra_metrics") or {}).get("harness_groups", {})
+h2 = (r2.get("extra_metrics") or {}).get("harness_groups", {})
+
+v1_fail = [g for g in "ABCDEFG" if ((h1.get(g) or {}).get("gate") or "").upper() == "FAIL"]
+v2_fail = [g for g in "ABCDEFG" if ((h2.get(g) or {}).get("gate") or "").upper() == "FAIL"]
+print(f"v1 FAIL Gates: {v1_fail}")   # 배포 불가
+print(f"v2 FAIL Gates: {v2_fail}")   # FAIL 없으면 배포 승인
+```

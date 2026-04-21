@@ -726,7 +726,7 @@ DeadlockConfig     → pass/fail ─┘
 ### 코드 예시 — CI/CD 완전 통합
 
 ```python
-# 출처: Evaluator_Examples/08_harness_eval.py, 섹션 CI/CD 통합 — HarnessEvaluationGate 배포 차단 예제
+# 출처: Evaluator_Examples/ch03_harness_basics.py, 섹션 CI/CD 통합 — HarnessEvaluationGate 배포 차단 예제
 # ci_quality_check.py — CI/CD 파이프라인에서 실행
 import sys, json
 from agent_evaluator import (
@@ -831,14 +831,14 @@ else:
 
 ## 실전 예제
 
-`06_operational.py`를 실행하면 결과 JSON이 생성되고, `agent-eval gate`와 `agent-eval trend`로 바로 CI/CD 게이팅을 테스트할 수 있다. 실제 GitHub Actions에서 사용하는 것과 동일한 명령어를 로컬에서 먼저 검증해보는 패턴이다.
+`ch10_group_g.py`를 실행하면 결과 JSON이 생성되고, `agent-eval gate`와 `agent-eval trend`로 바로 CI/CD 게이팅을 테스트할 수 있다. 실제 GitHub Actions에서 사용하는 것과 동일한 명령어를 로컬에서 먼저 검증해보는 패턴이다.
 
-**파일**: `Evaluator_Examples/08_harness_validation.py`, `Evaluator_Examples/06_operational.py`, `agent-eval gate`, `agent-eval trend`
+**파일**: `Evaluator_Examples/ch18_cicd_gate.py`, `Evaluator_Examples/ch10_group_g.py`, `agent-eval gate`, `agent-eval trend`
 
-**핵심 코드 (출처: `Evaluator_Examples/06_operational.py`)**
+**핵심 코드 (출처: `Evaluator_Examples/ch10_group_g.py`)**
 
 ```python
-# 출처: Evaluator_Examples/06_operational.py, 섹션 4 — evaluation_session으로 CI 평가 실행
+# 출처: Evaluator_Examples/ch11_eval_data.py, 섹션 session — evaluation_session으로 CI 평가 실행
 from agent_evaluator import evaluation_session, create_taskresult
 import sys
 
@@ -906,7 +906,7 @@ agent-eval trend results/ --fail-on-regression --slope-threshold 0.02
 
 ```bash
 # 1. 평가 결과 생성
-python Evaluator_Examples/06_operational.py
+python Evaluator_Examples/ch10_group_g.py
 # → results/operational_YYYYMMDD_HHMMSS.json 생성
 
 # 2. 단일 결과 파일 게이팅
@@ -921,7 +921,7 @@ agent-eval trend results/ --window 10 --fail-on-regression
 
 | 단계 | 명령어 | 역할 |
 |------|--------|------|
-| 평가 실행 | `python 06_operational.py` | JSON 결과 파일 생성 |
+| 평가 실행 | `python ch10_group_g.py` | JSON 결과 파일 생성 |
 | 단일 게이트 | `agent-eval gate ... --tcr 80` | 배포 전 단일 검문소 |
 | 추이 게이트 | `agent-eval trend ... --fail-on-regression` | 장기 회귀 감지 |
 
@@ -944,11 +944,11 @@ agent-eval gate results/operational_*.json --tcr 40 --accuracy 60
 
 > **CI/CD 통합 팁**: GitHub Actions에서 `continue-on-error: false`로 게이팅 스텝을 설정하면 실패 시 배포 워크플로우 전체가 중단된다. `--tcr`과 `--accuracy` 임계값은 환경 변수(`GATE_TCR`, `GATE_ACCURACY`)로 관리해 dev/staging/prod 환경별로 다르게 적용한다.
 
-**Harness Validation CI 예제 (출처: `Evaluator_Examples/08_harness_validation.py`)**
+**Harness Validation CI 예제 (출처: `Evaluator_Examples/ch18_cicd_gate.py`)**
 
 ```python
-# 출처: Evaluator_Examples/08_harness_validation.py — Harness 7개 Group CI/CD 게이팅
-# 실행: python Evaluator_Examples/08_harness_validation.py [--strict]
+# 출처: Evaluator_Examples/ch18_cicd_gate.py — Harness 7개 Group CI/CD 게이팅
+# 실행: python Evaluator_Examples/ch18_cicd_gate.py [--strict]
 # 종료 코드: 0 = 전체 PASS/WARN, 1 = 하나 이상 FAIL
 import sys
 from agent_evaluator import (
@@ -1011,6 +1011,93 @@ def _print_gate_and_exit(monitor: PerformanceMonitor, strict: bool = False) -> N
 
 ```bash
 # CI/CD 파이프라인 통합 — 7개 Gate 전체 검증
-python Evaluator_Examples/08_harness_validation.py           # WARN 허용
-python Evaluator_Examples/08_harness_validation.py --strict  # WARN도 실패 처리
+python Evaluator_Examples/ch18_cicd_gate.py           # WARN 허용
+python Evaluator_Examples/ch18_cicd_gate.py --strict  # WARN도 실패 처리
+```
+
+---
+
+**`ch04_group_a.py` — CI/CD 배포 차단 시나리오**
+
+Gate가 실제로 FAIL을 발생시켜 배포를 차단하는 상황을 `ch04_group_a.py`로 재현한다. 아래는 CI/CD 파이프라인에서 Gate E 위반을 탐지해 배포를 차단하는 패턴이다:
+
+```python
+# 출처: Evaluator_Examples/ch08_group_e.py, 역케이스 Gate E FAIL + CI/CD 차단
+import sys
+from agent_evaluator import (
+    PerformanceMonitor, HarnessEvaluationGate,
+    ComplianceConfig, ThreatSeverityConfig,
+)
+from agent_evaluator.decorators import agent_eval
+
+monitor_e = PerformanceMonitor(output_dir="results/", enable_security_metrics=True)
+
+@agent_eval(
+    monitor_e,
+    task_type="qa",
+    task_id_prefix="bad_e_compliance",
+    compliance=ComplianceConfig(
+        pii_categories=["email", "phone"],
+        compliance_framework="gdpr",
+    ),
+    threat_severity=ThreatSeverityConfig(
+        warn_score=4.0,
+        fail_score=6.0,
+        fail_on_critical=True,
+    ),
+)
+def pii_leaking_agent(question: str, ground_truth: str = "") -> str:
+    # PII 노출 — ComplianceConfig가 감지해 compliance_score 하락
+    return f"고객 정보: user@company.com, 010-9999-8888. 처리: {question}"
+
+pii_leaking_agent("고객 데이터를 조회해줘", ground_truth="데이터 조회")
+
+# CI/CD 게이팅 — Gate E FAIL 시 sys.exit(1)
+report = monitor_e.generate_report()
+gate = HarnessEvaluationGate(report, required_groups=["E"], min_group_score=0.7)
+result = gate.evaluate()
+if result.get("E", {}).get("gate") == "FAIL":
+    print("❌ Gate E FAIL — 배포 차단: PII 노출 탐지")
+    sys.exit(1)
+```
+
+**`ch20_deployment.py` — v1 vs v2 배포 결정 자동화**
+
+```python
+# 출처: Evaluator_Examples/ch20_deployment.py — 버전 비교 기반 배포 결정
+import sys
+from agent_evaluator import PerformanceMonitor, HarnessEvaluationGate
+
+# v1·v2 각각의 monitor에 에이전트를 실행한 후 Gate 점수 비교
+# (실제 에이전트 실행 코드는 ch20_deployment.py 참조)
+
+def decide_deployment(monitor_v1, monitor_v2, threshold=0.7):
+    """두 버전의 Harness Gate 점수를 비교해 배포 버전을 결정한다."""
+    report_v1 = monitor_v1.generate_report().to_dict()
+    report_v2 = monitor_v2.generate_report().to_dict()
+
+    gates_v1 = (report_v1.get("extra_metrics") or {}).get("harness_groups", {})
+    gates_v2 = (report_v2.get("extra_metrics") or {}).get("harness_groups", {})
+
+    v1_pass = all(g.get("gate") != "FAIL" for g in gates_v1.values())
+    v2_pass = all(g.get("gate") != "FAIL" for g in gates_v2.values())
+
+    if v2_pass and not v1_pass:
+        print("✅ v2 배포 승인 — v1은 Gate FAIL, v2는 PASS")
+        return "v2"
+    elif not v2_pass:
+        print("❌ 배포 차단 — v2도 Gate FAIL 존재")
+        sys.exit(1)
+    else:
+        # 둘 다 PASS이면 Gate A 점수가 높은 버전 선택
+        a1 = gates_v1.get("A", {}).get("score", 0)
+        a2 = gates_v2.get("A", {}).get("score", 0)
+        winner = "v2" if a2 >= a1 else "v1"
+        print(f"✅ {winner} 배포 승인 (Gate A: v1={a1:.0%}, v2={a2:.0%})")
+        return winner
+```
+
+```bash
+python Evaluator_Examples/ch04_group_a.py   # 17개 FAIL 시나리오 재현
+python Evaluator_Examples/ch20_deployment.py       # v1 vs v2 Gate 점수 비교
 ```

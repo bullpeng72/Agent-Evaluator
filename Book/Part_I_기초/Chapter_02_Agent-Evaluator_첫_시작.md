@@ -164,7 +164,7 @@ TCR 66.7%이 게이팅 기준 80% 미달이므로 `gate()`는 `sys.exit(1)`을 �
 `gate()`는 간단한 단일 임계값 판정입니다. 더 복잡한 배포 기준은 **Harness Config** 데이터클래스로 선언합니다.
 
 ```python
-# 출처: Evaluator_Examples/08_harness_eval.py, 섹션 1·4 — Group A·D Config 선언 및 통합
+# 출처: Evaluator_Examples/ch03_harness_basics.py, 섹션 1·4 — Group A·D Config 선언 및 통합
 from agent_evaluator import (
     PerformanceMonitor, HarnessEvaluationGate,
     InstructionConfig,    # Group A — 지시 준수
@@ -320,9 +320,9 @@ result = create_taskresult(
 )
 # → accuracy_score, completion_score 자동 계산 포함
 
-# ③ EvaluationReport — generate_report()가 반환하는 불변 보고서
+# ③ EvaluationReport — generate_report()가 반환하는 보고서
 report = monitor.generate_report()
-# → task_completion_rate, average_accuracy, latency_p95 등 집계값
+# → to_dict()로 직렬화: accuracy_metrics["tcr"]["tcr"], efficiency_metrics["latency"]["p95"] 등
 ```
 
 ### Group A-G 활성화 방법
@@ -523,7 +523,7 @@ my_agent("한국의 수도는?", ground_truth="서울")
 
 ---
 
-## 2.6 언제 어느 출력을 쓰는가 — 상황별 결정표
+## 2.7 언제 어느 출력을 쓰는가 — 상황별 결정표
 
 | 상황 | 권장 방법 | Harness 연관 |
 |---|---|---|
@@ -605,14 +605,14 @@ print(comparison)
 
 ## 실전 예제
 
-챕터 2에서 설명한 Harness 아키텍처와 첫 시작 과정을 `04_decorator_quickeval.py`로 바로 체험할 수 있습니다.
+챕터 2에서 설명한 Harness 아키텍처와 첫 시작 과정을 `ch12_decorators.py`로 바로 체험할 수 있습니다.
 
-**파일**: `Evaluator_Examples/04_decorator_quickeval.py`
+**파일**: `Evaluator_Examples/ch12_decorators.py`
 
-**핵심 코드 (출처: `Evaluator_Examples/04_decorator_quickeval.py`)**
+**핵심 코드 (출처: `Evaluator_Examples/ch12_decorators.py`)**
 
 ```python
-# 출처: Evaluator_Examples/04_decorator_quickeval.py, 섹션 1 — @agent_eval 기본 사용
+# 출처: Evaluator_Examples/ch12_decorators.py, 섹션 1 — @agent_eval 기본 사용
 from agent_evaluator import PerformanceMonitor
 from agent_evaluator.decorators import agent_eval
 
@@ -630,7 +630,7 @@ monitor.save_to_file("my_first_eval")
 ```
 
 ```python
-# 출처: Evaluator_Examples/04_decorator_quickeval.py, 섹션 8 — QuickEval + Harness Gate
+# 출처: Evaluator_Examples/ch12_decorators.py, 섹션 8 — QuickEval + Harness Gate
 from agent_evaluator import QuickEval
 
 eval_qe = QuickEval("results/")

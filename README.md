@@ -3,7 +3,7 @@
 [![PyPI version](https://img.shields.io/pypi/v/agent-evaluator.svg)](https://pypi.org/project/agent-evaluator/)
 [![Python Version](https://img.shields.io/badge/python-3.8%2B-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Version](https://img.shields.io/badge/version-0.8.3-green.svg)](https://github.com/bullpeng72/Agent-Evaluator)
+[![Version](https://img.shields.io/badge/version-0.8.4-green.svg)](https://github.com/bullpeng72/Agent-Evaluator)
 
 **AI 에이전트 배포 준비도를 7개 Gate로 판정하는 Harness Engineering 평가 SDK**
 
@@ -1416,7 +1416,7 @@ agent-evaluator/
 │   ├── cost/                    # CostTracker · AdaptivePolicy
 │   └── datasets/                # GoldenSetBuilder
 │
-├── Evaluator_Examples/          # 예제 9개 파일 (.deprecated/에 구 21개 보존)
+├── Evaluator_Examples/          # 예제 17개 파일 (chXX_topic.py, .deprecated/에 구 11개 보존)
 ├── tests/                       # 2,465개+ 테스트 함수, 53개 파일
 └── pyproject.toml
 ```
@@ -1477,6 +1477,14 @@ mypy agent_evaluator/          # 타입 검사
 ---
 
 ## 변경 이력
+
+### v0.8.4 (2026-04-21) — 예제 파일 Book 챕터 기반 전면 재편
+
+- 예제 파일 11개 → 17개 `chXX_topic.py` 챕터 기반 네이밍으로 전면 재편
+- `ch05`, `ch07`, `ch10`, `ch02`에 누락 트래커(WorkflowExecution·Latency·TokenEconomy·AnomalyDetector·CostTracker) 추가
+- Phoenix `service_name` 및 결과 파일명 챕터 번호 기준 동기화
+- Book 27개 마크다운 `# 출처:` 참조 신규 파일명으로 일괄 갱신
+- `ch05_group_b.py` `create_taskresult` 임포트 누락 버그 수정
 
 ### v0.8.3 (2026-04-21) — LLMJudge 안정성 강화 · Gate 개선 · 보안 트래커 확장
 

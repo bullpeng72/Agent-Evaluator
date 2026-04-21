@@ -16,7 +16,8 @@
 > - **[Appendix A — 58개 지표 완전 레퍼런스](../Appendix/A_58개지표_레퍼런스.md)**: Group D 지표 입력·출력
 > - **[Appendix H — 수학적 상세](../Appendix/H_알고리즘_수학적_레퍼런스.md)**: 퍼센타일 계산 공식, 비용 추정 수식
 > - **[Appendix A §Part 2 — Config 레퍼런스](../Appendix/A_58개지표_레퍼런스.md)**: Group D Config 파라미터 전체 목록
-> - **[Evaluator_Examples/01_layer1_all_metrics.py](../../Evaluator_Examples/01_layer1_all_metrics.py)**: LatencyTracker·TokenEconomy 실전 예제
+> - **[Evaluator_Examples/ch02_first_eval.py](../../Evaluator_Examples/ch02_first_eval.py)**: LatencyTracker·TokenEconomy 실전 예제
+> - **[Evaluator_Examples/ch04_group_a.py](../../Evaluator_Examples/ch04_group_a.py)**: Gate D FAIL 시나리오 — 시나리오 12 (TTFTVariabilityConfig·ResourceBudgetConfig)
 
 > **독자별 읽기 가이드**  
 > - **QA 관리자**: §7.1(개요) → §7.4(Config 설정) → §7.5(임계값·Gate 판정) 순서로 읽으면 "SLA·비용 기준을 어떻게 선언할지"를 빠르게 파악할 수 있습니다.  
@@ -79,7 +80,7 @@ Group D는 에이전트가 **약속한 성능 계약(Performance Contract)**을 
 | `latency_histogram` | 응답 시간 분포 히스토그램 |
 
 ```python
-# 출처: Evaluator_Examples/01_layer1_all_metrics.py, 섹션 5 — LatencyTracker 퍼센타일
+# 출처: Evaluator_Examples/ch07_group_d.py, 섹션 지연시간 — LatencyTracker 퍼센타일
 from agent_evaluator import PerformanceMonitor
 from agent_evaluator.decorators import agent_eval
 import time
@@ -114,7 +115,7 @@ print(f"P99 응답 시간: {d.get('latency_p99', 0) * 1000:.0f}ms")
 스트리밍 응답 에이전트에서 첫 토큰까지의 대기 시간을 별도로 측정한다.
 
 ```python
-# 출처: Evaluator_Examples/01_layer1_all_metrics.py, 섹션 5 — 스트리밍 TTFT 자동 측정
+# 출처: Evaluator_Examples/ch07_group_d.py, 섹션 지연시간 — 스트리밍 TTFT 자동 측정
 from agent_evaluator.decorators import agent_eval
 
 @agent_eval(monitor, task_type="qa")
@@ -148,7 +149,7 @@ def streaming_agent(question: str, ground_truth: str = "") -> str:
 | `token_efficiency` | 완료율 대비 토큰 효율 |
 
 ```python
-# 출처: Evaluator_Examples/01_layer1_all_metrics.py, 섹션 6 — TokenEconomyTracker 비용 추정
+# 출처: Evaluator_Examples/ch07_group_d.py, 섹션 토큰경제 — TokenEconomyTracker 비용 추정
 from agent_evaluator import create_taskresult
 
 result = create_taskresult(
@@ -191,6 +192,7 @@ print(f"추정 비용: ${d.get('estimated_cost_usd', 0):.4f}")
 응답 시간과 비용에 대한 SLA(Service Level Agreement)를 코드로 선언한다. **Group D의 핵심 Config**다.
 
 ```python
+# 출처: Evaluator_Examples/ch07_group_d.py, 섹션 Gate D Performance Contract
 from agent_evaluator import SLAConfig
 
 SLAConfig(
@@ -239,6 +241,7 @@ api_sla = SLAConfig(
 토큰/비용 대비 실제 완료율(ROI)을 측정한다. "돈을 쓴 만큼 가치가 나왔는가?"를 평가한다.
 
 ```python
+# 출처: Evaluator_Examples/ch07_group_d.py, 섹션 Gate D Performance Contract
 from agent_evaluator import EfficiencyConfig
 
 EfficiencyConfig(
@@ -253,6 +256,7 @@ EfficiencyConfig(
 **사용 예시:**
 
 ```python
+# 출처: Evaluator_Examples/ch07_group_d.py, 섹션 Gate D Performance Contract
 @agent_eval(
     monitor,
     task_type="qa",
@@ -273,6 +277,7 @@ def agent(question: str, ground_truth: str = "") -> str:
 개별 태스크 수준에서 토큰·비용·실행시간의 하드 상한을 설정한다. `SLAConfig`가 통계적 위반을 탐지한다면, `ResourceBudgetConfig`는 개별 태스크의 폭주를 즉시 차단한다.
 
 ```python
+# 출처: Evaluator_Examples/ch07_group_d.py, 역케이스 Gate D FAIL (ResourceBudgetConfig)
 from agent_evaluator import ResourceBudgetConfig
 
 ResourceBudgetConfig(
@@ -315,6 +320,7 @@ def agent(question: str, ground_truth: str = "") -> str:
 첫 토큰까지의 대기 시간(TTFT) 변동성을 측정한다. 스트리밍 에이전트에서 사용자 체감 품질에 직접 영향을 준다.
 
 ```python
+# 출처: Evaluator_Examples/ch07_group_d.py, 역케이스 Gate D FAIL (TTFTVariabilityConfig)
 from agent_evaluator import TTFTVariabilityConfig
 
 TTFTVariabilityConfig(
@@ -332,6 +338,7 @@ TTFTVariabilityConfig(
 동일 `task_type` 내 비용의 변동 계수(CV, Coefficient of Variation)를 측정한다. 비용이 예측 가능하게 안정적인지를 평가한다.
 
 ```python
+# 출처: Evaluator_Examples/ch07_group_d.py, 섹션 Gate D Performance Contract
 from agent_evaluator import CostPredictabilityConfig
 
 CostPredictabilityConfig(
@@ -458,13 +465,14 @@ agent-eval trend results/ --metric cost --window 30
 
 | 예제 파일 | 관련 내용 |
 |---------|---------|
-| [`Evaluator_Examples/08_harness_eval.py`](../../Evaluator_Examples/08_harness_eval.py) | 섹션 4: Group D Performance Contract — 3개 Config 실전 예제 |
-| [`Evaluator_Examples/01_layer1_all_metrics.py`](../../Evaluator_Examples/01_layer1_all_metrics.py) | 섹션 4~5: LatencyTracker·TokenEconomyTracker 실전 예제 |
+| [`Evaluator_Examples/ch03_harness_basics.py`](../../Evaluator_Examples/ch03_harness_basics.py) | 섹션 4: Group D Performance Contract — 3개 Config 실전 예제 |
+| [`Evaluator_Examples/ch02_first_eval.py`](../../Evaluator_Examples/ch02_first_eval.py) | 섹션 4~5: LatencyTracker·TokenEconomyTracker 실전 예제 |
+| [`Evaluator_Examples/ch04_group_a.py`](../../Evaluator_Examples/ch04_group_a.py) | 시나리오 12: Gate D FAIL (TTFTVariability·ResourceBudget·TTFT 극단분산) |
 
-**핵심 코드 (출처: `Evaluator_Examples/08_harness_eval.py`, 섹션 4 — Group D Performance Contract)**
+**핵심 코드 (출처: `Evaluator_Examples/ch03_harness_basics.py`, 섹션 4 — Group D Performance Contract)**
 
 ```python
-# 출처: Evaluator_Examples/08_harness_eval.py, 섹션 4 — Group D Performance Contract
+# 출처: Evaluator_Examples/ch07_group_d.py, 섹션 Gate D Performance Contract
 import time, random
 from agent_evaluator import (
     SLAConfig, EfficiencyConfig, ResourceBudgetConfig,
@@ -524,8 +532,9 @@ _cost_cfg = CostPredictabilityConfig(max_coefficient_of_variation=0.3, min_sampl
 ```
 
 ```bash
-python Evaluator_Examples/08_harness_eval.py          # Group D 포함 전체
-python Evaluator_Examples/01_layer1_all_metrics.py    # LatencyTracker·TokenEconomy 예제
+python Evaluator_Examples/ch03_harness_basics.py          # Group D 포함 전체
+python Evaluator_Examples/ch02_first_eval.py    # LatencyTracker·TokenEconomy 예제
+python Evaluator_Examples/ch04_group_a.py  # Gate D FAIL — 배포 차단 케이스
 ```
 
 ---

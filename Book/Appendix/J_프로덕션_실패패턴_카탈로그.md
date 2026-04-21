@@ -68,14 +68,14 @@ monitor = PerformanceMonitor(output_dir="results/")
 @agent_eval(
     monitor,
     task_type="tool_use",
-    subtask_tracking=SubtaskConfig(    # 출처: Evaluator_Examples/08_harness_eval.py, 섹션 Group A
-        required_subtasks=["order_cancel", "refund_register", "email_notify"],
+    subtask_tracking=SubtaskConfig(    # 출처: Evaluator_Examples/ch04_group_a.py, 섹션 Group A
+        expected_subtasks=["order_cancel", "refund_register", "email_notify"],
         min_completion_rate=0.95,        # 하위 태스크 95% 이상 완료 요구
-        partial_credit=False,            # 부분 완료 TCR 인정 안 함
+        check_ordering=False,            # 순서 검사 여부 (False = 순서 무관)
     ),
     goal_alignment=GoalAlignmentConfig(
-        min_alignment_score=0.85,
-        allow_partial_achievement=False,
+        alignment_threshold=0.85,        # 목표 정렬 경고 임계값
+        ignore_no_tool_tasks=False,      # 도구 미사용 태스크도 평가
     ),
 )
 def support_agent(question: str, ground_truth: str = "") -> str:
@@ -83,7 +83,7 @@ def support_agent(question: str, ground_truth: str = "") -> str:
 ```
 
 **대응 전략**:
-- 모든 복합 태스크에 SubtaskConfig를 명시하고 `partial_credit=False`로 설정해 부분 완료를 완료로 집계하지 않도록 한다.
+- 모든 복합 태스크에 `SubtaskConfig(expected_subtasks=[...], min_completion_rate=1.0)`을 명시하고, 하위 태스크 전체 완료를 TCR 조건으로 선언한다.
 - 주간 TCR 추세 리포트를 자동화하고, 5% 이상 하락 시 즉시 알림이 발송되는 `SimpleTaskAlertRule`을 구성한다.
 - 에이전트 종료 조건 로직에 "모든 하위 태스크의 완료 상태 확인" 단계를 필수로 포함시키고 코드 리뷰 체크리스트에 반영한다.
 
@@ -110,7 +110,7 @@ AccuracyScore: 0.76 (토큰 부분 겹침), 실제 부작용 3가지 중 0개 �
 
 **Harness 탐지 코드**:
 ```python
-# 출처: Evaluator_Examples/04_decorator_quickeval.py, LLMJudge 섹션
+# 출처: Evaluator_Examples/ch12_decorators.py, LLMJudge 섹션
 from agent_evaluator import PerformanceMonitor, LLMJudge
 from agent_evaluator.decorators import agent_eval, LLMJudgeConfig
 
@@ -174,11 +174,11 @@ monitor = PerformanceMonitor(output_dir="results/")
 @conversation_eval(
     monitor,
     max_turns=30,
-    instructions=InstructionConfig(            # 출처: Evaluator_Examples/08_harness_eval.py, 섹션 Group A
+    instructions=InstructionConfig(            # 출처: Evaluator_Examples/ch04_group_a.py, 섹션 Group A
         required_keywords=[],
-        forbidden_patterns=["[A-Za-z]{10,}"],  # 10자 이상 영어 단어 금지
-        strict=True,
-        violation_threshold=0.05,               # 위반율 5% 초과 시 경보
+        forbidden_phrases=["[A-Za-z]{10,}"],   # 10자 이상 영어 단어 금지
+        fail_on_violation=True,
+        expected_language="ko",                 # 한국어 응답 강제
     ),
     context_retention=ContextRetentionConfig(
         min_retention_score=0.80,
@@ -191,7 +191,7 @@ def korean_support_agent(session_id: str, question: str, ground_truth: str = "")
 
 **대응 전략**:
 - 멀티턴 대화에서 5턴마다 시스템 지시사항을 컨텍스트에 재삽입하는 "instruction refresh" 로직을 에이전트에 구현한다.
-- `InstructionConfig(strict=True, violation_threshold=0.05)`로 위반율 5% 초과 시 자동으로 에이전트를 재초기화하거나 감독자에게 에스컬레이션한다.
+- `InstructionConfig(fail_on_violation=True, violation_weight=0.05)`로 위반 감지 시 자동으로 에이전트를 재초기화하거나 감독자에게 에스컬레이션한다.
 - 배포 전 멀티턴 stress test (30턴 이상 시뮬레이션)를 CI/CD 파이프라인에 필수 단계로 포함한다.
 
 ---
@@ -246,9 +246,9 @@ monitor = PerformanceMonitor(output_dir="results/")
     monitor,
     task_type="data_analysis",
     alert_rules=[format_alert],
-    instructions=InstructionConfig(    # 출처: Evaluator_Examples/08_harness_eval.py, 섹션 Group A
+    instructions=InstructionConfig(    # 출처: Evaluator_Examples/ch04_group_a.py, 섹션 Group A
         required_keywords=["product_id", "price", "stock"],
-        strict=True,
+        fail_on_violation=True,
     ),
 )
 def data_pipeline_agent(question: str, ground_truth: str = "") -> str:
@@ -291,7 +291,7 @@ def data_pipeline_agent(question: str, ground_truth: str = "") -> str:
 
 **Harness 탐지 코드**:
 ```python
-# 출처: Evaluator_Examples/08_harness_eval.py, 섹션 Group B
+# 출처: Evaluator_Examples/ch05_group_b.py, 섹션 Group B
 from agent_evaluator import (
     PerformanceMonitor, LoopDetectionConfig, ResourceBudgetConfig, EfficiencyConfig
 )
@@ -303,16 +303,17 @@ monitor = PerformanceMonitor(output_dir="results/")
     monitor,
     task_type="tool_use",
     loop_detection=LoopDetectionConfig(
-        max_loop_count=10,              # 동일 도구 최대 10회 허용
-        loop_threshold=0.85,            # 유사 호출 85% 이상이면 루프 판정
-        detection_window=20,            # 최근 20회 호출에서 유사도 계산
+        consecutive_repeat_threshold=10,  # 동일 도구 최대 10회 연속 허용
+        response_similarity_threshold=0.85,   # 유사 호출 85% 이상이면 루프 판정
+        window_size=20,                   # 최근 20회 호출에서 유사도 계산
     ),
     resource_budget=ResourceBudgetConfig(
-        max_tool_calls=25,              # 태스크당 총 도구 호출 25회 상한
+        max_tokens=5000,               # 태스크당 총 토큰 5,000 상한
         max_cost_usd=0.50,             # 태스크당 비용 $0.50 상한
     ),
     efficiency=EfficiencyConfig(
-        min_tool_call_completion_ratio=0.40,  # 도구 호출 대비 완료율 40% 이상 요구
+        warn_ratio=2.0,                # 목표 대비 2배 초과 시 경고
+        fail_ratio=4.0,                # 목표 대비 4배 초과 시 fail
     ),
 )
 def search_agent(question: str, ground_truth: str = "") -> str:
@@ -321,7 +322,7 @@ def search_agent(question: str, ground_truth: str = "") -> str:
 
 **대응 전략**:
 - 에이전트 시스템 프롬프트에 명시적인 종료 조건("검색 결과에서 명확한 답이 있으면 즉시 반환")과 재시도 한계("동일 쿼리 3회 이상 시도 금지")를 포함시킨다.
-- `LoopDetectionConfig(max_loop_count=10)`을 기본 설정으로 적용하고 임계값 초과 시 즉시 태스크를 중단하는 서킷 브레이커 패턴을 구현한다.
+- `LoopDetectionConfig(consecutive_repeat_threshold=10)`을 기본 설정으로 적용하고 임계값 초과 시 즉시 태스크를 중단하는 서킷 브레이커 패턴을 구현한다.
 - 도구 결과를 캐시하고 동일 파라미터의 재호출은 캐시 결과를 반환하는 메모이제이션 레이어를 도구 래퍼에 추가한다.
 
 ---
@@ -348,7 +349,7 @@ Week 4: export_all_employees 호출 6건 → 성공 (권한 설정 미비)
 
 **Harness 탐지 코드**:
 ```python
-# 출처: Evaluator_Examples/08_harness_eval.py, 섹션 Group B
+# 출처: Evaluator_Examples/ch05_group_b.py, 섹션 Group B
 from agent_evaluator import PerformanceMonitor, ScopeConfig
 from agent_evaluator.decorators import agent_eval
 
@@ -363,9 +364,8 @@ ALLOWED_TOOLS = ["read_employee_profile", "search_department"]
     monitor,
     task_type="tool_use",
     scope=ScopeConfig(
-        allowed_actions=ALLOWED_TOOLS,
-        scope_violation_threshold=0.0,   # 위반 허용 0건 (Zero tolerance)
-        strict_mode=True,
+        allowed_tools=ALLOWED_TOOLS,
+        fail_on_violation=True,          # 위반 허용 0건 (Zero tolerance)
     ),
 )
 def hr_agent(question: str, ground_truth: str = "") -> str:
@@ -376,7 +376,7 @@ def hr_agent(question: str, ground_truth: str = "") -> str:
 ```
 
 **대응 전략**:
-- 도구 허용 목록을 프롬프트에만 명시하지 말고 런타임 미들웨어에서 화이트리스트 검증을 강제한다. `ScopeConfig(strict_mode=True)`로 첫 위반 즉시 태스크를 종료한다.
+- 도구 허용 목록을 프롬프트에만 명시하지 말고 런타임 미들웨어에서 화이트리스트 검증을 강제한다. `ScopeConfig(allowed_tools=[...], fail_on_violation=True)`로 첫 위반 즉시 태스크를 종료한다.
 - 최소 권한 원칙(Principle of Least Privilege)을 적용해 에이전트에 주어지는 도구 목록을 태스크 유형별로 세분화하고 불필요한 도구는 제공하지 않는다.
 - 주간 도구 사용 패턴 리포트를 생성해 허가 도구 외 호출 시도의 추세를 모니터링하고 점진적 증가 패턴을 조기 탐지한다.
 
@@ -406,7 +406,7 @@ InputSanitizationTracker 미적용 환경에서 3건 성공적 인젝션 확인
 
 **Harness 탐지 코드**:
 ```python
-# 출처: Evaluator_Examples/08_harness_eval.py, 섹션 Group E
+# 출처: Evaluator_Examples/ch08_group_e.py, 섹션 Group E
 from agent_evaluator import (
     PerformanceMonitor, ThreatSeverityConfig, ComplianceConfig, ThreatResponseConfig
 )
@@ -420,19 +420,18 @@ monitor = PerformanceMonitor(
 @agent_eval(
     monitor,
     task_type="qa",
-    security=SecurityConfig(
-        enable_input_sanitization=True,
-        enable_output_leakage_detection=True,
-    ),
+    # InputSanitizationTracker·OutputLeakageDetector는
+    # PerformanceMonitor(enable_security_metrics=True)로 모두 활성화됨
     threat_severity=ThreatSeverityConfig(
-        critical_patterns=["ignore.*previous.*instruction", "system.*override", "jailbreak"],
-        severity_threshold="medium",    # medium 이상 위협 시 즉시 차단
-        block_on_detection=True,
+        severity_weights={"prompt_injection": 9.0, "system_override": 8.5, "jailbreak": 9.5},
+        warn_score=4.0,
+        fail_score=7.0,
+        fail_on_critical=True,          # 위협 점수 임계값 초과 시 즉시 차단
     ),
     threat_response=ThreatResponseConfig(
-        on_detection="reject",          # 탐지 즉시 요청 거부
-        log_to_audit=True,
-        notify_security_team=True,
+        isolation_markers=["[BLOCKED]", "[REJECTED]"],   # 거부 응답 마커
+        escalation_markers=["[ESCALATED]", "[REPORTED]"],
+        score_clean_tasks=True,
     ),
 )
 def legal_summary_agent(question: str, ground_truth: str = "") -> str:
@@ -440,7 +439,7 @@ def legal_summary_agent(question: str, ground_truth: str = "") -> str:
 ```
 
 **대응 전략**:
-- `InputSanitizationTracker`가 포함하는 40+ 인젝션 패턴 기반 필터링을 모든 사용자 입력 경로에 적용하고, 조직 특화 위험 패턴을 `ThreatSeverityConfig(critical_patterns=[])`에 추가한다.
+- `InputSanitizationTracker`가 포함하는 40+ 인젝션 패턴 기반 필터링을 모든 사용자 입력 경로에 적용하고, 조직 특화 위험 패턴을 `ThreatSeverityConfig(severity_weights={"custom_pattern": 9.0})`에 추가한다.
 - 시스템 프롬프트와 사용자 입력을 XML 태그(`<system>`, `<user>`)로 구조적으로 분리하고, 인젝션 시도 감지 시 즉시 요청을 거부하는 미들웨어를 구현한다.
 - 월 1회 레드팀(Red Team) 테스트를 수행해 새로운 인젝션 기법에 대한 방어 능력을 검증하고 패턴 데이터베이스를 업데이트한다.
 
@@ -469,7 +468,7 @@ PrivilegeEscalationDetector 미적용으로 Step 4까지 차단 없이 진행
 
 **Harness 탐지 코드**:
 ```python
-# 출처: Evaluator_Examples/02_layer2_agentic_security.py, 섹션 6 보안 지표
+# 출처: Evaluator_Examples/ch08_group_e.py, 섹션 보안 지표
 from agent_evaluator import PerformanceMonitor
 from agent_evaluator.decorators import agent_eval, SecurityConfig
 from agent_evaluator import infer_privilege_level
@@ -482,14 +481,12 @@ monitor = PerformanceMonitor(
 @agent_eval(
     monitor,
     task_type="tool_use",
-    security=SecurityConfig(
-        enable_privilege_escalation_detection=True,
-        enable_tool_chain_attack_detection=True,
-        max_privilege_level="read",     # read 권한 이상으로 상승 불가
-    ),
+    # PrivilegeEscalationDetector·ToolChainAttackDetector는
+    # PerformanceMonitor(enable_security_metrics=True)로 활성화됨
     threat_severity=ThreatSeverityConfig(
-        severity_threshold="low",       # 낮은 위협도에서도 즉시 경보
-        block_on_detection=True,
+        warn_score=2.0,                 # 낮은 위협도(2.0)에서도 경고
+        fail_score=5.0,                 # 중간 위협도(5.0)에서 실패 처리
+        fail_on_critical=True,
     ),
 )
 def infra_agent(question: str, ground_truth: str = "") -> str:
@@ -538,16 +535,15 @@ monitor = PerformanceMonitor(
     monitor,
     task_type="tool_use",
     tool_parameter_safety=ToolParameterSafetyConfig(
-        forbidden_patterns=[
+        dangerous_patterns=[
             r"'.*OR.*'.*'",        # SQL OR 인젝션
             r";\s*(DROP|DELETE|UPDATE)\s+",  # SQL DDL/DML 인젝션
             r"\.\./",              # 경로 순회
             r"[;&|`$]",           # 쉘 메타문자
         ],
-        scan_all_parameters=True,
-        block_on_match=True,
+        fail_on_dangerous=True,
     ),
-    security=SecurityConfig(enable_input_sanitization=True),
+    # InputSanitizationTracker는 PerformanceMonitor(enable_security_metrics=True)로 활성화
 )
 def db_query_agent(question: str, ground_truth: str = "") -> str:
     ...
@@ -555,7 +551,7 @@ def db_query_agent(question: str, ground_truth: str = "") -> str:
 
 **대응 전략**:
 - 도구 파라미터를 구성하기 전에 반드시 입력 정제 함수를 거치도록 하고, 파라미터화된 쿼리(Parameterized Query)와 ORM을 사용해 문자열 직접 삽입을 구조적으로 방지한다.
-- `ToolParameterSafetyConfig(forbidden_patterns=[...], block_on_match=True)`를 모든 도구 호출 래퍼에 적용해 위험 패턴이 감지되면 즉시 호출을 차단한다.
+- `ToolParameterSafetyConfig(dangerous_patterns=[...], fail_on_dangerous=True)`를 모든 도구 호출 래퍼에 적용해 위험 패턴이 감지되면 즉시 호출을 차단한다.
 - 보안 전문가와 함께 조직 환경에 맞는 금지 패턴 목록을 정기적으로 업데이트하고, OWASP 탑 10 기준으로 에이전트 보안 점검을 분기마다 수행한다.
 
 ---
@@ -602,12 +598,12 @@ from agent_evaluator.decorators import agent_eval
     monitor,
     task_type="information_retrieval",
     fault_tolerance=FaultToleranceConfig(
-        max_failure_rate=0.05,              # 환각 탐지 5% 초과 시 파이프라인 중단
-        recovery_strategy="fallback",
-        fallback_response="[검증 필요: 이 정보를 신뢰할 수 없습니다]",
+        partial_success_threshold=0.95,     # 환각 탐지율 5% 초과 시 부분 실패 처리
+        check_fallback_attempts=True,
+        expected_fallback_tools={"search": ["fallback_search"]},
     ),
     graceful_degradation=GracefulDegradationConfig(
-        min_quality_threshold=0.70,         # 품질 0.70 미만이면 다음 단계 전달 차단
+        quality_floor=0.70,                 # 품질 0.70 미만이면 다음 단계 전달 차단
         partial_result_markers=["[환각 가능]", "[미검증]"],
     ),
 )
@@ -653,10 +649,9 @@ monitor = PerformanceMonitor(output_dir="results/")
     monitor,
     task_type="code_generation",
     reproducibility=ReproducibilityConfig(
-        num_runs=3,                     # 동일 입력 3회 실행
-        min_consistency_score=0.85,     # 3회 결과 일관성 85% 이상 요구
-        seed=42,                        # 랜덤 시드 고정
-        compare_mode="semantic",        # 의미적 동등성 비교
+        runs=3,                             # 동일 입력 3회 실행
+        reproducibility_threshold=0.85,     # 3회 결과 일관성 85% 이상 요구
+        similarity_measure="token_f1",      # 의미적 동등성 비교
     ),
     retry_consistency=RetryConsistencyConfig(
         max_response_variance=0.15,     # 재시도 간 응답 분산 15% 이하
@@ -668,7 +663,7 @@ def code_gen_agent(question: str, ground_truth: str = "") -> str:
 
 **대응 전략**:
 - 환경별 설정(temperature, model version, API endpoint)을 코드가 아닌 환경변수로 관리하고 스테이징/프로덕션 값을 명시적으로 고정한다. CI/CD에서 환경 설정 드리프트를 자동 감지한다.
-- `ReproducibilityConfig(num_runs=3, min_consistency_score=0.85)`를 배포 전 검증 단계에 포함해 재현성 점수가 임계값 미달이면 배포를 차단한다.
+- `ReproducibilityConfig(runs=3, reproducibility_threshold=0.85)`를 배포 전 검증 단계에 포함해 재현성 점수가 임계값 미달이면 배포를 차단한다.
 - 프로덕션 장애 발생 시 "재현 패키지"(입력, 환경 설정, 모델 버전, 시드값)를 자동으로 캡처해 저장하는 디버깅 인프라를 구축한다.
 
 ---
@@ -708,19 +703,20 @@ monitor = PerformanceMonitor(output_dir="results/")
 @agent_eval(
     monitor,
     task_type="tool_use",
-    retry=RetryConfig(                 # 출처: Evaluator_Examples/08_harness_eval.py, 섹션 Group C
+    retry=RetryConfig(                 # 출처: Evaluator_Examples/ch06_group_c.py, 섹션 Group C
         max=3,
         delay=2.0,                     # 2초 초기 지연
         backoff=2.0,                   # 지수 백오프: 2s, 4s, 8s
     ),
     fault_tolerance=FaultToleranceConfig(
-        max_failure_rate=0.10,
-        recovery_strategy="circuit_breaker",  # 3회 연속 실패 시 서킷 브레이커
-        circuit_breaker_threshold=3,
+        partial_success_threshold=0.90,
+        check_fallback_attempts=True,       # 실패 후 폴백 도구 사용 여부 추적
+        score_recovery_quality=True,        # 복구 품질 채점 (서킷 브레이커 패턴 감지)
     ),
     graceful_degradation=GracefulDegradationConfig(
-        min_quality_threshold=0.60,
-        on_degradation="return_partial",
+        quality_floor=0.60,
+        partial_result_markers=["[부분 처리]", "[결제 검증 필요]"],
+        detect_timeout_fallback=True,
     ),
 )
 def payment_agent(question: str, ground_truth: str = "") -> str:
@@ -769,14 +765,14 @@ monitor = PerformanceMonitor(output_dir="results/")
     monitor,
     task_type="tool_use",
     idempotency=IdempotencyConfig(
-        idempotency_key_fields=["request_id", "task_id"],  # 중복 판별 키
-        check_window_seconds=3600,                          # 1시간 내 중복 요청 감지
-        on_duplicate="return_cached",                       # 중복 시 캐시 결과 반환
-        strict_mode=True,
+        non_idempotent_patterns=["send_email", "create", "insert"],  # 비멱등 도구 패턴
+        duplicate_detection_markers=["already sent", "이미 발송", "중복"],
+        non_idempotent_penalty=0.5,         # 비멱등 도구 사용 시 감점
+        warn_on_non_idempotent=True,        # 경고 로그 활성화
     ),
     state_consistency=StateConsistencyConfig(
         unchanged_keys=["email_sent_count"],               # 재실행 시 유지될 상태 키
-        check_before_after=True,
+        fail_on_unexpected_change=True,
     ),
 )
 def email_agent(question: str, ground_truth: str = "") -> str:
@@ -785,7 +781,7 @@ def email_agent(question: str, ground_truth: str = "") -> str:
 
 **대응 전략**:
 - 모든 외부 부작용 연산에 UUID 기반 idempotency key를 적용하고, 동일 키 재요청 시 이전 결과를 반환하는 "요청 레지스트리"를 구현한다.
-- `IdempotencyConfig(check_window_seconds=3600, on_duplicate="return_cached")`로 1시간 이내 동일 요청을 자동으로 중복 처리하지 않도록 방어한다.
+- `IdempotencyConfig(duplicate_detection_markers=["already", "이미", "중복"], warn_on_non_idempotent=True)`로 중복 실행을 탐지하고, 에이전트 응답에 중복 방어 마커가 포함됐는지 검증한다.
 - 메시지 큐 소비자에서 at-least-once를 가정하고 에이전트 처리 레이어에서 exactly-once를 보장하는 아키텍처 패턴(Consumer Group + 처리 레지스트리)을 적용한다.
 
 ---
@@ -829,14 +825,14 @@ monitor = PerformanceMonitor(output_dir="results/")
     monitor,
     task_type="qa",
     sla=SLAConfig(
-        max_response_time=30.0,         # 절대 상한 30초 (타임아웃)
-        p95_threshold=5.0,              # P95 < 5초 SLA
-        p99_threshold=15.0,             # P99 < 15초 소프트 목표
-        violation_action="alert",       # SLA 위반 시 알림
+        p95_ms=5000,                    # P95 < 5초 SLA
+        p99_ms=15000,                   # P99 < 15초 소프트 목표
+        warn_threshold=2,               # 2건 위반 시 경고
+        fail_threshold=5,               # 5건 위반 시 fail
     ),
     ttft_variability=TTFTVariabilityConfig(
-        max_std_dev_seconds=2.0,        # TTFT 표준편차 2초 이하
-        p95_p50_ratio_threshold=5.0,    # P95/P50 비율 5배 이하
+        max_stddev_ms=2000,             # TTFT 표준편차 2초 이하
+        max_p95_p50_ratio=5.0,          # P95/P50 비율 5배 이하
     ),
 )
 def legal_doc_agent(question: str, ground_truth: str = "") -> str:
@@ -846,7 +842,7 @@ def legal_doc_agent(question: str, ground_truth: str = "") -> str:
 **대응 전략**:
 - 평균 지연만이 아닌 P95, P99 지표를 대시보드에 필수로 노출하고 SLA 임계값을 P95 기준으로 정의한다.
 - 입력 크기에 따른 사전 라우팅을 구현해 긴 문서는 스트리밍 청크 처리 경로로 분리하고 해당 경로에는 별도의 타임아웃 정책을 적용한다.
-- `SLAConfig(p99_threshold=15.0, violation_action="alert")`로 P99 SLA 위반을 자동 감지하고, 꼬리 지연 분포를 주간 분석해 원인 케이스를 특정한다.
+- `SLAConfig(p99_ms=15000, warn_threshold=0.05, fail_threshold=0.10)`로 P99 SLA 위반을 자동 감지하고, 꼬리 지연 분포를 주간 분석해 원인 케이스를 특정한다.
 
 ---
 
@@ -887,17 +883,19 @@ monitor = PerformanceMonitor(output_dir="results/")
     monitor,
     task_type="qa",
     resource_budget=ResourceBudgetConfig(
-        max_tokens_per_task=4000,       # 태스크당 토큰 4,000 상한
+        max_tokens=4000,               # 태스크당 토큰 4,000 상한
         max_cost_usd=0.05,             # 태스크당 비용 $0.05 상한
-        alert_on_exceed=True,
-        hard_limit=True,               # 상한 초과 시 강제 종료
+        warn_at_pct=0.8,               # 80% 도달 시 경고
+        count_failed_tokens=True,
     ),
     cost_predictability=CostPredictabilityConfig(
-        task_type_budget={"qa": 4000, "information_retrieval": 6000},
-        max_cost_cv=0.30,              # 변동계수 30% 이하 (비용 예측가능성)
+        max_coefficient_of_variation=0.30,  # 변동계수 30% 이하 (비용 예측가능성)
+        cost_metric="tokens",
     ),
     efficiency=EfficiencyConfig(
-        min_tool_call_completion_ratio=0.50,
+        penalize_failed_tokens=True,
+        warn_ratio=2.0,
+        fail_ratio=4.0,
     ),
 )
 def research_agent(question: str, ground_truth: str = "") -> str:
@@ -906,7 +904,7 @@ def research_agent(question: str, ground_truth: str = "") -> str:
 
 **대응 전략**:
 - 대화 히스토리 압축 전략(요약 후 이전 내용 대체, 슬라이딩 윈도우)을 구현해 누적 컨텍스트 크기를 일정 수준 이하로 유지한다.
-- `ResourceBudgetConfig(max_tokens_per_task=4000, hard_limit=True)`로 태스크당 토큰 상한을 강제 적용하고, 주간 비용 추세 알림을 설정한다.
+- `ResourceBudgetConfig(max_tokens=4000, warn_at_pct=80)`로 태스크당 토큰 상한을 강제 적용하고, 주간 비용 추세 알림을 설정한다.
 - 모델 업데이트 배포 전 토큰 사용량 회귀 테스트를 CI/CD에 포함해 업데이트로 인한 예상치 못한 비용 증가를 사전에 탐지한다.
 
 ---
@@ -944,15 +942,16 @@ monitor = PerformanceMonitor(output_dir="results/")
     monitor,
     task_type="qa",
     ttft_variability=TTFTVariabilityConfig(
-        max_std_dev_seconds=1.5,        # TTFT 표준편차 1.5초 이하
-        p95_p50_ratio_threshold=4.0,    # P95 TTFT가 P50의 4배 이내
-        spike_detection_window=100,     # 최근 100건에서 스파이크 탐지
-        spike_threshold_seconds=5.0,    # 5초 초과를 스파이크로 정의
+        max_stddev_ms=1500,             # TTFT 표준편차 1.5초 이하
+        max_p95_p50_ratio=4.0,          # P95 TTFT가 P50의 4배 이내
+        min_samples=5,                  # 통계에 필요한 최소 샘플 수
+        remove_outliers=True,
     ),
     sla=SLAConfig(
-        max_response_time=30.0,
-        p95_threshold=3.0,
-        ttft_p95_threshold=2.0,         # TTFT P95 < 2초
+        p95_ms=3000,                    # P95 < 3초 SLA
+        ttft_ms=2000,                   # TTFT 상한 2초 (스트리밍 에이전트)
+        warn_threshold=2,
+        fail_threshold=5,
     ),
 )
 def streaming_chatbot(question: str, ground_truth: str = "") -> str:
@@ -962,7 +961,7 @@ def streaming_chatbot(question: str, ground_truth: str = "") -> str:
 **대응 전략**:
 - 스트리밍 응답에서 도구 호출 결과를 기다리는 동안 "처리 중..." 플레이스홀더 토큰을 먼저 스트리밍해 사용자가 응답이 오고 있음을 인식하도록 UX를 개선한다.
 - LLM 인퍼런스 서버에 오토스케일링을 적용하고, 피크 타임 전에 미리 워밍업 요청을 보내 cold start 지연을 최소화한다.
-- `TTFTVariabilityConfig(spike_detection_window=100, spike_threshold_seconds=5.0)`로 실시간 스파이크 탐지 체계를 구축하고, 스파이크 발생 시 자동으로 폴백 모델이나 캐시 응답으로 전환하는 로직을 구현한다.
+- `TTFTVariabilityConfig(max_stddev_ms=2000, max_p95_p50_ratio=3.0, remove_outliers=True)`로 실시간 스파이크 탐지 체계를 구축하고, 스파이크 발생 시 자동으로 폴백 모델이나 캐시 응답으로 전환하는 로직을 구현한다.
 
 ---
 
@@ -999,15 +998,14 @@ monitor = PerformanceMonitor(output_dir="results/")
     monitor,
     task_type="qa",
     cost_predictability=CostPredictabilityConfig(
-        task_type_budget={"qa": 3000, "code_generation": 5000},
-        max_cost_cv=0.50,              # 변동계수 50% 이하 목표
-        alert_on_high_variance=True,
+        max_coefficient_of_variation=0.50,  # 변동계수 50% 이하 목표
+        cost_metric="tokens",
     ),
     resource_budget=ResourceBudgetConfig(
-        max_tokens_per_task=5000,       # qa 태스크 최대 5,000 토큰
+        max_tokens=5000,               # qa 태스크 최대 5,000 토큰
         max_cost_usd=0.10,             # qa 태스크 최대 $0.10
-        soft_limit_tokens=3000,        # 3,000 토큰 시 경고
-        hard_limit=True,
+        warn_at_pct=0.6,               # 60%(3,000 토큰) 도달 시 경고
+        count_failed_tokens=True,
     ),
 )
 def legal_qa_agent(question: str, ground_truth: str = "") -> str:
@@ -1016,7 +1014,7 @@ def legal_qa_agent(question: str, ground_truth: str = "") -> str:
 
 **대응 전략**:
 - 입력 복잡도에 따라 태스크를 "simple", "standard", "complex"로 분류하고 각 분류에 다른 토큰 예산과 모델을 적용하는 계층형 라우팅 시스템을 구현한다.
-- `CostPredictabilityConfig(max_cost_cv=0.50)`로 변동계수 임계값을 설정하고, 임계값 초과 시 알림과 함께 상위 비용 태스크를 별도 큐로 라우팅해 예산 초과를 방지한다.
+- `CostPredictabilityConfig(max_coefficient_of_variation=0.50)`로 변동계수 임계값을 설정하고, 임계값 초과 시 알림과 함께 상위 비용 태스크를 별도 큐로 라우팅해 예산 초과를 방지한다.
 - 월별 비용 예측 모델을 구축하고 실제 청구와 예측의 차이가 20% 초과 시 자동으로 비용 감사가 트리거되는 워크플로를 설정한다.
 
 ---
@@ -1063,15 +1061,17 @@ monitor = PerformanceMonitor(output_dir="results/")
     monitor,
     task_type="tool_use",
     deadlock=DeadlockConfig(
-        detection_timeout_seconds=120,   # 120초 무응답 시 교착 의심
-        max_wait_cycles=3,               # 3회 순환 대기 탐지 시 강제 종료
-        circular_delegation_check=True,  # 순환 위임 패턴 자동 탐지
-        starvation_threshold=300,        # 300초 이상 자원 대기 시 기아 상태 판정
-        on_deadlock="force_resolve",     # 교착 탐지 시 강제 해소
+        check_circular_delegation=True,  # 순환 위임 패턴 자동 탐지
+        check_starvation=True,           # 자원 기아 상태 탐지
+        starvation_threshold=3,          # 3회 대기 사이클 초과 시 기아 판정
+        max_delegation_depth=5,          # 위임 깊이 5 초과 시 교착 의심
+        check_livelock=True,             # 라이브락 탐지 활성화
+        livelock_window=6,
     ),
     conflict_resolution=ConflictResolutionConfig(
-        resolution_timeout_seconds=60,
-        escalation_on_timeout=True,
+        require_explanation=True,        # 갈등 해결 시 설명 필수
+        expect_escalation_on_fail=True,  # 해결 실패 시 에스컬레이션 기대
+        unresolved_penalty=0.5,
     ),
 )
 def pipeline_coordinator_agent(question: str, ground_truth: str = "") -> str:
@@ -1080,7 +1080,7 @@ def pipeline_coordinator_agent(question: str, ground_truth: str = "") -> str:
 
 **대응 전략**:
 - 다중에이전트 시스템 설계 단계에서 의존 그래프를 명시적으로 그리고 순환 의존이 없는 DAG(Directed Acyclic Graph) 구조를 강제한다. 코드 리뷰에서 순환 의존 도입 시 블로킹 피드백을 적용한다.
-- 모든 에이전트 간 통신에 타임아웃을 설정하고 `DeadlockConfig(detection_timeout_seconds=120, on_deadlock="force_resolve")`로 교착 탐지 즉시 자동 해소 메커니즘을 활성화한다.
+- 모든 에이전트 간 통신에 타임아웃을 설정하고 `DeadlockConfig(check_circular_delegation=True, max_delegation_depth=5)`로 교착 탐지 즉시 자동 해소 메커니즘을 활성화한다.
 - 코디네이터 에이전트를 도입해 각 에이전트의 상태를 중앙에서 모니터링하고, 교착 패턴 탐지 시 강제 개입(타임아웃 완료 처리 또는 요청 재라우팅)하는 감독 계층을 구현한다.
 
 ---
@@ -1120,16 +1120,15 @@ monitor = PerformanceMonitor(output_dir="results/")
     monitor,
     task_type="information_retrieval",
     propagation=PropagationConfig(
-        key_facts_to_preserve=["percentage", "date_range", "margin_of_error"],
-        min_propagation_accuracy=0.95,   # 핵심 사실 95% 이상 보존
-        distortion_detection=True,
-        distortion_threshold=0.10,       # 10% 이상 왜곡 시 경보
-        require_source_citation=True,    # 출처 인용 필수
+        key_facts=["percentage", "date_range", "margin_of_error"],  # 보존할 핵심 사실
+        check_in_response=True,
+        similarity_threshold=0.95,       # 사실 일치 유사도 95% 이상
+        penalize_distortion=True,        # 왜곡 시 패널티
     ),
     agent_role=AgentRoleConfig(
-        role="researcher",
-        allowed_transformations=["summarize", "translate"],  # 허가된 변환 작업만
-        forbidden_transformations=["extrapolate", "interpret_intent"],
+        role_name="researcher",
+        allowed_action_keywords=["요약", "번역", "조회"],   # 허가된 행동 키워드
+        forbidden_action_keywords=["추론", "해석", "생성"], # 금지 행동 키워드
     ),
 )
 def researcher_agent(question: str, ground_truth: str = "") -> str:
@@ -1138,7 +1137,7 @@ def researcher_agent(question: str, ground_truth: str = "") -> str:
 
 **대응 전략**:
 - 에이전트 간 데이터 전달 포맷을 자유 텍스트 대신 구조화된 스키마(JSON/Protobuf)로 강제하고, 핵심 수치와 메타데이터(출처, 측정 기간, 오차범위)를 별도 필드로 보존한다.
-- `PropagationConfig(min_propagation_accuracy=0.95, distortion_detection=True)`로 파이프라인 각 단계에서 정보 왜곡율을 자동 측정하고 10% 초과 시 사람 검토 단계를 삽입한다.
+- `PropagationConfig(similarity_threshold=0.95, penalize_distortion=True)`로 파이프라인 각 단계에서 정보 왜곡율을 자동 측정하고 임계값 미달 시 사람 검토 단계를 삽입한다.
 - 파이프라인 최종 단계에서 `LLMJudge`를 사용해 최종 출력과 초기 입력의 사실적 일관성(faithfulness)을 독립적으로 검증하는 사후 검증 게이트를 구현한다.
 
 ---
@@ -1179,16 +1178,14 @@ monitor = PerformanceMonitor(output_dir="results/")
     monitor,
     task_type="reasoning",
     consensus=ConsensusConfig(
-        min_consensus_rate=0.67,         # 2/3 이상 동의 필요
-        dispute_detection=True,
-        max_rounds=3,                    # 최대 3라운드 협의
-        fallback_strategy="escalate",   # 합의 실패 시 사람 전문가 에스컬레이션
+        consensus_method="majority",
+        similarity_threshold=0.67,       # 2/3 이상 동의 인정 유사도
+        select_consensus_response=False, # 합의 실패 시 상위 에스컬레이션
     ),
     conflict_resolution=ConflictResolutionConfig(
-        resolution_timeout_seconds=120,
-        escalation_on_timeout=True,
-        tiebreaker_policy="confidence_weighted",  # 신뢰도 가중 투표
-        resolution_log=True,            # 해결 과정 전체 로깅
+        require_explanation=True,        # 해결 근거 설명 요구
+        expect_escalation_on_fail=True,  # 해결 실패 시 에스컬레이션
+        unresolved_penalty=0.8,          # 미해결 충돌 패널티 (의료 수준 엄격)
     ),
 )
 def medical_ensemble_coordinator(question: str, ground_truth: str = "") -> str:
@@ -1197,7 +1194,7 @@ def medical_ensemble_coordinator(question: str, ground_truth: str = "") -> str:
 
 **대응 전략**:
 - 합의 실패를 "정상 케이스"로 설계하고 실패 시 자동으로 사람 전문가에게 에스컬레이션하는 폴백 경로를 명시적으로 구현한다. 합의 실패를 시스템 장애가 아닌 예상된 분기로 처리한다.
-- `ConsensusConfig(min_consensus_rate=0.67, fallback_strategy="escalate")`로 합의 임계값과 폴백 전략을 선언적으로 정의하고, 합의 실패율을 핵심 지표로 모니터링한다.
+- `ConsensusConfig(similarity_threshold=0.67, consensus_method="majority")`로 합의 임계값과 방식을 선언적으로 정의하고, 합의 실패율을 핵심 지표로 모니터링한다.
 - 에이전트들이 동일한 정보 서브셋에 접근하도록 공유 컨텍스트를 구성하고, 구조화된 토론 프로토콜(각자 주장 → 반론 → 최종 의견)을 통해 합의 수렴 확률을 높인다.
 
 ---
@@ -1253,38 +1250,38 @@ monitor = PerformanceMonitor(output_dir="results/")
     monitor,
     task_type="qa",
     # 목표 달성 방어
-    instructions=InstructionConfig(    # 출처: Evaluator_Examples/08_harness_eval.py, 섹션 Group A
+    instructions=InstructionConfig(    # 출처: Evaluator_Examples/ch04_group_a.py, 섹션 Group A
         required_keywords=[],
-        strict=True,
-        violation_threshold=0.05,       # 5% 위반율 초과 시 경보
+        fail_on_violation=False,        # 관찰 모드 (위반 시 기록만, fail 없음)
+        violation_weight=0.1,           # 위반당 completion_score 감점
     ),
     goal_alignment=GoalAlignmentConfig(
-        min_alignment_score=0.80,
-        allow_partial_achievement=False,
+        alignment_threshold=0.80,       # 목표 정렬 경고 임계값
+        ignore_no_tool_tasks=True,
     ),
     context_retention=ContextRetentionConfig(
-        min_retention_score=0.75,
-        check_interval_turns=5,
+        retention_threshold=0.75,       # 컨텍스트 유지율 임계값
+        check_original_goal=True,
     ),
     # 성능 계약 방어
     sla=SLAConfig(
-        max_response_time=10.0,
-        p95_threshold=3.0,
+        p95_ms=10000,                   # P95 응답시간 10초 상한 (밀리초)
+        p99_ms=30000,                   # P99 응답시간 30초 상한 (밀리초)
     ),
     resource_budget=ResourceBudgetConfig(
-        max_tokens_per_task=3000,
+        max_tokens=3000,                # 태스크당 최대 토큰 (None = 무제한)
         max_cost_usd=0.05,
-        hard_limit=True,
+        warn_at_pct=0.8,
     ),
     # 신뢰성 방어
     graceful_degradation=GracefulDegradationConfig(
-        min_quality_threshold=0.65,
-        on_degradation="return_partial",
+        quality_floor=0.65,             # 장애 시 허용 최소 품질 점수
+        check_error_acknowledgment=True,
     ),
     # LLM 품질 모니터링 (10% 샘플)
     llm_judge=LLMJudgeConfig(sample_rate=0.10),
     # 재시도 정책
-    retry=RetryConfig(max=2, delay=1.0, backoff=2.0),  # 출처: Evaluator_Examples/08_harness_eval.py, 섹션 Group C
+    retry=RetryConfig(max=2, delay=1.0, backoff=2.0),  # 출처: Evaluator_Examples/ch06_group_c.py, 섹션 Group C
 )
 def qa_chatbot(question: str, ground_truth: str = "") -> str:
     ...
@@ -1320,25 +1317,26 @@ monitor = PerformanceMonitor(
     task_type="information_retrieval",
     # 환각/신뢰성 방어 (패턴 2, 10)
     fault_tolerance=FaultToleranceConfig(
-        max_failure_rate=0.05,
-        recovery_strategy="fallback",
-        fallback_response="검증된 정보를 찾을 수 없습니다. 다른 질문을 시도해주세요.",
+        check_fallback_attempts=True,
+        partial_success_threshold=0.5,
+        score_recovery_quality=True,
     ),
     graceful_degradation=GracefulDegradationConfig(
-        min_quality_threshold=0.70,
+        quality_floor=0.70,
         partial_result_markers=["[미검증]", "[출처 없음]"],
+        check_error_acknowledgment=True,
     ),
     # 재현성 방어 (패턴 11)
     reproducibility=ReproducibilityConfig(
-        num_runs=2,
-        min_consistency_score=0.80,
+        runs=2,
+        reproducibility_threshold=0.80,
     ),
     # 성능 계약
-    sla=SLAConfig(max_response_time=15.0, p95_threshold=8.0),
-    resource_budget=ResourceBudgetConfig(max_tokens_per_task=6000, max_cost_usd=0.12),
+    sla=SLAConfig(p95_ms=8000, p99_ms=15000, warn_threshold=2, fail_threshold=5),
+    resource_budget=ResourceBudgetConfig(max_tokens=6000, max_cost_usd=0.12),
     ttft_variability=TTFTVariabilityConfig(
-        max_std_dev_seconds=2.0,
-        spike_threshold_seconds=8.0,
+        max_stddev_ms=2000,
+        max_p95_p50_ratio=4.0,
     ),
     # RAG faithfulness 자동 검증 (패턴 2, 19)
     llm_judge=LLMJudgeConfig(
@@ -1378,48 +1376,44 @@ monitor = PerformanceMonitor(output_dir="results/")
     task_type="tool_use",
     # 교착 방어 (패턴 18)
     deadlock=DeadlockConfig(
-        detection_timeout_seconds=90,
-        max_wait_cycles=3,
-        circular_delegation_check=True,
-        starvation_threshold=180,
-        on_deadlock="force_resolve",
+        check_circular_delegation=True,
+        max_delegation_depth=10,
+        check_starvation=True,
+        starvation_threshold=3,
+        check_livelock=False,
     ),
     # 정보 전파 무결성 (패턴 19)
     propagation=PropagationConfig(
-        min_propagation_accuracy=0.92,
-        distortion_detection=True,
-        distortion_threshold=0.08,
-        require_source_citation=True,
+        key_facts=[],                    # 파이프라인 실행 시 동적으로 주입
+        check_in_response=True,
+        similarity_threshold=0.92,       # 핵심 사실 92% 이상 보존
+        penalize_distortion=True,
     ),
     # 합의 프로토콜 (패턴 20)
     consensus=ConsensusConfig(
-        min_consensus_rate=0.67,
-        dispute_detection=True,
-        max_rounds=3,
-        fallback_strategy="escalate",
+        consensus_method="majority",
+        similarity_threshold=0.67,
+        select_consensus_response=False,
     ),
     conflict_resolution=ConflictResolutionConfig(
-        resolution_timeout_seconds=60,
-        escalation_on_timeout=True,
-        tiebreaker_policy="confidence_weighted",
-        resolution_log=True,
+        require_explanation=True,
+        expect_escalation_on_fail=True,
+        unresolved_penalty=0.5,
     ),
     # 역할 준수 (패턴 6)
     agent_role=AgentRoleConfig(
-        allowed_transformations=["summarize", "analyze", "translate"],
-        forbidden_transformations=["extrapolate", "fabricate"],
+        allowed_action_keywords=["요약", "분석", "번역"],
+        forbidden_action_keywords=["생성", "추측"],
     ),
     # 멱등성 (패턴 13)
     idempotency=IdempotencyConfig(
-        idempotency_key_fields=["task_id", "pipeline_run_id"],
-        check_window_seconds=3600,
-        on_duplicate="return_cached",
-        strict_mode=True,
+        non_idempotent_patterns=["create", "delete", "insert", "update"],
+        warn_on_non_idempotent=True,
+        non_idempotent_penalty=0.3,
     ),
     fault_tolerance=FaultToleranceConfig(
-        max_failure_rate=0.05,
-        recovery_strategy="circuit_breaker",
-        circuit_breaker_threshold=3,
+        check_fallback_attempts=True,
+        partial_success_threshold=0.5,
     ),
 )
 def multi_agent_pipeline_coordinator(question: str, ground_truth: str = "") -> str:
@@ -1456,51 +1450,52 @@ monitor = PerformanceMonitor(
     monitor,
     task_type="qa",
     # 보안 계층 (패턴 7, 8, 9)
-    security=SecurityConfig(
-        enable_input_sanitization=True,
-        enable_output_leakage_detection=True,
-        enable_privilege_escalation_detection=True,
-        enable_tool_chain_attack_detection=True,
-        max_privilege_level="read",
-    ),
+    # 보안 트래커 전체 활성화:
+    # PerformanceMonitor(enable_security_metrics=True) 로 InputSanitization·
+    # OutputLeakage·ToolAuth·PrivilegeEscalation·ToolChainAttack 일괄 활성화
     threat_severity=ThreatSeverityConfig(
-        critical_patterns=[
-            "ignore.*previous.*instruction",
-            "system.*override",
-            r"\.\./\.\./",
-            r";\s*(DROP|DELETE)\s+",
-        ],
-        severity_threshold="low",       # 낮은 위협도에서도 즉시 경보
-        block_on_detection=True,
+        severity_weights={
+            "prompt_injection": 8.0,
+            "sql_injection": 9.0,
+            "path_traversal": 7.5,
+        },
+        fail_on_critical=True,
+        warn_score=4.0,
+        fail_score=7.0,
     ),
     compliance=ComplianceConfig(
-        forbidden_keywords=["주민등록번호", "계좌번호", "비밀번호"],
-        required_disclaimer=True,
-        audit_all_requests=True,
+        forbidden_data_patterns=[
+            r"\b\d{6}-\d{7}\b",  # 주민등록번호
+            r"\b\d{10,14}\b",    # 계좌번호
+        ],
+        pii_categories=["ssn", "credit_card", "phone", "email"],
+        require_data_minimization=True,
+        compliance_framework="general",
     ),
     threat_response=ThreatResponseConfig(
-        on_detection="reject",
-        log_to_audit=True,
-        notify_security_team=True,
-        quarantine_session=True,
+        isolation_markers=["도움을 드릴 수 없습니다", "처리할 수 없습니다", "blocked"],
+        abort_markers=["중단", "종료", "reject"],
+        score_clean_tasks=True,
+        no_response_penalty=0.5,
     ),
     tool_parameter_safety=ToolParameterSafetyConfig(
-        forbidden_patterns=[r"'.*OR.*'", r"\.\./", r"[;&|`$]"],
-        scan_all_parameters=True,
-        block_on_match=True,
+        dangerous_patterns=[r"'.*OR.*'", r"\.\./", r"[;&|`$]", r"DROP\s+TABLE"],
+        fail_on_dangerous=True,
     ),
     scope=ScopeConfig(
-        allowed_actions=["read_customer_profile", "query_account_balance"],
-        scope_violation_threshold=0.0,   # Zero tolerance
-        strict_mode=True,
+        allowed_tools=["read_customer_profile", "query_account_balance"],
+        fail_on_violation=True,          # Zero tolerance
     ),
     # 감사 추적 (Gate G)
-    explainability=ExplainabilityConfig(min_reasoning_steps=2),
+    explainability=ExplainabilityConfig(min_reasoning_length=40),
     observability=ObservabilityConfig(
-        track_internal_state=True,
-        state_checkpoint_interval=1,    # 모든 단계 체크포인트
+        min_coverage=0.99,
+        check_trace_continuity=True,
     ),
-    idempotency=IdempotencyConfig(strict_mode=True),
+    idempotency=IdempotencyConfig(
+        warn_on_non_idempotent=True,
+        non_idempotent_penalty=0.5,
+    ),
 )
 def secure_financial_agent(question: str, ground_truth: str = "") -> str:
     ...
@@ -1533,48 +1528,49 @@ monitor = PerformanceMonitor(output_dir="results/")
     task_type="qa",
     # 지연 SLA (패턴 14, 16)
     sla=SLAConfig(
-        max_response_time=20.0,         # 절대 상한
-        p95_threshold=3.0,              # P95 < 3초
-        p99_threshold=8.0,              # P99 < 8초 (소프트)
-        ttft_p95_threshold=1.5,         # TTFT P95 < 1.5초
-        violation_action="alert_and_fallback",
+        p95_ms=3000,                    # P95 < 3초
+        p99_ms=8000,                    # P99 < 8초 (소프트)
+        ttft_ms=1500,                   # TTFT 상한 1.5초 (스트리밍)
+        warn_threshold=2,
+        fail_threshold=5,
     ),
     ttft_variability=TTFTVariabilityConfig(
-        max_std_dev_seconds=1.0,        # TTFT 표준편차 1초 이하 (엄격)
-        p95_p50_ratio_threshold=3.0,    # P95/P50 비율 3배 이내
-        spike_detection_window=50,
-        spike_threshold_seconds=3.0,   # 3초 초과를 스파이크로 정의
+        max_stddev_ms=1000,             # TTFT 표준편차 1초 이하 (엄격)
+        max_p95_p50_ratio=3.0,          # P95/P50 비율 3배 이내
+        min_samples=5,
+        remove_outliers=True,
     ),
     # 도구 루프 방어 (패턴 5)
     loop_detection=LoopDetectionConfig(
-        max_loop_count=5,               # 스트리밍에서는 더 엄격한 상한
-        loop_threshold=0.80,
-        detection_window=10,
+        consecutive_repeat_threshold=5, # 스트리밍에서는 더 엄격한 상한
+        response_similarity_threshold=0.80,
+        window_size=10,
     ),
     # 비용/토큰 통제 (패턴 15, 17)
     resource_budget=ResourceBudgetConfig(
-        max_tokens_per_task=2000,       # 스트리밍은 짧고 빠르게
+        max_tokens=2000,                # 스트리밍은 짧고 빠르게
         max_cost_usd=0.03,
-        hard_limit=True,
+        warn_at_pct=0.8,
     ),
     cost_predictability=CostPredictabilityConfig(
-        max_cost_cv=0.40,
-        alert_on_high_variance=True,
+        max_coefficient_of_variation=0.40,
+        cost_metric="tokens",
     ),
     efficiency=EfficiencyConfig(
-        min_tool_call_completion_ratio=0.60,
+        penalize_failed_tokens=True,
+        warn_ratio=2.0,
+        fail_ratio=4.0,
     ),
     # 신뢰성 방어
     fault_tolerance=FaultToleranceConfig(
-        max_failure_rate=0.03,          # 스트리밍은 더 낮은 오류율 요구
-        recovery_strategy="fallback",
-        fallback_response="[서버 처리 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요]",
+        check_fallback_attempts=True,
+        partial_success_threshold=0.3,  # 스트리밍은 더 낮은 허용 임계값
     ),
     graceful_degradation=GracefulDegradationConfig(
-        min_quality_threshold=0.60,
-        on_degradation="return_partial",
+        quality_floor=0.60,
+        check_error_acknowledgment=True,
     ),
-    retry=RetryConfig(                 # 출처: Evaluator_Examples/08_harness_eval.py, 섹션 Group C
+    retry=RetryConfig(                 # 출처: Evaluator_Examples/ch06_group_c.py, 섹션 Group C
         max=2,
         delay=0.5,
         backoff=1.5,

@@ -533,7 +533,7 @@ CI에서 `agent-eval gate` 실패 메시지에 Gate 이름이 표시된다면, �
 | **Gate D** (성능계약) | P95 latency SLA 초과 or 비용 폭증 | `SLAConfig(p95_ms=...)`, `ResourceBudgetConfig` 선언 | 최근 모델·프롬프트 변경 이력 확인 |
 | **Gate E** (보안경계) | 위협 탐지 누적 or 권한 상승 | `enable_security_metrics=True` 여부, `ComplianceConfig` | Appendix K 레드팀 체크리스트로 즉시 검증 |
 | **Gate F** (다중에이전트) | 교착·합의 실패 | `ConsensusConfig`, `PropagationConfig` 선언 여부; 교착 방어는 Gate B `DeadlockConfig` 병행 | 에이전트 토폴로지 변경 이력 확인 |
-| **Gate G** (관측성) | 추론 설명 부족 or 상태 추적 미흡 | `ExplainabilityConfig(min_reasoning_steps=N)` | Phoenix 트레이스로 step 수 직접 확인 |
+| **Gate G** (관측성) | 추론 설명 부족 or 상태 추적 미흡 | `ExplainabilityConfig(min_reasoning_length=N)` | Phoenix 트레이스로 reasoning 길이 직접 확인 |
 
 ```bash
 # Gate별 현재 점수 빠른 조회
@@ -688,14 +688,14 @@ pip install "agent-evaluator[eval]"
 
 ## 실전 예제
 
-`07_phoenix_hybrid.py`는 프로덕션 배포 전략에서 설명하는 세 가지 핵심 패턴(preset 시스템, Docker 통합, 데이터 유실 방지)을 실제 코드로 보여준다. `evaluation_session` 컨텍스트 매니저로 예외 발생 시에도 데이터가 안전하게 저장되는 구조를 확인할 수 있다.
+`ch19_phoenix.py`는 프로덕션 배포 전략에서 설명하는 세 가지 핵심 패턴(preset 시스템, Docker 통합, 데이터 유실 방지)을 실제 코드로 보여준다. `evaluation_session` 컨텍스트 매니저로 예외 발생 시에도 데이터가 안전하게 저장되는 구조를 확인할 수 있다.
 
-**파일**: `Evaluator_Examples/07_phoenix_hybrid.py`, `Evaluator_Examples/06_operational.py`
+**파일**: `Evaluator_Examples/ch19_phoenix.py`, `Evaluator_Examples/ch10_group_g.py`
 
-**핵심 코드 (출처: `Evaluator_Examples/07_phoenix_hybrid.py`, `06_operational.py`)**
+**핵심 코드 (출처: `Evaluator_Examples/ch19_phoenix.py`, `ch10_group_g.py`)**
 
 ```python
-# 출처: Evaluator_Examples/07_phoenix_hybrid.py — HybridPerformanceMonitor 조건부 활성화
+# 출처: Evaluator_Examples/ch19_phoenix.py — HybridPerformanceMonitor 조건부 활성화
 import os
 from agent_evaluator import PerformanceMonitor
 
@@ -733,7 +733,7 @@ monitor = create_monitor()
 - `try/except ImportError`로 extras 미설치 환경에서도 코드가 정상 동작하게 한다
 
 ```python
-# 출처: Evaluator_Examples/06_operational.py, 섹션 4 — 프로덕션 평가 세션 안전 저장
+# 출처: Evaluator_Examples/ch11_eval_data.py, 섹션 session — 프로덕션 평가 세션 안전 저장
 from agent_evaluator import evaluation_session, create_taskresult
 import logging
 
@@ -773,10 +773,10 @@ def run_production_evaluation(agent_fn, test_cases: list) -> dict:
 
 ```bash
 # 프로덕션 preset 시뮬레이션
-python Evaluator_Examples/07_phoenix_hybrid.py
+python Evaluator_Examples/ch19_phoenix.py
 
 # evaluation_session 데이터 유실 방지 패턴
-python Evaluator_Examples/06_operational.py
+python Evaluator_Examples/ch10_group_g.py
 ```
 
 **예제 구성**
@@ -791,16 +791,154 @@ python Evaluator_Examples/06_operational.py
 **실행 결과 (v0.8.3 기준)**
 
 ```
-# 06_operational.py (evaluation_session 섹션)
+# ch10_group_g.py (evaluation_session 섹션)
 evaluation_session 시작: results/session_YYYYMMDD
   태스크 10개 처리 중 예외 시뮬레이션...
   예외 발생 → 컨텍스트 매니저 자동 저장 (8개 태스크 보존)
 evaluation_session 종료: results/session_YYYYMMDD.json 저장
 
-# 07_phoenix_hybrid.py (auto_save 섹션)
+# ch19_phoenix.py (auto_save 섹션)
 PerformanceMonitor(auto_save=True, auto_save_interval=10)
   태스크 1~10 처리: auto_save 트리거 → periodic_save_01.json
   태스크 11~20 처리: auto_save 트리거 → periodic_save_02.json
 ```
 
-> **Docker 배포 환경 변수**: `OTEL_EXPORTER_OTLP_ENDPOINT`, `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`를 `.env` 파일로 관리하고, `python-dotenv`의 `load_env()`로 로드한다. `07_phoenix_hybrid.py` 상단의 `os.getenv()` 패턴이 Docker 환경 변수 주입과 완전히 호환된다.
+> **Docker 배포 환경 변수**: `OTEL_EXPORTER_OTLP_ENDPOINT`, `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`를 `.env` 파일로 관리하고, `python-dotenv`의 `load_env()`로 로드한다. `ch19_phoenix.py` 상단의 `os.getenv()` 패턴이 Docker 환경 변수 주입과 완전히 호환된다.
+
+---
+
+**Gate FAIL 시나리오 기반 배포 차단 패턴**
+
+```python
+# 출처: Evaluator_Examples/ch18_cicd_gate.py — 배포 전 Gate 검증
+# 배포 전에 나쁜 에이전트가 각 Gate를 FAIL시키는지 확인하고,
+# 실제 에이전트가 동일 Config를 통과하는지 검증한다.
+
+# 단계 1: ch04_group_a.py로 Gate FAIL 임계값 확인
+#   python Evaluator_Examples/ch04_group_a.py
+#   → 17개 시나리오의 FAIL 점수를 확인해 Config 파라미터 튜닝
+
+# 단계 2: 실제 에이전트를 동일 Config로 테스트
+from agent_evaluator import (
+    PerformanceMonitor, HarnessEvaluationGate,
+    InstructionConfig, ScopeConfig, SLAConfig,
+    ComplianceConfig, ExplainabilityConfig,
+)
+from agent_evaluator.decorators import agent_eval
+
+monitor = PerformanceMonitor(output_dir="results/")
+
+@agent_eval(
+    monitor,
+    task_type="qa",
+    task_id_prefix="prod_candidate",
+    instructions=InstructionConfig(required_keywords=["answer", "source"], min_chars=20),
+    scope=ScopeConfig(allowed_tools=["search", "analyze"], forbidden_tools=["delete", "admin"]),
+    sla=SLAConfig(p95_ms=3000),
+    compliance=ComplianceConfig(pii_categories=["email", "phone"]),
+    explainability=ExplainabilityConfig(require_reasoning=True, min_reasoning_length=30),
+)
+def production_candidate(question: str, ground_truth: str = "") -> str:
+    return f"답변: {question} | 출처: 내부DB | 왜냐하면 이 데이터가 최신 정보입니다."
+
+for q in ["서비스 상태는?", "오늘 트래픽은?", "에러율을 알려줘"]:
+    production_candidate(q, ground_truth="정상")
+
+# 단계 3: Gate 판정 → FAIL 시 배포 차단
+report = monitor.generate_report()
+gate = HarnessEvaluationGate(report, min_group_score=0.7, fail_on_warn=False)
+gate.enforce()  # FAIL 시 sys.exit(1)
+```
+
+```bash
+python Evaluator_Examples/ch04_group_a.py   # FAIL 임계값 보정
+python Evaluator_Examples/ch20_deployment.py       # 배포 버전 결정
+```
+
+**`ch20_deployment.py` — v1 vs v2 Gate 비교로 배포 버전 결정**
+
+같은 Harness Config를 v1·v2에 적용해 Gate 점수를 비교하고, 더 나은 버전을 자동 선택한다:
+
+```python
+# 출처: Evaluator_Examples/ch20_deployment.py — v1 vs v2 Gate 점수 비교
+# v1 에이전트: 추론 없음, 토큰 낭비, PII 노출, SLA 초과
+# v2 에이전트: 추론 마커 포함, 효율적 응답, GDPR 준수, SLA 통과
+
+from agent_evaluator import (
+    PerformanceMonitor, HarnessEvaluationGate,
+    InstructionConfig, ScopeConfig, SLAConfig,
+    ComplianceConfig, ExplainabilityConfig,
+)
+
+monitor_v1 = PerformanceMonitor(output_dir="results/", enable_security_metrics=True)
+monitor_v2 = PerformanceMonitor(output_dir="results/", enable_security_metrics=True)
+
+# v1·v2 각각 동일한 Config로 평가 실행 후 Gate 판정 비교
+report_v1 = monitor_v1.generate_report().to_dict()
+report_v2 = monitor_v2.generate_report().to_dict()
+
+gates_v1 = (report_v1.get("extra_metrics") or {}).get("harness_groups", {})
+gates_v2 = (report_v2.get("extra_metrics") or {}).get("harness_groups", {})
+
+print("=== v1 vs v2 Gate 점수 비교 ===")
+for g in ["A", "B", "C", "D", "E", "F", "G"]:
+    s1 = gates_v1.get(g, {}).get("score")
+    s2 = gates_v2.get(g, {}).get("score")
+    t1 = (gates_v1.get(g, {}).get("gate") or "N/A").upper()
+    t2 = (gates_v2.get(g, {}).get("gate") or "N/A").upper()
+    if s1 is not None and s2 is not None:
+        delta = (s2 - s1) * 100
+        arrow = "↑" if delta > 0 else "↓" if delta < 0 else "→"
+        print(f"  Gate {g}: v1={s1:.0%}({t1})  v2={s2:.0%}({t2})  {arrow}{abs(delta):.1f}%p")
+
+# 배포 결정 — v2가 모든 필수 Gate PASS 시 배포 승인
+v2_pass = all(gates_v2.get(g, {}).get("gate") != "FAIL" for g in ["A", "B", "C", "E"])
+print("✅ v2 배포 승인" if v2_pass else "❌ v2 Gate FAIL — 배포 차단")
+```
+
+- `ch20_deployment.py` 실행 결과: v2가 Gate A·D·E·G 전 항목에서 v1 대비 +29%p 향상
+- 두 버전의 `PerformanceMonitor`를 독립적으로 생성해야 Gate 간 교차 오염이 없다
+- `required_groups=["A", "B", "E"]`로 핵심 Gate만 필수로 지정하면 선택적 배포 차단이 가능하다
+
+**최소 CI/CD Gate 검증 — 배포 직전 마지막 방어선 (출처: `Evaluator_Examples/ch18_cicd_gate.py`)**
+
+전체 `ch03_harness_basics.py`(~15초)보다 `ch18_cicd_gate.py`(~3초)가 배포 파이프라인 마지막 단계에 적합하다. 7개 Gate 각 1개 Config씩 최소 검증 후 exit 0/1을 반환한다.
+
+```python
+# 출처: Evaluator_Examples/ch18_cicd_gate.py — 배포 직전 최소 Gate 검증
+import subprocess, sys, json
+
+def pre_deploy_gate_check(strict: bool = True) -> bool:
+    """배포 직전 Harness Gate 최소 검증 — FAIL 시 False 반환."""
+    cmd = ["python", "Evaluator_Examples/ch18_cicd_gate.py"]
+    if strict:
+        cmd.append("--strict")   # WARN도 FAIL로 처리 — 배포 전 강화 검증
+
+    result = subprocess.run(cmd, capture_output=True, text=True)
+
+    # JSON 한 줄 요약 파싱 — {"A":"PASS","B":"PASS","C":"WARN",...}
+    for line in result.stdout.splitlines():
+        if line.strip().startswith("{"):
+            summary = json.loads(line)
+            failed = [g for g, s in summary.items() if s == "FAIL"]
+            warned = [g for g, s in summary.items() if s == "WARN"]
+            if failed:
+                print(f"  ❌ Gate FAIL: {failed}")
+            if warned and strict:
+                print(f"  ⚠️  Gate WARN (strict): {warned}")
+            break
+
+    return result.returncode == 0
+
+# 배포 파이프라인 통합 — Gate 실패 시 즉시 중단
+if not pre_deploy_gate_check(strict=True):
+    print("Harness Gate FAIL — 배포 파이프라인 중단")
+    sys.exit(1)
+print("Harness Gate PASS — 배포 진행")
+```
+
+```bash
+# 배포 전략별 Gate 검증 강도 조정
+python Evaluator_Examples/ch18_cicd_gate.py           # 카나리 배포: WARN 허용
+python Evaluator_Examples/ch18_cicd_gate.py --strict  # 전체 배포: WARN도 차단
+```

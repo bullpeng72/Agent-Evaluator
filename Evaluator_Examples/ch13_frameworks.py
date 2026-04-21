@@ -1,6 +1,8 @@
 """
-03_framework_adapters.py — 프레임워크 어댑터 통합 예제
+ch13_frameworks.py — 프레임워크 어댑터 통합 예제
 ====================================================
+Book Chapter 13 — 프레임워크 통합
+
 LangChain, LangGraph, CrewAI, AutoGen 4개 프레임워크의 응답에서
 메타데이터를 자동 추출하고, 크로스 프레임워크 파이프라인을 평가한다.
 
@@ -19,10 +21,11 @@ LangChain, LangGraph, CrewAI, AutoGen 4개 프레임워크의 응답에서
           @agent_eval(framework=...) 데코레이터는 mock 응답 객체를 duck typing으로 처리한다.
 
 실행:
-    python Evaluator_Examples/03_framework_adapters.py
+    python Evaluator_Examples/ch13_frameworks.py
 
 결과:
-    results/03_framework_adapters.json
+    results/ch13_frameworks.json
+    → deprecated 전체 예제: Evaluator_Examples/.deprecated/03_framework_adapters.py
 """
 
 import asyncio
@@ -40,7 +43,7 @@ try:
     with socket.socket() as s:
         s.settimeout(0.5)
         if s.connect_ex(("localhost", 6006)) == 0:
-            setup_otel(endpoint="http://localhost:6006", service_name="03-framework-adapters")
+            setup_otel(endpoint="http://localhost:6006", service_name="ch13-frameworks")
             print("  Phoenix 모니터링 활성화 — http://localhost:6006")
 except Exception:
     pass
@@ -302,6 +305,9 @@ am     = report.get("accuracy_metrics", {})
 tcr    = am.get("tcr", {}).get("tcr", 0) / 100
 acc    = am.get("accuracy_scores", {}).get("overall_accuracy", 0) / 100
 print(f"  총 태스크: {total}건  TCR: {tcr:.1%}  평균 정확도: {acc:.2%}")
+print("  ℹ  정확도가 낮게 측정되는 것은 정상입니다.")
+print("     프레임워크 어댑터 예제는 실제 LLM 호출 없이 mock 응답을 사용하며,")
+print("     ground_truth와 mock 응답의 토큰 오버랩이 매우 낮아 수 % 수준으로 나타납니다.")
 
-monitor.save_to_file("03_framework_adapters")
-print("\n결과 저장 완료: results/03_framework_adapters.json")
+monitor.save_to_file("ch13_frameworks")
+print("\n결과 저장 완료: results/ch13_frameworks.json")

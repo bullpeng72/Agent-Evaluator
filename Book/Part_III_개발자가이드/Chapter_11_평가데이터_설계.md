@@ -231,7 +231,7 @@ print(f"저장 완료: {path}")
 
 | 전략 | 기준 | 목적 |
 |------|------|------|
-| `"high_value"` | accuracy_score ≥ 0.85 또는 completion_score ≥ 0.95 | 모범 케이스 확보 |
+| `"high_value"` | accuracy_score ≥ 0.9 또는 completion_score ≥ 0.95 | 모범 케이스 확보 |
 | `"failure_cases"` | success=False 또는 accuracy_score < 0.3 | 회귀 방지용 엣지 케이스 |
 | `"edge_cases"` | 점수가 0 또는 1인 극단값 | 경계 조건 커버리지 |
 | `"coverage_gap"` | task_type 분포에서 부족한 유형 우선 | 균형 잡힌 데이터셋 |
@@ -595,7 +595,7 @@ print(f"평균 지연: {summary.get('avg_latency', 0):.2f}초")
 ### 코드로 최소 세트 적용
 
 ```python
-# 출처: Evaluator_Examples/08_harness_eval.py, 섹션 Group A·B·C — 에이전트 유형별 최소 Harness Config 세트
+# 출처: Evaluator_Examples/ch04_group_a.py, 섹션 Group A·B·C — 에이전트 유형별 최소 Harness Config 세트
 from agent_evaluator import (
     PerformanceMonitor,
     InstructionConfig, ReproducibilityConfig,          # Group A, C
@@ -690,7 +690,7 @@ Month 3+ — 전체 Group 커버리지 달성
 
 - **`TaskResult`는 불변(frozen=True) 데이터 클래스**다. 24개 필드 중 11개는 필수이며, `create_taskresult()` 헬퍼를 사용하면 accuracy_score와 timestamp를 자동 계산해준다.
 - **`TaskType`은 평가 전략을 결정**한다. `"code_generation"`은 AST 비교를, `"tool_use"`는 Tool Selection F1을, `"information_retrieval"`은 Hallucination 탐지를 자동 활성화한다.
-- **골든 데이터셋은 `GoldenSetBuilder`로 자동 마이닝**한다. 프로덕션 트래픽에서 `accuracy_score >= 0.85` 케이스를 추출하고, `push_to_phoenix()`로 Phoenix UI와 연동하면 시각적으로 관리할 수 있다.
+- **골든 데이터셋은 `GoldenSetBuilder`로 자동 마이닝**한다. 프로덕션 트래픽에서 `accuracy_score >= 0.9` 케이스를 추출하고, `push_to_phoenix()`로 Phoenix UI와 연동하면 시각적으로 관리할 수 있다.
 - **샘플링 전략은 환경별로 달라진다**: 개발(1.0) → CI(골든셋 전수) → 프로덕션(0.1). `sample_condition`으로 오류 케이스만 전수 기록하는 조건부 샘플링도 가능하다.
 - **한국어 평가는 토큰 비용이 1.5~2배** 높다는 점을 고려해 비용 예측을 조정해야 하며, `KoreanRAGDatasetGenerator`로 PDF에서 한국어 QA 쌍을 자동 생성하고 `QuickEval.for_rag()`로 바로 평가할 수 있다.
 
@@ -698,16 +698,16 @@ Month 3+ — 전체 Group 커버리지 달성
 
 ## 실전 예제
 
-평가 데이터 설계와 골든 데이터셋 운영은 두 예제 파일에서 실제로 확인할 수 있다. `01_layer1_all_metrics.py`는 `create_taskresult()` 헬퍼와 TaskType 활용법을, `06_operational.py`는 `GoldenSetBuilder`를 통한 프로덕션 데이터 마이닝을 보여준다.
+평가 데이터 설계와 골든 데이터셋 운영은 두 예제 파일에서 실제로 확인할 수 있다. `ch02_first_eval.py`는 `create_taskresult()` 헬퍼와 TaskType 활용법을, `ch10_group_g.py`는 `GoldenSetBuilder`를 통한 프로덕션 데이터 마이닝을 보여준다.
 
-**파일**: `Evaluator_Examples/01_layer1_all_metrics.py`, `Evaluator_Examples/06_operational.py`
+**파일**: `Evaluator_Examples/ch02_first_eval.py`, `Evaluator_Examples/ch10_group_g.py`
 
 **핵심 코드**
 
-**`create_taskresult()` 헬퍼 vs 직접 생성 비교 (출처: `01_layer1_all_metrics.py`, 섹션 1)**
+**`create_taskresult()` 헬퍼 vs 직접 생성 비교 (출처: `ch02_first_eval.py`, 섹션 1)**
 
 ```python
-# 출처: Evaluator_Examples/01_layer1_all_metrics.py, 섹션 1
+# 출처: Evaluator_Examples/ch02_first_eval.py, 섹션 QA
 from agent_evaluator import create_taskresult, TaskResult
 from datetime import datetime
 
@@ -745,10 +745,10 @@ direct = TaskResult(
 - `TaskResult`는 `@dataclass(frozen=True)` — 생성 후 불변(immutable)이다. `to_dict()` / `from_dict()` / `from_json()`으로 직렬화·역직렬화를 지원한다
 - `context` 필드에 검색된 문서를 넣으면 HallucinationDetector가 자동으로 활성화된다 (`task_type="information_retrieval"`일 때)
 
-**GoldenSetBuilder — 자동 마이닝 (출처: `06_operational.py`, 섹션 3)**
+**GoldenSetBuilder — 자동 마이닝 (출처: `ch10_group_g.py`, 섹션 3)**
 
 ```python
-# 출처: Evaluator_Examples/06_operational.py, 섹션 3
+# 출처: Evaluator_Examples/ch11_eval_data.py, 섹션 골든셋
 from agent_evaluator.datasets.builder import GoldenSetBuilder
 from datetime import datetime
 
@@ -788,8 +788,8 @@ builder.merge_to_golden(high_value, version="v1", output_name="master_golden")
 - 실패 케이스(`failure_cases`)와 엣지 케이스(`edge_cases`)를 포함해야 회귀 테스트 커버리지가 높아진다
 
 ```bash
-python Evaluator_Examples/01_layer1_all_metrics.py
-python Evaluator_Examples/06_operational.py
+python Evaluator_Examples/ch02_first_eval.py
+python Evaluator_Examples/ch10_group_g.py
 ```
 
 **예제 구성**
@@ -799,22 +799,79 @@ python Evaluator_Examples/06_operational.py
 | 01_layer1 | 섹션 1~2 | `create_taskresult()` 헬퍼 사용법 | `task_type`, `accuracy_score` 자동 계산 |
 | 01_layer1 | 섹션 3 | `TaskType.CODE_GENERATION` 평가 | AST 비교 자동 활성화 |
 | 01_layer1 | 섹션 5 | `information_retrieval` 태스크 | `HallucinationDetector` 자동 연동 |
-| 06_operational | 섹션 5 | `GoldenSetBuilder` 마이닝 | `accuracy_score >= 0.85` 케이스 자동 추출 |
-| 06_operational | 섹션 5 | `push_to_phoenix()` | Phoenix Datasets 탭에 골든셋 업로드 |
+| 06_operational | 섹션 5 | `GoldenSetBuilder` 마이닝 | `accuracy_score >= 0.9` 케이스 자동 추출 |
+| 06_operational | 섹션 5 | `push_to_phoenix()` | `upload_to_phoenix()` 래퍼 — Phoenix Datasets 탭에 골든셋 업로드 |
 
 **실행 결과 (v0.8.3 기준)**
 
 ```
-# 01_layer1_all_metrics.py
+# ch02_first_eval.py
 총 54개 태스크 | TCR=43.1% | 평균 정확도=59.82%
   code_generation 태스크: AST 비교 적용, accuracy=0.756
   information_retrieval: HallucinationDetector 활성화
 
-# 06_operational.py (GoldenSetBuilder 섹션)
+# ch10_group_g.py (GoldenSetBuilder 섹션)
 GoldenSetBuilder: 28개 결과 중 12개 골든 케이스 추출
-  기준: accuracy_score >= 0.85 AND completion_score >= 0.9
+  기준: accuracy_score >= 0.9 OR completion_score >= 0.95
   저장: data/golden_datasets/golden_YYYYMMDD_HHMMSS.json
   Phoenix push: 비활성 (API 키 없음) — ANTHROPIC_API_KEY 설정 시 자동 업로드
 ```
 
 > **핵심**: `create_taskresult()`는 `question`과 `response`, `ground_truth`만 넣으면 TokenF1·Jaccard·LCS 가중 합산으로 `accuracy_score`를 자동 계산한다. 직접 `TaskResult()`를 생성할 때는 11개 필수 필드를 모두 채워야 하므로 헬퍼 사용을 강력히 권장한다.
+
+**프레임워크별 평가 데이터 설계 — tool_calls·tokens 자동 수집 (출처: `Evaluator_Examples/ch13_frameworks.py`)**
+
+실제 프레임워크를 사용하는 에이전트는 `framework=` 파라미터로 도구 호출 이력과 토큰 사용량을 자동 수집할 수 있다. 수집된 데이터는 `GoldenSetBuilder`의 `tool_selection_candidates.json` 입력으로 활용된다.
+
+```python
+# 출처: Evaluator_Examples/ch13_frameworks.py, 섹션 6 — @batch_eval 프레임워크 비교
+from agent_evaluator.decorators import batch_eval
+from agent_evaluator import PerformanceMonitor
+
+monitor = PerformanceMonitor(output_dir="results/")
+
+BENCHMARK_QA = [("GDP란?", "국내총생산"), ("CPU란?", "중앙처리장치"), ("API란?", "응용프로그램인터페이스")]
+
+@batch_eval(monitor, task_type="qa", task_id_prefix="bench_lc")
+def lc_batch(questions: list, ground_truths: list = None) -> list:
+    return [f"[LangChain] {q}의 답: {gt}" for q, gt in zip(questions, ground_truths or [])]
+
+@batch_eval(monitor, task_type="qa", task_id_prefix="bench_crew")
+def crew_batch(questions: list, ground_truths: list = None) -> list:
+    return [f"[CrewAI] {q}의 답: {gt}" for q, gt in zip(questions, ground_truths or [])]
+
+lc_results   = lc_batch([q for q,_ in BENCHMARK_QA], ground_truths=[g for _,g in BENCHMARK_QA])
+crew_results = crew_batch([q for q,_ in BENCHMARK_QA], ground_truths=[g for _,g in BENCHMARK_QA])
+
+report = monitor.generate_report().to_dict()
+acc = report.get("accuracy_metrics", {}).get("accuracy_scores", {})
+print(f"LangChain accuracy: {acc.get('overall_accuracy', 0):.2f}")
+# → 두 프레임워크 TCR·accuracy 비교 → 높은 쪽을 골든 데이터 생성에 활용
+```
+
+**버전 비교로 데이터 품질 개선 추적 (출처: `Evaluator_Examples/ch20_deployment.py`)**
+
+골든 데이터셋을 재설계한 뒤 v1·v2 에이전트의 Gate 점수 변화로 데이터 품질 개선 효과를 정량화한다.
+
+```python
+# 출처: Evaluator_Examples/ch20_deployment.py — 데이터셋 재설계 전후 Gate 점수 비교
+from agent_evaluator import PerformanceMonitor
+
+# v1: 기존 골든 데이터셋으로 평가한 에이전트
+# v2: 재설계된 골든 데이터셋(실패 케이스·엣지 케이스 보강)으로 평가한 에이전트
+monitor_v1 = PerformanceMonitor(output_dir="results/")
+monitor_v2 = PerformanceMonitor(output_dir="results/")
+
+# ... 동일 에이전트를 두 데이터셋으로 각각 실행 ...
+
+r1 = monitor_v1.generate_report().to_dict()
+r2 = monitor_v2.generate_report().to_dict()
+h1 = (r1.get("extra_metrics") or {}).get("harness_groups", {})
+h2 = (r2.get("extra_metrics") or {}).get("harness_groups", {})
+
+for gk in "ABCDE":
+    s1 = (h1.get(gk) or {}).get("score") or 0.0
+    s2 = (h2.get(gk) or {}).get("score") or 0.0
+    print(f"  Gate {gk}: 기존={s1:.0%} → 재설계={s2:.0%}  ({'+' if s2>s1 else ''}{(s2-s1)*100:.1f}%p)")
+# → Gate 점수 변화가 데이터셋 재설계의 효과를 증명하는 근거가 됨
+```

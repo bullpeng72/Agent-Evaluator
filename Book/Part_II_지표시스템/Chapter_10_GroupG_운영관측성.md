@@ -14,7 +14,7 @@
 > 📖 **관련 레퍼런스**
 > - **[Appendix A — 58개 지표 완전 레퍼런스](../Appendix/A_58개지표_레퍼런스.md)**: Group G Config 입력·출력
 > - **[Appendix A §Part 2 — Config 레퍼런스](../Appendix/A_58개지표_레퍼런스.md)**: Group G Config 파라미터 전체 목록
-> - **[Evaluator_Examples/07_phoenix_hybrid.py](../../Evaluator_Examples/07_phoenix_hybrid.py)**: Phoenix OTEL 관측성 실전 예제
+> - **[Evaluator_Examples/ch19_phoenix.py](../../Evaluator_Examples/ch19_phoenix.py)**: Phoenix OTEL 관측성 실전 예제
 > - **[Chapter 19 — Phoenix OTEL 모니터링](../Part_V_프로덕션운영/Chapter_19_Phoenix_OTEL_모니터링.md)**: 실시간 관측성 인프라
 
 > **독자별 읽기 가이드**  
@@ -103,7 +103,7 @@ ObservabilityConfig(
 `ObservabilityConfig`는 `agent-eval monitor`(Arize Phoenix)와 함께 사용할 때 가장 강력하다.
 
 ```python
-# 출처: Evaluator_Examples/07_phoenix_hybrid.py, 섹션 1 — setup_otel + ObservabilityConfig
+# 출처: Evaluator_Examples/ch19_phoenix.py, 섹션 1 — setup_otel + ObservabilityConfig
 from agent_evaluator import setup_otel
 
 # OTEL 설정 — Phoenix 서버로 스팬 자동 전송 (setup_otel은 PerformanceMonitor 생성 전에 호출)
@@ -398,7 +398,7 @@ toxicity=3, bias=2  → safety_score = 0.5 (주의 필요)
 ```
 
 ```python
-# 출처: Evaluator_Examples/04_decorator_quickeval.py, 섹션 8 — LLMJudge 7차원 결과 접근
+# 출처: Evaluator_Examples/ch12_decorators.py, 섹션 8 — LLMJudge 7차원 결과 접근
 # LLMJudge 결과 접근
 report = monitor.generate_report()
 judge_summary = report.to_dict().get("llm_judge_summary", {})
@@ -448,13 +448,14 @@ print(f"신뢰성: {judge_summary.get('avg_scores', {}).get('factual_consistency
 
 | 예제 파일 | 관련 내용 |
 |---------|---------|
-| [`Evaluator_Examples/08_harness_eval.py`](../../Evaluator_Examples/08_harness_eval.py) | 섹션 7: Group G Observability — 4개 Config + Harness 전체 리포트 |
-| [`Evaluator_Examples/07_phoenix_hybrid.py`](../../Evaluator_Examples/07_phoenix_hybrid.py) | Phoenix OTEL 트레이싱·Playground 스팬 전송 실전 예제 |
+| [`Evaluator_Examples/ch03_harness_basics.py`](../../Evaluator_Examples/ch03_harness_basics.py) | 섹션 7: Group G Observability — 4개 Config + Harness 전체 리포트 |
+| [`Evaluator_Examples/ch19_phoenix.py`](../../Evaluator_Examples/ch19_phoenix.py) | Phoenix OTEL 트레이싱·Playground 스팬 전송 실전 예제 |
+| [`Evaluator_Examples/ch04_group_a.py`](../../Evaluator_Examples/ch04_group_a.py) | 시나리오 5+16+17: Gate G FAIL — ExplainabilityConfig·ObservabilityConfig·ErrorDiagnosisConfig 위반 |
 
-**핵심 코드 (출처: `Evaluator_Examples/08_harness_eval.py`, 섹션 7 — Group G Observability)**
+**핵심 코드 (출처: `Evaluator_Examples/ch03_harness_basics.py`, 섹션 7 — Group G Observability)**
 
 ```python
-# 출처: Evaluator_Examples/08_harness_eval.py, 섹션 7 — Group G Observability
+# 출처: Evaluator_Examples/ch10_group_g.py, 섹션 Gate G Observability
 from agent_evaluator import (
     ExplainabilityConfig, ObservabilityConfig,
     ErrorDiagnosisConfig, LatencyAttributionConfig,
@@ -512,8 +513,186 @@ monitor.save_to_file("08_harness_eval")
 ```
 
 ```bash
-python Evaluator_Examples/08_harness_eval.py      # Group G 포함 전체 — 배포 판정 리포트까지
-python Evaluator_Examples/07_phoenix_hybrid.py    # Phoenix 트레이싱 + 데이터셋 업로드
+python Evaluator_Examples/ch03_harness_basics.py      # Group G 포함 전체 — 배포 판정 리포트까지
+python Evaluator_Examples/ch19_phoenix.py    # Phoenix 트레이싱 + 데이터셋 업로드
+```
+
+---
+**FAIL 케이스 (출처: `Evaluator_Examples/ch04_group_a.py`)**
+
+시나리오 16: `ObservabilityConfig` — 필수 span 속성 누락 (coverage < 0.9)
+
+```python
+# 출처: Evaluator_Examples/ch10_group_g.py, 역케이스 Gate G FAIL
+from agent_evaluator import PerformanceMonitor, ObservabilityConfig, ExplainabilityConfig
+from agent_evaluator.decorators import agent_eval
+
+monitor_g = PerformanceMonitor(output_dir="results/")
+
+@agent_eval(
+    monitor_g,
+    task_type="qa",
+    task_id_prefix="bad_g_observe",
+    observability=ObservabilityConfig(
+        required_span_attributes=[
+            "task_id", "task_type", "execution_time",
+            "model_version", "trace_id", "agent_name",
+        ],
+        check_trace_continuity=True,
+        min_coverage=0.9,
+    ),
+)
+def unobservable_agent(question: str, ground_truth: str = "") -> str:
+    # model_version·trace_id·agent_name 누락 → coverage=3/6=0.5 < min_coverage=0.9
+    return f"처리 완료: {question}"
+
+unobservable_agent("추적 정보를 확인해줘", ground_truth="추적 확인")
+# → Gate G FAIL: observability_score=0.5 (6개 중 3개만 자동 주입됨)
+```
+
+시나리오 17: `ErrorDiagnosisConfig` — 오류 인정·근본 원인·해결책 없이 결과만 반환
+
+```python
+# 출처: Evaluator_Examples/ch10_group_g.py, 역케이스 Gate G FAIL
+from agent_evaluator import ErrorDiagnosisConfig
+
+@agent_eval(
+    monitor_g,
+    task_type="qa",
+    task_id_prefix="bad_g_diag",
+    error_diagnosis=ErrorDiagnosisConfig(
+        only_on_failure=False,    # 모든 응답에서 진단 품질 평가
+        acknowledgment_weight=0.3,
+        root_cause_weight=0.5,
+        suggestion_weight=0.2,
+    ),
+)
+def no_diagnosis_agent(question: str, ground_truth: str = "") -> str:
+    # 실패 인정("오류 발생"), 근본 원인 분석, 해결책 제안이 전혀 없음
+    return f"처리를 시도했으나 완료하지 못했습니다."
+
+no_diagnosis_agent("오류 원인을 진단해줘", ground_truth="오류 진단")
+# → Gate G FAIL: diagnosis_score=0.0 (acknowledgment·root_cause·suggestion 모두 없음)
+```
+
+- `ObservabilityConfig.required_span_attributes`에 나열된 속성 중 TaskResult에 자동으로 채워지는 것은 `task_id`·`task_type`·`execution_time` 3개다. 나머지 3개(`model_version`·`trace_id`·`agent_name`)는 `EvalMetadata(extra={"model_version": ...})`로 명시적으로 주입해야 한다
+- `ErrorDiagnosisConfig(only_on_failure=False)` 설정 시 성공 응답에서도 진단 품질을 검사한다. 오류 상황에서의 응답 품질을 상시 감시하려면 `False`로 설정한다
+- **시나리오 5+16+17 합산 시 Gate G ≈ 10% (FAIL)**
+
+```bash
+python Evaluator_Examples/ch04_group_a.py   # 시나리오 5+16+17: Gate G FAIL 케이스
+```
+
+**Layer 1 지표 — 관측성의 기초 수치 (출처: `Evaluator_Examples/ch02_first_eval.py`)**
+
+Group G Config가 추적 완성도와 설명 가능성을 판정한다면, Layer 1은 그 기반이 되는 원시 지표(지연·토큰·품질)를 수집한다. 두 레이어를 함께 운영하면 "추적 완성도 90%이며, p95 지연이 3초"처럼 관측 가능한 수치로 표현된다.
+
+```python
+# 출처: Evaluator_Examples/ch02_first_eval.py, 섹션 응답품질+5+6 — 관측성 기초 수치
+from agent_evaluator import PerformanceMonitor, create_taskresult
+import random
+
+monitor = PerformanceMonitor(
+    output_dir="results/",
+    enable_hallucination_detection=True,
+    enable_transparency=True,   # 투명성 탭: 메트릭 계산 Traces 자동 생성 → Gate G와 연계
+)
+
+# 5차원 응답 품질 — Observability 관점의 품질 기준
+QUALITY_CASES = [
+    ("고품질", "파이썬은 간결한 문법의 고급 언어입니다. 데이터과학·웹·자동화에 폭넓게 사용됩니다."),
+    ("중간",   "파이썬은 프로그래밍 언어입니다. 쉽습니다."),
+    ("저품질", "몰라요."),
+]
+for label, resp in QUALITY_CASES:
+    result = create_taskresult(
+        task_id=f"qual_{label}", question="파이썬이란?", response=resp,
+        ground_truth="간결한 문법의 고급 언어",
+        execution_time=random.uniform(0.3, 1.5), task_type="qa",
+        tokens_used={"input": 80, "output": len(resp.split()), "total": 80 + len(resp.split())},
+    )
+    monitor.record_task(result)
+
+# 지연시간 분포 — LatencyAttributionConfig가 참조하는 원시 수치
+latencies = [random.gauss(1.2, 0.4) for _ in range(15)] + [8.5, 12.0]
+for i, lat in enumerate(latencies):
+    result = create_taskresult(
+        task_id=f"perf_{i:03d}", question="지연 테스트", response="완료",
+        ground_truth="완료", execution_time=round(max(0.1, lat), 3), task_type="qa",
+        tokens_used={"input": 50, "output": 20, "total": 70},
+    )
+    monitor.record_task(result)
+
+report = monitor.generate_report().to_dict()
+lat = report.get("efficiency_metrics", {}).get("latency", {})
+tok = report.get("efficiency_metrics", {}).get("tokens", {})
+print(f"  p50={float(lat.get('p50',0)):.2f}s  p95={float(lat.get('p95',0)):.2f}s")
+print(f"  총 토큰: {int(tok.get('total_tokens',0)):,}")
+# → Gate G LatencyAttributionConfig: 이 p95/p99 수치를 기반으로 지연 원인 귀속 판정
+# → enable_transparency=True: 메트릭 계산 과정이 Traces로 Phoenix에 전송됨
+```
+
+**관측성 인프라 — 이상 탐지 + 비용 추적 (출처: `Evaluator_Examples/ch10_group_g.py`)**
+
+Gate G는 응답의 추적 가능성과 설명 가능성을 판정하지만, 그 토대는 운영 인프라다. `AnomalyDetector`는 관측성 점수 드리프트를 실시간 탐지하고, `CostTracker`는 투명성 비용(LLMJudge 호출 등)을 예산 내에서 유지한다.
+
+```python
+# 출처: Evaluator_Examples/ch10_group_g.py, 섹션 이상탐지 — 관측성 드리프트 이상 탐지
+from agent_evaluator import PerformanceMonitor, create_taskresult, AnomalyDetector
+import random
+
+monitor = PerformanceMonitor(output_dir="results/", enable_transparency=True)
+detector = AnomalyDetector(baseline_window=25, detection_window=5)
+
+# 정상 구간 — 추론 마커가 있는 응답, 짧은 지연
+for i in range(30):
+    r = create_taskresult(
+        task_id=f"g_base_{i:03d}",
+        question="추론 테스트",
+        response="왜냐하면 이 항목이 핵심이기 때문입니다. 따라서 결론을 도출합니다.",
+        ground_truth="추론",
+        execution_time=round(random.gauss(1.0, 0.2), 3),
+        task_type="reasoning",
+        tokens_used={"input": 100, "output": 50, "total": 150},
+    )
+    monitor.record_task(r)
+
+# 드리프트 주입 — 지연 폭증 + 빈 응답 (추론 마커 소실)
+for i in range(5):
+    r = create_taskresult(
+        task_id=f"g_drift_{i:03d}",
+        question="추론 테스트",
+        response="",  # 설명 없이 빈 응답 → ExplainabilityConfig 위반
+        ground_truth="추론",
+        execution_time=round(random.gauss(12.0, 2.0), 3),  # 지연 폭증
+        task_type="reasoning",
+        tokens_used={"input": 4000, "output": 1000, "total": 5000},
+    )
+    monitor.record_task(r)
+
+events = detector.scan(monitor)
+for ev in events[:3]:
+    print(f"  [{ev.severity}] {ev.type}: {ev.detail[:60]}")
+# → latency_trend·token_spike·error_surge: 관측성 붕괴 시그널
+```
+
+```python
+# 출처: Evaluator_Examples/ch10_group_g.py, 섹션 비용추적 — LLMJudge 비용 추적
+from agent_evaluator import CostTracker, AdaptivePolicy
+
+# Gate G에서 ExplainabilityConfig·ObservabilityConfig는 LLMJudge를 사용할 수 있음
+# LLMJudge 호출 비용을 예산 범위 내로 유지하는 패턴
+tracker = CostTracker(budget_per_day=5.0, alert_at=0.8)
+policy  = AdaptivePolicy(default_sample_rate=0.1, anomaly_sample_rate=1.0, budget_per_day=5.0)
+
+# LLMJudge 샘플 평가 — 10%만 채점 (비용 절감)
+for i in range(3):
+    tracker.record(provider="anthropic", model="claude-haiku-4-5-20251001",
+                   cost_usd=0.0008, input_tokens=300, output_tokens=100,
+                   evaluation_type="llm_judge_observability")
+
+print(f"  Gate G Judge 비용: ${tracker.get_today_cost():.4f}  알림: {tracker.is_budget_alert()}")
+# → sample_rate=0.1로 90% 태스크는 LLMJudge 건너뜀 → Gate G 비용 = 전체의 10%
 ```
 
 ---

@@ -441,6 +441,14 @@ def get_hourly_stats(
 
 @router.get("/results/{file_id}", summary="결과 파일 상세")
 def get_result(file_id: str, request: Request) -> Dict[str, Any]:
+    """단일 평가 결과 파일의 전체 내용 반환.
+
+    ``summary`` (TCR·정확도·지연 등 집계), ``tasks`` (태스크별 상세),
+    ``harness_gates`` (Gate A–G 점수), ``extra_metrics`` 등을 포함한다.
+
+    Args:
+        file_id: 결과 파일 ID (``/api/results`` 목록의 ``id`` 필드).
+    """
     rs = _rs(request)
     rf = rs.by_id(file_id)
     if rf is None:
@@ -1347,6 +1355,15 @@ def get_metric_heatmap(file_id: str, metric: str, request: Request) -> Dict[str,
 
 @router.get("/summary", summary="전체 결과 요약")
 def get_summary(request: Request) -> Dict[str, Any]:
+    """전체 결과 파일의 요약 통계 + 투명성 데이터 존재 여부 반환.
+
+    ``/api/stats``와 달리 ``has_traces`` · ``has_audit`` · ``has_annotations`` 플래그를
+    추가로 포함한다 (대시보드 Transparency 탭 활성화 여부 판단에 사용).
+
+    Returns:
+        total_files, total_tasks, avg_tcr 등 요약 지표 +
+        has_traces (bool), has_audit (bool), has_annotations (bool)
+    """
     rs = _rs(request)
     s = rs.summary()
     s["has_traces"]      = len(rs.transparency.trace_files) > 0
@@ -2055,7 +2072,14 @@ def webhook_history(webhook_id: str) -> Dict[str, Any]:
 
 @router.post("/webhooks/{webhook_id}/test", summary="웹훅 테스트 발송")
 def webhook_test(webhook_id: str) -> Dict[str, Any]:
-    """테스트 웹훅 발동 기록."""
+    """웹훅 발동 이력에 테스트 엔트리를 기록한다 (in-memory).
+
+    실제 외부 URL로 HTTP 요청을 발송하지 않는다. 외부 URL에 실제 POST를 보내려면
+    ``POST /api/webhook/test`` (body: ``{"url": "..."}```)를 사용한다.
+
+    Args:
+        webhook_id: 임의 웹훅 식별자. ``GET /api/webhooks/{webhook_id}/history``로 이력 조회.
+    """
     entry = {
         "fired_at": _datetime.now().isoformat(),
         "payload": {"test": True, "webhook_id": webhook_id},
@@ -2118,7 +2142,11 @@ _REQUEST_COUNTS: Dict[str, int] = defaultdict(int)
 
 @router.get("/rate-limit/status", summary="API 요청 제한 상태")
 def rate_limit_status() -> Dict[str, Any]:
-    """요청 카운터 및 속도 제한 상태를 반환한다."""
+    """API 요청 제한 설정 조회.
+
+    현재 버전에서 ``current_counts``는 실제 집계되지 않으므로 항상 빈 객체(``{}``)를 반환한다.
+    ``limits.default``(기본 1000)은 참고용 설정값이며 실제 차단 로직은 구현되지 않았다.
+    """
     return {
         "limits": {"default": 1000},
         "current_counts": dict(_REQUEST_COUNTS),

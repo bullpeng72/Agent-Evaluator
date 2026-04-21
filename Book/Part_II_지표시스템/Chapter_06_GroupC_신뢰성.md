@@ -16,7 +16,8 @@
 > - **[Appendix A — 58개 지표 완전 레퍼런스](../Appendix/A_58개지표_레퍼런스.md)**: Group C 지표 입력·출력
 > - **[Appendix H — 수학적 상세](../Appendix/H_알고리즘_수학적_레퍼런스.md)**: 환각 탐지 알고리즘 수식
 > - **[Appendix A §Part 2 — Config 레퍼런스](../Appendix/A_58개지표_레퍼런스.md)**: Group C Config 파라미터 전체 목록
-> - **[Evaluator_Examples/01_layer1_all_metrics.py](../../Evaluator_Examples/01_layer1_all_metrics.py)**: HallucinationDetector 실전 예제
+> - **[Evaluator_Examples/ch02_first_eval.py](../../Evaluator_Examples/ch02_first_eval.py)**: HallucinationDetector 실전 예제
+> - **[Evaluator_Examples/ch04_group_a.py](../../Evaluator_Examples/ch04_group_a.py)**: Gate C FAIL 시나리오 — 시나리오 3+10+11 (SLAConfig·IdempotencyConfig·ReproducibilityConfig)
 
 > **독자별 읽기 가이드**  
 > - **QA 관리자**: §6.1(개요) → §6.4(Config 설정) → §6.5(임계값·Gate 판정) 순서로 읽으면 "재현성·오류 복구 기준을 어떻게 선언할지"를 빠르게 파악할 수 있습니다.  
@@ -76,7 +77,7 @@ Group A(목표달성)가 "결과가 맞는가?"를 묻는다면, Group C는 "결
 - **정보 출처 추적**: RAG 에이전트의 경우 응답이 검색된 문서에 기반하는가
 
 ```python
-# 출처: Evaluator_Examples/01_layer1_all_metrics.py, 섹션 3 — HallucinationDetector + RAG 평가
+# 출처: Evaluator_Examples/ch02_first_eval.py, 섹션 할루시네이션 — HallucinationDetector + RAG 평가
 from agent_evaluator import PerformanceMonitor
 from agent_evaluator.decorators import agent_eval
 
@@ -116,7 +117,7 @@ print(f"환각 점수: {d.get('hallucination_score', 0):.3f}")
 환각 탐지를 더 정밀하게 하려면 LLMJudge와 결합한다.
 
 ```python
-# 출처: Evaluator_Examples/01_layer1_all_metrics.py, 섹션 3 — LLMJudge faithfulness + RAG
+# 출처: Evaluator_Examples/ch02_first_eval.py, 섹션 할루시네이션 — LLMJudge faithfulness + RAG
 from agent_evaluator import LLMJudgeConfig
 
 @agent_eval(
@@ -149,7 +150,7 @@ def rag_agent(question: str, context: str = "", ground_truth: str = "") -> str:
 | `self_correction_rate` | 스스로 오류를 수정한 비율 |
 
 ```python
-# 출처: Evaluator_Examples/02_layer2_agentic_security.py, 섹션 2 — RetryCorrectionTracker
+# 출처: Evaluator_Examples/ch05_group_b.py, 섹션 2 — RetryCorrectionTracker
 from agent_evaluator import create_taskresult
 
 # 재시도 정보 기록
@@ -180,14 +181,13 @@ print(f"재시도 성공률: {d.get('retry_success_rate', 0) * 100:.1f}%")
 동일한 입력을 N회 실행해 응답의 일관성을 측정한다. AI Native 관점의 "확률론적 품질"을 직접 측정하는 핵심 Config다.
 
 ```python
+# 출처: Evaluator_Examples/ch03_harness_basics.py
 from agent_evaluator import ReproducibilityConfig
 
 ReproducibilityConfig(
-    runs=3,                              # 동일 입력 반복 실행 횟수
-    similarity_measure="token_f1",       # "token_f1"|"jaccard"|"exact"
-    reproducibility_threshold=0.85,      # 재현성 임계값 (0.0~1.0)
-    fail_on_low_reproducibility=False,   # True: 임계값 미달 시 success=False
-    skip_side_effects=False,             # True: 부수효과 있는 함수 건너뜀
+    runs=3,                           # 동일 입력 반복 실행 횟수
+    similarity_measure="token_f1",    # "token_f1"|"jaccard"|"exact"
+    reproducibility_threshold=0.85,   # 재현성 임계값 (0.0~1.0)
 )
 ```
 
@@ -195,21 +195,21 @@ ReproducibilityConfig(
 
 | similarity_measure | 특징 | 권장 상황 |
 |-------------------|------|---------|
-| `token_f1` | 토큰 단위 정밀도-재현율 조화평균 | QA, 사실 응답 |
+| `token_f1` | 토큰 단위 정밀도-재현율 F1 조화평균 | QA, 사실 응답 (기본 권장) |
 | `jaccard` | 순서 무관 단어 집합 유사도 | 긴 설명형 응답 |
 | `exact` | 완전히 동일한 응답만 1.0 | 구조화 출력 (JSON, 코드) |
 
 **사용 예시 — 금융 정보 에이전트:**
 
 ```python
+# 출처: Evaluator_Examples/ch06_group_c.py, 섹션 Gate C Reliability
 @agent_eval(
     monitor,
     task_type="qa",
     reproducibility=ReproducibilityConfig(
         runs=5,                          # 5회 실행으로 분포 측정
-        similarity_measure="token_f1",
+        similarity_measure="token_f1",   # "token_f1"|"jaccard"|"exact"
         reproducibility_threshold=0.90,  # 금융 정보 — 높은 재현성 요구
-        fail_on_low_reproducibility=True,
     ),
 )
 def finance_agent(question: str, ground_truth: str = "") -> str:
@@ -230,33 +230,25 @@ def finance_agent(question: str, ground_truth: str = "") -> str:
 에이전트가 도구 실패나 부분적인 오류 상황에서 적절한 폴백(fallback) 전략을 사용하는지 측정한다.
 
 ```python
+# 출처: Evaluator_Examples/ch03_harness_basics.py
 from agent_evaluator import FaultToleranceConfig
 
 FaultToleranceConfig(
     check_fallback_attempts=True,           # 실패 후 폴백 도구 사용 여부 추적
     partial_success_threshold=0.5,          # 부분 성공 임계값 (0.0~1.0)
-    score_recovery_quality=True,            # 폴백 복구 품질 채점
-    expected_fallback_tools={               # 각 도구 실패 시 기대하는 폴백
-        "primary_db": ["cache_db", "local_store"],
-        "web_search": ["local_search", "static_docs"],
-    },
 )
 ```
 
 **사용 예시 — 데이터베이스 쿼리 에이전트:**
 
 ```python
+# 출처: Evaluator_Examples/ch06_group_c.py, 섹션 Gate C Reliability
 @agent_eval(
     monitor,
     task_type="tool_use",
     fault_tolerance=FaultToleranceConfig(
         check_fallback_attempts=True,
-        expected_fallback_tools={
-            "main_db": ["replica_db", "cache"],
-            "api_call": ["cached_response"],
-        },
         partial_success_threshold=0.5,
-        score_recovery_quality=True,
     ),
 )
 def db_agent(question: str, ground_truth: str = "") -> str:
@@ -269,17 +261,12 @@ def db_agent(question: str, ground_truth: str = "") -> str:
 에이전트가 최적 조건이 아닐 때(도구 실패, 컨텍스트 부족, 타임아웃 등) 완전한 실패 대신 부분적인 결과를 제공하는지 측정한다. "모든 것을 실패하거나, 모든 것을 성공하거나" 대신 "가능한 것을 제공하고 부족함을 인정하는" 패턴을 장려한다.
 
 ```python
+# 출처: Evaluator_Examples/ch03_harness_basics.py
 from agent_evaluator import GracefulDegradationConfig
 
 GracefulDegradationConfig(
-    partial_result_markers=[             # 부분 결과를 나타내는 마커
-        "partial", "incomplete",
-        "best effort", "부분", "일부",
-        "완전하지 않", "추가 확인 필요",
-    ],
     quality_floor=0.3,                   # 최소 품질 기준 (이 이하면 빈 응답과 동일)
-    detect_timeout_fallback=True,        # 타임아웃 폴백 탐지 여부
-    empty_response_penalty=1.0,          # 빈 응답 패널티 (0.0~1.0)
+    partial_result_markers=[],           # 부분 결과를 나타내는 마커
     check_error_acknowledgment=True,     # 오류 인정 여부 확인
 )
 ```
@@ -287,6 +274,7 @@ GracefulDegradationConfig(
 **사용 예시:**
 
 ```python
+# 출처: Evaluator_Examples/ch06_group_c.py, 섹션 Gate C Reliability
 @agent_eval(
     monitor,
     task_type="qa",
@@ -369,6 +357,7 @@ IdempotencyConfig(
 **사용 예시 — 데이터베이스 쓰기 에이전트:**
 
 ```python
+# 출처: Evaluator_Examples/ch06_group_c.py, 역케이스 Gate C FAIL (IdempotencyConfig)
 @agent_eval(
     monitor,
     task_type="tool_use",
@@ -520,13 +509,14 @@ print(f"재시도 성공률: {d.get('retry_success_rate', 'N/A')}")
 
 | 예제 파일 | 관련 내용 |
 |---------|---------|
-| [`Evaluator_Examples/08_harness_eval.py`](../../Evaluator_Examples/08_harness_eval.py) | 섹션 3: Group C Reliability — 4개 Config 실전 예제 |
-| [`Evaluator_Examples/01_layer1_all_metrics.py`](../../Evaluator_Examples/01_layer1_all_metrics.py) | 섹션 2: HallucinationDetector 실전 예제 |
+| [`Evaluator_Examples/ch03_harness_basics.py`](../../Evaluator_Examples/ch03_harness_basics.py) | 섹션 3: Group C Reliability — 4개 Config 실전 예제 |
+| [`Evaluator_Examples/ch02_first_eval.py`](../../Evaluator_Examples/ch02_first_eval.py) | 섹션 2: HallucinationDetector 실전 예제 |
+| [`Evaluator_Examples/ch04_group_a.py`](../../Evaluator_Examples/ch04_group_a.py) | 시나리오 3+10+11: Gate C FAIL (SLAConfig·IdempotencyConfig·ReproducibilityConfig) |
 
-**핵심 코드 (출처: `Evaluator_Examples/08_harness_eval.py`, 섹션 3 — Group C Reliability)**
+**핵심 코드 (출처: `Evaluator_Examples/ch03_harness_basics.py`, 섹션 3 — Group C Reliability)**
 
 ```python
-# 출처: Evaluator_Examples/08_harness_eval.py, 섹션 3 — Group C Reliability
+# 출처: Evaluator_Examples/ch06_group_c.py, 섹션 Gate C Reliability
 from agent_evaluator import (
     FaultToleranceConfig, GracefulDegradationConfig,
     ReproducibilityConfig, RetryConsistencyConfig, IdempotencyConfig,
@@ -583,8 +573,9 @@ def idempotent_agent(question: str, ground_truth: str = "") -> str:
 ```
 
 ```bash
-python Evaluator_Examples/08_harness_eval.py          # Group C 포함 전체
-python Evaluator_Examples/01_layer1_all_metrics.py    # HallucinationDetector 예제
+python Evaluator_Examples/ch03_harness_basics.py          # Group C 포함 전체
+python Evaluator_Examples/ch02_first_eval.py    # HallucinationDetector 예제
+python Evaluator_Examples/ch04_group_a.py  # Gate C FAIL — 배포 차단 케이스
 ```
 
 ---
@@ -595,7 +586,7 @@ python Evaluator_Examples/01_layer1_all_metrics.py    # HallucinationDetector �
 |------------|------|-------------|
 | `HallucinationDetector` | 사실 일관성 점수 (opt-in) | `enable_hallucination_detection=True` |
 | `RetryCorrectionTracker` | 재시도·자가수정 패턴 | `retry_rate`, `retry_success_rate` |
-| `ReproducibilityConfig` | 동일 입력 재현성 기준 | `runs`, `reproducibility_threshold`, `fail_on_low_reproducibility` |
+| `ReproducibilityConfig` | 동일 입력 재현성 기준 | `runs`, `similarity_measure`("token_f1"\|"jaccard"\|"exact"), `reproducibility_threshold`, `fail_on_low_reproducibility` |
 | `FaultToleranceConfig` | 장애 내성·폴백 기준 | `expected_fallback_tools`, `check_fallback_attempts` |
 | `GracefulDegradationConfig` | 우아한 성능 저하 기준 | `quality_floor`, `check_error_acknowledgment` |
 | `RetryConsistencyConfig` | 재시도 일관성 기준 | `improvement_threshold`, `penalize_degradation` |

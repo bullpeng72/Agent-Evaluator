@@ -808,14 +808,14 @@ def agent(question: str, ground_truth: str = "") -> str: ...
 
 ## 실전 예제
 
-대시보드 시각화는 JSON 파일을 생성하는 예제 실행 후 `agent-eval dashboard`로 바로 확인할 수 있다. `04_decorator_quickeval.py`(데코레이터 평가), `06_operational.py`(운영 지표), `07_phoenix_hybrid.py`(Phoenix 연동) 세 파일이 대시보드의 각기 다른 탭을 채운다.
+대시보드 시각화는 JSON 파일을 생성하는 예제 실행 후 `agent-eval dashboard`로 바로 확인할 수 있다. `ch12_decorators.py`(데코레이터 평가), `ch10_group_g.py`(운영 지표), `ch19_phoenix.py`(Phoenix 연동) 세 파일이 대시보드의 각기 다른 탭을 채운다.
 
-**파일**: `Evaluator_Examples/04_decorator_quickeval.py`, `Evaluator_Examples/06_operational.py`, `Evaluator_Examples/07_phoenix_hybrid.py`
+**파일**: `Evaluator_Examples/ch12_decorators.py`, `Evaluator_Examples/ch10_group_g.py`, `Evaluator_Examples/ch19_phoenix.py`
 
-**핵심 코드 (출처: `Evaluator_Examples/04_decorator_quickeval.py`, `06_operational.py`)**
+**핵심 코드 (출처: `Evaluator_Examples/ch12_decorators.py`, `ch10_group_g.py`)**
 
 ```python
-# 출처: Evaluator_Examples/04_decorator_quickeval.py, 섹션 8 — QuickEval 결과 저장 및 대시보드 연동
+# 출처: Evaluator_Examples/ch12_decorators.py, 섹션 8 — QuickEval 결과 저장 및 대시보드 연동
 from agent_evaluator import QuickEval
 
 eval_qe = QuickEval("results/", auto_save=True, auto_save_interval=10)
@@ -832,15 +832,15 @@ for i in range(50):
 eval_qe.save()
 
 # 대시보드 실행 (별도 터미널에서)
-# agent-eval dashboard --dir results/ --port 8765
+# agent-eval dashboard results/ --port 8765
 ```
 
 - `auto_save=True, auto_save_interval=10`으로 설정하면 10건마다 `save_to_file()`이 자동 호출된다
 - `save()`는 JSON과 HTML 보고서를 동시에 생성한다 — HTML은 브라우저에서 바로 열 수 있는 인터랙티브 대시보드
-- `agent-eval dashboard --dir results/`를 실행하면 FastAPI 서버가 기동되어 실시간 지표를 웹 UI로 확인할 수 있다
+- `agent-eval dashboard results/`를 실행하면 FastAPI 서버가 기동되어 실시간 지표를 웹 UI로 확인할 수 있다
 
 ```python
-# 출처: Evaluator_Examples/06_operational.py, 섹션 4 — evaluation_session 컨텍스트 매니저
+# 출처: Evaluator_Examples/ch11_eval_data.py, 섹션 session — evaluation_session 컨텍스트 매니저
 from agent_evaluator import evaluation_session, create_taskresult
 
 # 세션 종료 시 자동으로 results/session_results.json 저장
@@ -870,9 +870,9 @@ print("results/session_results.json 저장 완료")
 
 ```bash
 # 각 예제를 실행해 results/ 에 JSON 저장
-python Evaluator_Examples/04_decorator_quickeval.py
-python Evaluator_Examples/06_operational.py
-python Evaluator_Examples/07_phoenix_hybrid.py
+python Evaluator_Examples/ch12_decorators.py
+python Evaluator_Examples/ch10_group_g.py
+python Evaluator_Examples/ch19_phoenix.py
 
 # 대시보드 기동 — 브라우저에서 http://localhost:8765
 agent-eval dashboard results/
@@ -889,16 +889,16 @@ agent-eval dashboard results/
 **실행 결과 (v0.8.3 기준)**
 
 ```
-# 04_decorator_quickeval.py
+# ch12_decorators.py
 TCR=57.1% | 14개 태스크 | avg_accuracy=0.712
 대시보드: /tasks/filter?accuracy_lt=0.5 → 6건 필터링
 
-# 06_operational.py
+# ch10_group_g.py
 28개 태스크 | TCR=46.1%
 이상 감지 탭: latency_spike 2건
 비용 탭: $0.00 (mock 모드)
 
-# 07_phoenix_hybrid.py
+# ch19_phoenix.py
 mock 모드 실행: advanced_metrics 3건
 외부 평가 탭: deepeval_score, ragas_faithfulness 표시
 ```

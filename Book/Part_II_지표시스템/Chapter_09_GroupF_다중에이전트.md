@@ -14,7 +14,7 @@
 > 📖 **관련 레퍼런스**
 > - **[Appendix A — 58개 지표 완전 레퍼런스](../Appendix/A_58개지표_레퍼런스.md)**: Group F 지표 입력·출력
 > - **[Appendix A §Part 2 — Config 레퍼런스](../Appendix/A_58개지표_레퍼런스.md)**: Group F Config 파라미터 전체 목록
-> - **[Evaluator_Examples/02_layer2_agentic_security.py](../../Evaluator_Examples/02_layer2_agentic_security.py)**: AgentCoordinationTracker 실전 예제
+> - **[Evaluator_Examples/ch05_group_b.py](../../Evaluator_Examples/ch05_group_b.py)**: AgentCoordinationTracker 실전 예제
 
 > **독자별 읽기 가이드**  
 > - **QA 관리자**: §9.1(개요) → §9.4(Config 설정) → §9.5(임계값·Gate 판정) 순서로 읽으면 "에이전트 간 협업 기준을 어떻게 선언할지"를 빠르게 파악할 수 있습니다.  
@@ -75,7 +75,7 @@ Group F는 **다중 에이전트 시스템**의 협업 품질을 측정한다. �
 | `network_topology` | 에이전트 간 연결 구조 그래프 |
 
 ```python
-# 출처: Evaluator_Examples/02_layer2_agentic_security.py, 섹션 4 — AgentCoordinationTracker 멀티에이전트
+# 출처: Evaluator_Examples/ch09_group_f.py, 섹션 협조 지표 — AgentCoordinationTracker 멀티에이전트
 from agent_evaluator import PerformanceMonitor, create_taskresult
 
 monitor = PerformanceMonitor("results/")
@@ -116,7 +116,7 @@ F1        = 2 × (precision × recall) / (precision + recall)
 ```
 
 ```python
-# 출처: Evaluator_Examples/02_layer2_agentic_security.py, 섹션 4 — ToolSelectionTracker F1
+# 출처: Evaluator_Examples/ch09_group_f.py, 섹션 협조 지표 — ToolSelectionTracker F1
 # 올바른 도구 선택 평가
 result = create_taskresult(
     task_id="t1",
@@ -1111,13 +1111,14 @@ def monitored_orchestrator(question: str, ground_truth: str = "") -> str:
 
 | 예제 파일 | 관련 내용 |
 |---------|---------|
-| [`Evaluator_Examples/08_harness_eval.py`](../../Evaluator_Examples/08_harness_eval.py) | 섹션 6: Group F Multi-Agent Coordination — 4개 Config 실전 예제 |
-| [`Evaluator_Examples/02_layer2_agentic_security.py`](../../Evaluator_Examples/02_layer2_agentic_security.py) | 섹션 4: AgentCoordinationTracker·ToolSelectionTracker 실전 예제 |
+| [`Evaluator_Examples/ch03_harness_basics.py`](../../Evaluator_Examples/ch03_harness_basics.py) | 섹션 6: Group F Multi-Agent Coordination — 4개 Config 실전 예제 |
+| [`Evaluator_Examples/ch05_group_b.py`](../../Evaluator_Examples/ch05_group_b.py) | 섹션 4: AgentCoordinationTracker·ToolSelectionTracker 실전 예제 |
+| [`Evaluator_Examples/ch04_group_a.py`](../../Evaluator_Examples/ch04_group_a.py) | 시나리오 13+14+15: Gate F FAIL — ConsensusConfig·PropagationConfig·AgentRoleConfig·ConflictResolutionConfig 위반 |
 
-**핵심 코드 (출처: `Evaluator_Examples/08_harness_eval.py`, 섹션 6 — Group F Multi-Agent Coordination)**
+**핵심 코드 (출처: `Evaluator_Examples/ch03_harness_basics.py`, 섹션 6 — Group F Multi-Agent Coordination)**
 
 ```python
-# 출처: Evaluator_Examples/08_harness_eval.py, 섹션 6 — Group F Multi-Agent Coordination
+# 출처: Evaluator_Examples/ch09_group_f.py, 섹션 Gate F Multi-Agent Coordination
 from agent_evaluator import (
     ConsensusConfig, PropagationConfig,
     AgentRoleConfig, ConflictResolutionConfig,
@@ -1184,6 +1185,234 @@ def conflict_resolver_agent(question: str, ground_truth: str = "") -> str:
 ```
 
 ```bash
-python Evaluator_Examples/08_harness_eval.py           # Group F 포함 전체
-python Evaluator_Examples/02_layer2_agentic_security.py  # AgentCoordinationTracker 예제
+python Evaluator_Examples/ch03_harness_basics.py           # Group F 포함 전체
+python Evaluator_Examples/ch05_group_b.py  # AgentCoordinationTracker 예제
 ```
+
+**프레임워크 어댑터 — 실제 멀티에이전트 프레임워크 메타데이터 자동 추출 (출처: `Evaluator_Examples/ch13_frameworks.py`)**
+
+`framework=` 파라미터를 선언하면 CrewAI·AutoGen 응답 객체에서 `agent_interactions`·`tasks_output`을 자동 추출해 Group F 지표에 반영한다.
+
+```python
+# 출처: Evaluator_Examples/ch13_frameworks.py, 섹션 3 — CrewAI 멀티에이전트 어댑터
+from types import SimpleNamespace
+from agent_evaluator import PerformanceMonitor
+from agent_evaluator.decorators import agent_eval
+
+monitor = PerformanceMonitor(output_dir="results/")
+
+def _make_crewai_response(answer: str, agents: list, tokens: dict):
+    """CrewAI Crew 응답 구조 시뮬레이션 — 실제 crewai 패키지 없이 동작."""
+    return SimpleNamespace(
+        raw=answer,
+        token_usage=SimpleNamespace(
+            total_tokens=tokens["input"] + tokens["output"],
+            prompt_tokens=tokens["input"],
+            completion_tokens=tokens["output"],
+        ),
+        tasks_output=[
+            SimpleNamespace(description=f"{a} 태스크", agent=a, raw=f"{a} 결과물")
+            for a in agents
+        ],
+    )
+
+@agent_eval(monitor, task_type="tool_use", framework="crewai", task_id_prefix="crew")
+def crewai_agent(question: str, ground_truth: str = ""):
+    """CrewAI Crew (Researcher + Analyst + Writer) 시뮬레이션."""
+    return _make_crewai_response(
+        answer="CrewAI 팀 결과물",
+        agents=["researcher", "analyst", "writer"],
+        tokens={"input": 600, "output": 250},
+    )
+
+crewai_agent("AI 산업 동향 보고서를 작성해줘", ground_truth="보고서")
+# → framework="crewai": tasks_output → agent_interactions 자동 추출
+# → AgentCoordinationTracker: researcher→analyst→writer 위임 패턴 기록
+# → Group F ConsensusConfig·AgentRoleConfig와 연계 가능
+```
+
+```python
+# 출처: Evaluator_Examples/ch13_frameworks.py, 섹션 5 — 크로스 프레임워크 파이프라인
+# LangGraph(라우팅) → LangChain(검색) → CrewAI(생성) 3단계 핸드오프 평가
+from types import SimpleNamespace
+
+@agent_eval(monitor, task_type="planning", framework="langgraph", task_id_prefix="pipe_route")
+def routing_stage(question: str, ground_truth: str = ""):
+    state = {
+        "messages": [SimpleNamespace(content=f"라우팅: {question}", type="ai",
+                     response_metadata={"token_usage": {"prompt_tokens": 200, "completion_tokens": 80}})],
+        "graph_traversal": {"nodes_visited": ["router", "task_splitter", "dispatcher"],
+                            "edges": [("router","task_splitter"),("task_splitter","dispatcher")]},
+        "state_transitions": [{"from":"router","to":"task_splitter","trigger":"tool_call"},
+                               {"from":"task_splitter","to":"dispatcher","trigger":"tool_call"}],
+    }
+    return state
+
+@agent_eval(monitor, task_type="tool_use", framework="crewai", task_id_prefix="pipe_gen")
+def generation_stage(question: str, ground_truth: str = ""):
+    return _make_crewai_response(
+        answer=f"최종 결과물: {question}",
+        agents=["researcher", "writer", "reviewer"],
+        tokens={"input": 700, "output": 350},
+    )
+
+routing_stage("경제 위기 예측 리포트", ground_truth="리포트")
+generation_stage("경제 위기 예측 리포트", ground_truth="리포트")
+# → 크로스 프레임워크: LangGraph 스테이지별 state_transitions + CrewAI tasks_output 동시 기록
+```
+
+---
+**FAIL 케이스 (출처: `Evaluator_Examples/ch04_group_a.py`)**
+
+시나리오 13: `ConsensusConfig` — 합의 점수 0.08 (임계값 0.8 대비 심각한 미달)
+
+```python
+# 출처: Evaluator_Examples/ch09_group_f.py, 역케이스 Gate F FAIL
+from agent_evaluator import PerformanceMonitor, ConsensusConfig
+from agent_evaluator.decorators import agent_eval, EvalMetadata
+
+monitor_f = PerformanceMonitor(output_dir="results/")
+
+@agent_eval(
+    monitor_f,
+    task_type="multi_agent",
+    task_id_prefix="bad_f_consensus",
+    consensus=ConsensusConfig(
+        consensus_method="majority",
+        similarity_threshold=0.8,
+    ),
+)
+def low_consensus_agent(question: str, ground_truth: str = "") -> tuple:
+    """에이전트 간 합의 점수 0.08 — 임계값 0.8 대비 심각한 충돌."""
+    return f"처리: {question}", EvalMetadata(extra={
+        "consensus": {"consensus_score": 0.08}
+    })
+
+low_consensus_agent("의사결정을 내려줘", ground_truth="합의 결정")
+# → Gate F FAIL: consensus_score=0.08 < threshold=0.8
+```
+
+시나리오 14: `PropagationConfig` — key_facts 미전파 (응답에 프로젝트 핵심 정보 없음)
+
+```python
+# 출처: Evaluator_Examples/ch09_group_f.py, 역케이스 Gate F FAIL
+from agent_evaluator import PropagationConfig
+
+@agent_eval(
+    monitor_f,
+    task_type="multi_agent",
+    task_id_prefix="bad_f_propagation",
+    propagation=PropagationConfig(
+        key_facts=["project_id: PRJ-2024", "deadline: 2026-06-30", "budget: 50M"],
+        check_in_response=True,
+        similarity_threshold=0.7,
+    ),
+)
+def non_propagating_agent(question: str, ground_truth: str = "") -> str:
+    # key_facts를 전혀 언급하지 않음 → propagation_score=0.0
+    return f"작업을 수행했습니다. {question} 처리가 완료되었습니다."
+
+non_propagating_agent("프로젝트 현황을 보고해줘", ground_truth="현황 보고")
+# → Gate F FAIL: 0개 key_facts 전파됨 (PRJ-2024·deadline·budget 전혀 없음)
+```
+
+시나리오 15: `AgentRoleConfig` + `ConflictResolutionConfig` — reader 역할이 write_db·admin 도구 사용
+
+```python
+# 출처: Evaluator_Examples/ch09_group_f.py, 역케이스 Gate F FAIL
+from agent_evaluator import AgentRoleConfig, ConflictResolutionConfig
+
+@agent_eval(
+    monitor_f,
+    task_type="multi_agent",
+    task_id_prefix="bad_f_role",
+    agent_role=AgentRoleConfig(
+        role_name="reader",
+        allowed_tools=["search", "read"],
+        forbidden_tools=["write_db", "delete", "admin"],
+        role_violation_penalty=0.4,
+    ),
+    conflict_resolution=ConflictResolutionConfig(
+        unresolved_penalty=0.5,
+        check_resolution_quality=True,
+    ),
+)
+def role_violating_agent(question: str, ground_truth: str = "") -> tuple:
+    return f"처리 중: {question}", EvalMetadata(
+        tool_calls=[
+            {"name": "write_db", "args": {"data": question}},  # reader가 금지 도구 사용
+            {"name": "admin",    "args": {"action": "override"}},
+        ],
+    )
+
+role_violating_agent("데이터를 저장해줘", ground_truth="저장 완료")
+# → Gate F FAIL: role_violation=True + conflict 미해결
+```
+
+- `consensus_score`는 `EvalMetadata(extra={"consensus": {"consensus_score": 0.08}})` 형식으로 주입한다
+- `PropagationConfig.key_facts`는 응답 텍스트에서 검색하므로 응답에 해당 문자열이 없으면 자동으로 0점이 된다
+- `AgentRoleConfig`와 `ConflictResolutionConfig`를 함께 사용하면 역할 위반 + 충돌 미해결 두 신호가 합산돼 Gate F 점수를 더 빠르게 낮춘다
+- **시나리오 13+14+15 합산 시 Gate F ≈ 0% (FAIL)**
+
+```bash
+python Evaluator_Examples/ch04_group_a.py   # 시나리오 13+14+15: Gate F FAIL 케이스
+```
+
+**Gate F 이상 탐지 — 운영 관측성 연동 (출처: `Evaluator_Examples/ch10_group_g.py`)**
+
+`AnomalyDetector`는 Gate F 점수 급락(합의율 붕괴·역할 위반 급증)을 기준선 대비 드리프트로 탐지한다. `CostTracker`는 다중 에이전트 호출 비용이 예산을 초과하면 자동으로 샘플링 비율을 낮춘다.
+
+```python
+# 출처: Evaluator_Examples/ch10_group_g.py, 섹션 1+2 — 다중에이전트 이상 탐지 + 비용 제어
+from agent_evaluator import (
+    PerformanceMonitor, create_taskresult,
+    AnomalyDetector, CostTracker, AdaptivePolicy,
+)
+
+monitor = PerformanceMonitor(output_dir="results/")
+detector = AnomalyDetector(baseline_window=25, detection_window=5)
+
+# 정상 기준선 30건 기록 — multi_agent 태스크에서 합의율이 안정적인 구간
+import random
+for i in range(30):
+    r = create_taskresult(
+        task_id=f"f_base_{i:03d}",
+        question="다중 에이전트 협업 태스크",
+        response="consensus 합의 완료",
+        ground_truth="합의",
+        execution_time=round(random.gauss(1.5, 0.3), 3),
+        task_type="multi_agent",
+        tokens_used={"input": 200, "output": 80, "total": 280},
+    )
+    monitor.record_task(r)
+
+# 이상 패턴 주입 — 합의 붕괴 시나리오 (빈 응답 → error_surge)
+for i in range(5):
+    r = create_taskresult(
+        task_id=f"f_anom_{i:03d}",
+        question="다중 에이전트 협업 태스크",
+        response="",   # 합의 실패 → 빈 응답
+        ground_truth="합의",
+        execution_time=round(random.gauss(8.0, 1.0), 3),  # 지연 폭증
+        task_type="multi_agent",
+        tokens_used={"input": 1500, "output": 500, "total": 2000},  # 토큰 폭증
+    )
+    monitor.record_task(r)
+
+events = detector.scan(monitor)
+for ev in events[:3]:
+    print(f"  [{ev.severity}] {ev.type}: {ev.detail[:60]}")
+# → latency_trend (합의 재시도로 지연 증가), token_spike (중복 호출), error_surge (합의 실패)
+
+# 다중 에이전트 비용 예산 제어
+policy = AdaptivePolicy(default_sample_rate=0.1, anomaly_sample_rate=1.0, budget_per_day=10.0)
+tracker = CostTracker(budget_per_day=10.0, alert_at=0.8)
+# 에이전트 3개 × 호출 비용 = multi-agent 비용 예산 관리
+for model, tokens in [("gpt-4o", {"input":600,"output":200}), ("gpt-4o", {"input":800,"output":300})]:
+    tracker.record(provider="openai", model=model, cost_usd=0.012,
+                   input_tokens=tokens["input"], output_tokens=tokens["output"],
+                   evaluation_type="multi_agent_call")
+print(f"  오늘 비용: ${tracker.get_today_cost():.4f}  예산 알림: {tracker.is_budget_alert()}")
+```
+
+---

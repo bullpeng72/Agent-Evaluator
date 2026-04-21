@@ -79,11 +79,22 @@ def _list_files(paths: List[Path]) -> List[Dict[str, Any]]:
 
 @router.get("/traces", summary="추적 목록")
 def list_traces(request: Request):
+    """OTEL 추적 파일 목록을 반환한다.
+
+    ``PerformanceMonitor(enable_transparency=True)``로 평가 실행 시 생성되는
+    ``traces/`` 디렉토리의 ``.json`` 파일 목록을 반환한다.
+    각 항목은 ``name`` · ``stem`` · ``size_bytes`` 필드를 포함한다.
+    """
     return _list_files(_transparency(request).trace_files)
 
 
 @router.get("/traces/{name}", summary="추적 상세")
 def get_trace(name: str, request: Request):
+    """단일 추적 파일의 전체 내용을 JSON으로 반환한다.
+
+    Args:
+        name: 파일 이름(확장자 포함 또는 생략 가능). ``GET /api/transparency/traces`` 목록의 ``name`` 필드.
+    """
     for p in _transparency(request).trace_files:
         if p.name == name or p.stem == name:
             try:
@@ -95,11 +106,22 @@ def get_trace(name: str, request: Request):
 
 @router.get("/audit", summary="감사 로그 목록")
 def list_audit(request: Request):
+    """감사 로그 파일 목록을 반환한다.
+
+    ``PerformanceMonitor(enable_transparency=True)``로 평가 실행 시 생성되는
+    ``audit_logs/`` 디렉토리의 ``.json`` 파일 목록을 반환한다.
+    각 항목은 ``name`` · ``stem`` · ``size_bytes`` 필드를 포함한다.
+    """
     return _list_files(_transparency(request).audit_files)
 
 
 @router.get("/audit/{name}", summary="감사 로그 상세")
 def get_audit(name: str, request: Request):
+    """단일 감사 로그 파일의 전체 내용을 JSON으로 반환한다.
+
+    Args:
+        name: 파일 이름(확장자 포함 또는 생략 가능). ``GET /api/transparency/audit`` 목록의 ``name`` 필드.
+    """
     for p in _transparency(request).audit_files:
         if p.name == name or p.stem == name:
             try:
@@ -134,6 +156,14 @@ def list_annotations(request: Request, file_id: str = Query("")):
 
 @router.get("/annotations/{name}", summary="어노테이션 상세")
 def get_annotation(name: str, request: Request):
+    """단일 어노테이션 파일의 전체 내용을 JSON으로 반환한다.
+
+    반환 객체는 ``annotation_id`` · ``title`` · ``content`` · ``annotation_type`` ·
+    ``priority`` · ``author`` · ``timestamp`` · ``replies`` · ``tags`` · ``source_file_id`` 필드를 포함한다.
+
+    Args:
+        name: 파일 이름(확장자 포함 또는 생략 가능). ``GET /api/transparency/annotations`` 목록의 ``name`` 필드.
+    """
     for p in _transparency(request).annotation_files:
         if p.name == name or p.stem == name:
             try:

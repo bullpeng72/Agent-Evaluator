@@ -193,6 +193,11 @@ class PerformanceMonitor:
         judge_criteria: Optional[List[str]] = None,
         # LLM Judge context 잘림 한도 (기본 4000자 — RAG 문서 1~2페이지 커버)
         judge_max_context_chars: int = 4000,
+        # LLM Judge escalation — primary 점수 미달 시 상위 모델 자동 재채점 (v0.8.3+)
+        judge_escalation_model: Optional[str] = None,
+        judge_escalation_threshold: float = 2.5,
+        # LLM Judge 샘플링 재현성 시드
+        judge_seed: Optional[int] = None,
         # 한국어 형태소 분석 기반 토큰화 (kiwipiepy 필요)
         use_korean_tokenizer: bool = False,
         # 의미 기반 환각 탐지 (sentence-transformers 필요, opt-in)
@@ -424,6 +429,9 @@ class PerformanceMonitor:
                     budget_storage_path=judge_budget_storage_path,
                     judge_criteria=judge_criteria,
                     max_context_chars=judge_max_context_chars,
+                    escalation_model=judge_escalation_model,
+                    escalation_threshold=judge_escalation_threshold,
+                    seed=judge_seed,
                 )
                 logger.info("LLM Judge 활성화됨 (model=%s, sample_rate=%s)", self.llm_judge.model, judge_sample_rate)
             except ImportError as e:
@@ -6554,7 +6562,8 @@ class PerformanceMonitor:
         # ── 2. Accuracy trace ───────────────────────────────────────────────
         acc_data = self.accuracy_evaluator.get_accuracy_scores()
         overall_acc = round(acc_data.get("overall_accuracy", 0), 4)
-        scores = [e.get("accuracy", 0) for e in self.accuracy_evaluator.evaluations]
+        scores = [v for e in self.accuracy_evaluator.evaluations
+                  if (v := e.get("accuracy")) is not None]
 
         tid2 = tm.start_metric_calculation("accuracy", "quality")
         tm.add_calculation_step(

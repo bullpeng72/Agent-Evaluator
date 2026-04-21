@@ -367,7 +367,7 @@ class QuickEval:
     def for_llm_judge(
         cls,
         output_dir: str = "results/",
-        model: str = "gpt-4o-mini",
+        model: Optional[str] = None,
         **kwargs: Any,
     ) -> "QuickEval":
         """LLM Judge 자동 채점에 최적화된 QuickEval 인스턴스.
@@ -382,7 +382,8 @@ class QuickEval:
             def agent(question, ground_truth=""): ...
         """
         kwargs.setdefault("enable_llm_judge", True)
-        kwargs.setdefault("judge_model", model)
+        if model is not None:
+            kwargs.setdefault("judge_model", model)
         return cls(output_dir, **kwargs)
 
     @classmethod

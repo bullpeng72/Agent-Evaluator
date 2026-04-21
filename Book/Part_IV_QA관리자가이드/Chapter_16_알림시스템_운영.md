@@ -6,6 +6,8 @@
 > - Slack, 이메일, Webhook 핸들러를 실무 수준으로 연결하는 완전한 코드를 확인한다
 > - 쿨다운 전략으로 알림 피로를 방지하는 원칙을 이해한다
 > - `AnomalyDetector`와 `AdaptivePolicy`로 이상 탐지 및 비용 자동 제어를 구현한다
+> - **`StreamingEvaluator`**로 슬라이딩 윈도우 집계 지표를 실시간으로 추적하는 방법을 이해한다
+> - `ImplicitFeedbackTracker`로 사용자 암묵적 행동 신호(thumbs_up·regenerate·abandon)를 수집한다
 
 ---
 
@@ -85,7 +87,7 @@ error_rule = AlertRuleBuilder.when_error(
 ### when_tool_calls_exceed — 도구 호출 횟수 상한 알림
 
 ```python
-# 출처: Evaluator_Examples/04_decorator_quickeval.py, 섹션 3 — AlertRuleBuilder
+# 출처: Evaluator_Examples/ch12_decorators.py, 섹션 3 — AlertRuleBuilder
 tool_rule = AlertRuleBuilder.when_tool_calls_exceed(
     max_calls=10,                # tool_calls 횟수 > 10 이면 발동
     handler=lambda msg, tr: print(f"[WARNING] 과도한 도구 호출: {msg}"),
@@ -567,6 +569,100 @@ BUDGET_EXCEEDED → 0% 평가 중단 (budget_per_day 초과 시 자동 전환)
 📋 **QA 관리자 TIP:** `is_budget_alert()` 또는 `is_budget_exceeded()` 호출 결과를 `SimpleTaskAlertRule` 조건에 연결하면 예산 경고를 Slack으로 자동 전달할 수 있다. `enter_anomaly_mode()` 호출이 잦다면 일일 예산을 늘리거나 샘플링 전략을 재검토할 신호다.
 
 ---
+---
+
+## 16.7 StreamingEvaluator — 실시간 슬라이딩 윈도우 알림
+
+`SimpleTaskAlertRule`은 개별 태스크가 완료된 직후 조건을 검사하는 경량 알림이다. 반면 **`StreamingEvaluator`**는 슬라이딩 윈도우 단위로 **집계 지표**(TCR, P95, 오류율)를 실시간으로 추적해, 단일 태스크의 이상이 아닌 **트렌드 이상**을 탐지한다.
+
+### 슬라이딩 윈도우 설정
+
+```python
+# 출처: Evaluator_Examples/ch16_alerts.py, 섹션 1 — StreamingEvaluator 슬라이딩 윈도우
+from agent_evaluator import PerformanceMonitor, create_taskresult
+from agent_evaluator.streaming.evaluator import StreamingEvaluator
+
+monitor = PerformanceMonitor(
+    output_dir="results/",
+    enable_anomaly_detection=True,
+    anomaly_baseline_window=30,    # 앞 30건을 기준선으로 사용
+    anomaly_detection_window=10,   # 이후 10건을 현재 상태와 비교
+)
+
+streaming = StreamingEvaluator(monitor=monitor)
+
+# 50건 시뮬레이션: 정상 35건 → 느린 응답 10건 → 오류 5건
+PATTERNS = (
+    [(0.8, True,  1.0, 200)] * 35 +  # 정상 구간 (기준선)
+    [(0.6, True, 10.0, 150)] * 10 +  # 느린 응답 (이상 구간)
+    [(0.0, False, 0.1,   0)] *  5    # 오류 구간
+)
+
+for i, (acc, success, lat, tok) in enumerate(PATTERNS):
+    task_id = f"stream_{i:04d}"
+    streaming.record(
+        task_id=task_id,
+        success=success,
+        execution_time=round(lat, 3),
+        tokens_used=tok,
+        accuracy_score=acc,
+        has_error=not success,
+    )
+    result = create_taskresult(
+        task_id=task_id,
+        question=f"스트리밍 태스크 {i:03d}",
+        response="응답" if success else "",
+        ground_truth="응답",
+        execution_time=round(lat, 3),
+        task_type="qa",
+    )
+    monitor.record_task(result)
+
+# 윈도우별 통계 조회
+for window in ["1m", "5m"]:
+    stats = streaming.get_stats(window)
+    print(f"[{window}] count={stats.get('count', 0)}  "
+          f"tcr={stats.get('tcr', 0):.1f}%  "
+          f"p95={stats.get('p95_latency', 0):.2f}s  "
+          f"err={stats.get('error_rate', 0):.1f}%")
+```
+
+- `StreamingEvaluator`는 `monitor`와 연결해 함께 사용한다 — `monitor.record_task()`와 `streaming.record()`를 모두 호출해야 PerformanceMonitor와 슬라이딩 윈도우가 모두 업데이트된다
+- `get_stats(window)` 반환값의 `tcr`·`error_rate`는 `0–100` 퍼센트 단위다
+- `enable_anomaly_detection=True`를 함께 설정하면 `AnomalyDetector`가 기준선과 현재 구간의 Z-Score를 자동 계산한다
+
+### ImplicitFeedbackTracker — 사용자 암묵적 신호
+
+클릭, 저장, 재생성 같은 사용자 행동 신호를 수집해 품질 프록시로 활용한다:
+
+```python
+# 출처: Evaluator_Examples/ch16_alerts.py, 섹션 2 — ImplicitFeedbackTracker
+# 지원 타입: thumbs_up, thumbs_down, save, share, regenerate, copy, correction, abandon
+FEEDBACK_EVENTS = [
+    ("stream_0001", "thumbs_up",  {"dwell_time": 8.5}),
+    ("stream_0002", "save",       {"format": "pdf"}),
+    ("stream_0003", "regenerate", {"reason": "unsatisfied"}),  # 부정 신호
+    ("stream_0005", "thumbs_down",{"reason": "wrong_answer"}), # 부정 신호
+    ("stream_0007", "abandon",    {"at_position": 0}),         # 부정 신호
+]
+
+for task_id, feedback_type, metadata in FEEDBACK_EVENTS:
+    monitor.record_implicit_feedback(
+        task_id=task_id,
+        feedback_type=feedback_type,
+        metadata=metadata,
+    )
+
+fb_stats = monitor.feedback_tracker.get_stats()
+print(f"positive={fb_stats.get('positive_count', 0)}  negative={fb_stats.get('negative_count', 0)}")
+```
+
+- `regenerate`·`thumbs_down`·`abandon` 3종이 **부정 신호** — 이 비율이 높으면 Gate A 정확도가 낮더라도 추가적인 품질 경고를 발생시킬 수 있다
+- 피드백 통계는 `save_to_file()` 결과의 `feedback` 키에 포함되어 대시보드 "사용자 반응" 탭에 자동 시각화된다
+- `monitor.record_implicit_feedback()`은 내부적으로 `ImplicitFeedbackTracker`에 위임한다
+
+📋 **QA 관리자 TIP:** `SimpleTaskAlertRule`(개별 태스크 즉시 알림)과 `StreamingEvaluator`(윈도우 집계 트렌드 알림)를 함께 사용하면 단발성 이상과 지속적 품질 저하를 모두 잡을 수 있다. `AnomalyDetector`는 그 위에 Z-Score 기반 통계적 이상을 추가한다.
+
 
 ## 📋 QA 관리자 포인트: 알림 임계값 설정 기준표
 
@@ -621,19 +717,21 @@ def test_alert_rules():
 - **Warning은 길게, Critical은 짧게** — 쿨다운을 계층별로 다르게 설정해야 알림 피로 없이 중요한 알림을 놓치지 않는다
 - **AnomalyDetector는 알림 규칙의 보완재** — 임계값 기반 알림이 잡지 못하는 "점진적 품질 저하"를 Z-Score로 탐지한다
 - **AdaptivePolicy는 비용 안전망** — 일일 예산을 초과하기 전에 더 저렴한 모델로 자동 전환해서 비용 폭증을 방지한다
+- **StreamingEvaluator는 윈도우 집계 트렌드 감시자** — 개별 태스크 알림이 잡지 못하는 지속적 추세 이상(P95 증가, 오류율 상승)을 슬라이딩 윈도우로 탐지한다
+- **ImplicitFeedbackTracker는 사용자 의도 신호 수집기** — LLM 점수와 별개로 thumbs_down·regenerate·abandon 행동 데이터를 품질 프록시로 활용한다
 
 ---
 
 ## 실전 예제
 
-`05_streaming_alerts.py`는 `StreamingEvaluator`, `ImplicitFeedbackTracker`, `AlertEngine`을 함께 사용하는 실시간 알림 파이프라인을 보여준다. `06_operational.py`는 `SimpleTaskAlertRule`과 `AnomalyDetector`의 결합을 통해 임계값·통계 기반 이중 알림 구조를 시연한다.
+`ch16_alerts.py`는 `StreamingEvaluator`, `ImplicitFeedbackTracker`, `AlertEngine`을 함께 사용하는 실시간 알림 파이프라인을 보여준다. `ch10_group_g.py`는 `SimpleTaskAlertRule`과 `AnomalyDetector`의 결합을 통해 임계값·통계 기반 이중 알림 구조를 시연한다.
 
-**파일**: `Evaluator_Examples/05_streaming_alerts.py`, `Evaluator_Examples/06_operational.py`
+**파일**: `Evaluator_Examples/ch16_alerts.py`, `Evaluator_Examples/ch10_group_g.py`
 
-**핵심 코드 (출처: `Evaluator_Examples/05_streaming_alerts.py`)**
+**핵심 코드 (출처: `Evaluator_Examples/ch16_alerts.py`)**
 
 ```python
-# 출처: Evaluator_Examples/05_streaming_alerts.py, 섹션 3 — SimpleTaskAlertRule 경량 알림
+# 출처: Evaluator_Examples/ch16_alerts.py, 섹션 3 — SimpleTaskAlertRule 경량 알림
 from agent_evaluator import SimpleTaskAlertRule, PerformanceMonitor
 from agent_evaluator.decorators import agent_eval
 
@@ -671,7 +769,7 @@ agent("질문", ground_truth="정답")
 - `handler` 함수에서 Slack WebHook, PagerDuty API 호출, 이메일 발송 등 외부 연동을 구현한다
 
 ```python
-# 출처: Evaluator_Examples/04_decorator_quickeval.py, 섹션 3 — AlertRuleBuilder 팩토리
+# 출처: Evaluator_Examples/ch12_decorators.py, 섹션 3 — AlertRuleBuilder 팩토리
 from agent_evaluator import AlertRuleBuilder  # decorators.py에 정의, agent_evaluator에서 export
 from agent_evaluator.alerts.engine import AlertEngine
 import json
@@ -708,8 +806,8 @@ latency_rule = AlertRuleBuilder.when_latency_above(
 - `dry_run(task_result)`으로 규칙 설정이 올바른지 실제 알림 발화 없이 테스트할 수 있다
 
 ```bash
-python Evaluator_Examples/05_streaming_alerts.py
-python Evaluator_Examples/06_operational.py
+python Evaluator_Examples/ch16_alerts.py
+python Evaluator_Examples/ch10_group_g.py
 ```
 
 **예제 구성**
@@ -724,16 +822,16 @@ python Evaluator_Examples/06_operational.py
 **실행 결과 (v0.8.3 기준)**
 
 ```
-# 05_streaming_alerts.py
+# ch16_alerts.py
 StreamingEvaluator: 슬라이딩 윈도우 50건 처리
 ImplicitFeedback: negative_feedback 3건 수집 → AlertEngine 트리거
 [ALERT] accuracy_below_threshold: window_avg=0.42 < threshold=0.7
 [ALERT] latency_spike: p95=6.2s > threshold=5.0s
 알림 JSONL 저장: results/alerts.jsonl
 
-# 06_operational.py
+# ch10_group_g.py
 SimpleTaskAlertRule: 5개 규칙 등록 (warning·error·critical)
 AnomalyDetector: latency_spike 2건 (Z-Score=2.3, 2.8)
 ```
 
-> **`dry_run()` 활용**: 알림 규칙을 프로덕션에 배포하기 전에 `rule.dry_run(sample_result)`로 단위 테스트를 실행한다. 05_streaming_alerts.py 섹션 3에서 실제 `dry_run()` 패턴을 확인할 수 있다. 쿨다운은 `warning=3600`, `error=1800`, `critical=300`으로 계층별로 다르게 설정하는 것이 핵심이다.
+> **`dry_run()` 활용**: 알림 규칙을 프로덕션에 배포하기 전에 `rule.dry_run(sample_result)`로 단위 테스트를 실행한다. ch16_alerts.py 섹션 3에서 실제 `dry_run()` 패턴을 확인할 수 있다. 쿨다운은 `warning=3600`, `error=1800`, `critical=300`으로 계층별로 다르게 설정하는 것이 핵심이다.

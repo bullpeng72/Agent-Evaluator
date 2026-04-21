@@ -114,6 +114,7 @@ LangGraph는 노드 단위 실행이 특징이다. Agent-Evaluator는 각 노드
 ```python
 from langgraph.graph import StateGraph, END
 from langchain_core.messages import HumanMessage
+from agent_evaluator import PerformanceMonitor
 from agent_evaluator.integrations import langgraph_eval
 
 monitor = PerformanceMonitor(output_dir="results/")
@@ -497,16 +498,16 @@ pip install "agent-evaluator[full]"
 
 ## 실전 예제
 
-`03_framework_adapters.py`는 LangChain, LangGraph, CrewAI, AutoGen 4개 프레임워크를 하나의 파일에서 비교 평가하고, 크로스 프레임워크 파이프라인까지 실행하는 종합 예제다. 각 프레임워크의 `framework=` 파라미터 사용법과 응답 객체 구조 차이를 직접 확인할 수 있다.
+`ch13_frameworks.py`는 LangChain, LangGraph, CrewAI, AutoGen 4개 프레임워크를 하나의 파일에서 비교 평가하고, 크로스 프레임워크 파이프라인까지 실행하는 종합 예제다. 각 프레임워크의 `framework=` 파라미터 사용법과 응답 객체 구조 차이를 직접 확인할 수 있다.
 
-**파일**: `Evaluator_Examples/03_framework_adapters.py`
+**파일**: `Evaluator_Examples/ch13_frameworks.py`
 
-**핵심 코드 (출처: `Evaluator_Examples/03_framework_adapters.py`)**
+**핵심 코드 (출처: `Evaluator_Examples/ch13_frameworks.py`)**
 
 **섹션 1 — LangChain 어댑터 (`framework="langchain"`)**
 
 ```python
-# 출처: Evaluator_Examples/03_framework_adapters.py, 섹션 1
+# 출처: Evaluator_Examples/ch13_frameworks.py, 섹션 1
 from types import SimpleNamespace
 from agent_evaluator import PerformanceMonitor
 from agent_evaluator.decorators import agent_eval
@@ -540,7 +541,7 @@ langchain_agent("최신 파이썬 버전은?", ground_truth="3.12")
 **섹션 5 — 크로스 프레임워크 파이프라인**
 
 ```python
-# 출처: Evaluator_Examples/03_framework_adapters.py, 섹션 5
+# 출처: Evaluator_Examples/ch13_frameworks.py, 섹션 5
 from types import SimpleNamespace
 
 @agent_eval(monitor, task_type="planning", framework="langgraph", task_id_prefix="pipe_route")
@@ -576,7 +577,7 @@ for task in ["경제 위기 예측 보고서", "신제품 출시 전략"]:
 **섹션 6 — @batch_eval 프레임워크 비교**
 
 ```python
-# 출처: Evaluator_Examples/03_framework_adapters.py, 섹션 6
+# 출처: Evaluator_Examples/ch13_frameworks.py, 섹션 6
 from agent_evaluator.decorators import batch_eval
 
 BENCHMARK_QA = [
@@ -603,7 +604,7 @@ crew_results = crew_batch([q for q, _ in BENCHMARK_QA], ground_truths=[gt for _,
 - CrewAI는 `tokens_used`가 0으로 고정되는 제약이 있으므로 TokenEconomy 비교에서는 제외한다
 
 ```bash
-python Evaluator_Examples/03_framework_adapters.py
+python Evaluator_Examples/ch13_frameworks.py
 agent-eval dashboard results/
 ```
 
@@ -648,3 +649,46 @@ agent-eval dashboard results/
 ```
 
 > **핵심**: `framework="crewai"`를 지정해도 `tokens_used`는 0으로 고정된다. CrewAI는 토큰 수를 응답 객체에 노출하지 않기 때문이다. 비용 측정이 필요하면 `EvalMetadata(tokens_used=실제값)`으로 수동 주입한다. 반대로 `framework="langchain"`은 `response.usage.total_tokens`를 자동 추출하므로 별도 처리 없이 TokenEconomyTracker에 정확한 값이 전달된다.
+
+**Phoenix OTEL — 프레임워크별 스팬 시각화 (출처: `Evaluator_Examples/ch19_phoenix.py`)**
+
+`setup_otel()` + `framework=` 파라미터를 함께 사용하면 LangChain·CrewAI·AutoGen 각 프레임워크의 tool_calls·agent_interactions가 Phoenix Traces 탭에서 프레임워크별로 구분되어 표시된다.
+
+```python
+# 출처: Evaluator_Examples/ch19_phoenix.py — 프레임워크 통합 + Phoenix 스팬 전송
+import socket
+from types import SimpleNamespace
+from agent_evaluator import setup_otel, PerformanceMonitor
+from agent_evaluator.decorators import agent_eval
+
+# Phoenix 연결 (있을 때만 활성화)
+try:
+    with socket.create_connection(("localhost", 6006), timeout=1):
+        setup_otel(endpoint="http://localhost:6006", service_name="framework-adapters")
+except OSError:
+    pass
+
+monitor = PerformanceMonitor(output_dir="results/", enable_transparency=True)
+
+# LangChain 에이전트 — tool_calls·tokens 자동 추출 → Phoenix 스팬으로 전송
+@agent_eval(monitor, task_type="tool_use", framework="langchain", task_id_prefix="lc_phoenix")
+def langchain_agent(question: str, ground_truth: str = ""):
+    steps = [(SimpleNamespace(tool="web_search", tool_input=question), "검색 결과")]
+    return SimpleNamespace(
+        output=f"결과: {question}",
+        intermediate_steps=steps,
+        usage_metadata={"input_tokens": 350, "output_tokens": 120},
+    )
+
+langchain_agent("2026 AI 트렌드 분석", ground_truth="분석 완료")
+# → Phoenix Traces 탭: service_name="framework-adapters", framework="langchain"
+# → span 속성: ae.tool_calls, ae.tokens_used, ae.framework 자동 기록
+# → agent-eval monitor 실행 후 http://localhost:6006 에서 확인 가능
+```
+
+```bash
+# 2-터미널 패턴: Phoenix + 프레임워크 어댑터 동시 실행
+# 터미널 1: agent-eval monitor
+# 터미널 2: python Evaluator_Examples/ch13_frameworks.py
+# → Phoenix Traces 탭에서 LangChain·LangGraph·CrewAI·AutoGen 스팬 비교 가능
+```

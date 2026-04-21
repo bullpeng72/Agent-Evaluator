@@ -534,14 +534,14 @@ if __name__ == "__main__":
 
 ## 실전 예제
 
-`06_operational.py`는 `GoldenSetBuilder`와 `evaluation_session`을 조합해 주간/월간 리뷰에 필요한 데이터를 자동 축적하는 패턴을 보여준다. `agent-eval trend`는 여러 결과 파일에 걸친 시계열 추이를 분석해 주간 리뷰 보고서를 자동화한다.
+`ch10_group_g.py`는 `GoldenSetBuilder`와 `evaluation_session`을 조합해 주간/월간 리뷰에 필요한 데이터를 자동 축적하는 패턴을 보여준다. `agent-eval trend`는 여러 결과 파일에 걸친 시계열 추이를 분석해 주간 리뷰 보고서를 자동화한다.
 
-**파일**: `Evaluator_Examples/06_operational.py`, `agent-eval trend`
+**파일**: `Evaluator_Examples/ch10_group_g.py`, `agent-eval trend`
 
-**핵심 코드 (출처: `Evaluator_Examples/06_operational.py`)**
+**핵심 코드 (출처: `Evaluator_Examples/ch10_group_g.py`)**
 
 ```python
-# 출처: Evaluator_Examples/06_operational.py, 섹션 3 — GoldenSetBuilder 골든 데이터셋 관리
+# 출처: Evaluator_Examples/ch11_eval_data.py, 섹션 골든셋 — GoldenSetBuilder 골든 데이터셋 관리
 from agent_evaluator.datasets.builder import GoldenSetBuilder
 from agent_evaluator import create_taskresult
 
@@ -599,7 +599,7 @@ agent-eval trend results/ --fail-on-regression
 
 ```bash
 # 운영 데이터 생성
-python Evaluator_Examples/06_operational.py
+python Evaluator_Examples/ch10_group_g.py
 
 # 주간 추이 분석 (results/ 에 쌓인 파일들)
 agent-eval trend results/ --window 10 --output-json weekly_trend.json
@@ -629,3 +629,48 @@ P95 레이턴시 3.2s   +0.4s    ↓ 회귀 (slope=+0.041)
 ```
 
 > **자동화 패턴**: `agent-eval trend results/ --fail-on-regression`을 매주 월요일 새벽 cron에 등록하면 주간 리뷰 전에 자동으로 회귀 여부를 확인하고, 회귀 감지 시 exit 1로 팀에 알린다. `--output-json`으로 저장된 JSON을 Slack bot에 연결하면 주간 품질 보고서가 자동 발송된다.
+
+---
+
+### `ch16_alerts.py` — 주간 품질 리뷰 데이터 수집
+
+`ImplicitFeedbackTracker`의 주간 집계와 `StreamingEvaluator`의 윈도우 통계를 결합해 주간 리뷰 보고서를 자동 생성한다:
+
+```python
+# 출처: Evaluator_Examples/ch16_alerts.py, 섹션 2 — ImplicitFeedbackTracker 주간 집계
+from agent_evaluator import PerformanceMonitor
+
+monitor = PerformanceMonitor(output_dir="results/", enable_transparency=True)
+
+# 한 주간 수집된 암묵적 피드백 통계 조회
+# (monitor.record_implicit_feedback()으로 주간 내내 수집된 데이터 사용)
+try:
+    fb_stats = monitor.feedback_tracker.get_stats()
+    positive = fb_stats.get("positive_count", 0)
+    negative = fb_stats.get("negative_count", 0)
+    total    = fb_stats.get("total", 0)
+    pos_rate = positive / total if total else 0
+
+    print(f"주간 사용자 반응 요약:")
+    print(f"  긍정(thumbs_up·save·share): {positive}건 ({pos_rate:.0%})")
+    print(f"  부정(regenerate·abandon·thumbs_down): {negative}건 ({1-pos_rate:.0%})")
+
+    # 부정 비율 > 30%이면 품질 검토 필요
+    if negative / total > 0.3:
+        print("  ⚠️  부정 피드백 30% 초과 — InstructionConfig 재검토 권장")
+except Exception:
+    print("  피드백 트래커 데이터 없음 — record_implicit_feedback() 호출 필요")
+
+# 주간 save_to_file로 리뷰 보고서 생성
+monitor.save_to_file("weekly_review")
+```
+
+- `monitor.feedback_tracker.get_stats()`의 `positive_count`는 `thumbs_up`·`save`·`share`·`copy`, `negative_count`는 `regenerate`·`thumbs_down`·`abandon`·`correction`을 집계한다
+- 주간 리뷰 시 `save_to_file("weekly_YYYY_WW")`로 주 번호를 포함한 파일명을 사용하면 대시보드에서 주차별 비교가 가능하다
+- 부정 피드백 비율 > 30% → Gate A InstructionConfig 파라미터 재검토 신호
+- 부정 피드백 비율 > 50% → 전면적 프롬프트 개선 및 Ground Truth 재수집 필요
+
+```bash
+python Evaluator_Examples/ch16_alerts.py   # 암묵적 피드백 수집 시연
+python Evaluator_Examples/ch10_group_g.py        # AnomalyDetector 주간 이상 탐지 시연
+```

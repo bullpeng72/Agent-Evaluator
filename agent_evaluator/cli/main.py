@@ -111,7 +111,8 @@ KEY_DEFS: List[Dict] = [
         "url":      "https://platform.openai.com/api-keys",
         "prefix":   "sk-",
         "companion": [
-            ("OPENAI_MODEL", "gpt-4o-mini", "사용할 모델명"),
+            ("OPENAI_MODEL", "gpt-5-nano", "사용할 모델명"),
+            ("AGENT_EVALUATOR_JUDGE_PROVIDER", "auto", "LLM Judge 기본 제공자 (auto / openai / anthropic)"),
         ],
     },
     {
@@ -124,7 +125,6 @@ KEY_DEFS: List[Dict] = [
         "prefix":   "sk-ant-",
         "companion": [
             ("ANTHROPIC_MODEL", "claude-haiku-4-5-20251001", "사용할 Claude 모델명"),
-            ("AGENT_EVALUATOR_JUDGE_PROVIDER", "auto", "LLM Judge 기본 제공자 (auto / openai / anthropic)"),
         ],
     },
 ]

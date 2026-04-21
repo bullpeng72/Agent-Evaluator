@@ -565,7 +565,7 @@ def wilson_lower_bound(successes: int, trials: int, z: float = 1.96) -> float:
 
 ```python
 # 이종 모델 평가자 패턴 — v0.8.3
-# 출처: Evaluator_Examples/04_decorator_quickeval.py, LLMJudge 섹션
+# 출처: Evaluator_Examples/ch12_decorators.py, LLMJudge 섹션
 judge = LLMJudge(
     model="claude-haiku-4-5-20251001",  # 생성 모델과 다른 평가 모델
     judge_criteria=["factual_accuracy", "medical_safety"],  # 구체적 기준
@@ -661,7 +661,7 @@ LLM 기반 에이전트는 기본적으로 캘리브레이션이 좋지 않다. 
 현재 직접적 캘리브레이션 Tracker는 없지만, LLMJudge와 네이티브 지표의 乖離(괴리)를 캘리브레이션 대리 지표로 활용한다:
 
 ```python
-# 출처: Evaluator_Examples/04_decorator_quickeval.py, LLMJudge + PerformanceMonitor 섹션
+# 출처: Evaluator_Examples/ch12_decorators.py, LLMJudge + PerformanceMonitor 섹션
 from agent_evaluator import LLMJudge, PerformanceMonitor
 
 monitor = PerformanceMonitor("results/", enable_llm_judge=True, judge_sample_rate=1.0)
@@ -797,11 +797,11 @@ if parity_gap > 0.05:  # 5% 이상 차이
 현재 Agent-Evaluator에 전용 공정성 Config는 없지만, `ComplianceConfig`와 `LLMJudge`를 결합해 기본 공정성 감시가 가능하다:
 
 ```python
-# 출처: Evaluator_Examples/08_harness_eval.py, 섹션 Group E
+# 출처: Evaluator_Examples/ch08_group_e.py, 섹션 Group E
 from agent_evaluator import ComplianceConfig
 
 ComplianceConfig(
-    forbidden_patterns=[
+    forbidden_data_patterns=[
         # 성별 편향 패턴
         r"여자라서",  r"남자는 원래",
         # 연령 편향
@@ -809,8 +809,7 @@ ComplianceConfig(
         # 지역 편향
         r"지방 사람|서울 사람",
     ],
-    forbidden_keywords=["특정 집단 비하 키워드 목록"],
-    fail_on_violation=True,
+    violation_severity="high",
 )
 ```
 
@@ -842,7 +841,7 @@ Level 4: 의미 일관성 확인 (필드 간 논리적 일관성)
 ### G.12.3 Agent-Evaluator에서의 형식 검증
 
 ```python
-# 출처: Evaluator_Examples/08_harness_eval.py, 섹션 Group A — InstructionConfig 형식 검증
+# 출처: Evaluator_Examples/ch04_group_a.py, 섹션 Group A — InstructionConfig 형식 검증
 import json
 from agent_evaluator import InstructionConfig
 from agent_evaluator.decorators import agent_eval

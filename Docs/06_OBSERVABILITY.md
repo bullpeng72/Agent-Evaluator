@@ -2,7 +2,7 @@
 
 대시보드 사용법 · Phoenix OTEL 실시간 모니터링
 
-**v0.8.3 | Python 3.8+**
+**v0.8.4 | Python 3.8+**
 
 ---
 
@@ -10,7 +10,7 @@
 
 1. [dashboard vs monitor — 역할 분리](#1-dashboard-vs-monitor--역할-분리)
 2. [대시보드 실행 및 데이터 생성](#2-대시보드-실행-및-데이터-생성)
-3. [21개 탭 활성화 분류](#3-21개-탭-활성화-분류)
+3. [22개 탭 활성화 분류](#3-22개-탭-활성화-분류)
 4. [탭별 상세 가이드](#4-탭별-상세-가이드)
 5. [운영 탭 설정 가이드](#5-운영-탭-설정-가이드)
 6. [Phoenix OTEL 모니터링 — 빠른 시작](#6-phoenix-otel-모니터링--빠른-시작)
@@ -115,9 +115,9 @@ eval.save()  # results/quickeval.json + .html 자동 생성
 
 ---
 
-## 3. 21개 탭 활성화 분류
+## 3. 22개 탭 활성화 분류
 
-### 🟢 데코레이터만으로 가능 (9개)
+### 🟢 데코레이터만으로 가능 (10개)
 
 `@agent_eval` / `@batch_eval` / `@conversation_eval` 적용 후 `save_to_file()` 호출만으로 자동 채워지는 탭.
 
@@ -130,6 +130,7 @@ eval.save()  # results/quickeval.json + .html 자동 생성
 | 💬 **멀티턴 대화** | `@conversation_eval` |
 | ⚡ **성능** | 기본 (항상) |
 | 🤖 **에이전틱** | `task_type="tool_use"` + 응답에 `tool_calls` 포함 |
+| 🔁 **재현성·안정성** | Harness Group C Config (`FaultToleranceConfig` 등) 전달 |
 | 🔒 **보안** | `security=SecurityConfig()` 또는 `enable_security_metrics=True` |
 | 🏗 **Harness Gate** | `@agent_eval`에 Harness Config 파라미터 전달 |
 
@@ -149,6 +150,7 @@ eval.save()  # results/quickeval.json + .html 자동 생성
 | 메뉴 | 작동 방식 |
 |------|----------|
 | 📂 **파일 비교** | `results/*.json` 2개 이상 → 드롭다운에서 두 파일 선택 |
+| 🗂️ **케이스 검토** | `agent-eval dataset build`로 추출한 후보 케이스 승인/거부 |
 | 📚 **골든 데이터셋** | `data/golden_datasets/*.json` 또는 `GoldenSetBuilder` |
 | 📤 **내보내기** | JSON 원본 / 태스크별 CSV / 독립형 HTML 리포트 3가지 형식 |
 | 🔍 **투명성** | `TestTransparencyManager.add_annotation()` 감사 로그 |

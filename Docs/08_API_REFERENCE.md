@@ -1,12 +1,12 @@
 # API 레퍼런스
 
-Agent Evaluator v0.8.3 전체 API 문서
+Agent Evaluator v0.8.4 전체 API 문서
 
 ---
 
 ## 버전 정보
 
-- **버전:** v0.8.3
+- **버전:** v0.8.4
 - **Python:** 3.8+
 - **최종 업데이트:** 2026-04-21
 
@@ -926,6 +926,42 @@ result.get("primary_overall")      # 에스컬레이션 전 primary 점수
 | `max_context_chars` | `4000` | 컨텍스트 잘림 한도 |
 | `seed` | `None` | 샘플링 재현성용 랜덤 시드 |
 
+### 비동기 채점 — `ajudge()` (v0.8.3+)
+
+`run_in_executor` 기반 non-blocking 호출. `asyncio` 환경에서 사용한다.
+
+```python
+import asyncio
+
+result = asyncio.run(judge.ajudge(
+    task_id="t1",
+    question="한국의 수도는?",
+    response="서울입니다.",
+))
+```
+
+### 연속 오류 자동 비활성화 / 복구 (v0.8.3+)
+
+3회 연속 API 오류 발생 시 자동 비활성화되고 이후 호출은 `{"skipped": True}` 를 반환한다.
+
+```python
+# 비활성화 확인
+judge._disabled_reason  # None이면 정상, str이면 비활성화 사유
+
+# 복구
+judge.reset_errors()    # 오류 카운터 리셋 + 재활성화
+```
+
+### 환경변수 — `AGENT_EVALUATOR_JUDGE_PROVIDER` (v0.8.3+)
+
+LLM Judge가 사용할 API 제공자를 지정한다.
+
+```bash
+AGENT_EVALUATOR_JUDGE_PROVIDER=auto        # 기본: API 키 보유 제공자 자동 선택
+AGENT_EVALUATOR_JUDGE_PROVIDER=anthropic   # Anthropic API 우선 사용
+AGENT_EVALUATOR_JUDGE_PROVIDER=openai      # OpenAI API 우선 사용
+```
+
 ### QuickEval과 통합
 
 ```python
@@ -1296,4 +1332,4 @@ FrameworkLiteral,   # 21개 프레임워크 Literal 타입
 
 ---
 
-*Agent Evaluator v0.8.3 — [GitHub](https://github.com/bullpeng72/Agent-Evaluator) | [예제 디렉토리](../Evaluator_Examples/)*
+*Agent Evaluator v0.8.4 — [GitHub](https://github.com/bullpeng72/Agent-Evaluator) | [예제 디렉토리](../Evaluator_Examples/)*

@@ -165,7 +165,13 @@ class LLMJudgeConfig:
     """
     model: Optional[str] = None
     criteria: Optional[List[str]] = None
-    sample_rate: float = 1.0
+    sample_rate: float = 0.1
+    escalation_model: Optional[str] = None
+    escalation_threshold: float = 2.5
+    budget_per_day: Optional[float] = None
+    budget_storage_path: Optional[str] = None
+    max_context_chars: int = 4000
+    seed: Optional[int] = None
 
 
 # ---------------------------------------------------------------------------
@@ -3901,6 +3907,12 @@ def _build_and_record(
     judge_model: Optional[str] = None,     # E1: LLM Judge 모델 임시 지정
     judge_criteria: Optional[List[str]] = None,  # J1: G-Eval 기준 임시 지정 (DeepEval 대체)
     judge_sample_rate: Optional[float] = None,  # J2: sample_rate 임시 지정
+    judge_escalation_model: Optional[str] = None,  # E4: 저점수 재채점용 상위 모델
+    judge_escalation_threshold: float = 2.5,       # E4: 재채점 트리거 점수 임계값 (0–5)
+    judge_budget_per_day: Optional[float] = None,  # E5: 일일 비용 상한 (USD)
+    judge_budget_storage_path: Optional[str] = None,  # E5: 예산 누적 파일 경로
+    judge_max_context_chars: int = 4000,           # E5: RAG context 잘림 한도
+    judge_seed: Optional[int] = None,              # E5: 샘플링 재현성 시드
     security_mode: bool = False,           # E3: 이 호출에서만 security metrics 강제 활성화
     allowed_tools: Optional[List[str]] = None,  # E3: 허용된 도구 목록 임시 주입
     enable_anomaly_detection: bool = False,  # A2: 이 호출에서만 anomaly detection 임시 활성화
@@ -4699,6 +4711,16 @@ def _build_and_record(
                                 _lj_kwargs["judge_criteria"] = judge_criteria
                             if judge_sample_rate is not None:
                                 _lj_kwargs["sample_rate"] = judge_sample_rate
+                            if judge_escalation_model:
+                                _lj_kwargs["escalation_model"] = judge_escalation_model
+                            _lj_kwargs["escalation_threshold"] = judge_escalation_threshold
+                            if judge_budget_per_day is not None:
+                                _lj_kwargs["budget_per_day"] = judge_budget_per_day
+                            if judge_budget_storage_path is not None:
+                                _lj_kwargs["budget_storage_path"] = judge_budget_storage_path
+                            _lj_kwargs["max_context_chars"] = judge_max_context_chars
+                            if judge_seed is not None:
+                                _lj_kwargs["seed"] = judge_seed
                             _m.llm_judge = _LJCls(**_lj_kwargs)
                             logger.debug("LLM Judge lazy init: model=%s", _m.llm_judge.model)
                             _llm_judge_restored.append((_m, None, True))  # was_lazy=True
@@ -5278,11 +5300,23 @@ def agent_eval(
         _effective_judge_model = llm_judge.model
         _effective_judge_criteria = llm_judge.criteria
         _effective_judge_sample_rate = llm_judge.sample_rate
+        _effective_judge_escalation_model = llm_judge.escalation_model
+        _effective_judge_escalation_threshold = llm_judge.escalation_threshold
+        _effective_judge_budget_per_day = llm_judge.budget_per_day
+        _effective_judge_budget_storage_path = llm_judge.budget_storage_path
+        _effective_judge_max_context_chars = llm_judge.max_context_chars
+        _effective_judge_seed = llm_judge.seed
     else:
         _effective_enable_llm_judge = bool(_preset_vals.get("enable_llm_judge", False))
         _effective_judge_model = _preset_vals.get("judge_model", None)
         _effective_judge_criteria = _preset_vals.get("judge_criteria", None)
         _effective_judge_sample_rate = None
+        _effective_judge_escalation_model = None
+        _effective_judge_escalation_threshold = 2.5
+        _effective_judge_budget_per_day = None
+        _effective_judge_budget_storage_path = None
+        _effective_judge_max_context_chars = 4000
+        _effective_judge_seed = None
 
     # v0.8.3+: resolve security config → internal variables for _build_and_record
     if security is not None:
@@ -5549,6 +5583,12 @@ def agent_eval(
                         judge_model=_effective_judge_model,
                         judge_criteria=_effective_judge_criteria,
                         judge_sample_rate=_effective_judge_sample_rate,
+                        judge_escalation_model=_effective_judge_escalation_model,
+                        judge_escalation_threshold=_effective_judge_escalation_threshold,
+                        judge_budget_per_day=_effective_judge_budget_per_day,
+                        judge_budget_storage_path=_effective_judge_budget_storage_path,
+                        judge_max_context_chars=_effective_judge_max_context_chars,
+                        judge_seed=_effective_judge_seed,
                         security_mode=_effective_security_mode,
                         allowed_tools=_effective_allowed_tools,
                         enable_anomaly_detection=_effective_enable_anomaly,
@@ -5744,6 +5784,12 @@ def agent_eval(
                         judge_model=_effective_judge_model,
                         judge_criteria=_effective_judge_criteria,
                         judge_sample_rate=_effective_judge_sample_rate,
+                        judge_escalation_model=_effective_judge_escalation_model,
+                        judge_escalation_threshold=_effective_judge_escalation_threshold,
+                        judge_budget_per_day=_effective_judge_budget_per_day,
+                        judge_budget_storage_path=_effective_judge_budget_storage_path,
+                        judge_max_context_chars=_effective_judge_max_context_chars,
+                        judge_seed=_effective_judge_seed,
                         security_mode=_effective_security_mode,
                         allowed_tools=_effective_allowed_tools,
                         enable_anomaly_detection=_effective_enable_anomaly,
@@ -5864,6 +5910,12 @@ def agent_eval(
                         judge_model=_effective_judge_model,
                         judge_criteria=_effective_judge_criteria,
                         judge_sample_rate=_effective_judge_sample_rate,
+                        judge_escalation_model=_effective_judge_escalation_model,
+                        judge_escalation_threshold=_effective_judge_escalation_threshold,
+                        judge_budget_per_day=_effective_judge_budget_per_day,
+                        judge_budget_storage_path=_effective_judge_budget_storage_path,
+                        judge_max_context_chars=_effective_judge_max_context_chars,
+                        judge_seed=_effective_judge_seed,
                         security_mode=_effective_security_mode,
                         allowed_tools=_effective_allowed_tools,
                         enable_anomaly_detection=_effective_enable_anomaly,
@@ -5980,6 +6032,12 @@ def agent_eval(
                         judge_model=_effective_judge_model,
                         judge_criteria=_effective_judge_criteria,
                         judge_sample_rate=_effective_judge_sample_rate,
+                        judge_escalation_model=_effective_judge_escalation_model,
+                        judge_escalation_threshold=_effective_judge_escalation_threshold,
+                        judge_budget_per_day=_effective_judge_budget_per_day,
+                        judge_budget_storage_path=_effective_judge_budget_storage_path,
+                        judge_max_context_chars=_effective_judge_max_context_chars,
+                        judge_seed=_effective_judge_seed,
                         security_mode=_effective_security_mode,
                         allowed_tools=_effective_allowed_tools,
                         enable_anomaly_detection=_effective_enable_anomaly,
@@ -6823,6 +6881,12 @@ def batch_eval(
     _effective_judge_model = llm_judge.model if llm_judge else None
     _effective_judge_criteria = llm_judge.criteria if llm_judge else None
     _effective_judge_sample_rate = llm_judge.sample_rate if llm_judge else None
+    _effective_judge_escalation_model = llm_judge.escalation_model if llm_judge else None
+    _effective_judge_escalation_threshold = llm_judge.escalation_threshold if llm_judge else 2.5
+    _effective_judge_budget_per_day = llm_judge.budget_per_day if llm_judge else None
+    _effective_judge_budget_storage_path = llm_judge.budget_storage_path if llm_judge else None
+    _effective_judge_max_context_chars = llm_judge.max_context_chars if llm_judge else 4000
+    _effective_judge_seed = llm_judge.seed if llm_judge else None
     _effective_security_mode = security is not None
     _effective_allowed_tools = security.allowed_tools if security else None
 
@@ -6980,6 +7044,12 @@ def batch_eval(
                     judge_model=_effective_judge_model,
                     judge_criteria=_effective_judge_criteria,
                     judge_sample_rate=_effective_judge_sample_rate,
+                    judge_escalation_model=_effective_judge_escalation_model,
+                    judge_escalation_threshold=_effective_judge_escalation_threshold,
+                    judge_budget_per_day=_effective_judge_budget_per_day,
+                    judge_budget_storage_path=_effective_judge_budget_storage_path,
+                    judge_max_context_chars=_effective_judge_max_context_chars,
+                    judge_seed=_effective_judge_seed,
                     security_mode=_effective_security_mode,
                     enable_hallucination=enable_hallucination_detection,
                     auto_detect_framework=True,

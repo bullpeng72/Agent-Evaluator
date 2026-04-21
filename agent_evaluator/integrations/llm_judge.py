@@ -13,7 +13,7 @@ Evaluates agent responses on up to 7+ dimensions without requiring ground_truth:
                                grounded in the retrieved context — Ragas 대체
   - <custom criteria>  (0–5): [added via judge_criteria] G-Eval 스타일 사용자 기준
 
-Supports Claude (Haiku / Sonnet) and OpenAI (gpt-4o-mini / gpt-4o) models.
+Supports Claude (Haiku / Sonnet) and OpenAI (gpt-5-nano / gpt-4o-mini / gpt-4o) models.
 Cost is controlled via ``sample_rate`` (fraction of tasks to judge) and
 ``budget_per_day`` (USD hard cap, tracked in-memory per process lifetime).
 
@@ -54,12 +54,28 @@ logger = logging.getLogger(__name__)
 # Pricing (USD per 1 000 tokens) — used for budget tracking
 # ---------------------------------------------------------------------------
 _MODEL_PRICING: Dict[str, Dict[str, float]] = {
-    "claude-haiku-4-5-20251001": {"input": 0.00025, "output": 0.00125},
-    "claude-haiku-4-5":          {"input": 0.00025, "output": 0.00125},
+    # Anthropic — 가격 단위: USD per 1,000 tokens (출처: anthropic.com/pricing, 2026-04)
+    # claude-3-5-haiku: $0.80/$4.00 per 1M = $0.0008/$0.004 per 1K
+    "claude-3-5-haiku-20241022": {"input": 0.0008,  "output": 0.004},
+    "claude-3-5-haiku":          {"input": 0.0008,  "output": 0.004},
+    # claude-haiku-4-5: $1.00/$5.00 per 1M = $0.001/$0.005 per 1K
+    "claude-haiku-4-5-20251001": {"input": 0.001,   "output": 0.005},
+    "claude-haiku-4-5":          {"input": 0.001,   "output": 0.005},
+    # claude-sonnet-4-6: $3.00/$15.00 per 1M = $0.003/$0.015 per 1K
     "claude-sonnet-4-6":         {"input": 0.003,   "output": 0.015},
+    # claude-opus-4-6: $15.00/$75.00 per 1M = $0.015/$0.075 per 1K
     "claude-opus-4-6":           {"input": 0.015,   "output": 0.075},
+    # OpenAI — 가격 단위: USD per 1,000 tokens (출처: platform.openai.com/docs/pricing, 2026-04)
+    # gpt-5-nano (원본, 2025-08): $0.05/$0.40 per 1M = $0.00005/$0.0004 per 1K
+    "gpt-5-nano":                {"input": 0.00005, "output": 0.0004},
+    # gpt-5.4-nano (2026-03): $0.20/$1.25 per 1M = $0.0002/$0.00125 per 1K
+    "gpt-5.4-nano":              {"input": 0.0002,  "output": 0.00125},
+    # gpt-4.1-nano: $0.10/$0.40 per 1M = $0.0001/$0.0004 per 1K
+    "gpt-4.1-nano":              {"input": 0.0001,  "output": 0.0004},
+    # gpt-4o-mini: $0.15/$0.60 per 1M = $0.00015/$0.0006 per 1K
     "gpt-4o-mini":               {"input": 0.00015, "output": 0.0006},
-    "gpt-4o":                    {"input": 0.005,   "output": 0.015},
+    # gpt-4o: $2.50/$10.00 per 1M = $0.0025/$0.01 per 1K
+    "gpt-4o":                    {"input": 0.0025,  "output": 0.01},
 }
 _DEFAULT_PRICING = {"input": 0.001, "output": 0.004}
 
@@ -176,7 +192,7 @@ def _resolve_default_model() -> str:
     Settings에서 사용 가능한 API 키와 모델명을 읽어 기본 judge 모델을 결정한다.
 
     우선순위는 AGENT_EVALUATOR_JUDGE_PROVIDER 환경변수로 제어한다:
-      - "auto"      (기본): OPENAI_API_KEY 있으면 OpenAI 우선, 없으면 Anthropic
+      - "auto"      (기본): ANTHROPIC_API_KEY 있으면 Anthropic 우선, 없으면 OpenAI
       - "openai"   : OPENAI_API_KEY가 있을 때만 OpenAI 선택 (없으면 Anthropic 폴백)
       - "anthropic": ANTHROPIC_API_KEY가 있을 때만 Anthropic 선택 (없으면 OpenAI 폴백)
 
@@ -200,14 +216,14 @@ def _resolve_default_model() -> str:
                 logger.debug("AGENT_EVALUATOR_JUDGE_PROVIDER=openai 이지만 OpenAI 키 없음 → Anthropic 폴백")
                 return s.anthropic_model
         else:
-            # auto: 기존 동작 유지 (OpenAI 우선)
-            if s.has_openai():
-                return s.openai_model
+            # auto: Anthropic 우선 (유효성 검증이 더 명확)
             if s.has_anthropic():
                 return s.anthropic_model
+            if s.has_openai():
+                return s.openai_model
     except Exception as _e:
         logger.debug("설정에서 모델 이름 조회 실패 (무시): %s", _e)
-    return "gpt-4o-mini"
+    return "gpt-5-nano"
 
 
 def _build_user_message(
@@ -234,7 +250,7 @@ class LLMJudge:
                API 키와 모델명(OPENAI_MODEL / ANTHROPIC_MODEL)에서 자동 결정.
                명시적으로 지정할 경우 해당 모델을 사용.
                지원 모델 예시:
-               - OpenAI : ``gpt-4o-mini``, ``gpt-4o``
+               - OpenAI : ``gpt-5-nano``, ``gpt-4o-mini``, ``gpt-4o``
                - Claude : ``claude-haiku-4-5-20251001``, ``claude-sonnet-4-6``
         sample_rate: Fraction of tasks to actually judge (0.0–1.0).
                      1.0 = judge every task, 0.1 = judge ~10 % of tasks.
@@ -285,6 +301,7 @@ class LLMJudge:
         # Context 잘림 한도 — 기본 4000자 (RAG 문서 평균 1~2페이지 커버)
         self.max_context_chars: int = max(100, max_context_chars)
 
+        self.seed: Optional[int] = seed
         self._rng = random.Random(seed)
         self._pricing = _MODEL_PRICING.get(self.model, _DEFAULT_PRICING)
 
@@ -358,6 +375,7 @@ class LLMJudge:
         result = self._call_judge(task_id, question, response, context)
 
         # Escalation: primary overall 점수 < escalation_threshold 이면 상위 모델로 재채점
+        # self.model을 뮤테이션하지 않고 _model 파라미터로 전달 — 스레드 세이프
         if (
             self.escalation_model
             and not result.get("error")
@@ -365,17 +383,13 @@ class LLMJudge:
         ):
             _primary_overall = (result.get("scores") or {}).get("overall")
             if _primary_overall is not None and _primary_overall < self.escalation_threshold:
-                _orig_model = self.model
-                self.model = self.escalation_model
-                self._pricing = _MODEL_PRICING.get(self.model, _DEFAULT_PRICING)
-                try:
-                    _escalated = self._call_judge(task_id, question, response, context)
-                finally:
-                    self.model = _orig_model
-                    self._pricing = _MODEL_PRICING.get(self.model, _DEFAULT_PRICING)
+                _escalated = self._call_judge(
+                    task_id, question, response, context,
+                    _model=self.escalation_model,
+                )
                 if not _escalated.get("error"):
                     _escalated["escalated"] = True
-                    _escalated["escalated_from_model"] = _orig_model
+                    _escalated["escalated_from_model"] = self.model
                     _escalated["primary_overall"] = _primary_overall
                     result = _escalated
 
@@ -429,7 +443,7 @@ class LLMJudge:
             result = await judge.ajudge("t1", question="...", response="...")
         """
         import asyncio
-        return await asyncio.get_event_loop().run_in_executor(
+        return await asyncio.get_running_loop().run_in_executor(
             None, self.judge, task_id, question, response, context
         )
 
@@ -503,7 +517,7 @@ class LLMJudge:
             생성된 prompt_id 문자열. 실패 시 None.
 
         Example::
-            judge = LLMJudge(model="gpt-4o-mini", sample_rate=0.1)
+            judge = LLMJudge(model="gpt-5-nano", sample_rate=0.1)
             prompt_id = judge.register_prompt_to_phoenix("qa-judge-v1")
         """
         import urllib.error
@@ -620,10 +634,16 @@ class LLMJudge:
             self._budget_day, self._budget_spent = self._load_budget_state()
             return self._budget_spent < self.budget_per_day
 
-    def _estimate_cost(self, input_tokens: int, output_tokens: int) -> float:
+    def _estimate_cost(
+        self,
+        input_tokens: int,
+        output_tokens: int,
+        pricing: Optional[Dict[str, float]] = None,
+    ) -> float:
+        p = pricing or self._pricing
         cost = (
-            input_tokens / 1000 * self._pricing["input"]
-            + output_tokens / 1000 * self._pricing["output"]
+            input_tokens / 1000 * p.get("input", _DEFAULT_PRICING["input"])
+            + output_tokens / 1000 * p.get("output", _DEFAULT_PRICING["output"])
         )
         with self._budget_lock:
             self._budget_spent += cost
@@ -636,19 +656,28 @@ class LLMJudge:
         question: str,
         response: str,
         context: Optional[str],
+        *,
+        _model: Optional[str] = None,
     ) -> Dict[str, Any]:
-        """Dispatch to the correct provider."""
-        model_lower = self.model.lower()
+        """Dispatch to the correct provider.
+
+        ``_model`` overrides ``self.model`` for this call only (used by escalation)
+        so that shared state is never mutated during concurrent judge() calls.
+        """
+        model = _model or self.model
+        model_lower = model.lower()
         if "claude" in model_lower:
-            return self._call_claude(task_id, question, response, context)
+            return self._call_claude(task_id, question, response, context, _model=model)
         elif "gpt" in model_lower or "openai" in model_lower:
-            return self._call_openai(task_id, question, response, context)
+            return self._call_openai(task_id, question, response, context, _model=model)
         else:
             return {
                 "task_id": task_id,
                 "skipped": False,
-                "error": f"Unsupported model: {self.model}",
+                "error": f"Unsupported model: {model}",
                 "scores": None,
+                "model": model,
+                "cost_usd": 0.0,
             }
 
     def _parse_judge_response(
@@ -658,6 +687,7 @@ class LLMJudge:
         cost: float,
         context_available: bool = False,
         judge_criteria: Optional[List[str]] = None,
+        model: Optional[str] = None,
     ) -> Dict[str, Any]:
         """Parse JSON from the judge's response.
 
@@ -741,7 +771,7 @@ class LLMJudge:
                 "skipped": False,
                 "scores": scores,
                 "reasoning": data.get("reasoning", ""),
-                "model": self.model,
+                "model": model or self.model,
                 "cost_usd": cost,
             }
         except (json.JSONDecodeError, KeyError, ValueError) as e:
@@ -751,7 +781,7 @@ class LLMJudge:
                 "skipped": False,
                 "error": f"parse_error: {e}",
                 "scores": None,
-                "model": self.model,
+                "model": model or self.model,
                 "cost_usd": cost,
             }
 
@@ -765,7 +795,10 @@ class LLMJudge:
         question: str,
         response: str,
         context: Optional[str],
+        *,
+        _model: Optional[str] = None,
     ) -> Dict[str, Any]:
+        model = _model or self.model
         try:
             import anthropic
         except ImportError:
@@ -774,6 +807,8 @@ class LLMJudge:
                 "skipped": False,
                 "error": "anthropic library not installed. Run: pip install anthropic",
                 "scores": None,
+                "model": model,
+                "cost_usd": 0.0,
             }
 
         api_key = os.getenv("ANTHROPIC_API_KEY")
@@ -783,6 +818,8 @@ class LLMJudge:
                 "skipped": False,
                 "error": "ANTHROPIC_API_KEY not set",
                 "scores": None,
+                "model": model,
+                "cost_usd": 0.0,
             }
 
         try:
@@ -793,9 +830,10 @@ class LLMJudge:
                 judge_criteria=self.judge_criteria or None,
             )
             user_msg = _build_user_message(question, response, context, self.max_context_chars)
+            pricing = _MODEL_PRICING.get(model, _DEFAULT_PRICING)
 
             msg = client.messages.create(
-                model=self.model,
+                model=model,
                 max_tokens=512,
                 system=system_prompt,
                 messages=[{"role": "user", "content": user_msg}],
@@ -804,11 +842,12 @@ class LLMJudge:
             raw = msg.content[0].text if msg.content else ""
             in_tok = msg.usage.input_tokens if hasattr(msg, "usage") else 500
             out_tok = msg.usage.output_tokens if hasattr(msg, "usage") else 100
-            cost = self._estimate_cost(in_tok, out_tok)
+            cost = self._estimate_cost(in_tok, out_tok, pricing)
             return self._parse_judge_response(
                 task_id, raw, cost,
                 context_available=context_available,
                 judge_criteria=self.judge_criteria or None,
+                model=model,
             )
 
         except Exception as e:
@@ -818,7 +857,7 @@ class LLMJudge:
                 "skipped": False,
                 "error": str(e),
                 "scores": None,
-                "model": self.model,
+                "model": model,
                 "cost_usd": 0.0,
             }
 
@@ -828,7 +867,10 @@ class LLMJudge:
         question: str,
         response: str,
         context: Optional[str],
+        *,
+        _model: Optional[str] = None,
     ) -> Dict[str, Any]:
+        model = _model or self.model
         try:
             import openai
         except ImportError:
@@ -837,6 +879,8 @@ class LLMJudge:
                 "skipped": False,
                 "error": "openai library not installed. Run: pip install openai",
                 "scores": None,
+                "model": model,
+                "cost_usd": 0.0,
             }
 
         api_key = os.getenv("OPENAI_API_KEY")
@@ -846,6 +890,8 @@ class LLMJudge:
                 "skipped": False,
                 "error": "OPENAI_API_KEY not set",
                 "scores": None,
+                "model": model,
+                "cost_usd": 0.0,
             }
 
         try:
@@ -856,9 +902,10 @@ class LLMJudge:
                 judge_criteria=self.judge_criteria or None,
             )
             user_msg = _build_user_message(question, response, context, self.max_context_chars)
+            pricing = _MODEL_PRICING.get(model, _DEFAULT_PRICING)
 
             completion = client.chat.completions.create(
-                model=self.model,
+                model=model,
                 max_tokens=512,
                 messages=[
                     {"role": "system", "content": system_prompt},
@@ -870,11 +917,12 @@ class LLMJudge:
             usage = completion.usage
             in_tok = usage.prompt_tokens if usage else 500
             out_tok = usage.completion_tokens if usage else 100
-            cost = self._estimate_cost(in_tok, out_tok)
+            cost = self._estimate_cost(in_tok, out_tok, pricing)
             return self._parse_judge_response(
                 task_id, raw, cost,
                 context_available=context_available,
                 judge_criteria=self.judge_criteria or None,
+                model=model,
             )
 
         except Exception as e:
@@ -884,6 +932,6 @@ class LLMJudge:
                 "skipped": False,
                 "error": str(e),
                 "scores": None,
-                "model": self.model,
+                "model": model,
                 "cost_usd": 0.0,
             }

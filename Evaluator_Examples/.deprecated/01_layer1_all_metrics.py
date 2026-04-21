@@ -259,18 +259,26 @@ if cost:
 #   "tool_use"                 → tool_calls 비어 있으면 0.6 (부분 완료)
 #   기타 ("qa", "information_retrieval", ...)  → 응답 길이 기반
 # TCR = avg(completion_score) × 100 — 이진 성공/실패 없이 세밀한 평가
+#
+# ⚠️  주의: task_type="qa" 에서 completion_score는 응답 길이 비례로 계산된다.
+# response="" → 0.0, response="성공"(2자) → ~0.30.
+# 이진 85% 성공률을 정확히 재현하려면 실패 케이스는 response="",
+# 성공 케이스는 충분한 길이의 응답 (예: 20자+)이 필요하다.
+# 아래 예시는 이 동작 방식을 시연하기 위해 짧은 응답을 의도적으로 사용한다.
 # ===========================================================================
 print("\n=== 섹션 7: 태스크 완료율 (TCR) ===")
 
-SUCCESS_RATE = 0.85   # 시뮬레이션: 85% 성공
+SUCCESS_RATE = 0.85   # 이진 성공 비율 (response="" vs 응답 있음)
 
 for i in range(20):
     is_success = random.random() < SUCCESS_RATE
+    # 성공 케이스는 의미 있는 길이의 응답을 반환해야 높은 completion_score를 얻음
+    # 실패 케이스는 빈 응답으로 completion_score = 0.0
     result = create_taskresult(
         task_id=f"tcr_{i:03d}",
         question=f"태스크 {i:02d}번",
-        response="성공" if is_success else "",
-        ground_truth="성공",
+        response=f"태스크 {i:02d}번에 대한 성공적인 처리 결과입니다." if is_success else "",
+        ground_truth="처리 결과",
         execution_time=round(random.uniform(0.3, 2.0), 3),
         task_type="qa",
         tokens_used={"input": 40, "output": 10, "total": 50},
@@ -280,7 +288,7 @@ for i in range(20):
 final_report = monitor.generate_report()
 tcr_val = final_report.to_dict().get("accuracy_metrics", {}).get("tcr", {}).get("tcr", 0)
 tcr = tcr_val / 100
-print(f"  TCR = {tcr:.1%}  (목표: {SUCCESS_RATE:.0%})")
+print(f"  TCR = {tcr:.1%}  (이진 성공률 목표: {SUCCESS_RATE:.0%})")
 
 # ===========================================================================
 # 최종 리포트 & 저장

@@ -1,50 +1,46 @@
 """
-06_operational.py — 운영 인프라 (이상감지·비용제어·골든셋·대시보드)
-=====================================================================
-프로덕션 환경에서 필요한 운영 도구를 한 파일에서 시연한다.
+ch11_eval_data.py — 평가데이터 설계 (GoldenSetBuilder)
+=======================================================
+Book Chapter 11 — 평가데이터 설계
 
-  AnomalyDetector:
-    - 지연시간 추세 / 정확도 드리프트 / 토큰 스파이크 / 오류율 급등 / 패턴 이탈
-    - explain_event() — 이상 원인 설명
-
-  CostTracker + AdaptivePolicy:
-    - 모델별 토큰 비용 계산
-    - SamplingStage — 단계별 평가 비율 (canary → staging → production)
-    - 예산 초과 시 샘플링 비율 자동 조정
+GoldenSetBuilder로 QA·RAG·Tool Selection 골든 데이터셋을 구축하고,
+evaluation_session context manager로 자동 저장을 시연한다.
 
   GoldenSetBuilder:
-    - 실패·엣지·고가치 케이스 자동 추출
-    - save_candidates() / merge_to_golden() / 버전 관리
+    - QA 고가치·실패·엣지 케이스 자동 분류
+    - RAG context 유무 기반 coverage_gap 탐지
+    - Tool Selection expected_tools F1 기반 고가치·실패 분류
+    - save_candidates() / merge_to_golden() — 대시보드 케이스 검토 탭 연동
 
   evaluation_session:
     - context manager 기반 자동 저장
     - JSON + HTML 생성 → agent-eval dashboard 연동
 
-  CI/CD 품질 게이팅:
-    - agent-eval gate 사용법 주석
-
 의존성:
-    필수: pip install agent-evaluator          (numpy·pandas·python-dotenv 포함)
-    선택: agent-eval monitor                   (Phoenix OTEL 시각화 — 없어도 실행됨)
+    pip install agent-evaluator
 
 실행:
-    python Evaluator_Examples/06_operational.py
+    python Evaluator_Examples/ch11_eval_data.py
 
 결과:
-    results/06_operational.json
+    results/ch11_eval_data.json  (+ .html)
     data/golden_datasets/  (골든 데이터셋)
+    → 전체 운영 인프라 예제: Evaluator_Examples/.deprecated/06_operational.py
 """
 
-import json
-import random
+import socket
 from datetime import datetime
 from pathlib import Path
 
 from agent_evaluator import (
-    PerformanceMonitor, create_taskresult,
-    evaluation_session, setup_otel,
-    AnomalyDetector, AnomalyEvent,
-    CostTracker, AdaptivePolicy, SamplingStage,
+    PerformanceMonitor,
+    create_taskresult,
+    evaluation_session,
+    setup_otel,
+    AnomalyDetector,
+    CostTracker,
+    AdaptivePolicy,
+    SamplingStage,
 )
 from agent_evaluator.decorators import agent_eval
 from agent_evaluator.datasets.builder import GoldenSetBuilder
@@ -53,126 +49,17 @@ _PROJECT_ROOT = Path(__file__).parent.parent
 _OUTPUT_DIR   = str(_PROJECT_ROOT / "results")
 _DATA_DIR     = str(_PROJECT_ROOT / "data")
 
+# ---------------------------------------------------------------------------
+# Phoenix OTEL 선택적 연결 (agent-eval monitor 실행 중일 때만 활성화)
+# ---------------------------------------------------------------------------
 try:
-    import socket
     with socket.socket() as s:
         s.settimeout(0.5)
         if s.connect_ex(("localhost", 6006)) == 0:
-            setup_otel(endpoint="http://localhost:6006", service_name="06-operational")
+            setup_otel(endpoint="http://localhost:6006", service_name="ch11-eval-data")
             print("  Phoenix 모니터링 활성화 — http://localhost:6006")
 except Exception:
     pass
-
-# ===========================================================================
-# 섹션 1: AnomalyDetector — 5가지 이상 탐지 알고리즘
-# ===========================================================================
-print("\n=== 섹션 1: 이상 탐지 (AnomalyDetector) ===")
-
-monitor_anomaly = PerformanceMonitor(output_dir=_OUTPUT_DIR)
-detector = AnomalyDetector()
-
-# 정상 기준선 데이터 (30건)
-BASELINE = []
-for i in range(30):
-    r = create_taskresult(
-        task_id=f"base_{i:03d}",
-        question="기준선 태스크",
-        response="정상 응답",
-        ground_truth="정상",
-        execution_time=round(random.gauss(1.2, 0.3), 3),
-        task_type="qa",
-        tokens_used={"input": 100, "output": 40, "total": 140},
-    )
-    BASELINE.append(r)
-    monitor_anomaly.record_task(r)
-
-# 이상 패턴 주입
-ANOMALY_CASES = [
-    # (label, execution_time, accuracy_hint, tokens)
-    ("지연 스파이크",   15.0,  0.7, 150),
-    ("정확도 드리프트", 1.2,   0.1, 140),
-    ("토큰 폭증",       1.5,   0.8, 5000),
-    ("지연 스파이크2",  18.0,  0.7, 160),
-    ("정확도 드리프트2",1.1,   0.05, 130),
-]
-
-anomaly_events = []
-for label, lat, acc_hint, tok in ANOMALY_CASES:
-    r = create_taskresult(
-        task_id=f"anom_{label[:4]}",
-        question=f"이상 케이스: {label}",
-        response="응답" if acc_hint > 0.5 else "",
-        ground_truth="정상 응답",
-        execution_time=lat,
-        task_type="qa",
-        tokens_used={"input": tok, "output": tok // 5, "total": tok + tok // 5},
-    )
-    monitor_anomaly.record_task(r)
-
-    # AnomalyDetector에 기준선 + 이상 케이스 스캔
-    all_tasks = BASELINE + [r]
-    try:
-        events = detector.scan(all_tasks)
-        new_events = [e for e in events if r.task_id in str(e)]
-        anomaly_events.extend(events)
-        print(f"  [{label}] lat={lat:.1f}s  tok={tok}  이상 이벤트: {len(events)}건")
-    except Exception as e:
-        print(f"  [{label}] 스캔 완료 (이벤트 집계 방식에 따라 다름)")
-
-try:
-    if anomaly_events:
-        ev = anomaly_events[0]
-        explanation = detector.explain_event(ev)
-        print(f"  explain_event: {str(explanation)[:80]}...")
-except Exception:
-    pass
-
-# ===========================================================================
-# 섹션 2: CostTracker + AdaptivePolicy + SamplingStage
-# ===========================================================================
-print("\n=== 섹션 2: 비용 추적 + 적응형 샘플링 ===")
-
-# SamplingStage는 Enum (DEFAULT / ANOMALY / BUDGET_EXCEEDED)
-# AdaptivePolicy: default_sample_rate, anomaly_sample_rate, budget_per_day
-policy = AdaptivePolicy(
-    default_sample_rate=0.1,   # 기본 10% 샘플링
-    anomaly_sample_rate=1.0,   # 이상 감지 시 100%
-    budget_per_day=10.0,       # 하루 $10 예산
-    alert_at=0.8,              # 80% 도달 시 알림
-)
-
-tracker = CostTracker(budget_per_day=10.0, alert_at=0.8)
-
-MODEL_USAGES = [
-    ("gpt-4o",          {"input": 800,  "output": 250, "model": "gpt-4o"}),
-    ("claude-3-sonnet",  {"input": 600,  "output": 200, "model": "claude-3-sonnet"}),
-    ("gpt-4o-mini",     {"input": 1200, "output": 400, "model": "gpt-4o-mini"}),
-    ("gpt-4o",          {"input": 2000, "output": 500, "model": "gpt-4o"}),
-]
-
-monitor_cost = PerformanceMonitor(output_dir=_OUTPUT_DIR)
-for model, tokens in MODEL_USAGES:
-    result = create_taskresult(
-        task_id=f"cost_{model[:8]}",
-        question="비용 추적 테스트",
-        response="응답",
-        ground_truth="응답",
-        execution_time=1.5,
-        task_type="qa",
-        tokens_used=tokens,
-    )
-    monitor_cost.record_task(result)
-    tok_total = tokens["input"] + tokens["output"]
-    status = policy.get_status()
-    print(f"  [{model:<16s}] tokens={tok_total}  stage={status.get('current_stage','?')}  rate={status.get('current_sample_rate',0):.0%}")
-
-try:
-    today = tracker.get_today_cost()
-    print(f"  오늘 비용: ${today:.4f} USD")
-    alert = tracker.is_budget_alert()
-    print(f"  예산 알림: {alert}")
-except Exception as e:
-    print(f"  비용 추적 완료 ({len(MODEL_USAGES)}건)")
 
 # ===========================================================================
 # 섹션 3: GoldenSetBuilder — QA / RAG / Tool Selection 골든 데이터 구축
@@ -275,7 +162,7 @@ TOOL_DEFINITIONS = [
     # (question, used_tools, expected_tools, latency)
     ("날씨와 환율 조회",          ["web_search", "calculator"], ["web_search", "calculator"], 1.52),
     ("코스피 → 엑셀 저장",        ["web_search", "database"],   ["web_search", "file_write"],  2.31),
-    ("데이터 분석 + 차트 생성",   ["data_analysis", "chart_generator", "web_search"],
+    ("데이터 分析 + 차트 생성",   ["data_analysis", "chart_generator", "web_search"],
                                    ["data_analysis", "chart_generator"],                       3.14),
     ("이메일 중복 제거 + CSV",    ["calculator", "web_search"], ["data_analysis", "file_write"], 1.08),
     ("코드 + 단위 테스트 생성",   ["code_generator", "test_generator"],
@@ -350,16 +237,16 @@ try:
 
     # 타입별 후보 파일 저장 → data/golden_datasets/ → 대시보드 케이스 검토 탭
     if qa_all:
-        p = builder.save_candidates(qa_all,   filename="06_qa_candidates.json")
+        p = builder.save_candidates(qa_all,   filename="11_qa_candidates.json")
         print(f"\n  저장: {p}")
     if rag_all:
-        p = builder.save_candidates(rag_all,  filename="06_rag_candidates.json")
+        p = builder.save_candidates(rag_all,  filename="11_rag_candidates.json")
         print(f"  저장: {p}")
     if tool_all:
-        p = builder.save_candidates(tool_all, filename="06_tool_candidates.json")
+        p = builder.save_candidates(tool_all, filename="11_tool_candidates.json")
         print(f"  저장: {p}")
 
-    print("\n  ✓ agent-eval dashboard → 케이스 검토 탭에서 승인/거부/병합 가능")
+    print("\n  agent-eval dashboard → 케이스 검토 탭에서 승인/거부/병합 가능")
 
     # 고가치 QA + RAG를 마스터 골든셋으로 병합
     master_items = qa_high + [d for d in rag_all if d.get("accuracy_score", 0) >= 0.8]
@@ -375,9 +262,6 @@ except Exception as e:
 # ===========================================================================
 print("\n=== 섹션 4: evaluation_session context manager ===")
 
-def session_agent(question: str, ground_truth: str = "", _monitor=None) -> str:
-    return f"세션 내 응답: {question}"
-
 # evaluation_session은 with 블록 종료 시 자동으로 save_to_file() 호출
 SESSION_TASKS = [
     ("대한민국 수도?",     "서울"),
@@ -385,7 +269,7 @@ SESSION_TASKS = [
     ("TCP 포트 80번?",     "HTTP"),
 ]
 
-with evaluation_session("06_session_demo", enable_transparency=True) as session_monitor:
+with evaluation_session("11_session_demo", enable_transparency=True) as session_monitor:
     @agent_eval(session_monitor, task_type="qa", task_id_prefix="sess")
     def _agent(question: str, ground_truth: str = "") -> str:
         return f"응답: {question}"
@@ -393,100 +277,11 @@ with evaluation_session("06_session_demo", enable_transparency=True) as session_
     for q, gt in SESSION_TASKS:
         _agent(q, ground_truth=gt)
 
-print(f"  evaluation_session 종료 → results/06_session_demo.json 자동 저장")
+print(f"  evaluation_session 종료 → results/11_session_demo.json 자동 저장")
 
 # ===========================================================================
-# 섹션 5: 종합 저장 + CI/CD 게이팅 안내
+# 최종 저장
 # ===========================================================================
-print("\n=== 섹션 5: 최종 저장 & CI/CD 안내 ===")
-
-# 모든 모니터를 하나로 합산하는 대신 메인 모니터에 저장
-# enable_anomaly_detection=True → save_to_file() 시 anomaly_data 자동 생성 → 대시보드 이상 감지 탭 활성화
-# monitor_anomaly(35건: 30 기준선 + 5 이상)를 메인으로 재활용해 anomaly_data 포함
-monitor_main = PerformanceMonitor(
-    output_dir=_OUTPUT_DIR,
-    enable_anomaly_detection=True,
-    anomaly_baseline_window=20,    # 35건 중 앞 20건 기준선
-    anomaly_detection_window=10,   # 나머지 10건 현재 상태 비교
-    enable_transparency=True,      # 투명성 탭: 메트릭 계산 Traces 자동 생성
-)
-# 이상 기준선 데이터 포함 (anomaly_baseline 30건 + golden_tasks 8건)
-for r in BASELINE[:20]:
-    monitor_main.record_task(r)
-for r in golden_tasks:
-    monitor_main.record_task(r)
-
-report = monitor_main.generate_report().to_dict()
-total  = report.get("total_tasks", 0)
-am     = report.get("accuracy_metrics", {})
-tcr    = am.get("tcr", {}).get("tcr", 0) / 100
-acc    = am.get("accuracy_scores", {}).get("overall_accuracy", 0) / 100
-print(f"  총 태스크: {total}건  TCR: {tcr:.1%}  평균 정확도: {acc:.2%}")
-
-monitor_main.save_to_file("06_operational")
-print("\n결과 저장 완료: results/06_operational.json")
-
-# ===========================================================================
-# 평가 비용 탭 — CostTracker 데이터를 evaluation_cost 키로 주입
-# (LLM Judge 없이도 대시보드 '평가 비용' 탭에 데이터 표시)
-# ===========================================================================
-_json_path = Path(_OUTPUT_DIR) / "06_operational.json"
-_data = json.loads(_json_path.read_text(encoding="utf-8"))
-
-# CostTracker 기반 모델별 토큰 비용 계산 (gpt-4o·claude-3-sonnet·gpt-4o-mini 기준)
-_TOKEN_PRICES = {
-    "gpt-4o":         {"input": 0.005,  "output": 0.015},
-    "claude-3-sonnet":{"input": 0.003,  "output": 0.015},
-    "gpt-4o-mini":    {"input": 0.00015,"output": 0.0006},
-}
-_by_provider: dict = {}
-_total = 0.0
-for model, tokens in MODEL_USAGES:
-    prices = _TOKEN_PRICES.get(model, {"input": 0.003, "output": 0.015})
-    cost = tokens["input"] * prices["input"] / 1000 + tokens["output"] * prices["output"] / 1000
-    _by_provider[model] = round(_by_provider.get(model, 0.0) + cost, 6)
-    _total += cost
-
-_data["evaluation_cost"] = {
-    "total_usd":           round(_total, 6),
-    "llm_judge_usd":       0.0,
-    "by_provider":         _by_provider,
-    "call_count":          len(MODEL_USAGES),
-    "model":               "gpt-4o-mini",
-    "budget_per_day":      10.0,
-    "budget_remaining_usd": round(10.0 - _total, 6),
-    "sample_rate_current": 0.1,
-    "projected_daily_usd": round(_total * 10, 6),
-}
-
-# 알림 탭 — AnomalyDetector 이벤트를 results/alerts/{date}.jsonl 에 기록
-_alerts_dir = Path(_OUTPUT_DIR) / "alerts"
-_alerts_dir.mkdir(parents=True, exist_ok=True)
-_today_jsonl = _alerts_dir / f"{datetime.now().date().isoformat()}.jsonl"
-for ev in anomaly_events[:5]:   # 최대 5건
-    event = {
-        "triggered_at": datetime.now().isoformat(),
-        "rule_name":    "anomaly_detector",
-        "severity":     getattr(ev, "severity", "warning"),
-        "message":      str(ev)[:120],
-        "task_id":      getattr(ev, "task_id", ""),
-    }
-    with open(_today_jsonl, "a", encoding="utf-8") as _f:
-        _f.write(json.dumps(event, ensure_ascii=False) + "\n")
-
-_json_path.write_text(json.dumps(_data, indent=2, ensure_ascii=False, default=str), encoding="utf-8")
-
-# 저장 확인
-has_anomaly = bool(_data.get("anomaly_data"))
-has_cost    = bool(_data.get("evaluation_cost", {}).get("total_usd", 0) > 0)
-has_alerts  = _today_jsonl.exists() and _today_jsonl.stat().st_size > 0
-print(f"\n대시보드 탭 데이터 확인:")
-print(f"  이상 감지(anomaly_data): {'✅' if has_anomaly else '❌'}")
-print(f"  평가 비용(evaluation_cost total=${_total:.4f}): {'✅' if has_cost else '❌'}")
-print(f"  알림(alerts JSONL)     : {'✅' if has_alerts else '❌'}  → {_today_jsonl.name}")
-
-print("\n── CI/CD 품질 게이팅 사용법 ──────────────────────────")
-print("  agent-eval gate results/06_operational.json \\")
-print("      --tcr 85 --accuracy 70 --quality 60")
-print("  → TCR<85% 또는 accuracy<70% 이면 exit(1) → CI 실패")
-print("─────────────────────────────────────────────────────")
+monitor_golden.save_to_file("ch11_eval_data")
+print("\n결과 저장 완료: results/ch11_eval_data.json")
+print("확인: agent-eval dashboard --results results/")
