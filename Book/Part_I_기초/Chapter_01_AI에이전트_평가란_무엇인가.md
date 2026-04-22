@@ -139,8 +139,8 @@ Tracker (관찰/측정) × Config (기준 선언) × Gate (배포 판정)
 
 58개 지표(25 Tracker + 33 Config)는 7개 품질 차원으로 구분됩니다.
 
-| Group | 차원 | 핵심 질문 | Tracker 수¹ | Config 수 |
-|-------|------|-----------|-----------|-----------|
+| Gate | 차원 | 핵심 질문 | Tracker 수¹ | Config 수 |
+|------|------|-----------|-----------|-----------|
 | **A** | 목표달성 | 에이전트가 지시를 제대로 완수했는가? | 3 | 6 |
 | **B** | 행동무결성 | 의도하지 않은 행동 없이 동작했는가? | 2 | 6 |
 | **C** | 신뢰성 | 같은 입력에 일관되게 응답하는가? | 2 | 5 |
@@ -205,11 +205,11 @@ gate.enforce()   # 기준 미달 시 sys.exit(1) → CI/CD 파이프라인 차�
 - **`InstructionConfig(required_keywords=["결과"])`**: 응답에 "결과" 키워드가 없으면 해당 태스크를 `success=False`로 처리해 TCR을 낮춘다.
 - **`SLAConfig(p95_ms=3000)`**: p95 응답 시간이 3초를 초과하거나 태스크당 비용이 $0.01을 넘으면 Gate D에서 FAIL 판정을 받는다.
 - **`ThreatSeverityConfig(fail_on_critical=True, fail_score=7.0)`**: 위협 점수 7.0 이상의 입력이 탐지되면 해당 태스크를 즉시 실패 처리하고 Gate E에 반영한다.
-- **`gate.enforce()`**: Group A–G 전체 Config 위반 여부를 종합 판정해 기준 미달이면 `sys.exit(1)`을 호출해 CI/CD 파이프라인을 차단한다.
+- **`gate.enforce()`**: Gate A–G 전체 Config 위반 여부를 종합 판정해 기준 미달이면 `sys.exit(1)`을 호출해 CI/CD 파이프라인을 차단한다.
 
-Group A-G 각 차원의 구체적인 Tracker와 Config는 **Part II — Harness 지표 체계**(Chapter 03~10)에서 상세히 다룹니다.
+Gate A-G 각 차원의 구체적인 Tracker와 Config는 **Part II — Harness 지표 체계**(Chapter 03~10)에서 상세히 다룹니다.
 
-> 📋 **QA 관리자 TIP**: "어떤 지표를 먼저 적용해야 하나?" → 우선순위: **A(목표달성) → D(성능계약)/E(보안경계) → C(신뢰성) → B(행동무결성) → G(관측성) → F(다중에이전트)**. Group A는 모든 에이전트의 기본 판단 근거입니다. Group E 보안은 외부 입력을 처리하는 에이전트라면 즉시 적용해야 합니다.
+> 📋 **QA 관리자 TIP**: "어떤 지표를 먼저 적용해야 하나?" → 우선순위: **A(목표달성) → D(성능계약)/E(보안경계) → C(신뢰성) → B(행동무결성) → G(관측성) → F(다중에이전트)**. Gate A는 모든 에이전트의 기본 판단 근거입니다. Gate E 보안은 외부 입력을 처리하는 에이전트라면 즉시 적용해야 합니다.
 
 §1.3에서 7개 Gate의 구조와 3요소의 역할 분리를 개념으로 확인했습니다. 그런데 왜 기존 소프트웨어 테스팅으로는 이 구조가 필요하지 않았을까요? 그 이유를 이해해야 Harness Engineering이 왜 새로운 패러다임인지가 명확해집니다.
 
@@ -378,10 +378,10 @@ AI 에이전트는 배포 후에도 계속 변합니다. 일회성 배포 전 �
 
 ### AI Native 5대 도전 ↔ Harness Gate A–G 매핑
 
-5가지 도전은 추상적인 문제가 아닙니다. Harness Engineering의 7개 Gate가 각 도전에 정확히 대응합니다.
+5가지 도전은 추상적인 문제가 아닙니다. Harness Engineering의 7개 Gate(A–G)가 각 도전에 정확히 대응합니다.
 
-| AI Native 도전 | 핵심 질문 | 대응 Harness Gate | 주요 Tracker / Config |
-|--------------|---------|-----------------|----------------------|
+| AI Native 도전 | 핵심 질문 | 대응 Gate | 주요 Tracker / Config |
+|--------------|---------|-----------|----------------------|
 | ① 확률론적 품질 | "통계적으로 충분히 정확한가?" | **Gate A** 목표달성, **Gate C** 신뢰성 | AccuracyEvaluator, ReproducibilityConfig |
 | ② AI-by-AI 평가 | "LLM Judge 비용 없이 품질을 측정할 수 있는가?" | **Gate G** 운영관측성 | LLMJudge (sample_rate 조절), ExplainabilityConfig |
 | ③ 드리프트 인식 | "배포 후 성능 저하를 조기에 감지하는가?" | **Gate D** 성능계약, **Gate C** 신뢰성 | LatencyTracker, RunTrendAnalyzer, CostPredictabilityConfig |
@@ -389,7 +389,7 @@ AI 에이전트는 배포 후에도 계속 변합니다. 일회성 배포 전 �
 | ⑤ 지속 평가 | "배포 후에도 지속적으로 품질을 검증하는가?" | **Gate A–G 전체** (CI/CD + 실시간 모니터링) | HarnessEvaluationGate, Phoenix OTEL, agent-eval trend |
 
 **개발자 관점**: 각 도전에 대응하는 Tracker를 활성화하고 Config로 기준을 선언합니다.  
-**QA 관리자 관점**: 도전이 해결됐는지를 Gate A–G의 PASS/WARN/FAIL 판정으로 확인합니다.
+**QA 관리자 관점**: 도전이 해결됐는지를 Gate A–G별 PASS/WARN/FAIL 판정으로 확인합니다.
 
 > 📋 **QA 관리자 TIP**: AI Native 5가지 도전은 전통 QA 역할을 없애지 않습니다. "케이스를 통과했는가" 대신 "품질 분포가 배포 기준을 만족하는가"로 판단 언어를 바꾸는 것입니다. Part IV — QA 관리자 가이드에서 이 전환을 단계별로 다룹니다.
 
@@ -501,7 +501,7 @@ AI 에이전트는 배포 후에도 계속 변합니다. 일회성 배포 전 �
 > - AI 에이전트는 입력→출력 1회의 LLM과 달리, 도구 호출·멀티스텝·상태·반복 동작으로 평가 복잡성이 근본적으로 다릅니다.
 > - 환각·보안 위협·레이턴시 급증은 평가 체계 없이는 배포 후에야 발견되는 전형적인 실패 패턴입니다. 각각 Group C·E·D 차원의 문제입니다.
 > - **Harness Engineering**은 Tracker(실행 중 자동 측정) × Config(배포 기준 코드 선언) × Gate(종합 배포 판정)의 3요소로 작동합니다. 세 역할은 독립적으로 설계되어 있어 각각 교체·확장·제거할 수 있습니다.
-> - 58개 지표(25 Tracker + 33 Config)는 서로 독립적인 7개 품질 차원 Group A-G로 구조화됩니다.
+> - 58개 지표(25 Tracker + 33 Config)는 서로 독립적인 7개 배포 관문 Gate A-G로 구조화됩니다.
 > - AI Native 평가의 5가지 고유 도전(확률론적 품질·AI-by-AI 평가·드리프트·돌발 행동·지속 평가)은 기존 소프트웨어 테스팅 방법론으로 해결되지 않습니다.
 > - 에이전트 평가 도구 생태계에서 Harness Config 기반 배포 판정과 에이전틱 전용 지표를 LLM 없이 제공하는 도구는 Agent Evaluator가 유일합니다.
 >
@@ -624,7 +624,7 @@ tool_agent("2024년 GDP 상위 5개국은?", ground_truth="미국, 중국, 독�
 - **`EvalMetadata`**: 응답 텍스트와 함께 `tool_calls`·`expected_tools` 등 메타데이터를 반환하면 `@agent_eval`이 자동으로 파싱해 트래커에 전달한다.
 - **`tool_calls`**: 실제로 호출한 도구 목록 — `ToolCallAnalyzer`(Group B)와 `ToolSelectionTracker`(Group F)가 분석한다.
 - **`expected_tools`**: 기대 도구 목록과 실제 호출을 F1 점수로 비교해 도구 선택 정확도를 측정한다.
-- **자동 측정 범위**: 단일 데코레이터 하나로 Group A(정확도·TCR), Group B(도구 패턴), Group D(레이턴시), Group F(도구 선택 F1)가 동시에 기록된다.
+- **자동 측정 범위**: 단일 데코레이터 하나로 Gate A(정확도·TCR), Gate B(도구 패턴), Gate D(레이턴시), Gate F(도구 선택 F1)가 동시에 기록된다.
 
 ```bash
 # Group A/C/D — 목표달성·신뢰성·성능계약 측정
@@ -634,10 +634,10 @@ python Evaluator_Examples/ch01_first_eval.py
 python Evaluator_Examples/ch05_group_b.py
 ```
 
-**Group A-G와 예제 매핑**
+**Gate A-G와 예제 매핑**
 
-| Group | 차원 | 측정 지표 | 예제 파일·섹션 |
-|-------|------|----------|---------------|
+| Gate | 차원 | 측정 지표 | 예제 파일·섹션 |
+|------|------|----------|---------------|
 | A | 목표달성 | AccuracyEvaluator (TokenF1·Jaccard·LCS), TCR | ch01_first_eval, ch04_group_a |
 | B | 행동무결성 | ToolCallAnalyzer, WorkflowExecutionTracker | ch05_group_b |
 | C | 신뢰성 | HallucinationDetector, RetryCorrectionTracker | ch01_first_eval, ch06_group_c |
@@ -661,7 +661,7 @@ TCR=41.4% | 14개 태스크 | 보안 위협 3건 탐지
 
 > **첫 실행 팁**: 두 파일 모두 API 키 없이 실행됩니다. `ANTHROPIC_API_KEY` 또는 `OPENAI_API_KEY`를 `.env`에 추가하면 LLMJudge(Group G)가 활성화되어 `completeness`, `relevance`, `factual_consistency` 세 차원이 추가로 측정됩니다.
 
-**프레임워크 어댑터 — 실제 프레임워크 응답에서 Group 지표 자동 추출**
+**프레임워크 어댑터 — 실제 프레임워크 응답에서 Gate별 지표 자동 추출**
 
 `framework=` 파라미터 하나로 LangChain·LangGraph·CrewAI·AutoGen 응답 객체에서 tool_calls·agent_interactions·tokens_used를 자동 추출한다. 실제 SDK 없이도 mock 응답 객체로 동작한다(duck typing).
 
@@ -691,7 +691,7 @@ langchain_agent("GDP 상위 5개국은?", ground_truth="미국, 중국, 독일, 
 
 - **`framework="langchain"`**: LangChain AgentExecutor 응답에서 `intermediate_steps`(도구 호출 목록)와 `usage_metadata`(토큰 사용량)를 자동으로 파싱한다.
 - **`SimpleNamespace` 사용**: 실제 LangChain SDK 없이도 duck typing으로 동작하므로 테스트 환경에서도 mock 객체로 프레임워크 어댑터를 검증할 수 있다.
-- **자동 연결 범위**: `intermediate_steps` → Group B `ToolCallAnalyzer`, `usage_metadata` → Group D `TokenEconomyTracker`로 데이터가 자동 라우팅된다.
+- **자동 연결 범위**: `intermediate_steps` → Gate B `ToolCallAnalyzer`, `usage_metadata` → Gate D `TokenEconomyTracker`로 데이터가 자동 라우팅된다.
 
 **버전 비교 — Harness Gate로 "어느 버전을 배포할지" 결정**
 
@@ -718,4 +718,4 @@ print(f"v2 FAIL Gates: {v2_fail}")   # FAIL 없으면 배포 승인
 - **독립 monitor**: `monitor_v1`과 `monitor_v2`를 분리해 Gate 간 데이터 교차 오염 없이 동일 테스트 케이스를 각각 평가한다.
 - **`harness_groups` 경로**: `report.to_dict()["extra_metrics"]["harness_groups"]`에 Gate A–G별 `score`, `status`, `gate` 필드가 저장된다.
 - **배포 결정 로직**: `v2_fail`이 빈 리스트(`[]`)이면 모든 Gate를 통과한 것이므로 v2 배포를 승인하고, v1은 차단한다.
-- **`enable_security_metrics=True`**: 두 버전 모두 Group E(보안경계) 지표를 포함해 동등한 조건에서 비교한다.
+- **`enable_security_metrics=True`**: 두 버전 모두 Gate E(보안경계) 지표를 포함해 동등한 조건에서 비교한다.

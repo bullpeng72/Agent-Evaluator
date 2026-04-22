@@ -2,7 +2,7 @@
 
 Chapter 2에서 `QuickEval`과 `@eval.qa` 데코레이터로 첫 배포 판정을 경험했다. `@eval.qa`를 붙이는 순간 Tracker가 자동 활성화됐고, `eval.gate(tcr=80)`이 Gate를 실행했으며, `SLAConfig`를 추가하면 Config가 합류했다. 동작은 경험했지만 아직 "왜 이렇게 설계됐는가"는 설명하지 않았다.
 
-이 챕터는 그 설계 원리를 다룬다. Tracker·Config·Gate 세 역할을 동등한 깊이로 분해하고, 58개 지표가 7개 Gate로 구조화된 논리를 설명한다. 이후 **Chapter 4~10**에서 Group A-G를 각각 탐구하기 위한 공통 기반이 된다.
+이 챕터는 그 설계 원리를 다룬다. Tracker·Config·Gate 세 역할을 동등한 깊이로 분해하고, 58개 지표가 7개 Gate로 구조화된 논리를 설명한다. 이후 **Chapter 4~10**에서 Gate A-G를 각각 탐구하기 위한 공통 기반이 된다.
 
 > 📖 **관련 레퍼런스**
 > - **[Appendix A — 58개 지표 완전 레퍼런스](../Appendix/A_58개지표_레퍼런스.md)**: 각 Tracker와 Config의 입력·출력·임계값 기본값 한눈에 조회
@@ -354,7 +354,7 @@ eval.gate(tcr=85, accuracy=70)
 
 ---
 
-## 3.3 58개 지표 전체 지도 — Group A-G 매핑
+## 3.3 58개 지표 전체 지도 — Gate A-G 매핑
 
 ### 왜 정확히 7개인가 — Gate 설계 논리
 
@@ -412,9 +412,20 @@ LLM 기반 에이전트는 동일 입력에도 다른 추론 경로와 다른 �
 
 ---
 
-Tracker 25개와 Config 33개를 7개 Group으로 분류한다. (보안 Tracker 5종은 25개 안에 포함, opt-in 활성화 필요)
+Tracker 25개와 Config 33개를 7개 Gate(A-G)에 배분한다. (보안 Tracker 5종은 25개 안에 포함, opt-in 활성화 필요)
 
-### Group A — 목표달성 (Goal Achievement)
+> **용어 정리 — Gate A-G와 HarnessEvaluationGate**
+>
+> 이 책에서 "Gate"는 두 가지 층위로 쓰인다.
+>
+> | 용어 | 의미 | 예시 |
+> |------|------|------|
+> | **Gate A-G** | 7개 배포 관문(품질 차원). Tracker+Config 58개를 배포 가능 여부 판정 단위로 묶은 것 | Gate A(목표달성) — "지시를 완수했는가?" |
+> | **HarnessEvaluationGate** | Gate A-G를 한 번에 실행해 종합 배포 판정을 내리는 메커니즘(3요소 중 Gate 역할) | `HarnessEvaluationGate(report).enforce()` |
+>
+> `HarnessEvaluationGate.evaluate()`를 호출하면 Gate A-G 각각의 PASS/WARN/FAIL 결과가 반환된다. 코드 내부(JSON 출력, 대시보드 키)에서는 `harness_groups`, `group_key` 등 "group"이라는 표현이 함께 쓰이는데, 이는 동일한 7개 차원을 지표 분류 관점에서 부른 것이다. 개념적으로는 Gate가 더 정확하다 — 각 차원이 단순 분류가 아닌 "통과해야 하는 배포 관문"이기 때문이다.
+
+### Gate A — 목표달성 (Goal Achievement)
 
 **핵심 질문**: 에이전트가 사용자의 지시를 제대로 완수했는가?
 
@@ -430,7 +441,7 @@ Tracker 25개와 Config 33개를 7개 Group으로 분류한다. (보안 Tracker 
 | Config | `SubtaskConfig` | 서브태스크 완료율 기준 |
 | Config | `KnowledgeRetentionConfig` | 대화 중 사실 보존 기준 |
 
-### Group B — 행동무결성 (Behavioral Integrity)
+### Gate B — 행동무결성 (Behavioral Integrity)
 
 **핵심 질문**: 에이전트가 의도하지 않은 행동 없이 동작했는가?
 
@@ -445,7 +456,7 @@ Tracker 25개와 Config 33개를 7개 Group으로 분류한다. (보안 Tracker 
 | Config | `StateConsistencyConfig` | 실행 전후 상태 일관성 기준 (v0.8.2에서 Group F→B 이동) |
 | Config | `DeadlockConfig` | 교착·기아·라이브락 탐지 기준 (v0.8.2에서 Group F→B 이동) |
 
-### Group C — 신뢰성 (Reliability)
+### Gate C — 신뢰성 (Reliability)
 
 **핵심 질문**: 같은 입력에 일관되고 재현 가능한 응답을 하는가?
 
@@ -459,7 +470,7 @@ Tracker 25개와 Config 33개를 7개 Group으로 분류한다. (보안 Tracker 
 | Config | `RetryConsistencyConfig` | 재시도 일관성 기준 |
 | Config | `IdempotencyConfig` | 멱등성(반복 실행 부작용 없음) 기준 |
 
-### Group D — 성능계약 (Performance Contract)
+### Gate D — 성능계약 (Performance Contract)
 
 **핵심 질문**: 약속한 SLA와 비용 계약을 지켰는가?
 
@@ -473,7 +484,7 @@ Tracker 25개와 Config 33개를 7개 Group으로 분류한다. (보안 Tracker 
 | Config | `TTFTVariabilityConfig` | TTFT 변동성 기준 |
 | Config | `CostPredictabilityConfig` | 비용 예측 가능성(CV) 기준 |
 
-### Group E — 보안경계 (Security Boundary)
+### Gate E — 보안경계 (Security Boundary)
 
 **핵심 질문**: 외부 공격과 데이터 유출을 차단했는가?
 
@@ -490,7 +501,7 @@ Tracker 25개와 Config 33개를 7개 Group으로 분류한다. (보안 Tracker 
 
 > ⚠️ **보안 트래커 활성화**: 보안 트래커 5종(`InputSanitizationTracker`, `OutputLeakageDetector`, `ToolAuthorizationTracker`, `PrivilegeEscalationDetector`, `ToolChainAttackDetector`)은 `enable_security_metrics=True`로 명시적으로 활성화해야 한다. 성능에 영향을 주므로 기본값은 `False`다.
 
-### Group F — 다중에이전트 협업 (Multi-Agent Coordination)
+### Gate F — 다중에이전트 협업 (Multi-Agent Coordination)
 
 **핵심 질문**: 여러 에이전트가 교착 없이 협력했는가?
 
@@ -503,7 +514,7 @@ Tracker 25개와 Config 33개를 7개 Group으로 분류한다. (보안 Tracker 
 | Config | `AgentRoleConfig` | 에이전트 역할 준수 기준 |
 | Config | `ConflictResolutionConfig` | 에이전트 간 충돌 해결 품질 기준 |
 
-### Group G — 운영관측성 (Operational Observability)
+### Gate G — 운영관측성 (Operational Observability)
 
 **핵심 질문**: 실패 원인을 즉시 추적하고 설명할 수 있는가?
 
@@ -514,12 +525,12 @@ Tracker 25개와 Config 33개를 7개 Group으로 분류한다. (보안 Tracker 
 | Config | `ErrorDiagnosisConfig` | 실패 응답의 오류 진단 품질 기준 |
 | Config | `LatencyAttributionConfig` | 도구·모델·네트워크 지연 귀속 기준 |
 
-> **Group G와 LLM Judge**: Group G는 관측성과 설명 가능성을 다룬다. LLMJudge (`enable_llm_judge=True`)는 Group G와 자연스럽게 연결된다. LLM이 응답의 추론 근거와 설명 품질을 자동으로 채점하기 때문이다.
+> **Gate G와 LLM Judge**: Gate G는 관측성과 설명 가능성을 다룬다. LLMJudge (`enable_llm_judge=True`)는 Gate G와 자연스럽게 연결된다. LLM이 응답의 추론 근거와 설명 품질을 자동으로 채점하기 때문이다.
 
 ### 지표 수 요약
 
-| Group | Tracker | Config | 합계 |
-|-------|---------|--------|------|
+| Gate | Tracker | Config | 합계 |
+|------|---------|--------|------|
 | A 목표달성 | 3 | 6 | 9 |
 | B 행동무결성 | 2 | 6 | 8 |
 | C 신뢰성 | 2 | 5 | 7 |
@@ -686,9 +697,9 @@ def qa_agent(question: str, ground_truth: str = "") -> str:
     return llm.invoke(question)
 ```
 
-- **멀티 Config 조합**: 하나의 `@agent_eval`에 Group A·C·D·E·G를 동시 선언해 5개 Gate를 한 번에 평가한다
-- **`enable_hallucination_detection=True`**: Group C의 `HallucinationDetector`를 활성화한다 (기본값 False, 성능 영향 있음)
-- **`enable_security_metrics=True`**: Group E 보안 트래커 5종을 활성화한다 (기본값 False)
+- **멀티 Config 조합**: 하나의 `@agent_eval`에 Gate A·C·D·E·G를 동시 선언해 5개 Gate를 한 번에 평가한다
+- **`enable_hallucination_detection=True`**: Gate C의 `HallucinationDetector`를 활성화한다 (기본값 False, 성능 영향 있음)
+- **`enable_security_metrics=True`**: Gate E 보안 트래커 5종을 활성화한다 (기본값 False)
 - **`forbidden_phrases`**: "모르겠습니다" 등 역량 부족 신호를 응답에서 탐지하면 `fail_on_violation=True`에 의해 즉시 fail 처리한다
 - **`warn_at_pct=0.8`**: 토큰 예산의 80%를 소진하면 경고(fail 없음)를 발생시킨다
 
@@ -804,8 +815,8 @@ PR마다 Gate가 자동으로 동작한다. 기준을 위반하면 배포가 차
 
 ### 3.5.3 Gate A–G와 Tracker·Config 매핑 요약
 
-| Gate | 품질 질문 | 관련 Tracker | 관련 Config |
-|------|----------|-------------|------------|
+| Gate (차원) | 품질 질문 | 관련 Tracker | 관련 Config |
+|------------|----------|-------------|------------|
 | **A** 목표달성 | 지시를 완수했는가? | TCR, Accuracy, ResponseQuality | InstructionConfig, GoalAlignmentConfig, PlanConfig |
 | **B** 행동무결성 | 의도치 않은 행동이 없었는가? | ToolCallAnalyzer, WorkflowExecution | LoopDetectionConfig, ScopeConfig, ToolParameterSafetyConfig, ContextWindowConfig, StateConsistencyConfig, DeadlockConfig |
 | **C** 신뢰성 | 일관되고 재현 가능한가? | HallucinationDetector, RetryCorrection | ReproducibilityConfig, FaultToleranceConfig, IdempotencyConfig |
@@ -853,9 +864,9 @@ print(result)
 gate.enforce()
 ```
 
-- **`HarnessEvaluationGate(report)`**: `monitor.generate_report()`가 반환한 `EvaluationReport`를 받아 Group A–G를 일괄 평가한다
+- **`HarnessEvaluationGate(report)`**: `monitor.generate_report()`가 반환한 `EvaluationReport`를 받아 Gate A–G를 일괄 평가한다
 - **`result["passed"]`**: 하나라도 `required_groups` 기준을 미달하면 `False`가 된다
-- **`result["violations"]`**: 실패한 Group 목록과 점수를 반환해 어디서 차단됐는지 즉시 확인한다
+- **`result["violations"]`**: 실패한 Gate 목록과 점수를 반환해 어디서 차단됐는지 즉시 확인한다
 - **`gate.enforce()`**: `passed=False`이면 `sys.exit(1)`을 호출해 CI/CD 파이프라인을 자동 차단한다
 
 ### 3.6.2 CI/CD 파이프라인 통합
@@ -1208,8 +1219,9 @@ python Evaluator_Examples/ch03_harness_basics.py    # Gate A~G 전체 PASS 시�
 | Tracker | 런타임에 무슨 일이 일어났는지 측정하는 관찰자 (25개) |
 | Config | 어떤 상태가 합격인지 코드로 선언하는 기준서 (33개) |
 | Gate | Tracker 측정값과 Config 기준을 대조해 배포 판정을 내리는 심판 |
+| Gate A-G | 7개 배포 관문 — 58개 지표를 독립적인 품질 차원별로 묶고, 각각 PASS/WARN/FAIL 판정을 내리는 구조 |
+| HarnessEvaluationGate | Gate A-G를 한 번에 종합 실행하는 판정 메커니즘 (3요소 중 Gate 역할) |
 | fail_on_violation | Config 조건 위반 시 TaskResult.success를 False로 강제하는 플래그 |
-| Group A-G | 58개 지표를 7개 품질 차원으로 분류하는 Harness 구조 |
 | Config-as-Code | 배포 기준을 소스 코드로 선언하는 패턴 |
 
 Chapter 4부터는 Group A(목표달성)를 시작으로 각 Group을 깊이 탐구한다.

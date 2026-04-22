@@ -16,12 +16,12 @@ Agent-Evaluator는 v0.7.8부터 기본 설치(`pip install agent-evaluator`)에 
 
 | 기능 | 패키지 | Harness 관련 |
 |---|---|---|
-| 25개 네이티브 트래커 (Group A-G) | numpy, pandas, python-dotenv | 전 Group |
-| 33개 Harness Config 데이터클래스 | 코어 내장 | 전 Group |
-| LLM Judge 엔진 (Group G) | openai, anthropic | Group G |
+| 25개 네이티브 트래커 (Gate A-G) | numpy, pandas, python-dotenv | 전 Gate |
+| 33개 Harness Config 데이터클래스 | 코어 내장 | 전 Gate |
+| LLM Judge 엔진 (Gate G) | openai, anthropic | Gate G |
 | FastAPI 대시보드 | fastapi, uvicorn, jinja2, python-multipart | 운영 |
-| OTEL 모니터링 (Group G) | opentelemetry-sdk, arize-phoenix | Group G |
-| PDF 처리 | pdfplumber | Group A |
+| OTEL 모니터링 (Gate G) | opentelemetry-sdk, arize-phoenix | Gate G |
+| PDF 처리 | pdfplumber | Gate A |
 
 ### 별도 설치가 필요한 extras
 
@@ -274,7 +274,7 @@ for group_key in ["A", "B", "C", "D", "E", "F", "G"]:
 
 ## 2.4 Agent-Evaluator 아키텍처
 
-Agent-Evaluator의 58개 지표는 **3개 레이어(Layer)**와 **3가지 역할(Tracker·Config·Gate)**, 그리고 **7개 품질 차원(Group A–G)**으로 구성됩니다. 세 관점을 함께 이해하면 어느 시점에 어떤 도구를 선택해야 하는지 판단할 수 있습니다.
+Agent-Evaluator의 58개 지표는 **3개 레이어(Layer)**와 **3가지 역할(Tracker·Config·Gate)**, 그리고 **7개 Gate(A–G)**로 구성됩니다. 세 관점을 함께 이해하면 어느 시점에 어떤 도구를 선택해야 하는지 판단할 수 있습니다.
 
 ### 레이어 구조 — 외부 의존성 경계
 
@@ -287,33 +287,33 @@ Agent-Evaluator의 58개 지표는 **3개 레이어(Layer)**와 **3가지 역할
   <div class="la-grid">
     <div class="la-layer" style="--lc:#2e7d32;--lb:#e8f5e9">
       <div class="la-ltitle">Layer 1 — Foundation</div>
-      <div class="la-ldesc">외부 의존성 없음 · 기본 설치에 포함<br/>Group A · C · D 담당</div>
+      <div class="la-ldesc">외부 의존성 없음 · 기본 설치에 포함<br/>Gate A · C · D 담당</div>
       <ul class="la-list">
-        <li><code>TaskCompletionTracker</code><span class="la-meta">TCR · Group A</span></li>
-        <li><code>AccuracyEvaluator</code><span class="la-meta">4중 가중 정확도 · Group A</span></li>
-        <li><code>ResponseQualityEvaluator</code><span class="la-meta">5차원 품질 · Group A</span></li>
-        <li><code>LatencyTracker</code><span class="la-meta">p50·p95·p99 · Group D</span></li>
-        <li><code>TokenEconomyTracker</code><span class="la-meta">비용 추정 · Group D</span></li>
-        <li><code>HallucinationDetector</code><span class="la-meta">환각 탐지 · Group C (opt-in)</span></li>
+        <li><code>TaskCompletionTracker</code><span class="la-meta">TCR · Gate A</span></li>
+        <li><code>AccuracyEvaluator</code><span class="la-meta">4중 가중 정확도 · Gate A</span></li>
+        <li><code>ResponseQualityEvaluator</code><span class="la-meta">5차원 품질 · Gate A</span></li>
+        <li><code>LatencyTracker</code><span class="la-meta">p50·p95·p99 · Gate D</span></li>
+        <li><code>TokenEconomyTracker</code><span class="la-meta">비용 추정 · Gate D</span></li>
+        <li><code>HallucinationDetector</code><span class="la-meta">환각 탐지 · Gate C (opt-in)</span></li>
       </ul>
     </div>
     <div class="la-layer" style="--lc:#1565c0;--lb:#e3f2fd">
       <div class="la-ltitle">Layer 2 — Agentic</div>
-      <div class="la-ldesc">외부 의존성 없음 · 기본 설치에 포함<br/>Group B · C · E · F 담당</div>
+      <div class="la-ldesc">외부 의존성 없음 · 기본 설치에 포함<br/>Gate B · C · E · F 담당</div>
       <ul class="la-list">
-        <li><code>ToolCallAnalyzer</code><span class="la-meta">도구 패턴 · Group B</span></li>
-        <li><code>WorkflowExecutionTracker</code><span class="la-meta">워크플로우 · Group B</span></li>
-        <li><code>RetryCorrectionTracker</code><span class="la-meta">재시도 · Group C</span></li>
-        <li><code>ToolSelectionTracker</code><span class="la-meta">F1 정확도 · Group F</span></li>
-        <li><code>AgentCoordinationTracker</code><span class="la-meta">협업 · Group F</span></li>
-        <li><code>보안 Tracker ×5</code><span class="la-meta">위협 탐지 · Group E (opt-in)</span></li>
+        <li><code>ToolCallAnalyzer</code><span class="la-meta">도구 패턴 · Gate B</span></li>
+        <li><code>WorkflowExecutionTracker</code><span class="la-meta">워크플로우 · Gate B</span></li>
+        <li><code>RetryCorrectionTracker</code><span class="la-meta">재시도 · Gate C</span></li>
+        <li><code>ToolSelectionTracker</code><span class="la-meta">F1 정확도 · Gate F</span></li>
+        <li><code>AgentCoordinationTracker</code><span class="la-meta">협업 · Gate F</span></li>
+        <li><code>보안 Tracker ×5</code><span class="la-meta">위협 탐지 · Gate E (opt-in)</span></li>
       </ul>
     </div>
     <div class="la-layer" style="--lc:#e65100;--lb:#fff3e0">
       <div class="la-ltitle">Layer 3 — Hybrid</div>
       <div class="la-ldesc">선택적 의존성<br/>API 키 또는 [eval] extra</div>
       <ul class="la-list">
-        <li><code>LLMJudge</code><span class="la-meta">faithfulness · G-Eval · 7차원 채점 · Group G<br/>기본 설치 내장, API 키 필요</span></li>
+        <li><code>LLMJudge</code><span class="la-meta">faithfulness · G-Eval · 7차원 채점 · Gate G<br/>기본 설치 내장, API 키 필요</span></li>
         <li><code>DeepEvalAdapter</code><span class="la-meta">DeepEval 연동 · [eval] extra</span></li>
         <li><code>RagasAdapter</code><span class="la-meta">Ragas RAG 평가 · [eval] extra</span></li>
         <li><code>HybridPerformanceMonitor</code><span class="la-meta">Layer 1+2+외부 통합 · [eval] extra</span></li>
@@ -435,10 +435,10 @@ report = monitor.generate_report()
 - **`TaskResult`**: `frozen=True` 데이터클래스로 불변(immutable)이며, `to_dict()` / `from_dict()` / `from_json()` 직렬화를 지원한다.
 - **`generate_report()`**: `record_task()`로 누적된 모든 TaskResult를 집계해 `EvaluationReport` 객체를 반환한다. `to_dict()`로 JSON 직렬화 가능하다.
 
-### Group A-G 활성화 방법
+### Gate A-G 활성화 방법
 
-| Group | 기본 활성 | 활성화 방법 |
-|-------|----------|-----------|
+| Gate | 기본 활성 | 활성화 방법 |
+|------|----------|-----------|
 | A 목표달성 | ✅ 자동 | 항상 활성 |
 | B 행동무결성 | ✅ 자동 | tool_calls 데이터 있으면 자동 |
 | C 신뢰성 | ⚠️ 부분 | `enable_hallucination_detection=True` |
@@ -466,7 +466,7 @@ monitor_sec = PerformanceMonitor.for_secure_agents("results/")   # Group E 강�
 - **`judge_sample_rate=0.1`**: LLMJudge가 전체 태스크의 10%만 채점하므로 Group G 품질 측정 비용을 90% 절감한다.
 - **팩토리 메서드**: `for_rag_evaluation()`은 `enable_hallucination_detection=True`를, `for_secure_agents()`는 `enable_security_metrics=True`를 자동 설정해 용도별 최적 구성을 한 줄로 초기화한다.
 
-> 📖 **더 깊이**: Group별 Tracker 파라미터와 Config 전체 레퍼런스는 → **Part II — Chapter 03~10** (Group A-G 챕터)에서 상세히 다룹니다.
+> 📖 **더 깊이**: Gate별 Tracker 파라미터와 Config 전체 레퍼런스는 → **Part II — Chapter 03~10** (Gate A-G 챕터)에서 상세히 다룹니다.
 
 아키텍처의 Layer 구조와 3요소의 책임이 명확해졌다면, 이제 같은 시스템을 개발자와 QA 관리자가 각각 어느 지점에서 만나는지를 살펴봅니다.
 
@@ -657,13 +657,13 @@ my_agent("한국의 수도는?", ground_truth="서울")
 
 | 상황 | 권장 방법 | Harness 연관 |
 |---|---|---|
-| 개발 중 빠른 검증 | 터미널 출력 (`generate_report()`) | Group A 기본 확인 |
-| 팀 리뷰 또는 결과 공유 | 대시보드 (`save_to_file` + `agent-eval dashboard`) | Group A-G 전체 시각화 |
+| 개발 중 빠른 검증 | 터미널 출력 (`generate_report()`) | Gate A 기본 확인 |
+| 팀 리뷰 또는 결과 공유 | 대시보드 (`save_to_file` + `agent-eval dashboard`) | Gate A-G 전체 시각화 |
 | CI/CD 파이프라인 게이팅 | CLI (`agent-eval gate`) | HarnessEvaluationGate |
-| 프로덕션 실시간 모니터링 | OTEL Phoenix (`setup_otel` + `agent-eval monitor`) | Group G 운영관측성 |
-| 배치 오프라인 평가 | `evaluation_session` 컨텍스트 매니저 | 전체 Group 누적 |
-| 에이전트 A/B 비교 | `QuickEval.compare(other)` | Group A-D 비교 |
-| 드리프트 감지 | `agent-eval trend` | Group A/D 추세 |
+| 프로덕션 실시간 모니터링 | OTEL Phoenix (`setup_otel` + `agent-eval monitor`) | Gate G 운영관측성 |
+| 배치 오프라인 평가 | `evaluation_session` 컨텍스트 매니저 | 전체 Gate 누적 |
+| 에이전트 A/B 비교 | `QuickEval.compare(other)` | Gate A-D 비교 |
+| 드리프트 감지 | `agent-eval trend` | Gate A/D 추세 |
 
 ### CI/CD Harness Gate 예시
 
@@ -671,7 +671,7 @@ my_agent("한국의 수도는?", ground_truth="서울")
 # GitHub Actions 또는 Jenkins에서
 python run_evaluation.py        # 평가 실행 → results/eval.json 생성
 
-# Harness Gate — Group A(TCR), Group D(레이턴시) 기준으로 판정
+# Harness Gate — Gate A(TCR), Gate D(레이턴시) 기준으로 판정
 agent-eval gate results/evaluation_evaluation.json \
     --tcr 85 --accuracy 70 --p95-latency 3.0
 # 기준 미달 시 exit 1 → 파이프라인 중단 → 배포 차단
@@ -733,7 +733,7 @@ print(comparison)
 > - v0.7.8부터 기본 설치(`pip install agent-evaluator`)에 33개 Harness Config · LLM Judge · 대시보드 · OTEL 모니터링이 포함됩니다. 프레임워크별 통합이 필요하면 `[langchain]`, DeepEval/Ragas가 필요하면 `[eval]`을 추가하세요.
 > - **Harness Engineering 3요소**: Tracker(25개 지표 자동 기록) × Config(33개 배포 기준 선언) × Gate(종합 판정)
 > - `QuickEval.gate(tcr=80)` 한 줄로 첫 배포 판정을 경험할 수 있습니다. 기준 미달 시 `sys.exit(1)` → CI/CD 배포 차단.
-> - Group E 보안 지표는 `enable_security_metrics=True`로, Group G LLMJudge는 `enable_llm_judge=True` + API 키로 각각 활성화합니다.
+> - Gate E 보안 지표는 `enable_security_metrics=True`로, Gate G LLMJudge는 `enable_llm_judge=True` + API 키로 각각 활성화합니다.
 > - `setup_otel()`은 반드시 `PerformanceMonitor` 생성 전에 호출하고, endpoint에 경로를 붙이지 마세요: `"http://localhost:6006"`.
 
 ---
@@ -765,7 +765,7 @@ monitor.save_to_file("my_first_eval")
 ```
 
 - **`@agent_eval(monitor, task_type="qa")`**: 함수를 실행할 때마다 실행 시간을 측정하고 `ground_truth`와 응답을 비교해 `TaskResult`를 생성한 뒤 `monitor`에 자동 기록한다.
-- **자동 집계 범위**: `task_type="qa"` 설정 시 Group A(`AccuracyEvaluator`, `TaskCompletionTracker`)와 Group D(`LatencyTracker`, `TokenEconomyTracker`)가 기본 활성화된다.
+- **자동 집계 범위**: `task_type="qa"` 설정 시 Gate A(`AccuracyEvaluator`, `TaskCompletionTracker`)와 Gate D(`LatencyTracker`, `TokenEconomyTracker`)가 기본 활성화된다.
 - **`save_to_file("my_first_eval")`**: `results/my_first_eval_evaluation.json`과 `results/my_first_eval_evaluation.html`을 동시에 생성한다.
 
 ```python
@@ -792,7 +792,7 @@ eval_qe.save()  # JSON + HTML
 ```
 
 - **`@eval_qe.qa`와 `@eval_qe.rag`**: 같은 `QuickEval` 인스턴스에 여러 에이전트를 등록할 수 있으며, 각각 `task_type`이 다른 `TaskResult`로 누적된다.
-- **`@eval_qe.rag`**: `task_type="information_retrieval"`로 설정되며 `hallucination_detection=True`가 자동 활성화되어 Group C 신뢰성 지표가 추가된다.
+- **`@eval_qe.rag`**: `task_type="information_retrieval"`로 설정되며 `hallucination_detection=True`가 자동 활성화되어 Gate C 신뢰성 지표가 추가된다.
 - **`eval_qe.gate(tcr=80, accuracy=70)`**: 누적된 모든 태스크(qa + rag 합산)의 TCR·정확도를 기준으로 Gate를 판정하며, 기준 미달 시 `sys.exit(1)`을 호출한다.
 - **`eval_qe.save()`**: 파일명 없이 호출하면 기본 이름 `quickeval.json` / `quickeval.html`로 저장된다.
 
@@ -821,4 +821,4 @@ QuickEval("results/"): 초기화 완료
 결과 저장: results/quickeval.json + results/quickeval.html
 ```
 
-> **2줄 시작 코드**: `eval = QuickEval("results/")` 한 줄로 Tracker + Config + Gate가 모두 설정됩니다. API 키 없이도 Group A-F의 지표를 측정하며, `ANTHROPIC_API_KEY` 설정 시 Group G LLMJudge가 자동 활성화됩니다.
+> **2줄 시작 코드**: `eval = QuickEval("results/")` 한 줄로 Tracker + Config + Gate가 모두 설정됩니다. API 키 없이도 Gate A-F의 지표를 측정하며, `ANTHROPIC_API_KEY` 설정 시 Gate G LLMJudge가 자동 활성화됩니다.
