@@ -14,7 +14,7 @@
 > 📖 **관련 레퍼런스**
 > - **[Appendix A — 58개 지표 완전 레퍼런스](../Appendix/A_58개지표_레퍼런스.md)**: Group F 지표 입력·출력
 > - **[Appendix A §Part 2 — Config 레퍼런스](../Appendix/A_58개지표_레퍼런스.md)**: Group F Config 파라미터 전체 목록
-> - **[Evaluator_Examples/ch05_group_b.py](../../Evaluator_Examples/ch05_group_b.py)**: AgentCoordinationTracker 실전 예제
+> - **[Evaluator_Examples/ch09_group_f.py](../../Evaluator_Examples/ch09_group_f.py)**: 이 챕터 실전 예제 (AgentCoordinationTracker · ToolSelectionTracker · 4개 Config)
 
 > **독자별 읽기 가이드**  
 > - **QA 관리자**: §9.1(개요) → §9.4(Config 설정) → §9.5(임계값·Gate 판정) 순서로 읽으면 "에이전트 간 협업 기준을 어떻게 선언할지"를 빠르게 파악할 수 있습니다.  
@@ -1149,13 +1149,21 @@ def monitored_orchestrator(question: str, ground_truth: str = "") -> str:
 
 ## 9.9 실전 예제 파일
 
-| 예제 파일 | 관련 내용 |
-|---------|---------|
-| [`Evaluator_Examples/ch03_harness_basics.py`](../../Evaluator_Examples/ch03_harness_basics.py) | 섹션 6: Group F Multi-Agent Coordination — 4개 Config 실전 예제 |
-| [`Evaluator_Examples/ch09_group_f.py`](../../Evaluator_Examples/ch09_group_f.py) | 섹션 6: AgentCoordinationTracker·ToolSelectionTracker 실전 예제 |
-| [`Evaluator_Examples/ch04_group_a.py`](../../Evaluator_Examples/ch04_group_a.py) | 시나리오 13+14+15: Gate F FAIL — ConsensusConfig·PropagationConfig·AgentRoleConfig·ConflictResolutionConfig 위반 |
+**기본 예제**: [`Evaluator_Examples/ch09_group_f.py`](../../Evaluator_Examples/ch09_group_f.py)
 
-**핵심 코드 (출처: `Evaluator_Examples/ch03_harness_basics.py`, 섹션 6 — Group F Multi-Agent Coordination)**
+| 섹션 | 내용 |
+|------|------|
+| 섹션 6 | ConsensusConfig · PropagationConfig · AgentRoleConfig · ConflictResolutionConfig |
+| Tracker | AgentCoordinationTracker · ToolSelectionTracker 실전 예제 |
+| 역케이스 | Gate F FAIL — 합의 실패·역할 위반 케이스 |
+
+```bash
+python Evaluator_Examples/ch09_group_f.py    # Group F 전체 시연
+```
+
+> **관련 챕터 예제**: Gate F를 포함한 전체 Harness 흐름은 [Chapter 3 — `ch03_harness_basics.py`](Chapter_03_Harness_Engineering_기초.md)에서, Gate F FAIL 케이스(시나리오 13–15)는 [Chapter 4 — `ch04_group_a.py`](Chapter_04_GroupA_목표달성.md)에서 확인한다.
+
+**핵심 코드**
 
 ```python
 # 출처: Evaluator_Examples/ch09_group_f.py, 섹션 6 — Group F Multi-Agent Coordination
@@ -1229,12 +1237,12 @@ python Evaluator_Examples/ch03_harness_basics.py           # Group F 포함 전�
 python Evaluator_Examples/ch05_group_b.py  # AgentCoordinationTracker 예제
 ```
 
-**프레임워크 어댑터 — 실제 멀티에이전트 프레임워크 메타데이터 자동 추출 (출처: `Evaluator_Examples/ch13_frameworks.py`)**
+**프레임워크 어댑터 — 실제 멀티에이전트 프레임워크 메타데이터 자동 추출**
 
 `framework=` 파라미터를 선언하면 CrewAI·AutoGen 응답 객체에서 `agent_interactions`·`tasks_output`을 자동 추출해 Group F 지표에 반영한다.
 
 ```python
-# 출처: Evaluator_Examples/ch13_frameworks.py, 섹션 3 — CrewAI 멀티에이전트 어댑터
+# 출처: Evaluator_Examples/ch09_group_f.py, 섹션 3 — CrewAI 멀티에이전트 어댑터
 from types import SimpleNamespace
 from agent_evaluator import PerformanceMonitor
 from agent_evaluator.decorators import agent_eval
@@ -1272,7 +1280,7 @@ crewai_agent("AI 산업 동향 보고서를 작성해줘", ground_truth="보고�
 ```
 
 ```python
-# 출처: Evaluator_Examples/ch13_frameworks.py, 섹션 5 — 크로스 프레임워크 파이프라인
+# 출처: Evaluator_Examples/ch09_group_f.py, 섹션 5 — 크로스 프레임워크 파이프라인
 # LangGraph(라우팅) → LangChain(검색) → CrewAI(생성) 3단계 핸드오프 평가
 from types import SimpleNamespace
 
@@ -1302,7 +1310,7 @@ generation_stage("경제 위기 예측 리포트", ground_truth="리포트")
 ```
 
 ---
-**FAIL 케이스 (출처: `Evaluator_Examples/ch04_group_a.py`)**
+**FAIL 케이스**
 
 시나리오 13: `ConsensusConfig` — 합의 점수 0.08 (임계값 0.8 대비 심각한 미달)
 
@@ -1398,12 +1406,12 @@ role_violating_agent("데이터를 저장해줘", ground_truth="저장 완료")
 python Evaluator_Examples/ch04_group_a.py   # 시나리오 13+14+15: Gate F FAIL 케이스
 ```
 
-**Gate F 이상 탐지 — 운영 관측성 연동 (출처: `Evaluator_Examples/ch10_group_g.py`)**
+**Gate F 이상 탐지 — 운영 관측성 연동**
 
 `AnomalyDetector`는 Gate F 점수 급락(합의율 붕괴·역할 위반 급증)을 기준선 대비 드리프트로 탐지한다. `CostTracker`는 다중 에이전트 호출 비용이 예산을 초과하면 자동으로 샘플링 비율을 낮춘다.
 
 ```python
-# 출처: Evaluator_Examples/ch10_group_g.py, 섹션 추가A·추가B — 이상 탐지 + 비용 추적
+# 출처: Evaluator_Examples/ch09_group_f.py, 섹션 추가A·추가B — 이상 탐지 + 비용 추적
 from agent_evaluator import (
     PerformanceMonitor, create_taskresult,
     AnomalyDetector, CostTracker, AdaptivePolicy,

@@ -33,10 +33,10 @@ from agent_evaluator.decorators import agent_eval
 
 # Harness Gate 설정 — @agent_eval 파라미터로 전달
 @agent_eval(monitor, task_type="qa",
-    instruction=InstructionConfig(required_keywords=["서울"], strict=True),  # Gate A
-    loop_detection=LoopDetectionConfig(max_loop_count=3),                    # Gate B
-    sla=SLAConfig(max_response_time=5.0, p95_threshold=3.0),                # Gate D
-    explainability=ExplainabilityConfig(min_reasoning_steps=2),             # Gate G
+    instructions=InstructionConfig(required_keywords=["서울"], fail_on_violation=True),   # Gate A
+    loop_detection=LoopDetectionConfig(consecutive_repeat_threshold=3),                   # Gate B
+    sla=SLAConfig(p95_ms=3000),                                                           # Gate D
+    explainability=ExplainabilityConfig(require_reasoning=True, min_reasoning_length=30), # Gate G
 )
 def my_agent(question: str, ground_truth: str = "") -> str: ...
 # → 대시보드 Harness Gate 탭에서 A/B/D/G Gate 통과 여부 확인
@@ -119,16 +119,22 @@ def my_agent(question: str, ground_truth: str = "") -> str: ...
 | 파라미터 | 타입 | 기본값 | 설명 |
 |----------|------|--------|------|
 | `required_keywords` | `list[str]` | `[]` | 응답에 반드시 포함되어야 하는 키워드 |
-| `forbidden_keywords` | `list[str]` | `[]` | 응답에 포함되면 안 되는 키워드 |
-| `strict` | `bool` | `False` | True이면 required_keywords 중 하나라도 없으면 실패 |
-| `min_instruction_score` | `float` | `0.7` | 지시 이행률 합격 하한 |
+| `forbidden_phrases` | `list[str]` | `[]` | 응답에 포함되면 안 되는 문구 |
+| `expected_format` | `str\|None` | `None` | 기대 응답 형식 (`"json"`, `"markdown"`, `"yaml"`, `"plain"`) |
+| `required_sections` | `list[str]` | `[]` | 응답에 반드시 포함되어야 하는 섹션 제목 |
+| `max_chars` | `int\|None` | `None` | 최대 허용 문자 수 |
+| `min_chars` | `int\|None` | `None` | 최소 필요 문자 수 |
+| `expected_language` | `str\|None` | `None` | 기대 언어 코드 (예: `"ko"`, `"en"`) |
+| `fail_on_violation` | `bool` | `False` | True이면 위반 시 success=False로 처리 |
+| `violation_weight` | `float` | `0.1` | 위반당 감점 가중치 |
+
+> 데코레이터 파라미터명: `instructions=InstructionConfig(...)` (복수형)
 
 ```python
-instruction=InstructionConfig(
+instructions=InstructionConfig(
     required_keywords=["서울", "수도"],
-    forbidden_keywords=["모르겠습니다"],
-    strict=True,
-    min_instruction_score=0.8,
+    forbidden_phrases=["모르겠습니다"],
+    fail_on_violation=True,
 )
 ```
 
@@ -138,9 +144,12 @@ instruction=InstructionConfig(
 
 | 파라미터 | 타입 | 기본값 | 설명 |
 |----------|------|--------|------|
-| `min_alignment_score` | `float` | `0.7` | 목표 정렬 점수 합격 하한 |
-| `partial_credit` | `bool` | `True` | 부분 달성에 점수 부여 |
-| `goal_keywords` | `list[str]` | `[]` | 목표 달성 판단 기준 키워드 |
+| `use_keyword_overlap` | `bool` | `True` | 질문 키워드 ↔ 도구명 오버랩 계산 |
+| `goal_tool_map` | `dict[str, list[str]]` | `{}` | 목표 키워드 → 도구 목록 매핑 |
+| `alignment_threshold` | `float` | `0.6` | 경고 발생 정렬 임계값 (0.0–1.0) |
+| `use_llm_scoring` | `bool` | `False` | LLM-as-Judge 정렬 점수 (opt-in) |
+| `llm_blend_weight` | `float` | `0.5` | LLM judge 블렌딩 비중 (0.0=rule only, 1.0=LLM only) |
+| `ignore_no_tool_tasks` | `bool` | `True` | 도구 호출 없는 태스크 무시 |
 
 #### `PlanConfig` — 계획 일관성 · 단계 완주율
 
@@ -148,9 +157,18 @@ instruction=InstructionConfig(
 
 | 파라미터 | 타입 | 기본값 | 설명 |
 |----------|------|--------|------|
-| `required_steps` | `list[str]` | `[]` | 반드시 실행되어야 하는 단계 이름 |
-| `min_step_completion` | `float` | `0.8` | 단계 완주율 합격 하한 |
-| `allow_reordering` | `bool` | `True` | 단계 순서 변경 허용 여부 |
+| `available_tools` | `list[str]` | `[]` | 실행 가능한 도구 목록 (단계 실행 가능성 검증에 사용) |
+| `check_goal_coverage` | `bool` | `True` | 목표 키워드가 계획 단계에 포함되는지 확인 |
+| `check_step_ordering` | `bool` | `True` | 단계 순서 논리성 확인 |
+| `check_executability` | `bool` | `True` | 각 단계가 사용 가능한 도구로 실행 가능한지 확인 |
+| `min_steps` | `int` | `2` | 최소 계획 단계 수 |
+| `max_steps` | `int` | `20` | 최대 계획 단계 수 |
+| `use_llm_scoring` | `bool` | `False` | LLM-as-Judge 계획 품질 채점 (opt-in) |
+| `llm_blend_weight` | `float` | `0.5` | LLM judge 블렌딩 비중 |
+| `plan_field` | `str` | `"plan"` | 응답에서 플랜 추출할 JSON 필드명 |
+| `steps_field` | `str` | `"steps"` | 플랜 내 단계 필드명 |
+
+> 데코레이터 파라미터명: `plan_tracking=PlanConfig(...)` (`plan=`이 아님)
 
 #### `SubtaskConfig` — 하위 태스크 분해 · 완료율
 
@@ -159,7 +177,12 @@ instruction=InstructionConfig(
 | 파라미터 | 타입 | 기본값 | 설명 |
 |----------|------|--------|------|
 | `expected_subtasks` | `list[str]` | `[]` | 예상 하위 태스크 목록 |
-| `min_subtask_completion` | `float` | `0.8` | 하위 태스크 완료율 하한 |
+| `completion_markers` | `list[str]` | `["done","completed","완료",...]` | 완료 판단 마커 문자열 |
+| `min_completion_rate` | `float` | `0.8` | 하위 태스크 완료율 하한 |
+| `check_ordering` | `bool` | `False` | 하위 태스크 순서 검증 |
+| `auto_extract` | `bool` | `False` | 응답에서 완료된 하위 태스크 자동 추출 |
+
+> 데코레이터 파라미터명: `subtask_tracking=SubtaskConfig(...)` (`subtask=`이 아님)
 
 #### `ContextRetentionConfig` — 대화 컨텍스트 유지율
 
@@ -167,8 +190,12 @@ instruction=InstructionConfig(
 
 | 파라미터 | 타입 | 기본값 | 설명 |
 |----------|------|--------|------|
-| `min_retention_score` | `float` | `0.7` | 컨텍스트 유지율 합격 하한 |
-| `context_window_turns` | `int` | `5` | 기억해야 하는 이전 턴 수 |
+| `key_entities` | `list[str]` | `[]` | 보존 여부를 검증할 핵심 엔티티 목록 |
+| `context_arg` | `str` | `"context"` | 컨텍스트 인자 이름 |
+| `retention_threshold` | `float` | `0.7` | 엔티티 보존율 합격 하한 |
+| `check_original_goal` | `bool` | `True` | 원래 목표 보존 여부 검증 |
+| `entity_weight` | `float` | `0.6` | 엔티티 보존 가중치 |
+| `goal_weight` | `float` | `0.4` | 목표 보존 가중치 |
 
 #### `KnowledgeRetentionConfig` — 지식 보존 · 활용 점수
 
@@ -176,8 +203,11 @@ instruction=InstructionConfig(
 
 | 파라미터 | 타입 | 기본값 | 설명 |
 |----------|------|--------|------|
-| `min_knowledge_score` | `float` | `0.7` | 지식 보존 점수 하한 |
-| `knowledge_items` | `list[str]` | `[]` | 보존 여부를 검증할 지식 항목 |
+| `facts_to_retain` | `list[str]` | `[]` | 보존 여부를 검증할 사실/지식 항목 |
+| `seed_turns` | `int` | `2` | 지식이 주입된 초기 턴 수 |
+| `check_from_turn` | `int` | `3` | 검증 시작 턴 번호 |
+| `retention_threshold` | `float` | `0.6` | 지식 보존율 합격 하한 |
+| `allow_implicit_retention` | `bool` | `True` | 암묵적 보존(패러프레이즈 등) 인정 |
 
 ---
 
@@ -199,60 +229,78 @@ instruction=InstructionConfig(
 
 #### `LoopDetectionConfig` — 반복 루프 탐지
 
-동일한 행동 시퀀스가 반복되는 무한 루프를 탐지합니다.
+동일한 도구 호출·응답이 반복되는 루프 패턴을 탐지합니다.
 
 | 파라미터 | 타입 | 기본값 | 설명 |
 |----------|------|--------|------|
-| `max_loop_count` | `int` | `3` | 허용 최대 반복 횟수 |
-| `loop_threshold` | `float` | `0.85` | 유사도 기반 루프 판단 임계값 |
-| `window_size` | `int` | `5` | 루프 탐지 슬라이딩 윈도우 크기 |
+| `consecutive_repeat_threshold` | `int` | `3` | N회 연속 동일 도구 호출 시 루프 감지 |
+| `window_size` | `int` | `5` | 슬라이딩 윈도우 크기 |
+| `duplicate_in_window_threshold` | `int` | `2` | 윈도우 내 중복 도구 호출 허용 횟수 |
+| `check_response_loop` | `bool` | `False` | 응답 텍스트 루프 여부 추가 검사 |
+| `response_similarity_threshold` | `float` | `0.95` | 응답 유사도 임계값 (`check_response_loop=True` 시) |
+| `on_loop_detected` | `str` | `"record"` | 루프 감지 시 동작: `"record"` / `"warn"` / `"fail"` |
 
 ```python
 loop_detection=LoopDetectionConfig(
-    max_loop_count=3,
-    loop_threshold=0.85,
+    consecutive_repeat_threshold=3,
+    window_size=5,
 )
 ```
 
-#### `ScopeConfig` — 범위 일탈 감지 · allowed_actions
+#### `ScopeConfig` — 범위 일탈 감지 · allowed_tools
 
-에이전트가 허용된 범위를 벗어난 행동을 시도하는지 탐지합니다.
+에이전트가 허용된 도구 범위를 벗어난 행동을 시도하는지 탐지합니다.
 
 | 파라미터 | 타입 | 기본값 | 설명 |
 |----------|------|--------|------|
-| `allowed_actions` | `list[str]` | `[]` | 허용된 행동 목록 |
-| `forbidden_patterns` | `list[str]` | `[]` | 금지된 행동 패턴 |
-| `max_scope_violations` | `int` | `0` | 허용 범위 이탈 횟수 (0 = 이탈 불허) |
+| `allowed_tools` | `List[str]` | `[]` | 허용된 도구 목록 |
+| `forbidden_tools` | `List[str]` | `[]` | 금지된 도구 목록 |
+| `max_tool_calls` | `Optional[int]` | `None` | 태스크당 최대 도구 호출 횟수 |
+| `max_unique_tools` | `Optional[int]` | `None` | 태스크당 최대 고유 도구 종류 수 |
+| `fail_on_violation` | `bool` | `False` | 위반 시 task 실패 처리 |
+
+> 데코레이터 파라미터명: `scope=ScopeConfig(...)`
 
 #### `ToolParameterSafetyConfig` — 도구 파라미터 안전성 · 금지 패턴
 
-도구 호출 시 전달되는 파라미터가 안전한지 검증합니다.
+도구 호출 시 전달되는 파라미터에 위험 패턴·금지 키·스키마 위반이 있는지 검사합니다.
 
 | 파라미터 | 타입 | 기본값 | 설명 |
 |----------|------|--------|------|
-| `forbidden_param_patterns` | `list[str]` | `[]` | 금지된 파라미터 패턴 (정규식) |
-| `required_param_validation` | `bool` | `True` | 필수 파라미터 존재 검증 |
-| `max_param_violations` | `int` | `0` | 허용 파라미터 위반 횟수 |
+| `tool_schemas` | `Dict[str, Dict]` | `{}` | 도구별 파라미터 스키마 (위반 검사 기준) |
+| `dangerous_patterns` | `List[str]` | `[r"\.\./"...]` | 위험 패턴 정규식 목록 (기본 7개: `../`, `&&`, `\|\|` 등) |
+| `forbidden_argument_keys` | `Dict[str, List[str]]` | `{}` | 도구명 → 금지 인자 키 목록 매핑 |
+| `max_argument_length` | `int` | `2000` | 인자 값 최대 허용 길이 |
+| `fail_on_dangerous` | `bool` | `False` | 위험 패턴 탐지 시 task 실패 처리 |
+
+> 데코레이터 파라미터명: `tool_parameter_safety=ToolParameterSafetyConfig(...)`
 
 #### `ContextWindowConfig` — 컨텍스트 창 활용 효율
 
-모델 컨텍스트 창의 활용 효율을 측정합니다.
+모델 컨텍스트 창의 포화도·반복 패턴·정보 밀도를 측정합니다.
 
 | 파라미터 | 타입 | 기본값 | 설명 |
 |----------|------|--------|------|
-| `max_context_tokens` | `int` | `128000` | 최대 허용 컨텍스트 토큰 |
-| `min_efficiency_ratio` | `float` | `0.3` | 최소 컨텍스트 활용 효율 |
-| `warn_at_ratio` | `float` | `0.8` | 경고 발생 임계값 (80% 이상 사용 시) |
+| `window_size_tokens` | `int` | `128000` | 컨텍스트 창 최대 토큰 수 |
+| `warn_at_pct` | `float` | `0.7` | 경고 발생 사용률 임계값 (70%) |
+| `saturated_at_pct` | `float` | `0.9` | 포화 판단 사용률 임계값 (90%) |
+| `repetition_threshold` | `int` | `3` | 반복 패턴 탐지 임계값 |
+| `min_information_density` | `float` | `0.3` | 최소 정보 밀도 (이하면 경고) |
+
+> 데코레이터 파라미터명: `context_window=ContextWindowConfig(...)`
 
 #### `StateConsistencyConfig` — 실행 전후 상태 일관성 · unchanged_keys
 
-에이전트 실행 전후 상태가 예상대로 유지되는지 검증합니다.
+에이전트 실행 전후 상태가 예상대로 변경(또는 유지)되는지 검증합니다.
 
 | 파라미터 | 타입 | 기본값 | 설명 |
 |----------|------|--------|------|
-| `unchanged_keys` | `list[str]` | `[]` | 변경되면 안 되는 상태 키 목록 |
-| `required_change_keys` | `list[str]` | `[]` | 반드시 변경되어야 하는 상태 키 |
-| `min_consistency_score` | `float` | `0.9` | 상태 일관성 점수 하한 |
+| `state_fn` | `Optional[Callable]` | `None` | 실행 전후 상태 딕셔너리를 반환하는 함수 |
+| `expected_changes` | `Dict[str, Any]` | `{}` | 기대 변경 키 → 검증 람다 매핑 |
+| `unchanged_keys` | `List[str]` | `[]` | 변경되면 안 되는 상태 키 목록 |
+| `fail_on_unexpected_change` | `bool` | `False` | 예상치 못한 상태 변경 시 task 실패 처리 |
+
+> 데코레이터 파라미터명: `state_consistency=StateConsistencyConfig(...)`
 
 #### `DeadlockConfig` — 교착 탐지 · circular delegation · starvation
 
@@ -260,10 +308,14 @@ loop_detection=LoopDetectionConfig(
 
 | 파라미터 | 타입 | 기본값 | 설명 |
 |----------|------|--------|------|
-| `max_wait_time` | `float` | `30.0` | 교착 판단 최대 대기 시간(초) |
-| `detect_circular_delegation` | `bool` | `True` | 순환 위임 탐지 활성화 |
-| `detect_starvation` | `bool` | `True` | 자원 기아 탐지 활성화 |
-| `max_delegation_depth` | `int` | `5` | 최대 위임 깊이 |
+| `check_circular_delegation` | `bool` | `True` | 순환 위임 탐지 활성화 |
+| `check_starvation` | `bool` | `True` | 자원 기아(starvation) 탐지 활성화 |
+| `starvation_threshold` | `int` | `3` | 기아 판단 연속 대기 임계값 |
+| `check_livelock` | `bool` | `False` | 라이브락 탐지 활성화 |
+| `livelock_window` | `int` | `6` | 라이브락 탐지 슬라이딩 윈도우 크기 |
+| `max_delegation_depth` | `int` | `10` | 최대 위임 깊이 |
+
+> 데코레이터 파라미터명: `deadlock=DeadlockConfig(...)`
 
 ---
 
@@ -291,55 +343,74 @@ loop_detection=LoopDetectionConfig(
 
 | 파라미터 | 타입 | 기본값 | 설명 |
 |----------|------|--------|------|
-| `min_consistency_score` | `float` | `0.9` | 반복 실행 일관성 점수 하한 |
-| `num_repetitions` | `int` | `3` | 검증을 위한 반복 실행 횟수 |
-| `similarity_threshold` | `float` | `0.85` | 응답 유사도 일관성 판단 임계값 |
+| `runs` | `int` | `3` | 동일 입력 반복 실행 횟수 |
+| `similarity_measure` | `str` | `"token_f1"` | 유사도 측정 방식: `"token_f1"` / `"jaccard"` / `"exact"` |
+| `reproducibility_threshold` | `float` | `0.85` | 재현성 합격 임계값 |
+| `fail_on_low_reproducibility` | `bool` | `False` | 임계값 미달 시 task 실패 처리 |
+| `skip_side_effects` | `bool` | `False` | 부수효과 있는 함수 건너뜀 |
+
+> 데코레이터 파라미터명: `reproducibility=ReproducibilityConfig(...)`
 
 ```python
 reproducibility=ReproducibilityConfig(
-    min_consistency_score=0.9,
-    num_repetitions=3,
+    runs=3,
+    similarity_measure="token_f1",
+    reproducibility_threshold=0.9,
 )
 ```
 
 #### `FaultToleranceConfig` — 오류 후 복구율 · 정상 완료 비율
 
-오류 발생 후 에이전트가 정상적으로 복구하는 능력을 측정합니다.
+오류 발생 후 에이전트가 폴백 도구를 사용하여 복구하는 능력을 측정합니다.
 
 | 파라미터 | 타입 | 기본값 | 설명 |
 |----------|------|--------|------|
-| `min_recovery_rate` | `float` | `0.8` | 오류 후 복구율 합격 하한 |
-| `max_failure_rate` | `float` | `0.1` | 허용 최대 실패율 |
-| `recovery_timeout` | `float` | `10.0` | 복구 시간 초과 기준(초) |
+| `check_fallback_attempts` | `bool` | `True` | 실패 후 폴백 도구 사용 여부 추적 |
+| `partial_success_threshold` | `float` | `0.5` | 부분 성공 인정 임계값 |
+| `score_recovery_quality` | `bool` | `True` | 폴백 복구 품질 채점 여부 |
+| `expected_fallback_tools` | `Dict[str, List[str]]` | `{}` | 도구명 → 폴백 도구 목록 매핑 |
+
+> 데코레이터 파라미터명: `fault_tolerance=FaultToleranceConfig(...)`
 
 #### `GracefulDegradationConfig` — 품질 하한 · partial_result_markers
 
-완전한 실패보다 부분 결과 반환이 나은 경우, 최소 품질 하한을 보장합니다.
+장애/저하 상황에서도 최소 품질 하한을 보장하는지 측정합니다.
 
 | 파라미터 | 타입 | 기본값 | 설명 |
 |----------|------|--------|------|
-| `min_quality_floor` | `float` | `0.5` | 허용 최소 품질 점수 (이 이하면 실패) |
-| `partial_result_markers` | `list[str]` | `[]` | 부분 결과임을 나타내는 마커 문자열 |
-| `accept_partial_results` | `bool` | `True` | 부분 결과 허용 여부 |
+| `partial_result_markers` | `List[str]` | `["partial","incomplete",...]` | 부분 결과 마커 문자열 목록 (기본 6개) |
+| `quality_floor` | `float` | `0.3` | 허용 최소 품질 점수 하한 |
+| `detect_timeout_fallback` | `bool` | `True` | 타임아웃 폴백 탐지 여부 |
+| `empty_response_penalty` | `float` | `1.0` | 빈 응답 페널티 |
+| `check_error_acknowledgment` | `bool` | `True` | 오류 인정 표현 검사 여부 |
+
+> 데코레이터 파라미터명: `graceful_degradation=GracefulDegradationConfig(...)`
 
 #### `RetryConsistencyConfig` — 재시도 간 응답 일관성
 
-재시도할 때마다 응답이 일관되게 변화하는지 (또는 안정적으로 수렴하는지) 측정합니다.
+재시도 횟수와 성공 여부를 기반으로 재시도 효율성과 개선 여부를 측정합니다.
 
 | 파라미터 | 타입 | 기본값 | 설명 |
 |----------|------|--------|------|
-| `min_retry_consistency` | `float` | `0.7` | 재시도 간 일관성 점수 하한 |
-| `convergence_threshold` | `float` | `0.9` | 수렴 판단 임계값 |
+| `group_by_task_prefix` | `bool` | `True` | 태스크 접두사 기준 그룹화 여부 |
+| `improvement_threshold` | `float` | `0.1` | 재시도 개선 최소 임계값 |
+| `penalize_degradation` | `bool` | `True` | 재시도 후 성능 저하 시 감점 |
+| `min_retry_count` | `int` | `2` | 일관성 측정에 필요한 최소 재시도 횟수 |
+
+> 데코레이터 파라미터명: `retry_consistency=RetryConsistencyConfig(...)`
 
 #### `IdempotencyConfig` — 멱등성 검증 · 중복 실행 안전성
 
-동일한 태스크를 여러 번 실행해도 부작용이 없는지 검증합니다.
+도구 호출이 반복 실행 시 부작용을 발생시키는지 평가합니다.
 
 | 파라미터 | 타입 | 기본값 | 설명 |
 |----------|------|--------|------|
-| `check_idempotency` | `bool` | `True` | 멱등성 검증 활성화 |
-| `idempotency_keys` | `list[str]` | `[]` | 멱등성 기준 키 목록 |
-| `max_side_effects` | `int` | `0` | 허용 부작용 횟수 (0 = 완전 멱등) |
+| `non_idempotent_patterns` | `List[str]` | `["create","delete","insert",...]` | 비멱등 도구 패턴 목록 (기본 10개) |
+| `duplicate_detection_markers` | `List[str]` | `["already","duplicate",...]` | 중복 감지 응답 마커 목록 |
+| `non_idempotent_penalty` | `float` | `0.2` | 비멱등 도구 사용 시 감점 |
+| `warn_on_non_idempotent` | `bool` | `True` | 비멱등 도구 사용 시 경고 |
+
+> 데코레이터 파라미터명: `idempotency=IdempotencyConfig(...)`
 
 ---
 
@@ -368,29 +439,40 @@ reproducibility=ReproducibilityConfig(
 
 | 파라미터 | 타입 | 기본값 | 설명 |
 |----------|------|--------|------|
-| `max_response_time` | `float` | `10.0` | 최대 허용 응답 시간(초) |
-| `p95_threshold` | `float` | `5.0` | P95 응답시간 합격 기준(초) |
-| `p99_threshold` | `float` | `10.0` | P99 응답시간 합격 기준(초) |
-| `max_sla_violation_rate` | `float` | `0.05` | 허용 최대 SLA 위반율 (5%) |
+| `p95_ms` | `float` | `5000.0` | P95 응답시간 합격 기준(밀리초) |
+| `p99_ms` | `float` | `10000.0` | P99 응답시간 합격 기준(밀리초) |
+| `ttft_ms` | `Optional[float]` | `None` | TTFT 허용 상한(밀리초, None = 제한 없음) |
+| `breach_window` | `int` | `10` | 위반 집계 슬라이딩 윈도우 크기 |
+| `warn_threshold` | `int` | `2` | 경고 발생 위반 횟수 |
+| `fail_threshold` | `int` | `5` | 실패 판정 위반 횟수 |
+| `max_cost_per_task` | `Optional[float]` | `None` | 태스크당 최대 허용 비용($) |
+| `budget_usd` | `Optional[float]` | `None` | 전체 예산 상한($) |
+| `token_limit` | `Optional[int]` | `None` | 태스크당 최대 허용 토큰 수 |
+
+> 데코레이터 파라미터명: `sla=SLAConfig(...)`
 
 ```python
 sla=SLAConfig(
-    max_response_time=5.0,
-    p95_threshold=3.0,
-    p99_threshold=5.0,
-    max_sla_violation_rate=0.02,   # 2% 이하만 허용
+    p95_ms=3000.0,
+    p99_ms=5000.0,
+    warn_threshold=2,
+    fail_threshold=5,
 )
 ```
 
 #### `EfficiencyConfig` — 토큰 효율 · 도구 호출 대비 완료율
 
-입력 대비 출력의 효율성을 측정합니다.
+비용 대비 완료율(ROI)을 측정합니다.
 
 | 파라미터 | 타입 | 기본값 | 설명 |
 |----------|------|--------|------|
-| `min_efficiency_score` | `float` | `0.7` | 효율성 점수 합격 하한 |
-| `max_tokens_per_task` | `int` | `10000` | 태스크당 최대 허용 토큰 수 |
-| `min_completion_per_tool_call` | `float` | `0.5` | 도구 호출 1회당 최소 완료 기여도 |
+| `cost_unit` | `str` | `"tokens"` | 비용 단위: `"tokens"` / `"usd"` / `"time_ms"` |
+| `target_cost_per_completion` | `Optional[float]` | `None` | 태스크당 목표 비용 (None = 제한 없음) |
+| `penalize_failed_tokens` | `bool` | `True` | 실패 태스크의 토큰도 비용에 포함 |
+| `warn_ratio` | `float` | `2.0` | 목표 대비 경고 배율 |
+| `fail_ratio` | `float` | `4.0` | 목표 대비 실패 배율 |
+
+> 데코레이터 파라미터명: `efficiency=EfficiencyConfig(...)`
 
 #### `ResourceBudgetConfig` — 토큰 예산 · 비용 상한
 
@@ -398,10 +480,14 @@ sla=SLAConfig(
 
 | 파라미터 | 타입 | 기본값 | 설명 |
 |----------|------|--------|------|
-| `max_tokens_budget` | `int` | `100000` | 세션당 최대 토큰 예산 |
-| `max_cost_per_task` | `float` | `0.10` | 태스크당 최대 허용 비용($) |
-| `max_cost_per_session` | `float` | `1.00` | 세션당 최대 허용 비용($) |
-| `warn_at_budget_ratio` | `float` | `0.8` | 예산 80% 도달 시 경고 |
+| `max_tokens` | `Optional[int]` | `None` | 태스크당 최대 허용 토큰 수 |
+| `max_cost_usd` | `Optional[float]` | `None` | 태스크당 최대 허용 비용($) |
+| `max_execution_time_ms` | `Optional[float]` | `None` | 태스크당 최대 실행 시간(밀리초) |
+| `warn_at_pct` | `float` | `0.8` | 예산 사용률 경고 임계값 (80%) |
+| `count_failed_tokens` | `bool` | `True` | 실패 태스크 토큰도 예산에 포함 |
+| `rollover` | `bool` | `False` | 미사용 예산 다음 태스크 이월 여부 |
+
+> 데코레이터 파라미터명: `resource_budget=ResourceBudgetConfig(...)`
 
 #### `TTFTVariabilityConfig`† — TTFT 표준편차 · P95/P50 비율
 
@@ -411,8 +497,10 @@ sla=SLAConfig(
 
 | 파라미터 | 타입 | 기본값 | 설명 |
 |----------|------|--------|------|
-| `max_ttft_std` | `float` | `1.0` | TTFT 표준편차 허용 상한(초) |
+| `max_stddev_ms` | `float` | `500.0` | TTFT 표준편차 허용 상한(밀리초) |
 | `max_p95_p50_ratio` | `float` | `3.0` | P95/P50 비율 상한 (변동성 지표) |
+| `min_samples` | `int` | `5` | 변동성 측정에 필요한 최소 샘플 수 |
+| `remove_outliers` | `bool` | `True` | 이상치 제거 후 통계 계산 |
 
 #### `CostPredictabilityConfig`† — task_type별 토큰 CV · 비용 예측 가능성
 
@@ -422,8 +510,10 @@ sla=SLAConfig(
 
 | 파라미터 | 타입 | 기본값 | 설명 |
 |----------|------|--------|------|
-| `max_cost_cv` | `float` | `0.3` | 허용 최대 비용 변동 계수 (30%) |
-| `predictability_window` | `int` | `10` | 예측 가능성 측정 윈도우 크기 |
+| `max_coefficient_of_variation` | `float` | `0.3` | 허용 최대 비용 변동 계수(CV) |
+| `outlier_multiplier` | `float` | `3.0` | 이상치 판단 배율 (IQR 기반) |
+| `min_samples` | `int` | `5` | 측정에 필요한 최소 샘플 수 |
+| `cost_metric` | `str` | `"tokens"` | 비용 지표: `"tokens"` / `"usd"` / `"time_ms"` |
 
 ---
 
@@ -455,38 +545,48 @@ sla=SLAConfig(
 
 | 파라미터 | 타입 | 기본값 | 설명 |
 |----------|------|--------|------|
-| `critical_threshold` | `float` | `0.0` | Critical 위협 허용 횟수 (0 = 1건도 불허) |
-| `high_threshold` | `float` | `0.02` | High 위협 허용 비율 (2%) |
-| `medium_threshold` | `float` | `0.05` | Medium 위협 허용 비율 (5%) |
-| `auto_block_critical` | `bool` | `True` | Critical 탐지 시 자동 배포 차단 |
+| `severity_weights` | `Dict[str, float]` | `{}` | 위협 유형별 CVSS 가중치 매핑 |
+| `warn_score` | `float` | `4.0` | 경고 발생 위협 심각도 점수 하한 |
+| `fail_score` | `float` | `7.0` | 실패 판정 위협 심각도 점수 하한 |
+| `fail_on_critical` | `bool` | `True` | Critical 위협 탐지 시 task 실패 처리 |
+
+> 데코레이터 파라미터명: `threat_severity=ThreatSeverityConfig(...)`
 
 ```python
 threat_severity=ThreatSeverityConfig(
-    critical_threshold=0.0,        # Critical 0건도 불허
-    auto_block_critical=True,
+    fail_score=7.0,
+    fail_on_critical=True,
 )
 ```
 
-#### `ComplianceConfig` — 규정 준수 패턴 · 금지 키워드
+#### `ComplianceConfig` — 규정 준수 패턴 · PII 탐지
 
-산업별 규정 준수(GDPR, HIPAA 등) 요구사항을 검증합니다.
+PII 노출 및 컴플라이언스 프레임워크 위반을 측정합니다.
 
 | 파라미터 | 타입 | 기본값 | 설명 |
 |----------|------|--------|------|
-| `forbidden_keywords` | `list[str]` | `[]` | 규정상 출력 금지 키워드 |
-| `required_disclaimers` | `list[str]` | `[]` | 반드시 포함되어야 하는 면책 조항 |
-| `compliance_standard` | `str` | `"general"` | 적용 규정 (`"gdpr"`, `"hipaa"`, `"general"`) |
-| `min_compliance_score` | `float` | `1.0` | 규정 준수 점수 합격 하한 |
+| `pii_categories` | `List[str]` | `["name","email","phone",...]` | 탐지할 PII 카테고리 목록 (기본 7개) |
+| `compliance_framework` | `str` | `"general"` | 규정 프레임워크: `"gdpr"` / `"hipaa"` / `"general"` |
+| `require_data_minimization` | `bool` | `True` | 데이터 최소화 원칙 준수 검사 |
+| `forbidden_data_patterns` | `List[str]` | `[]` | 출력 금지 데이터 패턴 (정규식) |
+| `check_consent_language` | `bool` | `False` | 동의 언어 포함 여부 검사 |
+| `violation_severity` | `str` | `"high"` | 위반 심각도 분류 |
+
+> 데코레이터 파라미터명: `compliance=ComplianceConfig(...)`
 
 #### `ThreatResponseConfig` — 위협 탐지 후 대응 행동 검증
 
-위협이 탐지되었을 때 에이전트가 올바른 대응 행동을 취하는지 검증합니다.
+보안 위협이 탐지되었을 때 에이전트가 적절히 차단·에스컬레이션·중단하는지 검증합니다.
 
 | 파라미터 | 타입 | 기본값 | 설명 |
 |----------|------|--------|------|
-| `expected_response_actions` | `list[str]` | `[]` | 위협 탐지 시 기대되는 대응 행동 목록 |
-| `max_response_time` | `float` | `5.0` | 위협 대응 최대 허용 시간(초) |
-| `require_incident_log` | `bool` | `True` | 위협 이벤트 로깅 필수 여부 |
+| `isolation_markers` | `List[str]` | `["blocked","rejected",...]` | 격리/차단 응답 마커 목록 |
+| `escalation_markers` | `List[str]` | `["escalate","report",...]` | 에스컬레이션 응답 마커 목록 |
+| `abort_markers` | `List[str]` | `["abort","stop",...]` | 중단/종료 응답 마커 목록 |
+| `score_clean_tasks` | `bool` | `True` | 위협 없는 정상 태스크도 채점 |
+| `no_response_penalty` | `float` | `0.5` | 위협 탐지 후 무응답 시 페널티 |
+
+> 데코레이터 파라미터명: `threat_response=ThreatResponseConfig(...)`
 
 ---
 
@@ -515,26 +615,34 @@ threat_severity=ThreatSeverityConfig(
 
 | 파라미터 | 타입 | 기본값 | 설명 |
 |----------|------|--------|------|
-| `min_consensus_rate` | `float` | `0.8` | 최소 합의율 합격 하한 |
-| `max_dispute_rate` | `float` | `0.1` | 허용 최대 분쟁 발생률 |
-| `consensus_timeout` | `float` | `30.0` | 합의 도달 최대 시간(초) |
+| `consensus_method` | `str` | `"majority"` | 합의 방식: `"majority"` / `"weighted"` / `"unanimity"` |
+| `agent_weights` | `Dict[str, float]` | `{}` | 에이전트별 가중치 (weighted 방식 시 사용) |
+| `similarity_threshold` | `float` | `0.7` | 응답 유사도 합의 판단 임계값 |
+| `select_consensus_response` | `bool` | `False` | 합의된 응답을 최종 결과로 선택 |
+
+> 데코레이터 파라미터명: `consensus=ConsensusConfig(...)` (`@batch_eval`과 함께 사용 시 가장 효과적)
 
 ```python
 consensus=ConsensusConfig(
-    min_consensus_rate=0.85,
-    max_dispute_rate=0.05,
+    consensus_method="weighted",
+    agent_weights={"expert": 3.0},
 )
 ```
 
 #### `PropagationConfig` — 정보 전파 정확도 · 왜곡 감지
 
-에이전트 간 정보 전달 과정에서 왜곡이 발생하는지 측정합니다.
+에이전트 간 정보 전달 과정에서 핵심 사실이 충실히 전파되는지 측정합니다.
 
 | 파라미터 | 타입 | 기본값 | 설명 |
 |----------|------|--------|------|
-| `min_propagation_accuracy` | `float` | `0.9` | 정보 전파 정확도 하한 |
-| `max_distortion_rate` | `float` | `0.05` | 허용 최대 정보 왜곡률 |
-| `propagation_hops` | `int` | `3` | 검증할 전파 경로 홉 수 |
+| `source_agent` | `str` | `""` | 정보 원천 에이전트 이름 |
+| `key_facts` | `List[str]` | `[]` | 전파 여부를 검증할 핵심 사실 목록 |
+| `check_in_response` | `bool` | `True` | 응답 텍스트에서 사실 포함 여부 확인 |
+| `check_in_tool_calls` | `bool` | `False` | 도구 호출 인자에서 사실 포함 여부 확인 |
+| `similarity_threshold` | `float` | `0.7` | 사실 일치 판단 유사도 임계값 |
+| `penalize_distortion` | `bool` | `True` | 왜곡된 정보 전파 시 감점 |
+
+> 데코레이터 파라미터명: `propagation=PropagationConfig(...)`
 
 #### `AgentRoleConfig` — 역할 준수율 · 역할 위반 탐지
 
@@ -542,19 +650,30 @@ consensus=ConsensusConfig(
 
 | 파라미터 | 타입 | 기본값 | 설명 |
 |----------|------|--------|------|
-| `role_definitions` | `dict[str, list[str]]` | `{}` | 에이전트 이름 → 허용 행동 목록 |
-| `min_role_compliance` | `float` | `0.9` | 역할 준수율 합격 하한 |
-| `max_role_violations` | `int` | `0` | 허용 역할 위반 횟수 |
+| `role_name` | `str` | `""` | 평가 대상 에이전트의 역할 이름 |
+| `allowed_tools` | `List[str]` | `[]` | 역할 내 허용 도구 목록 |
+| `forbidden_tools` | `List[str]` | `[]` | 역할 내 금지 도구 목록 |
+| `allowed_action_keywords` | `List[str]` | `[]` | 역할 내 허용 행동 키워드 |
+| `forbidden_action_keywords` | `List[str]` | `[]` | 역할 내 금지 행동 키워드 |
+| `check_tool_role_alignment` | `bool` | `True` | 도구-역할 정렬 검사 |
+| `role_violation_penalty` | `float` | `0.3` | 역할 위반 시 감점 |
+
+> 데코레이터 파라미터명: `agent_role=AgentRoleConfig(...)`
 
 #### `ConflictResolutionConfig` — 충돌 해결 패턴 · 해결 시간
 
-에이전트 간 충돌 발생 시 효율적으로 해결하는지 측정합니다.
+에이전트 간 충돌 감지 및 해결 품질을 측정합니다.
 
 | 파라미터 | 타입 | 기본값 | 설명 |
 |----------|------|--------|------|
-| `max_resolution_time` | `float` | `10.0` | 충돌 해결 최대 시간(초) |
-| `min_resolution_rate` | `float` | `0.9` | 충돌 해결 성공률 하한 |
-| `resolution_strategies` | `list[str]` | `["vote", "escalate"]` | 허용 충돌 해결 전략 |
+| `conflict_markers` | `List[str]` | `["disagree","conflict",...]` | 충돌 감지 마커 목록 |
+| `resolution_markers` | `List[str]` | `["resolved","consensus",...]` | 해결 감지 마커 목록 |
+| `check_resolution_quality` | `bool` | `True` | 해결 품질 채점 여부 |
+| `require_explanation` | `bool` | `False` | 해결 과정 설명 필수 여부 |
+| `unresolved_penalty` | `float` | `0.5` | 미해결 충돌 페널티 |
+| `expect_escalation_on_fail` | `bool` | `False` | 해결 실패 시 에스컬레이션 기대 여부 |
+
+> 데코레이터 파라미터명: `conflict_resolution=ConflictResolutionConfig(...)`
 
 ---
 
@@ -583,47 +702,67 @@ consensus=ConsensusConfig(
 
 | 파라미터 | 타입 | 기본값 | 설명 |
 |----------|------|--------|------|
-| `min_reasoning_steps` | `int` | `1` | 최소 설명되어야 하는 추론 단계 수 |
-| `require_step_rationale` | `bool` | `False` | 각 단계에 근거 설명 요구 |
-| `min_explainability_score` | `float` | `0.6` | 설명 가능성 점수 합격 하한 |
+| `require_reasoning` | `bool` | `True` | 추론 마커 포함 필수 여부 |
+| `reasoning_markers` | `List[str]` | `["because","therefore",...]` | 추론 마커 키워드 목록 (기본 7개) |
+| `require_uncertainty_expression` | `bool` | `False` | 불확실성 표현 포함 필수 여부 |
+| `uncertainty_markers` | `List[str]` | `["uncertain","may",...]` | 불확실성 표현 마커 목록 |
+| `require_citations` | `bool` | `False` | 인용 출처 포함 필수 여부 |
+| `citation_markers` | `List[str]` | `["according to","based on",...]` | 인용 마커 목록 |
+| `min_reasoning_length` | `int` | `20` | 추론 텍스트 최소 길이(문자 수) |
+| `check_action_explanation_alignment` | `bool` | `False` | 행동-설명 정렬 검사 여부 |
+
+> 데코레이터 파라미터명: `explainability=ExplainabilityConfig(...)`
 
 ```python
 explainability=ExplainabilityConfig(
-    min_reasoning_steps=2,
-    require_step_rationale=True,
-    min_explainability_score=0.7,
+    require_reasoning=True,
+    min_reasoning_length=50,
+    require_citations=True,
 )
 ```
 
 #### `ObservabilityConfig` — 내부 상태 노출 · 추적 가능성
 
-에이전트 실행 중 내부 상태가 충분히 노출되는지 검증합니다.
+OTEL 스팬 완성도 및 감사 이벤트 SLO를 검증합니다.
 
 | 파라미터 | 타입 | 기본값 | 설명 |
 |----------|------|--------|------|
-| `required_trace_fields` | `list[str]` | `[]` | 추적 레코드에 반드시 포함될 필드 |
-| `min_observability_score` | `float` | `0.7` | 관찰 가능성 점수 합격 하한 |
-| `require_span_context` | `bool` | `False` | OTEL 스팬 컨텍스트 필수 여부 |
+| `required_span_attributes` | `List[str]` | `["task_id","task_type","execution_time"]` | OTEL 스팬에 필수로 포함될 속성 목록 |
+| `check_trace_continuity` | `bool` | `True` | 스팬 연속성(부모-자식 관계) 검사 |
+| `audit_events` | `List[str]` | `[]` | 감사 이벤트 유형 목록 |
+| `min_coverage` | `float` | `0.95` | 추적 커버리지 합격 하한 |
+
+> 데코레이터 파라미터명: `observability=ObservabilityConfig(...)`
 
 #### `ErrorDiagnosisConfig` — 오류 원인 진단 정확도
 
-오류 발생 시 에이전트가 원인을 정확하게 진단하는지 측정합니다.
+실패 응답이 오류를 인정하고, 근본 원인을 제시하며, 대안을 제안하는지 평가합니다.
 
 | 파라미터 | 타입 | 기본값 | 설명 |
 |----------|------|--------|------|
-| `min_diagnosis_accuracy` | `float` | `0.8` | 오류 진단 정확도 합격 하한 |
-| `require_root_cause` | `bool` | `True` | 근본 원인 분석 필수 여부 |
-| `diagnosis_timeout` | `float` | `5.0` | 오류 진단 최대 시간(초) |
+| `failure_acknowledgment_markers` | `List[str]` | `["failed","unable",...]` | 오류 인정 표현 마커 목록 |
+| `root_cause_markers` | `List[str]` | `["because","due to",...]` | 근본 원인 제시 마커 목록 |
+| `suggestion_markers` | `List[str]` | `["try","suggest",...]` | 대안 제안 마커 목록 |
+| `only_on_failure` | `bool` | `True` | 실패 태스크에만 채점 적용 |
+| `acknowledgment_weight` | `float` | `0.3` | 오류 인정 가중치 |
+| `root_cause_weight` | `float` | `0.5` | 근본 원인 분석 가중치 |
+| `suggestion_weight` | `float` | `0.2` | 대안 제안 가중치 |
+
+> 데코레이터 파라미터명: `error_diagnosis=ErrorDiagnosisConfig(...)`
 
 #### `LatencyAttributionConfig` — 지연 원인 분석 · 구간별 기여도
 
-응답 지연의 원인을 구간별로 분석합니다.
+전체 실행 시간 중 도구·모델·네트워크·미귀속 지연의 비율을 분석합니다.
 
 | 파라미터 | 타입 | 기본값 | 설명 |
 |----------|------|--------|------|
-| `track_component_latency` | `bool` | `True` | 컴포넌트별 지연 추적 활성화 |
-| `latency_breakdown_threshold` | `float` | `3.0` | 상세 분석 트리거 지연 임계값(초) |
-| `attribution_components` | `list[str]` | `[]` | 추적할 컴포넌트 이름 목록 |
+| `tool_latency_key` | `str` | `"tool_latencies"` | 태스크 extra에서 도구 지연 읽을 키 |
+| `model_latency_key` | `str` | `"model_latency_ms"` | 태스크 extra에서 모델 지연 읽을 키 |
+| `network_latency_key` | `str` | `"network_latency_ms"` | 태스크 extra에서 네트워크 지연 읽을 키 |
+| `max_tool_time_ratio` | `float` | `0.6` | 도구 지연 최대 비율 (전체 실행 시간 대비) |
+| `max_unattributed_ratio` | `float` | `0.3` | 미귀속 지연 최대 비율 |
+
+> 데코레이터 파라미터명: `latency_attribution=LatencyAttributionConfig(...)`
 
 ---
 
@@ -1303,10 +1442,10 @@ d["hallucination_data"]["overall_rate"]     # float (0–1)
 
 | 파라미터 | Gate | 측정 내용 |
 |---|---|---|
-| `instruction=InstructionConfig(...)` | A | 지시 이행률·이탈 감지 |
+| `instructions=InstructionConfig(...)` | A | 지시 이행률·이탈 감지 |
 | `goal_alignment=GoalAlignmentConfig(...)` | A | 목표 정렬 점수 |
-| `plan=PlanConfig(...)` | A | 계획 일관성·단계 완주율 |
-| `subtask=SubtaskConfig(...)` | A | 하위 태스크 완료율 |
+| `plan_tracking=PlanConfig(...)` | A | 계획 일관성·단계 완주율 |
+| `subtask_tracking=SubtaskConfig(...)` | A | 하위 태스크 완료율 |
 | `context_retention=ContextRetentionConfig(...)` | A | 대화 컨텍스트 유지율 |
 | `knowledge_retention=KnowledgeRetentionConfig(...)` | A | 지식 보존·활용 |
 | `loop_detection=LoopDetectionConfig(...)` | B | 반복 루프 탐지 |

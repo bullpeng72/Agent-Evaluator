@@ -200,7 +200,7 @@ def claude_agent(question: str, ground_truth: str = "") -> str:
 4개 프레임워크(LangChain, LangGraph, CrewAI, AutoGen)를 mock 응답 객체로 한 파일에서 비교하는 완전한 예제는 `ch13_frameworks.py`를 참조한다:
 
 ```python
-# 출처: Evaluator_Examples/ch13_frameworks.py, 섹션 1 — LangChain duck-typing 어댑터
+# 출처: Evaluator_Examples/ch12_decorators.py, 섹션 1 — LangChain duck-typing 어댑터
 from types import SimpleNamespace
 from agent_evaluator.decorators import agent_eval
 
@@ -524,6 +524,68 @@ for sid in sessions:
 
 monitor.save_to_file("chatbot_eval")
 ```
+
+### ConversationSession 직접 사용 — 데코레이터 없이 대화 지표 계산
+
+`@conversation_eval`이 내부에서 관리하는 `ConversationSession`을 직접 인스턴스화하면, 데코레이터 없이도 동일한 8가지 대화 지표를 계산할 수 있다. 독립 스크립트·배치 분석·커스텀 파이프라인에 적합하다.
+
+```python
+# 출처: Evaluator_Examples/ch12_decorators.py, 섹션 추가 — ConversationSession 직접 사용
+from agent_evaluator import ConversationSession, ConversationMetrics
+
+# ── 패턴 1: 직접 생성 + add_turn() ──────────────────────────────────────────
+session = ConversationSession("cs_demo_001")
+session.add_turn(
+    user="안녕하세요. 파이썬 학습을 시작하고 싶어요.",
+    agent="반갑습니다! 파이썬은 배우기 쉬운 언어입니다. 변수와 자료형부터 시작하면 좋습니다.",
+    metadata={"latency": 0.42},
+)
+session.add_turn(
+    user="변수와 자료형이란 정확히 무엇인가요?",
+    agent="변수는 값을 저장하는 공간이고, 자료형은 정수·문자열·리스트 등 값의 종류입니다.",
+    metadata={"latency": 0.38},
+)
+session.add_turn(
+    user="리스트와 딕셔너리의 차이는 무엇인가요?",
+    agent="리스트는 순서가 있는 값의 모음이고, 딕셔너리는 키-값 쌍으로 이루어진 매핑 자료형입니다.",
+    metadata={"latency": 0.45},
+)
+
+metrics: ConversationMetrics = session.compute_metrics()
+print(f"turn_count        : {metrics.turn_count}")
+print(f"overall_score     : {metrics.overall_score:.3f}")    # 4개 지표 평균
+print(f"context_retention : {metrics.context_retention:.3f}")
+print(f"topic_coherence   : {metrics.topic_coherence:.3f}")
+print(f"progressive_depth : {metrics.progressive_depth:.3f}")
+print(f"session_completion: {metrics.session_completion:.3f}")
+print(f"avg_turn_latency  : {metrics.avg_turn_latency:.3f}s")
+print(f"score_stddev      : {metrics.score_stddev:.3f}")     # 지표 간 균형 편차
+
+# ── 패턴 2: PerformanceMonitor 컨텍스트 매니저 ──────────────────────────────
+# with 블록 종료 시 자동으로 compute_metrics() + monitor.record_task() 호출
+with monitor.conversation("cs_demo_002") as conv:
+    conv.turn(user="머신러닝이란 무엇인가요?",
+              agent="머신러닝은 데이터로부터 패턴을 학습하는 AI 기술입니다.")
+    conv.turn(user="지도학습과 비지도학습의 차이는?",
+              agent="지도학습은 정답 레이블이 있는 데이터로, 비지도학습은 레이블 없이 패턴만으로 학습합니다.")
+    conv.turn(user="실무에서 가장 많이 쓰이는 알고리즘은?",
+              agent="분류에는 랜덤포레스트·XGBoost, 회귀에는 선형회귀, 군집에는 K-Means가 널리 쓰입니다.")
+# → 3턴 자동 집계 + monitor에 TaskResult로 기록됨
+```
+
+**`@conversation_eval` vs `ConversationSession` 직접 사용 비교**
+
+| 항목 | `@conversation_eval` | `ConversationSession` 직접 |
+|------|---------------------|--------------------------|
+| session_id 관리 | 파라미터로 자동 추적 | 직접 지정 |
+| 턴 추가 방식 | 함수 호출마다 자동 누적 | `add_turn()` 명시 호출 |
+| flush 시점 | `max_turns` 도달 또는 `flush_conversation()` | `compute_metrics()` 호출 시 |
+| monitor 연동 | 자동 `record_task()` | 컨텍스트 매니저(`with monitor.conversation()`) 사용 |
+| 적합 상황 | 실시간 챗봇·API 서버 | 배치 분석·테스트 스크립트·커스텀 파이프라인 |
+
+- `add_turn()`은 메서드 체이닝을 지원하므로 `session.add_turn(...).add_turn(...)`으로 이어 쓸 수 있다
+- `metadata={"latency": 0.42}` 형태로 턴별 레이턴시를 전달하면 `avg_turn_latency` 지표에 자동 반영된다
+- `score_stddev`는 4개 지표(context_retention·topic_coherence·progressive_depth·session_completion) 간의 표준편차로, 0에 가까울수록 균형 잡힌 대화 성능을 의미한다
 
 ---
 
@@ -1163,11 +1225,11 @@ def medical_agent(question: str, ground_truth: str = "") -> str:
 
 ## 실전 예제
 
-이 챕터에서 다룬 `@agent_eval`, `@batch_eval`, `@conversation_eval`, `QuickEval`, `EvalMetadata`, `eval_context` 전체를 한 파일에서 실행할 수 있다.
+이 챕터에서 다룬 `@agent_eval`, `@batch_eval`, `@conversation_eval`, `QuickEval`, `EvalMetadata`, `eval_context`, `ConversationSession` 직접 사용 전체를 한 파일에서 실행할 수 있다.
 
-**파일**: `Evaluator_Examples/ch12_decorators.py`
+**기본 예제**: `Evaluator_Examples/ch12_decorators.py`
 
-**핵심 코드 (출처: `Evaluator_Examples/ch12_decorators.py`)**
+**핵심 코드**
 
 **섹션 2 — 커스텀 score_fn / completion_fn**
 
@@ -1290,6 +1352,7 @@ agent-eval dashboard results/
 | 섹션 6 | `@batch_eval` — `on_batch_complete` 콜백 · `DataFrame` 반환 · concurrent 배치 |
 | 섹션 7 | `@conversation_eval` — 자동/수동 flush 2패턴 |
 | 섹션 8 | `QuickEval` Facade — `gate()` · `summary()` · `save()` |
+| 섹션 추가 | `ConversationSession` 직접 사용 — `add_turn()` + `compute_metrics()` + `monitor.conversation()` 컨텍스트 매니저 |
 
 **실행 결과 (v0.8.4 기준)**
 
@@ -1323,8 +1386,8 @@ agent-eval dashboard results/
 각 Harness Config는 `@agent_eval` 데코레이터에 **이름 있는 개별 파라미터**로 전달합니다. Config 종류마다 파라미터명이 다릅니다 (예: `instructions=`, `sla=`, `threat_severity=`).
 
 ```python
-# 출처: Evaluator_Examples/ch04_group_a.py, 섹션 Group A·D — 데코레이터 Config 통합 예제
-# 출처: Evaluator_Examples/ch03_harness_basics.py, 섹션 1 — Harness Config 기본
+# 출처: Evaluator_Examples/ch12_decorators.py, 섹션 Group A·D — 데코레이터 Config 통합 예제
+# 출처: Evaluator_Examples/ch12_decorators.py, 섹션 1 — Harness Config 기본
 from agent_evaluator import (
     PerformanceMonitor,
     InstructionConfig, SLAConfig, ThreatSeverityConfig,
@@ -1397,7 +1460,7 @@ def medical_agent(question: str, ground_truth: str = "") -> str:
 측정(데코레이터) + 기준(Config) + 판정(Gate)을 하나의 워크플로우로 연결합니다.
 
 ```python
-# 출처: Evaluator_Examples/ch03_harness_basics.py — PerformanceMonitor + @agent_eval 통합
+# 출처: Evaluator_Examples/ch12_decorators.py — PerformanceMonitor + @agent_eval 통합
 from agent_evaluator import (
     PerformanceMonitor, QuickEval,
     InstructionConfig, SLAConfig, ThreatSeverityConfig,

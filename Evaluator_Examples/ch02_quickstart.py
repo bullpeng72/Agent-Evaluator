@@ -1,10 +1,13 @@
 """
-ch02_quickstart.py — 5분 안에 시작하는 첫 에이전트 평가
-==========================================================
+ch02_quickstart.py — Agent-Evaluator 첫 시작
+==============================================
 Book Chapter 02 — Agent-Evaluator 첫 시작
 
-QuickEval 원스톱 Facade로 에이전트를 3줄로 평가한다.
-평가 결과가 어떻게 생성되고, 어디서 확인하는지 보여준다.
+섹션 1 (§2.3 단계 1~4)      : QuickEval 4단계 — 첫 배포 판정 경험
+섹션 2 (§2.3 Harness Config) : InstructionConfig + SLAConfig + HarnessEvaluationGate
+섹션 3 (§2.3 판정 결과 읽기)  : report.to_dict()로 Gate A–G 상태 파악
+섹션 4 (§2.6 출력 시나리오)  : 터미널 출력 vs 파일 저장 비교
+섹션 5 (§2.7 A/B 비교)       : QuickEval.compare()로 에이전트 버전 비교
 
 의존성:
     pip install agent-evaluator
@@ -13,64 +16,300 @@ QuickEval 원스톱 Facade로 에이전트를 3줄로 평가한다.
     python Evaluator_Examples/ch02_quickstart.py
 
 결과:
-    results/ch02_quickstart.json  (+ .html)
-    → agent-eval dashboard --results results/
+    results/ch02_quickstart.json/.html  — 섹션 1
+    results/ch02_harness.json/.html     — 섹션 2
+    results/ch02_v1.json, ch02_v2.json  — 섹션 5
 """
 
-import random
 from pathlib import Path
 
-from agent_evaluator import QuickEval, setup_otel
+from agent_evaluator import (
+    QuickEval,
+    PerformanceMonitor,
+    HarnessEvaluationGate,
+    InstructionConfig,
+    SLAConfig,
+    create_taskresult,
+    load_env,
+)
+from agent_evaluator.decorators import agent_eval
+
+load_env()
 
 _PROJECT_ROOT = Path(__file__).parent.parent
 _OUTPUT_DIR   = str(_PROJECT_ROOT / "results")
 
-try:
-    import socket
-    with socket.socket() as s:
-        s.settimeout(0.5)
-        if s.connect_ex(("localhost", 6006)) == 0:
-            setup_otel(endpoint="http://localhost:6006", service_name="ch02-quickstart")
-            print("  Phoenix 모니터링 활성화 — http://localhost:6006")
-except Exception:
-    pass
 
-# QuickEval — 원스톱 평가 Facade
-eval = QuickEval(_OUTPUT_DIR)
+# ──────────────────────────────────────────────────────────────────────────────
+# 섹션 1 — §2.3 QuickEval 4단계: 첫 배포 판정 경험
+# ──────────────────────────────────────────────────────────────────────────────
+print("\n=== 섹션 1: QuickEval 4단계 — 첫 배포 판정 (§2.3) ===")
+print("  Tracker(자동 측정) × Config(기준 선언) × Gate(배포 판정) 3요소 체험")
 
-@eval.qa
+# 단계 1 — QuickEval로 측정 시작 (PerformanceMonitor + EvalDecorator 1줄 초기화)
+eval_q = QuickEval(_OUTPUT_DIR)
+
+# 단계 2 — 에이전트 함수에 데코레이터 적용
+#   @eval_q.qa = task_type="qa"로 설정된 @agent_eval 단축형
+#   AccuracyEvaluator(Group A) + LatencyTracker(Group D) 자동 활성
+@eval_q.qa
 def my_agent(question: str, ground_truth: str = "") -> str:
-    """평가 대상 에이전트 (실제 에이전트로 교체하세요)."""
+    """평가 대상 에이전트. 실제 프로젝트에서는 LLM 호출로 교체하세요."""
     answers = {
-        "한국의 수도는?":      "서울입니다.",
-        "파이썬을 만든 사람은?": "귀도 반 로섬입니다.",
-        "지구의 위성은?":       "달입니다.",
-        "물의 화학식은?":       "H₂O입니다.",
-        "1+1은?":              "3입니다.",   # 의도적 오답
+        "한국의 수도는?":        "서울입니다.",
+        "파이썬을 만든 사람은?":  "귀도 반 로섬입니다.",
+        "지구의 위성 이름은?":    "달입니다.",
+        "물의 화학식은?":        "H₂O입니다.",
+        "우주의 나이는?":        "138억 년입니다.",
     }
-    return answers.get(question, "잘 모르겠습니다.")
+    return answers.get(question, "모르겠습니다.")
 
-# 평가 케이스 실행
+# 단계 3 — 평가 실행 (일반 함수 호출과 동일)
 QA_CASES = [
-    ("한국의 수도는?",       "서울"),
-    ("파이썬을 만든 사람은?", "귀도 반 로섬"),
-    ("지구의 위성은?",        "달"),
+    ("한국의 수도는?",        "서울"),
+    ("파이썬을 만든 사람은?",  "귀도 반 로섬"),
+    ("지구의 위성 이름은?",    "달"),
     ("물의 화학식은?",        "H2O"),
-    ("1+1은?",               "2"),
+    ("우주의 나이는?",        "138억 년"),
 ]
 
-print("\n=== Ch02 첫 에이전트 평가 ===")
+print()
 for question, gt in QA_CASES:
-    result = my_agent(question, ground_truth=gt)
-    print(f"  Q: {question:<25s}  응답: {result}")
+    resp = my_agent(question, ground_truth=gt)
+    print(f"  Q: {question:<22s}  →  {resp}")
 
-# 결과 저장 + CI/CD 품질 게이팅
-eval.save("ch02_quickstart")
-print("\n결과 저장 완료: results/ch02_quickstart.json")
-print("확인: agent-eval dashboard --results results/")
-print("\n── CI/CD 품질 게이팅 (TCR ≥ 70%, accuracy ≥ 60%) ──")
+summary = eval_q.summary()
+print(f"\n  TCR: {summary['tcr']:.1f}%  |  Accuracy: {summary['accuracy']:.1f}%"
+      f"  |  p95: {summary.get('p95_latency', 0):.3f}s")
+
+# 단계 4 — 첫 배포 판정 (Gate)
+#   TCR < 80% 또는 Accuracy < 70% → sys.exit(1) → CI/CD 배포 차단
+print("\n  [Gate] eval_q.gate(tcr=80, accuracy=70)")
 try:
-    eval.gate(tcr=70, accuracy=60)
-    print("  ✅ 품질 게이트 통과")
+    eval_q.gate(tcr=80, accuracy=70)
+    print("  ✅ Gate 통과 — 배포 승인")
 except SystemExit:
-    print("  ❌ 품질 게이트 실패 — 임계값 미달")
+    print("  ❌ Gate 실패 — 임계값 미달 → 배포 차단")
+
+eval_q.save("ch02_quickstart")
+print("  저장: results/ch02_quickstart.json + .html")
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# 섹션 2 — §2.3 Harness Config로 배포 기준 세밀화
+# ──────────────────────────────────────────────────────────────────────────────
+print("\n=== 섹션 2: Harness Config — InstructionConfig + SLAConfig (§2.3) ===")
+print("  QuickEval.gate()는 TCR·정확도 단순 임계값")
+print("  HarnessEvaluationGate는 33개 Config 전체를 포함한 정밀 판정")
+
+monitor_h = PerformanceMonitor(output_dir=_OUTPUT_DIR)
+
+# InstructionConfig: 응답에 "완료" 또는 "처리" 키워드가 반드시 포함되어야 함
+# SLAConfig: p95 응답 시간 2초 이하
+instruction_cfg = InstructionConfig(
+    required_keywords=["완료", "처리"],
+    fail_on_violation=True,       # 위반 시 해당 태스크 success=False → TCR 반영
+)
+sla_cfg = SLAConfig(p95_ms=2000)
+
+@agent_eval(monitor_h, task_type="qa",
+            instructions=instruction_cfg,
+            sla=sla_cfg)
+def task_agent(question: str, ground_truth: str = "") -> str:
+    """키워드 준수 에이전트. '완료'/'처리' 포함 여부로 InstructionConfig 검증."""
+    responses = {
+        "파일 삭제해줘":    "파일 삭제 처리 완료되었습니다.",          # ✅ 키워드 포함
+        "보고서 만들어줘":  "보고서 작성 처리 완료되었습니다.",         # ✅ 키워드 포함
+        "메일 보내줘":      "메일 발송 완료했습니다.",                  # ✅ 키워드 포함
+        "데이터 분석해줘":  "분석 결과: 평균 42.5, 분산 8.3입니다.",    # ❌ 키워드 없음 → FAIL
+        "번역해줘":         "번역 결과: Hello, world.",               # ❌ 키워드 없음 → FAIL
+    }
+    return responses.get(question, "요청을 처리 완료했습니다.")
+
+TASK_CASES = [
+    ("파일 삭제해줘",   "삭제 완료"),
+    ("보고서 만들어줘", "작성 완료"),
+    ("메일 보내줘",    "발송 완료"),
+    ("데이터 분석해줘", "분석 완료"),
+    ("번역해줘",       "번역 완료"),
+]
+
+print()
+for question, gt in TASK_CASES:
+    resp = task_agent(question, ground_truth=gt)
+    has_kw = any(k in resp for k in ["완료", "처리"])
+    flag = "✅" if has_kw else "❌ InstructionConfig 위반"
+    print(f"  {flag}  Q: {question:<14s}  →  {resp}")
+
+report_h = monitor_h.generate_report()
+tcr_h = report_h.to_dict().get("accuracy_metrics", {}).get("tcr", {}).get("tcr", 0.0)
+print(f"\n  TCR: {tcr_h:.1f}%  (키워드 위반 2건 → success=False → TCR 하락)")
+
+# HarnessEvaluationGate — 33개 Config 전체 종합 판정
+print("\n  [Gate] HarnessEvaluationGate(report).enforce()")
+gate_h = HarnessEvaluationGate(report_h)
+try:
+    gate_h.enforce()
+    print("  ✅ Gate 통과")
+except SystemExit:
+    print("  ❌ Gate 실패 — InstructionConfig 위반으로 배포 차단")
+
+monitor_h.save_to_file("ch02_harness")
+print("  저장: results/ch02_harness.json + .html")
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# 섹션 3 — §2.3 배포 판정 결과 이해: report.to_dict()
+# ──────────────────────────────────────────────────────────────────────────────
+print("\n=== 섹션 3: 배포 판정 결과 읽기 — report.to_dict() (§2.3) ===")
+print("  report.to_dict()의 키 경로 패턴을 익혀두면 CI 스크립트 작성이 쉬워진다")
+
+d = report_h.to_dict()
+
+# TCR 경로:     d["accuracy_metrics"]["tcr"]["tcr"]
+# p95 경로:     d["efficiency_metrics"]["latency"]["p95"]
+# Gate A–G:    d["extra_metrics"]["harness_groups"]["A"] ~ ["G"]
+
+tcr_v  = d.get("accuracy_metrics", {}).get("tcr", {}).get("tcr", 0.0)
+p95_v  = d.get("efficiency_metrics", {}).get("latency", {}).get("p95", 0.0)
+acc_v  = d.get("summary", {}).get("accuracy", 0.0)
+
+print(f"\n  accuracy_metrics.tcr.tcr         = {tcr_v:.1f}%")
+print(f"  efficiency_metrics.latency.p95   = {p95_v:.3f}s")
+print(f"  summary.accuracy                 = {acc_v:.1f}%")
+
+harness_groups = d.get("extra_metrics", {}).get("harness_groups", {})
+if harness_groups:
+    print("\n  Gate A–G 점수:")
+    for g in ["A", "B", "C", "D", "E", "F", "G"]:
+        gdata = harness_groups.get(g, {})
+        if isinstance(gdata, dict) and gdata.get("score") is not None:
+            score  = gdata["score"]
+            status = gdata.get("status", "n/a").upper()
+            icon   = "✅" if status == "PASS" else ("⚠️ " if status == "WARN" else "❌")
+            print(f"    Gate {g}: {score:.3f}  {icon} {status}")
+else:
+    print("  (Harness Group 데이터 없음 — Config 없이 실행 시 정상)")
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# 섹션 4 — §2.6 출력 시나리오: 터미널 출력 vs 파일 저장
+# ──────────────────────────────────────────────────────────────────────────────
+print("\n=== 섹션 4: 출력 시나리오 — 터미널 vs 파일 (§2.6) ===")
+
+monitor_t = PerformanceMonitor(output_dir=_OUTPUT_DIR)
+
+# 단건 태스크 직접 생성 (create_taskresult는 accuracy_score를 자동 계산)
+result_t = create_taskresult(
+    task_id="s4_001",
+    question="한국의 수도는?",
+    response="서울입니다.",
+    ground_truth="서울",
+    execution_time=0.8,
+    task_type="qa",
+)
+monitor_t.record_task(result_t)
+
+# 시나리오 ① 터미널 출력 — 개발 중 빠른 확인
+report_t = monitor_t.generate_report()
+summary_t = report_t.to_dict().get("summary", {})
+print("\n  시나리오 ① 터미널 출력 — generate_report().to_dict()[\"summary\"]")
+print(f"    task_completion_rate : {summary_t.get('task_completion_rate', 0):.3f}")
+print(f"    accuracy             : {summary_t.get('accuracy', 0):.3f}")
+print(f"    latency_p95          : {summary_t.get('latency_p95', 0):.3f}s")
+
+# 시나리오 ② 파일 저장 (JSON + HTML 동시 생성)
+monitor_t.save_to_file("ch02_s4")
+print("\n  시나리오 ② 파일 저장 — save_to_file('ch02_s4')")
+print("    results/ch02_s4_evaluation.json  — 기계 읽기용 (CI/CD)")
+print("    results/ch02_s4_evaluation.html  — 브라우저 시각화 (Gate A–G 탭)")
+print("    대시보드 실행: agent-eval dashboard results/ --watch")
+
+# 시나리오 ③ OTEL Phoenix (코드 예시 — 실제 실행은 Phoenix 서버 필요)
+print("\n  시나리오 ③ OTEL Phoenix — setup_otel() + agent-eval monitor (§2.6)")
+print("    # 터미널 1: agent-eval monitor  (→ http://localhost:6006)")
+print("    # 터미널 2: setup_otel(endpoint='http://localhost:6006', service_name='my-agent')")
+print("    # → Tracing 탭에서 ae.tcr · ae.accuracy · ae.execution_time 실시간 확인")
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# 섹션 5 — §2.7 QuickEval로 에이전트 A/B 버전 비교
+# ──────────────────────────────────────────────────────────────────────────────
+print("\n=== 섹션 5: A/B 에이전트 비교 — QuickEval (§2.7) ===")
+print("  같은 테스트 케이스로 두 버전을 평가하고 Group A/D 지표 차이를 비교한다")
+
+eval_a = QuickEval(_OUTPUT_DIR)
+eval_b = QuickEval(_OUTPUT_DIR)
+
+# 버전 A — 일부 답변 누락
+@eval_a.qa
+def agent_v1(question: str, ground_truth: str = "") -> str:
+    answers = {
+        "한국의 수도는?":     "서울입니다.",
+        "파이썬 창시자는?":    "",                    # 빈 응답 → 낮은 정확도
+        "지구의 자전 주기는?": "약 1년입니다.",        # 오답 (공전과 혼동)
+        "빛의 속도는?":       "초속 약 30만 km입니다.",
+    }
+    return answers.get(question, "모르겠습니다.")
+
+# 버전 B — 개선된 답변
+@eval_b.qa
+def agent_v2(question: str, ground_truth: str = "") -> str:
+    answers = {
+        "한국의 수도는?":     "서울입니다.",
+        "파이썬 창시자는?":    "귀도 반 로섬입니다.",   # ✅ 개선
+        "지구의 자전 주기는?": "약 24시간입니다.",      # ✅ 개선
+        "빛의 속도는?":       "초속 약 30만 km입니다.",
+    }
+    return answers.get(question, "모르겠습니다.")
+
+AB_CASES = [
+    ("한국의 수도는?",     "서울"),
+    ("파이썬 창시자는?",    "귀도 반 로섬"),
+    ("지구의 자전 주기는?", "약 24시간"),
+    ("빛의 속도는?",       "초속 약 30만 km"),
+]
+
+for q, gt in AB_CASES:
+    agent_v1(q, ground_truth=gt)
+    agent_v2(q, ground_truth=gt)
+
+eval_a.save("ch02_v1")
+eval_b.save("ch02_v2")
+
+s_a = eval_a.summary()
+s_b = eval_b.summary()
+print(f"\n  v1 — TCR: {s_a['tcr']:.1f}%  Accuracy: {s_a['accuracy']:.1f}%")
+print(f"  v2 — TCR: {s_b['tcr']:.1f}%  Accuracy: {s_b['accuracy']:.1f}%")
+
+# compare()는 {'self':..., 'other':..., 'delta':{...}} 반환
+# delta는 self(v1) - other(v2) 이므로 음수 = v2가 더 우수
+delta_tcr = s_b["tcr"] - s_a["tcr"]
+delta_acc = s_b["accuracy"] - s_a["accuracy"]
+try:
+    comparison = eval_a.compare(eval_b)
+    raw_delta = comparison.get("delta", {})
+    print("\n  eval_a.compare(eval_b) — delta (v2 − v1, 양수 = v2 우수):")
+    for k in ["tcr", "accuracy", "p95_latency"]:
+        # compare() delta는 self-other(v1-v2), 부호 반전해서 v2 개선도로 표시
+        raw = raw_delta.get(k, 0.0)
+        val = -raw if isinstance(raw, (int, float)) else 0.0
+        unit = "%" if k in ("tcr", "accuracy") else "s"
+        arrow = "↑ 개선" if val > 0 else ("↓ 악화" if val < 0 else "—")
+        print(f"    {k:<14s}: {val:+.1f}{unit}  {arrow}")
+except (AttributeError, TypeError):
+    print(f"\n  v2 vs v1 — ΔTCR: {delta_tcr:+.1f}%  ΔAccuracy: {delta_acc:+.1f}%")
+
+verdict = "v2 배포 권고" if s_b["accuracy"] > s_a["accuracy"] else "v1 유지 권고"
+print(f"  → 판정: {verdict}")
+
+# ──────────────────────────────────────────────────────────────────────────────
+print("\n── 생성된 결과 파일 ──────────────────────────────────────────────────────")
+print("  results/ch02_quickstart.json/.html  — §2.3 QuickEval 4단계 첫 배포 판정")
+print("  results/ch02_harness.json/.html     — §2.3 Harness Config + Gate 정밀 판정")
+print("  results/ch02_s4_evaluation.*        — §2.6 터미널·파일·Phoenix 시나리오")
+print("  results/ch02_v1.json, ch02_v2.json  — §2.7 A/B 버전 비교")
+print()
+print("── 다음 단계 ─────────────────────────────────────────────────────────────")
+print("  Ch03 → Harness Gate A–G 전체를 한 번에 평가하는 방법")
+print("         HarnessEvaluationGate로 7개 Gate 종합 판정 심화")

@@ -239,9 +239,9 @@ agent_evaluator/
 ├── config.py                # 환경변수 설정 로더 (load_env, get_settings)
 └── __init__.py              # Public API surface
 
-Evaluator_Examples/          # Book 챕터 기반 예제 (17개 파일 — ch01~ch20)
-├── ch01_quickstart.py        # Ch01 — QuickEval 5분 첫 평가
-├── ch02_first_eval.py        # Ch02 — Layer 1 기초 (정확도·할루시네이션·TCR)
+Evaluator_Examples/          # Book 챕터 기반 예제 (19개 파일 — ch01~ch20)
+├── ch01_first_eval.py        # Ch01 — Layer 1 기초 (정확도·할루시네이션·TCR)
+├── ch02_quickstart.py        # Ch02 — QuickEval 5분 첫 평가
 ├── ch03_harness_basics.py    # Ch03 — Harness Gate A–G 7개 개요
 ├── ch04_group_a.py           # Ch04 — Gate A: Goal Achievement (6개 Config)
 ├── ch05_group_b.py           # Ch05 — Gate B: Behavioral Integrity (6개 Config)
@@ -253,10 +253,14 @@ Evaluator_Examples/          # Book 챕터 기반 예제 (17개 파일 — ch01~
 ├── ch11_eval_data.py         # Ch11 — 평가데이터 설계 (GoldenSetBuilder·evaluation_session)
 ├── ch12_decorators.py        # Ch12 — 데코레이터 완전정복 (@agent_eval·@batch_eval·QuickEval·LLMJudge)
 ├── ch13_frameworks.py        # Ch13 — 프레임워크 통합 (LangChain·LangGraph·CrewAI·AutoGen)
+├── ch14_thresholds.py        # Ch14 — 임계값 설정과 품질 기준 수립
+├── ch15_dashboard.py         # Ch15 — 대시보드 시각화 (QuickEval·AnomalyDetector·CostTracker 데이터 생성)
 ├── ch16_alerts.py            # Ch16 — 알림시스템 (StreamingEvaluator·AlertEngine·SimpleTaskAlertRule)
+├── ch17_weekly_review.py     # Ch17 — 주간·월간 품질 리뷰 자동화
 ├── ch18_cicd_gate.py         # Ch18 — CI/CD 품질 게이팅 (Harness 최소 검증·exit 0/1)
 ├── ch19_phoenix.py           # Ch19 — Phoenix OTEL (Tracing·Datasets·Playground·GraphQL + DeepEval·Ragas)
-└── ch20_deployment.py        # Ch20 — 프로덕션 배포전략 (v1 vs v2 Gate 점수 비교)
+├── ch20_deployment.py        # Ch20 — 프로덕션 배포전략 (v1 vs v2 Gate 점수 비교)
+└── ch21_pipeline.py          # Ch21 — 종합 실무파이프라인 (개발→CI→운영→개선 4단계)
 # 구 번호 예제(01~10): Evaluator_Examples/.deprecated/ 에 보존
 
 scripts/

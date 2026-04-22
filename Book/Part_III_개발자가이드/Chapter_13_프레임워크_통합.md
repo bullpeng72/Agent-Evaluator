@@ -544,9 +544,9 @@ pip install "agent-evaluator[full]"
 
 `ch13_frameworks.py`는 LangChain, LangGraph, CrewAI, AutoGen 4개 프레임워크를 하나의 파일에서 비교 평가하고, 크로스 프레임워크 파이프라인까지 실행하는 종합 예제다. 각 프레임워크의 `framework=` 파라미터 사용법과 응답 객체 구조 차이를 직접 확인할 수 있다.
 
-**파일**: `Evaluator_Examples/ch13_frameworks.py`
+**기본 예제**: `Evaluator_Examples/ch13_frameworks.py`
 
-**핵심 코드 (출처: `Evaluator_Examples/ch13_frameworks.py`)**
+**핵심 코드**
 
 **섹션 1 — LangChain 어댑터 (`framework="langchain"`)**
 
@@ -694,12 +694,12 @@ agent-eval dashboard results/
 
 > **핵심**: `framework="crewai"`를 지정해도 `tokens_used`는 0으로 고정된다. CrewAI는 토큰 수를 응답 객체에 노출하지 않기 때문이다. 비용 측정이 필요하면 `EvalMetadata(tokens_used=실제값)`으로 수동 주입한다. 반대로 `framework="langchain"`은 `response.usage.total_tokens`를 자동 추출하므로 별도 처리 없이 TokenEconomyTracker에 정확한 값이 전달된다.
 
-**Phoenix OTEL — 프레임워크별 스팬 시각화 (출처: `Evaluator_Examples/ch19_phoenix.py`)**
+**Phoenix OTEL — 프레임워크별 스팬 시각화**
 
 `setup_otel()` + `framework=` 파라미터를 함께 사용하면 LangChain·CrewAI·AutoGen 각 프레임워크의 tool_calls·agent_interactions가 Phoenix Traces 탭에서 프레임워크별로 구분되어 표시된다.
 
 ```python
-# 출처: Evaluator_Examples/ch19_phoenix.py — 프레임워크 통합 + Phoenix 스팬 전송
+# 출처: Evaluator_Examples/ch13_frameworks.py — 프레임워크 통합 + Phoenix 스팬 전송
 import socket
 from types import SimpleNamespace
 from agent_evaluator import setup_otel, PerformanceMonitor

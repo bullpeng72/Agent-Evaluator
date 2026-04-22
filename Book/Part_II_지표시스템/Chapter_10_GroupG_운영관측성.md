@@ -14,8 +14,8 @@
 > 📖 **관련 레퍼런스**
 > - **[Appendix A — 58개 지표 완전 레퍼런스](../Appendix/A_58개지표_레퍼런스.md)**: Group G Config 입력·출력
 > - **[Appendix A §Part 2 — Config 레퍼런스](../Appendix/A_58개지표_레퍼런스.md)**: Group G Config 파라미터 전체 목록
-> - **[Evaluator_Examples/ch19_phoenix.py](../../Evaluator_Examples/ch19_phoenix.py)**: Phoenix OTEL 관측성 실전 예제
-> - **[Chapter 19 — Phoenix OTEL 모니터링](../Part_V_프로덕션운영/Chapter_19_Phoenix_OTEL_모니터링.md)**: 실시간 관측성 인프라
+> - **[Evaluator_Examples/ch10_group_g.py](../../Evaluator_Examples/ch10_group_g.py)**: 이 챕터 실전 예제 (4개 Config · AnomalyDetector · CostTracker · evaluation_session)
+> - **[Chapter 19 — Phoenix OTEL 모니터링](../Part_V_프로덕션운영/Chapter_19_Phoenix_OTEL_모니터링.md)**: 실시간 관측성 인프라 (Phoenix 연동 심화)
 
 > **독자별 읽기 가이드**  
 > - **QA 관리자**: §10.1(개요) → §10.4(Config 설정) → §10.5(임계값·Gate 판정) 순서로 읽으면 "LLM Judge 채점 기준을 어떻게 설정할지"를 빠르게 파악할 수 있습니다.  
@@ -108,7 +108,7 @@ ObservabilityConfig(
 `ObservabilityConfig`는 `agent-eval monitor`(Arize Phoenix)와 함께 사용할 때 가장 강력하다.
 
 ```python
-# 출처: Evaluator_Examples/ch19_phoenix.py, 섹션 1 — Tracing — 스팬 전송 + Annotations
+# 출처: Evaluator_Examples/ch10_group_g.py, 섹션 1 — Tracing — 스팬 전송 + Annotations
 from agent_evaluator import setup_otel
 
 # OTEL 설정 — Phoenix 서버로 스팬 자동 전송 (setup_otel은 PerformanceMonitor 생성 전에 호출)
@@ -436,7 +436,7 @@ toxicity=3, bias=2  → safety_score = 0.5 (주의 필요)
 ```
 
 ```python
-# 출처: Evaluator_Examples/ch12_decorators.py, 섹션 추가 — LLMJudge 직접 사용
+# 출처: Evaluator_Examples/ch10_group_g.py, 섹션 추가 — LLMJudge 직접 사용
 # LLMJudge 결과 접근
 report = monitor.generate_report()
 judge_summary = report.to_dict().get("llm_judge_summary", {})
@@ -489,13 +489,21 @@ print(f"신뢰성: {judge_summary.get('avg_scores', {}).get('factual_consistency
 
 ## 10.6 실전 예제 파일
 
-| 예제 파일 | 관련 내용 |
-|---------|---------|
-| [`Evaluator_Examples/ch03_harness_basics.py`](../../Evaluator_Examples/ch03_harness_basics.py) | 섹션 7: Group G Observability — 4개 Config + Harness 전체 리포트 |
-| [`Evaluator_Examples/ch19_phoenix.py`](../../Evaluator_Examples/ch19_phoenix.py) | Phoenix OTEL 트레이싱·Playground 스팬 전송 실전 예제 |
-| [`Evaluator_Examples/ch04_group_a.py`](../../Evaluator_Examples/ch04_group_a.py) | 시나리오 5+16+17: Gate G FAIL — ExplainabilityConfig·ObservabilityConfig·ErrorDiagnosisConfig 위반 |
+**기본 예제**: [`Evaluator_Examples/ch10_group_g.py`](../../Evaluator_Examples/ch10_group_g.py)
 
-**핵심 코드 (출처: `Evaluator_Examples/ch03_harness_basics.py`, 섹션 7 — Group G Observability)**
+| 섹션 | 내용 |
+|------|------|
+| 섹션 7 | ExplainabilityConfig · ObservabilityConfig · ErrorDiagnosisConfig · LatencyAttributionConfig |
+| 섹션 추가 | AnomalyDetector (5가지 이상 탐지) · CostTracker + AdaptivePolicy |
+| evaluation_session | 컨텍스트 매니저 — 예외 발생 시 자동 저장 |
+
+```bash
+python Evaluator_Examples/ch10_group_g.py    # Group G + AnomalyDetector + CostTracker 전체 시연
+```
+
+> **관련 챕터 예제**: Phoenix OTEL 관측성 심화는 [Chapter 19 — `ch19_phoenix.py`](../Part_V_프로덕션운영/Chapter_19_Phoenix_OTEL_모니터링.md)에서, Gate G FAIL 케이스(시나리오 5·16·17)는 [Chapter 4 — `ch04_group_a.py`](Chapter_04_GroupA_목표달성.md)에서 확인한다.
+
+**핵심 코드**
 
 ```python
 # 출처: Evaluator_Examples/ch10_group_g.py, 섹션 7 — Group G Observability
@@ -561,7 +569,7 @@ python Evaluator_Examples/ch19_phoenix.py    # Phoenix 트레이싱 + 데이터�
 ```
 
 ---
-**FAIL 케이스 (출처: `Evaluator_Examples/ch04_group_a.py`)**
+**FAIL 케이스**
 
 시나리오 16: `ObservabilityConfig` — 필수 span 속성 누락 (coverage < 0.9)
 
@@ -626,12 +634,12 @@ no_diagnosis_agent("오류 원인을 진단해줘", ground_truth="오류 진단"
 python Evaluator_Examples/ch04_group_a.py   # 시나리오 5+16+17: Gate G FAIL 케이스
 ```
 
-**Layer 1 지표 — 관측성의 기초 수치 (출처: `Evaluator_Examples/ch01_first_eval.py`)**
+**Layer 1 지표 — 관측성의 기초 수치**
 
 Group G Config가 추적 완성도와 설명 가능성을 판정한다면, Layer 1은 그 기반이 되는 원시 지표(지연·토큰·품질)를 수집한다. 두 레이어를 함께 운영하면 "추적 완성도 90%이며, p95 지연이 3초"처럼 관측 가능한 수치로 표현된다.
 
 ```python
-# 출처: Evaluator_Examples/ch01_first_eval.py, 섹션 3 — 응답 품질 5차원
+# 출처: Evaluator_Examples/ch10_group_g.py, 섹션 3 — 응답 품질 5차원
 from agent_evaluator import PerformanceMonitor, create_taskresult
 import random
 
@@ -675,7 +683,7 @@ print(f"  총 토큰: {int(tok.get('total_tokens',0)):,}")
 # → enable_transparency=True: 메트릭 계산 과정이 Traces로 Phoenix에 전송됨
 ```
 
-**관측성 인프라 — 이상 탐지 + 비용 추적 (출처: `Evaluator_Examples/ch10_group_g.py`)**
+**관측성 인프라 — 이상 탐지 + 비용 추적**
 
 Gate G는 응답의 추적 가능성과 설명 가능성을 판정하지만, 그 토대는 운영 인프라다. `AnomalyDetector`는 관측성 점수 드리프트를 실시간 탐지하고, `CostTracker`는 투명성 비용(LLMJudge 호출 등)을 예산 내에서 유지한다.
 
@@ -737,6 +745,81 @@ for i in range(3):
 print(f"  Gate G Judge 비용: ${tracker.get_today_cost():.4f}  알림: {tracker.is_budget_alert()}")
 # → sample_rate=0.1로 90% 태스크는 LLMJudge 건너뜀 → Gate G 비용 = 전체의 10%
 ```
+
+**AdaptivePolicy — 3단계 스테이지 전환:**
+
+`AdaptivePolicy`는 이상 감지·예산 소진에 따라 샘플링률을 자동 조정하는 상태 머신이다. 3개의 `SamplingStage` 중 하나의 상태를 유지하며, `AnomalyDetector` 이벤트와 연동해 자동 전환한다.
+
+| 스테이지 | 전환 조건 | 샘플링률 |
+|---------|---------|---------|
+| `DEFAULT` | 초기 / 이상 해소 후 | `default_sample_rate` (기본 0.1 = 10%) |
+| `ANOMALY` | `enter_anomaly_mode()` 호출 | `anomaly_sample_rate` (기본 1.0 = 100%) |
+| `BUDGET_EXCEEDED` | 일일 예산 초과 | 0.0 (샘플링 중단) |
+
+```python
+# 출처: Evaluator_Examples/ch10_group_g.py, 섹션 추가B — AdaptivePolicy 스테이지 전환
+from agent_evaluator import CostTracker, AdaptivePolicy
+
+policy = AdaptivePolicy(
+    default_sample_rate=0.1,    # 평상시 10% 샘플링 (비용 절감)
+    anomaly_sample_rate=1.0,    # 이상 감지 시 100% 샘플링 (정밀 진단)
+    budget_per_day=5.0,         # 일일 예산 $5 초과 시 샘플링 중단
+)
+
+# ── 평상시: DEFAULT 스테이지 ──────────────────────────────────────────────
+print(f"현재 스테이지: {policy.current_stage.value}")   # → "default"
+print(f"샘플링률    : {policy.current_sample_rate}")    # → 0.1
+
+# 에이전트 실행마다 샘플링 여부 결정
+import random
+should_run_judge = random.random() < policy.current_sample_rate  # 10% 확률
+if should_run_judge:
+    pass  # LLMJudge 호출 (비용 발생)
+
+# ── 이상 감지 시: ANOMALY 스테이지로 전환 ─────────────────────────────────
+policy.enter_anomaly_mode(reason="accuracy_drop_below_0.5")
+print(f"현재 스테이지: {policy.current_stage.value}")   # → "anomaly"
+print(f"샘플링률    : {policy.current_sample_rate}")    # → 1.0 (전수 채점)
+
+# ── 이상 해소: DEFAULT로 복귀 ─────────────────────────────────────────────
+policy.exit_anomaly_mode()
+print(f"현재 스테이지: {policy.current_stage.value}")   # → "default" (예산 미초과 시)
+
+# ── 예산 초과: BUDGET_EXCEEDED ────────────────────────────────────────────
+# check_budget()은 내부적으로 CostTracker와 연동; 초과 시 자동 전환
+policy.check_budget()
+# is_budget_exceeded()이면 → BUDGET_EXCEEDED, current_sample_rate = 0.0
+
+# 상태 전체 조회
+status = policy.get_status()
+# status["stage"] → "default"/"anomaly"/"budget_exceeded"
+# status["current_sample_rate"] → float
+# status["default_sample_rate"] / ["anomaly_sample_rate"]
+# status["stage_history"] → 최근 10개 전환 이력 [{from, to, reason, timestamp}, ...]
+print(f"상태 요약: {status['stage']}  샘플링률={status['current_sample_rate']}")
+```
+
+**AnomalyDetector + AdaptivePolicy 연동 패턴:**
+
+```python
+from agent_evaluator import AnomalyDetector, AdaptivePolicy, PerformanceMonitor
+
+monitor  = PerformanceMonitor(output_dir="results/")
+detector = AnomalyDetector(baseline_window=25, detection_window=5)
+policy   = AdaptivePolicy(default_sample_rate=0.1, anomaly_sample_rate=1.0, budget_per_day=5.0)
+
+# 주기적 실행 루프에서 이상 탐지 → 샘플링률 자동 조정
+events = detector.scan(monitor)
+if events:                                 # 이상 감지
+    policy.enter_anomaly_mode(reason=events[0].type)
+    print(f"이상 감지 → 샘플링률 {policy.current_sample_rate} (전수 채점 모드)")
+else:                                      # 정상
+    policy.exit_anomaly_mode()
+    print(f"정상 → 샘플링률 {policy.current_sample_rate} (절감 모드)")
+```
+
+- `enter_anomaly_mode()` 호출 후 `check_budget()`에서 예산 초과가 확인되면 `ANOMALY`가 아닌 `BUDGET_EXCEEDED`로 전환한다.
+- `stage_history`에 최근 10개의 전환 이력이 기록되어 이상 패턴의 발생 빈도를 추적할 수 있다.
 
 ---
 

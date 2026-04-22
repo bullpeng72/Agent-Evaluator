@@ -374,28 +374,6 @@ agent-eval trend results/ --output-json trend.json
 
 ---
 
-## 9. Best Practices
-
-**보수적으로 시작하라**
-처음부터 엄격한 임계값을 설정하면 false failure가 많아집니다. 초기에는 느슨하게 설정하고 (`tcr: 70`, `accuracy: 55`), 데이터가 쌓이면 점진적으로 강화합니다.
-
-**`generate_gate_config()`로 기준선을 잡아라**
-수동으로 임계값을 정하기 어려울 때는 충분한 평가를 먼저 실행한 후 `generate_gate_config()`를 호출합니다. 현재 결과의 95% 수준을 자동 계산해줍니다.
-
-**Latency는 P95 기준임을 명심하라**
-`latency` 임계값은 평균이 아닌 P95에 적용됩니다. 평균 2초 에이전트도 P95가 10초일 수 있습니다. 사용자 경험 기반으로 P95 목표를 설정하세요.
-
-**Quality는 5점 척도다**
-`quality` 임계값은 0–5 범위입니다. `3.5` 이상이 일반적인 운영 기준입니다. 10점 척도로 혼동하지 마세요.
-
-**Hallucination과 보안 지표는 방향이 반전된다**
-`hallucination`, `output_leakage`, `privilege_escalation`, `tool_chain_attack`은 낮을수록 좋습니다. `compare_with_thresholds()`에서 `direction: "lower_is_better"`로 표시됩니다.
-
-**환경마다 다른 임계값 파일을 유지하라**
-`gate_config.dev.json`, `gate_config.staging.json`, `gate_config.prod.json`을 별도로 관리하고 CI/CD 환경 변수로 선택합니다.
-
----
-
 ## 8. 도메인별 Harness Config 프리셋
 
 도메인마다 위험 허용 수준이 다릅니다. 아래 프리셋을 참고해 도메인에 맞게 임계값을 조정하세요.
@@ -515,6 +493,28 @@ def domain_agent(question: str, ground_truth: str = "") -> str:
 ---
 
 ## 9. Best Practices
+
+**보수적으로 시작하라**
+처음부터 엄격한 임계값을 설정하면 false failure가 많아집니다. 초기에는 느슨하게 설정하고 (`tcr: 70`, `accuracy: 55`), 데이터가 쌓이면 점진적으로 강화합니다.
+
+**`generate_gate_config()`로 기준선을 잡아라**
+수동으로 임계값을 정하기 어려울 때는 충분한 평가를 먼저 실행한 후 `generate_gate_config()`를 호출합니다. 현재 결과의 95% 수준을 자동 계산해줍니다.
+
+**Latency는 P95 기준임을 명심하라**
+`latency` 임계값은 평균이 아닌 P95에 적용됩니다. 평균 2초 에이전트도 P95가 10초일 수 있습니다. 사용자 경험 기반으로 P95 목표를 설정하세요.
+
+**Quality는 5점 척도다**
+`quality` 임계값은 0–5 범위입니다. `3.5` 이상이 일반적인 운영 기준입니다. 10점 척도로 혼동하지 마세요.
+
+**Hallucination과 보안 지표는 방향이 반전된다**
+`hallucination`, `output_leakage`, `privilege_escalation`, `tool_chain_attack`은 낮을수록 좋습니다. `compare_with_thresholds()`에서 `direction: "lower_is_better"`로 표시됩니다.
+
+**환경마다 다른 임계값 파일을 유지하라**
+`gate_config.dev.json`, `gate_config.staging.json`, `gate_config.prod.json`을 별도로 관리하고 CI/CD 환경 변수로 선택합니다.
+
+---
+
+| 목적 | 문서 |
 |------|------|
 | 설치 · 기본 사용법 | [01_GETTING_STARTED.md](01_GETTING_STARTED.md) |
 | 58개 지표 상세 | [02_METRICS_GUIDE.md](02_METRICS_GUIDE.md) |

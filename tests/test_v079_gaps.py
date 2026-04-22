@@ -592,7 +592,7 @@ class TestCostModelLearning:
 class TestMultimodalMetrics:
     def test_track_multimodal_basic(self):
         import dataclasses
-        from agent_evaluator import MultimodalMetricsTracker
+        from agent_evaluator.core.trackers.layer1 import MultimodalMetricsTracker
         tracker = MultimodalMetricsTracker()
         t = _make_task()
         t = dataclasses.replace(t, extra={
@@ -608,14 +608,14 @@ class TestMultimodalMetrics:
         assert "audio" in summary["modality_mix"]
 
     def test_multimodal_text_only(self):
-        from agent_evaluator import MultimodalMetricsTracker
+        from agent_evaluator.core.trackers.layer1 import MultimodalMetricsTracker
         tracker = MultimodalMetricsTracker()
         tracker.track_multimodal(_make_task())
         summary = tracker.get_multimodal_summary()
         assert "text" in summary["modality_mix"]
 
     def test_multimodal_tracker_reset(self):
-        from agent_evaluator import MultimodalMetricsTracker
+        from agent_evaluator.core.trackers.layer1 import MultimodalMetricsTracker
         tracker = MultimodalMetricsTracker()
         tracker.track_multimodal(_make_task())
         tracker.reset()
@@ -784,8 +784,8 @@ class TestResponseCache:
 # Bonus: verify all new exports work
 # ---------------------------------------------------------------------------
 class TestExports:
-    def test_multimodal_tracker_exported(self):
-        from agent_evaluator import MultimodalMetricsTracker
+    def test_multimodal_tracker_internal(self):
+        from agent_evaluator.core.trackers.layer1 import MultimodalMetricsTracker
         assert MultimodalMetricsTracker is not None
 
     def test_agent_eval_presets_exported(self):

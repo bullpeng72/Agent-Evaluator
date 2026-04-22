@@ -98,9 +98,6 @@ from .core.agent_evaluator import (
     ToolSelectionTracker,
     WorkflowExecutionTracker,
 )
-# F3: MultimodalMetricsTracker
-from .core.trackers.layer1 import MultimodalMetricsTracker
-
 # Import context managers
 from .core.monitor_context import evaluation_session, hybrid_evaluation_session, async_evaluation_session
 

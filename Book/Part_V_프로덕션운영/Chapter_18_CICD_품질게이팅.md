@@ -16,13 +16,15 @@
 
 ---
 
-## 18.1 품질 게이팅이란 — 배포 파이프라인에 품질 검문소 세우기
+## 18.1 Harness Gate — AI 배포 준비도 자동 판정
 
-소프트웨어 팀은 오래전부터 CI/CD 파이프라인에 단위 테스트, 정적 분석, 코드 커버리지 검사를 넣어왔다. 이 검사 중 하나라도 실패하면 배포가 차단된다. 이것이 **품질 게이팅(Quality Gating)**이다. 목표는 간단하다. 품질 기준을 통과하지 못한 코드는 프로덕션에 나가지 못하게 막는 것이다.
+기존 CI/CD 게이팅(단위 테스트, 정적 분석, 코드 커버리지)은 **코드의 결함 부재**를 검증한다. 결정론적 소프트웨어에서는 충분한 방식이다. 같은 입력에 항상 같은 출력이 나오므로, 테스트 케이스를 통과하면 그 동작이 보장된다.
 
-그런데 AI 에이전트에는 기존 방식이 통하지 않는다. 에이전트는 단위 테스트를 통과해도 실제 응답 품질이 나빠질 수 있다. 프롬프트 한 줄이 바뀌거나, 모델이 업데이트되거나, 문서 데이터가 달라지는 순간 에이전트의 정확도는 조용히 떨어진다. 그리고 그 변화를 눈치채는 것은 대개 고객이다.
+AI 에이전트는 이 전제가 성립하지 않는다. 에이전트의 출력은 **비결정론적**이다. 단위 테스트 수백 개를 통과했어도, 프롬프트 한 줄이 바뀌거나 모델이 업데이트되는 순간 정확도·지연·환각 특성이 조용히 달라질 수 있다. "결함이 없는가"를 검증하는 테스트 스위트는 이 변화를 탐지할 수 없다. 그리고 그 변화를 눈치채는 것은 대개 고객이다.
 
-### 게이팅 없는 배포 파이프라인의 위험
+**Harness Engineering의 Gate는 다른 질문을 한다**: "이 에이전트는 *지금 이 통계적 조건*에서 배포해도 되는가?" 단일 케이스 통과/실패 대신, N회 실행의 TCR 분포·P95 지연·환각률을 코드로 선언된 Harness Config 기준과 자동으로 대조한다. 이것이 기존 품질 게이팅을 넘어서는 **AI-native 배포 판정**이다.
+
+### Harness Gate 없는 배포 파이프라인의 위험
 
 ```
 [코드 변경] → [단위 테스트 통과] → [프로덕션 배포] → [고객 불만 접수]
@@ -34,15 +36,15 @@
 
 ### "코드 테스트는 통과하지만 AI 품질은 망가진" 시나리오
 
-실제로 일어나는 시나리오를 보자.
+이 세 시나리오는 단순한 "테스트 부족"이 아니다. **AI 비결정론성**에서 비롯된 근본적인 문제다. 테스트를 아무리 추가해도 모든 실행 경로를 결정론적으로 커버할 수 없으므로, Harness Engineering은 *통계적 기준 선언 + 자동 판정*으로 대응한다.
 
 **시나리오 1 — 프롬프트 변경 후 배포**
-개발자가 프롬프트를 "더 간결하게" 수정했다. 단위 테스트는 통과했다. 그런데 배포 후 고객 서비스 에이전트의 정확도가 87%에서 71%로 떨어졌다. 품질 게이팅이 있었다면 임계값(80%)을 넘지 못해 배포가 차단됐을 것이다.
+개발자가 프롬프트를 "더 간결하게" 수정했다. 단위 테스트는 통과했다. 그런데 배포 후 고객 서비스 에이전트의 정확도가 87%에서 71%로 떨어졌다. Harness Gate가 있었다면 `accuracy≥80%` 임계값 미달로 배포가 자동 차단됐을 것이다.
 
 **시나리오 2 — 모델 업그레이드 후 배포**
-"더 나은 모델"로 교체했다. 대부분의 케이스에서는 개선됐지만, 특정 도메인에서 환각이 증가했다. P95 레이턴시도 1.8초에서 4.2초로 늘었다. 임계값 게이팅이 없었기에 이 사실은 배포 3일 후에야 발견됐다.
+"더 나은 모델"로 교체했다. 대부분의 케이스에서는 개선됐지만, 특정 도메인에서 환각이 증가했다. P95 레이턴시도 1.8초에서 4.2초로 늘었다. `SLAConfig(p95_ms=3000)`과 `HallucinationDetector` 임계값이 코드에 선언돼 있었다면 배포 당일 차단됐을 것이다.
 
-**품질 게이팅의 핵심 원칙**: 측정 가능한 지표에 숫자 임계값을 설정하고, 임계값을 넘지 못하면 배포를 차단한다.
+**Harness Gate의 핵심 원칙**: Harness Config로 배포 기준을 코드로 선언하고, 통계적 측정값이 그 기준을 충족하지 못하면 자동으로 배포를 차단한다.
 
 ---
 
@@ -742,7 +744,7 @@ DeadlockConfig     → pass/fail ─┘
 ### 코드 예시 — CI/CD 완전 통합
 
 ```python
-# 출처: Evaluator_Examples/ch03_harness_basics.py, 섹션 CI/CD 통합 — HarnessEvaluationGate 배포 차단 예제
+# 출처: Evaluator_Examples/ch18_cicd_gate.py, 섹션 CI/CD 통합 — HarnessEvaluationGate 배포 차단 예제
 # ci_quality_check.py — CI/CD 파이프라인에서 실행
 import sys, json
 from agent_evaluator import (
@@ -851,14 +853,14 @@ else:
 
 ## 실전 예제
 
-`ch10_group_g.py`를 실행하면 결과 JSON이 생성되고, `agent-eval gate`와 `agent-eval trend`로 바로 CI/CD 게이팅을 테스트할 수 있다. 실제 GitHub Actions에서 사용하는 것과 동일한 명령어를 로컬에서 먼저 검증해보는 패턴이다.
+`ch18_cicd_gate.py`를 실행하면 결과 JSON이 생성되고, `agent-eval gate`와 `agent-eval trend`로 바로 CI/CD 게이팅을 테스트할 수 있다. 실제 GitHub Actions에서 사용하는 것과 동일한 명령어를 로컬에서 먼저 검증해보는 패턴이다.
 
-**파일**: `Evaluator_Examples/ch18_cicd_gate.py`, `Evaluator_Examples/ch10_group_g.py`, `agent-eval gate`, `agent-eval trend`
+**기본 예제**: `Evaluator_Examples/ch18_cicd_gate.py`
 
-**핵심 코드 (출처: `Evaluator_Examples/ch10_group_g.py`)**
+**핵심 코드**
 
 ```python
-# 출처: Evaluator_Examples/ch11_eval_data.py, 섹션 4 — evaluation_session — context manager + 자동 저장
+# 출처: Evaluator_Examples/ch18_cicd_gate.py, 섹션 4 — evaluation_session — context manager + 자동 저장
 from agent_evaluator import evaluation_session, create_taskresult
 import sys
 
@@ -964,7 +966,7 @@ agent-eval gate results/operational_*.json --tcr 40 --accuracy 60
 
 > **CI/CD 통합 팁**: GitHub Actions에서 `continue-on-error: false`로 게이팅 스텝을 설정하면 실패 시 배포 워크플로우 전체가 중단된다. `--tcr`과 `--accuracy` 임계값은 환경 변수(`GATE_TCR`, `GATE_ACCURACY`)로 관리해 dev/staging/prod 환경별로 다르게 적용한다.
 
-**Harness Validation CI 예제 (출처: `Evaluator_Examples/ch18_cicd_gate.py`)**
+**Harness Validation CI 예제**
 
 ```python
 # 출처: Evaluator_Examples/ch18_cicd_gate.py — Harness 7개 Group CI/CD 게이팅
@@ -1042,7 +1044,7 @@ python Evaluator_Examples/ch18_cicd_gate.py --strict  # WARN도 실패 처리
 Gate가 실제로 FAIL을 발생시켜 배포를 차단하는 상황을 `ch04_group_a.py`로 재현한다. 아래는 CI/CD 파이프라인에서 Gate E 위반을 탐지해 배포를 차단하는 패턴이다:
 
 ```python
-# 출처: Evaluator_Examples/ch08_group_e.py, 역케이스 Gate E FAIL + CI/CD 차단
+# 출처: Evaluator_Examples/ch18_cicd_gate.py, 역케이스 Gate E FAIL + CI/CD 차단
 import sys
 from agent_evaluator import (
     PerformanceMonitor, HarnessEvaluationGate,
@@ -1088,7 +1090,7 @@ if result.get("E", {}).get("gate") == "FAIL":
 **`ch20_deployment.py` — v1 vs v2 배포 결정 자동화**
 
 ```python
-# 출처: Evaluator_Examples/ch20_deployment.py — 버전 비교 기반 배포 결정
+# 출처: Evaluator_Examples/ch18_cicd_gate.py — 버전 비교 기반 배포 결정
 import sys
 from agent_evaluator import PerformanceMonitor, HarnessEvaluationGate
 

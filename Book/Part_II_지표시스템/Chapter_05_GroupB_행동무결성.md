@@ -15,8 +15,7 @@
 > 📖 **관련 레퍼런스**
 > - **[Appendix A — 58개 지표 완전 레퍼런스](../Appendix/A_58개지표_레퍼런스.md)**: Group B 지표 입력·출력
 > - **[Appendix A §Part 2 — Config 레퍼런스](../Appendix/A_58개지표_레퍼런스.md)**: Group B Config 파라미터 전체 목록
-> - **[Evaluator_Examples/ch05_group_b.py](../../Evaluator_Examples/ch05_group_b.py)**: Group B Tracker 실전 예제
-> - **[Evaluator_Examples/ch03_harness_basics.py](../../Evaluator_Examples/ch03_harness_basics.py)**: Group B Config 실전 예제
+> - **[Evaluator_Examples/ch05_group_b.py](../../Evaluator_Examples/ch05_group_b.py)**: 이 챕터 실전 예제 (ToolCallAnalyzer · WorkflowExecutionTracker · 6개 Config)
 
 > **독자별 읽기 가이드**  
 > - **QA 관리자**: §5.1(개요) → §5.4(Config 설정) → §5.5(임계값·Gate 판정) 순서로 읽으면 "어떤 행동 기준을 선언할지"를 빠르게 파악할 수 있습니다.  
@@ -548,19 +547,19 @@ def secure_agent(question: str, ground_truth: str = "") -> str:
 
 ---
 
-## 5.5 AI Native 관점 — 출현 행동과 행동무결성
+## 5.5 AI Native 관점 — 돌발 행동과 행동무결성
 
-### 5.5.1 예측 가능한 행동 vs 출현 행동
+### 5.5.1 예측 가능한 행동 vs 돌발 행동
 
-기존 소프트웨어는 코드에 없는 동작을 하지 않는다. AI 에이전트는 다르다. 설계자가 예상하지 못한 방식으로 도구를 조합하거나, 허가되지 않은 경로를 찾아내거나, 루프에 빠지는 **출현 행동(emergent behavior)**이 발생할 수 있다.
+기존 소프트웨어는 코드에 없는 동작을 하지 않는다. AI 에이전트는 다르다. 설계자가 예상하지 못한 방식으로 도구를 조합하거나, 허가되지 않은 경로를 찾아내거나, 루프에 빠지는 **돌발 행동(emergent behavior)**이 발생할 수 있다.
 
-Group B는 이 출현 행동을 탐지하고 제한하는 Harness다.
+Group B는 이 돌발 행동을 탐지하고 제한하는 Harness다.
 
 ```python
-# 출현 행동 예시: 에이전트가 search → summarize를 반복하며 루프에 빠짐
+# 돌발 행동 예시: 에이전트가 search → summarize를 반복하며 루프에 빠짐
 # LoopDetectionConfig 없이는 100회+ 호출이 발생할 수 있음
 
-# 출현 행동 방어
+# 돌발 행동 방어
 @agent_eval(
     monitor,
     task_type="tool_use",
@@ -639,13 +638,22 @@ gate.enforce()
 
 ## 5.7 실전 예제 파일
 
-| 예제 파일 | 관련 내용 |
-|---------|---------|
-| [`Evaluator_Examples/ch03_harness_basics.py`](../../Evaluator_Examples/ch03_harness_basics.py) | 섹션 2: Group B Behavioral Integrity — 6개 Config 실전 예제 |
-| [`Evaluator_Examples/ch05_group_b.py`](../../Evaluator_Examples/ch05_group_b.py) | 섹션 2 · 섹션 추가: Group B Behavioral Integrity · WorkflowExecutionTracker 실전 예제 |
-| [`Evaluator_Examples/ch04_group_a.py`](../../Evaluator_Examples/ch04_group_a.py) | 시나리오 1+2+8+9: Gate B FAIL — LoopDetectionConfig·ToolParameterSafetyConfig 위반 |
+**기본 예제**: [`Evaluator_Examples/ch05_group_b.py`](../../Evaluator_Examples/ch05_group_b.py)
 
-**핵심 코드 (출처: `Evaluator_Examples/ch03_harness_basics.py`, 섹션 2 — Group B Behavioral Integrity)**
+| 섹션 | 내용 |
+|------|------|
+| 섹션 2 | ToolCallAnalyzer · 6개 Config (LoopDetection·Scope·ToolParam·ContextWindow·StateConsistency·Deadlock) |
+| 섹션 추가: 워크플로우 | WorkflowExecutionTracker — 3개 파이프라인 시나리오 |
+| 섹션 추가: L2 트래커 | L2 트래커 직접 사용 — ToolCallAnalyzer·RetryCorrectionTracker·ToolSelectionTracker·AgentCoordinationTracker 독립 인스턴스화 |
+| 역케이스 | Gate B FAIL — 루프·파라미터 위반 케이스 |
+
+```bash
+python Evaluator_Examples/ch05_group_b.py    # Group B 전체 시연
+```
+
+> **관련 챕터 예제**: Gate B를 포함한 전체 Harness 흐름은 [Chapter 3 — `ch03_harness_basics.py`](Chapter_03_Harness_Engineering_기초.md)에서, Gate B FAIL 케이스는 [Chapter 4 — `ch04_group_a.py`](Chapter_04_GroupA_목표달성.md)에서 확인한다.
+
+**핵심 코드**
 
 ```python
 # 출처: Evaluator_Examples/ch05_group_b.py, 섹션 2 — Group B Behavioral Integrity
@@ -714,13 +722,7 @@ def deadlock_resistant_agent(question: str, ground_truth: str = "") -> str:
 - `LoopDetectionConfig`와 `ScopeConfig`는 `EvalMetadata(tool_calls=[...])`가 있어야 실제 도구 호출을 감지하므로 반환 튜플에 `EvalMetadata`를 포함하는 것이 권장된다.
 - `DeadlockConfig(task_type="multi_agent")`는 단일 에이전트도 순환 도구 의존성이 있으면 적용 가능하다.
 
-```bash
-python Evaluator_Examples/ch03_harness_basics.py          # Group B 포함 전체
-python Evaluator_Examples/ch05_group_b.py  # Layer 2 Tracker 전체
-python Evaluator_Examples/ch04_group_a.py   # 시나리오 1+2+8+9: Gate B FAIL 케이스
-```
-
-**Layer 2 Tracker 실전 (출처: `Evaluator_Examples/ch05_group_b.py`)**
+**Layer 2 Tracker 실전**
 
 섹션 2 — `ToolCallAnalyzer`: EvalMetadata 튜플 반환으로 도구 호출 패턴 기록
 
@@ -753,7 +755,7 @@ tool_agent("오늘 서울 날씨와 환율 계산해줘", ground_truth="맑음, 
 섹션 6 — `AgentCoordinationTracker`: `get_eval_ctx()` 스레드 로컬 주입 (반환 타입 변경 없이 메타데이터 주입)
 
 ```python
-# 출처: Evaluator_Examples/ch09_group_f.py, 섹션 6 — Group F Multi-Agent Coordination
+# 출처: Evaluator_Examples/ch05_group_b.py, 섹션 6 — Group F Multi-Agent Coordination
 from agent_evaluator.decorators import get_eval_ctx
 
 @agent_eval(monitor, task_type="tool_use", task_id_prefix="coord")
@@ -774,7 +776,7 @@ def coordinator_agent(question: str, ground_truth: str = "") -> str:
 # → report["coordination_stats"]["inter_agent_success_rate"]: 0.75
 ```
 
-섹션 추가 — `WorkflowExecutionTracker`: `chain_steps`로 단계별 성공·실패 기록
+섹션 추가: 워크플로우 — `WorkflowExecutionTracker`: `chain_steps`로 단계별 성공·실패 기록
 
 ```python
 # 출처: Evaluator_Examples/ch05_group_b.py, 섹션 추가 — WorkflowExecutionTracker
@@ -802,10 +804,72 @@ for name, success, steps in WORKFLOWS:
 # → report["workflow_stats"]["avg_steps_completed"]: 3.33
 ```
 
+섹션 추가: L2 트래커 — `ToolCallAnalyzer`·`RetryCorrectionTracker`·`ToolSelectionTracker`·`AgentCoordinationTracker` 직접 인스턴스화
+
+```python
+# 출처: Evaluator_Examples/ch05_group_b.py, 섹션 추가: L2 트래커 직접 사용
+from agent_evaluator import (
+    ToolCallAnalyzer, RetryCorrectionTracker,
+    ToolSelectionTracker, AgentCoordinationTracker,
+)
+
+# [1] ToolCallAnalyzer — 도구 호출 효율 분석
+tool_analyzer = ToolCallAnalyzer()
+result = tool_analyzer.analyze_execution("t1", [
+    {"tool_name": "search",   "success": True,  "duration": 0.30},
+    {"tool_name": "analyze",  "success": True,  "duration": 0.50},
+    {"tool_name": "search",   "success": True,  "duration": 0.25},  # 중복
+    {"tool_name": "analyze",  "success": False, "duration": 0.10},  # 실패
+])
+# result["total_calls"] → 4  |  result["redundant_calls"] → 1
+# result["failed_calls"] → 1  |  result["efficiency_score"] → 0~1
+eff = tool_analyzer.get_efficiency_stats()
+# eff["avg_efficiency_score"] → 평균 효율
+
+# [2] RetryCorrectionTracker — 재시도·교정 이력 추적
+retry_tracker = RetryCorrectionTracker()
+retry_tracker.track_attempts("t_retry", [
+    {"success": False, "retry_reason": "timeout",    "duration": 1.20},
+    {"success": False, "retry_reason": "rate_limit", "duration": 0.50},
+    {"success": True,  "duration": 0.80},
+], task_type="qa")
+metrics = retry_tracker.get_retry_metrics()
+# metrics["retry_rate"] → %  |  metrics["first_attempt_success_rate"] → %
+# metrics["correction_success_rate"] → %
+
+# [3] ToolSelectionTracker — 도구 선택 정확도 (Precision/Recall/F1)
+sel_tracker = ToolSelectionTracker()
+sel = sel_tracker.evaluate_selection(
+    "t_sel",
+    expected_tools=["search", "analyze", "report"],
+    actual_tools=["search", "analyze"],   # "report" 누락
+)
+# sel["f1_score"], sel["precision"], sel["recall"] → 0~1 스케일
+stats = sel_tracker.get_accuracy_stats()
+# stats["avg_f1_score"] → 평균 F1
+
+# [4] AgentCoordinationTracker — 멀티에이전트 협업 패턴 분석
+coord_tracker = AgentCoordinationTracker()
+for f, t, itype, ok in [
+    ("orchestrator", "retriever",  "delegation",    True),
+    ("orchestrator", "analyzer",   "delegation",    True),
+    ("retriever",    "orchestrator","communication", True),
+    ("analyzer",     "reporter",   "collaboration", True),
+]:
+    coord_tracker.track_interaction("t_coord", f, t, itype, success=ok)
+patterns = coord_tracker.get_interaction_patterns()
+# patterns["total_agents"] → 에이전트 수  |  patterns["pattern_type"] → 토폴로지
+# coord_tracker.get_delegation_success_rate() → % (예: 100.0)
+```
+
+- 4개 L2 트래커는 `PerformanceMonitor` 없이 독립적으로 사용할 수 있다.
+- `get_accuracy_stats()["avg_f1_score"]`·`get_retry_metrics()["retry_rate"]` 등 통계 메서드는 모두 0–100 % 스케일을 반환한다.
+- `AgentCoordinationTracker.get_delegation_success_rate()`는 소수가 아닌 백분율 값(예: 100.0)을 반환한다.
+
 섹션 5 — 보안 지표 (`InputSanitizationTracker` · `OutputLeakageDetector`): `enable_security_metrics=True` 설정만으로 자동 탐지
 
 ```python
-# 출처: Evaluator_Examples/ch08_group_e.py, 섹션 5 — Group E Security Boundary
+# 출처: Evaluator_Examples/ch05_group_b.py, 섹션 5 — Group E Security Boundary
 # enable_security_metrics=True 설정 시 record_task()마다 내부 집계 — extras가 아닌 report 수준에서 확인
 SECURITY_CASES = [
     ("SQL Injection",     "' OR '1'='1; DROP TABLE users; --",           "쿼리 결과: 삭제됨"),
@@ -835,7 +899,7 @@ print(sec.get("output_leakage", {}))  # {"total_outputs":N, "leakage_detected":M
 - `enable_security_metrics=True` 단 한 줄로 SQL Injection·Prompt Injection·경로 순회·PII 유출 탐지가 모두 활성화된다.
 - `sanitization`은 입력 위협 탐지 통계, `output_leakage`는 출력 유출 통계로, 두 지표를 함께 보면 입출력 보안 전체를 파악할 수 있다.
 
-**FAIL 케이스 (출처: `Evaluator_Examples/ch04_group_a.py`)**
+**FAIL 케이스**
 
 시나리오 1: `LoopDetectionConfig` — 같은 도구 3회 연속 반복 (임계값 2 초과)
 
@@ -902,12 +966,12 @@ param_unsafe_agent("파일을 읽어줘", ground_truth="파일 조회")
 - `fail_on_dangerous=True` 설정 시 위험 패턴이 탐지되면 `TaskResult.success=False`로 강제된다
 - **대응 방법**: `allowed_tools` + `forbidden_tools`로 허용 범위를 먼저 선언하고, `dangerous_patterns`로 파라미터 레벨 검사를 추가한다
 
-**Layer 1 — 행동 이상의 결과를 지표로 확인 (출처: `Evaluator_Examples/ch01_first_eval.py`)**
+**Layer 1 — 행동 이상의 결과를 지표로 확인**
 
 루프·범위 일탈은 Group B Config가 탐지하지만, 그 영향(지연 폭증·토큰 낭비)은 Layer 1 지표에 직접 반영된다.
 
 ```python
-# 출처: Evaluator_Examples/ch07_group_d.py, 섹션 추가A·추가B — 지연시간 분포 & 토큰 경제성
+# 출처: Evaluator_Examples/ch05_group_b.py, 섹션 추가A·추가B — 지연시간 분포 & 토큰 경제성
 from agent_evaluator import PerformanceMonitor, create_taskresult
 import random
 
@@ -955,12 +1019,12 @@ for label, tokens in tok_models:
 - 루프 에이전트 시뮬레이션에서 토큰 사용량이 정상 대비 10배 이상 폭증하는 패턴은 `ResourceBudgetConfig`(Group D)와 결합해 비용 초과를 자동 차단하는 데 활용한다.
 - `random.gauss`로 생성한 이상치 2개(`8.5s`, `12.0s`)가 p99를 끌어올리는 패턴은 프로덕션에서 루프가 간헐적으로 발생할 때 나타나는 전형적인 시그널이다.
 
-**실시간 알림 연동 (출처: `Evaluator_Examples/ch16_alerts.py`)**
+**실시간 알림 연동**
 
 `SimpleTaskAlertRule`로 범위 일탈·루프 탐지 이벤트를 즉시 알림으로 연결한다.
 
 ```python
-# 출처: Evaluator_Examples/ch16_alerts.py, 섹션 3 — SimpleTaskAlertRule — @agent_eval 통합 경량 알림
+# 출처: Evaluator_Examples/ch05_group_b.py, 섹션 3 — SimpleTaskAlertRule — @agent_eval 통합 경량 알림
 from agent_evaluator import SimpleTaskAlertRule
 from agent_evaluator.decorators import agent_eval
 
@@ -1000,7 +1064,10 @@ def monitored_scope_agent(question: str, ground_truth: str = "") -> str:
 
 | 지표/Config | 역할 | 핵심 파라미터 |
 |------------|------|-------------|
-| `ToolCallAnalyzer` | 도구 호출 패턴 분석 | `tool_frequency`, `avg_calls_per_task` |
+| `ToolCallAnalyzer` | 도구 호출 효율 분석 (직접 사용 가능) | `analyze_execution()` → `efficiency_score`, `redundant_calls` |
+| `RetryCorrectionTracker` | 재시도·교정 이력 추적 (직접 사용 가능) | `track_attempts()` → `retry_rate`, `first_attempt_success_rate` |
+| `ToolSelectionTracker` | 도구 선택 정확도 Precision/Recall/F1 (직접 사용 가능) | `evaluate_selection()` → `f1_score`, `avg_f1_score` |
+| `AgentCoordinationTracker` | 멀티에이전트 협업 패턴 분석 (직접 사용 가능) | `track_interaction()` → `total_agents`, `pattern_type` |
 | `WorkflowExecutionTracker` | 워크플로우 실행 추적 | `workflow_success_rate`, `avg_steps_completed` |
 | `LoopDetectionConfig` | 루프 탐지 기준 | `consecutive_repeat_threshold`, `on_loop_detected` |
 | `ScopeConfig` | 허용/금지 도구 범위 | `allowed_tools`, `forbidden_tools`, `fail_on_violation` |

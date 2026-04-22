@@ -55,6 +55,7 @@ from pathlib import Path
 from agent_evaluator import (
     PerformanceMonitor, QuickEval, SimpleTaskAlertRule, LLMJudge, setup_otel,
     GoalAlignmentConfig, PlanConfig,
+    ConversationSession, ConversationMetrics,
 )
 from agent_evaluator.decorators import (
     agent_eval, batch_eval, conversation_eval,
@@ -527,3 +528,76 @@ try:
 
 except Exception as _e:
     print(f"  LLMJudge 실행 중 오류 (skip): {_e}")
+
+# ===========================================================================
+# 섹션 추가: ConversationSession 직접 사용
+#
+# @conversation_eval 데코레이터가 내부적으로 관리하는 ConversationSession을
+# 직접 인스턴스화해 멀티턴 대화 지표를 계산합니다.
+#
+# 패턴 1 — 직접 생성:
+#   session = ConversationSession("s_001")
+#   session.add_turn(user=..., agent=..., metadata={...})
+#   metrics = session.compute_metrics()
+#
+# 패턴 2 — PerformanceMonitor 컨텍스트 매니저:
+#   with monitor.conversation("session_001") as conv:
+#       conv.turn(user=..., agent=...)
+#
+# ConversationMetrics 필드:
+#   turn_count, overall_score, context_retention, topic_coherence
+#   progressive_depth, session_completion, avg_turn_latency, score_stddev
+# ===========================================================================
+print("\n=== 섹션 추가: ConversationSession 직접 사용 ===")
+
+# ── 패턴 1: 직접 생성 + add_turn() ──────────────────────────────────────────
+print("  [1] ConversationSession — 직접 생성")
+session = ConversationSession("cs_demo_001")
+session.add_turn(
+    user="안녕하세요. 파이썬 학습을 시작하고 싶어요.",
+    agent="반갑습니다! 파이썬은 배우기 쉬운 언어입니다. 변수와 자료형부터 시작하면 좋습니다.",
+    metadata={"latency": 0.42},
+)
+session.add_turn(
+    user="변수와 자료형이란 정확히 무엇인가요?",
+    agent="변수는 값을 저장하는 공간이고, 자료형은 정수·문자열·리스트 등 값의 종류입니다.",
+    metadata={"latency": 0.38},
+)
+session.add_turn(
+    user="리스트와 딕셔너리의 차이는 무엇인가요?",
+    agent="리스트는 순서가 있는 값의 모음이고, 딕셔너리는 키-값 쌍으로 이루어진 매핑 자료형입니다.",
+    metadata={"latency": 0.45},
+)
+session.add_turn(
+    user="파이썬으로 간단한 계산기를 만들 수 있나요?",
+    agent="네! 파이썬으로 사칙연산 계산기를 만들 수 있습니다. 함수와 조건문을 활용하면 됩니다.",
+    metadata={"latency": 0.51},
+)
+
+metrics: ConversationMetrics = session.compute_metrics()
+print(f"    세션ID: {session.session_id}  턴 수: {metrics.turn_count}")
+print(f"    overall_score={metrics.overall_score:.3f}  stddev={metrics.score_stddev:.3f}")
+print(f"    context_retention={metrics.context_retention:.3f}  "
+      f"topic_coherence={metrics.topic_coherence:.3f}")
+print(f"    progressive_depth={metrics.progressive_depth:.3f}  "
+      f"session_completion={metrics.session_completion:.3f}")
+if metrics.avg_turn_latency:
+    print(f"    avg_turn_latency={metrics.avg_turn_latency:.3f}s")
+
+# ── 패턴 2: PerformanceMonitor 컨텍스트 매니저 ──────────────────────────────
+print("  [2] monitor.conversation() 컨텍스트 매니저")
+try:
+    with monitor.conversation("cs_demo_002") as conv:
+        conv.turn(user="머신러닝이란 무엇인가요?",
+                  agent="머신러닝은 데이터로부터 패턴을 학습하는 AI 기술입니다.")
+        conv.turn(user="지도학습과 비지도학습의 차이는?",
+                  agent="지도학습은 정답 레이블이 있는 데이터로, 비지도학습은 레이블 없이 패턴만으로 학습합니다.")
+        conv.turn(user="실무에서 가장 많이 쓰이는 알고리즘은?",
+                  agent="분류에는 랜덤포레스트·XGBoost, 회귀에는 선형회귀, 군집에는 K-Means가 널리 쓰입니다.")
+    print("    cs_demo_002: 3턴 → 자동 지표 계산 + monitor 기록")
+except Exception as _e:
+    print(f"    컨텍스트 매니저 오류 (skip): {_e}")
+
+print(f"  @conversation_eval vs ConversationSession 직접 사용 비교:")
+print(f"    @conversation_eval  → session_id·turn 자동 관리, flush_conversation() 수동 종료")
+print(f"    ConversationSession → add_turn() 직접 호출, compute_metrics() 직접 실행")

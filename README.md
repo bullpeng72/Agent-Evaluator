@@ -1346,7 +1346,7 @@ from agent_evaluator.decorators import (
 
 ## 예제 가이드
 
-Book 챕터 기반 17개 파일로 구성됩니다. 각 파일은 독립 실행 가능합니다.
+Book 챕터 기반 19개 파일로 구성됩니다. 각 파일은 독립 실행 가능합니다.
 
 ### 예제별 의존성
 
@@ -1365,7 +1365,9 @@ Book 챕터 기반 17개 파일로 구성됩니다. 각 파일은 독립 실행 
 | `ch11_eval_data.py` | Ch11 | 평가데이터 설계 — GoldenSetBuilder · evaluation_session | — |
 | `ch12_decorators.py` | Ch12 | 데코레이터 완전정복 — @agent_eval · @batch_eval · QuickEval · LLMJudge | — |
 | `ch13_frameworks.py` | Ch13 | 프레임워크 통합 — LangChain · LangGraph · CrewAI · AutoGen | `agent-evaluator[langchain]` (선택) |
+| `ch14_thresholds.py` | Ch14 | 임계값 설정과 품질 기준 수립 | — |
 | `ch16_alerts.py` | Ch16 | 알림시스템 — StreamingEvaluator · AlertEngine · SimpleTaskAlertRule | `SLACK_WEBHOOK_URL` (미설정 시 Mock) |
+| `ch17_weekly_review.py` | Ch17 | 주간·월간 품질 리뷰 자동화 | — |
 | `ch18_cicd_gate.py` | Ch18 | CI/CD 품질 게이팅 — Harness 최소 검증 · exit 0/1 | — |
 | `ch19_phoenix.py` | Ch19 | Phoenix OTEL — Tracing · Datasets · GraphQL + DeepEval · Ragas | `agent-evaluator[eval]` + `OPENAI_API_KEY` (선택) |
 | `ch20_deployment.py` | Ch20 | 프로덕션 배포전략 — v1 vs v2 Gate 점수 비교 | — |
@@ -1388,7 +1390,9 @@ python ch10_group_g.py         # Gate G: Observability + AnomalyDetector · Cost
 python ch11_eval_data.py       # 평가데이터 설계 — GoldenSetBuilder · evaluation_session
 python ch12_decorators.py      # 데코레이터 완전정복 — @agent_eval · @batch_eval · QuickEval · LLMJudge
 python ch13_frameworks.py      # 프레임워크 통합 — LangChain · LangGraph · CrewAI · AutoGen
+python ch14_thresholds.py      # 임계값 설정과 품질 기준 수립
 python ch16_alerts.py          # 알림시스템 — StreamingEvaluator · AlertEngine
+python ch17_weekly_review.py   # 주간·월간 품질 리뷰 자동화
 python ch18_cicd_gate.py       # CI/CD 품질 게이팅
 python ch19_phoenix.py         # Phoenix OTEL + DeepEval · Ragas (opt-in)
 python ch20_deployment.py      # 프로덕션 배포전략
@@ -1432,7 +1436,7 @@ agent-evaluator/
 │   ├── cost/                    # CostTracker · AdaptivePolicy
 │   └── datasets/                # GoldenSetBuilder
 │
-├── Evaluator_Examples/          # 예제 17개 파일 (chXX_topic.py, .deprecated/에 구 11개 보존)
+├── Evaluator_Examples/          # 예제 19개 파일 (chXX_topic.py, .deprecated/에 구 11개 보존)
 ├── tests/                       # 2,465개+ 테스트 함수, 53개 파일
 └── pyproject.toml
 ```

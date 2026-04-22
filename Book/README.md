@@ -120,7 +120,7 @@ def my_agent(question, ground_truth=""): ...
 **QA 관리자**는 Gate A–G를 통해 "어떤 차원에서 배포 가능한지" 판단한다.  
 같은 시스템, 두 가지 언어 — 이 책의 Part II는 그 둘을 동시에 설명한다.
 
-> **읽기 전략**: Gate A–G 관점이 먼저 필요하다면 Part II의 각 챕터를 §X.1(개요)과 §X.4(Config 설정) 중심으로 읽는다. Tracker 구현이 필요하다면 §X.2(Tracker 상세)와 §X.3(코드 예제)를 깊이 읽는다.
+> **읽기 전략**: Gate A–G 관점이 먼저 필요하다면 Part II의 각 챕터를 개요와 Config 설정 섹션 중심으로 읽는다. Tracker 구현이 필요하다면 Tracker 상세와 코드 예제 섹션을 깊이 읽는다.
 
 ---
 
@@ -128,18 +128,18 @@ def my_agent(question, ground_truth=""): ...
 
 | 독자 유형 | 권장 읽기 경로 |
 |---|---|
-| AI 에이전트 개발자 | Part I → Part II (Ch3~10) → Ch11 → Ch12 → Ch13 → Part V → Appendix L |
+| AI 에이전트 개발자 | Part I → Part II → Part III → Part V → Appendix L |
 | QA 관리자 / Harness 담당 엔지니어 | Part I → Part II (Ch3~5 필수) → Part IV → Ch18 → Appendix J |
-| DevOps / MLOps 엔지니어 | Part I (Ch2만) → Ch18 → Ch19 → Ch21 → Appendix J §J.4 |
-| 보안 엔지니어 / 레드팀 | Ch8 → Appendix K → Ch18 §Gate E 설정 |
+| DevOps / MLOps 엔지니어 | Ch2 → Ch18 → Ch19 → Ch21 → Appendix J |
+| 보안 엔지니어 / 레드팀 | Ch8 → Appendix K → Ch18 |
 | 평가 이론 연구자 | Appendix G → Appendix H → Appendix I → Part II 전체 |
 | 이미 운영 중인 팀 (빠른 시작) | Ch2 → Ch11 → Ch12 → Ch14 → Ch18 |
-| 프로덕션 품질 위기 대응 | Appendix J → Ch21 §21.3 (Runbook) → Ch18 |
+| 프로덕션 품질 위기 대응 | Appendix J → Ch21 → Ch18 |
 | 예산 제약 스타트업 | Appendix L → Ch12 (필수 Config만) → Ch18 |
-| Harness Config 레퍼런스만 필요 | Appendix A §Part 2 |
-| 전체 | Part I → II → Ch11 → Ch12 → Ch13 → IV → V → 부록 G~L |
+| Harness Config 레퍼런스만 필요 | Appendix A |
+| 전체 | Part I → II → III → IV → V → 부록 G~L |
 
-> **QA 관리자 참고**: Ch10(Group G/LLM Judge)는 Chapter 14에서 LLM Judge 비용 설정을 다룰 때 필요합니다. Part II를 Ch3~9만 읽을 경우 Chapter 14의 §14.7 이전에 Ch10을 보완하세요.
+> **QA 관리자 참고**: Ch10(Group G/LLM Judge)는 Chapter 14에서 LLM Judge 비용 설정을 다룰 때 필요합니다. Part II를 Ch3~9만 읽을 경우 Chapter 14의 LLM Judge 비용 설정 이전에 Ch10을 보완하세요.
 
 > **Appendix I 활용**: 지표 선택을 아직 결정하지 않았다면 Part I 직후 Appendix I를 먼저 읽는 것이 효율적입니다. 어떤 지표를 쓸지 알고 나서 Part II를 읽으면 이해 속도가 크게 높아집니다.
 
@@ -149,19 +149,19 @@ def my_agent(question, ground_truth=""): ...
 
 ## Harness Engineering 58개 지표 구조
 
-```
-Group A — 목표달성     (Tracker 3종 + Config 6종)  ← 에이전트가 지시를 완수했는가?
-Group B — 행동무결성   (Tracker 2종 + Config 6종)  ← 의도치 않은 행동이 없었는가?
-Group C — 신뢰성       (Tracker 2종 + Config 5종)  ← 일관되고 재현 가능한가?
-Group D — 성능계약     (Tracker 2종 + Config 5종)  ← SLA/비용 계약을 지켰는가?
-Group E — 보안경계     (Tracker 5종 + Config 3종)  ← 공격·유출을 차단했는가?
-Group F — 다중에이전트 (Tracker 2종 + Config 4종)  ← 교착 없이 협력했는가?
-Group G — 운영관측성   (Tracker 0종 + Config 4종)  ← 실패 원인을 즉시 추적할 수 있는가?
-────────────────────────────────────────────────────────
-Harness Gate 직접 매핑: Tracker 16종 + Config 33종 = 49개
-운영 지원 Tracker(ConversationSession·Feedback·Anomaly·Cost·Streaming) 9종 포함 시:
-합계: Native Tracker 25종 + Harness Config 33종 = 58개 지표
-```
+| Gate | 품질 차원 | 구성 | 평가 질문 |
+|------|-----------|------|-----------|
+| Gate A | 목표달성 | Tracker 3종 + Config 6종 | 에이전트가 지시를 완수했는가? |
+| Gate B | 행동무결성 | Tracker 2종 + Config 6종 | 의도치 않은 행동이 없었는가? |
+| Gate C | 신뢰성 | Tracker 2종 + Config 5종 | 일관되고 재현 가능한가? |
+| Gate D | 성능계약 | Tracker 2종 + Config 5종 | SLA/비용 계약을 지켰는가? |
+| Gate E | 보안경계 | Tracker 5종 + Config 3종 | 공격·유출을 차단했는가? |
+| Gate F | 다중에이전트 | Tracker 2종 + Config 4종 | 교착 없이 협력했는가? |
+| Gate G | 운영관측성 | Tracker 0종 + Config 4종 | 실패 원인을 즉시 추적할 수 있는가? |
+
+> **합계**: Harness Gate 직접 매핑 Tracker 16종 + Config 33종 = 49개  
+> 운영 지원 Tracker(ConversationSession · Feedback · Anomaly · Cost · Streaming) 9종 포함 시  
+> **Native Tracker 25종 + Harness Config 33종 = 58개 지표**
 
 배포 판정은 `HarnessEvaluationGate`가 7개 Group을 한 번에 평가한다.
 

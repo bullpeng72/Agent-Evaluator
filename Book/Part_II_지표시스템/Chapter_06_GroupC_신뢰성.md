@@ -16,8 +16,7 @@
 > - **[Appendix A — 58개 지표 완전 레퍼런스](../Appendix/A_58개지표_레퍼런스.md)**: Group C 지표 입력·출력
 > - **[Appendix H — 수학적 상세](../Appendix/H_알고리즘_수학적_레퍼런스.md)**: 환각 탐지 알고리즘 수식
 > - **[Appendix A §Part 2 — Config 레퍼런스](../Appendix/A_58개지표_레퍼런스.md)**: Group C Config 파라미터 전체 목록
-> - **[Evaluator_Examples/ch01_first_eval.py](../../Evaluator_Examples/ch01_first_eval.py)**: HallucinationDetector 실전 예제
-> - **[Evaluator_Examples/ch04_group_a.py](../../Evaluator_Examples/ch04_group_a.py)**: Gate C FAIL 시나리오 — 시나리오 3+10+11 (SLAConfig·IdempotencyConfig·ReproducibilityConfig)
+> - **[Evaluator_Examples/ch06_group_c.py](../../Evaluator_Examples/ch06_group_c.py)**: 이 챕터 실전 예제 (HallucinationDetector · 5개 Config · Gate C FAIL 시나리오)
 
 > **독자별 읽기 가이드**  
 > - **QA 관리자**: §6.1(개요) → §6.4(Config 설정) → §6.5(임계값·Gate 판정) 순서로 읽으면 "재현성·오류 복구 기준을 어떻게 선언할지"를 빠르게 파악할 수 있습니다.  
@@ -77,7 +76,7 @@ Group A(목표달성)가 "결과가 맞는가?"를 묻는다면, Group C는 "결
 - **정보 출처 추적**: RAG 에이전트의 경우 응답이 검색된 문서에 기반하는가
 
 ```python
-# 출처: Evaluator_Examples/ch01_first_eval.py, 섹션 4 — 할루시네이션 탐지
+# 출처: Evaluator_Examples/ch06_group_c.py, 섹션 4 — 할루시네이션 탐지
 from agent_evaluator import PerformanceMonitor
 from agent_evaluator.decorators import agent_eval
 
@@ -117,7 +116,7 @@ print(f"환각 점수: {d.get('hallucination_score', 0):.3f}")
 환각 탐지를 더 정밀하게 하려면 LLMJudge와 결합한다.
 
 ```python
-# 출처: Evaluator_Examples/ch01_first_eval.py, 섹션 4 — 할루시네이션 탐지
+# 출처: Evaluator_Examples/ch06_group_c.py, 섹션 4 — 할루시네이션 탐지
 from agent_evaluator import LLMJudgeConfig
 
 @agent_eval(
@@ -154,7 +153,7 @@ def rag_agent(question: str, context: str = "", ground_truth: str = "") -> str:
 | `self_correction_rate` | 스스로 오류를 수정한 비율 |
 
 ```python
-# 출처: Evaluator_Examples/ch05_group_b.py, 섹션 2 — Group B — Behavioral Integrity
+# 출처: Evaluator_Examples/ch06_group_c.py, 섹션 2 — Group B — Behavioral Integrity
 from agent_evaluator import create_taskresult
 
 # 재시도 정보 기록
@@ -189,7 +188,7 @@ print(f"재시도 성공률: {d.get('retry_success_rate', 0) * 100:.1f}%")
 동일한 입력을 N회 실행해 응답의 일관성을 측정한다. AI Native 관점의 "확률론적 품질"을 직접 측정하는 핵심 Config다.
 
 ```python
-# 출처: Evaluator_Examples/ch03_harness_basics.py
+# 출처: Evaluator_Examples/ch06_group_c.py
 from agent_evaluator import ReproducibilityConfig
 
 ReproducibilityConfig(
@@ -238,7 +237,7 @@ def finance_agent(question: str, ground_truth: str = "") -> str:
 에이전트가 도구 실패나 부분적인 오류 상황에서 적절한 폴백(fallback) 전략을 사용하는지 측정한다.
 
 ```python
-# 출처: Evaluator_Examples/ch03_harness_basics.py
+# 출처: Evaluator_Examples/ch06_group_c.py
 from agent_evaluator import FaultToleranceConfig
 
 FaultToleranceConfig(
@@ -273,7 +272,7 @@ def db_agent(question: str, ground_truth: str = "") -> str:
 에이전트가 최적 조건이 아닐 때(도구 실패, 컨텍스트 부족, 타임아웃 등) 완전한 실패 대신 부분적인 결과를 제공하는지 측정한다. "모든 것을 실패하거나, 모든 것을 성공하거나" 대신 "가능한 것을 제공하고 부족함을 인정하는" 패턴을 장려한다.
 
 ```python
-# 출처: Evaluator_Examples/ch03_harness_basics.py
+# 출처: Evaluator_Examples/ch06_group_c.py
 from agent_evaluator import GracefulDegradationConfig
 
 GracefulDegradationConfig(
@@ -551,13 +550,12 @@ print(f"재시도 성공률: {d.get('retry_success_rate', 'N/A')}")
 
 ## 6.7 실전 예제 파일
 
-| 예제 파일 | 관련 내용 |
-|---------|---------|
-| [`Evaluator_Examples/ch03_harness_basics.py`](../../Evaluator_Examples/ch03_harness_basics.py) | 섹션 3: Group C Reliability — 4개 Config 실전 예제 |
-| [`Evaluator_Examples/ch01_first_eval.py`](../../Evaluator_Examples/ch01_first_eval.py) | 섹션 2: HallucinationDetector 실전 예제 |
-| [`Evaluator_Examples/ch04_group_a.py`](../../Evaluator_Examples/ch04_group_a.py) | 시나리오 3+10+11: Gate C FAIL (SLAConfig·IdempotencyConfig·ReproducibilityConfig) |
+**기본 예제**: [`Evaluator_Examples/ch06_group_c.py`](../../Evaluator_Examples/ch06_group_c.py)
+— HallucinationDetector · FaultToleranceConfig · ReproducibilityConfig · GracefulDegradationConfig · RetryConsistencyConfig · IdempotencyConfig 5개 Config · Gate C FAIL 시나리오
 
-**핵심 코드 (출처: `Evaluator_Examples/ch03_harness_basics.py`, 섹션 3 — Group C Reliability)**
+> **관련 챕터 예제**: Harness 전체 Gate 통합 흐름은 [Chapter 3 — `ch03_harness_basics.py`](Chapter_03_Harness_Engineering_기초.md), Layer 1 기초 트래커는 [Chapter 1 — `ch01_first_eval.py`](../Part_I_기초/Chapter_01_AI에이전트_평가란_무엇인가.md)에서 확인한다.
+
+**핵심 코드**
 
 ```python
 # 출처: Evaluator_Examples/ch06_group_c.py, 섹션 3 — Group C Reliability

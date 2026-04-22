@@ -910,14 +910,28 @@ print(f"  정확도: {before_trends.get('accuracy_mean', 0):.1%} → {after_tren
 
 ## 실전 예제
 
-이 챕터의 종합 파이프라인은 `Evaluator_Examples/` 7개 파일 전체를 순서대로 실행하면 재현된다. 각 파일이 개발 → CI → 프로덕션 → 주간 리뷰 사이클의 한 단계를 담당한다.
+**기본 예제**: [`Evaluator_Examples/ch21_pipeline.py`](../../Evaluator_Examples/ch21_pipeline.py)
 
-**파일**: `Evaluator_Examples/ch01_first_eval.py` ~ `ch19_phoenix.py` 전체
+| 단계 | 섹션 | 내용 |
+|------|------|------|
+| 개발 | 1단계 | QuickEval + Layer 1 기초 검증 |
+| CI   | 2단계 | Harness Gate 판정 + `agent-eval gate` |
+| 운영 | 3단계 | 데코레이터 + 알림 + 이상 탐지 + 비용 추적 |
+| 개선 | 4단계 | 골든셋 추출 + 추세 분석 + 자기개선 루프 |
 
-**핵심 코드 (출처: `Evaluator_Examples/ch19_phoenix.py` + `ch01_first_eval.py` — 전체 파이프라인 초기화)**
+```bash
+python Evaluator_Examples/ch21_pipeline.py   # 전체 파이프라인 4단계 실행
+agent-eval dashboard results/                # 결과 종합 확인
+```
+
+> **관련 챕터 예제**: 각 단계의 상세 예제는 해당 챕터에서 확인한다. CI/CD 게이팅 심화는 [Chapter 18 — `ch18_cicd_gate.py`](Chapter_18_CICD_품질게이팅.md), 배포 버전 결정은 [Chapter 20 — `ch20_deployment.py`](Chapter_20_프로덕션_배포전략.md), Phoenix OTEL 연동은 [Chapter 19 — `ch19_phoenix.py`](Chapter_19_Phoenix_OTEL_모니터링.md)에서 확인한다.
+
+**기본 예제**: `Evaluator_Examples/ch21_pipeline.py`
+
+**핵심 코드**
 
 ```python
-# 출처: Evaluator_Examples/ch19_phoenix.py + ch01_first_eval.py — 전체 파이프라인 초기화
+# 출처: Evaluator_Examples/ch21_pipeline.py — 전체 파이프라인 초기화
 import socket, os
 from agent_evaluator import setup_otel, PerformanceMonitor, QuickEval
 
@@ -945,7 +959,7 @@ monitor = PerformanceMonitor(
 - `judge_criteria`로 G-Eval 스타일 커스텀 평가 기준을 지정하면 LLMJudge가 해당 기준으로 채점한다
 
 ```python
-# 출처: Evaluator_Examples/ch12_decorators.py + ch16_alerts.py — 데코레이터 + 알림 통합
+# 출처: Evaluator_Examples/ch21_pipeline.py, 3단계 — 데코레이터 + 알림 통합
 from agent_evaluator import SimpleTaskAlertRule, EvalMetadata
 from agent_evaluator.decorators import agent_eval
 from agent_evaluator.alerts.handlers import AlertRuleBuilder
@@ -984,7 +998,7 @@ def production_agent(question: str, context: str = "", ground_truth: str = "") -
 - `flush_every=50`은 50건마다 `save_to_file()`을 자동 호출해 데이터 손실 위험을 최소화한다
 
 ```python
-# 출처: Evaluator_Examples/ch10_group_g.py — 골든셋 + 추세 분석 + CI 게이팅
+# 출처: Evaluator_Examples/ch21_pipeline.py, 4단계 — 골든셋 + 추세 분석 + CI 게이팅
 from agent_evaluator.datasets.builder import GoldenSetBuilder
 import subprocess
 
@@ -1015,24 +1029,10 @@ print(f"게이트 결과: {'통과' if gate_result.returncode == 0 else '실패'
 - 이 패턴이 Ch01~Ch15에서 다룬 모든 기능(Group A-G 지표, 데코레이터, Phoenix OTEL, 알림, 이상 탐지, 골든셋)을 하나로 통합한 종합 파이프라인이다
 
 ```bash
-# 전체 파이프라인 실행 (개발 단계 시뮬레이션)
-python Evaluator_Examples/ch01_first_eval.py   # Group A-D 기반 지표
-python Evaluator_Examples/ch05_group_b.py  # Group B-E 에이전틱·보안
-python Evaluator_Examples/ch13_frameworks.py   # 프레임워크 통합
-python Evaluator_Examples/ch12_decorators.py  # 데코레이터·QuickEval
+# 종합 파이프라인 단일 실행 (개발 → CI → 운영 → 개선 전체)
+python Evaluator_Examples/ch21_pipeline.py
 
-# CI/CD 게이팅
-agent-eval gate results/*.json --tcr 40 --accuracy 60
-
-# 운영 단계
-python Evaluator_Examples/ch16_alerts.py     # 실시간 알림
-python Evaluator_Examples/ch10_group_g.py          # 운영 인프라
-
-# Phoenix OTEL (API 키 있을 때)
-agent-eval monitor &
-python Evaluator_Examples/ch19_phoenix.py
-
-# 주간 추이 분석
+# 추세 분석
 agent-eval trend results/ --window 10 --output-json weekly.json
 
 # 대시보드 종합 확인
@@ -1071,7 +1071,7 @@ Phoenix: http://localhost:6006 — OTEL 스팬 시각화 (API 키 필요)
 ### `ch18_cicd_gate.py` — 종합 파이프라인 CI/CD 게이팅
 
 ```python
-# 출처: Evaluator_Examples/ch18_cicd_gate.py — CI/CD 자동화 최소 검증
+# 출처: Evaluator_Examples/ch21_pipeline.py — CI/CD 자동화 최소 검증
 # 전체 파이프라인의 마지막 단계: 7개 Gate 각 1개 Config로 신속 검증 (실행 ~3초)
 import subprocess, sys
 
@@ -1115,7 +1115,7 @@ python Evaluator_Examples/ch18_cicd_gate.py --strict  # WARN도 차단
 두 `PerformanceMonitor`를 독립 인스턴스로 운영해 v1·v2 에이전트의 7개 Gate 점수를 나란히 비교하고, 어느 버전을 배포할지 자동으로 판정한다.
 
 ```python
-# 출처: Evaluator_Examples/ch20_deployment.py — 독립 monitor로 v1 vs v2 비교
+# 출처: Evaluator_Examples/ch21_pipeline.py — 독립 monitor로 v1 vs v2 비교
 from agent_evaluator import PerformanceMonitor, TTFTVariabilityConfig, CostPredictabilityConfig
 
 # 두 버전의 독립 monitor — 서로 간섭하지 않음
@@ -1134,7 +1134,7 @@ monitor_v2 = PerformanceMonitor(
 ```
 
 ```python
-# 출처: Evaluator_Examples/ch20_deployment.py — Gate별 점수 차이 출력
+# 출처: Evaluator_Examples/ch21_pipeline.py — Gate별 점수 차이 출력
 r1 = monitor_v1.generate_report().to_dict()
 r2 = monitor_v2.generate_report().to_dict()
 h1 = (r1.get("extra_metrics") or {}).get("harness_groups", {})
@@ -1156,7 +1156,7 @@ for gk in "ABCDEFG":
 ```
 
 ```python
-# 출처: Evaluator_Examples/ch20_deployment.py — 배포 결정 자동화
+# 출처: Evaluator_Examples/ch21_pipeline.py — 배포 결정 자동화
 v1_fail = [g for g in "ABCDEFG" if ((h1.get(g) or {}).get("gate") or "?").upper() == "FAIL"]
 v2_fail = [g for g in "ABCDEFG" if ((h2.get(g) or {}).get("gate") or "?").upper() == "FAIL"]
 

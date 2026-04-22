@@ -864,99 +864,65 @@ def agent(question: str, ground_truth: str = "") -> str: ...
 
 ## 실전 예제
 
-대시보드 시각화는 JSON 파일을 생성하는 예제 실행 후 `agent-eval dashboard`로 바로 확인할 수 있다. `ch12_decorators.py`(데코레이터 평가), `ch10_group_g.py`(운영 지표), `ch19_phoenix.py`(Phoenix 연동) 세 파일이 대시보드의 각기 다른 탭을 채운다.
+**기본 예제**: [`Evaluator_Examples/ch15_dashboard.py`](../../Evaluator_Examples/ch15_dashboard.py)
 
-**파일**: `Evaluator_Examples/ch12_decorators.py`, `Evaluator_Examples/ch10_group_g.py`, `Evaluator_Examples/ch19_phoenix.py`
-
-**핵심 코드 (출처: `Evaluator_Examples/ch12_decorators.py`, `ch10_group_g.py`)**
-
-```python
-# 출처: Evaluator_Examples/ch12_decorators.py, 섹션 8 — QuickEval Facade — 원스톱 간편 시작
-from agent_evaluator import QuickEval
-
-eval_qe = QuickEval("results/", auto_save=True, auto_save_interval=10)
-
-@eval_qe.qa
-def agent(question: str, ground_truth: str = "") -> str:
-    return "에이전트 응답"
-
-# 여러 태스크 실행 (10건마다 자동 저장)
-for i in range(50):
-    agent(f"질문 {i}", ground_truth=f"정답 {i}")
-
-# 최종 저장 — results/quickeval.json + results/quickeval.html 생성
-eval_qe.save()
-
-# 대시보드 실행 (별도 터미널에서)
-# agent-eval dashboard results/ --port 8765
-```
-
-- `auto_save=True, auto_save_interval=10`으로 설정하면 10건마다 `save_to_file()`이 자동 호출된다
-- `save()`는 JSON과 HTML 보고서를 동시에 생성한다 — HTML은 브라우저에서 바로 열 수 있는 인터랙티브 대시보드
-- `agent-eval dashboard results/`를 실행하면 FastAPI 서버가 기동되어 실시간 지표를 웹 UI로 확인할 수 있다
-
-```python
-# 출처: Evaluator_Examples/ch11_eval_data.py, 섹션 4 — evaluation_session — context manager + 자동 저장
-from agent_evaluator import evaluation_session, create_taskresult
-
-# 세션 종료 시 자동으로 results/session_results.json 저장
-with evaluation_session("session_results") as session_monitor:
-    for i in range(20):
-        result = create_taskresult(
-            task_id=f"task_{i:03d}",
-            question=f"질문 {i}",
-            response=f"응답 {i}",
-            ground_truth=f"정답 {i}",
-            execution_time=0.5 + i * 0.05,
-            task_type="qa",
-        )
-        session_monitor.record_task(result)
-    
-    # 세션 중간 보고서 확인 가능
-    interim = session_monitor.generate_report()
-    print(f"진행 중 TCR: {interim.task_completion_rate:.1%}")
-
-# with 블록 종료 시 자동 저장 (예외 발생 시에도 안전)
-print("results/session_results.json 저장 완료")
-```
-
-- `evaluation_session()`은 컨텍스트 매니저로 세션 종료(정상 or 예외) 시 자동으로 `save_to_file()`을 호출한다
-- 장기 실행 에이전트에서 프로세스가 중단되더라도 그때까지의 결과를 안전하게 보존한다
-- `async_evaluation_session()`을 사용하면 비동기 에이전트에도 동일하게 적용된다
+| 섹션 | 내용 | 연결 대시보드 탭 |
+|------|------|----------------|
+| 섹션 1 | QuickEval 기본 평가 데이터 생성 | 개요·태스크 목록 탭 |
+| 섹션 2 | PerformanceMonitor + Harness Config | Harness Gate A–G 탭 |
+| 섹션 3 | AnomalyDetector + CostTracker | 이상 감지·비용 탭 |
+| 섹션 4 | LLMJudge 활성화 (API 키 필요) | LLM Judge 탭 |
+| 섹션 5 | API 조회 예시 | 대시보드 REST API |
 
 ```bash
-# 각 예제를 실행해 results/ 에 JSON 저장
-python Evaluator_Examples/ch12_decorators.py
-python Evaluator_Examples/ch10_group_g.py
-python Evaluator_Examples/ch19_phoenix.py
+# 1. 예제 실행 → results/ 에 JSON 생성
+python Evaluator_Examples/ch15_dashboard.py
 
-# 대시보드 기동 — 브라우저에서 http://localhost:8765
-agent-eval dashboard results/
+# 2. 대시보드 기동
+agent-eval dashboard results/ --port 8765
+
+# 3. 브라우저 접속
+# http://localhost:8765
 ```
 
-**예제별 대시보드 탭 연결**
+**핵심 코드**
 
-| 예제 파일 | 채워지는 대시보드 탭 | 핵심 데이터 |
-|-----------|---------------------|------------|
-| ch12_decorators | 개요·태스크 목록·LLM Judge | EvalMetadata priority 시연, gate() 결과 |
-| ch10_group_g | 이상 감지·비용·실시간·알림 | AnomalyDetector, CostTracker, alert JSONL |
-| ch19_phoenix | 외부 평가·OTEL | advanced_metrics, rag_metrics |
+```python
+# 출처: Evaluator_Examples/ch15_dashboard.py, 섹션 1 — QuickEval 기본 평가
+from agent_evaluator import QuickEval
 
-**실행 결과 (v0.8.4 기준)**
+eval_q = QuickEval("results/", auto_save=False)
 
+@eval_q.qa
+def qa_agent(question: str, ground_truth: str = "") -> str:
+    return f"답변: {question}"
+
+for q, gt in QA_CASES:
+    qa_agent(q, ground_truth=gt)
+
+eval_q.save("ch15_dashboard_quickeval")
+# → results/ch15_dashboard_quickeval.json + .html 생성
+# → 대시보드 '개요·태스크 목록' 탭에서 TCR·정확도·p95 확인
 ```
-# ch12_decorators.py
-TCR=57.1% | 14개 태스크 | avg_accuracy=0.712
-대시보드: /tasks/filter?accuracy_lt=0.5 → 6건 필터링
 
-# ch10_group_g.py
-28개 태스크 | TCR=46.1%
-이상 감지 탭: latency_spike 2건
-비용 탭: $0.00 (mock 모드)
+```python
+# 출처: Evaluator_Examples/ch15_dashboard.py, 섹션 3 — AnomalyDetector
+from agent_evaluator import AnomalyDetector, CostTracker
 
-# ch19_phoenix.py
-mock 모드 실행: advanced_metrics 3건
-외부 평가 탭: deepeval_score, ragas_faithfulness 표시
+anomaly_detector = AnomalyDetector(window_size=5, z_score_threshold=2.5)
+cost_tracker = CostTracker(budget_usd=5.0)
+
+for result in task_results:
+    monitor.record_task(result)
+    event = anomaly_detector.check(result)
+    if event:
+        print(f"⚠️  이상 탐지: {result.task_id} — lat={result.execution_time:.2f}s")
+    cost_tracker.track(result)
+
+# → 대시보드 '이상 감지' 탭에서 latency_spike 이벤트 확인
+# → 대시보드 '비용' 탭에서 누적 비용·예산 현황 확인
 ```
+
+> **관련 챕터 예제**: 데코레이터 평가 데이터는 [Chapter 12 — `ch12_decorators.py`](Chapter_12_데코레이터_완전정복.md)에서, 운영 지표(AnomalyDetector·CostTracker)는 [Chapter 10 — `ch10_group_g.py`](../Part_II_지표시스템/Chapter_10_GroupG_운영관측성.md)에서, Phoenix OTEL 연동은 [Chapter 19 — `ch19_phoenix.py`](../Part_V_프로덕션운영/Chapter_19_Phoenix_OTEL_모니터링.md)에서 확인한다.
 
 > **5분 점검 루틴**: `agent-eval dashboard results/`를 기동한 후 ① 개요 탭 TCR 확인 → ② 태스크 목록에서 `accuracy_score` 낮은 케이스 필터 → ③ 이상 감지 탭 → ④ 비용 탭 순서로 확인한다. 이 루틴을 팀 스탠드업 전에 한 번씩 돌리면 품질 이상을 배포 전에 발견할 수 있다.

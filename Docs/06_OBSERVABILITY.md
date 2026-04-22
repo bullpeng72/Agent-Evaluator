@@ -208,12 +208,12 @@ eval.save()  # results/quickeval.json + .html 자동 생성
 
 ### RAG 탭
 
-`HybridPerformanceMonitor` + `enable_ragas=True` 필요.
+`HybridPerformanceMonitor` + `use_ragas=True` 필요.
 Faithfulness / Answer Relevancy / Context Precision / Context Recall KPI 카드 및 라인 차트.
 
 ### DeepEval 탭
 
-`HybridPerformanceMonitor` + `enable_deepeval=True` 필요.
+`HybridPerformanceMonitor` + `use_deepeval=True` 필요.
 G-Eval Score / Hallucination / Toxicity / Bias / Answer Relevancy KPI 카드.
 
 ---

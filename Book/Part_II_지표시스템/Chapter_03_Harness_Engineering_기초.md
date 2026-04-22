@@ -1,27 +1,209 @@
 # Chapter 3. Harness Engineering 기초
 
-이 챕터에서는 **Harness Engineering**의 개념과 3요소 아키텍처를 이해한다.
-이후 Chapter 4~10에서 Group A-G를 각각 깊이 탐구하기 위한 공통 기반이 된다.
+Chapter 2에서 `QuickEval`과 `@eval.qa` 데코레이터로 첫 배포 판정을 경험했다. `@eval.qa`를 붙이는 순간 Tracker가 자동 활성화됐고, `eval.gate(tcr=80)`이 Gate를 실행했으며, `SLAConfig`를 추가하면 Config가 합류했다. 동작은 경험했지만 아직 "왜 이렇게 설계됐는가"는 설명하지 않았다.
+
+이 챕터는 그 설계 원리를 다룬다. Tracker·Config·Gate 세 역할을 동등한 깊이로 분해하고, 58개 지표가 7개 Gate로 구조화된 논리를 설명한다. 이후 **Chapter 4~10**에서 Group A-G를 각각 탐구하기 위한 공통 기반이 된다.
 
 > 📖 **관련 레퍼런스**
 > - **[Appendix A — 58개 지표 완전 레퍼런스](../Appendix/A_58개지표_레퍼런스.md)**: 각 Tracker와 Config의 입력·출력·임계값 기본값 한눈에 조회
 > - **[Appendix G — AI 품질 평가 이론적 기초](../Appendix/G_AI평가_이론적기초.md)**: Harness Engineering 설계 철학의 이론적 배경
 > - **[Appendix A §Part 2 — 33개 Harness Config 레퍼런스](../Appendix/A_58개지표_레퍼런스.md)**: 파라미터 상세 레퍼런스
-> - **[Evaluator_Examples/ch03_harness_basics.py](../../Evaluator_Examples/ch03_harness_basics.py)**: 이 챕터 실전 예제
-> - **[Evaluator_Examples/ch04_group_a.py](../../Evaluator_Examples/ch04_group_a.py)**: Gate A~G FAIL 시나리오 — 배포 차단 케이스 17개
-> - **[Evaluator_Examples/ch20_deployment.py](../../Evaluator_Examples/ch20_deployment.py)**: v1 레거시 → v2 개선 에이전트 Harness Gate 비교
+> - **[Evaluator_Examples/ch03_harness_basics.py](../../Evaluator_Examples/ch03_harness_basics.py)**: 이 챕터 실전 예제 (7개 Gate PASS 시나리오 · 33개 Config 실전 시연)
 
 ---
 
 ## 3.1 Harness Engineering이란 무엇인가
 
-### 3.1.1 "버그 없음" vs "배포 가능"
+> *"Agent = Model + Harness"*  
+> — Mitchell Hashimoto (HashiCorp 공동창업자)
+
+**Harness Engineering**은 자율 AI 에이전트를 **외부에서 제어·측정·검증하는 시스템 전체**를 설계하는 공학 분야다. 모델 자체(가중치, 추론 엔진)를 제외한 모든 것 — 지시 구조, 제약 선언, 품질 측정, 배포 판정 — 이 Harness에 속한다.
+
+이 정의는 소프트웨어 공학자 Martin Fowler가 제시한 것과 일치한다.
+
+> *"The harness is the system and control structure around a coding agent — everything except the model itself."*  
+> — Martin Fowler
+
+Harness Engineering을 이해하려면 AI 최적화 방법론이 어떻게 진화해왔는지를 먼저 살펴봐야 한다. 이 방법론은 세 단계를 거쳐 발전했다.
+
+### 3.1.1 AI 최적화 방법론의 3단계 진화
+
+#### 1단계: Prompt Engineering (2022–2024)
+
+LLM 등장 초기의 최적화는 **프롬프트 자체를 정교하게 설계**하는 데 집중됐다. 같은 모델이라도 프롬프트를 어떻게 작성하느냐에 따라 출력 품질이 크게 달라진다는 사실이 밝혀지면서, Few-shot prompting, Chain-of-Thought(CoT), 역할 페르소나 설정 같은 기법이 급속히 발전했다.
+
+그러나 Prompt Engineering은 **단일 LLM 호출**에 특화된 최적화다. 에이전트가 여러 도구를 호출하고, 멀티턴 대화를 유지하고, 외부 시스템과 연동하는 복잡한 시나리오에서는 "어떻게 질문하느냐"만으로는 한계에 부딪혔다.
+
+#### 2단계: Context Engineering (2025)
+
+Prompt Engineering의 한계를 돌파한 것이 **Context Engineering**이다. AI 연구자 Andrej Karpathy는 이를 이렇게 정의했다.
+
+> *"Context Engineering is the delicate art and science of filling the context window with just the right information."*  
+> — Andrej Karpathy
+
+Context Engineering은 프롬프트 텍스트 하나가 아니라, **컨텍스트 창(context window)에 들어오는 모든 정보**를 관리 대상으로 삼는다.
+
+| 관리 대상 | 구체적 내용 |
+|----------|-----------|
+| **시스템 프롬프트** | 역할 정의, 행동 지침, 제약 조건 |
+| **외부 지식** | RAG 검색 결과, 문서 청크, 벡터 검색 |
+| **메모리** | 단기 대화 이력, 장기 사용자 프로파일 |
+| **도구 정보** | 사용 가능한 함수 스펙, 이전 호출 결과 |
+| **구조화 출력** | JSON 스키마, 포맷 지정 |
+
+Context Engineering은 에이전트 품질을 획기적으로 높였다. 그러나 여전히 해결하지 못하는 문제가 남아 있었다. **"에이전트가 실제로 어떻게 동작했는가"를 사후에 검증하고, 배포 가능 여부를 자동으로 판정하는 메커니즘**이 없었다.
+
+#### 3단계: Harness Engineering (2026~)
+
+Context Engineering이 모델에게 **무엇을 줄 것인가(입력 관리)**를 다룬다면, Harness Engineering은 **모델 주변의 제어 구조 전체(외부 통제 시스템)**를 설계한다.
+
+| 구분 | Prompt Engineering | Context Engineering | Harness Engineering |
+|------|-------------------|--------------------|--------------------|
+| **최적화 대상** | 프롬프트 텍스트 | 컨텍스트 창 전체 | 에이전트 주변 제어 구조 |
+| **관심 시점** | 호출 이전 (사전 설계) | 호출 이전 (입력 구성) | 호출 전후 (사전+사후 제어) |
+| **핵심 질문** | "어떻게 물어볼까?" | "무엇을 넣어줄까?" | "어떤 조건에서 배포 가능한가?" |
+| **적용 범위** | 단일 LLM 호출 | 단일~다중 호출 | 자율 에이전트 전체 생명주기 |
+| **검증 방식** | 수동 평가 | 수동+부분 자동 | 코드로 선언된 자동 판정 |
+
+Harness Engineering은 단순한 테스트 프레임워크가 아니다. Shopify CEO Tobi Lütke가 사내 AI 정책에서 선언한 것처럼, 에이전트를 자율적으로 신뢰하는 방향으로 나아가는 만큼, 그 자율성을 **외부에서 구조적으로 제어·검증할 수 있어야** 한다는 공학적 응답이다.
+
+> *"Model is commodity, Harness is the moat."*  
+> — Aakash Gupta (AI 제품 전략가)
+
+모델 자체는 점점 상품화된다. 차별화는 **에이전트를 얼마나 신뢰할 수 있도록 제어·검증하느냐**에서 나온다.
+
+#### Context Engineering이 해결하지 못한 문제: 배포 준비도 공백
+
+Context Engineering은 에이전트에게 올바른 정보를 제공하는 데 탁월하다. RAG로 관련 문서를 검색하고, 대화 이력을 메모리에 보존하고, 도구 스펙을 컨텍스트 창에 정확히 구성한다. 그러나 이 모든 최적화는 **실행 이전(pre-execution)**에 작동한다.
+
+실행이 끝난 후, 에이전트가 실제로:
+- 정확한 정보를 반환했는지 (정확도가 기준을 충족하는지)
+- SLA 내에서 응답했는지 (P95 지연이 계약 범위 안에 있는지)
+- 보안 정책을 위반하지 않았는지 (프롬프트 인젝션이 통과됐는지)
+- 이 상태로 프로덕션에 배포해도 되는지
+
+…를 자동으로 판정하는 메커니즘은 Context Engineering의 영역 밖이다. 이 **배포 준비도 공백(deployment readiness gap)**을 채우는 것이 Harness Engineering의 존재 이유다.
+
+Martin Fowler는 Harness Engineering을 세 가지 규제 도메인으로 분류한다:
+- **유지보수성(Maintainability)**: 에이전트 코드가 지속적으로 관리 가능한가
+- **아키텍처 적합성(Architecture Fitness)**: 에이전트가 설계된 시스템 경계 안에서 동작하는가
+- **행동 Harness(Behavior Harness)**: 에이전트가 선언된 품질 기준을 실행마다 충족하는가
+
+Agent-Evaluator는 이 중 세 번째 도메인 — **행동 Harness** — 을 Python SDK로 구현한다.
+
+### 3.1.2 Harness Engineering의 작동 원리: Guides + Sensors
+
+Harness Engineering은 두 가지 제어 메커니즘으로 구성된다.
+
+**Guides (사전 제어, Feedforward)**는 에이전트가 실행되기 *전에* 작동하는 지침과 제약이다. 무엇을 해도 되고 무엇을 하면 안 되는지를 사전에 선언한다.
+
+- 시스템 프롬프트의 행동 지침
+- `AGENTS.md` 같은 에이전트 명세 파일
+- 도구 호출 허용 목록(allowlist)
+- 응답 언어·형식 제약
+
+**Sensors (사후 제어, Feedback)**는 에이전트가 실행된 *후에* 작동하는 측정과 검증이다. 실제로 어떻게 동작했는지를 측정하고 기준과 비교한다.
+
+- 정확도·환각 탐지 (AccuracyEvaluator, HallucinationDetector)
+- 지연·비용 측정 (LatencyTracker, TokenEconomyTracker)
+- 보안 패턴 탐지 (InputSanitizationTracker, OutputLeakageDetector)
+- 행동 이상 감지 (ToolCallAnalyzer, WorkflowExecutionTracker)
+
+아래 다이어그램은 Guides와 Sensors가 에이전트 실행을 감싸는 구조를 시각화한다. Guides가 실행 전 행동 범위를 선언하고, Sensors가 실행 후 측정값을 수집하며, Gate가 두 결과를 통합해 배포 판정을 내린다.
+
+#### Agent-Evaluator의 Guides → Config, Sensors → Tracker 매핑
+
+이 구조는 arXiv 논문 2604.17025(CAAF)에서 형식화된 것처럼, Harness를 **도메인 규칙을 기계가 읽을 수 있는 제약 레지스트리(constraint registry)로 구현하는 방식**으로 발전하고 있다. Agent-Evaluator에서 이 구조는 다음과 같이 구체화된다.
+
+| Harness 개념 | Agent-Evaluator 구현 | 역할 |
+|-------------|---------------------|------|
+| **Guide** — 행동 제약 | `InstructionConfig`, `SLAConfig`, `LoopDetectionConfig`, `ComplianceConfig` 등 33개 Config 클래스 | 에이전트가 "무엇을 해야 하고 무엇을 하면 안 되는가"를 `@agent_eval` 데코레이터로 선언 |
+| **Sensor** — 실행 측정 | `AccuracyEvaluator`, `LatencyTracker`, `HallucinationDetector`, `InputSanitizationTracker` 등 25개 Tracker 클래스 | 에이전트가 실행된 후 자동으로 지표를 수집·계산 |
+| **Gate** — 통합 판정 | `HarnessEvaluationGate`, `agent-eval gate` CLI | Guide 위반 여부와 Sensor 측정값을 종합해 PASS / WARNING / FAIL 판정 |
+
+```python
+# 출처: Evaluator_Examples/ch03_harness_basics.py
+from agent_evaluator import PerformanceMonitor, InstructionConfig, SLAConfig
+from agent_evaluator.decorators import agent_eval
+
+monitor = PerformanceMonitor("results/")
+
+@agent_eval(
+    monitor,
+    task_type="qa",
+    # ① Guides — 실행 전 행동 제약 선언
+    instructions=InstructionConfig(required_keywords=["결과"], fail_on_violation=True),
+    sla=SLAConfig(p95_ms=2000, fail_on_violation=True),
+)
+def my_agent(question: str, ground_truth: str = "") -> str:
+    return llm.invoke(question)
+    # ② Sensors — 실행 후 자동 측정
+    # AccuracyEvaluator, LatencyTracker, TokenEconomyTracker 등이 자동 동작
+
+# ③ Gate — Guides × Sensors 통합 판정
+report = monitor.generate_report()
+# → Gate A–G 중 위반 Config가 있으면 FAIL, 경계값이면 WARNING
+```
+
+### 3.1.3 핵심 3요소: Tracker · Config · Gate
+
+Agent-Evaluator는 Harness Engineering의 Guides+Sensors 구조를 세 가지 요소로 구현한다.
+
+| 요소 | Harness 역할 | AI 에이전트에서의 기능 |
+|------|-------------|----------------------|
+| **Tracker** | Sensor (사후 측정) | 에이전트 실행 중 품질 지표를 자동 수집 (TCR·정확도·지연·보안 등 25개) |
+| **Config** | Guide (사전 제약 선언) | 배포 가능 기준을 코드로 선언 (33개 데이터클래스, `@agent_eval` 데코레이터로 주입) |
+| **Gate** | 판정 (Guides + Sensors 통합) | Tracker 측정값과 Config 기준을 대조해 배포 승인/차단 판정 (7개 Gate A–G) |
+
+세 요소가 결합하면 하나의 완전한 배포 검증 파이프라인이 완성된다.
+
+**핵심 원칙은 "기준이 코드 안에 있어야 한다"는 것이다.** 품질 기준이 문서나 팀원의 암묵적 판단에 있으면, 릴리스마다 기준이 흔들리고 팀원 간 해석이 달라진다. Harness Config를 `@agent_eval` 데코레이터로 에이전트 코드 바로 옆에 선언하면, 에이전트가 자신의 배포 기준을 소유한다. 어떤 환경에서도 동일한 기준으로 반복 검증할 수 있다.
+
+각 요소는 독립적으로도 사용 가능하다. Tracker만 단독으로 사용하면 관찰 인프라로 동작하고, Config를 추가하면 기준 검증이, Gate까지 연결하면 배포 자동화 판정이 가능해진다.
+
+#### Agent-Evaluator 모듈 구조와의 매핑
+
+3요소는 Agent-Evaluator 소스코드의 모듈 분리와 정확히 대응한다.
+
+| 요소 | 핵심 모듈 | 진입 방법 |
+|------|----------|---------|
+| **Tracker** | `agent_evaluator/core/trackers/` — `layer1.py`(6종), `layer2.py`(5종), `security.py`(5종) | `PerformanceMonitor.record_task(result)` 호출 시 자동 실행 |
+| **Config** | `agent_evaluator/decorators.py` — 33개 데이터클래스 정의 | `@agent_eval(monitor, sla=SLAConfig(...))` 데코레이터 파라미터 |
+| **Gate** | `agent_evaluator/core/monitor.py` — `PerformanceMonitor`가 Harness 집계 | `HarnessEvaluationGate(report).evaluate()` 또는 `QuickEval.gate()` |
+
+**`PerformanceMonitor`는 세 요소의 오케스트레이터다.** Tracker를 내부에 보유하고, Config를 `@agent_eval`을 통해 수신하며, Gate 판정에 필요한 집계를 자동으로 수행한다. 개발자는 Config를 선언하고 `record_task()`를 호출하는 것만으로 전체 Harness 파이프라인이 작동한다.
+
+```python
+# 3요소가 하나의 파이프라인으로 연결되는 최소 예시
+from agent_evaluator import PerformanceMonitor, QuickEval, SLAConfig, InstructionConfig
+
+# Tracker: PerformanceMonitor 내부에 자동 초기화
+eval = QuickEval("results/")
+
+# Config: 데코레이터로 선언 — 에이전트가 자신의 배포 기준을 소유
+@eval(
+    task_type="qa",
+    sla=SLAConfig(p95_ms=3000, fail_on_violation=True),
+    instructions=InstructionConfig(required_keywords=["서울"], fail_on_violation=True),
+)
+def agent(question: str, ground_truth: str = "") -> str:
+    return llm.invoke(question)
+
+# Gate: Config 기준과 Tracker 측정값을 종합 판정
+eval.gate(tcr=85, accuracy=70)   # 미달 시 sys.exit(1) → CI/CD 차단
+```
+
+이 세 줄(Config 선언 → Tracker 자동 수집 → Gate 판정)이 Chapter 4–10에서 다루는 33개 Config와 7개 Gate 전체의 공통 패턴이다.
+
+---
+
+### 3.1.4 "버그 없음" vs "배포 가능"
 
 기존 소프트웨어 테스팅이 던지는 질문은 하나다. **"버그가 없는가?"**
 
-AI 에이전트에게 그 질문은 불완전하다. 에이전트는 결정론적으로 동작하지 않는다. 같은 질문에 매번 다른 경로로 답에 도달한다. "버그 없음"을 보장하는 `assert` 테스트 수백 개가 통과해도, 프로덕션에서 에이전트가 무단으로 도구를 호출하거나, 환각으로 틀린 정보를 자신감 있게 전달하거나, 비용 계약을 초과하는 일이 일어날 수 있다.
+AI 에이전트에게 그 질문은 불완전하다. 에이전트는 결정론적으로 동작하지 않는다. 같은 질문에 매번 다른 경로로 답에 도달한다. Context Engineering으로 컨텍스트 창을 정교하게 구성하더라도, "버그 없음"을 보장하는 `assert` 테스트 수백 개가 통과해도, 프로덕션에서 에이전트가 무단으로 도구를 호출하거나, 환각으로 틀린 정보를 자신감 있게 전달하거나, 비용 계약을 초과하는 일이 일어날 수 있다.
 
-**Harness Engineering은 다른 질문을 던진다.** 
+**Harness Engineering은 다른 질문을 던진다.**
 
 > "이 에이전트는 *지금 이 조건*에서 배포해도 되는가?"
 
@@ -53,7 +235,7 @@ eval.gate(tcr=85, accuracy=70)  # → 기준 미달 시 sys.exit(1)
 
 핵심 차이는 **"기준의 위치"**다. `assert`는 테스트 파일 안에 있다. Harness Config는 에이전트 코드 바로 옆, `@agent_eval` 데코레이터 안에 있다. 에이전트가 자신의 배포 기준을 소유한다.
 
-### 3.1.2 세 가지 배포 실패 유형
+### 3.1.5 세 가지 배포 실패 유형
 
 Harness Engineering이 방지하려는 실패는 세 가지 유형이다.
 
@@ -72,20 +254,9 @@ Harness Engineering의 세 구성 요소(Tracker, Config, Gate)는 이 세 가�
 
 ## 3.2 3요소: Tracker × Config × Gate
 
-Harness Engineering은 세 개의 구성 요소로 이루어진다. 각각 독립적으로 사용할 수도 있지만, 셋이 결합될 때 완전한 배포 판정이 이루어진다.
+§3.1에서 Harness Engineering의 개념과 Guides+Sensors 작동 원리를 설명했다. 이제 세 역할 각각을 동등한 깊이로 분해한다 — Chapter 2에서 "무엇이 존재하는가"를 파악했다면, 여기서는 "각 역할이 어떻게 작동하는가"를 이해한다.
 
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                    Harness Engineering                           │
-│                                                                  │
-│  ┌─────────────┐    ┌─────────────┐    ┌─────────────────────┐ │
-│  │   Tracker   │ →  │   Config    │ →  │        Gate         │ │
-│  │ (관찰/측정)  │    │ (기준 선언)  │    │     (배포 판정)      │ │
-│  └─────────────┘    └─────────────┘    └─────────────────────┘ │
-│   "무슨 일이        "어떤 수치면         "지금 배포해도         │
-│    일어났나?"        배포 가능한가?"       되는가?"              │
-└─────────────────────────────────────────────────────────────────┘
-```
+Harness Engineering은 세 개의 구성 요소로 이루어진다. 각각 독립적으로 사용할 수도 있지만, 셋이 결합될 때 완전한 배포 판정이 이루어진다.
 
 ### 3.2.1 Tracker — 관찰하는 자
 
@@ -184,6 +355,62 @@ eval.gate(tcr=85, accuracy=70)
 ---
 
 ## 3.3 58개 지표 전체 지도 — Group A-G 매핑
+
+### 왜 정확히 7개인가 — Gate 설계 논리
+
+7개 Gate는 임의적인 분류가 아니다. **자율 에이전트를 프로덕션에서 신뢰하기 위해 독립적으로 검증해야 하는 최소 완전 집합이다.**
+
+"독립적"이라는 점이 설계의 핵심이다. Gate A(목표달성)가 PASS여도 Gate E(보안경계)는 알 수 없다. Gate D(성능계약)가 PASS여도 Gate B(행동무결성)는 알 수 없다. 각 Gate는 다른 Gate로 대체할 수 없는 고유한 실패 차원을 담당한다. 7개 차원은 에이전트의 본질적 특성에서 도출된다.
+
+**① 자율성(Autonomy)에서 비롯되는 차원**
+
+에이전트는 스스로 도구를 선택하고 행동 경로를 결정한다. 이 자율성은 목표를 달성했어도 허가되지 않은 도구를 쓰거나, 루프에 빠지거나, 허용 범위를 이탈하는 위험을 만든다.
+
+→ **Gate B — 행동무결성**: "에이전트가 의도된 범위 안에서만 행동했는가?"
+
+**② 확률론적 동작(Stochasticity)에서 비롯되는 차원**
+
+LLM 기반 에이전트는 동일 입력에도 다른 추론 경로와 다른 출력을 생성한다. 단일 실행의 성공이 통계적 보장을 의미하지 않는다. 출력의 사실 일치성(환각)도 실행마다 달라진다.
+
+→ **Gate A — 목표달성**: "통계적으로 충분히 높은 정확도·TCR이 보장되는가?"  
+→ **Gate C — 신뢰성**: "동일 품질이 반복 실행에서도 재현되는가?"
+
+**③ 프로덕션 운영(Production Contract)에서 비롯되는 차원**
+
+아무리 정확한 에이전트도 응답이 30초 걸리거나, 태스크당 비용이 예산을 초과하면 서비스가 불가능하다. 이 제약은 기능 테스트로는 알 수 없다.
+
+→ **Gate D — 성능계약**: "SLA(응답 시간·비용)를 예측 가능하게 지키는가?"
+
+**④ 외부 위협(External Threat)에서 비롯되는 차원**
+
+에이전트는 외부 사용자의 입력을 그대로 처리한다. 프롬프트 인젝션·권한 상승·민감 정보 유출 공격은 기능이 완벽한 에이전트에서도 발생할 수 있다. 기능 테스트 100% 통과가 보안을 보장하지 않는다.
+
+→ **Gate E — 보안경계**: "외부 공격을 탐지·차단하고 정보 유출을 방지하는가?"
+
+**⑤ 시스템 복잡성(System Complexity)에서 비롯되는 차원**
+
+단일 에이전트의 품질이 검증되어도 여러 에이전트가 협력할 때는 교착·역할 위반·정보 왜곡 같은 창발적 실패가 발생한다. 다중 에이전트 시스템은 개별 에이전트 검증으로 충분하지 않다.
+
+→ **Gate F — 다중에이전트**: "여러 에이전트가 합의·역할 준수·교착 없이 협력하는가?"
+
+**⑥ 운영 가능성(Operability)에서 비롯되는 차원**
+
+배포 후 에이전트가 예상대로 동작하지 않을 때, 내부 추론 과정을 설명하고 실패 원인을 추적할 수 없다면 수정이 불가능하다. 관측 가능성은 사후에 추가할 수 없으며 처음부터 설계되어야 한다.
+
+→ **Gate G — 운영관측성**: "추론 과정을 설명하고 실패 원인을 즉시 추적할 수 있는가?"
+
+| 에이전트 특성 | 발생하는 위험 | 대응 Gate |
+|------------|-----------|---------|
+| 자율성 | 허가 범위 이탈·루프 | **B** 행동무결성 |
+| 확률론적 동작 | 통계적 품질 불보장·환각 | **A** 목표달성, **C** 신뢰성 |
+| 프로덕션 계약 | SLA·비용 초과 | **D** 성능계약 |
+| 외부 위협 노출 | 공격·유출 | **E** 보안경계 |
+| 시스템 복잡성 | 협업 창발적 실패 | **F** 다중에이전트 |
+| 블랙박스 동작 | 운영·디버깅 불가 | **G** 운영관측성 |
+
+**결론**: 7개 Gate는 자율 에이전트의 본질적 속성에서 필연적으로 도출된다. 하나라도 미확인 상태로 배포하면, 해당 속성에서 비롯되는 장애가 프로덕션에서 반드시 발생한다. 이것이 Harness Engineering이 단일 지표가 아닌 7개 독립 차원으로 배포 준비도를 판정하는 이유다.
+
+---
 
 Tracker 25개와 Config 33개를 7개 Group으로 분류한다. (보안 Tracker 5종은 25개 안에 포함, opt-in 활성화 필요)
 
@@ -303,6 +530,8 @@ Tracker 25개와 Config 33개를 7개 Group으로 분류한다. (보안 Tracker 
 | **합계** | **16** | **33** | **49** |
 
 > ℹ️ **지표 수 안내**: Harness Gate(A–G)에 직접 매핑되는 Native Tracker는 16개다. `ConversationSession`, `ImplicitFeedbackTracker`, `AnomalyDetector`, `CostTracker`, `StreamingEvaluator` 등 운영 지원 트래커 9개를 합산하면 SDK 전체 Native Tracker는 25개다. Harness Gate 판정 대상은 이 표의 49개(16 Tracker + 33 Config)이며, 운영 지원 트래커를 포함한 전체는 **25 + 33 = 58개**다. 전체 목록은 [Appendix A](../Appendix/A_58개지표_레퍼런스.md)에서 확인한다.
+
+§3.2에서 세 역할의 작동 방식을, §3.3에서 58개 지표의 전체 구조를 파악했다. 이제 33개 Config를 실제로 어떻게 선언하고 조합하는지 — 실전 패턴을 살펴본다.
 
 ---
 
@@ -682,7 +911,7 @@ gate.enforce()   # 기준 미달 시 sys.exit(1)
 `ch03_harness_basics.py`는 33개 Config 전체를 교육용으로 시연하지만, CI/CD 파이프라인에서는 **7개 Gate당 1개 Config씩 최소 검증**만 실행하는 `ch18_cicd_gate.py`를 사용한다:
 
 ```python
-# 출처: Evaluator_Examples/ch18_cicd_gate.py — CI/CD 전용 최소 검증
+# 출처: Evaluator_Examples/ch03_harness_basics.py — CI/CD 전용 최소 검증
 import json, sys
 from agent_evaluator import (
     PerformanceMonitor,
@@ -768,6 +997,8 @@ python Evaluator_Examples/ch18_cicd_gate.py --strict  # WARN도 차단
 
 ## 3.7 AI Native 특성과 Harness Engineering의 연결
 
+Chapter 1 §1.5에서 AI Native 평가의 5가지 고유 도전을 개념으로 정의했고, §1.5 말미에서 각 도전이 어떤 Gate에 매핑되는지를 표로 제시했다. 이 절에서는 그 매핑의 기술적 근거를 설명한다 — 각 도전에 Harness Engineering이 어떤 구체적인 메커니즘으로 대응하는지다.
+
 기존 소프트웨어 테스팅은 결정론적 시스템을 위해 설계됐다. AI 에이전트는 5가지 AI Native 특성을 가지며, Harness Engineering은 이 각각에 직접 대응한다.
 
 ### 특성 1 — 확률론적 품질 (Probabilistic Quality)
@@ -844,7 +1075,7 @@ agent-eval trend results/ --fail-on-regression
 # 데이터 변화 → Group A, Group E(보안경계) 재검증
 ```
 
-### 특성 4 — 출현 행동 대응 (Emergent Behavior Response)
+### 특성 4 — 돌발 행동 대응 (Emergent Behavior Response)
 
 에이전트는 설계자가 예측하지 못한 행동을 할 수 있다. 탐지 패턴 목록에 없는 행동이다.
 
@@ -953,98 +1184,19 @@ print("\n✅ Harness Gate 통과 — 배포 가능")
 
 이 챕터에서 설명한 Harness Engineering 개념을 바로 실행해볼 수 있는 예제 파일이 준비되어 있다.
 
-| 예제 파일 | 관련 내용 |
-|---------|---------|
-| [`Evaluator_Examples/ch03_harness_basics.py`](../../Evaluator_Examples/ch03_harness_basics.py) | 7개 Gate(A-G) 전체 PASS 시나리오 — 33개 Config 실전 시연 |
-| [`Evaluator_Examples/ch18_cicd_gate.py`](../../Evaluator_Examples/ch18_cicd_gate.py) | CI/CD 게이팅 exit code 검증 — HarnessEvaluationGate.enforce() |
-| [`Evaluator_Examples/ch04_group_a.py`](../../Evaluator_Examples/ch04_group_a.py) | 17개 시나리오 — Gate A~G 모두 FAIL 유도, 배포 차단 케이스 완전 시연 |
-| [`Evaluator_Examples/ch20_deployment.py`](../../Evaluator_Examples/ch20_deployment.py) | v1 레거시 → v2 개선 에이전트 Harness Gate 비교 (+29% 향상) |
+**기본 예제**: [`Evaluator_Examples/ch03_harness_basics.py`](../../Evaluator_Examples/ch03_harness_basics.py)
+
+| 섹션 | 내용 |
+|------|------|
+| 섹션 1 | Harness 3요소 (Tracker·Config·Gate) 기초 흐름 |
+| 섹션 2~7 | Group A–G 각 1개 Config씩 PASS 시나리오 실전 시연 |
+| 섹션 7 | `HarnessEvaluationGate.enforce()` — 배포 판정 전체 흐름 |
 
 ```bash
-python Evaluator_Examples/ch03_harness_basics.py         # Gate A~G PASS 전체
-python Evaluator_Examples/ch18_cicd_gate.py   # CI/CD 게이팅 exit code
-python Evaluator_Examples/ch04_group_a.py  # Gate A~G FAIL 케이스 — 배포 차단 시나리오
-python Evaluator_Examples/ch20_deployment.py   # v1 vs v2 버전 비교
+python Evaluator_Examples/ch03_harness_basics.py    # Gate A~G 전체 PASS 시연
 ```
 
-**버전 비교 — Harness Gate로 배포 결정 (출처: `Evaluator_Examples/ch20_deployment.py`)**
-
-`ch20_deployment.py`는 두 `PerformanceMonitor`를 독립적으로 운영해 v1·v2 에이전트의 Gate A–G 점수를 나란히 비교한다. 점수 차이가 "v2를 배포하는 이유"의 코드 근거가 된다.
-
-```python
-# 출처: Evaluator_Examples/ch20_deployment.py — 독립 monitor로 v1 vs v2 Gate 비교
-from agent_evaluator import PerformanceMonitor, SLAConfig, ComplianceConfig, ExplainabilityConfig
-from agent_evaluator.decorators import agent_eval
-
-monitor_v1 = PerformanceMonitor(output_dir="results/", enable_security_metrics=True)
-monitor_v2 = PerformanceMonitor(output_dir="results/", enable_security_metrics=True)
-
-# Gate A: v1 — 형식 미준수 / v2 — JSON 준수
-@agent_eval(monitor_v1, task_type="qa", task_id_prefix="v1_instr",
-            instructions=InstructionConfig(expected_format="json", required_keywords=["result"]))
-def v1_agent(question: str, ground_truth: str = "") -> str:
-    return f"답: {question}"  # JSON 미준수
-
-@agent_eval(monitor_v2, task_type="qa", task_id_prefix="v2_instr",
-            instructions=InstructionConfig(expected_format="json", required_keywords=["result"]))
-def v2_agent(question: str, ground_truth: str = "") -> str:
-    import json
-    return json.dumps({"result": f"{question}에 대한 정확한 답변"})  # JSON 준수
-
-for q in ["분기 실적 분석", "보고서 작성", "모델 평가"]:
-    v1_agent(q, ground_truth="분석")
-    v2_agent(q, ground_truth="분석")
-
-# Gate별 점수 비교
-r1 = monitor_v1.generate_report().to_dict()
-r2 = monitor_v2.generate_report().to_dict()
-h1 = (r1.get("extra_metrics") or {}).get("harness_groups", {})
-h2 = (r2.get("extra_metrics") or {}).get("harness_groups", {})
-
-for gk in "ABCDEFG":
-    s1 = (h1.get(gk) or {}).get("score") or 0.0
-    s2 = (h2.get(gk) or {}).get("score") or 0.0
-    delta = (s2 - s1) * 100
-    print(f"  Gate {gk}: v1={s1:.0%}  v2={s2:.0%}  {'+' if delta>0 else ''}{delta:.1f}%p")
-
-monitor_v1.save_to_file("v1_harness"); monitor_v2.save_to_file("v2_harness")
-```
-
-- **독립 monitor 2개**: v1·v2 에이전트를 각각 다른 `PerformanceMonitor`로 평가해 Group A–G 점수를 독립적으로 집계한다
-- **동일 Config 선언**: 두 에이전트에 동일한 `InstructionConfig`를 적용해 같은 기준으로 비교한다
-- **`harness_groups` 딕셔너리**: `report.to_dict()`의 `extra_metrics.harness_groups`에서 Group별 점수를 꺼내 delta를 계산한다
-- **`save_to_file()`**: JSON + HTML 두 파일을 자동 생성하며, 대시보드에서 v1·v2를 나란히 확인할 수 있다
-
-**Phoenix OTEL과 Harness Gate 연동 (출처: `Evaluator_Examples/ch19_phoenix.py`)**
-
-`setup_otel()`을 Harness 평가 전에 호출하면 Gate A–G의 모든 스팬이 Phoenix로 전송되어 대시보드에서 Group별 점수 추이를 시각적으로 확인할 수 있다.
-
-```python
-# 출처: Evaluator_Examples/ch19_phoenix.py — Harness Gate + Phoenix OTEL 연동
-import socket
-from agent_evaluator import setup_otel, PerformanceMonitor
-
-# Phoenix 실행 여부 확인 — CI 환경에서는 미실행이 정상
-try:
-    with socket.create_connection(("localhost", 6006), timeout=1):
-        setup_otel(endpoint="http://localhost:6006", service_name="harness-gate")
-        print("Phoenix OTEL 연결 — Gate A–G 스팬 전송 활성화")
-except OSError:
-    print("Phoenix 미실행 — OTEL 없이 Gate 판정만 수행")
-
-# setup_otel() 이후에 monitor 생성 (순서 필수)
-monitor = PerformanceMonitor(
-    output_dir="results/",
-    enable_security_metrics=True,
-    enable_transparency=True,  # Harness 집계 Traces → Phoenix 전송
-)
-# → Phoenix http://localhost:6006 의 Traces 탭에서 Gate별 점수를 스팬으로 확인 가능
-```
-
-- **`setup_otel()` 호출 순서**: `PerformanceMonitor` 생성 전에 반드시 `setup_otel()`을 호출해야 스팬이 Phoenix로 전송된다
-- **`socket.create_connection` 체크**: CI 환경에서 Phoenix가 미실행 상태여도 예외를 잡아 OTEL 없이 정상 진행하도록 안전하게 처리한다
-- **`enable_transparency=True`**: Gate A–G의 집계 과정을 OTEL 스팬으로 내보내 Phoenix Traces 탭에서 시각적으로 확인할 수 있다
-- **주의점**: Phoenix를 먼저 `agent-eval monitor` 명령으로 실행한 후 이 코드를 실행해야 스팬이 수신된다
+> **관련 챕터 예제**: Gate A–G FAIL 케이스는 [Chapter 4 — `ch04_group_a.py`](../Part_II_지표시스템/Chapter_04_GroupA_목표달성.md)에서, CI/CD 최소 게이팅은 [Chapter 18 — `ch18_cicd_gate.py`](../Part_V_프로덕션운영/Chapter_18_CICD_품질게이팅.md)에서, 버전 비교 배포 결정은 [Chapter 20 — `ch20_deployment.py`](../Part_V_프로덕션운영/Chapter_20_프로덕션_배포전략.md)에서 확인한다.
 
 ---
 

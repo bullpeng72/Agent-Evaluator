@@ -557,9 +557,9 @@ setup_otel(
 
 `ch19_phoenix.py`는 `setup_otel()` → `PerformanceMonitor` 순서, Phoenix 프로젝트 분리, DeepEval·Ragas 어댑터 통합까지 Phoenix OTEL 연동의 전체 흐름을 한 파일에서 보여준다. API 키 없이 mock 모드로 실행하면 `setup_otel()` 없이 평가 결과만 확인할 수 있다.
 
-**파일**: `Evaluator_Examples/ch19_phoenix.py`
+**기본 예제**: `Evaluator_Examples/ch19_phoenix.py`
 
-**핵심 코드 (출처: `Evaluator_Examples/ch19_phoenix.py`)**
+**핵심 코드**
 
 ```python
 # 출처: Evaluator_Examples/ch19_phoenix.py — Phoenix 실행 여부 확인 + OTEL 설정
@@ -649,12 +649,12 @@ open http://localhost:6006
 
 | 섹션 | 내용 | Phoenix UI 탭 |
 |------|------|---------------|
-| 섹션 1 | `setup_otel()` 설정 + `PerformanceMonitor` 생성 | — (설정) |
-| 섹션 2 | 기본 OTEL 스팬 발행 | Tracing 탭 |
-| 섹션 3 | DeepEval 어댑터 (`HybridPerformanceMonitor`) | Evaluators 탭 |
-| 섹션 4 | Ragas 어댑터 + RAG 평가 | Evaluators 탭 + Datasets 탭 |
-| 섹션 5 | `push_to_phoenix()` 골든셋 업로드 | Datasets 탭 |
-| 섹션 6 | GraphQL 역조회 (`phoenix_check.py`) | Tracing 탭 필터 |
+| 섹션 1 | `setup_otel()` 설정 + `PerformanceMonitor` / `HybridPerformanceMonitor` 초기화 | — (설정) |
+| 섹션 2 | Tracing — OTLP 스팬 발행 + Playground `llm.prompts` | Tracing 탭 |
+| 섹션 3 | Datasets — `GoldenSetBuilder.push_to_phoenix()` | Datasets 탭 |
+| 섹션 4 | Prompts — REST API 등록 | Prompts 탭 |
+| 섹션 5 | GraphQL — 프로젝트·스팬·데이터셋 조회 | — |
+| 섹션 추가 | `DeepEvalAdapter` + `RagasAdapter` 직접 사용 — `HybridPerformanceMonitor` 없이 단건 평가 | — |
 
 **실행 결과 (v0.8.4 기준, mock 모드)**
 
@@ -679,12 +679,88 @@ setup_otel: 비활성 (API 키 필요)
 
 > **`setup_otel()` 순서 엄수**: `setup_otel(endpoint="http://localhost:6006")`은 반드시 `PerformanceMonitor(...)` 또는 `QuickEval(...)` 생성 전에 호출해야 한다. 순서를 틀리면 스팬이 Phoenix에 전송되지 않는다. `ch19_phoenix.py` 섹션 1의 코드 순서를 템플릿으로 사용한다.
 
-**CI/CD 검증 스크립트의 Phoenix 연동 패턴 (출처: `Evaluator_Examples/ch18_cicd_gate.py`)**
+**DeepEvalAdapter + RagasAdapter 직접 사용**
+
+`HybridPerformanceMonitor`가 내부에서 관리하는 두 어댑터를 직접 인스턴스화하면, `record_task()` 루프 없이 단건 평가를 즉시 실행할 수 있다. 커스텀 파이프라인이나 테스트 환경에 적합하다.
+
+> **사전 조건**: `pip install "agent-evaluator[eval]"` + `OPENAI_API_KEY`
+
+**EvaluationContext — 어댑터 공통 입력 데이터클래스:**
+
+두 어댑터는 모두 `EvaluationContext` 인스턴스를 입력으로 받는다.
+
+| 필드 | 타입 | 필수 | 설명 |
+|------|------|:----:|------|
+| `input_text` | str | ✅ | 사용자 질문 또는 프롬프트 |
+| `output_text` | str | ✅ | 에이전트 응답 |
+| `expected_output` | str | — | 정답 또는 기대 응답 (ContextRecall 등에 사용) |
+| `retrieved_context` | list[str] | — | RAG 검색 문서 목록 — RagasAdapter 실행 필수 |
+| `quality_criteria` | str | — | G-Eval 평가 기준 설명 (DeepEvalAdapter의 G-Eval에 사용) |
+| `task_type` | str | — | `"qa"` / `"information_retrieval"` 등 태스크 유형 |
+| `metadata` | dict | — | 임의 추가 정보 |
+
+```python
+# 출처: Evaluator_Examples/ch19_phoenix.py, 섹션 추가 — 어댑터 직접 사용
+from agent_evaluator.integrations.metric_adapters import (
+    DeepEvalAdapter, RagasAdapter, EvaluationContext,
+)
+
+# ── DeepEvalAdapter — G-Eval·Hallucination·Toxicity·Bias·AnswerRelevancy ──
+deepeval_adapter = DeepEvalAdapter(model="gpt-4o-mini", threshold=0.5)
+if deepeval_adapter.is_available():
+    ctx = EvaluationContext(
+        input_text="서울의 인구는 얼마인가요?",
+        output_text="서울의 인구는 약 950만 명으로, 대한민국 최대 도시입니다.",
+        expected_output="약 950만 명",
+        task_type="qa",
+        quality_criteria="factual accuracy",   # G-Eval 기준
+    )
+    result = deepeval_adapter.evaluate(ctx)
+    # result["g_eval_score"]        → 0.0~1.0  (커스텀 기준 종합)
+    # result["hallucination_score"] → 0.0~1.0  (retrieved_context 전달 시 활성)
+    # result["toxicity_score"]      → 0.0~1.0  (독성 탐지)
+    # result["bias_score"]          → 0.0~1.0  (편향 탐지)
+
+# ── RagasAdapter — Faithfulness·ContextPrecision·AnswerRelevancy·ContextRecall ──
+ragas_adapter = RagasAdapter(llm_model="gpt-4o-mini")
+if ragas_adapter.is_available():
+    ctx_rag = EvaluationContext(
+        input_text="아인슈타인의 출생 연도는?",
+        output_text="알베르트 아인슈타인은 1879년에 태어났습니다.",
+        expected_output="1879년",
+        retrieved_context=[                     # RAG 컨텍스트 — 필수
+            "알베르트 아인슈타인은 1879년 3월 14일 독일 울름에서 태어났습니다.",
+            "아인슈타인은 특수상대성이론과 일반상대성이론을 발표했습니다.",
+        ],
+        task_type="information_retrieval",
+    )
+    result = ragas_adapter.evaluate(ctx_rag)
+    # result["ragas_faithfulness"]      → 0.0~1.0  (응답이 컨텍스트에 근거하는 정도)
+    # result["ragas_context_precision"] → 0.0~1.0  (검색된 컨텍스트의 정확도)
+    # result["ragas_answer_relevancy"]  → 0.0~1.0  (OpenAI 임베딩 있을 때만 활성)
+    # result["ragas_context_recall"]    → 0.0~1.0  (expected_output 있을 때만 활성)
+```
+
+**직접 사용 vs `HybridPerformanceMonitor` 비교**
+
+| 항목 | 어댑터 직접 사용 | `HybridPerformanceMonitor` |
+|------|----------------|---------------------------|
+| 설정 | `DeepEvalAdapter()` / `RagasAdapter()` 인스턴스화 | `use_deepeval=True, use_ragas=True` 플래그 |
+| 평가 단위 | 단건 `evaluate(EvaluationContext(...))` | `record_task()` 호출마다 자동 채점 |
+| 결과 경로 | 반환 dict에서 직접 접근 | `report["advanced_metrics_summary"]` |
+| Phoenix 연동 | 직접 스팬 속성 추가 필요 | `record_task()` 호출 시 자동 OTEL 스팬 |
+| 적합 상황 | 커스텀 파이프라인·단위 테스트 | 대량 평가·대시보드 통합·프로덕션 |
+
+- `RagasAdapter.evaluate()`는 `retrieved_context`가 없으면 빈 dict(`{}`)를 반환한다 — RAG 태스크에만 적용된다
+- `DeepEvalAdapter`는 `is_available()`이 `False`이면 `None`을 반환한다 (`{}` 빈 결과와 구별)
+- 어댑터 직접 사용 시 `[eval]` extra가 반드시 설치되어 있어야 한다: `pip install "agent-evaluator[eval]"`
+
+**CI/CD 검증 스크립트의 Phoenix 연동 패턴**
 
 `ch18_cicd_gate.py`는 Phoenix 포트를 소켓으로 확인한 뒤 조건부로 OTEL을 활성화한다. Phoenix가 없는 CI 환경에서도 Gate 판정은 정상 동작하며, Phoenix가 있으면 스팬이 자동 전송된다.
 
 ```python
-# 출처: Evaluator_Examples/ch18_cicd_gate.py — Phoenix 조건부 연결 + CI/CD Gate 판정
+# 출처: Evaluator_Examples/ch19_phoenix.py — Phoenix 조건부 연결 + CI/CD Gate 판정
 import socket, sys
 from agent_evaluator import PerformanceMonitor, setup_otel
 

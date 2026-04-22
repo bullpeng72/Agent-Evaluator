@@ -589,9 +589,9 @@ if __name__ == "__main__":
 
 `ch17_weekly_review.py`는 `RunTrendAnalyzer`·`QuickEval.compare()`·`ImplicitFeedbackTracker`를 조합해 주간/월간 리뷰를 자동화하는 패턴을 보여준다. `agent-eval trend`는 여러 결과 파일에 걸친 시계열 추이를 분석해 주간 리뷰 보고서를 자동화한다.
 
-**파일**: `Evaluator_Examples/ch17_weekly_review.py`, `agent-eval trend`
+**기본 예제**: `Evaluator_Examples/ch17_weekly_review.py`
 
-**핵심 코드 (출처: `Evaluator_Examples/ch17_weekly_review.py`)**
+**핵심 코드**
 
 ```python
 # 출처: Evaluator_Examples/ch17_weekly_review.py, 섹션 1 — RunTrendAnalyzer 추세 분석

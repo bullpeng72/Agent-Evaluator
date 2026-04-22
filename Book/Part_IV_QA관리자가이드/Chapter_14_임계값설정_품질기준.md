@@ -16,6 +16,8 @@
 
 ## 14.0 임계값 설정 전에 알아야 할 것 — 숫자는 어디서 오는가
 
+> **Harness Engineering의 임계값은 QA 팀의 의견이 아니라 코드입니다.** `SLAConfig(p95_ms=2000, fail_on_violation=True)`처럼 선언된 임계값은 위반 즉시 `TaskResult.success=False`로 처리되고, `gate.enforce()` 호출 시 CI/CD 파이프라인을 자동 차단합니다. 이 패턴을 **Config-as-Code**라 합니다. 기준이 Git에 커밋되고 PR 리뷰를 거쳐 관리되므로, "이 숫자가 맞는가"에 대한 팀 간 해석 차이가 사라집니다. AI 에이전트의 비결정론적 출력은 단일 `assert`로 검증할 수 없기 때문에, 임계값을 *코드로 선언하고 통계적으로 판정*하는 접근이 필수입니다.
+
 대시보드와 리포트에 표시되는 모든 숫자는 개발자가 작성한 Tracker + Config로부터 온다. 임계값을 설정하기 전에 이 출처를 이해하면 **"이 숫자가 왜 이 값인가"를 진단**할 수 있다.
 
 ```
@@ -68,6 +70,8 @@ TCR 임계값을 95%로 설정했다고 가정하자. 에이전트가 하루 1,0
 1. **보수적으로 시작하라** — 처음에는 느슨하게, 데이터가 쌓이면 점진적으로 강화
 2. **측정 대상을 명확히 하라** — Latency는 평균이 아닌 P95 기준, Quality는 5점 척도
 3. **정기적으로 갱신하라** — 월 1회 이상 실제 데이터 기반으로 재검토
+
+> **AI-native 관점**: 전통 소프트웨어의 임계값은 "얼마나 자주 실패하는가"를 묻습니다. Harness Engineering의 임계값은 "이 에이전트가 지금 이 기준에서 프로덕션에 나가도 되는가"를 묻습니다. 에이전트의 출력은 비결정론적이므로 임계값 자체가 **통계적 분포 기반**(P95 레이턴시, 평균 TCR, 환각률 상한)입니다. "테스트 케이스 통과/실패"가 아닌 "측정값 분포가 선언된 범위 안에 있는가"가 배포 판정 기준입니다.
 
 ---
 
@@ -461,7 +465,7 @@ Harness Config로 전환하면:
 §14.2의 에이전트 유형별 KPI 기준표를 Config 코드로 변환합니다.
 
 ```python
-# 출처: Evaluator_Examples/ch04_group_a.py, 섹션 Group A·C·D·E — KPI를 Config로 선언
+# 출처: Evaluator_Examples/ch14_thresholds.py, 섹션 Group A·C·D·E — KPI를 Config로 선언
 from agent_evaluator import (
     PerformanceMonitor,
     InstructionConfig, ReproducibilityConfig, SLAConfig,
@@ -559,7 +563,7 @@ def adaptive_threshold(
         return max(0.0, observed - margin)
 
 # 2주 캘리브레이션 완료 후 Config 자동 생성
-# 출처: Evaluator_Examples/ch04_group_a.py, 섹션 1 — Group A Goal Achievement
+# 출처: Evaluator_Examples/ch14_thresholds.py, 섹션 1 — Group A Goal Achievement
 report = monitor.generate_report()
 total = int(report.total_tasks)
 successful = int(total * report.task_completion_rate / 100)
@@ -591,11 +595,11 @@ print(f"→ CI/CD: agent-eval gate result.json --tcr {threshold*100:.0f}")
 
 ## 실전 예제
 
-`ch14_thresholds.py`는 `generate_gate_config()`·`HarnessEvaluationGate`·`SimpleTaskAlertRule`을 조합해 임계값 설정과 Gate 판정을 자동화하는 패턴을 보여준다. `ch10_group_g.py`의 `AnomalyDetector`와 `CostTracker` 섹션은 운영 임계값 기반 알림과 비용 제어가 실제 코드에서 어떻게 구성되는지 보여준다.
+`ch14_thresholds.py`는 `generate_gate_config()`·`HarnessEvaluationGate`·`SimpleTaskAlertRule`·`AnomalyDetector`·`CostTracker`를 조합해 임계값 설정과 Gate 판정, 운영 임계값 기반 알림과 비용 제어를 자동화하는 패턴을 보여준다.
 
-**파일**: `Evaluator_Examples/ch14_thresholds.py`, `Evaluator_Examples/ch10_group_g.py`
+**기본 예제**: `Evaluator_Examples/ch14_thresholds.py`
 
-**핵심 코드 (출처: `Evaluator_Examples/ch14_thresholds.py`)**
+**핵심 코드**
 
 ```python
 # 출처: Evaluator_Examples/ch14_thresholds.py, 섹션 2 — HarnessEvaluationGate 임계값 선언 및 판정
@@ -631,10 +635,10 @@ for gate in ["A", "D"]:
 - `ResourceBudgetConfig`는 태스크당 토큰·비용 상한을 설정해 예산 초과 시 해당 태스크를 위반으로 처리한다
 - `harness_groups["D"]["status"]`가 `"FAIL"`이면 Gate D가 임계값을 초과한 것이므로 배포를 보류해야 한다
 
-**핵심 코드 (출처: `Evaluator_Examples/ch10_group_g.py`)**
+**핵심 코드**
 
 ```python
-# 출처: Evaluator_Examples/ch10_group_g.py, 섹션 추가A — 이상 탐지 (AnomalyDetector)
+# 출처: Evaluator_Examples/ch14_thresholds.py, 섹션 추가A — 이상 탐지 (AnomalyDetector)
 from agent_evaluator import AnomalyDetector, create_taskresult
 import random
 
@@ -676,7 +680,7 @@ for event in events:
 - `explain_event()`는 어떤 지표가, 얼마나 벗어났는지를 사람이 읽기 쉬운 형태로 반환한다
 
 ```python
-# 출처: Evaluator_Examples/ch10_group_g.py, 섹션 추가B — 비용 추적 + 적응형 샘플링
+# 출처: Evaluator_Examples/ch14_thresholds.py, 섹션 추가B — 비용 추적 + 적응형 샘플링
 from agent_evaluator import CostTracker, AdaptivePolicy, SamplingStage
 
 # SamplingStage는 Enum (DEFAULT / ANOMALY / BUDGET_EXCEEDED)
@@ -748,7 +752,7 @@ TCR=46.1% | 평균 정확도=0.681 | 평균 레이턴시=1.47s
 `StreamingEvaluator`의 슬라이딩 윈도우 통계가 임계값을 초과하면 `SimpleTaskAlertRule`이 즉시 발동하는 패턴이다:
 
 ```python
-# 출처: Evaluator_Examples/ch16_alerts.py, 섹션 3 — SimpleTaskAlertRule — @agent_eval 통합 경량 알림
+# 출처: Evaluator_Examples/ch14_thresholds.py, 섹션 3 — SimpleTaskAlertRule — @agent_eval 통합 경량 알림
 from agent_evaluator import PerformanceMonitor, SimpleTaskAlertRule, create_taskresult
 from agent_evaluator.streaming.evaluator import StreamingEvaluator
 

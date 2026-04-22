@@ -33,6 +33,11 @@ from agent_evaluator import (
     ContextWindowConfig,
     StateConsistencyConfig,
     DeadlockConfig,
+    # L2 트래커 직접 사용
+    ToolCallAnalyzer,
+    RetryCorrectionTracker,
+    ToolSelectionTracker,
+    AgentCoordinationTracker,
 )
 from agent_evaluator.decorators import agent_eval, EvalMetadata
 
@@ -238,6 +243,89 @@ for name, success, steps in WORKFLOWS:
     )
     monitor.record_task(result)
     print(f"  [{name}] {'✅' if success else '❌'}  단계: {steps}")
+
+# ===========================================================================
+# 섹션 추가: Layer 2 트래커 직접 사용
+#
+# PerformanceMonitor가 자동 수집하는 4개 L2 트래커를 직접 인스턴스화합니다.
+# ToolCallAnalyzer      → analyze_execution() + get_efficiency_stats()
+# RetryCorrectionTracker → track_attempts() + get_retry_metrics()
+# ToolSelectionTracker  → evaluate_selection() + get_accuracy_stats()
+# AgentCoordinationTracker → track_interaction() + get_interaction_patterns()
+# ===========================================================================
+print("\n=== 섹션 추가: L2 트래커 직접 사용 ===")
+
+# ── ToolCallAnalyzer ──────────────────────────────────────────────────────
+print("  [1] ToolCallAnalyzer — 도구 호출 효율 분석")
+tool_analyzer = ToolCallAnalyzer()
+_call_cases = [
+    ("t_tool_1", [
+        {"tool_name": "search",   "success": True,  "duration": 0.30},
+        {"tool_name": "analyze",  "success": True,  "duration": 0.50},
+        {"tool_name": "summarize","success": True,  "duration": 0.20},
+    ]),
+    ("t_tool_2", [
+        {"tool_name": "search",   "success": True,  "duration": 0.25},
+        {"tool_name": "search",   "success": True,  "duration": 0.25},  # 중복
+        {"tool_name": "analyze",  "success": False, "duration": 0.10},  # 실패
+        {"tool_name": "summarize","success": True,  "duration": 0.20},
+    ]),
+]
+for tid, calls in _call_cases:
+    result = tool_analyzer.analyze_execution(tid, calls)
+    print(f"  [{tid}] 총={result['total_calls']}  중복={result['redundant_calls']}  "
+          f"실패={result['failed_calls']}  효율={result['efficiency_score']:.1f}")
+_eff_stats = tool_analyzer.get_efficiency_stats()
+print(f"    전체 평균 효율={_eff_stats.get('avg_efficiency_score', 0):.1f}")
+
+# ── RetryCorrectionTracker ────────────────────────────────────────────────
+print("  [2] RetryCorrectionTracker — 재시도·교정 이력 추적")
+retry_tracker = RetryCorrectionTracker()
+retry_tracker.track_attempts("t_retry_1", [
+    {"success": False, "retry_reason": "timeout",     "duration": 1.20},
+    {"success": False, "retry_reason": "rate_limit",  "duration": 0.50},
+    {"success": True,  "duration": 0.80},
+], task_type="qa")
+retry_tracker.track_attempts("t_retry_2", [
+    {"success": True, "duration": 0.40},  # 첫 시도 성공
+], task_type="qa")
+_retry_metrics = retry_tracker.get_retry_metrics()
+print(f"    재시도율={_retry_metrics['retry_rate']:.1f}%  "
+      f"첫시도 성공={_retry_metrics['first_attempt_success_rate']:.1f}%  "
+      f"교정 성공={_retry_metrics['correction_success_rate']:.1f}%")
+
+# ── ToolSelectionTracker ──────────────────────────────────────────────────
+print("  [3] ToolSelectionTracker — 도구 선택 정확도 (Precision/Recall/F1)")
+sel_tracker = ToolSelectionTracker()
+_sel_cases = [
+    ("t_sel_1", ["search", "summarize"],         ["web_search", "summarize"]),   # 시맨틱 일치
+    ("t_sel_2", ["search", "analyze", "report"], ["search", "analyze"]),         # report 누락
+    ("t_sel_3", ["calculate"],                   ["search", "calculate", "log"]),# search·log 초과
+]
+for tid, expected, actual in _sel_cases:
+    sel = sel_tracker.evaluate_selection(tid, expected_tools=expected, actual_tools=actual)
+    print(f"  [{tid}] F1={sel['f1_score']:.1f}  Precision={sel['precision']:.1f}  "
+          f"Recall={sel['recall']:.1f}")
+_sel_stats = sel_tracker.get_accuracy_stats()
+print(f"    평균 F1={_sel_stats.get('avg_f1_score', 0):.1f}")
+
+# ── AgentCoordinationTracker ──────────────────────────────────────────────
+print("  [4] AgentCoordinationTracker — 멀티에이전트 협업 패턴 분석")
+coord_tracker = AgentCoordinationTracker()
+_interactions = [
+    ("orchestrator", "retriever",  "delegation",    True),
+    ("orchestrator", "analyzer",   "delegation",    True),
+    ("retriever",    "orchestrator","communication", True),
+    ("analyzer",     "reporter",   "collaboration", True),
+    ("reporter",     "orchestrator","communication", True),
+]
+for f, t, itype, success in _interactions:
+    coord_tracker.track_interaction("t_coord", f, t, itype, success=success)
+_coord_patterns = coord_tracker.get_interaction_patterns()
+print(f"    에이전트={_coord_patterns.get('total_agents', 0)}개  "
+      f"토폴로지={_coord_patterns.get('pattern_type', 'n/a')}  "
+      f"위임성공={coord_tracker.get_delegation_success_rate():.1f}%")
+
 
 monitor.save_to_file("ch05_group_b")
 print("\n결과 저장 완료: results/ch05_group_b.json")

@@ -1,205 +1,458 @@
 """
-ch01_first_eval.py — Layer 1 기초 지표 (정확도·품질·할루시네이션·TCR)
+ch01_first_eval.py — AI 에이전트 평가, 왜 다른가
 =======================================================================
 Book Chapter 01 — AI에이전트 평가란 무엇인가
 
-  AccuracyEvaluator       : QA / 코드 / RAG 정확도
-  ResponseQualityEvaluator: 5차원 응답 품질
-  HallucinationDetector   : 사실 일관성 점수
-  TaskCompletionTracker   : 태스크 완료율 (TCR)
+챕터 순서대로 4가지 논점을 직접 실행합니다.
 
-의존성:
-    필수: pip install agent-evaluator
-    선택: agent-eval monitor   (Phoenix OTEL 시각화)
+  섹션 1 — assert 기반 테스트의 함정      (§1.4 한계①)
+           "의미가 같아도 assert는 실패한다"
+           → create_taskresult 로 정확도 점수와 직접 비교
 
-실행:
-    python Evaluator_Examples/ch01_first_eval.py
+  섹션 2 — RAG 환각 탐지                 (§1.2 사례①)
+           "컨텍스트를 벗어난 응답을 자동으로 식별한다"
+           → @agent_eval + HallucinationDetector
 
-결과:
-    results/ch01_first_eval.json  (+ .html)
-    → agent-eval dashboard --results results/
-    → deprecated 전체 예제: Evaluator_Examples/.deprecated/01_layer1_all_metrics.py
+  섹션 3 — SLA 위반 감지                 (§1.2 사례③)
+           "레이턴시 급증을 배포 기준으로 자동 차단한다"
+           → @agent_eval + SLAConfig
+
+  섹션 4 — Harness 3요소 종합            (§1.3)
+           "Tracker × Config → Gate 배포 판정"
+           → InstructionConfig + SLAConfig → 통과/차단 판정
+
+의존성: pip install agent-evaluator
+실행:   python Evaluator_Examples/ch01_first_eval.py
+결과:   results/ch01_*.json  →  agent-eval dashboard --results results/
 """
 
 import random
+import time
 from pathlib import Path
 
-from agent_evaluator import PerformanceMonitor, create_taskresult, setup_otel
+from agent_evaluator import (
+    PerformanceMonitor,
+    create_taskresult,
+    setup_otel,
+    InstructionConfig,
+    SLAConfig,
+    # L1 트래커 직접 사용 (섹션 5)
+    TaskCompletionTracker,
+    AccuracyEvaluator,
+    HallucinationDetector,
+    ResponseQualityEvaluator,
+    LatencyTracker,
+    TokenEconomyTracker,
+)
 from agent_evaluator.decorators import agent_eval
 
 _PROJECT_ROOT = Path(__file__).parent.parent
 _OUTPUT_DIR   = str(_PROJECT_ROOT / "results")
 
+# Phoenix OTEL 자동 감지 (agent-eval monitor 실행 중이면 연결)
 try:
     import socket
     with socket.socket() as s:
         s.settimeout(0.5)
         if s.connect_ex(("localhost", 6006)) == 0:
-            setup_otel(endpoint="http://localhost:6006", service_name="ch01-first-eval")
+            setup_otel(endpoint="http://localhost:6006", service_name="ch01-why-eval")
             print("  Phoenix 모니터링 활성화 — http://localhost:6006")
 except Exception:
     pass
 
-monitor = PerformanceMonitor(
-    output_dir=_OUTPUT_DIR,
-    enable_hallucination_detection=True,
-    enable_transparency=True,
-)
 
 # ===========================================================================
-# 섹션 1: QA 정확도
+# 섹션 1 — §1.4 한계①: assert 기반 테스트의 함정
+#
+# "의미는 같아도 표현이 다르면 assert 실패"
+# §1.4 코드 예시:
+#   assert result == "서울입니다."
+#   → "서울이 한국의 수도입니다", "수도는 서울입니다" 모두 정답인데 하나만 통과
+#
+# 해결: AccuracyEvaluator의 Token F1·Jaccard·LCS·Char 4중 가중 알고리즘
+#       단순 assert 대신 통계적 정확도 분포로 판단
 # ===========================================================================
-print("\n=== 섹션 1: QA 정확도 ===")
+print("\n" + "=" * 62)
+print("섹션 1 — assert 기반 테스트의 함정  (§1.4 한계①)")
+print("=" * 62)
+print("  assert 기반 테스트는 표현이 달라지면 의미가 같아도 실패합니다.")
+print("  AccuracyEvaluator는 TokenF1·Jaccard·LCS·Char 4중 알고리즘으로")
+print("  의미 거리에 비례한 연속 점수를 계산합니다.\n")
+print("  질문: '한국의 수도는?'  정답 기준: '서울'\n")
 
-@agent_eval(monitor, task_type="qa", task_id_prefix="qa")
-def qa_agent(question: str, ground_truth: str = "") -> str:
-    answers = {
-        "한국의 수도는?":         "서울입니다.",
-        "파이썬을 만든 사람은?":   "귀도 반 로섬입니다.",
-        "지구의 위성은?":          "달입니다.",
-        "물의 화학식은?":          "H2O입니다.",
-        "1+1은?":                  "3입니다.",
-    }
-    return answers.get(question, "잘 모르겠습니다.")
+monitor_s1 = PerformanceMonitor(output_dir=_OUTPUT_DIR)
 
-QA_CASES = [
-    ("한국의 수도는?",       "서울"),
-    ("파이썬을 만든 사람은?", "귀도 반 로섬"),
-    ("지구의 위성은?",        "달"),
-    ("물의 화학식은?",        "H2O"),
-    ("1+1은?",               "2"),
+# §1.4 코드 예시 재현: 의미는 같지만 표현이 다른 응답들
+# - assert: 정답 문자열과 정확히 일치해야 통과 → 표현 변형 시 전부 실패
+# - AccuracyEvaluator: 토큰 겹침 기반 유사도 → 의미가 가까울수록 높은 점수
+GT_CAPITAL = "서울은 대한민국의 수도이자 최대 도시입니다."
+
+CAPITAL_RESPONSES = [
+    ("정확 일치",   GT_CAPITAL),
+    ("어순 변형",   "대한민국의 수도이자 최대 도시는 서울입니다."),
+    ("간결 표현",   "서울이 수도입니다."),
+    ("영한 혼용",   "Seoul(서울)이 한국의 수도입니다."),
+    ("완전히 오답", "오늘 날씨는 맑고 기온은 25도입니다."),
 ]
 
-for question, gt in QA_CASES:
-    qa_agent(question, ground_truth=gt)
-    print(f"  Q: {question:<25s}  완료")
+print(f"  {'표현 유형':<12}  {'응답(앞 25자)':<28}  {'assert':^7}  {'정확도':^8}")
+print("  " + "-" * 62)
 
-# ===========================================================================
-# 섹션 2: 코드 / RAG 정확도
-# ===========================================================================
-print("\n=== 섹션 2: 코드 & RAG 정확도 ===")
-
-@agent_eval(monitor, task_type="code_generation", task_id_prefix="code")
-def code_agent(question: str, ground_truth: str = "") -> str:
-    if "피보나치" in question:
-        return "def fib(n):\n    if n <= 1: return n\n    return fib(n-1) + fib(n-2)"
-    return "print('hello world')"
-
-@agent_eval(monitor, task_type="information_retrieval",
-            task_id_prefix="rag", context_arg="context")
-def rag_agent(question: str, context: str = "", ground_truth: str = "") -> str:
-    return context[:120] if context else "컨텍스트가 없습니다."
-
-code_agent("피보나치 수열 함수를 파이썬으로 작성해줘",
-           ground_truth="def fib(n):\n    if n<=1: return n\n    return fib(n-1)+fib(n-2)")
-print("  코드 정확도 기록 완료")
-
-rag_agent(
-    "서울의 주요 특징은?",
-    context="서울은 대한민국의 수도이자 최대 도시로, 약 1,000만 명의 인구가 살고 있습니다.",
-    ground_truth="서울은 대한민국의 수도",
-)
-print("  RAG 정확도 기록 완료")
-
-# ===========================================================================
-# 섹션 3: 응답 품질 5차원 (ResponseQualityEvaluator)
-# ===========================================================================
-print("\n=== 섹션 3: 응답 품질 5차원 ===")
-
-QUALITY_CASES = [
-    ("고품질 응답",  "파이썬은 간결하고 읽기 쉬운 문법으로 설계된 고급 프로그래밍 언어입니다. 다양한 라이브러리 생태계와 커뮤니티 지원 덕분에 데이터 과학, 웹 개발, 자동화 분야에서 폭넓게 사용됩니다."),
-    ("중간 품질",   "파이썬은 프로그래밍 언어입니다. 사용하기 쉽습니다."),
-    ("저품질 응답", "몰라요."),
-]
-
-for label, resp in QUALITY_CASES:
+for label, resp in CAPITAL_RESPONSES:
     result = create_taskresult(
-        task_id=f"qual_{label[:4]}",
-        question="파이썬이란 무엇인가요?",
+        task_id=f"s1_{label[:2]}",
+        question="한국의 수도는?",
         response=resp,
-        ground_truth="파이썬은 간결한 문법의 고급 프로그래밍 언어",
-        execution_time=round(random.uniform(0.3, 1.5), 3),
+        ground_truth=GT_CAPITAL,
+        execution_time=0.05,
         task_type="qa",
-        tokens_used={"input": 80, "output": len(resp.split()), "total": 80 + len(resp.split())},
     )
-    monitor.record_task(result)
-    print(f"  [{label}] acc={result.accuracy_score:.2f}  len={len(resp)}자")
+    monitor_s1.record_task(result)
+    naive = "✅" if resp == GT_CAPITAL else "❌"
+    preview = resp[:25] + ("…" if len(resp) > 25 else "")
+    print(f"  {label:<12}  {preview:<28}  {naive:^7}  {result.accuracy_score:^8.2f}")
+
+print()
+print("  결론: assert 기반 → 5건 중 1건만 통과 (정확히 일치할 때만)")
+print("        정확도 점수 → 의미 거리에 비례한 연속 값 (0.0 ~ 1.0)")
+print("        → '완전히 오답'은 낮고, '어순 변형'은 높게 측정됨")
+
 
 # ===========================================================================
-# 섹션 4: 할루시네이션 탐지
+# 섹션 2 — §1.2 사례①: RAG 환각 탐지
+#
+# 의료 정보 RAG 에이전트가 컨텍스트를 벗어난 정보를 생성하는 시나리오.
+# enable_hallucination_detection=True → HallucinationDetector 자동 동작.
+#
+# §1.2: "검색된 문서에는 올바른 정보가 있었지만, 에이전트는 문서의 내용을
+#        벗어난 정보를 생성했습니다."
+#       필요했던 평가: HallucinationDetector — Group C 신뢰성
 # ===========================================================================
-print("\n=== 섹션 2: 할루시네이션 탐지 ===")
+print("\n" + "=" * 62)
+print("섹션 2 — RAG 환각 탐지  (§1.2 사례①)")
+print("=" * 62)
+print("  §1.2 사례①: 의료 RAG 에이전트가 컨텍스트를 벗어난 복용량을 답했습니다.")
+print("  enable_hallucination_detection=True → HallucinationDetector 자동 동작")
+print("  컨텍스트와 응답 간 사실 일치도를 Group C(신뢰성) 차원에서 측정합니다.\n")
+print("  시나리오: 의약품 복용 안내 RAG 에이전트\n")
+
+monitor_s2 = PerformanceMonitor(
+    output_dir=_OUTPUT_DIR,
+    enable_hallucination_detection=True,  # Group C — HallucinationDetector 활성화
+)
+
+# 동일 컨텍스트에 대한 충실 응답 / 환각 응답 / 혼합 응답
+CONTEXT_DRUG = (
+    "아목시실린은 하루 2회, 식전에 복용합니다. "
+    "성인 기준 1회 250mg이며 신장 기능 저하 시 용량을 조절해야 합니다."
+)
 
 HALLUCINATION_CASES = [
     (
-        "파리는 어느 나라 수도?",
-        "파리는 프랑스의 수도이며 약 200만 명이 거주하는 유럽의 주요 도시입니다.",
-        "파리는 프랑스의 수도이며 약 200만 명이 거주하는 유럽의 주요 도시입니다.",
-        "프랑스",
+        "충실한 응답",
+        "하루 2회, 식전 복용. 1회 250mg.",
+        # 컨텍스트 그대로 → 낮은 환각 점수 (정상)
+        "아목시실린은 하루 2회, 식전에 복용합니다. 성인 기준 1회 250mg입니다.",
     ),
     (
-        "아인슈타인의 출생 연도와 출생지는?",
-        "알베르트 아인슈타인은 1879년 독일 울름에서 태어난 물리학자입니다.",
-        "아인슈타인은 1865년 미국 뉴욕 맨해튼에서 태어났으며 어린 시절을 보스턴에서 보냈습니다.",
-        "1879년, 독일 울름",
+        "환각 응답",
+        "하루 2회, 식전 복용. 1회 250mg.",
+        # 컨텍스트에 없는 정보 생성 → 높은 환각 점수 (위험)
+        "하루 4회, 식후 30분에 복용하며 1회 500mg을 복용합니다. "
+        "음주 후 복용해도 무방합니다.",
     ),
     (
-        "광합성이란 무엇인가?",
-        "광합성은 식물이 태양 빛 에너지를 이용해 이산화탄소와 물로 포도당을 합성하는 생화학 과정입니다.",
-        "광합성은 동물이 먹이를 섭취하여 산소를 생성하고 에너지를 저장하는 신진대사 과정을 의미합니다.",
-        "식물이 빛으로 포도당 합성",
+        "부분 환각",
+        "하루 2회, 식전 복용. 1회 250mg.",
+        # 일부만 컨텍스트와 일치 → 중간 수준
+        "하루 2회 복용합니다. 성인 기준 500mg이며 식후에 복용하세요.",
     ),
 ]
 
-for q, ctx, resp, gt in HALLUCINATION_CASES:
-    result = create_taskresult(
-        task_id=f"hall_{hash(q) % 10000:04d}",
-        question=q,
-        response=resp,
+@agent_eval(monitor_s2, task_type="information_retrieval",
+            task_id_prefix="s2", context_arg="context")
+def rag_medical_agent(question: str, context: str = "",
+                      ground_truth: str = "") -> str:
+    """의료 정보 RAG 에이전트 (환각 시나리오 포함)."""
+    # 실제 환경에서는 LLM이 생성; 여기서는 시나리오별 응답을 미리 정의
+    return rag_medical_agent._responses[rag_medical_agent._idx]
+
+rag_medical_agent._idx = 0
+rag_medical_agent._responses = [resp for _, _, resp in HALLUCINATION_CASES]
+
+for label, gt, resp in HALLUCINATION_CASES:
+    rag_medical_agent._responses[rag_medical_agent._idx] = resp
+    rag_medical_agent(
+        question=f"복용 안내_{label}",
+        context=CONTEXT_DRUG,
         ground_truth=gt,
-        context=ctx,
-        execution_time=round(random.uniform(0.5, 2.0), 3),
-        task_type="information_retrieval",
-        tokens_used={"input": 120, "output": 40, "total": 160},
     )
-    monitor.record_task(result)
-    print(f"  할루시네이션 탐지: {q[:25]:<26s}  score={result.accuracy_score:.2f}")
+    rag_medical_agent._idx += 1
+    print(f"  [{label}] 기록 완료 — 응답: {resp[:40]}...")
+
+print()
+print("  → 환각 탐지 결과는 results/ch01_first_eval.html Harness Gate C에서 확인")
+
 
 # ===========================================================================
-# 섹션 5: 태스크 완료율 (TCR)
+# 섹션 3 — §1.2 사례③: SLA 위반 감지
+#
+# 고객 지원 에이전트의 레이턴시 급증 시나리오.
+# §1.2: "특정 유형의 질의에서 에이전트가 도구를 평균 12번 호출"
+#       "평소 2초 이내 → 피크 타임 30초 이상"
+#       필요했던 평가: LatencyTracker + SLAConfig — Group D 성능계약
+#
+# 여기서는 실행 시간 단축을 위해 ms 단위로 비율만 재현합니다.
+#   정상 응답:   10~50ms   (비율상 2초 이내에 해당)
+#   SLA 위반:   150~250ms  (비율상 30초 급증에 해당)
+#   SLA 기준:   p95 ≤ 100ms
 # ===========================================================================
-print("\n=== 섹션 3: 태스크 완료율 (TCR) ===")
+print("\n" + "=" * 62)
+print("섹션 3 — SLA 위반 감지  (§1.2 사례③)")
+print("=" * 62)
+print("  §1.2 사례③: 고객 지원 에이전트가 피크 타임에 30초 이상 응답했습니다.")
+print("  SLAConfig(p95_ms=...) 선언 → P95 레이턴시 초과 시 Gate D FAIL 판정")
+print("  (예제는 실행 시간 단축을 위해 ms 단위로 비율 재현합니다.)\n")
+print("  SLA 기준: P95 100ms 이내  |  정상 15건(10~50ms) + 급증 5건(150~250ms)\n")
 
-SUCCESS_RATE = 0.85
+monitor_s3 = PerformanceMonitor(output_dir=_OUTPUT_DIR)
+
+sla_cfg = SLAConfig(
+    p95_ms=100,            # P95 100ms 이내 (실 서비스라면 2,000ms)
+    max_cost_per_task=0.005,
+)
+
+# 정상 응답(10~50ms) 15건 + SLA 위반(150~250ms) 5건
+_latencies = (
+    [random.uniform(0.010, 0.050) for _ in range(15)] +
+    [random.uniform(0.150, 0.250) for _ in range(5)]
+)
+random.shuffle(_latencies)
+_lat_iter = iter(_latencies)
+
+@agent_eval(monitor_s3, task_type="qa", task_id_prefix="s3", sla=sla_cfg)
+def support_agent(question: str, ground_truth: str = "") -> str:
+    """고객 지원 에이전트 — 일부 케이스에서 레이턴시 급증."""
+    time.sleep(next(_lat_iter))
+    return f"{question} 처리 완료되었습니다."
 
 for i in range(20):
-    is_success = random.random() < SUCCESS_RATE
-    result = create_taskresult(
-        task_id=f"tcr_{i:03d}",
-        question=f"태스크 {i:02d}번",
-        response=f"태스크 {i:02d}번에 대한 성공적인 처리 결과입니다." if is_success else "",
-        ground_truth="처리 결과",
-        execution_time=round(random.uniform(0.3, 2.0), 3),
-        task_type="qa",
-        tokens_used={"input": 40, "output": 10, "total": 50},
-    )
-    monitor.record_task(result)
+    support_agent(f"문의_{i + 1:02d}번", ground_truth="처리 완료")
+
+print("  20건 완료")
+print("  → SLA 위반 건수·P95 레이턴시는 results/ch01_sla_eval.html Gate D에서 확인")
+
+monitor_s3.save_to_file("ch01_sla_eval")
+
 
 # ===========================================================================
-# 최종 리포트
+# 섹션 4 — §1.3 Harness 3요소 종합: Tracker × Config → Gate 배포 판정
+#
+# §1.3 코드 예시를 직접 실행합니다:
+#   ① Config  — "이 에이전트는 어떤 조건에서 배포될 수 있는가"를 코드로 선언
+#   ② Tracker — @agent_eval이 실행마다 지표를 자동 기록
+#   ③ Gate    — Config 위반 여부를 종합 판정 → 배포 가능/불가 결정
+#
+# InstructionConfig: 응답에 '완료' 또는 '처리' 키워드가 없으면 TCR 저하
+# SLAConfig: P95 응답 시간이 2,000ms 초과 시 Gate D FAIL
 # ===========================================================================
-print("\n=== 최종 리포트 ===")
+print("\n" + "=" * 62)
+print("섹션 4 — Harness 3요소 종합  (§1.3)")
+print("=" * 62)
+print("  § 1.3의 Tracker × Config × Gate 패턴을 직접 실행합니다.")
+print("  ① Config 선언 → ② @agent_eval로 Tracker 자동 수집 → ③ Gate 판정")
+print("  InstructionConfig: 키워드 미포함 응답 → TCR 저하 (Group A)")
+print("  SLAConfig: P95 응답 초과 → Gate D FAIL (Group D)\n")
 
-report = monitor.generate_report().to_dict()
-total_tasks = report.get("total_tasks", 0)
-am  = report.get("accuracy_metrics", {})
-acc = am.get("accuracy_scores", {}).get("overall_accuracy", 0) / 100
-tcr = am.get("tcr", {}).get("tcr", 0) / 100
+monitor_s4 = PerformanceMonitor(output_dir=_OUTPUT_DIR)
 
-print(f"  총 태스크 : {total_tasks}건")
-print(f"  평균 정확도: {acc:.2%}")
-print(f"  TCR       : {tcr:.1%}")
+# ① Config — 배포 기준을 코드로 선언
+instruction_cfg = InstructionConfig(
+    required_keywords=["완료", "처리"],  # 응답에 반드시 포함되어야 할 키워드
+    fail_on_violation=True,
+)
+harness_sla_cfg = SLAConfig(
+    p95_ms=2000,
+    max_cost_per_task=0.01,
+)
 
-monitor.save_to_file("ch01_first_eval")
-print("\n결과 저장 완료: results/ch01_first_eval.json")
-print("확인: agent-eval dashboard --results results/")
+# ② @agent_eval — Tracker 자동 수집 (실행마다 지표 기록)
+@agent_eval(monitor_s4, task_type="qa", task_id_prefix="s4",
+            instructions=instruction_cfg, sla=harness_sla_cfg)
+def harness_agent(question: str, ground_truth: str = "") -> str:
+    """Harness 3요소가 적용된 에이전트."""
+    time.sleep(random.uniform(0.01, 0.05))
+    # 80%는 키워드 충족 / 20%는 미충족 → InstructionConfig 위반 발생
+    responses_pass = ["처리 완료되었습니다.", "요청이 처리되었습니다.", "완료하였습니다."]
+    responses_fail = ["확인되었습니다.", "알겠습니다."]
+    pool = responses_pass * 4 + responses_fail  # 80 / 20 비율
+    return random.choice(pool)
+
+HARNESS_CASES = [
+    ("주문 처리 요청",  "처리 완료되었습니다."),
+    ("환불 신청",       "요청이 처리되었습니다."),
+    ("정보 변경",       "완료하였습니다."),
+    ("계정 문의",       "처리 완료되었습니다."),
+    ("배송 조회",       "완료하였습니다."),
+    ("서비스 해지",     "요청이 처리되었습니다."),
+    ("포인트 조회",     "완료하였습니다."),
+    ("쿠폰 적용",       "처리 완료되었습니다."),
+    ("이메일 변경",     "완료하였습니다."),
+    ("비밀번호 초기화", "요청이 처리되었습니다."),
+]
+
+for q, gt in HARNESS_CASES:
+    harness_agent(q, ground_truth=gt)
+
+# ③ Gate — Config 위반 여부 종합 판정
+report = monitor_s4.generate_report()
+rd     = report.to_dict()
+am     = rd.get("accuracy_metrics", {})
+tcr    = am.get("tcr", {}).get("tcr", 0)
+acc    = am.get("accuracy_scores", {}).get("overall_accuracy", 0)
+
+TCR_THRESHOLD = 80.0
+ACC_THRESHOLD = 70.0
+
+tcr_pass = tcr >= TCR_THRESHOLD
+acc_pass = acc >= ACC_THRESHOLD
+deployable = tcr_pass and acc_pass
+
+print()
+print("  [ Gate 판정 결과 ]")
+print(f"  TCR    : {tcr:5.1f}%  (기준 {TCR_THRESHOLD:.0f}%)  {'✅ PASS' if tcr_pass else '❌ FAIL'}")
+print(f"  정확도 : {acc:5.1f}%  (기준 {ACC_THRESHOLD:.0f}%)  {'✅ PASS' if acc_pass else '❌ FAIL'}")
+print()
+if deployable:
+    print("  → ✅ 배포 가능  — 모든 Harness 기준 통과")
+else:
+    print("  → ❌ 배포 불가  — Harness 기준 미달 (CI/CD 파이프라인 차단)")
+print()
+print("  실무에서는 CLI로 자동 판정:")
+print("    agent-eval gate results/ch01_first_eval.json --tcr 80 --accuracy 70")
+print("    → 기준 미달 시 exit 1 → CI/CD 파이프라인 자동 차단")
+
+
+# ===========================================================================
+# 섹션 5 — L1 트래커 직접 사용
+#
+# PerformanceMonitor는 내부적으로 6개 L1 트래커를 자동 관리하지만,
+# 세밀한 제어가 필요할 때는 트래커를 직접 인스턴스화해 사용할 수 있습니다.
+#
+# TaskCompletionTracker  → add_task() + calculate_tcr()
+# AccuracyEvaluator      → add_evaluation() + get_accuracy_scores()
+# HallucinationDetector  → detect_hallucination()
+# ResponseQualityEvaluator → evaluate_response()
+# LatencyTracker         → record_latency() + get_latency_stats()
+# TokenEconomyTracker    → track_usage() + get_usage_stats()
+# ===========================================================================
+print("\n" + "=" * 62)
+print("섹션 5 — L1 트래커 직접 사용")
+print("=" * 62)
+print("  PerformanceMonitor 없이 각 트래커를 독립적으로 사용합니다.")
+print("  독립 서비스 / 배치 분석 / 커스텀 파이프라인 구성에 유용합니다.\n")
+
+# ── [1] TaskCompletionTracker ─────────────────────────────────────────────
+print("  [1] TaskCompletionTracker — 작업 완료율(TCR) 계산")
+tcr_tracker = TaskCompletionTracker()
+_s5_tasks = [
+    create_taskresult("t5_1", "서울의 날씨는?", "맑고 22도입니다", "맑고 22도", 0.3, "qa"),
+    create_taskresult("t5_2", "파이썬 GIL이란?", "전역 인터프리터 잠금입니다", "전역 인터프리터 잠금", 0.5, "qa"),
+    create_taskresult("t5_3", "머신러닝이란?", "통계 기반 데이터 학습", "데이터 학습 기법", 0.4, "qa"),
+]
+for t in _s5_tasks:
+    tcr_tracker.add_task(t)
+_tcr = tcr_tracker.calculate_tcr()
+print(f"    TCR={_tcr['tcr']:.1f}%  전체={_tcr['total_tasks']}  성공={_tcr['full_success']}  "
+      f"부분={_tcr['partial_success']}  실패={_tcr['failures']}")
+
+# ── [2] AccuracyEvaluator ─────────────────────────────────────────────────
+print("  [2] AccuracyEvaluator — QA 정확도 직접 계산")
+acc_eval = AccuracyEvaluator()
+acc_eval.add_evaluation("t5_a1", ground_truth="서울", prediction="서울입니다", task_type="qa")
+acc_eval.add_evaluation("t5_a2", ground_truth="파이썬", prediction="자바입니다", task_type="qa")
+acc_eval.add_evaluation("t5_a3", ground_truth="머신러닝", prediction="머신러닝과 딥러닝", task_type="qa")
+_acc_scores = acc_eval.get_accuracy_scores()
+print(f"    전체 정확도={_acc_scores['overall_accuracy']:.1f}%  "
+      f"중앙값={_acc_scores['median_accuracy']:.1f}%  평가건={len(acc_eval.evaluations)}")
+
+# ── [3] HallucinationDetector ─────────────────────────────────────────────
+print("  [3] HallucinationDetector — 환각 탐지 직접 호출")
+hd = HallucinationDetector()
+_ctx = "파이썬은 1991년 귀도 반 로섬이 개발한 범용 프로그래밍 언어입니다."
+hd.detect_hallucination("t5_h1",
+    response="파이썬은 1991년 귀도가 개발한 언어입니다.",
+    context=_ctx)
+hd.detect_hallucination("t5_h2",
+    response="파이썬은 2005년 구글이 개발하고 NASA가 NASA가 배포한 언어입니다.",
+    context=_ctx)
+_hd_records = hd.detections
+for rec in _hd_records:
+    print(f"    [{rec['task_id']}] 환각율={rec.get('hallucination_rate', 0):.2f}  "
+          f"의심문장={rec.get('unsupported_sentences', 0)}")
+
+# ── [4] ResponseQualityEvaluator ──────────────────────────────────────────
+print("  [4] ResponseQualityEvaluator — 5차원 응답 품질 평가")
+rqe = ResponseQualityEvaluator()
+_quality = rqe.evaluate_response(
+    task_id="t5_q",
+    response="파이썬은 범용 프로그래밍 언어로 데이터 과학, 웹 개발, 자동화에 널리 쓰입니다.",
+    request="파이썬이란?",
+    expected_elements=["프로그래밍", "데이터"],
+)
+_dims = _quality.get("dimension_scores", {})
+print(f"    총점={_quality['total_score']:.2f}/5  등급={_quality['grade']}  "
+      f"관련성={_dims.get('relevance', 0):.2f}  완전성={_dims.get('completeness', 0):.2f}")
+
+# ── [5] LatencyTracker ────────────────────────────────────────────────────
+print("  [5] LatencyTracker — 레이턴시 백분위 계산")
+lat_tracker = LatencyTracker()
+for i, t in enumerate([0.12, 0.45, 0.23, 1.80, 0.31, 0.67, 0.18, 0.92, 0.25, 2.10,
+                        0.14, 0.38, 0.55, 0.20, 0.73, 0.11, 1.40, 0.29, 0.61, 0.17]):
+    lat_tracker.record_latency(f"t5_l{i}", "qa", total_time=t,
+                               breakdown={"retrieval": t * 0.3, "llm": t * 0.7})
+_lat_stats = lat_tracker.get_latency_stats()
+print(f"    P50={_lat_stats['p50']:.3f}s  P95={_lat_stats['p95']:.3f}s  "
+      f"P99={_lat_stats['p99']:.3f}s  평균={_lat_stats['mean']:.3f}s")
+
+# ── [6] TokenEconomyTracker ───────────────────────────────────────────────
+print("  [6] TokenEconomyTracker — 토큰 비용 추적")
+tok_tracker = TokenEconomyTracker(pricing={"input": 0.003, "output": 0.015})
+for i in range(5):
+    tok_tracker.track_usage(f"t5_tok_{i}", input_tokens=200 + i * 50,
+                            output_tokens=80 + i * 20, task_type="qa",
+                            model="claude-sonnet-4-6")
+_tok_stats = tok_tracker.get_usage_stats()
+print(f"    총 토큰={_tok_stats['total_tokens']}  총 비용=${_tok_stats['total_cost']:.4f}  "
+      f"태스크당 평균=${_tok_stats['avg_cost_per_task']:.4f}")
+
+
+# ===========================================================================
+# 최종 리포트 저장
+# ===========================================================================
+print("\n" + "=" * 62)
+print("최종 리포트 저장")
+print("=" * 62)
+
+# 섹션 1 + 2 통합 저장
+for r in monitor_s2.generate_report().to_dict().get("task_results", []):
+    pass  # monitor_s1에 병합하지 않고 개별 저장
+monitor_s1.save_to_file("ch01_first_eval")
+monitor_s2.save_to_file("ch01_hallucination_eval")
+# monitor_s3은 이미 저장 완료
+monitor_s4.save_to_file("ch01_harness_eval")
+
+print()
+print("  저장된 파일:")
+print("    ch01_first_eval.json        — 섹션 1 assert vs 정확도 점수")
+print("    ch01_hallucination_eval.json — 섹션 2 환각 탐지 (Group C)")
+print("    ch01_sla_eval.json           — 섹션 3 SLA 위반 (Group D)")
+print("    ch01_harness_eval.json       — 섹션 4 Gate 배포 판정")
+print()
+print("  대시보드 확인:")
+print("    agent-eval dashboard --results results/")
+print()
+print("─" * 62)
+print("다음: Ch02 — QuickEval 5분 첫 평가  (ch02_quickstart.py)")
+print("  이 챕터의 패턴을 @eval.qa 한 줄로 시작합니다.")
+print("─" * 62)

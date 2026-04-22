@@ -16,8 +16,7 @@
 > - **[Appendix A — 58개 지표 완전 레퍼런스](../Appendix/A_58개지표_레퍼런스.md)**: Group D 지표 입력·출력
 > - **[Appendix H — 수학적 상세](../Appendix/H_알고리즘_수학적_레퍼런스.md)**: 퍼센타일 계산 공식, 비용 추정 수식
 > - **[Appendix A §Part 2 — Config 레퍼런스](../Appendix/A_58개지표_레퍼런스.md)**: Group D Config 파라미터 전체 목록
-> - **[Evaluator_Examples/ch01_first_eval.py](../../Evaluator_Examples/ch01_first_eval.py)**: LatencyTracker·TokenEconomy 실전 예제
-> - **[Evaluator_Examples/ch04_group_a.py](../../Evaluator_Examples/ch04_group_a.py)**: Gate D FAIL 시나리오 — 시나리오 12 (TTFTVariabilityConfig·ResourceBudgetConfig)
+> - **[Evaluator_Examples/ch07_group_d.py](../../Evaluator_Examples/ch07_group_d.py)**: 이 챕터 실전 예제 (LatencyTracker · TokenEconomyTracker · 5개 Config · Gate D FAIL 시나리오)
 
 > **독자별 읽기 가이드**  
 > - **QA 관리자**: §7.1(개요) → §7.4(Config 설정) → §7.5(임계값·Gate 판정) 순서로 읽으면 "SLA·비용 기준을 어떻게 선언할지"를 빠르게 파악할 수 있습니다.  
@@ -512,13 +511,12 @@ agent-eval trend results/ --metric cost --window 30
 
 ## 7.6 실전 예제 파일
 
-| 예제 파일 | 관련 내용 |
-|---------|---------|
-| [`Evaluator_Examples/ch03_harness_basics.py`](../../Evaluator_Examples/ch03_harness_basics.py) | 섹션 4: Group D Performance Contract — 3개 Config 실전 예제 |
-| [`Evaluator_Examples/ch01_first_eval.py`](../../Evaluator_Examples/ch01_first_eval.py) | 섹션 4~5: LatencyTracker·TokenEconomyTracker 실전 예제 |
-| [`Evaluator_Examples/ch04_group_a.py`](../../Evaluator_Examples/ch04_group_a.py) | 시나리오 12: Gate D FAIL (TTFTVariability·ResourceBudget·TTFT 극단분산) |
+**기본 예제**: [`Evaluator_Examples/ch07_group_d.py`](../../Evaluator_Examples/ch07_group_d.py)
+— LatencyTracker · TokenEconomyTracker · SLAConfig · EfficiencyConfig · ResourceBudgetConfig · TTFTVariabilityConfig · CostPredictabilityConfig 5개 Config · Gate D FAIL 시나리오
 
-**핵심 코드 (출처: `Evaluator_Examples/ch03_harness_basics.py`, 섹션 4 — Group D Performance Contract)**
+> **관련 챕터 예제**: Harness 전체 Gate 통합 흐름은 [Chapter 3 — `ch03_harness_basics.py`](Chapter_03_Harness_Engineering_기초.md)에서 확인한다.
+
+**핵심 코드**
 
 ```python
 # 출처: Evaluator_Examples/ch07_group_d.py, 섹션 4 — Group D Performance Contract

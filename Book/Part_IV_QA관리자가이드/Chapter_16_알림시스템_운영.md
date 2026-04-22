@@ -752,11 +752,11 @@ def test_alert_rules():
 
 ## 실전 예제
 
-`ch16_alerts.py`는 `StreamingEvaluator`, `ImplicitFeedbackTracker`, `AlertEngine`을 함께 사용하는 실시간 알림 파이프라인을 보여준다. `ch10_group_g.py`는 `SimpleTaskAlertRule`과 `AnomalyDetector`의 결합을 통해 임계값·통계 기반 이중 알림 구조를 시연한다.
+`ch16_alerts.py`는 `StreamingEvaluator`, `ImplicitFeedbackTracker`, `AlertEngine`, `SimpleTaskAlertRule`, `AnomalyDetector`를 조합해 실시간 알림 파이프라인과 임계값·통계 기반 이중 알림 구조를 한 파일에서 시연한다.
 
-**파일**: `Evaluator_Examples/ch16_alerts.py`, `Evaluator_Examples/ch10_group_g.py`
+**기본 예제**: `Evaluator_Examples/ch16_alerts.py`
 
-**핵심 코드 (출처: `Evaluator_Examples/ch16_alerts.py`)**
+**핵심 코드**
 
 ```python
 # 출처: Evaluator_Examples/ch16_alerts.py, 섹션 3 — SimpleTaskAlertRule 경량 알림

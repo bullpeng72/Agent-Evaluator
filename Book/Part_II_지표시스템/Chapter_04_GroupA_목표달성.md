@@ -17,8 +17,7 @@
 > - **[Appendix A — 58개 지표 완전 레퍼런스](../Appendix/A_58개지표_레퍼런스.md)**: Group A 지표 입력·출력·기본값
 > - **[Appendix H — 수학적 상세](../Appendix/H_알고리즘_수학적_레퍼런스.md)**: 4중 가중 정확도 공식, TCR 의사코드
 > - **[Appendix A §Part 2 — Config 레퍼런스](../Appendix/A_58개지표_레퍼런스.md)**: Group A Config 파라미터 전체 목록
-> - **[Evaluator_Examples/ch01_first_eval.py](../../Evaluator_Examples/ch01_first_eval.py)**: Group A Tracker 실전 예제
-> - **[Evaluator_Examples/ch03_harness_basics.py](../../Evaluator_Examples/ch03_harness_basics.py)**: Group A Config 실전 예제
+> - **[Evaluator_Examples/ch04_group_a.py](../../Evaluator_Examples/ch04_group_a.py)**: 이 챕터 실전 예제 (Gate A~G FAIL 시나리오 17개 · 배포 차단 케이스 포함)
 
 > **독자별 읽기 가이드**  
 > - **QA 관리자**: §4.1(개요) → §4.4(Config 설정) → §4.5(임계값·Gate 판정) 순서로 읽으면 "어떤 기준을 세울지"를 빠르게 파악할 수 있습니다.  
@@ -121,7 +120,7 @@ r2 = create_taskresult(
 monitor.record_task(r1)
 monitor.record_task(r2)
 
-# 출처: Evaluator_Examples/ch07_group_d.py, 섹션 추가B — 토큰 경제성 & 비용 추정
+# 출처: Evaluator_Examples/ch04_group_a.py, 섹션 추가B — 토큰 경제성 & 비용 추정
 report = monitor.generate_report()
 d = report.to_dict()
 tcr_data = d.get("accuracy_metrics", {}).get("tcr", {})
@@ -160,7 +159,7 @@ Accuracy는 응답이 ground_truth와 얼마나 가까운지 측정한다. BLEU�
 | Char Similarity | 10% | Levenshtein 거리 기반 | 문자 순서·오타 반영 |
 
 ```python
-# 출처: Evaluator_Examples/ch01_first_eval.py, 섹션 1 — QA 정확도
+# 출처: Evaluator_Examples/ch04_group_a.py, 섹션 1 — QA 정확도
 from agent_evaluator import create_taskresult
 
 result = create_taskresult(
@@ -234,6 +233,28 @@ quality_score = relevance×0.25 + completeness×0.25 + accuracy×0.20 + clarity�
 ```
 
 ```python
+# 출처: Evaluator_Examples/ch01_first_eval.py, [4] ResponseQualityEvaluator
+from agent_evaluator import ResponseQualityEvaluator
+
+rqe = ResponseQualityEvaluator()
+
+result = rqe.evaluate_response(
+    task_id="t1",
+    response="파이썬은 범용 프로그래밍 언어로 데이터 과학, 웹 개발, 자동화에 널리 쓰입니다.",
+    request="파이썬이란?",
+    expected_elements=["프로그래밍", "데이터"],   # 포함 기대 키워드 (선택)
+)
+print(f"총점: {result['total_score']:.2f}/5  등급: {result['grade']}")
+
+dims = result.get("dimension_scores", {})
+print(f"관련성={dims.get('relevance', 0):.2f}  완전성={dims.get('completeness', 0):.2f}")
+print(f"정확도={dims.get('accuracy', 0):.2f}  명확성={dims.get('clarity', 0):.2f}")
+print(f"유용성={dims.get('usefulness', 0):.2f}")
+```
+
+**`PerformanceMonitor`와 자동 연동:**
+
+```python
 from agent_evaluator import PerformanceMonitor
 from agent_evaluator.decorators import agent_eval
 
@@ -252,9 +273,10 @@ print(qm.get("avg_total_score", 0.0))    # 4.1 (0~5 척도)
 print(qm.get("dimension_averages", {}))  # {"completeness": 4.5, "relevance": 4.2, ...}
 ```
 
-- **`@agent_eval`**: 함수 반환값을 자동으로 `TaskResult`로 변환하고 `monitor.record_task()`를 호출해 5차원 품질 평가를 자동 실행한다
-- **`quality_metrics` 경로**: `report.to_dict()["quality_metrics"]` 하위에 `avg_total_score`(0–5 척도 종합)와 `dimension_averages`(5개 차원별 평균)가 들어 있다
-- **ground_truth 불필요**: `ResponseQualityEvaluator`는 응답 자체만으로 5차원을 평가하므로 ground_truth 없이도 품질을 측정할 수 있다
+- `evaluate_response()` 직접 호출: `task_id`(집계용 식별자), `response`(평가 대상), `request`(원래 질문), `expected_elements`(포함 기대 키워드 목록) 4개 인자를 받는다.
+- `grade` 필드: `total_score` 기준 `"excellent"` (4.5+) / `"good"` (3.5+) / `"average"` (2.5+) / `"poor"` (미만).
+- **ground_truth 불필요**: 응답 자체만으로 5차원을 평가하므로 ground_truth 없이도 품질을 측정할 수 있다.
+- **`@agent_eval` 자동 연동**: 데코레이터만 붙이면 `AccuracyEvaluator`·`TaskCompletionTracker`와 함께 `ResponseQualityEvaluator`가 자동 활성화된다.
 
 ---
 
@@ -758,13 +780,12 @@ else:
 
 이 챕터에서 설명한 Group A Config 전체를 바로 실행해볼 수 있는 예제 파일이 준비되어 있다.
 
-| 예제 파일 | 관련 내용 |
-|---------|---------|
-| [`Evaluator_Examples/ch03_harness_basics.py`](../../Evaluator_Examples/ch03_harness_basics.py) | 섹션 1: Group A Goal Achievement — 4개 Config 실전 예제 |
-| [`Evaluator_Examples/ch01_first_eval.py`](../../Evaluator_Examples/ch01_first_eval.py) | 섹션 1~2: AccuracyEvaluator · HallucinationDetector · TCR Tracker 실전 예제 |
-| [`Evaluator_Examples/ch04_group_a.py`](../../Evaluator_Examples/ch04_group_a.py) | 시나리오 6+7: Gate A FAIL — InstructionConfig·GoalAlignmentConfig·ContextRetentionConfig 위반 |
+**기본 예제**: [`Evaluator_Examples/ch04_group_a.py`](../../Evaluator_Examples/ch04_group_a.py)
+— Gate A FAIL 시나리오 포함, InstructionConfig·GoalAlignmentConfig·ContextRetentionConfig·PlanConfig·SubtaskConfig·KnowledgeRetentionConfig 6개 Config 전용 실전 예제
 
-**핵심 코드 (출처: `Evaluator_Examples/ch03_harness_basics.py`, 섹션 1 — Group A Goal Achievement)**
+> **관련 챕터 예제**: Harness 전체 Gate 통합 흐름은 [Chapter 3 — `ch03_harness_basics.py`](Chapter_03_Harness_Engineering_기초.md), Layer 1 기초 트래커는 [Chapter 1 — `ch01_first_eval.py`](../Part_I_기초/Chapter_01_AI에이전트_평가란_무엇인가.md)에서 확인한다.
+
+**핵심 코드**
 
 ```python
 # 출처: Evaluator_Examples/ch04_group_a.py, 섹션 1 — Group A Goal Achievement
@@ -842,10 +863,10 @@ def subtask_agent(question: str, ground_truth: str = "") -> str:
 - **`subtask_agent` 응답**: "완료" 마커가 포함된 텍스트를 반환해 `SubtaskConfig`의 `completion_markers` 탐지가 작동한다
 - **단일 monitor 공유**: 4개 에이전트 함수가 동일 `monitor`를 공유하므로 `generate_report()` 한 번으로 모든 Config 결과를 통합 집계한다
 
-**Layer 1 Tracker 예제 (출처: `Evaluator_Examples/ch01_first_eval.py`, 섹션 1 — QA 정확도)**
+**Layer 1 Tracker 예제**
 
 ```python
-# 출처: Evaluator_Examples/ch01_first_eval.py, 섹션 1 — QA 정확도
+# 출처: Evaluator_Examples/ch04_group_a.py, 섹션 1 — QA 정확도
 @agent_eval(monitor, task_type="qa", task_id_prefix="qa")
 def qa_agent(question: str, ground_truth: str = "") -> str:
     """단순 QA 에이전트 — AccuracyEvaluator 자동 활성."""
@@ -874,7 +895,7 @@ python Evaluator_Examples/ch01_first_eval.py  # Layer 1 Tracker 전체
 python Evaluator_Examples/ch04_group_a.py   # 시나리오 6+7: Gate A FAIL 케이스
 ```
 
-**FAIL 케이스 (출처: `Evaluator_Examples/ch04_group_a.py`)**
+**FAIL 케이스**
 
 시나리오 6: `InstructionConfig` + `GoalAlignmentConfig` 동시 위반 — JSON 형식 무시·목표 도구 미사용
 

@@ -715,183 +715,21 @@ pip install "agent-evaluator[eval]"
 
 ## 실전 예제
 
-`ch19_phoenix.py`는 프로덕션 배포 전략에서 설명하는 세 가지 핵심 패턴(preset 시스템, Docker 통합, 데이터 유실 방지)을 실제 코드로 보여준다. `evaluation_session` 컨텍스트 매니저로 예외 발생 시에도 데이터가 안전하게 저장되는 구조를 확인할 수 있다.
+**기본 예제**: [`Evaluator_Examples/ch20_deployment.py`](../../Evaluator_Examples/ch20_deployment.py)
 
-**파일**: `Evaluator_Examples/ch19_phoenix.py`, `Evaluator_Examples/ch10_group_g.py`
-
-**핵심 코드 (출처: `Evaluator_Examples/ch19_phoenix.py`, `ch10_group_g.py`)**
-
-```python
-# 출처: Evaluator_Examples/ch19_phoenix.py — HybridPerformanceMonitor 조건부 활성화
-import os
-from agent_evaluator import PerformanceMonitor
-
-def create_monitor(output_dir: str = "results/") -> PerformanceMonitor:
-    """환경에 따라 최적 모니터 자동 선택"""
-    has_openai = bool(os.getenv("OPENAI_API_KEY"))
-    
-    try:
-        from agent_evaluator import HybridPerformanceMonitor
-        if has_openai:
-            # DeepEval + Ragas 활성화 (OPENAI_API_KEY 필수)
-            monitor = HybridPerformanceMonitor(
-                output_dir=output_dir,
-                use_deepeval=True,
-                use_ragas=True,
-            )
-            print("HybridPerformanceMonitor 활성화 (DeepEval + Ragas)")
-            return monitor
-    except ImportError:
-        pass  # [eval] extra 미설치
-    
-    # Fallback: 기본 PerformanceMonitor (외부 의존성 없음)
-    print("PerformanceMonitor 사용 (네이티브 지표만)")
-    return PerformanceMonitor(
-        output_dir=output_dir,
-        enable_hallucination_detection=True,
-        enable_llm_judge=has_openai,  # API 키 있을 때만 LLMJudge 활성화
-    )
-
-monitor = create_monitor()
-```
-
-- 프로덕션 배포 시 환경변수(`OPENAI_API_KEY`)와 설치된 패키지에 따라 모니터를 자동으로 선택한다
-- `HybridPerformanceMonitor`는 `[eval]` extras(`deepeval`, `ragas`)가 설치된 경우에만 사용 가능하다
-- `try/except ImportError`로 extras 미설치 환경에서도 코드가 정상 동작하게 한다
-
-```python
-# 출처: Evaluator_Examples/ch11_eval_data.py, 섹션 4 — evaluation_session — context manager + 자동 저장
-from agent_evaluator import evaluation_session, create_taskresult
-import logging
-
-logger = logging.getLogger(__name__)
-
-def run_production_evaluation(agent_fn, test_cases: list) -> dict:
-    """프로덕션 에이전트 평가 — 예외 발생 시에도 결과 보존"""
-    
-    with evaluation_session("production_eval") as monitor:
-        for i, (question, ground_truth) in enumerate(test_cases):
-            try:
-                response = agent_fn(question)
-                result = create_taskresult(
-                    task_id=f"prod_{i:04d}",
-                    question=question,
-                    response=response,
-                    ground_truth=ground_truth,
-                    execution_time=0.0,  # 실제는 시간 측정 필요
-                    task_type="qa",
-                )
-                monitor.record_task(result)
-            except Exception as e:
-                logger.error(f"태스크 {i} 실패: {e}")
-                # 오류가 있어도 세션 계속 유지
-        
-        report = monitor.generate_report()
-        return {
-            "tcr": report.task_completion_rate,
-            "accuracy": report.average_accuracy,
-        }
-    # with 블록 종료 시 results/production_eval.json 자동 저장
-```
-
-- `evaluation_session()`은 예외가 발생해도 `finally` 블록에서 `save_to_file()`을 호출해 그때까지의 결과를 보존한다
-- 개별 태스크 오류를 `try/except`로 처리해 한 태스크의 실패가 전체 평가 세션을 중단시키지 않도록 한다
-- `async_evaluation_session()`을 사용하면 FastAPI 엔드포인트나 async 에이전트에도 동일하게 적용된다
+| 패턴 | 내용 |
+|------|------|
+| v1 vs v2 Gate 비교 | 독립 `PerformanceMonitor` 2개로 동일 Config 적용 → Gate A–G 점수 나란히 비교 |
+| 배포 자동 결정 | 필수 Gate(A·B·C·E) 전체 PASS 여부로 배포 승인/차단 자동 판정 |
+| `save_to_file()` | v1·v2 결과 JSON+HTML 생성 → 대시보드에서 나란히 확인 |
 
 ```bash
-# 프로덕션 preset 시뮬레이션
-python Evaluator_Examples/ch19_phoenix.py
-
-# evaluation_session 데이터 유실 방지 패턴
-python Evaluator_Examples/ch10_group_g.py
+python Evaluator_Examples/ch20_deployment.py    # v1 vs v2 Gate 점수 비교 · 배포 버전 결정
 ```
 
-**예제 구성**
+> **관련 챕터 예제**: CI/CD 최소 게이팅(`ch18_cicd_gate.py`)은 [Chapter 18](Chapter_18_CICD_품질게이팅.md)에서, Phoenix OTEL 통합(`ch19_phoenix.py`)은 [Chapter 19](Chapter_19_Phoenix_OTEL_모니터링.md)에서, Gate FAIL 임계값 확인(`ch04_group_a.py`)은 [Chapter 4](../Part_II_지표시스템/Chapter_04_GroupA_목표달성.md)에서 확인한다.
 
-| 파일 | 패턴 | 프로덕션 배포 연결 |
-|------|------|-------------------|
-| ch19_phoenix | `setup_otel()` → `PerformanceMonitor` 순서 | Docker + Phoenix 서비스 통합 |
-| ch19_phoenix | `HybridPerformanceMonitor` + API 키 조건 분기 | 환경별 활성화/비활성화 |
-| ch10_group_g | `evaluation_session` 컨텍스트 매니저 | 예외 발생 시 자동 저장 보장 |
-| ch10_group_g | `auto_save=True, auto_save_interval=10` | 장시간 실행 중 주기 저장 |
-
-**실행 결과 (v0.8.4 기준)**
-
-```
-# ch10_group_g.py (evaluation_session 섹션)
-evaluation_session 시작: results/session_YYYYMMDD
-  태스크 10개 처리 중 예외 시뮬레이션...
-  예외 발생 → 컨텍스트 매니저 자동 저장 (8개 태스크 보존)
-evaluation_session 종료: results/session_YYYYMMDD.json 저장
-
-# ch19_phoenix.py (auto_save 섹션)
-PerformanceMonitor(auto_save=True, auto_save_interval=10)
-  태스크 1~10 처리: auto_save 트리거 → periodic_save_01.json
-  태스크 11~20 처리: auto_save 트리거 → periodic_save_02.json
-```
-
-> **Docker 배포 환경 변수**: `OTEL_EXPORTER_OTLP_ENDPOINT`, `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`를 `.env` 파일로 관리하고, `python-dotenv`의 `load_env()`로 로드한다. `ch19_phoenix.py` 상단의 `os.getenv()` 패턴이 Docker 환경 변수 주입과 완전히 호환된다.
-
----
-
-**Gate FAIL 시나리오 기반 배포 차단 패턴**
-
-```python
-# 출처: Evaluator_Examples/ch18_cicd_gate.py — 배포 전 Gate 검증
-# 배포 전에 나쁜 에이전트가 각 Gate를 FAIL시키는지 확인하고,
-# 실제 에이전트가 동일 Config를 통과하는지 검증한다.
-
-# 단계 1: ch04_group_a.py로 Gate FAIL 임계값 확인
-#   python Evaluator_Examples/ch04_group_a.py
-#   → 17개 시나리오의 FAIL 점수를 확인해 Config 파라미터 튜닝
-
-# 단계 2: 실제 에이전트를 동일 Config로 테스트
-from agent_evaluator import (
-    PerformanceMonitor, HarnessEvaluationGate,
-    InstructionConfig, ScopeConfig, SLAConfig,
-    ComplianceConfig, ExplainabilityConfig,
-)
-from agent_evaluator.decorators import agent_eval
-
-monitor = PerformanceMonitor(output_dir="results/")
-
-@agent_eval(
-    monitor,
-    task_type="qa",
-    task_id_prefix="prod_candidate",
-    instructions=InstructionConfig(required_keywords=["answer", "source"], min_chars=20),
-    scope=ScopeConfig(allowed_tools=["search", "analyze"], forbidden_tools=["delete", "admin"]),
-    sla=SLAConfig(p95_ms=3000),
-    compliance=ComplianceConfig(pii_categories=["email", "phone"]),
-    explainability=ExplainabilityConfig(require_reasoning=True, min_reasoning_length=30),
-)
-def production_candidate(question: str, ground_truth: str = "") -> str:
-    return f"답변: {question} | 출처: 내부DB | 왜냐하면 이 데이터가 최신 정보입니다."
-
-for q in ["서비스 상태는?", "오늘 트래픽은?", "에러율을 알려줘"]:
-    production_candidate(q, ground_truth="정상")
-
-# 단계 3: Gate 판정 → FAIL 시 배포 차단
-report = monitor.generate_report()
-gate = HarnessEvaluationGate(report, min_group_score=0.7, fail_on_warn=False)
-gate.enforce()  # FAIL 시 sys.exit(1)
-```
-
-- 단계 1(`ch04_group_a.py`)로 각 Config가 FAIL을 유발하는 임계값을 파악한 뒤 `instructions`, `scope`, `sla` 파라미터를 실제 에이전트 성능에 맞게 조정한다
-- `gate.enforce()`는 Gate FAIL 시 자동으로 `sys.exit(1)`을 호출하므로 수동 분기 코드 없이 배포 차단이 구성된다
-- `fail_on_warn=False`로 설정하면 WARN 상태 Gate는 차단 없이 경고만 로그에 남겨 단계적으로 품질 기준을 강화할 수 있다
-
-```bash
-python Evaluator_Examples/ch04_group_a.py   # FAIL 임계값 보정
-python Evaluator_Examples/ch20_deployment.py       # 배포 버전 결정
-```
-
-- `ch04_group_a.py`가 먼저 실행되어야 FAIL 기준값이 보정되므로 두 스크립트를 순서대로 실행하는 것이 중요하다
-- `ch20_deployment.py`의 최종 출력에서 v1/v2 Gate 점수 차이를 보고 배포 버전을 결정한다
-
-**`ch20_deployment.py` — v1 vs v2 Gate 비교로 배포 버전 결정**
-
-같은 Harness Config를 v1·v2에 적용해 Gate 점수를 비교하고, 더 나은 버전을 자동 선택한다:
+**핵심 코드**
 
 ```python
 # 출처: Evaluator_Examples/ch20_deployment.py — v1 vs v2 Gate 점수 비교
@@ -928,55 +766,10 @@ for g in ["A", "B", "C", "D", "E", "F", "G"]:
 # 배포 결정 — v2가 모든 필수 Gate PASS 시 배포 승인
 v2_pass = all(gates_v2.get(g, {}).get("gate") != "FAIL" for g in ["A", "B", "C", "E"])
 print("✅ v2 배포 승인" if v2_pass else "❌ v2 Gate FAIL — 배포 차단")
+
+monitor_v1.save_to_file("v1_harness"); monitor_v2.save_to_file("v2_harness")
 ```
 
 - `ch20_deployment.py` 실행 결과: v2가 Gate A·D·E·G 전 항목에서 v1 대비 +29%p 향상
 - 두 버전의 `PerformanceMonitor`를 독립적으로 생성해야 Gate 간 교차 오염이 없다
 - `required_groups=["A", "B", "E"]`로 핵심 Gate만 필수로 지정하면 선택적 배포 차단이 가능하다
-
-**최소 CI/CD Gate 검증 — 배포 직전 마지막 방어선 (출처: `Evaluator_Examples/ch18_cicd_gate.py`)**
-
-전체 `ch03_harness_basics.py`(~15초)보다 `ch18_cicd_gate.py`(~3초)가 배포 파이프라인 마지막 단계에 적합하다. 7개 Gate 각 1개 Config씩 최소 검증 후 exit 0/1을 반환한다.
-
-```python
-# 출처: Evaluator_Examples/ch18_cicd_gate.py — 배포 직전 최소 Gate 검증
-import subprocess, sys, json
-
-def pre_deploy_gate_check(strict: bool = True) -> bool:
-    """배포 직전 Harness Gate 최소 검증 — FAIL 시 False 반환."""
-    cmd = ["python", "Evaluator_Examples/ch18_cicd_gate.py"]
-    if strict:
-        cmd.append("--strict")   # WARN도 FAIL로 처리 — 배포 전 강화 검증
-
-    result = subprocess.run(cmd, capture_output=True, text=True)
-
-    # JSON 한 줄 요약 파싱 — {"A":"PASS","B":"PASS","C":"WARN",...}
-    for line in result.stdout.splitlines():
-        if line.strip().startswith("{"):
-            summary = json.loads(line)
-            failed = [g for g, s in summary.items() if s == "FAIL"]
-            warned = [g for g, s in summary.items() if s == "WARN"]
-            if failed:
-                print(f"  ❌ Gate FAIL: {failed}")
-            if warned and strict:
-                print(f"  ⚠️  Gate WARN (strict): {warned}")
-            break
-
-    return result.returncode == 0
-
-# 배포 파이프라인 통합 — Gate 실패 시 즉시 중단
-if not pre_deploy_gate_check(strict=True):
-    print("Harness Gate FAIL — 배포 파이프라인 중단")
-    sys.exit(1)
-print("Harness Gate PASS — 배포 진행")
-```
-
-```bash
-# 배포 전략별 Gate 검증 강도 조정
-python Evaluator_Examples/ch18_cicd_gate.py           # 카나리 배포: WARN 허용
-python Evaluator_Examples/ch18_cicd_gate.py --strict  # 전체 배포: WARN도 차단
-```
-
-- 카나리 배포 단계에서는 WARN 허용 모드로 실행해 소수 트래픽에서 품질 확인 후 전체 배포를 결정한다
-- 전체 배포 전에는 `--strict` 모드를 적용해 WARN 상태 Gate도 차단함으로써 잠재 문제를 사전에 제거한다
-- 같은 스크립트를 옵션 하나로 두 단계에 재사용할 수 있어 배포 파이프라인 관리가 단순해진다

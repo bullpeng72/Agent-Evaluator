@@ -6,6 +6,10 @@
 
 ## 2.1 설치 — 용도별 extras 선택 가이드
 
+Chapter 1에서 자율 에이전트의 배포 준비도를 7개의 독립적인 차원으로 평가해야 한다는 것을 확인했습니다. 목표달성(A)·행동무결성(B)·신뢰성(C)·성능계약(D)·보안경계(E)·다중에이전트(F)·운영관측성(G) — 이 7개 Gate 중 하나라도 검증하지 않고 배포하면 해당 차원에서 예상치 못한 장애가 발생합니다.
+
+**Agent-Evaluator는 이 7차원 평가를 Python SDK로 구현합니다.** Tracker(25개)가 각 차원의 지표를 자동으로 측정하고, Config(33개)가 "어떤 수준이면 배포 가능한가"를 코드로 선언하며, Gate가 7개 차원을 종합해 배포 판정을 내립니다. Prompt Engineering → Context Engineering으로 이어진 AI 최적화 방법론의 세 번째 단계 — 자율 에이전트를 외부에서 제어·측정·판정하는 AI-native 공학 패러다임입니다.
+
 Agent-Evaluator는 v0.7.8부터 기본 설치(`pip install agent-evaluator`)에 SDK 전체 기능이 포함됩니다. LLM Judge 엔진, FastAPI 대시보드, OTEL 모니터링, PDF 처리를 별도 설치 없이 바로 사용할 수 있습니다.
 
 ### 기본 설치에 포함된 기능
@@ -78,25 +82,23 @@ ANTHROPIC_API_KEY=sk-ant-...
 ```python
 # 방법 1: SDK가 자동 로드 (권장)
 from agent_evaluator import load_env
-load_env()  # 프로젝트 루트의 .env 자동 탐지 후 로드
+load_env()  # 스크립트가 위치한 디렉토리부터 상위로 .env를 탐색해 로드
 
 # 방법 2: python-dotenv 직접 사용
 from dotenv import load_dotenv
 load_dotenv()
 ```
 
-- **`load_env()`**: 프로젝트 루트의 `.env` 파일을 자동 탐지해 `OPENAI_API_KEY`, `ANTHROPIC_API_KEY` 등의 환경변수를 프로세스에 로드한다.
-- **방법 1 권장 이유**: Git 저장소 루트를 자동으로 찾아 올바른 `.env` 경로를 결정하므로 스크립트 위치와 무관하게 동작한다.
-- **방법 2**: `python-dotenv`를 직접 사용하며, 현재 작업 디렉토리 기준으로 `.env`를 탐색하므로 실행 경로에 의존적이다.
+- **`load_env()`**: 스크립트 파일이 위치한 디렉토리부터 상위 방향으로 `.env`를 탐색해 처음 발견된 파일을 로드한다. `pip install` 또는 `pipx install`로 설치한 환경에서 스크립트를 어느 위치에서 실행하든 프로젝트 루트의 `.env`를 자동으로 찾는다.
+- **방법 2**: `python-dotenv`를 직접 사용하며, 현재 작업 디렉토리(`cwd`) 기준으로 `.env`를 탐색한다. 실행 경로가 달라지면 `.env`를 찾지 못할 수 있다.
 
 **저장 경로 자동 감지**: `output_dir`를 별도로 지정하지 않으면 SDK가 다음 순서로 경로를 자동 결정합니다.
 
 1. 환경 변수 `AGENT_EVALUATOR_OUTPUT_DIR` (최우선)
 2. 환경 변수 `AGENT_EVALUATOR_ROOT` 아래 `results/`
-3. Git 저장소 루트 아래 `results/`
-4. 현재 작업 디렉토리 아래 `results/` (폴백)
+3. 현재 작업 디렉토리 아래 `results/` (폴백)
 
-Git 저장소에서 작업한다면 별도 설정 없이도 항상 올바른 위치에 저장됩니다.
+`AGENT_EVALUATOR_OUTPUT_DIR`를 `.env`에 명시하면 설치 위치나 실행 경로에 관계없이 결과가 항상 같은 경로에 저장됩니다.
 
 > 📋 **QA 관리자 TIP**: `.env` 파일은 `.gitignore`에 반드시 추가하세요. API 키가 저장소에 노출되면 심각한 보안 문제가 발생할 수 있습니다. `.env.example` 파일을 만들어 팀원이 필요한 변수 목록을 알 수 있도록 공유하는 것을 권장합니다.
 
@@ -106,9 +108,17 @@ Git 저장소에서 작업한다면 별도 설정 없이도 항상 올바른 위
 
 ## 2.3 5분 안에 첫 Harness 배포 판정 경험
 
-가장 짧은 코드로 Harness Engineering의 핵심인 **배포 판단**을 경험해봅니다. Tracker가 지표를 측정하고, Config가 기준을 선언하고, Gate가 통과/실패를 판정합니다.
+Chapter 1에서 정의한 7개 Gate는 추상적인 개념이 아닙니다. Agent-Evaluator를 실행하면 Tracker가 각 차원을 즉시 측정하고, Gate가 실제로 PASS/FAIL 판정을 내립니다.
 
-### 단계 1 — QuickEval로 측정 시작 (1줄)
+이 실습에서 Harness 3요소를 순서대로 경험합니다.
+
+- **단계 1–3** — `@eval.qa` 데코레이터가 **Tracker**를 자동 활성화합니다. 에이전트 함수를 감싸기만 하면 AccuracyEvaluator·LatencyTracker 등이 즉시 작동합니다.
+- **단계 4** — `eval.gate(tcr=80, accuracy=65)`가 **Gate** 역할을 합니다. 기준 미달 시 `sys.exit(1)`로 파이프라인을 차단합니다.
+- **단계 4 확장** — `SLAConfig`, `InstructionConfig`를 추가하면 **Config**가 합류합니다. 배포 기준을 코드로 선언하는 패턴입니다.
+
+가장 짧은 코드로 이 흐름을 직접 확인해봅니다.
+
+### 단계 1 — QuickEval로 측정 시작
 
 ```python
 # 출처: Evaluator_Examples/ch02_quickstart.py
@@ -122,7 +132,7 @@ eval = QuickEval("results/")
 - **`"results/"`**: 평가 결과 JSON·HTML 파일이 저장될 디렉토리 경로다. 디렉토리가 없으면 자동으로 생성된다.
 - **내부 동작**: `PerformanceMonitor(output_dir="results/")` 인스턴스를 생성하고, 단축 데코레이터(`qa`, `rag`, `tool_use` 등)를 제공한다.
 
-### 단계 2 — 에이전트 함수에 데코레이터 적용 (2줄)
+### 단계 2 — 에이전트 함수에 데코레이터 적용
 
 ```python
 @eval.qa  # Group A 목표달성: AccuracyEvaluator + TCR 자동 측정
@@ -138,7 +148,7 @@ def my_agent(question: str, ground_truth: str = "") -> str:
 - **함수 시그니처**: `question`과 `ground_truth`를 파라미터로 받는 것이 규칙이다. `ground_truth`는 데코레이터가 정확도 계산에 사용하며 기본값 `""`으로 두면 생략 가능하다.
 - **반환값**: 문자열을 반환하면 데코레이터가 `ground_truth`와 비교해 `accuracy_score`를 자동 계산한다.
 
-### 단계 3 — 평가 실행 (n줄)
+### 단계 3 — 평가 실행
 
 ```python
 my_agent("한국의 수도는?", ground_truth="서울")
@@ -184,7 +194,7 @@ TCR 66.7%이 게이팅 기준 80% 미달이므로 `gate()`는 `sys.exit(1)`을 �
 `gate()`는 간단한 단일 임계값 판정입니다. 더 복잡한 배포 기준은 **Harness Config** 데이터클래스로 선언합니다.
 
 ```python
-# 출처: Evaluator_Examples/ch03_harness_basics.py, 섹션 1·4 — Group A·D Config 선언 및 통합
+# 출처: Evaluator_Examples/ch02_quickstart.py, 섹션 1·4 — Group A·D Config 선언 및 통합
 from agent_evaluator import (
     PerformanceMonitor, HarnessEvaluationGate,
     InstructionConfig,    # Group A — 지시 준수
@@ -258,55 +268,120 @@ for group_key in ["A", "B", "C", "D", "E", "F", "G"]:
 
 > 📋 **QA 관리자 TIP**: `gate(tcr=80)` 단일 임계값으로 시작하고, 팀이 익숙해지면 `InstructionConfig`, `SLAConfig`, `ThreatSeverityConfig`로 세분화하세요. Part IV — Chapter 14에서 팀 수준 임계값 설정 전략을 다룹니다.
 
+방금 5분 실습에서 `@eval.qa`, `eval.gate()`, `SLAConfig`를 경험했습니다. 이 코드가 내부적으로 어떻게 작동하는지 — Layer 구조, 3요소의 책임 분리, 58개 지표의 구성 방식 — 를 살펴봅니다.
+
 ---
 
-## 2.4 Harness 아키텍처 3분 개요
+## 2.4 Agent-Evaluator 아키텍처
 
-Agent-Evaluator의 58개 지표는 세 층(Layer)과 세 역할(Tracker·Config·Gate)로 구성됩니다. 이 구조를 이해하면 어느 시점에 어떤 도구를 써야 하는지 판단할 수 있습니다.
+Agent-Evaluator의 58개 지표는 **3개 레이어(Layer)**와 **3가지 역할(Tracker·Config·Gate)**, 그리고 **7개 품질 차원(Group A–G)**으로 구성됩니다. 세 관점을 함께 이해하면 어느 시점에 어떤 도구를 선택해야 하는지 판단할 수 있습니다.
+
+### 레이어 구조 — 외부 의존성 경계
+
+@@HTML_START@@
+<div class="la-wrap">
+  <div class="la-header">
+    PerformanceMonitor
+    <span>중앙 오케스트레이터 — 모든 Tracker · Config · Gate 총괄</span>
+  </div>
+  <div class="la-grid">
+    <div class="la-layer" style="--lc:#2e7d32;--lb:#e8f5e9">
+      <div class="la-ltitle">Layer 1 — Foundation</div>
+      <div class="la-ldesc">외부 의존성 없음 · 기본 설치에 포함<br/>Group A · C · D 담당</div>
+      <ul class="la-list">
+        <li><code>TaskCompletionTracker</code><span class="la-meta">TCR · Group A</span></li>
+        <li><code>AccuracyEvaluator</code><span class="la-meta">4중 가중 정확도 · Group A</span></li>
+        <li><code>ResponseQualityEvaluator</code><span class="la-meta">5차원 품질 · Group A</span></li>
+        <li><code>LatencyTracker</code><span class="la-meta">p50·p95·p99 · Group D</span></li>
+        <li><code>TokenEconomyTracker</code><span class="la-meta">비용 추정 · Group D</span></li>
+        <li><code>HallucinationDetector</code><span class="la-meta">환각 탐지 · Group C (opt-in)</span></li>
+      </ul>
+    </div>
+    <div class="la-layer" style="--lc:#1565c0;--lb:#e3f2fd">
+      <div class="la-ltitle">Layer 2 — Agentic</div>
+      <div class="la-ldesc">외부 의존성 없음 · 기본 설치에 포함<br/>Group B · C · E · F 담당</div>
+      <ul class="la-list">
+        <li><code>ToolCallAnalyzer</code><span class="la-meta">도구 패턴 · Group B</span></li>
+        <li><code>WorkflowExecutionTracker</code><span class="la-meta">워크플로우 · Group B</span></li>
+        <li><code>RetryCorrectionTracker</code><span class="la-meta">재시도 · Group C</span></li>
+        <li><code>ToolSelectionTracker</code><span class="la-meta">F1 정확도 · Group F</span></li>
+        <li><code>AgentCoordinationTracker</code><span class="la-meta">협업 · Group F</span></li>
+        <li><code>보안 Tracker ×5</code><span class="la-meta">위협 탐지 · Group E (opt-in)</span></li>
+      </ul>
+    </div>
+    <div class="la-layer" style="--lc:#e65100;--lb:#fff3e0">
+      <div class="la-ltitle">Layer 3 — Hybrid</div>
+      <div class="la-ldesc">선택적 의존성<br/>API 키 또는 [eval] extra</div>
+      <ul class="la-list">
+        <li><code>LLMJudge</code><span class="la-meta">faithfulness · G-Eval · 7차원 채점 · Group G<br/>기본 설치 내장, API 키 필요</span></li>
+        <li><code>DeepEvalAdapter</code><span class="la-meta">DeepEval 연동 · [eval] extra</span></li>
+        <li><code>RagasAdapter</code><span class="la-meta">Ragas RAG 평가 · [eval] extra</span></li>
+        <li><code>HybridPerformanceMonitor</code><span class="la-meta">Layer 1+2+외부 통합 · [eval] extra</span></li>
+      </ul>
+    </div>
+  </div>
+</div>
+@@HTML_END@@
+
+---
 
 ### Harness Engineering 3요소
 
-```
-┌────────────────────────────────────────────────────────────────────┐
-│  Gate — HarnessEvaluationGate                                       │
-│  Group A-G 전체 Config를 종합해 배포 통과/실패 판정                    │
-│  → HarnessEvaluationGate(report).enforce() / QuickEval.gate() / agent-eval gate CLI │
-├────────────────────────────────────────────────────────────────────┤
-│  Config — 33개 Harness Config 데이터클래스                            │
-│  배포 기준을 소스 코드로 선언 (fail_on_violation=True 시 강제 차단)      │
-│  Group A: InstructionConfig, GoalAlignmentConfig, ...              │
-│  Group B: LoopDetectionConfig, ScopeConfig, StateConsistencyConfig, DeadlockConfig, ...│
-│  Group C: ReproducibilityConfig, FaultToleranceConfig, ...         │
-│  Group D: SLAConfig, EfficiencyConfig, ResourceBudgetConfig, ...   │
-│  Group E: ThreatSeverityConfig, ComplianceConfig, ...              │
-│  Group F: ConsensusConfig, PropagationConfig, ...                  │
-│  Group G: ObservabilityConfig, ExplainabilityConfig, ...           │
-├────────────────────────────────────────────────────────────────────┤
-│  Tracker — 25개 네이티브 트래커 (+ LLMJudge + AnomalyDetector)        │
-│  에이전트 실행 중 자동으로 지표를 기록                                    │
-│  ─ 항상 자동 활성 ─────────────────────────────────────────────────  │
-│  TaskCompletionTracker   → TCR (Group A)                           │
-│  AccuracyEvaluator       → 4중 가중 정확도 (Group A)                │
-│  LatencyTracker          → p50/p95/p99 (Group D)                   │
-│  TokenEconomyTracker     → 비용 추정 (Group D)                      │
-│  ToolCallAnalyzer        → 도구 패턴 (Group B)                      │
-│  WorkflowExecutionTracker → 워크플로우 (Group B)                    │
-│  AgentCoordinationTracker → 협업 품질 (Group F)                    │
-│  ToolSelectionTracker    → F1 정확도 (Group F)                      │
-│  RetryCorrectionTracker  → 재시도 패턴 (Group C)                    │
-│  ─ opt-in ─────────────────────────────────────────────────────── │
-│  HallucinationDetector   → 환각 탐지 (Group C, hallucination=True) │
-│  ResponseQualityEvaluator → 5차원 품질 (Group A)                   │
-│  InputSanitizationTracker → 인젝션 탐지 (Group E, security=True)   │
-│  OutputLeakageDetector   → 유출 탐지 (Group E)                      │
-│  ToolAuthorizationTracker → 권한 감시 (Group E)                    │
-│  PrivilegeEscalationDetector → 권한 상승 (Group E)                  │
-│  ToolChainAttackDetector → 체인 공격 (Group E)                      │
-│  LLMJudge                → 7차원 채점 (Group G, sample_rate=0.1)   │
-└────────────────────────────────────────────────────────────────────┘
-```
+측정·기준·판정은 서로 다른 시점에 동작합니다. **Tracker**가 측정하고, **Config**가 기준을 선언하고, **Gate**가 배포 가능 여부를 판정합니다.
 
-### 세 역할의 실행 타이밍
+| 역할 | 구성 | 설명 |
+|------|------|------|
+| **🚦 Gate** | `HarnessEvaluationGate` | Group A–G 전체 Config를 종합해 배포 통과/실패 판정. `.enforce()` / `QuickEval.gate()` / `agent-eval gate` CLI |
+| **📋 Config** | 33개 Harness Config 데이터클래스 | 배포 기준을 소스 코드로 선언. `fail_on_violation=True` 시 위반 태스크 즉시 `success=False` 처리 |
+| **🔍 Tracker** | 25개 네이티브 트래커 | Gate 직접 매핑 16종 (자동 활성 10 + opt-in 6) + 운영 지원 9종 |
+
+**Harness Gate 직접 매핑 Tracker — 16종**
+
+항상 자동 활성 (10종) — Gate A·B·C·D·F 담당:
+
+| Tracker | 측정 지표 | Gate |
+|---------|----------|------|
+| `TaskCompletionTracker` | TCR | A |
+| `AccuracyEvaluator` | 4중 가중 정확도 | A |
+| `ResponseQualityEvaluator` | 5차원 품질 | A |
+| `LatencyTracker` | p50 · p95 · p99 | D |
+| `TokenEconomyTracker` | 비용 추정 | D |
+| `ToolCallAnalyzer` | 도구 패턴 | B |
+| `WorkflowExecutionTracker` | 워크플로우 | B |
+| `AgentCoordinationTracker` | 협업 품질 | F |
+| `ToolSelectionTracker` | F1 정확도 | F |
+| `RetryCorrectionTracker` | 재시도 패턴 | C |
+
+opt-in (6종) — 성능·비용 영향, 명시적 활성화 필요:
+
+| Tracker | 활성화 방법 | Gate |
+|---------|-----------|------|
+| `HallucinationDetector` | `enable_hallucination_detection=True` | C |
+| `InputSanitizationTracker` | `enable_security_metrics=True` | E |
+| `OutputLeakageDetector` | `enable_security_metrics=True` | E |
+| `ToolAuthorizationTracker` | `enable_security_metrics=True` | E |
+| `PrivilegeEscalationDetector` | `enable_security_metrics=True` | E |
+| `ToolChainAttackDetector` | `enable_security_metrics=True` | E |
+
+**운영 지원 Tracker — 9종** (멀티턴·피드백·이상탐지·비용·스트리밍)
+
+| Tracker | 역할 |
+|---------|------|
+| `LLMJudge` | Group G 7차원 채점 (`enable_llm_judge=True` + API 키) |
+| `ConversationSession` | 멀티턴 대화 평가 (`@conversation_eval`) |
+| `ImplicitFeedbackTracker` | 묵시적 사용자 피드백 수집 |
+| `AnomalyDetector` | 지표 이상 탐지 및 경보 |
+| `CostTracker` | 비용 추적 및 예산 관리 |
+| `AdaptivePolicy` | 샘플링 비용 최적화 정책 |
+| `SamplingStage` | 단계별 샘플링 전략 |
+| `StreamingEvaluator` | 실시간 스트리밍 평가 |
+| `AlertEngine` | 알림 규칙 실행 |
+
+> 합계: Gate 직접 매핑 16종 + 운영 지원 9종 = **Native Tracker 25종**
+
+위 목록은 Tracker에 집중했습니다. **Config 33개**가 어떤 파라미터로 기준을 선언하는지, **Gate**가 어떤 로직으로 종합 판정을 내리는지는 **[Chapter 3 §3.2](../Part_II_지표시스템/Chapter_03_Harness_Engineering_기초.md)**에서 세 역할을 동등한 깊이로 다룹니다. 이 챕터에서는 "무엇이 존재하는가"를 파악하는 것으로 충분합니다.
+
+### 3요소의 실행 타이밍
 
 ```
 에이전트 실행 → Tracker 자동 기록
@@ -393,45 +468,48 @@ monitor_sec = PerformanceMonitor.for_secure_agents("results/")   # Group E 강�
 
 > 📖 **더 깊이**: Group별 Tracker 파라미터와 Config 전체 레퍼런스는 → **Part II — Chapter 03~10** (Group A-G 챕터)에서 상세히 다룹니다.
 
+아키텍처의 Layer 구조와 3요소의 책임이 명확해졌다면, 이제 같은 시스템을 개발자와 QA 관리자가 각각 어느 지점에서 만나는지를 살펴봅니다.
+
 ---
 
 ## 2.5 개발자와 QA 관리자가 보는 것 — 역할별 데이터 흐름
 
 같은 평가 시스템을 두 역할이 서로 다른 지점에서 만납니다. 이 흐름을 한눈에 이해하면 나머지 챕터를 각자의 관점에서 효율적으로 읽을 수 있습니다.
 
-```
-┌─────────────────────────────────────────────────────────────────────────┐
-│                  Harness Engineering 데이터 흐름                          │
-│                                                                          │
-│  👨‍💻 개발자가 작성하는 것          ──────→  🗂️ SDK가 만드는 것              │
-│                                                                          │
-│  @agent_eval(monitor,                   Tracker 자동 측정                 │
-│    sla=SLAConfig(p95_ms=2000),    →     · execution_time                │
-│    scope=ScopeConfig(...),              · tool_calls                    │
-│    threat_severity=ThreatSev...         · tokens_used                   │
-│  )                                      · accuracy_score                 │
-│  def my_agent(...): ...                 · (security events)              │
-│                                              ↓                           │
-│                                    TaskResult (한 건)                    │
-│                                              ↓                           │
-│                                    Config 위반 여부 검증                  │
-│                                    fail_on_violation → success=False     │
-│                                              ↓                           │
-│                                    results/eval.json 누적               │
-│                                              ↓                           │
-│  ─────────────────────────────────  Gate 판정  ──────────────────────── │
-│                                              ↓                           │
-│  📊 QA 관리자가 보는 것                                                    │
-│                                                                          │
-│  대시보드 (agent-eval dashboard)          HTML 리포트                     │
-│  · Gate A–G 통과/경고/실패               · 태스크별 Group 점수             │
-│  · 지표 추세 (trend)                     · Config 위반 목록               │
-│  · 이상 탐지 알림                         · 배포 권고 여부                  │
-│                                                                          │
-│  CI/CD (agent-eval gate CLI)                                             │
-│  · pass → 배포 진행                                                       │
-│  · fail → 배포 차단 + 원인 Group 표시                                     │
-└─────────────────────────────────────────────────────────────────────────┘
+```mermaid
+flowchart TD
+    subgraph DEV["👨‍💻 개발자가 작성하는 것"]
+        DECO["@agent_eval(monitor,\n  sla=SLAConfig(p95_ms=2000),\n  scope=ScopeConfig(allowed_tools=[...]),\n  threat_severity=ThreatSeverityConfig(...))\ndef my_agent(...): ..."]
+    end
+
+    subgraph SDK["🗂️ SDK 자동 처리"]
+        TRACK["Tracker 자동 측정\nexecution_time · tool_calls · tokens_used · accuracy_score · (security events)"]
+        TR["TaskResult (한 건)"]
+        CFG["Config 위반 검증\nfail_on_violation=True → success=False"]
+        JSON["results/eval.json 누적"]
+        TRACK --> TR --> CFG --> JSON
+    end
+
+    GATE["🚦 Gate 판정"]
+
+    subgraph QA["📊 QA 관리자가 보는 것"]
+        direction LR
+        DASH["대시보드\nGate A–G 통과/경고/실패\n지표 추세 (trend) · 이상 탐지 알림"]
+        HTML["HTML 리포트\n태스크별 Group 점수\nConfig 위반 목록 · 배포 권고"]
+        CICD["CI/CD Gate\npass → 배포 진행\nfail → 배포 차단 + 원인 Group"]
+    end
+
+    DEV --> SDK
+    JSON --> GATE
+    GATE --> DASH & HTML & CICD
+
+    style DEV fill:#e8f5e9,stroke:#2e7d32,color:#1b5e20
+    style SDK fill:#e3f2fd,stroke:#1565c0,color:#0d47a1
+    style GATE fill:#1a237e,color:#fff,stroke:#1a237e
+    style QA fill:#fff3e0,stroke:#e65100
+    style DASH fill:#fff8e1,stroke:#f9a825,color:#333
+    style HTML fill:#fff8e1,stroke:#f9a825,color:#333
+    style CICD fill:#fff8e1,stroke:#f9a825,color:#333
 ```
 
 ### 개발자가 결정하는 것 → QA 관리자에게 미치는 영향
@@ -662,14 +740,14 @@ print(comparison)
 
 ## 실전 예제
 
-챕터 2에서 설명한 Harness 아키텍처와 첫 시작 과정을 `ch12_decorators.py`로 바로 체험할 수 있습니다.
+챕터 2에서 설명한 Harness 아키텍처와 첫 시작 과정을 `ch02_quickstart.py`로 바로 체험할 수 있습니다.
 
-**파일**: `Evaluator_Examples/ch12_decorators.py`
+**기본 예제**: `Evaluator_Examples/ch02_quickstart.py`
 
-**핵심 코드 (출처: `Evaluator_Examples/ch12_decorators.py`)**
+**핵심 코드**
 
 ```python
-# 출처: Evaluator_Examples/ch12_decorators.py, 섹션 1 — @agent_eval 기본 사용
+# 출처: Evaluator_Examples/ch02_quickstart.py, 섹션 1 — @agent_eval 기본 사용
 from agent_evaluator import PerformanceMonitor
 from agent_evaluator.decorators import agent_eval
 
@@ -691,7 +769,7 @@ monitor.save_to_file("my_first_eval")
 - **`save_to_file("my_first_eval")`**: `results/my_first_eval_evaluation.json`과 `results/my_first_eval_evaluation.html`을 동시에 생성한다.
 
 ```python
-# 출처: Evaluator_Examples/ch12_decorators.py, 섹션 8 — QuickEval Facade — 원스톱 간편 시작
+# 출처: Evaluator_Examples/ch02_quickstart.py, 섹션 8 — QuickEval Facade — 원스톱 간편 시작
 from agent_evaluator import QuickEval
 
 eval_qe = QuickEval("results/")

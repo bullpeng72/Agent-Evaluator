@@ -462,6 +462,82 @@ else:
     except Exception as e:
         print(f"  hybrid_report 생성 실패: {e}")
 
+# ===========================================================================
+# 섹션 추가: DeepEvalAdapter + RagasAdapter 직접 사용
+#
+# HybridPerformanceMonitor가 내부적으로 사용하는 두 어댑터를 독립적으로
+# 인스턴스화해 단건 평가를 직접 실행합니다.
+#
+# 필요 조건:
+#   pip install "agent-evaluator[eval]"   (deepeval + ragas + langchain)
+#   OPENAI_API_KEY (DeepEval·Ragas LLM 채점)
+#
+# DeepEvalAdapter:
+#   GEval(커스텀 기준) + Hallucination + Toxicity + Bias + AnswerRelevancy
+# RagasAdapter:
+#   Faithfulness + ContextPrecision [+ AnswerRelevancy + ContextRecall]
+# ===========================================================================
+print("\n=== 섹션 추가: DeepEvalAdapter + RagasAdapter 직접 사용 ===")
+
+try:
+    from agent_evaluator.integrations.metric_adapters import (
+        DeepEvalAdapter, RagasAdapter, EvaluationContext,
+    )
+
+    # ── DeepEvalAdapter ───────────────────────────────────────────────────
+    print("  [1] DeepEvalAdapter")
+    deepeval_adapter = DeepEvalAdapter(model="gpt-4o-mini", threshold=0.5)
+    if not deepeval_adapter.is_available():
+        print("    미설치 — pip install 'agent-evaluator[eval]' 로 활성화")
+    else:
+        ctx_de = EvaluationContext(
+            input_text="서울의 인구는 얼마인가요?",
+            output_text="서울의 인구는 약 950만 명으로, 대한민국 최대 도시입니다.",
+            expected_output="약 950만 명",
+            task_type="qa",
+            quality_criteria="factual accuracy",
+        )
+        de_result = deepeval_adapter.evaluate(ctx_de)
+        if de_result:
+            print(f"    G-Eval score    : {de_result.get('g_eval_score', 'n/a')}")
+            print(f"    Toxicity score  : {de_result.get('toxicity_score', 'n/a')}")
+            print(f"    Bias score      : {de_result.get('bias_score', 'n/a')}")
+        else:
+            print(f"    평가 결과 없음 (API 키 또는 패키지 확인)")
+
+    # ── RagasAdapter ─────────────────────────────────────────────────────
+    print("  [2] RagasAdapter")
+    ragas_adapter = RagasAdapter(llm_model="gpt-4o-mini")
+    if not ragas_adapter.is_available():
+        print("    미설치 — pip install 'agent-evaluator[eval]' 로 활성화")
+    else:
+        ctx_ra = EvaluationContext(
+            input_text="아인슈타인의 출생 연도는?",
+            output_text="알베르트 아인슈타인은 1879년에 태어났습니다.",
+            expected_output="1879년",
+            retrieved_context=[
+                "알베르트 아인슈타인은 1879년 3월 14일 독일 울름에서 태어났습니다.",
+                "아인슈타인은 특수상대성이론과 일반상대성이론을 발표했습니다.",
+            ],
+            task_type="information_retrieval",
+        )
+        ra_result = ragas_adapter.evaluate(ctx_ra)
+        if ra_result:
+            print(f"    Faithfulness      : {ra_result.get('ragas_faithfulness', 'n/a')}")
+            print(f"    ContextPrecision  : {ra_result.get('ragas_context_precision', 'n/a')}")
+            print(f"    AnswerRelevancy   : {ra_result.get('ragas_answer_relevancy', 'n/a')}")
+        else:
+            print(f"    평가 결과 없음 (retrieved_context 없거나 API 키 확인)")
+
+    print("  어댑터 직접 사용 vs HybridPerformanceMonitor:")
+    print("    직접 사용     → 단건 평가·커스텀 파이프라인·테스트 환경")
+    print("    HybridMonitor → record_task()마다 자동 채점 + 대시보드 통합")
+
+except ImportError as _e:
+    print(f"  어댑터 모듈 로드 실패 (skip): {_e}")
+except Exception as _e:
+    print(f"  어댑터 실행 중 오류 (skip): {_e}")
+
 if PHOENIX_ONLINE:
     print(f"\nPhoenix 확인:")
     print(f"  Tracing    → {_PHOENIX_URL}  (서비스: ch19-phoenix)")
