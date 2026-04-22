@@ -90,6 +90,9 @@ data/golden_datasets/*
 # Evaluator_Examples generated HTML reports
 Evaluator_Examples/**/*.html
 
+# Book — 빌드 산출물 (python Book/build_book.py 로 언제든 재생성 가능)
+Book/agent-evaluator-book.html
+
 # DeepEval telemetry (auto-generated, UUID only)
 .deepeval_telemtry.txt
 .deepeval/
