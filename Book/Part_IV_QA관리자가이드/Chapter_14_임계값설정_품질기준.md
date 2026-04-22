@@ -97,7 +97,7 @@ TCR 임계값을 95%로 설정했다고 가정하자. 에이전트가 하루 1,0
 
 **Tool Use 에이전트의 추가 지표:**
 
-도구를 많이 쓰는 에이전트는 Group B-G 지표도 함께 관리해야 한다.
+도구를 많이 쓰는 에이전트는 Gate B-G 지표도 함께 관리해야 한다.
 
 | 지표 | 권장값 | 설명 |
 |------|--------|------|
@@ -117,17 +117,17 @@ TCR 임계값을 95%로 설정했다고 가정하자. 에이전트가 하루 1,0
   ▼
 에이전트가 도구를 사용하는가?
   │
-  ├─ NO → Group A-D 기반 지표만 활성 (TCR, Accuracy, Quality, Latency, Token, Hallucination*)
+  ├─ NO → Gate A-D 기반 지표만 활성 (TCR, Accuracy, Quality, Latency, Token, Hallucination*)
   │         *(hallucination은 RAG 경우에만)
   │
-  └─ YES ─→ Group A-G 기반 + 에이전틱 지표 활성
+  └─ YES ─→ Gate A-G 기반 + 에이전틱 지표 활성
               │
               ▼
             에이전트가 민감 데이터/외부 시스템에 접근하는가?
               │
-              ├─ NO → Group A-G 기반 + 에이전틱 지표 유지
+              ├─ NO → Gate A-G 기반 + 에이전틱 지표 유지
               │
-              └─ YES → Group E 보안 지표 추가
+              └─ YES → Gate E 보안 지표 추가
                           enable_security_metrics=True
 
 [계속]
@@ -135,9 +135,9 @@ TCR 임계값을 95%로 설정했다고 가정하자. 에이전트가 하루 1,0
   ▼
 Ground truth를 항상 가질 수 있는가?
   │
-  ├─ YES → Group A-G 기반 지표로 충분 (낮은 비용)
+  ├─ YES → Gate A-G 기반 지표로 충분 (낮은 비용)
   │
-  └─ NO → LLM Judge 추가 (Group G)
+  └─ NO → LLM Judge 추가 (Gate G)
             │
             ▼
           RAG 파이프라인인가?
@@ -162,20 +162,20 @@ Ground truth를 항상 가질 수 있는가?
 from agent_evaluator import PerformanceMonitor
 from agent_evaluator.decorators import agent_eval
 
-# Case 1: 도구 없는 QA 챗봇 (Group A 기반만)
+# Case 1: 도구 없는 QA 챗봇 (Gate A 기반만)
 monitor = PerformanceMonitor(output_dir="results/")
 
-# Case 2: Tool Use 에이전트 (Group A-B)
+# Case 2: Tool Use 에이전트 (Gate A-B)
 monitor = PerformanceMonitor(output_dir="results/")
-# → 기본적으로 Group B 트래커(ToolCall, Retry 등)는 자동 수집됨
+# → 기본적으로 Gate B 트래커(ToolCall, Retry 등)는 자동 수집됨
 
-# Case 3: 보안 에이전트 (Group A-B + Group E)
+# Case 3: 보안 에이전트 (Gate A-B + Gate E)
 monitor = PerformanceMonitor(
     output_dir="results/",
-    enable_security_metrics=True,   # Group E 활성화
+    enable_security_metrics=True,   # Gate E 활성화
 )
 
-# Case 4: RAG + LLM Judge (Group A + Group G)
+# Case 4: RAG + LLM Judge (Gate A + Gate G)
 monitor = PerformanceMonitor(
     output_dir="results/",
     enable_hallucination_detection=True,
@@ -189,7 +189,7 @@ def rag_agent(question: str, context: str = "", ground_truth: str = "") -> str:
     return retrieval_chain.invoke({"question": question, "context": context})
 ```
 
-- Case 1·2는 `PerformanceMonitor` 기본 설정만으로 Group A-B 트래커가 자동 활성화된다
+- Case 1·2는 `PerformanceMonitor` 기본 설정만으로 Gate A-B 트래커가 자동 활성화된다
 - Case 3처럼 `enable_security_metrics=True`를 추가하면 보안 트래커 5개가 켜지고 Gate E 점수가 계산된다
 - Case 4에서 `judge_sample_rate=0.1`을 설정하면 전체 태스크의 10%만 LLM Judge로 채점해 API 비용을 절감할 수 있다
 
@@ -332,43 +332,78 @@ agent-eval gate results/eval.json --tcr 70 --accuracy 55
 
 ### SLA 문서 템플릿
 
-```markdown
-# [서비스명] AI 에이전트 품질 SLA — v1.0
-작성일: 2026-04-09 | 검토주기: 월 1회
+@@HTML_START@@
+<div class="sla-doc">
+  <!-- Header -->
+  <div class="sla-doc-header">
+    <h3>📋 [서비스명] AI 에이전트 품질 SLA — v1.0</h3>
+    <div class="sla-doc-meta">
+      <span>작성일: 2026-04-09</span>
+      <span>검토주기: 월 1회</span>
+      <span>버전 관리: 팀 위키(Confluence / Notion)</span>
+    </div>
+  </div>
 
-## 1. 적용 범위
-- 서비스: [서비스명]
-- 에이전트 유형: QA / RAG / Tool Use
-- 적용 환경: 운영(Prod)
+  <!-- Section 1: 적용 범위 -->
+  <div class="sla-section">
+    <div class="sla-section-title">1. 적용 범위</div>
+    <ul class="sla-meta-list">
+      <li><strong>서비스:</strong> [서비스명]</li>
+      <li><strong>에이전트 유형:</strong> QA / RAG / Tool Use</li>
+      <li><strong>적용 환경:</strong> 운영 (Prod)</li>
+    </ul>
+  </div>
 
-## 2. 핵심 품질 지표 및 목표
+  <!-- Section 2: 핵심 품질 지표 -->
+  <div class="sla-section">
+    <div class="sla-section-title">2. 핵심 품질 지표 및 목표</div>
+    <table class="sla-table">
+      <thead>
+        <tr><th>지표</th><th>목표값</th><th>측정 방법</th><th>측정 도구</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>태스크 완료율 (TCR)</td><td>≥ 85%</td><td><span class="sla-code">completion_score ≥ 0.8</span> 비율</td><td>Agent-Evaluator</td></tr>
+        <tr><td>응답 정확도</td><td>≥ 70%</td><td>Token F1 + Jaccard 혼합</td><td>Agent-Evaluator</td></tr>
+        <tr><td>응답 품질</td><td>≥ 3.5 / 5.0</td><td>5차원 품질 평가</td><td>Agent-Evaluator</td></tr>
+        <tr><td>P95 응답시간</td><td>≤ 5초</td><td>95 백분위수</td><td>Agent-Evaluator</td></tr>
+        <tr><td>환각 발생률</td><td>≤ 5%</td><td><span class="sla-code">HallucinationDetector</span></td><td>Agent-Evaluator</td></tr>
+        <tr><td>일일 비용</td><td>≤ $50</td><td><span class="sla-code">TokenEconomyTracker</span></td><td>Agent-Evaluator</td></tr>
+      </tbody>
+    </table>
+  </div>
 
-| 지표 | 목표값 | 측정 방법 | 측정 도구 |
-|------|--------|----------|---------|
-| 태스크 완료율 (TCR) | ≥ 85% | completion_score ≥ 0.8 비율 | Agent-Evaluator |
-| 응답 정확도 | ≥ 70% | Token F1 + Jaccard 혼합 | Agent-Evaluator |
-| 응답 품질 | ≥ 3.5/5.0 | 5차원 품질 평가 | Agent-Evaluator |
-| P95 응답시간 | ≤ 5초 | 95 백분위수 | Agent-Evaluator |
-| 환각 발생률 | ≤ 5% | HallucinationDetector | Agent-Evaluator |
-| 일일 비용 | ≤ $50 | TokenEconomyTracker | Agent-Evaluator |
+  <!-- Section 3: 알림 계층 -->
+  <div class="sla-section">
+    <div class="sla-section-title">3. 알림 계층 및 대응 SLA</div>
+    <table class="sla-table">
+      <thead>
+        <tr><th>계층</th><th>조건</th><th>알림 채널</th><th>대응 시간</th></tr>
+      </thead>
+      <tbody>
+        <tr><td><span class="sla-badge sla-warn">Warning</span></td><td>지표 목표의 90% 이하</td><td>Slack #monitoring</td><td>24시간</td></tr>
+        <tr><td><span class="sla-badge sla-error">Error</span></td><td>지표 목표의 75% 이하</td><td>Slack #alerts + DM</td><td>4시간</td></tr>
+        <tr><td><span class="sla-badge sla-critical">Critical</span></td><td>지표 목표의 50% 이하</td><td>Slack #incidents + 전화</td><td>30분</td></tr>
+      </tbody>
+    </table>
+  </div>
 
-## 3. 알림 계층 및 대응 SLA
-
-| 계층 | 조건 | 알림 채널 | 대응 시간 |
-|------|------|---------|---------|
-| Warning | 지표 목표의 90% 이하 | Slack #monitoring | 24시간 |
-| Error | 지표 목표의 75% 이하 | Slack #alerts + DM | 4시간 |
-| Critical | 지표 목표의 50% 이하 | Slack #incidents + 전화 | 30분 |
-
-## 4. 리뷰 주기
-
-| 주기 | 내용 | 담당 |
-|------|------|------|
-| 매일 | 대시보드 5분 점검 | 온콜 담당자 |
-| 매주 | 주간 품질 리뷰 + 전주 대비 분석 | QA 매니저 |
-| 매월 | 임계값 재검토 + SLA 갱신 | QA 매니저 + 개발팀 |
-| 분기 | 골든 데이터셋 재검토 | QA + 개발 |
-```
+  <!-- Section 4: 리뷰 주기 -->
+  <div class="sla-section">
+    <div class="sla-section-title">4. 리뷰 주기</div>
+    <table class="sla-table">
+      <thead>
+        <tr><th>주기</th><th>내용</th><th>담당</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>매일</td><td>대시보드 5분 점검</td><td>온콜 담당자</td></tr>
+        <tr><td>매주</td><td>주간 품질 리뷰 + 전주 대비 분석</td><td>QA 매니저</td></tr>
+        <tr><td>매월</td><td>임계값 재검토 + SLA 갱신</td><td>QA 매니저 + 개발팀</td></tr>
+        <tr><td>분기</td><td>골든 데이터셋 재검토</td><td>QA + 개발</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+@@HTML_END@@
 
 📋 **QA 관리자 TIP:** SLA 문서는 팀 위키(Confluence, Notion 등)에 올리고, 매월 리뷰 시 버전을 올려라. 변경 이력이 남아야 나중에 "언제부터 기준이 바뀌었나"를 추적할 수 있다.
 
@@ -465,7 +500,7 @@ Harness Config로 전환하면:
 §14.2의 에이전트 유형별 KPI 기준표를 Config 코드로 변환합니다.
 
 ```python
-# 출처: Evaluator_Examples/ch14_thresholds.py, 섹션 Group A·C·D·E — KPI를 Config로 선언
+# 출처: Evaluator_Examples/ch14_thresholds.py, 섹션 Gate A·C·D·E — KPI를 Config로 선언
 from agent_evaluator import (
     PerformanceMonitor,
     InstructionConfig, ReproducibilityConfig, SLAConfig,
@@ -563,7 +598,7 @@ def adaptive_threshold(
         return max(0.0, observed - margin)
 
 # 2주 캘리브레이션 완료 후 Config 자동 생성
-# 출처: Evaluator_Examples/ch14_thresholds.py, 섹션 1 — Group A Goal Achievement
+# 출처: Evaluator_Examples/ch14_thresholds.py, 섹션 1 — Gate A Goal Achievement
 report = monitor.generate_report()
 total = int(report.total_tasks)
 successful = int(total * report.task_completion_rate / 100)

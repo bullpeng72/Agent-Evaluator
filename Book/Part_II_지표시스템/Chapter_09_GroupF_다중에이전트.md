@@ -1,19 +1,38 @@
-# Chapter 9. Group F — 다중에이전트 협업 지표
+# Chapter 9. Gate F — 다중에이전트 협업 지표
 
-```
-┌────────────────────────────────────────────────────────────┐
-│ 🔗 Harness 연결                                             │
-│ Group F — Multi-Agent Coordination (다중에이전트 협업)       │
-│ Tracker 2종: AgentCoordinationTracker · ToolSelectionTracker│
-│ Config 4종: ConsensusConfig · PropagationConfig ·           │
-│             AgentRoleConfig · ConflictResolutionConfig      │
-│ Gate 판정: HarnessEvaluationGate(report).evaluate()         │
-└────────────────────────────────────────────────────────────┘
-```
+@@HTML_START@@
+<div class="hc-card hc-f">
+  <div class="hc-header">
+    <span class="hc-gate-badge he-gate gf">Gate F</span>
+    <span class="hc-title">🔗 Harness 연결 — Multi-Agent Coordination (다중에이전트 협업)</span>
+  </div>
+  <div class="hc-body">
+    <div class="hc-row">
+      <span class="hc-label hc-tracker-label">Tracker</span>
+      <div class="hc-chips">
+        <span class="hc-chip hc-t-chip">AgentCoordinationTracker</span>
+        <span class="hc-chip hc-t-chip">ToolSelectionTracker</span>
+      </div>
+    </div>
+    <div class="hc-row">
+      <span class="hc-label hc-config-label">Config</span>
+      <div class="hc-chips">
+        <span class="hc-chip hc-c-chip">ConsensusConfig</span>
+        <span class="hc-chip hc-c-chip">PropagationConfig</span>
+        <span class="hc-chip hc-c-chip">AgentRoleConfig</span>
+        <span class="hc-chip hc-c-chip">ConflictResolutionConfig</span>
+      </div>
+    </div>
+  </div>
+  <div class="hc-footer">
+    <code>HarnessEvaluationGate(report).evaluate()</code>
+  </div>
+</div>
+@@HTML_END@@
 
 > 📖 **관련 레퍼런스**
-> - **[Appendix A — 58개 지표 완전 레퍼런스](../Appendix/A_58개지표_레퍼런스.md)**: Group F 지표 입력·출력
-> - **[Appendix A §Part 2 — Config 레퍼런스](../Appendix/A_58개지표_레퍼런스.md)**: Group F Config 파라미터 전체 목록
+> - **[Appendix A — 58개 지표 완전 레퍼런스](../Appendix/A_58개지표_레퍼런스.md)**: Gate F 지표 입력·출력
+> - **[Appendix A §Part 2 — Config 레퍼런스](../Appendix/A_58개지표_레퍼런스.md)**: Gate F Config 파라미터 전체 목록
 > - **[Evaluator_Examples/ch09_group_f.py](../../Evaluator_Examples/ch09_group_f.py)**: 이 챕터 실전 예제 (AgentCoordinationTracker · ToolSelectionTracker · 4개 Config)
 
 > **독자별 읽기 가이드**  
@@ -22,39 +41,39 @@
 
 ---
 
-```
-┌────────────────────────────────────────────────────────────┐
-│ ⚠️ Group F가 없으면 생기는 일                                │
-│ 연구자 에이전트가 수집한 핵심 수치("127억, +34.2%")가 분석가  │
-│ 에이전트를 거치면서 "약 130억, 30%대 성장"으로 바뀌고, 요약   │
-│ 에이전트에서 "실적 양호"로 증발한다. PropagationConfig로      │
-│ key_facts를 선언했다면 왜곡 시점을 즉시 탐지할 수 있었다.    │
-│                                                              │
-│ 참고: 순환 위임(A→B→A) 탐지는 v0.8.2부터 Group B            │
-│ DeadlockConfig.check_circular_delegation=True 담당.         │
-└────────────────────────────────────────────────────────────┘
-```
+@@HTML_START@@
+<div class="gw-box">
+  <div class="gw-header">⚠️ Gate F가 없으면 생기는 일</div>
+  <div class="gw-body">
+    <p>연구자 에이전트가 수집한 핵심 수치("127억, +34.2%")가 분석가 에이전트를 거치면서 "약 130억, 30%대 성장"으로 바뀌고, 요약 에이전트에서 "실적 양호"로 증발한다.</p>
+    <div class="gw-case">
+      <strong>실제 사례:</strong> PropagationConfig로 key_facts를 선언했다면 왜곡 시점을 즉시 탐지할 수 있었다.
+    </div>
+    <div class="gw-note"><strong>참고:</strong> 순환 위임(A→B→A) 탐지는 v0.8.2부터 Gate B DeadlockConfig.check_circular_delegation=True 담당.</div>
+  </div>
+</div>
+@@HTML_END@@
 
 ---
 
-## 9.1 Group F 개요
+## 9.1 Gate F 개요
 
-Group F는 **다중 에이전트 시스템**의 협업 품질을 측정한다. 단일 에이전트 평가는 Group A-E로 충분하지만, 여러 에이전트가 협력하는 시스템은 추가로 다음을 측정해야 한다.
+Group F는 **다중 에이전트 시스템**의 협업 품질을 측정한다. 단일 에이전트 평가는 Gate A-E로 충분하지만, 여러 에이전트가 협력하는 시스템은 추가로 다음을 측정해야 한다.
 
 1. **합의**: 여러 에이전트가 같은 결론에 도달하는가? (`ConsensusConfig`)
 2. **역할 준수**: 각 에이전트가 자신의 역할 범위 안에서 동작하는가? (`AgentRoleConfig`)
 3. **정보 전달**: 에이전트 간 정보가 왜곡 없이 전달되는가? (`PropagationConfig`)
 
-> ℹ️ **DeadlockConfig 위치 변경 (v0.8.2)**: 교착·기아·라이브락 탐지 `DeadlockConfig`는 v0.8.2에서 Group F에서 **Group B(행동무결성)** 로 이동했다. 단일 에이전트에서도 발생하는 행동 무결성 문제이기 때문이다. `DeadlockConfig` 사용 방법은 [Chapter 5 §5.3.6](Chapter_05_GroupB_행동무결성.md)를 참조한다. 단, 본 챕터의 일부 심화 예제에서는 다중에이전트 컨텍스트에서의 `DeadlockConfig` 활용을 계속 다룬다.
+> ℹ️ **DeadlockConfig 위치 변경 (v0.8.2)**: 교착·기아·라이브락 탐지 `DeadlockConfig`는 v0.8.2에서 Group F에서 **Gate B(행동무결성)** 로 이동했다. 단일 에이전트에서도 발생하는 행동 무결성 문제이기 때문이다. `DeadlockConfig` 사용 방법은 [Chapter 5 §5.3.6](Chapter_05_GroupB_행동무결성.md)를 참조한다. 단, 본 챕터의 일부 심화 예제에서는 다중에이전트 컨텍스트에서의 `DeadlockConfig` 활용을 계속 다룬다.
 
 ### 단일 에이전트 vs 다중 에이전트 평가 범위
 
 | 측면 | 단일 에이전트 | 다중 에이전트 추가 요소 |
 |------|------------|---------------------|
-| 목표달성 | Group A | Group A × N 에이전트 |
-| 보안 | Group E | + 에이전트 간 신뢰 경계 |
-| 성능 | Group D | + 에이전트 간 지연 합산 |
-| **협업** | — | **Group F 전체** |
+| 목표달성 | Gate A | Gate A × N 에이전트 |
+| 보안 | Gate E | + 에이전트 간 신뢰 경계 |
+| 성능 | Gate D | + 에이전트 간 지연 합산 |
+| **협업** | — | **Gate F 전체** |
 
 ---
 
@@ -75,7 +94,7 @@ Group F는 **다중 에이전트 시스템**의 협업 품질을 측정한다. �
 | `network_topology` | 에이전트 간 연결 구조 그래프 |
 
 ```python
-# 출처: Evaluator_Examples/ch09_group_f.py, 섹션 6 — Group F Multi-Agent Coordination
+# 출처: Evaluator_Examples/ch09_group_f.py, 섹션 6 — Gate F Multi-Agent Coordination
 from agent_evaluator import PerformanceMonitor, create_taskresult
 
 monitor = PerformanceMonitor("results/")
@@ -106,7 +125,7 @@ monitor.record_task(result)
 
 - `tool_calls` 목록에 에이전트 이름을 기입하면 `AgentCoordinationTracker`가 위임 체인을 자동으로 추적한다.
 - `extra["agent_interactions"]`에 `from`·`to`·`type` 필드를 선언하면 위임 방향과 핸드오프 패턴이 기록된다.
-- `coordination_score`는 0~1 범위이며, 0.9 이상이면 Group F Gate PASS에 기여한다.
+- `coordination_score`는 0~1 범위이며, 0.9 이상이면 Gate F PASS에 기여한다.
 - `delegation`(위임)과 `handoff`(인계)를 구분해 선언하면 위임 깊이와 병렬 실행률이 따로 집계된다.
 
 ### 9.2.2 ToolSelectionTracker — 도구 선택 F1
@@ -121,7 +140,7 @@ F1        = 2 × (precision × recall) / (precision + recall)
 ```
 
 ```python
-# 출처: Evaluator_Examples/ch09_group_f.py, 섹션 6 — Group F Multi-Agent Coordination
+# 출처: Evaluator_Examples/ch09_group_f.py, 섹션 6 — Gate F Multi-Agent Coordination
 # 올바른 도구 선택 평가
 result = create_taskresult(
     task_id="t1",
@@ -149,7 +168,7 @@ result = create_taskresult(
 
 ## 9.3 Config 4종 레퍼런스
 
-> ℹ️ **v0.8.2 변경**: `DeadlockConfig`가 Group F에서 Group B로 이동했다. Group F Config는 4종(ConsensusConfig, PropagationConfig, AgentRoleConfig, ConflictResolutionConfig)이다.
+> ℹ️ **v0.8.2 변경**: `DeadlockConfig`가 Group F에서 Group B로 이동했다. Gate F Config는 4종(ConsensusConfig, PropagationConfig, AgentRoleConfig, ConflictResolutionConfig)이다.
 
 ### 9.3.1 ConsensusConfig — 다중 에이전트 합의
 
@@ -409,7 +428,7 @@ def ensemble(questions: list, ground_truths: list = None) -> list:
 | `AgentRoleConfig` | 에이전트 역할 준수 기준 | `role_name`, `allowed_tools`, `forbidden_tools` |
 | `ConflictResolutionConfig` | 에이전트 간 충돌 해결 기준 | `unresolved_penalty`, `expect_escalation_on_fail` |
 
-> ℹ️ **DeadlockConfig**: v0.8.2에서 Group B(행동무결성)로 이동. [Chapter 5 §5.3.6](Chapter_05_GroupB_행동무결성.md) 참조.
+> ℹ️ **DeadlockConfig**: v0.8.2에서 Gate B(행동무결성)로 이동. [Chapter 5 §5.3.6](Chapter_05_GroupB_행동무결성.md) 참조.
 
 ---
 
@@ -633,7 +652,7 @@ def orchestrator_agent(question: str, ground_truth: str = "") -> str:
 
 **각 유형별 복구 전략**:
 - **Direct Deadlock**: 감지 즉시 위임 체인 강제 중단 → 오케스트레이터에 예외 반환
-- **Resource Deadlock**: 타임아웃 + 지수 백오프 재시도 (Group C `FaultToleranceConfig`와 연계)
+- **Resource Deadlock**: 타임아웃 + 지수 백오프 재시도 (Gate C `FaultToleranceConfig`와 연계)
 - **Livelock**: 외부 개입 트리거 — 인간 검토 또는 대체 에이전트 투입
 - **Starvation**: 우선순위 역전(priority inversion) 방지 — 오래 대기한 에이전트 우선 처리
 
@@ -1142,7 +1161,7 @@ def monitored_orchestrator(question: str, ground_truth: str = "") -> str:
 
 ---
 
-> 🔗 **다음 챕터**: Chapter 10 — Group G: 운영관측성  
+> 🔗 **다음 챕터**: Chapter 10 — Gate G: 운영관측성  
 > 에이전트의 실패 원인을 즉시 추적하고 설명할 수 있는지 측정하는 4개 Config를 이해한다. LLM Judge와 운영관측성의 연결을 다룬다.
 
 ---
@@ -1158,7 +1177,7 @@ def monitored_orchestrator(question: str, ground_truth: str = "") -> str:
 | 역케이스 | Gate F FAIL — 합의 실패·역할 위반 케이스 |
 
 ```bash
-python Evaluator_Examples/ch09_group_f.py    # Group F 전체 시연
+python Evaluator_Examples/ch09_group_f.py    # Gate F 전체 시연
 ```
 
 > **관련 챕터 예제**: Gate F를 포함한 전체 Harness 흐름은 [Chapter 3 — `ch03_harness_basics.py`](Chapter_03_Harness_Engineering_기초.md)에서, Gate F FAIL 케이스(시나리오 13–15)는 [Chapter 4 — `ch04_group_a.py`](Chapter_04_GroupA_목표달성.md)에서 확인한다.
@@ -1166,7 +1185,7 @@ python Evaluator_Examples/ch09_group_f.py    # Group F 전체 시연
 **핵심 코드**
 
 ```python
-# 출처: Evaluator_Examples/ch09_group_f.py, 섹션 6 — Group F Multi-Agent Coordination
+# 출처: Evaluator_Examples/ch09_group_f.py, 섹션 6 — Gate F Multi-Agent Coordination
 from agent_evaluator import (
     ConsensusConfig, PropagationConfig,
     AgentRoleConfig, ConflictResolutionConfig,
@@ -1233,13 +1252,13 @@ def conflict_resolver_agent(question: str, ground_truth: str = "") -> str:
 ```
 
 ```bash
-python Evaluator_Examples/ch03_harness_basics.py           # Group F 포함 전체
+python Evaluator_Examples/ch03_harness_basics.py           # Gate F 포함 전체
 python Evaluator_Examples/ch05_group_b.py  # AgentCoordinationTracker 예제
 ```
 
 **프레임워크 어댑터 — 실제 멀티에이전트 프레임워크 메타데이터 자동 추출**
 
-`framework=` 파라미터를 선언하면 CrewAI·AutoGen 응답 객체에서 `agent_interactions`·`tasks_output`을 자동 추출해 Group F 지표에 반영한다.
+`framework=` 파라미터를 선언하면 CrewAI·AutoGen 응답 객체에서 `agent_interactions`·`tasks_output`을 자동 추출해 Gate F 지표에 반영한다.
 
 ```python
 # 출처: Evaluator_Examples/ch09_group_f.py, 섹션 3 — CrewAI 멀티에이전트 어댑터
@@ -1276,7 +1295,7 @@ def crewai_agent(question: str, ground_truth: str = ""):
 crewai_agent("AI 산업 동향 보고서를 작성해줘", ground_truth="보고서")
 # → framework="crewai": tasks_output → agent_interactions 자동 추출
 # → AgentCoordinationTracker: researcher→analyst→writer 위임 패턴 기록
-# → Group F ConsensusConfig·AgentRoleConfig와 연계 가능
+# → Gate F ConsensusConfig·AgentRoleConfig와 연계 가능
 ```
 
 ```python

@@ -78,7 +78,7 @@
 
 ### I.2.1 3가지 방법론 개요
 
-**방법 1: 규칙 기반 (Agent-Evaluator Group A-G Tracker)**
+**방법 1: 규칙 기반 (Agent-Evaluator Gate A-G Tracker)**
 - 컨텍스트 토큰 커버리지 + 수치 불일치 탐지
 - 정밀도: ~70-80%, 재현율: ~65-75%
 - 비용: 0 (외부 API 없음)
@@ -101,7 +101,7 @@
 ```
                   정밀도
                     ↑
-              ● LLM Judge (Group G)
+              ● LLM Judge (Gate G)
              /     |
             /      |
            ● NLI   |
@@ -229,12 +229,12 @@ def _auto_select_model():
 이 두 지표는 "응답이 얼마나 사실에 충실한가"를 측정하지만 방향이 반대다.
 
 ```
-HallucinationRate (Group A, 규칙 기반):
+HallucinationRate (Gate A, 규칙 기반):
   - 높을수록 나쁨: 0.0 = 완벽, 1.0 = 최악
   - 컨텍스트 없이도 측정 가능 (ground_truth 기반)
   - 수치 불일치와 미지원 주장 탐지
 
-Faithfulness (LLM Judge, Group G):
+Faithfulness (LLM Judge, Gate G):
   - 높을수록 좋음: 1~5 스케일 (5=완벽하게 충실)
   - 컨텍스트 필수 (RAG의 검색 결과가 context로 전달)
   - 응답의 모든 주장이 컨텍스트에 근거하는지 LLM이 판단
@@ -277,10 +277,10 @@ Answer Relevancy가 낮음:
 |------|----------|
 | OpenAI API 키만 있음 | Ragas (LangChain 기반) |
 | Anthropic API 키 있음 | LLM Judge (`rag_mode=True`) |
-| 외부 의존성 없이 평가 | Group A HallucinationDetector |
+| 외부 의존성 없이 평가 | Gate A HallucinationDetector |
 | 가장 정밀한 RAG 평가 | Ragas 4지표 모두 |
 | 빠른 배포 전 검사 | LLM Judge (`judge_sample_rate=0.1`) |
-| 컨텍스트 없는 환경 | Group A 기반만 (Ragas/LLM Judge 모두 context 필요) |
+| 컨텍스트 없는 환경 | Gate A 기반만 (Ragas/LLM Judge 모두 context 필요) |
 
 ---
 
@@ -311,7 +311,7 @@ TCR: 1.0              ← 최종 완료
 ```
 
 **정확도/TCR만 보면**: 에이전트가 "훌륭히 작동"
-**Group B-G까지 보면**: 도구 사용 비효율이 포착되고, 반복 개선 방향이 명확해짐
+**Gate B-G까지 보면**: 도구 사용 비효율이 포착되고, 반복 개선 방향이 명확해짐
 
 ### I.5.2 지표 간 상관관계
 
@@ -340,24 +340,24 @@ TCR: 1.0              ← 최종 완료
   │
   ├─ YES → Harness Config 활성화
   │          @agent_eval(monitor, sla=SLAConfig(...), instructions=InstructionConfig(...))
-  │          → HarnessEvaluationGate로 Group A-G 전체 배포 판정
+  │          → HarnessEvaluationGate로 Gate A-G 전체 배포 판정
   │
   └─ NO  → 기본 Tracker 모드 (지표 측정만, 배포 자동 차단 없음)
 
   ▼
 에이전트가 도구를 사용하는가?
   │
-  ├─ NO → Group A 지표 활성 (TCR, Accuracy, Quality, Latency, Token, Hallucination*)
+  ├─ NO → Gate A 지표 활성 (TCR, Accuracy, Quality, Latency, Token, Hallucination*)
   │         *(hallucination은 RAG 경우에만)
   │
-  └─ YES ─→ Group A + Group B 에이전틱 지표 활성 (ToolCall, Workflow, ToolSelection)
+  └─ YES ─→ Gate A + Gate B 에이전틱 지표 활성 (ToolCall, Workflow, ToolSelection)
               │
               ▼
             에이전트가 민감 데이터/외부 시스템에 접근하는가?
               │
-              ├─ NO → Group A + B 지표 유지
+              ├─ NO → Gate A + B 지표 유지
               │
-              └─ YES → Group E 보안 지표 추가
+              └─ YES → Gate E 보안 지표 추가
                           enable_security_metrics=True
 
 [계속]
@@ -365,9 +365,9 @@ TCR: 1.0              ← 최종 완료
   ▼
 Ground truth를 항상 가질 수 있는가?
   │
-  ├─ YES → Group A-F 기반 지표로 충분 (낮은 비용)
+  ├─ YES → Gate A-F 기반 지표로 충분 (낮은 비용)
   │
-  └─ NO → LLM Judge 추가 (Group G)
+  └─ NO → LLM Judge 추가 (Gate G)
             │
             ▼
           RAG 파이프라인인가?
@@ -408,7 +408,7 @@ Ground truth를 항상 가질 수 있는가?
 | Response Quality | 2~10ms | 없음 | 최소 |
 | Latency 통계 | < 1ms | 없음 | O(n) |
 | Token Economy | < 1ms | 없음 | 최소 |
-| Hallucination (Group A) | 5~20ms | 없음 | 최소 |
+| Hallucination (Gate A) | 5~20ms | 없음 | 최소 |
 | Tool Call Efficiency | < 1ms | 없음 | 최소 |
 | Tool Selection F1 | < 1ms | 없음 | 최소 |
 | Agent Coordination | 2~5ms | 없음 | O(nodes) |
@@ -422,11 +422,11 @@ Ground truth를 항상 가질 수 있는가?
 
 | 구성 | 월간 API 비용 | 측정 오버헤드 |
 |------|------------|------------|
-| Group A-G 기반만 | $0 | < 0.5% |
-| Group A-G 기반 + 에이전틱 | $0 | < 1% |
-| Group A-G 전체 + LLM Judge (10%) | ~$90 | < 2% |
-| Group A-G 전체 + LLM Judge (100%) | ~$900 | 2~5% |
-| Group A-G 전체 + Ragas (100%) | ~$1,500~$5,000 | 10~30% |
+| Gate A-G 기반만 | $0 | < 0.5% |
+| Gate A-G 기반 + 에이전틱 | $0 | < 1% |
+| Gate A-G 전체 + LLM Judge (10%) | ~$90 | < 2% |
+| Gate A-G 전체 + LLM Judge (100%) | ~$900 | 2~5% |
+| Gate A-G 전체 + Ragas (100%) | ~$1,500~$5,000 | 10~30% |
 
 > 💡 **비용 최적화**: LLM Judge는 10% 샘플링만으로도 전수 평가 대비 90% 비용 절감, 정확도는 5~8%p 차이. 10% 샘플링이 대부분 프로덕션 환경에서 최적의 선택이다.
 

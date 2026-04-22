@@ -677,10 +677,10 @@ AI 에이전트는 배포 후에도 조용히 성능이 변한다. 모델이 업
 
 | 드리프트 유형 | 정의 | 감지 신호 (Harness Group) | agent-eval 지표 |
 |------------|------|--------------------------|----------------|
-| **데이터 드리프트** | 입력 분포 변화 | Group A — TCR 점진적 하락 | `AccuracyEvaluator` score 추세 |
-| **개념 드리프트** | 정답의 기준 변화 | Group A — HallucinationRate 상승 | `HallucinationDetector` 추세 |
-| **모델 드리프트** | 모델 버전 업데이트 | Group C — Reproducibility 하락 | `RetryCorrectionTracker` 재시도율 |
-| **운영 드리프트** | 인프라/부하 변화 | Group D — P95 지연 상승 | `LatencyTracker` P95 추세 |
+| **데이터 드리프트** | 입력 분포 변화 | Gate A — TCR 점진적 하락 | `AccuracyEvaluator` score 추세 |
+| **개념 드리프트** | 정답의 기준 변화 | Gate A — HallucinationRate 상승 | `HallucinationDetector` 추세 |
+| **모델 드리프트** | 모델 버전 업데이트 | Gate C — Reproducibility 하락 | `RetryCorrectionTracker` 재시도율 |
+| **운영 드리프트** | 인프라/부하 변화 | Gate D — P95 지연 상승 | `LatencyTracker` P95 추세 |
 
 ### 드리프트 감지 파이프라인
 
@@ -772,9 +772,9 @@ Stage 1: 지표 하락 감지          Stage 2: 원인 귀속              Stage
 ─────────────────────         ─────────────────────────      ──────────────────────────
 RunTrendAnalyzer              Group별 Tracker 드릴다운         결과에 따른 액션 선택
   ↓                              ↓                              ↓
-TCR 하락 감지                  어느 Group이 낮은가?           Group A 낮음 → 프롬프트 개선
-정확도 하락 감지               어느 Tracker가 낮은가?         Group D 높음 → 인프라 확장
-P95 지연 상승 감지             실패 케이스 패턴 분석           Group E 위반 → 보안 Config 강화
+TCR 하락 감지                  어느 Group이 낮은가?           Gate A 낮음 → 프롬프트 개선
+정확도 하락 감지               어느 Tracker가 낮은가?         Gate D 높음 → 인프라 확장
+P95 지연 상승 감지             실패 케이스 패턴 분석           Gate E 위반 → 보안 Config 강화
 ```
 
 ### Stage 1 — 지표 하락 감지 (RunTrendAnalyzer)
@@ -994,7 +994,7 @@ def production_agent(question: str, context: str = "", ground_truth: str = "") -
     )
 ```
 
-- `alert_rules`, `flush_every`, `EvalMetadata`를 하나의 데코레이터에 조합해 알림·자동저장·Group B-G 지표를 동시에 처리한다
+- `alert_rules`, `flush_every`, `EvalMetadata`를 하나의 데코레이터에 조합해 알림·자동저장·Gate B-G 지표를 동시에 처리한다
 - `flush_every=50`은 50건마다 `save_to_file()`을 자동 호출해 데이터 손실 위험을 최소화한다
 
 ```python
@@ -1026,7 +1026,7 @@ print(f"게이트 결과: {'통과' if gate_result.returncode == 0 else '실패'
 
 - `GoldenSetBuilder`는 프로덕션 결과에서 고품질/실패/엣지 케이스를 자동으로 발굴해 다음 회귀 테스트에 활용한다
 - `agent-eval trend`와 `agent-eval gate`를 순서대로 실행하면 추세(장기)와 기준치(현재) 양방향을 모두 검사하는 완전한 CI/CD 파이프라인이 완성된다
-- 이 패턴이 Ch01~Ch15에서 다룬 모든 기능(Group A-G 지표, 데코레이터, Phoenix OTEL, 알림, 이상 탐지, 골든셋)을 하나로 통합한 종합 파이프라인이다
+- 이 패턴이 Ch01~Ch15에서 다룬 모든 기능(Gate A-G 지표, 데코레이터, Phoenix OTEL, 알림, 이상 탐지, 골든셋)을 하나로 통합한 종합 파이프라인이다
 
 ```bash
 # 종합 파이프라인 단일 실행 (개발 → CI → 운영 → 개선 전체)
@@ -1043,8 +1043,8 @@ agent-eval dashboard results/
 
 | 파일 | 파이프라인 단계 | 핵심 출력 |
 |------|---------------|-----------|
-| ch01_first_eval | 개발: Group A-D 검증 | TCR=43.1%, 54개 태스크, p95=5.20s |
-| ch05_group_b + ch08_group_e | 개발: Group B-E·보안 검증 | 3개 보안 위협, 14개 태스크 |
+| ch01_first_eval | 개발: Gate A-D 검증 | TCR=43.1%, 54개 태스크, p95=5.20s |
+| ch05_group_b + ch08_group_e | 개발: Gate B-E·보안 검증 | 3개 보안 위협, 14개 태스크 |
 | ch13_frameworks | 통합 테스트: 프레임워크 비교 | 24개 태스크, 4개 프레임워크 TCR 비교 |
 | ch12_decorators | CI: 데코레이터·QuickEval | TCR=57.1%, gate() 실패/성공 |
 | ch16_alerts | 운영: 실시간 알림 | alert JSONL, feedback 추적 |

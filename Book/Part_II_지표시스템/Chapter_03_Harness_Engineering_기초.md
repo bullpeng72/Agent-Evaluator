@@ -94,6 +94,7 @@ Agent-Evaluator는 이 중 세 번째 도메인 — **행동 Harness** — 을 P
 ### 3.1.2 Harness Engineering의 작동 원리: Guides + Sensors
 
 Harness Engineering은 두 가지 제어 메커니즘으로 구성된다.
+위의 다이어그램은 Guides와 Sensors가 에이전트 실행을 감싸는 구조를 시각화한다. Guides가 실행 전 행동 범위를 선언하고, Sensors가 실행 후 측정값을 수집하며, Gate가 두 결과를 통합해 배포 판정을 내린다
 
 **Guides (사전 제어, Feedforward)**는 에이전트가 실행되기 *전에* 작동하는 지침과 제약이다. 무엇을 해도 되고 무엇을 하면 안 되는지를 사전에 선언한다.
 
@@ -107,80 +108,38 @@ Harness Engineering은 두 가지 제어 메커니즘으로 구성된다.
 - 정확도·환각 탐지 (AccuracyEvaluator, HallucinationDetector)
 - 지연·비용 측정 (LatencyTracker, TokenEconomyTracker)
 - 보안 패턴 탐지 (InputSanitizationTracker, OutputLeakageDetector)
-- 행동 이상 감지 (ToolCallAnalyzer, WorkflowExecutionTracker)
+- 행동 이상 감지 (ToolCallAnalyzer, WorkflowExecutionTracker).
 
-아래 다이어그램은 Guides와 Sensors가 에이전트 실행을 감싸는 구조를 시각화한다. Guides가 실행 전 행동 범위를 선언하고, Sensors가 실행 후 측정값을 수집하며, Gate가 두 결과를 통합해 배포 판정을 내린다.
+#### Agent-Evaluator의 Config와 Tracker
 
-#### Agent-Evaluator의 Guides → Config, Sensors → Tracker 매핑
+Harness Engineering의 Guides/Sensors 구분은 Agent-Evaluator에서 두 구현체로 직결된다.
 
-이 구조는 arXiv 논문 2604.17025(CAAF)에서 형식화된 것처럼, Harness를 **도메인 규칙을 기계가 읽을 수 있는 제약 레지스트리(constraint registry)로 구현하는 방식**으로 발전하고 있다. Agent-Evaluator에서 이 구조는 다음과 같이 구체화된다.
+- **Guides → Config**: 실행 *전* 선언하는 행동 제약이 33개 Config 데이터클래스로 구현된다. `@agent_eval` 데코레이터에 파라미터로 전달하는 순간 해당 제약이 Gate 판정 기준으로 등록된다.
+- **Sensors → Tracker**: 실행 *후* 자동으로 기동되는 측정 엔진이 25개 Tracker 클래스로 구현된다. `PerformanceMonitor`가 내부에서 Tracker를 오케스트레이션하므로 별도 호출 없이 수치가 수집된다.
 
-| Harness 개념 | Agent-Evaluator 구현 | 역할 |
-|-------------|---------------------|------|
-| **Guide** — 행동 제약 | `InstructionConfig`, `SLAConfig`, `LoopDetectionConfig`, `ComplianceConfig` 등 33개 Config 클래스 | 에이전트가 "무엇을 해야 하고 무엇을 하면 안 되는가"를 `@agent_eval` 데코레이터로 선언 |
-| **Sensor** — 실행 측정 | `AccuracyEvaluator`, `LatencyTracker`, `HallucinationDetector`, `InputSanitizationTracker` 등 25개 Tracker 클래스 | 에이전트가 실행된 후 자동으로 지표를 수집·계산 |
-| **Gate** — 통합 판정 | `HarnessEvaluationGate`, `agent-eval gate` CLI | Guide 위반 여부와 Sensor 측정값을 종합해 PASS / WARNING / FAIL 판정 |
-
-```python
-# 출처: Evaluator_Examples/ch03_harness_basics.py
-from agent_evaluator import PerformanceMonitor, InstructionConfig, SLAConfig
-from agent_evaluator.decorators import agent_eval
-
-monitor = PerformanceMonitor("results/")
-
-@agent_eval(
-    monitor,
-    task_type="qa",
-    # ① Guides — 실행 전 행동 제약 선언
-    instructions=InstructionConfig(required_keywords=["결과"], fail_on_violation=True),
-    sla=SLAConfig(p95_ms=2000, fail_on_violation=True),
-)
-def my_agent(question: str, ground_truth: str = "") -> str:
-    return llm.invoke(question)
-    # ② Sensors — 실행 후 자동 측정
-    # AccuracyEvaluator, LatencyTracker, TokenEconomyTracker 등이 자동 동작
-
-# ③ Gate — Guides × Sensors 통합 판정
-report = monitor.generate_report()
-# → Gate A–G 중 위반 Config가 있으면 FAIL, 경계값이면 WARNING
-```
+이 구조는 arXiv 논문 2604.17025(CAAF)에서 형식화한 것처럼, Harness를 **도메인 규칙을 기계가 읽을 수 있는 제약 레지스트리(constraint registry)** 로 구현하는 방식과 일치한다. 세 구성 요소(Config · Tracker · Gate)의 구체적인 역할과 모듈 위치는 §3.1.3에서 다룬다.
 
 ### 3.1.3 핵심 3요소: Tracker · Config · Gate
 
-Agent-Evaluator는 Harness Engineering의 Guides+Sensors 구조를 세 가지 요소로 구현한다.
+세 요소가 결합하면 하나의 완전한 배포 검증 파이프라인이 완성된다. 각 요소는 독립적으로도 사용 가능하다 — Tracker만 단독으로 사용하면 관찰 인프라로, Config를 추가하면 기준 검증으로, Gate까지 연결하면 배포 자동화 판정으로 확장된다.
 
-| 요소 | Harness 역할 | AI 에이전트에서의 기능 |
-|------|-------------|----------------------|
-| **Tracker** | Sensor (사후 측정) | 에이전트 실행 중 품질 지표를 자동 수집 (TCR·정확도·지연·보안 등 25개) |
-| **Config** | Guide (사전 제약 선언) | 배포 가능 기준을 코드로 선언 (33개 데이터클래스, `@agent_eval` 데코레이터로 주입) |
-| **Gate** | 판정 (Guides + Sensors 통합) | Tracker 측정값과 Config 기준을 대조해 배포 승인/차단 판정 (7개 Gate A–G) |
+| 요소 | Harness 역할 | 구현체(모듈) | 진입 방법 |
+|------|-------------|------------|---------|
+| **Tracker** | Sensor — 사후 측정 | `core/trackers/` `layer1.py`(6종) · `layer2.py`(5종) · `security.py`(5종) | `PerformanceMonitor.record_task()` 호출 시 자동 실행 |
+| **Config** | Guide — 사전 제약 선언 | `decorators.py` 33개 데이터클래스 | `@agent_eval(monitor, sla=SLAConfig(...))` 파라미터 |
+| **Gate** | 통합 판정 | `core/monitor.py` `PerformanceMonitor` Harness 집계 | `HarnessEvaluationGate(report).evaluate()` 또는 `QuickEval.gate()` |
 
-세 요소가 결합하면 하나의 완전한 배포 검증 파이프라인이 완성된다.
+**핵심 원칙: "기준이 코드 안에 있어야 한다."** Config를 `@agent_eval` 데코레이터로 에이전트 코드 바로 옆에 선언하면, 에이전트가 자신의 배포 기준을 소유한다. 품질 기준이 문서나 암묵적 판단 안에 있으면 릴리스마다 기준이 흔들리지만, 코드에 선언된 기준은 어떤 환경에서도 동일하게 반복 검증된다.
 
-**핵심 원칙은 "기준이 코드 안에 있어야 한다"는 것이다.** 품질 기준이 문서나 팀원의 암묵적 판단에 있으면, 릴리스마다 기준이 흔들리고 팀원 간 해석이 달라진다. Harness Config를 `@agent_eval` 데코레이터로 에이전트 코드 바로 옆에 선언하면, 에이전트가 자신의 배포 기준을 소유한다. 어떤 환경에서도 동일한 기준으로 반복 검증할 수 있다.
-
-각 요소는 독립적으로도 사용 가능하다. Tracker만 단독으로 사용하면 관찰 인프라로 동작하고, Config를 추가하면 기준 검증이, Gate까지 연결하면 배포 자동화 판정이 가능해진다.
-
-#### Agent-Evaluator 모듈 구조와의 매핑
-
-3요소는 Agent-Evaluator 소스코드의 모듈 분리와 정확히 대응한다.
-
-| 요소 | 핵심 모듈 | 진입 방법 |
-|------|----------|---------|
-| **Tracker** | `agent_evaluator/core/trackers/` — `layer1.py`(6종), `layer2.py`(5종), `security.py`(5종) | `PerformanceMonitor.record_task(result)` 호출 시 자동 실행 |
-| **Config** | `agent_evaluator/decorators.py` — 33개 데이터클래스 정의 | `@agent_eval(monitor, sla=SLAConfig(...))` 데코레이터 파라미터 |
-| **Gate** | `agent_evaluator/core/monitor.py` — `PerformanceMonitor`가 Harness 집계 | `HarnessEvaluationGate(report).evaluate()` 또는 `QuickEval.gate()` |
-
-**`PerformanceMonitor`는 세 요소의 오케스트레이터다.** Tracker를 내부에 보유하고, Config를 `@agent_eval`을 통해 수신하며, Gate 판정에 필요한 집계를 자동으로 수행한다. 개발자는 Config를 선언하고 `record_task()`를 호출하는 것만으로 전체 Harness 파이프라인이 작동한다.
+`PerformanceMonitor`는 세 요소의 오케스트레이터다. Tracker를 내부에 보유하고, Config를 `@agent_eval`을 통해 수신하며, Gate 판정에 필요한 집계를 자동으로 수행한다.
 
 ```python
-# 3요소가 하나의 파이프라인으로 연결되는 최소 예시
-from agent_evaluator import PerformanceMonitor, QuickEval, SLAConfig, InstructionConfig
+# 출처: Evaluator_Examples/ch03_harness_basics.py — 3요소 최소 파이프라인
+from agent_evaluator import QuickEval, SLAConfig, InstructionConfig
 
-# Tracker: PerformanceMonitor 내부에 자동 초기화
 eval = QuickEval("results/")
 
-# Config: 데코레이터로 선언 — 에이전트가 자신의 배포 기준을 소유
+# ① Config — 배포 기준 선언 (Guides)
 @eval(
     task_type="qa",
     sla=SLAConfig(p95_ms=3000, fail_on_violation=True),
@@ -188,12 +147,13 @@ eval = QuickEval("results/")
 )
 def agent(question: str, ground_truth: str = "") -> str:
     return llm.invoke(question)
+# ② Tracker — 실행 후 자동 수집 (Sensors): AccuracyEvaluator, LatencyTracker 등
 
-# Gate: Config 기준과 Tracker 측정값을 종합 판정
+# ③ Gate — Config × Tracker 종합 판정
 eval.gate(tcr=85, accuracy=70)   # 미달 시 sys.exit(1) → CI/CD 차단
 ```
 
-이 세 줄(Config 선언 → Tracker 자동 수집 → Gate 판정)이 Chapter 4–10에서 다루는 33개 Config와 7개 Gate 전체의 공통 패턴이다.
+이 패턴(Config 선언 → Tracker 자동 수집 → Gate 판정)이 Chapter 4–10에서 다루는 33개 Config와 7개 Gate 전체의 공통 구조다.
 
 ---
 
@@ -233,8 +193,6 @@ def agent(question, ground_truth=""):
 eval.gate(tcr=85, accuracy=70)  # → 기준 미달 시 sys.exit(1)
 ```
 
-핵심 차이는 **"기준의 위치"**다. `assert`는 테스트 파일 안에 있다. Harness Config는 에이전트 코드 바로 옆, `@agent_eval` 데코레이터 안에 있다. 에이전트가 자신의 배포 기준을 소유한다.
-
 ### 3.1.5 세 가지 배포 실패 유형
 
 Harness Engineering이 방지하려는 실패는 세 가지 유형이다.
@@ -252,21 +210,45 @@ Harness Engineering의 세 구성 요소(Tracker, Config, Gate)는 이 세 가�
 
 ---
 
-## 3.2 3요소: Tracker × Config × Gate
+## 3.2 Tracker · Config · Gate 내부 동작
 
-§3.1에서 Harness Engineering의 개념과 Guides+Sensors 작동 원리를 설명했다. 이제 세 역할 각각을 동등한 깊이로 분해한다 — Chapter 2에서 "무엇이 존재하는가"를 파악했다면, 여기서는 "각 역할이 어떻게 작동하는가"를 이해한다.
-
-Harness Engineering은 세 개의 구성 요소로 이루어진다. 각각 독립적으로 사용할 수도 있지만, 셋이 결합될 때 완전한 배포 판정이 이루어진다.
+§3.1에서 세 요소의 역할을 개괄했다. 여기서는 각 요소가 내부에서 어떻게 작동하는가를 분해한다 — `record_task()` 한 번 호출이 내부에서 어떤 순서로 처리되고, Config 선언이 Gate 판정으로 연결되는 흐름을 추적한다.
 
 ### 3.2.1 Tracker — 관찰하는 자
 
-Tracker는 에이전트 실행 중 무슨 일이 일어나는지 측정하는 관찰자(Observer)다. 판단하지 않는다. 오직 측정만 한다.
+Tracker는 판단하지 않는다. `TaskResult`에서 수치를 추출해 통계를 누적하는 것이 전부다. 판단은 Config와 Gate의 몫이다.
 
-`PerformanceMonitor`에 `record_task()`를 호출할 때마다 내부의 트래커들이 자동으로 동작한다.
+#### 레이어 구조
+
+Tracker는 두 레이어로 나뉜다. 외부 의존성 없이 로컬에서 즉시 실행되는 것이 설계 원칙이다.
+
+| 레이어 | Tracker | 측정 대상 |
+|--------|---------|---------|
+| **Layer 1 — Foundation** | `TaskCompletionTracker`, `AccuracyEvaluator`, `HallucinationDetector`(opt-in), `ResponseQualityEvaluator`, `LatencyTracker`, `TokenEconomyTracker` | 정확도·품질·지연·비용 — 모든 에이전트 공통 |
+| **Layer 2 — Agentic** | `ToolCallAnalyzer`, `RetryCorrectionTracker`, `ToolSelectionTracker`, `AgentCoordinationTracker`, `WorkflowExecutionTracker` + 보안 5종(opt-in) | 도구 호출·재시도·협업·보안 — 에이전트 고유 행동 |
+
+#### `record_task()` 호출 시 내부 처리 흐름
+
+```
+record_task(TaskResult)
+    │
+    ├─ Layer 1 집계
+    │   ├─ TaskCompletionTracker  → completion_score 누적
+    │   ├─ AccuracyEvaluator      → token_f1·jaccard·lcs·levenshtein 가중 계산
+    │   ├─ ResponseQualityEvaluator → 5차원(relevance·completeness·accuracy·clarity·usefulness)
+    │   ├─ LatencyTracker         → P50·P95·P99·TTFT 백분위 갱신
+    │   └─ TokenEconomyTracker    → tokens_used·estimated_cost 누적
+    │
+    └─ Layer 2 집계 (TaskResult에 해당 필드가 있을 때만 실행)
+        ├─ ToolCallAnalyzer        → tool_calls 패턴 분석
+        ├─ RetryCorrectionTracker  → retry_count 추적
+        ├─ AgentCoordinationTracker → agent_interactions 추적
+        └─ WorkflowExecutionTracker → workflow_steps 분기 추적
+```
+
+집계는 `record_task()` 마다 누적된다. 통계(평균·백분위·표준편차)는 `generate_report()` 시점에 한 번 산출된다 — 따라서 태스크 수가 많을수록 통계적 신뢰도가 높아진다.
 
 ```python
-from agent_evaluator import PerformanceMonitor, create_taskresult
-
 monitor = PerformanceMonitor("results/")
 
 result = create_taskresult(
@@ -279,78 +261,123 @@ result = create_taskresult(
 )
 
 monitor.record_task(result)
-# ↑ 이 순간 내부에서 자동으로 동작하는 트래커들:
-#   TaskCompletionTracker → completion_score 기록
-#   AccuracyEvaluator     → accuracy_score 계산
-#   ResponseQualityEvaluator → quality 5차원 평가
-#   LatencyTracker        → execution_time 기록
-#   TokenEconomyTracker   → tokens_used 기록
+# ↑ Layer 1 전체 자동 실행
+#   completion_score: TaskResult.completion_score 읽어 TCR 누적
+#   accuracy_score:   response vs ground_truth 4중 가중 계산
+#   latency:          execution_time → P95 버킷 갱신
+
+report = monitor.generate_report()
+# ↑ 누적 데이터 → 통계 산출 → Harness Gate 집계
 ```
 
-Agent-Evaluator의 Tracker는 25개이며, Group A-G에 분산되어 있다. 보안 Tracker 5종(Group E)은 `enable_security_metrics=True`로 활성화하는 opt-in이며, 25개 안에 포함된다.
+> **`completion_score` 자동 계산**: `create_taskresult()` 헬퍼는 `task_type`을 기반으로 `completion_score`를 자동 계산한다. `code_generation`은 AST 파싱 성공 여부(1.0/0.0), `tool_use`는 `tool_calls` 존재 여부(1.0/0.6), 나머지는 응답 길이 기반 휴리스틱을 적용한다.
+
+보안 Tracker 5종은 성능 영향이 크므로 기본값 `False`이며, `PerformanceMonitor(enable_security_metrics=True)`로 명시 활성화해야 한다.
 
 ### 3.2.2 Config — 기준을 선언하는 자
 
-Config는 "어떤 상태가 합격인가"를 선언하는 기준서(Specification)다. 측정하지 않는다. 오직 기준을 선언한다.
+Config는 "어떤 상태가 합격인가"를 선언하는 기준서(Specification)다. Tracker처럼 실행 시점에 계산하지 않는다. 선언된 기준이 `PerformanceMonitor`에 등록되고, Gate 집계 시점에 Tracker 측정값과 대조된다.
 
-Config 데이터클래스는 33개이며, `@agent_eval` 데코레이터의 파라미터로 주입한다.
+#### Config 작동 메커니즘
+
+1. **선언**: `@agent_eval` 데코레이터 파라미터로 Config 객체를 전달
+2. **등록**: `PerformanceMonitor`가 Config를 내부 레지스트리에 저장
+3. **대조**: `generate_report()` → `_compute_harness_groups()` 실행 시 각 Gate 소속 Config의 임계값과 Tracker 측정값을 비교
+4. **위반 처리**: `fail_on_violation=True`인 Config 조건을 위반하면 해당 `TaskResult.success`가 즉시 `False`로 처리
 
 ```python
-# 출처: Evaluator_Examples/ch03_harness_basics.py, 섹션 1 — Harness 3-Element: Tracker·Config·Gate
+# 출처: Evaluator_Examples/ch03_harness_basics.py
 from agent_evaluator import (
-    SLAConfig,              # Group D: 성능계약
-    InstructionConfig,      # Group A: 목표달성
-    ReproducibilityConfig,  # Group C: 신뢰성
-    ThreatSeverityConfig,   # Group E: 보안경계
+    SLAConfig,              # Gate D: 성능계약
+    InstructionConfig,      # Gate A: 목표달성
+    ReproducibilityConfig,  # Gate C: 신뢰성
+    ThreatSeverityConfig,   # Gate E: 보안경계
 )
 from agent_evaluator.decorators import agent_eval
 
 @agent_eval(
     monitor,
     task_type="qa",
-    # Group A — 목표달성 기준
     instructions=InstructionConfig(
-        expected_language="ko",           # 한국어 응답 필수
-        max_words=200,                    # 최대 200단어
-        fail_on_violation=True,           # 위반 시 fail 처리
+        expected_language="ko",
+        max_words=200,
+        fail_on_violation=True,       # 위반 즉시 TaskResult.success=False
     ),
-    # Group C — 신뢰성 기준
     reproducibility=ReproducibilityConfig(
-        runs=3,                           # 동일 입력 3회 실행
-        reproducibility_threshold=0.85,   # 재현성 85% 이상
+        runs=3,
+        reproducibility_threshold=0.85,
     ),
-    # Group D — 성능계약 기준
     sla=SLAConfig(
-        p95_ms=2000,                      # P95 응답 2초 이내
-        max_cost_per_task=0.005,          # 태스크당 최대 $0.005
+        p95_ms=2000,
+        max_cost_per_task=0.005,
     ),
-    # Group E — 보안경계 기준
     threat_severity=ThreatSeverityConfig(
-        fail_on_critical=True,            # 치명적 위협 탐지 시 fail
+        fail_on_critical=True,
     ),
 )
 def agent(question, ground_truth=""):
     return llm.invoke(question)
 ```
 
-`fail_on_violation=True` 플래그가 핵심이다. 이 플래그가 활성화된 Config 조건을 위반하면 해당 `TaskResult.success`가 `False`로 강제 처리된다.
+#### Config가 Gate 점수에 반영되는 방식
+
+각 Config는 소속 Gate의 집계 점수에 영향을 준다. 예를 들어 `SLAConfig(p95_ms=2000)`이 선언된 상태에서 `LatencyTracker`가 P95=2800ms를 측정하면, Gate D 점수가 하락하고 임계값에 따라 WARNING 또는 FAIL로 판정된다. **Config는 기준이고, Tracker는 실측값이다 — Gate는 그 차이를 점수로 환산한다.**
+
+`fail_on_violation` 없이 선언된 Config는 "소프트 기준"으로 작동한다. 위반해도 `TaskResult.success`는 유지되지만, Gate 점수는 하락한다.
 
 ### 3.2.3 Gate — 판정하는 자
 
-Gate는 Tracker가 측정한 데이터와 Config가 선언한 기준을 대조해 최종 배포 판정을 내리는 심판(Judge)이다.
+Gate는 Tracker 측정값과 Config 기준을 대조해 PASS / WARNING / FAIL 판정을 내리는 집계 레이어다. 개별 태스크가 아닌 **전체 평가 세션의 통계**를 대상으로 동작한다.
 
-가장 간단한 Gate는 `eval.gate()`다.
+#### Gate 점수 산출 흐름
 
-```python
-eval = QuickEval("results/")
-
-# ... 평가 실행 ...
-
-eval.gate(tcr=85, accuracy=70)
-# tcr < 85 또는 accuracy < 70 이면 sys.exit(1) → CI/CD 파이프라인 차단
+```
+generate_report()
+    │
+    └─ _compute_harness_groups()
+        │
+        ├─ Gate A: TCR·accuracy·quality 평균 → 0–100 점수
+        ├─ Gate B: loop_count·scope_violation·tool_safety → 위반률 역산
+        ├─ Gate C: reproducibility·fault_tolerance → 일관성 지표 평균
+        ├─ Gate D: p95_latency vs SLAConfig.p95_ms → SLA 준수율
+        ├─ Gate E: threat_count·leakage_count → 위협 탐지률 역산
+        ├─ Gate F: consensus_rate·propagation_accuracy → 협업 품질
+        └─ Gate G: explainability·observability → 설명·추적 점수
+              │
+              ▼
+        각 Gate: score(0–100) + status(PASS ≥ 70 / WARNING ≥ 50 / FAIL < 50)
+              │
+              ▼
+        overall_score = Gate A–G 가중 평균
 ```
 
-`HarnessEvaluationGate`는 7개 Group을 한 번에 체크하는 종합 Gate다. (§3.5 참조)
+#### Gate 판정 임계값과 배포 차단
+
+```python
+from agent_evaluator.core.agent_evaluator import HarnessEvaluationGate
+
+report = monitor.generate_report()
+gate = HarnessEvaluationGate(report)
+
+# enforce(): FAIL Gate가 하나라도 있으면 sys.exit(1)
+gate.enforce()
+
+# evaluate(): 상세 결과 딕셔너리 반환 (종료하지 않음)
+results = gate.evaluate()
+# → {"A": {"score": 87.3, "status": "PASS"}, "B": {"score": 42.1, "status": "FAIL"}, ...}
+```
+
+`QuickEval.gate()`는 이 흐름의 단축 인터페이스다.
+
+```python
+eval.gate(tcr=85, accuracy=70)
+# 내부 동작:
+#   1. generate_report() 호출 → Tracker 통계 산출
+#   2. TCR < 85 또는 accuracy < 70 이면 sys.exit(1)
+#   3. Harness Config가 선언된 경우 Gate A–G 추가 검증
+```
+
+`agent-eval gate` CLI는 이미 저장된 `result.json`을 읽어 동일한 Gate 판정을 재실행한다. CI/CD 파이프라인에서 평가 실행(`python eval.py`)과 게이팅(`agent-eval gate result.json --tcr 85`)을 분리할 수 있는 이유다.
 
 ---
 
@@ -453,8 +480,8 @@ Tracker 25개와 Config 33개를 7개 Gate(A-G)에 배분한다. (보안 Tracker
 | Config | `ScopeConfig` | 허용/금지 도구 범위 선언 |
 | Config | `ToolParameterSafetyConfig` | 도구 파라미터 위험 패턴 기준 |
 | Config | `ContextWindowConfig` | 컨텍스트 윈도우 포화도 기준 |
-| Config | `StateConsistencyConfig` | 실행 전후 상태 일관성 기준 (v0.8.2에서 Group F→B 이동) |
-| Config | `DeadlockConfig` | 교착·기아·라이브락 탐지 기준 (v0.8.2에서 Group F→B 이동) |
+| Config | `StateConsistencyConfig` | 실행 전후 상태 일관성 기준 (v0.8.2에서 Gate F→B 이동) |
+| Config | `DeadlockConfig` | 교착·기아·라이브락 탐지 기준 (v0.8.2에서 Gate F→B 이동) |
 
 ### Gate C — 신뢰성 (Reliability)
 
@@ -653,27 +680,27 @@ from agent_evaluator.decorators import agent_eval
 
 monitor = PerformanceMonitor(
     output_dir="results/",
-    enable_hallucination_detection=True,  # Group C
-    enable_security_metrics=True,         # Group E
+    enable_hallucination_detection=True,  # Gate C
+    enable_security_metrics=True,         # Gate E
 )
 
 @agent_eval(
     monitor,
     task_type="qa",
-    # Group A — 목표달성
+    # Gate A — 목표달성
     instructions=InstructionConfig(
         expected_language="ko",
         max_words=500,
         forbidden_phrases=["모르겠습니다", "확인이 필요합니다"],
         fail_on_violation=True,
     ),
-    # Group C — 신뢰성
+    # Gate C — 신뢰성
     reproducibility=ReproducibilityConfig(
         runs=3,
         reproducibility_threshold=0.85,
         fail_on_low_reproducibility=False,  # 경고만, fail 없음
     ),
-    # Group D — 성능계약
+    # Gate D — 성능계약
     sla=SLAConfig(
         p95_ms=2000,
         max_cost_per_task=0.005,
@@ -683,12 +710,12 @@ monitor = PerformanceMonitor(
         max_tokens=2000,
         warn_at_pct=0.8,
     ),
-    # Group E — 보안경계
+    # Gate E — 보안경계
     threat_severity=ThreatSeverityConfig(
         fail_on_critical=True,
         fail_score=7.0,
     ),
-    # Group G — 운영관측성
+    # Gate G — 운영관측성
     observability=ObservabilityConfig(
         min_coverage=0.99,
     ),
@@ -711,21 +738,47 @@ Harness Engineering에는 두 종류의 사용자가 있다. **개발자**는 Tr
 
 ### 3.5.1 두 역할이 보는 Harness
 
-```
-┌──────────────────────────────────────────────────────────────────┐
-│  개발자 관점 (구현)            QA 관리자 관점 (판정)               │
-│                                                                  │
-│  @agent_eval(                  대시보드 / Gate 리포트              │
-│    monitor,                                                      │
-│    sla=SLAConfig(p95_ms=2000)  → Gate D 성능계약: PASS ✅         │
-│    scope=ScopeConfig(...)      → Gate B 행동무결성: WARN ⚠️        │
-│    threat_severity=...         → Gate E 보안경계: PASS ✅         │
-│  )                                                               │
-│  def my_agent(...): ...                                          │
-│                                                                  │
-│  ← 코드로 선언 →               ← 판정 결과로 소통 →               │
-└──────────────────────────────────────────────────────────────────┘
-```
+@@HTML_START@@
+<div class="dual-view">
+  <div class="dv-col dv-dev">
+    <div class="dv-header">👨‍💻 개발자 관점 — 구현</div>
+    <div class="dv-body">
+      <pre class="dv-code"><span class="dv-dec">@agent_eval(</span>
+    monitor,
+    <span class="dv-cfg">sla=SLAConfig(p95_ms=2000)</span>,
+    <span class="dv-cfg">scope=ScopeConfig(...)</span>,
+    <span class="dv-cfg">threat_severity=...</span>,
+<span class="dv-dec">)</span>
+<span class="dv-dec">def my_agent(...): ...</span></pre>
+    </div>
+    <div class="dv-footer">← 코드로 선언 →</div>
+  </div>
+
+  <div class="dv-arrow">⟶</div>
+
+  <div class="dv-col dv-qa">
+    <div class="dv-header">📊 QA 관리자 관점 — 판정</div>
+    <div class="dv-body">
+      <div class="dv-results">
+        <div class="dv-result-label">대시보드 / Gate 리포트</div>
+        <div class="dv-gate-row">
+          <span class="dv-gate-name">Gate D 성능계약</span>
+          <span class="dv-badge dv-pass">PASS ✅</span>
+        </div>
+        <div class="dv-gate-row">
+          <span class="dv-gate-name">Gate B 행동무결성</span>
+          <span class="dv-badge dv-warn">WARN ⚠️</span>
+        </div>
+        <div class="dv-gate-row">
+          <span class="dv-gate-name">Gate E 보안경계</span>
+          <span class="dv-badge dv-pass">PASS ✅</span>
+        </div>
+      </div>
+    </div>
+    <div class="dv-footer">← 판정 결과로 소통 →</div>
+  </div>
+</div>
+@@HTML_END@@
 
 ### 3.5.2 협업 워크플로우 — 5단계
 
@@ -736,8 +789,8 @@ Harness Engineering에는 두 종류의 사용자가 있다. **개발자**는 Tr
 ```python
 monitor = PerformanceMonitor(
     output_dir="results/",
-    enable_hallucination_detection=True,  # Group C Tracker
-    enable_security_metrics=True,         # Group E Tracker
+    enable_hallucination_detection=True,  # Gate C Tracker
+    enable_security_metrics=True,         # Gate E Tracker
 )
 ```
 
@@ -825,7 +878,7 @@ PR마다 Gate가 자동으로 동작한다. 기준을 위반하면 배포가 차
 | **F** 다중에이전트 | 교착 없이 협력했는가? | AgentCoordination, ToolSelection | ConsensusConfig, AgentRoleConfig, ConflictResolutionConfig |
 | **G** 운영관측성 | 실패 원인을 즉시 추적할 수 있는가? | LLMJudge (7차원) | ObservabilityConfig, ExplainabilityConfig, ErrorDiagnosisConfig |
 
-> 📖 **각 Group의 상세 내용**: Chapter 4(A) ~ Chapter 10(G)에서 Tracker·Config를 깊이 다룬다.  
+> 📖 **각 Gate의 상세 내용**: Chapter 4(A) ~ Chapter 10(G)에서 Tracker·Config를 깊이 다룬다.  
 > 📖 **Config 파라미터 전체 목록**: [Appendix A §Part 2](../Appendix/A_58개지표_레퍼런스.md)
 
 ---
@@ -889,7 +942,7 @@ jobs:
           agent-eval gate results/latest.json \
             --tcr 85 \
             --accuracy 70 \
-            --fail-on-group-violation C,E  # Group C·E 위반 시 배포 차단
+            --fail-on-group-violation C,E  # Gate C·E 위반 시 배포 차단
 ```
 
 ### 3.6.3 특정 Group만 검사
@@ -926,13 +979,13 @@ gate.enforce()   # 기준 미달 시 sys.exit(1)
 import json, sys
 from agent_evaluator import (
     PerformanceMonitor,
-    InstructionConfig, GoalAlignmentConfig,      # Group A
-    LoopDetectionConfig, ScopeConfig,            # Group B
-    ReproducibilityConfig, RetryConsistencyConfig, # Group C
-    SLAConfig, ResourceBudgetConfig,             # Group D
-    ThreatSeverityConfig, ComplianceConfig,      # Group E
-    ConsensusConfig, AgentRoleConfig,            # Group F
-    ExplainabilityConfig, ObservabilityConfig,   # Group G
+    InstructionConfig, GoalAlignmentConfig,      # Gate A
+    LoopDetectionConfig, ScopeConfig,            # Gate B
+    ReproducibilityConfig, RetryConsistencyConfig, # Gate C
+    SLAConfig, ResourceBudgetConfig,             # Gate D
+    ThreatSeverityConfig, ComplianceConfig,      # Gate E
+    ConsensusConfig, AgentRoleConfig,            # Gate F
+    ExplainabilityConfig, ObservabilityConfig,   # Gate G
 )
 from agent_evaluator.decorators import agent_eval
 
@@ -940,7 +993,7 @@ _STRICT_MODE = "--strict" in sys.argv   # WARN도 FAIL로 처리
 
 monitor = PerformanceMonitor(output_dir="results/", enable_security_metrics=True)
 
-# Group A — 목표달성
+# Gate A — 목표달성
 @agent_eval(monitor, task_type="qa", task_id_prefix="val_a",
     instructions=InstructionConfig(required_keywords=["answer", "source"], min_chars=10),
     goal_alignment=GoalAlignmentConfig(goal_tool_map={"search": ["web_search"]}, alignment_threshold=0.5),
@@ -948,7 +1001,7 @@ monitor = PerformanceMonitor(output_dir="results/", enable_security_metrics=True
 def _group_a_agent(question, ground_truth=""):
     return json.dumps({"answer": question + "에 대한 검증 답변", "source": "내부 DB"})
 
-# Group B — 행동무결성
+# Gate B — 행동무결성
 @agent_eval(monitor, task_type="tool_use", task_id_prefix="val_b",
     loop_detection=LoopDetectionConfig(consecutive_repeat_threshold=3, window_size=5),
     scope=ScopeConfig(
@@ -959,7 +1012,7 @@ def _group_a_agent(question, ground_truth=""):
 def _group_b_agent(question, ground_truth=""):
     return f"재무 리포트 조회: {question}"
 
-# ... (Group C~G는 동일 패턴으로 각 1개 Config)
+# ... (Gate C~G는 동일 패턴으로 각 1개 Config)
 
 # 실행 및 판정
 for q in ["최근 분기 실적은?", "이번 달 비용 예측을 해줘"]:
@@ -1064,7 +1117,7 @@ def agent(question, ground_truth=""):
 - **`LLMJudgeConfig(criteria=[...])`**: LLM이 `factual_accuracy`·`reasoning_quality` 기준으로 응답을 0–5 척도로 자동 채점한다 (ground_truth 불필요)
 - **`sample_rate=0.1`**: 전체 호출의 10%만 LLM Judge로 채점해 비용을 90% 절감한다
 - **`ExplainabilityConfig`**: 응답에 추론 근거 마커("왜냐하면", "근거:" 등)가 포함되어야 하며, 추론 텍스트가 최소 50자 이상이어야 한다
-- **두 Config의 결합**: LLM Judge가 채점한 `reasoning_quality` 점수와 `ExplainabilityConfig`의 마커 탐지가 Group G 관측성 점수에 함께 기여한다
+- **두 Config의 결합**: LLM Judge가 채점한 `reasoning_quality` 점수와 `ExplainabilityConfig`의 마커 탐지가 Gate G 관측성 점수에 함께 기여한다
 
 ### 특성 3 — 드리프트 인식 (Drift Awareness)
 
@@ -1080,10 +1133,10 @@ agent-eval trend results/ --window 20
 agent-eval trend results/ --fail-on-regression
 
 # 변경 소스 × Harness Group 영향 매트릭스
-# 코드 변경  → Group B(행동무결성), Group C(신뢰성) 재검증
-# 모델 교체  → Group A(목표달성), Group G(관측성) 재검증
-# 프롬프트   → Group A, Group C 재검증
-# 데이터 변화 → Group A, Group E(보안경계) 재검증
+# 코드 변경  → Gate B(행동무결성), Gate C(신뢰성) 재검증
+# 모델 교체  → Gate A(목표달성), Gate G(관측성) 재검증
+# 프롬프트   → Gate A, Gate C 재검증
+# 데이터 변화 → Gate A, Gate E(보안경계) 재검증
 ```
 
 ### 특성 4 — 돌발 행동 대응 (Emergent Behavior Response)
@@ -1200,7 +1253,7 @@ print("\n✅ Harness Gate 통과 — 배포 가능")
 | 섹션 | 내용 |
 |------|------|
 | 섹션 1 | Harness 3요소 (Tracker·Config·Gate) 기초 흐름 |
-| 섹션 2~7 | Group A–G 각 1개 Config씩 PASS 시나리오 실전 시연 |
+| 섹션 2~7 | Gate A–G 각 1개 Config씩 PASS 시나리오 실전 시연 |
 | 섹션 7 | `HarnessEvaluationGate.enforce()` — 배포 판정 전체 흐름 |
 
 ```bash
@@ -1224,7 +1277,7 @@ python Evaluator_Examples/ch03_harness_basics.py    # Gate A~G 전체 PASS 시�
 | fail_on_violation | Config 조건 위반 시 TaskResult.success를 False로 강제하는 플래그 |
 | Config-as-Code | 배포 기준을 소스 코드로 선언하는 패턴 |
 
-Chapter 4부터는 Group A(목표달성)를 시작으로 각 Group을 깊이 탐구한다.
+Chapter 4부터는 Gate A(목표달성)를 시작으로 각 Gate를 깊이 탐구한다.
 
-> 🔗 **다음 챕터**: Chapter 4 — Group A: 목표달성 지표  
+> 🔗 **다음 챕터**: Chapter 4 — Gate A: 목표달성 지표  
 > 에이전트가 사용자 지시를 얼마나 충실하게 이행하는지 측정하는 3개 Tracker와 6개 Config를 완전히 이해한다.

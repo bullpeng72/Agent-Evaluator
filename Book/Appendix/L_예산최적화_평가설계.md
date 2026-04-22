@@ -204,7 +204,7 @@ monitor = PerformanceMonitor(
 @agent_eval(
     monitor,
     task_type="qa",
-    instructions=InstructionConfig(required_keywords=[]),  # 출처: Evaluator_Examples/ch04_group_a.py, 섹션 1 — Group A Goal Achievement
+    instructions=InstructionConfig(required_keywords=[]),  # 출처: Evaluator_Examples/ch04_group_a.py, 섹션 1 — Gate A Goal Achievement
     sla=SLAConfig(p95_ms=8000),
     loop_detection=LoopDetectionConfig(consecutive_repeat_threshold=5),
     compliance=ComplianceConfig(forbidden_data_patterns=["password", "secret_key"]),
@@ -273,7 +273,7 @@ monitor = PerformanceMonitor(
 @agent_eval(
     monitor,
     task_type="qa",
-    instructions=InstructionConfig(required_keywords=["출처"]),  # 출처: Evaluator_Examples/ch04_group_a.py, 섹션 1 — Group A Goal Achievement
+    instructions=InstructionConfig(required_keywords=["출처"]),  # 출처: Evaluator_Examples/ch04_group_a.py, 섹션 1 — Gate A Goal Achievement
     sla=SLAConfig(p95_ms=4000),
     fault_tolerance=FaultToleranceConfig(partial_success_threshold=0.85),
     explainability=ExplainabilityConfig(min_reasoning_length=20),
@@ -340,7 +340,7 @@ monitor = PerformanceMonitor(
     monitor,
     task_type="information_retrieval",
     rag_mode=True,
-    # Group A  # 출처: Evaluator_Examples/ch04_group_a.py, 섹션 1 — Group A Goal Achievement
+    # Gate A  # 출처: Evaluator_Examples/ch04_group_a.py, 섹션 1 — Gate A Goal Achievement
     instructions=InstructionConfig(
         required_keywords=["근거", "출처"],
         fail_on_violation=True,          # 키워드 미포함 시 success=False
@@ -358,7 +358,7 @@ monitor = PerformanceMonitor(
         retention_threshold=0.85,        # 컨텍스트 유지율 임계값
         check_original_goal=True,
     ),
-    # Group B
+    # Gate B
     loop_detection=LoopDetectionConfig(
         consecutive_repeat_threshold=2,  # 2회 연속 동일 도구 호출 시 루프 감지
         window_size=5,
@@ -369,7 +369,7 @@ monitor = PerformanceMonitor(
     ),
     state_consistency=StateConsistencyConfig(unchanged_keys=["user_id", "session_id"]),
     deadlock=DeadlockConfig(max_delegation_depth=3),
-    # Group C
+    # Gate C
     fault_tolerance=FaultToleranceConfig(
         partial_success_threshold=0.5,
         check_fallback_attempts=True,
@@ -379,7 +379,7 @@ monitor = PerformanceMonitor(
         check_error_acknowledgment=True,
     ),
     idempotency=IdempotencyConfig(warn_on_non_idempotent=True),
-    # Group D
+    # Gate D
     sla=SLAConfig(
         p95_ms=3000,                     # P95 응답시간 3초 상한 (밀리초)
         p99_ms=4000,                     # P99 응답시간 4초 상한 (밀리초)
@@ -389,7 +389,7 @@ monitor = PerformanceMonitor(
         penalize_failed_tokens=True,
     ),
     resource_budget=ResourceBudgetConfig(max_cost_usd=0.05),
-    # Group E
+    # Gate E
     threat_severity=ThreatSeverityConfig(
         fail_on_critical=True,           # Critical 위협 감지 시 즉시 fail
         fail_score=4.0,                  # CVSS 4.0 이상 시 fail
@@ -399,7 +399,7 @@ monitor = PerformanceMonitor(
         pii_categories=["ssn", "credit_card"],
         compliance_framework="general",
     ),
-    # Group G
+    # Gate G
     explainability=ExplainabilityConfig(
         min_reasoning_length=60,         # 최소 추론 텍스트 60자
         require_reasoning=True,
@@ -468,7 +468,7 @@ monitor = PerformanceMonitor(
 @agent_eval(
     monitor,
     task_type="qa",
-    instructions=InstructionConfig(required_keywords=[]),  # 출처: Evaluator_Examples/ch04_group_a.py, 섹션 1 — Group A Goal Achievement
+    instructions=InstructionConfig(required_keywords=[]),  # 출처: Evaluator_Examples/ch04_group_a.py, 섹션 1 — Gate A Goal Achievement
     sla=SLAConfig(p95_ms=8000),
     fault_tolerance=FaultToleranceConfig(partial_success_threshold=0.80),
 )
@@ -489,7 +489,7 @@ monitor = PerformanceMonitor.for_rag_evaluation(output_dir="results/")
     monitor,
     task_type="information_retrieval",
     rag_mode=True,
-    instructions=InstructionConfig(required_keywords=["출처"]),  # 출처: Evaluator_Examples/ch04_group_a.py, 섹션 1 — Group A Goal Achievement
+    instructions=InstructionConfig(required_keywords=["출처"]),  # 출처: Evaluator_Examples/ch04_group_a.py, 섹션 1 — Gate A Goal Achievement
     sla=SLAConfig(p95_ms=5000),
     fault_tolerance=FaultToleranceConfig(partial_success_threshold=0.85),
 )

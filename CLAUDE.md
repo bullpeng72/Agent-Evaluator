@@ -118,12 +118,13 @@ Layer 3 — Hybrid Evaluation (requires optional deps)
 Harness Engineering — 33 Config Dataclasses, 7 Gate Groups (A–G)
   → 데코레이터 파라미터로 전달, PerformanceMonitor가 자동 집계
   → 대시보드 Harness Gate 탭에서 그룹별 통과/경고/실패 시각화
+  → JSON 결과 파일에서 Gate A–G 결과는 `extra_metrics.harness_groups` 키로 저장됨 (내부 구현 명칭)
 ```
 
-### Harness Config Groups (7개 Gate, 33개 Config)
+### Harness Gate A–G (7개 Gate, 33개 Config)
 
 ```
-Group A — Goal Achievement (6)
+Gate A — Goal Achievement (6)
   InstructionConfig         → 지시 이행률 · 이탈 감지
   GoalAlignmentConfig       → 목표 정렬 점수 · 부분 달성 인정
   PlanConfig                → 계획 일관성 · 단계 완주율
@@ -131,7 +132,7 @@ Group A — Goal Achievement (6)
   ContextRetentionConfig    → 대화 컨텍스트 유지율
   KnowledgeRetentionConfig  → 지식 보존·활용 점수
 
-Group B — Behavioral Integrity (6)
+Gate B — Behavioral Integrity (6)
   LoopDetectionConfig       → 반복 루프 탐지 · 루프 임계값
   ScopeConfig               → 범위 일탈 감지 · allowed_actions
   ToolParameterSafetyConfig → 도구 파라미터 안전성 · 금지 패턴
@@ -139,32 +140,32 @@ Group B — Behavioral Integrity (6)
   StateConsistencyConfig    → 실행 전후 상태 일관성 · unchanged_keys
   DeadlockConfig            → 교착 탐지 · circular delegation · starvation
 
-Group C — Reliability (5)
+Gate C — Reliability (5)
   ReproducibilityConfig     → 동일 입력 반복 실행 일관성
   FaultToleranceConfig      → 오류 후 복구율 · 정상 완료 비율
   GracefulDegradationConfig → 품질 하한 · partial_result_markers
   RetryConsistencyConfig    → 재시도 간 응답 일관성
   IdempotencyConfig         → 멱등성 검증 · 중복 실행 안전성
 
-Group D — Performance Contract (5)
+Gate D — Performance Contract (5)
   SLAConfig                 → SLA 응답시간 임계값 · P95/P99 위반율
   EfficiencyConfig          → 토큰 효율 · 도구 호출 대비 완료율
   ResourceBudgetConfig      → 토큰 예산 · 비용 상한
   TTFTVariabilityConfig     → TTFT 표준편차 · P95/P50 비율 (monitor 수준 자동 집계)
   CostPredictabilityConfig  → task_type별 토큰 CV · 비용 예측 가능성 (monitor 수준 자동 집계)
 
-Group E — Security Boundary (3)
+Gate E — Security Boundary (3)
   ThreatSeverityConfig      → 위협 심각도 분류 · 임계값 차단
   ComplianceConfig          → 규정 준수 패턴 · 금지 키워드
   ThreatResponseConfig      → 위협 탐지 후 대응 행동 검증
 
-Group F — Multi-Agent Coordination (4)
+Gate F — Multi-Agent Coordination (4)
   ConsensusConfig           → 에이전트 간 합의율 · 분쟁 탐지
   PropagationConfig         → 정보 전파 정확도 · 왜곡 감지
   AgentRoleConfig           → 역할 준수율 · 역할 위반 탐지
   ConflictResolutionConfig  → 충돌 해결 패턴 · 해결 시간
 
-Group G — Observability (4)
+Gate G — Observability (4)
   ExplainabilityConfig      → 추론 과정 설명 가능성
   ObservabilityConfig       → 내부 상태 노출 · 추적 가능성
   ErrorDiagnosisConfig      → 오류 원인 진단 정확도
@@ -429,13 +430,13 @@ def rag_agent(question, context="", ground_truth=""): ...
 
 ```python
 from agent_evaluator import (
-    InstructionConfig, GoalAlignmentConfig,     # Group A
-    LoopDetectionConfig, StateConsistencyConfig, DeadlockConfig,  # Group B
-    FaultToleranceConfig, GracefulDegradationConfig,  # Group C
-    SLAConfig, EfficiencyConfig,                # Group D
-    ThreatSeverityConfig, ComplianceConfig,     # Group E
-    ConsensusConfig, AgentRoleConfig,           # Group F
-    ExplainabilityConfig, ObservabilityConfig,  # Group G
+    InstructionConfig, GoalAlignmentConfig,     # Gate A
+    LoopDetectionConfig, StateConsistencyConfig, DeadlockConfig,  # Gate B
+    FaultToleranceConfig, GracefulDegradationConfig,  # Gate C
+    SLAConfig, EfficiencyConfig,                # Gate D
+    ThreatSeverityConfig, ComplianceConfig,     # Gate E
+    ConsensusConfig, AgentRoleConfig,           # Gate F
+    ExplainabilityConfig, ObservabilityConfig,  # Gate G
 )
 from agent_evaluator.decorators import agent_eval
 
@@ -529,29 +530,29 @@ from agent_evaluator import (
     # Decorator Config Dataclasses (v0.8.1+)
     RetryConfig, LLMJudgeConfig, SecurityConfig,
 
-    # Harness Config — Group A: Goal Achievement
+    # Harness Config — Gate A: Goal Achievement
     InstructionConfig, GoalAlignmentConfig, PlanConfig, SubtaskConfig,
     ContextRetentionConfig, KnowledgeRetentionConfig,
 
-    # Harness Config — Group B: Behavioral Integrity
+    # Harness Config — Gate B: Behavioral Integrity
     LoopDetectionConfig, ScopeConfig, ToolParameterSafetyConfig,
     ContextWindowConfig, StateConsistencyConfig, DeadlockConfig,
 
-    # Harness Config — Group C: Reliability
+    # Harness Config — Gate C: Reliability
     ReproducibilityConfig, FaultToleranceConfig, GracefulDegradationConfig,
     RetryConsistencyConfig, IdempotencyConfig,
 
-    # Harness Config — Group D: Performance Contract
+    # Harness Config — Gate D: Performance Contract
     SLAConfig, EfficiencyConfig, ResourceBudgetConfig,
     TTFTVariabilityConfig, CostPredictabilityConfig,
 
-    # Harness Config — Group E: Security Boundary
+    # Harness Config — Gate E: Security Boundary
     ThreatSeverityConfig, ComplianceConfig, ThreatResponseConfig,
 
-    # Harness Config — Group F: Multi-Agent Coordination
+    # Harness Config — Gate F: Multi-Agent Coordination
     ConsensusConfig, PropagationConfig, AgentRoleConfig, ConflictResolutionConfig,
 
-    # Harness Config — Group G: Observability
+    # Harness Config — Gate G: Observability
     ExplainabilityConfig, ObservabilityConfig, ErrorDiagnosisConfig, LatencyAttributionConfig,
 
     # Transparency Subsystem
@@ -728,7 +729,7 @@ completion_score task_type 인식 (v0.8.0+):
 - `agent-eval trend` 비용 추세 분석 — `total_cost` 필드 + `$` 단위 출력, `--fail-on-regression` 연동
 - `OutputLeakageDetector(excluded_unix_paths=[...])` — 동적 negative lookahead로 시스템 경로 제외 목록 커스터마이즈
 - `InputSanitizationTracker` · `OutputLeakageDetector`에 `sample_rate` 파라미터 추가 — 고트래픽 환경 성능 최적화
-- Harness Group B 리포트에 `deadlock_by_type` 분류 추가 (`circular` / `starvation` / `depth_exceeded` / `livelock`)
+- Harness Gate B 리포트에 `deadlock_by_type` 분류 추가 (`circular` / `starvation` / `depth_exceeded` / `livelock`)
 - Gate D 집계에 `insufficient_data_warnings` 필드 추가 — TTFT·cost·SLA 샘플 부족 시 경고
 - `LLMJudge(escalation_model=..., escalation_threshold=2.5)` — primary 점수 미달 시 상위 모델 자동 재채점
 
@@ -737,7 +738,7 @@ completion_score task_type 인식 (v0.8.0+):
 - Harness Config 카드 33개 아이콘·수식·임계값 배지 양식 통일; `08_harness_eval.py` 예제 추가
 - 대시보드 Nav 3단 계층 재편; Gate 상관 히트맵(7×7 Pearson) · 실패 연쇄 추적 추가
 - HTML 리포트 Gate A–G 중심 전면 재편; CSV export Gate 컬럼 16개 추가
-- 그룹 분류 수정: StateConsistencyConfig·DeadlockConfig Group F→B 이동
+- 그룹 분류 수정: StateConsistencyConfig·DeadlockConfig Gate F→B 이동
 - 테스트 파일 2개 추가 (52개 파일, 2,465개+)
 
 ### v0.8.1 (2026-04-14) — 데코레이터 파라미터 구조화

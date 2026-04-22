@@ -19,19 +19,19 @@
 - [Chapter 1. AI 에이전트 품질 평가란 무엇인가](Part_I_기초/Chapter_01_AI에이전트_평가란_무엇인가.md)
 - [Chapter 2. Agent-Evaluator 첫 시작](Part_I_기초/Chapter_02_Agent-Evaluator_첫_시작.md)
 
-### Part II — Harness 지표 체계: 58개 지표를 Group A-G로 이해하다
+### Part II — Harness 지표 체계: 58개 지표를 Gate A-G로 이해하다
 
 > **Harness 3요소**: Tracker(측정) × Config(기준 선언) × Gate(배포 판정)  
 > 각 챕터는 하나의 품질 차원(Group)을 담당하며, Tracker와 Config를 함께 다룬다.
 
 - [Chapter 3. Harness Engineering 기초](Part_II_지표시스템/Chapter_03_Harness_Engineering_기초.md)
-- [Chapter 4. Group A — 목표달성 지표](Part_II_지표시스템/Chapter_04_GroupA_목표달성.md)
-- [Chapter 5. Group B — 행동무결성 지표](Part_II_지표시스템/Chapter_05_GroupB_행동무결성.md)
-- [Chapter 6. Group C — 신뢰성 지표](Part_II_지표시스템/Chapter_06_GroupC_신뢰성.md)
-- [Chapter 7. Group D — 성능계약 지표](Part_II_지표시스템/Chapter_07_GroupD_성능계약.md)
-- [Chapter 8. Group E — 보안경계 지표](Part_II_지표시스템/Chapter_08_GroupE_보안경계.md)
-- [Chapter 9. Group F — 다중에이전트 협업 지표](Part_II_지표시스템/Chapter_09_GroupF_다중에이전트.md)
-- [Chapter 10. Group G — 운영관측성 지표](Part_II_지표시스템/Chapter_10_GroupG_운영관측성.md)
+- [Chapter 4. Gate A — 목표달성 지표](Part_II_지표시스템/Chapter_04_GroupA_목표달성.md)
+- [Chapter 5. Gate B — 행동무결성 지표](Part_II_지표시스템/Chapter_05_GroupB_행동무결성.md)
+- [Chapter 6. Gate C — 신뢰성 지표](Part_II_지표시스템/Chapter_06_GroupC_신뢰성.md)
+- [Chapter 7. Gate D — 성능계약 지표](Part_II_지표시스템/Chapter_07_GroupD_성능계약.md)
+- [Chapter 8. Gate E — 보안경계 지표](Part_II_지표시스템/Chapter_08_GroupE_보안경계.md)
+- [Chapter 9. Gate F — 다중에이전트 협업 지표](Part_II_지표시스템/Chapter_09_GroupF_다중에이전트.md)
+- [Chapter 10. Gate G — 운영관측성 지표](Part_II_지표시스템/Chapter_10_GroupG_운영관측성.md)
 
 ### Part III — 개발자 가이드: 코드로 Harness를 심다
 
@@ -99,8 +99,8 @@ Gate G — 운영관측성
 ```python
 # 개발자 관점: Tracker(자동 측정) + Config(기준 선언)
 @agent_eval(monitor,
-    sla=SLAConfig(p95_ms=2000),        # Group D Config
-    scope=ScopeConfig(allowed_tools=["search"]),  # Group B Config
+    sla=SLAConfig(p95_ms=2000),        # Gate D Config
+    scope=ScopeConfig(allowed_tools=["search"]),  # Gate B Config
 )
 def my_agent(question, ground_truth=""): ...
 # → Tracker가 자동으로 latency, tool_calls 등을 기록
@@ -139,7 +139,7 @@ def my_agent(question, ground_truth=""): ...
 | Harness Config 레퍼런스만 필요 | Appendix A |
 | 전체 | Part I → II → III → IV → V → 부록 G~L |
 
-> **QA 관리자 참고**: Ch10(Group G/LLM Judge)는 Chapter 14에서 LLM Judge 비용 설정을 다룰 때 필요합니다. Part II를 Ch3~9만 읽을 경우 Chapter 14의 LLM Judge 비용 설정 이전에 Ch10을 보완하세요.
+> **QA 관리자 참고**: Ch10(Gate G/LLM Judge)는 Chapter 14에서 LLM Judge 비용 설정을 다룰 때 필요합니다. Part II를 Ch3~9만 읽을 경우 Chapter 14의 LLM Judge 비용 설정 이전에 Ch10을 보완하세요.
 
 > **Appendix I 활용**: 지표 선택을 아직 결정하지 않았다면 Part I 직후 Appendix I를 먼저 읽는 것이 효율적입니다. 어떤 지표를 쓸지 알고 나서 Part II를 읽으면 이해 속도가 크게 높아집니다.
 
@@ -163,7 +163,7 @@ def my_agent(question, ground_truth=""): ...
 > 운영 지원 Tracker(ConversationSession · Feedback · Anomaly · Cost · Streaming) 9종 포함 시  
 > **Native Tracker 25종 + Harness Config 33종 = 58개 지표**
 
-배포 판정은 `HarnessEvaluationGate`가 7개 Group을 한 번에 평가한다.
+배포 판정은 `HarnessEvaluationGate`가 7개 Gate를 한 번에 평가한다.
 
 ---
 

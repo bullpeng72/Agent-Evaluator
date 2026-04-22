@@ -624,26 +624,68 @@ for task in low_accuracy[:10]:
 
 ---
 
-## 18.8 4가지 변경 소스 × Harness Group 영향 매트릭스
+## 18.8 4가지 변경 소스 × Harness Gate 영향 매트릭스
 
-AI 에이전트 시스템에서 품질이 변화하는 원인은 크게 4가지다. 각 변경 소스가 어떤 Group 지표에 가장 먼저 영향을 미치는지 파악하면, CI/CD 게이팅에서 어떤 Harness Config를 강화해야 하는지 결정할 수 있다.
+AI 에이전트 시스템에서 품질이 변화하는 원인은 크게 4가지다. 각 변경 소스가 어떤 Gate 지표에 가장 먼저 영향을 미치는지 파악하면, CI/CD 게이팅에서 어떤 Harness Config를 강화해야 하는지 결정할 수 있다.
 
-┌─────────────────────────────────────────────────────┐
-│ ⚠️ 이 지표가 없으면 생기는 일                          │
-│ 변경 소스를 추적하지 않으면 "어디서 무너졌는지" 모른 채  │
-│ 디버깅에 수 시간을 소비한다.                           │
-│ 실제 사례: 프롬프트 1줄 수정 후 Group A TCR 8% 하락.  │
-│ 변경 소스 매트릭스가 없었다면 원인 파악에 3일 걸림.      │
-└─────────────────────────────────────────────────────┘
+@@HTML_START@@
+<div class="gw-box">
+  <div class="gw-header">⚠️ 이 지표가 없으면 생기는 일</div>
+  <div class="gw-body">
+    <p>변경 소스를 추적하지 않으면 <strong>"어디서 무너졌는지" 모른 채 디버깅에 수 시간을 소비</strong>한다.</p>
+    <div class="gw-case">
+      <strong>실제 사례:</strong> 프롬프트 1줄 수정 후 Gate A TCR 8% 하락.<br>
+      변경 소스 매트릭스가 없었다면 원인 파악에 3일 걸림.
+    </div>
+  </div>
+</div>
+@@HTML_END@@
 
-### 변경 소스 × Group 영향 매트릭스
+### 변경 소스 × Gate 영향 매트릭스
 
-| 변경 소스 | 가장 영향받는 Group | 2순위 영향 Group | 모니터링 핵심 지표 | 권장 Config 강화 |
-|---------|-------------------|----------------|-----------------|----------------|
-| **코드 변경** (로직·도구·API) | Group B 행동무결성 | Group C 신뢰성 | ToolCallAnalyzer, WorkflowExecution, RetryCorrection | `ScopeConfig`, `LoopDetectionConfig` |
-| **모델 교체** (버전 업/다운) | Group A 목표달성 | Group G 운영관측성 | TCR, AccuracyEvaluator, HallucinationDetector | `InstructionConfig`, `GoalAlignmentConfig`, `ObservabilityConfig` |
-| **프롬프트 수정** (템플릿·지시문) | Group A 목표달성 | Group C 신뢰성 | AccuracyEvaluator, HallucinationDetector, Reproducibility | `InstructionConfig`, `ReproducibilityConfig` |
-| **데이터 변경** (벡터DB·문서 갱신) | Group A 목표달성 | Group E 보안경계 | HallucinationDetector, InputSanitization, OutputLeakage | `ThreatSeverityConfig`, `IdempotencyConfig` |
+@@HTML_START@@
+<table class="impact-table">
+  <thead>
+    <tr>
+      <th>변경 소스</th>
+      <th>1순위 영향 Gate</th>
+      <th>2순위 영향 Gate</th>
+      <th>모니터링 핵심 지표</th>
+      <th>권장 Config 강화</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><span class="im-source im-code">코드 변경</span><br><span style="font-size:0.75rem;color:#666">로직·도구·API</span></td>
+      <td><span class="im-gate im-gate-b">Gate B — 행동무결성</span></td>
+      <td><span class="im-gate im-gate-c">Gate C — 신뢰성</span></td>
+      <td class="im-trackers"><code>ToolCallAnalyzer</code><br><code>WorkflowExecution</code><br><code>RetryCorrection</code></td>
+      <td><div class="im-configs"><span class="im-cfg">ScopeConfig</span><span class="im-cfg">LoopDetectionConfig</span></div></td>
+    </tr>
+    <tr>
+      <td><span class="im-source im-model">모델 교체</span><br><span style="font-size:0.75rem;color:#666">버전 업/다운</span></td>
+      <td><span class="im-gate im-gate-a">Gate A — 목표달성</span></td>
+      <td><span class="im-gate im-gate-g">Gate G — 운영관측성</span></td>
+      <td class="im-trackers"><code>TCR</code><br><code>AccuracyEvaluator</code><br><code>HallucinationDetector</code></td>
+      <td><div class="im-configs"><span class="im-cfg">InstructionConfig</span><span class="im-cfg">GoalAlignmentConfig</span><span class="im-cfg">ObservabilityConfig</span></div></td>
+    </tr>
+    <tr>
+      <td><span class="im-source im-prompt">프롬프트 수정</span><br><span style="font-size:0.75rem;color:#666">템플릿·지시문</span></td>
+      <td><span class="im-gate im-gate-a">Gate A — 목표달성</span></td>
+      <td><span class="im-gate im-gate-c">Gate C — 신뢰성</span></td>
+      <td class="im-trackers"><code>AccuracyEvaluator</code><br><code>HallucinationDetector</code><br><code>Reproducibility</code></td>
+      <td><div class="im-configs"><span class="im-cfg">InstructionConfig</span><span class="im-cfg">ReproducibilityConfig</span></div></td>
+    </tr>
+    <tr>
+      <td><span class="im-source im-data">데이터 변경</span><br><span style="font-size:0.75rem;color:#666">벡터DB·문서 갱신</span></td>
+      <td><span class="im-gate im-gate-a">Gate A — 목표달성</span></td>
+      <td><span class="im-gate im-gate-e">Gate E — 보안경계</span></td>
+      <td class="im-trackers"><code>HallucinationDetector</code><br><code>InputSanitization</code><br><code>OutputLeakage</code></td>
+      <td><div class="im-configs"><span class="im-cfg">ThreatSeverityConfig</span><span class="im-cfg">IdempotencyConfig</span></div></td>
+    </tr>
+  </tbody>
+</table>
+@@HTML_END@@
 
 ### 변경 소스별 CI/CD 게이팅 강화 전략
 
@@ -728,18 +770,60 @@ jobs:
 
 ## 18.9 HarnessEvaluationGate — 완전한 CI/CD 배포 판정
 
-`agent-eval gate` CLI는 TCR·정확도·지연 등 개별 지표 임계값을 확인한다. `HarnessEvaluationGate`는 여기서 한 단계 더 나아가 **7개 Group 전체의 Config 위반 여부**를 종합 판정한다. 단순 숫자 임계값이 아니라, **"이 에이전트가 배포 기준을 충족하는가"를 Config 선언으로 판정**한다.
+`agent-eval gate` CLI는 TCR·정확도·지연 등 개별 지표 임계값을 확인한다. `HarnessEvaluationGate`는 여기서 한 단계 더 나아가 **7개 Gate 전체의 Config 위반 여부**를 종합 판정한다. 단순 숫자 임계값이 아니라, **"이 에이전트가 배포 기준을 충족하는가"를 Config 선언으로 판정**한다.
 
 ### HarnessEvaluationGate 아키텍처
 
-```
-개별 Config 판정                    종합 Gate 판정
-──────────────────                  ──────────────────────────
-InstructionConfig  → pass/fail ─┐
-SLAConfig          → pass/fail ─┤→ HarnessEvaluationGate → DEPLOY / HOLD
-ThreatSeverityConfig → pass/fail┤   (모든 Config 통과 시만)
-DeadlockConfig     → pass/fail ─┘
-```
+@@HTML_START@@
+<div class="heg-flow">
+  <!-- Left: individual configs -->
+  <div class="heg-left">
+    <div class="heg-left-title">개별 Config 판정</div>
+    <div class="heg-config-row">
+      <span class="heg-cfg-name">InstructionConfig</span>
+      <span class="heg-arrow-right">→</span>
+      <span class="heg-pass">pass / fail</span>
+    </div>
+    <div class="heg-config-row">
+      <span class="heg-cfg-name">SLAConfig</span>
+      <span class="heg-arrow-right">→</span>
+      <span class="heg-pass">pass / fail</span>
+    </div>
+    <div class="heg-config-row">
+      <span class="heg-cfg-name">ThreatSeverityConfig</span>
+      <span class="heg-arrow-right">→</span>
+      <span class="heg-pass">pass / fail</span>
+    </div>
+    <div class="heg-config-row">
+      <span class="heg-cfg-name">DeadlockConfig</span>
+      <span class="heg-arrow-right">→</span>
+      <span class="heg-pass">pass / fail</span>
+    </div>
+  </div>
+
+  <!-- Connector -->
+  <div class="heg-connector">
+    <div class="heg-connector-line"></div>
+    <div class="heg-connector-arrow">→</div>
+    <div class="heg-connector-line"></div>
+  </div>
+
+  <!-- Right: aggregated gate -->
+  <div class="heg-right">
+    <div class="heg-right-title">종합 Gate 판정</div>
+    <div class="heg-gate-box">
+      <div class="heg-gate-name">HarnessEvaluationGate</div>
+      <div class="heg-gate-sub">7개 Gate Config 종합 평가</div>
+    </div>
+    <div style="color:#5c6bc0;font-size:1.2rem;">↓</div>
+    <div class="heg-outcomes">
+      <div class="heg-deploy">✅ DEPLOY</div>
+      <div class="heg-hold">🚫 HOLD</div>
+    </div>
+    <div class="heg-outcome-note">모든 Config 통과 시만 DEPLOY</div>
+  </div>
+</div>
+@@HTML_END@@
 
 ### 코드 예시 — CI/CD 완전 통합
 
@@ -749,8 +833,8 @@ DeadlockConfig     → pass/fail ─┘
 import sys, json
 from agent_evaluator import (
     PerformanceMonitor, create_taskresult,
-    InstructionConfig, SLAConfig, ThreatSeverityConfig,   # Group A, D, E
-    ReproducibilityConfig, DeadlockConfig, ObservabilityConfig,  # Group C, B, G
+    InstructionConfig, SLAConfig, ThreatSeverityConfig,   # Gate A, D, E
+    ReproducibilityConfig, DeadlockConfig, ObservabilityConfig,  # Gate C, B, G
 )
 from agent_evaluator.decorators import agent_eval
 
@@ -767,23 +851,23 @@ with open("data/golden_datasets/master_golden.json") as f:
 
 @agent_eval(
     monitor, task_type="qa",
-    # Group A — 목표달성
+    # Gate A — 목표달성
     instructions=InstructionConfig(
         required_keywords=[],          # 필수 키워드 (빈 목록 = 모두 허용)
         fail_on_violation=True,        # 위반 시 success=False 강제
     ),
-    # Group D — 성능계약
+    # Gate D — 성능계약
     sla=SLAConfig(
         p95_ms=3000,                   # P95 레이턴시 3초 이내
         max_cost_per_task=0.05,        # 태스크당 최대 $0.05
     ),
-    # Group E — 보안경계
+    # Gate E — 보안경계
     threat_severity=ThreatSeverityConfig(
         warn_score=3.0,
         fail_score=7.0,
         fail_on_critical=True,         # 보안 위반은 즉시 배포 차단
     ),
-    # Group C — 신뢰성
+    # Gate C — 신뢰성
     reproducibility=ReproducibilityConfig(
         reproducibility_threshold=0.80,
         fail_on_low_reproducibility=False,  # 경고만, 배포는 허용
@@ -969,26 +1053,26 @@ agent-eval gate results/operational_*.json --tcr 40 --accuracy 60
 **Harness Validation CI 예제**
 
 ```python
-# 출처: Evaluator_Examples/ch18_cicd_gate.py — Harness 7개 Group CI/CD 게이팅
+# 출처: Evaluator_Examples/ch18_cicd_gate.py — Harness 7개 Gate CI/CD 게이팅
 # 실행: python Evaluator_Examples/ch18_cicd_gate.py [--strict]
 # 종료 코드: 0 = 전체 PASS/WARN, 1 = 하나 이상 FAIL
 import sys
 from agent_evaluator import (
     PerformanceMonitor,
-    InstructionConfig, GoalAlignmentConfig,      # Group A
-    LoopDetectionConfig, ScopeConfig,             # Group B
-    ReproducibilityConfig, RetryConsistencyConfig, # Group C
-    SLAConfig, ResourceBudgetConfig,              # Group D
-    ThreatSeverityConfig, ComplianceConfig,       # Group E
-    ConsensusConfig, AgentRoleConfig,             # Group F
-    ExplainabilityConfig, ObservabilityConfig,    # Group G
+    InstructionConfig, GoalAlignmentConfig,      # Gate A
+    LoopDetectionConfig, ScopeConfig,             # Gate B
+    ReproducibilityConfig, RetryConsistencyConfig, # Gate C
+    SLAConfig, ResourceBudgetConfig,              # Gate D
+    ThreatSeverityConfig, ComplianceConfig,       # Gate E
+    ConsensusConfig, AgentRoleConfig,             # Gate F
+    ExplainabilityConfig, ObservabilityConfig,    # Gate G
 )
 from agent_evaluator.decorators import agent_eval
 import json
 
 monitor = PerformanceMonitor(output_dir="results/", enable_security_metrics=True)
 
-# Group A + B 최소 커버리지 예제
+# Gate A + B 최소 커버리지 예제
 @agent_eval(
     monitor,
     task_type="qa",

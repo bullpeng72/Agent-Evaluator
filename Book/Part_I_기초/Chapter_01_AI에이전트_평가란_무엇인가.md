@@ -65,7 +65,7 @@ answer = response.choices[0].message.content
 
 **문제**: 개발 단계에서 몇 가지 케이스만 손으로 확인하고 배포했기 때문에, 저빈도 질의 패턴에서 발생하는 환각을 발견하지 못했습니다.
 
-**필요했던 평가**: `HallucinationDetector` — 에이전트의 답변이 제공된 컨텍스트와 사실적으로 일치하는지 측정하는 자동화된 지표. **Group C 신뢰성** 차원의 핵심 지표입니다.
+**필요했던 평가**: `HallucinationDetector` — 에이전트의 답변이 제공된 컨텍스트와 사실적으로 일치하는지 측정하는 자동화된 지표. **Gate C 신뢰성** 차원의 핵심 지표입니다.
 
 > *참고: RAG 파이프라인의 문맥 이탈 환각(context-unfaithful hallucination) 패턴 — Ji et al. (2023). "Survey of Hallucination in Natural Language Generation." ACM Computing Surveys, 55(12). / Singhal et al. (2023). "Large Language Models Encode Clinical Knowledge." Nature, 620, 172–180 — 의료 LLM의 임상 지식 인코딩 능력과 정확도 한계 분석.*
 
@@ -75,7 +75,7 @@ answer = response.choices[0].message.content
 
 **문제**: 에이전트의 기능 테스트만 수행했고, 악의적 입력에 대한 보안 테스트가 없었습니다.
 
-**필요했던 평가**: `InputSanitizationTracker`(프롬프트 인젝션 탐지), `OutputLeakageDetector`(민감 정보 출력 탐지), `ToolAuthorizationTracker`(허가된 도구만 사용하는지 감시), `PrivilegeEscalationDetector`(권한 상승 패턴 탐지), `ToolChainAttackDetector`(도구 연쇄 공격 탐지). **Group E 보안경계** 차원의 5개 트래커입니다.
+**필요했던 평가**: `InputSanitizationTracker`(프롬프트 인젝션 탐지), `OutputLeakageDetector`(민감 정보 출력 탐지), `ToolAuthorizationTracker`(허가된 도구만 사용하는지 감시), `PrivilegeEscalationDetector`(권한 상승 패턴 탐지), `ToolChainAttackDetector`(도구 연쇄 공격 탐지). **Gate E 보안경계** 차원의 5개 트래커입니다.
 
 > *참고: 간접 프롬프트 인젝션을 통한 LLM 통합 애플리케이션 공격 실증 — Greshake et al. (2023). "Not What You've Signed Up For: Compromising Real-World LLM-Integrated Applications with Indirect Prompt Injection." arXiv:2302.12173. / OWASP LLM Top 10 v1.1 (2023). LLM01: Prompt Injection. owasp.org/www-project-top-10-for-large-language-model-applications*
 
@@ -85,7 +85,7 @@ answer = response.choices[0].message.content
 
 **문제**: 응답 시간과 도구 호출 횟수를 지속적으로 모니터링하는 체계가 없었습니다.
 
-**필요했던 평가**: `LatencyTracker`(p95 레이턴시 + `SLAConfig` 위반 감지), `ToolCallAnalyzer`(도구 호출 패턴 분석), `AnomalyDetector`(비정상 패턴 자동 감지). **Group D 성능계약** 차원입니다.
+**필요했던 평가**: `LatencyTracker`(p95 레이턴시 + `SLAConfig` 위반 감지), `ToolCallAnalyzer`(도구 호출 패턴 분석), `AnomalyDetector`(비정상 패턴 자동 감지). **Gate D 성능계약** 차원입니다.
 
 > *참고: 에이전트의 반복적 도구 호출 패턴 — Yao et al. (2023). "ReAct: Synergizing Reasoning and Acting in Language Models." ICLR 2023 — 추론-행동 반복 루프 기반 도구 호출 아키텍처 실증. / Liu et al. (2024). "AgentBench: Evaluating LLMs as Agents." ICLR 2024 — 다양한 환경에서 LLM 에이전트의 도구 호출 수행 능력 평가.*
 
@@ -119,7 +119,7 @@ Tracker (관찰/측정) × Config (기준 선언) × Gate (배포 판정)
 
 이 세 역할이 어떻게 실제 코드에서 보이는지는 **Chapter 2**에서 직접 경험합니다. 설계 원리와 각 역할의 내부 구조는 **Chapter 3**에서 동등한 깊이로 다룹니다.
 
-### 7개 품질 차원 (Group A-G)
+### 7개 품질 차원 (Gate A-G)
 
 #### 왜 7개인가 — 자율 에이전트 배포 준비도의 독립 차원
 
@@ -152,7 +152,7 @@ Tracker (관찰/측정) × Config (기준 선언) × Gate (배포 판정)
 | | **운영 지원 Tracker** (모니터링·비용·스트리밍 등) | | **+9** | — |
 | | **SDK 전체 합계** | | **25** | **33** |
 
-> ¹ Harness Gate(A–G)에 직접 집계되는 Native Tracker는 16개다. `ConversationSession`, `ImplicitFeedbackTracker`, `AnomalyDetector`, `CostTracker`, `StreamingEvaluator` 등 운영 지원 Tracker 9개를 합산하면 SDK 전체 Native Tracker는 25개다. Group G는 별도 Tracker 없이 `LLMJudge`(선택 활성화)와 Config 4개로 관측성을 측정한다.
+> ¹ Harness Gate(A–G)에 직접 집계되는 Native Tracker는 16개다. `ConversationSession`, `ImplicitFeedbackTracker`, `AnomalyDetector`, `CostTracker`, `StreamingEvaluator` 등 운영 지원 Tracker 9개를 합산하면 SDK 전체 Native Tracker는 25개다. Gate G는 별도 Tracker 없이 `LLMJudge`(선택 활성화)와 Config 4개로 관측성을 측정한다.
 
 > 공식 표기: **"25 Tracker + 33 Config = 58개 지표"**
 
@@ -356,12 +356,12 @@ slope = -0.025/평가 → 드리프트 감지 → CI 경보
 # 도구 체인 이상 탐지 — 정상적이지 않은 연쇄 패턴을 자동 감지
 monitor = PerformanceMonitor(
     output_dir="results/",
-    enable_security_metrics=True,   # Group E 활성화
+    enable_security_metrics=True,   # Gate E 활성화
     enable_anomaly_detection=True,  # 돌발 행동 감지
 )
 ```
 
-- **`enable_security_metrics=True`**: Group E(보안경계) — `InputSanitizationTracker`, `OutputLeakageDetector`, `ToolAuthorizationTracker`, `PrivilegeEscalationDetector`, `ToolChainAttackDetector` 5개 트래커를 활성화한다.
+- **`enable_security_metrics=True`**: Gate E(보안경계) — `InputSanitizationTracker`, `OutputLeakageDetector`, `ToolAuthorizationTracker`, `PrivilegeEscalationDetector`, `ToolChainAttackDetector` 5개 트래커를 활성화한다.
 - **`enable_anomaly_detection=True`**: `AnomalyDetector`가 통계적 정상 범위를 학습하고, 도구 호출 횟수·응답 시간 등이 비정상적으로 이탈할 때 자동으로 탐지한다.
 - **opt-in 설계**: 두 옵션 모두 기본값 `False`이며, 활성화하면 태스크당 측정 오버헤드가 증가하므로 필요할 때만 켠다.
 
@@ -467,7 +467,7 @@ AI 에이전트는 배포 후에도 계속 변합니다. 일회성 배포 전 �
 
 **ROUGE** (Lin 2004)는 문서 요약을 위해 **재현율(Recall) 중심**으로 설계됐습니다.
 
-> 🔧 **Agent-Evaluator의 대응** — BLEU/ROUGE 대신 **Token F1**(Precision+Recall 균형)을 핵심 지표로 채택하고, 4개 서브지표(Token F1 + Jaccard + LCS + Char Levenshtein) 조합으로 단일 지표의 맹점을 보완합니다. (→ Group A 목표달성 §4.2)
+> 🔧 **Agent-Evaluator의 대응** — BLEU/ROUGE 대신 **Token F1**(Precision+Recall 균형)을 핵심 지표로 채택하고, 4개 서브지표(Token F1 + Jaccard + LCS + Char Levenshtein) 조합으로 단일 지표의 맹점을 보완합니다. (→ Gate A 목표달성 §4.2)
 
 ### 의미 유사도의 부상 (2018–2021)
 
@@ -479,7 +479,7 @@ AI 에이전트는 배포 후에도 계속 변합니다. 일회성 배포 전 �
 
 **HELM** (Liang et al. 2022)은 42개 시나리오 × 7개 지표로 정확성·강건성·공정성·독성을 동시 측정하는 종합 벤치마크입니다. **MT-Bench**와 **Chatbot Arena** (Zheng et al. 2023)는 각각 GPT-4로 멀티턴 응답을 채점하는 **LLM-as-Judge** 방식과, 익명 인간 평가자의 쌍대 비교를 기반으로 한 **Elo 인간 선호도 랭킹**으로 LLM 평가 패러다임을 정착시켰습니다.
 
-> 🔧 **Agent-Evaluator의 대응** — `LLMJudge` 클래스가 이 패러다임을 구현합니다. completeness·relevance·factual_consistency·toxicity·bias 5차원을 ground_truth 없이 채점하며, RAG 모드에서는 faithfulness 차원이 추가됩니다. DeepEval G-Eval의 커스텀 기준(`judge_criteria`)도 외부 패키지 없이 지원합니다. (→ Group G 운영관측성 §10.2)
+> 🔧 **Agent-Evaluator의 대응** — `LLMJudge` 클래스가 이 패러다임을 구현합니다. completeness·relevance·factual_consistency·toxicity·bias 5차원을 ground_truth 없이 채점하며, RAG 모드에서는 faithfulness 차원이 추가됩니다. DeepEval G-Eval의 커스텀 기준(`judge_criteria`)도 외부 패키지 없이 지원합니다. (→ Gate G 운영관측성 §10.2)
 
 ### AI 평가 발전 요약
 
@@ -499,13 +499,13 @@ AI 에이전트는 배포 후에도 계속 변합니다. 일회성 배포 전 �
 > **이 챕터의 핵심**
 >
 > - AI 에이전트는 입력→출력 1회의 LLM과 달리, 도구 호출·멀티스텝·상태·반복 동작으로 평가 복잡성이 근본적으로 다릅니다.
-> - 환각·보안 위협·레이턴시 급증은 평가 체계 없이는 배포 후에야 발견되는 전형적인 실패 패턴입니다. 각각 Group C·E·D 차원의 문제입니다.
+> - 환각·보안 위협·레이턴시 급증은 평가 체계 없이는 배포 후에야 발견되는 전형적인 실패 패턴입니다. 각각 Gate C·E·D 차원의 문제입니다.
 > - **Harness Engineering**은 Tracker(실행 중 자동 측정) × Config(배포 기준 코드 선언) × Gate(종합 배포 판정)의 3요소로 작동합니다. 세 역할은 독립적으로 설계되어 있어 각각 교체·확장·제거할 수 있습니다.
 > - 58개 지표(25 Tracker + 33 Config)는 서로 독립적인 7개 배포 관문 Gate A-G로 구조화됩니다.
 > - AI Native 평가의 5가지 고유 도전(확률론적 품질·AI-by-AI 평가·드리프트·돌발 행동·지속 평가)은 기존 소프트웨어 테스팅 방법론으로 해결되지 않습니다.
 > - 에이전트 평가 도구 생태계에서 Harness Config 기반 배포 판정과 에이전틱 전용 지표를 LLM 없이 제공하는 도구는 Agent Evaluator가 유일합니다.
 >
-> **→ Chapter 2**: 이 개념들을 실제 코드로 경험합니다. `pip install`부터 첫 `PASS/FAIL` 배포 판정까지 5분 안에 완료할 수 있으며, Tracker·Config·Gate가 코드에서 어떻게 보이는지 직접 확인합니다. Chapter 3에서는 그 내부 설계 원리를 동등한 깊이로 탐구합니다.
+> **→ Chapter 2**: 이 개념들을 실제 코드로 경험합니다. `pip install`부터 첫 `PASS/FAIL` 배포 판정까지 5분 안에 완료할 수 있으며, Tracker·Config·Gate가 코드에서 어떻게 보이는지 직접 확인합니다. Chapter 3에서는 그 내부 설계 원리를 자세히 탐구합니다.
 
 ---
 
@@ -603,7 +603,7 @@ tok_stats = tok_tracker.get_usage_stats()
 - `ResponseQualityEvaluator.evaluate_response()`의 차원 점수는 최상위 키가 아닌 `["dimension_scores"]` 중첩 딕셔너리 안에 있다.
 
 ```python
-# 출처: Evaluator_Examples/ch01_first_eval.py, 섹션 2 — Group B Behavioral Integrity
+# 출처: Evaluator_Examples/ch01_first_eval.py, 섹션 2 — Gate B Behavioral Integrity
 from agent_evaluator import EvalMetadata
 from agent_evaluator.decorators import agent_eval
 
@@ -617,20 +617,20 @@ def tool_agent(question: str, ground_truth: str = "") -> tuple:
         expected_tools=expected,
     )
 
-# 데코레이터가 Group A(Accuracy) + Group B(ToolCall) + Group F(ToolSelection F1)를 자동 측정
+# 데코레이터가 Gate A(Accuracy) + Gate B(ToolCall) + Gate F(ToolSelection F1)를 자동 측정
 tool_agent("2024년 GDP 상위 5개국은?", ground_truth="미국, 중국, 독일, 일본, 인도")
 ```
 
 - **`EvalMetadata`**: 응답 텍스트와 함께 `tool_calls`·`expected_tools` 등 메타데이터를 반환하면 `@agent_eval`이 자동으로 파싱해 트래커에 전달한다.
-- **`tool_calls`**: 실제로 호출한 도구 목록 — `ToolCallAnalyzer`(Group B)와 `ToolSelectionTracker`(Group F)가 분석한다.
+- **`tool_calls`**: 실제로 호출한 도구 목록 — `ToolCallAnalyzer`(Gate B)와 `ToolSelectionTracker`(Gate F)가 분석한다.
 - **`expected_tools`**: 기대 도구 목록과 실제 호출을 F1 점수로 비교해 도구 선택 정확도를 측정한다.
 - **자동 측정 범위**: 단일 데코레이터 하나로 Gate A(정확도·TCR), Gate B(도구 패턴), Gate D(레이턴시), Gate F(도구 선택 F1)가 동시에 기록된다.
 
 ```bash
-# Group A/C/D — 목표달성·신뢰성·성능계약 측정
+# Gate A/C/D — 목표달성·신뢰성·성능계약 측정
 python Evaluator_Examples/ch01_first_eval.py
 
-# Group B/E/F — 행동무결성·보안경계·다중에이전트 측정
+# Gate B/E/F — 행동무결성·보안경계·다중에이전트 측정
 python Evaluator_Examples/ch05_group_b.py
 ```
 
@@ -654,12 +654,12 @@ TCR=43.1% | 54개 태스크 | p95_latency=5.20s | avg_accuracy=59.82%
 
 # ch05_group_b.py
 TCR=41.4% | 14개 태스크 | 보안 위협 3건 탐지
-  - SQL Injection 시도 탐지 (Group E — InputSanitizationTracker)
-  - 민감 데이터 노출 탐지 (Group E — OutputLeakageDetector)
-  - 무단 도구 사용 탐지 (Group E — ToolAuthorizationTracker)
+  - SQL Injection 시도 탐지 (Gate E — InputSanitizationTracker)
+  - 민감 데이터 노출 탐지 (Gate E — OutputLeakageDetector)
+  - 무단 도구 사용 탐지 (Gate E — ToolAuthorizationTracker)
 ```
 
-> **첫 실행 팁**: 두 파일 모두 API 키 없이 실행됩니다. `ANTHROPIC_API_KEY` 또는 `OPENAI_API_KEY`를 `.env`에 추가하면 LLMJudge(Group G)가 활성화되어 `completeness`, `relevance`, `factual_consistency` 세 차원이 추가로 측정됩니다.
+> **첫 실행 팁**: 두 파일 모두 API 키 없이 실행됩니다. `ANTHROPIC_API_KEY` 또는 `OPENAI_API_KEY`를 `.env`에 추가하면 LLMJudge(Gate G)가 활성화되어 `completeness`, `relevance`, `factual_consistency` 세 차원이 추가로 측정됩니다.
 
 **프레임워크 어댑터 — 실제 프레임워크 응답에서 Gate별 지표 자동 추출**
 
@@ -679,14 +679,14 @@ def langchain_agent(question: str, ground_truth: str = ""):
              for t in ["web_search", "calculator"]]
     return SimpleNamespace(
         output=f"결과: {question}",
-        intermediate_steps=steps,            # → Group B ToolCallAnalyzer 자동 연결
+        intermediate_steps=steps,            # → Gate B ToolCallAnalyzer 자동 연결
         usage_metadata={"input_tokens": 350, "output_tokens": 120},  # → TokenEconomyTracker
     )
 
 langchain_agent("GDP 상위 5개국은?", ground_truth="미국, 중국, 독일, 일본, 인도")
-# Group A: accuracy_score 자동 계산 (TokenF1·Jaccard·LCS)
-# Group B: tool_calls=[web_search, calculator] 자동 기록
-# Group D: tokens_used={input:350, output:120} 자동 기록
+# Gate A: accuracy_score 자동 계산 (TokenF1·Jaccard·LCS)
+# Gate B: tool_calls=[web_search, calculator] 자동 기록
+# Gate D: tokens_used={input:350, output:120} 자동 기록
 ```
 
 - **`framework="langchain"`**: LangChain AgentExecutor 응답에서 `intermediate_steps`(도구 호출 목록)와 `usage_metadata`(토큰 사용량)를 자동으로 파싱한다.

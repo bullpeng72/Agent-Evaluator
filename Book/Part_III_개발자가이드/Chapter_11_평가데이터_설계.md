@@ -610,23 +610,23 @@ print(f"평균 지연: {summary.get('avg_latency', 0):.2f}초")
 
 | 에이전트 유형 | 필수 Group | 필수 Tracker | 최소 Config 세트 | 선택 확장 |
 |------------|-----------|-------------|-----------------|----------|
-| **단순 QA** | A, C | TaskCompletionTracker, AccuracyEvaluator | `InstructionConfig`, `ReproducibilityConfig` | Group D (SLA) |
-| **RAG** | A, C, E | + HallucinationDetector | + `ThreatSeverityConfig`, `IdempotencyConfig` | Group G (LLM Judge) |
-| **코드 생성** | A, B, E | + ToolCallAnalyzer | `ScopeConfig`, `ComplianceConfig`, `InstructionConfig` | Group C (신뢰성) |
-| **도구 사용** | A, B, D | + ToolSelectionTracker, LatencyTracker | `SLAConfig`, `LoopDetectionConfig`, `SubtaskConfig` | Group F (멀티에이전트) |
-| **멀티에이전트** | A, B, F, G | + AgentCoordinationTracker | `DeadlockConfig`, `AgentRoleConfig`, `ObservabilityConfig` | Group C, E 전체 |
-| **보안 민감** | A, E (전부) | + InputSanitizationTracker, OutputLeakageDetector | `ThreatSeverityConfig`, `ComplianceConfig`, `ThreatResponseConfig` | Group B ToolParameterSafety |
-| **장기 대화** | A, C, F | + ConversationSession | `ContextRetentionConfig`, `FaultToleranceConfig` | Group D TTFT |
+| **단순 QA** | A, C | TaskCompletionTracker, AccuracyEvaluator | `InstructionConfig`, `ReproducibilityConfig` | Gate D (SLA) |
+| **RAG** | A, C, E | + HallucinationDetector | + `ThreatSeverityConfig`, `IdempotencyConfig` | Gate G (LLM Judge) |
+| **코드 생성** | A, B, E | + ToolCallAnalyzer | `ScopeConfig`, `ComplianceConfig`, `InstructionConfig` | Gate C (신뢰성) |
+| **도구 사용** | A, B, D | + ToolSelectionTracker, LatencyTracker | `SLAConfig`, `LoopDetectionConfig`, `SubtaskConfig` | Gate F (멀티에이전트) |
+| **멀티에이전트** | A, B, F, G | + AgentCoordinationTracker | `DeadlockConfig`, `AgentRoleConfig`, `ObservabilityConfig` | Gate C, E 전체 |
+| **보안 민감** | A, E (전부) | + InputSanitizationTracker, OutputLeakageDetector | `ThreatSeverityConfig`, `ComplianceConfig`, `ThreatResponseConfig` | Gate B ToolParameterSafety |
+| **장기 대화** | A, C, F | + ConversationSession | `ContextRetentionConfig`, `FaultToleranceConfig` | Gate D TTFT |
 
 ### 코드로 최소 세트 적용
 
 ```python
-# 출처: Evaluator_Examples/ch11_eval_data.py, 섹션 Group A·B·C — 에이전트 유형별 최소 Harness Config 세트
+# 출처: Evaluator_Examples/ch11_eval_data.py, 섹션 Gate A·B·C — 에이전트 유형별 최소 Harness Config 세트
 from agent_evaluator import (
     PerformanceMonitor,
-    InstructionConfig, ReproducibilityConfig,          # Group A, C
-    ThreatSeverityConfig, IdempotencyConfig,           # Group E, C
-    DeadlockConfig, AgentRoleConfig, ObservabilityConfig,  # Group B, F, G
+    InstructionConfig, ReproducibilityConfig,          # Gate A, C
+    ThreatSeverityConfig, IdempotencyConfig,           # Gate E, C
+    DeadlockConfig, AgentRoleConfig, ObservabilityConfig,  # Gate B, F, G
 )
 from agent_evaluator.decorators import agent_eval
 
@@ -680,7 +680,7 @@ def multi_agent(question: str, ground_truth: str = "") -> str:
 
 ### TaskType과 Group 자동 활성화 관계
 
-`create_taskresult(task_type=...)` 호출 시 아래 Group의 Tracker가 자동으로 활성화된다:
+`create_taskresult(task_type=...)` 호출 시 아래 Gate의 Tracker가 자동으로 활성화된다:
 
 | TaskType | 자동 활성 Group | 수동 활성 필요 Group |
 |---------|--------------|-------------------|
@@ -698,11 +698,11 @@ Week 1 — 최소 세트로 시작
   → TCR, Accuracy, Harness Gate 기본 판정 확인
 
 Week 2~4 — 운영 데이터 분석 후 확장
-  지속 낮은 지표 → 해당 Group Config 추가
-  (예: P95 지연 높음 → Group D SLAConfig 추가)
+  지속 낮은 지표 → 해당 Gate Config 추가
+  (예: P95 지연 높음 → Gate D SLAConfig 추가)
 
 Month 2 — HarnessEvaluationGate 종합 판정 도입
-  모든 필요 Group Config → HarnessEvaluationGate에 통합
+  모든 필요 Gate Config → HarnessEvaluationGate에 통합
   CI/CD pipeline에 gate() 연결
 
 Month 3+ — 전체 Group 커버리지 달성

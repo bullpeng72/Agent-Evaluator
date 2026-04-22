@@ -1,21 +1,40 @@
-# Chapter 6. Group C — 신뢰성 지표
+# Chapter 6. Gate C — 신뢰성 지표
 
-```
-┌────────────────────────────────────────────────────────────┐
-│ 🔗 Harness 연결                                             │
-│ Group C — Reliability (신뢰성)                              │
-│ Tracker 2종: HallucinationDetector · RetryCorrectionTracker│
-│ Config 5종: ReproducibilityConfig · FaultToleranceConfig · │
-│             GracefulDegradationConfig ·                    │
-│             RetryConsistencyConfig · IdempotencyConfig      │
-│ Gate 판정: HarnessEvaluationGate(report).evaluate()         │
-└────────────────────────────────────────────────────────────┘
-```
+@@HTML_START@@
+<div class="hc-card hc-c">
+  <div class="hc-header">
+    <span class="hc-gate-badge he-gate gc">Gate C</span>
+    <span class="hc-title">🔗 Harness 연결 — Reliability (신뢰성)</span>
+  </div>
+  <div class="hc-body">
+    <div class="hc-row">
+      <span class="hc-label hc-tracker-label">Tracker</span>
+      <div class="hc-chips">
+        <span class="hc-chip hc-t-chip">HallucinationDetector</span>
+        <span class="hc-chip hc-t-chip">RetryCorrectionTracker</span>
+      </div>
+    </div>
+    <div class="hc-row">
+      <span class="hc-label hc-config-label">Config</span>
+      <div class="hc-chips">
+        <span class="hc-chip hc-c-chip">ReproducibilityConfig</span>
+        <span class="hc-chip hc-c-chip">FaultToleranceConfig</span>
+        <span class="hc-chip hc-c-chip">GracefulDegradationConfig</span>
+        <span class="hc-chip hc-c-chip">RetryConsistencyConfig</span>
+        <span class="hc-chip hc-c-chip">IdempotencyConfig</span>
+      </div>
+    </div>
+  </div>
+  <div class="hc-footer">
+    <code>HarnessEvaluationGate(report).evaluate()</code>
+  </div>
+</div>
+@@HTML_END@@
 
 > 📖 **관련 레퍼런스**
-> - **[Appendix A — 58개 지표 완전 레퍼런스](../Appendix/A_58개지표_레퍼런스.md)**: Group C 지표 입력·출력
+> - **[Appendix A — 58개 지표 완전 레퍼런스](../Appendix/A_58개지표_레퍼런스.md)**: Gate C 지표 입력·출력
 > - **[Appendix H — 수학적 상세](../Appendix/H_알고리즘_수학적_레퍼런스.md)**: 환각 탐지 알고리즘 수식
-> - **[Appendix A §Part 2 — Config 레퍼런스](../Appendix/A_58개지표_레퍼런스.md)**: Group C Config 파라미터 전체 목록
+> - **[Appendix A §Part 2 — Config 레퍼런스](../Appendix/A_58개지표_레퍼런스.md)**: Gate C Config 파라미터 전체 목록
 > - **[Evaluator_Examples/ch06_group_c.py](../../Evaluator_Examples/ch06_group_c.py)**: 이 챕터 실전 예제 (HallucinationDetector · 5개 Config · Gate C FAIL 시나리오)
 
 > **독자별 읽기 가이드**  
@@ -24,32 +43,30 @@
 
 ---
 
-```
-┌────────────────────────────────────────────────────────────┐
-│ ⚠️ Group C가 없으면 생기는 일                                │
-│ 에이전트가 어제는 "A"라고 답하고 오늘은 "B"라고 답한다.      │
-│ 같은 질문에 매번 다른 응답 — 사용자는 에이전트를 신뢰할 수   │
-│ 없다. ReproducibilityConfig 없이는 이 불일치를 배포 전에    │
-│ 탐지할 수 없다.                                              │
-│                                                              │
-│ 또 다른 사례: 의료 정보 봇이 "아스피린은 모든 성인에게       │
-│ 안전합니다"라고 환각을 생성했다. HallucinationDetector를     │
-│ 활성화했다면 사실 일관성 점수 0.2로 조기에 탐지됐을 것이다.  │
-└────────────────────────────────────────────────────────────┘
-```
+@@HTML_START@@
+<div class="gw-box">
+  <div class="gw-header">⚠️ Gate C가 없으면 생기는 일</div>
+  <div class="gw-body">
+    <p>에이전트가 어제는 "A"라고 답하고 오늘은 "B"라고 답한다. 같은 질문에 매번 다른 응답 — 사용자는 에이전트를 신뢰할 수 없다. ReproducibilityConfig 없이는 이 불일치를 배포 전에 탐지할 수 없다.</p>
+    <div class="gw-case">
+      <strong>또 다른 사례:</strong> 의료 정보 봇이 "아스피린은 모든 성인에게 안전합니다"라고 환각을 생성했다. HallucinationDetector를 활성화했다면 사실 일관성 점수 0.2로 조기에 탐지됐을 것이다.
+    </div>
+  </div>
+</div>
+@@HTML_END@@
 
 ---
 
-## 6.1 Group C 개요
+## 6.1 Gate C 개요
 
 Group C는 에이전트의 **신뢰성(Reliability)**을 측정한다. 신뢰성은 두 가지 차원을 가진다.
 
 1. **일관성**: 같은 입력에 일관된 결과를 내는가? (`ReproducibilityConfig`)
 2. **견고성**: 장애 상황에서 적절히 대응하고 복구하는가? (`FaultToleranceConfig`, `GracefulDegradationConfig`)
 
-Group A(목표달성)가 "결과가 맞는가?"를 묻는다면, Group C는 "결과가 언제나 맞는가?"를 묻는다.
+Gate A(목표달성)가 "결과가 맞는가?"를 묻는다면, Group C는 "결과가 언제나 맞는가?"를 묻는다.
 
-### Tracker vs Config — Group C 대비표
+### Tracker vs Config — Gate C 대비표
 
 | 관점 | Tracker (측정) | Config (기준 선언) |
 |------|--------------|------------------|
@@ -153,7 +170,7 @@ def rag_agent(question: str, context: str = "", ground_truth: str = "") -> str:
 | `self_correction_rate` | 스스로 오류를 수정한 비율 |
 
 ```python
-# 출처: Evaluator_Examples/ch06_group_c.py, 섹션 2 — Group B — Behavioral Integrity
+# 출처: Evaluator_Examples/ch06_group_c.py, 섹션 2 — Gate B — Behavioral Integrity
 from agent_evaluator import create_taskresult
 
 # 재시도 정보 기록
@@ -209,7 +226,7 @@ ReproducibilityConfig(
 **사용 예시 — 금융 정보 에이전트:**
 
 ```python
-# 출처: Evaluator_Examples/ch06_group_c.py, 섹션 3 — Group C Reliability
+# 출처: Evaluator_Examples/ch06_group_c.py, 섹션 3 — Gate C Reliability
 @agent_eval(
     monitor,
     task_type="qa",
@@ -249,7 +266,7 @@ FaultToleranceConfig(
 **사용 예시 — 데이터베이스 쿼리 에이전트:**
 
 ```python
-# 출처: Evaluator_Examples/ch06_group_c.py, 섹션 3 — Group C Reliability
+# 출처: Evaluator_Examples/ch06_group_c.py, 섹션 3 — Gate C Reliability
 @agent_eval(
     monitor,
     task_type="tool_use",
@@ -285,7 +302,7 @@ GracefulDegradationConfig(
 **사용 예시:**
 
 ```python
-# 출처: Evaluator_Examples/ch06_group_c.py, 섹션 3 — Group C Reliability
+# 출처: Evaluator_Examples/ch06_group_c.py, 섹션 3 — Gate C Reliability
 @agent_eval(
     monitor,
     task_type="qa",
@@ -520,7 +537,7 @@ agent-eval trend results/ --window 30 --metric reproducibility
 
 ---
 
-## 6.6 HarnessEvaluationGate — Group C 판정
+## 6.6 HarnessEvaluationGate — Gate C 판정
 
 ```python
 from agent_evaluator import HarnessEvaluationGate
@@ -530,19 +547,19 @@ gate = HarnessEvaluationGate(report)
 result = gate.evaluate()
 
 group_c = result["groups"]["C"]
-print(f"Group C 통과: {group_c['passed']}")
-print(f"Group C 점수: {group_c['score']:.3f}")
+print(f"Gate C 통과: {group_c['passed']}")
+print(f"Gate C 점수: {group_c['score']:.3f}")
 
-# Group C 주요 지표 접근
+# Gate C 주요 지표 접근
 d = report.to_dict()
 print(f"환각 점수: {d.get('hallucination_score', 'N/A')}")
 print(f"재현성: {d.get('reproducibility_score', 'N/A')}")
 print(f"재시도 성공률: {d.get('retry_success_rate', 'N/A')}")
 ```
 
-- `result["groups"]["C"]`로 Group C 전체 통과 여부와 점수를 직접 접근하며, `score`는 0.0~1.0 범위다.
+- `result["groups"]["C"]`로 Gate C 전체 통과 여부와 점수를 직접 접근하며, `score`는 0.0~1.0 범위다.
 - `hallucination_score`·`reproducibility_score`·`retry_success_rate`는 `report.to_dict()`의 최상위 키로 접근하며, 각각 환각·재현성·재시도 효율성을 대표하는 지표다.
-- `gate.enforce()`는 Group A–G 전체를 종합 판정해 임계값 미달 시 `sys.exit(1)`을 호출하므로 CI/CD 파이프라인에서 배포 차단 자동화가 가능하다.
+- `gate.enforce()`는 Gate A–G 전체를 종합 판정해 임계값 미달 시 `sys.exit(1)`을 호출하므로 CI/CD 파이프라인에서 배포 차단 자동화가 가능하다.
 
 ---
 
@@ -558,7 +575,7 @@ print(f"재시도 성공률: {d.get('retry_success_rate', 'N/A')}")
 **핵심 코드**
 
 ```python
-# 출처: Evaluator_Examples/ch06_group_c.py, 섹션 3 — Group C Reliability
+# 출처: Evaluator_Examples/ch06_group_c.py, 섹션 3 — Gate C Reliability
 from agent_evaluator import (
     FaultToleranceConfig, GracefulDegradationConfig,
     ReproducibilityConfig, RetryConsistencyConfig, IdempotencyConfig,
@@ -614,17 +631,17 @@ def idempotent_agent(question: str, ground_truth: str = "") -> str:
     return f"읽기 전용 조회 완료: {question}에 대한 데이터를 검색했습니다."
 ```
 
-- 각 Config를 `task_id_prefix`로 분리하면 리포트에서 `c_fault_*`·`c_repro_*`·`c_idempotency_*`별로 Group C 위반 원인을 추적할 수 있다.
+- 각 Config를 `task_id_prefix`로 분리하면 리포트에서 `c_fault_*`·`c_repro_*`·`c_idempotency_*`별로 Gate C 위반 원인을 추적할 수 있다.
 - `RetryConfig(max=2, on=(RuntimeError,), delay=0.0)`는 재시도 실행을 담당하고, `FaultToleranceConfig`와 `GracefulDegradationConfig`는 그 결과를 각각 측정한다.
 - `idempotent_agent`처럼 응답에 "조회"·"검색"처럼 읽기 전용을 나타내는 문자열이 포함되면 `duplicate_detection_markers`와 결합해 중복 실행 안전성 보너스 점수를 얻을 수 있다.
 
 ```bash
-python Evaluator_Examples/ch03_harness_basics.py          # Group C 포함 전체
+python Evaluator_Examples/ch03_harness_basics.py          # Gate C 포함 전체
 python Evaluator_Examples/ch01_first_eval.py    # HallucinationDetector 예제
 python Evaluator_Examples/ch04_group_a.py  # Gate C FAIL — 배포 차단 케이스
 ```
 
-- `ch03_harness_basics.py`는 Group A–G 모든 Config를 한 번에 실행하므로 Group C 판정 결과를 다른 Gate와 함께 비교할 수 있다.
+- `ch03_harness_basics.py`는 Gate A–G 모든 Config를 한 번에 실행하므로 Gate C 판정 결과를 다른 Gate와 함께 비교할 수 있다.
 - `ch01_first_eval.py`의 `HallucinationDetector` 예제는 `enable_hallucination_detection=True` 설정 없이는 실행되지 않으므로 반드시 `PerformanceMonitor` 생성 시 확인한다.
 - `ch04_group_a.py`의 Gate C FAIL 시나리오를 먼저 실행해 어떤 Config가 어떤 조건에서 `success=False`를 내는지 파악한 후 자신의 에이전트에 적용하면 설정 오류를 줄일 수 있다.
 
@@ -642,5 +659,5 @@ python Evaluator_Examples/ch04_group_a.py  # Gate C FAIL — 배포 차단 케�
 | `RetryConsistencyConfig` | 재시도 일관성 기준 | `improvement_threshold`, `penalize_degradation` |
 | `IdempotencyConfig` | 멱등성 기준 | `non_idempotent_patterns`, `non_idempotent_penalty` |
 
-> 🔗 **다음 챕터**: Chapter 7 — Group D: 성능계약  
+> 🔗 **다음 챕터**: Chapter 7 — Gate D: 성능계약  
 > 에이전트의 응답 시간·비용·토큰 사용량이 약속한 SLA를 지키는지 측정하는 2개 Tracker와 5개 Config를 완전히 이해한다.

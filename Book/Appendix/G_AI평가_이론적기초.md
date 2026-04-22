@@ -76,7 +76,7 @@ LLM의 등장은 평가 방식을 근본적으로 바꿨다. 모델 성능이 GL
 
 **WebArena (Zhou et al. 2023)**는 실제 웹사이트 환경(Reddit, GitLab, 이커머스 등)에서 에이전트가 완전한 웹 태스크를 수행하는 능력을 평가한다.
 
-이러한 연구들이 공통적으로 발견한 사실은: **에이전트 평가에는 도구 사용 패턴, 오류 복구, 멀티스텝 계획, 보안 정책 준수를 측정하는 전용 지표가 필요하다**는 것이다. Agent-Evaluator의 Group B-F 에이전틱 지표군이 바로 이 필요에서 설계됐다.
+이러한 연구들이 공통적으로 발견한 사실은: **에이전트 평가에는 도구 사용 패턴, 오류 복구, 멀티스텝 계획, 보안 정책 준수를 측정하는 전용 지표가 필요하다**는 것이다. Agent-Evaluator의 Gate B-F 에이전틱 지표군이 바로 이 필요에서 설계됐다.
 
 ### G.1.5 Harness Engineering — 지표를 넘어선 배포 판정 패러다임
 
@@ -149,9 +149,9 @@ Agent-Evaluator의 `InputSanitizationTracker`는 정규표현식 패턴 매칭 �
 **LLM-as-Judge**는 타당도가 높고 비용이 중간이지만 신뢰도는 중간이다.
 
 Agent-Evaluator의 3-Layer 설계는 이 트리레마에 대한 실용적 해답이다:
-- **Group A-D (기반 지표)**: 신뢰도·비용 최우선 (규칙 기반, 밀리초 단위)
-- **Group B-F (에이전틱 지표)**: 신뢰도 유지, 에이전트 특화 타당도 추가 (규칙 기반 + 패턴 매칭)
-- **Group G (관측성)**: 타당도 최우선, 비용은 opt-in으로 제어 (LLM-as-Judge, 샘플링)
+- **Gate A-D (기반 지표)**: 신뢰도·비용 최우선 (규칙 기반, 밀리초 단위)
+- **Gate B-F (에이전틱 지표)**: 신뢰도 유지, 에이전트 특화 타당도 추가 (규칙 기반 + 패턴 매칭)
+- **Gate G (관측성)**: 타당도 최우선, 비용은 opt-in으로 제어 (LLM-as-Judge, 샘플링)
 
 ---
 
@@ -249,7 +249,7 @@ Agent-Evaluator의 `AgentCoordinationTracker`는 이 중 **협업 패턴과 성�
 - 도메인 지식 반영 한계: "혈압 180/120은 위험한가?" → ground_truth 없이 판단 불가
 - 창의적 답변 평가 한계: 정답이 하나가 아닌 태스크에서 낮은 타당도
 
-**Agent-Evaluator의 선택:** Group A-F 모두 규칙 기반. 모든 프로덕션 배포에서 즉시 사용 가능하도록 외부 의존성을 제거했다.
+**Agent-Evaluator의 선택:** Gate A-F 모두 규칙 기반. 모든 프로덕션 배포에서 즉시 사용 가능하도록 외부 의존성을 제거했다.
 
 ### G.4.3 모델 기반 평가 (LLM-as-Judge)
 
@@ -277,10 +277,10 @@ Agent-Evaluator의 `AgentCoordinationTracker`는 이 중 **협업 패턴과 성�
 ```
 하이브리드 평가 파이프라인:
   
-  1단계: 규칙 기반 (Group A-F) — 모든 태스크에 적용
+  1단계: 규칙 기반 (Gate A-F) — 모든 태스크에 적용
          → 기준 미달 시 즉시 플래그, LLM Judge 호출 건너뜀
   
-  2단계: LLM Judge (Group G) — 샘플링 적용 (5~10%)
+  2단계: LLM Judge (Gate G) — 샘플링 적용 (5~10%)
          → 심층 품질 분석, 미묘한 오류 탐지
   
   3단계: 인간 검토 (Human) — 최고 위험 케이스만
@@ -293,14 +293,14 @@ Agent-Evaluator의 `AgentCoordinationTracker`는 이 중 **협업 패턴과 성�
 
 ## G.5 Agent-Evaluator 설계 원칙의 이론적 근거
 
-### G.5.1 Zero-dependency Group A-F의 이유
+### G.5.1 Zero-dependency Gate A-F의 이유
 
 프로덕션 환경에서 외부 의존성은 세 가지 위험을 만든다:
 1. **가용성 위험**: OpenAI API 다운 → 평가 시스템 전체 중단
 2. **비용 위험**: 트래픽 급증 시 평가 비용 폭발적 증가
 3. **지연 위험**: 외부 API 응답 지연이 애플리케이션 응답 지연으로 전파
 
-Group A-F를 외부 의존성 없이 설계함으로써 **평가 시스템이 애플리케이션과 같은 수명주기를 가지도록** 했다. 평가는 항상 동작하거나, 실패해도 주 기능에 영향을 주지 않는다.
+Gate A-F를 외부 의존성 없이 설계함으로써 **평가 시스템이 애플리케이션과 같은 수명주기를 가지도록** 했다. 평가는 항상 동작하거나, 실패해도 주 기능에 영향을 주지 않는다.
 
 ### G.5.2 4-지표 가중 합산의 이론적 근거
 
@@ -361,13 +361,13 @@ Agent-Evaluator의 `HallucinationDetector`는 경량 버전으로, 수치 불일
 
 **JudgeBench**: LLM Judge 자체의 품질을 평가하는 메타-벤치마크. "어떤 LLM이 가장 공정한 Judge인가"를 측정한다. GPT-4o, Claude Opus가 상위권이지만, 도메인 특화 태스크에서는 파인튜닝된 소형 모델이 더 나은 경우도 있다.
 
-이런 연구 결과는 Agent-Evaluator의 `LLMJudge`가 단독으로 사용되지 않고 Group A-F 규칙 기반 지표와 함께 사용되어야 하는 이유를 뒷받침한다.
+이런 연구 결과는 Agent-Evaluator의 `LLMJudge`가 단독으로 사용되지 않고 Gate A-F 규칙 기반 지표와 함께 사용되어야 하는 이유를 뒷받침한다.
 
 ---
 
 ---
 
-## G.7.0 이론과 Group A-G 구현 매핑
+## G.7.0 이론과 Gate A-G 구현 매핑
 
 G.1~G.6에서 다룬 이론이 Agent-Evaluator의 어느 Group에서 구현되는지 정리한다.
 
@@ -635,12 +635,12 @@ monitor = PerformanceMonitor(
 
 | 단계 | 도구 | Config/Tracker |
 |------|------|---------------|
-| 평가 | `PerformanceMonitor`, `@agent_eval` | Group A-G Tracker |
+| 평가 | `PerformanceMonitor`, `@agent_eval` | Gate A-G Tracker |
 | 측정 | `generate_report()`, `save_to_file()` | EvaluationReport |
 | 이상 탐지 | `AnomalyDetector`, `agent-eval trend` | AnomalyConfig, RunTrendAnalyzer |
-| 원인 분석 | `LLMJudge`, Phoenix OTEL | Group G ObservabilityConfig |
+| 원인 분석 | `LLMJudge`, Phoenix OTEL | Gate G ObservabilityConfig |
 | 개선 | `GoldenSetBuilder` | 골든 데이터셋 자동 확장 |
-| 재검증 | `HarnessEvaluationGate` | Group A-G Config 전체 |
+| 재검증 | `HarnessEvaluationGate` | Gate A-G Config 전체 |
 | 배포 | `agent-eval gate` | CI/CD 통합 |
 
 ---
@@ -815,7 +815,7 @@ if parity_gap > 0.05:  # 5% 이상 차이
 현재 Agent-Evaluator에 전용 공정성 Config는 없지만, `ComplianceConfig`와 `LLMJudge`를 결합해 기본 공정성 감시가 가능하다:
 
 ```python
-# 출처: Evaluator_Examples/ch08_group_e.py, 섹션 5 — Group E Security Boundary
+# 출처: Evaluator_Examples/ch08_group_e.py, 섹션 5 — Gate E Security Boundary
 from agent_evaluator import ComplianceConfig
 
 ComplianceConfig(
@@ -831,7 +831,7 @@ ComplianceConfig(
 )
 ```
 
-권고: 향후 `FairnessConfig` (Group G 확장)로 그룹별 TCR 격차 임계값, bias 점수 임계값을 선언할 수 있도록 발전시키는 것이 이상적이다.
+권고: 향후 `FairnessConfig` (Gate G 확장)로 그룹별 TCR 격차 임계값, bias 점수 임계값을 선언할 수 있도록 발전시키는 것이 이상적이다.
 
 ### G.11.5 공정성 평가의 실무적 도전
 
@@ -859,7 +859,7 @@ Level 4: 의미 일관성 확인 (필드 간 논리적 일관성)
 ### G.12.3 Agent-Evaluator에서의 형식 검증
 
 ```python
-# 출처: Evaluator_Examples/ch04_group_a.py, 섹션 1 — Group A Goal Achievement
+# 출처: Evaluator_Examples/ch04_group_a.py, 섹션 1 — Gate A Goal Achievement
 import json
 from agent_evaluator import InstructionConfig
 from agent_evaluator.decorators import agent_eval

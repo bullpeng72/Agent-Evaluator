@@ -1021,53 +1021,61 @@ print(f"평균 TTFT: {ttft_stats.get('mean', 0):.3f}초")
 
 ### 지표 × 데코레이터 지원 매트릭스
 
-```
-지표                            @agent_eval  @batch_eval  @conversation_eval
-─────────────────────────────────────────────────────────────────────────────
-[Group A-D — 기반 지표]
-TCR (태스크 완료율)                  ✅           ✅              ✅
-Accuracy (정확도)                    ✅           ✅              ✅
-Hallucination (환각 탐지)     ✅(opt-in)   ✅(opt-in)          ✅
-Quality (응답 품질 5차원)             ✅           ✅              ✅
-Latency (지연 시간 + TTFT)           ✅           ✅              ✅
-Token Economy (토큰·비용)            ✅           ✅              ✅
-
-[Group B·F — 에이전틱 지표]
-Tool Call (도구 호출 패턴)            ✅           ✅              ✅
-Retry/Correction (재시도)            ✅           ✅              ✅
-Tool Selection F1                    ✅           ✅              ✅
-Agent Coordination (멀티에이전트)     ✅           ✅              ✅
-Workflow Execution                   ✅           ✅              ✅
-
-[Group E — 보안 지표]
-Input Sanitization            ✅(opt-in)   ✅(opt-in)       ✅(opt-in)
-Output Leakage               ✅(opt-in)   ✅(opt-in)       ✅(opt-in)
-Tool Authorization           ✅(opt-in)   ✅(opt-in)       ✅(opt-in)
-Privilege Escalation         ✅(opt-in)   ✅(opt-in)       ✅(opt-in)
-Tool Chain Attack            ✅(opt-in)   ✅(opt-in)       ✅(opt-in)
-
-[Group G — LLM Judge]  (llm_judge=LLMJudgeConfig(), 기본 설치에 포함)
-Completeness                  ✅(opt-in)   ✅(opt-in)          N/A
-Relevance                     ✅(opt-in)   ✅(opt-in)          N/A
-Factual Consistency           ✅(opt-in)   ✅(opt-in)          N/A
-Toxicity                      ✅(opt-in)   ✅(opt-in)          N/A
-Bias                          ✅(opt-in)   ✅(opt-in)          N/A
-safety_score                  ✅(opt-in)   ✅(opt-in)          N/A
-Faithfulness (RAG, v0.7.6+) ✅(rag+judge) ✅(rag+judge)       N/A
-G-Eval 커스텀 (v0.7.6+)       ✅(opt-in)   ✅(opt-in)          N/A
-
-[대화 지표]  (@conversation_eval 전용)
-Turn Count                        N/A          N/A              ✅
-Overall Score                     N/A          N/A              ✅
-Context Retention                 N/A          N/A              ✅
-Topic Coherence                   N/A          N/A              ✅
-Progressive Depth                 N/A          N/A              ✅
-Session Completion                N/A          N/A              ✅
-Avg Turn Latency                  N/A          N/A              ✅
-Turn Scores                       N/A          N/A              ✅
-```
-
-> **opt-in** = 기본 비활성. 파라미터 또는 monitor 설정으로 활성화 필요.
+@@HTML_START@@
+<table class="mm-table">
+  <thead>
+    <tr>
+      <th>지표</th>
+      <th>@agent_eval</th>
+      <th>@batch_eval</th>
+      <th>@conversation_eval</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr class="mm-gate-row"><td colspan="4">Gate A–D — 기반 지표</td></tr>
+    <tr><td>TCR (태스크 완료율)</td><td><span class="mm-ok">✅</span></td><td><span class="mm-ok">✅</span></td><td><span class="mm-ok">✅</span></td></tr>
+    <tr><td>Accuracy (정확도)</td><td><span class="mm-ok">✅</span></td><td><span class="mm-ok">✅</span></td><td><span class="mm-ok">✅</span></td></tr>
+    <tr><td>Hallucination (환각 탐지)</td><td><span class="mm-opt">✅ opt-in</span></td><td><span class="mm-opt">✅ opt-in</span></td><td><span class="mm-ok">✅</span></td></tr>
+    <tr><td>Quality (응답 품질 5차원)</td><td><span class="mm-ok">✅</span></td><td><span class="mm-ok">✅</span></td><td><span class="mm-ok">✅</span></td></tr>
+    <tr><td>Latency (지연 시간 + TTFT)</td><td><span class="mm-ok">✅</span></td><td><span class="mm-ok">✅</span></td><td><span class="mm-ok">✅</span></td></tr>
+    <tr><td>Token Economy (토큰·비용)</td><td><span class="mm-ok">✅</span></td><td><span class="mm-ok">✅</span></td><td><span class="mm-ok">✅</span></td></tr>
+    <tr class="mm-gate-row"><td colspan="4">Gate B·F — 에이전틱 지표</td></tr>
+    <tr><td>Tool Call (도구 호출 패턴)</td><td><span class="mm-ok">✅</span></td><td><span class="mm-ok">✅</span></td><td><span class="mm-ok">✅</span></td></tr>
+    <tr><td>Retry / Correction (재시도)</td><td><span class="mm-ok">✅</span></td><td><span class="mm-ok">✅</span></td><td><span class="mm-ok">✅</span></td></tr>
+    <tr><td>Tool Selection F1</td><td><span class="mm-ok">✅</span></td><td><span class="mm-ok">✅</span></td><td><span class="mm-ok">✅</span></td></tr>
+    <tr><td>Agent Coordination (멀티에이전트)</td><td><span class="mm-ok">✅</span></td><td><span class="mm-ok">✅</span></td><td><span class="mm-ok">✅</span></td></tr>
+    <tr><td>Workflow Execution</td><td><span class="mm-ok">✅</span></td><td><span class="mm-ok">✅</span></td><td><span class="mm-ok">✅</span></td></tr>
+    <tr class="mm-gate-row"><td colspan="4">Gate E — 보안 지표</td></tr>
+    <tr><td>Input Sanitization</td><td><span class="mm-opt">✅ opt-in</span></td><td><span class="mm-opt">✅ opt-in</span></td><td><span class="mm-opt">✅ opt-in</span></td></tr>
+    <tr><td>Output Leakage</td><td><span class="mm-opt">✅ opt-in</span></td><td><span class="mm-opt">✅ opt-in</span></td><td><span class="mm-opt">✅ opt-in</span></td></tr>
+    <tr><td>Tool Authorization</td><td><span class="mm-opt">✅ opt-in</span></td><td><span class="mm-opt">✅ opt-in</span></td><td><span class="mm-opt">✅ opt-in</span></td></tr>
+    <tr><td>Privilege Escalation</td><td><span class="mm-opt">✅ opt-in</span></td><td><span class="mm-opt">✅ opt-in</span></td><td><span class="mm-opt">✅ opt-in</span></td></tr>
+    <tr><td>Tool Chain Attack</td><td><span class="mm-opt">✅ opt-in</span></td><td><span class="mm-opt">✅ opt-in</span></td><td><span class="mm-opt">✅ opt-in</span></td></tr>
+    <tr class="mm-gate-row"><td colspan="4">Gate G — LLM Judge &nbsp;<small style="font-weight:400;text-transform:none;letter-spacing:0">(llm_judge=LLMJudgeConfig(), 기본 설치 포함)</small></td></tr>
+    <tr><td>Completeness</td><td><span class="mm-opt">✅ opt-in</span></td><td><span class="mm-opt">✅ opt-in</span></td><td><span class="mm-na">N/A</span></td></tr>
+    <tr><td>Relevance</td><td><span class="mm-opt">✅ opt-in</span></td><td><span class="mm-opt">✅ opt-in</span></td><td><span class="mm-na">N/A</span></td></tr>
+    <tr><td>Factual Consistency</td><td><span class="mm-opt">✅ opt-in</span></td><td><span class="mm-opt">✅ opt-in</span></td><td><span class="mm-na">N/A</span></td></tr>
+    <tr><td>Toxicity</td><td><span class="mm-opt">✅ opt-in</span></td><td><span class="mm-opt">✅ opt-in</span></td><td><span class="mm-na">N/A</span></td></tr>
+    <tr><td>Bias</td><td><span class="mm-opt">✅ opt-in</span></td><td><span class="mm-opt">✅ opt-in</span></td><td><span class="mm-na">N/A</span></td></tr>
+    <tr><td>safety_score</td><td><span class="mm-opt">✅ opt-in</span></td><td><span class="mm-opt">✅ opt-in</span></td><td><span class="mm-na">N/A</span></td></tr>
+    <tr><td>Faithfulness (RAG, v0.7.6+)</td><td><span class="mm-rag">✅ rag+judge</span></td><td><span class="mm-rag">✅ rag+judge</span></td><td><span class="mm-na">N/A</span></td></tr>
+    <tr><td>G-Eval 커스텀 (v0.7.6+)</td><td><span class="mm-opt">✅ opt-in</span></td><td><span class="mm-opt">✅ opt-in</span></td><td><span class="mm-na">N/A</span></td></tr>
+    <tr class="mm-gate-row"><td colspan="4">대화 지표 &nbsp;<small style="font-weight:400;text-transform:none;letter-spacing:0">(@conversation_eval 전용)</small></td></tr>
+    <tr><td>Turn Count</td><td><span class="mm-na">N/A</span></td><td><span class="mm-na">N/A</span></td><td><span class="mm-ok">✅</span></td></tr>
+    <tr><td>Overall Score</td><td><span class="mm-na">N/A</span></td><td><span class="mm-na">N/A</span></td><td><span class="mm-ok">✅</span></td></tr>
+    <tr><td>Context Retention</td><td><span class="mm-na">N/A</span></td><td><span class="mm-na">N/A</span></td><td><span class="mm-ok">✅</span></td></tr>
+    <tr><td>Topic Coherence</td><td><span class="mm-na">N/A</span></td><td><span class="mm-na">N/A</span></td><td><span class="mm-ok">✅</span></td></tr>
+    <tr><td>Progressive Depth</td><td><span class="mm-na">N/A</span></td><td><span class="mm-na">N/A</span></td><td><span class="mm-ok">✅</span></td></tr>
+    <tr><td>Session Completion</td><td><span class="mm-na">N/A</span></td><td><span class="mm-na">N/A</span></td><td><span class="mm-ok">✅</span></td></tr>
+    <tr><td>Avg Turn Latency</td><td><span class="mm-na">N/A</span></td><td><span class="mm-na">N/A</span></td><td><span class="mm-ok">✅</span></td></tr>
+    <tr><td>Turn Scores</td><td><span class="mm-na">N/A</span></td><td><span class="mm-na">N/A</span></td><td><span class="mm-ok">✅</span></td></tr>
+  </tbody>
+</table>
+<p style="font-size:0.8rem;color:#555;margin-top:-10px">
+  <strong>opt-in</strong> = 기본 비활성 — 파라미터 또는 monitor 설정으로 활성화 필요 &nbsp;|&nbsp;
+  <strong>rag+judge</strong> = <code>rag_mode=True</code> + <code>llm_judge=LLMJudgeConfig()</code> 조합 필요
+</p>
+@@HTML_END@@
 
 ---
 
@@ -1196,7 +1204,7 @@ def streaming_agent(question: str, ground_truth: str = ""):
             concurrency=5)          # concurrency=N → 병렬 처리
 def batch_agent(questions: list, ground_truths: list = None) -> list:
     return [llm.ask(q) for q in questions]
-# → 전체 Group A-G 지표 + DataFrame 반환
+# → 전체 Gate A-G 지표 + DataFrame 반환
 # 출처: Evaluator_Examples/ch12_decorators.py, 섹션 6 — batch_eval 병렬
 ```
 
@@ -1386,7 +1394,7 @@ agent-eval dashboard results/
 각 Harness Config는 `@agent_eval` 데코레이터에 **이름 있는 개별 파라미터**로 전달합니다. Config 종류마다 파라미터명이 다릅니다 (예: `instructions=`, `sla=`, `threat_severity=`).
 
 ```python
-# 출처: Evaluator_Examples/ch12_decorators.py, 섹션 Group A·D — 데코레이터 Config 통합 예제
+# 출처: Evaluator_Examples/ch12_decorators.py, 섹션 Gate A·D — 데코레이터 Config 통합 예제
 # 출처: Evaluator_Examples/ch12_decorators.py, 섹션 1 — Harness Config 기본
 from agent_evaluator import (
     PerformanceMonitor,
@@ -1399,11 +1407,11 @@ monitor = PerformanceMonitor(output_dir="results/")
 @agent_eval(
     monitor,
     task_type="qa",
-    instructions=InstructionConfig(        # Group A — 목표달성
+    instructions=InstructionConfig(        # Gate A — 목표달성
         required_keywords=["답변"],        # 응답에 포함되어야 할 키워드
         fail_on_violation=True,
     ),
-    sla=SLAConfig(                         # Group D — 성능계약
+    sla=SLAConfig(                         # Gate D — 성능계약
         p95_ms=3000,                       # P95 응답시간 3초 이하 (밀리초 단위)
         max_cost_per_task=0.01,
     ),
@@ -1441,12 +1449,12 @@ from agent_evaluator.decorators import RetryConfig, LLMJudgeConfig, SecurityConf
         delay=1.0,
         backoff=2.0,
     ),
-    # LLM Judge 설정 (Group G 운영관측성)
+    # LLM Judge 설정 (Gate G 운영관측성)
     llm_judge=LLMJudgeConfig(
         model="claude-haiku-4-5-20251001",
         criteria=["medical_accuracy", "citation_quality"],  # G-Eval 대체
     ),
-    # 보안 설정 (Group E 보안경계)
+    # 보안 설정 (Gate E 보안경계)
     security=SecurityConfig(
         allowed_tools=["search", "read"],
     ),
@@ -1470,8 +1478,8 @@ from agent_evaluator.decorators import agent_eval, RetryConfig, LLMJudgeConfig, 
 # ── 방법 A: PerformanceMonitor + @agent_eval (세밀한 제어) ──
 monitor = PerformanceMonitor(
     output_dir="results/",
-    enable_security_metrics=True,   # Group E
-    enable_llm_judge=True,         # Group G
+    enable_security_metrics=True,   # Gate E
+    enable_llm_judge=True,         # Gate G
     judge_sample_rate=0.1,
 )
 
@@ -1497,13 +1505,13 @@ from agent_evaluator import HarnessEvaluationGate
 
 report = monitor.generate_report()
 d = report.to_dict()
-print(f"Group A TCR: {d.get('accuracy_metrics', {}).get('tcr', {}).get('tcr', 0):.1%}")
-print(f"Group D p95: {d.get('efficiency_metrics', {}).get('latency', {}).get('p95', 0):.2f}s")
+print(f"Gate A TCR: {d.get('accuracy_metrics', {}).get('tcr', {}).get('tcr', 0):.1%}")
+print(f"Gate D p95: {d.get('efficiency_metrics', {}).get('latency', {}).get('p95', 0):.2f}s")
 gate = HarnessEvaluationGate(report)
 gate.enforce()  # 기준 미달 시 sys.exit(1)
 
 # ── 방법 B: QuickEval (빠른 시작) ──
-eval = QuickEval.for_security("results/")  # Group E 강화 설정
+eval = QuickEval.for_security("results/")  # Gate E 강화 설정
 
 @eval.qa
 def simple_agent(question: str, ground_truth: str = "") -> str:

@@ -1,22 +1,42 @@
-# Chapter 4. Group A — 목표달성 지표
+# Chapter 4. Gate A — 목표달성 지표
 
-```
-┌────────────────────────────────────────────────────────────┐
-│ 🔗 Harness 연결                                             │
-│ Group A — Goal Achievement (목표달성)                       │
-│ Tracker 3종: TaskCompletionTracker · AccuracyEvaluator ·   │
-│              ResponseQualityEvaluator                       │
-│ Config 6종: InstructionConfig · GoalAlignmentConfig ·      │
-│             PlanConfig · ContextRetentionConfig ·           │
-│             SubtaskConfig · KnowledgeRetentionConfig        │
-│ Gate 판정: HarnessEvaluationGate(report).evaluate()        │
-└────────────────────────────────────────────────────────────┘
-```
+@@HTML_START@@
+<div class="hc-card hc-a">
+  <div class="hc-header">
+    <span class="hc-gate-badge he-gate ga">Gate A</span>
+    <span class="hc-title">🔗 Harness 연결 — Goal Achievement (목표달성)</span>
+  </div>
+  <div class="hc-body">
+    <div class="hc-row">
+      <span class="hc-label hc-tracker-label">Tracker</span>
+      <div class="hc-chips">
+        <span class="hc-chip hc-t-chip">TaskCompletionTracker</span>
+        <span class="hc-chip hc-t-chip">AccuracyEvaluator</span>
+        <span class="hc-chip hc-t-chip">ResponseQualityEvaluator</span>
+      </div>
+    </div>
+    <div class="hc-row">
+      <span class="hc-label hc-config-label">Config</span>
+      <div class="hc-chips">
+        <span class="hc-chip hc-c-chip">InstructionConfig</span>
+        <span class="hc-chip hc-c-chip">GoalAlignmentConfig</span>
+        <span class="hc-chip hc-c-chip">PlanConfig</span>
+        <span class="hc-chip hc-c-chip">ContextRetentionConfig</span>
+        <span class="hc-chip hc-c-chip">SubtaskConfig</span>
+        <span class="hc-chip hc-c-chip">KnowledgeRetentionConfig</span>
+      </div>
+    </div>
+  </div>
+  <div class="hc-footer">
+    <code>HarnessEvaluationGate(report).evaluate()</code>
+  </div>
+</div>
+@@HTML_END@@
 
 > 📖 **관련 레퍼런스**
-> - **[Appendix A — 58개 지표 완전 레퍼런스](../Appendix/A_58개지표_레퍼런스.md)**: Group A 지표 입력·출력·기본값
+> - **[Appendix A — 58개 지표 완전 레퍼런스](../Appendix/A_58개지표_레퍼런스.md)**: Gate A 지표 입력·출력·기본값
 > - **[Appendix H — 수학적 상세](../Appendix/H_알고리즘_수학적_레퍼런스.md)**: 4중 가중 정확도 공식, TCR 의사코드
-> - **[Appendix A §Part 2 — Config 레퍼런스](../Appendix/A_58개지표_레퍼런스.md)**: Group A Config 파라미터 전체 목록
+> - **[Appendix A §Part 2 — Config 레퍼런스](../Appendix/A_58개지표_레퍼런스.md)**: Gate A Config 파라미터 전체 목록
 > - **[Evaluator_Examples/ch04_group_a.py](../../Evaluator_Examples/ch04_group_a.py)**: 이 챕터 실전 예제 (Gate A~G FAIL 시나리오 17개 · 배포 차단 케이스 포함)
 
 > **독자별 읽기 가이드**  
@@ -25,22 +45,21 @@
 
 ---
 
-```
-┌────────────────────────────────────────────────────────────┐
-│ ⚠️ Group A가 없으면 생기는 일                                │
-│ "응답이 나왔다"는 것을 알지만, "목표를 달성했다"는 것은       │
-│ 알 수 없다. 에이전트가 매번 응답을 생성하더라도 TCR이 70%     │
-│ 이하면 3건 중 1건은 사용자가 원하는 결과를 얻지 못한다.       │
-│                                                              │
-│ 실제 사례: 고객 응대 봇이 "응답 생성률 100%"를 보고하면서     │
-│ 고객 만족도가 60%에 머무른 회사. 응답은 나왔지만 질문에        │
-│ 맞는 답변이 아니었다. AccuracyEvaluator 미도입이 원인.        │
-└────────────────────────────────────────────────────────────┘
-```
+@@HTML_START@@
+<div class="gw-box">
+  <div class="gw-header">⚠️ Gate A가 없으면 생기는 일</div>
+  <div class="gw-body">
+    <p>"응답이 나왔다"는 것을 알지만, "목표를 달성했다"는 것은 알 수 없다. 에이전트가 매번 응답을 생성하더라도 TCR이 70% 이하면 3건 중 1건은 사용자가 원하는 결과를 얻지 못한다.</p>
+    <div class="gw-case">
+      <strong>실제 사례:</strong> 고객 응대 봇이 "응답 생성률 100%"를 보고하면서 고객 만족도가 60%에 머무른 회사. 응답은 나왔지만 질문에 맞는 답변이 아니었다. AccuracyEvaluator 미도입이 원인.
+    </div>
+  </div>
+</div>
+@@HTML_END@@
 
 ---
 
-## 4.1 Group A 개요
+## 4.1 Gate A 개요
 
 Group A는 에이전트가 사용자의 **목표를 달성했는가**를 측정한다. 이것이 Harness Engineering의 출발점이다. 에이전트가 아무리 빠르고 안전해도 목표를 달성하지 못하면 배포할 수 없다.
 
@@ -50,7 +69,7 @@ Group A는 에이전트가 사용자의 **목표를 달성했는가**를 측정�
 2. **정확**: 완료된 내용이 ground_truth와 일치하는가? (Accuracy)
 3. **형식**: 응답이 요구된 형식·언어·길이를 충족하는가? (Instruction Config)
 
-### Tracker vs Config — Group A 대비표
+### Tracker vs Config — Gate A 대비표
 
 | 관점 | Tracker (측정) | Config (기준 선언) |
 |------|--------------|------------------|
@@ -417,7 +436,7 @@ def research_agent(question: str, ground_truth: str = "") -> str:
     return planner.run(question)
 ```
 
-- **`task_type="planning"`**: 계획 태스크임을 명시해 `PlanConfig` 집계가 Group A Gate 점수에 포함되도록 한다
+- **`task_type="planning"`**: 계획 태스크임을 명시해 `PlanConfig` 집계가 Gate A Gate 점수에 포함되도록 한다
 - **응답 형식 조건**: `planner.run()` 반환값이 `{"plan": {"steps": [...]}}` 구조를 포함해야 `PlanConfig`가 계획을 파싱할 수 있다
 - **`check_executability=True`**: 계획 단계의 도구가 `available_tools`에 없으면 실행 불가 단계로 표시해 계획 완성도 점수를 낮춘다
 
@@ -458,7 +477,7 @@ def rag_agent(question: str, context: str = "", ground_truth: str = "") -> str:
     return rag_chain.invoke({"question": question, "context": context})
 ```
 
-- **`task_type="information_retrieval"`**: RAG 태스크에 적합한 타입으로 지정해 `ContextRetentionConfig`가 Group A 평가에 포함된다
+- **`task_type="information_retrieval"`**: RAG 태스크에 적합한 타입으로 지정해 `ContextRetentionConfig`가 Gate A 평가에 포함된다
 - **`retention_threshold=0.8`**: 제품명·버전·오류코드 세 엔티티 중 80% 이상(2.4개 이상)이 응답에 포함되어야 통과한다
 - **`context` 파라미터**: RAG 에이전트는 함수 시그니처에 `context` 인자를 포함해야 `ContextRetentionConfig.context_arg`가 올바르게 동작한다
 
@@ -534,7 +553,7 @@ def simple_qa(question: str, ground_truth: str = "") -> str:
 ```
 
 - **최소 Config**: Group A의 `InstructionConfig` 하나로 응답 언어·길이·금지 표현을 한 번에 선언한다
-- **`SLAConfig` 동시 선언**: Group A(목표달성)와 Group D(성능계약)를 하나의 데코레이터에 함께 선언해 두 Gate를 동시에 평가한다
+- **`SLAConfig` 동시 선언**: Gate A(목표달성)와 Gate D(성능계약)를 하나의 데코레이터에 함께 선언해 두 Gate를 동시에 평가한다
 - **`fail_on_violation=True`**: "모르겠습니다" 응답이 나오면 즉시 `success=False`로 처리해 TCR에 반영한다
 
 ### 패턴 2 — RAG 에이전트 (컨텍스트 보존 포함)
@@ -568,9 +587,9 @@ def rag_agent(question: str, context: str = "", ground_truth: str = "") -> str:
     return rag_chain.invoke({"question": question, "context": context})
 ```
 
-- **`rag_mode=True`**: `HallucinationDetector`를 자동으로 활성화해 검색된 문서와 응답의 사실 일관성을 Group C 지표로 측정한다
+- **`rag_mode=True`**: `HallucinationDetector`를 자동으로 활성화해 검색된 문서와 응답의 사실 일관성을 Gate C 지표로 측정한다
 - **`required_keywords=["출처"]`**: 응답에 "출처" 키워드가 없으면 경고를 발생시킨다 (`fail_on_violation=False`이므로 fail은 아님)
-- **3개 Config 조합**: 형식 기준(A)·컨텍스트 보존(A)·목표-도구 정렬(A)을 동시에 선언해 RAG 에이전트의 Group A 핵심 요소를 완전히 커버한다
+- **3개 Config 조합**: 형식 기준(A)·컨텍스트 보존(A)·목표-도구 정렬(A)을 동시에 선언해 RAG 에이전트의 Gate A 핵심 요소를 완전히 커버한다
 
 ### 패턴 3 — 복잡한 계획 에이전트 (서브태스크 추적)
 
@@ -604,7 +623,7 @@ def research_agent(question: str, ground_truth: str = "") -> str:
 
 - **`PlanConfig` + `SubtaskConfig` 병용**: 거시적 계획 구조(단계 수·실행 가능성)와 미시적 서브태스크 완료율을 동시에 측정한다
 - **`required_sections=["개요", "결론"]`**: 연구 보고서 형식의 필수 구조를 강제해 형식 미준수 응답을 탐지한다
-- **`min_completion_rate=0.75`**: 4개 서브태스크 중 3개 이상 완료되어야 Group A 판정이 통과된다
+- **`min_completion_rate=0.75`**: 4개 서브태스크 중 3개 이상 완료되어야 Gate A 판정이 통과된다
 
 ---
 
@@ -703,14 +722,14 @@ print(judge_data.get("criteria_scores", {}))
 # {"goal_achievement": 4.2, "instruction_following": 4.5, "completeness": 3.8}
 ```
 
-- **`criteria=["goal_achievement", ...]`**: Group A 관련 커스텀 기준을 G-Eval 방식으로 LLM에게 채점 요청한다 (0–5 척도)
+- **`criteria=["goal_achievement", ...]`**: Gate A 관련 커스텀 기준을 G-Eval 방식으로 LLM에게 채점 요청한다 (0–5 척도)
 - **`sample_rate=0.2`**: 전체 호출의 20%만 LLM Judge로 채점해 비용을 80% 절감한다
 - **결과 경로**: `report.to_dict()["extra_metrics"]["llm_judge"]["criteria_scores"]`에 기준별 평균 점수가 집계된다
 - **ground_truth 불필요**: LLM Judge는 응답과 질문만으로 목표달성 여부를 판단하므로 레이블 없이도 사용할 수 있다
 
 ---
 
-## 4.6 HarnessEvaluationGate — Group A 판정
+## 4.6 HarnessEvaluationGate — Gate A 판정
 
 Group A의 Config 위반과 Tracker 지표를 종합해 배포 가능 여부를 판정한다.
 
@@ -751,11 +770,11 @@ report = monitor.generate_report()
 gate = HarnessEvaluationGate(report)
 result = gate.evaluate()
 
-# Group A 상세 결과
+# Gate A 상세 결과
 group_a = result["groups"].get("A", {})
-print(f"Group A 통과: {group_a.get('passed', 'n/a')}")
-print(f"Group A 점수: {group_a.get('score', 0.0):.3f}")
-print(f"Group A 상태: {group_a.get('status', 'n/a')}")
+print(f"Gate A 통과: {group_a.get('passed', 'n/a')}")
+print(f"Gate A 점수: {group_a.get('score', 0.0):.3f}")
+print(f"Gate A 상태: {group_a.get('status', 'n/a')}")
 
 # 전체 Gate 결과
 if result["passed"]:
@@ -767,7 +786,7 @@ else:
         print(f"  Group {v['group']} 실패: score={v.get('score', 0.0):.3f} ({v.get('status', '')})")
 ```
 
-- **4개 Config 조합**: Group A(`InstructionConfig`·`GoalAlignmentConfig`)와 Group D(`SLAConfig`)·Group E(`ThreatSeverityConfig`)를 함께 선언해 4개 Gate를 한 번에 평가한다
+- **4개 Config 조합**: Gate A(`InstructionConfig`·`GoalAlignmentConfig`)와 Gate D(`SLAConfig`)·Gate E(`ThreatSeverityConfig`)를 함께 선언해 4개 Gate를 한 번에 평가한다
 - **`result["groups"]["A"]`**: Group A의 점수(`score`)와 통과 여부(`passed`)를 개별적으로 확인할 수 있다
 - **`result["violations"]`**: Gate 실패 시 어느 Group이 몇 점으로 실패했는지 목록으로 반환해 즉각적인 원인 파악이 가능하다
 - **`gate.enforce()` 대안**: 수동으로 `result["passed"]`를 확인하는 대신 `gate.enforce()`를 호출하면 실패 시 자동으로 `sys.exit(1)`이 실행된다
@@ -778,7 +797,7 @@ else:
 
 ## 4.7 실전 예제 파일
 
-이 챕터에서 설명한 Group A Config 전체를 바로 실행해볼 수 있는 예제 파일이 준비되어 있다.
+이 챕터에서 설명한 Gate A Config 전체를 바로 실행해볼 수 있는 예제 파일이 준비되어 있다.
 
 **기본 예제**: [`Evaluator_Examples/ch04_group_a.py`](../../Evaluator_Examples/ch04_group_a.py)
 — Gate A FAIL 시나리오 포함, InstructionConfig·GoalAlignmentConfig·ContextRetentionConfig·PlanConfig·SubtaskConfig·KnowledgeRetentionConfig 6개 Config 전용 실전 예제
@@ -788,7 +807,7 @@ else:
 **핵심 코드**
 
 ```python
-# 출처: Evaluator_Examples/ch04_group_a.py, 섹션 1 — Group A Goal Achievement
+# 출처: Evaluator_Examples/ch04_group_a.py, 섹션 1 — Gate A Goal Achievement
 from agent_evaluator import (
     PerformanceMonitor, InstructionConfig, GoalAlignmentConfig,
     PlanConfig, SubtaskConfig,
@@ -886,11 +905,11 @@ monitor.save_to_file("group_a_eval")
 
 - **`@agent_eval(monitor, task_type="qa")`**: 데코레이터만 붙이면 `AccuracyEvaluator`·`TaskCompletionTracker`·`ResponseQualityEvaluator`가 자동으로 활성화된다
 - **`save_to_file("group_a_eval")`**: `results/group_a_eval.json`과 `results/group_a_eval.html` 두 파일을 자동 생성한다
-- **대시보드 확인**: `agent-eval dashboard --results results/`를 실행하면 브라우저에서 Group A 지표를 시각적으로 확인할 수 있다
+- **대시보드 확인**: `agent-eval dashboard --results results/`를 실행하면 브라우저에서 Gate A 지표를 시각적으로 확인할 수 있다
 
 ```bash
 # 전체 예제 실행
-python Evaluator_Examples/ch03_harness_basics.py        # Group A~G 전체
+python Evaluator_Examples/ch03_harness_basics.py        # Gate A~G 전체
 python Evaluator_Examples/ch01_first_eval.py  # Layer 1 Tracker 전체
 python Evaluator_Examples/ch04_group_a.py   # 시나리오 6+7: Gate A FAIL 케이스
 ```
@@ -977,5 +996,5 @@ context_forgetting_agent("주요 LLM 모델들을 비교해줘", ground_truth="�
 | `SubtaskConfig` | 서브태스크 완료율 기준 | `expected_subtasks`, `min_completion_rate` |
 | `KnowledgeRetentionConfig` | 대화 중 사실 보존 기준 | `facts_to_retain`, `seed_turns` |
 
-> 🔗 **다음 챕터**: Chapter 5 — Group B: 행동무결성  
+> 🔗 **다음 챕터**: Chapter 5 — Gate B: 행동무결성  
 > 에이전트가 허가된 범위 안에서만 동작하는지, 루프나 스코프 이탈 없이 작동하는지 측정하는 2개 Tracker와 6개 Config를 완전히 이해한다.

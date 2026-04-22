@@ -1,21 +1,40 @@
-# Chapter 7. Group D — 성능계약 지표
+# Chapter 7. Gate D — 성능계약 지표
 
-```
-┌────────────────────────────────────────────────────────────┐
-│ 🔗 Harness 연결                                             │
-│ Group D — Performance Contract (성능계약)                   │
-│ Tracker 2종: LatencyTracker · TokenEconomyTracker          │
-│ Config 5종: SLAConfig · EfficiencyConfig ·                 │
-│             ResourceBudgetConfig · TTFTVariabilityConfig ·  │
-│             CostPredictabilityConfig                        │
-│ Gate 판정: HarnessEvaluationGate(report).evaluate()         │
-└────────────────────────────────────────────────────────────┘
-```
+@@HTML_START@@
+<div class="hc-card hc-d">
+  <div class="hc-header">
+    <span class="hc-gate-badge he-gate gd">Gate D</span>
+    <span class="hc-title">🔗 Harness 연결 — Performance Contract (성능계약)</span>
+  </div>
+  <div class="hc-body">
+    <div class="hc-row">
+      <span class="hc-label hc-tracker-label">Tracker</span>
+      <div class="hc-chips">
+        <span class="hc-chip hc-t-chip">LatencyTracker</span>
+        <span class="hc-chip hc-t-chip">TokenEconomyTracker</span>
+      </div>
+    </div>
+    <div class="hc-row">
+      <span class="hc-label hc-config-label">Config</span>
+      <div class="hc-chips">
+        <span class="hc-chip hc-c-chip">SLAConfig</span>
+        <span class="hc-chip hc-c-chip">EfficiencyConfig</span>
+        <span class="hc-chip hc-c-chip">ResourceBudgetConfig</span>
+        <span class="hc-chip hc-c-chip">TTFTVariabilityConfig</span>
+        <span class="hc-chip hc-c-chip">CostPredictabilityConfig</span>
+      </div>
+    </div>
+  </div>
+  <div class="hc-footer">
+    <code>HarnessEvaluationGate(report).evaluate()</code>
+  </div>
+</div>
+@@HTML_END@@
 
 > 📖 **관련 레퍼런스**
-> - **[Appendix A — 58개 지표 완전 레퍼런스](../Appendix/A_58개지표_레퍼런스.md)**: Group D 지표 입력·출력
+> - **[Appendix A — 58개 지표 완전 레퍼런스](../Appendix/A_58개지표_레퍼런스.md)**: Gate D 지표 입력·출력
 > - **[Appendix H — 수학적 상세](../Appendix/H_알고리즘_수학적_레퍼런스.md)**: 퍼센타일 계산 공식, 비용 추정 수식
-> - **[Appendix A §Part 2 — Config 레퍼런스](../Appendix/A_58개지표_레퍼런스.md)**: Group D Config 파라미터 전체 목록
+> - **[Appendix A §Part 2 — Config 레퍼런스](../Appendix/A_58개지표_레퍼런스.md)**: Gate D Config 파라미터 전체 목록
 > - **[Evaluator_Examples/ch07_group_d.py](../../Evaluator_Examples/ch07_group_d.py)**: 이 챕터 실전 예제 (LatencyTracker · TokenEconomyTracker · 5개 Config · Gate D FAIL 시나리오)
 
 > **독자별 읽기 가이드**  
@@ -24,25 +43,23 @@
 
 ---
 
-```
-┌────────────────────────────────────────────────────────────┐
-│ ⚠️ Group D가 없으면 생기는 일                                │
-│ 개발 환경에서 P95 응답 시간 1.2초. 프로덕션 트래픽에서       │
-│ P95 8.7초. SLA는 3초. 한 달 뒤 SLA 위반 보고서를 받는다.   │
-│ SLAConfig로 배포 전에 테스트 트래픽을 시뮬레이션했다면       │
-│ 조기에 발견할 수 있었다.                                     │
-│                                                              │
-│ 비용 사례: 토큰 사용량 모니터링 없이 운영한 에이전트가        │
-│ 한 달에 예상의 5배를 소비. ResourceBudgetConfig의           │
-│ max_tokens 설정 하나로 방지할 수 있었다.                     │
-└────────────────────────────────────────────────────────────┘
-```
+@@HTML_START@@
+<div class="gw-box">
+  <div class="gw-header">⚠️ Gate D가 없으면 생기는 일</div>
+  <div class="gw-body">
+    <p>개발 환경에서 P95 응답 시간 1.2초. 프로덕션 트래픽에서 P95 8.7초. SLA는 3초. 한 달 뒤 SLA 위반 보고서를 받는다. SLAConfig로 배포 전에 테스트 트래픽을 시뮬레이션했다면 조기에 발견할 수 있었다.</p>
+    <div class="gw-case">
+      <strong>실제 사례:</strong> 토큰 사용량 모니터링 없이 운영한 에이전트가 한 달에 예상의 5배를 소비. ResourceBudgetConfig의 max_tokens 설정 하나로 방지할 수 있었다.
+    </div>
+  </div>
+</div>
+@@HTML_END@@
 
 ---
 
-## 7.1 Group D 개요
+## 7.1 Gate D 개요
 
-Group D는 에이전트가 **약속한 성능 계약(Performance Contract)**을 지키는지 측정한다. 에이전트가 아무리 정확해도(Group A) 응답이 10초씩 걸리거나 태스크당 $1씩 비용이 나온다면 프로덕션에 배포할 수 없다.
+Group D는 에이전트가 **약속한 성능 계약(Performance Contract)**을 지키는지 측정한다. 에이전트가 아무리 정확해도(Gate A) 응답이 10초씩 걸리거나 태스크당 $1씩 비용이 나온다면 프로덕션에 배포할 수 없다.
 
 ### Group D가 다루는 3가지 계약
 
@@ -50,7 +67,7 @@ Group D는 에이전트가 **약속한 성능 계약(Performance Contract)**을 
 2. **비용 계약**: 태스크당 토큰·비용이 예산 내에 있는가? (`ResourceBudgetConfig`)
 3. **안정성 계약**: 성능이 예측 가능하고 일관적인가? (`CostPredictabilityConfig`, `TTFTVariabilityConfig`)
 
-### Tracker vs Config — Group D 대비표
+### Tracker vs Config — Gate D 대비표
 
 | 관점 | Tracker (측정) | Config (기준 선언) |
 |------|--------------|------------------|
@@ -205,7 +222,7 @@ print(f"추정 비용: ${d.get('estimated_cost_usd', 0):.4f}")
 응답 시간과 비용에 대한 SLA(Service Level Agreement)를 코드로 선언한다. **Group D의 핵심 Config**다.
 
 ```python
-# 출처: Evaluator_Examples/ch07_group_d.py, 섹션 4 — Group D Performance Contract
+# 출처: Evaluator_Examples/ch07_group_d.py, 섹션 4 — Gate D Performance Contract
 from agent_evaluator import SLAConfig
 
 SLAConfig(
@@ -263,7 +280,7 @@ api_sla = SLAConfig(
 토큰/비용 대비 실제 완료율(ROI)을 측정한다. "돈을 쓴 만큼 가치가 나왔는가?"를 평가한다.
 
 ```python
-# 출처: Evaluator_Examples/ch07_group_d.py, 섹션 4 — Group D Performance Contract
+# 출처: Evaluator_Examples/ch07_group_d.py, 섹션 4 — Gate D Performance Contract
 from agent_evaluator import EfficiencyConfig
 
 EfficiencyConfig(
@@ -278,7 +295,7 @@ EfficiencyConfig(
 **사용 예시:**
 
 ```python
-# 출처: Evaluator_Examples/ch07_group_d.py, 섹션 4 — Group D Performance Contract
+# 출처: Evaluator_Examples/ch07_group_d.py, 섹션 4 — Gate D Performance Contract
 @agent_eval(
     monitor,
     task_type="qa",
@@ -368,7 +385,7 @@ TTFTVariabilityConfig(
 동일 `task_type` 내 비용의 변동 계수(CV, Coefficient of Variation)를 측정한다. 비용이 예측 가능하게 안정적인지를 평가한다.
 
 ```python
-# 출처: Evaluator_Examples/ch07_group_d.py, 섹션 4 — Group D Performance Contract
+# 출처: Evaluator_Examples/ch07_group_d.py, 섹션 4 — Gate D Performance Contract
 from agent_evaluator import CostPredictabilityConfig
 
 CostPredictabilityConfig(
@@ -519,7 +536,7 @@ agent-eval trend results/ --metric cost --window 30
 **핵심 코드**
 
 ```python
-# 출처: Evaluator_Examples/ch07_group_d.py, 섹션 4 — Group D Performance Contract
+# 출처: Evaluator_Examples/ch07_group_d.py, 섹션 4 — Gate D Performance Contract
 import time, random
 from agent_evaluator import (
     SLAConfig, EfficiencyConfig, ResourceBudgetConfig,
@@ -584,7 +601,7 @@ _cost_cfg = CostPredictabilityConfig(max_coefficient_of_variation=0.3, min_sampl
 - 다섯 Config를 모두 조합하면 Gate D의 시간·비용·안정성 세 계약을 완전히 커버할 수 있다.
 
 ```bash
-python Evaluator_Examples/ch03_harness_basics.py          # Group D 포함 전체
+python Evaluator_Examples/ch03_harness_basics.py          # Gate D 포함 전체
 python Evaluator_Examples/ch01_first_eval.py    # LatencyTracker·TokenEconomy 예제
 python Evaluator_Examples/ch04_group_a.py  # Gate D FAIL — 배포 차단 케이스
 ```
@@ -607,5 +624,5 @@ python Evaluator_Examples/ch04_group_a.py  # Gate D FAIL — 배포 차단 케�
 | `TTFTVariabilityConfig` | TTFT 변동성 기준 | `max_stddev_ms`, `max_p95_p50_ratio` |
 | `CostPredictabilityConfig` | 비용 예측 가능성 기준 | `max_coefficient_of_variation`, `cost_metric` |
 
-> 🔗 **다음 챕터**: Chapter 8 — Group E: 보안경계  
+> 🔗 **다음 챕터**: Chapter 8 — Gate E: 보안경계  
 > 외부 공격과 데이터 유출을 차단하는 5개 Tracker와 3개 Config를 완전히 이해한다. 패턴 매칭과 의미 기반 탐지 2계층 보안을 다룬다.

@@ -423,13 +423,13 @@ async with async_evaluation_session("async_eval") as monitor:
 
 ## 20.5 성능 최적화 — 평가 오버헤드 최소화
 
-에이전트 평가가 실제 서비스 응답 시간에 영향을 주어서는 안 된다. 올바르게 설정하면 Group A-G 기반 지표의 오버헤드는 1ms 미만이다.
+에이전트 평가가 실제 서비스 응답 시간에 영향을 주어서는 안 된다. 올바르게 설정하면 Gate A-G 기반 지표의 오버헤드는 1ms 미만이다.
 
 ### 오버헤드 비교
 
 | 설정 | 지연 추가 | CPU 추가 | 비용 추가 |
 |------|----------|----------|----------|
-| Group A-G 기반 (기본) | ~1ms | 낮음 | 없음 |
+| Gate A-G 기반 (기본) | ~1ms | 낮음 | 없음 |
 | +Hallucination Detection | ~50ms | 중간 | 없음 |
 | +Security Metrics | ~10ms | 낮음 | 없음 |
 | +LLM Judge (전수) | ~500ms | LLM API | 높음 |
@@ -705,7 +705,7 @@ pip install "agent-evaluator[eval]"
 
 - **데이터 유실 방지**는 이중 저장으로 해결한다. `auto_save=True`와 `flush_every=50`을 동시에 설정하고, 세션 단위 평가는 `evaluation_session` 컨텍스트 매니저를 사용한다.
 
-- **평가 오버헤드**는 기본 설정(Group A-G 기반만)에서 ~1ms다. `enable_hallucination_detection`, `enable_security_metrics`는 기본값이 `False`이므로 필요할 때만 활성화한다.
+- **평가 오버헤드**는 기본 설정(Gate A-G 기반만)에서 ~1ms다. `enable_hallucination_detection`, `enable_security_metrics`는 기본값이 `False`이므로 필요할 때만 활성화한다.
 
 - **Docker 배포**는 Phoenix 서비스와 함께 `docker-compose.yml`로 통합 구성한다. 평가 결과는 볼륨으로 영속화하고, 환경 변수로 OTEL 엔드포인트를 주입한다.
 

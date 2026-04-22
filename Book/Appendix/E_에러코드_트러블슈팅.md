@@ -537,7 +537,7 @@ df = monitor.export_to_dataframe()
 
 ### Q6. 평가 데코레이터를 적용해도 에이전트 성능에 영향이 있나?
 
-Group A-G 네이티브 지표는 순수 Python 알고리즘으로 계산되므로 오버헤드가 매우 작다 (태스크당 < 5ms). 단, 보안 지표(`enable_security_metrics=True`) 활성화 시 5~15ms 추가 오버헤드가 발생한다. LLM Judge(`llm_judge=LLMJudgeConfig()`)는 외부 API 호출을 수반하므로 수 초의 추가 시간이 필요하다.
+Gate A-G 네이티브 지표는 순수 Python 알고리즘으로 계산되므로 오버헤드가 매우 작다 (태스크당 < 5ms). 단, 보안 지표(`enable_security_metrics=True`) 활성화 시 5~15ms 추가 오버헤드가 발생한다. LLM Judge(`llm_judge=LLMJudgeConfig()`)는 외부 API 호출을 수반하므로 수 초의 추가 시간이 필요하다.
 
 ---
 

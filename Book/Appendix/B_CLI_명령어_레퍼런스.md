@@ -157,7 +157,7 @@ agent-eval dashboard results/ --host 0.0.0.0 --port 8765
 
 평가 결과 JSON 파일을 읽어 설정한 임계값과 비교한다. 임계값 미달 시 `sys.exit(1)`로 종료하여 CI/CD 파이프라인을 차단한다.
 
-> **참고**: `agent-eval gate`는 Python API의 `HarnessEvaluationGate`를 CLI로 래핑한 명령어다. Config-as-Code로 선언한 Harness Config(InstructionConfig, SLAConfig 등)를 JSON 결과에 적용해 Group A-G 전체를 한 번에 판정한다. Python 코드에서 직접 사용하려면 `from agent_evaluator import HarnessEvaluationGate`를 참고한다.
+> **참고**: `agent-eval gate`는 Python API의 `HarnessEvaluationGate`를 CLI로 래핑한 명령어다. Config-as-Code로 선언한 Harness Config(InstructionConfig, SLAConfig 등)를 JSON 결과에 적용해 Gate A-G 전체를 한 번에 판정한다. Python 코드에서 직접 사용하려면 `from agent_evaluator import HarnessEvaluationGate`를 참고한다.
 
 **사용법**
 

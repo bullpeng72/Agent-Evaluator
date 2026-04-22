@@ -68,7 +68,7 @@ Agent-Evaluator는 소스 코드에 API 키를 하드코딩하지 않는 것을 
 ```bash
 # .env (프로젝트 루트에 생성)
 
-# LLM API 키 (Group G — LLM Judge 사용 시 필요)
+# LLM API 키 (Gate G — LLM Judge 사용 시 필요)
 OPENAI_API_KEY=sk-...
 ANTHROPIC_API_KEY=sk-ant-...
 
@@ -135,7 +135,7 @@ eval = QuickEval("results/")
 ### 단계 2 — 에이전트 함수에 데코레이터 적용
 
 ```python
-@eval.qa  # Group A 목표달성: AccuracyEvaluator + TCR 자동 측정
+@eval.qa  # Gate A 목표달성: AccuracyEvaluator + TCR 자동 측정
 def my_agent(question: str, ground_truth: str = "") -> str:
     answers = {
         "한국의 수도는?": "서울입니다.",
@@ -144,7 +144,7 @@ def my_agent(question: str, ground_truth: str = "") -> str:
     return answers.get(question, "모르겠습니다.")
 ```
 
-- **`@eval.qa`**: `task_type="qa"`로 설정된 `@agent_eval` 데코레이터의 단축형으로, Group A `AccuracyEvaluator`와 `TaskCompletionTracker`를 자동 활성화한다.
+- **`@eval.qa`**: `task_type="qa"`로 설정된 `@agent_eval` 데코레이터의 단축형으로, Gate A `AccuracyEvaluator`와 `TaskCompletionTracker`를 자동 활성화한다.
 - **함수 시그니처**: `question`과 `ground_truth`를 파라미터로 받는 것이 규칙이다. `ground_truth`는 데코레이터가 정확도 계산에 사용하며 기본값 `""`으로 두면 생략 가능하다.
 - **반환값**: 문자열을 반환하면 데코레이터가 `ground_truth`와 비교해 `accuracy_score`를 자동 계산한다.
 
@@ -194,12 +194,12 @@ TCR 66.7%이 게이팅 기준 80% 미달이므로 `gate()`는 `sys.exit(1)`을 �
 `gate()`는 간단한 단일 임계값 판정입니다. 더 복잡한 배포 기준은 **Harness Config** 데이터클래스로 선언합니다.
 
 ```python
-# 출처: Evaluator_Examples/ch02_quickstart.py, 섹션 1·4 — Group A·D Config 선언 및 통합
+# 출처: Evaluator_Examples/ch02_quickstart.py, 섹션 1·4 — Gate A·D Config 선언 및 통합
 from agent_evaluator import (
     PerformanceMonitor, HarnessEvaluationGate,
-    InstructionConfig,    # Group A — 지시 준수
-    SLAConfig,           # Group D — 레이턴시·비용 계약
-    ThreatSeverityConfig, # Group E — 보안 위협 수준
+    InstructionConfig,    # Gate A — 지시 준수
+    SLAConfig,           # Gate D — 레이턴시·비용 계약
+    ThreatSeverityConfig, # Gate E — 보안 위협 수준
 )
 from agent_evaluator.decorators import agent_eval
 
@@ -234,7 +234,7 @@ gate.enforce()
 
 - **Config 선언 패턴**: `InstructionConfig`, `SLAConfig` 등의 Config 객체를 먼저 만들고, `@agent_eval`의 파라미터로 전달하면 실행마다 자동 검증된다.
 - **`fail_on_violation=True`**: 해당 Config 기준을 위반하면 그 태스크의 `success=False`로 처리되어 TCR에 직접 반영된다.
-- **`HarnessEvaluationGate(report).enforce()`**: `generate_report()` 결과를 받아 Group A–G 전체 Config 위반 여부를 종합 판정하고, 기준 미달이면 `sys.exit(1)`을 호출한다.
+- **`HarnessEvaluationGate(report).enforce()`**: `generate_report()` 결과를 받아 Gate A–G 전체 Config 위반 여부를 종합 판정하고, 기준 미달이면 `sys.exit(1)`을 호출한다.
 - **`QuickEval.gate()` vs `HarnessEvaluationGate`**: 전자는 TCR·정확도 단순 임계값, 후자는 33개 Config 전체를 포함한 정밀 판정이다.
 
 ### 배포 판정 결과 이해하기
@@ -248,8 +248,8 @@ am = d.get("accuracy_metrics", {})
 em = d.get("efficiency_metrics", {})
 tcr = am.get("tcr", {}).get("tcr", 0.0)
 p95 = em.get("latency", {}).get("p95", 0.0)
-print(f"Group A (목표달성): TCR={tcr:.1%}")
-print(f"Group D (성능계약): p95={p95:.2f}s")
+print(f"Gate A (목표달성): TCR={tcr:.1%}")
+print(f"Gate D (성능계약): p95={p95:.2f}s")
 
 # Harness 그룹별 점수 확인
 harness_groups = d.get("extra_metrics", {}).get("harness_groups", {})
@@ -264,7 +264,7 @@ for group_key in ["A", "B", "C", "D", "E", "F", "G"]:
 - **p95 레이턴시 경로**: `d["efficiency_metrics"]["latency"]["p95"]` — 전체 실행 시간 중 95번째 백분위 값(초)이다.
 - **`harness_groups` 경로**: `d["extra_metrics"]["harness_groups"]["A"]` ~ `["G"]` — 각 Gate의 `score`(0–1), `status`(PASS/WARN/FAIL), `gate` 필드를 포함한다.
 
-평가 결과 파일이 `results/quickeval.json`과 `results/quickeval.html`로 저장됩니다. HTML 파일을 브라우저에서 열면 Group A-G별 시각화된 리포트를 확인할 수 있습니다.
+평가 결과 파일이 `results/quickeval.json`과 `results/quickeval.html`로 저장됩니다. HTML 파일을 브라우저에서 열면 Gate A-G별 시각화된 리포트를 확인할 수 있습니다.
 
 > 📋 **QA 관리자 TIP**: `gate(tcr=80)` 단일 임계값으로 시작하고, 팀이 익숙해지면 `InstructionConfig`, `SLAConfig`, `ThreatSeverityConfig`로 세분화하세요. Part IV — Chapter 14에서 팀 수준 임계값 설정 전략을 다룹니다.
 
@@ -331,7 +331,7 @@ Agent-Evaluator의 58개 지표는 **3개 레이어(Layer)**와 **3가지 역할
 
 | 역할 | 구성 | 설명 |
 |------|------|------|
-| **🚦 Gate** | `HarnessEvaluationGate` | Group A–G 전체 Config를 종합해 배포 통과/실패 판정. `.enforce()` / `QuickEval.gate()` / `agent-eval gate` CLI |
+| **🚦 Gate** | `HarnessEvaluationGate` | Gate A–G 전체 Config를 종합해 배포 통과/실패 판정. `.enforce()` / `QuickEval.gate()` / `agent-eval gate` CLI |
 | **📋 Config** | 33개 Harness Config 데이터클래스 | 배포 기준을 소스 코드로 선언. `fail_on_violation=True` 시 위반 태스크 즉시 `success=False` 처리 |
 | **🔍 Tracker** | 25개 네이티브 트래커 | Gate 직접 매핑 16종 (자동 활성 10 + opt-in 6) + 운영 지원 9종 |
 
@@ -367,7 +367,7 @@ opt-in (6종) — 성능·비용 영향, 명시적 활성화 필요:
 
 | Tracker | 역할 |
 |---------|------|
-| `LLMJudge` | Group G 7차원 채점 (`enable_llm_judge=True` + API 키) |
+| `LLMJudge` | Gate G 7차원 채점 (`enable_llm_judge=True` + API 키) |
 | `ConversationSession` | 멀티턴 대화 평가 (`@conversation_eval`) |
 | `ImplicitFeedbackTracker` | 묵시적 사용자 피드백 수집 |
 | `AnomalyDetector` | 지표 이상 탐지 및 경보 |
@@ -408,9 +408,9 @@ from agent_evaluator import PerformanceMonitor, TaskResult, create_taskresult
 #    모든 Tracker를 내부에서 구성, Config 검증, Gate 판정
 monitor = PerformanceMonitor(
     output_dir="results/",
-    enable_hallucination_detection=False,  # Group C opt-in (성능 영향)
-    enable_security_metrics=False,         # Group E opt-in (성능 영향)
-    enable_llm_judge=False,                # Group G opt-in (LLM 비용)
+    enable_hallucination_detection=False,  # Gate C opt-in (성능 영향)
+    enable_security_metrics=False,         # Gate E opt-in (성능 영향)
+    enable_llm_judge=False,                # Gate G opt-in (LLM 비용)
 )
 
 # ② TaskResult — 단일 태스크 결과 (frozen dataclass)
@@ -430,7 +430,7 @@ report = monitor.generate_report()
 # → to_dict()로 직렬화: accuracy_metrics["tcr"]["tcr"], efficiency_metrics["latency"]["p95"] 등
 ```
 
-- **`PerformanceMonitor`**: Group A–G의 모든 Tracker를 내부에서 자동 구성하며, `enable_*` 플래그로 비용이 큰 opt-in Tracker를 선택적으로 활성화한다.
+- **`PerformanceMonitor`**: Gate A–G의 모든 Tracker를 내부에서 자동 구성하며, `enable_*` 플래그로 비용이 큰 opt-in Tracker를 선택적으로 활성화한다.
 - **`create_taskresult()`**: `question`·`response`·`ground_truth`를 받아 `accuracy_score`(4중 가중 알고리즘)와 `completion_score`를 자동 계산한 `TaskResult` 객체를 반환한다.
 - **`TaskResult`**: `frozen=True` 데이터클래스로 불변(immutable)이며, `to_dict()` / `from_dict()` / `from_json()` 직렬화를 지원한다.
 - **`generate_report()`**: `record_task()`로 누적된 모든 TaskResult를 집계해 `EvaluationReport` 객체를 반환한다. `to_dict()`로 JSON 직렬화 가능하다.
@@ -451,19 +451,19 @@ report = monitor.generate_report()
 # 모든 Group 활성화 — 최대 측정 모드
 monitor = PerformanceMonitor(
     output_dir="results/",
-    enable_hallucination_detection=True,  # Group C 전체
-    enable_security_metrics=True,         # Group E 전체
-    enable_llm_judge=True,                # Group G LLMJudge
+    enable_hallucination_detection=True,  # Gate C 전체
+    enable_security_metrics=True,         # Gate E 전체
+    enable_llm_judge=True,                # Gate G LLMJudge
     judge_sample_rate=0.1,                # 비용 절감: 10%만 채점
 )
 
 # 또는 팩토리 메서드 — 용도별 최적 설정 자동 적용
-monitor_rag = PerformanceMonitor.for_rag_evaluation("results/")  # Group C 강화
-monitor_sec = PerformanceMonitor.for_secure_agents("results/")   # Group E 강화
+monitor_rag = PerformanceMonitor.for_rag_evaluation("results/")  # Gate C 강화
+monitor_sec = PerformanceMonitor.for_secure_agents("results/")   # Gate E 강화
 ```
 
-- **최대 측정 모드**: `enable_hallucination_detection`, `enable_security_metrics`, `enable_llm_judge`를 모두 켜면 Group A–G 전체가 활성화되며 가장 포괄적인 평가가 가능하다.
-- **`judge_sample_rate=0.1`**: LLMJudge가 전체 태스크의 10%만 채점하므로 Group G 품질 측정 비용을 90% 절감한다.
+- **최대 측정 모드**: `enable_hallucination_detection`, `enable_security_metrics`, `enable_llm_judge`를 모두 켜면 Gate A–G 전체가 활성화되며 가장 포괄적인 평가가 가능하다.
+- **`judge_sample_rate=0.1`**: LLMJudge가 전체 태스크의 10%만 채점하므로 Gate G 품질 측정 비용을 90% 절감한다.
 - **팩토리 메서드**: `for_rag_evaluation()`은 `enable_hallucination_detection=True`를, `for_secure_agents()`는 `enable_security_metrics=True`를 자동 설정해 용도별 최적 구성을 한 줄로 초기화한다.
 
 > 📖 **더 깊이**: Gate별 Tracker 파라미터와 Config 전체 레퍼런스는 → **Part II — Chapter 03~10** (Gate A-G 챕터)에서 상세히 다룹니다.
@@ -600,17 +600,17 @@ monitor.save_to_file("evaluation")
 ```
 
 - **`save_to_file("evaluation")`**: `results/evaluation_evaluation.json`과 `results/evaluation_evaluation.html` 두 파일을 동시에 생성한다.
-- **HTML 리포트**: 브라우저에서 바로 열 수 있으며, Group A–G 탭과 태스크별 점수 테이블이 포함된 시각화 리포트다.
+- **HTML 리포트**: 브라우저에서 바로 열 수 있으며, Gate A–G 탭과 태스크별 점수 테이블이 포함된 시각화 리포트다.
 - **`--watch` 옵션**: 결과 디렉토리의 파일 변경을 감시해 새 평가 결과가 추가될 때 대시보드를 자동으로 갱신한다.
 
 ```bash
 # 대시보드 실행 (기본 설치에 포함)
 agent-eval dashboard results/ --watch
 # → http://localhost:8765 에서 확인
-# Group A-G별 탭으로 구성
+# Gate A-G별 탭으로 구성
 ```
 
-### 시나리오 ③ OTEL Phoenix — 실시간 운영 모니터링 (Group G)
+### 시나리오 ③ OTEL Phoenix — 실시간 운영 모니터링 (Gate G)
 
 프로덕션 환경에서 에이전트 실행을 실시간으로 추적합니다.
 
@@ -677,7 +677,7 @@ agent-eval gate results/evaluation_evaluation.json \
 # 기준 미달 시 exit 1 → 파이프라인 중단 → 배포 차단
 ```
 
-### 드리프트 추세 감지 (Group A/D 지속 평가)
+### 드리프트 추세 감지 (Gate A/D 지속 평가)
 
 ```bash
 # 최근 10개 평가 결과의 TCR·정확도 추세 분석
@@ -716,7 +716,7 @@ for q, gt in test_dataset:
     agent_v2(q, ground_truth=gt)
 eval_b.save("v2")
 
-# 비교 — Group A/D 지표 차이 확인
+# 비교 — Gate A/D 지표 차이 확인
 comparison = eval_a.compare(eval_b)
 print(comparison)
 ```
@@ -724,7 +724,7 @@ print(comparison)
 - **독립 `QuickEval` 인스턴스**: `eval_a`와 `eval_b`를 각각 다른 디렉토리로 초기화해 두 버전의 결과가 섞이지 않도록 분리한다.
 - **동일 `test_dataset`**: 같은 테스트 케이스를 두 버전에 동일하게 적용해야 공정한 비교가 가능하다.
 - **`eval.save("v1")`**: 파일명 접두사를 지정해 `results/version_a/v1_eval.json` 형태로 저장한다.
-- **`eval_a.compare(eval_b)`**: Group A(TCR·정확도)와 Group D(레이턴시·비용)의 수치 차이를 딕셔너리로 반환한다.
+- **`eval_a.compare(eval_b)`**: Gate A(TCR·정확도)와 Gate D(레이턴시·비용)의 수치 차이를 딕셔너리로 반환한다.
 
 ---
 
@@ -757,7 +757,7 @@ monitor = PerformanceMonitor(output_dir="results/")
 def my_agent(question: str, ground_truth: str = "") -> str:
     return "에이전트 응답 텍스트"
 
-# 호출하면 Group A (AccuracyEvaluator, TCR) + Group D (LatencyTracker) 자동 집계
+# 호출하면 Gate A (AccuracyEvaluator, TCR) + Gate D (LatencyTracker) 자동 집계
 my_agent("한국의 수도는?", ground_truth="서울")
 
 # 보고서 저장 (JSON + HTML 동시 생성)
@@ -774,11 +774,11 @@ from agent_evaluator import QuickEval
 
 eval_qe = QuickEval("results/")
 
-@eval_qe.qa   # Group A 목표달성
+@eval_qe.qa   # Gate A 목표달성
 def qa_agent(question: str, ground_truth: str = "") -> str:
     return "QA 에이전트 응답"
 
-@eval_qe.rag  # Group A + Group C (hallucination_detection=True)
+@eval_qe.rag  # Gate A + Gate C (hallucination_detection=True)
 def rag_agent(question: str, context: str = "", ground_truth: str = "") -> str:
     return "RAG 에이전트 응답"
 

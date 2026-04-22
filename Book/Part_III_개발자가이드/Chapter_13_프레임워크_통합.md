@@ -474,16 +474,58 @@ gemini_agent("한국의 전통 음식 5가지를 알려줘", ground_truth="비�
 
 ### 생산성 vs 제어력 트레이드오프
 
-```
-높은 생산성 (추상화 높음)               낮은 생산성 (추상화 낮음)
-        │                                        │
-  CrewAI                                   직접 API 호출
-  AutoGen            LangGraph              (Anthropic/OpenAI)
-        │            LangChain       DSPy           │
-        │                │            │             │
-  빠른 프로토타입     균형점      프로그래밍    완전한 제어
-  역할 기반 설계   최적화 가능    방식 최적화   비용 추적 정확
-```
+@@HTML_START@@
+<div class="tradeoff-wrap">
+  <div class="tradeoff-title">
+    <span class="t-left">⬆ 높은 생산성 (추상화 높음)</span>
+    <span class="t-mid">← 프레임워크 선택 스펙트럼 →</span>
+    <span class="t-right">높은 제어력 (추상화 낮음) ⬆</span>
+  </div>
+  <div class="tradeoff-bar"></div>
+  <div class="tradeoff-axis">
+    <span>0%</span><span>25%</span><span>50%</span><span>75%</span><span>100%</span>
+  </div>
+  <!-- pins: left% = position on bar -->
+  <div class="tradeoff-pins">
+    <!-- CrewAI ~8% -->
+    <div class="t-pin" style="left:8%">
+      <div class="t-pin-dot c-green"></div>
+      <div class="t-pin-label t-green">CrewAI</div>
+      <div class="t-pin-desc">빠른 프로토타입<br>역할 기반 설계</div>
+    </div>
+    <!-- AutoGen ~18% -->
+    <div class="t-pin" style="left:20%">
+      <div class="t-pin-dot c-green"></div>
+      <div class="t-pin-label t-green">AutoGen</div>
+      <div class="t-pin-desc">멀티에이전트<br>대화형 협업</div>
+    </div>
+    <!-- LangChain ~38% -->
+    <div class="t-pin" style="left:38%">
+      <div class="t-pin-dot c-teal"></div>
+      <div class="t-pin-label t-teal">LangChain</div>
+      <div class="t-pin-desc">균형점<br>생태계 최대</div>
+    </div>
+    <!-- LangGraph ~52% -->
+    <div class="t-pin" style="left:52%">
+      <div class="t-pin-dot c-blue"></div>
+      <div class="t-pin-label t-blue">LangGraph</div>
+      <div class="t-pin-desc">DAG 상태 제어<br>최적화 가능</div>
+    </div>
+    <!-- DSPy ~68% -->
+    <div class="t-pin" style="left:68%">
+      <div class="t-pin-dot c-yellow"></div>
+      <div class="t-pin-label t-yellow">DSPy</div>
+      <div class="t-pin-desc">프로그래밍 방식<br>프롬프트 최적화</div>
+    </div>
+    <!-- 직접 API ~88% -->
+    <div class="t-pin" style="left:88%">
+      <div class="t-pin-dot c-orange"></div>
+      <div class="t-pin-label t-orange">직접 API</div>
+      <div class="t-pin-desc">완전한 제어<br>비용 추적 정확</div>
+    </div>
+  </div>
+</div>
+@@HTML_END@@
 
 ### 팀 배경별 권장표
 

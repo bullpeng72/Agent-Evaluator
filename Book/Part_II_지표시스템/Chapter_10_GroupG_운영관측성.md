@@ -1,19 +1,37 @@
-# Chapter 10. Group G — 운영관측성 지표
+# Chapter 10. Gate G — 운영관측성 지표
 
-```
-┌────────────────────────────────────────────────────────────┐
-│ 🔗 Harness 연결                                             │
-│ Group G — Operational Observability (운영관측성)             │
-│ Tracker: (모든 트래커 데이터가 관측성 기반)                    │
-│ Config 4종: ObservabilityConfig · ExplainabilityConfig ·   │
-│             ErrorDiagnosisConfig · LatencyAttributionConfig  │
-│ Gate 판정: HarnessEvaluationGate(report).evaluate()         │
-└────────────────────────────────────────────────────────────┘
-```
+@@HTML_START@@
+<div class="hc-card hc-g">
+  <div class="hc-header">
+    <span class="hc-gate-badge he-gate gg">Gate G</span>
+    <span class="hc-title">🔗 Harness 연결 — Operational Observability (운영관측성)</span>
+  </div>
+  <div class="hc-body">
+    <div class="hc-row">
+      <span class="hc-label hc-tracker-label">Tracker</span>
+      <div class="hc-chips">
+        <span class="hc-chip hc-t-chip hc-t-note">모든 트래커 집계</span>
+      </div>
+    </div>
+    <div class="hc-row">
+      <span class="hc-label hc-config-label">Config</span>
+      <div class="hc-chips">
+        <span class="hc-chip hc-c-chip">ObservabilityConfig</span>
+        <span class="hc-chip hc-c-chip">ExplainabilityConfig</span>
+        <span class="hc-chip hc-c-chip">ErrorDiagnosisConfig</span>
+        <span class="hc-chip hc-c-chip">LatencyAttributionConfig</span>
+      </div>
+    </div>
+  </div>
+  <div class="hc-footer">
+    <code>HarnessEvaluationGate(report).evaluate()</code>
+  </div>
+</div>
+@@HTML_END@@
 
 > 📖 **관련 레퍼런스**
-> - **[Appendix A — 58개 지표 완전 레퍼런스](../Appendix/A_58개지표_레퍼런스.md)**: Group G Config 입력·출력
-> - **[Appendix A §Part 2 — Config 레퍼런스](../Appendix/A_58개지표_레퍼런스.md)**: Group G Config 파라미터 전체 목록
+> - **[Appendix A — 58개 지표 완전 레퍼런스](../Appendix/A_58개지표_레퍼런스.md)**: Gate G Config 입력·출력
+> - **[Appendix A §Part 2 — Config 레퍼런스](../Appendix/A_58개지표_레퍼런스.md)**: Gate G Config 파라미터 전체 목록
 > - **[Evaluator_Examples/ch10_group_g.py](../../Evaluator_Examples/ch10_group_g.py)**: 이 챕터 실전 예제 (4개 Config · AnomalyDetector · CostTracker · evaluation_session)
 > - **[Chapter 19 — Phoenix OTEL 모니터링](../Part_V_프로덕션운영/Chapter_19_Phoenix_OTEL_모니터링.md)**: 실시간 관측성 인프라 (Phoenix 연동 심화)
 
@@ -23,21 +41,21 @@
 
 ---
 
-```
-┌────────────────────────────────────────────────────────────┐
-│ ⚠️ Group G가 없으면 생기는 일                                │
-│ 프로덕션 에이전트가 응답을 생성했다. 하지만 왜 이런 답을      │
-│ 했는지 알 수 없다. 사용자가 불만을 제기했을 때 어떤 도구를    │
-│ 어떤 순서로 호출했는지, 어느 단계에서 지연이 발생했는지,      │
-│ 왜 틀린 정보를 말했는지 추적할 방법이 없다.                   │
-│ ExplainabilityConfig와 LatencyAttributionConfig 없이는      │
-│ "블랙박스" 에이전트가 된다.                                   │
-└────────────────────────────────────────────────────────────┘
-```
+@@HTML_START@@
+<div class="gw-box">
+  <div class="gw-header">⚠️ Gate G가 없으면 생기는 일</div>
+  <div class="gw-body">
+    <p>프로덕션 에이전트가 응답을 생성했다. 하지만 왜 이런 답을 했는지 알 수 없다. 사용자가 불만을 제기했을 때 어떤 도구를 어떤 순서로 호출했는지, 어느 단계에서 지연이 발생했는지, 왜 틀린 정보를 말했는지 추적할 방법이 없다.</p>
+    <div class="gw-case">
+      <strong>실제 사례:</strong> ExplainabilityConfig와 LatencyAttributionConfig 없이는 "블랙박스" 에이전트가 된다.
+    </div>
+  </div>
+</div>
+@@HTML_END@@
 
 ---
 
-## 10.1 Group G 개요
+## 10.1 Gate G 개요
 
 Group G는 에이전트의 **관측 가능성(Observability)**을 측정한다. 에이전트가 잘 동작할 때는 관측성이 필요 없다. 에이전트가 실패하거나, 예상치 못한 행동을 하거나, 성능이 저하될 때 관측성이 있어야 원인을 빠르게 찾을 수 있다.
 
@@ -56,10 +74,10 @@ Group G는 AI Native 관점에서 **"AI가 AI를 평가하는"** 패러다임이
 @agent_eval(
     monitor,
     task_type="reasoning",
-    # Group G Config
+    # Gate G Config
     explainability=ExplainabilityConfig(require_reasoning=True),
     error_diagnosis=ErrorDiagnosisConfig(only_on_failure=True),
-    # LLM Judge와 연결 — Group G 채점
+    # LLM Judge와 연결 — Gate G 채점
     llm_judge=LLMJudgeConfig(
         criteria=["reasoning_quality", "explainability"],
         sample_rate=0.3,
@@ -389,7 +407,7 @@ from agent_evaluator import (
         max_tool_time_ratio=0.5,
         warn_on_high_unattributed=True,
     ),
-    # LLM Judge로 Group G 자동 채점
+    # LLM Judge로 Gate G 자동 채점
     llm_judge=LLMJudgeConfig(
         criteria=["reasoning_quality", "explainability", "evidence_based"],
         sample_rate=0.2,
@@ -416,13 +434,13 @@ LLMJudge는 `enable_llm_judge=True` 또는 `llm_judge=LLMJudgeConfig()`가 설�
 
 | 차원 | 설명 | Group 연결 |
 |------|------|-----------|
-| `completeness` | 응답이 질문에 완전히 답했는가 | Group A |
-| `relevance` | 응답이 질문과 관련이 있는가 | Group A |
-| `factual_consistency` | 응답이 사실에 기반하는가 | Group C |
-| `toxicity` | 응답에 독성 내용이 없는가 | Group E |
-| `bias` | 응답에 편향이 없는가 | Group E |
-| `faithfulness` | RAG 응답이 컨텍스트에 기반하는가 | Group C |
-| `criteria_scores` | 커스텀 G-Eval 기준 (선택) | Group G |
+| `completeness` | 응답이 질문에 완전히 답했는가 | Gate A |
+| `relevance` | 응답이 질문과 관련이 있는가 | Gate A |
+| `factual_consistency` | 응답이 사실에 기반하는가 | Gate C |
+| `toxicity` | 응답에 독성 내용이 없는가 | Gate E |
+| `bias` | 응답에 편향이 없는가 | Gate E |
+| `faithfulness` | RAG 응답이 컨텍스트에 기반하는가 | Gate C |
+| `criteria_scores` | 커스텀 G-Eval 기준 (선택) | Gate G |
 
 ### 10.4.2 safety_score 계산
 
@@ -460,15 +478,15 @@ print(f"신뢰성: {judge_summary.get('avg_scores', {}).get('factual_consistency
 ```
 에이전트 실행 흐름과 Group 연결:
 
-사용자 입력 → [Group E 보안경계] → 에이전트 처리 → [Group A 목표달성]
+사용자 입력 → [Gate E 보안경계] → 에이전트 처리 → [Gate A 목표달성]
                                     ↓
-                    [Group B 행동무결성] ← 도구 호출
-                    [Group D 성능계약]  ← 응답 시간·비용
-                    [Group C 신뢰성]   ← 일관성·재현성
+                    [Gate B 행동무결성] ← 도구 호출
+                    [Gate D 성능계약]  ← 응답 시간·비용
+                    [Gate C 신뢰성]   ← 일관성·재현성
                                     ↓
-                [Group F 다중에이전트]  ← (멀티에이전트인 경우)
+                [Gate F 다중에이전트]  ← (멀티에이전트인 경우)
                                     ↓
-                    [Group G 운영관측성] ← 전체 추적·설명
+                    [Gate G 운영관측성] ← 전체 추적·설명
                                     ↓
                     HarnessEvaluationGate → 배포 판정
 ```
@@ -498,7 +516,7 @@ print(f"신뢰성: {judge_summary.get('avg_scores', {}).get('factual_consistency
 | evaluation_session | 컨텍스트 매니저 — 예외 발생 시 자동 저장 |
 
 ```bash
-python Evaluator_Examples/ch10_group_g.py    # Group G + AnomalyDetector + CostTracker 전체 시연
+python Evaluator_Examples/ch10_group_g.py    # Gate G + AnomalyDetector + CostTracker 전체 시연
 ```
 
 > **관련 챕터 예제**: Phoenix OTEL 관측성 심화는 [Chapter 19 — `ch19_phoenix.py`](../Part_V_프로덕션운영/Chapter_19_Phoenix_OTEL_모니터링.md)에서, Gate G FAIL 케이스(시나리오 5·16·17)는 [Chapter 4 — `ch04_group_a.py`](Chapter_04_GroupA_목표달성.md)에서 확인한다.
@@ -506,7 +524,7 @@ python Evaluator_Examples/ch10_group_g.py    # Group G + AnomalyDetector + CostT
 **핵심 코드**
 
 ```python
-# 출처: Evaluator_Examples/ch10_group_g.py, 섹션 7 — Group G Observability
+# 출처: Evaluator_Examples/ch10_group_g.py, 섹션 7 — Gate G Observability
 from agent_evaluator import (
     ExplainabilityConfig, ObservabilityConfig,
     ErrorDiagnosisConfig, LatencyAttributionConfig,
@@ -541,7 +559,7 @@ def explainable_agent(question: str, ground_truth: str = "") -> str:
 def observable_agent(question: str, ground_truth: str = "") -> str:
     return f"추적 가능 응답: {question}"
 
-# ── Harness 전체 리포트 추출 — Group A-G 점수 확인 ──
+# ── Harness 전체 리포트 추출 — Gate A-G 점수 확인 ──
 final_report  = monitor.generate_report()
 report_dict   = final_report.to_dict()
 harness_groups = (report_dict.get("extra_metrics") or {}).get("harness_groups", {})
@@ -564,7 +582,7 @@ monitor.save_to_file("08_harness_eval")
 ```
 
 ```bash
-python Evaluator_Examples/ch03_harness_basics.py      # Group G 포함 전체 — 배포 판정 리포트까지
+python Evaluator_Examples/ch03_harness_basics.py      # Gate G 포함 전체 — 배포 판정 리포트까지
 python Evaluator_Examples/ch19_phoenix.py    # Phoenix 트레이싱 + 데이터셋 업로드
 ```
 
@@ -636,7 +654,7 @@ python Evaluator_Examples/ch04_group_a.py   # 시나리오 5+16+17: Gate G FAIL 
 
 **Layer 1 지표 — 관측성의 기초 수치**
 
-Group G Config가 추적 완성도와 설명 가능성을 판정한다면, Layer 1은 그 기반이 되는 원시 지표(지연·토큰·품질)를 수집한다. 두 레이어를 함께 운영하면 "추적 완성도 90%이며, p95 지연이 3초"처럼 관측 가능한 수치로 표현된다.
+Gate G Config가 추적 완성도와 설명 가능성을 판정한다면, Layer 1은 그 기반이 되는 원시 지표(지연·토큰·품질)를 수집한다. 두 레이어를 함께 운영하면 "추적 완성도 90%이며, p95 지연이 3초"처럼 관측 가능한 수치로 표현된다.
 
 ```python
 # 출처: Evaluator_Examples/ch10_group_g.py, 섹션 3 — 응답 품질 5차원

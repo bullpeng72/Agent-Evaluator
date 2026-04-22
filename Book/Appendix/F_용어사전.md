@@ -54,11 +54,11 @@ Harness Engineering은 이 한계를 인정하면서 **"완벽한 검증" 대신
 
 | AI Native 속성 | 기존 테스팅의 한계 | 대응 Harness Group |
 |--------------|----------------|------------------|
-| 비결정론적 출력 | 단일 assert 통과 ≠ 재현 보장 | Group A (정확도 통계), Group C (재현성) |
-| 컨텍스트 의존성 | 격리 테스트로 실 품질 측정 불가 | Group A (완수율), Group B (루프·범위) |
-| 다단계 추론 | 최종 결과만 검증, 중간 오류 미탐지 | Group B (워크플로우), Group G (설명가능성) |
-| 도구 활용 | 도구 호출 권한·패턴 검증 체계 없음 | Group B (도구 안전성), Group E (보안경계) |
-| 자율적 목표 추구 | 범위 이탈 행동 탐지 불가 | Group B (범위 일탈), Group F (다중에이전트 교착) |
+| 비결정론적 출력 | 단일 assert 통과 ≠ 재현 보장 | Gate A (정확도 통계), Gate C (재현성) |
+| 컨텍스트 의존성 | 격리 테스트로 실 품질 측정 불가 | Gate A (완수율), Gate B (루프·범위) |
+| 다단계 추론 | 최종 결과만 검증, 중간 오류 미탐지 | Gate B (워크플로우), Gate G (설명가능성) |
+| 도구 활용 | 도구 호출 권한·패턴 검증 체계 없음 | Gate B (도구 안전성), Gate E (보안경계) |
+| 자율적 목표 추구 | 범위 이탈 행동 탐지 불가 | Gate B (범위 일탈), Gate F (다중에이전트 교착) |
 
 참조: Chapter 1 §1.5 / Appendix G §G.9
 
@@ -70,11 +70,11 @@ Agent-Evaluator가 기존 소프트웨어 테스팅과 다른 이유를 설명�
 
 | # | 속성 | 정의 | 연관 Group |
 |---|------|------|-----------|
-| 1 | **비결정론적 출력** (Non-deterministic Output) | 동일 입력에도 매번 다른 응답을 생성하는 특성. 단일 테스트로 품질을 확정할 수 없으며 통계적 측정이 필수다. | Group A, C |
-| 2 | **컨텍스트 의존성** (Context Dependency) | 이전 대화 내용·도구 결과·프롬프트 구조가 응답에 깊이 영향. 격리된 단위 테스트로는 실 품질 측정 불가. | Group A, B |
-| 3 | **다단계 추론** (Multi-step Reasoning) | 단일 응답이 아닌 계획 수립 → 도구 호출 → 결과 통합의 연쇄로 구성. 중간 단계의 오류가 최종 결과를 크게 훼손. | Group B, G |
-| 4 | **도구 활용** (Tool Utilization) | 외부 API, 파일 시스템, 데이터베이스 등을 자율적으로 호출. 도구 선택 오류·과잉 호출·인가 위반이 새로운 실패 모드를 만든다. | Group B, E |
-| 5 | **자율적 목표 추구** (Autonomous Goal Pursuit) | 명시적 지시 없이 목표 달성을 위해 스스로 행동을 선택. 설계 범위를 벗어난 행동이 예기치 않게 발생할 수 있다. | Group B, F |
+| 1 | **비결정론적 출력** (Non-deterministic Output) | 동일 입력에도 매번 다른 응답을 생성하는 특성. 단일 테스트로 품질을 확정할 수 없으며 통계적 측정이 필수다. | Gate A, C |
+| 2 | **컨텍스트 의존성** (Context Dependency) | 이전 대화 내용·도구 결과·프롬프트 구조가 응답에 깊이 영향. 격리된 단위 테스트로는 실 품질 측정 불가. | Gate A, B |
+| 3 | **다단계 추론** (Multi-step Reasoning) | 단일 응답이 아닌 계획 수립 → 도구 호출 → 결과 통합의 연쇄로 구성. 중간 단계의 오류가 최종 결과를 크게 훼손. | Gate B, G |
+| 4 | **도구 활용** (Tool Utilization) | 외부 API, 파일 시스템, 데이터베이스 등을 자율적으로 호출. 도구 선택 오류·과잉 호출·인가 위반이 새로운 실패 모드를 만든다. | Gate B, E |
+| 5 | **자율적 목표 추구** (Autonomous Goal Pursuit) | 명시적 지시 없이 목표 달성을 위해 스스로 행동을 선택. 설계 범위를 벗어난 행동이 예기치 않게 발생할 수 있다. | Gate B, F |
 
 참조: Appendix G §G.9 / Chapter 1 §1.5
 
@@ -140,11 +140,11 @@ Tracker(Sensor)가 수집한 측정값과 Config(Guide)가 선언한 기준을 �
 | 형태 | 사용 상황 | 체크 항목 |
 |------|----------|---------|
 | `eval.gate(tcr=85, accuracy=70)` | 단순 배포 기준 (TCR·Accuracy) | 2개 지표 임계값 |
-| `HarnessEvaluationGate(report).evaluate()` | Group A–G 종합 판정 | 7개 Group 전체 Config 위반 여부 |
+| `HarnessEvaluationGate(report).evaluate()` | Gate A–G 종합 판정 | 7개 Group 전체 Config 위반 여부 |
 
 **개발자 관점**: `fail_on_violation=True`로 선언한 Config가 위반되면 `TaskResult.success=False`가 누적되고, `gate()` 호출 시 `sys.exit(1)`로 CI/CD 파이프라인을 차단한다.
 
-**QA 관리자 관점**: Gate 결과는 대시보드의 "Group A–G PASS/WARN/FAIL" 상태, HTML 리포트의 `blocking_violations` 목록, `agent-eval gate` CLI의 exit code로 확인한다.
+**QA 관리자 관점**: Gate 결과는 대시보드의 "Gate A–G PASS/WARN/FAIL" 상태, HTML 리포트의 `blocking_violations` 목록, `agent-eval gate` CLI의 exit code로 확인한다.
 
 ```python
 # 단순 Gate
@@ -210,7 +210,7 @@ Harness Config의 공통 플래그. `True`로 설정하면 해당 Config 조건 
 
 ---
 
-### Group A-G (Harness 7차원)
+### Gate A-G (Harness 7차원)
 
 58개 지표를 7개 품질 차원으로 분류하는 Harness Engineering의 핵심 구조. 7개 차원은 자율 에이전트의 본질적 속성(자율성·확률론적 동작·프로덕션 계약·외부 위협·시스템 복잡성·운영 가능성)에서 필연적으로 도출된다.
 
@@ -230,7 +230,7 @@ Harness Config의 공통 플래그. `True`로 설정하면 해당 Config 조건 
 
 ### Harness Config
 
-에이전트의 배포 기준을 선언하는 데이터클래스 계열. 33개 클래스가 Group A-G에 분산되어 있다. `@agent_eval` 데코레이터나 `PerformanceMonitor`에 주입해 사용한다. Harness Engineering의 **Guide** 역할이다.
+에이전트의 배포 기준을 선언하는 데이터클래스 계열. 33개 클래스가 Gate A-G에 분산되어 있다. `@agent_eval` 데코레이터나 `PerformanceMonitor`에 주입해 사용한다. Harness Engineering의 **Guide** 역할이다.
 
 ```python
 from agent_evaluator import SLAConfig, ThreatSeverityConfig, ReproducibilityConfig
@@ -279,7 +279,7 @@ result = gate.evaluate()  # {"passed": True, "violations": [...]}
 
 ### HarnessEvaluationGate
 
-Group A-G 전체를 한 번에 체크하는 종합 배포 판정 도구. 각 Group의 Config 위반 여부를 집계해 최종 pass/fail을 반환한다. `agent-eval gate` CLI의 내부 구현체이기도 하다.
+Gate A-G 전체를 한 번에 체크하는 종합 배포 판정 도구. 각 Gate의 Config 위반 여부를 집계해 최종 pass/fail을 반환한다. `agent-eval gate` CLI의 내부 구현체이기도 하다.
 
 ```python
 from agent_evaluator import HarnessEvaluationGate
@@ -324,9 +324,9 @@ AI 에이전트 품질을 단일 점수가 아닌 **분포**로 이해하는 패
 
 ### AccuracyEvaluator
 
-Group A 정확도 평가 클래스. `PerformanceMonitor` 내부에서 자동으로 초기화된다. QA 태스크에서는 TokenOverlapF1 (40%) + Jaccard (30%) + LCS (20%) + CharSimilarity/Levenshtein (10%) 가중 조합으로 정확도를 계산하고, 코드 태스크에서는 AST 비교를 사용한다. `ground_truth`가 필수이며 빈 문자열이면 0.0이 반환된다.
+Gate A 정확도 평가 클래스. `PerformanceMonitor` 내부에서 자동으로 초기화된다. QA 태스크에서는 TokenOverlapF1 (40%) + Jaccard (30%) + LCS (20%) + CharSimilarity/Levenshtein (10%) 가중 조합으로 정확도를 계산하고, 코드 태스크에서는 AST 비교를 사용한다. `ground_truth`가 필수이며 빈 문자열이면 0.0이 반환된다.
 
-참조: Appendix A — Group A 지표 / Chapter 3
+참조: Appendix A — Gate A 지표 / Chapter 3
 
 ---
 
@@ -424,11 +424,11 @@ from agent_evaluator import create_taskresult
 
 ### DeepEval
 
-Confident AI에서 개발한 오픈소스 LLM 평가 라이브러리. Agent Evaluator의 `[eval]` extra를 통해 G-Eval, Hallucination Score, Toxicity, Bias, Answer Relevancy 5개 지표를 Group G에서 추가로 활용할 수 있다. `pip install "agent-evaluator[eval]"`로 설치하며 `OPENAI_API_KEY`가 필요하다.
+Confident AI에서 개발한 오픈소스 LLM 평가 라이브러리. Agent Evaluator의 `[eval]` extra를 통해 G-Eval, Hallucination Score, Toxicity, Bias, Answer Relevancy 5개 지표를 Gate G에서 추가로 활용할 수 있다. `pip install "agent-evaluator[eval]"`로 설치하며 `OPENAI_API_KEY`가 필요하다.
 
 출처: docs.confident-ai.com
 
-참조: Appendix A (Group G) / Appendix D (평가 플랫폼 비교)
+참조: Appendix A (Gate G) / Appendix D (평가 플랫폼 비교)
 
 ---
 
@@ -500,11 +500,11 @@ from agent_evaluator.datasets.builder import GoldenSetBuilder
 
 ### HallucinationDetector
 
-**Group C (신뢰성)** 환각 탐지 클래스 (규칙 기반). Unsupported Claim과 Numerical Inconsistency 두 가지 방법으로 탐지한다. 정확도 70~80%, 오버헤드 < 5ms. `enable_hallucination_detection=True`로 opt-in해야 한다. 외부 평가 라이브러리 DeepEval Hallucination Score(LLM 기반, 90~95% 정확도)와 점수 방향이 반대이므로 주의한다.
+**Gate C (신뢰성)** 환각 탐지 클래스 (규칙 기반). Unsupported Claim과 Numerical Inconsistency 두 가지 방법으로 탐지한다. 정확도 70~80%, 오버헤드 < 5ms. `enable_hallucination_detection=True`로 opt-in해야 한다. 외부 평가 라이브러리 DeepEval Hallucination Score(LLM 기반, 90~95% 정확도)와 점수 방향이 반대이므로 주의한다.
 
-> ⚠️ 이전 버전 문서에 Group A로 잘못 기재된 경우가 있음. 정확한 Group은 **C (신뢰성)**.
+> ⚠️ 이전 버전 문서에 Gate A로 잘못 기재된 경우가 있음. 정확한 Group은 **C (신뢰성)**.
 
-참조: Appendix A (Group C #1) / Appendix E (오류 #5)
+참조: Appendix A (Gate C #1) / Appendix E (오류 #5)
 
 ---
 
@@ -542,7 +542,7 @@ OpenTelemetry 데이터 전송 프로토콜. HTTP 또는 gRPC 방식으로 스�
 
 ### PerformanceMonitor
 
-Agent Evaluator의 중앙 오케스트레이터 클래스. 모든 Tracker(Group A-G)를 내부에서 초기화하고 `record_task()`, `generate_report()`, `save_to_file()` 등의 메서드를 제공한다. `for_rag_evaluation()`, `for_secure_agents()` 팩토리 메서드로 용도별 최적 설정을 빠르게 적용할 수 있다.
+Agent Evaluator의 중앙 오케스트레이터 클래스. 모든 Tracker(Gate A-G)를 내부에서 초기화하고 `record_task()`, `generate_report()`, `save_to_file()` 등의 메서드를 제공한다. `for_rag_evaluation()`, `for_secure_agents()` 팩토리 메서드로 용도별 최적 설정을 빠르게 적용할 수 있다.
 
 ```python
 from agent_evaluator import PerformanceMonitor
@@ -578,11 +578,11 @@ eval = QuickEval("results/")
 
 ### Ragas
 
-RAG(Retrieval-Augmented Generation) 평가 전문 오픈소스 라이브러리. Agent Evaluator의 `[eval]` extra를 통해 Faithfulness, Answer Relevancy, Context Precision, Context Recall 4개 지표를 Group G에서 추가로 활용할 수 있다. `pip install "agent-evaluator[eval]"`로 설치하며 `OPENAI_API_KEY`가 필요하다. 버전 0.4.x API(`EvaluationDataset`, `SingleTurnSample`)를 사용한다.
+RAG(Retrieval-Augmented Generation) 평가 전문 오픈소스 라이브러리. Agent Evaluator의 `[eval]` extra를 통해 Faithfulness, Answer Relevancy, Context Precision, Context Recall 4개 지표를 Gate G에서 추가로 활용할 수 있다. `pip install "agent-evaluator[eval]"`로 설치하며 `OPENAI_API_KEY`가 필요하다. 버전 0.4.x API(`EvaluationDataset`, `SingleTurnSample`)를 사용한다.
 
 출처: docs.ragas.io
 
-참조: Appendix A (Group G) / Appendix D / Appendix E (오류 #9)
+참조: Appendix A (Gate G) / Appendix D / Appendix E (오류 #9)
 
 ---
 
@@ -628,9 +628,9 @@ OTEL에서 단일 작업 단위를 나타내는 추적 데이터 구조. `record
 
 ### TCR (Task Completion Rate)
 
-태스크 완료율. Group A의 핵심 지표로 `TaskResult.completion_score` (0.0~1.0)의 평균을 백분율로 표현한다. 95% 이상 우수, 85~95% 양호, 70% 미만 개선 필요.
+태스크 완료율. Gate A의 핵심 지표로 `TaskResult.completion_score` (0.0~1.0)의 평균을 백분율로 표현한다. 95% 이상 우수, 85~95% 양호, 70% 미만 개선 필요.
 
-참조: Appendix A (Group A #1)
+참조: Appendix A (Gate A #1)
 
 ---
 
@@ -662,7 +662,7 @@ from agent_evaluator import TaskType
 
 스트리밍 응답에서 첫 번째 토큰이 생성되기까지의 시간. `LatencyTracker.track_ttft()`로 기록하거나 데코레이터 방식에서 제너레이터 함수의 첫 청크 yield 시점에 자동으로 기록된다. v0.7.2+에서 지원.
 
-참조: Appendix A (Group D #4) / Chapter 7 §7.2 (TTFTVariabilityConfig)
+참조: Appendix A (Gate D #4) / Chapter 7 §7.2 (TTFTVariabilityConfig)
 
 ---
 
@@ -680,9 +680,9 @@ from agent_evaluator import TaskType
 
 ### 에이전틱 지표
 
-에이전트 고유의 행동 패턴을 측정하는 Group B 에이전틱 지표들의 총칭. Tool Call Efficiency, Retry & Error Recovery, Tool Selection Accuracy, Agent Coordination, Workflow Execution 5종을 포함한다. LLM API 없이 알고리즘 기반으로 계산된다.
+에이전트 고유의 행동 패턴을 측정하는 Gate B 에이전틱 지표들의 총칭. Tool Call Efficiency, Retry & Error Recovery, Tool Selection Accuracy, Agent Coordination, Workflow Execution 5종을 포함한다. LLM API 없이 알고리즘 기반으로 계산된다.
 
-참조: Appendix A (Group B)
+참조: Appendix A (Gate B)
 
 ---
 
@@ -720,9 +720,9 @@ CI/CD 파이프라인에서 품질 임계값 미달 시 배포를 자동으로 �
 
 ### 환각 탐지
 
-AI 에이전트가 컨텍스트에 근거가 없는 내용을 사실처럼 생성하는 현상(환각)을 탐지하는 기능. Group C (신뢰성)의 핵심 측정 항목이다. Agent Evaluator는 두 가지 방식을 제공한다: 규칙 기반(`HallucinationDetector`, 무료, opt-in, 정확도 70~80%)과 외부 평가 라이브러리(DeepEval, 정확도 90~95%, API 비용 발생). 두 방식은 점수 방향이 반대이므로 주의가 필요하다.
+AI 에이전트가 컨텍스트에 근거가 없는 내용을 사실처럼 생성하는 현상(환각)을 탐지하는 기능. Gate C (신뢰성)의 핵심 측정 항목이다. Agent Evaluator는 두 가지 방식을 제공한다: 규칙 기반(`HallucinationDetector`, 무료, opt-in, 정확도 70~80%)과 외부 평가 라이브러리(DeepEval, 정확도 90~95%, API 비용 발생). 두 방식은 점수 방향이 반대이므로 주의가 필요하다.
 
-참조: Appendix A (Group C #1)
+참조: Appendix A (Gate C #1)
 
 ---
 
