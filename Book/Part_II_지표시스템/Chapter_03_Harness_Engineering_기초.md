@@ -170,6 +170,7 @@ AI 에이전트에게 그 질문은 불완전하다. 에이전트는 결정론�
 그리고 그 질문의 답을 코드로 선언한다.
 
 ```python
+# 출처: Evaluator_Examples/ch03_harness_basics.py — SLAConfig · InstructionConfig
 # 기존 방식 — "버그가 없는지" 확인
 def test_agent_response():
     result = agent("한국의 수도는?")
@@ -242,6 +243,7 @@ record_task(TaskResult)
     └─ Layer 2 집계 (TaskResult에 해당 필드가 있을 때만 실행)
         ├─ ToolCallAnalyzer        → tool_calls 패턴 분석
         ├─ RetryCorrectionTracker  → retry_count 추적
+        ├─ ToolSelectionTracker    → expected vs actual tool F1 계산
         ├─ AgentCoordinationTracker → agent_interactions 추적
         └─ WorkflowExecutionTracker → workflow_steps 분기 추적
 ```
@@ -249,6 +251,7 @@ record_task(TaskResult)
 집계는 `record_task()` 마다 누적된다. 통계(평균·백분위·표준편차)는 `generate_report()` 시점에 한 번 산출된다 — 따라서 태스크 수가 많을수록 통계적 신뢰도가 높아진다.
 
 ```python
+# 출처: Evaluator_Examples/ch03_harness_basics.py — PerformanceMonitor 설정
 monitor = PerformanceMonitor("results/")
 
 result = create_taskresult(
@@ -275,6 +278,9 @@ report = monitor.generate_report()
 보안 Tracker 5종은 성능 영향이 크므로 기본값 `False`이며, `PerformanceMonitor(enable_security_metrics=True)`로 명시 활성화해야 한다.
 
 ### 3.2.2 Config — 기준을 선언하는 자
+
+> **Tracker만으로는 충분하지 않은가?**  
+> Tracker는 "P95 응답 시간이 2.3초"라는 사실을 측정한다. 하지만 2.3초가 합격인지 불합격인지는 Tracker가 알 수 없다. 이 판단을 하려면 "P95 2초 이내가 배포 기준"이라는 선언이 별도로 존재해야 한다. 그 선언을 코드로 구현한 것이 Config다. Tracker가 없으면 측정값이 없고, Config가 없으면 기준이 없으며, 둘 중 하나라도 빠지면 Gate 판정이 불가능하다.
 
 Config는 "어떤 상태가 합격인가"를 선언하는 기준서(Specification)다. Tracker처럼 실행 시점에 계산하지 않는다. 선언된 기준이 `PerformanceMonitor`에 등록되고, Gate 집계 시점에 Tracker 측정값과 대조된다.
 
@@ -354,6 +360,7 @@ generate_report()
 #### Gate 판정 임계값과 배포 차단
 
 ```python
+# 출처: Evaluator_Examples/ch03_harness_basics.py — HarnessEvaluationGate 배포 판정
 from agent_evaluator.core.agent_evaluator import HarnessEvaluationGate
 
 report = monitor.generate_report()
@@ -370,6 +377,7 @@ results = gate.evaluate()
 `QuickEval.gate()`는 이 흐름의 단축 인터페이스다.
 
 ```python
+# 출처: Evaluator_Examples/ch03_harness_basics.py — 예제 코드
 eval.gate(tcr=85, accuracy=70)
 # 내부 동작:
 #   1. generate_report() 호출 → Tracker 통계 산출
@@ -604,6 +612,7 @@ Config-as-Code는 이 세 가지를 모두 해결한다. Config 객체는 코드
 **Day 1 — 최소 시작 (측정만)**
 
 ```python
+# 출처: Evaluator_Examples/ch03_harness_basics.py — QuickEval 평가
 from agent_evaluator import QuickEval
 
 eval = QuickEval("results/")
@@ -623,6 +632,7 @@ def agent(question, ground_truth=""):
 **Day 7 — 첫 Config 도입 (SLA + 기본 기준)**
 
 ```python
+# 출처: Evaluator_Examples/ch03_harness_basics.py — SLAConfig · InstructionConfig
 from agent_evaluator import SLAConfig, InstructionConfig
 
 @eval(
@@ -644,6 +654,7 @@ def agent(question, ground_truth=""):
 **Day 30 — 배포 판정 자동화 (fail_on_violation + gate)**
 
 ```python
+# 출처: Evaluator_Examples/ch03_harness_basics.py — SLAConfig · InstructionConfig
 @eval(
     task_type="qa",
     sla=SLAConfig(p95_ms=2000, fail_threshold=3),           # P95 응답 2초 이내, 3건 위반 시 fail
@@ -787,6 +798,7 @@ Harness Engineering에는 두 종류의 사용자가 있다. **개발자**는 Tr
 **Step 1 — 개발자: Tracker 활성화 (측정 시작)**
 
 ```python
+# 출처: Evaluator_Examples/ch03_harness_basics.py — PerformanceMonitor 설정
 monitor = PerformanceMonitor(
     output_dir="results/",
     enable_hallucination_detection=True,  # Gate C Tracker
@@ -799,6 +811,7 @@ Tracker는 코드를 변경하지 않아도 자동으로 데이터를 수집한�
 **Step 2 — 개발자: 초기 평가 실행 (기준 없는 측정)**
 
 ```python
+# 출처: Evaluator_Examples/ch03_harness_basics.py — 데코레이터 사용
 @agent_eval(monitor, task_type="qa")
 def my_agent(question, ground_truth=""):
     return llm.invoke(question)
@@ -834,6 +847,7 @@ QA 관리자 결정 (문서 또는 구두):
 **Step 4 — 개발자: Config 코드 반영 (기준을 코드로)**
 
 ```python
+# 출처: Evaluator_Examples/ch03_harness_basics.py — SLAConfig · ThreatSeverityConfig
 @agent_eval(
     monitor,
     task_type="qa",
@@ -864,19 +878,19 @@ eval.gate(tcr=85, accuracy=70)  # QA 관리자 결정 반영
   run: agent-eval gate results/latest.json --tcr 85 --accuracy 70
 ```
 
-PR마다 Gate가 자동으로 동작한다. 기준을 위반하면 배포가 차단된다. QA 관리자는 대시보드에서 Group별 점수를 확인하고 추가 기준을 요청할 수 있다.
+PR마다 Gate가 자동으로 동작한다. 기준을 위반하면 배포가 차단된다. QA 관리자는 대시보드에서 Gate별 점수를 확인하고 추가 기준을 요청할 수 있다.
 
 ### 3.5.3 Gate A–G와 Tracker·Config 매핑 요약
 
 | Gate (차원) | 품질 질문 | 관련 Tracker | 관련 Config |
 |------------|----------|-------------|------------|
-| **A** 목표달성 | 지시를 완수했는가? | TCR, Accuracy, ResponseQuality | InstructionConfig, GoalAlignmentConfig, PlanConfig |
+| **A** 목표달성 | 지시를 완수했는가? | TCR, Accuracy, ResponseQuality | InstructionConfig, GoalAlignmentConfig, PlanConfig, SubtaskConfig, ContextRetentionConfig, KnowledgeRetentionConfig |
 | **B** 행동무결성 | 의도치 않은 행동이 없었는가? | ToolCallAnalyzer, WorkflowExecution | LoopDetectionConfig, ScopeConfig, ToolParameterSafetyConfig, ContextWindowConfig, StateConsistencyConfig, DeadlockConfig |
-| **C** 신뢰성 | 일관되고 재현 가능한가? | HallucinationDetector, RetryCorrection | ReproducibilityConfig, FaultToleranceConfig, IdempotencyConfig |
-| **D** 성능계약 | SLA·비용을 지켰는가? | LatencyTracker, TokenEconomy | SLAConfig, ResourceBudgetConfig, EfficiencyConfig |
+| **C** 신뢰성 | 일관되고 재현 가능한가? | HallucinationDetector, RetryCorrection | ReproducibilityConfig, FaultToleranceConfig, GracefulDegradationConfig, RetryConsistencyConfig, IdempotencyConfig |
+| **D** 성능계약 | SLA·비용을 지켰는가? | LatencyTracker, TokenEconomy | SLAConfig, EfficiencyConfig, ResourceBudgetConfig, TTFTVariabilityConfig, CostPredictabilityConfig |
 | **E** 보안경계 | 공격·유출을 차단했는가? | InputSanitization, OutputLeakage, ToolAuth, PrivilegeEscalation, ToolChainAttack | ThreatSeverityConfig, ComplianceConfig, ThreatResponseConfig |
-| **F** 다중에이전트 | 교착 없이 협력했는가? | AgentCoordination, ToolSelection | ConsensusConfig, AgentRoleConfig, ConflictResolutionConfig |
-| **G** 운영관측성 | 실패 원인을 즉시 추적할 수 있는가? | LLMJudge (7차원) | ObservabilityConfig, ExplainabilityConfig, ErrorDiagnosisConfig |
+| **F** 다중에이전트 | 교착 없이 협력했는가? | AgentCoordination, ToolSelection | ConsensusConfig, PropagationConfig, AgentRoleConfig, ConflictResolutionConfig |
+| **G** 운영관측성 | 실패 원인을 즉시 추적할 수 있는가? | — (LLMJudge opt-in 연계) | ObservabilityConfig, ExplainabilityConfig, ErrorDiagnosisConfig, LatencyAttributionConfig |
 
 > 📖 **각 Gate의 상세 내용**: Chapter 4(A) ~ Chapter 10(G)에서 Tracker·Config를 깊이 다룬다.  
 > 📖 **Config 파라미터 전체 목록**: [Appendix A §Part 2](../Appendix/A_58개지표_레퍼런스.md)
@@ -887,9 +901,10 @@ PR마다 Gate가 자동으로 동작한다. 기준을 위반하면 배포가 차
 
 ### 3.6.1 Gate의 역할
 
-`eval.gate()`는 TCR·정확도 두 개 지표만 체크하는 단순 Gate다. 에이전트가 성숙해지면 7개 Group 전체를 종합적으로 체크하는 Gate가 필요하다. 그것이 `HarnessEvaluationGate`다.
+`eval.gate()`는 TCR·정확도 두 개 지표만 체크하는 단순 Gate다. 에이전트가 성숙해지면 7개 Gate 전체를 종합적으로 체크하는 판정이 필요하다. 그것이 `HarnessEvaluationGate`다.
 
 ```python
+# 출처: Evaluator_Examples/ch03_harness_basics.py — HarnessEvaluationGate 배포 판정
 from agent_evaluator import HarnessEvaluationGate
 
 # 평가 완료 후 Gate 실행
@@ -945,9 +960,9 @@ jobs:
             --fail-on-group-violation C,E  # Gate C·E 위반 시 배포 차단
 ```
 
-### 3.6.3 특정 Group만 검사
+### 3.6.3 특정 Gate만 검사
 
-에이전트 유형에 따라 검사할 Group을 지정할 수 있다.
+에이전트 유형에 따라 검사할 Gate를 지정할 수 있다.
 `HarnessEvaluationGate`는 `report`, `min_group_score`, `required_groups`, `fail_on_warn`을 지원한다. `group_weights`는 지원하지 않는다.
 
 ```python
@@ -958,15 +973,15 @@ from agent_evaluator import HarnessEvaluationGate
 gate = HarnessEvaluationGate(
     report,
     required_groups=["A", "E"],  # A·E는 점수가 있으면 반드시 통과해야 함
-    min_group_score=0.7,         # 각 그룹 최소 허용 점수 70%
+    min_group_score=0.7,         # 각 Gate 최소 허용 점수 70%
     fail_on_warn=False,          # warn 상태는 실패로 처리하지 않음
 )
 result = gate.evaluate()
 gate.enforce()   # 기준 미달 시 sys.exit(1)
 ```
 
-- **`required_groups=["A", "E"]`**: 목표달성과 보안경계만 필수 통과로 지정하고 나머지 Group(B·C·D·F·G)은 경고만 발생시킨다
-- **`min_group_score=0.7`**: 필수 Group의 점수가 0.7 미만이면 Gate 실패로 처리한다
+- **`required_groups=["A", "E"]`**: Gate A(목표달성)와 Gate E(보안경계)만 필수 통과로 지정하고, 나머지 Gate(B·C·D·F·G)는 경고만 발생시킨다
+- **`min_group_score=0.7`**: 필수 Gate의 점수가 0.7 미만이면 Gate 실패로 처리한다
 - **`fail_on_warn=False`**: `warn` 상태는 실패로 간주하지 않아 점진적 기준 도입 단계에서 유용하다
 
 
@@ -975,7 +990,7 @@ gate.enforce()   # 기준 미달 시 sys.exit(1)
 `ch03_harness_basics.py`는 33개 Config 전체를 교육용으로 시연하지만, CI/CD 파이프라인에서는 **7개 Gate당 1개 Config씩 최소 검증**만 실행하는 `ch18_cicd_gate.py`를 사용한다:
 
 ```python
-# 출처: Evaluator_Examples/ch03_harness_basics.py — CI/CD 전용 최소 검증
+# 출처: Evaluator_Examples/ch18_cicd_gate.py — CI/CD 전용 최소 검증
 import json, sys
 from agent_evaluator import (
     PerformanceMonitor,
@@ -1024,7 +1039,7 @@ monitor.save_to_file("harness_validation")
 
 # JSON 한 줄 요약 — CI 로그 파싱용
 d = report.to_dict()
-harness = d.get("harness_gates", {})
+harness = d.get("extra_metrics", {}).get("harness_groups", {})
 summary = {
     grp: harness.get(grp, {}).get("gate_status", "N/A")
     for grp in ["A", "B", "C", "D", "E", "F", "G"]
@@ -1072,6 +1087,7 @@ Chapter 1 §1.5에서 AI Native 평가의 5가지 고유 도전을 개념으로 
 Harness 대응: `ReproducibilityConfig`는 동일 입력을 N회 실행해 분포를 측정한다. `SLAConfig.p95_ms`는 단일 측정이 아닌 퍼센타일 기반 임계값이다.
 
 ```python
+# 출처: Evaluator_Examples/ch03_harness_basics.py — ReproducibilityConfig · SLAConfig
 # 단일 테스트 — AI Native에 부적합
 assert accuracy > 0.8  # 한 번의 실행 결과
 
@@ -1094,6 +1110,7 @@ sla=SLAConfig(p95_ms=2000)          # P95 기반 SLA
 Harness 대응: `ExplainabilityConfig`와 LLMJudge의 결합.
 
 ```python
+# 출처: Evaluator_Examples/ch03_harness_basics.py — ExplainabilityConfig · LLMJudgeConfig
 from agent_evaluator import ExplainabilityConfig
 from agent_evaluator.decorators import LLMJudgeConfig
 
@@ -1146,6 +1163,7 @@ agent-eval trend results/ --fail-on-regression
 Harness 대응: `AnomalyDetector`와 `ScopeConfig`의 결합. `ScopeConfig`는 "허용된 도구 목록"으로 범위를 선언하고, `AnomalyDetector`는 통계적 이상치를 자동 감지한다.
 
 ```python
+# 출처: Evaluator_Examples/ch03_harness_basics.py — ScopeConfig
 from agent_evaluator import AnomalyDetector
 from agent_evaluator import ScopeConfig
 

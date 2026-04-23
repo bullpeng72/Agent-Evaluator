@@ -36,7 +36,7 @@ from agent_evaluator import (
     ErrorDiagnosisConfig,
     LatencyAttributionConfig,
 )
-from agent_evaluator.decorators import agent_eval
+from agent_evaluator.decorators import agent_eval, EvalMetadata
 
 _PROJECT_ROOT = Path(__file__).parent.parent
 _OUTPUT_DIR   = str(_PROJECT_ROOT / "results")
@@ -123,13 +123,11 @@ def observable_agent(question: str, ground_truth: str = "") -> str:
 )
 def error_diagnosing_agent(question: str, ground_truth: str = "") -> str:
     """오류 진단 에이전트 (mock) — 오류 원인 分析 + 해결 방향 제시."""
-    if "오류" in question or "에러" in question:
-        return (
-            f"[오류 진단] 원인: {question}에서 데이터 파싱 오류가 감지되었습니다. "
-            f"근본 원인: 입력 형식이 예상 스키마와 불일치하기 때문입니다. "
-            f"해결 방향: 입력 데이터를 UTF-8로 재인코딩 후 시도하세요."
-        )
-    return f"정상 처리: {question}"
+    return (
+        f"[진단] {question}: 시스템 상태를 점검했습니다. "
+        f"근본 원인: 입력 패턴과 현재 상태를 분석한 결과 처리 흐름이 확인되었습니다. "
+        f"해결 방향: 정상 처리를 완료했으며 필요 시 재시도하세요."
+    )
 
 
 @agent_eval(
@@ -142,16 +140,16 @@ def error_diagnosing_agent(question: str, ground_truth: str = "") -> str:
         max_tool_time_ratio=0.6,
     ),
 )
-def latency_attributed_agent(question: str, ground_truth: str = "") -> str:
+def latency_attributed_agent(question: str, ground_truth: str = "") -> tuple:
     """지연 원인 分析 에이전트 (mock) — 구간별 지연 기여도 노출."""
-    return json.dumps({
-        "answer": f"{question}에 대한 응답",
-        "latency_breakdown": {
+    response = json.dumps({"answer": f"{question}에 대한 응답"})
+    return response, EvalMetadata(
+        extra={
             "tool_latencies":   120,
             "model_latency_ms": 350,
             "network_ms":       30,
-        },
-    })
+        }
+    )
 
 
 # 섹션 7 실행

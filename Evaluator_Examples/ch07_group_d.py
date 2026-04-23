@@ -96,8 +96,8 @@ def sla_compliant_agent(question: str, ground_truth: str = "") -> tuple:
     _ttft_ms = (time.perf_counter() - _t0) * 1000
     time.sleep(random.uniform(0.05, 0.15))  # 나머지 생성 지연
     response = f"SLA 준수 응답: {question}"
-    _in_tok  = random.randint(60, 130)
-    _out_tok = random.randint(120, 260)
+    _in_tok  = random.randint(85, 110)
+    _out_tok = random.randint(165, 200)
     return response, EvalMetadata(
         extra={"ttft_ms": round(_ttft_ms, 1)},
         tokens_used={"input": _in_tok, "output": _out_tok, "total": _in_tok + _out_tok},
@@ -106,19 +106,23 @@ def sla_compliant_agent(question: str, ground_truth: str = "") -> tuple:
 
 @agent_eval(
     monitor,
-    task_type="qa",
+    task_type="data_analysis",
     task_id_prefix="d_efficiency",
     efficiency=EfficiencyConfig(
         cost_unit="tokens",
-        target_cost_per_completion=0.005,
+        target_cost_per_completion=200,
         penalize_failed_tokens=True,
     ),
 )
 def efficient_agent(question: str, ground_truth: str = "") -> tuple:
-    """비용 효율 에이전트 — 최소 토큰 사용 + 토큰 수 주입."""
+    """비용 효율 에이전트 — 최소 토큰 사용 + 토큰 수 주입.
+
+    cost_unit="tokens", target=200: 완료당 200 토큰 이하 목표.
+    task_type="data_analysis"으로 분리 → CostPredictabilityConfig CV 격리.
+    """
     response = f"효율적 답변: {question[:30]}"
-    _in_tok  = random.randint(40, 90)
-    _out_tok = random.randint(60, 130)
+    _in_tok  = random.randint(55, 75)
+    _out_tok = random.randint(75, 95)
     return response, EvalMetadata(
         tokens_used={"input": _in_tok, "output": _out_tok, "total": _in_tok + _out_tok},
     )
@@ -126,7 +130,7 @@ def efficient_agent(question: str, ground_truth: str = "") -> tuple:
 
 @agent_eval(
     monitor,
-    task_type="qa",
+    task_type="reasoning",
     task_id_prefix="d_budget",
     resource_budget=ResourceBudgetConfig(
         max_tokens=1000,
@@ -135,10 +139,13 @@ def efficient_agent(question: str, ground_truth: str = "") -> tuple:
     ),
 )
 def budget_aware_agent(question: str, ground_truth: str = "") -> tuple:
-    """리소스 예산 인식 에이전트 — 토큰 수 주입."""
+    """리소스 예산 인식 에이전트 — 토큰 수 주입.
+
+    task_type="reasoning"으로 분리 → CostPredictabilityConfig CV 격리.
+    """
     response = f"예산 내 응답: {question}"
-    _in_tok  = random.randint(50, 110)
-    _out_tok = random.randint(90, 200)
+    _in_tok  = random.randint(75, 95)
+    _out_tok = random.randint(115, 135)
     return response, EvalMetadata(
         tokens_used={"input": _in_tok, "output": _out_tok, "total": _in_tok + _out_tok},
     )
@@ -217,6 +224,8 @@ print("\n=== 섹션 추가A: 지연시간 분포 p50/p95/p99 ===")
 import random as _rand
 
 # 정규 분포에 이상치 추가 — 현실적 지연 패턴
+# ※ 별도 monitor 사용: 이상치(8.5s, 12.0s)가 Gate D SLA 집계를 오염하지 않도록 분리
+_monitor_lat = PerformanceMonitor(output_dir=_OUTPUT_DIR)
 latencies = [_rand.gauss(1.2, 0.4) for _ in range(15)] + [8.5, 12.0]
 latencies = [max(0.1, lat) for lat in latencies]
 
@@ -230,15 +239,18 @@ for i, lat in enumerate(latencies):
         task_type="qa",
         tokens_used={"input": 50, "output": 20, "total": 70},
     )
-    monitor.record_task(result)
+    _monitor_lat.record_task(result)
 
-_lat_rep = monitor.generate_report().to_dict().get("efficiency_metrics", {}).get("latency", {})
+_lat_rep = _monitor_lat.generate_report().to_dict().get("efficiency_metrics", {}).get("latency", {})
 print(f"  p50={float(_lat_rep.get('p50',0)):.2f}s  p95={float(_lat_rep.get('p95',0)):.2f}s  p99={float(_lat_rep.get('p99',0)):.2f}s")
 
 # ===========================================================================
 # 섹션 추가: Layer 1 토큰 경제성 + 비용 추정 (TokenEconomyTracker)
 # ===========================================================================
 print("\n=== 섹션 추가B: 토큰 경제성 & 비용 추정 ===")
+
+# ※ 별도 monitor 사용: 토큰 데모 태스크가 Gate D 집계를 오염하지 않도록 분리
+_monitor_tok = PerformanceMonitor(output_dir=_OUTPUT_DIR)
 
 TOKEN_MODELS = [
     ("gpt-4o",      {"input": 800, "output": 200, "total": 1000, "model": "gpt-4o"}),
@@ -256,10 +268,10 @@ for model_name, tokens in TOKEN_MODELS:
         task_type="qa",
         tokens_used=tokens,
     )
-    monitor.record_task(result)
+    _monitor_tok.record_task(result)
     print(f"  [{model_name:<12s}] 총 {tokens['total']:4d} 토큰")
 
-_tok_rep = monitor.generate_report().to_dict().get("efficiency_metrics", {}).get("tokens", {})
+_tok_rep = _monitor_tok.generate_report().to_dict().get("efficiency_metrics", {}).get("tokens", {})
 print(f"  누적 토큰: {int(_tok_rep.get('total_tokens', 0)):,}")
 if _tok_rep.get("total_cost"):
     print(f"  예상 비용: ${float(_tok_rep['total_cost']):.4f} USD")

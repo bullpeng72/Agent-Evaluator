@@ -106,7 +106,7 @@ Agent-Evaluator의 Harness Config + Gate 시스템은 이 Harness Engineering을
 
 - **TCR(Task Completion Rate)**의 구성 타당도: "에이전트가 할당된 작업을 완료했는가"를 측정하려면, completion_score가 실제 완료 여부를 반영해야 한다. code_generation 태스크에서 AST 파싱 성공을 완료 기준으로 쓰는 것은 "문법적으로 유효한 코드를 생성했는가"라는 구성을 잘 반영한다.
 
-- **정확도 지표의 구성 타당도**: Token Overlap F1은 "정보 내용의 일치도"를 측정하려 한다. 그러나 토큰 순서를 무시하기 때문에 "서울은 파리가 아니다"와 "파리는 서울이 아니다"를 동등하게 취급한다. Levenshtein(문자 편집 거리)를 10% 추가함으로써 순서 정보를 부분적으로 보완한다.
+- **정확도 지표의 구성 타당도**: Token Overlap F1은 "정보 내용의 일치도"를 측정하려 한다. 정밀도(얼마나 정확하게)와 재현율(얼마나 많이 포함했는가)의 **조화평균**으로 계산되기 때문에, 둘 중 하나가 낮으면 점수가 크게 떨어진다. 그러나 토큰 순서를 무시하기 때문에 "서울은 파리가 아니다"와 "파리는 서울이 아니다"를 동등하게 취급한다. Levenshtein(문자 편집 거리)를 10% 추가함으로써 순서 정보를 부분적으로 보완한다.
 
 ### G.2.2 신뢰도 (Reliability)
 
@@ -148,10 +148,10 @@ Agent-Evaluator의 `InputSanitizationTracker`는 정규표현식 패턴 매칭 �
 **자동 규칙 기반 평가**는 신뢰도와 비용 효율이 높지만 타당도가 제한적이다.
 **LLM-as-Judge**는 타당도가 높고 비용이 중간이지만 신뢰도는 중간이다.
 
-Agent-Evaluator의 3-Layer 설계는 이 트리레마에 대한 실용적 해답이다:
-- **Gate A-D (기반 지표)**: 신뢰도·비용 최우선 (규칙 기반, 밀리초 단위)
-- **Gate B-F (에이전틱 지표)**: 신뢰도 유지, 에이전트 특화 타당도 추가 (규칙 기반 + 패턴 매칭)
-- **Gate G (관측성)**: 타당도 최우선, 비용은 opt-in으로 제어 (LLM-as-Judge, 샘플링)
+Agent-Evaluator의 Gate 설계는 이 트리레마에 대한 실용적 해답이다:
+- **Gate A–D (Goal Achievement·Behavioral Integrity·Reliability·Performance)**: 신뢰도·비용 최우선. 규칙 기반 측정, 밀리초 단위. 외부 API 호출 없음.
+- **Gate E–F (Security·Multi-Agent)**: 신뢰도 유지, 에이전트 특화 타당도 추가. 패턴 매칭 + 통계 기반.
+- **Gate G (Observability)**: 타당도 최우선, 비용은 opt-in으로 제어. LLMJudge를 샘플링(`judge_sample_rate`)으로 적용.
 
 ---
 
@@ -249,7 +249,7 @@ Agent-Evaluator의 `AgentCoordinationTracker`는 이 중 **협업 패턴과 성�
 - 도메인 지식 반영 한계: "혈압 180/120은 위험한가?" → ground_truth 없이 판단 불가
 - 창의적 답변 평가 한계: 정답이 하나가 아닌 태스크에서 낮은 타당도
 
-**Agent-Evaluator의 선택:** Gate A-F 모두 규칙 기반. 모든 프로덕션 배포에서 즉시 사용 가능하도록 외부 의존성을 제거했다.
+**Agent-Evaluator의 선택:** Gate A-F(Goal Achievement ~ Multi-Agent Coordination)는 모두 규칙 기반이다. 모든 프로덕션 배포에서 즉시 사용 가능하도록 외부 의존성을 제거했다. Gate G(Observability)는 opt-in LLMJudge를 사용하며, 기본값(`enable_llm_judge=False`)으로는 외부 API를 호출하지 않는다.
 
 ### G.4.3 모델 기반 평가 (LLM-as-Judge)
 
@@ -307,10 +307,26 @@ Gate A-F를 외부 의존성 없이 설계함으로써 **평가 시스템이 애
 정확도 계산에 사용되는 가중치 조합(Token F1 40% + Jaccard 30% + LCS 20% + Char Levenshtein 10%)은 **다중 기준 의사결정(Multi-Criteria Decision Making, MCDM)** 이론에 기반한다.
 
 각 지표는 정답의 다른 측면을 측정한다:
-- **Token F1 (40%)**: 핵심 단어의 포함 여부 (가장 중요한 신호)
+
+- **Token Overlap F1 (40%)**: 핵심 단어의 포함 여부 (가장 중요한 신호)
+  - 정밀도(Precision)와 재현율(Recall)의 **조화평균(harmonic mean)**으로 계산한다.
+  - `F1 = 2 × Precision × Recall / (Precision + Recall)`
+  - 조화평균은 산술평균보다 낮은 값에 더 민감하게 반응해, Precision과 Recall 중 하나만 높은 경우 불이익을 준다. 예: 한 단어를 반복해 재현율을 올려도 Precision이 낮으면 F1이 낮게 유지된다.
+  - `Precision = (응답 토큰 중 정답과 겹치는 토큰) / (응답 토큰 전체)`
+  - `Recall    = (응답 토큰 중 정답과 겹치는 토큰) / (정답 토큰 전체)`
+
 - **Jaccard (30%)**: 어휘 집합의 유사도 (단어 다양성 반영)
+  - `Jaccard = |응답 토큰 집합 ∩ 정답 토큰 집합| / |응답 토큰 집합 ∪ 정답 토큰 집합|`
+  - 중복 단어를 무시하고 어휘 다양성을 측정한다. Token F1이 빈도를 고려하는 반면 Jaccard는 집합 관점이다.
+
 - **LCS (20%)**: 단어 순서의 보존 (문장 구조 반영)
+  - 최장 공통 부분 수열(Longest Common Subsequence) 길이를 정답 길이로 나눈 비율.
+  - 단어가 연속적이지 않아도 순서가 맞으면 점수를 받는다 (ROUGE-L과 동일 원리).
+
 - **Char Levenshtein (10%)**: 문자 수준 편집 거리 (철자 오류, 음절 차이 반영)
+  - 문자 삽입·삭제·교체 횟수 최솟값을 기반으로 유사도를 계산한다.
+  - `CharSim = 1 - (Levenshtein거리 / max(응답 길이, 정답 길이))`
+  - 토큰 수준 지표가 놓치는 철자 오류, 숫자 표기 차이(예: "10%" vs "10 퍼센트")를 보완한다.
 
 가중치는 QA 태스크 1,000개에 대한 휴리스틱 검증으로 결정됐으며, 인간 평가자 판단과의 상관계수를 기준으로 최적화됐다. 단순 산술 평균(25% × 4)보다 Token F1 우선 조합이 한국어·영어 혼합 QA에서 상관계수 약 0.05~0.08 높게 측정됐다.
 
@@ -363,11 +379,7 @@ Agent-Evaluator의 `HallucinationDetector`는 경량 버전으로, 수치 불일
 
 이런 연구 결과는 Agent-Evaluator의 `LLMJudge`가 단독으로 사용되지 않고 Gate A-F 규칙 기반 지표와 함께 사용되어야 하는 이유를 뒷받침한다.
 
----
-
----
-
-## G.7.0 이론과 Gate A-G 구현 매핑
+### G.6.4 이론과 Gate A-G 구현 매핑
 
 G.1~G.6에서 다룬 이론이 Agent-Evaluator의 어느 Group에서 구현되는지 정리한다.
 
@@ -375,7 +387,7 @@ G.1~G.6에서 다룬 이론이 Agent-Evaluator의 어느 Group에서 구현되�
 |------|------|-----------|-----------|
 | 구성 타당도 | G.2.1 | A (TCR, Accuracy) | `TaskCompletionTracker`, `AccuracyEvaluator` |
 | 내용 타당도 | G.2.2 | A, G | `ResponseQualityEvaluator`, `LLMJudge` |
-| LLM-as-Judge | G.1.3 | G | `LLMJudge` (7차원) |
+| LLM-as-Judge | G.1.3 | G | `LLMJudge` (5차원 기본; RAG모드 +faithfulness, judge_criteria 지정 시 +G-Eval) |
 | 에이전트 평가 특수성 | G.3 | B, E, F | `ToolCallAnalyzer`, `InputSanitizationTracker` |
 | Config-as-Code | G.8.1 | 전체 (33개 Config) | `HarnessEvaluationGate` |
 | 확률론적 품질 | G.9.1 | A, C | `ReproducibilityConfig`, Wilson Score |
@@ -386,7 +398,7 @@ G.1~G.6에서 다룬 이론이 Agent-Evaluator의 어느 Group에서 구현되�
 | 지표 | 핵심 아이디어 | 참고 연구/방법론 |
 |------|-------------|----------------|
 | TCR | 부분 완료 점수 | AgentBench (Liu et al. 2023) |
-| 정확도 (Token F1) | n-gram F1 | ROUGE-N (Lin 2004) |
+| 정확도 (Token Overlap F1) | Precision·Recall 조화평균(harmonic mean) F1 | ROUGE-N (Lin 2004) |
 | 정확도 (Jaccard) | 집합 유사도 | Jaccard (1901), Levenstein (1965) |
 | 정확도 (LCS) | 서열 정렬 | ROUGE-L (Lin 2004) |
 | 정확도 (Char Levenshtein) | 편집 거리 | Levenshtein (1966) |
@@ -416,7 +428,6 @@ G.1~G.6에서 다룬 이론이 Agent-Evaluator의 어느 Group에서 구현되�
 | 공정성 — 인구통계 동등성 | 그룹 간 FPR 균등 | Hardt et al. (2016), *Equality of Opportunity* |
 | 공정성 — 보정 동등성 | 그룹 간 ECE 균등 | Pleiss et al. (2017) |
 
----
 
 ---
 
@@ -426,12 +437,23 @@ G.1~G.6에서 다룬 이론이 Agent-Evaluator의 어느 Group에서 구현되�
 
 기존 AI 평가는 "얼마나 좋은가"를 측정하는 것에 집중했다. Harness Engineering은 이를 확장해 **"배포해도 되는가"를 판단**하는 시스템으로 전환한다.
 
-이 전환의 핵심은 **평가 기준(Config)과 측정 지표(Tracker)를 분리**하는 것이다.
+이 전환의 핵심은 **"계약 선언(Config)"과 "측정 실행(Tracker)"과 "판정(Gate)"을 세 역할로 분리**하는 것이다.
 
 ```
 기존 접근:  measure(agent) → score → "점수가 충분히 높으면 배포"
-Harness:    Config.declare(criteria) + Tracker.measure(agent) → Gate.judge() → "pass/fail"
+
+Harness:    ① Config.declare(criteria)   — "SLA는 3초 이내, 지시이행률은 90% 이상"
+            ② Tracker.measure(agent)      — 실제 실행 데이터를 수집·계산
+            ③ Gate.judge()               → PASS / WARN / FAIL 자동 판정
 ```
+
+**세 역할의 분리가 중요한 이유**: 기준(Config)은 팀 합의로 결정하고 Git에 커밋한다. 측정(Tracker)은 에이전트 실행 때마다 자동으로 이루어진다. 판정(Gate)은 CI/CD 파이프라인에서 자동으로 수행된다. 이 세 역할이 혼재하면 "기준이 언제 바뀌었는지", "측정값이 왜 이런지"를 추적하기 어렵다.
+
+| 역할 | Python 클래스 예시 | 책임 |
+|------|------------------|------|
+| **Config** (계약 선언) | `SLAConfig(p95_ms=3000)`, `InstructionConfig(min_completion_rate=0.90)` | 통과 기준 선언 |
+| **Tracker** (측정) | `LatencyTracker`, `TaskCompletionTracker` | 데이터 수집·계산 |
+| **Gate** (판정) | `PerformanceMonitor.generate_report()` 내 Harness 집계 | PASS/WARN/FAIL 결정 |
 
 소프트웨어 엔지니어링의 **계약 프로그래밍(Design by Contract, Meyer 1992)**에서 영감을 받은 패러다임이다. "전제 조건(precondition), 사후 조건(postcondition), 불변 조건(invariant)"을 AI 에이전트에 적용하면:
 - **Precondition**: 에이전트가 처리할 수 있는 입력의 범위 (ScopeConfig, ThreatSeverityConfig)
@@ -625,11 +647,24 @@ monitor = PerformanceMonitor(
 
 전통 소프트웨어는 "배포 전 테스트 → 배포 → 운영"의 선형 흐름이다. AI 에이전트는 "배포 전 테스트 → 배포 → 운영 중 평가 → 드리프트 탐지 → 재보정 → 재배포"의 순환 흐름이 필요하다.
 
-```
-[평가] → [측정] → [이상 탐지] → [원인 분석] → [개선] → [재검증] → [배포]
-   ↑                                                                      │
-   └──────────────────────── 자기개선 루프 ──────────────────────────────┘
-```
+@@HTML_START@@
+<div class="mermaid">
+flowchart LR
+    A["평가\nPerformanceMonitor"]:::stepStyle
+    B["측정\ngenerate_report()"]:::stepStyle
+    C["이상 탐지\nAnomalyDetector"]:::stepStyle
+    D["원인 분석\nLLMJudge / Phoenix"]:::stepStyle
+    E["개선\nGoldenSetBuilder"]:::stepStyle
+    F["재검증\nHarnessEvaluationGate"]:::stepStyle
+    G["배포\nagent-eval gate"]:::deployStyle
+
+    A --> B --> C --> D --> E --> F --> G
+    G -.->|자기개선 루프| A
+
+    classDef stepStyle fill:#e8eaf6,stroke:#3949ab,color:#1a237e
+    classDef deployStyle fill:#e8f5e9,stroke:#388e3c,color:#1b5e20,font-weight:bold
+</div>
+@@HTML_END@@
 
 이 루프의 각 단계에서 Agent-Evaluator가 제공하는 도구:
 
@@ -738,7 +773,7 @@ p̃ = softmax(z / T)
 
 ### G.11.2 편향 탐지 — LLMJudge toxicity와 bias 차원
 
-Agent-Evaluator의 LLMJudge는 기본 5차원에 `toxicity`와 `bias` 채점을 포함한다:
+Agent-Evaluator의 LLMJudge는 **기본 5차원(completeness, relevance, factual_consistency, toxicity, bias)**으로 채점한다. `toxicity`와 `bias`는 5차원 중 2개로 기본 호출에 항상 포함된다. RAG 모드(`rag_mode=True` + `context` 전달)로 호출하면 `faithfulness`가 추가되고, `judge_criteria` 파라미터로 G-Eval 커스텀 기준을 지정하면 `criteria_scores`가 추가된다:
 
 ```python
 from agent_evaluator import LLMJudge
@@ -893,7 +928,7 @@ def validate_response_schema(response: str, schema: dict) -> float:
 
 ---
 
-*본 Appendix는 Agent-Evaluator v0.8.4 기준으로 작성됐다. AI 평가 연구는 빠르게 발전하고 있으며, 주요 학회(NeurIPS, ACL, ICLR)에서 새로운 방법론이 지속적으로 발표되고 있다. Harness Engineering 개념과 Config-as-Code 패턴은 v0.8.x 시리즈에서 지속적으로 발전 중이다. 본 부록의 G.10(캘리브레이션), G.11(공정성), G.12(출력 구조 검증) 섹션은 2026년 현재 업계 최전선의 논의를 반영하며, 해당 분야 연구는 계속 진행 중이다.*
+*본 Appendix는 Agent-Evaluator v0.8.5 기준으로 작성됐다. AI 평가 연구는 빠르게 발전하고 있으며, 주요 학회(NeurIPS, ACL, ICLR)에서 새로운 방법론이 지속적으로 발표되고 있다. Harness Engineering 개념과 Config-as-Code 패턴은 v0.8.x 시리즈에서 지속적으로 발전 중이다. 본 부록의 G.10(캘리브레이션), G.11(공정성), G.12(출력 구조 검증) 섹션은 2026년 현재 업계 최전선의 논의를 반영하며, 해당 분야 연구는 계속 진행 중이다.*
 
 ---
 

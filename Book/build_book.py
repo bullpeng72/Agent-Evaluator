@@ -46,6 +46,7 @@ ORDERED_FILES = [
     BOOK_DIR / "Appendix/J_프로덕션_실패패턴_카탈로그.md",
     BOOK_DIR / "Appendix/K_적대적_강건성과_레드팀_평가.md",
     BOOK_DIR / "Appendix/L_예산최적화_평가설계.md",
+    BOOK_DIR / "Appendix/M_프로덕션_운영_체크리스트.md",
 ]
 
 # ── 섹션별 Mermaid 다이어그램 주입 ──────────────────────────────────────────────
@@ -338,15 +339,15 @@ flowchart LR
             """```mermaid
 flowchart TD
     subgraph CI["CI 파이프라인"]
-        RUN["평가 실행\nch18_cicd_gate.py"]
-        GATE["HarnessEvaluationGate.enforce()"]
+        RUN["평가 실행\nch18_cicd_gate.py\n7개 Gate 최소 검증"]
+        GATE["Harness Gate 종합 판정\nmonitor.generate_report()\nPASS / WARN / FAIL → exit 0 / 1"]
         TREND["agent-eval trend\n--fail-on-regression"]
     end
     RUN --> GATE
-    RUN --> RESULT["result.json"]
+    RUN --> RESULT["results/\nch18_cicd_gate.json"]
     RESULT --> TREND
-    GATE --> |"PASS"| DEPLOY["배포 단계"]
-    GATE --> |"FAIL"| HALT["파이프라인 중단\nexit 1"]
+    GATE --> |"exit 0 (PASS)"| DEPLOY["배포 단계"]
+    GATE --> |"exit 1 (FAIL)"| HALT["파이프라인 중단\nexit 1"]
     TREND --> |"회귀 없음"| DEPLOY
     TREND --> |"회귀 감지"| HALT
     DEPLOY --> CANARY["카나리 배포\n10% 트래픽"]
@@ -414,103 +415,179 @@ flowchart TD
 """,
         )
     ],
-    "Chapter_21_종합_실무파이프라인": [
-        (
-            "## 21.1",
-            """```mermaid
-flowchart TD
-    subgraph DEV["🛠️ 개발 단계"]
-        direction LR
-        E01["ch01\nLayer 1 기초"]
-        E12["ch12\n데코레이터"]
-        E13["ch13\n프레임워크"]
-    end
-    subgraph QA["🔍 QA 단계"]
-        direction LR
-        E04["ch04\nGate A~G FAIL 검증"]
-        E16["ch16\n알림 연동"]
-        E17["ch17\n주간 리뷰"]
-    end
-    subgraph PROD["🚀 프로덕션 단계"]
-        direction LR
-        E18["ch18\nCI/CD Gate"]
-        E19["ch19\nPhoenix OTEL"]
-        E20["ch20\n버전 비교"]
-    end
-    DEV --> QA --> PROD
-    PROD --> GATE{"Gate\n판정"}
-    GATE --> |"exit 0 ✅"| LIVE["Live 배포"]
-    GATE --> |"exit 1 ❌"| FIX["수정 후 재시도"]
-    FIX --> DEV
-    style LIVE fill:#c8e6c9,color:#1b5e20
-    style FIX fill:#ffcdd2,color:#b71c1c
-    style DEV fill:#e8f5e9
-    style QA fill:#e3f2fd
-    style PROD fill:#fff3e0
-```
-""",
-        )
-    ],
+    "Chapter_21_종합_실무파이프라인": [],
     "A_58개지표_레퍼런스": [
         (
             "## A.1",
-            """```mermaid
-graph TB
-    subgraph A["Gate A — Goal Achievement"]
-        A1["InstructionConfig"]
-        A2["GoalAlignmentConfig"]
-        A3["PlanConfig"]
-        A4["SubtaskConfig"]
-        A5["ContextRetentionConfig"]
-        A6["KnowledgeRetentionConfig"]
-    end
-    subgraph B["Gate B — Behavioral Integrity"]
-        B1["LoopDetectionConfig"]
-        B2["ScopeConfig"]
-        B3["ToolParameterSafetyConfig"]
-        B4["ContextWindowConfig"]
-        B5["StateConsistencyConfig"]
-        B6["DeadlockConfig"]
-    end
-    subgraph C["Gate C — Reliability"]
-        C1["ReproducibilityConfig"]
-        C2["FaultToleranceConfig"]
-        C3["GracefulDegradationConfig"]
-        C4["RetryConsistencyConfig"]
-        C5["IdempotencyConfig"]
-    end
-    subgraph D["Gate D — Performance Contract"]
-        D1["SLAConfig"]
-        D2["EfficiencyConfig"]
-        D3["ResourceBudgetConfig"]
-        D4["TTFTVariabilityConfig"]
-        D5["CostPredictabilityConfig"]
-    end
-    subgraph E["Gate E — Security Boundary"]
-        E1["ThreatSeverityConfig"]
-        E2["ComplianceConfig"]
-        E3["ThreatResponseConfig"]
-    end
-    subgraph F["Gate F — Multi-Agent"]
-        F1["ConsensusConfig"]
-        F2["PropagationConfig"]
-        F3["AgentRoleConfig"]
-        F4["ConflictResolutionConfig"]
-    end
-    subgraph G["Gate G — Observability"]
-        G1["ExplainabilityConfig"]
-        G2["ObservabilityConfig"]
-        G3["ErrorDiagnosisConfig"]
-        G4["LatencyAttributionConfig"]
-    end
-    style A fill:#e8f5e9
-    style B fill:#e3f2fd
-    style C fill:#fff3e0
-    style D fill:#fce4ec
-    style E fill:#f3e5f5
-    style F fill:#e8eaf6
-    style G fill:#e0f7fa
-```
+            """@@HTML_START@@
+<style>
+.gate-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin:20px 0;}
+.gate-card{border-radius:10px;padding:14px;font-size:12px;}
+.gate-title{font-weight:700;font-size:13px;margin-bottom:8px;border-bottom-width:1px;border-bottom-style:solid;padding-bottom:6px;}
+.gate-sub{font-weight:400;font-size:11px;}
+.section-label{font-size:10px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;margin:8px 0 4px;opacity:.7;}
+.chip{border-radius:4px;padding:4px 8px;margin-bottom:4px;display:flex;align-items:center;gap:5px;font-size:12px;}
+.chip-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0;}
+.summary-card{border-radius:10px;padding:14px;display:flex;align-items:center;justify-content:center;background:#f5f5f5;border:2px solid #bdbdbd;}
+.legend{display:flex;gap:16px;margin:0 0 12px;font-size:11px;align-items:center;}
+.legend-item{display:flex;align-items:center;gap:5px;}
+</style>
+<div class="legend">
+  <span style="font-weight:700;font-size:12px;color:#424242;">범례:</span>
+  <span class="legend-item"><span style="width:10px;height:10px;border-radius:50%;background:#37474f;display:inline-block;"></span> Tracker (자동 측정)</span>
+  <span class="legend-item"><span style="width:10px;height:10px;border-radius:2px;background:#90a4ae;display:inline-block;"></span> Config (기준 선언)</span>
+</div>
+<div class="gate-grid">
+
+  <div class="gate-card" style="background:#e8f5e9;border:2px solid #66bb6a;">
+    <div class="gate-title" style="color:#1b5e20;border-bottom-color:#a5d6a7;">
+      Gate A &mdash; 목표달성<br><span class="gate-sub" style="color:#388e3c;">Goal Achievement</span>
+    </div>
+    <div class="section-label" style="color:#1b5e20;">Tracker</div>
+    <div class="chip" style="background:#1b5e20;color:#fff;"><span class="chip-dot" style="background:#fff;"></span>TaskCompletionTracker</div>
+    <div class="chip" style="background:#1b5e20;color:#fff;"><span class="chip-dot" style="background:#fff;"></span>AccuracyEvaluator</div>
+    <div class="chip" style="background:#1b5e20;color:#fff;"><span class="chip-dot" style="background:#fff;"></span>ResponseQualityEvaluator</div>
+    <div class="section-label" style="color:#1b5e20;">Config</div>
+    <div class="chip" style="background:#fff;border:1px solid #a5d6a7;color:#1b5e20;"><span class="chip-dot" style="background:#a5d6a7;"></span>InstructionConfig</div>
+    <div class="chip" style="background:#fff;border:1px solid #a5d6a7;color:#1b5e20;"><span class="chip-dot" style="background:#a5d6a7;"></span>GoalAlignmentConfig</div>
+    <div class="chip" style="background:#fff;border:1px solid #a5d6a7;color:#1b5e20;"><span class="chip-dot" style="background:#a5d6a7;"></span>PlanConfig</div>
+    <div class="chip" style="background:#fff;border:1px solid #a5d6a7;color:#1b5e20;"><span class="chip-dot" style="background:#a5d6a7;"></span>SubtaskConfig</div>
+    <div class="chip" style="background:#fff;border:1px solid #a5d6a7;color:#1b5e20;"><span class="chip-dot" style="background:#a5d6a7;"></span>ContextRetentionConfig</div>
+    <div class="chip" style="background:#fff;border:1px solid #a5d6a7;color:#1b5e20;"><span class="chip-dot" style="background:#a5d6a7;"></span>KnowledgeRetentionConfig</div>
+  </div>
+
+  <div class="gate-card" style="background:#e3f2fd;border:2px solid #42a5f5;">
+    <div class="gate-title" style="color:#0d47a1;border-bottom-color:#90caf9;">
+      Gate B &mdash; 행동무결성<br><span class="gate-sub" style="color:#1565c0;">Behavioral Integrity</span>
+    </div>
+    <div class="section-label" style="color:#0d47a1;">Tracker</div>
+    <div class="chip" style="background:#0d47a1;color:#fff;"><span class="chip-dot" style="background:#fff;"></span>ToolCallAnalyzer</div>
+    <div class="chip" style="background:#0d47a1;color:#fff;"><span class="chip-dot" style="background:#fff;"></span>WorkflowExecutionTracker</div>
+    <div class="section-label" style="color:#0d47a1;">Config</div>
+    <div class="chip" style="background:#fff;border:1px solid #90caf9;color:#0d47a1;"><span class="chip-dot" style="background:#90caf9;"></span>LoopDetectionConfig</div>
+    <div class="chip" style="background:#fff;border:1px solid #90caf9;color:#0d47a1;"><span class="chip-dot" style="background:#90caf9;"></span>ScopeConfig</div>
+    <div class="chip" style="background:#fff;border:1px solid #90caf9;color:#0d47a1;"><span class="chip-dot" style="background:#90caf9;"></span>ToolParameterSafetyConfig</div>
+    <div class="chip" style="background:#fff;border:1px solid #90caf9;color:#0d47a1;"><span class="chip-dot" style="background:#90caf9;"></span>ContextWindowConfig</div>
+    <div class="chip" style="background:#fff;border:1px solid #90caf9;color:#0d47a1;"><span class="chip-dot" style="background:#90caf9;"></span>StateConsistencyConfig</div>
+    <div class="chip" style="background:#fff;border:1px solid #90caf9;color:#0d47a1;"><span class="chip-dot" style="background:#90caf9;"></span>DeadlockConfig</div>
+  </div>
+
+  <div class="gate-card" style="background:#fff3e0;border:2px solid #ffa726;">
+    <div class="gate-title" style="color:#e65100;border-bottom-color:#ffcc80;">
+      Gate C &mdash; 신뢰성<br><span class="gate-sub" style="color:#ef6c00;">Reliability</span>
+    </div>
+    <div class="section-label" style="color:#e65100;">Tracker</div>
+    <div class="chip" style="background:#e65100;color:#fff;"><span class="chip-dot" style="background:#fff;"></span>HallucinationDetector</div>
+    <div class="chip" style="background:#e65100;color:#fff;"><span class="chip-dot" style="background:#fff;"></span>RetryCorrectionTracker</div>
+    <div class="section-label" style="color:#e65100;">Config</div>
+    <div class="chip" style="background:#fff;border:1px solid #ffcc80;color:#e65100;"><span class="chip-dot" style="background:#ffcc80;"></span>ReproducibilityConfig</div>
+    <div class="chip" style="background:#fff;border:1px solid #ffcc80;color:#e65100;"><span class="chip-dot" style="background:#ffcc80;"></span>FaultToleranceConfig</div>
+    <div class="chip" style="background:#fff;border:1px solid #ffcc80;color:#e65100;"><span class="chip-dot" style="background:#ffcc80;"></span>GracefulDegradationConfig</div>
+    <div class="chip" style="background:#fff;border:1px solid #ffcc80;color:#e65100;"><span class="chip-dot" style="background:#ffcc80;"></span>RetryConsistencyConfig</div>
+    <div class="chip" style="background:#fff;border:1px solid #ffcc80;color:#e65100;"><span class="chip-dot" style="background:#ffcc80;"></span>IdempotencyConfig</div>
+  </div>
+
+  <div class="gate-card" style="background:#fce4ec;border:2px solid #ec407a;">
+    <div class="gate-title" style="color:#880e4f;border-bottom-color:#f48fb1;">
+      Gate D &mdash; 성능계약<br><span class="gate-sub" style="color:#ad1457;">Performance Contract</span>
+    </div>
+    <div class="section-label" style="color:#880e4f;">Tracker</div>
+    <div class="chip" style="background:#880e4f;color:#fff;"><span class="chip-dot" style="background:#fff;"></span>LatencyTracker</div>
+    <div class="chip" style="background:#880e4f;color:#fff;"><span class="chip-dot" style="background:#fff;"></span>TokenEconomyTracker</div>
+    <div class="section-label" style="color:#880e4f;">Config</div>
+    <div class="chip" style="background:#fff;border:1px solid #f48fb1;color:#880e4f;"><span class="chip-dot" style="background:#f48fb1;"></span>SLAConfig</div>
+    <div class="chip" style="background:#fff;border:1px solid #f48fb1;color:#880e4f;"><span class="chip-dot" style="background:#f48fb1;"></span>EfficiencyConfig</div>
+    <div class="chip" style="background:#fff;border:1px solid #f48fb1;color:#880e4f;"><span class="chip-dot" style="background:#f48fb1;"></span>ResourceBudgetConfig</div>
+    <div class="chip" style="background:#fff;border:1px solid #f48fb1;color:#880e4f;"><span class="chip-dot" style="background:#f48fb1;"></span>TTFTVariabilityConfig</div>
+    <div class="chip" style="background:#fff;border:1px solid #f48fb1;color:#880e4f;"><span class="chip-dot" style="background:#f48fb1;"></span>CostPredictabilityConfig</div>
+  </div>
+
+  <div class="gate-card" style="background:#f3e5f5;border:2px solid #ab47bc;">
+    <div class="gate-title" style="color:#4a148c;border-bottom-color:#ce93d8;">
+      Gate E &mdash; 보안경계<br><span class="gate-sub" style="color:#6a1b9a;">Security Boundary</span>
+    </div>
+    <div class="section-label" style="color:#4a148c;">Tracker</div>
+    <div class="chip" style="background:#4a148c;color:#fff;"><span class="chip-dot" style="background:#fff;"></span>InputSanitizationTracker</div>
+    <div class="chip" style="background:#4a148c;color:#fff;"><span class="chip-dot" style="background:#fff;"></span>OutputLeakageDetector</div>
+    <div class="chip" style="background:#4a148c;color:#fff;"><span class="chip-dot" style="background:#fff;"></span>ToolAuthorizationTracker</div>
+    <div class="chip" style="background:#4a148c;color:#fff;"><span class="chip-dot" style="background:#fff;"></span>PrivilegeEscalationDetector</div>
+    <div class="chip" style="background:#4a148c;color:#fff;"><span class="chip-dot" style="background:#fff;"></span>ToolChainAttackDetector</div>
+    <div class="section-label" style="color:#4a148c;">Config</div>
+    <div class="chip" style="background:#fff;border:1px solid #ce93d8;color:#4a148c;"><span class="chip-dot" style="background:#ce93d8;"></span>ThreatSeverityConfig</div>
+    <div class="chip" style="background:#fff;border:1px solid #ce93d8;color:#4a148c;"><span class="chip-dot" style="background:#ce93d8;"></span>ComplianceConfig</div>
+    <div class="chip" style="background:#fff;border:1px solid #ce93d8;color:#4a148c;"><span class="chip-dot" style="background:#ce93d8;"></span>ThreatResponseConfig</div>
+  </div>
+
+  <div class="gate-card" style="background:#e8eaf6;border:2px solid #5c6bc0;">
+    <div class="gate-title" style="color:#1a237e;border-bottom-color:#9fa8da;">
+      Gate F &mdash; 다중에이전트<br><span class="gate-sub" style="color:#283593;">Multi-Agent</span>
+    </div>
+    <div class="section-label" style="color:#1a237e;">Tracker</div>
+    <div class="chip" style="background:#1a237e;color:#fff;"><span class="chip-dot" style="background:#fff;"></span>AgentCoordinationTracker</div>
+    <div class="chip" style="background:#1a237e;color:#fff;"><span class="chip-dot" style="background:#fff;"></span>ToolSelectionTracker</div>
+    <div class="section-label" style="color:#1a237e;">Config</div>
+    <div class="chip" style="background:#fff;border:1px solid #9fa8da;color:#1a237e;"><span class="chip-dot" style="background:#9fa8da;"></span>ConsensusConfig</div>
+    <div class="chip" style="background:#fff;border:1px solid #9fa8da;color:#1a237e;"><span class="chip-dot" style="background:#9fa8da;"></span>PropagationConfig</div>
+    <div class="chip" style="background:#fff;border:1px solid #9fa8da;color:#1a237e;"><span class="chip-dot" style="background:#9fa8da;"></span>AgentRoleConfig</div>
+    <div class="chip" style="background:#fff;border:1px solid #9fa8da;color:#1a237e;"><span class="chip-dot" style="background:#9fa8da;"></span>ConflictResolutionConfig</div>
+  </div>
+
+  <div class="gate-card" style="background:#e0f7fa;border:2px solid #26c6da;">
+    <div class="gate-title" style="color:#006064;border-bottom-color:#80deea;">
+      Gate G &mdash; 운영관측성<br><span class="gate-sub" style="color:#00838f;">Observability</span>
+    </div>
+    <div class="section-label" style="color:#006064;">Tracker</div>
+    <div style="font-size:11px;color:#00838f;font-style:italic;padding:4px 6px;background:#b2ebf2;border-radius:4px;margin-bottom:4px;">Native Tracker 없음<br>LLMJudge(Hybrid, opt-in)</div>
+    <div class="section-label" style="color:#006064;">Config</div>
+    <div class="chip" style="background:#fff;border:1px solid #80deea;color:#006064;"><span class="chip-dot" style="background:#80deea;"></span>ExplainabilityConfig</div>
+    <div class="chip" style="background:#fff;border:1px solid #80deea;color:#006064;"><span class="chip-dot" style="background:#80deea;"></span>ObservabilityConfig</div>
+    <div class="chip" style="background:#fff;border:1px solid #80deea;color:#006064;"><span class="chip-dot" style="background:#80deea;"></span>ErrorDiagnosisConfig</div>
+    <div class="chip" style="background:#fff;border:1px solid #80deea;color:#006064;"><span class="chip-dot" style="background:#80deea;"></span>LatencyAttributionConfig</div>
+  </div>
+
+  <div class="summary-card">
+    <div style="text-align:center;color:#424242;">
+      <div style="font-size:13px;font-weight:700;margin-bottom:10px;">합계</div>
+      <div style="display:flex;gap:12px;justify-content:center;align-items:center;">
+        <div style="text-align:center;">
+          <div style="font-size:22px;font-weight:700;color:#37474f;">16</div>
+          <div style="font-size:10px;color:#546e7a;">Gate 매핑<br>Tracker</div>
+        </div>
+        <div style="font-size:18px;font-weight:300;color:#bdbdbd;">+</div>
+        <div style="text-align:center;">
+          <div style="font-size:22px;font-weight:700;color:#78909c;">9</div>
+          <div style="font-size:10px;color:#546e7a;">운영 지원<br>Tracker</div>
+        </div>
+        <div style="font-size:18px;font-weight:300;color:#bdbdbd;">+</div>
+        <div style="text-align:center;">
+          <div style="font-size:22px;font-weight:700;color:#90a4ae;">33</div>
+          <div style="font-size:10px;color:#546e7a;">Harness<br>Config</div>
+        </div>
+      </div>
+      <div style="margin-top:10px;font-size:16px;font-weight:700;color:#1a237e;border-top:1px solid #e0e0e0;padding-top:8px;">= 58개 지표</div>
+    </div>
+  </div>
+
+</div>
+
+<!-- 운영 지원 Tracker 9종 -->
+<div style="margin-top:8px;background:#f5f5f5;border:2px solid #bdbdbd;border-radius:10px;padding:14px;">
+  <div style="font-weight:700;font-size:13px;color:#37474f;margin-bottom:10px;border-bottom:1px solid #e0e0e0;padding-bottom:6px;">
+    운영 지원 Tracker (9종) &mdash; Harness Gate 직접 판정 외 운영 인프라
+  </div>
+  <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;">
+    <div class="chip" style="background:#37474f;color:#fff;"><span class="chip-dot" style="background:#fff;"></span>ConversationSession</div>
+    <div class="chip" style="background:#37474f;color:#fff;"><span class="chip-dot" style="background:#fff;"></span>ConversationMetrics</div>
+    <div class="chip" style="background:#37474f;color:#fff;"><span class="chip-dot" style="background:#fff;"></span>ConversationTurn</div>
+    <div class="chip" style="background:#546e7a;color:#fff;"><span class="chip-dot" style="background:#fff;"></span>ImplicitFeedbackTracker</div>
+    <div class="chip" style="background:#546e7a;color:#fff;"><span class="chip-dot" style="background:#fff;"></span>AnomalyDetector</div>
+    <div class="chip" style="background:#546e7a;color:#fff;"><span class="chip-dot" style="background:#fff;"></span>CostTracker</div>
+    <div class="chip" style="background:#607d8b;color:#fff;"><span class="chip-dot" style="background:#fff;"></span>AdaptivePolicy</div>
+    <div class="chip" style="background:#607d8b;color:#fff;"><span class="chip-dot" style="background:#fff;"></span>SamplingStage</div>
+    <div class="chip" style="background:#607d8b;color:#fff;"><span class="chip-dot" style="background:#fff;"></span>StreamingEvaluator</div>
+  </div>
+</div>
+@@HTML_END@@
 """,
         )
     ],
@@ -523,7 +600,7 @@ HTML_HEAD = """\
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>AI 에이전트 Harness Engineering 실무 가이드 — Agent-Evaluator</title>
+<title>실전 AI 에이전트 하네스 엔지니어링 — Agent-Evaluator를 활용한 품질 평가와 배포 자동화</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&family=Noto+Serif+KR:wght@400;700&family=JetBrains+Mono:wght@400;500&family=Noto+Sans+Mono:wght@400;500&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
@@ -588,6 +665,18 @@ body {
   border-bottom: 1px solid rgba(255,255,255,0.1);
 }
 #sidebar-header small { display: block; font-size: 0.7rem; font-weight: 300; opacity: 0.75; margin-top: 4px; }
+#sidebar-header .subtitle {
+  display: block;
+  font-size: 0.72rem;
+  font-weight: 400;
+  font-style: italic;
+  opacity: 0.82;
+  margin-top: 7px;
+  padding-top: 7px;
+  border-top: 1px solid rgba(255,255,255,0.18);
+  line-height: 1.55;
+  letter-spacing: 0.01em;
+}
 #toc { padding: 8px 0 40px; }
 #toc a {
   display: block;
@@ -1600,7 +1689,7 @@ tr.row-config code { background: #c5cae9; color: #1a237e; border-color: #9fa8da;
 <body>
 """
 
-HTML_SIDEBAR_START = '<nav id="sidebar"><div id="sidebar-header">AI 에이전트<br>Harness Engineering<br>실무 가이드<small>Agent-Evaluator v0.8.4</small></div><div id="toc">'
+HTML_SIDEBAR_START = '<nav id="sidebar"><div id="sidebar-header">실전 AI 에이전트<br>하네스 엔지니어링<span class="subtitle">Agent-Evaluator를 활용한<br>품질 평가와 배포 자동화</span><small>Agent-Evaluator v0.8.4</small></div><div id="toc">'
 HTML_SIDEBAR_END = "</div></nav>"
 
 HTML_MAIN_START = '<main id="main">'
@@ -1694,6 +1783,7 @@ TOC_STRUCTURE = [
     ("appendix", "J_프로덕션", "appJ", "App J. 실패패턴 카탈로그"),
     ("appendix", "K_적대적", "appK", "App K. 적대적 강건성 & 레드팀"),
     ("appendix", "L_예산", "appL", "App L. 예산최적화 평가설계"),
+    ("appendix", "M_프로덕션", "appM", "App M. 프로덕션 운영 체크리스트"),
 ]
 
 # stem → section_id 매핑 (파일명 일부 → anchor ID)

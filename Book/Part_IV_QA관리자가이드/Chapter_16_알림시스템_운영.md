@@ -42,6 +42,7 @@ monitor = PerformanceMonitor(output_dir="results/")
 ### when_accuracy_below — 정확도 하한 알림
 
 ```python
+# 출처: Evaluator_Examples/ch16_alerts.py — 알림 시스템
 accuracy_rule = AlertRuleBuilder.when_accuracy_below(
     threshold=0.70,              # accuracy_score < 0.70 이면 발동
     handler=lambda msg, tr: print(f"[WARNING] 정확도 하락: {msg}"),
@@ -57,6 +58,7 @@ accuracy_rule = AlertRuleBuilder.when_accuracy_below(
 ### when_latency_above — 응답시간 상한 알림
 
 ```python
+# 출처: Evaluator_Examples/ch16_alerts.py — 알림 시스템
 latency_rule = AlertRuleBuilder.when_latency_above(
     threshold_seconds=5.0,       # execution_time > 5.0초 이면 발동
     handler=lambda msg, tr: print(f"[WARNING] 응답 지연: {msg}"),
@@ -72,6 +74,7 @@ latency_rule = AlertRuleBuilder.when_latency_above(
 ### when_completion_below — 완료율 하한 알림
 
 ```python
+# 출처: Evaluator_Examples/ch16_alerts.py — 알림 시스템
 completion_rule = AlertRuleBuilder.when_completion_below(
     threshold=0.80,              # completion_score < 0.80 이면 발동
     handler=lambda msg, tr: print(f"[ERROR] 완료율 하락: {msg}"),
@@ -87,6 +90,7 @@ completion_rule = AlertRuleBuilder.when_completion_below(
 ### when_error — 오류 발생 알림
 
 ```python
+# 출처: Evaluator_Examples/ch16_alerts.py — 알림 시스템
 error_rule = AlertRuleBuilder.when_error(
     handler=lambda msg, tr: print(f"[ERROR] 태스크 오류: {msg}"),
     severity="error",
@@ -126,6 +130,7 @@ def my_agent(question: str, ground_truth: str = "") -> str:
 `QuickEval`에서도 동일한 방식으로 적용한다:
 
 ```python
+# 출처: Evaluator_Examples/ch16_alerts.py — QuickEval 평가
 from agent_evaluator import QuickEval
 
 eval = QuickEval("results/")
@@ -141,6 +146,18 @@ def my_agent(question: str, ground_truth: str = "") -> str:
 
 ---
 
+> **알림 도구 선택 가이드 (초중급자용)**
+>
+> Agent-Evaluator 알림 시스템에는 세 가지 도구가 있다. 상황에 맞게 골라 쓰면 된다.
+>
+> | 상황 | 사용할 도구 |
+> |------|------------|
+> | 정확도·지연·오류·완료율·도구호출 횟수 등 표준 조건 알림 | `AlertRuleBuilder` 팩토리 메서드 |
+> | 표준 조건에 없는 커스텀 조건 (토큰 수, 복합 조건 등) | `SimpleTaskAlertRule` |
+> | 개별 태스크가 아닌 슬라이딩 윈도우 집계(TCR 평균, P95 추세)로 알림 | `StreamingEvaluator` |
+>
+> **기본 전략**: `AlertRuleBuilder`로 시작해, 부족한 조건만 `SimpleTaskAlertRule`로 추가하라. `StreamingEvaluator`는 단발 이상이 아닌 "지속적 품질 저하" 트렌드를 잡아야 할 때 추가한다.
+
 ## 16.2 SimpleTaskAlertRule — 커스텀 조건 알림
 
 `AlertRuleBuilder`가 제공하지 않는 조건이 필요할 때는 `SimpleTaskAlertRule`로 완전히 커스텀할 수 있다.
@@ -152,6 +169,7 @@ from agent_evaluator import SimpleTaskAlertRule
 ### 단일 조건 알림
 
 ```python
+# 출처: Evaluator_Examples/ch16_alerts.py — 알림 시스템
 # 토큰 사용량이 4,000개를 초과하면 알림
 # tokens_used는 Dict[str, int] — {"input": N, "output": M, "total": T} 구조
 token_rule = SimpleTaskAlertRule(
@@ -168,6 +186,7 @@ token_rule = SimpleTaskAlertRule(
 여러 조건을 동시에 만족할 때만 발동하는 알림을 만들 수 있다.
 
 ```python
+# 출처: Evaluator_Examples/ch16_alerts.py — 알림 시스템
 # accuracy < 0.6 이고 execution_time > 10.0초인 동시에 느리고 부정확한 케이스
 slow_and_inaccurate_rule = SimpleTaskAlertRule(
     name="slow_and_inaccurate",
@@ -186,6 +205,7 @@ slow_and_inaccurate_rule = SimpleTaskAlertRule(
 람다 함수 대신 딕셔너리 형식으로도 복합 조건을 정의할 수 있다.
 
 ```python
+# 출처: Evaluator_Examples/ch16_alerts.py — 알림 시스템
 retry_alert = SimpleTaskAlertRule(
     name="excessive_retries",
     compound_conditions=[
@@ -203,6 +223,7 @@ retry_alert = SimpleTaskAlertRule(
 알림 규칙이 올바르게 동작하는지 실제 에이전트를 실행하지 않고 테스트할 수 있다. CI에서 알림 규칙 자체를 테스트하는 데 유용하다.
 
 ```python
+# 출처: Evaluator_Examples/ch16_alerts.py — 알림 시스템
 from agent_evaluator import SimpleTaskAlertRule, create_taskresult
 
 rule = SimpleTaskAlertRule(
@@ -243,6 +264,7 @@ print("알림 규칙 단위 테스트 통과")
 같은 `name`을 가진 규칙 인스턴스가 여러 개 있을 때 쿨다운을 공유한다. 여러 데코레이터에 같은 규칙을 재사용할 때 알림이 중복 발생하지 않는다.
 
 ```python
+# 출처: Evaluator_Examples/ch16_alerts.py — 알림 시스템
 # 두 에이전트가 같은 이름의 규칙을 사용해도 쿨다운이 공유됨
 common_rule = SimpleTaskAlertRule(
     name="shared_accuracy_rule",  # 같은 name → 쿨다운 공유
@@ -270,6 +292,7 @@ def agent_b(question, ground_truth=""): ...
 API 키와 마찬가지로 Slack Webhook URL도 코드에 하드코딩하지 않는다. 환경변수가 없으면 콘솔 출력으로 fallback하는 패턴이 안전하다.
 
 ```python
+# 출처: Evaluator_Examples/ch16_alerts.py — 예제 코드
 import os
 import json
 
@@ -313,6 +336,7 @@ slack_handler = create_slack_handler("#monitoring")
 ### 이메일 핸들러 (smtplib)
 
 ```python
+# 출처: Evaluator_Examples/ch16_alerts.py — 예제 코드
 import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
@@ -364,6 +388,7 @@ def create_email_handler(to_address: str):
 실제 운영 환경에서 바로 사용할 수 있는 완전한 알림 설정 예시다.
 
 ```python
+# 출처: Evaluator_Examples/ch16_alerts.py — 알림 시스템
 import os
 from agent_evaluator import (
     PerformanceMonitor,
@@ -446,7 +471,11 @@ def production_agent(question: str, ground_truth: str = "") -> str:
 
 ## 16.4 쿨다운 전략과 알림 피로 방지
 
-쿨다운은 동일한 규칙이 짧은 시간 안에 반복 발동하지 않도록 하는 메커니즘이다. 알림 피로를 막는 핵심 도구다.
+### 알림 피로(Alert Fatigue)란?
+
+**알림 피로**는 너무 많은 알림이 쏟아져 팀이 알림을 무시하게 되는 현상이다. 정확도가 낮아졌을 때 알림이 1초마다 온다면, 팀원은 첫 5분 뒤부터 알림을 끄거나 무시하게 된다. 그러다 실제 Critical 상황이 오면 놓친다. 알림 피로는 알림 시스템 자체를 무력화한다.
+
+**해결책이 쿨다운이다.** 쿨다운은 동일한 규칙이 짧은 시간 안에 반복 발동하지 않도록 막는 대기 시간이다. `cooldown=300`으로 설정하면 같은 규칙이 발동하더라도 300초(5분) 동안은 추가 알림을 보내지 않는다. 이 5분 동안 같은 조건이 10번 발생해도 알림은 1번만 간다.
 
 ### 쿨다운 설정 원칙
 
@@ -476,6 +505,31 @@ Critical → cooldown: 30초 (30초) — 30초마다 한 번
 
 📋 **QA 관리자 TIP:** Slack 채널 알림 설정에서 `#monitoring`은 "멘션만 알림", `#alerts`는 "모든 메시지 알림", `#incidents`는 "모든 메시지 알림 + 모바일 푸시"로 설정하라. 채널 설정이 잘못되면 중요한 알림을 놓친다.
 
+### Harness Gate 관점: 알림 → 배포 차단 에스컬레이션 흐름
+
+알림은 단순한 "알림"이 아니다. Harness Engineering에서는 **임계값 위반을 자동 감지 → 알림 → Gate 점수 악화 → 배포 차단**으로 이어지는 파이프라인의 첫 번째 단계다.
+
+```
+[개별 태스크 완료]
+       ↓
+SimpleTaskAlertRule / AlertRuleBuilder 평가
+       ↓
+임계값 위반 감지
+  ├── Warning → #monitoring 알림 → Gate 점수 추세 모니터링
+  ├── Error   → #alerts 알림 → 즉각 조사 + 배포 보류 검토
+  └── Critical → #incidents 알림 → 즉각 롤백 또는 중단
+       ↓
+PerformanceMonitor 누적 → Harness Gate 판정
+  ├── Gate A WARN/FAIL → accuracy·TCR 임계값 위반 누적
+  ├── Gate D WARN/FAIL → SLA·P95·비용 임계값 위반 누적
+  └── Gate E FAIL → 보안 위협 탐지 즉시 (Critical 알림과 동시)
+       ↓
+agent-eval gate result.json → exit 0 (PASS) / exit 1 (FAIL)
+  → CI/CD 배포 파이프라인 차단
+```
+
+**핵심 원리**: `SLAConfig(p95_ms=3000)`처럼 임계값을 코드로 선언하면, 해당 임계값을 위반하는 태스크는 자동으로 알림(Warning/Error)을 발생시키고, 누적되면 Gate D FAIL로 이어져 배포가 차단된다. 임계값을 한 곳에서 선언하면 알림과 Gate 판정이 자동으로 연동된다.
+
 ---
 
 ## 16.5 AnomalyDetector — Z-Score 이상 탐지
@@ -483,6 +537,7 @@ Critical → cooldown: 30초 (30초) — 30초마다 한 번
 알림 규칙은 "특정 값이 임계값을 넘으면" 발동한다. 반면 `AnomalyDetector`는 "최근 패턴과 달라졌을 때" 발동한다. 점진적으로 품질이 나빠지는 케이스는 알림 규칙으로는 잡기 어렵지만 이상 탐지로는 잡힌다.
 
 ```python
+# 출처: Evaluator_Examples/ch16_alerts.py — AnomalyDetector 이상 탐지
 from agent_evaluator import PerformanceMonitor
 from agent_evaluator.decorators import agent_eval
 
@@ -509,6 +564,7 @@ monitor.save_to_file("evaluation")  # anomaly_data 자동 포함
 단순히 "이상 이벤트 발생"이 아니라 원인과 권고사항까지 확인할 수 있다.
 
 ```python
+# 출처: Evaluator_Examples/ch16_alerts.py — 예제 코드
 # 대시보드 API로 특정 이벤트 상세 분석 (file_id 포함 경로)
 import urllib.request, json
 
@@ -547,6 +603,7 @@ print(f"권고: {explanation['recommendation']}")
 비용이 예산을 초과하면 더 저렴한 모델로 자동 전환하는 정책이다. 비용 폭증을 방지하는 마지막 안전망이다.
 
 ```python
+# 출처: Evaluator_Examples/ch16_alerts.py — CostTracker 비용 추적
 from agent_evaluator import AdaptivePolicy, SamplingStage, CostTracker
 
 # SamplingStage Enum: DEFAULT / ANOMALY / BUDGET_EXCEEDED
@@ -596,7 +653,6 @@ BUDGET_EXCEEDED → 0% 평가 중단 (budget_per_day 초과 시 자동 전환)
 
 📋 **QA 관리자 TIP:** `is_budget_alert()` 또는 `is_budget_exceeded()` 호출 결과를 `SimpleTaskAlertRule` 조건에 연결하면 예산 경고를 Slack으로 자동 전달할 수 있다. `enter_anomaly_mode()` 호출이 잦다면 일일 예산을 늘리거나 샘플링 전략을 재검토할 신호다.
 
----
 ---
 
 ## 16.7 StreamingEvaluator — 실시간 슬라이딩 윈도우 알림
@@ -709,6 +765,7 @@ print(f"positive={fb_stats.get('positive_count', 0)}  negative={fb_stats.get('ne
 **알림 규칙 단위 테스트 체크리스트:**
 
 ```python
+# 출처: Evaluator_Examples/ch16_alerts.py — 알림 시스템
 # CI에 포함할 알림 규칙 검증 테스트
 def test_alert_rules():
     from agent_evaluator import SimpleTaskAlertRule, create_taskresult
@@ -741,11 +798,12 @@ def test_alert_rules():
 ## 이 챕터의 핵심
 
 - **AlertRuleBuilder 5종 팩토리** — `when_accuracy_below`, `when_latency_above`, `when_completion_below`, `when_error`, `when_tool_calls_exceed`로 표준 알림을 한 줄로 설정한다
-- **SimpleTaskAlertRule + dry_run** — 커스텀 람다 조건으로 어떤 상황이든 알림을 만들 수 있고, `dry_run()`으로 단위 테스트까지 가능하다
-- **Warning은 길게, Critical은 짧게** — 쿨다운을 계층별로 다르게 설정해야 알림 피로 없이 중요한 알림을 놓치지 않는다
+- **SimpleTaskAlertRule + dry_run** — 커스텀 람다 조건으로 어떤 상황이든 알림을 만들 수 있고, `dry_run()`으로 단위 테스트까지 가능하다; `StreamingEvaluator`는 슬라이딩 윈도우 트렌드가 필요할 때 추가한다
+- **알림 피로 방지** — 알림이 너무 많으면 팀이 알림을 무시하게 된다; 쿨다운으로 같은 조건의 반복 알림을 억제하고 Warning/Error/Critical 채널을 분리해 긴급도별로 대응한다
+- **Warning은 길게, Critical은 짧게** — `warning=300s / error=60s / critical=30s` 기준으로 계층별 쿨다운을 다르게 설정해야 알림 피로 없이 중요한 알림을 놓치지 않는다
+- **Harness Gate 자동 연동** — 임계값을 `SLAConfig`, `InstructionConfig` 등 코드로 선언하면 알림과 Gate 판정이 자동 연동된다; 알림 반복 → Gate WARN → Gate FAIL → CI/CD 배포 차단으로 이어지는 파이프라인이 완성된다
 - **AnomalyDetector는 알림 규칙의 보완재** — 임계값 기반 알림이 잡지 못하는 "점진적 품질 저하"를 Z-Score로 탐지한다
 - **AdaptivePolicy는 비용 안전망** — 일일 예산을 초과하기 전에 더 저렴한 모델로 자동 전환해서 비용 폭증을 방지한다
-- **StreamingEvaluator는 윈도우 집계 트렌드 감시자** — 개별 태스크 알림이 잡지 못하는 지속적 추세 이상(P95 증가, 오류율 상승)을 슬라이딩 윈도우로 탐지한다
 - **ImplicitFeedbackTracker는 사용자 의도 신호 수집기** — LLM 점수와 별개로 thumbs_down·regenerate·abandon 행동 데이터를 품질 프록시로 활용한다
 
 ---
@@ -844,10 +902,10 @@ python Evaluator_Examples/ch10_group_g.py
 |------|------|------|-----------|
 | ch16_alerts | 섹션 1 | `StreamingEvaluator` + `SlidingWindow` | 실시간 윈도우 집계 |
 | ch16_alerts | 섹션 2 | `ImplicitFeedbackTracker` | 사용자 반응 추적 → 알림 트리거 |
-| ch16_alerts | 섹션 3 | `AlertEngine` 다채널 알림 | console·webhook·파일 핸들러 |
-| ch10_group_g | 섹션 4 | `SimpleTaskAlertRule` + `AnomalyDetector` | 임계값+Z-Score 이중 감시 |
+| ch16_alerts | 섹션 3 | `SimpleTaskAlertRule` 경량 알림 | TaskResult 레벨 즉시 알림 |
+| ch16_alerts | 섹션 4 | `AlertRuleBuilder` 팩토리 + JSONL 핸들러 | 표준 알림 규칙 + 파일 기록 |
 
-**실행 결과 (v0.8.4 기준)**
+**실행 결과 (v0.8.5 기준)**
 
 ```
 # ch16_alerts.py
@@ -862,4 +920,4 @@ SimpleTaskAlertRule: 5개 규칙 등록 (warning·error·critical)
 AnomalyDetector: latency_spike 2건 (Z-Score=2.3, 2.8)
 ```
 
-> **`dry_run()` 활용**: 알림 규칙을 프로덕션에 배포하기 전에 `rule.dry_run(sample_result)`로 단위 테스트를 실행한다. ch16_alerts.py 섹션 3에서 실제 `dry_run()` 패턴을 확인할 수 있다. 쿨다운은 `warning=3600`, `error=1800`, `critical=300`으로 계층별로 다르게 설정하는 것이 핵심이다.
+> **`dry_run()` 활용**: 알림 규칙을 프로덕션에 배포하기 전에 `rule.dry_run(sample_result)`로 단위 테스트를 실행한다. ch16_alerts.py 섹션 3에서 실제 `dry_run()` 패턴을 확인할 수 있다. 쿨다운은 **Warning이 길고 Critical이 짧도록** — `warning=300`, `error=60`, `critical=30` 기준으로 계층별로 다르게 설정하는 것이 핵심이다 (16.4절 참고).

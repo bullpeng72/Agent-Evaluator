@@ -78,7 +78,7 @@
 
 ### I.2.1 3가지 방법론 개요
 
-**방법 1: 규칙 기반 (Agent-Evaluator Gate A-G Tracker)**
+**방법 1: 규칙 기반 (Agent-Evaluator HallucinationDetector — Gate A)**
 - 컨텍스트 토큰 커버리지 + 수치 불일치 탐지
 - 정밀도: ~70-80%, 재현율: ~65-75%
 - 비용: 0 (외부 API 없음)
@@ -98,30 +98,75 @@
 
 ### I.2.2 정밀도-비용 트레이드오프 분석
 
-```
-                  정밀도
-                    ↑
-              ● LLM Judge (Gate G)
-             /     |
-            /      |
-           ● NLI   |
-          /        |
-         ● 규칙 기반|
-        /          |
-       ────────────→ 비용(API 호출 수)
-```
+@@HTML_START@@
+<div style="display:flex;gap:24px;align-items:flex-start;flex-wrap:wrap;margin:16px 0;">
 
-**실무 권장 전략**:
-```
-1단계 (전체 태스크): 규칙 기반 환각 탐지
-  → hallucination_rate > 0.15 인 케이스 플래그
+<!-- 산점도 차트 -->
+<div style="flex:1;min-width:300px;">
+<div style="display:flex;align-items:center;margin-top:32px;margin-bottom:8px;">
+  <!-- Y축 라벨 (차트 바깥 왼쪽) -->
+  <div style="writing-mode:vertical-rl;transform:rotate(180deg);font-size:12px;color:#546e7a;font-weight:600;white-space:nowrap;margin-right:8px;flex-shrink:0;">정밀도 (Precision)</div>
+<div style="position:relative;width:100%;max-width:340px;height:260px;border-left:2px solid #90a4ae;border-bottom:2px solid #90a4ae;background:linear-gradient(135deg,#f8f9fa 0%,#eceff1 100%);border-radius:0 4px 0 0;">
+  <!-- X축 라벨 -->
+  <div style="position:absolute;bottom:-28px;right:0;font-size:12px;color:#546e7a;font-weight:600;">비용 (API 호출 수) →</div>
+  <!-- 그리드선 -->
+  <div style="position:absolute;left:0;right:0;top:33%;border-top:1px dashed #cfd8dc;"></div>
+  <div style="position:absolute;left:0;right:0;top:66%;border-top:1px dashed #cfd8dc;"></div>
+  <div style="position:absolute;top:0;bottom:0;left:33%;border-left:1px dashed #cfd8dc;"></div>
+  <div style="position:absolute;top:0;bottom:0;left:66%;border-left:1px dashed #cfd8dc;"></div>
+  <!-- 규칙 기반 -->
+  <div style="position:absolute;left:10%;bottom:18%;transform:translate(-50%,50%);">
+    <div style="width:14px;height:14px;background:#4caf50;border-radius:50%;border:2px solid #2e7d32;margin:auto;"></div>
+    <div style="position:absolute;left:18px;top:-6px;font-size:12px;white-space:nowrap;background:#e8f5e9;color:#1b5e20;padding:2px 6px;border-radius:4px;border:1px solid #a5d6a7;font-weight:600;">규칙 기반<br><span style="font-weight:400;font-size:11px;">정밀도 70–80%</span></div>
+  </div>
+  <!-- NLI -->
+  <div style="position:absolute;left:45%;bottom:52%;transform:translate(-50%,50%);">
+    <div style="width:14px;height:14px;background:#ff9800;border-radius:50%;border:2px solid #e65100;margin:auto;"></div>
+    <div style="position:absolute;left:18px;top:-6px;font-size:12px;white-space:nowrap;background:#fff3e0;color:#e65100;padding:2px 6px;border-radius:4px;border:1px solid #ffcc80;font-weight:600;">NLI<br><span style="font-weight:400;font-size:11px;">정밀도 85–90%</span></div>
+  </div>
+  <!-- LLM Judge -->
+  <div style="position:absolute;left:82%;bottom:82%;transform:translate(-50%,50%);">
+    <div style="width:14px;height:14px;background:#e91e63;border-radius:50%;border:2px solid #880e4f;margin:auto;"></div>
+    <div style="position:absolute;right:18px;top:-6px;font-size:12px;white-space:nowrap;background:#fce4ec;color:#880e4f;padding:2px 6px;border-radius:4px;border:1px solid #f48fb1;font-weight:600;">LLM Judge<br><span style="font-weight:400;font-size:11px;">정밀도 90–95%</span></div>
+  </div>
+  <!-- 트렌드 화살표 표시 -->
+  <div style="position:absolute;left:5%;bottom:10%;font-size:18px;color:#90a4ae;">↗</div>
+  <div style="position:absolute;left:18%;bottom:28%;font-size:18px;color:#90a4ae;">↗</div>
+</div>
+</div>
+<p style="font-size:12px;color:#78909c;margin:4px 0 0 0;">정밀도와 비용은 함께 상승하는 트레이드오프 관계</p>
+</div>
 
-2단계 (플래그된 케이스만): LLM Judge rag_mode=True
-  → faithfulness 점수로 정밀 검증
+<!-- 3단계 전략 -->
+<div style="flex:1;min-width:260px;">
+<div style="font-weight:700;font-size:14px;color:#37474f;margin-bottom:12px;">💡 실무 권장 전략 — 비용 90% 절감</div>
+<div style="display:flex;flex-direction:column;gap:10px;">
+  <div style="display:flex;gap:12px;align-items:flex-start;background:#e8f5e9;border:1px solid #a5d6a7;border-radius:8px;padding:12px;">
+    <div style="background:#2e7d32;color:#fff;border-radius:50%;width:28px;height:28px;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;flex-shrink:0;">1</div>
+    <div>
+      <div style="font-weight:700;font-size:13px;color:#1b5e20;">전체 태스크 — 규칙 기반</div>
+      <div style="font-size:12px;color:#388e3c;margin-top:3px;"><code style="background:#c8e6c9;padding:1px 4px;border-radius:3px;">hallucination_rate &gt; 0.15</code> 케이스 플래그</div>
+    </div>
+  </div>
+  <div style="display:flex;gap:12px;align-items:flex-start;background:#fff3e0;border:1px solid #ffcc80;border-radius:8px;padding:12px;">
+    <div style="background:#e65100;color:#fff;border-radius:50%;width:28px;height:28px;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;flex-shrink:0;">2</div>
+    <div>
+      <div style="font-weight:700;font-size:13px;color:#e65100;">플래그된 케이스만 — LLM Judge</div>
+      <div style="font-size:12px;color:#f57c00;margin-top:3px;"><code style="background:#ffe0b2;padding:1px 4px;border-radius:3px;">rag_mode=True</code>로 faithfulness 정밀 검증</div>
+    </div>
+  </div>
+  <div style="display:flex;gap:12px;align-items:flex-start;background:#fce4ec;border:1px solid #f48fb1;border-radius:8px;padding:12px;">
+    <div style="background:#880e4f;color:#fff;border-radius:50%;width:28px;height:28px;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;flex-shrink:0;">3</div>
+    <div>
+      <div style="font-weight:700;font-size:13px;color:#880e4f;">faithfulness &lt; 2.0 — 인간 검토</div>
+      <div style="font-size:12px;color:#c2185b;margin-top:3px;">실제 컨텍스트 무시 여부 최종 판정</div>
+    </div>
+  </div>
+</div>
+</div>
 
-3단계 (faithfulness < 2.0): 인간 검토
-  → 실제 컨텍스트 무시 여부 최종 판정
-```
+</div>
+@@HTML_END@@
 
 이 3단계 전략은 모든 케이스를 LLM Judge로 평가하는 것 대비 비용을 약 90% 절감한다.
 
@@ -245,31 +290,71 @@ HallucinationRate ≈ 1.0 - (Faithfulness / 5.0) 으로 변환 가능하지만
 
 ### I.4.2 Ragas 4지표의 역할 분리
 
-```
-RAG 파이프라인:
-  [질문] → [검색기(Retriever)] → [컨텍스트] → [생성기(Generator)] → [응답]
-               ↑                    ↑                   ↑
-           Context Precision    Context Recall      Faithfulness
-           Context Recall                        Answer Relevancy
+@@HTML_START@@
+<div class="mermaid">
+flowchart LR
+    Q(["🔍 질문"]):::qStyle
+    R(["📚 검색기\nRetriever"]):::retStyle
+    C(["📄 컨텍스트"]):::ctxStyle
+    G(["🤖 생성기\nGenerator"]):::genStyle
+    A(["💬 응답"]):::ansStyle
 
-지표별 진단 의미:
+    Q --> R --> C --> G --> A
 
-Context Precision이 낮음:
-  → 검색기가 노이즈(관련 없는 문서)를 많이 가져옴
-  → 검색 알고리즘/임베딩 모델 개선 필요
+    CP["Context Precision\n노이즈 없이\n정밀하게 검색?"]:::metricRetriever
+    CR["Context Recall\n필요한 문서\n빠짐없이 검색?"]:::metricRetriever
+    FA["Faithfulness\n컨텍스트에\n충실한 생성?"]:::metricGenerator
+    AR["Answer Relevancy\n질문에 직접\n답했는가?"]:::metricGenerator
 
-Context Recall이 낮음:
-  → 검색기가 필요한 정보를 놓침
-  → Top-K 늘리기, 하이브리드 검색 고려
+    R -. "측정" .-> CP
+    C -. "측정" .-> CR
+    G -. "측정" .-> FA
+    A -. "측정" .-> AR
 
-Faithfulness가 낮음:
-  → 생성기가 컨텍스트를 무시하고 환각 생성
-  → 프롬프트에 "반드시 제공된 정보만 사용" 지시 강화
+    classDef qStyle fill:#e8eaf6,stroke:#3949ab,color:#1a237e,font-weight:bold
+    classDef retStyle fill:#e3f2fd,stroke:#1976d2,color:#0d47a1,font-weight:bold
+    classDef ctxStyle fill:#e8f5e9,stroke:#388e3c,color:#1b5e20,font-weight:bold
+    classDef genStyle fill:#fff3e0,stroke:#f57c00,color:#e65100,font-weight:bold
+    classDef ansStyle fill:#fce4ec,stroke:#c2185b,color:#880e4f,font-weight:bold
+    classDef metricRetriever fill:#e3f2fd,stroke:#1976d2,stroke-dasharray:4 2,color:#0d47a1,font-size:13px
+    classDef metricGenerator fill:#fff3e0,stroke:#f57c00,stroke-dasharray:4 2,color:#e65100,font-size:13px
+</div>
 
-Answer Relevancy가 낮음:
-  → 응답이 질문에 직접 답하지 않음
-  → 프롬프트 개선, Few-shot 예시 추가
-```
+<table style="width:100%;border-collapse:collapse;margin-top:16px;font-size:14px;">
+  <thead>
+    <tr>
+      <th style="background:#e3f2fd;color:#0d47a1;padding:10px 14px;border:1px solid #90caf9;text-align:center;">📐 Context Precision</th>
+      <th style="background:#e3f2fd;color:#0d47a1;padding:10px 14px;border:1px solid #90caf9;text-align:center;">🔎 Context Recall</th>
+      <th style="background:#fff3e0;color:#e65100;padding:10px 14px;border:1px solid #ffcc80;text-align:center;">🛡️ Faithfulness</th>
+      <th style="background:#fce4ec;color:#880e4f;padding:10px 14px;border:1px solid #f48fb1;text-align:center;">🎯 Answer Relevancy</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td style="padding:12px 14px;border:1px solid #e0e0e0;vertical-align:top;">
+        <strong>낮으면 → 검색기 정밀도 문제</strong><br>
+        검색기가 노이즈(관련 없는 문서)를 많이 가져옴<br><br>
+        <em>🔧 개선:</em> 검색 알고리즘/임베딩 모델 교체
+      </td>
+      <td style="padding:12px 14px;border:1px solid #e0e0e0;vertical-align:top;">
+        <strong>낮으면 → 검색기 재현율 문제</strong><br>
+        검색기가 필요한 정보를 놓침<br><br>
+        <em>🔧 개선:</em> Top-K 늘리기, 하이브리드 검색 고려
+      </td>
+      <td style="padding:12px 14px;border:1px solid #e0e0e0;vertical-align:top;">
+        <strong>낮으면 → 생성기 환각 문제</strong><br>
+        생성기가 컨텍스트를 무시하고 환각 생성<br><br>
+        <em>🔧 개선:</em> 프롬프트에 "반드시 제공된 정보만 사용" 지시 강화
+      </td>
+      <td style="padding:12px 14px;border:1px solid #e0e0e0;vertical-align:top;">
+        <strong>낮으면 → 응답 적절성 문제</strong><br>
+        응답이 질문에 직접 답하지 않음<br><br>
+        <em>🔧 개선:</em> 프롬프트 개선, Few-shot 예시 추가
+      </td>
+    </tr>
+  </tbody>
+</table>
+@@HTML_END@@
 
 ### I.4.3 Ragas vs LLM Judge Faithfulness 선택 기준
 
@@ -332,68 +417,98 @@ TCR: 1.0              ← 최종 완료
 
 ## I.6 지표 선택 의사결정 트리
 
-```
-[시작]
-  │
-  ▼
-배포 기준을 코드로 선언하고 Git에서 추적하고 싶은가?
-  │
-  ├─ YES → Harness Config 활성화
-  │          @agent_eval(monitor, sla=SLAConfig(...), instructions=InstructionConfig(...))
-  │          → HarnessEvaluationGate로 Gate A-G 전체 배포 판정
-  │
-  └─ NO  → 기본 Tracker 모드 (지표 측정만, 배포 자동 차단 없음)
+Q1–Q7을 순서대로 따라가면 어떤 Gate를 활성화할지, LLM Judge를 어떻게 설정할지가 결정된다. **Q1–Q4**는 활성화할 Gate(B·C·E·F)를, **Q5–Q7**은 LLM Judge 설정을 결정한다. Gate A와 D는 모든 에이전트에서 항상 활성화된다. 선택된 지표 조합은 Appendix M 배포 전 체크리스트와 연결된다.
 
-  ▼
-에이전트가 도구를 사용하는가?
-  │
-  ├─ NO → Gate A 지표 활성 (TCR, Accuracy, Quality, Latency, Token, Hallucination*)
-  │         *(hallucination은 RAG 경우에만)
-  │
-  └─ YES ─→ Gate A + Gate B 에이전틱 지표 활성 (ToolCall, Workflow, ToolSelection)
-              │
-              ▼
-            에이전트가 민감 데이터/외부 시스템에 접근하는가?
-              │
-              ├─ NO → Gate A + B 지표 유지
-              │
-              └─ YES → Gate E 보안 지표 추가
-                          enable_security_metrics=True
+> **Harness Config vs Tracker 모드**: 판정 기준을 `@agent_eval` 데코레이터로 코드화하고 CI/CD 자동 차단을 원하면 **Harness Config 방식**을, 지표 측정만 필요하면 `PerformanceMonitor` 단독(**Tracker 모드**)으로 충분하다. 아래 흐름도는 두 방식 모두에 동일하게 적용된다.
 
-[계속]
-  │
-  ▼
-Ground truth를 항상 가질 수 있는가?
-  │
-  ├─ YES → Gate A-F 기반 지표로 충분 (낮은 비용)
-  │
-  └─ NO → LLM Judge 추가 (Gate G)
-            │
-            ▼
-          RAG 파이프라인인가?
-            │
-            ├─ NO → LLM Judge (5차원) + judge_sample_rate=0.1
-            │
-            └─ YES → LLM Judge (rag_mode=True, faithfulness 추가)
-                       OR Ragas (더 정밀한 RAG 평가 필요 시)
+@@HTML_START@@
+<div class="mermaid">
+flowchart TD
+    START([지표 선택 시작\nGate A + D는 항상 활성화]):::startNode
 
-[심화]
-  │
-  ▼
-특정 도메인 기준이 필요한가? (의료, 법률, 금융 등)
-  │
-  └─ YES → judge_criteria=["domain_accuracy", "citation_quality", ...]
-             (G-Eval 스타일 커스텀 기준)
+    Q1{"에이전트가 도구·외부 API를\n사용하는가?\n(RAG 검색 · 함수 호출 포함)"}:::questionNode
+    R1N["Gate A + D\nTCR · Accuracy · Quality\nLatency · Token"]:::gateAD
+    R1Y["Gate A + B + D\n+ ToolCall · Workflow\n+ ToolSelection"]:::gateABD
 
-[배포 자동화]
-  │
-  ▼
-지표 선택 완료 후 배포를 자동 차단하려면?
-  │
-  └─ HarnessEvaluationGate 설정
-       Python: gate.evaluate() → {"passed": bool, "violations": [...]}
-       CLI:    agent-eval gate result.json --tcr 85 --accuracy 70
-```
+    Q2{"멀티에이전트\n시스템인가?"}:::questionNode
+    R2Y["Gate F 추가\nConsensusConfig\nAgentRoleConfig"]:::gateF
+
+    Q3{"민감 데이터 또는\n외부 시스템에 접근하는가?"}:::questionNode
+    R3Y["Gate E 추가\nenable_security_metrics=True\nThreatSeverityConfig\nComplianceConfig"]:::gateE
+
+    Q4{"환각 탐지 또는\n신뢰성 집중 테스트가 필요한가?\n(RAG · 고위험 도메인 · 오류 복구)"}:::questionNode
+    R4Y["Gate C 추가\nenable_hallucination_detection=True\nFaultToleranceConfig\nReproducibilityConfig"]:::gateC
+
+    Q5{"Ground truth를\n항상 가질 수 있는가?"}:::questionNode
+    R5Y["Native Tracker만으로 충분\nGate A–F 지표 · 낮은 비용"]:::gateAF
+
+    Q6{"RAG\n파이프라인인가?"}:::questionNode
+    R6Y["LLM Judge\nrag_mode=True\nfaithfulness 자동 추가\nOR Ragas 4지표"]:::gateG
+    R6N["LLM Judge 5차원\njudge_sample_rate=0.1"]:::gateG
+
+    Q7{"특정 도메인 기준이\n필요한가? (의료·법률·금융)"}:::questionNode
+    R7Y["judge_criteria 커스텀\ndomain_accuracy\ncitation_quality 등"]:::gateG
+    R7N["기본 5차원 Judge\ncompleteness · relevance\nfactual_consistency\ntoxicity · bias"]:::gateG
+
+    DONE(["지표 구성 완료\nCLI: agent-eval gate result.json --tcr 85\nPython: QuickEval.gate(tcr=85, accuracy=70)"]):::doneNode
+
+    START --> Q1
+
+    Q1 -->|NO| R1N
+    Q1 -->|YES| R1Y
+    R1N & R1Y --> Q2
+
+    Q2 -->|YES| R2Y
+    Q2 -->|NO| Q3
+    R2Y --> Q3
+
+    Q3 -->|YES| R3Y
+    Q3 -->|NO| Q4
+    R3Y --> Q4
+
+    Q4 -->|YES| R4Y
+    Q4 -->|NO| Q5
+    R4Y --> Q5
+
+    Q5 -->|YES| R5Y
+    Q5 -->|NO| Q6
+    Q6 -->|YES| R6Y
+    Q6 -->|NO| R6N
+
+    R5Y & R6Y & R6N --> Q7
+    Q7 -->|YES| R7Y
+    Q7 -->|NO| R7N
+    R7Y & R7N --> DONE
+
+    classDef startNode fill:#1a237e,stroke:#1a237e,color:#fff
+    classDef doneNode fill:#1b5e20,stroke:#1b5e20,color:#fff
+    classDef questionNode fill:#fff8e1,stroke:#f9a825,stroke-width:2px,color:#5d4037
+    classDef gateAD fill:#e8f5e9,stroke:#388e3c,color:#1b5e20
+    classDef gateABD fill:#c8e6c9,stroke:#2e7d32,color:#1b5e20
+    classDef gateF fill:#e8eaf6,stroke:#3949ab,color:#1a237e
+    classDef gateE fill:#f3e5f5,stroke:#7b1fa2,color:#4a148c
+    classDef gateC fill:#fff3e0,stroke:#e65100,color:#bf360c
+    classDef gateAF fill:#e3f2fd,stroke:#1976d2,color:#0d47a1
+    classDef gateG fill:#e0f7fa,stroke:#00838f,color:#006064
+</div>
+@@HTML_END@@
+
+> **Chapter 14 §14.2.1**에서 동일한 흐름도를 QA 관리자 관점으로 확인할 수 있다. 이 흐름도가 정규(canonical) 버전이며, 두 섹션은 동일한 결정 로직을 공유한다.
+
+### I.6.1 에이전트 유형별 빠른 선택 매트릭스
+
+위 흐름도를 대표 에이전트 유형별로 미리 계산한 결과다. 유형이 명확하다면 흐름도 없이 이 표에서 바로 구성을 선택할 수 있다.
+
+| 에이전트 유형 | 활성화 Gate | 필수 Config 예시 | LLM Judge | `enable_*` 플래그 |
+|---|---|---|---|---|
+| **단순 QA 챗봇** | A · D | `InstructionConfig` · `SLAConfig` | 선택 (ground truth 있으면 불필요) | 기본값 |
+| **RAG 에이전트** | A · B · C · D | `InstructionConfig` · `FaultToleranceConfig` · `SLAConfig` | ✅ `rag_mode=True` (faithfulness) | `enable_hallucination_detection=True` |
+| **도구 사용 에이전트** | A · B · D | `ScopeConfig` · `LoopDetectionConfig` · `EfficiencyConfig` | 선택 | 기본값 |
+| **보안 민감 에이전트** | A · B · D · E | + `ThreatSeverityConfig` · `ComplianceConfig` | 선택 | `enable_security_metrics=True` |
+| **멀티에이전트** | A · B · D · F | + `ConsensusConfig` · `AgentRoleConfig` | 선택 | 기본값 |
+| **의료 · 법률 · 금융 고위험** | A–G 전체 | 33개 Config 전체 활성 | ✅ `judge_criteria` 커스텀 | 모두 `True` |
+
+> 각 행의 Config는 최소 구성이다. 예산별 최적 조합은 Appendix L, 배포 전 전체 점검은 Appendix M을 참조한다.
 
 ---
 
@@ -470,4 +585,4 @@ Ground truth를 항상 가질 수 있는가?
 
 ---
 
-*본 Appendix는 Agent-Evaluator v0.8.4 기준이며 외부 서비스 가격은 2025년 기준이다. 최신 가격은 각 서비스 공식 가격표를 참조하라.*
+*본 Appendix는 Agent-Evaluator v0.8.5 기준이며 외부 서비스 가격은 2025년 기준이다. 최신 가격은 각 서비스 공식 가격표를 참조하라.*

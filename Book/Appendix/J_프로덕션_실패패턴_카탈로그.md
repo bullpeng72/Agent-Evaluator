@@ -4,6 +4,8 @@ AI 에이전트를 프로덕션에 배포한 후 발생하는 장애는 대부�
 
 防患於未然(방환어미연) — 문제가 발생하기 전에 예방한다. 이 철학이 본 카탈로그의 근간이다. 실패 패턴을 알고 있는 팀과 모르는 팀은 같은 증상 앞에서 전혀 다른 반응 속도와 대응 품질을 보인다. 경험이 풍부한 팀은 "이건 Tool Loop Explosion 패턴이네"라고 5분 만에 진단하지만, 처음 마주하는 팀은 며칠을 허비하기도 한다. 이 카탈로그가 여러분 팀의 집단 경험치가 되길 바란다.
 
+**실패 패턴 = Gate 오류 신호**: 이 카탈로그의 모든 실패 패턴은 Harness Engineering의 7개 게이트(A–G) 중 하나 이상의 게이트가 "경고" 또는 "실패" 신호를 보내는 상황에 대응한다. 프로덕션 장애를 분석할 때 "어떤 게이트가 이 실패를 탐지했어야 했는가?"라는 질문을 던지면 문제의 근원을 빠르게 파악할 수 있다. Gate A가 빨간 불이면 목표달성 실패 카테고리를, Gate B/E가 빨간 불이면 행동 이상/보안 카테고리를 의심하라.
+
 ---
 
 ## 전체 분류 체계
@@ -27,7 +29,7 @@ AI 에이전트를 프로덕션에 배포한 후 발생하는 장애는 대부�
 | 15 | 토큰 예산 초과 누수 | Token Budget Bleed | 성능 계약 위반 | Gate D | P2 |
 | 16 | TTFT 변동성 스파이크 | TTFT Variability Spike | 성능 계약 위반 | Gate D | P2 |
 | 17 | 비용 예측 불가 | Cost Unpredictability | 성능 계약 위반 | Gate D | P3 |
-| 18 | 교착 상태 캐스케이드 | Deadlock Cascade | 다중에이전트 장애 | Gate F | P1 |
+| 18 | 교착 상태 캐스케이드 | Deadlock Cascade | 다중에이전트 장애 | Gate B (다중에이전트 교착) | P1 |
 | 19 | 정보 왜곡 전파 | Information Distortion Cascade | 다중에이전트 장애 | Gate F | P2 |
 | 20 | 합의 불능 분기 | Consensus Failure Divergence | 다중에이전트 장애 | Gate F | P1 |
 
@@ -469,7 +471,7 @@ PrivilegeEscalationDetector 미적용으로 Step 4까지 차단 없이 진행
 **Harness 탐지 코드**:
 ```python
 # 출처: Evaluator_Examples/ch08_group_e.py, 섹션 5 — Gate E Security Boundary
-from agent_evaluator import PerformanceMonitor
+from agent_evaluator import PerformanceMonitor, ThreatSeverityConfig
 from agent_evaluator.decorators import agent_eval, SecurityConfig
 from agent_evaluator import infer_privilege_level
 
@@ -1028,8 +1030,10 @@ def legal_qa_agent(question: str, ground_truth: str = "") -> str:
 ### Pattern 18: 교착 상태 캐스케이드 — Deadlock Cascade
 
 **분류**: 다중에이전트 장애  
-**관련 Harness Gate**: Gate F (Multi-Agent Coordination)  
+**관련 Harness Gate**: Gate B (Behavioral Integrity) + Gate F (Multi-Agent Coordination)  
 **탐지 Tracker/Config**: `DeadlockConfig`, `AgentCoordinationTracker`, `ConflictResolutionConfig`
+
+> **Gate 분류 안내**: `DeadlockConfig`는 v0.8.2에서 Gate B(Behavioral Integrity)로 재분류됐습니다. 교착 탐지 자체는 Gate B가 담당하고, 다중 에이전트 간 조율 실패(`ConflictResolutionConfig`, `AgentCoordinationTracker`)는 Gate F가 담당합니다. 두 Gate를 함께 구성하면 이 패턴을 가장 효과적으로 방어할 수 있습니다.
 
 **증상**: 단일 에이전트의 교착 상태(deadlock)가 해당 에이전트의 결과를 기다리는 다운스트림 에이전트들로 연쇄 전파되어 전체 파이프라인이 멈춘다. 개별 에이전트는 "대기 중"으로 표시되어 오류처럼 보이지 않지만 실제로는 서로를 기다리는 순환 의존이 발생한다.
 

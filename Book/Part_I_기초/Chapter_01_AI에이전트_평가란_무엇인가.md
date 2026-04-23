@@ -11,6 +11,7 @@ LLM(Large Language Model)을 API로 호출하는 것과 AI 에이전트를 운�
 ### 단순 LLM 호출: 입력 → 출력 1회
 
 ```python
+# 출처: Evaluator_Examples/ch01_first_eval.py — 예제 코드
 # 단순 LLM 호출 — 평가가 상대적으로 간단하다
 response = openai.chat.completions.create(
     model="gpt-4o-mini",
@@ -65,7 +66,7 @@ answer = response.choices[0].message.content
 
 **문제**: 개발 단계에서 몇 가지 케이스만 손으로 확인하고 배포했기 때문에, 저빈도 질의 패턴에서 발생하는 환각을 발견하지 못했습니다.
 
-**필요했던 평가**: `HallucinationDetector` — 에이전트의 답변이 제공된 컨텍스트와 사실적으로 일치하는지 측정하는 자동화된 지표. **Gate C 신뢰성** 차원의 핵심 지표입니다.
+**필요했던 평가**: `HallucinationDetector` — 에이전트의 답변이 제공된 컨텍스트와 사실적으로 일치하는지 측정하는 자동화된 지표. **Gate A 목표달성**(사실 일관성)과 **Gate C 신뢰성**(반복 실행 품질 보장) 차원 모두에 영향을 미치는 핵심 지표입니다.
 
 > *참고: RAG 파이프라인의 문맥 이탈 환각(context-unfaithful hallucination) 패턴 — Ji et al. (2023). "Survey of Hallucination in Natural Language Generation." ACM Computing Surveys, 55(12). / Singhal et al. (2023). "Large Language Models Encode Clinical Knowledge." Nature, 620, 172–180 — 의료 LLM의 임상 지식 인코딩 능력과 정확도 한계 분석.*
 
@@ -89,7 +90,7 @@ answer = response.choices[0].message.content
 
 > *참고: 에이전트의 반복적 도구 호출 패턴 — Yao et al. (2023). "ReAct: Synergizing Reasoning and Acting in Language Models." ICLR 2023 — 추론-행동 반복 루프 기반 도구 호출 아키텍처 실증. / Liu et al. (2024). "AgentBench: Evaluating LLMs as Agents." ICLR 2024 — 다양한 환경에서 LLM 에이전트의 도구 호출 수행 능력 평가.*
 
-> 👨‍💻 **개발자 TIP**: 이 세 가지 사례는 각각 신뢰성(C), 보안(E), 성능(D) 실패입니다. 개발 단계의 몇 가지 수동 테스트로는 발견할 수 없습니다. 자동화된 평가 파이프라인이 없는 상태로 에이전트를 배포하는 것은 시트벨트 없이 고속도로에 진입하는 것과 같습니다.
+> 👨‍💻 **개발자 TIP**: 이 세 가지 사례는 각각 목표달성/신뢰성(A·C), 보안(E), 성능(D) 실패입니다. 사례 1의 환각은 사실 정확성(Gate A)과 반복 실행 품질(Gate C) 양쪽에 걸쳐 있습니다. 개발 단계의 몇 가지 수동 테스트로는 발견할 수 없습니다. 자동화된 평가 파이프라인이 없는 상태로 에이전트를 배포하는 것은 시트벨트 없이 고속도로에 진입하는 것과 같습니다.
 
 세 사례가 공통적으로 보여주는 첫 번째 교훈은 명확합니다. **배포 전에 에이전트가 갖춰야 할 기준이 선언되지 않았다**는 것입니다. 어떤 수준의 환각률이 허용되는지, 어떤 레이턴시 이하여야 서비스가 가능한지, 어떤 도구는 쓸 수 없는지 — 이 기준들이 코드로 존재했다면 배포 전에 차단됐을 것입니다.
 
@@ -105,7 +106,7 @@ AI 최적화 방법론은 세 단계를 거쳐 진화했습니다.
 - **Context Engineering (2025)**: 컨텍스트 창에 들어오는 모든 정보(RAG, 메모리, 도구 스펙, 이력)를 관리합니다. Andrej Karpathy가 "컨텍스트 창을 정확히 채우는 섬세한 과학"으로 정의했습니다. 에이전트 품질을 크게 높였지만, **"에이전트가 실제로 어떻게 동작했는가"를 사후에 검증하고 배포 가능 여부를 자동 판정**하는 메커니즘은 없었습니다.
 - **Harness Engineering (2026~)**: 모델 주변의 제어 구조 전체를 설계합니다. Mitchell Hashimoto의 정의처럼, **"Agent = Model + Harness"** — 모델을 제외한 모든 것(지시 구조, 제약 선언, 품질 측정, 배포 판정)이 Harness에 속합니다.
 
-에이전트를 배포하기 전에 "통과/실패"를 선언할 근거가 필요합니다. 이 책에서 Harness Engineering은 그 판단 구조를 세 가지 역할로 구현합니다.
+에이전트를 배포하기 전에 "통과/실패"를 선언할 근거가 필요합니다. 이 책에서 Harness Engineering은 그 판단 구조를 세 가지 역할로 구현합니다. 아래 세 개념은 이 책 전체에서 반복 등장하는 핵심 용어이므로, 처음 만나는 시점에 명확히 구분해 두는 것이 중요합니다.
 
 ```
 Tracker (관찰/측정) × Config (기준 선언) × Gate (배포 판정)
@@ -114,7 +115,7 @@ Tracker (관찰/측정) × Config (기준 선언) × Gate (배포 판정)
 세 역할은 서로 다른 시점에 독립적으로 작동합니다.
 
 - **Tracker**: 에이전트가 실행되는 동안 지표를 자동 기록합니다. 판단하지 않습니다. "응답 시간이 1.3초였다", "도구를 3번 호출했다"처럼 사실만 측정합니다 (25개 네이티브 트래커).
-- **Config**: "이 에이전트는 어떤 조건에서 배포될 수 있는가"를 코드로 선언합니다. 측정하지 않습니다. `SLAConfig(p95_ms=2000)`처럼 기준을 정의하고, Tracker 측정값이 이 기준을 위반하면 해당 태스크를 `success=False`로 처리합니다 (33개 Harness Config).
+- **Config**: "이 에이전트는 어떤 조건에서 배포될 수 있는가"를 코드로 선언합니다. 측정하지 않습니다. `SLAConfig(p95_ms=2000)`처럼 기준을 정의하고, Tracker 측정값이 이 기준을 위반하면 해당 태스크를 `success=False`로 처리합니다 (33개 Harness Config). Config는 "품질 계약"을 코드로 문서화하는 수단이기도 합니다.
 - **Gate**: Config 위반이 축적된 Tracker 측정값과 대조해 배포 가능 여부를 최종 판정합니다. `eval.gate(tcr=85)` 또는 `HarnessEvaluationGate.enforce()`가 이 역할을 합니다. 기준 미달이면 `sys.exit(1)`로 CI/CD 파이프라인을 차단합니다.
 
 이 세 역할이 어떻게 실제 코드에서 보이는지는 **Chapter 2**에서 직접 경험합니다. 설계 원리와 각 역할의 내부 구조는 **Chapter 3**에서 동등한 깊이로 다룹니다.
@@ -135,7 +136,7 @@ Tracker (관찰/측정) × Config (기준 선언) × Gate (배포 판정)
 - **Gate F (다중에이전트)**: "여러 에이전트가 교착 없이 협력하는가?" — 단일 에이전트의 품질이 멀티에이전트 시스템의 안전성을 보장하지 않는다.
 - **Gate G (운영관측성)**: "실패 원인을 즉시 추적·설명할 수 있는가?" — 지금 성능이 좋아도 블랙박스이면 문제 발생 시 대응할 수 없다.
 
-7개 Gate 중 하나라도 미확인 상태로 배포하면, 해당 차원에서 반드시 예상치 못한 장애가 발생합니다. §1.2의 세 사례는 이 중 Gate C(신뢰성), Gate E(보안경계), Gate D(성능계약)의 실패였습니다. Harness Engineering은 이 7개 질문에 코드로 선언된 기준을 대조해 자동으로 답하는 체계입니다.
+7개 Gate 중 하나라도 미확인 상태로 배포하면, 해당 차원에서 반드시 예상치 못한 장애가 발생합니다. §1.2의 세 사례는 각각 Gate A·C(목표달성·신뢰성 — 환각), Gate E(보안경계 — 권한 초과), Gate D(성능계약 — 레이턴시 급증)의 실패였습니다. Harness Engineering은 이 7개 질문에 코드로 선언된 기준을 대조해 자동으로 답하는 체계입니다.
 
 58개 지표(25 Tracker + 33 Config)는 7개 품질 차원으로 구분됩니다.
 
@@ -215,15 +216,16 @@ Gate A-G 각 차원의 구체적인 Tracker와 Config는 **Part II — Harness �
 
 ---
 
-## 1.4 Harness Engineering이 기존 테스팅과 근본적으로 다른 3가지 이유
+## 1.4 Harness Engineering이 기존 테스팅과 근본적으로 다른 3가지 차이
 
-Harness Engineering은 기존 소프트웨어 테스팅을 개선한 것이 아닌, AI 에이전트의 고유한 속성에서 비롯된 **AI-native 패러다임**입니다. 기존 QA가 "버그가 없는가(결함 부재)?"를 묻는다면, Harness Engineering은 "지금 이 조건에서 배포해도 되는가(배포 준비도)?"를 코드로 선언하고 자동으로 판정합니다. 이 차이를 만드는 세 가지 근본적인 이유가 있습니다.
+Harness Engineering은 기존 소프트웨어 테스팅을 개선한 것이 아닌, AI 에이전트의 고유한 속성에서 비롯된 **AI-native 패러다임**입니다. 기존 QA가 "버그가 없는가(결함 부재)?"를 묻는다면, Harness Engineering은 "지금 이 조건에서 배포해도 되는가(배포 준비도)?"를 코드로 선언하고 자동으로 판정합니다. 이 근본적 전환을 만드는 세 가지 구조적 차이가 있습니다.
 
 ### 차이 ①: 결정론적 pass/fail → 통계적 배포 판정
 
 전통 소프트웨어 테스트는 "이 입력에 대해 이 출력이 나왔는가"를 판단합니다. 단위 테스트, 통합 테스트, E2E 테스트 모두 예상 출력을 하드코딩하고 비교합니다.
 
 ```python
+# 출처: Evaluator_Examples/ch01_first_eval.py — 예제 코드
 # 전통 소프트웨어 테스트 — 결정론적
 def test_add():
     assert add(2, 3) == 5  # 항상 5
@@ -255,7 +257,7 @@ def test_agent():
 
 `ReproducibilityConfig`의 `reproducibility_threshold`는 이 문제를 해결합니다. "같은 입력에 대해 70% 이상 일관된 응답을 생성하는가"를 자동 판정합니다.
 
-### 한계 ③: 배포 후 드리프트의 미탐지
+### 차이 ③: 배포 후 드리프트의 미탐지
 
 전통 소프트웨어는 코드가 변경될 때 동작이 바뀝니다. 에이전트는 코드가 동일해도 시간이 지나면서 동작이 달라질 수 있습니다.
 
@@ -325,7 +327,7 @@ Harness 방식: accuracy_score ≥ 0.85           # ✅ 의미가 같으면 통�
 
 에이전트 응답의 품질을 자동으로 채점하려면 또 다른 LLM이 필요합니다. 이를 LLM-as-Judge라고 합니다. 하지만 채점 LLM 자체도 편향이 있고, API 호출 비용이 발생합니다.
 
-**해결**: `LLMJudge`는 **샘플링(기본 10%)** 방식으로 비용을 제어합니다. 7차원(completeness·relevance·factual_consistency·toxicity·bias·faithfulness·criteria_scores) 자동 채점으로 ground_truth 없이도 품질을 측정합니다.
+**해결**: `LLMJudge`는 **샘플링(기본 10%)** 방식으로 비용을 제어합니다. 기본 5차원(completeness·relevance·factual_consistency·toxicity·bias)으로 ground_truth 없이 품질을 측정하며, RAG 모드 활성화 시 faithfulness, 커스텀 기준(judge_criteria) 지정 시 criteria_scores/criteria_overall이 추가됩니다.
 
 ```python
 judge = LLMJudge(sample_rate=0.1)  # 10%만 LLM 채점, 나머지는 네이티브 알고리즘
@@ -353,6 +355,7 @@ slope = -0.025/평가 → 드리프트 감지 → CI 경보
 **해결**: `AnomalyDetector`가 통계적 정상 범위를 학습하고 이탈 시 즉시 탐지합니다. `ToolChainAttackDetector`는 도구 체인에서 발생하는 비정상 연쇄 호출을 추적합니다.
 
 ```python
+# 출처: Evaluator_Examples/ch01_first_eval.py — PerformanceMonitor 설정
 # 도구 체인 이상 탐지 — 정상적이지 않은 연쇄 패턴을 자동 감지
 monitor = PerformanceMonitor(
     output_dir="results/",
@@ -378,7 +381,7 @@ AI 에이전트는 배포 후에도 계속 변합니다. 일회성 배포 전 �
 
 ### AI Native 5대 도전 ↔ Harness Gate A–G 매핑
 
-5가지 도전은 추상적인 문제가 아닙니다. Harness Engineering의 7개 Gate(A–G)가 각 도전에 정확히 대응합니다.
+5가지 도전은 추상적인 문제가 아닙니다. Harness Engineering의 7개 Gate(A–G)가 각 도전에 정확히 대응합니다. 5가지 도전은 7개 Gate 중 6개(A·B·C·D·E·G)를 직접 유발하고, Gate F(다중에이전트 협업)는 단일 에이전트 시스템에서는 나타나지 않는 멀티에이전트 고유의 추가 차원입니다.
 
 | AI Native 도전 | 핵심 질문 | 대응 Gate | 주요 Tracker / Config |
 |--------------|---------|-----------|----------------------|
@@ -387,6 +390,7 @@ AI 에이전트는 배포 후에도 계속 변합니다. 일회성 배포 전 �
 | ③ 드리프트 인식 | "배포 후 성능 저하를 조기에 감지하는가?" | **Gate D** 성능계약, **Gate C** 신뢰성 | LatencyTracker, RunTrendAnalyzer, CostPredictabilityConfig |
 | ④ 돌발 행동 대응 | "예측 못한 도구 호출·루프·범위 이탈을 탐지하는가?" | **Gate B** 행동무결성, **Gate E** 보안경계 | ToolChainAttackDetector, AnomalyDetector, ScopeConfig |
 | ⑤ 지속 평가 | "배포 후에도 지속적으로 품질을 검증하는가?" | **Gate A–G 전체** (CI/CD + 실시간 모니터링) | HarnessEvaluationGate, Phoenix OTEL, agent-eval trend |
+| *(멀티에이전트 고유)* | "여러 에이전트가 교착 없이 협력하는가?" | **Gate F** 다중에이전트 | AgentCoordinationTracker, ConsensusConfig |
 
 **개발자 관점**: 각 도전에 대응하는 Tracker를 활성화하고 Config로 기준을 선언합니다.  
 **QA 관리자 관점**: 도전이 해결됐는지를 Gate A–G별 PASS/WARN/FAIL 판정으로 확인합니다.
@@ -413,7 +417,7 @@ AI 에이전트는 배포 후에도 계속 변합니다. 일회성 배포 전 �
 | **Braintrust** | SaaS + OSS SDK | v0.16.0 | LLM 실험 + 에이전트 관측 |
 | **Helicone** | SaaS + OSS | — | LLM 프록시 + 비용 관측 |
 | **W&B Weave** | SaaS + OSS SDK | v0.52.37 | 에이전트 평가 + 실험 관리 |
-| **Agent Evaluator** | OSS SDK | v0.8.4 | Harness Engineering 배포 판단 |
+| **Agent Evaluator** | OSS SDK | v0.8.5 | Harness Engineering 배포 판단 |
 
 ### 에이전틱 지표 지원 비교
 
@@ -644,9 +648,9 @@ python Evaluator_Examples/ch05_group_b.py
 | D | 성능계약 | LatencyTracker (p95), TokenEconomyTracker | ch07_group_d |
 | E | 보안경계 | InputSanitization, OutputLeakage, ToolAuth | ch08_group_e |
 | F | 다중에이전트 | AgentCoordinationTracker, ToolSelectionTracker | ch09_group_f |
-| G | 운영관측성 | LLMJudge 7차원, Phoenix OTEL | ch10_group_g, ch19_phoenix |
+| G | 운영관측성 | LLMJudge(5차원 기본, RAG/G-Eval 옵션), Phoenix OTEL | ch10_group_g, ch19_phoenix |
 
-**실행 결과 (v0.8.4 기준)**
+**실행 결과 (v0.8.5 기준)**
 
 ```
 # ch01_first_eval.py

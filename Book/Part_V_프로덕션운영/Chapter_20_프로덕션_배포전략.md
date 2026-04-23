@@ -11,6 +11,22 @@
 
 ---
 
+## 배포 전략의 핵심 관점 — Harness Engineering
+
+**Harness Engineering**에서 배포 전략이란 단순히 "어떤 서버에 올리느냐"가 아니다. **"어떤 Gate 기준을 코드로 정의하고, 그 기준을 환경마다 어떻게 다르게 적용하느냐"**가 핵심이다.
+
+```
+배포 환경별 Gate 적용 철학:
+
+  개발 환경  → Gate A + G 중심 (목표 달성 + 추론 품질) — 빠른 실험·반복
+  CI 환경    → Gate A + D + E 중심 (정확도·SLA·보안 최소선) — 회귀 방지
+  프로덕션   → Gate A~G 전체 + 샘플링 — 운영 안정성·비용 균형
+```
+
+각 환경에서 Config 객체(`SLAConfig`, `ComplianceConfig` 등)를 코드로 선언하면 **"배포 기준이 문서가 아닌 코드"**가 된다. 버전 관리(git)로 기준 변경 이력이 추적되고, CI에서 자동 검증된다.
+
+---
+
 ## 20.1 환경별 설정 전략 — preset 시스템 활용
 
 AI 에이전트 평가는 환경마다 목적이 다르다. 개발 환경에서는 빠른 피드백이 중요하고, CI 환경에서는 재현 가능성이, 프로덕션에서는 운영 오버헤드 최소화가 핵심이다.
@@ -18,6 +34,7 @@ AI 에이전트 평가는 환경마다 목적이 다르다. 개발 환경에서�
 ### 개발 환경 (preset="development")
 
 ```python
+# 출처: Evaluator_Examples/ch20_deployment.py — LLMJudgeConfig
 import os
 from agent_evaluator import QuickEval, setup_otel
 
@@ -44,6 +61,7 @@ def agent(question: str, ground_truth: str = "") -> str:
 ### CI 환경 — 골든 데이터셋 기반 평가
 
 ```python
+# 출처: Evaluator_Examples/ch20_deployment.py — QuickEval 평가
 # ci/run_evaluation.py
 import json
 from agent_evaluator import QuickEval
@@ -73,6 +91,7 @@ CI 환경의 특징:
 ### 프로덕션 환경 (preset="production")
 
 ```python
+# 출처: Evaluator_Examples/ch20_deployment.py — PerformanceMonitor 설정
 # production/agent.py
 import os
 from agent_evaluator import setup_otel, PerformanceMonitor
@@ -109,6 +128,7 @@ def production_agent(question: str, ground_truth: str = "") -> str:
 ### 환경 변수로 자동 전환하는 패턴
 
 ```python
+# 출처: Evaluator_Examples/ch20_deployment.py — PerformanceMonitor 설정
 # config.py — 환경 변수 기반 Monitor 팩토리
 import os
 from agent_evaluator import setup_otel, PerformanceMonitor
@@ -353,6 +373,7 @@ data:
 ### 이중 저장 패턴
 
 ```python
+# 출처: Evaluator_Examples/ch20_deployment.py — PerformanceMonitor 설정
 from agent_evaluator import PerformanceMonitor
 from agent_evaluator.decorators import agent_eval
 
@@ -381,6 +402,7 @@ def agent(question: str, ground_truth: str = "") -> str:
 ### evaluation_session — 예외 발생 시에도 안전한 저장
 
 ```python
+# 출처: Evaluator_Examples/ch20_deployment.py — evaluation_session 컨텍스트 매니저
 from agent_evaluator import evaluation_session
 
 # 컨텍스트 매니저: 예외가 발생해도 finally에서 자동 저장
@@ -396,6 +418,7 @@ with evaluation_session("evaluation") as monitor:
 - 세션 이름(`"evaluation"`)이 저장 파일명이 되므로 실행마다 의미 있는 이름을 지정해 이후 분석을 용이하게 한다
 
 ```python
+# 출처: Evaluator_Examples/ch20_deployment.py — evaluation_session 컨텍스트 매니저
 # 비동기 에이전트
 from agent_evaluator import async_evaluation_session
 
@@ -438,6 +461,7 @@ async with async_evaluation_session("async_eval") as monitor:
 ### 오버헤드 최소화 설정
 
 ```python
+# 출처: Evaluator_Examples/ch20_deployment.py — QuickEval 평가
 from agent_evaluator import PerformanceMonitor
 from agent_evaluator.decorators import agent_eval
 
@@ -461,6 +485,7 @@ eval = QuickEval.for_llm_judge("results/", model="claude-sonnet-4-6")
 ### 조건부 샘플링 — 특정 조건에서만 평가
 
 ```python
+# 출처: Evaluator_Examples/ch20_deployment.py — 데코레이터 사용
 from agent_evaluator.decorators import agent_eval
 
 # 긴 질문만 평가 (짧은 질문은 스킵)
@@ -482,6 +507,7 @@ def agent(question: str, ground_truth: str = "") -> str:
 OTEL은 비동기 `BatchSpanProcessor`를 사용하므로 스팬 전송이 에이전트 응답 시간에 직접 영향을 주지 않는다. 단, `save_to_file()` 호출 시 `force_flush(3s)`가 실행되므로 호출 빈도를 조절해야 한다.
 
 ```python
+# 출처: Evaluator_Examples/ch20_deployment.py — PerformanceMonitor 설정
 # 자동 저장으로 save_to_file() 직접 호출 최소화
 monitor = PerformanceMonitor(
     output_dir="results/",
@@ -518,6 +544,7 @@ agent-eval monitor --check
 
 **해결책**:
 ```python
+# 출처: Evaluator_Examples/ch20_deployment.py — QuickEval 평가
 eval = QuickEval("results/")
 # ... 평가 실행 ...
 eval.save()  # 반드시 명시적 호출 또는 auto_save=True 설정
@@ -565,15 +592,17 @@ python -c "
 import json
 with open('results/ci_run.json') as f:
     data = json.load(f)
-gates = data.get('harness_gates', {})
+gates = (data.get('extra_metrics') or {}).get('harness_groups', {})
 for gate, info in gates.items():
-    status = info.get('status', 'N/A')
+    status = (info.get('gate') or 'N/A').upper()
     score = info.get('score', 'N/A')
     print(f'{gate}: {status} (score={score})')
 "
 ```
 
-- `harness_gates` 키에서 Gate A-G 각각의 `status`(PASS/WARN/FAIL)와 `score`를 즉시 조회할 수 있다
+> 💡 **키 구조 주의**: Gate 결과는 JSON 최상위의 `extra_metrics.harness_groups` 경로에 저장된다. `harness_gates`라는 키는 존재하지 않는다. 각 Gate 항목의 상태는 `"status"` 필드가 아니라 `"gate"` 필드(PASS/WARN/FAIL)로 확인한다.
+
+- Gate A–G 각각의 판정 결과(`gate` 필드: PASS/WARN/FAIL)와 `score`를 즉시 조회할 수 있다
 - CI 로그에서 실패 Gate를 확인한 뒤 위 표의 해당 행을 참조하면 첫 번째 체크포인트를 빠르게 찾을 수 있다
 
 ### 문제 4 — LLM Judge 비용이 너무 많이 나옴
@@ -584,6 +613,7 @@ for gate, info in gates.items():
 
 **해결책**:
 ```python
+# 출처: Evaluator_Examples/ch20_deployment.py — QuickEval 평가
 # QuickEval 사용 시 내부 judge_sample_rate 조절
 eval = QuickEval.for_llm_judge("results/", model="claude-sonnet-4-6")
 
@@ -600,6 +630,7 @@ def agent(question, ground_truth=""): ...
 
 **해결책**:
 ```python
+# 출처: Evaluator_Examples/ch20_deployment.py — 예제 코드
 @eval.qa
 def agent(question: str, ground_truth: str = "") -> str:
     return call_llm(question)
@@ -616,6 +647,7 @@ agent("한국의 수도는?", ground_truth="서울")  # ground_truth 필수
 
 **해결책**:
 ```python
+# 출처: Evaluator_Examples/ch20_deployment.py — QuickEval 평가
 monitor = PerformanceMonitor(
     output_dir="results/",
     enable_hallucination_detection=True,  # 명시적으로 활성화 필요
@@ -632,6 +664,7 @@ eval = QuickEval.for_rag("results/")  # RAG 팩토리 — 자동 활성화
 
 **해결책**:
 ```python
+# 출처: Evaluator_Examples/ch20_deployment.py — PerformanceMonitor 설정
 monitor = PerformanceMonitor(
     output_dir="results/",
     enable_security_metrics=True,  # 반드시 명시
@@ -647,6 +680,7 @@ monitor = PerformanceMonitor(
 
 **해결책**:
 ```python
+# 출처: Evaluator_Examples/ch20_deployment.py — 데코레이터 사용
 from agent_evaluator.decorators import batch_eval
 
 @batch_eval(monitor)
@@ -669,6 +703,7 @@ result_df = batch_agent(
 
 **해결책**:
 ```python
+# 출처: Evaluator_Examples/ch20_deployment.py — 데코레이터 사용
 import uuid
 from agent_evaluator.decorators import conversation_eval
 
@@ -701,6 +736,8 @@ pip install "agent-evaluator[eval]"
 
 ## [이 챕터의 핵심]
 
+- **Harness Engineering 배포 관점**: 배포 전략 = Gate 기준을 Config 객체로 코드화하고 환경마다 다르게 적용하는 것. 기준이 코드이므로 git으로 이력이 추적되고 CI에서 자동 검증된다.
+
 - **환경별 preset 전략**: dev는 `preset="development"`(전수 평가 + LLM Judge), CI는 `preset="testing"`(골든셋 100개), prod는 `preset="production"`(10% 샘플링 + 자동 저장).
 
 - **데이터 유실 방지**는 이중 저장으로 해결한다. `auto_save=True`와 `flush_every=50`을 동시에 설정하고, 세션 단위 평가는 `evaluation_session` 컨텍스트 매니저를 사용한다.
@@ -708,6 +745,8 @@ pip install "agent-evaluator[eval]"
 - **평가 오버헤드**는 기본 설정(Gate A-G 기반만)에서 ~1ms다. `enable_hallucination_detection`, `enable_security_metrics`는 기본값이 `False`이므로 필요할 때만 활성화한다.
 
 - **Docker 배포**는 Phoenix 서비스와 함께 `docker-compose.yml`로 통합 구성한다. 평가 결과는 볼륨으로 영속화하고, 환경 변수로 OTEL 엔드포인트를 주입한다.
+
+- **Gate 결과 JSON 경로**: `result["extra_metrics"]["harness_groups"]["A"]["gate"]`(PASS/WARN/FAIL). `harness_gates`라는 키는 존재하지 않으며, `HarnessEvaluationGate` 클래스도 없다. CLI 게이팅은 `agent-eval gate result.json` 명령으로 수행한다.
 
 - **트러블슈팅 핵심**: Phoenix 스팬 미전송은 `setup_otel()` 순서 문제, 정확도 0은 `ground_truth` 미입력, 할루시네이션/보안 지표 0은 `enable_*` 기본값 확인으로 해결된다.
 
@@ -737,39 +776,52 @@ python Evaluator_Examples/ch20_deployment.py    # v1 vs v2 Gate 점수 비교 ·
 # v2 에이전트: 추론 마커 포함, 효율적 응답, GDPR 준수, SLA 통과
 
 from agent_evaluator import (
-    PerformanceMonitor, HarnessEvaluationGate,
+    PerformanceMonitor,
     InstructionConfig, ScopeConfig, SLAConfig,
     ComplianceConfig, ExplainabilityConfig,
+    FaultToleranceConfig, GracefulDegradationConfig,
+    ConsensusConfig, ResourceBudgetConfig,
 )
+from agent_evaluator.decorators import agent_eval, EvalMetadata
 
+# 두 버전은 반드시 독립된 PerformanceMonitor 인스턴스를 사용해야
+# Gate 간 데이터 교차 오염이 없다
 monitor_v1 = PerformanceMonitor(output_dir="results/", enable_security_metrics=True)
 monitor_v2 = PerformanceMonitor(output_dir="results/", enable_security_metrics=True)
 
-# v1·v2 각각 동일한 Config로 평가 실행 후 Gate 판정 비교
+# v1·v2 각각 동일한 Harness Config로 에이전트를 장식하고 실행한 뒤
+# generate_report()로 Gate 판정 결과를 추출한다
 report_v1 = monitor_v1.generate_report().to_dict()
 report_v2 = monitor_v2.generate_report().to_dict()
 
+# Gate 결과는 extra_metrics.harness_groups 경로에 저장된다
 gates_v1 = (report_v1.get("extra_metrics") or {}).get("harness_groups", {})
 gates_v2 = (report_v2.get("extra_metrics") or {}).get("harness_groups", {})
 
 print("=== v1 vs v2 Gate 점수 비교 ===")
 for g in ["A", "B", "C", "D", "E", "F", "G"]:
-    s1 = gates_v1.get(g, {}).get("score")
-    s2 = gates_v2.get(g, {}).get("score")
-    t1 = (gates_v1.get(g, {}).get("gate") or "N/A").upper()
-    t2 = (gates_v2.get(g, {}).get("gate") or "N/A").upper()
+    s1 = (gates_v1.get(g) or {}).get("score")
+    s2 = (gates_v2.get(g) or {}).get("score")
+    t1 = ((gates_v1.get(g) or {}).get("gate") or "N/A").upper()
+    t2 = ((gates_v2.get(g) or {}).get("gate") or "N/A").upper()
     if s1 is not None and s2 is not None:
         delta = (s2 - s1) * 100
         arrow = "↑" if delta > 0 else "↓" if delta < 0 else "→"
         print(f"  Gate {g}: v1={s1:.0%}({t1})  v2={s2:.0%}({t2})  {arrow}{abs(delta):.1f}%p")
 
-# 배포 결정 — v2가 모든 필수 Gate PASS 시 배포 승인
-v2_pass = all(gates_v2.get(g, {}).get("gate") != "FAIL" for g in ["A", "B", "C", "E"])
-print("✅ v2 배포 승인" if v2_pass else "❌ v2 Gate FAIL — 배포 차단")
+# 배포 결정 — 어떤 Gate가 FAIL이면 배포 차단
+v1_fail = [g for g in "ABCDEFG" if ((gates_v1.get(g) or {}).get("gate") or "").upper() == "FAIL"]
+v2_fail = [g for g in "ABCDEFG" if ((gates_v2.get(g) or {}).get("gate") or "").upper() == "FAIL"]
 
-monitor_v1.save_to_file("v1_harness"); monitor_v2.save_to_file("v2_harness")
+print("v1: ❌ 배포 차단 — Gate " + str(v1_fail) + " FAIL" if v1_fail else "v1: ⚠️ 배포 가능 (WARN 있음)")
+print("v2: ✅ 배포 승인 — 모든 Gate 통과" if not v2_fail else "v2: ❌ 배포 차단 — Gate " + str(v2_fail) + " FAIL")
+
+monitor_v1.save_to_file("ch20_deployment_v1")
+monitor_v2.save_to_file("ch20_deployment_v2")
 ```
 
-- `ch20_deployment.py` 실행 결과: v2가 Gate A·D·E·G 전 항목에서 v1 대비 +29%p 향상
-- 두 버전의 `PerformanceMonitor`를 독립적으로 생성해야 Gate 간 교차 오염이 없다
-- `required_groups=["A", "B", "E"]`로 핵심 Gate만 필수로 지정하면 선택적 배포 차단이 가능하다
+> 💡 **HarnessEvaluationGate 클래스는 존재하지 않는다.** 배포 판정은 `generate_report().to_dict()`로 Gate 결과를 읽어 직접 판단하거나, CLI에서 `agent-eval gate result.json --tcr 85` 명령으로 수행한다.
+
+- 두 버전의 `PerformanceMonitor`를 독립적으로 생성해야 Gate 간 데이터 교차 오염이 없다
+- Gate 결과 접근 경로는 `report["extra_metrics"]["harness_groups"]["A"]["gate"]`(PASS/WARN/FAIL) 형태다
+- 배포 차단 조건을 코드로 표현하는 것이 Harness Engineering의 핵심이다 — "배포 기준을 설정 파일이 아니라 Python Config 객체로 코드화하고, Gate 판정으로 자동 결정"

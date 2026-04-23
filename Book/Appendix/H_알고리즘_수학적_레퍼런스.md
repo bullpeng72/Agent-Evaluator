@@ -2,6 +2,39 @@
 
 > Agent-Evaluator 25개 Tracker 지표 각각의 수식, 의사코드, 계산 예시, 엣지케이스 처리를 정확하게 기술한다. 지표의 내부 동작을 이해하고 싶은 개발자, 신뢰성을 검증하려는 QA 관리자를 위한 레퍼런스다.
 
+**수식 표기 규칙 (처음 읽는 분을 위해)**
+
+| 기호 | 의미 | 예시 |
+|------|------|------|
+| `\|A\|` | 집합 A의 원소 개수(크기) | `\|{"서울", "한국"}\| = 2` |
+| `A ∩ B` | A와 B의 공통 원소만 모은 집합(교집합) | `{"서울","한국"} ∩ {"서울","수도"} = {"서울"}` |
+| `A ∪ B` | A와 B의 원소를 합친 집합(합집합) | `{"서울","한국"} ∪ {"서울","수도"} = {"서울","한국","수도"}` |
+| P | Precision (정밀도): 에이전트가 출력한 것 중 맞는 비율 | |
+| R | Recall (재현율): 정답 중 에이전트가 맞힌 비율 | |
+| F1 | 정밀도와 재현율의 조화평균: `2PR/(P+R)` | 둘 다 높아야 높은 점수 |
+
+**수식이 Gate 점수로 이어지는 흐름**
+
+```
+개별 태스크 실행
+  └─ AccuracyEvaluator → accuracy (0~1)
+  └─ LatencyTracker    → p95_ms, ttft
+  └─ LLMJudge          → overall, faithfulness
+        ↓
+PerformanceMonitor.record_task() 가 모든 태스크 집계
+        ↓
+Harness Gate 판정 (generate_report() 호출 시)
+  Gate A  ← accuracy, completion_score (InstructionConfig·GoalAlignmentConfig)
+  Gate C  ← accuracy variance, retry 재현성 (ReproducibilityConfig)
+  Gate D  ← p95_ms, total_cost (SLAConfig·ResourceBudgetConfig)
+  Gate E  ← threat_score (ThreatSeverityConfig·ComplianceConfig)
+  Gate G  ← faithfulness, criteria_overall (ExplainabilityConfig)
+        ↓
+PASS / WARN / FAIL 판정 → CI/CD exit 0 / exit 1
+```
+
+이 Appendix의 각 절은 위 흐름 중 "개별 태스크 수식" 레이어를 상세히 설명한다.
+
 ---
 
 ## H.1 정확도 (Accuracy) — 4개 서브지표 알고리즘
@@ -12,16 +45,24 @@
 
 ```
 수식:
-  tokens_h = tokenize(hypothesis)   — 공백 기준 소문자 분리
-  tokens_r = tokenize(reference)
-  
-  |TP| = |{t : t ∈ tokens_h AND t ∈ tokens_r}|  — 교집합 크기 (중복 고려)
-  
-  Precision = |TP| / |tokens_h|
-  Recall    = |TP| / |tokens_r|
-  
+  tokens_h = tokenize(hypothesis)   — 에이전트 응답을 공백 기준 소문자로 분리한 토큰 목록
+  tokens_r = tokenize(reference)    — 정답(ground_truth)을 같은 방식으로 분리한 토큰 목록
+
+  |TP| = |{t : t ∈ tokens_h AND t ∈ tokens_r}|
+       — 두 목록에 공통으로 등장하는 토큰 수(True Positives). |A|는 "A의 크기(원소 수)"
+
+  Precision (정밀도) = |TP| / |tokens_h|
+    → 에이전트가 출력한 토큰 중 정답에도 있는 비율
+    → 값이 낮다 = 에이전트가 관계 없는 단어를 너무 많이 썼다
+
+  Recall (재현율) = |TP| / |tokens_r|
+    → 정답의 토큰 중 에이전트가 실제로 쓴 비율
+    → 값이 낮다 = 정답의 핵심 단어를 누락했다
+
   Token F1 = 2 × Precision × Recall / (Precision + Recall)
            = 2|TP| / (|tokens_h| + |tokens_r|)
+    — 조화평균: 정밀도와 재현율 중 하나만 높아서는 높은 점수를 받지 못함
+    — 산술평균 (P+R)/2 과 혼동 주의 — F1은 반드시 조화평균을 사용해야 함
 
   단, Precision = Recall = 0 이면 Token F1 = 0
 ```
@@ -83,11 +124,16 @@ Token F1 = 0.0
 
 ```
 수식:
-  A = set(tokenize(hypothesis))
-  B = set(tokenize(reference))
-  
+  A = set(tokenize(hypothesis))  — 에이전트 응답의 고유 토큰 집합 (중복 제거)
+  B = set(tokenize(reference))   — 정답의 고유 토큰 집합
+
   Jaccard(A, B) = |A ∩ B| / |A ∪ B|
                = |A ∩ B| / (|A| + |B| - |A ∩ B|)
+
+  직관적 해석:
+    분자 |A ∩ B| = 두 집합에 공통으로 있는 단어 수
+    분모 |A ∪ B| = 두 집합을 합쳤을 때 고유 단어 수 (공통 단어를 두 번 세지 않음)
+    → "전체 어휘 중 겹치는 비율"
 
   특수 케이스: A = B = {} 이면 Jaccard = 1.0
               A ≠ {} 또는 B ≠ {} 이면 Jaccard = 0.0 / |A ∪ B|
@@ -258,6 +304,8 @@ Accuracy = 0.40 × Token_F1
   빈 정답: ground_truth 없음 → AccuracyEvaluator 호출 안 됨 (0.0 반환)
 ```
 
+**Harness Gate 연결**: 이 `Accuracy` 값은 태스크별 `TaskResult.accuracy_score`로 저장된다. `PerformanceMonitor`가 전체 태스크의 평균을 집계해 **Gate A (Goal Achievement)** 판정에 사용한다. `GoalAlignmentConfig(min_accuracy=0.7)` 설정 시 평균 Accuracy < 0.7이면 Gate A가 FAIL 처리된다.
+
 ---
 
 ## H.2 Task Completion Rate (TCR)
@@ -337,6 +385,8 @@ TCR = (Σ completion_score_i) / N × 100  [%]
 | 계산 | 응답 내용·길이 기반 자동 | 사용자 지정 또는 자동 추론 |
 | 목적 | TCR 및 품질 지표 계산 | 이분적 성공/실패 플래그 |
 | 기본값 | `create_taskresult()`로 자동 계산 | completion_score ≥ 0.5 |
+
+**Harness Gate 연결**: TCR은 **Gate A (Goal Achievement)** 의 핵심 지표다. `InstructionConfig(min_completion_rate=0.9)` 설정 시 TCR < 90%이면 Gate A가 FAIL이 된다. CI/CD에서 `agent-eval gate result.json --tcr 85` 명령이 바로 이 TCR 임계값을 검사한다.
 
 ---
 
@@ -517,6 +567,8 @@ total_latency = time.perf_counter() - start_time
 # TTFT > 1.5초: 느린 것으로 인식
 ```
 
+**Harness Gate 연결**: P95 지연시간은 **Gate D (Performance Contract)** 의 `SLAConfig`에서 판정한다. `SLAConfig(p95_ms=3000)` 설정 시 전체 태스크의 P95가 3,000ms를 초과하면 Gate D FAIL이다. TTFT 변동성(표준편차)은 `TTFTVariabilityConfig`가 별도로 집계하며, TTFT P95/P50 비율이 임계값을 넘으면 WARN 처리된다.
+
 ---
 
 ## H.5 토큰 경제 (Token Economy) — 비용 계산 모델
@@ -556,6 +608,8 @@ total_latency = time.perf_counter() - start_time
   avg_output_tokens > 2 × avg_query_tokens → 과도하게 장황한 응답
   output/input ratio > 3.0 → 비정상적 응답 길이
 ```
+
+**Harness Gate 연결**: 누적 비용과 토큰 예산은 **Gate D (Performance Contract)** 에서 `ResourceBudgetConfig(max_tokens_per_task=2000, max_cost_usd=10.0)` 형태로 설정한다. 태스크 평균 토큰이 예산을 초과하면 Gate D WARN, 비용 상한을 넘으면 FAIL이다. `CostPredictabilityConfig`는 task_type별 토큰 변동계수(CV)를 측정해 비용 예측 가능성을 별도 판정한다.
 
 ---
 
@@ -635,6 +689,8 @@ hallucination_rate = α × unsupported_claim_rate + β × numerical_inconsistenc
 
 **중요 주의사항**: 이 규칙 기반 탐지의 정확도는 약 70~80%다. LLM 기반 방법(FActScore, LLM Judge Faithfulness)은 90~95%이지만 비용이 크다. 빠른 1차 스크리닝으로 사용하고, 위험 케이스는 LLM Judge `rag_mode=True`로 2차 검증하는 것을 권장한다.
 
+**Harness Gate 연결**: `hallucination_rate`는 현재 Gate의 직접 판정 지표로 쓰이지 않지만, `EvaluationReport.hallucination_rate`로 노출되어 대시보드에서 추세를 확인할 수 있다. RAG 에이전트의 환각 제어가 목표라면 **Gate G (Observability)** 의 `ExplainabilityConfig`와 함께 `LLMJudge(rag_mode=True)`의 `faithfulness` 점수를 Gate 판정의 주 신호로 사용할 것을 권장한다.
+
 ---
 
 ## H.7 도구 선택 F1 (Tool Selection Accuracy)
@@ -680,6 +736,8 @@ expected_tools = {"search_weather", "create_calendar_event"}
   Recall    = 0/2 = 0.000  (필요한 것을 전혀 안 씀)
   F1 = 0.000
 ```
+
+**Harness Gate 연결**: 도구 선택 F1은 **Gate B (Behavioral Integrity)** 의 `ScopeConfig(allowed_actions=[...])` 와 함께 동작한다. 에이전트가 `allowed_actions` 외의 도구를 사용하면 범위 일탈(scope violation)로 처리되며, Precision이 낮으면 불필요한 도구 호출이 많다는 신호다.
 
 ### H.7.2 순서 고려 F1 (Weighted by Call Order)
 
@@ -751,11 +809,14 @@ def classify_topology(interactions: list) -> str:
 ```
 
 **토폴로지별 특성**:
+
 | 토폴로지 | 장점 | 단점 | 적합 사례 |
 |---------|------|------|----------|
 | Hub | 조율 단순, 중앙 제어 | 허브 장애 시 전체 중단 | 오케스트레이터 패턴 |
 | Chain | 순차 처리 명확 | 앞 에이전트 실패 시 전체 영향 | 파이프라인 처리 |
 | Mesh | 장애 내성 높음 | 조율 복잡, 중복 위험 | P2P 협업 |
+
+**Harness Gate 연결**: 에이전트 협력 점수와 토폴로지 정보는 **Gate F (Multi-Agent Coordination)** 에서 사용된다. `ConsensusConfig(min_agreement_rate=0.8)`는 에이전트 간 합의율 임계값을, `AgentRoleConfig(allowed_roles=[...])`는 역할 준수율을 각각 판정한다. 루프(`A→B→A`)가 탐지되면 Gate B의 `LoopDetectionConfig`와 Gate F의 `DeadlockConfig`가 동시에 WARN/FAIL을 발생시킨다.
 
 ---
 
@@ -764,7 +825,7 @@ def classify_topology(interactions: list) -> str:
 ### H.9.1 입력 위생화 — 정규표현식 패턴 매칭
 
 ```python
-# v0.8.4 기준: OWASP Top 10 for LLMs (2023) + MITRE ATLAS (2024) 기반
+# v0.8.5 기준: OWASP Top 10 for LLMs (2023) + MITRE ATLAS (2024) 기반
 # 업데이트 주기: 반기 (신규 공격 패턴 검토)
 # 참조: https://owasp.org/www-project-top-10-for-large-language-model-applications/
 INJECTION_PATTERNS = {
@@ -875,6 +936,8 @@ def detect_output_leakage(output: str) -> dict:
     return leaks
 ```
 
+**Harness Gate 연결**: 보안 트래커가 탐지한 위협은 **Gate E (Security Boundary)** 에서 판정한다. `ThreatSeverityConfig(critical_threshold=0, high_threshold=2)` 설정 시 `critical` 위협이 1건이라도 발견되면 Gate E FAIL, `high` 위협이 3건 이상이면 WARN이다. `ComplianceConfig(forbidden_keywords=[...])` 로 도메인별 금지 키워드를 추가로 정의할 수 있다.
+
 ---
 
 ## H.10 LLM Judge 채점 메커니즘
@@ -957,6 +1020,17 @@ def should_judge(task_id: str, sample_rate: float) -> bool:
 # → CI/CD에서 재현 가능한 결과 보장
 ```
 
+**Harness Gate 연결**: LLM Judge 점수는 복수의 Gate에 직접 연결된다.
+
+| LLM Judge 출력 | 연결 Gate | 설정 Config |
+|----------------|-----------|-------------|
+| `overall` (completeness·relevance·factual_consistency 평균) | Gate A | `GoalAlignmentConfig(llm_blend_weight=0.5)` |
+| `faithfulness` (RAG 모드) | Gate G | `ExplainabilityConfig` |
+| `safety_score` (toxicity·bias 역수 변환) | Gate E | `ThreatSeverityConfig` |
+| `criteria_overall` (커스텀 기준 평균) | Gate G | `ObservabilityConfig` |
+
+`llm_blend_weight=0.5`는 규칙 기반 점수와 LLM Judge 점수를 50:50으로 혼합해 Gate 판정에 사용함을 의미한다. 값을 0으로 설정하면 LLM Judge를 로깅 전용으로만 사용한다.
+
 ---
 
-*본 Appendix의 수식과 알고리즘은 Agent-Evaluator v0.8.4 소스 코드(`agent_evaluator/core/trackers/layer1.py`, `layer2.py`, `security.py`, `integrations/llm_judge.py`)와 직접 대응된다.*
+*본 Appendix의 수식과 알고리즘은 Agent-Evaluator v0.8.5 소스 코드(`agent_evaluator/core/trackers/layer1.py`, `layer2.py`, `security.py`, `integrations/llm_judge.py`)와 직접 대응된다.*

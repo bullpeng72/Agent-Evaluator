@@ -59,12 +59,17 @@
 
 ## 6.1 Gate C 개요
 
-Group C는 에이전트의 **신뢰성(Reliability)**을 측정한다. 신뢰성은 두 가지 차원을 가진다.
+Gate C는 에이전트의 **신뢰성(Reliability)**을 측정한다. 여기서 신뢰성이란 단순한 가동률(uptime)이 아니다. AI 에이전트는 LLM의 확률론적 특성 때문에 같은 입력에 다른 결과를 낼 수 있다. Gate C는 이 **비결정론적 특성을 얼마나 통제하고 있는가**를 배포 기준으로 선언한다.
+
+> **Harness Engineering 관점**: Gate C = "에이전트가 실패 상황에서도 얼마나 예측 가능하게 동작하는가?" 이 기준을 통과하지 못한 에이전트는 개발 환경에서는 잘 동작해도 프로덕션의 장애 상황에서 무너진다.
+
+신뢰성은 세 가지 차원을 가진다.
 
 1. **일관성**: 같은 입력에 일관된 결과를 내는가? (`ReproducibilityConfig`)
 2. **견고성**: 장애 상황에서 적절히 대응하고 복구하는가? (`FaultToleranceConfig`, `GracefulDegradationConfig`)
+3. **안전성**: 중복 실행·재시도에도 부작용이 없는가? (`IdempotencyConfig`, `RetryConsistencyConfig`)
 
-Gate A(목표달성)가 "결과가 맞는가?"를 묻는다면, Group C는 "결과가 언제나 맞는가?"를 묻는다.
+Gate A(목표달성)가 "결과가 맞는가?"를 묻는다면, Gate C는 "결과가 언제나, 어떤 상황에서도 안전하게 제공되는가?"를 묻는다.
 
 ### Tracker vs Config — Gate C 대비표
 
@@ -75,6 +80,8 @@ Gate A(목표달성)가 "결과가 맞는가?"를 묻는다면, Group C는 "결�
 | 타이밍 | 런타임 매 호출 | 배포 전 선언 |
 | 예시 | `hallucination_score=0.15` → "15%의 사실 불일치" | `ReproducibilityConfig(reproducibility_threshold=0.85)` → "재현성 85% 필요" |
 
+> **중요 — Tracker와 Config는 다른 개념이다**: `RetryCorrectionTracker`는 재시도 행동을 **측정**하는 런타임 트래커다. `RetryConsistencyConfig`는 재시도 품질 기준을 **선언**하는 Harness Config다. 이름이 비슷해 혼동하기 쉽지만, 트래커는 자동으로 동작하고 Config는 개발자가 명시적으로 선언해야 한다.
+
 ---
 
 ## 6.2 Tracker 2종 심화
@@ -83,7 +90,9 @@ Gate A(목표달성)가 "결과가 맞는가?"를 묻는다면, Group C는 "결�
 
 `HallucinationDetector`는 에이전트 응답이 ground_truth 또는 제공된 컨텍스트와 사실적으로 일치하는지 측정한다. LLM 기반 에이전트에서 가장 위험한 품질 결함인 환각(hallucination)을 자동으로 탐지한다.
 
-> **중요**: `HallucinationDetector`는 NLP 연산이 필요하므로 **opt-in**이다. `enable_hallucination_detection=True`로 명시적으로 활성화해야 한다.
+**왜 환각 탐지가 신뢰성(Gate C)의 일부인가?** 환각은 단순한 품질 문제가 아니다. RAG 에이전트가 컨텍스트와 다른 정보를 일관성 없이 반환한다면, 그 에이전트는 신뢰성이 없는 에이전트다. Gate C(신뢰성)는 "언제나 사실에 기반한 응답을 제공하는가"를 배포 기준으로 선언하므로, `HallucinationDetector`는 Gate C의 핵심 측정 도구다.
+
+> **중요**: `HallucinationDetector`는 Layer 1 트래커지만, `enable_hallucination_detection=True` 활성화 시 Gate C에 기여한다. NLP 연산 비용 때문에 **opt-in** 방식이며, 반드시 명시적으로 활성화해야 한다. RAG 에이전트 없이 Gate C만 사용하더라도, 환각 탐지 없이 배포하면 사실 불일치를 사전에 탐지할 수 없다.
 
 **측정 원리:**
 
@@ -170,7 +179,7 @@ def rag_agent(question: str, context: str = "", ground_truth: str = "") -> str:
 | `self_correction_rate` | 스스로 오류를 수정한 비율 |
 
 ```python
-# 출처: Evaluator_Examples/ch06_group_c.py, 섹션 2 — Gate B — Behavioral Integrity
+# 출처: Evaluator_Examples/ch06_group_c.py, 섹션 3 — Gate C — Reliability
 from agent_evaluator import create_taskresult
 
 # 재시도 정보 기록
@@ -330,6 +339,7 @@ def robust_agent(question: str, ground_truth: str = "") -> str:
 재시도 횟수와 결과를 기반으로 재시도 전략의 효율성을 평가한다. "재시도가 실제로 성공으로 이어지는가?"를 측정한다.
 
 ```python
+# 출처: Evaluator_Examples/ch06_group_c.py — RetryConsistencyConfig
 from agent_evaluator import RetryConsistencyConfig
 
 RetryConsistencyConfig(
@@ -349,6 +359,7 @@ RetryConsistencyConfig(
 | 코드 | `retry=RetryConfig(max=3)` | `retry_consistency=RetryConsistencyConfig(...)` |
 
 ```python
+# 출처: Evaluator_Examples/ch06_group_c.py — RetryConfig · RetryConsistencyConfig
 from agent_evaluator import RetryConfig, RetryConsistencyConfig
 
 @agent_eval(
@@ -370,9 +381,12 @@ def agent(question: str, ground_truth: str = "") -> str:
 
 ### 6.3.5 IdempotencyConfig — 멱등성 평가
 
+**초급자를 위한 멱등성 설명**: 멱등성(Idempotency)이란 "같은 작업을 몇 번 반복해도 결과가 달라지지 않는" 성질이다. 예를 들어 "주문 1번을 조회"는 몇 번 실행해도 같은 결과가 나오므로 멱등하다. 반면 "주문 생성"은 실행할 때마다 새 주문이 만들어지므로 멱등하지 않다. AI 에이전트가 도구를 중복 호출하면 이메일이 두 번 전송되거나 결제가 두 번 처리되는 등 실제 피해가 발생할 수 있다. `IdempotencyConfig`는 에이전트가 이런 비멱등 도구를 불필요하게 반복 호출하는지 탐지하고 감점한다.
+
 동일한 도구를 반복 실행했을 때 부작용(side effect)이 발생하는지 평가한다. 데이터 생성·삭제·수정 등 비멱등(non-idempotent) 도구를 불필요하게 반복 호출하면 감점된다.
 
 ```python
+# 출처: Evaluator_Examples/ch06_group_c.py — IdempotencyConfig
 from agent_evaluator import IdempotencyConfig
 
 IdempotencyConfig(
@@ -418,6 +432,7 @@ def db_write_agent(question: str, ground_truth: str = "") -> str:
 ### 패턴 1 — 의료·금융 정보 에이전트 (고신뢰성 요구)
 
 ```python
+# 출처: Evaluator_Examples/ch06_group_c.py — ReproducibilityConfig · LLMJudgeConfig
 from agent_evaluator import PerformanceMonitor, ReproducibilityConfig, LLMJudgeConfig
 from agent_evaluator.decorators import agent_eval
 
@@ -449,9 +464,12 @@ def medical_info_agent(question: str, context: str = "", ground_truth: str = "")
 - `criteria=["factual_accuracy", "medical_safety"]`처럼 도메인 특화 기준을 G-Eval로 선언하면 일반 품질 지표 외에 전문 영역 안전성을 추가로 평가한다.
 - `enable_hallucination_detection=True`는 NLP 기반 탐지, `llm_judge`는 LLM 기반 탐지로, 두 방식을 결합하면 환각 탐지의 재현율과 정밀도가 모두 높아진다.
 
+> **RAG 에이전트에서 Gate C(환각 탐지) 없이 배포하면**: 검색된 컨텍스트와 다른 내용을 자신감 있게 답변하는 에이전트가 프로덕션에 배포된다. 의료 정보 봇이 "아스피린은 모든 성인에게 안전하다"고 환각을 생성했을 때, `HallucinationDetector`가 없으면 이 사실 불일치를 자동으로 탐지할 방법이 없다. Gate C 없는 RAG 에이전트는 Gate A(목표달성) 점수가 높아도 실제 배포 위험이 존재한다.
+
 ### 패턴 2 — 분산 서비스 에이전트 (장애 내성 중심)
 
 ```python
+# 출처: Evaluator_Examples/ch06_group_c.py — FaultToleranceConfig · GracefulDegradationConfig · RetryConsistencyConfig
 from agent_evaluator import (
     FaultToleranceConfig, GracefulDegradationConfig,
     RetryConsistencyConfig
@@ -498,6 +516,7 @@ def resilient_agent(question: str, ground_truth: str = "") -> str:
 배포 결정은 이 분포를 보고 내려야 한다.
 
 ```python
+# 출처: Evaluator_Examples/ch06_group_c.py — 예제 코드
 # 환각 점수 분포 분석
 report = monitor.generate_report()
 d = report.to_dict()
@@ -528,38 +547,46 @@ if scores:
 
 # 2. 시계열 드리프트 (agent-eval trend)
 # → "지난 한 달 동안 신뢰성이 유지되고 있는가?"
-agent-eval trend results/ --window 30 --metric reproducibility
+agent-eval trend results/ --window 30
+agent-eval trend results/ --window 30 --fail-on-regression   # 회귀 감지 시 exit 1
 ```
 
 - `agent-eval trend`는 순차적으로 저장된 결과 파일들의 시계열 변화를 분석하므로 `ReproducibilityConfig`의 단일 세션 측정과 상호 보완적이다.
 - `--window 30`은 최근 30개 결과 파일을 분석 대상으로 삼으며, 주기적 CI/CD 실행 환경에서 한 달치 드리프트를 한 번에 확인할 수 있다.
-- `--fail-on-regression`을 추가하면 재현성이 이전 기간 대비 저하될 때 `exit 1`로 CI/CD를 자동 차단한다.
+- `--fail-on-regression`을 추가하면 TCR·정확도가 이전 기간 대비 저하될 때 `exit 1`로 CI/CD를 자동 차단한다. `--metric` 플래그는 지원하지 않으며, trend는 TCR·정확도·비용 등 핵심 지표 전체를 자동으로 분석한다.
 
 ---
 
-## 6.6 HarnessEvaluationGate — Gate C 판정
+## 6.6 Gate C 판정 — 결과 접근과 배포 차단
+
+Gate C 판정 결과는 `report.to_dict()`의 `extra_metrics.harness_groups` 키에서 가져온다. CI/CD에서는 `agent-eval gate` CLI로 자동 차단한다.
 
 ```python
-from agent_evaluator import HarnessEvaluationGate
-
+# 출처: Evaluator_Examples/ch06_group_c.py — Gate C 점수 확인
 report = monitor.generate_report()
-gate = HarnessEvaluationGate(report)
-result = gate.evaluate()
-
-group_c = result["groups"]["C"]
-print(f"Gate C 통과: {group_c['passed']}")
-print(f"Gate C 점수: {group_c['score']:.3f}")
-
-# Gate C 주요 지표 접근
 d = report.to_dict()
+
+# Gate C 판정 결과 접근
+harness = (d.get("extra_metrics") or {}).get("harness_groups", {})
+gate_c = harness.get("C", {})
+print(f"Gate C 점수: {gate_c.get('score', 'N/A')}")
+print(f"Gate C 상태: {gate_c.get('status', 'N/A')}")   # PASS / WARN / FAIL
+
+# Gate C 기여 지표 접근
 print(f"환각 점수: {d.get('hallucination_score', 'N/A')}")
 print(f"재현성: {d.get('reproducibility_score', 'N/A')}")
 print(f"재시도 성공률: {d.get('retry_success_rate', 'N/A')}")
 ```
 
-- `result["groups"]["C"]`로 Gate C 전체 통과 여부와 점수를 직접 접근하며, `score`는 0.0~1.0 범위다.
+```bash
+# CI/CD — Gate C 기준 미달 시 배포 자동 차단
+monitor.save_to_file("ch06_group_c")                       # results/ch06_group_c.json 저장
+agent-eval gate results/ch06_group_c.json --tcr 80        # TCR 80% 미달 시 exit 1
+```
+
+- Gate C 결과는 `extra_metrics.harness_groups["C"]` 키에서 접근한다. `score`는 0.0~1.0, `status`는 `PASS`·`WARN`·`FAIL` 중 하나다.
 - `hallucination_score`·`reproducibility_score`·`retry_success_rate`는 `report.to_dict()`의 최상위 키로 접근하며, 각각 환각·재현성·재시도 효율성을 대표하는 지표다.
-- `gate.enforce()`는 Gate A–G 전체를 종합 판정해 임계값 미달 시 `sys.exit(1)`을 호출하므로 CI/CD 파이프라인에서 배포 차단 자동화가 가능하다.
+- 프로덕션 배포 파이프라인에서 Gate C `FAIL` 판정 시 `agent-eval gate` CLI가 `exit 1`을 반환하므로, 장애 복구 실패나 환각 임계값 초과 에이전트를 자동으로 차단할 수 있다.
 
 ---
 
@@ -636,14 +663,14 @@ def idempotent_agent(question: str, ground_truth: str = "") -> str:
 - `idempotent_agent`처럼 응답에 "조회"·"검색"처럼 읽기 전용을 나타내는 문자열이 포함되면 `duplicate_detection_markers`와 결합해 중복 실행 안전성 보너스 점수를 얻을 수 있다.
 
 ```bash
-python Evaluator_Examples/ch03_harness_basics.py          # Gate C 포함 전체
-python Evaluator_Examples/ch01_first_eval.py    # HallucinationDetector 예제
-python Evaluator_Examples/ch04_group_a.py  # Gate C FAIL — 배포 차단 케이스
+python Evaluator_Examples/ch06_group_c.py                 # Gate C — 5개 Config + FAIL 역케이스
+python Evaluator_Examples/ch03_harness_basics.py          # Gate A–G 전체 통합 (Gate C 포함)
+python Evaluator_Examples/ch01_first_eval.py              # HallucinationDetector Layer 1 기초
 ```
 
+- `ch06_group_c.py`는 Gate C 5개 Config 전체와 역케이스(Gate C FAIL 유도)를 포함하며, 실행하면 `results/ch06_group_c.json`이 생성된다.
 - `ch03_harness_basics.py`는 Gate A–G 모든 Config를 한 번에 실행하므로 Gate C 판정 결과를 다른 Gate와 함께 비교할 수 있다.
-- `ch01_first_eval.py`의 `HallucinationDetector` 예제는 `enable_hallucination_detection=True` 설정 없이는 실행되지 않으므로 반드시 `PerformanceMonitor` 생성 시 확인한다.
-- `ch04_group_a.py`의 Gate C FAIL 시나리오를 먼저 실행해 어떤 Config가 어떤 조건에서 `success=False`를 내는지 파악한 후 자신의 에이전트에 적용하면 설정 오류를 줄일 수 있다.
+- `ch01_first_eval.py`의 `HallucinationDetector` 예제는 `enable_hallucination_detection=True` 설정 없이는 환각 점수가 집계되지 않으므로 반드시 `PerformanceMonitor` 생성 시 확인한다.
 
 ---
 

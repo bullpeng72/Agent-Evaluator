@@ -302,9 +302,9 @@ print("\n=== 최종 리포트 ===")
 report = monitor.generate_report().to_dict()
 total  = report.get("total_tasks", 0)
 am     = report.get("accuracy_metrics", {})
-tcr    = am.get("tcr", {}).get("tcr", 0) / 100
-acc    = am.get("accuracy_scores", {}).get("overall_accuracy", 0) / 100
-print(f"  총 태스크: {total}건  TCR: {tcr:.1%}  평균 정확도: {acc:.2%}")
+tcr    = am.get("tcr", {}).get("tcr", 0)          # 0–100 범위 그대로 사용
+acc    = am.get("accuracy_scores", {}).get("overall_accuracy", 0)  # 0–100 범위 그대로 사용
+print(f"  총 태스크: {total}건  TCR: {tcr:.1f}%  평균 정확도: {acc:.2f}%")
 print("  ℹ  정확도가 낮게 측정되는 것은 정상입니다.")
 print("     프레임워크 어댑터 예제는 실제 LLM 호출 없이 mock 응답을 사용하며,")
 print("     ground_truth와 mock 응답의 토큰 오버랩이 매우 낮아 수 % 수준으로 나타납니다.")

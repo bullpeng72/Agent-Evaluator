@@ -59,13 +59,37 @@
 
 ## 5.1 Gate B 개요
 
+### 행동무결성이란 무엇인가?
+
+"에이전트가 목표를 달성했다"는 것만으로는 프로덕션 배포 승인이 나지 않는다. **어떤 방식으로** 달성했는지가 똑같이 중요하다.
+
+예를 들어, 고객 응대 에이전트가 사용자 질문에 완벽한 답변을 생성했지만(Gate A 통과) 그 과정에서 `delete_account` 도구를 호출했다면? 응답 품질 점수는 높아도 **실제로는 배포해서는 안 되는 에이전트**다. Gate B는 이런 상황을 잡아낸다.
+
+**행동무결성(Behavioral Integrity)**이란 에이전트가 허가된 도구만, 허가된 방식으로, 허가된 범위 안에서 실행하는 성질이다. Gate A가 "무엇을 했는가"를 평가한다면, Gate B는 "어떻게 했는가"를 평가한다.
+
+> **Harness Engineering 관점**: Gate B의 6개 Config는 각각 하나의 **도구 사용 계약(Tool Use Contract)**이다. 에이전트가 이 계약을 위반하면 `fail_on_violation=True` / `fail_on_dangerous=True` / `on_loop_detected="fail"` 설정에 따라 `TaskResult.success=False`로 자동 차단된다. 계약이 없으면 에이전트는 어떤 행동이든 할 수 있다.
+
+### Gate B가 Gate A 다음으로 중요한 이유
+
+**도구 사용 에이전트의 핵심 안전 게이트**이기 때문이다. 에이전트가 도구를 사용하는 순간 부작용이 발생할 수 있다. 파일 삭제·DB 수정·외부 API 호출은 되돌릴 수 없는 결과를 만든다. Gate A는 응답 품질만 보지만, Gate B는 그 과정에서 도구가 안전하게 사용됐는지를 판단한다.
+
+Gate B 없이 `task_type="tool_use"` 에이전트를 배포하면:
+- 허가되지 않은 도구 호출 → 데이터 손실 또는 외부 시스템 오염
+- 루프에 빠진 에이전트 → API 비용 폭발 (사례: 동일 검색 37회 반복)
+- 위험한 파라미터(경로 순회·명령 주입) → 보안 사고
+- 예기치 않은 상태 변경 → 불변 필드(잔액·세션) 오염
+- 순환 위임 교착 → 에이전트 전체 정지
+
 Group B는 에이전트의 **행동이 허가된 범위 안에 머무는지** 측정한다. 에이전트가 목표를 달성했더라도(Gate A), 그 과정에서 허가되지 않은 도구를 쓰거나, 루프에 빠지거나, 도구 파라미터에 위험한 값을 넣었다면 배포할 수 없다.
 
-### Group B가 다루는 3가지 질문
+### Group B가 다루는 6가지 질문
 
 1. **범위**: 에이전트가 허가된 도구만 사용했는가? (`ScopeConfig`)
 2. **루프**: 동일한 도구를 반복해서 호출하는 루프가 없는가? (`LoopDetectionConfig`)
 3. **안전**: 도구 파라미터에 위험한 값이 포함되지 않았는가? (`ToolParameterSafetyConfig`)
+4. **컨텍스트**: LLM 컨텍스트 윈도우가 포화 상태에 이르지 않았는가? (`ContextWindowConfig`)
+5. **상태**: 에이전트 실행 전후 불변 필드가 변경되지 않았는가? (`StateConsistencyConfig`)
+6. **교착**: 순환 위임·기아·라이브락이 발생하지 않았는가? (`DeadlockConfig`)
 
 ### Tracker vs Config — Gate B 대비표
 
@@ -96,6 +120,7 @@ Group B는 에이전트의 **행동이 허가된 범위 안에 머무는지** �
 | `parallel_tool_calls` | 병렬 도구 호출 탐지 여부 |
 
 ```python
+# 출처: Evaluator_Examples/ch05_group_b.py — PerformanceMonitor 설정
 from agent_evaluator import PerformanceMonitor, create_taskresult
 
 monitor = PerformanceMonitor("results/")
@@ -145,6 +170,7 @@ print(f"태스크당 평균: {tool_stats.get('avg_calls_per_task', 0):.1f}")  # 
 | `step_failure_patterns` | 주로 실패하는 단계 패턴 |
 
 ```python
+# 출처: Evaluator_Examples/ch05_group_b.py — PerformanceMonitor 설정
 from agent_evaluator import PerformanceMonitor, create_taskresult
 
 monitor = PerformanceMonitor("results/")
@@ -184,6 +210,7 @@ monitor.record_task(result)
 연속으로 동일한 도구를 반복 호출하거나, 짧은 시간 안에 같은 도구를 과도하게 사용하는 루프 패턴을 탐지한다.
 
 ```python
+# 출처: Evaluator_Examples/ch05_group_b.py — LoopDetectionConfig
 from agent_evaluator import LoopDetectionConfig
 
 LoopDetectionConfig(
@@ -199,6 +226,7 @@ LoopDetectionConfig(
 **사용 예시:**
 
 ```python
+# 출처: Evaluator_Examples/ch05_group_b.py — LoopDetectionConfig
 from agent_evaluator import LoopDetectionConfig
 from agent_evaluator.decorators import agent_eval
 
@@ -227,6 +255,7 @@ def search_agent(question: str, ground_truth: str = "") -> str:
 에이전트가 사용할 수 있는 도구의 목록과 제한을 코드로 선언한다. **범위 이탈이 즉시 배포 차단으로 연결되어야 하는 에이전트**에 필수다.
 
 ```python
+# 출처: Evaluator_Examples/ch05_group_b.py — ScopeConfig
 from agent_evaluator import ScopeConfig
 
 ScopeConfig(
@@ -241,6 +270,7 @@ ScopeConfig(
 **에이전트 역할별 ScopeConfig 예시:**
 
 ```python
+# 출처: Evaluator_Examples/ch05_group_b.py — ScopeConfig
 # 고객 응대 봇 — 읽기 전용 도구만 허용
 customer_scope = ScopeConfig(
     allowed_tools=["search_faq", "search_order", "get_product_info"],
@@ -277,6 +307,7 @@ analytics_scope = ScopeConfig(
 도구 호출 파라미터에 위험한 패턴(경로 순회, 코드 인젝션 등)이 포함되어 있는지 검사한다. Group E의 보안 트래커보다 가볍게 동작하는 파라미터 수준 검사다.
 
 ```python
+# 출처: Evaluator_Examples/ch05_group_b.py — ToolParameterSafetyConfig
 from agent_evaluator import ToolParameterSafetyConfig
 
 ToolParameterSafetyConfig(
@@ -306,6 +337,7 @@ ToolParameterSafetyConfig(
 **사용 예시 — 코드 실행 에이전트:**
 
 ```python
+# 출처: Evaluator_Examples/ch05_group_b.py — ScopeConfig · ToolParameterSafetyConfig
 @agent_eval(
     monitor,
     task_type="tool_use",
@@ -336,6 +368,7 @@ def code_agent(question: str, ground_truth: str = "") -> str:
 에이전트가 LLM의 컨텍스트 윈도우를 얼마나 효율적으로 활용하는지 측정한다. 윈도우가 포화 상태에 가까워지면 응답 품질이 저하될 수 있다.
 
 ```python
+# 출처: Evaluator_Examples/ch05_group_b.py — ContextWindowConfig
 from agent_evaluator import ContextWindowConfig
 
 ContextWindowConfig(
@@ -363,6 +396,7 @@ ContextWindowConfig(
 에이전트 실행 전후의 상태(공유 변수, 파일, DB 등)가 선언된 불변 조건을 유지하는지 검증한다. 예기치 않은 사이드 이펙트를 탐지한다.
 
 ```python
+# 출처: Evaluator_Examples/ch05_group_b.py — StateConsistencyConfig
 from agent_evaluator import StateConsistencyConfig
 
 StateConsistencyConfig(
@@ -403,6 +437,7 @@ def read_only_agent(question: str, ground_truth: str = "") -> str:
 에이전트 간 또는 도구 간 교착(deadlock)·기아(starvation)·라이브락(livelock) 패턴을 탐지한다.
 
 ```python
+# 출처: Evaluator_Examples/ch05_group_b.py — DeadlockConfig
 from agent_evaluator import DeadlockConfig
 
 DeadlockConfig(
@@ -446,6 +481,7 @@ def deadlock_resistant_agent(question: str, ground_truth: str = "") -> str:
 ### 패턴 1 — 도구 사용 에이전트 (기본 행동무결성)
 
 ```python
+# 출처: Evaluator_Examples/ch05_group_b.py — ScopeConfig · LoopDetectionConfig
 from agent_evaluator import (
     ScopeConfig,
     LoopDetectionConfig,
@@ -476,6 +512,7 @@ def tool_agent(question: str, ground_truth: str = "") -> str:
 ### 패턴 2 — 코드 실행 에이전트 (파라미터 안전성 포함)
 
 ```python
+# 출처: Evaluator_Examples/ch05_group_b.py — ScopeConfig · ToolParameterSafetyConfig · LoopDetectionConfig
 from agent_evaluator import (
     ScopeConfig,
     ToolParameterSafetyConfig,
@@ -517,6 +554,7 @@ def code_agent(question: str, ground_truth: str = "") -> str:
 Group B는 에이전트의 의도하지 않은 행동을 차단한다. Group E는 외부 공격으로 인한 강제된 행동을 차단한다. 둘을 함께 사용하면 내부 실수와 외부 공격을 모두 방어한다.
 
 ```python
+# 출처: Evaluator_Examples/ch05_group_b.py — ScopeConfig · LoopDetectionConfig · ToolParameterSafetyConfig
 from agent_evaluator import PerformanceMonitor
 from agent_evaluator import (
     ScopeConfig,
@@ -574,6 +612,7 @@ def secure_agent(question: str, ground_truth: str = "") -> str:
 Group B는 이 돌발 행동을 탐지하고 제한하는 Harness다.
 
 ```python
+# 출처: Evaluator_Examples/ch05_group_b.py — LoopDetectionConfig · ScopeConfig
 # 돌발 행동 예시: 에이전트가 search → summarize를 반복하며 루프에 빠짐
 # LoopDetectionConfig 없이는 100회+ 호출이 발생할 수 있음
 
@@ -604,27 +643,37 @@ def agent(question: str, ground_truth: str = "") -> str:
 
 `LoopDetectionConfig`는 알려진 루프 패턴을 탐지한다. `AnomalyDetector`는 통계적 이상치를 탐지한다. 둘의 결합이 완전한 행동무결성 방어를 제공한다.
 
-```python
-from agent_evaluator import PerformanceMonitor
+`AnomalyDetector`는 `PerformanceMonitor`의 내장 옵션이 아닌 독립 클래스다. `PerformanceMonitor`로 기록한 리포트를 `AnomalyDetector`에 전달하는 방식으로 연동한다.
 
-monitor = PerformanceMonitor(
-    output_dir="results/",
-    enable_anomaly_detection=True,   # 통계적 이상 탐지 활성화
-)
+```python
+# 출처: Evaluator_Examples/ch05_group_b.py — LoopDetectionConfig + AnomalyDetector
+from agent_evaluator import PerformanceMonitor, AnomalyDetector
+
+monitor = PerformanceMonitor(output_dir="results/")
+
+# ... 기준선 태스크 기록 후 (baseline_window=25건 이상) ...
+
+detector = AnomalyDetector(baseline_window=25, detection_window=5)
+events = detector.scan(monitor)   # PerformanceMonitor를 직접 전달
+
+for ev in events:
+    print(f"[{ev.severity}] {ev.type}: {ev.detail}")
 
 # LoopDetectionConfig: 알려진 루프 패턴 탐지 (3회 연속 반복 등)
-# AnomalyDetector: 평소 2~3회 도구 호출하던 에이전트가 갑자기 20회 호출 → 이상 감지
+# AnomalyDetector: 평소 2~3회 도구 호출하던 에이전트가 갑자기 20회 호출 → 통계적 이상 감지
 ```
 
-- `enable_anomaly_detection=True`는 `PerformanceMonitor`에 통계적 이상 탐지를 활성화하며, 지표 분포의 Z-score 기반 이상치를 자동으로 감지한다.
+- `AnomalyDetector`는 `PerformanceMonitor`와 독립된 클래스로, `scan(monitor)` 메서드에 `PerformanceMonitor` 인스턴스를 전달해 통계 기반 이상치를 탐지한다. 반환값은 `AnomalyEvent` 리스트이며 각 이벤트는 `type`, `severity`, `detail`, `value` 필드를 가진다.
 - `LoopDetectionConfig`가 패턴 기반(알려진 루프)을 잡는다면, `AnomalyDetector`는 통계 기반(예상 범위 이탈)을 잡아 두 탐지기가 서로를 보완한다.
 - 알림 연동(`ch16_alerts.py`)과 결합하면 이상 탐지 이벤트를 즉시 슬랙·이메일로 전송할 수 있다.
+- `AnomalyDetector` 상세 사용법은 Chapter 10(Gate G)을 참조한다.
 
 ---
 
 ## 5.6 HarnessEvaluationGate — Gate B 판정
 
 ```python
+# 출처: Evaluator_Examples/ch05_group_b.py — HarnessEvaluationGate 배포 판정
 from agent_evaluator import HarnessEvaluationGate
 
 report = monitor.generate_report()
@@ -770,10 +819,10 @@ tool_agent("오늘 서울 날씨와 환율 계산해줘", ground_truth="맑음, 
 # → report["tool_call_stats"]["tool_success_rate"]: {"web_search":1.0, "calculator":1.0, "weather_api":0.0}
 ```
 
-섹션 6 — `AgentCoordinationTracker`: `get_eval_ctx()` 스레드 로컬 주입 (반환 타입 변경 없이 메타데이터 주입)
+섹션 추가: L2 — `AgentCoordinationTracker`: `get_eval_ctx()` 스레드 로컬 주입 (반환 타입 변경 없이 메타데이터 주입)
 
 ```python
-# 출처: Evaluator_Examples/ch05_group_b.py, 섹션 6 — Gate F Multi-Agent Coordination
+# 출처: Evaluator_Examples/ch05_group_b.py, 섹션 추가: L2 트래커 직접 사용
 from agent_evaluator.decorators import get_eval_ctx
 
 @agent_eval(monitor, task_type="tool_use", task_id_prefix="coord")
@@ -886,6 +935,8 @@ patterns = coord_tracker.get_interaction_patterns()
 
 섹션 5 — 보안 지표 (`InputSanitizationTracker` · `OutputLeakageDetector`): `enable_security_metrics=True` 설정만으로 자동 탐지
 
+> ⚠️ **Gate 소속 주의**: `InputSanitizationTracker`·`OutputLeakageDetector` 등 보안 트래커 5종은 **Gate E(Security Boundary)** 소속이다. Gate B에서 함께 사용할 수 있지만, 이 지표는 Gate E 점수에만 집계된다. Gate B는 도구 행동 무결성, Gate E는 외부 공격 방어를 각각 담당한다.
+
 ```python
 # 출처: Evaluator_Examples/ch05_group_b.py, 섹션 5 — Gate E Security Boundary
 # enable_security_metrics=True 설정 시 record_task()마다 내부 집계 — extras가 아닌 report 수준에서 확인
@@ -910,12 +961,13 @@ report = monitor.generate_report().to_dict()
 sec = report.get("security_metrics", {})
 print(sec.get("sanitization", {}))    # {"total_inputs":N, "threats_detected":M, ...}
 print(sec.get("output_leakage", {}))  # {"total_outputs":N, "leakage_detected":M, ...}
-# → Gate B/E 보안 지표 모두 이 경로로 확인 (태스크 단위 extras에는 저장되지 않음)
+# → Gate E 보안 지표는 이 경로로 확인 (태스크 단위 extras에는 저장되지 않음)
 ```
 
 - 보안 지표는 `report["security_metrics"]` 키 아래에 집계되며, 태스크 단위 `extras`가 아닌 모니터 수준에서 확인한다.
 - `enable_security_metrics=True` 단 한 줄로 SQL Injection·Prompt Injection·경로 순회·PII 유출 탐지가 모두 활성화된다.
 - `sanitization`은 입력 위협 탐지 통계, `output_leakage`는 출력 유출 통계로, 두 지표를 함께 보면 입출력 보안 전체를 파악할 수 있다.
+- 이 지표들은 Gate E(보안경계)에 집계되며, Gate B 점수에는 영향을 주지 않는다. Gate B와 Gate E를 함께 설정하면 내부 행동 무결성과 외부 공격 방어를 모두 커버한다.
 
 **FAIL 케이스**
 

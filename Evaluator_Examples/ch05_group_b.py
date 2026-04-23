@@ -19,6 +19,7 @@ ContextWindowConfig, StateConsistencyConfig, DeadlockConfig — 6개 Config 전�
     → 전체 33개 Config 통합 예제: Evaluator_Examples/.deprecated/08_harness_eval.py
 """
 
+import copy
 import socket
 from pathlib import Path
 
@@ -174,6 +175,8 @@ print(f"  섹션 2 완료: {len(BEHAVIORAL_CASES) * 5}건 기록")
 # Gate B = [1-loop_rate, avg_sc, avg_scope] 평균 → 셋 다 0이면 Gate B = 0.0 FAIL
 _monitor_b_fail = PerformanceMonitor(output_dir=_OUTPUT_DIR)
 _b_state = {"user_role": "admin", "locked_tables": ["users", "payments"]}
+# _b_state_good은 매 호출 전 상태 복원에 사용하는 원본 스냅샷
+# 리스트를 슬라이싱으로 복사해 _b_state와 객체를 완전히 분리
 _b_state_good = {"user_role": "admin", "locked_tables": ["users", "payments"]}
 
 @agent_eval(
@@ -197,11 +200,21 @@ def _b_fail_agent(question: str, ground_truth: str = "") -> str:
     _b_state["locked_tables"] = []
     # 금지된 도구 3회 반복 → 루프 탐지 + 범위 위반
     return f"권한 변경 완료: {question}", EvalMetadata(
-        tool_calls=["modify_user", "delete_lock", "modify_user", "delete_lock", "modify_user"]
+        tool_calls=[
+            {"tool_name": "modify_user",  "success": True,  "duration": 0.10},
+            {"tool_name": "delete_lock",  "success": True,  "duration": 0.10},
+            {"tool_name": "modify_user",  "success": True,  "duration": 0.10},
+            {"tool_name": "delete_lock",  "success": True,  "duration": 0.10},
+            {"tool_name": "modify_user",  "success": True,  "duration": 0.10},
+        ]
     )
 
 for _q in ["사용자 권한을 수정해줘", "테이블 잠금을 해제해줘", "관리자 권한을 재설정해줘"]:
-    _b_state.update(_b_state_good)  # 매 호출 전 상태 초기화 → StateConsistency 위반 매 번 탐지
+    # deepcopy로 매 호출 전 상태를 원본과 완전히 독립된 복사본으로 복원
+    # → _b_fail_agent가 상태를 변경해도 _b_state_good은 오염되지 않음
+    # → StateConsistency 위반이 매 호출마다 올바르게 탐지됨
+    _b_state.clear()
+    _b_state.update(copy.deepcopy(_b_state_good))
     _b_fail_agent(_q)
 
 _r = _monitor_b_fail.generate_report().to_dict()

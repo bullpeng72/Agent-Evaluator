@@ -3,7 +3,7 @@
 [![PyPI version](https://img.shields.io/pypi/v/agent-evaluator.svg)](https://pypi.org/project/agent-evaluator/)
 [![Python Version](https://img.shields.io/badge/python-3.8%2B-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Version](https://img.shields.io/badge/version-0.8.4-green.svg)](https://github.com/bullpeng72/Agent-Evaluator)
+[![Version](https://img.shields.io/badge/version-0.8.5-green.svg)](https://github.com/bullpeng72/Agent-Evaluator)
 
 **AI 에이전트 배포 준비도를 7개 Gate로 판정하는 Harness Engineering 평가 SDK**
 
@@ -1346,7 +1346,7 @@ from agent_evaluator.decorators import (
 
 ## 예제 가이드
 
-Book 챕터 기반 19개 파일로 구성됩니다. 각 파일은 독립 실행 가능합니다.
+Book 챕터 기반 21개 파일로 구성됩니다. 각 파일은 독립 실행 가능합니다.
 
 ### 예제별 의존성
 
@@ -1371,6 +1371,7 @@ Book 챕터 기반 19개 파일로 구성됩니다. 각 파일은 독립 실행 
 | `ch18_cicd_gate.py` | Ch18 | CI/CD 품질 게이팅 — Harness 최소 검증 · exit 0/1 | — |
 | `ch19_phoenix.py` | Ch19 | Phoenix OTEL — Tracing · Datasets · GraphQL + DeepEval · Ragas | `agent-evaluator[eval]` + `OPENAI_API_KEY` (선택) |
 | `ch20_deployment.py` | Ch20 | 프로덕션 배포전략 — v1 vs v2 Gate 점수 비교 | — |
+| `ch21_pipeline.py` | Ch21 | 종합 실무파이프라인 — 개발→CI→운영→개선 4단계 | — |
 
 ### 실행
 
@@ -1396,6 +1397,7 @@ python ch17_weekly_review.py   # 주간·월간 품질 리뷰 자동화
 python ch18_cicd_gate.py       # CI/CD 품질 게이팅
 python ch19_phoenix.py         # Phoenix OTEL + DeepEval · Ragas (opt-in)
 python ch20_deployment.py      # 프로덕션 배포전략
+python ch21_pipeline.py        # 종합 실무파이프라인
 
 # ── 인프라 ───────────────────────────────────────────────────
 agent-eval monitor             # Phoenix 서버 기동 (http://localhost:6006)
@@ -1436,7 +1438,7 @@ agent-evaluator/
 │   ├── cost/                    # CostTracker · AdaptivePolicy
 │   └── datasets/                # GoldenSetBuilder
 │
-├── Evaluator_Examples/          # 예제 19개 파일 (chXX_topic.py, .deprecated/에 구 11개 보존)
+├── Evaluator_Examples/          # 예제 21개 파일 (chXX_topic.py, .deprecated/에 구 11개 보존)
 ├── tests/                       # 2,465개+ 테스트 함수, 53개 파일
 └── pyproject.toml
 ```
@@ -1497,6 +1499,14 @@ mypy agent_evaluator/          # 타입 검사
 ---
 
 ## 변경 이력
+
+### v0.8.5 (2026-04-23) — SDK 버그 수정 · Book API 오류 전면 교정
+
+- `eval_efficiency()` dict 타입 `tokens_used` 묵살 버그 수정
+- `EfficiencyConfig` `cost_unit`/`target_cost_per_completion` 설계 오류 수정 (USD→tokens 스케일)
+- `CostPredictabilityConfig` — 에이전트별 `task_type` 분리로 CV 격리, Gate D 0.640→0.876
+- `ch10_group_g.py` — `EvalMetadata(extra={...})` 주입 경로 수정, Gate G warn→pass
+- Book 전반 API 오류 교정: `AnomalyDetector.scan()`, `AdaptivePolicy` 실제 생성자, `EfficiencyConfig` 스케일
 
 ### v0.8.4 (2026-04-21) — 예제 파일 Book 챕터 기반 전면 재편
 

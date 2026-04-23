@@ -54,7 +54,7 @@ pip install "agent-evaluator[full]"
 
 # 설치 확인
 agent-eval --version
-# → agent-evaluator 0.8.4
+# → agent-evaluator 0.8.5
 ```
 
 > 👨‍💻 **개발자 TIP**: `[crewai]`와 `[autogen]`은 의존성이 무거워 단독 extras로 분리되어 있습니다. CrewAI와 AutoGen을 동시에 설치하면 pydantic 버전 충돌이 발생할 수 있으므로, 필요한 경우에만 하나씩 설치하세요.
@@ -80,6 +80,7 @@ ANTHROPIC_API_KEY=sk-ant-...
 `.env` 파일을 로드하는 방법은 두 가지입니다.
 
 ```python
+# 출처: Evaluator_Examples/ch02_quickstart.py — 예제 코드
 # 방법 1: SDK가 자동 로드 (권장)
 from agent_evaluator import load_env
 load_env()  # 스크립트가 위치한 디렉토리부터 상위로 .env를 탐색해 로드
@@ -113,7 +114,7 @@ Chapter 1에서 정의한 7개 Gate는 추상적인 개념이 아닙니다. Agen
 이 실습에서 Harness 3요소를 순서대로 경험합니다.
 
 - **단계 1–3** — `@eval.qa` 데코레이터가 **Tracker**를 자동 활성화합니다. 에이전트 함수를 감싸기만 하면 AccuracyEvaluator·LatencyTracker 등이 즉시 작동합니다.
-- **단계 4** — `eval.gate(tcr=80, accuracy=65)`가 **Gate** 역할을 합니다. 기준 미달 시 `sys.exit(1)`로 파이프라인을 차단합니다.
+- **단계 4** — `eval.gate(tcr=80, accuracy=70)`가 **Gate** 역할을 합니다. 기준 미달 시 `sys.exit(1)`로 파이프라인을 차단합니다.
 - **단계 4 확장** — `SLAConfig`, `InstructionConfig`를 추가하면 **Config**가 합류합니다. 배포 기준을 코드로 선언하는 패턴입니다.
 
 가장 짧은 코드로 이 흐름을 직접 확인해봅니다.
@@ -135,6 +136,7 @@ eval = QuickEval("results/")
 ### 단계 2 — 에이전트 함수에 데코레이터 적용
 
 ```python
+# 출처: Evaluator_Examples/ch02_quickstart.py — 예제 코드
 @eval.qa  # Gate A 목표달성: AccuracyEvaluator + TCR 자동 측정
 def my_agent(question: str, ground_truth: str = "") -> str:
     answers = {
@@ -151,8 +153,8 @@ def my_agent(question: str, ground_truth: str = "") -> str:
 ### 단계 3 — 평가 실행
 
 ```python
-my_agent("한국의 수도는?", ground_truth="서울")
-my_agent("파이썬 창시자는?", ground_truth="귀도 반 로섬")
+my_agent("한국의 수도는?", ground_truth="서울입니다.")
+my_agent("파이썬 창시자는?", ground_truth="귀도 반 로섬입니다.")
 my_agent("우주의 나이는?", ground_truth="138억 년")
 ```
 
@@ -163,6 +165,7 @@ my_agent("우주의 나이는?", ground_truth="138억 년")
 ### 단계 4 — 첫 배포 판정 (Gate)
 
 ```python
+# 출처: Evaluator_Examples/ch02_quickstart.py — 예제 코드
 # Harness Gate — 배포 기준 선언 및 판정
 eval.gate(tcr=80, accuracy=70)  # TCR < 80% 또는 Accuracy < 70% 이면 sys.exit(1)
 
@@ -179,11 +182,11 @@ print(eval.summary())
 
 ```
 {
-  "task_completion_rate": 0.667,
+  "tcr": 66.7,
   "accuracy": 0.823,
   "p95_latency": 0.003,
   "total_cost_usd": 0.0,
-  "quality_avg": 0.756
+  "quality_avg": 75.6
 }
 ```
 
@@ -240,6 +243,7 @@ gate.enforce()
 ### 배포 판정 결과 이해하기
 
 ```python
+# 출처: Evaluator_Examples/ch02_quickstart.py — 예제 코드
 report = monitor.generate_report()
 d = report.to_dict()
 
@@ -402,6 +406,7 @@ opt-in (6종) — 성능·비용 영향, 명시적 활성화 필요:
 ### 핵심 클래스 3종
 
 ```python
+# 출처: Evaluator_Examples/ch02_quickstart.py — PerformanceMonitor 설정
 from agent_evaluator import PerformanceMonitor, TaskResult, create_taskresult
 
 # ① PerformanceMonitor — 중앙 오케스트레이터
@@ -419,7 +424,7 @@ result = create_taskresult(
     task_id="t001",
     question="한국의 수도는?",
     response="서울입니다.",
-    ground_truth="서울",
+    ground_truth="서울입니다.",
     execution_time=0.85,
     task_type="qa",
 )
@@ -431,7 +436,7 @@ report = monitor.generate_report()
 ```
 
 - **`PerformanceMonitor`**: Gate A–G의 모든 Tracker를 내부에서 자동 구성하며, `enable_*` 플래그로 비용이 큰 opt-in Tracker를 선택적으로 활성화한다.
-- **`create_taskresult()`**: `question`·`response`·`ground_truth`를 받아 `accuracy_score`(4중 가중 알고리즘)와 `completion_score`를 자동 계산한 `TaskResult` 객체를 반환한다.
+- **`create_taskresult()`**: `question`·`response`·`ground_truth`를 받아 `accuracy_score`(TokenOverlapF1 40% + Jaccard 30% + LCS 20% + CharSimilarity/Levenshtein 10%)와 `completion_score`를 자동 계산한 `TaskResult` 객체를 반환한다.
 - **`TaskResult`**: `frozen=True` 데이터클래스로 불변(immutable)이며, `to_dict()` / `from_dict()` / `from_json()` 직렬화를 지원한다.
 - **`generate_report()`**: `record_task()`로 누적된 모든 TaskResult를 집계해 `EvaluationReport` 객체를 반환한다. `to_dict()`로 JSON 직렬화 가능하다.
 
@@ -448,6 +453,7 @@ report = monitor.generate_report()
 | G 운영관측성 | ⚠️ 부분 | `enable_llm_judge=True` + API 키 (샘플링 10%) |
 
 ```python
+# 출처: Evaluator_Examples/ch02_quickstart.py — LLMJudge 평가
 # 모든 Group 활성화 — 최대 측정 모드
 monitor = PerformanceMonitor(
     output_dir="results/",
@@ -536,6 +542,7 @@ Agent-Evaluator는 평가 결과를 세 가지 방식으로 출력할 수 있습
 개발 중 빠르게 결과를 확인할 때 사용합니다.
 
 ```python
+# 출처: Evaluator_Examples/ch02_quickstart.py — PerformanceMonitor 설정
 from agent_evaluator import PerformanceMonitor, create_taskresult
 
 monitor = PerformanceMonitor(output_dir="results/")
@@ -544,7 +551,7 @@ result = create_taskresult(
     task_id="task_001",
     question="한국의 수도는?",
     response="서울입니다.",
-    ground_truth="서울",
+    ground_truth="서울입니다.",
     execution_time=0.8,
     task_type="qa",
 )
@@ -559,17 +566,17 @@ print(json.dumps(report.to_dict(), indent=2, ensure_ascii=False))
 - **`report.to_dict()`**: `EvaluationReport`를 JSON 직렬화 가능한 딕셔너리로 변환한다. `summary`, `accuracy_metrics`, `efficiency_metrics` 등의 키를 포함한다.
 - **`ensure_ascii=False`**: 한국어 등 비ASCII 문자를 이스케이프 없이 그대로 출력한다.
 
-출력 예시:
+출력 예시 (핵심 필드):
 
 ```json
 {
-  "summary": {
-    "total_tasks": 1,
-    "task_completion_rate": 1.0,
-    "accuracy": 0.923,
-    "response_quality": 0.812,
-    "latency_p95": 0.8,
-    "tokens_used_total": 0
+  "total_tasks": 1,
+  "accuracy_metrics": {
+    "tcr": { "tcr": 1.0, "success_rate": 1.0 },
+    "accuracy_scores": { "overall_accuracy": 0.923 }
+  },
+  "efficiency_metrics": {
+    "latency": { "mean": 0.8, "p95": 0.8 }
   }
 }
 ```
@@ -579,6 +586,7 @@ print(json.dumps(report.to_dict(), indent=2, ensure_ascii=False))
 팀 내 공유나 지속적인 품질 모니터링에 적합합니다.
 
 ```python
+# 출처: Evaluator_Examples/ch02_quickstart.py — PerformanceMonitor 설정
 from agent_evaluator import PerformanceMonitor
 from agent_evaluator.decorators import agent_eval
 
@@ -599,7 +607,7 @@ for question, answer in test_cases:
 monitor.save_to_file("evaluation")
 ```
 
-- **`save_to_file("evaluation")`**: `results/evaluation_evaluation.json`과 `results/evaluation_evaluation.html` 두 파일을 동시에 생성한다.
+- **`save_to_file("evaluation")`**: `results/evaluation.json`과 `results/evaluation.html` 두 파일을 동시에 생성한다.
 - **HTML 리포트**: 브라우저에서 바로 열 수 있으며, Gate A–G 탭과 태스크별 점수 테이블이 포함된 시각화 리포트다.
 - **`--watch` 옵션**: 결과 디렉토리의 파일 변경을 감시해 새 평가 결과가 추가될 때 대시보드를 자동으로 갱신한다.
 
@@ -627,6 +635,7 @@ agent-eval monitor --check
 **터미널 2 — 에이전트 코드:**
 
 ```python
+# 출처: Evaluator_Examples/ch02_quickstart.py — PerformanceMonitor 설정
 from agent_evaluator import setup_otel, PerformanceMonitor
 from agent_evaluator.decorators import agent_eval
 
@@ -642,7 +651,7 @@ monitor = PerformanceMonitor(output_dir="results/")
 def my_agent(question: str, ground_truth: str = "") -> str:
     return llm.invoke(question)
 
-my_agent("한국의 수도는?", ground_truth="서울")
+my_agent("한국의 수도는?", ground_truth="서울입니다.")
 # → Phoenix Tracing 탭에서 ae.tcr, ae.accuracy, ae.execution_time 실시간 확인
 ```
 
@@ -672,7 +681,7 @@ my_agent("한국의 수도는?", ground_truth="서울")
 python run_evaluation.py        # 평가 실행 → results/eval.json 생성
 
 # Harness Gate — Gate A(TCR), Gate D(레이턴시) 기준으로 판정
-agent-eval gate results/evaluation_evaluation.json \
+agent-eval gate results/evaluation.json \
     --tcr 85 --accuracy 70 --p95-latency 3.0
 # 기준 미달 시 exit 1 → 파이프라인 중단 → 배포 차단
 ```
@@ -692,6 +701,7 @@ agent-eval trend results/ --fail-on-regression
 ### QuickEval로 A/B 비교
 
 ```python
+# 출처: Evaluator_Examples/ch02_quickstart.py — QuickEval 평가
 from agent_evaluator import QuickEval
 
 # 버전 A 평가
@@ -723,7 +733,7 @@ print(comparison)
 
 - **독립 `QuickEval` 인스턴스**: `eval_a`와 `eval_b`를 각각 다른 디렉토리로 초기화해 두 버전의 결과가 섞이지 않도록 분리한다.
 - **동일 `test_dataset`**: 같은 테스트 케이스를 두 버전에 동일하게 적용해야 공정한 비교가 가능하다.
-- **`eval.save("v1")`**: 파일명 접두사를 지정해 `results/version_a/v1_eval.json` 형태로 저장한다.
+- **`eval.save("v1")`**: 파일명을 지정해 `results/version_a/v1.json` + `results/version_a/v1.html` 형태로 저장한다.
 - **`eval_a.compare(eval_b)`**: Gate A(TCR·정확도)와 Gate D(레이턴시·비용)의 수치 차이를 딕셔너리로 반환한다.
 
 ---
@@ -766,7 +776,7 @@ monitor.save_to_file("my_first_eval")
 
 - **`@agent_eval(monitor, task_type="qa")`**: 함수를 실행할 때마다 실행 시간을 측정하고 `ground_truth`와 응답을 비교해 `TaskResult`를 생성한 뒤 `monitor`에 자동 기록한다.
 - **자동 집계 범위**: `task_type="qa"` 설정 시 Gate A(`AccuracyEvaluator`, `TaskCompletionTracker`)와 Gate D(`LatencyTracker`, `TokenEconomyTracker`)가 기본 활성화된다.
-- **`save_to_file("my_first_eval")`**: `results/my_first_eval_evaluation.json`과 `results/my_first_eval_evaluation.html`을 동시에 생성한다.
+- **`save_to_file("my_first_eval")`**: `results/my_first_eval.json`과 `results/my_first_eval.html`을 동시에 생성한다.
 
 ```python
 # 출처: Evaluator_Examples/ch02_quickstart.py, 섹션 8 — QuickEval Facade — 원스톱 간편 시작
@@ -778,7 +788,7 @@ eval_qe = QuickEval("results/")
 def qa_agent(question: str, ground_truth: str = "") -> str:
     return "QA 에이전트 응답"
 
-@eval_qe.rag  # Gate A + Gate C (hallucination_detection=True)
+@eval_qe.rag  # Gate A + Gate C (enable_hallucination=True 자동 설정)
 def rag_agent(question: str, context: str = "", ground_truth: str = "") -> str:
     return "RAG 에이전트 응답"
 
@@ -792,7 +802,7 @@ eval_qe.save()  # JSON + HTML
 ```
 
 - **`@eval_qe.qa`와 `@eval_qe.rag`**: 같은 `QuickEval` 인스턴스에 여러 에이전트를 등록할 수 있으며, 각각 `task_type`이 다른 `TaskResult`로 누적된다.
-- **`@eval_qe.rag`**: `task_type="information_retrieval"`로 설정되며 `hallucination_detection=True`가 자동 활성화되어 Gate C 신뢰성 지표가 추가된다.
+- **`@eval_qe.rag`**: `task_type="information_retrieval"`로 설정되며 `enable_hallucination=True`와 `rag_mode=True`가 자동 활성화되어 Gate C 신뢰성 지표(환각 탐지)가 추가된다.
 - **`eval_qe.gate(tcr=80, accuracy=70)`**: 누적된 모든 태스크(qa + rag 합산)의 TCR·정확도를 기준으로 Gate를 판정하며, 기준 미달 시 `sys.exit(1)`을 호출한다.
 - **`eval_qe.save()`**: 파일명 없이 호출하면 기본 이름 `quickeval.json` / `quickeval.html`로 저장된다.
 
@@ -805,7 +815,7 @@ eval_qe.save()  # JSON + HTML
 | 3. Gate | 배포 판정 | `eval.gate(tcr=80)` | ch12_decorators, 섹션 7 |
 | 4. 저장 | 결과 보존 | `eval.save()` / `monitor.save_to_file()` | ch12_decorators, 섹션 8 |
 
-**실행 결과 (v0.8.4 기준)**
+**실행 결과 (v0.8.5 기준)**
 
 ```
 === 04. 데코레이터 · QuickEval 종합 예제 ===

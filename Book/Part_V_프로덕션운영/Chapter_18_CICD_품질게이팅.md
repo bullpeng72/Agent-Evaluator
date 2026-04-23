@@ -46,11 +46,29 @@ AI 에이전트는 이 전제가 성립하지 않는다. 에이전트의 출력�
 
 **Harness Gate의 핵심 원칙**: Harness Config로 배포 기준을 코드로 선언하고, 통계적 측정값이 그 기준을 충족하지 못하면 자동으로 배포를 차단한다.
 
+### Config-as-Code: 기준이 코드에 살아있다
+
+Harness Engineering에서 CI/CD 게이팅이 강력한 이유는 **배포 기준이 코드(Config)로 선언되어 Git에 버전 관리되기 때문**이다. 사람이 매번 판단하거나, 슬랙 메시지로 "이 정도면 괜찮지 않아요?"를 묻는 대신, 선언된 Config가 자동으로 통과/실패를 판정한다.
+
+```
+개발자가 Config 선언 → Git 커밋 → CI/CD 트리거 → agent-eval gate 실행
+       ↑                                                      ↓
+  SLAConfig(p95_ms=3000)                        P95가 3,000ms 초과 → exit 1 → 배포 차단
+  InstructionConfig(fail_on_violation=True)      TCR 미달 → exit 1 → 배포 차단
+```
+
+이 흐름에서 **사람이 개입하는 구간은 Config를 처음 선언할 때뿐**이다. 이후 매 배포마다 동일한 기준이 자동으로 재적용된다. 기준이 바뀌어야 할 때도 Config를 수정하고 PR을 올리면 리뷰 기록이 남는다.
+
 ---
 
 ## 18.2 agent-eval gate CLI 완전 가이드
 
 `agent-eval gate`는 평가 결과 JSON 파일을 읽고, 지정한 임계값과 비교해 통과/실패를 판정한다. CI/CD 시스템이 이해하는 **exit code**로 결과를 반환한다.
+
+> **처음 CI/CD 게이팅을 설정하는 개발자를 위한 3단계 시작 경로**
+> 1. **로컬 검증**: `python ch18_cicd_gate.py` 실행 → `results/` 디렉터리에 JSON 생성
+> 2. **게이팅 테스트**: `agent-eval gate results/ci_evaluation.json --tcr 70 --accuracy 60` — 느슨한 임계값으로 CLI가 정상 동작하는지 확인
+> 3. **CI 통합**: §18.4의 GitHub Actions YAML을 복사해 `.github/workflows/agent-quality-gate.yml`로 저장. 임계값을 점진적으로 높여가며 팀 기준을 확립한다.
 
 ### 기본 사용법
 
@@ -73,26 +91,28 @@ agent-eval gate results/eval.json \
 
 | Exit Code | 의미 | CI/CD 처리 |
 |-----------|------|-----------|
-| `0` | 모든 임계값 통과 | 빌드 계속 진행 |
-| `1` | 하나 이상의 임계값 미달 | 빌드 실패 처리 |
-| `2` | 회귀(Regression) 탐지 | 빌드 실패, 별도 알림 |
+| `0` | 모든 임계값 통과 | 빌드 계속 진행 → 배포 허용 |
+| `1` | 하나 이상의 임계값 미달 | 빌드 실패 → 배포 차단 |
+| `2` | 회귀(Regression) 탐지 | 빌드 실패 → 배포 차단 + 추가 알림 권장 |
+
+> **CI/CD 시스템이 exit code를 처리하는 방법**: GitHub Actions·GitLab CI·Jenkins는 스텝이 반환하는 exit code가 0이 아니면 해당 잡을 자동으로 실패 처리한다. 따라서 `agent-eval gate`가 `exit 1`이나 `exit 2`를 반환하면 별도 조건 없이 배포 워크플로우 전체가 중단된다. exit code 2는 `--fail-on-regression` 옵션을 지정했을 때만 발생한다. 두 코드 모두 빌드 실패이지만 의미가 다르므로, 알림·온콜 정책에서 분리해 관리하는 것을 권장한다.
 
 ### 기준선 저장 및 회귀 감지
 
-베이스라인을 저장하고 이후 실행에서 회귀를 자동으로 감지할 수 있다.
+베이스라인은 "현재 시점의 품질 기준점"을 파일로 저장한 것이다. 이후 실행에서 이 기준선과 비교해 지표가 얼마나 나빠졌는지를 자동으로 감지한다.
 
 ```bash
-# 현재 결과를 기준선으로 저장
+# 1단계: 현재 결과를 기준선으로 저장 (최초 1회)
 agent-eval gate results/eval.json --save-baseline
 
-# 이후 실행 시 회귀 감지 (10% 이상 나빠지면 exit code 2)
+# 2단계: 이후 실행 시 회귀 감지 (10% 이상 나빠지면 exit code 2 반환)
 agent-eval gate results/eval.json --tcr 85 --fail-on-regression 10
 
-# 기준선 파일 경로 명시
+# 기준선 파일 경로 직접 지정 (환경별로 다른 파일 사용)
 agent-eval gate results/eval.json --tcr 85 --baseline ci/baseline.json
 ```
 
-> ⚙️ **DevOps TIP**: `baseline.json`을 환경별로 관리하라. `--baseline ci/baseline.prod.json` 방식으로 환경별로 다른 기준선 파일을 사용할 수 있다.
+> ⚙️ **DevOps TIP**: `baseline.json`은 Git에 커밋해 환경별로 관리하라. `--baseline ci/baseline.prod.json` 방식으로 prod·staging 각각의 기준선을 분리할 수 있다. 기준선 없이 `--fail-on-regression`만 지정하면 비교 대상이 없어 회귀 판정이 동작하지 않는다.
 
 ### 모든 CLI 옵션
 
@@ -103,16 +123,21 @@ agent-eval gate results/eval.json --tcr 85 --baseline ci/baseline.json
 | `--p95-latency` | float | — | P95 레이턴시 최댓값 (초) |
 | `--hallucination` | float | — | 환각 발생률 최댓값 (%) |
 | `--llm-judge` | float | — | LLM Judge 평균 점수 최솟값 (0~5) |
-| `--fail-on-regression` | float | — | 베이스라인 대비 허용 회귀율 (%) |
+| `--fail-on-regression` | float | — | 베이스라인 대비 허용 회귀율 (%). 초과 시 exit code 2 반환 |
 | `--baseline` | path | `<result_dir>/baseline.json` | 기준선 파일 경로 |
 | `--save-baseline` | flag | — | 현재 결과를 기준선으로 저장 |
 | `--junit-xml` | path | — | JUnit XML 결과 파일 경로 |
+| `--min-gate-score` | float | — | Gate A–G 가중 복합 점수 최솟값 (0~1) |
+| `--group-weights` | str | — | Gate별 가중치. 예: `A:2.0,E:3.0` |
+
+> **`--min-gate-score`와 `--group-weights` 함께 쓰기**: `--min-gate-score 0.75 --group-weights A:2.0,E:3.0`으로 보안(Gate E)과 목표 달성(Gate A)에 더 높은 가중치를 부여한 복합 점수로 합격 여부를 판정할 수 있다. 개별 지표(TCR, 정확도)만 보던 것에서 7개 Gate 종합 점수로 단계를 높이는 전환점이다.
 
 ### 자동 gate 설정 생성
 
 현재 지표에서 95% 임계값을 자동으로 제안하는 설정 파일을 생성할 수 있다.
 
 ```python
+# 출처: Evaluator_Examples/ch18_cicd_gate.py — QuickEval 평가
 from agent_evaluator import QuickEval
 
 eval = QuickEval("results/")
@@ -346,6 +371,7 @@ jobs:
 ### CI 실행용 평가 스크립트
 
 ```python
+# 출처: Evaluator_Examples/ch18_cicd_gate.py — QuickEval 평가
 # ci/run_evaluation.py
 """CI/CD 환경에서 골든 데이터셋으로 에이전트를 평가하는 스크립트."""
 import argparse
@@ -419,10 +445,11 @@ quality-gate:
     - evaluate-agent
   script:
     - pip install agent-evaluator
-    - agent-eval gate results/ci_run.json
-        --tcr 85
-        --accuracy 70
-        --p95-latency 3.0
+    - |
+      agent-eval gate results/ci_run.json \
+        --tcr 85 \
+        --accuracy 70 \
+        --p95-latency 3.0 \
         --junit-xml test-results/gate-results.xml
   artifacts:
     reports:
@@ -501,30 +528,37 @@ pipeline {
 
 모든 환경에 같은 임계값을 적용하는 것은 비효율적이다. 개발 단계에서는 빠른 반복이 중요하고, 프로덕션에서는 품질이 최우선이다.
 
-| 환경 | TCR | Accuracy | Quality | P95 Latency | 실패 시 동작 |
-|------|-----|----------|---------|-------------|-------------|
-| **dev** | 70% | 60% | 3.0 | 5.0초 | 경고만 (exit 0) |
-| **staging** | 80% | 70% | 3.5 | 3.0초 | 배포 차단 (exit 1) |
-| **prod** | 85% | 75% | 3.8 | 2.0초 | 배포 차단 + 알림 (exit 1) |
+| 환경 | TCR | Accuracy | P95 Latency | 실패 시 동작 |
+|------|-----|----------|-------------|-------------|
+| **dev** | ≥ 70% | ≥ 60% | ≤ 5.0초 | 경고만 (exit 0 권장) |
+| **staging** | ≥ 80% | ≥ 70% | ≤ 3.0초 | 배포 차단 (exit 1) |
+| **prod** | ≥ 85% | ≥ 75% | ≤ 2.0초 | 배포 차단 + 알림 (exit 1) |
 
 ### 환경 변수로 자동 전환
 
 ```bash
-# GitHub Actions 예시 — 브랜치에 따라 임계값 선택
+# GitHub Actions 예시 — 브랜치에 따라 임계값 자동 선택
 - name: 품질 게이팅 실행
   run: |
     if [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
+      # prod: 가장 엄격한 기준 (TCR≥85%, 정확도≥75%, P95≤2초)
       agent-eval gate results/ci_run.json --tcr 85 --accuracy 75 --p95-latency 2.0
-    else
+    elif [[ "${{ github.ref }}" == "refs/heads/staging" ]]; then
+      # staging: 중간 기준 (TCR≥80%, 정확도≥70%, P95≤3초)
       agent-eval gate results/ci_run.json --tcr 80 --accuracy 70 --p95-latency 3.0
+    else
+      # dev/PR: 느슨한 기준 (TCR≥70%, 정확도≥60%, P95≤5초)
+      agent-eval gate results/ci_run.json --tcr 70 --accuracy 60 --p95-latency 5.0
     fi
 ```
 
-- `main` 브랜치는 더 엄격한 임계값(TCR 85%, 정확도 75%)을 적용해 프로덕션 배포 품질을 보장한다
-- `else` 분기(PR/개발 브랜치)는 완화된 임계값을 적용해 개발 중 빠른 피드백을 허용한다
+- `main` 브랜치(prod)는 가장 엄격한 임계값(TCR 85%, 정확도 75%, P95 2초)으로 프로덕션 품질을 보장한다
+- `staging` 브랜치는 중간 수준 기준으로 통합 테스트 환경을 검증한다
+- `else` 분기(dev/PR)는 느슨한 임계값으로 개발 중 빠른 피드백을 허용한다
 - GitHub 환경 변수 `github.ref`로 브랜치를 감지하므로 별도 설정 파일 없이 동작한다
 
 ```python
+# 출처: Evaluator_Examples/ch18_cicd_gate.py — QuickEval 평가
 # Python에서 환경별 eval.gate() 호출
 import os
 from agent_evaluator import QuickEval
@@ -555,6 +589,7 @@ eval.gate(**params)
 게이트 실패 시 가장 먼저 할 일은 어떤 케이스가 낮은 점수를 받았는지 확인하는 것이다.
 
 ```python
+# 출처: Evaluator_Examples/ch18_cicd_gate.py — 예제 코드
 import json
 
 # 평가 결과 로드
@@ -641,6 +676,14 @@ AI 에이전트 시스템에서 품질이 변화하는 원인은 크게 4가지�
 </div>
 @@HTML_END@@
 
+### 왜 변경 소스마다 다른 Gate를 봐야 하는가
+
+모든 Gate를 항상 같은 강도로 검사하면 두 가지 문제가 생긴다. 첫째, 실제로 영향받지 않는 Gate까지 강화하면 불필요한 실패가 잦아진다. 둘째, 변경과 관계없는 Gate가 통과해도 안심하다가 핵심 Gate에서 문제가 터진다.
+
+변경 소스 × Gate 매트릭스는 이 비효율을 해소한다. 예를 들어 **모델 교체**는 응답 품질(Gate A — 목표 달성)과 설명 가능성(Gate G — 운영 관측성)에 즉각 영향을 미친다. 반면 도구 로직이나 워크플로우(Gate B)는 모델이 바뀌어도 구조는 동일하게 유지된다. 따라서 모델 교체 시에는 Gate A·G를 1순위로 검사하고, Gate B 임계값은 유지하되 특별히 강화할 필요는 없다.
+
+이 접근법의 핵심은 **"변경이 어디서 왔는지 알면 어디를 집중 검사해야 하는지 알 수 있다"**는 것이다. CI 파이프라인에서 변경 소스를 환경변수로 주입하면(`CI_CHANGE_SOURCE=model`), 게이팅 스크립트가 자동으로 올바른 Gate를 강화한다.
+
 ### 변경 소스 × Gate 영향 매트릭스
 
 @@HTML_START@@
@@ -690,6 +733,7 @@ AI 에이전트 시스템에서 품질이 변화하는 원인은 크게 4가지�
 ### 변경 소스별 CI/CD 게이팅 강화 전략
 
 ```python
+# 출처: Evaluator_Examples/ch18_cicd_gate.py — QuickEval 평가
 import os
 from agent_evaluator import PerformanceMonitor, QuickEval
 
@@ -1031,7 +1075,7 @@ agent-eval trend results/ --window 10 --fail-on-regression
 | 단일 게이트 | `agent-eval gate ... --tcr 80` | 배포 전 단일 검문소 |
 | 추이 게이트 | `agent-eval trend ... --fail-on-regression` | 장기 회귀 감지 |
 
-**실행 결과 (v0.8.4 기준)**
+**실행 결과 (v0.8.5 기준)**
 
 ```
 # agent-eval gate (TCR 기준 46.1% < 임계값 80%)

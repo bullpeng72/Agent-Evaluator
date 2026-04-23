@@ -2,6 +2,8 @@
 
 이 챕터에서 배우는 것: SDK의 핵심 데이터 구조인 `TaskResult`의 24개 필드를 이해하고, 안전하게 생성하는 방법을 익힌다. 10종 `TaskType`별로 자동 활성화되는 지표가 무엇인지 파악하고, 프로덕션 트래픽에서 골든 데이터셋을 자동으로 마이닝하는 전략을 배운다. 마지막으로 개발 환경부터 프로덕션까지 상황별 샘플링 전략과 A/B 테스트 설계 방법을 습득한다.
 
+> **Harness Engineering 관점**: 평가 데이터 품질이 Gate 판정 품질과 직결된다. "garbage in, garbage out"은 Harness Engineering에서 특히 치명적이다. 잘못된 `ground_truth` → 잘못된 `accuracy_score` → 잘못된 Gate A 점수 → 배포 가능 오판정으로 이어진다. 이 챕터에서 배우는 데이터 설계 기술은 단순한 코딩 기술이 아니라, Harness Gate가 프로덕션 배포 결정을 정확하게 내리도록 보장하는 엔지니어링 기반이다.
+
 ---
 
 ## 11.1 TaskResult — SDK의 핵심 데이터 구조
@@ -20,59 +22,62 @@ from agent_evaluator import TaskResult
 
 ### 24개 필드 목록
 
-**필수 11개 필드** (모두 값을 제공해야 함):
+**필수 11개 필드** (기본값 없이 반드시 값을 제공해야 함):
 
-| 필드 | 타입 | 설명 |
-|------|------|------|
-| `task_id` | `str` | 태스크 고유 식별자 |
-| `task_type` | `TaskType` | 태스크 유형 (Enum) |
-| `success` | `bool` | 실행 성공 여부 |
-| `completion_score` | `float` | 완료 점수 (0.0~1.0) |
-| `accuracy_score` | `float` | 정확도 점수 (0.0~1.0) |
-| `execution_time` | `float` | 실행 시간 (초) |
-| `tokens_used` | `Dict[str, int]` | 토큰 사용량 `{"input": N, "output": M, "total": T}` |
-| `tool_calls` | `List` | 사용된 도구 호출 목록 |
-| `attempts` | `int` | 시도 횟수 (재시도 포함) |
-| `errors` | `List[str]` | 발생한 오류 목록 |
-| `timestamp` | `datetime` | 기록 시각 (UTC) |
+| 필드 | 타입 | 설명 | Gate 연관 |
+|------|------|------|-----------|
+| `task_id` | `str` | 태스크 고유 식별자 | 공통 |
+| `task_type` | `str` / `TaskType` | 태스크 유형 — Enum 또는 소문자 문자열 허용 | 어느 Gate가 활성화될지 결정 |
+| `success` | `bool` | 실행 성공 여부 | Gate A (TCR) |
+| `completion_score` | `float` | 완료 점수 (0.0~1.0) | Gate A, D |
+| `accuracy_score` | `float` | 정확도 점수 (0.0~1.0) | Gate A |
+| `execution_time` | `float` | 실행 시간 (초) | Gate D (Latency) |
+| `tokens_used` | `Dict[str, int]` | 토큰 사용량 `{"input": N, "output": M, "total": T}` | Gate D (비용) |
+| `tool_calls` | `List[Dict]` | 사용된 도구 호출 목록 — 비어있으면 Gate B 데이터 없음 | Gate B |
+| `attempts` | `int` | 시도 횟수 (재시도 포함, ≥ 1) | Gate C (재시도) |
+| `errors` | `List[str]` | 발생한 오류 메시지 목록 | Gate C (복구율) |
+| `timestamp` | `datetime` | 기록 시각 (자동 생성) | 시계열 분석 |
 
-**선택 13개 필드** (기본값 제공됨):
+> **중요**: `tokens_used`, `tool_calls`, `attempts`, `errors`는 선택처럼 보이지만 `TaskResult` 생성 시 기본값이 없으므로 반드시 값을 넣어야 한다. `create_taskresult()` 헬퍼를 사용하면 이 필드들이 자동으로 채워진다.
 
-| 필드 | 타입 | 기본값 | 설명 |
-|------|------|--------|------|
-| `question` | `str` | `""` | 입력 질문 |
-| `response` | `str` | `""` | 에이전트 응답 |
-| `ground_truth` | `str` | `""` | 정답 기준 |
-| `context` | `str` | `""` | RAG 컨텍스트 |
-| `expected_tools` | `List[str]` | `[]` | 기대 도구 목록 (Tool Selection F1용) |
-| `framework` | `str` | `""` | 사용 프레임워크 |
-| `model` | `str` | `""` | 사용 모델명 |
-| `cost_usd` | `float` | `0.0` | 비용 (USD) |
-| `hallucination_score` | `float` | `0.0` | 환각 점수 (낮을수록 좋음) |
-| `quality_score` | `float` | `0.0` | 응답 품질 종합 점수 |
-| `latency_percentile` | `Dict` | `{}` | 지연 시간 백분위 |
-| `partial_reason` | `str` | `""` | 부분 완료 사유 |
-| `extra` | `Dict` | `{}` | 추가 메타데이터 (LLM Judge 점수, chain_steps 등) |
+**선택 13개 필드** (기본값 `None` 또는 자동 생성):
+
+| 필드 | 타입 | 설명 | Gate 연관 |
+|------|------|------|-----------|
+| `question` | `Optional[str]` | 입력 질문 — AccuracyEvaluator가 이 값을 사용 | Gate A (accuracy) |
+| `response` | `Optional[str]` | 에이전트 응답 | Gate A |
+| `ground_truth` | `Optional[str]` | 정답 기준 — 비어있으면 accuracy 0 | Gate A |
+| `context` | `Optional[str]` | RAG 검색 문서 — 제공 시 HallucinationDetector 자동 활성 | Gate C |
+| `expected_tools` | `Optional[List[str]]` | 기대 도구 목록 — Tool Selection F1 계산에 사용 | Gate B |
+| `agent_interactions` | `Optional[List[Dict]]` | 멀티에이전트 상호작용 이력 (CrewAI 등) | Gate F |
+| `framework` | `Optional[str]` | 사용 프레임워크명 (`"langchain"`, `"crewai"` 등) | 프레임워크 어댑터 |
+| `partial_reason` | `Optional[str]` | 부분 완료 사유 — 자동 추론 또는 직접 지정 | Gate C |
+| `context` | `Optional[str]` | RAG 컨텍스트 (위 항목과 동일) | — |
+| `llm_judge` | `Optional[Dict]` | LLM Judge 채점 결과 `{scores, reasoning, model}` | Gate G |
+| `extra` | `Optional[Dict]` | 사용자 정의 메타데이터 — chain_steps, intent 등 자유롭게 추가 | 공통 |
+| `chain_steps` | `Optional[List[Dict]]` | 체인 실행 단계 (LangChain) | Gate B |
+| `graph_traversal` | `Optional[Dict]` | 그래프 탐색 경로 (LangGraph) | Gate B |
 
 ### TaskResult 직접 생성 vs create_taskresult() 비교
 
 ```python
+# 출처: Evaluator_Examples/ch11_eval_data.py — create_taskresult 사용
 from agent_evaluator import TaskResult, TaskType, create_taskresult
 from datetime import datetime
 
 # 방법 1: TaskResult 직접 생성 — 11개 필수 필드를 모두 직접 채워야 함
 result_manual = TaskResult(
     task_id="task_001",
-    task_type=TaskType.QA,
+    task_type=TaskType.QA,          # 또는 문자열 "qa"
     success=True,
-    completion_score=1.0,
-    accuracy_score=0.0,        # 직접 계산 필요
+    completion_score=1.0,           # 직접 계산 필요
+    accuracy_score=0.0,             # 직접 계산 필요 (ground_truth와 response 비교)
     execution_time=1.23,
     tokens_used={"input": 50, "output": 30, "total": 80},
-    tool_calls=[],
+    tool_calls=[],                  # 도구 미사용 시 빈 리스트
     attempts=1,
     errors=[],
-    timestamp=datetime.utcnow(),
+    # 선택 필드: question, response, ground_truth 등
     question="한국의 수도는?",
     response="서울입니다.",
     ground_truth="서울",
@@ -88,18 +93,82 @@ result_auto = create_taskresult(
     task_type="qa",
     tokens_used={"input": 50, "output": 30, "total": 80},
 )
-# accuracy_score, completion_score, timestamp 자동 계산
+# accuracy_score, completion_score, timestamp, tool_calls=[], attempts=1, errors=[] 자동 처리
 print(f"정확도: {result_auto.accuracy_score:.2f}")  # → 0.95 (4-way 계산)
 ```
 
-`create_taskresult()`가 자동으로 계산하는 항목:
-- `accuracy_score`: TokenOverlapF1(40%) + Jaccard Similarity(30%) + LCS Ratio(20%) + CharSimilarity/Levenshtein(10%)
-- `completion_score`: task_type 인식 — `code_generation`/`coding`은 AST 파싱 성공 여부, `tool_use`는 tool_calls 존재 여부, 기타는 길이 기반
-- `timestamp`: `datetime.utcnow()` 자동 생성
+`create_taskresult()`가 자동으로 계산·설정하는 항목:
+- `accuracy_score`: TokenOverlapF1(40%) + Jaccard Similarity(30%) + LCS Ratio(20%) + CharSimilarity/Levenshtein(10%) — `question`, `response`, `ground_truth` 기반
+- `completion_score`: task_type 인식
+  - `code_generation`/`coding`: Python AST 파싱 성공이면 1.0, 실패 시 응답 길이 기반 fallback
+  - `tool_use`: `tool_calls`가 비어있으면 **0.6** (도구 미사용 = 부분 완료), 도구를 사용하면 1.0
+  - 기타: 응답 길이와 성공 여부 기반
+- `timestamp`: 자동 생성
+- `tool_calls`, `attempts`, `errors`: 미제공 시 기본값(`[]`, `1`, `[]`) 적용
+
+> **tool_use 특이 동작**: `task_type="tool_use"`로 설정했는데 `tool_calls=[]`이면 `completion_score=0.6`이 자동 적용된다. 에이전트가 도구를 전혀 호출하지 않고 텍스트만 응답한 상황을 "부분 완료"로 처리하는 것이다. Gate B(행동무결성)에 데이터가 기록되지 않으므로 실제로 도구를 호출하는 에이전트라면 반드시 `tool_calls`에 실제 호출 이력을 채워야 한다.
+
+### ground_truth 잘 작성하는 법
+
+`ground_truth`의 품질이 Gate A(목표달성) 점수의 정확도를 좌우한다. 잘못된 `ground_truth`는 Gate A를 실제보다 낮게(또는 높게) 판정하게 만든다.
+
+| 유형 | 나쁜 예 | 좋은 예 | 이유 |
+|------|---------|---------|------|
+| QA | `"서울특별시 대한민국 수도"` | `"서울"` | 핵심 답변만 — 불필요한 수식어는 Token Overlap 점수를 낮춤 |
+| QA | `""` (빈 값) | `"서울"` | 빈 ground_truth → accuracy_score=0 → Gate A 실패 판정 오류 |
+| 코드 생성 | `"print('hello')\n# 출력"` | `"print('hello')"` | 주석·공백 차이가 AST 비교에서는 무시되지만 토큰 비교에서는 점수를 낮춤 |
+| RAG | 전체 문서 복붙 | 핵심 1~2문장 | AccuracyEvaluator는 응답과 ground_truth의 겹침을 측정 — ground_truth가 길수록 재현율이 낮아짐 |
+
+```python
+# 좋은 ground_truth 작성 패턴
+result = create_taskresult(
+    task_id="gt_001",
+    question="대한민국 GDP(2023)는?",
+    response="2023년 대한민국 GDP는 약 1조 7천억 달러입니다.",
+    ground_truth="약 1조 7천억 달러",  # ✅ 핵심 수치만 — 연도/단위 설명 제외
+    execution_time=1.0,
+    task_type="qa",
+)
+```
+
+### tool_calls 데이터 구조 작성법
+
+`task_type="tool_use"`를 사용할 때 `tool_calls`를 올바르게 채우지 않으면 Gate B 데이터가 수집되지 않는다. 각 원소는 `{"name": str, "args": dict, "output": str}` 형태를 권장한다.
+
+```python
+# 실제 도구 호출 결과를 tool_calls에 채우는 패턴
+result = create_taskresult(
+    task_id="tool_001",
+    question="서울 내일 날씨는?",
+    response="내일 서울은 맑고 최고 기온 22도 예상입니다.",
+    ground_truth="맑음, 22도",
+    execution_time=2.1,
+    task_type="tool_use",
+    tool_calls=[
+        {
+            "name": "weather_api",           # 호출한 도구 이름
+            "args": {"city": "Seoul", "date": "tomorrow"},  # 전달한 파라미터
+            "output": "sunny, 22°C",         # 도구 응답
+        },
+        {
+            "name": "location_service",
+            "args": {"query": "서울"},
+            "output": "lat=37.56, lon=126.97",
+        },
+    ],
+    # Tool Selection F1 계산을 위한 기대 도구 목록
+    expected_tools=["weather_api", "location_service"],
+)
+# tool_calls가 채워져 있으면:
+#   - Gate B: ToolCallAnalyzer가 도구 사용 패턴 분석
+#   - Gate B: ToolSelectionTracker가 expected_tools와 비교해 F1 계산
+#   - completion_score: 1.0 (도구를 실제로 사용)
+```
 
 ### 직렬화 / 역직렬화
 
 ```python
+# 출처: Evaluator_Examples/ch11_eval_data.py — 예제 코드
 import json
 
 # 직렬화
@@ -112,7 +181,7 @@ result_from_json = TaskResult.from_json(json_str)
 
 # TaskResult 수정이 필요할 때 — dataclasses.replace() 사용 (frozen이므로)
 import dataclasses
-updated = dataclasses.replace(result_auto, framework="openai", model="gpt-4o-mini")
+updated = dataclasses.replace(result_auto, framework="openai")
 ```
 
 ---
@@ -130,7 +199,8 @@ result2 = create_taskresult(task_type="qa", ...)       # 동일하게 동작
 ```
 
 - `TaskType`은 Python Enum이지만 문자열 `"qa"`, `"tool_use"` 등도 동일하게 허용하여 코드 간결성을 유지할 수 있다
-- `task_type` 선택이 어떤 Tracker를 자동 활성화할지 결정하므로, Harness Gate 점수에 직접 영향을 준다
+- **`task_type` 선택이 어떤 Harness Gate를 활성화할지 결정**한다. 예를 들어 도구를 사용하는 에이전트를 `"qa"`로 설정하면 Gate B가 전혀 측정되지 않아, 도구 관련 문제를 탐지할 수 없다
+- 잘못된 `task_type` → 해당 Gate 비활성화 → Gate 판정 누락 → 문제 있는 에이전트가 배포 승인을 받는 상황이 발생할 수 있다. **task_type은 신중하게 선택한다**
 - 잘못된 문자열을 입력하면 `ValueError`가 발생하므로 아래 표를 참고해 정확한 값을 사용한다
 
 **각 TaskType별 자동 활성 지표:**
@@ -170,6 +240,7 @@ result2 = create_taskresult(task_type="qa", ...)       # 동일하게 동작
 > **실무 팁**: QA 관리자가 "Gate B가 항상 회색이에요"라고 하면, 개발자는 `task_type="tool_use"` 설정 여부와 `tool_calls` 필드 수집 여부를 먼저 확인한다.
 
 ```python
+# 출처: Evaluator_Examples/ch11_eval_data.py — PerformanceMonitor 설정
 from agent_evaluator import PerformanceMonitor
 from agent_evaluator.decorators import agent_eval
 
@@ -214,11 +285,16 @@ tool_agent(
 
 저장 경로: `data/golden_datasets/`
 
+> **언제 GoldenSetBuilder를 써야 하나?** 처음 시작할 때는 수동으로 10~30개 QA 쌍을 작성해 골든셋을 만드는 것이 권장된다. 에이전트를 1~2주 운영해 수백 건의 평가 결과가 쌓인 후 `GoldenSetBuilder`로 자동 마이닝을 시작하면 된다. 운영 데이터가 없는 상태에서 마이닝하면 후보가 없거나 편향된 케이스만 추출된다.
+>
+> **Harness Engineering 관점**: 골든 데이터셋의 `task_type` 분포가 Gate 판정 품질을 좌우한다. `"qa"` 케이스만 200개 있으면 Gate B·C·E는 충분한 데이터 없이 판정된다. 에이전트가 실제로 사용하는 task_type 비율에 맞게 골든셋을 구성해야 한다.
+
 ### GoldenSetBuilder — 프로덕션 트래픽 자동 마이닝
 
 가장 권장하는 골든 데이터셋 구축 방법은 실제 운영 트래픽에서 고품질 케이스를 자동으로 추출하는 것이다:
 
 ```python
+# 출처: Evaluator_Examples/ch11_eval_data.py — GoldenSetBuilder 골든셋
 from agent_evaluator.datasets.builder import GoldenSetBuilder
 
 builder = GoldenSetBuilder(
@@ -251,6 +327,7 @@ print(f"저장 완료: {path}")
 ### 프로덕션 마이닝 전체 워크플로우
 
 ```python
+# 출처: Evaluator_Examples/ch11_eval_data.py — GoldenSetBuilder 골든셋
 from agent_evaluator import QuickEval
 from agent_evaluator.datasets.builder import GoldenSetBuilder
 
@@ -313,6 +390,7 @@ agent-eval dataset build results/ --min-score 0.8
 | 이상 탐지 | 조건부 | `sample_condition` | 오류 발생 케이스만 전수 기록 |
 
 ```python
+# 출처: Evaluator_Examples/ch11_eval_data.py — PerformanceMonitor 설정
 from agent_evaluator import PerformanceMonitor
 from agent_evaluator.decorators import agent_eval
 
@@ -354,6 +432,7 @@ def selective_agent(question: str, ground_truth: str = "") -> str:
 두 가지 에이전트(모델 버전, 프롬프트 변형 등)를 통계적으로 비교하는 패턴이다.
 
 ```python
+# 출처: Evaluator_Examples/ch11_eval_data.py — QuickEval 평가
 from agent_evaluator import QuickEval
 
 # 모델 A 평가
@@ -409,6 +488,7 @@ if p_value is not None:
 데코레이터 대신 with 블록으로 세션을 관리하고 싶을 때, 또는 세션 종료 시 자동 저장을 원할 때 사용한다:
 
 ```python
+# 출처: Evaluator_Examples/ch11_eval_data.py — evaluation_session 컨텍스트 매니저
 from agent_evaluator import evaluation_session, create_taskresult
 
 # 동기 세션 — 블록 종료 시 자동 저장 (예외 발생 시에도 안전)
@@ -467,6 +547,7 @@ asyncio.run(run_async_eval())
 비용 예측 시 이를 고려해야 한다:
 
 ```python
+# 출처: Evaluator_Examples/ch11_eval_data.py — create_taskresult 사용
 from agent_evaluator import create_taskresult
 
 # 한국어 응답 — 토큰 수 수동 측정 후 주입 (tiktoken 또는 API 응답값 사용)
@@ -513,6 +594,7 @@ SDK의 `AccuracyEvaluator`는 4-way 가중치 계산 방식을 사용한다:
 PDF 문서에서 한국어 QA 쌍을 자동 생성하는 파이프라인:
 
 ```python
+# 출처: Evaluator_Examples/ch11_eval_data.py — QuickEval 평가
 from agent_evaluator.datasets.korean_rag_dataset_generator import KoreanRAGDatasetGenerator
 from agent_evaluator import QuickEval
 
@@ -559,6 +641,7 @@ eval.gate(tcr=80, accuracy=65)
 공개 한국어 QA 데이터셋 KorQuAD를 활용한 벤치마킹 패턴:
 
 ```python
+# 출처: Evaluator_Examples/ch11_eval_data.py — QuickEval 평가
 from agent_evaluator import QuickEval
 import json
 
@@ -599,12 +682,31 @@ print(f"평균 지연: {summary.get('avg_latency', 0):.2f}초")
 답은 **아니다**. 에이전트 유형별로 **최소한으로 필요한 Tracker + Harness Config 조합**이 있다.  
 이 최소 세트로 시작하고, 운영 경험이 쌓이면 점진적으로 확장한다.
 
-┌─────────────────────────────────────────────────────┐
-│ 🔗 Harness 연결                                      │
-│ 이 절은 모든 Group에 걸쳐 있습니다.                    │
-│ 에이전트 유형이 "어떤 Group을 우선 활성화할지"를 결정.  │
-│ Gate 판정: HarnessEvaluationGate(report).evaluate()   │
-└─────────────────────────────────────────────────────┘
+@@HTML_START@@
+<div class="hc-card hc-all">
+  <div class="hc-header">
+    <span class="hc-gate-badge he-gate" style="background:#6366f1;color:#fff;border-radius:4px;padding:2px 8px;font-size:0.78em;font-weight:700;letter-spacing:.04em;">Gate A–G</span>
+    <span class="hc-title">🔗 Harness 연결 — 전체 Gate 공통</span>
+  </div>
+  <div class="hc-body">
+    <div class="hc-row">
+      <span class="hc-label hc-tracker-label">적용 범위</span>
+      <div class="hc-chips">
+        <span class="hc-chip hc-t-chip">이 절은 모든 Gate에 걸쳐 있습니다</span>
+      </div>
+    </div>
+    <div class="hc-row">
+      <span class="hc-label hc-config-label">핵심 원칙</span>
+      <div class="hc-chips">
+        <span class="hc-chip hc-c-chip">에이전트 유형이 "어떤 Gate를 우선 활성화할지"를 결정</span>
+      </div>
+    </div>
+  </div>
+  <div class="hc-footer">
+    <code>HarnessEvaluationGate(report).evaluate()</code>
+  </div>
+</div>
+@@HTML_END@@
 
 ### 에이전트 유형별 최소 세트 표
 
@@ -686,7 +788,7 @@ def multi_agent(question: str, ground_truth: str = "") -> str:
 |---------|--------------|-------------------|
 | `"qa"` | A (TCR·Accuracy·Quality) | C (Reproducibility), D (Latency) |
 | `"tool_use"` | A, B (ToolCall·ToolSelection) | D (SLA), F (Coordination) |
-| `"information_retrieval"` | A, E (Hallucination·context 있을 때) | G (LLMJudge faithfulness) |
+| `"information_retrieval"` | A, **C** (HallucinationDetector — `context` 필드 있을 때 자동 활성) | G (LLMJudge faithfulness) |
 | `"code_generation"` / `"coding"` | A (AST 비교), B (Scope) | E (Compliance) |
 | `"reasoning"` / `"planning"` | A, B (Workflow) | C (Retry), F (멀티스텝) |
 
@@ -716,7 +818,7 @@ Month 3+ — 전체 Group 커버리지 달성
 
 - **`TaskResult`는 불변(frozen=True) 데이터 클래스**다. 24개 필드 중 11개는 필수이며, `create_taskresult()` 헬퍼를 사용하면 accuracy_score와 timestamp를 자동 계산해준다.
 - **`TaskType`은 평가 전략을 결정**한다. `"code_generation"`은 AST 비교를, `"tool_use"`는 Tool Selection F1을, `"information_retrieval"`은 Hallucination 탐지를 자동 활성화한다.
-- **골든 데이터셋은 `GoldenSetBuilder`로 자동 마이닝**한다. 프로덕션 트래픽에서 `accuracy_score >= 0.9` 케이스를 추출하고, `push_to_phoenix()`로 Phoenix UI와 연동하면 시각적으로 관리할 수 있다.
+- **골든 데이터셋은 `GoldenSetBuilder`로 자동 마이닝**한다. 프로덕션 트래픽에서 `accuracy_score >= 0.9` 케이스를 추출하고, `upload_to_phoenix()`로 Phoenix UI와 연동하면 시각적으로 관리할 수 있다.
 - **샘플링 전략은 환경별로 달라진다**: 개발(1.0) → CI(골든셋 전수) → 프로덕션(0.1). `sample_condition`으로 오류 케이스만 전수 기록하는 조건부 샘플링도 가능하다.
 - **한국어 평가는 토큰 비용이 1.5~2배** 높다는 점을 고려해 비용 예측을 조정해야 하며, `KoreanRAGDatasetGenerator`로 PDF에서 한국어 QA 쌍을 자동 생성하고 `QuickEval.for_rag()`로 바로 평가할 수 있다.
 
@@ -755,21 +857,24 @@ direct = TaskResult(
     task_id="task_002",
     task_type="qa",
     success=True,
-    completion_score=0.9,        # 직접 계산
-    accuracy_score=0.87,         # 직접 계산
+    completion_score=0.9,        # 직접 계산 (create_taskresult가 자동 처리)
+    accuracy_score=0.87,         # 직접 계산 (create_taskresult가 4-way 가중치로 자동 계산)
     execution_time=1.23,
     tokens_used={"input": 80, "output": 20, "total": 100},
-    tool_calls=[],
+    tool_calls=[],               # 도구 미사용 시 빈 리스트 명시 필수
     attempts=1,
     errors=[],
-    timestamp=datetime.now(),
-    # 선택 필드 13개는 기본값으로 채워짐
+    # timestamp는 생략 가능 (default_factory=datetime.now 자동 적용)
+    # 선택 필드 (None이 기본값 — 생략 가능)
+    question="한국의 수도는?",
+    response="서울입니다.",
+    ground_truth="서울",
 )
 ```
 
 - `create_taskresult()`는 `question`, `response`, `ground_truth`에서 TokenF1·Jaccard·LCS·Char Levenshtein 가중 합산으로 accuracy_score를 자동 계산한다
 - `TaskResult`는 `@dataclass(frozen=True)` — 생성 후 불변(immutable)이다. `to_dict()` / `from_dict()` / `from_json()`으로 직렬화·역직렬화를 지원한다
-- `context` 필드에 검색된 문서를 넣으면 HallucinationDetector가 자동으로 활성화된다 (`task_type="information_retrieval"`일 때)
+- `context` 필드에 검색된 문서를 넣으면 HallucinationDetector가 자동으로 활성화되어 Gate C(신뢰성) 점수가 생성된다 — `task_type="information_retrieval"`일 때
 
 **GoldenSetBuilder — 자동 마이닝**
 
@@ -826,9 +931,9 @@ python Evaluator_Examples/ch10_group_g.py
 | ch01_first_eval | 섹션 3 | `TaskType.CODE_GENERATION` 평가 | AST 비교 자동 활성화 |
 | ch01_first_eval | 섹션 5 | `information_retrieval` 태스크 | `HallucinationDetector` 자동 연동 |
 | ch11_eval_data | 섹션 5 | `GoldenSetBuilder` 마이닝 | `accuracy_score >= 0.9` 케이스 자동 추출 |
-| ch11_eval_data | 섹션 5 | `push_to_phoenix()` | `upload_to_phoenix()` 래퍼 — Phoenix Datasets 탭에 골든셋 업로드 |
+| ch11_eval_data | 섹션 5 | `upload_to_phoenix()` | GoldenSetBuilder 메서드 — Phoenix Datasets 탭에 골든셋 업로드 |
 
-**실행 결과 (v0.8.4 기준)**
+**실행 결과 (v0.8.5 기준)**
 
 ```
 # ch01_first_eval.py

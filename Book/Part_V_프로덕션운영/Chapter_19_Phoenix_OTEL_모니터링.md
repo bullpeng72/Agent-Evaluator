@@ -1,11 +1,12 @@
 # Chapter 19. OpenTelemetry와 Phoenix 실시간 모니터링
 
 > **이 챕터에서 배우는 것**
-> - OpenTelemetry의 핵심 개념과 에이전트 평가에 적용하는 이유
+> - OpenTelemetry(OTEL)가 무엇인지, 에이전트 평가에 적용하는 이유
 > - `setup_otel()` 올바른 호출 순서 — 이 순서를 틀리면 스팬이 발행되지 않는다
-> - `agent-eval monitor` CLI로 Phoenix 서버를 기동하는 2-터미널 패턴
-> - Phoenix 4개 탭(Tracing, Evaluators, Datasets, Prompts) 완전 활용법
+> - `agent-eval monitor` CLI로 Phoenix 서버를 기동하고 첫 트레이스를 보는 2-터미널 패턴
+> - Phoenix 4개 탭(Tracing, Evaluators, Datasets & Experiments, Prompts) 완전 활용법
 > - 25개 스팬 속성(`ae.*`)을 활용한 필터링과 분석
+> - OTEL이 Gate G(Observability)를 프로덕션에서 실시간으로 구현하는 인프라인 이유
 
 ---
 
@@ -13,15 +14,26 @@
 
 **OpenTelemetry(OTEL)**는 분산 시스템의 관찰 가능성(Observability)을 위한 오픈 표준이다. CNCF(Cloud Native Computing Foundation)가 관리하며, 벤더에 종속되지 않는 SDK와 프로토콜을 제공한다. 원래는 마이크로서비스의 분산 추적을 위해 만들어졌지만, AI 에이전트 평가에도 자연스럽게 들어맞는다.
 
+> **Harness Engineering 관점**: OTEL은 단순한 로깅 도구가 아니다. **Gate G(Observability)**를 프로덕션 환경에서 실시간으로 구현하는 인프라다. `ExplainabilityConfig`(추론 설명 가능성), `LatencyAttributionConfig`(지연 원인 분석)처럼 오프라인 평가에서 측정한 Gate G 지표를, OTEL 스팬을 통해 배포 후에도 지속적으로 추적할 수 있다. **"측정 → 감지 → 대응"** 루프가 완성된다.
+>
+> | Gate G Config | OTEL 스팬에서의 역할 |
+> |---------------|---------------------|
+> | `ExplainabilityConfig` | `ae.reasoning_steps` 속성 — 각 스팬에서 추론 단계 기록 |
+> | `LatencyAttributionConfig` | 자식 스팬(child span) 워터폴 — 지연 원인 구간별 추적 |
+> | `ObservabilityConfig` | `ae.*` 속성 25개 — 에이전트 내부 상태 실시간 노출 |
+> | `ErrorDiagnosisConfig` | 스팬 status=ERROR + `ae.has_error` — 오류 원인 즉시 진단 |
+
 ### 핵심 개념 4가지
 
 **Span — 에이전트 1회 실행의 기록 단위**
 
-에이전트가 질문을 받아 응답을 반환하는 과정이 하나의 스팬(Span)이다. 스팬에는 시작 시각, 종료 시각, 그리고 수십 개의 속성(Attribute)이 기록된다. Agent-Evaluator에서는 `record_task()` 1회 호출 = 1개 스팬이다.
+스팬(Span)은 "어떤 작업이 언제 시작해서 언제 끝났는가"를 기록하는 단위다. 에이전트가 질문을 받아 응답을 반환하는 과정이 하나의 스팬이다. 스팬에는 시작 시각, 종료 시각, 그리고 수십 개의 속성(Attribute — 키-값 쌍)이 기록된다. Agent-Evaluator에서는 `record_task()` 1회 호출 = 1개 스팬이다.
+
+예를 들어 "한국의 수도는?" 이라는 질문에 에이전트가 답하면, `ae.accuracy_score=0.95`, `ae.execution_time=1.23` 같은 속성이 스팬에 자동으로 담긴다.
 
 **Trace — 연결된 Span들의 집합**
 
-에이전트가 여러 도구를 호출하면 루트 스팬 아래 자식 스팬들이 트리 구조를 이룬다. 이 전체가 하나의 트레이스(Trace)다.
+에이전트가 여러 도구를 호출하면 루트 스팬 아래 자식 스팬들이 트리 구조를 이룬다. 이 전체가 하나의 트레이스(Trace)다. Phoenix Tracing 탭에서는 이 트리를 "워터폴(Waterfall)" 뷰로 시각화한다.
 
 ```
 사용자 요청
@@ -33,11 +45,11 @@
 
 **OTLP — Phoenix에 스팬을 전송하는 프로토콜**
 
-OTLP(OpenTelemetry Protocol)는 스팬을 수신 서버로 전송하는 표준 프로토콜이다. HTTP 또는 gRPC를 통해 전송한다. Agent-Evaluator는 OTLP/HTTP로 Arize Phoenix에 스팬을 전송한다.
+OTLP(OpenTelemetry Protocol)는 스팬을 수신 서버로 전송하는 표준 프로토콜이다. HTTP 또는 gRPC를 통해 전송한다. Agent-Evaluator는 OTLP/HTTP로 Arize Phoenix에 스팬을 전송한다. Phoenix 기본 포트 6006이 UI와 OTLP HTTP를 동시에 처리한다.
 
 **Exporter — OTLP 전송 담당**
 
-`OTELProvider`가 내부에서 `BatchSpanProcessor`와 `OTLPSpanExporter`를 구성해 스팬을 수집하고 Phoenix로 전송한다. 사용자는 `setup_otel()`만 호출하면 된다.
+`OTELProvider`(`agent_evaluator/core/otel/provider.py`)가 내부에서 `BatchSpanProcessor`와 `OTLPSpanExporter`를 구성해 스팬을 수집하고 Phoenix로 전송한다. 사용자는 `setup_otel()`만 호출하면 된다. 메트릭 익스포터가 필요하면 `OTELMetrics`(`core/otel/metrics.py`)를 별도로 활성화한다.
 
 ### 에이전트 평가와 OTEL의 자연스러운 결합
 
@@ -52,6 +64,16 @@ OTLP(OpenTelemetry Protocol)는 스팬을 수신 서버로 전송하는 표준 �
 
 Agent-Evaluator에서 `record_task()`를 호출하면, 이미 계산된 25개 지표가 그대로 스팬 속성으로 변환되어 Phoenix에 전송된다. 코드를 따로 바꿀 필요가 없다.
 
+### 관측가능성 루프 — 측정 → 감지 → 대응
+
+OTEL이 에이전트 품질 유지에 기여하는 방식은 단순한 로그 수집이 아니다. **측정 → 감지 → 대응** 루프를 형성한다.
+
+1. **측정**: `record_task()` 호출마다 정확도·레이턴시·보안 위협 등 25개 속성이 스팬으로 Phoenix에 전송된다
+2. **감지**: Phoenix Tracing 탭 필터(`ae.accuracy_score < 0.5`, `ae.security_threat_detected == "true"`)로 이상 징후를 즉시 포착한다
+3. **대응**: Tracing → Playground에서 실패 스팬을 재현하고 프롬프트를 수정해 다음 배포에 반영한다
+
+이 루프가 Gate G(Observability)를 오프라인 평가에서 프로덕션 실시간 감시로 확장한다.
+
 ---
 
 ## 19.2 setup_otel() — 올바른 설정 순서 (핵심!)
@@ -61,13 +83,15 @@ Agent-Evaluator에서 `record_task()`를 호출하면, 이미 계산된 25개 �
 ### 올바른 순서
 
 ```python
+# 출처: Evaluator_Examples/ch19_phoenix.py — QuickEval 평가
 from agent_evaluator import setup_otel, QuickEval, PerformanceMonitor
 from agent_evaluator.decorators import agent_eval
 
 # ① 가장 먼저: setup_otel() 호출
 #   endpoint는 "http://localhost:6006" — /v1/traces 경로를 붙이지 말 것
+#   arize-phoenix>=7.0.0,<15.0.0 / opentelemetry-sdk>=1.20.0 기본 설치에 포함
 setup_otel(
-    endpoint="http://localhost:6006",   # Phoenix 13.x: UI + OTLP 동일 포트
+    endpoint="http://localhost:6006",   # Phoenix: UI + OTLP HTTP 동일 포트 (기본 6006)
     service_name="my-qa-agent",         # Phoenix 좌측 사이드바 프로젝트명으로 표시됨
     enable_metrics=False                # Phoenix는 /v1/metrics 미지원 — False 권장
 )
@@ -86,6 +110,7 @@ monitor = PerformanceMonitor(
 ### QuickEval과 함께 사용하는 완전한 예제
 
 ```python
+# 출처: Evaluator_Examples/ch19_phoenix.py — QuickEval 평가
 from agent_evaluator import setup_otel, QuickEval
 
 # ① OTEL 설정 — 이 한 줄이 먼저
@@ -166,14 +191,15 @@ agent-eval monitor --check
 
 # 출력 예시:
 #   패키지 상태
-#   ────────────────────────────────────
-#   ✅  arize-phoenix                설치됨 (13.x.x)
-#   ✅  opentelemetry-sdk            설치됨
-#   ✅  opentelemetry-exporter-otlp  설치됨
+#   ──────────────────────────────────────────────────────
+#   ✅  arize-phoenix                                    설치됨 (14.x.x)
+#   ✅  opentelemetry-sdk                               설치됨
+#   ✅  opentelemetry-exporter-otlp-proto-http          설치됨
 #
-#   포트 상태
-#   ────────────────────────────────────
-#   ✅  포트 6006 (Phoenix UI / OTLP HTTP) — 사용 가능
+#   포트 상태  (Phoenix 13.x: UI + OTLP HTTP 동일 포트)
+#   ──────────────────────────────────────────────────────
+#   ✅  포트 6006   (Phoenix UI / OTLP HTTP) — 사용 가능
+#   ✅  포트 4317   (OTLP gRPC)             — 사용 가능
 ```
 
 ### CLI 옵션 전체
@@ -184,14 +210,17 @@ agent-eval monitor --check
 | `--host` | `localhost` | Phoenix 바인딩 호스트 |
 | `--no-open` | — | 브라우저 자동 오픈 비활성화 |
 | `--attach <url>` | — | 자체 기동 없이 기존 Phoenix에 연결 |
-| `--check` | — | 설치 상태 및 포트 점유 확인 |
-| `--working-dir <path>` | `./` | Phoenix DB 저장 디렉토리 |
+| `--check` | — | OTEL 패키지 설치 상태 및 포트 점유 확인 |
+| `--working-dir <path>` | Phoenix 자동 결정(`~/.phoenix`) | Phoenix DB 저장 디렉토리 |
+| `--sync-datasets <glob>` | — | 골든셋 JSON 파일을 Phoenix Datasets로 업로드 |
+| `--reset` | — | Phoenix DB 초기화 (모든 트레이스·데이터셋 삭제) |
+| `--yes` / `-y` | — | `--reset` 확인 프롬프트 생략 |
 
 ---
 
 ## 19.4 Phoenix 4개 탭 완전 활용법
 
-Phoenix UI를 열면 왼쪽 사이드바에 여러 탭이 있다. 각 탭이 무엇을 보여주는지, Agent-Evaluator와 어떻게 연결되는지 살펴본다.
+`http://localhost:6006`을 브라우저에서 열면 Phoenix UI가 표시된다. 왼쪽 사이드바에 탭들이 있다. 처음 접속하면 Tracing 탭이 비어 있는데, 에이전트를 실행해 스팬을 전송하면 수 초 내에 데이터가 나타난다. 각 탭이 무엇을 보여주는지, Agent-Evaluator와 어떻게 연결되는지 살펴본다.
 
 ### Tracing 탭 — 에이전트 실행 기록의 핵심
 
@@ -240,6 +269,7 @@ output.value         = "2023년 기준 약 1조 7천억 달러입니다."
 `enable_otel_child_spans=True` 설정 시, `chain_steps`가 자식 스팬으로 발행되어 도구 호출 흐름을 워터폴로 확인할 수 있다.
 
 ```python
+# 출처: Evaluator_Examples/ch19_phoenix.py — PerformanceMonitor 설정
 from agent_evaluator import setup_otel, PerformanceMonitor
 from agent_evaluator.decorators import agent_eval, EvalMetadata
 
@@ -310,6 +340,7 @@ Phoenix에 내장된 LLM Judge 기능이다. "이 응답이 질문과 관련 있
 Agent-Evaluator의 LLMJudge와 함께 사용하면 시너지가 생긴다.
 
 ```python
+# 출처: Evaluator_Examples/ch19_phoenix.py — QuickEval 평가
 from agent_evaluator import QuickEval, setup_otel
 
 setup_otel(endpoint="http://localhost:6006", service_name="llm-judge-demo")
@@ -326,11 +357,12 @@ def my_agent(question: str, ground_truth: str = "") -> str:
 
 ---
 
-### Datasets 탭 — 골든 데이터셋 버전 관리
+### Datasets & Experiments 탭 — 골든 데이터셋 버전 관리
 
-Datasets 탭에서는 골든 데이터셋을 Phoenix에서 직접 관리한다. `GoldenSetBuilder`로 추출한 케이스를 이 탭에 업로드하면 버전 관리가 가능해진다.
+Datasets & Experiments 탭에서는 골든 데이터셋을 Phoenix에서 직접 관리한다. `GoldenSetBuilder`로 추출한 케이스를 이 탭에 업로드하면 버전 관리가 가능해진다.
 
 ```python
+# 출처: Evaluator_Examples/ch19_phoenix.py — GoldenSetBuilder 골든셋
 from agent_evaluator.datasets.builder import GoldenSetBuilder
 
 builder = GoldenSetBuilder(
@@ -378,6 +410,7 @@ Prompts 탭은 프롬프트 템플릿을 관리하고 Playground에서 재현할
 `llm.prompts` 속성을 스팬에 포함하면 Playground에서 해당 스팬을 재현할 수 있다.
 
 ```python
+# 출처: Evaluator_Examples/ch19_phoenix.py — PerformanceMonitor 설정
 from agent_evaluator import setup_otel, PerformanceMonitor
 from agent_evaluator.decorators import agent_eval, EvalMetadata
 
@@ -405,6 +438,7 @@ def my_agent(question: str, ground_truth: str = "") -> tuple:
 프롬프트 버전 관리가 필요한 경우, Phoenix REST API로 직접 등록할 수 있다.
 
 ```python
+# 출처: Evaluator_Examples/ch19_phoenix.py — 예제 코드
 import requests
 
 response = requests.post("http://localhost:6006/v1/prompts", json={
@@ -468,6 +502,7 @@ Agent-Evaluator는 `record_task()` 호출마다 다음 속성들을 스팬에 �
 Phoenix의 OTLP 데이터를 Grafana에서 시각화하려면, Grafana의 Tempo(추적)와 Prometheus(메트릭) 데이터소스를 구성해야 한다.
 
 ```python
+# 출처: Evaluator_Examples/ch19_phoenix.py — OpenTelemetry 설정
 # Grafana Tempo로 스팬 전송
 setup_otel(
     endpoint="http://grafana-tempo:4318",  # Tempo OTLP HTTP 포트
@@ -526,6 +561,7 @@ otlp_config:
 Jaeger나 Zipkin도 OTLP를 지원한다. 엔드포인트만 변경하면 된다.
 
 ```python
+# 출처: Evaluator_Examples/ch19_phoenix.py — OpenTelemetry 설정
 # Jaeger
 setup_otel(
     endpoint="http://jaeger:4318",
@@ -541,15 +577,19 @@ setup_otel(
 
 ## [이 챕터의 핵심]
 
+- **OTEL = Gate G(Observability)의 프로덕션 구현체.** 오프라인 평가로 측정한 `ExplainabilityConfig`·`LatencyAttributionConfig`·`ObservabilityConfig` 지표를, OTEL 스팬을 통해 배포 후에도 실시간으로 추적한다. **측정 → 감지 → 대응** 루프가 완성된다.
+
 - **OpenTelemetry는 에이전트 평가와 자연스럽게 결합된다.** `record_task()` 1회 = 1개 스팬이며, 25개 평가 지표가 스팬 속성으로 자동 변환되어 Phoenix로 전송된다.
 
 - **`setup_otel()` 순서가 전부다.** 반드시 `PerformanceMonitor` 또는 `QuickEval` 생성 전에 호출해야 한다. endpoint는 `"http://localhost:6006"` — `/v1/traces` 경로를 붙이지 않는다.
 
-- **2-터미널 패턴으로 시작하라.** 터미널 A에서 `agent-eval monitor`로 Phoenix 기동, 터미널 B에서 에이전트 실행. `http://localhost:6006` 에서 즉시 확인 가능.
+- **2-터미널 패턴으로 시작하라.** 터미널 A에서 `agent-eval monitor`(기본 포트 6006)로 Phoenix 기동, 터미널 B에서 에이전트 실행. `http://localhost:6006` Tracing 탭에서 수 초 내 스팬 확인 가능. `agent-eval monitor --check`으로 OTEL 패키지와 포트 상태를 사전 확인한다.
 
-- **Phoenix 4개 탭의 역할**: Tracing(실행 기록 + 필터), Evaluators(LLM Judge 설정), Datasets(골든셋 관리), Prompts(프롬프트 재현 + Playground).
+- **Phoenix 4개 탭의 역할**: Tracing(실행 기록 + 필터), Evaluators(LLM Judge 설정), Datasets & Experiments(골든셋 관리), Prompts(프롬프트 재현 + Playground).
 
 - **Tracing 탭 필터**로 실패 케이스를 빠르게 추출하라. `ae.accuracy_score < 0.5`, `ae.hallucination_detected == "true"`, `ae.framework == "langchain"` 같은 필터 표현식을 활용한다.
+
+- **arize-phoenix 버전**: `>=7.0.0,<15.0.0`. `opentelemetry-sdk>=1.20.0` 및 `opentelemetry-exporter-otlp-proto-http>=1.20.0`이 기본 설치에 포함된다. `agent-eval monitor --check`으로 설치 여부를 즉시 확인할 수 있다.
 
 ---
 
@@ -656,10 +696,10 @@ open http://localhost:6006
 | 섹션 5 | GraphQL — 프로젝트·스팬·데이터셋 조회 | — |
 | 섹션 추가 | `DeepEvalAdapter` + `RagasAdapter` 직접 사용 — `HybridPerformanceMonitor` 없이 단건 평가 | — |
 
-**실행 결과 (v0.8.4 기준, mock 모드)**
+**실행 결과 (v0.8.5 기준, mock 모드)**
 
 ```
-=== 07. Phoenix OTEL Hybrid 예제 ===
+=== ch19. Phoenix OTEL 예제 ===
 [mock 모드] ANTHROPIC_API_KEY 미설정 — Phoenix 연결 없이 실행
 setup_otel: 비활성 (API 키 필요)
 

@@ -1780,12 +1780,17 @@ def eval_efficiency(
     cost_unit: str = getattr(config, "cost_unit", "tokens") or "tokens"
     penalize_failed: bool = getattr(config, "penalize_failed_tokens", True)
 
+    _tokens_int: int = (
+        int(tokens_used.get("total", 0) or tokens_used.get("output", 0) or 0)
+        if isinstance(tokens_used, dict)
+        else int(tokens_used or 0)
+    )
     if cost_unit == "usd" and cost_usd is not None:
         cost_value = float(cost_usd)
     elif cost_unit == "time_ms":
         cost_value = execution_time_s * 1000.0
     else:
-        cost_value = float(tokens_used or 0)
+        cost_value = float(_tokens_int)
 
     # 실패한 태스크 패널티 (completion_score=0 이면 비용은 낭비)
     penalized = penalize_failed and completion_score < 0.1

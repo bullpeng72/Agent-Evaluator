@@ -66,11 +66,11 @@ def my_agent(question: str, ground_truth: str = "") -> str:
 
 # 단계 3 — 평가 실행 (일반 함수 호출과 동일)
 QA_CASES = [
-    ("한국의 수도는?",        "서울"),
-    ("파이썬을 만든 사람은?",  "귀도 반 로섬"),
-    ("지구의 위성 이름은?",    "달"),
-    ("물의 화학식은?",        "H2O"),
-    ("우주의 나이는?",        "138억 년"),
+    ("한국의 수도는?",        "서울입니다."),
+    ("파이썬을 만든 사람은?",  "귀도 반 로섬입니다."),
+    ("지구의 위성 이름은?",    "달입니다."),
+    ("물의 화학식은?",        "H₂O입니다."),
+    ("우주의 나이는?",        "138억 년입니다."),
 ]
 
 print()
@@ -264,10 +264,10 @@ def agent_v2(question: str, ground_truth: str = "") -> str:
     return answers.get(question, "모르겠습니다.")
 
 AB_CASES = [
-    ("한국의 수도는?",     "서울"),
-    ("파이썬 창시자는?",    "귀도 반 로섬"),
-    ("지구의 자전 주기는?", "약 24시간"),
-    ("빛의 속도는?",       "초속 약 30만 km"),
+    ("한국의 수도는?",     "서울입니다."),
+    ("파이썬 창시자는?",    "귀도 반 로섬입니다."),
+    ("지구의 자전 주기는?", "약 24시간입니다."),
+    ("빛의 속도는?",       "초속 약 30만 km입니다."),
 ]
 
 for q, gt in AB_CASES:
@@ -284,6 +284,8 @@ print(f"  v2 — TCR: {s_b['tcr']:.1f}%  Accuracy: {s_b['accuracy']:.1f}%")
 
 # compare()는 {'self':..., 'other':..., 'delta':{...}} 반환
 # delta는 self(v1) - other(v2) 이므로 음수 = v2가 더 우수
+# ※ AccuracyEvaluator는 Token F1·Jaccard·LCS·Char Similarity 4종 가중 평균
+#    ground_truth와 response가 동일 표현이면 100%, 오답/빈 응답이면 낮은 점수
 delta_tcr = s_b["tcr"] - s_a["tcr"]
 delta_acc = s_b["accuracy"] - s_a["accuracy"]
 try:
@@ -291,7 +293,7 @@ try:
     raw_delta = comparison.get("delta", {})
     print("\n  eval_a.compare(eval_b) — delta (v2 − v1, 양수 = v2 우수):")
     for k in ["tcr", "accuracy", "p95_latency"]:
-        # compare() delta는 self-other(v1-v2), 부호 반전해서 v2 개선도로 표시
+        # compare() delta = self(v1) - other(v2); 부호 반전해서 v2 개선도로 표시
         raw = raw_delta.get(k, 0.0)
         val = -raw if isinstance(raw, (int, float)) else 0.0
         unit = "%" if k in ("tcr", "accuracy") else "s"

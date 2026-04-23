@@ -2,24 +2,31 @@
 
 이 챕터에서 배우는 것: Agent-Evaluator SDK가 LangChain, CrewAI, AutoGen, DSPy, Anthropic, OpenAI 등 21개 프레임워크와 어떻게 통합되는지를 이해한다. `framework=` 파라미터 하나가 내부적으로 어떤 자동 추출 메커니즘을 작동시키는지, 각 프레임워크의 설치 방법과 주요 자동 추출 항목을 파악하고, 팀 상황에 맞는 프레임워크를 선택하는 기준을 배운다.
 
+> **Harness Engineering 관점**: 프레임워크 통합의 핵심은 "기존 에이전트 코드를 바꾸지 않고 Harness Gate A–G 판정 레이어를 추가하는 것"이다. LangChain을 쓰든 AutoGen을 쓰든 동일한 7개 Gate 기준으로 배포 준비도를 판정할 수 있다. LangChain에서 AutoGen으로 마이그레이션해도 Gate 점수 기준은 그대로 유지되므로, 에이전트 품질을 프레임워크에 종속되지 않게 관리할 수 있다.
+
 ---
 
 ## 13.1 framework= 파라미터의 동작 원리
 
-`@agent_eval(monitor, task_type="qa", framework="langchain")`처럼 `framework=`를 지정하면 데코레이터가 에이전트 함수의 반환값을 해당 프레임워크의 응답 객체로 간주하고 다음 항목들을 자동으로 추출한다:
+각 LLM 프레임워크는 응답 객체 구조가 제각각이다. LangChain은 `intermediate_steps`와 `usage_metadata`에, OpenAI는 `choices[0].message.tool_calls`와 `usage`에, Anthropic은 `content[].tool_use`와 `usage.input_tokens`에 토큰 수와 도구 호출 기록을 담는다. 이 차이를 직접 처리하려면 프레임워크마다 별도 코드가 필요하다.
+
+`framework=` 파라미터는 이 문제를 해결한다. `@agent_eval(monitor, task_type="qa", framework="langchain")`처럼 지정하면 데코레이터가 에이전트 함수의 반환값을 해당 프레임워크의 응답 객체로 간주하고 다음 항목들을 자동으로 추출한다:
 
 - **`tokens_used`**: LLM API 실제 토큰 수 (TokenEconomyTracker에 전달)
 - **`tool_calls`**: 사용된 도구 목록 (ToolCallAnalyzer, ToolSelectionTracker에 전달)
 - **`chain_steps`**: 체인/노드 실행 단계 (WorkflowExecutionTracker에 전달)
 - **`state_transitions`**: 상태 전이 시퀀스 (AgentCoordinationTracker에 전달)
 
-이 과정이 `_FRAMEWORK_ADAPTERS` 레지스트리에 등록된 21개 어댑터 함수를 통해 이루어진다. 각 어댑터는 해당 프레임워크 고유의 응답 구조를 파악하고 SDK 내부 형식으로 변환한다.
+이 과정이 `_FRAMEWORK_ADAPTERS` 레지스트리에 등록된 21개 어댑터 함수를 통해 이루어진다. 각 어댑터는 해당 프레임워크 고유의 응답 구조를 파악하고 SDK 내부 형식으로 변환한다. 변환된 데이터는 자동으로 Harness Gate 집계에 포함되므로, 에이전트 코드를 한 줄도 바꾸지 않고 Gate A–G 판정을 받을 수 있다.
+
+> **SDK 어댑터 설치 원칙**: SDK 어댑터 자체는 duck typing / try-except 방식으로 동작하므로 `[langchain]`, `[crewai]` 등의 extras를 설치하지 않아도 어댑터는 작동한다. 해당 extras는 **사용자의 에이전트 코드**가 그 프레임워크를 import해서 실행할 때만 필요하다.
 
 ### auto_detect_framework — 프레임워크 자동 감지
 
 `framework=`를 명시하지 않아도 `auto_detect_framework=True`(기본값)가 응답 객체의 속성을 분석해 프레임워크를 자동 감지한다:
 
 ```python
+# 출처: Evaluator_Examples/ch13_frameworks.py — PerformanceMonitor 설정
 from agent_evaluator import PerformanceMonitor
 from agent_evaluator.decorators import agent_eval
 
@@ -46,6 +53,7 @@ def smart_agent(question: str, ground_truth: str = "") -> str:
 ### get_framework_info() — 어댑터 메타데이터 조회
 
 ```python
+# 출처: Evaluator_Examples/ch13_frameworks.py — 예제 코드
 from agent_evaluator.decorators import get_framework_info
 
 info = get_framework_info("langchain")
@@ -74,9 +82,17 @@ pip install "agent-evaluator[langchain]"
 # LangChain + LangGraph + langchain-core/openai/anthropic 포함
 ```
 
+> **단계별 가이드 — "내 에이전트가 LangChain을 사용한다면"**
+> 1. `pip install "agent-evaluator[langchain]"` 으로 설치
+> 2. `PerformanceMonitor(output_dir="results/")` 생성
+> 3. 에이전트 함수에 `@agent_eval(monitor, task_type="tool_use", framework="langchain")` 추가
+> 4. 함수가 `agent_executor.invoke()` 결과 **dict 전체**를 반환하도록 확인 (문자열 `output`만 반환하면 tool_calls 추출 불가)
+> 5. `monitor.save_to_file("langchain_eval")` 으로 결과 저장 → Gate A–G 판정 자동 포함
+
 ### LangChain 통합 예시
 
 ```python
+# 출처: Evaluator_Examples/ch13_frameworks.py — PerformanceMonitor 설정
 from langchain_openai import ChatOpenAI
 from langchain.agents import create_tool_calling_agent, AgentExecutor
 from langchain_core.prompts import ChatPromptTemplate
@@ -111,7 +127,7 @@ monitor.save_to_file("langchain_eval")
 
 - `framework="langchain"` 지정 시 `agent_executor.invoke()` 반환값 전체(`dict`)를 함수가 반환해야 `intermediate_steps`에서 tool_calls가 추출된다
 - `usage_metadata`와 `response_metadata.token_usage` 두 경로를 모두 탐색하며, 다중 메시지가 있으면 누산해 `tokens_used`를 계산한다
-- `PerformanceMonitor.for_rag_evaluation()`은 hallucination_detection이 활성화된 monitor를 반환한다
+- `PerformanceMonitor.for_rag_evaluation()`은 `enable_hallucination_detection=True`가 자동 설정된 monitor를 반환한다
 
 **자동 추출 항목**: `usage_metadata` + `response_metadata.token_usage` 다중 메시지 누산, `ToolMessage` / `AIMessage`에서 chain_steps 추출, 타임스탬프 기반 실행 시간.
 
@@ -120,6 +136,7 @@ monitor.save_to_file("langchain_eval")
 LangGraph는 노드 단위 실행이 특징이다. Agent-Evaluator는 각 노드 전환을 `state_transitions`로 자동 캡처한다:
 
 ```python
+# 출처: Evaluator_Examples/ch13_frameworks.py — PerformanceMonitor 설정
 from langgraph.graph import StateGraph, END
 from langchain_core.messages import HumanMessage
 from agent_evaluator import PerformanceMonitor
@@ -154,12 +171,15 @@ CrewAI는 역할 기반 멀티에이전트 시스템으로, Researcher + Writer 
 
 ```bash
 pip install "agent-evaluator[crewai]"
-# 주의: 전이 의존성 100개+, 독립 가상환경 권장
+# 주의: 전이 의존성 100개+, pydantic<2.12 제약, 독립 가상환경 권장
 ```
+
+> **CrewAI 의존성 주의**: CrewAI는 `pydantic<2.12` 버전 제약을 가지며, 전이 의존성이 100개 이상이다. 다른 extras와 함께 설치하면 pydantic 버전 충돌이 발생할 수 있으므로 별도 가상환경에 격리하는 것을 강력히 권장한다.
 
 ### CrewAI 통합 예시
 
 ```python
+# 출처: Evaluator_Examples/ch13_frameworks.py — PerformanceMonitor 설정
 from crewai import Crew, Agent, Task, Process
 from agent_evaluator import PerformanceMonitor, EvalMetadata
 from agent_evaluator.integrations import crewai_eval
@@ -198,11 +218,12 @@ monitor.save_to_file("crewai_eval")
 
 - `@crewai_eval`은 `crew.kickoff()` 반환값인 `CrewOutput` 객체에서 에이전트 간 교환 기록을 자동 추출한다
 - `result` 전체를 반환하면 어댑터가 에이전트 역할별 상호작용을 `agent_interactions` 형식으로 파싱한다
-- `PerformanceMonitor.for_secure_agents()`는 보안 지표(`enable_security_metrics=True`)가 활성화된 monitor를 반환한다
+- `PerformanceMonitor.for_secure_agents()`는 `enable_security_metrics=True`가 자동 설정된 monitor를 반환한다 — Gate E(Security Boundary) 집계가 활성화된다
 
 **자동 추출 항목**: Agent Coordination (역할별 교환), Tool Selection F1. **주의**: CrewAI SDK가 토큰 수를 외부에 노출하지 않아 `tokens_used=0`으로 기록된다. 정확한 비용 측정이 필요하면 `EvalMetadata`를 통해 수동으로 주입한다:
 
 ```python
+# 출처: Evaluator_Examples/ch13_frameworks.py — 예제 코드
 @crewai_eval(monitor, task_type="tool_use")
 def run_crew(question: str, ground_truth: str = "") -> tuple:
     result = crew.kickoff(inputs={"topic": question})
@@ -226,11 +247,15 @@ AutoGen 0.4+는 async-first API를 채택했다. 복잡한 멀티에이전트 �
 ```bash
 pip install "agent-evaluator[autogen]"
 # pyautogen>=0.3.0 + autogen-agentchat/core>=0.4.0
+# 주의: pyautogen 0.4+는 async-first API → @autogen_eval로 래핑된 함수는 반드시 async def여야 함
 ```
+
+> **AutoGen 의존성 주의**: pyautogen 0.4+는 `autogen-agentchat` 기반 async API를 사용한다. CrewAI와 AutoGen을 같은 환경에 설치하면 pydantic 버전이 서로 충돌할 수 있으므로(CrewAI: pydantic<2.12, pyautogen: pydantic>=2.12 선호) 각각 별도 가상환경에서 사용하는 것을 권장한다.
 
 ### AutoGen 비동기 통합 예시
 
 ```python
+# 출처: Evaluator_Examples/ch13_frameworks.py — PerformanceMonitor 설정
 import asyncio
 from autogen_agentchat.agents import AssistantAgent
 from autogen_agentchat.teams import RoundRobinGroupChat
@@ -262,7 +287,7 @@ monitor.save_to_file("autogen_eval")
 
 **자동 추출 항목**: 에이전트 메시지 교환(`agent_interactions`), `ToolCallEvent` 기반 도구 호출, tiktoken 기반 토큰 수 추정.
 
-> 👨‍💻 **개발자 TIP**: AutoGen 0.4+의 async API 때문에 `@autogen_eval`로 래핑된 함수는 반드시 `async def`여야 한다. 동기 컨텍스트에서 호출할 때는 `asyncio.run()`을 사용한다. CrewAI와 AutoGen은 pydantic 버전 충돌이 발생할 수 있어 별도 가상환경에 격리하는 것을 권장한다.
+> **개발자 TIP**: AutoGen 0.4+의 async API 때문에 `@autogen_eval`로 래핑된 함수는 반드시 `async def`여야 한다. 동기 컨텍스트에서 호출할 때는 `asyncio.run()`을 사용한다. 이 패턴은 pyautogen 0.4+ 공식 권장 방식이다.
 
 ---
 
@@ -277,6 +302,7 @@ pip install "agent-evaluator[dspy]"
 ```
 
 ```python
+# 출처: Evaluator_Examples/ch13_frameworks.py — PerformanceMonitor 설정
 import dspy
 from agent_evaluator import PerformanceMonitor
 from agent_evaluator.integrations import dspy_eval
@@ -314,6 +340,7 @@ pip install "agent-evaluator[pydanticai]"
 ```
 
 ```python
+# 출처: Evaluator_Examples/ch13_frameworks.py — PerformanceMonitor 설정
 from pydantic_ai import Agent
 from pydantic import BaseModel
 from agent_evaluator import PerformanceMonitor
@@ -355,6 +382,7 @@ asyncio.run(pa_agent("파이썬의 GIL이란?", ground_truth="Global Interpreter
 ### Anthropic — 캐시 토큰까지 추출
 
 ```python
+# 출처: Evaluator_Examples/ch13_frameworks.py — PerformanceMonitor 설정
 import anthropic
 from agent_evaluator import PerformanceMonitor
 from agent_evaluator.decorators import agent_eval
@@ -389,6 +417,7 @@ claude_agent("최신 AI 연구 동향은?", ground_truth="GPT-4, Claude 3.5 등"
 ### OpenAI
 
 ```python
+# 출처: Evaluator_Examples/ch13_frameworks.py — PerformanceMonitor 설정
 from openai import OpenAI
 from agent_evaluator import PerformanceMonitor
 from agent_evaluator.decorators import agent_eval
@@ -423,6 +452,7 @@ openai_agent("123 * 456의 값은?", ground_truth="56088")
 ### Gemini
 
 ```python
+# 출처: Evaluator_Examples/ch13_frameworks.py — PerformanceMonitor 설정
 import os
 import google.generativeai as genai
 from agent_evaluator import PerformanceMonitor
@@ -449,17 +479,17 @@ gemini_agent("한국의 전통 음식 5가지를 알려줘", ground_truth="비�
 
 ## 13.7 기타 프레임워크 간략 소개
 
-다음 표는 나머지 지원 프레임워크의 설치 방법과 주요 추출 항목을 정리한 것이다:
+다음 표는 나머지 지원 프레임워크의 에이전트 코드 실행에 필요한 라이브러리 설치 방법과 주요 추출 항목을 정리한 것이다. SDK 어댑터 자체는 별도 extras 없이 동작하며, 아래 설치 명령어는 **에이전트 코드**가 해당 프레임워크를 사용할 때 필요한 라이브러리 설치다:
 
-| 프레임워크 | 설치 extras | 추출 항목 | 특이사항 |
-|-----------|-----------|----------|--------|
+| 프레임워크 | 에이전트 코드용 라이브러리 설치 | 추출 항목 | 특이사항 |
+|-----------|-------------------------------|----------|--------|
 | **LlamaIndex** | `pip install llama-index` | `source_nodes` → chain_steps, AgentChatResponse.sources | ToolOutput에서 도구 호출 추출 |
 | **Haystack** | `pip install haystack-ai` | 파이프라인 컴포넌트 dict → chain_steps | retriever/reader/embedder → tool_calls 변환 |
 | **Cohere** | `pip install cohere` | `documents`, `tool_calls`, `meta.tokens` | |
 | **Groq** | `pip install groq` | OpenAI 호환 형식 (`choices`, `usage`) | 거의 OpenAI와 동일 |
 | **Mistral** | `pip install mistralai` | `choices[0].message.tool_calls`, `usage` | function_call 구버전 호환 |
 | **Ollama** | `pip install ollama` | `message.tool_calls`, `prompt_eval_count` | 로컬 모델 |
-| **Bedrock** | AWS SDK 포함 | `usage.inputTokens`, `content[].toolUse` | boto3 응답 구조 |
+| **Bedrock** | AWS SDK 포함 (boto3) | `usage.inputTokens`, `content[].toolUse` | boto3 응답 구조 |
 | **smolagents** | `pip install smolagents` | `logs` 필드에서 agent_steps 추출 | |
 | **Semantic Kernel** | `pip install semantic-kernel` | `function_name + plugin_name` → tool_calls | "Plugin.function" 형식 |
 | **vLLM** | `pip install vllm` | OpenAI 호환 형식 (`choices`, `usage`) | 고성능 추론 서버 |
@@ -471,6 +501,8 @@ gemini_agent("한국의 전통 음식 5가지를 알려줘", ground_truth="비�
 ## 13.8 프레임워크 선택 가이드
 
 프레임워크 선택은 팀의 Python 숙련도, 기존 기술 스택, 그리고 에이전트 아키텍처의 복잡도에 따라 달라진다.
+
+> **Harness Engineering 핵심 강점**: 어떤 프레임워크를 선택하든 Gate A(목표 달성) ~ Gate G(관측 가능성) 기준은 동일하게 적용된다. 팀이 LangChain에서 시작해 AutoGen으로 전환하더라도, 이전에 설정한 Gate 임계값과 SLA 기준을 그대로 유지해 배포 준비도를 비교할 수 있다. 프레임워크가 아닌 **에이전트 품질**을 기준으로 판단할 수 있다.
 
 ### 생산성 vs 제어력 트레이드오프
 
@@ -574,10 +606,13 @@ pip install "agent-evaluator[full]"
 
 ## 이 챕터의 핵심
 
+- **Harness Engineering 관점**: 프레임워크 통합 = 기존 에이전트 코드 변경 없이 Harness Gate A–G 판정 레이어를 추가하는 것이다. LangChain → AutoGen으로 마이그레이션해도 동일한 7개 Gate 기준이 유지된다.
 - **`framework=` 파라미터는 응답 객체 → SDK 내부 형식 변환기**다. 함수가 문자열이 아닌 SDK 응답 객체 전체를 반환해야 토큰 수, 도구 호출, 체인 단계가 자동 추출된다.
+- **SDK 어댑터는 extras 설치 불필요**: 어댑터 자체는 duck typing/try-except로 동작한다. `[langchain]`, `[crewai]` 등의 extras는 에이전트 코드가 해당 프레임워크를 실행할 때만 필요하다.
 - **`auto_detect_framework=True`(기본값)**으로 12개 속성을 분석해 프레임워크를 자동 감지하므로, `framework=`를 명시하지 않아도 동작한다. 단, 정확도를 위해 명시 권장.
 - **토큰 측정 정확도**는 LangChain > OpenAI/Anthropic > AutoGen(tiktoken) > CrewAI(0 고정) 순이다. CrewAI 비용 측정이 필요하면 `EvalMetadata`로 수동 주입한다.
-- **CrewAI와 AutoGen은 무거운 의존성**으로 pydantic 버전 충돌이 발생할 수 있다. 별도 가상환경에 격리하거나 `[full]` extras를 사용한다.
+- **CrewAI**: pydantic<2.12 제약 + 전이 의존성 100개+, 별도 가상환경 격리 강력 권장.
+- **AutoGen 0.4+**: async-first API — `@autogen_eval` 래핑 함수는 반드시 `async def`여야 한다. CrewAI와 동시 설치 시 pydantic 충돌 가능 → 각각 격리.
 - **프레임워크 선택 기준**: 빠른 프로토타입 → CrewAI, 기존 LangChain → LangChain/LangGraph, 타입 안전 → PydanticAI, ML 최적화 → DSPy, 완전한 제어 → 직접 API 호출.
 
 ---
@@ -705,7 +740,7 @@ agent-eval dashboard results/
 | 섹션 5 | 크로스 프레임워크 파이프라인 | 서로 다른 프레임워크 에이전트를 하나의 monitor로 통합 |
 | 섹션 6 | 배치 비교 평가 | `@batch_eval`로 4개 프레임워크 동시 벤치마크 |
 
-**실행 결과 (v0.8.4 기준)**
+**실행 결과 (v0.8.5 기준)**
 
 ```
 === 03. 프레임워크 어댑터 종합 예제 ===

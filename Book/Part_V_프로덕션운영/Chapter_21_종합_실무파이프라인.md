@@ -1,11 +1,14 @@
 # Chapter 21. 종합 실무 파이프라인
 
 > **이 챕터에서 배우는 것**
-> - 개발 → CI → 프로덕션 → 주간 회귀 전체 사이클을 한 그림으로 이해하기
+> - **Harness Engineering의 실전 적용** — 개발 → CI → 운영 → 개선 4단계 파이프라인을 한 그림으로 이해하기
+> - 각 단계마다 어떤 Gate가 검문소 역할을 하는지 파악하기
 > - 1인 개발자부터 대규모 팀까지 팀 규모별 도입 로드맵
 > - 프로덕션 품질 사고 발생 시 즉각 대응 런북(Runbook)
 > - Agent-Evaluator 도입 성과를 측정하는 지표 체계
 > - 더 발전하기 위한 다음 단계
+> - 드리프트 감지와 Wilson Score 기반 임계값 재보정 파이프라인
+> - 지표 하락 → Gate 원인 귀속 → 개선 액션 3단계 자기개선 루프
 
 > **독자별 읽기 가이드**  
 > - **👨‍💻 개발자**: §21.1(전체 사이클) → §21.2(팀 규모별 로드맵) 순서로 읽으면 현재 팀 상황에서 어디서부터 시작할지 경로를 찾을 수 있습니다.  
@@ -15,28 +18,143 @@
 
 ---
 
-## 21.1 개발 → CI → 프로덕션 → 주간 회귀 전체 사이클
+## 21.1 종합 파이프라인 — Harness Engineering의 실제 적용
 
-앞의 챕터에서 각 단계를 개별적으로 살펴봤다. 이제 이 모든 것을 하나의 파이프라인으로 연결하자.
+앞의 챕터에서 각 단계를 개별적으로 살펴봤다. 이제 이 모든 것을 **개발 → CI → 운영 → 개선**이라는 4단계 파이프라인으로 연결하자.
+
+> **Harness Engineering 핵심 원칙**: 단계별 파이프라인은 단순한 실행 순서가 아니다. 각 단계마다 **Gate 검문소**가 있어서 기준 미달 시 다음 단계로 진행을 차단한다. Gate A(목표 달성)와 Gate D(성능 계약)는 **항상 활성화**되는 베이스라인 Gate이며, Gate B·C·E·F·G는 필요에 따라 opt-in으로 추가한다. 배포 우선순위는 **Gate A > D > B > C/E/F > G** 순이다.
 
 ### 전체 파이프라인 흐름
 
-```
-[1. 개발]          [2. PR / CI]        [3. 프로덕션]       [4. 주간 회귀]
-   │                    │                    │                    │
-   ▼                    ▼                    ▼                    ▼
-@eval.qa           골든 데이터셋          10% 샘플링           골든 데이터셋
-로컬 실행          100개 평가             실시간 스팬          전수 평가
-Phoenix            agent-eval gate       Phoenix              compare()로
-로컬 연결          PR 코멘트 게시         내부 서버            트렌드 분석
-                   임계값 검사            AnomalyDetector      리포트 발송
-```
+@@HTML_START@@
+<style>
+.pipeline-wrap{margin:20px 0;}
+.pipeline-row{display:flex;align-items:stretch;gap:0;}
+.phase-card{flex:1;border-radius:10px;padding:16px;position:relative;}
+.phase-arrow{display:flex;align-items:center;justify-content:center;flex-direction:column;padding:0 6px;flex-shrink:0;}
+.phase-arrow-line{width:32px;height:2px;}
+.phase-arrow-head{width:0;height:0;border-top:6px solid transparent;border-bottom:6px solid transparent;}
+.phase-num{display:inline-block;border-radius:50%;width:22px;height:22px;text-align:center;line-height:22px;font-weight:700;font-size:12px;margin-right:6px;flex-shrink:0;}
+.phase-title{font-weight:700;font-size:14px;margin-bottom:4px;display:flex;align-items:center;}
+.phase-timing{font-size:11px;margin-bottom:10px;opacity:.75;}
+.step-list{list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:5px;}
+.step-item{display:flex;gap:7px;align-items:flex-start;font-size:12px;line-height:1.4;}
+.step-icon{flex-shrink:0;font-size:13px;margin-top:1px;}
+.step-code{font-size:10px;font-family:monospace;border-radius:3px;padding:1px 4px;margin-top:2px;display:inline-block;}
+.feedback-row{display:flex;align-items:center;margin-top:8px;padding:8px 16px;background:#f3e5f5;border:1px dashed #ab47bc;border-radius:8px;font-size:12px;color:#4a148c;gap:8px;}
+</style>
+
+<div class="pipeline-wrap">
+<div class="pipeline-row">
+
+  <!-- ① 개발 -->
+  <div class="phase-card" style="background:#e8f5e9;border:2px solid #66bb6a;">
+    <div class="phase-title" style="color:#1b5e20;">
+      <span class="phase-num" style="background:#1b5e20;color:#fff;">①</span>개발 (로컬)
+    </div>
+    <div class="phase-timing" style="color:#388e3c;">커밋마다 · 즉시</div>
+    <ul class="step-list">
+      <li class="step-item" style="color:#1b5e20;"><span class="step-icon">🏷️</span><div><div>@eval.qa 데코레이터 적용</div><div>실행마다 자동 채점</div><span class="step-code" style="background:#c8e6c9;color:#1b5e20;">@eval.qa</span></div></li>
+      <li class="step-item" style="color:#1b5e20;"><span class="step-icon">🧪</span><div><div>소수 케이스 로컬 실행</div><div>ground_truth 포함</div></div></li>
+      <li class="step-item" style="color:#1b5e20;"><span class="step-icon">💾</span><div><div>results/ 결과 JSON 생성</div><span class="step-code" style="background:#c8e6c9;color:#1b5e20;">eval.save()</span></div></li>
+      <li class="step-item" style="color:#1b5e20;"><span class="step-icon">🔍</span><div><div>TCR · 정확도 즉시 점검</div><span class="step-code" style="background:#c8e6c9;color:#1b5e20;">eval.summary()</span></div></li>
+      <li class="step-item" style="color:#1b5e20;"><span class="step-icon">🚩</span><div><div><strong>Gate A+D 베이스라인</strong> 항상 활성</div><div>다른 Gate는 opt-in 추가</div></div></li>
+    </ul>
+  </div>
+
+  <!-- 화살표 1→2 -->
+  <div class="phase-arrow">
+    <div style="font-size:10px;color:#546e7a;white-space:nowrap;margin-bottom:3px;">PR 제출</div>
+    <div style="display:flex;align-items:center;">
+      <div class="phase-arrow-line" style="background:#546e7a;"></div>
+      <div class="phase-arrow-head" style="border-left:10px solid #546e7a;"></div>
+    </div>
+    <div style="font-size:10px;color:#546e7a;white-space:nowrap;margin-top:3px;">CI 트리거</div>
+  </div>
+
+  <!-- ② PR / CI -->
+  <div class="phase-card" style="background:#e3f2fd;border:2px solid #42a5f5;">
+    <div class="phase-title" style="color:#0d47a1;">
+      <span class="phase-num" style="background:#0d47a1;color:#fff;">②</span>PR / CI
+    </div>
+    <div class="phase-timing" style="color:#1565c0;">PR마다 · GitHub Actions</div>
+    <ul class="step-list">
+      <li class="step-item" style="color:#0d47a1;"><span class="step-icon">📋</span><div><div>골든 데이터셋 100개 전수 실행</div></div></li>
+      <li class="step-item" style="color:#0d47a1;"><span class="step-icon">💾</span><div><div>CI 결과 JSON 저장</div><span class="step-code" style="background:#bbdefb;color:#0d47a1;">eval.save()</span></div></li>
+      <li class="step-item" style="color:#0d47a1;"><span class="step-icon">🚦</span><div><div>Gate 판정</div><span class="step-code" style="background:#bbdefb;color:#0d47a1;">agent-eval gate --tcr 85</span></div></li>
+      <li class="step-item" style="color:#0d47a1;"><span class="step-icon">🚫</span><div><div>임계값 미달 → exit 1</div><div>PR 병합 차단</div></div></li>
+      <li class="step-item" style="color:#0d47a1;"><span class="step-icon">🚩</span><div><div><strong>Gate A > D > B</strong> 우선 검증</div></div></li>
+    </ul>
+  </div>
+
+  <!-- 화살표 2→3 -->
+  <div class="phase-arrow">
+    <div style="font-size:10px;color:#546e7a;white-space:nowrap;margin-bottom:3px;">gate() 통과</div>
+    <div style="display:flex;align-items:center;">
+      <div class="phase-arrow-line" style="background:#546e7a;"></div>
+      <div class="phase-arrow-head" style="border-left:10px solid #546e7a;"></div>
+    </div>
+    <div style="font-size:10px;color:#546e7a;white-space:nowrap;margin-top:3px;">배포 승인</div>
+  </div>
+
+  <!-- ③ 운영 -->
+  <div class="phase-card" style="background:#fff3e0;border:2px solid #ffa726;">
+    <div class="phase-title" style="color:#e65100;">
+      <span class="phase-num" style="background:#e65100;color:#fff;">③</span>운영 (프로덕션)
+    </div>
+    <div class="phase-timing" style="color:#ef6c00;">24/7 · 10% 샘플링</div>
+    <ul class="step-list">
+      <li class="step-item" style="color:#e65100;"><span class="step-icon">🎲</span><div><div>10% 랜덤 샘플링 평가</div><span class="step-code" style="background:#ffe0b2;color:#e65100;">sample_rate=0.1</span></div></li>
+      <li class="step-item" style="color:#e65100;"><span class="step-icon">💾</span><div><div>50건마다 자동 저장</div><span class="step-code" style="background:#ffe0b2;color:#e65100;">auto_save=True</span></div></li>
+      <li class="step-item" style="color:#e65100;"><span class="step-icon">🔔</span><div><div>품질 저하 즉시 슬랙 알림</div><span class="step-code" style="background:#ffe0b2;color:#e65100;">SimpleTaskAlertRule</span></div></li>
+      <li class="step-item" style="color:#e65100;"><span class="step-icon">📡</span><div><div>Phoenix 실시간 트레이스</div><div>이상 패턴 자동 감지</div></div></li>
+    </ul>
+  </div>
+
+  <!-- 화살표 3→4 -->
+  <div class="phase-arrow">
+    <div style="font-size:10px;color:#546e7a;white-space:nowrap;margin-bottom:3px;">프로덕션 결과</div>
+    <div style="display:flex;align-items:center;">
+      <div class="phase-arrow-line" style="background:#546e7a;"></div>
+      <div class="phase-arrow-head" style="border-left:10px solid #546e7a;"></div>
+    </div>
+    <div style="font-size:10px;color:#546e7a;white-space:nowrap;margin-top:3px;">회귀 베이스라인</div>
+  </div>
+
+  <!-- ④ 개선 -->
+  <div class="phase-card" style="background:#ede7f6;border:2px solid #7e57c2;">
+    <div class="phase-title" style="color:#311b92;">
+      <span class="phase-num" style="background:#311b92;color:#fff;">④</span>개선 (주간 회귀)
+    </div>
+    <div class="phase-timing" style="color:#4527a0;">매주 월요일 · 전수 평가</div>
+    <ul class="step-list">
+      <li class="step-item" style="color:#311b92;"><span class="step-icon">📋</span><div><div>골든 데이터셋 전수 평가</div><div>전 케이스 재실행</div></div></li>
+      <li class="step-item" style="color:#311b92;"><span class="step-icon">📊</span><div><div>이전 주 지표 변화 측정</div><span class="step-code" style="background:#d1c4e9;color:#311b92;">compare() delta</span></div></li>
+      <li class="step-item" style="color:#311b92;"><span class="step-icon">📉</span><div><div>회귀 감지 시 CI 실패</div><span class="step-code" style="background:#d1c4e9;color:#311b92;">agent-eval trend --fail-on-regression</span></div></li>
+      <li class="step-item" style="color:#311b92;"><span class="step-icon">⚙️</span><div><div>드리프트 감지 시</div><div>재보정 파이프라인 트리거</div></div></li>
+    </ul>
+  </div>
+
+</div>
+
+<!-- 피드백 루프 -->
+<div class="feedback-row">
+  <span style="font-size:16px;">↩️</span>
+  <strong>피드백 루프</strong> —
+  주간 회귀 결과 → 골든셋 갱신 · 임계값 재보정 → ① 개발 단계로 환류
+  <span style="margin-left:auto;font-size:11px;opacity:.7;">점선 화살표: 자동 트리거</span>
+</div>
+</div>
+@@HTML_END@@
 
 ### 단계별 코드 예시
 
-**1단계: 개발 환경**
+> **4단계 요약**: ① 개발(Gate A+D 로컬 검증) → ② CI(Gate A > D > B 순 자동 판정) → ③ 운영(10% 샘플링 + Gate E 보안 실시간 감시) → ④ 개선(Gate 기반 회귀 탐지 + 임계값 재보정)
+
+**1단계: 개발**
 
 ```python
+# 출처: Evaluator_Examples/ch21_pipeline.py — QuickEval 평가
 # dev/run_dev.py
 from agent_evaluator import setup_otel, QuickEval
 
@@ -47,7 +165,7 @@ try:
 except Exception:
     print("Phoenix 없이 실행합니다. (agent-eval monitor 실행 후 재시도)")
 
-eval = QuickEval("results/", preset="development")
+eval = QuickEval("results/")
 
 @eval.qa
 def agent(question: str, ground_truth: str = "") -> str:
@@ -60,16 +178,17 @@ if __name__ == "__main__":
     print(eval.summary())
 ```
 
-**2단계: CI 평가 스크립트**
+**2단계: CI**
 
 ```python
+# 출처: Evaluator_Examples/ch21_pipeline.py — QuickEval 평가
 # ci/run_evaluation.py
 import json
 import sys
 from agent_evaluator import QuickEval
 
 def main():
-    eval = QuickEval("results/", preset="testing")
+    eval = QuickEval("results/")
 
     @eval.qa
     def agent(question: str, ground_truth: str = "") -> str:
@@ -83,17 +202,18 @@ def main():
 
     eval.save()
     summary = eval.summary()
-    print(f"TCR: {summary.get('tcr', 0):.1f}%")
-    print(f"Accuracy: {summary.get('accuracy_avg', 0) * 100:.1f}%")
+    print(f"TCR: {summary.get('tcr', 0) * 100:.1f}%")
+    print(f"Accuracy: {summary.get('accuracy', 0) * 100:.1f}%")
     return 0
 
 if __name__ == "__main__":
     sys.exit(main())
 ```
 
-**3단계: 프로덕션 에이전트**
+**3단계: 운영 (프로덕션 에이전트)**
 
 ```python
+# 출처: Evaluator_Examples/ch21_pipeline.py — 알림 시스템
 # production/agent.py
 import os
 from agent_evaluator import setup_otel, PerformanceMonitor
@@ -131,9 +251,10 @@ def production_agent(question: str, ground_truth: str = "") -> str:
     return call_llm(question)
 ```
 
-**4단계: 주간 회귀 스크립트**
+**4단계: 개선 (주간 회귀 + 자기개선 루프)**
 
 ```python
+# 출처: Evaluator_Examples/ch21_pipeline.py — QuickEval 평가
 # scripts/weekly_regression.py
 """매주 월요일 실행: 전체 골든 데이터셋으로 회귀 테스트 + 트렌드 분석"""
 import json
@@ -161,17 +282,14 @@ def run_weekly_regression():
     try:
         prev_eval = QuickEval("results/weekly_prev/")
         comparison = current_eval.compare(prev_eval)
-        print(f"TCR 변화: {comparison.get('tcr_delta', 0):+.1f}%")
-        print(f"Accuracy 변화: {comparison.get('accuracy_delta', 0):+.2f}")
+        print(f"TCR 변화: {comparison['delta'].get('tcr', 0) * 100:+.1f}%")
+        print(f"Accuracy 변화: {comparison['delta'].get('accuracy', 0):+.2f}")
     except Exception:
         print("이전 주 결과 없음 — 첫 실행입니다.")
 
     # 임계값 게이팅
-    passed = current_eval.gate(
-        tcr=80, accuracy=70,
-        raise_on_fail=False
-    )
-    if not passed:
+    result = current_eval.gate(tcr=80, accuracy=70, dry_run=True)
+    if not result["passed"]:
         send_slack_alert("주간 회귀 테스트 실패 — 품질 저하 감지")
 
 if __name__ == "__main__":
@@ -197,6 +315,7 @@ pip install agent-evaluator
 - 기본 설치 한 줄로 LLMJudge, 대시보드, OTEL이 모두 포함되므로 추가 설치 없이 바로 평가를 시작할 수 있다
 
 ```python
+# 출처: Evaluator_Examples/ch21_pipeline.py — QuickEval 평가
 # evaluate.py — 5줄로 시작
 from agent_evaluator import QuickEval
 
@@ -241,6 +360,7 @@ jobs:
 **Day 1~2: 골든 데이터셋 구축**
 
 ```python
+# 출처: Evaluator_Examples/ch21_pipeline.py — QuickEval 평가
 from agent_evaluator import QuickEval
 
 eval = QuickEval("results/")
@@ -257,20 +377,20 @@ eval.save()
 # 높은 점수 케이스 자동 추출
 ```
 
-- 50개 케이스부터 시작해 `high_value`(정확도 높은 케이스)와 `failure_cases`(실패 케이스)를 함께 수집하면 균형 잡힌 골든 데이터셋이 만들어진다
-- `eval.save()` 결과 파일이 골든 데이터셋 빌드의 소스가 되므로 반드시 먼저 호출해야 한다
+- 50개 케이스부터 시작해 `eval.save()`로 결과 파일을 저장하면 골든 데이터셋 빌드의 소스가 된다
 
 ```bash
-# 골든 데이터셋 자동 빌드 (고가치 케이스 + 실패 케이스 추출)
-agent-eval dataset build --source results/ --strategy high_value failure_cases
+# 골든 데이터셋 자동 빌드 (높은 점수 케이스 추출)
+agent-eval dataset build results/ --min-score 0.85
 ```
 
-- `--strategy high_value failure_cases` 옵션으로 두 전략을 동시에 적용해 성공·실패 케이스를 균형 있게 추출한다
+- `--min-score 0.85`로 정확도 85% 이상인 케이스를 골든 데이터셋에 추출한다
 - 추출된 케이스는 수동 검토 후 CI 데이터셋에 추가해 회귀 방지에 활용한다
 
 **Day 3: 알림 규칙 설정**
 
 ```python
+# 출처: Evaluator_Examples/ch21_pipeline.py — 알림 시스템
 from agent_evaluator import SimpleTaskAlertRule, QuickEval
 
 def send_slack(msg, tr):
@@ -351,6 +471,7 @@ docker run -d \
 **Week 3: 5-규칙 알림 + 이상 감지**
 
 ```python
+# 출처: Evaluator_Examples/ch21_pipeline.py — AnomalyDetector 이상 탐지
 from agent_evaluator import PerformanceMonitor, SimpleTaskAlertRule
 from agent_evaluator.anomaly import AnomalyDetector
 
@@ -419,15 +540,16 @@ Step 4. 이전 버전 롤백 또는 핫픽스 (20~30분)
   - 원인이 외부 장애면: 대기 또는 폴백 모델 전환
 
 Step 5. 회귀 케이스 골든 데이터셋 추가 (사후)
-  agent-eval dataset build --source results/ --strategy failure_cases  # 실패 케이스 추출
+  agent-eval dataset build results/ --min-score 0.5  # 실패 케이스 포함 추출
   # 수동으로 검토 후 골든 데이터셋에 추가
 ```
 
 - 각 단계에 시간 목표가 명시되어 있어 30분 이내에 해결 또는 롤백 결정을 내릴 수 있는 구조다
-- Step 5의 `agent-eval dataset build --strategy failure_cases`는 사고 원인이 된 케이스를 골든 데이터셋에 추가해 동일 문제의 재발을 방지한다
+- Step 5의 `agent-eval dataset build results/ --min-score 0.5`는 낮은 점수 케이스까지 포함해 사고 원인 케이스를 골든 데이터셋에 추가하고 동일 문제의 재발을 방지한다
 - Phoenix Tracing 필터(`ae.accuracy_score < 0.5`)를 미리 즐겨찾기에 저장해두면 사고 시 Step 2를 1분 안에 완료할 수 있다
 
 ```python
+# 출처: Evaluator_Examples/ch21_pipeline.py — 예제 코드
 # 긴급 진단 스크립트
 import json
 
@@ -478,6 +600,7 @@ Step 4. 임계값 재검토
 ```
 
 ```python
+# 출처: Evaluator_Examples/ch21_pipeline.py — QuickEval 평가
 # compare()로 트렌드 분석
 from agent_evaluator import QuickEval
 
@@ -486,7 +609,7 @@ previous = QuickEval("results/weekly/previous/")
 
 comparison = current.compare(previous)
 print("지표 변화:")
-for metric, delta in comparison.items():
+for metric, delta in comparison["delta"].items():
     sign = "+" if delta > 0 else ""
     print(f"  {metric}: {sign}{delta:.2f}")
 ```
@@ -510,6 +633,7 @@ for metric, delta in comparison.items():
 ### 정량 지표 추출 코드
 
 ```python
+# 출처: Evaluator_Examples/ch21_pipeline.py — QuickEval 평가
 from agent_evaluator import QuickEval
 
 eval = QuickEval("results/")
@@ -517,11 +641,11 @@ summary = eval.summary()
 
 metrics = {
     "tcr": summary.get("tcr", 0),
-    "accuracy_avg": summary.get("accuracy_avg", 0) * 100,
+    "accuracy": summary.get("accuracy", 0) * 100,
     "p95_latency": summary.get("p95_latency", 0),
     "total_cost_usd": summary.get("total_cost_usd", 0),
     "quality_avg": summary.get("quality_avg", 0),
-    "hallucination_rate": summary.get("hallucination_rate", 0) * 100,
+    "hallucination_rate": summary.get("hallucination_rate", 0),
 }
 
 print("=== 도입 성과 지표 ===")
@@ -550,6 +674,7 @@ Phoenix Evaluators 탭에서 팀 고유의 평가 기준을 추가한다.
 이미지, 오디오, 비디오를 처리하는 에이전트도 평가할 수 있다.
 
 ```python
+# 출처: Evaluator_Examples/ch21_pipeline.py — 데코레이터 사용
 from agent_evaluator.decorators import agent_eval, EvalMetadata
 
 @agent_eval(monitor, task_type="qa")
@@ -569,6 +694,7 @@ def vision_agent(question: str, image_path: str, ground_truth: str = "") -> tupl
 ### DSPy로 프롬프트 자동 최적화 연계
 
 ```python
+# 출처: Evaluator_Examples/ch21_pipeline.py — QuickEval 평가
 from agent_evaluator import QuickEval
 import dspy
 
@@ -590,6 +716,7 @@ DSPy의 최적화 결과를 Agent-Evaluator로 평가하고, 골든 데이터셋
 팀 고유의 지표가 필요하다면 `BaseTracker`를 상속해 커스텀 트래커를 만들 수 있다.
 
 ```python
+# 출처: Evaluator_Examples/ch21_pipeline.py — 예제 코드
 from agent_evaluator import BaseTracker, TaskResult
 
 class CustomerSatisfactionTracker(BaseTracker):
@@ -597,7 +724,7 @@ class CustomerSatisfactionTracker(BaseTracker):
 
     def record(self, result: TaskResult) -> None:
         # 응답 길이 기반 만족도 추정 로직
-        response_len = len(result.errors[0] if result.errors else "")
+        response_len = len(result.response or "")
         estimated_satisfaction = min(1.0, result.accuracy_score * 1.2)
         self.metrics["satisfaction_scores"].append(estimated_satisfaction)
 
@@ -611,65 +738,7 @@ class CustomerSatisfactionTracker(BaseTracker):
 
 ---
 
-## 에필로그 — 품질은 결국 습관이다
-
-이 책을 통해 AI 에이전트 평가의 3개 레이어(기반, 에이전틱, 하이브리드)와 58개 지표(25 Native + 33 Harness Config), CI/CD 통합, 프로덕션 모니터링까지 살펴봤다. 마지막으로 가장 중요한 이야기를 하고 싶다.
-
-### AI 에이전트 평가는 도구가 아니라 문화다
-
-Agent-Evaluator는 도구다. 도구는 잘못 쓰면 소음만 만들어낸다. 중요한 것은 팀이 "우리 에이전트의 품질을 어떻게 정의하고, 어떻게 측정하고, 어떻게 개선할 것인가"에 대해 끊임없이 대화하는 문화다.
-
-처음에는 `QuickEval` 한 줄로 시작해도 된다. 중요한 것은 시작하는 것이다.
-
-```python
-# 이것만으로도 충분한 시작이다
-from agent_evaluator import QuickEval
-
-eval = QuickEval("results/")
-
-@eval.qa
-def my_agent(question, ground_truth=""):
-    return call_llm(question)
-
-my_agent("첫 번째 질문", ground_truth="첫 번째 정답")
-eval.save()
-```
-
-### 측정하지 않으면 개선할 수 없다
-
-소프트웨어 엔지니어링에서 유명한 격언이 있다. "You can't improve what you can't measure." 측정하지 않으면 개선할 수 없다. AI 에이전트 품질도 마찬가지다.
-
-오늘 배포한 에이전트가 어제보다 나아졌는지, 지난달보다 나아졌는지 알 수 있는가? 모델을 교체했을 때 실제로 더 좋아졌는지 데이터로 증명할 수 있는가? 프롬프트를 수정했을 때 어떤 케이스에서 개선되고 어떤 케이스에서 후퇴했는지 파악하고 있는가?
-
-이 질문에 "예"라고 답할 수 있는 팀과 "모르겠다"고 답하는 팀의 차이는 시간이 지날수록 커진다.
-
-### Agent-Evaluator를 시작점으로, 팀만의 평가 문화 만들기
-
-모든 팀의 에이전트는 다르다. 고객 서비스 에이전트와 코드 생성 에이전트의 "품질"은 다르게 정의된다. Agent-Evaluator의 58개 지표(25 Native + 33 Harness Config)는 시작점이다. 여기서 팀 고유의 기준을 추가하고, 골든 데이터셋을 쌓고, 임계값을 조정하면서 팀만의 평가 문화를 만들어가라.
-
-한 달 후, 당신의 팀은 이렇게 말할 수 있을 것이다.
-
-"우리 에이전트의 정확도는 지난달 대비 12% 개선됐고, P95 레이턴시는 0.8초 줄었으며, 보안 위협 탐지 0건을 유지하고 있습니다."
-
-그것이 AI 에이전트 품질 문화의 완성이다.
-
----
-
-## [이 챕터의 핵심]
-
-- **전체 사이클**은 4단계로 구성된다. 개발(로컬 QuickEval), CI(골든 데이터셋 100개 + gate), 프로덕션(10% 샘플링 + 실시간 스팬), 주간 회귀(전수 평가 + compare()). 각 단계를 연결하면 완전한 품질 파이프라인이 된다.
-
-- **팀 규모별 도입**: 1인은 1일 안에 QuickEval + GitHub Actions로 시작한다. 소규모 팀은 1주에 골든 데이터셋 + 알림 + 대시보드를 추가한다. 대규모 팀은 1개월에 Phoenix 내부 서버 + CI/CD 완전 통합 + 전담 QA 루틴을 구축한다.
-
-- **런북은 사전에 준비하라.** Severity 1 사고는 반드시 발생한다. "Phoenix에서 필터링 → 원인 분석 → 롤백 또는 핫픽스 → 회귀 케이스 추가"의 30분 대응 절차를 팀이 공유해야 한다.
-
-- **성과 측정** 지표: 평가 사이클 시간, 프로덕션 사고 건수, 모델 교체 의사결정 속도, 골든 데이터셋 크기. 이 4가지를 정기적으로 추적하면 도입 효과를 객관적으로 증명할 수 있다.
-
-- **품질은 도구가 아니라 습관이다.** Agent-Evaluator는 시작점이다. `QuickEval` 한 줄로 시작해서, 팀 고유의 지표와 기준을 추가하고, 골든 데이터셋을 쌓아가는 과정이 진짜 AI 에이전트 품질 문화다.
-
----
-
-## 21.7 드리프트 → 재보정 파이프라인
+## 21.6 드리프트 → 재보정 파이프라인
 
 AI 에이전트는 배포 후에도 조용히 성능이 변한다. 모델이 업데이트되거나, 데이터가 달라지거나, 사용 패턴이 변하면 지표가 서서히 하락한다. 이것이 **드리프트(Drift)**다. 단순 모니터링으로는 부족하다. **드리프트를 감지하고 → 원인을 진단하고 → 자동으로 재보정(Recalibration)**하는 파이프라인이 필요하다.
 
@@ -685,6 +754,7 @@ AI 에이전트는 배포 후에도 조용히 성능이 변한다. 모델이 업
 ### 드리프트 감지 파이프라인
 
 ```python
+# 출처: Evaluator_Examples/ch21_pipeline.py — RunTrendAnalyzer 추세 분석
 # drift_detection.py — 매일 cron으로 실행
 from agent_evaluator.cli.trend import RunTrendAnalyzer
 import json
@@ -733,6 +803,7 @@ fi
 드리프트 이후 새 기준선(baseline)을 재설정할 때, 최근 데이터로 Wilson Score 기반 신뢰구간 임계값을 재계산한다:
 
 ```python
+# 출처: Evaluator_Examples/ch21_pipeline.py — 예제 코드
 # recalibrate_thresholds.py
 import json
 import math
@@ -763,23 +834,25 @@ def recalibrate_from_recent(results_dir: str, window: int = 30) -> dict:
 
 ---
 
-## 21.8 자기개선 루프 — 평가 → 진단 → 개선 3단계
+## 21.7 자기개선 루프 — 평가 → 진단 → 개선 3단계
 
 최고 수준의 AI 시스템은 평가 결과를 다시 학습에 활용한다. 이것이 **자기개선 루프(Self-Improvement Loop)**다. Agent-Evaluator의 데이터를 기반으로 프롬프트·파인튜닝·Config을 자동으로 개선하는 3단계 파이프라인을 구성할 수 있다.
 
 ```
-Stage 1: 지표 하락 감지          Stage 2: 원인 귀속              Stage 3: 개선 액션
-─────────────────────         ─────────────────────────      ──────────────────────────
-RunTrendAnalyzer              Group별 Tracker 드릴다운         결과에 따른 액션 선택
+Stage 1: 지표 하락 감지          Stage 2: Gate별 원인 귀속        Stage 3: 개선 액션
+─────────────────────         ─────────────────────────────   ──────────────────────────
+RunTrendAnalyzer              Gate별 Tracker 드릴다운           결과에 따른 액션 선택
   ↓                              ↓                              ↓
-TCR 하락 감지                  어느 Group이 낮은가?           Gate A 낮음 → 프롬프트 개선
-정확도 하락 감지               어느 Tracker가 낮은가?         Gate D 높음 → 인프라 확장
-P95 지연 상승 감지             실패 케이스 패턴 분석           Gate E 위반 → 보안 Config 강화
+TCR 하락 감지                  Gate A: 목표 달성 지표 확인      Gate A 낮음 → 프롬프트 개선
+정확도 하락 감지               Gate D: 성능 계약 지표 확인      Gate D 높음 → 인프라 확장
+P95 지연 상승 감지             Gate E: 보안 경계 지표 확인      Gate E 위반 → 보안 Config 강화
+                               extra_metrics.harness_groups 참조
 ```
 
 ### Stage 1 — 지표 하락 감지 (RunTrendAnalyzer)
 
 ```python
+# 출처: Evaluator_Examples/ch21_pipeline.py — RunTrendAnalyzer 추세 분석
 from agent_evaluator.cli.trend import RunTrendAnalyzer
 
 # 매주 실행 — 최근 4주 추세 분석
@@ -800,6 +873,7 @@ needs_improvement = (
 ### Stage 2 — 원인 귀속 (Group별 Tracker 드릴다운)
 
 ```python
+# 출처: Evaluator_Examples/ch21_pipeline.py — PerformanceMonitor 설정
 from agent_evaluator import PerformanceMonitor
 import json
 
@@ -807,10 +881,17 @@ import json
 with open("results/latest_eval.json") as f:
     eval_data = json.load(f)
 
+# Gate별 집계 결과는 extra_metrics.harness_groups 키에 저장됨
+# 예: eval_data["extra_metrics"]["harness_groups"]["A"]["gate"] → "PASS"/"WARN"/"FAIL"
+harness = (eval_data.get("extra_metrics") or {}).get("harness_groups", {})
+gate_a_status = (harness.get("A") or {}).get("gate", "?")
+gate_d_status = (harness.get("D") or {}).get("gate", "?")
+print(f"Gate A(목표달성): {gate_a_status}  Gate D(성능계약): {gate_d_status}")
+
 tasks = eval_data.get("tasks", [])
 failed = [t for t in tasks if not t.get("success", True)]
 
-# Group별 실패 분포 분석
+# Gate별 실패 분포 분석
 group_failures = {
     "A_목표달성": sum(1 for t in failed if t.get("accuracy_score", 1.0) < 0.5),
     "B_행동무결성": sum(1 for t in failed if len(t.get("tool_calls", [])) == 0 and t.get("task_type") == "tool_use"),
@@ -840,6 +921,7 @@ print(f"분석할 실패 패턴: {len(failure_patterns)}개")
 원인 귀속 결과에 따라 세 가지 개선 경로 중 하나를 선택한다:
 
 ```python
+# 출처: Evaluator_Examples/ch21_pipeline.py — SLAConfig · ThreatSeverityConfig
 def select_improvement_action(dominant_group: str, failure_patterns: list) -> str:
     """Group별 진단 결과에 따라 개선 액션 선택"""
     
@@ -890,6 +972,7 @@ print(f"   다음 평가 주기에서 개선 효과 측정 예정")
 | 재발률 | 동일 원인 재발생 비율 | < 10% |
 
 ```python
+# 출처: Evaluator_Examples/ch21_pipeline.py — RunTrendAnalyzer 추세 분석
 # 자기개선 KPI 측정
 from agent_evaluator.cli.trend import RunTrendAnalyzer
 
@@ -1051,7 +1134,7 @@ agent-eval dashboard results/
 | ch10_group_g | 운영: 인프라 종합 | AnomalyDetector, CostTracker, GoldenSet |
 | ch19_phoenix | 운영: OTEL·외부 평가 | Phoenix 스팬, DeepEval/Ragas 연동 |
 
-**전체 파이프라인 실행 결과 요약 (v0.8.4 기준)**
+**전체 파이프라인 실행 결과 요약 (v0.8.5 기준)**
 
 ```
 === 종합 파이프라인 실행 결과 ===
@@ -1173,3 +1256,66 @@ monitor_v2.save_to_file("10_version_v2")
 > **패턴 핵심**: 독립 `PerformanceMonitor` 인스턴스를 버전마다 생성 → 동일 Config로 동일 태스크 실행 → Gate 점수 차이가 버전 개선 근거가 된다.
 
 > **팀 규모별 시작점**: 1인 개발자는 `ch12_decorators.py`만 실행하고 `agent-eval gate`를 GitHub Actions에 등록하는 것으로 하루 안에 시작할 수 있다. 소규모 팀은 ch02~ch13을 순차로 도입하고, 대규모 팀은 ch19_phoenix까지 포함한 전체 파이프라인을 운영한다.
+
+---
+
+## 에필로그 — 품질은 결국 습관이다
+
+이 책을 통해 **Harness Engineering**의 전 과정을 살펴봤다. 3개 레이어(기반, 에이전틱, 하이브리드)와 58개 지표(25 Native Tracker + 33 Harness Config), 7개 Gate(A–G)로 구성된 평가 체계가 개발→CI→운영→개선 4단계 파이프라인의 각 검문소에서 에이전트를 검증하는 방식을 배웠다. 마지막으로 가장 중요한 이야기를 하고 싶다.
+
+### AI 에이전트 평가는 도구가 아니라 문화다
+
+Agent-Evaluator는 도구다. 도구는 잘못 쓰면 소음만 만들어낸다. 중요한 것은 팀이 "우리 에이전트의 품질을 어떻게 정의하고, 어떻게 측정하고, 어떻게 개선할 것인가"에 대해 끊임없이 대화하는 문화다.
+
+처음에는 `QuickEval` 한 줄로 시작해도 된다. 중요한 것은 시작하는 것이다.
+
+```python
+# 출처: Evaluator_Examples/ch21_pipeline.py — QuickEval 평가
+# 이것만으로도 충분한 시작이다
+from agent_evaluator import QuickEval
+
+eval = QuickEval("results/")
+
+@eval.qa
+def my_agent(question, ground_truth=""):
+    return call_llm(question)
+
+my_agent("첫 번째 질문", ground_truth="첫 번째 정답")
+eval.save()
+```
+
+### 측정하지 않으면 개선할 수 없다
+
+소프트웨어 엔지니어링에서 유명한 격언이 있다. "You can't improve what you can't measure." 측정하지 않으면 개선할 수 없다. AI 에이전트 품질도 마찬가지다.
+
+오늘 배포한 에이전트가 어제보다 나아졌는지, 지난달보다 나아졌는지 알 수 있는가? 모델을 교체했을 때 실제로 더 좋아졌는지 데이터로 증명할 수 있는가? 프롬프트를 수정했을 때 어떤 케이스에서 개선되고 어떤 케이스에서 후퇴했는지 파악하고 있는가?
+
+이 질문에 "예"라고 답할 수 있는 팀과 "모르겠다"고 답하는 팀의 차이는 시간이 지날수록 커진다.
+
+### Agent-Evaluator를 시작점으로, 팀만의 평가 문화 만들기
+
+모든 팀의 에이전트는 다르다. 고객 서비스 에이전트와 코드 생성 에이전트의 "품질"은 다르게 정의된다. Agent-Evaluator의 58개 지표(25 Native + 33 Harness Config)는 시작점이다. 여기서 팀 고유의 기준을 추가하고, 골든 데이터셋을 쌓고, 임계값을 조정하면서 팀만의 평가 문화를 만들어가라.
+
+한 달 후, 당신의 팀은 이렇게 말할 수 있을 것이다.
+
+"우리 에이전트의 정확도는 지난달 대비 12% 개선됐고, P95 레이턴시는 0.8초 줄었으며, 보안 위협 탐지 0건을 유지하고 있습니다."
+
+그것이 AI 에이전트 품질 문화의 완성이다.
+
+---
+
+## [이 챕터의 핵심]
+
+- **전체 사이클은 Harness Engineering의 4단계 파이프라인**이다. ① 개발(Gate A+D 베이스라인 로컬 검증), ② CI(Gate A > D > B 우선순위 자동 판정 · 골든 데이터셋 100개), ③ 운영(Gate E 보안 실시간 감시 · 10% 샘플링 · 실시간 스팬), ④ 개선(Gate 기반 회귀 탐지 · 임계값 재보정 · 자기개선 루프). 각 단계마다 Gate 검문소가 기준 미달 시 다음 단계 진행을 차단한다.
+
+- **팀 규모별 도입**: 1인은 1일 안에 QuickEval + GitHub Actions로 시작한다. 소규모 팀은 1주에 골든 데이터셋 + 알림 + 대시보드를 추가한다. 대규모 팀은 1개월에 Phoenix 내부 서버 + CI/CD 완전 통합 + 전담 QA 루틴을 구축한다.
+
+- **런북은 사전에 준비하라.** Severity 1 사고는 반드시 발생한다. "Phoenix에서 필터링 → 원인 분석 → 롤백 또는 핫픽스 → 회귀 케이스 추가"의 30분 대응 절차를 팀이 공유해야 한다.
+
+- **성과 측정** 지표: 평가 사이클 시간, 프로덕션 사고 건수, 모델 교체 의사결정 속도, 골든 데이터셋 크기. 이 4가지를 정기적으로 추적하면 도입 효과를 객관적으로 증명할 수 있다.
+
+- **드리프트 감지와 재보정** (§21.6): `RunTrendAnalyzer`로 주당 추세 변화율(slope)을 계산하고, `--fail-on-regression`이 `exit 1`을 반환하면 Wilson Score 기반으로 임계값을 재보정한다. 드리프트 감지 시간(MTTD) < 3일을 목표로 한다.
+
+- **자기개선 루프** (§21.7): 지표 하락 감지 → Gate별 원인 귀속 → 프롬프트/인프라/보안 Config 개선 3단계. 루프당 TCR +5% 이상 개선을 KPI로 설정하고, 재발률 10% 이하를 목표로 한다.
+
+- **품질은 도구가 아니라 습관이다.** Agent-Evaluator는 시작점이다. `QuickEval` 한 줄로 시작해서, 팀 고유의 지표와 기준을 추가하고, 골든 데이터셋을 쌓아가는 과정이 진짜 AI 에이전트 품질 문화다.

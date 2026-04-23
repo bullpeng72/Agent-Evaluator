@@ -1,28 +1,33 @@
 # Chapter 15. 대시보드와 시각화
 
 > **이 챕터에서 배우는 것**
-> - Agent-Evaluator 대시보드의 아키텍처와 50+ 엔드포인트 구조를 이해한다
+> - Agent-Evaluator 대시보드의 아키텍처(FastAPI + Alpine.js + Plotly, 12개 라우터)를 이해한다
+> - Harness Gate A–G 판정 결과를 대시보드에서 읽고 배포 결정에 활용하는 방법을 파악한다
 > - 21개 메뉴를 🟢데코레이터만 / 🟡데코레이터+추가작업 / 🔵데코레이터무관 3가지로 분류하고 각 작동 방식을 파악한다
 > - `save_to_file()`, `auto_save`, `QuickEval.save()` 3가지 데이터 생성 방법을 익힌다
+> - Gate 상관 히트맵·실패 연쇄 추적 등 고급 시각화를 해석하는 법을 배운다
 > - 핵심 API 엔드포인트를 활용해 문제 케이스를 빠르게 찾는 법을 배운다
 > - 실시간 업데이트와 데이터 내보내기 방법을 파악한다
 > - QA 관리자를 위한 매일 5분 대시보드 점검 루틴을 수립한다
 
 ---
 
-## 15.1 대시보드 아키텍처 — 50+ 엔드포인트 구조
+## 15.1 대시보드 아키텍처 — Gate 판정 결과 시각화 플랫폼
 
-Agent-Evaluator 대시보드는 **FastAPI 백엔드 + Alpine.js 프론트엔드** 조합으로 만들어진 경량 웹 애플리케이션이다. 별도의 데이터베이스가 없고, `results/` 디렉토리의 JSON 파일을 실시간으로 읽어서 시각화한다.
+Agent-Evaluator 대시보드는 **FastAPI 백엔드 + Alpine.js 프론트엔드 + Plotly 차트** 조합으로 만들어진 경량 웹 애플리케이션이다. 별도의 데이터베이스가 없고, `results/` 디렉토리의 JSON 파일을 실시간으로 읽어서 시각화한다. **Harness Gate A–G 판정 결과를 팀 전체가 공유하는 플랫폼**으로 설계되어 있다.
 
-### 전체 구조
+### 대시보드의 역할 — 배포 결정의 근거를 시각화하다
+
+평가 코드가 `save_to_file()`을 호출하면 JSON 파일 안의 `extra_metrics.harness_groups` 키에 Gate A–G 판정 결과가 저장된다. 대시보드는 이 키를 읽어 Gate별 PASS/WARN/FAIL 상태를 시각적으로 표시한다.
 
 ```
-[Python 평가 코드]
-    → monitor.save_to_file() 또는 eval.save()
-    → results/eval.json + results/eval.html 생성
+[평가 코드 실행]
+    @agent_eval(monitor, ...) → monitor.record_task() → monitor.save_to_file()
+    → results/evaluation.json  ← extra_metrics.harness_groups 에 Gate A–G 결과 저장
+    → results/evaluation.html  ← Gate A–G 중심 독립 실행형 HTML 보고서
 
-[대시보드 서버]
-    FastAPI (포트 8765)
+[대시보드 서버]  agent-eval dashboard (기본 포트 8765)
+    FastAPI + 12개 API 라우터
     ├── /api/stats                               — 전체 통계 요약
     ├── /api/results                             — 평가 파일 목록
     ├── /api/results/{file_id}                   — 특정 파일 태스크 목록 (정렬/필터)
@@ -34,29 +39,45 @@ Agent-Evaluator 대시보드는 **FastAPI 백엔드 + Alpine.js 프론트엔드*
     ├── /api/cost/trend                          — 비용 추이
     ├── /api/results/{file_id}/llm_judge         — LLM Judge 점수
     ├── /api/conversation                        — 대화 세션 목록
-    ├── /api/export/excel/{file_id}              — Excel 내보내기
+    ├── /api/export/excel/{file_id}              — Excel 내보내기 ([export] extra 필요)
     └── /ws/events                               — WebSocket 실시간 업데이트
 
 [브라우저]
-    Alpine.js 프론트엔드
-    → Overview / Quality / Agentic / Security / RAG / DeepEval 탭
-    → 차트: Chart.js (라인, 바, 도넛, 레이더, 히스토그램)
+    Alpine.js 프론트엔드 + Plotly 차트
+    → Nav 3단 계층: 개요 / Harness Gate / 상세 분석 / 내보내기
+    → Harness Gate 탭: Gate A–G 그룹별 통과/경고/실패 시각화
+    → Gate 상관 히트맵: 7×7 Pearson 상관 행렬 (Gate 간 연관 패턴 확인)
+    → 실패 연쇄 추적: 어느 Gate 실패가 다른 Gate 실패를 유발하는지 추적
 ```
 
-### 탭별 주요 기능
+### 템플릿 파일 구조
 
-| 탭 | 핵심 내용 | 특이사항 |
-|----|----------|---------|
-| **Overview** | TCR, Accuracy, 응답시간, 비용 KPI 카드 | 프레임워크 분포 도넛 차트 |
-| **Quality** | 정확도, 품질 점수, 환각 탐지, RAG 지표 | Quality는 /5.0 스케일 |
-| **Agentic** | 도구 호출, 재시도, 워크플로우, 협업 | 3개 서브탭으로 구성 |
-| **Security** | 5종 보안 지표, 위협 이벤트 타임라인 | `enable_security_metrics=True` 필요 |
-| **RAG** | Faithfulness, Answer Relevancy, Context Precision/Recall | `HybridPerformanceMonitor` 필요 |
-| **DeepEval** | G-Eval, Toxicity, Bias, Answer Relevancy | `use_deepeval=True` 필요 |
+대시보드는 두 가지 Jinja2 템플릿으로 구성된다.
+
+| 템플릿 파일 | 역할 | 접속 방법 |
+|------------|------|---------|
+| `dashboard2.html.j2` | Harness Gate 대시보드 (Nav 3단 계층, Alpine.js + Plotly) | `agent-eval dashboard` → 브라우저 |
+| `slides.html.j2` | Harness Gate 슬라이드 발표자료 (Reveal.js, 14슬라이드 Gate A–G) | 대시보드 내 슬라이드 모드 |
+
+### Harness Gate 탭 — 대시보드의 핵심
+
+대시보드의 **Harness Gate 탭**은 Gate A–G 각 그룹의 PASS/WARN/FAIL 판정 결과를 카드 형태로 표시한다. QA 관리자는 이 탭에서 배포 가능 여부를 한눈에 판단한다.
+
+| Gate 탭 | 표시 내용 | 배포 결정 기준 |
+|---------|----------|-------------|
+| **Gate A** 목표달성 | TCR·정확도·지시이행률 | FAIL 시 기능 미완성 — 배포 불가 |
+| **Gate B** 행동무결성 | 루프탐지·범위일탈·상태일관성 | FAIL 시 에이전트 오작동 위험 |
+| **Gate C** 신뢰성 | 재현가능성·오류복구율·멱등성 | FAIL 시 프로덕션 안정성 미달 |
+| **Gate D** 성능계약 | SLA·토큰효율·비용예측 | WARN 시 SLA 협의 후 조건부 배포 |
+| **Gate E** 보안경계 | 위협심각도·규정준수·위협대응 | FAIL 시 보안 취약 — 배포 차단 |
+| **Gate F** 다중에이전트 | 합의율·정보전파·역할준수 | 다중 에이전트 구성 시 필수 |
+| **Gate G** 운영관측성 | 추론설명·상태추적·오류진단 | FAIL 시 운영 중 원인 파악 불가 |
+
+> **QA 관리자 → 개발자 협업**: Gate FAIL이 발생하면 대시보드 링크를 개발자에게 공유한다. 개발자는 `extra_metrics.harness_groups` 안의 상세 점수를 보고 어느 Config 임계값이 위반되었는지 파악한다. Gate 기준을 조정해야 할 때는 대시보드 ⚙️ 설정 탭에서 임계값을 변경하고 팀 내 합의를 문서화한다.
 
 ### Gate 점수 이해하기 — 대시보드 숫자의 원천
 
-Overview 탭의 Gate A–G 표시등이 초록/노랑/빨강으로 바뀌는 기준은 무엇인가? 각 Gate 점수는 특정 Tracker가 수집한 데이터의 집계다.
+Harness Gate 탭의 PASS/WARN/FAIL 표시등이 바뀌는 기준은 무엇인가? 각 Gate 점수는 특정 Tracker가 수집한 데이터를 Config에 선언된 임계값과 비교한 결과다.
 
 | 대시보드 Gate 표시 | 원천 Tracker (개발자가 활성화) | 개발자 설정 방법 |
 |-------------------|--------------------------|----------------|
@@ -66,13 +87,39 @@ Overview 탭의 Gate A–G 표시등이 초록/노랑/빨강으로 바뀌는 기
 | **Gate D** 성능계약 | `LatencyTracker` (P95) + `TokenEconomyTracker` | 기본 자동 |
 | **Gate E** 보안경계 | `InputSanitizationTracker` 외 4종 | `enable_security_metrics=True` |
 | **Gate F** 다중에이전트 | `AgentCoordinationTracker` + `ToolSelectionTracker` | agent_interactions 데이터 포함 시 |
-| **Gate G** 운영관측성 | `LLMJudge` 7차원 채점 | `enable_llm_judge=True` + API 키 |
+| **Gate G** 운영관측성 | `ExplainabilityConfig` + `ObservabilityConfig` + `ErrorDiagnosisConfig` + `LatencyAttributionConfig` | Harness Gate G Config 전달 시 |
 
 **Gate가 회색(비활성)으로 표시되는 경우**: 담당 Tracker가 꺼져 있거나 입력 데이터가 없는 것이다. 개발자에게 위 표를 참고해 해당 Tracker 활성화를 요청하면 된다.
 
 **Gate 점수 계산 방식**: Tracker 측정값이 Config에 선언된 임계값을 얼마나 초과하는지 집계. `fail_on_violation=True`인 Config가 위반될수록 TCR이 떨어지고 Gate A 점수에 반영된다.
 
-> 📖 각 Gate의 상세 점수 계산 공식 → Part II Chapter 4–10 (Gate A–G별 챕터) / Tracker 활성화 전체 목록 → [Chapter 2 §2.5](../Part_I_기초/Chapter_02_Agent-Evaluator_첫_시작.md) / 개발자-QA 협업 흐름 → [Chapter 3 §3.5](../Part_II_지표시스템/Chapter_03_Harness_Engineering_기초.md)
+**JSON 결과 파일에서 Gate 점수 확인**: `extra_metrics.harness_groups` 키 아래 Gate A–G 각 그룹의 상세 점수와 위반 내역이 저장된다.
+
+```json
+{
+  "extra_metrics": {
+    "harness_groups": {
+      "gate_a_goal_achievement": {"score": 0.87, "status": "PASS", "details": {...}},
+      "gate_b_behavioral_integrity": {"score": 0.62, "status": "WARN", "details": {...}},
+      "gate_e_security_boundary": {"score": 0.41, "status": "FAIL", "details": {...}}
+    }
+  }
+}
+```
+
+### Gate 상관 히트맵 — Gate 간 연관 패턴 읽기
+
+대시보드의 Harness Gate 탭 하단에는 **7×7 Pearson 상관 히트맵**이 표시된다. 이 히트맵은 Gate 간 점수가 얼마나 함께 움직이는지를 보여준다.
+
+**해석 방법:**
+
+| 히트맵 패턴 | 의미 | 취해야 할 행동 |
+|------------|------|-------------|
+| Gate A–D 강한 양의 상관 (짙은 파란색) | 목표달성·신뢰성·성능이 함께 좋거나 나쁨 | 원인이 동일할 가능성 — 공통 개선으로 효율 극대화 |
+| Gate E가 다른 Gate와 무상관 (흰색 계열) | 보안 이슈가 기능 품질과 독립적으로 발생 | 보안 전담 리뷰 별도 진행 |
+| Gate B–F 음의 상관 (짙은 빨간색) | 행동무결성이 좋을수록 다중에이전트 협업 점수 하락 | 에이전트 간 역할 분리 설계 재검토 |
+
+**실패 연쇄 추적**: 히트맵 옆 "실패 연쇄" 패널에서는 어느 Gate의 FAIL이 다른 Gate의 FAIL로 이어지는지 추적한다. 예를 들어 Gate C(신뢰성) FAIL → Gate A(목표달성) FAIL 패턴이 반복된다면, 오류 복구 로직 개선이 전체 TCR에 가장 큰 영향을 준다는 의미다. 이 패널을 보고 개발자에게 "어느 Gate를 먼저 고쳐야 하는가"를 데이터로 안내할 수 있다.
 
 ---
 
@@ -124,6 +171,7 @@ JSON: summary / tasks[] / insights / efficiency_metrics
 Ragas·DeepEval 지표를 채우려면 `HybridPerformanceMonitor`와 외부 패키지가 필요하다.
 
 ```python
+# 출처: Evaluator_Examples/ch15_dashboard.py — HybridPerformanceMonitor
 # pip install "agent-evaluator[eval]" + OpenAI API 키 필요
 from agent_evaluator import HybridPerformanceMonitor
 
@@ -140,9 +188,10 @@ monitor = HybridPerformanceMonitor(
 `StreamingEvaluator`를 별도로 생성하고, 저장 전에 `_flush()`를 반드시 호출해야 한다. `_flush()` 없으면 `streaming_data` 키가 JSON에 포함되지 않아 탭이 공백이다.
 
 ```python
+# 출처: Evaluator_Examples/ch15_dashboard.py — StreamingEvaluator 실시간 평가
 from agent_evaluator.streaming.evaluator import StreamingEvaluator
 
-streaming = StreamingEvaluator(monitor=monitor, window_size=20)
+streaming = StreamingEvaluator(monitor=monitor, flush_interval=60)
 # 태스크마다: streaming.record(task_result)
 streaming._flush()   # ← 저장 전 필수
 monitor.save_to_file("eval")
@@ -153,6 +202,7 @@ monitor.save_to_file("eval")
 `SimpleTaskAlertRule`을 생성하고 `alert_rules=` 파라미터로 전달한다. 대시보드 알림 탭은 `results/alerts/YYYY-MM-DD.jsonl` 파일을 직접 읽으므로, **핸들러 함수 안에서 JSONL 기록 코드를 직접 구현**해야 한다.
 
 ```python
+# 출처: Evaluator_Examples/ch15_dashboard.py — 알림 시스템
 import json
 from agent_evaluator import SimpleTaskAlertRule
 
@@ -174,6 +224,7 @@ def my_agent(...): ...
 UI 클릭·별점·재질문 등은 에이전트 외부에서 발생하므로 평가 루프 안에서 수동으로 기록해야 한다.
 
 ```python
+# 출처: Evaluator_Examples/ch15_dashboard.py — 예제 코드
 # 반드시 monitor의 메서드를 사용 — 독립 인스턴스 생성 금지
 monitor.record_implicit_feedback(
     task_id=result.task_id,
@@ -187,6 +238,7 @@ monitor.record_implicit_feedback(
 `PerformanceMonitor` 생성 시 플래그 하나를 추가하면 `save_to_file()` 시점에 자동으로 이상 탐지를 실행한다.
 
 ```python
+# 출처: Evaluator_Examples/ch15_dashboard.py — AnomalyDetector 이상 탐지
 monitor = PerformanceMonitor(
     output_dir="results/",
     enable_anomaly_detection=True,   # ← 이것만 추가
@@ -202,6 +254,7 @@ monitor = PerformanceMonitor(
 토큰 사용 비용은 `TokenEconomyTracker`가 자동 계산한다. LLM Judge API 호출 비용을 포함하려면 `enable_llm_judge=True`를 추가한다.
 
 ```python
+# 출처: Evaluator_Examples/ch15_dashboard.py — PerformanceMonitor 설정
 # 기본 토큰 비용: 추가 설정 불필요
 # LLM Judge 비용 포함 시:
 monitor = PerformanceMonitor(
@@ -220,14 +273,20 @@ monitor = PerformanceMonitor(
 
 | 메뉴 | 작동 방식 | QA 활용법 |
 |------|----------|----------|
-| **📂 파일 비교** | `results/` 에 JSON 2개 이상 → 드롭다운 선택 → 지표 차이 자동 계산 | 신버전 배포 전 A/B 비교, 회귀 여부 판단 |
+| **📂 파일 비교** | `results/` 에 JSON 2개 이상 → 드롭다운 선택 → 지표 차이 자동 계산 | 신버전 배포 전 A/B 비교, Gate 점수 회귀 여부 판단 |
 | **📚 골든 데이터셋** | `agent-eval dataset build results/ --min-score 0.8` CLI 또는 UI 직접 편집 | 높은 품질 응답을 정답 기준으로 축적 |
-| **📤 내보내기** | JSON·CSV·HTML 3가지 형식 다운로드 | 주간 리포트 팀 공유, 스프레드시트 추가 분석 |
+| **📤 내보내기** | JSON·CSV·HTML·Parquet 형식 다운로드. CSV에는 Gate A–G 컬럼 16개 포함 | 주간 리포트 팀 공유, 스프레드시트 추가 분석. Excel·Parquet은 `[export]` extra(`pyarrow`+`openpyxl`) 필요 — 미설치 시 HTTP 409 |
 | **🔍 투명성** | `TestTransparencyManager.add_annotation()` 독립 호출 | 감사 로그, 규정 준수 근거 기록 |
 | **📖 지표 설명** | 항상 표시 (정적 문서) | 지표 의미·계산식 빠른 참조 |
-| **⚙️ 설정** | UI에서 임계값 입력 → 💡 인사이트 탭 경고 기준 즉시 반영 | 프로젝트별 품질 기준 조정 |
+| **⚙️ 설정** | UI에서 임계값 입력 → 💡 인사이트 탭 경고 기준 즉시 반영 | 프로젝트별 Gate 기준 팀 합의 후 조정 |
 
-> **QA 관리자를 위한 팁**: 유형 1의 8개 탭만으로도 일상적인 품질 모니터링의 80%를 커버할 수 있다. 유형 2는 단계적으로 도입하되, 이상 감지(`enable_anomaly_detection=True`)를 첫 번째 추가 항목으로 권장한다.
+> **QA 관리자를 위한 팁**: 유형 1의 기본 탭만으로도 일상적인 품질 모니터링의 80%를 커버할 수 있다. Harness Gate 탭은 기본 탭에 Harness Config를 추가하면 자동으로 활성화된다. 유형 2는 단계적으로 도입하되, 이상 감지(`enable_anomaly_detection=True`)를 첫 번째 추가 항목으로 권장한다.
+
+> **대시보드 결과를 보고 어떤 행동을 취해야 하는가**:
+> - Gate PASS (초록): 해당 Gate의 배포 조건 충족 — 다음 Gate 확인으로 이동
+> - Gate WARN (노랑): 임계값을 넘지는 않았지만 근접 — 개발자와 임계값 재협의 또는 모니터링 강화
+> - Gate FAIL (빨강): 배포 차단 조건 — 개발자에게 대시보드 링크를 공유하고 `extra_metrics.harness_groups` 상세 내역으로 원인 파악 요청
+> - 모든 Gate PASS: 배포 준비 완료 — `agent-eval gate result.json` CLI로 CI/CD에서도 동일 기준 자동 검증 가능
 
 ---
 
@@ -240,6 +299,7 @@ monitor = PerformanceMonitor(
 가장 명시적인 방법. 평가가 끝난 후 명시적으로 저장한다.
 
 ```python
+# 출처: Evaluator_Examples/ch15_dashboard.py — PerformanceMonitor 설정
 from agent_evaluator import PerformanceMonitor
 from agent_evaluator.decorators import agent_eval
 
@@ -264,6 +324,7 @@ monitor.save_to_file("evaluation")
 장시간 실행되는 평가에서 유용하다. 중간에 프로세스가 죽어도 데이터가 보존된다.
 
 ```python
+# 출처: Evaluator_Examples/ch15_dashboard.py — PerformanceMonitor 설정
 from agent_evaluator import PerformanceMonitor
 from agent_evaluator.decorators import agent_eval
 
@@ -290,6 +351,7 @@ for q, gt in large_dataset:
 가장 간편한 방법. `QuickEval`을 사용할 때의 표준 저장 방식이다.
 
 ```python
+# 출처: Evaluator_Examples/ch15_dashboard.py — QuickEval 평가
 from agent_evaluator import QuickEval
 
 eval = QuickEval("results/")
@@ -317,6 +379,7 @@ eval.save("my_eval_20260409")
 데코레이터 수준에서 저장 주기를 제어할 수도 있다. 여러 에이전트를 동시에 평가할 때 유용하다.
 
 ```python
+# 출처: Evaluator_Examples/ch15_dashboard.py — PerformanceMonitor 설정
 from agent_evaluator import PerformanceMonitor
 from agent_evaluator.decorators import agent_eval
 
@@ -606,24 +669,35 @@ curl -N "http://localhost:8765/stream/filtered/evaluation"
 
 분석 결과를 팀과 공유하거나 외부 도구로 가져가야 할 때 내보내기 기능을 사용한다.
 
-### Excel 내보내기
+### Excel / Parquet 내보내기
 
 ```bash
 # Excel 파일 다운로드 (file_id 기반)
 curl -o evaluation_results.xlsx "http://localhost:8765/api/export/excel/evaluation"
+
+# Parquet 파일 다운로드 (대용량 데이터 분석에 적합)
+curl -o evaluation_results.parquet "http://localhost:8765/api/export/parquet/evaluation"
 ```
 
-- `-o` 옵션으로 다운로드 파일명을 지정하면 바로 Excel 파일로 저장된다
-- Excel 내보내기는 `[export]` extra(`pyarrow` + `openpyxl`)가 설치되어야 동작한다 — 미설치 시 HTTP 409 오류가 반환된다
-- 다운로드된 Excel 파일에는 태스크별 accuracy, latency, tokens, task_type 등 모든 지표가 컬럼으로 정리되어 있다
+- Excel·Parquet 내보내기는 `[export]` extra(`pyarrow` + `openpyxl`)가 설치되어야 동작한다.
+  - 미설치 상태에서 호출하면 **HTTP 409 Conflict** 오류가 반환된다.
+  - 설치 명령: `pip install "agent-evaluator[export]"`
+- Excel 파일에는 태스크별 accuracy, latency, tokens, task_type 등 모든 지표가 컬럼으로 정리되어 있다.
+- **CSV export에는 Gate A–G 컬럼 16개가 포함**된다(v0.8.2+). 스프레드시트에서 Gate별 점수를 직접 필터·정렬할 수 있다.
 
-Excel 파일에는 태스크별 전체 지표가 컬럼으로 정리되어 있다. 스프레드시트 도구에서 추가 분석이 필요할 때 유용하다.
+```bash
+# CSV 내보내기 (Gate A–G 컬럼 16개 포함, [export] extra 불필요)
+curl -o evaluation_results.csv "http://localhost:8765/api/export/csv/evaluation"
+```
+
+Excel 또는 CSV 파일을 팀 채널에 공유하면 대시보드 접속 없이도 Gate 판정 결과를 스프레드시트로 검토할 수 있다.
 
 ### DataFrame으로 내보내기
 
 Python 코드 안에서 평가 결과를 DataFrame으로 변환하면 pandas를 활용한 세밀한 분석이 가능하다.
 
 ```python
+# 출처: Evaluator_Examples/ch15_dashboard.py — QuickEval 평가
 from agent_evaluator import QuickEval
 
 eval = QuickEval("results/")
@@ -713,6 +787,7 @@ ls results/*.json                # 파일 존재 확인
 
 **원인 A**: `setup_otel()`이 `PerformanceMonitor` 생성 이후에 호출됨
 ```python
+# 출처: Evaluator_Examples/ch15_dashboard.py — PerformanceMonitor 설정
 # 잘못된 순서
 monitor = PerformanceMonitor(output_dir="results/")
 setup_otel(endpoint="http://localhost:6006")  # 이미 늦음
@@ -783,6 +858,7 @@ def rag_agent(question: str, context: str = "", ground_truth: str = "") -> str: 
 
 **원인**: `enable_security_metrics=False` (기본값).
 ```python
+# 출처: Evaluator_Examples/ch15_dashboard.py — SecurityConfig
 monitor = PerformanceMonitor(enable_security_metrics=True)
 # 또는 팩토리 메서드
 monitor = PerformanceMonitor.for_secure_agents()
@@ -824,6 +900,7 @@ pip install "agent-evaluator[langchain]"    # LangGraph도 포함됨
 
 **원인**: 같은 `session_id`를 여러 세션에서 재사용.
 ```python
+# 출처: Evaluator_Examples/ch15_dashboard.py — 데코레이터 사용
 import uuid
 
 @conversation_eval(monitor, session_id_arg="session_id")
@@ -854,11 +931,14 @@ def agent(question: str, ground_truth: str = "") -> str: ...
 
 ## 이 챕터의 핵심
 
+- **대시보드는 Gate 판정 결과를 팀 전체가 공유하는 플랫폼이다** — FastAPI + Alpine.js + Plotly, 12개 API 라우터. Gate A–G 판정 결과는 JSON의 `extra_metrics.harness_groups` 키에 저장된다
+- **Harness Gate 탭이 배포 결정의 근거다** — PASS/WARN/FAIL 시각화를 보고 배포 가부를 판단하고, Gate FAIL 시 개발자에게 대시보드 링크를 공유해 원인을 안내한다
+- **Gate 상관 히트맵(7×7 Pearson)으로 우선순위를 정한다** — 어느 Gate를 먼저 개선해야 전체 점수에 가장 큰 영향을 주는지 데이터로 파악한다
 - **대시보드는 JSON 파일을 읽는다** — 평가 코드에서 반드시 `save_to_file()` 또는 `eval.save()`를 호출해야 데이터가 보인다
 - **3가지 저장 방법** — 직접 호출(A), auto_save(B), QuickEval.save()(C) 중 상황에 맞게 선택한다. 프로덕션에서는 auto_save가 안전하다
 - **API로 정밀 분석** — UI만으로 부족할 때는 `/tasks/filter` 복합 조건과 `/distributions` 분포 분석을 직접 API로 호출한다
 - **5분 점검 루틴** — `/api/stats` → 최하위 케이스 → `/anomaly` → 비용 순서로 매일 아침 5분 점검 루틴을 만들면 문제를 조기에 발견한다
-- **내보내기 활용** — Excel 내보내기 또는 `export_to_dataframe()`으로 팀과 분석 결과를 공유하고, pandas로 추가 분석한다
+- **내보내기 활용** — CSV(Gate 컬럼 16개 포함), Excel/Parquet(`[export]` extra 필요, 미설치 시 HTTP 409), `export_to_dataframe()`으로 팀과 분석 결과를 공유한다
 
 ---
 
@@ -909,15 +989,16 @@ eval_q.save("ch15_dashboard_quickeval")
 # 출처: Evaluator_Examples/ch15_dashboard.py, 섹션 3 — AnomalyDetector
 from agent_evaluator import AnomalyDetector, CostTracker
 
-anomaly_detector = AnomalyDetector(window_size=5, z_score_threshold=2.5)
-cost_tracker = CostTracker(budget_usd=5.0)
+anomaly_detector = AnomalyDetector(baseline_window=15, detection_window=5)
+cost_tracker = CostTracker(budget_per_day=5.0)
 
 for result in task_results:
     monitor.record_task(result)
-    event = anomaly_detector.check(result)
-    if event:
-        print(f"⚠️  이상 탐지: {result.task_id} — lat={result.execution_time:.2f}s")
-    cost_tracker.track(result)
+    cost_tracker.record("openai", "gpt-4o-mini", cost_usd=0.0001)
+
+events = anomaly_detector.scan(monitor)
+for event in events:
+    print(f"⚠️  이상 탐지: {event.type} — {event.detail}")
 
 # → 대시보드 '이상 감지' 탭에서 latency_spike 이벤트 확인
 # → 대시보드 '비용' 탭에서 누적 비용·예산 현황 확인

@@ -253,7 +253,7 @@ random.seed(7)
 for i, (q, gt) in enumerate(PROD_CASES):
     production_agent(q, ground_truth=gt)
 
-    # evaluation_session과 동일한 패턴 — 이상 탐지 + 비용 추적
+    # 데코레이터 외 추가 태스크 직접 기록 — 이상 탐지 + 비용 추적
     result = create_taskresult(
         task_id=f"prod_anomaly_{i:03d}",
         question=q,
@@ -300,12 +300,12 @@ golden_dir.mkdir(parents=True, exist_ok=True)
 builder = GoldenSetBuilder(source_dir=_OUTPUT_DIR, output_dir=str(golden_dir))
 
 try:
-    golden_result = builder.build(min_score=0.7, max_cases=20)
+    golden_result = builder.extract(strategies=["high_value", "failure_cases"], max_cases=20)
     if golden_result:
         print(f"  골든셋 추출: {len(golden_result)}개 케이스")
         _PIPELINE_RESULTS["golden_cases"] = len(golden_result)
     else:
-        print("  골든셋: 임계점 미달 케이스 없음 (min_score=0.7)")
+        print("  골든셋: 임계점 미달 케이스 없음")
         _PIPELINE_RESULTS["golden_cases"] = 0
 except Exception as e:
     print(f"  골든셋 추출 오류 (예제용): {e}")

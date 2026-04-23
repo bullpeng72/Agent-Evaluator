@@ -140,11 +140,12 @@ print("섹션 3 — AnomalyDetector + CostTracker 데이터 생성")
 print("=" * 55)
 
 monitor_a = PerformanceMonitor(output_dir=_OUTPUT_DIR)
-anomaly_detector = AnomalyDetector(window_size=5, z_score_threshold=2.5)
-cost_tracker = CostTracker(budget_usd=5.0)
+# baseline_window=15: 앞 15개를 기준선으로, detection_window=5: 뒤 5개(이상치 포함)로 탐지
+anomaly_detector = AnomalyDetector(baseline_window=15, detection_window=5)
+cost_tracker = CostTracker(budget_per_day=5.0)
 
 random.seed(42)
-latencies = [random.gauss(0.8, 0.15) for _ in range(18)] + [4.2, 7.8]  # 이상치 2개
+latencies = [random.gauss(0.8, 0.15) for _ in range(18)] + [4.2, 7.8]  # 이상치 2개 (총 20개)
 
 for i, lat in enumerate(latencies):
     result = create_taskresult(
@@ -157,15 +158,15 @@ for i, lat in enumerate(latencies):
         tokens_used={"input": 80, "output": 20, "total": 100},
     )
     monitor_a.record_task(result)
+    cost_tracker.record("openai", "gpt-4o-mini", cost_usd=0.0001)
 
-    event = anomaly_detector.check(result)
-    if event:
-        print(f"  ⚠️  이상 탐지: {result.task_id} — lat={lat:.2f}s (z={event.z_score:.1f})")
+events = anomaly_detector.scan(monitor_a)
+for event in events:
+    print(f"  ⚠️  이상 탐지: {event.type} — {event.detail}")
 
-    cost_tracker.track(result)
-
-budget_status = cost_tracker.check_budget()
-print(f"  예산 현황: 사용={cost_tracker.total_cost_usd:.4f}$ / 한도=5.00$ | {'초과' if budget_status else '정상'}")
+today_cost = cost_tracker.get_today_cost()
+budget_exceeded = cost_tracker.is_budget_exceeded()
+print(f"  예산 현황: 사용={today_cost:.4f}$ / 한도=5.00$ | {'초과' if budget_exceeded else '정상'}")
 
 monitor_a.save_to_file("ch15_dashboard_anomaly")
 print("  → results/ch15_dashboard_anomaly.json 저장")

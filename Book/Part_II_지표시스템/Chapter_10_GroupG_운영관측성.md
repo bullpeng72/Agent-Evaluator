@@ -59,6 +59,8 @@
 
 Group G는 에이전트의 **관측 가능성(Observability)**을 측정한다. 에이전트가 잘 동작할 때는 관측성이 필요 없다. 에이전트가 실패하거나, 예상치 못한 행동을 하거나, 성능이 저하될 때 관측성이 있어야 원인을 빠르게 찾을 수 있다.
 
+> **Gate G가 마지막인 이유**: Gate A–F는 에이전트를 배포할 수 있는지를 판정한다. Gate G는 **배포한 이후** 에이전트가 무엇을 하는지 알 수 있는지를 판정한다. 배포 전 기능(목표달성·보안·성능·신뢰성·행동무결성)이 충족된 후에야 "운영 중 추적·설명·진단"이 의미를 가지기 때문에 배포 우선순위에서 마지막 순위를 차지한다. Gate G가 약해도 단기적으로 서비스는 동작한다. 하지만 장기 운영에서 문제가 생겼을 때 원인을 찾을 수 없게 된다.
+
 ### Group G가 답하는 4가지 질문
 
 1. **추적 가능성**: 에이전트의 모든 행동이 추적 가능한가? (`ObservabilityConfig`)
@@ -71,6 +73,7 @@ Group G는 에이전트의 **관측 가능성(Observability)**을 측정한다. 
 Group G는 AI Native 관점에서 **"AI가 AI를 평가하는"** 패러다임이 가장 자연스럽게 적용되는 영역이다. LLMJudge를 활성화하면 에이전트 응답의 추론 근거, 설명 품질, 오류 진단 능력을 자동으로 채점한다.
 
 ```python
+# 출처: Evaluator_Examples/ch10_group_g.py — ExplainabilityConfig · ErrorDiagnosisConfig · LLMJudgeConfig
 @agent_eval(
     monitor,
     task_type="reasoning",
@@ -101,6 +104,7 @@ def reasoning_agent(question: str, ground_truth: str = "") -> str:
 에이전트 실행의 모든 단계가 충분히 추적 가능한 상태인지 측정한다. OpenTelemetry 스팬의 완성도와 감사 이벤트 SLO를 선언한다.
 
 ```python
+# 출처: Evaluator_Examples/ch10_group_g.py — ObservabilityConfig
 from agent_evaluator import ObservabilityConfig
 
 ObservabilityConfig(
@@ -167,7 +171,10 @@ agent-eval monitor --port 6006
 
 에이전트 응답에 추론 근거, 불확실성 표현, 출처 인용이 포함되는지 측정한다. 특히 의료·금융·법률 에이전트에서 중요하다.
 
+> **프로덕션에서 ExplainabilityConfig가 중요한 이유**: 에이전트가 틀린 답을 했을 때 "왜 그런 답을 했는지" 추론 근거가 응답 안에 없으면 디버깅이 불가능하다. 감사(Audit) 대응 시에도 "에이전트가 이 결론에 도달한 근거"를 제시해야 한다. `require_reasoning=True`와 `require_citations=True`는 이 근거를 응답 텍스트 안에 강제하는 가장 간단한 방법이다.
+
 ```python
+# 출처: Evaluator_Examples/ch10_group_g.py — ExplainabilityConfig
 from agent_evaluator import ExplainabilityConfig
 
 ExplainabilityConfig(
@@ -194,6 +201,7 @@ ExplainabilityConfig(
 **도메인별 ExplainabilityConfig 예시:**
 
 ```python
+# 출처: Evaluator_Examples/ch10_group_g.py — ExplainabilityConfig
 # 의료 정보 에이전트 — 출처 + 불확실성 표현 필수
 medical_explainability = ExplainabilityConfig(
     require_reasoning=True,
@@ -227,6 +235,7 @@ qa_explainability = ExplainabilityConfig(
 에이전트가 실패했을 때 단순히 "실패했다"고 말하는 것이 아니라, 원인을 설명하고 대안을 제시하는지 측정한다.
 
 ```python
+# 출처: Evaluator_Examples/ch10_group_g.py — ErrorDiagnosisConfig
 from agent_evaluator import ErrorDiagnosisConfig
 
 ErrorDiagnosisConfig(
@@ -269,6 +278,7 @@ ErrorDiagnosisConfig(
 **사용 예시:**
 
 ```python
+# 출처: Evaluator_Examples/ch10_group_g.py — ErrorDiagnosisConfig
 @agent_eval(
     monitor,
     task_type="tool_use",
@@ -295,6 +305,7 @@ def diagnostic_agent(question: str, ground_truth: str = "") -> str:
 전체 응답 시간 중 어느 부분에서 시간이 소요되는지 측정한다. "응답이 느리다"는 것만 아는 것이 아니라, "도구 호출 때문에 느린지, LLM 호출 때문에 느린지"를 구분한다.
 
 ```python
+# 출처: Evaluator_Examples/ch10_group_g.py — LatencyAttributionConfig
 from agent_evaluator import LatencyAttributionConfig
 
 LatencyAttributionConfig(
@@ -310,6 +321,7 @@ LatencyAttributionConfig(
 **지연 귀속 데이터 전달:**
 
 ```python
+# 출처: Evaluator_Examples/ch10_group_g.py — create_taskresult 사용
 from agent_evaluator import create_taskresult
 
 result = create_taskresult(
@@ -355,6 +367,7 @@ result = create_taskresult(
 ### 패턴 1 — 기본 관측성 (모든 에이전트 권장)
 
 ```python
+# 출처: Evaluator_Examples/ch10_group_g.py — ObservabilityConfig · ErrorDiagnosisConfig
 from agent_evaluator import (
     ObservabilityConfig,
     ErrorDiagnosisConfig,
@@ -385,6 +398,7 @@ def agent(question: str, ground_truth: str = "") -> str:
 ### 패턴 2 — 고신뢰 서비스 (설명 가능성 + LLM Judge)
 
 ```python
+# 출처: Evaluator_Examples/ch10_group_g.py — ExplainabilityConfig · LatencyAttributionConfig · LLMJudgeConfig
 from agent_evaluator import (
     ExplainabilityConfig,
     LatencyAttributionConfig,
@@ -428,23 +442,58 @@ def expert_agent(question: str, ground_truth: str = "") -> str:
 
 Group G는 AI Native 관점이 가장 강하게 드러나는 영역이다. 에이전트의 추론 근거와 설명 품질을 **사람이 수작업으로 평가하는 것은 확장되지 않는다**. LLM Judge가 이 역할을 담당해야 한다.
 
-### 10.4.1 LLMJudge의 7가지 채점 차원
+> **Ground truth가 없는 환경에서 Gate G의 역할**: 실제 프로덕션 환경에서는 대부분의 에이전트 응답에 정답(ground truth)이 없다. 고객 상담, 보고서 작성, 코드 리뷰처럼 "유일한 정답"이 존재하지 않는 태스크가 대부분이다. 이런 환경에서 LLM Judge는 **품질을 판단할 수 있는 유일한 자동화 수단**이다. Gate G를 통해 LLMJudge를 체계적으로 운영하는 것이 ground truth 없는 프로덕션 에이전트의 품질 관리 핵심 전략이다.
 
-LLMJudge는 `enable_llm_judge=True` 또는 `llm_judge=LLMJudgeConfig()`가 설정되면 자동으로 다음 차원을 채점한다.
+> **LLM-as-Judge란?** "다른 LLM이 에이전트의 응답을 채점"하는 평가 방식이다. 사람 검토자처럼 응답의 완성도·관련성·사실 일관성 등을 0–5 점수로 매긴다. 사람보다 훨씬 빠르고 저렴하게 대규모 평가를 수행할 수 있어 프로덕션 AI 시스템에서 핵심 품질 관리 도구로 자리잡고 있다. `enable_llm_judge=True`로 활성화하며, OpenAI 또는 Anthropic API 키가 필요하다.
 
-| 차원 | 설명 | Group 연결 |
+### 10.4.1 LLMJudge 채점 차원 — 기본 5차원 + opt-in 확장
+
+LLMJudge는 `enable_llm_judge=True` 또는 `llm_judge=LLMJudgeConfig()`가 설정되면 **기본 5차원**을 자동으로 채점한다. `faithfulness`와 `criteria_scores`는 조건에 따라 추가되는 opt-in 차원이다.
+
+**기본 5차원 (항상 채점)**
+
+| 차원 | 설명 | Gate 연결 |
 |------|------|-----------|
 | `completeness` | 응답이 질문에 완전히 답했는가 | Gate A |
 | `relevance` | 응답이 질문과 관련이 있는가 | Gate A |
 | `factual_consistency` | 응답이 사실에 기반하는가 | Gate C |
 | `toxicity` | 응답에 독성 내용이 없는가 | Gate E |
 | `bias` | 응답에 편향이 없는가 | Gate E |
-| `faithfulness` | RAG 응답이 컨텍스트에 기반하는가 | Gate C |
-| `criteria_scores` | 커스텀 G-Eval 기준 (선택) | Gate G |
 
-### 10.4.2 safety_score 계산
+**opt-in 확장 차원 (조건 충족 시에만 추가)**
 
-LLMJudge는 독성(`toxicity`)과 편향(`bias`) 점수를 종합해 `safety_score`를 자동 계산한다.
+| 차원 | 추가 조건 | Gate 연결 |
+|------|----------|-----------|
+| `faithfulness` | `rag_mode=True` + `context` 전달 시에만 추가 | Gate C |
+| `criteria_scores` / `criteria_overall` | `judge_criteria=[...]` 지정 시에만 추가 | Gate G |
+
+- `faithfulness`는 RAG 에이전트에서 "검색된 문서에 근거한 답변인가"를 평가한다. `rag_mode=True`와 context를 함께 전달하지 않으면 이 점수는 계산되지 않는다.
+- `criteria_scores`는 G-Eval 방식의 커스텀 채점이다. `judge_criteria=["reasoning_quality", "medical_accuracy"]`처럼 직접 기준을 지정해야만 활성화된다.
+
+### 10.4.2 LLMJudge 비용과 샘플링 전략
+
+LLMJudge는 API를 호출하므로 비용이 발생한다. 전체 태스크를 100% 채점하면 비용이 크게 늘어난다. `judge_sample_rate`로 샘플링 비율을 제어해 비용을 절감한다.
+
+```
+judge_sample_rate=1.0  → 100% 채점 (비용 100%, 정확도 기준)
+judge_sample_rate=0.1  → 10% 채점  (비용 ~10%, 정확도 5~8%p 차이)
+judge_sample_rate=0.3  → 30% 채점  (비용 ~30%, 정확도 2~3%p 차이)
+```
+
+대부분의 프로덕션 환경에서 `judge_sample_rate=0.1`(10% 샘플링)이 권장 시작점이다. 비용을 90% 절감하면서 품질 트렌드를 파악하기 충분한 신호를 얻을 수 있다. 이상 감지(AnomalyDetector) 이벤트 발생 시 `AdaptivePolicy.enter_anomaly_mode()`로 일시적으로 100% 전수 채점으로 전환하는 패턴을 함께 사용한다.
+
+```python
+# AGENT_EVALUATOR_JUDGE_PROVIDER 환경변수로 모델 제공사 지정
+# auto: API 키 기반 자동 결정 (기본값)
+# openai: OpenAI 모델 강제 사용
+# anthropic: Anthropic 모델 강제 사용
+import os
+os.environ["AGENT_EVALUATOR_JUDGE_PROVIDER"] = "anthropic"  # Anthropic-only 환경
+```
+
+### 10.4.3 safety_score 계산
+
+LLMJudge는 기본 5차원 중 독성(`toxicity`)과 편향(`bias`) 점수를 종합해 `safety_score`를 자동 계산한다.
 
 ```
 safety_score = (10 - toxicity - bias) / 10
@@ -467,7 +516,7 @@ print(f"신뢰성: {judge_summary.get('avg_scores', {}).get('factual_consistency
 - `llm_judge_summary`는 `report.to_dict()` 결과 딕셔너리에서 LLMJudge 채점 통계를 담고 있다.
 - `overall`은 completeness·relevance·factual_consistency 3차원의 평균 점수다.
 - `safety_score`가 0.5 미만이면 독성 또는 편향 점수가 높다는 의미로 즉각 점검이 필요하다.
-- `faithfulness`는 `rag_mode=True`와 `context`를 함께 전달한 태스크에서만 집계된다.
+- `faithfulness`는 `rag_mode=True`와 `context`를 함께 전달한 태스크에서만 집계된다. 이 조건이 없으면 점수 자체가 생성되지 않는다.
 
 ---
 
@@ -475,33 +524,56 @@ print(f"신뢰성: {judge_summary.get('avg_scores', {}).get('factual_consistency
 
 이 챕터로 Part II의 Harness 지표 체계 학습이 완료된다. 7개 Group의 관계를 다시 한 번 정리한다.
 
-```
-에이전트 실행 흐름과 Group 연결:
+```mermaid
+flowchart TD
+    INPUT(["💬 사용자 입력"])
+    INPUT --> E["🔒 Gate E — 보안경계\nInputSanitization · ThreatSeverity\n악성 입력 조기 차단"]
+    E --> PROC(["⚙️ 에이전트 처리"])
 
-사용자 입력 → [Gate E 보안경계] → 에이전트 처리 → [Gate A 목표달성]
-                                    ↓
-                    [Gate B 행동무결성] ← 도구 호출
-                    [Gate D 성능계약]  ← 응답 시간·비용
-                    [Gate C 신뢰성]   ← 일관성·재현성
-                                    ↓
-                [Gate F 다중에이전트]  ← (멀티에이전트인 경우)
-                                    ↓
-                    [Gate G 운영관측성] ← 전체 추적·설명
-                                    ↓
-                    HarnessEvaluationGate → 배포 판정
+    PROC --> A["🎯 Gate A — 목표달성\nInstruction · GoalAlignment\n지시 이행 · 목표 정렬"]
+    PROC -->|"도구 호출"| B["🛡 Gate B — 행동무결성\nLoopDetection · Scope\n루프 탐지 · 범위 일탈"]
+    PROC -->|"응답 시간 · 비용"| D["⚡ Gate D — 성능계약\nSLA · ResourceBudget\nSLA · 토큰 · 비용"]
+    PROC -->|"일관성 · 재현성"| C["🔁 Gate C — 신뢰성\nReproducibility · FaultTolerance\n재현성 · 오류 복구"]
+
+    A --> F["🤝 Gate F — 다중에이전트\nConsensus · AgentRole\n합의율 · 역할 준수\n단일 에이전트는 Gate F 생략"]
+    B --> F
+    C --> F
+    D --> F
+
+    PROC -.->|"전체 실행 추적 · 설명"| G["🔭 Gate G — 운영관측성\nExplainability · Observability\nLLM Judge · 추적 가능성"]
+    F --> G
+
+    G --> HARNESS(["🏁 HarnessEvaluationGate\nGate A–G 종합 집계 · 배포 판정"])
+    HARNESS -->|"PASS"| DEPLOY["✅ 배포 승인"]
+    HARNESS -->|"FAIL"| BLOCK["❌ 배포 차단"]
+
+    style INPUT fill:#e3f2fd,stroke:#1976d2
+    style E fill:#ef9a9a,stroke:#c62828
+    style PROC fill:#f5f5f5,stroke:#9e9e9e
+    style A fill:#90caf9,stroke:#1565c0
+    style B fill:#ce93d8,stroke:#6a1b9a
+    style D fill:#80cbc4,stroke:#00695c
+    style C fill:#a5d6a7,stroke:#2e7d32
+    style F fill:#ffcc80,stroke:#e65100
+    style G fill:#e1bee7,stroke:#4a148c
+    style HARNESS fill:#546e7a,color:#fff,stroke:#263238
+    style DEPLOY fill:#c8e6c9,stroke:#2e7d32
+    style BLOCK fill:#ffcdd2,stroke:#c62828
 ```
 
-**Group 간 의존성:**
+**Group 간 의존성 (배포 판정 우선순위):**
 
 | 우선순위 | Group | 이유 |
 |---------|-------|------|
 | 1순위 | A — 목표달성 | 기본 기능 없으면 나머지 무의미 |
-| 2순위 | D — 성능계약 | SLA 없으면 프로덕션 불가 |
-| 2순위 | E — 보안경계 | 외부 노출 에이전트는 즉시 필요 |
-| 3순위 | C — 신뢰성 | 안정적 운영에 필요 |
-| 3순위 | B — 행동무결성 | 도구 사용 에이전트에 필요 |
-| 4순위 | G — 운영관측성 | 장기 운영·디버깅에 필요 |
-| 선택 | F — 다중에이전트 | 멀티에이전트 시스템에만 해당 |
+| 2순위 | D — 성능계약 | SLA·비용 기준 없으면 프로덕션 불가 |
+| 3순위 | B — 행동무결성 | 도구 사용 에이전트의 루프·범위 일탈 차단 |
+| 4순위 | C — 신뢰성 | 안정적 반복 운영에 필요 |
+| 4순위 | E — 보안경계 | 외부 노출 에이전트 필수, 내부 전용은 낮출 수 있음 |
+| 4순위 | F — 다중에이전트 | 멀티에이전트 시스템에만 해당 |
+| 5순위 | G — 운영관측성 | 배포 후 장기 운영·디버깅·감사 대응에 필요 |
+
+> **주의**: 런타임 실행 순서와 배포 판정 우선순위는 다른 개념이다. 런타임에서는 Gate E(보안경계)가 악성 입력을 가장 먼저 차단한다. 하지만 **배포 결정을 내릴 때의 우선순위**는 "기본 기능(A) → 성능 계약(D) → 행동 무결성(B) 순"이다. 기본 기능 자체가 동작하지 않는 에이전트를 성능·보안 기준으로 통과시키는 것은 의미가 없기 때문이다.
 
 ---
 
@@ -820,6 +892,7 @@ print(f"상태 요약: {status['stage']}  샘플링률={status['current_sample_r
 **AnomalyDetector + AdaptivePolicy 연동 패턴:**
 
 ```python
+# 출처: Evaluator_Examples/ch10_group_g.py — AnomalyDetector 이상 탐지
 from agent_evaluator import AnomalyDetector, AdaptivePolicy, PerformanceMonitor
 
 monitor  = PerformanceMonitor(output_dir="results/")

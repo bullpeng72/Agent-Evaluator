@@ -58,22 +58,41 @@
 
 ## 9.1 Gate F 개요
 
-Group F는 **다중 에이전트 시스템**의 협업 품질을 측정한다. 단일 에이전트 평가는 Gate A-E로 충분하지만, 여러 에이전트가 협력하는 시스템은 추가로 다음을 측정해야 한다.
+### 왜 Gate F가 별도로 존재하는가
+
+단일 에이전트 시스템에서 Gate A~E가 모두 PASS 판정을 받았다고 해도, 그 에이전트들을 조합한 멀티에이전트 시스템은 Gate F에서 FAIL할 수 있다. 단일 에이전트의 배포 준비도 기준은 멀티에이전트 "협업"에 적용되지 않기 때문이다.
+
+단일 에이전트가 잘 답변하더라도, 여러 에이전트가 함께 동작할 때는 전혀 다른 종류의 문제가 발생한다.
+
+- **에이전트 A**는 정확한 수치를 수집했지만, **에이전트 B**는 그 수치를 요약하면서 반올림했고, **에이전트 C**는 반올림된 수치를 "성장세"로 뭉개 버렸다. 최종 답변은 틀렸다. 각 에이전트를 개별로 평가하면 모두 PASS이지만 시스템 전체는 실패한다.
+- **에이전트 A와 B**가 서로 다른 결론을 내렸지만 어느 쪽도 합의를 이끌어 내지 못했다. 시스템은 최종 의사결정 없이 멈춘다.
+- **에이전트 A**가 researcher 역할임에도 write_db 도구를 호출했다. 역할 경계가 선언되지 않았기 때문이다.
+
+Gate F = **"여러 에이전트가 협력해 하나의 목표를 달성하는 협업 계약을 코드로 선언한다."** Harness Engineering 관점에서 Gate F는 멀티에이전트 시스템의 협업 품질 계약서다. Gate A~E가 각 에이전트의 개인 자격증이라면, Gate F는 팀 전체의 협업 자격증이다. Gate F FAIL은 단일 에이전트 품질과 무관하게 멀티에이전트 시스템의 배포를 차단한다.
+
+---
+
+Group F는 **다중 에이전트 시스템**의 협업 품질을 측정하는 4개 Config로 구성된다.
 
 1. **합의**: 여러 에이전트가 같은 결론에 도달하는가? (`ConsensusConfig`)
-2. **역할 준수**: 각 에이전트가 자신의 역할 범위 안에서 동작하는가? (`AgentRoleConfig`)
-3. **정보 전달**: 에이전트 간 정보가 왜곡 없이 전달되는가? (`PropagationConfig`)
+2. **정보 전달**: 에이전트 간 정보가 왜곡 없이 전달되는가? (`PropagationConfig`)
+3. **역할 준수**: 각 에이전트가 자신의 역할 범위 안에서 동작하는가? (`AgentRoleConfig`)
+4. **충돌 해결**: 에이전트 간 의견 충돌이 적절하게 해결되는가? (`ConflictResolutionConfig`)
 
 > ℹ️ **DeadlockConfig 위치 변경 (v0.8.2)**: 교착·기아·라이브락 탐지 `DeadlockConfig`는 v0.8.2에서 Group F에서 **Gate B(행동무결성)** 로 이동했다. 단일 에이전트에서도 발생하는 행동 무결성 문제이기 때문이다. `DeadlockConfig` 사용 방법은 [Chapter 5 §5.3.6](Chapter_05_GroupB_행동무결성.md)를 참조한다. 단, 본 챕터의 일부 심화 예제에서는 다중에이전트 컨텍스트에서의 `DeadlockConfig` 활용을 계속 다룬다.
 
 ### 단일 에이전트 vs 다중 에이전트 평가 범위
+
+단일 에이전트 시스템과 달리 멀티에이전트 시스템은 "각 에이전트가 잘 동작한다"는 사실만으로 시스템 전체의 품질을 보장할 수 없다. 에이전트 간 상호작용 자체가 새로운 장애 원인이 된다.
 
 | 측면 | 단일 에이전트 | 다중 에이전트 추가 요소 |
 |------|------------|---------------------|
 | 목표달성 | Gate A | Gate A × N 에이전트 |
 | 보안 | Gate E | + 에이전트 간 신뢰 경계 |
 | 성능 | Gate D | + 에이전트 간 지연 합산 |
-| **협업** | — | **Gate F 전체** |
+| **협업** | — | **Gate F 전체 (4개 Config)** |
+
+> Gate F는 멀티에이전트 시스템에서만 의미 있는 opt-in Gate다. 단일 에이전트 시스템이라면 Gate F를 활성화할 필요가 없다. 반대로, 멀티에이전트 시스템이라면 Gate F 없이 Gate A~E만으로는 협업 품질을 보장할 수 없다.
 
 ---
 
@@ -124,7 +143,7 @@ monitor.record_task(result)
 ```
 
 - `tool_calls` 목록에 에이전트 이름을 기입하면 `AgentCoordinationTracker`가 위임 체인을 자동으로 추적한다.
-- `extra["agent_interactions"]`에 `from`·`to`·`type` 필드를 선언하면 위임 방향과 핸드오프 패턴이 기록된다.
+- `extra["agent_interactions"]`에 `from`·`to`·`type` 필드를 선언하면 위임 방향과 핸드오프 패턴이 기록된다. **`agent_interactions` 데이터가 없으면 `AgentCoordinationTracker`는 위임 체인·병렬 실행률·협업 점수를 계산하지 못하고 기본값만 반환한다.** 멀티에이전트 시스템에서 의미 있는 Gate F 측정을 위해서는 반드시 이 필드를 기록해야 한다.
 - `coordination_score`는 0~1 범위이며, 0.9 이상이면 Gate F PASS에 기여한다.
 - `delegation`(위임)과 `handoff`(인계)를 구분해 선언하면 위임 깊이와 병렬 실행률이 따로 집계된다.
 
@@ -170,11 +189,14 @@ result = create_taskresult(
 
 > ℹ️ **v0.8.2 변경**: `DeadlockConfig`가 Group F에서 Group B로 이동했다. Gate F Config는 4종(ConsensusConfig, PropagationConfig, AgentRoleConfig, ConflictResolutionConfig)이다.
 
+Gate F의 4개 Config는 각각 멀티에이전트 협업의 서로 다른 차원을 담당한다. 이 Config들을 `@agent_eval` 또는 `@batch_eval` 데코레이터 파라미터로 선언하는 것이 Harness Engineering 방식의 핵심이다 — 협업 품질 기준을 코드 안에 명시적으로 선언하고, SDK가 자동으로 위반을 탐지한다.
+
 ### 9.3.1 ConsensusConfig — 다중 에이전트 합의
 
-여러 에이전트가 같은 질문에 대해 답변할 때 합의가 이루어지는지 측정한다. `batch_eval`과 함께 사용할 때 가장 효과적이다.
+여러 에이전트가 같은 질문에 대해 답변할 때 합의가 이루어지는지 측정한다. 합의 실패의 전형적인 증상은 "여러 에이전트가 서로 다른 수치·결론을 내놓았지만 어느 쪽이 맞는지 결정하지 못하고 시스템이 멈추는 것"이다. `ConsensusConfig`를 선언하면 유사도 기반 합의율을 자동으로 측정하고 임계값 미달 시 Gate F WARN/FAIL을 발생시킨다. `batch_eval`과 함께 사용할 때 가장 효과적이다.
 
 ```python
+# 출처: Evaluator_Examples/ch09_group_f.py — ConsensusConfig
 from agent_evaluator import ConsensusConfig
 
 ConsensusConfig(
@@ -192,6 +214,7 @@ ConsensusConfig(
 **사용 예시 — 앙상블 에이전트:**
 
 ```python
+# 출처: Evaluator_Examples/ch09_group_f.py — ConsensusConfig
 from agent_evaluator import ConsensusConfig
 from agent_evaluator.decorators import batch_eval
 
@@ -220,9 +243,10 @@ def ensemble_agent(questions: list, ground_truths: list = None) -> list:
 
 ### 9.3.2 PropagationConfig — 정보 전파 충실도
 
-선행 에이전트가 수집한 핵심 정보가 후속 에이전트로 왜곡 없이 전달되는지 측정한다.
+선행 에이전트가 수집한 핵심 정보가 후속 에이전트로 왜곡 없이 전달되는지 측정한다. 정보 왜곡은 종종 의도적이지 않다. 각 에이전트가 "핵심을 간결히 요약"하라는 지시를 따르다 보면 수치와 고유명사가 지워진다. `PropagationConfig`는 `key_facts`에 선언된 핵심 사실들이 응답 텍스트에 실제로 포함되어 있는지를 검사해 왜곡·소실을 정량화한다.
 
 ```python
+# 출처: Evaluator_Examples/ch09_group_f.py — PropagationConfig
 from agent_evaluator import PropagationConfig
 
 PropagationConfig(
@@ -242,6 +266,7 @@ PropagationConfig(
 **사용 예시 — 리서치-라이터 파이프라인:**
 
 ```python
+# 출처: Evaluator_Examples/ch09_group_f.py — PropagationConfig
 @agent_eval(
     monitor,
     task_type="planning",
@@ -266,6 +291,7 @@ def writer_agent(question: str, ground_truth: str = "") -> str:
 멀티에이전트 시스템에서 각 에이전트가 자신의 역할 범위 안에서 도구와 행동을 선택하는지 측정한다.
 
 ```python
+# 출처: Evaluator_Examples/ch09_group_f.py — AgentRoleConfig
 from agent_evaluator import AgentRoleConfig
 
 AgentRoleConfig(
@@ -282,6 +308,7 @@ AgentRoleConfig(
 **멀티에이전트 시스템 역할 설계 예시:**
 
 ```python
+# 출처: Evaluator_Examples/ch09_group_f.py — AgentRoleConfig
 # 3개 역할 × AgentRoleConfig
 
 researcher_role = AgentRoleConfig(
@@ -313,6 +340,7 @@ writer_role = AgentRoleConfig(
 에이전트 간 의견 충돌이 발생했을 때 적절하게 해결하는지 측정한다. 충돌을 방치하거나, 무시하거나, 에스컬레이션 없이 진행하는 것을 탐지한다.
 
 ```python
+# 출처: Evaluator_Examples/ch09_group_f.py — ConflictResolutionConfig
 from agent_evaluator import ConflictResolutionConfig
 
 ConflictResolutionConfig(
@@ -343,6 +371,7 @@ ConflictResolutionConfig(
 ### 패턴 1 — 오케스트레이터-워커 구조
 
 ```python
+# 출처: Evaluator_Examples/ch09_group_f.py — DeadlockConfig · AgentRoleConfig · PropagationConfig
 from agent_evaluator import (
     DeadlockConfig,
     AgentRoleConfig,
@@ -378,7 +407,7 @@ def worker(question: str, ground_truth: str = "") -> str:
     return worker_agent.run(question)
 ```
 
-- 오케스트레이터에는 `DeadlockConfig`와 전체 파이프라인 `SLAConfig`를, 워커에는 `AgentRoleConfig`를 배치하는 것이 기본 패턴이다.
+- 오케스트레이터에는 `DeadlockConfig`(Gate B)와 전체 파이프라인 `SLAConfig`를, 워커에는 `AgentRoleConfig`(Gate F)를 배치하는 것이 기본 패턴이다. `DeadlockConfig`는 Gate B 소속이지만 멀티에이전트 컨텍스트에서도 함께 사용한다.
 - `check_circular_delegation=True`는 A→B→A 형태의 순환 위임을 그래프 사이클 탐지로 차단한다.
 - `max_delegation_depth=5`를 초과하면 위임 체인이 강제 중단되어 재귀 폭발을 방지한다.
 - 워커의 `role_violation_penalty`를 오케스트레이터보다 높게 설정하면 역할 이탈에 더 엄격하게 대응할 수 있다.
@@ -386,6 +415,7 @@ def worker(question: str, ground_truth: str = "") -> str:
 ### 패턴 2 — 앙상블 에이전트 (합의 기반)
 
 ```python
+# 출처: Evaluator_Examples/ch09_group_f.py — ConsensusConfig · ConflictResolutionConfig
 from agent_evaluator import (
     ConsensusConfig,
     ConflictResolutionConfig,
@@ -419,16 +449,21 @@ def ensemble(questions: list, ground_truths: list = None) -> list:
 
 ## 9.5 이 챕터의 핵심 요약
 
-| 지표/Config | 역할 | 핵심 파라미터 |
-|------------|------|-------------|
-| `AgentCoordinationTracker` | 에이전트 간 상호작용 추적 | `coordination_score`, `delegation_depth` |
-| `ToolSelectionTracker` | 도구 선택 F1 측정 | F1 기반 `precision`, `recall` |
-| `ConsensusConfig` | 다중 에이전트 합의 기준 | `consensus_method`, `agent_weights`, `similarity_threshold` |
-| `PropagationConfig` | 에이전트 간 정보 전달 기준 | `key_facts`, `penalize_distortion` |
-| `AgentRoleConfig` | 에이전트 역할 준수 기준 | `role_name`, `allowed_tools`, `forbidden_tools` |
-| `ConflictResolutionConfig` | 에이전트 간 충돌 해결 기준 | `unresolved_penalty`, `expect_escalation_on_fail` |
+| 지표/Config | 레이어 | 역할 | 핵심 파라미터 |
+|------------|--------|------|-------------|
+| `AgentCoordinationTracker` | Layer 2 Tracker | 에이전트 간 상호작용 추적 (`agent_interactions` 데이터 필요) | `coordination_score`, `delegation_depth` |
+| `ToolSelectionTracker` | Layer 2 Tracker | 도구 선택 F1 측정 (`expected_tools` 데이터 필요) | F1 기반 `precision`, `recall` |
+| `ConsensusConfig` | Gate F Config | 다중 에이전트 합의 기준 | `consensus_method`, `agent_weights`, `similarity_threshold` |
+| `PropagationConfig` | Gate F Config | 에이전트 간 정보 전달·왜곡 탐지 | `key_facts`, `penalize_distortion` |
+| `AgentRoleConfig` | Gate F Config | 에이전트 역할 준수 기준 | `role_name`, `allowed_tools`, `forbidden_tools` |
+| `ConflictResolutionConfig` | Gate F Config | 에이전트 간 충돌 해결 기준 | `unresolved_penalty`, `expect_escalation_on_fail` |
 
-> ℹ️ **DeadlockConfig**: v0.8.2에서 Gate B(행동무결성)로 이동. [Chapter 5 §5.3.6](Chapter_05_GroupB_행동무결성.md) 참조.
+> ℹ️ **DeadlockConfig**: v0.8.2에서 Gate B(행동무결성)로 이동. StateConsistencyConfig도 Gate B 소속. [Chapter 5 §5.3.6](Chapter_05_GroupB_행동무결성.md) 참조.
+
+**Gate F Harness Engineering 핵심 원칙**:
+- Gate A~E PASS + Gate F FAIL = 배포 차단. 단일 에이전트 품질이 아무리 좋아도 협업 계약이 충족되지 않으면 멀티에이전트 시스템은 프로덕션 불가다.
+- 4개 Config를 데코레이터에 선언하는 행위 자체가 "이 시스템은 이 협업 기준을 준수해야 한다"는 계약서 작성이다.
+- `AgentCoordinationTracker`는 `extra["agent_interactions"]` 데이터가 있을 때만 위임 체인·협업 점수를 계산한다. 데이터 없이 Config만 선언하면 Gate F 측정이 불완전해진다.
 
 ---
 
@@ -463,6 +498,7 @@ distortion_rate = 1 - |전달된_핵심_사실 ∩ 원본_핵심_사실| / |원�
 **탐지 코드**:
 
 ```python
+# 출처: Evaluator_Examples/ch09_group_f.py — PropagationConfig
 from agent_evaluator import PerformanceMonitor
 from agent_evaluator import PropagationConfig
 from agent_evaluator.decorators import agent_eval
@@ -563,6 +599,7 @@ n_agents ≥ 3f + 1
 **위험 시나리오 2 — weighted voting이 환각을 억제하는 성공 사례**:
 
 ```python
+# 출처: Evaluator_Examples/ch09_group_f.py — ConsensusConfig
 from agent_evaluator import ConsensusConfig
 from agent_evaluator.decorators import batch_eval
 
@@ -627,6 +664,7 @@ GRAY 노드로 역방향 에지 발견 시 → 사이클 확정
 ```
 
 ```python
+# 출처: Evaluator_Examples/ch09_group_f.py — DeadlockConfig · ToolParameterSafetyConfig
 # Agent-Evaluator에서의 실용적 탐지
 from agent_evaluator import (
     DeadlockConfig,
@@ -679,6 +717,7 @@ def orchestrator_agent(question: str, ground_truth: str = "") -> str:
 **해결 — PropagationConfig와 ThreatSeverityConfig 결합**:
 
 ```python
+# 출처: Evaluator_Examples/ch09_group_f.py — PropagationConfig · ThreatSeverityConfig
 from agent_evaluator import PerformanceMonitor
 from agent_evaluator import (
     PropagationConfig,
@@ -780,6 +819,7 @@ def verify_against_trusted_source(candidate: str) -> str:
 Shapley Value는 n개 에이전트에 대해 2^n개 조합을 평가해야 하므로 실용적으로는 각 에이전트를 순차적으로 제외했을 때 성능 하락을 측정해 기여도를 근사한다.
 
 ```python
+# 출처: Evaluator_Examples/ch09_group_f.py — 예제 코드
 # 제거 기반 기여도 근사
 baseline_score = evaluate_full_pipeline(question, ground_truth)
 
@@ -800,6 +840,7 @@ print("기여도 분석:", contributions)
 각 에이전트를 별도 `PerformanceMonitor`로 독립 측정하면 에이전트별 품질 분리가 가능하다.
 
 ```python
+# 출처: Evaluator_Examples/ch09_group_f.py — PerformanceMonitor 설정
 from agent_evaluator import PerformanceMonitor
 from agent_evaluator.decorators import agent_eval
 
@@ -893,6 +934,7 @@ writer       | 정확도: 79.8% | 완료율: 94.0% | 품질: 0.76
 **전략 3 — 비용-기여도 비율**: 각 에이전트의 토큰 사용량(비용)을 `TokenEconomyTracker`로 측정하고 기여도와 나눠 비용 효율을 산출한다. 비용-기여도 비율이 낮은 에이전트는 더 경량인 모델로 교체를 검토한다.
 
 ```python
+# 출처: Evaluator_Examples/ch09_group_f.py — 예제 코드
 # 비용-기여도 비율 계산
 for name, monitor in monitors.items():
     report = monitor.generate_report()
@@ -923,6 +965,7 @@ for name, monitor in monitors.items():
 **선형 파이프라인 예시**:
 
 ```python
+# 출처: Evaluator_Examples/ch09_group_f.py — PropagationConfig · FaultToleranceConfig
 # 3단계 선형 파이프라인 — PropagationConfig 체인 설정
 from agent_evaluator import PropagationConfig, FaultToleranceConfig
 from agent_evaluator.decorators import agent_eval
@@ -949,6 +992,7 @@ def analyst_in_pipeline(question: str, ground_truth: str = "") -> str:
 **오케스트레이터-워커 예시**:
 
 ```python
+# 출처: Evaluator_Examples/ch09_group_f.py — DeadlockConfig · AgentRoleConfig
 # 오케스트레이터-워커 — DeadlockConfig + AgentRoleConfig 필수
 from agent_evaluator import DeadlockConfig, AgentRoleConfig
 from agent_evaluator.decorators import agent_eval
@@ -1020,6 +1064,7 @@ agent-eval gate result.json \
 팀 규모와 시스템 복잡도에 따라 Gate F 구성 수준을 선택한다.
 
 ```python
+# 출처: Evaluator_Examples/ch09_group_f.py — DeadlockConfig · ConsensusConfig · PropagationConfig
 from agent_evaluator import (
     DeadlockConfig,
     ConsensusConfig,
@@ -1029,33 +1074,35 @@ from agent_evaluator import (
 )
 
 # ── 최소 구성 — 모든 다중에이전트에 기본 적용 (추가 비용 없음) ──────────────
-# 교착과 역할 이탈만 탐지. 대부분의 심각한 장애를 방지한다.
+# Gate F: 역할 이탈 탐지 (AgentRoleConfig)
+# Gate B: 교착 탐지 (DeadlockConfig) — Gate B 소속이지만 멀티에이전트에서 함께 적용
 minimal_group_f = [
-    DeadlockConfig(
+    DeadlockConfig(          # Gate B 소속 — 멀티에이전트에서 교착 방지 목적으로 병행 사용
         check_circular_delegation=True,
         max_delegation_depth=8,
     ),
-    AgentRoleConfig(
+    AgentRoleConfig(         # Gate F 소속 — 역할 이탈 탐지
         role_name="agent",
         allowed_tools=APPROVED_TOOLS,
     ),
 ]
 
 # ── 표준 구성 — 3개 이상 에이전트가 협업하는 시스템 ─────────────────────────
-# 정보 전달 충실도와 합의 품질까지 포함.
+# Gate F: AgentRoleConfig + PropagationConfig (정보 전달 충실도)
+# Gate B: DeadlockConfig (기아 탐지 포함)
 standard_group_f = [
-    DeadlockConfig(
+    DeadlockConfig(          # Gate B 소속
         check_circular_delegation=True,
         check_starvation=True,
         starvation_threshold=3,
         max_delegation_depth=6,
     ),
-    PropagationConfig(
+    PropagationConfig(       # Gate F 소속
         source_agent="upstream_agent",
         key_facts=CRITICAL_FACTS,
         penalize_distortion=True,
     ),
-    AgentRoleConfig(
+    AgentRoleConfig(         # Gate F 소속
         role_name="agent",
         allowed_tools=APPROVED_TOOLS,
         forbidden_tools=FORBIDDEN_TOOLS,
@@ -1064,9 +1111,11 @@ standard_group_f = [
 ]
 
 # ── 풀 구성 — 프로덕션 다중에이전트 시스템, 고위험 도메인 ────────────────────
-# 5개 Config 모두 활성화. 의료·금융·법률 등 고위험 도메인 권장.
+# Gate F: 4개 Config 모두 활성화 (ConsensusConfig·PropagationConfig·AgentRoleConfig·ConflictResolutionConfig)
+# Gate B: DeadlockConfig (라이브락 포함)
+# 의료·금융·법률 등 고위험 도메인 권장.
 production_group_f = [
-    DeadlockConfig(
+    DeadlockConfig(          # Gate B 소속
         check_circular_delegation=True,
         check_starvation=True,
         check_livelock=True,
@@ -1110,6 +1159,7 @@ production_group_f = [
 배포 이후에도 Gate F 지표를 지속 모니터링해 협업 품질 저하를 조기에 탐지한다.
 
 ```python
+# 출처: Evaluator_Examples/ch09_group_f.py — AnomalyDetector 이상 탐지
 from agent_evaluator import PerformanceMonitor, AnomalyDetector
 from agent_evaluator.alerts import AlertEngine
 from agent_evaluator import SimpleTaskAlertRule
@@ -1149,11 +1199,21 @@ def monitored_orchestrator(question: str, ground_truth: str = "") -> str:
     return orchestrator.run(question)
 ```
 
+**멀티에이전트 디버깅이 단일 에이전트보다 복잡한 이유**:
+
+단일 에이전트 장애는 원인이 명확하다. 그러나 멀티에이전트 시스템 장애는 원인이 여러 에이전트에 분산되어 있고, 에이전트 간 상호작용 과정에서 증폭된다. Gate F의 4개 Config는 이 복잡성을 구조화한다.
+
+- 단일 에이전트: "에이전트 A가 틀렸다" → A의 프롬프트·모델 수정
+- 멀티에이전트: "최종 결과가 틀렸다" → A가 틀렸나? B가 A의 출력을 잘못 해석했나? C가 B의 합의를 거부했나? 충돌이 해결 안 됐나? → Gate F 지표를 보기 전엔 원인 특정 불가
+
 **운영 체크리스트**:
 
-- [ ] 모든 에이전트에 `DeadlockConfig(check_circular_delegation=True)` 최소 적용
-- [ ] 3단계 이상 파이프라인에 `PropagationConfig(key_facts=[...])` 적용
-- [ ] 앙상블 시스템에 BFT 원칙 적용 (n ≥ 3f+1)
+- [ ] 멀티에이전트 시스템에 Gate F 활성화 여부 확인 (단일 에이전트는 불필요)
+- [ ] 모든 에이전트의 `extra["agent_interactions"]` 기록 여부 확인 (`AgentCoordinationTracker` 필수 데이터)
+- [ ] `expected_tools` 선언 여부 확인 (`ToolSelectionTracker` F1 계산 필수)
+- [ ] 오케스트레이터 에이전트에 `DeadlockConfig(check_circular_delegation=True)` 적용 (Gate B)
+- [ ] 3단계 이상 파이프라인에 `PropagationConfig(key_facts=[...])` 적용 (Gate F)
+- [ ] 앙상블 시스템에 BFT 원칙 적용 (n ≥ 3f+1), `ConsensusConfig` 선언 (Gate F)
 - [ ] 에이전트별 독립 `PerformanceMonitor`로 기여도 추적
 - [ ] Gate F 점수 0.75 미만 시 배포 차단 CI/CD 설정
 - [ ] `AnomalyDetector`로 Gate F 점수 이상 급락 실시간 탐지

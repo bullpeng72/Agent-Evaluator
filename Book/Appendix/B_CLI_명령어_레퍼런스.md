@@ -1,6 +1,8 @@
 # Appendix B. CLI 명령어 완전 레퍼런스
 
-Agent Evaluator v0.8.4 CLI 전체 명령어 목록. `pip install agent-evaluator` 설치 후 바로 사용 가능하다.
+Agent Evaluator v0.8.5 CLI 전체 명령어 목록. `pip install agent-evaluator` 설치 후 바로 사용 가능하다.
+
+> **설계 철학**: `agent-eval` CLI는 Harness Gate(A–G)를 CI/CD 파이프라인에 통합하는 인터페이스다. Python 코드에서 선언한 Harness Config(InstructionConfig, SLAConfig 등)가 JSON 결과 파일로 저장되면, CLI가 이를 읽어 Gate 판정·트렌드 분석·시각화를 수행한다. 배포 전 자동 검증(`gate`), 누적 품질 추적(`trend`), 실시간 관측(`monitor`), 대화형 분석(`dashboard`)을 하나의 도구로 커버한다.
 
 ---
 
@@ -70,7 +72,7 @@ agent-eval check
 **출력 예시**
 
 ```
-Agent Evaluator v0.8.4 설정 상태
+Agent Evaluator v0.8.5 설정 상태
 =================================
 .env 파일: /Users/username/project/.env (존재)
 
@@ -174,6 +176,8 @@ agent-eval gate <result.json> [옵션]
 | `--p95-latency` | float | P95 레이턴시 최대값 (초) |
 | `--hallucination` | float | Hallucination Rate 최대값 (%) |
 | `--llm-judge` | float | LLM Judge 종합 점수 최소값 (0~5) |
+| `--min-gate-score` | float | Harness Gate A–G 가중 복합 점수 최소값 (0.0–1.0) [v0.8.3+] |
+| `--group-weights` | 문자열 | Gate 그룹별 가중치 (예: `A:2.0,E:3.0`) [v0.8.3+] |
 | `--fail-on-regression` | float | 기준선 대비 허용 회귀율 (%) |
 | `--baseline` | 파일경로 | 기준선 파일 경로 (기본: `<result_dir>/baseline.json`) |
 | `--save-baseline` | flag | 현재 결과를 기준선으로 저장 |
@@ -197,7 +201,20 @@ agent-eval gate result.json --tcr 85 --fail-on-regression 10
 
 # JUnit XML 출력 (CI 통합)
 agent-eval gate result.json --tcr 85 --junit-xml test-results/gate-results.xml
+
+# Gate A–G 가중 복합 점수 게이팅 (v0.8.3+)
+agent-eval gate result.json --min-gate-score 0.7
+
+# Gate 그룹별 가중치 지정 — Gate A와 E를 더 엄격하게 판정
+agent-eval gate result.json --min-gate-score 0.7 --group-weights A:2.0,E:3.0
 ```
+
+**종료 코드**
+
+| 코드 | 의미 |
+|------|------|
+| `0` | 모든 임계값 통과 |
+| `1` | 임계값 미달 (배포 차단) |
 
 **적정 임계값 자동 제안**
 
@@ -222,7 +239,7 @@ eval.generate_gate_config("gate_config.json")
 
 ## agent-eval trend
 
-여러 평가 결과 파일에서 시간 흐름에 따른 지표 추이를 분석한다. `gate`가 단일 결과를 점검하는 반면, `trend`는 N회 실행의 기울기(slope)로 개선·회귀 방향을 판정한다. CI/CD에서 `--fail-on-regression`을 지정하면 회귀 감지 시 종료 코드 1을 반환한다.
+여러 평가 결과 파일에서 시간 흐름에 따른 지표 추이를 분석한다. `gate`가 단일 결과를 점검하는 반면, `trend`는 N회 실행의 기울기(slope)로 개선·회귀 방향을 판정한다. CI/CD에서 `--fail-on-regression`을 지정하면 회귀 감지 시 종료 코드 **2**를 반환한다 (`gate`의 임계값 미달 종료 코드 `1`과 구분됨).
 
 **사용법**
 
@@ -238,7 +255,7 @@ agent-eval trend <결과디렉토리> [옵션]
 | `--window`, `-w` | `10` | 분석할 최근 파일 수 |
 | `--pattern` | `*.json` | 파일 이름 글로브 패턴 |
 | `--slope-threshold` | `0.3` | 이 절댓값 미만의 slope는 `stable`로 판정 (단위: %/run 또는 초/run). slope 계산 공식은 Appendix H §H.6 참고 |
-| `--fail-on-regression` | — | 회귀 감지 시 종료 코드 1 반환 |
+| `--fail-on-regression` | — | 회귀 감지 시 종료 코드 2 반환 |
 | `--output-json` | — | 분석 결과를 JSON 파일로 저장 |
 
 **종료 코드**
@@ -246,7 +263,9 @@ agent-eval trend <결과디렉토리> [옵션]
 | 코드 | 의미 |
 |------|------|
 | `0` | 회귀 없음 (또는 `--fail-on-regression` 미지정) |
-| `1` | 회귀 감지 (`--fail-on-regression` 지정 시) |
+| `2` | 회귀 감지 (`--fail-on-regression` 지정 시) |
+
+> **참고**: `gate`의 임계값 미달은 종료 코드 `1`, `trend`의 회귀 감지는 종료 코드 `2`로 구분된다. CI/CD 파이프라인에서 두 명령어를 함께 사용할 때 종료 코드로 실패 원인을 구분할 수 있다.
 
 **분석 지표**
 
@@ -314,15 +333,16 @@ Hallucination     degrading   +0.87 %/run  ⚠️
 **사용법**
 
 ```bash
-agent-eval dataset build [옵션]
+agent-eval dataset build <결과디렉토리> [옵션]
 ```
 
 **옵션**
 
 | 옵션 | 기본값 | 설명 |
 |------|--------|------|
-| `--source` | `./results` | 결과 JSON 파일 디렉토리 |
-| `--output` | `<source>/golden_datasets/` | 골든셋 출력 디렉토리 |
+| `결과디렉토리` | (필수) | 평가 결과 JSON 파일이 저장된 디렉토리 |
+| `--min-score` | `0.8` | 골든셋 포함 최소 점수 (0.0–1.0). 이 값 이상인 케이스만 추출 |
+| `--output` | `<결과디렉토리>/golden_datasets/` | 골든셋 출력 디렉토리 |
 | `--strategy` | `failure_cases edge_cases` | 추출 전략 (복수 지정 가능): `failure_cases`, `edge_cases`, `high_value`, `coverage_gap` |
 | `--max-cases` | 50 | 추출할 최대 케이스 수 |
 | `--no-review` | False | 사람 검토 없이 바로 저장 |
@@ -331,17 +351,17 @@ agent-eval dataset build [옵션]
 **예시**
 
 ```bash
-# 기본 추출 (실패 케이스 + 엣지 케이스, 최대 50개)
-agent-eval dataset build
+# 기본 추출 (최소 점수 0.8 이상, 최대 50개)
+agent-eval dataset build results/
 
-# 소스 디렉토리 지정
-agent-eval dataset build --source results/
+# 최소 점수 기준 조정
+agent-eval dataset build results/ --min-score 0.9
 
 # 고품질 케이스 중심 추출
-agent-eval dataset build --source results/ --strategy high_value failure_cases
+agent-eval dataset build results/ --strategy high_value failure_cases
 
 # 저장 경로 및 케이스 수 지정
-agent-eval dataset build --source results/ --output data/golden/ --max-cases 30
+agent-eval dataset build results/ --output data/golden/ --max-cases 30 --min-score 0.85
 ```
 
 **동작 방식**
@@ -448,7 +468,7 @@ agent-eval --version
 **출력 예시**
 
 ```
-agent-evaluator 0.8.4
+agent-evaluator 0.8.5
 ```
 
 ---

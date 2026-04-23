@@ -11,6 +11,26 @@
 
 ## 12.1 왜 데코레이터인가 — SDK 설계 철학
 
+### 데코레이터란 무엇인가
+
+Python에서 데코레이터(`@`)는 함수 위에 붙여서 그 함수의 동작을 변경하거나 감싸는 문법이다. Agent-Evaluator SDK에서 `@agent_eval(monitor, task_type="qa")`를 에이전트 함수 위에 붙이면, 함수 코드를 한 줄도 수정하지 않고 자동 측정 + 기록 + Gate 판정이 추가된다.
+
+```python
+# 에이전트 함수 — 비즈니스 로직만 담는다
+def my_agent(question: str, ground_truth: str = "") -> str:
+    return llm.invoke(question)
+
+# @agent_eval을 붙이면 → 동일 코드에 평가가 삽입된다
+@agent_eval(monitor, task_type="qa")
+def my_agent(question: str, ground_truth: str = "") -> str:
+    return llm.invoke(question)
+```
+
+이 챕터에서 다루는 SDK 3종 데코레이터:
+- `@agent_eval` — 단일 에이전트 함수. 가장 기본
+- `@batch_eval` — 질문 목록을 한 번에 배치 평가
+- `@conversation_eval` — 챗봇처럼 여러 턴이 이어지는 멀티턴 대화 평가
+
 ### 비즈니스 로직과 평가 코드의 분리
 
 좋은 평가 프레임워크는 에이전트 코드를 최대한 건드리지 않아야 한다. 평가를 추가하기 위해 핵심 비즈니스 로직을 리팩토링하거나, 에이전트 함수마다 동일한 보일러플레이트를 반복하는 것은 유지보수 부채를 쌓는 일이다.
@@ -18,6 +38,7 @@
 데코레이터 없이 에이전트 함수 하나를 평가하려면 다음과 같은 코드가 필요하다:
 
 ```python
+# 출처: Evaluator_Examples/ch12_decorators.py — PerformanceMonitor 설정
 # 데코레이터 없는 방식 — 매 함수마다 반복해야 하는 코드
 import time
 from datetime import datetime
@@ -65,6 +86,7 @@ def run_and_evaluate(question: str, ground_truth: str) -> str:
 데코레이터 방식은 이 모든 것을 한 줄로 해결한다:
 
 ```python
+# 출처: Evaluator_Examples/ch12_decorators.py — PerformanceMonitor 설정
 # 데코레이터 방식 — 비즈니스 로직만 남는다
 from agent_evaluator import PerformanceMonitor
 from agent_evaluator.decorators import agent_eval
@@ -100,10 +122,21 @@ def my_agent(question: str, ground_truth: str = "") -> str:
 | `task_type="qa"` | AccuracyEvaluator F1 기반 계산 | Gate A 정확도 점수 |
 | `task_type="tool_use"` | ToolCallAnalyzer 활성화 | Gate B 행동무결성 점수 추가 |
 | `sla=SLAConfig(p95_ms=2000, fail_threshold=3)` | LatencyTracker P95 감시, 위반 3회 누적 시 FAIL 처리 | Gate D WARN/FAIL + TCR 하락 |
-| `enable_security_metrics=True` | InputSanitizationTracker 등 5종 활성 | Gate E 보안경계 점수 추가 |
-| `enable_llm_judge=True` | LLMJudge 7차원 채점 | Gate G 운영관측성 점수 추가 |
+| `security=SecurityConfig()` | InputSanitizationTracker 등 5종 임시 활성 | Gate E 보안경계 점수 추가 |
+| `llm_judge=LLMJudgeConfig()` | LLMJudge 5차원 기본 채점 (+ RAG 시 faithfulness) | Gate G 운영관측성 점수 추가 |
 
 > 📋 **QA 관리자와의 협업**: Config 임계값을 처음 설정할 때는 `fail_on_violation=False`(관찰 모드)로 시작한 뒤 데이터를 QA 관리자와 공유하세요. 임계값 협의 후 `True`로 전환하면 배포 차단이 활성화됩니다. 상세 협업 워크플로우 → [Chapter 3 §3.5](../Part_II_지표시스템/Chapter_03_Harness_Engineering_기초.md) / Config 임계값 설정 기준 → [Chapter 14](../Part_IV_QA관리자가이드/Chapter_14_임계값설정_품질기준.md)
+
+### 데코레이터 방식 vs 수동 PerformanceMonitor 방식
+
+수동으로 `PerformanceMonitor.record_task(result)`를 호출해도 기본 측정은 가능하다. 그러나 Harness Config(`SLAConfig`, `InstructionConfig` 등)를 데코레이터 없이 전달하려면 추가 코드가 필요하며, 무엇보다 **배포 기준이 에이전트 함수와 분리**된다는 구조적 문제가 생긴다.
+
+| 항목 | 데코레이터 방식 | 수동 방식 |
+|------|--------------|---------|
+| 배포 기준 위치 | 에이전트 함수 바로 위 (코드로 선언) | 별도 파일·문서에 분산 |
+| Harness Gate 자동 판정 | 자동 (Config 전달로 활성화) | 수동 Config 전달 코드 필요 |
+| 보일러플레이트 | 없음 | execution_time·task_id 등 직접 작성 |
+| 코드 리뷰 가시성 | Config가 함수와 함께 변경 이력에 포함 | 기준 변경이 별도 커밋으로 분리될 가능성 |
 
 ---
 
@@ -121,6 +154,16 @@ def my_agent(question: str, ground_truth: str = "") -> str:
 | 가장 빠른 시작 / 최소 코드 | `QuickEval` | 1줄 시작, `.qa` `.rag` `.tool_use` 단축 속성 |
 
 > 👨‍💻 **개발자 TIP**: `QuickEval`과 `EvalDecorator`는 팩토리(Factory)다. 내부적으로 `@agent_eval`, `@batch_eval`, `@conversation_eval`을 생성한다. 프레임워크 설정이나 알림 규칙을 여러 에이전트에서 공유해야 한다면 `EvalDecorator` 또는 `QuickEval`을 사용하고, 단일 에이전트에 빠르게 붙이려면 `@agent_eval`을 직접 사용한다.
+
+**`@agent_eval` vs `QuickEval` — 언제 무엇을 쓸까?**
+
+| 상황 | 권장 | 이유 |
+|------|------|------|
+| 처음 평가를 시작하고 싶다 | `QuickEval` | `PerformanceMonitor` 생성 없이 2줄로 시작 가능 |
+| 에이전트 1~2개에 평가 추가 | `@agent_eval` | monitor를 직접 제어하며 세밀한 Harness Config 적용 |
+| 에이전트 3개 이상에 동일 설정 공유 | `EvalDecorator` | 설정 1회 정의 → 모든 에이전트 자동 전파 |
+| Harness Config를 최대한 활용하고 싶다 | `@agent_eval` | Config 파라미터를 직접 붙여 Gate 판정 세밀 제어 |
+| CI/CD 게이팅이 목표 | `QuickEval` | `.gate(tcr=85, accuracy=70)` 한 줄로 완성 |
 
 ---
 
@@ -164,9 +207,14 @@ answer = my_agent("한국의 수도는?", ground_truth="서울")
 
 ### framework= 파라미터 — 21개 어댑터
 
+LangChain·OpenAI·Anthropic 같은 프레임워크는 응답 객체에 토큰 수, 도구 호출 목록 등 풍부한 메타데이터를 담아 반환한다. `framework=` 파라미터를 지정하면 데코레이터가 해당 SDK 응답 객체를 자동으로 파싱해 `tokens_used`, `tool_calls` 등의 필드를 채운다. 별도 추출 코드를 작성하지 않아도 된다.
+
+지원 프레임워크(21개): `langchain`, `langgraph`, `crewai`, `autogen`, `dspy`, `pydanticai`, `anthropic`, `openai`, `gemini`, `llamaindex`, `haystack`, `vertexai`, `ollama`, `cohere`, `groq`, `mistral`, `bedrock`, `smolagents`, `semantic_kernel`, `vllm`, `huggingface`
+
 `framework=` 파라미터를 지정하면 해당 SDK 응답 객체에서 토큰 수, 도구 호출 기록 등을 자동 추출한다. 이때 함수가 SDK 응답 **객체 전체**를 반환해야 한다는 점이 핵심이다:
 
 ```python
+# 출처: Evaluator_Examples/ch12_decorators.py — 데코레이터 사용
 # LangChain — 응답 객체 전체 반환
 @agent_eval(monitor, task_type="qa", framework="langchain")
 def lc_agent(question: str, ground_truth: str = "") -> str:
@@ -229,6 +277,7 @@ def langchain_agent(question: str, ground_truth: str = ""):
 ### rag_mode=True — RAG 전용 자동 설정
 
 ```python
+# 출처: Evaluator_Examples/ch12_decorators.py — 데코레이터 사용
 @agent_eval(
     monitor,
     task_type="information_retrieval",
@@ -247,6 +296,7 @@ def rag_agent(question: str, context: str = "", ground_truth: str = "") -> str:
 ### security=SecurityConfig() — 보안 검사 임시 활성
 
 ```python
+# 출처: Evaluator_Examples/ch12_decorators.py — SecurityConfig
 from agent_evaluator.decorators import agent_eval, SecurityConfig
 
 @agent_eval(monitor, task_type="qa", security=SecurityConfig())
@@ -264,6 +314,7 @@ def risky_agent(question: str, ground_truth: str = "") -> str:
 ### llm_judge=LLMJudgeConfig() — LLM-as-Judge 채점
 
 ```python
+# 출처: Evaluator_Examples/ch12_decorators.py — LLMJudgeConfig
 from agent_evaluator.decorators import agent_eval, LLMJudgeConfig
 
 @agent_eval(
@@ -339,6 +390,7 @@ def production_agent(question: str, ground_truth: str = "") -> str:
 ### 기본 사용법
 
 ```python
+# 출처: Evaluator_Examples/ch12_decorators.py — PerformanceMonitor 설정
 from agent_evaluator import PerformanceMonitor
 from agent_evaluator.decorators import batch_eval
 
@@ -382,6 +434,7 @@ async def concurrent_batch(questions: list, ground_truths: list = None) -> list:
 ### return_format="dataframe" — 분석용 DataFrame
 
 ```python
+# 출처: Evaluator_Examples/ch12_decorators.py — 데코레이터 사용
 @batch_eval(monitor, task_type="qa", return_format="dataframe")
 def batch_agent_df(questions: list, ground_truths: list = None) -> list:
     return [llm.invoke(q) for q in questions]
@@ -395,6 +448,7 @@ df = batch_agent_df(questions, ground_truths)
 DataFrame 활용 예시:
 
 ```python
+# 출처: Evaluator_Examples/ch12_decorators.py — 예제 코드
 # 낮은 정확도 케이스 필터링
 low_accuracy = df[df["accuracy_score"] < 0.7]
 print(f"개선 필요 케이스: {len(low_accuracy)}개")
@@ -594,6 +648,7 @@ with monitor.conversation("cs_demo_002") as conv:
 외부 라이브러리의 콜백으로 에이전트가 실행되거나, 복잡한 조건부 로직 때문에 함수 데코레이터를 붙이기 어려울 때 사용하는 with 블록 패턴이다.
 
 ```python
+# 출처: Evaluator_Examples/ch12_decorators.py — PerformanceMonitor 설정
 from agent_evaluator import PerformanceMonitor
 from agent_evaluator.decorators import eval_context
 
@@ -636,6 +691,7 @@ with eval_context(monitor, task_type="qa") as ctx:
 여러 에이전트 함수에 동일한 `framework`, `alert_rules`, `flush_every` 설정을 적용해야 할 때, `EvalDecorator` 인스턴스를 하나 만들어 공유한다:
 
 ```python
+# 출처: Evaluator_Examples/ch12_decorators.py — LLMJudgeConfig
 from agent_evaluator.decorators import EvalDecorator, LLMJudgeConfig
 from agent_evaluator import PerformanceMonitor, AlertRuleBuilder
 
@@ -679,6 +735,7 @@ def rag_agent(question: str, context: str = "", ground_truth: str = "") -> str:
 `QuickEval`은 `PerformanceMonitor` + `EvalDecorator`를 1~2줄로 시작할 수 있게 해주는 최상위 Facade다:
 
 ```python
+# 출처: Evaluator_Examples/ch12_decorators.py — QuickEval 평가
 from agent_evaluator import QuickEval
 
 # 기본 시작
@@ -701,6 +758,7 @@ judge_eval = QuickEval.for_llm_judge("results/", model="claude-sonnet-4-6")
 ### QuickEval 전체 워크플로우
 
 ```python
+# 출처: Evaluator_Examples/ch12_decorators.py — QuickEval 평가
 from agent_evaluator import QuickEval
 
 # 1단계: QuickEval 초기화
@@ -765,6 +823,7 @@ print(f"통계적 유의성: p={ab_result.get('p_value', 'N/A')}")
 | `"canary"` | 카나리 배포 최적화 | 일부 트래픽 평가 |
 
 ```python
+# 출처: Evaluator_Examples/ch12_decorators.py — 데코레이터 사용
 # 프로덕션 preset
 @agent_eval(monitor, task_type="qa", preset="production")
 def prod_agent(question: str, ground_truth: str = "") -> str:
@@ -791,6 +850,7 @@ def agent(question: str, ground_truth: str = "") -> str: ...
 `sample_rate`와 독립적으로 동작하는 조건 기반 샘플링:
 
 ```python
+# 출처: Evaluator_Examples/ch12_decorators.py — 데코레이터 사용
 # 오류가 발생한 케이스만 기록 (디버깅용)
 @agent_eval(
     monitor,
@@ -810,6 +870,7 @@ def agent(question: str, ground_truth: str = "") -> str:
 `monitor.record_task()` 직전에 실행되는 콜백으로 TaskResult를 보강하거나 교체할 수 있다:
 
 ```python
+# 출처: Evaluator_Examples/ch12_decorators.py — 데코레이터 사용
 import dataclasses
 
 def add_model_info(task_result):
@@ -831,6 +892,7 @@ def agent(question: str, ground_truth: str = "") -> str:
 `AlertRuleBuilder`는 5종의 빌트인 팩토리로 자주 쓰는 알림 규칙을 간결하게 생성한다:
 
 ```python
+# 출처: Evaluator_Examples/ch12_decorators.py — 알림 시스템
 from agent_evaluator import AlertRuleBuilder
 
 # 정확도 임계값 알림
@@ -881,6 +943,7 @@ def agent(question: str, ground_truth: str = "") -> str: ...
 `SimpleTaskAlertRule`은 복합 조건, dry_run, 클래스 레벨 쿨다운을 지원한다:
 
 ```python
+# 출처: Evaluator_Examples/ch12_decorators.py — 알림 시스템
 from agent_evaluator import SimpleTaskAlertRule
 
 # 복합 조건 (accuracy 낮음 + latency 높음)
@@ -907,6 +970,7 @@ SimpleTaskAlertRule.class_level_cooldown["slow_response"] = 300
 ### RetryConfig — 재시도 + jitter
 
 ```python
+# 출처: Evaluator_Examples/ch12_decorators.py — RetryConfig
 from agent_evaluator.decorators import agent_eval, RetryConfig
 
 @agent_eval(
@@ -930,6 +994,7 @@ def rate_limited_agent(question: str, ground_truth: str = "") -> str:
 ### RAG 에이전트 평가 완전 예시
 
 ```python
+# 출처: Evaluator_Examples/ch12_decorators.py — QuickEval 평가
 from agent_evaluator import QuickEval
 
 eval = QuickEval.for_rag("results/")
@@ -957,6 +1022,7 @@ eval.gate(tcr=80, accuracy=65)
 ### 멀티에이전트 협력 평가 예시
 
 ```python
+# 출처: Evaluator_Examples/ch12_decorators.py — PerformanceMonitor 설정
 from agent_evaluator import PerformanceMonitor, EvalMetadata
 from agent_evaluator.decorators import agent_eval
 
@@ -989,6 +1055,7 @@ multi_agent_task("AI 트렌드 2026 보고서", ground_truth="보고서 완성")
 ### 스트리밍 에이전트 평가 예시
 
 ```python
+# 출처: Evaluator_Examples/ch12_decorators.py — PerformanceMonitor 설정
 from agent_evaluator import PerformanceMonitor
 from agent_evaluator.decorators import agent_eval
 
@@ -1141,6 +1208,7 @@ def qa_agent(question: str, ground_truth: str = "") -> str:
 
 #### 2. RAG 에이전트
 ```python
+# 출처: Evaluator_Examples/ch12_decorators.py — LLMJudgeConfig
 from agent_evaluator.decorators import agent_eval, LLMJudgeConfig
 
 @agent_eval(monitor, rag_mode=True,
@@ -1153,6 +1221,7 @@ def rag_agent(question: str, context: str = "", ground_truth: str = "") -> str:
 
 #### 3. 도구 사용 에이전트
 ```python
+# 출처: Evaluator_Examples/ch12_decorators.py — 데코레이터 사용
 from agent_evaluator import EvalMetadata
 from agent_evaluator.decorators import agent_eval
 
@@ -1165,6 +1234,7 @@ def tool_agent(question: str, ground_truth: str = "") -> str:
 
 #### 4. 보안 에이전트
 ```python
+# 출처: Evaluator_Examples/ch12_decorators.py — SecurityConfig
 from agent_evaluator.decorators import agent_eval, SecurityConfig
 
 @agent_eval(monitor, task_type="qa", security=SecurityConfig())
@@ -1175,6 +1245,7 @@ def secure_agent(question: str, ground_truth: str = "") -> str:
 
 #### 5. 멀티에이전트 시스템
 ```python
+# 출처: Evaluator_Examples/ch12_decorators.py — 데코레이터 사용
 @agent_eval(monitor, task_type="tool_use")
 def multi_agent(question: str, ground_truth: str = ""):
     result = crew.kickoff({"topic": question})
@@ -1191,6 +1262,7 @@ def multi_agent(question: str, ground_truth: str = ""):
 
 #### 6. 스트리밍 에이전트 (TTFT 측정)
 ```python
+# 출처: Evaluator_Examples/ch12_decorators.py — 데코레이터 사용
 @agent_eval(monitor, task_type="qa")
 def streaming_agent(question: str, ground_truth: str = ""):
     for chunk in llm.stream(question):
@@ -1200,6 +1272,7 @@ def streaming_agent(question: str, ground_truth: str = ""):
 
 #### 7. 배치 처리
 ```python
+# 출처: Evaluator_Examples/ch12_decorators.py — 데코레이터 사용
 @batch_eval(monitor, task_type="qa",
             concurrency=5)          # concurrency=N → 병렬 처리
 def batch_agent(questions: list, ground_truths: list = None) -> list:
@@ -1210,6 +1283,7 @@ def batch_agent(questions: list, ground_truths: list = None) -> list:
 
 #### 8. LLM Judge + G-Eval 커스텀
 ```python
+# 출처: Evaluator_Examples/ch12_decorators.py — LLMJudgeConfig
 from agent_evaluator.decorators import agent_eval, LLMJudgeConfig
 
 @agent_eval(monitor, task_type="qa",
@@ -1362,7 +1436,7 @@ agent-eval dashboard results/
 | 섹션 8 | `QuickEval` Facade — `gate()` · `summary()` · `save()` |
 | 섹션 추가 | `ConversationSession` 직접 사용 — `add_turn()` + `compute_metrics()` + `monitor.conversation()` 컨텍스트 매니저 |
 
-**실행 결과 (v0.8.4 기준)**
+**실행 결과 (v0.8.5 기준)**
 
 ```
 === 섹션 3: EvalMetadata 튜플 반환 ===
@@ -1389,9 +1463,62 @@ agent-eval dashboard results/
 
 > **이 절에서 배우는 것**: 데코레이터 파라미터에 Harness Config를 연결해 "배포 기준"을 에이전트 함수에 직접 선언하는 방법을 익힌다. 측정(Tracker) + 기준(Config) + 판정(Gate)을 하나의 데코레이터에서 완성한다.
 
-### 12.11.1 Harness Config 파라미터
+### Harness Engineering 관점: 에이전트가 자신의 배포 기준을 소유한다
 
-각 Harness Config는 `@agent_eval` 데코레이터에 **이름 있는 개별 파라미터**로 전달합니다. Config 종류마다 파라미터명이 다릅니다 (예: `instructions=`, `sla=`, `threat_severity=`).
+데코레이터는 단순한 평가 삽입 도구가 아니다. **배포 기준을 에이전트 함수 바로 옆에 코드로 선언하는 메커니즘**이다.
+
+```python
+# 이 함수는 "나는 p95 응답이 3초 이내여야 하고, 반드시 '답변' 키워드를 포함해야 한다"는
+# 배포 기준을 스스로 알고 있다.
+@agent_eval(
+    monitor,
+    task_type="qa",
+    instructions=InstructionConfig(required_keywords=["답변"], fail_on_violation=True),
+    sla=SLAConfig(p95_ms=3000),
+)
+def my_agent(question: str, ground_truth: str = "") -> str: ...
+```
+
+기준이 외부 설정 파일이나 QA 관리자 문서에 흩어져 있으면, 에이전트 코드를 수정할 때 기준도 함께 업데이트해야 한다는 사실을 놓치기 쉽다. 데코레이터에 Config를 붙이면 **에이전트 함수 = 로직 + 배포 기준**이 한 단위가 된다. 이것이 Harness Engineering의 핵심 원칙이다.
+
+반면 수동으로 `PerformanceMonitor`만 사용하면 측정은 되지만 기준 자동 판정(Gate PASS/WARN/FAIL)은 동작하지 않는다. Harness Config는 반드시 데코레이터 또는 `monitor.record_task()` 이전에 Config 인스턴스로 전달되어야 Gate 판정에 반영된다.
+
+### 12.11.1 Harness Config 파라미터 — 단계적 추가 가이드
+
+처음 Harness Config를 적용할 때는 한꺼번에 넣지 말고 단계적으로 추가한다.
+
+**1단계 — 기본 측정만 (Config 없음)**
+```python
+@agent_eval(monitor, task_type="qa")
+def my_agent(question: str, ground_truth: str = "") -> str:
+    return llm.invoke(question)
+# → Accuracy, Latency, TCR 자동 측정. Gate 판정 기준은 없음.
+```
+
+**2단계 — Gate A 기준 추가 (지시 이행)**
+```python
+@agent_eval(monitor, task_type="qa",
+    instructions=InstructionConfig(required_keywords=["서울"], fail_on_violation=False),
+)
+def my_agent(question: str, ground_truth: str = "") -> str:
+    return llm.invoke(question)
+# → fail_on_violation=False: 위반 시 경고만, 아직 배포 차단 없음. 데이터 축적 단계.
+```
+
+**3단계 — Gate D 기준 추가 (성능 계약) + 차단 활성**
+```python
+@agent_eval(monitor, task_type="qa",
+    instructions=InstructionConfig(required_keywords=["서울"], fail_on_violation=True),
+    sla=SLAConfig(p95_ms=3000),
+)
+def my_agent(question: str, ground_truth: str = "") -> str:
+    return llm.invoke(question)
+# → 기준 위반 시 TaskResult.success=False → TCR 하락 → Gate FAIL 가능
+```
+
+> 📋 **QA 관리자와 협업 포인트**: `fail_on_violation=False`로 1~2주 데이터를 쌓은 뒤 QA 관리자와 임계값을 협의하고, 합의된 시점에 `True`로 전환한다.
+
+각 Harness Config는 `@agent_eval` 데코레이터에 **이름 있는 개별 파라미터**로 전달한다. Config 종류마다 파라미터명이 다르다 (예: `instructions=`, `sla=`, `threat_severity=`).
 
 ```python
 # 출처: Evaluator_Examples/ch12_decorators.py, 섹션 Gate A·D — 데코레이터 Config 통합 예제
@@ -1420,7 +1547,7 @@ def my_agent(question: str, ground_truth: str = "") -> str:
     return llm.invoke(question)
 ```
 
-`InstructionConfig(fail_on_violation=True)`로 설정하면 기준 위반 시 해당 태스크의 `TaskResult.success`가 `False`로 강제 설정됩니다. TCR 계산에 반영되어 Gate 판정에 영향을 줍니다. `SLAConfig`의 시간 기준은 `p95_ms` (밀리초)로 지정하며, `max_p95_latency` (초) 파라미터는 존재하지 않습니다.
+`InstructionConfig(fail_on_violation=True)`로 설정하면 기준 위반 시 해당 태스크의 `TaskResult.success`가 `False`로 강제 설정된다. TCR 계산에 반영되어 Gate 판정에 영향을 준다. `SLAConfig`의 시간 기준은 `p95_ms` (밀리초)로 지정하며, `max_p95_latency` (초) 파라미터는 존재하지 않는다.
 
 ### 12.11.2 에이전트 유형별 최소 Config 세트
 
@@ -1435,9 +1562,10 @@ def my_agent(question: str, ground_truth: str = "") -> str:
 
 ### 12.11.3 `RetryConfig`, `LLMJudgeConfig`, `SecurityConfig` 구조화 파라미터
 
-v0.8.1에서 도입된 3종 구조화 Config는 기존 개별 파라미터를 데이터클래스로 묶은 것입니다.
+v0.8.1에서 도입된 3종 구조화 Config는 기존 개별 파라미터를 데이터클래스로 묶은 것이다. Harness Config(InstructionConfig 등)와 달리 이 3종은 배포 기준이 아니라 데코레이터 **실행 동작**(재시도·LLM 채점·보안 임시 활성)을 제어한다.
 
 ```python
+# 출처: Evaluator_Examples/ch12_decorators.py — RetryConfig · LLMJudgeConfig · SecurityConfig
 from agent_evaluator.decorators import RetryConfig, LLMJudgeConfig, SecurityConfig
 
 @agent_eval(
@@ -1465,7 +1593,7 @@ def medical_agent(question: str, ground_truth: str = "") -> str:
 
 ### 12.11.4 데코레이터 + Harness Gate 전체 패턴
 
-측정(데코레이터) + 기준(Config) + 판정(Gate)을 하나의 워크플로우로 연결합니다.
+측정(데코레이터) + 기준(Config) + 판정(Gate)을 하나의 워크플로우로 연결한다.
 
 ```python
 # 출처: Evaluator_Examples/ch12_decorators.py — PerformanceMonitor + @agent_eval 통합

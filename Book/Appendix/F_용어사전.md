@@ -1,6 +1,6 @@
 # Appendix F. 용어 사전
 
-Agent Evaluator v0.8.4에서 사용하는 주요 용어를 영문 기준 가나다 순으로 정리한다.
+Agent Evaluator v0.8.5에서 사용하는 주요 용어를 영문 기준 가나다 순으로 정리한다.
 
 ---
 
@@ -177,7 +177,7 @@ result = HarnessEvaluationGate(report).evaluate()
 | 기본 자동 | `AgentCoordinationTracker`, `ToolSelectionTracker` | F | 항상 |
 | opt-in | `HallucinationDetector` | **C** | `enable_hallucination_detection=True` |
 | opt-in | `InputSanitizationTracker`, `OutputLeakageDetector`, `ToolAuthorizationTracker`, `PrivilegeEscalationDetector`, `ToolChainAttackDetector` | E | `enable_security_metrics=True` |
-| opt-in | `LLMJudge` (7차원) | G | `enable_llm_judge=True` + API 키 |
+| opt-in | `LLMJudge` (기본 5차원; RAG 시 +faithfulness, G-Eval 시 +커스텀 기준) | G | `enable_llm_judge=True` + API 키 |
 
 참조: Chapter 2 §2.4 / Chapter 3 §3.2 / Appendix A §Part 1
 
@@ -456,6 +456,28 @@ from agent_evaluator import EvaluationReport
 
 ---
 
+### extra_metrics.harness_groups (JSON 결과 키)
+
+평가 결과 JSON 파일에서 Gate A–G 판정 결과가 저장되는 키 경로. 내부 구현 명칭이므로 직접 접근 시 이 키를 사용해야 한다.
+
+```python
+import json
+
+with open("results/evaluation.json") as f:
+    data = json.load(f)
+
+# Gate A–G 결과는 extra_metrics.harness_groups 아래에 위치한다
+gate_results = data["extra_metrics"]["harness_groups"]
+gate_a = gate_results.get("A")   # {"status": "PASS", "score": 0.91, ...}
+gate_d = gate_results.get("D")   # {"status": "WARN", "violations": [...], ...}
+```
+
+> **주의**: 대시보드 UI나 HTML 리포트에서는 "Gate A–G"로 표시되지만, JSON 파일의 실제 키는 `extra_metrics.harness_groups`다. `harness_gates`라는 키는 존재하지 않는다.
+
+참조: Chapter 3 §3.5 / Appendix A (전체 JSON 결과 구조)
+
+---
+
 ### evaluation_session
 
 동기 평가 세션 컨텍스트 매니저. `with` 블록 종료 시 자동으로 `save_to_file()`을 호출한다. 예외가 발생해도 데이터를 안전하게 저장한다.
@@ -483,6 +505,52 @@ def agent(question: str, ground_truth: str = "") -> str: ...
 ```
 
 참조: Chapter 12 / Appendix E (오류 #14)
+
+---
+
+### faithfulness (RAG 충실도)
+
+RAG(Retrieval-Augmented Generation) 평가에서 에이전트의 응답이 검색된 컨텍스트 문서에 얼마나 근거하고 있는지를 측정하는 0–5 점수. `LLMJudge`의 기본 5차원에는 포함되지 않으며, `rag_mode=True` + `context` 인자를 함께 전달할 때만 자동으로 추가된다.
+
+```python
+# faithfulness는 RAG 모드에서만 활성화된다
+judge = LLMJudge(model="claude-haiku-4-5-20251001")
+result = judge.judge("t1",
+    question="...",
+    response="...",
+    context="검색된 문서...")   # context 전달 시 faithfulness 자동 추가
+result["scores"]["faithfulness"]  # 0–5
+```
+
+> **주의**: context 없이 `judge()`를 호출하면 `faithfulness` 키가 결과에 존재하지 않는다. `None`이 저장되며 집계 통계에서 제외된다.
+
+참조: Appendix A (Gate G) / Chapter 12 (LLMJudge) / LLM Judge (LLMJudge) 항목
+
+---
+
+### G-Eval (커스텀 기준 채점)
+
+`LLMJudge`의 `judge_criteria` 파라미터로 사용자 정의 평가 기준을 추가하는 기능. DeepEval의 G-Eval 방식과 유사하게 커스텀 차원을 LLM 채점기에 주입한다. 기본 5차원과는 별도로 `criteria_scores` / `criteria_overall` 키로 반환된다.
+
+```python
+judge = LLMJudge(
+    judge_criteria=["medical_accuracy", "citation_quality"],
+)
+result = judge.judge("t1", question="...", response="...")
+result["scores"]["criteria_scores"]   # {"medical_accuracy": 4, "citation_quality": 5}
+result["scores"]["criteria_overall"]  # 커스텀 기준 평균
+```
+
+데코레이터에서 사용 시:
+```python
+from agent_evaluator.decorators import LLMJudgeConfig
+
+@agent_eval(monitor,
+    llm_judge=LLMJudgeConfig(criteria=["safety", "evidence_based"]))
+def agent(question, ground_truth=""): ...
+```
+
+참조: Chapter 12 §12.3 (LLMJudge G-Eval) / Appendix A (Gate G)
 
 ---
 
@@ -628,7 +696,9 @@ OTEL에서 단일 작업 단위를 나타내는 추적 데이터 구조. `record
 
 ### TCR (Task Completion Rate)
 
-태스크 완료율. Gate A의 핵심 지표로 `TaskResult.completion_score` (0.0~1.0)의 평균을 백분율로 표현한다. 95% 이상 우수, 85~95% 양호, 70% 미만 개선 필요.
+태스크 완료율. Gate A의 핵심 지표로 전체 태스크 중 `is_completed=True`(성공적으로 완료됨)로 표시된 태스크의 비율을 백분율로 표현한다. 95% 이상 우수, 85~95% 양호, 70% 미만 개선 필요.
+
+> **참고**: `completion_score`(0.0~1.0, 부분 완료 점수)와 혼동하지 말 것. TCR은 완료 여부(boolean)의 비율이고, `completion_score`는 완료 품질의 연속 점수다.
 
 참조: Appendix A (Gate A #1)
 
@@ -663,6 +733,45 @@ from agent_evaluator import TaskType
 스트리밍 응답에서 첫 번째 토큰이 생성되기까지의 시간. `LatencyTracker.track_ttft()`로 기록하거나 데코레이터 방식에서 제너레이터 함수의 첫 청크 yield 시점에 자동으로 기록된다. v0.7.2+에서 지원.
 
 참조: Appendix A (Gate D #4) / Chapter 7 §7.2 (TTFTVariabilityConfig)
+
+---
+
+### TTFTVariabilityConfig (Gate D)
+
+Gate D(성능 계약)의 Harness Config 중 하나. TTFT(첫 토큰 응답 시간)의 **변동성**을 제어한다. 평균 TTFT가 빠르더라도 응답마다 편차가 크면 사용자 경험이 불안정하다는 점을 포착한다. `PerformanceMonitor` 수준에서 자동 집계되며, 충분한 샘플이 쌓이기 전에는 `insufficient_data_warnings` 경고가 발생할 수 있다.
+
+```python
+from agent_evaluator import TTFTVariabilityConfig
+from agent_evaluator.decorators import agent_eval
+
+@agent_eval(monitor,
+    ttft_variability=TTFTVariabilityConfig(
+        max_std_ms=200,       # TTFT 표준편차 상한 (ms)
+        max_p95_p50_ratio=3.0 # P95/P50 비율 상한
+    ))
+def agent(question, ground_truth=""): ...
+```
+
+참조: Appendix A (Gate D #4) / Chapter 7 §7.2
+
+---
+
+### CostPredictabilityConfig (Gate D)
+
+Gate D(성능 계약)의 Harness Config 중 하나. task_type별 **토큰 변동계수(CV)**를 측정해 비용 예측 가능성을 관리한다. CV가 낮을수록 같은 유형의 태스크에서 비용이 일정하게 유지된다. `TTFTVariabilityConfig`와 마찬가지로 `PerformanceMonitor` 수준에서 자동 집계되며 샘플이 부족하면 경고가 표시된다.
+
+```python
+from agent_evaluator import CostPredictabilityConfig
+
+@agent_eval(monitor,
+    cost_predictability=CostPredictabilityConfig(
+        max_cv=0.3,           # 토큰 변동계수 상한 (0.3 = 30%)
+        fail_on_violation=True
+    ))
+def agent(question, ground_truth=""): ...
+```
+
+참조: Appendix A (Gate D #5) / Chapter 7 §7.3
 
 ---
 

@@ -15,7 +15,7 @@
 
 **25개 Native Trackers + 33개 Harness Config = 58개 지표**를 3개 레이어(Foundation / Agentic / Hybrid)로 측정한다.
 
-- **Version:** 0.8.4 (Beta)
+- **Version:** 0.8.5 (Beta)
 - **Python:** 3.8+
 - **License:** MIT
 - **Author:** Sungwoo Kim
@@ -240,7 +240,7 @@ agent_evaluator/
 ├── config.py                # 환경변수 설정 로더 (load_env, get_settings)
 └── __init__.py              # Public API surface
 
-Evaluator_Examples/          # Book 챕터 기반 예제 (19개 파일 — ch01~ch20)
+Evaluator_Examples/          # Book 챕터 기반 예제 (21개 파일 — ch01~ch21)
 ├── ch01_first_eval.py        # Ch01 — Layer 1 기초 (정확도·할루시네이션·TCR)
 ├── ch02_quickstart.py        # Ch02 — QuickEval 5분 첫 평가
 ├── ch03_harness_basics.py    # Ch03 — Harness Gate A–G 7개 개요
@@ -704,6 +704,16 @@ completion_score task_type 인식 (v0.8.0+):
 ---
 
 ## 📝 변경 이력
+
+### v0.8.5 (2026-04-23) — SDK 버그 수정 · Book API 오류 전면 교정
+
+- 🐛 `eval_efficiency()` dict 타입 `tokens_used` 처리 시 `TypeError` 묵살 버그 수정 (`taskresult_helpers.py`)
+- 🐛 `ch10_group_g.py` — `latency_attributed_agent` latency 데이터를 response 텍스트가 아닌 `EvalMetadata(extra={...})`로 주입하도록 수정 (Gate G warn→pass)
+- 🐛 `ch07_group_d.py` — `EfficiencyConfig(cost_unit="tokens", target_cost_per_completion=200)` 수정, 에이전트별 `task_type` 분리로 `CostPredictabilityConfig` CV 격리 (Gate D 0.640→0.876)
+- 📝 Book `AnomalyDetector` API 오류 수정 — `.detect(report)` → `.scan(monitor: PerformanceMonitor)`, `explanation['z_score']` → `deviation_pct/value` (Ch05·Ch14)
+- 📝 Book `AdaptivePolicy` 허구 API 제거 — `stages=[SamplingStage(condition=...)]` → 실제 생성자 `(default_sample_rate, anomaly_sample_rate, budget_per_day)` (Appendix L)
+- 📝 Book `EfficiencyConfig(target_cost_per_completion=0.005)` USD 스케일 오류 수정 → `cost_unit="tokens", target_cost_per_completion=500` (Ch07·Appendix L·Appendix M)
+- 📝 예제 파일 수·테스트 파일 수 문서 현행화 (19→21개 예제, 51→53개 테스트 파일)
 
 ### v0.8.4 (2026-04-21) — 예제 파일 Book 챕터 기반 전면 재편
 

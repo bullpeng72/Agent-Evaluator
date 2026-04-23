@@ -2,6 +2,8 @@
 
 대부분의 팀은 모든 Tracker를 활성화하거나 매 호출마다 LLM Judge를 실행할 여유가 없다. 프로덕션 AI 에이전트 평가에는 CPU·메모리·외부 API 호출·엔지니어 시간이라는 네 가지 자원이 소모되며, 이 중 어느 하나라도 제약이 생기면 평가 설계 자체를 바꿔야 한다. 그러나 예산 제약이 곧 품질 포기를 의미하지는 않는다. 잘못된 Tracker 선택이 비용을 낭비하는 반면, 올바른 구성은 $10의 투자로 $1,000 예산과 거의 동등한 실패 감지율을 달성할 수 있다.
 
+**Harness Engineering 관점에서 예산 최적화는 "Gate 검증 비용 최소화"다.** 7개 Gate(A–G)가 모두 통과해야 배포 승인이 나므로, 예산이 부족하다면 어떤 Gate의 검증을 얼마만큼의 비용으로 수행할지를 결정해야 한다. Gate A(Goal Achievement)와 Gate E(Security Boundary)는 Native Tracker만으로도 기초 검증이 가능하며 비용이 $0이다. Gate G(Observability)와 Gate A는 LLMJudge를 추가했을 때 신호 품질 향상이 가장 크므로 예산이 생기면 여기에 먼저 투자한다.
+
 이 부록은 평가 비용 구조를 수학적으로 분석하고, 예산 규모별 구체적 구성을 제시하며, 파레토 최적 Tracker 조합과 샘플링 전략, LLMJudge 비용 체감 기법, 그리고 비즈니스 ROI 정당화 프레임워크를 체계적으로 다룬다. 모든 코드 예제는 Agent-Evaluator SDK의 실제 클래스명을 사용하며, 수식은 실제 측정값을 기반으로 한다.
 
 ---
@@ -29,7 +31,9 @@ Agent-Evaluator SDK의 25개 Native Tracker와 LLMJudge 각각의 비용 특성�
 | `AgentCoordinationTracker` | 280 | 1.8 | 없음 | $0.000 | Medium | High |
 | `WorkflowExecutionTracker` | 160 | 0.9 | 없음 | $0.000 | Medium | Medium |
 | `InputSanitizationTracker` | 2,400 | 3.2 | 없음 | $0.000 | Low | High |
+| `InputSanitizationTracker` (sample_rate=0.1) | 240 | 0.5 | 없음 | $0.000 | Low | Medium |
 | `OutputLeakageDetector` | 1,800 | 2.8 | 없음 | $0.000 | Low | High |
+| `OutputLeakageDetector` (sample_rate=0.1) | 180 | 0.4 | 없음 | $0.000 | Low | Medium |
 | `ToolAuthorizationTracker` | 320 | 1.4 | 없음 | $0.000 | Medium | High |
 | `PrivilegeEscalationDetector` | 580 | 2.1 | 없음 | $0.000 | Medium | High |
 | `ToolChainAttackDetector` | 4,200 | 5.6 | 없음 | $0.000 | High | High |
@@ -55,6 +59,22 @@ Agent-Evaluator SDK의 25개 Native Tracker와 LLMJudge 각각의 비용 특성�
 | `LLMJudge` (claude-opus) | 8,000,000+ | 0.5 | 있음 | $15.00 | Low | High |
 
 > **독해 포인트**: CPU 오버헤드가 1ms 미만인 Tracker는 초당 1,000회 호출 기준으로도 CPU 점유율이 0.1% 이하다. 반면 `ToolChainAttackDetector`(4,200 μs)는 패턴 매칭 복잡도 때문에 고빈도 트래픽에서 병목이 될 수 있다. LLMJudge는 외부 네트워크 왕복(RTT ~800ms)이 지배적이므로 샘플링 없이 사용하면 평가 파이프라인이 에이전트 자체보다 느려진다.
+
+> **보안 Tracker 샘플링 (v0.8.3+)**: `InputSanitizationTracker`와 `OutputLeakageDetector`는 `sample_rate` 파라미터를 지원한다. 고트래픽 환경에서 CPU 오버헤드를 줄이면서도 통계적 탐지 능력을 유지할 수 있다. 단, 샘플링된 요청 중 위협이 있어도 탐지를 놓칠 수 있으므로 보안 임계값이 엄격한 환경(Gate E Fail 조건)에서는 `sample_rate=1.0`을 유지하는 것을 권장한다.
+>
+> ```python
+> from agent_evaluator.core.trackers.security import (
+>     InputSanitizationTracker,
+>     OutputLeakageDetector,
+> )
+>
+> # 고트래픽 환경 — 10% 샘플링으로 CPU 90% 절감
+> sanitizer = InputSanitizationTracker(sample_rate=0.1)
+> leakage   = OutputLeakageDetector(sample_rate=0.1)
+>
+> # PerformanceMonitor는 enable_security_metrics=True 시 내부적으로 이를 관리
+> # 직접 Tracker를 인스턴스화할 때만 위 방법을 사용한다
+> ```
 
 ---
 
@@ -131,11 +151,57 @@ n_min = (1.96 × 0.2 / 0.05)^2 = (7.84)^2 ≈ 62
 
 | 모델 | 품질 점수 (Harness 벤치마크) | 비용/1000건 | 응답 지연 (P50) | 추천 사용 사례 |
 |---|---|---|---|---|
-| claude-haiku-4-5 | 0.82 | $0.75 | 420ms | 개발·스테이징 환경, 고빈도 샘플링 |
+| claude-haiku-4-5-20251001 | 0.82 | $0.75 | 420ms | 개발·스테이징 환경, 고빈도 샘플링 |
 | claude-sonnet-4-6 | 0.94 | $3.00 | 1,100ms | 프로덕션 기본값, 균형점 |
 | claude-opus | 0.98 | $15.00 | 2,800ms | 의료·금융 고위험 도메인만 |
 
 품질 개선 한계 효용: Haiku → Sonnet 전환 시 품질 +14.6%, 비용 4× 증가. Sonnet → Opus 전환 시 품질 +4.3%, 비용 5× 증가. **대부분의 경우 Sonnet이 최적점**이다.
+
+#### 모델 선택 우선순위 — `AGENT_EVALUATOR_JUDGE_PROVIDER` 환경변수
+
+SDK는 Judge 모델을 다음 순서로 결정한다.
+
+1. `LLMJudge(model="...")` 또는 `judge_model="..."` 인수에 명시된 모델 이름
+2. `AGENT_EVALUATOR_JUDGE_PROVIDER` 환경변수 (`auto` / `openai` / `anthropic`)
+3. 사용 가능한 API 키 자동 탐지 (`ANTHROPIC_API_KEY` > `OPENAI_API_KEY`)
+
+```bash
+# Anthropic 모델만 사용 (OpenAI 키가 있어도 무시)
+export AGENT_EVALUATOR_JUDGE_PROVIDER=anthropic
+
+# OpenAI 모델만 사용
+export AGENT_EVALUATOR_JUDGE_PROVIDER=openai
+
+# 기본값 — 존재하는 API 키 기반 자동 결정
+export AGENT_EVALUATOR_JUDGE_PROVIDER=auto
+```
+
+비용 절감 팁: Anthropic-only 환경에서는 `claude-haiku-4-5-20251001`를 명시 지정하면 자동 탐지 과정 없이 최저 비용 모델로 바로 진입할 수 있다.
+
+#### LLMJudge 에스컬레이션 — 경계 케이스 자동 승급 (v0.8.3+)
+
+1차 Judge 점수가 임계값 미만이면 자동으로 상위 모델로 재채점한다. Haiku로 빠르게 1차 필터링하되, 불확실한 케이스만 Sonnet이나 Opus로 승급하는 패턴이다.
+
+```python
+from agent_evaluator import LLMJudge
+
+judge = LLMJudge(
+    model="claude-haiku-4-5-20251001",   # 1차: 저비용 빠른 채점
+    escalation_model="claude-sonnet-4-6",  # 2차: 경계 케이스 재채점
+    escalation_threshold=2.5,             # 점수 2.5 미만이면 에스컬레이션
+    sample_rate=0.2,
+)
+```
+
+**비용 효과**: 전체 태스크의 80–90%는 Haiku가 처리하고 10–20%만 Sonnet으로 에스컬레이션된다고 가정하면, 전체 Judge 비용은 Sonnet 전수 채점 대비 약 60–70% 절감된다.
+
+```
+예시: 월 10,000건, 20% 샘플링
+  1차 Haiku 채점: 2,000건 × $0.00075 = $1.50
+  에스컬레이션 15%: 300건 × $0.003   = $0.90
+  합계: $2.40/월  (Sonnet 전수 채점 시 $6.00)
+  절감: 60%
+```
 
 #### 캐싱 전략
 
@@ -169,18 +235,22 @@ def get_judge_score(question: str, response: str, judge: LLMJudge) -> dict:
 | **A — Goal Achievement** | `TaskCompletionTracker`, `AccuracyEvaluator` | `InstructionConfig(required_keywords=[...])` | $0 | 미묘한 목표 이탈, 계획 비일관성 |
 | **B — Behavioral Integrity** | `ToolCallAnalyzer`, `RetryCorrectionTracker` | `LoopDetectionConfig(consecutive_repeat_threshold=5)` | $0 | 권한 없는 도구 사용, 상태 불일치 |
 | **C — Reliability** | `TaskCompletionTracker`, `RetryCorrectionTracker` | `FaultToleranceConfig(partial_success_threshold=0.8)` | $0 | 멱등성 위반, 재시도 간 응답 편차 |
-| **D — Performance Contract** | `LatencyTracker`, `TokenEconomyTracker` | `SLAConfig(p95_ms=5000)` | $0 | TTFT 변동성, 비용 예측 불가능성 |
+| **D — Performance Contract** | `LatencyTracker`, `TokenEconomyTracker` | `SLAConfig(p95_ms=5000)`, `ResourceBudgetConfig(max_cost_usd=0.05)` | $0 | TTFT 변동성, 비용 예측 불가능성 |
 | **E — Security Boundary** | `InputSanitizationTracker`, `OutputLeakageDetector` | `ComplianceConfig(forbidden_data_patterns=[...])` | $0 | 체인 공격, 권한 상승 시도 |
 | **F — Multi-Agent Coord** | `AgentCoordinationTracker` | `ConsensusConfig(similarity_threshold=0.8)` | $0 | 정보 왜곡 전파, 역할 위반 |
 | **G — Observability** | `LatencyTracker` (구간별) | `ObservabilityConfig(min_coverage=0.8)` | $0 | 추론 설명 불충분, 오류 진단 누락 |
 
 > 모든 Gate의 최소 비용이 $0인 것은 Native Tracker가 외부 API 없이 동작하기 때문이다. LLMJudge를 추가하면 Gate G(Observability)와 Gate A(Goal Achievement)에서 가장 큰 품질 개선이 나타난다.
+>
+> **Gate D 비용 관련 Config 요약**: `SLAConfig` — 응답시간 P95/P99 임계값 위반율 추적; `ResourceBudgetConfig` — 태스크당 토큰 예산·비용 상한 설정; `CostPredictabilityConfig` — task_type별 토큰 변동계수(CV) 분석. 이 세 Config는 `TokenEconomyTracker` + `LatencyTracker`와 함께 추가 비용 없이 사용할 수 있으며, 예산 초과 패턴을 사전에 감지하는 핵심 수단이다.
 
 ---
 
 ## L.2 평가 예산 3단계 모델
 
 ### L.2.1 스타터 플랜 (월 $0 — Native Tracker만)
+
+**Harness Gate 커버리지**: Gate A(TCR·Accuracy), Gate B(Loop), Gate D(SLA), Gate E(기본 보안) — Gate C·F·G는 부분 또는 미커버
 
 **활성화 Tracker**: `TaskCompletionTracker`, `AccuracyEvaluator`, `LatencyTracker`, `TokenEconomyTracker`, `ToolCallAnalyzer`, `InputSanitizationTracker`
 
@@ -235,6 +305,8 @@ monitor.save_to_file("weekly_starter")
 ---
 
 ### L.2.2 스탠다드 플랜 (월 $10–$50 — LLMJudge 샘플링 추가)
+
+**Harness Gate 커버리지**: Gate A(전체), Gate B(전체), Gate C(기본), Gate D(SLA·비용), Gate E(전체), Gate G(기본) — Gate F(멀티에이전트)는 별도 구성 필요
 
 **추가 Tracker**: `HallucinationDetector`, `ResponseQualityEvaluator`, `LLMJudge`
 
@@ -303,6 +375,8 @@ def qa_agent(question: str, ground_truth: str = "") -> str:
 ---
 
 ### L.2.3 풀 커버리지 플랜 (월 $100+ — 전체 활성화)
+
+**Harness Gate 커버리지**: Gate A–G 전체 — 7개 Gate × 33개 Config 전부 활성화. 배포 승인 기준 가장 엄격한 구성
 
 **구성**: 모든 25개 Native Tracker + LLMJudge(Sonnet, 50–100% 샘플링) + 33개 Harness Config 전체
 
@@ -385,7 +459,8 @@ monitor = PerformanceMonitor(
         p99_ms=4000,                     # P99 응답시간 4초 상한 (밀리초)
     ),
     efficiency=EfficiencyConfig(
-        target_cost_per_completion=0.01, # 완료 태스크당 목표 비용 $0.01
+        cost_unit="tokens",
+        target_cost_per_completion=500,  # 완료 태스크당 500 토큰 이하 목표
         penalize_failed_tokens=True,
     ),
     resource_budget=ResourceBudgetConfig(max_cost_usd=0.05),
@@ -684,43 +759,52 @@ class RiskBasedSampler:
 
 ### L.4.2 적응형 샘플링 (AdaptivePolicy)
 
-Agent-Evaluator SDK의 `AdaptivePolicy`는 조건 기반 샘플링 단계를 정의한다.
+`AdaptivePolicy`는 운영 상태에 따라 **3단계 샘플링률**을 자동으로 전환한다. 단계는 `SamplingStage` Enum으로 정의된다: `DEFAULT` (정상) → `ANOMALY` (이상 감지) → `BUDGET_EXCEEDED` (예산 소진).
 
 ```python
 from agent_evaluator import CostTracker, AdaptivePolicy, SamplingStage
 
 policy = AdaptivePolicy(
-    stages=[
-        # 조건 1: TCR이 80% 미만이면 무조건 전수 평가
-        SamplingStage(condition="tcr < 0.80", rate=1.0),
-        # 조건 2: 단일 호출 비용이 $0.05 초과 — 고비용 태스크는 50% 샘플링
-        SamplingStage(condition="cost_usd > 0.05", rate=0.5),
-        # 조건 3: 지연이 SLA 120% 초과 — 성능 이슈 감시
-        SamplingStage(condition="latency > 6.0", rate=0.8),
-        # 기본: 10% 베이스라인
-        SamplingStage(condition="default", rate=0.1),
-    ]
+    default_sample_rate=0.1,    # 평상시: 10% 샘플링
+    anomaly_sample_rate=1.0,    # 이상 감지 시: 100% 전수 평가
+    budget_per_day=10.0,        # 일일 예산 $10 — 초과 시 BUDGET_EXCEEDED 전환
+    alert_at=0.8,               # 80% 소진 시 경고
 )
+
+# 현재 단계 조회
+status = policy.get_status()
+print(status["stage"])                  # "default"
+print(status["current_sample_rate"])    # 0.1
+
+# 이상 감지 시 수동 전환 (AnomalyDetector 이벤트 처리 등)
+policy.enter_anomaly_mode()             # → ANOMALY 단계 (sample_rate=1.0)
+
+# 예산 상태 확인 및 단계 전환
+policy.check_budget()                   # 예산 초과 시 → BUDGET_EXCEEDED 전환
+
+# SamplingStage Enum 값
+SamplingStage.DEFAULT          # "default"
+SamplingStage.ANOMALY          # "anomaly"
+SamplingStage.BUDGET_EXCEEDED  # "budget_exceeded"
 ```
 
-**AdaptivePolicy 수학적 기대 비용**:
+**AdaptivePolicy 수학적 기대 평가율**:
 
-전체 트래픽에서 각 조건의 해당 비율을 `p_i`, 해당 샘플률을 `r_i`라 하면:
+3단계 모델에서 기대 평가율은 각 단계의 발생 확률과 해당 샘플률의 가중 합이다:
 
 ```
-E[evaluation_rate] = Σ (p_i × r_i)
+E[evaluation_rate] = Σ (p_stage × r_stage)
 
-예시:
-  p(tcr < 0.80) = 0.05 → r = 1.0 → 기여 0.050
-  p(cost > 0.05) = 0.10 → r = 0.5 → 기여 0.050
-  p(latency > 6.0) = 0.03 → r = 0.8 → 기여 0.024
-  p(default) = 0.82 → r = 0.1 → 기여 0.082
-  E[evaluation_rate] = 0.050 + 0.050 + 0.024 + 0.082 = 0.206
+예시 (운영 환경 기준):
+  p(DEFAULT)          = 0.92 → r = 0.10 → 기여 0.092
+  p(ANOMALY)          = 0.05 → r = 1.00 → 기여 0.050
+  p(BUDGET_EXCEEDED)  = 0.03 → r = 0.00 → 기여 0.000
+  E[evaluation_rate] = 0.092 + 0.050 + 0.000 = 0.142
 ```
 
-단순 10% 균등 샘플링 대비 **평균 20.6% 평가율**이지만, 위험 구간(TCR 저하, 고비용, 고지연)은 80–100%로 집중 커버한다. 이것이 AdaptivePolicy의 핵심 가치다.
+단순 10% 균등 샘플링 대비 **평균 14.2% 평가율**이지만, 이상 감지 구간에서는 100% 전수 평가로 집중 커버한다. 이것이 AdaptivePolicy의 핵심 가치다.
 
-**비용 절감 추정**: 단순 50% 샘플링 대비 AdaptivePolicy 20.6% 구성은 LLMJudge 비용을 **58.8% 절감**하면서 고위험 구간 커버리지는 유지한다.
+**비용 절감 추정**: 단순 50% 샘플링 대비 AdaptivePolicy 14.2% 구성은 LLMJudge 비용을 **71.6% 절감**하면서 이상 구간 커버리지는 완전히 유지한다.
 
 ---
 
@@ -765,6 +849,48 @@ builder.build_from_results("results/", output_file="golden_100.json")
 # 골든셋 회귀 테스트를 CI/CD에 통합
 # agent-eval gate golden_results.json --tcr 90 --accuracy 85
 ```
+
+---
+
+### L.4.4 평가 결과 실험 추적 플랫폼 내보내기
+
+평가 결과를 Weights & Biases(W&B)나 MLflow로 내보내면 Gate A–G 점수 추세를 실험 추적 대시보드에서 확인할 수 있다. 비용 대비 Gate 품질을 장기 추적하는 데 유용하다.
+
+#### W&B 내보내기
+
+```bash
+pip install "agent-evaluator[wandb]"   # wandb 추가 설치 필요
+```
+
+```python
+from agent_evaluator import PerformanceMonitor
+
+monitor = PerformanceMonitor(output_dir="results/")
+# ... 평가 수행 ...
+
+# W&B 프로젝트로 Gate A–G 점수 + 58개 지표 전송
+monitor.export_to_wandb(
+    project="my-agent-eval",
+    entity="my-team",          # W&B 팀/사용자명
+    run_name="v1.2-deployment",
+)
+```
+
+#### MLflow 내보내기
+
+```bash
+pip install "agent-evaluator[mlflow]"  # mlflow 추가 설치 필요
+```
+
+```python
+monitor.export_to_mlflow(
+    experiment_name="agent-eval",
+    run_name="v1.2-deployment",
+    tracking_uri="http://localhost:5000",  # MLflow 서버 URI
+)
+```
+
+> **예산 관점**: 실험 추적 플랫폼 내보내기 자체는 추가 비용이 없다(SDK 외부 서비스 비용은 별도). 장기 추세 분석을 통해 어떤 Gate가 실패를 가장 많이 잡는지 데이터 기반으로 파악하면, 다음 평가 주기에서 예산을 해당 Gate 검증에 집중 투자할 수 있다.
 
 ---
 
@@ -1021,14 +1147,12 @@ AI 에이전트 품질 평가 시스템 투자 제안
 
 ## 요약: 예산별 권장 구성 한눈에 보기
 
-| 예산 | 플랜 | 핵심 Tracker | LLMJudge | 예상 실패 탐지율 | 적합 환경 |
-|---|---|---|---|---|---|
-| $0 | 스타터 | TCR + Accuracy + Latency + Security (4–6개) | 없음 | ~65% | 내부 도구, 개발 초기 |
-| $10–50/월 | 스탠다드 | 스타터 + Hallucination + Quality (6–8개) | Haiku 10–30% | ~82% | B2B SaaS, 프로덕션 기본 |
-| $100+/월 | 풀 커버리지 | 전체 25개 Native | Sonnet 50–100% | ~95% | 의료·금융·법률 고위험 |
+| 예산 | 플랜 | 핵심 Tracker | LLMJudge | Gate 커버리지 | 예상 실패 탐지율 | 적합 환경 |
+|---|---|---|---|---|---|---|
+| $0 | 스타터 | TCR + Accuracy + Latency + Security (4–6개) | 없음 | Gate A·B·D·E 부분 | ~65% | 내부 도구, 개발 초기 |
+| $10–50/월 | 스탠다드 | 스타터 + Hallucination + Quality (6–8개) | Haiku 10–30% | Gate A·B·C·D·E·G | ~82% | B2B SaaS, 프로덕션 기본 |
+| $100+/월 | 풀 커버리지 | 전체 25개 Native | Sonnet 50–100% | Gate A–G 전체 | ~95% | 의료·금융·법률 고위험 |
 
 파레토 법칙은 AI 에이전트 평가에도 적용된다. 전체 Tracker의 20–25%(4–6개)가 전체 실패의 80%를 잡는다. 예산이 부족하다면 먼저 에이전트 유형에 맞는 파레토 최적 Tracker 3개를 선택하고, 예산이 생길 때마다 LLMJudge 샘플링을 조금씩 추가하는 방식으로 점진적으로 확장하는 것이 가장 합리적인 전략이다.
 
----
-
-*다음 부록: Appendix M. 프로덕션 운영 체크리스트 — 배포 전 최종 점검 항목*
+**Harness Engineering 핵심 원칙**: 예산 최적화는 Gate 검증 비용 최소화다. 어떤 Gate의 신호를 얼마나 자주 수집할지 결정하는 것이 예산 설계의 본질이다. 스타터 플랜이라도 Gate A(목표 달성)와 Gate D(SLA) 신호는 반드시 확보하라 — 이 두 Gate가 배포 결정에 가장 직접적인 영향을 준다.

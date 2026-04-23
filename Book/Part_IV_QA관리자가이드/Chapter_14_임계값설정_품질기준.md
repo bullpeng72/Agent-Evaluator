@@ -27,7 +27,7 @@
   task_type="qa",          →  AccuracyEvaluator       →  Gate A 정확도: 72%
   sla=SLAConfig(                                          Gate D P95: 3.1초
     p95_ms=2000),          →  LatencyTracker P95       →  Gate D: WARN ⚠️
-  enable_security=True,    →  InputSanitizationTracker →  Gate E: PASS ✅
+  enable_security_metrics=True, →  InputSanitizationTracker →  Gate E: PASS ✅
 )
 ```
 
@@ -39,7 +39,7 @@
 | Gate D — P95 지연, 비용 | LatencyTracker, TokenEconomyTracker | 기본 자동 (항상) |
 | Gate E — 보안 위협 건수 | InputSanitizationTracker 외 4종 | `enable_security_metrics=True` |
 | Gate F — 다중에이전트 협업 | AgentCoordinationTracker, ToolSelectionTracker | agent_interactions 데이터 포함 시 |
-| Gate G — LLM Judge 점수 | LLMJudge 7차원 | `enable_llm_judge=True` + API 키 |
+| Gate G — LLM Judge 점수 | LLMJudge 기본 5차원 (+ RAG faithfulness·G-Eval 확장 가능) | `enable_llm_judge=True` + API 키 |
 
 > **데이터가 없는 Gate**: 담당 Tracker가 비활성이거나 입력 데이터가 없으면 해당 Gate 점수가 표시되지 않는다(회색 처리). "왜 Gate E가 보이지 않나?"라면 개발자에게 `enable_security_metrics=True` 설정을 요청하면 된다.
 
@@ -97,7 +97,7 @@ TCR 임계값을 95%로 설정했다고 가정하자. 에이전트가 하루 1,0
 
 **Tool Use 에이전트의 추가 지표:**
 
-도구를 많이 쓰는 에이전트는 Gate B-G 지표도 함께 관리해야 한다.
+도구를 많이 쓰는 에이전트는 Gate B(Behavioral Integrity) 지표도 함께 관리해야 한다.
 
 | 지표 | 권장값 | 설명 |
 |------|--------|------|
@@ -109,56 +109,88 @@ TCR 임계값을 95%로 설정했다고 가정하자. 에이전트가 하루 1,0
 
 ### 14.2.1 어떤 지표 그룹을 활성화할 것인가? — 지표 선택 의사결정 트리
 
-에이전트 유형별 KPI 기준표를 정했다면, 다음 단계는 **어떤 지표 그룹을 활성화할지**를 결정하는 것이다. 아래 의사결정 트리를 순서대로 따라가면 최소 비용으로 최대 커버리지를 얻을 수 있다.
+에이전트 유형별 KPI 기준표를 정했다면, 다음 단계는 **어떤 지표 그룹을 활성화할지**를 결정하는 것이다. Q1–Q7을 순서대로 따라가면 최소 비용으로 최대 커버리지를 얻을 수 있다. **Q1–Q4**는 활성화할 Gate(B·C·E·F), **Q5–Q7**은 LLM Judge 설정을 결정한다. Gate A와 D는 모든 에이전트에서 항상 활성화된다.
 
-```
-[시작]
-  │
-  ▼
-에이전트가 도구를 사용하는가?
-  │
-  ├─ NO → Gate A-D 기반 지표만 활성 (TCR, Accuracy, Quality, Latency, Token, Hallucination*)
-  │         *(hallucination은 RAG 경우에만)
-  │
-  └─ YES ─→ Gate A-G 기반 + 에이전틱 지표 활성
-              │
-              ▼
-            에이전트가 민감 데이터/외부 시스템에 접근하는가?
-              │
-              ├─ NO → Gate A-G 기반 + 에이전틱 지표 유지
-              │
-              └─ YES → Gate E 보안 지표 추가
-                          enable_security_metrics=True
+> **Harness Config vs Tracker 모드**: 판정 기준을 `@agent_eval` 데코레이터로 코드화하고 CI/CD 자동 차단을 원하면 **Harness Config 방식**을, 지표 측정만 필요하면 `PerformanceMonitor` 단독(**Tracker 모드**)으로 충분하다. 아래 흐름도는 두 방식 모두에 동일하게 적용된다.
 
-[계속]
-  │
-  ▼
-Ground truth를 항상 가질 수 있는가?
-  │
-  ├─ YES → Gate A-G 기반 지표로 충분 (낮은 비용)
-  │
-  └─ NO → LLM Judge 추가 (Gate G)
-            │
-            ▼
-          RAG 파이프라인인가?
-            │
-            ├─ NO → LLM Judge (5차원) + judge_sample_rate=0.1
-            │
-            └─ YES → LLM Judge (rag_mode=True, faithfulness 추가)
-                       OR Ragas (더 정밀한 RAG 평가 필요 시)
+@@HTML_START@@
+<div class="mermaid">
+flowchart TD
+    START([지표 선택 시작\nGate A + D는 항상 활성화]):::startNode
 
-[심화]
-  │
-  ▼
-특정 도메인 기준이 필요한가? (의료, 법률, 금융 등)
-  │
-  └─ YES → judge_criteria=["domain_accuracy", "citation_quality", ...]
-             (G-Eval 스타일 커스텀 기준)
-```
+    Q1{"에이전트가 도구·외부 API를\n사용하는가?\n(RAG 검색 · 함수 호출 포함)"}:::questionNode
+    R1N["Gate A + D\nTCR · Accuracy · Quality\nLatency · Token"]:::gateAD
+    R1Y["Gate A + B + D\n+ ToolCall · Workflow\n+ ToolSelection"]:::gateABD
+
+    Q2{"멀티에이전트\n시스템인가?"}:::questionNode
+    R2Y["Gate F 추가\nConsensusConfig\nAgentRoleConfig"]:::gateF
+
+    Q3{"민감 데이터 또는\n외부 시스템에 접근하는가?"}:::questionNode
+    R3Y["Gate E 추가\nenable_security_metrics=True\nThreatSeverityConfig\nComplianceConfig"]:::gateE
+
+    Q4{"환각 탐지 또는\n신뢰성 집중 테스트가 필요한가?\n(RAG · 고위험 도메인 · 오류 복구)"}:::questionNode
+    R4Y["Gate C 추가\nenable_hallucination_detection=True\nFaultToleranceConfig\nReproducibilityConfig"]:::gateC
+
+    Q5{"Ground truth를\n항상 가질 수 있는가?"}:::questionNode
+    R5Y["Native Tracker만으로 충분\nGate A–F 지표 · 낮은 비용"]:::gateAF
+
+    Q6{"RAG\n파이프라인인가?"}:::questionNode
+    R6Y["LLM Judge\nrag_mode=True\nfaithfulness 자동 추가\nOR Ragas 4지표"]:::gateG
+    R6N["LLM Judge 5차원\njudge_sample_rate=0.1"]:::gateG
+
+    Q7{"특정 도메인 기준이\n필요한가? (의료·법률·금융)"}:::questionNode
+    R7Y["judge_criteria 커스텀\ndomain_accuracy\ncitation_quality 등"]:::gateG
+    R7N["기본 5차원 Judge\ncompleteness · relevance\nfactual_consistency\ntoxicity · bias"]:::gateG
+
+    DONE(["지표 구성 완료\nCLI: agent-eval gate result.json --tcr 85\nPython: QuickEval.gate(tcr=85, accuracy=70)"]):::doneNode
+
+    START --> Q1
+
+    Q1 -->|NO| R1N
+    Q1 -->|YES| R1Y
+    R1N & R1Y --> Q2
+
+    Q2 -->|YES| R2Y
+    Q2 -->|NO| Q3
+    R2Y --> Q3
+
+    Q3 -->|YES| R3Y
+    Q3 -->|NO| Q4
+    R3Y --> Q4
+
+    Q4 -->|YES| R4Y
+    Q4 -->|NO| Q5
+    R4Y --> Q5
+
+    Q5 -->|YES| R5Y
+    Q5 -->|NO| Q6
+    Q6 -->|YES| R6Y
+    Q6 -->|NO| R6N
+
+    R5Y & R6Y & R6N --> Q7
+    Q7 -->|YES| R7Y
+    Q7 -->|NO| R7N
+    R7Y & R7N --> DONE
+
+    classDef startNode fill:#1a237e,stroke:#1a237e,color:#fff
+    classDef doneNode fill:#1b5e20,stroke:#1b5e20,color:#fff
+    classDef questionNode fill:#fff8e1,stroke:#f9a825,stroke-width:2px,color:#5d4037
+    classDef gateAD fill:#e8f5e9,stroke:#388e3c,color:#1b5e20
+    classDef gateABD fill:#c8e6c9,stroke:#2e7d32,color:#1b5e20
+    classDef gateF fill:#e8eaf6,stroke:#3949ab,color:#1a237e
+    classDef gateE fill:#f3e5f5,stroke:#7b1fa2,color:#4a148c
+    classDef gateC fill:#fff3e0,stroke:#e65100,color:#bf360c
+    classDef gateAF fill:#e3f2fd,stroke:#1976d2,color:#0d47a1
+    classDef gateG fill:#e0f7fa,stroke:#00838f,color:#006064
+</div>
+@@HTML_END@@
+
+> **Appendix I §I.6**에서 동일한 흐름도를 확인할 수 있다. 에이전트 유형별로 미리 계산된 결과는 **§I.6.1 빠른 선택 매트릭스**를 참조한다.
 
 **코드로 바로 적용:**
 
 ```python
+# 출처: Evaluator_Examples/ch14_thresholds.py — PerformanceMonitor 설정
 from agent_evaluator import PerformanceMonitor
 from agent_evaluator.decorators import agent_eval
 
@@ -175,7 +207,7 @@ monitor = PerformanceMonitor(
     enable_security_metrics=True,   # Gate E 활성화
 )
 
-# Case 4: RAG + LLM Judge (Gate A + Gate G)
+# Case 4: RAG + LLM Judge (Gate A + Gate C + Gate G)
 monitor = PerformanceMonitor(
     output_dir="results/",
     enable_hallucination_detection=True,
@@ -271,6 +303,18 @@ agent-eval gate results/eval.json --tcr 70 --accuracy 55
 - `--hallucination` 인수는 `enable_hallucination_detection=True`가 설정된 평가 결과에서만 의미가 있다
 - 환경별 임계값을 별도 파일(`gate_dev.json`, `gate_prod.json`)로 관리하면 실수로 환경이 바뀌는 것을 방지할 수 있다
 
+`agent-eval gate` CLI가 지원하는 전체 파라미터:
+
+| 파라미터 | 설명 | 예시 |
+|---------|------|------|
+| `--tcr` | 태스크 완료율 하한 (%) | `--tcr 85` |
+| `--accuracy` | 정확도 하한 (%) | `--accuracy 70` |
+| `--p95-latency` | P95 응답시간 상한 (초) | `--p95-latency 5` |
+| `--hallucination` | 환각률 상한 (%) | `--hallucination 5` |
+| `--llm-judge` | LLM Judge 점수 하한 (0~5) | `--llm-judge 3.5` |
+| `--min-gate-score` | Harness Gate A–G 복합 점수 하한 | `--min-gate-score 0.7` |
+| `--group-weights` | Gate별 가중치 (A:2.0,E:3.0 형식) | `--group-weights A:2.0,E:3.0` |
+
 | 환경 | TCR | Accuracy | Hallucination | P95 Latency |
 |------|-----|----------|---------------|-------------|
 | Dev | ≥ 70% | ≥ 55% | ≤ 15% | ≤ 15초 |
@@ -323,6 +367,48 @@ agent-eval gate results/eval.json --tcr 70 --accuracy 55
 | 보안 위협 (privilege_escalation) | 1건 | 3건 | 1건 (즉시) |
 
 📋 **QA 관리자 TIP:** Critical 알림은 절대 쿨다운을 길게 설정하지 말 것. 권한 상승(privilege_escalation) 탐지는 쿨다운 없이 매번 알림을 보내는 것이 원칙이다.
+
+**3계층 알림을 코드로 구현 (SimpleTaskAlertRule):**
+
+```python
+from agent_evaluator import PerformanceMonitor, SimpleTaskAlertRule
+from agent_evaluator.decorators import agent_eval
+
+monitor = PerformanceMonitor(output_dir="results/")
+
+# Warning — accuracy < 0.70 (Slack #monitoring)
+warn_rule = SimpleTaskAlertRule(
+    name="accuracy_warning",
+    condition=lambda tr: tr.accuracy_score is not None and tr.accuracy_score < 0.70,
+    handler=lambda msg, tr: print(f"[WARNING] accuracy={tr.accuracy_score:.2f} → Slack #monitoring"),
+    severity="warning",
+    cooldown=300,   # 5분 쿨다운
+)
+
+# Error — accuracy < 0.55 (Slack #alerts + DM)
+error_rule = SimpleTaskAlertRule(
+    name="accuracy_error",
+    condition=lambda tr: tr.accuracy_score is not None and tr.accuracy_score < 0.55,
+    handler=lambda msg, tr: print(f"[ERROR] accuracy={tr.accuracy_score:.2f} → Slack #alerts + DM"),
+    severity="error",
+    cooldown=60,    # 1분 쿨다운
+)
+
+# Critical — latency > 30초 (PagerDuty 호출)
+critical_rule = SimpleTaskAlertRule(
+    name="latency_critical",
+    condition=lambda tr: tr.execution_time > 30.0,
+    handler=lambda msg, tr: print(f"[CRITICAL] latency={tr.execution_time:.1f}s → PagerDuty"),
+    severity="critical",
+    cooldown=30,    # 30초 쿨다운
+)
+
+@agent_eval(monitor, task_type="qa",
+            alert_rules=[warn_rule, error_rule, critical_rule])
+def agent(question: str, ground_truth: str = "") -> str: ...
+```
+
+> 전체 구현은 §14 실전 예제(`ch16_alerts.py`) 참조 — `StreamingEvaluator` 슬라이딩 윈도우와 결합한 패턴을 확인할 수 있다.
 
 ---
 
@@ -416,6 +502,7 @@ agent-eval gate results/eval.json --tcr 70 --accuracy 55
 ### 1주차: 느슨한 임계값으로 기준 데이터 수집
 
 ```python
+# 출처: Evaluator_Examples/ch14_thresholds.py — PerformanceMonitor 설정
 from agent_evaluator import PerformanceMonitor
 from agent_evaluator.decorators import agent_eval
 
@@ -443,6 +530,7 @@ def agent(question: str, ground_truth: str = "") -> str:
 ### 2주차: generate_gate_config()로 기준 갱신
 
 ```python
+# 출처: Evaluator_Examples/ch14_thresholds.py — QuickEval 평가
 from agent_evaluator import QuickEval
 
 # 1주차 데이터 기반으로 기준 생성
@@ -464,6 +552,16 @@ with open("gate_config_v1.json") as f:
 - `replay()`로 기존 JSON 파일을 로드해 새로 실행하지 않고도 임계값을 계산할 수 있다
 - `generate_gate_config()`가 반환하는 파일명에 버전(`v1`, `v2`)을 포함하면 캘리브레이션 이력을 추적할 수 있다
 - 출력값을 확인해 업계 권장값과 크게 벗어난 항목은 팀 리뷰를 거쳐 수동 조정한다
+
+**데이터 기반 임계값으로 전환하는 3단계:**
+
+| 단계 | 시점 | 행동 |
+|------|------|------|
+| 1단계 — 직관 기반 | 배포 직후 (n < 50) | §14.2 권장값 또는 Wilson 하한으로 보수적 설정 |
+| 2단계 — 혼합 기반 | 2주차 (n = 50~200) | `generate_gate_config()` 실행 → 권장값과 비교 → 팀 리뷰 후 채택 |
+| 3단계 — 데이터 기반 | 1개월 이후 (n > 200) | 관찰값 - 5% 마진 → `SLAConfig`·`InstructionConfig`로 코드화 → PR 머지 |
+
+2단계에서 `generate_gate_config()`가 제안한 값이 §14.2 권장값보다 **느슨하면** 직접 확인이 필요하다. "에이전트 성능이 낮은 것"인지, "테스트 데이터가 쉽게 편향된 것"인지를 구분해야 한다. 3단계 전환 시 임계값 변경은 반드시 PR 리뷰를 거쳐야 한다(§14.7.1 참조).
 
 ### 이후: 월 1회 정기 갱신
 
@@ -494,6 +592,22 @@ Harness Config로 전환하면:
 | 코드 외부에 기준 산재 | Git으로 기준 변경 이력 추적 |
 | 에이전트 유형별 구분 어려움 | 데코레이터별 Config를 분리 선언 |
 | 재검토 시 어디를 봐야 하는지 불명확 | 단일 파일에서 전체 기준 조회 가능 |
+
+**임계값 변경이 PR 리뷰를 거쳐야 하는 이유:**
+
+Config-as-Code의 핵심은 "임계값 변경 = 코드 변경"이라는 원칙이다. `SLAConfig(p95_ms=5000)` → `SLAConfig(p95_ms=10000)`으로 바꾸는 것은 단순한 숫자 수정이 아니라 **QA 기준을 완화하는 결정**이다.
+
+이 변경이 PR 없이 바로 배포되면:
+- 누가, 언제, 왜 기준을 바꿨는지 추적이 불가능하다
+- QA 관리자가 모르는 사이에 기준이 느슨해질 수 있다
+- 사고 발생 시 "기준이 바뀐 시점"을 특정하기 어렵다
+
+PR 리뷰를 강제하면:
+- `git blame decorators.py`로 변경 이력이 남는다
+- 코드 리뷰어가 "왜 P95를 5초→10초로 완화하는가?"를 검토할 수 있다
+- QA 관리자가 개발자와 협력해 임계값을 합의하는 워크플로우가 만들어진다
+
+> **QA 관리자 협업 워크플로우**: QA 관리자가 직접 코드를 작성하지 않아도 된다. QA 관리자가 §14.2 표를 기준으로 "RAG P95를 4초로 제한하자"고 요청하면, 개발자가 `SLAConfig(p95_ms=4000)`으로 코드화하고 PR을 올린다. QA 관리자는 PR 설명에 "Gate D P95 기준: 5초→4초 강화, 근거: RAG 권장값 §14.2"를 확인하고 승인한다. 이 합의가 Git 히스토리에 영구 보존된다.
 
 ### 14.7.2 에이전트 유형별 KPI를 Config로 선언
 
@@ -549,6 +663,7 @@ def security_agent(question: str, ground_truth: str = "") -> str: ...
 **Wilson Score Interval**은 관찰된 TCR이 "진짜 성능 범위" 어디에 있는지 95% 신뢰구간으로 추정합니다.
 
 ```python
+# 출처: Evaluator_Examples/ch14_thresholds.py — 예제 코드
 import math
 
 def wilson_lower_bound(successes: int, trials: int, z: float = 1.96) -> float:
@@ -580,6 +695,7 @@ print(f"n=500, TCR=90%:  Wilson 하한 = {wilson_lower_bound(450, 500):.1%}") # 
 | 200건 이상 | 신뢰: 관찰값 - 5% 마진 | `tcr = 관찰TCR - 0.05` |
 
 ```python
+# 출처: Evaluator_Examples/ch14_thresholds.py — InstructionConfig
 # 실무 패턴: 샘플 수에 따른 자동 임계값 결정
 def adaptive_threshold(
     successes: int,
@@ -674,11 +790,12 @@ for gate in ["A", "D"]:
 
 ```python
 # 출처: Evaluator_Examples/ch14_thresholds.py, 섹션 추가A — 이상 탐지 (AnomalyDetector)
-from agent_evaluator import AnomalyDetector, create_taskresult
+from agent_evaluator import PerformanceMonitor, AnomalyDetector, create_taskresult
 import random
 
-# 기준선 태스크 30개 생성 (정상 범위)
-baseline_results = []
+monitor_anom = PerformanceMonitor(output_dir="results/")
+
+# 기준선 태스크 30개 기록 (정상 범위)
 for i in range(30):
     result = create_taskresult(
         task_id=f"baseline_{i}",
@@ -688,9 +805,9 @@ for i in range(30):
         execution_time=random.gauss(1.5, 0.3),  # 평균 1.5초, 표준편차 0.3초
         task_type="qa",
     )
-    baseline_results.append(result)
+    monitor_anom.record_task(result)
 
-# 이상값 태스크 1개 (명백한 이상)
+# 이상값 태스크 1개 추가 기록 (명백한 이상)
 anomaly_result = create_taskresult(
     task_id="anomaly_001",
     question="테스트 질문",
@@ -699,20 +816,21 @@ anomaly_result = create_taskresult(
     execution_time=15.0,  # 평균보다 10배 이상 지연
     task_type="qa",
 )
+monitor_anom.record_task(anomaly_result)
 
-# AnomalyDetector: Z-Score 기반 이상 탐지
-detector = AnomalyDetector()
-events = detector.scan(baseline_results + [anomaly_result])
+# AnomalyDetector: 통계 기반 이상 탐지 (scan은 PerformanceMonitor를 받는다)
+detector = AnomalyDetector(baseline_window=25, detection_window=5)
+events = detector.scan(monitor_anom)
 
 for event in events:
     explanation = detector.explain_event(event)
-    print(f"이상 감지: {explanation['metric']} — Z-Score {explanation['z_score']:.1f}")
-    print(f"임계값: {explanation['threshold']}, 실제값: {explanation['actual_value']}")
+    print(f"이상 감지: {explanation['metric']} — {explanation['deviation_pct']:.1f}% 이탈")
+    print(f"임계값: {explanation['threshold']}, 실제값: {explanation['value']}")
 ```
 
-- `AnomalyDetector`는 Z-Score 통계로 지연시간 스파이크, 정확도 급락, 토큰 급증을 자동 탐지한다
-- 기준선 태스크 30개로 정상 범위의 평균(μ)과 표준편차(σ)를 학습한다
-- `explain_event()`는 어떤 지표가, 얼마나 벗어났는지를 사람이 읽기 쉬운 형태로 반환한다
+- `AnomalyDetector`는 통계 기반으로 지연시간 스파이크, 정확도 급락, 토큰 급증을 자동 탐지한다. `scan(monitor)`는 `PerformanceMonitor` 인스턴스를 받아 기록된 전체 태스크를 분석한다.
+- 기준선 태스크 25건 이상(`baseline_window=25`)으로 정상 범위를 학습하고, 이후 추가 태스크(`detection_window=5`)에서 이상치를 탐지한다.
+- `explain_event(event)` 반환 필드: `metric`(지표명), `value`(실제값), `threshold`(기준값), `deviation_pct`(이탈 비율%), `explanation`(설명 문자열), `suggested_action`(권고 조치)
 
 ```python
 # 출처: Evaluator_Examples/ch14_thresholds.py, 섹션 추가B — 비용 추적 + 적응형 샘플링
@@ -766,7 +884,7 @@ python Evaluator_Examples/ch10_group_g.py
 | 섹션 4 | `AlertEngine` 규칙 설정 | TCR/정확도/레이턴시 임계값 알림 |
 | 섹션 5 | `GoldenSetBuilder` 품질 기준 | `accuracy_score >= 0.85` 캘리브레이션 기준 |
 
-**실행 결과 (v0.8.4 기준)**
+**실행 결과 (v0.8.5 기준)**
 
 ```
 # ch10_group_g.py 실행 (28개 태스크)

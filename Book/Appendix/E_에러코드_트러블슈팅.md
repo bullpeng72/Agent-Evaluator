@@ -1,10 +1,12 @@
 # Appendix E. 에러 코드 & 트러블슈팅
 
-Agent Evaluator 사용 중 자주 발생하는 오류 20가지와 FAQ 10가지를 정리한다.
+Agent Evaluator 사용 중 자주 발생하는 오류 23가지와 FAQ 10가지를 정리한다.
+
+> **Harness Engineering 관점**: 평가 중 발생하는 오류는 단순한 버그가 아니다. Gate A–G 중 어느 게이트에서 신호가 차단되는지를 먼저 파악하면 원인을 빠르게 좁힐 수 있다. **Gate 오류 = 배포 기준 미달 신호**다 — 오류를 고치는 동시에 해당 Gate가 왜 실패했는지 원인을 분석하자.
 
 ---
 
-## 자주 발생하는 오류 20가지
+## 자주 발생하는 오류 23가지
 
 ---
 
@@ -38,11 +40,13 @@ setup_otel(endpoint="http://localhost:6006")
 
 ```bash
 # 터미널 1
-agent-eval monitor
+agent-eval monitor          # Phoenix 기본 포트: 6006, OTEL gRPC 수신: 4317
 
 # 터미널 2
 python my_agent.py
 ```
+
+> **팁**: `agent-eval monitor --check`로 OTEL 패키지 설치 여부, 포트 4317(gRPC) 및 포트 6006 점유 상태를 한 번에 확인할 수 있다.
 
 ---
 
@@ -70,6 +74,8 @@ ls results/*.json
 
 **원인 C**: `auto_save=True` 설정 후 충분한 태스크가 누적되지 않음 (기본 10건마다 저장)
 
+> **포트 참고**: 대시보드 기본 포트는 **8765**다 (8000이나 8080이 아님). 브라우저에서 `http://localhost:8765`로 접속한다.
+
 ---
 
 ### 3. agent-eval gate 항상 실패
@@ -93,6 +99,8 @@ eval.generate_gate_config("gate_config.json")
 # 현재 성능 기반으로 임계값 직접 지정
 agent-eval gate result.json --tcr 85 --accuracy 70
 ```
+
+> **Harness 관점**: `agent-eval gate` exit code 1은 단순 실패가 아니라 **Gate A(목표 달성) 또는 Gate C(신뢰성) 기준 미달 신호**다. 임계값을 낮추기 전에 어떤 지표가 부족한지 먼저 분석하자.
 
 ---
 
@@ -139,6 +147,8 @@ def rag_agent(question: str, context: str = "", ground_truth: str = "") -> str: 
 def rag_agent(question: str, context: str = "", ground_truth: str = "") -> str: ...
 ```
 
+> **주의**: `enable_hallucination=True`는 잘못된 파라미터명이다. 반드시 `enable_hallucination_detection=True`로 써야 한다.
+
 ---
 
 ### 6. 보안 지표가 수집되지 않음
@@ -158,6 +168,10 @@ monitor = PerformanceMonitor.for_secure_agents()
 @agent_eval(monitor, task_type="qa", security=SecurityConfig())
 def agent(question: str, ground_truth: str = "") -> str: ...
 ```
+
+> **주의**: `enable_security=True`는 잘못된 파라미터명이다. 반드시 `enable_security_metrics=True`로 써야 한다.
+>
+> **Harness 관점**: 보안 지표는 **Gate E(Security Boundary)** 판정의 핵심이다. 프로덕션 배포 전 `enable_security_metrics=True`로 한 번은 반드시 평가해야 한다.
 
 ---
 
@@ -203,6 +217,8 @@ pip install "datasets>=4.0.0,<6.0.0"
 ```
 
 ragas 0.4.x는 `EvaluationDataset`, `SingleTurnSample` API를 사용한다. 구버전 `datasets`와 호환되지 않는다.
+
+> **참고**: `AnswerRelevancy` 지표는 OpenAI API 키가 있을 때만 임베딩이 자동 설정된다. Anthropic 전용 환경에서는 `AnswerRelevancy`를 지표 목록에서 제외해야 한다.
 
 ---
 
@@ -265,7 +281,7 @@ v0.7.1+에서는 태스크가 없을 때 `tasks=0`을 안전하게 반환한다.
 
 ### 13. LLM Judge가 동작하지 않음
 
-**증상**: LLM Judge 지표(`completeness`, `relevance`, `faithfulness` 등)가 보고서에 없음.
+**증상**: LLM Judge 지표(`completeness`, `relevance` 등)가 보고서에 없음.
 
 **원인 A**: `OPENAI_API_KEY` 또는 `ANTHROPIC_API_KEY` 미설정.
 
@@ -282,7 +298,7 @@ export ANTHROPIC_API_KEY=sk-ant-...
 @agent_eval(monitor, task_type="qa")
 def agent(question: str, ground_truth: str = "") -> str: ...
 
-# ✅ LLM Judge 활성
+# ✅ LLM Judge 활성 (기본 5차원: completeness, relevance, factual_consistency, toxicity, bias)
 from agent_evaluator import LLMJudgeConfig
 @agent_eval(monitor, task_type="qa", llm_judge=LLMJudgeConfig())
 def agent(question: str, ground_truth: str = "") -> str: ...
@@ -290,9 +306,15 @@ def agent(question: str, ground_truth: str = "") -> str: ...
 # ✅ Anthropic 모델 명시
 @agent_eval(monitor, task_type="qa", llm_judge=LLMJudgeConfig(model="claude-haiku-4-5-20251001"))
 def agent(question: str, ground_truth: str = "") -> str: ...
+
+# ✅ RAG faithfulness 추가 — rag_mode=True 시 faithfulness 차원이 자동으로 추가됨
+@agent_eval(monitor, task_type="information_retrieval",
+            rag_mode=True, context_arg="context",
+            llm_judge=LLMJudgeConfig())
+def rag_agent(question: str, context: str = "", ground_truth: str = "") -> str: ...
 ```
 
-**원인 C**: `PerformanceMonitor`에서 `enable_llm_judge=True`가 아니라 `judge_sample_rate=0`으로 설정됨.
+**원인 C**: `PerformanceMonitor`에서 `judge_sample_rate=0`으로 설정됨.
 
 ```python
 # ❌ sample_rate=0 → 모든 태스크 스킵
@@ -301,6 +323,23 @@ monitor = PerformanceMonitor(output_dir="results/", judge_sample_rate=0)
 # ✅ 기본 10% 샘플링
 monitor = PerformanceMonitor(output_dir="results/", judge_sample_rate=0.1)
 ```
+
+**원인 D**: LLM Judge가 연속 오류로 자동 비활성화됨 (v0.8.3+).
+
+LLM Judge는 API 오류가 3회 연속 발생하면 `_disabled_reason`이 설정되어 자동으로 비활성화된다. 이 경우 보고서에서 LLM Judge 지표가 조용히 사라진다.
+
+```python
+judge = LLMJudge(model="claude-haiku-4-5-20251001")
+
+# 비활성화 여부 확인
+if judge._disabled_reason:
+    print(f"LLM Judge 비활성화 이유: {judge._disabled_reason}")
+
+# 오류 초기화 및 재활성화
+judge.reset_errors()
+```
+
+API 키, 모델명, 네트워크 연결을 확인한 뒤 `reset_errors()`를 호출하면 Judge가 복구된다.
 
 ---
 
@@ -431,13 +470,18 @@ def agent(question: str, ground_truth: str = "") -> str: ...
 pip install --upgrade agent-evaluator
 ```
 
-**원인 B**: 포트 6006이 이미 사용 중
+**원인 B**: 포트가 이미 사용 중
+
+`agent-eval monitor --check`는 다음 두 포트를 확인한다:
+- **포트 4317**: OTEL gRPC 수신 포트 (스팬 전송에 사용)
+- **포트 6006**: Phoenix UI 포트 (브라우저 접속)
 
 ```bash
 # 포트 사용 확인
 lsof -i :6006
+lsof -i :4317
 
-# 다른 포트로 기동
+# Phoenix를 다른 포트로 기동 (UI 포트만 변경)
 agent-eval monitor --port 6007
 ```
 
@@ -460,6 +504,83 @@ pip install jinja2>=3.1.0
 
 ---
 
+### 21. 대시보드 Parquet/Excel 내보내기 HTTP 409
+
+**증상**: 대시보드에서 "Export Excel" 또는 "Export Parquet" 버튼 클릭 시 HTTP 409 오류.
+
+**원인**: `[export]` extras가 설치되지 않음. Parquet 내보내기는 `pyarrow`, Excel 내보내기는 `openpyxl`이 필요하며, 미설치 시 서버가 HTTP 409로 응답한다.
+
+**해결책**:
+
+```bash
+pip install "agent-evaluator[export]"
+# 또는 개별 설치
+pip install pyarrow openpyxl
+```
+
+설치 후 대시보드 서버를 재시작해야 한다.
+
+```bash
+agent-eval dashboard results/
+```
+
+---
+
+### 22. Gate 결과가 JSON에서 조회되지 않음
+
+**증상**: `result.json` 파일에서 `result["harness_gates"]` 키를 찾을 수 없음. `KeyError` 발생.
+
+**원인**: Gate A–G 결과는 `harness_gates` 키가 아닌 `extra_metrics.harness_groups` 키에 저장된다. 내부 구현 명칭과 직관적 이름이 다르다.
+
+**해결책**:
+
+```python
+import json
+
+with open("results/evaluation.json") as f:
+    data = json.load(f)
+
+# ❌ 잘못된 키
+gates = data["harness_gates"]           # KeyError
+
+# ✅ 올바른 키
+gates = data["extra_metrics"]["harness_groups"]
+
+# 예: Gate A 결과 확인
+gate_a = gates.get("goal_achievement", {})
+print(gate_a)
+```
+
+> **Harness 관점**: `extra_metrics.harness_groups` 아래에는 Gate A–G 각각의 점수, 통과/경고/실패 판정, 개별 Config 지표가 담겨 있다. CI/CD 스크립트에서 특정 Gate를 직접 파싱할 때 이 경로를 사용한다.
+
+---
+
+### 23. agent-eval trend --fail-on-regression exit code 혼동
+
+**증상**: CI/CD에서 `agent-eval trend`가 종료 코드 1과 2를 반환하는데 의미를 구분하지 못함.
+
+**원인**: `agent-eval` CLI의 exit code 체계가 명령어별로 다르다.
+
+| 명령어 | exit 0 | exit 1 | exit 2 |
+|--------|--------|--------|--------|
+| `agent-eval gate` | 임계값 통과 | 임계값 미달 | — |
+| `agent-eval trend --fail-on-regression` | 회귀 없음 | 오류/예외 | 회귀 감지 |
+
+```yaml
+# GitHub Actions 예시 — 종료 코드별 처리
+- name: 품질 게이팅
+  run: agent-eval gate results/evaluation.json --tcr 85 --accuracy 70
+  # exit 1 → 파이프라인 자동 차단
+
+- name: 회귀 탐지
+  run: agent-eval trend results/ --fail-on-regression
+  # exit 2 → 회귀 감지, exit 0 → 정상
+```
+
+> **Harness 관점**: exit 2(회귀)는 **Gate C(Reliability)** 또는 **Gate D(Performance Contract)** 기준이 이전 배포 대비 하락했다는 신호다. 단순히 재시도하지 말고 어떤 지표가 떨어졌는지 추세 보고서를 분석하자.
+
+---
+
 ## 자주 묻는 질문 (FAQ) 10가지
 
 ---
@@ -469,7 +590,7 @@ pip install jinja2>=3.1.0
 가능하다. `ground_truth`가 없는 경우:
 - `accuracy_score`는 0.0으로 기록됨 (무의미)
 - `hallucination_rate`는 계산되지 않음
-- `LLMJudge`는 `completeness`, `relevance`, `factual_consistency` 3종을 ground_truth 없이 채점 가능
+- `LLMJudge`는 기본 5차원(`completeness`, `relevance`, `factual_consistency`, `toxicity`, `bias`)을 ground_truth 없이 채점 가능
 
 ```python
 @agent_eval(monitor, task_type="qa", llm_judge=LLMJudgeConfig())
@@ -537,7 +658,7 @@ df = monitor.export_to_dataframe()
 
 ### Q6. 평가 데코레이터를 적용해도 에이전트 성능에 영향이 있나?
 
-Gate A-G 네이티브 지표는 순수 Python 알고리즘으로 계산되므로 오버헤드가 매우 작다 (태스크당 < 5ms). 단, 보안 지표(`enable_security_metrics=True`) 활성화 시 5~15ms 추가 오버헤드가 발생한다. LLM Judge(`llm_judge=LLMJudgeConfig()`)는 외부 API 호출을 수반하므로 수 초의 추가 시간이 필요하다.
+Gate A–G 네이티브 지표는 순수 Python 알고리즘으로 계산되므로 오버헤드가 매우 작다 (태스크당 < 5ms). 단, 보안 지표(`enable_security_metrics=True`) 활성화 시 5~15ms 추가 오버헤드가 발생한다. LLM Judge(`llm_judge=LLMJudgeConfig()`)는 외부 API 호출을 수반하므로 수 초의 추가 시간이 필요하다.
 
 ---
 
@@ -569,9 +690,14 @@ chat_agent("오늘 날씨는?", session_id="u1")
 
 - name: 품질 게이팅
   run: agent-eval gate results/evaluation.json --tcr 85 --accuracy 70
+  # exit 0: 통과, exit 1: 임계값 미달 → 파이프라인 차단
+
+- name: 회귀 탐지 (선택)
+  run: agent-eval trend results/ --fail-on-regression
+  # exit 0: 정상, exit 2: 회귀 감지 → 파이프라인 차단
 ```
 
-`agent-eval gate`가 임계값 미달 시 exit code 1을 반환하여 파이프라인을 자동 차단한다.
+`agent-eval gate`는 임계값 미달 시 exit code 1을, `agent-eval trend --fail-on-regression`은 회귀 감지 시 exit code 2를 반환하여 파이프라인을 자동 차단한다.
 
 ---
 
@@ -589,7 +715,7 @@ df = monitor.export_to_dataframe()
 df.to_csv("results.csv")
 ```
 
-대시보드 API에서 `/export/excel` 엔드포인트로 Excel 파일 다운로드도 가능하다.
+대시보드 API에서 `/export/excel` 엔드포인트로 Excel 파일 다운로드도 가능하다. 단, 이 기능은 `[export]` extras(`pyarrow` + `openpyxl`) 설치가 필요하다. 미설치 시 HTTP 409가 반환된다.
 
 ---
 

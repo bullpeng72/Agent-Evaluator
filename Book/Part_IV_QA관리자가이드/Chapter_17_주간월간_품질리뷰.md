@@ -106,13 +106,19 @@ def main():
         comparison = eval_this.compare(eval_last)
         print("[ 전주 대비 변화 ]")
 
-        accuracy_delta = comparison.get("accuracy_delta", 0)
-        tcr_delta = comparison.get("tcr_delta", 0)
-        latency_delta = comparison.get("p95_latency_delta", 0)
+        # compare()는 {"self": {...}, "other": {...}, "delta": {...}} 구조를 반환한다
+        # 변화량은 comparison["delta"] 하위에서 퍼센트 포인트 단위로 제공된다
+        delta = comparison.get("delta", {})
+        # accuracy·tcr는 퍼센트 포인트(pp) 단위 (-3.0 = -3pp)
+        # REGRESSION_THRESHOLD_ACCURACY = -0.03 → pp 단위로는 -3.0
+        # (임계값을 pp 단위로 바꾸려면 *100, 또는 threshold를 -3.0으로 설정)
+        accuracy_delta = delta.get("accuracy", 0) / 100   # pp → 비율(0~1) 변환
+        tcr_delta      = delta.get("tcr", 0) / 100
+        latency_delta  = delta.get("avg_latency", 0)      # 초 단위 그대로
 
         print(f"  Accuracy:    {accuracy_delta:+.1%}")
         print(f"  TCR:         {tcr_delta:+.1%}")
-        print(f"  P95 Latency: {latency_delta:+.2f}초\n")
+        print(f"  Avg Latency: {latency_delta:+.2f}초\n")
 
         # 회귀 감지
         regressions = []
@@ -164,8 +170,8 @@ if __name__ == "__main__":
 ```
 
 - `replay()`로 저장된 JSON 파일을 로드해 새 평가 없이도 주간 집계 통계와 비교 결과를 계산할 수 있다
-- `compare(eval_last)`는 이번 주와 지난 주의 accuracy·TCR·latency 델타를 반환하고, 회귀 기준을 초과하면 `regressions` 리스트에 추가된다
-- Slack Webhook URL이 없을 때는 콘솔 출력으로 fallback되므로 개발 환경에서도 스크립트를 그대로 테스트할 수 있다
+- `compare(eval_last)`는 `{"self": {...}, "other": {...}, "delta": {"accuracy": N, "tcr": N, "avg_latency": N}}` 구조를 반환한다. accuracy·tcr는 퍼센트 포인트(pp) 단위이므로 비율(`0~1`)로 쓰려면 `/100` 변환이 필요하다
+- 회귀 기준을 초과하는 지표는 `regressions` 리스트에 추가되고, Slack Webhook이 없을 때는 콘솔 출력으로 fallback되므로 개발 환경에서도 그대로 테스트할 수 있다
 
 **자동 실행 설정 (cron):**
 
@@ -184,11 +190,15 @@ if __name__ == "__main__":
 
 > 📖 **`compare()` 통계 수식**: `accuracy_delta`, `p95_latency_delta` 등 각 델타 값의 계산 방식과 통계적 해석은 **[Appendix H §H.4](../Appendix/H_알고리즘_수학적_레퍼런스.md)**를 참조하세요.
 
+> **초급자를 위한 "회귀(Regression)"란?**
+> 회귀는 "예전보다 나빠졌다"를 의미한다. 정확도가 지난 주 80%였는데 이번 주 75%라면, 5 퍼센트 포인트 회귀가 발생한 것이다. 실시간 알림은 임계값(예: 70%) 아래로 떨어질 때만 울리지만, 리뷰에서는 "아직 임계값 위지만 방향이 나쁜" 패턴을 미리 잡는다. 회귀가 여러 주 반복되면 임계값 위반이 되기 때문이다.
+
 `compare()` 메서드는 두 `QuickEval` 인스턴스의 지표를 비교해서 델타(변화량)를 반환한다.
 
 ### compare() 반환값 구조
 
 ```python
+# 출처: Evaluator_Examples/ch17_weekly_review.py — QuickEval 평가
 from agent_evaluator import QuickEval
 
 eval_this = QuickEval("results/")
@@ -199,18 +209,18 @@ eval_last.replay("results/last_week.json")
 
 comparison = eval_this.compare(eval_last)
 
-# 주요 필드:
-# comparison["accuracy_delta"]        — Accuracy 변화 (예: -0.03 = -3%)
-# comparison["tcr_delta"]             — TCR 변화 (예: -0.02 = -2%)
-# comparison["p95_latency_delta"]     — P95 Latency 변화 (예: +0.8 = +0.8초)
-# comparison["quality_avg_delta"]     — Quality 점수 변화
-# comparison["total_cost_usd_delta"]  — 비용 변화 (예: +5.23 = +$5.23)
-# comparison["hallucination_rate_delta"] — 환각율 변화
+# compare()는 {"self": {...}, "other": {...}, "delta": {...}} 구조를 반환한다
+# 변화량은 comparison["delta"] 하위에 있다:
+delta = comparison["delta"]
+# delta["accuracy"]     — Accuracy 변화 (예: -3.0 = -3 퍼센트 포인트)
+# delta["tcr"]          — TCR 변화 (예: -2.0 = -2 퍼센트 포인트)
+# delta["avg_latency"]  — 평균 Latency 변화 (예: +0.8 = +0.8초)
+# (퍼센트 포인트 단위: delta["accuracy"] == -3.0 → f"{delta['accuracy']:+.1f}pp" 출력)
 ```
 
 - `compare()`는 두 `QuickEval` 인스턴스 모두 `replay()`로 데이터가 로드된 상태에서만 의미 있는 값을 반환한다
-- `accuracy_delta = -0.03`은 이번 주 Accuracy가 전주보다 3 퍼센트 포인트 낮아진 것을 의미한다
-- `total_cost_usd_delta`로 주간 비용 변화를 추적하면 예산 초과 추세를 조기에 발견할 수 있다
+- `delta["accuracy"] = -3.0`은 이번 주 Accuracy가 전주보다 3 퍼센트 포인트 낮아진 것을 의미한다
+- `delta` 딕셔너리를 직접 참조하므로 `comparison["accuracy_delta"]`가 아닌 `comparison["delta"]["accuracy"]`로 접근해야 한다
 
 ### 회귀 임계값 기준
 
@@ -218,13 +228,13 @@ comparison = eval_this.compare(eval_last)
 
 | 지표 | 회귀 판단 기준 | 이유 |
 |------|-------------|------|
-| Accuracy | -3% 이상 하락 | 측정 오차 수준이 약 1~2% |
-| TCR | -5% 이상 하락 | 일일 변동폭 고려 |
+| Accuracy | -3pp 이상 하락 | 측정 오차 수준이 약 1~2pp |
+| TCR | -5pp 이상 하락 | 일일 변동폭 고려 |
 | P95 Latency | +1초 이상 증가 | 사용자 경험에 직접적 영향 |
 | Quality | -0.2점 이상 하락 | 5점 척도에서 유의미한 변화 |
 | 비용 | +20% 이상 증가 | 예산 계획 영향 |
 
-📋 **QA 관리자 TIP:** `compare()`는 절댓값이 아닌 **비율 변화**를 반환한다. `accuracy_delta = -0.03`은 "이번 주 Accuracy가 전주보다 3 퍼센트 포인트 낮아졌다"는 의미다. 퍼센트 출력 시 `f"{delta:+.1%}"` 형식을 사용하면 `+3.0%` / `-2.5%`처럼 직관적으로 표시된다.
+📋 **QA 관리자 TIP:** `compare()["delta"]`의 accuracy·tcr 값은 **퍼센트 포인트(pp)** 단위 숫자다. `delta["accuracy"] = -3.0`이면 "전주보다 3pp 하락"을 의미한다. 출력 시 `f"{delta['accuracy']:+.1f}pp"` 형식을 사용하면 `+3.0pp` / `-2.5pp`처럼 부호가 명확하게 표시된다.
 
 ---
 
@@ -235,6 +245,7 @@ comparison = eval_this.compare(eval_last)
 ### ab_test() 반환값 구조
 
 ```python
+# 출처: Evaluator_Examples/ch17_weekly_review.py — 예제 코드
 ab_result = eval_this.ab_test(eval_last)
 
 # ab_result["p_value"]        — 유의성 p-값 (0~1)
@@ -280,11 +291,22 @@ if summary_this.get("total_tasks", 0) < 30:
 
 골든 데이터셋은 한 번 만들면 끝이 아니다. 서비스가 발전하면 데이터셋도 함께 진화해야 한다. 구식 케이스로 평가하면 현재 에이전트의 실제 성능을 반영하지 못한다.
 
+> **골든셋을 언제 확장해야 하는가?**
+>
+> | 상황 | 판단 기준 | 권장 조치 |
+> |------|---------|---------|
+> | 신규 기능 출시 | 새 도메인·태스크 유형이 추가됨 | 즉시 해당 케이스 추가 |
+> | 오탐(false pass) 발견 | 실제로 나쁜데 골든셋 점수는 높음 | 해당 케이스 교체 |
+> | 주간 후보 10건 미만 | 고품질 케이스가 프로덕션에서 드물게 생성됨 | min_score 기준 완화(0.85→0.80) 검토 |
+> | 골든셋 총 케이스 < 100건 | A/B 테스트 통계 신뢰도 부족 | 매주 추출 목표 수를 늘림 |
+> | 모델·프롬프트 변경 | 기존 기준이 새 동작과 맞지 않을 수 있음 | 분기 전체 재검토로 앞당김 |
+
 ### 매주: 새로운 우수 케이스 추가
 
 프로덕션에서 이번 주에 높은 점수를 받은 케이스를 골든셋 후보로 추가한다.
 
 ```python
+# 출처: Evaluator_Examples/ch17_weekly_review.py — GoldenSetBuilder 골든셋
 from agent_evaluator.datasets.builder import GoldenSetBuilder
 
 builder = GoldenSetBuilder(
@@ -331,14 +353,19 @@ agent-eval dashboard
 또는 CLI로 직접 추출:
 
 ```bash
+# --min-score: 이 점수 이상인 케이스만 골든셋 후보로 추출 (기본값: 0.8)
 agent-eval dataset build results/this_week/ --min-score 0.85
 ```
+
+- `--min-score 0.85`는 accuracy·completion 점수가 0.85 이상인 고품질 케이스만 선별한다
+- 후보가 너무 적으면 `--min-score 0.8`로 낮추고, 반대로 골든셋 품질이 낮으면 `--min-score 0.9`로 높인다
 
 ### 매월: 구식 케이스 검토 및 교체
 
 한 달 이상 지난 케이스는 현재 서비스와 맞지 않을 수 있다. 월간 리뷰 때 오래된 케이스를 점검한다.
 
 ```python
+# 출처: Evaluator_Examples/ch17_weekly_review.py — 예제 코드
 import json
 from datetime import datetime, timedelta
 
@@ -371,6 +398,7 @@ print(f"갱신 후 케이스: {len(new_golden)}개")
 분기마다 골든셋 전체를 현재 에이전트로 재평가해서 점수가 크게 변한 케이스를 찾는다.
 
 ```python
+# 출처: Evaluator_Examples/ch17_weekly_review.py — GoldenSetBuilder 골든셋
 import json
 from agent_evaluator import QuickEval
 from agent_evaluator.datasets.builder import GoldenSetBuilder
@@ -408,6 +436,7 @@ eval_q.gate(tcr=90, accuracy=75)
 Phoenix(Arize)는 OTEL 스팬을 수집해서 시계열로 시각화한다. `setup_otel()`을 설정해두면 모든 평가 결과가 자동으로 Phoenix에 전송된다.
 
 ```python
+# 출처: Evaluator_Examples/ch17_weekly_review.py — QuickEval 평가
 from agent_evaluator import setup_otel, QuickEval
 from agent_evaluator.decorators import agent_eval
 
@@ -498,6 +527,7 @@ Phoenix에서 주간 트렌드를 읽는 5분 루틴:
 `monitor.save_to_file()` 또는 `eval.save()` 호출 시 JSON과 함께 HTML 보고서가 자동으로 생성된다. 이 HTML 파일은 독립 실행형이므로 이메일에 첨부하거나 팀 위키에 올릴 수 있다.
 
 ```python
+# 출처: Evaluator_Examples/ch17_weekly_review.py — QuickEval 평가
 from agent_evaluator import QuickEval
 
 # 한 달치 결과를 replay
@@ -529,6 +559,7 @@ print("보고서 생성 완료: results/monthly_report_april_2026.html")
 ### 월간 보고서 작성 예시 스크립트
 
 ```python
+# 출처: Evaluator_Examples/ch17_weekly_review.py — QuickEval 평가
 """monthly_report.py — 월간 품질 보고서 자동 생성."""
 import os
 from datetime import datetime
@@ -575,13 +606,93 @@ if __name__ == "__main__":
 
 ---
 
+## 17.9 Harness Engineering 관점 — Gate 기준 유효성 검증 사이클
+
+정기 리뷰의 또 다른 핵심 역할은 **"배포 당시 설정한 Gate 기준이 지금도 유효한가"를 주기적으로 확인하는 것**이다. 에이전트가 발전하고 프로덕션 환경이 바뀌면, 처음에 설정한 Gate 임계값이 너무 느슨하거나 너무 엄격해질 수 있다.
+
+### 배포 기준 → 운영 → 회귀 감지 → 기준 갱신 피드백 루프
+
+```
+┌──────────────────────────────────────────────────────────────────┐
+│  1. 배포 기준 설정                                                  │
+│     InstructionConfig, SLAConfig 등 33개 Harness Config를         │
+│     PR로 코드에 반영 (Config-as-Code)                              │
+└──────────────────────┬───────────────────────────────────────────┘
+                       │
+                       ▼
+┌──────────────────────────────────────────────────────────────────┐
+│  2. 운영 (지속적 측정)                                              │
+│     PerformanceMonitor가 Gate A–G 지표를 자동 집계                  │
+│     agent-eval trend results/ 로 주간 추세 확인                     │
+└──────────────────────┬───────────────────────────────────────────┘
+                       │
+                       ▼
+┌──────────────────────────────────────────────────────────────────┐
+│  3. 회귀 감지 (주간 리뷰 + 자동화)                                   │
+│     - compare() 전주 대비 델타로 Gate별 악화 여부 판단               │
+│     - agent-eval trend --fail-on-regression → exit 1             │
+│     - 동일 Gate 2주 연속 악화 → 임계값 재검토 트리거                  │
+└──────────────────────┬───────────────────────────────────────────┘
+                       │
+                       ▼
+┌──────────────────────────────────────────────────────────────────┐
+│  4. 기준 갱신 (Config-as-Code + PR)                                │
+│     - decorators.py의 Config 수정 → PR 리뷰 → 머지                  │
+│     - Gate 임계값 변경 이력이 git log에 자동 보존                    │
+│     - 갱신된 기준으로 다음 배포의 CI 게이팅에 반영                    │
+└──────────────────────┴───────────────────────────────────────────┘
+                       │
+                       └──► 1번으로 돌아가 반복
+```
+
+### 임계값 재보정은 Config-as-Code로 PR을 통해 관리한다
+
+Gate 임계값을 팀 채팅에서 구두로 합의하고 누군가 코드를 직접 수정하는 방식은 변경 이력이 남지 않고, 실수가 발생하기 쉽다. 대신 다음 원칙을 따른다:
+
+1. **모든 Gate Config는 코드로 선언한다** — `SLAConfig(p95_ms=3000)`, `InstructionConfig(required_keywords=["서울"])` 등 임계값이 소스 코드에 명시되어야 한다.
+2. **임계값 변경은 반드시 PR을 거친다** — 변경 이유를 PR 설명에 기재하고 QA 관리자가 리뷰한다. `git log`에 "월간 리뷰 결과 SLA p95 기준 3초→2.5초로 강화" 같은 커밋 메시지가 남아야 한다.
+3. **재보정 근거를 데이터로 남긴다** — 주간 리뷰 JSON 결과 또는 trend 분석 결과를 PR에 첨부해 임계값 변경이 데이터에 기반했음을 보여준다.
+
+```bash
+# 임계값 재보정 후 CI에서 검증하는 흐름
+git checkout -b fix/sla-threshold-tighten
+# ... SLAConfig(p95_ms=2500) 으로 수정 ...
+git add agent_evaluator/...
+git commit -m "perf: Gate D SLA p95 기준 3000→2500ms 강화 (2026-04 월간 리뷰 근거)"
+# PR 생성 → 리뷰 → 머지 → CI에서 agent-eval gate 자동 실행
+```
+
+### 주간 리뷰에서 Gate 유효성을 5분에 확인하는 체크리스트
+
+매주 월요일 주간 리뷰 스크립트 결과를 보면서 아래 항목을 순서대로 확인한다:
+
+- [ ] **Gate A (목표달성)**: Accuracy·TCR 전주 대비 -3pp / -5pp 이내인가?
+- [ ] **Gate C (신뢰성)**: 오류율·재시도율이 전주 대비 증가했는가?
+- [ ] **Gate D (성능계약)**: P95 Latency가 SLA 기준(SLAConfig.p95_ms)의 90% 미만인가? 비용이 전주 대비 +20% 이내인가?
+- [ ] **Gate E (보안경계)**: 이번 주 보안 위협 탐지 건수가 0건인가?
+- [ ] **동일 Gate 2주 연속 악화?** → 해당 Gate Config 임계값 재검토 PR 등록
+- [ ] **드리프트 징후?** → 정확도가 3주 이상 연속 하락 추세이면 재보정 파이프라인 실행
+
+> **드리프트(Drift)란?** 모델이나 입력 데이터의 분포가 시간이 지나면서 서서히 바뀌는 현상이다. 예를 들어 사용자 질문 패턴이 달라지거나, 기반 LLM이 업데이트되면 에이전트 성능이 조금씩 변한다. 드리프트는 갑작스러운 장애가 아니라 서서히 나타나므로 주간 추세 분석에서만 조기에 발견할 수 있다.
+>
+> **드리프트 발생 시 구체적 조치 단계:**
+> 1. `agent-eval trend results/ --window 5 --output-json drift_check.json` — 최근 5주 추세를 JSON으로 저장
+> 2. 하락 지표가 속한 Gate Config 파라미터를 현재 프로덕션 데이터 분포에 맞게 조정
+> 3. `agent-eval dataset build results/ --min-score 0.8` — 최근 고품질 케이스로 골든셋 보강
+> 4. 보강된 골든셋으로 분기 회귀 테스트 재실행: `eval_q.gate(tcr=90, accuracy=75)`
+> 5. 임계값 변경이 필요하면 Config-as-Code PR 등록
+
+---
+
 ## 이 챕터의 핵심
 
 - **정기 리뷰는 트렌드를 잡는다** — 실시간 알림이 개별 사건을 감지한다면, 주간/월간 리뷰는 점진적 품질 저하와 장기 추이를 발견한다
 - **자동화가 핵심** — `qa_weekly_review.py` 스크립트를 cron에 등록해 매주 월요일 자동 실행하고 Slack으로 요약을 받으면 추가 공수 없이 주간 리뷰가 완성된다
-- **compare() + ab_test()로 과학적 판단** — 전주 대비 델타를 보고, A/B 테스트 p-value로 변화가 통계적으로 유의미한지 확인해야 알람 피로 없이 정확한 의사결정을 할 수 있다
-- **골든셋은 살아있는 자산** — 매주 신규 케이스 추가, 매월 구식 케이스 정리, 분기마다 전체 재검토하는 루틴이 회귀 테스트의 신뢰도를 유지한다
+- **compare() + ab_test()로 과학적 판단** — `compare()["delta"]`로 전주 대비 변화량을 확인하고, A/B 테스트 p-value로 변화가 통계적으로 유의미한지 검증해야 알람 피로 없이 정확한 의사결정을 할 수 있다
+- **골든셋은 살아있는 자산** — 매주 신규 케이스 추가(`agent-eval dataset build --min-score 0.85`), 매월 구식 케이스 정리, 분기마다 전체 재검토하는 루틴이 회귀 테스트의 신뢰도를 유지한다. 추가 시점 판단 기준(신기능 출시·오탐 발견·케이스 수 부족 등)을 팀에서 사전에 합의해둔다
 - **QA 운영 주기표** — "매 배포(자동) → 매일(5분) → 매주(자동) → 매월(15분) → 분기(2시간)" 주기표 하나로 전체 QA 운영 체계가 잡힌다
+- **Gate 기준도 주기적으로 갱신한다** — 주간 리뷰에서 동일 Gate가 2주 연속 악화되면 Config-as-Code PR로 임계값을 재보정한다. "배포 기준 설정 → 운영 → 회귀 감지 → 기준 갱신"의 피드백 루프가 Harness Engineering의 핵심이다
+- **드리프트 징후는 추세에서 먼저 보인다** — `agent-eval trend --window 5`로 3주 이상 연속 하락을 조기에 발견하고, 골든셋 보강 + Gate Config 재보정 + 회귀 테스트 재실행으로 대응한다
 
 ---
 
@@ -716,7 +827,7 @@ agent-eval trend results/ --window 10 --output-json weekly_trend.json
 | ch11_eval_data (섹션 5) | `GoldenSetBuilder` 케이스 마이닝 | 주간 골든셋 확장 자동화 |
 | `agent-eval trend` | slope 기반 추이 분석 | TCR·정확도 하락 자동 감지 |
 
-**실행 결과 (v0.8.4 기준)**
+**실행 결과 (v0.8.5 기준)**
 
 ```
 # agent-eval trend results/ --window 10

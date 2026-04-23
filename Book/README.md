@@ -2,7 +2,7 @@
 ## Agent-Evaluator로 구현하는 프로덕션 AI 품질 시스템
 
 **저자**: Sungwoo Kim  
-**버전**: 2.0 (Agent-Evaluator v0.8.4 기준)  
+**버전**: 2.0 (Agent-Evaluator v0.8.5 기준)  
 **언어**: 한국어
 
 > **핵심 전환**: "25개 지표를 측정하는 도구" → "58개 지표 기반 Harness Engineering 배포 판단 시스템"  
@@ -72,6 +72,7 @@
 - [Appendix J. 프로덕션 실패 패턴 카탈로그](Appendix/J_프로덕션_실패패턴_카탈로그.md) — 20가지 실제 장애 시나리오 × 탐지 코드 × 대응 전략, Gate별 Early Warning 시스템
 - [Appendix K. 적대적 강건성과 레드팀 평가](Appendix/K_적대적_강건성과_레드팀_평가.md) — OWASP LLM Top 10 매핑, 31개 공격 패턴, 5단계 레드팀 방법론, 에이전트 유형별 보안 Harness Config
 - [Appendix L. 예산 최적화 평가 설계](Appendix/L_예산최적화_평가설계.md) — 25개 Tracker 비용 프로파일, 3단계 예산 모델, Pareto 최적 조합, LLMJudge 지식 증류, ROI 프레임워크
+- [Appendix M. 프로덕션 운영 체크리스트](Appendix/M_프로덕션_운영_체크리스트.md) — 배포 전 100개 점검 항목 (Gate A–G × 인프라 × 운영 준비), CI/CD GitHub Actions 통합, 배포 당일 런북
 
 ---
 

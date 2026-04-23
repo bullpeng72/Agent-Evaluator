@@ -54,7 +54,7 @@ except Exception:
 # ---------------------------------------------------------------------------
 monitor = PerformanceMonitor(
     output_dir=_OUTPUT_DIR,
-    enable_hallucination_detection=False,
+    enable_hallucination_detection=True,   # Gate C: HallucinationDetector 활성화
     enable_security_metrics=False,
     enable_transparency=True,
 )

@@ -336,7 +336,12 @@ print("\n=== 최종 저장 & 외부평가 탭 데이터 ===")
 
 report = monitor.generate_report().to_dict()
 total  = report.get("total_tasks", 0)
-tcr    = report.get("accuracy_metrics", {}).get("tcr", {}).get("tcr", 0) / 100
+# TCR: accuracy_metrics["tcr"]["tcr"] (0-100 범위 float)
+# EvaluationReport.to_dict() 최상위 키: period, total_tasks, accuracy_metrics,
+#   efficiency_metrics, quality_metrics, security_metrics, alerts, recommendations,
+#   timestamp, extra_metrics  (task_metrics 키는 존재하지 않음)
+tcr_raw = report.get("accuracy_metrics", {}).get("tcr", {}).get("tcr", 0)
+tcr = float(tcr_raw) / 100
 print(f"  총 태스크: {total}건  TCR: {tcr:.1%}")
 
 # save_to_file 호출 — HybridPerformanceMonitor: rag_metrics·advanced_metrics_summary 포함
