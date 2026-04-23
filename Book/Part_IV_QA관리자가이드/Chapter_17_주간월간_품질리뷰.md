@@ -730,7 +730,7 @@ for name, trend in [
         continue
     direction = "↑" if trend.slope > 0 else "↓" if trend.slope < 0 else "→"
     print(f"  {name}: slope={trend.slope:+.3f}/run  {direction}  "
-          f"{'[REGRESS]' if trend.is_regression else '[stable]'}")
+          f"{'[REGRESS]' if trend.any_regression else '[stable]'}")
 
 if report.any_regression:
     import sys

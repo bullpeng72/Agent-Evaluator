@@ -108,7 +108,7 @@ try:
         if trend is None:
             continue
         direction = "↑" if trend.slope > 0 else "↓" if trend.slope < 0 else "→"
-        regression = "REGRESS" if trend.is_regression else "stable "
+        regression = "REGRESS" if trend.any_regression else "stable "
         print(f"    {name:<16} slope={trend.slope:+.3f}/run  {direction}  [{regression}]")
 
     if report.any_regression:
