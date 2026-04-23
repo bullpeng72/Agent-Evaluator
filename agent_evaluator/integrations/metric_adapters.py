@@ -25,6 +25,16 @@ warnings.filterwarnings("ignore", message=r".*Event loop.*", category=Deprecatio
 warnings.filterwarnings("ignore", message=r".*coroutine.*was never awaited.*")
 
 
+class _EventLoopClosedFilter(logging.Filter):
+    """Python 3.13 + httpx: 이벤트 루프 종료 후 deepeval 내부 cleanup 태스크 에러 억제."""
+    def filter(self, record: logging.LogRecord) -> bool:
+        msg = record.getMessage()
+        return "Event loop is closed" not in msg and "Task exception was never retrieved" not in msg
+
+
+logging.getLogger("asyncio").addFilter(_EventLoopClosedFilter())
+
+
 # ============================================================================
 # Core Interfaces
 # ============================================================================
@@ -251,7 +261,8 @@ class DeepEvalAdapter(MetricAdapter):
             logger.warning("G-Eval parameter error: %s", e)
             return {}
         except Exception as e:
-            logger.warning("G-Eval unexpected error: %s\n%s", e, traceback.format_exc())
+            logger.warning("G-Eval unexpected error: %s", e)
+            logger.debug("G-Eval traceback: %s", traceback.format_exc())
             return {}
 
     def _evaluate_hallucination(self, test_case) -> Dict[str, Any]:

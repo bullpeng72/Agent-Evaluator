@@ -356,9 +356,9 @@ print("  독립 서비스 / 배치 분석 / 커스텀 파이프라인 구성에 
 print("  [1] TaskCompletionTracker — 작업 완료율(TCR) 계산")
 tcr_tracker = TaskCompletionTracker()
 _s5_tasks = [
-    create_taskresult("t5_1", "서울의 날씨는?", "맑고 22도입니다", "맑고 22도", 0.3, "qa"),
-    create_taskresult("t5_2", "파이썬 GIL이란?", "전역 인터프리터 잠금입니다", "전역 인터프리터 잠금", 0.5, "qa"),
-    create_taskresult("t5_3", "머신러닝이란?", "통계 기반 데이터 학습", "데이터 학습 기법", 0.4, "qa"),
+    create_taskresult("t5_1", "서울의 날씨는?", "맑고 22도입니다", "맑고 22도", 0.3, task_type="qa"),
+    create_taskresult("t5_2", "파이썬 GIL이란?", "전역 인터프리터 잠금입니다", "전역 인터프리터 잠금", 0.5, task_type="qa"),
+    create_taskresult("t5_3", "머신러닝이란?", "통계 기반 데이터 학습", "데이터 학습 기법", 0.4, task_type="qa"),
 ]
 for t in _s5_tasks:
     tcr_tracker.add_task(t)

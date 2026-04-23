@@ -554,8 +554,8 @@ from agent_evaluator import (
 # [1] TaskCompletionTracker — 작업 완료율(TCR) 계산
 tcr_tracker = TaskCompletionTracker()
 for t in [
-    create_taskresult("t1", "서울의 날씨는?", "맑고 22도", "맑고 22도", 0.3, "qa"),
-    create_taskresult("t2", "파이썬 GIL이란?", "전역 인터프리터 잠금", "전역 인터프리터 잠금", 0.5, "qa"),
+    create_taskresult("t1", "서울의 날씨는?", "맑고 22도", "맑고 22도", 0.3, task_type="qa"),
+    create_taskresult("t2", "파이썬 GIL이란?", "전역 인터프리터 잠금", "전역 인터프리터 잠금", 0.5, task_type="qa"),
 ]:
     tcr_tracker.add_task(t)
 tcr = tcr_tracker.calculate_tcr()
