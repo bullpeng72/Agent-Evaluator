@@ -7,6 +7,8 @@
 > - **[Chapter 11 — 평가 데이터 설계](Chapter_11_평가데이터_설계.md)**: 데코레이터에 전달할 `ground_truth`와 `task_type`을 어떻게 설계할지 → **먼저 읽기 권장**
 > - **[Appendix I — 지표 비교 분석 및 선택 가이드](../Appendix/I_지표_비교분석_선택가이드.md)**: `task_type` 선택이 정확도 계산에 미치는 영향
 
+> ⭐ **새 프로젝트를 시작한다면**: 데코레이터 API를 배우기 전에 이 챕터 마지막의 **[§12.12 데코레이터 친화적 설계 원칙](#1212-데코레이터-친화적-에이전트-함수-설계-원칙)**을 먼저 읽어라. 처음부터 올바르게 설계하면 나중에 평가를 붙이는 비용이 0이 된다.
+
 ---
 
 ## 12.1 왜 데코레이터인가 — SDK 설계 철학
@@ -1653,3 +1655,192 @@ eval.save()
 ```
 
 > 📖 **더 깊이**: Group별 Config 전체 파라미터는 → **[Appendix A — 58개 지표 완전 레퍼런스](../Appendix/A_58개지표_레퍼런스.md)** §Part 2 Harness Config 레퍼런스 참조.
+
+---
+
+## 12.12 데코레이터 친화적 에이전트 함수 설계 원칙
+
+> **이 섹션은 새 프로젝트를 시작할 때 읽어야 한다.** 이미 기존 프로젝트에 이식하는 경우라면 Ch24.8b를 먼저 읽고 와도 된다.
+
+처음부터 agent-evaluator와 함께 개발할 때, 에이전트 함수를 어떻게 설계하느냐에 따라 나중에 평가를 붙이는 비용이 크게 달라진다. 이 섹션은 그 설계 원칙을 정리한다.
+
+이 원칙들은 "데코레이터를 쓰기 위한 규칙"이 아니다. **데코레이터가 가정하는 구조를 처음부터 가지는 함수를 만드는 방법**이다. 이 원칙을 따르면 `@agent_eval` 한 줄이 항상 성립한다.
+
+---
+
+### 원칙 1: 에이전트 함수는 `str`을 반환한다
+
+`@agent_eval` 데코레이터는 함수의 반환값을 `TaskResult.response: str`로 캡처한다. 이 값이 accuracy scoring(Token F1·Jaccard·LCS·Levenshtein)의 입력이 된다.
+
+```python
+# ✗ 이렇게 설계하면 나중에 이식 비용이 발생한다
+def qa_agent(question: str) -> dict:
+    return {"answer": "...", "sources": [...], "confidence": 0.9}
+
+# ✅ 데코레이터 친화적 설계
+def qa_agent(question: str, ground_truth: str = "") -> str:
+    result = _internal_rag(question)
+    return result["answer"]                     # 평가할 텍스트만 반환
+```
+
+**평가 메타데이터를 함께 전달해야 하는 경우**: `EvalMetadata`를 함께 반환한다. 반환값은 `str`로 유지하고, 레이턴시·도구 호출 기록 같은 추가 정보는 두 번째 값으로 전달한다.
+
+```python
+from agent_evaluator.decorators import EvalMetadata
+
+@agent_eval(monitor, task_type="qa")
+def qa_agent(question: str, ground_truth: str = "") -> str:
+    result = _internal_rag(question)
+    # (str, EvalMetadata) 튜플로 반환 — 데코레이터가 자동으로 분리해서 처리한다
+    return result["answer"], EvalMetadata(
+        latency_ms=result["latency_ms"],
+        tool_calls=result["tool_calls"],
+        extra={"confidence": result["confidence"], "sources": result["sources"]},
+    )
+```
+
+---
+
+### 원칙 2: 표준 시그니처를 따른다
+
+`@agent_eval` 계열 데코레이터는 특정 파라미터명을 자동 인식한다. 표준 시그니처를 따르면 데코레이터가 파라미터를 자동으로 매핑한다.
+
+```python
+# 단일 태스크 — 표준 시그니처
+def my_agent(question: str, ground_truth: str = "") -> str: ...
+
+# RAG 에이전트 — context 파라미터 추가
+def rag_agent(question: str, context: str = "", ground_truth: str = "") -> str: ...
+
+# 멀티턴 — conversation_eval은 session_id 필요
+def chat_agent(session_id: str, question: str, ground_truth: str = "") -> str: ...
+```
+
+| 파라미터 | 위치 | 자동 인식 | 용도 |
+|----------|------|----------|------|
+| `question: str` | 첫 번째 | ✅ | 평가 입력 (task.input) |
+| `context: str = ""` | 중간 (선택) | ✅ RAG 모드 시 | 검색된 문서 (faithfulness 평가) |
+| `ground_truth: str = ""` | **마지막** | ✅ | 정답 레이블 (accuracy 계산) |
+
+`ground_truth`가 마지막이어야 하는 이유: 데코레이터가 키워드 인자로 주입하므로 위치는 중요하지 않지만, 호출부에서 `agent(question, ground_truth=gt)` 패턴이 일관되게 동작하도록 마지막에 두는 것이 관례다.
+
+---
+
+### 원칙 3: 하나의 함수 = 하나의 평가 단위
+
+에이전트 함수는 하나의 의미 있는 동작만 수행해야 한다. 여러 동작이 하나의 함수에 합쳐지면, 어느 부분이 실패했는지 알 수 없다.
+
+```python
+# ✗ 두 가지 동작이 합쳐진 함수 — 실패 원인 추적 불가
+@agent_eval(monitor, task_type="document_creation")
+def generate_full_lecture(topic: str, ground_truth: str = "") -> str:
+    outline = outline_agent(topic)         # 동작 1
+    content = content_writer(outline)      # 동작 2
+    return content                         # outline 실패인지 content 실패인지 모름
+
+# ✅ 각 동작을 별도 함수로 — 실패 지점 특정 가능
+@agent_eval(monitor, task_type="planning")
+def outline_agent(topic: str, ground_truth: str = "") -> str:
+    return llm.invoke(OUTLINE_PROMPT.format(topic=topic))
+
+@agent_eval(monitor, task_type="document_creation")
+def content_writer(outline: str, ground_truth: str = "") -> str:
+    return llm.invoke(CONTENT_PROMPT.format(outline=outline))
+```
+
+**예외**: 원자성이 과도하게 세분화되면 집계가 의미를 잃는다. 토큰 하나하나를 함수로 만들지 말 것. "하나의 의미 있는 동작"이 기준이다 (→ Ch22.7 원자성 원칙 참조).
+
+---
+
+### 원칙 4: 같은 입력으로 여러 번 호출해도 안전하게 설계한다
+
+데코레이터는 내부적으로 함수를 래핑한다. 재시도 설정(`RetryConfig`)이나 배치 평가에서 같은 함수가 여러 번 호출될 수 있다. 이때 함수 안에서 전역 변수나 외부 파일·DB를 수정하는 부작용이 있으면, 호출 횟수만큼 부작용이 중복 발생한다.
+
+```python
+# ✗ 부작용이 있는 함수 — 같은 입력으로 두 번 호출하면 문제 발생
+_call_count = 0
+@agent_eval(monitor, task_type="qa")
+def counter_agent(question: str, ground_truth: str = "") -> str:
+    global _call_count
+    _call_count += 1              # 평가 재시도 시 카운터가 이중으로 증가
+    return llm.invoke(question)
+
+# ✅ 부작용을 함수 외부로 분리 — 함수 자체는 입력만 받아 출력만 반환
+@agent_eval(monitor, task_type="qa")
+def pure_agent(question: str, ground_truth: str = "") -> str:
+    return llm.invoke(question)   # 같은 입력 → 같은 동작, 부작용 없음
+
+# 호출 횟수 집계 등 부작용은 데코레이터 외부에서 관리
+```
+
+**실무 기준**: "이 함수를 지금 상태에서 10번 연속 호출해도 DB나 파일이 망가지지 않는가?" — YES이면 안전한 설계다.
+
+---
+
+### 원칙 5: 실패를 예외로, 빈 문자열을 반환하지 않는다
+
+`@agent_eval`은 빈 문자열(`""`) 반환을 "완료했지만 빈 응답"으로 해석한다. 실패는 예외를 발생시켜야 한다. 그래야 `TaskResult.has_error=True`로 기록되고 Gate C(FaultTolerance)가 올바르게 측정된다.
+
+```python
+# ✗ 실패를 빈 문자열로 반환 — Gate C가 실패를 감지하지 못함
+@agent_eval(monitor, task_type="qa")
+def fragile_agent(question: str, ground_truth: str = "") -> str:
+    try:
+        return llm.invoke(question)
+    except Exception:
+        return ""                 # 데코레이터는 "완료"로 기록 — TCR이 부풀려짐
+
+# ✅ 실패는 예외로 전파 — 데코레이터가 자동으로 has_error=True 처리
+@agent_eval(monitor, task_type="qa")
+def robust_agent(question: str, ground_truth: str = "") -> str:
+    return llm.invoke(question)   # 예외 발생 시 그대로 전파
+    # 데코레이터가 캡처 → TaskResult(has_error=True, error_message=str(e)) 기록
+```
+
+---
+
+### 원칙 6: 클래스 메서드보다 평가 전용 함수를 분리하는 것이 낫다
+
+`@agent_eval`을 클래스 메서드에 직접 붙이는 것은 기술적으로는 동작한다. 하지만 현실적인 문제가 있다. `monitor`는 보통 클래스가 정의될 때가 아니라 프로그램이 실행될 때 만들어진다. 클래스 정의 시점에 `@agent_eval(monitor, ...)` 문법을 쓰려면 `monitor`가 이미 존재해야 하는데, 클래스 파일 상단에서 `monitor`를 만드는 것은 전역 상태를 만드는 나쁜 설계다.
+
+```python
+# ✗ 클래스 정의 시 monitor 전역 참조가 필요 — 테스트와 재사용이 어려워짐
+monitor = PerformanceMonitor("results/")  # 파일 상단 전역 생성
+
+class QAAgent:
+    @agent_eval(monitor, task_type="qa")  # 전역 monitor에 의존
+    def answer(self, question: str, ground_truth: str = "") -> str:
+        return self.llm.invoke(question)
+
+# ✅ 평가용 함수는 인스턴스 생성 후 분리해서 만든다
+class QAAgent:
+    def answer(self, question: str) -> str:     # 기존 인터페이스 유지
+        return self.llm.invoke(question)
+
+    def make_eval_fn(self, monitor: PerformanceMonitor):
+        """이 인스턴스를 평가할 함수를 반환한다."""
+        agent = self
+        @agent_eval(monitor, task_type="qa")
+        def _eval_answer(question: str, ground_truth: str = "") -> str:
+            return agent.answer(question)       # 인스턴스를 클로저로 캡처
+        return _eval_answer
+
+# 사용: qa = QAAgent(); eval_fn = qa.make_eval_fn(monitor)
+```
+
+이 패턴은 기존 클래스 인터페이스를 건드리지 않으면서, `monitor`를 원하는 시점에 주입할 수 있다는 장점이 있다.
+
+---
+
+### 설계 원칙 요약
+
+| 원칙 | 핵심 규칙 | 위반 시 비용 |
+|------|----------|-------------|
+| 1. str 반환 | `-> str`, 추가 정보는 `EvalMetadata` 튜플 반환 | 이식 시 래퍼 + 클로저 필요 |
+| 2. 표준 시그니처 | `(question, ..., ground_truth="") -> str` | 데코레이터 파라미터 수동 지정 필요 |
+| 3. 원자성 | 함수 1개 = 동작 1개 | 실패 원인 추적 불가 |
+| 4. 반복 호출 안전성 | 부작용(전역 변수·파일·DB 수정) 함수 외부로 분리 | 재시도/배치 평가에서 부작용 중복 발생 |
+| 5. 예외 전파 | 실패는 `raise`, `""` 반환 금지 | TCR 부풀림, Gate C 측정 무력화 |
+| 6. 평가 함수 분리 | 클래스 메서드에 직접 붙이기보다 평가 전용 함수 생성 | 전역 monitor 의존, 테스트 어려움 |
+
+> 이 원칙들은 새 프로젝트에서 데코레이터 비용을 제로로 만드는 설계 가이드다. 기존 프로젝트 이식 방법은 → **[Part VI Ch24](../Part_VI_실전이식가이드/Chapter_24_첫번째_이식.md)** 참조.

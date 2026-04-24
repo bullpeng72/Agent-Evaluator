@@ -34,6 +34,12 @@ ORDERED_FILES = [
     BOOK_DIR / "Part_V_프로덕션운영/Chapter_19_Phoenix_OTEL_모니터링.md",
     BOOK_DIR / "Part_V_프로덕션운영/Chapter_20_프로덕션_배포전략.md",
     BOOK_DIR / "Part_V_프로덕션운영/Chapter_21_종합_실무파이프라인.md",
+    BOOK_DIR / "Part_VI_실전이식가이드/00_파트_서문.md",
+    BOOK_DIR / "Part_VI_실전이식가이드/Chapter_22_기존_프로젝트_해부.md",
+    BOOK_DIR / "Part_VI_실전이식가이드/Chapter_23_Gate_매핑_전략.md",
+    BOOK_DIR / "Part_VI_실전이식가이드/Chapter_24_첫번째_이식.md",
+    BOOK_DIR / "Part_VI_실전이식가이드/Chapter_25_전체_통합.md",
+    BOOK_DIR / "Part_VI_실전이식가이드/Chapter_26_CICD_완성.md",
     BOOK_DIR / "Appendix/A_58개지표_레퍼런스.md",
     BOOK_DIR / "Appendix/B_CLI_명령어_레퍼런스.md",
     BOOK_DIR / "Appendix/C_환경변수_설정_레퍼런스.md",
@@ -97,6 +103,15 @@ MERMAID_INJECTIONS: dict[str, list[tuple[str, str]]] = {
       <a href="#ch19" class="bm-ch">Ch19<small>Phoenix OTEL 모니터링</small></a>
       <a href="#ch20" class="bm-ch">Ch20<small>프로덕션 배포전략</small></a>
       <a href="#ch21" class="bm-ch">Ch21<small>종합 실무파이프라인</small></a>
+    </div>
+    <div class="bm-arrow">▶</div>
+    <div class="bm-part" style="--part-color:#37474f">
+      <div class="bm-part-title">Part VI<span>실전 이식 가이드</span></div>
+      <a href="#ch22" class="bm-ch">Ch22<small>기존 프로젝트 해부</small></a>
+      <a href="#ch23" class="bm-ch">Ch23<small>Gate 매핑 전략</small></a>
+      <a href="#ch24" class="bm-ch">Ch24<small>첫 번째 이식</small></a>
+      <a href="#ch25" class="bm-ch">Ch25<small>전체 통합</small></a>
+      <a href="#ch26" class="bm-ch">Ch26<small>CI/CD 완성</small></a>
     </div>
   </div>
 </div>
@@ -416,6 +431,12 @@ flowchart TD
         )
     ],
     "Chapter_21_종합_실무파이프라인": [],
+    "00_파트_서문": [],
+    "Chapter_22_기존_프로젝트_해부": [],
+    "Chapter_23_Gate_매핑_전략": [],
+    "Chapter_24_첫번째_이식": [],
+    "Chapter_25_전체_통합": [],
+    "Chapter_26_CICD_완성": [],
     "A_58개지표_레퍼런스": [
         (
             "## A.1",
@@ -1770,6 +1791,12 @@ TOC_STRUCTURE = [
     ("chapter", "Chapter_19", "ch19", "Ch19. Phoenix OTEL 모니터링"),
     ("chapter", "Chapter_20", "ch20", "Ch20. 프로덕션 배포전략"),
     ("chapter", "Chapter_21", "ch21", "Ch21. 종합 실무파이프라인"),
+    ("part", "Part VI — 실전 이식 가이드"),
+    ("chapter", "Chapter_22", "ch22", "Ch22. 기존 프로젝트 해부"),
+    ("chapter", "Chapter_23", "ch23", "Ch23. Gate 매핑 전략"),
+    ("chapter", "Chapter_24", "ch24", "Ch24. 첫 번째 이식"),
+    ("chapter", "Chapter_25", "ch25", "Ch25. 전체 통합"),
+    ("chapter", "Chapter_26", "ch26", "Ch26. CI/CD 완성"),
     ("part", "Appendix"),
     ("appendix", "A_58", "appA", "App A. 58개 지표 레퍼런스"),
     ("appendix", "B_CLI", "appB", "App B. CLI 명령어 레퍼런스"),

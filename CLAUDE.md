@@ -240,7 +240,7 @@ agent_evaluator/
 ├── config.py                # 환경변수 설정 로더 (load_env, get_settings)
 └── __init__.py              # Public API surface
 
-Evaluator_Examples/          # Book 챕터 기반 예제 (21개 파일 — ch01~ch21)
+Evaluator_Examples/          # Book 챕터 기반 예제 (26개 파일 — ch01~ch26)
 ├── ch01_first_eval.py        # Ch01 — Layer 1 기초 (정확도·할루시네이션·TCR)
 ├── ch02_quickstart.py        # Ch02 — QuickEval 5분 첫 평가
 ├── ch03_harness_basics.py    # Ch03 — Harness Gate A–G 7개 개요
@@ -261,7 +261,12 @@ Evaluator_Examples/          # Book 챕터 기반 예제 (21개 파일 — ch01~
 ├── ch18_cicd_gate.py         # Ch18 — CI/CD 품질 게이팅 (Harness 최소 검증·exit 0/1)
 ├── ch19_phoenix.py           # Ch19 — Phoenix OTEL (Tracing·Datasets·Playground·GraphQL + DeepEval·Ragas)
 ├── ch20_deployment.py        # Ch20 — 프로덕션 배포전략 (v1 vs v2 Gate 점수 비교)
-└── ch21_pipeline.py          # Ch21 — 종합 실무파이프라인 (개발→CI→운영→개선 4단계)
+├── ch21_pipeline.py          # Ch21 — 종합 실무파이프라인 (개발→CI→운영→개선 4단계)
+├── ch22_project_analysis.py  # Ch22 — 기존 프로젝트 해부 (토폴로지·LLM열거·지표발굴·위험우선순위화)
+├── ch23_gate_mapping.py      # Ch23 — Gate 매핑 전략 (실패모드 카탈로그 → Config 번역 + 가중치 설계)
+├── ch24_quickeval_entry.py   # Ch24 — 첫 번째 이식 (침습도 Level 0/1 패턴 + 첫 측정값 획득)
+├── ch25_harness_full.py      # Ch25 — 전체 통합 (중앙 모니터 + 어댑터 + 보안 스캔 + Gate F 버그 발견)
+└── ch26_cicd_weekly.py       # Ch26 — CI/CD 완성 (골든 데이터셋·추세 분석·주간 리뷰·비용 드리프트 발견)
 # 구 번호 예제(01~10): Evaluator_Examples/.deprecated/ 에 보존
 
 scripts/
@@ -714,6 +719,8 @@ completion_score task_type 인식 (v0.8.0+):
 - 📝 Book `AdaptivePolicy` 허구 API 제거 — `stages=[SamplingStage(condition=...)]` → 실제 생성자 `(default_sample_rate, anomaly_sample_rate, budget_per_day)` (Appendix L)
 - 📝 Book `EfficiencyConfig(target_cost_per_completion=0.005)` USD 스케일 오류 수정 → `cost_unit="tokens", target_cost_per_completion=500` (Ch07·Appendix L·Appendix M)
 - 📝 예제 파일 수·테스트 파일 수 문서 현행화 (19→21개 예제, 51→53개 테스트 파일)
+- 📝 Book Part VI 신설 — `실전 이식 가이드` (Ch22–Ch26, 예제 ch22~ch26 포함)
+- 📝 예제 파일 21→26개 — ch22~ch26 추가 (기존 프로젝트 해부·Gate 매핑·첫 이식·전체 통합·CI/CD)
 
 ### v0.8.4 (2026-04-21) — 예제 파일 Book 챕터 기반 전면 재편
 

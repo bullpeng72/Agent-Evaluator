@@ -1,0 +1,348 @@
+{
+  "episodes": {
+    "S1E1": {
+      "title": "AI 에이전트가 '잘 동작한다'와 '배포해도 된다'는 다르다",
+      "season": 1, "episode": 1,
+      "chapter_file": "Part_I_기초/Chapter_01_AI에이전트_평가란_무엇인가.md",
+      "screen": "슬라이드",
+      "target_minutes": 10,
+      "search_keywords": ["AI 에이전트 평가", "LLM 배포 기준", "Harness Engineering"],
+      "hook": "Agent = Model + Harness 개념 정의"
+    },
+    "S1E2": {
+      "title": "5분 만에 첫 평가 — QuickEval 실습",
+      "season": 1, "episode": 2,
+      "chapter_file": "Part_I_기초/Chapter_02_Agent-Evaluator_첫_시작.md",
+      "screen": "코드",
+      "target_minutes": 8,
+      "search_keywords": ["AI 에이전트 평가 시작", "QuickEval", "agent-evaluator 튜토리얼"],
+      "hook": "QuickEval 실행 결과 화면 바로 공개"
+    },
+    "S2E1": {
+      "title": "Harness 3요소: Tracker × Config × Gate",
+      "season": 2, "episode": 1,
+      "chapter_file": "Part_II_지표시스템/Chapter_03_Harness_Engineering_기초.md",
+      "screen": "슬라이드",
+      "target_minutes": 10,
+      "search_keywords": ["Harness Engineering", "AI 평가 지표", "Gate 시스템"],
+      "hook": "구조 다이어그램 애니메이션"
+    },
+    "S2E2": {
+      "title": "Gate A — 에이전트가 목표를 달성했는가",
+      "season": 2, "episode": 2,
+      "chapter_file": "Part_II_지표시스템/Chapter_04_GroupA_목표달성.md",
+      "screen": "슬라이드",
+      "target_minutes": 10,
+      "search_keywords": ["AI 에이전트 목표달성", "Gate A", "InstructionConfig"],
+      "hook": "목표달성 vs 단순 응답 비교"
+    },
+    "S2E3": {
+      "title": "Gate B — 에이전트의 행동이 안전한가",
+      "season": 2, "episode": 3,
+      "chapter_file": "Part_II_지표시스템/Chapter_05_GroupB_행동무결성.md",
+      "screen": "슬라이드→코드",
+      "target_minutes": 10,
+      "search_keywords": ["AI 에이전트 루프 탐지", "Gate B", "행동무결성"],
+      "hook": "루프 탐지 시나리오 재현"
+    },
+    "S2E4": {
+      "title": "Gate C — 같은 질문에 같은 답이 나오는가",
+      "season": 2, "episode": 4,
+      "chapter_file": "Part_II_지표시스템/Chapter_06_GroupC_신뢰성.md",
+      "screen": "슬라이드→코드",
+      "target_minutes": 10,
+      "search_keywords": ["AI 에이전트 재현성", "Gate C", "멱등성"],
+      "hook": "재현성 실험 결과"
+    },
+    "S2E5": {
+      "title": "Gate D — SLA를 코드로 선언하는 법",
+      "season": 2, "episode": 5,
+      "chapter_file": "Part_II_지표시스템/Chapter_07_GroupD_성능계약.md",
+      "screen": "슬라이드→코드",
+      "target_minutes": 10,
+      "search_keywords": ["AI SLA", "Gate D", "P95 레이턴시"],
+      "hook": "SLAConfig 설정 실습"
+    },
+    "S2E6": {
+      "title": "Gate E — 보안을 평가 지표로 측정하기",
+      "season": 2, "episode": 6,
+      "chapter_file": "Part_II_지표시스템/Chapter_08_GroupE_보안경계.md",
+      "screen": "슬라이드",
+      "target_minutes": 10,
+      "search_keywords": ["LLM 보안", "Gate E", "OWASP LLM Top 10"],
+      "hook": "OWASP LLM Top 10 매핑"
+    },
+    "S2E7": {
+      "title": "Gate F — 여러 에이전트가 협력할 때의 평가",
+      "season": 2, "episode": 7,
+      "chapter_file": "Part_II_지표시스템/Chapter_09_GroupF_다중에이전트.md",
+      "screen": "슬라이드",
+      "target_minutes": 10,
+      "search_keywords": ["멀티 에이전트", "Gate F", "에이전트 합의율"],
+      "hook": "합의율 시각화"
+    },
+    "S2E8": {
+      "title": "Gate G — 에이전트의 추론을 관찰하는 법",
+      "season": 2, "episode": 8,
+      "chapter_file": "Part_II_지표시스템/Chapter_10_GroupG_운영관측성.md",
+      "screen": "슬라이드→코드",
+      "target_minutes": 10,
+      "search_keywords": ["AI 관측성", "OpenTelemetry", "Gate G"],
+      "hook": "OTEL 스팬 추적 화면"
+    },
+    "S3E1": {
+      "title": "좋은 평가 데이터란 무엇인가",
+      "season": 3, "episode": 1,
+      "chapter_file": "Part_III_개발자가이드/Chapter_11_평가데이터_설계.md",
+      "screen": "슬라이드→코드",
+      "target_minutes": 10,
+      "search_keywords": ["AI 평가 데이터", "골든셋", "GoldenSetBuilder"],
+      "hook": "골든셋 자동 추출 데모"
+    },
+    "S3E2": {
+      "title": "@agent_eval 데코레이터 완전정복",
+      "season": 3, "episode": 2,
+      "chapter_file": "Part_III_개발자가이드/Chapter_12_데코레이터_완전정복.md",
+      "screen": "코드",
+      "target_minutes": 12,
+      "search_keywords": ["agent_eval 데코레이터", "AI 평가 자동화", "58개 지표"],
+      "hook": "1줄 데코레이터로 58개 지표 수집"
+    },
+    "S3E3": {
+      "title": "LangChain·CrewAI·AutoGen에 Harness 붙이기",
+      "season": 3, "episode": 3,
+      "chapter_file": "Part_III_개발자가이드/Chapter_13_프레임워크_통합.md",
+      "screen": "슬라이드→코드",
+      "target_minutes": 12,
+      "search_keywords": ["LangChain 평가", "CrewAI 평가", "AutoGen 평가"],
+      "hook": "21개 프레임워크 호환 매트릭스"
+    },
+    "S4E1": {
+      "title": "임계값을 어떻게 정하는가",
+      "season": 4, "episode": 1,
+      "chapter_file": "Part_IV_QA관리자가이드/Chapter_14_임계값설정_품질기준.md",
+      "screen": "슬라이드",
+      "target_minutes": 10,
+      "search_keywords": ["AI 품질 기준", "Gate 임계값", "QA 관리"],
+      "hook": "팀별 Gate 기준 설정 워크숍"
+    },
+    "S4E2": {
+      "title": "대시보드로 Gate A–G 한눈에 보기",
+      "season": 4, "episode": 2,
+      "chapter_file": "Part_IV_QA관리자가이드/Chapter_15_대시보드_시각화.md",
+      "screen": "코드",
+      "target_minutes": 10,
+      "search_keywords": ["AI 평가 대시보드", "FastAPI 대시보드", "Gate 시각화"],
+      "hook": "FastAPI 대시보드 라이브 데모"
+    },
+    "S4E3": {
+      "title": "품질 이상 탐지와 알림 자동화",
+      "season": 4, "episode": 3,
+      "chapter_file": "Part_IV_QA관리자가이드/Chapter_16_알림시스템_운영.md",
+      "screen": "슬라이드→코드",
+      "target_minutes": 10,
+      "search_keywords": ["AI 품질 알림", "AlertEngine", "이상 탐지"],
+      "hook": "AlertEngine + Slack 연동"
+    },
+    "S4E4": {
+      "title": "주간 품질 리뷰를 자동화하는 법",
+      "season": 4, "episode": 4,
+      "chapter_file": "Part_IV_QA관리자가이드/Chapter_17_주간월간_품질리뷰.md",
+      "screen": "코드",
+      "target_minutes": 10,
+      "search_keywords": ["AI 품질 리뷰", "자동 리포트", "주간 리뷰"],
+      "hook": "HTML 리포트 자동 생성"
+    },
+    "S5E1": {
+      "title": "CI/CD에 Harness Gate를 연결하는 법",
+      "season": 5, "episode": 1,
+      "chapter_file": "Part_V_프로덕션운영/Chapter_18_CICD_품질게이팅.md",
+      "screen": "코드",
+      "target_minutes": 10,
+      "search_keywords": ["AI CI/CD", "GitHub Actions AI", "품질 게이팅"],
+      "hook": "GitHub Actions 통합 실습"
+    },
+    "S5E2": {
+      "title": "Phoenix + OpenTelemetry 실시간 모니터링",
+      "season": 5, "episode": 2,
+      "chapter_file": "Part_V_프로덕션운영/Chapter_19_Phoenix_OTEL_모니터링.md",
+      "screen": "코드",
+      "target_minutes": 10,
+      "search_keywords": ["Phoenix LLM", "OpenTelemetry AI", "AI 모니터링"],
+      "hook": "스팬 추적 라이브 화면"
+    },
+    "S5E3": {
+      "title": "카나리 vs 블루/그린 배포 — Gate로 결정하기",
+      "season": 5, "episode": 3,
+      "chapter_file": "Part_V_프로덕션운영/Chapter_20_프로덕션_배포전략.md",
+      "screen": "슬라이드→코드",
+      "target_minutes": 10,
+      "search_keywords": ["AI 프로덕션 배포", "카나리 배포", "AI Gate"],
+      "hook": "배포 판정 로직 코드 공개"
+    },
+    "S5E4": {
+      "title": "자기개선 파이프라인 — 에이전트가 에이전트를 평가하다",
+      "season": 5, "episode": 4,
+      "chapter_file": "Part_V_프로덕션운영/Chapter_21_종합_실무파이프라인.md",
+      "screen": "슬라이드→코드",
+      "target_minutes": 12,
+      "search_keywords": ["AI 자기개선", "에이전트 파이프라인", "지속 평가"],
+      "hook": "종합 파이프라인 실습"
+    },
+    "S6E1": {
+      "title": "이미 있는 AI 프로젝트, 어디서부터 평가 붙이나",
+      "season": 6, "episode": 1,
+      "chapter_file": "Part_VI_실전이식가이드/Chapter_22_기존_프로젝트_해부.md",
+      "screen": "슬라이드→코드",
+      "target_minutes": 12,
+      "search_keywords": ["LangChain 프로젝트 평가", "AI 평가 이식", "기존 프로젝트"],
+      "hook": "기존 코드 해부 실습"
+    },
+    "S6E2": {
+      "title": "Gate 매핑: 내 프로젝트의 언어를 Harness로 번역하기",
+      "season": 6, "episode": 2,
+      "chapter_file": "Part_VI_실전이식가이드/Chapter_23_Gate_매핑_전략.md",
+      "screen": "슬라이드",
+      "target_minutes": 10,
+      "search_keywords": ["AI 에이전트 품질 기준", "Gate 매핑", "Harness 설계"],
+      "hook": "매핑 워크시트 공개"
+    },
+    "S6E3": {
+      "title": "30분 안에 첫 측정값 얻기 — 실전 이식 실습",
+      "season": 6, "episode": 3,
+      "chapter_file": "Part_VI_실전이식가이드/Chapter_24_첫번째_이식.md",
+      "screen": "코드",
+      "target_minutes": 30,
+      "search_keywords": ["AI 평가 빠른 시작", "agent-evaluator 설치", "30분 AI 평가"],
+      "hook": "타이머 라이브 코딩"
+    },
+    "S6E4": {
+      "title": "전체 통합: Harness Gate를 기존 파이프라인에 연결",
+      "season": 6, "episode": 4,
+      "chapter_file": "Part_VI_실전이식가이드/Chapter_25_전체_통합.md",
+      "screen": "코드",
+      "target_minutes": 15,
+      "search_keywords": ["AI 파이프라인 품질", "Harness 통합", "Gate 연결"],
+      "hook": "Before/After 비교 화면"
+    },
+    "S6E5": {
+      "title": "완성: CI/CD와 주간 루틴으로 Harness 닫기",
+      "season": 6, "episode": 5,
+      "chapter_file": "Part_VI_실전이식가이드/Chapter_26_CICD_완성.md",
+      "screen": "슬라이드→코드",
+      "target_minutes": 12,
+      "search_keywords": ["AI CI/CD 품질 게이팅", "주간 품질 루틴", "Harness 완성"],
+      "hook": "팀 도입 체크리스트 공개"
+    },
+    "F1": {
+      "title": "프로덕션 AI가 무한루프에 빠진 이유",
+      "season": "special", "episode": "F1",
+      "chapter_file": "Appendix/J_프로덕션_실패패턴_카탈로그.md",
+      "chapter_section": "무한루프",
+      "screen": "슬라이드",
+      "target_minutes": 8,
+      "search_keywords": ["AI 에이전트 오류", "LLM 무한루프", "AI 프로덕션 장애"],
+      "hook": "실제 장애 시나리오 재현"
+    },
+    "F2": {
+      "title": "RAG 시스템 환각이 Gate C를 통과 못 한 사례",
+      "season": "special", "episode": "F2",
+      "chapter_file": "Appendix/J_프로덕션_실패패턴_카탈로그.md",
+      "chapter_section": "RAG 환각",
+      "screen": "슬라이드",
+      "target_minutes": 8,
+      "search_keywords": ["LLM 환각 탐지", "RAG 오류", "AI 신뢰성"],
+      "hook": "환각 탐지 코드 공개"
+    },
+    "F3": {
+      "title": "에이전트가 도구를 잘못 선택할 때 일어나는 일",
+      "season": "special", "episode": "F3",
+      "chapter_file": "Appendix/J_프로덕션_실패패턴_카탈로그.md",
+      "chapter_section": "도구 선택 오류",
+      "screen": "슬라이드",
+      "target_minutes": 8,
+      "search_keywords": ["AI 도구 선택 오류", "에이전트 실패", "Tool Call 분석"],
+      "hook": "Gate B 탐지 데모"
+    },
+    "F4": {
+      "title": "멀티 에이전트 교착: 두 에이전트가 서로를 기다렸다",
+      "season": "special", "episode": "F4",
+      "chapter_file": "Appendix/J_프로덕션_실패패턴_카탈로그.md",
+      "chapter_section": "교착",
+      "screen": "슬라이드",
+      "target_minutes": 8,
+      "search_keywords": ["멀티 에이전트 교착", "AI 데드락", "Gate F"],
+      "hook": "교착 탐지 시나리오"
+    },
+    "F5": {
+      "title": "토큰 예산 초과로 응답이 잘린 사례",
+      "season": "special", "episode": "F5",
+      "chapter_file": "Appendix/J_프로덕션_실패패턴_카탈로그.md",
+      "chapter_section": "토큰 초과",
+      "screen": "슬라이드",
+      "target_minutes": 8,
+      "search_keywords": ["토큰 비용 최적화", "LLM 비용", "AI 예산"],
+      "hook": "ResourceBudgetConfig 설정"
+    },
+    "F6": {
+      "title": "보안 경계를 뚫은 Prompt Injection 실제 시나리오",
+      "season": "special", "episode": "F6",
+      "chapter_file": "Appendix/J_프로덕션_실패패턴_카탈로그.md",
+      "chapter_section": "Prompt Injection",
+      "screen": "슬라이드",
+      "target_minutes": 8,
+      "search_keywords": ["Prompt Injection", "LLM 보안", "AI 공격"],
+      "hook": "실제 공격 시나리오 재현"
+    },
+    "F7": {
+      "title": "SLA 위반이 Gate D에서 어떻게 잡히는가",
+      "season": "special", "episode": "F7",
+      "chapter_file": "Appendix/J_프로덕션_실패패턴_카탈로그.md",
+      "chapter_section": "SLA 위반",
+      "screen": "슬라이드",
+      "target_minutes": 8,
+      "search_keywords": ["AI SLA", "레이턴시 이상", "Gate D"],
+      "hook": "SLA 위반 탐지 실습"
+    },
+    "R1": {
+      "title": "OWASP LLM Top 10을 코드로 테스트하는 법",
+      "season": "special", "episode": "R1",
+      "chapter_file": "Appendix/K_적대적_강건성과_레드팀_평가.md",
+      "chapter_section": "OWASP LLM Top 10",
+      "screen": "슬라이드→코드",
+      "target_minutes": 12,
+      "search_keywords": ["OWASP LLM", "LLM 보안 테스트", "AI 레드팀"],
+      "hook": "OWASP 매핑 + 탐지 코드"
+    },
+    "R2": {
+      "title": "Prompt Injection 31가지 패턴 실전 데모",
+      "season": "special", "episode": "R2",
+      "chapter_file": "Appendix/K_적대적_강건성과_레드팀_평가.md",
+      "chapter_section": "공격 패턴",
+      "screen": "슬라이드→코드",
+      "target_minutes": 12,
+      "search_keywords": ["Prompt Injection 패턴", "AI 공격 패턴", "LLM 취약점"],
+      "hook": "31가지 패턴 시연"
+    },
+    "R3": {
+      "title": "5단계 AI 레드팀 방법론",
+      "season": "special", "episode": "R3",
+      "chapter_file": "Appendix/K_적대적_강건성과_레드팀_평가.md",
+      "chapter_section": "레드팀 방법론",
+      "screen": "슬라이드",
+      "target_minutes": 10,
+      "search_keywords": ["AI 레드팀", "LLM 보안 방법론", "AI 취약점 테스트"],
+      "hook": "5단계 체계적 레드팀"
+    },
+    "R4": {
+      "title": "에이전트 유형별 보안 Harness Config 설정",
+      "season": "special", "episode": "R4",
+      "chapter_file": "Appendix/K_적대적_강건성과_레드팀_평가.md",
+      "chapter_section": "에이전트 보안 Config",
+      "screen": "슬라이드→코드",
+      "target_minutes": 10,
+      "search_keywords": ["AI 에이전트 보안 설정", "ThreatSeverityConfig", "보안 Harness"],
+      "hook": "유형별 보안 Config 템플릿"
+    }
+  }
+}

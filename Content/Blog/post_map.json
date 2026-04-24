@@ -1,0 +1,155 @@
+{
+  "series_name": "AI 에이전트 Harness Engineering 실무 가이드",
+  "series_description": "AI 에이전트를 프로덕션에 배포할 준비가 됐는지 7개 Gate로 판정하는 실전 평가 시스템",
+  "github_url": "https://github.com/bullpeng72/Agent-Evaluator",
+  "pypi_url": "https://pypi.org/project/agent-evaluator/",
+
+  "posts": {
+    "intro": {
+      "title": "AI 에이전트 평가, 무엇부터 시작해야 할까 — Harness Engineering 입문",
+      "chapter_file": "Part_I_기초/Chapter_01_AI에이전트_평가란_무엇인가.md",
+      "type": "개념",
+      "tags": ["AI 에이전트", "Harness Engineering", "LLM 평가", "AI 품질"],
+      "series_order": 1,
+      "target_words": 1500,
+      "hook": "잘 동작하는 에이전트 ≠ 배포해도 되는 에이전트"
+    },
+    "quickstart": {
+      "title": "agent-evaluator 5분 시작 — QuickEval로 첫 평가 데이터 뽑기",
+      "chapter_file": "Part_I_기초/Chapter_02_Agent-Evaluator_첫_시작.md",
+      "type": "튜토리얼",
+      "tags": ["agent-evaluator", "QuickEval", "AI 평가 시작", "Python"],
+      "series_order": 2,
+      "target_words": 2000,
+      "hook": "pip install 후 5분 안에 첫 Gate 점수 확인"
+    },
+    "harness_basics": {
+      "title": "Harness Engineering이란 — Tracker × Config × Gate 3요소 완전 해설",
+      "chapter_file": "Part_II_지표시스템/Chapter_03_Harness_Engineering_기초.md",
+      "type": "개념",
+      "tags": ["Harness Engineering", "AI 평가 지표", "Gate", "Config"],
+      "series_order": 3,
+      "target_words": 2000,
+      "hook": "배포 판정을 코드로 선언하는 방법"
+    },
+    "gate_a": {
+      "title": "Gate A — 에이전트가 정말 목표를 달성했는가",
+      "chapter_file": "Part_II_지표시스템/Chapter_04_GroupA_목표달성.md",
+      "type": "심층분석",
+      "tags": ["Gate A", "목표달성", "InstructionConfig", "AI 에이전트 평가"],
+      "series_order": 4,
+      "target_words": 2500,
+      "hook": "InstructionConfig 6개로 목표달성을 코드로 측정"
+    },
+    "gate_b": {
+      "title": "Gate B — 에이전트 행동의 안전성을 코드로 검증하는 법",
+      "chapter_file": "Part_II_지표시스템/Chapter_05_GroupB_행동무결성.md",
+      "type": "심층분석",
+      "tags": ["Gate B", "루프 탐지", "행동무결성", "LoopDetectionConfig"],
+      "series_order": 5,
+      "target_words": 2500,
+      "hook": "무한루프·범위 이탈을 Gate가 잡는 방법"
+    },
+    "gate_c": {
+      "title": "Gate C — 재현성과 멱등성: 에이전트 신뢰성의 두 기둥",
+      "chapter_file": "Part_II_지표시스템/Chapter_06_GroupC_신뢰성.md",
+      "type": "심층분석",
+      "tags": ["Gate C", "재현성", "멱등성", "AI 신뢰성"],
+      "series_order": 6,
+      "target_words": 2000,
+      "hook": "같은 질문에 같은 답이 나오는가를 측정하는 법"
+    },
+    "gate_d": {
+      "title": "Gate D — SLA를 코드로 선언하고 P95 위반을 자동 탐지하기",
+      "chapter_file": "Part_II_지표시스템/Chapter_07_GroupD_성능계약.md",
+      "type": "심층분석",
+      "tags": ["Gate D", "SLA", "P95 레이턴시", "성능 계약"],
+      "series_order": 7,
+      "target_words": 2000,
+      "hook": "SLAConfig로 응답시간 계약을 코드로 고정"
+    },
+    "gate_e": {
+      "title": "Gate E — AI 에이전트 보안을 평가 지표로 측정하기 (OWASP LLM 연동)",
+      "chapter_file": "Part_II_지표시스템/Chapter_08_GroupE_보안경계.md",
+      "type": "심층분석",
+      "tags": ["Gate E", "LLM 보안", "OWASP LLM", "Prompt Injection"],
+      "series_order": 8,
+      "target_words": 2500,
+      "hook": "OWASP LLM Top 10을 Gate E에 자동 매핑"
+    },
+    "gate_f": {
+      "title": "Gate F — 멀티 에이전트 협업 품질을 수치로 측정하는 법",
+      "chapter_file": "Part_II_지표시스템/Chapter_09_GroupF_다중에이전트.md",
+      "type": "심층분석",
+      "tags": ["Gate F", "멀티 에이전트", "합의율", "에이전트 협업"],
+      "series_order": 9,
+      "target_words": 2000,
+      "hook": "ConsensusConfig로 에이전트 간 합의율 측정"
+    },
+    "gate_g": {
+      "title": "Gate G — 에이전트의 추론을 OpenTelemetry로 관찰하기",
+      "chapter_file": "Part_II_지표시스템/Chapter_10_GroupG_운영관측성.md",
+      "type": "심층분석",
+      "tags": ["Gate G", "OpenTelemetry", "관측성", "Arize Phoenix"],
+      "series_order": 10,
+      "target_words": 2000,
+      "hook": "스팬 추적으로 추론 과정 가시화"
+    },
+    "decorator": {
+      "title": "@agent_eval 데코레이터 완전정복 — 1줄로 58개 지표 수집하기",
+      "chapter_file": "Part_III_개발자가이드/Chapter_12_데코레이터_완전정복.md",
+      "type": "튜토리얼",
+      "tags": ["agent_eval 데코레이터", "Python 데코레이터", "AI 평가 자동화"],
+      "series_order": 11,
+      "target_words": 3000,
+      "hook": "코드 1줄 추가로 전체 Harness Gate 활성화"
+    },
+    "frameworks": {
+      "title": "LangChain·CrewAI·AutoGen에 Harness를 붙이는 21가지 방법",
+      "chapter_file": "Part_III_개발자가이드/Chapter_13_프레임워크_통합.md",
+      "type": "튜토리얼",
+      "tags": ["LangChain 평가", "CrewAI 평가", "AutoGen 평가", "AI 프레임워크"],
+      "series_order": 12,
+      "target_words": 2500,
+      "hook": "framework 파라미터 하나로 21개 프레임워크 자동 연동"
+    },
+    "cicd": {
+      "title": "GitHub Actions에 Harness Gate를 넣는 법 — AI CI/CD 품질 게이팅",
+      "chapter_file": "Part_V_프로덕션운영/Chapter_18_CICD_품질게이팅.md",
+      "type": "튜토리얼",
+      "tags": ["AI CI/CD", "GitHub Actions", "품질 게이팅", "agent-eval gate"],
+      "series_order": 13,
+      "target_words": 2500,
+      "hook": "PR 머지 전 Gate 점수 자동 검사"
+    },
+    "retrofit_30min": {
+      "title": "기존 LangChain 프로젝트에 평가 붙이기 — 30분 실전 가이드",
+      "chapter_file": "Part_VI_실전이식가이드/Chapter_24_첫번째_이식.md",
+      "type": "튜토리얼",
+      "tags": ["LangChain 프로젝트 평가", "AI 평가 이식", "30분 가이드"],
+      "series_order": 14,
+      "target_words": 3000,
+      "hook": "기존 코드 수정 없이 30분 만에 첫 측정값"
+    },
+    "failure_loop": {
+      "title": "프로덕션 AI 무한루프 — 실제 장애 시나리오와 Gate B 탐지 코드",
+      "chapter_file": "Appendix/J_프로덕션_실패패턴_카탈로그.md",
+      "chapter_section": "무한루프",
+      "type": "사례연구",
+      "tags": ["AI 에이전트 오류", "LLM 무한루프", "프로덕션 장애", "Gate B"],
+      "series_order": 15,
+      "target_words": 2000,
+      "hook": "실제 발생한 루프 장애 + 탐지 코드 공개"
+    },
+    "failure_hallucination": {
+      "title": "RAG 환각이 프로덕션에서 잡히지 않는 이유와 Gate C 해법",
+      "chapter_file": "Appendix/J_프로덕션_실패패턴_카탈로그.md",
+      "chapter_section": "RAG 환각",
+      "type": "사례연구",
+      "tags": ["LLM 환각 탐지", "RAG 오류", "Gate C", "신뢰성"],
+      "series_order": 16,
+      "target_words": 2000,
+      "hook": "테스트는 통과했는데 프로덕션에서 환각이 나온 이유"
+    }
+  }
+}
