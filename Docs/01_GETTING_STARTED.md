@@ -260,7 +260,7 @@ eval.save()                      # results/quickeval.json + .html
 agent-eval dashboard
 
 # 옵션
-agent-eval dashboard --port 8080 --watch     # 포트 지정 + 파일 감시
+agent-eval dashboard --port 8765 --watch     # 포트 지정 + 파일 감시
 agent-eval dashboard --no-open               # 브라우저 자동 오픈 비활성화
 agent-eval dashboard --offline               # CDN 에셋 로컬 캐시
 ```

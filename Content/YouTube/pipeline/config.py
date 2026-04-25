@@ -4,7 +4,7 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 
-load_dotenv(Path(__file__).parent.parent.parent.parent / ".env")
+load_dotenv(Path(__file__).parent.parent.parent.parent.parent / ".env")
 
 # ── 디렉토리 경로 ─────────────────────────────────────────────────────────────
 PIPELINE_DIR = Path(__file__).parent

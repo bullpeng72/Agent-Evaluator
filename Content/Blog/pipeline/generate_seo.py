@@ -12,9 +12,8 @@ import re
 import sys
 from pathlib import Path
 
-import anthropic
-
-from config import ANTHROPIC_API_KEY, CLAUDE_MODEL, OUTPUT_DIR, POST_MAP_PATH
+from config import CLAUDE_MODEL, OUTPUT_DIR, POST_MAP_PATH
+from llm import call_claude
 
 SEO_PROMPT = """다음 블로그 포스트의 SEO 메타데이터를 JSON으로 생성하세요.
 
@@ -46,21 +45,13 @@ def load_post_meta(post_id: str) -> dict:
 
 
 def generate_seo(post_id: str, post_meta: dict, content: str) -> dict:
-    client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
-
     prompt = SEO_PROMPT.format(
         title=post_meta.get("title", ""),
         tags=", ".join(post_meta.get("tags", [])),
         content_preview=content[:2000],
     )
 
-    message = client.messages.create(
-        model=CLAUDE_MODEL,
-        max_tokens=800,
-        messages=[{"role": "user", "content": prompt}],
-    )
-
-    raw = message.content[0].text.strip()
+    raw = call_claude("", prompt, CLAUDE_MODEL, max_tokens=800).strip()
     json_match = re.search(r"\{.*\}", raw, re.DOTALL)
     if not json_match:
         return {"error": "JSON 파싱 실패", "raw": raw}

@@ -15,12 +15,11 @@ import json
 import sys
 from pathlib import Path
 
-import anthropic
-
 from config import (
-    ANTHROPIC_API_KEY, BOOK_DIR, CLAUDE_MODEL,
+    BOOK_DIR, CLAUDE_MODEL,
     GITHUB_URL, OUTPUT_DIR, POST_MAP_PATH, PYPI_URL, SERIES_NAME,
 )
+from llm import call_claude
 
 BLOG_SYSTEM_PROMPT = """당신은 기술 블로그 작가입니다.
 AI 에이전트 평가 전문 서적의 챕터를 개발자 독자를 위한 블로그 포스트로 변환합니다.
@@ -118,8 +117,6 @@ def get_next_post_title(post_id: str) -> str:
 
 
 def generate_blog_post(post: dict, chapter_content: str) -> str:
-    client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
-
     system = BLOG_SYSTEM_PROMPT.format(target_words=post.get("target_words", 2000))
     user = BLOG_USER_PROMPT.format(
         post_id=post["id"],
@@ -135,14 +132,8 @@ def generate_blog_post(post: dict, chapter_content: str) -> str:
         chapter_content=chapter_content[:14000],
     )
 
-    print(f"  Claude API 호출 중...")
-    message = client.messages.create(
-        model=CLAUDE_MODEL,
-        max_tokens=5000,
-        messages=[{"role": "user", "content": user}],
-        system=system,
-    )
-    content = message.content[0].text
+    print(f"  Claude 호출 중...")
+    content = call_claude(system, user, CLAUDE_MODEL, max_tokens=5000)
 
     # CTA 블록 추가 (Claude가 포함 안 했을 경우 대비)
     if GITHUB_URL not in content:

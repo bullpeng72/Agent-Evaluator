@@ -11,9 +11,8 @@ import re
 import sys
 from pathlib import Path
 
-import anthropic
-
-from config import ANTHROPIC_API_KEY, CLAUDE_MODEL, EPISODE_MAP_PATH, OUTPUT_DIR
+from config import CLAUDE_MODEL, EPISODE_MAP_PATH, OUTPUT_DIR
+from llm import call_claude
 
 METADATA_PROMPT = """당신은 YouTube 채널 운영 전문가입니다.
 다음 기술 영상의 메타데이터를 한국어로 작성하세요.
@@ -89,8 +88,6 @@ def estimate_chapter_times(sections: list[str], total_minutes: int) -> list[dict
 
 
 def generate_metadata_with_claude(episode: dict, narration_text: str) -> dict:
-    client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
-
     sections = extract_sections(narration_text)
     # 나레이션 요약: 처음 1000자만 전달
     narration_summary = narration_text[:1000].replace("\n", " ")
@@ -105,14 +102,13 @@ def generate_metadata_with_claude(episode: dict, narration_text: str) -> dict:
         narration_summary=narration_summary,
     )
 
-    print("  Claude API로 메타데이터 생성 중...")
-    message = client.messages.create(
+    print("  Claude로 메타데이터 생성 중...")
+    raw = call_claude(
+        system="당신은 YouTube 채널 운영 전문가입니다. 요청된 JSON 형식을 정확히 따르세요.",
+        user=prompt,
         model=CLAUDE_MODEL,
         max_tokens=1500,
-        messages=[{"role": "user", "content": prompt}],
-    )
-
-    raw = message.content[0].text.strip()
+    ).strip()
     # JSON 추출 (마크다운 코드블록 안에 있을 수 있음)
     json_match = re.search(r"\{.*\}", raw, re.DOTALL)
     if not json_match:

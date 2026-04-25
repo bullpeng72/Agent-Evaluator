@@ -14,14 +14,13 @@ import argparse
 import re
 from pathlib import Path
 
-import anthropic
-
 from config import (
-    ANTHROPIC_API_KEY, AUTHOR_BIO_KDP, AUTHOR_NAME,
+    AUTHOR_BIO_KDP, AUTHOR_NAME,
     BISAC_PRIMARY, BISAC_SECONDARY, BOOK_DIR, BOOK_SUBTITLE,
     BOOK_TITLE, CLAUDE_MODEL, EBOOK_PRICE_USD, LANGUAGE,
     OUTPUT_DIR, PRINT_PRICE_USD, PUBLISHER,
 )
+from llm import call_claude
 
 # Amazon KDP 책 설명은 HTML 지원 (최대 4000자)
 DESCRIPTION_PROMPT = """당신은 Amazon 도서 마케팅 전문가입니다.
@@ -68,30 +67,22 @@ def load_intro() -> str:
     return ""
 
 
-def generate_description(client: anthropic.Anthropic, intro: str) -> str:
+def generate_description(intro: str) -> str:
     prompt = DESCRIPTION_PROMPT.format(
         title=BOOK_TITLE, subtitle=BOOK_SUBTITLE,
         author=AUTHOR_NAME, intro_content=intro,
     )
-    msg = client.messages.create(
-        model=CLAUDE_MODEL, max_tokens=3000,
-        messages=[{"role": "user", "content": prompt}],
-    )
-    return msg.content[0].text.strip()
+    return call_claude("", prompt, CLAUDE_MODEL, max_tokens=3000).strip()
 
 
-def generate_keywords(client: anthropic.Anthropic) -> list[str]:
+def generate_keywords() -> list[str]:
     prompt = KEYWORDS_PROMPT.format(title=BOOK_TITLE, subtitle=BOOK_SUBTITLE)
-    msg = client.messages.create(
-        model=CLAUDE_MODEL, max_tokens=300,
-        messages=[{"role": "user", "content": prompt}],
-    )
-    raw = msg.content[0].text.strip()
+    raw = call_claude("", prompt, CLAUDE_MODEL, max_tokens=300).strip()
     keywords = [k.strip() for k in raw.split("\n") if k.strip()]
     return keywords[:7]
 
 
-def generate_author_bio(_client: anthropic.Anthropic) -> str:
+def generate_author_bio() -> str:
     return AUTHOR_BIO_KDP
 
 
@@ -218,17 +209,16 @@ def main():
         print(f"[SKIP] {out_path} 이미 존재. --force로 덮어쓰기.")
         return
 
-    client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
     intro = load_intro()
 
     print("\n[KDP] 책 설명 생성 중...")
-    description = generate_description(client, intro)
+    description = generate_description(intro)
 
     print("[KDP] 검색 키워드 생성 중...")
-    keywords = generate_keywords(client)
+    keywords = generate_keywords()
 
     print("[KDP] 저자 소개 생성 중...")
-    author_bio = generate_author_bio(client)
+    author_bio = generate_author_bio()
 
     metadata = build_metadata_file(description, keywords, author_bio)
     out_path.write_text(metadata, encoding="utf-8")

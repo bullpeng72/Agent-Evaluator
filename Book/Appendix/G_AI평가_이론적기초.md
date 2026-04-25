@@ -399,7 +399,7 @@ G.1~G.6에서 다룬 이론이 Agent-Evaluator의 어느 Group에서 구현되�
 |------|-------------|----------------|
 | TCR | 부분 완료 점수 | AgentBench (Liu et al. 2023) |
 | 정확도 (Token Overlap F1) | Precision·Recall 조화평균(harmonic mean) F1 | ROUGE-N (Lin 2004) |
-| 정확도 (Jaccard) | 집합 유사도 | Jaccard (1901), Levenstein (1965) |
+| 정확도 (Jaccard) | 집합 유사도 | Jaccard (1901), Levenshtein (1966) |
 | 정확도 (LCS) | 서열 정렬 | ROUGE-L (Lin 2004) |
 | 정확도 (Char Levenshtein) | 편집 거리 | Levenshtein (1966) |
 | 응답 품질 (5차원) | 다차원 품질 | MT-Bench (Zheng et al. 2023) |

@@ -9,12 +9,11 @@ import json
 import sys
 from pathlib import Path
 
-import anthropic
-
 from config import (
-    ANTHROPIC_API_KEY, BOOK_DIR, CLAUDE_MODEL,
+    BOOK_DIR, CLAUDE_MODEL,
     EPISODE_MAP_PATH, KOREAN_CHARS_PER_MINUTE, OUTPUT_DIR,
 )
+from llm import call_claude
 
 SYSTEM_PROMPT = """당신은 기술 YouTube 채널의 나레이션 작가입니다.
 AI 에이전트 평가 전문 서적의 챕터를 YouTube 영상 나레이션 스크립트로 변환합니다.
@@ -27,33 +26,7 @@ AI 에이전트 평가 전문 서적의 챕터를 YouTube 영상 나레이션 �
 - 오프닝 30초: 핵심 질문 또는 문제 제기로 시작.
 - 마무리 30초: 핵심 요약 3줄 + 다음 편 예고.
 - 코드 블록은 나레이션에 포함하지 않음 — [CODE: 파일명/설명]으로 대체.
-- 목표 분량: {target_minutes}분 (약 {target_chars}자).
-- 출력 형식은 아래 템플릿을 정확히 따를 것."""
-
-NARRATION_TEMPLATE = """# {episode_id} — {title}
-
-**예상 길이**: {target_minutes}분
-**화면 유형**: {screen}
-**검색 키워드**: {keywords}
-
----
-
-## [INTRO] 오프닝 (30초)
-
-{intro_content}
-
-[PAUSE]
-
----
-
-{sections}
-
----
-
-## [OUTRO] 마무리 (30초)
-
-{outro_content}
-"""
+- 목표 분량: {target_minutes}분 (약 {target_chars}자)."""
 
 USER_PROMPT = """다음 책 챕터를 YouTube 나레이션 스크립트로 변환하세요.
 
@@ -63,14 +36,74 @@ USER_PROMPT = """다음 책 챕터를 YouTube 나레이션 스크립트로 변�
 - 화면 유형: {screen}
 - 목표 길이: {target_minutes}분 (약 {target_chars}자)
 - 핵심 훅: {hook}
+- 검색 키워드: {keywords}
 
 챕터 내용:
 ---
 {chapter_content}
 ---
 
-위 내용을 바탕으로 나레이션 스크립트를 작성하세요.
-[SLIDE: 제목], [CODE: 설명], [PAUSE] 마커를 적절히 배치하세요.
+아래 형식을 정확히 따라 스크립트를 작성하세요.
+괄호 (…) 안 지시문은 실제 나레이션으로 교체하고, ## 헤더·마커 형식은 그대로 유지하세요.
+## 헤더는 반드시 ## [태그] 형식을 사용하세요 (## 섹션1:, ## 🎬 등 다른 형식 금지).
+
+---출력 형식---
+# {episode_id} — {title}
+
+**예상 길이**: {target_minutes}분
+**화면 유형**: {screen}
+**검색 키워드**: {keywords}
+
+---
+
+## [INTRO] 오프닝 (30초)
+
+[SLIDE: (슬라이드 제목)]
+
+(오프닝 나레이션: 핵심 질문 또는 문제 제기. 훅 "{hook}" 활용)
+
+[PAUSE]
+
+---
+
+## [MAIN1] (첫 번째 섹션 제목)
+
+[SLIDE: (슬라이드 제목)]
+
+(나레이션 텍스트)
+
+[PAUSE]
+
+---
+
+## [MAIN2] (두 번째 섹션 제목)
+
+[SLIDE: (슬라이드 제목)]
+
+(나레이션 텍스트)
+
+[CODE: (코드 파일명 — 코드 내용 설명)]
+
+(추가 나레이션)
+
+[PAUSE]
+
+---
+
+(필요한 만큼 ## [MAINn] 섹션을 추가하세요)
+
+---
+
+## [OUTRO] 마무리 (30초)
+
+[SLIDE: 핵심 정리 + 다음 편 예고]
+
+첫째, (핵심 요약 1문장)
+둘째, (핵심 요약 2문장)
+셋째, (핵심 요약 3문장)
+
+(다음 편 예고 1문장)
+---출력 형식 끝---
 """
 
 
@@ -95,8 +128,6 @@ def load_chapter(chapter_file: str) -> str:
 
 
 def generate_narration(episode: dict, chapter_content: str) -> str:
-    client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
-
     target_chars = episode["target_minutes"] * KOREAN_CHARS_PER_MINUTE
     keywords_str = ", ".join(episode.get("search_keywords", []))
 
@@ -111,17 +142,12 @@ def generate_narration(episode: dict, chapter_content: str) -> str:
         target_minutes=episode["target_minutes"],
         target_chars=target_chars,
         hook=episode.get("hook", ""),
+        keywords=keywords_str,
         chapter_content=chapter_content[:12000],  # 토큰 절약: 앞부분 우선
     )
 
-    print(f"  Claude API 호출 중 (모델: {CLAUDE_MODEL})...")
-    message = client.messages.create(
-        model=CLAUDE_MODEL,
-        max_tokens=4096,
-        messages=[{"role": "user", "content": user}],
-        system=system,
-    )
-    return message.content[0].text
+    print(f"  Claude 호출 중 (모델: {CLAUDE_MODEL})...")
+    return call_claude(system, user, model=CLAUDE_MODEL, max_tokens=4096)
 
 
 def save_narration(episode_id: str, content: str) -> Path:

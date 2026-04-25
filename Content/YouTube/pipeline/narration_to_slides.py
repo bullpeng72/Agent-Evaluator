@@ -80,17 +80,22 @@ def load_episode_title(episode_id: str) -> tuple[str, str]:
 
 
 def parse_narration(narration_text: str) -> list[dict]:
-    """나레이션 텍스트를 슬라이드 단위로 파싱."""
+    """나레이션 텍스트를 슬라이드 단위로 파싱.
+
+    ## [TAG] 형식(정석)과 ## 제목 형식(자유 형식) 모두 인식한다.
+    INTRO/OUTRO는 헤더 텍스트에 키워드가 포함되면 감지한다.
+    """
     slides = []
     lines = narration_text.split("\n")
 
     current_section = None
     current_content = []
     slide_marker_re = re.compile(r"\[SLIDE:\s*(.+?)\]", re.IGNORECASE)
-    section_re = re.compile(r"^##\s+\[([A-Z]+)\]\s+(.+)")
+    # 형식 무관: ## 로 시작하는 모든 헤더 인식
+    section_re = re.compile(r"^##\s+(.+)")
 
     for line in lines:
-        # [SLIDE: 제목] 마커 → 슬라이드 분리
+        # [SLIDE: 제목] 마커 → 이전 섹션 콘텐츠 저장 후 슬라이드 마커 추가
         slide_match = slide_marker_re.search(line)
         if slide_match:
             if current_section and current_content:
@@ -101,22 +106,34 @@ def parse_narration(narration_text: str) -> list[dict]:
                            "heading": slide_match.group(1).strip(), "content": ""})
             continue
 
-        # ## [SECTION] 제목 → 섹션 구분
+        # ## heading → 섹션 구분 (## [TAG] 형식·자유 형식 모두 처리)
         section_match = section_re.match(line)
         if section_match:
             if current_section and current_content:
                 slides.append({"type": "section", "heading": current_section,
                                "content": "\n".join(current_content).strip()})
                 current_content = []
-            tag = section_match.group(1)
-            heading = section_match.group(2)
-            current_section = heading
-            # INTRO/OUTRO는 별도 타입
-            if tag in ("INTRO", "OUTRO"):
-                current_section = f"[{tag}] {heading}"
+
+            heading_raw = section_match.group(1).strip()
+            upper = heading_raw.upper()
+
+            # [TAG] 접두사 제거: ## [INTRO] 오프닝 → tag=INTRO, heading=오프닝
+            tag_match = re.match(r'^\[([A-Z0-9]+)\]\s*(.*)', heading_raw)
+            if tag_match:
+                heading = tag_match.group(2).strip() or heading_raw
+            else:
+                heading = heading_raw
+
+            # INTRO/OUTRO 키워드 감지 → build_marp에서 "[INTRO]"/["[OUTRO]" in heading으로 판별
+            if "INTRO" in upper:
+                current_section = f"[INTRO] {heading}"
+            elif "OUTRO" in upper:
+                current_section = f"[OUTRO] {heading}"
+            else:
+                current_section = heading
             continue
 
-        # [CODE: ...] 마커 → 코드 전환 슬라이드
+        # [CODE: ...] 마커 → 이전 콘텐츠 저장 + 코드 슬라이드 추가
         if line.strip().startswith("[CODE:"):
             code_desc = re.sub(r"\[CODE:\s*(.+?)\]", r"\1", line).strip()
             if current_section and current_content:
@@ -126,7 +143,7 @@ def parse_narration(narration_text: str) -> list[dict]:
             slides.append({"type": "code_transition",
                            "heading": "💻 코드 실습",
                            "content": f"> {code_desc}"})
-            current_section = None
+            # current_section 유지 — [CODE:] 이후 텍스트도 현재 섹션에 귀속
             continue
 
         # [PAUSE] → 무시 (나레이션 전용 마커)

@@ -54,7 +54,7 @@
 agent-eval dashboard
 
 # 포트 지정 + 파일 변경 자동 갱신
-agent-eval dashboard --port 8080 --watch
+agent-eval dashboard --port 8765 --watch
 
 # 브라우저 자동 오픈 비활성화
 agent-eval dashboard --no-open

@@ -150,6 +150,60 @@
       "series_order": 16,
       "target_words": 2000,
       "hook": "테스트는 통과했는데 프로덕션에서 환각이 나온 이유"
+    },
+    "security_owasp": {
+      "title": "OWASP LLM Top 10을 코드로 검증하는 법 — Gate E 실전 가이드",
+      "chapter_file": "Appendix/K_적대적_강건성과_레드팀_평가.md",
+      "type": "튜토리얼",
+      "tags": ["OWASP LLM Top 10", "AI 보안", "Prompt Injection 방어", "Gate E", "LLM 레드팀"],
+      "series_order": 17,
+      "target_words": 3000,
+      "hook": "OWASP LLM Top 10 31가지 패턴을 agent-evaluator로 자동 검증"
+    },
+    "project_anatomy": {
+      "title": "기존 AI 프로젝트 해부하기 — 평가 붙이기 전 필수 4단계 분석",
+      "chapter_file": "Part_VI_실전이식가이드/Chapter_22_기존_프로젝트_해부.md",
+      "type": "튜토리얼",
+      "tags": ["기존 AI 프로젝트 평가", "LLM 에이전트 분석", "평가 이식", "에이전트 DAG"],
+      "series_order": 18,
+      "target_words": 2500,
+      "hook": "무작정 @agent_eval 붙이기 전에 토폴로지부터 그려야 하는 이유"
+    },
+    "gate_mapping": {
+      "title": "내 프로젝트를 7개 Gate에 번역하기 — Gate 매핑 전략",
+      "chapter_file": "Part_VI_실전이식가이드/Chapter_23_Gate_매핑_전략.md",
+      "type": "튜토리얼",
+      "tags": ["Harness Gate 매핑", "AI 평가 설계", "Config 선택", "에이전트 토폴로지"],
+      "series_order": 19,
+      "target_words": 2500,
+      "hook": "순차·병렬·루프 토폴로지별로 Gate 선택이 달라지는 이유"
+    },
+    "metrics_101": {
+      "title": "BLEU vs Token F1 vs LLM Judge — 어떤 AI 평가 지표를 써야 하나",
+      "chapter_file": "Appendix/I_지표_비교분석_선택가이드.md",
+      "type": "개념",
+      "tags": ["AI 평가 지표 비교", "BLEU 한계", "Token F1", "LLM Judge", "지표 선택"],
+      "series_order": 20,
+      "target_words": 2500,
+      "hook": "BLEU 0.9인데 답이 완전히 틀린 경우가 생기는 이유"
+    },
+    "framework_matrix": {
+      "title": "LangChain·CrewAI·AutoGen·DSPy 평가 통합 난이도 비교",
+      "chapter_file": "Appendix/D_프레임워크_호환성_매트릭스.md",
+      "type": "비교분석",
+      "tags": ["LangChain 평가", "CrewAI 통합", "AutoGen 평가", "AI 프레임워크 비교", "agent-evaluator"],
+      "series_order": 21,
+      "target_words": 2000,
+      "hook": "21개 프레임워크 중 어디서 토큰 추출이 자동으로 되는가"
+    },
+    "budget_optimization": {
+      "title": "AI 평가 예산 최적화 — 월 $0에서 시작하는 Pareto 전략",
+      "chapter_file": "Appendix/L_예산최적화_평가설계.md",
+      "type": "튜토리얼",
+      "tags": ["AI 평가 비용", "LLM Judge 비용", "평가 샘플링", "예산 최적화"],
+      "series_order": 22,
+      "target_words": 2500,
+      "hook": "25개 Tracker 중 비용 없이 쓸 수 있는 것과 유료인 것 구분하기"
     }
   }
 }

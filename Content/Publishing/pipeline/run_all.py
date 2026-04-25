@@ -53,12 +53,17 @@ def check_all_deps():
 
     import os
     from dotenv import load_dotenv
-    load_dotenv(PIPELINE_DIR.parent.parent.parent / ".env")
-    if os.getenv("ANTHROPIC_API_KEY"):
-        print("  ✅ ANTHROPIC_API_KEY: 설정됨")
+    load_dotenv(PIPELINE_DIR.parent.parent.parent.parent.parent / ".env")
+    api_key = os.getenv("ANTHROPIC_API_KEY", "")
+    if api_key and api_key.startswith("sk-ant-") and len(api_key) > 20:
+        print("  ✅ ANTHROPIC_API_KEY: 유효한 키 설정됨")
     else:
-        print("  ❌ ANTHROPIC_API_KEY: .env에 설정 필요")
-        ok = False
+        import shutil
+        if shutil.which("claude"):
+            print("  ✅ claude CLI: Claude Code 인증 사용 (API 키 불필요)")
+        else:
+            print("  ❌ ANTHROPIC_API_KEY 미설정 + claude CLI 없음")
+            ok = False
 
     return ok
 

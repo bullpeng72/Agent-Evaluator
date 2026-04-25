@@ -416,7 +416,7 @@ agent-eval dashboard
 agent-eval dashboard results/ --watch
 
 # 포트 변경
-agent-eval dashboard --port 8080
+agent-eval dashboard --port 8765
 
 # 브라우저 자동 오픈 비활성화 (서버 환경)
 agent-eval dashboard --no-open

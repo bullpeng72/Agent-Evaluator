@@ -16,13 +16,12 @@ Usage:
 import argparse
 from pathlib import Path
 
-import anthropic
-
 from config import (
-    ANTHROPIC_API_KEY, AUTHOR_BIO_RIDI, AUTHOR_NAME, BOOK_DIR,
+    AUTHOR_BIO_RIDI, AUTHOR_NAME, BOOK_DIR,
     BOOK_SUBTITLE, BOOK_TITLE, CLAUDE_MODEL, OUTPUT_DIR,
     RIDI_CATEGORY_ID, RIDI_EBOOK_PRICE_KRW, RIDI_EBOOK_PRICE_SALE_KRW,
 )
+from llm import call_claude
 
 DESCRIPTION_PROMPT = """당신은 한국 전자책 플랫폼 리디북스에 능통한 편집자입니다.
 리디북스 IT 기술서 섹션에 최적화된 책 소개를 작성하세요.
@@ -123,30 +122,21 @@ def load_intro() -> str:
     return ""
 
 
-def generate_description(client: anthropic.Anthropic, intro: str) -> str:
+def generate_description(intro: str) -> str:
     prompt = DESCRIPTION_PROMPT.format(
         title=BOOK_TITLE, subtitle=BOOK_SUBTITLE,
         author=AUTHOR_NAME, intro_content=intro,
     )
-    msg = client.messages.create(
-        model=CLAUDE_MODEL, max_tokens=2000,
-        messages=[{"role": "user", "content": prompt}],
-    )
-    return msg.content[0].text.strip()
+    return call_claude("", prompt, CLAUDE_MODEL, max_tokens=2000).strip()
 
 
-def generate_author_bio(_client: anthropic.Anthropic) -> str:
+def generate_author_bio() -> str:
     return AUTHOR_BIO_RIDI
 
 
-def generate_publisher_review(client: anthropic.Anthropic) -> str:
-    msg = client.messages.create(
-        model=CLAUDE_MODEL, max_tokens=300,
-        messages=[{"role": "user", "content": PUBLISHER_REVIEW_PROMPT.format(
-            title=BOOK_TITLE, subtitle=BOOK_SUBTITLE,
-        )}],
-    )
-    return msg.content[0].text.strip()
+def generate_publisher_review() -> str:
+    prompt = PUBLISHER_REVIEW_PROMPT.format(title=BOOK_TITLE, subtitle=BOOK_SUBTITLE)
+    return call_claude("", prompt, CLAUDE_MODEL, max_tokens=300).strip()
 
 
 def build_metadata_file(description: str, author_bio: str, publisher_review: str) -> str:
@@ -206,17 +196,16 @@ def main():
         print(f"[SKIP] {out_path} 이미 존재. --force로 덮어쓰기.")
         return
 
-    client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
     intro = load_intro()
 
     print("\n[리디북스] 책 소개 생성 중...")
-    description = generate_description(client, intro)
+    description = generate_description(intro)
 
     print("[리디북스] 작가 소개 생성 중...")
-    author_bio = generate_author_bio(client)
+    author_bio = generate_author_bio()
 
     print("[리디북스] 출판사 리뷰 생성 중...")
-    publisher_review = generate_publisher_review(client)
+    publisher_review = generate_publisher_review()
 
     metadata = build_metadata_file(description, author_bio, publisher_review)
     out_path.write_text(metadata, encoding="utf-8")
