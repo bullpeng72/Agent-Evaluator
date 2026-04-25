@@ -1,0 +1,19 @@
+{
+  "meta_description": "기존 LangChain 프로젝트에 코드 한 줄 수정 없이 30분 안에 AI 에이전트 평가를 붙이는 방법. 침습도 레벨 0 래핑 패턴으로 TCR·정확도·레이턴시 첫 측정값을 얻고 Harness Gate A–G 분석의 기초를 세운다.",
+  "focus_keyword": "LangChain 프로젝트 평가",
+  "secondary_keywords": [
+    "AI 에이전트 평가 이식",
+    "QuickEval 데코레이터",
+    "Harness Gate 평가"
+  ],
+  "og_title": "기존 LangChain 프로젝트에 평가 붙이기 — 30분 실전 가이드",
+  "og_description": "코드 한 줄도 수정하지 않고 @eval_session.qa 데코레이터 하나로 LangChain 에이전트 측정을 시작하는 방법. 침습도 레벨 0 패턴으로 30분 안에 TCR·정확도·레이턴시 첫 측정값을 확보하세요.",
+  "slug_suggestion": "langchain-project-evaluation-30-minute-guide",
+  "reading_time_minutes": 8,
+  "content_type": "tutorial",
+  "target_audience": "LangChain 기반 AI 에이전트를 이미 운영 중이며 평가 체계 도입을 고민하는 ML 엔지니어 및 백엔드 개발자",
+  "internal_link_topics": [
+    "Harness Gate A–G 7개 평가 기준 완전 정복",
+    "QuickEval로 5분 만에 첫 AI 에이전트 평가 시작하기"
+  ]
+}
