@@ -991,7 +991,7 @@ monitor = PerformanceMonitor(
         "output": 0.0006,
     }
 )
-monitor.token_economy_tracker.update_pricing({"input": 0.003, "output": 0.015})
+monitor.token_tracker.update_pricing({"input": 0.003, "output": 0.015})
 ```
 
 **임계값 (태스크당 비용)**
@@ -1005,7 +1005,7 @@ monitor.token_economy_tracker.update_pricing({"input": 0.003, "output": 0.015})
 **주요 API**
 
 ```python
-stats = monitor.token_economy_tracker.get_token_stats()
+stats = monitor.token_tracker.get_usage_stats()
 # {"total_tokens": int, "avg_tokens_per_task": float, "estimated_cost": float, ...}
 ```
 
@@ -1037,11 +1037,11 @@ waste_rate = (redundant_calls + failed_calls) / total_calls
 **주요 API**
 
 ```python
-metrics = monitor.tool_call_analyzer.analyze_execution(task_id, tool_calls)
+metrics = monitor.tool_analyzer.analyze_execution(task_id, tool_calls)
 # {"total_calls": int, "unique_tools": int, "redundant_calls": int,
 #  "failed_calls": int, "efficiency_score": float}
 
-stats = monitor.tool_call_analyzer.get_efficiency_stats()
+stats = monitor.tool_analyzer.get_efficiency_stats()
 # {"avg_efficiency_score": float, "redundancy_rate": float, "failure_rate": float}
 ```
 

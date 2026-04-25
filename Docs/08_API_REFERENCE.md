@@ -124,7 +124,7 @@ monitor = PerformanceMonitor(
 | `record_task(result)` | `self` | TaskResult 기록. 메서드 체이닝 지원 |
 | `generate_report()` | `EvaluationReport` | 누적 지표 기반 보고서 생성 |
 | `save_to_file(filename)` | `None` | JSON + HTML 파일 저장 |
-| `compare_with_thresholds(tcr, accuracy, ...)` | `dict` | 임계값 대비 통과/실패 여부 |
+| `compare_with_thresholds()` | `dict` | 임계값 대비 통과/실패 여부 (`monitor.thresholds = {...}`로 설정) |
 | `reset(keep_config=True)` | `None` | 누적 태스크 초기화 |
 | `snapshot()` | `dict` | 현재 상태 스냅샷 |
 | `compare_with_snapshot(snap)` | `dict` | 스냅샷과 현재 지표 비교 |
@@ -997,7 +997,7 @@ detector = AnomalyDetector(
     window_size=100,
 )
 
-events = detector.scan(monitor.tasks)
+events = detector.scan(monitor)
 # events: List[AnomalyEvent]
 
 event = events[0]
@@ -1009,7 +1009,7 @@ event.timestamp
 explanation = detector.explain_event(event)
 # {"cause": str, "recommendation": str, "affected_tasks": [...]}
 
-events_with_explanation = detector.scan_with_explain(monitor.tasks)
+events_with_explanation = detector.scan_with_explain(monitor)
 ```
 
 ### StreamingEvaluator

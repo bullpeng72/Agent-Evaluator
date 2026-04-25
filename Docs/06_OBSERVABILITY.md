@@ -481,8 +481,8 @@ setup_otel(service_name="프로젝트명")  # Phoenix UI 상단 드롭다운에�
 ```python
 from agent_evaluator.datasets import GoldenSetBuilder
 
-builder = GoldenSetBuilder(monitor)
-cases = builder.extract_from_monitor(min_score=0.8)
+builder = GoldenSetBuilder(source_dir="results/", output_dir="data/golden_datasets/")
+cases = builder.extract(strategies=["high_value"], max_cases=50)
 builder.push_to_phoenix(cases, dataset_name="qa-golden-v1")
 ```
 
