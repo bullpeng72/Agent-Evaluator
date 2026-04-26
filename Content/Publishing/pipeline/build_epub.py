@@ -4,12 +4,9 @@
     brew install pandoc
 
 Usage:
-    python build_epub.py                          # KDP + 리디북스 EPUB 모두 빌드
-    python build_epub.py --target kdp             # KDP용 EPUB만
-    python build_epub.py --target ridi            # 리디북스용 EPUB만
-    python build_epub.py --target all             # 둘 다 (기본값)
-    python build_epub.py --cover cover.jpg        # 표지 이미지 지정
-    python build_epub.py --check                  # pandoc 설치 확인
+    python build_epub.py                   # 부크크용 EPUB 빌드
+    python build_epub.py --cover cover.jpg # 표지 이미지 지정
+    python build_epub.py --check           # pandoc 설치 확인
 """
 import argparse
 import subprocess
@@ -23,8 +20,7 @@ from config import (
 )
 
 # ── 출력 경로 ──────────────────────────────────────────────────────────────────
-KDP_EPUB = OUTPUT_DIR / "kdp" / f"{BOOK_TITLE.replace(' ', '_')}_kdp.epub"
-RIDI_EPUB = OUTPUT_DIR / "ridibooks" / f"{BOOK_TITLE.replace(' ', '_')}_ridi.epub"
+BOOKK_EPUB = OUTPUT_DIR / "bookk" / f"{BOOK_TITLE.replace(' ', '_')}_bookk.epub"
 
 # ── pandoc 공통 메타데이터 ────────────────────────────────────────────────────
 PANDOC_METADATA = """\
@@ -207,10 +203,8 @@ def build_epub(output_path: Path, css: str, cover_image: Path | None = None) -> 
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Book Markdown → EPUB 빌드")
-    parser.add_argument("--target", choices=["kdp", "ridi", "all"], default="all",
-                        help="빌드 대상 (기본값: all)")
-    parser.add_argument("--cover", type=Path, help="표지 이미지 경로 (JPG, 2560×1600px)")
+    parser = argparse.ArgumentParser(description="Book Markdown → 부크크 EPUB 빌드")
+    parser.add_argument("--cover", type=Path, help="표지 이미지 경로 (JPG, 1600×2400px)")
     parser.add_argument("--check", action="store_true", help="pandoc 설치 확인만")
     args = parser.parse_args()
 
@@ -223,24 +217,14 @@ def main():
         print("  pandoc 설치 확인 완료.")
         return
 
-    results = {}
+    print("\n  -- 부크크 EPUB --")
+    ok = build_epub(BOOKK_EPUB, CSS_KDP, args.cover)
 
-    if args.target in ("kdp", "all"):
-        print("\n  -- Amazon KDP EPUB --")
-        results["kdp"] = build_epub(KDP_EPUB, CSS_KDP, args.cover)
-
-    if args.target in ("ridi", "all"):
-        print("\n  -- 리디북스 EPUB --")
-        results["ridi"] = build_epub(RIDI_EPUB, CSS_RIDI, args.cover)
-
-    if not all(results.values()):
+    if not ok:
         sys.exit(1)
 
     print("\n  다음 단계:")
-    if "kdp" in results:
-        print(f"  [KDP]  Kindle Previewer로 확인 후 kdp.amazon.com 업로드")
-    if "ridi" in results:
-        print(f"  [리디] ridibooks.com/publish → EPUB 업로드")
+    print(f"  [부크크] bookk.co.kr → 책 만들기 → 전자책 → EPUB 업로드")
 
 
 if __name__ == "__main__":

@@ -1,14 +1,21 @@
-# /publish — 출판 파이프라인 (KDP · 리디북스 · 부크크)
+# /publish — 출판 파이프라인 (부크크 · KDP 영문)
 
-책 메타데이터를 생성하고 EPUB/PDF를 빌드한다.
+EPUB/PDF를 빌드하고 메타데이터를 생성한다.
+
+- **부크크** (한국어) → 리디북스·교보·예스24 자동 유통
+- **Amazon KDP** (영문) → 영어 번역 + EPUB
 
 ## 사용법
 
 ```
-/publish [--platform kdp|ridi|bookk|all] [--meta-only] [--epub-only] [--cover <파일>] [--check]
+/publish                          # 부크크 + KDP 영문 전체
+/publish --platform bookk         # 부크크만
+/publish --platform kdp-en        # 영문 KDP만
+/publish --meta-only              # 메타데이터만 생성
+/publish --epub-only              # EPUB/PDF만 빌드
+/publish --cover cover.jpg        # 표지 이미지 포함
+/publish --check                  # 의존성 확인
 ```
-
-**플랫폼 기본값**: all (세 플랫폼 동시)
 
 ## 실행 절차
 
@@ -23,54 +30,43 @@ cd Content/Publishing/pipeline && python run_all.py --check 2>&1
 
 `--check` 단독 인자인 경우 여기서 종료한다.
 
-의존성 문제가 있으면 해결 방법을 안내하고 진행 여부를 확인한다:
+의존성 문제가 있으면 해결 방법을 안내한다:
 - `pandoc` 미설치: `brew install pandoc` 또는 `apt install pandoc`
-- `weasyprint` 미설치: `pip install weasyprint`
 - `ANTHROPIC_API_KEY` 미설정: `.env` 파일에 키 추가
 
 ### 2단계: 파이프라인 실행
-
-`$ARGUMENTS`에 따라 실행한다:
 
 ```bash
 cd Content/Publishing/pipeline && python run_all.py $ARGUMENTS 2>&1
 ```
 
-인자가 없으면(`/publish` 단독) `--meta-only`로 먼저 실행해 내용을 검토하도록 안내한다:
-```bash
-cd Content/Publishing/pipeline && python run_all.py --meta-only 2>&1
-```
+인자가 없으면(`/publish` 단독) 전체 파이프라인을 실행한다.
 
 ### 3단계: 결과 요약
 
-생성된 파일 목록과 크기를 플랫폼별로 출력한다:
+생성된 파일 목록과 크기를 출력한다:
 ```bash
-ls -lh Content/Publishing/output/kdp/ 2>/dev/null
-ls -lh Content/Publishing/output/ridibooks/ 2>/dev/null
 ls -lh Content/Publishing/output/bookk/ 2>/dev/null
+ls -lh Content/Publishing/output_en/kdp/ 2>/dev/null
 ```
 
-각 플랫폼의 메타데이터 파일을 출력한다:
+메타데이터 파일 앞부분을 출력한다:
 ```bash
-cat Content/Publishing/output/kdp/kdp_metadata.md 2>/dev/null | head -80
-cat Content/Publishing/output/ridibooks/ridi_metadata.md 2>/dev/null | head -60
 cat Content/Publishing/output/bookk/bookk_metadata.md 2>/dev/null | head -60
+cat Content/Publishing/output_en/kdp/kdp_metadata_en.md 2>/dev/null | head -60
 ```
 
 등록 절차 안내를 출력한다:
 
-**Amazon KDP** (kdp.amazon.com):
-1. Bookshelf → 새 제목 추가 → Kindle eBook
-2. `description.html` 내용을 책 설명란에 붙여넣기
-3. `keywords.txt`에서 7개 키워드 입력
-4. `book_kdp.epub` 업로드
-
-**리디북스** (ridibooks.com/publish):
-1. 도서 등록 → 전자책
-2. `description.txt` 내용을 책 소개란에 입력
-3. `book_ridi.epub` 업로드
-
 **부크크** (bookk.co.kr):
-1. 책 만들기 → 전자책 또는 종이책
-2. `description.txt` 내용 입력
-3. `book_bookk.pdf` 업로드 (종이책) 또는 `epub` (전자책)
+1. 책 만들기 → 전자책
+2. `bookk_metadata.md`의 정보 복붙
+3. EPUB/PDF 업로드
+4. 심사 후 리디북스·교보·예스24 자동 유통 (2–4주)
+
+**Amazon KDP 영문** (kdp.amazon.com):
+1. Bookshelf → + Kindle eBook
+2. `kdp_metadata_en.md`의 정보 복붙
+3. `description_en.html` → 책 설명란 붙여넣기
+4. `keywords_en.txt` → 키워드 7개 입력
+5. EPUB 업로드 → 가격 $9.99
