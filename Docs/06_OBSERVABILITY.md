@@ -623,7 +623,7 @@ result = query_phoenix("""
 
 ```bash
 ls results/*.json     # JSON 파일이 있는지 확인
-python Evaluator_Examples/ch02_first_eval.py
+python Evaluator_Examples/ch02_quickstart.py
 agent-eval dashboard
 ```
 

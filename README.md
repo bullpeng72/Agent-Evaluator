@@ -1346,14 +1346,14 @@ from agent_evaluator.decorators import (
 
 ## 예제 가이드
 
-Book 챕터 기반 21개 파일로 구성됩니다. 각 파일은 독립 실행 가능합니다.
+Book 챕터 기반 26개 파일로 구성됩니다. 각 파일은 독립 실행 가능합니다.
 
 ### 예제별 의존성
 
 | 예제 | 챕터 | 내용 | 선택 |
 |------|------|------|------|
-| `ch01_quickstart.py` | Ch01 | QuickEval 5분 첫 평가 | — |
-| `ch02_first_eval.py` | Ch02 | Layer 1 기초 — 정확도·할루시네이션·TCR | — |
+| `ch01_first_eval.py` | Ch01 | Layer 1 기초 — 정확도·할루시네이션·TCR | — |
+| `ch02_quickstart.py` | Ch02 | QuickEval 5분 첫 평가 | — |
 | `ch03_harness_basics.py` | Ch03 | Harness Gate A–G 7개 개요 | `agent-eval monitor` |
 | `ch04_group_a.py` | Ch04 | Gate A: Goal Achievement (6개 Config) | — |
 | `ch05_group_b.py` | Ch05 | Gate B: Behavioral Integrity (6개 Config) | — |
@@ -1366,20 +1366,26 @@ Book 챕터 기반 21개 파일로 구성됩니다. 각 파일은 독립 실행 
 | `ch12_decorators.py` | Ch12 | 데코레이터 완전정복 — @agent_eval · @batch_eval · QuickEval · LLMJudge | — |
 | `ch13_frameworks.py` | Ch13 | 프레임워크 통합 — LangChain · LangGraph · CrewAI · AutoGen | `agent-evaluator[langchain]` (선택) |
 | `ch14_thresholds.py` | Ch14 | 임계값 설정과 품질 기준 수립 | — |
+| `ch15_dashboard.py` | Ch15 | 대시보드 시각화 — QuickEval · AnomalyDetector · CostTracker 데이터 생성 | `agent-eval dashboard` |
 | `ch16_alerts.py` | Ch16 | 알림시스템 — StreamingEvaluator · AlertEngine · SimpleTaskAlertRule | `SLACK_WEBHOOK_URL` (미설정 시 Mock) |
 | `ch17_weekly_review.py` | Ch17 | 주간·월간 품질 리뷰 자동화 | — |
 | `ch18_cicd_gate.py` | Ch18 | CI/CD 품질 게이팅 — Harness 최소 검증 · exit 0/1 | — |
 | `ch19_phoenix.py` | Ch19 | Phoenix OTEL — Tracing · Datasets · GraphQL + DeepEval · Ragas | `agent-evaluator[eval]` + `OPENAI_API_KEY` (선택) |
 | `ch20_deployment.py` | Ch20 | 프로덕션 배포전략 — v1 vs v2 Gate 점수 비교 | — |
 | `ch21_pipeline.py` | Ch21 | 종합 실무파이프라인 — 개발→CI→운영→개선 4단계 | — |
+| `ch22_project_analysis.py` | Ch22 | 기존 프로젝트 해부 — 토폴로지·LLM 열거·위험 우선순위화 | — |
+| `ch23_gate_mapping.py` | Ch23 | Gate 매핑 전략 — 실패모드 카탈로그 → Config 번역 + 가중치 설계 | — |
+| `ch24_quickeval_entry.py` | Ch24 | 첫 번째 이식 — 침습도 Level 0/1 패턴 + 첫 측정값 획득 | — |
+| `ch25_harness_full.py` | Ch25 | 전체 통합 — 중앙 모니터 + 어댑터 + 보안 스캔 + Gate F 버그 발견 | — |
+| `ch26_cicd_weekly.py` | Ch26 | CI/CD 완성 — 골든 데이터셋·추세 분석·주간 리뷰·비용 드리프트 | — |
 
 ### 실행
 
 ```bash
 cd Evaluator_Examples
 
-python ch01_quickstart.py      # QuickEval 5분 첫 평가
-python ch02_first_eval.py      # Layer 1 기초 — Accuracy · Hallucination · Quality · Latency · Token · TCR
+python ch01_first_eval.py      # Layer 1 기초 — Accuracy · Hallucination · Quality · Latency · Token · TCR
+python ch02_quickstart.py      # QuickEval 5분 첫 평가
 python ch03_harness_basics.py  # Harness Gate A–G 개요 — 7개 Gate · 33개 Config
 python ch04_group_a.py         # Gate A: Goal Achievement — InstructionConfig · GoalAlignmentConfig 외
 python ch05_group_b.py         # Gate B: Behavioral Integrity — LoopDetectionConfig · StateConsistencyConfig 외
@@ -1392,12 +1398,18 @@ python ch11_eval_data.py       # 평가데이터 설계 — GoldenSetBuilder · 
 python ch12_decorators.py      # 데코레이터 완전정복 — @agent_eval · @batch_eval · QuickEval · LLMJudge
 python ch13_frameworks.py      # 프레임워크 통합 — LangChain · LangGraph · CrewAI · AutoGen
 python ch14_thresholds.py      # 임계값 설정과 품질 기준 수립
+python ch15_dashboard.py       # 대시보드 시각화 데이터 생성
 python ch16_alerts.py          # 알림시스템 — StreamingEvaluator · AlertEngine
 python ch17_weekly_review.py   # 주간·월간 품질 리뷰 자동화
 python ch18_cicd_gate.py       # CI/CD 품질 게이팅
 python ch19_phoenix.py         # Phoenix OTEL + DeepEval · Ragas (opt-in)
 python ch20_deployment.py      # 프로덕션 배포전략
 python ch21_pipeline.py        # 종합 실무파이프라인
+python ch22_project_analysis.py  # 기존 프로젝트 해부 4단계
+python ch23_gate_mapping.py    # Gate 매핑 전략
+python ch24_quickeval_entry.py # 첫 번째 이식 — Level 0/1 침습
+python ch25_harness_full.py    # 전체 통합 파이프라인
+python ch26_cicd_weekly.py     # CI/CD 완성 + 주간 리뷰
 
 # ── 인프라 ───────────────────────────────────────────────────
 agent-eval monitor             # Phoenix 서버 기동 (http://localhost:6006)
@@ -1438,7 +1450,7 @@ agent-evaluator/
 │   ├── cost/                    # CostTracker · AdaptivePolicy
 │   └── datasets/                # GoldenSetBuilder
 │
-├── Evaluator_Examples/          # 예제 21개 파일 (chXX_topic.py, .deprecated/에 구 11개 보존)
+├── Evaluator_Examples/          # 예제 26개 파일 (ch01~ch26, .deprecated/에 구 11개 보존)
 ├── tests/                       # 2,465개+ 테스트 함수, 53개 파일
 └── pyproject.toml
 ```
