@@ -1,279 +1,48 @@
-# Content — 미디어 콘텐츠 자동화 파이프라인
+# Content — 콘텐츠 자동화 파이프라인
 
-**저서**: AI 에이전트 Harness Engineering 실무 가이드  
-**구성**: YouTube · Blog · Publishing(리디북스 · KDP · 부크크) 세 채널의 콘텐츠를 Book 챕터에서 자동 생성한다.  
-**실행 방법**: Claude Code Skill 전용 (`/youtube`, `/blog`, `/publish`) — 별도 API 키 불필요.
+**Book(42챕터)**을 단일 원천으로 삼아 **4개 채널**에 자동 배포한다.  
+모든 파이프라인은 Claude Code CLI Skill로 실행하며 별도 API 키가 없어도 동작한다.
 
----
-
-## 매체별 역할 분담
-
-각 채널은 독자가 던지는 질문이 다르다. 겹치는 주제도 **묻는 방식**으로 역할을 나눈다.
-
-| 매체 | 독자의 질문 | 콘텐츠 성격 | 주요 진입 경로 |
-|------|-----------|------------|--------------|
-| **YouTube 메인** | "어떻게 동작하는가" | 개념 설명 + 라이브 코드 데모 | YouTube 검색·구독 |
-| **YouTube Shorts** | "이게 뭔가, 1분만" | 단일 개념 훅 | Shorts 추천 피드 |
-| **Blog (Velog)** | "직접 해보려면" | 실행 가능한 코드 + 깊이 있는 배경 | Google SEO |
-| **단행본 (리디/KDP)** | "전체 체계를 알고 싶다" | 26개 Chapter + 13개 Appendix 완전판 | 리디·교보·예스24 검색 |
-| **GitHub** | "코드만 보자" | ch01~ch26 예제 26개 파일 | GitHub 검색·PyPI 링크 |
-
-> **핵심 원칙**: Blog는 YouTube가 다루는 "동작 원리"를 반복하지 않는다. Blog는 "직접 실행"을 위한 코드와 판단 근거를 제공한다. Book은 두 채널이 제공하지 못하는 "전체 맥락"과 "레퍼런스"다.
+| 채널 | 언어 | Skill | 자동화 |
+|------|------|-------|--------|
+| **Velog 블로그** | 한국어 | `/blog` | 생성 + 발행 완전 자동 |
+| **YouTube** | 한국어 | `/youtube` | 나레이션·슬라이드·자막·메타 자동 (음성은 수동) |
+| **부크크** | 한국어 | `/publish` | EPUB/PDF + 메타데이터 자동 |
+| **Amazon KDP** | 영어 | `/publish` | 번역 + EPUB + 메타데이터 자동 |
 
 ---
 
-## 독자 경로별 유입 깔때기
+## 1. 환경 구성
 
-책은 6가지 독자 경로를 정의한다(README 명시). 각 경로별로 첫 접점·심화·전환을 설계한다.
+### 1-1. 필수 도구
 
-### 개발자 경로 (가장 큰 타겟)
+```bash
+# Python 패키지
+pip install anthropic python-dotenv
 
-```
-구글 "LangChain 평가 붙이기"
-  → [Blog] retrofit_30min — 코드 0줄 수정, 30분 이식
-  → [YouTube] S6E3 — 동일 내용 라이브 데모
-  → pip install agent-evaluator → QuickEval 실습
-  → [YouTube] S6E1~E5 구독 (이식 시리즈 완주)
-  → [Blog] decorator — @agent_eval 데코레이터 심화
-  → [Book] 리디/KDP 구매 (26챕터 + Appendix A·B 레퍼런스)
+# EPUB 빌더 (부크크 · KDP)
+brew install pandoc          # macOS
+sudo apt install pandoc      # Ubuntu/Debian
 ```
 
-### QA 관리자 경로
+### 1-2. API 키 (`.env`)
 
-```
-구글 "AI 에이전트 임계값 설정"
-  → [Blog] gate_a / gate_b ... gate_g — Gate별 Config 코드
-  → [YouTube] S2E1~E8 — Gate 개념 + 데모 (주 1편)
-  → [Blog] cicd — GitHub Actions 게이팅
-  → [Book] 리디/KDP 구매 (Part IV QA 가이드 + Appendix J·L)
-```
+프로젝트 루트에 `.env` 파일을 만든다.
 
-### 보안팀 경로 (고가치, 경쟁 낮음)
+```bash
+# Claude API — 없으면 Claude Code CLI 인증으로 자동 대체 (선택)
+ANTHROPIC_API_KEY=sk-ant-...
 
-```
-구글 "OWASP LLM Top 10 평가"
-  → [Blog] security_owasp — 31개 패턴 코드 검증 (신규)
-  → [YouTube] R1~R4 — 레드팀 시리즈 (독립 SEO)
-  → [Blog] gate_e — Gate E 심층 분석
-  → [Book] 리디/KDP 구매 (Appendix K 전체)
+# Velog 자동 발행 (/blog --publish 사용 시 필수)
+# 방법: 브라우저에서 velog.io 로그인 → F12 → Application → Cookies → access_token 값 복사
+VELOG_ACCESS_TOKEN=eyJ...
+
+# TTS 음성 합성 (--skip-audio 없이 음성 파일을 만들 때만 필요)
+TTS_PROVIDER=elevenlabs        # elevenlabs | clova
+ELEVENLABS_API_KEY=...
 ```
 
-### DevOps / MLOps 경로
-
-```
-구글 "AI CI/CD 품질 게이팅"
-  → [Blog] cicd — GitHub Actions YAML 코드
-  → [YouTube] S5E1 — CI/CD 게이팅 데모
-  → [YouTube] S5E2 — Phoenix OTEL 모니터링
-  → [Book] 리디/KDP 구매 (Part V 프로덕션 운영)
-```
-
-### 스타트업 / 빠른 시작 경로
-
-```
-구글 "AI 에이전트 평가 시작"
-  → [Blog] quickstart — QuickEval 5분 시작
-  → [YouTube] S1E1~E2 — 입문 편
-  → [Blog] retrofit_30min or decorator
-  → [Book] 리디 구매 (Ch2→Ch11→Ch12→Ch14→Ch18 경로)
-```
-
----
-
-## 대표 콘텐츠 (Flagship)
-
-세 채널 각각의 관문 역할을 하는 콘텐츠. **모든 CTA가 여기로 수렴**한다.
-
-| 채널 | 대표 콘텐츠 | 이유 |
-|------|-----------|------|
-| **YouTube** | S6E3 "30분 이식 실습" | 검색 수요 최상위, 실용성 즉시 증명, narration 완료 상태 |
-| **Blog** | `retrofit_30min` "LangChain 30분 가이드" | Google SEO 최우선 키워드, 생성 완료 |
-| **Book** | Part VI 전체 (Ch22~26 이식 가이드) | 타 도서에 없는 차별화 챕터 |
-
----
-
-## 콘텐츠 생성 계획
-
-### 현재 상태 (2026-04-25)
-
-| 채널 | 전체 | 완료 | 미완료 |
-|------|------|------|--------|
-| YouTube 메인 (S1–S6) | 26편 | 1편 (S6E3 naration·slides·srt·meta) | 25편 |
-| YouTube 특별 (F·R) | 11편 | 0편 | 11편 |
-| Blog | 22개 (목표) | 1개 (retrofit_30min) | 21개 |
-| 리디북스 | 메타데이터 + EPUB | 메타데이터 완료 | EPUB |
-| Amazon KDP | 메타데이터 + EPUB | 메타데이터 완료 | EPUB |
-| 부크크 | 메타데이터 + PDF | 메타데이터 완료 | PDF |
-
----
-
-### Phase 1 — 대표 콘텐츠 + 보안 선발대 (1~2주)
-
-```
-# YouTube: S6 시리즈 완성 (대표 채널 구축)
-/youtube S6E3 --force --skip-audio     # narration 검토 완료 → 슬라이드/자막/메타데이터 완성
-/youtube S6E1 --skip-audio             # 나레이션 생성 → 검토 → --force
-/youtube S6E2 --skip-audio
-/youtube S6E4 --skip-audio
-/youtube S6E5 --skip-audio
-
-# Blog: 개발자·보안팀 선발대
-/blog failure_loop                     # Appendix J — 무한루프 사례 (이미 episode map 있음)
-/blog failure_hallucination            # Appendix J — RAG 환각 사례
-# + post_map에 아래 3개 추가 후 생성:
-/blog security_owasp                   # Appendix K — OWASP LLM Top 10 코드 검증 (신규)
-/blog project_anatomy                  # Ch22 — 기존 프로젝트 해부 4단계 (신규)
-/blog gate_mapping                     # Ch23 — Gate 매핑 전략 (신규)
-```
-
-**완료 기준**: `output/S6E*/` 5개 폴더 완성, 블로그 6개 파일 생성
-
----
-
-### Phase 2 — 입문 편 + QA 시리즈 착수 (2~3주)
-
-```
-# YouTube: S1 (채널 관문)
-/youtube S1E1 --skip-audio             # "배포해도 된다"는 어떻게 아는가 — 채널 소개
-/youtube S1E2 --skip-audio             # QuickEval 5분 실습
-
-# YouTube: R 시리즈 (보안팀 독립 SEO — F 시리즈보다 먼저)
-/youtube R1 --skip-audio               # OWASP LLM Top 10 코드 테스트
-/youtube R2 --skip-audio               # Prompt Injection 31가지 패턴
-/youtube R3 --skip-audio               # 5단계 레드팀 방법론
-/youtube R4 --skip-audio               # 에이전트 유형별 보안 Harness
-
-# Blog: 입문 + QA 선발대
-/blog intro
-/blog quickstart
-/blog harness_basics
-/blog gate_a
-/blog gate_e                           # 보안팀 유입 연결
-```
-
-> R 시리즈를 F보다 먼저 올리는 이유: "OWASP LLM", "Prompt Injection 방어", "AI 레드팀" 키워드는 YouTube 검색 경쟁이 낮고 전환율이 높다. F 시리즈(실패 사례)는 이미 블로그 2개가 커버한다.
-
----
-
-### Phase 3 — Gate 시리즈 완성 (4~6주)
-
-```
-# YouTube: S2 Gate A–G (주 1편, 8주)
-/youtube --season 2 --skip-audio       # S2E1~E8 일괄 생성 후 주 1편 업로드
-
-# Blog: Gate 시리즈 + 심화
-/blog gate_b  /blog gate_c  /blog gate_d
-/blog gate_f  /blog gate_g
-/blog decorator
-/blog frameworks
-/blog metrics_101                      # Appendix H/I — BLEU vs Token F1 비교 (신규)
-/blog framework_matrix                 # Appendix D — 21개 프레임워크 비교 (신규)
-```
-
----
-
-### Phase 4 — 프로덕션 운영 + 단행본 EPUB (7~10주)
-
-```
-# YouTube: S3~S5
-/youtube --season 3 --skip-audio
-/youtube --season 4 --skip-audio
-/youtube --season 5 --skip-audio
-
-# Blog: 운영 편
-/blog cicd
-/blog budget_optimization              # Appendix L — 평가 예산 최적화 (신규)
-
-# 출판: EPUB + PDF 빌드
-/publish --platform ridi --cover cover.jpg    # 리디북스 1순위
-/publish --platform kdp  --cover cover.jpg
-/publish --platform bookk --cover cover.jpg  # 교보·예스24·알라딘 유통
-```
-
----
-
-### Phase 5 — F 시리즈 + Shorts (11주 이후)
-
-```
-# YouTube: F1~F7 (구독자 기반 형성 후)
-/youtube F1 --skip-audio  ...  /youtube F7 --skip-audio
-
-# YouTube Shorts (별도 제작, 9편 소재)
-```
-
-**Shorts 소재 목록** (각 30초~1분, OBS 직접 녹화):
-
-| # | 제목 | 기반 콘텐츠 |
-|---|------|-----------|
-| 1 | TCR 100%인데 왜 프로덕션이 실패하나 | Ch1 서론 |
-| 2 | Gate A–G 30초 전체 소개 | Ch3 |
-| 3 | QuickEval 설치부터 첫 결과까지 30초 | Ch2 |
-| 4 | Prompt Injection을 코드 1줄로 막는 법 | Ch8 / Appendix K |
-| 5 | P95 레이턴시란 무엇인가 | Ch7 |
-| 6 | 에이전트 무한루프 탐지하는 법 | Ch5 / Appendix J |
-| 7 | 데코레이터 1줄로 58개 지표 수집 | Ch12 |
-| 8 | LLM Judge vs BLEU — 뭐가 다른가 | Appendix I |
-| 9 | AI CI/CD 게이팅 30초 데모 | Ch18 |
-
----
-
-## 블로그 포스트 전체 목록 (22개)
-
-현재 `post_map.json`에는 16개 정의. **6개를 추가**해야 아래 표와 일치한다.
-
-| ID | 유형 | 기반 챕터 | 독자 경로 | 생성 |
-|----|------|---------|---------|------|
-| `intro` | 개념 | Ch1 | 스타트업·QA | · |
-| `quickstart` | 튜토리얼 | Ch2 | 스타트업·개발자 | · |
-| `harness_basics` | 개념 | Ch3 | 전체 | · |
-| `gate_a` | 심층분석 | Ch4 | QA | · |
-| `gate_b` | 심층분석 | Ch5 | QA·DevOps | · |
-| `gate_c` | 심층분석 | Ch6 | QA | · |
-| `gate_d` | 심층분석 | Ch7 | DevOps | · |
-| `gate_e` | 심층분석 | Ch8 | 보안팀 | · |
-| `gate_f` | 심층분석 | Ch9 | 개발자 | · |
-| `gate_g` | 심층분석 | Ch10 | DevOps | · |
-| `decorator` | 튜토리얼 | Ch12 | 개발자 | · |
-| `frameworks` | 튜토리얼 | Ch13 | 개발자 | · |
-| `cicd` | 튜토리얼 | Ch18 | DevOps | · |
-| `retrofit_30min` | 튜토리얼 | Ch24 | 개발자 | ✅ |
-| `failure_loop` | 사례연구 | Appendix J | 전체 | · |
-| `failure_hallucination` | 사례연구 | Appendix J | QA·개발자 | · |
-| `security_owasp` ★신규 | 튜토리얼 | Appendix K | 보안팀 | · |
-| `project_anatomy` ★신규 | 튜토리얼 | Ch22 | 개발자 | · |
-| `gate_mapping` ★신규 | 튜토리얼 | Ch23 | 개발자·QA | · |
-| `metrics_101` ★신규 | 개념 | Appendix H·I | 개발자·연구자 | · |
-| `framework_matrix` ★신규 | 비교분석 | Appendix D | 개발자 | · |
-| `budget_optimization` ★신규 | 튜토리얼 | Appendix L | QA관리자·DevOps | · |
-
----
-
-## 단행본 플랫폼 전략
-
-**리디북스를 1순위**로 설정한다. 한국어 IT 기술서 독자의 검색·구매 빈도가 리디 > KDP이며, 부크크를 통한 교보·예스24·알라딘 유통이 오프라인 검색 노출을 담당한다.
-
-| 플랫폼 | 우선순위 | 형식 | 로열티 | 유통 범위 | 전략 포인트 |
-|--------|---------|------|--------|---------|-----------|
-| **리디북스** | 1순위 | EPUB | ₩6,750/권 (50%) | 리디북스 + 리디 셀렉트 | 한국 IT 독자 주력. 셀렉트 구독 등록으로 노출 극대화 |
-| **부크크** | 2순위 | PDF + EPUB | ~₩6,650/권 (종이, 35%) | 교보·예스24·알라딘 자동 유통 | ISBN 발급 → 오프라인 서점 검색 노출 |
-| **Amazon KDP** | 3순위 | EPUB | $6.99/권 (70%) | 전 세계 Amazon | 해외 한국어 독자, 일본 Amazon.co.jp |
-
-> **KDP 후순위 이유**: 한국어 도서의 Amazon 검색 노출은 일본 Amazon을 경유하는 구조로, 리디·교보 대비 초기 트래픽이 낮다. 단, 70% 로열티는 $2.99 이상 책정 시 적용되므로 영문 독자 확장 단계에서 재우선화한다.
-
----
-
-## Claude Code Skill 실행 방법
-
-별도 API 키 없이 Claude Code CLI 인증으로 모든 파이프라인을 실행한다.
-
-```
-Content/skills/
-├── youtube.md    ← /youtube Skill 정의
-├── blog.md       ← /blog Skill 정의
-└── publish.md    ← /publish Skill 정의
-```
-
-### 다른 PC에서 Skill 설치
+### 1-3. Skill 설치 (다른 PC에서)
 
 ```bash
 # macOS / Linux
@@ -284,136 +53,307 @@ New-Item -ItemType Directory -Force .claude\commands
 Copy-Item Content\skills\*.md .claude\commands\
 ```
 
-Claude Code 재시작 후 `/youtube`, `/blog`, `/publish` 즉시 사용 가능.  
-Skill 파일 수정 시 양쪽 동기화: `cp Content/skills/*.md .claude/commands/`
+Claude Code를 재시작하면 `/content`, `/blog`, `/youtube`, `/publish` 즉시 사용 가능.
 
 ---
 
-### `/youtube` 명령
+## 2. 30일 콘텐츠 계획
+
+`Content/day_plan.json`에 30일치 계획이 정의되어 있다.  
+`/content --day_01` 한 명령으로 해당 날의 블로그 + YouTube 콘텐츠를 자동 생성한다.
 
 ```
-/youtube --list
-/youtube S6E3 --skip-audio             # ① 나레이션 생성 → 검토 대기
-/youtube S6E3 --force --skip-audio     # ② 검토 완료 → 슬라이드·자막·메타데이터
-/youtube S6E3 --force                  # ③ 음성까지 (TTS API 필요)
-/youtube --season 2 --skip-audio       # 시즌 전체 일괄
+/content --list               # 30일 전체 계획 + 현황 확인
+/content --day_01             # Day 1 콘텐츠 생성 (retrofit_30min + S6E3 나레이션)
+/content --day_01 --status    # Day 1 생성 현황만 확인
+/content --day_01 --force     # 기존 파일 덮어쓰기
 ```
 
-### `/blog` 명령
+| 기간 | Day | 주제 |
+|------|-----|------|
+| 1주차 | 1–4 | 대표 콘텐츠·보안 선발대 (retrofit, OWASP, 레드팀) |
+| 2주차 | 5–8 | 실패 사례 + Harness 기초 + Gate A·B |
+| 3주차 | 9–12 | Gate C–G 완성 |
+| 4주차 | 13–16 | 실전 이식 + 평가 데이터·데코레이터 |
+| 5주차 | 17–20 | 프레임워크·임계값·대시보드·알림 |
+| 6주차 | 21–25 | 주간리뷰·CI/CD·Phoenix·배포·전체 통합 |
+| 7주차 | 26–28 | 실패 시리즈 완성 + 부크크 출판 |
+| 8주차 | 29–30 | KDP 영문 EPUB + 크로스 프로모션 |
+
+---
+
+## 3. Velog 블로그
+
+### 기본 사용법
 
 ```
-/blog --list
-/blog retrofit_30min                   # 단일 포스트 (Velog 기본 + SEO)
-/blog gate_a --platform all            # Velog + Tistory + Medium 동시
-/blog --all                            # 전체 일괄
+/blog --list                          # 22개 포스트 현황
+/blog <post_id>                       # 포스트 생성
+/blog <post_id> --publish             # 생성 + Velog 즉시 발행
+/blog <post_id> --publish --draft     # 생성 + 임시저장
 ```
 
-### `/publish` 명령
+### 수동 실행
+
+```bash
+cd Content/Blog/pipeline
+python run_all.py <post_id>                  # 포스트 생성
+python publish_to_velog.py <post_id>         # Velog 발행
+python publish_to_velog.py <post_id> --draft # 임시저장
+```
+
+### 포스트 22개
+
+| ID | 기반 챕터 | 유형 |
+|----|---------|------|
+| `intro` | Ch1 | 개념 |
+| `quickstart` | Ch2 | 튜토리얼 |
+| `harness_basics` | Ch3 | 개념 |
+| `gate_a` ~ `gate_g` | Ch4–Ch10 | 심층분석 (7개) |
+| `decorator` | Ch12 | 튜토리얼 |
+| `frameworks` | Ch13 | 튜토리얼 |
+| `metrics_101` | Appendix H·I | 개념 |
+| `framework_matrix` | Appendix D | 비교분석 |
+| `cicd` | Ch18 | 튜토리얼 |
+| `budget_optimization` | Appendix L | 튜토리얼 |
+| `retrofit_30min` ✅ | Ch24 | 튜토리얼 |
+| `failure_loop` | Appendix J | 사례연구 |
+| `failure_hallucination` | Appendix J | 사례연구 |
+| `security_owasp` | Appendix K | 튜토리얼 |
+| `project_anatomy` | Ch22 | 튜토리얼 |
+| `gate_mapping` | Ch23 | 튜토리얼 |
+
+### Velog 토큰 발급 방법 (초보자)
+
+1. 브라우저에서 [velog.io](https://velog.io) 로그인
+2. **F12** 키 → **Application** 탭 → **Cookies** → `https://velog.io`
+3. `access_token` 행의 **Value** 전체 복사
+4. `.env` 파일에 붙여넣기: `VELOG_ACCESS_TOKEN=복사한값`
+
+---
+
+## 4. YouTube
+
+### 기본 사용법
 
 ```
-/publish --check                       # 의존성 점검
-/publish --meta-only                   # 메타데이터 검토 (첫 실행)
-/publish --platform ridi --cover cover.jpg   # 리디 EPUB 빌드 (1순위)
-/publish --platform bookk --cover cover.jpg  # 부크크 PDF (2순위)
-/publish --platform kdp --cover cover.jpg    # KDP (3순위)
+/youtube --list                            # 37편 현황
+/youtube <episode_id>                      # 1단계: 나레이션 생성 (검토 대기)
+/youtube <episode_id> --force --skip-audio # 2단계: 슬라이드·자막·메타데이터 생성
+```
+
+### 2단계 워크플로
+
+나레이션을 먼저 검토한 뒤 나머지를 생성한다.
+
+```bash
+# 1단계: 나레이션 생성
+/youtube S1E1
+# → Content/YouTube/output/S1E1/narration.md 생성 → 내용 검토
+
+# 2단계: 검토 완료 후
+/youtube S1E1 --force --skip-audio
+# → slides.md + narration.srt + metadata.txt 생성
+```
+
+### 에피소드 37편 구성
+
+```
+Season 1 (2편) — 입문: 채널 소개, QuickEval 실습
+Season 2 (8편) — Gate A–G: Harness 7개 Gate 심층 데모
+Season 3 (3편) — 개발자 실전: 평가 데이터, 데코레이터, 프레임워크
+Season 4 (4편) — QA 관리자: 임계값, 대시보드, 알림, 주간리뷰
+Season 5 (4편) — 프로덕션: CI/CD, Phoenix, 배포 전략, 파이프라인
+Season 6 (5편) — 이식 실전: 기존 프로젝트 4단계 이식 (S6E3 ✅)
+Special F (7편) — 실패 사례: 무한루프, 환각, 비용 폭발 등
+Special R (4편) — 레드팀: OWASP LLM Top 10, Prompt Injection 방어
+```
+
+### YouTube 업로드 체크리스트 (수동 — 자동화 불가)
+
+`Content/YouTube/output/<episode_id>/metadata.txt` 파일에서 복사:
+
+1. Studio.youtube.com 접속 → **업로드** 클릭
+2. 영상 파일 업로드 (OBS·Zoom 녹화본)
+3. **제목** → metadata.txt의 `제목` 행 복사
+4. **설명** → metadata.txt의 `설명` 전체 복사 (해시태그 포함)
+5. **태그** → metadata.txt의 `태그` 10개 복사
+6. **썸네일** → `slides.md` 첫 슬라이드를 캡처해 업로드
+
+---
+
+## 5. 부크크 (한국어 전자책)
+
+### 기본 사용법
+
+```
+/publish --platform bookk          # EPUB + PDF + 메타데이터 생성
+/publish --platform bookk --check  # 의존성 확인 (pandoc 등)
+```
+
+### 생성 파일
+
+```
+Content/Publishing/output/bookk/
+├── AI_에이전트_Harness_Engineering_실무_가이드_bookk.epub
+├── AI_에이전트_Harness_Engineering_실무_가이드_bookk.pdf
+└── bookk_metadata.md    ← 등록 정보 (제목·가격·분류·설명)
+```
+
+### 부크크 등록 절차 (수동 — 20~30분)
+
+1. [bookk.co.kr](https://bookk.co.kr) 접속 → 로그인 → **책 만들기** → **전자책**
+2. `bookk_metadata.md` 열기 → **제목, 저자, 분류** 복붙
+3. **책 설명** 칸 → `bookk_metadata.md`의 설명 전체 복붙
+4. **가격**: 13,000원 (권장)
+5. **표지 이미지** 업로드 (1600×2400px JPG — 별도 제작 필요)
+6. EPUB 또는 PDF 파일 업로드
+7. **심사 신청** → 승인 후 리디북스·교보·예스24 자동 유통 (2~4주)
+
+> 표지 이미지는 Canva나 Adobe Express로 무료 제작 가능. 사이즈: 1600×2400px.
+
+---
+
+## 6. Amazon KDP (영어 전자책)
+
+### 기본 사용법
+
+```
+/publish --platform kdp-en                # 전체 (번역 + EPUB + 메타데이터)
+/publish --platform kdp-en --meta-only    # 메타데이터만 먼저 확인
+```
+
+### 수동 단계별 실행
+
+```bash
+cd Content/Publishing/pipeline
+
+# Step 1: 번역 현황 확인 및 실행 (36챕터, 수 시간 소요 — 중단 후 재시작 가능)
+python translate_to_en.py --list          # 진행률 확인
+python translate_to_en.py --all           # 전체 번역 시작
+
+# Step 2: 영문 메타데이터 생성
+python generate_kdp_en_metadata.py
+
+# Step 3: 영문 EPUB 빌드
+python build_epub_en.py
+```
+
+### 생성 파일
+
+```
+Content/Publishing/output_en/kdp/
+├── AI_Agent_Harness_Engineering_kdp.epub
+├── kdp_metadata_en.md    ← 등록 정보 (영문)
+├── description_en.html   ← KDP 책 설명 (HTML 포맷)
+└── keywords_en.txt       ← 검색 키워드 7개
+```
+
+### KDP 등록 절차 (수동 — 30~40분)
+
+1. [kdp.amazon.com](https://kdp.amazon.com) 접속 → 로그인 → **Bookshelf** → **+ Kindle eBook**
+2. **Kindle eBook Details** 탭:
+   - Book Title: `kdp_metadata_en.md` 에서 복사
+   - Author: Sungwoo Kim
+   - Description: `description_en.html` 전체를 **HTML 모드**로 붙여넣기
+3. **Kindle eBook Content** 탭:
+   - Manuscript: `AI_Agent_Harness_Engineering_kdp.epub` 업로드
+   - Book Cover: 표지 이미지 업로드
+4. **Kindle eBook Pricing** 탭:
+   - Territories: Worldwide
+   - Royalty: **70%** 선택
+   - List Price: **$9.99**
+5. **Publish Your Kindle eBook** 클릭 → 심사 24~72시간
+
+---
+
+## 7. 크로스 프로모션 (Day 30 — 수동)
+
+모든 채널이 완성된 후 서로 연결한다.
+
+### Velog 포스트 하단 추가
+
+각 포스트 끝에 다음 블록을 추가:
+```markdown
+---
+📺 **관련 YouTube**: [에피소드 제목](YouTube 링크)  
+📖 **책 구매**: [부크크](부크크 링크) | [Amazon KDP](KDP 링크)  
+🔧 **SDK**: `pip install agent-evaluator`
+```
+
+### YouTube 설명란 하단 추가
+
+```
+📝 관련 블로그: velog.io/@bullpeng72
+📖 책 구매: [부크크 링크] | [Amazon KDP 링크]
+🔧 SDK: pip install agent-evaluator
+🐙 GitHub: github.com/bullpeng72/agent-evaluator
+```
+
+### GitHub README 업데이트
+
+`README.md` 상단 배지 아래에 책 링크 추가:
+```markdown
+📖 [부크크](링크) · [Amazon KDP](링크) · [Velog](https://velog.io/@bullpeng72)
 ```
 
 ---
 
-## 디렉토리 구조
+## 8. 트러블슈팅
+
+| 문제 | 원인 | 해결 |
+|------|------|------|
+| `ANTHROPIC_API_KEY` 없음 | `.env` 미설정 | Claude Code CLI로 실행하면 자동 해결 |
+| Velog 발행 401 오류 | 토큰 만료 | 브라우저에서 access_token 재발급 |
+| `pandoc not found` | pandoc 미설치 | `brew install pandoc` |
+| 번역 중단 후 재시작 | — | `python translate_to_en.py --all` 재실행 (체크포인트 자동 이어서) |
+| EPUB 한글 깨짐 | 폰트 미포함 | CSS 폰트 스택 확인 (`build_epub.py`) |
+| `marp: command not found` | marp 미설치 | `npm install -g @marp-team/marp-cli` |
+| 슬라이드 내용 비어 있음 | narration.md 형식 오류 | `## [INTRO]` 형식 헤더인지 확인 |
+
+---
+
+## 9. 파일 구조
 
 ```
 Content/
-├── README.md                        ← 이 파일 (전략 + 계획)
+├── README.md                    ← 이 파일 (가이드 통합본)
+├── day_plan.json                ← 30일 콘텐츠 계획
 ├── skills/
-│   ├── youtube.md
-│   ├── blog.md
-│   └── publish.md
-│
-├── YouTube/
-│   ├── episode_map.json             # 37편 정의 (S1~S6, F1~F7, R1~R4)
-│   ├── output/
-│   │   └── S6E3/ ✅                 # narration · slides · srt · metadata 완료
+│   ├── content.md               ← /content Skill 정의
+│   ├── blog.md                  ← /blog Skill 정의
+│   ├── youtube.md               ← /youtube Skill 정의
+│   └── publish.md               ← /publish Skill 정의
+├── pipeline/
+│   └── run_day.py               ← /content --day_XX 실행 엔진
+├── Blog/
+│   ├── post_map.json            ← 22개 포스트 정의
+│   ├── output/<post_id>/        ← 생성 결과
 │   └── pipeline/
-│       ├── llm.py                   # Claude Code CLI / SDK 자동 선택
+│       ├── run_all.py
+│       ├── chapter_to_blog.py
+│       ├── generate_seo.py
+│       └── publish_to_velog.py
+├── YouTube/
+│   ├── episode_map.json         ← 37편 정의
+│   ├── output/<episode_id>/     ← 생성 결과
+│   └── pipeline/
+│       ├── run_all.py
 │       ├── chapter_to_narration.py
 │       ├── narration_to_slides.py
 │       ├── narration_to_audio.py
 │       ├── narration_to_srt.py
-│       ├── generate_metadata.py
-│       └── run_all.py
-│
-├── Blog/
-│   ├── post_map.json                # 16개 정의 (22개로 확장 예정)
-│   ├── output/
-│   │   └── retrofit_30min/ ✅       # post_velog.md · seo.json 완료
-│   └── pipeline/
-│       ├── llm.py
-│       ├── chapter_to_blog.py
-│       ├── generate_seo.py
-│       └── run_all.py
-│
+│       └── generate_metadata.py
 └── Publishing/
-    ├── output/
-    │   ├── kdp/ ✅                  # kdp_metadata.md · description.html · keywords.txt
-    │   ├── ridibooks/ ✅            # ridi_metadata.md · description.txt
-    │   └── bookk/ ✅               # bookk_metadata.md · description.txt
+    ├── output/bookk/            ← 부크크 출판 파일
+    ├── output_en/kdp/           ← KDP 영문 출판 파일
     └── pipeline/
-        ├── llm.py
-        ├── generate_kdp_metadata.py
-        ├── generate_ridibooks_metadata.py
+        ├── run_all.py           ← /publish 실행 엔진
+        ├── build_epub.py        ← 한국어 EPUB
+        ├── build_epub_en.py     ← 영문 EPUB
+        ├── build_pdf_bookk.py   ← 부크크 PDF
+        ├── translate_to_en.py   ← 한→영 번역
         ├── generate_bookk_metadata.py
-        ├── build_epub.py
-        ├── build_pdf_bookk.py
-        └── run_all.py
+        ├── generate_kdp_en_metadata.py
+        └── run_kdp_en.py
 ```
-
----
-
-## 공통 설정
-
-### 환경변수 (TTS만 필수)
-
-```bash
-# Anthropic API 키 — 없으면 Claude Code CLI 인증으로 자동 대체 (선택 사항)
-ANTHROPIC_API_KEY=sk-ant-...
-
-# TTS: --skip-audio 없이 음성 파일을 생성할 때만 필요
-TTS_PROVIDER=elevenlabs               # elevenlabs | clova | none
-ELEVENLABS_API_KEY=...
-ELEVENLABS_VOICE_ID=21m00Tcm4TlvDq8ikWAM
-
-# Naver CLOVA (대안)
-CLOVA_CLIENT_ID=...
-CLOVA_CLIENT_SECRET=...
-CLOVA_SPEAKER=nara
-
-# 블로그 기본 플랫폼
-BLOG_PLATFORM=velog
-```
-
-### 의존성 설치
-
-```bash
-pip install -r Content/YouTube/requirements.txt   # YouTube
-pip install anthropic python-dotenv               # Blog / Publishing
-brew install pandoc                               # EPUB 빌드 (필수)
-pip install weasyprint                            # 부크크 종이책 PDF (선택)
-npm install -g @marp-team/marp-cli               # 슬라이드 PDF (선택)
-```
-
----
-
-## 트러블슈팅
-
-| 증상 | 원인 | 해결 |
-|------|------|------|
-| Claude 응답 없음 / 수 분 이상 대기 | `CLAUDECODE` 환경변수 충돌 | Skill로 실행 (자동 해결됨) |
-| 슬라이드 내용 모두 비어 있음 | 나레이션 `## [TAG]` 형식 불일치 | narration.md 헤더가 `## [INTRO]` 형식인지 확인 |
-| `Book chapter not found` | 챕터 파일 경로 불일치 | `episode_map.json` / `post_map.json`의 `chapter_file` 확인 |
-| `pandoc not found` | pandoc 미설치 | `brew install pandoc` |
-| `marp: command not found` | marp CLI 미설치 | `npm install -g @marp-team/marp-cli` |
-| ElevenLabs 422 오류 | voice ID 오류 또는 텍스트 초과 | `ELEVENLABS_VOICE_ID` 재확인 |
-| CLOVA 401 오류 | 클라이언트 ID/Secret 오류 | Naver Cloud Console 재발급 |
-| EPUB 한국어 깨짐 | 폰트 미포함 | `build_epub.py` CSS 폰트 경로 확인 |
-| weasyprint 없음 | PDF 빌드 의존성 | `pip install weasyprint` (부크크 종이책만) |
