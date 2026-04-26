@@ -1,4 +1,4 @@
-"""블로그 파이프라인 전체 실행.
+"""Velog 블로그 파이프라인 전체 실행.
 
 Usage:
     python run_all.py gate_a                  # 단일 포스트
@@ -54,7 +54,7 @@ def run_step(script: str, post_id: str, extra: list[str]) -> bool:
     return subprocess.run(cmd).returncode == 0
 
 
-def run_post(post_id: str, platform: str, skip_seo: bool, force: bool) -> dict[str, bool]:
+def run_post(post_id: str, skip_seo: bool, force: bool) -> dict[str, bool]:
     results = {}
     force_arg = ["--force"] if force else []
 
@@ -64,12 +64,8 @@ def run_post(post_id: str, platform: str, skip_seo: bool, force: bool) -> dict[s
             results[script] = True
             continue
 
-        extra = force_arg.copy()
-        if script == "chapter_to_blog.py":
-            extra += ["--platform", platform]
-
         print(f"\n{'─' * 45}")
-        ok = run_step(script, post_id, extra)
+        ok = run_step(script, post_id, force_arg)
         results[script] = ok
         if not ok:
             print(f"  [FAIL] {label}")
@@ -95,13 +91,11 @@ def print_summary(post_id: str, results: dict[str, bool]):
 
 
 def main():
-    parser = argparse.ArgumentParser(description="블로그 콘텐츠 파이프라인")
+    parser = argparse.ArgumentParser(description="Velog 블로그 콘텐츠 파이프라인")
     parser.add_argument("post_ids", nargs="*")
     parser.add_argument("--list", action="store_true")
     parser.add_argument("--all", action="store_true", help="전체 포스트 실행")
     parser.add_argument("--type", help="특정 유형만 실행 (예: 튜토리얼, 개념)")
-    parser.add_argument("--platform", default="velog",
-                        choices=["velog", "tistory", "medium", "all"])
     parser.add_argument("--skip-seo", action="store_true")
     parser.add_argument("--force", action="store_true")
     args = parser.parse_args()
@@ -137,7 +131,7 @@ def main():
         post = all_posts[pid]
         print(f"\n{'█' * 45}")
         print(f"  {pid} — {post['title'][:50]}")
-        results = run_post(pid, args.platform, args.skip_seo, args.force)
+        results = run_post(pid, args.skip_seo, args.force)
         all_results[pid] = results
         print_summary(pid, results)
 

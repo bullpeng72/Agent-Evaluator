@@ -1,13 +1,8 @@
-"""Step 1: 책 챕터 → 블로그 포스트 Markdown.
-
-플랫폼별 포맷:
-  - velog: 프론트매터 없음, ## 헤더 기반, 코드블록 그대로
-  - tistory: HTML 변환 (pandoc 사용), 카테고리 메타
-  - medium: 프론트매터 없음, 깔끔한 Markdown
+"""Step 1: 책 챕터 → Velog 블로그 포스트 Markdown.
 
 Usage:
     python chapter_to_blog.py intro
-    python chapter_to_blog.py gate_a --platform velog
+    python chapter_to_blog.py gate_a
     python chapter_to_blog.py --list
 """
 import argparse
@@ -178,9 +173,8 @@ def list_posts():
 
 
 def main():
-    parser = argparse.ArgumentParser(description="챕터 → 블로그 포스트 생성")
+    parser = argparse.ArgumentParser(description="챕터 → Velog 블로그 포스트 생성")
     parser.add_argument("post_id", nargs="?", help="포스트 ID (예: gate_a, intro)")
-    parser.add_argument("--platform", default="velog", choices=["velog", "tistory", "medium", "all"])
     parser.add_argument("--list", action="store_true", help="포스트 목록 출력")
     parser.add_argument("--force", action="store_true", help="기존 파일 덮어쓰기")
     args = parser.parse_args()
@@ -194,15 +188,14 @@ def main():
         sys.exit(0)
 
     post_id = args.post_id
-    platforms = ["velog", "tistory", "medium"] if args.platform == "all" else [args.platform]
 
     # 이미 존재하는지 확인
-    primary_out = OUTPUT_DIR / post_id / f"post_{platforms[0]}.md"
-    if primary_out.exists() and not args.force:
-        print(f"[SKIP] {primary_out} 이미 존재. --force로 덮어쓰기.")
+    out_path_check = OUTPUT_DIR / post_id / "post_velog.md"
+    if out_path_check.exists() and not args.force:
+        print(f"[SKIP] {out_path_check} 이미 존재. --force로 덮어쓰기.")
         return
 
-    print(f"\n[Step 1] 챕터 → 블로그 포스트: {post_id}")
+    print(f"\n[Step 1] 챕터 → Velog 포스트: {post_id}")
     post = load_post(post_id)
     print(f"  제목: {post['title']}")
     print(f"  챕터: {post['chapter_file']}")
@@ -210,16 +203,12 @@ def main():
     chapter_content = load_chapter(post["chapter_file"])
     print(f"  챕터 크기: {len(chapter_content):,}자")
 
-    base_content = generate_blog_post(post, chapter_content)
-    read_time = len(base_content) // 500
+    content = generate_blog_post(post, chapter_content)
+    content = add_velog_tags(content, post.get("tags", []))
+    read_time = len(content) // 500
 
-    for platform in platforms:
-        content = base_content
-        if platform == "velog":
-            content = add_velog_tags(content, post.get("tags", []))
-
-        out_path = save_post(post_id, content, platform)
-        print(f"  [{platform}] 완료: {out_path} (~{read_time}분 읽기)")
+    out_path = save_post(post_id, content, "velog")
+    print(f"  완료: {out_path} (~{read_time}분 읽기)")
 
 
 if __name__ == "__main__":

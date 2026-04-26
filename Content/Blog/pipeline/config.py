@@ -16,8 +16,7 @@ POST_MAP_PATH = BLOG_DIR / "post_map.json"
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
 CLAUDE_MODEL = "claude-sonnet-4-6"
 
-# 타겟 플랫폼: velog | tistory | medium | all
-TARGET_PLATFORM = os.getenv("BLOG_PLATFORM", "velog")
+TARGET_PLATFORM = "velog"
 
 # 블로그 시리즈 기본 정보
 SERIES_NAME = "AI 에이전트 Harness Engineering 실무 가이드"

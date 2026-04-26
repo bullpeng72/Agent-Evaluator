@@ -1,12 +1,12 @@
-# /blog — 블로그 포스트 파이프라인
+# /blog — 블로그 포스트 파이프라인 (Velog 전용)
 
-책 챕터를 Velog·Tistory·Medium용 블로그 포스트로 변환하고 SEO 메타데이터를 생성한다.
+책 챕터를 Velog용 블로그 포스트로 변환하고 SEO 메타데이터를 생성한다.
 `--publish` 옵션을 추가하면 Velog에 자동 발행한다.
 
 ## 사용법
 
 ```
-/blog <post_id> [--platform velog|tistory|medium|all] [--skip-seo] [--force]
+/blog <post_id> [--skip-seo] [--force]
 /blog <post_id> --publish          # 포스트 생성 + Velog 자동 발행
 /blog <post_id> --publish --draft  # 포스트 생성 + Velog 임시저장
 /blog --list
@@ -14,7 +14,6 @@
 ```
 
 **post_id 예시**: gate_a, gate_b, quickstart, retrofit_30min, failure_loop  
-**플랫폼 기본값**: velog  
 **Velog 발행 인증**: `.env`의 `VELOG_ACCESS_TOKEN` (브라우저 F12 → Application → Cookies → velog.io)
 
 ## 실행 절차
@@ -49,8 +48,9 @@ cd Content/Blog/pipeline && python run_all.py $ARGUMENTS 2>&1
 
 ### 3단계: 포스트 생성
 
+post_id만 추출해서 실행한다 (--publish, --draft 플래그는 제외):
 ```bash
-cd Content/Blog/pipeline && python run_all.py <post_id> 2>&1
+cd Content/Blog/pipeline && python run_all.py <post_id> [--force] 2>&1
 ```
 
 ### 4단계: 결과 요약
@@ -94,8 +94,6 @@ echo "VELOG_ACCESS_TOKEN=복사한값" >> .env
 ```
 
 `--publish`가 없는 경우 다음 게시 안내를 출력한다:
-- **Velog 수동**: `post_velog.md` 내용을 Velog 에디터에 붙여넣기
+- **Velog 수동**: `Content/Blog/output/<post_id>/post_velog.md` 내용을 Velog 에디터에 붙여넣기
 - **Velog 자동**: `/blog <post_id> --publish`
-- **Tistory**: `post_tistory.md` → HTML 모드로 게시
-- **Medium**: `post_medium.md` → Medium Import Story 기능 사용
 - **SEO**: `seo.txt`의 meta_description을 포스트 설명란에 입력
