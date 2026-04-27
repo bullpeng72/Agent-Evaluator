@@ -631,7 +631,7 @@ from agent_evaluator import (
 
 ## Testing
 
-`tests/` 디렉토리에 **51개 파일, 2,465개+ 테스트 함수** 존재.
+`tests/` 디렉토리에 **53개 파일, 2,465개+ 테스트 함수** 존재.
 
 ```bash
 # pytest.ini_options in pyproject.toml already configured:
@@ -715,12 +715,13 @@ completion_score task_type 인식 (v0.8.0+):
 
 ## 📝 변경 이력
 
-### v0.9.1 (2026-04-27) — 의존성 구조 재편 · 크로스플랫폼 설치 안정화
+### v0.9.1 (2026-04-27) — 의존성 구조 재편 · pip resolver 최적화 · Media 폴더 통합
 
 - 🔧 `pyproject.toml` 의존성 구조 재편: 기본 설치를 코어 5개 패키지로 축소, fastapi·otel·pdfplumber 를 `[serve]`·`[otel]`·`[pdf]`·`[sdk]` extras로 분리
-- 🔧 `arize-phoenix>=7.0.0,<15.0.0` → `>=14.0.0,<15.0.0` + `pydantic-ai>=1.80.0,<2.0.0` 명시적 고정 — pip resolver depth 폭발 수정 (Mac·Ubuntu 모두 `pip install -e ".[examples]"` 정상 완료)
+- 🔧 `arize-phoenix>=14.0.0,<14.7.0` 상한 고정 — 14.7.0+부터 pydantic-ai 메타패키지(170개+ 패키지) 자동 설치 문제 방지, `[sdk]` 패키지 수 170→90개
+- 🔧 `openai>=2.0.0,<3.0.0`, `langchain-openai>=1.0.0,<2.0.0`, `langchain-anthropic>=1.0.0,<2.0.0` 범위 축소 — pip resolver 탐색 공간 최소화 (openai 후보 277→37개)
+- 🗂 `Book/`, `Content/` → `Media/Book/`, `Media/Content/` 통합 이동 (경로 참조 전체 갱신, requirements.txt 통합)
 - 📝 README + Docs 예제 파일 참조 현행화 (21→26개, ch01/ch02 파일명 교정)
-- 🔧 Content 불필요 파일 정리
 
 ### v0.8.5 (2026-04-23) — SDK 버그 수정 · Book API 오류 전면 교정
 

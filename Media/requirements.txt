@@ -2,8 +2,18 @@
 # 설치: pip install -r Media/requirements.txt
 #
 # 시스템 도구 (pip 외 별도 설치):
-#   macOS:  brew install pandoc
-#   Ubuntu: sudo apt install pandoc
+#
+#   macOS (Homebrew — 권장):
+#     brew install pandoc
+#
+#   macOS Tahoe (26.x) / 최신 OS에서 brew 설치 오류 시 conda 대안:
+#     conda install -c conda-forge pandoc
+#
+#   Ubuntu / Debian:
+#     sudo apt install pandoc
+#
+#   Windows:
+#     winget install --id JohnMacFarlane.Pandoc
 #
 # 환경변수 (.env):
 #   ANTHROPIC_API_KEY      — Claude API (필수)

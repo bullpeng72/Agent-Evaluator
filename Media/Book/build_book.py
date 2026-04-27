@@ -1710,7 +1710,7 @@ tr.row-config code { background: #c5cae9; color: #1a237e; border-color: #9fa8da;
 <body>
 """
 
-HTML_SIDEBAR_START = '<nav id="sidebar"><div id="sidebar-header">실전 AI 에이전트<br>하네스 엔지니어링<span class="subtitle">Agent-Evaluator를 활용한<br>품질 평가와 배포 자동화</span><small>Agent-Evaluator v0.8.4</small></div><div id="toc">'
+HTML_SIDEBAR_START = '<nav id="sidebar"><div id="sidebar-header">실전 AI 에이전트<br>하네스 엔지니어링<span class="subtitle">Agent-Evaluator를 활용한<br>품질 평가와 배포 자동화</span><small>Agent-Evaluator v0.9.1</small></div><div id="toc">'
 HTML_SIDEBAR_END = "</div></nav>"
 
 HTML_MAIN_START = '<main id="main">'
