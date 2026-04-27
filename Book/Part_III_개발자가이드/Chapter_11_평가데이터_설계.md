@@ -933,7 +933,7 @@ python Evaluator_Examples/ch10_group_g.py
 | ch11_eval_data | 섹션 5 | `GoldenSetBuilder` 마이닝 | `accuracy_score >= 0.9` 케이스 자동 추출 |
 | ch11_eval_data | 섹션 5 | `upload_to_phoenix()` | GoldenSetBuilder 메서드 — Phoenix Datasets 탭에 골든셋 업로드 |
 
-**실행 결과 (v0.8.5 기준)**
+**실행 결과 (v0.9.1 기준)**
 
 ```
 # ch01_first_eval.py

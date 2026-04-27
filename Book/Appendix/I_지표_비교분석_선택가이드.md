@@ -585,4 +585,4 @@ flowchart TD
 
 ---
 
-*본 Appendix는 Agent-Evaluator v0.8.5 기준이며 외부 서비스 가격은 2025년 기준이다. 최신 가격은 각 서비스 공식 가격표를 참조하라.*
+*본 Appendix는 Agent-Evaluator v0.9.1 기준이며 외부 서비스 가격은 2025년 기준이다. 최신 가격은 각 서비스 공식 가격표를 참조하라.*

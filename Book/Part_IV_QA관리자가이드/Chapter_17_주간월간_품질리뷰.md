@@ -827,7 +827,7 @@ agent-eval trend results/ --window 10 --output-json weekly_trend.json
 | ch11_eval_data (섹션 5) | `GoldenSetBuilder` 케이스 마이닝 | 주간 골든셋 확장 자동화 |
 | `agent-eval trend` | slope 기반 추이 분석 | TCR·정확도 하락 자동 감지 |
 
-**실행 결과 (v0.8.5 기준)**
+**실행 결과 (v0.9.1 기준)**
 
 ```
 # agent-eval trend results/ --window 10

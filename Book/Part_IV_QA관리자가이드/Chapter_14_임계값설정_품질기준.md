@@ -884,7 +884,7 @@ python Evaluator_Examples/ch10_group_g.py
 | 섹션 4 | `AlertEngine` 규칙 설정 | TCR/정확도/레이턴시 임계값 알림 |
 | 섹션 5 | `GoldenSetBuilder` 품질 기준 | `accuracy_score >= 0.85` 캘리브레이션 기준 |
 
-**실행 결과 (v0.8.5 기준)**
+**실행 결과 (v0.9.1 기준)**
 
 ```
 # ch10_group_g.py 실행 (28개 태스크)

@@ -905,7 +905,7 @@ python Evaluator_Examples/ch10_group_g.py
 | ch16_alerts | 섹션 3 | `SimpleTaskAlertRule` 경량 알림 | TaskResult 레벨 즉시 알림 |
 | ch16_alerts | 섹션 4 | `AlertRuleBuilder` 팩토리 + JSONL 핸들러 | 표준 알림 규칙 + 파일 기록 |
 
-**실행 결과 (v0.8.5 기준)**
+**실행 결과 (v0.9.1 기준)**
 
 ```
 # ch16_alerts.py

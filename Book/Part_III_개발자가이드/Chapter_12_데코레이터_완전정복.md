@@ -1438,7 +1438,7 @@ agent-eval dashboard results/
 | 섹션 8 | `QuickEval` Facade — `gate()` · `summary()` · `save()` |
 | 섹션 추가 | `ConversationSession` 직접 사용 — `add_turn()` + `compute_metrics()` + `monitor.conversation()` 컨텍스트 매니저 |
 
-**실행 결과 (v0.8.5 기준)**
+**실행 결과 (v0.9.1 기준)**
 
 ```
 === 섹션 3: EvalMetadata 튜플 반환 ===

@@ -1,6 +1,6 @@
 # Appendix B. CLI 명령어 완전 레퍼런스
 
-Agent Evaluator v0.8.5 CLI 전체 명령어 목록. `pip install agent-evaluator` 설치 후 바로 사용 가능하다.
+Agent Evaluator v0.9.1 CLI 전체 명령어 목록. `pip install agent-evaluator` 설치 후 바로 사용 가능하다.
 
 > **설계 철학**: `agent-eval` CLI는 Harness Gate(A–G)를 CI/CD 파이프라인에 통합하는 인터페이스다. Python 코드에서 선언한 Harness Config(InstructionConfig, SLAConfig 등)가 JSON 결과 파일로 저장되면, CLI가 이를 읽어 Gate 판정·트렌드 분석·시각화를 수행한다. 배포 전 자동 검증(`gate`), 누적 품질 추적(`trend`), 실시간 관측(`monitor`), 대화형 분석(`dashboard`)을 하나의 도구로 커버한다.
 
@@ -72,7 +72,7 @@ agent-eval check
 **출력 예시**
 
 ```
-Agent Evaluator v0.8.5 설정 상태
+Agent Evaluator v0.9.1 설정 상태
 =================================
 .env 파일: /Users/username/project/.env (존재)
 
@@ -468,7 +468,7 @@ agent-eval --version
 **출력 예시**
 
 ```
-agent-evaluator 0.8.5
+agent-evaluator 0.9.1
 ```
 
 ---

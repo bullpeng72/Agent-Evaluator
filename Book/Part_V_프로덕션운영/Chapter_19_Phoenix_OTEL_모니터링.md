@@ -696,7 +696,7 @@ open http://localhost:6006
 | 섹션 5 | GraphQL — 프로젝트·스팬·데이터셋 조회 | — |
 | 섹션 추가 | `DeepEvalAdapter` + `RagasAdapter` 직접 사용 — `HybridPerformanceMonitor` 없이 단건 평가 | — |
 
-**실행 결과 (v0.8.5 기준, mock 모드)**
+**실행 결과 (v0.9.1 기준, mock 모드)**
 
 ```
 === ch19. Phoenix OTEL 예제 ===

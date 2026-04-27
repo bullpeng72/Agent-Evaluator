@@ -846,4 +846,4 @@ SLAConfig 재조정 후 재점검"]:::failStyle
 
 ---
 
-*이 체크리스트는 Agent-Evaluator SDK v0.8.5 기준으로 작성되었다. 신규 Gate나 Config 추가 시 체크리스트를 함께 갱신한다.*
+*이 체크리스트는 Agent-Evaluator SDK v0.9.1 기준으로 작성되었다. 신규 Gate나 Config 추가 시 체크리스트를 함께 갱신한다.*

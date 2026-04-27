@@ -1,6 +1,6 @@
 # Appendix F. 용어 사전
 
-Agent Evaluator v0.8.5에서 사용하는 주요 용어를 영문 기준 가나다 순으로 정리한다.
+Agent Evaluator v0.9.1에서 사용하는 주요 용어를 영문 기준 가나다 순으로 정리한다.
 
 ---
 

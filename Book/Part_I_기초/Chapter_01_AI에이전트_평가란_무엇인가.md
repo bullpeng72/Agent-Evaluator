@@ -417,7 +417,7 @@ AI 에이전트는 배포 후에도 계속 변합니다. 일회성 배포 전 �
 | **Braintrust** | SaaS + OSS SDK | v0.16.0 | LLM 실험 + 에이전트 관측 |
 | **Helicone** | SaaS + OSS | — | LLM 프록시 + 비용 관측 |
 | **W&B Weave** | SaaS + OSS SDK | v0.52.37 | 에이전트 평가 + 실험 관리 |
-| **Agent Evaluator** | OSS SDK | v0.8.5 | Harness Engineering 배포 판단 |
+| **Agent Evaluator** | OSS SDK | v0.9.1 | Harness Engineering 배포 판단 |
 
 ### 에이전틱 지표 지원 비교
 
@@ -650,7 +650,7 @@ python Evaluator_Examples/ch05_group_b.py
 | F | 다중에이전트 | AgentCoordinationTracker, ToolSelectionTracker | ch09_group_f |
 | G | 운영관측성 | LLMJudge(5차원 기본, RAG/G-Eval 옵션), Phoenix OTEL | ch10_group_g, ch19_phoenix |
 
-**실행 결과 (v0.8.5 기준)**
+**실행 결과 (v0.9.1 기준)**
 
 ```
 # ch01_first_eval.py

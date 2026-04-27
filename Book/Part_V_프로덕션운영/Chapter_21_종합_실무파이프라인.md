@@ -1134,7 +1134,7 @@ agent-eval dashboard results/
 | ch10_group_g | 운영: 인프라 종합 | AnomalyDetector, CostTracker, GoldenSet |
 | ch19_phoenix | 운영: OTEL·외부 평가 | Phoenix 스팬, DeepEval/Ragas 연동 |
 
-**전체 파이프라인 실행 결과 요약 (v0.8.5 기준)**
+**전체 파이프라인 실행 결과 요약 (v0.9.1 기준)**
 
 ```
 === 종합 파이프라인 실행 결과 ===
