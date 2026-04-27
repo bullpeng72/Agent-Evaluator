@@ -1512,28 +1512,25 @@ mypy agent_evaluator/          # 타입 검사
 
 ## 변경 이력
 
-### v0.9.1 (2026-04-27) — 의존성 구조 재편 · pip resolver 최적화 · Media 폴더 통합
+### v0.9.1 (2026-04-27) — 의존성 구조 재편 · pip resolver 최적화
 
 - 🔧 `pyproject.toml` 의존성 구조 재편: 기본 설치를 코어 5개 패키지로 축소, fastapi·otel·pdfplumber를 `[serve]`·`[otel]`·`[pdf]`·`[sdk]` extras로 분리
 - 🔧 `arize-phoenix>=14.0.0,<14.7.0` 상한 고정 — 14.7.0+의 pydantic-ai 메타패키지(170개+ 패키지) 자동 설치 방지, `[sdk]` 설치 패키지 수 170→90개
 - 🔧 `openai>=2.0.0,<3.0.0`, `langchain-openai>=1.0.0,<2.0.0`, `langchain-anthropic>=1.0.0,<2.0.0` 범위 축소 — pip resolver 탐색 공간 최소화 (openai 후보 277→37개)
-- 🗂 `Book/`, `Content/` → `Media/Book/`, `Media/Content/` 통합 이동 (경로 참조 전체 갱신, requirements.txt 통합)
 - 📝 Docs 예제 파일 참조 현행화 (21→26개, ch01/ch02 파일명 교정)
 
-### v0.8.5 (2026-04-23) — SDK 버그 수정 · Book API 오류 전면 교정
+### v0.8.5 (2026-04-23) — SDK 버그 수정
 
 - `eval_efficiency()` dict 타입 `tokens_used` 묵살 버그 수정
 - `EfficiencyConfig` `cost_unit`/`target_cost_per_completion` 설계 오류 수정 (USD→tokens 스케일)
 - `CostPredictabilityConfig` — 에이전트별 `task_type` 분리로 CV 격리, Gate D 0.640→0.876
 - `ch10_group_g.py` — `EvalMetadata(extra={...})` 주입 경로 수정, Gate G warn→pass
-- Book 전반 API 오류 교정: `AnomalyDetector.scan()`, `AdaptivePolicy` 실제 생성자, `EfficiencyConfig` 스케일
 
-### v0.8.4 (2026-04-21) — 예제 파일 Book 챕터 기반 전면 재편
+### v0.8.4 (2026-04-21) — 예제 파일 챕터 기반 전면 재편
 
 - 예제 파일 11개 → 17개 `chXX_topic.py` 챕터 기반 네이밍으로 전면 재편
 - `ch05`, `ch07`, `ch10`, `ch02`에 누락 트래커(WorkflowExecution·Latency·TokenEconomy·AnomalyDetector·CostTracker) 추가
 - Phoenix `service_name` 및 결과 파일명 챕터 번호 기준 동기화
-- Book 27개 마크다운 `# 출처:` 참조 신규 파일명으로 일괄 갱신
 - `ch05_group_b.py` `create_taskresult` 임포트 누락 버그 수정
 
 ### v0.8.3 (2026-04-21) — LLMJudge 안정성 강화 · Gate 개선 · 보안 트래커 확장

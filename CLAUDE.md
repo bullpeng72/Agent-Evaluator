@@ -715,27 +715,22 @@ completion_score task_type 인식 (v0.8.0+):
 
 ## 📝 변경 이력
 
-### v0.9.1 (2026-04-27) — 의존성 구조 재편 · pip resolver 최적화 · Media 폴더 통합
+### v0.9.1 (2026-04-27) — 의존성 구조 재편 · pip resolver 최적화
 
 - 🔧 `pyproject.toml` 의존성 구조 재편: 기본 설치를 코어 5개 패키지로 축소, fastapi·otel·pdfplumber 를 `[serve]`·`[otel]`·`[pdf]`·`[sdk]` extras로 분리
 - 🔧 `arize-phoenix>=14.0.0,<14.7.0` 상한 고정 — 14.7.0+부터 pydantic-ai 메타패키지(170개+ 패키지) 자동 설치 문제 방지, `[sdk]` 패키지 수 170→90개
 - 🔧 `openai>=2.0.0,<3.0.0`, `langchain-openai>=1.0.0,<2.0.0`, `langchain-anthropic>=1.0.0,<2.0.0` 범위 축소 — pip resolver 탐색 공간 최소화 (openai 후보 277→37개)
-- 🗂 `Book/`, `Content/` → `Media/Book/`, `Media/Content/` 통합 이동 (경로 참조 전체 갱신, requirements.txt 통합)
-- 📝 README + Docs 예제 파일 참조 현행화 (21→26개, ch01/ch02 파일명 교정)
+- 📝 Docs 예제 파일 참조 현행화 (21→26개, ch01/ch02 파일명 교정)
 
-### v0.8.5 (2026-04-23) — SDK 버그 수정 · Book API 오류 전면 교정
+### v0.8.5 (2026-04-23) — SDK 버그 수정
 
 - 🐛 `eval_efficiency()` dict 타입 `tokens_used` 처리 시 `TypeError` 묵살 버그 수정 (`taskresult_helpers.py`)
 - 🐛 `ch10_group_g.py` — `latency_attributed_agent` latency 데이터를 response 텍스트가 아닌 `EvalMetadata(extra={...})`로 주입하도록 수정 (Gate G warn→pass)
 - 🐛 `ch07_group_d.py` — `EfficiencyConfig(cost_unit="tokens", target_cost_per_completion=200)` 수정, 에이전트별 `task_type` 분리로 `CostPredictabilityConfig` CV 격리 (Gate D 0.640→0.876)
-- 📝 Book `AnomalyDetector` API 오류 수정 — `.detect(report)` → `.scan(monitor: PerformanceMonitor)`, `explanation['z_score']` → `deviation_pct/value` (Ch05·Ch14)
-- 📝 Book `AdaptivePolicy` 허구 API 제거 — `stages=[SamplingStage(condition=...)]` → 실제 생성자 `(default_sample_rate, anomaly_sample_rate, budget_per_day)` (Appendix L)
-- 📝 Book `EfficiencyConfig(target_cost_per_completion=0.005)` USD 스케일 오류 수정 → `cost_unit="tokens", target_cost_per_completion=500` (Ch07·Appendix L·Appendix M)
 - 📝 예제 파일 수·테스트 파일 수 문서 현행화 (19→21개 예제, 51→53개 테스트 파일)
-- 📝 Book Part VI 신설 — `실전 이식 가이드` (Ch22–Ch26, 예제 ch22~ch26 포함)
 - 📝 예제 파일 21→26개 — ch22~ch26 추가 (기존 프로젝트 해부·Gate 매핑·첫 이식·전체 통합·CI/CD)
 
-### v0.8.4 (2026-04-21) — 예제 파일 Book 챕터 기반 전면 재편
+### v0.8.4 (2026-04-21) — 예제 파일 챕터 기반 전면 재편
 
 - 📝 예제 파일 11개(layer-based) → 17개(chapter-based) 재편: `chXX_topic.py` 네이밍 통일
 - 🔧 Phoenix `service_name` 및 `save_to_file` 출력명을 챕터 번호 기준으로 동기화
@@ -744,7 +739,6 @@ completion_score task_type 인식 (v0.8.0+):
 - ✨ `ch10_group_g.py` — AnomalyDetector(5가지 이상 탐지) · CostTracker + AdaptivePolicy 섹션 추가
 - ✨ `ch02_first_eval.py` — 코드/RAG 정확도 · ResponseQualityEvaluator 섹션 추가
 - 🐛 `ch05_group_b.py` `create_taskresult` 임포트 누락 수정
-- 📝 Book 27개 마크다운 파일의 `# 출처:` 참조를 새 파일명으로 일괄 갱신
 - 📝 구 예제 파일 11개 → `.deprecated/` 로 이전 보존
 
 ### v0.8.3 (2026-04-21) — LLMJudge 안정성 강화 · Gate 개선 · 보안 트래커 확장
