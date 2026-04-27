@@ -234,10 +234,15 @@ def is_terminal_marker(filename: str) -> bool:
 def generate_terminal_snippet(description: str) -> str:
     """터미널 실행 마커 설명에서 bash 코드 블록 생성."""
     lines: list[str] = []
-    # python -m ... 또는 python ... 명령 추출
-    py_match = re.search(r'python(?:\s+-m\s+\S+(?:\s+\./\S+)?|\s+\S+\.py)', description)
+    # python -m 또는 python script.py 명령 — 한글 앞까지 추출
+    py_match = re.search(
+        r'(python(?:\s+-m\s+[\w./]+(?:\s+[\w./]+)*|\s+[\w./]+\.py(?:\s+[\w./]+)*))',
+        description
+    )
     if py_match:
-        lines.append(f'$ {py_match.group(0).strip()}')
+        # 명령 끝에서 한글·쉼표·'실행' 등 설명 텍스트 제거
+        cmd = re.sub(r'\s+[가-힣].*$', '', py_match.group(1)).strip()
+        lines.append(f'$ {cmd}')
     # 결과 디렉토리 / JSON 파일 확인
     dir_match = re.search(r'([\w]+_results?/|results?/)', description)
     json_match = re.search(r'([\w]+\.json)', description)
@@ -247,7 +252,7 @@ def generate_terminal_snippet(description: str) -> str:
         if dir_match:
             lines.append(f'$ ls {dir_match.group(1)}')
         if json_match:
-            lines.append(f'{json_match.group(1)}')
+            lines.append(json_match.group(1))
     # agent-eval 명령
     ae_match = re.search(r'agent-eval\s+\S+', description)
     if ae_match:
@@ -369,30 +374,43 @@ def extract_code_snippet(filename: str, keywords: list[str],
                           used_snippets: Optional[set[str]] = None) -> Optional[str]:
     """키워드 군집 근처의 코드 블록을 MAX_CODE_LINES 이하로 추출.
 
-    used_snippets: 이미 사용된 스니펫 지문(앞 80자) 집합.
-                   중복 감지 시 고유 키워드로 다른 파일에서 재검색.
+    used_snippets: 이미 사용된 (filepath절대경로, 스니펫앞80자) 튜플 집합.
+                   파일 수준 + 내용 수준 양쪽 중복 방지.
     """
     filepath = find_example_file(filename)
-    if not filepath:
+    is_fallback = filepath is None
+    if is_fallback:
+        # 폴백: 이미 사용된 파일은 제외하고 검색
+        used_files: set[Path] = set()
+        if used_snippets is not None:
+            used_files = {p for p, _ in used_snippets if isinstance(p, Path)}
         filepath = find_best_example_file(keywords)
+        # 이미 사용된 파일이면 다른 파일 재검색
+        if filepath and filepath.resolve() in {f.resolve() for f in used_files}:
+            unique_kws = [k for k in keywords if k not in _COMMON_FALLBACK_KWS]
+            alt = find_best_example_file(unique_kws or keywords, exclude_file=filepath)
+            if alt:
+                filepath = alt
+
     if not filepath:
         return None
 
     result = _extract_from_file(filepath, keywords)
 
-    # 중복 감지 → 고유 키워드로 다른 파일 재시도
+    # 스니펫 내용 수준 중복 감지
     if result and used_snippets is not None:
         fp = result[:80]
-        if fp in used_snippets:
+        if any(s == fp for _, s in used_snippets if isinstance(s, str)):
             unique_kws = [k for k in keywords if k not in _COMMON_FALLBACK_KWS]
             if unique_kws:
                 alt_path = find_best_example_file(unique_kws, exclude_file=filepath)
                 if alt_path:
                     alt = _extract_from_file(alt_path, unique_kws)
-                    if alt and alt[:80] not in used_snippets:
+                    if alt:
                         result = alt
+                        filepath = alt_path
         if result:
-            used_snippets.add(result[:80])
+            used_snippets.add((filepath, result[:80]))
 
     return result
 
@@ -531,7 +549,7 @@ def build_marp(episode_id: str, slides_data: list[dict],
     parts.append(TITLE_SLIDE.format(title=title, subtitle=f'{season_name} · {episode_id}'))
 
     outro_bullets: list[str] = []
-    used_snippets: set[str] = set()  # 중복 코드 슬라이드 방지
+    used_snippets: set[tuple] = set()  # 중복 코드 슬라이드 방지 (filepath, snippet앞80자)
 
     for slide in slides_data:
         heading = slide['heading']

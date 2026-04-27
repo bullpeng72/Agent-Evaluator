@@ -239,18 +239,18 @@ style: |
 ## 💻 `cli/chat.py`
 
 ```python
-  class QAAgent:
-      def answer(self, question: str) -> dict:
-          result = self.llm.invoke(self.qa_prompt | question)
-          return {"answer": result.content, "confidence": 0.85}
+print("\n=== 섹션 8: QuickEval Facade ===")
 
-  [Level 0 래핑 — 기존 코드 0줄 수정, 새 래퍼 함수만 추가]
-  ─────────────────────────────────────────────────────────
-  eval_session = QuickEval("lecture_eval_results/")
+eval_qe = QuickEval(
+    output_dir=_OUTPUT_DIR,
+    auto_save=True,
+    auto_save_interval=5,
+    auto_save_filename="ch12_quickeval_auto",
+)
 
-  @eval_session.qa
-  def measured_answer(question: str, ground_truth: str = "") -> str:
-      result = qa_agent.answer(question)     # 기존 호출 그대로
+@eval_qe.qa
+def qe_qa_agent(question: str, ground_truth: str = "") -> str:
+    return f"QE 답변: {question}"
     ...
 ```
 
@@ -327,18 +327,18 @@ style: |
 ## 💻 `cli/commands/create.py`
 
 ```python
-  class ContentWriterAgent:
-      def write_section(self, section, curriculum) -> SectionContent:
-          contexts = self._query_knowledge(section, curriculum)
-          content = self._generate_content(section, curriculum, contexts)
-          return content   # Pydantic 모델 반환
+curriculum = designer.design(analysis, TOPIC, DURATION, AUDIENCE)
 
-  [위임 어댑터 — 새 파일 eval/adapters.py]
-  ─────────────────────────────────────────────────────────
-  class ContentWriterAdapter:
-      def __init__(self, agent, monitor, learning_objectives):
-          self._agent = agent
-          self._monitor = monitor
+# ContentWriterAdapter는 learning_objectives도 받는다
+writer = ContentWriterAdapter(base_writer, monitor, curriculum.learning_objectives)
+
+for section in curriculum.sections:
+    content: MockSectionContent = writer.write_section(section, curriculum)
+    print(f"  ✅ {section.title:<25}  단어수={content.word_count}"
+          f"  (SectionContent 반환값 그대로)")
+
+# __getattr__ 위임 확인
+stats = writer.get_vector_store_stats()
     ...
 ```
 
@@ -370,7 +370,7 @@ style: |
 ## 💻 `터미널 실행`
 
 ```bash
-$ python -m lecture_forge
+$ python -m lecture_forge chat ./lectures
 
 # 결과 확인
 $ ls lecture_eval_results/
