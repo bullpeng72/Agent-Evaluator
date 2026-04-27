@@ -2,7 +2,7 @@
 
 설치 · Docker · 환경별 설정 · 성능 최적화 · 트러블슈팅
 
-**v0.8.5 | Python 3.8+**
+**v0.9.1 | Python 3.8+**
 
 ---
 
@@ -21,10 +21,13 @@
 ## 1. 설치 variants
 
 ```bash
-# 기본 설치 — LLMJudge · 대시보드 · OTEL · PDF 포함 (권장)
+# 기본 설치 — 코어 평가 엔진 (LLMJudge 포함)
 pip install agent-evaluator
 
-# 모든 예제 실행
+# SDK 기능 포함 — 대시보드 · OTEL · PDF (운영 배포 권장)
+pip install "agent-evaluator[sdk]"
+
+# 모든 예제 실행 — sdk + deepeval/ragas/langchain
 pip install "agent-evaluator[examples]"
 
 # 프레임워크 통합 (사용자 에이전트가 해당 프레임워크를 사용할 때만)

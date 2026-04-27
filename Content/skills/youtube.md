@@ -30,12 +30,12 @@ python -c "import anthropic; print('anthropic OK')" 2>&1
 
 `.env`에서 `ANTHROPIC_API_KEY` 설정 여부를 확인한다:
 ```bash
-grep -q "ANTHROPIC_API_KEY" ../../../../.env 2>/dev/null && echo "API키 설정됨" || echo "⚠️  ANTHROPIC_API_KEY 미설정"
+grep -q "ANTHROPIC_API_KEY" .env 2>/dev/null && echo "API키 설정됨" || echo "⚠️  ANTHROPIC_API_KEY 미설정"
 ```
 
 TTS 관련 환경변수도 확인한다:
 ```bash
-grep "TTS_PROVIDER\|ELEVENLABS\|CLOVA" ../../../../.env 2>/dev/null || echo "TTS 미설정 (--skip-audio 권장)"
+grep "TTS_PROVIDER\|ELEVENLABS\|CLOVA" .env 2>/dev/null || echo "TTS 미설정 (--skip-audio 권장)"
 ```
 
 ### 2단계: 인자 분기

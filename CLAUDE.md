@@ -15,7 +15,7 @@
 
 **25개 Native Trackers + 33개 Harness Config = 58개 지표**를 3개 레이어(Foundation / Agentic / Hybrid)로 측정한다.
 
-- **Version:** 0.8.5 (Beta)
+- **Version:** 0.9.1 (Beta)
 - **Python:** 3.8+
 - **License:** MIT
 - **Author:** Sungwoo Kim
@@ -25,13 +25,14 @@
 ## Common Commands
 
 ```bash
-# 개발 환경 설치 (기본 설치에 LLMJudge · 대시보드 · OTEL · PDF 포함)
+# 개발 환경 설치 (dev = 테스트·린터·빌드 도구)
 pip install -e ".[dev]"
 
 # ── 예제 실행 ────────────────────────────────────────────────────────────────
-# 예제 01~08: 기본 설치만으로 실행 (추가 설치 불필요)
-# 예제 07 (Phoenix Hybrid): eval extra 필요
-pip install -e ".[examples]"          # 모든 예제 실행 가능 (기본 + eval)
+# 예제 01~18, 20~26: "[sdk]" extra면 충분 (대시보드·OTEL 포함)
+# 예제 19 (Phoenix Hybrid): "[examples]" 필요 (deepeval·ragas·langchain 포함)
+pip install -e ".[sdk]"               # 대시보드 + OTEL + LLMJudge + PDF
+pip install -e ".[examples]"          # 모든 예제 실행 가능 (sdk + eval)
 
 # ── 프레임워크 확장 (사용자 에이전트 코드가 필요로 할 때만 설치) ────────────
 pip install -e ".[eval]"              # DeepEval / Ragas 외부 평가 라이브러리
@@ -630,7 +631,7 @@ from agent_evaluator import (
 
 ## Testing
 
-`tests/` 디렉토리에 **53개 파일, 2,465개+ 테스트 함수** 존재.
+`tests/` 디렉토리에 **51개 파일, 2,465개+ 테스트 함수** 존재.
 
 ```bash
 # pytest.ini_options in pyproject.toml already configured:
@@ -650,18 +651,22 @@ pytest
 ## Dependencies
 
 ### 기본 설치 (`pip install agent-evaluator`)
-코어 + SDK 자체 기능(LLMJudge · 대시보드 · OTEL · PDF)이 모두 포함됩니다.
+코어 평가 엔진만 포함됩니다. 대시보드·OTEL·PDF는 extras로 별도 설치합니다.
 
 - `numpy>=1.20.0,<3.0.0` — 수치 연산
 - `pandas>=1.3.0,<4.0.0` — 지표 집계
 - `python-dotenv>=0.19.0,<2.0.0` — 환경변수 관리
 - `openai>=1.0.0,<3.0.0` + `anthropic>=0.20.0,<1.0.0` — LLMJudge 엔진
-- `fastapi>=0.110.0` + `uvicorn[standard]>=0.29.0` + `jinja2>=3.1.0` + `python-multipart>=0.0.9` — 웹 대시보드
-- `opentelemetry-sdk>=1.20.0` + `opentelemetry-exporter-otlp-proto-http>=1.20.0` + `arize-phoenix>=7.0.0` — OTEL 모니터링
-- `pdfplumber>=0.10.0,<1.0.0` — 한국어 RAG PDF 처리
+
+### SDK 기능 extras (v0.9.1+, 단계별 설치)
+- `[llm]` — openai + anthropic (LLMJudge 전용)
+- `[serve]` — `fastapi>=0.110.0` + `uvicorn[standard]>=0.29.0` + `jinja2>=3.1.0` + `python-multipart>=0.0.9` — 웹 대시보드
+- `[otel]` — `opentelemetry-sdk>=1.20.0` + `arize-phoenix>=14.0.0,<15.0.0` + `pydantic-ai>=1.80.0,<2.0.0` — OTEL 모니터링
+- `[pdf]` — `pdfplumber>=0.10.0,<1.0.0` — 한국어 RAG PDF 처리
+- `[sdk]` — llm + serve + otel + pdf 전체 묶음 **(운영 배포 권장)**
 
 ### 선택 extras
-- `[examples]` — 기본 + eval 묶음. 예제 01~08은 기본만 필요, 07은 eval 추가 필요
+- `[examples]` — sdk + eval 묶음. 모든 예제(ch01~ch26) 실행 가능
 - `[eval]` — `deepeval>=3.0.0,<4.0.0` + `ragas>=0.4.0,<2.0.0` + `datasets>=4.0.0,<6.0.0` + `langchain>=1.0.0` + `langchain-openai>=0.1.0`
 - `[langchain]` — `langchain>=1.0.0,<3.0.0` + `langchain-core/openai/anthropic>=1.0.0` + `langgraph>=1.0.0`
 - `[dspy]` — `dspy-ai>=2.0.0`
@@ -673,7 +678,7 @@ pytest
 - `[export]` — `pyarrow>=10.0.0` + `openpyxl>=3.1.0` — 대시보드 Parquet/Excel 내보내기 (미설치 시 HTTP 409)
 - `[wandb]` — `wandb>=0.17.0` — `PerformanceMonitor.export_to_wandb()` W&B 실험 추적
 - `[mlflow]` — `mlflow>=2.0.0` — `PerformanceMonitor.export_to_mlflow()` MLflow 실험 추적
-- `[full]` — 기본+eval+langchain+dspy+pydanticai+crewai+autogen 전체 (⚠️ 10분+ 소요)
+- `[full]` — sdk+eval+langchain+dspy+pydanticai+crewai+autogen 전체 (⚠️ 10분+ 소요)
 - `[dev]` — `pytest` + `pytest-cov` + `pytest-asyncio` + `ruff` + `mypy` + `build` + `twine` + `pre-commit`
 
 > ⚠️ **프레임워크 extras 주의**: SDK 어댑터는 duck typing/try-except로 동작하므로 설치 불필요. 이 extras는 **사용자의 에이전트 코드**가 해당 프레임워크를 필요로 할 때 설치.
@@ -709,6 +714,13 @@ completion_score task_type 인식 (v0.8.0+):
 ---
 
 ## 📝 변경 이력
+
+### v0.9.1 (2026-04-27) — 의존성 구조 재편 · 크로스플랫폼 설치 안정화
+
+- 🔧 `pyproject.toml` 의존성 구조 재편: 기본 설치를 코어 5개 패키지로 축소, fastapi·otel·pdfplumber 를 `[serve]`·`[otel]`·`[pdf]`·`[sdk]` extras로 분리
+- 🔧 `arize-phoenix>=7.0.0,<15.0.0` → `>=14.0.0,<15.0.0` + `pydantic-ai>=1.80.0,<2.0.0` 명시적 고정 — pip resolver depth 폭발 수정 (Mac·Ubuntu 모두 `pip install -e ".[examples]"` 정상 완료)
+- 📝 README + Docs 예제 파일 참조 현행화 (21→26개, ch01/ch02 파일명 교정)
+- 🔧 Content 불필요 파일 정리
 
 ### v0.8.5 (2026-04-23) — SDK 버그 수정 · Book API 오류 전면 교정
 
