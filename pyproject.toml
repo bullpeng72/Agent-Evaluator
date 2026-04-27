@@ -76,9 +76,8 @@ serve = [
 otel = [
     "opentelemetry-sdk>=1.20.0,<2.0.0",
     "opentelemetry-exporter-otlp-proto-http>=1.20.0,<2.0.0",
-    "arize-phoenix>=14.0.0,<15.0.0",
-    # arize-phoenix 전이 의존성 — 버전 범위를 좁혀 pip resolver depth 폭발 방지
-    "pydantic-ai>=1.80.0,<2.0.0",
+    # 14.7.0부터 pydantic-ai(메타패키지 → 전체 LLM provider 170개+) 의존성 추가됨 → 상한 고정
+    "arize-phoenix>=14.0.0,<14.7.0",
 ]
 # PDF 처리 — 한국어 RAG 데이터셋 생성기 (빠름, ~2개 패키지)
 # agent_evaluator/datasets/korean_rag_dataset_generator.py 에서 사용
@@ -106,8 +105,8 @@ sdk = [
     "python-multipart>=0.0.9,<1.0.0",
     "opentelemetry-sdk>=1.20.0,<2.0.0",
     "opentelemetry-exporter-otlp-proto-http>=1.20.0,<2.0.0",
-    "arize-phoenix>=14.0.0,<15.0.0",
-    "pydantic-ai>=1.80.0,<2.0.0",
+    # 14.7.0부터 pydantic-ai(메타패키지 → 전체 LLM provider 170개+) 의존성 추가됨 → 상한 고정
+    "arize-phoenix>=14.0.0,<14.7.0",
     "pdfplumber>=0.10.0,<1.0.0",
 ]
 
@@ -126,8 +125,8 @@ examples = [
     "python-multipart>=0.0.9,<1.0.0",
     "opentelemetry-sdk>=1.20.0,<2.0.0",
     "opentelemetry-exporter-otlp-proto-http>=1.20.0,<2.0.0",
-    "arize-phoenix>=14.0.0,<15.0.0",
-    "pydantic-ai>=1.80.0,<2.0.0",
+    # 14.7.0부터 pydantic-ai(메타패키지 → 전체 LLM provider 170개+) 의존성 추가됨 → 상한 고정
+    "arize-phoenix>=14.0.0,<14.7.0",
     "pdfplumber>=0.10.0,<1.0.0",
     "deepeval>=3.0.0,<4.0.0",
     "ragas>=0.4.0,<2.0.0",
@@ -217,8 +216,8 @@ full = [
     "python-multipart>=0.0.9,<1.0.0",
     "opentelemetry-sdk>=1.20.0,<2.0.0",
     "opentelemetry-exporter-otlp-proto-http>=1.20.0,<2.0.0",
-    "arize-phoenix>=14.0.0,<15.0.0",
-    "pydantic-ai>=1.80.0,<2.0.0",
+    # 14.7.0부터 pydantic-ai(메타패키지 → 전체 LLM provider 170개+) 의존성 추가됨 → 상한 고정
+    "arize-phoenix>=14.0.0,<14.7.0",
     "pdfplumber>=0.10.0,<1.0.0",
     "deepeval>=3.0.0,<4.0.0",
     "ragas>=0.4.0,<2.0.0",

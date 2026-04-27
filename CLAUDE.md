@@ -661,7 +661,7 @@ pytest
 ### SDK 기능 extras (v0.9.1+, 단계별 설치)
 - `[llm]` — openai + anthropic (LLMJudge 전용)
 - `[serve]` — `fastapi>=0.110.0` + `uvicorn[standard]>=0.29.0` + `jinja2>=3.1.0` + `python-multipart>=0.0.9` — 웹 대시보드
-- `[otel]` — `opentelemetry-sdk>=1.20.0` + `arize-phoenix>=14.0.0,<15.0.0` + `pydantic-ai>=1.80.0,<2.0.0` — OTEL 모니터링
+- `[otel]` — `opentelemetry-sdk>=1.20.0` + `arize-phoenix>=14.0.0,<14.7.0` — OTEL 모니터링 (14.7+는 pydantic-ai 메타패키지 → 170개+ 불필요 패키지 설치됨)
 - `[pdf]` — `pdfplumber>=0.10.0,<1.0.0` — 한국어 RAG PDF 처리
 - `[sdk]` — llm + serve + otel + pdf 전체 묶음 **(운영 배포 권장)**
 
