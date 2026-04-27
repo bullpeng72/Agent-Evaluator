@@ -1,4 +1,0 @@
-# Book/build_book.py 의존성
-# 설치: pip install -r Book/requirements.txt
-
-markdown>=3.4.0,<4.0.0    # Markdown → HTML 변환 (build_book.py)

@@ -25,7 +25,7 @@ EPUB/PDF를 빌드하고 메타데이터를 생성한다.
 
 항상 실행한다:
 ```bash
-cd Content/Publishing/pipeline && python run_all.py --check 2>&1
+cd Media/Content/Publishing/pipeline && python run_all.py --check 2>&1
 ```
 
 `--check` 단독 인자인 경우 여기서 종료한다.
@@ -37,7 +37,7 @@ cd Content/Publishing/pipeline && python run_all.py --check 2>&1
 ### 2단계: 파이프라인 실행
 
 ```bash
-cd Content/Publishing/pipeline && python run_all.py $ARGUMENTS 2>&1
+cd Media/Content/Publishing/pipeline && python run_all.py $ARGUMENTS 2>&1
 ```
 
 인자가 없으면(`/publish` 단독) 전체 파이프라인을 실행한다.
@@ -46,14 +46,14 @@ cd Content/Publishing/pipeline && python run_all.py $ARGUMENTS 2>&1
 
 생성된 파일 목록과 크기를 출력한다:
 ```bash
-ls -lh Content/Publishing/output/bookk/ 2>/dev/null
-ls -lh Content/Publishing/output_en/kdp/ 2>/dev/null
+ls -lh Media/Content/Publishing/output/bookk/ 2>/dev/null
+ls -lh Media/Content/Publishing/output_en/kdp/ 2>/dev/null
 ```
 
 메타데이터 파일 앞부분을 출력한다:
 ```bash
-cat Content/Publishing/output/bookk/bookk_metadata.md 2>/dev/null | head -60
-cat Content/Publishing/output_en/kdp/kdp_metadata_en.md 2>/dev/null | head -60
+cat Media/Content/Publishing/output/bookk/bookk_metadata.md 2>/dev/null | head -60
+cat Media/Content/Publishing/output_en/kdp/kdp_metadata_en.md 2>/dev/null | head -60
 ```
 
 등록 절차 안내를 출력한다:

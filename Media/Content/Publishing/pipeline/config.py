@@ -8,8 +8,8 @@ load_dotenv(Path(__file__).parent.parent.parent.parent.parent / ".env")
 
 PIPELINE_DIR = Path(__file__).parent
 PUBLISHING_DIR = PIPELINE_DIR.parent
-PROJECT_ROOT = PUBLISHING_DIR.parent.parent
-BOOK_DIR = PROJECT_ROOT / "Book"
+PROJECT_ROOT = PUBLISHING_DIR.parent.parent.parent
+BOOK_DIR = PROJECT_ROOT / "Media" / "Book"
 OUTPUT_DIR = PUBLISHING_DIR / "output"
 
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")

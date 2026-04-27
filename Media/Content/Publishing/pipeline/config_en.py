@@ -11,10 +11,10 @@ load_dotenv(Path(__file__).parent.parent.parent.parent.parent / ".env")
 
 PIPELINE_DIR = Path(__file__).parent
 PUBLISHING_DIR = PIPELINE_DIR.parent
-PROJECT_ROOT = PUBLISHING_DIR.parent.parent
+PROJECT_ROOT = PUBLISHING_DIR.parent.parent.parent
 
-# 영문판 소스는 Book_EN/
-BOOK_DIR = PROJECT_ROOT / "Book_EN"
+# 영문판 소스는 Media/Book_EN/
+BOOK_DIR = PROJECT_ROOT / "Media" / "Book_EN"
 OUTPUT_DIR = PUBLISHING_DIR / "output_en"
 
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")

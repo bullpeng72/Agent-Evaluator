@@ -36,12 +36,12 @@ grep -q "VELOG_ACCESS_TOKEN" .env 2>/dev/null && echo "Velog 토큰 설정됨" |
 
 `$ARGUMENTS`가 `--list`이면:
 ```bash
-cd Content/Blog/pipeline && python run_all.py --list
+cd Media/Content/Blog/pipeline && python run_all.py --list
 ```
 
 `$ARGUMENTS`가 `--all`이면:
 ```bash
-cd Content/Blog/pipeline && python run_all.py $ARGUMENTS 2>&1
+cd Media/Content/Blog/pipeline && python run_all.py $ARGUMENTS 2>&1
 ```
 
 그 외(post_id 지정)이면 아래 3~5단계를 진행한다.
@@ -50,24 +50,24 @@ cd Content/Blog/pipeline && python run_all.py $ARGUMENTS 2>&1
 
 post_id만 추출해서 실행한다 (--publish, --draft 플래그는 제외):
 ```bash
-cd Content/Blog/pipeline && python run_all.py <post_id> [--force] 2>&1
+cd Media/Content/Blog/pipeline && python run_all.py <post_id> [--force] 2>&1
 ```
 
 ### 4단계: 결과 요약
 
 생성된 포스트 파일을 확인하고 앞부분(60줄)을 출력한다:
 ```bash
-head -60 Content/Blog/output/<post_id>/post_velog.md 2>/dev/null
+head -60 Media/Content/Blog/output/<post_id>/post_velog.md 2>/dev/null
 ```
 
 SEO 결과를 출력한다:
 ```bash
-cat Content/Blog/output/<post_id>/seo.txt 2>/dev/null
+cat Media/Content/Blog/output/<post_id>/seo.txt 2>/dev/null
 ```
 
 파일 목록과 크기를 출력한다:
 ```bash
-ls -lh Content/Blog/output/<post_id>/ 2>/dev/null
+ls -lh Media/Content/Blog/output/<post_id>/ 2>/dev/null
 ```
 
 ### 5단계: Velog 자동 발행 (`--publish` 포함 시)
@@ -76,12 +76,12 @@ ls -lh Content/Blog/output/<post_id>/ 2>/dev/null
 
 `--draft`도 포함된 경우:
 ```bash
-cd Content/Blog/pipeline && python publish_to_velog.py <post_id> --draft 2>&1
+cd Media/Content/Blog/pipeline && python publish_to_velog.py <post_id> --draft 2>&1
 ```
 
 `--draft` 없는 경우 (즉시 발행):
 ```bash
-cd Content/Blog/pipeline && python publish_to_velog.py <post_id> 2>&1
+cd Media/Content/Blog/pipeline && python publish_to_velog.py <post_id> 2>&1
 ```
 
 발행 성공 시 반환된 URL을 사용자에게 출력한다.
@@ -94,6 +94,6 @@ echo "VELOG_ACCESS_TOKEN=복사한값" >> .env
 ```
 
 `--publish`가 없는 경우 다음 게시 안내를 출력한다:
-- **Velog 수동**: `Content/Blog/output/<post_id>/post_velog.md` 내용을 Velog 에디터에 붙여넣기
+- **Velog 수동**: `Media/Content/Blog/output/<post_id>/post_velog.md` 내용을 Velog 에디터에 붙여넣기
 - **Velog 자동**: `/blog <post_id> --publish`
 - **SEO**: `seo.txt`의 meta_description을 포스트 설명란에 입력

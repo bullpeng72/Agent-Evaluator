@@ -21,7 +21,7 @@
 
 `$ARGUMENTS`에서 day 번호를 추출한다.
 
-- `--list` → `python Content/pipeline/run_day.py --list` 실행 후 종료
+- `--list` → `python Media/Content/pipeline/run_day.py --list` 실행 후 종료
 - `--day_NN` → NN 추출, 이하 실행
 - 숫자만 (`01`, `1`) → `day_01` 형식으로 변환
 
@@ -29,10 +29,10 @@
 
 ### 2단계: 계획 확인
 
-해당 day의 내용을 `Content/day_plan.json`에서 확인해 출력한다:
+해당 day의 내용을 `Media/Content/day_plan.json`에서 확인해 출력한다:
 
 ```bash
-python Content/pipeline/run_day.py <day_key> --status
+python Media/Content/pipeline/run_day.py <day_key> --status
 ```
 
 `--status` 단독 인자인 경우 여기서 종료한다.
@@ -40,7 +40,7 @@ python Content/pipeline/run_day.py <day_key> --status
 ### 3단계: 콘텐츠 생성
 
 ```bash
-python Content/pipeline/run_day.py <day_key> [--force] [--blog-only] [--youtube-only] --skip-audio
+python Media/Content/pipeline/run_day.py <day_key> [--force] [--blog-only] [--youtube-only] --skip-audio
 ```
 
 `--skip-audio`는 항상 포함한다 (TTS 없이 실행).
@@ -50,13 +50,13 @@ python Content/pipeline/run_day.py <day_key> [--force] [--blog-only] [--youtube-
 블로그가 생성된 경우 앞부분을 출력한다:
 ```bash
 for post_id in <blog_ids>:
-    head -30 Content/Blog/output/<post_id>/post_velog.md 2>/dev/null
+    head -30 Media/Content/Blog/output/<post_id>/post_velog.md 2>/dev/null
 ```
 
 YouTube 나레이션이 생성된 경우 앞부분을 출력한다:
 ```bash
 for episode_id in <youtube_ids>:
-    head -40 Content/YouTube/output/<episode_id>/narration.md 2>/dev/null
+    head -40 Media/Content/YouTube/output/<episode_id>/narration.md 2>/dev/null
 ```
 
 ### 5단계: 다음 단계 안내

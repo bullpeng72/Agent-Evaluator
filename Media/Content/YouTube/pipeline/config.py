@@ -9,8 +9,8 @@ load_dotenv(Path(__file__).parent.parent.parent.parent.parent / ".env")
 # ── 디렉토리 경로 ─────────────────────────────────────────────────────────────
 PIPELINE_DIR = Path(__file__).parent
 YOUTUBE_DIR = PIPELINE_DIR.parent
-PROJECT_ROOT = YOUTUBE_DIR.parent.parent
-BOOK_DIR = PROJECT_ROOT / "Book"
+PROJECT_ROOT = YOUTUBE_DIR.parent.parent.parent
+BOOK_DIR = PROJECT_ROOT / "Media" / "Book"
 OUTPUT_DIR = YOUTUBE_DIR / "output"
 EPISODE_MAP_PATH = YOUTUBE_DIR / "episode_map.json"
 

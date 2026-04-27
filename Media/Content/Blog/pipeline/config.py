@@ -8,8 +8,8 @@ load_dotenv(Path(__file__).parent.parent.parent.parent.parent / ".env")
 
 PIPELINE_DIR = Path(__file__).parent
 BLOG_DIR = PIPELINE_DIR.parent
-PROJECT_ROOT = BLOG_DIR.parent.parent
-BOOK_DIR = PROJECT_ROOT / "Book"
+PROJECT_ROOT = BLOG_DIR.parent.parent.parent
+BOOK_DIR = PROJECT_ROOT / "Media" / "Book"
 OUTPUT_DIR = BLOG_DIR / "output"
 POST_MAP_PATH = BLOG_DIR / "post_map.json"
 

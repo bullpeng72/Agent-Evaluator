@@ -1,0 +1,25 @@
+# Media/ 통합 의존성
+# 설치: pip install -r Media/requirements.txt
+#
+# 시스템 도구 (pip 외 별도 설치):
+#   macOS:  brew install pandoc
+#   Ubuntu: sudo apt install pandoc
+#
+# 환경변수 (.env):
+#   ANTHROPIC_API_KEY      — Claude API (필수)
+#   VELOG_ACCESS_TOKEN     — Velog 자동 발행 (/blog --publish 사용 시)
+#   TTS_PROVIDER           — "elevenlabs" | "clova"  (YouTube 음성합성)
+#   ELEVENLABS_API_KEY     — ElevenLabs TTS
+#   CLOVA_CLIENT_ID        — Naver CLOVA Voice TTS
+#   CLOVA_CLIENT_SECRET    — Naver CLOVA Voice TTS
+
+# ── Book 파이프라인 ───────────────────────────────────────────────────────────
+markdown>=3.4.0,<4.0.0          # Book/build_book.py — Markdown → HTML 변환
+
+# ── Content 파이프라인 코어 ───────────────────────────────────────────────────
+anthropic>=0.20.0,<1.0.0        # Claude API SDK (Blog·YouTube·Publishing)
+python-dotenv>=0.19.0,<2.0.0    # .env 환경변수 로드
+requests>=2.28.0,<3.0.0         # HTTP 클라이언트 (YouTube TTS — ElevenLabs·CLOVA)
+
+# ── Publishing 파이프라인 ─────────────────────────────────────────────────────
+weasyprint>=60.0                 # HTML → PDF 변환 (build_pdf_bookk.py)
