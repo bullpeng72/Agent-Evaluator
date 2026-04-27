@@ -656,7 +656,7 @@ pytest
 - `numpy>=1.20.0,<3.0.0` — 수치 연산
 - `pandas>=1.3.0,<4.0.0` — 지표 집계
 - `python-dotenv>=0.19.0,<2.0.0` — 환경변수 관리
-- `openai>=1.0.0,<3.0.0` + `anthropic>=0.20.0,<1.0.0` — LLMJudge 엔진
+- `openai>=2.0.0,<3.0.0` + `anthropic>=0.20.0,<1.0.0` — LLMJudge 엔진
 
 ### SDK 기능 extras (v0.9.1+, 단계별 설치)
 - `[llm]` — openai + anthropic (LLMJudge 전용)
@@ -667,7 +667,7 @@ pytest
 
 ### 선택 extras
 - `[examples]` — sdk + eval 묶음. 모든 예제(ch01~ch26) 실행 가능
-- `[eval]` — `deepeval>=3.0.0,<4.0.0` + `ragas>=0.4.0,<2.0.0` + `datasets>=4.0.0,<6.0.0` + `langchain>=1.0.0` + `langchain-openai>=0.1.0`
+- `[eval]` — `deepeval>=3.0.0,<4.0.0` + `ragas>=0.4.0,<2.0.0` + `datasets>=4.0.0,<6.0.0` + `langchain>=1.0.0` + `langchain-openai>=1.0.0,<2.0.0`
 - `[langchain]` — `langchain>=1.0.0,<3.0.0` + `langchain-core/openai/anthropic>=1.0.0` + `langgraph>=1.0.0`
 - `[dspy]` — `dspy-ai>=2.0.0`
 - `[pydanticai]` — `pydantic-ai>=1.0.0,<2.0.0`
