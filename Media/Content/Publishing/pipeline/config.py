@@ -4,7 +4,7 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 
-load_dotenv(Path(__file__).parent.parent.parent.parent.parent / ".env")
+load_dotenv(Path(__file__).parent.parent.parent.parent / ".env")
 
 PIPELINE_DIR = Path(__file__).parent
 PUBLISHING_DIR = PIPELINE_DIR.parent

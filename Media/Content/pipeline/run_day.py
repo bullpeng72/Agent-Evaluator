@@ -19,6 +19,7 @@ REPO_ROOT = CONTENT_DIR.parent
 DAY_PLAN = CONTENT_DIR / "day_plan.json"
 BLOG_PIPELINE = CONTENT_DIR / "Blog" / "pipeline" / "run_all.py"
 YOUTUBE_PIPELINE = CONTENT_DIR / "YouTube" / "pipeline" / "run_all.py"
+YOUTUBE_NARRATION = CONTENT_DIR / "YouTube" / "pipeline" / "chapter_to_narration.py"
 BLOG_OUTPUT = CONTENT_DIR / "Blog" / "output"
 YOUTUBE_OUTPUT = CONTENT_DIR / "YouTube" / "output"
 
@@ -121,9 +122,9 @@ def run_youtube(youtube_ids: list[str], skip_audio: bool, force: bool) -> list[s
             print(f"\n  [youtube/{eid}] 나레이션 있음 → --force 로 슬라이드/자막/메타데이터 생성")
             continue
 
-        # 나레이션 생성
+        # 나레이션 생성 (chapter_to_narration.py 직접 호출)
         ok = run(
-            [sys.executable, str(YOUTUBE_PIPELINE), "--narration-only", eid],
+            [sys.executable, str(YOUTUBE_NARRATION), eid],
             f"youtube/{eid} 나레이션",
         )
         if not ok:

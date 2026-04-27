@@ -39,6 +39,7 @@ STEPS = [
     ("narration_to_audio.py",    "Step 3: 나레이션 → 음성"),
     ("narration_to_srt.py",      "Step 4: 나레이션 → 자막"),
     ("generate_metadata.py",     "Step 5: YouTube 메타데이터"),
+    ("slides_to_video.py",       "Step 6: 슬라이드 + 음성 → MP4"),
 ]
 
 
@@ -91,9 +92,11 @@ def run_step(script: str, episode_id: str, extra_args: list[str]) -> bool:
     return result.returncode == 0
 
 
-def run_episode(episode_id: str, skip_audio: bool, pdf: bool, force: bool) -> dict[str, bool]:
+def run_episode(episode_id: str, skip_audio: bool, pdf: bool, force: bool,
+                video: bool = False) -> dict[str, bool]:
     results = {}
     force_arg = ["--force"] if force else []
+    run_episode._video = video  # type: ignore[attr-defined]
 
     for script, label in STEPS:
         # 음성 생성 건너뜀
@@ -102,7 +105,12 @@ def run_episode(episode_id: str, skip_audio: bool, pdf: bool, force: bool) -> di
             results[script] = True
             continue
 
-        # PDF 변환 옵션
+        # MP4 영상 생성: --video 옵션 없으면 건너뜀
+        if script == "slides_to_video.py" and not getattr(run_episode, "_video", False):
+            results[script] = True
+            continue
+
+        # PDF / PNG 변환 옵션
         extra = force_arg.copy()
         if script == "narration_to_slides.py" and pdf:
             extra.append("--pdf")
@@ -145,6 +153,8 @@ def main():
     parser.add_argument("--list", action="store_true", help="에피소드 목록 출력")
     parser.add_argument("--season", type=int, help="시즌 전체 실행 (예: --season 2)")
     parser.add_argument("--skip-audio", action="store_true", help="음성 생성 건너뜀")
+    parser.add_argument("--skip-video", action="store_true", help="MP4 영상 생성 건너뜀 (기본값)")
+    parser.add_argument("--video", action="store_true", help="MP4 영상까지 자동 생성")
     parser.add_argument("--pdf", action="store_true", help="슬라이드 PDF 변환")
     parser.add_argument("--force", action="store_true", help="기존 파일 모두 덮어쓰기")
     args = parser.parse_args()
@@ -182,7 +192,8 @@ def main():
         print(f"  에피소드: {ep_id} — {all_episodes[ep_id]['title']}")
         print(f"{'█' * 50}")
 
-        results = run_episode(ep_id, args.skip_audio, args.pdf, args.force)
+        results = run_episode(ep_id, args.skip_audio, args.pdf, args.force,
+                              video=args.video)
         all_results[ep_id] = results
         print_summary(ep_id, results)
 

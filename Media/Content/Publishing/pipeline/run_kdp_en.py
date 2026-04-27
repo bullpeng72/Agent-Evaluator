@@ -47,7 +47,7 @@ def check_deps() -> bool:
     else:
         import os
         from dotenv import load_dotenv
-        load_dotenv(PIPELINE_DIR.parent.parent / ".env")
+        load_dotenv(PIPELINE_DIR.parent.parent.parent / ".env")
         if os.getenv("ANTHROPIC_API_KEY", "").startswith("sk-ant-"):
             print("  ✅ ANTHROPIC_API_KEY: set")
         else:

@@ -38,7 +38,9 @@ METADATA_PROMPT = """당신은 YouTube 채널 운영 전문가입니다.
     {{"time": "00:00", "title": "인트로"}},
     {{"time": "00:30", "title": "섹션 제목"}}
   ]
-}}"""
+}}
+
+주의: title 값에는 큰따옴표(")를 절대 사용하지 마세요. 한국어 인용은 작은따옴표(')나 꺽쇠(「」)를 사용하세요."""
 
 
 def load_episode(episode_id: str) -> dict:
@@ -116,7 +118,10 @@ def generate_metadata_with_claude(episode: dict, narration_text: str) -> dict:
         return {"raw": raw}
 
     try:
-        metadata = json.loads(json_match.group())
+        json_str = json_match.group()
+        # 유니코드 곡선따옴표 정규화 (LLM 출력 방어)
+        json_str = json_str.replace('“', "'").replace('”', "'")
+        metadata = json.loads(json_str)
     except json.JSONDecodeError as e:
         print(f"  [WARN] JSON 파싱 오류: {e}")
         return {"raw": raw}
