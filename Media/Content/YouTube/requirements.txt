@@ -1,3 +1,0 @@
-# YouTube 파이프라인 의존성
-# 통합 파일: Media/requirements.txt (상위에서 설치 권장)
--r ../../requirements.txt
