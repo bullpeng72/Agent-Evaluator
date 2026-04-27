@@ -324,8 +324,8 @@ monitor = PerformanceMonitor(
 ### 단계 1: 설치
 
 ```bash
-# OTEL 모니터링은 기본 설치에 포함
-pip install agent-evaluator
+# OTEL 모니터링 — [otel] 또는 [sdk] extra 필요
+pip install "agent-evaluator[sdk]"
 ```
 
 ### 단계 2: Phoenix 서버 기동 (터미널 A)

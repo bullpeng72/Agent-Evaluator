@@ -315,8 +315,8 @@ monitor = PerformanceMonitor(
 | `ModuleNotFoundError: agent_evaluator` | 패키지 미설치 | `pip install agent-evaluator` |
 | `AuthenticationError: Invalid API key` | API 키 오류 | `.env` 확인, `agent-eval check` 실행 |
 | `FileNotFoundError: results/` | 출력 디렉토리 없음 | `mkdir -p results/` 또는 `output_dir` 지정 |
-| `ImportError: fastapi` | 기본 설치 미완료 | `pip install agent-evaluator` 재실행 |
-| `ImportError: opentelemetry` | 기본 설치 미완료 | `pip install agent-evaluator` 재실행 |
+| `ImportError: fastapi` | `[sdk]` extra 미설치 | `pip install "agent-evaluator[sdk]"` |
+| `ImportError: opentelemetry` | `[sdk]` extra 미설치 | `pip install "agent-evaluator[sdk]"` |
 | Quality Gate 항상 통과 | 트래커 비활성화 | `enable_hallucination_detection=True` 등 확인 |
 | 보안 지표 0% | `enable_security_metrics` 미설정 | `PerformanceMonitor(enable_security_metrics=True)` |
 | Accuracy 항상 0 | ground_truth 미전달 | 함수 인자에 `ground_truth` 파라미터 추가 |
@@ -335,13 +335,13 @@ try:
     from agent_evaluator.serve import server
     print('serve: OK')
 except ImportError:
-    print('serve: NOT installed — pip install agent-evaluator 재실행')
+    print('serve: NOT installed — pip install "agent-evaluator[sdk]"')
 
 try:
     import opentelemetry
     print('otel: OK')
 except ImportError:
-    print('otel: NOT installed — pip install agent-evaluator 재실행')
+    print('otel: NOT installed — pip install "agent-evaluator[sdk]"')
 "
 ```
 

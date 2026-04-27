@@ -24,10 +24,13 @@ Agent Evaluator를 설치부터 첫 평가, 결과 저장, 대시보드 실행�
 ## 설치
 
 ```bash
-# 기본 설치 — LLMJudge · 대시보드 · OTEL 모니터링 · PDF 포함
+# 기본 설치 — 코어 평가 엔진 (LLMJudge 포함)
 pip install agent-evaluator
 
-# 모든 예제 실행
+# 대시보드 + OTEL + PDF (운영 배포 권장)
+pip install "agent-evaluator[sdk]"
+
+# 모든 예제 실행 — sdk + deepeval/ragas/langchain
 pip install "agent-evaluator[examples]"
 
 # 프레임워크 통합 (사용자 에이전트가 해당 프레임워크를 사용하는 경우)
@@ -36,7 +39,8 @@ pip install "agent-evaluator[eval]"        # DeepEval + Ragas
 pip install "agent-evaluator[full]"        # 전체 (⚠️ crewai/autogen 포함, 10분+)
 ```
 
-> **Python 3.8–3.13** 지원. numpy, pandas는 자동 설치됩니다.
+> **Python 3.8–3.13** 지원. numpy, pandas는 자동 설치됩니다.  
+> 대시보드(`agent-eval dashboard`)·Phoenix 모니터링(`agent-eval monitor`)·PDF 처리는 `[sdk]` extra가 필요합니다.
 
 ---
 

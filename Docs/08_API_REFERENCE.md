@@ -1332,4 +1332,4 @@ FrameworkLiteral,   # 21개 프레임워크 Literal 타입
 
 ---
 
-*Agent Evaluator v0.8.5 — [GitHub](https://github.com/bullpeng72/Agent-Evaluator) | [예제 디렉토리](../Evaluator_Examples/)*
+*Agent Evaluator v0.9.1 — [GitHub](https://github.com/bullpeng72/Agent-Evaluator) | [예제 디렉토리](../Evaluator_Examples/)*
