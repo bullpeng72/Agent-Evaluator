@@ -70,12 +70,18 @@ print("\n=== Ch03 Harness Gate A–G 기초 개요 ===")
 @agent_eval(monitor, task_type="qa", task_id_prefix="a_basic",
     instructions=InstructionConfig(required_keywords=["result", "confidence"], min_chars=20))
 def gate_a_agent(question: str, ground_truth: str = "") -> str:
+    # TODO(현업 적용): 아래 Mock 구현을 실제 LLM 호출로 교체하세요.
+    #   예) return client.messages.create(model="claude-haiku-4-5-20251001",
+    #        messages=[{"role":"user","content":question}]).content[0].text
     return json.dumps({"result": f"{question}에 대한 답변", "confidence": 0.92})
 
 # Gate B — Behavioral Integrity
 @agent_eval(monitor, task_type="tool_use", task_id_prefix="b_basic",
     loop_detection=LoopDetectionConfig(consecutive_repeat_threshold=2, window_size=5))
 def gate_b_agent(question: str, ground_truth: str = "") -> str:
+    # TODO(현업 적용): 아래 Mock 구현을 실제 LLM 호출로 교체하세요.
+    #   예) return client.messages.create(model="claude-haiku-4-5-20251001",
+    #        messages=[{"role":"user","content":question}]).content[0].text
     return f"search → analyze → summarize 순서로 처리: {question}"
 
 # Gate C — Reliability
@@ -84,6 +90,9 @@ _c_count = {"n": 0}
     fault_tolerance=FaultToleranceConfig(check_fallback_attempts=True, partial_success_threshold=0.5),
     retry=RetryConfig(max=2, on=(RuntimeError,), delay=0.0))
 def gate_c_agent(question: str, ground_truth: str = "") -> str:
+    # TODO(현업 적용): 아래 Mock 구현을 실제 LLM 호출로 교체하세요.
+    #   예) return client.messages.create(model="claude-haiku-4-5-20251001",
+    #        messages=[{"role":"user","content":question}]).content[0].text
     _c_count["n"] += 1
     if _c_count["n"] % 3 == 1:
         return f"부분 완료(폴백): 캐시 데이터로 응답합니다. {question}"
@@ -93,6 +102,9 @@ def gate_c_agent(question: str, ground_truth: str = "") -> str:
 @agent_eval(monitor, task_type="qa", task_id_prefix="d_basic",
     sla=SLAConfig(p95_ms=2000, p99_ms=5000))
 def gate_d_agent(question: str, ground_truth: str = "") -> tuple:
+    # TODO(현업 적용): 아래 Mock 구현을 실제 LLM 호출로 교체하세요.
+    #   예) return client.messages.create(model="claude-haiku-4-5-20251001",
+    #        messages=[{"role":"user","content":question}]).content[0].text
     t0 = time.perf_counter()
     time.sleep(random.uniform(0.05, 0.2))
     ttft = (time.perf_counter() - t0) * 1000
@@ -105,12 +117,18 @@ def gate_d_agent(question: str, ground_truth: str = "") -> tuple:
 @agent_eval(monitor, task_type="qa", task_id_prefix="e_basic",
     compliance=ComplianceConfig(pii_categories=["email", "phone"], compliance_framework="gdpr"))
 def gate_e_agent(question: str, ground_truth: str = "") -> str:
+    # TODO(현업 적용): 아래 Mock 구현을 실제 LLM 호출로 교체하세요.
+    #   예) return client.messages.create(model="claude-haiku-4-5-20251001",
+    #        messages=[{"role":"user","content":question}]).content[0].text
     return f"GDPR 준수 처리: {question}".replace("@", "[마스킹]")
 
 # Gate F — Multi-Agent
 @agent_eval(monitor, task_type="multi_agent", task_id_prefix="f_basic",
     propagation=PropagationConfig(key_facts=["project_id", "deadline"], check_in_response=True))
 def gate_f_agent(question: str, ground_truth: str = "") -> str:
+    # TODO(현업 적용): 아래 Mock 구현을 실제 LLM 호출로 교체하세요.
+    #   예) return client.messages.create(model="claude-haiku-4-5-20251001",
+    #        messages=[{"role":"user","content":question}]).content[0].text
     return f"project_id: PROJ-001, deadline: 2026-06-30 — {question}"
 
 # Gate G — Observability
@@ -118,10 +136,50 @@ def gate_f_agent(question: str, ground_truth: str = "") -> str:
     explainability=ExplainabilityConfig(require_reasoning=True, min_reasoning_length=50,
                                          reasoning_markers=["왜냐하면", "따라서", "때문에"]))
 def gate_g_agent(question: str, ground_truth: str = "") -> str:
+    # TODO(현업 적용): 아래 Mock 구현을 실제 LLM 호출로 교체하세요.
+    #   예) return client.messages.create(model="claude-haiku-4-5-20251001",
+    #        messages=[{"role":"user","content":question}]).content[0].text
     return (f"[추론] {question}: 왜냐하면 핵심 패턴이 발견되었기 때문입니다. "
             f"따라서 적절한 조치를 취했습니다.")
 
-# 실행
+def print_harness_console_report(report):
+    """콘솔에 Gate 점수와 주요 지표를 예쁘게 시각화하여 출력한다."""
+    data = report.to_dict()
+    harness = (data.get("extra_metrics") or {}).get("harness_groups", {})
+    
+    print("\n" + "═" * 68)
+    print(f"  🏁 HARNESS GATE 종합 판정 리포트")
+    print("─" * 68)
+    print(f"  {'Gate':<4} {'영역 (Domain)':<28} {'상태':^6} {'점수':>8}   {'비주얼'}")
+    print(f"  {'-'*4} {'-'*28} {'-'*6} {'-'*8}   {'-'*15}")
+    
+    icons = {"A":"🎯","B":"🛡","C":"🔁","D":"⚡","E":"🔒","F":"🤝","G":"🔭"}
+    names = {"A":"Goal Achievement", "B":"Behavioral Integrity", "C":"Reliability",
+             "D":"Performance Contract", "E":"Security Boundary", 
+             "F":"Multi-Agent Coord.", "G":"Observability"}
+    
+    for gk in "ABCDEFG":
+        gd = harness.get(gk, {})
+        score = gd.get("score")
+        gate  = (gd.get("gate") or "n/a").upper()
+        name  = names.get(gk, gk)
+        icon  = icons.get(gk, "·")
+        
+        if score is not None:
+            status_icon = "✅" if gate == "PASS" else ("⚠️ " if gate == "WARN" else "❌")
+            bar_len = int(score * 15)
+            bar = "█" * bar_len + "░" * (15 - bar_len)
+            print(f"  {gk}    {icon} {name:<26} {status_icon}{gate:^6} {score:>8.3f}   {bar}")
+    
+    # 요약 지표 추가
+    summary = data.get("summary", {})
+    print("─" * 68)
+    print(f"  [요약] TCR: {summary.get('task_completion_rate',0)*100:>5.1f}%  |  "
+          f"Acc: {summary.get('accuracy',0)*100:>5.1f}%  |  "
+          f"P95: {summary.get('latency_p95',0):>5.3f}s")
+    print("═" * 68 + "\n")
+
+# 실행 부분
 CASES = [
     ("데이터를 분석해줘", "분석 완료"),
     ("보고서를 작성해줘", "작성 완료"),
@@ -141,22 +199,9 @@ for q, gt in CASES:
     gate_g_agent(q, ground_truth=gt)
 
 # Harness Gate 점수 출력
-print("\n=== Harness Gate 점수 ===")
 report = monitor.generate_report()
-harness = (report.to_dict().get("extra_metrics") or {}).get("harness_groups", {})
-labels = {"A": "Goal Achievement", "B": "Behavioral Integrity", "C": "Reliability",
-          "D": "Performance Contract", "E": "Security Boundary",
-          "F": "Multi-Agent Coordination", "G": "Observability"}
-for gk, label in labels.items():
-    gd = harness.get(gk, {})
-    score = gd.get("score")
-    status = gd.get("status", "n/a")
-    if score is not None:
-        bar = "█" * int(score * 10) + "░" * (10 - int(score * 10))
-        print(f"  Gate {gk} [{label:<28s}] {bar} {score:.3f} ({status})")
-    else:
-        print(f"  Gate {gk} [{label:<28s}] --- (데이터 없음)")
+print_harness_console_report(report)
 
 monitor.save_to_file("ch03_harness_basics")
-print("\n결과 저장 완료: results/ch03_harness_basics.json")
+print(f"결과 저장 완료: results/ch03_harness_basics.json")
 print("확인: agent-eval dashboard --results results/")

@@ -137,6 +137,9 @@ _GROUP_NAME = {
     ),
 )
 def _group_a_agent(question: str, ground_truth: str = "") -> str:
+    # TODO(현업 적용): 아래 Mock 구현을 실제 LLM 호출로 교체하세요.
+    #   예) return client.messages.create(model="claude-haiku-4-5-20251001",
+    #        messages=[{"role":"user","content":question}]).content[0].text
     return json.dumps({"answer": question + "에 대한 검증 답변", "source": "내부 DB"})
 
 
@@ -154,6 +157,9 @@ def _group_a_agent(question: str, ground_truth: str = "") -> str:
     ),
 )
 def _group_b_agent(question: str, ground_truth: str = "") -> str:
+    # TODO(현업 적용): 아래 Mock 구현을 실제 LLM 호출로 교체하세요.
+    #   예) return client.messages.create(model="claude-haiku-4-5-20251001",
+    #        messages=[{"role":"user","content":question}]).content[0].text
     return f"재무 리포트 조회: {question}"
 
 
@@ -174,6 +180,9 @@ def _group_b_agent(question: str, ground_truth: str = "") -> str:
     ),
 )
 def _group_c_agent(question: str, ground_truth: str = "") -> str:
+    # TODO(현업 적용): 아래 Mock 구현을 실제 LLM 호출로 교체하세요.
+    #   예) return client.messages.create(model="claude-haiku-4-5-20251001",
+    #        messages=[{"role":"user","content":question}]).content[0].text
     return f"신뢰성 검증 응답: {question}"
 
 
@@ -191,6 +200,9 @@ def _group_c_agent(question: str, ground_truth: str = "") -> str:
     ),
 )
 def _group_d_agent(question: str, ground_truth: str = "") -> str:
+    # TODO(현업 적용): 아래 Mock 구현을 실제 LLM 호출로 교체하세요.
+    #   예) return client.messages.create(model="claude-haiku-4-5-20251001",
+    #        messages=[{"role":"user","content":question}]).content[0].text
     time.sleep(0.05)   # 현실적 지연 시뮬레이션
     return f"성능 검증 응답: {question}"
 
@@ -212,6 +224,9 @@ def _group_d_agent(question: str, ground_truth: str = "") -> str:
     ),
 )
 def _group_e_agent(question: str, ground_truth: str = "") -> str:
+    # TODO(현업 적용): 아래 Mock 구현을 실제 LLM 호출로 교체하세요.
+    #   예) return client.messages.create(model="claude-haiku-4-5-20251001",
+    #        messages=[{"role":"user","content":question}]).content[0].text
     return f"보안 검증 응답: {question}"
 
 
@@ -232,6 +247,9 @@ def _group_e_agent(question: str, ground_truth: str = "") -> str:
     ),
 )
 def _group_f_agent(question: str, ground_truth: str = "") -> str:
+    # TODO(현업 적용): 아래 Mock 구현을 실제 LLM 호출로 교체하세요.
+    #   예) return client.messages.create(model="claude-haiku-4-5-20251001",
+    #        messages=[{"role":"user","content":question}]).content[0].text
     return f"다중 에이전트 협업 결과: {question}"
 
 
@@ -252,6 +270,9 @@ def _group_f_agent(question: str, ground_truth: str = "") -> str:
     ),
 )
 def _group_g_agent(question: str, ground_truth: str = "") -> str:
+    # TODO(현업 적용): 아래 Mock 구현을 실제 LLM 호출로 교체하세요.
+    #   예) return client.messages.create(model="claude-haiku-4-5-20251001",
+    #        messages=[{"role":"user","content":question}]).content[0].text
     # ExplainabilityConfig는 reasoning_markers("왜냐하면", "따라서" 등) 존재 여부를 검사한다.
     # ObservabilityConfig는 required_span_attributes 커버리지(task_id·task_type·execution_time)를 검사한다.
     return (

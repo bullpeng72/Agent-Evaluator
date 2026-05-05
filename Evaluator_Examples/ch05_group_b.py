@@ -84,6 +84,9 @@ print("\n=== 섹션 2: Group B — Behavioral Integrity ===")
 )
 def loop_safe_agent(question: str, ground_truth: str = "") -> str:
     """루프 탐지 에이전트 (mock) — 다양한 도구 사용."""
+    # TODO(현업 적용): 아래 Mock 구현을 실제 LLM 호출로 교체하세요.
+    #   예) return client.messages.create(model="claude-haiku-4-5-20251001",
+    #        messages=[{"role":"user","content":question}]).content[0].text
     return "search 결과: 정보 수집 → analyze 결과: 분석 완료 → summarize: 요약 완성"
 
 
@@ -99,6 +102,9 @@ def loop_safe_agent(question: str, ground_truth: str = "") -> str:
 )
 def scope_bounded_agent(question: str, ground_truth: str = "") -> str:
     """범위 경계 에이전트 (mock) — search/analyze만 사용."""
+    # TODO(현업 적용): 아래 Mock 구현을 실제 LLM 호출로 교체하세요.
+    #   예) return client.messages.create(model="claude-haiku-4-5-20251001",
+    #        messages=[{"role":"user","content":question}]).content[0].text
     return f"허가된 도구(search, analyze)로 처리: {question}"
 
 
@@ -113,6 +119,9 @@ def scope_bounded_agent(question: str, ground_truth: str = "") -> str:
 )
 def param_safe_agent(question: str, ground_truth: str = "") -> str:
     """도구 파라미터 안전성 에이전트 (mock)."""
+    # TODO(현업 적용): 아래 Mock 구현을 실제 LLM 호출로 교체하세요.
+    #   예) return client.messages.create(model="claude-haiku-4-5-20251001",
+    #        messages=[{"role":"user","content":question}]).content[0].text
     return f"안전한 파라미터로 실행: query='{question[:50]}'"
 
 
@@ -135,6 +144,9 @@ def param_safe_agent(question: str, ground_truth: str = "") -> str:
 )
 def context_window_agent(question: str, ground_truth: str = "") -> str:
     """컨텍스트 윈도우 + 상태 일관성 에이전트 (mock)."""
+    # TODO(현업 적용): 아래 Mock 구현을 실제 LLM 호출로 교체하세요.
+    #   예) return client.messages.create(model="claude-haiku-4-5-20251001",
+    #        messages=[{"role":"user","content":question}]).content[0].text
     return f"컨텍스트 내 정보를 활용하여 답변: {question}"
 
 
@@ -151,6 +163,9 @@ def context_window_agent(question: str, ground_truth: str = "") -> str:
 )
 def deadlock_resistant_agent(question: str, ground_truth: str = "") -> str:
     """교착 방지 에이전트 (mock) — 순환 위임 없이 단방향 위임."""
+    # TODO(현업 적용): 아래 Mock 구현을 실제 LLM 호출로 교체하세요.
+    #   예) return client.messages.create(model="claude-haiku-4-5-20251001",
+    #        messages=[{"role":"user","content":question}]).content[0].text
     # 실제 환경에서는 DeadlockConfig가 에이전트 위임 깊이와 순환 패턴을 추적
     return f"[coordinator → executor → finalizer] 단방향 위임으로 처리: {question}"
 
@@ -196,6 +211,9 @@ _b_state_good = {"user_role": "admin", "locked_tables": ["users", "payments"]}
     ),
 )
 def _b_fail_agent(question: str, ground_truth: str = "") -> str:
+    # TODO(현업 적용): 아래 Mock 구현을 실제 LLM 호출로 교체하세요.
+    #   예) return client.messages.create(model="claude-haiku-4-5-20251001",
+    #        messages=[{"role":"user","content":question}]).content[0].text
     _b_state["user_role"] = "guest"
     _b_state["locked_tables"] = []
     # 금지된 도구 3회 반복 → 루프 탐지 + 범위 위반

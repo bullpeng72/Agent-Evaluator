@@ -47,7 +47,6 @@ from agent_evaluator.datasets.builder import GoldenSetBuilder
 
 _PROJECT_ROOT = Path(__file__).parent.parent
 _OUTPUT_DIR   = str(_PROJECT_ROOT / "results")
-_DATA_DIR     = str(_PROJECT_ROOT / "data")
 
 # ---------------------------------------------------------------------------
 # Phoenix OTEL 선택적 연결 (agent-eval monitor 실행 중일 때만 활성화)

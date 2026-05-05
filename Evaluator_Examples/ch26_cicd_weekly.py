@@ -87,6 +87,42 @@ print("""
   └──────────────────────────────────────────────────────────────┘
 """)
 
+print("""
+  [도서 보완] GitHub Actions 설정 예시 (.github/workflows/agent-eval.yml)
+  ──────────────────────────────────────────────────────────────
+  name: AI Agent Quality Gate
+  on: [pull_request]
+  
+  jobs:
+    eval:
+      runs-on: ubuntu-latest
+      steps:
+        - uses: actions/checkout@v4
+        - name: Set up Python
+          uses: actions/setup-python@v5
+          with: {python-version: '3.10'}
+          
+        - name: Install dependencies
+          run: pip install agent-evaluator[llm]
+          
+        - name: Run Evaluation
+          env:
+            OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          run: python tests/run_eval_suite.py --output results/pr-eval.json
+          
+        - name: Quality Gate
+          run: |
+            agent-eval gate results/pr-eval.json \\
+              --tcr 85 --accuracy 70 --p95-latency 3.0 \\
+              --junit-xml results/junit.xml
+              
+        - name: Publish Test Report
+          uses: mikepenz/action-junit-report@v4
+          if: always()
+          with: {report_paths: 'results/junit.xml'}
+  ──────────────────────────────────────────────────────────────
+""")
+
 # ===========================================================================
 # 섹션 2: 골든 데이터셋 재현 평가 시뮬레이션
 # ===========================================================================

@@ -91,6 +91,9 @@ def sla_compliant_agent(question: str, ground_truth: str = "") -> tuple:
     EvalMetadata(extra={"ttft_ms": ...}) 를 함께 반환하면
     PerformanceMonitor 가 TTFTVariabilityConfig 집계에 해당 값을 사용한다.
     """
+    # TODO(현업 적용): 아래 Mock 구현을 실제 LLM 호출로 교체하세요.
+    #   예) return client.messages.create(model="claude-haiku-4-5-20251001",
+    #        messages=[{"role":"user","content":question}]).content[0].text
     _t0 = time.perf_counter()
     time.sleep(random.uniform(0.05, 0.25))  # 첫 토큰 지연 시뮬레이션
     _ttft_ms = (time.perf_counter() - _t0) * 1000
@@ -120,6 +123,9 @@ def efficient_agent(question: str, ground_truth: str = "") -> tuple:
     cost_unit="tokens", target=200: 완료당 200 토큰 이하 목표.
     task_type="data_analysis"으로 분리 → CostPredictabilityConfig CV 격리.
     """
+    # TODO(현업 적용): 아래 Mock 구현을 실제 LLM 호출로 교체하세요.
+    #   예) return client.messages.create(model="claude-haiku-4-5-20251001",
+    #        messages=[{"role":"user","content":question}]).content[0].text
     response = f"효율적 답변: {question[:30]}"
     _in_tok  = random.randint(55, 75)
     _out_tok = random.randint(75, 95)
@@ -143,6 +149,9 @@ def budget_aware_agent(question: str, ground_truth: str = "") -> tuple:
 
     task_type="reasoning"으로 분리 → CostPredictabilityConfig CV 격리.
     """
+    # TODO(현업 적용): 아래 Mock 구현을 실제 LLM 호출로 교체하세요.
+    #   예) return client.messages.create(model="claude-haiku-4-5-20251001",
+    #        messages=[{"role":"user","content":question}]).content[0].text
     response = f"예산 내 응답: {question}"
     _in_tok  = random.randint(75, 95)
     _out_tok = random.randint(115, 135)
@@ -190,6 +199,9 @@ _d_idx = [0]
     resource_budget=ResourceBudgetConfig(max_tokens=300, max_cost_usd=0.01),
 )
 def _d_fail_agent(question: str, ground_truth: str = "") -> tuple:
+    # TODO(현업 적용): 아래 Mock 구현을 실제 LLM 호출로 교체하세요.
+    #   예) return client.messages.create(model="claude-haiku-4-5-20251001",
+    #        messages=[{"role":"user","content":question}]).content[0].text
     i = _d_idx[0] % len(_d_ttft)
     _d_idx[0] += 1
     _in, _out = _d_tokens[i]

@@ -162,6 +162,9 @@ print("\n=== 섹션 2: Phoenix Playground 연동 ===")
 @agent_eval(monitor, task_type="qa", task_id_prefix="playground")
 def playground_agent(question: str, ground_truth: str = "") -> tuple:
     """Playground 탭에서 재현 가능한 에이전트 (llm.prompts 속성 포함)."""
+    # TODO(현업 적용): 아래 Mock 구현을 실제 LLM 호출로 교체하세요.
+    #   예) return client.messages.create(model="claude-haiku-4-5-20251001",
+    #        messages=[{"role":"user","content":question}]).content[0].text
     system_prompt = "당신은 정확하고 간결한 답변을 제공하는 AI 어시스턴트입니다."
     response = f"[PLAYGROUND] {question}에 대한 답변입니다."
     return response, EvalMetadata(

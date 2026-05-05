@@ -88,6 +88,9 @@ print("\n=== 섹션 1: @agent_eval 기본 ===")
 @agent_eval(monitor, task_type="qa", task_id_prefix="basic")
 def basic_agent(question: str, ground_truth: str = "") -> str:
     """가장 단순한 사용 패턴 — question/ground_truth 자동 탐지."""
+    # TODO(현업 적용): 아래 Mock 구현을 실제 LLM 호출로 교체하세요.
+    #   예) return client.messages.create(model="claude-haiku-4-5-20251001",
+    #        messages=[{"role":"user","content":question}]).content[0].text
     return f"답변: {question}"
 
 # 파라미터 이름이 다를 때 명시적 지정
@@ -95,6 +98,9 @@ def basic_agent(question: str, ground_truth: str = "") -> str:
             question_arg="query", ground_truth_arg="expected",
             task_id_prefix="param")
 def custom_param_agent(query: str, expected: str = "") -> str:
+    # TODO(현업 적용): 아래 Mock 구현을 실제 LLM 호출로 교체하세요.
+    #   예) return client.messages.create(model="claude-haiku-4-5-20251001",
+    #        messages=[{"role":"user","content":question}]).content[0].text
     return f"응답: {query}"
 
 basic_agent("대한민국의 수도는?", ground_truth="서울")
@@ -119,6 +125,9 @@ def keyword_score(response: str, ground_truth: str) -> float:
     task_id_prefix="score_fn",
 )
 def scored_agent(question: str, ground_truth: str = "") -> str:
+    # TODO(현업 적용): 아래 Mock 구현을 실제 LLM 호출로 교체하세요.
+    #   예) return client.messages.create(model="claude-haiku-4-5-20251001",
+    #        messages=[{"role":"user","content":question}]).content[0].text
     return f"서울은 대한민국의 수도이자 최대 도시입니다. — {question} 답변"
 
 scored_agent("한국의 수도에 대해 설명해줘", ground_truth="서울 대한민국 수도")
@@ -135,6 +144,9 @@ print("\n=== 섹션 3: EvalMetadata 튜플 반환 ===")
     task_id_prefix="meta",
 )
 def meta_agent(question: str, ground_truth: str = "") -> tuple:
+    # TODO(현업 적용): 아래 Mock 구현을 실제 LLM 호출로 교체하세요.
+    #   예) return client.messages.create(model="claude-haiku-4-5-20251001",
+    #        messages=[{"role":"user","content":question}]).content[0].text
     response = f"도구 실행 결과: {question}"
     return response, EvalMetadata(
         accuracy_score=0.92,          # score_fn보다 우선
@@ -164,6 +176,9 @@ print("\n=== 섹션 4: get_eval_ctx() 스레드 로컬 ===")
 
 @agent_eval(monitor, task_type="planning", task_id_prefix="ctx")
 def ctx_agent(question: str, ground_truth: str = "") -> str:
+    # TODO(현업 적용): 아래 Mock 구현을 실제 LLM 호출로 교체하세요.
+    #   예) return client.messages.create(model="claude-haiku-4-5-20251001",
+    #        messages=[{"role":"user","content":question}]).content[0].text
     response = f"그래프 실행 완료: {question}"
     ctx = get_eval_ctx()
     if ctx:
@@ -205,6 +220,9 @@ _retry_count = {"n": 0}
     task_id_prefix="retry",
 )
 def flaky_agent(question: str, ground_truth: str = "") -> str:
+    # TODO(현업 적용): 아래 Mock 구현을 실제 LLM 호출로 교체하세요.
+    #   예) return client.messages.create(model="claude-haiku-4-5-20251001",
+    #        messages=[{"role":"user","content":question}]).content[0].text
     _retry_count["n"] += 1
     if _retry_count["n"] < 3:
         raise ValueError(f"임시 오류 (시도 {_retry_count['n']})")
@@ -305,18 +323,30 @@ eval_qe = QuickEval(
 
 @eval_qe.qa
 def qe_qa_agent(question: str, ground_truth: str = "") -> str:
+    # TODO(현업 적용): 아래 Mock 구현을 실제 LLM 호출로 교체하세요.
+    #   예) return client.messages.create(model="claude-haiku-4-5-20251001",
+    #        messages=[{"role":"user","content":question}]).content[0].text
     return f"QE 답변: {question}"
 
 @eval_qe.tool_use
 def qe_tool_agent(question: str, ground_truth: str = "") -> str:
+    # TODO(현업 적용): 아래 Mock 구현을 실제 LLM 호출로 교체하세요.
+    #   예) return client.messages.create(model="claude-haiku-4-5-20251001",
+    #        messages=[{"role":"user","content":question}]).content[0].text
     return f"QE 도구 실행: {question}"
 
 @eval_qe.rag
 def qe_rag_agent(question: str, context: str = "", ground_truth: str = "") -> str:
+    # TODO(현업 적용): 아래 Mock 구현을 실제 LLM 호출로 교체하세요.
+    #   예) return client.messages.create(model="claude-haiku-4-5-20251001",
+    #        messages=[{"role":"user","content":question}]).content[0].text
     return context[:80] if context else "컨텍스트 없음"
 
 @eval_qe.code
 def qe_code_agent(question: str, ground_truth: str = "") -> str:
+    # TODO(현업 적용): 아래 Mock 구현을 실제 LLM 호출로 교체하세요.
+    #   예) return client.messages.create(model="claude-haiku-4-5-20251001",
+    #        messages=[{"role":"user","content":question}]).content[0].text
     return "def solution(): pass"
 
 QE_CASES = [

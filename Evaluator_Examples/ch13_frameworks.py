@@ -122,6 +122,59 @@ def _make_autogen_response(answer: str, agents: list, tokens: dict):
 
 
 # ===========================================================================
+# [도서 보완] Mock에서 Real로: 프레임워크 자동 인식의 원리
+# ===========================================================================
+# agent-evaluator는 'Duck Typing' 방식을 사용합니다.
+# 실제 프레임워크 패키지가 설치되어 있지 않아도, 반환된 객체가 특정 속성
+# (예: choices, usage, messages)을 가지고 있으면 해당 어댑터를 자동 적용합니다.
+# ===========================================================================
+
+print("\n=== [참고] PydanticAI 실제 통합 예시 (Real-world Bridge) ===")
+print("""
+  # 실제 PydanticAI 에이전트 코드 (pip install pydantic-ai 필요)
+  from pydantic_ai import Agent
+  
+  agent = Agent('openai:gpt-4o-mini')
+  
+  @agent_eval(monitor, task_type="qa", framework="pydanticai")
+  async def run_pydantic_ai(question: str):
+      # result는 RunResult 객체이며, 내부적으로 .all_messages()와 .usage()를 가짐
+      # agent-evaluator는 이 메서드들을 호출해 '자동으로' 지표를 추출합니다.
+      result = await agent.run(question)
+      return result  # 객체 그대로 반환
+""")
+
+def _simulate_pydantic_ai_run(answer: str, tokens: dict):
+    """PydanticAI RunResult의 핵심 인터페이스를 흉내내는 Duck 객체"""
+    class MockUsage:
+        def __init__(self, t): self.t = t
+        @property
+        def request_tokens(self): return self.t["input"]
+        @property
+        def response_tokens(self): return self.t["output"]
+        
+    class MockRunResult:
+        def __init__(self, a, t):
+            self.data = a
+            self._usage = MockUsage(t)
+        def usage(self): return self._usage
+        def all_messages(self): return [] # 간소화
+        def __str__(self): return str(self.data)
+
+    return MockRunResult(answer, tokens)
+
+@agent_eval(monitor, task_type="qa", framework="pydanticai", task_id_prefix="pydantic")
+def pydantic_ai_mock_agent(question: str, ground_truth: str = ""):
+    # TODO(현업 적용): 아래 Mock 구현을 실제 LLM 호출로 교체하세요.
+    #   예) return client.messages.create(model="claude-haiku-4-5-20251001",
+    #        messages=[{"role":"user","content":question}]).content[0].text
+    return _simulate_pydantic_ai_run("PydanticAI가 처리한 답변입니다.", {"input": 45, "output": 25})
+
+pydantic_ai_mock_agent("PydanticAI 통합 테스트")
+print("  ✅ PydanticAI Duck Typing 어댑터 작동 확인 (usage.request_tokens 자동 추출)")
+
+
+# ===========================================================================
 # 섹션 1: LangChain 어댑터
 # ===========================================================================
 print("\n=== 섹션 1: LangChain 어댑터 ===")
@@ -129,6 +182,9 @@ print("\n=== 섹션 1: LangChain 어댑터 ===")
 @agent_eval(monitor, task_type="tool_use", framework="langchain", task_id_prefix="lc")
 def langchain_agent(question: str, ground_truth: str = ""):
     """LangChain AgentExecutor 시뮬레이션."""
+    # TODO(현업 적용): 아래 Mock 구현을 실제 LLM 호출로 교체하세요.
+    #   예) return client.messages.create(model="claude-haiku-4-5-20251001",
+    #        messages=[{"role":"user","content":question}]).content[0].text
     return _make_langchain_response(
         answer="LangChain 검색 결과입니다.",
         tools=["web_search", "calculator", "wikipedia"],
@@ -154,6 +210,9 @@ print("\n=== 섹션 2: LangGraph 어댑터 ===")
 @agent_eval(monitor, task_type="planning", framework="langgraph", task_id_prefix="lg")
 def langgraph_agent(question: str, ground_truth: str = ""):
     """LangGraph 멀티노드 그래프 시뮬레이션."""
+    # TODO(현업 적용): 아래 Mock 구현을 실제 LLM 호출로 교체하세요.
+    #   예) return client.messages.create(model="claude-haiku-4-5-20251001",
+    #        messages=[{"role":"user","content":question}]).content[0].text
     return _make_langgraph_response(
         answer="LangGraph 분석 결과입니다.",
         nodes=["router", "search_node", "analysis_node", "synthesis_node"],
@@ -178,6 +237,9 @@ print("\n=== 섹션 3: CrewAI 어댑터 ===")
 @agent_eval(monitor, task_type="tool_use", framework="crewai", task_id_prefix="crew")
 def crewai_agent(question: str, ground_truth: str = ""):
     """CrewAI Crew (Researcher + Analyst + Writer) 시뮬레이션."""
+    # TODO(현업 적용): 아래 Mock 구현을 실제 LLM 호출로 교체하세요.
+    #   예) return client.messages.create(model="claude-haiku-4-5-20251001",
+    #        messages=[{"role":"user","content":question}]).content[0].text
     return _make_crewai_response(
         answer="CrewAI 팀 결과물입니다.",
         agents=["researcher", "analyst", "writer"],
@@ -202,6 +264,9 @@ print("\n=== 섹션 4: AutoGen 어댑터 ===")
 @agent_eval(monitor, task_type="tool_use", framework="autogen", task_id_prefix="ag")
 async def autogen_agent(question: str, ground_truth: str = ""):
     """AutoGen ConversableAgent 시뮬레이션."""
+    # TODO(현업 적용): 아래 Mock 구현을 실제 LLM 호출로 교체하세요.
+    #   예) return client.messages.create(model="claude-haiku-4-5-20251001",
+    #        messages=[{"role":"user","content":question}]).content[0].text
     await asyncio.sleep(0.01)  # 비동기 LLM 호출 흉내
     return _make_autogen_response(
         answer="AutoGen 협력 결과입니다.",

@@ -55,7 +55,8 @@ from agent_evaluator.config import load_env
 
 load_env()
 
-_OUTPUT_DIR = "results/"
+_PROJECT_ROOT = Path(__file__).parent.parent
+_OUTPUT_DIR   = str(_PROJECT_ROOT / "results")
 Path(_OUTPUT_DIR).mkdir(exist_ok=True)
 
 _PIPELINE_RESULTS: dict = {}  # 단계별 결과 집계
@@ -82,6 +83,9 @@ eval_dev = QuickEval(_OUTPUT_DIR, auto_save=False)
 
 @eval_dev.qa
 def dev_agent(question: str, ground_truth: str = "") -> str:
+    # TODO(현업 적용): 아래 Mock 구현을 실제 LLM 호출로 교체하세요.
+    #   예) return client.messages.create(model="claude-haiku-4-5-20251001",
+    #        messages=[{"role":"user","content":question}]).content[0].text
     answers = {
         "수도": "서울입니다",
         "GIL": "Python의 전역 인터프리터 잠금(GIL)은 하나의 스레드만 Python 코드를 실행하게 합니다",
@@ -162,6 +166,9 @@ monitor_ci = PerformanceMonitor(
     ),
 )
 def ci_agent(question: str, ground_truth: str = "") -> str:
+    # TODO(현업 적용): 아래 Mock 구현을 실제 LLM 호출로 교체하세요.
+    #   예) return client.messages.create(model="claude-haiku-4-5-20251001",
+    #        messages=[{"role":"user","content":question}]).content[0].text
     return f"답변: {question}에 대한 결과입니다 | 출처: 내부 DB | 왜냐하면 검증된 데이터를 참조했습니다"
 
 for q, gt in DEV_CASES:
@@ -231,6 +238,9 @@ accuracy_alert = SimpleTaskAlertRule(
     sla=SLAConfig(p95_ms=3000),
 )
 def production_agent(question: str, ground_truth: str = "") -> tuple:
+    # TODO(현업 적용): 아래 Mock 구현을 실제 LLM 호출로 교체하세요.
+    #   예) return client.messages.create(model="claude-haiku-4-5-20251001",
+    #        messages=[{"role":"user","content":question}]).content[0].text
     response = f"답변: {question} | 출처: 프로덕션 DB"
     return response, EvalMetadata(
         tool_calls=[
@@ -295,13 +305,14 @@ print("4단계 — 개선: 골든셋 추출 + 추세 분석")
 print("=" * 60)
 
 # 골든 데이터셋 자동 추출
-golden_dir = Path("data/golden_datasets/")
-golden_dir.mkdir(parents=True, exist_ok=True)
+golden_dir = _PROJECT_ROOT / "data" / "golden_datasets"
 builder = GoldenSetBuilder(source_dir=_OUTPUT_DIR, output_dir=str(golden_dir))
 
 try:
     golden_result = builder.extract(strategies=["high_value", "failure_cases"], max_cases=20)
     if golden_result:
+        # 추출 결과가 있을 때만 필요 시 디렉토리 생성 (실제 저장 로직이 추가될 경우 대비)
+        # 현재는 개수만 출력하므로 실제 mkdir은 생략 가능하나, 일관성을 위해 유지하거나 정리
         print(f"  골든셋 추출: {len(golden_result)}개 케이스")
         _PIPELINE_RESULTS["golden_cases"] = len(golden_result)
     else:

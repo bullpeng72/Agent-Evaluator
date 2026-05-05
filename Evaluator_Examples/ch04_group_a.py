@@ -83,6 +83,9 @@ print("\n=== 섹션 1: Group A — Goal Achievement ===")
 )
 def instruction_agent(question: str, ground_truth: str = "") -> str:
     """응답 형식·키워드 준수 에이전트 (mock)."""
+    # TODO(현업 적용): 아래 Mock 구현을 실제 LLM 호출로 교체하세요.
+    #   예) return client.messages.create(model="claude-haiku-4-5-20251001",
+    #        messages=[{"role":"user","content":question}]).content[0].text
     return json.dumps({"result": f"{question}에 대한 답변", "confidence": 0.92})
 
 
@@ -102,6 +105,9 @@ def instruction_agent(question: str, ground_truth: str = "") -> str:
 )
 def goal_aligned_agent(question: str, ground_truth: str = "") -> str:
     """목표-도구 정렬 에이전트 (mock)."""
+    # TODO(현업 적용): 아래 Mock 구현을 실제 LLM 호출로 교체하세요.
+    #   예) return client.messages.create(model="claude-haiku-4-5-20251001",
+    #        messages=[{"role":"user","content":question}]).content[0].text
     return f"분析 결과: {question}에 대한 검색 및 분析 완료"
 
 
@@ -120,6 +126,9 @@ def goal_aligned_agent(question: str, ground_truth: str = "") -> str:
 )
 def plan_agent(question: str, ground_truth: str = "") -> str:
     """계획 일관성 에이전트 (mock)."""
+    # TODO(현업 적용): 아래 Mock 구현을 실제 LLM 호출로 교체하세요.
+    #   예) return client.messages.create(model="claude-haiku-4-5-20251001",
+    #        messages=[{"role":"user","content":question}]).content[0].text
     plan = {
         "plan": {
             "steps": [
@@ -143,6 +152,9 @@ def plan_agent(question: str, ground_truth: str = "") -> str:
 )
 def subtask_agent(question: str, ground_truth: str = "") -> str:
     """하위 작업 완료율 에이전트 (mock)."""
+    # TODO(현업 적용): 아래 Mock 구현을 실제 LLM 호출로 교체하세요.
+    #   예) return client.messages.create(model="claude-haiku-4-5-20251001",
+    #        messages=[{"role":"user","content":question}]).content[0].text
     return "데이터 수집 완료, 分析 완료, 요약 작성 완료"
 
 
@@ -161,6 +173,9 @@ def subtask_agent(question: str, ground_truth: str = "") -> str:
 )
 def context_retaining_agent(question: str, ground_truth: str = "") -> str:
     """컨텍스트 유지 에이전트 — 이전 대화의 핵심 엔티티를 응답에 재참조."""
+    # TODO(현업 적용): 아래 Mock 구현을 실제 LLM 호출로 교체하세요.
+    #   예) return client.messages.create(model="claude-haiku-4-5-20251001",
+    #        messages=[{"role":"user","content":question}]).content[0].text
     return (
         f"이전 대화에서 언급된 GPT-4와 Claude, Gemini를 바탕으로 답변합니다. "
         f"'{question}'에 대해: 세 모델 모두 강력한 추론 능력을 갖추며, "
@@ -180,6 +195,9 @@ def context_retaining_agent(question: str, ground_truth: str = "") -> str:
 )
 def knowledge_retaining_agent(question: str, ground_truth: str = "") -> str:
     """지식 보존 에이전트 — 초기 주입된 사실을 응답에 재활용."""
+    # TODO(현업 적용): 아래 Mock 구현을 실제 LLM 호출로 교체하세요.
+    #   예) return client.messages.create(model="claude-haiku-4-5-20251001",
+    #        messages=[{"role":"user","content":question}]).content[0].text
     return (
         f"GPT-4는 OpenAI가 개발한 모델이고, Claude는 Anthropic이 개발한 모델입니다. "
         f"'{question}'에 대해: 두 모델 모두 2024년 이후 주요 벤치마크에서 우수한 성능을 보입니다."
@@ -229,6 +247,9 @@ _monitor_a_fail = PerformanceMonitor(output_dir=_OUTPUT_DIR)
     ),
 )
 def _a_fail_agent(question: str, ground_truth: str = "") -> str:
+    # TODO(현업 적용): 아래 Mock 구현을 실제 LLM 호출로 교체하세요.
+    #   예) return client.messages.create(model="claude-haiku-4-5-20251001",
+    #        messages=[{"role":"user","content":question}]).content[0].text
     return f"알겠습니다: {question}"   # JSON 없음, 키워드 없음, 도구 없음, context 없음
 
 for _q in ["분기 실적을 分析해줘", "전략을 수립해줘", "데이터를 검토해줘"]:

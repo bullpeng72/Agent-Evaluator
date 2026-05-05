@@ -111,6 +111,9 @@ print("--- v1 에이전트 등록 ---")
     ),
 )
 def v1_instruction_agent(question: str, ground_truth: str = "") -> str:
+    # TODO(현업 적용): 아래 Mock 구현을 실제 LLM 호출로 교체하세요.
+    #   예) return client.messages.create(model="claude-haiku-4-5-20251001",
+    #        messages=[{"role":"user","content":question}]).content[0].text
     # JSON 형식 미준수, required_keywords 없음
     return f"네, {question}에 대한 답을 드립니다."
 
@@ -124,6 +127,9 @@ def v1_instruction_agent(question: str, ground_truth: str = "") -> str:
     resource_budget=ResourceBudgetConfig(max_tokens=1000, max_cost_usd=0.02),
 )
 def v1_slow_agent(question: str, ground_truth: str = "") -> tuple:
+    # TODO(현업 적용): 아래 Mock 구현을 실제 LLM 호출로 교체하세요.
+    #   예) return client.messages.create(model="claude-haiku-4-5-20251001",
+    #        messages=[{"role":"user","content":question}]).content[0].text
     _t0 = time.perf_counter()
     time.sleep(random.uniform(0.4, 0.9))   # 400~900ms — SLA 초과 빈번
     _ttft = (time.perf_counter() - _t0) * 1000
@@ -148,6 +154,9 @@ def v1_slow_agent(question: str, ground_truth: str = "") -> tuple:
     ),
 )
 def v1_leaky_agent(question: str, ground_truth: str = "") -> str:
+    # TODO(현업 적용): 아래 Mock 구현을 실제 LLM 호출로 교체하세요.
+    #   예) return client.messages.create(model="claude-haiku-4-5-20251001",
+    #        messages=[{"role":"user","content":question}]).content[0].text
     return f"고객 정보: user@company.com, 010-9999-8888. 처리: {question}"
 
 
@@ -163,6 +172,9 @@ def v1_leaky_agent(question: str, ground_truth: str = "") -> str:
     ),
 )
 def v1_opaque_agent(question: str, ground_truth: str = "") -> str:
+    # TODO(현업 적용): 아래 Mock 구현을 실제 LLM 호출로 교체하세요.
+    #   예) return client.messages.create(model="claude-haiku-4-5-20251001",
+    #        messages=[{"role":"user","content":question}]).content[0].text
     return f"결론: {question}의 답은 '가능합니다'."  # 추론 마커 없음
 
 
@@ -177,6 +189,9 @@ def v1_opaque_agent(question: str, ground_truth: str = "") -> str:
     ),
 )
 def v1_risky_agent(question: str, ground_truth: str = "") -> tuple:
+    # TODO(현업 적용): 아래 Mock 구현을 실제 LLM 호출로 교체하세요.
+    #   예) return client.messages.create(model="claude-haiku-4-5-20251001",
+    #        messages=[{"role":"user","content":question}]).content[0].text
     response = f"처리 완료: {question}"
     return response, EvalMetadata(
         tool_calls=[
@@ -194,6 +209,9 @@ def v1_risky_agent(question: str, ground_truth: str = "") -> tuple:
     consensus=ConsensusConfig(similarity_threshold=0.7),
 )
 def v1_disagree_agent(question: str, ground_truth: str = "") -> tuple:
+    # TODO(현업 적용): 아래 Mock 구현을 실제 LLM 호출로 교체하세요.
+    #   예) return client.messages.create(model="claude-haiku-4-5-20251001",
+    #        messages=[{"role":"user","content":question}]).content[0].text
     response = f"처리: {question}"
     # 합의율 0.25 — 에이전트 간 결론이 자주 충돌
     return response, EvalMetadata(extra={"consensus": {"consensus_score": 0.25}})
@@ -217,6 +235,9 @@ def v1_disagree_agent(question: str, ground_truth: str = "") -> tuple:
     ),
 )
 def v1_fragile_agent(question: str, ground_truth: str = "") -> str:
+    # TODO(현업 적용): 아래 Mock 구현을 실제 LLM 호출로 교체하세요.
+    #   예) return client.messages.create(model="claude-haiku-4-5-20251001",
+    #        messages=[{"role":"user","content":question}]).content[0].text
     # 폴백 없이 빈 응답 — quality_floor 미달, 오류 인정 없음
     return ""
 
@@ -238,6 +259,9 @@ print("--- v2 에이전트 등록 ---")
     ),
 )
 def v2_instruction_agent(question: str, ground_truth: str = "") -> str:
+    # TODO(현업 적용): 아래 Mock 구현을 실제 LLM 호출로 교체하세요.
+    #   예) return client.messages.create(model="claude-haiku-4-5-20251001",
+    #        messages=[{"role":"user","content":question}]).content[0].text
     return json.dumps({"result": f"{question}에 대한 정확한 답변", "confidence": 0.95})
 
 
@@ -250,6 +274,9 @@ def v2_instruction_agent(question: str, ground_truth: str = "") -> str:
     resource_budget=ResourceBudgetConfig(max_tokens=1000, max_cost_usd=0.02),
 )
 def v2_fast_agent(question: str, ground_truth: str = "") -> tuple:
+    # TODO(현업 적용): 아래 Mock 구현을 실제 LLM 호출로 교체하세요.
+    #   예) return client.messages.create(model="claude-haiku-4-5-20251001",
+    #        messages=[{"role":"user","content":question}]).content[0].text
     _t0 = time.perf_counter()
     time.sleep(random.uniform(0.05, 0.25))  # 50~250ms — SLA 통과
     _ttft = (time.perf_counter() - _t0) * 1000
@@ -274,6 +301,9 @@ def v2_fast_agent(question: str, ground_truth: str = "") -> tuple:
     ),
 )
 def v2_secure_agent(question: str, ground_truth: str = "") -> str:
+    # TODO(현업 적용): 아래 Mock 구현을 실제 LLM 호출로 교체하세요.
+    #   예) return client.messages.create(model="claude-haiku-4-5-20251001",
+    #        messages=[{"role":"user","content":question}]).content[0].text
     return f"GDPR 준수 처리: {question} (개인정보는 마스킹·최소화됩니다)"
 
 
@@ -289,6 +319,9 @@ def v2_secure_agent(question: str, ground_truth: str = "") -> str:
     ),
 )
 def v2_transparent_agent(question: str, ground_truth: str = "") -> str:
+    # TODO(현업 적용): 아래 Mock 구현을 실제 LLM 호출로 교체하세요.
+    #   예) return client.messages.create(model="claude-haiku-4-5-20251001",
+    #        messages=[{"role":"user","content":question}]).content[0].text
     return (
         f"분석: '{question}'을 검토했습니다. "
         f"왜냐하면 이 요청에는 여러 선택지가 있기 때문입니다. "
@@ -308,6 +341,9 @@ def v2_transparent_agent(question: str, ground_truth: str = "") -> str:
     ),
 )
 def v2_safe_agent(question: str, ground_truth: str = "") -> tuple:
+    # TODO(현업 적용): 아래 Mock 구현을 실제 LLM 호출로 교체하세요.
+    #   예) return client.messages.create(model="claude-haiku-4-5-20251001",
+    #        messages=[{"role":"user","content":question}]).content[0].text
     response = f"안전하게 처리: {question}"
     return response, EvalMetadata(
         tool_calls=[
@@ -335,6 +371,9 @@ def v2_safe_agent(question: str, ground_truth: str = "") -> tuple:
     ),
 )
 def v2_resilient_agent(question: str, ground_truth: str = "") -> str:
+    # TODO(현업 적용): 아래 Mock 구현을 실제 LLM 호출로 교체하세요.
+    #   예) return client.messages.create(model="claude-haiku-4-5-20251001",
+    #        messages=[{"role":"user","content":question}]).content[0].text
     # 오류 인정 + 부분 결과 + 폴백 처리
     return (
         f"오류가 발생했으나 폴백 처리로 부분 결과를 제공합니다. "
@@ -350,6 +389,9 @@ def v2_resilient_agent(question: str, ground_truth: str = "") -> str:
     consensus=ConsensusConfig(similarity_threshold=0.7),
 )
 def v2_agree_agent(question: str, ground_truth: str = "") -> tuple:
+    # TODO(현업 적용): 아래 Mock 구현을 실제 LLM 호출로 교체하세요.
+    #   예) return client.messages.create(model="claude-haiku-4-5-20251001",
+    #        messages=[{"role":"user","content":question}]).content[0].text
     response = f"처리: {question}"
     # 합의율 0.92 — 에이전트 간 결론이 일치
     return response, EvalMetadata(extra={"consensus": {"consensus_score": 0.92}})
