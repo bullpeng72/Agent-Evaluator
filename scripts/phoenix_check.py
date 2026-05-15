@@ -371,7 +371,7 @@ def check_prompts() -> None:
     _section(4, "Prompts")
     from agent_evaluator import LLMJudge
 
-    judge = LLMJudge(model="gpt-4o-mini", sample_rate=0.0)
+    judge = LLMJudge(model="gpt-5-nano", sample_rate=0.0)
     prompt_name = f"ae-judge-{TS}"
 
     prompt_id: Optional[str] = None

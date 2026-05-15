@@ -760,7 +760,7 @@ async def extract_pdf(
 async def generate_pdf_qa_advanced(
     file: UploadFile = File(...),
     openai_api_key: str = Form(default=""),
-    model: str = Form(default="gpt-4o-mini"),
+    model: str = Form(default="gpt-5-nano"),
     num_questions: int = Form(default=3),
     max_chunks: int = Form(default=10),
     question_types: str = Form(default="factual,reasoning,summary"),
@@ -774,7 +774,7 @@ async def generate_pdf_qa_advanced(
     Args:
         file: PDF file upload
         openai_api_key: OpenAI API key (falls back to OPENAI_API_KEY env var)
-        model: OpenAI model name (gpt-4o-mini, gpt-4o, etc.)
+        model: OpenAI model name (gpt-5-nano, gpt-4o, etc.)
         num_questions: questions to generate per text chunk (1–5)
         max_chunks: maximum number of chunks to process (limits runtime)
         question_types: comma-separated types — factual, reasoning, summary

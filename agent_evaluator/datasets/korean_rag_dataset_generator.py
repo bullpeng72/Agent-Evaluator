@@ -239,11 +239,11 @@ class TextChunker:
 class KoreanQAGenerator:
     """한국어 QA 쌍 생성기 (OpenAI GPT 사용)"""
 
-    def __init__(self, api_key: Optional[str] = None, model: str = "gpt-4o-mini"):
+    def __init__(self, api_key: Optional[str] = None, model: str = "gpt-5-nano"):
         """
         Args:
             api_key: OpenAI API 키 (없으면 환경 변수에서 가져옴)
-            model: 사용할 모델 (gpt-4o-mini, gpt-4o, gpt-3.5-turbo 등)
+            model: 사용할 모델 (gpt-5-nano, gpt-4o, gpt-3.5-turbo 등)
         """
         if not OPENAI_AVAILABLE:
             raise ImportError("OpenAI library required: pip install openai")
@@ -608,7 +608,7 @@ class KoreanRAGDatasetGenerator:
     def __init__(
         self,
         api_key: Optional[str] = None,
-        model: str = "gpt-4o-mini",
+        model: str = "gpt-5-nano",
         chunk_size: int = 1000,
         chunk_overlap: int = 200,
         output_dir: str = "golden_datasets"
@@ -769,7 +769,7 @@ def example_generate_from_pdf():
 
     # 1. 생성기 초기화
     generator = KoreanRAGDatasetGenerator(
-        model="gpt-4o-mini",  # 또는 "gpt-4o" (더 비싸지만 품질 좋음)
+        model="gpt-5-nano",  # 또는 "gpt-4o" (더 비싸지만 품질 좋음)
         chunk_size=800,
         chunk_overlap=150,
         output_dir="golden_datasets"

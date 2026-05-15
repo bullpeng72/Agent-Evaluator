@@ -102,12 +102,12 @@ class DeepEvalAdapter(MetricAdapter):
     - AnswerRelevancyMetric: Answer quality for QA
     """
 
-    def __init__(self, model: str = "gpt-4o-mini", threshold: float = 0.5, timeout: int = 60):
+    def __init__(self, model: str = "gpt-5-nano", threshold: float = 0.5, timeout: int = 60):
         """
         Initialize DeepEval adapter
 
         Args:
-            model: LLM model to use for evaluation (default: gpt-4o-mini for cost)
+            model: LLM model to use for evaluation (default: gpt-5-nano for cost)
             threshold: Threshold for binary metrics (default: 0.5)
             timeout: Timeout per metric API call in seconds (default: 60).
                      Enforced via ThreadPoolExecutor.submit().result(timeout=...).

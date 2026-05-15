@@ -72,8 +72,8 @@ class HybridPerformanceMonitor(PerformanceMonitor):
         self,
         use_deepeval: bool = True,
         use_ragas: bool = True,
-        deepeval_model: str = "gpt-4o-mini",
-        ragas_model: str = "gpt-4o-mini",
+        deepeval_model: str = "gpt-5-nano",
+        ragas_model: str = "gpt-5-nano",
         enable_hallucination_detection: bool = True,
         enable_security_metrics: bool = False,
         security_config: Optional[Dict[str, Any]] = None,
@@ -87,8 +87,8 @@ class HybridPerformanceMonitor(PerformanceMonitor):
         Args:
             use_deepeval: Enable DeepEval metrics
             use_ragas: Enable Ragas metrics
-            deepeval_model: Model for DeepEval (default: gpt-4o-mini for cost)
-            ragas_model: Model for Ragas (default: gpt-4o-mini)
+            deepeval_model: Model for DeepEval (default: gpt-5-nano for cost)
+            ragas_model: Model for Ragas (default: gpt-5-nano)
             enable_hallucination_detection: Enable Layer1 hallucination detection (default: True for Hybrid)
             enable_security_metrics: Enable security metrics (Layer 1 & 2 security trackers)
             security_config: Security configuration (allowed_tools, restricted_tools, etc.)
@@ -980,14 +980,14 @@ def create_monitor(
         "balanced": {
             "use_deepeval": True,
             "use_ragas": False,
-            "deepeval_model": "gpt-4o-mini",
+            "deepeval_model": "gpt-5-nano",
             "enable_security_metrics": False
         },
         "rag": {
             "use_deepeval": True,
             "use_ragas": True,
-            "deepeval_model": "gpt-4o-mini",
-            "ragas_model": "gpt-4o-mini",
+            "deepeval_model": "gpt-5-nano",
+            "ragas_model": "gpt-5-nano",
             "enable_security_metrics": False
         },
         "full": {
@@ -1000,7 +1000,7 @@ def create_monitor(
         "secure": {
             "use_deepeval": True,
             "use_ragas": False,
-            "deepeval_model": "gpt-4o-mini",
+            "deepeval_model": "gpt-5-nano",
             "enable_security_metrics": True,
             "security_config": {
                 "allowed_tools": None,  # Allow all by default

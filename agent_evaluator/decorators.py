@@ -944,7 +944,7 @@ class TurnMetadata:
         def chat(question: str, sid: str = "default") -> str:
             result = llm.predict_with_metadata(question)
             return result["text"], TurnMetadata(
-                model="gpt-4o-mini",
+                model="gpt-5-nano",
                 tokens={"input": result["input_tokens"], "output": result["output_tokens"]},
                 tool_calls=result.get("tool_calls"),
             )
@@ -1726,7 +1726,7 @@ def _extract_autogen_metadata(raw: Any) -> Optional[EvalMetadata]:
         )
         if isinstance(cost_src, dict):
             usage_block = cost_src.get("usage_including_cached_inference") or {}
-            # usage_block: {"gpt-4o-mini": {"prompt_tokens": N, "completion_tokens": M, ...}, "total_cost": ...}
+            # usage_block: {"gpt-5-nano": {"prompt_tokens": N, "completion_tokens": M, ...}, "total_cost": ...}
             for key, val in usage_block.items():
                 if isinstance(val, dict) and "prompt_tokens" in val:
                     inp = int(val.get("prompt_tokens", 0))
@@ -5120,7 +5120,7 @@ def agent_eval(
             monitor,                      # 1. PerformanceMonitor 인스턴스 (필수)
             task_type="qa",               # 2. 태스크 유형
             framework="langchain",        # 3. 프레임워크 식별자 (대시보드 분류)
-            model_name="gpt-4o-mini",     # 4. LLM 모델명 (Phoenix 차트)
+            model_name="gpt-5-nano",     # 4. LLM 모델명 (Phoenix 차트)
             score_fn=custom_score,        # 5. 커스텀 정확도 함수 (없으면 자동 계산)
         )
         def agent(question, ground_truth=""): ...
@@ -7852,7 +7852,7 @@ class EvalDecorator:
     Examples::
 
         # 공통 설정 한 번만
-        eval = EvalDecorator(monitor, framework="langchain", model_name="gpt-4o-mini")
+        eval = EvalDecorator(monitor, framework="langchain", model_name="gpt-5-nano")
 
         @eval(task_type="qa")
         def qa_agent(question, ground_truth=""): ...
@@ -8312,7 +8312,7 @@ class EvalDecorator:
         return _ShortcutCallable(self, "qa")
 
     @classmethod
-    def for_llm_judge(cls, output_dir: str = "results/", model: str = "gpt-4o-mini", **kwargs) -> "EvalDecorator":
+    def for_llm_judge(cls, output_dir: str = "results/", model: str = "gpt-5-nano", **kwargs) -> "EvalDecorator":
         """LLM Judge 평가에 최적화된 ``EvalDecorator`` 팩토리 메서드.
 
         ``LLMJudge`` 와 ``enable_llm_judge=True`` 를 자동 설정한다.
@@ -8320,7 +8320,7 @@ class EvalDecorator:
 
         Example::
 
-            eval = EvalDecorator.for_llm_judge("results/", model="gpt-4o-mini")
+            eval = EvalDecorator.for_llm_judge("results/", model="gpt-5-nano")
 
             @eval(task_type="qa")
             def agent(question, ground_truth=""): ...

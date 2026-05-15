@@ -343,12 +343,24 @@ def cmd_init(args: argparse.Namespace) -> int:  # noqa: C901
             # companion 설정값 처리
             for comp_var, comp_default, comp_desc in companions:
                 comp_cur, comp_src = _current_value(comp_var)
+
+                # 모델명 등은 마스킹하지 않음 (키가 아니므로)
+                val_display = _mask(comp_cur) if "KEY" in comp_var else (comp_cur or "")
+
                 if comp_cur:
-                    print(
-                        f"  {_dim(comp_var)}: {_mask(comp_cur)}  {_dim(f'({comp_src})')} "
-                        f"— {_dim('keep')}"
-                    )
-                else:
+                    print(f"  {comp_var}: {val_display}  {_dim(f'({comp_src})')}")
+                    if comp_cur != comp_default:
+                        print(f"  {Y}Notice: New code default is {comp_default}{R}")
+
+                    try:
+                        keep_comp = input(f"  Keep existing {comp_var}? [Y/n]: ").strip().lower()
+                    except EOFError:
+                        keep_comp = "y"
+
+                    if keep_comp not in ("n", "no"):
+                        comp_cur = None  # Force re-entry
+
+                if not comp_cur:
                     try:
                         comp_input = input(
                             f"  {comp_var} [{comp_default}]  ({comp_desc}): "

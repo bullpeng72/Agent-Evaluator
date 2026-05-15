@@ -4248,7 +4248,8 @@ textarea.gd-input{height:60px;resize:vertical;font-family:inherit}
         <div>
           <div style="font-size:13px;color:var(--text2);margin-bottom:4px">모델 <span style="font-size:11px">(API 키 입력 시 적용)</span></div>
           <select class="gd-input" x-model="gdAiModel" style="width:100%" :disabled="!gdAiKey">
-            <option value="gpt-4o-mini">gpt-4o-mini (빠름, 저렴)</option>
+            <option value="gpt-5-nano">gpt-5-nano (빠름, 저렴)</option>
+            <option value="gpt-4o-mini">gpt-4o-mini</option>
             <option value="gpt-4o">gpt-4o (고품질)</option>
             <option value="gpt-3.5-turbo">gpt-3.5-turbo</option>
           </select>
@@ -5020,7 +5021,7 @@ function app() { return {
   _hallucination: null, // cached hallucination rate for delta
   taskDetail: null,
   gdFiles: [], gdSelected: null, gdItems: {}, gdNewName: '', gdShowCreate: false,
-  gdAiPanel: false, gdAiKey: '', gdAiModel: 'gpt-4o-mini', gdAiNumQ: 3, gdAiMaxChunks: 10,
+  gdAiPanel: false, gdAiKey: '', gdAiModel: 'gpt-5-nano', gdAiNumQ: 3, gdAiMaxChunks: 10,
   gdAiQTypes: ['factual','reasoning','summary'], gdAiUploading: false, gdAiResult: null, gdAiSaveName: '',
   glossSearch: '',
 

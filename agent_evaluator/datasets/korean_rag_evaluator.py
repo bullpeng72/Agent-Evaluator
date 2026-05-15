@@ -156,7 +156,7 @@ class KoreanRAGEvaluator:
         self,
         rag_system: Optional[RAGSystemInterface] = None,
         use_ragas: bool = True,
-        ragas_model: str = "gpt-4o-mini",
+        ragas_model: str = "gpt-5-nano",
         output_dir: Optional[str] = None,
         golden_datasets_dir: Optional[str] = None
     ):
@@ -738,7 +738,7 @@ def example_evaluate_rag():
     evaluator = KoreanRAGEvaluator(
         rag_system=rag_system,
         use_ragas=True,
-        ragas_model="gpt-4o-mini"
+        ragas_model="gpt-5-nano"
     )
 
     # 4. 평가 실행

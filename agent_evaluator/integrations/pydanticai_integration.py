@@ -17,7 +17,7 @@ Examples::
     from agent_evaluator import QuickEval
     from agent_evaluator.integrations.pydanticai_integration import PydanticAIEvaluator
 
-    agent = Agent("openai:gpt-4o-mini", system_prompt="Answer concisely.")
+    agent = Agent("openai:gpt-5-nano", system_prompt="Answer concisely.")
 
     # 1. 데코레이터 방식
     eval = QuickEval("results/")
