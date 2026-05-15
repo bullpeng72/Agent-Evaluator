@@ -1512,6 +1512,14 @@ mypy agent_evaluator/          # type check
 
 ## Changelog
 
+### v0.9.2 (2026-05-15) — GPT-5 Standardization · Token Parameter Modernization
+
+- ✨ **GPT-5 Standardization**: Set `gpt-5-nano` as the default OpenAI model project-wide, including library config and all 26 examples.
+- 🔧 **Modern Token Parameters**: Implemented `max_completion_tokens` for OpenAI API calls (GPT-5 compatible) while maintaining `max_tokens` for Anthropic.
+- 📝 **Example Modernization**: Updated all 26 `Evaluator_Examples/` with OpenAI SDK snippets and latest model IDs (`gpt-5-nano`).
+- 🔧 **Pricing Update**: Refined cost estimation for `gpt-5-nano` ($0.05/$0.40 per 1M tokens) in `llm_judge.py` and documentation.
+- 🔧 **Environment Templates**: Modernized `.env.example` to accurately map all 26 book chapter examples to required variables.
+
 ### v0.9.1 (2026-04-27) — Dependency restructure · pip resolver optimization
 
 - 🔧 `pyproject.toml` dependency restructure: reduced base install to 5 core packages, split fastapi · otel · pdfplumber into `[serve]` · `[otel]` · `[pdf]` · `[sdk]` extras

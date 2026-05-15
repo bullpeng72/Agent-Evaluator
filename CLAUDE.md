@@ -15,7 +15,7 @@ It goes beyond simple accuracy measurement to comprehensively determine **whethe
 
 Measures **25 Native Trackers + 33 Harness Config = 58 metrics** across 3 layers (Foundation / Agentic / Hybrid).
 
-- **Version:** 0.9.1 (Beta)
+- **Version:** 0.9.2 (Beta)
 - **Python:** 3.8+
 - **License:** MIT
 - **Author:** Sungwoo Kim
