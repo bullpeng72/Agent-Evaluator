@@ -5,36 +5,36 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Version](https://img.shields.io/badge/version-0.9.1-green.svg)](https://github.com/bullpeng72/Agent-Evaluator)
 
-**AI 에이전트 배포 준비도를 7개 Gate로 판정하는 Harness Engineering 평가 SDK**
+**Harness Engineering evaluation SDK that judges AI agent deployment readiness through 7 Gates**
 
-에이전트가 "잘 동작하는가?"를 넘어 **"프로덕션에 배포할 준비가 됐는가?"** 를 묻습니다.
-목표 달성(A) · 행동 무결성(B) · 신뢰성(C) · 성능 계약(D) · 보안 경계(E) · 멀티에이전트 조율(F) · 관측 가능성(G) —
-**7개 Harness Gate가 에이전트의 배포 준비도를 종합 판정**합니다.
+It asks not just "Does the agent work well?" but **"Is the agent ready for production deployment?"**
+Goal Achievement (A) · Behavioral Integrity (B) · Reliability (C) · Performance Contract (D) · Security Boundary (E) · Multi-Agent Coordination (F) · Observability (G) —
+**7 Harness Gates comprehensively determine agent deployment readiness**.
 
-데코레이터 한 줄로 LangChain · CrewAI · AutoGen 등 **21개 프레임워크**를 자동 인식하고,
-**58개 지표(25 Native Trackers + 33 Harness Config)**를 코드 수정 없이 측정합니다.
+One decorator line auto-recognizes **21 frameworks** including LangChain · CrewAI · AutoGen,
+and measures **58 metrics (25 Native Trackers + 33 Harness Config)** without code modification.
 
 ---
 
-## Harness Engineering — 7개 Gate로 AI 에이전트 배포 준비도 판정
+## Harness Engineering — Judging AI Agent Deployment Readiness Through 7 Gates
 
-단순 정확도 측정이 아닌 **배포 준비도(deployment readiness)** 를 기준으로 에이전트를 평가합니다.
-33개 Harness Config를 데코레이터 파라미터로 전달하면, `PerformanceMonitor`가 자동 집계해 7개 Gate의 PASS/WARN/FAIL을 판정합니다.
+Evaluates agents based on **deployment readiness** rather than simple accuracy measurement.
+Pass 33 Harness Configs as decorator parameters and `PerformanceMonitor` auto-aggregates to determine PASS/WARN/FAIL for each of the 7 Gates.
 
 ```python
 from agent_evaluator import (
-    InstructionConfig, GoalAlignmentConfig,          # Gate A — 목표 달성
-    LoopDetectionConfig, StateConsistencyConfig,      # Gate B — 행동 무결성
-    FaultToleranceConfig, GracefulDegradationConfig,  # Gate C — 신뢰성
-    SLAConfig, EfficiencyConfig,                      # Gate D — 성능 계약
-    ThreatSeverityConfig, ComplianceConfig,           # Gate E — 보안 경계
-    ConsensusConfig, AgentRoleConfig,                 # Gate F — 멀티에이전트 조율
-    ExplainabilityConfig, ObservabilityConfig,        # Gate G — 관측 가능성
+    InstructionConfig, GoalAlignmentConfig,          # Gate A — Goal Achievement
+    LoopDetectionConfig, StateConsistencyConfig,      # Gate B — Behavioral Integrity
+    FaultToleranceConfig, GracefulDegradationConfig,  # Gate C — Reliability
+    SLAConfig, EfficiencyConfig,                      # Gate D — Performance Contract
+    ThreatSeverityConfig, ComplianceConfig,           # Gate E — Security Boundary
+    ConsensusConfig, AgentRoleConfig,                 # Gate F — Multi-Agent Coordination
+    ExplainabilityConfig, ObservabilityConfig,        # Gate G — Observability
 )
 from agent_evaluator.decorators import agent_eval
 
 @agent_eval(monitor, task_type="qa",
-    instructions=InstructionConfig(required_keywords=["서울"], fail_on_violation=True),
+    instructions=InstructionConfig(required_keywords=["Seoul"], fail_on_violation=True),
     loop_detection=LoopDetectionConfig(consecutive_repeat_threshold=3),
     sla=SLAConfig(p95_ms=3000),
     explainability=ExplainabilityConfig(min_reasoning_length=20),
@@ -42,29 +42,29 @@ from agent_evaluator.decorators import agent_eval
 def my_agent(question: str, ground_truth: str = "") -> str:
     return llm.invoke(question)
 
-monitor.save_to_file("eval")   # eval.json + eval.html — Gate A–G 판정 포함
+monitor.save_to_file("eval")   # eval.json + eval.html — includes Gate A–G judgments
 ```
 
-| Gate | 영역 | 판정 기준 | Harness Config (개수) |
-|------|------|-----------|----------------------|
-| **A** 🟢 | **Goal Achievement** | 지시 이행률 · 목표 정렬 · 계획 일관성 · 컨텍스트 유지 | InstructionConfig · GoalAlignmentConfig · PlanConfig · SubtaskConfig · ContextRetentionConfig · KnowledgeRetentionConfig **(6)** |
-| **B** 🔵 | **Behavioral Integrity** | 루프 탐지 · 범위 일탈 · 도구 안전성 · 상태 일관성 · 교착 탐지 | LoopDetectionConfig · ScopeConfig · ToolParameterSafetyConfig · ContextWindowConfig · StateConsistencyConfig · DeadlockConfig **(6)** |
-| **C** 🟡 | **Reliability** | 재현 가능성 · 오류 복구율 · 품질 하한 · 멱등성 | ReproducibilityConfig · FaultToleranceConfig · GracefulDegradationConfig · RetryConsistencyConfig · IdempotencyConfig **(5)** |
-| **D** 🔵 | **Performance Contract** | SLA 준수율 · 토큰 효율 · TTFT 변동성 · 비용 예측 가능성 | SLAConfig · EfficiencyConfig · ResourceBudgetConfig · TTFTVariabilityConfig · CostPredictabilityConfig **(5)** |
-| **E** 🔴 | **Security Boundary** | 위협 심각도 · 규정 준수 · 위협 대응 행동 | ThreatSeverityConfig · ComplianceConfig · ThreatResponseConfig **(3)** |
-| **F** 🟣 | **Multi-Agent Coordination** | 에이전트 간 합의율 · 정보 전파 정확도 · 역할 준수 · 충돌 해결 | ConsensusConfig · PropagationConfig · AgentRoleConfig · ConflictResolutionConfig **(4)** |
-| **G** 🩵 | **Observability** | 추론 설명 가능성 · 내부 상태 추적 · 오류 진단 · 지연 원인 분석 | ExplainabilityConfig · ObservabilityConfig · ErrorDiagnosisConfig · LatencyAttributionConfig **(4)** |
+| Gate | Area | Judgment Criteria | Harness Config (count) |
+|------|------|-------------------|----------------------|
+| **A** 🟢 | **Goal Achievement** | Instruction compliance · goal alignment · plan consistency · context retention | InstructionConfig · GoalAlignmentConfig · PlanConfig · SubtaskConfig · ContextRetentionConfig · KnowledgeRetentionConfig **(6)** |
+| **B** 🔵 | **Behavioral Integrity** | Loop detection · scope deviation · tool safety · state consistency · deadlock detection | LoopDetectionConfig · ScopeConfig · ToolParameterSafetyConfig · ContextWindowConfig · StateConsistencyConfig · DeadlockConfig **(6)** |
+| **C** 🟡 | **Reliability** | Reproducibility · error recovery rate · quality floor · idempotency | ReproducibilityConfig · FaultToleranceConfig · GracefulDegradationConfig · RetryConsistencyConfig · IdempotencyConfig **(5)** |
+| **D** 🔵 | **Performance Contract** | SLA compliance · token efficiency · TTFT variability · cost predictability | SLAConfig · EfficiencyConfig · ResourceBudgetConfig · TTFTVariabilityConfig · CostPredictabilityConfig **(5)** |
+| **E** 🔴 | **Security Boundary** | Threat severity · compliance · threat response behavior | ThreatSeverityConfig · ComplianceConfig · ThreatResponseConfig **(3)** |
+| **F** 🟣 | **Multi-Agent Coordination** | Inter-agent consensus · information propagation accuracy · role compliance · conflict resolution | ConsensusConfig · PropagationConfig · AgentRoleConfig · ConflictResolutionConfig **(4)** |
+| **G** 🩵 | **Observability** | Reasoning explainability · internal state tracking · error diagnosis · latency attribution | ExplainabilityConfig · ObservabilityConfig · ErrorDiagnosisConfig · LatencyAttributionConfig **(4)** |
 
-각 Gate는 **25개 Native Tracker**(Layer 1 기반 지표 6개 + Layer 2 에이전틱 지표 10개 + 보안 지표 5개 + LLMJudge)로부터 원시 측정값을 받아 집계됩니다.
+Each Gate receives raw measurements from **25 Native Trackers** (6 Layer 1 foundation metrics + 10 Layer 2 agentic metrics + 5 security metrics + LLMJudge) and aggregates them.
 
-> 전체 실전 예제: `Evaluator_Examples/ch03_harness_basics.py` | 대시보드: `agent-eval dashboard`
+> Full practical examples: `Evaluator_Examples/ch03_harness_basics.py` | Dashboard: `agent-eval dashboard`
 
 ---
 
-## 왜 데코레이터인가?
+## Why Decorators?
 
 ```python
-# ❌ 기존 방식 — 에이전트 코드를 직접 수정, 보일러플레이트 작성 필요
+# ❌ Traditional approach — direct agent code modification, boilerplate required
 import time, uuid
 from datetime import datetime
 
@@ -76,9 +76,9 @@ def my_agent(question, ground_truth):
     task = TaskResult(
         task_id=str(uuid.uuid4()), task_type="qa", success=True,
         completion_score=1.0,
-        accuracy_score=compute_accuracy(response, ground_truth),  # 직접 계산
-        execution_time=elapsed,                                    # 직접 측정
-        tokens_used=extract_tokens(response),                      # 프레임워크마다 다름
+        accuracy_score=compute_accuracy(response, ground_truth),  # manual calculation
+        execution_time=elapsed,                                    # manual measurement
+        tokens_used=extract_tokens(response),                      # varies by framework
         tool_calls=[], attempts=1, errors=[], timestamp=datetime.now(),
         question=question, response=str(response), ground_truth=ground_truth,
     )
@@ -87,83 +87,83 @@ def my_agent(question, ground_truth):
 ```
 
 ```python
-# ✅ 데코레이터 방식 — 한 줄 추가, 에이전트 코드 무수정
+# ✅ Decorator approach — one line added, agent code unchanged
 from agent_evaluator import QuickEval
 
 eval = QuickEval("results/")
 
-@eval.qa                                   # 이 한 줄이 전부
+@eval.qa                                   # this one line is all it takes
 def my_agent(question, ground_truth=""):
-    return llm.invoke(question)            # 에이전트 로직 그대로 유지
+    return llm.invoke(question)            # agent logic unchanged
 ```
 
-데코레이터는 **비침습적(non-invasive)**입니다. 원본 함수의 시그니처·반환값·예외 처리가 변경되지 않으며, 측정이 끝나면 원래 반환값이 그대로 호출자에게 전달됩니다.
+Decorators are **non-invasive**. The original function's signature, return value, and exception handling remain unchanged. After measurement, the original return value is passed directly to the caller.
 
 ---
 
-## 데코레이터 동작 원리
+## How Decorators Work
 
 ```
-호출자
+Caller
   │
   ▼
 @agent_eval / @batch_eval / @conversation_eval
   │
-  ├─ [1] 실행 시간 측정 시작
-  ├─ [2] 원본 함수 실행
-  ├─ [3] 프레임워크 어댑터 적용   ← tool_calls · chain_steps · tokens_used 자동 추출
-  ├─ [4] EvalMetadata 병합        ← 함수가 (response, EvalMetadata(...)) 반환 시
-  ├─ [5] TaskResult 자동 구성     ← 24개 필드 완성
-  ├─ [6] PerformanceMonitor.record_task() 호출
+  ├─ [1] Start execution time measurement
+  ├─ [2] Execute original function
+  ├─ [3] Apply framework adapter   ← auto-extract tool_calls · chain_steps · tokens_used
+  ├─ [4] Merge EvalMetadata        ← when function returns (response, EvalMetadata(...))
+  ├─ [5] Auto-build TaskResult     ← 24 fields completed
+  ├─ [6] Call PerformanceMonitor.record_task()
   │       ├─ Layer 1: TCR · Accuracy · Hallucination · Quality · Latency · Token
-  │       ├─ Layer 2: Tool · Retry · Coordination · Workflow · Security (5종)
+  │       ├─ Layer 2: Tool · Retry · Coordination · Workflow · Security (5 types)
   │       ├─ Layer 3: LLMJudge · DeepEval · Ragas  (opt-in)
-  │       └─ Harness: 33개 Config 자동 집계 → Gate A–G 통과/경고/실패 판정
+  │       └─ Harness: auto-aggregate 33 Configs → Gate A–G pass/warn/fail judgment
   │
-  └─ [7] 원본 반환값 그대로 호출자에게 전달
+  └─ [7] Return original value to caller unchanged
 ```
 
 ---
 
-## 설치
+## Installation
 
 ```bash
-# 기본 설치 — LLMJudge · 대시보드 · OTEL 모니터링 · PDF 포함 (sdk 기본 내장)
+# Base install — includes LLMJudge · dashboard · OTEL monitoring · PDF (sdk built-in)
 pip install agent-evaluator
 
-# ── Evaluator_Examples/ 예제 실행 ─────────────────────────────────────────
-pip install "agent-evaluator[examples]"           # 모든 예제 실행 가능 (기본 + eval)
+# ── Running Evaluator_Examples/ ─────────────────────────────────────────────
+pip install "agent-evaluator[examples]"           # all examples runnable (base + eval)
 
-# ── 프레임워크 확장 (사용자 에이전트 코드가 필요로 하는 경우) ──────────────
-# agent-evaluator 자체는 아래 패키지 없이도 완전히 동작 (duck typing 방식)
-pip install "agent-evaluator[eval]"               # DeepEval ≥3.0 + Ragas ≥0.4 (외부 평가)
+# ── Framework extensions (when your agent code needs them) ──────────────────
+# agent-evaluator itself works fully without these packages (duck typing)
+pip install "agent-evaluator[eval]"               # DeepEval ≥3.0 + Ragas ≥0.4 (external eval)
 pip install "agent-evaluator[langchain]"          # LangChain ≥1.0 / LangGraph ≥1.0
 pip install "agent-evaluator[dspy]"               # DSPy ≥2.0
 pip install "agent-evaluator[pydanticai]"         # PydanticAI ≥1.0
-pip install "agent-evaluator[crewai]"             # CrewAI ≥1.0 (무거움 — 전이 의존성 100개+)
-pip install "agent-evaluator[autogen]"            # AutoGen ≥0.3 (무거움)
+pip install "agent-evaluator[crewai]"             # CrewAI ≥1.0 (heavy — 100+ transitive deps)
+pip install "agent-evaluator[autogen]"            # AutoGen ≥0.3 (heavy)
 
-# ── 조합 편의 ──────────────────────────────────────────────────────────────
-pip install "agent-evaluator[full]"               # 전체 (⚠️ crewai/autogen 포함, 10분+ 소요)
+# ── Convenience bundles ──────────────────────────────────────────────────────
+pip install "agent-evaluator[full]"               # All (⚠️ includes crewai/autogen, 10+ min)
 ```
 
 ---
 
-## 3가지 데코레이터
+## 3 Decorator Types
 
-Agent Evaluator의 평가 인터페이스는 호출 패턴에 따라 정확히 **3종**으로 구성됩니다.
+Agent Evaluator's evaluation interface consists of exactly **3 types** based on call patterns.
 
-| 데코레이터 | 호출 패턴 | 사용 시나리오 |
-|-----------|---------|-------------|
-| `@agent_eval` | 함수 1회 호출 = TaskResult 1건 | 단일 QA · 도구 호출 · RAG · 보안 검사 |
-| `@batch_eval` | 함수 1회 호출 = TaskResult N건 | 데이터셋 일괄 평가 · 벤치마크 |
-| `@conversation_eval` | 함수 N회 호출 = TaskResult 1건 | 멀티턴 대화 · 챗봇 세션 |
+| Decorator | Call Pattern | Use Scenario |
+|-----------|-------------|-------------|
+| `@agent_eval` | 1 function call = 1 TaskResult | Single QA · tool call · RAG · security check |
+| `@batch_eval` | 1 function call = N TaskResults | Dataset batch evaluation · benchmarks |
+| `@conversation_eval` | N function calls = 1 TaskResult | Multi-turn conversation · chatbot session |
 
 ---
 
-### 데코레이터 1: `@agent_eval`
+### Decorator 1: `@agent_eval`
 
-**1번 호출 → 1개 TaskResult**. 동기·비동기·제너레이터·재시도를 모두 지원합니다.
+**1 call → 1 TaskResult**. Supports sync · async · generator · retry.
 
 ```python
 from agent_evaluator import PerformanceMonitor
@@ -171,92 +171,92 @@ from agent_evaluator.decorators import agent_eval, RetryConfig, SecurityConfig, 
 
 monitor = PerformanceMonitor("results/")
 
-# 기본 — QA 평가
+# Basic — QA evaluation
 @agent_eval(monitor, task_type="qa")
 def agent(question: str, ground_truth: str = "") -> str:
     return llm.invoke(question)
 
-# 비동기 함수 — 동일한 데코레이터 사용
+# Async function — same decorator
 @agent_eval(monitor, task_type="qa")
 async def async_agent(question: str, ground_truth: str = "") -> str:
     return await async_llm.invoke(question)
 
-# 재시도 내장 — RetryConfig 로 재시도 정책 구성, attempts 필드 자동 기록
+# Built-in retry — retry policy via RetryConfig, attempts field auto-recorded
 @agent_eval(monitor, task_type="qa", retry=RetryConfig(max=3, delay=1.0, backoff=2.0))
 def robust_agent(question: str, ground_truth: str = "") -> str:
     return unreliable_llm.invoke(question)
 
-# RAG 에이전트 — rag_mode=True 하나로 context + hallucination 자동 활성
+# RAG agent — one rag_mode=True enables context + hallucination automatically
 @agent_eval(monitor, task_type="information_retrieval", rag_mode=True, context_arg="context")
 def rag_agent(question: str, context: str = "", ground_truth: str = "") -> str:
     return retrieval_llm.invoke(question, context)
 
-# 보안 검사 — security=SecurityConfig() 로 5개 보안 트래커 임시 활성
+# Security check — temporarily enables 5 security trackers for this call
 @agent_eval(monitor, task_type="qa", security=SecurityConfig())
 def secure_agent(question: str, ground_truth: str = "") -> str:
     return llm.invoke(question)
 
-# LLM 프레임워크 어댑터 — tool_calls · tokens_used 자동 추출
+# LLM framework adapter — auto-extracts tool_calls · tokens_used
 @agent_eval(monitor, task_type="tool_use", framework="langchain")
 def langchain_agent(question: str, ground_truth: str = "") -> str:
     return executor.invoke({"input": question})
 ```
 
-**`@agent_eval` 주요 파라미터**
+**`@agent_eval` Key Parameters**
 
-| 파라미터 | 기본값 | 설명 |
-|---------|--------|------|
-| `task_type` | `"qa"` | 태스크 유형 (qa · tool_use · information_retrieval · code_generation 등) |
-| `framework` | `"native"` | 프레임워크 어댑터 (21종 지원) |
-| `question_arg` | `"question"` | 질문 인자명 |
-| `ground_truth_arg` | `"ground_truth"` | 정답 인자명 |
-| `context_arg` | `None` | RAG 컨텍스트 인자명 |
-| `expected_tools_arg` | `None` | 기대 툴 목록 인자명 (Tool Selection F1 자동 계산) |
-| `score_fn` | `None` | 커스텀 정확도 계산 함수 `(response, gt) → float` |
-| `rag_mode` | `False` | context_arg + hallucination 자동 활성 단축 설정 |
-| `retry` | `None` | `RetryConfig` 인스턴스 — 재시도 정책 (max · delay · backoff · jitter_type 등) |
-| `security` | `None` | `SecurityConfig` 인스턴스 — 보안 지표 이 호출에만 임시 활성 |
-| `llm_judge` | `None` | `LLMJudgeConfig` 인스턴스 — LLM Judge 이 호출에만 임시 활성 |
-| `enable_hallucination_detection` | `False` | Hallucination Detection 이 호출에만 임시 활성 |
-| `enable_anomaly_detection` | `False` | AnomalyDetector 이 호출에만 임시 활성 |
-| `timeout` | `None` | 최대 실행 시간(초) |
-| `sample_rate` | `1.0` | 기록 샘플링 비율 |
-| `on_record` | `None` | 기록 직전 콜백 (TaskResult 교체 가능) |
-| `alert_rules` | `[]` | 조건부 알림 규칙 목록 |
-| `flush_every` | `0` | N건마다 자동 `save_to_file()` |
-| `preset` | `None` | 사전 정의 설정 묶음 |
+| Parameter | Default | Description |
+|-----------|---------|-------------|
+| `task_type` | `"qa"` | Task type (qa · tool_use · information_retrieval · code_generation · etc.) |
+| `framework` | `"native"` | Framework adapter (21 supported) |
+| `question_arg` | `"question"` | Question argument name |
+| `ground_truth_arg` | `"ground_truth"` | Ground truth argument name |
+| `context_arg` | `None` | RAG context argument name |
+| `expected_tools_arg` | `None` | Expected tool list argument name (auto-calculates Tool Selection F1) |
+| `score_fn` | `None` | Custom accuracy function `(response, gt) → float` |
+| `rag_mode` | `False` | Shorthand to enable context_arg + hallucination |
+| `retry` | `None` | `RetryConfig` instance — retry policy (max · delay · backoff · jitter_type · etc.) |
+| `security` | `None` | `SecurityConfig` instance — temporarily enables security metrics for this call |
+| `llm_judge` | `None` | `LLMJudgeConfig` instance — temporarily enables LLM Judge for this call |
+| `enable_hallucination_detection` | `False` | Temporarily enables Hallucination Detection for this call |
+| `enable_anomaly_detection` | `False` | Temporarily enables AnomalyDetector for this call |
+| `timeout` | `None` | Maximum execution time (seconds) |
+| `sample_rate` | `1.0` | Recording sampling rate |
+| `on_record` | `None` | Pre-record callback (can replace TaskResult) |
+| `alert_rules` | `[]` | Conditional alert rule list |
+| `flush_every` | `0` | Auto `save_to_file()` every N tasks |
+| `preset` | `None` | Predefined configuration bundle |
 
 ---
 
-### 데코레이터 2: `@batch_eval`
+### Decorator 2: `@batch_eval`
 
-**1번 호출 → N개 TaskResult**. 질문 리스트를 받아 건별로 독립된 평가 레코드를 생성합니다.
+**1 call → N TaskResults**. Takes a list of questions and creates independent evaluation records per item.
 
 ```python
 from agent_evaluator.decorators import batch_eval
 
-# 기본 — 리스트 입력, 리스트 반환
+# Basic — list input, list return
 @batch_eval(monitor, task_type="qa")
 def batch_agent(questions: list, ground_truths: list = None) -> list:
     return [llm.invoke(q) for q in questions]
 
-# DataFrame 반환 — accuracy_score · execution_time · tokens_total 등 포함
+# DataFrame return — includes accuracy_score · execution_time · tokens_total · etc.
 @batch_eval(monitor, task_type="qa", return_format="dataframe")
 def batch_agent_df(questions: list, ground_truths: list = None) -> list:
     return [llm.invoke(q) for q in questions]
 
-# 병렬 실행 (async 함수) — asyncio.gather 기반
+# Parallel execution (async function) — asyncio.gather based
 @batch_eval(monitor, task_type="qa", concurrent=True, max_concurrent=4)
 async def parallel_agent(questions: list, ground_truths: list = None) -> list:
     return await asyncio.gather(*[async_llm.invoke(q) for q in questions])
 
-# 진행률 콜백 — 대규모 배치 모니터링
+# Progress callback — for large batch monitoring
 @batch_eval(
     monitor,
     task_type="qa",
-    return_format="tuple",                              # (responses, task_results) 반환
+    return_format="tuple",                              # returns (responses, task_results)
     on_batch_progress=lambda done, total: print(f"{done}/{total}"),
-    flush_every=100,                                    # 100건마다 중간 저장
+    flush_every=100,                                    # intermediate save every 100 tasks
 )
 def large_batch(questions: list, ground_truths: list = None) -> list:
     return [llm.invoke(q) for q in questions]
@@ -264,97 +264,97 @@ def large_batch(questions: list, ground_truths: list = None) -> list:
 responses, task_results = large_batch(questions, ground_truths)
 ```
 
-**`@batch_eval` 주요 파라미터**
+**`@batch_eval` Key Parameters**
 
-| 파라미터 | 기본값 | 설명 |
-|---------|--------|------|
-| `questions_arg` | `"questions"` | 질문 리스트 인자명 |
-| `ground_truths_arg` | `"ground_truths"` | 정답 리스트 인자명 |
-| `return_format` | `"list"` | 반환 형식: `"list"` · `"tuple"` · `"dataframe"` |
-| `concurrent` | `False` | async 함수 항목별 병렬 실행 |
-| `max_concurrent` | `0` | 병렬 상한 (0 = 무제한) |
-| `shuffle` | `False` | 처리 순서 무작위화 |
-| `item_timeout` | `None` | 항목별 최대 처리 시간(초) |
-| `on_batch_progress` | `None` | 진행률 콜백 `(completed, total) → None` |
-| `on_batch_complete` | `None` | 배치 완료 콜백 `(results) → None` |
-| `on_item_error` | `None` | 항목 실패 콜백 `(index, question, error) → None` |
-| `streaming_mode` | `False` | 메모리 효율적 스트리밍 처리 |
+| Parameter | Default | Description |
+|-----------|---------|-------------|
+| `questions_arg` | `"questions"` | Question list argument name |
+| `ground_truths_arg` | `"ground_truths"` | Ground truth list argument name |
+| `return_format` | `"list"` | Return format: `"list"` · `"tuple"` · `"dataframe"` |
+| `concurrent` | `False` | Parallel item execution for async functions |
+| `max_concurrent` | `0` | Concurrency limit (0 = unlimited) |
+| `shuffle` | `False` | Randomize processing order |
+| `item_timeout` | `None` | Max processing time per item (seconds) |
+| `on_batch_progress` | `None` | Progress callback `(completed, total) → None` |
+| `on_batch_complete` | `None` | Batch completion callback `(results) → None` |
+| `on_item_error` | `None` | Item failure callback `(index, question, error) → None` |
+| `streaming_mode` | `False` | Memory-efficient streaming processing |
 
 ---
 
-### 데코레이터 3: `@conversation_eval`
+### Decorator 3: `@conversation_eval`
 
-**N번 호출 → 1개 TaskResult**. 동일 `session_id`로 반복 호출하면 내부에서 턴을 누적하다가 `max_turns` 도달 또는 `flush_conversation()` 호출 시 세션을 종료하고 지표를 계산합니다.
+**N calls → 1 TaskResult**. Repeated calls with the same `session_id` accumulate turns internally. The session ends and metrics are calculated when `max_turns` is reached or `flush_conversation()` is called.
 
 ```python
 from agent_evaluator.decorators import conversation_eval
 
-# 기본 — session_id별 자동 누적, max_turns 도달 시 자동 flush
+# Basic — auto-accumulate per session_id, auto-flush on max_turns
 @conversation_eval(monitor, session_id_arg="session_id", max_turns=5)
 def chat(question: str, session_id: str = "default") -> str:
     return llm.invoke(question)
 
-# 사용 — 동일 session_id로 반복 호출
-chat("파이썬 비동기 처리 방법 알려줘", session_id="conv_001")
-chat("방금 설명한 방법의 단점은?",      session_id="conv_001")
-chat("asyncio.gather 예시 코드 보여줘", session_id="conv_001")
-# → 5턴 도달 시 자동 flush: context_retention · topic_coherence · progressive_depth 계산
+# Usage — repeated calls with the same session_id
+chat("How do I handle async Python?", session_id="conv_001")
+chat("What are the downsides of that approach?", session_id="conv_001")
+chat("Show me an asyncio.gather example.", session_id="conv_001")
+# → auto-flush at 5 turns: context_retention · topic_coherence · progressive_depth calculated
 
-# 수동 flush — 원하는 시점에 세션 종료
+# Manual flush — end session at desired point
 from agent_evaluator.decorators import flush_conversation
 flush_conversation("conv_001")
 
-# 턴별 콜백 + 세션 스코어 함수
+# Per-turn callback + session score function
 @conversation_eval(
     monitor,
     max_turns=10,
     on_turn=lambda sid, user, resp, meta: print(f"[{sid}] {user[:20]}…"),
     session_score_fn=lambda metrics: metrics.overall_score * 100,
-    flush_every=3,                    # 세션 3개마다 save_to_file() 자동 호출
+    flush_every=3,                    # auto save_to_file() every 3 sessions
 )
 def advanced_chat(question: str, session_id: str = "s1") -> str:
     return llm.invoke(question)
 ```
 
-`@conversation_eval`이 측정하는 지표:
+Metrics measured by `@conversation_eval`:
 
-| 지표 | 설명 |
-|------|------|
-| `turn_count` | 누적 대화 턴 수 |
-| `overall_score` | 세션 종합 점수 (0–1) |
-| `context_retention` | 이전 턴 맥락이 후속 응답에 반영된 정도 |
-| `topic_coherence` | 대화 전반의 주제 일관성 |
-| `progressive_depth` | 대화가 심화될수록 정보 밀도가 높아지는 정도 |
-| `session_completion` | 목표 대화 완성도 |
-| `avg_turn_latency` | 턴별 평균 응답 시간 |
-| `turn_scores` | 턴별 품질 점수 (Optional) |
+| Metric | Description |
+|--------|-------------|
+| `turn_count` | Cumulative conversation turns |
+| `overall_score` | Session overall score (0–1) |
+| `context_retention` | Degree to which prior turn context is reflected in subsequent responses |
+| `topic_coherence` | Topic consistency throughout the conversation |
+| `progressive_depth` | Degree to which information density increases as conversation deepens |
+| `session_completion` | Goal conversation completion |
+| `avg_turn_latency` | Average response time per turn |
+| `turn_scores` | Quality scores per turn (Optional) |
 
-**`@conversation_eval` 주요 파라미터**
+**`@conversation_eval` Key Parameters**
 
-| 파라미터 | 기본값 | 설명 |
-|---------|--------|------|
-| `session_id_arg` | `"session_id"` | 세션 ID 인자명 |
-| `user_arg` | `"question"` | 사용자 메시지 인자명 |
-| `max_turns` | `None` | 최대 턴 수 (도달 시 자동 flush) |
-| `max_turns_exceeded_action` | `"flush"` | 초과 시 동작: `"flush"` · `"warn"` · `"error"` |
-| `flush_on_error` | `True` | 예외 발생 시 세션 자동 flush |
-| `on_turn` | `None` | 턴 완료 콜백 `(sid, user, response, meta) → None` |
-| `on_flush` | `None` | 세션 종료 콜백 `(metrics, session_id) → None` |
-| `session_score_fn` | `None` | 세션 종합 점수 함수 `(ConversationMetrics) → float` |
-| `turn_score_fn` | `None` | 턴별 점수 함수 `(user, response, meta) → float` |
-| `load_previous_session` | `False` | 이전 세션 이어받기 |
-| `max_session_seconds` | `None` | 비활성 세션 자동 flush 타이머(초) |
+| Parameter | Default | Description |
+|-----------|---------|-------------|
+| `session_id_arg` | `"session_id"` | Session ID argument name |
+| `user_arg` | `"question"` | User message argument name |
+| `max_turns` | `None` | Max turns (auto-flush on reach) |
+| `max_turns_exceeded_action` | `"flush"` | Action on exceed: `"flush"` · `"warn"` · `"error"` |
+| `flush_on_error` | `True` | Auto-flush session on exception |
+| `on_turn` | `None` | Turn completion callback `(sid, user, response, meta) → None` |
+| `on_flush` | `None` | Session end callback `(metrics, session_id) → None` |
+| `session_score_fn` | `None` | Session overall score function `(ConversationMetrics) → float` |
+| `turn_score_fn` | `None` | Per-turn score function `(user, response, meta) → float` |
+| `load_previous_session` | `False` | Resume from previous session |
+| `max_session_seconds` | `None` | Auto-flush timer for inactive sessions (seconds) |
 
 ---
 
-## EvalDecorator — 3종 통합 팩토리
+## EvalDecorator — Unified Factory for All 3 Types
 
-공통 설정(monitor, framework, model_name 등)을 **한 번만 정의**하고 3종 데코레이터 모두에 재사용합니다.
+Define common configuration (monitor, framework, model_name, etc.) **once** and reuse it across all 3 decorator types.
 
 ```python
 from agent_evaluator.decorators import EvalDecorator
 
-# 공통 설정 한 번 정의
+# Define common config once
 dec = EvalDecorator(
     monitor,
     framework="langchain",
@@ -363,22 +363,22 @@ dec = EvalDecorator(
     alert_rules=[slow_rule, error_rule],
 )
 
-# ── agent_eval 계열 ──────────────────────────────────
-@dec(task_type="qa")                                   # agent_eval 직접 호출
+# ── agent_eval family ──────────────────────────────────
+@dec(task_type="qa")                                   # direct agent_eval call
 def qa_agent(question, ground_truth=""): ...
 
-@dec.with_retry(task_type="qa", retry=RetryConfig(max=3))  # 재시도 포함
+@dec.with_retry(task_type="qa", retry=RetryConfig(max=3))  # with retry
 def robust_agent(question, ground_truth=""): ...
 
-# ── batch_eval ───────────────────────────────────────
+# ── batch_eval ─────────────────────────────────────────
 @dec.batch(task_type="qa", return_format="dataframe")
 def batch_agent(questions, ground_truths=None): ...
 
-# ── conversation_eval ────────────────────────────────
+# ── conversation_eval ───────────────────────────────────
 @dec.conversation(session_id_arg="sid", max_turns=5)
 def chat(question, sid="s1"): ...
 
-# ── task_type 단축 속성 (QuickEval과 동일한 API) ─────
+# ── task_type shorthand attributes (same API as QuickEval) ─────
 @dec.qa             # task_type="qa"
 @dec.tool_use       # task_type="tool_use"
 @dec.rag            # task_type="information_retrieval" + rag_mode=True
@@ -389,56 +389,56 @@ def chat(question, sid="s1"): ...
 
 ---
 
-## QuickEval — 1줄 시작 Facade
+## QuickEval — One-Line Start Facade
 
-`PerformanceMonitor` + `EvalDecorator`를 1줄로 구성하는 원스톱 진입점입니다.
+One-stop entry point that configures `PerformanceMonitor` + `EvalDecorator` in one line.
 
 ```python
 from agent_evaluator import QuickEval
 
-# 기본 초기화
+# Basic initialization
 eval = QuickEval("results/")
 
-# 용도별 팩토리 — 관련 옵션 자동 설정
-eval = QuickEval.for_rag("results/")               # hallucination_detection=True 기본 활성
-eval = QuickEval.for_security("results/")          # enable_security_metrics=True 기본 활성
+# Purpose-specific factories — auto-configure relevant options
+eval = QuickEval.for_rag("results/")               # hallucination_detection=True by default
+eval = QuickEval.for_security("results/")          # enable_security_metrics=True by default
 eval = QuickEval.for_llm_judge("results/", model="claude-sonnet-4-6")
 
-# 데코레이터 단축 속성 11종
+# 11 decorator shorthand attributes
 @eval.qa            @eval.tool_use      @eval.rag
 @eval.code          @eval.reasoning     @eval.planning
 @eval.data_analysis @eval.creative      @eval.multi_agent
 @eval.secure        @eval.streaming
 
-# 배치 · 대화 데코레이터도 동일 인터페이스
+# Batch · conversation decorators with same interface
 @eval.batch(task_type="qa", return_format="dataframe")
 def batch_agent(questions, ground_truths=None): ...
 
 @eval.conversation(session_id_arg="sid", max_turns=5)
 def chat(question, sid="s1"): ...
 
-# 결과 저장 · 게이팅
+# Save results · gating
 eval.save()                                        # results/*.json + *.html
-eval.gate(tcr=85, accuracy=70, hallucination=5)    # CI/CD 게이트
-eval.summary()                                     # 주요 지표 요약 출력
-eval.export_to_dataframe()                         # pd.DataFrame 반환
+eval.gate(tcr=85, accuracy=70, hallucination=5)    # CI/CD gate
+eval.summary()                                     # print key metric summary
+eval.export_to_dataframe()                         # return pd.DataFrame
 ```
 
 ---
 
-## eval_context — 데코레이터 불가 시 탈출구
+## eval_context — Escape Hatch When Decorators Can't Be Used
 
-외부 라이브러리 함수, lambda, 동적 호출 등 **데코레이터를 붙일 수 없는 코드**에서 사용합니다. `@agent_eval`과 동일한 평가를 수행합니다.
+Use when you can't attach a decorator to code — external library functions, lambdas, dynamic calls, etc. Performs the same evaluation as `@agent_eval`.
 
 ```python
 from agent_evaluator.decorators import eval_context, get_eval_ctx
 
-# 기본 — with 블록 종료 시 자동 record_task()
+# Basic — auto record_task() on with block exit
 with eval_context(monitor, task_type="qa",
-                  question="한국의 수도는?", ground_truth="서울") as ctx:
-    ctx.response = external_lib.call("한국의 수도는?")
+                  question="What is the capital of South Korea?", ground_truth="Seoul") as ctx:
+    ctx.response = external_lib.call("What is the capital of South Korea?")
 
-# get_eval_ctx() 로 추가 메타데이터 주입
+# Inject additional metadata via get_eval_ctx()
 with eval_context(monitor, task_type="tool_use", question=q) as ctx:
     result = external_agent.run(q)
     ctx.response = result["output"]
@@ -447,16 +447,16 @@ with eval_context(monitor, task_type="tool_use", question=q) as ctx:
         ec.framework = "langchain"
         ec.chain_steps = parse_steps(result)
 
-# 비동기
+# Async
 async with eval_context(monitor, task_type="qa", question=q) as ctx:
     ctx.response = await async_external.call(q)
 ```
 
 ---
 
-## EvalMetadata — 추가 메타데이터 주입
+## EvalMetadata — Injecting Additional Metadata
 
-3종 데코레이터 모두에서 사용 가능합니다. 반환값을 `(response, EvalMetadata(...))` 튜플로 바꾸면 자동 추출 결과를 덮어쓸 수 있습니다.
+Available in all 3 decorator types. Change the return value to `(response, EvalMetadata(...))` tuple to override auto-extracted results.
 
 ```python
 from agent_evaluator.decorators import EvalMetadata
@@ -465,15 +465,15 @@ from agent_evaluator.decorators import EvalMetadata
 def agent(question, ground_truth=""):
     response = llm.invoke(question)
     return response, EvalMetadata(
-        accuracy_score=0.95,                        # 커스텀 점수 직접 지정
-        tool_calls=["search", "calculator"],        # 툴 호출 목록
+        accuracy_score=0.95,                        # directly set custom score
+        tool_calls=["search", "calculator"],        # tool call list
         tokens_used={"input": 120, "output": 80},
         chain_steps=["search", "parse", "answer"],
         agent_interactions=[("planner", "executor", "task_complete")],
     )
 ```
 
-`@conversation_eval`에서는 `TurnMetadata`를 사용합니다.
+Use `TurnMetadata` in `@conversation_eval`.
 
 ```python
 from agent_evaluator.decorators import TurnMetadata
@@ -490,40 +490,40 @@ def chat(question: str, session_id: str = "s1") -> str:
 
 ---
 
-## 21개 프레임워크 자동 인식
+## Auto-Recognition of 21 Frameworks
 
-`framework=` 파라미터 하나로 응답 객체에서 `tool_calls`, `chain_steps`, `tokens_used` 등을 자동 추출합니다.
-3종 데코레이터 모두 동일한 `framework=` 파라미터를 지원합니다.
+The `framework=` parameter auto-extracts `tool_calls`, `chain_steps`, `tokens_used`, etc. from response objects.
+All 3 decorator types support the same `framework=` parameter.
 
 ```python
-# 명시적 지정 — IDE 자동완성 지원 (FrameworkLiteral 타입 힌트)
+# Explicit specification — IDE autocomplete supported (FrameworkLiteral type hint)
 @agent_eval(monitor, task_type="tool_use", framework="langchain")
 def lc_agent(question, ground_truth=""): ...
 
-# 자동 감지 (기본 활성 — auto_detect_framework=True)
+# Auto-detection (enabled by default — auto_detect_framework=True)
 @agent_eval(monitor, task_type="qa")
 def auto_agent(question, ground_truth=""): ...
 
-# batch_eval · conversation_eval에도 동일하게 적용
+# Applies equally to batch_eval · conversation_eval
 @batch_eval(monitor, task_type="qa", framework="openai")
 def batch_agent(questions, ground_truths=None): ...
 
 @conversation_eval(monitor, max_turns=5, framework="anthropic")
 def chat(question, session_id="s1"): ...
 
-# 프레임워크 어댑터 정보 조회
+# Query framework adapter info
 from agent_evaluator.decorators import get_framework_info
 info = get_framework_info("langchain")
 # → {"name": "LangChain", "extras": "langchain",
 #    "extracts": ["tool_calls", "chain_steps"], "async_supported": True, ...}
 ```
 
-### 어댑터 전체 목록
+### Full Adapter List
 
-> **참고**: `framework=` 파라미터와 어댑터는 **duck typing** 방식으로 동작 — agent-evaluator 자체는 해당 프레임워크 패키지 없이도 완전히 동작한다. "필요 extras" 열은 **사용자의 에이전트 코드**가 해당 프레임워크를 import할 때 필요한 패키지다.
+> **Note**: `framework=` parameter and adapters work via **duck typing** — agent-evaluator itself works fully without the framework package installed. The "Required extras" column shows packages needed **when your agent code** imports the framework.
 
-| 식별자 | 이름 | 필요 extras | 자동 추출 필드 | async |
-|--------|------|------------|--------------|-------|
+| Identifier | Name | Required Extras | Auto-extracted Fields | Async |
+|------------|------|----------------|----------------------|-------|
 | `langchain` | LangChain | `[langchain]`¹ | `tool_calls` · `chain_steps` | ✅ |
 | `langgraph` | LangGraph | `[langchain]`¹ | `state_transitions` · `graph_traversal` · `tool_calls` · `chain_steps` | ✅ |
 | `crewai` | CrewAI | `[crewai]`¹ | `agent_interactions` | ❌ |
@@ -546,28 +546,28 @@ info = get_framework_info("langchain")
 | `vllm` | vLLM | `[llm]` | `tool_calls` · `tokens_used` | ✅ |
 | `huggingface` | HuggingFace | `[llm]` | `chain_steps` · `tool_calls` | ❌ |
 
-¹ **사용자 프레임워크 extras** — agent-evaluator 자체는 이 패키지 없이 동작. `@agent_eval(framework="langchain")` 데코레이터는 duck typing으로 작동하므로 agent-evaluator 설치 시에는 불필요. 사용자의 에이전트 코드가 해당 프레임워크를 직접 import할 때만 설치.
+¹ **User framework extras** — agent-evaluator itself works without these packages. The `@agent_eval(framework="langchain")` decorator works via duck typing so installation is not required for agent-evaluator. Install only when your agent code directly imports the framework.
 
 ---
 
-### 오케스트레이션 프레임워크
+### Orchestration Frameworks
 
 #### LangChain
 
-`AgentExecutor.invoke()` 결과의 `intermediate_steps`에서 툴 호출과 체인 단계를 자동 추출합니다.
+Auto-extracts tool calls and chain steps from `intermediate_steps` in `AgentExecutor.invoke()` results.
 
 ```python
 from langchain.agents import AgentExecutor
 from agent_evaluator.decorators import agent_eval
 
-# intermediate_steps → tool_calls + chain_steps 자동 변환
-# usage_metadata / response_metadata.token_usage → tokens_used 자동 추출
+# intermediate_steps → tool_calls + chain_steps auto-conversion
+# usage_metadata / response_metadata.token_usage → tokens_used auto-extraction
 @agent_eval(monitor, task_type="tool_use", framework="langchain")
 def lc_agent(question: str, ground_truth: str = "") -> str:
     result = agent_executor.invoke({"input": question})
-    return result  # dict 그대로 반환 — "output" 키에서 텍스트 자동 추출
+    return result  # return dict as-is — text auto-extracted from "output" key
 
-# 프레임워크 전용 별칭 (agent_evaluator.integrations)
+# Framework-specific alias (agent_evaluator.integrations)
 from agent_evaluator.integrations import langchain_eval
 
 @langchain_eval(monitor, task_type="tool_use")
@@ -577,19 +577,19 @@ def lc_agent2(question: str, ground_truth: str = "") -> str:
 
 #### LangGraph
 
-그래프 실행 결과의 `messages` 배열에서 상태 전이·그래프 경로·툴 호출을 추출합니다.
-`__metadata__` 키가 있으면 그래프 메타데이터도 자동 수집합니다.
+Extracts state transitions · graph paths · tool calls from `messages` array in graph execution results.
+Graph metadata is also auto-collected if `__metadata__` key is present.
 
 ```python
 from langgraph.graph import StateGraph
 from agent_evaluator.decorators import agent_eval
 
 # messages → state_transitions + graph_traversal
-# ToolMessage / AIMessage → chain_steps + 타임스탬프 기반 실행 시간
+# ToolMessage / AIMessage → chain_steps + timestamp-based execution time
 @agent_eval(monitor, task_type="tool_use", framework="langgraph")
 def lg_agent(question: str, ground_truth: str = "") -> str:
     result = graph.invoke({"messages": [("user", question)]})
-    return result  # "messages"[-1].content 자동 추출
+    return result  # "messages"[-1].content auto-extracted
 
 from agent_evaluator.integrations import langgraph_eval
 
@@ -600,15 +600,15 @@ def lg_agent2(question: str, ground_truth: str = "") -> str:
 
 #### CrewAI
 
-`Crew.kickoff()` 결과의 `tasks_output`에서 에이전트 간 상호작용을 추출합니다.
-`output_pydantic` / `output_format` (v2.x) 필드를 지원합니다.
+Extracts inter-agent interactions from `tasks_output` in `Crew.kickoff()` results.
+Supports `output_pydantic` / `output_format` (v2.x) fields.
 
 ```python
 from crewai import Crew, Agent, Task
 from agent_evaluator.decorators import agent_eval
 
-# tasks_output → agent_interactions 자동 변환
-# 주의: CrewAI는 async 미지원 — 동기 함수로만 사용
+# tasks_output → agent_interactions auto-conversion
+# Note: CrewAI does not support async — use synchronous functions only
 @agent_eval(monitor, task_type="tool_use", framework="crewai")
 def crew_agent(question: str, ground_truth: str = "") -> str:
     result = crew.kickoff(inputs={"topic": question})
@@ -623,8 +623,8 @@ def crew_agent2(question: str, ground_truth: str = "") -> str:
 
 #### AutoGen
 
-`chat_result.messages` / `chat_history`에서 대화 턴과 비용 정보를 추출합니다.
-AutoGen 0.4+ async API는 `autogen_eval_async` 전용 데코레이터를 사용합니다.
+Extracts conversation turns and cost information from `chat_result.messages` / `chat_history`.
+For AutoGen 0.4+ async API, use the `autogen_eval_async` dedicated decorator.
 
 ```python
 from autogen import ConversableAgent
@@ -638,7 +638,7 @@ def autogen_agent(question: str, ground_truth: str = "") -> str:
     result = assistant.initiate_chat(user_proxy, message=question, max_turns=3)
     return result.summary
 
-# AutoGen 0.4+ async API 전용
+# AutoGen 0.4+ async API dedicated
 @autogen_eval_async(monitor, task_type="qa")
 async def autogen_agent_async(question: str, ground_truth: str = "") -> str:
     result = await team.run(task=question)
@@ -647,12 +647,12 @@ async def autogen_agent_async(question: str, ground_truth: str = "") -> str:
 
 ---
 
-### LLM 공급자
+### LLM Providers
 
 #### OpenAI
 
-`ChatCompletion` 응답의 `choices[0].message.tool_calls`와 `usage.total_tokens`를 자동 추출합니다.
-Assistants API의 `required_action`도 지원합니다.
+Auto-extracts `choices[0].message.tool_calls` and `usage.total_tokens` from `ChatCompletion` responses.
+Also supports Assistants API `required_action`.
 
 ```python
 import openai
@@ -666,13 +666,13 @@ def gpt_agent(question: str, ground_truth: str = "") -> str:
         model="gpt-4o-mini",
         messages=[{"role": "user", "content": question}],
         tools=[...],
-    )  # ChatCompletion 객체 그대로 반환 — choices[0].message.content 자동 추출
+    )  # return ChatCompletion object as-is — choices[0].message.content auto-extracted
 ```
 
 #### Anthropic
 
-`Message` 응답의 `content[].tool_use`와 `usage.input_tokens/output_tokens`를 추출합니다.
-캐시 토큰(`cache_creation_input_tokens`, `cache_read_input_tokens`, SDK ≥0.29)도 지원합니다.
+Extracts `content[].tool_use` and `usage.input_tokens/output_tokens` from `Message` responses.
+Cache tokens (`cache_creation_input_tokens`, `cache_read_input_tokens`, SDK ≥0.29) also supported.
 
 ```python
 import anthropic
@@ -687,12 +687,12 @@ def claude_agent(question: str, ground_truth: str = "") -> str:
         max_tokens=1024,
         messages=[{"role": "user", "content": question}],
         tools=[...],
-    )  # Message 객체 그대로 반환 — content[0].text 자동 추출
+    )  # return Message object as-is — content[0].text auto-extracted
 ```
 
 #### Google Gemini / Vertex AI
 
-`GenerateContentResponse`의 `candidates[0].content.parts[].function_call`과 `usage_metadata`를 추출합니다.
+Extracts `candidates[0].content.parts[].function_call` and `usage_metadata` from `GenerateContentResponse`.
 
 ```python
 import google.generativeai as genai
@@ -702,9 +702,9 @@ model = genai.GenerativeModel("gemini-1.5-flash")
 
 @agent_eval(monitor, task_type="tool_use", framework="gemini")
 def gemini_agent(question: str, ground_truth: str = "") -> str:
-    return model.generate_content(question)  # GenerateContentResponse 그대로 반환
+    return model.generate_content(question)  # return GenerateContentResponse as-is
 
-# Vertex AI는 동일한 응답 구조 — framework="vertexai"
+# Vertex AI uses the same response structure — framework="vertexai"
 @agent_eval(monitor, task_type="tool_use", framework="vertexai")
 def vertex_agent(question: str, ground_truth: str = "") -> str:
     return vertex_model.generate_content(question)
@@ -712,8 +712,8 @@ def vertex_agent(question: str, ground_truth: str = "") -> str:
 
 #### Cohere
 
-`NonStreamedChatResponse`의 `tool_calls`와 `meta.tokens`를 추출합니다.
-스트리밍 응답(`finish_reason` 속성)도 자동 감지합니다.
+Extracts `tool_calls` and `meta.tokens` from `NonStreamedChatResponse`.
+Streaming responses (`finish_reason` attribute) also auto-detected.
 
 ```python
 import cohere
@@ -728,8 +728,8 @@ def cohere_agent(question: str, ground_truth: str = "") -> str:
 
 #### Groq
 
-OpenAI 호환 API 구조 — `tool_calls`와 `usage`를 추출합니다.
-캐시 토큰(`cache_creation_input_tokens`, `cache_read_input_tokens`, v0.9+)도 지원합니다.
+OpenAI-compatible API structure — extracts `tool_calls` and `usage`.
+Cache tokens (`cache_creation_input_tokens`, `cache_read_input_tokens`, v0.9+) also supported.
 
 ```python
 from groq import Groq
@@ -747,8 +747,8 @@ def groq_agent(question: str, ground_truth: str = "") -> str:
 
 #### Mistral AI
 
-`ChatCompletionResponse`의 `tool_calls`와 `usage`를 추출합니다.
-구버전 `function_call` 필드도 지원합니다.
+Extracts `tool_calls` and `usage` from `ChatCompletionResponse`.
+Legacy `function_call` field also supported.
 
 ```python
 from mistralai import Mistral
@@ -766,7 +766,7 @@ def mistral_agent(question: str, ground_truth: str = "") -> str:
 
 #### AWS Bedrock
 
-Bedrock Converse API 응답에서 `model_id` 기반으로 Titan / Mistral on Bedrock / Claude 응답을 분기 처리합니다.
+Branches handling of Titan / Mistral on Bedrock / Claude responses based on `model_id` from Bedrock Converse API responses.
 
 ```python
 import boto3
@@ -784,8 +784,8 @@ def bedrock_agent(question: str, ground_truth: str = "") -> str:
 
 #### Ollama
 
-`ollama.chat()` / `ollama.generate()` 응답의 `tool_calls`와 `prompt_eval_count` / `eval_count`를 추출합니다.
-주의: Ollama는 async 미지원입니다.
+Extracts `tool_calls` and `prompt_eval_count` / `eval_count` from `ollama.chat()` / `ollama.generate()` responses.
+Note: Ollama does not support async.
 
 ```python
 import ollama
@@ -801,12 +801,12 @@ def ollama_agent(question: str, ground_truth: str = "") -> str:
 
 ---
 
-### AI 프레임워크
+### AI Frameworks
 
 #### DSPy
 
-`dspy.Prediction`의 `_completions` 속성에서 체인 단계를 추출합니다.
-LM history 전체 multi-step도 지원합니다. 주의: DSPy는 async 미지원입니다.
+Extracts chain steps from `_completions` attribute of `dspy.Prediction`.
+Full LM history multi-step also supported. Note: DSPy does not support async.
 
 ```python
 import dspy
@@ -819,7 +819,7 @@ dspy.configure(lm=lm)
 @agent_eval(monitor, task_type="qa", framework="dspy")
 def dspy_agent(question: str, ground_truth: str = "") -> str:
     predictor = dspy.Predict("question -> answer")
-    return predictor(question=question)  # Prediction 객체 → .answer 자동 추출
+    return predictor(question=question)  # Prediction object → .answer auto-extracted
 
 @dspy_eval(monitor, task_type="qa")
 def dspy_agent2(question: str, ground_truth: str = "") -> str:
@@ -828,8 +828,8 @@ def dspy_agent2(question: str, ground_truth: str = "") -> str:
 
 #### PydanticAI
 
-`RunResult.all_messages()` (우선) 또는 `.messages` (fallback)에서 체인 단계를 추출합니다.
-`ToolCallPart` / `ToolReturnPart` / `TextPart`를 세분화해 추출합니다.
+Extracts chain steps from `RunResult.all_messages()` (preferred) or `.messages` (fallback).
+Finely extracts `ToolCallPart` / `ToolReturnPart` / `TextPart`.
 
 ```python
 from pydantic_ai import Agent
@@ -841,7 +841,7 @@ agent = Agent("openai:gpt-4o-mini", system_prompt="...")
 @agent_eval(monitor, task_type="qa", framework="pydanticai")
 async def pydantic_agent(question: str, ground_truth: str = "") -> str:
     result = await agent.run(question)
-    return result  # RunResult 객체 → .data 자동 추출
+    return result  # RunResult object → .data auto-extracted
 
 @pydanticai_eval(monitor, task_type="qa")
 async def pydantic_agent2(question: str, ground_truth: str = "") -> str:
@@ -850,8 +850,8 @@ async def pydantic_agent2(question: str, ground_truth: str = "") -> str:
 
 #### LlamaIndex
 
-`Response.source_nodes`에서 체인 단계를 추출합니다.
-`AgentChatResponse.sources`의 `ToolOutput`도 지원합니다.
+Extracts chain steps from `Response.source_nodes`.
+`ToolOutput` from `AgentChatResponse.sources` also supported.
 
 ```python
 from llama_index.core import VectorStoreIndex
@@ -860,7 +860,7 @@ from agent_evaluator.decorators import agent_eval
 index = VectorStoreIndex.from_documents([...])
 query_engine = index.as_query_engine()
 
-# source_nodes → chain_steps (score + metadata 포함)
+# source_nodes → chain_steps (with score + metadata)
 @agent_eval(monitor, task_type="information_retrieval", framework="llamaindex", rag_mode=True)
 def llamaindex_agent(question: str, ground_truth: str = "") -> str:
     return query_engine.query(question)
@@ -868,16 +868,16 @@ def llamaindex_agent(question: str, ground_truth: str = "") -> str:
 
 #### Haystack
 
-파이프라인 컴포넌트 출력 dict에서 retriever / generator / reader / embedder / ranker를 `chain_steps`로 추출합니다.
+Extracts retriever / generator / reader / embedder / ranker from pipeline component output dict as `chain_steps`.
 
 ```python
 from haystack import Pipeline
 from agent_evaluator.decorators import agent_eval
 
 pipeline = Pipeline()
-# ... 컴포넌트 추가 ...
+# ... add components ...
 
-# 컴포넌트 출력 dict → chain_steps
+# Component output dict → chain_steps
 @agent_eval(monitor, task_type="information_retrieval", framework="haystack", rag_mode=True)
 def haystack_agent(question: str, ground_truth: str = "") -> str:
     return pipeline.run({"query": question})
@@ -885,8 +885,8 @@ def haystack_agent(question: str, ground_truth: str = "") -> str:
 
 #### Semantic Kernel
 
-`inner_content`에서 OpenAI / Anthropic 백엔드 토큰을 자동 추출합니다.
-`function_name` + `plugin_name` → `"Plugin.function"` 형식 툴 호출도 지원합니다.
+Auto-extracts tokens from OpenAI / Anthropic backends via `inner_content`.
+`function_name` + `plugin_name` → `"Plugin.function"` format tool calls also supported.
 
 ```python
 import semantic_kernel as sk
@@ -894,7 +894,7 @@ from agent_evaluator.decorators import agent_eval
 
 kernel = sk.Kernel()
 
-# inner_content → tokens_used (OpenAI/Anthropic 백엔드 자동 감지)
+# inner_content → tokens_used (auto-detects OpenAI/Anthropic backend)
 @agent_eval(monitor, task_type="tool_use", framework="semantic_kernel")
 async def sk_agent(question: str, ground_truth: str = "") -> str:
     result = await kernel.invoke(plugin_name, function_name, input=question)
@@ -903,8 +903,8 @@ async def sk_agent(question: str, ground_truth: str = "") -> str:
 
 #### HuggingFace smolagents
 
-`ToolCall` 스텝 목록에서 성공/실패 여부와 입력값을 정규화해 `tool_calls` + `chain_steps`로 추출합니다.
-주의: smolagents는 async 미지원입니다.
+Normalizes `ToolCall` step list for success/failure status and input values, extracting as `tool_calls` + `chain_steps`.
+Note: smolagents does not support async.
 
 ```python
 from smolagents import CodeAgent, HfApiModel
@@ -920,10 +920,10 @@ def smol_agent(question: str, ground_truth: str = "") -> str:
 
 #### vLLM
 
-OpenAI 호환 API — `choices[0].message.tool_calls`와 `usage.total_tokens`를 추출합니다.
+OpenAI-compatible API — extracts `choices[0].message.tool_calls` and `usage.total_tokens`.
 
 ```python
-from openai import OpenAI  # vLLM은 OpenAI 호환 클라이언트 사용
+from openai import OpenAI  # vLLM uses OpenAI-compatible client
 from agent_evaluator.decorators import agent_eval
 
 client = OpenAI(base_url="http://localhost:8000/v1", api_key="vllm")
@@ -938,8 +938,8 @@ def vllm_agent(question: str, ground_truth: str = "") -> str:
 
 #### HuggingFace
 
-`pipeline()` 결과의 `generated_text`에서 체인 단계를, `actions` / `tool_calls` 필드에서 툴 호출을 추출합니다.
-주의: HuggingFace는 async 미지원입니다.
+Extracts chain steps from `generated_text` in `pipeline()` results, and tool calls from `actions` / `tool_calls` fields.
+Note: HuggingFace does not support async.
 
 ```python
 from transformers import pipeline
@@ -954,30 +954,30 @@ def hf_agent(question: str, ground_truth: str = "") -> str:
 
 ---
 
-### 자동 감지 (`auto_detect_framework=True`)
+### Auto-Detection (`auto_detect_framework=True`)
 
-`auto_detect_framework=True`(기본값)이면 반환 객체의 속성을 검사해 프레임워크를 자동 판별합니다.
+When `auto_detect_framework=True` (default), the framework is auto-detected by inspecting attributes of the returned object.
 
-| 감지 조건 | 판별 프레임워크 |
-|---------|--------------|
-| `stop_reason` 속성 존재 (choices 없음) | `anthropic` |
-| `choices` + `usage` 속성 존재 | `openai` |
-| `candidates` + `usage_metadata` 속성 존재 | `gemini` |
-| `meta.tokens` 속성 존재 (choices 없음) | `cohere` |
-| `x_groq` 속성 존재 | `groq` |
-| `choices[0].finish_reason` == `"stop"` + mistral 힌트 | `mistral` |
-| `ResponseMetadata` + `bedrock` 힌트 | `bedrock` |
-| `step_results` 속성 존재 | `smolagents` |
-| `completions` 속성 + DSPy 타입명 | `dspy` |
-| `all_messages` callable 존재 | `pydanticai` |
+| Detection Condition | Detected Framework |
+|--------------------|-------------------|
+| `stop_reason` attribute present (no choices) | `anthropic` |
+| `choices` + `usage` attributes present | `openai` |
+| `candidates` + `usage_metadata` attributes present | `gemini` |
+| `meta.tokens` attribute present (no choices) | `cohere` |
+| `x_groq` attribute present | `groq` |
+| `choices[0].finish_reason` == `"stop"` + mistral hint | `mistral` |
+| `ResponseMetadata` + bedrock hint | `bedrock` |
+| `step_results` attribute present | `smolagents` |
+| `completions` attribute + DSPy type name | `dspy` |
+| `all_messages` callable present | `pydanticai` |
 
 ```python
-# framework= 생략 → 자동 감지 (기본값)
+# Omit framework= → auto-detection (default)
 @agent_eval(monitor, task_type="qa")
 def auto_agent(question: str, ground_truth: str = "") -> str:
-    return client.chat.completions.create(...)  # OpenAI → 자동 "openai" 판별
+    return client.chat.completions.create(...)  # OpenAI → auto-detected as "openai"
 
-# 자동 감지 명시적 비활성화 (framework= 고정 우선)
+# Explicitly disable auto-detection (fixed framework= takes priority)
 @agent_eval(monitor, task_type="qa", framework="openai", auto_detect_framework=False)
 def fixed_agent(question: str, ground_truth: str = "") -> str:
     return client.chat.completions.create(...)
@@ -985,55 +985,55 @@ def fixed_agent(question: str, ground_truth: str = "") -> str:
 
 ---
 
-## 58개 지표와 데코레이터 활성화 조건
+## 58 Metrics and Decorator Activation Conditions
 
-### Layer 1 — 기초 지표 (기본 데코레이터로 자동 활성)
+### Layer 1 — Foundation Metrics (auto-activated with basic decorator)
 
-| 지표 | 클래스 | 데코레이터 자동화 | 주요 출력 |
-|------|--------|----------------|---------|
-| **Task Completion Rate** | `TaskCompletionTracker` | 항상 활성 | `tcr` · `full_success` · `partial_success` · `failures` |
-| **Accuracy** | `AccuracyEvaluator` | 항상 활성 (`score_fn` 없으면 기본 알고리즘) | `overall_accuracy` · `median_accuracy` · `std_accuracy` |
-| **Response Quality** | `ResponseQualityEvaluator` | response + request 있으면 자동 | `dimension_scores` · `total_score` (0–5) · `grade` |
-| **Latency** | `LatencyTracker` | 함수 실행 시간 자동 측정 | `mean` · `p50` · `p90` · `p95` · `p99` · `std` |
-| **Token Economy** | `TokenEconomyTracker` | 프레임워크 어댑터 자동 추출 | `total_tokens` · `total_cost` · `estimated_monthly_cost` |
-| **Hallucination** | `HallucinationDetector` | `rag_mode=True` 또는 `enable_hallucination_detection=True` | `hallucination_rate` · `unsupported_claims_count` · `by_severity` |
+| Metric | Class | Decorator Automation | Key Outputs |
+|--------|-------|---------------------|-------------|
+| **Task Completion Rate** | `TaskCompletionTracker` | Always active | `tcr` · `full_success` · `partial_success` · `failures` |
+| **Accuracy** | `AccuracyEvaluator` | Always active (default algorithm if no `score_fn`) | `overall_accuracy` · `median_accuracy` · `std_accuracy` |
+| **Response Quality** | `ResponseQualityEvaluator` | Auto when response + request present | `dimension_scores` · `total_score` (0–5) · `grade` |
+| **Latency** | `LatencyTracker` | Auto measures function execution time | `mean` · `p50` · `p90` · `p95` · `p99` · `std` |
+| **Token Economy** | `TokenEconomyTracker` | Framework adapter auto-extraction | `total_tokens` · `total_cost` · `estimated_monthly_cost` |
+| **Hallucination** | `HallucinationDetector` | `rag_mode=True` or `enable_hallucination_detection=True` | `hallucination_rate` · `unsupported_claims_count` · `by_severity` |
 
-Accuracy 계산 방식: Token Overlap(40%) + Jaccard Similarity(30%) + LCS(20%) + 문자 유사도(10%)
+Accuracy calculation: Token Overlap(40%) + Jaccard Similarity(30%) + LCS(20%) + Char Similarity(10%)
 
-### Layer 2-A — 에이전틱 지표 (tool_calls · chain_steps 자동 추출 시 활성)
+### Layer 2-A — Agentic Metrics (activated when tool_calls · chain_steps auto-extracted)
 
-| 지표 | 클래스 | 활성화 조건 | 주요 출력 |
-|------|--------|-----------|---------|
-| **Tool Call Analysis** | `ToolCallAnalyzer` | `tool_calls` 자동 추출 또는 EvalMetadata | `efficiency_score` · `redundancy_rate` · `failure_rate` |
-| **Retry & Correction** | `RetryCorrectionTracker` | `retry=RetryConfig(max=N)` 파라미터 또는 `attempts` 필드 | `retry_rate` · `first_attempt_success_rate` · `correction_success_rate` |
-| **Tool Selection F1** | `ToolSelectionTracker` | `expected_tools_arg` 파라미터 지정 | `precision` · `recall` · `f1_score` |
-| **Agent Coordination** | `AgentCoordinationTracker` | `agent_interactions` 자동 추출 | `score` · `pattern_type` · `unique_agents` |
-| **Workflow Execution** | `WorkflowExecutionTracker` | `chain_steps` · `state_transitions` 자동 추출 | `step_success_rate` · `task_success_rate` · `bottlenecks` |
+| Metric | Class | Activation Condition | Key Outputs |
+|--------|-------|---------------------|-------------|
+| **Tool Call Analysis** | `ToolCallAnalyzer` | `tool_calls` auto-extracted or EvalMetadata | `efficiency_score` · `redundancy_rate` · `failure_rate` |
+| **Retry & Correction** | `RetryCorrectionTracker` | `retry=RetryConfig(max=N)` parameter or `attempts` field | `retry_rate` · `first_attempt_success_rate` · `correction_success_rate` |
+| **Tool Selection F1** | `ToolSelectionTracker` | `expected_tools_arg` parameter specified | `precision` · `recall` · `f1_score` |
+| **Agent Coordination** | `AgentCoordinationTracker` | `agent_interactions` auto-extracted | `score` · `pattern_type` · `unique_agents` |
+| **Workflow Execution** | `WorkflowExecutionTracker` | `chain_steps` · `state_transitions` auto-extracted | `step_success_rate` · `task_success_rate` · `bottlenecks` |
 
-### Layer 2-B — 보안 지표 (`security=SecurityConfig()` 또는 Monitor 전역 설정)
+### Layer 2-B — Security Metrics (`security=SecurityConfig()` or Monitor global setting)
 
-| 지표 | 클래스 | 탐지 대상 | 주요 출력 |
-|------|--------|---------|---------|
-| **Input Sanitization** | `InputSanitizationTracker` | SQL Injection · Command Injection · XSS · Prompt Injection (40개 패턴) | `risk_level` · `threat_count` · `threat_rate` |
-| **Output Leakage** | `OutputLeakageDetector` | API 키 · 비밀번호 · 신용카드 · 개인정보 | `severity` · `leakage_count` · `leakage_rate` |
-| **Tool Authorization** | `ToolAuthorizationTracker` | 비인가 툴 사용 · 위험 파라미터 | `compliance_rate` · `violation_rate` · `unauthorized_calls` |
-| **Privilege Escalation** | `PrivilegeEscalationDetector` | guest→admin 권한 상승 체인 | `risk_score` (0–10) · `escalation_detected` · `escalation_path` |
-| **Tool Chain Attack** | `ToolChainAttackDetector` | 데이터 유출 · 횡적 이동 · 지속성 공격 체인 | `confidence` (0–1) · `attack_types` · `is_suspicious_chain` |
+| Metric | Class | Detection Target | Key Outputs |
+|--------|-------|-----------------|-------------|
+| **Input Sanitization** | `InputSanitizationTracker` | SQL Injection · Command Injection · XSS · Prompt Injection (40 patterns) | `risk_level` · `threat_count` · `threat_rate` |
+| **Output Leakage** | `OutputLeakageDetector` | API keys · passwords · credit cards · personal info | `severity` · `leakage_count` · `leakage_rate` |
+| **Tool Authorization** | `ToolAuthorizationTracker` | Unauthorized tool use · dangerous parameters | `compliance_rate` · `violation_rate` · `unauthorized_calls` |
+| **Privilege Escalation** | `PrivilegeEscalationDetector` | guest→admin privilege escalation chain | `risk_score` (0–10) · `escalation_detected` · `escalation_path` |
+| **Tool Chain Attack** | `ToolChainAttackDetector` | Data exfiltration · lateral movement · persistence attack chains | `confidence` (0–1) · `attack_types` · `is_suspicious_chain` |
 
-보안 지표 활성화 방법:
+Security metric activation methods:
 
 ```python
 from agent_evaluator.decorators import SecurityConfig
 
-# 방법 A: 특정 함수에만 임시 활성 (이 호출만)
+# Method A: temporarily activate for a specific function (this call only)
 @agent_eval(monitor, task_type="qa", security=SecurityConfig())
 def secure_agent(question, ground_truth=""): ...
 
-# 방법 B: Monitor 전역 설정 (모든 record_task에 적용)
+# Method B: Monitor global setting (applies to all record_task calls)
 monitor = PerformanceMonitor("results/", enable_security_metrics=True)
 ```
 
-### Layer 3 — 하이브리드 평가 (외부 라이브러리)
+### Layer 3 — Hybrid Evaluation (external libraries)
 
 ```python
 from agent_evaluator import HybridPerformanceMonitor
@@ -1044,21 +1044,21 @@ monitor = HybridPerformanceMonitor(
     output_dir="results/",
 )
 
-# HybridPerformanceMonitor는 PerformanceMonitor 상속 — 3종 데코레이터 모두 동일하게 사용
+# HybridPerformanceMonitor inherits PerformanceMonitor — all 3 decorator types work identically
 @agent_eval(monitor, task_type="information_retrieval", rag_mode=True, context_arg="context")
 def rag_agent(question, context="", ground_truth=""): ...
 ```
 
-| 제공자 | 지표 | 조건 |
-|--------|------|------|
-| **LLMJudge** *(v0.7.5+)* | completeness · relevance · factual · toxicity · bias | 기본 설치에 포함 · `llm_judge=LLMJudgeConfig()` |
-| **LLMJudge** *(v0.7.6+)* | + **faithfulness** (RAG) · **커스텀 기준(G-Eval)** | `rag_mode=True` + `llm_judge=LLMJudgeConfig(criteria=[...])` |
+| Provider | Metrics | Condition |
+|----------|---------|-----------|
+| **LLMJudge** *(v0.7.5+)* | completeness · relevance · factual · toxicity · bias | Included in base install · `llm_judge=LLMJudgeConfig()` |
+| **LLMJudge** *(v0.7.6+)* | + **faithfulness** (RAG) · **custom criteria (G-Eval)** | `rag_mode=True` + `llm_judge=LLMJudgeConfig(criteria=[...])` |
 | **DeepEval** | Hallucination(NLI) · Answer Relevancy (LLM) | `pip install "agent-evaluator[eval]"` |
-| **Ragas** | Faithfulness · Answer Relevancy · Context Precision · Context Recall (LLM) | 동일 + `context` 필드 필요 |
+| **Ragas** | Faithfulness · Answer Relevancy · Context Precision · Context Recall (LLM) | same + `context` field required |
 
-### Harness Engineering — 33개 Config, 7개 Gate Group (A–G)
+### Harness Engineering — 33 Configs, 7 Gate Groups (A–G)
 
-Harness Config는 `@agent_eval` 데코레이터 파라미터로 전달하며, `PerformanceMonitor`가 자동 집계합니다. 대시보드 **Harness Gate** 탭에서 그룹별 통과/경고/실패를 시각화합니다.
+Pass Harness Configs as `@agent_eval` decorator parameters and `PerformanceMonitor` auto-aggregates them. Visualize group-level pass/warn/fail in the dashboard **Harness Gate** tab.
 
 ```python
 from agent_evaluator import (
@@ -1072,7 +1072,7 @@ from agent_evaluator import (
 )
 
 @agent_eval(monitor, task_type="qa",
-    instructions=InstructionConfig(required_keywords=["서울"], fail_on_violation=True),
+    instructions=InstructionConfig(required_keywords=["Seoul"], fail_on_violation=True),
     loop_detection=LoopDetectionConfig(consecutive_repeat_threshold=3),
     sla=SLAConfig(p95_ms=3000),
     explainability=ExplainabilityConfig(min_reasoning_length=20),
@@ -1080,8 +1080,8 @@ from agent_evaluator import (
 def my_agent(question: str, ground_truth: str = "") -> str: ...
 ```
 
-| Group | 영역 | Config (개수) |
-|-------|------|--------------|
+| Group | Area | Config (count) |
+|-------|------|---------------|
 | **A** | Goal Achievement | InstructionConfig · GoalAlignmentConfig · PlanConfig · SubtaskConfig · ContextRetentionConfig · KnowledgeRetentionConfig **(6)** |
 | **B** | Behavioral Integrity | LoopDetectionConfig · ScopeConfig · ToolParameterSafetyConfig · ContextWindowConfig · StateConsistencyConfig · DeadlockConfig **(6)** |
 | **C** | Reliability | ReproducibilityConfig · FaultToleranceConfig · GracefulDegradationConfig · RetryConsistencyConfig · IdempotencyConfig **(5)** |
@@ -1090,15 +1090,15 @@ def my_agent(question: str, ground_truth: str = "") -> str: ...
 | **F** | Multi-Agent Coord. | ConsensusConfig · PropagationConfig · AgentRoleConfig · ConflictResolutionConfig **(4)** |
 | **G** | Observability | ExplainabilityConfig · ObservabilityConfig · ErrorDiagnosisConfig · LatencyAttributionConfig **(4)** |
 
-> **Note**: `TTFTVariabilityConfig` · `CostPredictabilityConfig`는 monitor 수준 자동 집계(≥5 tasks with `ttft_ms` extra 및 task_type별 토큰 CV). 데코레이터 파라미터 불필요.
+> **Note**: `TTFTVariabilityConfig` · `CostPredictabilityConfig` are auto-aggregated at monitor level (≥5 tasks with `ttft_ms` extra and token CV per task_type). No decorator parameter needed.
 
-전체 실전 예제: `Evaluator_Examples/ch03_harness_basics.py`
+Full practical example: `Evaluator_Examples/ch03_harness_basics.py`
 
 ---
 
-## CI/CD 품질 게이팅
+## CI/CD Quality Gating
 
-### 코드에서 직접
+### Directly in Code
 
 ```python
 eval = QuickEval("results/")
@@ -1106,9 +1106,9 @@ eval = QuickEval("results/")
 @eval.qa
 def agent(question, ground_truth=""): ...
 
-# 평가 실행 후
+# After evaluation
 eval.gate(tcr=85, accuracy=70, quality=3.5, hallucination=5)
-# 임계값 미달 시 sys.exit(1) — CI 파이프라인 실패 처리
+# sys.exit(1) if thresholds not met — CI pipeline fails
 ```
 
 ### CLI (GitHub Actions)
@@ -1123,25 +1123,25 @@ eval.gate(tcr=85, accuracy=70, quality=3.5, hallucination=5)
       --tcr 85 --accuracy 70 --p95-latency 3.0 --hallucination 5
 ```
 
-`agent-eval gate` 옵션:
+`agent-eval gate` options:
 
-| 옵션 | 설명 |
-|------|------|
-| `--tcr N` | Task Completion Rate 최소값 (%) |
-| `--accuracy N` | 정확도 최소값 (%) |
-| `--p95-latency N` | P95 지연시간 최대값 (초) |
-| `--hallucination N` | 환각 탐지율 최대값 (%) |
-| `--llm-judge N` | LLM Judge 종합 점수 최소값 (0–5) |
-| `--fail-on-regression N` | 이전 기준선 대비 허용 하락 비율 (%) |
-| `--junit-xml PATH` | JUnit XML 출력 (CI 연동) |
+| Option | Description |
+|--------|-------------|
+| `--tcr N` | Minimum Task Completion Rate (%) |
+| `--accuracy N` | Minimum accuracy (%) |
+| `--p95-latency N` | Maximum P95 latency (seconds) |
+| `--hallucination N` | Maximum hallucination detection rate (%) |
+| `--llm-judge N` | Minimum LLM Judge overall score (0–5) |
+| `--fail-on-regression N` | Allowed drop ratio vs. previous baseline (%) |
+| `--junit-xml PATH` | JUnit XML output (CI integration) |
 
-**종료 코드:** `0` = 전체 통과 / `1` = 임계값 미달 / `2` = 회귀 감지
+**Exit codes:** `0` = all passed / `1` = threshold not met / `2` = regression detected
 
 ---
 
-## 조건부 알림
+## Conditional Alerts
 
-3종 데코레이터 모두 동일한 `alert_rules=` API를 지원합니다.
+All 3 decorator types support the same `alert_rules=` API.
 
 ```python
 from agent_evaluator.decorators import AlertRuleBuilder
@@ -1150,7 +1150,7 @@ slow_rule  = AlertRuleBuilder.when_latency_above(3.0,  handler=lambda msg, tr: p
 error_rule = AlertRuleBuilder.when_accuracy_below(0.7, handler=lambda msg, tr: send_slack(msg))
 fail_rule  = AlertRuleBuilder.when_completion_below(0.8, handler=lambda msg, tr: send_alert(msg))
 
-# 3종 데코레이터 모두 동일하게 적용
+# Applies equally to all 3 decorator types
 @agent_eval(monitor,      task_type="qa", alert_rules=[slow_rule, error_rule])
 def agent(question, ground_truth=""): ...
 
@@ -1163,9 +1163,9 @@ def chat(question, session_id="s1"): ...
 
 ---
 
-## 주기적 자동 저장 (`flush_every`)
+## Periodic Auto-Save (`flush_every`)
 
-프로세스가 중간에 종료되어도 결과가 보존됩니다. 3종 데코레이터 모두 지원합니다.
+Results are preserved even if the process exits mid-run. All 3 decorator types supported.
 
 ```python
 @agent_eval(monitor, task_type="qa", flush_every=10)
@@ -1174,22 +1174,22 @@ def agent(question, ground_truth=""): ...
 @batch_eval(monitor, task_type="qa", flush_every=5)
 def batch_agent(questions, ground_truths=None): ...
 
-# QuickEval에서도 동일
+# Same in QuickEval
 eval = QuickEval("results/", auto_save=True, auto_save_interval=10)
 ```
 
 ---
 
-## preset — 환경별 설정 묶음
+## preset — Environment-Specific Configuration Bundles
 
-3종 데코레이터 모두 동일한 `preset=` 파라미터를 지원합니다.
+All 3 decorator types support the same `preset=` parameter.
 
-| preset | 자동 적용 설정 | 환경 |
-|--------|-------------|-----|
-| `"production"` | `flush_every=50` · `enable_anomaly_detection=True` · `sample_rate=0.1` | 운영 서버 |
-| `"development"` | `llm_judge=LLMJudgeConfig()` · `auto_detect_framework=True` | 개발·디버깅 |
-| `"testing"` | `sample_rate=1.0` · `timeout=10.0` | 단위 테스트 |
-| `"canary"` | `sample_rate=0.01` · `flush_every=100` | 카나리 배포 |
+| preset | Auto-applied Settings | Environment |
+|--------|----------------------|-------------|
+| `"production"` | `flush_every=50` · `enable_anomaly_detection=True` · `sample_rate=0.1` | Production server |
+| `"development"` | `llm_judge=LLMJudgeConfig()` · `auto_detect_framework=True` | Development · debugging |
+| `"testing"` | `sample_rate=1.0` · `timeout=10.0` | Unit testing |
+| `"canary"` | `sample_rate=0.01` · `flush_every=100` | Canary deployment |
 
 ```python
 @agent_eval(monitor,      task_type="qa", preset="production")
@@ -1199,34 +1199,34 @@ eval = QuickEval("results/", auto_save=True, auto_save_interval=10)
 
 ---
 
-## CLI 명령어
+## CLI Commands
 
-| 명령어 | 설명 |
-|--------|------|
-| `agent-eval init` | 대화형 API 키 설정 마법사 |
-| `agent-eval check` | 현재 설정 상태 및 API 키 확인 |
-| `agent-eval dashboard [dir]` | FastAPI 대시보드 웹 서버 실행 |
-| `agent-eval gate <result.json>` | CI/CD 품질 게이팅 |
-| `agent-eval trend <dir>` | 순차 평가 결과 TCR·정확도 추세 분석 (회귀 감지) |
-| `agent-eval dataset build <dir>` | 운영 결과에서 골든 데이터셋 자동 추출 |
-| `agent-eval monitor` | Arize Phoenix + OTEL 실시간 모니터링 |
-| `agent-eval --version` | 패키지 버전 출력 |
+| Command | Description |
+|---------|-------------|
+| `agent-eval init` | Interactive API key setup wizard |
+| `agent-eval check` | Check current configuration and API keys |
+| `agent-eval dashboard [dir]` | Run FastAPI dashboard web server |
+| `agent-eval gate <result.json>` | CI/CD quality gating |
+| `agent-eval trend <dir>` | Analyze TCR · accuracy trends across sequential results (regression detection) |
+| `agent-eval dataset build <dir>` | Auto-extract golden dataset from production results |
+| `agent-eval monitor` | Arize Phoenix + OTEL real-time monitoring |
+| `agent-eval --version` | Print package version |
 
 ---
 
-## 평가 결과 출력 시나리오
+## Evaluation Result Output Scenarios
 
-데코레이터로 수집된 지표를 **세 가지 방식**으로 출력할 수 있습니다.
+Metrics collected by decorators can be output in **three ways**.
 
-| 시나리오 | 용도 | 추가 작업 |
-|----------|------|----------|
-| 터미널 출력 | 즉시 확인 · 디버깅 | 없음 |
-| FastAPI 대시보드 | 개발·검증 단계 시각화 | `save_to_file()` 후 CLI 실행 |
-| Phoenix OTEL | 프로덕션 실시간 모니터링 | `setup_otel()` 선언 후 별도 터미널에서 `agent-eval monitor` |
+| Scenario | Purpose | Additional Work |
+|----------|---------|----------------|
+| Terminal output | Immediate check · debugging | None |
+| FastAPI dashboard | Visualization during development · validation | Run CLI after `save_to_file()` |
+| Phoenix OTEL | Production real-time monitoring | Declare `setup_otel()` then run `agent-eval monitor` in separate terminal |
 
-### 시나리오 1 — 터미널 출력
+### Scenario 1 — Terminal Output
 
-데코레이터 실행 후 `generate_report()`로 결과를 즉시 확인합니다.
+Immediately check results with `generate_report()` after decorator execution.
 
 ```python
 from agent_evaluator import PerformanceMonitor
@@ -1241,24 +1241,24 @@ def my_agent(question: str, ground_truth: str = "") -> str:
 for q, gt in dataset:
     my_agent(q, ground_truth=gt)
 
-# 터미널 출력 — generate_report() 후 to_json() 또는 to_dict()
+# Terminal output — generate_report() then to_json() or to_dict()
 report = monitor.generate_report()
 print(report.to_json(indent=2))
 # → {"accuracy_metrics": {...}, "efficiency_metrics": {...}, "quality_metrics": {...}}
 ```
 
-### 시나리오 2 — FastAPI 대시보드
+### Scenario 2 — FastAPI Dashboard
 
-`save_to_file()`이 `results/` 에 JSON을 쓰고, `agent-eval dashboard`가 이를 읽습니다.
+`save_to_file()` writes JSON to `results/`, and `agent-eval dashboard` reads it.
 
 ```python
-# 방법 A: 실행 후 수동 저장
-monitor.save_to_file("eval")          # results/eval.json + .html 생성
+# Method A: manual save after run
+monitor.save_to_file("eval")          # creates results/eval.json + .html
 
-# 방법 B: auto_save — N건마다 자동 저장
+# Method B: auto_save — auto-saves every N tasks
 monitor = PerformanceMonitor(output_dir="results/", auto_save=True, auto_save_interval=10)
 
-# 방법 C: QuickEval
+# Method C: QuickEval
 eval = QuickEval("results/")
 @eval.qa
 def my_agent(q, ground_truth=""): ...
@@ -1266,52 +1266,52 @@ eval.save()                           # results/quickeval.json + .html
 ```
 
 ```bash
-# 대시보드는 기본 설치에 포함
-agent-eval dashboard results/ --watch        # 파일 변경 시 자동 갱신
+# Dashboard is included in base install
+agent-eval dashboard results/ --watch        # auto-refresh on file change
 ```
 
-| URL | 내용 |
-|-----|------|
-| `http://localhost:8765` | 메인 대시보드 |
-| `http://localhost:8765/slides` | 발표용 슬라이드 뷰 |
-| `http://localhost:8765/api/docs` | Swagger API 문서 |
+| URL | Content |
+|-----|---------|
+| `http://localhost:8765` | Main dashboard |
+| `http://localhost:8765/slides` | Presentation slide view |
+| `http://localhost:8765/api/docs` | Swagger API documentation |
 
-### 시나리오 3 — Phoenix 실시간 모니터링 (OTEL)
+### Scenario 3 — Phoenix Real-time Monitoring (OTEL)
 
-`setup_otel()`을 **PerformanceMonitor 생성 전에** 호출해야 합니다. 이후 모든 `record_task()` 호출에서 OTLP 스팬이 자동 발행됩니다.
+`setup_otel()` must be called **before creating PerformanceMonitor**. All subsequent `record_task()` calls will automatically emit OTLP spans.
 
 ```bash
-# 터미널 1 — Phoenix 서버 기동 (OTEL은 기본 설치에 포함)
+# Terminal 1 — start Phoenix server (OTEL is included in base install)
 agent-eval monitor                           # http://localhost:6006
 ```
 
 ```python
-# 터미널 2 — 에이전트 코드
+# Terminal 2 — agent code
 from agent_evaluator import setup_otel, PerformanceMonitor
 from agent_evaluator.decorators import agent_eval
 
-setup_otel(endpoint="http://localhost:6006", service_name="my-agent")  # ← 반드시 먼저
+setup_otel(endpoint="http://localhost:6006", service_name="my-agent")  # ← must come first
 monitor = PerformanceMonitor(output_dir="results/")
 
 @agent_eval(monitor, task_type="qa")
 def my_agent(question: str, ground_truth: str = "") -> str:
     return llm.invoke(question)
 
-# 호출 시 OTLP 스팬 자동 전송 → Phoenix Tracing 탭에서 즉시 확인
-my_agent("한국의 수도는?", ground_truth="서울")
+# OTLP spans auto-sent on call → immediately visible in Phoenix Tracing tab
+my_agent("What is the capital of South Korea?", ground_truth="Seoul")
 ```
 
-Tracing · Evaluators · Datasets · Prompts 4개 메뉴에서 실시간 확인 가능합니다.
+Real-time monitoring available across 4 menus: Tracing · Evaluators · Datasets · Prompts.
 
 ---
 
-## 공개 API
+## Public API
 
 ```python
 from agent_evaluator import (
-    PerformanceMonitor,            # 평가 오케스트레이터
-    QuickEval,                     # 원스톱 Facade
-    HybridPerformanceMonitor,      # Layer 3 포함 모니터
+    PerformanceMonitor,            # evaluation orchestrator
+    QuickEval,                     # one-stop facade
+    HybridPerformanceMonitor,      # monitor with Layer 3
     TaskResult, TaskType, EvaluationReport,
     create_taskresult,
     evaluation_session, async_evaluation_session,
@@ -1321,279 +1321,279 @@ from agent_evaluator import (
 )
 
 from agent_evaluator.decorators import (
-    # ── 3종 핵심 데코레이터 ──────────────────
-    agent_eval,           # 단일 태스크 (1호출 → 1 TaskResult)
-    batch_eval,           # 배치 평가   (1호출 → N TaskResult)
-    conversation_eval,    # 멀티턴 대화 (N호출 → 1 TaskResult)
+    # ── 3 core decorators ─────────────────────────
+    agent_eval,           # single task (1 call → 1 TaskResult)
+    batch_eval,           # batch evaluation (1 call → N TaskResults)
+    conversation_eval,    # multi-turn conversation (N calls → 1 TaskResult)
 
-    # ── 통합 팩토리 & 탈출구 ─────────────────
-    EvalDecorator,        # 3종 공통 설정 팩토리
-    eval_context,         # 데코레이터 불가 시 컨텍스트 매니저
+    # ── unified factory & escape hatch ────────────
+    EvalDecorator,        # common config factory for all 3 types
+    eval_context,         # context manager when decorators can't be used
 
-    # ── 메타데이터 & 유틸리티 ────────────────
-    EvalMetadata,         # agent_eval / batch_eval 추가 메타데이터
-    TurnMetadata,         # conversation_eval 턴별 메타데이터
-    get_eval_ctx,         # 스레드 로컬 평가 컨텍스트 접근
-    FrameworkLiteral,     # 21개 프레임워크 타입 힌트
-    get_framework_info,   # 프레임워크 어댑터 정보 조회
-    AlertRuleBuilder,     # 알림 규칙 팩토리
-    flush_conversation,   # 대화 세션 수동 종료
+    # ── metadata & utilities ──────────────────────
+    EvalMetadata,         # additional metadata for agent_eval / batch_eval
+    TurnMetadata,         # per-turn metadata for conversation_eval
+    get_eval_ctx,         # access thread-local evaluation context
+    FrameworkLiteral,     # type hint for 21 frameworks
+    get_framework_info,   # query framework adapter info
+    AlertRuleBuilder,     # alert rule factory
+    flush_conversation,   # manually end conversation session
     flush_all_conversations,
 )
 ```
 
 ---
 
-## 예제 가이드
+## Example Guide
 
-Book 챕터 기반 26개 파일로 구성됩니다. 각 파일은 독립 실행 가능합니다.
+Consists of 26 files based on book chapters. Each file is independently runnable.
 
-### 예제별 의존성
+### Example Dependencies
 
-| 예제 | 챕터 | 내용 | 선택 |
-|------|------|------|------|
-| `ch01_first_eval.py` | Ch01 | Layer 1 기초 — 정확도·할루시네이션·TCR | — |
-| `ch02_quickstart.py` | Ch02 | QuickEval 5분 첫 평가 | — |
-| `ch03_harness_basics.py` | Ch03 | Harness Gate A–G 7개 개요 | `agent-eval monitor` |
-| `ch04_group_a.py` | Ch04 | Gate A: Goal Achievement (6개 Config) | — |
-| `ch05_group_b.py` | Ch05 | Gate B: Behavioral Integrity (6개 Config) | — |
-| `ch06_group_c.py` | Ch06 | Gate C: Reliability (5개 Config) | — |
-| `ch07_group_d.py` | Ch07 | Gate D: Performance Contract (5개 Config) | — |
-| `ch08_group_e.py` | Ch08 | Gate E: Security Boundary (3개 Config) | — |
-| `ch09_group_f.py` | Ch09 | Gate F: Multi-Agent Coordination (4개 Config) | — |
+| Example | Chapter | Content | Optional |
+|---------|---------|---------|---------|
+| `ch01_first_eval.py` | Ch01 | Layer 1 basics — accuracy · hallucination · TCR | — |
+| `ch02_quickstart.py` | Ch02 | QuickEval 5-minute first evaluation | — |
+| `ch03_harness_basics.py` | Ch03 | Harness Gate A–G 7-gate overview | `agent-eval monitor` |
+| `ch04_group_a.py` | Ch04 | Gate A: Goal Achievement (6 Configs) | — |
+| `ch05_group_b.py` | Ch05 | Gate B: Behavioral Integrity (6 Configs) | — |
+| `ch06_group_c.py` | Ch06 | Gate C: Reliability (5 Configs) | — |
+| `ch07_group_d.py` | Ch07 | Gate D: Performance Contract (5 Configs) | — |
+| `ch08_group_e.py` | Ch08 | Gate E: Security Boundary (3 Configs) | — |
+| `ch09_group_f.py` | Ch09 | Gate F: Multi-Agent Coordination (4 Configs) | — |
 | `ch10_group_g.py` | Ch10 | Gate G: Observability + AnomalyDetector · CostTracker | — |
-| `ch11_eval_data.py` | Ch11 | 평가데이터 설계 — GoldenSetBuilder · evaluation_session | — |
-| `ch12_decorators.py` | Ch12 | 데코레이터 완전정복 — @agent_eval · @batch_eval · QuickEval · LLMJudge | — |
-| `ch13_frameworks.py` | Ch13 | 프레임워크 통합 — LangChain · LangGraph · CrewAI · AutoGen | `agent-evaluator[langchain]` (선택) |
-| `ch14_thresholds.py` | Ch14 | 임계값 설정과 품질 기준 수립 | — |
-| `ch15_dashboard.py` | Ch15 | 대시보드 시각화 — QuickEval · AnomalyDetector · CostTracker 데이터 생성 | `agent-eval dashboard` |
-| `ch16_alerts.py` | Ch16 | 알림시스템 — StreamingEvaluator · AlertEngine · SimpleTaskAlertRule | `SLACK_WEBHOOK_URL` (미설정 시 Mock) |
-| `ch17_weekly_review.py` | Ch17 | 주간·월간 품질 리뷰 자동화 | — |
-| `ch18_cicd_gate.py` | Ch18 | CI/CD 품질 게이팅 — Harness 최소 검증 · exit 0/1 | — |
-| `ch19_phoenix.py` | Ch19 | Phoenix OTEL — Tracing · Datasets · GraphQL + DeepEval · Ragas | `agent-evaluator[eval]` + `OPENAI_API_KEY` (선택) |
-| `ch20_deployment.py` | Ch20 | 프로덕션 배포전략 — v1 vs v2 Gate 점수 비교 | — |
-| `ch21_pipeline.py` | Ch21 | 종합 실무파이프라인 — 개발→CI→운영→개선 4단계 | — |
-| `ch22_project_analysis.py` | Ch22 | 기존 프로젝트 해부 — 토폴로지·LLM 열거·위험 우선순위화 | — |
-| `ch23_gate_mapping.py` | Ch23 | Gate 매핑 전략 — 실패모드 카탈로그 → Config 번역 + 가중치 설계 | — |
-| `ch24_quickeval_entry.py` | Ch24 | 첫 번째 이식 — 침습도 Level 0/1 패턴 + 첫 측정값 획득 | — |
-| `ch25_harness_full.py` | Ch25 | 전체 통합 — 중앙 모니터 + 어댑터 + 보안 스캔 + Gate F 버그 발견 | — |
-| `ch26_cicd_weekly.py` | Ch26 | CI/CD 완성 — 골든 데이터셋·추세 분석·주간 리뷰·비용 드리프트 | — |
+| `ch11_eval_data.py` | Ch11 | Evaluation data design — GoldenSetBuilder · evaluation_session | — |
+| `ch12_decorators.py` | Ch12 | Decorators mastery — @agent_eval · @batch_eval · QuickEval · LLMJudge | — |
+| `ch13_frameworks.py` | Ch13 | Framework integration — LangChain · LangGraph · CrewAI · AutoGen | `agent-evaluator[langchain]` (optional) |
+| `ch14_thresholds.py` | Ch14 | Threshold configuration and quality standards | — |
+| `ch15_dashboard.py` | Ch15 | Dashboard visualization — QuickEval · AnomalyDetector · CostTracker data generation | `agent-eval dashboard` |
+| `ch16_alerts.py` | Ch16 | Alert system — StreamingEvaluator · AlertEngine · SimpleTaskAlertRule | `SLACK_WEBHOOK_URL` (Mock if not set) |
+| `ch17_weekly_review.py` | Ch17 | Weekly/monthly quality review automation | — |
+| `ch18_cicd_gate.py` | Ch18 | CI/CD quality gating — Harness minimal verification · exit 0/1 | — |
+| `ch19_phoenix.py` | Ch19 | Phoenix OTEL — Tracing · Datasets · GraphQL + DeepEval · Ragas | `agent-evaluator[eval]` + `OPENAI_API_KEY` (optional) |
+| `ch20_deployment.py` | Ch20 | Production deployment strategy — v1 vs v2 Gate score comparison | — |
+| `ch21_pipeline.py` | Ch21 | Comprehensive production pipeline — dev→CI→ops→improvement 4 stages | — |
+| `ch22_project_analysis.py` | Ch22 | Existing project analysis — topology · LLM enumeration · risk prioritization | — |
+| `ch23_gate_mapping.py` | Ch23 | Gate mapping strategy — failure mode catalog → Config translation + weight design | — |
+| `ch24_quickeval_entry.py` | Ch24 | First migration — invasiveness Level 0/1 patterns + first measurements | — |
+| `ch25_harness_full.py` | Ch25 | Full integration — central monitor + adapters + security scan + Gate F bug discovery | — |
+| `ch26_cicd_weekly.py` | Ch26 | CI/CD completion — golden dataset · trend analysis · weekly review · cost drift | — |
 
-### 실행
+### Running Examples
 
 ```bash
 cd Evaluator_Examples
 
-python ch01_first_eval.py      # Layer 1 기초 — Accuracy · Hallucination · Quality · Latency · Token · TCR
-python ch02_quickstart.py      # QuickEval 5분 첫 평가
-python ch03_harness_basics.py  # Harness Gate A–G 개요 — 7개 Gate · 33개 Config
-python ch04_group_a.py         # Gate A: Goal Achievement — InstructionConfig · GoalAlignmentConfig 외
-python ch05_group_b.py         # Gate B: Behavioral Integrity — LoopDetectionConfig · StateConsistencyConfig 외
-python ch06_group_c.py         # Gate C: Reliability — ReproducibilityConfig · FaultToleranceConfig 외
-python ch07_group_d.py         # Gate D: Performance Contract — SLAConfig · TTFTVariabilityConfig 외
-python ch08_group_e.py         # Gate E: Security Boundary — ThreatSeverityConfig · ComplianceConfig 외
-python ch09_group_f.py         # Gate F: Multi-Agent Coordination — ConsensusConfig · AgentRoleConfig 외
+python ch01_first_eval.py      # Layer 1 basics — Accuracy · Hallucination · Quality · Latency · Token · TCR
+python ch02_quickstart.py      # QuickEval 5-minute first evaluation
+python ch03_harness_basics.py  # Harness Gate A–G overview — 7 Gates · 33 Configs
+python ch04_group_a.py         # Gate A: Goal Achievement — InstructionConfig · GoalAlignmentConfig · etc.
+python ch05_group_b.py         # Gate B: Behavioral Integrity — LoopDetectionConfig · StateConsistencyConfig · etc.
+python ch06_group_c.py         # Gate C: Reliability — ReproducibilityConfig · FaultToleranceConfig · etc.
+python ch07_group_d.py         # Gate D: Performance Contract — SLAConfig · TTFTVariabilityConfig · etc.
+python ch08_group_e.py         # Gate E: Security Boundary — ThreatSeverityConfig · ComplianceConfig · etc.
+python ch09_group_f.py         # Gate F: Multi-Agent Coordination — ConsensusConfig · AgentRoleConfig · etc.
 python ch10_group_g.py         # Gate G: Observability + AnomalyDetector · CostTracker
-python ch11_eval_data.py       # 평가데이터 설계 — GoldenSetBuilder · evaluation_session
-python ch12_decorators.py      # 데코레이터 완전정복 — @agent_eval · @batch_eval · QuickEval · LLMJudge
-python ch13_frameworks.py      # 프레임워크 통합 — LangChain · LangGraph · CrewAI · AutoGen
-python ch14_thresholds.py      # 임계값 설정과 품질 기준 수립
-python ch15_dashboard.py       # 대시보드 시각화 데이터 생성
-python ch16_alerts.py          # 알림시스템 — StreamingEvaluator · AlertEngine
-python ch17_weekly_review.py   # 주간·월간 품질 리뷰 자동화
-python ch18_cicd_gate.py       # CI/CD 품질 게이팅
+python ch11_eval_data.py       # Evaluation data design — GoldenSetBuilder · evaluation_session
+python ch12_decorators.py      # Decorators mastery — @agent_eval · @batch_eval · QuickEval · LLMJudge
+python ch13_frameworks.py      # Framework integration — LangChain · LangGraph · CrewAI · AutoGen
+python ch14_thresholds.py      # Threshold configuration and quality standards
+python ch15_dashboard.py       # Dashboard visualization data generation
+python ch16_alerts.py          # Alert system — StreamingEvaluator · AlertEngine
+python ch17_weekly_review.py   # Weekly/monthly quality review automation
+python ch18_cicd_gate.py       # CI/CD quality gating
 python ch19_phoenix.py         # Phoenix OTEL + DeepEval · Ragas (opt-in)
-python ch20_deployment.py      # 프로덕션 배포전략
-python ch21_pipeline.py        # 종합 실무파이프라인
-python ch22_project_analysis.py  # 기존 프로젝트 해부 4단계
-python ch23_gate_mapping.py    # Gate 매핑 전략
-python ch24_quickeval_entry.py # 첫 번째 이식 — Level 0/1 침습
-python ch25_harness_full.py    # 전체 통합 파이프라인
-python ch26_cicd_weekly.py     # CI/CD 완성 + 주간 리뷰
+python ch20_deployment.py      # Production deployment strategy
+python ch21_pipeline.py        # Comprehensive production pipeline
+python ch22_project_analysis.py  # Existing project analysis — 4 stages
+python ch23_gate_mapping.py    # Gate mapping strategy
+python ch24_quickeval_entry.py # First migration — Level 0/1 invasiveness
+python ch25_harness_full.py    # Full integration pipeline
+python ch26_cicd_weekly.py     # CI/CD completion + weekly review
 
-# ── 인프라 ───────────────────────────────────────────────────
-agent-eval monitor             # Phoenix 서버 기동 (http://localhost:6006)
-agent-eval dashboard --watch   # 대시보드 (http://localhost:8765)
+# ── Infrastructure ──────────────────────────────────────────────────────────
+agent-eval monitor             # Start Phoenix server (http://localhost:6006)
+agent-eval dashboard --watch   # Dashboard (http://localhost:8765)
 ```
 
-> 구 11개 예제(01~08, 09, 10)는 `Evaluator_Examples/.deprecated/` 에 보존됩니다.
+> Legacy 11 examples (01–08, 09, 10) are preserved in `Evaluator_Examples/.deprecated/`.
 
 ---
 
-## 프로젝트 구조
+## Project Structure
 
 ```
 agent-evaluator/
 ├── agent_evaluator/
 │   ├── decorators.py            # agent_eval · batch_eval · conversation_eval
 │   │                            # EvalDecorator · eval_context · EvalMetadata · TurnMetadata
-│   ├── quick_eval.py            # QuickEval — 원스톱 Facade
+│   ├── quick_eval.py            # QuickEval — one-stop facade
 │   ├── core/
 │   │   ├── trackers/
 │   │   │   ├── base.py          # TaskResult · EvaluationReport · TaskType
-│   │   │   ├── layer1.py        # Foundation 지표 6종
-│   │   │   ├── layer2.py        # Agentic 지표 5종
-│   │   │   ├── security.py      # 보안 지표 5종 (Layer 2-B)
-│   │   │   ├── monitor.py       # PerformanceMonitor (오케스트레이터)
+│   │   │   ├── layer1.py        # 6 Foundation metrics
+│   │   │   ├── layer2.py        # 5 Agentic metrics
+│   │   │   ├── security.py      # 5 Security metrics (Layer 2-B)
+│   │   │   ├── monitor.py       # PerformanceMonitor (orchestrator)
 │   │   │   ├── conversation.py  # ConversationSession · ConversationMetrics
 │   │   │   └── feedback.py      # ImplicitFeedbackTracker
-│   │   ├── otel/                # OpenTelemetry 통합 (기본 설치에 포함)
+│   │   ├── otel/                # OpenTelemetry integration (included in base install)
 │   │   ├── hybrid_monitor.py    # HybridPerformanceMonitor
 │   │   └── monitor_context.py   # evaluation_session · async_evaluation_session
 │   ├── integrations/
 │   │   ├── llm_judge.py         # LLMJudge
-│   │   └── metric_adapters.py   # DeepEval · Ragas 어댑터
-│   ├── serve/                   # FastAPI 대시보드 (기본 설치에 포함)
+│   │   └── metric_adapters.py   # DeepEval · Ragas adapters
+│   ├── serve/                   # FastAPI dashboard (included in base install)
 │   ├── cli/                     # agent-eval CLI
 │   ├── alerts/                  # AlertEngine · SimpleTaskAlertRule
 │   ├── anomaly/                 # AnomalyDetector
 │   ├── cost/                    # CostTracker · AdaptivePolicy
 │   └── datasets/                # GoldenSetBuilder
 │
-├── Evaluator_Examples/          # 예제 26개 파일 (ch01~ch26, .deprecated/에 구 11개 보존)
-├── tests/                       # 2,465개+ 테스트 함수, 53개 파일
+├── Evaluator_Examples/          # 26 example files (ch01~ch26, legacy 11 preserved in .deprecated/)
+├── tests/                       # 2,465+ test functions, 53 files
 └── pyproject.toml
 ```
 
 ---
 
-## 의존성 명세
+## Dependency Specification
 
-**기본 설치 포함 패키지** (`pip install agent-evaluator`)
+**Packages included in base install** (`pip install agent-evaluator`)
 
-| 패키지 | 버전 범위 | 용도 |
-|--------|----------|------|
-| `numpy` | ≥1.20.0, <3.0.0 | 수치 연산 |
-| `pandas` | ≥1.3.0, <4.0.0 | 지표 집계 |
-| `python-dotenv` | ≥0.19.0, <2.0.0 | 환경변수 관리 |
-| `openai` | ≥1.0.0, <3.0.0 | LLMJudge 엔진 |
-| `anthropic` | ≥0.20.0, <1.0.0 | LLMJudge 엔진 |
-| `fastapi` | ≥0.110.0, <1.0.0 | 웹 대시보드 |
-| `uvicorn[standard]` | ≥0.29.0, <1.0.0 | 웹 대시보드 |
-| `jinja2` | ≥3.1.0, <4.0.0 | 웹 대시보드 |
-| `python-multipart` | ≥0.0.9, <1.0.0 | 웹 대시보드 |
-| `opentelemetry-sdk` | ≥1.20.0, <2.0.0 | OTEL 모니터링 |
-| `opentelemetry-exporter-otlp-proto-http` | ≥1.20.0, <2.0.0 | OTEL 모니터링 |
-| `arize-phoenix` | ≥7.0.0 | Phoenix 실시간 모니터링 |
-| `pdfplumber` | ≥0.10.0, <1.0.0 | 한국어 RAG PDF 처리 |
+| Package | Version Range | Purpose |
+|---------|--------------|---------|
+| `numpy` | ≥1.20.0, <3.0.0 | Numerical computation |
+| `pandas` | ≥1.3.0, <4.0.0 | Metric aggregation |
+| `python-dotenv` | ≥0.19.0, <2.0.0 | Environment variable management |
+| `openai` | ≥1.0.0, <3.0.0 | LLMJudge engine |
+| `anthropic` | ≥0.20.0, <1.0.0 | LLMJudge engine |
+| `fastapi` | ≥0.110.0, <1.0.0 | Web dashboard |
+| `uvicorn[standard]` | ≥0.29.0, <1.0.0 | Web dashboard |
+| `jinja2` | ≥3.1.0, <4.0.0 | Web dashboard |
+| `python-multipart` | ≥0.0.9, <1.0.0 | Web dashboard |
+| `opentelemetry-sdk` | ≥1.20.0, <2.0.0 | OTEL monitoring |
+| `opentelemetry-exporter-otlp-proto-http` | ≥1.20.0, <2.0.0 | OTEL monitoring |
+| `arize-phoenix` | ≥7.0.0 | Phoenix real-time monitoring |
+| `pdfplumber` | ≥0.10.0, <1.0.0 | Korean RAG PDF processing |
 
-**선택 extras** (설치 명령은 [## 설치](#설치) 참조)
+**Optional extras** (see [## Installation](#installation) for install commands)
 
-| Extra | 주요 패키지 | 설치 시간 | 비고 |
-|-------|-----------|----------|------|
-| `[examples]` | 기본 + eval | 무거움 | 예제 01~06: 기본만 필요 · 07: eval 추가 필요 |
-| `[eval]` | deepeval ≥3.0, <4.0 · ragas ≥0.4, <2.0 · datasets ≥4.0, <6.0 | 무거움 | DeepEval/Ragas 외부 평가 |
-| `[langchain]` | langchain ≥1.0, langgraph ≥1.0 | 중간 | 사용자 LangChain 에이전트 코드용¹ |
-| `[dspy]` | dspy-ai ≥2.0 | 중간 | 사용자 DSPy 에이전트 코드용¹ |
-| `[pydanticai]` | pydantic-ai ≥1.0, <2.0 | 빠름 | 사용자 PydanticAI 에이전트 코드용¹ |
-| `[crewai]` | crewai ≥1.0, <2.0 | 무거움 (단독 격리) | 사용자 CrewAI 에이전트 코드용¹ |
-| `[autogen]` | pyautogen ≥0.3, autogen-agentchat ≥0.4 | 무거움 (단독 격리) | 사용자 AutoGen 에이전트 코드용¹ |
-| `[full]` | 기본 + eval + langchain + dspy + pydanticai + crewai + autogen | 매우 무거움 | ⚠️ 10분+, CI 전체 호환성 검증용 |
-| `[dev]` | pytest · pytest-cov · ruff · mypy · build · twine | 빠름 | 개발 환경 |
+| Extra | Key Packages | Install Time | Notes |
+|-------|-------------|-------------|-------|
+| `[examples]` | base + eval | heavy | Examples 01–06: base only · 07: eval additionally required |
+| `[eval]` | deepeval ≥3.0, <4.0 · ragas ≥0.4, <2.0 · datasets ≥4.0, <6.0 | heavy | DeepEval/Ragas external evaluation |
+| `[langchain]` | langchain ≥1.0, langgraph ≥1.0 | medium | For user LangChain agent code¹ |
+| `[dspy]` | dspy-ai ≥2.0 | medium | For user DSPy agent code¹ |
+| `[pydanticai]` | pydantic-ai ≥1.0, <2.0 | fast | For user PydanticAI agent code¹ |
+| `[crewai]` | crewai ≥1.0, <2.0 | heavy (isolated) | For user CrewAI agent code¹ |
+| `[autogen]` | pyautogen ≥0.3, autogen-agentchat ≥0.4 | heavy (isolated) | For user AutoGen agent code¹ |
+| `[full]` | base + eval + langchain + dspy + pydanticai + crewai + autogen | very heavy | ⚠️ 10+ min, for full CI compatibility testing |
+| `[dev]` | pytest · pytest-cov · ruff · mypy · build · twine | fast | Development environment |
 
-¹ agent-evaluator 자체는 이 패키지 없이도 완전히 동작 (duck typing). 사용자의 에이전트 코드가 해당 프레임워크를 직접 import할 때만 설치.
+¹ agent-evaluator itself works fully without these packages (duck typing). Install only when your agent code directly imports the framework.
 
 ---
 
-## 개발 환경
+## Development Environment
 
 ```bash
 git clone https://github.com/bullpeng72/Agent-Evaluator.git
 cd Agent-Evaluator
 pip install -e ".[dev]"
 
-pytest                          # 테스트 실행 (2,465개+)
-ruff check agent_evaluator/    # 린트
-ruff format agent_evaluator/   # 포맷
-mypy agent_evaluator/          # 타입 검사
+pytest                          # run tests (2,465+)
+ruff check agent_evaluator/    # lint
+ruff format agent_evaluator/   # format
+mypy agent_evaluator/          # type check
 ```
 
 ---
 
-## 변경 이력
+## Changelog
 
-### v0.9.1 (2026-04-27) — 의존성 구조 재편 · pip resolver 최적화
+### v0.9.1 (2026-04-27) — Dependency restructure · pip resolver optimization
 
-- 🔧 `pyproject.toml` 의존성 구조 재편: 기본 설치를 코어 5개 패키지로 축소, fastapi·otel·pdfplumber를 `[serve]`·`[otel]`·`[pdf]`·`[sdk]` extras로 분리
-- 🔧 `arize-phoenix>=14.0.0,<14.7.0` 상한 고정 — 14.7.0+의 pydantic-ai 메타패키지(170개+ 패키지) 자동 설치 방지, `[sdk]` 설치 패키지 수 170→90개
-- 🔧 `openai>=2.0.0,<3.0.0`, `langchain-openai>=1.0.0,<2.0.0`, `langchain-anthropic>=1.0.0,<2.0.0` 범위 축소 — pip resolver 탐색 공간 최소화 (openai 후보 277→37개)
-- 📝 Docs 예제 파일 참조 현행화 (21→26개, ch01/ch02 파일명 교정)
+- 🔧 `pyproject.toml` dependency restructure: reduced base install to 5 core packages, split fastapi · otel · pdfplumber into `[serve]` · `[otel]` · `[pdf]` · `[sdk]` extras
+- 🔧 `arize-phoenix>=14.0.0,<14.7.0` upper bound fixed — prevents pydantic-ai metapackage (170+ packages) from auto-installing from 14.7.0+, `[sdk]` package count 170→90
+- 🔧 `openai>=2.0.0,<3.0.0`, `langchain-openai>=1.0.0,<2.0.0`, `langchain-anthropic>=1.0.0,<2.0.0` range narrowed — minimizes pip resolver search space (openai candidates 277→37)
+- 📝 Updated Docs example file references (21→26, ch01/ch02 filename corrections)
 
-### v0.8.5 (2026-04-23) — SDK 버그 수정
+### v0.8.5 (2026-04-23) — SDK bug fixes
 
-- `eval_efficiency()` dict 타입 `tokens_used` 묵살 버그 수정
-- `EfficiencyConfig` `cost_unit`/`target_cost_per_completion` 설계 오류 수정 (USD→tokens 스케일)
-- `CostPredictabilityConfig` — 에이전트별 `task_type` 분리로 CV 격리, Gate D 0.640→0.876
-- `ch10_group_g.py` — `EvalMetadata(extra={...})` 주입 경로 수정, Gate G warn→pass
+- Fixed silent `TypeError` suppression bug for dict-type `tokens_used` in `eval_efficiency()`
+- Fixed `EfficiencyConfig` `cost_unit`/`target_cost_per_completion` design error (USD→tokens scale)
+- `CostPredictabilityConfig` — isolated CV by separating `task_type` per agent, Gate D 0.640→0.876
+- `ch10_group_g.py` — fixed `EvalMetadata(extra={...})` injection path, Gate G warn→pass
 
-### v0.8.4 (2026-04-21) — 예제 파일 챕터 기반 전면 재편
+### v0.8.4 (2026-04-21) — Example files fully reorganized into chapter-based structure
 
-- 예제 파일 11개 → 17개 `chXX_topic.py` 챕터 기반 네이밍으로 전면 재편
-- `ch05`, `ch07`, `ch10`, `ch02`에 누락 트래커(WorkflowExecution·Latency·TokenEconomy·AnomalyDetector·CostTracker) 추가
-- Phoenix `service_name` 및 결과 파일명 챕터 번호 기준 동기화
-- `ch05_group_b.py` `create_taskresult` 임포트 누락 버그 수정
+- Example files fully reorganized from 11 → 17 `chXX_topic.py` chapter-based naming
+- Added missing trackers to `ch05`, `ch07`, `ch10`, `ch02` (WorkflowExecution · Latency · TokenEconomy · AnomalyDetector · CostTracker)
+- Synchronized Phoenix `service_name` and result filenames to chapter numbers
+- Fixed missing `create_taskresult` import bug in `ch05_group_b.py`
 
-### v0.8.3 (2026-04-21) — LLMJudge 안정성 강화 · Gate 개선 · 보안 트래커 확장
+### v0.8.3 (2026-04-21) — LLMJudge stability · Gate improvements · Security tracker expansion
 
-- LLMJudge 연속 오류 자동 비활성화 (3회 연속 실패 → `reset_errors()`로 복구)
-- `faithfulness` 누락 시 `None` 저장 — 점수 오염 방지
-- `AGENT_EVALUATOR_JUDGE_PROVIDER` 환경변수 도입 (`auto` / `openai` / `anthropic`)
-- `GoalAlignmentConfig` · `PlanConfig`에 `llm_blend_weight` 추가 (LLM-rule 혼합 비율, 기본 0.5)
-- `LLMJudge.ajudge()` 비동기 메서드 추가
-- `LLMJudgeConfig.sample_rate` 데코레이터 전달 버그 수정
-- `agent-eval gate --min-gate-score / --group-weights` — Gate A–G 가중 복합 점수 판정
-- `agent-eval trend` 비용 추세 분석 (`total_cost`, `--fail-on-regression` 연동)
-- `OutputLeakageDetector(excluded_unix_paths=[...])` — 시스템 경로 제외 목록 커스터마이즈
-- 보안 트래커 `sample_rate` 파라미터 추가 (고트래픽 성능 최적화)
-- Group B `deadlock_by_type` 분류 · Gate D `insufficient_data_warnings` 추가
-- `LLMJudge(escalation_model=..., escalation_threshold=2.5)` — 다중 모델 자동 에스컬레이션
+- Auto-disable LLMJudge on consecutive errors (3 consecutive failures → restored via `reset_errors()`)
+- Store `None` instead of `0` when `faithfulness` is missing — prevents score pollution
+- Introduced `AGENT_EVALUATOR_JUDGE_PROVIDER` env var (`auto` / `openai` / `anthropic`)
+- Added `llm_blend_weight` to `GoalAlignmentConfig` · `PlanConfig` (LLM-rule blend ratio, default 0.5)
+- Added `LLMJudge.ajudge()` async method
+- Fixed `LLMJudgeConfig.sample_rate` decorator propagation bug
+- `agent-eval gate --min-gate-score / --group-weights` — weighted composite Gate A–G score judgment
+- `agent-eval trend` cost trend analysis (`total_cost`, `--fail-on-regression` integration)
+- `OutputLeakageDetector(excluded_unix_paths=[...])` — customizable system path exclusion list
+- Added `sample_rate` parameter to security trackers (high-traffic performance optimization)
+- Added `deadlock_by_type` classification to Group B · `insufficient_data_warnings` to Gate D
+- `LLMJudge(escalation_model=..., escalation_threshold=2.5)` — multi-model auto-escalation
 
-### v0.8.2 (2026-04-17) — Harness Config 33개 양식 통일 · 대시보드 UI 개선
+### v0.8.2 (2026-04-17) — Harness Config 33 unified format · Dashboard UI improvements
 
-- Harness Config 카드 33개 아이콘·수식·임계값 배지 양식 통일; `08_harness_eval.py` 예제 추가
-- 대시보드 Nav 3단 계층 재편; Gate 상관 히트맵(7×7 Pearson) · 실패 연쇄 추적 추가
-- HTML 리포트 Gate A–G 중심 전면 재편; CSV export Gate 컬럼 16개 추가
-- 그룹 분류 수정: StateConsistencyConfig·DeadlockConfig Group F→B 이동
-- 테스트 파일 2개 추가 (52개 파일, 2,465개+)
+- Unified icon · formula · threshold badge format for all 33 Harness Config cards; added `08_harness_eval.py` example
+- Dashboard Nav reorganized into 3-tier hierarchy; added Gate correlation heatmap (7×7 Pearson) · failure cascade tracking
+- HTML report fully reorganized around Gate A–G; added 16 Gate columns to CSV export
+- Group classification fix: StateConsistencyConfig · DeadlockConfig moved Group F→B
+- Added 2 test files (52 files, 2,465+)
 
-### v0.8.1 (2026-04-14) — 데코레이터 파라미터 구조화
+### v0.8.1 (2026-04-14) — Decorator parameter restructuring
 
-- `RetryConfig` · `LLMJudgeConfig` · `SecurityConfig` 3개 구조체 도입; 개별 파라미터 제거
-- `enable_hallucination` → `enable_hallucination_detection` 이름 통일
-- 테스트 548개 추가; 파일 72→49개 리구조화
+- Introduced 3 structs: `RetryConfig` · `LLMJudgeConfig` · `SecurityConfig`; removed individual parameters
+- Unified naming: `enable_hallucination` → `enable_hallucination_detection`
+- Added 548 tests; restructured 72→49 files
 
-### v0.8.0 (2026-04-13) — 정확도 지표 전면 개선
+### v0.8.0 (2026-04-13) — Accuracy metrics overhaul
 
-- Token Overlap F1(조화평균) 교체; Char Similarity Levenshtein 통일
-- task_type 인식 completion_score: code_generation AST 파싱, tool_use 미사용 시 0.6
+- Replaced Token Overlap with F1 (harmonic mean); unified Char Similarity to Levenshtein
+- task_type-aware completion_score: code_generation AST parsing, tool_use returns 0.6 if unused
 
-### v0.7.9 (2026-04-13) — RunTrendAnalyzer · arize-phoenix 호환 수정
+### v0.7.9 (2026-04-13) — RunTrendAnalyzer · arize-phoenix compatibility fix
 
-- `RunTrendAnalyzer` + `agent-eval trend` — 추세 분석 · `--fail-on-regression` CI/CD 연동
-- arize-phoenix 버전 제약 충돌 수정
+- `RunTrendAnalyzer` + `agent-eval trend` — trend analysis · `--fail-on-regression` CI/CD integration
+- Fixed arize-phoenix version constraint conflict
 
-### v0.7.8 (2026-04-12) — SDK 기본 내장
+### v0.7.8 (2026-04-12) — SDK built-in by default
 
-- `pip install agent-evaluator` 단독으로 LLMJudge · 대시보드 · OTEL 사용 가능
+- `pip install agent-evaluator` alone enables LLMJudge · dashboard · OTEL
 
-### v0.7.7 (2026-04-11) — 데코레이터 버그 수정 · 스레드 안전성
+### v0.7.7 (2026-04-11) — Decorator bug fixes · thread safety
 
-- `agent_eval` preset 파라미터 미적용 버그 수정; Layer 2 트래커 5개 `threading.Lock` 추가
+- Fixed `agent_eval` preset parameter not applied bug; added `threading.Lock` to 5 Layer 2 trackers
 
-### v0.7.6 (2026-04-10) — LLMJudge G-Eval/Ragas 대체
+### v0.7.6 (2026-04-10) — LLMJudge G-Eval/Ragas replacement
 
-- `judge_criteria` G-Eval 커스텀 채점; `rag_mode=True` 시 `faithfulness` 자동 추가
+- `judge_criteria` G-Eval custom scoring; auto-adds `faithfulness` when `rag_mode=True`
 
-### v0.7.0–v0.7.5 (2026-04-01~09) — OTEL/Phoenix · 3종 데코레이터 · QuickEval
+### v0.7.0–v0.7.5 (2026-04-01~09) — OTEL/Phoenix · 3 decorators · QuickEval
 
-- `agent-eval monitor` CLI · Arize Phoenix 실시간 모니터링
-- 3종 데코레이터 완성(`agent_eval`·`batch_eval`·`conversation_eval`) · `QuickEval` Facade
-- 21개 프레임워크 어댑터 · 보안 트래커 실동작 버그 수정(CRITICAL)
+- `agent-eval monitor` CLI · Arize Phoenix real-time monitoring
+- Completed 3 decorators (`agent_eval` · `batch_eval` · `conversation_eval`) · `QuickEval` facade
+- 21 framework adapters · critical security tracker bug fixes (CRITICAL)
 
-### v0.6.x (2026-03-21~04-01) — SDK 안정화
+### v0.6.x (2026-03-21~04-01) — SDK stabilization
 
-- LangChain/LangGraph/CrewAI/AutoGen · FastAPI 대시보드 · LLMJudge · ConversationSession
+- LangChain/LangGraph/CrewAI/AutoGen · FastAPI dashboard · LLMJudge · ConversationSession
 
-### v0.2.x–v0.5.x — 초기 구현
+### v0.2.x–v0.5.x — Initial implementation
 
-- Layer 1/2/3 트래커 25개 · `evaluation_session` 초기 구현
+- 25 Layer 1/2/3 trackers · initial `evaluation_session` implementation
