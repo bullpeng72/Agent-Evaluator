@@ -288,7 +288,7 @@ if _HAS_ALERTS:
         slack_handler = MockSlack()
 
     if WEBHOOK_URL:
-        webhook_handler = WebhookHandler(webhook_url=WEBHOOK_URL)
+        webhook_handler = WebhookHandler(url=WEBHOOK_URL)
     else:
         class MockWebhook:
             def handle(self, alert):

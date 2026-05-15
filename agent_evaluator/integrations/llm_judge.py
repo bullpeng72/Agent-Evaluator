@@ -935,9 +935,3 @@ class LLMJudge:
                 "model": model,
                 "cost_usd": 0.0,
             }
-             "skipped": False,
-                "error": str(e),
-                "scores": None,
-                "model": model,
-                "cost_usd": 0.0,
-            }
