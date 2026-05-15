@@ -149,7 +149,7 @@ class PydanticAIEvaluator:
         from pydantic_ai import Agent
         from agent_evaluator.integrations.pydanticai_integration import PydanticAIEvaluator
 
-        agent = Agent("openai:gpt-4o-mini")
+        agent = Agent("openai:gpt-5-nano")
         evaluator = PydanticAIEvaluator(monitor, agent=agent)
 
         # 비동기 단건 평가

@@ -82,8 +82,8 @@ print("\n=== 섹션 7: Group G — Observability ===")
 def explainable_agent(question: str, ground_truth: str = "") -> str:
     """추론 설명 가능성 에이전트 (mock) — 사유 포함 응답."""
     # TODO(현업 적용): 아래 Mock 구현을 실제 LLM 호출로 교체하세요.
-    #   예) return client.messages.create(model="claude-haiku-4-5-20251001",
-    #        messages=[{"role":"user","content":question}]).content[0].text
+    #   예) return client.chat.completions.create(model="gpt-5-nano",
+    #        messages=[{"role":"user","content":question}]).choices[0].message.content
     return (
         f"[추론] {question}을 分析한 결과: "
         f"왜냐하면 입력에서 핵심 패턴이 발견되었기 때문입니다. "
@@ -105,8 +105,8 @@ def explainable_agent(question: str, ground_truth: str = "") -> str:
 def observable_agent(question: str, ground_truth: str = "") -> str:
     """내부 상태 노출 에이전트 (mock) — 실행 추적 정보 포함."""
     # TODO(현업 적용): 아래 Mock 구현을 실제 LLM 호출로 교체하세요.
-    #   예) return client.messages.create(model="claude-haiku-4-5-20251001",
-    #        messages=[{"role":"user","content":question}]).content[0].text
+    #   예) return client.chat.completions.create(model="gpt-5-nano",
+    #        messages=[{"role":"user","content":question}]).choices[0].message.content
     return json.dumps({
         "answer": f"{question}에 대한 답변입니다.",
         "step": "final",
@@ -130,8 +130,8 @@ def observable_agent(question: str, ground_truth: str = "") -> str:
 def error_diagnosing_agent(question: str, ground_truth: str = "") -> str:
     """오류 진단 에이전트 (mock) — 오류 원인 分析 + 해결 방향 제시."""
     # TODO(현업 적용): 아래 Mock 구현을 실제 LLM 호출로 교체하세요.
-    #   예) return client.messages.create(model="claude-haiku-4-5-20251001",
-    #        messages=[{"role":"user","content":question}]).content[0].text
+    #   예) return client.chat.completions.create(model="gpt-5-nano",
+    #        messages=[{"role":"user","content":question}]).choices[0].message.content
     return (
         f"[진단] {question}: 시스템 상태를 점검했습니다. "
         f"근본 원인: 입력 패턴과 현재 상태를 분석한 결과 처리 흐름이 확인되었습니다. "
@@ -152,8 +152,8 @@ def error_diagnosing_agent(question: str, ground_truth: str = "") -> str:
 def latency_attributed_agent(question: str, ground_truth: str = "") -> tuple:
     """지연 원인 分析 에이전트 (mock) — 구간별 지연 기여도 노출."""
     # TODO(현업 적용): 아래 Mock 구현을 실제 LLM 호출로 교체하세요.
-    #   예) return client.messages.create(model="claude-haiku-4-5-20251001",
-    #        messages=[{"role":"user","content":question}]).content[0].text
+    #   예) return client.chat.completions.create(model="gpt-5-nano",
+    #        messages=[{"role":"user","content":question}]).choices[0].message.content
     response = json.dumps({"answer": f"{question}에 대한 응답"})
     return response, EvalMetadata(
         extra={
@@ -194,8 +194,8 @@ _monitor_g_fail = PerformanceMonitor(output_dir=_OUTPUT_DIR)
 )
 def _g_fail_agent(question: str, ground_truth: str = "") -> str:
     # TODO(현업 적용): 아래 Mock 구현을 실제 LLM 호출로 교체하세요.
-    #   예) return client.messages.create(model="claude-haiku-4-5-20251001",
-    #        messages=[{"role":"user","content":question}]).content[0].text
+    #   예) return client.chat.completions.create(model="gpt-5-nano",
+    #        messages=[{"role":"user","content":question}]).choices[0].message.content
     return f"처리를 시도했으나 완료하지 못했습니다."  # 원인·해결책 전무
 
 for _q in ["데이터베이스 오류를 해결해줘", "네트워크 실패를 복구해줘", "실패 원인을 알려줘"]:
@@ -291,13 +291,13 @@ policy = AdaptivePolicy(
 tracker = CostTracker(budget_per_day=10.0, alert_at=0.8)
 
 MODEL_USAGES = [
-    ("gpt-4o",         {"input": 800,  "output": 250, "model": "gpt-4o"}),
+    ("gpt-5-nano",     {"input": 800,  "output": 250, "model": "gpt-5-nano"}),
     ("claude-3-sonnet", {"input": 600,  "output": 200, "model": "claude-3-sonnet"}),
     ("gpt-4o-mini",    {"input": 1200, "output": 400, "model": "gpt-4o-mini"}),
-    ("gpt-4o",         {"input": 2000, "output": 500, "model": "gpt-4o"}),
+    ("gpt-5-nano",     {"input": 2000, "output": 500, "model": "gpt-5-nano"}),
 ]
 _COST_RATES = {
-    "gpt-4o":          {"input": 0.005,   "output": 0.015},
+    "gpt-5-nano":      {"input": 0.00005, "output": 0.0004},
     "claude-3-sonnet": {"input": 0.003,   "output": 0.015},
     "gpt-4o-mini":     {"input": 0.00015, "output": 0.0006},
 }

@@ -71,8 +71,8 @@ print("\n=== Ch03 Harness Gate A–G 기초 개요 ===")
     instructions=InstructionConfig(required_keywords=["result", "confidence"], min_chars=20))
 def gate_a_agent(question: str, ground_truth: str = "") -> str:
     # TODO(현업 적용): 아래 Mock 구현을 실제 LLM 호출로 교체하세요.
-    #   예) return client.messages.create(model="claude-haiku-4-5-20251001",
-    #        messages=[{"role":"user","content":question}]).content[0].text
+    #   예) return client.chat.completions.create(model="gpt-5-nano",
+    #        messages=[{"role":"user","content":question}]).choices[0].message.content
     return json.dumps({"result": f"{question}에 대한 답변", "confidence": 0.92})
 
 # Gate B — Behavioral Integrity
@@ -80,8 +80,8 @@ def gate_a_agent(question: str, ground_truth: str = "") -> str:
     loop_detection=LoopDetectionConfig(consecutive_repeat_threshold=2, window_size=5))
 def gate_b_agent(question: str, ground_truth: str = "") -> str:
     # TODO(현업 적용): 아래 Mock 구현을 실제 LLM 호출로 교체하세요.
-    #   예) return client.messages.create(model="claude-haiku-4-5-20251001",
-    #        messages=[{"role":"user","content":question}]).content[0].text
+    #   예) return client.chat.completions.create(model="gpt-5-nano",
+    #        messages=[{"role":"user","content":question}]).choices[0].message.content
     return f"search → analyze → summarize 순서로 처리: {question}"
 
 # Gate C — Reliability
@@ -91,8 +91,8 @@ _c_count = {"n": 0}
     retry=RetryConfig(max=2, on=(RuntimeError,), delay=0.0))
 def gate_c_agent(question: str, ground_truth: str = "") -> str:
     # TODO(현업 적용): 아래 Mock 구현을 실제 LLM 호출로 교체하세요.
-    #   예) return client.messages.create(model="claude-haiku-4-5-20251001",
-    #        messages=[{"role":"user","content":question}]).content[0].text
+    #   예) return client.chat.completions.create(model="gpt-5-nano",
+    #        messages=[{"role":"user","content":question}]).choices[0].message.content
     _c_count["n"] += 1
     if _c_count["n"] % 3 == 1:
         return f"부분 완료(폴백): 캐시 데이터로 응답합니다. {question}"
@@ -103,8 +103,8 @@ def gate_c_agent(question: str, ground_truth: str = "") -> str:
     sla=SLAConfig(p95_ms=2000, p99_ms=5000))
 def gate_d_agent(question: str, ground_truth: str = "") -> tuple:
     # TODO(현업 적용): 아래 Mock 구현을 실제 LLM 호출로 교체하세요.
-    #   예) return client.messages.create(model="claude-haiku-4-5-20251001",
-    #        messages=[{"role":"user","content":question}]).content[0].text
+    #   예) return client.chat.completions.create(model="gpt-5-nano",
+    #        messages=[{"role":"user","content":question}]).choices[0].message.content
     t0 = time.perf_counter()
     time.sleep(random.uniform(0.05, 0.2))
     ttft = (time.perf_counter() - t0) * 1000
@@ -118,8 +118,8 @@ def gate_d_agent(question: str, ground_truth: str = "") -> tuple:
     compliance=ComplianceConfig(pii_categories=["email", "phone"], compliance_framework="gdpr"))
 def gate_e_agent(question: str, ground_truth: str = "") -> str:
     # TODO(현업 적용): 아래 Mock 구현을 실제 LLM 호출로 교체하세요.
-    #   예) return client.messages.create(model="claude-haiku-4-5-20251001",
-    #        messages=[{"role":"user","content":question}]).content[0].text
+    #   예) return client.chat.completions.create(model="gpt-5-nano",
+    #        messages=[{"role":"user","content":question}]).choices[0].message.content
     return f"GDPR 준수 처리: {question}".replace("@", "[마스킹]")
 
 # Gate F — Multi-Agent
@@ -127,8 +127,8 @@ def gate_e_agent(question: str, ground_truth: str = "") -> str:
     propagation=PropagationConfig(key_facts=["project_id", "deadline"], check_in_response=True))
 def gate_f_agent(question: str, ground_truth: str = "") -> str:
     # TODO(현업 적용): 아래 Mock 구현을 실제 LLM 호출로 교체하세요.
-    #   예) return client.messages.create(model="claude-haiku-4-5-20251001",
-    #        messages=[{"role":"user","content":question}]).content[0].text
+    #   예) return client.chat.completions.create(model="gpt-5-nano",
+    #        messages=[{"role":"user","content":question}]).choices[0].message.content
     return f"project_id: PROJ-001, deadline: 2026-06-30 — {question}"
 
 # Gate G — Observability
@@ -137,8 +137,8 @@ def gate_f_agent(question: str, ground_truth: str = "") -> str:
                                          reasoning_markers=["왜냐하면", "따라서", "때문에"]))
 def gate_g_agent(question: str, ground_truth: str = "") -> str:
     # TODO(현업 적용): 아래 Mock 구현을 실제 LLM 호출로 교체하세요.
-    #   예) return client.messages.create(model="claude-haiku-4-5-20251001",
-    #        messages=[{"role":"user","content":question}]).content[0].text
+    #   예) return client.chat.completions.create(model="gpt-5-nano",
+    #        messages=[{"role":"user","content":question}]).choices[0].message.content
     return (f"[추론] {question}: 왜냐하면 핵심 패턴이 발견되었기 때문입니다. "
             f"따라서 적절한 조치를 취했습니다.")
 

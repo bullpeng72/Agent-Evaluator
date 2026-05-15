@@ -56,8 +56,8 @@ eval_q = QuickEval(_OUTPUT_DIR)
 def my_agent(question: str, ground_truth: str = "") -> str:
     """평가 대상 에이전트. 실제 프로젝트에서는 LLM 호출로 교체하세요."""
     # TODO(현업 적용): 아래 Mock 구현을 실제 LLM 호출로 교체하세요.
-    #   예) return client.messages.create(model="claude-haiku-4-5-20251001",
-    #        messages=[{"role":"user","content":question}]).content[0].text
+    #   예) return client.chat.completions.create(model="gpt-5-nano",
+    #        messages=[{"role":"user","content":question}]).choices[0].message.content
     answers = {
         "한국의 수도는?":        "서울입니다.",
         "파이썬을 만든 사람은?":  "귀도 반 로섬입니다.",
@@ -121,8 +121,8 @@ sla_cfg = SLAConfig(p95_ms=2000)
 def task_agent(question: str, ground_truth: str = "") -> str:
     """키워드 준수 에이전트. '완료'/'처리' 포함 여부로 InstructionConfig 검증."""
     # TODO(현업 적용): 아래 Mock 구현을 실제 LLM 호출로 교체하세요.
-    #   예) return client.messages.create(model="claude-haiku-4-5-20251001",
-    #        messages=[{"role":"user","content":question}]).content[0].text
+    #   예) return client.chat.completions.create(model="gpt-5-nano",
+    #        messages=[{"role":"user","content":question}]).choices[0].message.content
     responses = {
         "파일 삭제해줘":    "파일 삭제 처리 완료되었습니다.",          # ✅ 키워드 포함
         "보고서 만들어줘":  "보고서 작성 처리 완료되었습니다.",         # ✅ 키워드 포함
@@ -251,8 +251,8 @@ eval_b = QuickEval(_OUTPUT_DIR)
 @eval_a.qa
 def agent_v1(question: str, ground_truth: str = "") -> str:
     # TODO(현업 적용): 아래 Mock 구현을 실제 LLM 호출로 교체하세요.
-    #   예) return client.messages.create(model="claude-haiku-4-5-20251001",
-    #        messages=[{"role":"user","content":question}]).content[0].text
+    #   예) return client.chat.completions.create(model="gpt-5-nano",
+    #        messages=[{"role":"user","content":question}]).choices[0].message.content
     answers = {
         "한국의 수도는?":     "서울입니다.",
         "파이썬 창시자는?":    "",                    # 빈 응답 → 낮은 정확도
@@ -265,8 +265,8 @@ def agent_v1(question: str, ground_truth: str = "") -> str:
 @eval_b.qa
 def agent_v2(question: str, ground_truth: str = "") -> str:
     # TODO(현업 적용): 아래 Mock 구현을 실제 LLM 호출로 교체하세요.
-    #   예) return client.messages.create(model="claude-haiku-4-5-20251001",
-    #        messages=[{"role":"user","content":question}]).content[0].text
+    #   예) return client.chat.completions.create(model="gpt-5-nano",
+    #        messages=[{"role":"user","content":question}]).choices[0].message.content
     answers = {
         "한국의 수도는?":     "서울입니다.",
         "파이썬 창시자는?":    "귀도 반 로섬입니다.",   # ✅ 개선

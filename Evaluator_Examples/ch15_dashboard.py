@@ -67,8 +67,8 @@ eval_q = QuickEval(_OUTPUT_DIR, auto_save=False)
 @eval_q.qa
 def qa_agent(question: str, ground_truth: str = "") -> str:
     # TODO(현업 적용): 아래 Mock 구현을 실제 LLM 호출로 교체하세요.
-    #   예) return client.messages.create(model="claude-haiku-4-5-20251001",
-    #        messages=[{"role":"user","content":question}]).content[0].text
+    #   예) return client.chat.completions.create(model="gpt-5-nano",
+    #        messages=[{"role":"user","content":question}]).choices[0].message.content
     answers = {
         "한국의 수도": "서울입니다",
         "Python": "Python은 인터프리터 기반 동적 타이핑 언어입니다",
@@ -120,8 +120,8 @@ monitor_h = PerformanceMonitor(output_dir=_OUTPUT_DIR)
 )
 def harness_agent(question: str, ground_truth: str = "") -> str:
     # TODO(현업 적용): 아래 Mock 구현을 실제 LLM 호출로 교체하세요.
-    #   예) return client.messages.create(model="claude-haiku-4-5-20251001",
-    #        messages=[{"role":"user","content":question}]).content[0].text
+    #   예) return client.chat.completions.create(model="gpt-5-nano",
+    #        messages=[{"role":"user","content":question}]).choices[0].message.content
     return f"답변: {question}에 대한 결과입니다 | 출처: 내부 DB | 왜냐하면 최신 데이터를 참조했습니다"
 
 HARNESS_CASES = [
@@ -165,7 +165,7 @@ for i, lat in enumerate(latencies):
         tokens_used={"input": 80, "output": 20, "total": 100},
     )
     monitor_a.record_task(result)
-    cost_tracker.record("openai", "gpt-4o-mini", cost_usd=0.0001)
+    cost_tracker.record("openai", "gpt-5-nano", cost_usd=0.00005)
 
 events = anomaly_detector.scan(monitor_a)
 for event in events:

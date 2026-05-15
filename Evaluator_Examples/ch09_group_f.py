@@ -90,8 +90,8 @@ def _tok_sim(a: str, b: str) -> float:
 def consensus_agent(question: str, ground_truth: str = "") -> tuple:
     """멀티에이전트 합의 에이전트 — 3개 서브에이전트 응답 수집 후 합의 점수 주입."""
     # TODO(현업 적용): 아래 Mock 구현을 실제 LLM 호출로 교체하세요.
-    #   예) return client.messages.create(model="claude-haiku-4-5-20251001",
-    #        messages=[{"role":"user","content":question}]).content[0].text
+    #   예) return client.chat.completions.create(model="gpt-5-nano",
+    #        messages=[{"role":"user","content":question}]).choices[0].message.content
     # 3개 독립 서브에이전트 응답 시뮬레이션
     resp_a = f"[에이전트A] {question}: 현재 80% 진행, 일정 정상 궤도입니다."
     resp_b = f"[에이전트B] {question}: 진행률 78%, 일정 준수 중이며 정상 진행입니다."
@@ -139,8 +139,8 @@ def consensus_agent(question: str, ground_truth: str = "") -> tuple:
 def propagation_agent(question: str, ground_truth: str = "") -> str:
     """멀티에이전트 정보 전파 에이전트 (mock)."""
     # TODO(현업 적용): 아래 Mock 구현을 실제 LLM 호출로 교체하세요.
-    #   예) return client.messages.create(model="claude-haiku-4-5-20251001",
-    #        messages=[{"role":"user","content":question}]).content[0].text
+    #   예) return client.chat.completions.create(model="gpt-5-nano",
+    #        messages=[{"role":"user","content":question}]).choices[0].message.content
     return f"project_id: PROJ-001, deadline: 2026-06-30 — {question} 처리 완료"
 
 
@@ -158,8 +158,8 @@ def propagation_agent(question: str, ground_truth: str = "") -> str:
 def role_bounded_agent(question: str, ground_truth: str = "") -> str:
     """역할 준수 에이전트 (mock) — summarizer 역할."""
     # TODO(현업 적용): 아래 Mock 구현을 실제 LLM 호출로 교체하세요.
-    #   예) return client.messages.create(model="claude-haiku-4-5-20251001",
-    #        messages=[{"role":"user","content":question}]).content[0].text
+    #   예) return client.chat.completions.create(model="gpt-5-nano",
+    #        messages=[{"role":"user","content":question}]).choices[0].message.content
     return f"[summarizer] 요약 수행: {question}에 대한 핵심 내용 정리 완료"
 
 
@@ -175,8 +175,8 @@ def role_bounded_agent(question: str, ground_truth: str = "") -> str:
 def conflict_resolver_agent(question: str, ground_truth: str = "") -> str:
     """충돌 해결 에이전트 (mock)."""
     # TODO(현업 적용): 아래 Mock 구현을 실제 LLM 호출로 교체하세요.
-    #   예) return client.messages.create(model="claude-haiku-4-5-20251001",
-    #        messages=[{"role":"user","content":question}]).content[0].text
+    #   예) return client.chat.completions.create(model="gpt-5-nano",
+    #        messages=[{"role":"user","content":question}]).choices[0].message.content
     if "disagree" in question.lower() or "충돌" in question:
         return f"합의 도달: 에이전트 간 의견 충돌을 resolved하고 최종 결정을 내렸습니다."
     return f"일치된 응답: {question}"
@@ -213,8 +213,8 @@ _monitor_f_fail = PerformanceMonitor(output_dir=_OUTPUT_DIR)
 )
 def _f_fail_agent(question: str, ground_truth: str = "") -> str:
     # TODO(현업 적용): 아래 Mock 구현을 실제 LLM 호출로 교체하세요.
-    #   예) return client.messages.create(model="claude-haiku-4-5-20251001",
-    #        messages=[{"role":"user","content":question}]).content[0].text
+    #   예) return client.chat.completions.create(model="gpt-5-nano",
+    #        messages=[{"role":"user","content":question}]).choices[0].message.content
     return f"작업 완료했습니다. {question}"  # key_facts 전혀 미언급
 
 for _q in ["프로젝트 현황을 보고해줘", "진행 상태를 알려줘", "다음 에이전트에게 전달해줘"]:

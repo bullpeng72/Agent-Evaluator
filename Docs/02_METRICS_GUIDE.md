@@ -987,7 +987,7 @@ Cost = (input_tokens × input_price + output_tokens × output_price) / 1000
 ```python
 monitor = PerformanceMonitor(
     pricing={
-        "input": 0.00015,   # GPT-4o-mini: $0.15/1M tokens
+        "input": 0.00005,   # GPT-5-nano: $0.05/1M tokens
         "output": 0.0006,
     }
 )

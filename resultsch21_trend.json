@@ -1,0 +1,95 @@
+{
+  "results_dir": "/Users/fomalhaut/Projects/Agent-Evaluator/results",
+  "window": 5,
+  "pattern": "*.json",
+  "any_regression": false,
+  "runs": [
+    {
+      "path": "/Users/fomalhaut/Projects/Agent-Evaluator/results/ch20_deployment_v2.json",
+      "tcr": 50.0,
+      "accuracy": 6.92,
+      "p95_latency": 0.1305,
+      "hallucination": 0.0,
+      "total_cost": 0.0458
+    },
+    {
+      "path": "/Users/fomalhaut/Projects/Agent-Evaluator/results/ch21_pipeline_ci.json",
+      "tcr": 50.0,
+      "accuracy": 2.43,
+      "p95_latency": 0.0,
+      "hallucination": 0.0,
+      "total_cost": 0.0058
+    },
+    {
+      "path": "/Users/fomalhaut/Projects/Agent-Evaluator/results/ch21_pipeline_dev.json",
+      "tcr": 50.0,
+      "accuracy": 18.77,
+      "p95_latency": 0.0,
+      "hallucination": 0.0,
+      "total_cost": 0.0042
+    },
+    {
+      "path": "/Users/fomalhaut/Projects/Agent-Evaluator/results/ch21_pipeline_prod.json",
+      "tcr": 51.43,
+      "accuracy": 3.09,
+      "p95_latency": 2.4162,
+      "hallucination": 0.0,
+      "total_cost": 0.0132
+    },
+    {
+      "path": "/Users/fomalhaut/Projects/Agent-Evaluator/results/quickeval.json",
+      "tcr": 56.25,
+      "accuracy": 14.12,
+      "p95_latency": 0.0,
+      "hallucination": 0.0,
+      "total_cost": 0.002
+    }
+  ],
+  "trends": {
+    "tcr": {
+      "metric": "tcr",
+      "label": "TCR",
+      "slope": 1.393,
+      "direction": "improving",
+      "first_val": 50.0,
+      "last_val": 56.25,
+      "data_points": 5
+    },
+    "accuracy": {
+      "metric": "accuracy",
+      "label": "Accuracy",
+      "slope": 1.5059999999999998,
+      "direction": "improving",
+      "first_val": 6.92,
+      "last_val": 14.12,
+      "data_points": 5
+    },
+    "p95_latency": {
+      "metric": "p95_latency",
+      "label": "P95 Latency",
+      "slope": 0.21552,
+      "direction": "stable",
+      "first_val": 0.1305,
+      "last_val": 0.0,
+      "data_points": 5
+    },
+    "hallucination": {
+      "metric": "hallucination",
+      "label": "Hallucination Rate",
+      "slope": 0.0,
+      "direction": "stable",
+      "first_val": 0.0,
+      "last_val": 0.0,
+      "data_points": 5
+    },
+    "total_cost": {
+      "metric": "total_cost",
+      "label": "Total Cost",
+      "slope": -0.008020000000000001,
+      "direction": "stable",
+      "first_val": 0.0458,
+      "last_val": 0.002,
+      "data_points": 5
+    }
+  }
+}

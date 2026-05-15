@@ -84,8 +84,8 @@ eval_dev = QuickEval(_OUTPUT_DIR, auto_save=False)
 @eval_dev.qa
 def dev_agent(question: str, ground_truth: str = "") -> str:
     # TODO(현업 적용): 아래 Mock 구현을 실제 LLM 호출로 교체하세요.
-    #   예) return client.messages.create(model="claude-haiku-4-5-20251001",
-    #        messages=[{"role":"user","content":question}]).content[0].text
+    #   예) return client.chat.completions.create(model="gpt-5-nano",
+    #        messages=[{"role":"user","content":question}]).choices[0].message.content
     answers = {
         "수도": "서울입니다",
         "GIL": "Python의 전역 인터프리터 잠금(GIL)은 하나의 스레드만 Python 코드를 실행하게 합니다",
@@ -167,8 +167,8 @@ monitor_ci = PerformanceMonitor(
 )
 def ci_agent(question: str, ground_truth: str = "") -> str:
     # TODO(현업 적용): 아래 Mock 구현을 실제 LLM 호출로 교체하세요.
-    #   예) return client.messages.create(model="claude-haiku-4-5-20251001",
-    #        messages=[{"role":"user","content":question}]).content[0].text
+    #   예) return client.chat.completions.create(model="gpt-5-nano",
+    #        messages=[{"role":"user","content":question}]).choices[0].message.content
     return f"답변: {question}에 대한 결과입니다 | 출처: 내부 DB | 왜냐하면 검증된 데이터를 참조했습니다"
 
 for q, gt in DEV_CASES:
@@ -239,8 +239,8 @@ accuracy_alert = SimpleTaskAlertRule(
 )
 def production_agent(question: str, ground_truth: str = "") -> tuple:
     # TODO(현업 적용): 아래 Mock 구현을 실제 LLM 호출로 교체하세요.
-    #   예) return client.messages.create(model="claude-haiku-4-5-20251001",
-    #        messages=[{"role":"user","content":question}]).content[0].text
+    #   예) return client.chat.completions.create(model="gpt-5-nano",
+    #        messages=[{"role":"user","content":question}]).choices[0].message.content
     response = f"답변: {question} | 출처: 프로덕션 DB"
     return response, EvalMetadata(
         tool_calls=[
@@ -275,7 +275,7 @@ for i, (q, gt) in enumerate(PROD_CASES):
     )
     monitor_prod.record_task(result)
     cost_tracker.record(
-        provider="anthropic", model="claude-haiku-4-5-20251001",
+        provider="openai", model="gpt-5-nano",
         cost_usd=result.tokens_used.get("total", 100) * 0.000001,
         input_tokens=result.tokens_used.get("input", 80),
         output_tokens=result.tokens_used.get("output", 20),

@@ -207,7 +207,7 @@ result = create_taskresult(
     tool_calls=[],
     context=None,
     framework="openai",
-    model_name="gpt-4o-mini",
+    model_name="gpt-5-nano",
 )
 ```
 
@@ -597,7 +597,7 @@ def agent(question: str, ground_truth: str = "") -> tuple:
         tokens_used={"input": 80, "output": 40, "total": 120},
         chain_steps=[{"step": "search", "success": True}],
         agent_interactions=[{"from": "planner", "to": "executor"}],
-        model_name="gpt-4o-mini",
+        model_name="gpt-5-nano",
         framework="openai",
     )
     return "answer", meta
@@ -704,7 +704,7 @@ def lc_agent(question: str, ground_truth: str = "") -> str:
 @agent_eval(monitor, task_type="qa", framework="openai")
 def openai_agent(question: str, ground_truth: str = "") -> str:
     return client.chat.completions.create(
-        model="gpt-4o-mini",
+        model="gpt-5-nano",
         messages=[{"role": "user", "content": question}],
     )
 

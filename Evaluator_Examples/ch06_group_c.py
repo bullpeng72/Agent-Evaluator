@@ -90,8 +90,8 @@ def fault_tolerant_agent(question: str, ground_truth: str = "") -> str:
     try-except로 감싸 사용자에게 '부분적인 결과'라도 제공하는 패턴을 보여줍니다.
     """
     # TODO(현업 적용): 아래 Mock 구현을 실제 LLM 호출로 교체하세요.
-    #   예) return client.messages.create(model="claude-haiku-4-5-20251001",
-    #        messages=[{"role":"user","content":question}]).content[0].text
+    #   예) return client.chat.completions.create(model="gpt-5-nano",
+    #        messages=[{"role":"user","content":question}]).choices[0].message.content
     _fault_call_count["n"] += 1
     
     try:
@@ -121,8 +121,8 @@ def fault_tolerant_agent(question: str, ground_truth: str = "") -> str:
 def reproducible_agent(question: str, ground_truth: str = "") -> str:
     """재현성 에이전트 (mock) — 동일 입력에 동일 응답."""
     # TODO(현업 적용): 아래 Mock 구현을 실제 LLM 호출로 교체하세요.
-    #   예) return client.messages.create(model="claude-haiku-4-5-20251001",
-    #        messages=[{"role":"user","content":question}]).content[0].text
+    #   예) return client.chat.completions.create(model="gpt-5-nano",
+    #        messages=[{"role":"user","content":question}]).choices[0].message.content
     # 결정론적 응답 (재현성 ↑)
     return f"재현 가능한 답변: {question}에 대해 정해진 응답을 반환합니다."
 
@@ -140,8 +140,8 @@ def reproducible_agent(question: str, ground_truth: str = "") -> str:
 def retry_consistent_agent(question: str, ground_truth: str = "") -> str:
     """재시도 일관성 에이전트 (mock)."""
     # TODO(현업 적용): 아래 Mock 구현을 실제 LLM 호출로 교체하세요.
-    #   예) return client.messages.create(model="claude-haiku-4-5-20251001",
-    #        messages=[{"role":"user","content":question}]).content[0].text
+    #   예) return client.chat.completions.create(model="gpt-5-nano",
+    #        messages=[{"role":"user","content":question}]).choices[0].message.content
     return f"일관된 재시도 응답: {question}"
 
 
@@ -157,8 +157,8 @@ def retry_consistent_agent(question: str, ground_truth: str = "") -> str:
 def idempotent_agent(question: str, ground_truth: str = "") -> str:
     """멱등성 에이전트 (mock) — 읽기 전용 작업 우선."""
     # TODO(현업 적용): 아래 Mock 구현을 실제 LLM 호출로 교체하세요.
-    #   예) return client.messages.create(model="claude-haiku-4-5-20251001",
-    #        messages=[{"role":"user","content":question}]).content[0].text
+    #   예) return client.chat.completions.create(model="gpt-5-nano",
+    #        messages=[{"role":"user","content":question}]).choices[0].message.content
     return f"읽기 전용 조회 완료: {question}에 대한 데이터를 검색했습니다."
 
 
@@ -197,8 +197,8 @@ _monitor_c_fail = PerformanceMonitor(output_dir=_OUTPUT_DIR)
 )
 def _c_fail_agent(question: str, ground_truth: str = "") -> tuple:
     # TODO(현업 적용): 아래 Mock 구현을 실제 LLM 호출로 교체하세요.
-    #   예) return client.messages.create(model="claude-haiku-4-5-20251001",
-    #        messages=[{"role":"user","content":question}]).content[0].text
+    #   예) return client.chat.completions.create(model="gpt-5-nano",
+    #        messages=[{"role":"user","content":question}]).choices[0].message.content
     return f"레코드 생성 및 등록: {question}", EvalMetadata(
         tool_calls=[
             {"name": "create_record", "args": {"data": question}},

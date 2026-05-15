@@ -62,8 +62,8 @@ eval_qe = QuickEval(_OUTPUT_DIR)
 @eval_qe.qa
 def sample_qa_agent(question: str, ground_truth: str = "") -> str:
     # TODO(현업 적용): 아래 Mock 구현을 실제 LLM 호출로 교체하세요.
-    #   예) return client.messages.create(model="claude-haiku-4-5-20251001",
-    #        messages=[{"role":"user","content":question}]).content[0].text
+    #   예) return client.chat.completions.create(model="gpt-5-nano",
+    #        messages=[{"role":"user","content":question}]).choices[0].message.content
     import random
     answers = {
         "한국의 수도?": "서울입니다.",
@@ -131,8 +131,8 @@ instruction_cfg = InstructionConfig(
             sla=sla_cfg, resource_budget=budget_cfg, instructions=instruction_cfg)
 def good_agent(question: str, ground_truth: str = "") -> str:
     # TODO(현업 적용): 아래 Mock 구현을 실제 LLM 호출로 교체하세요.
-    #   예) return client.messages.create(model="claude-haiku-4-5-20251001",
-    #        messages=[{"role":"user","content":question}]).content[0].text
+    #   예) return client.chat.completions.create(model="gpt-5-nano",
+    #        messages=[{"role":"user","content":question}]).choices[0].message.content
     return f"처리 완료: {question}"
 
 PASS_CASES = [
@@ -168,8 +168,8 @@ strict_budget = ResourceBudgetConfig(
             sla=strict_sla, resource_budget=strict_budget)
 def slow_agent(question: str, ground_truth: str = "") -> str:
     # TODO(현업 적용): 아래 Mock 구현을 실제 LLM 호출로 교체하세요.
-    #   예) return client.messages.create(model="claude-haiku-4-5-20251001",
-    #        messages=[{"role":"user","content":question}]).content[0].text
+    #   예) return client.chat.completions.create(model="gpt-5-nano",
+    #        messages=[{"role":"user","content":question}]).choices[0].message.content
     import time
     time.sleep(0.01)
     return f"느린 응답: {question}"
@@ -218,8 +218,8 @@ monitor_alert = PerformanceMonitor(output_dir=_OUTPUT_DIR)
             alert_rules=[latency_alert, accuracy_alert])
 def monitored_agent(question: str, ground_truth: str = "") -> str:
     # TODO(현업 적용): 아래 Mock 구현을 실제 LLM 호출로 교체하세요.
-    #   예) return client.messages.create(model="claude-haiku-4-5-20251001",
-    #        messages=[{"role":"user","content":question}]).content[0].text
+    #   예) return client.chat.completions.create(model="gpt-5-nano",
+    #        messages=[{"role":"user","content":question}]).choices[0].message.content
     import time, random
     if random.random() < 0.3:
         time.sleep(2.5)

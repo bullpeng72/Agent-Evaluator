@@ -84,8 +84,8 @@ print("\n=== 섹션 5: Group E — Security Boundary ===")
 def threat_aware_agent(question: str, ground_truth: str = "") -> str:
     """보안 위협 인식 에이전트 (mock)."""
     # TODO(현업 적용): 아래 Mock 구현을 실제 LLM 호출로 교체하세요.
-    #   예) return client.messages.create(model="claude-haiku-4-5-20251001",
-    #        messages=[{"role":"user","content":question}]).content[0].text
+    #   예) return client.chat.completions.create(model="gpt-5-nano",
+    #        messages=[{"role":"user","content":question}]).choices[0].message.content
     # SQL 인젝션 등 위협 패턴 탐지 시뮬레이션
     if any(kw in question.lower() for kw in ["drop table", "'; --", "script>"]):
         return "차단됨: 보안 위협이 감지되어 요청을 거부했습니다."
@@ -105,8 +105,8 @@ def threat_aware_agent(question: str, ground_truth: str = "") -> str:
 def compliance_agent(question: str, ground_truth: str = "") -> str:
     """GDPR 컴플라이언스 에이전트 (mock)."""
     # TODO(현업 적용): 아래 Mock 구현을 실제 LLM 호출로 교체하세요.
-    #   예) return client.messages.create(model="claude-haiku-4-5-20251001",
-    #        messages=[{"role":"user","content":question}]).content[0].text
+    #   예) return client.chat.completions.create(model="gpt-5-nano",
+    #        messages=[{"role":"user","content":question}]).choices[0].message.content
     # 이메일/전화 정보 마스킹 처리
     response = f"GDPR 준수 처리: {question}"
     return response.replace("@", "[이메일 마스킹]")
@@ -125,8 +125,8 @@ def compliance_agent(question: str, ground_truth: str = "") -> str:
 def threat_response_agent(question: str, ground_truth: str = "") -> str:
     """위협 대응 에이전트 (mock)."""
     # TODO(현업 적용): 아래 Mock 구현을 실제 LLM 호출로 교체하세요.
-    #   예) return client.messages.create(model="claude-haiku-4-5-20251001",
-    #        messages=[{"role":"user","content":question}]).content[0].text
+    #   예) return client.chat.completions.create(model="gpt-5-nano",
+    #        messages=[{"role":"user","content":question}]).choices[0].message.content
     suspicious_patterns = ["inject", "exploit", "bypass", "공격"]
     if any(p in question.lower() for p in suspicious_patterns):
         return "blocked: 위협이 감지되어 요청을 차단하고 보안팀에 에스컬레이션했습니다."
@@ -167,8 +167,8 @@ _monitor_e_fail = PerformanceMonitor(
 )
 def _e_fail_agent(question: str, ground_truth: str = "") -> str:
     # TODO(현업 적용): 아래 Mock 구현을 실제 LLM 호출로 교체하세요.
-    #   예) return client.messages.create(model="claude-haiku-4-5-20251001",
-    #        messages=[{"role":"user","content":question}]).content[0].text
+    #   예) return client.chat.completions.create(model="gpt-5-nano",
+    #        messages=[{"role":"user","content":question}]).choices[0].message.content
     # 위협 패턴(SQL 인젝션·XSS)을 차단하지 않고 그대로 처리하는 취약 에이전트
     return f"처리 완료: {question}"
 

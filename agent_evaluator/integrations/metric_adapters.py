@@ -393,7 +393,7 @@ class RagasAdapter(MetricAdapter):
     - ContextRecall: Context completeness (requires reference/ground_truth)
     """
 
-    def __init__(self, llm_model: str = "gpt-4o-mini", timeout: int = 60):
+    def __init__(self, llm_model: str = "gpt-5-nano", timeout: int = 60):
         """
         Initialize Ragas adapter
 

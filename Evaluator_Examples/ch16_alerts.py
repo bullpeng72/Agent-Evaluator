@@ -206,8 +206,8 @@ slow_response_rule = SimpleTaskAlertRule(
 )
 def monitored_agent(question: str, ground_truth: str = "") -> str:
     # TODO(현업 적용): 아래 Mock 구현을 실제 LLM 호출로 교체하세요.
-    #   예) return client.messages.create(model="claude-haiku-4-5-20251001",
-    #        messages=[{"role":"user","content":question}]).content[0].text
+    #   예) return client.chat.completions.create(model="gpt-5-nano",
+    #        messages=[{"role":"user","content":question}]).choices[0].message.content
     # 의도적으로 낮은 품질 + 느린 응답 시뮬레이션
     if "느린" in question:
         time.sleep(0.01)  # 실제 환경 대체용 (시뮬레이션이므로 짧게)

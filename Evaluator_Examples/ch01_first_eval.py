@@ -175,8 +175,8 @@ def rag_medical_agent(question: str, context: str = "",
                       ground_truth: str = "") -> str:
     """의료 정보 RAG 에이전트 (환각 시나리오 포함)."""
     # TODO(현업 적용): 아래 Mock 구현을 실제 LLM 호출로 교체하세요.
-    #   예) return client.messages.create(model="claude-haiku-4-5-20251001",
-    #        messages=[{"role":"user","content":question}]).content[0].text
+    #   예) return client.chat.completions.create(model="gpt-5-nano",
+    #        messages=[{"role":"user","content":question}]).choices[0].message.content
     # 실제 환경에서는 LLM이 생성; 여기서는 시나리오별 응답을 미리 정의
     return rag_medical_agent._responses[rag_medical_agent._idx]
 
@@ -237,8 +237,8 @@ _lat_iter = iter(_latencies)
 def support_agent(question: str, ground_truth: str = "") -> str:
     """고객 지원 에이전트 — 일부 케이스에서 레이턴시 급증."""
     # TODO(현업 적용): 아래 Mock 구현을 실제 LLM 호출로 교체하세요.
-    #   예) return client.messages.create(model="claude-haiku-4-5-20251001",
-    #        messages=[{"role":"user","content":question}]).content[0].text
+    #   예) return client.chat.completions.create(model="gpt-5-nano",
+    #        messages=[{"role":"user","content":question}]).choices[0].message.content
     time.sleep(next(_lat_iter))
     return f"{question} 처리 완료되었습니다."
 
@@ -288,8 +288,8 @@ harness_sla_cfg = SLAConfig(
 def harness_agent(question: str, ground_truth: str = "") -> str:
     """Harness 3요소가 적용된 에이전트."""
     # TODO(현업 적용): 아래 Mock 구현을 실제 LLM 호출로 교체하세요.
-    #   예) return client.messages.create(model="claude-haiku-4-5-20251001",
-    #        messages=[{"role":"user","content":question}]).content[0].text
+    #   예) return client.chat.completions.create(model="gpt-5-nano",
+    #        messages=[{"role":"user","content":question}]).choices[0].message.content
     time.sleep(random.uniform(0.01, 0.05))
     # 80%는 키워드 충족 / 20%는 미충족 → InstructionConfig 위반 발생
     responses_pass = ["처리 완료되었습니다.", "요청이 처리되었습니다.", "완료하였습니다."]

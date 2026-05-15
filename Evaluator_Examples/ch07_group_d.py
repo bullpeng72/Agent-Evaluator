@@ -92,8 +92,8 @@ def sla_compliant_agent(question: str, ground_truth: str = "") -> tuple:
     PerformanceMonitor 가 TTFTVariabilityConfig 집계에 해당 값을 사용한다.
     """
     # TODO(현업 적용): 아래 Mock 구현을 실제 LLM 호출로 교체하세요.
-    #   예) return client.messages.create(model="claude-haiku-4-5-20251001",
-    #        messages=[{"role":"user","content":question}]).content[0].text
+    #   예) return client.chat.completions.create(model="gpt-5-nano",
+    #        messages=[{"role":"user","content":question}]).choices[0].message.content
     _t0 = time.perf_counter()
     time.sleep(random.uniform(0.05, 0.25))  # 첫 토큰 지연 시뮬레이션
     _ttft_ms = (time.perf_counter() - _t0) * 1000
@@ -124,8 +124,8 @@ def efficient_agent(question: str, ground_truth: str = "") -> tuple:
     task_type="data_analysis"으로 분리 → CostPredictabilityConfig CV 격리.
     """
     # TODO(현업 적용): 아래 Mock 구현을 실제 LLM 호출로 교체하세요.
-    #   예) return client.messages.create(model="claude-haiku-4-5-20251001",
-    #        messages=[{"role":"user","content":question}]).content[0].text
+    #   예) return client.chat.completions.create(model="gpt-5-nano",
+    #        messages=[{"role":"user","content":question}]).choices[0].message.content
     response = f"효율적 답변: {question[:30]}"
     _in_tok  = random.randint(55, 75)
     _out_tok = random.randint(75, 95)
@@ -150,8 +150,8 @@ def budget_aware_agent(question: str, ground_truth: str = "") -> tuple:
     task_type="reasoning"으로 분리 → CostPredictabilityConfig CV 격리.
     """
     # TODO(현업 적용): 아래 Mock 구현을 실제 LLM 호출로 교체하세요.
-    #   예) return client.messages.create(model="claude-haiku-4-5-20251001",
-    #        messages=[{"role":"user","content":question}]).content[0].text
+    #   예) return client.chat.completions.create(model="gpt-5-nano",
+    #        messages=[{"role":"user","content":question}]).choices[0].message.content
     response = f"예산 내 응답: {question}"
     _in_tok  = random.randint(75, 95)
     _out_tok = random.randint(115, 135)
@@ -200,8 +200,8 @@ _d_idx = [0]
 )
 def _d_fail_agent(question: str, ground_truth: str = "") -> tuple:
     # TODO(현업 적용): 아래 Mock 구현을 실제 LLM 호출로 교체하세요.
-    #   예) return client.messages.create(model="claude-haiku-4-5-20251001",
-    #        messages=[{"role":"user","content":question}]).content[0].text
+    #   예) return client.chat.completions.create(model="gpt-5-nano",
+    #        messages=[{"role":"user","content":question}]).choices[0].message.content
     i = _d_idx[0] % len(_d_ttft)
     _d_idx[0] += 1
     _in, _out = _d_tokens[i]
@@ -265,7 +265,7 @@ print("\n=== 섹션 추가B: 토큰 경제성 & 비용 추정 ===")
 _monitor_tok = PerformanceMonitor(output_dir=_OUTPUT_DIR)
 
 TOKEN_MODELS = [
-    ("gpt-4o",      {"input": 800, "output": 200, "total": 1000, "model": "gpt-4o"}),
+    ("gpt-5-nano",   {"input": 800, "output": 200, "total": 1000, "model": "gpt-5-nano"}),
     ("claude-3",    {"input": 600, "output": 150, "total": 750,  "model": "claude-3-sonnet"}),
     ("gpt-4o-mini", {"input": 400, "output": 100, "total": 500,  "model": "gpt-4o-mini"}),
 ]

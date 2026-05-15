@@ -134,7 +134,7 @@ print("""
   # 실제 PydanticAI 에이전트 코드 (pip install pydantic-ai 필요)
   from pydantic_ai import Agent
   
-  agent = Agent('openai:gpt-4o-mini')
+  agent = Agent('openai:gpt-5-nano')
   
   @agent_eval(monitor, task_type="qa", framework="pydanticai")
   async def run_pydantic_ai(question: str):
@@ -166,8 +166,8 @@ def _simulate_pydantic_ai_run(answer: str, tokens: dict):
 @agent_eval(monitor, task_type="qa", framework="pydanticai", task_id_prefix="pydantic")
 def pydantic_ai_mock_agent(question: str, ground_truth: str = ""):
     # TODO(현업 적용): 아래 Mock 구현을 실제 LLM 호출로 교체하세요.
-    #   예) return client.messages.create(model="claude-haiku-4-5-20251001",
-    #        messages=[{"role":"user","content":question}]).content[0].text
+    #   예) return client.chat.completions.create(model="gpt-5-nano",
+    #        messages=[{"role":"user","content":question}]).choices[0].message.content
     return _simulate_pydantic_ai_run("PydanticAI가 처리한 답변입니다.", {"input": 45, "output": 25})
 
 pydantic_ai_mock_agent("PydanticAI 통합 테스트")
@@ -183,8 +183,8 @@ print("\n=== 섹션 1: LangChain 어댑터 ===")
 def langchain_agent(question: str, ground_truth: str = ""):
     """LangChain AgentExecutor 시뮬레이션."""
     # TODO(현업 적용): 아래 Mock 구현을 실제 LLM 호출로 교체하세요.
-    #   예) return client.messages.create(model="claude-haiku-4-5-20251001",
-    #        messages=[{"role":"user","content":question}]).content[0].text
+    #   예) return client.chat.completions.create(model="gpt-5-nano",
+    #        messages=[{"role":"user","content":question}]).choices[0].message.content
     return _make_langchain_response(
         answer="LangChain 검색 결과입니다.",
         tools=["web_search", "calculator", "wikipedia"],
@@ -211,8 +211,8 @@ print("\n=== 섹션 2: LangGraph 어댑터 ===")
 def langgraph_agent(question: str, ground_truth: str = ""):
     """LangGraph 멀티노드 그래프 시뮬레이션."""
     # TODO(현업 적용): 아래 Mock 구현을 실제 LLM 호출로 교체하세요.
-    #   예) return client.messages.create(model="claude-haiku-4-5-20251001",
-    #        messages=[{"role":"user","content":question}]).content[0].text
+    #   예) return client.chat.completions.create(model="gpt-5-nano",
+    #        messages=[{"role":"user","content":question}]).choices[0].message.content
     return _make_langgraph_response(
         answer="LangGraph 분석 결과입니다.",
         nodes=["router", "search_node", "analysis_node", "synthesis_node"],
@@ -238,8 +238,8 @@ print("\n=== 섹션 3: CrewAI 어댑터 ===")
 def crewai_agent(question: str, ground_truth: str = ""):
     """CrewAI Crew (Researcher + Analyst + Writer) 시뮬레이션."""
     # TODO(현업 적용): 아래 Mock 구현을 실제 LLM 호출로 교체하세요.
-    #   예) return client.messages.create(model="claude-haiku-4-5-20251001",
-    #        messages=[{"role":"user","content":question}]).content[0].text
+    #   예) return client.chat.completions.create(model="gpt-5-nano",
+    #        messages=[{"role":"user","content":question}]).choices[0].message.content
     return _make_crewai_response(
         answer="CrewAI 팀 결과물입니다.",
         agents=["researcher", "analyst", "writer"],
@@ -265,8 +265,8 @@ print("\n=== 섹션 4: AutoGen 어댑터 ===")
 async def autogen_agent(question: str, ground_truth: str = ""):
     """AutoGen ConversableAgent 시뮬레이션."""
     # TODO(현업 적용): 아래 Mock 구현을 실제 LLM 호출로 교체하세요.
-    #   예) return client.messages.create(model="claude-haiku-4-5-20251001",
-    #        messages=[{"role":"user","content":question}]).content[0].text
+    #   예) return client.chat.completions.create(model="gpt-5-nano",
+    #        messages=[{"role":"user","content":question}]).choices[0].message.content
     await asyncio.sleep(0.01)  # 비동기 LLM 호출 흉내
     return _make_autogen_response(
         answer="AutoGen 협력 결과입니다.",

@@ -344,12 +344,7 @@ dataset = manager.load_dataset("golden_datasets/my_dataset.json")
 
 rag_system = MyRAGSystem()
 
-evaluator = KoreanRAGEvaluator(
-    rag_system=rag_system,
-    use_ragas=True,
-    ragas_model="gpt-4o-mini",
-    output_dir="evaluation_results"
-)
+evaluator = KoreanRAGEvaluator(rag_system=rag_system, use_ragas=True, ragas_model="gpt-5-nano", output_dir="evaluation_results")
 
 report = evaluator.evaluate_dataset(dataset)
 ```
@@ -535,7 +530,7 @@ else:
 ```python
 from agent_evaluator.datasets.korean_rag_dataset_generator import KoreanRAGDatasetGenerator
 
-generator = KoreanRAGDatasetGenerator(model="gpt-4o-mini", chunk_size=800, chunk_overlap=150)
+generator = KoreanRAGDatasetGenerator(model="gpt-5-nano", chunk_size=800, chunk_overlap=150)
 
 dataset = generator.generate_from_pdf(
     pdf_path="company_hr_policy.pdf",
@@ -597,7 +592,7 @@ eval.gate(tcr=85, accuracy=70)
 ```python
 from agent_evaluator.datasets.korean_rag_evaluator import KoreanRAGEvaluator
 
-evaluator = KoreanRAGEvaluator(rag_system=rag_system, use_ragas=True, ragas_model="gpt-4o-mini")
+evaluator = KoreanRAGEvaluator(rag_system=rag_system, use_ragas=True, ragas_model="gpt-5-nano")
 report = evaluator.evaluate_dataset(dataset)
 
 if report.avg_faithfulness >= 0.8:
@@ -667,3 +662,4 @@ if dataset_id:
 | 데코레이터 · 프레임워크 통합 | [03_INTEGRATION_GUIDE.md](03_INTEGRATION_GUIDE.md) |
 | 품질 임계값 · CI/CD | [05_QUALITY_GATE.md](05_QUALITY_GATE.md) |
 | 전체 API 레퍼런스 | [08_API_REFERENCE.md](08_API_REFERENCE.md) |
+I_REFERENCE.md) |

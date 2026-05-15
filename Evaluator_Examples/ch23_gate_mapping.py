@@ -268,8 +268,8 @@ def loop_safe_writer(question: str, ground_truth: str = "") -> str:
 def sla_bounded_agent(question: str, ground_truth: str = "") -> str:
     """Gate D — SLA 및 비용 경계 에이전트."""
     # TODO(현업 적용): 아래 Mock 구현을 실제 LLM 호출로 교체하세요.
-    #   예) return client.messages.create(model="claude-haiku-4-5-20251001",
-    #        messages=[{"role":"user","content":question}]).content[0].text
+    #   예) return client.chat.completions.create(model="gpt-5-nano",
+    #        messages=[{"role":"user","content":question}]).choices[0].message.content
     time.sleep(0.1 + random.uniform(0, 0.2))
     return f"효율적으로 처리: {question}"
 

@@ -906,7 +906,7 @@ class LLMJudge:
 
             completion = client.chat.completions.create(
                 model=model,
-                max_tokens=512,
+                max_completion_tokens=512,  # GPT-5+ 권장 파라미터 사용
                 messages=[
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": user_msg},
@@ -930,6 +930,12 @@ class LLMJudge:
             return {
                 "task_id": task_id,
                 "skipped": False,
+                "error": str(e),
+                "scores": None,
+                "model": model,
+                "cost_usd": 0.0,
+            }
+             "skipped": False,
                 "error": str(e),
                 "scores": None,
                 "model": model,

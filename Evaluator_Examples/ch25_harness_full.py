@@ -472,8 +472,8 @@ print("""
 def qa_agent_str(question: str, ground_truth: str = "") -> str:
     """Gate A+B+D+E+F — str 반환 QA 에이전트 (직접 데코레이터 적용 예시)."""
     # TODO(현업 적용): 아래 Mock 구현을 실제 LLM 호출로 교체하세요.
-    #   예) return client.messages.create(model="claude-haiku-4-5-20251001",
-    #        messages=[{"role":"user","content":question}]).content[0].text
+    #   예) return client.chat.completions.create(model="gpt-5-nano",
+    #        messages=[{"role":"user","content":question}]).choices[0].message.content
     time.sleep(0.2 + random.uniform(0, 0.3))
     answers = {
         "FastAPI 라우터 등록 방법": "app.include_router()와 APIRouter()로 라우터를 등록합니다.",

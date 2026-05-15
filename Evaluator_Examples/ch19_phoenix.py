@@ -88,7 +88,7 @@ if EVAL_AVAILABLE:
     monitor = HybridPerformanceMonitor(
         use_deepeval=True,
         use_ragas=True,
-        deepeval_model="gpt-4o-mini",
+        deepeval_model="gpt-5-nano",
         ragas_model="gpt-4o-mini",
         output_dir=_OUTPUT_DIR,
         enable_transparency=True,       # 투명성 탭: 메트릭 계산 Traces 자동 생성
@@ -163,8 +163,8 @@ print("\n=== 섹션 2: Phoenix Playground 연동 ===")
 def playground_agent(question: str, ground_truth: str = "") -> tuple:
     """Playground 탭에서 재현 가능한 에이전트 (llm.prompts 속성 포함)."""
     # TODO(현업 적용): 아래 Mock 구현을 실제 LLM 호출로 교체하세요.
-    #   예) return client.messages.create(model="claude-haiku-4-5-20251001",
-    #        messages=[{"role":"user","content":question}]).content[0].text
+    #   예) return client.chat.completions.create(model="gpt-5-nano",
+    #        messages=[{"role":"user","content":question}]).choices[0].message.content
     system_prompt = "당신은 정확하고 간결한 답변을 제공하는 AI 어시스턴트입니다."
     response = f"[PLAYGROUND] {question}에 대한 답변입니다."
     return response, EvalMetadata(
@@ -515,7 +515,7 @@ try:
 
     # ── RagasAdapter ─────────────────────────────────────────────────────
     print("  [2] RagasAdapter")
-    ragas_adapter = RagasAdapter(llm_model="gpt-4o-mini")
+    ragas_adapter = RagasAdapter(llm_model="gpt-5-nano")
     if not ragas_adapter.is_available():
         print("    미설치 — pip install 'agent-evaluator[eval]' 로 활성화")
     else:
