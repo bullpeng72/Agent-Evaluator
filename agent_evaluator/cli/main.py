@@ -323,24 +323,33 @@ def cmd_init(args: argparse.Namespace) -> int:  # noqa: C901
                 keep = input("  Keep existing? [Y/n]: ").strip().lower()
             except EOFError:
                 keep = "y"
-            if keep not in ("n", "no"):
-                print()
-                continue
+            if keep in ("n", "no"):
+                # 새 값 입력
+                prompt = "  Enter API key (blank to skip): "
+                try:
+                    new_val = getpass.getpass(prompt).strip()
+                except (EOFError, getpass.GetPassWarning):
+                    new_val = ""
+
+                if new_val:
+                    to_save[env_var] = new_val
+                    print(f"  {G}→ Will be saved{R}  {_dim(_mask(new_val))}")
         else:
             print(f"  Current value: {_dim('not set')}")
+            # 새 값 입력
+            prompt = "  Enter API key (blank to skip): "
+            try:
+                new_val = getpass.getpass(prompt).strip()
+            except (EOFError, getpass.GetPassWarning):
+                new_val = ""
 
-        # 새 값 입력
-        prompt = "  Enter API key (blank to skip): "
-        try:
-            new_val = getpass.getpass(prompt).strip()
-        except (EOFError, getpass.GetPassWarning):
-            new_val = ""
+            if new_val:
+                to_save[env_var] = new_val
+                print(f"  {G}→ Will be saved{R}  {_dim(_mask(new_val))}")
 
-        if new_val:
-            to_save[env_var] = new_val
-            print(f"  {G}→ Will be saved{R}  {_dim(_mask(new_val))}")
-
-            # companion 설정값 처리
+        # companion 설정값 처리 (키가 있거나 새로 설정된 경우)
+        effective_val = to_save.get(env_var) or current_val
+        if effective_val:
             for comp_var, comp_default, comp_desc in companions:
                 comp_cur, comp_src = _current_value(comp_var)
 
@@ -357,7 +366,7 @@ def cmd_init(args: argparse.Namespace) -> int:  # noqa: C901
                     except EOFError:
                         keep_comp = "y"
 
-                    if keep_comp not in ("n", "no"):
+                    if keep_comp in ("n", "no"):
                         comp_cur = None  # Force re-entry
 
                 if not comp_cur:
